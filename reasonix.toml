@@ -1,0 +1,77 @@
+# Reasonix configuration.
+# Resolution order: flag > ./reasonix.toml > ~/AppData/Roaming/reasonix/config.toml > built-in defaults.
+# Secrets come from the environment via api_key_env; never put keys here.
+
+config_version = 3   # schema marker for diagnostics; old versions may ignore it
+default_model = "deepseek-flash"
+# language      = "zh"   # ui/model language; empty = auto-detect from $LANG / $REASONIX_LANG
+
+[agent]
+# system_prompt = """..."""   # omit to use the built-in prompt for this version
+# system_prompt_file = "prompts/system.md"   # overrides system_prompt when set
+# max_steps         = 0   # executor tool-call rounds; 0 = no limit
+# planner_max_steps = 12   # planner read-only tool-call rounds; 0 = no limit
+temperature       = 0.0
+auto_plan   = "off"   # off|on; off keeps plan mode manual
+# reasoning_language = "zh"   # visible reasoning language: auto|zh|en
+# auto_plan_classifier = "deepseek-flash"   # optional; only used for borderline tasks
+soft_compact_ratio  = 0.5   # notice only; keeps cache-first prefix intact
+compact_ratio       = 0.8   # try compacting when prompt reaches this fraction
+compact_force_ratio = 0.9   # force compacting at this high-water mark
+# keep                = ["errors"]   # compaction keep policy: errors, user_marked
+# recent_keep         = 2   # minimum recent messages kept verbatim
+cold_resume_prune   = true   # elide stale tool results when reopening a session past the provider cache window
+# planner_model = "mimo"   # optional: enable two-model collaboration
+# subagent_model = "deepseek-pro"   # optional default for runAs=subagent skills
+# subagent_models = { review = "deepseek-pro", security_review = "deepseek-pro" }   # per-skill overrides
+# subagent_effort = "high"   # optional default effort for subagents
+# subagent_efforts = { review = "max", task = "high" }   # per-tool/skill effort overrides
+# output_style = "explanatory"   # explanatory | learning | concise | custom; empty = default
+
+[tools]
+enabled = []   # empty = all built-in tools
+bash_timeout_seconds = 120   # foreground safety cap; set 0 for no tool-local cap
+
+[tools.background_jobs]
+stalled_warning_seconds = 900   # warn once per background job after this many quiet seconds; 0 disables
+
+[lsp]
+enabled = true   # language server tools; servers launch lazily when used
+# [lsp.servers.go]
+# command = "gopls"
+# args = []
+# extensions = [".go"]
+
+[skills]
+# paths = ["~/my-skills", "../shared/skills"]   # extra custom skill roots
+# excluded_paths = ["~/.agents/skills"]   # hide convention roots without deleting folders
+# max_depth = 3   # nested scan depth; set 1 for legacy root-only discovery
+# disabled_skills = ["review"]   # hide noisy or unwanted skills
+
+[permissions]
+allow = ["Bash(cd D:/AI/wubigork && git clone https://github.com/NousResearch/hermes-agent.git hermes-agent-ref 2>&1)", "Bash(cd D:/AI/hermes-agent && grep -rn \"XAI_API_KEY\\|XAI_BASE_URL\\|xai.*api.*key\" --include=\"*.py\" --include=\"*.env*\" --include=\"*.yaml\" --include=\"*.md\" | head -30)", "Bash(curl -s \"https://auth.x.ai/.well-known/openid-configuration\" | python3 -m json.tool 2>$null)", "Bash(curl -s:*)", "Bash(cd D:\\AI\\wubigork && git status --short)", "Bash(cd D:\\AI\\wubigork && git log --oneline -5)", "explore", "Edit", "Bash(cd D:\\AI\\wubigork && go build ./... 2>&1)", "research", "Bash(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>&1 || echo \"NO_NVIDIA_GPU\")", "Bash(ls docs/superpowers/specs/ 2>/dev/null || echo \"DIR_NOT_FOUND\")", "Bash(nvidia-smi 2>&1 || echo \"nvidia-smi not found\")", "Bash(python --version 2>&1 && pip list 2>&1 | head -30)", "run_skill", "Bash(cd /d/ai/wubigork && git log --oneline -30)", "Bash(cd /d/ai/wubigork && git status --short)", "Bash(cd /d/ai/wubigork && git diff --stat)", "Bash(cd D:\\AI\\wubigork && git log --oneline -20 -- internal/outline/outline.go internal/app/outline_handler.go frontend/src/pages/OutlinePage.tsx)", "Bash(cd /d/AI/wubigork && git log --oneline -20 -- internal/outline/outline.go internal/app/outline_handler.go frontend/src/pages/OutlinePage.tsx)", "Bash(cd /d/AI/wubigork && git log --oneline -5)"]
+[sandbox]
+# Confine tool blast radius. File-writers (write_file/edit_file/multi_edit/move_file)
+# may only write under workspace_root (empty = current dir) and allow_write extras.
+# bash = "enforce" (default) jails each command in an OS sandbox (macOS now;
+# graceful fallback elsewhere); "off" disables it. network allows egress.
+# workspace_root = ""            # default: current working directory
+# allow_write = ["/tmp"]          # extra dirs writers may also modify
+bash    = "enforce"
+network = true
+
+[statusline]
+# A custom status line: a command whose first stdout line replaces the built-in
+# data row. It receives {"model","contextUsed","contextWindow","cwd"} as JSON on stdin.
+# command = "my-statusline.sh"
+
+# External MCP servers. type: "stdio" (default, a subprocess) | "http" | "sse".
+# ${VAR} / ${VAR:-default} are expanded from the environment in command/args/env/url/headers.
+# [[plugins]]
+# name    = "example"
+# command = "reasonix-plugin-example"
+# [[plugins]]                                  # a remote server over Streamable HTTP
+# name    = "stripe"
+# type    = "http"
+# url     = "https://mcp.stripe.com"
+# headers = { Authorization = "Bearer ${STRIPE_KEY}" }

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" viewBox="0 0 48 48">
+  <!-- 层叠书页 — 两个交叠菱形构成书籍翻动意象，右上角星光代表灵感 -->
+  <defs>
+    <linearGradient id="d1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="d2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+  </defs>
+  <!-- 主菱形（琥珀金渐变） -->
+  <polygon points="24,10 38,24 24,38 10,24" fill="url(#d1)" opacity="0.92"/>
+  <!-- 副菱形（暖橙渐变，偏移产生层叠感） -->
+  <polygon points="27,12 38,23 27,34 16,23" fill="url(#d2)" opacity="0.88"/>
+  <!-- 灵感星光 -->
+  <circle cx="39" cy="9" r="3" fill="#fbbf24"/>
+  <!-- 星光光晕 -->
+  <circle cx="39" cy="9" r="5" fill="#fbbf24" opacity="0.25"/>
+</svg>

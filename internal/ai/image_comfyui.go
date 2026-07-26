@@ -1,0 +1,488 @@
+package ai
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"math/rand"
+	"net/http"
+	"strings"
+	"time"
+)
+
+// ComfyUIBackend 通过 ComfyUI REST API 调用本地 Flux / Z-Image-Turbo 模型
+type ComfyUIBackend struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+// NewComfyUIBackend 创建 ComfyUI 后端
+func NewComfyUIBackend(baseURL string) *ComfyUIBackend {
+	return &ComfyUIBackend{
+		baseURL:    strings.TrimSuffix(baseURL, "/"),
+		httpClient: &http.Client{Timeout: 10 * time.Minute}, // 图片生成可能很久
+	}
+}
+
+// GenerateImage 通过 ComfyUI 生成图片
+func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
+	// 解析尺寸
+	width, height := 1024, 1024
+	if req.Size != "" {
+		parts := strings.Split(req.Size, "x")
+		if len(parts) == 2 {
+			fmt.Sscanf(parts[0], "%d", &width)
+			fmt.Sscanf(parts[1], "%d", &height)
+		}
+	}
+
+	seed := req.Seed
+	if seed == 0 {
+		seed = rand.Intn(1 << 31)
+	}
+
+	var workflow map[string]interface{}
+	switch req.Model {
+	case "z-image-turbo":
+		steps := 8
+		workflow = b.buildZImageWorkflow(req.Prompt, width, height, seed, steps)
+	default: // "flux" 或空
+		steps := 20
+		workflow = b.buildFluxWorkflow(req.Prompt, req.Negative, width, height, seed, steps)
+	}
+
+	// 1. 提交任务
+	promptID, err := b.queuePrompt(ctx, workflow)
+	if err != nil {
+		return nil, fmt.Errorf("ComfyUI 提交失败: %w", err)
+	}
+	slog.Info("ComfyUI 任务已提交", "promptID", promptID, "size", fmt.Sprintf("%dx%d", width, height))
+
+	// 2. 轮询等待完成
+	imageData, err := b.waitForResult(ctx, promptID)
+	if err != nil {
+		return nil, fmt.Errorf("ComfyUI 生成失败: %w", err)
+	}
+
+	return &ImageGenerationResponse{
+		Created: time.Now().Unix(),
+		Data: []ImageData{
+			{B64JSON: imageData},
+		},
+	}, nil
+}
+
+// buildFluxWorkflow 构建 Flux GGUF + Realism LoRA + NSFW LoRA 工作流 JSON
+func (b *ComfyUIBackend) buildFluxWorkflow(prompt string, negative string, width, height, seed, steps int) map[string]interface{} {
+	return map[string]interface{}{
+		// UnetLoaderGGUF — 加载 Flux GGUF 模型
+		"4": map[string]interface{}{
+			"class_type": "UnetLoaderGGUF",
+			"inputs":     map[string]interface{}{"unet_name": "flux1-dev-Q5_K_S.gguf"},
+		},
+		// DualCLIPLoader — 加载 CLIP + T5
+		"5": map[string]interface{}{
+			"class_type": "DualCLIPLoader",
+			"inputs": map[string]interface{}{
+				"clip_name1": "clip_l.safetensors",
+				"clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+				"type":       "flux",
+			},
+		},
+		// VAELoader
+		"6": map[string]interface{}{
+			"class_type": "VAELoader",
+			"inputs":     map[string]interface{}{"vae_name": "ae.safetensors"},
+		},
+		// CLIPTextEncode — positive
+		"7": map[string]interface{}{
+			"class_type": "CLIPTextEncode",
+			"inputs": map[string]interface{}{
+				"text": prompt,
+				"clip": []interface{}{"5", 0},
+			},
+		},
+		// CLIPTextEncode — negative
+		"8": map[string]interface{}{
+			"class_type": "CLIPTextEncode",
+			"inputs": map[string]interface{}{
+				"text": negative,
+				"clip": []interface{}{"5", 0},
+			},
+		},
+		// EmptyLatentImage
+		"9": map[string]interface{}{
+			"class_type": "EmptyLatentImage",
+			"inputs": map[string]interface{}{
+				"width":      width,
+				"height":     height,
+				"batch_size": 1,
+			},
+		},
+		// KSampler
+		"10": map[string]interface{}{
+			"class_type": "KSampler",
+			"inputs": map[string]interface{}{
+				"seed":         seed,
+				"steps":        steps,
+				"cfg":          1.0, // Flux uses cfg=1
+				"sampler_name": "euler",
+				"scheduler":    "simple",
+				"denoise":      1.0,
+				"model":        []interface{}{"14", 0},
+				"positive":     []interface{}{"7", 0},
+				"negative":     []interface{}{"8", 0},
+				"latent_image": []interface{}{"9", 0},
+			},
+		},
+		// VAEDecode
+		"11": map[string]interface{}{
+			"class_type": "VAEDecode",
+			"inputs": map[string]interface{}{
+				"samples": []interface{}{"10", 0},
+				"vae":     []interface{}{"6", 0},
+			},
+		},
+		// SaveImage — 输出节点
+		"12": map[string]interface{}{
+			"class_type": "SaveImage",
+			"inputs": map[string]interface{}{
+				"filename_prefix": "wubigork",
+				"images":          []interface{}{"11", 0},
+			},
+		},
+		// ═══ LoRA 链 ═══
+		// LoraLoaderModelOnly — Realism (写实质感)
+		"13": map[string]interface{}{
+			"class_type": "LoraLoaderModelOnly",
+			"inputs": map[string]interface{}{
+				"model":          []interface{}{"4", 0},
+				"lora_name":      "Realism Lora By Stable Yogi_V3_Lite.safetensors",
+				"strength_model": 0.75,
+			},
+		},
+		// LoraLoaderModelOnly — NSFW (情色风格)
+		"14": map[string]interface{}{
+			"class_type": "LoraLoaderModelOnly",
+			"inputs": map[string]interface{}{
+				"model":          []interface{}{"13", 0},
+				"lora_name":      "NSFW_master_ZIT_000017532.safetensors",
+				"strength_model": 0.9,
+			},
+		},
+	}
+}
+
+// buildZImageWorkflow 构建 Z-Image-Turbo GGUF 工作流 JSON
+// 使用 ComfyUI-ZImagePowerNodes + ComfyUI-GGUF 节点
+// Z-Image-Turbo: 8 步, CFG=0, Qwen3-4B text encoder (lumina2)
+func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, width, height, seed, steps int) map[string]interface{} {
+	// 确保步数合理
+	if steps <= 0 || steps > 50 {
+		steps = 8
+	}
+
+	// 根据传入尺寸映射 Z-Image ratio 参数
+	// Z-Image-Turbo 支持的 ratio（竖图通过 horizontal:false + 横版比例实现）
+	ratio := "1:1  (square)"
+	horizontal := true
+	if width > height {
+		horizontal = true
+		r := float64(width) / float64(height)
+		switch {
+		case r >= 2.0:
+			ratio = "2:1  (univisium)"
+		case r >= 1.7:
+			ratio = "16:9  (widescreen)"
+		case r >= 1.4:
+			ratio = "3:2  (photo)"
+		default:
+			ratio = "4:3  (retro tv)"
+		}
+	} else if height > width {
+		horizontal = false
+		r := float64(height) / float64(width)
+		switch {
+		case r >= 2.0:
+			ratio = "2:1  (univisium)"
+		case r >= 1.7:
+			ratio = "16:9  (widescreen)"
+		case r >= 1.4:
+			ratio = "3:2  (photo)"
+		default:
+			ratio = "4:3  (retro tv)"
+		}
+	}
+
+	return map[string]interface{}{
+		// UnetLoaderGGUF — 加载 Z-Image-Turbo GGUF 模型
+		"4": map[string]interface{}{
+			"class_type": "UnetLoaderGGUF",
+			"inputs": map[string]interface{}{
+				"unet_name": "z_image_turbo-Q5_K_M.gguf",
+			},
+		},
+		// LoraLoaderModelOnly — NSFW ZIT LoRA
+		"13": map[string]interface{}{
+			"class_type": "LoraLoaderModelOnly",
+			"inputs": map[string]interface{}{
+				"model":          []interface{}{"4", 0},
+				"lora_name":      "NSFW_master_ZIT_000017532.safetensors",
+				"strength_model": 0.7,
+			},
+		},
+		// CLIPLoaderGGUF — 加载 Qwen3-4B text encoder (lumina2 type)
+		"5": map[string]interface{}{
+			"class_type": "CLIPLoaderGGUF",
+			"inputs": map[string]interface{}{
+				"clip_name": "Qwen3-4B.i1-Q4_K_M.gguf",
+				"type":      "lumina2",
+			},
+		},
+		// VAELoader — 与 Flux 共用 ae.safetensors
+		"6": map[string]interface{}{
+			"class_type": "VAELoader",
+			"inputs": map[string]interface{}{
+				"vae_name": "ae.safetensors",
+			},
+		},
+		// CLIPTextEncode — positive prompt
+		"7": map[string]interface{}{
+			"class_type": "CLIPTextEncode",
+			"inputs": map[string]interface{}{
+				"text": prompt,
+				"clip": []interface{}{"5", 0},
+			},
+		},
+		// EmptyZImageLatentImage — Z-Image 专用潜空间
+		"9": map[string]interface{}{
+			"class_type": "EmptyZImageLatentImage //ZImagePowerNodes",
+			"inputs": map[string]interface{}{
+				"horizontal": horizontal,
+				"ratio":      ratio,
+				"size":       "medium (recommended)",
+				"batch_size": 1,
+			},
+		},
+		// ZSamplerTurbo2Simple — Z-Image Turbo 采样器 (8步, CFG=0)
+		"10": map[string]interface{}{
+			"class_type": "ZSamplerTurbo2Simple //ZImagePowerNodes",
+			"inputs": map[string]interface{}{
+				"seed":              seed,
+				"steps":             steps,
+				"ibias":             0.0,
+				"divider":           1,
+				"turbo_creativity":  false,
+				"old_scheduler":     false,
+				"noise_injection":   false,
+				"alternative_refiner": false,
+				"model":        []interface{}{"13", 0},
+				"positive":     []interface{}{"7", 0},
+				"latent_input": []interface{}{"9", 0},
+			},
+		},
+		// VAEDecode — 标准 ComfyUI 解码器
+		"11": map[string]interface{}{
+			"class_type": "VAEDecode",
+			"inputs": map[string]interface{}{
+				"samples": []interface{}{"10", 0},
+				"vae":     []interface{}{"6", 0},
+			},
+		},
+		// SaveImage — 输出节点
+		"12": map[string]interface{}{
+			"class_type": "SaveImage",
+			"inputs": map[string]interface{}{
+				"filename_prefix": "wubigork",
+				"images":          []interface{}{"11", 0},
+			},
+		},
+	}
+}
+
+// queuePrompt 提交 ComfyUI 任务
+func (b *ComfyUIBackend) queuePrompt(ctx context.Context, workflow map[string]interface{}) (string, error) {
+	body := map[string]interface{}{
+		"prompt": workflow,
+	}
+	data, err := json.Marshal(body)
+	if err != nil {
+		return "", err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.baseURL+"/prompt", bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := b.httpClient.Do(httpReq)
+	if err != nil {
+		return "", fmt.Errorf("连接 ComfyUI 失败 (%s): %w", b.baseURL, err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("读取 ComfyUI 响应失败: %w", err)
+	}
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("ComfyUI HTTP %d: %s", resp.StatusCode, trimStr(string(respBody), 300))
+	}
+
+	var result struct {
+		PromptID string `json:"prompt_id"`
+		Error    string `json:"error"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("解析 ComfyUI 响应失败: %w", err)
+	}
+	if result.Error != "" {
+		return "", fmt.Errorf("ComfyUI 错误: %s", result.Error)
+	}
+	return result.PromptID, nil
+}
+
+// waitForResult 轮询等待 ComfyUI 生成完成，返回 base64 图片
+func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string) (string, error) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	timeout := time.After(10 * time.Minute)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-timeout:
+			return "", fmt.Errorf("ComfyUI 生成超时 (10分钟)")
+		case <-ticker.C:
+			images, done, err := b.checkHistory(promptID)
+			if err != nil {
+				if done {
+					return "", err
+				}
+				slog.Warn("ComfyUI 轮询失败", "error", err)
+				continue
+			}
+			if done {
+				if len(images) == 0 {
+					return "", fmt.Errorf("ComfyUI 完成但无输出图片")
+				}
+				// 下载第一张图片并返回 base64
+				return b.downloadImage(ctx, images[0])
+			}
+		}
+	}
+}
+
+// checkHistory 查询任务状态，返回 (图片文件名列表, 是否完成, 错误)
+func (b *ComfyUIBackend) checkHistory(promptID string) ([]string, bool, error) {
+	resp, err := b.httpClient.Get(b.baseURL + "/history/" + promptID)
+	if err != nil {
+		return nil, false, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, false, fmt.Errorf("读取 ComfyUI history 失败: %w", err)
+	}
+
+	var history map[string]interface{}
+	if err := json.Unmarshal(body, &history); err != nil {
+		return nil, false, err
+	}
+
+	entry, ok := history[promptID]
+	if !ok {
+		return nil, false, nil // 还没完成
+	}
+
+	entryMap, ok := entry.(map[string]interface{})
+	if !ok {
+		return nil, true, nil
+	}
+
+	// 检测执行错误
+	if status, ok := entryMap["status"].(map[string]interface{}); ok {
+		if statusStr, _ := status["status_str"].(string); statusStr == "error" {
+			// 提取错误消息
+			errMsg := "ComfyUI 执行错误"
+			if msgs, ok := status["messages"].([]interface{}); ok {
+				for _, m := range msgs {
+					if msgArr, ok := m.([]interface{}); ok && len(msgArr) >= 2 {
+						if msgType, _ := msgArr[0].(string); msgType == "execution_error" {
+							if details, ok := msgArr[1].(map[string]interface{}); ok {
+								if em, _ := details["exception_message"].(string); em != "" {
+									errMsg = errMsg + ": " + strings.TrimSpace(em)
+								}
+							}
+						}
+					}
+				}
+			}
+			return nil, true, fmt.Errorf("%s", errMsg)
+		}
+	}
+
+	outputs, ok := entryMap["outputs"].(map[string]interface{})
+	if !ok {
+		return nil, true, nil
+	}
+
+	// 遍历输出节点找图片
+	var imageFiles []string
+	for _, output := range outputs {
+		outputMap, ok := output.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		imgs, ok := outputMap["images"].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, img := range imgs {
+			imgMap, ok := img.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if fn, ok := imgMap["filename"].(string); ok {
+				imageFiles = append(imageFiles, fn)
+			}
+		}
+	}
+
+	return imageFiles, true, nil
+}
+
+// downloadImage 从 ComfyUI 下载图片并返回 base64 data URL
+func (b *ComfyUIBackend) downloadImage(ctx context.Context, filename string) (string, error) {
+	url := fmt.Sprintf("%s/view?filename=%s&subfolder=&type=output", b.baseURL, filename)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := b.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("下载图片失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	mimeType := "image/png"
+	if resp.Header.Get("Content-Type") != "" {
+		mimeType = resp.Header.Get("Content-Type")
+	}
+
+	return "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}

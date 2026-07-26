@@ -1,0 +1,57 @@
+# 编译产物
+wubigork.exe
+wubigork
+
+# 前端
+frontend/dist/
+frontend/node_modules/
+node_modules/
+package-lock.json
+package.json
+*.tsbuildinfo
+frontend/package.json.md5
+dist/
+
+# Token
+.wubigork_token.json
+
+# 测试项目
+novels/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Wails
+frontend/wailsjs/
+
+# 移动端 PWA
+mobile/node_modules/
+mobile/dist/
+
+# Go
+*.exe~
+
+# Wails 构建产物
+build/bin/
+
+# 大模型文件
+*.gguf
+
+# 工具会话 / 诊断产物
+.tianxuan/
+.codegraph/
+.reasonix/
+.superpowers/
+z_image_turbo-Q5_K_M(1).gguf
+
+# 环境变量
+.env
+
+# 发布二进制（太大）
+releases/*.exe

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" fill="none" viewBox="0 0 1024 1024">
+  <!-- wubigork 桌面应用图标 — 层叠书页 + 灵感星光 -->
+  <defs>
+    <linearGradient id="ad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="ad2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+  </defs>
+  <!-- 深色圆角底板 -->
+  <rect width="1024" height="1024" rx="205" fill="#0f0f1a"/>
+  <!-- 主菱形（琥珀金渐变） -->
+  <polygon points="512,180 760,428 512,676 264,428" fill="url(#ad1)" opacity="0.92"/>
+  <!-- 副菱形（暖橙渐变，偏移层叠） -->
+  <polygon points="564,220 776,428 564,636 352,428" fill="url(#ad2)" opacity="0.88"/>
+  <!-- 灵感星光 -->
+  <circle cx="760" cy="180" r="60" fill="#fbbf24"/>
+  <!-- 星光光晕 -->
+  <circle cx="760" cy="180" r="100" fill="#fbbf24" opacity="0.2"/>
+</svg>

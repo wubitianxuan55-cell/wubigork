@@ -1,0 +1,26 @@
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gofmt
+
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - (*github.com/wailsapp/wails/v2/pkg/application.WailsEvent).Emit
+
+run:
+  timeout: 3m
+  tests: true
+
+issues:
+  exclude-dirs:
+    - frontend
+    - dist
+    - build
+    - novels

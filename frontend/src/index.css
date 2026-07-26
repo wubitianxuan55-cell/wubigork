@@ -1,0 +1,283 @@
+/* wubigork — Material Design 3 全局样式 */
+
+#root {
+  width: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* ═══ 滚动条 ═══ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-outline-variant);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--md-sys-color-outline); }
+
+/* 移动端隐藏滚动条 */
+@media (max-width: 899px) {
+  ::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
+}
+
+/* ═══ M3 Surface 工具类 ═══ */
+.md-surface {
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  border-radius: var(--md-sys-radius-md);
+}
+.md-surface-container {
+  background: var(--md-sys-color-surface-container);
+  border-radius: var(--md-sys-radius-lg);
+}
+.md-surface-container-high {
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--md-sys-radius-lg);
+}
+.md-surface-container-highest {
+  background: var(--md-sys-color-surface-container-highest);
+  border-radius: var(--md-sys-radius-lg);
+}
+
+/* M3 Elevation 工具类 */
+.md-elevation-1 { box-shadow: var(--md-sys-elevation-1); }
+.md-elevation-2 { box-shadow: var(--md-sys-elevation-2); }
+.md-elevation-3 { box-shadow: var(--md-sys-elevation-3); }
+.md-elevation-4 { box-shadow: var(--md-sys-elevation-4); }
+.md-elevation-5 { box-shadow: var(--md-sys-elevation-5); }
+
+/* M3 可点击卡片（带 hover lift + state layer） */
+.md-card {
+  background: var(--md-sys-color-surface-container);
+  border-radius: var(--md-sys-radius-xl);
+  box-shadow: var(--md-sys-elevation-1);
+  cursor: pointer;
+  transition: box-shadow var(--md-sys-transition-normal),
+              transform var(--md-sys-transition-normal);
+  position: relative;
+}
+.md-card:hover {
+  box-shadow: var(--md-sys-elevation-2);
+  transform: translateY(-1px);
+}
+.md-card:active {
+  box-shadow: var(--md-sys-elevation-1);
+  transform: translateY(0);
+}
+/* 触摸设备跳过 hover 动画 */
+@media (hover: none) {
+  .md-card:hover { box-shadow: var(--md-sys-elevation-1); transform: none; }
+}
+
+/* ═══ M3 涟漪效果 (CSS only) ═══ */
+.md-ripple {
+  position: relative;
+  overflow: hidden;
+}
+.md-ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center,
+    var(--md-sys-color-on-surface) 0%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 400ms;
+}
+.md-ripple:active::after {
+  opacity: 0.1;
+}
+
+/* ═══ 分区标题 ═══ */
+.section-title {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--md-sys-color-on-surface-variant);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+/* ═══ 写作编辑器 ═══ */
+.writing-textarea {
+  font-family: 'Georgia', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif !important;
+  background: var(--md-sys-color-surface-container) !important;
+  border-radius: var(--md-sys-radius-md) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  padding: 20px 24px !important;
+  font-size: 16px !important;
+  line-height: 2 !important;
+  resize: vertical;
+  min-height: 240px;
+  letter-spacing: 0.02em;
+}
+.writing-textarea::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.5;
+  font-style: italic;
+}
+.writing-textarea:focus {
+  border-color: var(--md-sys-color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(from var(--md-sys-color-primary) r g b / 0.15) !important;
+}
+
+/* ═══ 主题色发光按钮 ═══ */
+.btn-primary-glow {
+  background: var(--md-sys-color-primary) !important;
+  border-color: var(--md-sys-color-primary) !important;
+  box-shadow: 0 2px 8px rgba(from var(--md-sys-color-primary) r g b / 0.3);
+  transition: box-shadow var(--md-sys-transition-slow);
+}
+.btn-primary-glow:hover {
+  box-shadow: 0 4px 16px rgba(from var(--md-sys-color-primary) r g b / 0.4);
+}
+
+/* ═══ 动画 ═══ */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes pulseCursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.writing-cursor::after {
+  content: '▌';
+  color: var(--md-sys-color-primary);
+  animation: pulseCursor 0.8s ease-in-out infinite;
+}
+.cursor-blink {
+  display: inline-block;
+  width: 2px; height: 1.1em;
+  background: var(--md-sys-color-primary);
+  vertical-align: text-bottom;
+  margin-left: 1px;
+  border-radius: 1px;
+  animation: blink 1s step-end infinite;
+}
+.page-transition-enter {
+  animation: pageEnter 0.25s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ═══ M3 Navigation (Ant Design 覆盖) ═══ */
+.ant-menu-horizontal {
+  border-bottom: none !important;
+  background: transparent !important;
+}
+.ant-menu-horizontal .ant-menu-item {
+  border-radius: 28px !important;  /* M3 pill shape */
+  margin: 0 2px !important;
+  padding: 0 16px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  transition: background var(--md-sys-transition-fast);
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+.ant-menu-horizontal .ant-menu-item:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+.ant-menu-horizontal .ant-menu-item-selected {
+  background: var(--md-sys-color-primary-container) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
+}
+.ant-menu-horizontal .ant-menu-item-selected::after {
+  display: none !important;
+}
+
+/* ═══ Chapter Tabs ═══ */
+.chapter-tabs .ant-tabs-nav { margin-bottom: 0 !important; }
+.chapter-tabs .ant-tabs-tab {
+  border-radius: 20px !important;
+  padding: 6px 14px !important;
+  margin: 4px 2px !important;
+  background: transparent !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+  border: none !important;
+  transition: all var(--md-sys-transition-fast) !important;
+  font-size: 12px !important;
+}
+.chapter-tabs .ant-tabs-tab-active {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+.chapter-tabs .ant-tabs-tab-active .ant-tabs-tab-btn { color: var(--md-sys-color-on-primary) !important; }
+.chapter-tabs .ant-tabs-tab-remove { color: var(--md-sys-color-on-surface-variant) !important; font-size: 10px !important; }
+
+/* ═══ M3 Modal (Ant Design 覆盖) ═══ */
+.ant-modal-content {
+  background: var(--md-sys-color-surface-container-high) !important;
+  border-radius: var(--md-sys-radius-xl) !important;
+  box-shadow: var(--md-sys-elevation-5) !important;
+  border: none !important;
+}
+.ant-modal-header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant) !important;
+  border-radius: var(--md-sys-radius-xl) var(--md-sys-radius-xl) 0 0 !important;
+}
+.ant-modal-footer {
+  border-top: 1px solid var(--md-sys-color-outline-variant) !important;
+}
+.ant-modal-close { color: var(--md-sys-color-on-surface-variant) !important; }
+.ant-modal-mask {
+  background: rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: none !important;
+}
+
+/* ═══ Bento Grid 响应式 ═══ */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: minmax(160px, auto);
+  gap: 16px;
+}
+@media (max-width: 1200px) { .bento-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 768px)  { .bento-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px)  { .bento-grid { grid-template-columns: 1fr; } }
+
+/* ═══ 触控区最小 44px ═══ */
+@media (max-width: 899px) {
+  button, .ant-btn, .ant-menu-item, .ant-tabs-tab,
+  [role="button"], a[href], .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ═══ reduced-motion ═══ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
