@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/wubigork/wubigork/internal/tts"
@@ -105,24 +106,30 @@ func (a *App) TTSSpeak(text string) (string, error) {
 
 	return outputPath, nil
 }
-
-// TTSSpeakBase64 合成语音并返回 base64 编码字符串
 func (a *App) TTSSpeakBase64(text string) (map[string]interface{}, error) {
-	client, err := a.getOrInitClient()
-	if err != nil {
-		return nil, err
+	// 遍历所有引擎找 TTS 模型，优先 Herdsman
+	if a.engineMgr != nil {
+		for _, eid := range []string{"herdsman", "xai"} {
+			eng, ok := a.engineMgr.GetEngine(eid)
+			if !ok || !eng.Enabled { continue }
+			for _, m := range eng.Models {
+				id := strings.ToLower(m.ID)
+				if m.Status != "" && m.Status != "running" { continue }
+				if strings.Contains(id, "tts") || strings.Contains(id, "voice") {
+					htts := tts.NewHerdsmanTTS(eng.BaseURL, m.ID, "aiden")
+					if audio, err := htts.Synthesize(text); err == nil && len(audio) > 0 {
+						return map[string]interface{}{
+							"base64":   base64.StdEncoding.EncodeToString(audio),
+							"mimeType": "audio/mp3",
+						}, nil
+					}
+				}
+			}
+		}
 	}
-
-	audioBytes, err := client.Synthesize(text)
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]interface{}{
-		"base64":   base64.StdEncoding.EncodeToString(audioBytes),
-		"mimeType": "audio/wav",
-	}, nil
+	return nil, fmt.Errorf("无可用 TTS 模型：请在模型中心启动一个语音模型")
 }
+// TTSSpeakStreaming 流式合成：逐句生成。
 
 // TTSSpeakStreaming 流式合成：逐句生成。
 // 引擎优先级：xAI TTS → Edge TTS → WinTTS (SAPI) → VoxCPM (如可用)
@@ -138,7 +145,24 @@ func (a *App) TTSSpeakStreaming(text string) error {
 		Format string
 	}
 
-	// 0. xAI TTS（在线，最高质量，$15/1M chars）
+	// 0. Herdsman TTS（本地优先）
+	if a.engineMgr != nil {
+		herdEngine, ok := a.engineMgr.GetEngine("herdsman")
+		if ok && herdEngine.Enabled {
+			for _, m := range herdEngine.Models {
+				id := strings.ToLower(m.ID)
+				if m.Status != "" && m.Status != "running" { continue }
+				if strings.Contains(id, "tts") || strings.Contains(id, "voice") {
+					htts := tts.NewHerdsmanTTS(herdEngine.BaseURL, m.ID, "aiden")
+					engines = append(engines, htts)
+					metas = append(metas, struct{ Label string; Format string }{"herdsman-tts", "mp3"})
+					break
+				}
+			}
+		}
+	}
+
+	// 1. xAI TTS（在线，最高质量，$15/1M chars）
 	if a.client != nil {
 		xaiTTS := tts.NewXaiTTS(
 			a.cfg.XaiAPIBaseURL,
