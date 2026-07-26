@@ -48,6 +48,13 @@ func (a *App) SetEngineDefaultModel(engineID, modelName string) error {
 	if err := a.engineMgr.SetDefaultModel(engineID, modelName); err != nil {
 		return err
 	}
+
+	// 同步更新 cfg.Model，确保 xAI 引擎和其他回退路径使用最新模型
+	a.cfg.Model = modelName
+	if err := config.Save("model", modelName); err != nil {
+		slog.Warn("保存模型配置失败", "model", modelName, "error", err)
+	}
+
 	a.emit("model-changed", map[string]interface{}{"engine": engineID, "model": modelName})
 	return nil
 }

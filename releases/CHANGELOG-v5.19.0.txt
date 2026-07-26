@@ -1,0 +1,37 @@
+v5.19.0 — 流式创作 + 阅读模式 + 分支修正
+
+【流式章节生成】
+- CreateChapter 改为后台 goroutine 流式输出，逐 chunk 实时推送到前端
+- 字数守卫：正文不足 5000 字自动续写（非重试），最多续写 2 次
+- CHAPTER_SUMMARY 标记后的摘要内容不进入正文流，仅保存到节点树
+
+【分支章节修正】
+- 分支命名：在第5章后新建分支 → 第6a章（原第6章不变），最多 a/b/c 三个分支
+- 分支文件：chapters/006a.md 独立存储
+- 新增 GetChapterBranch / SaveChapterBranchContent API
+
+【模型切换修复】
+- cfg.Model 持久化三处断裂修复：
+  - configFile 结构体 + saveSetters + Load 映射
+  - SaveConfig switch 补 case "model"
+  - SetEngineDefaultModel 同步更新 cfg.Model
+
+【写作 → 阅读】
+- 导航栏「写作」→「阅读」
+- ChapterPage 精简：删除生成按钮、AI 协写面板、审稿、统计、定稿、BookReviewModal
+- 保留：章节导航、正文编辑/保存、TTS 朗读、专注模式
+
+【AI 控制台增强】
+- 完整显示 system prompt 和 user prompt（去掉 80 字截断）
+- chunk 日志完整显示（去掉 slice(-800)）
+- 日志区 overflow-y:scroll + maxHeight，面板不撑爆屏幕
+- 日志上限 200→100 条
+
+【节点摘要】
+- 节点摘要限制 100 字（prompt 要求 + util.Truncate 兜底）
+- 前文摘要注入时每个节点截断到 100 字
+
+【UI 修复】
+- 底栏 Footer 始终可见（Layout flex column, Content overflow:auto）
+- 大纲面板叶子节点按 depth 缩进对齐
+- 节点树标题直接显示 n.title，避免 "第6章 第6章" 重复

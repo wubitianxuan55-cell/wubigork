@@ -49,7 +49,8 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
               n.status === 'abandoned' ? '废弃' : '未写'
           cards.push(
             <div key={n.id} onClick={() => onSelectNode(n)} style={{
-              padding: '6px 10px', margin: '2px 0', cursor: 'pointer',
+              padding: '6px 10px', paddingLeft: 10 + depth * 16,
+              margin: '2px 0', cursor: 'pointer',
               background: isSelected ? 'rgba(192,132,252,0.08)' : 'transparent',
               borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
               borderLeft: isSelected ? '3px solid #c084fc' : '3px solid transparent',
@@ -58,7 +59,7 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
                 <span style={{ color: '#c084fc', fontSize: 10, fontWeight: 600 }}>
                   {n.order_index || '·'}
                 </span>
-                <span style={{ flex: 1, fontSize: 12 }}>{n.title}</span>
+                <span style={{ flex: 1, fontSize: 12 }}>{(n.title || '').trim() || `第${n.order_index || '?'}章`}</span>
                 <span style={{
                   width: 7, height: 7, borderRadius: '50%',
                   background: statusColor, display: 'inline-block',

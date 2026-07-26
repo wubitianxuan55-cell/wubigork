@@ -31,6 +31,7 @@ const (
 	KeyComfyUIPath         = "comfyui_path"
 	KeyComfyUIPythonPath   = "comfyui_python_path"
 	KeyActiveEngineID      = "active_engine_id"
+	KeyModel               = "model"
 )
 
 // configFile 表示 ~/.wubigork_config.json 的结构
@@ -55,6 +56,7 @@ type configFile struct {
 	TTSBackend          string  `json:"tts_backend,omitempty"`    // TTS 后端: "cpu" | "cuda"
 	TTSSpeed            float64 `json:"tts_speed,omitempty"`      // TTS 语速
 	ActiveEngineID      string  `json:"active_engine_id,omitempty"` // 活跃模型引擎 ID
+	Model               string  `json:"model,omitempty"`             // 默认 LLM 模型名
 }
 
 // Config 全局配置
@@ -296,6 +298,9 @@ func Load() *Config {
 			if cf.ActiveEngineID != "" {
 				cfg.ActiveEngineID = cf.ActiveEngineID
 			}
+			if cf.Model != "" {
+				cfg.Model = cf.Model
+			}
 		}
 	}
 
@@ -387,4 +392,5 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyTTSBackend:         func(cf *configFile, v string) error { cf.TTSBackend = v; return nil },
 	KeyTTSSpeed:          func(cf *configFile, v string) error { f, err := strconv.ParseFloat(v, 64); if err != nil { return err }; cf.TTSSpeed = f; return nil },
 	KeyActiveEngineID:    func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
+	KeyModel:             func(cf *configFile, v string) error { cf.Model = v; return nil },
 }

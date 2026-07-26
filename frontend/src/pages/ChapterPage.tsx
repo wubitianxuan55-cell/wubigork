@@ -1,29 +1,19 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
-  Typography, Button, Space, Tag, message, Tabs, Tooltip, Modal, Skeleton, Divider,
+  Typography, Button, Space, Tag, message, Tabs, Tooltip,
 } from 'antd'
 import type { TabsProps } from 'antd'
 import {
-  PlayCircleOutlined, SaveOutlined, LeftOutlined, RightOutlined,
-  ThunderboltOutlined, BookOutlined,
-  SearchOutlined, BarChartOutlined,
-  CheckCircleOutlined,
+  SaveOutlined, LeftOutlined, RightOutlined,
+  BookOutlined,
 } from '@ant-design/icons'
 import {
-  GetChapter, GenerateChapter, SaveChapterContent,
-  SaveOutlineNode, AnalyzeChapter,
-  GetWorldview,
+  GetChapter, SaveChapterContent,
 } from '../../wailsjs/go/app/App'
-import PlotBranchModal from '../components/PlotBranchModal'
 import { useAppStore } from '../stores/appStore'
-import { useChapterStream } from '../hooks/useChapterStream'
-import StatsModal from '../components/StatsModal'
-import BookReviewModal from '../components/BookReviewModal'
 import TTSPlayer from '../components/TTSPlayer'
 import ChapterEditor from '../components/ChapterEditor'
-import AIAssistSheet from '../components/AIAssistSheet'
 import OutlinePanel from '../components/OutlinePanel'
-import ReviewResult from '../components/ReviewResult'
 import { findAllLeaves, sortNodes } from '../utils/outline'
 import { useOutlineStore } from '../stores/outlineStore'
 import type { OutlineNode, ChapterTabData } from '../types'
@@ -42,29 +32,13 @@ function createTabData(node: OutlineNode): ChapterTabData {
 
 const ChapterPage: React.FC = () => {
   const outlines = useOutlineStore((s) => s.outlines)
-  const storyThread = useOutlineStore((s) => s.storyThread)
   const loadOutlines = useOutlineStore((s) => s.loadOutlines)
   const [tabs, setTabs] = useState<ChapterTabData[]>([])
   const [activeKey, setActiveKey] = useState<string>('')
-  const activeKeyRef = useRef(activeKey)
-  const startTime = useRef(0)
   const [focusMode, setFocusMode] = useState(false)
   const [outlineCollapsed, setOutlineCollapsed] = useState(false)
   const handleSaveRef = useRef<() => void>(() => {})
-  const [reviewVisible, setReviewVisible] = useState(false)
-  const [reviewing, setReviewing] = useState(false)
-  const [reviewData, setReviewData] = useState<any>(null)
-  const [statsVisible, setStatsVisible] = useState(false)
-  const [bookReviewVisible, setBookReviewVisible] = useState(false)
-  const [branchModalOpen, setBranchModalOpen] = useState(false)
-  const [branchNodeID, setBranchNodeID] = useState('')
-  const lastCompletedNode = useRef<OutlineNode | null>(null)
-  const modalTimerRef = useRef<number>(0)
-  const [ghostEnabled, setGhostEnabled] = useState(true)
-  const [autoSendMsg, setAutoSendMsg] = useState('')
   const sceneTextareaRefs = useRef<Map<number, HTMLTextAreaElement>>(new Map())
-
-  useChapterStream(tabs, setTabs, activeKeyRef, startTime, modalTimerRef, lastCompletedNode)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -84,20 +58,8 @@ const ChapterPage: React.FC = () => {
     setTabs([]); setActiveKey('')
     if (projectPath) {
       loadOutlines()
-      // 检查小说设定，无则跳转
-      ;(async () => {
-        try {
-          const wv = await GetWorldview()
-          if (!wv || !wv.trim()) {
-            message.warning('请先完善小说设定')
-            window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'novelsetting' } }))
-          }
-        } catch (_) { /* 无设定则忽略 */ }
-      })()
     }
   }, [projectPath])
-
-  useEffect(() => { activeKeyRef.current = activeKey }, [activeKey])
 
   const sortedOutlines = useMemo(() => sortNodes(outlines), [outlines])
   const outlineLeaves = useMemo(() => findAllLeaves(sortedOutlines) as OutlineNode[], [sortedOutlines])
@@ -150,44 +112,6 @@ const ChapterPage: React.FC = () => {
     })
   }
 
-  const handleGenerate = async () => {
-    if (!activeTab) return
-    setBranchNodeID(activeTab.node.id)
-    setBranchModalOpen(true)
-  }
-
-  /** 分支选择后 → 生成章节 */
-  const handleBranchApplied = async () => {
-    setBranchModalOpen(false)
-    if (!branchNodeID) return
-    const node = outlineLeaves.find((n) => n.id === branchNodeID)
-    if (!node) return
-    await handleSelectNode(node)
-    setTabs((prev) => {
-      const i = prev.findIndex((t) => t.node.id === branchNodeID)
-      if (i < 0) return prev
-      const c = [...prev]
-      c[i] = { ...c[i], generating: true, scenes: [''], streamSpeed: 0, saved: false }
-      return c
-    })
-    startTime.current = Date.now()
-    try {
-      await SaveOutlineNode(JSON.stringify({ ...node, status: 'writing' }))
-      loadOutlines()
-    } catch (e) {}
-    try {
-      await GenerateChapter(branchNodeID, '', 3000)
-    } catch (err: any) {
-      setTabs((prev) => {
-        const i = prev.findIndex((t) => t.node.id === branchNodeID)
-        if (i < 0) return prev
-        const c = [...prev]
-        c[i] = { ...c[i], generating: false, scenes: ['❌ ' + (err.message || err)] }
-        return c
-      })
-    }
-  }
-
   const handleSave = async () => {
     if (!activeTab || activeTab.chapterNum < 1) return
     const c = activeTab.scenes.join('\n\n')
@@ -200,92 +124,51 @@ const ChapterPage: React.FC = () => {
   }
   handleSaveRef.current = handleSave
 
-  const handleFinalize = async () => {
-    if (!activeTab || activeTab.chapterNum < 1) return
-    const c = activeTab.scenes.join('\n\n')
-    if (!c) { message.warning('暂无内容'); return }
-    try {
-      await SaveChapterContent(activeTab.chapterNum, c)
-      await SaveOutlineNode(JSON.stringify({ ...activeTab.node, status: 'done' }))
-      loadOutlines()
-      message.success('已定稿')
-    } catch (e) { message.error('操作失败') }
+  // 前后章节导航
+  const handlePrevChapter = async () => {
+    if (!activeTab) return
+    const idx = outlineLeaves.findIndex((n) => n.id === activeTab.node.id)
+    if (idx > 0) handleSelectNode(outlineLeaves[idx - 1])
+  }
+  const handleNextChapter = async () => {
+    if (!activeTab) return
+    const idx = outlineLeaves.findIndex((n) => n.id === activeTab.node.id)
+    if (idx < outlineLeaves.length - 1) handleSelectNode(outlineLeaves[idx + 1])
   }
 
-  const handlePrevChapter = () => {
-    const i = outlineLeaves.findIndex((n) => n.id === activeTab?.node.id)
-    if (i > 0) handleSelectNode(outlineLeaves[i - 1])
-  }
+  const totalWords = activeTab?.scenes?.join('\n').length || 0
 
-  const handleNextChapter = () => {
-    const i = outlineLeaves.findIndex((n) => n.id === activeTab?.node.id)
-    if (i >= 0 && i < outlineLeaves.length - 1) handleSelectNode(outlineLeaves[i + 1])
-  }
-
-  const handleReview = async () => {
-    if (!activeTab?.chapterNum) return
-    setReviewVisible(true)
-    setReviewing(true)
-    setReviewData(null)
-    try {
-      setReviewData(await AnalyzeChapter(activeTab.chapterNum))
-    } catch (err: any) {
-      message.error(err.message || '操作失败')
-      setReviewVisible(false)
-    } finally {
-      setReviewing(false)
-    }
-  }
-
-  const getChapterStats = async () => {
-    const stats: any[] = []
-    for (const n of outlineLeaves) {
-      const num = n.order_index || 0
-      if (num < 1) continue
-      try {
-        const d = await GetChapter(num)
-        if (d) stats.push({ num, title: n.title, words: (d.content || '').length })
-      } catch (e) {}
-    }
-    return stats
-  }
-
-  const tabItems: TabsProps['items'] = tabs.map((tab) => ({
-    key: tab.node.id,
-    label: (
-      <Tooltip title={tab.summary || tab.node.title}>
-        <Space size={2}>
-          {tab.generating ? <ThunderboltOutlined style={{ color: '#4ade80', fontSize: 11 }} /> : null}
-          <span>{tab.chapterNum > 0 ? '第' + tab.chapterNum + '章' : tab.node.title.slice(0, 8)}</span>
-        </Space>
-      </Tooltip>
-    ),
+  const tabItems: TabsProps['items'] = tabs.map((t) => ({
+    key: t.node.id, label: t.node.title,
     closable: true,
   }))
 
-  const totalWords = activeTab ? [...activeTab.scenes.join('\n\n')].length : 0
-  const outlineWidth = outlineCollapsed ? 40 : 220
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'row', height: 'calc(100vh - 112px)', gap: 12 }}>
-      {/* ── 大纲面板（桌面端，专注模式下隐藏）── */}
-      {!focusMode && (
-        <OutlinePanel
-          outlines={sortedOutlines}
-          activeKey={activeKey}
-          onSelectNode={handleSelectNode}
-          collapsed={outlineCollapsed}
-          onToggleCollapse={() => setOutlineCollapsed(!outlineCollapsed)}
-        />
-      )}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography.Title level={4} style={{ color: C('color-text'), margin: 0 }}>
+          <BookOutlined style={{ marginRight: 8 }} />阅读
+        </Typography.Title>
+      </div>
 
-      {/* ── 主编辑区 ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+      <div style={{ flex: 1, display: 'flex', gap: 8, minHeight: 0 }}>
+        {/* 左：大纲 */}
+        {!focusMode && (
+          <OutlinePanel
+            outlines={sortedOutlines}
+            activeKey={activeTab?.node.id || ''}
+            onSelectNode={handleSelectNode}
+            collapsed={outlineCollapsed}
+            onToggleCollapse={() => setOutlineCollapsed((p) => !p)}
+          />
+        )}
+
+        {/* 右：正文 */}
         {!activeTab ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: C('color-bg-container'), borderRadius: 8, border: '1px solid ' + C('color-border') }}>
-            <div style={{ textAlign: 'center', color: C('color-text-secondary') }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C('color-text-secondary'), opacity: 0.5 }}>
+            <div style={{ textAlign: 'center' }}>
               <BookOutlined style={{ fontSize: 48, marginBottom: 16 }} />
-              <div>从左侧大纲选择章节开始写作</div>
+              <div>从左侧大纲选择章节开始阅读</div>
             </div>
           </div>
         ) : (
@@ -302,12 +185,11 @@ const ChapterPage: React.FC = () => {
                   <Space size={4} style={{ flexShrink: 0 }}>
                     <Button size="small" icon={<LeftOutlined />} onClick={handlePrevChapter} type="text" />
                     <Button size="small" icon={<RightOutlined />} onClick={handleNextChapter} type="text" />
-                    {activeTab.generating && <Tag color="green" style={{ fontSize: 9 }}>{activeTab.streamSpeed}cps</Tag>}
                   </Space>
                 </div>
               )}
 
-              {/* 章节信息摘要栏 */}
+              {/* 章节信息栏 */}
               {!focusMode && (
                 <div style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid ' + C('color-border'), fontSize: 12, background: 'rgba(192,132,252,0.03)' }}>
                   <BookOutlined style={{ color: '#c084fc', fontSize: 11 }} />
@@ -329,29 +211,17 @@ const ChapterPage: React.FC = () => {
                   <TTSPlayer getText={() => activeTab?.scenes?.join('\n\n') || ''} />
                   <div style={{ flex: 1 }} />
                   <Tooltip title="Ctrl+S"><Button size="small" icon={<SaveOutlined />} onClick={handleSave} disabled={!totalWords}>保存</Button></Tooltip>
-                  <Button size="small" icon={<CheckCircleOutlined />} onClick={handleFinalize} disabled={!totalWords}>定稿</Button>
-                  <Divider type="vertical" style={{ margin: '0 4px', borderColor: C('color-border'), height: 18 }} />
-                  <Button type="primary" size="small" icon={<PlayCircleOutlined />} onClick={handleGenerate} loading={activeTab.generating}>生成</Button>
-                  <Button size="small" icon={<SearchOutlined />} onClick={handleReview}>审稿</Button>
-                  <Divider type="vertical" style={{ margin: '0 4px', borderColor: C('color-border'), height: 18 }} />
-                  <Button size="small" icon={<BarChartOutlined />} onClick={() => setStatsVisible(true)}>统计</Button>
                 </div>
               )}
 
               {/* 编辑器主体 */}
-              <ChapterEditor tab={activeTab} onUpdate={updateTab} sceneTextareaRefs={sceneTextareaRefs} ghostEnabled={ghostEnabled} />
+              <ChapterEditor tab={activeTab} onUpdate={updateTab} sceneTextareaRefs={sceneTextareaRefs} ghostEnabled={false} />
             </div>
-
-            {/* AI 协写面板 */}
-            {!focusMode && (
-              <AIAssistSheet tab={activeTab} onUpdate={updateTab} autoSendMsg={autoSendMsg} onAutoSendDone={() => setAutoSendMsg('')} />
-            )}
 
             {/* 底部快捷键提示栏 */}
             <div style={{ padding: '2px 12px', display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: C('color-text-secondary'), opacity: 0.7 }}>
               <span><kbd style={{ border: '1px solid ' + C('color-border'), borderRadius: 3, padding: '0 4px', fontSize: 10, fontFamily: 'monospace' }}>F11</kbd> 专注模式</span>
               <span><kbd style={{ border: '1px solid ' + C('color-border'), borderRadius: 3, padding: '0 4px', fontSize: 10, fontFamily: 'monospace' }}>Ctrl+S</kbd> 保存</span>
-              <span><kbd style={{ border: '1px solid ' + C('color-border'), borderRadius: 3, padding: '0 4px', fontSize: 10, fontFamily: 'monospace' }}>Ctrl+K</kbd> AI 编辑</span>
               {focusMode && (
                 <>
                   <div style={{ flex: 1 }} />
@@ -363,26 +233,6 @@ const ChapterPage: React.FC = () => {
           </>
         )}
       </div>
-
-      {/* ── 弹窗层 ── */}
-      <Modal title="AI 审稿" open={reviewVisible} onCancel={() => setReviewVisible(false)} footer={null} width={640}>
-        {reviewing ? <Skeleton active /> : reviewData ? <ReviewResult data={reviewData} /> : null}
-      </Modal>
-      <StatsModal open={statsVisible} onClose={() => setStatsVisible(false)}
-        getChapterStats={getChapterStats}
-        totalWords={totalWords}
-        chapterCount={findAllLeaves(sortNodes(outlines)).length}
-      />
-      <BookReviewModal open={bookReviewVisible} onClose={() => setBookReviewVisible(false)} />
-
-      {/* 剧情分支选择 */}
-      <PlotBranchModal
-        open={branchModalOpen}
-        onClose={() => setBranchModalOpen(false)}
-        nodeID={branchNodeID}
-        nodeTitle={activeTab?.node.title || ''}
-        onApplied={handleBranchApplied}
-      />
     </div>
   )
 }

@@ -81,8 +81,10 @@ const CreatePage: React.FC = () => {
 
   const selectChapter = async (node: OutlineNode) => {
     setActiveId(node.id); setChapterLoading(true)
-    try { setContent((await App.GetChapter(node.order_index || 1) as any)?.content || '') }
-    catch (_) { setContent('') }
+    try {
+      const branch = (node as any).branch || ''
+      setContent((await App.GetChapterBranch(node.order_index || 1, branch) as any)?.content || '')
+    } catch (_) { setContent('') }
     finally { setChapterLoading(false) }
   }
 
@@ -91,7 +93,7 @@ const CreatePage: React.FC = () => {
     for (const n of outlines) {
       const cn = n.order_index || 0
       if (cn > 0 && cn <= upToChapter && n.summary) {
-        parts.push(`第${cn}章：${n.summary}`)
+        parts.push(`第${cn}章：${n.summary.slice(0, 100)}`)
       }
     }
     return parts.join('\n\n')
@@ -127,20 +129,48 @@ const CreatePage: React.FC = () => {
     const plotReq = userInput.trim() || (chosen ? `${chosen.title}：${chosen.pitch}` : '')
     if (!plotReq) { message.warning('请选择分支或输入剧情要求'); return }
     setWizOpen(false); setGenerating(true); setGenPhase('正在生成…')
-    try {
-      const prevSummary = wizPrevChapter > 0 ? getPrevSummary(wizPrevChapter) : ''
-      const result = await App.CreateChapter(setting, prevSummary, plotReq, wizOverwriteChapter, wizBranchFromID) as any
-      await loadOutlines()
-      const chNum = result?.chapterNum || 0
-      if (chNum > 0) {
-        const updated = useOutlineStore.getState().outlines
-        const ch = updated.find(n => n.order_index === chNum)
-        if (ch) { setActiveId(ch.id); setContent(result?.content || '') }
+    setContent('')
+
+    // 注册流式事件监听
+    const handler = (event: any) => {
+      const data = event.detail || event
+      switch (data.type) {
+        case 'chunk':
+          setContent((prev) => prev + (data.content || ''))
+          setGenPhase(`正在生成… ${(data.total || 0).toLocaleString()} 字`)
+          break
+        case 'done':
+          setGenPhase('')
+          setGenerating(false)
+          const chNum = data.chapterNum || 0
+          const branch = data.branch || ''
+          const label = branch ? `第${chNum}${branch}章` : `第${chNum}章`
+          message.success(`${label} 生成完成（${(data.total || 0).toLocaleString()} 字）`)
+          loadOutlines().then(() => {
+            const updated = useOutlineStore.getState().outlines
+            const ch = updated.find(n => n.order_index === chNum && (n as any).branch === branch)
+            if (ch) setActiveId(ch.id)
+          })
+          try { window.runtime?.EventsOff?.('create-chapter-stream') } catch (_) {}
+          break
+        case 'error':
+          setGenPhase('')
+          setGenerating(false)
+          message.error(data.error || '生成失败')
+          try { window.runtime?.EventsOff?.('create-chapter-stream') } catch (_) {}
+          break
       }
+    }
+
+    try {
+      try { window.runtime?.EventsOn?.('create-chapter-stream', handler) } catch (_) {}
+      await App.CreateChapter(setting, '', plotReq, wizOverwriteChapter, wizBranchFromID)
+    } catch (err: any) {
+      setGenerating(false)
       setGenPhase('')
-      message.success(wizOverwriteChapter > 0 ? `第${wizOverwriteChapter}章已重新生成` : `第${chNum}章生成完成`)
-    } catch (err: any) { message.error(err?.message || '失败') }
-    finally { setGenerating(false) }
+      message.error(err?.message || '生成失败')
+      try { window.runtime?.EventsOff?.('create-chapter-stream') } catch (_) {}
+    }
   }
 
   const handleDelete = async (node: OutlineNode) => {
@@ -161,8 +191,11 @@ const CreatePage: React.FC = () => {
     const node = outlines.find(n => n.id === activeId)
     if (!node || !content.trim()) return
     setSaving(true)
-    try { await App.SaveChapterContent(node.order_index || 1, content); message.success('已保存') }
-    catch (err: any) { message.error(err?.message || '失败') }
+    try {
+      const branch = (node as any).branch || ''
+      await App.SaveChapterBranchContent(node.order_index || 1, branch, content)
+      message.success('已保存')
+    } catch (err: any) { message.error(err?.message || '失败') }
     finally { setSaving(false) }
   }
 
@@ -189,6 +222,7 @@ const CreatePage: React.FC = () => {
             const isActive = activeId === n.id
             const chapNum = n.order_index || 1
             const isBranch = !!n.parent_id
+            const nodeBranch = (n as any).branch || ''
             return (
               <div key={n.id} style={{ marginBottom: 2 }}>
                 <div style={{
@@ -199,10 +233,10 @@ const CreatePage: React.FC = () => {
                   borderLeft: isBranch ? '2px solid var(--md-sys-color-outline-variant)' : undefined,
                 }}>
                   <div onClick={() => selectChapter(n)}
-                    title={`ID: ${n.id}\n${n.summary ? '摘要: ' + n.summary : ''}`}
+                    title={n.summary ? `摘要: ${n.summary.slice(0, 100)}${n.summary.length > 100 ? '...' : ''}` : `ID: ${n.id}`}
                     style={{ flex: 1, cursor: 'pointer', color: isActive ? 'var(--md-sys-color-on-primary-container)' : C('color-text'), fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                     {isBranch ? <ShareAltOutlined style={{ fontSize: 9, marginRight: 4, opacity: 0.5 }} /> : <RightOutlined style={{ fontSize: 10, marginRight: 4, opacity: 0.4 }} />}
-                    第{chapNum}章 {n.title || ''}
+                    {n.title || `第${chapNum}章`}
                   </div>
                   <Space size={0}>
                     <Button type="text" size="small" icon={<ReloadOutlined />}

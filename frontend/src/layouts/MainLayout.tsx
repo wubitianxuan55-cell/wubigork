@@ -31,7 +31,7 @@ const menuItems: { key: Page; icon: React.ReactNode; label: string }[] = [
   { key: 'novelsetting', icon: <FileTextOutlined />, label: '设定' },
   { key: 'character', icon: <UserOutlined />, label: '角色' },
   { key: 'create', icon: <ThunderboltOutlined />, label: '创作' },
-  { key: 'chapter', icon: <BookOutlined />, label: '写作' },
+  { key: 'chapter', icon: <BookOutlined />, label: '阅读' },
   { key: 'imagegen', icon: <PictureOutlined />, label: '绘梦' },
   { key: 'export', icon: <ExportOutlined />, label: '导出' },
   { key: 'modelcenter', icon: <ApiOutlined />, label: '模型中心' },
@@ -123,7 +123,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
 }
 
 const pageLabels: Record<Page, string> = {
-  home: '书架', novelsetting: '设定', character: '角色', create: '创作', chapter: '写作',
+  home: '书架', novelsetting: '设定', character: '角色', create: '创作', chapter: '阅读',
   imagegen: 'AI 绘梦', export: '导出', settings: '设置', modelcenter: '模型引擎中心',
 }
 
@@ -236,7 +236,7 @@ const MainLayout: React.FC = () => {
         system: ev.system,
         user: ev.user,
       }
-      setLogs((prev) => [...prev.slice(-199), entry])
+      setLogs((prev) => [...prev.slice(-99), entry])
     }
     // @ts-ignore
     window.runtime.EventsOn('xai-output', handler)
@@ -253,7 +253,7 @@ const MainLayout: React.FC = () => {
   }, [logs])
 
   return (
-    <Layout style={{ minHeight: '100vh', background: 'linear-gradient(180deg, var(--md-sys-color-surface-dim) 0%, var(--md-sys-color-surface) 100%)' }}>
+    <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--md-sys-color-surface-dim) 0%, var(--md-sys-color-surface) 100%)' }}>
       {/* ═══ 顶栏 ═══ */}
         <Header style={{
           display: 'flex', alignItems: 'center', height: 48, padding: '0 16px',
@@ -378,6 +378,7 @@ const MainLayout: React.FC = () => {
 {consoleOpen && page !== 'imagegen' && page !== 'modelcenter' && (
   <div style={{
     width: 380, flexShrink: 0, alignSelf: 'stretch',
+    maxHeight: 'calc(100vh - 80px)',
     margin: '8px 8px 8px 0',
     background: 'var(--md-sys-color-surface-container)',
     border: '1px solid var(--md-sys-color-outline-variant)',
@@ -418,7 +419,7 @@ const MainLayout: React.FC = () => {
         </Button>
       </Space>
     </div>
-    <div ref={logContainerRef} style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
+    <div ref={logContainerRef} style={{ flex: 1, overflowY: 'scroll', maxHeight: 'calc(100vh - 200px)', padding: '8px 12px' }}>
       {logs.length === 0 ? (
         <div style={{ color: 'var(--md-sys-color-text-secondary)', textAlign: 'center', marginTop: 40, opacity: 0.5 }}>
           <ConsoleSqlOutlined style={{ fontSize: 24, marginBottom: 8 }} />
@@ -450,7 +451,7 @@ const MainLayout: React.FC = () => {
                   </>}
                   {l.type === 'response' && l.content && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text)', fontFamily: 'monospace', fontSize: 9 }}>{l.content}</pre>}
                   {l.type === 'error' && l.error && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: '#f87171', fontFamily: 'monospace', fontSize: 9 }}>{l.error}</pre>}
-                  {l.type === 'chunk' && l.content && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text)', fontFamily: 'monospace', fontSize: 9 }}>{l.content.slice(-800)}</pre>}
+                  {l.type === 'chunk' && l.content && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text)', fontFamily: 'monospace', fontSize: 9 }}>{l.content}</pre>}
                 </div>
               )}
             </div>

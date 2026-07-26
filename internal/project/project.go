@@ -244,6 +244,25 @@ func (m *Manager) ChapterPath(num int) string {
 	return filepath.Join(m.Dir, "chapters", fmt.Sprintf("%03d.md", num))
 }
 
+// ChapterBranchPath 返回分支章节文件路径 chapters/NNN{a,b,c}.md
+func (m *Manager) ChapterBranchPath(num int, branch string) string {
+	return filepath.Join(m.Dir, "chapters", fmt.Sprintf("%03d%s.md", num, branch))
+}
+
+// WriteChapterBranch 写分支章节
+func (m *Manager) WriteChapterBranch(num int, branch string, content string) error {
+	return os.WriteFile(m.ChapterBranchPath(num, branch), []byte(content), 0644)
+}
+
+// ReadChapterBranch 读分支章节
+func (m *Manager) ReadChapterBranch(num int, branch string) (string, error) {
+	data, err := os.ReadFile(m.ChapterBranchPath(num, branch))
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 // WriteChapterSummary 写章节摘要 chapters/NNN-summary.json
 func (m *Manager) WriteChapterSummary(num int, summary *types.ChapterSummary) error {
 	return writeJSON(m.ChapterSummaryPath(num), summary)

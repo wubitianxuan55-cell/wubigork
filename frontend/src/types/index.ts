@@ -13,6 +13,7 @@ export interface OutlineNode {
   scene_ideas?: string[]
   emotion?: string
   chapter_file?: string
+  branch?: string       // 分支字母: "a"/"b"/"c"
   children?: OutlineNode[]
 }
 

@@ -15,7 +15,6 @@ import (
 	"github.com/wubigork/wubigork/internal/auth"
 	"github.com/wubigork/wubigork/internal/config"
 	"github.com/wubigork/wubigork/internal/modelengine"
-	"github.com/wubigork/wubigork/internal/util"
 )
 
 // Client xAI API 客户端，封装认证和 HTTP 通信
@@ -401,8 +400,8 @@ func (c *Client) ChatSimpleStreamWithOptions(ctx context.Context, model, systemP
 
 	c.emit("request", map[string]interface{}{
 		"model":     model,
-		"system":    util.Truncate(systemPrompt, 80),
-		"user":      util.Truncate(userMsg, 80),
+		"system":    systemPrompt,
+		"user":      userMsg,
 		"reasoning": opts.ReasoningEffort,
 		"engine":    c.ActiveEngineID(),
 	})

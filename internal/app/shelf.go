@@ -136,7 +136,10 @@ func (a *App) SaveConfig(key, value string) error {
 		if f, err := strconv.ParseFloat(value, 64); err == nil {
 			a.cfg.DefaultTemperature = f
 		}
+	case "model":
+		a.cfg.Model = value
 	}
+	return nil
 	return nil
 }
 

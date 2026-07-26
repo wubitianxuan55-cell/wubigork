@@ -113,7 +113,33 @@ func (a *App) GetChapter(num int) (map[string]interface{}, error) {
 	}, nil
 }
 
-// SaveChapterContent 手动保存章节内容
+// GetChapterBranch 读取分支章节内容（branch 为空时读主线）
+func (a *App) GetChapterBranch(num int, branch string) (map[string]interface{}, error) {
+	pm := a.getPM()
+	if pm == nil {
+		return nil, fmt.Errorf("请先打开项目")
+	}
+	var content string
+	var err error
+	if branch != "" {
+		content, err = pm.ReadChapterBranch(num, branch)
+	} else {
+		content, err = pm.ReadChapter(num)
+	}
+	if err != nil {
+		return nil, err
+	}
+	summary, err := pm.ReadChapterSummary(num)
+	if err != nil {
+		slog.Warn("读取章节摘要失败", "chapter", num, "error", err)
+	}
+	return map[string]interface{}{
+		"content": content,
+		"summary": summary,
+	}, nil
+}
+
+// SaveChapterContent 手动保存章节内容（主线）
 func (a *App) SaveChapterContent(num int, content string) error {
 	pm := a.getPM()
 	if pm == nil {
@@ -122,6 +148,14 @@ func (a *App) SaveChapterContent(num int, content string) error {
 	return pm.WriteChapter(num, content)
 }
 
+// SaveChapterBranchContent 手动保存分支章节内容
+func (a *App) SaveChapterBranchContent(num int, branch string, content string) error {
+	pm := a.getPM()
+	if pm == nil {
+		return fmt.Errorf("请先打开项目")
+	}
+	return pm.WriteChapterBranch(num, branch, content)
+}
 // ChatChapter 与写作 Agent 讨论特定章节
 func (a *App) ChatChapter(chapterNum int, userMsg string) (map[string]interface{}, error) {
 	if a.chapterAgent == nil {

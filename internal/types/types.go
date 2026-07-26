@@ -129,9 +129,10 @@ type OutlineNode struct {
 	KeyPoints   []string          `json:"key_points,omitempty"`
 	Emotion     string            `json:"emotion,omitempty"` // 本章情感基调
 	Status      OutlineNodeStatus `json:"status"`
-	ChapterFile string            `json:"chapter_file,omitempty"` // 对应 chapters/NNN.md
+	ChapterFile string            `json:"chapter_file,omitempty"` // 对应 chapters/NNN.md 或 NNN{a,b,c}.md
 	SceneRefs   []string          `json:"scene_refs,omitempty"`   // v4: 关联的场景 ID 列表
 	OrderIndex  int               `json:"order_index"`
+	Branch      string            `json:"branch,omitempty"`       // 分支字母: ""=主线, "a"/"b"/"c"=分支
 	Children    []OutlineNode     `json:"children,omitempty"`
 }
 

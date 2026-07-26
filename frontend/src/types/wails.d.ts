@@ -55,7 +55,9 @@ interface AppAPI {
   // ── 章节 ──
   GenerateChapter(outlineNodeID: string, skillName: string, targetWords: number): Promise<any>
   GetChapter(num: number): Promise<{ content?: string; summary?: any }>
+  GetChapterBranch(num: number, branch: string): Promise<{ content?: string; summary?: any }>
   SaveChapterContent(num: number, content: string): Promise<void>
+  SaveChapterBranchContent(num: number, branch: string, content: string): Promise<void>
   ChatChapter(chapterNum: number, userMsg: string): Promise<any>
   ReviewChapter(chapterNum: number): Promise<any>
   GenerateSceneIllustration(chapterNum: number): Promise<any>
