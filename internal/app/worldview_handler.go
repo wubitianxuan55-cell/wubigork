@@ -14,11 +14,11 @@ import (
 // ── 世界观 ────────────────────────────────────────────────────
 
 // ChatWorldview 与世界观 Agent 对话（注入角色+大纲上下文，自动保存）
-func (a *App) ChatWorldview(userMsg string) (map[string]interface{}, error) {
+func (a *App) ChatWorldview(userMsg string, currentContent string) (map[string]interface{}, error) {
 	if a.worldviewAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
-	reply, err := a.worldviewAgent.ChatWithAutoSave(a.ctx, userMsg)
+	reply, err := a.worldviewAgent.ChatWithAutoSave(a.ctx, userMsg, currentContent)
 	if err != nil {
 		return nil, err
 	}

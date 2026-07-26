@@ -63,7 +63,7 @@ const NovelSettingPage: React.FC = () => {
 
   const handleChatSend = async (userMsg: string): Promise<string> => {
     try {
-      const result = await App.ChatWorldview(userMsg)
+      const result = await App.ChatWorldview(userMsg, content)
       const reply = (result as any)?.reply || ''
       const worldview = (result as any)?.worldview
       // AI 返回更新后的设定文本，自动填入编辑器

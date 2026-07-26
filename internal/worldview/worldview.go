@@ -30,17 +30,8 @@ func New(client ai.LLMClient, pm *project.Manager, cfg *config.Config, eng *prom
 
 // ── 对话 ────────────────────────────────────────────────────
 
-// Chat 对话式编辑世界观（注入角色+大纲上下文）
-func (a *Agent) Chat(ctx context.Context, userMsg string) (string, error) {
-	wf, err := a.pm.ReadWorldviewFile()
-	if err != nil {
-		slog.Warn("世界观: 读取失败", "error", err)
-	}
-	currentWV := ""
-	if wf != nil {
-		currentWV = wf.ToMarkdown()
-	}
-
+// Chat 对话式编辑世界观（直接使用前端传来的当前设定文本）
+func (a *Agent) Chat(ctx context.Context, userMsg string, currentContent string) (string, error) {
 	charsCtx := a.loadCharsContext()
 	outlineCtx := a.loadOutlineContext()
 
@@ -53,13 +44,14 @@ func (a *Agent) Chat(ctx context.Context, userMsg string) (string, error) {
 	systemPrompt := tmpl.BuildSystemPrompt("")
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
 		"user_idea":         userMsg,
-		"current_worldview": currentWV,
+		"current_worldview": currentContent,
 		"characters":        charsCtx,
 		"outlines":          outlineCtx,
 	})
 
 	return a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
 }
+// ── 保存 ────────────────────────────────────────────────────
 // ── 保存 ────────────────────────────────────────────────────
 // ── 保存 ────────────────────────────────────────────────────
 
@@ -152,15 +144,9 @@ func (a *Agent) GetSections() *types.WorldviewFile {
 	return wf
 }
 
-// ── 一致性检查 ─────────────────────────────────────────────
-
-// ── 自动保存 ───────────────────────────────────────────────
-
-// ── 自动保存 ───────────────────────────────────────────────
-
 // ChatWithAutoSave 对话 + 从回复中提取更新并自动保存
-func (a *Agent) ChatWithAutoSave(ctx context.Context, userMsg string) (string, error) {
-	reply, err := a.Chat(ctx, userMsg)
+func (a *Agent) ChatWithAutoSave(ctx context.Context, userMsg string, currentContent string) (string, error) {
+	reply, err := a.Chat(ctx, userMsg, currentContent)
 	if err != nil {
 		return "", fmt.Errorf("AI 调用失败: %w", err)
 	}
