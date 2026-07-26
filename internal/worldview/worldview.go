@@ -32,9 +32,6 @@ func New(client ai.LLMClient, pm *project.Manager, cfg *config.Config, eng *prom
 
 // Chat 对话式编辑世界观（直接使用前端传来的当前设定文本）
 func (a *Agent) Chat(ctx context.Context, userMsg string, currentContent string) (string, error) {
-	charsCtx := a.loadCharsContext()
-	outlineCtx := a.loadOutlineContext()
-
 	// 尝试加载 prompt 模板
 	tmpl := a.eng.Get("worldview-agent")
 	if tmpl == nil {
@@ -45,8 +42,6 @@ func (a *Agent) Chat(ctx context.Context, userMsg string, currentContent string)
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
 		"user_idea":         userMsg,
 		"current_worldview": currentContent,
-		"characters":        charsCtx,
-		"outlines":          outlineCtx,
 	})
 
 	return a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
