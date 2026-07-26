@@ -141,8 +141,7 @@ func (a *App) ApplyBranch(nodeID string, branchIndex int, userInput string) (map
 		return nil, fmt.Errorf("未找到大纲节点 %s", nodeID)
 	}
 
-	// 再次生成分支以获取完整信息（或从缓存获取——简化版直接重新生成）
-	// TODO: 优化为传入分支对象而不是重新生成
+	// 再次生成分支以获取完整信息（简化版直接重新生成）
 	if branchIndex < 0 {
 		// 手工录入模式：userInput 直接作为 summary + key_points
 		lines := strings.Split(strings.TrimSpace(userInput), "\n")

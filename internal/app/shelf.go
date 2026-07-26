@@ -140,7 +140,6 @@ func (a *App) SaveConfig(key, value string) error {
 		a.cfg.Model = value
 	}
 	return nil
-	return nil
 }
 
 // ── 内部辅助 ─────────────────────────────────────────────────

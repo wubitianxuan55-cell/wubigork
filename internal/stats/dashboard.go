@@ -113,8 +113,6 @@ func GatherDashboard(pm *project.Manager, dailyGoal int) (*DashboardData, error)
 	}
 
 	// 每日统计（简化：基于章节摘要时间 — 实际需文件修改时间）
-	// 当前无文件修改时间追踪，基于章节数估算
-	today := time.Now().Format("2006-01-02")
 	for i := 0; i < d.ChapterCount && i < 30; i++ {
 		date := time.Now().AddDate(0, 0, -i).Format("2006-01-02")
 		wc := 0
@@ -148,8 +146,6 @@ func GatherDashboard(pm *project.Manager, dailyGoal int) (*DashboardData, error)
 
 	// 成就系统
 	d.Achievements = computeAchievements(d)
-
-	_ = today
 	return d, nil
 }
 

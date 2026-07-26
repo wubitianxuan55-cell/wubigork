@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"strings"
 )
 
@@ -66,43 +65,6 @@ func RetryJSON(ctx context.Context, caller LLMCaller, systemPrompt, userPrompt s
 	return "", fmt.Errorf("JSON 解析重试耗尽 (%d 次)", maxRetries+1)
 }
 
-// FastRetryJSON 轻量版：仅做 JSON 验证，不修改 prompt（用于 MM-StoryAgent 的换 seed 重试）。
-// 每次重试只是重新调用，依赖 LLM 的随机性产生不同输出。
-func FastRetryJSON(ctx context.Context, caller LLMCaller, systemPrompt, userPrompt string, maxRetries int) (string, error) {
-	if maxRetries <= 0 {
-		maxRetries = 2
-	}
-
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		reply, err := caller(ctx, systemPrompt, userPrompt)
-		if err != nil {
-			return "", fmt.Errorf("LLM 调用失败 (attempt %d): %w", attempt, err)
-		}
-
-		jsonStr := ExtractJSON(reply)
-		var dummy interface{}
-		if err := json.Unmarshal([]byte(jsonStr), &dummy); err == nil {
-			if attempt > 0 {
-				slog.Info("FastRetryJSON: 重试成功", "attempt", attempt)
-			}
-			return jsonStr, nil
-		}
-
-		if attempt < maxRetries {
-			slog.Warn("FastRetryJSON: JSON 解析失败，重试", "attempt", attempt, "error", err)
-			continue
-		}
-		return "", fmt.Errorf("JSON 解析重试耗尽 (attempt %d): %w", attempt, err)
-	}
-
-	return "", fmt.Errorf("FastRetryJSON 重试耗尽")
-}
-
-// randSeed 用于日志（非加密用途）
-func init() {
-	// 仅用于文档说明
-	_ = rand.Int()
-}
 
 // SafeGo 安全启动 goroutine，自动 recover panic 并记录日志。
 // 用于替代 handler 中重复的 goroutine + panic recover 模式。

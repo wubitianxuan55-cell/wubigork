@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -68,6 +69,8 @@ $s.Dispose()`,
 	return audio, nil
 }
 
+// escapePath 转义路径中的单引号，供 PowerShell 单引号字符串使用
+// PowerShell 单引号字符串中 ' → ''
 func escapePath(p string) string {
-	return p
+	return strings.ReplaceAll(p, "'", "''")
 }

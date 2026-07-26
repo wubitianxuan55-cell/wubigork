@@ -263,26 +263,6 @@ type SnapshotChain struct {
 	Snapshots []Snapshot `json:"snapshots"`
 }
 
-// ── 故事记忆（语义检索用）───────────────────────────────────
-//
-// TODO Phase 4: 集成 ChromaDB 语义检索。以下类型当前未使用，仅为接口预定义。
-
-// StoryMemory 用于 ChromaDB 语义检索的记忆条目
-type StoryMemory struct {
-	ID         string    `json:"id"`
-	Text       string    `json:"text"`
-	Category   string    `json:"category"` // event / character / world / plot
-	ChapterRef string    `json:"chapter_ref"`
-	CreatedAt  time.Time `json:"created_at"`
-	Embedding  []float32 `json:"embedding,omitempty"`
-}
-
-// MemoryResult 语义检索返回结果
-type MemoryResult struct {
-	Memory   StoryMemory `json:"memory"`
-	Distance float64     `json:"distance"`
-}
-
 // ── 项目上下文（注入 AI prompt）─────────────────────────────
 
 // ContextPriority 上下文优先级
@@ -309,5 +289,4 @@ type ProjectContext struct {
 	Foreshadows    []Foreshadow     `json:"foreshadows"`
 	StoryThread    string           `json:"story_thread,omitempty"`  // 故事主线
 	VolumeContext  string           `json:"volume_context,omitempty"` // 当前章的父卷上下文
-	Memories       []MemoryResult   `json:"memories,omitempty"`
 }
