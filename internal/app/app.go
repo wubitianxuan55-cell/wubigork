@@ -90,20 +90,20 @@ func (a *App) Startup(ctx context.Context) {
 	a.engineMgr = modelengine.NewManager("")
 	if tok, err := auth.NewTokenStore(a.cfg.TokenStorePath).Load(); err == nil && tok != nil && !tok.IsExpired() {
 		a.engineMgr.UpdateXAIKey(tok.AccessToken)
-		// 后台自动刷新 xAI 模型列表
-		go func() {
-			if _, err := a.engineMgr.RefreshModels(context.Background(), "xai"); err != nil {
-				slog.Warn("启动时刷新xAI模型列表失败", "error", err)
-			} else {
-				slog.Info("xAI模型列表已自动刷新")
-			}
-		}()
 	}
 	a.configureClient()
 	a.initImageBackend()
 
-	// 自动启动 TTS 服务（后台加载，不阻塞）
-	go a.autoStartTTS()
+	// 后台刷新所有引擎模型列表
+	for _, eid := range []string{"xai", "herdsman", "ollama"} {
+		go func(id string) {
+			eng, ok := a.engineMgr.GetEngine(id)
+			if !ok || !eng.Enabled { return }
+			if _, err := a.engineMgr.RefreshModels(context.Background(), id); err != nil {
+				slog.Warn("刷新"+id+"模型列表失败", "error", err)
+			}
+		}(eid)
+	}
 }
 
 // initImageBackend 根据配置初始化图片生成后端

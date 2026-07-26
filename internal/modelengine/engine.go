@@ -58,6 +58,7 @@ type modelsListResponse struct {
 	Data []struct {
 		ID      string `json:"id"`
 		OwnedBy string `json:"owned_by"`
+		Status  string `json:"status"`
 	} `json:"data"`
 }
 
@@ -273,7 +274,7 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		models[i] = ModelInfo{
 			ID:      d.ID,
 			OwnedBy: d.OwnedBy,
-			Status:  "running",
+			Status:  d.Status,
 		}
 	}
 
