@@ -1,45 +1,40 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react'
 import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag } from 'antd'
 import {
-  HomeOutlined, UserOutlined,
-  BookOutlined, ExportOutlined, SettingOutlined, LoginOutlined, ConsoleSqlOutlined,
-  SunOutlined, MoonOutlined, SearchOutlined, ApiOutlined,
+  ReadOutlined, HomeOutlined,
+  SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined, ConsoleSqlOutlined,
+  ApiOutlined, PictureOutlined,
   FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined,
-  BarChartOutlined, PictureOutlined, ThunderboltOutlined, DownOutlined,
+  BarChartOutlined, DownOutlined,
 } from '@ant-design/icons'
 import SearchModal from '../components/SearchModal'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Z_INDEX } from '../utils/zIndex'
 import AppBar from '../components/AppBar'
 import { useAppStore, type ThemePreset, type StatsData, type ProjectInfo } from '../stores/appStore'
-const HomePage = React.lazy(() => import('../pages/HomePage'))
-const CharacterPage = React.lazy(() => import('../pages/CharacterPage'))
-const ChapterPage = React.lazy(() => import('../pages/ChapterPage'))
-const CreatePage = React.lazy(() => import('../pages/CreatePage'))
-const NovelSettingPage = React.lazy(() => import('../pages/NovelSettingPage'))
-const ExportPage = React.lazy(() => import('../pages/ExportPage'))
+const NovelPage = React.lazy(() => import('../pages/NovelPage'))
 const SettingsPage = React.lazy(() => import('../pages/SettingsPage'))
 const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'))
 const ModelCenterPage = React.lazy(() => import('../pages/ModelCenterPage'))
 
 const { Header, Footer, Content } = Layout
 
-type Page = 'home' | 'novelsetting' | 'character' | 'create' | 'chapter' | 'imagegen' | 'export' | 'settings' | 'modelcenter'
+type Page = 'novel' | 'imagegen' | 'settings' | 'modelcenter'
 
-const menuItems: { key: Page; icon: React.ReactNode; label: string }[] = [
-  { key: 'home', icon: <HomeOutlined />, label: '书架' },
-  { key: 'novelsetting', icon: <FileTextOutlined />, label: '设定' },
-  { key: 'character', icon: <UserOutlined />, label: '角色' },
-  { key: 'create', icon: <ThunderboltOutlined />, label: '创作' },
-  { key: 'chapter', icon: <BookOutlined />, label: '阅读' },
+// 所有页面 key 的扁平列表（用于 navigate 事件校验 + 快捷键映射）
+const allPageKeys: Page[] = ['novel', 'imagegen', 'modelcenter']
+
+const menuItems: any[] = [
+  { key: 'novel', icon: <ReadOutlined />, label: '小说' },
   { key: 'imagegen', icon: <PictureOutlined />, label: '绘梦' },
-  { key: 'export', icon: <ExportOutlined />, label: '导出' },
   { key: 'modelcenter', icon: <ApiOutlined />, label: '模型中心' },
 ]
 
 const pageComponents: Record<Page, React.ReactNode> = {
-  home: <HomePage />, novelsetting: <NovelSettingPage />, character: <CharacterPage />, create: <CreatePage />, chapter: <ChapterPage />,
-  imagegen: <ImageGenPage />, export: <ExportPage />, settings: <SettingsPage />, modelcenter: <ModelCenterPage />,
+  novel: <NovelPage />,
+  imagegen: <ImageGenPage />,
+  settings: <SettingsPage />,
+  modelcenter: <ModelCenterPage />,
 }
 interface LogEntry {
   id: number; type: string; time: string
@@ -123,13 +118,12 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
 }
 
 const pageLabels: Record<Page, string> = {
-  home: '书架', novelsetting: '设定', character: '角色', create: '创作', chapter: '阅读',
-  imagegen: 'AI 绘梦', export: '导出', settings: '设置', modelcenter: '模型引擎中心',
+  novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心',
 }
 
 // ─── 主布局 ─────────────────────────────────────────────────
 const MainLayout: React.FC = () => {
-  const [page, setPage] = useState<Page>('home')
+  const [page, setPage] = useState<Page>('novel')
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [consoleOpen, setConsoleOpen] = useState(true)
   const [expandedLog, setExpandedLog] = useState<number | null>(null)
@@ -142,7 +136,7 @@ const MainLayout: React.FC = () => {
   } = useAppStore()
 
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set(['home']))
+  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set(['novel']))
 
   // 跟踪已访问的页面，避免切换 tab 时销毁组件丢失状态
   React.useEffect(() => {
@@ -190,7 +184,7 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail
-      if (detail?.page && menuItems.some((m) => m.key === detail.page)) {
+      if (detail?.page && allPageKeys.includes(detail.page as Page)) {
         setPage(detail.page as Page)
       }
     }
@@ -203,22 +197,20 @@ const MainLayout: React.FC = () => {
     const onKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
-      // Ctrl+1~6 切换页面
-      if (e.key >= '1' && e.key <= '6') {
+      // Ctrl+1~3 切换页面
+      if (e.key >= '1' && e.key <= '3') {
         e.preventDefault()
-        const keys = ['home', 'novelsetting', 'character', 'chapter', 'imagegen', 'export']
-        setPage(keys[Number(e.key) - 1] as Page)
+        setPage(allPageKeys[Number(e.key) - 1] as Page)
       }
       // Ctrl+N 新建项目（仅在首页）
       if (e.key === 'n' && !projectOpen) {
         e.preventDefault()
-        setPage('home')
+        setPage('novel')
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [projectOpen])
-
   // 监听 XAI 实时输出事件
   useEffect(() => {
     // @ts-ignore
@@ -274,7 +266,7 @@ const MainLayout: React.FC = () => {
           <Menu
             mode="horizontal"
             selectedKeys={[page]}
-            items={menuItems.map((m) => ({ key: m.key, icon: m.icon, label: m.label }))}
+            items={menuItems}
             onClick={({ key }) => setPage(key as Page)}
             style={{ flex: 1, minWidth: 0, background: 'transparent', borderBottom: 'none' }}
           />
@@ -342,13 +334,13 @@ const MainLayout: React.FC = () => {
       <Layout style={{ flex: 1, flexDirection: 'row' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {/* 面包屑导航 */}
-          {projectOpen && page !== 'home' && (
+          {projectOpen && page !== 'novel' && (
             <div style={{
               padding: '6px 16px 0', background: 'var(--color-bg-layout)',
             }}>
               <Breadcrumb
                 items={[
-                  { title: <a onClick={() => setPage('home')} style={{ color: 'var(--md-sys-color-text-secondary)', cursor: 'pointer' }}>
+                  { title: <a onClick={() => setPage('novel')} style={{ color: 'var(--md-sys-color-text-secondary)', cursor: 'pointer' }}>
                     <HomeOutlined style={{ marginRight: 2 }} />{projectInfo?.title || ''}
                   </a> },
                   { title: <span style={{ color: 'var(--md-sys-color-primary)' }}>{pageLabels[page]}</span> },

@@ -67,43 +67,7 @@ func (a *App) BrainstormBranches(nodeID string) (map[string]interface{}, error) 
 		previousCtx = "（暂无前章摘要）"
 	}
 
-	// 2. 角色状态
-	chars, err := pm.ReadCharacters()
-	if err != nil {
-		slog.Warn("BrainstormBranches: 读取角色失败", "error", err)
-	}
-	charStatus := ""
-	if chars != nil {
-		var cs []string
-		for _, ch := range chars.Characters {
-			cs = append(cs, fmt.Sprintf("%s [%s]: %s", ch.Name, ch.Status, ch.Motivation))
-		}
-		charStatus = strings.Join(cs, "\n")
-	}
-	if charStatus == "" {
-		charStatus = "（暂无角色）"
-	}
-
-	// 3. 活跃伏笔
-	ff, err := pm.ReadForeshadows()
-	if err != nil {
-		slog.Warn("BrainstormBranches: 读取伏笔失败", "error", err)
-	}
-	activeForeshadows := ""
-	if ff != nil {
-		var af []string
-		for _, f := range ff.Items {
-			if f.Status == types.ForeshadowPlanted || f.Status == types.ForeshadowHinted {
-				af = append(af, fmt.Sprintf("[%s-%s] %s (埋于%s)", f.Category, f.Status, f.Description, f.PlantedIn))
-			}
-		}
-		activeForeshadows = strings.Join(af, "\n")
-	}
-	if activeForeshadows == "" {
-		activeForeshadows = "（暂无活跃伏笔）"
-	}
-
-	// 4. 世界观
+	// 2. 世界观
 	wv, err := pm.ReadWorldview()
 	if err != nil {
 		slog.Warn("BrainstormBranches: 读取世界观失败", "error", err)
@@ -111,6 +75,7 @@ func (a *App) BrainstormBranches(nodeID string) (map[string]interface{}, error) 
 	if wv == "" {
 		wv = "（暂无世界观）"
 	}
+	// 当前节点信息
 
 	// 当前节点信息
 	nodeJSON, err := json.Marshal(target)
@@ -127,9 +92,7 @@ func (a *App) BrainstormBranches(nodeID string) (map[string]interface{}, error) 
 	userPrompt := tmpl.BuildUserPrompt(map[string]string{
 		"current_outline_node":      string(nodeJSON),
 		"previous_chapters_summary": previousCtx,
-		"character_status":          charStatus,
-		"active_foreshadows":        activeForeshadows,
-		"worldview":                 wv, // Grok 1M 上下文，完整传入
+		"worldview":                 wv,
 	})
 
 	reply, err := a.client.ChatSimpleStream(a.ctx, a.cfg.Model, systemPrompt, userPrompt)
@@ -231,7 +194,43 @@ func (a *App) ApplyBranch(nodeID string, branchIndex int, userInput string) (map
 		"outlines": of.Nodes,
 	}, nil
 }
+// QuickBrainstormBranches 轻量分支构思——直接接收小说设定和前文摘要，不需要大纲节点
+func (a *App) QuickBrainstormBranches(setting, prevSummary string) (map[string]interface{}, error) {
+	tmpl := a.eng.Get("plot-branch-browser")
+	if tmpl == nil {
+		return nil, fmt.Errorf("缺少 plot-branch-browser 模板文件")
+	}
 
+	systemPrompt := tmpl.BuildSystemPrompt("")
+	userPrompt := tmpl.BuildUserPrompt(map[string]string{
+		"current_outline_node":      "（请根据小说设定和前文摘要构思下一章方向）",
+		"previous_chapters_summary": prevSummary,
+		"worldview":                 setting,
+	})
+
+	reply, err := a.client.ChatSimpleStream(a.ctx, a.cfg.Model, systemPrompt, userPrompt)
+	if err != nil {
+		return nil, fmt.Errorf("剧情分支推理失败: %w", err)
+	}
+
+	jsonStr := util.ExtractJSON(reply)
+	var result struct {
+		Branches []PlotBranch `json:"branches"`
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("解析分支 JSON 失败: %w", err)
+	}
+
+	if len(result.Branches) == 0 {
+		return nil, fmt.Errorf("AI 未生成任何分支")
+	}
+
+	return map[string]interface{}{
+		"branches": result.Branches,
+	}, nil
+}
+
+// syncCharactersFromOutline 确保大纲中提到的角色存在于角色文件中
 // syncCharactersFromOutline 确保大纲中提到的角色存在于角色文件中
 // 当前为轻度同步：仅记录日志，角色创建由前端触发
 func syncCharactersFromOutline(node *types.OutlineNode) {
@@ -240,4 +239,3 @@ func syncCharactersFromOutline(node *types.OutlineNode) {
 	}
 	slog.Info("大纲节点引用角色", "node", node.Title, "chars", strings.Join(node.Characters, ","))
 }
-

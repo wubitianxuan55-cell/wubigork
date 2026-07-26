@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Typography, Button, Input, Card, Space, message, Spin, Modal, Popconfirm } from 'antd'
+import { Typography, Button, Input, Card, Space, message, Spin, Modal, Popconfirm, Select } from 'antd'
 import {
-  ThunderboltOutlined, BookOutlined,
+  BookOutlined,
   EditOutlined, BulbOutlined, RightOutlined, DownOutlined,
   CheckCircleOutlined, LoadingOutlined, PlusOutlined, SaveOutlined,
   DeleteOutlined, ReloadOutlined, ShareAltOutlined,
@@ -71,11 +71,23 @@ const CreatePage: React.FC = () => {
   const [wizPrevChapter, setWizPrevChapter] = useState(0)
   const [wizOverwriteChapter, setWizOverwriteChapter] = useState(0)
   const [wizBranchFromID, setWizBranchFromID] = useState('')
+  const [skills, setSkills] = useState<{name: string; description: string}[]>([])
+  const [selectedSkill, setSelectedSkill] = useState<string | undefined>(undefined)
 
   useEffect(() => { loadOutlines() }, [])
   useEffect(() => {
     ;(async () => {
       try { setSetting(await App.GetWorldview() || '') } catch (_) { }
+    })()
+  }, [])
+
+  // 加载可用 Skill 列表
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await App.ListSkills()
+        setSkills((list || []) as any)
+      } catch (_) {}
     })()
   }, [])
 
@@ -109,19 +121,9 @@ const CreatePage: React.FC = () => {
   }
 
   const fetchBranchesFor = async (prevChapter: number) => {
-    try {
       const prevSummary = prevChapter > 0 ? getPrevSummary(prevChapter) : ''
-      const prompt = [
-        setting && `【小说设定】\n${setting}`,
-        prevSummary && `【前文摘要】\n${prevSummary}`,
-        `请根据以上信息，构思3个不同的剧情发展方向。用JSON回复：{"branches":[{"title":"方向标题","pitch":"150字剧情概要"},...]}`,
-      ].filter(Boolean).join('\n\n')
-      const res = await App.ChatWorldview(prompt)
-      const reply = (res as any)?.reply || ''
-      const m = reply.match(/\{[\s\S]*"branches"[\s\S]*\}/)
-      if (m) { const p = JSON.parse(m[0]); if (p.branches?.length) { setBranches(p.branches); setWizStep('branches'); return } }
+      const res = await App.QuickBrainstormBranches(setting, prevSummary || '')
       setWizStep('branches')
-    } catch (err: any) { message.error(err?.message || '失败'); setWizStep('branches') }
   }
 
   const confirmGenerate = async () => {
@@ -164,7 +166,7 @@ const CreatePage: React.FC = () => {
 
     try {
       try { window.runtime?.EventsOn?.('create-chapter-stream', handler) } catch (_) {}
-      await App.CreateChapter(setting, '', plotReq, wizOverwriteChapter, wizBranchFromID)
+      await App.CreateChapter(setting, '', plotReq, wizOverwriteChapter, wizBranchFromID, selectedSkill || '')
     } catch (err: any) {
       setGenerating(false)
       setGenPhase('')
@@ -202,10 +204,7 @@ const CreatePage: React.FC = () => {
   const activeNode = outlines.find(n => n.id === activeId)
 
   return (
-    <div style={{ height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <Typography.Title level={4} style={{ color: C('color-text'), margin: 0 }}>
-        <ThunderboltOutlined style={{ marginRight: 8 }} />创作
-      </Typography.Title>
+    <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
       <div style={{ flex: 1, display: 'flex', gap: 12, minHeight: 0 }}>
 
@@ -284,6 +283,17 @@ const CreatePage: React.FC = () => {
             <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
           ) : activeNode ? (
             <>
+              {skills.length > 0 && (
+                <Select
+                  allowClear
+                  placeholder="选择写作技能（可选）"
+                  value={selectedSkill}
+                  onChange={(v) => setSelectedSkill(v)}
+                  options={skills.map(s => ({ value: s.name, label: s.name }))}
+                  size="small"
+                  style={{ width: 220, alignSelf: 'flex-end' }}
+                />
+              )}
               <TextArea value={content} onChange={e => setContent(e.target.value)}
                 style={{ flex: 1, resize: 'none', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: C('color-text'), borderRadius: 'var(--radius-md)', fontSize: 14, lineHeight: 1.8, fontFamily: '"Noto Serif SC", "Source Han Serif SC", "SimSun", serif', minHeight: 0 }}
               />

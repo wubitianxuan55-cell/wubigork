@@ -3,97 +3,11 @@ package app
 import (
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/wubigork/wubigork/internal/types"
 )
 
-// ── 章节创作 ─────────────────────────────────────────────────
-
-// GenerateChapter 流式生成章节
-func (a *App) GenerateChapter(outlineNodeID string, skillName string, targetWords int) (map[string]interface{}, error) {
-	if a.chapterAgent == nil {
-		return nil, fmt.Errorf("请先打开项目")
-	}
-
-	// 解析 Skill 名称 → 注入的写作指导 markdown
-	skillMD := ""
-	if skillName != "" && a.skillLoader != nil {
-		if s := a.skillLoader.Get(skillName); s != nil {
-			skillMD = s.Body
-			slog.Info("Skill 已注入", "name", s.Name, "version", s.Version)
-		} else {
-			slog.Warn("Skill 未找到，将以原始名称传入", "skill", skillName)
-			skillMD = skillName // 回退：可能是前端传来的自定义指导文本
-		}
-	}
-
-	chunks, chapterNum, err := a.chapterAgent.Generate(a.ctx, outlineNodeID, skillMD, true, targetWords)
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("章节流式 goroutine panic", "panic", r)
-				a.emit("chapter-stream", map[string]interface{}{
-					"type": "error", "error": fmt.Sprintf("内部错误: %v", r),
-				})
-			}
-		}()
-
-		var fullText string
-		for chunk := range chunks {
-			select {
-			case <-a.ctx.Done():
-				return
-			default:
-			}
-
-			if chunk.Error != "" {
-				a.emit("chapter-stream", map[string]interface{}{
-					"type": "error", "error": chunk.Error,
-				})
-				return
-			}
-			if chunk.Done {
-				break
-			}
-			fullText += chunk.Content
-			a.emit("chapter-stream", map[string]interface{}{
-				"type": "chunk", "content": chunk.Content, "total": len([]rune(fullText)),
-			})
-		}
-		pm := a.getPM()
-		if pm == nil {
-			return
-		}
-		summary, err := pm.ReadChapterSummary(chapterNum)
-		if err != nil {
-			slog.Warn("流式生成后读取摘要失败", "chapter", chapterNum, "error", err)
-		}
-
-		// 自我演化：分析新章节 → 建议词条/更新世界观/记录伏笔
-		doneData := map[string]interface{}{
-			"type":    "done",
-			"content": fullText,
-			"total":   len([]rune(fullText)),
-			"summary": summary,
-		}
-		if a.analysisAgent != nil {
-			evolution, evErr := a.analysisAgent.EvolveAfterChapter(chapterNum, fullText, summary)
-			if evErr == nil && evolution != nil {
-				doneData["evolution"] = evolution
-			}
-		}
-		a.emit("chapter-stream", doneData)
-	}()
-
-	return map[string]interface{}{"status": "started"}, nil
-}
-
-// GetChapter 读取已生成章节
+// ── 章节 I/O ─────────────────────────────────────────────────
 func (a *App) GetChapter(num int) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
@@ -155,96 +69,8 @@ func (a *App) SaveChapterBranchContent(num int, branch string, content string) e
 		return fmt.Errorf("请先打开项目")
 	}
 	return pm.WriteChapterBranch(num, branch, content)
-}
-// ChatChapter 与写作 Agent 讨论特定章节
-func (a *App) ChatChapter(chapterNum int, userMsg string) (map[string]interface{}, error) {
-	if a.chapterAgent == nil {
-		return nil, fmt.Errorf("请先打开项目")
 	}
-	pm := a.getPM()
-	if pm == nil {
-		return nil, fmt.Errorf("请先打开项目")
-	}
-	content, err := pm.ReadChapter(chapterNum)
-	if err != nil {
-		slog.Warn("读取章节内容失败", "chapter", chapterNum, "error", err)
-	}
-	summary, err := pm.ReadChapterSummary(chapterNum)
-	if err != nil {
-		slog.Warn("读取章节摘要失败", "chapter", chapterNum, "error", err)
-	}
-
-	// 构建上下文
-	ctx := a.ctx
-	model := a.cfg.Model
-	client := a.client
-
-	sumText := ""
-	if summary != nil {
-		sumText = summary.Summary
-	}
-
-	lorebookCtx := a.buildLorebookContext(userMsg)
-	systemPrompt := fmt.Sprintf(`你是专业的小说写作顾问。用户正在讨论第 %d 章。
-章节摘要: %s
-章节内容: %s
-%s
-请帮助作者改进这一章：给出具体的修改建议、指出节奏问题、建议更好的表达方式。`, chapterNum, sumText, content, lorebookCtx)
-
-	reply, err := client.ChatSimpleStream(ctx, model, systemPrompt, userMsg)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]interface{}{"reply": reply}, nil
-}
-
-// ReviewChapter 审查章节质量（Reviser-Reviewer 模式）
-func (a *App) ReviewChapter(chapterNum int) (map[string]interface{}, error) {
-	if a.chapterAgent == nil {
-		return nil, fmt.Errorf("请先打开项目")
-	}
-	pm := a.getPM()
-	if pm == nil {
-		return nil, fmt.Errorf("请先打开项目")
-	}
-
-	content, err := pm.ReadChapter(chapterNum)
-	if err != nil {
-		return nil, fmt.Errorf("读取章节失败: %w", err)
-	}
-
-	summary, err := pm.ReadChapterSummary(chapterNum)
-	outlineTitle := ""
-	if err == nil && summary != nil {
-		outlineTitle = summary.Title
-	}
-
-	// 获取上一章结尾作为上下文
-	prevHint := ""
-	if chapterNum > 1 {
-		prevContent, err := pm.ReadChapter(chapterNum - 1)
-		if err == nil {
-			trimmed := strings.TrimRight(prevContent, "\n ")
-			if len([]rune(trimmed)) > 150 {
-				trimmed = string([]rune(trimmed)[len([]rune(trimmed))-150:])
-			}
-			prevHint = trimmed
-		}
-	}
-
-	result, err := a.chapterAgent.ReviewChapter(a.ctx, content, outlineTitle, prevHint)
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]interface{}{
-		"score":      result.Score,
-		"strengths":  result.Strengths,
-		"weaknesses": result.Weaknesses,
-		"revisePlan": result.RevisePlan,
-	}, nil
-}
-
+// GenerateSceneIllustration 为指定章节生成场景插图（Aurora）
 // GenerateSceneIllustration 为指定章节生成场景插图（Aurora）
 func (a *App) GenerateSceneIllustration(chapterNum int) (map[string]interface{}, error) {
 	if a.chapterAgent == nil {

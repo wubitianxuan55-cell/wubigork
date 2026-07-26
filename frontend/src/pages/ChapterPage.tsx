@@ -145,11 +145,6 @@ const ChapterPage: React.FC = () => {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography.Title level={4} style={{ color: C('color-text'), margin: 0 }}>
-          <BookOutlined style={{ marginRight: 8 }} />阅读
-        </Typography.Title>
-      </div>
 
       <div style={{ flex: 1, display: 'flex', gap: 8, minHeight: 0 }}>
         {/* 左：大纲 */}

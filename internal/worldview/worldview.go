@@ -60,48 +60,7 @@ func (a *Agent) Chat(ctx context.Context, userMsg string) (string, error) {
 
 	return a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
 }
-
-// ChatSection 针对特定维度对话
-func (a *Agent) ChatSection(ctx context.Context, sectionID, userMsg string) (string, error) {
-	wf, err := a.pm.ReadWorldviewFile()
-	if err != nil {
-		slog.Warn("世界观: 读取失败", "error", err)
-	}
-	if wf == nil {
-		return "", fmt.Errorf("无世界观数据")
-	}
-
-	// 找到目标 section
-	var target *types.WorldviewSection
-	for i := range wf.Sections {
-		if wf.Sections[i].ID == sectionID {
-			target = &wf.Sections[i]
-			break
-		}
-	}
-	if target == nil {
-		return "", fmt.Errorf("未找到维度: %s", sectionID)
-	}
-
-	currentWV := wf.ToMarkdown()
-	charsCtx := a.loadCharsContext()
-
-	tmpl := a.eng.Get("worldview-chat-section")
-	if tmpl == nil {
-		return "", fmt.Errorf("缺少 worldview-chat-section 模板文件")
-	}
-
-	systemPrompt := tmpl.BuildSystemPrompt("")
-	userPrompt := tmpl.BuildUserPrompt(map[string]string{
-		"target_section": fmt.Sprintf("维度「%s」\n%s", target.Title, target.Content),
-		"full_worldview": currentWV,
-		"characters":     charsCtx,
-		"user_request":   userMsg,
-	})
-
-	return a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
-}
-
+// ── 保存 ────────────────────────────────────────────────────
 // ── 保存 ────────────────────────────────────────────────────
 
 // Save 保存世界观（AI 生成时更新，写入第一个有效 section）
@@ -160,87 +119,7 @@ func (a *Agent) SaveAllSections(sections []types.WorldviewSection) error {
 	return a.pm.WriteWorldviewFile(wf)
 }
 
-// ── 一键生成 ────────────────────────────────────────────────
-
-// GenerateAllSections 让 AI 一次性填充所有 6 个世界观维度
-func (a *Agent) GenerateAllSections(ctx context.Context, genre, style, reference string) (*types.WorldviewFile, error) {
-	charsCtx := a.loadCharsContext()
-	currentWV := ""
-	wf, err := a.pm.ReadWorldviewFile()
-	if err != nil {
-		slog.Warn("世界观: 读取失败", "error", err)
-	}
-	if wf != nil {
-		currentWV = wf.ToMarkdown()
-	}
-
-	// 防御性截断：调用方可能传入未归纳的原始素材
-	ref, truncated := util.TruncateRef(reference)
-	if truncated {
-		slog.Warn("世界观生成: 参考素材过长已截断", "runes", len([]rune(reference)), "max", util.RefLimit)
-	}
-
-	refHint := ""
-	if ref != "" {
-		refHint = fmt.Sprintf("\n【参考素材】\n%s\n", ref)
-	}
-
-	tmpl := a.eng.Get("worldview-generate-all")
-	if tmpl == nil {
-		return nil, fmt.Errorf("缺少 worldview-generate-all 模板文件")
-	}
-
-	systemPrompt := tmpl.BuildSystemPrompt("")
-	userPrompt := tmpl.BuildUserPrompt(map[string]string{
-		"genre_style_reference": fmt.Sprintf("题材: %s\n风格: %s%s", genre, style, refHint),
-		"existing_worldview":    currentWV,
-		"existing_characters":   charsCtx,
-	})
-
-	// ── 调用 LLM + JSON 解析重试 ──
-	caller := func(ctx context.Context, sys, usr string) (string, error) {
-		return a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, sys, usr, ai.ChatSimpleOptions{
-			Temperature: 0.7,
-			MaxTokens:   4096,
-		})
-	}
-	jsonStr, err := util.RetryJSON(ctx, caller, systemPrompt, userPrompt, 2)
-	if err != nil {
-		return nil, err
-	}
-
-	var result struct {
-		Sections []types.WorldviewSection `json:"sections"`
-	}
-	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		return nil, fmt.Errorf("解析 AI 生成的世界观 JSON 失败: %w", err)
-	}
-
-	if len(result.Sections) == 0 {
-		return nil, fmt.Errorf("AI 未生成任何维度内容")
-	}
-
-	// 合并：AI 返回的 section 覆盖默认空模板，缺失的保留空模板
-	merged := project.DefaultSections()
-	for _, aiSec := range result.Sections {
-		for i := range merged {
-			if merged[i].ID == aiSec.ID && aiSec.Content != "" {
-				merged[i].Content = aiSec.Content
-				if aiSec.Title != "" {
-					merged[i].Title = aiSec.Title
-				}
-			}
-		}
-	}
-
-	// 保存
-	wf = &types.WorldviewFile{Sections: merged}
-	if err := a.pm.WriteWorldviewFile(wf); err != nil {
-		return nil, err
-	}
-	return wf, nil
-}
-
+// ── 读取 ────────────────────────────────────────────────────
 // ── 读取 ────────────────────────────────────────────────────
 
 // GetCurrent 获取当前世界观 markdown（向后兼容旧接口）
@@ -275,60 +154,7 @@ func (a *Agent) GetSections() *types.WorldviewFile {
 
 // ── 一致性检查 ─────────────────────────────────────────────
 
-// CheckConsistency 扫描世界观+角色+大纲，检测逻辑矛盾
-func (a *Agent) CheckConsistency(ctx context.Context) (*types.ConsistencyReport, error) {
-	wf, err := a.pm.ReadWorldviewFile()
-	if err != nil {
-		slog.Warn("世界观: 读取失败", "error", err)
-	}
-	currentWV := ""
-	if wf != nil {
-		currentWV = wf.ToMarkdown()
-	}
-	if strings.TrimSpace(currentWV) == "" {
-		return &types.ConsistencyReport{
-			Issues:      []types.ConsistencyIssue{},
-			OverallNote: "世界观为空，无法检查一致性。",
-		}, nil
-	}
-
-	charsCtx := a.loadCharsContext()
-	outlineCtx := a.loadOutlineContext()
-	ff, err := a.pm.ReadForeshadows()
-	if err != nil {
-		slog.Warn("worldview: 读取伏笔失败", "error", err)
-	}
-	foreshadowCtx := ""
-	if ff != nil && len(ff.Items) > 0 {
-		b := util.MustMarshalCompact(ff.Items)
-		foreshadowCtx = string(b)
-	}
-
-	tmpl := a.eng.Get("worldview-check-consistency")
-	if tmpl == nil {
-		return nil, fmt.Errorf("缺少 worldview-check-consistency 模板文件")
-	}
-
-	systemPrompt := tmpl.BuildSystemPrompt("")
-	userPrompt := tmpl.BuildUserPrompt(map[string]string{
-		"worldview":   currentWV,
-		"characters":  charsCtx,
-		"outlines":    outlineCtx,
-		"foreshadows": foreshadowCtx,
-	})
-
-	reply, err := a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
-	if err != nil {
-		return nil, fmt.Errorf("一致性检查失败: %w", err)
-	}
-
-	var report types.ConsistencyReport
-	if err := json.Unmarshal([]byte(util.ExtractJSON(reply)), &report); err != nil {
-		return nil, fmt.Errorf("解析检查报告失败: %w", err)
-	}
-
-	return &report, nil
-}
+// ── 自动保存 ───────────────────────────────────────────────
 
 // ── 自动保存 ───────────────────────────────────────────────
 
@@ -339,7 +165,9 @@ func (a *Agent) ChatWithAutoSave(ctx context.Context, userMsg string) (string, e
 		return "", fmt.Errorf("AI 调用失败: %w", err)
 	}
 
-	// 检查回复中是否包含维度更新标记
+	saved := false
+
+	// 旧格式兼容：维度更新标记
 	if strings.Contains(reply, "---WORLDVIEW_SECTION_UPDATE---") {
 		updates := extractSectionUpdates(reply)
 		if len(updates) > 0 {
@@ -357,7 +185,18 @@ func (a *Agent) ChatWithAutoSave(ctx context.Context, userMsg string) (string, e
 				}
 				if err := a.pm.WriteWorldviewFile(wf); err != nil {
 					slog.Warn("世界观自动保存失败", "error", err)
+				} else {
+					saved = true
 				}
+			}
+		}
+	}
+
+	// 新格式：提取 ```markdown 代码块中的完整设定文本
+	if !saved {
+		if content := extractMarkdownBlock(reply); content != "" {
+			if err := a.Save(content); err != nil {
+				slog.Warn("世界观自动保存失败", "error", err)
 			}
 		}
 	}
@@ -404,7 +243,6 @@ func extractSectionUpdates(reply string) map[string]string {
 		}
 		end := strings.Index(reply[start:], endMarker)
 		if end == -1 {
-			break
 		}
 		jsonStr := reply[start+len(marker) : start+end]
 		reply = reply[start+end+len(endMarker):]
@@ -418,4 +256,23 @@ func extractSectionUpdates(reply string) map[string]string {
 		}
 	}
 	return updates
+}
+
+// extractMarkdownBlock 从 AI 回复中提取 ```markdown 代码块内容
+func extractMarkdownBlock(reply string) string {
+	start := strings.Index(reply, "```markdown")
+	if start == -1 {
+		return ""
+	}
+	// 跳过 "```markdown" 和紧随的换行
+	nl := strings.Index(reply[start:], "\n")
+	if nl == -1 {
+		return ""
+	}
+	bodyStart := start + nl + 1
+	end := strings.Index(reply[bodyStart:], "```")
+	if end == -1 {
+		return ""
+	}
+	return strings.TrimSpace(reply[bodyStart : bodyStart+end])
 }

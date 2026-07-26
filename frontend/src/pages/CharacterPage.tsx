@@ -379,8 +379,7 @@ const CharacterPage: React.FC = () => {
 
   return (
     <div style={{ height: 'calc(100vh - 112px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography.Title level={5} style={{ color: C('color-text'), margin: 0 }}>👤 角色管理</Typography.Title>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <Space>
           <Button size="small" icon={<PlusOutlined />} onClick={handleNewCharacter}
             style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(96, 165, 250, 0.3)', color: '#60a5fa', borderRadius: 'var(--radius-md)' }}>新建角色</Button>

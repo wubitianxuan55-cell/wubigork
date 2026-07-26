@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -130,7 +128,7 @@ func (a *Agent) Continue(ctx context.Context, count int) (*types.OutlineFile, er
 		"continue_count":    fmt.Sprintf("%d", count),
 		"worldview":         a.loadWorldviewContext(),
 		"characters":        a.loadCharsContext(),
-		"story_thread":      a.GetStoryThread(),
+		"story_thread":      of.StoryThread,
 	})
 
 	reply, err := a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
@@ -278,7 +276,7 @@ func (a *Agent) ExpandNode(ctx context.Context, nodeID string, subCount int) (*t
 		"existing_chapters": existingChapters,
 		"expand_count":      fmt.Sprintf("%d", subCount),
 		"worldview":         a.loadWorldviewContext(),
-		"story_thread":      a.GetStoryThread(),
+		"story_thread":      of.StoryThread,
 	})
 
 	reply, err := a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
@@ -299,209 +297,14 @@ func (a *Agent) ExpandNode(ctx context.Context, nodeID string, subCount int) (*t
 }
 
 // ── CRUD ────────────────────────────────────────────────────
-
-// GenerateNodeDetail 一键生成单个节点的摘要、情节点、角色
-func (a *Agent) GenerateNodeDetail(ctx context.Context, nodeID string) (*types.OutlineNode, error) {
-	of, err := a.pm.ReadOutlines()
-	if err != nil {
-		slog.Warn("大纲: 读取失败", "error", err)
-	}
-	if of == nil {
-		return nil, fmt.Errorf("无大纲数据")
-	}
-
-	var target *types.OutlineNode
-	for i := range of.Nodes {
-		if n := FindNodeByID(&of.Nodes[i], nodeID); n != nil {
-			target = n
-			break
-		}
-	}
-	if target == nil {
-		return nil, fmt.Errorf("未找到大纲节点: %s", nodeID)
-	}
-
-	wvCtx := a.loadWorldviewContext()
-	charsCtx := a.loadCharsContext()
-
-	tmpl := a.eng.Get("outline-generate-detail")
-	if tmpl == nil {
-		return nil, fmt.Errorf("缺少 outline-generate-detail 模板文件")
-	}
-
-	systemPrompt := tmpl.BuildSystemPrompt("")
-	userPrompt := tmpl.BuildUserPrompt(map[string]string{
-		"node_title_and_summary": fmt.Sprintf("章节标题: %s\n已有摘要: %s", target.Title, target.Summary),
-		"worldview":              wvCtx,
-		"characters":             charsCtx,
-	})
-
-	reply, err := a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
-	if err != nil {
-		return nil, err
-	}
-
-	var result struct {
-		Summary    string   `json:"summary"`
-		KeyPoints  []string `json:"key_points"`
-		Characters []string `json:"characters"`
-		SceneIdeas []string `json:"scene_ideas"`
-	}
-	if err := json.Unmarshal([]byte(util.ExtractJSON(reply)), &result); err != nil {
-		return nil, fmt.Errorf("解析大纲详情 JSON 失败: %w\n%s", err, reply[:util.Min(len(reply), 200)])
-	}
-
-	if result.Summary != "" {
-		target.Summary = result.Summary
-	}
-	if len(result.KeyPoints) > 0 {
-		target.KeyPoints = result.KeyPoints
-	}
-	if len(result.Characters) > 0 {
-		target.Characters = result.Characters
-	}
-	if len(result.SceneIdeas) > 0 {
-		target.SceneIdeas = result.SceneIdeas
-	}
-
-	// 直接保存
-	a.pm.WriteOutlines(of)
-	return target, nil
-}
-
 // ── CRUD ────────────────────────────────────────────────────
 
-// Save 保存大纲
 // Save 保存完整大纲文件
 func (a *Agent) Save(of *types.OutlineFile) error {
 	return a.pm.WriteOutlines(of)
 }
 
-// SaveStoryThread 保存故事主线（只改 story_thread，不动 nodes）
-func (a *Agent) SaveStoryThread(storyThread string) error {
-	of, err := a.pm.ReadOutlines()
-	if err != nil {
-		slog.Warn("大纲: 读取失败，新建空大纲保存故事主线", "error", err)
-		of = &types.OutlineFile{Nodes: []types.OutlineNode{}}
-	}
-	if of == nil {
-		of = &types.OutlineFile{Nodes: []types.OutlineNode{}}
-	}
-	of.StoryThread = storyThread
-	return a.pm.WriteOutlines(of)
-}
-
-// GetStoryThread 读取故事主线
-func (a *Agent) GetStoryThread() string {
-	of, err := a.pm.ReadOutlines()
-	if err != nil || of == nil {
-		return ""
-	}
-	return of.StoryThread
-}
-
-// GenerateStoryThread AI 生成故事主线
-func (a *Agent) GenerateStoryThread(ctx context.Context, userHint string) (string, error) {
-	wvCtx := a.loadWorldviewContext()
-	charsCtx := a.loadCharsContext()
-
-	of, err := a.pm.ReadOutlines()
-	if err != nil {
-		slog.Warn("outline: 读取大纲失败", "error", err)
-	}
-	outlineSummary := ""
-	if of != nil && len(of.Nodes) > 0 {
-		outlineSummary = string(util.MustMarshalCompact(of))
-	}
-
-	pm := a.pm
-	genre := ""
-	style := ""
-	if pm.Meta != nil {
-		genre = pm.Meta.Genre
-		style = pm.Meta.Style
-	}
-
-	tmpl := a.eng.Get("story-thread-generate")
-	if tmpl == nil {
-		// 回退：直接读文件
-		data, err := os.ReadFile(filepath.Join(a.cfg.ResourceDir, "prompts", "story-thread-generate.json"))
-		if err != nil {
-			return "", fmt.Errorf("缺少 story-thread-generate 模板文件: %w", err)
-		}
-		var t prompt.Template
-		if err := json.Unmarshal(data, &t); err != nil {
-			return "", fmt.Errorf("解析 story-thread-generate 失败: %w", err)
-		}
-		tmpl = &t
-	}
-
-	systemPrompt := tmpl.BuildSystemPrompt("")
-	userPrompt := tmpl.BuildUserPrompt(map[string]string{
-		"worldview":        wvCtx,
-		"characters":       charsCtx,
-		"existing_outline": outlineSummary,
-		"genre_style":      fmt.Sprintf("题材: %s\n风格: %s", genre, style),
-		"user_hint":        userHint,
-	})
-
-	reply, err := a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
-	if err != nil {
-		return "", err
-	}
-
-	// 自动保存
-	if err := a.SaveStoryThread(reply); err != nil {
-		slog.Warn("自动保存故事主线失败", "error", err)
-	}
-
-	return reply, nil
-}
-
-// ChatStoryThread 与 AI 对话讨论故事主线
-func (a *Agent) ChatStoryThread(ctx context.Context, userMsg string) (string, error) {
-	wvCtx := a.loadWorldviewContext()
-	charsCtx := a.loadCharsContext()
-	storyThread := a.GetStoryThread()
-
-	tmpl := a.eng.Get("story-thread-chat")
-	if tmpl == nil {
-		return a.Chat(ctx, userMsg)
-	}
-
-	systemPrompt := tmpl.BuildSystemPrompt("")
-	userPrompt := tmpl.BuildUserPrompt(map[string]string{
-		"user_message":  userMsg,
-		"story_thread":  storyThread,
-		"worldview":     wvCtx,
-		"characters":    charsCtx,
-	})
-
-	reply, err := a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
-	if err != nil {
-		return "", err
-	}
-
-	// 自动提取故事主线更新并保存
-	if strings.Contains(reply, "---STORY_THREAD_UPDATE---") {
-		parts := strings.Split(reply, "---STORY_THREAD_UPDATE---")
-		if len(parts) > 1 {
-			endParts := strings.Split(parts[1], "---END_UPDATE---")
-			if len(endParts) > 0 {
-				updated := strings.TrimSpace(endParts[0])
-				if updated != "" {
-					if err := a.SaveStoryThread(updated); err != nil {
-						slog.Warn("自动保存故事主线失败", "error", err)
-					}
-				}
-			}
-		}
-	}
-
-	return reply, nil
-}
-
-// SaveNode 保存/更新单个节点
+// SaveNode 保存/更新单个大纲节点（顶级或嵌套在 Children 中）
 func (a *Agent) SaveNode(node types.OutlineNode) error {
 	if node.ID == "" {
 		return fmt.Errorf("SaveNode: 节点 ID 为空")

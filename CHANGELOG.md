@@ -1,5 +1,28 @@
 # wubigork · 让灵感成为故事
 
+## v5.20.0「精炼」(2025-07-26)
+
+> 提示词全面重设计 + 死代码大清理 + 编译修复。净删 ~3000 行，prompts 23→15。
+
+### 提示词重设计（4 个核心 prompt）
+- **create-chapter**：硬编码字符串 → 模板化，「正在写这本书的作者」
+- **chapter-generate**：「出版级」→「作者」，去 AI 味交由技能注入
+- **plot-branch-browser**：「剧情策划人」→「story breaker」，固定 3 分支
+- **worldview-agent**：「设定顾问」→「设定编辑」，代码块输出替换原文
+
+### 死代码大清理（16 文件删除 + 后端精简）
+- **删除 9 个废弃 prompt JSON**：brainstorm-ideas, chapter-review, outline-generate-detail, story-thread-chat, story-thread-generate, worldview-chat-section, worldview-check-consistency, worldview-generate-all, bootstrap-reference-summarize
+- **删除 6 个前端组件**：AIAssistSheet, BrainstormModal, DialogueModal, StoryBibleModal, StoryBibleSteps, BeatToProse
+- **删除 brainstorm_handler.go**（59 行）
+- **Go handler 死代码清理**：chapter_handler (-178), copilot_handler (-237), create_chapter_handler (-82), outline_handler (-108), plot_branch_handler (-80), project_handler (-107), worldview_handler (-42)
+- **核心模块精简**：chapter.go (-301), outline.go (-203), worldview.go (-215)
+- **前端页面清理**：MainLayout (-60), CreatePage (-46)，其他页面移除死引用
+
+### 编译修复
+- chapter_handler.go 缺失函数闭合 `}` 修复
+- copilot_handler.go 6 个未使用 import 清理
+- chapter_handler.go 未使用 "strings" import 清理
+
 ## v5.17.0「重塑」(2025-07-26)
 
 > 从 v5.7.1 分支重建。移除移动端代码，新增「创作」面板，章节节点树 + 分支系统。

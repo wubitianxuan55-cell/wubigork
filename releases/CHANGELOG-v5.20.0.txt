@@ -1,0 +1,42 @@
+# wubigrok v5.20.0 发布记录（构建 2）
+
+## Bug 修复
+- 修复章节生成文本重复输出：bodyLen 计算混用字节索引和 rune 计数导致截取错位
+- 修复 AI 控制台不显示 CreateChapter 请求：新增 xai-output 事件发送
+- **修复分支剧情 AI 收到错误提示词**：CreatePage 调用了 ChatWorldview（世界观 API）而非分支 API，导致 AI 收到「小说设定编辑」的 system prompt。新增 QuickBrainstormBranches handler + 前端改用正确 API。
+
+## 核心变更：创作面板提示词全面重设计 + 死代码大清理
+
+### 提示词重设计（4 个核心 prompt）
+
+所有 prompt 遵循统一设计原则：差异化角色人格、简洁高效、具体可验证。
+
+| Prompt | 旧 | 新 |
+|--------|----|----|
+| `create-chapter` | 硬编码字符串「专业小说作家」 | 模板化，「正在写这本书的作者」，900+ chars |
+| `chapter-generate` | 「出版级小说作家」1082 chars | 「作者」900 chars，去 AI 味由技能注入 |
+| `plot-branch-browser` | 「小说剧情策划人」600 chars | 「story breaker」1166 chars，固定 3 分支 |
+| `worldview-agent` | 「小说设定顾问」768 chars | 「设定编辑」1057 chars，代码块输出 |
+
+### 上下文精简
+
+- **创作面板章节生成**：注入从 4 段（角色信息+剧情+设定+摘要）精简为 3 段（剧情+设定+摘要）
+- **剧情分支生成**：注入从 5 段精简为 3 段（节点+摘要+世界观），砍掉角色状态和伏笔
+- 同步清理 Go handler 中的上下文收集代码（~150 行）
+
+### 死代码清理
+
+- 删除 7 个废弃 prompt JSON 文件
+- 删除 StoryBibleModal / StoryBibleSteps 前端组件
+- 删除 BootstrapProject / GenerateAllSections / GenerateNodeDetail / GenerateStoryThread 等 Go 死代码（~300 行）
+- 删除 chapter.go 中 injectLorebook / buildCharacterStatus / buildCharacterList 等废弃函数
+- prompts 目录 23→17 个文件
+
+### 提示词最终长度（构建后 system prompt）
+
+| Prompt | chars |
+|--------|-------|
+| chapter-generate | 900 |
+| create-chapter | 900+ |
+| worldview-agent | 1,057 |
+| plot-branch-browser | 1,166 |

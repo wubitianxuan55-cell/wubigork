@@ -84,11 +84,8 @@ const NovelSettingPage: React.FC = () => {
     }}>
       {/* 工具栏 */}
       <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
       }}>
-        <span style={{ fontSize: 18, fontWeight: 600, color: C('color-text') }}>
-          📖 小说设定
-        </span>
         <Space size={8}>
           <Button icon={<ImportOutlined />} onClick={handleImport}
             style={{ borderColor: '#60a5fa', color: '#60a5fa' }}>

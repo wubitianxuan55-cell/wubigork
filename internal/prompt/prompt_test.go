@@ -33,9 +33,9 @@ func TestEngineGetAllTemplates(t *testing.T) {
 	names := []string{
 		"chapter-generate", "chapter-summary",
 		"character-agent", "character-detail", "character-generate-single", "character-generate-batch",
-		"worldview-agent", "worldview-chat-section", "worldview-generate-all", "worldview-check-consistency",
-		"outline-chat", "outline-chat-node", "outline-continue", "outline-expand", "outline-generate-detail",
-		"analysis-chapter",
+		"worldview-agent",
+		"outline-chat", "outline-chat-node", "outline-continue", "outline-expand",
+		"analysis-chapter", "plot-branch-browser", "create-chapter",
 	}
 	for _, name := range names {
 		if tmpl := eng.Get(name); tmpl == nil {
@@ -52,7 +52,7 @@ func TestBuildSystemPrompt(t *testing.T) {
 	}
 
 	result := tmpl.BuildSystemPrompt("")
-	if !strings.Contains(result, "小说作家") {
+	if !strings.Contains(result, "作者") {
 		t.Error("system prompt should contain role description")
 	}
 	if !strings.Contains(result, "任务") {

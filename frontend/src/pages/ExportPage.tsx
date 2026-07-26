@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Typography, Button, Card, Space, Tag } from 'antd'
-import { FileTextOutlined, FileMarkdownOutlined, BookOutlined, ExportOutlined } from '@ant-design/icons'
+import { FileTextOutlined, FileMarkdownOutlined, BookOutlined } from '@ant-design/icons'
 import { C } from '../utils/theme'
 
 const ExportPage: React.FC = () => {
@@ -22,7 +22,6 @@ const ExportPage: React.FC = () => {
 
   return (
     <div>
-      <Typography.Title level={4} style={{ color: C('color-text') }}><ExportOutlined style={{ marginRight: 8 }} />导出作品</Typography.Title>
 
       <Card style={{ background: 'var(--bg-glass)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', padding: 24, textAlign: 'center', marginBottom: 24 }}>
         <Typography.Paragraph style={{ color: C('color-text-secondary') }}>

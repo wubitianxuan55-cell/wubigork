@@ -29,21 +29,6 @@ func (a *App) ChatWorldview(userMsg string) (map[string]interface{}, error) {
 	}, nil
 }
 
-// ChatWorldviewSection 针对特定世界观维度对话
-func (a *App) ChatWorldviewSection(sectionID, userMsg string) (map[string]interface{}, error) {
-	if a.worldviewAgent == nil {
-		return nil, fmt.Errorf("请先打开项目")
-	}
-	reply, err := a.worldviewAgent.ChatSection(a.ctx, sectionID, userMsg)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]interface{}{
-		"reply":    reply,
-		"sections": a.worldviewAgent.GetSections(),
-	}, nil
-}
-
 // SaveWorldviewSection 保存单个世界观维度
 func (a *App) SaveWorldviewSection(sectionID, content string) error {
 	if a.worldviewAgent == nil {
@@ -78,24 +63,6 @@ func (a *App) GetWorldviewSections() (map[string]interface{}, error) {
 	}, nil
 }
 
-// GenerateWorldviewSections AI 一键生成全部 6 个世界观维度
-func (a *App) GenerateWorldviewSections() (map[string]interface{}, error) {
-	if a.worldviewAgent == nil {
-		return nil, fmt.Errorf("请先打开项目")
-	}
-	pm := a.getPM()
-	if pm == nil {
-		return nil, fmt.Errorf("请先打开项目")
-	}
-	wf, err := a.worldviewAgent.GenerateAllSections(a.ctx, pm.Meta.Genre, pm.Meta.Style, "")
-	if err != nil {
-		return nil, err
-	}
-	return map[string]interface{}{
-		"sections": wf.Sections,
-	}, nil
-}
-
 // SaveWorldview 保存世界观（向后兼容）
 func (a *App) SaveWorldview(content string) error {
 	if a.worldviewAgent == nil {
@@ -112,21 +79,12 @@ func (a *App) GetWorldview() string {
 	return a.worldviewAgent.GetCurrent()
 }
 
-// CheckWorldviewConsistency 世界观一致性检查
-func (a *App) CheckWorldviewConsistency() (*types.ConsistencyReport, error) {
-	if a.worldviewAgent == nil {
-		return nil, fmt.Errorf("请先打开项目")
-	}
-	return a.worldviewAgent.CheckConsistency(a.ctx)
-}
-
 // SaveWorldMapImage 将世界地图图片保存到项目根目录 world_map.png
 func (a *App) SaveWorldMapImage(imageData string) error {
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
 	}
-	// 解码 base64 data URL (data:image/png;base64,...)
 	b64 := imageData
 	if idx := strings.Index(imageData, ","); idx != -1 {
 		b64 = imageData[idx+1:]

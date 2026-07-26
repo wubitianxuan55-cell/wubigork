@@ -110,12 +110,8 @@ const HomePage: React.FC = () => {
   // --- 书架视图 ---
   return (
     <div>
-      {/* 顶部栏 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Space direction="vertical" size={0}>
-          <Typography.Title level={3} style={{ color: C('color-text'), margin: 0, fontWeight: 600 }}>
-            我的书架
-          </Typography.Title>
           {projectOpen && (
             <Tag color="green" style={{ fontSize: 11, marginTop: 4 }}>
               正在编辑：{projectTitle}

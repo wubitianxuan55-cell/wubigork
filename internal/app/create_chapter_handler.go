@@ -12,7 +12,7 @@ import (
 	"github.com/wubigork/wubigork/internal/util"
 )
 
-func (a *App) CreateChapter(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string) (map[string]interface{}, error) {
+func (a *App) CreateChapter(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string, skillName string) (map[string]interface{}, error) {
 	if a.client == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
@@ -27,7 +27,18 @@ func (a *App) CreateChapter(setting, prevSummary, plotReq string, chapterNum int
 		return nil, fmt.Errorf("小说设定为空，请先在「设定」页面填写世界观")
 	}
 
-	// 2. 从章节节点树提取前文摘要（每章一个节点摘要）
+	// 2. 加载 Skill 写作指导
+	skillMD := ""
+	if skillName != "" && a.skillLoader != nil {
+		if s := a.skillLoader.Get(skillName); s != nil {
+			skillMD = s.Body
+			slog.Info("CreateChapter Skill 已注入", "name", s.Name, "version", s.Version)
+		} else {
+			slog.Warn("CreateChapter Skill 未找到", "skill", skillName)
+		}
+	}
+
+	// 3. 从章节节点树提取前文摘要（每章一个节点摘要）
 	of, err := pm.ReadOutlines()
 	if err != nil {
 		of = &types.OutlineFile{Nodes: []types.OutlineNode{}}
@@ -45,45 +56,22 @@ func (a *App) CreateChapter(setting, prevSummary, plotReq string, chapterNum int
 	}
 	prevSummary = strings.Join(prevParts, "\n\n")
 
-	// 3. 构建 user prompt
-	var parts []string
-	parts = append(parts, fmt.Sprintf("【本章剧情要求】\n%s", plotReq))
-	parts = append(parts, fmt.Sprintf("【小说设定】\n%s", setting))
-	if prevSummary != "" {
-		parts = append(parts, fmt.Sprintf("【前文章节摘要】\n%s", prevSummary))
-	}
-	// 注入角色信息
-	if chars, err := pm.ReadCharacters(); err == nil && chars != nil && len(chars.Characters) > 0 {
-		var charLines []string
-		for _, c := range chars.Characters {
-			if c.Name == "" {
-				continue
-			}
-			line := fmt.Sprintf("- %s", c.Name)
-			if c.RoleType != "" {
-				line += fmt.Sprintf("（%s）", c.RoleType)
-			}
-			if c.Personality != "" {
-				line += fmt.Sprintf("：%s", c.Personality)
-			}
-			charLines = append(charLines, line)
-		}
-		if len(charLines) > 0 {
-			parts = append(parts, fmt.Sprintf("【角色信息】\n%s", strings.Join(charLines, "\n")))
-		}
+	// 4. 构建 user prompt（通过模板）
+	tmpl := a.eng.Get("create-chapter")
+	if tmpl == nil {
+		return nil, fmt.Errorf("缺少 create-chapter 模板文件")
 	}
 
-	parts = append(parts, `请直接撰写本章正文（2000-4000字），然后在文末附加一段章节摘要，格式如下：
+	userPrompt := tmpl.BuildUserPrompt(map[string]string{
+		"plot_req":     plotReq,
+		"setting":      setting,
+		"prev_summary": prevSummary,
+	})
 
----CHAPTER_SUMMARY---
-关键事件：（一句话概括本章核心情节）
-人物变化：（角色关系或状态的变化）
-伏笔/悬念：（本章埋下的伏笔或结尾悬念）
-（以上摘要总字数不超过100字）`)
-
-	userPrompt := strings.Join(parts, "\n\n")
-
-	systemPrompt := "你是一位专业小说作家。请保持与前文一致的文风、人物性格和世界观设定。直接撰写小说正文，不要任何前言。文末按要求附加章节摘要。文笔流畅自然。"
+	systemPrompt := tmpl.BuildSystemPrompt("")
+	if skillMD != "" {
+		systemPrompt += "\n\n---\n## 额外写作指导\n" + skillMD
+	}
 	const minWords = 5000
 	const maxContinues = 2
 
@@ -114,6 +102,14 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 				bodyLen, need, util.Truncate(fullText, 200))
 			slog.Info("章节字数不足，启动续写", "current", bodyLen, "need", need, "attempt", attempt)
 		}
+
+		// 向 AI 控制台发送请求日志
+		a.emit("xai-output", map[string]interface{}{
+			"type":   "request",
+			"model":  a.cfg.Model,
+			"system": systemPrompt,
+			"user":   currentPrompt,
+		})
 
 		chunks, err := a.client.ChatStream(a.ctx, &ai.ChatRequest{
 			Model:    a.cfg.Model,
@@ -150,7 +146,7 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 					if idx := strings.Index(fullText, "---CHAPTER_SUMMARY---"); idx >= 0 {
 						summaryStarted = true
 						// 计算本次 chunk 中正文部分的长度
-						bodyLen := idx - (len([]rune(fullText)) - len([]rune(chunk.Content)))
+					bodyLen := idx - (len(fullText) - len(chunk.Content))
 						if bodyLen > 0 {
 							bodyPart := string([]rune(chunk.Content)[:bodyLen])
 							a.emit("create-chapter-stream", map[string]interface{}{
@@ -261,6 +257,14 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 			return
 		}
 	}
+
+	// AI 控制台响应日志
+	a.emit("xai-output", map[string]interface{}{
+		"type":    "response",
+		"model":   a.cfg.Model,
+		"content": util.Truncate(content, 200),
+		"length":  len([]rune(content)),
+	})
 
 	a.emit("create-chapter-stream", map[string]interface{}{
 		"type":       "done",
