@@ -167,6 +167,7 @@ const CreatePage: React.FC = () => {
     }
 
     try {
+      try { window.runtime?.EventsOff?.('create-chapter-stream') } catch (_) {}
       try { window.runtime?.EventsOn?.('create-chapter-stream', handler) } catch (_) {}
       await App.CreateChapter(setting, '', plotReq, wizOverwriteChapter, wizBranchFromID, selectedSkill || '')
     } catch (err: any) {
