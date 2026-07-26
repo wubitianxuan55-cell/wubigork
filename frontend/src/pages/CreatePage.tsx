@@ -123,6 +123,8 @@ const CreatePage: React.FC = () => {
   const fetchBranchesFor = async (prevChapter: number) => {
       const prevSummary = prevChapter > 0 ? getPrevSummary(prevChapter) : ''
       const res = await App.QuickBrainstormBranches(setting, prevSummary || '')
+      const list = (res as any)?.branches || []
+      setBranches(list.map((b: any) => ({ title: b.title, pitch: b.summary })))
       setWizStep('branches')
   }
 
