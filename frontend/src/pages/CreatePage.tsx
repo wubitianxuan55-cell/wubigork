@@ -169,7 +169,22 @@ const CreatePage: React.FC = () => {
     try {
       try { window.runtime?.EventsOff?.('create-chapter-stream') } catch (_) {}
       try { window.runtime?.EventsOn?.('create-chapter-stream', handler) } catch (_) {}
-      await App.CreateChapter(setting, '', plotReq, wizOverwriteChapter, wizBranchFromID, selectedSkill || '')
+      const result = await App.CreateChapter(setting, '', plotReq, wizOverwriteChapter, wizBranchFromID, selectedSkill || '')
+      // 预创建节点已由后端同步完成，立即激活
+      const nodeId = (result as any)?.nodeId
+      const chapNum = (result as any)?.chapterNum
+      if (nodeId) {
+        const store = useOutlineStore.getState()
+        if (!store.outlines.find(n => n.id === nodeId)) {
+          store.setOutlines([...store.outlines, {
+            id: nodeId, order_index: chapNum,
+            title: `第${chapNum}章`, status: 'generating',
+            parent_id: '', summary: '',
+          } as any])
+        }
+        setActiveId(nodeId)
+        setContent('')
+      }
     } catch (err: any) {
       setGenerating(false)
       setGenPhase('')

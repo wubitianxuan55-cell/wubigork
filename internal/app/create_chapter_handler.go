@@ -74,15 +74,25 @@ func (a *App) CreateChapter(setting, prevSummary, plotReq string, chapterNum int
 	}
 	const minWords = 5000
 	const maxContinues = 2
+	// 5. 确定/创建节点（同步，前端立即可用）
+	targetNum, nodeID, branch := a.ensureChapterNode(pm, of, chapterNum, branchFromNodeID)
+	if nodeID == "" {
+		return nil, fmt.Errorf("创建章节节点失败")
+	}
 
 	// 启动流式生成 + 字数守卫（续写模式）
-	go a.streamCreateChapter(pm, of, setting, prevSummary, plotReq, chapterNum, branchFromNodeID, systemPrompt, userPrompt, minWords, maxContinues)
+	go a.streamCreateChapter(pm, of, setting, prevSummary, plotReq, chapterNum, branchFromNodeID, systemPrompt, userPrompt, minWords, maxContinues, targetNum, nodeID, branch)
 
-	return map[string]interface{}{"streaming": true}, nil
+	return map[string]interface{}{
+		"streaming":   true,
+		"chapterNum":  targetNum,
+		"nodeId":      nodeID,
+		"branch":      branch,
+	}, nil
 }
 
 // streamCreateChapter 在后台 goroutine 中流式生成章节，字数不足时续写
-func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID, systemPrompt, userPrompt string, minWords, maxContinues int) {
+func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID, systemPrompt, userPrompt string, minWords, maxContinues int, targetNum int, nodeID string, branch string) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("CreateChapter stream panic", "panic", r)
@@ -193,67 +203,14 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 		summary = util.Truncate(summary, 100)
 	}
 
-	// 保存节点和章节文件
-	var targetNum int
-	var nodeID string
-	var title string
-	var branch string
-
-	if chapterNum > 0 {
-		targetNum = chapterNum
-		for i, n := range of.Nodes {
-			if n.OrderIndex == chapterNum && n.Branch == "" {
-				nodeID = n.ID
-				of.Nodes[i].Summary = summary
-				break
-			}
+	// 更新节点摘要并保存
+	for i := range of.Nodes {
+		if of.Nodes[i].ID == nodeID {
+			of.Nodes[i].Summary = summary
+			of.Nodes[i].Status = "written"
+			break
 		}
-	} else if branchFromNodeID != "" {
-		var parent *types.OutlineNode
-		for i := range of.Nodes {
-			if of.Nodes[i].ID == branchFromNodeID {
-				parent = &of.Nodes[i]
-				break
-			}
-		}
-		if parent == nil {
-			a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": fmt.Sprintf("父节点不存在: %s", branchFromNodeID)})
-			return
-		}
-		targetNum = parent.OrderIndex
-		used := map[string]bool{}
-		for _, n := range of.Nodes {
-			if n.OrderIndex == targetNum && n.Branch != "" {
-				used[n.Branch] = true
-			}
-		}
-		for _, l := range []string{"a", "b", "c"} {
-			if !used[l] { branch = l; break }
-		}
-		if branch == "" {
-			a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": fmt.Sprintf("第%d章已达到最大分支数（3个）", targetNum)})
-			return
-		}
-		nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
-		title = fmt.Sprintf("第%d%s章", targetNum, branch)
-		chapterFile := fmt.Sprintf("%03d%s.md", targetNum, branch)
-		of.Nodes = append(of.Nodes, types.OutlineNode{
-			ID: nodeID, ParentID: branchFromNodeID,
-			Title: title, OrderIndex: targetNum, Branch: branch,
-			Status: "written", Summary: summary,
-			ChapterFile: chapterFile,
-		})
-	} else {
-		targetNum = len(of.Nodes) + 1
-		nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
-		title = fmt.Sprintf("第%d章", targetNum)
-		of.Nodes = append(of.Nodes, types.OutlineNode{
-			ID: nodeID, ParentID: "",
-			Title: title, OrderIndex: targetNum,
-			Status: "written", Summary: summary,
-		})
 	}
-
 	if err := pm.WriteOutlines(of); err != nil {
 		a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": fmt.Sprintf("save outline: %v", err)})
 		return
@@ -287,4 +244,64 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 		"nodeId":     nodeID,
 		"total":      len([]rune(content)),
 	})
+}
+// ensureChapterNode 确定章节号并创建/复用节点（同步，在 AI 生成前执行）
+func (a *App) ensureChapterNode(pm *project.Manager, of *types.OutlineFile, chapterNum int, branchFromNodeID string) (targetNum int, nodeID string, branch string) {
+	if chapterNum > 0 {
+		targetNum = chapterNum
+		for _, n := range of.Nodes {
+			if n.OrderIndex == chapterNum && n.Branch == "" {
+				return targetNum, n.ID, ""
+			}
+		}
+		nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
+		of.Nodes = append(of.Nodes, types.OutlineNode{
+			ID: nodeID, Title: fmt.Sprintf("第%d章", targetNum),
+			OrderIndex: targetNum, Status: "generating",
+		})
+		pm.WriteOutlines(of)
+		return
+	}
+	if branchFromNodeID != "" {
+		var parent *types.OutlineNode
+		for i := range of.Nodes {
+			if of.Nodes[i].ID == branchFromNodeID {
+				parent = &of.Nodes[i]
+				break
+			}
+		}
+		if parent == nil {
+			return 0, "", ""
+		}
+		targetNum = parent.OrderIndex
+		used := map[string]bool{}
+		for _, n := range of.Nodes {
+			if n.OrderIndex == targetNum && n.Branch != "" {
+				used[n.Branch] = true
+			}
+		}
+		for _, l := range []string{"a", "b", "c"} {
+			if !used[l] { branch = l; break }
+		}
+		if branch == "" {
+			return 0, "", ""
+		}
+		nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
+		of.Nodes = append(of.Nodes, types.OutlineNode{
+			ID: nodeID, ParentID: branchFromNodeID,
+			Title: fmt.Sprintf("第%d%s章", targetNum, branch),
+			OrderIndex: targetNum, Branch: branch,
+			Status: "generating", ChapterFile: fmt.Sprintf("%03d%s.md", targetNum, branch),
+		})
+		pm.WriteOutlines(of)
+		return
+	}
+	targetNum = len(of.Nodes) + 1
+	nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
+	of.Nodes = append(of.Nodes, types.OutlineNode{
+		ID: nodeID, Title: fmt.Sprintf("第%d章", targetNum),
+		OrderIndex: targetNum, Status: "generating",
+	})
+	pm.WriteOutlines(of)
+	return
 }
