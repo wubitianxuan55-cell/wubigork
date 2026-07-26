@@ -4,7 +4,7 @@ import {
   CloudOutlined, CheckCircleOutlined,
   CloseCircleOutlined, ReloadOutlined, ThunderboltOutlined,
   DesktopOutlined, RocketOutlined, PictureOutlined, SoundOutlined,
-  CaretRightOutlined, SettingOutlined, LoginOutlined,
+  CaretRightOutlined, SettingOutlined, LoginOutlined, LogoutOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
 import { useAppStore } from '../stores/appStore'
@@ -49,7 +49,7 @@ const engineLabels: Record<string, string> = {
 // ── 页面组件 ──────────────────────────────────────────────
 
 const ModelCenterPage: React.FC = () => {
-  const { loggedIn, login } = useAppStore()
+  const { loggedIn, login, logout } = useAppStore()
   const [category, setCategory] = useState<Category>('llm')
   const [engines, setEngines] = useState<EngineConfig[]>([])
   const [loading, setLoading] = useState(true)
@@ -308,6 +308,71 @@ const ModelCenterPage: React.FC = () => {
           {/* ═══ 语言模型 ═══ */}
           {category === 'llm' && (
             <>
+              {/* ═══ XAI 账户卡片 ═══ */}
+              <Card
+                style={{
+                  marginBottom: 24,
+                  background: loggedIn
+                    ? 'linear-gradient(135deg, rgba(52,211,153,0.06), rgba(16,185,129,0.03))'
+                    : 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(37,99,235,0.04))',
+                  border: loggedIn
+                    ? '1px solid rgba(52,211,153,0.25)'
+                    : '1px solid rgba(99,102,241,0.2)',
+                  borderRadius: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Space size={12}>
+                    <div style={{
+                      width: 40, height: 40, borderRadius: 12,
+                      background: loggedIn
+                        ? 'linear-gradient(135deg, #34d399, #10b981)'
+                        : 'linear-gradient(135deg, #6366f1, #2563eb)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {loggedIn
+                        ? <CheckCircleOutlined style={{ fontSize: 20, color: '#fff' }} />
+                        : <CloudOutlined style={{ fontSize: 20, color: '#fff' }} />
+                      }
+                    </div>
+                    <div>
+                      <Typography.Text strong style={{ color: C('color-text'), fontSize: 14 }}>
+                        {loggedIn ? 'xAI 已连接' : 'xAI 账户'}
+                      </Typography.Text>
+                      <br />
+                      <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12 }}>
+                        {loggedIn
+                          ? 'Grok 模型已就绪，可正常使用所有 AI 功能'
+                          : '登录 xAI 以使用 Grok 等云端模型'}
+                      </Typography.Text>
+                    </div>
+                  </Space>
+                  {loggedIn ? (
+                    <Button
+                      icon={<LogoutOutlined />}
+                      onClick={() => logout()}
+                      style={{ color: C('color-text-secondary'), fontSize: 12 }}
+                    >
+                      退出登录
+                    </Button>
+                  ) : (
+                    <Button
+                      type="primary"
+                      icon={<LoginOutlined />}
+                      onClick={() => login()}
+                      style={{
+                        background: 'linear-gradient(135deg, #6366f1, #2563eb)',
+                        border: 'none',
+                        borderRadius: 8,
+                        fontWeight: 500,
+                      }}
+                    >
+                      登录 xAI
+                    </Button>
+                  )}
+                </div>
+              </Card>
+
               {engines.filter(e => e.enabled).length === 0 ? (
                 <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', textAlign: 'center', padding: 40 }}>
                   <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 14 }}>暂无启用的引擎。请在下方引擎管理中启用引擎并测试连接。</Typography.Text>
