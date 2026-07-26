@@ -1,6 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Input, Button, Space, Typography, Avatar } from 'antd'
-import { SendOutlined, RobotOutlined, UserOutlined, RightOutlined, UpOutlined } from '@ant-design/icons'
+import { Input, Button, Space, Typography, Avatar, Tooltip } from 'antd'
+import {
+  SendOutlined,
+  RobotOutlined,
+  UserOutlined,
+  RightOutlined,
+  UpOutlined,
+  CopyOutlined,
+  CheckOutlined,
+  MessageOutlined,
+} from '@ant-design/icons'
 import { C } from '../utils/theme'
 
 export interface Message {
@@ -39,7 +48,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   onSend,
   onMessagesChange,
   streaming = false,
-  placeholder = '输入消息...',
+  placeholder = '输入消息，Enter 发送 / Shift+Enter 换行',
   extra,
   defaultCollapsed = false,
   autoSend,
@@ -50,8 +59,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [loading, setLoading] = useState(false)
   const [streamText, setStreamText] = useState('')
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const sendRef = useRef<(() => void) | undefined>(undefined)
+  const inputRef = useRef<any>(null)
 
   // 当监听到外部 autoSend → 展开面板 → 设输入 → 自动发送
   useEffect(() => {
@@ -92,12 +103,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         setStreamText('')
         for (let i = 0; i < text.length; i++) {
           setStreamText(text.slice(0, i + 1))
-          await new Promise((r) => setTimeout(r, 15))
+          await new Promise((r) => setTimeout(r, 12))
         }
         aiMsg.content = text
         aiMsg.streaming = false
         setStreamText('')
-        // 关键修复：通知父组件最终内容
         onMessagesChange?.([...withAi])
       }
     } catch (err: any) {
@@ -106,43 +116,111 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         last.content = `❌ 错误: ${err.message || err}`
         last.streaming = false
       }
-      // 关键修复：通知父组件错误消息
       onMessagesChange?.([...withAi])
     } finally {
       setLoading(false)
     }
   }
 
-  // 把 send 方法暴露给 ref——autoSend useEffect 依赖它
   sendRef.current = handleSendImpl
 
   const handleSend = () => handleSendImpl()
 
+  const handleCopy = async (content: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    } catch {
+      // 降级方案
+      const ta = document.createElement('textarea')
+      ta.value = content
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  const panelHeight = collapsed ? 'auto' : fillHeight ? '100%' : 280
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: collapsed ? 'auto' : fillHeight ? '100%' : 280, minHeight: 0, flex: fillHeight ? 1 : undefined }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: panelHeight,
+        minHeight: 0,
+        flex: fillHeight ? 1 : undefined,
+        borderRadius: collapsed ? 8 : 12,
+        background: C('color-bg-container'),
+        border: `1px solid ${C('color-border')}`,
+        overflow: 'hidden',
+        transition: 'border-radius 0.2s',
+      }}
+    >
       {/* 标题栏 */}
       <div
         onClick={() => { if (collapsed) setCollapsed(false) }}
         style={{
-          padding: '6px 12px', borderBottom: collapsed ? 'none' : '1px solid ' + C('color-border'),
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: collapsed ? '8px 14px' : '10px 16px',
+          borderBottom: collapsed ? 'none' : `1px solid ${C('color-border')}`,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           cursor: collapsed ? 'pointer' : 'default',
-        }}>
-        <Space size={4}>
-          {collapsed
-            ? <RightOutlined style={{ color: C('color-text-secondary'), fontSize: 10 }} />
-            : null}
-          <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>
-            🤖 {title}
+          background: collapsed ? C('color-bg-container') : C('color-bg-elevated'),
+          transition: 'background 0.2s, padding 0.2s',
+          userSelect: 'none',
+        }}
+      >
+        <Space size={8}>
+          {collapsed ? (
+            <RightOutlined style={{ color: C('color-text-secondary'), fontSize: 10 }} />
+          ) : null}
+          <RobotOutlined style={{ color: C('color-primary'), fontSize: collapsed ? 16 : 18 }} />
+          <Typography.Text
+            strong
+            style={{
+              color: C('color-text'),
+              fontSize: collapsed ? 13 : 14,
+            }}
+          >
+            {title}
           </Typography.Text>
+          {messages.length > 0 && !collapsed && (
+            <Typography.Text
+              style={{
+                color: C('color-text-secondary'),
+                fontSize: 11,
+                marginLeft: 4,
+              }}
+            >
+              {messages.length} 条消息
+            </Typography.Text>
+          )}
         </Space>
         <Space size={4}>
           {!collapsed && extra}
           {!collapsed && (
-            <Button type="text" size="small" onClick={() => setCollapsed(true)}
-              style={{ color: C('color-text-secondary'), fontSize: 10, padding: 0 }}>
-              <UpOutlined />
-            </Button>
+            <Tooltip title="收起面板" placement="left">
+              <Button
+                type="text"
+                size="small"
+                icon={<UpOutlined />}
+                onClick={(e) => { e.stopPropagation(); setCollapsed(true) }}
+                style={{ color: C('color-text-secondary'), fontSize: 10 }}
+              />
+            </Tooltip>
           )}
         </Space>
       </div>
@@ -150,66 +228,320 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       {!collapsed && (
         <>
           {/* 消息列表 */}
-          <div ref={listRef} style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
-            {messages.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#666', marginTop: 48 }}>
-                <RobotOutlined style={{ fontSize: 28, marginBottom: 8 }} />
-                <div style={{ fontSize: 12 }}>输入消息，AI 辅助你创作</div>
+          <div
+            ref={listRef}
+            style={{
+              flex: 1,
+              overflow: 'auto',
+              padding: '16px',
+              background: C('color-bg-container'),
+            }}
+          >
+            {messages.length === 0 && !streaming && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  minHeight: 180,
+                  textAlign: 'center',
+                  padding: '24px 20px',
+                }}
+              >
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 20,
+                    background: `${C('color-primary')}12`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 20,
+                  }}
+                >
+                  <RobotOutlined style={{ fontSize: 32, color: C('color-primary') }} />
+                </div>
+                <Typography.Text
+                  strong
+                  style={{ color: C('color-text'), fontSize: 15, marginBottom: 8 }}
+                >
+                  开始对话
+                </Typography.Text>
+                <Typography.Text
+                  style={{ color: C('color-text-secondary'), fontSize: 13, maxWidth: 280, lineHeight: 1.6 }}
+                >
+                  在下方输入消息，AI 将为你提供帮助。
+                  <br />
+                  支持写作辅助、角色设计、创意讨论等任务。
+                </Typography.Text>
               </div>
             )}
-            {messages.map((msg) => (
-              <div key={msg.id} style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
+
+            {messages.map((msg) => {
+              const isUser = msg.role === 'user'
+              return (
+                <div
+                  key={msg.id}
+                  className="chat-message-item"
+                  style={{
+                    marginBottom: 20,
+                    display: 'flex',
+                    gap: 10,
+                    flexDirection: isUser ? 'row-reverse' : 'row',
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <Avatar
+                    size={34}
+                    icon={isUser ? <UserOutlined /> : <RobotOutlined />}
+                    style={{
+                      background: isUser
+                        ? `linear-gradient(135deg, ${C('color-primary')}, ${C('color-primary')}dd)`
+                        : `linear-gradient(135deg, ${C('color-border')}, ${C('color-bg-elevated')})`,
+                      flexShrink: 0,
+                      boxShadow: isUser
+                        ? `0 2px 8px ${C('color-primary')}33`
+                        : '0 1px 4px rgba(0,0,0,0.06)',
+                    }}
+                  />
+                  <div
+                    style={{
+                      flex: isUser ? undefined : 1,
+                      maxWidth: '82%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: isUser ? 'flex-end' : 'flex-start',
+                    }}
+                  >
+                    {/* 发送者标签 */}
+                    <Typography.Text
+                      style={{
+                        color: isUser ? C('color-primary') : C('color-text-secondary'),
+                        fontSize: 11,
+                        fontWeight: 500,
+                        marginBottom: 4,
+                        marginLeft: isUser ? 0 : 2,
+                        marginRight: isUser ? 2 : 0,
+                      }}
+                    >
+                      {isUser ? '你' : 'AI'}
+                    </Typography.Text>
+
+                    {/* 消息气泡 */}
+                    <div
+                      className="chat-bubble"
+                      style={{
+                        position: 'relative',
+                        padding: '10px 14px',
+                        borderRadius: isUser ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+                        background: isUser
+                          ? `linear-gradient(135deg, ${C('color-primary')}, ${C('color-primary')}ee)`
+                          : C('color-bg-elevated'),
+                        color: isUser ? '#fff' : C('color-text'),
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: 1.65,
+                        fontSize: 13.5,
+                        wordBreak: 'break-word',
+                        boxShadow: isUser
+                          ? `0 2px 12px ${C('color-primary')}22`
+                          : '0 1px 3px rgba(0,0,0,0.04)',
+                        border: isUser ? 'none' : `1px solid ${C('color-border')}`,
+                      }}
+                    >
+                      {msg.content}
+                      {msg.streaming && <span className="cursor-blink" />}
+
+                      {/* 复制按钮 — hover 显示 */}
+                      {msg.content && !msg.streaming && (
+                        <Tooltip title={copiedId === msg.id ? '已复制' : '复制'} placement="top">
+                          <Button
+                            type="text"
+                            size="small"
+                            className="chat-copy-btn"
+                            icon={
+                              copiedId === msg.id ? (
+                                <CheckOutlined style={{ color: '#52c41a' }} />
+                              ) : (
+                                <CopyOutlined />
+                              )
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCopy(msg.content, msg.id)
+                            }}
+                            style={{
+                              position: 'absolute',
+                              top: 4,
+                              right: 4,
+                              opacity: 0,
+                              color: isUser ? 'rgba(255,255,255,0.7)' : C('color-text-secondary'),
+                              transition: 'opacity 0.15s',
+                              background: isUser ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.04)',
+                              borderRadius: 6,
+                              width: 28,
+                              height: 28,
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          />
+                        </Tooltip>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* 流式输出中的临时消息 */}
+            {streaming && streamText && (
+              <div
+                style={{
+                  marginBottom: 20,
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                }}
+              >
                 <Avatar
-                  size={32}
-                  icon={msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
-                  style={{ background: msg.role === 'user' ? C('color-primary') : C('color-border'), flexShrink: 0 }}
+                  size={34}
+                  icon={<RobotOutlined />}
+                  style={{
+                    background: `linear-gradient(135deg, ${C('color-border')}, ${C('color-bg-elevated')})`,
+                    flexShrink: 0,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                  }}
                 />
-                <div style={{ flex: 1 }}>
-                  <Typography.Text strong style={{ color: msg.role === 'user' ? C('color-primary') : '#60a5fa', fontSize: 12 }}>
-                    {msg.role === 'user' ? '你' : 'AI'}
+                <div style={{ flex: 1, maxWidth: '82%' }}>
+                  <Typography.Text
+                    style={{ color: C('color-text-secondary'), fontSize: 11, fontWeight: 500, marginBottom: 4, display: 'block', marginLeft: 2 }}
+                  >
+                    AI
                   </Typography.Text>
-                  <div style={{
-                    color: C('color-text'),
-                    whiteSpace: 'pre-wrap',
-                    lineHeight: 1.7,
-                    marginTop: 4,
-                  }}>
-                    {msg.content}
-                    {msg.streaming && <span className="cursor-blink" />}
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '4px 16px 16px 16px',
+                      background: C('color-bg-elevated'),
+                      border: `1px solid ${C('color-border')}`,
+                      color: C('color-text'),
+                      whiteSpace: 'pre-wrap',
+                      lineHeight: 1.65,
+                      fontSize: 13.5,
+                      wordBreak: 'break-word',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    }}
+                  >
+                    {streamText}
+                    <span className="cursor-blink" />
                   </div>
                 </div>
               </div>
-            ))}
-            {streaming && streamText && (
-              <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
-                <Avatar size={32} icon={<RobotOutlined />} style={{ background: C('color-border') }} />
-                <div style={{ color: C('color-text'), whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
-                  {streamText}
-                  <span className="cursor-blink" />
+            )}
+
+            {/* 加载中状态（发送中但还没开始流式输出） */}
+            {loading && !streamText && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 20 }}>
+                <Avatar
+                  size={34}
+                  icon={<RobotOutlined />}
+                  style={{
+                    background: `linear-gradient(135deg, ${C('color-border')}, ${C('color-bg-elevated')})`,
+                    flexShrink: 0,
+                  }}
+                />
+                <div
+                  style={{
+                    padding: '12px 18px',
+                    borderRadius: '4px 16px 16px 16px',
+                    background: C('color-bg-elevated'),
+                    border: `1px solid ${C('color-border')}`,
+                  }}
+                >
+                  <span className="typing-dots">
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
+                  </span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* 输入框 */}
-          <div style={{ padding: '8px 12px', borderTop: '1px solid ' + C('color-border') }}>
-            <Space.Compact style={{ width: '100%' }}>
-              <Input
+          {/* 输入框 — 悬浮居中 */}
+          <div
+            style={{
+              padding: '16px 0 20px',
+              display: 'flex',
+              justifyContent: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                maxWidth: 720,
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 8,
+                padding: '8px 10px',
+                background: C('color-bg-container'),
+                border: `1px solid ${C('color-border')}`,
+                borderRadius: 16,
+                boxShadow: `0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04)`,
+                transition: 'box-shadow 0.2s',
+              }}
+            >
+              <Input.TextArea
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onPressEnter={handleSend}
+                onKeyDown={handleKeyDown}
                 placeholder={placeholder}
                 disabled={loading}
-                style={{ background: C('color-bg-container'), borderColor: C('color-border'), color: C('color-text') }}
+                autoSize={{ minRows: 1, maxRows: 5 }}
+                className="chat-input-textarea"
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  color: C('color-text'),
+                  borderRadius: 0,
+                  resize: 'none',
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  padding: '6px 4px',
+                  boxShadow: 'none',
+                }}
               />
               <Button
                 type="primary"
                 icon={<SendOutlined />}
                 onClick={handleSend}
                 loading={loading}
-                style={{ background: C('color-primary'), borderColor: C('color-primary') }}
+                disabled={!input.trim() && !loading}
+                style={{
+                  background: input.trim() ? C('color-primary') : C('color-border'),
+                  borderColor: 'transparent',
+                  borderRadius: 12,
+                  width: 38,
+                  height: 38,
+                  minWidth: 38,
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: input.trim()
+                    ? `0 2px 8px ${C('color-primary')}44`
+                    : 'none',
+                  transition: 'all 0.2s',
+                  flexShrink: 0,
+                }}
               />
-            </Space.Compact>
+            </div>
           </div>
         </>
       )}

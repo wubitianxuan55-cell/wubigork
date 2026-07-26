@@ -3,7 +3,7 @@ import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Bread
 import {
   ReadOutlined, HomeOutlined,
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined, ConsoleSqlOutlined,
-  ApiOutlined, PictureOutlined,
+  ApiOutlined, PictureOutlined, MessageOutlined,
   FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined,
   BarChartOutlined, DownOutlined,
 } from '@ant-design/icons'
@@ -16,15 +16,17 @@ const NovelPage = React.lazy(() => import('../pages/NovelPage'))
 const SettingsPage = React.lazy(() => import('../pages/SettingsPage'))
 const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'))
 const ModelCenterPage = React.lazy(() => import('../pages/ModelCenterPage'))
+const ChatPage = React.lazy(() => import('../pages/ChatPage'))
 
 const { Header, Footer, Content } = Layout
 
-type Page = 'novel' | 'imagegen' | 'settings' | 'modelcenter'
+type Page = 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat'
 
 // 所有页面 key 的扁平列表（用于 navigate 事件校验 + 快捷键映射）
-const allPageKeys: Page[] = ['novel', 'imagegen', 'modelcenter']
+const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'modelcenter']
 
 const menuItems: any[] = [
+  { key: 'chat', icon: <MessageOutlined />, label: '聊天' },
   { key: 'novel', icon: <ReadOutlined />, label: '小说' },
   { key: 'imagegen', icon: <PictureOutlined />, label: '绘梦' },
   { key: 'modelcenter', icon: <ApiOutlined />, label: '模型中心' },
@@ -35,6 +37,7 @@ const pageComponents: Record<Page, React.ReactNode> = {
   imagegen: <ImageGenPage />,
   settings: <SettingsPage />,
   modelcenter: <ModelCenterPage />,
+  chat: <ChatPage />,
 }
 interface LogEntry {
   id: number; type: string; time: string
@@ -118,12 +121,13 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
 }
 
 const pageLabels: Record<Page, string> = {
-  novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心',
+  novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天',
 }
 
 // ─── 主布局 ─────────────────────────────────────────────────
+// ─── 主布局 ─────────────────────────────────────────────────
 const MainLayout: React.FC = () => {
-  const [page, setPage] = useState<Page>('novel')
+  const [page, setPage] = useState<Page>('chat')
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [consoleOpen, setConsoleOpen] = useState(true)
   const [expandedLog, setExpandedLog] = useState<number | null>(null)
@@ -136,7 +140,7 @@ const MainLayout: React.FC = () => {
   } = useAppStore()
 
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set(['novel']))
+  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set(['chat']))
 
   // 跟踪已访问的页面，避免切换 tab 时销毁组件丢失状态
   React.useEffect(() => {
@@ -197,8 +201,8 @@ const MainLayout: React.FC = () => {
     const onKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
-      // Ctrl+1~3 切换页面
-      if (e.key >= '1' && e.key <= '3') {
+      // Ctrl+1~4 切换页面
+      if (e.key >= '1' && e.key <= '4') {
         e.preventDefault()
         setPage(allPageKeys[Number(e.key) - 1] as Page)
       }
@@ -350,15 +354,18 @@ const MainLayout: React.FC = () => {
             </div>
           )}
           <Content style={{
-            padding: '8px 16px 16px',
-            paddingBottom: '16px',
-            background: 'var(--md-sys-color-bg-layout)',
-            overflow: 'auto', flex: 1,
+            padding: page === 'chat' ? 0 : '8px 16px 16px',
+            paddingBottom: page === 'chat' ? 0 : '16px',
+            background: page === 'chat' ? 'var(--md-sys-color-surface)' : 'var(--md-sys-color-bg-layout)',
+            overflow: page === 'chat' ? 'hidden' : 'auto',
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
           }}>
             <ErrorBoundary>
               <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Spin size="large" /></div>}>
                 {Array.from(visitedPages).map((p) => (
-                  <div key={p} style={{ display: p === page ? 'block' : 'none' }}>
+                  <div key={p} style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
                     {pageComponents[p]}
                   </div>
                 ))}
@@ -367,7 +374,7 @@ const MainLayout: React.FC = () => {
           </Content>
         </div>
 
-{consoleOpen && page !== 'imagegen' && page !== 'modelcenter' && (
+{consoleOpen && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && (
   <div style={{
     width: 380, flexShrink: 0, alignSelf: 'stretch',
     maxHeight: 'calc(100vh - 80px)',

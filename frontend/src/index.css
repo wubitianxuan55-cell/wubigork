@@ -183,8 +183,69 @@ body {
   border-radius: 1px;
   animation: blink 1s step-end infinite;
 }
+
+/* ═══ 聊天消息入场动画 ═══ */
+@keyframes chatMessageIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.chat-message-item {
+  animation: chatMessageIn 0.25s ease-out;
+}
+
+/* ═══ 消息气泡 hover 时显示复制按钮 ═══ */
+.chat-bubble:hover .chat-copy-btn {
+  opacity: 1 !important;
+}
+
+/* ═══ 打字指示器（三点跳动） ═══ */
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--md-sys-color-primary);
+  animation: typingBounce 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
 .page-transition-enter {
   animation: pageEnter 0.25s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ═══ 悬浮输入框 — Ant Design TextArea 无边框聚焦覆盖 ═══ */
+.chat-input-textarea,
+.chat-input-textarea:focus,
+.chat-input-textarea-focused {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
 }
 
 /* ═══ M3 Navigation (Ant Design 覆盖) ═══ */

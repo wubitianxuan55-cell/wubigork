@@ -106,6 +106,7 @@ interface AppState {
   projectInfo: ProjectInfo | null
   stats: StatsData | null
   login: () => Promise<void>
+  logout: () => Promise<void>
   checkLogin: () => Promise<void>
   setLoggedIn: (v: boolean) => void
   openProject: (path: string, title: string) => void
@@ -177,6 +178,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (_) {
       // Go 绑定未就绪时静默忽略
     }
+  },
+  logout: async () => {
+    try {
+      // @ts-ignore
+      await window.go.app.App.Logout()
+    } catch (_) {}
+    set({ loggedIn: false })
   },
 
   setLoggedIn: (v: boolean) => set({ loggedIn: v }),
