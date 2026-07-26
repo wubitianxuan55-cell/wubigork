@@ -283,7 +283,7 @@ const CreatePage: React.FC = () => {
           )}
           {chapterLoading ? (
             <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
-          ) : activeNode ? (
+          ) : (activeNode || generating) ? (
             <>
               {skills.length > 0 && (
                 <Select
@@ -300,7 +300,7 @@ const CreatePage: React.FC = () => {
                 style={{ flex: 1, resize: 'none', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: C('color-text'), borderRadius: 'var(--radius-md)', fontSize: 14, lineHeight: 1.8, fontFamily: '"Noto Serif SC", "Source Han Serif SC", "SimSun", serif', minHeight: 0 }}
               />
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <Button icon={<ReloadOutlined />} onClick={() => handleRegenerate(activeNode)}>重新生成</Button>
+                {activeNode && <Button icon={<ReloadOutlined />} onClick={() => handleRegenerate(activeNode)}>重新生成</Button>}
                 <Button icon={<SaveOutlined />} onClick={handleSave} loading={saving}>保存</Button>
               </div>
             </>
