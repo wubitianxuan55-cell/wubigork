@@ -231,7 +231,7 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 	a.emit("xai-output", map[string]interface{}{
 		"type":    "response",
 		"model":   a.cfg.Model,
-		"content": util.Truncate(content, 200),
+		"content": content,
 		"length":  len([]rune(content)),
 	})
 
