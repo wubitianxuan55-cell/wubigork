@@ -1,15 +1,16 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { Typography, Tag, Input, Select, InputNumber, Button, Space, Drawer, message, Popconfirm } from 'antd'
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { Typography, Tag, Button, Space, message } from 'antd'
 import {
-  PictureOutlined, CloudOutlined, HomeOutlined,
-  DeleteOutlined, ExpandOutlined, DownloadOutlined, SyncOutlined,
-  ShakeOutlined, PlusOutlined, EditOutlined,
-  PlayCircleOutlined, PoweroffOutlined, FolderOpenOutlined,
+  PictureOutlined, FolderOpenOutlined,
+  PlayCircleOutlined, PoweroffOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
-import Lightbox from '../components/Lightbox'
+import PromptPanel from '../components/PromptPanel'
+import GenControls from '../components/GenControls'
+import GenButton from '../components/GenButton'
 import ResultGallery from '../components/ResultGallery'
-import PromptBar from '../components/imagegen/PromptBar'
+import HistoryStrip from '../components/HistoryStrip'
+import Lightbox from '../components/Lightbox'
 import CustomTemplateModal from '../components/imagegen/CustomTemplateModal'
 import {
   TEMPLATES, getAllCategories,
@@ -24,22 +25,33 @@ import {
   setCharacterPortrait as setPortrait,
   type SystemStats,
 } from '../api/image'
+import { getEngines, testEngineConnection, setActiveEngine, setEngineDefaultModel, type EngineConfig } from '../api/engines'
+import { setImageBackend as setImageBackendAPI } from '../api/settings'
 import type { GenResult } from '../components/ResultGallery'
 
-const { TextArea } = Input
+// ── 常量 ──
 
-const SIZE_OPTIONS = [
-  { label: '🟦 方形 1:1 (1024)', value: '1024x1024' },
-  { label: '🖼 风景 4:3', value: '1024x768' },
-  { label: '🎬 宽屏 16:9', value: '1024x576' },
-  { label: '📱 竖屏 9:16', value: '576x1024' },
-  { label: '📐 肖像 3:4', value: '768x1024' },
-  { label: '🖥 超宽 21:9', value: '1280x544' },
-  { label: '✏️ 自定义', value: 'custom' },
+const BACKEND_OPTIONS = [
+  { label: '☁️ xAI 云端', value: 'xai' },
+  { label: '🏠 ComfyUI 本地', value: 'comfyui' },
+  { label: '🐄 Herdsman 本地', value: 'herdsman' },
+  { label: '🦙 Ollama 本地', value: 'ollama' },
 ]
 
-const ImageGenPage: React.FC = () => {
+// ── 模型分类（与 ModelCenterPage 保持一致） ──
 
+function classifyModel(id: string): string {
+  const lid = id.toLowerCase()
+  if (lid.includes('tts') || lid.includes('voice') || lid.includes('vox') || lid.includes('edge')) return 'tts'
+  if (lid.includes('sherpa') || lid.includes('whisper') || lid.includes('zipformer') || lid.includes('asr')) return 'stt'
+  if (lid.includes('image') || lid.includes('zimage') || lid.includes('flux') || lid.includes('turbo') || lid.includes('sd') || lid.includes('dalle')) return 'image'
+  return 'llm'
+}
+
+// ── 主组件 ──
+
+const ImageGenPage: React.FC = () => {
+  // ── 核心状态 ──
   const [prompt, setPrompt] = useState('')
   const [negative, setNegative] = useState('')
   const [size, setSize] = useState('1024x1024')
@@ -48,8 +60,27 @@ const ImageGenPage: React.FC = () => {
   const [count, setCount] = useState(1)
   const [customWidth, setCustomWidth] = useState(1024)
   const [customHeight, setCustomHeight] = useState(1024)
+  const [backend, setBackend] = useState('xai')
+  const [selectedLoras, setSelectedLoras] = useState<string[]>([])
+  const [generating, setGenerating] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
+  const [lastTime, setLastTime] = useState(0)
 
-  // 模板
+  // ── 引擎 & 后端状态 ──
+  const [engines, setEngines] = useState<EngineConfig[]>([])
+  const [backendSwitching, setBackendSwitching] = useState(false)
+  const [engineRunning, setEngineRunning] = useState(false)
+  const [engineStarting, setEngineStarting] = useState(false)
+  const [engineModelCount, setEngineModelCount] = useState(0)
+  const [sysStats, setSysStats] = useState<SystemStats | null>(null)
+
+  // ── 结果 & 历史 ──
+  const [results, setResults] = useState<GenResult[]>([])
+  const [history, setHistory] = useState<GenResult[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(-1)
+  const [characters, setCharacters] = useState<{ id: string; name: string }[]>([])
+
+  // ── 模板 ──
   const [templateCat, setTemplateCat] = useState<string | undefined>()
   const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>(() => loadCustomTemplates())
   const [customModalOpen, setCustomModalOpen] = useState(false)
@@ -58,65 +89,100 @@ const ImageGenPage: React.FC = () => {
   const [customPrompt, setCustomPrompt] = useState('')
   const [customNegative, setCustomNegative] = useState('')
 
-  const [generating, setGenerating] = useState(false)
-  const [backend, setBackend] = useState('xai')
-  const [comfyUIRunning, setComfyUIRunning] = useState(false)
-  const [comfyUIStarting, setComfyUIStarting] = useState(false)
-  const [sysStats, setSysStats] = useState<SystemStats | null>(null)
-  const [showModel, setShowModel] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
-
-  const [results, setResults] = useState<GenResult[]>([])
-  const [history, setHistory] = useState<GenResult[]>([])
-  const [lightboxIndex, setLightboxIndex] = useState(-1)
-  const [showResult, setShowResult] = useState(false)
-  const [characters, setCharacters] = useState<{ id: string; name: string }[]>([])
-
   const generatingRef = useRef(false)
 
+  const comfyModels = useMemo(() => [
+    { label: '🌊 Flux Dev', value: 'flux' },
+    { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' },
+  ], [])
+
+  const loraOptions = useMemo(() => [
+    { label: '✨ 细节增强', value: 'zimage\\z-image-细节增强v2.safetensors' },
+    { label: '🎨 3D卡通', value: 'zimage\\z-Image-3D卡通_V1.safetensors' },
+    { label: '🌫️ 朦胧光影', value: 'zimage\\z-image-朦胧氛围光影LORA_V1.0.safetensors' },
+    { label: '📷 照片写实', value: 'zimage\\z-image-照片写实.safetensors' },
+    { label: '👧 少女风格', value: 'zimage\\z-image-少女-ben_nd.safetensors' },
+    { label: '🔞 NSFW', value: 'zimage\\NSFW_master_ZIT_000017532.safetensors' },
+  ], [])
+
+  const modelOptions = useMemo(() => {
+    if (backend === 'comfyui') return comfyModels
+    if (backend === 'xai') {
+      const xaiEngine = engines.find(e => e.id === 'xai')
+      const imgModels = (xaiEngine?.models || []).filter(m => classifyModel(m.id) === 'image')
+      if (imgModels.length > 0) return imgModels.map(m => ({ label: m.id, value: m.id }))
+      return [{ label: 'grok-imagine-image-quality', value: 'grok-imagine-image-quality' }]
+    }
+    const eng = engines.find(e => e.id === backend)
+    const imgModels = (eng?.models || []).filter(m => classifyModel(m.id) === 'image')
+    if (imgModels.length > 0) return imgModels.map(m => ({ label: m.id, value: m.id }))
+    return model ? [{ label: model, value: model }] : []
+  }, [backend, engines, model, comfyModels])
+
+  // ── 初始化 ──
   useEffect(() => {
     (async () => {
       try {
         const info = await getImageBackendInfo()
-        if (info?.backend) {
-          setBackend(info.backend)
-          setShowModel(info.backend === 'comfyui')
-        }
+        if (info?.backend) setBackend(info.backend)
         if (info?.model) setModel(info.model)
         const chars = await getCharacters()
         setCharacters(chars)
-      } catch (_) {}
+      } catch (_) { /* ignore */ }
+      try {
+        const list = await getEngines()
+        setEngines(list)
+      } catch (_) { /* ignore */ }
     })()
   }, [])
 
-  // ComfyUI 状态轮询
+  // ── 引擎状态轮询 ──
   useEffect(() => {
-    if (backend !== 'comfyui') { setComfyUIRunning(false); return }
+    const isLocal = ['comfyui', 'herdsman', 'ollama'].includes(backend)
+    if (!isLocal) { setEngineRunning(true); setEngineModelCount(0); return }
+
+    // ComfyUI 用专用状态 API，其他本地引擎用通用 testEngineConnection
+    if (backend === 'comfyui') {
+      const check = async () => {
+        try {
+          const s = await getComfyUIStatus()
+          const running = !!s?.running
+          setEngineRunning(running)
+          if (running) setEngineStarting(false)
+          setEngineModelCount(0)
+        } catch (_) { setEngineRunning(false); setEngineModelCount(0) }
+      }
+      check()
+      const timer = setInterval(check, 5000)
+      return () => clearInterval(timer)
+    }
+
     const check = async () => {
       try {
-        const s = await getComfyUIStatus()
-        setComfyUIRunning(!!s?.running)
-      } catch (_) { setComfyUIRunning(false) }
+        const status = await testEngineConnection(backend)
+        setEngineRunning(!!status?.connected)
+        setEngineModelCount(status?.model_count || 0)
+      } catch (_) { setEngineRunning(false); setEngineModelCount(0) }
     }
     check()
-    const timer = setInterval(check, 5000)
+    const timer = setInterval(check, 8000)
     return () => clearInterval(timer)
   }, [backend])
 
-  // 系统状态轮询
+  // ── 系统状态轮询（所有后端显示 CPU+内存，GPU 仅 ComfyUI） ──
   useEffect(() => {
-    if (backend !== 'comfyui') { setSysStats(null); return }
     const fetchStats = async () => {
       try {
         const s = await getSystemStats()
         if (s) setSysStats(s)
-      } catch (_) {}
+      } catch (_) { /* ignore */ }
     }
     fetchStats()
-    const timer = setInterval(fetchStats, 3000)
+    const timer = setInterval(fetchStats, 5000)
     return () => clearInterval(timer)
   }, [backend])
 
+  // ── 生成计时器 ──
   useEffect(() => {
     if (!generating) { setElapsed(0); return }
     const start = Date.now()
@@ -124,6 +190,7 @@ const ImageGenPage: React.FC = () => {
     return () => clearInterval(timer)
   }, [generating])
 
+  // ── 生成 ──
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) { message.warning('请输入图片描述'); return }
     if (generatingRef.current) return
@@ -131,9 +198,11 @@ const ImageGenPage: React.FC = () => {
     setGenerating(true)
     setResults([])
     setLightboxIndex(-1)
+    const genStart = Date.now()
     try {
       const finalSize = size === 'custom' ? `${customWidth}x${customHeight}` : size
-      const res = await generateImage(prompt, negative, finalSize, model, seed, count)
+      const loraStr = selectedLoras.join(',')
+      const res = await generateImage(prompt, negative, finalSize, model, seed, count, loraStr)
       if (res?.error) {
         message.error(res.error)
       } else if (res?.images?.length) {
@@ -143,7 +212,7 @@ const ImageGenPage: React.FC = () => {
           !genResults.some((g) => g.seed === h.seed && g.prompt === h.prompt),
         )])
         setLightboxIndex(0)
-        setShowResult(true)
+        setLastTime(Math.round((Date.now() - genStart) / 1000))
         message.success(`✨ 已生成 ${genResults.length} 张图片`)
       }
     } catch (err: any) {
@@ -152,87 +221,124 @@ const ImageGenPage: React.FC = () => {
       generatingRef.current = false
       setGenerating(false)
     }
-  }, [prompt, negative, size, model, seed, count])
+  }, [prompt, negative, size, model, seed, count, customWidth, customHeight, selectedLoras])
 
-  const handleStartComfy = useCallback(async () => {
-    setComfyUIStarting(true)
+  // ── 切换后端 ──
+  const handleSwitchBackend = useCallback(async (newBackend: string) => {
+    if (newBackend === backend) return
+    setBackendSwitching(true)
     try {
-      await startComfyUI()
-      message.success('ComfyUI 启动中，请稍候...')
-    } catch (err: any) { message.error(err?.message || '启动失败') }
-    finally { setComfyUIStarting(false) }
-  }, [])
+      let defaultModel = ''
+      if (newBackend === 'comfyui') defaultModel = 'flux'
+      else if (newBackend === 'xai') defaultModel = 'grok-imagine-image-quality'
+      else {
+        const eng = engines.find(e => e.id === newBackend)
+        const img = (eng?.models || []).filter(m => classifyModel(m.id) === 'image')
+        if (img.length > 0) defaultModel = img[0].id
+      }
+      await setImageBackendAPI(newBackend, '', defaultModel)
+      setBackend(newBackend)
+      if (defaultModel) setModel(defaultModel)
+    } catch (err: any) { message.error(err?.message || '切换失败') }
+    finally { setBackendSwitching(false) }
+  }, [backend, engines])
 
-  const handleStopComfy = useCallback(async () => {
+  // ── 引擎启停 ──
+  const isLocalEngine = ['comfyui', 'herdsman', 'ollama'].includes(backend)
+
+  const handleStartEngine = useCallback(async () => {
+    setEngineStarting(true)
     try {
-      await stopComfyUI()
-      message.success('ComfyUI 已停止')
-      setComfyUIRunning(false)
+      if (backend === 'comfyui') {
+        await startComfyUI()
+        message.success('ComfyUI 启动中，等待连接...（约需 30-60 秒）')
+        // 不清除 engineStarting，让轮询检测到运行后再切换状态
+      } else {
+        await setActiveEngine(backend)
+        if (model) await setEngineDefaultModel(backend, model)
+        setEngineRunning(true)
+        message.success(`${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 已启动`)
+        setEngineStarting(false)
+      }
+    } catch (err: any) {
+      message.error(err?.message || '启动失败')
+      setEngineStarting(false)
+    }
+  }, [backend, model])
+
+  const handleStopEngine = useCallback(async () => {
+    try {
+      if (backend === 'comfyui') {
+        await stopComfyUI()
+        message.success('ComfyUI 已停止')
+      }
+      setEngineRunning(false)
     } catch (err: any) { message.error(err?.message || '停止失败') }
-  }, [])
+  }, [backend])
 
+  // ── 目录操作 ──
   const handleOpenDir = useCallback(async () => {
     try { await openImageSaveDir() } catch (err: any) { message.error(err?.message || '打开失败') }
   }, [])
-
   const handleOpenNovelDir = useCallback(async () => {
     try { await openNovelImagesDir() } catch (err: any) { message.error(err?.message || '打开失败') }
   }, [])
 
-  const handleReuse = useCallback((index: number) => {
-    const r = history[index]
+  // ── 结果操作 ──
+  const handleDownload = useCallback((i: number) => {
+    const r = history[i]
     if (!r) return
-    setPrompt(r.prompt)
-    if (r.negative) setNegative(r.negative)
-    setSize(r.size)
-    setModel(r.model)
-    setSeed(r.seed)
-    setLightboxIndex(-1)
-  }, [history])
-
-  const handleDelete = useCallback((index: number) => {
-    const r = history[index]
-    if (!r) return
-    setHistory((prev) => prev.filter((_, i) => i !== index))
-    setResults((prev) => prev.filter((img) => img.seed !== r.seed || img.prompt !== r.prompt))
-    if (lightboxIndex === index) setLightboxIndex(-1)
-    else if (lightboxIndex > index) setLightboxIndex((li) => li - 1)
-  }, [history, lightboxIndex])
-
-  const handleDownload = useCallback((index: number) => {
-    const r = results[index] || history[index]
-    if (!r?.image) return
     const a = document.createElement('a')
     a.href = r.image
     a.download = `wubigork-${Date.now()}-seed${r.seed}.png`
     a.click()
-  }, [results, history])
+  }, [history])
 
-  const handleSetPortrait = useCallback(async (index: number, charID: string) => {
-    const r = history[index]
-    if (!r?.image) return
+  const handleReuse = useCallback((i: number) => {
+    const r = history[i]
+    if (!r) return
+    setPrompt(r.prompt)
+    if (r.negative) setNegative(r.negative)
+    if (r.seed) setSeed(r.seed)
+    if (r.size) setSize(r.size)
+  }, [history])
+
+  const handleDelete = useCallback((i: number) => {
+    setHistory((prev) => prev.filter((_, idx) => idx !== i))
+  }, [])
+
+  const handleSetPortrait = useCallback(async (i: number, charID: string) => {
+    const r = history[i]
+    if (!r) return
     try {
       await setPortrait(charID, r.image)
       message.success('已设为角色剧照')
     } catch (err: any) { message.error(err?.message || '设置失败') }
   }, [history])
 
-  // ── 自定义模板操作 ──
-  const openCustomAdd = () => {
+  // ── 模板操作 ──
+  const applyTemplate = useCallback((t: Template) => {
+    setPrompt((p) => p ? p + '，' + t.prompt : t.prompt)
+    if (t.negative) setNegative((n) => n ? n + ', ' + t.negative : t.negative)
+  }, [])
+
+  const openCustomAdd = useCallback(() => {
     setEditingCustom(null)
     setCustomLabel('')
     setCustomPrompt('')
     setCustomNegative('')
     setCustomModalOpen(true)
-  }
-  const openCustomEdit = (t: CustomTemplate) => {
+  }, [])
+
+  const openCustomEdit = useCallback((t: CustomTemplate) => {
     setEditingCustom(t)
     setCustomLabel(t.label)
     setCustomPrompt(t.prompt)
     setCustomNegative(t.negative)
     setCustomModalOpen(true)
-  }
-  const saveCustom = () => {
+  }, [])
+
+  const saveCustom = useCallback(() => {
     if (!customLabel.trim() || !customPrompt.trim()) {
       message.warning('标签和 Prompt 不能为空')
       return
@@ -251,307 +357,256 @@ const ImageGenPage: React.FC = () => {
     }
     setCustomModalOpen(false)
     message.success(editingCustom ? '模板已更新' : '模板已添加')
-  }
-  const deleteCustom = (id: string) => {
+  }, [customTemplates, editingCustom, customLabel, customPrompt, customNegative])
+
+  const deleteCustom = useCallback((id: string) => {
     const updated = customTemplates.filter((t) => t.id !== id)
     setCustomTemplates(updated)
     saveCustomTemplates(updated)
     message.success('已删除')
-  }
+  }, [customTemplates])
 
-  const applyTemplate = (t: Template) => {
-    setPrompt((p) => p ? p + '，' + t.prompt : t.prompt)
-    if (t.negative) setNegative((n) => n ? n + ', ' + t.negative : t.negative)
-  }
-
-  const currentTemplates: Template[] = templateCat
-    ? (templateCat === '⭐ 自定义' ? customTemplates : TEMPLATES[templateCat] || [])
-    : []
-
-  const s = { color: C('color-text-secondary'), fontSize: 10, display: 'block', marginBottom: 8 } as const
-
-  // ── 左侧参数面板 ──
-  const leftPanel = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* 模板 */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <Typography.Text style={s}>📐 快速模板</Typography.Text>
-          <Button type="text" size="small" icon={<PlusOutlined />} onClick={openCustomAdd}
-            style={{ color: C('color-primary'), padding: '0 4px', fontSize: 10 }}>自定义</Button>
-        </div>
-        <Select value={templateCat} onChange={setTemplateCat}
-          placeholder="选择模板类别…" size="small"
-          style={{ width: '100%', marginBottom: 6 }}
-          options={getAllCategories(customTemplates.length).map((c) => ({ label: c, value: c }))}
-          allowClear
-        />
-        {currentTemplates.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {currentTemplates.map((t, i) => {
-              const isCustom = templateCat === '⭐ 自定义'
-              return (
-                <Tag key={isCustom ? (t as CustomTemplate).id : i}
-                  style={{ cursor: 'pointer', borderRadius: 'var(--radius-sm)', fontSize: 10, margin: 0 }}
-                  onClick={() => applyTemplate(t)}
-                  closable={isCustom}
-                  onClose={(e) => {
-                    e.preventDefault()
-                    if (isCustom) {
-                      if (templateCat === '⭐ 自定义' && currentTemplates.length <= 1) setTemplateCat(undefined)
-                      deleteCustom((t as CustomTemplate).id)
-                    }
-                  }}
-                >
-                  <span onClick={() => isCustom && openCustomEdit(t as CustomTemplate)}
-                    style={{ cursor: isCustom ? 'pointer' : undefined }}>
-                    {isCustom && <EditOutlined style={{ fontSize: 9, marginRight: 2 }} />}
-                    {t.label}
-                  </span>
-                </Tag>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 种子 */}
-      <div>
-        <Typography.Text style={s}>🎲 种子</Typography.Text>
-        <InputNumber value={seed || undefined} size="small"
-          onChange={(v) => setSeed(v || 0)} placeholder="随机"
-          min={1} max={2147483647} style={{ width: '100%' }}
-          addonAfter={
-            <Button type="text" size="small" icon={<ShakeOutlined />} onClick={() => setSeed(0)}
-              style={{ padding: 0, height: 18 }} />
-          }
-        />
-      </div>
-
-      {/* 负向 prompt */}
-      <div>
-        <Typography.Text style={{ ...s, marginBottom: 4 }}>🚫 不想出现</Typography.Text>
-        <TextArea placeholder="模糊, 低质量, 畸形手指..."
-          value={negative} onChange={(e) => setNegative(e.target.value)}
-          rows={2} autoSize={{ minRows: 1, maxRows: 3 }}
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', resize: 'none', fontSize: 12 }}
-        />
-      </div>
-
-      {/* 图片参数 */}
-      <div>
-        <Typography.Text style={{ ...s, marginBottom: 4 }}>📐 图片参数</Typography.Text>
-        <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Select value={size} onChange={setSize} size="small" style={{ width: '100%' }}
-            options={SIZE_OPTIONS} />
-          {size === 'custom' && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <InputNumber value={customWidth} onChange={(v) => setCustomWidth(v || 1024)}
-                size="small" min={256} max={2048} step={64}
-                addonBefore="宽" style={{ flex: 1 }} />
-              <InputNumber value={customHeight} onChange={(v) => setCustomHeight(v || 1024)}
-                size="small" min={256} max={2048} step={64}
-                addonBefore="高" style={{ flex: 1 }} />
+  // ── 后端选择器（注入 GenControls） ──
+  const backendSelector = (
+    <div>
+      <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10, display: 'block', marginBottom: 6 }}>
+        🚀 引擎
+      </Typography.Text>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {BACKEND_OPTIONS.map((b) => {
+          const selected = b.value === backend
+          return (
+            <div
+              key={b.value}
+              onClick={() => handleSwitchBackend(b.value)}
+              style={{
+                padding: '5px 10px',
+                borderRadius: 'var(--radius-sm)',
+                border: selected
+                  ? '1px solid var(--color-primary)'
+                  : '1px solid var(--border-subtle)',
+                background: selected
+                  ? 'rgba(99, 102, 241, 0.12)'
+                  : 'rgba(255,255,255,0.03)',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: selected ? 600 : 400,
+                color: selected ? 'var(--color-primary)' : C('color-text-secondary'),
+                transition: 'all 0.15s',
+                textAlign: 'center' as const,
+                whiteSpace: 'nowrap' as const,
+                userSelect: 'none' as const,
+              }}
+            >
+              {b.label}
             </div>
-          )}
-          {showModel && (
-            <Select value={model} onChange={setModel} size="small" style={{ width: '100%' }}
-              options={[
-                { label: '🌊 Flux Dev', value: 'flux' },
-                { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' },
-              ]} />
-          )}
-          <div>
-            <Typography.Text style={{ ...s, marginBottom: 4 }}>生成数量</Typography.Text>
-            <Select value={count} onChange={setCount} size="small" style={{ width: '100%' }}
-              options={[{ label: '1', value: 1 }, { label: '2', value: 2 }, { label: '3', value: 3 }, { label: '4', value: 4 }]} />
-          </div>
-        </Space>
-      </div>
-
-      {/* 系统状态 */}
-      {sysStats && (
-        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <Typography.Text style={{ ...s, marginBottom: 2 }}>📊 系统状态</Typography.Text>
-          {/* CPU 卡片 */}
-          <div style={{
-            background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-md)',
-            padding: '8px 10px',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Typography.Text style={{ fontSize: 10, color: C('color-text-secondary') }}>
-                🖥 CPU
-              </Typography.Text>
-              <Typography.Text style={{
-                fontSize: 11, fontWeight: 600,
-                color: sysStats.cpu < 60 ? '#4ade80' : sysStats.cpu < 85 ? '#facc15' : '#f87171',
-              }}>
-                {sysStats.cpu}%
-              </Typography.Text>
-            </div>
-            <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{
-                width: `${Math.min(sysStats.cpu, 100)}%`, height: '100%',
-                background: sysStats.cpu < 60 ? '#4ade80' : sysStats.cpu < 85 ? '#facc15' : '#f87171',
-                borderRadius: 3, transition: 'width 0.6s ease',
-              }} />
-            </div>
-          </div>
-          {/* GPU 卡片 */}
-          {sysStats.gpuName && (
-            <div style={{
-              background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-md)',
-              padding: '8px 10px',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <Typography.Text style={{ fontSize: 10, color: C('color-text-secondary') }}>
-                  🎮 {sysStats.gpuName.length > 12 ? sysStats.gpuName.slice(0, 12) + '…' : sysStats.gpuName}
-                </Typography.Text>
-                <Typography.Text style={{
-                  fontSize: 11, fontWeight: 600,
-                  color: '#60a5fa',
-                }}>
-                  {sysStats.vramUsed.toFixed(1)} / {sysStats.vramTotal.toFixed(1)} GB
-                </Typography.Text>
-              </div>
-              <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
-                {(() => {
-                  const pct = sysStats.vramTotal > 0 ? (sysStats.vramUsed / sysStats.vramTotal) * 100 : 0
-                  return (
-                    <div style={{
-                      width: `${Math.min(pct, 100)}%`, height: '100%',
-                      background: pct < 60 ? '#4ade80' : pct < 85 ? '#facc15' : '#f87171',
-                      borderRadius: 3, transition: 'width 0.6s ease',
-                    }} />
-                  )
-                })()}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      <CustomTemplateModal
-        open={customModalOpen}
-        editing={!!editingCustom}
-        label={customLabel} onLabelChange={setCustomLabel}
-        prompt={customPrompt} onPromptChange={setCustomPrompt}
-        negative={customNegative} onNegativeChange={setCustomNegative}
-        onSave={saveCustom}
-        onCancel={() => setCustomModalOpen(false)}
-      />
-    </div>
-  )
-
-  // ── 右侧历史面板 ──
-  const rightPanel = (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, marginBottom: 8 }}>
-        <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10 }}>
-          📜 历史 ({history.length})
-        </Typography.Text>
-
-        <Space size={2}>
-          <Button type="text" size="small" icon={<FolderOpenOutlined />}
-            onClick={handleOpenNovelDir} title="小说图片目录"
-            style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }} />
-          <Button type="text" size="small" icon={<PictureOutlined />}
-            onClick={handleOpenDir} title="生成图片目录"
-            style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }} />
-          <Button type="text" size="small" icon={<DeleteOutlined />} onClick={() => setHistory([])}
-            style={{ color: C('color-text-secondary'), fontSize: 10, padding: '0 4px' }}>清空</Button>
-        </Space>
-      </div>
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {history.map((h, i) => (
-          <div key={i} onClick={() => setLightboxIndex(i)}
-            style={{
-              borderRadius: 'var(--radius-sm)', overflow: 'hidden',
-              border: lightboxIndex === i ? '2px solid var(--color-primary)' : '1px solid var(--border-subtle)',
-              cursor: 'pointer', flexShrink: 0, transition: 'border 0.15s',
-            }}
-          >
-            <div style={{ position: 'relative' }}>
-              <img src={h.image} alt="" style={{ width: '100%', display: 'block' }} />
-              <Button type="text" size="small" danger icon={<DeleteOutlined />}
-                onClick={(e) => { e.stopPropagation(); handleDelete(i) }}
-                style={{
-                  position: 'absolute', top: 2, right: 2,
-                  color: '#fff', fontSize: 10, padding: '0 2px', height: 18,
-                  background: 'rgba(0,0,0,0.5)', borderRadius: 4,
-                  opacity: 0, transition: 'opacity 0.15s',
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0' }}
-              />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
 
+  // ── 渲染 ──
   return (
-    <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
-      {/* 顶栏 */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 12, flexShrink: 0,
+      }}>
         <Typography.Title level={4} style={{ color: C('color-text'), margin: 0 }}>
           <PictureOutlined style={{ marginRight: 10 }} />AI 绘梦
         </Typography.Title>
         <Space size={8}>
-          {backend === 'comfyui' && (
-            <>
-              <Tag color={comfyUIRunning ? 'green' : 'default'} style={{ borderRadius: 'var(--radius-md)', margin: 0 }}>
-                {comfyUIRunning ? '🟢 已连接' : '⚫ 未连接'}
-              </Tag>
-              {comfyUIRunning ? (
-                <Button size="small" danger icon={<PoweroffOutlined />} onClick={handleStopComfy}
-                  style={{ borderRadius: 'var(--radius-md)', fontSize: 11 }}>停止</Button>
-              ) : (
-                <Button size="small" type="primary" icon={<PlayCircleOutlined />}
-                  loading={comfyUIStarting} onClick={handleStartComfy}
-                  style={{ borderRadius: 'var(--radius-md)', fontSize: 11 }}>启动</Button>
-              )}
-            </>
+          {/* 引擎连接状态 */}
+          {isLocalEngine && (
+            <Tag color={engineRunning ? 'green' : 'default'} style={{ borderRadius: 'var(--radius-md)', margin: 0, fontSize: 11 }}>
+              {engineRunning ? `🟢 已连接 (${engineModelCount}模型)` : '⚫ 未连接'}
+            </Tag>
           )}
-          <Tag color={backend === 'comfyui' ? 'green' : 'blue'} style={{ borderRadius: 'var(--radius-md)', margin: 0 }}>
-            {backend === 'comfyui'
-              ? <><HomeOutlined /> 本地 {model === 'z-image-turbo' ? 'Z-Image-Turbo' : 'Flux'}</>
-              : <><CloudOutlined /> xAI 云端</>}
+          {!isLocalEngine && (
+            <Tag color="blue" style={{ borderRadius: 'var(--radius-md)', margin: 0, fontSize: 11 }}>☁️ 云端</Tag>
+          )}
+          <Tag color={
+            backend === 'comfyui' ? 'green' : backend === 'herdsman' ? 'orange' : backend === 'ollama' ? 'purple' : 'blue'
+          } style={{ borderRadius: 'var(--radius-md)', margin: 0, fontSize: 11 }}>
+            {BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend}
           </Tag>
+          <Button type="text" size="small" icon={<FolderOpenOutlined />}
+            onClick={handleOpenNovelDir} title="小说图片目录"
+            style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 4px' }} />
+          <Button type="text" size="small" icon={<PictureOutlined />}
+            onClick={handleOpenDir} title="生成图片目录"
+            style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 4px' }} />
         </Space>
       </div>
 
-      {/* 主工作区 */}
-        <div style={{ flex: 1, display: 'flex', gap: 16, overflow: 'hidden' }}>
-          {/* 左栏 — 参数 */}
-          <div style={{ width: 200, flexShrink: 0, overflow: 'auto', paddingRight: 4 }}>
-            {leftPanel}
-          </div>
+      {/* 主工作区：左栏控制面板 + 右栏结果 */}
+      <div style={{ flex: 1, display: 'flex', gap: 16 }}>
+        {/* 左栏 — 320px 控制面板 */}
+        <div style={{ width: 320, flexShrink: 0, paddingRight: 4, overflowY: 'auto' }}>
+          <div style={{
+            background: 'rgba(255,255,255,0.03)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border-subtle)',
+            padding: '14px 16px',
+            display: 'flex', flexDirection: 'column', gap: 14,
+          }}>
+            {/* Prompt 输入 + 模板 */}
+            <PromptPanel
+              prompt={prompt} negative={negative}
+              templateCat={templateCat} customTemplates={customTemplates}
+              onPromptChange={setPrompt} onNegativeChange={setNegative}
+              onTemplateCatChange={setTemplateCat}
+              onTemplateSelect={applyTemplate}
+              onAddCustom={openCustomAdd}
+              onEditCustom={openCustomEdit}
+              onDeleteCustom={deleteCustom}
+            />
 
-          {/* 中间 — 画廊 + 底部输入 */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-            <div style={{ flex: 1, overflow: 'auto' }}>
-              <ResultGallery results={results} generating={generating}
-                onPreview={(i) => setLightboxIndex(i)}
-                onDownload={handleDownload}
-                onReuse={handleReuse}
-                onDelete={handleDelete}
-              />
-            </div>
-            <PromptBar prompt={prompt} onPromptChange={setPrompt}
-              generating={generating} elapsed={elapsed}
+            <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+
+            <GenControls
+              size={size} model={model} seed={seed} count={count}
+              modelOptions={modelOptions}
+              customWidth={customWidth} customHeight={customHeight}
+              onSizeChange={setSize} onModelChange={setModel}
+              onSeedChange={setSeed} onCountChange={setCount}
+              onCustomWidthChange={setCustomWidth}
+              onCustomHeightChange={setCustomHeight}
+              backendSelector={backendSelector}
+              selectedLoras={selectedLoras}
+              loraOptions={backend === 'comfyui' ? loraOptions : []}
+              onLorasChange={setSelectedLoras}
+            />
+            {isLocalEngine && (() => {
+              const isStarting = engineStarting
+              const isRunning = engineRunning && !isStarting
+              const bg = isRunning ? 'rgba(74,222,128,0.06)' : isStarting ? 'rgba(250,204,21,0.06)' : 'rgba(255,255,255,0.02)'
+              const border = isRunning ? 'rgba(74,222,128,0.25)' : isStarting ? 'rgba(250,204,21,0.35)' : 'var(--border-subtle)'
+              const textColor = isRunning ? '#4ade80' : isStarting ? '#facc15' : C('color-text-secondary')
+              const label = isRunning ? `🟢 ${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 运行中`
+                : isStarting ? `🟡 启动中... 等待 ${backend === 'comfyui' ? 'ComfyUI' : '引擎'} 就绪`
+                : `⚫ 引擎未启动`
+              return (
+              <div style={{
+                background: bg, borderRadius: 'var(--radius-sm)', border: `1px solid ${border}`,
+                padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{ fontSize: 11, color: textColor, flex: 1 }}>{label}</span>
+                {isRunning ? (
+                  <Button size="small" danger icon={<PoweroffOutlined />} onClick={handleStopEngine}
+                    style={{ borderRadius: 'var(--radius-sm)', fontSize: 11, flexShrink: 0 }}>停止</Button>
+                ) : (
+                  <Button size="small" type="primary" icon={<PlayCircleOutlined />}
+                    loading={isStarting} onClick={handleStartEngine}
+                    style={{ borderRadius: 'var(--radius-sm)', fontSize: 11, flexShrink: 0 }}>启动</Button>
+                )}
+              </div>
+              )
+            })()}
+            <GenButton
+              generating={generating} count={count}
+              lastTime={lastTime} elapsed={elapsed}
+              backend={backend} model={model}
               onGenerate={handleGenerate}
             />
-          </div>
 
-          {/* 右栏 — 历史 */}
-          {rightPanel && (
-            <div style={{ width: 180, flexShrink: 0 }}>
-              {rightPanel}
-            </div>
-          )}
+            {/* 系统状态（仅 ComfyUI） */}
+            {sysStats && (
+              <>
+                <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10 }}>
+                    📊 系统状态
+                  </Typography.Text>
+                  {/* CPU */}
+                  {/* CPU */}
+                  <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-sm)', padding: '6px 10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, color: C('color-text-secondary') }}>🖥 CPU</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: sysStats.cpu < 60 ? '#4ade80' : sysStats.cpu < 85 ? '#facc15' : '#f87171' }}>
+                        {sysStats.cpu}%
+                      </span>
+                    </div>
+                    <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${Math.min(sysStats.cpu, 100)}%`, height: '100%',
+                        background: sysStats.cpu < 60 ? '#4ade80' : sysStats.cpu < 85 ? '#facc15' : '#f87171',
+                        borderRadius: 2, transition: 'width 0.6s ease',
+                      }} />
+                    </div>
+                  </div>
+                  {/* 内存 */}
+                  {(() => {
+                    const memPct = sysStats.memTotal > 0 ? (sysStats.memUsed / sysStats.memTotal) * 100 : 0
+                    const memColor = memPct < 60 ? '#4ade80' : memPct < 85 ? '#facc15' : '#f87171'
+                    return (
+                    <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-sm)', padding: '6px 10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, color: C('color-text-secondary') }}>🧠 内存</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: memColor }}>
+                          {memPct.toFixed(0)}% <span style={{ fontWeight: 400, fontSize: 9, color: C('color-text-secondary') }}>({sysStats.memUsed.toFixed(0)}/{sysStats.memTotal.toFixed(0)}GB)</span>
+                        </span>
+                      </div>
+                      <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${Math.min(memPct, 100)}%`, height: '100%',
+                          background: memColor, borderRadius: 2, transition: 'width 0.6s ease',
+                        }} />
+                      </div>
+                    </div>
+                    )
+                  })()}
+                  {/* GPU */}
+                  {sysStats.gpuName && (() => {
+                    const vramPct = sysStats.vramTotal > 0 ? (sysStats.vramUsed / sysStats.vramTotal) * 100 : 0
+                    const vramColor = vramPct < 60 ? '#4ade80' : vramPct < 85 ? '#facc15' : '#f87171'
+                    const shortName = sysStats.gpuName.length > 20 ? sysStats.gpuName.slice(0, 20) + '…' : sysStats.gpuName
+                    return (
+                    <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-sm)', padding: '6px 10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, color: C('color-text-secondary') }}>🎮 {shortName}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: vramColor }}>
+                          {vramPct.toFixed(0)}% <span style={{ fontWeight: 400, fontSize: 9, color: C('color-text-secondary') }}>({sysStats.vramUsed.toFixed(0)}/{sysStats.vramTotal.toFixed(0)}GB)</span>
+                        </span>
+                      </div>
+                      <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${Math.min(vramPct, 100)}%`, height: '100%',
+                          background: vramColor, borderRadius: 2, transition: 'width 0.6s ease',
+                        }} />
+                      </div>
+                    </div>
+                    )
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* 右栏 — 画廊 + 历史 */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+          {/* 结果画廊 */}
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <ResultGallery
+              results={results} generating={generating}
+              onPreview={(i) => setLightboxIndex(i)}
+              onDownload={handleDownload}
+              onReuse={handleReuse}
+              onDelete={handleDelete}
+            />
+          </div>
+          {/* 历史画廊 */}
+          <div style={{ flexShrink: 0 }}>
+            <HistoryStrip
+              history={history}
+              onSelect={(i) => setLightboxIndex(i)}
+              onClear={() => setHistory([])}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* 灯箱 */}
       {lightboxIndex >= 0 && (
@@ -566,6 +621,17 @@ const ImageGenPage: React.FC = () => {
           onSetPortrait={handleSetPortrait}
         />
       )}
+
+      {/* 自定义模板弹窗 */}
+      <CustomTemplateModal
+        open={customModalOpen}
+        editing={!!editingCustom}
+        label={customLabel} onLabelChange={setCustomLabel}
+        prompt={customPrompt} onPromptChange={setCustomPrompt}
+        negative={customNegative} onNegativeChange={setCustomNegative}
+        onSave={saveCustom}
+        onCancel={() => setCustomModalOpen(false)}
+      />
     </div>
   )
 }

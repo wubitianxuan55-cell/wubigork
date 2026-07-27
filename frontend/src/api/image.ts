@@ -13,6 +13,8 @@ export interface BackendInfo {
 
 export interface SystemStats {
   cpu: number
+  memTotal: number
+  memUsed: number
   gpuName: string
   gpuUsage: number
   vramUsed: number
@@ -60,8 +62,9 @@ export async function getSystemStats(): Promise<SystemStats | null> {
 export async function generateImage(
   prompt: string, negative: string, size: string,
   model: string, seed: number, count: number,
+  lora?: string,
 ): Promise<{ error?: string; images?: GenResult[] }> {
-  const res = await App.GenerateFreeImage(prompt.trim(), negative.trim(), size, '', model, seed, count)
+  const res = await App.GenerateFreeImage(prompt.trim(), negative.trim(), size, '', model, seed, count, lora || '')
   if (res?.error) return { error: res.error }
   if (res?.images?.length) {
     const images: GenResult[] = res.images.map((img: any) => ({
@@ -74,6 +77,7 @@ export async function generateImage(
   return {}
 }
 
+/** 启动 ComfyUI */
 /** 启动 ComfyUI */
 export async function startComfyUI(): Promise<void> {
   await App.StartComfyUI()
