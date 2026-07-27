@@ -55,7 +55,7 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 		unetModel := "z-image\\z-image-turbo-fp8-e4m3fn_量化版_低显加速.safetensors"
 		workflow = b.buildZImageWorkflow(req.Prompt, req.Negative, width, height, seed, steps, unetModel)
 	default:
-		steps := 20
+		steps := 8
 		workflow = b.buildFluxWorkflow(req.Prompt, req.Negative, width, height, seed, steps)
 	}
 
