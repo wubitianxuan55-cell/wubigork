@@ -79,6 +79,7 @@ type ImageGenerationRequest struct {
 	Size           string `json:"size,omitempty"`
 	ResponseFormat string `json:"response_format,omitempty"` // "url" 或 "b64_json"
 	Seed           int    `json:"seed,omitempty"`
+	Lora           string `json:"lora,omitempty"` // LoRA 文件名（逗号分隔多个）
 }
 
 // ImageData 单张图片结果

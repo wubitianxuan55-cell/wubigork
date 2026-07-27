@@ -4,15 +4,16 @@ import {
   CloudOutlined, CheckCircleOutlined,
   CloseCircleOutlined, ReloadOutlined, ThunderboltOutlined,
   DesktopOutlined, RocketOutlined, PictureOutlined, SoundOutlined,
-  CaretRightOutlined, SettingOutlined, LoginOutlined, LogoutOutlined,
+  CaretRightOutlined, SettingOutlined, LoginOutlined, LogoutOutlined, KeyOutlined,
 } from '@ant-design/icons'
-import { C } from '../utils/theme'
 import { useAppStore } from '../stores/appStore'
 import SettingField from '../components/SettingField'
+import { C } from '../utils/theme'
+import type { TTSConfig, TTSStatus } from '../types'
 import {
   getEngines, saveEngine, testEngineConnection,
   refreshEngineModels, setEngineDefaultModel,
-  setActiveEngine, getActiveEngine,
+  setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
   type EngineConfig, type ModelInfo, type EngineStatus,
 } from '../api/engines'
 import {
@@ -21,7 +22,6 @@ import {
   getTTSConfig, getTTSStatus, saveTTSConfig,
   startTTSServer, stopTTSServer,
 } from '../api/settings'
-import type { TTSConfig, TTSStatus } from '../types'
 
 type Category = 'llm' | 'image' | 'tts' | 'engine'
 
@@ -38,18 +38,18 @@ function classifyModel(id: string): ModelKind {
   const lid = id.toLowerCase()
   if (lid.includes('tts') || lid.includes('voice') || lid.includes('vox') || lid.includes('edge')) return 'tts'
   if (lid.includes('sherpa') || lid.includes('whisper') || lid.includes('zipformer') || lid.includes('asr')) return 'stt'
-  if (lid.includes('image') || lid.includes('zimage') || lid.includes('flux') || lid.includes('turbo') || lid.includes('sd') || lid.includes('dalle')) return 'image'
+  if (lid.includes('image') || lid.includes('zimage') || lid.includes('flux') || lid.includes('turbo') || lid.includes('sd') || lid.includes('dalle') || lid.includes('krea')) return 'image'
   return 'llm'
 }
 
 const engineIcons: Record<string, React.ReactNode> = {
-  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />,
+  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />,
 }
 const engineColors: Record<string, string> = {
-  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16',
+  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6',
 }
 const engineLabels: Record<string, string> = {
-  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地',
+  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端',
 }
 
 const ModelCenterPage: React.FC = () => {
@@ -63,6 +63,8 @@ const ModelCenterPage: React.FC = () => {
   const [editingURLs, setEditingURLs] = useState<Record<string, string>>({})
   const [savingEngine, setSavingEngine] = useState<string | null>(null)
   const [engineStatuses, setEngineStatuses] = useState<Record<string, EngineStatus>>({})
+  const [deepseekKey, setDeepseekKeyState] = useState('')
+  const [deepseekKeyMasked, setDeepseekKeyMasked] = useState('')
 
   const [imageBackend, setImageBackend] = useState('xai')
   const [comfyUIURL, setComfyUIURL] = useState('http://127.0.0.1:8188')
@@ -80,8 +82,11 @@ const ModelCenterPage: React.FC = () => {
       const list = await getEngines(); setEngines(list)
       const urls: Record<string, string> = {}
       list.forEach(e => { urls[e.id] = e.base_url || '' })
-      setEditingURLs(urls)
       try { const ae = await getActiveEngine(); if (ae) setActiveEngineState(ae) } catch (_) {}
+      try {
+        const ks = await getDeepseekKeyStatus()
+        if (ks) { setDeepseekKeyMasked(ks.maskedKey || ''); if (ks.configured) setDeepseekKeyState(ks.maskedKey) }
+      } catch (_) {}
     } catch (_) {}
     finally { setLoading(false) }
   }, [])
@@ -146,6 +151,16 @@ const ModelCenterPage: React.FC = () => {
     try { await setImageBackendAPI(imageBackend, comfyUIURL, imageModel); message.success('已保存') }
     catch (err: any) { message.error(err.message) }
     finally { setImageBackendSaving(false) }
+  }
+
+  const handleSaveDeepseekKey = async () => {
+    if (!deepseekKey.trim()) { message.warning('请输入 API Key'); return }
+    try {
+      await setDeepseekKey(deepseekKey.trim())
+      message.success('DeepSeek Key 已保存')
+      const ks = await getDeepseekKeyStatus()
+      if (ks) setDeepseekKeyMasked(ks.maskedKey || '')
+    } catch (err: any) { message.error(err.message) }
   }
 
   const handleSaveTTS = async () => {
@@ -288,7 +303,7 @@ const ModelCenterPage: React.FC = () => {
                       {imageBackend === 'comfyui' && (
                         <>
                           <SettingField label="ComfyUI 服务地址" value={comfyUIURL} onChange={v => setComfyUIURL(v)} />
-                          <SettingField label="生成模型" value={imageModel} type="select" onChange={(v: string) => setImageModel(v)} options={[{ label: '🌊 Flux Dev', value: 'flux' }, { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' }]} width={230} />
+        <SettingField label="生成模型" value={imageModel} type="select" onChange={(v: string) => setImageModel(v)} options={[{ label: '🌊 Flux Dev', value: 'flux' }, { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' }, { label: '🎨 Krea2 (FLUX)', value: 'krea2' }]} width={230} />
                         </>
                       )}
                       <Button type="primary" onClick={handleSaveImageBackend} loading={imageBackendSaving} style={{ borderRadius: 8 }}>💾 保存配置</Button>
@@ -402,10 +417,16 @@ const ModelCenterPage: React.FC = () => {
                       {mc.image > 0 && <Tag color="orange" style={{ fontSize: 10 }}>🖼️ {mc.image} 图片</Tag>}
                       {em.length === 0 && <Tag style={{ fontSize: 10 }}>暂无模型</Tag>}
                     </div>
-                    {engine.type !== 'xai' && (
+                    {engine.type !== 'xai' && engine.type !== 'deepseek' && (
                       <Space.Compact style={{ width: '100%' }}>
                         <Input size="small" value={editingURLs[engine.id] || ''} onChange={e => setEditingURLs(prev => ({ ...prev, [engine.id]: e.target.value }))} disabled={!engine.enabled} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', color: C('color-text'), fontSize: 12 }} />
                         <Button size="small" onClick={() => handleSaveURL(engine)} loading={savingEngine === engine.id} disabled={!engine.enabled}>保存</Button>
+                      </Space.Compact>
+                    )}
+                    {engine.type === 'deepseek' && (
+                      <Space.Compact style={{ width: '100%' }}>
+                        <Input size="small" value={deepseekKey} onChange={e => setDeepseekKeyState(e.target.value)} placeholder={deepseekKeyMasked || 'sk-...'} disabled={!engine.enabled} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', color: C('color-text'), fontSize: 12 }} />
+                        <Button size="small" onClick={handleSaveDeepseekKey} loading={savingEngine === engine.id} disabled={!engine.enabled}>保存 Key</Button>
                       </Space.Compact>
                     )}
                     {engineStatuses[engine.id] && (

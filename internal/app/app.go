@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"os/exec"
 	"path/filepath"
 	"sync"
-
 	"log/slog"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -57,6 +57,7 @@ type App struct {
 
 	// ComfyUI 进程管理
 	comfyUICancel context.CancelFunc
+	comfyUICmd    *exec.Cmd
 
 	// Ghost Text 取消控制器
 	ghostCancel context.CancelFunc

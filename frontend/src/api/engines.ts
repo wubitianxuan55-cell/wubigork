@@ -14,13 +14,12 @@ export interface ModelInfo {
 export interface EngineConfig {
   id: string
   name: string
-  type: 'xai' | 'ollama' | 'herdsman'
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek'
   base_url: string
   enabled: boolean
   default_model: string
   models: ModelInfo[]
 }
-
 export interface EngineStatus {
   id: string
   connected: boolean
@@ -70,4 +69,15 @@ export async function setActiveEngine(engineID: string): Promise<void> {
 export async function getActiveEngine(): Promise<string> {
   const result = await App().GetActiveEngine()
   return result as string
+}
+
+/** 设置 DeepSeek API Key */
+export async function setDeepseekKey(apiKey: string): Promise<void> {
+  await App().SetDeepseekKey(apiKey)
+}
+
+/** 获取 DeepSeek Key 状态（脱敏显示） */
+export async function getDeepseekKeyStatus(): Promise<{ configured: boolean; maskedKey: string }> {
+  const result = await App().GetDeepseekKeyStatus()
+  return result as { configured: boolean; maskedKey: string }
 }

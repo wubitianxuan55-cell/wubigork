@@ -34,7 +34,7 @@ type imageItem struct {
 // GenerateFreeImage 自由图片生成 — 供 AI 绘梦 Tab 使用
 // GenerateFreeImage 自由图片生成 — 供 AI 绘梦 Tab 使用
 // 参数: prompt, negative, size, style, model, seed (0=随机), n (1-4)
-func (a *App) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int) (map[string]interface{}, error) {
+func (a *App) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int, lora string) (map[string]interface{}, error) {
 	if a.client == nil {
 		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
 	}
@@ -72,8 +72,13 @@ func (a *App) GenerateFreeImage(prompt string, negative string, size string, sty
 			N:        1,
 			Size:     size,
 			Seed:     genSeed,
+			Lora:     lora,
 		}
 
+		// 非 ComfyUI 后端不接受 size 参数（xAI 返回 400）
+		if a.cfg.ImageBackend != "comfyui" {
+			imgReq.Size = ""
+		}
 		start := time.Now()
 		resp, err := a.client.GenerateImage(a.ctx, imgReq)
 		elapsed := time.Since(start).Seconds()
@@ -298,7 +303,7 @@ func (a *App) StartComfyUI() error {
 
 
 	cmd := exec.CommandContext(ctx, pythonExe, args...)
-	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8")
+	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8", "TQDM_DISABLE=1")
 	cmd.Dir = a.cfg.ComfyUIPath
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
@@ -319,13 +324,15 @@ func (a *App) StartComfyUI() error {
 	}
 
 	slog.Info("ComfyUI 已启动", "python", pythonExe, "dir", a.cfg.ComfyUIPath, "pid", cmd.Process.Pid)
+	a.comfyUICmd = cmd
 
 	// 后台等待进程结束，记录退出原因
 	go func() {
 		if err := cmd.Wait(); err != nil {
 			slog.Warn("ComfyUI 进程退出", "error", err)
 		}
-				a.comfyUICancel = nil
+		a.comfyUICancel = nil
+		a.comfyUICmd = nil
 	}()
 
 	return nil
@@ -370,21 +377,59 @@ func findPython(comfyUIPath string, cfgPythonPath string) string {
 	}
 	return ""
 }
-
-// StopComfyUI 停止 ComfyUI 服务
+// StopComfyUI 停止 ComfyUI 服务（不管是谁启动的都能停）
 func (a *App) StopComfyUI() error {
-	if a.comfyUICancel == nil {
-		return fmt.Errorf("ComfyUI 未在运行")
+	port := extractPort(a.cfg.ComfyUIURL)
+
+	// 1. 先通过 wubigrok 内部引用杀进程
+	if a.comfyUICmd != nil && a.comfyUICmd.Process != nil {
+		a.comfyUICmd.Process.Kill()
+		a.comfyUICmd = nil
 	}
-	a.comfyUICancel()
-	a.comfyUICancel = nil
-		slog.Info("ComfyUI 已停止")
+	if a.comfyUICancel != nil {
+		a.comfyUICancel()
+		a.comfyUICancel = nil
+	}
+
+	// 2. 通过端口查找进程（不管是谁启动的），强制杀
+	if pid := findProcessByPort(port); pid > 0 {
+		proc, err := os.FindProcess(pid)
+		if err == nil {
+			proc.Kill()
+		}
+	}
+
+	slog.Info("ComfyUI 已停止")
 	return nil
 }
 
-// GetComfyUIStatus 返回 ComfyUI 运行状态
+// findProcessByPort 查找监听指定端口的进程 PID（Windows netstat）
+func findProcessByPort(port string) int {
+	cmd := exec.Command("cmd", "/c",
+		fmt.Sprintf("netstat -ano | findstr :%s | findstr LISTENING", port))
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	// 输出格式: TCP  0.0.0.0:8188  0.0.0.0:0  LISTENING  12345
+	fields := strings.Fields(string(out))
+	if len(fields) > 0 {
+		pidStr := fields[len(fields)-1]
+		pid, _ := strconv.Atoi(pidStr)
+		return pid
+	}
+	return 0
+}
+
+// GetComfyUIStatus 返回 ComfyUI 运行状态（含监控：检测到进程退出自动清理引用）
 func (a *App) GetComfyUIStatus() map[string]interface{} {
 	running := a.isComfyUIRunning()
+	// 监控：如果进程不在运行但引用还在，自动清理
+	if !running && (a.comfyUICancel != nil || a.comfyUICmd != nil) {
+		a.comfyUICancel = nil
+		a.comfyUICmd = nil
+	}
 	return map[string]interface{}{
 		"running": running,
 		"url":     a.cfg.ComfyUIURL,
@@ -398,7 +443,7 @@ func (a *App) isComfyUIRunning() bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	resp.Body.Close()
 	return resp.StatusCode == 200
 }
 

@@ -16,6 +16,7 @@ interface Props {
 const estimateTime = (backend: string, model: string, count: number) => {
   if (backend === 'xai') return count * 5
   if (model === 'z-image-turbo') return count * 20
+  if (model.startsWith('krea2')) return count * 300
   return count * 60
 }
 

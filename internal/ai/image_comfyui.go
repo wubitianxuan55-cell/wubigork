@@ -46,11 +46,15 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	}
 
 	var workflow map[string]interface{}
-	switch req.Model {
-	case "z-image-turbo":
-		steps := 8
-		workflow = b.buildZImageWorkflow(req.Prompt, width, height, seed, steps)
-	default: // "flux" 或空
+	switch {
+	case strings.HasPrefix(req.Model, "krea2"):
+		steps := 20
+		workflow = b.buildKreaWorkflow(req.Prompt, width, height, seed, steps)
+	case req.Model == "z-image-turbo":
+		steps := 6
+		unetModel := "z-image\\z-image-turbo-fp8-e4m3fn_量化版_低显加速.safetensors"
+		workflow = b.buildZImageWorkflow(req.Prompt, req.Negative, width, height, seed, steps, unetModel)
+	default:
 		steps := 20
 		workflow = b.buildFluxWorkflow(req.Prompt, req.Negative, width, height, seed, steps)
 	}
@@ -170,134 +174,44 @@ func (b *ComfyUIBackend) buildFluxWorkflow(prompt string, negative string, width
 	}
 }
 
-// buildZImageWorkflow 构建 Z-Image-Turbo 工作流 JSON
-// buildZImageWorkflow 构建 Z-Image-Turbo 工作流 JSON
-
-// buildZImageWorkflow 构建 Z-Image-Turbo 工作流 JSON
-func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, width, height, seed, steps int) map[string]interface{} {
-	// 确保步数合理
-	if steps <= 0 || steps > 50 {
-		steps = 8
+// buildZImageWorkflow 构建 Z-Image 工作流（标准节点，无需 ZImagePowerNodes）
+func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, negative string, width int, height int, seed int, steps int, unetModel string) map[string]interface{} {
+	if steps <= 0 {
+		steps = 6
 	}
-
-	// 根据传入尺寸映射 Z-Image ratio 参数
-	// Z-Image-Turbo 支持的 ratio（竖图通过 horizontal:false + 横版比例实现）
-	ratio := "1:1  (square)"
-	horizontal := true
-	if width > height {
-		horizontal = true
-		r := float64(width) / float64(height)
-		switch {
-		case r >= 2.0:
-			ratio = "2:1  (univisium)"
-		case r >= 1.7:
-			ratio = "16:9  (widescreen)"
-		case r >= 1.4:
-			ratio = "3:2  (photo)"
-		default:
-			ratio = "4:3  (retro tv)"
-		}
-	} else if height > width {
-		horizontal = false
-		r := float64(height) / float64(width)
-		switch {
-		case r >= 2.0:
-			ratio = "2:1  (univisium)"
-		case r >= 1.7:
-			ratio = "16:9  (widescreen)"
-		case r >= 1.4:
-			ratio = "3:2  (photo)"
-		default:
-			ratio = "4:3  (retro tv)"
-		}
+	if steps > 20 {
+		steps = 20
 	}
-
 	return map[string]interface{}{
-		// UNETLoader — 加载 Z-Image-Turbo safetensors 模型
-		"4": map[string]interface{}{
-			"class_type": "UNETLoader",
-			"inputs": map[string]interface{}{
-				"unet_name":    "z-image\\z-image-turbo-fp8-e4m3fn_量化版_低显加速.safetensors",
-				"weight_dtype": "default",
-			},
-		},
-		// LoraLoaderModelOnly — 细节增强 LoRA
-		"13": map[string]interface{}{
-			"class_type": "LoraLoaderModelOnly",
-			"inputs": map[string]interface{}{
-				"model":          []interface{}{"4", 0},
-				"lora_name":      "zimage\\z-image-细节增强v2.safetensors",
-				"strength_model": 0.8,
-			},
-		},
-		// CLIPLoader — 加载 Qwen3-4B text encoder (lumina2, safetensors)
-		"5": map[string]interface{}{
-			"class_type": "CLIPLoader",
-			"inputs": map[string]interface{}{
-				"clip_name": "z-image\\qwen_3_4b.safetensors",
-				"type":      "lumina2",
-			},
-		},
-		// VAELoader — Z-Image 专用 VAE
-		"6": map[string]interface{}{
-			"class_type": "VAELoader",
-			"inputs":     map[string]interface{}{"vae_name": "z-image-qwen.safetensors"},
-		},
-		// CLIPTextEncode — positive prompt
-		"7": map[string]interface{}{
-			"class_type": "CLIPTextEncode",
-			"inputs": map[string]interface{}{
-				"text": prompt,
-				"clip": []interface{}{"5", 0},
-			},
-		},
-		// EmptyZImageLatentImage — Z-Image 专用潜空间
-		"9": map[string]interface{}{
-			"class_type": "EmptyZImageLatentImage //ZImagePowerNodes",
-			"inputs": map[string]interface{}{
-				"horizontal": horizontal,
-				"ratio":      ratio,
-				"size":       "medium (recommended)",
-				"batch_size": 1,
-			},
-		},
-		// ZSamplerTurbo2Simple — Z-Image Turbo 采样器
-		"10": map[string]interface{}{
-			"class_type": "ZSamplerTurbo2Simple //ZImagePowerNodes",
-			"inputs": map[string]interface{}{
-				"seed":                seed,
-				"steps":               steps,
-				"ibias":               0.0,
-				"divider":             1,
-				"turbo_creativity":    false,
-				"old_scheduler":       false,
-				"noise_injection":     false,
-				"alternative_refiner": false,
-				"model":        []interface{}{"13", 0},
-				"positive":     []interface{}{"7", 0},
-				"latent_input": []interface{}{"9", 0},
-			},
-		},
-		// VAEDecode
-		"11": map[string]interface{}{
-			"class_type": "VAEDecode",
-			"inputs": map[string]interface{}{
-				"samples": []interface{}{"10", 0},
-				"vae":     []interface{}{"6", 0},
-			},
-		},
-		// SaveImage
-		"12": map[string]interface{}{
-			"class_type": "SaveImage",
-			"inputs": map[string]interface{}{
-				"filename_prefix": "wubigork",
-				"images":          []interface{}{"11", 0},
-			},
-		},
+		"4": map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": unetModel, "weight_dtype": "default"}},
+		"5": map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "z-image\\qwen_3_4b.safetensors", "type": "lumina2"}},
+		"6": map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "z-image-qwen.safetensors"}},
+		"7": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
+		"8": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"5", 0}}},
+		"9": map[string]interface{}{"class_type": "EmptyLatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
+		"10": map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
+			"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
+			"model": []interface{}{"4", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": []interface{}{"9", 0},
+		}},
+		"11": map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}},
+		"12": map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "wubigork", "images": []interface{}{"11", 0}}},
 	}
 }
 
-// queuePrompt 提交 ComfyUI 任务
+// buildKreaWorkflow 构建 Krea2 工作流（20步 euler/simple CFG 1.0）
+func (b *ComfyUIBackend) buildKreaWorkflow(prompt string, width, height, seed, steps int) map[string]interface{} {
+	return map[string]interface{}{
+		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": "krea2\\redcraft23INT8INT4FP8_30Krea2.safetensors", "weight_dtype": "default"}},
+		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "qwen3vl_4b_krea2.safetensors", "type": "krea2"}},
+		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "ae.safetensors"}},
+		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
+		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": "", "clip": []interface{}{"5", 0}}},
+		"9":  map[string]interface{}{"class_type": "EmptyLatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
+		"10": map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0, "model": []interface{}{"4", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": []interface{}{"9", 0}}},
+		"11": map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}},
+		"12": map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "wubigork", "images": []interface{}{"11", 0}}},
+	}
+}
 func (b *ComfyUIBackend) queuePrompt(ctx context.Context, workflow map[string]interface{}) (string, error) {
 	body := map[string]interface{}{
 		"prompt": workflow,

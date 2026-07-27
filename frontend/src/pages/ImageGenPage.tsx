@@ -12,6 +12,7 @@ import ResultGallery from '../components/ResultGallery'
 import HistoryStrip from '../components/HistoryStrip'
 import Lightbox from '../components/Lightbox'
 import CustomTemplateModal from '../components/imagegen/CustomTemplateModal'
+import TemplatePickerModal from '../components/imagegen/TemplatePickerModal'
 import {
   TEMPLATES, getAllCategories,
   loadCustomTemplates, saveCustomTemplates, generateTemplateId,
@@ -80,8 +81,8 @@ const ImageGenPage: React.FC = () => {
   const [lightboxIndex, setLightboxIndex] = useState(-1)
   const [characters, setCharacters] = useState<{ id: string; name: string }[]>([])
 
-  // ── 模板 ──
   const [templateCat, setTemplateCat] = useState<string | undefined>()
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
   const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>(() => loadCustomTemplates())
   const [customModalOpen, setCustomModalOpen] = useState(false)
   const [editingCustom, setEditingCustom] = useState<CustomTemplate | null>(null)
@@ -94,6 +95,7 @@ const ImageGenPage: React.FC = () => {
   const comfyModels = useMemo(() => [
     { label: '🌊 Flux Dev', value: 'flux' },
     { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' },
+    { label: '🎨 Krea2 (FLUX)', value: 'krea2' },
   ], [])
 
   const loraOptions = useMemo(() => [
@@ -451,16 +453,11 @@ const ImageGenPage: React.FC = () => {
             padding: '14px 16px',
             display: 'flex', flexDirection: 'column', gap: 14,
           }}>
-            {/* Prompt 输入 + 模板 */}
             <PromptPanel
               prompt={prompt} negative={negative}
-              templateCat={templateCat} customTemplates={customTemplates}
               onPromptChange={setPrompt} onNegativeChange={setNegative}
-              onTemplateCatChange={setTemplateCat}
               onTemplateSelect={applyTemplate}
-              onAddCustom={openCustomAdd}
-              onEditCustom={openCustomEdit}
-              onDeleteCustom={deleteCustom}
+              onOpenTemplatePicker={() => setTemplatePickerOpen(true)}
             />
 
             <div style={{ height: 1, background: 'var(--border-subtle)' }} />
@@ -631,6 +628,17 @@ const ImageGenPage: React.FC = () => {
         negative={customNegative} onNegativeChange={setCustomNegative}
         onSave={saveCustom}
         onCancel={() => setCustomModalOpen(false)}
+      />
+
+      {/* 模板选择弹窗 */}
+      <TemplatePickerModal
+        open={templatePickerOpen}
+        onClose={() => setTemplatePickerOpen(false)}
+        customTemplates={customTemplates}
+        onSelect={applyTemplate}
+        onAddCustom={openCustomAdd}
+        onEditCustom={openCustomEdit}
+        onDeleteCustom={deleteCustom}
       />
     </div>
   )

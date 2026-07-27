@@ -1,8 +1,7 @@
 import React from 'react'
-import { Typography, Input, Tag, Space } from 'antd'
+import { Typography, Input } from 'antd'
 import { C } from '../utils/theme'
-import { TEMPLATES, type Template } from '../data/imageTemplates'
-
+import type { Template } from '../data/imageTemplates'
 const { TextArea } = Input
 
 interface Props {
@@ -11,9 +10,10 @@ interface Props {
   onPromptChange: (v: string) => void
   onNegativeChange: (v: string) => void
   onTemplateSelect: (t: Template) => void
+  onOpenTemplatePicker?: () => void
 }
 
-const PromptPanel: React.FC<Props> = ({ prompt, negative, onPromptChange, onNegativeChange, onTemplateSelect }) => {
+const PromptPanel: React.FC<Props> = ({ prompt, negative, onPromptChange, onNegativeChange, onTemplateSelect, onOpenTemplatePicker }) => {
   const [showNegative, setShowNegative] = React.useState(false)
 
   return (
@@ -64,27 +64,19 @@ const PromptPanel: React.FC<Props> = ({ prompt, negative, onPromptChange, onNega
       )}
 
       {/* 快速模板 */}
-      <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 6 }}>
-        📐 快速模板
-      </Typography.Text>
-      {Object.entries(TEMPLATES).map(([category, templates]) => (
-        <div key={category} style={{ marginBottom: 6 }}>
-          <Typography.Text style={{ fontSize: 10, color: C('color-text-secondary'), marginRight: 4 }}>
-            {category}
-          </Typography.Text>
-          <Space wrap size={[4, 4]}>
-            {templates.map((t) => (
-              <Tag
-                key={t.label}
-                style={{ cursor: 'pointer', borderRadius: 'var(--radius-sm)', fontSize: 11 }}
-                onClick={() => onTemplateSelect(t)}
-              >
-                {t.label}
-              </Tag>
-            ))}
-          </Space>
-        </div>
-      ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>
+          📐 快速模板
+        </Typography.Text>
+        {onOpenTemplatePicker && (
+          <Typography.Link
+            onClick={onOpenTemplatePicker}
+            style={{ fontSize: 11 }}
+          >
+            📐 选择图片模板
+          </Typography.Link>
+        )}
+      </div>
     </div>
   )
 }
