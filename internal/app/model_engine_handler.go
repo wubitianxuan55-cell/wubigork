@@ -108,7 +108,41 @@ func (a *App) GetActiveModel() string {
 	return model
 }
 
-// ── 错误 ──────────────────────────────────────────────────────
+// ── DeepSeek API ─────────────────────────────────────────────
+
+// SetDeepseekKey 设置 DeepSeek API Key
+func (a *App) SetDeepseekKey(apiKey string) error {
+	if a.engineMgr == nil {
+		return errNoEngineMgr
+	}
+	a.engineMgr.UpdateDeepseekKey(apiKey)
+	a.cfg.DeepseekAPIKey = apiKey
+	if err := config.Save(config.KeyDeepseekAPIKey, apiKey); err != nil {
+		slog.Warn("保存 DeepSeek API Key 失败", "error", err)
+		return err
+	}
+	slog.Info("DeepSeek API Key 已更新")
+	return nil
+}
+
+// GetDeepseekKeyStatus 获取 DeepSeek API Key 配置状态
+func (a *App) GetDeepseekKeyStatus() map[string]interface{} {
+	hasKey := a.cfg.DeepseekAPIKey != ""
+	masked := ""
+	if hasKey {
+		k := a.cfg.DeepseekAPIKey
+		if len(k) > 8 {
+			masked = k[:4] + "****" + k[len(k)-4:]
+		} else {
+			masked = "****"
+		}
+	}
+	return map[string]interface{}{
+		"configured": hasKey,
+		"masked":     masked,
+	}
+}
+
 // ── 错误 ──────────────────────────────────────────────────────
 
 var errNoEngineMgr = &appError{"模型引擎管理器未初始化"}

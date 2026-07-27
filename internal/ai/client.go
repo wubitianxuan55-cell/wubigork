@@ -25,7 +25,8 @@ type Client struct {
 	token      *auth.Token
 
 	// 本地图片生成后端（nil 时使用 xAI）
-	imageBackend ImageBackend
+	imageBackend     ImageBackend
+	imageBackendType string // "xai" | "comfyui" | "herdsman" | "ollama"
 
 	// 多引擎支持
 	engineMgr      *modelengine.Manager
@@ -457,22 +458,25 @@ loop:
 	})
 	return result, nil
 }
-
-// SetImageBackend 设置本地图片生成后端（nil 回退到 xAI）
-func (c *Client) SetImageBackend(backend ImageBackend) {
+// SetImageBackend 设置图片生成后端（nil + backendType 回退到 xAI）
+func (c *Client) SetImageBackend(backend ImageBackend, backendType string) {
 	c.imageBackend = backend
+	if backendType == "" {
+		backendType = "xai"
+	}
+	c.imageBackendType = backendType
 }
 
-// GetImageBackendType 获取当前图片后端配置
+// GetImageBackendType 获取当前图片后端类型
 func (c *Client) GetImageBackendType() string {
-	if c.imageBackend != nil {
-		return "comfyui"
+	if c.imageBackendType == "" {
+		return "xai"
 	}
-	return "xai"
+	return c.imageBackendType
 }
+
 
 // ── Models ────────────────────────────────────────────────────
-
 // ListModels 获取可用模型列表（始终从 xAI 获取，本地引擎通过 engineManager）
 func (c *Client) ListModels(ctx context.Context) (*ModelsResponse, error) {
 	token, err := c.GetToken()
@@ -510,7 +514,6 @@ func (c *Client) ListModels(ctx context.Context) (*ModelsResponse, error) {
 
 // ── 图片生成 ──────────────────────────────────────────────────
 
-// GenerateImage 调用 /v1/images/generations 生成图片
 func (c *Client) GenerateImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
 	if c.imageBackend != nil {
 		return c.imageBackend.GenerateImage(ctx, req)
@@ -525,13 +528,22 @@ func (c *Client) generateImageXAI(ctx context.Context, req *ImageGenerationReque
 		return nil, err
 	}
 
+	// 规范化模型名：如果传入的是 ComfyUI 模型名，替换为 xAI 默认模型
+	if req.Model == "" || req.Model == "flux" || req.Model == "z-image-turbo" {
+		req.Model = "grok-imagine-image-quality"
+	}
+
+	// xAI API 只接受 model/prompt/n/response_format，清空不兼容字段
 	req.Size = ""
+	req.Negative = ""
+	req.Seed = 0
 
 	endpoint := strings.TrimSuffix(c.cfg.XaiAPIBaseURL, "/") + "/images/generations"
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshal image request: %w", err)
 	}
+	slog.Info("xAI图片请求", "body", string(body))
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {

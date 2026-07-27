@@ -17,9 +17,10 @@ import (
 type EngineType string
 
 const (
-	EngineXAI     EngineType = "xai"
-	EngineOllama  EngineType = "ollama"
+	EngineXAI      EngineType = "xai"
+	EngineOllama   EngineType = "ollama"
 	EngineHerdsman EngineType = "herdsman"
+	EngineDeepseek EngineType = "deepseek"
 )
 
 // ── 数据结构 ───────────────────────────────────────────────
@@ -64,24 +65,24 @@ type modelsListResponse struct {
 
 // ── 引擎管理器 ─────────────────────────────────────────────
 
-// Manager 模型引擎管理器
 type Manager struct {
-	mu      sync.RWMutex
-	engines map[string]*EngineConfig
-	xaiKey  string // xAI API key（来自 OAuth token）
-
-	httpClient *http.Client
+	mu          sync.RWMutex
+	engines     map[string]*EngineConfig
+	xaiKey      string // xAI API key（来自 OAuth token）
+	deepseekKey string // DeepSeek API key（用户手动配置）
+	httpClient  *http.Client
 }
 
 // NewManager 创建引擎管理器
-func NewManager(xaiAPIKey string) *Manager {
+func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
-		engines:    make(map[string]*EngineConfig),
-		xaiKey:     xaiAPIKey,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		engines:     make(map[string]*EngineConfig),
+		xaiKey:      xaiAPIKey,
+		deepseekKey: deepseekKey,
+		httpClient:  &http.Client{Timeout: 15 * time.Second},
 	}
 
-	// 预置三大引擎默认配置
+	// 预置四大引擎默认配置
 	m.engines["xai"] = &EngineConfig{
 		ID:           "xai",
 		Name:         "xAI (Grok)",
@@ -95,7 +96,7 @@ func NewManager(xaiAPIKey string) *Manager {
 		Name:         "Ollama",
 		Type:         EngineOllama,
 		BaseURL:      "http://localhost:11434/v1",
-		Enabled:      false,
+		Enabled:      true,
 		DefaultModel: "",
 	}
 	m.engines["herdsman"] = &EngineConfig{
@@ -103,8 +104,16 @@ func NewManager(xaiAPIKey string) *Manager {
 		Name:         "Herdsman",
 		Type:         EngineHerdsman,
 		BaseURL:      "http://localhost:8080/v1",
-		Enabled:      false,
+		Enabled:      true,
 		DefaultModel: "",
+	}
+	m.engines["deepseek"] = &EngineConfig{
+		ID:           "deepseek",
+		Name:         "DeepSeek",
+		Type:         EngineDeepseek,
+		BaseURL:      "https://api.deepseek.com",
+		Enabled:      true,
+		DefaultModel: "deepseek-v4-pro",
 	}
 
 	return m
@@ -115,6 +124,13 @@ func (m *Manager) UpdateXAIKey(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.xaiKey = key
+}
+
+// UpdateDeepseekKey 更新 DeepSeek API key
+func (m *Manager) UpdateDeepseekKey(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.deepseekKey = key
 }
 
 // GetEngines 获取所有引擎配置
@@ -235,6 +251,7 @@ func (m *Manager) RefreshModels(ctx context.Context, engineID string) ([]ModelIn
 }
 
 // fetchModels 从引擎获取模型列表
+// fetchModels 从引擎获取模型列表
 func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]ModelInfo, error) {
 	baseURL := strings.TrimRight(engine.BaseURL, "/")
 	url := baseURL + "/models"
@@ -244,11 +261,11 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-
-	// xAI 需要认证
+	// xAI 和 DeepSeek 需要认证
 	if engine.Type == EngineXAI && m.xaiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.xaiKey)
+	} else if engine.Type == EngineDeepseek && m.deepseekKey != "" {
+		req.Header.Set("Authorization", "Bearer "+m.deepseekKey)
 	}
 
 	resp, err := m.httpClient.Do(req)
@@ -258,15 +275,19 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == 401 && engine.Type == EngineXAI {
-			return nil, fmt.Errorf("HTTP 401: 未登录 xAI，请先点击「登录 xAI」获取授权")
+		if resp.StatusCode == 401 {
+			if engine.Type == EngineXAI {
+				return nil, fmt.Errorf("HTTP 401: 未登录 xAI，请先点击「登录 xAI」获取授权")
+			} else if engine.Type == EngineDeepseek {
+				return nil, fmt.Errorf("HTTP 401: DeepSeek API Key 无效或未配置，请在设置中配置")
+			}
 		}
 		return nil, fmt.Errorf("HTTP %d: 模型列表获取失败", resp.StatusCode)
 	}
 
 	var result modelsListResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %w", err)
+		return nil, fmt.Errorf("解析模型列表失败: %w", err)
 	}
 
 	models := make([]ModelInfo, len(result.Data))
@@ -280,7 +301,6 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 
 	return models, nil
 }
-
 // SetDefaultModel 设置引擎的默认模型
 func (m *Manager) SetDefaultModel(engineID, modelName string) error {
 	m.mu.Lock()
@@ -334,12 +354,12 @@ func (m *Manager) BuildChatURL(engineID string) (string, string, error) {
 		return "", "", fmt.Errorf("引擎 %s 未启用", engineID)
 	}
 
-	baseURL := strings.TrimRight(engine.BaseURL, "/")
-	chatURL := baseURL + "/chat/completions"
-
-	apiKey := ""
+	chatURL := strings.TrimRight(engine.BaseURL, "/") + "/chat/completions"
+	var apiKey string
 	if engine.Type == EngineXAI {
 		apiKey = m.xaiKey
+	} else if engine.Type == EngineDeepseek {
+		apiKey = m.deepseekKey
 	}
 
 	return chatURL, apiKey, nil

@@ -73,7 +73,7 @@ func (a *App) CreateChapter(setting, prevSummary, plotReq string, chapterNum int
 		systemPrompt += "\n\n---\n## 额外写作指导\n" + skillMD
 	}
 	const minWords = 5000
-	const maxContinues = 2
+	const maxContinues = 20
 	// 5. 确定/创建节点（同步，前端立即可用）
 	targetNum, nodeID, branch := a.ensureChapterNode(pm, of, chapterNum, branchFromNodeID)
 	if nodeID == "" {
@@ -102,16 +102,25 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 
 	var fullText string
 	currentPrompt := userPrompt
-	prevFullLen := 0 // 续写前长度，用于去重
 
 	for attempt := 0; attempt <= maxContinues; attempt++ {
 		if attempt > 0 {
 			// 续写模式：基于已有内容继续
-			prevFullLen = len([]rune(fullText))
-			bodyLen := prevFullLen
+			bodyLen := len([]rune(fullText))
 			need := minWords - bodyLen
+			// 截取已有内容末尾作为续写上下文（避免截开头导致重复）
+			allRunes := []rune(fullText)
+			tailRunes := allRunes
+			const tailCtx = 500
+			if len(allRunes) > tailCtx {
+				tailRunes = allRunes[len(allRunes)-tailCtx:]
+			}
+			tailText := string(tailRunes)
+			if len(allRunes) > tailCtx {
+				tailText = "…(前文省略)\n" + tailText
+			}
 			currentPrompt = fmt.Sprintf("【续写指令】当前已写%d字，请从断点处直接继续写至少%d字。不要重复已写内容，不要加章节标题或前言，直接接着写正文。\n\n已有内容末尾：\n%s\n\n请继续：",
-				bodyLen, need, util.Truncate(fullText, 200))
+				bodyLen, need, tailText)
 			slog.Info("章节字数不足，启动续写", "current", bodyLen, "need", need, "attempt", attempt)
 		}
 
@@ -132,7 +141,6 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 			return
 		}
 
-		var segmentText string
 		var summaryStarted bool
 	loop:
 		for {
@@ -150,21 +158,27 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 				if chunk.Done {
 					break loop
 				}
-				segmentText += chunk.Content
 				fullText += chunk.Content
 
-				if attempt == 0 && !summaryStarted {
-					// 首次生成：流式发送正文（续写时不发，统一在循环后去重发送）
-					if idx := strings.Index(fullText, "---CHAPTER_SUMMARY---"); idx >= 0 {
-						summaryStarted = true
-						bodyLen := idx - (len(fullText) - len(chunk.Content))
-						if bodyLen > 0 {
-							bodyPart := string([]rune(chunk.Content)[:bodyLen])
+				if !summaryStarted {
+					if attempt == 0 {
+						// 首次生成：流式发送正文（需处理摘要标记）
+						if idx := strings.Index(fullText, "---CHAPTER_SUMMARY---"); idx >= 0 {
+							summaryStarted = true
+							bodyLen := idx - (len(fullText) - len(chunk.Content))
+							if bodyLen > 0 {
+								bodyPart := string([]rune(chunk.Content)[:bodyLen])
+								a.emit("create-chapter-stream", map[string]interface{}{
+									"type": "chunk", "content": bodyPart, "total": len([]rune(fullText)),
+								})
+							}
+						} else {
 							a.emit("create-chapter-stream", map[string]interface{}{
-								"type": "chunk", "content": bodyPart, "total": len([]rune(fullText)),
+								"type": "chunk", "content": chunk.Content, "total": len([]rune(fullText)),
 							})
 						}
 					} else {
+						// 续写：直接流式发送（无摘要标记）
 						a.emit("create-chapter-stream", map[string]interface{}{
 							"type": "chunk", "content": chunk.Content, "total": len([]rune(fullText)),
 						})
@@ -183,17 +197,7 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 		}
 	}
 
-	// 续写增量：一次性发送本 attempt 产生的新内容（去重）
-	if prevFullLen > 0 {
-		newRunes := []rune(fullText)[prevFullLen:]
-		if len(newRunes) > 0 {
-			a.emit("create-chapter-stream", map[string]interface{}{
-				"type": "chunk", "content": string(newRunes), "total": len([]rune(fullText)),
-			})
-		}
-	}
-
-
+	// 提取正文和摘要
 	// 提取正文和摘要
 	content := fullText
 	summary := ""

@@ -22,7 +22,6 @@ import (
 	"github.com/wubigork/wubigork/internal/project"
 	"github.com/wubigork/wubigork/internal/prompt"
 	"github.com/wubigork/wubigork/internal/skill"
-	"github.com/wubigork/wubigork/internal/tts"
 	"github.com/wubigork/wubigork/internal/worldview"
 )
 
@@ -53,7 +52,8 @@ type App struct {
 	// Skill
 	skillLoader *skill.Loader
 	// TTS 语音朗读
-	ttsClient *tts.Client
+	activeTTSEngine string
+	activeTTSModel  string
 
 	// ComfyUI 进程管理
 	comfyUICancel context.CancelFunc
@@ -87,7 +87,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.client = ai.NewClient(a.cfg)
 
 	// 初始化模型引擎管理器，尝试恢复已保存的 xAI token
-	a.engineMgr = modelengine.NewManager("")
+	a.engineMgr = modelengine.NewManager("", a.cfg.DeepseekAPIKey)
 	if tok, err := auth.NewTokenStore(a.cfg.TokenStorePath).Load(); err == nil && tok != nil && !tok.IsExpired() {
 		a.engineMgr.UpdateXAIKey(tok.AccessToken)
 	}
@@ -95,10 +95,12 @@ func (a *App) Startup(ctx context.Context) {
 	a.initImageBackend()
 
 	// 后台刷新所有引擎模型列表
-	for _, eid := range []string{"xai", "herdsman", "ollama"} {
+	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {
 		go func(id string) {
 			eng, ok := a.engineMgr.GetEngine(id)
-			if !ok || !eng.Enabled { return }
+			if !ok || !eng.Enabled {
+				return
+			}
 			if _, err := a.engineMgr.RefreshModels(context.Background(), id); err != nil {
 				slog.Warn("刷新"+id+"模型列表失败", "error", err)
 			}
@@ -108,12 +110,30 @@ func (a *App) Startup(ctx context.Context) {
 
 // initImageBackend 根据配置初始化图片生成后端
 func (a *App) initImageBackend() {
-	if a.cfg.ImageBackend == "comfyui" && a.cfg.ComfyUIURL != "" {
-		backend := ai.NewComfyUIBackend(a.cfg.ComfyUIURL)
-		a.client.SetImageBackend(backend)
-		slog.Info("图片后端: ComfyUI", "url", a.cfg.ComfyUIURL)
-	} else {
-		slog.Info("图片后端: xAI", "backend", a.cfg.ImageBackend)
+	switch a.cfg.ImageBackend {
+	case "comfyui":
+		if a.cfg.ComfyUIURL != "" {
+			backend := ai.NewComfyUIBackend(a.cfg.ComfyUIURL)
+			a.client.SetImageBackend(backend, "comfyui")
+			slog.Info("图片后端: ComfyUI", "url", a.cfg.ComfyUIURL)
+		}
+	case "herdsman":
+		eng, ok := a.engineMgr.GetEngine("herdsman")
+		if ok && eng.Enabled {
+			backend := ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey)
+			a.client.SetImageBackend(backend, "herdsman")
+			slog.Info("图片后端: Herdsman", "url", eng.BaseURL)
+		}
+	case "ollama":
+		eng, ok := a.engineMgr.GetEngine("ollama")
+		if ok && eng.Enabled {
+			backend := ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey)
+			a.client.SetImageBackend(backend, "ollama")
+			slog.Info("图片后端: Ollama", "url", eng.BaseURL)
+		}
+	default: // "xai" 或空
+		a.client.SetImageBackend(nil, "xai")
+		slog.Info("图片后端: xAI")
 	}
 }
 

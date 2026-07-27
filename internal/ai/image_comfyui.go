@@ -24,7 +24,7 @@ type ComfyUIBackend struct {
 func NewComfyUIBackend(baseURL string) *ComfyUIBackend {
 	return &ComfyUIBackend{
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
-		httpClient: &http.Client{Timeout: 10 * time.Minute}, // 图片生成可能很久
+		httpClient: &http.Client{Timeout: 30 * time.Minute}, // CPU 模式可能很慢
 	}
 }
 
@@ -79,10 +79,13 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 // buildFluxWorkflow 构建 Flux GGUF + Realism LoRA + NSFW LoRA 工作流 JSON
 func (b *ComfyUIBackend) buildFluxWorkflow(prompt string, negative string, width, height, seed, steps int) map[string]interface{} {
 	return map[string]interface{}{
-		// UnetLoaderGGUF — 加载 Flux GGUF 模型
+		// UNETLoader — 加载 Flux safetensors 模型
 		"4": map[string]interface{}{
-			"class_type": "UnetLoaderGGUF",
-			"inputs":     map[string]interface{}{"unet_name": "flux1-dev-Q5_K_S.gguf"},
+			"class_type": "UNETLoader",
+			"inputs": map[string]interface{}{
+				"unet_name":   "flux1\\flux1-fill-dev-OneReward-fp8.safetensors",
+				"weight_dtype": "default",
+			},
 		},
 		// DualCLIPLoader — 加载 CLIP + T5
 		"5": map[string]interface{}{
@@ -129,11 +132,11 @@ func (b *ComfyUIBackend) buildFluxWorkflow(prompt string, negative string, width
 			"inputs": map[string]interface{}{
 				"seed":         seed,
 				"steps":        steps,
-				"cfg":          1.0, // Flux uses cfg=1
+				"cfg":          1.0,
 				"sampler_name": "euler",
 				"scheduler":    "simple",
 				"denoise":      1.0,
-				"model":        []interface{}{"14", 0},
+				"model":        []interface{}{"13", 0},
 				"positive":     []interface{}{"7", 0},
 				"negative":     []interface{}{"8", 0},
 				"latent_image": []interface{}{"9", 0},
@@ -147,7 +150,7 @@ func (b *ComfyUIBackend) buildFluxWorkflow(prompt string, negative string, width
 				"vae":     []interface{}{"6", 0},
 			},
 		},
-		// SaveImage — 输出节点
+		// SaveImage
 		"12": map[string]interface{}{
 			"class_type": "SaveImage",
 			"inputs": map[string]interface{}{
@@ -155,31 +158,22 @@ func (b *ComfyUIBackend) buildFluxWorkflow(prompt string, negative string, width
 				"images":          []interface{}{"11", 0},
 			},
 		},
-		// ═══ LoRA 链 ═══
-		// LoraLoaderModelOnly — Realism (写实质感)
+		// LoraLoaderModelOnly — 8步加速 LoRA
 		"13": map[string]interface{}{
 			"class_type": "LoraLoaderModelOnly",
 			"inputs": map[string]interface{}{
 				"model":          []interface{}{"4", 0},
-				"lora_name":      "Realism Lora By Stable Yogi_V3_Lite.safetensors",
-				"strength_model": 0.75,
-			},
-		},
-		// LoraLoaderModelOnly — NSFW (情色风格)
-		"14": map[string]interface{}{
-			"class_type": "LoraLoaderModelOnly",
-			"inputs": map[string]interface{}{
-				"model":          []interface{}{"13", 0},
-				"lora_name":      "NSFW_master_ZIT_000017532.safetensors",
-				"strength_model": 0.9,
+				"lora_name":      "flux1\\FLUX.1八步出图Lora提速版.safetensors",
+				"strength_model": 0.6,
 			},
 		},
 	}
 }
 
-// buildZImageWorkflow 构建 Z-Image-Turbo GGUF 工作流 JSON
-// 使用 ComfyUI-ZImagePowerNodes + ComfyUI-GGUF 节点
-// Z-Image-Turbo: 8 步, CFG=0, Qwen3-4B text encoder (lumina2)
+// buildZImageWorkflow 构建 Z-Image-Turbo 工作流 JSON
+// buildZImageWorkflow 构建 Z-Image-Turbo 工作流 JSON
+
+// buildZImageWorkflow 构建 Z-Image-Turbo 工作流 JSON
 func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, width, height, seed, steps int) map[string]interface{} {
 	// 确保步数合理
 	if steps <= 0 || steps > 50 {
@@ -219,36 +213,35 @@ func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, width, height, seed,
 	}
 
 	return map[string]interface{}{
-		// UnetLoaderGGUF — 加载 Z-Image-Turbo GGUF 模型
+		// UNETLoader — 加载 Z-Image-Turbo safetensors 模型
 		"4": map[string]interface{}{
-			"class_type": "UnetLoaderGGUF",
+			"class_type": "UNETLoader",
 			"inputs": map[string]interface{}{
-				"unet_name": "z_image_turbo-Q5_K_M.gguf",
+				"unet_name":    "z-image\\z-image-turbo-fp8-e4m3fn_量化版_低显加速.safetensors",
+				"weight_dtype": "default",
 			},
 		},
-		// LoraLoaderModelOnly — NSFW ZIT LoRA
+		// LoraLoaderModelOnly — 细节增强 LoRA
 		"13": map[string]interface{}{
 			"class_type": "LoraLoaderModelOnly",
 			"inputs": map[string]interface{}{
 				"model":          []interface{}{"4", 0},
-				"lora_name":      "NSFW_master_ZIT_000017532.safetensors",
-				"strength_model": 0.7,
+				"lora_name":      "zimage\\z-image-细节增强v2.safetensors",
+				"strength_model": 0.8,
 			},
 		},
-		// CLIPLoaderGGUF — 加载 Qwen3-4B text encoder (lumina2 type)
+		// CLIPLoader — 加载 Qwen3-4B text encoder (lumina2, safetensors)
 		"5": map[string]interface{}{
-			"class_type": "CLIPLoaderGGUF",
+			"class_type": "CLIPLoader",
 			"inputs": map[string]interface{}{
-				"clip_name": "Qwen3-4B.i1-Q4_K_M.gguf",
+				"clip_name": "z-image\\qwen_3_4b.safetensors",
 				"type":      "lumina2",
 			},
 		},
-		// VAELoader — 与 Flux 共用 ae.safetensors
+		// VAELoader — Z-Image 专用 VAE
 		"6": map[string]interface{}{
 			"class_type": "VAELoader",
-			"inputs": map[string]interface{}{
-				"vae_name": "ae.safetensors",
-			},
+			"inputs":     map[string]interface{}{"vae_name": "z-image-qwen.safetensors"},
 		},
 		// CLIPTextEncode — positive prompt
 		"7": map[string]interface{}{
@@ -268,24 +261,24 @@ func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, width, height, seed,
 				"batch_size": 1,
 			},
 		},
-		// ZSamplerTurbo2Simple — Z-Image Turbo 采样器 (8步, CFG=0)
+		// ZSamplerTurbo2Simple — Z-Image Turbo 采样器
 		"10": map[string]interface{}{
 			"class_type": "ZSamplerTurbo2Simple //ZImagePowerNodes",
 			"inputs": map[string]interface{}{
-				"seed":              seed,
-				"steps":             steps,
-				"ibias":             0.0,
-				"divider":           1,
-				"turbo_creativity":  false,
-				"old_scheduler":     false,
-				"noise_injection":   false,
+				"seed":                seed,
+				"steps":               steps,
+				"ibias":               0.0,
+				"divider":             1,
+				"turbo_creativity":    false,
+				"old_scheduler":       false,
+				"noise_injection":     false,
 				"alternative_refiner": false,
 				"model":        []interface{}{"13", 0},
 				"positive":     []interface{}{"7", 0},
 				"latent_input": []interface{}{"9", 0},
 			},
 		},
-		// VAEDecode — 标准 ComfyUI 解码器
+		// VAEDecode
 		"11": map[string]interface{}{
 			"class_type": "VAEDecode",
 			"inputs": map[string]interface{}{
@@ -293,7 +286,7 @@ func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, width, height, seed,
 				"vae":     []interface{}{"6", 0},
 			},
 		},
-		// SaveImage — 输出节点
+		// SaveImage
 		"12": map[string]interface{}{
 			"class_type": "SaveImage",
 			"inputs": map[string]interface{}{
@@ -331,7 +324,16 @@ func (b *ComfyUIBackend) queuePrompt(ctx context.Context, workflow map[string]in
 		return "", fmt.Errorf("读取 ComfyUI 响应失败: %w", err)
 	}
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("ComfyUI HTTP %d: %s", resp.StatusCode, trimStr(string(respBody), 300))
+		errMsg := trimStr(string(respBody), 500)
+		extra := ""
+		if strings.Contains(errMsg, "ZImagePowerNodes") {
+			extra = "\n💡 请安装 ComfyUI 插件: ZImagePowerNodes\n   cd custom_nodes && git clone https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes.git"
+		} else if strings.Contains(errMsg, "UnetLoaderGGUF") || strings.Contains(errMsg, "CLIPLoaderGGUF") {
+			extra = "\n💡 请安装 ComfyUI 插件: ComfyUI-GGUF\n   cd custom_nodes && git clone https://github.com/city96/ComfyUI-GGUF.git"
+		} else if strings.Contains(errMsg, "missing_node_type") {
+			extra = "\n💡 工作流使用了自定义节点，请确认已安装所需插件（ComfyUI-GGUF + ZImagePowerNodes）"
+		}
+		return "", fmt.Errorf("ComfyUI HTTP %d: %s%s", resp.StatusCode, errMsg, extra)
 	}
 
 	var result struct {

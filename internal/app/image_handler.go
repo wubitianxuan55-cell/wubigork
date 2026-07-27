@@ -230,12 +230,32 @@ func (a *App) SetImageBackend(backend string, comfyUIURL string, imageModel stri
 		if imageModel != "" {
 			a.cfg.ImageModel = imageModel
 		}
-		a.client.SetImageBackend(ai.NewComfyUIBackend(a.cfg.ComfyUIURL))
+		a.client.SetImageBackend(ai.NewComfyUIBackend(a.cfg.ComfyUIURL), "comfyui")
 	case "xai":
 		a.cfg.ImageBackend = "xai"
-		a.client.SetImageBackend(nil)
+		a.client.SetImageBackend(nil, "xai")
+	case "herdsman":
+		eng, ok := a.engineMgr.GetEngine("herdsman")
+		if !ok || !eng.Enabled {
+			return fmt.Errorf("Herdsman 引擎未启用，请先在模型中心启用")
+		}
+		a.cfg.ImageBackend = "herdsman"
+		if imageModel != "" {
+			a.cfg.ImageModel = imageModel
+		}
+		a.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "herdsman")
+	case "ollama":
+		eng, ok := a.engineMgr.GetEngine("ollama")
+		if !ok || !eng.Enabled {
+			return fmt.Errorf("Ollama 引擎未启用，请先在模型中心启用")
+		}
+		a.cfg.ImageBackend = "ollama"
+		if imageModel != "" {
+			a.cfg.ImageModel = imageModel
+		}
+		a.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "ollama")
 	default:
-		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui）", backend)
+		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / ollama）", backend)
 	}
 	return nil
 }
@@ -267,11 +287,17 @@ func (a *App) StartComfyUI() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.comfyUICancel = cancel
 
-	cmd := exec.CommandContext(ctx, pythonExe, "main.py",
-		"--listen", "127.0.0.1",
-		"--port", extractPort(a.cfg.ComfyUIURL),
-		"--lowvram",
-	)
+	// 构建启动参数
+	args := []string{"main.py", "--listen", "127.0.0.1", "--port", extractPort(a.cfg.ComfyUIURL)}
+	// 使用内置 Python 时加 --windows-standalone-build
+	if strings.Contains(pythonExe, "python\\python.exe") || strings.Contains(pythonExe, "python_embeded") {
+		args = append(args, "--windows-standalone-build")
+	}
+	// 不强制指定 GPU 后端，让 ComfyUI 自动检测（支持 NVIDIA CUDA / AMD ROCm / DirectML）
+	// 若需要强制 CPU 模式，可在设置中指定 `--cpu` 参数
+
+
+	cmd := exec.CommandContext(ctx, pythonExe, args...)
 	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8")
 	cmd.Dir = a.cfg.ComfyUIPath
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
@@ -319,7 +345,8 @@ func findPython(comfyUIPath string, cfgPythonPath string) string {
 	// 2. ComfyUI 便携版
 	if comfyUIPath != "" {
 		candidates := []string{
-			filepath.Join(comfyUIPath, "python_embeded", "python.exe"),
+			filepath.Join(comfyUIPath, "..", "python", "python.exe"),    // 整合包 python/
+			filepath.Join(comfyUIPath, "python_embeded", "python.exe"),  // 便携版
 			filepath.Join(comfyUIPath, "venv", "Scripts", "python.exe"),
 			filepath.Join(comfyUIPath, ".venv", "Scripts", "python.exe"),
 		}
@@ -428,14 +455,16 @@ func openDir(dir string) error {
 // GetSystemStats 获取系统状态（CPU + GPU）
 func (a *App) GetSystemStats() map[string]interface{} {
 	result := map[string]interface{}{
-		"cpu":     getCPUUsage(),
-		"gpuName": "",
+		"cpu":      getCPUUsage(),
+		"memTotal": getTotalMemory(),
+		"memUsed":  getUsedMemory(),
+		"gpuName":  "",
 		"gpuUsage": 0,
 		"vramUsed": 0.0,
 		"vramTotal": 0.0,
 	}
 
-	// 从 ComfyUI 获取 GPU 信息
+	// GPU 信息：ComfyUI 运行时从 API 获取，否则用 nvidia-smi/wmic
 	if a.isComfyUIRunning() {
 		client := &http.Client{Timeout: 3 * time.Second}
 		resp, err := client.Get(strings.TrimSuffix(a.cfg.ComfyUIURL, "/") + "/system_stats")
@@ -447,11 +476,9 @@ func (a *App) GetSystemStats() map[string]interface{} {
 				if devices, ok := stats["devices"].([]interface{}); ok && len(devices) > 0 {
 					if dev, ok := devices[0].(map[string]interface{}); ok {
 						result["gpuName"] = dev["name"]
-						result["vramTotal"] = float64(0)
 						if v, ok := dev["vram_total"].(float64); ok {
 							result["vramTotal"] = v / 1e9
 						}
-						result["vramUsed"] = float64(0)
 						if total, ok := dev["vram_total"].(float64); ok {
 							if free, ok := dev["vram_free"].(float64); ok {
 								result["vramUsed"] = (total - free) / 1e9
@@ -461,6 +488,11 @@ func (a *App) GetSystemStats() map[string]interface{} {
 				}
 			}
 		}
+	} else {
+		name, total, used := getGPUInfo()
+		result["gpuName"] = name
+		result["vramTotal"] = total
+		result["vramUsed"] = used
 	}
 
 	return result
@@ -484,4 +516,81 @@ func getCPUUsage() int {
 		return -1
 	}
 	return usage
+}
+
+// getTotalMemory 获取 Windows 总内存 (GB)
+func getTotalMemory() float64 {
+	cmd := exec.Command("wmic", "OS", "get", "TotalVisibleMemorySize")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) < 2 {
+		return 0
+	}
+	kb, err := strconv.ParseFloat(strings.TrimSpace(lines[1]), 64)
+	if err != nil {
+		return 0
+	}
+	return kb / 1e6
+}
+
+// getUsedMemory 获取 Windows 已用内存 (GB)
+func getUsedMemory() float64 {
+	total := getTotalMemory()
+	cmd := exec.Command("wmic", "OS", "get", "FreePhysicalMemory")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) < 2 {
+		return 0
+	}
+	freeKB, err := strconv.ParseFloat(strings.TrimSpace(lines[1]), 64)
+	if err != nil {
+		return 0
+	}
+	used := total - freeKB/1e6
+	if used < 0 {
+		used = 0
+	}
+	return used
+}
+
+// getGPUInfo 获取 GPU 名称、总显存、已用显存 (GB)
+func getGPUInfo() (name string, totalGB float64, usedGB float64) {
+	cmd := exec.Command("nvidia-smi", "--query-gpu=name,memory.total,memory.used", "--format=csv,noheader,nounits")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := cmd.Output()
+	if err == nil {
+		line := strings.TrimSpace(string(out))
+		parts := strings.Split(line, ",")
+		if len(parts) >= 3 {
+			name = strings.TrimSpace(parts[0])
+			totalMB, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+			usedMB, _ := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
+			return name, totalMB / 1024.0, usedMB / 1024.0
+		}
+	}
+	// wmic 回退
+	cmd2 := exec.Command("wmic", "path", "win32_VideoController", "get", "name")
+	cmd2.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out2, err := cmd2.Output()
+	if err == nil {
+		lines := strings.Split(strings.TrimSpace(string(out2)), "\n")
+		if len(lines) >= 2 {
+			name = strings.TrimSpace(lines[1])
+		}
+	}
+	return
+}
+
+// hasNvidiaGPU 检测是否有 NVIDIA GPU
+func hasNvidiaGPU() bool {
+	_, err := exec.LookPath("nvidia-smi")
+	return err == nil
 }

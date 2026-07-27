@@ -32,6 +32,7 @@ const (
 	KeyComfyUIPythonPath   = "comfyui_python_path"
 	KeyActiveEngineID      = "active_engine_id"
 	KeyModel               = "model"
+	KeyDeepseekAPIKey      = "deepseek_api_key"
 )
 
 // configFile 表示 ~/.wubigork_config.json 的结构
@@ -46,7 +47,7 @@ type configFile struct {
 	QualityMaxRetries   int     `json:"quality_max_retries"` // 最大自动重试次数
 	TTSBinaryPath       string  `json:"tts_binary_path,omitempty"`
 	TTSModelPath        string  `json:"tts_model_path,omitempty"`
-	ImageBackend        string  `json:"image_backend,omitempty"`  // "xai" (默认) | "comfyui"
+	ImageBackend        string  `json:"image_backend,omitempty"`  // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
 	ComfyUIURL          string  `json:"comfyui_url,omitempty"`
 	ImageSaveDir        string  `json:"image_save_dir,omitempty"`   // 图片生成存放目录
 	ImageModel          string  `json:"image_model,omitempty"`    // 图片模型
@@ -57,9 +58,8 @@ type configFile struct {
 	TTSSpeed            float64 `json:"tts_speed,omitempty"`      // TTS 语速
 	ActiveEngineID      string  `json:"active_engine_id,omitempty"` // 活跃模型引擎 ID
 	Model               string  `json:"model,omitempty"`             // 默认 LLM 模型名
+	DeepseekAPIKey      string  `json:"deepseek_api_key,omitempty"`  // DeepSeek API Key
 }
-
-// Config 全局配置
 type Config struct {
 	// XAI OAuth 配置
 	XaiClientID   string
@@ -104,15 +104,18 @@ type Config struct {
 	TTSBackend    string  // 推理后端: cpu / cuda / vulkan（默认 cuda）
 	TTSSpeed      float64 // 默认朗读语速（0.25-4.0，默认 1.0）
 	// 图片生成后端
-	ImageBackend string // "xai" (默认) | "comfyui"
+	ImageBackend string // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
 	ComfyUIURL   string // ComfyUI 服务地址，默认 http://127.0.0.1:8188
 	ImageSaveDir string // 生成图片存放目录，空字符串=不存盘
 	ImageModel   string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "flux" | "z-image-turbo"
 	ComfyUIPath string // ComfyUI 安装目录（main.py 所在路径），空=需手动启动
 	ComfyUIPythonPath string // Python 解释器路径（留空则自动查找）
 
-	// 活跃模型引擎 ID（"xai" | "ollama" | "herdsman"）
+	// 活跃模型引擎 ID（"xai" | "ollama" | "herdsman" | "deepseek"）
 	ActiveEngineID string
+
+	// DeepSeek API Key
+	DeepseekAPIKey string
 }
 
 // Load 加载配置（只应调用一次）。
@@ -295,11 +298,11 @@ func Load() *Config {
 			if cf.TTSSpeed != 0 {
 				cfg.TTSSpeed = cf.TTSSpeed
 			}
-			if cf.ActiveEngineID != "" {
-				cfg.ActiveEngineID = cf.ActiveEngineID
-			}
 			if cf.Model != "" {
 				cfg.Model = cf.Model
+			}
+			if cf.DeepseekAPIKey != "" {
+				cfg.DeepseekAPIKey = cf.DeepseekAPIKey
 			}
 		}
 	}
@@ -390,7 +393,7 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyComfyUIPythonPath:  func(cf *configFile, v string) error { cf.ComfyUIPythonPath = v; return nil },
 	KeyTTSPort:           func(cf *configFile, v string) error { n, err := strconv.Atoi(v); if err != nil { return err }; cf.TTSPort = n; return nil },
 	KeyTTSBackend:         func(cf *configFile, v string) error { cf.TTSBackend = v; return nil },
-	KeyTTSSpeed:          func(cf *configFile, v string) error { f, err := strconv.ParseFloat(v, 64); if err != nil { return err }; cf.TTSSpeed = f; return nil },
 	KeyActiveEngineID:    func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
 	KeyModel:             func(cf *configFile, v string) error { cf.Model = v; return nil },
+	KeyDeepseekAPIKey:    func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
 }

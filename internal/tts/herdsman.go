@@ -19,9 +19,6 @@ type HerdsmanTTS struct {
 
 // NewHerdsmanTTS 创建 Herdsman TTS 客户端
 func NewHerdsmanTTS(baseURL, model, voice string) *HerdsmanTTS {
-	if voice == "" {
-		voice = "aiden"
-	}
 	return &HerdsmanTTS{
 		baseURL: baseURL,
 		model:   model,
@@ -30,17 +27,23 @@ func NewHerdsmanTTS(baseURL, model, voice string) *HerdsmanTTS {
 	}
 }
 
-// Synthesize 实现 Synthesizer 接口
+// ttsResponse /v1/audio/speech 非流式响应
+type ttsResponse struct {
+	AudioURL   string  `json:"audio_url"`
+	SampleRate int     `json:"sample_rate"`
+	Duration   float64 `json:"duration"`
+}
+
+// Synthesize 合成语音（POST /audio/speech → 解析 JSON audio_url → GET 下载音频）
 func (h *HerdsmanTTS) Synthesize(text string) ([]byte, error) {
 	body := map[string]interface{}{
-		"model":          h.model,
-		"input":          text,
-		"voice":          h.voice,
-		"response_format": "mp3",
+		"model": h.model,
+		"input": text,
+		"voice": h.voice,
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	url := h.baseURL + "/v1/audio/speech"
+	url := h.baseURL + "/audio/speech"
 	resp, err := h.client.Post(url, "application/json", bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("herdsman TTS: %w", err)
@@ -52,10 +55,27 @@ func (h *HerdsmanTTS) Synthesize(text string) ([]byte, error) {
 		return nil, fmt.Errorf("herdsman TTS: HTTP %d: %s", resp.StatusCode, string(errBody))
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	var result ttsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("herdsman TTS: parse: %w", err)
+	}
+	if result.AudioURL == "" {
+		return nil, fmt.Errorf("herdsman TTS: 响应中无 audio_url")
+	}
+
+	audioResp, err := h.client.Get(h.baseURL + result.AudioURL)
+	if err != nil {
+		return nil, fmt.Errorf("herdsman TTS: download: %w", err)
+	}
+	defer audioResp.Body.Close()
+
+	if audioResp.StatusCode != 200 {
+		return nil, fmt.Errorf("herdsman TTS: download HTTP %d", audioResp.StatusCode)
+	}
+
+	data, err := io.ReadAll(audioResp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("herdsman TTS: read: %w", err)
 	}
-
 	return data, nil
 }
