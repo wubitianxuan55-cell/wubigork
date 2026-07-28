@@ -222,9 +222,16 @@ func (a *App) GetImageBackendInfo() map[string]string {
 }
 
 // SetImageBackend 切换图片生成后端（供设置页调用）
-func (a *App) SetImageBackend(backend string, comfyUIURL string, imageModel string) error {
+func (a *App) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error {
 	if a.client == nil {
 		return fmt.Errorf("AI 客户端未初始化")
+	}
+	// 设置图片保存目录
+	if imageSaveDir != "" {
+		a.cfg.ImageSaveDir = imageSaveDir
+	}
+	if a.cfg.ImageSaveDir == "" {
+		a.cfg.ImageSaveDir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "wubigork")
 	}
 	switch backend {
 	case "comfyui":
@@ -460,14 +467,16 @@ func extractPort(url string) string {
 
 // OpenImageSaveDir 在文件管理器中打开图片存放目录
 func (a *App) OpenImageSaveDir() error {
-	if a.cfg.ImageSaveDir == "" {
-		return fmt.Errorf("未设置图片存放目录，请在设置中配置")
+	dir := a.cfg.ImageSaveDir
+	if dir == "" {
+		dir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "wubigork")
 	}
-	if err := os.MkdirAll(a.cfg.ImageSaveDir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("无法创建图片存放目录: %w", err)
 	}
-	return openDir(a.cfg.ImageSaveDir)
+	return openDir(dir)
 }
+
 
 // OpenNovelImagesDir 在文件管理器中打开当前小说的图片目录
 func (a *App) OpenNovelImagesDir() error {

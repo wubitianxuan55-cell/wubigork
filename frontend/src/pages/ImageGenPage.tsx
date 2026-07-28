@@ -56,7 +56,7 @@ const ImageGenPage: React.FC = () => {
   const [prompt, setPrompt] = useState('')
   const [negative, setNegative] = useState('')
   const [size, setSize] = useState('1024x1024')
-  const [model, setModel] = useState('flux')
+  const [model, setModel] = useState('krea2')
   const [seed, setSeed] = useState(0)
   const [count, setCount] = useState(1)
   const [customWidth, setCustomWidth] = useState(1024)
@@ -93,9 +93,8 @@ const ImageGenPage: React.FC = () => {
   const generatingRef = useRef(false)
 
   const comfyModels = useMemo(() => [
-    { label: '🌊 Flux Dev', value: 'flux' },
+    { label: '🎨 Krea2 Turbo', value: 'krea2' },
     { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' },
-    { label: '🎨 Krea2 (FLUX)', value: 'krea2' },
   ], [])
 
   const loraOptions = useMemo(() => [
@@ -113,7 +112,7 @@ const ImageGenPage: React.FC = () => {
       const xaiEngine = engines.find(e => e.id === 'xai')
       const imgModels = (xaiEngine?.models || []).filter(m => classifyModel(m.id) === 'image')
       if (imgModels.length > 0) return imgModels.map(m => ({ label: m.id, value: m.id }))
-      return [{ label: 'grok-imagine-image-quality', value: 'grok-imagine-image-quality' }]
+      return [{ label: 'grok-imagine-image', value: 'grok-imagine-image' }]
     }
     const eng = engines.find(e => e.id === backend)
     const imgModels = (eng?.models || []).filter(m => classifyModel(m.id) === 'image')
@@ -231,14 +230,14 @@ const ImageGenPage: React.FC = () => {
     setBackendSwitching(true)
     try {
       let defaultModel = ''
-      if (newBackend === 'comfyui') defaultModel = 'flux'
-      else if (newBackend === 'xai') defaultModel = 'grok-imagine-image-quality'
+      if (newBackend === 'comfyui') defaultModel = 'krea2'
+      else if (newBackend === 'xai') defaultModel = 'grok-imagine-image'
       else {
         const eng = engines.find(e => e.id === newBackend)
         const img = (eng?.models || []).filter(m => classifyModel(m.id) === 'image')
         if (img.length > 0) defaultModel = img[0].id
       }
-      await setImageBackendAPI(newBackend, '', defaultModel)
+      await setImageBackendAPI(newBackend, '', defaultModel, '')
       setBackend(newBackend)
       if (defaultModel) setModel(defaultModel)
     } catch (err: any) { message.error(err?.message || '切换失败') }
@@ -443,9 +442,9 @@ const ImageGenPage: React.FC = () => {
       </div>
 
       {/* 主工作区：左栏控制面板 + 右栏结果 */}
-      <div style={{ flex: 1, display: 'flex', gap: 16 }}>
+      <div style={{ flex: 1, display: 'flex', gap: 12, minHeight: 0 }}>
         {/* 左栏 — 320px 控制面板 */}
-        <div style={{ width: 320, flexShrink: 0, paddingRight: 4, overflowY: 'auto' }}>
+        <div style={{ width: 350, flexShrink: 0, paddingRight: 8, overflowY: 'auto', overflowX: 'hidden' }}>
           <div style={{
             background: 'rgba(255,255,255,0.03)',
             borderRadius: 'var(--radius-lg)',
@@ -582,26 +581,26 @@ const ImageGenPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 右栏 — 画廊 + 历史 */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-          {/* 结果画廊 */}
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            <ResultGallery
-              results={results} generating={generating}
-              onPreview={(i) => setLightboxIndex(i)}
-              onDownload={handleDownload}
-              onReuse={handleReuse}
-              onDelete={handleDelete}
-            />
-          </div>
-          {/* 历史画廊 */}
-          <div style={{ flexShrink: 0 }}>
-            <HistoryStrip
-              history={history}
-              onSelect={(i) => setLightboxIndex(i)}
-              onClear={() => setHistory([])}
-            />
-          </div>
+        {/* 中间 — 画布 */}
+        <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+          <ResultGallery
+            results={results} generating={generating}
+            onPreview={(i) => setLightboxIndex(i)}
+            onDownload={handleDownload}
+            onReuse={handleReuse}
+            onDelete={handleDelete}
+          />
+        </div>
+
+        {/* 右侧 — 历史记录 (180px) */}
+        <div style={{ width: 180, flexShrink: 0, overflowY: 'auto', overflowX: 'hidden',
+          background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--border-subtle)', padding: 8 }}>
+          <HistoryStrip
+            history={history}
+            onSelect={(i) => setLightboxIndex(i)}
+            onClear={() => setHistory([])}
+          />
         </div>
       </div>
 

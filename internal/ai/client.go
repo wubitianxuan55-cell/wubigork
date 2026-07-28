@@ -530,7 +530,7 @@ func (c *Client) generateImageXAI(ctx context.Context, req *ImageGenerationReque
 
 	// 规范化模型名：如果传入的是 ComfyUI 模型名，替换为 xAI 默认模型
 	if req.Model == "" || req.Model == "flux" || req.Model == "z-image-turbo" {
-		req.Model = "grok-imagine-image-quality"
+		req.Model = "grok-imagine-image"
 	}
 
 	// xAI API 只接受 model/prompt/n/response_format，清空不兼容字段
@@ -571,6 +571,14 @@ func (c *Client) generateImageXAI(ctx context.Context, req *ImageGenerationReque
 	}
 	if resp.StatusCode != 200 {
 		slog.Error("xAI图片生成失败", "status", resp.StatusCode, "body", trimStr(string(respBody), 500))
+		// 解析错误详情，提供友好提示
+		var errResp struct {
+			Code  string `json:"code"`
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(respBody, &errResp) == nil && errResp.Code == "imagine:content-moderated" {
+			return nil, fmt.Errorf("xAI 内容审核拦截，请修改提示词后重试")
+		}
 		return nil, fmt.Errorf("图片 API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
 	}
 

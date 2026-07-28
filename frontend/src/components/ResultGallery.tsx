@@ -48,7 +48,7 @@ const ResultGallery: React.FC<Props> = ({ results, generating, onPreview, onDown
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
       {results.map((r, i) => (
         <div
           key={i}

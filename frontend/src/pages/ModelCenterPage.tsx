@@ -69,7 +69,7 @@ const ModelCenterPage: React.FC = () => {
   const [imageBackend, setImageBackend] = useState('xai')
   const [comfyUIURL, setComfyUIURL] = useState('http://127.0.0.1:8188')
   const [imageSaveDir, setImageSaveDir] = useState('')
-  const [imageModel, setImageModel] = useState('flux')
+  const [imageModel, setImageModel] = useState('krea2')
   const [comfyUIPath, setComfyUIPath] = useState('')
   const [comfyUIPythonPath, setComfyUIPythonPath] = useState('')
   const [imageBackendSaving, setImageBackendSaving] = useState(false)
@@ -148,7 +148,7 @@ const ModelCenterPage: React.FC = () => {
 
   const handleSaveImageBackend = async () => {
     setImageBackendSaving(true)
-    try { await setImageBackendAPI(imageBackend, comfyUIURL, imageModel); message.success('已保存') }
+    try { await setImageBackendAPI(imageBackend, comfyUIURL, imageModel, imageSaveDir); message.success('已保存') }
     catch (err: any) { message.error(err.message) }
     finally { setImageBackendSaving(false) }
   }
@@ -294,19 +294,13 @@ const ModelCenterPage: React.FC = () => {
                   </div>
                 </div>
               )}
-              <Collapse ghost size="small" items={[{
-                key: 'img-cfg', label: <span style={{ color: C('color-text-secondary'), fontSize: 13 }}><SettingOutlined style={{ marginRight: 6 }} />图片生成配置</span>,
+              <Collapse ghost size="small" defaultActiveKey={['img-cfg']} items={[{
+                key: 'img-cfg', label: <span style={{ color: C('color-text-secondary'), fontSize: 13 }}><SettingOutlined style={{ marginRight: 6 }} />图片存储</span>,
                 children: (
                   <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
                     <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                      <SettingField label="后端引擎" value={imageBackend} type="select" onChange={(v: string) => setImageBackend(v)} options={[{ label: '☁️ xAI 云端', value: 'xai' }, { label: '🏠 ComfyUI 本地', value: 'comfyui' }]} width={200} />
-                      {imageBackend === 'comfyui' && (
-                        <>
-                          <SettingField label="ComfyUI 服务地址" value={comfyUIURL} onChange={v => setComfyUIURL(v)} />
-        <SettingField label="生成模型" value={imageModel} type="select" onChange={(v: string) => setImageModel(v)} options={[{ label: '🌊 Flux Dev', value: 'flux' }, { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' }, { label: '🎨 Krea2 (FLUX)', value: 'krea2' }]} width={230} />
-                        </>
-                      )}
-                      <Button type="primary" onClick={handleSaveImageBackend} loading={imageBackendSaving} style={{ borderRadius: 8 }}>💾 保存配置</Button>
+                      <SettingField label="图片保存目录" value={imageSaveDir} onChange={v => setImageSaveDir(v)} placeholder="默认: Pictures/wubigork" />
+                      <Button type="primary" onClick={handleSaveImageBackend} loading={imageBackendSaving} style={{ borderRadius: 8 }}>💾 保存</Button>
                     </Space>
                   </Card>
                 ),
