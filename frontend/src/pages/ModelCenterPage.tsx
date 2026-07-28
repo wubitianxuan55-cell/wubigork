@@ -69,7 +69,7 @@ const ModelCenterPage: React.FC = () => {
   const [imageBackend, setImageBackend] = useState('xai')
   const [comfyUIURL, setComfyUIURL] = useState('http://127.0.0.1:8188')
   const [imageSaveDir, setImageSaveDir] = useState('')
-  const [imageModel, setImageModel] = useState('flux')
+  const [imageModel, setImageModel] = useState('krea2')
   const [comfyUIPath, setComfyUIPath] = useState('')
   const [comfyUIPythonPath, setComfyUIPythonPath] = useState('')
   const [imageBackendSaving, setImageBackendSaving] = useState(false)
@@ -303,7 +303,7 @@ const ModelCenterPage: React.FC = () => {
                       {imageBackend === 'comfyui' && (
                         <>
                           <SettingField label="ComfyUI 服务地址" value={comfyUIURL} onChange={v => setComfyUIURL(v)} />
-        <SettingField label="生成模型" value={imageModel} type="select" onChange={(v: string) => setImageModel(v)} options={[{ label: '🌊 Flux Dev', value: 'flux' }, { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' }, { label: '🎨 Krea2 (FLUX)', value: 'krea2' }]} width={230} />
+        <SettingField label="生成模型" value={imageModel} type="select" onChange={(v: string) => setImageModel(v)} options={[{ label: '🎨 Krea2 Turbo', value: 'krea2' }, { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' }]} width={230} />
                         </>
                       )}
                       <Button type="primary" onClick={handleSaveImageBackend} loading={imageBackendSaving} style={{ borderRadius: 8 }}>💾 保存配置</Button>

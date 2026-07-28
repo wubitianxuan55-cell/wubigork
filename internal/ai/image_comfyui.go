@@ -45,18 +45,31 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 		seed = rand.Intn(1 << 31)
 	}
 
+	// 解析 LoRA 列表
+	var loras []string
+	if req.Lora != "" {
+		for _, l := range strings.Split(req.Lora, ",") {
+			l = strings.TrimSpace(l)
+			if l != "" {
+				loras = append(loras, l)
+			}
+		}
+	}
+
 	var workflow map[string]interface{}
 	switch {
 	case strings.HasPrefix(req.Model, "krea2"):
-		steps := 20
-		workflow = b.buildKreaWorkflow(req.Prompt, width, height, seed, steps)
-	case req.Model == "z-image-turbo":
-		steps := 6
-		unetModel := "z-image\\z-image-turbo-fp8-e4m3fn_量化版_低显加速.safetensors"
-		workflow = b.buildZImageWorkflow(req.Prompt, req.Negative, width, height, seed, steps, unetModel)
-	default:
 		steps := 8
-		workflow = b.buildFluxWorkflow(req.Prompt, req.Negative, width, height, seed, steps)
+		workflow = b.buildKreaWorkflow(req.Prompt, width, height, seed, steps, loras)
+	case req.Model == "z-image-turbo":
+		steps := 8
+		unetModel := "z_image_turbo_bf16_完整版_效果最好.safetensors"
+		workflow = b.buildZImageWorkflow(req.Prompt, req.Negative, width, height, seed, steps, unetModel, loras)
+	default:
+		// 默认走 Krea2 Turbo
+		slog.Info("ComfyUI 默认使用 Krea2 Turbo", "model", req.Model)
+		steps := 8
+		workflow = b.buildKreaWorkflow(req.Prompt, width, height, seed, steps, loras)
 	}
 
 	// 1. 提交任务
@@ -80,137 +93,95 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	}, nil
 }
 
-// buildFluxWorkflow 构建 Flux GGUF + Realism LoRA + NSFW LoRA 工作流 JSON
-func (b *ComfyUIBackend) buildFluxWorkflow(prompt string, negative string, width, height, seed, steps int) map[string]interface{} {
-	return map[string]interface{}{
-		// UNETLoader — 加载 Flux safetensors 模型
-		"4": map[string]interface{}{
-			"class_type": "UNETLoader",
-			"inputs": map[string]interface{}{
-				"unet_name":   "flux1\\flux1-fill-dev-OneReward-fp8.safetensors",
-				"weight_dtype": "default",
-			},
-		},
-		// DualCLIPLoader — 加载 CLIP + T5
-		"5": map[string]interface{}{
-			"class_type": "DualCLIPLoader",
-			"inputs": map[string]interface{}{
-				"clip_name1": "clip_l.safetensors",
-				"clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
-				"type":       "flux",
-			},
-		},
-		// VAELoader
-		"6": map[string]interface{}{
-			"class_type": "VAELoader",
-			"inputs":     map[string]interface{}{"vae_name": "ae.safetensors"},
-		},
-		// CLIPTextEncode — positive
-		"7": map[string]interface{}{
-			"class_type": "CLIPTextEncode",
-			"inputs": map[string]interface{}{
-				"text": prompt,
-				"clip": []interface{}{"5", 0},
-			},
-		},
-		// CLIPTextEncode — negative
-		"8": map[string]interface{}{
-			"class_type": "CLIPTextEncode",
-			"inputs": map[string]interface{}{
-				"text": negative,
-				"clip": []interface{}{"5", 0},
-			},
-		},
-		// EmptyLatentImage
-		"9": map[string]interface{}{
-			"class_type": "EmptyLatentImage",
-			"inputs": map[string]interface{}{
-				"width":      width,
-				"height":     height,
-				"batch_size": 1,
-			},
-		},
-		// KSampler
-		"10": map[string]interface{}{
-			"class_type": "KSampler",
-			"inputs": map[string]interface{}{
-				"seed":         seed,
-				"steps":        steps,
-				"cfg":          1.0,
-				"sampler_name": "euler",
-				"scheduler":    "simple",
-				"denoise":      1.0,
-				"model":        []interface{}{"13", 0},
-				"positive":     []interface{}{"7", 0},
-				"negative":     []interface{}{"8", 0},
-				"latent_image": []interface{}{"9", 0},
-			},
-		},
-		// VAEDecode
-		"11": map[string]interface{}{
-			"class_type": "VAEDecode",
-			"inputs": map[string]interface{}{
-				"samples": []interface{}{"10", 0},
-				"vae":     []interface{}{"6", 0},
-			},
-		},
-		// SaveImage
-		"12": map[string]interface{}{
-			"class_type": "SaveImage",
-			"inputs": map[string]interface{}{
-				"filename_prefix": "wubigork",
-				"images":          []interface{}{"11", 0},
-			},
-		},
-		// LoraLoaderModelOnly — 8步加速 LoRA
-		"13": map[string]interface{}{
+
+// injectLoraNodes 在工作流中注入 LoraLoaderModelOnly 节点链
+// 返回最后一个节点的 ID（UNETLoader 或最后一个 LoRA 节点）
+// loras 为空时直接返回 originalModelNodeID
+func injectLoraNodes(workflow map[string]interface{}, originalModelNodeID string, loras []string) string {
+	if len(loras) == 0 {
+		return originalModelNodeID
+	}
+	currentNodeID := originalModelNodeID
+	for i, loraPath := range loras {
+		nodeID := fmt.Sprintf("%d", 20+i)
+		workflow[nodeID] = map[string]interface{}{
 			"class_type": "LoraLoaderModelOnly",
 			"inputs": map[string]interface{}{
-				"model":          []interface{}{"4", 0},
-				"lora_name":      "flux1\\FLUX.1八步出图Lora提速版.safetensors",
-				"strength_model": 0.6,
+				"model":          []interface{}{currentNodeID, 0},
+				"lora_name":      loraPath,
+				"strength_model": 1.0,
 			},
-		},
+		}
+		currentNodeID = nodeID
 	}
+	return currentNodeID
 }
 
-// buildZImageWorkflow 构建 Z-Image 工作流（标准节点，无需 ZImagePowerNodes）
-func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, negative string, width int, height int, seed int, steps int, unetModel string) map[string]interface{} {
-	if steps <= 0 {
-		steps = 6
-	}
-	if steps > 20 {
-		steps = 20
-	}
+func (b *ComfyUIBackend) buildFluxWorkflow(prompt string, negative string, width, height, seed, steps int) map[string]interface{} {
 	return map[string]interface{}{
-		"4": map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": unetModel, "weight_dtype": "default"}},
-		"5": map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "z-image\\qwen_3_4b.safetensors", "type": "lumina2"}},
-		"6": map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "z-image-qwen.safetensors"}},
-		"7": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
-		"8": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"5", 0}}},
-		"9": map[string]interface{}{"class_type": "EmptyLatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
+		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": "flux1\\flux1-fill-dev-OneReward-fp8.safetensors", "weight_dtype": "default"}},
+		"5":  map[string]interface{}{"class_type": "DualCLIPLoader", "inputs": map[string]interface{}{"clip_name1": "clip_l.safetensors", "clip_name2": "t5xxl_fp8_e4m3fn.safetensors", "type": "flux"}},
+		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "ae.safetensors"}},
+		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
+		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"5", 0}}},
+		"9":  map[string]interface{}{"class_type": "EmptySD3LatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
+		"14": map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{"4", 0}, "shift": 3}},
 		"10": map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
 			"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
-			"model": []interface{}{"4", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": []interface{}{"9", 0},
+			"model": []interface{}{"14", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": []interface{}{"9", 0},
 		}},
 		"11": map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}},
 		"12": map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "wubigork", "images": []interface{}{"11", 0}}},
 	}
 }
+// buildZImageWorkflow 构建 Z-Image-Turbo 工作流（官方 Comfy-Org 模板）
+// CLIPLoader lumina2, SD3Latent, AuraFlow shift=3, ConditioningZeroOut, CFG 1.0, res_multistep/simple
+func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, negative string, width int, height int, seed int, steps int, unetModel string, loras []string) map[string]interface{} {
+	if steps <= 0 {
+		steps = 8
+	}
+	if steps > 20 {
+		steps = 20
+	}
+	wf := map[string]interface{}{
+		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": unetModel, "weight_dtype": "default"}},
+		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "z-image\\qwen_3_4b.safetensors", "type": "lumina2"}},
+		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "z-image-qwen.safetensors"}},
+		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
+		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": "", "clip": []interface{}{"5", 0}}},
+		"9":  map[string]interface{}{"class_type": "EmptySD3LatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
+		"13": map[string]interface{}{"class_type": "ConditioningZeroOut", "inputs": map[string]interface{}{"conditioning": []interface{}{"8", 0}}},
+	}
+	modelSourceID := injectLoraNodes(wf, "4", loras)
+	wf["14"] = map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{modelSourceID, 0}, "shift": 3}}
+	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
+		"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "res_multistep", "scheduler": "simple", "denoise": 1.0,
+		"model": []interface{}{"14", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"13", 0}, "latent_image": []interface{}{"9", 0},
+	}}
+	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
+	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "wubigork", "images": []interface{}{"11", 0}}}
+	return wf
+}
 
-// buildKreaWorkflow 构建 Krea2 工作流（20步 euler/simple CFG 1.0）
-func (b *ComfyUIBackend) buildKreaWorkflow(prompt string, width, height, seed, steps int) map[string]interface{} {
-	return map[string]interface{}{
-		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": "krea2\\redcraft23INT8INT4FP8_30Krea2.safetensors", "weight_dtype": "default"}},
-		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "qwen3vl_4b_krea2.safetensors", "type": "krea2"}},
-		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "ae.safetensors"}},
+// buildKreaWorkflow 构建 Krea2 Turbo 工作流（官方 Comfy-Org 模板）
+// CLIPLoader krea2, EmptyLatentImage, 无 AuraFlow, CFG 1.0, euler/simple, 8步
+// 模型: UNET=krea2_turbo_fp8_scaled, CLIP=qwen3vl_4b_fp8_scaled, VAE=qwen_image_vae
+func (b *ComfyUIBackend) buildKreaWorkflow(prompt string, width, height, seed, steps int, loras []string) map[string]interface{} {
+	wf := map[string]interface{}{
+		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": "krea2_turbo_fp8_scaled.safetensors", "weight_dtype": "default"}},
+		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "qwen3vl_4b_fp8_scaled.safetensors", "type": "krea2"}},
+		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "qwen_image_vae.safetensors"}},
 		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
 		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": "", "clip": []interface{}{"5", 0}}},
 		"9":  map[string]interface{}{"class_type": "EmptyLatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
-		"10": map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0, "model": []interface{}{"4", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": []interface{}{"9", 0}}},
-		"11": map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}},
-		"12": map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "wubigork", "images": []interface{}{"11", 0}}},
+		"13": map[string]interface{}{"class_type": "ConditioningZeroOut", "inputs": map[string]interface{}{"conditioning": []interface{}{"8", 0}}},
 	}
+	// LoRA 注入（如果有）
+	modelSourceID := injectLoraNodes(wf, "4", loras)
+	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0, "model": []interface{}{modelSourceID, 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"13", 0}, "latent_image": []interface{}{"9", 0}}}
+	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
+	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "wubigork", "images": []interface{}{"11", 0}}}
+	return wf
 }
 func (b *ComfyUIBackend) queuePrompt(ctx context.Context, workflow map[string]interface{}) (string, error) {
 	body := map[string]interface{}{
