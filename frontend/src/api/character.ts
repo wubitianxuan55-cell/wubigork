@@ -49,8 +49,8 @@ export async function chatCharacter(userMsg: string): Promise<CharacterPageData 
 }
 
 /** 生成角色剧照 */
-export async function generateCharacterPortrait(charID: string): Promise<string> {
-  return await App.GenerateCharacterPortrait(charID)
+export async function generateCharacterPortrait(charID: string, model?: string): Promise<string> {
+  return await App.GenerateCharacterPortrait(charID, model || '')
 }
 
 // ── 组织 ──

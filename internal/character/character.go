@@ -132,8 +132,9 @@ var roleTypeCN = map[string]string{
 	"supporting": "配角", "minor": "次要角色",
 }
 
-// GeneratePortrait 生成角色剧照（通过 xAI Image API）
-func (a *Agent) GeneratePortrait(ctx context.Context, charID string) (string, error) {
+// GeneratePortrait 生成角色剧照（通过图像 AI）
+// 如果角色缺少外貌/性格等描述，先自动 AI 补全，再生成剧照
+func (a *Agent) GeneratePortrait(ctx context.Context, charID string, model string) (string, error) {
 	cf, err := a.pm.ReadCharacters()
 	if err != nil {
 		return "", fmt.Errorf("读取角色失败: %w", err)
@@ -149,22 +150,57 @@ func (a *Agent) GeneratePortrait(ctx context.Context, charID string) (string, er
 		return "", fmt.Errorf("未找到角色: %s", charID)
 	}
 
-	roleCN := roleTypeCN[target.RoleType]
-	if roleCN == "" {
-		roleCN = target.RoleType
+	// 如果角色缺少关键描述字段，先用 AI 补全
+	if target.Appearance == "" || target.Personality == "" {
+		slog.Info("角色信息不完整，自动补全中", "name", target.Name, "id", charID)
+		genre := a.pm.Meta.Genre
+		if genre == "" {
+			genre = "奇幻"
+		}
+		filled, err := a.GenerateSingleCharacter(ctx, *target, genre)
+		if err != nil {
+			slog.Warn("自动补全角色失败，使用原始信息", "error", err)
+		} else {
+			// 合并补全结果（保留已有字段）
+			if target.Appearance == "" {
+				target.Appearance = filled.Appearance
+			}
+			if target.Personality == "" {
+				target.Personality = filled.Personality
+			}
+			if target.Figure == "" {
+				target.Figure = filled.Figure
+			}
+			if target.Background == "" {
+				target.Background = filled.Background
+			}
+			if target.Gender == "" {
+				target.Gender = filled.Gender
+			}
+			if target.Age == "" {
+				target.Age = filled.Age
+			}
+			// 保存补全后的角色
+			for i := range cf.Characters {
+				if cf.Characters[i].ID == charID {
+					cf.Characters[i] = *target
+					break
+				}
+			}
+			if err := a.pm.WriteCharacters(cf); err != nil {
+				slog.Warn("保存补全角色失败", "error", err)
+			} else {
+				slog.Info("角色信息已自动补全", "name", target.Name)
+			}
+		}
 	}
 
-	// 组装中文 prompt — 适配本地 Z-Image-Turbo / Flux
-	prompt := fmt.Sprintf(
-		"角色概念艺术肖像，%s，%s。"+
-			"外貌: %s。身材: %s。性格: %s。背景: %s。"+
-			"电影级光影，8K超高清，半身肖像，深色氛围背景。",
-		target.Name, roleCN, target.Appearance, target.Figure, target.Personality, target.Background,
-	)
-
+	// 构建智能 prompt — 跳过空字段
+	if model == "" {
+		model = a.cfg.ImageModel
+	}
 	req := &ai.ImageGenerationRequest{
-		Model:  a.cfg.ImageModel, // 使用配置的模型 (flux / z-image-turbo)
-		Prompt: prompt,
+		Model:  model,
 		N:      1,
 		Size:   "1024x1024",
 	}
@@ -182,12 +218,10 @@ func (a *Agent) GeneratePortrait(ctx context.Context, charID string) (string, er
 		portraitURL = resp.Data[0].B64JSON
 	}
 
-	// 保存剧照到小说项目文件夹 portraits/ 子目录（文件备份）
+	// 保存剧照到项目 portraits/ 子目录
 	a.savePortraitToProject(portraitURL, charID)
-	// 注意：不覆盖 portraitURL 为本地路径！
-	// Wails WebView 无法通过 file:// 访问本地文件，前端需要 data URL 或远程 URL 才能显示 <img>
 
-	// 保存到角色
+	// 写入角色
 	for i := range cf.Characters {
 		if cf.Characters[i].ID == charID {
 			cf.Characters[i].PortraitURL = portraitURL
@@ -199,6 +233,47 @@ func (a *Agent) GeneratePortrait(ctx context.Context, charID string) (string, er
 	}
 
 	return portraitURL, nil
+}
+
+// buildPortraitPrompt 构建角色剧照 prompt（性别前置，自然语言描述）
+func (a *Agent) buildPortraitPrompt(ch *types.Character) string {
+	roleCN := roleTypeCN[ch.RoleType]
+	if roleCN == "" {
+		roleCN = ch.RoleType
+	}
+
+	var parts []string
+
+	// 1. 主体：名字 + 性别 + 角色定位（最重要的识别信息）
+	identity := ch.Name
+	if ch.Gender != "" {
+		genderLabel := map[string]string{"男": "男性", "女": "女性", "male": "男性", "female": "女性"}
+		if g, ok := genderLabel[ch.Gender]; ok {
+			identity = g + "角色 " + identity
+		}
+	}
+	parts = append(parts, identity)
+	if roleCN != "" {
+		parts = append(parts, roleCN)
+	}
+
+	// 2. 描述字段（跳过空字段）
+	add := func(label, value string) {
+		if value != "" {
+			parts = append(parts, fmt.Sprintf("%s%s", label, value))
+		}
+	}
+	add("", ch.Appearance)
+	add("", ch.Figure)
+	add("", ch.Personality)
+	add("背景：", ch.Background)
+	if ch.Age != "" {
+		parts = append(parts, fmt.Sprintf("年龄%s岁", ch.Age))
+	}
+
+	parts = append(parts, "电影级光影，8K超高清，半身肖像，深色氛围背景。")
+
+	return strings.Join(parts, "。")
 }
 
 // savePortraitToProject 将剧照 base64 数据保存到项目 portraits/ 子目录

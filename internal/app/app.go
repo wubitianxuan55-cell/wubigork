@@ -189,8 +189,39 @@ func (a *App) initAgents() {
 	a.chapterAgent = chapter.New(a.client, a.pm, a.cfg, a.eng)
 	a.analysisAgent = analysis.New(a.client, a.pm, a.cfg, a.eng)
 	a.skillLoader = skill.NewLoader(filepath.Join(a.cfg.ResourceDir, "skills"))
+
+	// 恢复上次保存的图像后端配置
+	a.restoreImageBackend()
 }
 
+// restoreImageBackend 从配置恢复图像后端（应用重启后自动恢复）
+func (a *App) restoreImageBackend() {
+	if a.client == nil {
+		return
+	}
+	switch a.cfg.ImageBackend {
+	case "comfyui":
+		if a.cfg.ComfyUIURL != "" {
+			a.client.SetImageBackend(ai.NewComfyUIBackend(a.cfg.ComfyUIURL), "comfyui")
+			slog.Info("已恢复 ComfyUI 图像后端", "url", a.cfg.ComfyUIURL, "model", a.cfg.ImageModel)
+		}
+	case "herdsman":
+		if a.engineMgr != nil {
+			if eng, ok := a.engineMgr.GetEngine("herdsman"); ok && eng.Enabled {
+				a.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "herdsman")
+				slog.Info("已恢复 Herdsman 图像后端")
+			}
+		}
+	case "ollama":
+		if a.engineMgr != nil {
+			if eng, ok := a.engineMgr.GetEngine("ollama"); ok && eng.Enabled {
+				a.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "ollama")
+				slog.Info("已恢复 Ollama 图像后端")
+			}
+		}
+	// xai 不需要恢复（默认就是 xai fallback）
+	}
+}
 // SetDistFS 设置前端静态资源 embed.FS（由 main.go 在启动前调用）
 func (a *App) SetDistFS(fsys fs.FS) {
 	a.distFS = fsys

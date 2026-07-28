@@ -93,6 +93,7 @@ func (a *App) BrainstormBranches(nodeID string) (map[string]interface{}, error) 
 		"current_outline_node":      string(nodeJSON),
 		"previous_chapters_summary": previousCtx,
 		"worldview":                 wv,
+		"characters":                a.buildCharacterSummary(pm),
 	})
 
 	reply, err := a.client.ChatSimpleStream(a.ctx, a.cfg.Model, systemPrompt, userPrompt)
@@ -195,6 +196,11 @@ func (a *App) ApplyBranch(nodeID string, branchIndex int, userInput string) (map
 }
 // QuickBrainstormBranches 轻量分支构思——直接接收小说设定和前文摘要，不需要大纲节点
 func (a *App) QuickBrainstormBranches(setting, prevSummary string) (map[string]interface{}, error) {
+	pm := a.getPM()
+	if pm == nil {
+		return nil, fmt.Errorf("请先打开项目")
+	}
+
 	tmpl := a.eng.Get("plot-branch-browser")
 	if tmpl == nil {
 		return nil, fmt.Errorf("缺少 plot-branch-browser 模板文件")
@@ -205,6 +211,7 @@ func (a *App) QuickBrainstormBranches(setting, prevSummary string) (map[string]i
 		"current_outline_node":      "（请根据小说设定和前文摘要构思下一章方向）",
 		"previous_chapters_summary": prevSummary,
 		"worldview":                 setting,
+		"characters":                a.buildCharacterSummary(pm),
 	})
 
 	reply, err := a.client.ChatSimpleStream(a.ctx, a.cfg.Model, systemPrompt, userPrompt)
@@ -228,10 +235,6 @@ func (a *App) QuickBrainstormBranches(setting, prevSummary string) (map[string]i
 		"branches": result.Branches,
 	}, nil
 }
-
-// syncCharactersFromOutline 确保大纲中提到的角色存在于角色文件中
-// syncCharactersFromOutline 确保大纲中提到的角色存在于角色文件中
-// 当前为轻度同步：仅记录日志，角色创建由前端触发
 func syncCharactersFromOutline(node *types.OutlineNode) {
 	if node == nil || len(node.Characters) == 0 {
 		return

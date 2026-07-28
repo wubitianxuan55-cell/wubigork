@@ -22,7 +22,6 @@ import PortraitLightbox from '../components/character/PortraitLightbox'
 import {
   getCharacters, saveCharacter, deleteCharacter,
   generateCharacters, generateSingleCharacter, chatCharacter,
-  generateCharacterPortrait,
   saveOrganization, deleteOrganization, toggleOrgMember,
   saveRelationship, deleteRelationship,
 } from '../api/character'
@@ -53,6 +52,10 @@ const CharacterPage: React.FC = () => {
   const [filterRole, setFilterRole] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterOrg, setFilterOrg] = useState<string>('')
+  const [portraitModelOpen, setPortraitModelOpen] = useState(false)
+  const [portraitModel, setPortraitModel] = useState('')
+  const [portraitModels, setPortraitModels] = useState<{engine: string; model: string}[]>([])
+  const [portraitPrompt, setPortraitPrompt] = useState('')
 
   const projectPath = useAppStore((s) => s.projectPath)
   useEffect(() => {
@@ -213,16 +216,48 @@ const CharacterPage: React.FC = () => {
     } catch (err) { console.error('[CharacterPage] DeleteRelationship:', err) }
   }
 
+  const buildPortraitPrompt = (ch: any) => {
+    const parts: string[] = []
+    const gl: Record<string,string> = {'男':'男性','女':'女性','male':'男性','female':'女性'}
+    parts.push(ch.gender && gl[ch.gender] ? gl[ch.gender]+'角色 '+ch.name : ch.name)
+    const rm: Record<string,string> = {protagonist:'主角',antagonist:'反派',supporting:'配角',minor:'次要角色'}
+    if (ch.role_type && rm[ch.role_type]) parts.push(rm[ch.role_type])
+    if (ch.appearance) parts.push(ch.appearance)
+    if (ch.figure) parts.push(ch.figure)
+    if (ch.personality) parts.push(ch.personality)
+    if (ch.background) parts.push('背景：'+ch.background)
+    if (ch.age) parts.push('年龄'+ch.age+'岁')
+    parts.push('电影级光影，8K超高清，半身肖像，深色氛围背景。')
+    return parts.join('。')
+  }
+
   const handleGeneratePortrait = async () => {
     if (!editForm) return
+    setPortraitPrompt(buildPortraitPrompt(editForm))
+    try {
+      // @ts-ignore
+      const config = await window.go.app.App.GetImageBackendConfig()
+      const models: {engine: string; model: string}[] = (config as any)?.availableModels || []
+      const current = (config as any)?.currentModel || ''
+      setPortraitModels(models)
+      setPortraitModel(current)
+      setPortraitModelOpen(true)
+    } catch (_) { doGenerate() }
+  }
+
+  const doGenerate = async () => {
+    setPortraitModelOpen(false)
     setGeneratingPortrait(true)
     try {
-      const url = await generateCharacterPortrait(editForm.id)
-      if (url) {
-        setEditForm({ ...editForm, portrait_url: url })
-        setCharacters((prev) => prev.map((c) => c.id === editForm.id ? { ...c, portrait_url: url } : c))
+      const { generateImage } = await import('../api/image')
+      const res = await generateImage(portraitPrompt, '', '1024x1024', portraitModel, 0, 1)
+      if (res?.error) { message.error(res.error) }
+      else if (res?.images?.[0]?.image) {
+        const url = res.images[0].image
+        setEditForm({ ...editForm!, portrait_url: url })
+        setCharacters((prev) => prev.map((c) => c.id === editForm!.id ? { ...c, portrait_url: url } : c))
         message.success('剧照已生成')
-      }
+      } else { message.error('生成失败') }
     } catch (err: any) { message.error(err?.message || '生成失败') }
     finally { setGeneratingPortrait(false) }
   }
@@ -243,6 +278,20 @@ const CharacterPage: React.FC = () => {
       return true
     })
   }, [characters, filterGender, filterRole, filterStatus, filterOrg, organizations])
+  // ── 剧照生成弹窗 ──
+  const renderPortraitModal = () => (
+    <Modal title="生成角色剧照" open={portraitModelOpen}
+      onOk={() => doGenerate()}
+      onCancel={() => setPortraitModelOpen(false)}
+      okText="生成" width={520}>
+      <Select value={portraitModel} onChange={setPortraitModel}
+        style={{width:'100%',marginBottom:10}}
+        options={portraitModels.map(m=>({value:m.model,label:m.model+' ('+m.engine+')'}))} />
+      <Input.TextArea value={portraitPrompt} onChange={e=>setPortraitPrompt(e.target.value)}
+        rows={4} placeholder="输入图像生成提示词..."
+        style={{background:'rgba(0,0,0,0.2)',border:'1px solid var(--border-subtle)',color:'var(--color-text)',borderRadius:6,fontSize:13}} />
+    </Modal>
+  )
 
   // ── 共享 CharacterEditor 包装（消除桌面/移动端 40 行重复）──
   const renderCharEditor = () => {
@@ -451,6 +500,8 @@ const CharacterPage: React.FC = () => {
           onClose={() => setPortraitFullscreen('')}
         />
       )}
+
+      {renderPortraitModal()}
     </div>
   )
 }

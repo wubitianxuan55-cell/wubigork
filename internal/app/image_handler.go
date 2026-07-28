@@ -222,9 +222,16 @@ func (a *App) GetImageBackendInfo() map[string]string {
 }
 
 // SetImageBackend 切换图片生成后端（供设置页调用）
-func (a *App) SetImageBackend(backend string, comfyUIURL string, imageModel string) error {
+func (a *App) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error {
 	if a.client == nil {
 		return fmt.Errorf("AI 客户端未初始化")
+	}
+	// 设置图片保存目录
+	if imageSaveDir != "" {
+		a.cfg.ImageSaveDir = imageSaveDir
+	}
+	if a.cfg.ImageSaveDir == "" {
+		a.cfg.ImageSaveDir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "wubigork")
 	}
 	switch backend {
 	case "comfyui":
@@ -238,6 +245,7 @@ func (a *App) SetImageBackend(backend string, comfyUIURL string, imageModel stri
 		a.client.SetImageBackend(ai.NewComfyUIBackend(a.cfg.ComfyUIURL), "comfyui")
 	case "xai":
 		a.cfg.ImageBackend = "xai"
+		a.cfg.ImageModel = "grok-imagine-image-quality" // 角色剧照默认高质量模型
 		a.client.SetImageBackend(nil, "xai")
 	case "herdsman":
 		eng, ok := a.engineMgr.GetEngine("herdsman")
@@ -263,6 +271,82 @@ func (a *App) SetImageBackend(backend string, comfyUIURL string, imageModel stri
 		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / ollama）", backend)
 	}
 	return nil
+}
+
+// GetImageBackendConfig 返回当前图像后端配置（供角色剧照等场景使用）
+func (a *App) GetImageBackendConfig() map[string]interface{} {
+	backend := a.cfg.ImageBackend
+	if backend == "" {
+		backend = "xai"
+	}
+	currentModel := a.cfg.ImageModel
+	if currentModel == "" {
+		currentModel = "grok-imagine-image-quality"
+	}
+
+	// 根据后端类型构建可用模型列表
+	var availableModels []map[string]string
+
+	// 1. 从已启用的引擎中收集图像模型（Herdsman/Ollama/DeepSeek 等）
+	if a.engineMgr != nil {
+		for _, eng := range a.engineMgr.GetEngines() {
+			if !eng.Enabled {
+				continue
+			}
+			for _, m := range eng.Models {
+				name := strings.ToLower(m.ID)
+				if strings.Contains(name, "image") || strings.Contains(name, "zimage") ||
+					strings.Contains(name, "flux") || strings.Contains(name, "krea") ||
+					strings.Contains(name, "sd") || strings.Contains(name, "dalle") ||
+					strings.Contains(name, "grok-imagine") {
+					availableModels = append(availableModels, map[string]string{
+						"engine": eng.Name,
+						"model":  m.ID,
+					})
+				}
+			}
+		}
+	}
+
+	// 2. 根据当前后端补充默认模型列表
+	switch backend {
+	case "comfyui":
+		comfyModels := []string{"krea2", "z-image-turbo", "flux"}
+		hasCurrent := false
+		for _, m := range comfyModels {
+			if m == currentModel {
+				hasCurrent = true
+			}
+			availableModels = append(availableModels, map[string]string{
+				"engine": "ComfyUI",
+				"model":  m,
+			})
+		}
+		if !hasCurrent && currentModel != "" {
+			availableModels = append(availableModels, map[string]string{
+				"engine": "ComfyUI",
+				"model":  currentModel,
+			})
+		}
+	case "xai":
+		availableModels = append(availableModels,
+			map[string]string{"engine": "xAI", "model": "grok-imagine-image"},
+			map[string]string{"engine": "xAI", "model": "grok-imagine-image-quality"},
+		)
+	}
+
+	if len(availableModels) == 0 {
+		availableModels = []map[string]string{
+			{"engine": "xAI", "model": "grok-imagine-image"},
+			{"engine": "xAI", "model": "grok-imagine-image-quality"},
+		}
+	}
+
+	return map[string]interface{}{
+		"backend":         backend,
+		"currentModel":    currentModel,
+		"availableModels": availableModels,
+	}
 }
 
 // ── ComfyUI 进程管理 ──────────────────────────────────────────
@@ -460,14 +544,16 @@ func extractPort(url string) string {
 
 // OpenImageSaveDir 在文件管理器中打开图片存放目录
 func (a *App) OpenImageSaveDir() error {
-	if a.cfg.ImageSaveDir == "" {
-		return fmt.Errorf("未设置图片存放目录，请在设置中配置")
+	dir := a.cfg.ImageSaveDir
+	if dir == "" {
+		dir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "wubigork")
 	}
-	if err := os.MkdirAll(a.cfg.ImageSaveDir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("无法创建图片存放目录: %w", err)
 	}
-	return openDir(a.cfg.ImageSaveDir)
+	return openDir(dir)
 }
+
 
 // OpenNovelImagesDir 在文件管理器中打开当前小说的图片目录
 func (a *App) OpenNovelImagesDir() error {

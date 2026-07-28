@@ -60,3 +60,4 @@ nul
 comfy_startup.log
 comfyui_new.log
 wails_build.log
+.tmp/

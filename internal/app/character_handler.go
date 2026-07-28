@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/wubigork/wubigork/internal/types"
 	"github.com/wubigork/wubigork/internal/util"
@@ -192,11 +193,11 @@ func (a *App) GetCharacters() map[string]interface{} {
 }
 
 // GenerateCharacterPortrait 生成角色剧照
-func (a *App) GenerateCharacterPortrait(charID string) (string, error) {
+func (a *App) GenerateCharacterPortrait(charID string, model string) (string, error) {
 	if a.characterAgent == nil {
 		return "", fmt.Errorf("请先打开项目")
 	}
-	return a.characterAgent.GeneratePortrait(a.ctx, charID)
+	return a.characterAgent.GeneratePortrait(a.ctx, charID, model)
 }
 
 // SetCharacterPortrait 将外部图片数据设为角色剧照（来自 AI 绘梦）
@@ -205,4 +206,52 @@ func (a *App) SetCharacterPortrait(charID string, imageData string) error {
 		return fmt.Errorf("请先打开项目")
 	}
 	return a.characterAgent.SetPortrait(charID, imageData)
+}
+
+// SaveCharactersBatch 批量创建角色（仅名称，其余字段留空）
+// 前端确认新角色后调用。namesJSON: JSON 字符串数组，如 `["林风","苏婉"]`
+func (a *App) SaveCharactersBatch(namesJSON string) (map[string]interface{}, error) {
+	if a.characterAgent == nil {
+		return nil, fmt.Errorf("请先打开项目")
+	}
+	var names []string
+	if err := json.Unmarshal([]byte(namesJSON), &names); err != nil {
+		return nil, fmt.Errorf("解析角色名列表失败: %w", err)
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("角色名列表为空")
+	}
+
+	// 读取已有角色做去重（按 Name）
+	cf := a.characterAgent.GetCharacters()
+	if cf == nil {
+		cf = &types.CharacterFile{}
+	}
+	existingNames := make(map[string]bool)
+	for _, ch := range cf.Characters {
+		existingNames[ch.Name] = true
+	}
+
+	var created []types.Character
+	for _, name := range names {
+		if name == "" || existingNames[name] {
+			continue
+		}
+		ch := types.Character{
+			ID:       fmt.Sprintf("ch_%d", time.Now().UnixNano()+int64(len(created))),
+			Name:     name,
+			RoleType: "supporting",
+			Status:   "Alive",
+		}
+		if err := a.characterAgent.SaveCharacter(ch); err != nil {
+			return nil, fmt.Errorf("保存角色 %s 失败: %w", name, err)
+		}
+		created = append(created, ch)
+		existingNames[name] = true
+	}
+
+	return map[string]interface{}{
+		"created": created,
+		"total":   len(cf.Characters) + len(created),
+	}, nil
 }

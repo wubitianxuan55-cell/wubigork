@@ -30,8 +30,8 @@ export async function getImageBackendInfo(): Promise<BackendInfo> {
 }
 
 /** 设置图片后端 */
-export async function setImageBackend(backend: string, url: string, model: string): Promise<void> {
-  await App.SetImageBackend(backend, url, model)
+export async function setImageBackend(backend: string, url: string, model: string, saveDir: string): Promise<void> {
+  await App.SetImageBackend(backend, url, model, saveDir)
 }
 
 /** 获取 TTS 配置 */

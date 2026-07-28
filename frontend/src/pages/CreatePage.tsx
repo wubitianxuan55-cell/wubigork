@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Typography, Button, Input, Card, Space, message, Spin, Modal, Popconfirm, Select } from 'antd'
+import { Typography, Button, Input, Card, Space, message, Spin, Modal, Popconfirm, Select, Checkbox } from 'antd'
 import {
   BookOutlined,
   EditOutlined, BulbOutlined, RightOutlined, DownOutlined,
-  CheckCircleOutlined, LoadingOutlined, PlusOutlined, SaveOutlined,
+  LoadingOutlined, PlusOutlined, SaveOutlined,
   DeleteOutlined, ReloadOutlined, ShareAltOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
@@ -14,6 +14,13 @@ import * as App from '../../wailsjs/go/app/App'
 const { TextArea } = Input
 
 interface Branch { title: string; pitch: string }
+
+// 新角色条目（可编辑名称 + 可选择）
+interface NewCharEntry {
+  original: string   // AI 提取的原始名
+  name: string       // 编辑后的名字
+  selected: boolean
+}
 
 // 构建节点树：{ node, children[], depth }
 interface TreeNode { node: OutlineNode; children: TreeNode[]; depth: number }
@@ -74,6 +81,10 @@ const CreatePage: React.FC = () => {
   const [skills, setSkills] = useState<{name: string; description: string}[]>([])
   const [selectedSkill, setSelectedSkill] = useState<string | undefined>(undefined)
 
+  // 新角色发现弹窗
+  const [newCharsModal, setNewCharsModal] = useState(false)
+  const [newCharsList, setNewCharsList] = useState<NewCharEntry[]>([])
+  const [newCharsChapter, setNewCharsChapter] = useState(0)
   useEffect(() => { loadOutlines() }, [])
   useEffect(() => {
     ;(async () => {
@@ -91,6 +102,21 @@ const CreatePage: React.FC = () => {
     })()
   }, [])
 
+  // 监听新角色发现事件
+  useEffect(() => {
+    const handler = (event: any) => {
+      const data = event.detail || event
+      if (data?.characters?.length > 0) {
+        setNewCharsList(data.characters.map((name: string) => ({
+          original: name, name, selected: true
+        })))
+        setNewCharsChapter(data.chapterNum || 0)
+        setNewCharsModal(true)
+      }
+    }
+    try { window.runtime?.EventsOn?.('new-characters-discovered', handler) } catch (_) {}
+    return () => { try { window.runtime?.EventsOff?.('new-characters-discovered') } catch (_) {} }
+  }, [])
   const selectChapter = async (node: OutlineNode) => {
     setActiveId(node.id); setChapterLoading(true)
     try {
@@ -332,6 +358,74 @@ const CreatePage: React.FC = () => {
           )}
         </div>
       </div>
+      {/* 新角色发现弹窗 */}
+      <Modal
+        title={<>🔍 第{newCharsChapter}章发现了 {newCharsList.length} 个新角色</>}
+        open={newCharsModal}
+        onOk={async () => {
+          const selected = newCharsList.filter(c => c.selected).map(c => c.name)
+          if (selected.length === 0) { message.warning('请至少选择一个角色'); return }
+          try {
+            await App.SaveCharactersBatch(JSON.stringify(selected))
+            message.success(`已添加 ${selected.length} 个角色`)
+          } catch (err: any) { message.error(err?.message || '添加失败') }
+          setNewCharsModal(false)
+        }}
+        onCancel={() => setNewCharsModal(false)}
+        okText={`确认添加 (${newCharsList.filter(c => c.selected).length})`}
+        cancelText="稍后处理"
+        width={480}
+      >
+        <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Checkbox
+            checked={newCharsList.every(c => c.selected)}
+            indeterminate={newCharsList.some(c => c.selected) && !newCharsList.every(c => c.selected)}
+            onChange={e => setNewCharsList(prev => prev.map(c => ({ ...c, selected: e.target.checked })))}
+          >
+            全选
+          </Checkbox>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            💡 可编辑名字合并重复称呼
+          </Typography.Text>
+        </div>
+        <div style={{ maxHeight: 320, overflow: 'auto' }}>
+          {newCharsList.map((entry, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0',
+              borderBottom: '1px solid var(--border-subtle)'
+            }}>
+              <Checkbox
+                checked={entry.selected}
+                onChange={e => {
+                  setNewCharsList(prev => prev.map((c, j) => j === i ? { ...c, selected: e.target.checked } : c))
+                }}
+              />
+              <Input
+                size="small"
+                value={entry.name}
+                onChange={e => {
+                  setNewCharsList(prev => prev.map((c, j) => j === i ? { ...c, name: e.target.value } : c))
+                }}
+                style={{
+                  flex: 1, background: entry.name !== entry.original ? 'rgba(245,158,11,0.08)' : 'transparent',
+                  border: entry.name !== entry.original ? '1px solid rgba(245,158,11,0.4)' : '1px solid transparent',
+                  color: 'var(--color-text)', fontSize: 13
+                }}
+              />
+              {entry.name !== entry.original && (
+                <Button type="text" size="small"
+                  onClick={() => setNewCharsList(prev => prev.map((c, j) => j === i ? { ...c, name: c.original } : c))}
+                  style={{ fontSize: 10, padding: '0 2px', height: 20, color: '#f59e0b' }}>
+                  还原
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+        <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
+          角色将标记为「配角·存活」，可在角色页面补充详情
+        </Typography.Text>
+      </Modal>
 
       {/* 向导 */}
       <Modal title={<><BulbOutlined style={{ marginRight: 8 }} />剧情方向</>}

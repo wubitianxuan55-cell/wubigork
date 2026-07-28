@@ -31,7 +31,8 @@ func New(client ai.LLMClient, pm *project.Manager, cfg *config.Config, eng *prom
 // autoAnalyze 可选：生成后自动触发分析
 // ── 辅助函数 ─────────────────────────────────────────────────
 // ── 辅助函数 ─────────────────────────────────────────────────
-func (a *Agent) generateSummary(ctx context.Context, chapterContent string) (*types.ChapterSummary, error) {
+// GenerateSummary 从章节正文中提取结构化摘要（含 characters_appeared）——供章节生成完成后调用
+func (a *Agent) GenerateSummary(ctx context.Context, chapterContent string) (*types.ChapterSummary, error) {
 	tmpl := a.eng.Get("chapter-summary")
 	if tmpl == nil {
 		return nil, fmt.Errorf("缺少 chapter-summary 模板文件")
