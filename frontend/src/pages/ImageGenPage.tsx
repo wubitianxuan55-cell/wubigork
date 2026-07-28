@@ -56,7 +56,7 @@ const ImageGenPage: React.FC = () => {
   const [prompt, setPrompt] = useState('')
   const [negative, setNegative] = useState('')
   const [size, setSize] = useState('1024x1024')
-  const [model, setModel] = useState('flux')
+  const [model, setModel] = useState('krea2')
   const [seed, setSeed] = useState(0)
   const [count, setCount] = useState(1)
   const [customWidth, setCustomWidth] = useState(1024)
@@ -93,17 +93,18 @@ const ImageGenPage: React.FC = () => {
   const generatingRef = useRef(false)
 
   const comfyModels = useMemo(() => [
-    { label: '🌊 Flux Dev', value: 'flux' },
+    { label: '🎨 Krea2 Turbo', value: 'krea2' },
     { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' },
-    { label: '🎨 Krea2 (FLUX)', value: 'krea2' },
   ], [])
 
   const loraOptions = useMemo(() => [
+    { label: '🚀 Krea2 Turbo 加速', value: 'krea2\\Krea-2-Turbo-zishi_c1-st10000.safetensors' },
+    { label: '🔮 MysticXXX v3', value: 'krea2\\MysticXXX_KREA2_v3.safetensors' },
     { label: '✨ 细节增强', value: 'zimage\\z-image-细节增强v2.safetensors' },
     { label: '🎨 3D卡通', value: 'zimage\\z-Image-3D卡通_V1.safetensors' },
-    { label: '🌫️ 朦胧光影', value: 'zimage\\z-image-朦胧氛围光影LORA_V1.0.safetensors' },
-    { label: '📷 照片写实', value: 'zimage\\z-image-照片写实.safetensors' },
-    { label: '👧 少女风格', value: 'zimage\\z-image-少女-ben_nd.safetensors' },
+    { label: '🌫️ 氛围光影', value: 'zimage\\z-image 极致氛围光影LORA_V1.0.safetensors' },
+    { label: '📷 极致写实', value: 'zimage\\z-image-极致写实.safetensors' },
+    { label: '👧 女帝风格', value: 'zimage\\z-image-女帝-ben_nd.safetensors' },
     { label: '🔞 NSFW', value: 'zimage\\NSFW_master_ZIT_000017532.safetensors' },
   ], [])
 
@@ -231,7 +232,7 @@ const ImageGenPage: React.FC = () => {
     setBackendSwitching(true)
     try {
       let defaultModel = ''
-      if (newBackend === 'comfyui') defaultModel = 'flux'
+      if (newBackend === 'comfyui') defaultModel = 'krea2'
       else if (newBackend === 'xai') defaultModel = 'grok-imagine-image-quality'
       else {
         const eng = engines.find(e => e.id === newBackend)
