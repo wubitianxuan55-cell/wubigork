@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ─── 调查运行器 ──────────────────────────────────────────────────
@@ -22,7 +23,26 @@ type InvestigationRun struct {
 	Status         string                `json:"status"` // running/synthesizing/done
 }
 
-// NewInvestigationRun 创建调查运行
+// NewInvestigationRun creates a new investigation run
+func NewInvestigationRun(userQuery, template, dataRoot string) *InvestigationRun {
+	run := &InvestigationRun{
+		ID:     fmt.Sprintf("inv_%d", time.Now().UnixNano()),
+		Status: "running",
+	}
+	run.Intent = InvestigationIntent{
+		TemplateID: template,
+		UserQuery:  userQuery,
+	}
+	switch template {
+	case "games":
+		run.Checklist = CreateGamesChecklist()
+	case "documents":
+		run.Checklist = CreateDocumentsChecklist()
+	default:
+		run.Checklist = CreateDocumentsChecklist()
+	}
+	return run
+}
 
 // CollectStep 执行一个调查步骤
 func (run *InvestigationRun) CollectStep() []InvestigationFinding {

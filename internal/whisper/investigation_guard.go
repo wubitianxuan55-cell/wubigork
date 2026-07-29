@@ -121,6 +121,9 @@ type InvestigationIntent struct {
 	Type      string `json:"type"`       // filesystem_inventory / filesystem_search / none
 	Category  string `json:"category"`   // games / documents / generic
 	Confidence float64 `json:"confidence"`
+	IntentID   string `json:"intentId"`
+	TemplateID string `json:"templateId"`
+	UserQuery  string `json:"userQuery"`
 }
 
 // RouteInvestigationIntent 根据用户查询判断是否需要调查
