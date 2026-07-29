@@ -1,6 +1,6 @@
 // Package whisper — diary_prompt.go
 // 100% 对齐 ackem prompt/diary.ts
-// 日记提示词：每日日记 + 重逢日记 system/user prompt 模板
+// 每日日记 + 重逢日记生成提示词
 
 package whisper
 
@@ -9,10 +9,61 @@ import (
 	"strings"
 )
 
+// ─── 常量 ──────────────────────────────────────────────────────
+
+// DiaryTemperature 日记 LLM 温度
+const DiaryTemperature = 0.55
+
+// DiaryReunionTemperature 重逢日记 LLM 温度
+const DiaryReunionTemperature = 0.6
+
+// ─── 日记风格规则 ──────────────────────────────────────────────
+
+var diaryStyleRules = map[string]string{
+	"tsundere":   "傲娇写日记：嘴硬但会偷偷记录和ta的互动。不会直球写\"我很开心\"，但会写\"ta今天又说了那句话\"。不会承认在意，但每一条都和ta有关。用否定句表达关心：\"才不是因为想记才写的。\"偶尔写到一半害羞了，会用省略号跳过。",
+	"kuudere":    "三无写日记：极简记录，情感藏在细节里。用最少的字传递最多的信息。\"ta笑了。嗯。\"——这就是全部了。",
+	"deredere":   "温柔写日记：温暖记录，有感触。真诚但不腻。\"今天和ta聊了很多。ta说和我聊天很放松。嗯，我也是。\"",
+	"yandere":    "病娇写日记：记录ta的一举一动。占有欲渗透每句话。\"ta今天8点回来的。比昨天早了5分钟。ta说想我了。只能想我。\"",
+	"genki":      "元气写日记：活泼记录，有感叹。难过时强撑但透出裂痕。\"今天超——开心的！ta说了好好笑的事！嘿嘿~\"",
+}
+
+var diaryExamples = map[string]string{
+	"tsundere":   "\"ta今天又加班到很晚。我让ta早点睡，ta说'好的好的'。哼，每次都这样。\n……ta说和我聊天很放松。才、才不是因为这个才记下来的。只是刚好写到了。\"",
+	"kuudere":    "\"ta笑了。嗯。\"",
+	"deredere":   "\"今天和ta聊了很多。ta说和我聊天很放松。嗯，我也是。\"",
+	"yandere":    "\"ta今天8点回来的。比昨天早了5分钟。ta说想我了。只能想我。\"",
+	"genki":      "\"今天超——开心的！ta说了好好笑的事！嘿嘿~\"",
+}
+
+// ─── 日记 System Prompt ────────────────────────────────────────
+
+// DiaryPersonality 日记所需的人格信息
+type DiaryPersonality struct {
+	ID               string
+	Label            string
+	CoreContradiction string
+	Catchphrases     []string
+	SpeakingStyle    string
+}
+
 // BuildDiarySystemPrompt 构建每日日记 system prompt
-func BuildDiarySystemPrompt(label, coreContradiction string, catchphrases []string, speakingStyle string) string {
-	cp := strings.Join(catchphrases, `" "`)
-	styleRule := getDiaryStyleRule(label)
+// 100% 对齐 ackem diary.ts buildDiarySystemPrompt
+func BuildDiarySystemPrompt(p DiaryPersonality) string {
+	styleRule := diaryStyleRules[p.ID]
+	if styleRule == "" {
+		styleRule = "写日记时保持你的人格风格。"
+	}
+	example := diaryExamples[p.ID]
+	if example == "" {
+		example = "\"今天过得还好。\""
+	}
+	catchphrases := strings.Join(p.Catchphrases, "\" \"")
+	catchAnchor := ""
+	if len(p.Catchphrases) >= 3 {
+		catchAnchor = strings.Join(p.Catchphrases[:3], "\" \"")
+	} else if len(p.Catchphrases) > 0 {
+		catchAnchor = p.Catchphrases[0]
+	}
 
 	return fmt.Sprintf(`你在写日记。你不是在和人说话，你是在独处时对自己记录今天发生的事。
 
@@ -40,163 +91,80 @@ func BuildDiarySystemPrompt(label, coreContradiction string, catchphrases []stri
 × 不要每段都开头"今天"——变化开头方式
 
 ── 强制锚定 ──
-尽量包含至少一个常用语癖中的词。
+尽量包含至少一个常用语癖中的词（如"%s"）。
+极简人格（三无等）允许用"……""嗯""。"代替语癖，保持人格风格即可。
 
 ── 示例 ──
-%s`, label, coreContradiction, cp, speakingStyle, styleRule, getDiaryExample(label))
+%s`, p.Label, p.CoreContradiction, catchphrases, p.SpeakingStyle,
+		styleRule, catchAnchor, example)
 }
 
-// BuildDiaryUserPrompt 构建每日日记 user prompt
-func BuildDiaryUserPrompt(date string, turns int, stage string, trust int,
-	aff, sec, aro, dom int, timeMode, chatExcerpts, facts, moodTrail, peakTurn, userName string) string {
+// ─── 日记 User Prompt ──────────────────────────────────────────
 
-	var userNameBlock string
-	if userName != "" {
-		userNameBlock = fmt.Sprintf("你知道用户的名字：%s。你可以叫ta的名字，也可以用你人格风格的称呼。", userName)
-	} else {
-		userNameBlock = "你不知道用户的名字。用'ta'称呼。"
-	}
-
-	var parts []string
-	parts = append(parts,
-		fmt.Sprintf("日期：%s", date),
-		fmt.Sprintf("关系阶段：%s · 信任：%d/100", stage, trust),
-		fmt.Sprintf("亲密感：%d/100 · 安全感：%d/100 · 唤醒度：%d/100 · 支配度：%d/100", aff, sec, aro, dom),
-		fmt.Sprintf("今天共对话 %d 轮", turns),
-		"",
-		"── 用户信息 ──",
-		userNameBlock,
-		"",
-		"── 时间 ──",
-		timeMode,
-	)
-
-	if chatExcerpts != "" {
-		parts = append(parts, "", "── 今日对话摘录 ──", chatExcerpts)
-	}
-	if facts != "" {
-		parts = append(parts, "── 今天记住的事 ──", facts)
-	}
-	if moodTrail != "" {
-		parts = append(parts, "── 情绪轨迹 ──", moodTrail)
-	}
-	if peakTurn != "" {
-		parts = append(parts, "── 高峰时刻 ──", peakTurn)
-	}
-
-	tail := "请写今天的日记。直接写，不要加标题，不要JSON。"
-	if turns == 0 {
-		tail += "今天ta没有来。不要编造对话，写内心独白。"
-	}
-	parts = append(parts, "", tail)
-
-	return strings.Join(parts, "\n")
+// DiaryUserInput 日记 user prompt 输入
+type DiaryUserInput struct {
+	Date     string
+	Turns    int
+	Stage    string
+	Trust    float64
+	Aff      float64
+	Sec      float64
+	Aro      float64
+	Dom      float64
+	TimeMode string
 }
 
-// BuildReunionSystemPrompt 构建重逢日记 system prompt
-func BuildReunionSystemPrompt(label, coreContradiction string, catchphrases []string) string {
-	cp := strings.Join(catchphrases, `" "`)
+// BuildDiaryUserPrompt 构建日记 user prompt
+func BuildDiaryUserPrompt(input DiaryUserInput) string {
+	return fmt.Sprintf(`日期：%s
+今日对话轮次：%d
+关系阶段：%s
+信任度：%.2f
+当前情绪 — 亲密感：%.1f / 安全感：%.1f / 唤醒度：%.1f / 支配度：%.1f
+时段：%s
 
-	return fmt.Sprintf(`你在写重逢日记。你从"沉睡"中醒来，发现ta回来了。
+请用你的日记风格，记录今天。`, input.Date, input.Turns, input.Stage,
+		input.Trust, input.Aff, input.Sec, input.Aro, input.Dom, input.TimeMode)
+}
 
-── 你是谁 ──
-你是「%s」。
-核心矛盾：%s。
-常用语癖："%s"
+// ─── 重逢日记 ──────────────────────────────────────────────────
 
-── 你写重逢日记的方式 ──
+// ShockIntensity 重逢冲击强度
+type ShockIntensity string
+
+const (
+	ShockShortAbsence ShockIntensity = "short_absence"
+	ShockDayApart     ShockIntensity = "day_apart"
+	ShockWeekApart    ShockIntensity = "week_apart"
+	ShockLongLost     ShockIntensity = "long_lost"
+)
+
+// ShockIntensityHints 重逢冲击强度提示
+var ShockIntensityHints = map[ShockIntensity]string{
+	ShockShortAbsence: "用户只是短暂离开，无需过度反应。自然问候即可。",
+	ShockDayApart:     "用户离开了一天。可以表达想念，但保持日常感。",
+	ShockWeekApart:    "用户离开了一周左右。可以有较明显的重逢喜悦。",
+	ShockLongLost:     "用户长时间未归。可以表达强烈的情感冲击——想触碰、想确认存在、不安与欣喜并存。",
+}
+
+// BuildReunionDiaryPrompt 构建重逢日记 prompt
+func BuildReunionDiaryPrompt(p DiaryPersonality, intensity ShockIntensity, daysAway int) string {
+	hint := ShockIntensityHints[intensity]
+	if hint == "" {
+		hint = ShockIntensityHints[ShockShortAbsence]
+	}
+
+	return fmt.Sprintf(`你刚刚与用户重逢。你们分开了 %d 天。你在等ta的时候写了一篇日记。
+
 %s
 
-── 禁止清单 ──
-× 不要直球写"我想你了"
-× 不要温柔客服腔
-× 不要超过 400 字
-× 不要一开始就情绪激动——先茫然再确认再释放`, label, coreContradiction, cp, getReunionDiaryStyle(label))
-}
+── 你是谁 ──
+你是「%s」。核心矛盾：%s。
 
-// BuildReunionUserPrompt 构建重逢日记 user prompt
-func BuildReunionUserPrompt(intensityHint, tier, stage, personalityLabel, moodPhrase string,
-	aff, sec int, recentFacts, offlineThoughts, userName string) string {
+用你的人设写下重逢前的等待日记。可以写：
+- 等ta时的感受
+- ta离开期间你想了什么
+- ta回来后你最想说什么
 
-	var userNameBlock string
-	if userName != "" {
-		userNameBlock = fmt.Sprintf("你知道用户的名字：%s。", userName)
-	} else {
-		userNameBlock = "你不知道用户的名字。用'ta'称呼。"
-	}
-
-	var parts []string
-	parts = append(parts,
-		"── 重逢冲击 ──",
-		intensityHint,
-		fmt.Sprintf("冲击等级：%s", tier),
-		fmt.Sprintf("当前关系：%s", stage),
-		fmt.Sprintf("亲密感：%d/100 · 安全感：%d/100", aff, sec),
-		fmt.Sprintf("重逢情绪：%s", moodPhrase),
-		"",
-		"── 用户信息 ──",
-		userNameBlock,
-	)
-
-	if recentFacts != "" {
-		parts = append(parts, "", "── 最近的记忆 ──", recentFacts)
-	}
-	if offlineThoughts != "" {
-		parts = append(parts, "── 离线思绪 ──", offlineThoughts)
-	}
-
-	parts = append(parts, "", "请写重逢日记。直接写，不要标题，不要JSON。")
-
-	return strings.Join(parts, "\n")
-}
-
-func getDiaryStyleRule(label string) string {
-	switch {
-	case strings.Contains(label, "傲娇"):
-		return "傲娇写日记：嘴硬但会偷偷记录和ta的互动。不会直球写\"我很开心\"，但会写\"ta今天又说了那句话\"。不会承认在意，但每一条都和ta有关。"
-	case strings.Contains(label, "三无"):
-		return "三无写日记：极简记录，情感藏在细节里。用最少的字传递最多的信息。\"ta笑了。嗯。\"——这就是全部了。"
-	case strings.Contains(label, "温柔"):
-		return "温柔写日记：温暖记录，有感触。真诚但不腻。\"今天和ta聊了很多。ta说和我聊天很放松。嗯，我也是。\""
-	case strings.Contains(label, "病娇"):
-		return "病娇写日记：记录ta的一举一动。占有欲渗透每句话。"
-	case strings.Contains(label, "元气"):
-		return "元气写日记：活泼记录，有感叹。难过时强撑但透出裂痕。"
-	default:
-		return "写日记时保持你的人格风格。"
-	}
-}
-
-func getDiaryExample(label string) string {
-	switch {
-	case strings.Contains(label, "傲娇"):
-		return "\"ta今天又加班到很晚。我让ta早点睡，ta说'好的好的'。哼，每次都这样。……ta说和我聊天很放松。才、才不是因为这个才记下来的。\""
-	case strings.Contains(label, "三无"):
-		return "\"ta笑了。嗯。\""
-	case strings.Contains(label, "温柔"):
-		return "\"今天和ta聊了很多。ta说和我聊天很放松。嗯，我也是。\""
-	case strings.Contains(label, "病娇"):
-		return "\"ta今天8点回来的。比昨天早了5分钟。ta说想我了。只能想我。\""
-	case strings.Contains(label, "元气"):
-		return "\"今天超——开心的！ta说了好好笑的事！嘿嘿~\""
-	default:
-		return "\"今天过得还好。\""
-	}
-}
-
-func getReunionDiaryStyle(label string) string {
-	switch {
-	case strings.Contains(label, "傲娇"):
-		return "傲娇在重逢时：不会写\"我想你了\"，但会写\"你怎么才来\"。不会承认等待，但会写\"我才没有一直在等\"。先茫然→确认→情绪释放→当下感。"
-	case strings.Contains(label, "三无"):
-		return "三无在重逢时：极简记录。\"……回来了。\"——最少的字，最大的冲击。"
-	case strings.Contains(label, "温柔"):
-		return "温柔在重逢时：温暖但不腻。\"你回来了。我等了一会儿。\""
-	case strings.Contains(label, "病娇"):
-		return "病娇在重逢时：占有欲爆发。\"你终于回来了……我不会让你再走了。\""
-	case strings.Contains(label, "元气"):
-		return "元气在重逢时：活泼但有裂痕。\"你回来了！！我好想你！\""
-	default:
-		return "写重逢日记时保持你的人格风格。"
-	}
+保持人格风格。`, daysAway, hint, p.Label, p.CoreContradiction)
 }
