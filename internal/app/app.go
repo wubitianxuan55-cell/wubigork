@@ -22,6 +22,7 @@ import (
 	"github.com/wubigork/wubigork/internal/project"
 	"github.com/wubigork/wubigork/internal/prompt"
 	"github.com/wubigork/wubigork/internal/skill"
+	"github.com/wubigork/wubigork/internal/voice"
 	"github.com/wubigork/wubigork/internal/worldview"
 )
 
@@ -54,6 +55,9 @@ type App struct {
 	// TTS 语音朗读
 	activeTTSEngine string
 	activeTTSModel  string
+
+	// 语音管道
+	voiceManager *voice.Manager
 
 	// ComfyUI 进程管理
 	comfyUICancel context.CancelFunc
@@ -94,6 +98,7 @@ func (a *App) Startup(ctx context.Context) {
 	}
 	a.configureClient()
 	a.initImageBackend()
+	a.initVoice()
 
 	// 后台刷新所有引擎模型列表
 	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {
@@ -140,6 +145,9 @@ func (a *App) initImageBackend() {
 
 // Shutdown Wails 关闭回调
 func (a *App) Shutdown(ctx context.Context) {
+	if a.voiceManager != nil {
+		a.voiceManager.Stop()
+	}
 	if err := a.closePM(); err != nil {
 		slog.Error("关闭项目失败", "error", err)
 	}

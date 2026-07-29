@@ -39,41 +39,18 @@ const ChatPage: React.FC = () => {
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<any>(null)
 
-  const handleTTS = useCallback(async (text: string) => {
-    try {
-      // @ts-ignore
-      const result = await App.TTSSpeakBase64(text)
-      if (result?.base64) {
-        const binary = atob(result.base64)
-        const bytes = new Uint8Array(binary.length)
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-        const blob = new Blob([bytes], { type: result.mimeType || 'audio/mp3' })
-        const url = URL.createObjectURL(blob)
-        const audio = new Audio(url)
-        await audio.play()
-        URL.revokeObjectURL(url)
-      }
-    } catch (_) {}
-  }, [])
-
-  const handleSpeechResult = useCallback(async (text: string): Promise<string> => {
+  // ── 语音回调 ──
+  const handleTranscript = useCallback((text: string) => {
     const userMsg: Message = { id: nextMsgId(), role: 'user', content: text }
-    const aiMsg: Message = { id: nextMsgId(), role: 'assistant', content: '', streaming: true }
-    setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: [...t.messages, userMsg, aiMsg] } : t))
-    try {
-      const result = await App.ChatGeneral(text)
-      const reply = (result as any)?.reply || ''
-      aiMsg.content = reply; aiMsg.streaming = false
-      setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: t.messages.map(m => m.id === aiMsg.id ? { ...aiMsg } : m) } : t))
-      return reply
-    } catch (err: any) {
-      aiMsg.content = `❌ 错误: ${err.message || err}`; aiMsg.streaming = false
-      setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: t.messages.map(m => m.id === aiMsg.id ? { ...aiMsg } : m) } : t))
-      throw err
-    }
+    setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: [...t.messages, userMsg] } : t))
   }, [activeId])
 
-  const { state: voice, start: startVoice, stop: stopVoice } = useVoiceChat({ onSpeechResult: handleSpeechResult, onTTS: handleTTS })
+  const handleReply = useCallback((text: string) => {
+    const aiMsg: Message = { id: nextMsgId(), role: 'assistant', content: text, streaming: false }
+    setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: [...t.messages, aiMsg] } : t))
+  }, [activeId])
+
+  const { state: voice, start: startVoice, stop: stopVoice, interrupt, setPTT } = useVoiceChat({ onTranscript: handleTranscript, onReply: handleReply })
 
   useEffect(() => { saveTopics(topics) }, [topics])
   const activeTopic = topics.find(t => t.id === activeId)
@@ -142,7 +119,7 @@ const ChatPage: React.FC = () => {
 
   const topicList: Topic[] = topics.map(({ id, title, createdAt }) => ({ id, title, createdAt }))
   const orbSize = useMemo(() => Math.min(360, typeof window !== 'undefined' ? window.innerWidth * 0.5 : 360), [])
-  const [voiceModelInfo, setVoiceModelInfo] = useState({ llm: '', tts: '', stt: '浏览器语音识别' })
+  const [voiceModelInfo, setVoiceModelInfo] = useState({ llm: '', tts: '', stt: 'Herdsman whisper' })
   useEffect(() => { if (!voice.active) return; (async () => { try { /* @ts-ignore */ const [engine, model] = await Promise.all([App.GetActiveEngine(), App.GetActiveModel()]); const en = engine === 'xai' ? 'xAI' : engine === 'herdsman' ? 'Herdsman' : engine === 'ollama' ? 'Ollama' : engine; setVoiceModelInfo(prev => ({ ...prev, llm: `${en} / ${model || '默认'}`, tts: 'Herdsman / qwen3-tts' })) } catch (_) { setVoiceModelInfo({ llm: '默认', tts: 'Herdsman', stt: '浏览器' }) } })() }, [voice.active])
 
   const hasMessages = messages.length > 0
@@ -234,12 +211,21 @@ const ChatPage: React.FC = () => {
         {/* 语音叠加层 */}
         {voice.active && (
           <div style={{ position: 'absolute', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: C('color-bg-container') }}>
-            <VoiceChatOrb volume={voice.volume} listening={voice.listening} speaking={voice.speaking} aiSpeaking={voice.aiSpeaking} transcript={voice.transcript} size={orbSize} />
-            <div style={{ marginTop: 28, display: 'flex', gap: 12, alignItems: 'center', fontSize: 11, color: C('color-text-secondary') }}>
+            <div style={{ marginTop: 20, fontSize: 12, color: C('color-text-secondary') }}>
+              {voice.listening && !voice.aiSpeaking && '正在聆听...'}
+              {voice.aiSpeaking && 'AI 回复中...'}
+              {!voice.listening && !voice.aiSpeaking && '准备中...'}
+            </div>
+            <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center', fontSize: 11, color: C('color-text-secondary') }}>
               <span>🎙️ {voiceModelInfo.stt}</span><span style={{ opacity: 0.3 }}>→</span><span>💬 {voiceModelInfo.llm}</span><span style={{ opacity: 0.3 }}>→</span><span>🔊 {voiceModelInfo.tts}</span>
             </div>
             {voice.error && <Typography.Text style={{ color: '#fb7185', fontSize: 13, marginTop: 24 }}>{voice.error}</Typography.Text>}
-            <Button onClick={stopVoice} style={{ marginTop: 32, borderRadius: 20, padding: '8px 28px', fontSize: 14, background: C('color-bg-elevated'), border: `1px solid ${C('color-border')}`, color: C('color-text-secondary') }}>退出语音模式</Button>
+            <div style={{ marginTop: 32, display: 'flex', gap: 12, alignItems: 'center' }}>
+              {voice.aiSpeaking && (
+                <Button onClick={interrupt} style={{ borderRadius: 20, padding: '8px 28px', fontSize: 14, background: '#fb7185', border: 'none', color: '#fff' }}>打断</Button>
+              )}
+              <Button onClick={stopVoice} style={{ borderRadius: 20, padding: '8px 28px', fontSize: 14, background: C('color-bg-elevated'), border: `1px solid ${C('color-border')}`, color: C('color-text-secondary') }}>退出语音模式</Button>
+            </div>
           </div>
         )}
       </div>

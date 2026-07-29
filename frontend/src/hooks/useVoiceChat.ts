@@ -1,4 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import * as App from '../../wailsjs/go/app/App'
+import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
+
+// ── 状态类型（兼容现有 VoiceChatOrb） ──
 
 export interface VoiceChatState {
   active: boolean
@@ -9,147 +13,339 @@ export interface VoiceChatState {
   finalTranscript: string
   volume: number
   error: string | null
+  mode: 'vad' | 'ptt' | 'off'
 }
 
 interface Options {
-  onSpeechResult: (text: string) => Promise<string>
-  onTTS: (text: string) => Promise<string | void>
+  /** 收到最终识别文本（用于添加用户消息） */
+  onTranscript?: (text: string) => void
+  /** 收到 AI 回复文本（用于添加 AI 消息） */
+  onReply?: (text: string) => void
 }
 
-export function useVoiceChat({ onSpeechResult, onTTS }: Options) {
+// ── 音频常量（对齐后端 voice_config.go） ──
+
+const SAMPLE_RATE = 16000
+const CHUNK_MS = 200
+const CHUNK_SIZE = SAMPLE_RATE * 2 * CHUNK_MS / 1000 // 6400 bytes
+
+export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const [state, setState] = useState<VoiceChatState>({
     active: false, listening: false, speaking: false, aiSpeaking: false,
-    transcript: '', finalTranscript: '', volume: 0, error: null,
+    transcript: '', finalTranscript: '', volume: 0, error: null, mode: 'vad',
   })
 
-  const recRef = useRef<any>(null)
-  const ctxRef = useRef<AudioContext | null>(null)
-  const strRef = useRef<MediaStream | null>(null)
-  const silenceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // ── Refs ──
+  const captureCtxRef = useRef<AudioContext | null>(null)
+  const playbackCtxRef = useRef<AudioContext | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const processorRef = useRef<ScriptProcessorNode | null>(null)
+  const gainRef = useRef<GainNode | null>(null)
   const abortRef = useRef(false)
-  const simRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const volRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pttRef = useRef(false)
+  const volTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const simTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const stateRef = useRef<VoiceChatState>(state)
 
-  const stopListenFn = useRef<() => void>(() => {})
-  const startFn = useRef<() => void>(() => {})
+  // 保持 stateRef 同步
+  stateRef.current = state
 
-  const cleanup = useCallback(() => {
-    if (silenceRef.current) clearTimeout(silenceRef.current)
-    if (simRef.current) clearInterval(simRef.current)
-    if (volRef.current) clearInterval(volRef.current)
-    if (recRef.current) { try { recRef.current.stop() } catch (_) {}; recRef.current = null }
-    if (ctxRef.current) { ctxRef.current.close().catch(() => {}); ctxRef.current = null }
-    if (strRef.current) { strRef.current.getTracks().forEach(t => t.stop()); strRef.current = null }
+  const setState2 = useCallback((patch: Partial<VoiceChatState> | ((s: VoiceChatState) => VoiceChatState)) => {
+    setState(prev => {
+      const next = typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }
+      stateRef.current = next
+      return next
+    })
   }, [])
 
-  // ── start ──
-  const start = useCallback(() => {
+  // ── 事件监听 ──
+
+  useEffect(() => {
+    const unsubs: (() => void)[] = []
+
+    // 状态变更
+    unsubs.push(EventsOn('voice:state', (data: any) => {
+      if (abortRef.current) return
+      const s = data.state as string
+      setState2({
+        listening: s === 'listening',
+        aiSpeaking: s === 'thinking' || s === 'speaking',
+        speaking: s === 'speaking',
+      })
+    }))
+
+    // 识别结果
+    unsubs.push(EventsOn('voice:transcript', (data: any) => {
+      if (abortRef.current) return
+      const text = data.text || ''
+      const isFinal = data.isFinal ?? false
+      setState2(s => ({
+        ...s,
+        transcript: text,
+        finalTranscript: isFinal ? s.finalTranscript + text : s.finalTranscript,
+      }))
+      if (isFinal && text) {
+        onTranscript?.(stateRef.current.finalTranscript + text)
+      }
+    }))
+
+    // AI 回复（文本）
+    unsubs.push(EventsOn('voice:reply', (data: any) => {
+      if (abortRef.current) return
+      const text = data.text || ''
+      if (text) onReply?.(text)
+    }))
+
+    // TTS 音频播放
+    unsubs.push(EventsOn('voice:tts-audio', async (data: any) => {
+      if (abortRef.current) return
+      try {
+        await playAudio(data.audio, data.mimeType)
+      } catch (err) {
+        console.error('[Voice] TTS 播放失败:', err)
+      }
+    }))
+
+    // 浏览器 TTS fallback
+    unsubs.push(EventsOn('voice:tts-speak-text', (data: any) => {
+      if (abortRef.current) return
+      const text = data.text || ''
+      if (text && 'speechSynthesis' in window) {
+        const u = new SpeechSynthesisUtterance(text)
+        u.lang = 'zh-CN'
+        u.rate = 1.0
+        u.onend = () => setState2({ aiSpeaking: false })
+        speechSynthesis.cancel()
+        speechSynthesis.speak(u)
+      }
+    }))
+
+    // TTS 取消
+    unsubs.push(EventsOn('voice:tts-speak-cancel', () => {
+      stopPlayback()
+    }))
+
+    // 监听指示
+    unsubs.push(EventsOn('voice:listening', (data: any) => {
+      if (abortRef.current) return
+      setState2({ listening: data.active ?? false })
+    }))
+
+    // 思考指示
+    unsubs.push(EventsOn('voice:thinking', (data: any) => {
+      if (abortRef.current) return
+      setState2({ aiSpeaking: data.active ?? false })
+    }))
+
+    return () => {
+      unsubs.forEach(fn => { try { fn() } catch (_) {} })
+    }
+  }, [onTranscript, onReply, setState2])
+
+  // ── 音频播放 ──
+
+  const playAudio = useCallback(async (audioData: Uint8Array | number[] | null, mimeType: string) => {
+    if (!audioData || audioData.length === 0) return
+
+    // 确保 playback context 存在
+    if (!playbackCtxRef.current || playbackCtxRef.current.state === 'closed') {
+      playbackCtxRef.current = new AudioContext()
+      gainRef.current = playbackCtxRef.current.createGain()
+      gainRef.current.connect(playbackCtxRef.current.destination)
+      gainRef.current.gain.value = 1.0
+    }
+
+    const ctx = playbackCtxRef.current
+    if (ctx.state === 'suspended') await ctx.resume()
+
+    // 转换数据
+    const bytes = audioData instanceof Uint8Array ? audioData : new Uint8Array(audioData)
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) as ArrayBuffer
+
+    try {
+      const audioBuffer = await ctx.decodeAudioData(buffer)
+      const source = ctx.createBufferSource()
+      source.buffer = audioBuffer
+      source.connect(gainRef.current!)
+      source.onended = () => setState2({ aiSpeaking: false })
+      source.start(0)
+    } catch (err) {
+      // decodeAudioData 可能失败（非浏览器原生格式），尝试用 Audio 元素
+      const blob = new Blob([bytes as BlobPart], { type: mimeType || 'audio/mp3' })
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      audio.onended = () => { URL.revokeObjectURL(url); setState2({ aiSpeaking: false }) }
+      audio.onerror = () => { URL.revokeObjectURL(url) }
+      await audio.play()
+    }
+  }, [setState2])
+
+  const stopPlayback = useCallback(() => {
+    if (playbackCtxRef.current && playbackCtxRef.current.state !== 'closed') {
+      playbackCtxRef.current.close().catch(() => {})
+    }
+    playbackCtxRef.current = null
+    gainRef.current = null
+    speechSynthesis.cancel()
+    App.VoiceCancelTTS().catch(() => {})
+  }, [])
+
+  // ── 音频采集 ──
+
+  const startCapture = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: SAMPLE_RATE,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      })
+      if (abortRef.current) { stream.getTracks().forEach(t => t.stop()); return }
+
+      streamRef.current = stream
+
+      // AudioContext 用于采集（对齐 Ackem captureContextRef）
+      captureCtxRef.current = new AudioContext({ sampleRate: SAMPLE_RATE })
+      const source = captureCtxRef.current.createMediaStreamSource(stream)
+
+      // AnalyserNode 用于音量可视化
+      const analyser = captureCtxRef.current.createAnalyser()
+      analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.3
+      source.connect(analyser)
+
+      const freqBuf = new Uint8Array(analyser.frequencyBinCount)
+      volTimerRef.current = setInterval(() => {
+        analyser.getByteFrequencyData(freqBuf)
+        const avg = freqBuf.reduce((a, b) => a + b, 0) / freqBuf.length
+        setState2({ volume: Math.min(avg / 128, 1), speaking: avg / 128 > 0.06 })
+      }, 80)
+
+      // ScriptProcessorNode 用于 PCM 采集（对齐 Ackem）
+      const processor = captureCtxRef.current.createScriptProcessor(CHUNK_SIZE / 2, 1, 1)
+      processorRef.current = processor
+      source.connect(processor)
+      processor.connect(captureCtxRef.current.destination) // 必须连接才能触发
+
+      processor.onaudioprocess = (event) => {
+        if (abortRef.current) return
+        // 仅在 PTT 激活或 VAD 模式下发送
+        if (pttRef.current || stateRef.current.mode === 'vad') {
+          const input = event.inputBuffer.getChannelData(0)
+          const int16 = float32ToInt16(input)
+          App.VoicePushAudio(Array.from(new Uint8Array(int16.buffer))).catch(() => {})
+        }
+      }
+
+      // 消除模拟音量
+      if (simTimerRef.current) { clearInterval(simTimerRef.current); simTimerRef.current = null }
+    } catch (err) {
+      console.warn('[Voice] 麦克风不可用，使用模拟模式', err)
+      // 模拟音量
+      let t = 0
+      simTimerRef.current = setInterval(() => {
+        t += 0.1
+        setState2({ volume: 0.12 + Math.sin(t * 2.5) * 0.08 + Math.sin(t * 5) * 0.04, speaking: Math.sin(t * 2.5) > 0.5 })
+      }, 120)
+    }
+  }, [setState2])
+
+  // ── start / stop ──
+
+  const start = useCallback(async () => {
     abortRef.current = false
-    setState(s => ({ ...s, active: true, listening: false, speaking: false, aiSpeaking: false, transcript: '', finalTranscript: '', volume: 0, error: null }))
-
-    // 模拟音量，确保粒子光球动起来
-    let t = 0
-    simRef.current = setInterval(() => {
-      t += 0.1
-      setState(s => ({ ...s, volume: 0.12 + Math.sin(t * 2.5) * 0.08 + Math.sin(t * 5) * 0.04, speaking: Math.sin(t * 2.5) > 0.5 }))
-    }, 120)
-
-    // 尝试接入真实麦克风
-    const tryMic = async () => {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) return
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        if (abortRef.current) { stream.getTracks().forEach(t => t.stop()); return }
-        strRef.current = stream
-        if (simRef.current) clearInterval(simRef.current)
-
-        const ctx = new AudioContext()
-        ctxRef.current = ctx
-        const src = ctx.createMediaStreamSource(stream)
-        const ana = ctx.createAnalyser()
-        ana.fftSize = 256; ana.smoothingTimeConstant = 0.3
-        src.connect(ana)
-        const buf = new Uint8Array(ana.frequencyBinCount)
-        volRef.current = setInterval(() => {
-          ana.getByteFrequencyData(buf)
-          const avg = buf.reduce((a, b) => a + b, 0) / buf.length
-          setState(s => ({ ...s, volume: Math.min(avg / 128, 1), speaking: avg / 128 > 0.06 }))
-        }, 80)
-      } catch (_) { /* 无麦克风，继续模拟 */ }
-    }
-
-    // 尝试语音识别
-    const tryRec = () => {
-      try {
-        // @ts-ignore
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-        if (!SR) { setState(s => ({ ...s, listening: true })); return }
-        const r = new SR()
-        r.lang = 'zh-CN'; r.interimResults = true; r.continuous = true; r.maxAlternatives = 1
-        recRef.current = r
-
-        r.onresult = (ev: any) => {
-          let fi = '', im = ''
-          for (let i = ev.resultIndex; i < ev.results.length; i++) {
-            if (ev.results[i].isFinal) fi += ev.results[i][0].transcript
-            else im += ev.results[i][0].transcript
-          }
-          setState(s => ({ ...s, transcript: fi + im, finalTranscript: s.finalTranscript + fi }))
-          if (silenceRef.current) clearTimeout(silenceRef.current)
-          silenceRef.current = setTimeout(() => stopListenFn.current(), 2000)
-        }
-        r.onerror = (ev: any) => {
-          if (ev.error === 'no-speech' || ev.error === 'aborted') return
-          const msg = ev.error === 'not-allowed'
-            ? '语音识别被拒绝：请开启 Windows 设置 → 隐私 → 语音 → 联机语音识别'
-            : `识别错误: ${ev.error}`
-          setState(s => ({ ...s, error: msg }))
-        }
-        r.onend = () => { if (!abortRef.current) try { r.start() } catch (_) {} }
-        r.onend = () => { if (!abortRef.current) try { r.start() } catch (_) {} }
-        r.start()
-        setState(s => ({ ...s, listening: true }))
-      } catch (_) { setState(s => ({ ...s, listening: true })) }
-    }
-
-    setTimeout(() => { tryMic().then(tryRec) }, 200)
-  }, [cleanup])
-
-  // ── stopListening ──
-  const stopListening = useCallback(async () => {
-    abortRef.current = true
-    if (silenceRef.current) clearTimeout(silenceRef.current)
-    if (recRef.current) { try { recRef.current.stop() } catch (_) {}; recRef.current = null }
-    if (ctxRef.current) { ctxRef.current.close().catch(() => {}); ctxRef.current = null }
-    if (strRef.current) { strRef.current.getTracks().forEach(t => t.stop()); strRef.current = null }
-
-    const text = await new Promise<string>(resolve => {
-      setState(s => { resolve((s.finalTranscript + s.transcript).trim()); return { ...s, listening: false, speaking: false, volume: 0 } })
+    setState2({
+      active: true, listening: false, speaking: false, aiSpeaking: false,
+      transcript: '', finalTranscript: '', volume: 0, error: null,
     })
 
-    if (!text) return
+    // 启动后端语音管道
     try {
-      setState(s => ({ ...s, aiSpeaking: true }))
-      const reply = await onSpeechResult(text)
-      if (reply && onTTS) await onTTS(reply)
-      setState(s => ({ ...s, aiSpeaking: false, transcript: '', finalTranscript: '' }))
-      if (!abortRef.current) setTimeout(() => startFn.current(), 500)
+      await App.VoiceStart()
     } catch (err: any) {
-      const msg = err?.message || err?.toString?.() || 'AI 回复失败（请确认模型中心已启动语言模型）'
-      setState(s => ({ ...s, aiSpeaking: false, error: msg }))
+      setState2({ error: `语音启动失败: ${err?.message || err}` })
+      return
     }
-  }, [onSpeechResult, onTTS])
 
-  stopListenFn.current = stopListening
-  startFn.current = start
+    // 启动本地音频采集
+    await startCapture()
+  }, [startCapture, setState2])
 
   const stop = useCallback(() => {
     abortRef.current = true
-    cleanup()
-    setState({ active: false, listening: false, speaking: false, aiSpeaking: false, transcript: '', finalTranscript: '', volume: 0, error: null })
-  }, [cleanup])
 
-  useEffect(() => () => { abortRef.current = true; cleanup() }, [cleanup])
+    // 停止后端
+    App.VoiceStop().catch(() => {})
 
-  return { state, start, stop, stopListening }
+    // 停止采集
+    if (volTimerRef.current) { clearInterval(volTimerRef.current); volTimerRef.current = null }
+    if (simTimerRef.current) { clearInterval(simTimerRef.current); simTimerRef.current = null }
+    if (processorRef.current) {
+      try { processorRef.current.disconnect() } catch (_) {}
+      processorRef.current = null
+    }
+    if (captureCtxRef.current) {
+      captureCtxRef.current.close().catch(() => {})
+      captureCtxRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+
+    // 停止播放
+    stopPlayback()
+
+    setState2({
+      active: false, listening: false, speaking: false, aiSpeaking: false,
+      transcript: '', finalTranscript: '', volume: 0, error: null,
+    })
+  }, [stopPlayback, setState2])
+
+  // ── PTT 控制 ──
+
+  const setPTT = useCallback((active: boolean) => {
+    pttRef.current = active
+    App.VoiceSetPTTActive(active).catch(() => {})
+  }, [])
+
+  // ── 打断 ──
+
+  const interrupt = useCallback(() => {
+    App.VoiceCancelTTS().catch(() => {})
+    stopPlayback()
+    setState2({ aiSpeaking: false })
+  }, [stopPlayback, setState2])
+
+  // ── 清理 ──
+
+  useEffect(() => {
+    return () => {
+      abortRef.current = true
+      if (volTimerRef.current) clearInterval(volTimerRef.current)
+      if (simTimerRef.current) clearInterval(simTimerRef.current)
+      if (processorRef.current) { try { processorRef.current.disconnect() } catch (_) {} }
+      if (captureCtxRef.current) { captureCtxRef.current.close().catch(() => {}) }
+      if (playbackCtxRef.current) { playbackCtxRef.current.close().catch(() => {}) }
+      if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()) }
+      speechSynthesis.cancel()
+      App.VoiceStop().catch(() => {})
+    }
+  }, [])
+
+  return { state, start, stop, setPTT, interrupt }
+}
+
+// ── 工具函数 ──
+
+/** Float32Array → Int16Array（对齐 Ackem float32ToInt16） */
+function float32ToInt16(float32: Float32Array): Int16Array {
+  const int16 = new Int16Array(float32.length)
+  for (let i = 0; i < float32.length; i++) {
+    const s = Math.max(-1, Math.min(1, float32[i]))
+    int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff
+  }
+  return int16
 }

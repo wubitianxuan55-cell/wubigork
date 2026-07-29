@@ -11,19 +11,31 @@ import (
 
 // HerdsmanTTS 通过 Herdsman 的 OpenAI 兼容 TTS 端点合成语音
 type HerdsmanTTS struct {
-	baseURL string
-	model   string
-	voice   string
-	client  *http.Client
+	baseURL          string
+	model            string
+	voice            string
+	voiceDescription string // voicedesign 模式的声音描述
+	client           *http.Client
 }
 
-// NewHerdsmanTTS 创建 Herdsman TTS 客户端
+// NewHerdsmanTTS 创建 Herdsman TTS 客户端（customvoice 模式）
 func NewHerdsmanTTS(baseURL, model, voice string) *HerdsmanTTS {
 	return &HerdsmanTTS{
 		baseURL: baseURL,
 		model:   model,
 		voice:   voice,
 		client:  &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+// NewHerdsmanTTSWithDesc 创建 Herdsman TTS 客户端（voicedesign 模式）
+// 对齐 Ackem CosyVoice 的情感指令注入：voiceDescription 为中文自然语言描述
+func NewHerdsmanTTSWithDesc(baseURL, model, voiceDescription string) *HerdsmanTTS {
+	return &HerdsmanTTS{
+		baseURL:          baseURL,
+		model:            model,
+		voiceDescription: voiceDescription,
+		client:           &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -39,7 +51,11 @@ func (h *HerdsmanTTS) Synthesize(text string) ([]byte, error) {
 	body := map[string]interface{}{
 		"model": h.model,
 		"input": text,
-		"voice": h.voice,
+	}
+	if h.voiceDescription != "" {
+		body["voice_description"] = h.voiceDescription
+	} else if h.voice != "" {
+		body["voice"] = h.voice
 	}
 	jsonBody, _ := json.Marshal(body)
 
