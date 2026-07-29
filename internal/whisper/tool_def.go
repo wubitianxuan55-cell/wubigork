@@ -9,13 +9,18 @@ const UseComputerToolName = "use_computer"
 
 // UseComputerArgs 工具参数
 type UseComputerArgs struct {
-	Action  string                 `json:"action"`
+	Action  DesktopAgentAction     `json:"action"`
 	Path    string                 `json:"path,omitempty"`
 	PathTo  string                 `json:"path_to,omitempty"`
 	Target  string                 `json:"target,omitempty"`
 	Query   string                 `json:"query,omitempty"`
 	URL     string                 `json:"url,omitempty"`
-	Options map[string]interface{} `json:"options,omitempty"`
+	Options *UseComputerOptions    `json:"options,omitempty"`
+}
+
+// UseComputerOptions 额外选项
+type UseComputerOptions struct {
+	Content string `json:"content,omitempty"`
 }
 
 // UseComputerAction 所有支持的动作
@@ -79,7 +84,7 @@ func ParseUseComputerArgs(raw map[string]interface{}) *UseComputerArgs {
 	if !ok || action == "" {
 		return nil
 	}
-	args := &UseComputerArgs{Action: action}
+	args := &UseComputerArgs{Action: DesktopAgentAction(action)}
 	if v, ok := raw["path"].(string); ok {
 		args.Path = v
 	}
@@ -96,7 +101,11 @@ func ParseUseComputerArgs(raw map[string]interface{}) *UseComputerArgs {
 		args.URL = v
 	}
 	if v, ok := raw["options"].(map[string]interface{}); ok {
-		args.Options = v
+		opts := &UseComputerOptions{}
+		if content, ok := v["content"].(string); ok {
+			opts.Content = content
+		}
+		args.Options = opts
 	}
 	return args
 }

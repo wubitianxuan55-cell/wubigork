@@ -31,7 +31,7 @@ const DOMAIN_LABELS: Record<string, string> = {
 function valenceLabel(v: number): { text: string; color: string } {
   if (v > 0.3) return { text: '正面', color: '#4ade80' }
   if (v < -0.3) return { text: '负面', color: '#f87171' }
-  return { text: '中性', color: '#888' }
+  return { text: '中性', color: 'var(--whisper-ink-muted)' }
 }
 
 function groupByDate(facts: MemoryFact[]): Map<string, MemoryFact[]> {
@@ -55,8 +55,8 @@ function FactCard({ fact, onDelete, onFeedback, onUpdate }: {
   const [editText, setEditText] = useState(fact.summary)
   const domainLabel = DOMAIN_LABELS[fact.domain] || fact.domain
   const coreStyle = fact.tier === 'core'
-    ? { borderLeft: '2px solid #f59e0b' }
-    : { borderLeft: '2px solid #3f3f46' }
+    ? { borderLeft: '2px solid var(--whisper-accent)' }
+    : { borderLeft: '2px solid var(--whisper-glass-border)' }
   const eco = fact.emotionalContext
   const vLabel = eco ? valenceLabel(eco.valence) : null
 
@@ -76,23 +76,23 @@ function FactCard({ fact, onDelete, onFeedback, onUpdate }: {
         style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
         onClick={() => setExpanded(!expanded)}
       >
-        <span style={{ color: '#ccc', fontSize: 12, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ color: 'var(--whisper-ink)', fontSize: 12, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {fact.subject}
         </span>
         {fact.subcategory && (
           <span style={{
-            background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
+            background: 'rgba(251,191,36,0.15)', color: 'var(--whisper-accent)',
             borderRadius: 3, padding: '1px 6px', fontSize: 10,
           }}>{fact.subcategory}</span>
         )}
-        <span style={{ color: '#666', fontSize: 10 }}>{domainLabel}</span>
+        <span style={{ color: 'var(--whisper-ink-muted)', fontSize: 10 }}>{domainLabel}</span>
       </div>
 
       {expanded && (
         <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {/* 情绪上下文 */}
           {eco && (
-            <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#777' }}>
+            <div style={{ display: 'flex', gap: 10, fontSize: 10, color: 'var(--whisper-ink-muted)' }}>
               {vLabel && <span style={{ color: vLabel.color }}>{vLabel.text}</span>}
               <span>信任 {eco.trust.toFixed(0)}</span>
               <span>{eco.relStage}</span>
@@ -109,32 +109,32 @@ function FactCard({ fact, onDelete, onFeedback, onUpdate }: {
                 autoFocus
                 style={{
                   flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 4, color: '#ccc', fontSize: 12, padding: '4px 8px',
+                  borderRadius: 4, color: 'var(--whisper-ink)', fontSize: 12, padding: '4px 8px',
                 }}
               />
               <button onClick={handleSave} style={{
                 background: 'rgba(251,191,36,0.2)', border: 'none', borderRadius: 4,
-                color: '#fbbf24', fontSize: 11, padding: '4px 8px', cursor: 'pointer',
+                color: 'var(--whisper-accent)', fontSize: 11, padding: '4px 8px', cursor: 'pointer',
               }}>保存</button>
             </div>
           ) : (
-            <p style={{ color: '#888', fontSize: 11, margin: 0 }}>{fact.summary}</p>
+            <p style={{ color: 'var(--whisper-ink-muted)', fontSize: 11, margin: 0 }}>{fact.summary}</p>
           )}
 
           {/* 元数据 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, color: '#666', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, color: 'var(--whisper-ink-muted)', flexWrap: 'wrap' }}>
             <span>权重 {fact.weight.toFixed(1)}</span>
             <span>置信 {(fact.confidence * 100).toFixed(0)}%</span>
-            {fact.tier === 'core' && <span style={{ color: '#f59e0b' }}>★ 核心记忆</span>}
+            {fact.tier === 'core' && <span style={{ color: 'var(--whisper-accent)' }}>★ 核心记忆</span>}
 
             {/* 反馈按钮 */}
             {onFeedback && (
               <span style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
                 <button onClick={e => { e.stopPropagation(); onFeedback(fact.id, 'thumbs_up') }}
-                  style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: 13 }}
+                  style={{ background: 'none', border: 'none', color: 'var(--whisper-ink-muted)', cursor: 'pointer', fontSize: 13 }}
                   title="有用">👍</button>
                 <button onClick={e => { e.stopPropagation(); onFeedback(fact.id, 'thumbs_down') }}
-                  style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: 13 }}
+                  style={{ background: 'none', border: 'none', color: 'var(--whisper-ink-muted)', cursor: 'pointer', fontSize: 13 }}
                   title="无用">👎</button>
               </span>
             )}
@@ -142,7 +142,7 @@ function FactCard({ fact, onDelete, onFeedback, onUpdate }: {
             {/* 编辑 */}
             {onUpdate && !editing && (
               <button onClick={e => { e.stopPropagation(); setEditing(true); setEditText(fact.summary) }}
-                style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 13 }}
+                style={{ background: 'none', border: 'none', color: 'var(--whisper-ink-muted)', cursor: 'pointer', fontSize: 13 }}
                 title="编辑">✏️</button>
             )}
 
@@ -164,7 +164,7 @@ export default function WhisperMemoryTimeline({ facts, onDelete, onFeedback, onU
 
   if (facts.length === 0) {
     return (
-      <div style={{ color: '#777', fontSize: 12, padding: 16, textAlign: 'center' }}>
+      <div style={{ color: 'var(--whisper-ink-muted)', fontSize: 12, padding: 16, textAlign: 'center' }}>
         还没有关于你的记忆 — 多聊聊，我会记住的
       </div>
     )
@@ -174,17 +174,17 @@ export default function WhisperMemoryTimeline({ facts, onDelete, onFeedback, onU
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-        borderBottom: '1px solid rgba(255,255,255,0.08)', fontSize: 12, color: '#999',
+        borderBottom: '1px solid rgba(255,255,255,0.08)', fontSize: 12, color: 'var(--whisper-ink-muted)',
       }}>
         <span>🧠 记忆时间线</span>
-        <span style={{ color: '#666', marginLeft: 'auto' }}>{facts.length} 条</span>
+        <span style={{ color: 'var(--whisper-ink-muted)', marginLeft: 'auto' }}>{facts.length} 条</span>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '6px 10px' }}>
         {Array.from(groups.entries()).map(([date, dateFacts]) => (
           <div key={date} style={{ marginBottom: 10 }}>
             <div style={{
-              color: '#666', fontSize: 10, marginBottom: 4,
-              position: 'sticky', top: 0, background: '#09090b', padding: '2px 0',
+              color: 'var(--whisper-ink-muted)', fontSize: 10, marginBottom: 4,
+              position: 'sticky', top: 0, background: 'var(--whisper-surface)', padding: '2px 0',
             }}>
               {date}
             </div>

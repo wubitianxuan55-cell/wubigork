@@ -51,6 +51,9 @@ func parseEpisodeResult(raw string) *EpisodeExtractionResult {
 			EmotionalIntensity float64  `json:"emotionalIntensity"`
 			DominantEmotion    string   `json:"dominantEmotion"`
 			Keywords           []string `json:"keywords"`
+			KeyQuote           string   `json:"keyQuote"`
+			EmotionKeywords    []string `json:"emotionKeywords"`
+			TimeContext        string   `json:"timeContext"`
 		}
 		if err := json.Unmarshal([]byte(s), &j); err != nil || j.Summary == "" {
 			return nil
@@ -68,11 +71,23 @@ func parseEpisodeResult(raw string) *EpisodeExtractionResult {
 		if len(kw) > 5 {
 			kw = kw[:5]
 		}
+		ek := j.EmotionKeywords
+		if len(ek) > 3 {
+			ek = ek[:3]
+		}
+		// keyQuote 最多 15 字
+		kq := j.KeyQuote
+		if len([]rune(kq)) > 15 {
+			kq = string([]rune(kq)[:15])
+		}
 		return &EpisodeExtractionResult{
 			Summary:            truncateStr(j.Summary, episodeSummaryMaxChars),
 			EmotionalIntensity: ei,
 			DominantEmotion:    de,
 			Keywords:           kw,
+			KeyQuote:           kq,
+			EmotionKeywords:    ek,
+			TimeContext:        j.TimeContext,
 		}
 	}
 
@@ -88,14 +103,18 @@ func parseEpisodeResult(raw string) *EpisodeExtractionResult {
 	return nil
 }
 
-const episodeSystemPrompt = `你是情节摘要提取器。从对话片段中提取一段情节摘要。
+// episodeSystemPrompt 情节记忆摘要系统提示
+// 100% 对齐 ackem prompt/memory-episode.ts
+const episodeSystemPrompt = `你是情节记忆摘要器。将对话片段总结为一条叙事摘要。
 
-输出 JSON：
-{
-  "summary": "用第三人称简述发生了什么（≤200字）",
-  "emotionalIntensity": 0-1之间的数字（情绪强度），
-  "dominantEmotion": "主导情绪标签",
-  "keywords": ["关键词1", "关键词2"]
-}
+── 规则 ──
+- 使用第三人称"用户"和"伴侣"
+- 提炼对话的核心事件和情绪转折
+- keyQuote 必须一字不差地从原文复制，绝对禁止润色或改写，截取最核心的 15 字以内
+- 输出关键情绪词，最多 3 个，按强度排序
+- 标注时间语境（"今天下午""昨天深夜""上周五"）
+- 摘要 ≤200 字
 
-聚焦于：关系转折、重要事件、情绪高峰期、脆弱时刻、重大决定。日常寒暄返回低 intensity。`
+── 输出格式 ──
+严格 JSON：
+{"summary":"用户今天...","emotionalIntensity":0.7,"dominantEmotion":"焦虑","keywords":["工作","压力"],"keyQuote":"用户原话（≤15字）","emotionKeywords":["焦虑","委屈"],"timeContext":"今天下午"}`

@@ -39,6 +39,7 @@ func (wm *WorkingMemory) Push(sessionID string, ex Exchange) {
 	wm.sessions[sessionID] = buf
 }
 
+// GetRecent 返回最近 N 轮对话
 func (wm *WorkingMemory) GetRecent(sessionID string) []Exchange {
 	buf := wm.forSession(sessionID)
 	start := len(buf) - WorkingMemoryMaxExchanges
@@ -46,6 +47,14 @@ func (wm *WorkingMemory) GetRecent(sessionID string) []Exchange {
 		start = 0
 	}
 	return buf[start:]
+}
+
+// GetAll 返回所有对话（用于持久化）
+func (wm *WorkingMemory) GetAll(sessionID string) []Exchange {
+	buf := wm.forSession(sessionID)
+	out := make([]Exchange, len(buf))
+	copy(out, buf)
+	return out
 }
 
 func (wm *WorkingMemory) BuildContextBlock(sessionID string) string {

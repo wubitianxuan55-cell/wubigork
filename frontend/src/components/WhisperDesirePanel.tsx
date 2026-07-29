@@ -44,8 +44,8 @@ function DesireBar({ desire, onDismiss }: { desire: Desire; onDismiss?: (id: str
       fontSize: 12,
     }}>
       <span style={{ width: 20, textAlign: 'center' }}>{emoji}</span>
-      <span style={{ width: 36, color: '#999', fontSize: 11 }}>{label}</span>
-      <span style={{ flex: 1, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ width: 36, color: 'var(--whisper-ink-muted)', fontSize: 11 }}>{label}</span>
+      <span style={{ flex: 1, color: 'var(--whisper-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {desire.topic}
       </span>
       <div style={{
@@ -54,7 +54,7 @@ function DesireBar({ desire, onDismiss }: { desire: Desire; onDismiss?: (id: str
       }}>
         <div style={{
           height: '100%', borderRadius: 3, width: `${pct}%`,
-          background: pct > 70 ? '#f59e0b' : pct > 40 ? '#d97706' : '#52525b',
+          background: pct > 70 ? 'var(--whisper-accent)' : pct > 40 ? 'var(--whisper-accent)' : 'var(--whisper-ink-muted)',
           transition: 'width 0.5s',
         }} />
       </div>
@@ -62,7 +62,7 @@ function DesireBar({ desire, onDismiss }: { desire: Desire; onDismiss?: (id: str
         <button
           onClick={e => { e.stopPropagation(); onDismiss(desire.id) }}
           style={{
-            background: 'none', border: 'none', color: '#666', cursor: 'pointer',
+            background: 'none', border: 'none', color: 'var(--whisper-ink-muted)', cursor: 'pointer',
             fontSize: 14, padding: '0 2px', lineHeight: 1,
           }}
           title="忽略"
@@ -87,16 +87,16 @@ export default function WhisperDesirePanel({ desireStack, reunion, sharedEventsC
           borderRadius: 8, padding: '8px 10px', marginBottom: 10,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-            <span style={{ color: '#fbbf24' }}>🕐</span>
-            <span style={{ color: '#fcd34d', fontWeight: 600 }}>{reunion.timePhrase}没见了</span>
+            <span style={{ color: 'var(--whisper-accent)' }}>🕐</span>
+            <span style={{ color: 'var(--whisper-accent)', fontWeight: 600 }}>{reunion.timePhrase}没见了</span>
           </div>
-          <p style={{ color: '#888', fontSize: 11, margin: '4px 0 0' }}>{reunion.moodPhrase}</p>
+          <p style={{ color: 'var(--whisper-ink-muted)', fontSize: 11, margin: '4px 0 0' }}>{reunion.moodPhrase}</p>
         </div>
       )}
 
       {/* 共享事件计数 */}
       {sharedEventsCount !== undefined && sharedEventsCount > 0 && (
-        <div style={{ color: '#888', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+        <div style={{ color: 'var(--whisper-ink-muted)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
           <span>📝 共同经历 {sharedEventsCount} 件事</span>
         </div>
       )}
@@ -104,7 +104,7 @@ export default function WhisperDesirePanel({ desireStack, reunion, sharedEventsC
       {/* 欲望栈 — 折叠 */}
       <details open={!collapsed} onToggle={e => setCollapsed(!(e.currentTarget as HTMLDetailsElement).open)}>
         <summary style={{
-          cursor: 'pointer', color: '#888', fontSize: 11, display: 'flex',
+          cursor: 'pointer', color: 'var(--whisper-ink-muted)', fontSize: 11, display: 'flex',
           alignItems: 'center', gap: 4, userSelect: 'none', marginBottom: 4,
         }}>
           <span>💭 心里想着 ({activeDesires.length})</span>
@@ -117,7 +117,7 @@ export default function WhisperDesirePanel({ desireStack, reunion, sharedEventsC
             ))}
           </div>
         ) : (
-          <div style={{ color: '#666', fontSize: 11, fontStyle: 'italic', padding: '4px 0' }}>
+          <div style={{ color: 'var(--whisper-ink-muted)', fontSize: 11, fontStyle: 'italic', padding: '4px 0' }}>
             随遇而安
           </div>
         )}
@@ -125,7 +125,7 @@ export default function WhisperDesirePanel({ desireStack, reunion, sharedEventsC
         {/* dormant 欲望 */}
         {dormantDesires.length > 0 && (
           <div style={{ marginTop: 4 }}>
-            <div style={{ color: '#555', fontSize: 10, marginBottom: 2 }}>💤 休眠 ({dormantDesires.length})</div>
+            <div style={{ color: 'var(--whisper-ink-muted)', fontSize: 10, marginBottom: 2 }}>💤 休眠 ({dormantDesires.length})</div>
             {dormantDesires.slice(0, 3).map(d => (
               <DesireBar key={d.id} desire={d} />
             ))}

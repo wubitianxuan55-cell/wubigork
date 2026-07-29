@@ -68,6 +68,9 @@ type App struct {
 
 	// 前端静态资源
 	distFS fs.FS
+
+	// 轻语模块数据根目录（SQLite 持久化）
+	whisperDataRoot string
 }
 
 // emit 统一事件发射 — 发送到 Wails 前端
@@ -81,8 +84,9 @@ func (a *App) emit(eventName string, data map[string]interface{}) {
 func New() *App {
 	cfg := config.Load()
 	return &App{
-		cfg: cfg,
-		eng: prompt.NewEngine(filepath.Join(cfg.ResourceDir, "prompts")),
+		cfg:             cfg,
+		eng:             prompt.NewEngine(filepath.Join(cfg.ResourceDir, "prompts")),
+		whisperDataRoot: filepath.Join(cfg.ResourceDir, "whisper_data"),
 	}
 }
 func (a *App) Startup(ctx context.Context) {

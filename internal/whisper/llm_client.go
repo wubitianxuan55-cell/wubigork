@@ -34,11 +34,15 @@ type ExtractedFact struct {
 // ─── EpisodeExtractionResult ─────────────────────────────────
 
 // EpisodeExtractionResult LLM 情节抽取结果
+// 100% 对齐 ackem prompt/memory-episode.ts
 type EpisodeExtractionResult struct {
 	Summary            string   `json:"summary"`
 	EmotionalIntensity float64  `json:"emotionalIntensity"`
 	DominantEmotion    string   `json:"dominantEmotion"`
 	Keywords           []string `json:"keywords"`
+	KeyQuote           string   `json:"keyQuote,omitempty"`           // 用户原话（≤15字）
+	EmotionKeywords    []string `json:"emotionKeywords,omitempty"`    // 关键情绪词（最多3个）
+	TimeContext        string   `json:"timeContext,omitempty"`        // 时间语境
 }
 
 // ─── ConsolidationResult ─────────────────────────────────────

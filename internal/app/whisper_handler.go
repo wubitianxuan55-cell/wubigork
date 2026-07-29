@@ -2,6 +2,8 @@ package app
 
 import (
 	"github.com/wubigork/wubigork/internal/whisper"
+	"github.com/wubigork/wubigork/internal/whisper/db"
+	"github.com/wubigork/wubigork/internal/whisper/db/repos"
 )
 
 // Chat 实现 whisper.LlmClient 接口（接入 wubigrok 模型中心）
@@ -11,7 +13,7 @@ func (a *App) Chat(systemPrompt, userPrompt string) (string, error) {
 
 var whisperSessions = map[string]*whisper.Orchestrator{}
 
-func getOrCreateOrch(personalityID string) *whisper.Orchestrator {
+func (a *App) getOrCreateOrch(personalityID string) *whisper.Orchestrator {
 	sessionID := "whisper_" + personalityID // 每人格独立会话
 	if orch, ok := whisperSessions[sessionID]; ok {
 		return orch
@@ -25,7 +27,12 @@ func getOrCreateOrch(personalityID string) *whisper.Orchestrator {
 		preset = &whisper.PersonalityPresets[0]
 	}
 	orch := whisper.NewOrchestrator(sessionID, *preset)
+	orch.DataRoot = a.whisperDataRoot
 	whisperSessions[sessionID] = orch
+
+	// 尝试从 DB 恢复状态
+	_ = restoreWhisperState(orch)
+
 	return orch
 }
 
@@ -34,7 +41,7 @@ func (a *App) WhisperGetPersonalities() []whisper.PersonalityPreset {
 }
 
 func (a *App) WhisperChat(userMsg string, personalityID string) (map[string]interface{}, error) {
-	orch := getOrCreateOrch(personalityID)
+	orch := a.getOrCreateOrch(personalityID)
 
 	result := orch.PreLLMTurn(userMsg)
 
@@ -82,6 +89,9 @@ func (a *App) WhisperChat(userMsg string, personalityID string) (map[string]inte
 			EpisodicStore: nil, AdultMode: orch.AdultMode,
 		})
 	}()
+
+	// 异步持久化状态到 SQLite
+	go persistWhisperState(orch)
 
 	return map[string]interface{}{
 		"desireSlots":  buildDesireSlots(orch.State.DesireStack),
@@ -174,4 +184,69 @@ func (a *App) WhisperSetAdultMode(personalityID string, enabled bool) error {
 	}
 	orch.AdultMode = enabled
 	return nil
+}
+
+// ─── DB 持久化辅助函数（v5.41）────────────────────────────────────
+
+// restoreWhisperState 从 SQLite 恢复会话状态
+func restoreWhisperState(orch *whisper.Orchestrator) error {
+	if orch.DataRoot == "" {
+		return nil
+	}
+
+	// 确保 DB 已初始化
+	db.GetDatabase(orch.DataRoot)
+
+	// 恢复同伴状态
+	state, err := repos.LoadCompanionStateFromDB(orch.DataRoot, orch.SessionID)
+	if err != nil || state == nil {
+		return err
+	}
+
+	// 保留当前人格基线
+	personality := orch.State.Personality
+	orch.State = *state
+	orch.State.Personality = personality
+
+	// 恢复聊天历史
+	rows, err := repos.LoadChatHistoryFromDB(orch.DataRoot, orch.SessionID)
+	if err != nil || rows == nil {
+		return err
+	}
+	for _, r := range rows {
+		ti, _ := r["turnIndex"].(float64)
+		ut, _ := r["userText"].(string)
+		at, _ := r["assistantText"].(string)
+		orch.WM.Push(orch.SessionID, whisper.Exchange{
+			TurnIndex:     int(ti),
+			UserText:      ut,
+			AssistantText: at,
+		})
+	}
+
+	return nil
+}
+
+// persistWhisperState 将会话状态写入 SQLite
+func persistWhisperState(orch *whisper.Orchestrator) {
+	if orch.DataRoot == "" {
+		return
+	}
+
+	// 保存同伴状态
+	_ = repos.SaveCompanionStateToDB(orch.DataRoot, orch.SessionID, orch.State)
+
+	// 保存聊天历史
+	exchanges := orch.WM.GetAll(orch.SessionID)
+	if len(exchanges) > 0 {
+		rows := make([]map[string]interface{}, len(exchanges))
+		for i, e := range exchanges {
+			rows[i] = map[string]interface{}{
+				"turnIndex":     e.TurnIndex,
+				"userText":      e.UserText,
+				"assistantText": e.AssistantText,
+			}
+		}
+		_ = repos.SaveChatHistoryToDB(orch.DataRoot, orch.SessionID, rows)
+	}
 }

@@ -42,6 +42,7 @@ type Orchestrator struct {
 	ProceduralHabits *ProceduralHabitStore   // v5.40: 程序化习惯存储
 	EngineID         string
 	AdultMode        bool
+	DataRoot         string // v5.41: SQLite 持久化数据根目录
 	// v5.43: 桌面助手子系统
 	SessionMode      *SessionModeStore       // 桌面助手会话模式
 	ConfirmSvc       *ConfirmService         // 确认服务

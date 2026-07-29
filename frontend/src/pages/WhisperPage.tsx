@@ -19,6 +19,7 @@ import WhisperTracePanel from '../components/WhisperTracePanel'
 import WhisperMemoryTimeline from '../components/WhisperMemoryTimeline'
 import { CompanionAvatar } from '../components/CompanionAvatar'
 import WhisperMemoryPage from '../components/WhisperMemoryPage'
+import '../whisper-theme.css'
 interface Personality {
 
   id: string; label: string; gender: string; tags?: string[]
@@ -232,7 +233,7 @@ const WhisperPage: React.FC = () => {
 
         {/* 人格信息头 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderBottom: `1px solid ${C('color-border')}`, flexShrink: 0, background: C('color-bg-elevated') }}>
-          <CompanionAvatar size={32} state={speakingId ? 'speaking' : emotion ? 'idle' : 'idle'} emotionColor={emoColor} />
+          <CompanionAvatar size={48} state={speakingId ? 'speaking' : loading ? 'thinking' : 'idle'} emotionColor={emoColor} />
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Typography.Text strong style={{ fontSize: 13, color: C('color-text') }}>{companionName}</Typography.Text>
@@ -258,9 +259,8 @@ const WhisperPage: React.FC = () => {
         <div ref={listRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: hasMessages ? '20px 0 150px' : '0' }}>
           {!hasMessages ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: 32 }}>
-              <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg, #e85388, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, boxShadow: '0 8px 32px rgba(232,83,136,0.3)' }}>
-                <HeartOutlined style={{ fontSize: 32, color: '#fff' }} />
-              </div>
+              <CompanionAvatar size={120} state="idle" emotionColor={emoColor} />
+              <div style={{ height: 16 }} />
               <Typography.Text style={{ color: C('color-text'), fontSize: 20, fontWeight: 700, marginBottom: 4 }}>轻语</Typography.Text>
               <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13, marginBottom: 20 }}>选择一位AI伴侣，开始对话 💫</Typography.Text>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, maxWidth: 460, width: '100%', marginBottom: 20 }}>
@@ -277,29 +277,40 @@ const WhisperPage: React.FC = () => {
                 style={{ borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13, background: 'linear-gradient(135deg, #e85388, #a855f7)', border: 'none' }}>选择伴侣人格</Button>
             </div>
           ) : (
-            <div style={{ maxWidth: 660, margin: '0 auto', padding: '0 16px' }}>
+            <div style={{ maxWidth: 'var(--whisper-chat-max-width)', margin: '0 auto', padding: '0 16px' }}>
               {messages.map(msg => {
                 const isUser = msg.role === 'user'; const isStreaming = msg.streaming && msg === streamingMsg; const displayContent = isStreaming ? streamText : msg.content
                 return (
-                  <div key={msg.id} style={{ display: 'flex', gap: 10, marginBottom: 20, flexDirection: isUser ? 'row-reverse' : 'row' }}>
-                    <Avatar size={28} icon={isUser ? <UserOutlined /> : <HeartOutlined />} style={{ background: isUser ? C('color-primary') : 'linear-gradient(135deg, #e85388, #a855f7)', color: '#fff', flexShrink: 0 }} />
-                    <div style={{ flex: isUser ? undefined : 1, maxWidth: isUser ? '70%' : '100%' }}>
-                      <div style={{ color: C('color-text'), lineHeight: 1.7, fontSize: 13, wordBreak: 'break-word', padding: isUser ? '7px 14px' : '0', borderRadius: isUser ? 16 : 0, background: isUser ? `${C('color-primary')}10` : 'transparent' }}>
-                        {isUser ? displayContent : <MarkdownContent source={displayContent} className="md-content" />}
-                        {isStreaming && <span className="cursor-blink" />}
+                  <div key={msg.id} className={isUser ? 'whisper-msg-user' : `whisper-msg-her${isStreaming ? ' streaming' : ''}`}>
+                    {!isUser && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                        <div className={`whisper-light-core${(trust || 0) > 70 ? ' double-pulse' : ''}`} />
+                        <span style={{ fontSize: 11, color: 'var(--whisper-ink-muted)', fontWeight: 500 }}>
+                          {currentPersonality?.label || '伴侣'}
+                        </span>
                       </div>
-                      {msg.content && !msg.streaming && (
-                        <div style={{ display: 'flex', gap: 2, marginTop: 3 }}>
-                          <Tooltip title={copiedId === msg.id ? '已复制' : '复制'}><Button type="text" size="small" icon={copiedId === msg.id ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />} onClick={() => handleCopy(msg.content, msg.id)} style={{ color: C('color-text-secondary'), opacity: 0.4, fontSize: 11, padding: '0 4px', height: 20 }} /></Tooltip>
-                          {!isUser && <Tooltip title={speakingId === msg.id ? '朗读中…' : '朗读'}><Button type="text" size="small" icon={<SoundOutlined />} loading={speakingId === msg.id} onClick={() => handleSpeak(msg.content, msg.id)} style={{ color: C('color-text-secondary'), opacity: 0.4, fontSize: 11, padding: '0 4px', height: 20 }} /></Tooltip>}
-                        </div>
-                      )}
+                    )}
+                    <div style={{ color: isUser ? 'var(--whisper-ink-muted)' : 'var(--whisper-ink)', lineHeight: 1.75, fontSize: 13, wordBreak: 'break-word' }}>
+                      {isUser ? displayContent : <MarkdownContent source={displayContent} className="md-content" />}
+                      {isStreaming && <span className="cursor-blink" />}
                     </div>
+                    {msg.content && !msg.streaming && (
+                      <div style={{ display: 'flex', gap: 2, marginTop: 3 }}>
+                        <Tooltip title={copiedId === msg.id ? '已复制' : '复制'}><Button type="text" size="small" icon={copiedId === msg.id ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />} onClick={() => handleCopy(msg.content, msg.id)} style={{ color: 'var(--whisper-ink-muted)', opacity: 0.4, fontSize: 11, padding: '0 4px', height: 20 }} /></Tooltip>
+                        {!isUser && <Tooltip title={speakingId === msg.id ? '朗读中…' : '朗读'}><Button type="text" size="small" icon={<SoundOutlined />} loading={speakingId === msg.id} onClick={() => handleSpeak(msg.content, msg.id)} style={{ color: 'var(--whisper-ink-muted)', opacity: 0.4, fontSize: 11, padding: '0 4px', height: 20 }} /></Tooltip>}
+                      </div>
+                    )}
                   </div>
                 )
               })}
               {loading && !streamText && !streamingMsg && (
-                <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}><Avatar size={28} icon={<HeartOutlined />} style={{ background: 'linear-gradient(135deg, #e85388, #a855f7)', color: '#fff' }} /><div style={{ padding: '6px 0' }}><span className="typing-dots"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span></div></div>
+                <div className="whisper-msg-her">
+                  <div className="whisper-typing-indicator">
+                    <span className="whisper-typing-dot" />
+                    <span className="whisper-typing-dot" />
+                    <span className="whisper-typing-dot" />
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -314,13 +325,13 @@ const WhisperPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 右侧侧边栏 — 情感/渴望/追踪/记忆 */}
-      <aside style={{
-          width: 260, minWidth: 260, borderLeft: `1px solid ${C('color-border')}`,
-          background: C('color-bg-elevated'), overflow: 'hidden', flexShrink: 0,
+      {/* 右侧侧边栏 — 情感/渴望/追踪/记忆 — 毛玻璃风格 */}
+      <aside className="whisper-glass" style={{
+          width: 280, minWidth: 280,
+          overflow: 'hidden', flexShrink: 0,
           display: 'flex', flexDirection: 'column',
+          borderLeft: '1px solid var(--whisper-glass-border)',
         }}>
-          <div style={{ flex: 1, overflow: 'auto' }}>
             <WhisperEmotionPanel
               emotion={emotion} stage={stage} trust={trust} rifts={rifts}
               aff={aff} sec={sec} aro={aro} dom={dom}
@@ -353,7 +364,6 @@ const WhisperPage: React.FC = () => {
             {showMemory && !showTrace && (
               <WhisperMemoryTimeline facts={facts} />
             )}
-          </div>
         </aside>
 
       {/* 伴侣设置弹窗 */}
