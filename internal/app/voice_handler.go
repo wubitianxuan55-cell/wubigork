@@ -1,0 +1,360 @@
+// Package app — 语音 API 端点（Wails 绑定）
+//
+// 对齐 Ackem 的 voiceManager.ts IPC 通道：
+//   - VoiceStart / VoiceStop → 启停语音管道
+//   - VoicePushAudio → 推送麦克风 PCM 块
+//   - VoiceSetMode / VoiceApplySettings → 配置管理
+//   - VoiceCancelTTS → 打断
+//   - VoiceSetPTTActive → 按键说话
+//   - VoiceHealth → 健康检查
+package app
+
+import (
+	"encoding/base64"
+	"fmt"
+	"log/slog"
+
+	"github.com/wubigork/wubigork/internal/asr"
+	"github.com/wubigork/wubigork/internal/tts"
+	"github.com/wubigork/wubigork/internal/voice"
+)
+
+// ── 语音事件名称常量（对齐 Ackem IPC channel 命名） ──
+
+const (
+	VoiceEventState      = "voice:state"
+	VoiceEventTranscript = "voice:transcript"
+	VoiceEventTTSAudio   = "voice:tts-audio"
+	VoiceEventTTSSpeak   = "voice:tts-speak-text"
+	VoiceEventTTSCancel  = "voice:tts-speak-cancel"
+	VoiceEventListening  = "voice:listening"
+	VoiceEventThinking   = "voice:thinking"
+)
+
+// ── App 事件发射器适配 ──
+
+// voiceEmitter 实现 voice.EventEmitter，将语音事件桥接到 Wails 前端
+type voiceEmitter struct {
+	app *App
+}
+
+func (e *voiceEmitter) EmitVoiceState(state voice.VoiceState) {
+	e.app.emit(VoiceEventState, map[string]interface{}{"state": string(state)})
+}
+
+func (e *voiceEmitter) EmitVoiceTranscript(text string, isFinal bool) {
+	e.app.emit(VoiceEventTranscript, map[string]interface{}{"text": text, "isFinal": isFinal})
+}
+
+func (e *voiceEmitter) EmitVoiceReply(text string) {
+	e.app.emit("voice:reply", map[string]interface{}{"text": text})
+}
+
+func (e *voiceEmitter) EmitVoiceTTSAudio(audio []byte, mimeType string) {
+	e.app.emit(VoiceEventTTSAudio, map[string]interface{}{"audio": audio, "mimeType": mimeType})
+}
+
+func (e *voiceEmitter) EmitVoiceTTSSpeakText(text string) {
+	e.app.emit(VoiceEventTTSSpeak, map[string]interface{}{"text": text})
+}
+
+func (e *voiceEmitter) EmitVoiceTTSCancel() {
+	e.app.emit(VoiceEventTTSCancel, map[string]interface{}{})
+}
+
+func (e *voiceEmitter) EmitVoiceListening(active bool) {
+	e.app.emit(VoiceEventListening, map[string]interface{}{"active": active})
+}
+
+func (e *voiceEmitter) EmitVoiceThinking(active bool) {
+	e.app.emit(VoiceEventThinking, map[string]interface{}{"active": active})
+}
+
+func (e *voiceEmitter) EmitVoiceError(err error) {
+	e.app.emit("voice:error", map[string]interface{}{"error": err.Error()})
+}
+
+// ── 初始化 ──
+
+// initVoice 初始化语音管理器（在 Startup 中调用）
+func (a *App) initVoice() {
+	config := voice.DefaultVoiceConfig()
+	emitter := &voiceEmitter{app: a}
+	a.voiceManager = voice.NewManager(emitter, config)
+
+	// 设置 ASR 客户端（如果 Herdsman 可用）
+	a.trySetASRClient()
+
+	// 设置 whisper 对话回调（复用现有 WhisperChat）
+	a.voiceManager.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
+		result, err := a.WhisperChat(userMsg, personalityID)
+		if err != nil {
+			return "", "", err
+		}
+		reply, _ := result["reply"].(string)
+		emotion, _ := result["emotion"].(string)
+		if emotion == "" {
+			emotion = "CALM_RATIONAL"
+		}
+		return reply, emotion, nil
+	})
+
+	// 设置 TTS 合成回调（复用现有 TTSSpeakBase64）
+	a.voiceManager.SetTTSSynthesizeFn(func(text, voiceDescription string) ([]byte, string, error) {
+		return a.synthesizeVoiceTTS(text, voiceDescription)
+	})
+
+	slog.Info("语音管理器已初始化")
+}
+
+// trySetASRClient 尝试为语音管理器设置 ASR 客户端
+func (a *App) trySetASRClient() {
+	if a.engineMgr == nil {
+		return
+	}
+	eng, ok := a.engineMgr.GetEngine("herdsman")
+	if !ok || !eng.Enabled {
+		return
+	}
+	a.voiceManager.SetASRClient(asr.NewHerdsmanASR(eng.BaseURL, "whisper-base"))
+	slog.Info("ASR 客户端已配置", "baseURL", eng.BaseURL)
+}
+
+// synthesizeVoiceTTS 语音管道专用的 TTS 合成（带情感参数）
+func (a *App) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, string, error) {
+	// 如果有 voiceDescription 且 Herdsman qwen3-tts-voicedesign 可用，优先使用
+	if voiceDescription != "" && a.engineMgr != nil {
+		if eng, ok := a.engineMgr.GetEngine("herdsman"); ok && eng.Enabled {
+			htts := tts.NewHerdsmanTTSWithDesc(eng.BaseURL, "qwen3-tts-voicedesign", voiceDescription)
+			if audio, err := htts.Synthesize(text); err == nil && len(audio) > 0 {
+				return audio, "audio/mp3", nil
+			}
+			slog.Debug("voicedesign TTS 失败，回退常规 TTS")
+		}
+	// 回退到标准 TTSSpeakBase64
+	result, err := a.TTSSpeakBase64(text)
+	if err != nil {
+		return nil, "", err
+	}
+	b64, _ := result["base64"].(string)
+	mime, _ := result["mimeType"].(string)
+	if b64 == "" {
+		return nil, "", fmt.Errorf("TTS 返回空音频")
+	}
+	if mime == "" {
+		mime = "audio/mp3"
+	}
+	audio, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, "", fmt.Errorf("TTS base64 解码失败: %w", err)
+	}
+	return audio, mime, nil
+}
+	return nil, "", fmt.Errorf("使用流式 TTS 路径")
+}
+
+// ── Wails API 端点 ──
+
+// VoiceStart 启动语音管道
+func (a *App) VoiceStart() error {
+	if a.voiceManager == nil {
+		a.initVoice()
+	}
+	return a.voiceManager.Start()
+}
+
+// VoiceStop 停止语音管道
+func (a *App) VoiceStop() error {
+	if a.voiceManager == nil {
+		return nil
+	}
+	a.voiceManager.Stop()
+	return nil
+}
+
+// VoicePushAudio 推送麦克风 PCM 音频块（16kHz/16bit/mono）
+// 对齐 Ackem voice:audio-chunk IPC
+func (a *App) VoicePushAudio(chunk []byte) error {
+	if a.voiceManager == nil {
+		return fmt.Errorf("语音管理器未初始化")
+	}
+	return a.voiceManager.PushAudioChunk(chunk)
+}
+
+// VoiceSetMode 设置语音输入模式
+// mode: "vad" | "ptt" | "off"
+func (a *App) VoiceSetMode(mode string) error {
+	if a.voiceManager == nil {
+		a.initVoice()
+	}
+	config := a.voiceManager.GetConfig()
+	switch mode {
+	case "vad":
+		config.VoiceMode = voice.VoiceModeVAD
+	case "ptt":
+		config.VoiceMode = voice.VoiceModePTT
+	case "off":
+		config.VoiceMode = voice.VoiceModeOff
+	default:
+		return fmt.Errorf("未知模式: %s", mode)
+	}
+	a.voiceManager.ApplyConfig(config)
+	return nil
+}
+
+// VoiceSetInputChannel 设置输入通道
+// channel: "dual" | "voice-only" | "text-only"
+func (a *App) VoiceSetInputChannel(channel string) error {
+	if a.voiceManager == nil {
+		a.initVoice()
+	}
+	config := a.voiceManager.GetConfig()
+	switch channel {
+	case "dual":
+		config.InputChannel = voice.InputDual
+	case "voice-only":
+		config.InputChannel = voice.InputVoiceOnly
+	case "text-only":
+		config.InputChannel = voice.InputTextOnly
+	default:
+		return fmt.Errorf("未知通道: %s", channel)
+	}
+	a.voiceManager.ApplyConfig(config)
+	return nil
+}
+
+// VoiceApplySettings 应用语音设置（对齐 Ackem voice:apply-settings）
+func (a *App) VoiceApplySettings(settings map[string]interface{}) error {
+	if a.voiceManager == nil {
+		a.initVoice()
+	}
+	config := a.voiceManager.GetConfig()
+
+	if v, ok := settings["enabled"].(bool); ok {
+		config.Enabled = v
+	}
+	if v, ok := settings["ttsEnabled"].(bool); ok {
+		config.TTSEnabled = v
+	}
+	if v, ok := settings["voiceMode"].(string); ok {
+		config.VoiceMode = voice.VoiceMode(v)
+	}
+	if v, ok := settings["inputChannel"].(string); ok {
+		config.InputChannel = voice.InputChannel(v)
+	}
+	if v, ok := settings["ttsVoice"].(string); ok {
+		config.TTSVoice = v
+	}
+	if v, ok := settings["ttsEngine"].(string); ok {
+		config.TTSEngine = voice.TTSEngine(v)
+	}
+	if v, ok := settings["asrModel"].(string); ok {
+		config.ASRModel = voice.ASRModel(v)
+		// 动态切换 ASR 模型
+		if a.voiceManager != nil {
+			eng, engOk := a.engineMgr.GetEngine("herdsman")
+			if engOk && eng.Enabled {
+				a.voiceManager.SetASRClient(asr.NewHerdsmanASR(eng.BaseURL, v))
+			}
+		}
+	}
+	if v, ok := settings["interruptThresholdMs"].(float64); ok {
+		config.InterruptThresholdMs = int(v)
+	}
+	if v, ok := settings["silenceThresholdMs"].(float64); ok {
+		config.SilenceThresholdMs = int(v)
+	}
+	if v, ok := settings["personalityPresetId"].(string); ok {
+		config.PersonalityPresetID = v
+	}
+
+	a.voiceManager.ApplyConfig(config)
+	return nil
+}
+
+// VoiceGetSettings 获取当前语音设置
+func (a *App) VoiceGetSettings() map[string]interface{} {
+	if a.voiceManager == nil {
+		config := voice.DefaultVoiceConfig()
+		return configToMap(&config)
+	}
+	config := a.voiceManager.GetConfig()
+	return configToMap(&config)
+}
+
+// VoiceCancelTTS 打断当前 TTS 播放（对齐 Ackem voice:cancel-tts）
+func (a *App) VoiceCancelTTS() error {
+	if a.voiceManager == nil {
+		return nil
+	}
+	a.voiceManager.CancelTTS()
+	return nil
+}
+
+// VoiceSetPTTActive PTT 按键按下/释放（对齐 Ackem voice:ptt-active）
+func (a *App) VoiceSetPTTActive(active bool) error {
+	if a.voiceManager == nil {
+		return fmt.Errorf("语音管理器未初始化")
+	}
+	a.voiceManager.SetPTTActive(active)
+	return nil
+}
+
+// VoiceHealth 健康检查（对齐 Ackem voice:health）
+func (a *App) VoiceHealth() map[string]interface{} {
+	if a.voiceManager == nil {
+		return map[string]interface{}{
+			"asrReady": false,
+			"ttsReady": false,
+			"state":    "idle",
+		}
+	}
+	return a.voiceManager.HealthCheck()
+}
+
+// VoiceRestartService 重启语音服务（重新检测 ASR/TTS 可用性）
+func (a *App) VoiceRestartService() error {
+	if a.voiceManager != nil {
+		a.voiceManager.Stop()
+	}
+	a.initVoice()
+	return nil
+}
+
+// VoiceGetState 获取当前语音状态
+func (a *App) VoiceGetState() map[string]interface{} {
+	if a.voiceManager == nil {
+		return map[string]interface{}{
+			"active":    false,
+			"listening": false,
+			"speaking":  false,
+			"thinking":  false,
+		}
+	}
+	s := a.voiceManager.GetState()
+	return map[string]interface{}{
+		"active":    s != voice.StateIdle,
+		"listening": s == voice.StateListening,
+		"speaking":  s == voice.StateSpeaking,
+		"thinking":  s == voice.StateThinking,
+		"state":     string(s),
+	}
+}
+
+// ── 工具函数 ──
+
+func configToMap(c *voice.VoiceRuntimeConfig) map[string]interface{} {
+	return map[string]interface{}{
+		"enabled":              c.Enabled,
+		"ttsEnabled":           c.TTSEnabled,
+		"asrModel":             string(c.ASRModel),
+		"ttsEngine":            string(c.TTSEngine),
+		"ttsVoice":             c.TTSVoice,
+		"ttsHerdsmanModel":     c.TTSHerdsmanModel,
+		"voiceMode":            string(c.VoiceMode),
+		"interruptThresholdMs": c.InterruptThresholdMs,
+		"silenceThresholdMs":   c.SilenceThresholdMs,
+		"inputChannel":         string(c.InputChannel),
+		"personalityPresetId":  c.PersonalityPresetID,
+	}
+}
