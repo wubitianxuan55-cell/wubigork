@@ -318,6 +318,41 @@ func (fs *FactStore) DedupByEmbedding(embedding []float64) bool {
 	return false
 }
 
+
+// CountSharedBondFacts 统计共享羁绊事实数
+func (fs *FactStore) CountSharedBondFacts() int {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+	n := 0
+	for _, f := range fs.facts {
+		if f.IsActive() && (f.Domain == "SOCIAL" || f.Subcategory == "OUR_BOND") {
+			n++
+		}
+	}
+	return n
+}
+
+// ComputeMemoirTrust 从记忆中计算 memoir 信任值
+func (fs *FactStore) ComputeMemoirTrust() float64 {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+	var total float64
+	n := 0
+	for _, f := range fs.facts {
+		if f.IsActive() {
+			total += f.Weight * f.Confidence
+			n++
+		}
+	}
+	if n == 0 {
+		return 0
+	}
+	avg := total / float64(n)
+	if avg > 1 {
+		avg = 1
+	}
+	return avg
+}
 // ─── 更新与退役 ──────────────────────────────────────────────
 
 // RetireFact 退役指定事实
