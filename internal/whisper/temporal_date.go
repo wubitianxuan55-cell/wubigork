@@ -28,7 +28,7 @@ type TemporalSignal struct {
 
 // ─── 检测 ──────────────────────────────────────────────────────
 
-// DetectSpecialDates 检测特殊日期
+// DetectSpecialDates 检测特殊日期（v5.42增强：周年窗口+时间深度）
 func DetectSpecialDates(
 	now time.Time,
 	firstMetDate *time.Time,
@@ -59,6 +59,26 @@ func DetectSpecialDates(
 				DateLabel: now.Format("1月2日"),
 			})
 		}
+
+		// v5.42: 周年窗口检测（±15天）
+		firstMetStr := firstMetDate.Format("2006-01-02")
+		if IsAnniversaryWindowActive(firstMetStr, now) {
+			td := ComputeTimeDepth(firstMetStr, now)
+			if td != nil && td.IsExactYear && td.YearsSince >= 1 {
+				label := "相识" + itoa(td.YearsSince) + "周年"
+				signal.SpecialDates = append(signal.SpecialDates, SpecialDate{
+					Label:     label,
+					Priority:  "high",
+					DateLabel: now.Format("1月2日"),
+				})
+				if signal.TemporalHint == nil {
+					signal.TemporalHint = &struct {
+						DateLabel string
+						Priority  string
+					}{DateLabel: label, Priority: "high"}
+				}
+			}
+		}
 	}
 
 	// AI 生日
@@ -77,7 +97,8 @@ func DetectSpecialDates(
 	return signal
 }
 
-// DetectFastSpecialDateType 快速检测特殊日期类型（无需复杂逻辑）
+// DetectFastSpecialDateType 快速检测特殊日期类型
+// v5.42增强：返回更丰富的类型（对齐ackem: ackem_birthday/first_met_anniversary/birthday/holiday）
 func DetectFastSpecialDateType(now time.Time, firstMetDate *time.Time) string {
 	if firstMetDate == nil {
 		return ""
@@ -86,6 +107,13 @@ func DetectFastSpecialDateType(now time.Time, firstMetDate *time.Time) string {
 	if days > 0 && days%100 == 0 {
 		return "centennial"
 	}
+
+	// v5.42: 周年窗口
+	firstMetStr := firstMetDate.Format("2006-01-02")
+	if IsAnniversaryWindowActive(firstMetStr, now) {
+		return "first_met_anniversary"
+	}
+
 	if now.Day() == firstMetDate.Day() {
 		return "monthly"
 	}

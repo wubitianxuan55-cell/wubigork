@@ -5,7 +5,6 @@
 package whisper
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -85,25 +84,4 @@ func ComputeWeekdayMoodBias(weekday int) float64 {
 	}
 }
 
-// ─── FormatTimeContextBlock ───────────────────────────────────
-
-// FormatTimeContextBlock 格式化时间上下文文本（供 Orchestrator 使用）
-func FormatTimeContextBlock() string {
-	now := time.Now()
-	wd := []string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"}[now.Weekday()]
-	h := now.Hour()
-	p := "上午"
-	switch {
-	case h >= 23 || h < 5:
-		p = "深夜"
-	case h >= 5 && h < 12:
-		p = "上午"
-	case h >= 12 && h < 14:
-		p = "中午"
-	case h >= 14 && h < 18:
-		p = "下午"
-	case h >= 18 && h < 23:
-		p = "晚上"
-	}
-	return fmt.Sprintf("【系统时钟 · 本地】%s %s %s。", now.Format("2006年1月2日"), wd, p)
-}
+// FormatTimeContextBlock 已迁移至 context_time.go，使用 FormatTimeContextBlockNow()

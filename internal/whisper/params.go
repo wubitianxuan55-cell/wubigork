@@ -250,3 +250,29 @@ const (
 	MaxShortTermPerDay      = 3
 	LongTermConfidenceIncrement = 0.1
 )
+// ─── 记忆自编辑参数 ────────────────────────────────────────────
+
+// ─── 记忆自编辑参数 ────────────────────────────────────────────
+
+const (
+	SelfEditReinforceWeightBoost = 0.3
+	SelfEditLogMax               = 200
+	SelfEditLogKeep              = 100
+)
+
+// ─── 关联冷启动参数 ────────────────────────────────────────────
+
+const (
+	ColdStartEdgeStrength    = 0.35
+	ColdStartMinCosine       = 0.65
+	ColdStartMaxOrphans      = 50
+	ColdStartMaxPairsPerFact = 3
+	ColdStartTextMinOverlap  = 2
+)
+
+// ─── 程序化习惯参数 ────────────────────────────────────────────
+
+const (
+	HabitMinOccurrences = 3
+	HabitKeyMaxLen      = 48
+)

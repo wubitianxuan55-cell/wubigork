@@ -68,7 +68,7 @@ func (ai *AssociationIndex) StrengthenOrCreate(factIDA, factIDB, assocType strin
 	for _, idx := range ai.byFactID[factIDA] {
 		existing := &ai.assocs[idx]
 		if existing.FactIDB == factIDB || existing.FactIDA == factIDB {
-			existing.Strength = clampF(existing.Strength+strength, 0, 1)
+		existing.Strength = clampF(1-(1-existing.Strength)*0.95, 0, 1)
 			existing.LastActivatedAt = time.Now().UnixMilli()
 			return
 		}
@@ -114,3 +114,32 @@ func (ai *AssociationIndex) Weaken(assocID string, factor float64) {
 }
 
 // DecayEdges 衰减低于阈值的关联边
+
+// WeakenByFactID 按事实ID削弱所有关联（对齐 ackem weakenByFactId）
+func (ai *AssociationIndex) WeakenByFactID(factID string, factor float64) {
+	for _, idx := range ai.byFactID[factID] {
+		ai.assocs[idx].Strength = clampF(ai.assocs[idx].Strength*factor, 0, 1)
+	}
+}
+
+// ListAll 返回所有关联（对齐 ackem listAll）
+func (ai *AssociationIndex) ListAll() []Association {
+	result := make([]Association, len(ai.assocs))
+	copy(result, ai.assocs)
+	return result
+}
+
+// GetByID 按ID获取关联（对齐 ackem getById）
+func (ai *AssociationIndex) GetByID(id string) *Association {
+	for i := range ai.assocs {
+		if ai.assocs[i].ID == id {
+			return &ai.assocs[i]
+		}
+	}
+	return nil
+}
+
+// Count 返回关联总数
+func (ai *AssociationIndex) Count() int {
+	return len(ai.assocs)
+}

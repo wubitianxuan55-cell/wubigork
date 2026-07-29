@@ -431,6 +431,16 @@ type MemoryFact struct {
 	UpdateTrail      []string          `json:"updateTrail,omitempty"`      // 合并时间轨迹
 	DerivedFrom      []string          `json:"derivedFrom,omitempty"`      // consolidated 溯源 ID
 	FactLayer        string            `json:"factLayer,omitempty"`        // raw/consolidated
+	AgeMeta          *AgeMeta          `json:"ageMeta,omitempty"`          // 年龄元数据
+}
+
+// AgeMeta 年龄元数据（对齐 ackem types AgeMeta）
+type AgeMeta struct {
+	Age          int    `json:"age"`
+	BirthdayMMDD string `json:"birthdayMMDD,omitempty"`
+	BirthYear    int    `json:"birthYear,omitempty"`
+	RecordedAt   string `json:"recordedAt,omitempty"`
+	IsEstimate   bool   `json:"isEstimate"`
 }
 
 // Episode 情节记忆片段
@@ -516,4 +526,112 @@ type RetrievalResult struct {
 	MemoirTrust            *float64
 	SharedCount            int
 	ActivatedAssocIDs      []string
+}
+
+// ─── v5.41: Context 系统类型 ─────────────────────────────────
+
+// UserEngagementLevel 用户参与度级别
+type UserEngagementLevel string
+
+const (
+	EngagementActiveNow     UserEngagementLevel = "active_now"
+	EngagementRecentlyActive UserEngagementLevel = "recently_active"
+	EngagementIdle          UserEngagementLevel = "idle"
+	EngagementLikelyAway    UserEngagementLevel = "likely_away"
+)
+
+// CompanionPresenceMode 陪伴在场模式
+type CompanionPresenceMode string
+
+const (
+	CompanionActive  CompanionPresenceMode = "active"
+	CompanionQuiet   CompanionPresenceMode = "quiet"
+	CompanionSleeping CompanionPresenceMode = "sleeping"
+)
+
+// UserRuntimeContext 用户运行时上下文
+type UserRuntimeContext struct {
+	LastActiveAt         string            `json:"lastActiveAt"`
+	MinutesSinceLastChat int               `json:"minutesSinceLastChat"`
+	Engagement           UserEngagementLevel `json:"engagement"`
+	RecentUserSnippets   []string          `json:"recentUserSnippets"`
+}
+
+// CompanionRuntimeContext 陪伴运行时上下文
+type CompanionRuntimeContext struct {
+	Mode              CompanionPresenceMode `json:"mode"`
+	IdleDurationMs    int64                 `json:"idleDurationMs"`
+	LastInteractionMs int64                 `json:"lastInteractionMs"`
+}
+
+// TimeRuntimeContext 本地时钟与时段
+type TimeRuntimeContext struct {
+	LocalDate string `json:"localDate"`
+	LocalTime string `json:"localTime"`
+	TimeOfDay string `json:"timeOfDay"`
+	Hour      int    `json:"hour"`
+	Minute    int    `json:"minute"`
+	IsWeekend bool   `json:"isWeekend"`
+}
+
+// UserActivityCategory 生活场景大类
+type UserActivityCategory string
+
+const (
+	ActivityRest          UserActivityCategory = "rest"
+	ActivityWork          UserActivityCategory = "work"
+	ActivityStudy         UserActivityCategory = "study"
+	ActivityTravel        UserActivityCategory = "travel"
+	ActivitySocial        UserActivityCategory = "social"
+	ActivityEntertainment UserActivityCategory = "entertainment"
+	ActivityDaily         UserActivityCategory = "daily"
+	ActivityHealth        UserActivityCategory = "health"
+	ActivityUnknown       UserActivityCategory = "unknown"
+)
+
+// ActivityTense 场景时态
+type ActivityTense string
+
+const (
+	TenseFuture  ActivityTense = "future"
+	TensePresent ActivityTense = "present"
+	TensePast    ActivityTense = "past"
+)
+
+// UserActivityContext 用户生活场景推断
+type UserActivityContext struct {
+	Category   UserActivityCategory `json:"category"`
+	Tense      ActivityTense        `json:"tense"`
+	Label      string               `json:"label"`
+	Confidence float64              `json:"confidence"`
+	Source     []string             `json:"source"`
+}
+
+// ForegroundScene 前台窗口场景
+type ForegroundScene string
+
+const (
+	SceneMeeting      ForegroundScene = "meeting"
+	ScenePresentation ForegroundScene = "presentation"
+	SceneFocus        ForegroundScene = "focus"
+	SceneOther        ForegroundScene = "other"
+)
+
+// ForegroundSnapshot 前台窗口快照
+type ForegroundSnapshot struct {
+	Enabled              bool            `json:"enabled"`
+	Title                string          `json:"title"`
+	Scene                ForegroundScene `json:"scene"`
+	ShouldSuppressHealth bool            `json:"shouldSuppressHealth"`
+	UpdatedAt            int64           `json:"updatedAt"`
+}
+
+// RuntimeContext 统一运行时上下文
+type RuntimeContext struct {
+	CapturedAt string                  `json:"capturedAt"`
+	SessionID  string                  `json:"sessionId"`
+	User       UserRuntimeContext      `json:"user"`
+	Companion  CompanionRuntimeContext `json:"companion"`
+	Time       TimeRuntimeContext      `json:"time"`
+	Activity   UserActivityContext     `json:"activity"`
 }

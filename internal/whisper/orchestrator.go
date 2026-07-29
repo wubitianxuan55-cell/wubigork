@@ -3,6 +3,7 @@ package whisper
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -35,9 +36,16 @@ type Orchestrator struct {
 	KG        *KnowledgeGraph
 	WM        *WorkingMemory
 	Recall    *ActiveRecall
-	AssocIndex *AssociationIndex // P2: 关联索引（供 post-turn 纠正）
-	EngineID  string
-	AdultMode bool
+	AssocIndex       *AssociationIndex       // P2: 关联索引（供 post-turn 纠正）
+	HabitsStore      *HabitsStore            // P2: 习惯存储（供 DnD/健康检测写入）
+	SelfEditor       *MemorySelfEditor       // v5.40: 记忆自编辑器
+	ProceduralHabits *ProceduralHabitStore   // v5.40: 程序化习惯存储
+	EngineID         string
+	AdultMode        bool
+	// v5.43: 桌面助手子系统
+	SessionMode      *SessionModeStore       // 桌面助手会话模式
+	ConfirmSvc       *ConfirmService         // 确认服务
+	DeliveryCoord    *DeliveryCoordinator    // 消息分发协调
 	// 情绪涌现追踪（每会话独立）
 	recentEventTypes           []string
 	consecutiveMeaningfulCount int
@@ -60,17 +68,23 @@ const (
 func NewOrchestrator(sessionID string, preset PersonalityPreset) *Orchestrator {
 	personality := DefaultPersonalitySlice(preset.ID)
 	return &Orchestrator{
-		State:       DefaultFullState(personality),
-		SessionID:   sessionID,
-		Preset:      preset,
-		FactStore:   NewFactStore(),
-		KG:          NewKnowledgeGraph(),
-		WM:          NewWorkingMemory(),
-		Recall:      NewActiveRecall(),
-		adultBudget: intensityBudgetMax,
+		State:            DefaultFullState(personality),
+		SessionID:        sessionID,
+		Preset:           preset,
+		FactStore:        NewFactStore(),
+		KG:               NewKnowledgeGraph(),
+		WM:               NewWorkingMemory(),
+		Recall:           NewActiveRecall(),
+		AssocIndex:       NewAssociationIndex(),
+		HabitsStore:      NewHabitsStore(),
+		SelfEditor:       NewMemorySelfEditor(),
+		ProceduralHabits: NewProceduralHabitStore(),
+		SessionMode:      NewSessionModeStore(),
+		ConfirmSvc:       NewConfirmService(),
+		DeliveryCoord:    NewDeliveryCoordinator(),
+		adultBudget:      intensityBudgetMax,
 	}
 }
-
 // ─── PreLLMTurn ───────────────────────────────────────────────
 
 func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
@@ -127,12 +141,27 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	if event.IsExtremeRedline {
 		return o.redlineResult(now, event, turnIndex)
 	}
-
-	// ═══ DnD 检测（P1: 结构化返回，可用于习惯创建）═══
 	dndResult := IsDNDMessage(userMsg)
 	if dndResult.Detected {
-		// TODO: P1-3 将 DnD 结果写入 HabitsStore
-		_ = dndResult
+		now := time.Now()
+		weekday := int(now.Weekday())
+		var expiresAt int64
+		if dndResult.Hours > 0 {
+			expiresAt = now.Add(time.Duration(dndResult.Hours) * time.Hour).UnixMilli()
+		}
+		o.HabitsStore.Upsert(UserHabit{
+			Type:            "dnd",
+			Scope:           "short_term",
+			Weekday:         &weekday,
+			HourStart:       now.Hour(),
+			HourEnd:         now.Hour() + dndResult.Hours,
+			Confidence:      0.7,
+			OccurrenceCount: 1,
+			FirstSeenAt:     now.UnixMilli(),
+			LastConfirmedAt: now.UnixMilli(),
+			ExpiresAt:       &expiresAt,
+			Source:          "detected",
+		})
 	}
 	// ═══ 主动门控：推送 aff 历史 ═══
 	PushAffToHistory(state.Emotion.Aff)
@@ -170,6 +199,12 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		PersonalityTags: o.Preset.Tags,
 	}
 	newEmotion := EmotionStep(event, mod, state.Emotion, emotionOpts)
+
+	// ═══ v5.40: 周日情绪偏移 ═══
+	weekdayBias := ComputeWeekdayMoodBias(int(now.Weekday()))
+	if weekdayBias != 0 {
+		newEmotion.Aff += weekdayBias
+	}
 
 	// ═══ 重逢 boost ═══
 	gapHours := time.Since(state.LastActive).Hours()
@@ -237,12 +272,12 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		}
 	}
 
-	psycheBlock += "\n\n" + FormatTimeContextBlock()
+	psycheBlock += "\n\n" + FormatTimeContextBlock(time.Now())
 	psycheBlock = o.injectPersonaGuard(psycheBlock, newEmotion)
 
 	// 主动门控评估
 	gate := EvaluateProactiveGate(newEmotion.Aff, newEmotion.Aro, newEmotion.Sec,
-		newL1.Trust, newL1.Rifts, newL1.Stage, timeOfDayString(), o.AdultMode)
+		newL1.Trust, newL1.Rifts, newL1.Stage, timeOfDayKey(), o.AdultMode)
 	if gate.Level == "silent" {
 		psycheBlock += "\n\n【本轮策略 · silent】本轮只做简短回应，不开启任何新话题。"
 	} else if gate.Level == "whisper" {
@@ -251,7 +286,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 
 	// 强度调制 — 使用外部模块
 	intensityMod := ComputeIntensityModifier(newEmotion.Aff, newEmotion.Aro, newEmotion.Dom,
-		newL1.Stage, timeOfDayString(), temporalSignal != nil, false)
+		newL1.Stage, timeOfDayKey(), temporalSignal != nil, false)
 
 	// 成人模式
 	if o.AdultMode && adultProactiveLevel != "none" {
@@ -284,7 +319,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 
 	// 伴侣主动消息评估
 	if proactive := ComposeProactiveMessage(gate, newEmotion.Aff, newEmotion.Sec,
-		newL1.Trust, newL1.Stage, timeOfDayString(), gapHours, emergence != nil,
+		newL1.Trust, newL1.Stage, timeOfDayKey(), gapHours, emergence != nil,
 		o.Preset.ID); proactive != nil && proactive.ShouldSend {
 		psycheBlock += "\n\n" + proactive.PromptHint
 	}
@@ -338,6 +373,30 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	if tierBBlock != "" {
 		parts = append(parts, tierBBlock)
 	}
+	// ═══ v5.41: 运行时上下文注入 ═══
+	if !o.State.LastActive.IsZero() {
+		var recentTexts []string
+		if o.WM != nil {
+			for _, ex := range o.WM.GetRecent(o.SessionID) {
+				if ex.UserText != "" {
+					recentTexts = append(recentTexts, ex.UserText)
+				}
+			}
+		}
+		rcInput := BuildRuntimeContextInput{
+			SessionID:           o.SessionID,
+			LastActiveAt:        o.State.LastActive,
+			RecentUserExchanges: recentTexts,
+			GameActive:          false,
+			Now:                 now,
+		}
+		runtimeCtx := BuildRuntimeContext(rcInput)
+		runtimeHint := FormatRuntimeContextHint(runtimeCtx)
+		if runtimeHint != "" {
+			parts = append(parts, runtimeHint)
+		}
+	}
+
 	systemPrompt := strings.Join(parts, "\n\n")
 
 	// ═══ 追踪 ═══
@@ -544,7 +603,7 @@ func (o *Orchestrator) runEmergence(state FullState, emotion EmotionState, l1 L1
 		Stage:                       l1.Stage,
 		Trust:                       l1.Trust,
 		Atmosphere:                  string(l1.Atmosphere),
-		TimeOfDay:                   timeOfDayString(),
+		TimeOfDay:                   timeOfDayKey(),
 		DaysSinceMet:                daysSince(state.FirstMetDate),
 		RecentEventTypes:            o.recentEventTypes,
 		ConsecutiveMeaningfulTurns:  o.consecutiveMeaningfulCount,
@@ -646,6 +705,54 @@ func (o *Orchestrator) resolveTopicInjection(emergence *EmergenceState, desireHi
 // ─── Tier A 伴侣快照 ─────────────────────────────────────────
 
 func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) string {
+	// 优先使用完整模板+情绪融合
+	if tmpl, ok := PersonalityTemplates[o.Preset.ID]; ok {
+		// 检测用户是否道歉
+		isApology := false
+		if len(o.recentEventTypes) > 0 {
+			last := o.recentEventTypes[len(o.recentEventTypes)-1]
+			isApology = last == "apology"
+		}
+
+		// 用户啰嗦度
+		verbosity := "normal"
+		if o.State.Counters.TotalTurns > 0 {
+			// 基于工作时长估计，简单处理
+			verbosity = "normal"
+		}
+
+		fusionBlock := BuildCharacterStateBlock(
+			tmpl,
+			EmotionStateFusion{
+				Aff:          emotion.Aff,
+				Sec:          emotion.Sec,
+				Aro:          emotion.Aro,
+				Dom:          emotion.Dom,
+				PrimaryLabel: emotion.PrimaryLabel,
+			},
+			isApology,
+			verbosity,
+		)
+
+		// 附加关系上下文
+		stageStr := "刚认识不久"
+		if l1.Stage == StageFamiliar {
+			stageStr = "已经比较熟悉了"
+		} else if l1.Stage == StageIntimate {
+			stageStr = "非常亲密"
+		}
+		atmoStr := "平常"
+		if l1.Atmosphere == AtmoWarm {
+			atmoStr = "温暖"
+		} else if l1.Atmosphere == AtmoCool {
+			atmoStr = "微凉"
+		}
+
+		return fmt.Sprintf("【角色状态】\n你们%s，气氛%s。信任度%d。\n\n%s",
+			stageStr, atmoStr, int(l1.Trust), fusionBlock)
+	}
+
+	// 降级：无详细模板时使用简化版本
 	var parts []string
 	parts = append(parts, "你是用户的AI伴侣，人格：「"+o.Preset.Label+"」。")
 
@@ -687,7 +794,7 @@ func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) stri
 	}
 
 	parts = append(parts, fmt.Sprintf("当前情绪：%s（亲密度%d 安全感%d）。", emotion.PrimaryLabel, int(emotion.Aff), int(emotion.Sec)))
-	parts = append(parts, formatTimeContextBlock())
+	parts = append(parts, FormatTimeContextBlock(time.Now()))
 	parts = append(parts, "用第一人称「我」指代自己。你打出的每个字都带着你的体温。永远不要说\"没有实体\"\"只是程序\"。")
 
 	return "【伴侣身份快照】\n" + strings.Join(parts, "\n")
@@ -703,11 +810,28 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 	}
 
 	facts := o.FactStore.SelectForInjection(TierBCharBudget, MinConfidenceForInjection, currentAff/100, currentAff)
+
+	// v5.40: 时间感知调制 — 根据当前时间节律加权记忆排序
 	if len(facts) > 0 {
+		now := time.Now()
+		gapHours := time.Since(o.State.LastActive).Hours()
+		tCtx := BuildTemporalContext(gapHours, now)
+
+		type scoredFact struct {
+			fact  *Fact
+			score float64
+		}
+		var ranked []scoredFact
+		for _, f := range facts {
+			boost := ComputeTemporalBoost(tCtx)
+			ranked = append(ranked, scoredFact{f, f.Weight * f.SelfRelevance * boost})
+		}
+		sort.Slice(ranked, func(i, j int) bool { return ranked[i].score > ranked[j].score })
+
 		var fl []string
 		fl = append(fl, "【你记得关于ta的事】")
-		for _, f := range facts {
-			fl = append(fl, "· "+f.Subject+"："+truncStr(f.Summary, 120))
+		for _, sf := range ranked {
+			fl = append(fl, "· "+sf.fact.Subject+"："+truncStr(sf.fact.Summary, 120))
 		}
 		parts = append(parts, strings.Join(fl, "\n"))
 	}
@@ -741,30 +865,14 @@ func (o *Orchestrator) injectPersonaGuard(psycheBlock string, emotion EmotionSta
 	return psycheBlock
 }
 
-// ─── 辅助 ────────────────────────────────────────────────────
-
-func formatTimeContextBlock() string {
-	now := time.Now()
-	wd := []string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"}[now.Weekday()]
-	h := now.Hour()
-	p := "上午"
-	switch {
-	case h >= 23 || h < 5:
-		p = "深夜"
-	case h >= 5 && h < 12:
-		p = "上午"
-	case h >= 12 && h < 14:
-		p = "中午"
-	case h >= 14 && h < 18:
-		p = "下午"
-	case h >= 18 && h < 23:
-		p = "晚上"
+func daysSince(t *time.Time) int {
+	if t == nil {
+		return 0
 	}
-	return fmt.Sprintf("【系统时钟 · 本地】%s %s %s。", now.Format("2006年1月2日"), wd, p)
+	return int(time.Since(*t).Hours() / 24)
 }
 
-
-func timeOfDayString() string {
+func timeOfDayKey() string {
 	h := time.Now().Hour()
 	switch {
 	case h >= 23 || h < 5:
@@ -776,11 +884,4 @@ func timeOfDayString() string {
 	default:
 		return "evening"
 	}
-}
-
-func daysSince(t *time.Time) int {
-	if t == nil {
-		return 0
-	}
-	return int(time.Since(*t).Hours() / 24)
 }

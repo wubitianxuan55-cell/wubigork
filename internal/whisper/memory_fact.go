@@ -121,6 +121,19 @@ func (fs *FactStore) ListActive() []*Fact {
 	return r
 }
 
+// ListBySessionTurn 返回指定会话指定轮次的事实（用于冷启动关联）
+func (fs *FactStore) ListBySessionTurn(sessionID string, turnIndex int) []*Fact {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+	var r []*Fact
+	for _, f := range fs.facts {
+		if f.IsActive() && f.SourceSessionID == sessionID && f.SourceTurnIndex == turnIndex {
+			r = append(r, f)
+		}
+	}
+	return r
+}
+
 // Count 活跃事实数
 func (fs *FactStore) Count() int {
 	return len(fs.ListActive())
@@ -304,6 +317,47 @@ func (fs *FactStore) PrivacyFilter(adultMode bool) []*Fact {
 func (fs *FactStore) DedupByEmbedding(embedding []float64) bool {
 	return false
 }
+
+// ─── 更新与退役 ──────────────────────────────────────────────
+
+// RetireFact 退役指定事实
+func (fs *FactStore) RetireFact(id string) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	if f, ok := fs.byID[id]; ok {
+		f.Status = "retired"
+		f.Active = false
+		f.RawTier = "scratch"
+	}
+}
+
+// UpdateFact 更新事实字段（key→value 映射）
+func (fs *FactStore) UpdateFact(id string, updates map[string]interface{}) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	f, ok := fs.byID[id]
+	if !ok {
+		return
+	}
+	if v, ok := updates["summary"].(string); ok {
+		f.Summary = v
+	}
+	if v, ok := updates["weight"].(float64); ok {
+		f.Weight = v
+	}
+	if v, ok := updates["confidence"].(float64); ok {
+		f.Confidence = v
+	}
+	if v, ok := updates["subject"].(string); ok {
+		f.Subject = v
+	}
+	if v, ok := updates["domain"].(string); ok {
+		f.Domain = v
+	}
+	f.UpdatedAt = time.Now()
+}
+
+// ─── 辅助 ────────────────────────────────────────────────────
 
 // ─── 辅助 ────────────────────────────────────────────────────
 
