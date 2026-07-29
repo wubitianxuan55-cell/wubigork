@@ -87,8 +87,16 @@ var vulnerableWordsEN = []string{
 	"i love you", "loser", "not worthy", "hate myself", "no one loves me",
 	"so tired", "exhausted", "burned out", "cant take it", "no energy",
 	"help me", "please", "afraid of losing",
+	// P1补充: ackem 有但 wubigrok 缺失的30个英文脆弱词
+	"hurts so much", "in my heart", "rarely", "first time",
+	"dare not", "depend on", "by my side", "cant live without you",
+	"crying alone", "cry", "useless", "overworked",
+	"mentally exhausted", "so hard", "living is so hard",
+	"dont want to move", "dont want to do anything", "just want to lie down",
+	"honest feelings", "talk to me", "chat with me", "want to find someone",
+	"miss you so much", "wish", "if only", "no sense of security",
+	"afraid of", "cant say", "cant speak up",
 }
-
 var vulnerableToPraiseOverrideEN = []string{
 	"glad you are here", "you are here", "with you", "much better",
 	"feeling better", "mood is better", "thanks", "grateful", "lucky to have you",
@@ -187,6 +195,84 @@ func hasNegationForPraise(msg string) bool {
 
 // ─── L0 主分类函数 ────────────────────────────────────────────
 
+// intensityBase 各事件类型的基础强度值
+var intensityBase = map[EventType]float64{
+	EvtExtremeRedline: 1.0,
+	EvtPraise:         0.6,
+	EvtTease:          0.4,
+	EvtCasualChat:     0.2,
+	EvtCold:           0.3,
+	EvtHurtful:        0.7,
+	EvtApology:        0.6,
+	EvtVulnerable:     0.7,
+	EvtQuestion:       0.3,
+	EvtAdultFlirt:     0.6,
+	EvtAdultDominant:  0.7,
+	EvtAdultSubmissive:0.6,
+	EvtAdultExplicit:  0.9,
+}
+
+// sincerityBase 各事件类型的基础真诚度
+var sincerityBase = map[EventType]float64{
+	EvtExtremeRedline: 1.0,
+	EvtPraise:         0.8,
+	EvtTease:          0.5,
+	EvtCasualChat:     0.5,
+	EvtCold:           0.9,
+	EvtHurtful:        0.9,
+	EvtApology:        0.8,
+	EvtVulnerable:     0.9,
+	EvtQuestion:       0.5,
+	EvtAdultFlirt:     0.7,
+	EvtAdultDominant:  0.8,
+	EvtAdultSubmissive:0.8,
+	EvtAdultExplicit:  0.8,
+}
+
+// fuzzyWords 模糊词惩罚列表
+var fuzzyWords = []string{"有点", "可能", "吧", "好像", "也许", "大概", "或许", "不太确定", "算是", "应该", "感觉"}
+
+// computeIntensity 动态计算强度（对齐 ackem: base + 长度系数 + 标点加成）
+func computeIntensity(msg string, base float64) float64 {
+	msgLen := len([]rune(msg))
+	lenBonus := clampF(float64(msgLen)/40.0*0.5, 0, 0.5)
+
+	bangScore := 0.0
+	for _, r := range msg {
+		if r == '!' || r == '！' || r == '?' || r == '？' {
+			bangScore += 0.1
+		}
+	}
+	bangScore = clampF(bangScore, 0, 0.25)
+
+	return clampF(base+lenBonus+bangScore, 0.1, 1.0)
+}
+
+// computeSincerity 动态计算真诚度（对齐 ackem: base + 长度系数 + 模糊词惩罚）
+func computeSincerity(msg string, base float64) float64 {
+	msgLen := len([]rune(msg))
+	lenBonus := clampF(float64(msgLen)/160.0, 0, 0.15)
+
+	fuzzyPenalty := 0.0
+	for _, w := range fuzzyWords {
+		if strings.Contains(msg, w) {
+			fuzzyPenalty = 0.25
+			break
+		}
+	}
+
+	return clampF(base+lenBonus-fuzzyPenalty, 0.3, 1.0)
+}
+
+// buildEvent 快捷构造事件（带动态强度计算）
+func buildEvent(typ EventType, msg string) Event {
+	return Event{
+		Type:      typ,
+		Intensity: computeIntensity(msg, intensityBase[typ]),
+		Sincerity: computeSincerity(msg, sincerityBase[typ]),
+	}
+}
+
 // ClassifyAdultContent 成人内容子分类
 func ClassifyAdultContent(msg string) (isAdult bool, subtype string) {
 	m := strings.ToLower(msg)
@@ -208,12 +294,16 @@ func ClassifyAdultContent(msg string) (isAdult bool, subtype string) {
 	}
 	return false, ""
 }
-
 // InterpretInput L0 主入口：将用户输入分类为 Event
 // effectiveTrust 是当前 L1 信任值（0-100），用于极端区熔断
 func InterpretInput(msg string, effectiveTrust float64) Event {
 	m := strings.ToLower(msg)
 	en := isEnglish(msg)
+
+	// 空消息处理
+	if strings.TrimSpace(msg) == "" {
+		return buildEvent(EvtCasualChat, msg)
+	}
 
 	// 1. 红线检测（最高优先级）
 	if hasAny(m, redlineKeywordsZH) || (en && hasAny(m, redlineKeywordsEN)) {
@@ -222,6 +312,8 @@ func InterpretInput(msg string, effectiveTrust float64) Event {
 			IsExtremeRedline: true,
 		}
 	}
+
+	// 2. 成人分类
 	isAdult, adultSubtype := ClassifyAdultContent(msg)
 	if isAdult {
 		var evtType EventType
@@ -235,66 +327,145 @@ func InterpretInput(msg string, effectiveTrust float64) Event {
 		default:
 			evtType = EvtAdultFlirt
 		}
-		intensity := 0.7
-		if adultSubtype == "explicit" {
-			intensity = 0.9
-		}
 		return Event{
-			Type: evtType, Intensity: intensity, Sincerity: 0.8,
+			Type: evtType, Intensity: computeIntensity(msg, intensityBase[evtType]),
+			Sincerity: computeSincerity(msg, sincerityBase[evtType]),
 			IsAdultContent: true, AdultSubtype: adultSubtype,
 		}
 	}
 
 	// 3. 道歉
 	if hasAny(m, apologyWordsZH) || (en && hasAny(m, apologyWordsEN)) {
-		return Event{Type: EvtApology, Intensity: 0.6, Sincerity: 0.8}
+		return buildEvent(EvtApology, msg)
 	}
 
 	// 4. 伤害性
 	if hasAny(m, hurtfulWordsZH) || (en && hasAny(m, hurtfulWordsEN)) {
-		return Event{Type: EvtHurtful, Intensity: 0.7, Sincerity: 0.9}
+		return buildEvent(EvtHurtful, msg)
 	}
 
 	// 5. 脆弱
 	if hasAny(m, vulnerableWordsZH) || (en && hasAny(m, vulnerableWordsEN)) {
 		if hasAny(m, vulnerableToPraiseOverrideZH) || (en && hasAny(m, vulnerableToPraiseOverrideEN)) {
-			return Event{Type: EvtPraise, Intensity: 0.5, Sincerity: 0.7}
+			return buildEvent(EvtPraise, msg)
 		}
-		return Event{Type: EvtVulnerable, Intensity: 0.7, Sincerity: 0.9}
+		return buildEvent(EvtVulnerable, msg)
 	}
 
 	// 6. 赞美
 	if (hasAny(m, praiseWordsZH) || (en && hasAny(m, praiseWordsEN))) && !hasNegationForPraise(msg) {
-		return Event{Type: EvtPraise, Intensity: 0.6, Sincerity: 0.8}
+		return buildEvent(EvtPraise, msg)
 	}
 
-	// 7. 调戏
+	// 7. 调戏 — effectiveTrust 门控：低信任时调戏→冷淡
 	if hasAny(m, teaseMarkersZH) || (en && hasAny(m, teaseMarkersEN)) {
-		return Event{Type: EvtTease, Intensity: 0.4, Sincerity: 0.5}
+		if effectiveTrust >= 45 {
+			return buildEvent(EvtTease, msg)
+		}
+		return buildEvent(EvtCold, msg)
 	}
 
 	// 8. 冷淡
 	if hasAny(m, coldWordsZH) || (en && hasAny(m, coldWordsEN)) {
-		return Event{Type: EvtCold, Intensity: 0.3, Sincerity: 0.9}
+		msgLen := len([]rune(msg))
+		if msgLen <= 3 || (en && msgLen <= 10) {
+			return buildEvent(EvtCold, msg)
+		}
+		// 较长冷淡消息 → 二次兜底
 	}
 
 	// 9. 问句
 	if strings.Contains(m, "?") || strings.Contains(m, "？") ||
 		strings.Contains(m, "吗") || strings.Contains(m, "呢") ||
 		strings.Contains(m, "什么") || strings.Contains(m, "怎么") ||
-		strings.Contains(m, "如何") || strings.Contains(m, "哪") {
-		return Event{Type: EvtQuestion, Intensity: 0.3, Sincerity: 0.5}
+		strings.Contains(m, "如何") || strings.Contains(m, "哪") ||
+		(en && (strings.Contains(m, "what") || strings.Contains(m, "how") ||
+			strings.Contains(m, "why") || strings.Contains(m, "when") ||
+			strings.Contains(m, "where") || strings.Contains(m, "who"))) {
+		return buildEvent(EvtQuestion, msg)
 	}
 
-	// 10. 默认闲聊
-	return Event{Type: EvtCasualChat, Intensity: 0.2, Sincerity: 0.5}
+	// 10. 长消息兜底 → 闲聊
+	if len([]rune(msg)) > 20 {
+		return buildEvent(EvtCasualChat, msg)
+	}
+
+	// 11. 冷淡二次兜底
+	if len([]rune(msg)) <= 5 {
+		return buildEvent(EvtCold, msg)
+	}
+
+	// 12. 默认闲聊
+	return buildEvent(EvtCasualChat, msg)
 }
 
-
-// IsDNDMessage 检查是否为勿扰消息
-func IsDNDMessage(msg string) bool {
-	return hasAny(strings.ToLower(msg), dndExplicitZH)
+// DnDResult 勿扰检测结果（对齐 ackem）
+type DnDResult struct {
+	Detected      bool
+	Hours         int  // 期望勿扰时长（小时），0 表示未指定
+	SuppressHealth bool // 是否同时抑制健康提醒
 }
+
+// IsDNDMessage 检查是否为勿扰消息（返回结构化结果）
+func IsDNDMessage(msg string) DnDResult {
+	m := strings.ToLower(msg)
+	if len([]rune(msg)) > 50 {
+		return DnDResult{}
+	}
+
+	// 先检查英文 DnD
+	hasDnD := hasAny(m, dndExplicitZH)
+	if !hasDnD {
+		// 也检测简单英文
+		hasDnD = hasAny(m, dndExplicitEN)
+	}
+	if !hasDnD {
+		return DnDResult{}
+	}
+
+	// 解析时长
+	hours := 0
+	// 小时模式
+	for _, pattern := range []string{"小时", "个钟", "个钟头"} {
+		for i := 1; i <= 24; i++ {
+			if strings.Contains(m, itoa(i)+pattern) {
+				hours = i
+				break
+			}
+		}
+		if hours > 0 {
+			break
+		}
+	}
+	// 分钟模式
+	if hours == 0 {
+		for i := 1; i <= 120; i++ {
+			if strings.Contains(m, itoa(i)+"分钟") {
+				hours = max(1, i/60)
+				break
+			}
+		}
+	}
+	// 今晚模式 → 到次日5点
+	if hours == 0 && strings.Contains(m, "今晚") {
+		hours = 5 // 近似
+	}
+	// "今天别" → 默认8小时
+	if hours == 0 && strings.Contains(m, "今天别") {
+		hours = 8
+	}
+	// "一会"/"一下" → 1小时
+	if hours == 0 && (strings.Contains(m, "一会") || strings.Contains(m, "一下")) {
+		hours = 1
+	}
+
+	suppressHealth := strings.Contains(m, "不要提醒") || strings.Contains(m, "别提醒") ||
+		strings.Contains(m, "不想") && strings.Contains(m, "提醒")
+
+	return DnDResult{Detected: true, Hours: hours, SuppressHealth: suppressHealth}
+}
+
+// ─── 心理健康软保护 ────────────────────────────────────────────
 
 // ─── 心理健康软保护 ────────────────────────────────────────────
 

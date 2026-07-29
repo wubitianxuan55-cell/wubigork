@@ -9,11 +9,12 @@ import "time"
 // ─── AssociationIndex ─────────────────────────────────────────
 
 // AssociationIndex 记忆关联索引
+// AssociationIndex 记忆关联索引
 type AssociationIndex struct {
-	assocs   []Association
-	byFactID map[string][]int // factID → assoc indices
+	assocs            []Association
+	byFactID          map[string][]int // factID → assoc indices
+	lastActivatedIDs  []string         // 本轮激活的关联 ID
 }
-
 // NewAssociationIndex 创建空关联索引
 func NewAssociationIndex() *AssociationIndex {
 	return &AssociationIndex{byFactID: make(map[string][]int)}
@@ -80,62 +81,36 @@ func (ai *AssociationIndex) StrengthenOrCreate(factIDA, factIDB, assocType strin
 		Strength:        strength,
 	})
 }
-
-// RecordActivation 标记关联被激活
+// RecordActivation 标记关联被激活（保留本轮 ID 供 post-turn 纠正）
 func (ai *AssociationIndex) RecordActivation(assocID string) {
 	nowMs := time.Now().UnixMilli()
 	for i := range ai.assocs {
 		if ai.assocs[i].ID == assocID {
 			ai.assocs[i].LastActivatedAt = nowMs
+			ai.lastActivatedIDs = append(ai.lastActivatedIDs, assocID)
+			return
+		}
+	}
+}
+
+// GetLastActivated 返回本轮被激活的关联 ID 列表（供 post-turn 纠正）
+func (ai *AssociationIndex) GetLastActivated() []string {
+	return ai.lastActivatedIDs
+}
+
+// ClearActivated 清空本轮激活记录（每轮对话开始时调用）
+func (ai *AssociationIndex) ClearActivated() {
+	ai.lastActivatedIDs = nil
+}
+
+// Weaken 削弱关联强度（隐式纠正 cold/hurtful 或显式纠正用户指出错误）
+func (ai *AssociationIndex) Weaken(assocID string, factor float64) {
+	for i := range ai.assocs {
+		if ai.assocs[i].ID == assocID {
+			ai.assocs[i].Strength = clampF(ai.assocs[i].Strength*factor, 0, 1)
 			return
 		}
 	}
 }
 
 // DecayEdges 衰减低于阈值的关联边
-func (ai *AssociationIndex) DecayEdges(minStrength float64) {
-	nowMs := time.Now().UnixMilli()
-	// 30 天未激活的边衰减 50%
-	threshold := int64(30 * 24 * 3600 * 1000)
-	var kept []Association
-	newByFactID := make(map[string][]int)
-
-	for _, a := range ai.assocs {
-		if nowMs-a.LastActivatedAt > threshold {
-			a.Strength *= 0.5
-		}
-		if a.Strength >= minStrength {
-			newIdx := len(kept)
-			kept = append(kept, a)
-			newByFactID[a.FactIDA] = append(newByFactID[a.FactIDA], newIdx)
-			newByFactID[a.FactIDB] = append(newByFactID[a.FactIDB], newIdx)
-		}
-	}
-	ai.assocs = kept
-	ai.byFactID = newByFactID
-}
-
-// Remove 移除关联
-func (ai *AssociationIndex) Remove(assocID string) {
-	for i, a := range ai.assocs {
-		if a.ID == assocID {
-			ai.assocs = append(ai.assocs[:i], ai.assocs[i+1:]...)
-			// 重建索引
-			ai.rebuildIndex()
-			return
-		}
-	}
-}
-
-func (ai *AssociationIndex) rebuildIndex() {
-	ai.byFactID = make(map[string][]int)
-	for i, a := range ai.assocs {
-		ai.byFactID[a.FactIDA] = append(ai.byFactID[a.FactIDA], i)
-		ai.byFactID[a.FactIDB] = append(ai.byFactID[a.FactIDB], i)
-	}
-}
-
-// Size 关联数量
-func (ai *AssociationIndex) Size() int {
-	return len(ai.assocs)
-}

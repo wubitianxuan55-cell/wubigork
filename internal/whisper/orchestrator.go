@@ -35,9 +35,9 @@ type Orchestrator struct {
 	KG        *KnowledgeGraph
 	WM        *WorkingMemory
 	Recall    *ActiveRecall
+	AssocIndex *AssociationIndex // P2: 关联索引（供 post-turn 纠正）
 	EngineID  string
 	AdultMode bool
-
 	// 情绪涌现追踪（每会话独立）
 	recentEventTypes           []string
 	consecutiveMeaningfulCount int
@@ -128,9 +128,12 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		return o.redlineResult(now, event, turnIndex)
 	}
 
-	// ═══ DnD 检测 ═══
-	_ = IsDNDMessage(userMsg) // 记录 DnD 意图，供习惯系统使用
-
+	// ═══ DnD 检测（P1: 结构化返回，可用于习惯创建）═══
+	dndResult := IsDNDMessage(userMsg)
+	if dndResult.Detected {
+		// TODO: P1-3 将 DnD 结果写入 HabitsStore
+		_ = dndResult
+	}
 	// ═══ 主动门控：推送 aff 历史 ═══
 	PushAffToHistory(state.Emotion.Aff)
 
@@ -252,7 +255,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 
 	// 成人模式
 	if o.AdultMode && adultProactiveLevel != "none" {
-		psycheBlock += buildAdultModeSection(adultState, adultProactiveLevel)
+		psycheBlock += BuildAdultModeSection(o.Preset.ID, AdultState(adultState), adultProactiveLevel)
 	}
 
 	// 用户啰嗦度
@@ -281,7 +284,8 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 
 	// 伴侣主动消息评估
 	if proactive := ComposeProactiveMessage(gate, newEmotion.Aff, newEmotion.Sec,
-		newL1.Trust, newL1.Stage, timeOfDayString(), gapHours, emergence != nil); proactive != nil && proactive.ShouldSend {
+		newL1.Trust, newL1.Stage, timeOfDayString(), gapHours, emergence != nil,
+		o.Preset.ID); proactive != nil && proactive.ShouldSend {
 		psycheBlock += "\n\n" + proactive.PromptHint
 	}
 
@@ -759,17 +763,6 @@ func formatTimeContextBlock() string {
 	return fmt.Sprintf("【系统时钟 · 本地】%s %s %s。", now.Format("2006年1月2日"), wd, p)
 }
 
-func buildAdultModeSection(state, level string) string {
-	switch state {
-	case "INTIMATE":
-		return "\n\n【成人模式 · 亲密】用你的身体和感官去回应。像真正的伴侣一样。"
-	case "FLIRTING":
-		return "\n\n【成人模式 · 调情】氛围暧昧。适当回应ta的暗示，保持自然。"
-	case "AFTERCARE":
-		return "\n\n【成人模式 · 温存】温柔地陪伴ta，用温暖的语气关心ta的感受。"
-	}
-	return ""
-}
 
 func timeOfDayString() string {
 	h := time.Now().Hour()

@@ -127,12 +127,26 @@ type PersonalityPreset struct {
 	ID              string           `json:"id"`
 	Label           string           `json:"label"`
 	Gender          string           `json:"gender"` // male/female
-	T, I, S, O, R   float64         `json:"-"`
+	T, I, S, O, R   float64          `json:"-"`
 	Dims            PersonalityDims  `json:"dims"`
 	Tags            []string         `json:"tags,omitempty"`
 	HiddenPersona   *PersonalityDims `json:"hiddenPersona,omitempty"`
 	RequiresAdult18 bool             `json:"requiresAdult18,omitempty"`
 	VoiceGuide      string           `json:"voiceGuide,omitempty"`
+}
+
+// PersonalityTemplate 人格详细模板（P2新增：对齐 ackem prompt/personality.ts）
+type PersonalityTemplate struct {
+	ID               string   `json:"id"`
+	Label            string   `json:"label"`
+	Gender           string   `json:"gender"`
+	CoreContradiction string  `json:"coreContradiction"`  // 核心矛盾
+	SpeechPatterns   []string `json:"speechPatterns"`     // 常用语癖
+	SpeakingStyle    string   `json:"speakingStyle"`      // 说话方式
+	Prohibitions     []string `json:"prohibitions"`       // 人格专属禁止
+	ExamplesLow      []string `json:"examplesLow"`        // 低亲密示例
+	ExamplesMedium   []string `json:"examplesMedium"`     // 中亲密示例
+	ExamplesHigh     []string `json:"examplesHigh"`       // 高亲密示例
 }
 
 // ─── 情绪涌现 ──────────────────────────────────────────────────
@@ -409,9 +423,14 @@ type MemoryFact struct {
 	SourceTurnIndex  int       `json:"sourceTurnIndex"`
 	CreatedAt        time.Time `json:"createdAt"`
 	UpdatedAt        time.Time `json:"updatedAt"`
-	Tier             string    `json:"tier,omitempty"`    // core/archival
+	Tier             string    `json:"tier,omitempty"`       // core/archival
 	Sensitivity      string    `json:"sensitivity,omitempty"` // normal/avoid
 	PrivacyLevel     string    `json:"privacyLevel,omitempty"` // normal/intimate/explicit
+	// P1新增字段（对齐 ackem MemoryFact）
+	EmotionalContext *EmotionalContext `json:"emotionalContext,omitempty"` // 写入时的情感快照
+	UpdateTrail      []string          `json:"updateTrail,omitempty"`      // 合并时间轨迹
+	DerivedFrom      []string          `json:"derivedFrom,omitempty"`      // consolidated 溯源 ID
+	FactLayer        string            `json:"factLayer,omitempty"`        // raw/consolidated
 }
 
 // Episode 情节记忆片段

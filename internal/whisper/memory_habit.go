@@ -87,14 +87,14 @@ func (hs *HabitsStore) MatchHabits(now time.Time) []*UserHabit {
 		if h.Weekday != nil && *h.Weekday != weekday {
 			continue
 		}
-		// 时间段匹配
+		// 时间段匹配（闭区间，对齐 ackem）
 		if h.HourStart <= h.HourEnd {
-			if hour < h.HourStart || hour >= h.HourEnd {
+			if hour < h.HourStart || hour > h.HourEnd {
 				continue
 			}
 		} else {
-			// 跨天时间段 (如 22-6)
-			if hour < h.HourStart && hour >= h.HourEnd {
+			// 跨天时间段 (如 22-6)，闭区间：包含6点
+			if hour < h.HourStart && hour > h.HourEnd {
 				continue
 			}
 		}
@@ -143,28 +143,33 @@ func (hs *HabitsStore) UpgradeToLongTerm(id string) {
 	}
 }
 
-// DecayAndCleanup 衰减过期习惯
+// DecayAndCleanup 衰减长时习惯 + 清理过期（对齐 ackem habitsStore）
+// P0修复: 原实现错误地衰减 short_term 习惯并直接删除；
+// ackem 的正确逻辑是衰减 long_term 习惯(久未确认则降级为 short_term)
 func (hs *HabitsStore) DecayAndCleanup(now time.Time) {
 	nowMs := now.UnixMilli()
 	weekMs := int64(7 * 24 * 3600 * 1000)
 	var kept []*UserHabit
 	for _, h := range hs.habits {
-		// 删除已过期
+		// 删除已过期的短时习惯
 		if h.ExpiresAt != nil && nowMs > *h.ExpiresAt {
 			continue
 		}
-		// 只衰减短期
-		if h.Scope == "short_term" {
+		// 只衰减长时习惯（对齐 ackem: 4周宽限期后开始衰减）
+		if h.Scope == "long_term" {
 			lastAct := h.LastConfirmedAt
 			if lastAct == 0 {
 				lastAct = h.CreatedAt
 			}
 			weeksSince := float64(nowMs-lastAct) / float64(weekMs)
-			if weeksSince > 0 {
-				h.Confidence = clampF(h.Confidence-weeksSince*DecayWeeklyRate, 0, 1)
+			if weeksSince > DecayWeeksThreshold {
+				// 超过宽限期后开始衰减：ackem 公式 (weeksSince - 4 + 1) * 0.1
+				h.Confidence = clampF(h.Confidence-(weeksSince-DecayWeeksThreshold+1)*DecayWeeklyRate, 0, 1)
 			}
 			if h.Confidence <= DecaySleepThreshold {
-				continue
+				// 降级为短期习惯而非删除（对齐 ackem）
+				h.Scope = "short_term"
+				h.Confidence = 1.0 // 短期习惯初始confidence
 			}
 		}
 		kept = append(kept, h)

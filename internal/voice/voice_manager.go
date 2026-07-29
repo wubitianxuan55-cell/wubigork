@@ -57,10 +57,13 @@ type Manager struct {
 	state VoiceState
 
 	// VAD
-	vadBuffer      []byte          // 累积的音频缓冲
-	vadSilenceMs   int             // 当前连续静音毫秒数
-	vadLastEnergy  float64         // 上次能量值
-	vadSpeechDetected bool         // 是否已检测到语音
+	vadBuffer         []byte // 累积的音频缓冲
+	vadSilenceMs      int    // 当前连续静音毫秒数
+	vadLastEnergy     float64
+	vadSpeechDetected bool // 是否已检测到语音
+
+	// 打断检测（P0修复: 对齐 ackem interruptSpeechMs 累积逻辑）
+	interruptSpeechMs int  // 连续语音打断累积毫秒数（需超阈值才触发打断）
 
 	// ASR
 	asrClient *asr.HerdsmanASR
@@ -191,11 +194,9 @@ func (m *Manager) Stop() {
 
 	slog.Info("语音管道停止")
 }
-
-// ── 音频输入处理 ──
-
 // PushAudioChunk 推送 PCM16/16k mono 音频块
 // 对齐 Ackem voice:audio-chunk IPC 通道
+// P0修复: 打断检测改为累积阈值模式，对齐 ackem interruptSpeechMs 逻辑
 func (m *Manager) PushAudioChunk(chunk []byte) error {
 	m.mu.RLock()
 	state := m.state
@@ -206,18 +207,31 @@ func (m *Manager) PushAudioChunk(chunk []byte) error {
 		return nil // 不在监听/说话状态，忽略
 	}
 
-	// 在 AI 说话时检测打断
+	// 在 AI 说话时检测打断（累积阈值模式）
 	if state == StateSpeaking {
 		energy := rmsEnergy(chunk)
 		if energy > SpeechEnergyThreshold {
+			// 用户说话中：累积打断时长
 			m.mu.Lock()
+			m.interruptSpeechMs += ChunkMs
 			m.vadSilenceMs = 0
 			m.mu.Unlock()
-			// 累积打断信号
-			select {
-			case m.interruptCh <- struct{}{}:
-			default:
+
+			// 累积超过打断阈值才触发打断（对齐 ackem: 默认500ms）
+			if m.interruptSpeechMs >= config.InterruptThresholdMs {
+				select {
+				case m.interruptCh <- struct{}{}:
+				default:
+				}
+				m.mu.Lock()
+				m.interruptSpeechMs = 0
+				m.mu.Unlock()
 			}
+		} else {
+			// 静音：重置累积
+			m.mu.Lock()
+			m.interruptSpeechMs = 0
+			m.mu.Unlock()
 		}
 		return nil
 	}

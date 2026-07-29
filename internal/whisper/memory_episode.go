@@ -103,3 +103,11 @@ func (es *EpisodicStore) Get(id string) *Episode {
 func (es *EpisodicStore) Count() int {
 	return len(es.episodes)
 }
+
+// Latest 返回最新的情节（P2 新增）
+func (es *EpisodicStore) Latest() *Episode {
+	if len(es.episodes) == 0 {
+		return nil
+	}
+	return &es.episodes[len(es.episodes)-1]
+}

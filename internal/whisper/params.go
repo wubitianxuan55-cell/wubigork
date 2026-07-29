@@ -76,6 +76,8 @@ const (
 	MemoryEchoAffWeight  = 0.5
 	MemoryEchoSecPositive = 0.3
 	MemoryEchoSecNegative = -0.3
+	MemoryEchoAroIntensityWeight = 0.6 // P1新增: 对齐 ackem MEMORY_ECHO_ARO_INTENSITY_WEIGHT
+	MemoryEchoDomTrustWeight     = 0.4 // P1新增: 对齐 ackem MEMORY_ECHO_DOM_TRUST_WEIGHT
 	EffectiveTrustL1Weight = 0.5
 	EffectiveTrustMemWeight = 0.5
 

@@ -149,16 +149,25 @@ func (fs *FactStore) SearchByTriggers(msg string) []*Fact {
 }
 
 // ScoreRelevance 计算事实相关性得分（对齐 ackem scoreRelevance）
+// 优先使用 EmotionalContext.valence 做情绪一致性比较；回退到 SelfRelevance 近似
 func ScoreRelevance(f *Fact, now time.Time, valence, aff float64) float64 {
 	days := now.Sub(f.CreatedAt).Hours() / 24
 	if days < 0 {
 		days = 0
 	}
 	decay := math.Exp(-0.003 * days)
-	score := f.Weight * decay * f.SelfRelevance * 1.5
+	score := f.Weight * decay * f.SelfRelevance
 
-	// 情绪一致性调制
-	if math.Abs(f.Confidence-valence) < 0.3 {
+	// 情绪一致性调制 — 优先使用 EmotionalContext
+	var factValence float64
+	if f.EmotionalContext != nil {
+		factValence = f.EmotionalContext.Valence
+		// 情绪强度参与基础分
+		score = f.Weight * decay * f.SelfRelevance * (1 + f.EmotionalContext.Intensity*0.5)
+	} else {
+		factValence = clampF(f.SelfRelevance/2.0, 0, 1)
+	}
+	if math.Abs(factValence-math.Abs(valence)) < 0.3 {
 		boost := 1.5
 		if math.Abs(aff) >= 50 {
 			boost = 1.2
@@ -173,6 +182,8 @@ func ScoreRelevance(f *Fact, now time.Time, valence, aff float64) float64 {
 	}
 	return score
 }
+
+// SelectForInjection 按 budget 选出最佳事实
 
 // SelectForInjection 按 budget 选出最佳事实
 func (fs *FactStore) SelectForInjection(budget int, minConf, valence, aff float64) []*Fact {
@@ -228,8 +239,11 @@ func (fs *FactStore) SelectCoreFacts(max int) []*Fact {
 // ─── 情绪一致性 boost ────────────────────────────────────────
 
 // MoodCongruentBoost 返回情绪一致性倍率
-func ComputeMoodBoost(factConfidence, valence, aff float64) float64 {
-	diff := math.Abs(factConfidence - valence)
+// MoodCongruentBoost 返回情绪一致性倍率
+// P0修复: 原实现错误地用 Confidence 替代 valence；暂时使用 selfRelevance 近似
+func ComputeMoodBoost(selfRelevance, valence, aff float64) float64 {
+	selfRelNorm := clampF(selfRelevance/2.0, 0, 1)
+	diff := math.Abs(selfRelNorm - math.Abs(valence))
 	boost := 1.0
 	if diff < MoodCongruentValenceDiff {
 		boost = MoodCongruentBoost

@@ -4,6 +4,11 @@ import (
 	"github.com/wubigork/wubigork/internal/whisper"
 )
 
+// Chat 实现 whisper.LlmClient 接口（接入 wubigrok 模型中心）
+func (a *App) Chat(systemPrompt, userPrompt string) (string, error) {
+	return a.client.ChatSimpleStream(a.ctx, "", systemPrompt, userPrompt)
+}
+
 var whisperSessions = map[string]*whisper.Orchestrator{}
 
 func getOrCreateOrch(personalityID string) *whisper.Orchestrator {
@@ -53,15 +58,32 @@ func (a *App) WhisperChat(userMsg string, personalityID string) (map[string]inte
 		TurnIndex: orch.State.Counters.TotalTurns, UserText: userMsg, AssistantText: reply,
 	})
 
+	// P2: post-turn 管线（同步）
+	l1Snap := orch.State.Relationship
+	l2Snap := orch.State.Emotion
+	turns := orch.State.Counters.TotalTurns
+
+	whisper.FinalizeTurn(orch, whisper.PostTurnContext{
+		SessionID:     orch.SessionID,
+		TurnIndex:     turns,
+		UserMsg:       userMsg,
+		AssistantText: reply,
+		Event:         result.Event,
+		AdultMode:     orch.AdultMode,
+	})
+
+	// 异步记忆摄入管线（注入 wubigrok 模型中心）
+	go func() {
+		whisper.EnqueueMemoryWrite(a, whisper.MemoryWritePayload{
+			SessionID: orch.SessionID, TurnIndex: turns,
+			UserMsg: userMsg, AssistantText: reply,
+			L1: l1Snap, L2: l2Snap,
+			FactStore: orch.FactStore, TotalTurns: turns, KG: orch.KG,
+			EpisodicStore: nil, AdultMode: orch.AdultMode,
+		})
+	}()
+
 	return map[string]interface{}{
-		"reply": reply, "emotion": result.Trace.L2.Label,
-		"stage": string(result.Trace.L1.Stage), "trust": result.Trace.L1.Trust,
-		"atmosphere": string(result.Trace.L1.Atmosphere), "rhythm": string(result.Rhythm.Mode),
-		"event": string(result.Event.Type), "aff": result.Trace.L2.Aff,
-		"sec": result.Trace.L2.Sec, "aro": result.Trace.L2.Aro, "dom": result.Trace.L2.Dom,
-		"rifts": result.Trace.L1.Rifts, "adultState": result.AdultState,
-		"totalTurns": orch.State.Counters.TotalTurns,
-		// 扩展 UX 数据
 		"desireSlots":  buildDesireSlots(orch.State.DesireStack),
 		"trace":        result.Trace,
 		"facts":        buildFactsList(orch.FactStore),
