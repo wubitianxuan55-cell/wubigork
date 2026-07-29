@@ -1,0 +1,31 @@
+// Package whisper — plan_document.go
+// 100% 对齐 ackem prompt/plan-document.ts
+// 计划书生成 prompt
+
+package whisper
+
+// PlanDocumentInstructions 计划书指令
+const PlanDocumentInstructions = `请撰写「计划书正文」——一份可保存、可执行的 Markdown 计划，直接回应用户需求。
+
+结构与篇幅（硬性，缺一即失败）：
+- 全文至少 400 字；必须使用 Markdown（## / ### / 列表 / 可选表格）
+- 必须包含以下章节（按顺序，标题用 ##）：
+  1. 目标与背景 — 2～4 句，说清要达成什么
+  2. 总体安排 — 时间线或阶段划分
+  3. 分步任务 — ≥5 条可执行项（checkbox 格式优先）
+  4. 资源与准备 — 人/物/信息需要什么
+  5. 风险与备选 — ≥2 条
+  6. 下一步 — 立刻能做的 1～3 件事
+
+写作要求：
+- 以可操作为主，少空话；不确定处标注「待你确认」
+- 禁止只有开场白或态度宣言就结束
+- 禁止推脱式追问；禁止「想聊再找我」式闲聊邀请
+- 不要编造具体实时票价/天气；可写「建议出发前查询」
+- 文首可用一行 # 计划：{主题} 作总标题`
+
+// PlanRetryInstructions 计划书重试指令
+const PlanRetryInstructions = `【补写】上一轮过短或缺章节。请重写完整计划书 Markdown（≥400 字、≥5 个 ## 章节、≥5 条 checkbox 任务）。`
+
+// PlanDocumentTemperature 计划书温度
+const PlanDocumentTemperature = 0.45
