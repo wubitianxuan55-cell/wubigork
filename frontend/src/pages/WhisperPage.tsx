@@ -99,6 +99,7 @@ const WhisperPage: React.FC = () => {
 
   useEffect(() => { localStorage.setItem(ACTIVE_TOPIC_KEY, activeId) }, [activeId])
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight }, [messages, streamText])
+  useEffect(() => { App.WhisperGetPersonalities().then(setPersonalities).catch(() => {}) }, [])
   useEffect(() => {
     if (hasInitRef.current || messages.length > 0 || personalities.length === 0) return
     hasInitRef.current = true
