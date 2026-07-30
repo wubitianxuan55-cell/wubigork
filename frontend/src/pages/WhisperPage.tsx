@@ -233,7 +233,7 @@ const WhisperPage: React.FC = () => {
         <ParticleFlow aro={aro} />
         <SoundWaveOverlay active={speakingId !== null} aff={aff} aro={aro} />
         {/* 设置按钮 */}
-        <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 4 }}>
+        <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 8 }}>
           <Tooltip title="gaea设置">
             <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setShowSettings(true)}
               style={{ color: C('color-text-secondary'), opacity: 0.5, width: 28, height: 28, padding: 0 }} />
@@ -242,6 +242,9 @@ const WhisperPage: React.FC = () => {
             <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
               style={{ color: C('color-text-secondary'), opacity: 0.5, width: 28, height: 28, padding: 0 }} />
           </Tooltip>
+          {hasMessages && (
+            <Tooltip title="清空当前对话"><Button type="text" size="small" icon={<ClearOutlined />} onClick={handleClearMessages} style={{ color: C('color-text-secondary'), opacity: 0.4, width: 28, height: 28, padding: 0 }} /></Tooltip>
+          )}
         </div>
 
         {/* 人格信息头 */}
@@ -253,10 +256,8 @@ const WhisperPage: React.FC = () => {
               <Button type="text" size="small" icon={<SwapOutlined />} onClick={() => setPersonalityOpen(true)} style={{ color: C('color-text-secondary'), width: 22, height: 22, padding: 0 }} />
             </div>
           </div>
-          {hasMessages && (
-            <Tooltip title="清空当前对话"><Button type="text" size="small" icon={<ClearOutlined />} onClick={handleClearMessages} style={{ color: C('color-text-secondary'), opacity: 0.4, width: 26, height: 26, padding: 0 }} /></Tooltip>
-          )}
         </div>
+
 
         {/* 引擎状态条 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 16px', borderBottom: `1px solid ${C('color-border')}`, flexShrink: 0, fontSize: 10, color: C('color-text-secondary'), background: C('color-bg-elevated'), flexWrap: 'wrap' }}>
