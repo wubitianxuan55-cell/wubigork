@@ -111,13 +111,22 @@ const WhisperPage: React.FC = () => {
 
   const handleSend = useCallback(async () => {
     const text = input.trim(); if (!text || loading) return
-    setInput(''); setLoading(true)
+    message.info('发送中…')
+    console.log('[whisper] handleSend start:', text.slice(0, 50))
+    setInput('')
     const um: Message = { id: nextMsgId(), role: 'user', content: text, timestamp: Date.now() }
-    const am: Message = { id: nextMsgId(), role: 'assistant', content: '', streaming: true, timestamp: Date.now() }
-    setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: [...t.messages, um, am] } : t))
+    const am: Message = { id: nextMsgId(), role: 'assistant', content: '...', streaming: true, timestamp: Date.now() }
+    setTopics(prev => {
+      const next = prev.map(t => t.id === activeId ? { ...t, messages: [...t.messages, um, am] } : t)
+      saveTopics(next)
+      return next
+    })
+    setLoading(true)
     try {
       const res = await App.WhisperChat(text, activePersonality) as any
-      const reply = res?.reply
+      const reply = (typeof res?.reply === 'string') ? res.reply : (typeof res === 'string' ? res : '')
+      console.log('[whisper] WhisperChat reply len:', reply.length)
+      message.success('收到回复: ' + reply.length + '字')
       if (res?.emotion) setEmotion(res.emotion); if (res?.stage) setStage(res.stage)
       if (typeof res?.trust === 'number') setTrust(Math.round(res.trust))
       if (typeof res?.aff === 'number') setAff(Math.round(res.aff))
@@ -126,20 +135,24 @@ const WhisperPage: React.FC = () => {
       if (typeof res?.dom === 'number') setDom(Math.round(res.dom))
       if (typeof res?.rifts === 'number') setRifts(res.rifts)
       if (typeof res?.totalTurns === 'number') setTotalTurns(res.totalTurns)
-      // 扩展数据处理
       if (res?.desireSlots) setDesireSlots(res.desireSlots)
       if (res?.trace) setTraces(prev => [...prev, res.trace])
       if (res?.facts) setFacts(res.facts)
       if (typeof res?.sharedEvents === 'number') setSharedEvents(res.sharedEvents)
-      if (typeof reply === 'string') {
-        setStreamText('')
-        for (let i = 0; i < reply.length; i++) { setStreamText(reply.slice(0, i + 1)); await new Promise(r => setTimeout(r, 12)) }
-        setStreamText(''); am.content = reply; am.streaming = false
-        setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: t.messages.map(m => m.id === am.id ? { ...am } : m) } : t))
-        setTopics(prev => prev.map(t => { if (t.id !== activeId || t.title !== '新对话') return t; return { ...t, title: text.slice(0, 20) + (text.length > 20 ? '…' : '') } }))
-      }
-    } catch (err: any) { am.content = `❌ 错误: ${err.message || err}`; am.streaming = false; setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: t.messages.map(m => m.id === am.id ? { ...am } : m) } : t)) }
-    finally { setLoading(false) }
+      am.content = reply || '(空回复)'; am.streaming = false
+      setTopics(prev => {
+        const next = prev.map(t => t.id === activeId ? { ...t, messages: t.messages.map(m => m.id === am.id ? { ...am } : m), title: t.title === '新对话' ? text.slice(0, 20) + (text.length > 20 ? '…' : '') : t.title } : t)
+        saveTopics(next)
+        return next
+      })
+    } catch (err: any) {
+      message.error('发送失败: ' + (err?.message || String(err)))
+      console.error('[whisper] WhisperChat FAILED:', err)
+      am.content = '❌ ' + (err?.message || String(err)); am.streaming = false
+      setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: t.messages.map(m => m.id === am.id ? { ...am } : m) } : t))
+    } finally {
+      setLoading(false)
+    }
   }, [input, loading, activeId, activePersonality])
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }

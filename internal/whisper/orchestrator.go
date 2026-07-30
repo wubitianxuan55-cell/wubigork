@@ -41,6 +41,8 @@ type Orchestrator struct {
 	SelfEditor       *MemorySelfEditor       // v5.40: 记忆自编辑器
 	ProceduralHabits *ProceduralHabitStore   // v5.40: 程序化习惯存储
 	EngineID         string
+	ModelName        string // v5.66: 轻语专属 LLM 模型名
+	ImageModelName   string // v5.66: 轻语专属生图模型名
 	AdultMode        bool
 	DataRoot         string // v5.41: SQLite 持久化数据根目录
 	// v5.43: 桌面助手子系统
