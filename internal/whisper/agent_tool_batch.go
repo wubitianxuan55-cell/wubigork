@@ -88,13 +88,19 @@ func dispatchWebSearch(act AgentAction) ToolResultForFollowUp {
 			Content: "错误：缺少搜索关键词",
 		}
 	}
-
-	// TODO: 接入 wubigrok 搜索模块
+	// 调用 Web 搜索
+	result, err := WebSearch(query)
+	if err != nil {
+		return ToolResultForFollowUp{
+			Name:    "web_search",
+			Content: fmt.Sprintf("搜索「%s」失败：%v", query, err),
+		}
+	}
 	return ToolResultForFollowUp{
 		Name:    "web_search",
-		Content: fmt.Sprintf("搜索「%s」：Web 搜索模块待集成", query),
+		Content: result,
 	}
-}
+	}
 
 // dispatchAppendMemory 分发记忆追加
 func dispatchAppendMemory(act AgentAction) ToolResultForFollowUp {

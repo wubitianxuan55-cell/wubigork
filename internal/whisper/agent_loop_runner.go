@@ -258,10 +258,17 @@ func (r *AgentLoopRunner) executeToolBatch(actions []AgentAction) []ToolResultFo
 				})
 			}
 		case "web_search":
-			// 转发到搜索模块（简化实现）
+			query := ""
+			if act.Args != nil {
+				query = act.Args["query"]
+			}
+			result, err := WebSearch(query)
+			if err != nil {
+				result = fmt.Sprintf("搜索「%s」失败", query)
+			}
 			results = append(results, ToolResultForFollowUp{
 				Name:    "web_search",
-				Content: fmt.Sprintf("搜索「%s」结果：Web 搜索暂未集成", act.Args["query"]),
+				Content: result,
 			})
 		case "append_memory":
 			// 记忆写入由 ingest 管线处理
