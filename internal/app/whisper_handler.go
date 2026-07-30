@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/wubigork/wubigork/internal/assistant"
 	"github.com/wubigork/wubigork/internal/modelengine"
 	"github.com/wubigork/wubigork/internal/whisper"
 	"github.com/wubigork/wubigork/internal/whisper/db"
@@ -423,6 +424,49 @@ func shouldSearchWeb(msg string) bool {
 		}
 	}
 	return false
+}
+
+// ─── 虚拟助手 CRUD ────────────────────────────────────────────
+
+func (a *App) WhisperAssistantList() []assistant.Assistant {
+	if a.assistantMgr == nil { return nil }
+	return a.assistantMgr.List()
+}
+
+func (a *App) WhisperAssistantSave(ast assistant.Assistant) error {
+	if a.assistantMgr == nil { return fmt.Errorf("not ready") }
+	existing := a.assistantMgr.Get(ast.ID)
+	if existing != nil {
+		if err := a.assistantMgr.Update(ast.ID, ast); err != nil { return err }
+		a.stopAssistantWx(ast.ID)
+		if ast.Enabled && ast.WxToken != "" { a.startAssistantWx(ast) }
+		return nil
+	}
+	if err := a.assistantMgr.Add(ast); err != nil { return err }
+	if ast.Enabled && ast.WxToken != "" { a.startAssistantWx(ast) }
+	return nil
+}
+
+func (a *App) WhisperAssistantDelete(id string) error {
+	if a.assistantMgr == nil { return fmt.Errorf("not ready") }
+	a.stopAssistantWx(id)
+	return a.assistantMgr.Delete(id)
+}
+
+func (a *App) WhisperWeixinStatus() []map[string]interface{} {
+	result := []map[string]interface{}{}
+	if a.assistantMgr == nil { return result }
+	for _, ast := range a.assistantMgr.List() {
+		item := map[string]interface{}{
+			"id": ast.ID, "name": ast.Name, "personalityId": ast.PersonalityID,
+			"enabled": ast.Enabled, "hasToken": ast.WxToken != "", "wxRunning": false,
+		}
+		a.weixinMu.Lock()
+		if srv, ok := a.weixinServers[ast.ID]; ok { item["wxRunning"] = srv.IsRunning() }
+		a.weixinMu.Unlock()
+		result = append(result, item)
+	}
+	return result
 }
 
 func restoreWhisperState(orch *whisper.Orchestrator) error {

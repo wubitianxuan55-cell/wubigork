@@ -18,7 +18,7 @@ import WhisperSettingsPanel from '../components/WhisperSettingsPanel'
 import WhisperTracePanel from '../components/WhisperTracePanel'
 import WhisperDesirePanel from '../components/WhisperDesirePanel'
 import WhisperMemoryModal from '../components/WhisperMemoryModal'
-import WhisperPersonalityModal from '../components/WhisperPersonalityModal'
+import AssistantManagerModal from '../components/AssistantManagerModal'
 import { CompanionAvatar } from '../components/CompanionAvatar'
 import '../whisper-theme.css'
 interface Personality {
@@ -575,14 +575,13 @@ const WhisperPage: React.FC = () => {
           onFactsChange={setFacts} />
       </Modal>
 
-      {/* 人格选择弹窗 */}
-      <WhisperPersonalityModal
+      {/* 虚拟助手管理中心 */}
+      <AssistantManagerModal
         open={personalityOpen}
-        personalities={personalities}
         activePersonality={activePersonality}
         adultMode={adultMode}
         onClose={() => setPersonalityOpen(false)}
-        onSwitch={(id) => handleSwitchPersonality(id)}
+        onSwitchPersonality={(id) => handleSwitchPersonality(id)}
       />
     </div>
   )

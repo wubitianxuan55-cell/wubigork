@@ -14,6 +14,7 @@ import (
 
 	"github.com/wubigork/wubigork/internal/ai"
 	"github.com/wubigork/wubigork/internal/analysis"
+	"github.com/wubigork/wubigork/internal/assistant"
 	"github.com/wubigork/wubigork/internal/auth"
 	"github.com/wubigork/wubigork/internal/chapter"
 	"github.com/wubigork/wubigork/internal/character"
@@ -24,6 +25,7 @@ import (
 	"github.com/wubigork/wubigork/internal/prompt"
 	"github.com/wubigork/wubigork/internal/skill"
 	"github.com/wubigork/wubigork/internal/voice"
+	"github.com/wubigork/wubigork/internal/channels/weixin"
 	"github.com/wubigork/wubigork/internal/worldview"
 )
 
@@ -72,6 +74,12 @@ type App struct {
 
 	// 轻语模块数据根目录（SQLite 持久化）
 	whisperDataRoot string
+
+	// 虚拟助手管理器
+	assistantMgr *assistant.Manager
+	// 微信通道（多实例：assistantID → Server）
+	weixinServers map[string]*weixin.Server
+	weixinMu      sync.Mutex
 }
 
 // emit 统一事件发射 — 发送到 Wails 前端
@@ -111,6 +119,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.configureClient()
 	a.initImageBackend()
 	a.initVoice()
+	a.initWeixin()
 
 	// 后台刷新所有引擎模型列表
 	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {
@@ -159,6 +168,14 @@ func (a *App) initImageBackend() {
 func (a *App) Shutdown(ctx context.Context) {
 	if a.voiceManager != nil {
 		a.voiceManager.Stop()
+	}
+	if a.weixinServers != nil {
+		a.weixinMu.Lock()
+		for id, srv := range a.weixinServers {
+			srv.Stop()
+			delete(a.weixinServers, id)
+		}
+		a.weixinMu.Unlock()
 	}
 	if err := a.closePM(); err != nil {
 		slog.Error("关闭项目失败", "error", err)
@@ -242,6 +259,66 @@ func (a *App) restoreImageBackend() {
 	// xai 不需要恢复（默认就是 xai fallback）
 	}
 }
+// initWeixin 加载助手并启动各自微信通道
+func (a *App) initWeixin() {
+	var err error
+	a.assistantMgr, err = assistant.Load(a.whisperDataRoot)
+	if err != nil {
+		slog.Error("[assistant] 加载失败", "err", err)
+		a.assistantMgr, _ = assistant.Load(a.whisperDataRoot)
+	}
+	a.weixinServers = make(map[string]*weixin.Server)
+
+	// 首次启动：创建默认助手
+	if len(a.assistantMgr.List()) == 0 {
+		defaultAst := assistant.Assistant{
+			ID:            "default",
+			Name:          "轻语",
+			PersonalityID: "deredere",
+			Enabled:       true,
+		}
+		if token := os.Getenv("WXCLAW_TOKEN"); token != "" {
+			defaultAst.WxToken = token
+		}
+		a.assistantMgr.Add(defaultAst)
+	}
+
+	for _, ast := range a.assistantMgr.Enabled() {
+		a.startAssistantWx(ast)
+	}
+}
+
+func (a *App) startAssistantWx(ast assistant.Assistant) {
+	cfg := weixin.Config{
+		ILinkURL:      "https://ilinkai.weixin.qq.com",
+		BotToken:      ast.WxToken,
+		AssistantID:   ast.ID,
+		PersonalityID: ast.PersonalityID,
+	}
+	srv := weixin.New(cfg, func(userMsg, fromUser string) (string, error) {
+		result, err := a.WhisperChatWithSearch(userMsg, ast.PersonalityID)
+		if err != nil { return "", err }
+		reply, _ := result["reply"].(string)
+		if reply == "" { reply = "（思考中…）" }
+		return reply, nil
+	})
+	if err := srv.Start(); err != nil {
+		slog.Error("[assistant] 微信启动失败", "assistant", ast.ID, "err", err)
+		return
+	}
+	a.weixinMu.Lock()
+	a.weixinServers[ast.ID] = srv
+	a.weixinMu.Unlock()
+}
+
+func (a *App) stopAssistantWx(id string) {
+	a.weixinMu.Lock()
+	srv, ok := a.weixinServers[id]
+	if ok { delete(a.weixinServers, id) }
+	a.weixinMu.Unlock()
+	if ok { srv.Stop() }
+}
+
 // SetDistFS 设置前端静态资源 embed.FS（由 main.go 在启动前调用）
 func (a *App) SetDistFS(fsys fs.FS) {
 	a.distFS = fsys

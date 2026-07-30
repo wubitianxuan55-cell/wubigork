@@ -1,0 +1,304 @@
+// Package weixin — 微信 ClawBot iLink 通道（多助手架构）
+// 每个助手实例独立：Token + 人格 + 长轮询
+package weixin
+
+import (
+	"bytes"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+// ─── 配置 ────────────────────────────────────────────────────
+
+type Config struct {
+	ILinkURL      string // iLink API 地址
+	BotToken      string // ClawBot Token
+	BotID         string // Bot 用户 ID
+	AssistantID   string // 绑定的助手 ID
+	PersonalityID string // 绑定的人格 ID
+}
+
+func DefaultConfig() Config {
+	return Config{ILinkURL: "https://ilinkai.weixin.qq.com"}
+}
+
+// ─── 回调 ────────────────────────────────────────────────────
+
+type ChatFunc func(userMsg string, fromUser string) (reply string, err error)
+
+// ─── Server ──────────────────────────────────────────────────
+
+type Server struct {
+	cfg     Config
+	chatFn  ChatFunc
+	client  *http.Client
+	running atomic.Bool
+	stopCh  chan struct{}
+
+	syncBuf   string
+	syncBufMu sync.Mutex
+	pollTO    time.Duration
+}
+
+func New(cfg Config, chatFn ChatFunc) *Server {
+	if cfg.ILinkURL == "" {
+		cfg.ILinkURL = "https://ilinkai.weixin.qq.com"
+	}
+	return &Server{
+		cfg:     cfg,
+		chatFn:  chatFn,
+		client:  &http.Client{Timeout: 90 * time.Second},
+		stopCh:  make(chan struct{}),
+		pollTO:  30 * time.Second,
+	}
+}
+
+// ─── 生命周期 ────────────────────────────────────────────────
+
+func (s *Server) Start() error {
+	if s.cfg.BotToken == "" {
+		return fmt.Errorf("未配置 BotToken")
+	}
+	s.running.Store(true)
+	s.notifyStart()
+	go s.pollLoop()
+	slog.Info("[weixin] 助手通道启动",
+		"assistant", s.cfg.AssistantID,
+		"personality", s.cfg.PersonalityID,
+	)
+	return nil
+}
+
+func (s *Server) Stop() {
+	s.running.Store(false)
+	close(s.stopCh)
+	s.notifyStop()
+	slog.Info("[weixin] 助手通道关闭", "assistant", s.cfg.AssistantID)
+}
+
+func (s *Server) IsRunning() bool  { return s.running.Load() }
+func (s *Server) HasILink() bool   { return s.cfg.BotToken != "" }
+func (s *Server) AssistantID() string { return s.cfg.AssistantID }
+
+// ─── 长轮询 ──────────────────────────────────────────────────
+
+const (
+	maxFail = 5
+	backoff = 30 * time.Second
+	retry   = 3 * time.Second
+	sessExp = -14
+)
+
+type pollReq struct {
+	GetUpdatesBuf string      `json:"get_updates_buf"`
+	BaseInfo      interface{} `json:"base_info"`
+}
+
+type pollResp struct {
+	Ret                  int          `json:"ret"`
+	ErrCode              int          `json:"errcode"`
+	ErrMsg               string       `json:"errmsg"`
+	Msgs                 []inboundMsg `json:"msgs"`
+	GetUpdatesBuf        string       `json:"get_updates_buf"`
+	SyncBuf              string       `json:"sync_buf"`
+	LongPollingTimeoutMs int          `json:"longpolling_timeout_ms"`
+}
+
+type inboundMsg struct {
+	FromUserID   string `json:"from_user_id"`
+	ToUserID     string `json:"to_user_id"`
+	ClientID     string `json:"client_id"`
+	ContextToken string `json:"context_token"`
+	ItemList     []struct {
+		Type     int        `json:"type"`
+		TextItem *textItem  `json:"text_item,omitempty"`
+	} `json:"item_list"`
+}
+
+type textItem struct {
+	Text string `json:"text"`
+}
+
+func (s *Server) pollLoop() {
+	var fails int
+	timeout := s.pollTO
+
+	for s.running.Load() {
+		req := pollReq{BaseInfo: s.baseInfo()}
+		s.syncBufMu.Lock()
+		req.GetUpdatesBuf = s.syncBuf
+		s.syncBufMu.Unlock()
+
+		resp, err := s.getUpdates(&req, timeout)
+		if err != nil {
+			fails++
+			slog.Error("[weixin] getUpdates 失败", "assistant", s.cfg.AssistantID, "err", err)
+			if fails >= maxFail {
+				s.sleepOrStop(backoff)
+				fails = 0
+			} else {
+				s.sleepOrStop(retry)
+			}
+			continue
+		}
+
+		if resp.LongPollingTimeoutMs > 0 {
+			timeout = time.Duration(resp.LongPollingTimeoutMs) * time.Millisecond
+		}
+
+		ec := resp.ErrCode
+		if ec == 0 { ec = resp.Ret }
+		if ec != 0 {
+			if ec == sessExp {
+				slog.Warn("[weixin] 会话过期", "assistant", s.cfg.AssistantID)
+				s.sleepOrStop(5 * time.Minute)
+				fails = 0
+				continue
+			}
+			fails++
+			s.sleepOrStop(retry)
+			continue
+		}
+
+		fails = 0
+
+		if buf := resp.GetUpdatesBuf; buf != "" {
+			s.syncBufMu.Lock()
+			s.syncBuf = buf
+			s.syncBufMu.Unlock()
+		} else if buf := resp.SyncBuf; buf != "" {
+			s.syncBufMu.Lock()
+			s.syncBuf = buf
+			s.syncBufMu.Unlock()
+		}
+
+		for i := range resp.Msgs {
+			s.handle(&resp.Msgs[i])
+		}
+	}
+}
+
+func (s *Server) handle(msg *inboundMsg) {
+	text := ""
+	for _, item := range msg.ItemList {
+		if item.Type == 1 && item.TextItem != nil {
+			text += item.TextItem.Text
+		}
+	}
+	if text == "" || s.chatFn == nil {
+		return
+	}
+
+	slog.Info("[weixin] 收到消息", "assistant", s.cfg.AssistantID, "from", msg.FromUserID, "len", len(text))
+	reply, err := s.chatFn(text, msg.FromUserID)
+	if err != nil {
+		slog.Error("[weixin] AI回复失败", "err", err)
+		reply = "思考中…请稍后再试"
+	}
+	if err := s.Send(msg.FromUserID, reply); err != nil {
+		slog.Error("[weixin] 回复失败", "err", err)
+	}
+}
+
+// ─── 发送 ────────────────────────────────────────────────────
+
+func (s *Server) Send(toUser, text string) error {
+	body, _ := json.Marshal(map[string]interface{}{
+		"msg": map[string]interface{}{
+			"from_user_id":  s.cfg.BotID,
+			"to_user_id":    toUser,
+			"client_id":     genUUID(),
+			"message_type":  2,
+			"message_state": 2,
+			"item_list": []map[string]interface{}{
+				{"type": 1, "text_item": map[string]string{"text": text}},
+			},
+		},
+		"base_info": s.baseInfo(),
+	})
+
+	_, err := s.apiPost("/ilink/bot/sendmessage", body, 20*time.Second)
+	return err
+}
+
+// ─── API ─────────────────────────────────────────────────────
+
+func (s *Server) getUpdates(req *pollReq, timeout time.Duration) (*pollResp, error) {
+	body, _ := json.Marshal(req)
+	respBody, err := s.apiPost("/ilink/bot/getUpdates", body, timeout)
+	if err != nil {
+		return nil, err
+	}
+	var resp pollResp
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return nil, fmt.Errorf("parse error: %w", err)
+	}
+	return &resp, nil
+}
+
+func (s *Server) notifyStart() {
+	body, _ := json.Marshal(map[string]interface{}{"base_info": s.baseInfo()})
+	s.apiPost("/ilink/bot/msg/notifystart", body, 10*time.Second)
+}
+
+func (s *Server) notifyStop() {
+	body, _ := json.Marshal(map[string]interface{}{"base_info": s.baseInfo()})
+	s.apiPost("/ilink/bot/msg/notifystop", body, 10*time.Second)
+}
+
+func (s *Server) apiPost(endpoint string, body []byte, timeout time.Duration) ([]byte, error) {
+	req, _ := http.NewRequest("POST", s.cfg.ILinkURL+endpoint, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("AuthorizationType", "ilink_bot_token")
+	req.Header.Set("Authorization", s.cfg.BotToken)
+	req.Header.Set("X-WECHAT-UIN", randomUIN())
+
+	c := s.client
+	if timeout < c.Timeout {
+		c = &http.Client{Timeout: timeout}
+	}
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return b, nil
+}
+
+func (s *Server) baseInfo() map[string]string {
+	return map[string]string{"channel_version": "1.0.0"}
+}
+
+func (s *Server) sleepOrStop(d time.Duration) {
+	select {
+	case <-s.stopCh:
+	case <-time.After(d):
+	}
+}
+
+// ─── 工具 ────────────────────────────────────────────────────
+
+func genUUID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func randomUIN() string {
+	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%010d", time.Now().UnixNano()%10000000000)))
+}
