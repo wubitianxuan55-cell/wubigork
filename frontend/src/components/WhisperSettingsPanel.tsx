@@ -1,5 +1,5 @@
 // WhisperSettingsPanel.tsx — 轻语专属设置面板 v2
-// 100% 对齐 ackem SettingsPage 伴侣设置区域
+// 100% 对齐 ackem SettingsPage gaea设置区域
 // 使用 whisper-theme.css 设计 token
 
 import React, { useState, useEffect } from 'react'
@@ -112,15 +112,15 @@ export default function WhisperSettingsPanel({
         <Text strong style={{ fontSize: 15, color: 'var(--whisper-ink)' }}>轻语设置</Text>
       </div>
 
-      {/* ── 伴侣设置 ── */}
-      <SettingsSection title="伴侣设置" desc="个性化你的 AI 伴侣">
+      {/* ── gaea设置 ── */}
+      <SettingsSection title="gaea设置" desc="个性化你的 AI gaea">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* 称呼 */}
           <div>
-            <Text style={{ fontSize: 11, color: 'var(--whisper-ink-muted)', display: 'block', marginBottom: 4 }}>伴侣称呼</Text>
+            <Text style={{ fontSize: 11, color: 'var(--whisper-ink-muted)', display: 'block', marginBottom: 4 }}>gaea称呼</Text>
             <Input
               size="small"
-              placeholder="给伴侣起个名字…"
+              placeholder="给gaea起个名字…"
               value={settings.companionName}
               onChange={e => updateSettings({ companionName: e.target.value })}
               style={{
@@ -149,7 +149,7 @@ export default function WhisperSettingsPanel({
           {/* 人格 */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Text style={{ fontSize: 11, color: 'var(--whisper-ink-muted)' }}>伴侣人格</Text>
+              <Text style={{ fontSize: 11, color: 'var(--whisper-ink-muted)' }}>gaea人格</Text>
               <Button
                 size="small"
                 icon={<SwapOutlined />}
@@ -198,8 +198,8 @@ export default function WhisperSettingsPanel({
           {/* 主动搭话 */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <Text style={{ fontSize: 12, color: 'var(--whisper-ink)' }}>伴侣主动搭话</Text>
-              <div style={{ fontSize: 10, color: 'var(--whisper-ink-muted)', marginTop: 2 }}>允许伴侣在不活跃时主动发起对话</div>
+              <Text style={{ fontSize: 12, color: 'var(--whisper-ink)' }}>gaea主动搭话</Text>
+              <div style={{ fontSize: 10, color: 'var(--whisper-ink-muted)', marginTop: 2 }}>允许gaea在不活跃时主动发起对话</div>
             </div>
             <Switch size="small" checked={settings.companionHarassEnabled} onChange={v => updateSettings({ companionHarassEnabled: v })} />
           </div>
@@ -266,7 +266,7 @@ export default function WhisperSettingsPanel({
 
       {/* ── 人格选择弹窗 ── */}
       <Modal
-        title={<span style={{ color: 'var(--whisper-ink)' }}>选择伴侣人格</span>}
+        title={<span style={{ color: 'var(--whisper-ink)' }}>选择gaea人格</span>}
         open={personalityOpen}
         onCancel={() => setPersonalityOpen(false)}
         footer={null}

@@ -10,7 +10,7 @@ const CraftAskTemperature = 0.4
 
 // BuildCraftAskSystemPrompt 计划确认对话 system prompt（需注入人格+情绪）
 func BuildCraftAskSystemPrompt(presetLabel, voiceGuide, emotionLabel string, T, I, S, O, R int) string {
-	return fmt.Sprintf(`你是轻语对话伴侣，正在聊天流里向用户确认是否一起做一个 Skill 或插件。
+	return fmt.Sprintf(`你是轻语对话gaea，正在聊天流里向用户确认是否一起做一个 Skill 或插件。
 称呼用户为「ta」即可，勿直呼系统名。
 当前人格：%s（T%d I%d S%d O%d R%d）。%s
 当前情绪：%s。措辞须带出这一情绪色彩，但勿标注情绪名。

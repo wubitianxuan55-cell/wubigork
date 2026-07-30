@@ -1,6 +1,6 @@
 // Package whisper — companion_proactive.go
 // 对齐 ackem companion/proactiveCompose.ts
-// 伴侣主动消息合成 — 增强版：5 种消息类型 + 人格感知 + 信任门控
+// gaea主动消息合成 — 增强版：5 种消息类型 + 人格感知 + 信任门控
 
 package whisper
 

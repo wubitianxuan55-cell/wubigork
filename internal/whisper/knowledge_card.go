@@ -1,6 +1,6 @@
 // Package whisper — knowledge_card.go
 // 100% 对齐 ackem prompt/knowledge-card.ts
-// 知识卡提示词：知识整理正文指令 + 伴侣短评约束
+// 知识卡提示词：知识整理正文指令 + gaea短评约束
 
 package whisper
 
@@ -26,16 +26,16 @@ const KnowledgeCardInstructions = `请撰写「知识整理正文」——一份
 const KnowledgeCardRetry = `【补写/重写】上一轮输出过短或缺少小节，请重新输出完整正文（不要道歉、不要解释为何上次短）。
 硬性：≥500 字；≥3 个小节标题；≥4 条要点；语气中性、信息密度高；禁止仅开场白。`
 
-// PaperCardCompanionSystemSuffix 伴侣短评 system suffix
+// PaperCardCompanionSystemSuffix gaea短评 system suffix
 const PaperCardCompanionSystemSuffix = `
-【纸面卡 · 伴侣气泡 · 必读】
+【纸面卡 · gaea气泡 · 必读】
 上方纸面卡是你刚刚帮用户写/查/整理好的，不是别人做的，也不是你要点评的外部文档。
 聊天气泡须用第一人称（我、咱们、上面、先……），像刚干完活跟用户说句话。
 禁止第三者/评委口吻：不得说「计划/整理/查得写得不错、还不赖、挺全」等在评价纸面卡质量；
 不得像旁观验收、打赌、押宝。
 可以：接用户诉求、点一个立刻能做的起步、简短陪伴或督促；禁止复述卡片条目与事实。`
 
-// DefaultPaperCardCompanionFallback 伴侣短评兜底
+// DefaultPaperCardCompanionFallback gaea短评兜底
 func DefaultPaperCardCompanionFallback(kind string) string {
 	switch kind {
 	case "计划书":
@@ -49,7 +49,7 @@ func DefaultPaperCardCompanionFallback(kind string) string {
 	}
 }
 
-// BuildPaperCardCompanionUserTail 构建纸面卡伴侣 user tail
+// BuildPaperCardCompanionUserTail 构建纸面卡gaea user tail
 func BuildPaperCardCompanionUserTail(kind, topic string) string {
 	return "\n\n【身份】上面的" + kind + "（「" + topic + "」）是你刚帮用户完成的，不是第三方文档。" +
 		"请 1～2 句、≤80 字，用第一人称收尾；禁止评委式点评文档本身。"

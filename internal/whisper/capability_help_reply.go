@@ -91,7 +91,7 @@ func SynthesizeCapabilityHelpReply(
 	capabilities := formatCapabilityLines()
 
 	systemPrompt := strings.Join([]string{
-		"你是用户的 AI 伴侣。用户问电脑助手能做什么。",
+		"你是用户的 AI gaea。用户问电脑助手能做什么。",
 		"用自然中文介绍下列已开放/未开放能力，给 1~2 个具体例子，保持人设，不要堆 action 名或路径。",
 		"未标注「当前未开」的可以举例；标注未开的要说明需在设置里开启。",
 	}, " ")

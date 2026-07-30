@@ -28,7 +28,7 @@ func DefaultCreatorSeeds() []CreatorMemorySeed {
 type FatherRefSignal struct {
 	Kind   string  // explicit/implicit/none
 	Score  float64 // 0-1
-	Source string  // 用户消息/伴侣回复
+	Source string  // 用户消息/gaea回复
 }
 
 // DetectFatherRef 检测是否包含创造者引用

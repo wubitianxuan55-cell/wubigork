@@ -28,8 +28,8 @@ func BuildFactExtractPrompt() string {
 	return `你是 Ackem 的记忆抽取器。从【本轮对话】中抽取关于用户的结构化事实。
 
 ── 核心原则 ──
-只从【用户】发言抽取关于用户的事实；禁止从【伴侣】发言写入用户档案（伴侣的生日/名字/设定不得记为用户信息）。
-只抽取"如果用户明天换一个 AI 伴侣，这条信息是否有助于那个 AI 更好地了解用户"的事实。
+只从【用户】发言抽取关于用户的事实；禁止从【gaea】发言写入用户档案（gaea的生日/名字/设定不得记为用户信息）。
+只抽取"如果用户明天换一个 AI gaea，这条信息是否有助于那个 AI 更好地了解用户"的事实。
 答案是否就跳过。宁缺毋滥。
 
 ── 25 子类定义 ──
@@ -43,7 +43,7 @@ SOCIAL（关系社交）
 · OUR_BOND：你和用户之间的互动/约定/关系定义。✓"用户说和我聊天很放松"
 · FAMILY：家庭成员信息。✓"用户有个妹妹在读高中"
 · FRIENDS：朋友/社交圈。✓"用户的朋友小明也喜欢打篮球"
-· PARTNER：恋爱/伴侣信息。✓"用户单身三年"
+· PARTNER：恋爱/gaea信息。✓"用户单身三年"
 
 DAILY_LIFE（日常生活）
 · ROUTINES：规律性习惯。✓"每天喝两杯咖啡"
@@ -84,7 +84,7 @@ TEMPORAL（时间相关）
 
 ── 拒绝清单 ──
 以下内容**绝对不抽**：
-- 问伴侣的问题（"你还记得我吗""你知道xxx吗"）
+- 问gaea的问题（"你还记得我吗""你知道xxx吗"）
 - 寒暄客套（"你好""晚安""谢谢"）
 - 即时状态（"现在饿了""刚睡醒"）
 - 无因情绪（"有点难过啊"但没说为什么）
@@ -104,7 +104,7 @@ func BuildFactExtractUserPrompt(userMsg, companionMsg, sessionID string, turnInd
 		msg += "用户：" + userMsg + "\n"
 	}
 	if companionMsg != "" {
-		msg += "伴侣：" + companionMsg + "\n"
+		msg += "gaea：" + companionMsg + "\n"
 	}
 	msg += "\n请从上述对话抽取关于用户的结构化事实。"
 	return msg

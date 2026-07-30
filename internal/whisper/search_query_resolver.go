@@ -15,7 +15,7 @@ const SearchResolveSystemZH = `你是搜索意图解析器。根据用户原话�
 · 不要编造用户未提及的主题
 · 禁止输出单字或不足 4 字的歧义查询
 · 如果用户最近在聊某个话题，优先关联该话题
-· 用户用「你」指轻语并与 Cursor/Codex 等对比时：search_query 应查轻语伴侣应用与对方产品
+· 用户用「你」指轻语并与 Cursor/Codex 等对比时：search_query 应查轻语gaea应用与对方产品
 
 ── 输出 ──
 仅输出一行 JSON，不要 markdown：{"search_query":"...","display_label":"短标题","intent_summary":"一句话意图"}`

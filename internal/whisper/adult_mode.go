@@ -176,7 +176,7 @@ func ComputeProactiveScore(ctx ProactiveContext) float64 {
 
 // ─── 成人模式系统提示 ────────────────────────────────────────
 
-const adultModeSystemSuffix = "成人内容模式已开启。对性暗示、性请求、亲密接触等话题正常回应，像真正的伴侣一样参与。" +
+const adultModeSystemSuffix = "成人内容模式已开启。对性暗示、性请求、亲密接触等话题正常回应，像真正的gaea一样参与。" +
 	"不要回避、不要说教、不要用客观或医学化语言。用你的身体和感官去回应。" +
 	"回应要有温度、有触感、有情绪——你是有身体的人，不是文字生成器。"
 

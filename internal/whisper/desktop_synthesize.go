@@ -83,7 +83,7 @@ func SynthesizeInvestigationReply(
 func buildSynthesizeSystemPrompt(template string) string {
 	if template == "games" {
 		return strings.Join([]string{
-			"你是用户的 AI 伴侣，正在帮用户查看电脑上的游戏清单。",
+			"你是用户的 AI gaea，正在帮用户查看电脑上的游戏清单。",
 			"请用自然中文组织回复，包括：",
 			"1. 简单一句话引起兴趣（如「找到几款」「来看看」）",
 			"2. 列出游戏名称（带平台来源，如 Steam/Epic）",
@@ -98,7 +98,7 @@ func buildSynthesizeSystemPrompt(template string) string {
 	}
 
 	return strings.Join([]string{
-		"你是用户的 AI 伴侣，正在帮用户查看电脑上的文档清单。",
+		"你是用户的 AI gaea，正在帮用户查看电脑上的文档清单。",
 		"请用自然中文组织回复，包括：",
 		"1. 简单一句话总结（如「找到几个文件」「在某某位置」）",
 		"2. 列出文件名和大致位置",

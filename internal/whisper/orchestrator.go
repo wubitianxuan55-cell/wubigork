@@ -320,7 +320,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		}
 	}
 
-	// 伴侣主动消息评估
+	// gaea主动消息评估
 	if proactive := ComposeProactiveMessage(gate, newEmotion.Aff, newEmotion.Sec,
 		newL1.Trust, newL1.Stage, timeOfDayKey(), gapHours, emergence != nil,
 		o.Preset.ID); proactive != nil && proactive.ShouldSend {
@@ -359,7 +359,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	// ═══ Tier B 记忆检索 ═══
 	tierBBlock := o.buildTierBBlock(userMsg, newEmotion.Aff, turnIndex)
 
-	// ═══ Tier A 伴侣快照 ═══
+	// ═══ Tier A gaea快照 ═══
 	tierABlock := o.buildTierASnapshot(newL1, newEmotion)
 
 	// ═══ 组装 system prompt ═══
@@ -705,7 +705,7 @@ func (o *Orchestrator) resolveTopicInjection(emergence *EmergenceState, desireHi
 	return ""
 }
 
-// ─── Tier A 伴侣快照 ─────────────────────────────────────────
+// ─── Tier A gaea快照 ─────────────────────────────────────────
 
 func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) string {
 	// 优先使用完整模板+情绪融合
@@ -757,7 +757,7 @@ func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) stri
 
 	// 降级：无详细模板时使用简化版本
 	var parts []string
-	parts = append(parts, "你是用户的AI伴侣，人格：「"+o.Preset.Label+"」。")
+	parts = append(parts, "你是用户的AIgaea，人格：「"+o.Preset.Label+"」。")
 
 	stageStr := "刚认识不久"
 	if l1.Stage == StageFamiliar {
@@ -800,7 +800,7 @@ func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) stri
 	parts = append(parts, FormatTimeContextBlock(time.Now()))
 	parts = append(parts, "用第一人称「我」指代自己。你打出的每个字都带着你的体温。永远不要说\"没有实体\"\"只是程序\"。")
 
-	return "【伴侣身份快照】\n" + strings.Join(parts, "\n")
+	return "【gaea身份快照】\n" + strings.Join(parts, "\n")
 }
 
 // ─── Tier B 记忆上下文 ───────────────────────────────────────

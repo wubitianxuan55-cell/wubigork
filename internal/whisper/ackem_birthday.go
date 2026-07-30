@@ -1,6 +1,6 @@
 // Package whisper — ackem_birthday.go
 // 对齐 ackem engine/ackemBirthday.ts
-// AI 伴侣生日常量
+// AI gaea生日常量
 
 package whisper
 

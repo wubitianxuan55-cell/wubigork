@@ -94,7 +94,7 @@ func extractFactsFromChunk(chunk string, chunkIdx, totalChunks int, llm LlmClien
 
 规则：
 - 只抽取关于用户本人的信息（身份、经历、偏好、习惯、关系、价值观等）
-- 领域选择：BASIC_PROFILE(姓名/年龄/性别)、LIFE_STORY(重要经历)、FAMILY(家庭)、TASTES(喜好)、GOALS(目标)、VALUES_BELIEFS(价值观)、VULNERABILITIES(脆弱面)、OUR_BOND(与伴侣关系)
+- 领域选择：BASIC_PROFILE(姓名/年龄/性别)、LIFE_STORY(重要经历)、FAMILY(家庭)、TASTES(喜好)、GOALS(目标)、VALUES_BELIEFS(价值观)、VULNERABILITIES(脆弱面)、OUR_BOND(与gaea关系)
 - 每条事实一行，格式：domain|subcategory|subject|summary|weight|confidence
 - weight: 1(琐碎)-10(重大人生事件)
 - confidence: 0.3(推测)-1.0(明确陈述)

@@ -28,7 +28,7 @@ const factExtractionPrompt = `你是一个记忆提取助手。从以下对话�
 // episodeExtractionPrompt 情节记忆摘要提示（对齐 ackem prompt/memory-episode.ts）
 const episodeExtractionPrompt = `你是情节记忆摘要器。将以下对话片段总结为一条叙事摘要。
 
-规则：第三人称"用户"和"伴侣"；keyQuote 必须一字不差从原文复制（≤15字）；情绪关键词最多3个；标注时间语境；摘要≤200字。
+规则：第三人称"用户"和"gaea"；keyQuote 必须一字不差从原文复制（≤15字）；情绪关键词最多3个；标注时间语境；摘要≤200字。
 
 输出 JSON: {"summary":"...","emotionalIntensity":0.7,"dominantEmotion":"...","keywords":["...","..."],"keyQuote":"...","emotionKeywords":["...","..."],"timeContext":"..."}`
 

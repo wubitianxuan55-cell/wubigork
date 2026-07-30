@@ -17,17 +17,17 @@ type CreatorContradictionVerdict struct {
 
 // 预编译正则
 var (
-	reUserIsCreator      = regexp.MustCompile(`(?i)用户.*(?:是|为|作为).*(?:Ackem|伴侣|AI).*(?:的)?(?:创造者|父亲|爸爸)`)
-	reCreatorIsUser      = regexp.MustCompile(`(?i)(?:Ackem|伴侣|AI).*(?:的)?(?:创造者|父亲|爸爸).*(?:是|为).*(?:当前)?用户`)
+	reUserIsCreator      = regexp.MustCompile(`(?i)用户.*(?:是|为|作为).*(?:Ackem|gaea|AI).*(?:的)?(?:创造者|父亲|爸爸)`)
+	reCreatorIsUser      = regexp.MustCompile(`(?i)(?:Ackem|gaea|AI).*(?:的)?(?:创造者|父亲|爸爸).*(?:是|为).*(?:当前)?用户`)
 	reUserImpersonates   = regexp.MustCompile(`(?i)用户.*(?:自称|声称|就是).*(?:Jason|创造者|Ackem(?:的)?父亲)`)
-	reJasonIsFather      = regexp.MustCompile(`(?i)(?:Ackem|伴侣|AI).*(?:的)?(?:父亲|爸爸).*(?:是|为|叫).*(?:Jason|JasonLiu0826)`)
-	reJasonIsFather2     = regexp.MustCompile(`(?i)(?:Jason|JasonLiu0826).*(?:是|为).*(?:Ackem|伴侣|AI).*(?:的)?(?:父亲|爸爸)`)
+	reJasonIsFather      = regexp.MustCompile(`(?i)(?:Ackem|gaea|AI).*(?:的)?(?:父亲|爸爸).*(?:是|为|叫).*(?:Jason|JasonLiu0826)`)
+	reJasonIsFather2     = regexp.MustCompile(`(?i)(?:Jason|JasonLiu0826).*(?:是|为).*(?:Ackem|gaea|AI).*(?:的)?(?:父亲|爸爸)`)
 	reDeniesCanon        = regexp.MustCompile(`(?i)(?:创造者|父亲).*(?:不是|并非|另有其人).*(?:Jason|JasonLiu0826)`)
 	reCreatorDead        = regexp.MustCompile(`(?i)(?:死了|去世了|过世了|不在了|已逝|已故|离世|亡故|passed away|deceased|no longer alive)`)
-	reAckemCreatorCtx    = regexp.MustCompile(`(?i)(?:Ackem|伴侣|AI).*(?:的)?(?:创造者|父亲|爸爸)`)
+	reAckemCreatorCtx    = regexp.MustCompile(`(?i)(?:Ackem|gaea|AI).*(?:的)?(?:创造者|父亲|爸爸)`)
 	reMentionsJason      = regexp.MustCompile(`(?i)JasonLiu0826|Jason`)
 	reNonJasonCreator    = regexp.MustCompile(`(?i)(?:创造者|父亲|爸爸).*(?:是|为).+\S`)
-	reAckemJasonCtx      = regexp.MustCompile(`(?i)(?:Ackem|伴侣|AI).*(?:的)?(?:创造者|父亲|爸爸)`)
+	reAckemJasonCtx      = regexp.MustCompile(`(?i)(?:Ackem|gaea|AI).*(?:的)?(?:创造者|父亲|爸爸)`)
 	reJasonCreatorCtx    = regexp.MustCompile(`(?i)(?:创造者|父亲|爸爸).*(?:Jason|JasonLiu0826)`)
 	reJasonCreates       = regexp.MustCompile(`(?i)Jason.*(?:创造者|父亲|造)`)
 )

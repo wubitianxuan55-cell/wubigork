@@ -1,12 +1,12 @@
 // Package whisper — channel_turn.go
 // 100% 对齐 ackem channels/companionTurn.ts
-// 全链路伴侣对话编排：合并引擎状态 → LLM 调用 → 后处理
+// 全链路gaea对话编排：合并引擎状态 → LLM 调用 → 后处理
 
 package whisper
 
 // ─── CompanionTurnInput ───────────────────────────────────────
 
-// CompanionTurnInput 伴侣对话轮次输入
+// CompanionTurnInput gaea对话轮次输入
 type CompanionTurnInput struct {
 	UserMsg    string
 	SessionID  string
@@ -16,7 +16,7 @@ type CompanionTurnInput struct {
 
 // ─── CompanionTurnResult ──────────────────────────────────────
 
-// CompanionTurnResult 伴侣对话轮次输出
+// CompanionTurnResult gaea对话轮次输出
 type CompanionTurnResult struct {
 	AssistantReply string
 	SystemPrompt   string
@@ -27,7 +27,7 @@ type CompanionTurnResult struct {
 
 // ─── CompanionTurn ────────────────────────────────────────────
 
-// CompanionTurn 全链路伴侣对话编排
+// CompanionTurn 全链路gaea对话编排
 // 等价于 ackem channels/companionTurn.ts 的 runCompanionTurn
 func (o *Orchestrator) CompanionTurn(input CompanionTurnInput) *CompanionTurnResult {
 	// 1. 运行 PreLLMTurn

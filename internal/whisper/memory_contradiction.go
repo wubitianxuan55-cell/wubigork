@@ -214,7 +214,7 @@ func parseBatchContradictionResult(raw string, pairs []ContradictionPair) []*Con
 
 // ─── 矛盾检测 System Prompt ───────────────────────────────────
 
-const contradictionSystemZH = `你判断两条记忆事实之间的关系。输入两条事实（来自同一个AI伴侣对用户的记忆），输出它们的关系：
+const contradictionSystemZH = `你判断两条记忆事实之间的关系。输入两条事实（来自同一个AIgaea对用户的记忆），输出它们的关系：
 
 关系类型：
 - "strong_conflict"：完全矛盾（"喜欢猫" vs "讨厌猫"）

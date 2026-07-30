@@ -7,7 +7,7 @@
 //                          └──── interrupt ──────────┘
 //
 // VAD：基于 RMS 能量检测，可配置沉默/打断阈值
-// 管道：音频输入 → VAD → ASR → Whisper 伴侣引擎 → TTS → 音频输出
+// 管道：音频输入 → VAD → ASR → Whisper gaea引擎 → TTS → 音频输出
 package voice
 
 import (

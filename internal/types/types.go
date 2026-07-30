@@ -96,7 +96,7 @@ type Relationship struct {
 	ToID         string `json:"to_id"`
 	RelationType string `json:"relation_type"` // friend / enemy / family / mentor / rival / lover / member / leader
 	Description  string `json:"description,omitempty"`
-	Intimacy     int    `json:"intimacy"` // -100(死敌) ~ 100(灵魂伴侣)
+	Intimacy     int    `json:"intimacy"` // -100(死敌) ~ 100(灵魂gaea)
 }
 
 // CharacterFile characters.json 完整文件结构

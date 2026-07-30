@@ -1,6 +1,6 @@
 // Package whisper — companion_reply_log.go
 // 100% 对齐 ackem memory/companionReplyLog.ts
-// 伴侣回复日志：按日合并伴侣回复摘要为一条事实
+// gaea回复日志：按日合并gaea回复摘要为一条事实
 
 package whisper
 
@@ -34,19 +34,19 @@ func FormatReplyTimestamp(d time.Time) string {
 	return fmt.Sprintf("%d月%d日%d点%d分", m, day, h, min)
 }
 
-// CompanionReplySubjectForDay 按日历日生成伴侣回复subject
+// CompanionReplySubjectForDay 按日历日生成gaea回复subject
 func CompanionReplySubjectForDay(d time.Time) string {
 	return companionReplySubjectPrefix + "·" + d.Format("2006-01-02")
 }
 
-// FormatCompanionReplyLine 格式化单条伴侣回复行
+// FormatCompanionReplyLine 格式化单条gaea回复行
 func FormatCompanionReplyLine(userMsg, assistantText string, now time.Time) string {
 	uq := clipStr(userMsg, 48)
 	body := clipStr(assistantText, 160)
 	return fmt.Sprintf("%s，回复用户「%s」：%s", FormatReplyTimestamp(now), uq, body)
 }
 
-// WriteCompanionReplyLog 每轮同步写入伴侣回复摘要（同日合并）
+// WriteCompanionReplyLog 每轮同步写入gaea回复摘要（同日合并）
 func WriteCompanionReplyLog(store *FactStore, sessionID string, turnIndex int, userMsg, assistantText string) []string {
 	now := time.Now()
 	line := FormatCompanionReplyLine(userMsg, assistantText, now)

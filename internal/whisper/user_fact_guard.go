@@ -1,6 +1,6 @@
 // Package whisper — user_fact_guard.go
 // 100% 对齐 ackem memory/userFactGuard.ts
-// 用户事实抽取守卫：只从用户自述写入档案，问句/伴侣自述不得污染用户 BASIC_PROFILE
+// 用户事实抽取守卫：只从用户自述写入档案，问句/gaea自述不得污染用户 BASIC_PROFILE
 
 package whisper
 
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// questionToCompanionREs 问句→伴侣检测正则
+// questionToCompanionREs 问句→gaea检测正则
 var questionToCompanionREs = []*regexp.Regexp{
 	regexp.MustCompile(`^你(?:是|叫|谁|名字|生日|多大|几岁|哪年)`),
 	regexp.MustCompile(`^请问?你(?:的)?(?:生日|名字|是谁)`),
@@ -22,7 +22,7 @@ var questionToCompanionREs = []*regexp.Regexp{
 var interrogativeNameRE = regexp.MustCompile(`^[谁什么啥哪怎么为何几个]+$`)
 var refusalNameRE = regexp.MustCompile(`^(随便|不想|不说|保密|不告诉你|无可奉告)`)
 
-// IsQuestionToCompanion 判断是否为对伴侣的提问
+// IsQuestionToCompanion 判断是否为对gaea的提问
 func IsQuestionToCompanion(msg string) bool {
 	t := strings.TrimSpace(msg)
 	if t == "" {

@@ -58,7 +58,7 @@ func FinalizeTurn(orch *Orchestrator, ctx PostTurnContext) {
 		}
 	}
 
-	// 5. 伴侣回复日志
+	// 5. gaea回复日志
 	_ = writeCompanionReplyLog(orch, ctx)
 
 	// 6. 标记共享事件数
@@ -188,7 +188,7 @@ func writeSyncLightFacts(orch *Orchestrator, ctx PostTurnContext) []string {
 	return facts
 }
 
-// writeCompanionReplyLog 写入伴侣回复日志
+// writeCompanionReplyLog 写入gaea回复日志
 func writeCompanionReplyLog(orch *Orchestrator, ctx PostTurnContext) []string {
 	if orch.FactStore == nil || ctx.AssistantText == "" {
 		return nil

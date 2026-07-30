@@ -213,7 +213,7 @@ export const WhisperEmotionPanel: React.FC<EmotionPanelProps> = (props) => {
       {/* 人格标签 */}
       <div style={{ textAlign: 'center', marginTop: 'auto', paddingTop: 8, borderTop: `1px solid ${C('color-border')}` }}>
         <Typography.Text style={{ fontSize: 10, color: C('color-text-secondary'), opacity: 0.5 }}>
-          {personalityLabel}型伴侣
+          {personalityLabel}型gaea
         </Typography.Text>
       </div>
     </div>

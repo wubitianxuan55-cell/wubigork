@@ -39,7 +39,7 @@ var archiveSubcatZH = map[string]string{
 	"OUR_BOND":        "我们的羁绊",
 	"FAMILY":          "家庭",
 	"FRIENDS":         "朋友",
-	"PARTNER":         "伴侣",
+	"PARTNER":         "gaea",
 	"ROUTINES":        "日常习惯",
 	"HEALTH":          "身心健康",
 	"LIVING_SPACE":    "居住环境",

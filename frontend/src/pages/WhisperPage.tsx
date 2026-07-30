@@ -85,7 +85,7 @@ const WhisperPage: React.FC = () => {
   const emoColor = emoColors[emotion] || "#e85388"
   const topicList = useMemo(() => topics.map(({ id, title, createdAt }) => ({ id, title, createdAt })), [topics])
 
-  // 伴侣名称：优先从 localStorage 读取自定义名称，fallback 到人格 label
+  // gaea名称：优先从 localStorage 读取自定义名称，fallback 到人格 label
   const companionName = useMemo(() => {
     try {
       const raw = localStorage.getItem('wubigrok_whisper_companion_settings')
@@ -234,7 +234,7 @@ const WhisperPage: React.FC = () => {
         <SoundWaveOverlay active={speakingId !== null} aff={aff} aro={aro} />
         {/* 设置按钮 */}
         <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 4 }}>
-          <Tooltip title="伴侣设置">
+          <Tooltip title="gaea设置">
             <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setShowSettings(true)}
               style={{ color: C('color-text-secondary'), opacity: 0.5, width: 28, height: 28, padding: 0 }} />
           </Tooltip>
@@ -275,7 +275,7 @@ const WhisperPage: React.FC = () => {
               <CompanionAvatar size={120} state="idle" emotionColor={emoColor} />
               <div style={{ height: 16 }} />
               <Typography.Text style={{ color: C('color-text'), fontSize: 20, fontWeight: 700, marginBottom: 4 }}>轻语</Typography.Text>
-              <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13, marginBottom: 20 }}>选择一位AI伴侣，开始对话 💫</Typography.Text>
+              <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13, marginBottom: 20 }}>选择一位AIgaea，开始对话 💫</Typography.Text>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, maxWidth: 460, width: '100%', marginBottom: 20 }}>
                 {[{ icon: '💬', label: '聊聊今天', desc: '分享你的日常' }, { icon: '💭', label: '倾诉心情', desc: '说说心里话' }, { icon: '🎵', label: '分享兴趣', desc: '聊聊你喜欢的东西' }, { icon: '🌙', label: '晚安问候', desc: '睡前聊一会儿' }].map(s => (
                   <div key={s.label} onClick={() => { setInput(s.label); inputRef.current?.focus() }}
@@ -287,7 +287,7 @@ const WhisperPage: React.FC = () => {
                 ))}
               </div>
               <Button type="primary" icon={<SwapOutlined />} onClick={() => setPersonalityOpen(true)}
-                style={{ borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13, background: 'linear-gradient(135deg, #e85388, #a855f7)', border: 'none' }}>选择伴侣人格</Button>
+                style={{ borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13, background: 'linear-gradient(135deg, #e85388, #a855f7)', border: 'none' }}>选择gaea人格</Button>
             </div>
           ) : (
             <div style={{ maxWidth: 'var(--whisper-chat-max-width)', margin: '0 auto', padding: '0 16px' }}>
@@ -299,7 +299,7 @@ const WhisperPage: React.FC = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                         <div className={`whisper-light-core${(trust || 0) > 70 ? ' double-pulse' : ''}`} />
                         <span style={{ fontSize: 11, color: 'var(--whisper-ink-muted)', fontWeight: 500 }}>
-                          {currentPersonality?.label || '伴侣'}
+                          {currentPersonality?.label || 'gaea'}
                         </span>
                       </div>
                     )}
@@ -379,9 +379,9 @@ const WhisperPage: React.FC = () => {
             )}
         </aside>
 
-      {/* 伴侣设置弹窗 */}
+      {/* gaea设置弹窗 */}
       <Modal
-        title="伴侣设置"
+        title="gaea设置"
         open={showSettings}
         onCancel={() => setShowSettings(false)}
         footer={null}
@@ -420,7 +420,7 @@ const WhisperPage: React.FC = () => {
       </Modal>
 
       {/* 人格选择弹窗 */}
-      <Modal title="选择伴侣人格" open={personalityOpen} onCancel={() => setPersonalityOpen(false)} footer={null} width={680} centered>
+      <Modal title="选择gaea人格" open={personalityOpen} onCancel={() => setPersonalityOpen(false)} footer={null} width={680} centered>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, maxHeight: 400, overflow: 'auto' }}>
           {personalities.map(p => (
             <Card key={p.id} hoverable size="small" onClick={() => handleSwitchPersonality(p.id)}
@@ -431,7 +431,7 @@ const WhisperPage: React.FC = () => {
                 <Typography.Text strong style={{ fontSize: 13 }}>{p.label}</Typography.Text>
                 {activePersonality === p.id && <Tag color="magenta" style={{ marginLeft: 'auto', fontSize: 9, lineHeight: '14px' }}>当前</Tag>}
               </div>
-              <Typography.Paragraph type="secondary" style={{ fontSize: 10, marginBottom: 4 }} ellipsis={{ rows: 1 }}>{p.voiceGuide || `${p.label}型伴侣`}</Typography.Paragraph>
+              <Typography.Paragraph type="secondary" style={{ fontSize: 10, marginBottom: 4 }} ellipsis={{ rows: 1 }}>{p.voiceGuide || `${p.label}型gaea`}</Typography.Paragraph>
             </Card>
           ))}
         </div>

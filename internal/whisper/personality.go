@@ -92,7 +92,7 @@ func BuildPresetVoiceGuide(preset PersonalityPreset, adultMode bool) string {
 		}
 		return preset.VoiceGuide
 	}
-	return "你是「" + preset.Label + "」型伴侣：措辞与态度须贯穿此人设，勿写成通用温柔助手或百科客服。"
+	return "你是「" + preset.Label + "」型gaea：措辞与态度须贯穿此人设，勿写成通用温柔助手或百科客服。"
 }
 
 // DefaultPersonalitySlice 默认人格切片

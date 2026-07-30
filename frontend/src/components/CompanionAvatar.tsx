@@ -1,4 +1,4 @@
-// CompanionAvatar.tsx — 简易Canvas伴侣光球
+// CompanionAvatar.tsx — 简易Canvasgaea光球
 // 100% 对齐 ackem AIVatar 的核心视觉效果：旋转粒子球 + 呼吸脉冲 + 状态变色
 
 import React, { useEffect, useRef } from 'react'

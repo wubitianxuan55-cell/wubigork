@@ -1,6 +1,6 @@
 // Package whisper — proactive_personality.go
 // 100% 对齐 ackem companion/proactivePersonalityContext.ts
-// 伴侣主动消息：人格上下文构建 + 消息类型选择 + 骚扰间隔
+// gaea主动消息：人格上下文构建 + 消息类型选择 + 骚扰间隔
 
 package whisper
 

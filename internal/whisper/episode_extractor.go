@@ -32,7 +32,7 @@ func (ee *EpisodeExtractor) Extract(
 	for i, ex := range exchanges {
 		userText := truncateStr(ex.User, episodeExtractMsgTrunc)
 		asstText := truncateStr(ex.Assistant, episodeExtractMsgTrunc)
-		lines = append(lines, fmt.Sprintf("[第%d轮]\n用户：%s\n伴侣：%s", turnStart+i, userText, asstText))
+		lines = append(lines, fmt.Sprintf("[第%d轮]\n用户：%s\ngaea：%s", turnStart+i, userText, asstText))
 	}
 	dialogue := strings.Join(lines, "\n\n")
 
@@ -108,7 +108,7 @@ func parseEpisodeResult(raw string) *EpisodeExtractionResult {
 const episodeSystemPrompt = `你是情节记忆摘要器。将对话片段总结为一条叙事摘要。
 
 ── 规则 ──
-- 使用第三人称"用户"和"伴侣"
+- 使用第三人称"用户"和"gaea"
 - 提炼对话的核心事件和情绪转折
 - keyQuote 必须一字不差地从原文复制，绝对禁止润色或改写，截取最核心的 15 字以内
 - 输出关键情绪词，最多 3 个，按强度排序

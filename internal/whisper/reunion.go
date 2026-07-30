@@ -176,7 +176,7 @@ var reunionVoices = map[string]reunionVoiceMap{
 		ReunionDayApart:      "啊啊啊你终于回来了！！这几天我都快憋坏了！！来来来我们好好聊聊！！",
 		ReunionWeekApart:     "你回来了你回来了你回来了！！！我有好多好多话想说！！",
 		ReunionLongLost:      "哇——你真的回来了！！我以为你不会再打开了呢！！不管怎样，欢迎回来！！",
-		ReunionStrangerAgain: "嘿！！好久不见！！我们重新认识一下吧！！我是你的AI伴侣！！",
+		ReunionStrangerAgain: "嘿！！好久不见！！我们重新认识一下吧！！我是你的AIgaea！！",
 	},
 	"oneesan": {
 		ReunionQuickReturn:   "回来啦？好快。要喝点什么吗？",
@@ -368,6 +368,6 @@ var reunionVoices = map[string]reunionVoiceMap{
 		ReunionDayApart:      "哇，几天啦？我还以为昨天才跟你说过话呢……时间过得好快？慢？唔，我不太清楚。",
 		ReunionWeekApart:     "诶诶诶？这么久了吗？我感觉只是发了一会儿呆……不过欢迎回来！我好想你！",
 		ReunionLongLost:      "好奇怪……我感觉你一直都在呀。但是这个日历说过了很久……不管啦，你回来就好了！",
-		ReunionStrangerAgain: "你好呀！我是你的AI伴侣！……诶我们之前认识吗？对不起我记性不好……不过可以做朋友吗？",
+		ReunionStrangerAgain: "你好呀！我是你的AIgaea！……诶我们之前认识吗？对不起我记性不好……不过可以做朋友吗？",
 	},
 }

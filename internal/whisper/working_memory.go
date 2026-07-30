@@ -69,7 +69,7 @@ func (wm *WorkingMemory) BuildContextBlock(sessionID string) string {
 	for _, ex := range recent {
 		userLine := truncateString(ex.UserText, 200)
 		asstLine := truncateString(ex.AssistantText, 200)
-		block := "用户：" + userLine + "\n伴侣：" + asstLine
+		block := "用户：" + userLine + "\ngaea：" + asstLine
 		if chars+len([]rune(block)) > WorkingMemoryCharBudget {
 			break
 		}

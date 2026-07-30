@@ -33,7 +33,7 @@ func (fe *FactExtractor) Extract(
 ) (*FactExtractionResult, error) {
 	sysPrompt := factExtractSystemZH
 	userPrompt := fmt.Sprintf(
-		"session=%s turn=%d\n【仅根据「用户」一行抽取关于用户的事实；「伴侣」仅供理解语境，禁止从中抽取写入用户档案的信息】\n用户：%s\n伴侣（勿抽取）：%s",
+		"session=%s turn=%d\n【仅根据「用户」一行抽取关于用户的事实；「gaea」仅供理解语境，禁止从中抽取写入用户档案的信息】\n用户：%s\ngaea（勿抽取）：%s",
 		sessionID, turnIndex, userMsg, companionMsg,
 	)
 
@@ -132,8 +132,8 @@ func parseExtractionSalvage(raw string, maxPerTurn int) *FactExtractionResult {
 const factExtractSystemZH = `你是 Ackem 的记忆抽取器。从【本轮对话】中抽取关于用户的结构化事实。
 
 ── 核心原则 ──
-只从【用户】发言抽取关于用户的事实；禁止从【伴侣】发言写入用户档案（伴侣的生日/名字/设定不得记为用户信息）。
-只抽取"如果用户明天换一个 AI 伴侣，这条信息是否有助于那个 AI 更好地了解用户"的事实。
+只从【用户】发言抽取关于用户的事实；禁止从【gaea】发言写入用户档案（gaea的生日/名字/设定不得记为用户信息）。
+只抽取"如果用户明天换一个 AI gaea，这条信息是否有助于那个 AI 更好地了解用户"的事实。
 答案是否就跳过。宁缺毋滥。
 
 ── 25 子类定义 ──
@@ -147,7 +147,7 @@ SOCIAL（关系社交）
 · OUR_BOND：你和用户之间的互动/约定/关系定义。✓"用户说和我聊天很放松"
 · FAMILY：家庭成员信息。✓"用户有个妹妹在读高中"
 · FRIENDS：朋友/社交圈。✓"用户的朋友小明也喜欢打篮球"
-· PARTNER：恋爱/伴侣信息。✓"用户单身三年"
+· PARTNER：恋爱/gaea信息。✓"用户单身三年"
 
 DAILY_LIFE（日常生活）
 · ROUTINES：规律性习惯。✓"每天喝两杯咖啡"
@@ -191,7 +191,7 @@ TEMPORAL（当下未来）
 
 ── 拒绝抽取清单 ──
 以下内容必须输出 {"facts": []}：
-· 用户只是在问伴侣（"你是谁""你生日是什么时候""你叫什么"）—— 不得把伴侣的回答写入用户 BASIC_PROFILE
+· 用户只是在问gaea（"你是谁""你生日是什么时候""你叫什么"）—— 不得把gaea的回答写入用户 BASIC_PROFILE
 · 纯社交寒暄/语气词（"你好""在吗""早安""哈哈哈哈"）
 · 无特定意义的即时状态（"我吃完了""准备去洗澡"），除非打破常规
 · 情绪发泄但无具体原因（"今天真烦"不抽）

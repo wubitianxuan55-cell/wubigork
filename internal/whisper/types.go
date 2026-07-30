@@ -1,4 +1,4 @@
-// Package whisper — 轻语模块：AI 伴侣引擎（100% 对齐 ackem engine/types.ts）
+// Package whisper — 轻语模块：AI gaea引擎（100% 对齐 ackem engine/types.ts）
 package whisper
 
 import "time"

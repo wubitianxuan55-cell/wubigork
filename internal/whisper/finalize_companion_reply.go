@@ -1,6 +1,6 @@
 // Package whisper — finalize_companion_reply.go
 // 100% 对齐 ackem paperCard/finalizeCompanionReply.ts
-// 纸面卡后伴侣跟评：去掉未闭合的动作描写，保证句末完整
+// 纸面卡后gaea跟评：去掉未闭合的动作描写，保证句末完整
 
 package whisper
 
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// FinalizePaperCardCompanionReply 精修伴侣跟评（截断+闭合括号清理+句末补全）
+// FinalizePaperCardCompanionReply 精修gaea跟评（截断+闭合括号清理+句末补全）
 func FinalizePaperCardCompanionReply(text string, maxChars int) string {
 	if maxChars <= 0 {
 		maxChars = 140
