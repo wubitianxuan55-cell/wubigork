@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react'
 import { Button, Switch, Select, Modal, message, Card, Tag, Typography, Input, Radio, Checkbox } from 'antd'
 import { ClearOutlined, SwapOutlined, ApiOutlined, SettingOutlined } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
+import WhisperPersonalityModal from './WhisperPersonalityModal'
 
 const { Text } = Typography
 
@@ -265,64 +266,14 @@ export default function WhisperSettingsPanel({
       </SettingsSection>
 
       {/* ── 人格选择弹窗 ── */}
-      <Modal
-        title={<span style={{ color: 'var(--whisper-ink)' }}>选择gaea人格</span>}
+      <WhisperPersonalityModal
         open={personalityOpen}
-        onCancel={() => setPersonalityOpen(false)}
-        footer={null}
-        width={680}
-        centered
-        className="whisper-glass"
-      >
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-          gap: 8,
-          maxHeight: 440,
-          overflow: 'auto',
-        }} className="whisper-scroll">
-          {personalities.map(p => {
-            const locked = Boolean(p.requiresAdult18 && !settings.ageConfirmed18)
-            const isActive = activePersonality === p.id
-            return (
-              <Card
-                key={p.id}
-                hoverable={!locked}
-                size="small"
-                onClick={() => {
-                  if (locked) { message.warning('此人格需要先确认年满 18 岁'); return }
-                  onPersonalityChange(p.id)
-                  setPersonalityOpen(false)
-                }}
-                style={{
-                  border: isActive ? '2px solid var(--whisper-accent)' : '1px solid var(--whisper-glass-border)',
-                  background: isActive ? 'rgba(184,149,106,0.08)' : 'var(--whisper-glass-bg)',
-                  borderRadius: 10,
-                  cursor: locked ? 'not-allowed' : 'pointer',
-                  opacity: locked ? 0.4 : 1,
-                  transition: 'all 0.2s',
-                }}
-                bodyStyle={{ padding: '10px 12px' }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--whisper-ink)' }}>
-                  {p.gender === 'male' ? '🤵' : '👩'} {p.label}
-                  {p.requiresAdult18 && <Tag color="red" style={{ marginLeft: 4, fontSize: 9 }}>18+</Tag>}
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--whisper-ink-muted)', marginTop: 4 }}>
-                  T:{p.dims.T} I:{p.dims.I} S:{p.dims.S} O:{p.dims.O} R:{p.dims.R}
-                </div>
-                {locked && <div style={{ fontSize: 9, color: '#f87171', marginTop: 2 }}>需年龄确认</div>}
-                {isActive && (
-                  <div style={{
-                    fontSize: 9, color: 'var(--whisper-accent)', marginTop: 4,
-                    fontWeight: 600,
-                  }}>✓ 当前</div>
-                )}
-              </Card>
-            )
-          })}
-        </div>
-      </Modal>
+        personalities={personalities}
+        activePersonality={activePersonality}
+        adultMode={adultMode}
+        onClose={() => setPersonalityOpen(false)}
+        onSwitch={(id) => { onPersonalityChange(id); setPersonalityOpen(false) }}
+      />
 
       {/* ── 清除确认 ── */}
       <Modal

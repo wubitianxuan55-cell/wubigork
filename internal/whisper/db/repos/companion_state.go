@@ -37,9 +37,9 @@ func LoadCompanionStateFromDB(dataRoot, sessionID string) (*whisper.FullState, e
 		return nil, fmt.Errorf("解析 state_json 失败: %w", err)
 	}
 
-	// 基本校验
-	if state.Relationship.Trust == 0 && state.Emotion.PrimaryLabel == "" {
-		return nil, fmt.Errorf("invalid companion state")
+	// 基本校验：情绪标签必须存在
+	if state.Emotion.PrimaryLabel == "" {
+		return nil, fmt.Errorf("invalid companion state: missing emotion label")
 	}
 
 	// 加载 emergence

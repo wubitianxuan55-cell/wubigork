@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/wubigork/wubigork/internal/modelengine"
 	"github.com/wubigork/wubigork/internal/whisper"
@@ -15,13 +16,20 @@ func (a *App) Chat(systemPrompt, userPrompt string) (string, error) {
 	return a.client.ChatSimpleStream(a.ctx, "", systemPrompt, userPrompt)
 }
 
-var whisperSessions = map[string]*whisper.Orchestrator{}
+var (
+	whisperSessions   = map[string]*whisper.Orchestrator{}
+	whisperSessionsMu sync.RWMutex
+)
 
 func (a *App) getOrCreateOrch(personalityID string) *whisper.Orchestrator {
 	sessionID := "whisper_" + personalityID
+	whisperSessionsMu.RLock()
 	if orch, ok := whisperSessions[sessionID]; ok {
+		whisperSessionsMu.RUnlock()
 		return orch
 	}
+	whisperSessionsMu.RUnlock()
+
 	preset := whisper.GetPreset(personalityID)
 	if preset == nil {
 		preset = whisper.GetPreset("deredere")
@@ -31,7 +39,11 @@ func (a *App) getOrCreateOrch(personalityID string) *whisper.Orchestrator {
 	}
 	orch := whisper.NewOrchestrator(sessionID, *preset)
 	orch.DataRoot = a.whisperDataRoot
+
+	whisperSessionsMu.Lock()
 	whisperSessions[sessionID] = orch
+	whisperSessionsMu.Unlock()
+
 	_ = restoreWhisperState(orch)
 	return orch
 }
@@ -164,18 +176,75 @@ func buildFactsList(fs *whisper.FactStore) []map[string]interface{} {
 	active := fs.ListActive()
 	facts := make([]map[string]interface{}, 0, len(active))
 	for _, f := range active {
-		facts = append(facts, map[string]interface{}{
-			"id": f.ID, "domain": f.Domain, "subject": f.Subject,
-			"summary": f.Summary, "weight": f.Weight,
-			"confidence": f.Confidence, "createdAt": f.CreatedAt.Format("2006-01-02"),
-			"tier": f.RawTier,
-		})
+		fact := map[string]interface{}{
+			"id":         f.ID,
+			"domain":     f.Domain,
+			"subcategory": f.Subcategory,
+			"subject":    f.Subject,
+			"summary":    f.Summary,
+			"weight":     f.Weight,
+			"confidence": f.Confidence,
+			"createdAt":  f.CreatedAt.Format("2006-01-02 15:04"),
+			"updatedAt":  f.UpdatedAt.Format("2006-01-02 15:04"),
+			"tier":       f.RawTier,
+			"triggers":   f.Triggers,
+			"sensitivity": f.Sensitivity,
+			"privacyLevel": f.PrivacyLevel,
+		}
+		if f.EmotionalContext != nil {
+			fact["emotionalContext"] = map[string]interface{}{
+				"valence":   f.EmotionalContext.Valence,
+				"intensity": f.EmotionalContext.Intensity,
+				"trust":     f.EmotionalContext.Trust,
+				"relStage":  string(f.EmotionalContext.RelStage),
+			}
+		}
+		facts = append(facts, fact)
 	}
 	return facts
 }
 
-func (a *App) WhisperGetState(personalityID string) map[string]interface{} {
+// WhisperGetFacts 独立获取当前会话的记忆列表
+func (a *App) WhisperGetFacts(personalityID string) []map[string]interface{} {
+	whisperSessionsMu.RLock()
 	orch, ok := whisperSessions["whisper_"+personalityID]
+	whisperSessionsMu.RUnlock()
+	if !ok {
+		return nil
+	}
+	return buildFactsList(orch.FactStore)
+}
+
+// WhisperDeleteFact 删除指定记忆
+func (a *App) WhisperDeleteFact(personalityID string, factID string) error {
+	whisperSessionsMu.RLock()
+	orch, ok := whisperSessions["whisper_"+personalityID]
+	whisperSessionsMu.RUnlock()
+	if !ok {
+		return fmt.Errorf("no active session")
+	}
+	orch.FactStore.RetireFact(factID)
+	slog.Info("[whisper] fact deleted", "id", factID)
+	return nil
+}
+
+// WhisperUpdateFact 更新记忆字段
+func (a *App) WhisperUpdateFact(personalityID string, factID string, updates map[string]interface{}) error {
+	whisperSessionsMu.RLock()
+	orch, ok := whisperSessions["whisper_"+personalityID]
+	whisperSessionsMu.RUnlock()
+	if !ok {
+		return fmt.Errorf("no active session")
+	}
+	orch.FactStore.UpdateFact(factID, updates)
+	slog.Info("[whisper] fact updated", "id", factID)
+	return nil
+}
+
+func (a *App) WhisperGetState(personalityID string) map[string]interface{} {
+	whisperSessionsMu.RLock()
+	orch, ok := whisperSessions["whisper_"+personalityID]
+	whisperSessionsMu.RUnlock()
 	if !ok {
 		return map[string]interface{}{"error": "no active session"}
 	}
@@ -203,6 +272,8 @@ func (a *App) WhisperGetState(personalityID string) map[string]interface{} {
 }
 
 func (a *App) WhisperSetEngine(engineID string) error {
+	whisperSessionsMu.RLock()
+	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
 		orch.EngineID = engineID
 	}
@@ -210,6 +281,8 @@ func (a *App) WhisperSetEngine(engineID string) error {
 }
 
 func (a *App) WhisperGetEngine() string {
+	whisperSessionsMu.RLock()
+	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
 		if orch.EngineID != "" {
 			return orch.EngineID
@@ -219,6 +292,8 @@ func (a *App) WhisperGetEngine() string {
 }
 
 func (a *App) WhisperSetModel(engineID, modelName string) error {
+	whisperSessionsMu.RLock()
+	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
 		orch.EngineID = engineID
 		orch.ModelName = modelName
@@ -227,6 +302,8 @@ func (a *App) WhisperSetModel(engineID, modelName string) error {
 }
 
 func (a *App) WhisperGetModel() string {
+	whisperSessionsMu.RLock()
+	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
 		if orch.ModelName != "" {
 			return orch.ModelName
@@ -236,6 +313,8 @@ func (a *App) WhisperGetModel() string {
 }
 
 func (a *App) WhisperSetImageModel(modelName string) error {
+	whisperSessionsMu.RLock()
+	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
 		orch.ImageModelName = modelName
 	}
@@ -243,6 +322,8 @@ func (a *App) WhisperSetImageModel(modelName string) error {
 }
 
 func (a *App) WhisperGetImageModel() string {
+	whisperSessionsMu.RLock()
+	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
 		if orch.ImageModelName != "" {
 			return orch.ImageModelName
@@ -268,17 +349,77 @@ func (a *App) WhisperGetEngines() []modelengine.EngineConfig {
 
 func (a *App) WhisperClearSession(personalityID string) error {
 	sessionID := "whisper_" + personalityID
+	whisperSessionsMu.Lock()
 	delete(whisperSessions, sessionID)
+	whisperSessionsMu.Unlock()
 	return nil
 }
 
 func (a *App) WhisperSetAdultMode(personalityID string, enabled bool) error {
+	whisperSessionsMu.RLock()
 	orch, ok := whisperSessions["whisper_"+personalityID]
+	whisperSessionsMu.RUnlock()
 	if !ok {
 		return nil
 	}
 	orch.AdultMode = enabled
+	orch.AdultMode = enabled
 	return nil
+}
+
+// ─── 上网查询 ──────────────────────────────────────────────────
+
+// WhisperWebSearch 执行上网查询（只读）
+func (a *App) WhisperWebSearch(query string) (map[string]interface{}, error) {
+	slog.Info("[whisper] web search", "query", query)
+	result, err := whisper.WebSearch(query)
+	if err != nil {
+		return map[string]interface{}{
+			"query":  query,
+			"result": "",
+			"error":  err.Error(),
+		}, nil
+	}
+	return map[string]interface{}{
+		"query":  query,
+		"result": result,
+	}, nil
+}
+
+// WhisperChatWithSearch 带搜索增强的对话：自动检测是否需要上网查询
+func (a *App) WhisperChatWithSearch(userMsg string, personalityID string) (map[string]interface{}, error) {
+	// 检测搜索意图
+	if shouldSearchWeb(userMsg) {
+		slog.Info("[whisper] auto-search triggered", "msg", userMsg[:min(60, len(userMsg))])
+		searchResult, err := whisper.WebSearch(userMsg)
+		if err == nil && searchResult != "" {
+			// 将搜索结果注入为增强的 userMsg
+			enhancedMsg := fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", userMsg, searchResult)
+			return a.WhisperChat(enhancedMsg, personalityID)
+		}
+	}
+	return a.WhisperChat(userMsg, personalityID)
+}
+
+// searchTriggers 搜索意图触发词
+var searchTriggers = []string{
+	"搜索", "查一下", "查查", "帮我查", "帮我搜",
+	"最新", "今天", "现在", "当前", "最近",
+	"新闻", "天气", "股价", "汇率", "比赛",
+	"是谁", "什么是", "怎么样", "多少钱",
+}
+
+func shouldSearchWeb(msg string) bool {
+	for _, t := range searchTriggers {
+		if len(msg) >= len(t) {
+			for i := 0; i <= len(msg)-len(t); i++ {
+				if msg[i:i+len(t)] == t {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func restoreWhisperState(orch *whisper.Orchestrator) error {
@@ -298,9 +439,13 @@ func restoreWhisperState(orch *whisper.Orchestrator) error {
 		return err
 	}
 	for _, r := range rows {
-		ti, _ := r["turnIndex"].(float64)
+		ti, okTi := r["turnIndex"].(float64)
 		ut, _ := r["userText"].(string)
 		at, _ := r["assistantText"].(string)
+		if !okTi {
+			slog.Warn("[whisper] restore: turnIndex type assertion failed", "row", r)
+			continue
+		}
 		orch.WM.Push(orch.SessionID, whisper.Exchange{
 			TurnIndex: int(ti), UserText: ut, AssistantText: at,
 		})

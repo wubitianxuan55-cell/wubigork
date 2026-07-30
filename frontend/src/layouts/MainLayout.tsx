@@ -3,7 +3,7 @@ import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Bread
 import {
   ReadOutlined, HomeOutlined,
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined, ConsoleSqlOutlined,
-  ApiOutlined, PictureOutlined, MessageOutlined, HeartOutlined,
+  ApiOutlined, PictureOutlined, MessageOutlined, HeartOutlined, LaptopOutlined,
   FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined,
   BarChartOutlined, DownOutlined,
 } from '@ant-design/icons'
@@ -18,18 +18,20 @@ const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'))
 const ModelCenterPage = React.lazy(() => import('../pages/ModelCenterPage'))
 const ChatPage = React.lazy(() => import('../pages/ChatPage'))
 const WhisperPage = React.lazy(() => import('../pages/WhisperPage'))
+const OfficePage = React.lazy(() => import('../pages/OfficePage'))
 const { Header, Footer, Content } = Layout
 
-type Page = 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' | 'whisper'
+type Page = 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' | 'whisper' | 'office'
 
 // 所有页面 key 的扁平列表（用于 navigate 事件校验 + 快捷键映射）
-const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'whisper', 'modelcenter']
+const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'whisper', 'office', 'modelcenter']
 
 const menuItems: any[] = [
   { key: 'chat', icon: <MessageOutlined />, label: '聊天' },
   { key: 'novel', icon: <ReadOutlined />, label: '小说' },
   { key: 'imagegen', icon: <PictureOutlined />, label: '绘梦' },
   { key: 'whisper', icon: <HeartOutlined />, label: '轻语' },
+  { key: 'office', icon: <LaptopOutlined />, label: '办公' },
   { key: 'modelcenter', icon: <ApiOutlined />, label: '模型中心' },
 ]
 
@@ -40,6 +42,8 @@ const pageComponents: Record<Page, React.ReactNode> = {
   modelcenter: <ModelCenterPage />,
   chat: <ChatPage />,
   whisper: <WhisperPage />,
+  office: <OfficePage />,
+}
 }
 interface LogEntry {
   id: number; type: string; time: string
@@ -123,7 +127,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
 }
 
 const pageLabels: Record<Page, string> = {
-  novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天', whisper: '轻语',
+  novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天', whisper: '轻语', office: '办公',
 }
 
 // ─── 主布局 ─────────────────────────────────────────────────
@@ -376,7 +380,7 @@ const MainLayout: React.FC = () => {
           </Content>
         </div>
 
-{consoleOpen && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && page !== 'whisper' && (
+{consoleOpen && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && page !== 'whisper' && page !== 'office' && (
   <div style={{
     width: 380, flexShrink: 0, alignSelf: 'stretch',
     maxHeight: 'calc(100vh - 80px)',

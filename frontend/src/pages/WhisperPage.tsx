@@ -4,7 +4,8 @@ import {
   SendOutlined, UserOutlined, CopyOutlined, CheckOutlined,
   HeartOutlined, SwapOutlined, SoundOutlined, DeleteOutlined,
   PlusOutlined, MessageOutlined, ApiOutlined, ClearOutlined,
-  SettingOutlined,
+  SearchOutlined, GlobalOutlined,
+  SettingOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
 } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import { C } from '../utils/theme'
@@ -14,11 +15,10 @@ import { ParticleFlow } from '../components/ParticleFlow'
 import { SoundWaveOverlay } from '../components/SoundWaveOverlay'
 import VoiceSettingsPanel from '../components/VoiceSettingsPanel'
 import WhisperSettingsPanel from '../components/WhisperSettingsPanel'
-import WhisperDesirePanel from '../components/WhisperDesirePanel'
 import WhisperTracePanel from '../components/WhisperTracePanel'
-import WhisperMemoryTimeline from '../components/WhisperMemoryTimeline'
-import { CompanionAvatar } from '../components/CompanionAvatar'
-import WhisperMemoryPage from '../components/WhisperMemoryPage'
+import WhisperDesirePanel from '../components/WhisperDesirePanel'
+import WhisperMemoryModal from '../components/WhisperMemoryModal'
+import WhisperPersonalityModal from '../components/WhisperPersonalityModal'
 import '../whisper-theme.css'
 interface Personality {
 
@@ -69,12 +69,11 @@ const WhisperPage: React.FC = () => {
   const [showTrace, setShowTrace] = useState(false)
   const [showMemory, setShowMemory] = useState(false)
   const [showMemoryPage, setShowMemoryPage] = useState(false)
-  const [desireSlots, setDesireSlots] = useState<any[]>([])
-  const [traces, setTraces] = useState<any[]>([])
   const [facts, setFacts] = useState<any[]>([])
   const [sharedEvents, setSharedEvents] = useState(0)
+  const [searchEnabled, setSearchEnabled] = useState(true) // 上网搜索开关
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false) // 侧边栏折叠
   const listRef = useRef<HTMLDivElement>(null); const inputRef = useRef<any>(null)
-  const hasInitRef = useRef(false)
 
   const activeTopic = topics.find(t => t.id === activeId)
   const messages = activeTopic?.messages ?? []
@@ -120,10 +119,10 @@ const WhisperPage: React.FC = () => {
       const next = prev.map(t => t.id === activeId ? { ...t, messages: [...t.messages, um, am] } : t)
       saveTopics(next)
       return next
-    })
     setLoading(true)
     try {
-      const res = await App.WhisperChat(text, activePersonality) as any
+      const chatFn = searchEnabled ? App.WhisperChatWithSearch : App.WhisperChat
+      const res = await chatFn(text, activePersonality) as any
       const reply = (typeof res?.reply === 'string') ? res.reply : (typeof res === 'string' ? res : '')
       console.log('[whisper] WhisperChat reply len:', reply.length)
       message.success('收到回复: ' + reply.length + '字')
@@ -197,7 +196,7 @@ const WhisperPage: React.FC = () => {
   }, [activePersonality, personalities, activeId])
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, position: 'relative' }}>
       {/* 左侧话题侧边栏 */}
       <div style={{ width: 200, minWidth: 200, borderRight: `1px solid ${C('color-border')}`, background: C('color-bg-elevated'), display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C('color-border')}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -264,9 +263,16 @@ const WhisperPage: React.FC = () => {
             <span>💭{emotion}</span><span style={{ opacity: 0.2 }}>|</span>
             <span>🤝{stage === 'STRANGER' ? '初识' : stage === 'FAMILIAR' ? '熟悉' : stage === 'INTIMATE' ? '亲密' : stage}</span><span style={{ opacity: 0.2 }}>|</span>
             <span>💚{trust}</span><span style={{ opacity: 0.2 }}>|</span>
-            <span title="亲密度/安全感/唤醒度/支配感">📐{aff}/{sec}/{aro}/{dom}</span>
             {rifts > 0 && <><span style={{ opacity: 0.2 }}>|</span><span>💔{rifts}</span></>}
-            <span style={{ marginLeft: 'auto', opacity: 0.4 }}>#{totalTurns}</span>
+            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Tooltip title={searchEnabled ? '上网搜索已开启（自动检测搜索意图）' : '上网搜索已关闭'}>
+                <Button type="text" size="small"
+                  icon={<GlobalOutlined style={{ color: searchEnabled ? '#52c41a' : C('color-text-secondary') }} />}
+                  onClick={() => setSearchEnabled(!searchEnabled)}
+                  style={{ padding: '0 2px', height: 18, fontSize: 12, opacity: searchEnabled ? 1 : 0.5 }} />
+              </Tooltip>
+              <span style={{ opacity: 0.4 }}>#{totalTurns}</span>
+            </span>
           </div>
 
         {/* 消息区 */}
@@ -277,8 +283,7 @@ const WhisperPage: React.FC = () => {
               <div style={{ height: 16 }} />
               <Typography.Text style={{ color: C('color-text'), fontSize: 20, fontWeight: 700, marginBottom: 4 }}>轻语</Typography.Text>
               <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13, marginBottom: 20 }}>选择一位AIgaea，开始对话 💫</Typography.Text>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, maxWidth: 460, width: '100%', marginBottom: 20 }}>
-                {[{ icon: '💬', label: '聊聊今天', desc: '分享你的日常' }, { icon: '💭', label: '倾诉心情', desc: '说说心里话' }, { icon: '🎵', label: '分享兴趣', desc: '聊聊你喜欢的东西' }, { icon: '🌙', label: '晚安问候', desc: '睡前聊一会儿' }].map(s => (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, maxWidth: 460, width: '100%', marginBottom: 20 }}>\n                {[{ icon: '💬', label: '聊聊今天', desc: '分享你的日常' }, { icon: '💭', label: '倾诉心情', desc: '说说心里话' }, { icon: '🌐', label: '上网查询', desc: '搜最新资讯' }, { icon: '🎵', label: '分享兴趣', desc: '聊聊你喜欢的东西' }, { icon: '🌙', label: '晚安问候', desc: '睡前聊一会儿' }].map(s => (
                   <div key={s.label} onClick={() => { setInput(s.label); inputRef.current?.focus() }}
                     style={{ padding: '10px 12px', borderRadius: 12, background: C('color-bg-elevated'), border: `1px solid ${C('color-border')}`, cursor: 'pointer', transition: 'all 0.15s', userSelect: 'none' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = '#e85388'; e.currentTarget.style.transform = 'translateY(-2px)' }}
@@ -341,11 +346,13 @@ const WhisperPage: React.FC = () => {
 
       {/* 右侧侧边栏 — 情感/渴望/追踪/记忆 — 毛玻璃风格 */}
       <aside className="whisper-glass" style={{
-          width: 280, minWidth: 280,
+          width: sidebarCollapsed ? 0 : 280, minWidth: sidebarCollapsed ? 0 : 280,
           overflow: 'hidden', flexShrink: 0,
           display: 'flex', flexDirection: 'column',
-          borderLeft: '1px solid var(--whisper-glass-border)',
+          borderLeft: sidebarCollapsed ? 'none' : '1px solid var(--whisper-glass-border)',
+          transition: 'width 0.25s ease, min-width 0.25s ease',
         }}>
+          {!sidebarCollapsed && (<>
             <WhisperEmotionPanel
               emotion={emotion} stage={stage} trust={trust} rifts={rifts}
               aff={aff} sec={sec} aro={aro} dom={dom}
@@ -359,30 +366,39 @@ const WhisperPage: React.FC = () => {
               desireStack={{ slots: desireSlots }}
               sharedEventsCount={sharedEvents}
             />
-            {/* 追踪/记忆切换按钮 */}
             <div style={{ display: 'flex', gap: 4, padding: '8px 12px', borderTop: `1px solid ${C('color-border')}` }}>
-              <Button size="small" type={showTrace && !showMemory ? 'primary' : 'default'}
-                onClick={() => { setShowTrace(!showTrace); if (!showTrace) setShowMemory(false) }}
+              <Button size="small" type={showTrace ? 'primary' : 'default'}
+                onClick={() => setShowTrace(!showTrace)}
                 style={{ fontSize: 11 }}>📊 追踪</Button>
-              <Button size="small" type={showMemory && !showTrace ? 'primary' : 'default'}
-                onClick={() => { setShowMemory(!showMemory); if (!showMemory) setShowTrace(false) }}
-                style={{ fontSize: 11 }}>🧠 记忆</Button>
               <Button size="small" type="default"
-                onClick={() => { setShowTrace(false); setShowMemory(false); setShowMemoryPage(true) }}
-                style={{ fontSize: 11, marginLeft: 'auto' }}>📋 全部</Button>
+                onClick={() => setShowMemoryPage(true)}
+                style={{ fontSize: 11, marginLeft: 'auto' }}>🧠 记忆 ({facts.length})</Button>
             </div>
-            {/* 条件渲染追踪/记忆面板 */}
-            {showTrace && !showMemory && (
-              <WhisperTracePanel traces={traces} currentTurn={totalTurns} />
-            )}
-            {showMemory && !showTrace && (
-              <WhisperMemoryTimeline facts={facts} />
-            )}
+            {showTrace && <WhisperTracePanel traces={traces} currentTurn={totalTurns} />}
+          </>)}
         </aside>
 
-      {/* gaea设置弹窗 */}
+        {/* 侧边栏折叠按钮 */}
+        <div style={{
+          position: 'absolute', right: sidebarCollapsed ? 0 : 282, top: '50%',
+          transform: 'translateY(-50%)', zIndex: 15,
+          transition: 'right 0.25s ease',
+        }}>
+          <Tooltip title={sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'}>
+            <Button type="text" size="small"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              icon={sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              style={{
+                width: 24, height: 48, borderRadius: '6px 0 0 6px',
+                background: 'var(--whisper-glass-bg)', backdropFilter: 'blur(10px)',
+                border: '1px solid var(--whisper-glass-border)', borderRight: 'none',
+                color: C('color-text-secondary'), fontSize: 12,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }} />
+          </Tooltip>
+        </div>
+      {/* 设置弹窗 */}
       <Modal
-        title="gaea设置"
         open={showSettings}
         onCancel={() => setShowSettings(false)}
         footer={null}
@@ -416,27 +432,21 @@ const WhisperPage: React.FC = () => {
 
 
       {/* 记忆管理弹窗 */}
-      <Modal title="全部记忆" open={showMemoryPage} onCancel={() => setShowMemoryPage(false)} footer={null} width={680} centered>
-        <WhisperMemoryPage facts={facts} />
+      <Modal title={null} open={showMemoryPage} onCancel={() => setShowMemoryPage(false)}
+        footer={null} width={720} centered bodyStyle={{ maxHeight: '70vh', overflow: 'auto' }}>
+        <WhisperMemoryModal facts={facts} personalityID={activePersonality}
+          onFactsChange={setFacts} />
       </Modal>
 
       {/* 人格选择弹窗 */}
-      <Modal title="选择gaea人格" open={personalityOpen} onCancel={() => setPersonalityOpen(false)} footer={null} width={680} centered>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10, maxHeight: 400, overflow: 'auto' }}>
-          {personalities.map(p => (
-            <Card key={p.id} hoverable size="small" onClick={() => handleSwitchPersonality(p.id)}
-              style={{ border: activePersonality === p.id ? '2px solid #e85388' : `1px solid ${C('color-border')}`, background: activePersonality === p.id ? '#e8538808' : C('color-bg-elevated'), borderRadius: 12, cursor: 'pointer' }}
-              bodyStyle={{ padding: '10px 12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span>{p.gender === 'male' ? '🤵' : '👩'}</span>
-                <Typography.Text strong style={{ fontSize: 13 }}>{p.label}</Typography.Text>
-                {activePersonality === p.id && <Tag color="magenta" style={{ marginLeft: 'auto', fontSize: 9, lineHeight: '14px' }}>当前</Tag>}
-              </div>
-              <Typography.Paragraph type="secondary" style={{ fontSize: 10, marginBottom: 4 }} ellipsis={{ rows: 1 }}>{p.voiceGuide || `${p.label}型gaea`}</Typography.Paragraph>
-            </Card>
-          ))}
-        </div>
-      </Modal>
+      <WhisperPersonalityModal
+        open={personalityOpen}
+        personalities={personalities}
+        activePersonality={activePersonality}
+        adultMode={adultMode}
+        onClose={() => setPersonalityOpen(false)}
+        onSwitch={(id) => handleSwitchPersonality(id)}
+      />
     </div>
   )
 }

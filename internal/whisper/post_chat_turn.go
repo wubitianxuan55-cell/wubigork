@@ -90,7 +90,6 @@ func FinalizeTurn(orch *Orchestrator, ctx PostTurnContext) {
 	}
 }
 
-// updateWorkingMemoryReply 更新工作记忆中最后一轮的助手回复
 func updateWorkingMemoryReply(orch *Orchestrator, sessionID string, turnIndex int, reply string) {
 	if orch.WM == nil {
 		return
@@ -99,9 +98,10 @@ func updateWorkingMemoryReply(orch *Orchestrator, sessionID string, turnIndex in
 	if len(recent) == 0 {
 		return
 	}
-	last := recent[len(recent)-1]
-	if last.TurnIndex == turnIndex && last.AssistantText == "" {
-		last.AssistantText = reply
+	// 直接通过索引修改底层数组，避免值拷贝
+	idx := len(recent) - 1
+	if recent[idx].TurnIndex == turnIndex && recent[idx].AssistantText == "" {
+		recent[idx].AssistantText = reply
 	}
 }
 

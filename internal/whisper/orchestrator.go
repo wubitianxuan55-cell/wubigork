@@ -46,7 +46,6 @@ type Orchestrator struct {
 	AdultMode        bool
 	DataRoot         string // v5.41: SQLite 持久化数据根目录
 	// v5.43: 桌面助手子系统
-	SessionMode      *SessionModeStore       // 桌面助手会话模式
 	ConfirmSvc       *ConfirmService         // 确认服务
 	DeliveryCoord    *DeliveryCoordinator    // 消息分发协调
 	// 情绪涌现追踪（每会话独立）
@@ -82,12 +81,12 @@ func NewOrchestrator(sessionID string, preset PersonalityPreset) *Orchestrator {
 		HabitsStore:      NewHabitsStore(),
 		SelfEditor:       NewMemorySelfEditor(),
 		ProceduralHabits: NewProceduralHabitStore(),
-		SessionMode:      NewSessionModeStore(),
 		ConfirmSvc:       NewConfirmService(),
 		DeliveryCoord:    NewDeliveryCoordinator(),
 		adultBudget:      intensityBudgetMax,
 	}
 }
+
 // ─── PreLLMTurn ───────────────────────────────────────────────
 
 func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
@@ -825,8 +824,8 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 			score float64
 		}
 		var ranked []scoredFact
+		boost := ComputeTemporalBoost(tCtx)
 		for _, f := range facts {
-			boost := ComputeTemporalBoost(tCtx)
 			ranked = append(ranked, scoredFact{f, f.Weight * f.SelfRelevance * boost})
 		}
 		sort.Slice(ranked, func(i, j int) bool { return ranked[i].score > ranked[j].score })
