@@ -1,6 +1,6 @@
 // Package whisper — semantic_reranker.go
 // 100% 对齐 ackem memory/semanticReranker.ts
-// LLM 语义重排序：对 TF-IDF 粗排结果用 LLM 精排打分
+// LLM 语义重排序：对粗排候选记忆做精排打分
 
 package whisper
 
@@ -11,47 +11,94 @@ import (
 	"strings"
 )
 
+// ─── 常量 ──────────────────────────────────────────────────────
+
 const rerankTemperature = 0.0
+const maxRerankCandidates = 20
+
+const rerankSystemPrompt = `你是一个记忆相关性裁判。用户说了一句话，系统检索到若干条候选记忆。你需要判断每条记忆与用户当前消息的语义相关性。
+
+评分标准：
+- 10：直接相关（用户正在谈论这个确切的主题）
+- 7-9：高度相关（用户话题与记忆深层关联）
+- 4-6：部分相关（某些关键词或主题重叠）
+- 1-3：弱相关（勉强有联系）
+- 0：完全无关
+
+仅输出 JSON 数组，每条包含 factId 和 score：
+[{"id":"事实ID","score":8},{"id":"事实ID","score":3},...]
+按 score 从高到低排序。`
+
+// ─── 重排序器 ──────────────────────────────────────────────────
 
 // SemanticReranker LLM 语义重排序器
 type SemanticReranker struct{}
 
-// NewSemanticReranker 创建重排序器
-func NewSemanticReranker() *SemanticReranker { return &SemanticReranker{} }
+// rerankScore LLM 返回的评分
+type rerankScore struct {
+	ID    string  `json:"id"`
+	Score float64 `json:"score"`
+}
 
-// Rerank 对候选事实 LLM 精排
-func (sr *SemanticReranker) Rerank(candidates []*Fact, query string, llm LlmClient, topK int) []*Fact {
-	if len(candidates) <= 1 || topK <= 0 {
-		if topK > 0 && len(candidates) > topK {
-			return candidates[:topK]
-		}
+// Rerank 对候选记忆做语义精排
+// candidates: 粗排候选（最多20条）
+// query: 用户当前消息
+// llmCall: LLM调用函数 (system, user → jsonString, error)
+// topK: 最终返回条数
+func (r *SemanticReranker) Rerank(
+	candidates []MemoryFact,
+	query string,
+	llmCall func(system, user string) (string, error),
+	topK int,
+) []MemoryFact {
+	if len(candidates) <= 1 {
 		return candidates
 	}
-
-	// 取前 20 个候选构建 prompt
-	limit := 20
-	if len(candidates) < limit {
-		limit = len(candidates)
+	if topK <= 0 {
+		topK = 6
 	}
+
+	// 最多取前20条
+	pool := candidates
+	if len(pool) > maxRerankCandidates {
+		pool = pool[:maxRerankCandidates]
+	}
+
+	// 构建候选列表
 	var items []string
-	for _, f := range candidates[:limit] {
+	for _, f := range pool {
+		summary := f.Summary
+		if len([]rune(summary)) > 100 {
+			summary = string([]rune(summary)[:100])
+		}
 		items = append(items, fmt.Sprintf("ID:%s | [%s] %s：%s",
-			f.ID, f.Subcategory, f.Subject, truncateStr(f.Summary, 100)))
+			f.ID, f.Subcategory, f.Subject, summary))
 	}
+	itemsText := strings.Join(items, "\n")
 
-	raw, err := llm.Chat(rerankSystemPrompt, fmt.Sprintf(
-		"用户消息：%s\n\n候选记忆：\n%s", query, strings.Join(items, "\n")))
+	// 调用 LLM
+	userPrompt := fmt.Sprintf("用户消息：%s\n\n候选记忆：\n%s", query, itemsText)
+	raw, err := llmCall(rerankSystemPrompt, userPrompt)
 	if err != nil {
-		// fallback: 保持原始顺序
-		if topK > 0 && len(candidates) > topK {
+		// LLM 失败 → 保持粗排顺序
+		if len(candidates) > topK {
 			return candidates[:topK]
 		}
 		return candidates
 	}
 
-	scores := parseRerankScores(raw)
+	// 解析评分
+	var scores []rerankScore
+	if err := json.Unmarshal([]byte(raw), &scores); err != nil {
+		// 解析失败 → 回退
+		if len(candidates) > topK {
+			return candidates[:topK]
+		}
+		return candidates
+	}
+
 	if len(scores) == 0 {
-		if topK > 0 && len(candidates) > topK {
+		if len(candidates) > topK {
 			return candidates[:topK]
 		}
 		return candidates
@@ -63,50 +110,28 @@ func (sr *SemanticReranker) Rerank(candidates []*Fact, query string, llm LlmClie
 		scoreMap[s.ID] = s.Score
 	}
 
-	var reranked []*Fact
+	// 筛选有评分的候选
+	var scored []MemoryFact
 	for _, f := range candidates {
 		if _, ok := scoreMap[f.ID]; ok {
-			reranked = append(reranked, f)
+			scored = append(scored, f)
 		}
 	}
-	sort.Slice(reranked, func(i, j int) bool {
-		return scoreMap[reranked[i].ID] > scoreMap[reranked[j].ID]
+
+	sort.Slice(scored, func(i, j int) bool {
+		return scoreMap[scored[i].ID] > scoreMap[scored[j].ID]
 	})
 
-	if topK > 0 && len(reranked) > topK {
-		reranked = reranked[:topK]
+	if len(scored) > topK {
+		scored = scored[:topK]
 	}
-	return reranked
-}
 
-type rerankScore struct {
-	ID    string  `json:"id"`
-	Score float64 `json:"score"`
-}
-
-func parseRerankScores(raw string) []rerankScore {
-	trimmed := strings.TrimSpace(raw)
-	i := strings.Index(trimmed, "[")
-	j := strings.LastIndex(trimmed, "]")
-	if i < 0 || j <= i {
-		return nil
+	if len(scored) == 0 && len(candidates) > 0 {
+		if len(candidates) > topK {
+			return candidates[:topK]
+		}
+		return candidates
 	}
-	var scores []rerankScore
-	if err := json.Unmarshal([]byte(trimmed[i:j+1]), &scores); err != nil {
-		return nil
-	}
-	return scores
+
+	return scored
 }
-
-const rerankSystemPrompt = `你是一个记忆相关性裁判。用户说了一句话，系统检索到若干条候选记忆。你需要判断每条记忆与用户当前消息的语义相关性。
-
-评分标准：
-- 10：直接相关（用户正在谈论这个确切的主题）
-- 7-9：高度相关（用户话题与记忆深层关联）
-- 4-6：部分相关（某些关键词或主题重叠）
-- 1-3：弱相关（勉强有联系）
-- 0：完全无关
-
-仅输出 JSON 数组，每条包含 id 和 score：
-[{"id":"事实ID","score":8},{"id":"事实ID","score":3},...]
-按 score 从高到低排序。`
