@@ -54,29 +54,51 @@ func RunDesktopInvestigation(query string, cwd string) *InvestigationResult {
 	return result
 }
 
-// searchDirectory 搜索目录
+// searchDirectory 递归搜索目录（深度上限6，结果上限200）
+// 100% 对齐 ackem desktop-agent/adapters/win/executor.ts searchFiles
 func searchDirectory(root, query string, limit int) []InvestigationFinding {
 	q := strings.ToLower(query)
 	var findings []InvestigationFinding
+	searchRecursiveDepth(root, q, limit, 0, &findings)
+	return findings
+}
 
-	// 简化：仅扫描一级子目录
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil
+// searchRecursiveDepth 递归搜索（跳过隐藏目录和系统目录）
+func searchRecursiveDepth(dir, query string, limit, depth int, findings *[]InvestigationFinding) {
+	if depth > 6 || len(*findings) >= limit {
+		return
 	}
-
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
 	for _, e := range entries {
-		if len(findings) >= limit {
-			break
+		if len(*findings) >= limit {
+			return
 		}
-		if strings.Contains(strings.ToLower(e.Name()), q) {
-			path := filepath.Join(root, e.Name())
-			findings = append(findings, InvestigationFinding{
+		name := e.Name()
+		// 跳过隐藏文件/目录
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+		fullPath := filepath.Join(dir, name)
+		if e.IsDir() {
+			// 跳过系统目录
+			lower := strings.ToLower(name)
+			if lower == "windows" || lower == "system32" || lower == "node_modules" ||
+				lower == ".git" || lower == "__pycache__" || lower == "vendor" {
+				continue
+			}
+			searchRecursiveDepth(fullPath, query, limit, depth+1, findings)
+			continue
+		}
+		if strings.Contains(strings.ToLower(name), query) {
+			*findings = append(*findings, InvestigationFinding{
 				Source: "directory_scan",
-				Path:   path,
-				Match:  e.Name(),
+				Path:   fullPath,
+				Name:   name,
+				Match:  name,
 			})
 		}
 	}
-	return findings
 }
