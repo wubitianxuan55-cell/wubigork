@@ -82,12 +82,7 @@ func (a *App) WhisperChat(userMsg string, personalityID string) (result map[stri
 		slog.Error("[whisper] client is nil")
 		return nil, fmt.Errorf("model client not initialized")
 	}
-	// system prompt 截断：超过 1500 字符会导致 ollama hang
-	if len(systemPrompt) > 1500 {
-		slog.Warn("[whisper] truncating system prompt", "from", len(systemPrompt), "to", 1500)
-		systemPrompt = systemPrompt[:1500]
-	}
-	slog.Info("[whisper] calling LLM", "engine", orch.EngineID, "model", model, "promptLen", len(systemPrompt))
+	slog.Info("[whisper] calling LLM", "engine", orch.EngineID, "model", model)
 	reply, callErr := a.client.ChatSimpleStream(a.ctx, model, systemPrompt, userMsg)
 	if orch.EngineID != "" && orch.EngineID != origEngine {
 		a.client.SetActiveEngine(origEngine)
