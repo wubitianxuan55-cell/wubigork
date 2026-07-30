@@ -1,11 +1,14 @@
 package app
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"sync"
 
+	qrcode "github.com/skip2/go-qrcode"
 	"github.com/wubigork/wubigork/internal/assistant"
+	"github.com/wubigork/wubigork/internal/channels/weixin"
 	"github.com/wubigork/wubigork/internal/modelengine"
 	"github.com/wubigork/wubigork/internal/whisper"
 	"github.com/wubigork/wubigork/internal/whisper/db"
@@ -451,6 +454,43 @@ func (a *App) WhisperAssistantDelete(id string) error {
 	if a.assistantMgr == nil { return fmt.Errorf("not ready") }
 	a.stopAssistantWx(id)
 	return a.assistantMgr.Delete(id)
+}
+
+// WhisperWeixinGetQR 获取微信扫码登录二维码
+func (a *App) WhisperWeixinGetQR() (map[string]interface{}, error) {
+	qr, err := weixin.GetQRCode()
+	if err != nil {
+		return nil, err
+	}
+	// 将微信扫码链接生成为二维码图片（用 qrcode_img_content，不是 qrcode 会话token）
+	png, err := qrcode.Encode(qr.QrcodeImgContent, qrcode.Medium, 256)
+	if err != nil {
+		return nil, fmt.Errorf("生成二维码图片失败: %w", err)
+	}
+	imageUrl := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+
+	return map[string]interface{}{
+		"qrcode":   qr.Qrcode,
+		"imageUrl": imageUrl,
+	}, nil
+}
+
+// WhisperWeixinQRStatus 轮询二维码状态
+func (a *App) WhisperWeixinQRStatus(qrcode string) (map[string]interface{}, error) {
+	status, err := weixin.PollQRStatus(qrcode)
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]interface{}{
+		"status": status.Status,
+	}
+	if status.BotToken != "" {
+		result["botToken"] = status.BotToken
+		result["botId"] = status.ILinkBotID
+		result["baseUrl"] = status.BaseURL
+		result["userId"] = status.ILinkUserID
+	}
+	return result, nil
 }
 
 func (a *App) WhisperWeixinStatus() []map[string]interface{} {

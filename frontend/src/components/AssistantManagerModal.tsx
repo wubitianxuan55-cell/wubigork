@@ -2,7 +2,7 @@
 // 替代 WhisperPersonalityModal，管理多个助手（每人独立人格 + 微信）
 import React, { useState, useEffect, useCallback } from 'react'
 import { Modal, Button, Input, Switch, Tag, Typography, Popconfirm, message, Empty } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined, CloseOutlined, CheckOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined, CloseOutlined, CheckOutlined, QrcodeOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import TisorRadar from './TisorRadar'
 import PersonalityPreview from './PersonalityPreview'
@@ -41,7 +41,11 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   const [form, setForm] = useState<Assistant>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [showPersonalityPicker, setShowPersonalityPicker] = useState(false)
-
+  // QR 扫码
+  const [qrImage, setQrImage] = useState('')
+  const [qrCode, setQrCode] = useState('')
+  const [qrStatus, setQrStatus] = useState('') // wait | scanned | confirmed | expired
+  const [qrPolling, setQrPolling] = useState(false)
   // 加载数据
   const reload = useCallback(async () => {
     try {
@@ -81,6 +85,38 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
       message.error(e?.message || '保存失败')
     }
     setSaving(false)
+  }
+  // QR 扫码绑定
+  const handleQRScan = async () => {
+    try {
+      setQrStatus('')
+      const qr: any = await (App as any).WhisperWeixinGetQR()
+      setQrImage(qr.imageUrl)
+      setQrCode(qr.qrcode)
+      setQrStatus('wait')
+      setQrPolling(true)
+
+      // 轮询扫码状态
+      const poll = setInterval(async () => {
+        try {
+          const s: any = await (App as any).WhisperWeixinQRStatus(qr.qrcode)
+          setQrStatus(s.status || 'wait')
+          if (s.status === 'confirmed' && s.botToken) {
+            clearInterval(poll)
+            setQrPolling(false)
+            setForm(f => ({ ...f, wxToken: s.botToken }))
+            message.success('微信绑定成功！')
+            setQrImage('')
+          } else if (s.status === 'expired') {
+            clearInterval(poll)
+            setQrPolling(false)
+            setQrStatus('expired')
+          }
+        } catch (_) {}
+      }, 3000)
+    } catch (e: any) {
+      message.error('获取二维码失败')
+    }
   }
 
   // 删除助手
@@ -187,9 +223,39 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>
             <ApiOutlined style={{ marginRight: 4 }} />微信 ClawBot Token
           </Text>
-          <Input.Password value={form.wxToken} onChange={e => setForm({ ...form, wxToken: e.target.value })}
-            placeholder="bot@..."
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', borderRadius: 10 }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Input.Password
+              value={form.wxToken}
+              onChange={e => setForm({ ...form, wxToken: e.target.value })}
+              placeholder="bot@... 或扫码绑定"
+              style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', borderRadius: 10 }}
+            />
+            <Button
+              icon={qrPolling ? <LoadingOutlined /> : <QrcodeOutlined />}
+              onClick={handleQRScan}
+              disabled={qrPolling}
+              style={{
+                borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)',
+              }}
+            >
+              扫码
+            </Button>
+          </div>
+          {/* QR 码显示 */}
+          {qrImage && (
+            <div style={{
+              marginTop: 8, padding: 12, borderRadius: 12, textAlign: 'center',
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+            }}>
+              <img src={qrImage} alt="QR" style={{ width: 180, height: 180, borderRadius: 8, background: '#fff', padding: 8 }} />
+              <div style={{ marginTop: 8, fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+                {qrStatus === 'wait' && <><LoadingOutlined spin style={{ marginRight: 4 }} />等待扫码…</>}
+                {qrStatus === 'scanned' && '已扫码，请在手机上确认'}
+                {qrStatus === 'expired' && <span style={{ color: '#ff4d4f' }}>二维码已过期 <Button type="link" size="small" icon={<ReloadOutlined />} onClick={handleQRScan} style={{ color: '#e85388', padding: 0 }}>重新获取</Button></span>}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 启用 */}
