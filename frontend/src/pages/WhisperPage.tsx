@@ -43,10 +43,9 @@ function saveTopics(t: Topic[]) { try { localStorage.setItem(STORAGE_KEY, JSON.s
 function createTopic(title: string): Topic { return { id: genTopicId(), title, messages: [], createdAt: Date.now() } }
 
 const WhisperPage: React.FC = () => {
-  const [topics, setTopics] = useState<Topic[]>(() => loadTopics())
-  const [activeId, setActiveId] = useState<string>(() => {
-    try { return localStorage.getItem(ACTIVE_TOPIC_KEY) || loadTopics()[0]?.id || '' } catch { return loadTopics()[0]?.id || '' }
-  })
+  const initTopics = loadTopics()
+  const [topics, setTopics] = useState<Topic[]>(initTopics)
+  const [activeId, setActiveId] = useState<string>(() => initTopics[0]?.id || '')
   const [editingTitle, setEditingTitle] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [personalities, setPersonalities] = useState<Personality[]>([])

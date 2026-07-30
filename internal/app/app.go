@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"log/slog"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
-	"log/slog"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -92,6 +93,13 @@ func New() *App {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
+	// 将 slog 输出到文件（GUI 应用无控制台）
+	logFile, err := os.OpenFile(filepath.Join(a.whisperDataRoot, "wubigrok.log"),
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err == nil {
+		slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: slog.LevelInfo})))
+		slog.Info("=== wubigrok startup ===")
+	}
 	// 创建 AI client（仅此一次；token 由 GetToken 懒加载）
 	a.client = ai.NewClient(a.cfg)
 

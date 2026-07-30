@@ -132,7 +132,8 @@ export function SoundWaveOverlay({ active, aff = 50, aro = 0, className = '' }: 
   return (
     <canvas
       ref={canvasRef}
-      className={['pointer-events-none absolute inset-0 z-[5]', className].filter(Boolean).join(' ')}
+      style={{ position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none' }}
+      className={className}
       aria-hidden
     />
   )

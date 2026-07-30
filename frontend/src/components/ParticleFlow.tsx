@@ -67,7 +67,8 @@ export function ParticleFlow({ aro = 0, className = '' }: Props) {
   return (
     <canvas
       ref={canvasRef}
-      className={['pointer-events-none absolute inset-0 z-0', className].filter(Boolean).join(' ')}
+      style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}
+      className={className}
       aria-hidden
     />
   )
