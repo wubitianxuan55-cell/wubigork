@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react'
 import { Input, Button, Card, Space, Typography, Spin, Tag, Divider } from 'antd'
 import { FolderOutlined, DesktopOutlined, SendOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, LoadingOutlined } from '@ant-design/icons'
-import { App } from '../../wailsjs/go/app/App'
+import * as App from '../../wailsjs/go/app/App'
 import '../whisper-theme.css'
 
 const { Title, Text, Paragraph } = Typography

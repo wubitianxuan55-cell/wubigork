@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
-import { Input, Button, Avatar, Typography, Tooltip, Card, Modal, Tag, message } from 'antd'
+import { Input, Button, Avatar, Typography, Tooltip, Card, Modal, Tag, message, Tabs, Select, Popconfirm } from 'antd'
 import {
   SendOutlined, UserOutlined, CopyOutlined, CheckOutlined,
   HeartOutlined, SwapOutlined, SoundOutlined, DeleteOutlined,
   PlusOutlined, MessageOutlined, ApiOutlined, ClearOutlined,
-  SearchOutlined, GlobalOutlined,
-  SettingOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+  SearchOutlined, GlobalOutlined, StarFilled, EditOutlined,
+  SettingOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CloseOutlined,
 } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import { C } from '../utils/theme'
@@ -19,6 +19,7 @@ import WhisperTracePanel from '../components/WhisperTracePanel'
 import WhisperDesirePanel from '../components/WhisperDesirePanel'
 import WhisperMemoryModal from '../components/WhisperMemoryModal'
 import WhisperPersonalityModal from '../components/WhisperPersonalityModal'
+import { CompanionAvatar } from '../components/CompanionAvatar'
 import '../whisper-theme.css'
 interface Personality {
 
@@ -41,6 +42,21 @@ function loadTopics(): Topic[] {
 }
 function saveTopics(t: Topic[]) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(t)) } catch (_) {} }
 function createTopic(title: string): Topic { return { id: genTopicId(), title, messages: [], createdAt: Date.now() } }
+
+// ─── 记忆精确分类映射（对齐后端 memory_taxonomy.go 6 domain）───
+const DOMAIN_LABELS: Record<string, string> = {
+  IDENTITY: '🪪 身份', SOCIAL: '💕 社交', DAILY_LIFE: '🏠 日常',
+  PURSUITS: '🎯 追求', INNER_WORLD: '🧘 内心', TEMPORAL: '⏰ 时间',
+}
+const DOMAIN_ORDER = ['IDENTITY', 'SOCIAL', 'DAILY_LIFE', 'PURSUITS', 'INNER_WORLD', 'TEMPORAL']
+const SUB_LABELS: Record<string, string> = {
+  BASIC_PROFILE: '基本信息', LIFE_STORY: '人生故事', VALUES_BELIEFS: '价值观', SELF_PERCEPTION: '自我认知',
+  OUR_BOND: '我们的羁绊', FAMILY: '家庭', FRIENDS: '朋友', PARTNER: '伴侣',
+  ROUTINES: '日常习惯', HEALTH: '健康', LIVING_SPACE: '居住', LIFESTYLE: '生活方式',
+  CAREER: '职业', LEARNING: '学习', GOALS: '目标', PROJECTS: '项目', PROCEDURES: '流程',
+  MOOD: '情绪', TASTES: '品味', VULNERABILITIES: '脆弱面', INSIDE_JOKES: '内部梗',
+  NOW: '当下', COMMITMENTS: '承诺', PLANS: '计划', WORLD: '世界观',
+}
 
 const WhisperPage: React.FC = () => {
   const initTopics = loadTopics()
@@ -66,14 +82,17 @@ const WhisperPage: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false)
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [adultMode, setAdultMode] = useState(false)
-  const [showTrace, setShowTrace] = useState(false)
-  const [showMemory, setShowMemory] = useState(false)
+  const [sidebarTab, setSidebarTab] = useState<string>('status') // 侧边栏标签页
+  const [collapsedMemoryGroups, setCollapsedMemoryGroups] = useState<Set<string>>(new Set())
   const [showMemoryPage, setShowMemoryPage] = useState(false)
+  const [memorySearch, setMemorySearch] = useState('')
   const [facts, setFacts] = useState<any[]>([])
   const [sharedEvents, setSharedEvents] = useState(0)
   const [searchEnabled, setSearchEnabled] = useState(true) // 上网搜索开关
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false) // 侧边栏折叠
-  const listRef = useRef<HTMLDivElement>(null); const inputRef = useRef<any>(null)
+  const [desireSlots, setDesireSlots] = useState<any[]>([])
+  const [traces, setTraces] = useState<any[]>([])
+  const listRef = useRef<HTMLDivElement>(null); const inputRef = useRef<any>(null); const hasInitRef = useRef(false)
 
   const activeTopic = topics.find(t => t.id === activeId)
   const messages = activeTopic?.messages ?? []
@@ -119,6 +138,7 @@ const WhisperPage: React.FC = () => {
       const next = prev.map(t => t.id === activeId ? { ...t, messages: [...t.messages, um, am] } : t)
       saveTopics(next)
       return next
+    })
     setLoading(true)
     try {
       const chatFn = searchEnabled ? App.WhisperChatWithSearch : App.WhisperChat
@@ -352,30 +372,147 @@ const WhisperPage: React.FC = () => {
           borderLeft: sidebarCollapsed ? 'none' : '1px solid var(--whisper-glass-border)',
           transition: 'width 0.25s ease, min-width 0.25s ease',
         }}>
-          {!sidebarCollapsed && (<>
-            <WhisperEmotionPanel
-              emotion={emotion} stage={stage} trust={trust} rifts={rifts}
-              aff={aff} sec={sec} aro={aro} dom={dom}
-              T={currentPersonality?.dims?.T ?? 50} I={currentPersonality?.dims?.I ?? 50}
-              S={currentPersonality?.dims?.S ?? 50} O={currentPersonality?.dims?.O ?? 50}
-              R={currentPersonality?.dims?.R ?? 50}
-              totalTurns={totalTurns}
-              personalityLabel={currentPersonality?.label || '温柔'}
+          {!sidebarCollapsed && (
+            <Tabs
+              activeKey={sidebarTab}
+              onChange={setSidebarTab}
+              size="small"
+              tabBarStyle={{ margin: '0 10px', borderBottom: `1px solid ${C('color-border')}` }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+              items={[
+                {
+                  key: 'status',
+                  label: <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}>🫀 状态</span>,
+                  children: (
+                    <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                      <WhisperEmotionPanel
+                        emotion={emotion} stage={stage} trust={trust} rifts={rifts}
+                        aff={aff} sec={sec} aro={aro} dom={dom}
+                        T={currentPersonality?.dims?.T ?? 50} I={currentPersonality?.dims?.I ?? 50}
+                        S={currentPersonality?.dims?.S ?? 50} O={currentPersonality?.dims?.O ?? 50}
+                        R={currentPersonality?.dims?.R ?? 50}
+                        totalTurns={totalTurns}
+                        personalityLabel={currentPersonality?.label || '温柔'}
+                      />
+                      <WhisperDesirePanel
+                        desireStack={{ slots: desireSlots }}
+                        sharedEventsCount={sharedEvents}
+                      />
+                    </div>
+                  ),
+                },
+                {
+                  key: 'memory',
+                  label: <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}>🧠 记忆 {facts.length > 0 && <Tag style={{ fontSize: 9, margin: 0, padding: '0 4px', lineHeight: '14px' }}>{facts.length}</Tag>}</span>,
+                  children: (() => {
+                    // 过滤 + 按 domain 分组
+                    const filteredFacts = facts.filter((f: any) =>
+                      !memorySearch ||
+                      f.subject?.toLowerCase().includes(memorySearch.toLowerCase()) ||
+                      f.summary?.toLowerCase().includes(memorySearch.toLowerCase())
+                    )
+                    const grouped = DOMAIN_ORDER.map(d => ({
+                      domain: d,
+                      label: DOMAIN_LABELS[d] || d,
+                      facts: filteredFacts.filter((f: any) => f.domain === d || (f.domain === d.toLowerCase())),
+                    })).filter(g => g.facts.length > 0)
+
+                    const toggleGroup = (d: string) => setCollapsedMemoryGroups(prev => {
+                      const next = new Set(prev); next.has(d) ? next.delete(d) : next.add(d); return next
+                    })
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 4, padding: '0 2px' }}>
+                        <Input prefix={<SearchOutlined />} size="small" placeholder="搜索记忆…"
+                          value={memorySearch} onChange={e => setMemorySearch(e.target.value)}
+                          allowClear style={{ borderRadius: 8, fontSize: 11 }} />
+                        <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                          {facts.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 24, color: C('color-text-secondary'), fontSize: 12 }}>
+                              还没有记忆，多聊聊吧 💫
+                            </div>
+                          ) : filteredFacts.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: 24, color: C('color-text-secondary'), fontSize: 12 }}>无匹配</div>
+                          ) : (
+                            grouped.map(g => {
+                              const collapsed = collapsedMemoryGroups.has(g.domain)
+                              const coreInGroup = g.facts.filter((f: any) => f.tier === 'core').length
+                              return (
+                                <div key={g.domain} style={{ marginBottom: 2 }}>
+                                  {/* 分组标题 */}
+                                  <div
+                                    onClick={() => toggleGroup(g.domain)}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', gap: 4, padding: '6px 6px',
+                                      borderRadius: 8, cursor: 'pointer',
+                                      background: collapsed ? 'transparent' : `${C('color-bg-elevated')}80`,
+                                      transition: 'background 150ms',
+                                      userSelect: 'none',
+                                    }}
+                                  >
+                                    <span style={{ fontSize: 10, transition: 'transform 200ms', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▼</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: C('color-text'), flex: 1 }}>{g.label}</span>
+                                    <Tag style={{ fontSize: 9, margin: 0, padding: '0 5px', lineHeight: '16px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: C('color-text-secondary') }}>
+                                      {g.facts.length}
+                                    </Tag>
+                                    {coreInGroup > 0 && (
+                                      <span style={{ fontSize: 9, color: '#faad14' }}>
+                                        <StarFilled style={{ fontSize: 8 }} />{coreInGroup}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {/* 分组内容 */}
+                                  {!collapsed && g.facts.map((f: any) => (
+                                    <div key={f.id}
+                                      onClick={() => setShowMemoryPage(true)}
+                                      style={{
+                                        padding: '6px 8px 6px 20px', margin: '1px 0', borderRadius: 8, cursor: 'pointer',
+                                        background: f.tier === 'core' ? `${C('color-primary')}06` : 'transparent',
+                                        borderLeft: f.tier === 'core' ? `2px solid #faad14` : '2px solid transparent',
+                                        transition: 'background 150ms',
+                                      }}
+                                      onMouseEnter={e => { if (f.tier !== 'core') e.currentTarget.style.background = `${C('color-bg-elevated')}40` }}
+                                      onMouseLeave={e => { if (f.tier !== 'core') e.currentTarget.style.background = 'transparent' }}
+                                    >
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        {f.tier === 'core' && <StarFilled style={{ color: '#faad14', fontSize: 9 }} />}
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: C('color-text'), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {f.subject}
+                                        </span>
+                                        <span style={{ fontSize: 9, color: C('color-text-secondary'), opacity: 0.45, flexShrink: 0 }}>
+                                          {SUB_LABELS[f.subcategory] || f.subcategory || ''}
+                                        </span>
+                                      </div>
+                                      <div style={{ fontSize: 9, color: C('color-text-secondary'), marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.7 }}>
+                                        {f.summary?.slice(0, 50)}{f.summary?.length > 50 ? '…' : ''}
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                                        <span style={{ fontSize: 8, color: C('color-text-secondary'), opacity: 0.5 }}>W{f.weight?.toFixed?.(1) ?? '—'}</span>
+                                        {f.emotionalContext?.valence != null && (
+                                          <span style={{ fontSize: 8, color: f.emotionalContext.valence > 0.2 ? '#52c41a' : f.emotionalContext.valence < -0.2 ? '#ff4d4f' : '#8c8c8c' }}>
+                                            {f.emotionalContext.valence > 0.2 ? '😊' : f.emotionalContext.valence < -0.2 ? '😔' : '😐'}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })(),
+                },
+                {
+                  key: 'trace',
+                  label: <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}>📊 追踪</span>,
+                  children: <WhisperTracePanel traces={traces} currentTurn={totalTurns} />,
+                },
+              ]}
             />
-            <WhisperDesirePanel
-              desireStack={{ slots: desireSlots }}
-              sharedEventsCount={sharedEvents}
-            />
-            <div style={{ display: 'flex', gap: 4, padding: '8px 12px', borderTop: `1px solid ${C('color-border')}` }}>
-              <Button size="small" type={showTrace ? 'primary' : 'default'}
-                onClick={() => setShowTrace(!showTrace)}
-                style={{ fontSize: 11 }}>📊 追踪</Button>
-              <Button size="small" type="default"
-                onClick={() => setShowMemoryPage(true)}
-                style={{ fontSize: 11, marginLeft: 'auto' }}>🧠 记忆 ({facts.length})</Button>
-            </div>
-            {showTrace && <WhisperTracePanel traces={traces} currentTurn={totalTurns} />}
-          </>)}
+          )}
         </aside>
 
         {/* 侧边栏折叠按钮 */}

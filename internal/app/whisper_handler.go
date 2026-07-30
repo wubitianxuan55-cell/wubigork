@@ -401,12 +401,15 @@ func (a *App) WhisperChatWithSearch(userMsg string, personalityID string) (map[s
 	return a.WhisperChat(userMsg, personalityID)
 }
 
-// searchTriggers 搜索意图触发词
+// searchTriggers 搜索意图触发词（精简版 — 去掉宽泛词，添加精确模式）
 var searchTriggers = []string{
-	"搜索", "查一下", "查查", "帮我查", "帮我搜",
-	"最新", "今天", "现在", "当前", "最近",
-	"新闻", "天气", "股价", "汇率", "比赛",
-	"是谁", "什么是", "怎么样", "多少钱",
+	// 显式命令
+	"搜索", "查一下", "查查", "帮我查", "帮我搜", "搜一下", "上网查",
+	// 实时/时效信息
+	"最新", "最近", "新闻", "天气", "股价", "汇率", "比赛", "实时", "今天天气",
+	// 知识查询
+	"是谁", "什么是", "多少钱", "在哪里", "什么时候", "为什么", "怎么",
+	"如何", "介绍一下", "告诉我", "帮我找",
 }
 
 func shouldSearchWeb(msg string) bool {

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useCallback } from 'react'
 import { Input, Button, Modal, Tag, Select, Tooltip, message, Popconfirm } from 'antd'
 import { SearchOutlined, DeleteOutlined, EditOutlined, CloseOutlined, CheckOutlined, StarFilled } from '@ant-design/icons'
-import { App } from '../../wailsjs/go/app/App'
+import * as App from '../../wailsjs/go/app/App'
 
 interface EmotionalCtx { valence?: number; intensity?: number; trust?: number; relStage?: string }
 interface MemoryFact {
@@ -12,12 +12,32 @@ interface MemoryFact {
 }
 interface Props { facts: MemoryFact[]; personalityID: string; onFactsChange?: (facts: MemoryFact[]) => void }
 
+// ─── 精确分类映射（对齐后端 memory_taxonomy.go 6 domain + 25 subcategory）───
 const DOMAIN_LABELS: Record<string, string> = {
-  personal: '👤 Personal', preference: '⭐ Preference', relationship: '💕 Relationship',
-  shared_bond: '🤝 Bond', health: '💊 Health', work: '💼 Work',
-  user_behavior: '🎯 Behavior', user_state: '💭 State', companion_reply: '💬 Reply',
-  SOCIAL: '💕 Social', DAILY_LIFE: '🏠 Daily', INNER_WORLD: '🧘 Inner', PURSUITS: '🎯 Pursuits', TEMPORAL: '⏰ Time', IDENTITY: '🪪 Identity',
+  IDENTITY: '🪪 身份', SOCIAL: '💕 社交', DAILY_LIFE: '🏠 日常',
+  PURSUITS: '🎯 追求', INNER_WORLD: '🧘 内心', TEMPORAL: '⏰ 时间',
+  // 旧域兼容
+  personal: '🪪 身份', preference: '⭐ 偏好', relationship: '💕 社交',
+  shared_bond: '🤝 羁绊', health: '💊 健康', work: '💼 工作',
+  user_behavior: '🎯 行为', user_state: '💭 状态', companion_reply: '💬 回复',
 }
+const DOMAIN_ORDER = ['IDENTITY', 'SOCIAL', 'DAILY_LIFE', 'PURSUITS', 'INNER_WORLD', 'TEMPORAL']
+
+const SUB_LABELS: Record<string, string> = {
+  // IDENTITY
+  BASIC_PROFILE: '基本信息', LIFE_STORY: '人生故事', VALUES_BELIEFS: '价值观', SELF_PERCEPTION: '自我认知',
+  // SOCIAL
+  OUR_BOND: '我们的羁绊', FAMILY: '家庭', FRIENDS: '朋友', PARTNER: '伴侣',
+  // DAILY_LIFE
+  ROUTINES: '日常习惯', HEALTH: '健康', LIVING_SPACE: '居住空间', LIFESTYLE: '生活方式',
+  // PURSUITS
+  CAREER: '职业', LEARNING: '学习', GOALS: '目标', PROJECTS: '项目', PROCEDURES: '流程',
+  // INNER_WORLD
+  MOOD: '情绪', TASTES: '品味', VULNERABILITIES: '脆弱面', INSIDE_JOKES: '内部玩笑',
+  // TEMPORAL
+  NOW: '当下', COMMITMENTS: '承诺', PLANS: '计划', WORLD: '世界观',
+}
+
 const VALENCE_COLOR = (v: number) => v > 0.2 ? '#52c41a' : v < -0.2 ? '#ff4d4f' : '#8c8c8c'
 const VALENCE_LABEL = (v: number) => v > 0.2 ? '😊' : v < -0.2 ? '😔' : '😐'
 
@@ -69,7 +89,7 @@ export default function WhisperMemoryModal({ facts, personalityID, onFactsChange
       </div>
       <div style={{display:'flex',gap:6}}>
         <Input prefix={<SearchOutlined />} placeholder="Search…" size="small" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,borderRadius:8}} allowClear/>
-        <Select size="small" placeholder="Domain" value={domainFilter||undefined} onChange={v=>setDomainFilter(v||'')} allowClear style={{width:120}} options={domains.map(d=>({value:d,label:(DOMAIN_LABELS[d]||d).replace(/[^\u4e00-\u9fa5]/g,'')}))}/>
+        <Select size="small" placeholder="Domain" value={domainFilter||undefined} onChange={v=>setDomainFilter(v||'')} allowClear style={{width:120}} options={DOMAIN_ORDER.map(d=>({value:d,label:DOMAIN_LABELS[d]||d})).concat(domains.filter(d=>!DOMAIN_ORDER.includes(d)).map(d=>({value:d,label:DOMAIN_LABELS[d]||d})))}/>
         <Select size="small" placeholder="Tier" value={tierFilter||undefined} onChange={v=>setTierFilter(v||'')} allowClear style={{width:80}} options={[{value:'core',label:'⭐ Core'},{value:'memory',label:'Memory'}]}/>
       </div>
       <div style={{flex:1,overflow:'auto',minHeight:0}}>
@@ -82,8 +102,8 @@ export default function WhisperMemoryModal({ facts, personalityID, onFactsChange
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               {f.tier==='core' && <StarFilled style={{color:'#faad14',fontSize:12}}/>}
               <span style={{fontSize:13,fontWeight:600,color:'var(--whisper-ink)',flex:1,cursor:'pointer'}} onClick={()=>setDetailFact(f)}>{f.subject}</span>
-              {f.subcategory && <Tag style={{fontSize:9,margin:0}}>{f.subcategory}</Tag>}
-              <Tag style={{fontSize:9,margin:0,opacity:.7}}>{(DOMAIN_LABELS[f.domain]||f.domain).replace(/[^\u4e00-\u9fa5]/g,'')}</Tag>
+              {f.subcategory && <Tag style={{fontSize:9,margin:0}}>{SUB_LABELS[f.subcategory] || f.subcategory}</Tag>}
+              <Tag style={{fontSize:9,margin:0,opacity:.7}}>{DOMAIN_LABELS[f.domain] || f.domain}</Tag>
               {editingId===f.id ? (<><Button type="text" size="small" icon={<CheckOutlined />} onClick={confirmEdit} style={{color:'#52c41a',padding:0,width:22}}/><Button type="text" size="small" icon={<CloseOutlined />} onClick={()=>setEditingId(null)} style={{color:'#ff4d4f',padding:0,width:22}}/></>) : (<><Tooltip title="Edit"><Button type="text" size="small" icon={<EditOutlined />} onClick={()=>startEdit(f)} style={{color:'var(--whisper-ink-muted)',padding:0,width:22}}/></Tooltip><Popconfirm title="Delete?" onConfirm={()=>handleDelete(f.id)}><Button type="text" size="small" danger icon={<DeleteOutlined />} style={{padding:0,width:22}}/></Popconfirm></>)}
             </div>
             {editingId===f.id ? <Input.TextArea size="small" value={editText} onChange={e=>setEditText(e.target.value)} autoSize={{minRows:2,maxRows:4}} style={{marginTop:6,fontSize:12}}/> : <div style={{fontSize:12,color:'var(--whisper-ink)',marginTop:4,lineHeight:1.6,cursor:'pointer'}} onClick={()=>setDetailFact(f)}>{f.summary.slice(0,200)}{f.summary.length>200?'…':''}</div>}
@@ -101,7 +121,7 @@ export default function WhisperMemoryModal({ facts, personalityID, onFactsChange
           <div style={{fontSize:13,lineHeight:1.9,color:'var(--whisper-ink)'}}>
             <p style={{fontSize:14,whiteSpace:'pre-wrap'}}>{detailFact.summary}</p>
             <div style={{color:'var(--whisper-ink-muted)',fontSize:12,marginTop:16,display:'grid',gridTemplateColumns:'1fr 1fr',gap:'4px 16px'}}>
-              <span>Domain: {DOMAIN_LABELS[detailFact.domain]||detailFact.domain}</span><span>Sub: {detailFact.subcategory||'—'}</span>
+              <span>Domain: {DOMAIN_LABELS[detailFact.domain]||detailFact.domain}</span><span>Sub: {SUB_LABELS[detailFact.subcategory||''] || detailFact.subcategory || '—'}</span>
               <span>Weight: {detailFact.weight.toFixed(2)}</span><span>Confidence: {(detailFact.confidence*100).toFixed(0)}%</span>
               <span>Tier: {detailFact.tier||'memory'}</span><span>Sensitivity: {detailFact.sensitivity||'normal'}</span>
               <span>Created: {detailFact.createdAt}</span><span>Updated: {detailFact.updatedAt||'—'}</span>

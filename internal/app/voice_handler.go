@@ -85,9 +85,9 @@ func (a *App) initVoice() {
 	// 设置 ASR 客户端（如果 Herdsman 可用）
 	a.trySetASRClient()
 
-	// 设置 whisper 对话回调（复用现有 WhisperChat）
+	// 设置 whisper 对话回调（使用搜索增强版，语音也能上网查）
 	a.voiceManager.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
-		result, err := a.WhisperChat(userMsg, personalityID)
+		result, err := a.WhisperChatWithSearch(userMsg, personalityID)
 		if err != nil {
 			return "", "", err
 		}

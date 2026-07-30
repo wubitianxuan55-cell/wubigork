@@ -44,7 +44,6 @@ const pageComponents: Record<Page, React.ReactNode> = {
   whisper: <WhisperPage />,
   office: <OfficePage />,
 }
-}
 interface LogEntry {
   id: number; type: string; time: string
   model?: string; content?: string; error?: string; length?: number
