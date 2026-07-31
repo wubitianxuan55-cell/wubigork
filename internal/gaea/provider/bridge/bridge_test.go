@@ -86,7 +86,7 @@ func TestBridge_Stream_ToolCall(t *testing.T) {
 	if toolMsg.Role != "tool" || toolMsg.ToolCallID != "call_1" || toolMsg.Name != "spec_query" {
 		t.Errorf("tool 消息转换错误: %+v", toolMsg)
 	}
-	if len(mc.gotReq.Tools) != 1 || mc.gotReq.Tools[0].Name != "spec_query" {
+	if len(mc.gotReq.Tools) != 1 || mc.gotReq.Tools[0].Type != "function" || mc.gotReq.Tools[0].Function.Name != "spec_query" {
 		t.Errorf("tools 转换错误: %+v", mc.gotReq.Tools)
 	}
 

@@ -135,9 +135,12 @@ func toChatTools(tools []provider.ToolSchema) []ai.ChatToolSchema {
 	out := make([]ai.ChatToolSchema, 0, len(tools))
 	for _, t := range tools {
 		out = append(out, ai.ChatToolSchema{
-			Name:        t.Name,
-			Description: strings.TrimSpace(t.Description),
-			Parameters:  t.Parameters,
+			Type: "function",
+			Function: ai.ChatToolFunctionSpec{
+				Name:        t.Name,
+				Description: strings.TrimSpace(t.Description),
+				Parameters:  t.Parameters,
+			},
 		})
 	}
 	return out

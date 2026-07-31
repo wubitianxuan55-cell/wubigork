@@ -45,7 +45,12 @@ func TestGaeaChatRequestMarshalWithBadToolSchema(t *testing.T) {
 	// 模拟 bridge.toChatTools + ChatStream 的 marshal 路径
 	tools := make([]ai.ChatToolSchema, 0, len(schs))
 	for _, s := range schs {
-		tools = append(tools, ai.ChatToolSchema{Name: s.Name, Description: s.Description, Parameters: s.Parameters})
+		tools = append(tools, ai.ChatToolSchema{
+			Type: "function",
+			Function: ai.ChatToolFunctionSpec{
+				Name: s.Name, Description: s.Description, Parameters: s.Parameters,
+			},
+		})
 	}
 	req := ai.ChatRequest{
 		Model:    "gaea",

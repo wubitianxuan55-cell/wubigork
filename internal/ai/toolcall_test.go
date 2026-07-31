@@ -101,16 +101,21 @@ func TestChatMessageMarshal_ToolCalls(t *testing.T) {
 	}
 }
 
-// TestChatRequestMarshal_Tools 验证 ChatRequest 带 tools 序列化正确。
+// TestChatRequestMarshal_Tools 验证 ChatRequest 带 tools 序列化正确，
+// 且符合 OpenAI 兼容格式（每个工具必须含 "type":"function" 包裹层，
+// 缺失会导致 DeepSeek/Grok 等 API 以 400 拒绝：tools[0]: missing field `type`）。
 func TestChatRequestMarshal_Tools(t *testing.T) {
 	req := ChatRequest{
 		Model:    "grok-3",
 		Messages: []ChatMessage{{Role: "user", Content: "hi"}},
 		Stream:   true,
 		Tools: []ChatToolSchema{{
-			Name:        "calc_math",
-			Description: "数学计算",
-			Parameters:  []byte(`{"type":"object"}`),
+			Type: "function",
+			Function: ChatToolFunctionSpec{
+				Name:        "calc_math",
+				Description: "数学计算",
+				Parameters:  []byte(`{"type":"object"}`),
+			},
 		}},
 	}
 	b, err := json.Marshal(req)
@@ -118,7 +123,13 @@ func TestChatRequestMarshal_Tools(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 	s := string(b)
-	if !strings.Contains(s, `"tools"`) || !strings.Contains(s, `"calc_math"`) {
-		t.Errorf("output missing tools: %s", s)
+	if !strings.Contains(s, `"type":"function"`) {
+		t.Fatalf("output missing type:function: %s", s)
+	}
+	if !strings.Contains(s, `"function":{"name":"calc_math"`) {
+		t.Fatalf("output missing function wrapper: %s", s)
+	}
+	if !strings.Contains(s, `"calc_math"`) {
+		t.Errorf("output missing tool name: %s", s)
 	}
 }

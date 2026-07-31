@@ -24,11 +24,19 @@ type ChatToolFunction struct {
 	Arguments string `json:"arguments,omitempty"`
 }
 
-// ChatToolSchema OpenAI 兼容工具定义（tools 数组元素）。
-type ChatToolSchema struct {
+// ChatToolFunctionSpec 单个工具的 function 定义（OpenAI 兼容 tools 元素内部）。
+type ChatToolFunctionSpec struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	Parameters  json.RawMessage `json:"parameters"`
+}
+
+// ChatToolSchema OpenAI 兼容工具定义（tools 数组元素）。
+// OpenAI 规范要求 {"type":"function","function":{...}}——缺失 type 字段
+// 会被 DeepSeek/Grok 等兼容 API 以 400 拒绝（"tools[0]: missing field `type`"）。
+type ChatToolSchema struct {
+	Type     string               `json:"type"` // 固定 "function"
+	Function ChatToolFunctionSpec `json:"function"`
 }
 
 // ChatToolCallDelta 流式 tool_calls 增量分片，按 Index 拼装。
