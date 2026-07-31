@@ -53,20 +53,26 @@ func compressSchema(v any, depth int) any {
 }
 
 // CanonicalizeSchema recursively stabilizes a JSON Schema so the same logical
-// schema always produces the same byte representation, then compresses
-// redundant fields for minimum prompt token consumption.
+// fallbackObjectSchema 是非法 JSON Schema 的兜底：无参数对象。保证任何进入
+// registry 的 schema 都是合法 JSON——否则 MCP 服务器返回的非法 inputSchema
+// 会在发送消息时导致 json.Marshal 崩溃
+// （"json: error calling MarshalJSON for type json.RawMessage"）。
+var fallbackObjectSchema = json.RawMessage(`{"type":"object"}`)
+
 func CanonicalizeSchema(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return raw
 	}
 	var v any
 	if err := json.Unmarshal(raw, &v); err != nil {
-		return raw
+		// 非法输入绝不原样透传：替换为无参数对象兜底，
+		// 让对话继续而非整条消息失败。
+		return fallbackObjectSchema
 	}
 	canon := canonicalizeSchemaValue(v)
 	b, err := json.Marshal(canon)
 	if err != nil {
-		return raw
+		return fallbackObjectSchema
 	}
 	return json.RawMessage(b)
 }

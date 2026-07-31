@@ -96,3 +96,27 @@ func TestCanonicalizeSchemaStripsNestedDescriptions(t *testing.T) {
 		t.Errorf("description field survived nested compression: %s", out)
 	}
 }
+
+// TestCanonicalizeSchemaInvalidInput 非法 JSON Schema 必须被替换为兜底
+// 对象而非原样透传——否则 MCP 服务器返回的非法 inputSchema 会在发送消息时
+// 导致 json.Marshal 崩溃（"json: error calling MarshalJSON for type
+// json.RawMessage: invalid character '}' after top-level value"）。
+func TestCanonicalizeSchemaInvalidInput(t *testing.T) {
+	bad := []json.RawMessage{
+		json.RawMessage(`{"type":"object"}{`),               // 顶层后多余字符
+		json.RawMessage(`{"type":"object"}{"a":1}`),         // 双顶层值
+		json.RawMessage(`{"properties":{"x":{}}}`),          // 缺闭合括号
+		json.RawMessage(`not json at all`),                  // 完全非 JSON
+	}
+	for _, raw := range bad {
+		got := CanonicalizeSchema(raw)
+		if !json.Valid(got) {
+			t.Fatalf("CanonicalizeSchema(%q) 输出仍非法: %s", raw, got)
+		}
+		// 兜底必须是合法对象 schema
+		var v any
+		if err := json.Unmarshal(got, &v); err != nil {
+			t.Fatalf("CanonicalizeSchema(%q) 输出不可解析: %v", raw, err)
+		}
+	}
+}
