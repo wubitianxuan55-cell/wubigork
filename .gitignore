@@ -1,6 +1,5 @@
 # 编译产物
 gaea.exe
-gaea
 
 # 前端
 frontend/dist/
@@ -62,3 +61,6 @@ comfyui_new.log
 wails_build.log
 .tmp/
 whisper_data/
+
+# gaea 引擎运行时缓存
+**/.gaea/cache/
