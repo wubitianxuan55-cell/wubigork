@@ -1,8 +1,20 @@
 # wubigork · 让灵感成为故事
 
-## v5.73.1「方案编写完善」(2026-07-31)
+## v5.76.0「工程办公」(2026-07-31)
 
-> 方案编写模块全链路修复：嵌套章节读写/导出/检查打通、流式撰写持久化、上传转换链路修复、大纲手工编辑。
+> gaeaW（土壤修复工程办公 AI 助手）完整移植：47 个工程工具 + Hermes/Hephaestus 双模型 agent + 6 个工程技能 + gaeaW 原生 UI，模型统一走 wubigrok 模型中心。
+
+### 新板块：办公
+- 后端移植 `internal/gaea/` 30 包（agent/tool/control/skill/command/plugin/knowledge/memory/boot/config），模型经 `provider/bridge` 接入模型中心（空模型动态跟随引擎切换）
+- ai 包扩展工具调用支持（OpenAI 兼容 + SSE tool_calls 分片拼装，向后兼容）
+- gaeaW 原生 UI 完整移植至 `frontend/src/gaea/`（App + 70 组件 + Tailwind v4），GaeaPage 渲染 gaeaW App
+- 适配层：bridge.ts 90+ 方法名映射（Submit→GaeaSend 等），wubigrok 补齐 80+ Gaea* 绑定方法，事件格式精确对齐 WireEvent
+- `.gaea/skills/` 6 个工程技能（场地调查/风险评估/修复设计/投标/数据报告）
+
+### 发布
+- 完整说明见 `releases/v5.76.0.md`
+
+## v5.73.1「方案编写完善」(2026-07-31)
 
 ### 关键修复
 - 嵌套章节（AI 大纲的 2/3 级）后端查找/更新全部改为递归展平，子章节可正常撰写/润色/改图/重命名
