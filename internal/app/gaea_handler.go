@@ -180,12 +180,17 @@ func (a *App) GaeaCallTool(name, argsJSON string) (string, error) {
 
 // ── 事件转换 ────────────────────────────────────────────────────
 
-// gaeaEventMap 把 gaea 事件流转换为前端可消费的 JSON。
+// gaeaEventMap 把 gaea 事件流转换为 gaeaW WireEvent 兼容格式（前端 store 直接消费）。
 func gaeaEventMap(e event.Event) map[string]interface{} {
 	m := map[string]interface{}{"kind": gaeaKindName(e.Kind)}
 	switch e.Kind {
 	case event.Text, event.Reasoning:
-		m["text"] = e.Text
+		if e.Text != "" {
+			m["text"] = e.Text
+		}
+		if e.Reasoning != "" {
+			m["reasoning"] = e.Reasoning
+		}
 	case event.Message:
 		m["text"] = e.Text
 		if e.Reasoning != "" {
@@ -194,55 +199,93 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 	case event.ToolDispatch:
 		m["tool"] = map[string]interface{}{
 			"id": e.Tool.ID, "name": e.Tool.Name, "args": e.Tool.Args,
+			"readOnly": e.Tool.ReadOnly, "partial": e.Tool.Partial,
+			"parentId": e.Tool.ParentID,
 		}
 	case event.ToolResult:
-		m["tool"] = map[string]interface{}{
+		t := map[string]interface{}{
 			"id": e.Tool.ID, "name": e.Tool.Name, "output": e.Tool.Output,
+			"recoverable": e.Tool.Recoverable, "truncated": e.Tool.Truncated,
 		}
 		if e.Tool.Err != "" {
-			m["error"] = e.Tool.Err
+			t["err"] = e.Tool.Err
 		}
+		m["tool"] = t
 	case event.Notice:
 		m["text"] = e.Text
 		m["level"] = gaeaLevelName(e.Level)
 	case event.Phase:
 		m["text"] = e.Text
-		m["text"] = e.Text
 	case event.TurnDone:
 		if e.Err != nil {
-			m["error"] = e.Err.Error()
+			m["err"] = e.Err.Error()
 		}
 	case event.Usage:
 		if e.Usage != nil {
 			m["usage"] = map[string]interface{}{
-				"prompt": e.Usage.PromptTokens, "completion": e.Usage.CompletionTokens, "total": e.Usage.TotalTokens,
+				"promptTokens":           e.Usage.PromptTokens,
+				"completionTokens":       e.Usage.CompletionTokens,
+				"totalTokens":            e.Usage.TotalTokens,
+				"cacheHitTokens":         e.Usage.CacheHitTokens,
+				"cacheMissTokens":        e.Usage.CacheMissTokens,
+				"reasoningTokens":        e.Usage.ReasoningTokens,
+				"sessionCacheHitTokens":  e.SessionHit,
+				"sessionCacheMissTokens": e.SessionMiss,
+				"turn":                   e.Turn,
+				"source":                 e.UsageSource,
 			}
 		}
 	case event.ApprovalRequest:
 		m["approval"] = map[string]interface{}{"id": e.Approval.ID, "tool": e.Approval.Tool, "subject": e.Approval.Subject}
 	case event.AskRequest:
-		m["ask"] = map[string]interface{}{"id": e.Ask.ID, "questions": e.Ask.Questions}
-	case event.CompactionStarted, event.CompactionDone:
-		m["text"] = e.Text
+		qs := make([]map[string]interface{}, 0, len(e.Ask.Questions))
+		for _, q := range e.Ask.Questions {
+			opts := make([]map[string]interface{}, 0, len(q.Options))
+			for _, o := range q.Options {
+				opt := map[string]interface{}{"label": o.Label}
+				if o.Description != "" {
+					opt["description"] = o.Description
+				}
+				opts = append(opts, opt)
+			}
+			qq := map[string]interface{}{"id": q.ID, "prompt": q.Prompt, "options": opts, "multi": q.Multi}
+			if q.Header != "" {
+				qq["header"] = q.Header
+			}
+			if q.Plan != "" {
+				qq["plan"] = q.Plan
+			}
+			qs = append(qs, qq)
+		}
+		m["ask"] = map[string]interface{}{"id": e.Ask.ID, "questions": qs}
+	case event.CompactionStarted:
+		m["compaction"] = map[string]interface{}{"trigger": e.Compaction.Trigger}
+	case event.CompactionDone:
+		m["compaction"] = map[string]interface{}{
+			"trigger": e.Compaction.Trigger, "messages": e.Compaction.Messages,
+			"summary": e.Compaction.Summary, "archive": e.Compaction.Archive,
+		}
 	}
 	return m
 }
 
-// gaeaKindName 事件类型名映射。
+// gaeaKindName 事件类型名映射（对齐 gaeaW WireEvent.EventKind）。
 func gaeaKindName(k event.Kind) string {
 	names := map[event.Kind]string{
 		event.TurnStarted: "turn_started", event.Reasoning: "reasoning", event.Text: "text",
 		event.Message: "message", event.ToolDispatch: "tool_dispatch", event.ToolResult: "tool_result",
 		event.Usage: "usage", event.Notice: "notice", event.Phase: "phase",
-		event.ApprovalRequest: "approval", event.AskRequest: "ask",
+		event.ApprovalRequest: "approval_request", event.AskRequest: "ask_request",
 		event.TurnDone: "turn_done", event.CompactionStarted: "compaction_started",
-		event.CompactionDone: "compaction_done", event.Retrying: "retrying", event.Steer: "steer",
+		event.CompactionDone: "compaction_done",
 	}
 	if n, ok := names[k]; ok {
 		return n
 	}
 	return "unknown"
 }
+
+// gaeaLevelName 通知级别名。
 
 // gaeaLevelName 通知级别名。
 func gaeaLevelName(l event.Level) string {

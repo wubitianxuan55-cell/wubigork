@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="gaea">
+  <title>gaea — 大地女神</title>
+  <defs>
+    <!-- 浅色渐变：适合深色背景 -->
+    <linearGradient id="gaea-grad-light" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#A5B4FC"/>
+      <stop offset="40%" stop-color="#C7D2FE"/>
+      <stop offset="100%" stop-color="#67E8F9"/>
+    </linearGradient>
+    <linearGradient id="contour-grad-light" x1="20%" y1="80%" x2="80%" y2="20%">
+      <stop offset="0%" stop-color="#A5B4FC"/>
+      <stop offset="60%" stop-color="#C7D2FE"/>
+      <stop offset="100%" stop-color="#67E8F9"/>
+    </linearGradient>
+    <radialGradient id="spark-glow-light" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.6"/>
+      <stop offset="40%" stop-color="#67E8F9" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#67E8F9" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ===== 外环 ===== -->
+  <circle cx="256" cy="256" r="232" fill="none" stroke="url(#gaea-grad-light)" stroke-width="3" opacity="0.4"/>
+  <circle cx="256" cy="256" r="240" fill="none" stroke="url(#gaea-grad-light)" stroke-width="2" opacity="0.25"/>
+
+  <!-- ===== 女神侧脸轮廓 ===== -->
+  <path d="
+    M 120 380
+    C 130 340, 135 320, 145 300
+    C 152 285, 158 275, 162 260
+    C 165 245, 163 230, 158 215
+    C 152 198, 148 185, 155 170
+    C 165 152, 185 140, 210 135
+    C 240 128, 270 135, 295 150
+    C 315 162, 325 178, 330 195
+    C 335 210, 338 230, 345 255
+    C 352 280, 358 310, 362 340
+    C 364 358, 362 372, 355 385
+  "
+  fill="none" stroke="url(#gaea-grad-light)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 眉弓 -->
+  <path d="M 155 180 C 175 170, 205 168, 225 175"
+  fill="none" stroke="url(#contour-grad-light)" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- 鼻梁 → 下颌弧线 -->
+  <path d="M 170 210 C 175 240, 170 265, 158 290"
+  fill="none" stroke="url(#contour-grad-light)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+
+  <!-- ===== 发丝/根系 垂落 ===== -->
+  <path d="M 295 150 C 310 168, 325 195, 335 230 C 345 265, 350 305, 348 345"
+  fill="none" stroke="url(#gaea-grad-light)" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+
+  <path d="M 310 170 C 325 200, 340 235, 348 275 C 356 315, 358 350, 352 380"
+  fill="none" stroke="url(#gaea-grad-light)" stroke-width="1.8" stroke-linecap="round" opacity="0.45"/>
+
+  <path d="M 322 195 C 338 225, 352 260, 358 300 C 364 340, 360 370, 350 395"
+  fill="none" stroke="url(#gaea-grad-light)" stroke-width="1.2" stroke-linecap="round" opacity="0.3"/>
+
+  <path d="M 330 218 C 345 245, 358 278, 363 318"
+  fill="none" stroke="url(#gaea-grad-light)" stroke-width="1" stroke-linecap="round" opacity="0.25"/>
+
+  <!-- ===== AI 智慧火花 ===== -->
+  <circle cx="210" cy="120" r="40" fill="url(#spark-glow-light)"/>
+  <circle cx="210" cy="120" r="9" fill="#67E8F9"/>
+  <circle cx="210" cy="120" r="4" fill="#FFFFFF" opacity="0.9"/>
+
+  <!-- ===== 大地节点 ===== -->
+  <circle cx="120" cy="380" r="4" fill="#A5B4FC"/>
+  <circle cx="355" cy="385" r="3" fill="#67E8F9" opacity="0.7"/>
+
+  <!-- ===== 字标 ===== -->
+  <text x="256" y="478" text-anchor="middle"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-weight="600" font-size="68" letter-spacing="0.04em"
+        fill="#E2E8F0">
+    gaea
+  </text>
+</svg>

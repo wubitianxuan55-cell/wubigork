@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 // Wails 内嵌资产服务器不支持 CORS 头，浏览器会拒绝加载带 crossorigin 的 module script。
 // 同源的 ESM 脚本无需 CORS，去掉 crossorigin 即可正常加载。
@@ -33,7 +34,7 @@ function wailsCompatPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), wailsCompatPlugin()],
+  plugins: [react(), tailwindcss(), wailsCompatPlugin()],
   server: {
     port: 5173,
     strictPort: true,

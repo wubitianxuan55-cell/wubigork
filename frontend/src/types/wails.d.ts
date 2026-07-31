@@ -15,6 +15,7 @@ declare global {
     runtime?: {
       EventsOn: (event: string, handler: (data: any) => void) => void
       EventsOff?: (event: string) => void
+      BrowserOpenURL?: (url: string) => void
     }
   }
 }

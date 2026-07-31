@@ -146,6 +146,46 @@ export function FindUnlinkedMentions(arg1, arg2) {
   return window['go']['app']['App']['FindUnlinkedMentions'](arg1, arg2);
 }
 
+export function GaeaAcceptMemorySuggestion(arg1) {
+  return window['go']['app']['App']['GaeaAcceptMemorySuggestion'](arg1);
+}
+
+export function GaeaAcceptSkillSuggestion(arg1) {
+  return window['go']['app']['App']['GaeaAcceptSkillSuggestion'](arg1);
+}
+
+export function GaeaAddMCPServer(arg1) {
+  return window['go']['app']['App']['GaeaAddMCPServer'](arg1);
+}
+
+export function GaeaAddPermissionRule(arg1, arg2) {
+  return window['go']['app']['App']['GaeaAddPermissionRule'](arg1, arg2);
+}
+
+export function GaeaAgentMode() {
+  return window['go']['app']['App']['GaeaAgentMode']();
+}
+
+export function GaeaAnswer(arg1, arg2) {
+  return window['go']['app']['App']['GaeaAnswer'](arg1, arg2);
+}
+
+export function GaeaApplyUpdate() {
+  return window['go']['app']['App']['GaeaApplyUpdate']();
+}
+
+export function GaeaApprove(arg1, arg2, arg3) {
+  return window['go']['app']['App']['GaeaApprove'](arg1, arg2, arg3);
+}
+
+export function GaeaAttachmentDataURL(arg1) {
+  return window['go']['app']['App']['GaeaAttachmentDataURL'](arg1);
+}
+
+export function GaeaBalance() {
+  return window['go']['app']['App']['GaeaBalance']();
+}
+
 export function GaeaCallTool(arg1, arg2) {
   return window['go']['app']['App']['GaeaCallTool'](arg1, arg2);
 }
@@ -154,40 +194,324 @@ export function GaeaCancel() {
   return window['go']['app']['App']['GaeaCancel']();
 }
 
+export function GaeaCapabilities() {
+  return window['go']['app']['App']['GaeaCapabilities']();
+}
+
+export function GaeaChangeFactType(arg1, arg2) {
+  return window['go']['app']['App']['GaeaChangeFactType'](arg1, arg2);
+}
+
+export function GaeaCheckUpdate() {
+  return window['go']['app']['App']['GaeaCheckUpdate']();
+}
+
+export function GaeaCheckpoints() {
+  return window['go']['app']['App']['GaeaCheckpoints']();
+}
+
+export function GaeaCommands() {
+  return window['go']['app']['App']['GaeaCommands']();
+}
+
+export function GaeaContext() {
+  return window['go']['app']['App']['GaeaContext']();
+}
+
+export function GaeaDeleteProvider(arg1) {
+  return window['go']['app']['App']['GaeaDeleteProvider'](arg1);
+}
+
+export function GaeaDeleteSession(arg1) {
+  return window['go']['app']['App']['GaeaDeleteSession'](arg1);
+}
+
 export function GaeaEngines() {
   return window['go']['app']['App']['GaeaEngines']();
+}
+
+export function GaeaForget(arg1) {
+  return window['go']['app']['App']['GaeaForget'](arg1);
+}
+
+export function GaeaFork(arg1) {
+  return window['go']['app']['App']['GaeaFork'](arg1);
+}
+
+export function GaeaHistory() {
+  return window['go']['app']['App']['GaeaHistory']();
 }
 
 export function GaeaInit() {
   return window['go']['app']['App']['GaeaInit']();
 }
 
+export function GaeaJobs() {
+  return window['go']['app']['App']['GaeaJobs']();
+}
+
+export function GaeaKnowledgeDelete(arg1) {
+  return window['go']['app']['App']['GaeaKnowledgeDelete'](arg1);
+}
+
+export function GaeaKnowledgeGet(arg1) {
+  return window['go']['app']['App']['GaeaKnowledgeGet'](arg1);
+}
+
+export function GaeaKnowledgeList() {
+  return window['go']['app']['App']['GaeaKnowledgeList']();
+}
+
+export function GaeaKnowledgeSave(arg1) {
+  return window['go']['app']['App']['GaeaKnowledgeSave'](arg1);
+}
+
+export function GaeaListDir(arg1) {
+  return window['go']['app']['App']['GaeaListDir'](arg1);
+}
+
+export function GaeaListSessions() {
+  return window['go']['app']['App']['GaeaListSessions']();
+}
+
+export function GaeaListWorkspaces() {
+  return window['go']['app']['App']['GaeaListWorkspaces']();
+}
+
+export function GaeaLoginProvider(arg1) {
+  return window['go']['app']['App']['GaeaLoginProvider'](arg1);
+}
+
+export function GaeaLogoutProvider(arg1) {
+  return window['go']['app']['App']['GaeaLogoutProvider'](arg1);
+}
+
+export function GaeaMemory() {
+  return window['go']['app']['App']['GaeaMemory']();
+}
+
+export function GaeaMemorySuggestions() {
+  return window['go']['app']['App']['GaeaMemorySuggestions']();
+}
+
+export function GaeaMeta() {
+  return window['go']['app']['App']['GaeaMeta']();
+}
+
 export function GaeaModel() {
   return window['go']['app']['App']['GaeaModel']();
+}
+
+export function GaeaModels() {
+  return window['go']['app']['App']['GaeaModels']();
 }
 
 export function GaeaNewSession() {
   return window['go']['app']['App']['GaeaNewSession']();
 }
 
+export function GaeaOpenDownloadPage() {
+  return window['go']['app']['App']['GaeaOpenDownloadPage']();
+}
+
+export function GaeaOpenWorkspacePath(arg1) {
+  return window['go']['app']['App']['GaeaOpenWorkspacePath'](arg1);
+}
+
+export function GaeaPermLevel() {
+  return window['go']['app']['App']['GaeaPermLevel']();
+}
+
+export function GaeaPickFiles() {
+  return window['go']['app']['App']['GaeaPickFiles']();
+}
+
+export function GaeaPickWorkspace() {
+  return window['go']['app']['App']['GaeaPickWorkspace']();
+}
+
+export function GaeaReadFile(arg1) {
+  return window['go']['app']['App']['GaeaReadFile'](arg1);
+}
+
+export function GaeaRemember(arg1, arg2) {
+  return window['go']['app']['App']['GaeaRemember'](arg1, arg2);
+}
+
+export function GaeaRemoveMCPServer(arg1) {
+  return window['go']['app']['App']['GaeaRemoveMCPServer'](arg1);
+}
+
+export function GaeaRemovePermissionRule(arg1, arg2) {
+  return window['go']['app']['App']['GaeaRemovePermissionRule'](arg1, arg2);
+}
+
+export function GaeaRenameSession(arg1, arg2) {
+  return window['go']['app']['App']['GaeaRenameSession'](arg1, arg2);
+}
+
+export function GaeaResumeSession(arg1) {
+  return window['go']['app']['App']['GaeaResumeSession'](arg1);
+}
+
+export function GaeaRetryMCPServer(arg1) {
+  return window['go']['app']['App']['GaeaRetryMCPServer'](arg1);
+}
+
+export function GaeaRevealWorkspacePath(arg1) {
+  return window['go']['app']['App']['GaeaRevealWorkspacePath'](arg1);
+}
+
+export function GaeaRewind(arg1, arg2) {
+  return window['go']['app']['App']['GaeaRewind'](arg1, arg2);
+}
+
 export function GaeaRunning() {
   return window['go']['app']['App']['GaeaRunning']();
+}
+
+export function GaeaSaveAttachmentFile(arg1, arg2) {
+  return window['go']['app']['App']['GaeaSaveAttachmentFile'](arg1, arg2);
+}
+
+export function GaeaSaveDoc(arg1, arg2) {
+  return window['go']['app']['App']['GaeaSaveDoc'](arg1, arg2);
+}
+
+export function GaeaSavePastedImage(arg1) {
+  return window['go']['app']['App']['GaeaSavePastedImage'](arg1);
+}
+
+export function GaeaSaveProvider(arg1) {
+  return window['go']['app']['App']['GaeaSaveProvider'](arg1);
+}
+
+export function GaeaSaveWindowState(arg1) {
+  return window['go']['app']['App']['GaeaSaveWindowState'](arg1);
+}
+
+export function GaeaSelectTab(arg1) {
+  return window['go']['app']['App']['GaeaSelectTab'](arg1);
 }
 
 export function GaeaSend(arg1) {
   return window['go']['app']['App']['GaeaSend'](arg1);
 }
 
+export function GaeaSetAgentParams(arg1, arg2, arg3) {
+  return window['go']['app']['App']['GaeaSetAgentParams'](arg1, arg2, arg3);
+}
+
+export function GaeaSetDefaultModel(arg1) {
+  return window['go']['app']['App']['GaeaSetDefaultModel'](arg1);
+}
+
+export function GaeaSetEffort(arg1) {
+  return window['go']['app']['App']['GaeaSetEffort'](arg1);
+}
+
 export function GaeaSetEngine(arg1) {
   return window['go']['app']['App']['GaeaSetEngine'](arg1);
+}
+
+export function GaeaSetMCPServerEnabled(arg1, arg2) {
+  return window['go']['app']['App']['GaeaSetMCPServerEnabled'](arg1, arg2);
+}
+
+export function GaeaSetModel(arg1) {
+  return window['go']['app']['App']['GaeaSetModel'](arg1);
+}
+
+export function GaeaSetPermLevel(arg1) {
+  return window['go']['app']['App']['GaeaSetPermLevel'](arg1);
+}
+
+export function GaeaSetPermissionMode(arg1) {
+  return window['go']['app']['App']['GaeaSetPermissionMode'](arg1);
+}
+
+export function GaeaSetPlannerEffort(arg1) {
+  return window['go']['app']['App']['GaeaSetPlannerEffort'](arg1);
+}
+
+export function GaeaSetPlannerModel(arg1) {
+  return window['go']['app']['App']['GaeaSetPlannerModel'](arg1);
+}
+
+export function GaeaSetPlannerTemperature(arg1) {
+  return window['go']['app']['App']['GaeaSetPlannerTemperature'](arg1);
+}
+
+export function GaeaSetProviderKey(arg1, arg2) {
+  return window['go']['app']['App']['GaeaSetProviderKey'](arg1, arg2);
+}
+
+export function GaeaSetSandbox(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['GaeaSetSandbox'](arg1, arg2, arg3, arg4);
+}
+
+export function GaeaSetSubagentEffort(arg1) {
+  return window['go']['app']['App']['GaeaSetSubagentEffort'](arg1);
+}
+
+export function GaeaSetSubagentModel(arg1) {
+  return window['go']['app']['App']['GaeaSetSubagentModel'](arg1);
+}
+
+export function GaeaSetSubagentModelForSkill(arg1, arg2) {
+  return window['go']['app']['App']['GaeaSetSubagentModelForSkill'](arg1, arg2);
+}
+
+export function GaeaSetSubagentTemperature(arg1) {
+  return window['go']['app']['App']['GaeaSetSubagentTemperature'](arg1);
+}
+
+export function GaeaSettings() {
+  return window['go']['app']['App']['GaeaSettings']();
 }
 
 export function GaeaSkills() {
   return window['go']['app']['App']['GaeaSkills']();
 }
 
+export function GaeaSlashArgs(arg1) {
+  return window['go']['app']['App']['GaeaSlashArgs'](arg1);
+}
+
+export function GaeaSummarizeFrom(arg1) {
+  return window['go']['app']['App']['GaeaSummarizeFrom'](arg1);
+}
+
+export function GaeaSummarizeUpTo(arg1) {
+  return window['go']['app']['App']['GaeaSummarizeUpTo'](arg1);
+}
+
+export function GaeaSwitchWorkspace(arg1) {
+  return window['go']['app']['App']['GaeaSwitchWorkspace'](arg1);
+}
+
+export function GaeaTCCAReport() {
+  return window['go']['app']['App']['GaeaTCCAReport']();
+}
+
+export function GaeaTabMeta() {
+  return window['go']['app']['App']['GaeaTabMeta']();
+}
+
 export function GaeaTools() {
   return window['go']['app']['App']['GaeaTools']();
+}
+
+export function GaeaUpdateFact(arg1, arg2) {
+  return window['go']['app']['App']['GaeaUpdateFact'](arg1, arg2);
+}
+
+export function GaeaVersion() {
+  return window['go']['app']['App']['GaeaVersion']();
+}
+
+export function GaeaWorkspaceChanges() {
+  return window['go']['app']['App']['GaeaWorkspaceChanges']();
 }
 
 export function GenerateCharacterPortrait(arg1, arg2) {

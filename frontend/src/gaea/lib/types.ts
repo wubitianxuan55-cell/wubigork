@@ -1,0 +1,519 @@
+// Wire contract — mirrors desktop/wire.go (itself mirroring internal/serve/wire.go).
+// One event channel carries every kind; `kind` discriminates the payload.
+
+export type EventKind =
+  | "turn_started"
+  | "reasoning"
+  | "text"
+  | "message"
+  | "tool_dispatch"
+  | "tool_result"
+  | "usage"
+  | "notice"
+  | "phase"
+  | "approval_request"
+  | "ask_request"
+  | "turn_done"
+  | "compaction_started"
+  | "compaction_done";
+
+export interface WireCompaction {
+  trigger?: string; // "auto" | "manual"
+  messages?: number; // done: how many messages were folded into the summary
+  summary?: string; // done: the briefing (empty on an aborted pass)
+  archive?: string; // done: archive path, if any
+  quality?: string; // V3.2: post-hoc quality assessment (human-readable)
+}
+
+export interface WireTool {
+  id?: string;
+  name: string;
+  args?: string;
+  output?: string;
+  err?: string;
+  recoverable?: boolean; // true when agent can fix this on next turn (bad args, wrong file, etc.)
+  readOnly: boolean;
+  truncated?: boolean;
+  partial?: boolean; // an early dispatch (name only) — a full one with args follows
+  parentId?: string; // set on a sub-agent's calls — the parent `task` call's id
+}
+
+export interface WireUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cacheHitTokens: number;
+  cacheMissTokens: number;
+  reasoningTokens?: number;
+  // Session-cumulative cache tokens — the status bar shows the aggregate
+  // hit-rate (Σhit/Σ(hit+miss)), steadier than the single-turn cacheHitTokens.
+  sessionCacheHitTokens: number;
+  sessionCacheMissTokens: number;
+  turn?: number; // 会话 API 调用轮次，由后端 AgentRunner 维护
+  costUsd?: number;
+  source?: string; // "main" | "subagent"
+}
+
+export interface WireApproval {
+  id: string;
+  tool: string;
+  subject: string;
+}
+
+export interface WireAskOption {
+  label: string;
+  description?: string;
+}
+
+export interface WireAskQuestion {
+  id: string;
+  header?: string;
+  prompt: string;
+  options: WireAskOption[];
+  multi?: boolean;
+  plan?: string; // non-empty triggers plan-confirm UI
+}
+
+export interface WireAsk {
+  id: string;
+  questions: WireAskQuestion[];
+}
+
+// QuestionAnswer is the reply for one question, sent back via AnswerQuestion.
+export interface QuestionAnswer {
+  questionId: string;
+  selected: string[];
+}
+
+export interface WireEvent {
+  kind: EventKind;
+  text?: string;
+  reasoning?: string;
+  level?: "info" | "warn";
+  tool?: WireTool;
+  usage?: WireUsage;
+  approval?: WireApproval;
+  ask?: WireAsk;
+  compaction?: WireCompaction;
+  err?: string;
+}
+
+// Bound-method payloads (desktop/app.go).
+export interface HistoryMessage {
+  role: string;
+  content: string;
+}
+
+// CheckpointMeta is one rewind point (a user turn) for the rewind UI.
+export interface CheckpointMeta {
+  turn: number;
+  prompt: string;
+  files: string[];
+  time: number; // unix ms
+}
+
+// SessionMeta is one saved session for the history panel.
+export interface SessionMeta {
+  path: string;
+  preview: string;
+  title?: string; // user-chosen name; falls back to preview when empty
+  turns: number;
+  modTime: number; // unix milliseconds
+  current: boolean;
+}
+
+export interface WorkspaceChangeView {
+  path: string;
+  added: number;
+  removed: number;
+}
+
+export interface WorkspaceView {
+  path: string;
+  name: string;
+  current: boolean;
+}
+
+export interface ContextInfo {
+  used: number;
+  window: number;
+  plannerUsed: number;
+  plannerWindow: number;
+}
+
+export interface Meta {
+  label: string;
+  subagentLabel?: string;
+  plannerLabel?: string;
+  ready: boolean;
+  startupErr?: string;
+  eventChannel: string;
+  cwd: string;
+  bypass?: boolean; // YOLO mode on (auto-approve every tool call)
+  permLevel?: string; // "ask"|"auto"|"yolo"
+  agentMode?: string; // "explore"|"develop"|"orchestrate"
+}
+
+// PermLevel controls permission strictness for tool execution.
+// ask: prompt before writes (default); auto: allow writes; yolo: skip all approval.
+export type PermLevel = "ask" | "auto" | "yolo";
+
+export interface CommandInfo {
+  name: string; // without the leading slash
+  description: string;
+  hint?: string;
+  kind: "builtin" | "custom" | "mcp" | "skill";
+}
+
+export interface DirEntry {
+  name: string;
+  isDir: boolean;
+}
+
+export interface FilePreview {
+  path: string;
+  body: string;
+  size: number;
+  truncated: boolean;
+  binary: boolean;
+  err?: string;
+}
+
+// MCP & Skills drawer (desktop/app.go Capabilities) — the GUI counterpart to
+// /mcp + /skill: connected/failed servers and discoverable skills.
+export interface ServerView {
+  name: string;
+  transport: string;
+  status: "connected" | "failed" | "disabled";
+  tools: number;
+  prompts: number;
+  resources: number;
+  error?: string;
+  toolList?: MCPToolView[];
+}
+export interface MCPToolView {
+  name: string;
+  description: string;
+}
+export interface SkillView {
+  name: string;
+  description: string;
+  scope: string;
+  runAs: string;
+}
+export interface CapabilitiesView {
+  servers: ServerView[];
+  skills: SkillView[];
+}
+export interface MCPServerInput {
+  name: string;
+  transport: string; // stdio | http | sse
+  command: string;
+  args: string[];
+  url: string;
+  env: Record<string, string>;
+}
+
+export interface ModelInfo {
+  ref: string; // "provider/model" — pass to SetModel
+  provider: string;
+  model: string;
+  current: boolean;
+}
+
+// Slash sub-command / argument completion (desktop/app.go SlashArgs). Mirrors the
+// CLI's arg hints so the composer can suggest e.g. /skill → list/show/new/paths.
+export interface SlashArgItem {
+  label: string;
+  insert: string; // token to place at the current position
+  hint: string;
+  descend: boolean; // re-open the menu one level deeper after accepting
+}
+export interface SlashArgsResult {
+  items: SlashArgItem[];
+  from: number; // byte offset where the current token begins
+}
+
+// Memory panel payloads (desktop/app.go MemoryView).
+export interface MemoryDoc {
+  path: string;
+  scope: string; // "user" | "ancestor" | "project" | "local"
+  body: string;
+}
+
+export interface MemoryFact {
+  name: string;
+  title?: string;
+  description: string;
+  type: string; // "user" | "feedback" | "project" | "reference"
+  body: string;
+}
+
+export interface MemoryScope {
+  scope: string; // "user" | "project" | "local"
+  path: string;
+}
+
+export interface MemoryView {
+  docs: MemoryDoc[];
+  facts: MemoryFact[];
+  scopes: MemoryScope[];
+  storeDir: string;
+  available: boolean;
+  archives?: MemoryArchive[];
+}
+
+// KnowledgeSummary is the lightweight view of a knowledge entry (without body).
+export interface KnowledgeSummary {
+  name: string;
+  title: string;
+  category: string;
+  tags: string[];
+  status: string;
+  updatedAt: string;
+}
+
+// KnowledgeEntry is the full knowledge entry including body.
+export interface KnowledgeEntry extends KnowledgeSummary {
+  body: string;
+  phase: string;
+  discipline: string;
+  source: string;
+  version: number;
+  author: string;
+  reviewer: string;
+  createdAt: string;
+}
+
+/** Alias for clarity when saving. */
+export type KnowledgeSaveRequest = KnowledgeEntry;
+
+// Settings panel payloads (desktop/settings_app.go).
+export interface ProviderView {
+  name: string;
+  kind: string;
+  baseUrl: string;
+  models: string[];
+  default: string;
+  apiKeyEnv: string;
+  keySet: boolean; // the env var currently resolves to a value
+  balanceUrl: string; // optional wallet-balance endpoint; "" disables the readout
+  contextWindow: number;
+  oauthKind: string; // non-empty when OAuth login is available (e.g. "xai")
+  oauthReady: boolean; // whether OAuth token is currently valid
+}
+
+// BalanceInfo is the wallet-balance readout (desktop/app.go Balance). available
+// is false when the provider declares no balanceUrl or a fetch failed; display is
+// the formatted amount (e.g. "¥110.00").
+export interface BalanceInfo {
+  available: boolean;
+  display: string;
+  err?: string;
+}
+
+// JobView is one running background job (desktop/app.go Jobs) for the status bar.
+export interface JobView {
+  id: string;
+  kind: string; // "bash" | "task"
+  label: string;
+  status: string; // "running"
+  startedAt: number; // unix milliseconds
+}
+
+export interface PermissionsView {
+  mode: string; // "ask" | "allow" | "deny"
+  allow: string[];
+  ask: string[];
+  deny: string[];
+}
+
+export interface SandboxView {
+  bash: string; // "enforce" | "off"
+  network: boolean;
+  workspaceRoot: string;
+  allowWrite: string[];
+}
+
+export interface AgentView {
+  temperature: number;
+  maxSteps: number;
+  systemPrompt: string;
+  plannerTemperature: number;
+  subagentTemperature: number;
+  effort: string;
+  plannerEffort: string;
+  subagentEffort: string;
+}
+
+export interface SettingsView {
+  defaultModel: string;
+  plannerModel: string;
+  subagentModel: string;
+  subagentModels: Record<string, string>; // per-skill overrides
+  subagentSkills: string[]; // builtin subagent skill names
+  providers: ProviderView[];
+  permissions: PermissionsView;
+  sandbox: SandboxView;
+  agent: AgentView;
+  configPath: string;
+  providerKinds: string[]; // provider implementations the kernel registered (for the kind picker)
+  bypass: boolean; // DEPRECATED — use permLevel instead
+  permLevel?: string; // live permission level this session (\"ask\"|\"auto\"|\"yolo\")
+}
+
+// Auto-updater payloads (desktop/updater.go). UpdateInfo drives the update banner;
+// UpdateProgress streams on the "updater:progress" event during ApplyUpdate.
+export interface UpdateInfo {
+  available: boolean;
+  current: string;
+  latest: string;
+  notes: string;
+  canSelfUpdate: boolean; // win/linux true; macOS false (no cert → manual download)
+  downloadUrl: string; // human-facing releases page (macOS path / fallback link)
+  assetSize: number; // running platform's artifact size, for the progress bar
+  err?: string; // set when the check itself failed (both endpoints down)
+}
+
+export interface UpdateProgress {
+  phase: "downloading" | "verifying" | "applying" | "done" | "error";
+  received: number;
+  total: number;
+  err?: string;
+}
+
+// TCCA 缓存报告（V3.0 — 匹配 internal/context/metrics.go CacheReport）
+export interface TCCAReport {
+  l1Size: number;
+  l2Size: number;
+  l3Version: number;
+  l4Messages: number;
+  savedByCompact: number;
+  savedByFork: number;
+  forkCount: number;
+  savedUsd: number;
+  savedLatencyMs: number;
+  compactionCount: number;
+  // V5.30: 全会话缓存命中统计 (来自 agent + context metrics)
+  cacheHitTokens: number;
+  cacheMissTokens: number;
+  breakCount: number;
+}
+
+export interface MemoryArchive {
+  name: string;
+  title?: string;
+  description: string;
+  type: string;
+  body: string;
+  path?: string;
+  archivedAt?: string;
+}
+
+export interface MemorySuggestion {
+  id: string;
+  name: string;
+  title?: string;
+  description: string;
+  type: string;
+  body: string;
+  reason: string;
+  evidence: string[];
+}
+
+export interface SkillSuggestion {
+  id: string;
+  name: string;
+  description: string;
+  scope: string;
+  body: string;
+  reason: string;
+  evidence: string[];
+}
+
+export interface MemorySuggestionsView {
+  memories: MemorySuggestion[];
+  skills: SkillSuggestion[];
+  generatedAt: string;
+  available: boolean;
+  source: string;
+}
+
+export interface TabMeta {
+  id: string;
+  scope: string;
+  workspaceRoot: string;
+  title: string;
+  ready: boolean;
+  label?: string;
+  activityStatus?: string;
+}
+
+/** TraceStep 记录一次推理过程中的关键步骤，用于实时推理可视化面板 */
+export interface TraceStep {
+  id: string;
+  turnTimestamp: number; // 所属回合开始时间戳
+  seq: number;           // 步骤序号（递增）
+  type: "phase" | "tool" | "thinking" | "decision" | "compaction";
+  timestamp: number;     // 事件发生时间戳（ms）
+  label: string;         // 简短描述（如 "规划阶段"、"read_file"、"压缩上下文"）
+  detail?: string;       // 详细内容（展开时显示）
+  status?: "pending" | "running" | "done" | "error";  // 当前状态
+}
+
+// ── 成本库类型 ───────────────────────────────────────────────────────────
+
+
+/** FilePickResult 描述从原生对话框选取的一个文件 */
+export interface FilePickResult {
+  path: string;
+  /** 仅图片文件有 previewUrl（data: URL） */
+  previewUrl?: string;
+  type: "image" | "file";
+  name: string;
+}
+
+// ── 图片生成类型 ───────────────────────────────────────────────────────────
+
+/** ImageGenRequest 前端图片生成请求 */
+export interface ImageGenRequest {
+  prompt: string;
+  negative?: string;
+  size?: string;
+  model?: string;
+  seed?: number;
+  n?: number;
+}
+
+/** ImageGenResult 单张生成结果 */
+export interface ImageGenResult {
+  image: string;    // base64 data URL
+  seed: number;
+  time: number;     // 生成耗时（秒）
+  prompt: string;
+  model: string;
+  size: string;
+}
+
+/** ComfyUIStatus ComfyUI 运行状态 */
+export interface ComfyUIStatus {
+  running: boolean;
+  url: string;
+}
+
+/** ImageGenResponse GenerateFreeImage 的返回类型 */
+
+/** ImageGenResponse GenerateFreeImage 的返回类型 */
+export interface ImageGenResponse {
+  images?: ImageGenResult[];
+  error?: string;
+}
+
+/** ImageTemplate 预设提示词模板 */
+export interface ImageTemplate {
+  id: string;
+  category: string;
+  label: string;
+  prompt: string;
+  negative?: string;
+}
