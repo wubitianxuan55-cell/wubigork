@@ -32,13 +32,18 @@ type Manager struct {
 	storePath  string
 }
 
-// Load 从 JSON 文件加载助手列表
-func Load(dataDir string) (*Manager, error) {
-	m := &Manager{
+// NewEmpty 创建空助手管理器（数据文件损坏且重试仍失败时兜底，避免 nil 解引用）
+func NewEmpty(dataDir string) *Manager {
+	return &Manager{
 		storePath: filepath.Join(dataDir, "assistants.json"),
 		byID:      make(map[string]*Assistant),
 		byWxUser:  make(map[string]*Assistant),
 	}
+}
+
+// Load 从 JSON 文件加载助手列表
+func Load(dataDir string) (*Manager, error) {
+	m := NewEmpty(dataDir)
 
 	data, err := os.ReadFile(m.storePath)
 	if err != nil {

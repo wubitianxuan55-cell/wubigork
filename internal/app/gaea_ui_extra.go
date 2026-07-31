@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/config"
 )
@@ -107,22 +108,13 @@ func (a *App) GaeaSettings() SettingsView {
 // GaeaSetDefaultModel 设置模型中心引擎的默认模型。
 func (a *App) GaeaSetDefaultModel(ref string) error {
 	engine, model := ref, ""
-	if i := indexByte(ref, '/'); i > 0 {
+	if i := strings.IndexByte(ref, '/'); i > 0 {
 		engine, model = ref[:i], ref[i+1:]
 	}
 	if model == "" || a.engineMgr == nil {
 		return errNotSupported
 	}
 	return a.engineMgr.SetDefaultModel(engine, model)
-}
-
-func indexByte(s string, b byte) int {
-	for i := 0; i < len(s); i++ {
-		if s[i] == b {
-			return i
-		}
-	}
-	return -1
 }
 
 // GaeaSaveProvider/GaeaDeleteProvider/GaeaLoginProvider/GaeaLogoutProvider/GaeaSetProviderKey

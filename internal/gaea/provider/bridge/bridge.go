@@ -40,36 +40,49 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 	out := make(chan provider.Chunk, 64)
 	go func() {
 		defer close(out)
-		for c := range raw {
+		// send 在 ctx 取消时停止发送并返回 false，避免下游退出后阻塞泄漏
+		send := func(ch provider.Chunk) bool {
 			select {
+			case out <- ch:
+				return true
 			case <-ctx.Done():
-				out <- provider.Chunk{Type: provider.ChunkError, Err: ctx.Err()}
-				return
-			default:
+				return false
 			}
+		}
+		for c := range raw {
 			if c.Error != "" {
-				out <- provider.Chunk{Type: provider.ChunkError, Err: errors.New(c.Error)}
+				if !send(provider.Chunk{Type: provider.ChunkError, Err: errors.New(c.Error)}) {
+					return
+				}
 				return
 			}
 			for _, tc := range c.ToolCalls {
-				out <- provider.Chunk{
+				if !send(provider.Chunk{
 					Type: provider.ChunkToolCall,
 					ToolCall: &provider.ToolCall{
 						ID:        tc.ID,
 						Name:      tc.Function.Name,
 						Arguments: tc.Function.Arguments,
 					},
+				}) {
+					return
 				}
 			}
 			if c.Content != "" {
-				out <- provider.Chunk{Type: provider.ChunkText, Text: c.Content}
+				if !send(provider.Chunk{Type: provider.ChunkText, Text: c.Content}) {
+					return
+				}
 			}
 			if c.Done {
-				out <- provider.Chunk{Type: provider.ChunkDone}
+				if !send(provider.Chunk{Type: provider.ChunkDone}) {
+					return
+				}
 				return
 			}
 		}
-		out <- provider.Chunk{Type: provider.ChunkDone}
+		if !send(provider.Chunk{Type: provider.ChunkDone}) {
+			return
+		}
 	}()
 	return out, nil
 }

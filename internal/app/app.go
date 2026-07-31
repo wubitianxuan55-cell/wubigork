@@ -271,8 +271,11 @@ func (a *App) initWeixin() {
 	var err error
 	a.assistantMgr, err = assistant.Load(a.whisperDataRoot)
 	if err != nil {
-		slog.Error("[assistant] 加载失败", "err", err)
-		a.assistantMgr, _ = assistant.Load(a.whisperDataRoot)
+		slog.Error("[assistant] 加载失败，重试", "err", err)
+		if a.assistantMgr, err = assistant.Load(a.whisperDataRoot); err != nil {
+			slog.Error("[assistant] 重试加载仍失败，使用空管理器", "err", err)
+			a.assistantMgr = assistant.NewEmpty(a.whisperDataRoot)
+		}
 	}
 	a.weixinServers = make(map[string]*weixin.Server)
 
@@ -333,11 +336,15 @@ func (a *App) SetDistFS(fsys fs.FS) {
 
 func CLILogin() {
 	cfg := config.Load()
-	fmt.Println("🚀 gaea — 小说 AI Agent")
+	fmt.Println("🚀 gaea — 多功能 AI 助手")
 	fmt.Println("============================")
 
 	store := auth.NewTokenStore(cfg.TokenStorePath)
-	tok, _ := store.Load()
+	tok, err := store.Load()
+	if err != nil {
+		fmt.Printf("⚠️ 读取登录状态失败（将重新登录）: %v\n", err)
+		tok = nil
+	}
 	if tok != nil && !tok.IsExpired() {
 		fmt.Println("✅ 已登录，无需重复操作")
 		return

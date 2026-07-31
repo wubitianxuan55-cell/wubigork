@@ -12,7 +12,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/i18n"
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
-	"github.com/gaea/gaea/internal/gaea/plugin"
 )
 
 // ── 元信息 / 状态（对齐 gaeaW desktop/app_meta.go）──────────────────
@@ -494,8 +493,4 @@ func (a *App) GaeaCapabilities() CapabilitiesView {
 }
 
 // GaeaVersion 返回办公板块版本。
-
-// GaeaVersion 返回办公板块版本。
 func (a *App) GaeaVersion() string { return "1.0.0" }
-
-var _ = plugin.Host{}
