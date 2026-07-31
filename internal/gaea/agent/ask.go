@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // AskTool lets the model put a structured multiple-choice question (or a few) to

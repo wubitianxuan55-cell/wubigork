@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/project"
+	"github.com/gaea/gaea/internal/project"
 )
 
 // ── 写作仪表盘 ───────────────────────────────────────────────

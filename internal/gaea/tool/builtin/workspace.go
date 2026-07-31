@@ -1,9 +1,9 @@
 package builtin
 
 import (
-	"github.com/wubigork/wubigork/internal/gaea/netclient"
-	"github.com/wubigork/wubigork/internal/gaea/sandbox"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/netclient"
+	"github.com/gaea/gaea/internal/gaea/sandbox"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // Workspace builds a built-in tool set bound to a working directory, so several

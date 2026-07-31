@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/types"
+	"github.com/gaea/gaea/internal/types"
 )
 
 func TestBudget(t *testing.T) {

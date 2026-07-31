@@ -69,11 +69,12 @@ export const TEMPLATES: Record<string, Template[]> = {
 
 // ── 自定义模板 ──
 
-const STORAGE_KEY = 'wubigork-image-templates'
+const STORAGE_KEY = 'gaea-image-templates'
+const LEGACY_STORAGE_KEY = 'wubigork-image-templates'
 
 export function loadCustomTemplates(): CustomTemplate[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []

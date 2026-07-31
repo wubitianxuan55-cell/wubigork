@@ -1,5 +1,5 @@
 // Package whisper — dispatch_router.go
-// 100% 对齐 ackem engine/dispatchRouter.ts（简化版：wubigrok 无扩展系统）
+// 100% 对齐 ackem engine/dispatchRouter.ts（简化版：gaea 无扩展系统）
 // 分发路由：关键词→语义评分→LLM精判→决策
 
 package whisper

@@ -65,7 +65,7 @@ const AppBar: React.FC<Props> = ({
       {/* 品牌 favicon */}
       <img
         src="/favicon.svg"
-        alt="wubigork"
+        alt="gaea"
         style={{ width: 20, height: 20, marginRight: 8 }}
       />
       <span style={{

@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/wubigork/wubigork/internal/gaea/tool/builtin" // 注册 builtin 工具
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	_ "github.com/gaea/gaea/internal/gaea/tool/builtin" // 注册 builtin 工具
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 // Run() sees tool calls on turn 1 and a plain final answer on turn 2.
 type scriptedProvider struct {

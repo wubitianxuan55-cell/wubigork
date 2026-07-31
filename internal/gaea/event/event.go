@@ -11,7 +11,7 @@
 // line prefixes — fragile, and lossy for any frontend richer than a terminal.
 package event
 
-import "github.com/wubigork/wubigork/internal/gaea/provider"
+import "github.com/gaea/gaea/internal/gaea/provider"
 
 // Kind tags an Event. Read the field(s) documented for that kind.
 type Kind int

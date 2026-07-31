@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // failTool always errors with the same message regardless of its arguments,

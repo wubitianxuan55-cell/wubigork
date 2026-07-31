@@ -1,6 +1,6 @@
-// Package bridge 实现 gaea provider.Provider 接口，通过 wubigrok 的 ai.LLMClient
-// （模型引擎中心）驱动 gaea agent 引擎。这是 gaeaW 移植到 wubigrok 的模型适配层：
-// gaeaW 自身的 openai/anthropic/xai 实现（模型引擎）不移植，统一走 wubigrok 模型中心。
+// Package bridge 实现 gaea provider.Provider 接口，通过 gaea 的 ai.LLMClient
+// （模型引擎中心）驱动 gaea agent 引擎。这是 gaeaW 移植到 gaea 的模型适配层：
+// gaeaW 自身的 openai/anthropic/xai 实现（模型引擎）不移植，统一走 gaea 模型中心。
 package bridge
 
 import (
@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/ai"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
-// Provider 是 gaea provider.Provider 的 wubigrok 实现。
+// Provider 是 gaea provider.Provider 的 gaea 实现。
 type Provider struct {
 	name   string
 	model  string
@@ -23,7 +23,7 @@ type Provider struct {
 // Name 返回 provider 实例名。
 func (p *Provider) Name() string { return p.name }
 
-// Stream 将 gaea 请求转发到 wubigrok 模型中心，并把流式响应转换为 gaea Chunk。
+// Stream 将 gaea 请求转发到 gaea 模型中心，并把流式响应转换为 gaea Chunk。
 func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan provider.Chunk, error) {
 	creq := &ai.ChatRequest{
 		Model:       p.model,
@@ -74,10 +74,10 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 	return out, nil
 }
 
-// client 持有注入的 wubigrok AI 客户端（模型引擎中心入口）。
+// client 持有注入的 gaea AI 客户端（模型引擎中心入口）。
 var client ai.LLMClient
 
-// SetClient 注入 wubigrok ai.LLMClient。须在创建任何 Provider 前调用。
+// SetClient 注入 gaea ai.LLMClient。须在创建任何 Provider 前调用。
 func SetClient(c ai.LLMClient) { client = c }
 
 func init() {

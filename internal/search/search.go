@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/project"
-	"github.com/wubigork/wubigork/internal/types"
+	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // Result 搜索结果

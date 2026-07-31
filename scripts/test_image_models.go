@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/ai"
-	"github.com/wubigork/wubigork/internal/config"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/config"
 )
 
 func main() {

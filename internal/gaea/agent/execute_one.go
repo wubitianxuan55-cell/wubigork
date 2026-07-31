@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/evidence"
-	"github.com/wubigork/wubigork/internal/gaea/jobs"
-	"github.com/wubigork/wubigork/internal/gaea/memory"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/gaea/jobs"
+	"github.com/gaea/gaea/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) toolOutcome {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // Batcher merges consecutive small text/reasoning chunks into fewer, larger

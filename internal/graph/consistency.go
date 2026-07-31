@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/project"
+	"github.com/gaea/gaea/internal/project"
 )
 
 // ── 一致性守护 ───────────────────────────────────────────────

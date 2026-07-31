@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/ai"
+	"github.com/gaea/gaea/internal/ai"
 )
 
 // imageItem 单张生成图片结果（包级共享，供移动端任务处理器提取）
@@ -231,7 +231,7 @@ func (a *App) SetImageBackend(backend string, comfyUIURL string, imageModel stri
 		a.cfg.ImageSaveDir = imageSaveDir
 	}
 	if a.cfg.ImageSaveDir == "" {
-		a.cfg.ImageSaveDir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "wubigork")
+		a.cfg.ImageSaveDir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "gaea")
 	}
 	switch backend {
 	case "comfyui":
@@ -465,7 +465,7 @@ func findPython(comfyUIPath string, cfgPythonPath string) string {
 func (a *App) StopComfyUI() error {
 	port := extractPort(a.cfg.ComfyUIURL)
 
-	// 1. 先通过 wubigrok 内部引用杀进程
+	// 1. 先通过 gaea 内部引用杀进程
 	if a.comfyUICmd != nil && a.comfyUICmd.Process != nil {
 		a.comfyUICmd.Process.Kill()
 		a.comfyUICmd = nil
@@ -546,7 +546,7 @@ func extractPort(url string) string {
 func (a *App) OpenImageSaveDir() error {
 	dir := a.cfg.ImageSaveDir
 	if dir == "" {
-		dir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "wubigork")
+		dir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "gaea")
 	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("无法创建图片存放目录: %w", err)

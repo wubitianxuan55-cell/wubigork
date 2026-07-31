@@ -14,7 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // PrefixShape hashes the portions of the request prefix that influence

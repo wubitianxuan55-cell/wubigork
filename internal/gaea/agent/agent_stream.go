@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, string, []provider.ToolCall, *provider.Usage, bool, error) {

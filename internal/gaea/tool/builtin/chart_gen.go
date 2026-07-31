@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func init() { tool.RegisterBuiltin(chartGen{}) }

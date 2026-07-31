@@ -3,7 +3,7 @@ package outline
 import (
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/types"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // ── FindNodeByID ──────────────────────────────────────────

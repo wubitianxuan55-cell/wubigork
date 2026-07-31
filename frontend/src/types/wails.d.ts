@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-/** wubigork 后端 App 接口 */
+/** gaea 后端 App 接口 */
 interface AppAPI {
   // ── 认证 ──
   Login(): Promise<string>

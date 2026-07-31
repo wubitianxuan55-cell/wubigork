@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/ai"
-	"github.com/wubigork/wubigork/internal/config"
-	"github.com/wubigork/wubigork/internal/project"
-	"github.com/wubigork/wubigork/internal/prompt"
-	"github.com/wubigork/wubigork/internal/types"
-	"github.com/wubigork/wubigork/internal/util"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/prompt"
+	"github.com/gaea/gaea/internal/types"
+	"github.com/gaea/gaea/internal/util"
 )
 
 // Agent 角色子代理 — 对话式创建、修改角色及关系网

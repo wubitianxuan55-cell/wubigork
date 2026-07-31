@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/ai"
-	"github.com/wubigork/wubigork/internal/auth"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/auth"
 )
 
 // ── 登录 ──────────────────────────────────────────────────────

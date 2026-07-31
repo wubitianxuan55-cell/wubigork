@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 func (a *AgentRunner) Run(ctx context.Context, input string) (*TurnResult, error) {

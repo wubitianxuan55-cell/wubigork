@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // --- New ---

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/ai"
-	"github.com/wubigork/wubigork/internal/project"
-	"github.com/wubigork/wubigork/internal/types"
-	"github.com/wubigork/wubigork/internal/util"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/types"
+	"github.com/gaea/gaea/internal/util"
 )
 
 func (a *App) CreateChapter(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string, skillName string) (map[string]interface{}, error) {

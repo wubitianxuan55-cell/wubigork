@@ -9,7 +9,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
-	"github.com/wubigork/wubigork/internal/app"
+	"github.com/gaea/gaea/internal/app"
 )
 
 //go:embed all:dist
@@ -27,7 +27,7 @@ func main() {
 	application.SetDistFS(assets)
 
 	err := wails.Run(&options.App{
-		Title:     "wubigork · 让灵感成为故事",
+		Title:     "gaea · 多功能 AI 助手",
 		Width:     1280,
 		Height:    800,
 		MinWidth:  900,

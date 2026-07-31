@@ -17,12 +17,13 @@ interface StoredTopic {
   id: string; title: string; messages: Message[]; createdAt: number
 }
 
-const STORAGE_KEY = 'wubigrok_chat_topics'
+const STORAGE_KEY = 'gaea_chat_topics'
+const LEGACY_STORAGE_KEY = 'wubigrok_chat_topics'
 function generateId(): string { return `topic_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` }
 let msgId = 0
 function nextMsgId() { msgId++; return `msg_${msgId}_${Date.now()}` }
 function loadTopics(): StoredTopic[] {
-  try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p } } catch (_) {}
+  try { const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY); if (raw) { const p = JSON.parse(raw); if (Array.isArray(p) && p.length > 0) return p } } catch (_) {}
   return [createTopic('新对话')]
 }
 function saveTopics(topics: StoredTopic[]): void { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(topics)) } catch (_) {} }
@@ -134,7 +135,7 @@ const ChatPage: React.FC = () => {
           {!hasMessages ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '48px 32px', overflow: 'auto' }}>
               <div style={{ width: 88, height: 88, borderRadius: 26, background: `linear-gradient(135deg, ${C('color-primary')}, ${C('color-primary')}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28, boxShadow: `0 8px 32px ${C('color-primary')}33` }}><RobotOutlined style={{ fontSize: 44, color: '#fff' }} /></div>
-              <Typography.Text style={{ color: C('color-text'), fontSize: 24, fontWeight: 700, marginBottom: 6 }}>wubigork AI</Typography.Text>
+              <Typography.Text style={{ color: C('color-text'), fontSize: 24, fontWeight: 700, marginBottom: 6 }}>gaea AI</Typography.Text>
               <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 14, marginBottom: 32, textAlign: 'center', lineHeight: 1.6, maxWidth: 400 }}>你的智能 AI 助手——聊天、写作、翻译、学习，随时随地</Typography.Text>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, maxWidth: 600, width: '100%' }}>
                 {[{ icon: '💬', label: '随便聊聊', desc: '和 AI 畅聊任何话题' }, { icon: '🔍', label: '帮我查资料', desc: '快速搜索和整理信息' }, { icon: '📝', label: '写篇文章', desc: '博客、报告、文案随时生成' }, { icon: '💡', label: '头脑风暴', desc: '一起碰撞灵感火花' }, { icon: '🌐', label: '翻译内容', desc: '多语言互译，保持原意' }, { icon: '🧠', label: '解释概念', desc: '深入浅出地讲解知识点' }].map(s => (

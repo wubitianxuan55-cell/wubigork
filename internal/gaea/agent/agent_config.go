@@ -1,9 +1,9 @@
 package agent
 
 import (
-	"github.com/wubigork/wubigork/internal/gaea/context"
-	"github.com/wubigork/wubigork/internal/gaea/jobs"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/context"
+	"github.com/gaea/gaea/internal/gaea/jobs"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // Options configures an AgentRunner.

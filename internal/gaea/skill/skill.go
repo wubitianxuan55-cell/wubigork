@@ -19,8 +19,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/config"
-	"github.com/wubigork/wubigork/internal/gaea/frontmatter"
+	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/frontmatter"
 )
 
 // Scope records where a skill was loaded from. Higher-priority scopes win on a

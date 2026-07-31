@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/permission"
+	"github.com/gaea/gaea/internal/gaea/permission"
 )
 
 // edit.go is the programmatic mutation surface a settings UI drives: change the

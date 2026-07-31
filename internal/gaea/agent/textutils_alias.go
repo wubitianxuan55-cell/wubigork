@@ -1,6 +1,6 @@
 package agent
 
-import "github.com/wubigork/wubigork/internal/gaea/agent/textutils"
+import "github.com/gaea/gaea/internal/gaea/agent/textutils"
 
 // Re-exported helpers from the textutils sub-package.
 var (

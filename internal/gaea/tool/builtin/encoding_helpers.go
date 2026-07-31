@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	fileenc "github.com/wubigork/wubigork/internal/gaea/fileutil/encoding"
+	fileenc "github.com/gaea/gaea/internal/gaea/fileutil/encoding"
 )
 
 // ── Encoding-aware file I/O ────────────────────────────────────────────

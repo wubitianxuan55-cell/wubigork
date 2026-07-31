@@ -12,8 +12,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/wubigork/wubigork/internal/gaea/jobs"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/jobs"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // bash_output / kill_shell / wait operate the background jobs registered by

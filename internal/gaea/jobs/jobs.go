@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/nilutil"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/nilutil"
 )
 
 // Status is a job's lifecycle state.

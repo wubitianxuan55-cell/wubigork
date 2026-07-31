@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // CompactionConfig controls the LLM-based compaction policy.

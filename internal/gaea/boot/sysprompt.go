@@ -6,12 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wubigork/wubigork/internal/gaea/cache"
-	"github.com/wubigork/wubigork/internal/gaea/config"
-	"github.com/wubigork/wubigork/internal/gaea/memory"
-	"github.com/wubigork/wubigork/internal/gaea/outputstyle"
-	"github.com/wubigork/wubigork/internal/gaea/skill"
-	"github.com/wubigork/wubigork/internal/gaea/tool/builtin"
+	"github.com/gaea/gaea/internal/gaea/cache"
+	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/gaea/outputstyle"
+	"github.com/gaea/gaea/internal/gaea/skill"
+	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 )
 
 // syspromptOut contains the artifacts produced by building the system prompt.

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/knowledge"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/knowledge"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func init() { tool.RegisterBuiltin(knowledgeSearch{}) }

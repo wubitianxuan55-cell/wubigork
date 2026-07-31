@@ -33,11 +33,12 @@ interface CompanionSettings {
   ageConfirmed18: boolean
 }
 
-const SETTINGS_KEY = 'wubigrok_whisper_companion_settings'
+const SETTINGS_KEY = 'gaea_whisper_companion_settings'
+const LEGACY_SETTINGS_KEY = 'wubigrok_whisper_companion_settings'
 
 function loadSettings(): CompanionSettings {
   try {
-    const r = localStorage.getItem(SETTINGS_KEY)
+    const r = localStorage.getItem(SETTINGS_KEY) ?? localStorage.getItem(LEGACY_SETTINGS_KEY)
     if (r) return JSON.parse(r)
   } catch (_) {}
   return { companionName: '', companionGender: 'female', companionHarassEnabled: false, ageConfirmed18: false }

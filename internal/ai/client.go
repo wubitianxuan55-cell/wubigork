@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/auth"
-	"github.com/wubigork/wubigork/internal/config"
-	"github.com/wubigork/wubigork/internal/modelengine"
+	"github.com/gaea/gaea/internal/auth"
+	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/modelengine"
 )
 
 // Client xAI API 客户端，封装认证和 HTTP 通信

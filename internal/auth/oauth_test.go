@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/config"
+	"github.com/gaea/gaea/internal/config"
 )
 
 func TestPKCE(t *testing.T) {
@@ -58,7 +58,7 @@ func TestBuildAuthURL(t *testing.T) {
 		"state":                 "test_state",
 		"nonce":                 "test_nonce",
 		"plan":                  "generic", // 关键参数！
-		"referrer":              "wubigork",
+		"referrer":              "gaea",
 		"scope":                 "openid profile email offline_access grok-cli:access api:access",
 	}
 

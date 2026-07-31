@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/types"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // ── 世界观 ────────────────────────────────────────────────────

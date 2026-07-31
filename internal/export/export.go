@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/bmaupin/go-epub"
-	"github.com/wubigork/wubigork/internal/project"
+	"github.com/gaea/gaea/internal/project"
 )
 
 // Manager 导出管理器
@@ -81,13 +81,13 @@ func (m *Manager) ExportMarkdown(outPath string) (string, error) {
 // ExportEPUB 导出为 EPUB 电子书
 func (m *Manager) ExportEPUB(outPath string) (string, error) {
 	e := epub.NewEpub(m.pm.Meta.Title)
-	e.SetAuthor("wubigork")
+	e.SetAuthor("gaea")
 
 	// 封面页
 	coverHTML := fmt.Sprintf(`<html><body>
 		<h1>%s</h1>
 		<p>题材: %s | 文风: %s</p>
-		<p>由 wubigork AI 辅助创作</p>
+		<p>由 gaea AI 辅助创作</p>
 	</body></html>`, m.pm.Meta.Title, m.pm.Meta.Genre, m.pm.Meta.Style)
 	e.AddSection(coverHTML, "封面", "cover.xhtml", "")
 

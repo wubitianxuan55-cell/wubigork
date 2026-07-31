@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 type typedNilControllerSink struct{}

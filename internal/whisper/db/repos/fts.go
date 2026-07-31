@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/whisper/db"
+	"github.com/gaea/gaea/internal/whisper/db"
 )
 
 // ─── FTS 重建 ────────────────────────────────────────────────────

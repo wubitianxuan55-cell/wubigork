@@ -1,23 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" fill="none" viewBox="0 0 1024 1024">
-  <!-- wubigork 桌面应用图标 — 层叠书页 + 灵感星光 -->
+  <!-- gaea 盖亚 — 大地女神：翡翠球体 + 破土嫩芽 + 灵感星芒 -->
   <defs>
-    <linearGradient id="ad1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#d97706"/>
-    </linearGradient>
-    <linearGradient id="ad2" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#f97316"/>
-      <stop offset="100%" stop-color="#ea580c"/>
+    <radialGradient id="g" cx="35%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="45%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </radialGradient>
+    <linearGradient id="leaf" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a7f3d0"/>
+      <stop offset="100%" stop-color="#34d399"/>
     </linearGradient>
   </defs>
   <!-- 深色圆角底板 -->
-  <rect width="1024" height="1024" rx="205" fill="#0f0f1a"/>
-  <!-- 主菱形（琥珀金渐变） -->
-  <polygon points="512,180 760,428 512,676 264,428" fill="url(#ad1)" opacity="0.92"/>
-  <!-- 副菱形（暖橙渐变，偏移层叠） -->
-  <polygon points="564,220 776,428 564,636 352,428" fill="url(#ad2)" opacity="0.88"/>
-  <!-- 灵感星光 -->
-  <circle cx="760" cy="180" r="60" fill="#fbbf24"/>
-  <!-- 星光光晕 -->
-  <circle cx="760" cy="180" r="100" fill="#fbbf24" opacity="0.2"/>
+  <rect width="1024" height="1024" rx="205" fill="#0f172a"/>
+  <!-- 大地球体 -->
+  <circle cx="512" cy="560" r="330" fill="url(#g)"/>
+  <ellipse cx="360" cy="420" rx="120" ry="68" fill="#d1fae5" opacity="0.5" transform="rotate(-20 360 420)"/>
+  <!-- 破土嫩芽：茎 + 两片叶 -->
+  <line x1="512" y1="840" x2="512" y2="500" stroke="url(#leaf)" stroke-width="38" stroke-linecap="round"/>
+  <ellipse cx="400" cy="640" rx="105" ry="57" fill="url(#leaf)" transform="rotate(-35 400 640)"/>
+  <ellipse cx="632" cy="480" rx="110" ry="60" fill="#a7f3d0" transform="rotate(25 632 480)"/>
+  <!-- 灵感核心 -->
+  <circle cx="720" cy="250" r="42" fill="#ecfdf5"/>
+  <circle cx="720" cy="250" r="90" fill="#a7f3d0" opacity="0.3"/>
 </svg>

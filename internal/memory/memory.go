@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/wubigork/wubigork/internal/project"
-	"github.com/wubigork/wubigork/internal/util"
+	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/util"
 )
 
 // ── 语义记忆（BM25 检索，零外部依赖）─────────────────────────

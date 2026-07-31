@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/config"
-	"github.com/wubigork/wubigork/internal/gaea/i18n"
-	"github.com/wubigork/wubigork/internal/gaea/skill"
+	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/i18n"
+	"github.com/gaea/gaea/internal/gaea/skill"
 )
 
 // SlashItem is one slash-completion suggestion. Insert is the token text placed

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/util"
+	"github.com/gaea/gaea/internal/util"
 )
 
 func TestTokenize_Chinese(t *testing.T) {

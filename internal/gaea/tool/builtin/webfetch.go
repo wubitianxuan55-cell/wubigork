@@ -18,9 +18,9 @@ import (
 
 	nethtml "golang.org/x/net/html"
 
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool"
 
-	"github.com/wubigork/wubigork/internal/gaea/netclient"
+	"github.com/gaea/gaea/internal/gaea/netclient"
 	"golang.org/x/net/proxy"
 )
 

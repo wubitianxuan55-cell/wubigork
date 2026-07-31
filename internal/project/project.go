@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/scene"
-	"github.com/wubigork/wubigork/internal/snapshot"
-	"github.com/wubigork/wubigork/internal/types"
+	"github.com/gaea/gaea/internal/scene"
+	"github.com/gaea/gaea/internal/snapshot"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // Manager 项目管理器 — 一部小说一个文件夹
@@ -82,8 +82,8 @@ func Create(dir, title, genre, style, description string) (*Manager, error) {
 		return nil, err
 	}
 	// v4 标记文件
-	versionMarker := filepath.Join(dir, ".wubigork", "v4")
-	if err := os.MkdirAll(filepath.Join(dir, ".wubigork"), 0755); err != nil {
+	versionMarker := filepath.Join(dir, ".gaea", "v4")
+	if err := os.MkdirAll(filepath.Join(dir, ".gaea"), 0755); err != nil {
 		return nil, err
 	}
 	if err := os.WriteFile(versionMarker, []byte("4"), 0644); err != nil {
@@ -449,6 +449,10 @@ func DefaultSections() []types.WorldviewSection {
 
 // IsV4 检测项目是否为 v4 目录结构
 func (m *Manager) IsV4() bool {
+	// 兼容旧品牌：新标记 .gaea/v4，旧项目 .wubigork/v4 同样识别
+	if _, err := os.Stat(filepath.Join(m.Dir, ".gaea", "v4")); err == nil {
+		return true
+	}
 	_, err := os.Stat(filepath.Join(m.Dir, ".wubigork", "v4"))
 	return err == nil
 }
@@ -525,7 +529,7 @@ func (m *Manager) MigrateV3ToV4() error {
 
 func (m *Manager) finalizeV4Migration() error {
 	// 写入 v4 标记
-	markerDir := filepath.Join(m.Dir, ".wubigork")
+	markerDir := filepath.Join(m.Dir, ".gaea")
 	if err := os.MkdirAll(markerDir, 0755); err != nil {
 		return err
 	}

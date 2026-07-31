@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/strutil"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // TestCompressGrepGroupsByFile 验证 grep 结果按文件分组，每文件保留首尾。

@@ -14,8 +14,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/netclient"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/netclient"
 )
 
 // Config is Tianxuan's runtime configuration.
@@ -570,8 +570,8 @@ const LanguagePolicy = `所有思考过程和输出必须使用中文。不要�
 	`解释、分析、回复全部使用中文。即使收到的消息是英文，也始终用中文回复。`
 
 // Default returns the built-in default configuration (DeepSeek + MiMo presets).
-// loaderOverride 由 wubigrok 办公板块注入：优先于文件加载，用于把
-// bridge provider（kind=wubigrok，走 wubigrok 模型中心）写入配置。
+// loaderOverride 由 gaea 办公板块注入：优先于文件加载，用于把
+// bridge provider（kind=gaea，走 gaea 模型中心）写入配置。
 var loaderOverride func() (*Config, error)
 
 // SetLoader 注入配置加载器。传入 nil 恢复默认文件加载。

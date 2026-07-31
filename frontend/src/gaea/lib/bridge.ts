@@ -177,7 +177,7 @@ export interface AppBindings {
   // Cost database panel.
   // PickFiles opens a native file dialog and imports selected files.
   PickFiles(): Promise<FilePickResult[]>;
-  // Image generation — 绘梦功能（从 wubigork 移植）
+  // Image generation — 绘梦功能（从 gaea 移植）
   GenerateFreeImage(prompt: string, negative: string, size: string, model: string, seed: number, n: number): Promise<ImageGenResponse>;
   StartComfyUI(): Promise<void>;
   StopComfyUI(): Promise<void>;
@@ -192,8 +192,8 @@ export interface AppBindings {
 
 }
 
-// Window 类型由 wubigrok 的 src/types/wails.d.ts 统一声明（go.app.App + runtime）。
-// gaeaW 在此不重复声明，避免覆盖 wubigrok 的 runtime（EventsOff）类型。
+// Window 类型由 gaea 的 src/types/wails.d.ts 统一声明（go.app.App + runtime）。
+// gaeaW 在此不重复声明，避免覆盖 gaea 的 runtime（EventsOff）类型。
 
 // onEvent subscribes to the agent's typed event stream; returns an unsubscribe.
 export function onEvent(cb: (e: WireEvent) => void): () => void {
@@ -244,10 +244,10 @@ export function onReady(cb: () => void): () => void {
   return () => {};
 }
 
-// gaeaToWubigrok maps gaeaW UI method names to the wubigrok App bindings.
-// wubigrok 的办公板块绑定统一以 Gaea 前缀命名；gaeaW 的 UI 调用短名
-// （Submit/Cancel/History/...），这里做名称映射，避免 wubigrok App 方法名冲突。
-const gaeaToWubigrok: Record<string, string> = {
+// gaeaToGaea maps gaeaW UI method names to the gaea App bindings.
+// gaea 的办公板块绑定统一以 Gaea 前缀命名；gaeaW 的 UI 调用短名
+// （Submit/Cancel/History/...），这里做名称映射，避免 gaea App 方法名冲突。
+const gaeaToGaea: Record<string, string> = {
   Submit: "GaeaSend",
   SubmitDisplay: "GaeaSend",
   Cancel: "GaeaCancel",
@@ -341,7 +341,7 @@ const gaeaToWubigrok: Record<string, string> = {
 export const app: AppBindings = new Proxy({} as AppBindings, {
   get(_t, prop) {
     const target = realApp() ?? getMock();
-    const key = gaeaToWubigrok[String(prop)] ?? String(prop);
+    const key = gaeaToGaea[String(prop)] ?? String(prop);
     const v = (target as unknown as Record<string, unknown>)[key];
     return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(target) : v;
   },

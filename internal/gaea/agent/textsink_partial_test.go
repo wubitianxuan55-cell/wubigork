@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // TestTextSinkSkipsPartialDispatch probes the headless sink against the early

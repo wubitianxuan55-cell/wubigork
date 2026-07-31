@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"sync"
 
-	gaeaBoot "github.com/wubigork/wubigork/internal/gaea/boot"
-	gaeaConfig "github.com/wubigork/wubigork/internal/gaea/config"
-	"github.com/wubigork/wubigork/internal/gaea/control"
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/provider/bridge"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
-	"github.com/wubigork/wubigork/internal/modelengine"
+	gaeaBoot "github.com/gaea/gaea/internal/gaea/boot"
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/control"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/provider/bridge"
+	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/modelengine"
 )
 
 // ── gaea 工程办公板块（移植自 gaeaW）─────────────────────────────
 // 独立板块：47 个工程工具 + 6 个技能 + Hermes/Hephaestus 双模型 agent。
-// 模型走 wubigrok 模型中心（bridge provider），前端 UI + AI 双通道调用。
+// 模型走 gaea 模型中心（bridge provider），前端 UI + AI 双通道调用。
 
 var ga = &gaeaRuntime{}
 
@@ -25,7 +25,7 @@ type gaeaRuntime struct {
 	ctrl *control.Controller
 }
 
-// GaeaInit 初始化办公引擎（幂等）。用 wubigrok 模型中心的默认引擎驱动。
+// GaeaInit 初始化办公引擎（幂等）。用 gaea 模型中心的默认引擎驱动。
 func (a *App) GaeaInit() error {
 	ga.mu.Lock()
 	defer ga.mu.Unlock()
@@ -36,14 +36,14 @@ func (a *App) GaeaInit() error {
 	// 1. 注入模型中心客户端（bridge provider 的底层）
 	bridge.SetClient(a.client)
 
-	// 2. 注入配置：bridge provider（kind=wubigrok 走 wubigrok 模型中心）
+	// 2. 注入配置：bridge provider（kind=gaea 走 gaea 模型中心）
 	//    Model 留空：每次请求由 ai.Client 按当前活跃引擎动态解析默认模型，
 	//    实现办公板块自动跟随模型中心的引擎/模型切换。
 	cfg := gaeaConfig.Default()
-	cfg.DefaultModel = "wubigrok"
+	cfg.DefaultModel = "gaea"
 	cfg.Providers = []gaeaConfig.ProviderEntry{{
-		Name:          "wubigrok",
-		Kind:          "wubigrok",
+		Name:          "gaea",
+		Kind:          "wubigrok", // 内部 provider 注册名（bridge provider）
 		Model:         "",
 		ContextWindow: 1_000_000,
 	}}
@@ -64,7 +64,7 @@ func (a *App) GaeaInit() error {
 
 	// 5. 构建 controller（Hermes 规划 + Hephaestus 执行）
 	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
-		Model:      "wubigrok",
+		Model:      "gaea",
 		RequireKey: false,
 		Sink:       sink,
 		MaxSteps:   0,

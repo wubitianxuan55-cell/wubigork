@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 func waitFor(t *testing.T, cond func() bool) {

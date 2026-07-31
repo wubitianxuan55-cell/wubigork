@@ -143,7 +143,7 @@ body {
 <body>
 %s
 <footer style="text-align:center;margin-top:4rem;opacity:0.4;font-size:0.8em;">
-由 wubigork 生成
+由 gaea 生成
 </footer>
 </body>
 </html>`, html.EscapeString(m.pm.Meta.Title),

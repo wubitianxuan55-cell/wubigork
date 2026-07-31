@@ -5,7 +5,7 @@ package session
 import (
 	"sync"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // Session holds the conversation history for one task. The run loop (one turn at

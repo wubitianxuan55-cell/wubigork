@@ -7,7 +7,7 @@ import (
 )
 
 func TestManager_CreateAndRead(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-scene-test")
+	dir := filepath.Join(os.TempDir(), "gaea-scene-test")
 	defer os.RemoveAll(dir)
 
 	m := NewManager(dir)
@@ -55,7 +55,7 @@ func TestManager_CreateAndRead(t *testing.T) {
 }
 
 func TestManager_ListAndStitch(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-scene-stitch")
+	dir := filepath.Join(os.TempDir(), "gaea-scene-stitch")
 	defer os.RemoveAll(dir)
 
 	m := NewManager(dir)
@@ -96,7 +96,7 @@ func TestManager_ListAndStitch(t *testing.T) {
 }
 
 func TestManager_Reorder(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-scene-reorder")
+	dir := filepath.Join(os.TempDir(), "gaea-scene-reorder")
 	defer os.RemoveAll(dir)
 
 	m := NewManager(dir)
@@ -118,7 +118,7 @@ func TestManager_Reorder(t *testing.T) {
 }
 
 func TestManager_Delete(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-scene-delete")
+	dir := filepath.Join(os.TempDir(), "gaea-scene-delete")
 	defer os.RemoveAll(dir)
 
 	m := NewManager(dir)

@@ -3,7 +3,7 @@ package agent
 import (
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // recallReminderNudge is injected at the start of the first user turn when the

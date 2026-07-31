@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // TestOutputLengthContinueInjectsNudge when finish_reason="length" and no tool calls.

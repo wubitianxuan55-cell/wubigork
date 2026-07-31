@@ -3,7 +3,7 @@ package control
 import (
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/skill"
+	"github.com/gaea/gaea/internal/gaea/skill"
 )
 
 func labelsOf(items []SlashItem) []string {

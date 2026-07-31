@@ -12,8 +12,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/wubigork/wubigork/internal/config"
-	"github.com/wubigork/wubigork/internal/types"
+	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // ProjectCard 书架上的项目卡片数据（返回给前端）
@@ -109,7 +109,7 @@ func (a *App) DeleteProject(dir string) error {
 
 // ── 内部辅助 ─────────────────────────────────────────────────
 
-// SaveConfig 将单个配置项写回 ~/.wubigork_config.json 并更新内存。
+// SaveConfig 将单个配置项写回 ~/.gaea_config.json 并更新内存。
 func (a *App) SaveConfig(key, value string) error {
 	if err := config.Save(key, value); err != nil {
 		return err

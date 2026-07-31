@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/memory"
-	"github.com/wubigork/wubigork/internal/gaea/tool/builtin"
+	"github.com/gaea/gaea/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 )
 
 // --- memory ---

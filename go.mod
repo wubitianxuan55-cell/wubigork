@@ -1,4 +1,4 @@
-module github.com/wubigork/wubigork
+module github.com/gaea/gaea
 
 go 1.26.3
 

@@ -270,11 +270,11 @@ const MainLayout: React.FC = () => {
           position: 'sticky', top: 0, zIndex: 100,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 24 }}>
-            <img src="/favicon.svg" alt="wubigork" style={{ width: 26, height: 26 }} />
+            <img src="/favicon.svg" alt="gaea" style={{ width: 26, height: 26 }} />
             <Typography.Text strong style={{
               color: 'var(--md-sys-color-primary)', fontSize: 16,
             }}>
-              wubigork
+              gaea
             </Typography.Text>
           </div>
 

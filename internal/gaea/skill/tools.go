@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // SubagentRunner runs a runAs=subagent skill: it spawns an isolated child loop

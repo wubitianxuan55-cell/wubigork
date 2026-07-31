@@ -7,12 +7,12 @@ import (
 	"io"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/jobs"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/jobs"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 
-	"github.com/wubigork/wubigork/internal/gaea/agent/session"
+	"github.com/gaea/gaea/internal/gaea/agent/session"
 )
 
 // DefaultTaskSystemPrompt steers a sub-agent toward focused, terse delivery —

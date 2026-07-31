@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/agent/session"
+	"github.com/gaea/gaea/internal/gaea/agent/session"
 )
 
 // ── Subagent transcript persistence (V10.29) ─────────────────────────

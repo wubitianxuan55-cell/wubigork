@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/agent"
-	gaeaConfig "github.com/wubigork/wubigork/internal/gaea/config"
-	"github.com/wubigork/wubigork/internal/gaea/control"
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/agent"
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/control"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // ── gaeaW 原生 UI 绑定（前端 gaea/lib/bridge.ts 适配层映射短名 → Gaea*）──

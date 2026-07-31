@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/util"
+	"github.com/gaea/gaea/internal/util"
 )
 
 // ── Ghost Text 内联补全 ─────────────────────────────────────

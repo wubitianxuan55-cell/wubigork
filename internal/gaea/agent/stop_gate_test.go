@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/strutil"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // makeTodoMsg 创建一个包含 todo_write tool call 的 assistant 消息。

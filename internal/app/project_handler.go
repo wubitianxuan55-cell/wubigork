@@ -1,7 +1,7 @@
 package app
 
 import (
-	"github.com/wubigork/wubigork/internal/project"
+	"github.com/gaea/gaea/internal/project"
 )
 
 // ── 项目管理 ─────────────────────────────────────────────────

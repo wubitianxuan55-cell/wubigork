@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/ai"
-	"github.com/wubigork/wubigork/internal/office"
-	"github.com/wubigork/wubigork/internal/office/proposal"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/office"
+	"github.com/gaea/gaea/internal/office/proposal"
 )
 
 var (jm = office.NewJobManager(nil); sm = office.NewSessionModeStore())

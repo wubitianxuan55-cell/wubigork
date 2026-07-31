@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 
-	"github.com/wubigork/wubigork/internal/gaea/cache"
+	"github.com/gaea/gaea/internal/gaea/cache"
 )
 
 // HermesPrompt steers the planner toward research-backed plans.

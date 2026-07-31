@@ -7,15 +7,15 @@ import (
 	"sync"
 
 	qrcode "github.com/skip2/go-qrcode"
-	"github.com/wubigork/wubigork/internal/assistant"
-	"github.com/wubigork/wubigork/internal/channels/weixin"
-	"github.com/wubigork/wubigork/internal/modelengine"
-	"github.com/wubigork/wubigork/internal/whisper"
-	"github.com/wubigork/wubigork/internal/whisper/db"
-	"github.com/wubigork/wubigork/internal/whisper/db/repos"
+	"github.com/gaea/gaea/internal/assistant"
+	"github.com/gaea/gaea/internal/channels/weixin"
+	"github.com/gaea/gaea/internal/modelengine"
+	"github.com/gaea/gaea/internal/whisper"
+	"github.com/gaea/gaea/internal/whisper/db"
+	"github.com/gaea/gaea/internal/whisper/db/repos"
 )
 
-// Chat 实现 whisper.LlmClient 接口（接入 wubigrok 模型中心）
+// Chat 实现 whisper.LlmClient 接口（接入 gaea 模型中心）
 func (a *App) Chat(systemPrompt, userPrompt string) (string, error) {
 	return a.client.ChatSimpleStream(a.ctx, "", systemPrompt, userPrompt)
 }

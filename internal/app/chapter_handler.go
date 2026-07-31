@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/wubigork/wubigork/internal/types"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // ── 章节 I/O ─────────────────────────────────────────────────

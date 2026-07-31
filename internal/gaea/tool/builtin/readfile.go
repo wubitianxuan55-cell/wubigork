@@ -17,8 +17,8 @@ import (
 
 	"golang.org/x/text/transform"
 
-	fileenc "github.com/wubigork/wubigork/internal/gaea/fileutil/encoding"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	fileenc "github.com/gaea/gaea/internal/gaea/fileutil/encoding"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func init() { tool.RegisterBuiltin(readFile{}) }

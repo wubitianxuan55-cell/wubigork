@@ -1,6 +1,6 @@
 package context
 
-import "github.com/wubigork/wubigork/internal/gaea/cache"
+import "github.com/gaea/gaea/internal/gaea/cache"
 
 // === L1 Identity Layer ===
 type IdentityLayer = cache.IdentityLayer

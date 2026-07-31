@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/wubigork/wubigork/internal/asr"
-	"github.com/wubigork/wubigork/internal/tts"
-	"github.com/wubigork/wubigork/internal/voice"
+	"github.com/gaea/gaea/internal/asr"
+	"github.com/gaea/gaea/internal/tts"
+	"github.com/gaea/gaea/internal/voice"
 )
 
 // ── 语音事件名称常量（对齐 Ackem IPC channel 命名） ──

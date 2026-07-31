@@ -1,12 +1,12 @@
 // Package whisper — llm_client.go
-// LLM 客户端接口：whisper 模块通过此接口调用 wubigrok 模型中心
+// LLM 客户端接口：whisper 模块通过此接口调用 gaea 模型中心
 // App 层注入具体实现（ChatSimpleStream 等）
 
 package whisper
 
 // ─── LlmClient ───────────────────────────────────────────────
 
-// LlmClient LLM 调用接口（由 App 层注入 wubigrok 模型中心实现）
+// LlmClient LLM 调用接口（由 App 层注入 gaea 模型中心实现）
 type LlmClient interface {
 	// Chat 同步聊天（用于事实抽取、情节生成等后台任务）
 	Chat(systemPrompt, userPrompt string) (string, error)

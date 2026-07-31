@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // TestOutputSurfacesResultForBufferlessJob probes a task-style job: its run func

@@ -8,7 +8,7 @@ import (
 )
 
 func TestStore_CaptureAndRestore(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-snapshot-test")
+	dir := filepath.Join(os.TempDir(), "gaea-snapshot-test")
 	defer os.RemoveAll(dir)
 
 	store := NewStore(dir)
@@ -56,7 +56,7 @@ func TestStore_CaptureAndRestore(t *testing.T) {
 }
 
 func TestStore_Diff(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-snapshot-diff")
+	dir := filepath.Join(os.TempDir(), "gaea-snapshot-diff")
 	defer os.RemoveAll(dir)
 
 	store := NewStore(dir)
@@ -91,7 +91,7 @@ func TestStore_Diff(t *testing.T) {
 }
 
 func TestStore_EmptyScene(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-snapshot-empty")
+	dir := filepath.Join(os.TempDir(), "gaea-snapshot-empty")
 	defer os.RemoveAll(dir)
 
 	store := NewStore(dir)
@@ -105,7 +105,7 @@ func TestStore_EmptyScene(t *testing.T) {
 }
 
 func TestStore_ChineseContent(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-snapshot-chinese")
+	dir := filepath.Join(os.TempDir(), "gaea-snapshot-chinese")
 	defer os.RemoveAll(dir)
 
 	store := NewStore(dir)

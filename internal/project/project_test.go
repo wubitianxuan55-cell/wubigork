@@ -7,7 +7,7 @@ import (
 )
 
 func TestCreateV4Project(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-v4-create")
+	dir := filepath.Join(os.TempDir(), "gaea-v4-create")
 	defer os.RemoveAll(dir)
 
 	pm, err := Create(dir, "Test Novel", "Fantasy", "Default", "")
@@ -19,8 +19,8 @@ func TestCreateV4Project(t *testing.T) {
 		t.Fatal("new project should be v4")
 	}
 
-	// 验证 .wubigork/v4 标记文件存在
-	if _, err := os.Stat(filepath.Join(dir, ".wubigork", "v4")); os.IsNotExist(err) {
+	// 验证 .gaea/v4 标记文件存在
+	if _, err := os.Stat(filepath.Join(dir, ".gaea", "v4")); os.IsNotExist(err) {
 		t.Fatal("v4 marker not created")
 	}
 
@@ -38,7 +38,7 @@ func TestCreateV4Project(t *testing.T) {
 }
 
 func TestMigrateV3ToV4(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-v3-migrate")
+	dir := filepath.Join(os.TempDir(), "gaea-v3-migrate")
 	defer os.RemoveAll(dir)
 
 	// 模拟 v3 项目结构
@@ -102,7 +102,7 @@ func TestMigrateV3ToV4(t *testing.T) {
 }
 
 func TestReadChapterAsStitch_V3Fallback(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-v3-fallback")
+	dir := filepath.Join(os.TempDir(), "gaea-v3-fallback")
 	defer os.RemoveAll(dir)
 
 	chaptersDir := filepath.Join(dir, "chapters")
@@ -137,7 +137,7 @@ func TestReadChapterAsStitch_V3Fallback(t *testing.T) {
 // ── LoadContext ───────────────────────────────────────────
 
 func TestLoadContext_FullAssembly(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-context-full")
+	dir := filepath.Join(os.TempDir(), "gaea-context-full")
 	defer os.RemoveAll(dir)
 
 	// 创建完整项目结构
@@ -238,7 +238,7 @@ func TestLoadContext_FullAssembly(t *testing.T) {
 }
 
 func TestLoadContext_EmptyProject(t *testing.T) {
-	dir := filepath.Join(os.TempDir(), "wubigork-context-empty")
+	dir := filepath.Join(os.TempDir(), "gaea-context-empty")
 	defer os.RemoveAll(dir)
 	os.MkdirAll(dir, 0755)
 

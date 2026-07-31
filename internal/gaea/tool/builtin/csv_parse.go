@@ -16,7 +16,7 @@ import (
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func init() { tool.RegisterBuiltin(csvParse{}) }

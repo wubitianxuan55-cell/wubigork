@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/sandbox"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/sandbox"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // ConfineBash returns the bash built-in bound to an OS-sandbox spec, overriding

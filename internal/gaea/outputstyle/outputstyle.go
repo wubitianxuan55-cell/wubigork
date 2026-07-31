@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/frontmatter"
+	"github.com/gaea/gaea/internal/gaea/frontmatter"
 )
 
 // OutputStyle is one selectable persona. Body is appended to the system prompt

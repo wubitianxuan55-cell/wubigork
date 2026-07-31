@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/whisper"
-	"github.com/wubigork/wubigork/internal/whisper/db"
+	"github.com/gaea/gaea/internal/whisper"
+	"github.com/gaea/gaea/internal/whisper/db"
 )
 
 // AppendTurnTraceToDB 追加一条轮次追踪

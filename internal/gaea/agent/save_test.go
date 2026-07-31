@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // touch sets a file's mtime to t. Used by the listing-order test so it

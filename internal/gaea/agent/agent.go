@@ -8,16 +8,16 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/wubigork/wubigork/internal/gaea/agent/cache"
-	"github.com/wubigork/wubigork/internal/gaea/archive"
-	tiancontext "github.com/wubigork/wubigork/internal/gaea/context"
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/evidence"
-	"github.com/wubigork/wubigork/internal/gaea/jobs"
-	"github.com/wubigork/wubigork/internal/gaea/memory"
-	"github.com/wubigork/wubigork/internal/gaea/nilutil"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/agent/cache"
+	"github.com/gaea/gaea/internal/gaea/archive"
+	tiancontext "github.com/gaea/gaea/internal/gaea/context"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/gaea/jobs"
+	"github.com/gaea/gaea/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/gaea/nilutil"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // Asker puts structured multiple-choice questions to the user and blocks for the

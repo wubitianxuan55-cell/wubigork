@@ -24,8 +24,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/proc"
-	"github.com/wubigork/wubigork/internal/gaea/sandbox"
+	"github.com/gaea/gaea/internal/gaea/proc"
+	"github.com/gaea/gaea/internal/gaea/sandbox"
 )
 
 // Event is a point in the agent loop a hook can fire at.

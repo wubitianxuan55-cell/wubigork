@@ -12,22 +12,22 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"github.com/wubigork/wubigork/internal/ai"
-	"github.com/wubigork/wubigork/internal/analysis"
-	"github.com/wubigork/wubigork/internal/assistant"
-	"github.com/wubigork/wubigork/internal/auth"
-	"github.com/wubigork/wubigork/internal/chapter"
-	"github.com/wubigork/wubigork/internal/character"
-	"github.com/wubigork/wubigork/internal/config"
-	"github.com/wubigork/wubigork/internal/modelengine"
-	"github.com/wubigork/wubigork/internal/outline"
-	"github.com/wubigork/wubigork/internal/project"
-	"github.com/wubigork/wubigork/internal/prompt"
-	"github.com/wubigork/wubigork/internal/skill"
-	"github.com/wubigork/wubigork/internal/voice"
-	"github.com/wubigork/wubigork/internal/channels/weixin"
-	"github.com/wubigork/wubigork/internal/office/proposal"
-	"github.com/wubigork/wubigork/internal/worldview"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/analysis"
+	"github.com/gaea/gaea/internal/assistant"
+	"github.com/gaea/gaea/internal/auth"
+	"github.com/gaea/gaea/internal/chapter"
+	"github.com/gaea/gaea/internal/character"
+	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/modelengine"
+	"github.com/gaea/gaea/internal/outline"
+	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/prompt"
+	"github.com/gaea/gaea/internal/skill"
+	"github.com/gaea/gaea/internal/voice"
+	"github.com/gaea/gaea/internal/channels/weixin"
+	"github.com/gaea/gaea/internal/office/proposal"
+	"github.com/gaea/gaea/internal/worldview"
 )
 
 // App Wails 应用实例 — 管理所有 Agent 和生命周期
@@ -106,11 +106,11 @@ func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
 	// 将 slog 输出到文件（GUI 应用无控制台）
-	logFile, err := os.OpenFile(filepath.Join(a.whisperDataRoot, "wubigrok.log"),
+	logFile, err := os.OpenFile(filepath.Join(a.whisperDataRoot, "gaea.log"),
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err == nil {
 		slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: slog.LevelInfo})))
-		slog.Info("=== wubigrok startup ===")
+		slog.Info("=== gaea startup ===")
 	}
 	// 创建 AI client（仅此一次；token 由 GetToken 懒加载）
 	a.client = ai.NewClient(a.cfg)
@@ -333,7 +333,7 @@ func (a *App) SetDistFS(fsys fs.FS) {
 
 func CLILogin() {
 	cfg := config.Load()
-	fmt.Println("🚀 wubigork — 小说 AI Agent")
+	fmt.Println("🚀 gaea — 小说 AI Agent")
 	fmt.Println("============================")
 
 	store := auth.NewTokenStore(cfg.TokenStorePath)

@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	TempDirName = "wubigork-tts"
+	TempDirName = "gaea-tts"
 	OutputWAV   = "speech.wav"
 )
 

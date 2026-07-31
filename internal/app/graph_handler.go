@@ -3,7 +3,7 @@ package app
 import (
 	"fmt"
 
-	"github.com/wubigork/wubigork/internal/graph"
+	"github.com/gaea/gaea/internal/graph"
 )
 
 // ── 知识图谱 API ────────────────────────────────────────────

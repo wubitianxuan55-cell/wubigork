@@ -18,7 +18,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // protocolVersion is the MCP revision Tianxuan advertises during initialize.

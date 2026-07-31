@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/tts"
+	"github.com/gaea/gaea/internal/tts"
 )
 
 // ── TTS 语音朗读 ─────────────────────────────────────────────

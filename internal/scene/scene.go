@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/types"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // Manager 场景管理器 — 管理一个章节目录下的所有场景

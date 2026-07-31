@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/types"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // Store 快照存储管理器

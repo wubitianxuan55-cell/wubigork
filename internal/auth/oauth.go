@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/config"
+	"github.com/gaea/gaea/internal/config"
 )
 
 // PKCE 生成 code_verifier 和 code_challenge
@@ -51,7 +51,7 @@ type OAuthResult struct {
 // 完整对齐 hermes-agent 的 _xai_oauth_loopback_login + _xai_oauth_discovery 流程:
 //  1. OIDC Discovery 获取真实端点
 //  2. 生成 PKCE code_verifier / code_challenge
-//  3. 打开浏览器让用户授权 (含 plan=generic / referrer=wubigork /
+//  3. 打开浏览器让用户授权 (含 plan=generic / referrer=gaea /
 //     nonce 等 xAI 必要参数)
 //  4. 本机 HTTP server 接收 callback
 //  5. 用 code + code_verifier + code_challenge 换取 token
@@ -184,7 +184,7 @@ func DoLogin(cfg *config.Config) (*OAuthResult, error) {
 //
 // 对齐 hermes-agent 的 _xai_oauth_build_authorize_url：
 // — plan=generic 是 xAI 的关键参数：缺少它，非白名单客户端会被拒绝
-// — referrer=wubigork 让 xAI 可以归因 OAuth 来源
+// — referrer=gaea 让 xAI 可以归因 OAuth 来源
 // — nonce 是 OIDC 规范要求
 func buildAuthURL(authEndpoint string, cfg *config.Config, redirectURI, challenge, state, nonce string) string {
 	params := url.Values{
@@ -197,7 +197,7 @@ func buildAuthURL(authEndpoint string, cfg *config.Config, redirectURI, challeng
 		"state":                 {state},
 		"nonce":                 {nonce},
 		"plan":                  {"generic"},  // 关键！没有此参数 xAI 拒绝 loopback OAuth
-		"referrer":              {"wubigork"}, // 归因标识
+		"referrer":              {"gaea"}, // 归因标识
 	}
 
 	return authEndpoint + "?" + params.Encode()
@@ -341,14 +341,14 @@ func validateInferenceBaseURL(rawURL string) string {
 
 func oauthSuccessHTML() string {
 	return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>登录成功 — wubigork</title>
+<html><head><meta charset="utf-8"><title>登录成功 — gaea</title>
 <style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#0d0d0d;color:#e0e0e0}div{text-align:center}h1{color:#4ade80}p{color:#9ca3af}</style></head>
-<body><div><h1>✅ 登录成功</h1><p>您可以关闭此页面，回到 wubigork 终端继续写作 ✍️</p></div></body></html>`
+<body><div><h1>✅ 登录成功</h1><p>您可以关闭此页面，回到 gaea 终端继续写作 ✍️</p></div></body></html>`
 }
 
 func oauthErrorHTML(msg string) string {
 	return fmt.Sprintf(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>登录失败 — wubigork</title>
+<html><head><meta charset="utf-8"><title>登录失败 — gaea</title>
 <style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#0d0d0d;color:#e0e0e0}div{text-align:center}h1{color:#f87171}p{color:#9ca3af}</style></head>
 <body><div><h1>❌ 登录失败</h1><p>%s</p></div></body></html>`, msg)
 }

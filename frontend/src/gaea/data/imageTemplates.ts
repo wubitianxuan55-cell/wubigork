@@ -1,5 +1,5 @@
 // imageTemplates.ts — 预设提示词模板（4大类20个）+ 自定义模板管理
-// 从 wubigork 移植，适配 gaea
+// 从 gaea 移植，适配 gaea
 
 export interface Template {
   label: string;

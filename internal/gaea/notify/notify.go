@@ -14,7 +14,7 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/wubigork/wubigork/internal/gaea/proc"
+	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
 // Send dispatches a desktop notification. It returns nil when the notification

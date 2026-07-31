@@ -1,6 +1,6 @@
 package agent
 
-import "github.com/wubigork/wubigork/internal/gaea/agent/session"
+import "github.com/gaea/gaea/internal/gaea/agent/session"
 
 // Session is an alias for session.Session, kept for internal backward
 // compatibility during the phased split. New code should import the

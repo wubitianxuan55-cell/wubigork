@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/types"
-	"github.com/wubigork/wubigork/internal/util"
+	"github.com/gaea/gaea/internal/types"
+	"github.com/gaea/gaea/internal/util"
 )
 
 // ── 角色 ──────────────────────────────────────────────────────

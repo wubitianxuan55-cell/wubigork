@@ -1,8 +1,8 @@
 package context
 
 import (
-	"github.com/wubigork/wubigork/internal/gaea/cache"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/cache"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // ContextManager is the TCCA kernel — the unified entry point for all four

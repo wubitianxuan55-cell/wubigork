@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wubigork/wubigork/internal/export"
-	"github.com/wubigork/wubigork/internal/stats"
-	"github.com/wubigork/wubigork/internal/style"
+	"github.com/gaea/gaea/internal/export"
+	"github.com/gaea/gaea/internal/stats"
+	"github.com/gaea/gaea/internal/style"
 )
 
 // ── 导出 2.0 API ────────────────────────────────────────────

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // SlashEntry is one invocable slash command exposed to the model through the

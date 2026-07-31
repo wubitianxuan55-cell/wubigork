@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"unicode/utf8"
 
-	"github.com/wubigork/wubigork/internal/project"
+	"github.com/gaea/gaea/internal/project"
 )
 
 // Summary 统计数据摘要

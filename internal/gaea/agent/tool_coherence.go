@@ -3,7 +3,7 @@ package agent
 import (
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // postBatchCoherenceCheck runs after a batch of tools executes. It detects

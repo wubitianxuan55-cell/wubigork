@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM Z-Image-Turbo 模型下载脚本 (wubigork)
+REM Z-Image-Turbo 模型下载脚本 (gaea)
 REM 需要下载 2 个文件到 ComfyUI 模型目录
 REM 总计约 9.6 GB — 建议用 VPN 或代理下载
 REM ============================================================
@@ -29,5 +29,5 @@ echo [ ] %DEST_DIR%\text_encoders\Qwen3-4B.i1-Q4_K_M.gguf
 echo [x] %DEST_DIR%\vae\ae.safetensors (已存在)
 echo.
 
-echo 下载完成后启动 ComfyUI 即可在 wubigork 中使用。
+echo 下载完成后启动 ComfyUI 即可在 gaea 中使用。
 pause

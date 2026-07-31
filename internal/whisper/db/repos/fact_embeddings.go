@@ -10,8 +10,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/whisper"
-	"github.com/wubigork/wubigork/internal/whisper/db"
+	"github.com/gaea/gaea/internal/whisper"
+	"github.com/gaea/gaea/internal/whisper/db"
 )
 
 // ComputeCorpusHash 计算事实摘要的 SHA256 哈希（用于增量更新判断）

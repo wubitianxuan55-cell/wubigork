@@ -3,9 +3,9 @@ package app
 import (
 	"path/filepath"
 
-	"github.com/wubigork/wubigork/internal/skill"
-	"github.com/wubigork/wubigork/internal/stats"
-	"github.com/wubigork/wubigork/internal/util"
+	"github.com/gaea/gaea/internal/skill"
+	"github.com/gaea/gaea/internal/stats"
+	"github.com/gaea/gaea/internal/util"
 )
 
 // ── Skill ────────────────────────────────────────────────────

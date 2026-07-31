@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/whisper/db"
+	"github.com/gaea/gaea/internal/whisper/db"
 )
 
 // ─── 工作区 ──────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ package repos
 import (
 	"fmt"
 
-	"github.com/wubigork/wubigork/internal/whisper/db"
+	"github.com/gaea/gaea/internal/whisper/db"
 )
 
 // HabitLine 习惯行

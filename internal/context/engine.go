@@ -4,9 +4,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/project"
-	"github.com/wubigork/wubigork/internal/types"
-	"github.com/wubigork/wubigork/internal/util"
+	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/types"
+	"github.com/gaea/gaea/internal/util"
 )
 
 // ── Lorebook 2.0: 触发式上下文注入 + Token 预算 ──────────────

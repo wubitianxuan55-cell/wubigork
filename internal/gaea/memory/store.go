@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/frontmatter"
+	"github.com/gaea/gaea/internal/gaea/frontmatter"
 )
 
 // Store is the per-project auto-memory: a directory of one-fact-per-file

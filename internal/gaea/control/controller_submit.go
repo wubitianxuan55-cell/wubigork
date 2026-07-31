@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/config"
-	"github.com/wubigork/wubigork/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/memory"
 )
 
 func (c *Controller) Submit(input string) {

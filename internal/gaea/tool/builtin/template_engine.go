@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func init() {

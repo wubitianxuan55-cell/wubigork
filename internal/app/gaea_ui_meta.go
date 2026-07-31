@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/control"
-	"github.com/wubigork/wubigork/internal/gaea/i18n"
-	"github.com/wubigork/wubigork/internal/gaea/knowledge"
-	"github.com/wubigork/wubigork/internal/gaea/memory"
-	"github.com/wubigork/wubigork/internal/gaea/plugin"
+	"github.com/gaea/gaea/internal/gaea/control"
+	"github.com/gaea/gaea/internal/gaea/i18n"
+	"github.com/gaea/gaea/internal/gaea/knowledge"
+	"github.com/gaea/gaea/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/gaea/plugin"
 )
 
 // ── 元信息 / 状态（对齐 gaeaW desktop/app_meta.go）──────────────────
@@ -93,7 +93,7 @@ func (a *App) GaeaMeta() Meta {
 		perm = c.PermLevel()
 	}
 	return Meta{
-		Label:        "wubigrok",
+		Label:        "gaea",
 		Ready:        c != nil,
 		EventChannel: "gaea-event",
 		Cwd:          cwd,

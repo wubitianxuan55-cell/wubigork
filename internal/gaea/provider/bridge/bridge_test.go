@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/ai"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // mockClient 实现 ai.LLMClient，记录请求并返回预置 chunks。
@@ -46,7 +46,7 @@ func TestBridge_Stream_ToolCall(t *testing.T) {
 		}},
 	}}}
 	SetClient(mc)
-	p := &Provider{name: "wubigrok", model: "grok-3", client: mc}
+	p := &Provider{name: "gaea", model: "grok-3", client: mc}
 
 	req := provider.Request{
 		Messages: []provider.Message{
@@ -112,7 +112,7 @@ func TestBridge_Stream_TextDone(t *testing.T) {
 		{Content: "超标"},
 		{Done: true},
 	}}
-	p := &Provider{name: "wubigrok", model: "m", client: mc}
+	p := &Provider{name: "gaea", model: "m", client: mc}
 	ch, err := p.Stream(context.Background(), provider.Request{Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}}})
 	if err != nil {
 		t.Fatalf("Stream: %v", err)
@@ -138,7 +138,7 @@ func TestBridge_Stream_TextDone(t *testing.T) {
 // TestBridge_Stream_Error 验证错误透传为 ChunkError。
 func TestBridge_Stream_Error(t *testing.T) {
 	mc := &mockClient{chunks: []ai.SSEChunk{{Error: "boom"}}}
-	p := &Provider{name: "wubigrok", model: "m", client: mc}
+	p := &Provider{name: "gaea", model: "m", client: mc}
 	ch, err := p.Stream(context.Background(), provider.Request{})
 	if err != nil {
 		t.Fatalf("Stream: %v", err)
@@ -176,7 +176,7 @@ var errBoom = errors.New("boom")
 // 由 ai.Client 按当前活跃引擎动态解析（办公板块跟随模型中心的关键）。
 func TestBridge_Stream_EmptyModel(t *testing.T) {
 	mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
-	p := &Provider{name: "wubigrok", model: "", client: mc}
+	p := &Provider{name: "gaea", model: "", client: mc}
 	_, err := p.Stream(context.Background(), provider.Request{Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}}})
 	if err != nil {
 		t.Fatalf("Stream: %v", err)

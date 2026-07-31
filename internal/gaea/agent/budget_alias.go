@@ -1,6 +1,6 @@
 package agent
 
-import "github.com/wubigork/wubigork/internal/gaea/agent/budget"
+import "github.com/gaea/gaea/internal/gaea/agent/budget"
 
 // Re-exported types and functions from the budget sub-package.
 type BudgetGate = budget.Gate

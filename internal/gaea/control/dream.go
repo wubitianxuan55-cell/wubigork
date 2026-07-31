@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/agent"
-	"github.com/wubigork/wubigork/internal/gaea/strutil"
+	"github.com/gaea/gaea/internal/gaea/agent"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // DreamResult holds the output of a dream analysis pass.

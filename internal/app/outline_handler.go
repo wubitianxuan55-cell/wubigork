@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/types"
+	"github.com/gaea/gaea/internal/types"
 )
 
 // ── 大纲 Agent ──────────────────────────────────────────────

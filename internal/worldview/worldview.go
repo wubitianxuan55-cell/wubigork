@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/ai"
-	"github.com/wubigork/wubigork/internal/config"
-	"github.com/wubigork/wubigork/internal/project"
-	"github.com/wubigork/wubigork/internal/prompt"
-	"github.com/wubigork/wubigork/internal/types"
-	"github.com/wubigork/wubigork/internal/util"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/prompt"
+	"github.com/gaea/gaea/internal/types"
+	"github.com/gaea/gaea/internal/util"
 )
 
 // Agent 世界观子代理 — 结构化构建、对话迭代、一致性校验

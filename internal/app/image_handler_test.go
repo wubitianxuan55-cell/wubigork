@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/ai"
+	"github.com/gaea/gaea/internal/ai"
 )
 
 func TestGenerateFreeImage_sizeCleanup(t *testing.T) {

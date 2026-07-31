@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // TestSessionConcurrentAddAndRead models the real hazard: the run loop appends

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // Turn describes one expected Stream call: the text, optional reasoning,

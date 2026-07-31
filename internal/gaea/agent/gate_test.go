@@ -3,12 +3,12 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/event"
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // stubGate denies any call whose tool name is in deny; everything else allows.

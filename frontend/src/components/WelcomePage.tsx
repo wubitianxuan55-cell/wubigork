@@ -13,12 +13,12 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin }) => (
     alignItems: 'center', height: '75vh', gap: 32,
   }}>
     <div style={{ textAlign: 'center' }}>
-      <img src="/favicon.svg" alt="wubigork" style={{ width: 80, height: 80, marginBottom: 20 }} />
+      <img src="/favicon.svg" alt="gaea" style={{ width: 80, height: 80, marginBottom: 20 }} />
       <Typography.Title level={1} style={{
         color: C('color-text'), margin: '0 0 4px', fontSize: 36,
         fontWeight: 700, letterSpacing: '-0.5px',
       }}>
-        wubigork
+        gaea
       </Typography.Title>
       <Typography.Text style={{
         color: C('color-primary'), fontSize: 18, fontWeight: 400, letterSpacing: 2,

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/command"
+	"github.com/gaea/gaea/internal/gaea/command"
 )
 
 type fakeTurnRunner struct {

@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/memory"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func init() { tool.RegisterBuiltin(memorySearch{}) }

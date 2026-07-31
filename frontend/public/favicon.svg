@@ -1,21 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" viewBox="0 0 48 48">
-  <!-- 层叠书页 — 两个交叠菱形构成书籍翻动意象，右上角星光代表灵感 -->
+  <!-- gaea 盖亚 — 大地女神：翡翠球体 + 破土嫩芽 + 灵感星芒 -->
   <defs>
-    <linearGradient id="d1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#d97706"/>
-    </linearGradient>
-    <linearGradient id="d2" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#f97316"/>
-      <stop offset="100%" stop-color="#ea580c"/>
+    <radialGradient id="g" cx="35%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="45%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </radialGradient>
+    <linearGradient id="leaf" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a7f3d0"/>
+      <stop offset="100%" stop-color="#34d399"/>
     </linearGradient>
   </defs>
-  <!-- 主菱形（琥珀金渐变） -->
-  <polygon points="24,10 38,24 24,38 10,24" fill="url(#d1)" opacity="0.92"/>
-  <!-- 副菱形（暖橙渐变，偏移产生层叠感） -->
-  <polygon points="27,12 38,23 27,34 16,23" fill="url(#d2)" opacity="0.88"/>
-  <!-- 灵感星光 -->
-  <circle cx="39" cy="9" r="3" fill="#fbbf24"/>
-  <!-- 星光光晕 -->
-  <circle cx="39" cy="9" r="5" fill="#fbbf24" opacity="0.25"/>
+  <!-- 大地球体 -->
+  <circle cx="24" cy="27" r="16.5" fill="url(#g)"/>
+  <ellipse cx="17" cy="20.5" rx="6" ry="3.4" fill="#d1fae5" opacity="0.5" transform="rotate(-20 17 20.5)"/>
+  <!-- 破土嫩芽：茎 + 两片叶 -->
+  <line x1="24" y1="40" x2="24" y2="27.5" stroke="url(#leaf)" stroke-width="2.4" stroke-linecap="round"/>
+  <ellipse cx="17" cy="29" rx="8" ry="4.5" fill="url(#leaf)" transform="rotate(-35 17 29)"/>
+  <ellipse cx="31" cy="21.5" rx="8.5" ry="4.6" fill="#a7f3d0" transform="rotate(25 31 21.5)"/>
+  <!-- 灵感核心 -->
+  <circle cx="34.5" cy="12" r="2" fill="#ecfdf5"/>
+  <circle cx="34.5" cy="12" r="3.6" fill="#a7f3d0" opacity="0.35"/>
 </svg>

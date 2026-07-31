@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/asr"
+	"github.com/gaea/gaea/internal/asr"
 )
 
 // ── 回调接口 ──

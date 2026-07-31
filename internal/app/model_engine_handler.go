@@ -3,8 +3,8 @@ package app
 import (
 	"log/slog"
 
-	"github.com/wubigork/wubigork/internal/config"
-	"github.com/wubigork/wubigork/internal/modelengine"
+	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/modelengine"
 )
 
 // ── 模型引擎管理 API ─────────────────────────────────────────

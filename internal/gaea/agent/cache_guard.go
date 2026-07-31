@@ -3,7 +3,7 @@ package agent
 import (
 	"fmt"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // verifyPrefixAndShape captures the current PrefixShape and, on the first

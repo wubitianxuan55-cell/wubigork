@@ -1,6 +1,6 @@
 package builtin
 
-import "github.com/wubigork/wubigork/internal/gaea/config"
+import "github.com/gaea/gaea/internal/gaea/config"
 
 // searchCfg holds the runtime search configuration injected by boot.
 // nil means all API-based engines are disabled; only public SearXNG works.

@@ -3,8 +3,8 @@ package control
 import (
 	"fmt"
 
-	"github.com/wubigork/wubigork/internal/gaea/config"
-	"github.com/wubigork/wubigork/internal/gaea/plugin"
+	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/plugin"
 )
 
 // --- MCP server management -------------------------------------------------

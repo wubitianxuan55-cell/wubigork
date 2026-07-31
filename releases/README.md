@@ -1,8 +1,8 @@
-# wubigrok 轻语模块 — 版本汇总
+# gaea 轻语模块 — 版本汇总
 
 ## 产物
 
-`C:\AI\wubigrok\build\bin\wubigork.exe` — 15MB (Wails v2.13.0 + Go, windows/amd64)
+`C:\AI\wubigrok\build\bin\gaea.exe` — 15MB (Wails v2.13.0 + Go, windows/amd64)
 
 ## 版本历史
 

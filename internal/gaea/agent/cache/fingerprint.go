@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // ToolCatalogFingerprint is a canonical SHA256 fingerprint of a tool registry.

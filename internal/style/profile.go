@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/ai"
-	"github.com/wubigork/wubigork/internal/project"
-	"github.com/wubigork/wubigork/internal/util"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/project"
+	"github.com/gaea/gaea/internal/util"
 )
 
 // ── 风格档案 ─────────────────────────────────────────────────
@@ -110,7 +110,7 @@ func (a *Analyzer) Analyze() (*Profile, error) {
 
 // SaveProfile 保存风格档案
 func SaveProfile(projectDir string, profile *Profile) error {
-	dir := filepath.Join(projectDir, ".wubigork")
+	dir := filepath.Join(projectDir, ".gaea")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -123,7 +123,11 @@ func SaveProfile(projectDir string, profile *Profile) error {
 
 // LoadProfile 加载风格档案
 func LoadProfile(projectDir string) (*Profile, error) {
-	data, err := os.ReadFile(filepath.Join(projectDir, ".wubigork", "style-profile.json"))
+	// 兼容旧品牌：优先 .gaea/，旧项目回退 .wubigork/
+	data, err := os.ReadFile(filepath.Join(projectDir, ".gaea", "style-profile.json"))
+	if err != nil && os.IsNotExist(err) {
+		data, err = os.ReadFile(filepath.Join(projectDir, ".wubigork", "style-profile.json"))
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -133,6 +137,8 @@ func LoadProfile(projectDir string) (*Profile, error) {
 	}
 	return &profile, nil
 }
+
+// ToStyleGuide 生成可注入 prompt 的风格指导文本
 
 // ToStyleGuide 生成可注入 prompt 的风格指导文本
 func (p *Profile) ToStyleGuide() string {

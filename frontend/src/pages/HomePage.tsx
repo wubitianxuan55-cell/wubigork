@@ -151,7 +151,7 @@ const HomePage: React.FC = () => {
         }}>
           <img src="/favicon.svg" alt="" style={{ width: 80, height: 80, marginBottom: 16 }} />
           <Typography.Text style={{ color: 'var(--color-text-secondary)', fontSize: 24, fontWeight: 200, letterSpacing: '0.1em' }}>
-            wubigork
+            gaea
           </Typography.Text>
           <Typography.Text style={{ color: 'var(--color-text-secondary)', fontSize: 12, marginTop: 8 }}>
             Ctrl+N 新建小说

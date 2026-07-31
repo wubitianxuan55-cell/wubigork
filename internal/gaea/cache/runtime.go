@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/strutil"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // RuntimeLayer is the L2 cache domain — session-stable context injected as a

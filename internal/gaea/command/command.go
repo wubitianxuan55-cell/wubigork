@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/frontmatter"
+	"github.com/gaea/gaea/internal/gaea/frontmatter"
 )
 
 // Command is a custom slash command loaded from a .md file.

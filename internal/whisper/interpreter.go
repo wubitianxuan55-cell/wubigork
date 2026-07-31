@@ -87,7 +87,7 @@ var vulnerableWordsEN = []string{
 	"i love you", "loser", "not worthy", "hate myself", "no one loves me",
 	"so tired", "exhausted", "burned out", "cant take it", "no energy",
 	"help me", "please", "afraid of losing",
-	// P1补充: ackem 有但 wubigrok 缺失的30个英文脆弱词
+	// P1补充: ackem 有但 gaea 缺失的30个英文脆弱词
 	"hurts so much", "in my heart", "rarely", "first time",
 	"dare not", "depend on", "by my side", "cant live without you",
 	"crying alone", "cry", "useless", "overworked",

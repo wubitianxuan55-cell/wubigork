@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/context"
-	"github.com/wubigork/wubigork/internal/memory"
+	"github.com/gaea/gaea/internal/context"
+	"github.com/gaea/gaea/internal/memory"
 )
 
 // ── 上下文智能 API ──────────────────────────────────────────

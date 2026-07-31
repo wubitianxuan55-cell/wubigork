@@ -5,12 +5,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wubigork/wubigork/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/config"
 )
 
 // ── 设置面板视图（对齐 gaeaW desktop/settings_app.go）────────────────
 
-// ProviderView 是设置面板的引擎条目（wubigrok 侧映射模型中心引擎）。
+// ProviderView 是设置面板的引擎条目（gaea 侧映射模型中心引擎）。
 type ProviderView struct {
 	Name          string   `json:"name"`
 	Kind          string   `json:"kind"`
@@ -79,7 +79,7 @@ func (a *App) GaeaSettings() SettingsView {
 		Providers:      []ProviderView{},
 		SubagentModels: map[string]string{},
 		SubagentSkills: []string{},
-		ProviderKinds:  []string{"wubigrok"},
+		ProviderKinds:  []string{"wubigrok"}, // 内部 provider 注册名（bridge provider）
 		DefaultModel:   a.GaeaModel(),
 	}
 	if a.engineMgr != nil {
@@ -126,7 +126,7 @@ func indexByte(s string, b byte) int {
 }
 
 // GaeaSaveProvider/GaeaDeleteProvider/GaeaLoginProvider/GaeaLogoutProvider/GaeaSetProviderKey
-// 引擎增删改由 wubigrok 模型中心管理，办公板块不直接操作。
+// 引擎增删改由 gaea 模型中心管理，办公板块不直接操作。
 func (a *App) GaeaSaveProvider(p ProviderView) error            { return errNotSupported }
 func (a *App) GaeaDeleteProvider(name string) error             { return errNotSupported }
 func (a *App) GaeaLoginProvider(name string) error              { return errNotSupported }
@@ -272,7 +272,7 @@ func (a *App) GaeaAttachmentDataURL(path string) (string, error) {
 
 // ── 工作区切换 / MCP / 更新 / 其他 ────────────────────────────────
 
-// GaeaListWorkspaces 返回工作区列表（wubigrok 单工作区：当前目录）。
+// GaeaListWorkspaces 返回工作区列表（gaea 单工作区：当前目录）。
 func (a *App) GaeaListWorkspaces() []WorkspaceView { return []WorkspaceView{{Path: gaeaCwd()}} }
 
 // WorkspaceView 是工作区条目。
@@ -280,7 +280,7 @@ type WorkspaceView struct {
 	Path string `json:"path"`
 }
 
-// GaeaPickWorkspace 选择并切换工作区（wubigrok 办公板块固定当前目录）。
+// GaeaPickWorkspace 选择并切换工作区（gaea 办公板块固定当前目录）。
 func (a *App) GaeaPickWorkspace() string { return "" }
 func (a *App) GaeaSwitchWorkspace(path string) string {
 	return gaeaCwd()
@@ -351,7 +351,7 @@ type TabMeta struct {
 	Label string `json:"label"`
 }
 
-// GaeaCheckUpdate/GaeaApplyUpdate/GaeaOpenDownloadPage 更新由 wubigrok 自身管理。
+// GaeaCheckUpdate/GaeaApplyUpdate/GaeaOpenDownloadPage 更新由 gaea 自身管理。
 func (a *App) GaeaCheckUpdate() (*UpdateInfo, error) { return nil, nil }
 func (a *App) GaeaApplyUpdate() error                { return errNotSupported }
 func (a *App) GaeaOpenDownloadPage() error           { return errNotSupported }
@@ -362,7 +362,7 @@ type UpdateInfo struct {
 	Notes   string `json:"notes"`
 }
 
-// GaeaSaveWindowState 窗口状态由 wubigrok 主窗口管理。
+// GaeaSaveWindowState 窗口状态由 gaea 主窗口管理。
 func (a *App) GaeaSaveWindowState(state map[string]interface{}) error { return nil }
 
 // GaeaMemorySuggestions 返回记忆建议（办公板块不提供，返回空）。

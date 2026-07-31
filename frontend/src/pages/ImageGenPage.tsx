@@ -291,7 +291,7 @@ const ImageGenPage: React.FC = () => {
     if (!r) return
     const a = document.createElement('a')
     a.href = r.image
-    a.download = `wubigork-${Date.now()}-seed${r.seed}.png`
+    a.download = `gaea-${Date.now()}-seed${r.seed}.png`
     a.click()
   }, [history])
 

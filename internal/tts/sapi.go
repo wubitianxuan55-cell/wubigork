@@ -20,7 +20,7 @@ type WinTTS struct {
 func NewWinTTS() *WinTTS {
 	return &WinTTS{
 		voice:   "Microsoft Huihui Desktop",
-		tempDir: filepath.Join(os.TempDir(), "wubigork-tts"),
+		tempDir: filepath.Join(os.TempDir(), "gaea-tts"),
 	}
 }
 

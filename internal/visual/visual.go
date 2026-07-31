@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/project"
+	"github.com/gaea/gaea/internal/project"
 )
 
 // ── 时间线数据 ───────────────────────────────────────────────

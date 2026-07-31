@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/strutil"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // 提取：用户请求、工具统计、编辑文件、待办项、关键文件、最近工作。

@@ -3,7 +3,7 @@ package event
 import (
 	"sync"
 
-	"github.com/wubigork/wubigork/internal/gaea/nilutil"
+	"github.com/gaea/gaea/internal/gaea/nilutil"
 )
 
 // Sync wraps a Sink so concurrent Emit calls are serialized. The base Sink

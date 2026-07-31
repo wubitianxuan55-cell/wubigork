@@ -43,7 +43,7 @@ type IngestOptions struct {
 // ─── MemoryIngestPipeline ────────────────────────────────────
 
 type MemoryIngestPipeline struct {
-	llm              LlmClient // wubigrok 模型中心注入
+	llm              LlmClient // gaea 模型中心注入
 	episodeEmotionMax float64
 }
 

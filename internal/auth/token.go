@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -51,11 +52,18 @@ func (t *Token) IsExpired() bool {
 type TokenStore struct {
 	mu   sync.RWMutex
 	path string
+	// legacyPath 旧品牌 token 文件（.wubigork_token.json），主路径不存在时回退读取
+	legacyPath string
 }
 
 // NewTokenStore 创建 token 存储
 func NewTokenStore(path string) *TokenStore {
-	return &TokenStore{path: path}
+	// 兼容旧品牌：.gaea_token.json 不存在时回退 .wubigork_token.json（老用户免重新登录）
+	legacy := ""
+	if filepath.Base(path) == ".gaea_token.json" {
+		legacy = filepath.Join(filepath.Dir(path), ".wubigork_token.json")
+	}
+	return &TokenStore{path: path, legacyPath: legacy}
 }
 
 // Save 保存 token 到文件
@@ -79,6 +87,10 @@ func (s *TokenStore) Load() (*Token, error) {
 	defer s.mu.RUnlock()
 
 	data, err := os.ReadFile(s.path)
+	if err != nil && os.IsNotExist(err) && s.legacyPath != "" {
+		// 回退旧品牌 token 文件（老用户免重新登录）
+		data, err = os.ReadFile(s.legacyPath)
+	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil

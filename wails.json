@@ -1,13 +1,20 @@
 {
-  "name": "wubigork",
-  "outputfilename": "wubigork",
+  "name": "gaea",
+  "outputfilename": "gaea",
   "frontend:dir": "frontend",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "http://localhost:5173",
   "author": {
-    "name": "wubigork",
+    "name": "gaea",
     "email": ""
+  },
+  "info": {
+    "companyName": "gaea",
+    "productName": "gaea",
+    "productVersion": "1.0.0",
+    "copyright": "gaea",
+    "comments": "gaea — 多功能 AI 助手"
   }
 }

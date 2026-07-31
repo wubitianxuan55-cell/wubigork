@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/project"
+	"github.com/gaea/gaea/internal/project"
 )
 
 // ── 实体数据库 ───────────────────────────────────────────────
@@ -33,7 +33,7 @@ type EntityRelation struct {
 	Label  string `json:"label,omitempty"`
 }
 
-// EntityDB 实体数据库（存于项目 .wubigork/entities.json）
+// EntityDB 实体数据库（存于项目 .gaea/entities.json）
 type EntityDB struct {
 	Entities  []Entity         `json:"entities"`
 	Relations []EntityRelation `json:"relations"`
@@ -51,8 +51,12 @@ type Entity struct {
 
 // LoadEntityDB 从项目目录加载实体数据库
 func LoadEntityDB(projectDir string) (*EntityDB, error) {
-	path := filepath.Join(projectDir, ".wubigork", "entities.json")
+	// 兼容旧品牌：优先 .gaea/，旧项目回退 .wubigork/
+	path := filepath.Join(projectDir, ".gaea", "entities.json")
 	data, err := os.ReadFile(path)
+	if err != nil && os.IsNotExist(err) {
+		data, err = os.ReadFile(filepath.Join(projectDir, ".wubigork", "entities.json"))
+	}
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &EntityDB{}, nil
@@ -68,7 +72,7 @@ func LoadEntityDB(projectDir string) (*EntityDB, error) {
 
 // Save 保存实体数据库
 func (db *EntityDB) Save(projectDir string) error {
-	dir := filepath.Join(projectDir, ".wubigork")
+	dir := filepath.Join(projectDir, ".gaea")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}

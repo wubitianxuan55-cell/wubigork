@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool"
 
-	fileenc "github.com/wubigork/wubigork/internal/gaea/fileutil/encoding"
+	fileenc "github.com/gaea/gaea/internal/gaea/fileutil/encoding"
 )
 
 func init() { tool.RegisterBuiltin(writeFile{}) }

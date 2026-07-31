@@ -75,12 +75,14 @@ const lightFn: Record<ThemePreset, () => Partial<ThemeTokens>> = { nightJade:nig
 
 export function getThemeTokens(base: ThemePreset, darkMode: boolean): ThemeTokens { const fn = darkMode ? darkFn[base] : lightFn[base]; return fn() as ThemeTokens }
 
-const THEME_KEY = 'wubigork-theme'
-const DARK_KEY = 'wubigork-dark'
+const THEME_KEY = 'gaea-theme'
+const LEGACY_THEME_KEY = 'wubigork-theme'
+const DARK_KEY = 'gaea-dark'
+const LEGACY_DARK_KEY = 'wubigork-dark'
 
 function loadBase(): ThemePreset {
   try {
-    const v = localStorage.getItem(THEME_KEY)
+    const v = localStorage.getItem(THEME_KEY) ?? localStorage.getItem(LEGACY_THEME_KEY)
     if (v && v in darkFn) return v as ThemePreset
   } catch (_) {}
   return 'nightJade'
@@ -88,9 +90,10 @@ function loadBase(): ThemePreset {
 
 function loadDark(): boolean {
   try {
-    const v = localStorage.getItem(DARK_KEY)
+    const v = localStorage.getItem(DARK_KEY) ?? localStorage.getItem(LEGACY_DARK_KEY)
     if (v === '0') return false
   } catch (_) {}
+  return true // 默认暗色
   return true // 默认暗色
 }
 

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // mcpHTTPServer is a minimal Streamable HTTP MCP server for tests. When sse is

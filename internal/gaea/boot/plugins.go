@@ -5,10 +5,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/wubigork/wubigork/internal/gaea/config"
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/plugin"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/plugin"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // pluginsOut carries the artifacts from starting plugins and LSP.

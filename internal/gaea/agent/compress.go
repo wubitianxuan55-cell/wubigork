@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wubigork/wubigork/internal/gaea/strutil"
+	"github.com/gaea/gaea/internal/gaea/strutil"
 )
 
 // grepMatch 表示一条 grep 匹配行。

@@ -3,7 +3,7 @@ package budget
 import (
 	"testing"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 func TestGateBelowThreshold(t *testing.T) {

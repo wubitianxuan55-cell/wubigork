@@ -1,6 +1,6 @@
 package agent
 
-import "github.com/wubigork/wubigork/internal/gaea/agent/cache"
+import "github.com/gaea/gaea/internal/gaea/agent/cache"
 
 // Re-exported types and functions from the cache sub-package.
 type ToolCatalogFingerprint = cache.ToolCatalogFingerprint

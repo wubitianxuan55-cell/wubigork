@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/net/http/httpproxy"
 
-	"github.com/wubigork/wubigork/internal/gaea/sysproxy"
+	"github.com/gaea/gaea/internal/gaea/sysproxy"
 )
 
 const (

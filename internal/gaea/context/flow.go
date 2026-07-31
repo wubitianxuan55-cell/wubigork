@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // CompactPolicy defines when and how compaction triggers.

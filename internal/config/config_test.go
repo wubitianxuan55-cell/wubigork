@@ -131,7 +131,7 @@ func TestSave_MultipleKeysRoundTrip(t *testing.T) {
 	}
 
 	// 验证文件存在
-	configPath := filepath.Join(tmpHome, ".wubigork_config.json")
+	configPath := filepath.Join(tmpHome, ".gaea_config.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		t.Fatal("Save 后配置文件不存在")
 	}

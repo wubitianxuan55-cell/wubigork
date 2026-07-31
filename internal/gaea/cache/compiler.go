@@ -4,8 +4,8 @@
 package cache
 
 import (
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // Compiler assembles the L1 cache domain into the byte-stable prefix.

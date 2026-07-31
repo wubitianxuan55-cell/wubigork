@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
-	"github.com/wubigork/wubigork/internal/gaea/provider"
-	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 func (a *AgentRunner) executeBatch(ctx context.Context, calls []provider.ToolCall) []string {

@@ -3,7 +3,7 @@ package app
 import (
 	"fmt"
 
-	"github.com/wubigork/wubigork/internal/visual"
+	"github.com/gaea/gaea/internal/visual"
 )
 
 // ── 视觉叙事 API ────────────────────────────────────────────

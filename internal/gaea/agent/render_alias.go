@@ -3,8 +3,8 @@ package agent
 import (
 	"io"
 
-	"github.com/wubigork/wubigork/internal/gaea/agent/render"
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/agent/render"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // Renderer is an alias for render.Renderer — kept for external consumers (cli).

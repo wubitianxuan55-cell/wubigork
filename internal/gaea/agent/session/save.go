@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // Save writes the session's messages to path in JSONL — one provider.Message

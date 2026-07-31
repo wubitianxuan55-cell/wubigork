@@ -312,7 +312,7 @@ const ModelCenterPage: React.FC = () => {
                 children: (
                   <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
                     <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                      <SettingField label="图片保存目录" value={imageSaveDir} onChange={v => setImageSaveDir(v)} placeholder="默认: Pictures/wubigork" />
+                      <SettingField label="图片保存目录" value={imageSaveDir} onChange={v => setImageSaveDir(v)} placeholder="默认: Pictures/gaea" />
                       <Button type="primary" onClick={handleSaveImageBackend} loading={imageBackendSaving} style={{ borderRadius: 8 }}>💾 保存</Button>
                     </Space>
                   </Card>

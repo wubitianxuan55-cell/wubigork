@@ -35,7 +35,7 @@ const (
 	KeyDeepseekAPIKey      = "deepseek_api_key"
 )
 
-// configFile 表示 ~/.wubigork_config.json 的结构
+// configFile 表示 ~/.gaea_config.json 的结构
 type configFile struct {
 	XaiClientID         string  `json:"xai_client_id"`
 	NovelsDir           string  `json:"novels_dir"`
@@ -125,7 +125,7 @@ func Load() *Config {
 	if err != nil {
 		slog.Warn("获取用户主目录失败", "error", err)
 	}
-	tokenPath := filepath.Join(home, ".wubigork_token.json")
+	tokenPath := filepath.Join(home, ".gaea_token.json")
 
 	// 1. 硬编码默认值（最低优先级）
 	cfg := &Config{
@@ -136,7 +136,7 @@ func Load() *Config {
 		OIDCDiscoveryURL:   "https://auth.x.ai/.well-known/openid-configuration",
 		Model:              "grok-4.20",
 		TokenStorePath:     tokenPath,
-		NovelsDir:          filepath.Join(home, "wubigork-novels"),
+		NovelsDir:          filepath.Join(home, "gaea-novels"),
 		HTTPTimeoutSeconds:  180,
 		DefaultTemperature:  0.7,
 		AnalysisTemperature: 0.15,   // 分析任务低温度以确保精确
@@ -240,8 +240,15 @@ func Load() *Config {
 	}
 
 	// 3. Config 文件覆盖（最高优先级）
-	configPath := filepath.Join(home, ".wubigork_config.json")
-	if data, err := os.ReadFile(configPath); err == nil {
+	// 兼容旧品牌：优先读 .gaea_config.json，不存在时回退 .wubigork_config.json（老用户配置迁移）
+	configPath := filepath.Join(home, ".gaea_config.json")
+	var data []byte
+	if d, err := os.ReadFile(configPath); err == nil {
+		data = d
+	} else if legacy, lerr := os.ReadFile(filepath.Join(home, ".wubigork_config.json")); lerr == nil {
+		data = legacy
+	}
+	if data != nil {
 		var cf configFile
 		if json.Unmarshal(data, &cf) == nil {
 			if cf.XaiClientID != "" {
@@ -344,14 +351,14 @@ func dirExists(path string) bool {
 	return err == nil && info.IsDir()
 }
 
-// Save 将单个配置项写回 ~/.wubigork_config.json。
+// Save 将单个配置项写回 ~/.gaea_config.json。
 // 使用 config 包的 Key* 常量指定 key。
 func Save(key, value string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
-	configPath := filepath.Join(home, ".wubigork_config.json")
+	configPath := filepath.Join(home, ".gaea_config.json")
 
 	var cf configFile
 	if data, err := os.ReadFile(configPath); err == nil {

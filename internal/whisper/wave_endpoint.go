@@ -33,7 +33,7 @@ type LocalChatConfig struct {
 
 // SelectWaveEndpoint 选择端点：Wave0 可走本地；Wave1+ 走主 API
 // 100% 对齐 ackem chat/waveEndpoint.ts selectWaveEndpoint
-// 注意：wubigrok 用模型中心统一管理，此处保留端点选择逻辑
+// 注意：gaea 用模型中心统一管理，此处保留端点选择逻辑
 // 供上层决定使用本地/云端模型
 func SelectWaveEndpoint(
 	waveIndex int,

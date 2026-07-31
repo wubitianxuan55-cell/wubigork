@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/wubigork/wubigork/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/event"
 )
 
 // TurnDoneSink wraps an event.Sink and emits a desktop notification when a

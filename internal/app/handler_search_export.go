@@ -3,8 +3,8 @@ package app
 import (
 	"fmt"
 
-	"github.com/wubigork/wubigork/internal/export"
-	"github.com/wubigork/wubigork/internal/search"
+	"github.com/gaea/gaea/internal/export"
+	"github.com/gaea/gaea/internal/search"
 )
 
 // ── 搜索 ────────────────────────────────────────────────────

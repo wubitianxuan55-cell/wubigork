@@ -30,14 +30,18 @@ interface Personality {
 interface Message { id: string; role: 'user' | 'assistant'; content: string; streaming?: boolean; timestamp?: number }
 interface Topic { id: string; title: string; messages: Message[]; createdAt: number }
 
-const STORAGE_KEY = 'wubigrok_whisper_topics'
-const PERSONALITY_KEY = 'wubigrok_whisper_personality'
-const ACTIVE_TOPIC_KEY = 'wubigrok_whisper_active_topic'
+const STORAGE_KEY = 'gaea_whisper_topics'
+const LEGACY_STORAGE_KEY = 'wubigrok_whisper_topics'
+const PERSONALITY_KEY = 'gaea_whisper_personality'
+const LEGACY_PERSONALITY_KEY = 'wubigrok_whisper_personality'
+const ACTIVE_TOPIC_KEY = 'gaea_whisper_active_topic'
+const COMPANION_SETTINGS_KEY = 'gaea_whisper_companion_settings'
+const LEGACY_COMPANION_SETTINGS_KEY = 'wubigrok_whisper_companion_settings'
 let msgId = 0
 function nextMsgId() { msgId++; return `wm_${msgId}_${Date.now()}` }
 function genTopicId() { return `wt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` }
 function loadTopics(): Topic[] {
-  try { const r = localStorage.getItem(STORAGE_KEY); if (r) { const p = JSON.parse(r); if (Array.isArray(p) && p.length > 0) return p } } catch (_) {}
+  try { const r = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY); if (r) { const p = JSON.parse(r); if (Array.isArray(p) && p.length > 0) return p } } catch (_) {}
   return [createTopic('新对话')]
 }
 function saveTopics(t: Topic[]) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(t)) } catch (_) {} }
@@ -66,7 +70,7 @@ const WhisperPage: React.FC = () => {
   const [editValue, setEditValue] = useState('')
   const [personalities, setPersonalities] = useState<Personality[]>([])
   const [activePersonality, setActivePersonality] = useState<string>(() => {
-    try { return localStorage.getItem(PERSONALITY_KEY) || 'deredere' } catch { return 'deredere' }
+    try { return (localStorage.getItem(PERSONALITY_KEY) ?? localStorage.getItem(LEGACY_PERSONALITY_KEY)) || 'deredere' } catch { return 'deredere' }
   })
   const [personalityOpen, setPersonalityOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -106,7 +110,7 @@ const WhisperPage: React.FC = () => {
   // gaea名称：优先从 localStorage 读取自定义名称，fallback 到人格 label
   const companionName = useMemo(() => {
     try {
-      const raw = localStorage.getItem('wubigrok_whisper_companion_settings')
+      const raw = localStorage.getItem(COMPANION_SETTINGS_KEY) ?? localStorage.getItem(LEGACY_COMPANION_SETTINGS_KEY)
       if (raw) {
         const parsed = JSON.parse(raw)
         if (parsed?.companionName) return parsed.companionName
