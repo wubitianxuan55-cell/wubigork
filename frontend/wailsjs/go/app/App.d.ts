@@ -86,8 +86,6 @@ export function GaeaCancel():Promise<void>;
 
 export function GaeaEngines():Promise<Array<modelengine.EngineConfig>>;
 
-export function GaeaSetEngine(arg1:string):Promise<void>;
-
 export function GaeaInit():Promise<void>;
 
 export function GaeaModel():Promise<string>;
@@ -97,6 +95,8 @@ export function GaeaNewSession():Promise<void>;
 export function GaeaRunning():Promise<boolean>;
 
 export function GaeaSend(arg1:string):Promise<void>;
+
+export function GaeaSetEngine(arg1:string):Promise<void>;
 
 export function GaeaSkills():Promise<Array<Record<string, any>>>;
 
