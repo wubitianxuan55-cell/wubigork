@@ -1,12 +1,17 @@
 package app
 
 import (
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // ── 设置面板视图（对齐 gaeaW desktop/settings_app.go）────────────────
@@ -228,17 +233,37 @@ func (a *App) GaeaReadFile(rel string) FilePreview {
 
 // GaeaOpenWorkspacePath/GaeaRevealWorkspacePath 在文件管理器中打开/定位。
 func (a *App) GaeaOpenWorkspacePath(rel string) error {
-	return errNotSupported
+	return exec.Command("explorer", filepath.Join(gaeaCwd(), rel)).Start()
 }
 func (a *App) GaeaRevealWorkspacePath(rel string) error {
-	return errNotSupported
+	return exec.Command("explorer", "/select,", filepath.Join(gaeaCwd(), rel)).Start()
 }
 
 // GaeaWorkspaceChanges 办公板块不追踪工作区变更，返回空。
 func (a *App) GaeaWorkspaceChanges() []WorkspaceChangeView { return []WorkspaceChangeView{} }
 
 // GaeaPickFiles 使用系统文件对话框选择文件。
-func (a *App) GaeaPickFiles() []FilePickResult { return []FilePickResult{} }
+func (a *App) GaeaPickFiles() []FilePickResult {
+	if a.ctx == nil {
+		return []FilePickResult{}
+	}
+	files, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
+		Title:            "选择文件",
+		DefaultDirectory: gaeaCwd(),
+	})
+	if err != nil {
+		return []FilePickResult{}
+	}
+	out := make([]FilePickResult, 0, len(files))
+	for _, f := range files {
+		info, err := os.Stat(f)
+		if err != nil {
+			continue
+		}
+		out = append(out, FilePickResult{Path: f, Name: filepath.Base(f), Size: info.Size()})
+	}
+	return out
+}
 
 // FilePickResult 是文件选择结果。
 type FilePickResult struct {
@@ -249,17 +274,79 @@ type FilePickResult struct {
 
 // GaeaSavePastedImage 保存粘贴图片到工作区 .gaea/uploads。
 func (a *App) GaeaSavePastedImage(dataURL string) (string, error) {
-	return "", errNotSupported
+	dir := filepath.Join(gaeaCwd(), ".gaea", "uploads")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	// dataURL 形如 "data:image/png;base64,xxxx"
+	comma := strings.Index(dataURL, ",")
+	if comma < 0 {
+		return "", errors.New("无效的图片 dataURL")
+	}
+	mime := strings.TrimSuffix(strings.TrimPrefix(dataURL[:comma], "data:"), ";base64")
+	ext := ".png"
+	switch mime {
+	case "image/jpeg":
+		ext = ".jpg"
+	case "image/webp":
+		ext = ".webp"
+	case "image/gif":
+		ext = ".gif"
+	}
+	b, err := base64.StdEncoding.DecodeString(dataURL[comma+1:])
+	if err != nil {
+		return "", fmt.Errorf("图片解码失败: %w", err)
+	}
+	name := fmt.Sprintf("paste-%d%s", time.Now().UnixNano(), ext)
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
-// GaeaSaveAttachmentFile 保存附件文件。
+// GaeaSaveAttachmentFile 保存附件文件到工作区 .gaea/uploads。
 func (a *App) GaeaSaveAttachmentFile(fileName, base64Data string) (string, error) {
-	return "", errNotSupported
+	dir := filepath.Join(gaeaCwd(), ".gaea", "uploads")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	b, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return "", fmt.Errorf("附件解码失败: %w", err)
+	}
+	name := fmt.Sprintf("attach-%d-%s", time.Now().UnixNano(), filepath.Base(fileName))
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 // GaeaAttachmentDataURL 读取附件为 dataURL。
 func (a *App) GaeaAttachmentDataURL(path string) (string, error) {
-	return "", errNotSupported
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	mime := "application/octet-stream"
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png":
+		mime = "image/png"
+	case ".jpg", ".jpeg":
+		mime = "image/jpeg"
+	case ".gif":
+		mime = "image/gif"
+	case ".webp":
+		mime = "image/webp"
+	case ".pdf":
+		mime = "application/pdf"
+	case ".txt":
+		mime = "text/plain"
+	case ".md":
+		mime = "text/markdown"
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b), nil
 }
 
 // ── 工作区切换 / MCP / 更新 / 其他 ────────────────────────────────

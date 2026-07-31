@@ -61,16 +61,23 @@ func (a *App) GaeaInit() error {
 	})
 
 	// 5. 构建 controller（Hermes 规划 + Hephaestus 执行）
+	//    SessionDir 必须指向工作区会话目录（cwd/.gaea/sessions），与
+	//    GaeaListSessions/GaeaResumeSession 的读取路径一致，否则历史面板
+	//    永远看不到当前会话（会落到用户级 AppData/Roaming/gaea/sessions）。
 	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
 		Model:      "gaea",
 		RequireKey: false,
 		Sink:       sink,
 		MaxSteps:   0,
+		SessionDir: gaeaConfig.WorkspaceSessionDir(""),
 	})
 	if err != nil {
 		return fmt.Errorf("gaea: 引擎初始化失败: %w", err)
 	}
 	ga.ctrl = ctrl
+	// 启用交互式审批：工具调用放行/拒绝、ask 结构化提问经前端确认，
+	// 否则全部工具（含写文件/网络）自动放行且审批弹窗永不出现。
+	ctrl.EnableInteractiveApproval()
 	// 通知前端办公引擎就绪（对应 gaea/lib/bridge.ts 的 onReady 监听 gaea-ready）
 	a.emit("gaea-ready", map[string]interface{}{"kind": "ready"})
 	return nil
