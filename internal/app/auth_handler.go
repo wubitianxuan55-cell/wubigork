@@ -28,33 +28,48 @@ func (a *App) configureClient() {
 	}
 }
 
-// Login 触发 OAuth PKCE 登录流程
-func (a *App) Login() (string, error) {
-	result, err := auth.DoLogin(a.cfg)
-	if err != nil {
-		return "", fmt.Errorf("登录失败: %w", err)
-	}
-	// 持久化 token
-	store := auth.NewTokenStore(a.cfg.TokenStorePath)
-	if err := store.Save(result.Token); err != nil {
-		return "", fmt.Errorf("保存 token 失败: %w", err)
-	}
-	// 重新初始化 client
-	a.client = ai.NewClient(a.cfg)
-	a.configureClient()
-	// 恢复图片生成后端配置
-	a.initImageBackend()
-	// 更新引擎管理器中的 xAI key（用于模型列表拉取等）
-	if a.engineMgr != nil {
-		a.engineMgr.UpdateXAIKey(result.Token.AccessToken)
-		// 后台自动刷新 xAI 模型列表
-		go func() {
-			if _, err := a.engineMgr.RefreshModels(context.Background(), "xai"); err != nil {
-				slog.Warn("登录后刷新xAI模型列表失败", "error", err)
-			}
-		}()
-	}
-	return result.BaseURL, nil
+// Login 触发 OAuth PKCE 登录流程（异步非阻塞）
+//
+// 由于 OAuth 流程需要等待浏览器回调（最长 5 分钟），
+// 此方法立即返回，实际登录在后台 goroutine 中执行。
+// 前端应轮询 GetLoginStatus() 检测登录完成，
+// 或监听 "xai-login-success" / "xai-login-failed" 事件。
+func (a *App) Login() error {
+	slog.Info("开始 xAI OAuth 登录流程（异步）")
+	go func() {
+		result, err := auth.DoLogin(a.cfg)
+		if err != nil {
+			slog.Error("xAI OAuth 登录失败", "error", err)
+			a.emit("xai-login-failed", map[string]interface{}{"error": err.Error()})
+			return
+		}
+		slog.Info("xAI OAuth 授权成功，保存 token")
+		// 持久化 token
+		store := auth.NewTokenStore(a.cfg.TokenStorePath)
+		if err := store.Save(result.Token); err != nil {
+			slog.Error("保存 xAI token 失败", "error", err)
+			a.emit("xai-login-failed", map[string]interface{}{"error": "保存 token 失败: " + err.Error()})
+			return
+		}
+		// 重新初始化 client
+		a.client = ai.NewClient(a.cfg)
+		a.configureClient()
+		// 恢复图片生成后端配置
+		a.initImageBackend()
+		// 更新引擎管理器中的 xAI key（用于模型列表拉取等）
+		if a.engineMgr != nil {
+			a.engineMgr.UpdateXAIKey(result.Token.AccessToken)
+			// 后台自动刷新 xAI 模型列表
+			go func() {
+				if _, err := a.engineMgr.RefreshModels(context.Background(), "xai"); err != nil {
+					slog.Warn("登录后刷新xAI模型列表失败", "error", err)
+				}
+			}()
+		}
+		slog.Info("xAI 登录完成，token 已就绪", "baseURL", result.BaseURL)
+		a.emit("xai-login-success", map[string]interface{}{"baseURL": result.BaseURL})
+	}()
+	return nil
 }
 
 // GetLoginStatus 返回是否已登录

@@ -147,16 +147,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   login: async () => {
     try {
       // @ts-ignore — Wails Go binding
-      const result = await window.go.app.App.Login()
-      // login 可能触发 OAuth 流程（桌面端打开浏览器），等待登录状态确认
-      set({ loggedIn: true })
-    } catch (err: any) {
-      // 移动端 RPC bridge 下，Login 可能因 OAuth 超时抛出异常，
-      // 但实际 token 可能已被保存，轮询确认
-      console.warn('login 调用异常，尝试轮询登录状态:', err)
-      // 轮询最多 60 秒
-      for (let i = 0; i < 30; i++) {
-        await new Promise((r) => setTimeout(r, 2000))
+      // Login() 现在是异步的：立即返回，OAuth 在后台进行
+      await window.go.app.App.Login()
+      // 轮询等待登录完成（最多 5 分钟）
+      for (let i = 0; i < 75; i++) {
+        await new Promise((r) => setTimeout(r, 4000))
         try {
           // @ts-ignore
           const status = await window.go.app.App.GetLoginStatus()
@@ -166,6 +161,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         } catch (_) {}
       }
+      throw new Error('登录超时：请检查浏览器是否完成了 xAI 授权')
+    } catch (err: any) {
+      console.error('login 失败:', err)
       throw err
     }
   },

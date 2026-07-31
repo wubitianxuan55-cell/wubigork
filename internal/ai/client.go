@@ -157,19 +157,24 @@ func (c *Client) GetToken() (string, error) {
 // EnsureToken 确保已登录
 func (c *Client) EnsureToken() error {
 	_, err := c.GetToken()
-	if err != nil {
-		store := auth.NewTokenStore(c.cfg.TokenStorePath)
-		tok, err := store.Load()
-		if err != nil {
-			slog.Warn("EnsureToken: token 加载失败", "error", err)
-		}
-		if tok != nil && !tok.IsExpired() {
-			c.token = tok
-			return nil
-		}
-		return err
+	if err == nil {
+		return nil
 	}
-	return nil
+	// GetToken 失败，尝试直接从文件加载
+	store := auth.NewTokenStore(c.cfg.TokenStorePath)
+	tok, loadErr := store.Load()
+	if loadErr != nil {
+		slog.Warn("EnsureToken: token 加载失败", "error", loadErr)
+	}
+	if tok != nil && !tok.IsExpired() {
+		c.token = tok
+		return nil
+	}
+	// token 不存在或已过期，返回原始错误
+	if tok == nil {
+		return fmt.Errorf("未登录：token 文件不存在")
+	}
+	return err
 }
 
 // tryRefreshToken 尝试刷新 token 并保存，成功返回 nil

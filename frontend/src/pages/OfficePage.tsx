@@ -1,92 +1,99 @@
-import React, { useState, useCallback } from 'react'
-import { Input, Button, Card, Space, Typography, Spin, Tag, Divider } from 'antd'
-import { FolderOutlined, DesktopOutlined, SendOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, LoadingOutlined } from '@ant-design/icons'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Button, Card, Space, Typography, Input, Modal, Select, Tag, Spin, Divider, Empty, Tooltip, message, Tabs, Progress, Dropdown } from 'antd'
+import type { MenuProps } from 'antd'
+import { PlusOutlined, FileTextOutlined, RobotOutlined, ExportOutlined, DeleteOutlined, EditOutlined, FormatPainterOutlined, ExpandOutlined, CompressOutlined, PieChartOutlined, EyeOutlined, UploadOutlined, CheckCircleOutlined, WarningOutlined, CloseCircleOutlined, RightOutlined, DownOutlined, UnorderedListOutlined, LeftOutlined, CopyOutlined, BookOutlined } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
+import mermaid from 'mermaid'
 import '../whisper-theme.css'
+mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' })
+const { Title, Text, Paragraph } = Typography; const { TextArea } = Input
 
-const { Title, Text, Paragraph } = Typography
+interface PS { id: string; proposalId: string; parentId: string; index: number; level: number; title: string; content: string; status: string; children?: PS[] }
+interface FD { name: string; path: string; markdown: string; size: number }
+interface BS { techScoring?: { name: string; maxScore: string; requirement: string }[]; keyRequirements?: string[]; duration?: string; redLines?: string[]; overview?: string; extra?: Record<string, string>; rawMarkdown?: string; rawFiles?: FD[] }
+interface P { id: string; title: string; category: string; template: string; requirements: string; status: string; sections: PS[]; bidSummary?: BS; createdAt: string; updatedAt: string }
+interface T { id: string; name: string; description: string; sections: string[] }
+const ct = [{ v: 'flowchart', l: '流程图' },{ v: 'sequence', l: '时序图' },{ v: 'gantt', l: '甘特图' },{ v: 'pie', l: '饼图' },{ v: 'graph', l: '架构图' },{ v: 'mindmap', l: '思维导图' }]
+const cats = ['全部', '环保工程', '市政工程', '水利工程', '建筑工程', '其他']
+const cc2: Record<string, string> = { '环保工程': 'green', '市政工程': 'blue', '水利工程': 'cyan', '建筑工程': 'orange', '其他': 'default' }
+const gb = 'var(--whisper-glass-bg)'; const cst: React.CSSProperties = { background: gb, backdropFilter: 'blur(20px)', height: '100%', overflow: 'auto' }
 
-interface ExecResult { success: boolean; action: string; path?: string; content?: string; summary: string; error?: string }
-interface LogItem { id: number; type: 'command'|'result'|'error'; text: string; time: string; result?: ExecResult }
+function flatS(ss: PS[]): PS[] { const r: PS[] = []; for (const s of ss) { r.push(s); if (s.children?.length) r.push(...flatS(s.children)) } return r }
+function ON({ sec, sid, onS, d }: { sec: PS; sid: string | null; onS: (id: string) => void; d: number }) {
+  const [o, setO] = useState(d < 2); const h = sec.children && sec.children.length > 0
+  return <div><div onClick={() => { if (h) setO(!o); onS(sec.id) }} style={{ padding: '3px 4px', paddingLeft: 8 + d * 16, borderRadius: 4, cursor: 'pointer', background: sid === sec.id ? 'var(--md-sys-color-primary-container)' : 'transparent', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>{h ? (o ? <DownOutlined style={{ fontSize: 10 }} /> : <RightOutlined style={{ fontSize: 10 }} />) : <span style={{ width: 10 }} />}<Text style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: sid === sec.id ? 600 : (sec.level === 1 ? 600 : undefined) }}>{sec.title}</Text>{sec.status === 'completed' && <span style={{ color: '#52c41a', fontSize: 10 }}>✓</span>}</div>{o && h && sec.children!.map(c => <ON key={c.id} sec={c} sid={sid} onS={onS} d={d + 1} />)}</div>
+}
 
-let logId = 0
+const ShelvesTab: React.FC<{ pp: P[]; sid: string | null; onS: (id: string) => void; onN: () => void; onD: (id: string) => void; tt: T[] }> = ({ pp, sid, onS, onN, onD, tt }) => {
+  const [f, setF] = useState('全部'); const tn = (id: string) => tt.find(t => t.id === id)?.name || id; const fl = f === '全部' ? pp : pp.filter(p => p.category === f)
+  return <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}><Space><Title level={4} style={{ margin: 0 }}>📚 方案列表</Title><Select value={f} onChange={setF} style={{ width: 110 }} options={cats.map(c => ({ value: c, label: c }))} /></Space><Button type="primary" icon={<PlusOutlined />} onClick={onN}>新建方案</Button></div>{fl.length === 0 ? <Empty description="暂无方案" /> : <div style={{ flex: 1, overflow: 'auto' }}>{fl.map(p => <div key={p.id} onClick={() => onS(p.id)} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderRadius: 8, cursor: 'pointer', marginBottom: 6, background: sid === p.id ? 'var(--md-sys-color-primary-container)' : gb, border: sid === p.id ? '1px solid var(--md-sys-color-primary)' : '1px solid transparent', gap: 12 }}><div style={{ flex: 1, minWidth: 0 }}><Text strong style={{ fontSize: 14 }}>{p.title}</Text><div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>{p.category && <Tag color={cc2[p.category] || 'default'} style={{ fontSize: 10 }}>{p.category}</Tag>}<Tag style={{ fontSize: 10 }}>{tn(p.template)}</Tag><Tag color={p.status === 'completed' ? 'green' : p.status === 'writing' ? 'blue' : 'default'} style={{ fontSize: 10 }}>{p.status === 'completed' ? '完成' : p.status === 'writing' ? '撰写中' : '草稿'}</Tag>{p.bidSummary?.techScoring?.length ? <Tag color="purple" style={{ fontSize: 10 }}>已解析</Tag> : null}</div></div><Text type="secondary" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>{p.updatedAt?.slice(0, 10)}</Text><Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={e => { e.stopPropagation(); onD(p.id) }} /></div>)}</div>}</div>
+}
+
+const ParseTab: React.FC<{ sid: string | null; sp: P | undefined; onR: () => void }> = ({ sid, sp, onR }) => {
+  const [bp, setBp] = useState(false); const [cv, setCv] = useState(false); const [pg, setPg] = useState({ cur: 0, total: 0, name: '', status: '' })
+  const [es, setEs] = useState(''); const files = sp?.bidSummary?.rawFiles || []
+  const allDone = files.length > 0 && files.every(f => f.markdown); const hasSummary = !!(sp?.bidSummary?.techScoring && sp.bidSummary.techScoring.length > 0)
+  useEffect(() => { const u = EventsOn('proposal-convert-progress', (d: any) => { if (d.type === 'error') { setCv(false); return }; setPg({ cur: d.current || 0, total: d.total || 0, name: d.filename || '', status: d.status || '' }); if (d.current === d.total) { setCv(false); onR() } }); return () => { if (typeof u === 'function') u() } }, [onR])
+  useEffect(() => { if (hasSummary && sp?.bidSummary) setEs(JSON.stringify(sp.bidSummary, null, 2)) }, [hasSummary])
+  const hpb = async () => { if (!sid) return; setBp(true); try { await App.ProposalParseBidFile(sid); onR() } catch (e: any) { message.error(String(e)) }; setBp(false) }
+  const hcv = () => { if (!sid) return; setCv(true); App.ProposalConvertFiles(sid) }
+  const hf = async (e: React.ChangeEvent<HTMLInputElement>) => { const fl = e.target.files; if (!fl?.length) return; for (let i = 0; i < fl.length; i++) { const f = fl[i]; const r = new FileReader(); await new Promise<void>(resolve => { r.onload = async ev => { const t = (ev.target?.result as string) || ''; if (!t.trim()) { resolve(); return }; try { await App.ProposalUpdate({ ...sp, bidSummary: { ...sp?.bidSummary, rawFiles: [...files, { name: f.name, path: '', markdown: '', size: t.length }] } } as any); onR() } catch (ex: any) { message.error(String(ex)) }; resolve() }; r.readAsText(f) }) }; message.success(`已添加 ${fl.length} 个文件`) }
+  const del = async (i: number) => { try { await App.ProposalRemoveRawFile(sid!, i); onR() } catch (ex: any) { message.error(String(ex)) } }
+  const save = async () => { try { const bs = JSON.parse(es); await App.ProposalUpdate({ ...sp, bidSummary: bs } as any); onR(); message.success('已保存') } catch (e: any) { message.error('JSON 格式错误: ' + String(e)) } }
+  return <div style={{ padding: 16, height: '100%', overflow: 'auto' }}><Title level={4}>📋 招标解析</Title>{!sid ? <Empty description="请先选择方案" /> : <><Card size="small" style={{ ...cst, marginBottom: 12 }}><Space direction="vertical" style={{ width: '100%' }} size={8}><Text strong>第1步：上传文件 → 转换 Markdown</Text><Space><input type="file" id="bfi3" accept=".pdf,.txt,.doc,.docx" multiple style={{ display: 'none' }} onChange={hf} /><Button icon={<UploadOutlined />} onClick={() => document.getElementById('bfi3')?.click()}>上传文件</Button><Button type="primary" icon={<RobotOutlined />} loading={cv} onClick={hcv} disabled={files.length === 0 || allDone}>{cv ? '转换中...' : allDone ? '已转换 ✓' : '转换 Markdown'}</Button>{files.length > 0 && <Tag color="blue">{files.length} 个文件 | {files.filter(f => f.markdown).length} 已转换</Tag>}</Space>{cv && <div style={{ background: 'rgba(0,0,0,0.03)', borderRadius: 8, padding: '8px 12px' }}><Progress percent={pg.total > 0 ? Math.round(pg.cur / pg.total * 100) : 0} size="small" /><Text type="secondary" style={{ fontSize: 12 }}>{pg.name} — {pg.status}</Text></div>}{files.length > 0 && <div style={{ background: gb, borderRadius: 8, padding: 8 }}>{files.map((f, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', fontSize: 12 }}><Space><FileTextOutlined /><Text>{f.name}</Text><Tag color={f.markdown ? 'green' : 'orange'} style={{ fontSize: 10 }}>{f.markdown ? '已转换' : '待转换'}</Tag></Space><Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => del(i)} /></div>)}</div>}<Divider style={{ margin: '4px 0' }} /><Text strong>第2步：AI 分析整理 → 摘要文档（可编辑）</Text><Button type="primary" icon={<RobotOutlined />} loading={bp} onClick={hpb} disabled={!allDone || hasSummary}>{hasSummary ? '已分析 ✓' : 'AI 分析'}</Button></Space></Card>{hasSummary && <Card size="small" style={cst} title="📋 招标关键内容摘要（可编辑+导出）" extra={<Space><Button size="small" icon={<ExportOutlined />} onClick={() => { navigator.clipboard.writeText(es); message.success('已复制') }}>复制</Button><Button size="small" type="primary" onClick={save}>保存</Button></Space>}><TextArea value={es} onChange={e => setEs(e.target.value)} rows={18} style={{ fontFamily: 'monospace', fontSize: 12 }} /></Card>}</>}</div>
+}
+
+const OutlineTab: React.FC<{ sid: string | null; sp: P | undefined; ssid: string | null; onSS: (id: string) => void; onR: () => void }> = ({ sid, sp, ssid, onSS, onR }) => {
+  const [ai, setAi] = useState(false); const hgo = async () => { if (!sid) return; setAi(true); try { await App.ProposalGenerateOutline(sid, sp?.requirements || ''); onR() } catch (e: any) { message.error(String(e)) }; setAi(false) }
+  return <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}><Title level={4} style={{ margin: 0 }}>📑 大纲生成</Title><Button type="primary" icon={<RobotOutlined />} loading={ai} onClick={hgo} disabled={!sid}>AI 生成大纲</Button></div>{!sid ? <Empty description="请先选择方案" /> : !sp?.sections?.length ? <Empty description="点击生成" /> : <Card size="small" style={{ flex: 1, ...cst }}><div style={{ overflow: 'auto' }}>{sp.sections.map(sec => <ON key={sec.id} sec={sec} sid={ssid} onS={onSS} d={0} />)}</div></Card>}</div>
+}
+
+const WriteTab: React.FC<{ sid: string | null; sp: P | undefined; ssid: string | null; onSS: (id: string) => void; onR: () => void }> = ({ sid, sp, ssid, onSS, onR }) => {
+  const all = sp ? flatS(sp.sections) : []; const ss = all.find(s => s.id === ssid)
+  const [ec, setEc] = useState(''); const [pm, setPm] = useState(false); const pr = useRef<HTMLDivElement>(null)
+  const [st, setSt] = useState(false); const [stt, setStt] = useState(0); const [fc, setFc] = useState(false); const ctRef = useRef<ReturnType<typeof setTimeout> | null>(null); const [ai, setAi] = useState(false)
+  useEffect(() => { setEc(ss?.content || '') }, [ssid])
+  useEffect(() => { const u = EventsOn('proposal-stream', (d: any) => { if (d.type === 'chunk') { setEc(p => p + d.content); setStt(d.total || 0) } else if (d.type === 'done') { setSt(false); onR() } else if (d.type === 'error') { setSt(false); message.error(d.error) } }); return () => { if (typeof u === 'function') u() } }, [onR])
+  useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === 'F11') { e.preventDefault(); setFc(f => !f) } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h) }, [])
+  const occ = useCallback((v: string) => { setEc(v); if (ctRef.current) clearTimeout(ctRef.current); ctRef.current = setTimeout(async () => { if (!sid || !ssid || !sp) return; try { await App.ProposalUpdate({ ...sp, sections: sp.sections.map((s: any) => s.id === ssid ? { ...s, content: v, status: 'completed' } : s) } as any) } catch (e) { } }, 2000) }, [sid, ssid, sp])
+  const go = (d: number) => { const i = all.findIndex(s => s.id === ssid); const n = all[i + d]; if (n) { onSS(n.id); setEc(n.content || '') } }
+  const hgs = () => { if (!sid || !ssid) return; setSt(true); setEc(''); App.ProposalGenerateSectionStream(sid, ssid, '') }
+  const hp = async (op: string) => { if (!sid || !ssid) return; setAi(true); try { const r = await App.ProposalPolish(sid, ssid, ec, op) as any; onR(); const s = flatS(r.sections || []).find((x: any) => x.id === ssid); if (s) setEc(s.content || '') } catch (e: any) { message.error(String(e)) }; setAi(false) }
+  useEffect(() => { if (!pm || !pr.current) return; pr.current.innerHTML = rm(ec); let id = 0; pr.current.querySelectorAll('pre code.language-mermaid').forEach(async b => { try { const { svg } = await mermaid.render('m' + (id++), b.textContent || ''); const p = b.parentElement; if (p) p.outerHTML = svg } catch (e) { } }) }, [pm, ec])
+  const ctx: MenuProps['items'] = [{ key: 'polish', label: '润色', icon: <FormatPainterOutlined />, onClick: () => hp('polish') },{ key: 'expand', label: '扩写', icon: <ExpandOutlined />, onClick: () => hp('expand') },{ key: 'shorten', label: '精简', icon: <CompressOutlined />, onClick: () => hp('shorten') }]
+  return <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}><Title level={4} style={{ margin: '0 0 12px' }}>✍️ 文本编制</Title>{!sid ? <Empty description="请先选择方案" /> : <div style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0 }}>{!fc && <Card size="small" style={{ width: 200, flexShrink: 0, ...cst }} title="章节"><div style={{ overflow: 'auto' }}>{sp?.sections?.map(sec => <ON key={sec.id} sec={sec} sid={ssid} onS={onSS} d={0} />)}</div></Card>}<Card size="small" style={{ flex: 1, display: 'flex', flexDirection: 'column', ...cst }} title={<Space><EditOutlined /><Text strong>{ss?.title || '选择章节'}</Text>{st && <Tag color="processing">生成中</Tag>}</Space>} extra={<Space size={4} wrap><Tooltip title="上一节"><Button size="small" icon={<LeftOutlined />} onClick={() => go(-1)} disabled={!ssid || all.indexOf(ss!) <= 0} /></Tooltip><Tooltip title="下一节"><Button size="small" icon={<RightOutlined />} onClick={() => go(1)} disabled={!ssid || all.indexOf(ss!) >= all.length - 1} /></Tooltip><Divider type="vertical" /><Tooltip title="AI 流式撰写"><Button type="primary" size="small" icon={<RobotOutlined />} loading={st} onClick={hgs} disabled={!ssid}>撰写</Button></Tooltip><Dropdown menu={{ items: ctx }} trigger={['click']}><Button size="small" icon={<FormatPainterOutlined />} disabled={!ssid || !ec}>AI加工</Button></Dropdown><Tooltip title={pm ? '编辑' : '预览'}><Button size="small" icon={<EyeOutlined />} type={pm ? 'primary' : 'default'} onClick={() => setPm(!pm)}>{pm ? '编辑' : '预览'}</Button></Tooltip><Tooltip title="F11专注"><Button size="small" onClick={() => setFc(!fc)}>{fc ? '退出专注' : '专注'}</Button></Tooltip></Space>}>{!ssid ? <Empty description="选择章节" /> : pm ? <div ref={pr} className="md-content" style={{ flex: 1, overflow: 'auto', padding: '0 4px', fontSize: 14, lineHeight: 1.8 }} /> : <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>{st && <Progress percent={Math.min(100, Math.round(stt / 5))} size="small" style={{ marginBottom: 4 }} />}<TextArea value={ec} onChange={e => occ(e.target.value)} placeholder="编辑内容... 点击「撰写」AI 流式生成" style={{ flex: 1, fontFamily: 'system-ui, sans-serif', fontSize: 14, lineHeight: 1.8, border: 'none', resize: 'none', background: 'transparent' }} /></div>}</Card></div>}</div>
+}
+
+const ChartTab: React.FC<{ sid: string | null; sp: P | undefined; ssid: string | null; onSS: (id: string) => void; onR: () => void }> = ({ sid, sp, ssid, onSS, onR }) => {
+  const [ctp, setCtp] = useState('flowchart'); const [cc3, setCc3] = useState(''); const [cg, setCg] = useState(false)
+  const hgc = async () => { if (!sid || !ssid) return; setCg(true); try { const r = await App.ProposalGenerateChart(sid, ssid, ctp) as any; setCc3(r.mermaidCode || '') } catch (e: any) { message.error(String(e)) }; setCg(false) }
+  const hic = async () => { if (!cc3 || !ssid || !sp) return; try { const s = flatS(sp.sections).find(s => s.id === ssid); if (!s) return; const nc = (s.content || '') + '\n\n```mermaid\n' + cc3 + '\n```\n'; await App.ProposalUpdate({ ...sp, sections: sp.sections.map((x: any) => x.id === ssid ? { ...x, content: nc, status: 'completed' } : x) } as any); onR(); setCc3(''); message.success('已插入') } catch (e: any) { message.error(String(e)) } }
+  return <div style={{ padding: 16, height: '100%', display: 'flex', flexDirection: 'column' }}><Title level={4} style={{ margin: '0 0 12px' }}>📊 图表制作</Title>{!sid ? <Empty description="请先选择方案" /> : <div style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0 }}><Card size="small" style={{ width: 200, flexShrink: 0, ...cst }} title="章节">{sp?.sections?.map(sec => <ON key={sec.id} sec={sec} sid={ssid} onS={onSS} d={0} />)}</Card><Card size="small" style={{ flex: 1, ...cst }} title="图表" extra={<Space><Select value={ctp} onChange={setCtp} style={{ width: 120 }} options={ct.map(t => ({ value: t.v, label: t.l }))} /><Button type="primary" icon={<RobotOutlined />} loading={cg} onClick={hgc} disabled={!ssid}>生成</Button></Space>}>{cc3 ? <div><TextArea value={cc3} onChange={e => setCc3(e.target.value)} rows={8} style={{ fontFamily: 'monospace', fontSize: 12, marginBottom: 12 }} /><Space><Button type="primary" onClick={hic}>插入</Button><Button onClick={() => { navigator.clipboard.writeText('```mermaid\n' + cc3 + '\n```'); message.success('已复制') }} icon={<CopyOutlined />}>复制</Button></Space></div> : <Empty description="选择章节和图表类型" />}</Card></div>}</div>
+}
+
+const ExportTab: React.FC<{ sid: string | null; sp: P | undefined; onR: () => void }> = ({ sid, sp, onR }) => {
+  const [covr, setCovr] = useState<any[]>([]); const [covg, setCovg] = useState(false); const [compr, setCompr] = useState<any[]>([]); const [compg, setCompg] = useState(false)
+  const hed = async () => { if (!sid) return; try { message.success('Word 已导出: ' + await App.ProposalExportDocx(sid)) } catch (e: any) { message.error(String(e)) } }
+  const he = async () => { if (!sid) return; try { message.success('已导出: ' + await App.ProposalExport(sid)) } catch (e: any) { message.error(String(e)) } }
+  const hcov = async () => { if (!sid) return; setCovg(true); try { const r = await App.ProposalCheckCoverage(sid) as any; setCovr(r.coverage || []) } catch (e: any) { message.error(String(e)) }; setCovg(false) }
+  const hcomp = async () => { if (!sid) return; setCompg(true); try { const r = await App.ProposalCheckCompliance(sid) as any; setCompr(r.items || []) } catch (e: any) { message.error(String(e)) }; setCompg(false) }
+  return <div style={{ padding: 16, height: '100%', overflow: 'auto' }}><Title level={4}>📦 汇总导出</Title>{!sid ? <Empty description="请先选择方案" /> : <><Space style={{ marginBottom: 16 }}><Button type="primary" icon={<ExportOutlined />} onClick={hed}>导出 Word</Button><Button icon={<ExportOutlined />} onClick={he}>导出 MD</Button><Button icon={<CheckCircleOutlined />} onClick={hcov} disabled={!sp?.bidSummary?.techScoring?.length} loading={covg}>覆盖检查</Button><Button icon={<CheckCircleOutlined />} onClick={hcomp} loading={compg}>规范检查</Button></Space><Card size="small" style={{ ...cst, marginTop: 12 }} title={<Text strong>📄 {sp?.title}</Text>}><div className="md-content" style={{ fontSize: 13, lineHeight: 1.8 }}>{sp?.sections?.map((sec, i) => <div key={sec.id} style={{ marginBottom: 12 }}><Title level={4} style={{ margin: '12px 0 4px' }}>{i + 1}. {sec.title}</Title>{sec.content ? <div dangerouslySetInnerHTML={{ __html: rm(sec.content) }} /> : <Text type="secondary">（待撰写）</Text>}{sec.children?.map(sub => <div key={sub.id} style={{ marginLeft: 16, marginBottom: 8 }}><Title level={5} style={{ margin: '8px 0 4px' }}>{sub.title}</Title>{sub.content ? <div dangerouslySetInnerHTML={{ __html: rm(sub.content) }} /> : <Text type="secondary">（待撰写）</Text>}</div>)}</div>)}</div></Card></>}</div>
+}
 
 const OfficePage: React.FC = () => {
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [logs, setLogs] = useState<LogItem[]>([])
-  const [currentPath, setCurrentPath] = useState('C:\\')
-  const quickActions = [
-    { label: 'My Documents', action: 'list_folder', path: 'C:\\Users' },
-    { label: 'C Drive', action: 'list_folder', path: 'C:\\' },
-    { label: 'AI Novels', action: 'list_folder', path: 'C:\\AI\\xiaoshuo' },
-    { label: 'wubigrok', action: 'list_folder', path: 'C:\\AI\\wubigrok' },
-  ]
-
-  const addLog = useCallback((type: LogItem['type'], text: string, result?: ExecResult) => {
-    setLogs(prev => [...prev.slice(-200), { id: ++logId, type, text, time: new Date().toLocaleTimeString(), result }])
-  }, [])
-
-  const handleCommand = useCallback(async () => {
-    const cmd = input.trim(); if (!cmd) return
-    setInput(''); addLog('command', cmd)
-    const isTask = await App.OfficeIsTask(cmd)
-    if (isTask) {
-      setLoading(true)
-      try { const r = await App.OfficeRunTask(cmd) as any; addLog('result', r?.reply||'Done') } catch(e:any){ addLog('error', String(e)) }
-      setLoading(false); return
-    }
-    if (cmd.match(/^[A-Z]:[\\/]/i)) {
-      setLoading(true)
-      try { const r = await App.OfficeListFolder(cmd); if(r.success){ setCurrentPath(cmd); addLog('result',r.summary,r) } else addLog('error',r.error||'Failed',r) } catch(e:any){ addLog('error',String(e)) }
-      setLoading(false); return
-    }
-    setLoading(true)
-    try { const r = await App.OfficeRunTask(cmd) as any; addLog('result', r?.reply||'Done') } catch(e:any){ addLog('error',String(e)) }
-    setLoading(false)
-  }, [input, addLog])
-
-  const handleQuickAction = useCallback(async (action: string, path: string) => {
-    addLog('command', `${action}: ${path}`); setLoading(true)
-    try {
-      let r: ExecResult
-      if (action === 'list_folder') { r = await App.OfficeListFolder(path); if(r.success) setCurrentPath(path) }
-      else r = await App.OfficeExecute(action, path, '', '', '', '')
-      addLog('result', r.summary, r)
-    } catch(e:any){ addLog('error', String(e)) }
-    setLoading(false)
-  }, [addLog])
-
-  return (
-    <div style={{display:'flex',height:'100%',gap:12,padding:16,background:'var(--whisper-glass-bg)'}}>
-      <div style={{width:180,flexShrink:0}}>
-        <Card size="small" title={<Text strong>📂 Quick</Text>} style={{background:'var(--whisper-glass-bg)',backdropFilter:'blur(20px)'}}>
-          <Space direction="vertical" style={{width:'100%'}}>
-            {quickActions.map((qa,i)=><Button key={i} block size="small" type="text" icon={<FolderOutlined/>} onClick={()=>handleQuickAction(qa.action,qa.path)} style={{textAlign:'left',justifyContent:'flex-start'}}>{qa.label}</Button>)}
-            <Divider style={{margin:'4px 0'}}/>
-            <Button block size="small" type="text" icon={<ReloadOutlined/>} onClick={()=>setLogs([])}>Clear</Button>
-          </Space>
-        </Card>
-      </div>
-      <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,padding:'6px 12px',borderRadius:6,background:'rgba(255,255,255,0.5)',backdropFilter:'blur(10px)'}}>
-          <FolderOutlined/><Text style={{fontFamily:'monospace',fontSize:13,flex:1}}>{currentPath}</Text>
-          <Button size="small" icon={<ReloadOutlined/>} onClick={()=>handleQuickAction('list_folder',currentPath)}/>
-        </div>
-        <div style={{flex:1,overflow:'auto',background:'rgba(255,255,255,0.3)',borderRadius:8,padding:12}}>
-          {logs.length===0 && <div style={{textAlign:'center',padding:40,opacity:.5}}><DesktopOutlined style={{fontSize:48,marginBottom:16}}/><Title level={5}>Desktop Office Assistant</Title><Paragraph type="secondary">Enter commands or use quick actions</Paragraph></div>}
-          {logs.map(item => {
-            if (item.type==='command') return <div key={item.id} style={{marginBottom:8}}><Tag color="blue" style={{fontFamily:'monospace'}}><DesktopOutlined/> {item.text}</Tag><Text type="secondary" style={{fontSize:11}}>{item.time}</Text></div>
-            if (item.type==='error') return <Card key={item.id} size="small" style={{marginBottom:8,borderColor:'#ff4d4f'}}><Text type="danger"><CloseCircleOutlined/> {item.text}</Text></Card>
-            return <Card key={item.id} size="small" style={{marginBottom:8}}><div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}><CheckCircleOutlined style={{color:'#52c41a'}}/><Text>{item.result?.summary||item.text}</Text><Text type="secondary" style={{fontSize:11}}>{item.time}</Text></div>{item.result?.content&&<pre style={{background:'rgba(0,0,0,0.04)',padding:8,borderRadius:4,fontSize:12,maxHeight:300,overflow:'auto',whiteSpace:'pre-wrap'}}>{item.result.content}</pre>}</Card>
-          })}
-          {loading && <Spin indicator={<LoadingOutlined/>}/>}
-        </div>
-        <div style={{marginTop:8,display:'flex',gap:8,padding:8,borderRadius:8,background:'rgba(255,255,255,0.5)',backdropFilter:'blur(10px)'}}>
-          <Input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleCommand()}}} placeholder="Path, command, or task description..." disabled={loading} style={{fontFamily:'monospace'}} prefix={<DesktopOutlined/>} suffix={<Button type="primary" size="small" icon={<SendOutlined/>} onClick={handleCommand} loading={loading}/>}/>
-        </div>
-      </div>
-    </div>
-  )
+  const [pp, setPp] = useState<P[]>([]); const [sid, setSid] = useState<string | null>(null); const [ssid, setSsid] = useState<string | null>(null)
+  const [tt, setTt] = useState<T[]>([]); const [co, setCo] = useState(false); const [l, setL] = useState(false)
+  const [nt, setNt] = useState(''); const [ntpl, setNtpl] = useState('soil-remediation-bid'); const [nr, setNr] = useState(''); const [ncat, setNcat] = useState('环保工程')
+  const [tab, setTab] = useState('shelves'); const sp = pp.find(x => x.id === sid)
+  const rf = useCallback(async () => { try { setPp((await App.ProposalList() as any) || []) } catch (e) { } }, [])
+  useEffect(() => { rf(); (async () => { try { setTt((await App.ProposalTemplates() as any) || []) } catch (e) { } })() }, [])
+  const os = (id: string) => { setSid(id); setTab('parse') }; const oss = (id: string) => setSsid(id)
+  const on = () => setCo(true); const od = (id: string) => { Modal.confirm({ title: '确认删除？', okText: '删除', okType: 'danger', cancelText: '取消', onOk: async () => { await App.ProposalDelete(id); if (sid === id) setSid(null); rf() } }) }
+  const hc = async () => { if (!nr.trim()) return; setL(true); try { const r = await App.ProposalCreate(nt || '未命名方案', ntpl, nr, ncat) as any; setCo(false); setNt(''); setNr(''); await rf(); setSid(r.id); setTab('parse') } catch (e: any) { message.error(String(e)) }; setL(false) }
+  const sprops = { sid, sp, ssid, onSS: oss, onR: rf }
+  const items = [{ key: 'shelves', label: <span><BookOutlined /> 方案列表</span>, children: <ShelvesTab pp={pp} sid={sid} onS={os} onN={on} onD={od} tt={tt} /> },{ key: 'parse', label: <span><UploadOutlined /> 招标解析</span>, children: <ParseTab sid={sid} sp={sp} onR={rf} /> },{ key: 'outline', label: <span><UnorderedListOutlined /> 大纲生成</span>, children: <OutlineTab {...sprops} /> },{ key: 'write', label: <span><EditOutlined /> 文本编制</span>, children: <WriteTab {...sprops} /> },{ key: 'chart', label: <span><PieChartOutlined /> 图表制作</span>, children: <ChartTab {...sprops} /> },{ key: 'export', label: <span><ExportOutlined /> 汇总导出</span>, children: <ExportTab {...sprops} /> }]
+  return <><Tabs activeKey={tab} onChange={setTab} items={items} destroyInactiveTabPane={false} style={{ height: '100%' }} tabBarStyle={{ padding: '0 16px', marginBottom: 0 }} /><Modal title="新建方案" open={co} onOk={hc} onCancel={() => setCo(false)} confirmLoading={l} okText="创建" width={560}><Space direction="vertical" style={{ width: '100%' }} size={12}><div><Text strong>分类</Text><Select value={ncat} onChange={setNcat} style={{ width: '100%', marginTop: 4 }} options={cats.filter(c => c !== '全部').map(c => ({ value: c, label: c }))} /></div><div><Text strong>模板</Text><Select value={ntpl} onChange={setNtpl} style={{ width: '100%', marginTop: 4 }} options={tt.map(x => ({ value: x.id, label: x.name }))} /></div><div><Text strong>标题</Text><Input value={nt} onChange={e => setNt(e.target.value)} placeholder="留空则 AI 自动生成" style={{ marginTop: 4 }} /></div><div><Text strong>需求 <Text type="danger">*</Text></Text><TextArea value={nr} onChange={e => setNr(e.target.value)} placeholder="描述方案需求..." rows={5} style={{ marginTop: 4 }} /></div></Space></Modal></>
 }
+function rm(md: string): string { let h = md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); h = h.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => '<pre><code class="language-' + (lang || 'plain') + '">' + code.trim() + '</code></pre>'); h = h.replace(/`([^`]+)`/g, '<code>$1</code>'); h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>'); h = h.replace(/^## (.+)$/gm, '<h2>$1</h2>'); h = h.replace(/^# (.+)$/gm, '<h1>$1</h1>'); h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); h = h.replace(/\*(.+?)\*/g, '<em>$1</em>'); h = h.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>'); h = h.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>'); h = h.replace(/^---+$/gm, '<hr/>'); return h.split('\n').map(l => /^</.test(l) ? l : l.trim() ? '<p>' + l + '</p>' : '<br/>').join('\n') }
 export default OfficePage

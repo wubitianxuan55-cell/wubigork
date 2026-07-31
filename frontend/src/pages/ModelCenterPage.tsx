@@ -65,7 +65,7 @@ const ModelCenterPage: React.FC = () => {
   const [engineStatuses, setEngineStatuses] = useState<Record<string, EngineStatus>>({})
   const [deepseekKey, setDeepseekKeyState] = useState('')
   const [deepseekKeyMasked, setDeepseekKeyMasked] = useState('')
-
+  const [loggingIn, setLoggingIn] = useState(false)
   const [imageBackend, setImageBackend] = useState('xai')
   const [comfyUIURL, setComfyUIURL] = useState('http://127.0.0.1:8188')
   const [imageSaveDir, setImageSaveDir] = useState('')
@@ -223,7 +223,20 @@ const ModelCenterPage: React.FC = () => {
                   </div>
                 </Space>
                 {loggedIn ? <Button icon={<LogoutOutlined />} onClick={() => logout()} style={{ color: C('color-text-secondary'), fontSize: 12 }}>退出登录</Button>
-                  : <Button type="primary" icon={<LoginOutlined />} onClick={() => login()} style={{ background: 'linear-gradient(135deg, #6366f1, #2563eb)', border: 'none', borderRadius: 8, fontWeight: 500 }}>登录 xAI</Button>}
+                  : <Button type="primary" icon={<LoginOutlined />} loading={loggingIn}
+                    onClick={async () => {
+                      setLoggingIn(true)
+                      try {
+                        await login()
+                        message.success('xAI 登录成功！')
+                        await loadAll()
+                      } catch (err: any) {
+                        message.error('登录失败：' + (err?.message || err || '未知错误，请检查浏览器是否完成了 xAI 授权'))
+                      } finally {
+                        setLoggingIn(false)
+                      }
+                    }}
+                    style={{ background: 'linear-gradient(135deg, #6366f1, #2563eb)', border: 'none', borderRadius: 8, fontWeight: 500 }}>登录 xAI</Button>}
               </div>
             </Card>
           )}

@@ -1,0 +1,153 @@
+// Package proposal — 文档格式转换（优先使用 Microsoft MarkItDown）
+package proposal
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/carmel/gooxml/document"
+	"github.com/ledongthuc/pdf"
+)
+
+// ConvertToMarkdown 将文件转换为 Markdown
+// 优先使用 Microsoft MarkItDown（pip install markitdown），回退到内置转换器
+func ConvertToMarkdown(filePath string) (string, error) {
+	// 尝试 MarkItDown
+	if markitdownAvailable() {
+		result, err := convertWithMarkItDown(filePath)
+		if err == nil && result != "" {
+			return result, nil
+		}
+		// MarkItDown 失败，回退到内置
+	}
+
+	// 内置转换器
+	return builtinConvert(filePath)
+}
+
+func markitdownAvailable() bool {
+	// 检查 python 和 markitdown 是否可用
+	cmd := exec.Command("python", "-c", "from markitdown import MarkItDown")
+	return cmd.Run() == nil
+}
+
+func convertWithMarkItDown(filePath string) (string, error) {
+	// 使用 Python 脚本调用 MarkItDown
+	script := `
+import sys
+from markitdown import MarkItDown
+md = MarkItDown()
+result = md.convert(sys.argv[1])
+print(result.text_content)
+`
+	cmd := exec.Command("python", "-c", script, filePath)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("MarkItDown 转换失败: %w\n输出: %s", err, string(out))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// ─── 内置转换器（回退方案）─────────────────────────────────
+
+func builtinConvert(filePath string) (string, error) {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	switch ext {
+	case ".pdf":
+		return convertPdfToMD(filePath)
+	case ".docx":
+		return convertDocxToMD(filePath)
+	case ".doc":
+		return "", fmt.Errorf(".doc 格式暂不支持，请另存为 .docx 或安装 markitdown (pip install markitdown)")
+	case ".txt", ".md":
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return "", err
+		}
+		return string(data), nil
+	default:
+		return "", fmt.Errorf("不支持的文件格式: %s", ext)
+	}
+}
+
+func convertPdfToMD(filePath string) (string, error) {
+	f, r, err := pdf.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("打开 PDF 失败: %w（扫描件PDF请安装 markitdown: pip install markitdown）", err)
+	}
+	defer f.Close()
+
+	var buf strings.Builder
+	totalPage := r.NumPage()
+	buf.WriteString(fmt.Sprintf("# 招标文件\n\n> 来源：%s | 共 %d 页\n\n", filepath.Base(filePath), totalPage))
+
+	for i := 1; i <= totalPage; i++ {
+		page := r.Page(i)
+		if page.V.IsNull() { continue }
+		text, err := page.GetPlainText(nil)
+		if err != nil { continue }
+		md := pdfTextToMD(text)
+		if strings.TrimSpace(md) != "" {
+			buf.WriteString(md + "\n\n")
+		}
+	}
+
+	result := buf.String()
+	if result == "" {
+		return "", fmt.Errorf("PDF 无可提取文本（可能是扫描件，请安装 markitdown: pip install markitdown）")
+	}
+	return result, nil
+}
+
+func pdfTextToMD(text string) string {
+	lines := strings.Split(text, "\n")
+	var result []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" { continue }
+		if isHeading(trimmed) { result = append(result, "## "+trimmed) } else { result = append(result, trimmed) }
+	}
+	return strings.Join(result, "\n")
+}
+
+func isHeading(line string) bool {
+	if len([]rune(line)) > 40 { return false }
+	patterns := []string{"第", "一、", "二、", "三、", "1.", "招标", "投标", "项目", "技术"}
+	for _, p := range patterns {
+		if strings.Contains(line, p) { return true }
+	}
+	return false
+}
+
+func convertDocxToMD(filePath string) (string, error) {
+	doc, err := document.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("打开 docx 失败: %w", err)
+	}
+	defer func() { _ = recover() }()
+
+	var buf strings.Builder
+	buf.WriteString(fmt.Sprintf("# 招标文件\n\n> 来源：%s\n\n", filepath.Base(filePath)))
+	for _, para := range doc.Paragraphs() {
+		var parts []string
+		for _, run := range para.Runs() {
+			if t := run.Text(); t != "" { parts = append(parts, t) }
+		}
+		text := strings.TrimSpace(strings.Join(parts, ""))
+		if text == "" { buf.WriteString("\n"); continue }
+		style := para.Properties().Style()
+		isBold := false
+		for _, run := range para.Runs() {
+			if run.Properties().IsBold() { isBold = true; break }
+		}
+		if strings.Contains(style, "Heading") || strings.Contains(style, "标题") || (isBold && len([]rune(text)) < 60) {
+			buf.WriteString("## " + text + "\n\n")
+		} else {
+			buf.WriteString(text + "\n\n")
+		}
+	}
+	return buf.String(), nil
+}

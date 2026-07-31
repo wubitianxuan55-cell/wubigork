@@ -26,6 +26,7 @@ import (
 	"github.com/wubigork/wubigork/internal/skill"
 	"github.com/wubigork/wubigork/internal/voice"
 	"github.com/wubigork/wubigork/internal/channels/weixin"
+	"github.com/wubigork/wubigork/internal/office/proposal"
 	"github.com/wubigork/wubigork/internal/worldview"
 )
 
@@ -80,6 +81,9 @@ type App struct {
 	// 微信通道（多实例：assistantID → Server）
 	weixinServers map[string]*weixin.Server
 	weixinMu      sync.Mutex
+
+	// 方案编写模块
+	proposalSvc *proposal.Service
 }
 
 // emit 统一事件发射 — 发送到 Wails 前端
@@ -120,6 +124,9 @@ func (a *App) Startup(ctx context.Context) {
 	a.initImageBackend()
 	a.initVoice()
 	a.initWeixin()
+
+	// 初始化方案编写模块
+	a.proposalSvc = proposal.NewService(a.whisperDataRoot, a.client)
 
 	// 后台刷新所有引擎模型列表
 	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {
