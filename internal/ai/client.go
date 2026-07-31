@@ -333,8 +333,11 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 	defer close(chunks)
 	defer c.releaseSem()
 
+	// 工具调用分片按 index 拼装
+	toolPending := make(map[int]*ChatToolCall)
+	var toolOrder []int
+
 	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 256*1024)
 
 	for scanner.Scan() {
 		select {
@@ -354,7 +357,11 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 
 		data := strings.TrimPrefix(line, "data: ")
 		if data == "[DONE]" {
-			chunks <- SSEChunk{Done: true}
+			if len(toolOrder) > 0 {
+				chunks <- SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)}
+			} else {
+				chunks <- SSEChunk{Done: true}
+			}
 			return
 		}
 
@@ -370,6 +377,24 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 			if delta.Content != "" {
 				chunks <- SSEChunk{Content: delta.Content}
 			}
+			for _, tc := range delta.ToolCalls {
+				p, ok := toolPending[tc.Index]
+				if !ok {
+					p = &ChatToolCall{ID: tc.ID, Type: tc.Type}
+					toolPending[tc.Index] = p
+					toolOrder = append(toolOrder, tc.Index)
+				}
+				if tc.Function.Name != "" {
+					p.Function.Name = tc.Function.Name
+				}
+				if tc.Function.Arguments != "" {
+					p.Function.Arguments += tc.Function.Arguments
+				}
+			}
+			if delta.FinishReason == "tool_calls" {
+				chunks <- SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)}
+				return
+			}
 			if delta.FinishReason != "" {
 				chunks <- SSEChunk{Done: true}
 				return
@@ -382,8 +407,25 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 		return
 	}
 
-	chunks <- SSEChunk{Done: true}
+	if len(toolOrder) > 0 {
+		chunks <- SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)}
+	} else {
+		chunks <- SSEChunk{Done: true}
+	}
 }
+
+// flushToolCalls 按出现顺序输出拼装完成的工具调用列表。
+func flushToolCalls(pending map[int]*ChatToolCall, order []int) []ChatToolCall {
+	out := make([]ChatToolCall, 0, len(order))
+	for _, idx := range order {
+		if p := pending[idx]; p != nil {
+			out = append(out, *p)
+		}
+	}
+	return out
+}
+
+// ChatSimpleStream 简化流式对话，收集完整回复（5 分钟超时）。
 
 // ChatSimpleStream 简化流式对话，收集完整回复（5 分钟超时）。
 func (c *Client) ChatSimpleStream(ctx context.Context, model, systemPrompt, userMsg string) (string, error) {

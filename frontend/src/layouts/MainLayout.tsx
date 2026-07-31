@@ -4,7 +4,7 @@ import {
   ReadOutlined, HomeOutlined,
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined, ConsoleSqlOutlined,
   ApiOutlined, PictureOutlined, MessageOutlined, HeartOutlined,
-  FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined,
+  FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined, ToolOutlined,
   BarChartOutlined, DownOutlined,
 } from '@ant-design/icons'
 import SearchModal from '../components/SearchModal'
@@ -19,12 +19,13 @@ const ModelCenterPage = React.lazy(() => import('../pages/ModelCenterPage'))
 const ChatPage = React.lazy(() => import('../pages/ChatPage'))
 const WhisperPage = React.lazy(() => import('../pages/WhisperPage'))
 const OfficePage = React.lazy(() => import('../pages/OfficePage'))
+const GaeaPage = React.lazy(() => import('../pages/GaeaPage'))
 const { Header, Footer, Content } = Layout
 
-type Page = 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' | 'whisper' | 'office'
+type Page = 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' | 'whisper' | 'office' | 'gaea'
 
 // 所有页面 key 的扁平列表（用于 navigate 事件校验 + 快捷键映射）
-const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'whisper', 'office', 'modelcenter']
+const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'whisper', 'office', 'gaea', 'modelcenter']
 
 const menuItems: any[] = [
   { key: 'chat', icon: <MessageOutlined />, label: '聊天' },
@@ -32,6 +33,7 @@ const menuItems: any[] = [
   { key: 'imagegen', icon: <PictureOutlined />, label: '绘梦' },
   { key: 'whisper', icon: <HeartOutlined />, label: '轻语' },
   { key: 'office', icon: <FileTextOutlined />, label: '方案编写' },
+  { key: 'gaea', icon: <ToolOutlined />, label: '办公' },
   { key: 'modelcenter', icon: <ApiOutlined />, label: '模型中心' },
 ]
 
@@ -43,7 +45,9 @@ const pageComponents: Record<Page, React.ReactNode> = {
   chat: <ChatPage />,
   whisper: <WhisperPage />,
   office: <OfficePage />,
+  gaea: <GaeaPage />,
 }
+
 interface LogEntry {
   id: number; type: string; time: string
   model?: string; content?: string; error?: string; length?: number
@@ -126,8 +130,10 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
 }
 
 const pageLabels: Record<Page, string> = {
-  novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天', whisper: '轻语', office: '方案编写',
+  novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天', whisper: '轻语', office: '方案编写', gaea: '办公',
 }
+
+// ─── 主布局 ─────────────────────────────────────────────────
 
 // ─── 主布局 ─────────────────────────────────────────────────
 // ─── 主布局 ─────────────────────────────────────────────────
@@ -379,7 +385,7 @@ const MainLayout: React.FC = () => {
           </Content>
         </div>
 
-{consoleOpen && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && page !== 'whisper' && page !== 'office' && (
+{consoleOpen && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && page !== 'whisper' && page !== 'office' && page !== 'gaea' && (
   <div style={{
     width: 380, flexShrink: 0, alignSelf: 'stretch',
     maxHeight: 'calc(100vh - 80px)',

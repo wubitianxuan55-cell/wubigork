@@ -1,22 +1,59 @@
 package ai
 
+import "encoding/json"
+
 // ChatMessage OpenAI 兼容消息格式
 type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string         `json:"role"`
+	Content    string         `json:"content"`
+	ToolCalls  []ChatToolCall `json:"tool_calls,omitempty"`   // assistant：模型请求的工具调用
+	ToolCallID string         `json:"tool_call_id,omitempty"` // tool：回传的工具调用 ID
+	Name       string         `json:"name,omitempty"`         // tool：工具名（部分 API 需要）
+}
+
+// ChatToolCall OpenAI 兼容工具调用（assistant 消息内）。
+type ChatToolCall struct {
+	ID       string           `json:"id"`
+	Type     string           `json:"type,omitempty"`
+	Function ChatToolFunction `json:"function,omitempty"`
+}
+
+// ChatToolFunction 工具调用的函数名与参数（JSON 字符串）。
+type ChatToolFunction struct {
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
+}
+
+// ChatToolSchema OpenAI 兼容工具定义（tools 数组元素）。
+type ChatToolSchema struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+// ChatToolCallDelta 流式 tool_calls 增量分片，按 Index 拼装。
+type ChatToolCallDelta struct {
+	Index    int    `json:"index"`
+	ID       string `json:"id,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Function struct {
+		Name      string `json:"name,omitempty"`
+		Arguments string `json:"arguments,omitempty"`
+	} `json:"function,omitempty"`
 }
 
 // ChatRequest Chat Completions 请求
 type ChatRequest struct {
-	Model            string        `json:"model"`
-	Messages         []ChatMessage `json:"messages"`
-	MaxTokens        int           `json:"max_tokens,omitempty"`
-	Temperature      float64       `json:"temperature,omitempty"`
-	Stream           bool          `json:"stream"`
-	ReasoningEffort  string        `json:"reasoning_effort,omitempty"`  // Grok: "low" / "high" — 控制推理深度
-	TopP             float64       `json:"top_p,omitempty"`             // nucleus sampling
-	FrequencyPenalty float64       `json:"frequency_penalty,omitempty"` // -2.0..2.0，抑制重复
-	PresencePenalty  float64       `json:"presence_penalty,omitempty"`  // -2.0..2.0，鼓励新话题
+	Model            string          `json:"model"`
+	Messages         []ChatMessage   `json:"messages"`
+	MaxTokens        int             `json:"max_tokens,omitempty"`
+	Temperature      float64         `json:"temperature,omitempty"`
+	Stream           bool            `json:"stream"`
+	Tools            []ChatToolSchema `json:"tools,omitempty"`        // 工具定义（agent 工具循环用）
+	ReasoningEffort  string          `json:"reasoning_effort,omitempty"`  // Grok: "low" / "high" — 控制推理深度
+	TopP             float64         `json:"top_p,omitempty"`             // nucleus sampling
+	FrequencyPenalty float64         `json:"frequency_penalty,omitempty"` // -2.0..2.0，抑制重复
+	PresencePenalty  float64         `json:"presence_penalty,omitempty"`  // -2.0..2.0，鼓励新话题
 }
 
 // ChatSimpleOptions ChatSimpleStream 的可选参数覆盖
@@ -37,9 +74,10 @@ type ChatChoice struct {
 
 // ChatDelta SSE 流式 delta
 type ChatDelta struct {
-	Role         string `json:"role,omitempty"`
-	Content      string `json:"content,omitempty"`
-	FinishReason string `json:"finish_reason,omitempty"`
+	Role         string             `json:"role,omitempty"`
+	Content      string             `json:"content,omitempty"`
+	ToolCalls    []ChatToolCallDelta `json:"tool_calls,omitempty"` // 工具调用分片（按 Index 拼装）
+	FinishReason string             `json:"finish_reason,omitempty"`
 }
 
 // ChatResponse Chat Completions 响应（非流式）
@@ -55,9 +93,10 @@ type ChatResponse struct {
 
 // SSEChunk 流式响应的一帧
 type SSEChunk struct {
-	Content string `json:"content"` // delta 文本
-	Done    bool   `json:"done"`    // 是否结束
-	Error   string `json:"error,omitempty"`
+	Content   string         `json:"content"` // delta 文本
+	Done      bool           `json:"done"`    // 是否结束
+	Error     string         `json:"error,omitempty"`
+	ToolCalls []ChatToolCall `json:"tool_calls,omitempty"` // 完整工具调用（finish_reason=tool_calls 时携带）
 }
 
 // ModelsResponse /v1/models
