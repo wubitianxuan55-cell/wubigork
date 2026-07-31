@@ -11,6 +11,7 @@ import (
 	"github.com/wubigork/wubigork/internal/gaea/event"
 	"github.com/wubigork/wubigork/internal/gaea/provider/bridge"
 	"github.com/wubigork/wubigork/internal/gaea/tool"
+	"github.com/wubigork/wubigork/internal/modelengine"
 )
 
 // ── gaea 工程办公板块（移植自 gaeaW）─────────────────────────────
@@ -20,9 +21,8 @@ import (
 var ga = &gaeaRuntime{}
 
 type gaeaRuntime struct {
-	mu    sync.Mutex
-	ctrl  *control.Controller
-	model string // 当前使用的模型名（wubigrok 模型中心默认模型）
+	mu   sync.Mutex
+	ctrl *control.Controller
 }
 
 // GaeaInit 初始化办公引擎（幂等）。用 wubigrok 模型中心的默认引擎驱动。
@@ -36,23 +36,15 @@ func (a *App) GaeaInit() error {
 	// 1. 注入模型中心客户端（bridge provider 的底层）
 	bridge.SetClient(a.client)
 
-	// 2. 解析当前默认模型
-	model := ""
-	if a.engineMgr != nil {
-		if m, err := a.engineMgr.GetDefaultModel(a.client.ActiveEngineID()); err == nil && m != "" {
-			model = m
-		}
-	}
-	// 模型名留空时由 ai.Client 自动解析引擎默认模型（resolveModelName）
-	ga.model = model
-
-	// 3. 注入配置：bridge provider（kind=wubigrok 走 wubigrok 模型中心）
+	// 2. 注入配置：bridge provider（kind=wubigrok 走 wubigrok 模型中心）
+	//    Model 留空：每次请求由 ai.Client 按当前活跃引擎动态解析默认模型，
+	//    实现办公板块自动跟随模型中心的引擎/模型切换。
 	cfg := gaeaConfig.Default()
 	cfg.DefaultModel = "wubigrok"
 	cfg.Providers = []gaeaConfig.ProviderEntry{{
 		Name:          "wubigrok",
 		Kind:          "wubigrok",
-		Model:         model,
+		Model:         "",
 		ContextWindow: 1_000_000,
 	}}
 	// 全部 47 个工程工具注册（Enabled 为空 = 全部）
@@ -61,6 +53,7 @@ func (a *App) GaeaInit() error {
 	cfg.Sandbox.Bash = "off"
 	// 工具执行免审批（GUI 无审批 UI；gaeaW ask 模式在无 TTY 时也解析为 allow）
 	cfg.Permissions.Mode = "allow"
+	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) { return cfg, nil })
 	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) { return cfg, nil })
 	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) { return cfg, nil })
 
@@ -123,11 +116,27 @@ func (a *App) GaeaNewSession() error {
 	return ga.ctrl.NewSession()
 }
 
-// GaeaModel 返回当前驱动的模型名。
+// GaeaModel 实时返回模型中心当前活跃的引擎与模型（engine/model 格式）。
 func (a *App) GaeaModel() string {
-	ga.mu.Lock()
-	defer ga.mu.Unlock()
-	return ga.model
+	engine := a.GetActiveEngine()
+	model := a.GetActiveModel()
+	if model == "" {
+		return engine
+	}
+	return engine + "/" + model
+}
+
+// GaeaEngines 返回模型中心全部引擎（办公板块切换用）。
+func (a *App) GaeaEngines() []modelengine.EngineConfig {
+	if a.engineMgr == nil {
+		return nil
+	}
+	return a.engineMgr.GetEngines()
+}
+
+// GaeaSetEngine 切换办公板块使用的模型中心引擎（与全局活跃引擎联动）。
+func (a *App) GaeaSetEngine(engineID string) error {
+	return a.SetActiveEngine(engineID)
 }
 
 // GaeaTools 列出全部内置工程工具（UI 面板用）。

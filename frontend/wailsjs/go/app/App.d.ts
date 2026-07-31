@@ -84,6 +84,10 @@ export function GaeaCallTool(arg1:string,arg2:string):Promise<string>;
 
 export function GaeaCancel():Promise<void>;
 
+export function GaeaEngines():Promise<Array<modelengine.EngineConfig>>;
+
+export function GaeaSetEngine(arg1:string):Promise<void>;
+
 export function GaeaInit():Promise<void>;
 
 export function GaeaModel():Promise<string>;

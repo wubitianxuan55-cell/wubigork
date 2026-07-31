@@ -151,7 +151,15 @@ export function GaeaCallTool(arg1, arg2) {
 }
 
 export function GaeaCancel() {
-  return window['go']['app']['App']['GaeaCancel']();
+  return window["go"]["app"]["App"]["GaeaCancel"]();
+}
+
+export function GaeaEngines() {
+  return window["go"]["app"]["App"]["GaeaEngines"]();
+}
+
+export function GaeaSetEngine(arg1) {
+  return window["go"]["app"]["App"]["GaeaSetEngine"](arg1);
 }
 
 export function GaeaInit() {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Button, Card, Space, Typography, Input, Tag, Spin, Empty, message, Tabs, Tooltip, Collapse, Divider } from 'antd'
+import { Button, Card, Space, Typography, Input, Tag, Spin, Empty, message, Tabs, Tooltip, Collapse, Divider, Select } from 'antd'
 import {
   SendOutlined, RobotOutlined, ToolOutlined, BookOutlined, ClearOutlined,
   CalculatorOutlined, FileTextOutlined, BarChartOutlined, AuditOutlined, MoneyCollectOutlined, AppstoreOutlined, LoadingOutlined
@@ -54,6 +54,8 @@ function GaeaPage() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [model, setModel] = useState('')
+  const [engines, setEngines] = useState<any[]>([])
+  const [engineID, setEngineID] = useState('')
   const [tools, setTools] = useState<GTool[]>([])
   const [skills, setSkills] = useState<GSkill[]>([])
   const [toolTab, setToolTab] = useState('tools')
@@ -113,17 +115,37 @@ function GaeaPage() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
 
-  // 初始化：拉工具/技能/模型名
+  // 初始化：拉工具/技能/引擎/模型名
+  const refreshModel = useCallback(async () => {
+    try { setModel((await App.GaeaModel()) || '') } catch (e) { /* 引擎未初始化时静默 */ }
+  }, [])
   const init = useCallback(async () => {
     try {
-      setModel((await App.GaeaModel()) || '')
+      await refreshModel()
       const ts = (await App.GaeaTools()) || []
       setTools(ts as GTool[])
       const sk = (await App.GaeaSkills()) || []
       setSkills(sk as GSkill[])
+      const es = (await App.GaeaEngines()) || []
+      setEngines(es)
+      setEngineID((await App.GetActiveEngine()) || '')
     } catch (e) { /* 引擎未初始化时静默 */ }
-  }, [])
+  }, [refreshModel])
   useEffect(() => { init() }, [init])
+
+  // 模型中心切换引擎时联动刷新
+  useEffect(() => {
+    const off = EventsOn('model-changed', () => { refreshModel(); init() })
+    return () => { if (typeof off === 'function') off() }
+  }, [refreshModel, init])
+
+  const switchEngine = async (id: string) => {
+    try {
+      await App.GaeaSetEngine(id)
+      setEngineID(id)
+      await refreshModel()
+    } catch (e: any) { message.error(String(e)) }
+  }
 
   const send = async () => {
     const text = input.trim()
@@ -278,6 +300,14 @@ function GaeaPage() {
       <div style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--md-sys-color-outline-variant)' }}>
         <Space>
           <Title level={4} style={{ margin: 0 }}>🏗️ 工程办公</Title>
+          <Select
+            value={engineID || undefined}
+            onChange={switchEngine}
+            placeholder="模型中心引擎"
+            size="small"
+            style={{ minWidth: 120 }}
+            options={(engines as any[]).filter((e: any) => e.Enabled).map((e: any) => ({ value: e.ID, label: e.Name || e.ID }))}
+          />
           <Tag color="blue" style={{ fontSize: 10 }}>{model || '模型待定'}</Tag>
           <Tag color="green" style={{ fontSize: 10 }}>gaeaW 移植</Tag>
         </Space>

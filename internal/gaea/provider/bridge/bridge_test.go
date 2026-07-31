@@ -171,3 +171,20 @@ func TestBridge_Factory(t *testing.T) {
 }
 
 var errBoom = errors.New("boom")
+
+// TestBridge_Stream_EmptyModel 验证 model 为空时请求透传空模型名，
+// 由 ai.Client 按当前活跃引擎动态解析（办公板块跟随模型中心的关键）。
+func TestBridge_Stream_EmptyModel(t *testing.T) {
+	mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+	p := &Provider{name: "wubigrok", model: "", client: mc}
+	_, err := p.Stream(context.Background(), provider.Request{Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}}})
+	if err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	if mc.gotReq == nil {
+		t.Fatal("client 未收到请求")
+	}
+	if mc.gotReq.Model != "" {
+		t.Errorf("model = %q, want 空（由 ai.Client 动态解析）", mc.gotReq.Model)
+	}
+}
