@@ -29,7 +29,7 @@ export const zh: Record<DictKey, string> = {
   "topbar.startupError": "启动错误：{msg}",
   "topbar.knowledge": "知识库",
   "topbar.cost": "成本库",
-  "topbar.imagegen": "绘梦",
+
   "knowledge.all": "全部",
   "knowledge.title": "知识库",
   "knowledge.search": "搜索条目…",
@@ -305,11 +305,11 @@ export const zh: Record<DictKey, string> = {
   "settings.tab.sandbox": "沙箱",
   "settings.tab.agent": "智能体",
   "settings.tab.appearance": "外观",
-  "settings.tab.imagegen": "绘梦",
+
   "settings.tab.updates": "更新",
   "settings.providerCount": "{n} 个服务",
   "settings.agentMeta": "温度 {temp} · 步数 {steps}",
-  "settings.imagegenMeta": "后端 · 模型",
+
   "settings.appearanceMeta": "主题 · 语言",
   "settings.updatesMeta": "版本 · 配置",
   "settings.manageProviders": "管理模型服务",

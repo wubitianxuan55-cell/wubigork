@@ -211,14 +211,6 @@
   border-color: var(--color-border);
 }
 
-/* ── dream-glass — 玻璃拟态卡片（绘梦 PromptBar） ───────────────────── */
-@utility dream-glass {
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  backdrop-filter: blur(12px);
-}
-
 /* ── dream-input — 统一表单控件（select / input / textarea） ────────── */
 @utility dream-input {
   width: 100%;

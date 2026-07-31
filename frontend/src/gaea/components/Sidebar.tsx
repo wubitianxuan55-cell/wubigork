@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import {
   SquarePen, Brain, Blocks, BookOpen, MessageSquare,
   PanelLeftClose, PanelLeftOpen,
-  Settings as SettingsIcon, ImagePlus,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
@@ -27,7 +27,6 @@ export interface SidebarProps {
   onOpenHistory: () => void;
   onOpenMemory: () => void;
   onOpenCaps: () => void;
-  onOpenImageGen: () => void;
   onOpenKnowledge: () => void;
   onOpenSettings: () => void;
   startResize: (e: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -53,7 +52,6 @@ export function Sidebar({
   onOpenHistory,
   onOpenMemory,
   onOpenCaps,
-  onOpenImageGen,
   onOpenKnowledge,
   onOpenSettings,
   resizeWithKeyboard,
@@ -275,14 +273,6 @@ export function Sidebar({
           >
             <BookOpen size={15} />
             {!collapsed && <span>{t("topbar.knowledge")}</span>}
-          </button>
-          <button
-            className={`flex items-center gap-2.5 h-8 px-2.5 rounded-md text-fg-faint text-[13px] no-drag transition-[color,background,transform] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover active:scale-[0.97] ${collapsed ? "justify-center w-10 !p-0 !gap-0" : ""}`}
-            onClick={() => void onOpenImageGen()}
-            title={t("topbar.imagegen")}
-          >
-            <ImagePlus size={15} />
-            {!collapsed && <span>{t("topbar.imagegen")}</span>}
           </button>
           <button
             className={`flex items-center gap-2.5 h-8 px-2.5 rounded-md text-fg-faint text-[13px] no-drag transition-[color,background,transform] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover active:scale-[0.97] ${collapsed ? "justify-center w-10 !p-0 !gap-0" : ""}`}

@@ -5,7 +5,7 @@ import { applyTheme, getTheme, type Theme } from "../lib/theme";
 import type { SettingsView } from "../lib/types";
 import { DrawerHeader, DrawerTitle } from "./DrawerHeader";
 import { ResizableDrawer } from "./ResizableDrawer";
-import { Cpu, Shield, Box, Bot, Palette, CloudUpload, Plug, Smartphone, Wand2 } from "lucide-react";
+import { Cpu, Shield, Box, Bot, Palette, CloudUpload, Plug, Smartphone } from "lucide-react";
 import { ModelsSection } from "./SettingsModels";
 import { ProvidersSection } from "./SettingsProviders";
 import { PermissionsSection } from "./SettingsPermissions";
@@ -14,7 +14,6 @@ import { AgentSection } from "./SettingsAgent";
 import { AppearanceSection } from "./SettingsAppearance";
 import { UpdatesSection } from "./SettingsUpdates";
 import { MobileSection } from "./SettingsMobile";
-import { ImagegenSection } from "./SettingsComfyUI";
 import { SETTINGS_TABS, settingsTabLabel, settingsTabMeta, type SettingsTab } from "./SettingsShared";
 
 // SettingsPanel is the desktop settings surface, aligning with Claude Code's
@@ -37,7 +36,6 @@ export function SettingsPanel({ onClose, onChanged }: { onClose: () => void; onC
     agent: <Bot size={14} />,
     appearance: <Palette size={14} />,
     updates: <CloudUpload size={14} />,
-    imagegen: <Wand2 size={14} />,
     mobile: <Smartphone size={14} />,
   };
   const filteredTabs = query.trim() && s
@@ -128,7 +126,6 @@ export function SettingsPanel({ onClose, onChanged }: { onClose: () => void; onC
                   />
                 )}
           {tab === "updates" && <UpdatesSection configPath={s.configPath} />}
-          {tab === "imagegen" && <ImagegenSection s={s} busy={busy} apply={apply} />}
           {tab === "mobile" && <MobileSection />}
               </main>
             </div>

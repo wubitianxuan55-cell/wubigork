@@ -30,7 +30,7 @@ export const zhTW: Record<DictKey, string> = {
   "topbar.startupError": "啟動錯誤：{msg}",
   "topbar.knowledge": "知識庫",
   "topbar.cost": "成本庫",
-  "topbar.imagegen": "繪夢",
+
   "knowledge.all": "全部",
   "knowledge.title": "知識庫",
   "knowledge.search": "搜尋條目…",
@@ -307,12 +307,12 @@ export const zhTW: Record<DictKey, string> = {
   "settings.tab.agent": "代理",
   "settings.tab.appearance": "外觀",
   "settings.tab.updates": "更新",
-  "settings.tab.imagegen": "繪夢",
+
   "settings.providerCount": "{n} 個提供者",
   "settings.agentMeta": "溫度 {temp} · 步驟上限 {steps}",
   "settings.appearanceMeta": "主題 · 語言",
   "settings.updatesMeta": "版本 · 設定",
-  "settings.imagegenMeta": "後端 · 模型",
+
   "settings.manageProviders": "管理提供者",
   "settings.activeProvider": "作用中提供者",
   "settings.plannerStatus": "規劃器",

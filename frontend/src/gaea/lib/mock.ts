@@ -611,24 +611,5 @@ export function makeMockApp(): AppBindings {
       // In dev mode there is no native dialog -- return empty.
       return [];
     },
-    // 图片生成 — mock 实现
-    async GenerateFreeImage(_prompt: string, _negative: string, _size: string, _model: string, _seed: number, _n: number): Promise<import("./types").ImageGenResponse> {
-      return { error: "Mock 模式不支持图片生成，请使用真实后端" };
-    },
-    async StartComfyUI(): Promise<void> { /* no-op */ },
-    async StopComfyUI(): Promise<void> { /* no-op */ },
-    async GetComfyUIStatus(): Promise<import("./types").ComfyUIStatus> {
-      return { running: false, url: "" };
-    },
-    async SaveComfyUIConfig(_comfyUIURL: string, _imageModel: string, _comfyUIPath: string, _comfyUIPythonPath: string): Promise<void> { /* no-op */ },
-    async GetComfyUIConfig(): Promise<{url: string; model: string; path: string; pythonPath: string}> {
-      return { url: "", model: "", path: "", pythonPath: "" };
-    },
-    async SaveImageResults(_results: Record<string, unknown>[]): Promise<void> { /* no-op */ },
-    async LoadImageResults(): Promise<Record<string, unknown>[]> {
-      return [];
-    },
-    async DeleteImageResult(_index: number): Promise<void> { /* no-op */ },
-    async OpenImageHistoryDir(): Promise<void> { /* no-op */ },
   };
 }

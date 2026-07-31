@@ -28,7 +28,6 @@ export const en = {
   "topbar.startupError": "startup error: {msg}",
   "topbar.knowledge": "Knowledge",
   "topbar.cost": "Cost DB",
-  "topbar.imagegen": "Image Gen",
 
   // knowledge base panel
   "knowledge.all": "All",
@@ -303,11 +302,11 @@ export const en = {
   "settings.tab.sandbox": "Sandbox",
   "settings.tab.agent": "Agent",
   "settings.tab.appearance": "Appearance",
-  "settings.tab.imagegen": "Image Gen",
+
   "settings.tab.updates": "Updates",
   "settings.providerCount": "{n} providers",
   "settings.agentMeta": "temp {temp} · steps {steps}",
-  "settings.imagegenMeta": "backend · model",
+
   "settings.appearanceMeta": "theme · language",
   "settings.updatesMeta": "version · config",
   "settings.manageProviders": "Manage providers",

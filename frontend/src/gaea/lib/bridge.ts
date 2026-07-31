@@ -16,8 +16,6 @@ import type {
   FilePickResult,
   FilePreview,
   HistoryMessage,
-  ImageGenResponse,
-  ComfyUIStatus,
   JobView,
   KnowledgeEntry,
   KnowledgeSaveRequest,
@@ -177,19 +175,6 @@ export interface AppBindings {
   // Cost database panel.
   // PickFiles opens a native file dialog and imports selected files.
   PickFiles(): Promise<FilePickResult[]>;
-  // Image generation — 绘梦功能（从 gaea 移植）
-  GenerateFreeImage(prompt: string, negative: string, size: string, model: string, seed: number, n: number): Promise<ImageGenResponse>;
-  StartComfyUI(): Promise<void>;
-  StopComfyUI(): Promise<void>;
-  GetComfyUIStatus(): Promise<ComfyUIStatus>;
-  // ComfyUI 配置和历史持久化
-  SaveComfyUIConfig(comfyUIURL: string, imageModel: string, comfyUIPath: string, comfyUIPythonPath: string): Promise<void>;
-  GetComfyUIConfig(): Promise<{url: string; model: string; path: string; pythonPath: string}>;
-  SaveImageResults(results: Record<string, unknown>[]): Promise<void>;
-  LoadImageResults(): Promise<Record<string, unknown>[]>;
-  DeleteImageResult(index: number): Promise<void>;
-  OpenImageHistoryDir(): Promise<void>;
-
 }
 
 // Window 类型由 gaea 的 src/types/wails.d.ts 统一声明（go.app.App + runtime）。
@@ -331,9 +316,6 @@ const gaeaToGaea: Record<string, string> = {
   KnowledgeSave: "GaeaKnowledgeSave",
   KnowledgeDelete: "GaeaKnowledgeDelete",
   PickFiles: "GaeaPickFiles",
-  GenerateFreeImage: "GaeaGenerateFreeImage",
-  StartComfyUI: "GaeaStartComfyUI",
-  StopComfyUI: "GaeaStopComfyUI",
 };
 
 // app proxies each call to the live binding (or the dev mock only when truly

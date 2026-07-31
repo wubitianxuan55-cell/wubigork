@@ -29,7 +29,6 @@ const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then(m => ({ default: m.SettingsPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
-const ImageGenPanel = lazy(() => import("./components/ImageGenPanel").then(m => ({ default: m.ImageGenPanel })));
 import { WorkspacePanel } from "./components/WorkspacePanel";
 import { StartupSplash, shouldShowStartupSplash } from "./components/StartupSplash";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
@@ -155,7 +154,6 @@ export default function App() {
   const [splashDone, setSplashDone] = useState(!shouldShowStartupSplash());
   const splashHold = useMemo(() => !splashDone && !(state.meta?.ready ?? false), [splashDone, state.meta?.ready]);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [imageGenOpen, setImageGenOpen] = useState(false);
 
   const {
     sidebarCollapsed, sidebarWidth, sidebarResizing, effectiveSidebarWidth,
@@ -184,12 +182,7 @@ export default function App() {
   const openKnowledge = useCallback(() => setKnowledgeOpen(true), []);
   const closeKnowledge = useCallback(() => setKnowledgeOpen(false), []);
 
-
-  const openImageGen = useCallback(() => setImageGenOpen(true), []);
-  const closeImageGen = useCallback(() => setImageGenOpen(false), []);
-
   // handleSend intercepts the slash commands that need a desktop-native action
-  // before they reach the backend: \"/model <ref>\" rebuilds on that model, and
   // before they reach the backend: "/model <ref>" rebuilds on that model, and
   // "/memory" opens the memory drawer. Everything else — skills (/init, …),
   // custom commands, bare /model and the other read-only management verbs
@@ -333,7 +326,6 @@ export default function App() {
         if (memView !== null) { ke.preventDefault(); setMemView(null); return; }
         if (histView !== null) { ke.preventDefault(); setHistView(null); return; }
         if (knowledgeOpen) { ke.preventDefault(); setKnowledgeOpen(false); return; }
-        if (imageGenOpen) { ke.preventDefault(); setImageGenOpen(false); return; }
       }
       if (!mod) return;
       if (ke.key === "n" && !state.running) { ke.preventDefault(); void newSessionAndReset(); return; }
@@ -443,7 +435,6 @@ export default function App() {
           onOpenMemory={openMemory}
           onOpenCaps={() => setCapsOpen(true)}
           onOpenKnowledge={openKnowledge}
-          onOpenImageGen={openImageGen}
           onOpenSettings={() => setSettingsOpen(true)}
           startResize={startSidebarResize}
           resizeWithKeyboard={resizeSidebarWithKeyboard}
@@ -697,10 +688,6 @@ export default function App() {
 
       <Suspense fallback={null}>
         {knowledgeOpen && <KnowledgePanel onClose={closeKnowledge} />}
-      </Suspense>
-
-      <Suspense fallback={null}>
-        {imageGenOpen && <ImageGenPanel onClose={closeImageGen} />}
       </Suspense>
 
       <CommandPalette
