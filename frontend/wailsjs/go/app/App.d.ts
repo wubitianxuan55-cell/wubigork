@@ -309,6 +309,8 @@ export function GetDashboard(arg1:number):Promise<Record<string, any>>;
 
 export function GetDeepseekKeyStatus():Promise<Record<string, any>>;
 
+export function GetEngineList():Promise<Array<string>>;
+
 export function GetEngines():Promise<Array<modelengine.EngineConfig>>;
 
 export function GetEntityRelations():Promise<Record<string, any>>;

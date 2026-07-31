@@ -496,6 +496,6 @@ func (a *App) GaeaCapabilities() CapabilitiesView {
 // GaeaVersion 返回办公板块版本。
 
 // GaeaVersion 返回办公板块版本。
-func (a *App) GaeaVersion() string { return "10.9.0-gaea" }
+func (a *App) GaeaVersion() string { return "1.0.0" }
 
 var _ = plugin.Host{}

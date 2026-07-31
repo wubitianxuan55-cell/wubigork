@@ -1,6 +1,6 @@
 # 编译产物
-wubigork.exe
-wubigork
+gaea.exe
+gaea
 
 # 前端
 frontend/dist/
@@ -13,7 +13,7 @@ frontend/package.json.md5
 dist/
 
 # Token
-.wubigork_token.json
+.gaea_token.json
 
 # 测试项目
 novels/

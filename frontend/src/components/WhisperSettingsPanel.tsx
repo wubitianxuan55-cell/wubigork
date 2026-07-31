@@ -81,7 +81,7 @@ export default function WhisperSettingsPanel({
 
   useEffect(() => {
     (async () => {
-      try { const list = await (App as any).GetEngineList?.() as string[]; if (list) setEngineList(list) }
+      try { const list = await App.GetEngineList(); if (list) setEngineList(list) }
       catch (_) { setEngineList(['default']) }
     })()
   }, [])

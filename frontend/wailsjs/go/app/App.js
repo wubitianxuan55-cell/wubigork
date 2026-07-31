@@ -602,6 +602,10 @@ export function GetDeepseekKeyStatus() {
   return window['go']['app']['App']['GetDeepseekKeyStatus']();
 }
 
+export function GetEngineList() {
+  return window['go']['app']['App']['GetEngineList']();
+}
+
 export function GetEngines() {
   return window['go']['app']['App']['GetEngines']();
 }

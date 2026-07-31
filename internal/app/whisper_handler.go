@@ -20,6 +20,21 @@ func (a *App) Chat(systemPrompt, userPrompt string) (string, error) {
 	return a.client.ChatSimpleStream(a.ctx, "", systemPrompt, userPrompt)
 }
 
+// GetEngineList 返回模型中心全部引擎 ID（轻语设置面板引擎选择器用）
+func (a *App) GetEngineList() []string {
+	if a.engineMgr == nil {
+		return []string{"default"}
+	}
+	engs := a.engineMgr.GetEngines()
+	ids := make([]string, 0, len(engs))
+	for _, e := range engs {
+		ids = append(ids, e.ID)
+	}
+	if len(ids) == 0 {
+		return []string{"default"}
+	}
+	return ids
+}
 var (
 	whisperSessions   = map[string]*whisper.Orchestrator{}
 	whisperSessionsMu sync.RWMutex

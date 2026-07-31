@@ -51,11 +51,9 @@ func (a *App) GaeaInit() error {
 	cfg.Tools.Enabled = nil
 	// 关闭写文件/网络类工具的沙箱限制，避免办公工具被无谓拦截
 	cfg.Sandbox.Bash = "off"
-	// 工具执行免审批（GUI 无审批 UI；gaeaW ask 模式在无 TTY 时也解析为 allow）
-	cfg.Permissions.Mode = "allow"
 	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) { return cfg, nil })
-	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) { return cfg, nil })
-	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) { return cfg, nil })
+
+	// 4. 事件转发：gaea 事件流 → 前端 gaea-event 回调
 
 	// 4. 事件转发：gaea 事件流 → 前端 gaea-event 回调
 	sink := event.FuncSink(func(e event.Event) {
