@@ -28,7 +28,7 @@ func (s *Service) CheckCompliance(ctx context.Context, proposalID string) (*Prop
 	}
 	var allContent strings.Builder
 	allContent.WriteString(fmt.Sprintf("# %s\n\n", p.Title))
-	for _, sec := range p.Sections {
+	for _, sec := range flattenSections(p.Sections) {
 		if sec.Content != "" {
 			allContent.WriteString(fmt.Sprintf("## %s\n%s\n\n", sec.Title, truncate(sec.Content, 1500)))
 		}

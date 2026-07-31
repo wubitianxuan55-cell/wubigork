@@ -64,15 +64,20 @@ func (s *Service) ExportDocx(proposalID string) (string, error) {
 		doc.AddParagraph()
 	}
 
-	for _, sec := range p.Sections {
-		docxAddHeading(doc, sec.Title, 1)
-		if sec.Content != "" {
-			docxAddMarkdown(doc, sec.Content)
-		} else {
-			docxAddBody(doc, "（待撰写）")
+	var walk func(ss []ProposalSection, level int)
+	walk = func(ss []ProposalSection, level int) {
+		for _, sec := range ss {
+			docxAddHeading(doc, sec.Title, level)
+			if sec.Content != "" {
+				docxAddMarkdown(doc, sec.Content)
+			} else {
+				docxAddBody(doc, "（待撰写）")
+			}
+			doc.AddParagraph()
+			walk(sec.Children, level+1)
 		}
-		doc.AddParagraph()
 	}
+	walk(p.Sections, 1)
 
 	exportPath := filepathInDir(s.store.dir, p.ID+".docx")
 	if err := doc.SaveToFile(exportPath); err != nil {

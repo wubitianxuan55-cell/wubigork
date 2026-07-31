@@ -46,3 +46,23 @@ func lastIndex(s, sub string) int {
 	for i := len(s) - len(sub); i >= 0; i-- { if s[i:i+len(sub)] == sub { return i } }
 	return -1
 }
+
+// flattenSections 返回章节树中所有节点的指针（保持深度优先顺序），
+// 用于跨层级查找并原地更新内容。
+func flattenSections(ss []ProposalSection) []*ProposalSection {
+	var r []*ProposalSection
+	for i := range ss {
+		r = append(r, &ss[i])
+		r = append(r, flattenSections(ss[i].Children)...)
+	}
+	return r
+}
+
+// countSections 统计章节树中的节点总数
+func countSections(ss []ProposalSection) int {
+	n := 0
+	for _, s := range ss {
+		n += 1 + countSections(s.Children)
+	}
+	return n
+}

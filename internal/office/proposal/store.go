@@ -109,6 +109,7 @@ func (s *Store) Delete(id string) error {
 	defer s.mu.Unlock()
 	path := filepath.Join(s.dir, id+".json")
 	os.Remove(path)
+	os.RemoveAll(filepath.Join(s.dir, "uploads", id))
 	return s.removeIndex(id)
 }
 

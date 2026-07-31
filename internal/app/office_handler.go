@@ -76,33 +76,102 @@ func (a *App) ProposalCheckCompliance(pid string) (map[string]interface{}, error
 }
 func (a *App) ProposalReadFile(path string) (string, error)       { return proposal.ReadTextFile(path) }
 func (a *App) ProposalExportDocx(pid string) (string, error)      { return a.proposalSvc.ExportDocx(pid) }
+func (a *App) ProposalSaveUploadedFile(pid, name string, data []byte) (map[string]interface{}, error) {
+	p, err := a.proposalSvc.SaveUploadedFile(pid, name, data)
+	if err != nil { return nil, err }
+	return toMap(p), nil
+}
+func (a *App) ProposalAddSection(pid, parentID, title string) (map[string]interface{}, error) {
+	p, err := a.proposalSvc.AddSection(pid, parentID, title)
+	if err != nil { return nil, err }
+	return toMap(p), nil
+}
+func (a *App) ProposalRemoveSection(pid, sid string) (map[string]interface{}, error) {
+	p, err := a.proposalSvc.RemoveSection(pid, sid)
+	if err != nil { return nil, err }
+	return toMap(p), nil
+}
+func (a *App) ProposalRenameSection(pid, sid, title string) (map[string]interface{}, error) {
+	p, err := a.proposalSvc.RenameSection(pid, sid, title)
+	if err != nil { return nil, err }
+	return toMap(p), nil
+}
 
 func (a *App) ProposalGenerateSectionStream(pid, sid, inst string) {
 	if a.proposalSvc == nil || a.client == nil { return }
 	go func() {
-		p, err := a.proposalSvc.Get(pid); if err != nil { return }
-		var ts *proposal.ProposalSection; var ctx []string
+		p, err := a.proposalSvc.Get(pid)
+		if err != nil {
+			a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": "加载方案失败: " + err.Error()})
+			return
+		}
+		var ts *proposal.ProposalSection
+		for _, sec := range fSRP(p.Sections) { if sec.ID == sid { ts = sec; break } }
+		if ts == nil {
+			a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": "章节未找到"})
+			return
+		}
+		// 构建上下文：需求 + 大纲 + 招标要点 + 前一章节
+		var ctx []string
 		ctx = append(ctx, "方案："+p.Title)
-		if p.BidSummary != nil { for _, sc := range p.BidSummary.TechScoring { ctx = append(ctx, fmt.Sprintf("- %s(%s分):%s", sc.Name, sc.MaxScore, sc.Requirement)) } }
-		for _, sec := range fSR(p.Sections) { if sec.ID == sid { ts = &sec } }
-		if ts == nil { return }
-		sp := eSP(p.Template, fmt.Sprintf("撰写「%s」。专业、Markdown。", ts.Title))
+		ctx = append(ctx, "方案类型："+p.Template)
+		if p.Requirements != "" { ctx = append(ctx, "需求描述："+p.Requirements) }
+		if p.BidSummary != nil {
+			if len(p.BidSummary.TechScoring) > 0 {
+				ctx = append(ctx, "【招标评分标准】")
+				for _, sc := range p.BidSummary.TechScoring { ctx = append(ctx, fmt.Sprintf("- %s(%s分):%s", sc.Name, sc.MaxScore, sc.Requirement)) }
+			}
+			if len(p.BidSummary.KeyRequirements) > 0 {
+				ctx = append(ctx, "【核心要求】")
+				for _, r := range p.BidSummary.KeyRequirements { ctx = append(ctx, "- "+r) }
+			}
+			if len(p.BidSummary.RedLines) > 0 {
+				ctx = append(ctx, "【废标条款（严禁违反）】")
+				for _, r := range p.BidSummary.RedLines { ctx = append(ctx, "- "+r) }
+			}
+			if p.BidSummary.Overview != "" { ctx = append(ctx, "【项目概况】"+p.BidSummary.Overview) }
+			if p.BidSummary.Duration != "" { ctx = append(ctx, "【工期】"+p.BidSummary.Duration) }
+		}
+		ctx = append(ctx, "方案大纲：")
+		for _, sec := range fSRP(p.Sections) {
+			ctx = append(ctx, fmt.Sprintf("%s%d. %s", strings.Repeat("  ", max(0, sec.Level-1)), sec.Index+1, sec.Title))
+		}
+		var prevContent string
+		for _, sec := range fSRP(p.Sections) {
+			if sec.ID == sid { break }
+			if sec.Content != "" { prevContent = sec.Content }
+		}
+		if prevContent != "" { ctx = append(ctx, "前一章节内容参考："+prevContent) }
+		sp := eSP(p.Template, fmt.Sprintf("撰写「%s」章节。专业、Markdown，紧扣标题。字数500-1500字（核心章节更详细）。直接输出章节正文，不需要标题。", ts.Title))
 		var body string
 		for attempt := 0; attempt <= 3; attempt++ {
-			cp := strings.Join(ctx, "\n"); if attempt > 0 { cp = fmt.Sprintf("续写：%s", cp) }
+			cp := strings.Join(ctx, "\n")
+			if body != "" { cp = fmt.Sprintf("%s\n\n【已生成内容，请自然续写，不要重复前面内容】\n%s", cp, body) }
 			chunks, err := a.client.ChatStream(a.ctx, &ai.ChatRequest{Model:a.cfg.Model, Messages:[]ai.ChatMessage{{Role:"system",Content:sp},{Role:"user",Content:cp}}})
-			if err != nil { return }
+			if err != nil {
+				if body == "" { a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": "AI 生成失败: " + err.Error()}) }
+				break
+			}
 			a.emit("xai-output", map[string]interface{}{"type":"request","model":a.cfg.Model,"system":sp,"user":cp})
-			for c := range chunks { if c.Error != "" || c.Done { break }; body += c.Content; a.emit("proposal-stream", map[string]interface{}{"type":"chunk","content":c.Content,"total":len([]rune(body))}) }
+			for c := range chunks {
+				if c.Error != "" || c.Done { break }
+				body += c.Content
+				a.emit("proposal-stream", map[string]interface{}{"type":"chunk","content":c.Content,"total":len([]rune(body))})
+			}
 			if len([]rune(body)) >= 100 { break }
 		}
-		ts.Content = strings.TrimSpace(body); ts.Status = "completed"
-		p.UpdatedAt = time.Now().Format("2006-01-02 15:04:05"); a.proposalSvc.Update(p)
+		ts.Content = strings.TrimSpace(body)
+		ts.Status = "completed"
+		p.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+		if err := a.proposalSvc.Update(p); err != nil {
+			a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": "保存失败: " + err.Error()})
+			return
+		}
 		a.emit("proposal-stream", map[string]interface{}{"type":"done","content":ts.Content,"sectionId":sid,"total":len([]rune(ts.Content))})
 		a.emit("xai-output", map[string]interface{}{"type":"response","content":ts.Content,"length":len([]rune(ts.Content))})
 	}()
 }
-func fSR(ss []proposal.ProposalSection) []proposal.ProposalSection { var r []proposal.ProposalSection; for _, s := range ss { r = append(r, s); r = append(r, fSR(s.Children)...) }; return r }
+func fSRP(ss []proposal.ProposalSection) []*proposal.ProposalSection { var r []*proposal.ProposalSection; for i := range ss { r = append(r, &ss[i]); r = append(r, fSRP(ss[i].Children)...) }; return r }
 func eSP(t, b string) string { if t == "soil-remediation-bid" { return b + proposal.SoilRemediationKB }; return b }
 
 func toMap(p *proposal.Proposal) map[string]interface{} {

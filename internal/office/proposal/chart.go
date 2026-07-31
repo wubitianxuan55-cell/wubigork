@@ -31,7 +31,7 @@ func (s *Service) GenerateChart(ctx context.Context, proposalID, sectionID, char
 	p, err := s.store.Get(proposalID)
 	if err != nil { return nil, "", err }
 	var targetSec *ProposalSection
-	for i := range p.Sections { if p.Sections[i].ID == sectionID { targetSec = &p.Sections[i]; break } }
+	for _, sec := range flattenSections(p.Sections) { if sec.ID == sectionID { targetSec = sec; break } }
 	if targetSec == nil { return nil, "", fmt.Errorf("章节未找到: %s", sectionID) }
 	ctxParts := []string{fmt.Sprintf("方案：%s", p.Title), fmt.Sprintf("章节：%s", targetSec.Title)}
 	if targetSec.Content != "" { ctxParts = append(ctxParts, "内容摘要："+truncate(targetSec.Content, 800)) }

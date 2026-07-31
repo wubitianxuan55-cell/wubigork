@@ -81,13 +81,13 @@ func (s *Service) UpdateSection(proposalID, sectionID, title, content string) (*
 	if err != nil {
 		return nil, err
 	}
-	for i := range p.Sections {
-		if p.Sections[i].ID == sectionID {
+	for _, sec := range flattenSections(p.Sections) {
+		if sec.ID == sectionID {
 			if title != "" {
-				p.Sections[i].Title = title
+				sec.Title = title
 			}
-			p.Sections[i].Content = content
-			p.Sections[i].Status = "completed"
+			sec.Content = content
+			sec.Status = "completed"
 			break
 		}
 	}
@@ -212,7 +212,6 @@ func (s *Service) GenerateOutline(ctx context.Context, proposalID, requirements 
 		newSections = append(newSections, chSec)
 	}
 	p.Sections = newSections
-	p.Sections = newSections
 	p.UpdatedAt = now()
 
 	if err := s.store.Update(p); err != nil {
@@ -231,14 +230,14 @@ func (s *Service) GenerateSection(ctx context.Context, proposalID, sectionID, in
 		return nil, err
 	}
 
-	// 找到目标章节
+	// 找到目标章节（支持任意层级）
 	var targetSec *ProposalSection
 	var prevContent string
-	for i := range p.Sections {
-		if p.Sections[i].ID == sectionID {
-			targetSec = &p.Sections[i]
-		} else if targetSec == nil && p.Sections[i].Content != "" {
-			prevContent = p.Sections[i].Content
+	for _, sec := range flattenSections(p.Sections) {
+		if sec.ID == sectionID {
+			targetSec = sec
+		} else if targetSec == nil && sec.Content != "" {
+			prevContent = sec.Content
 		}
 	}
 	if targetSec == nil {
@@ -251,15 +250,20 @@ func (s *Service) GenerateSection(ctx context.Context, proposalID, sectionID, in
 	contextParts = append(contextParts, fmt.Sprintf("方案类型：%s", p.Template))
 	contextParts = append(contextParts, fmt.Sprintf("需求描述：%s", p.Requirements))
 
-	// 加入大纲
+	// 加入大纲（含全部层级与完成标记）
 	contextParts = append(contextParts, "方案大纲：")
-	for _, sec := range p.Sections {
-		marker := ""
-		if sec.Status == "completed" {
-			marker = " ✓"
+	var walk func(ss []ProposalSection, depth int)
+	walk = func(ss []ProposalSection, depth int) {
+		for _, sec := range ss {
+			marker := ""
+			if sec.Status == "completed" {
+				marker = " ✓"
+			}
+			contextParts = append(contextParts, fmt.Sprintf("%s%d. %s%s", strings.Repeat("  ", depth), sec.Index+1, sec.Title, marker))
+			walk(sec.Children, depth+1)
 		}
-		contextParts = append(contextParts, fmt.Sprintf("  %d. %s%s", sec.Index+1, sec.Title, marker))
 	}
+	walk(p.Sections, 0)
 
 	// 加入前一章内容（如有）
 	if prevContent != "" {
@@ -325,9 +329,9 @@ func (s *Service) Polish(ctx context.Context, proposalID, sectionID, content, op
 	}
 
 	var targetSec *ProposalSection
-	for i := range p.Sections {
-		if p.Sections[i].ID == sectionID {
-			targetSec = &p.Sections[i]
+	for _, sec := range flattenSections(p.Sections) {
+		if sec.ID == sectionID {
+			targetSec = sec
 			break
 		}
 	}
@@ -366,7 +370,6 @@ func (s *Service) Polish(ctx context.Context, proposalID, sectionID, content, op
 	if err := s.store.Update(p); err != nil {
 		return nil, err
 	}
-	return p, nil
 	return p, nil
 }
 
@@ -511,6 +514,9 @@ func (s *Service) RemoveRawFile(proposalID string, index int) (*Proposal, error)
 	if p.BidSummary == nil || index < 0 || index >= len(p.BidSummary.RawFiles) {
 		return p, nil
 	}
+	if f := p.BidSummary.RawFiles[index]; f.Path != "" {
+		_ = os.Remove(f.Path)
+	}
 	p.BidSummary.RawFiles = append(p.BidSummary.RawFiles[:index], p.BidSummary.RawFiles[index+1:]...)
 
 	// 重新合并
@@ -543,7 +549,7 @@ func (s *Service) CheckCoverage(ctx context.Context, proposalID string) (*Propos
 
 	// 收集所有章节内容
 	var allContent strings.Builder
-	for _, sec := range p.Sections {
+	for _, sec := range flattenSections(p.Sections) {
 		if sec.Content != "" {
 			allContent.WriteString(fmt.Sprintf("【%s】\n%s\n\n", sec.Title, sec.Content))
 		}
