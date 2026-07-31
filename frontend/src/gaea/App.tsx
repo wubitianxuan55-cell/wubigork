@@ -5,7 +5,7 @@ import {
   PanelRightOpen, PanelRightClose, Settings as SettingsIcon, MessageSquare, FileText,
 } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
-import { useT } from "./lib/i18n";
+import { LocaleProvider, useT } from "./lib/i18n";
 import { sessionTitle, sessionTime } from "./lib/session";
 import { applyTheme } from "./lib/theme";
 import { useController } from "./lib/store";
@@ -410,6 +410,7 @@ export default function App() {
     return "";
   }, [state.items]);
   return (
+    <LocaleProvider>
     <ToastProvider>
     {!splashDone && <StartupSplash hold={splashHold} onDone={() => setSplashDone(true)} />}
     <div className="app">
@@ -710,5 +711,6 @@ export default function App() {
       />
     </div>
     </ToastProvider>
+    </LocaleProvider>
   );
 }
