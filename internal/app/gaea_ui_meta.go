@@ -83,10 +83,23 @@ type ModelInfo struct {
 	Current  bool   `json:"current"`
 }
 
-// GaeaMeta 返回会话元信息。
+// GaeaMeta 返回会话元信息。控制器未初始化时懒初始化（首次调用即就绪），
+// 避免办公板块一直停留在"正在连接智能体"加载态。
 func (a *App) GaeaMeta() Meta {
 	c := gaeaCtrl()
 	cwd, _ := os.Getwd()
+	if c == nil {
+		if err := a.GaeaInit(); err != nil {
+			return Meta{
+				Label:        "gaea",
+				Ready:        false,
+				StartupErr:   err.Error(),
+				EventChannel: "gaea-event",
+				Cwd:          cwd,
+			}
+		}
+		c = gaeaCtrl()
+	}
 	perm := "ask"
 	if c != nil {
 		perm = c.PermLevel()

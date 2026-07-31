@@ -71,6 +71,8 @@ func (a *App) GaeaInit() error {
 		return fmt.Errorf("gaea: 引擎初始化失败: %w", err)
 	}
 	ga.ctrl = ctrl
+	// 通知前端办公引擎就绪（对应 gaea/lib/bridge.ts 的 onReady 监听 gaea-ready）
+	a.emit("gaea-ready", map[string]interface{}{"kind": "ready"})
 	return nil
 }
 
