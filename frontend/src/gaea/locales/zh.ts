@@ -1,12 +1,10 @@
 // 简体中文 UI 文案。键集必须与 en.ts 完全一致 —— 下面的 `Record<DictKey, string>`
 // 注解会在编译期强制这一点：缺键或多键都会让 tsc 报错。{placeholder} 占位符在
 // 调用时由 lib/i18n.tsx 填充，需与英文保持同名。
-
 import type { DictKey } from "./en";
 
 export const zh: Record<DictKey, string> = {
   // 通用动词 / 框架
-  "app.splashSubtitle": "土壤修复工程办公AI助手",
   "common.close": "关闭",
   "common.cancel": "取消",
   "common.save": "保存",

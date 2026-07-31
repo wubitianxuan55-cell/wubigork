@@ -2,10 +2,8 @@
 // may contain {placeholders} filled at call time (see lib/i18n.tsx). zh.ts must
 // mirror this key set exactly (its `Record<DictKey, string>` annotation enforces
 // it at compile time), so adding a key here makes the build fail until zh has it.
-
 export const en = {
   // shared verbs / chrome
-  "app.splashSubtitle": "Soil Remediation Engineering AI Assistant",
   "common.close": "Close",
   "common.cancel": "Cancel",
   "common.save": "Save",

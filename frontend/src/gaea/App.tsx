@@ -30,7 +30,6 @@ const SettingsPanel = lazy(() => import("./components/SettingsPanel").then(m => 
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
 import { WorkspacePanel } from "./components/WorkspacePanel";
-import { StartupSplash, shouldShowStartupSplash } from "./components/StartupSplash";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { ReportPreviewPanel } from "./components/ReportPreviewPanel";
 import { StatsPanel, useStatsPersistence } from "./components/StatsPanel";
@@ -151,8 +150,6 @@ export default function App() {
   const [compactMode, setCompactMode] = useState(() => { try { return localStorage.getItem("gaea.compactMode") === "1"; } catch { return false; } });
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === "undefined" ? 1440 : window.innerWidth));
-  const [splashDone, setSplashDone] = useState(!shouldShowStartupSplash());
-  const splashHold = useMemo(() => !splashDone && !(state.meta?.ready ?? false), [splashDone, state.meta?.ready]);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const {
@@ -403,7 +400,6 @@ export default function App() {
   }, [state.items]);
   return (
     <ToastProvider>
-    {!splashDone && <StartupSplash hold={splashHold} onDone={() => setSplashDone(true)} />}
     <div className="app">
       <div
         className={[

@@ -1,11 +1,9 @@
 // 繁體中文 (zh-TW) UI 文案 — 鍵集與 en.ts 必須完全一致。
 // 轉換規則：簡體→繁體用字 + 臺灣慣用詞彙調整（載入/設定/資訊/預設/指令等）。
-
 import type { DictKey } from "./en";
 
 export const zhTW: Record<DictKey, string> = {
   //  shared verbs / chrome
-  "app.splashSubtitle": "土壤修復工程辦公AI助手",
   "common.close": "關閉",
   "common.cancel": "取消",
   "common.save": "儲存",
