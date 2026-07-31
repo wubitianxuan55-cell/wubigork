@@ -43,9 +43,7 @@ func (a *App) GaeaInit() error {
 			model = m
 		}
 	}
-	if model == "" {
-		model = "grok-3" // 兜底：与 ai.Client 默认一致
-	}
+	// 模型名留空时由 ai.Client 自动解析引擎默认模型（resolveModelName）
 	ga.model = model
 
 	// 3. 注入配置：bridge provider（kind=wubigrok 走 wubigrok 模型中心）
