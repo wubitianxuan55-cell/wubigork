@@ -487,10 +487,13 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
 
               {/* 信息区 */}
               <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <Text strong style={{ fontSize: 14, color: ast.enabled ? '#fff' : 'rgba(255,255,255,0.5)' }}>
                     {ast.name}
                   </Text>
+                  {ast.name === 'gaea' || ast.personalityId === 'gaea'
+                    ? <Tag color="green" style={{ fontSize: 9, margin: 0 }}>AI 助手</Tag>
+                    : <Tag color="geekblue" style={{ fontSize: 9, margin: 0 }}>角色</Tag>}
                   {!ast.enabled && <Tag style={{ fontSize: 9, margin: 0 }}>已禁用</Tag>}
                 </div>
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
@@ -546,7 +549,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           <span style={{ width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)', fontSize: 20 }}>
             <PlusOutlined />
           </span>
-          <Text style={{ fontSize: 12, fontWeight: 500 }}>新建虚拟助手</Text>
+          <Text style={{ fontSize: 12, fontWeight: 500 }}>新建角色</Text>
           <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>独立人格 · 可绑微信</Text>
         </div>
       </div>
@@ -697,58 +700,48 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
 
   // ─── 主弹窗 ────────────────────────────────────────────────
 
+  // 铺满主界面（非弹窗）：角色中心全页视图
+  if (!open) return null
   return (
-    <Modal
-      title={null}
-      open={open}
-      onCancel={onClose}
-      footer={null}
-      width={640}
-      centered
-      styles={{
-        body: {
-          padding: 0, maxHeight: '76vh', overflow: 'auto',
-          background: 'linear-gradient(180deg, rgba(13,13,20,0.92) 0%, rgba(17,17,25,0.94) 100%)',
-          backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
-        },
-      }}
-      style={{
-        background: 'linear-gradient(180deg, #0f0f18 0%, #13131e 100%)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 20,
-        boxShadow: '0 24px 80px rgba(0,0,0,0.55), 0 0 60px rgba(232,83,136,0.06)',
-        overflow: 'hidden',
-      }}
-    >
-      {/* 标题栏 */}
+    <div style={{
+      height: '100%', display: 'flex', flexDirection: 'column',
+      background: 'linear-gradient(180deg, rgba(13,13,20,0.96) 0%, rgba(17,17,25,0.98) 100%)',
+      overflow: 'hidden',
+    }}>
+      {/* 头部工具栏 */}
       <div style={{
-        padding: '16px 24px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)',
-        background: 'rgba(255,255,255,0.015)', backdropFilter: 'blur(20px)',
-        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '12px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+        background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(20px)',
+        display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
       }}>
         <span style={{
-          fontSize: 20, width: 40, height: 40, borderRadius: 12,
+          fontSize: 18, width: 38, height: 38, borderRadius: 12,
           background: 'linear-gradient(135deg, rgba(232,83,136,0.15), rgba(168,85,247,0.1))',
           border: '1px solid rgba(232,83,136,0.2)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <UserOutlined style={{ color: '#e85388', fontSize: 16 }} />
+          <UserOutlined style={{ color: '#e85388', fontSize: 15 }} />
         </span>
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>
-            {detail ? `${detail.name} · 助手详情` : editing ? (editing.id ? `编辑 ${editing.name}` : '新建虚拟助手') : '虚拟助手管理中心'}
+            {detail ? `${detail.name} · 角色详情` : editing ? (editing.id ? `编辑 ${editing.name}` : '新建角色') : '角色中心'}
           </div>
-          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
-            {detail ? '角色参数设定 · 参照小说角色卡' : editing ? '' : `${assistants.length} 个助手 · 各绑定独立人格与微信`}
+          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+            {detail ? '角色参数设定 · 参照小说角色卡' : editing ? '' : `${assistants.length} 个角色 · gaea 为核心 AI 助手，其余为角色`}
           </Text>
         </div>
+        <div style={{ flex: 1 }} />
+        <Button icon={<CloseOutlined />} onClick={onClose}
+          style={{ borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+          返回聊天
+        </Button>
       </div>
 
-      {/* 内容区 */}
-      <div style={{ padding: '20px 24px' }}>
+      {/* 内容滚动区 */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
         {detail ? renderDetail(detail) : editing ? renderEditor() : renderList()}
       </div>
-    </Modal>
+    </div>
   )
 }
 
