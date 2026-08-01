@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 // BranchMeta is the small sidecar record that turns flat session files into a
@@ -90,29 +92,12 @@ func SaveBranchMeta(sessionPath string, m BranchMeta) error {
 		m.CreatedAt = now
 	}
 	m.UpdatedAt = now
-	if err := os.MkdirAll(filepath.Dir(metaPath), 0o755); err != nil {
-		return err
-	}
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
 	}
 	b = append(b, '\n')
-	tmp, err := os.CreateTemp(filepath.Dir(metaPath), ".branch.*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.Write(b); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return err
-	}
-	return os.Rename(tmpPath, metaPath)
+	return fileutil.AtomicWrite(metaPath, b, 0o644)
 }
 
 // EnsureBranchMeta loads existing branch metadata or creates a fresh record.

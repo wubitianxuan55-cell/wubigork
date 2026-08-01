@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
@@ -23,29 +25,16 @@ func (s *Session) Save(path string) error {
 	if path == "" {
 		return fmt.Errorf("empty session path")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("create session dir: %w", err)
-	}
-	// Write to a sibling tmp file then rename, so a crash mid-write can't
-	// leave a partial JSONL that won't reload.
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".session.*.tmp")
-	if err != nil {
-		return fmt.Errorf("create session tmp: %w", err)
-	}
-	tmpPath := tmp.Name()
-	enc := json.NewEncoder(tmp)
+	// Encode the whole JSONL into memory, then write atomically — a crash
+	// mid-write can't leave a partial JSONL that won't reload.
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
 	for _, m := range s.Snapshot() { // copy under the lock — a turn may be appending
 		if err := enc.Encode(m); err != nil {
-			tmp.Close()
-			os.Remove(tmpPath)
 			return fmt.Errorf("encode message: %w", err)
 		}
 	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return err
-	}
-	return os.Rename(tmpPath, path)
+	return fileutil.AtomicWrite(path, buf.Bytes(), 0o644)
 }
 
 // Load reads a JSONL file written by Save into a fresh Session value.

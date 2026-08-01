@@ -2,10 +2,9 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/permission"
 )
 
@@ -265,25 +264,7 @@ func (c *Config) SaveTo(path string) error {
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("save: empty config path")
 	}
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("save: create dir: %w", err)
-	}
-	tmp, err := os.CreateTemp(dir, ".gaea.*.toml.tmp")
-	if err != nil {
-		return fmt.Errorf("save: create temp: %w", err)
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.WriteString(RenderTOML(c)); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("save: write: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("save: close temp: %w", err)
-	}
-	return os.Rename(tmpPath, path)
+	return fileutil.AtomicWrite(path, []byte(RenderTOML(c)), 0o644)
 }
 
 // Save writes the configuration back to the file it was loaded from
