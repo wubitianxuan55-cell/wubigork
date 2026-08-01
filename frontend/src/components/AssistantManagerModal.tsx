@@ -2,7 +2,7 @@
 // 替代 WhisperPersonalityModal，管理多个助手（每人独立人格 + 微信）
 import React, { useState, useEffect, useCallback } from 'react'
 import { Modal, Button, Input, Switch, Tag, Typography, Popconfirm, message, Empty } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined, CloseOutlined, CheckOutlined, QrcodeOutlined, LoadingOutlined, ReloadOutlined, PictureOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined, CloseOutlined, CheckOutlined, QrcodeOutlined, LoadingOutlined, ReloadOutlined, PictureOutlined, ReadOutlined } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import TisorRadar from './TisorRadar'
 import { generateImage } from '../api/image'
@@ -16,6 +16,7 @@ interface Assistant {
   id: string; name: string; personalityId: string
   wxToken: string; wxBotId: string; wxUserId: string; enabled: boolean
   portraitUrl?: string
+  voiceGuide?: string; gender?: string; tags?: string[]; dims?: { T: number; I: number; S: number; O: number; R: number }
 }
 
 interface PersonalityPreset {
@@ -409,6 +410,32 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     }
   }
 
+  // 导出为小说角色（轻语 → 小说，打通互传通道）
+  const handleExportToNovel = async (ast: Assistant) => {
+    const p = getPersonality(ast.personalityId)
+    try {
+      const ch = {
+        id: `whisper_${ast.id}`,
+        name: ast.name,
+        role_type: 'supporting',
+        gender: ast.gender || p?.gender || '',
+        age: '',
+        personality: ast.voiceGuide || p?.voiceGuide || `${p?.label || ast.name}人格`,
+        background: '',
+        appearance: '',
+        figure: '',
+        motivation: '',
+        arc: '',
+        status: 'Alive',
+        portrait_url: ast.portraitUrl || '',
+      }
+      await (App as any).SaveCharacter(JSON.stringify(ch))
+      message.success(`已导出「${ast.name}」到小说角色`)
+    } catch (err: any) {
+      message.error(err?.message || '导出失败（请先打开小说项目）')
+    }
+  }
+
   const renderList = () => {
     // 排序：gaea 核心助手第一 > 当前对话 > 启用 > 禁用
     const sorted = [...assistants].sort((a, b) => {
@@ -677,6 +704,12 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
             onClick={() => handleGeneratePortrait(ast)}
             style={{ height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
             {ast.portraitUrl ? '重新生成剧照' : '生成角色剧照'}
+          </Button>
+          <Button
+            icon={<ReadOutlined />}
+            onClick={() => handleExportToNovel(ast)}
+            style={{ height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+            导出到小说
           </Button>
           <Button type="primary" style={{
             flex: 1, height: 40, borderRadius: 12, fontWeight: 600,

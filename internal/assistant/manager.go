@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/gaea/gaea/internal/whisper"
 )
 
 // ─── 数据模型 ────────────────────────────────────────────────
@@ -22,6 +24,12 @@ type Assistant struct {
 	WxUserID      string `json:"wxUserId"`      // 绑定的微信用户 OpenID（空=不限）
 	Enabled       bool   `json:"enabled"`       // 是否启用
 	PortraitURL   string `json:"portraitUrl"`   // 角色剧照 URL（AI 生成，可选）
+
+	// 自定义人格（小说角色导入等，覆盖预设人格；空则用 PersonalityID 预设）
+	VoiceGuide string                  `json:"voiceGuide,omitempty"` // 人格口吻设定（角色性格）
+	Gender     string                  `json:"gender,omitempty"`     // male/female/neutral
+	Tags       []string                `json:"tags,omitempty"`       // 角色标签
+	Dims       whisper.PersonalityDims `json:"dims,omitempty"`       // 五维（T/I/S/O/R）
 }
 
 // ─── Manager ─────────────────────────────────────────────────
@@ -89,6 +97,18 @@ func (m *Manager) Get(id string) *Assistant {
 }
 
 // FindByWxUser 根据微信用户 ID 查找绑定的助手
+// FindByPersonality 按人格 ID 查找助手（支持自定义人格角色）
+func (m *Manager) FindByPersonality(personalityID string) *Assistant {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for i := range m.assistants {
+		if m.assistants[i].PersonalityID == personalityID {
+			return &m.assistants[i]
+		}
+	}
+	return nil
+}
+
 func (m *Manager) FindByWxUser(wxUserID string) *Assistant {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

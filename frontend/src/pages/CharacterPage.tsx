@@ -262,6 +262,28 @@ const CharacterPage: React.FC = () => {
     finally { setGeneratingPortrait(false) }
   }
 
+  // 导入为轻语角色（小说 → 轻语，打通互传通道）
+  const handleImportToWhisper = async () => {
+    if (!editForm) return
+    try {
+      const ast = {
+        id: `char_${editForm.id}`,
+        name: editForm.name,
+        personalityId: `char_${editForm.id}`,
+        voiceGuide: [editForm.personality, editForm.background ? `背景：${editForm.background}` : ''].filter(Boolean).join('。'),
+        gender: editForm.gender || 'neutral',
+        tags: editForm.role_type ? [editForm.role_type] : undefined,
+        portraitUrl: editForm.portrait_url || '',
+        enabled: true,
+      }
+      // @ts-ignore
+      await window.go.app.App.WhisperAssistantSave(ast)
+      message.success(`已导入「${editForm.name}」为轻语角色`)
+    } catch (err: any) {
+      message.error(err?.message || '导入失败')
+    }
+  }
+
   const getCharName = (id: string) =>
     characters.find((c) => c.id === id)?.name || organizations.find((o) => o.id === id)?.name || id
 
@@ -303,6 +325,7 @@ const CharacterPage: React.FC = () => {
         onDelete={handleDeleteChar} onSave={handleSaveChar}
         onRandomGenerate={handleRandomGenerate}
         onGeneratePortrait={handleGeneratePortrait}
+        onImportToWhisper={handleImportToWhisper}
         generatingPortrait={generatingPortrait} genSingle={genSingle}
         characters={characters} organizations={organizations}
         relationships={relationships}

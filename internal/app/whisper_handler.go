@@ -58,6 +58,22 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 	if preset == nil {
 		preset = &whisper.PersonalityPresets[0]
 	}
+	// 小说角色导入的自定义人格：助手记录带 voiceGuide 时覆盖预设
+	if ast := a.assistantMgr.FindByPersonality(personalityID); ast != nil && ast.VoiceGuide != "" {
+		dims := ast.Dims
+		if dims.T == 0 && dims.I == 0 && dims.S == 0 && dims.O == 0 && dims.R == 0 {
+			dims = whisper.PersonalityDims{T: 50, I: 50, S: 50, O: 50, R: 50}
+		}
+		preset = &whisper.PersonalityPreset{
+			ID:         ast.PersonalityID,
+			Label:      ast.Name,
+			Gender:     ast.Gender,
+			Dims:       dims,
+			Tags:       ast.Tags,
+			VoiceGuide: ast.VoiceGuide,
+		}
+		slog.Info("使用自定义人格角色", "personalityID", personalityID, "name", ast.Name)
+	}
 	orch := whisper.NewOrchestrator(sessionID, *preset)
 	orch.DataRoot = a.whisperDataRoot
 

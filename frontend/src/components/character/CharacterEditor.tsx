@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Typography, Tag, Space, Button, Row, Col, Input, Tabs, Spin, Skeleton } from 'antd'
 import {
-  DeleteOutlined, ThunderboltOutlined, ReloadOutlined,
+  DeleteOutlined, ThunderboltOutlined, ReloadOutlined, HeartOutlined,
   SmileOutlined, AimOutlined, BarChartOutlined, BookOutlined,
 } from '@ant-design/icons'
 import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels, RELATION_LABELS as relationLabels } from '../../utils/theme'
@@ -18,6 +18,7 @@ export interface CharacterEditorProps {
   onGeneratePortrait: () => void
   generatingPortrait: boolean
   genSingle: boolean
+  onImportToWhisper?: () => void
   characters: CharacterData[]
   organizations: OrganizationData[]
   relationships: RelationshipData[]
@@ -36,6 +37,7 @@ const roleTypeOptions = [
 const CharacterEditor: React.FC<CharacterEditorProps> = ({
   editForm, setEditForm, onClose, onDelete, onSave, onRandomGenerate,
   onGeneratePortrait, generatingPortrait, genSingle,
+  onImportToWhisper,
   characters, organizations, relationships,
   onNewOrg, onToggleOrgMember, onOpenRelModal, onDeleteRel,
   statusOptions, onPortraitFullscreen,
@@ -55,10 +57,19 @@ const CharacterEditor: React.FC<CharacterEditorProps> = ({
         border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)',
         position: 'relative',
       }}>
-        {/* 删除按钮 */}
-        <Button type="text" size="small" danger icon={<DeleteOutlined />}
-          onClick={() => { onDelete(editForm.id); onClose() }}
-          style={{ position: 'absolute', top: 8, right: 8 }} />
+        {/* 右上操作：导入为轻语角色 + 删除 */}
+        <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 4 }}>
+          {onImportToWhisper && (
+            <Button type="text" size="small" icon={<HeartOutlined />}
+              onClick={onImportToWhisper}
+              title="导入为轻语角色（可在角色中心对话）"
+              style={{ color: '#e85388', fontSize: 13 }}>
+              导入为轻语
+            </Button>
+          )}
+          <Button type="text" size="small" danger icon={<DeleteOutlined />}
+            onClick={() => { onDelete(editForm.id); onClose() }} />
+        </div>
 
         {/* 剧照 */}
         <div style={{ flexShrink: 0 }}>
