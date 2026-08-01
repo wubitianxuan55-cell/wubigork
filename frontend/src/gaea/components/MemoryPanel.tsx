@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, Search, X } from "lucide-react";
+import { Plus, RefreshCw, Search, X } from "../icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MemorySuggestion, MemorySuggestionsView, MemoryView, SkillSuggestion } from "../lib/types";
 import { DocEditor } from "./DocEditor";

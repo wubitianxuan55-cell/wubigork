@@ -5,10 +5,10 @@ import {
   BookOpen, Brain, Calculator, CheckCircle,
   FilePen, FileText, FolderOpen, Globe, Hourglass,
   Layers, List, ListTree, PlusCircle, Search, Sparkles,
-  Table, Trash2, Users, Wrench, Zap, type LucideIcon,
-} from "lucide-react";
+  Table, Trash2, Users, Wrench, Zap, type Icon,
+} from "../icons";
 
-export const ICONS: Record<string, LucideIcon> = {
+export const ICONS: Record<string, Icon> = {
   // 文档
   edit_file: FilePen, multi_edit: FilePen, write_file: FilePen, read_file: FileText,
   delete_range: Trash2, delete_symbol: Trash2, notebook_edit: FilePen,
@@ -27,6 +27,6 @@ export const ICONS: Record<string, LucideIcon> = {
   wait: Hourglass, complete_step: CheckCircle, ask: List, brainstorm: Sparkles,
 };
 
-export function mcpOr(name: string): LucideIcon {
+export function mcpOr(name: string): Icon {
   return name.startsWith("mcp__") ? Wrench : Wrench;
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { File, ExternalLink, AlertCircle } from "lucide-react";
+import { File, ExternalLink, AlertCircle } from "../icons";
 import { app } from "../lib/bridge";
 
 export function FilePreview({ relPath, onClose }: { relPath: string | null; onClose: () => void }) {

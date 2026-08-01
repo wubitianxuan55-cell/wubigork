@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { X } from "lucide-react";
+import { X } from "../icons";
 import { useT } from "../lib/i18n";
 
 /** 统一的关闭按钮 — 6 处重复 className 合并为单个组件 */

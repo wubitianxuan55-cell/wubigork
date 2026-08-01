@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { useI18n } from "../lib/i18n";
-import { Blocks, Cpu, Brain, Wrench, Zap } from "lucide-react";
+import { Blocks, Cpu, Brain, Wrench, Zap } from "../icons";
 
 export const Skeleton = memo(function Skeleton() {
   const { t } = useI18n();

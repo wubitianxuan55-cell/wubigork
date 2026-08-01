@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ChevronRight, ChevronDown, File, Folder, Image, FileText } from "lucide-react";
+import { ChevronRight, ChevronDown, File, Folder, Image, FileText } from "../icons";
 import { app } from "../lib/bridge";
 import type { DirEntry } from "../lib/types";
 

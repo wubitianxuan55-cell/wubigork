@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { ClipboardEvent, RefObject } from "react";
-import { Eye, FileText, Trash2 } from "lucide-react";
+import { Eye, FileText, Trash2 } from "../icons";
 import { useT } from "../lib/i18n";
 
 // ── 类型与常量 ──

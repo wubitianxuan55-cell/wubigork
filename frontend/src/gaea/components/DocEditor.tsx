@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { Pencil } from "../icons";
 import { useT } from "../lib/i18n";
 import { useState } from "react";
 import type { MemoryDoc } from "../lib/types";

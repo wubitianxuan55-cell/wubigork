@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Cpu, ChevronDown, Search } from "lucide-react";
+import { Cpu, ChevronDown, Search } from "../icons";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 
 type Counts = Record<string, number>;

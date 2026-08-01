@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pencil, Search, Trash2, Check, X, MessageSquare, Clock } from "lucide-react";
+import { Pencil, Search, Trash2, Check, X, MessageSquare, Clock } from "../icons";
 import { t, useT } from "../lib/i18n";
 import type { SessionMeta } from "../lib/types";
 import { DrawerHeader, DrawerTitle } from "./DrawerHeader";

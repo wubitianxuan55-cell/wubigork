@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, TrendingUp, Zap } from "lucide-react";
+import { BarChart3, TrendingUp, Zap } from "../icons";
 import type { WireUsage } from "../lib/types";
 import { aggSteps, colFromUsage, hitRateColor, type StepRecord, type ColStats } from "../lib/stats";
 import { TrendChart, type TrendPoint } from "./TrendChart";

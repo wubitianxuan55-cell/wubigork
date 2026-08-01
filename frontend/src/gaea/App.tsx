@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import {
   BarChart3, BookOpen, SquarePen, Brain, ChevronDown, Cpu, FolderGit2, FolderTree, GitBranch,
   PanelRightOpen, PanelRightClose, Settings as SettingsIcon, MessageSquare, FileText,
-} from "lucide-react";
+} from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
 import { sessionTitle, sessionTime } from "./lib/session";

@@ -1,5 +1,5 @@
 import { memo, useRef, useState } from "react";
-import { ChevronRight, FolderOpen } from "lucide-react";
+import { ChevronRight, FolderOpen } from "../icons";
 import { ToolCard } from "./ToolCard";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";

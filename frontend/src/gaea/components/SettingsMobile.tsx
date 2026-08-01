@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Smartphone, QrCode, RefreshCw, Copy, Check, ShieldAlert } from "lucide-react";
+import { Smartphone, QrCode, RefreshCw, Copy, Check, ShieldAlert } from "../icons";
 
 /** SettingsMobile — 移动端访问配置卡片 */
 export function MobileSection() {

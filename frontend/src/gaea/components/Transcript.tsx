@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown } from "../icons";
 import type { Item } from "../lib/store";
 import { useItems } from "../lib/store";
 import { AssistantMessage, UserMessage } from "./Message";

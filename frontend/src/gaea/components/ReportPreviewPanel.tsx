@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { FileText, RefreshCw, ExternalLink, FileSpreadsheet, Image } from "lucide-react";
+import { FileText, RefreshCw, ExternalLink, FileSpreadsheet, Image } from "../icons";
 import type { DirEntry } from "../lib/types";
 import { app } from "../lib/bridge";
 

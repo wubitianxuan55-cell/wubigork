@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
-import { ChevronRight, Brain } from "lucide-react";
+import { ChevronRight, Brain } from "../icons";
 import { app } from "../lib/bridge";
 import { MemoMarkdown } from "./MemoMarkdown";
 import { useT } from "../lib/i18n";

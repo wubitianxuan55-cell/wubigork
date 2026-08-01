@@ -1,4 +1,4 @@
-import { BookOpen, Search, X, Plus, Pencil, Trash2, Check, X as XIcon, Save } from "lucide-react";
+import { BookOpen, Search, X, Plus, Pencil, Trash2, Check, X as XIcon, Save } from "../icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KnowledgeEntry, KnowledgeSaveRequest, KnowledgeSummary } from "../lib/types";
 import { app } from "../lib/bridge";

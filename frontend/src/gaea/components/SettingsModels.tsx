@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Cpu, Brain, Bot, ChevronDown, ChevronRight } from "lucide-react";
+import { Cpu, Brain, Bot, ChevronDown, ChevronRight } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import { ModelSwitcher } from "./ModelSwitcher";

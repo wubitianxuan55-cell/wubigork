@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import type { SectionProps } from "./SettingsShared";

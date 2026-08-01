@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import type React from "react";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare } from "../icons";
 import type { Item } from "../lib/store";
 
 interface Props {

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Pencil, Trash2 } from "../icons";
 import { useT } from "../lib/i18n";
 import { useState, type ReactNode } from "react";
 import type { MemoryFact } from "../lib/types";

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ClipboardEvent, DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { ArrowUp, Check, ChevronDown, FolderGit2, FolderPlus, Paperclip, Search, Square, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, FolderGit2, FolderPlus, Paperclip, Search, Square, X } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import { clearLayoutSize, loadOptionalLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";

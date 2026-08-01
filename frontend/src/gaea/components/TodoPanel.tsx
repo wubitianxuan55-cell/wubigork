@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Circle, Loader } from "lucide-react";
+import { Check, Circle, Loader } from "../icons";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";

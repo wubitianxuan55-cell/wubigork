@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { X, RefreshCw, ChevronRight, Home } from "lucide-react";
+import { X, RefreshCw, ChevronRight, Home } from "../icons";
 import { FileTree } from "./FileTree";
 import { FilePreview } from "./FilePreview";
 

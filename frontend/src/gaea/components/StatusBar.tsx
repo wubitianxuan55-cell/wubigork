@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { Cpu, Wallet, Coins, GitBranch } from "lucide-react";
+import { Cpu, Wallet, Coins, GitBranch } from "../icons";
 import { Tooltip } from "./Tooltip";
 import { useI18n } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";

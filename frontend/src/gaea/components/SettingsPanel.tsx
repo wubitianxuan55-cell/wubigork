@@ -5,7 +5,7 @@ import { useAppStore } from "../../stores/appStore";
 import type { SettingsView } from "../lib/types";
 import { DrawerHeader, DrawerTitle } from "./DrawerHeader";
 import { ResizableDrawer } from "./ResizableDrawer";
-import { Cpu, Shield, Box, Bot, Palette, CloudUpload, Plug, Smartphone } from "lucide-react";
+import { Cpu, Shield, Box, Bot, Palette, CloudUpload, Plug, Smartphone } from "../icons";
 import { ModelsSection } from "./SettingsModels";
 import { ProvidersSection } from "./SettingsProviders";
 import { PermissionsSection } from "./SettingsPermissions";

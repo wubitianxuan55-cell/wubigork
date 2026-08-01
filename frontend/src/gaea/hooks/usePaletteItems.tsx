@@ -6,7 +6,7 @@ import {
   MessageSquare,
   Settings as SettingsIcon,
   FolderGit2,
-} from "lucide-react";
+} from "../icons";
 import { useT } from "../lib/i18n";
 import { sessionTitle, sessionTime } from "../lib/session";
 import type { SessionMeta } from "../lib/types";

@@ -1,4 +1,4 @@
-import { Folder, FileText } from "lucide-react";
+import { Folder, FileText } from "../icons";
 import { MenuContainer, useMenuScroll } from "./MenuContainer";
 import type { DirEntry } from "../lib/types";
 

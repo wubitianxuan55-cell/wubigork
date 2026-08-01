@@ -5,7 +5,7 @@ import {
   ChevronRight,
   Loader2,
   X,
-} from "lucide-react";
+} from "../icons";
 
 
 import { ICONS, mcpOr } from "./tool_icons";

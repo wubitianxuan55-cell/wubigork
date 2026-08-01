@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import type { ModelInfo } from "../lib/types";

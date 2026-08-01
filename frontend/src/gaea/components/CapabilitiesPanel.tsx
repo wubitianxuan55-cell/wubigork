@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X, Globe, Cpu, ChevronDown, Search } from "lucide-react";
+import { X, Globe, Cpu, ChevronDown, Search } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import type { CapabilitiesView, MCPServerInput, ServerView, SkillView } from "../lib/types";

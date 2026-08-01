@@ -4,7 +4,7 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy } from "../icons";
 
 import { openExternal } from "../lib/bridge";
 

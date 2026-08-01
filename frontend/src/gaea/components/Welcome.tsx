@@ -1,4 +1,4 @@
-import { FolderOpen, MessageSquare, Clock, ScrollText, BarChart3, FileSpreadsheet, FileImage, Puzzle, BookOpen, ClipboardList } from "lucide-react";
+import { FolderOpen, MessageSquare, Clock, ScrollText, BarChart3, FileSpreadsheet, FileImage, Puzzle, BookOpen, ClipboardList } from "../icons";
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
 import { useT } from "../lib/i18n";

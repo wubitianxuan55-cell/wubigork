@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "../icons";
 
 // ThemeSwitcher — 暗/亮主题切换。
 // 主题已统一：跟随主应用（老栈）darkMode，本组件仅作为切换入口。
