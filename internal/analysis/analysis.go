@@ -85,7 +85,7 @@ func (a *Agent) Analyze(ctx context.Context, chapterNum int, chapterContent stri
 
 	// ── 调用 LLM + JSON 解析重试 ──
 	caller := func(ctx context.Context, sys, usr string) (string, error) {
-		return a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, sys, usr, ai.ChatSimpleOptions{
+		return a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, sys, usr, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
 			Temperature:     a.cfg.AnalysisTemperature,
 			ReasoningEffort: a.cfg.ReasoningEffort,
 			MaxTokens:       4096,
@@ -329,7 +329,7 @@ func (a *Agent) ReviewBook(ctx context.Context) (*BookReviewResult, error) {
 
 	// ── 全书审稿 + JSON 解析重试 ──
 	caller := func(ctx context.Context, sys, usr string) (string, error) {
-		return a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, sys, usr, ai.ChatSimpleOptions{
+		return a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, sys, usr, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
 			Temperature:     a.cfg.AnalysisTemperature,
 			ReasoningEffort: a.cfg.ReasoningEffort,
 			MaxTokens:       4096,
@@ -347,4 +347,18 @@ func (a *Agent) ReviewBook(ctx context.Context) (*BookReviewResult, error) {
 	}
 
 	return &result, nil
+}
+
+// featureModel 小说功能级模型（持久化绑定 func_novel，运行中切换即时生效；空=全局）
+func (a *Agent) featureModel() (engine, model string) {
+	return a.cfg.FuncNovelEngine, a.cfg.FuncNovelModel
+}
+
+// chat 功能级对话：带 novel 引擎覆盖
+func (a *Agent) chat(ctx context.Context, system, user string) (string, error) {
+	eng, model := a.featureModel()
+	if model == "" {
+		model = a.cfg.Model
+	}
+	return a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{EngineID: eng})
 }

@@ -43,8 +43,9 @@ func (a *Agent) Chat(ctx context.Context, userMsg string, currentContent string)
 		"current_worldview": currentContent,
 	})
 
-	return a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
+	return a.chat(ctx, systemPrompt, userPrompt)
 }
+
 // ── 保存 ────────────────────────────────────────────────────
 // ── 保存 ────────────────────────────────────────────────────
 // ── 保存 ────────────────────────────────────────────────────
@@ -231,4 +232,18 @@ func extractMarkdownBlock(reply string) string {
 		return ""
 	}
 	return strings.TrimSpace(reply[bodyStart : bodyStart+end])
+}
+
+// featureModel 小说功能级模型（持久化绑定 func_novel，运行中切换即时生效；空=全局）
+func (a *Agent) featureModel() (engine, model string) {
+	return a.cfg.FuncNovelEngine, a.cfg.FuncNovelModel
+}
+
+// chat 功能级对话：带 novel 引擎覆盖
+func (a *Agent) chat(ctx context.Context, system, user string) (string, error) {
+	eng, model := a.featureModel()
+	if model == "" {
+		model = a.cfg.Model
+	}
+	return a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{EngineID: eng})
 }

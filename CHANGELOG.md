@@ -1,5 +1,15 @@
 # gaea · 多功能 AI 助手
 
+## v1.6.1「小说统一模型」(2026-08-02)
+
+> 补丁：小说板块章节/角色/世界观 agent 统一接入 func_novel，整部小说用一个 LLM 模型（v1.6.0 已知限制 1 修复）。
+> tag v1.6.1，构建 36,108,288 字节。
+
+- worldview / character / chapter / analysis / outline 5 个 agent 全部加 featureModel + chat（带 func_novel 引擎覆盖），
+  替换全部 `ChatSimpleStream(a.cfg.Model)` 调用 → `chat(ctx, ...)` + `ChatSimpleStreamWithOptions(EngineID: FuncNovelEngine)`
+- 运行中切换小说模型即时生效（各 agent 动态读 cfg.FuncNovelEngine/Model）
+- 验证：go test ./... 53 包全绿 + tsc -b + vite + wails build
+
 ## v1.6.0「语音交互 · 角色中心 · 功能模型」(2026-08-02)
 
 > 语言交互全面落地：首页语音对话 + 核心 AI 助手 gaea（大地女神）+ 角色中心（助手即角色）+ 各功能板块独立模型绑定与资源监控。

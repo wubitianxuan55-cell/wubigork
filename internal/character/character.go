@@ -52,7 +52,7 @@ func (a *Agent) Chat(ctx context.Context, userMsg string) (string, error) {
 		"existing_characters": string(charsJSON),
 	})
 
-	return a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
+	return a.chat(ctx, systemPrompt, userPrompt)
 }
 
 // ChatWithAutoSave 对话 + 自动解析并保存角色
@@ -102,7 +102,7 @@ func (a *Agent) ChatCharacterDetail(ctx context.Context, charID, userMsg string)
 		"user_request":     userMsg,
 	})
 
-	reply, err := a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
+	reply, err := a.chat(ctx, systemPrompt, userPrompt)
 	if err != nil {
 		return "", err
 	}
@@ -193,9 +193,9 @@ func (a *Agent) GeneratePortrait(ctx context.Context, charID string, model strin
 		model = a.cfg.ImageModel
 	}
 	req := &ai.ImageGenerationRequest{
-		Model:  model,
-		N:      1,
-		Size:   "1024x1024",
+		Model: model,
+		N:     1,
+		Size:  "1024x1024",
 	}
 
 	resp, err := a.client.GenerateImage(ctx, req)
@@ -227,7 +227,6 @@ func (a *Agent) GeneratePortrait(ctx context.Context, charID string, model strin
 
 	return portraitURL, nil
 }
-
 
 // savePortraitToProject 将剧照 base64 数据保存到项目 portraits/ 子目录
 func (a *Agent) savePortraitToProject(imageData string, charID string) string {
@@ -298,7 +297,7 @@ func (a *Agent) GenerateSingleCharacter(ctx context.Context, ch types.Character,
 		"worldview": wvCtx,
 	})
 
-	reply, err := a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
+	reply, err := a.chat(ctx, systemPrompt, userPrompt)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +346,7 @@ func (a *Agent) GenerateCharacters(ctx context.Context, count int, genre string,
 
 	// ── 调用 LLM + JSON 解析重试（蒸馏自 MM-StoryAgent）──
 	caller := func(ctx context.Context, sys, usr string) (string, error) {
-		return a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, sys, usr, ai.ChatSimpleOptions{
+		return a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, sys, usr, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
 			Temperature: 0.7,
 			MaxTokens:   4096,
 		})
@@ -614,4 +613,18 @@ func (a *Agent) mergeCharacters(cf *types.CharacterFile, updates []types.Charact
 			idIndex[u.ID] = len(cf.Characters) - 1
 		}
 	}
+}
+
+// featureModel 小说功能级模型（持久化绑定 func_novel，运行中切换即时生效；空=全局）
+func (a *Agent) featureModel() (engine, model string) {
+	return a.cfg.FuncNovelEngine, a.cfg.FuncNovelModel
+}
+
+// chat 功能级对话：带 novel 引擎覆盖
+func (a *Agent) chat(ctx context.Context, system, user string) (string, error) {
+	eng, model := a.featureModel()
+	if model == "" {
+		model = a.cfg.Model
+	}
+	return a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{EngineID: eng})
 }
