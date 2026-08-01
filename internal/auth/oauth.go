@@ -126,6 +126,12 @@ func DoLogin(cfg *config.Config) (*OAuthResult, error) {
 
 		// 后台换取 token（不阻塞 HTTP handler）
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("auth: token exchange goroutine panic recovered", "panic", r)
+					errCh <- fmt.Errorf("token exchange panic: %v", r)
+				}
+			}()
 			token, raw, baseURL, err := exchangeCodeForToken(cfg, disc.TokenEndpoint, code, redirectURI, pkce)
 			if err != nil {
 				errCh <- err
@@ -145,6 +151,11 @@ func DoLogin(cfg *config.Config) (*OAuthResult, error) {
 		return nil, fmt.Errorf("启动回调服务器失败 (端口 %s 被占用?): %w", cfg.RedirectPort, err)
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("auth: callback server goroutine panic recovered", "panic", r)
+			}
+		}()
 		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
 			errCh <- fmt.Errorf("回调服务器错误: %w", err)
 		}

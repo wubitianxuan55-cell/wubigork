@@ -5,6 +5,7 @@
 package whisper
 
 import (
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -51,6 +52,11 @@ func StartDeferredEnrich(args DeferredEnrichArgs, enrichFn DeferredEnrichFunc) {
 	deferredStoreMu.Unlock()
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("whisper: deferred enrich goroutine panic recovered", "panic", r)
+			}
+		}()
 		result, err := enrichFn(args)
 		if err != nil {
 			result = EnrichResult{}

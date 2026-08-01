@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"io"
 	"os/exec"
 	"runtime"
@@ -116,6 +117,11 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 			// V8.2: 后台任务也加上前台同款保护——jobCtx 取消时立刻强杀进程树，
 			// 防止 cmd.Wait() 永久阻塞（软件启动后卡死或不正常退出）。
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("bash: bg kill watcher panic recovered", "panic", r)
+					}
+				}()
 				<-jobCtx.Done()
 				killProcessTree(cmd)
 			}()
@@ -162,6 +168,11 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		earlyReturnCh := make(chan struct{})
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("bash: fg kill watcher panic recovered", "panic", r)
+				}
+			}()
 			select {
 			case <-ctx.Done():
 				select {
@@ -185,6 +196,12 @@ func (b bash) Execute(ctx context.Context, args json.RawMessage) (string, error)
 		const earlyWait = 8 * time.Second
 		waitCh := make(chan error, 1)
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("bash: wait relay panic recovered", "panic", r)
+					waitCh <- fmt.Errorf("bash wait panic: %v", r)
+				}
+			}()
 			waitCh <- cmd.Wait()
 		}()
 

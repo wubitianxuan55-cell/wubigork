@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -201,6 +202,11 @@ func runParallel(start, end int, run func(int)) {
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("agent: batch goroutine panic recovered", "panic", r)
+				}
+			}()
 			run(i)
 		}()
 	}

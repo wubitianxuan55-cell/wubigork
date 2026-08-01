@@ -144,6 +144,11 @@ func (a *App) WhisperChat(userMsg string, personalityID string) (result map[stri
 	})
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("whisper: memory write goroutine panic recovered", "panic", r)
+			}
+		}()
 		whisper.EnqueueMemoryWrite(a, whisper.MemoryWritePayload{
 			SessionID: orch.SessionID, TurnIndex: turns,
 			UserMsg: userMsg, AssistantText: reply,
@@ -153,7 +158,14 @@ func (a *App) WhisperChat(userMsg string, personalityID string) (result map[stri
 		})
 	}()
 
-	go persistWhisperState(orch)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("whisper: persist state goroutine panic recovered", "panic", r)
+			}
+		}()
+		persistWhisperState(orch)
+	}()
 
 	slog.Info("[whisper] WhisperChat done", "replyLen", len(reply), "emotion", orch.State.Emotion.PrimaryLabel)
 	return map[string]interface{}{

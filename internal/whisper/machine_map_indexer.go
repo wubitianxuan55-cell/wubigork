@@ -4,6 +4,7 @@
 package whisper
 
 import (
+	"log/slog"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -196,6 +197,11 @@ func GetGlobalIndexer(dataRoot string) *MachineMapIndexer {
 // ScheduleMachineMapIndex 调度后台索引（非阻塞）
 func ScheduleMachineMapIndex(dataRoot string) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("whisper: machine map index goroutine panic recovered", "panic", r)
+			}
+		}()
 		indexer := GetGlobalIndexer(dataRoot)
 		if !indexer.IsRunning() {
 			indexer.RunFullIndex()

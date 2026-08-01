@@ -412,6 +412,11 @@ func (a *App) StartComfyUI() error {
 
 	// 后台等待进程结束，记录退出原因
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("image: comfyui wait goroutine panic recovered", "panic", r)
+			}
+		}()
 		if err := cmd.Wait(); err != nil {
 			slog.Warn("ComfyUI 进程退出", "error", err)
 		}

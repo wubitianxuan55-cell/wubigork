@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -59,7 +60,13 @@ func (a *App) ProposalSaveRawText(pid, fp string) (map[string]interface{}, error
 }
 func (a *App) ProposalConvertFiles(pid string) {
 	if a.proposalSvc == nil { return }
-	go func() { a.proposalSvc.ConvertFiles(pid, func(cur, total int, name, status string) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("office: convert files goroutine panic recovered", "panic", r)
+			}
+		}()
+		a.proposalSvc.ConvertFiles(pid, func(cur, total int, name, status string) {
 		a.emit("proposal-convert-progress", map[string]interface{}{"current":cur,"total":total,"filename":name,"status":status})
 	})}()
 }
@@ -100,6 +107,12 @@ func (a *App) ProposalRenameSection(pid, sid, title string) (map[string]interfac
 func (a *App) ProposalGenerateSectionStream(pid, sid, inst string) {
 	if a.proposalSvc == nil || a.client == nil { return }
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("office: section stream goroutine panic recovered", "panic", r)
+				a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": "生成异常: " + fmt.Sprint(r)})
+			}
+		}()
 		p, err := a.proposalSvc.Get(pid)
 		if err != nil {
 			a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": "加载方案失败: " + err.Error()})

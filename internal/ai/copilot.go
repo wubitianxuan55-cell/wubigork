@@ -55,6 +55,12 @@ func (c *Client) GhostComplete(ctx context.Context, model string, currentText st
 	resultCh := make(chan SSEChunk, 32)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("copilot: stream goroutine panic recovered", "panic", r)
+				resultCh <- SSEChunk{Error: "生成异常: " + fmt.Sprint(r)}
+			}
+		}()
 		defer close(resultCh)
 
 		chunks, err := c.ChatStream(ctx2, req)
@@ -222,6 +228,12 @@ func (c *Client) GenerateProseFromBeat(ctx context.Context, model string, beat B
 	resultCh := make(chan SSEChunk, 64)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("copilot: stream goroutine panic recovered", "panic", r)
+				resultCh <- SSEChunk{Error: "生成异常: " + fmt.Sprint(r)}
+			}
+		}()
 		defer close(resultCh)
 
 		req := &ChatRequest{

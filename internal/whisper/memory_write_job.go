@@ -5,6 +5,7 @@
 package whisper
 
 import (
+	"log/slog"
 	"strings"
 	"sync"
 )
@@ -63,6 +64,11 @@ type MemoryWritePayload struct {
 func EnqueueMemoryWrite(llm LlmClient, payload MemoryWritePayload) {
 	q := getSessionQueue(payload.SessionID)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("whisper: memory write goroutine panic recovered", "panic", r)
+			}
+		}()
 		<-q.chain
 		defer func() { q.chain <- struct{}{} }()
 		runMemoryWriteJob(llm, payload)

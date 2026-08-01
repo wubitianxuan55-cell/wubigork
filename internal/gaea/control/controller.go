@@ -208,6 +208,16 @@ func (c *Controller) runGuarded(body func(ctx context.Context) error) {
 	c.mu.Unlock()
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("controller: turn panic recovered", "panic", r)
+				c.mu.Lock()
+				c.running = false
+				c.cancel = nil
+				c.mu.Unlock()
+				c.sink.Emit(event.Event{Kind: event.TurnDone, Err: fmt.Errorf("turn panic: %v", r)})
+			}
+		}()
 		err := body(ctx)
 		c.mu.Lock()
 		c.running = false

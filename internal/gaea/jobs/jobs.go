@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -125,6 +126,18 @@ func (m *Manager) Start(kind, label string, run func(ctx context.Context, out io
 	m.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo, Text: startedText(kind, id, label)})
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("jobs: run panic recovered", "job", id, "panic", r)
+				j.mu.Lock()
+				j.result = fmt.Sprintf("job panic: %v", r)
+				j.status = Failed
+				st := j.status
+				j.mu.Unlock()
+				m.recordCompletion(id, kind, label, st, fmt.Errorf("job panic: %v", r))
+				close(j.done)
+			}
+		}()
 		result, err := run(ctx, jobWriter{j})
 		j.mu.Lock()
 		j.result = result

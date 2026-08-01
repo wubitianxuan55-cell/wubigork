@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"io"
 	"net"
 	"net/http"
@@ -99,6 +100,12 @@ func (ws webSearch) Execute(ctx context.Context, args json.RawMessage) (string, 
 	for _, eng := range engines {
 		eng := eng
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("websearch: engine goroutine panic recovered", "engine", eng.Name(), "panic", r)
+					errCh <- engineError{name: eng.Name(), err: fmt.Errorf("engine panic: %v", r), elapsed: 0}
+				}
+			}()
 			start := time.Now()
 			results, err := eng.Search(ctx, p.Query, p.TopK)
 			elapsed := time.Since(start)

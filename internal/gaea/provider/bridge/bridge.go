@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/gaea/gaea/internal/ai"
@@ -40,6 +41,12 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 	out := make(chan provider.Chunk, 64)
 	go func() {
 		defer close(out)
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("bridge: stream relay panic recovered", "panic", r)
+				out <- provider.Chunk{Type: provider.ChunkError, Err: fmt.Errorf("stream relay panic: %v", r)}
+			}
+		}()
 		// send 在 ctx 取消时停止发送并返回 false，避免下游退出后阻塞泄漏
 		send := func(ch provider.Chunk) bool {
 			select {

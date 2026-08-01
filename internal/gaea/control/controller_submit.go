@@ -16,6 +16,12 @@ func (c *Controller) Submit(input string) {
 	case trimmed == "/compact" || strings.HasPrefix(trimmed, "/compact "):
 		focus := strings.TrimSpace(strings.TrimPrefix(trimmed, "/compact"))
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("controller: /compact panic recovered", "panic", r)
+					c.notice("compaction crashed: " + fmt.Sprint(r))
+				}
+			}()
 			if c.Running() {
 				c.notice("cannot compact while a turn is running")
 				return
@@ -32,6 +38,12 @@ func (c *Controller) Submit(input string) {
 	case strings.HasPrefix(trimmed, "/dream"):
 		sub := strings.TrimSpace(strings.TrimPrefix(trimmed, "/dream"))
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("controller: /dream panic recovered", "panic", r)
+					c.notice("dream crashed: " + fmt.Sprint(r))
+				}
+			}()
 			if c.Running() {
 				c.notice("cannot dream while a turn is running")
 				return
@@ -122,6 +134,12 @@ func (c *Controller) Submit(input string) {
 	case strings.HasPrefix(trimmed, "/distill"):
 		sub := strings.TrimSpace(strings.TrimPrefix(trimmed, "/distill"))
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("controller: /distill panic recovered", "panic", r)
+					c.notice("distill crashed: " + fmt.Sprint(r))
+				}
+			}()
 			if c.Running() {
 				c.notice("cannot distill while a turn is running")
 				return
@@ -154,6 +172,12 @@ func (c *Controller) Submit(input string) {
 		}()
 	case trimmed == "/new":
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("controller: /new panic recovered", "panic", r)
+					c.notice("new session crashed: " + fmt.Sprint(r))
+				}
+			}()
 			if c.Running() {
 				c.notice("cannot start new session while a turn is running")
 				return

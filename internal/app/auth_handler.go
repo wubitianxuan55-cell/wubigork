@@ -37,6 +37,12 @@ func (a *App) configureClient() {
 func (a *App) Login() error {
 	slog.Info("开始 xAI OAuth 登录流程（异步）")
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("auth: OAuth login goroutine panic recovered", "panic", r)
+				a.emit("xai-login-failed", map[string]interface{}{"error": "登录流程异常: " + fmt.Sprint(r)})
+			}
+		}()
 		result, err := auth.DoLogin(a.cfg)
 		if err != nil {
 			slog.Error("xAI OAuth 登录失败", "error", err)
@@ -61,6 +67,11 @@ func (a *App) Login() error {
 			a.engineMgr.UpdateXAIKey(result.Token.AccessToken)
 			// 后台自动刷新 xAI 模型列表
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("auth: refresh models goroutine panic recovered", "panic", r)
+					}
+				}()
 				if _, err := a.engineMgr.RefreshModels(context.Background(), "xai"); err != nil {
 					slog.Warn("登录后刷新xAI模型列表失败", "error", err)
 				}
