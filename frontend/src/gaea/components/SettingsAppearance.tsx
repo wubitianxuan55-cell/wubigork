@@ -1,26 +1,10 @@
 import { useState } from "react";
 import { useI18n } from "../lib/i18n";
-import type { Theme } from "../lib/theme";
 
-function darkenHex(hex: string, amount: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const r = Math.max(0, Math.min(255, ((n >> 16) & 0xff) + amount));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amount));
-  const b = Math.max(0, Math.min(255, (n & 0xff) + amount));
-  return ((r << 16) | (g << 8) | b).toString(16).padStart(6, "0");
-}
-
-function mixHex(a: string, b: string, t: number): string {
-  const na = parseInt(a.slice(1), 16), nb = parseInt(b.slice(1), 16);
-  const r = Math.round(((na >> 16) & 0xff) * (1 - t) + ((nb >> 16) & 0xff) * t);
-  const g = Math.round(((na >> 8) & 0xff) * (1 - t) + ((nb >> 8) & 0xff) * t);
-  const bl = Math.round((na & 0xff) * (1 - t) + (nb & 0xff) * t);
-  return ((r << 16) | (g << 8) | bl).toString(16).padStart(6, "0");
-}
-
-export function AppearanceSection({ theme, onTheme }: { theme: Theme; onTheme: (t: Theme) => void }) {
-  const { t, pref, setPref } = useI18n();
-  const themeOptions: Theme[] = ["slate", "earth", "noir", "paper", "sand", "mist"];
+// AppearanceSection — 外观设置。主题已统一跟随主应用 darkMode，
+// 此处仅提供暗/亮切换入口；字体偏好保留（独立于主题的本地设置）。
+export function AppearanceSection({ darkMode, onToggle }: { darkMode: boolean; onToggle: () => void }) {
+  const { t } = useI18n();
 
   // 字体偏好（localStorage + DOM attribute）
   const [uiFont, setUiFont] = useState(() => {
@@ -41,119 +25,83 @@ export function AppearanceSection({ theme, onTheme }: { theme: Theme; onTheme: (
     if (kind === "ui") setUiFont(value); else setMonoFont(value);
   };
 
-  const themeColors: Record<Theme, { bg: string; accent: string; fg: string; label: string }> = {
-    auto:  { bg: "#0F172A", accent: "#6366F1", fg: "#F8FAFC", label: t("settings.themeAuto") },
-    slate: { bg: "#0F172A", accent: "#6366F1", fg: "#F8FAFC", label: "暗岩 · Slate" },
-    earth: { bg: "#1A1512", accent: "#A8825E", fg: "#EDE4D8", label: "深壤 · Earth" },
-    noir:  { bg: "#111113", accent: "#D4A853", fg: "#EDEDED", label: "墨金 · Noir" },
-    paper: { bg: "#F8FAFC", accent: "#3B82F6", fg: "#0F172A", label: "素纸 · Paper" },
-    sand:  { bg: "#FDF6EC", accent: "#B87333", fg: "#2D2420", label: "砂岩 · Sand" },
-    mist:  { bg: "#F2F5F8", accent: "#0EA5A9", fg: "#1A202C", label: "晨雾 · Mist" },
-  };
-
-  const tc = themeColors[theme] ?? themeColors.slate;
-
   return (
     <section className="mb-3">
       <div className="text-fg text-sm font-semibold mb-3">{t("settings.appearance")}</div>
 
       <div className="mb-4">
         <label className="text-fg-dim text-[13px] font-medium mb-2 block">{t("settings.theme")}</label>
-        <div className="flex items-center gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-2">
           <button
-            className={`flex items-center gap-2 px-3 py-1.5 bg-transparent border border-border-soft rounded-md text-fg-dim text-xs cursor-pointer transition-all hover:text-fg hover:bg-bg-soft ${theme === "auto" ? "border-accent bg-accent-soft text-accent" : ""}`}
-            onClick={() => onTheme("auto")}
+            onClick={() => { if (darkMode) onToggle(); }}
+            className={`text-left bg-bg-soft border rounded-lg p-2.5 cursor-pointer transition-all ${
+              darkMode ? "border-accent ring-1 ring-accent/50" : "border-border-soft hover:border-fg-faint/30"
+            }`}
           >
-            <span className="w-3 h-3 rounded-full border border-fg-faint/30" style={{ background: "conic-gradient(#f4f5f7 0deg 180deg, #090a0c 180deg 360deg)" }} />
-            {t("settings.themeAuto")}
+            <div className="h-6 rounded-md overflow-hidden mb-2 flex" style={{ background: "#0F172A" }}>
+              <div className="flex-1" style={{ background: "#0F172A" }} />
+              <div className="w-3" style={{ background: "#6366F1" }} />
+              <div className="w-6 flex items-center justify-center text-[7px] font-mono" style={{ background: "#F8FAFC", color: "#0F172A" }}>Aa</div>
+            </div>
+            <span className={`text-[11px] font-medium ${darkMode ? "text-accent" : "text-fg-dim"}`}>暗色 · Dark</span>
+            {darkMode && <span className="ml-1.5 text-[10px] text-accent">✓</span>}
           </button>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          {themeOptions.map((opt) => {
-            const c = themeColors[opt];
-            const isActive = theme === opt;
-            return (
-              <button
-                key={opt}
-                onClick={() => onTheme(opt)}
-                className={`text-left bg-bg-soft border rounded-lg p-2.5 cursor-pointer transition-all hover:-translate-y-p1 hover:shadow-lg ${
-                  isActive ? "border-accent ring-1 ring-accent/50" : "border-border-soft hover:border-fg-faint/30"
-                }`}
-              >
-                <div className="flex gap-1 mb-2 rounded-md overflow-hidden h-6" style={{ background: c.bg }}>
-                  <div className="flex-1" style={{ background: c.bg }} />
-                  <div className="w-3" style={{ background: c.accent }} />
-                  <div className="w-6 flex items-center justify-center text-[7px] font-mono" style={{ background: c.fg, color: c.bg }}>Aa</div>
-                </div>
-                <span className={`text-[11px] font-medium ${isActive ? "text-accent" : "text-fg-dim"}`}>{c.label}</span>
-                {isActive && <span className="ml-1.5 text-[10px] text-accent">✓</span>}
-              </button>
-            );
-          })}
+          <button
+            onClick={() => { if (!darkMode) onToggle(); }}
+            className={`text-left bg-bg-soft border rounded-lg p-2.5 cursor-pointer transition-all ${
+              !darkMode ? "border-accent ring-1 ring-accent/50" : "border-border-soft hover:border-fg-faint/30"
+            }`}
+          >
+            <div className="h-6 rounded-md overflow-hidden mb-2 flex" style={{ background: "#F8FAFC" }}>
+              <div className="flex-1" style={{ background: "#F8FAFC" }} />
+              <div className="w-3" style={{ background: "#0D9488" }} />
+              <div className="w-6 flex items-center justify-center text-[7px] font-mono" style={{ background: "#0F172A", color: "#F8FAFC" }}>Aa</div>
+            </div>
+            <span className={`text-[11px] font-medium ${!darkMode ? "text-accent" : "text-fg-dim"}`}>亮色 · Light</span>
+            {!darkMode && <span className="ml-1.5 text-[10px] text-accent">✓</span>}
+          </button>
         </div>
       </div>
 
       <div className="mb-4 p-3 bg-bg-soft border border-border-soft rounded-lg">
-        <div className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">色板预览</div>
+        <div className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">当前色板</div>
         <div className="flex flex-wrap gap-1.5">
           {[
-            { label: "bg", color: tc.bg },
-            { label: "bg-soft", color: "#" + darkenHex(tc.bg, -8) },
-            { label: "bg-elev", color: "#" + darkenHex(tc.bg, -16) },
-            { label: "accent", color: tc.accent },
-            { label: "border", color: "#" + mixHex(tc.bg, tc.fg, 0.3) },
-            { label: "fg", color: tc.fg },
-            { label: "fg-dim", color: "#" + mixHex(tc.bg, tc.fg, 0.7) },
-            { label: "ok", color: "#74b87a" },
-            { label: "warn", color: "#d9a441" },
-            { label: "err", color: "#e0696a" },
-          ].map(({ label, color }) => (
-            <div key={label} className="flex flex-col items-center gap-0.5">
-              <div className="w-7 h-7 rounded-md border border-border-soft" style={{ background: color }} />
-              <span className="text-[9px] text-fg-faint font-mono">{label}</span>
-            </div>
+            darkMode ? "#0F172A" : "#F8FAFC",
+            darkMode ? "#1E293B" : "#FFFFFF",
+            darkMode ? "#6366F1" : "#0D9488",
+            darkMode ? "#F8FAFC" : "#0F172A",
+            darkMode ? "#CBD5E1" : "#475569",
+            darkMode ? "#22C55E" : "#059669",
+            darkMode ? "#F59E0B" : "#D97706",
+            darkMode ? "#EF4444" : "#DC2626",
+          ].map((c, i) => (
+            <span key={i} className="w-7 h-7 rounded-md border border-border-soft" style={{ background: c }} title={c} />
           ))}
         </div>
       </div>
 
-      <div className="mb-4">
-        <label className="text-fg-dim text-[13px] font-medium mb-2 block">界面字体</label>
-        <select className="w-full bg-bg-soft border border-border-soft rounded-md text-fg text-[13px] px-2.5 py-1.5 outline-none focus:border-accent" value={uiFont} onChange={e => applyFont("ui", e.target.value)}>
-          <option value="">系统默认</option>
-          <option value="pingfang">苹方 (PingFang SC)</option>
-          <option value="yahei">微软雅黑</option>
-          <option value="noto">Noto Sans SC</option>
-        </select>
+      <div className="mb-4 p-3 bg-bg-soft border border-border-soft rounded-lg">
+        <div className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">界面字体</div>
+        <div className="flex gap-2">
+          <input
+            className="flex-1 min-w-0 bg-bg-elev border border-border-soft rounded-md px-2 py-1.5 text-xs text-fg outline-none focus:border-accent"
+            placeholder="默认（系统字体）"
+            value={uiFont}
+            onChange={(e) => applyFont("ui", e.target.value)}
+          />
+        </div>
       </div>
 
-      <div className="mb-4">
-        <label className="text-fg-dim text-[13px] font-medium mb-2 block">等宽字体</label>
-        <select className="w-full bg-bg-soft border border-border-soft rounded-md text-fg text-[13px] px-2.5 py-1.5 outline-none focus:border-accent" value={monoFont} onChange={e => applyFont("mono", e.target.value)}>
-          <option value="">系统默认</option>
-          <option value="cascadia">Cascadia Code</option>
-          <option value="jetbrains">JetBrains Mono</option>
-          <option value="sfmono">SF Mono</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="text-fg-dim text-[13px] font-medium mb-2 block">{t("settings.language")}</label>
-        <div className="inline-flex border border-border-soft rounded-md overflow-hidden">
-          {[
-            { value: "", label: t("settings.langAuto") },
-            { value: "zh", label: "简体中文" },
-            { value: "zh-TW", label: "繁體中文" },
-            { value: "en", label: "English" },
-          ].map(({ value, label }) => (
-            <button
-              key={value}
-              className={`px-3 py-1.5 bg-transparent border-0 border-r border-border-soft text-fg-dim text-xs cursor-pointer transition-[color,background] hover:text-fg hover:bg-bg-soft last:border-r-0 ${pref === value ? "bg-accent-soft text-accent" : ""}`}
-              onClick={() => setPref(value as "" | "en" | "zh" | "zh-TW")}
-            >
-              {label}
-            </button>
-          ))}
+      <div className="mb-4 p-3 bg-bg-soft border border-border-soft rounded-lg">
+        <div className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">等宽字体</div>
+        <div className="flex gap-2">
+          <input
+            className="flex-1 min-w-0 bg-bg-elev border border-border-soft rounded-md px-2 py-1.5 text-xs text-fg outline-none focus:border-accent"
+            placeholder="默认（等宽字体）"
+            value={monoFont}
+            onChange={(e) => applyFont("mono", e.target.value)}
+          />
         </div>
       </div>
     </section>

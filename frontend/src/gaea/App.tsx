@@ -7,7 +7,6 @@ import {
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
 import { sessionTitle, sessionTime } from "./lib/session";
-import { applyTheme } from "./lib/theme";
 import { useController } from "./lib/store";
 import { app } from "./lib/bridge";
 import { Transcript } from "./components/Transcript";
@@ -492,7 +491,7 @@ export default function App() {
               </ToolbarButton>
               <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); try { localStorage.setItem("gaea.compactMode", v ? "1" : "0"); } catch {} }} title={compactMode ? "展开模式" : "紧凑模式"}>{compactMode ? "⊞" : "⊟"}</ToolbarButton>
               <ToolbarButton onClick={() => downloadMarkdown(exportAsMarkdown(state.items))} disabled={state.items.length===0}>导出</ToolbarButton>
-              <ThemeSwitcher theme={themeNow} onSet={applyTheme} onStore={setTheme} />
+              <ThemeSwitcher theme={themeNow} onSet={setTheme} />
             </div>
           </header>
 

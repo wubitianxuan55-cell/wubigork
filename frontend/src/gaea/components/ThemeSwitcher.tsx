@@ -1,80 +1,43 @@
 import { useState } from "react";
-import type { Theme } from "../lib/theme";
+import { Moon, Sun } from "lucide-react";
 
-const THEME_DOTS: Record<string, string> = {
-  slate: "#0F172A",
-  earth: "#1A1512",
-  noir: "#111113",
-  paper: "#F8FAFC",
-  sand: "#FDF6EC",
-  mist: "#F2F5F8",
-};
-
-const THEME_NAMES: Record<string, string> = {
-  slate: "暗岩",
-  earth: "深壤",
-  noir: "墨金",
-  paper: "素纸",
-  sand: "砂岩",
-  mist: "晨雾",
-  auto: "自动",
-};
-
+// ThemeSwitcher — 暗/亮主题切换。
+// 主题已统一：跟随主应用（老栈）darkMode，本组件仅作为切换入口。
+// theme: "slate"（暗色）| "paper"（亮色）| 其他值视为暗色
 export function ThemeSwitcher({
   theme,
   onSet,
-  onStore,
 }: {
   theme: string;
-  onSet: (theme: Theme) => void;
-  onStore: (theme: Theme) => void;
+  onSet: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const themes: Theme[] = ["slate", "earth", "noir", "paper", "sand", "mist", "auto"];
-  const current = theme === "auto" ? "auto" : theme;
+  const isDark = theme === "slate" || theme === "earth" || theme === "noir";
 
-  const handlePick = (th: Theme) => {
-    onStore(th);
-    onSet(th);
+  const handleToggle = () => {
     setOpen(false);
+    onSet();
   };
 
   return (
     <div className="relative inline-flex no-drag">
       <button
         className="toolbar-btn no-drag"
-        onClick={() => setOpen((v) => !v)}
-        title="切换主题"
+        onClick={handleToggle}
+        title={isDark ? "切换到亮色" : "切换到暗色"}
       >
-        <span
-          className="inline-block w-3 h-3 rounded-full border border-border-soft shrink-0"
-          style={{ background: THEME_DOTS[current] ?? THEME_DOTS.slate }}
-        />
-        <span>{THEME_NAMES[current] ?? current}</span>
+        {isDark ? <Sun size={13} /> : <Moon size={13} />}
+        <span>{isDark ? "亮色" : "暗色"}</span>
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute top-full right-0 mt-1 z-50 min-w-[120px] py-1 max-h-[320px] overflow-y-auto bg-bg-elev-2 border border-border rounded-lg" style={{boxShadow: "var(--ds-shadow-dropdown)"}}>
-            {themes.map((th) => (
-              <button
-                key={th}
-                className={`w-full text-left px-3 py-1.5 border-0 bg-transparent text-fg-dim text-[12px] cursor-pointer hover:bg-bg-soft hover:text-fg flex items-center gap-2 ${
-                  current === th ? "text-accent" : ""
-                }`}
-                onClick={() => handlePick(th)}
-              >
-                <span
-                  className={`inline-block w-3 h-3 rounded-full shrink-0 ${
-                    current === th ? "ring-2 ring-accent ring-offset-1 ring-offset-bg-elev-2" : ""
-                  }`}
-                  style={{ background: THEME_DOTS[th] ?? "#555" }}
-                />
-                <span>{THEME_NAMES[th] ?? th}</span>
-              </button>
-            ))}
-          </div>
-        </>
+        <div className="absolute top-full right-0 mt-1 z-50 min-w-[120px] py-1 bg-bg-elev-2 border border-border rounded-lg" style={{boxShadow: "var(--ds-shadow-dropdown)"}}>
+          <button
+            className="w-full text-left px-3 py-1.5 border-0 bg-transparent text-fg-dim text-[12px] cursor-pointer hover:bg-bg-soft hover:text-fg"
+            onClick={handleToggle}
+          >
+            {isDark ? "切换到亮色" : "切换到暗色"}
+          </button>
+        </div>
       )}
     </div>
   );

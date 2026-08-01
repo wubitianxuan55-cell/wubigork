@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
-import { applyTheme, getTheme, type Theme } from "../lib/theme";
+import { useAppStore } from "../../stores/appStore";
 import type { SettingsView } from "../lib/types";
 import { DrawerHeader, DrawerTitle } from "./DrawerHeader";
 import { ResizableDrawer } from "./ResizableDrawer";
@@ -25,7 +25,8 @@ export function SettingsPanel({ onClose, onChanged }: { onClose: () => void; onC
   const [s, setS] = useState<SettingsView | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [theme, setThemeState] = useState<Theme>(getTheme());
+  const darkMode = useAppStore((s) => s.darkMode);
+  const toggleDarkMode = useAppStore((s) => s.toggleDarkMode);
   const [tab, setTab] = useState<SettingsTab>("models");
   const [query, setQuery] = useState("");
   const TAB_ICONS: Record<SettingsTab, React.ReactNode> = {
@@ -118,11 +119,8 @@ export function SettingsPanel({ onClose, onChanged }: { onClose: () => void; onC
                 {tab === "agent" && <AgentSection s={s} busy={busy} apply={apply} />}
                 {tab === "appearance" && (
                   <AppearanceSection
-                    theme={theme}
-                    onTheme={(t) => {
-                      applyTheme(t);
-                      setThemeState(t);
-                    }}
+                    darkMode={darkMode}
+                    onToggle={toggleDarkMode}
                   />
                 )}
           {tab === "updates" && <UpdatesSection configPath={s.configPath} />}

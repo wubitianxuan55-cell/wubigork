@@ -1,21 +1,27 @@
 // 权限管理 hook — V10.19: 统一 ask/auto/yolo 三级权限
+// 主题统一：跟随主应用（老栈）darkMode，gaea 不再维护独立主题。
 import { useState, useCallback } from "react";
 import type { PermLevel } from "../lib/types";
-import { getTheme } from "../lib/theme";
-import type { Theme } from "../lib/theme";
+import { useAppStore } from "../../stores/appStore";
 import { app } from "../lib/bridge";
 
 const THINK_TEMPS: Record<string, number> = { fast: 0.1, normal: 0.3, deep: 0.7 };
 
 export function useModeManager(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // 保留签名兼容旧调用；参数当前未使用（bypass 由权限系统接管）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   _setBypass: (...args: any[]) => any,
   setModel: (name: string) => Promise<void>,
 ) {
   const [permLevel, setPermLevelState] = useState<PermLevel>("ask");
   const [thinkLevel, setThinkLevel] = useState<"fast" | "normal" | "deep">("normal");
-  const [themeNow, setTheme] = useState<Theme>(getTheme);
   const [switchingModel, setSwitchingModel] = useState(false);
+
+  // 主题跟随主应用：darkMode 即"暗色"，light 即"亮色"
+  const darkMode = useAppStore((s) => s.darkMode);
+  const toggleDarkMode = useAppStore((s) => s.toggleDarkMode);
+  const themeNow = darkMode ? "slate" : "paper";
+  const setTheme = toggleDarkMode;
 
   const setPermLevel = useCallback((level: PermLevel) => {
     setPermLevelState(level);
