@@ -47,6 +47,8 @@ type Server struct {
 	syncBuf   string
 	syncBufMu sync.Mutex
 	pollTO    time.Duration
+
+	sessionExpired atomic.Bool
 }
 
 func New(cfg Config, chatFn ChatFunc) *Server {
@@ -86,6 +88,9 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) IsRunning() bool  { return s.running.Load() }
+
+// SessionExpired 会话是否过期（getUpdates 返回 sessExp -14，需重新绑定）
+func (s *Server) SessionExpired() bool { return s.sessionExpired.Load() }
 func (s *Server) HasILink() bool   { return s.cfg.BotToken != "" }
 func (s *Server) AssistantID() string { return s.cfg.AssistantID }
 
@@ -159,7 +164,8 @@ func (s *Server) pollLoop() {
 		if ec == 0 { ec = resp.Ret }
 		if ec != 0 {
 			if ec == sessExp {
-				slog.Warn("[weixin] 会话过期", "assistant", s.cfg.AssistantID)
+				s.sessionExpired.Store(true)
+				slog.Warn("[weixin] 会话过期（token 无效或需重新绑定）", "assistant", s.cfg.AssistantID)
 				s.sleepOrStop(5 * time.Minute)
 				fails = 0
 				continue
@@ -169,6 +175,7 @@ func (s *Server) pollLoop() {
 			continue
 		}
 
+		s.sessionExpired.Store(false)
 		fails = 0
 
 		if buf := resp.GetUpdatesBuf; buf != "" {

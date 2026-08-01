@@ -37,6 +37,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   const [assistants, setAssistants] = useState<Assistant[]>([])
   const [personalities, setPersonalities] = useState<PersonalityPreset[]>([])
   const [wxStatuses, setWxStatuses] = useState<Record<string, boolean>>({})
+  const [wxSessionExpired, setWxSessionExpired] = useState<Record<string, boolean>>({})
   const [editing, setEditing] = useState<Assistant | null>(null) // null=列表视图, Assistant=编辑
   const [form, setForm] = useState<Assistant>(emptyForm())
   const [saving, setSaving] = useState(false)
@@ -53,8 +54,13 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
       setAssistants(list || [])
       const statuses: any[] = await (App as any).WhisperWeixinStatus()
       const map: Record<string, boolean> = {}
-      if (statuses) statuses.forEach((s: any) => { map[s.id] = s.wxRunning })
+      const expMap: Record<string, boolean> = {}
+      if (statuses) statuses.forEach((s: any) => {
+        map[s.id] = s.wxRunning
+        expMap[s.id] = !!s.wxSessionExpired
+      })
       setWxStatuses(map)
+      setWxSessionExpired(expMap)
     } catch (_) {}
   }, [])
 
@@ -70,11 +76,12 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     if (!form.name.trim()) return message.warning('请输入助手名称')
     setSaving(true)
     try {
+      const token = form.wxToken.includes('*') ? (editing?.wxToken || '') : form.wxToken
       await (App as any).WhisperAssistantSave({
         id: form.id || `ast_${Date.now()}`,
         name: form.name.trim(),
         personalityId: form.personalityId || 'deredere',
-        wxToken: form.wxToken || '',
+        wxToken: token || '',
         wxBotId: form.wxBotId || '',
         wxUserId: form.wxUserId || '',
         enabled: form.enabled,
@@ -330,7 +337,9 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
                         boxShadow: wxOn ? '0 0 6px #52c41a80' : 'none',
                         marginRight: 3, verticalAlign: 'middle',
                       }} />
-                      微信 {wxOn ? '在线' : '离线'}
+                      {wxSessionExpired[ast.id]
+                        ? <span style={{ color: '#faad14' }}>微信会话过期 · 需重新绑定</span>
+                        : <>微信 {wxOn ? '在线' : '离线'}</>}
                     </span>
                   )}
                 </div>

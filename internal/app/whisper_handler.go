@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/gaea/gaea/internal/assistant"
@@ -470,6 +471,10 @@ func (a *whisperState) WhisperAssistantSave(ast assistant.Assistant) error {
 	if a.assistantMgr == nil {
 		return fmt.Errorf("not ready")
 	}
+	// 防御：拒绝保存脱敏 Token（含 * 说明是占位回显，会致 getUpdates 认证失败）
+	if strings.Contains(ast.WxToken, "*") {
+		return fmt.Errorf("Token 无效（不能包含 *），请重新扫码绑定")
+	}
 	existing := a.assistantMgr.Get(ast.ID)
 	if existing != nil {
 		if err := a.assistantMgr.Update(ast.ID, ast); err != nil {
@@ -547,7 +552,8 @@ func (a *whisperState) WhisperWeixinStatus() []map[string]interface{} {
 		}
 		a.weixinMu.Lock()
 		if srv, ok := a.weixinServers[ast.ID]; ok {
-			item["wxRunning"] = srv.IsRunning()
+			item["wxRunning"] = srv.IsRunning() && !srv.SessionExpired()
+			item["wxSessionExpired"] = srv.SessionExpired()
 		}
 		a.weixinMu.Unlock()
 		result = append(result, item)
