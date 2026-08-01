@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import {
   MessageOutlined, ReadOutlined, PictureOutlined, HeartOutlined,
   FileTextOutlined, ToolOutlined, ApiOutlined, SettingOutlined,
@@ -168,6 +168,15 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
   // ── 语音交互（本页直启麦克风）──
   const [userText, setUserText] = useState('')
   const [aiReply, setAiReply] = useState('')
+
+  // 粒子球尺寸随视口高度自适应（全屏/窗口变化实时响应，400 为上限）
+  const [orbSize, setOrbSize] = useState(() =>
+    Math.min(400, Math.max(260, (typeof window !== 'undefined' ? window.innerHeight : 800) - 460)))
+  useEffect(() => {
+    const onResize = () => setOrbSize(Math.min(400, Math.max(260, window.innerHeight - 460)))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
   const { state: voice, start, stop, interrupt } = useVoiceChat({
     onTranscript: (t) => { setUserText(t); setAiReply('') },
     onReply: (t) => setAiReply(t),
@@ -202,7 +211,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     }}>
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 16,
-        width: '100%', maxWidth: 1280, minHeight: 0, flex: 1,
+        width: '100%', maxWidth: 'min(1280px, 100%)', minHeight: 0, flex: 1,
       }}>
         {/* ═══ AI 中枢状态条 ═══ */}
         <div
@@ -271,7 +280,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
         <div style={{
           flex: 1, minHeight: 0,
           display: 'grid',
-          gridTemplateColumns: '1fr 1.6fr 1fr',
+          gridTemplateColumns: 'minmax(200px, 1fr) minmax(360px, 1.6fr) minmax(200px, 1fr)',
           gap: 20,
           alignItems: 'center',
         }}>
@@ -313,7 +322,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
               speaking={voice.speaking}
               aiSpeaking={voice.aiSpeaking}
               transcript={voice.transcript}
-              size={400}
+              size={orbSize}
             />
 
             {/* 状态行 */}
