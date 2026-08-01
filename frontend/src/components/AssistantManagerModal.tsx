@@ -1,7 +1,7 @@
 // AssistantManagerModal.tsx — 虚拟助手管理中心
 // 替代 WhisperPersonalityModal，管理多个助手（每人独立人格 + 微信）
 import React, { useState, useEffect, useCallback } from 'react'
-import { Modal, Button, Input, Switch, Tag, Typography, Popconfirm, message, Empty } from 'antd'
+import { Modal, Button, Input, Switch, Tag, Typography, Popconfirm, message, Empty, Select } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined, CloseOutlined, CheckOutlined, QrcodeOutlined, LoadingOutlined, ReloadOutlined, PictureOutlined, ReadOutlined } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import TisorRadar from './TisorRadar'
@@ -55,6 +55,8 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   const [saving, setSaving] = useState(false)
   const [showPersonalityPicker, setShowPersonalityPicker] = useState(false)
   const [generatingPortrait, setGeneratingPortrait] = useState(false)
+  const [portraitModel, setPortraitModel] = useState('')
+  const [portraitAvailModels, setPortraitAvailModels] = useState<{ engine: string; model: string }[]>([])
   // QR 扫码
   const [qrImage, setQrImage] = useState('')
   const [qrCode, setQrCode] = useState('')
@@ -85,6 +87,19 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
       App.WhisperGetPersonalities().then(setPersonalities).catch(() => {})
     }
   }, [open, reload])
+
+  // 加载剧照可用模型（后端恒含 ComfyUI 本地模型 krea2/z-image-turbo/flux）
+  useEffect(() => {
+    if (!open) return
+    (async () => {
+      try {
+        const cfg: any = await App.GetImageBackendConfig()
+        const list = cfg?.availableModels || []
+        setPortraitAvailModels(list)
+        if (!portraitModel && cfg?.currentModel) setPortraitModel(cfg.currentModel)
+      } catch (_) {}
+    })()
+  }, [open])
 
   // 保存助手
   const handleSave = async () => {
@@ -394,7 +409,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
       const genderWord = p?.gender === 'female' ? '女性' : p?.gender === 'male' ? '男性' : ''
       const guide = (p?.voiceGuide || '').split('：')[1] || p?.voiceGuide || '温柔可靠'
       const prompt = `${genderWord}角色 ${ast.name}。人格：${p?.label || '助手'}。性格设定：${guide.slice(0, 60)}。精致服饰，梦幻唯美背景，电影级光影，8K超高清，半身肖像。`
-      const res = await generateImage(prompt, '', '1024x1024', '', 0, 1)
+      const res = await generateImage(prompt, '', '1024x1024', portraitModel, 0, 1)
       if (res?.error) { message.error(res.error); return }
       const url = res?.images?.[0]?.image
       if (!url) { message.error('生成失败'); return }
@@ -698,13 +713,22 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
 
         {/* 操作区 */}
         <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-          <Button
-            icon={generatingPortrait ? <LoadingOutlined /> : <PictureOutlined />}
-            loading={generatingPortrait}
-            onClick={() => handleGeneratePortrait(ast)}
-            style={{ height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
-            {ast.portraitUrl ? '重新生成剧照' : '生成角色剧照'}
-          </Button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Select
+              size="middle" placeholder="出图模型" value={portraitModel || undefined}
+              onChange={setPortraitModel}
+              style={{ width: 168, height: 40 }}
+              popupMatchSelectWidth={false}
+              options={(portraitAvailModels.length ? portraitAvailModels : [{ engine: 'ComfyUI', model: 'krea2' }, { engine: 'ComfyUI', model: 'z-image-turbo' }]).map(m => ({ value: m.model, label: `${m.model} (${m.engine})` }))}
+            />
+            <Button
+              icon={generatingPortrait ? <LoadingOutlined /> : <PictureOutlined />}
+              loading={generatingPortrait}
+              onClick={() => handleGeneratePortrait(ast)}
+              style={{ height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+              {ast.portraitUrl ? '重新生成剧照' : '生成剧照'}
+            </Button>
+          </div>
           <Button
             icon={<ReadOutlined />}
             onClick={() => handleExportToNovel(ast)}

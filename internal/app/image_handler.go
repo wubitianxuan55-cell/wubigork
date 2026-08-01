@@ -307,19 +307,30 @@ func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 		}
 	}
 
-	// 2. 根据当前后端补充默认模型列表
+	// 2. 恒提供 ComfyUI 本地模型（角色剧照等场景可选择本地出图，本机单用户定位）
+	comfyAlways := []string{"krea2", "z-image-turbo", "flux"}
+	for _, cm := range comfyAlways {
+		dup := false
+		for _, m := range availableModels {
+			if m["model"] == cm {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			availableModels = append(availableModels, map[string]string{"engine": "ComfyUI", "model": cm})
+		}
+	}
+
+	// 3. 根据当前后端补充默认模型列表
 	switch backend {
 	case "comfyui":
-		comfyModels := []string{"krea2", "z-image-turbo", "flux"}
 		hasCurrent := false
-		for _, m := range comfyModels {
-			if m == currentModel {
+		for _, m := range availableModels {
+			if m["model"] == currentModel {
 				hasCurrent = true
+				break
 			}
-			availableModels = append(availableModels, map[string]string{
-				"engine": "ComfyUI",
-				"model":  m,
-			})
 		}
 		if !hasCurrent && currentModel != "" {
 			availableModels = append(availableModels, map[string]string{

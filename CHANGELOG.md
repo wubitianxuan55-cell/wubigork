@@ -1,5 +1,16 @@
 # gaea · 多功能 AI 助手
 
+## v1.6.3「剧照模型可选」(2026-08-02)
+
+> 补丁：小说/轻语角色剧照生成可选手模型（含 ComfyUI 本地 krea2/z-image-turbo/flux）。
+> tag v1.6.3，构建 36,110,848 字节。
+
+- 后端 GetImageBackendConfig：availableModels 恒含 ComfyUI 本地模型（无论全局后端），
+  小说角色剧照弹窗即可选本地模型
+- 轻语角色详情：生成剧照按钮旁加「出图模型」Select（自动加载可用模型，默认当前全局模型），
+  handleGeneratePortrait 用所选模型
+- 验证：go build + tsc -b + vite + wails build 全绿
+
 ## v1.6.2「方案模型条 + 底栏常驻」(2026-08-02)
 
 > 补丁：方案编写模型条不可见修复 + 底栏常驻（无项目时也显示模型监控与资源）。
