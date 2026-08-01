@@ -1,14 +1,11 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React from 'react'
 import {
   MessageOutlined, ReadOutlined, PictureOutlined, HeartOutlined,
   FileTextOutlined, ToolOutlined, ApiOutlined, SettingOutlined,
-  ThunderboltOutlined, ArrowRightOutlined, AudioOutlined, SendOutlined,
-  StopOutlined, RobotOutlined, UserOutlined,
+  ThunderboltOutlined, ArrowRightOutlined, AudioOutlined,
 } from '@ant-design/icons'
-import { Typography, Input, Button, Tooltip } from 'antd'
+import { Typography, Button, Tooltip } from 'antd'
 import VoiceChatOrb from './VoiceChatOrb'
-import { useVoiceChat } from '../hooks/useVoiceChat'
-import * as App from '../../wailsjs/go/app/App'
 
 /** 启动器可跳转的目标页（与 MainLayout 的 Page 类型保持一致的子集） */
 export type LauncherTarget =
@@ -34,9 +31,12 @@ const modules: LauncherModule[] = [
   { key: 'settings', name: '设置', desc: '应用偏好与主题外观', icon: <SettingOutlined />, accent: '#94a3b8' },
 ]
 
-// 左/右卡片列（正中语音交互，卡片分居两侧）
+// 左/右卡片列（正中语音入口，卡片分居两侧）
 const leftModules = modules.slice(0, 4)
 const rightModules = modules.slice(4)
+
+/** 进入轻语板块并自动启动语音对话的跨页信号（WhisperPage 挂载时消费） */
+export const VOICE_LAUNCH_FLAG = 'gaea_voice_launch'
 
 interface ModuleLauncherProps {
   onNavigate: (target: LauncherTarget) => void
@@ -114,107 +114,17 @@ const CardColumn: React.FC<{ list: LauncherModule[]; onNavigate: (t: LauncherTar
   </div>
 )
 
-/** 语言交互气泡（识别/回复消息） */
-const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ role, text }) => {
-  const isUser = role === 'user'
-  return (
-    <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', gap: 8, alignItems: 'flex-start' }}>
-      {!isUser && (
-        <div style={{
-          width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'color-mix(in srgb, var(--gaea-glow) 16%, transparent)',
-          color: 'var(--gaea-glow)', fontSize: 14,
-          boxShadow: '0 0 10px color-mix(in srgb, var(--gaea-glow) 30%, transparent)',
-        }}>
-          <RobotOutlined />
-        </div>
-      )}
-      <div style={{
-        maxWidth: '82%', padding: '7px 12px', borderRadius: 14, fontSize: 13, lineHeight: 1.55,
-        color: 'var(--md-sys-color-text)',
-        background: isUser
-          ? 'linear-gradient(135deg, color-mix(in srgb, var(--gaea-glow) 22%, transparent), color-mix(in srgb, var(--gaea-glow) 10%, transparent))'
-          : 'var(--md-sys-color-surface-container-high)',
-        border: `1px solid ${isUser ? 'color-mix(in srgb, var(--gaea-glow) 32%, transparent)' : 'var(--md-sys-color-outline-variant)'}`,
-        backdropFilter: 'blur(10px)',
-        wordBreak: 'break-word',
-      }}>
-        {text}
-      </div>
-      {isUser && (
-        <div style={{
-          width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'var(--md-sys-color-surface-container-high)',
-          color: 'var(--md-sys-color-text-secondary)', fontSize: 14,
-        }}>
-          <UserOutlined />
-        </div>
-      )}
-    </div>
-  )
-}
-
 /**
- * ModuleLauncher — AI 中枢首页（语言交互 + 模块启动器）。
- * 正中 = 语言粒子交互球（语音后端走轻语板块管道，对话直连默认平台 AI 助手 gaea）；
+ * ModuleLauncher — AI 中枢首页（语音入口 + 模块启动器）。
+ * 正中 = 语言粒子交互入口（点击进入轻语板块启动语音对话，语音能力归属轻语）；
  * 两侧 = 霓虹玻璃悬浮卡片墙。整体三栏悬浮布局。
  */
 const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel }) => {
-  const [userText, setUserText] = useState('')
-  const [aiReply, setAiReply] = useState('')
-  const [sending, setSending] = useState(false)
-  const [input, setInput] = useState('')
-  const inputRef = useRef<any>(null)
-
-  // 语音对话（语音后端 = 轻语板块 voiceManager 管道；对话目标 = gaea 通用 AI）
-  const handleTranscript = useCallback((text: string) => {
-    setUserText(text)
-  }, [])
-  const handleReply = useCallback((text: string) => {
-    setAiReply(text)
-  }, [])
-  const { state: voice, start, stop, interrupt } = useVoiceChat({ onTranscript: handleTranscript, onReply: handleReply })
-
-  // 启动语音前切到 gaea 对话目标（与默认平台 AI 助手直接对话，无人格）
-  const toggleVoice = useCallback(async () => {
-    if (voice.active) { stop(); return }
-    try {
-      await App.VoiceSetChatTarget('gaea')
-    } catch (err: any) {
-      console.warn('[Launcher] 语音对话目标切换失败，回退轻语引擎:', err)
-    }
-    await start()
-  }, [voice.active, start, stop])
-
-  // 文字对话（语音不可用时补充通道）
-  const handleSend = useCallback(async () => {
-    const text = input.trim()
-    if (!text || sending) return
-    setInput('')
-    setUserText(text)
-    setSending(true)
-    setAiReply('')
-    try {
-      const result = await App.ChatGeneral(text)
-      const reply = (result as any)?.reply
-      setAiReply(typeof reply === 'string' ? reply : '（无回复）')
-    } catch (err: any) {
-      setAiReply(`❌ 对话失败: ${err?.message || err}`)
-    } finally {
-      setSending(false)
-    }
-  }, [input, sending])
-
-  const hasChat = !!userText || !!aiReply
-  const voiceStateLabel = voice.aiSpeaking
-    ? 'AI 回复中'
-    : voice.listening
-      ? '正在聆听'
-      : voice.active
-        ? '语音待命'
-        : '待机'
+  // 进入轻语板块并自动启动语音对话（首页只做入口，语音能力在轻语板块）
+  const launchVoice = () => {
+    try { sessionStorage.setItem(VOICE_LAUNCH_FLAG, '1') } catch (_) {}
+    onNavigate('whisper')
+  }
 
   return (
     <div style={{
@@ -268,7 +178,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
               )}
             </div>
             <Typography.Text style={{ fontSize: 12, color: 'var(--md-sys-color-text-secondary)' }}>
-              正中语音直连 gaea 助手 —— 轻语引擎驱动，灵感已就绪
+              正中语音入口 —— 语音对话在轻语板块，模型可在模型中心选择
             </Typography.Text>
           </div>
           <span
@@ -290,7 +200,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
           </span>
         </div>
 
-        {/* ═══ 主区域：左卡片 | 语言交互中枢 | 右卡片 ═══ */}
+        {/* ═══ 主区域：左卡片 | 语言交互入口 | 右卡片 ═══ */}
         <div style={{
           flex: 1, minHeight: 0,
           display: 'grid',
@@ -300,7 +210,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
         }}>
           <CardColumn list={leftModules} onNavigate={onNavigate} />
 
-          {/* ── 正中：语言粒子交互中枢 ── */}
+          {/* ── 正中：语言粒子交互入口 ── */}
           <div
             className="md-glass-strong neon-card language-core"
             style={{
@@ -325,141 +235,55 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
                 border: '1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent)',
                 fontWeight: 500, letterSpacing: '0.06em',
               }}>
-                直连 gaea
+                轻语板块
               </span>
             </div>
 
-            {/* 语言粒子球 */}
+            {/* 语言粒子球（入口展示，语音实现在轻语板块） */}
             <VoiceChatOrb
-              volume={voice.volume}
-              listening={voice.listening}
-              speaking={voice.speaking}
-              aiSpeaking={voice.aiSpeaking}
-              transcript={voice.transcript}
+              volume={0}
+              listening={false}
+              speaking={false}
+              aiSpeaking={false}
+              transcript=""
               size={286}
             />
 
-            {/* 状态行 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, minHeight: 26 }}>
-              <span style={{
-                fontSize: 12, fontWeight: 500, letterSpacing: '0.05em',
-                color: voice.aiSpeaking ? '#64b5f6' : voice.listening ? '#ff8a65' : voice.active ? 'var(--gaea-glow)' : 'var(--md-sys-color-text-secondary)',
-                textShadow: voice.active ? '0 0 10px color-mix(in srgb, var(--gaea-glow) 55%, transparent)' : 'none',
-                transition: 'color 0.3s',
-              }}>
-                {voiceStateLabel}
-              </span>
-              <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--md-sys-color-outline)' }} />
-              <span style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
-                {voice.active ? '轻语引擎 · 自动识别' : '点击语音球下方按钮开始'}
-              </span>
-            </div>
-
-            {/* 对话气泡区 */}
-            <div style={{
-              width: '100%', minHeight: 84, maxHeight: 150, overflowY: 'auto',
-              display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6,
-              padding: '4px 2px',
-            }}>
-              {hasChat ? (
-                <>
-                  {userText && <ChatBubble role="user" text={userText} />}
-                  {aiReply && <ChatBubble role="assistant" text={aiReply} />}
-                  {sending && (
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '2px 6px' }}>
-                      <span className="typing-dots"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'var(--md-sys-color-text-secondary)', fontSize: 12, opacity: 0.7,
-                  textAlign: 'center', lineHeight: 1.7,
-                }}>
-                  语言粒子汇聚成声 ——<br />与默认平台 AI 助手 gaea 直接对话
-                </div>
-              )}
-            </div>
-
-            {voice.error && (
-              <Typography.Text style={{ color: '#fb7185', fontSize: 12, marginTop: 4 }}>
-                {voice.error}
+            {/* 副标题 */}
+            <div style={{ textAlign: 'center', marginTop: 6, marginBottom: 12 }}>
+              <Typography.Text style={{ fontSize: 13, color: 'var(--md-sys-color-text)', fontWeight: 500 }}>
+                与平台 AI 助手 gaea 语音对话
               </Typography.Text>
-            )}
-
-            {/* 控制区：语音开关 + 打断 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 12 }}>
-              <Tooltip title={voice.active ? '结束语音对话' : '开始语音对话'}>
-                <Button
-                  shape="circle"
-                  icon={voice.active ? <StopOutlined /> : <AudioOutlined />}
-                  onClick={toggleVoice}
-                  size="large"
-                  style={{
-                    width: 56, height: 56, fontSize: 22,
-                    border: 'none',
-                    color: voice.active ? '#fff' : 'var(--gaea-glow)',
-                    background: voice.active
-                      ? 'linear-gradient(135deg, #fb7185, #f43f5e)'
-                      : 'color-mix(in srgb, var(--gaea-glow) 16%, transparent)',
-                    boxShadow: voice.active
-                      ? '0 0 26px rgba(244,63,94,0.55), inset 0 0 12px rgba(255,255,255,0.25)'
-                      : '0 0 18px color-mix(in srgb, var(--gaea-glow) 30%, transparent)',
-                    transition: 'box-shadow var(--md-sys-transition-normal), transform var(--md-sys-transition-normal), background var(--md-sys-transition-normal)',
-                  }}
-                  className={voice.active ? 'voice-btn-active' : ''}
-                />
-              </Tooltip>
-              {voice.aiSpeaking && (
-                <Button
-                  shape="round"
-                  icon={<StopOutlined />}
-                  onClick={interrupt}
-                  style={{
-                    border: '1px solid color-mix(in srgb, #fb7185 45%, transparent)',
-                    color: '#fb7185', background: 'color-mix(in srgb, #fb7185 10%, transparent)',
-                    fontSize: 13,
-                  }}
-                >
-                  打断回复
-                </Button>
-              )}
+              <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', marginTop: 4 }}>
+                语音识别 / 对话 / 合成模型可在「模型中心 → 语音模型」选择
+              </div>
             </div>
 
-            {/* 文字输入补充通道 */}
-            <div style={{
-              width: '100%', display: 'flex', gap: 8, marginTop: 12,
-              alignItems: 'center',
-            }}>
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onPressEnter={handleSend}
-                placeholder="或输入文字，与 gaea 对话"
-                disabled={voice.active || sending}
-                variant="borderless"
-                style={{
-                  flex: 1, background: 'var(--md-sys-color-surface-container-high)',
-                  borderRadius: 'var(--md-sys-radius-md)',
-                  fontSize: 13, color: 'var(--md-sys-color-text)',
-                }}
-              />
+            {/* 入口按钮 */}
+            <Tooltip title="进入轻语板块开启语音对话">
               <Button
                 type="primary"
-                icon={<SendOutlined />}
-                onClick={handleSend}
-                loading={sending}
-                disabled={(!input.trim() && !sending) || voice.active}
+                icon={<AudioOutlined />}
+                size="large"
+                onClick={launchVoice}
                 style={{
-                  background: input.trim() ? 'var(--gaea-glow)' : 'var(--md-sys-color-outline-variant)',
-                  borderColor: 'transparent', borderRadius: 'var(--md-sys-radius-md)',
-                  color: input.trim() ? '#042f2e' : 'var(--md-sys-color-text-secondary)',
-                  boxShadow: input.trim() ? '0 0 14px color-mix(in srgb, var(--gaea-glow) 45%, transparent)' : 'none',
-                  flexShrink: 0,
+                  height: 48, padding: '0 28px', borderRadius: 24,
+                  fontSize: 15, fontWeight: 600, letterSpacing: '0.04em',
+                  background: 'linear-gradient(135deg, var(--gaea-glow), color-mix(in srgb, var(--gaea-glow) 55%, #8b5cf6))',
+                  border: 'none', color: '#042f2e',
+                  boxShadow: '0 0 26px color-mix(in srgb, var(--gaea-glow) 45%, transparent)',
+                  transition: 'box-shadow var(--md-sys-transition-normal), transform var(--md-sys-transition-normal)',
                 }}
-              />
+                className="launcher-voice-btn"
+              >
+                进入语音对话
+              </Button>
+            </Tooltip>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
+              <span style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
+                语音能力由轻语板块提供
+              </span>
             </div>
           </div>
 

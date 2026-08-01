@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/gaea/gaea/internal/asr"
 	"github.com/gaea/gaea/internal/tts"
@@ -82,8 +83,8 @@ func (a *mediaState) initVoice() {
 	emitter := &voiceEmitter{app: a.app}
 	a.voiceManager = voice.NewManager(emitter, config)
 
-	// 设置 ASR 客户端（如果 Herdsman 可用）
-	a.trySetASRClient()
+	// 设置 ASR 客户端（模型中心 STT 模型路由）
+	a.applyASRClient()
 
 	// 设置 whisper 对话回调（默认轻语人格对话，使用搜索增强版，语音也能上网查）
 	a.setWhisperChatFn()
@@ -142,50 +143,95 @@ func (a *mediaState) VoiceSetChatTarget(target string) error {
 	return nil
 }
 
-// trySetASRClient 尝试为语音管理器设置 ASR 客户端
-func (a *mediaState) trySetASRClient() {
-	if a.engineMgr == nil {
+// applyASRClient 配置 ASR 客户端（模型中心 STT 模型引擎路由）
+// 优先级：用户选中的 STT 模型（模型中心）→ 扫描各引擎 STT 模型 → 默认 herdsman whisper-base
+func (a *mediaState) applyASRClient() {
+	if a.voiceManager == nil || a.engineMgr == nil {
 		return
 	}
-	eng, ok := a.engineMgr.GetEngine("herdsman")
-	if !ok || !eng.Enabled {
-		return
+
+	// 1. 用户选中的 ASR 模型（模型中心）
+	if a.activeASREngine != "" && a.activeASRModel != "" {
+		if eng, ok := a.engineMgr.GetEngine(a.activeASREngine); ok && eng.Enabled {
+			a.voiceManager.SetASRClient(asr.NewHerdsmanASR(eng.BaseURL, a.activeASRModel))
+			slog.Info("ASR 客户端已配置（用户选择）", "engine", a.activeASREngine, "model", a.activeASRModel)
+			return
+		}
+		slog.Warn("用户选中的 ASR 引擎不可用，自动扫描", "engine", a.activeASREngine)
 	}
-	a.voiceManager.SetASRClient(asr.NewHerdsmanASR(eng.BaseURL, "whisper-base"))
-	slog.Info("ASR 客户端已配置", "baseURL", eng.BaseURL)
+
+	// 2. 扫描所有引擎的 STT 模型
+	for _, eid := range []string{"herdsman", "ollama", "xai", "deepseek"} {
+		eng, ok := a.engineMgr.GetEngine(eid)
+		if !ok || !eng.Enabled {
+			continue
+		}
+		for _, m := range eng.Models {
+			if isSTTModel(m.ID) {
+				a.voiceManager.SetASRClient(asr.NewHerdsmanASR(eng.BaseURL, m.ID))
+				slog.Info("ASR 客户端已配置（自动扫描）", "engine", eid, "model", m.ID)
+				return
+			}
+		}
+	}
+
+	// 3. 默认 herdsman whisper-base
+	if eng, ok := a.engineMgr.GetEngine("herdsman"); ok && eng.Enabled {
+		a.voiceManager.SetASRClient(asr.NewHerdsmanASR(eng.BaseURL, "whisper-base"))
+		slog.Info("ASR 客户端已配置（默认）", "baseURL", eng.BaseURL)
+	}
+}
+
+// isSTTModel 判断模型 ID 是否为语音识别模型（与模型中心 classifyModel 的 stt 分类一致）
+func isSTTModel(id string) bool {
+	l := strings.ToLower(id)
+	return strings.Contains(l, "whisper") || strings.Contains(l, "sherpa") ||
+		strings.Contains(l, "zipformer") || strings.Contains(l, "asr") ||
+		strings.Contains(l, "funasr")
 }
 
 // synthesizeVoiceTTS 语音管道专用的 TTS 合成（带情感参数）
+// 优先级：用户选中的 TTS 模型（模型中心，voicedesign 注入情感描述）→ TTSSpeakBase64 统一路由
 func (a *mediaState) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, string, error) {
-	// 如果有 voiceDescription 且 Herdsman qwen3-tts-voicedesign 可用，优先使用
-	if voiceDescription != "" && a.engineMgr != nil {
-		if eng, ok := a.engineMgr.GetEngine("herdsman"); ok && eng.Enabled {
-			htts := tts.NewHerdsmanTTSWithDesc(eng.BaseURL, "qwen3-tts-voicedesign", voiceDescription)
+	// 1. 用户选中的 TTS 模型（模型中心）优先
+	if a.activeTTSModel != "" && a.engineMgr != nil {
+		if eng, ok := a.engineMgr.GetEngine(a.activeTTSEngine); ok && eng.Enabled {
+			var htts *tts.HerdsmanTTS
+			if strings.Contains(strings.ToLower(a.activeTTSModel), "voicedesign") {
+				htts = tts.NewHerdsmanTTSWithDesc(eng.BaseURL, a.activeTTSModel, voiceDescription)
+			} else {
+				htts = tts.NewHerdsmanTTS(eng.BaseURL, a.activeTTSModel, "Cherry")
+			}
 			if audio, err := htts.Synthesize(text); err == nil && len(audio) > 0 {
 				return audio, "audio/mp3", nil
 			}
-			slog.Debug("voicedesign TTS 失败，回退常规 TTS")
+			slog.Debug("用户选中 TTS 模型失败，回退自动路由", "engine", a.activeTTSEngine, "model", a.activeTTSModel)
 		}
-		// 回退到标准 TTSSpeakBase64
-		result, err := a.TTSSpeakBase64(text)
-		if err != nil {
-			return nil, "", err
-		}
-		b64, _ := result["base64"].(string)
-		mime, _ := result["mimeType"].(string)
-		if b64 == "" {
-			return nil, "", fmt.Errorf("TTS 返回空音频")
-		}
-		if mime == "" {
-			mime = "audio/mp3"
-		}
-		audio, err := base64.StdEncoding.DecodeString(b64)
-		if err != nil {
-			return nil, "", fmt.Errorf("TTS base64 解码失败: %w", err)
-		}
-		return audio, mime, nil
 	}
-	return nil, "", fmt.Errorf("使用流式 TTS 路径")
+
+	// 2. 统一路由（TTSSpeakBase64：扫描引擎 TTS 模型 → Edge → SAPI）
+	return a.synthesizeFromBase64(text)
+}
+
+// synthesizeFromBase64 通过 TTSSpeakBase64 路由合成并解码
+func (a *mediaState) synthesizeFromBase64(text string) ([]byte, string, error) {
+	result, err := a.TTSSpeakBase64(text)
+	if err != nil {
+		return nil, "", err
+	}
+	b64, _ := result["base64"].(string)
+	mime, _ := result["mimeType"].(string)
+	if b64 == "" {
+		return nil, "", fmt.Errorf("TTS 返回空音频")
+	}
+	if mime == "" {
+		mime = "audio/mp3"
+	}
+	audio, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, "", fmt.Errorf("TTS base64 解码失败: %w", err)
+	}
+	return audio, mime, nil
 }
 
 // ── Wails API 端点 ──

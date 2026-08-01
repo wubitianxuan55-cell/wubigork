@@ -6,9 +6,13 @@ import {
   PlusOutlined, MessageOutlined, ApiOutlined, ClearOutlined,
   SearchOutlined, GlobalOutlined, StarFilled, EditOutlined,
   SettingOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CloseOutlined,
+  AudioOutlined, StopOutlined, RobotOutlined,
 } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import { C } from '../utils/theme'
+import VoiceChatOrb from '../components/VoiceChatOrb'
+import { useVoiceChat } from '../hooks/useVoiceChat'
+import { VOICE_LAUNCH_FLAG } from '../components/ModuleLauncher'
 import { WhisperEmotionPanel } from '../components/WhisperEmotionPanel'
 import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
 import { ParticleFlow } from '../components/ParticleFlow'
@@ -97,6 +101,48 @@ const WhisperPage: React.FC = () => {
   const [desireSlots, setDesireSlots] = useState<any[]>([])
   const [traces, setTraces] = useState<any[]>([])
   const listRef = useRef<HTMLDivElement>(null); const inputRef = useRef<any>(null); const hasInitRef = useRef(false)
+
+  // ── 语音对话（轻语板块承载语音能力；对话目标 = 平台 AI 助手 gaea）──
+  const [voiceOpen, setVoiceOpen] = useState(false)
+  const [voiceUserText, setVoiceUserText] = useState('')
+  const [voiceReply, setVoiceReply] = useState('')
+  const voiceTargetSetRef = useRef(false)
+  const { state: voice, start: startVoice, stop: stopVoice, interrupt } = useVoiceChat({
+    onTranscript: (t) => { setVoiceUserText(t); setVoiceReply('') },
+    onReply: (t) => setVoiceReply(t),
+  })
+
+  const openVoice = useCallback(async () => {
+    setVoiceOpen(true)
+    setVoiceUserText('')
+    setVoiceReply('')
+    try {
+      if (!voiceTargetSetRef.current) {
+        await App.VoiceSetChatTarget('gaea')
+        voiceTargetSetRef.current = true
+      }
+    } catch (err: any) {
+      console.warn('[whisper] 语音对话目标切换失败:', err)
+    }
+    await startVoice()
+  }, [startVoice])
+
+  const closeVoice = useCallback(() => {
+    stopVoice()
+    setVoiceOpen(false)
+    setVoiceUserText('')
+    setVoiceReply('')
+  }, [stopVoice])
+
+  // 首页语音入口：进入轻语板块自动启动语音对话
+  useEffect(() => {
+    let flag = false
+    try { flag = sessionStorage.getItem(VOICE_LAUNCH_FLAG) === '1' } catch (_) {}
+    if (flag) {
+      try { sessionStorage.removeItem(VOICE_LAUNCH_FLAG) } catch (_) {}
+      openVoice()
+    }
+  }, [openVoice])
 
   const activeTopic = topics.find(t => t.id === activeId)
   const messages = activeTopic?.messages ?? []
@@ -264,6 +310,11 @@ const WhisperPage: React.FC = () => {
           <Tooltip title="语音设置">
             <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
               style={{ color: C('color-text-secondary'), opacity: 0.5, width: 28, height: 28, padding: 0 }} />
+          </Tooltip>
+          <Tooltip title={voiceOpen ? '结束语音对话' : '语音对话（gaea）'}>
+            <Button type="text" size="small" icon={<AudioOutlined />}
+              onClick={() => voiceOpen ? closeVoice() : openVoice()}
+              style={{ color: voiceOpen ? '#e85388' : C('color-text-secondary'), opacity: voiceOpen ? 1 : 0.5, width: 28, height: 28, padding: 0 }} />
           </Tooltip>
           {hasMessages && (
             <Tooltip title="清空当前对话"><Button type="text" size="small" icon={<ClearOutlined />} onClick={handleClearMessages} style={{ color: C('color-text-secondary'), opacity: 0.4, width: 28, height: 28, padding: 0 }} /></Tooltip>
@@ -587,6 +638,107 @@ const WhisperPage: React.FC = () => {
         onClose={() => setPersonalityOpen(false)}
         onSwitchPersonality={(id) => handleSwitchPersonality(id)}
       />
+
+      {/* 语音对话浮层（轻语板块承载语音管道，对话目标 = gaea） */}
+      {voiceOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(6px)',
+        }} onClick={() => closeVoice()}>
+          <div
+            className="md-glass-strong"
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: 440, maxWidth: '92vw', borderRadius: 24,
+              padding: '20px 26px 22px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.35), 0 0 40px color-mix(in srgb, var(--gaea-glow) 20%, transparent)',
+              animation: 'launcherFadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            {/* 标题行 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginBottom: 2 }}>
+              <span className="live-dot" />
+              <Typography.Text strong style={{ fontSize: 14, color: 'var(--md-sys-color-text)', letterSpacing: '0.04em' }}>
+                语音对话
+              </Typography.Text>
+              <span style={{
+                fontSize: 10, padding: '1px 7px', borderRadius: 9,
+                background: 'color-mix(in srgb, var(--gaea-glow) 14%, transparent)',
+                color: 'var(--gaea-glow)', border: '1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent)',
+                fontWeight: 500, letterSpacing: '0.06em',
+              }}>
+                平台 AI 助手 gaea
+              </span>
+              <div style={{ flex: 1 }} />
+              <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => closeVoice()}
+                style={{ color: 'var(--md-sys-color-text-secondary)', width: 26, height: 26, padding: 0 }} />
+            </div>
+
+            {/* 语言粒子球 */}
+            <VoiceChatOrb
+              volume={voice.volume}
+              listening={voice.listening}
+              speaking={voice.speaking}
+              aiSpeaking={voice.aiSpeaking}
+              transcript={voice.transcript}
+              size={252}
+            />
+
+            {/* 状态行 */}
+            <div style={{ minHeight: 22, marginTop: 2, fontSize: 12, fontWeight: 500, letterSpacing: '0.05em',
+              color: voice.aiSpeaking ? '#64b5f6' : voice.listening ? '#ff8a65' : 'var(--md-sys-color-text-secondary)' }}>
+              {voice.aiSpeaking ? 'AI 回复中…' : voice.listening ? '正在聆听…' : '待机（请说话）'}
+            </div>
+
+            {/* 对话文本 */}
+            <div style={{ width: '100%', minHeight: 66, maxHeight: 140, overflowY: 'auto', marginTop: 8,
+              display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {voiceUserText && (
+                <div style={{ alignSelf: 'flex-end', maxWidth: '85%', padding: '7px 12px', borderRadius: 14,
+                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--gaea-glow) 22%, transparent), color-mix(in srgb, var(--gaea-glow) 10%, transparent))',
+                  border: '1px solid color-mix(in srgb, var(--gaea-glow) 32%, transparent)',
+                  color: 'var(--md-sys-color-text)', fontSize: 13, lineHeight: 1.55 }}>
+                  {voiceUserText}
+                </div>
+              )}
+              {voiceReply && (
+                <div style={{ alignSelf: 'flex-start', maxWidth: '88%', padding: '7px 12px', borderRadius: 14,
+                  background: 'var(--md-sys-color-surface-container-high)',
+                  border: '1px solid var(--md-sys-color-outline-variant)',
+                  color: 'var(--md-sys-color-text)', fontSize: 13, lineHeight: 1.6, wordBreak: 'break-word' }}>
+                  <RobotOutlined style={{ marginRight: 6, color: 'var(--gaea-glow)' }} />{voiceReply}
+                </div>
+              )}
+              {!voiceUserText && !voiceReply && (
+                <div style={{ textAlign: 'center', color: 'var(--md-sys-color-text-secondary)', fontSize: 12, opacity: 0.7, padding: '14px 0' }}>
+                  语言粒子汇聚成声 —— 说话即可与 gaea 对话
+                </div>
+              )}
+            </div>
+
+            {voice.error && (
+              <Typography.Text style={{ color: '#fb7185', fontSize: 12, marginTop: 4 }}>{voice.error}</Typography.Text>
+            )}
+
+            {/* 控制区 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+              {voice.aiSpeaking && (
+                <Button shape="round" icon={<StopOutlined />} onClick={interrupt}
+                  style={{ border: '1px solid color-mix(in srgb, #fb7185 45%, transparent)', color: '#fb7185',
+                    background: 'color-mix(in srgb, #fb7185 10%, transparent)', fontSize: 13 }}>
+                  打断回复
+                </Button>
+              )}
+              <Button type="primary" danger icon={<StopOutlined />} onClick={() => closeVoice()}
+                style={{ borderRadius: 22, padding: '4px 24px', height: 40, fontSize: 13 }}>
+                结束语音对话
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

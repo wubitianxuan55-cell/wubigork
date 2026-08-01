@@ -3,13 +3,13 @@ import { Typography, Card, Switch, Button, Input, Space, Tag, message, Spin, Col
 import {
   CloudOutlined, CheckCircleOutlined,
   CloseCircleOutlined, ReloadOutlined, ThunderboltOutlined,
-  DesktopOutlined, RocketOutlined, PictureOutlined, SoundOutlined,
+  DesktopOutlined, RocketOutlined, PictureOutlined, SoundOutlined, AudioOutlined,
   CaretRightOutlined, SettingOutlined, LoginOutlined, LogoutOutlined, KeyOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import SettingField from '../components/SettingField'
 import { C } from '../utils/theme'
-import type { TTSConfig, TTSStatus } from '../types'
+import * as App from '../../wailsjs/go/app/App'
 import {
   getEngines, saveEngine, testEngineConnection,
   refreshEngineModels, setEngineDefaultModel,
@@ -19,8 +19,6 @@ import {
 import {
   getConfig, saveConfig,
   getImageBackendInfo, setImageBackend as setImageBackendAPI,
-  getTTSConfig, getTTSStatus, saveTTSConfig,
-  startTTSServer, stopTTSServer,
 } from '../api/settings'
 
 type Category = 'llm' | 'image' | 'tts' | 'engine'
@@ -74,8 +72,8 @@ const ModelCenterPage: React.FC = () => {
   const [comfyUIPythonPath, setComfyUIPythonPath] = useState('')
   const [imageBackendSaving, setImageBackendSaving] = useState(false)
 
-  const [ttsConfig, setTTSConfig] = useState<TTSConfig>({ modelPath: '', serverPath: '', port: 8765, backend: 'cuda', speed: 1.0 })
-  const [ttsStatus, setTTSStatus] = useState<TTSStatus>({ running: false, port: 0 })
+  // 语音管道三段激活模型（STT/LLM/TTS，来自模型中心选择）
+  const [voiceCfg, setVoiceCfg] = useState<{ stt: { engine: string; model: string }; llm: { engine: string; model: string }; tts: { engine: string; model: string } }>({ stt: { engine: '', model: '' }, llm: { engine: '', model: '' }, tts: { engine: '', model: '' } })
 
   const loadAll = useCallback(async () => {
     try {
@@ -102,12 +100,33 @@ const ModelCenterPage: React.FC = () => {
     } catch (_) {}
   }, [])
 
-  const loadTTS = useCallback(async () => {
-    try { const c = await getTTSConfig(); if (c) setTTSConfig(c) } catch (_) {}
-    try { const s = await getTTSStatus(); if (s) setTTSStatus(s) } catch (_) {}
+  // 加载语音管道三段激活模型
+  const loadVoiceCfg = useCallback(async () => {
+    try {
+      const cfg = await App.GetVoicePipelineConfig()
+      if (cfg) {
+        setVoiceCfg({
+          stt: { engine: cfg.stt?.engine || '', model: cfg.stt?.model || '' },
+          llm: { engine: cfg.llm?.engine || '', model: cfg.llm?.model || '' },
+          tts: { engine: cfg.tts?.engine || '', model: cfg.tts?.model || '' },
+        })
+      }
+    } catch (_) {}
   }, [])
 
-  useEffect(() => { loadAll(); loadImageBackend(); loadTTS() }, [])
+  useEffect(() => { loadAll(); loadImageBackend(); loadVoiceCfg() }, [loadVoiceCfg])
+
+  // 设为语音识别/合成（模型中心 → 语音管道）
+  const handleSetVoiceModel = async (kind: 'asr' | 'tts', engineId: string, modelId: string) => {
+    try {
+      if (kind === 'asr') await App.SetActiveASRModel(engineId, modelId)
+      else await App.SetActiveTTSModel(engineId, modelId)
+      message.success(`已设为${kind === 'asr' ? '语音识别' : '语音合成'}：${modelId}`)
+      loadVoiceCfg()
+    } catch (err: any) {
+      message.error(err?.message || '设置失败')
+    }
+  }
 
   const handleStartModel = async (card: ModelCardData) => {
     if (classifyModel(card.modelId) !== 'llm') return
@@ -161,19 +180,6 @@ const ModelCenterPage: React.FC = () => {
       const ks = await getDeepseekKeyStatus()
       if (ks) setDeepseekKeyMasked(ks.maskedKey || '')
     } catch (err: any) { message.error(err.message) }
-  }
-
-  const handleSaveTTS = async () => {
-    try { await saveTTSConfig(ttsConfig.modelPath, ttsConfig.serverPath, ttsConfig.port, ttsConfig.backend, ttsConfig.speed); message.success('已保存') }
-    catch (err: any) { message.error(err.message) }
-  }
-  const handleStartTTS = async () => {
-    try { await startTTSServer(ttsConfig.modelPath, ttsConfig.port, ttsConfig.backend); setTTSStatus(s => ({ ...s, running: true })); message.success('已启动') }
-    catch (err: any) { message.error(err.message) }
-  }
-  const handleStopTTS = async () => {
-    try { await stopTTSServer(); setTTSStatus(s => ({ ...s, running: false })); message.success('已停止') }
-    catch (err: any) { message.error(err.message) }
   }
 
   const makeModels = (engine: EngineConfig): ModelCardData[] =>
@@ -324,71 +330,101 @@ const ModelCenterPage: React.FC = () => {
           {/* TTS / Voice */}
           {category === 'tts' && (
             <>
+              {/* 三段激活模型汇总（模型中心 → 语音管道） */}
+              <Card style={{ marginBottom: 16, background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 12 }}>
+                  <span style={{ color: C('color-text-secondary'), fontWeight: 600, marginRight: 4 }}>语音管道：</span>
+                  <Tag color={voiceCfg.stt.model ? 'blue' : 'default'} style={{ fontSize: 11 }}>
+                    🎙️ 识别 {voiceCfg.stt.model || '自动'}
+                  </Tag>
+                  <Tag color={voiceCfg.llm.model ? 'green' : 'default'} style={{ fontSize: 11 }}>
+                    💬 对话 {voiceCfg.llm.model || '默认'}
+                  </Tag>
+                  <Tag color={voiceCfg.tts.model ? 'purple' : 'default'} style={{ fontSize: 11 }}>
+                    🔊 合成 {voiceCfg.tts.model || '自动'}
+                  </Tag>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, marginLeft: 'auto' }}>
+                    点击下方卡片可切换识别/合成模型（自动持久化，重启保留）
+                  </Typography.Text>
+                </div>
+              </Card>
+
               {ttsModels.length === 0 && sttModels.length === 0 ? (
                 <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, textAlign: 'center', padding: 40, marginBottom: 16 }}>
                   <SoundOutlined style={{ fontSize: 32, color: C('color-text-secondary'), marginBottom: 12 }} />
                   <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 14, display: 'block' }}>未发现语音模型</Typography.Text>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginTop: 6 }}>
+                    请先在「引擎管理」中刷新模型列表（Herdsman 本地引擎可提供 whisper / qwen3-tts 等）
+                  </Typography.Text>
                 </Card>
               ) : (
                 <>
                   {ttsModels.length > 0 && (
                     <div style={{ marginBottom: 24 }}>
-                      <Typography.Text strong style={{ color: C('color-text'), fontSize: 15, display: 'block', marginBottom: 10 }}>🔊 TTS 文字转语音</Typography.Text>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-                        {ttsModels.map(m => (
-                          <Card key={m.modelId} size="small" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>
-                            <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block', marginBottom: 6 }}>{m.modelName}</Typography.Text>
-                            <Space>
-                              <Tag color={engineColors[m.engineId]} style={{ fontSize: 10 }}>{engineLabels[m.engineId]}</Tag>
-                              <Tag color="purple" style={{ fontSize: 10 }}>TTS</Tag>
-                              <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10 }}>{m.status === 'running' ? '● 运行中' : '○ 已停止'}</Tag>
-                            </Space>
-                          </Card>
-                        ))}
+                      <Typography.Text strong style={{ color: C('color-text'), fontSize: 15, display: 'block', marginBottom: 10 }}>🔊 TTS 语音合成</Typography.Text>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
+                        {ttsModels.map(m => {
+                          const active = voiceCfg.tts.engine === m.engineId && voiceCfg.tts.model === m.modelId
+                          return (
+                            <Card key={m.modelId} size="small" style={{
+                              background: 'var(--bg-glass)',
+                              border: active ? '1px solid var(--md-sys-color-primary)' : '1px solid var(--border-subtle)',
+                              borderRadius: 10,
+                              boxShadow: active ? '0 0 16px color-mix(in srgb, var(--gaea-glow) 30%, transparent)' : 'none',
+                              transition: 'box-shadow 0.2s, border-color 0.2s',
+                            }}>
+                              <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block', marginBottom: 6 }}>{m.modelName}</Typography.Text>
+                              <Space>
+                                <Tag color={engineColors[m.engineId]} style={{ fontSize: 10 }}>{engineLabels[m.engineId]}</Tag>
+                                <Tag color="purple" style={{ fontSize: 10 }}>TTS</Tag>
+                                <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10 }}>{m.status === 'running' ? '● 运行中' : '○ 已停止'}</Tag>
+                              </Space>
+                              {active && <Tag color="purple" style={{ marginTop: 6, fontSize: 10 }}>● 语音合成中</Tag>}
+                              <div style={{ marginTop: 8 }}>
+                                <Button size="small" type={active ? 'primary' : 'default'} icon={<SoundOutlined />}
+                                  onClick={() => handleSetVoiceModel('tts', m.engineId, m.modelId)}
+                                  style={{ fontSize: 11 }}>{active ? '已设为语音合成' : '设为语音合成'}</Button>
+                              </div>
+                            </Card>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
                   {sttModels.length > 0 && (
                     <div style={{ marginBottom: 24 }}>
                       <Typography.Text strong style={{ color: C('color-text'), fontSize: 15, display: 'block', marginBottom: 10 }}>🎙️ STT 语音识别</Typography.Text>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-                        {sttModels.map(m => (
-                          <Card key={m.modelId} size="small" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>
-                            <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block', marginBottom: 6 }}>{m.modelName}</Typography.Text>
-                            <Space>
-                              <Tag color={engineColors[m.engineId]} style={{ fontSize: 10 }}>{engineLabels[m.engineId]}</Tag>
-                              <Tag color="blue" style={{ fontSize: 10 }}>STT</Tag>
-                              <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10 }}>{m.status === 'running' ? '● 运行中' : '○ 已停止'}</Tag>
-                            </Space>
-                          </Card>
-                        ))}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
+                        {sttModels.map(m => {
+                          const active = voiceCfg.stt.engine === m.engineId && voiceCfg.stt.model === m.modelId
+                          return (
+                            <Card key={m.modelId} size="small" style={{
+                              background: 'var(--bg-glass)',
+                              border: active ? '1px solid var(--md-sys-color-primary)' : '1px solid var(--border-subtle)',
+                              borderRadius: 10,
+                              boxShadow: active ? '0 0 16px color-mix(in srgb, var(--gaea-glow) 30%, transparent)' : 'none',
+                              transition: 'box-shadow 0.2s, border-color 0.2s',
+                            }}>
+                              <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block', marginBottom: 6 }}>{m.modelName}</Typography.Text>
+                              <Space>
+                                <Tag color={engineColors[m.engineId]} style={{ fontSize: 10 }}>{engineLabels[m.engineId]}</Tag>
+                                <Tag color="blue" style={{ fontSize: 10 }}>STT</Tag>
+                                <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10 }}>{m.status === 'running' ? '● 运行中' : '○ 已停止'}</Tag>
+                              </Space>
+                              {active && <Tag color="blue" style={{ marginTop: 6, fontSize: 10 }}>● 语音识别中</Tag>}
+                              <div style={{ marginTop: 8 }}>
+                                <Button size="small" type={active ? 'primary' : 'default'} icon={<AudioOutlined />}
+                                  onClick={() => handleSetVoiceModel('asr', m.engineId, m.modelId)}
+                                  style={{ fontSize: 11 }}>{active ? '已设为语音识别' : '设为语音识别'}</Button>
+                              </div>
+                            </Card>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
                 </>
               )}
-              <Collapse ghost size="small" items={[{
-                key: 'voxcpm', label: <span style={{ color: C('color-text-secondary'), fontSize: 13 }}><SettingOutlined style={{ marginRight: 6 }} />VoxCPM 本地 TTS 配置</span>,
-                children: (
-                  <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
-                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                      <SettingField label="VoxCPM 可执行文件路径" value={ttsConfig.serverPath} placeholder="留空使用 PATH" onChange={v => setTTSConfig(p => ({ ...p, serverPath: v }))} />
-                      <SettingField label="GGUF 模型文件路径" value={ttsConfig.modelPath} placeholder="D:\\models\\voxcpm.gguf" onChange={v => setTTSConfig(p => ({ ...p, modelPath: v }))} />
-                      <Space direction="horizontal">
-                        <SettingField label="端口" value={ttsConfig.port} type="number" onChange={v => setTTSConfig(p => ({ ...p, port: v }))} width={100} />
-                        <SettingField label="后端" value={ttsConfig.backend} type="select" onChange={v => setTTSConfig(p => ({ ...p, backend: v }))} options={[{ label: 'CUDA', value: 'cuda' }, { label: 'CPU', value: 'cpu' }]} width={100} />
-                      </Space>
-                      <SettingField label="语速" value={ttsConfig.speed} type="number" onChange={v => setTTSConfig(p => ({ ...p, speed: v }))} width={80} />
-                      <Space>
-                        <Button type="primary" onClick={handleSaveTTS}>💾 保存</Button>
-                        <Button onClick={handleStartTTS} disabled={ttsStatus.running}>▶ 启动</Button>
-                        <Button onClick={handleStopTTS} disabled={!ttsStatus.running} danger>⏹ 停止</Button>
-                      </Space>
-                      <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>状态：{ttsStatus.running ? `🟢 运行中 (${ttsStatus.port})` : '⚫ 未启动'}</Typography.Text>
-                    </Space>
-                  </Card>
-                ),
-              }]} />
             </>
           )}
 

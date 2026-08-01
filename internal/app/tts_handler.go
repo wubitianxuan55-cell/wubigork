@@ -50,21 +50,6 @@ func (a *mediaState) TTSSpeak(text string) (string, error) {
 	return "", fmt.Errorf("VoxCPM 已移除，请使用朗读按钮（Base64 模式）")
 }
 
-// SetActiveTTSModel 设置用户选中的 TTS 模型
-func (a *mediaState) SetActiveTTSModel(engineID, modelID string) error {
-	a.activeTTSEngine = engineID
-	a.activeTTSModel = modelID
-	return nil
-}
-
-// GetActiveTTSModel 获取用户选中的 TTS 模型
-func (a *mediaState) GetActiveTTSModel() map[string]string {
-	return map[string]string{
-		"engine": a.activeTTSEngine,
-		"model":  a.activeTTSModel,
-	}
-}
-
 func (a *mediaState) TTSSpeakBase64(text string) (map[string]interface{}, error) {
 	// 1. 用户选中的 TTS 模型
 	if a.activeTTSModel != "" && a.engineMgr != nil {

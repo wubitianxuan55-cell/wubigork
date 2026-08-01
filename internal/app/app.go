@@ -77,9 +77,13 @@ type mediaState struct {
 	// app 反向引用：跨域调用（写作/轻语）经 App 协调。
 	app *App
 
-	// TTS 语音朗读
+	// TTS 语音朗读（模型中心选择）
 	activeTTSEngine string
 	activeTTSModel  string
+
+	// ASR 语音识别（模型中心选择）
+	activeASREngine string
+	activeASRModel  string
 
 	// 语音管道
 	voiceManager *voice.Manager
@@ -175,6 +179,13 @@ func (a *App) Startup(ctx context.Context) {
 	}
 	a.configureClient()
 	a.initImageBackend()
+
+	// 恢复模型中心语音模型选择（持久化自 ~/.gaea_config.json）
+	a.activeASREngine = a.cfg.ActiveASREngine
+	a.activeASRModel = a.cfg.ActiveASRModel
+	a.activeTTSEngine = a.cfg.ActiveTTSEngine
+	a.activeTTSModel = a.cfg.ActiveTTSModel
+
 	a.initVoice()
 	a.initWeixin()
 
@@ -195,6 +206,9 @@ func (a *App) Startup(ctx context.Context) {
 			}
 			if _, err := a.engineMgr.RefreshModels(context.Background(), id); err != nil {
 				slog.Warn("刷新"+id+"模型列表失败", "error", err)
+			} else {
+				// 模型列表就绪后重配 ASR（用户选择/自动扫描 STT 模型）
+				a.applyASRClient()
 			}
 		}(eid)
 	}

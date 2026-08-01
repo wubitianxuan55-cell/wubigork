@@ -32,6 +32,10 @@ const (
 	KeyComfyUIPythonPath   = "comfyui_python_path"
 	KeyActiveEngineID      = "active_engine_id"
 	KeyModel               = "model"
+	KeyActiveASREngine     = "active_asr_engine" // 语音识别激活引擎
+	KeyActiveASRModel      = "active_asr_model"  // 语音识别激活模型
+	KeyActiveTTSEngine     = "active_tts_engine" // 语音合成激活引擎
+	KeyActiveTTSModel      = "active_tts_model"  // 语音合成激活模型
 	KeyDeepseekAPIKey      = "deepseek_api_key"
 )
 
@@ -59,6 +63,10 @@ type configFile struct {
 	ActiveEngineID      string  `json:"active_engine_id,omitempty"` // 活跃模型引擎 ID
 	Model               string  `json:"model,omitempty"`             // 默认 LLM 模型名
 	DeepseekAPIKey      string  `json:"deepseek_api_key,omitempty"`  // DeepSeek API Key
+	ActiveASREngine     string  `json:"active_asr_engine,omitempty"` // 语音识别激活引擎
+	ActiveASRModel      string  `json:"active_asr_model,omitempty"`  // 语音识别激活模型
+	ActiveTTSEngine     string  `json:"active_tts_engine,omitempty"` // 语音合成激活引擎
+	ActiveTTSModel      string  `json:"active_tts_model,omitempty"`  // 语音合成激活模型
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -116,6 +124,14 @@ type Config struct {
 
 	// DeepSeek API Key
 	DeepseekAPIKey string
+
+	// 语音识别激活引擎 + 模型（来自模型中心选择，空=自动）
+	ActiveASREngine string
+	ActiveASRModel  string
+
+	// 语音合成激活引擎 + 模型（来自模型中心选择，空=自动）
+	ActiveTTSEngine string
+	ActiveTTSModel  string
 }
 
 // Load 加载配置（只应调用一次）。
@@ -311,6 +327,18 @@ func Load() *Config {
 			if cf.DeepseekAPIKey != "" {
 				cfg.DeepseekAPIKey = cf.DeepseekAPIKey
 			}
+			if cf.ActiveASREngine != "" {
+				cfg.ActiveASREngine = cf.ActiveASREngine
+			}
+			if cf.ActiveASRModel != "" {
+				cfg.ActiveASRModel = cf.ActiveASRModel
+			}
+			if cf.ActiveTTSEngine != "" {
+				cfg.ActiveTTSEngine = cf.ActiveTTSEngine
+			}
+			if cf.ActiveTTSModel != "" {
+				cfg.ActiveTTSModel = cf.ActiveTTSModel
+			}
 		}
 	}
 
@@ -403,4 +431,8 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyActiveEngineID:    func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
 	KeyModel:             func(cf *configFile, v string) error { cf.Model = v; return nil },
 	KeyDeepseekAPIKey:    func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
+	KeyActiveASREngine:   func(cf *configFile, v string) error { cf.ActiveASREngine = v; return nil },
+	KeyActiveASRModel:    func(cf *configFile, v string) error { cf.ActiveASRModel = v; return nil },
+	KeyActiveTTSEngine:   func(cf *configFile, v string) error { cf.ActiveTTSEngine = v; return nil },
+	KeyActiveTTSModel:    func(cf *configFile, v string) error { cf.ActiveTTSModel = v; return nil },
 }
