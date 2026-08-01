@@ -50,7 +50,7 @@ const LauncherCard: React.FC<{ m: LauncherModule; idx: number; onOpen: () => voi
     role="button"
     tabIndex={0}
     aria-label={`进入${m.name}模块`}
-    className="neon-card launcher-card"
+    className="void-card neon-card launcher-card"
     onClick={onOpen}
     onKeyDown={(e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -60,10 +60,10 @@ const LauncherCard: React.FC<{ m: LauncherModule; idx: number; onOpen: () => voi
     }}
     style={{
       animationDelay: `${0.08 + idx * 0.05}s, ${0.7 + (idx % 2) * 0.8}s`,
-      background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
-      WebkitBackdropFilter: 'blur(14px) saturate(130%)',
-      backdropFilter: 'blur(14px) saturate(130%)',
-      border: '1px solid var(--md-sys-color-outline-variant)',
+      background: 'rgba(255, 255, 255, 0.04)',
+      WebkitBackdropFilter: 'blur(10px) saturate(120%)',
+      backdropFilter: 'blur(10px) saturate(120%)',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
     }}
   >
     <div style={{
@@ -136,7 +136,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     }}>
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 16,
-        width: '100%', maxWidth: 1180, minHeight: 0, flex: 1,
+        width: '100%', maxWidth: 1280, minHeight: 0, flex: 1,
       }}>
         {/* ═══ AI 中枢状态条 ═══ */}
         <div
@@ -204,7 +204,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
         <div style={{
           flex: 1, minHeight: 0,
           display: 'grid',
-          gridTemplateColumns: '1fr 1.55fr 1fr',
+          gridTemplateColumns: '1fr 1.6fr 1fr',
           gap: 20,
           alignItems: 'center',
         }}>
@@ -212,7 +212,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
 
           {/* ── 正中：语言粒子交互入口 ── */}
           <div
-            className="md-glass-strong neon-card language-core"
+            className="void-card neon-card language-core"
             style={{
               position: 'relative',
               display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -246,7 +246,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
               speaking={false}
               aiSpeaking={false}
               transcript=""
-              size={286}
+              size={400}
             />
 
             {/* 副标题 */}

@@ -195,6 +195,31 @@ body {
   50%      { transform: translateY(-6px); }
 }
 
+/* ── 透明虚空卡片（深空悬浮，对齐 Modern Dark Cinema 玻璃配方）── */
+.void-card {
+  background: rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: blur(10px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+              0 10px 36px rgba(0, 0, 0, 0.28);
+}
+/* 顶部扫光高光（悬浮层质感） */
+.void-card::after {
+  content: '';
+  position: absolute;
+  left: 8%; right: 8%; top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.void-card:hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 40%, rgba(255, 255, 255, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+              0 0 26px color-mix(in srgb, var(--gaea-glow) 24%, transparent);
+}
+
 /* 语音激活按钮呼吸脉冲 */
 .voice-btn-active {
   animation: voiceBtnPulse 1.6s ease-in-out infinite;
@@ -427,6 +452,32 @@ body {
     radial-gradient(1px 1px at 76% 60%, var(--gaea-glow) 50%, transparent 55%);
   opacity: 0.5;
   animation: starTwinkle 6s ease-in-out infinite alternate;
+}
+/* 虚空微尘：细密粒子缓慢漂移，营造粒子悬浮虚空感 */
+.gaea-bg .space-dust {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(0.8px 0.8px at 5% 16%, rgba(255, 255, 255, 0.55) 50%, transparent 55%),
+    radial-gradient(0.6px 0.6px at 14% 74%, rgba(255, 255, 255, 0.4) 50%, transparent 55%),
+    radial-gradient(0.9px 0.9px at 22% 34%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(0.6px 0.6px at 31% 90%, rgba(255, 255, 255, 0.45) 50%, transparent 55%),
+    radial-gradient(0.7px 0.7px at 39% 48%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(0.5px 0.5px at 47% 8%, rgba(255, 255, 255, 0.35) 50%, transparent 55%),
+    radial-gradient(0.9px 0.9px at 55% 62%, rgba(255, 255, 255, 0.5) 50%, transparent 55%),
+    radial-gradient(0.6px 0.6px at 63% 26%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(0.7px 0.7px at 71% 82%, rgba(255, 255, 255, 0.4) 50%, transparent 55%),
+    radial-gradient(0.5px 0.5px at 79% 40%, rgba(255, 255, 255, 0.35) 50%, transparent 55%),
+    radial-gradient(0.8px 0.8px at 87% 66%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(0.6px 0.6px at 93% 12%, rgba(255, 255, 255, 0.45) 50%, transparent 55%),
+    radial-gradient(0.7px 0.7px at 97% 50%, rgba(255, 255, 255, 0.4) 50%, transparent 55%);
+  opacity: 0.4;
+  animation: dustDrift 20s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes dustDrift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(26px, -20px, 0) scale(1.06); }
 }
 /* 漂浮光球（aurora orb） */
 .gaea-bg .aurora-orb {

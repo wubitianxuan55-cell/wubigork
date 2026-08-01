@@ -273,6 +273,7 @@ const MainLayout: React.FC = () => {
         <div className="star-dots" />
         <div className="aurora-orb orb-a" />
         <div className="aurora-orb orb-b" />
+        <div className="space-dust" />
       </div>
       {/* ═══ 顶栏 ═══ */}
         <Header className="scanline-top" style={{
