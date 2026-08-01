@@ -29,11 +29,8 @@ type Config struct {
 	Sandbox      SandboxConfig     `toml:"sandbox"`
 	Plugins      []PluginEntry     `toml:"plugins"`
 	Skills       SkillsConfig      `toml:"skills"`
-	Statusline   StatuslineConfig  `toml:"statusline"`
-	Notify       NotifyConfig      `toml:"notifications"`
 	Search       SearchConfig      `toml:"search"`
 	Network      NetworkConfig     `toml:"network"`
-	Serve        ServeConfig       `toml:"serve"`
 }
 
 // SearchConfig configures web search engines.
@@ -87,31 +84,6 @@ func (c *SearchConfig) SearchTimeout() time.Duration {
 
 // ── Network proxy (V10.31) ──────────────────────────────────────────
 
-// [office 配置适配] LSP/Codegraph 配置类型已废弃 · 开始
-// LSPConfig governs the optional Language Server Protocol tools (lsp_definition,
-// lsp_references, lsp_hover, lsp_diagnostics). Enabled defaults to true; the
-// servers themselves are never bundled — each resolves on PATH and the tool
-// returns an install hint when it is missing, so the capability is dormant until
-// the user installs a server. Servers overrides or extends the built-in language
-// → server map, keyed by language id (e.g. "go", "rust", "python").
-// type LSPConfig struct {
-// 	Enabled bool                 `toml:"enabled"`
-// 	Servers map[string]LSPServer `toml:"servers"`
-// }
-
-// LSPServer overrides a built-in language's server or, when keyed by a new
-// language, adds one. An empty field falls back to the built-in default for that
-// language; Extensions is required when adding a language the built-ins don't
-// cover (e.g. ".ex" for Elixir) so files route to it.
-// type LSPServer struct {
-// 	Command     string            `toml:"command"`
-// 	Args        []string          `toml:"args"`
-// 	Env         map[string]string `toml:"env"`
-// 	LanguageID  string            `toml:"language_id"`
-// 	Extensions  []string          `toml:"extensions"`
-// 	InstallHint string            `toml:"install_hint"`
-// }
-// [office 配置适配] LSP/Codegraph 配置类型已废弃 · 结束
 
 // NetworkConfig controls how outgoing HTTP requests reach the internet.
 // ProxyMode selects the strategy: "auto" (system proxy), "env" (HTTP_PROXY/
@@ -152,83 +124,6 @@ func (c *Config) NetworkProxySpec() netclient.ProxySpec {
 		Password: c.Network.Proxy.Password,
 	}
 }
-
-// LSPConfig governs the optional Language Server Protocol tools (lsp_definition,
-// lsp_references, lsp_hover, lsp_diagnostics). Enabled defaults to true; the
-// servers themselves are never bundled — each resolves on PATH and the tool
-// returns an install hint when it is missing, so the capability is dormant until
-// the user installs a server. Servers overrides or extends the built-in language
-// → server map, keyed by language id (e.g. "go", "rust", "python").
-
-
-// ServeConfig configures the HTTP server for mobile/browser access.
-type ServeConfig struct {
-	// Enabled enables the HTTP server. Default false.
-	Enabled bool `toml:"enabled"`
-	// ListenAddr is the bind address (e.g. "127.0.0.1:8787" or "0.0.0.0:8787").
-	// Default "127.0.0.1:8787" (localhost only).
-	ListenAddr string `toml:"listen_addr"`
-	// AuthToken is an optional Bearer token that all requests must provide
-	// via the Authorization header. Empty means no auth.
-	AuthToken string `toml:"auth_token"`
-}
-
-// ServeConfig returns the ServeConfig, applying defaults.
-func (c *Config) ServeConfig() ServeConfig {
-	cfg := c.Serve
-	if cfg.ListenAddr == "" {
-		cfg.ListenAddr = "127.0.0.1:8787"
-	}
-	return cfg
-}
-type LSPConfig struct {
-	Enabled bool                 `toml:"enabled"`
-	Servers map[string]LSPServer `toml:"servers"`
-}
-
-// LSPServer overrides a built-in language's server or, when keyed by a new
-// language, adds one. An empty field falls back to the built-in default for that
-// language; Extensions is required when adding a language the built-ins don't
-// cover (e.g. ".ex" for Elixir) so files route to it.
-type LSPServer struct {
-	Command     string            `toml:"command"`
-	Args        []string          `toml:"args"`
-	Env         map[string]string `toml:"env"`
-	LanguageID  string            `toml:"language_id"`
-	Extensions  []string          `toml:"extensions"`
-	InstallHint string            `toml:"install_hint"`
-}
-
-// StatuslineConfig configures a custom status line. Command, when set, is run at
-// startup and after each turn; its first line of stdout replaces the built-in
-// status data row. A JSON payload (model, context tokens, cwd) is fed on stdin.
-type StatuslineConfig struct {
-	Command string `toml:"command"`
-}
-
-// NotifyConfig configures desktop notifications for turn completion.
-// Enabled by default when the platform supports it (macOS, Linux w/ notify-send,
-// Windows). Set enabled = false to suppress all notifications.
-type NotifyConfig struct {
-	Enabled     bool `toml:"enabled"`
-	MinDuration int  `toml:"min_duration"` // seconds; minimum turn duration before a notification fires (default 5)
-}
-
-// [office 配置适配] CodegraphConfig 已废弃
-// CodegraphConfig governs the built-in CodeGraph MCP server — symbol/call-graph
-// code intelligence (tree-sitter + SQLite) that gives the agent codegraph_*
-// search / context / explore / trace / node tools. Enabled defaults to true; set
-// enabled = false to drop those tools and fall back to grep/glob. AutoInstall
-// (default true) lets gaea fetch the CodeGraph runtime into its cache on first
-// use; set false to require an explicit `gaea codegraph install` (e.g. for
-// air-gapped or headless runs). Path overrides binary resolution; empty resolves
-// the cache, then a `codegraph` on PATH, then a bundle beside the executable.
-// type CodegraphConfig struct {
-// 	Enabled     bool   `toml:"enabled"`
-// 	AutoInstall bool   `toml:"auto_install"`
-// 	Path        string `toml:"path"`
-// }
-// [office 配置适配] CodegraphConfig 已废弃
 
 // SkillsConfig configures skill discovery. Paths adds extra "custom"-scope skill
 // roots — each a directory of SKILL.md / <name>.md playbooks — scanned between
@@ -584,7 +479,6 @@ func Default() *Config {
 		// as a built-in MCP server, and AutoInstall fetches it into the cache on
 		// first use. Set enabled = false to opt out, or auto_install = false to
 		// require an explicit `gaea codegraph install`.
-		Notify: NotifyConfig{Enabled: true, MinDuration: 5},
 		Tools: ToolsConfig{Enabled: []string{
 			"read_file", "write_file", "edit_file", "edit_lines", "move_file",
 			"ls", "grep", "bash",

@@ -138,14 +138,6 @@ func RenderTOML(c *Config) string {
 	fmt.Fprintf(&b, "network = %v\n", c.Sandbox.Network)
 	b.WriteString("\n")
 
-	b.WriteString("[statusline]\n")
-	b.WriteString("# A custom status line: a command whose first stdout line replaces the built-in\n")
-	b.WriteString("# data row. It receives {\"model\",\"contextUsed\",\"contextWindow\"} as JSON on stdin.\n")
-	if c.Statusline.Command != "" {
-		fmt.Fprintf(&b, "command = %q\n", c.Statusline.Command)
-	} else {
-		b.WriteString("# command = \"my-statusline.sh\"\n")
-	}
 	b.WriteString("\n")
 
 	b.WriteString("# External MCP servers. type: \"stdio\" (default, a subprocess) | \"http\" | \"sse\".\n")

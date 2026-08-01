@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/gaea/gaea/internal/util"
 )
 
 // ─── 事实抽取提示词 ──────────────────────────────────────────
@@ -94,7 +96,7 @@ func (p *MemoryIngestPipeline) extractFactsViaLLM(args IngestTurnArgs, ec Emotio
 	}
 
 	var result FactExtractionResult
-	if err := json.Unmarshal([]byte(extractJSON(reply)), &result); err != nil {
+	if err := json.Unmarshal([]byte(util.ExtractJSON(reply)), &result); err != nil {
 		return
 	}
 
@@ -230,7 +232,7 @@ func (p *MemoryIngestPipeline) generateEpisodeViaLLM(args IngestTurnArgs) string
 		return ""
 	}
 	var result EpisodeExtractionResult
-	if err := json.Unmarshal([]byte(extractJSON(reply)), &result); err != nil {
+	if err := json.Unmarshal([]byte(util.ExtractJSON(reply)), &result); err != nil {
 		return ""
 	}
 	return result.Summary
@@ -316,12 +318,3 @@ func extractKeywords(text string) []string {
 	return words
 }
 
-// extractJSON 从 LLM 回复中提取 JSON 块
-func extractJSON(reply string) string {
-	start := strings.Index(reply, "{")
-	end := strings.LastIndex(reply, "}")
-	if start >= 0 && end > start {
-		return reply[start : end+1]
-	}
-	return reply
-}
