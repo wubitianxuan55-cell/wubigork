@@ -1,5 +1,27 @@
 # gaea · 多功能 AI 助手
 
+## v1.1.0「质量工程」(2026-08-01)
+
+> 稳定性加固 + 架构瘦身 + 测试防线建立：21 处 goroutine recover、SSE 阻塞修复、
+> 死代码清理 902 行、四个核心模块测试覆盖大幅提升（modelengine 97.1% / office 35.6% / ai 24% / whisper 16.8%）。
+
+### 稳定性（3 批提交）
+- 21 处 goroutine 无 recover 防护：桌面应用 panic 崩溃问题根治，最严重为
+  controller.runGuarded turn 执行 panic 导致前端永久"生成中"，修复后复位状态 + Emit TurnDone
+- SSE 流式发送 select+ctx.Done 保护：取消后 goroutine + HTTP 连接阻塞泄漏根治（hang 类问题根因）
+
+### 架构整理（5 批提交，净删 902 行）
+- gaea 模块：管理命令组 / 模糊编辑移植 / 宪法文件 / 7 处未使用字段别名
+- 其他模块：剧照旧实现 / 世界观上下文 / 章节迁移等
+- staticcheck U1000 84→25 处（剩余为 whisper 对齐 ackem + ComfyUI 迭代相关）
+
+### 测试防线（5 批提交，+1900 行测试）
+- modelengine 0%→97.1%、office/proposal 0%→35.6%、ai 7%→24%、whisper 13.1%→16.8%
+- 修复 3 处测试暴露缺陷：GenerateSection 漏设 completed、UpdateSection/RemoveRawFile 静默失败
+
+### 发布
+- 构建产物 `C:\AI\wubigrokuildin\gaea.exe`，完整说明见 `releases/v1.1.0.md`
+
 ## v1.0.0「品牌重塑 · 盖亚」(2026-08-01)
 
 > wubigrok 正式更名为 **gaea**（盖亚，大地女神）——从「小说创作 Agent」升级为「多功能 AI 助手」。
