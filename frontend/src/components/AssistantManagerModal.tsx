@@ -22,6 +22,14 @@ interface PersonalityPreset {
   voiceGuide?: string; requiresAdult18?: boolean
 }
 
+// 人格 → 主题色（角色卡左侧边条 + 视觉区渐变）
+const PERSONALITY_COLORS: Record<string, string> = {
+  gaea: '#34d399', deredere: '#e85388', tsundere: '#f59e0b', yandere: '#ef4444',
+  kuudere: '#60a5fa', oneesan: '#a855f7', genki: '#22c55e', shitakiri: '#f97316',
+  ice_queen: '#94a3b8', mommy: '#ec4899', mesugaki: '#fb7185', daddy: '#3b82f6',
+  ceo_dom: '#8b5cf6', gentle_warmth: '#fbbf24', puppy: '#f472b6', iceberg: '#64748b',
+}
+
 interface Props {
   open: boolean
   activePersonality: string
@@ -373,77 +381,140 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
 
   // ─── 列表视图 ──────────────────────────────────────────────
 
-  const renderList = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {assistants.length === 0 ? (
-        <Empty description={<span style={{ color: 'rgba(255,255,255,0.3)' }}>还没有助手</span>} />
-      ) : (
-        assistants.map(ast => {
+  const renderList = () => {
+    // 按启用 + 当前对话排序：当前对话 > 启用 > 禁用
+    const sorted = [...assistants].sort((a, b) => {
+      const act = (x: Assistant) => (x.personalityId === activePersonality ? 0 : x.enabled ? 1 : 2)
+      return act(a) - act(b)
+    })
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(208px, 1fr))', gap: 14 }}>
+        {sorted.map(ast => {
           const p = getPersonality(ast.personalityId)
           const wxOn = wxStatuses[ast.id] || false
+          const isActive = ast.personalityId === activePersonality
+          const accent = PERSONALITY_COLORS[ast.personalityId] || '#a855f7'
           return (
-            <div key={ast.id}
+            <div
+              key={ast.id}
+              onClick={() => { if (!ast.enabled) return; onSwitchPersonality(ast.personalityId); onClose() }}
+              title={ast.enabled ? '切换为此助手对话' : '此助手已禁用'}
               style={{
-                display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14,
-                background: ast.enabled ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.01)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                opacity: ast.enabled ? 1 : 0.5,
-                transition: 'all 200ms',
+                position: 'relative',
+                background: 'linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))',
+                backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+                border: isActive
+                  ? `1px solid ${accent}55`
+                  : `1px solid ${ast.enabled ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.04)'}`,
+                borderRadius: 16,
+                borderLeft: `3px solid ${accent}`,
+                boxShadow: isActive ? `0 0 22px ${accent}30` : '0 6px 20px rgba(0,0,0,0.25)',
+                overflow: 'hidden',
+                cursor: ast.enabled ? 'pointer' : 'not-allowed',
+                opacity: ast.enabled ? 1 : 0.45,
+                display: 'flex', flexDirection: 'column',
+                transition: 'transform 0.25s, box-shadow 0.25s, border-color 0.25s',
               }}
+              onMouseEnter={(e) => { if (ast.enabled) { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 12px 30px rgba(0,0,0,0.35), 0 0 24px ${accent}30` } }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isActive ? `0 0 22px ${accent}30` : '0 6px 20px rgba(0,0,0,0.25)' }}
             >
-              {/* 雷达图 */}
-              {p && <TisorRadar dims={p.dims} size={44} color={ast.enabled ? '#e85388' : '#666'} showLabels={false} />}
-
-              {/* 信息 */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Text strong style={{ fontSize: 13, color: '#fff' }}>{ast.name}</Text>
-                  {!ast.enabled && <Tag style={{ fontSize: 9, margin: 0 }}>已禁用</Tag>}
-                </div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>
-                  {p ? p.label : ast.personalityId}
-                  {ast.wxToken && (
-                    <span style={{ marginLeft: 8 }}>
-                      <span style={{
-                        display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
-                        background: wxOn ? '#52c41a' : '#ff4d4f',
-                        boxShadow: wxOn ? '0 0 6px #52c41a80' : 'none',
-                        marginRight: 3, verticalAlign: 'middle',
-                      }} />
-                      {wxSessionExpired[ast.id]
-                        ? <span style={{ color: '#faad14' }}>微信会话过期 · 需重新绑定</span>
-                        : <>微信 {wxOn ? '在线' : '离线'}</>}
-                    </span>
-                  )}
-                </div>
+              {/* 视觉区：人格渐变 + 雷达图 */}
+              <div style={{
+                height: 96, position: 'relative', flexShrink: 0,
+                background: `linear-gradient(135deg, ${accent}33, ${accent}14 55%, rgba(255,255,255,0.02))`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {p && <TisorRadar dims={p.dims} size={64} color={ast.enabled ? accent : '#666'} showLabels={false} />}
+                {/* 当前对话徽标 */}
+                {isActive && (
+                  <span style={{
+                    position: 'absolute', top: 8, left: 8,
+                    fontSize: 9, padding: '2px 8px', borderRadius: 8, fontWeight: 600,
+                    background: `${accent}26`, color: accent,
+                    border: `1px solid ${accent}44`, letterSpacing: '0.05em',
+                  }}>
+                    ● 当前对话
+                  </span>
+                )}
+                {ast.wxToken && (
+                  <span style={{
+                    position: 'absolute', top: 8, right: 8, fontSize: 9,
+                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                    color: wxOn ? '#4ade80' : wxSessionExpired[ast.id] ? '#fbbf24' : '#94a3b8',
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', boxShadow: `0 0 6px currentColor` }} />
+                    微信{wxOn ? '在线' : wxSessionExpired[ast.id] ? '过期' : '离线'}
+                  </span>
+                )}
               </div>
 
-              {/* 操作 */}
-              <div style={{ display: 'flex', gap: 2 }}>
-                <Button type="text" size="small" icon={<EditOutlined />}
-                  onClick={() => startEdit(ast)}
-                  style={{ color: 'rgba(255,255,255,0.4)', width: 28, height: 28 }} />
-                <Popconfirm title="删除此助手？" onConfirm={() => handleDelete(ast.id)} okText="删除" cancelText="取消">
-                  <Button type="text" size="small" danger icon={<DeleteOutlined />}
-                    style={{ width: 28, height: 28 }} />
-                </Popconfirm>
+              {/* 信息区 */}
+              <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Text strong style={{ fontSize: 14, color: ast.enabled ? '#fff' : 'rgba(255,255,255,0.5)' }}>
+                    {ast.name}
+                  </Text>
+                  {!ast.enabled && <Tag style={{ fontSize: 9, margin: 0 }}>已禁用</Tag>}
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+                  {p ? `${p.label} · ${p.gender === 'female' ? '♀' : p.gender === 'male' ? '♂' : '✦'}` : ast.personalityId}
+                </div>
+
+                {/* 分隔线 */}
+                <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />
+
+                {/* 人格预览（VoiceGuide 摘要） */}
+                <Text style={{
+                  color: 'rgba(255,255,255,0.4)', fontSize: 10, lineHeight: 1.5,
+                  overflow: 'hidden', textOverflow: 'ellipsis',
+                  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                  flex: 1,
+                }}>
+                  {p?.voiceGuide || '暂无人格描述'}
+                </Text>
+
+                {/* 操作 */}
+                <div style={{ display: 'flex', gap: 2, marginTop: 6 }}>
+                  <Button type="text" size="small" icon={<EditOutlined />}
+                    onClick={(e) => { e.stopPropagation(); startEdit(ast) }}
+                    style={{ color: 'rgba(255,255,255,0.45)', width: 26, height: 26, fontSize: 12 }} />
+                  <Popconfirm title="删除此助手？" onConfirm={(e) => { e?.stopPropagation?.(); handleDelete(ast.id) }} okText="删除" cancelText="取消">
+                    <Button type="text" size="small" danger icon={<DeleteOutlined />}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ width: 26, height: 26, fontSize: 12 }} />
+                  </Popconfirm>
+                  <span style={{ marginLeft: 'auto', fontSize: 9, color: 'rgba(255,255,255,0.25)', alignSelf: 'center' }}>
+                    点击切换
+                  </span>
+                </div>
               </div>
             </div>
           )
-        })
-      )}
+        })}
 
-      {/* 新建按钮 */}
-      <Button onClick={startNew} icon={<PlusOutlined />}
-        style={{
-          marginTop: 4, borderRadius: 10, height: 40,
-          background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)',
-          color: 'rgba(255,255,255,0.5)', fontWeight: 500,
-        }}>
-        新建虚拟助手
-      </Button>
-    </div>
-  )
+        {/* 新建助手卡（虚线上浮） */}
+        <div
+          onClick={startNew}
+          style={{
+            borderRadius: 16, border: '1.5px dashed rgba(255,255,255,0.12)',
+            background: 'rgba(255,255,255,0.015)',
+            minHeight: 210, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer',
+            color: 'rgba(255,255,255,0.4)',
+            transition: 'transform 0.25s, border-color 0.25s, color 0.25s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.borderColor = 'rgba(232,83,136,0.4)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
+        >
+          <span style={{ width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)', fontSize: 20 }}>
+            <PlusOutlined />
+          </span>
+          <Text style={{ fontSize: 12, fontWeight: 500 }}>新建虚拟助手</Text>
+          <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>独立人格 · 可绑微信</Text>
+        </div>
+      </div>
+    )
+  }
 
   // ─── 主弹窗 ────────────────────────────────────────────────
 
@@ -457,15 +528,16 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
       centered
       styles={{
         body: {
-          padding: 0, maxHeight: '72vh', overflow: 'auto',
-          background: 'linear-gradient(180deg, #0d0d14 0%, #111119 100%)',
+          padding: 0, maxHeight: '76vh', overflow: 'auto',
+          background: 'linear-gradient(180deg, rgba(13,13,20,0.92) 0%, rgba(17,17,25,0.94) 100%)',
+          backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
         },
       }}
       style={{
         background: 'linear-gradient(180deg, #0f0f18 0%, #13131e 100%)',
         border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 18,
-        boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+        borderRadius: 20,
+        boxShadow: '0 24px 80px rgba(0,0,0,0.55), 0 0 60px rgba(232,83,136,0.06)',
         overflow: 'hidden',
       }}
     >

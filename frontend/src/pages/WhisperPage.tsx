@@ -324,7 +324,10 @@ const WhisperPage: React.FC = () => {
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Typography.Text strong style={{ fontSize: 13, color: C('color-text') }}>{companionName}</Typography.Text>
-              <Button type="text" size="small" icon={<SwapOutlined />} onClick={() => setPersonalityOpen(true)} style={{ color: C('color-text-secondary'), width: 22, height: 22, padding: 0 }} />
+              <Button type="text" size="small" onClick={() => setPersonalityOpen(true)}
+                style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 6px', height: 22, opacity: 0.75 }}>
+                <Tooltip title="管理虚拟助手">虚拟助手管理中心</Tooltip>
+              </Button>
             </div>
           </div>
         </div>
@@ -364,8 +367,8 @@ const WhisperPage: React.FC = () => {
                   </div>
                 ))}
               </div>
-              <Button type="primary" icon={<SwapOutlined />} onClick={() => setPersonalityOpen(true)}
-                style={{ borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13, background: 'linear-gradient(135deg, #e85388, #a855f7)', border: 'none' }}>选择gaea人格</Button>
+              <Button type="primary" onClick={() => setPersonalityOpen(true)}
+                style={{ borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13, background: 'linear-gradient(135deg, #e85388, #a855f7)', border: 'none' }}>虚拟助手管理中心</Button>
             </div>
           ) : (
             <div style={{ maxWidth: 'var(--whisper-chat-max-width)', margin: '0 auto', padding: '0 16px' }}>
