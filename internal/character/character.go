@@ -125,13 +125,6 @@ func (a *Agent) applyUpdates(reply string) {
 	}
 }
 
-// ── 角色剧照 ────────────────────────────────────────────────
-
-var roleTypeCN = map[string]string{
-	"protagonist": "主角", "antagonist": "反派",
-	"supporting": "配角", "minor": "次要角色",
-}
-
 // GeneratePortrait 生成角色剧照（通过图像 AI）
 // 如果角色缺少外貌/性格等描述，先自动 AI 补全，再生成剧照
 func (a *Agent) GeneratePortrait(ctx context.Context, charID string, model string) (string, error) {
@@ -235,46 +228,6 @@ func (a *Agent) GeneratePortrait(ctx context.Context, charID string, model strin
 	return portraitURL, nil
 }
 
-// buildPortraitPrompt 构建角色剧照 prompt（性别前置，自然语言描述）
-func (a *Agent) buildPortraitPrompt(ch *types.Character) string {
-	roleCN := roleTypeCN[ch.RoleType]
-	if roleCN == "" {
-		roleCN = ch.RoleType
-	}
-
-	var parts []string
-
-	// 1. 主体：名字 + 性别 + 角色定位（最重要的识别信息）
-	identity := ch.Name
-	if ch.Gender != "" {
-		genderLabel := map[string]string{"男": "男性", "女": "女性", "male": "男性", "female": "女性"}
-		if g, ok := genderLabel[ch.Gender]; ok {
-			identity = g + "角色 " + identity
-		}
-	}
-	parts = append(parts, identity)
-	if roleCN != "" {
-		parts = append(parts, roleCN)
-	}
-
-	// 2. 描述字段（跳过空字段）
-	add := func(label, value string) {
-		if value != "" {
-			parts = append(parts, fmt.Sprintf("%s%s", label, value))
-		}
-	}
-	add("", ch.Appearance)
-	add("", ch.Figure)
-	add("", ch.Personality)
-	add("背景：", ch.Background)
-	if ch.Age != "" {
-		parts = append(parts, fmt.Sprintf("年龄%s岁", ch.Age))
-	}
-
-	parts = append(parts, "电影级光影，8K超高清，半身肖像，深色氛围背景。")
-
-	return strings.Join(parts, "。")
-}
 
 // savePortraitToProject 将剧照 base64 数据保存到项目 portraits/ 子目录
 func (a *Agent) savePortraitToProject(imageData string, charID string) string {

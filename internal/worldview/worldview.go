@@ -12,7 +12,6 @@ import (
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
 	"github.com/gaea/gaea/internal/types"
-	"github.com/gaea/gaea/internal/util"
 )
 
 // Agent 世界观子代理 — 结构化构建、对话迭代、一致性校验
@@ -186,30 +185,6 @@ func (a *Agent) ChatWithAutoSave(ctx context.Context, userMsg string, currentCon
 }
 
 // ── 内部辅助 ─────────────────────────────────────────────────
-
-func (a *Agent) loadCharsContext() string {
-	cf, err := a.pm.ReadCharacters()
-	if err != nil {
-		slog.Warn("世界观: 读取角色失败", "error", err)
-	}
-	if cf == nil || len(cf.Characters) == 0 {
-		return "（暂无角色）"
-	}
-	b := util.MustMarshalCompact(cf)
-	return string(b)
-}
-
-func (a *Agent) loadOutlineContext() string {
-	of, err := a.pm.ReadOutlines()
-	if err != nil {
-		slog.Warn("世界观: 读取大纲失败", "error", err)
-	}
-	if of == nil || len(of.Nodes) == 0 {
-		return "（暂无大纲）"
-	}
-	b := util.MustMarshalCompact(of)
-	return string(b)
-}
 
 // extractSectionUpdates 从 AI 回复中提取维度更新
 func extractSectionUpdates(reply string) map[string]string {

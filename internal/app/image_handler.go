@@ -725,8 +725,3 @@ func getGPUInfo() (name string, totalGB float64, usedGB float64) {
 	return
 }
 
-// hasNvidiaGPU 检测是否有 NVIDIA GPU
-func hasNvidiaGPU() bool {
-	_, err := exec.LookPath("nvidia-smi")
-	return err == nil
-}

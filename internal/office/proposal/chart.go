@@ -6,15 +6,6 @@ import (
 	"strings"
 )
 
-var chartTypeDescriptions = map[string]string{
-	"flowchart": "流程图",
-	"sequence":  "时序图",
-	"gantt":     "甘特图",
-	"pie":       "饼图",
-	"graph":     "架构图",
-	"mindmap":   "思维导图",
-}
-
 var chartTypePrompts = map[string]string{
 	"flowchart": "生成 Mermaid flowchart，节点5-12个",
 	"sequence":  "生成 Mermaid sequenceDiagram，参与者3-5个",

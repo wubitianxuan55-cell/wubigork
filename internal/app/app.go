@@ -202,14 +202,6 @@ func (a *App) getPM() *project.Manager {
 	return a.pm
 }
 
-// requirePM 以读锁获取当前项目，未打开时返回错误
-func (a *App) requirePM() (*project.Manager, error) {
-	pm := a.getPM()
-	if pm == nil {
-		return nil, fmt.Errorf("请先打开项目")
-	}
-	return pm, nil
-}
 
 // setPM 以写锁设置当前项目
 func (a *App) setPM(pm *project.Manager) {

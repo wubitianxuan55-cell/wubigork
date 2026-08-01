@@ -3,7 +3,6 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/gaea/gaea/internal/types"
 )
@@ -78,25 +77,3 @@ func (a *App) DeleteLorebookEntry(key string) error {
 	return pm.WriteLorebook(lf)
 }
 
-// buildLorebookContext 从 lorebook 中提取匹配当前对话的词条上下文
-func (a *App) buildLorebookContext(userMsg string) string {
-	pm := a.getPM()
-	if pm == nil {
-		return ""
-	}
-	lf, err := pm.ReadLorebook()
-	if err != nil || len(lf.Entries) == 0 {
-		return ""
-	}
-
-	var matched []string
-	for _, e := range lf.Entries {
-		if strings.Contains(userMsg, e.Key) {
-			matched = append(matched, fmt.Sprintf("【%s】(%s): %s", e.Key, e.Category, e.Content))
-		}
-	}
-	if len(matched) == 0 {
-		return ""
-	}
-	return "\n\n## 相关设定（Lorebook）\n" + strings.Join(matched, "\n")
-}
