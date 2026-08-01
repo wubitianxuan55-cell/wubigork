@@ -177,16 +177,37 @@ body {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .launcher-card {
-  animation: launcherFadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: launcherFadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards,
+             floatSoft 5.5s ease-in-out 0.7s infinite;
 }
-/* 动画结束后保留 hover 抬升（backwards 填充只在 delay 期间生效） */
+/* hover：暂停浮游，发光描边 + 图标放大（悬浮静止感） */
 .launcher-card:hover {
-  transform: translateY(-2px);
+  animation-play-state: paused, running;
   box-shadow: var(--md-sys-elevation-3);
 }
 .launcher-card:focus-visible {
   outline: 2px solid var(--md-sys-color-primary);
   outline-offset: 2px;
+}
+/* 卡片常驻轻微上下浮游（悬浮感） */
+@keyframes floatSoft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* 语音激活按钮呼吸脉冲 */
+.voice-btn-active {
+  animation: voiceBtnPulse 1.6s ease-in-out infinite;
+}
+@keyframes voiceBtnPulse {
+  0%, 100% {
+    box-shadow: 0 0 18px color-mix(in srgb, var(--gaea-glow) 30%, transparent),
+                0 0 0 0 rgba(244, 63, 94, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 30px color-mix(in srgb, var(--gaea-glow) 55%, transparent),
+                0 0 0 9px rgba(244, 63, 94, 0);
+  }
 }
 
 .writing-cursor::after {

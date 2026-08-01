@@ -1,12 +1,10 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Input, Button, Avatar, Typography, Tooltip, message } from 'antd'
 import {
   SendOutlined, RobotOutlined, UserOutlined, CopyOutlined, CheckOutlined,
-  MessageOutlined, AudioOutlined, SoundOutlined,
+  MessageOutlined, SoundOutlined,
 } from '@ant-design/icons'
 import ChatTopicSidebar, { type Topic } from '../components/ChatTopicSidebar'
-import VoiceChatOrb from '../components/VoiceChatOrb'
-import { useVoiceChat } from '../hooks/useVoiceChat'
 import * as App from '../../wailsjs/go/app/App'
 import { C } from '../utils/theme'
 
@@ -39,19 +37,6 @@ const ChatPage: React.FC = () => {
   const [speakingId, setSpeakingId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<any>(null)
-
-  // ── 语音回调 ──
-  const handleTranscript = useCallback((text: string) => {
-    const userMsg: Message = { id: nextMsgId(), role: 'user', content: text }
-    setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: [...t.messages, userMsg] } : t))
-  }, [activeId])
-
-  const handleReply = useCallback((text: string) => {
-    const aiMsg: Message = { id: nextMsgId(), role: 'assistant', content: text, streaming: false }
-    setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: [...t.messages, aiMsg] } : t))
-  }, [activeId])
-
-  const { state: voice, start: startVoice, stop: stopVoice, interrupt, setPTT } = useVoiceChat({ onTranscript: handleTranscript, onReply: handleReply })
 
   useEffect(() => { saveTopics(topics) }, [topics])
   const activeTopic = topics.find(t => t.id === activeId)
@@ -119,9 +104,6 @@ const ChatPage: React.FC = () => {
   const handleRename = useCallback((id: string, title: string) => { setTopics(prev => prev.map(t => t.id === id ? { ...t, title } : t)) }, [])
 
   const topicList: Topic[] = topics.map(({ id, title, createdAt }) => ({ id, title, createdAt }))
-  const orbSize = useMemo(() => Math.min(360, typeof window !== 'undefined' ? window.innerWidth * 0.5 : 360), [])
-  const [voiceModelInfo, setVoiceModelInfo] = useState({ llm: '', tts: '', stt: 'Herdsman whisper' })
-  useEffect(() => { if (!voice.active) return; (async () => { try { /* @ts-ignore */ const [engine, model] = await Promise.all([App.GetActiveEngine(), App.GetActiveModel()]); const en = engine === 'xai' ? 'xAI' : engine === 'herdsman' ? 'Herdsman' : engine === 'ollama' ? 'Ollama' : engine; setVoiceModelInfo(prev => ({ ...prev, llm: `${en} / ${model || '默认'}`, tts: 'Herdsman / qwen3-tts' })) } catch (_) { setVoiceModelInfo({ llm: '默认', tts: 'Herdsman', stt: '浏览器' }) } })() }, [voice.active])
 
   const hasMessages = messages.length > 0
   const streamingMsg = messages.find(m => m.streaming)
@@ -205,41 +187,16 @@ const ChatPage: React.FC = () => {
         {/* 输入框 */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 24px 24px', pointerEvents: 'none' }}>
           <div className="chat-input-wrap" style={{ width: '100%', maxWidth: 768, display: 'flex', alignItems: 'flex-end', gap: 6, padding: '8px 12px', background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))', WebkitBackdropFilter: 'blur(20px) saturate(150%)', backdropFilter: 'blur(20px) saturate(150%)', border: '1px solid var(--md-sys-color-outline-variant)', borderRadius: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', pointerEvents: 'auto', transition: 'border-color 0.2s, box-shadow 0.2s' }}>
-            <Tooltip title={voice.active ? '退出语音' : '语音聊天'}>
-              <Button type="text" icon={<AudioOutlined />} onClick={() => voice.active ? stopVoice() : startVoice()}
-                style={{ color: voice.active ? C('color-primary') : C('color-text-secondary'), borderRadius: 12, width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: voice.active ? `${C('color-primary')}12` : 'transparent', flexShrink: 0 }} />
-            </Tooltip>
             <Input.TextArea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-              placeholder="输入消息，Enter 发送 / Shift+Enter 换行" disabled={loading || voice.active}
+              placeholder="输入消息，Enter 发送 / Shift+Enter 换行" disabled={loading}
               autoSize={{ minRows: 1, maxRows: 6 }} className="chat-input-textarea"
               style={{ flex: 1, background: 'transparent', border: 'none', color: C('color-text'), borderRadius: 0, resize: 'none', fontSize: 14, lineHeight: 1.6, padding: '6px 2px', boxShadow: 'none' }} />
             <Tooltip title="发送">
-              <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={loading} disabled={(!input.trim() && !loading) || voice.active}
+              <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={loading} disabled={!input.trim() && !loading}
                 style={{ background: input.trim() ? C('color-primary') : C('color-border'), borderColor: 'transparent', borderRadius: 14, width: 40, height: 40, minWidth: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: input.trim() ? '0 0 16px color-mix(in srgb, var(--gaea-glow) 45%, transparent)' : 'none', flexShrink: 0 }} />
             </Tooltip>
           </div>
         </div>
-
-        {/* 语音叠加层 */}
-        {voice.active && (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: C('color-bg-container') }}>
-            <div style={{ marginTop: 20, fontSize: 12, color: C('color-text-secondary') }}>
-              {voice.listening && !voice.aiSpeaking && '正在聆听...'}
-              {voice.aiSpeaking && 'AI 回复中...'}
-              {!voice.listening && !voice.aiSpeaking && '准备中...'}
-            </div>
-            <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center', fontSize: 11, color: C('color-text-secondary') }}>
-              <span>🎙️ {voiceModelInfo.stt}</span><span style={{ opacity: 0.3 }}>→</span><span>💬 {voiceModelInfo.llm}</span><span style={{ opacity: 0.3 }}>→</span><span>🔊 {voiceModelInfo.tts}</span>
-            </div>
-            {voice.error && <Typography.Text style={{ color: '#fb7185', fontSize: 13, marginTop: 24 }}>{voice.error}</Typography.Text>}
-            <div style={{ marginTop: 32, display: 'flex', gap: 12, alignItems: 'center' }}>
-              {voice.aiSpeaking && (
-                <Button onClick={interrupt} style={{ borderRadius: 20, padding: '8px 28px', fontSize: 14, background: '#fb7185', border: 'none', color: '#fff' }}>打断</Button>
-              )}
-              <Button onClick={stopVoice} style={{ borderRadius: 20, padding: '8px 28px', fontSize: 14, background: C('color-bg-elevated'), border: `1px solid ${C('color-border')}`, color: C('color-text-secondary') }}>退出语音模式</Button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

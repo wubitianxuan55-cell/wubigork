@@ -85,7 +85,19 @@ func (a *mediaState) initVoice() {
 	// 设置 ASR 客户端（如果 Herdsman 可用）
 	a.trySetASRClient()
 
-	// 设置 whisper 对话回调（使用搜索增强版，语音也能上网查）
+	// 设置 whisper 对话回调（默认轻语人格对话，使用搜索增强版，语音也能上网查）
+	a.setWhisperChatFn()
+
+	// 设置 TTS 合成回调（复用现有 TTSSpeakBase64）
+	a.voiceManager.SetTTSSynthesizeFn(func(text, voiceDescription string) ([]byte, string, error) {
+		return a.synthesizeVoiceTTS(text, voiceDescription)
+	})
+
+	slog.Info("语音管理器已初始化")
+}
+
+// setWhisperChatFn 设置默认对话回调（轻语人格化对话，搜索增强）
+func (a *mediaState) setWhisperChatFn() {
 	a.voiceManager.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
 		result, err := a.app.WhisperChatWithSearch(userMsg, personalityID)
 		if err != nil {
@@ -98,13 +110,36 @@ func (a *mediaState) initVoice() {
 		}
 		return reply, emotion, nil
 	})
+}
 
-	// 设置 TTS 合成回调（复用现有 TTSSpeakBase64）
-	a.voiceManager.SetTTSSynthesizeFn(func(text, voiceDescription string) ([]byte, string, error) {
-		return a.synthesizeVoiceTTS(text, voiceDescription)
-	})
-
-	slog.Info("语音管理器已初始化")
+// VoiceSetChatTarget 切换语音对话目标
+// target:
+//   - "gaea"    → 直接与默认平台 AI 助手 gaea 对话（通用对话，无人格）
+//   - "whisper" → 轻语人格化对话（搜索增强，默认）
+func (a *mediaState) VoiceSetChatTarget(target string) error {
+	if a.voiceManager == nil {
+		a.initVoice()
+	}
+	switch target {
+	case "gaea":
+		a.voiceManager.SetWhisperChatFn(func(userMsg, _ string) (string, string, error) {
+			result, err := a.app.ChatGeneral(userMsg)
+			if err != nil {
+				return "", "", err
+			}
+			reply, _ := result["reply"].(string)
+			if reply == "" {
+				return "", "", fmt.Errorf("gaea 对话返回空回复")
+			}
+			return reply, "CALM_RATIONAL", nil
+		})
+	case "whisper":
+		a.setWhisperChatFn()
+	default:
+		return fmt.Errorf("未知对话目标: %s", target)
+	}
+	slog.Info("语音对话目标已切换", "target", target)
+	return nil
 }
 
 // trySetASRClient 尝试为语音管理器设置 ASR 客户端
