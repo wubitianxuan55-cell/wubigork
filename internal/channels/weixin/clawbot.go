@@ -47,6 +47,7 @@ type Server struct {
 	syncBuf   string
 	syncBufMu sync.Mutex
 	pollTO    time.Duration
+	pollCount int64
 
 	sessionExpired atomic.Bool
 }
@@ -186,6 +187,15 @@ func (s *Server) pollLoop() {
 			s.syncBufMu.Lock()
 			s.syncBuf = buf
 			s.syncBufMu.Unlock()
+		}
+
+		// 活跃诊断：每 10 次成功轮询记录一次（确认长轮询在跑）
+		s.pollCount++
+		if s.pollCount%10 == 0 {
+			s.syncBufMu.Lock()
+			bufLen := len(s.syncBuf)
+			s.syncBufMu.Unlock()
+			slog.Info("[weixin] 轮询活跃", "assistant", s.cfg.AssistantID, "round", s.pollCount, "syncBufLen", bufLen)
 		}
 
 		for i := range resp.Msgs {
