@@ -3,51 +3,15 @@
 
 import { loadLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
 
-export const SIDEBAR_COLLAPSED_KEY = "gaea.sidebar.collapsed";
 export const SIDEBAR_COLLAPSED_WIDTH = 68;
 export const SIDEBAR_DEFAULT_WIDTH = 264;
 export const SIDEBAR_MIN_WIDTH = 228;
 export const SIDEBAR_MAX_WIDTH = 420;
-export const CHAT_MIN_WIDTH = 200;
-export const WORKSPACE_PANEL_MIN_WIDTH = 320;
-export const WORKSPACE_PANEL_DEFAULT_WIDTH = WORKSPACE_PANEL_MIN_WIDTH;
-export const WORKSPACE_PANEL_MAX_WIDTH = 820;
-export const WORKSPACE_PANEL_MAX_RATIO = 0.54;
-export const WORKSPACE_FILE_TREE_PANEL_DEFAULT_WIDTH = 360;
-export const WORKSPACE_FILE_TREE_PANEL_MIN_WIDTH = 320;
-export const WORKSPACE_FILE_TREE_PANEL_MAX_WIDTH = 480;
-export const WORKSPACE_FILE_TREE_PANEL_MAX_RATIO = 0.32;
+
+const SIDEBAR_COLLAPSED_KEY = "gaea.sidebar.collapsed";
 
 export function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)));
-}
-
-export function clampWorkspacePanelWidth(
-  width: number,
-  sidebarWidth = SIDEBAR_DEFAULT_WIDTH,
-  viewportWidth = 1440,
-): number {
-  const maxByRatio = Math.floor(viewportWidth * WORKSPACE_PANEL_MAX_RATIO);
-  const maxByChat = Math.floor(viewportWidth - sidebarWidth - CHAT_MIN_WIDTH);
-  const max = Math.max(
-    WORKSPACE_PANEL_MIN_WIDTH,
-    Math.min(WORKSPACE_PANEL_MAX_WIDTH, maxByRatio, maxByChat),
-  );
-  return Math.min(max, Math.max(WORKSPACE_PANEL_MIN_WIDTH, Math.round(width)));
-}
-
-export function clampWorkspaceFileTreePanelWidth(
-  width: number,
-  sidebarWidth = SIDEBAR_DEFAULT_WIDTH,
-  viewportWidth = 1440,
-): number {
-  const maxByRatio = Math.floor(viewportWidth * WORKSPACE_FILE_TREE_PANEL_MAX_RATIO);
-  const maxByChat = Math.floor(viewportWidth - sidebarWidth - CHAT_MIN_WIDTH);
-  const max = Math.max(
-    WORKSPACE_FILE_TREE_PANEL_MIN_WIDTH,
-    Math.min(WORKSPACE_FILE_TREE_PANEL_MAX_WIDTH, maxByRatio, maxByChat),
-  );
-  return Math.min(max, Math.max(WORKSPACE_FILE_TREE_PANEL_MIN_WIDTH, Math.round(width)));
 }
 
 export function loadSidebarCollapsed(): boolean {
@@ -74,24 +38,4 @@ export function loadSidebarWidth(): number {
 
 export function saveSidebarWidth(width: number): void {
   saveLayoutSize("sidebarWidth", width, clampSidebarWidth);
-}
-
-export function loadWorkspacePanelWidth(): number {
-  return loadLayoutSize("workspacePanelWidth", WORKSPACE_PANEL_DEFAULT_WIDTH, clampWorkspacePanelWidth);
-}
-
-export function saveWorkspacePanelWidth(width: number): void {
-  saveLayoutSize("workspacePanelWidth", width);
-}
-
-export function loadWorkspaceFileTreePanelWidth(): number {
-  return loadLayoutSize(
-    "workspaceFileTreePanelWidth",
-    WORKSPACE_FILE_TREE_PANEL_DEFAULT_WIDTH,
-    clampWorkspaceFileTreePanelWidth,
-  );
-}
-
-export function saveWorkspaceFileTreePanelWidth(width: number): void {
-  saveLayoutSize("workspaceFileTreePanelWidth", width);
 }
