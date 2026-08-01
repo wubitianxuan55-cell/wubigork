@@ -1,13 +1,12 @@
 import React from 'react'
 import { Tabs, Typography } from 'antd'
 import {
-  AppstoreOutlined, FolderOpenOutlined, RobotOutlined,
+  AppstoreOutlined, FolderOpenOutlined,
   SoundOutlined, PictureOutlined, SettingOutlined, InfoCircleOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
 import AppearancePanel, { DarkModePanel } from '../components/settings/AppearancePanel'
 import WorkspacePanel from '../components/settings/WorkspacePanel'
-import EnginePanel from '../components/settings/EnginePanel'
 import VoicePanel from '../components/settings/VoicePanel'
 import ImageGenPanel from '../components/settings/ImageGenPanel'
 import OfficePanel from '../components/settings/OfficePanel'
@@ -25,11 +24,6 @@ const SettingsPage: React.FC = () => {
       key: 'workspace',
       label: (<span><FolderOpenOutlined style={{ marginRight: 6 }} />工作空间</span>),
       children: (<WorkspacePanel />),
-    },
-    {
-      key: 'engine',
-      label: (<span><RobotOutlined style={{ marginRight: 6 }} />模型引擎</span>),
-      children: (<EnginePanel />),
     },
     {
       key: 'voice',
@@ -65,7 +59,7 @@ const SettingsPage: React.FC = () => {
           设置中心
         </Typography.Title>
         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12 }}>
-          整合 gaea 全部设置参数 —— 外观 / 工作空间 / 模型引擎 / 语音 / 绘梦 / 办公 / 系统
+          整合 gaea 全部设置参数 —— 外观 / 工作空间 / 语音 / 绘梦 / 办公 / 系统
         </Typography.Text>
       </div>
 
