@@ -2,9 +2,10 @@
 // 替代 WhisperPersonalityModal，管理多个助手（每人独立人格 + 微信）
 import React, { useState, useEffect, useCallback } from 'react'
 import { Modal, Button, Input, Switch, Tag, Typography, Popconfirm, message, Empty } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined, CloseOutlined, CheckOutlined, QrcodeOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined, CloseOutlined, CheckOutlined, QrcodeOutlined, LoadingOutlined, ReloadOutlined, PictureOutlined } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import TisorRadar from './TisorRadar'
+import { generateImage } from '../api/image'
 import PersonalityPreview from './PersonalityPreview'
 
 const { Text } = Typography
@@ -14,6 +15,7 @@ const { Text } = Typography
 interface Assistant {
   id: string; name: string; personalityId: string
   wxToken: string; wxBotId: string; wxUserId: string; enabled: boolean
+  portraitUrl?: string
 }
 
 interface PersonalityPreset {
@@ -51,6 +53,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   const [form, setForm] = useState<Assistant>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [showPersonalityPicker, setShowPersonalityPicker] = useState(false)
+  const [generatingPortrait, setGeneratingPortrait] = useState(false)
   // QR 扫码
   const [qrImage, setQrImage] = useState('')
   const [qrCode, setQrCode] = useState('')
@@ -382,6 +385,30 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
 
   // ─── 列表视图 ──────────────────────────────────────────────
 
+  // 生成角色剧照（参照小说板块：AI 图像 + 提示词画像，自动保存）
+  const handleGeneratePortrait = async (ast: Assistant) => {
+    const p = getPersonality(ast.personalityId)
+    setGeneratingPortrait(true)
+    try {
+      const genderWord = p?.gender === 'female' ? '女性' : p?.gender === 'male' ? '男性' : ''
+      const guide = (p?.voiceGuide || '').split('：')[1] || p?.voiceGuide || '温柔可靠'
+      const prompt = `${genderWord}角色 ${ast.name}。人格：${p?.label || '助手'}。性格设定：${guide.slice(0, 60)}。精致服饰，梦幻唯美背景，电影级光影，8K超高清，半身肖像。`
+      const res = await generateImage(prompt, '', '1024x1024', '', 0, 1)
+      if (res?.error) { message.error(res.error); return }
+      const url = res?.images?.[0]?.image
+      if (!url) { message.error('生成失败'); return }
+      // 自动保存剧照到助手
+      await (App as any).WhisperAssistantSave({ ...ast, portraitUrl: url })
+      message.success('角色剧照已生成')
+      setDetail({ ...ast, portraitUrl: url })
+      reload()
+    } catch (err: any) {
+      message.error(err?.message || '剧照生成失败')
+    } finally {
+      setGeneratingPortrait(false)
+    }
+  }
+
   const renderList = () => {
     // 排序：gaea 核心助手第一 > 当前对话 > 启用 > 禁用
     const sorted = [...assistants].sort((a, b) => {
@@ -423,13 +450,18 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
               onMouseEnter={(e) => { if (ast.enabled) { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 12px 30px rgba(0,0,0,0.35), 0 0 24px ${accent}30` } }}
               onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isActive ? `0 0 22px ${accent}30` : '0 6px 20px rgba(0,0,0,0.25)' }}
             >
-              {/* 视觉区：人格渐变 + 雷达图 */}
+              {/* 视觉区：剧照 / 人格渐变 + 雷达图 */}
               <div style={{
-                height: 96, position: 'relative', flexShrink: 0,
-                background: `linear-gradient(135deg, ${accent}33, ${accent}14 55%, rgba(255,255,255,0.02))`,
+                height: 108, position: 'relative', flexShrink: 0,
+                background: ast.portraitUrl ? 'none' : `linear-gradient(135deg, ${accent}33, ${accent}14 55%, rgba(255,255,255,0.02))`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden',
               }}>
-                {p && <TisorRadar dims={p.dims} size={64} color={ast.enabled ? accent : '#666'} showLabels={false} />}
+                {ast.portraitUrl ? (
+                  <img src={ast.portraitUrl} alt={ast.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', display: 'block' }} />
+                ) : (
+                  p && <TisorRadar dims={p.dims} size={64} color={ast.enabled ? accent : '#666'} showLabels={false} />
+                )}
                 {/* 当前对话徽标 */}
                 {isActive && (
                   <span style={{
@@ -550,8 +582,17 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           background: `linear-gradient(135deg, ${accent}2e, ${accent}12 55%, rgba(255,255,255,0.02))`,
           border: `1px solid ${accent}33`,
         }}>
-          <div style={{ width: 112, height: 112, borderRadius: '50%', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            {p && <TisorRadar dims={p.dims} size={92} color={ast.enabled ? accent : '#666'} showLabels={false} />}
+          <div style={{
+            width: 112, height: 132, borderRadius: 14, flexShrink: 0, overflow: 'hidden',
+            background: 'rgba(255,255,255,0.03)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: `1px solid ${accent}33`,
+          }}>
+            {ast.portraitUrl ? (
+              <img src={ast.portraitUrl} alt={ast.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', display: 'block' }} />
+            ) : (
+              p && <TisorRadar dims={p.dims} size={88} color={ast.enabled ? accent : '#666'} showLabels={false} />
+            )}
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -627,6 +668,13 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
 
         {/* 操作区 */}
         <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <Button
+            icon={generatingPortrait ? <LoadingOutlined /> : <PictureOutlined />}
+            loading={generatingPortrait}
+            onClick={() => handleGeneratePortrait(ast)}
+            style={{ height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+            {ast.portraitUrl ? '重新生成剧照' : '生成角色剧照'}
+          </Button>
           <Button type="primary" style={{
             flex: 1, height: 40, borderRadius: 12, fontWeight: 600,
             background: `linear-gradient(135deg, ${accent}, ${accent}cc)`, border: 'none',
@@ -705,5 +753,5 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
 }
 
 function emptyForm(): Assistant {
-  return { id: '', name: '', personalityId: 'gaea', wxToken: '', wxBotId: '', wxUserId: '', enabled: true }
+  return { id: '', name: '', personalityId: 'gaea', wxToken: '', wxBotId: '', wxUserId: '', enabled: true, portraitUrl: '' }
 }

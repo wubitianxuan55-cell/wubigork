@@ -21,6 +21,7 @@ type Assistant struct {
 	WxBotID       string `json:"wxBotId"`       // 微信 ClawBot Bot ID（ilink_bot_id，回复消息的 from_user_id）
 	WxUserID      string `json:"wxUserId"`      // 绑定的微信用户 OpenID（空=不限）
 	Enabled       bool   `json:"enabled"`       // 是否启用
+	PortraitURL   string `json:"portraitUrl"`   // 角色剧照 URL（AI 生成，可选）
 }
 
 // ─── Manager ─────────────────────────────────────────────────
