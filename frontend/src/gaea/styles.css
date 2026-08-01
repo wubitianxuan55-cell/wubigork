@@ -180,11 +180,6 @@ body {
   transition: background-color var(--dur-slow) ease, color var(--dur-slow) ease;
 }
 
-.app {
-  height: 100%;
-  min-height: 0;
-}
-
 .layout {
   --sidebar-width: var(--sidebar-expanded-width, 264px);
   --workspace-width: 340px;
@@ -214,6 +209,43 @@ body {
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) minmax(0, var(--workspace-width));
 }
 .layout--workspace-maximized .chat-pane {
+  display: none;
+}
+
+.sidebar-resizer {
+  --wails-draggable: no-drag;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar-width) - 4px);
+  z-index: 12;
+  width: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+}
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast);
+}
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.layout--sidebar-resizing .sidebar-resizer::after {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.layout--sidebar-collapsed .sidebar-resizer {
+  display: none;
+}
+.chat-pane {
   display: none;
 }
 
@@ -1484,4 +1516,16 @@ body::after {
   .pwa-titlebar {
     display: none;
   }
+}
+
+/* ── antd 布局壳适配：Drawer/Layout 跟随 gaea 主题变量 ── */
+.gaea-workspace-drawer .ant-drawer-content {
+  background: var(--bg);
+}
+.gaea-app-layout.ant-layout {
+  background: var(--bg);
+  height: 100%;
+}
+.gaea-app-layout .ant-layout {
+  background: transparent;
 }

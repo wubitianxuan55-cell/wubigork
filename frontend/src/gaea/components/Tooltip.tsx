@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
+import { Tooltip as AntdTooltip } from "antd";
 
-// Simple CSS-only tooltip. Renders children with a data-tooltip attribute
-// that CSS turns into a centered tooltip on hover. For more complex positioning
-// (side/fill/portal), see Reasonix's full Tooltip component.
+// Tooltip — 基于 antd Tooltip 的统一封装（保持 label prop 兼容既有调用点）。
 export function Tooltip({
   label,
   children,
@@ -13,8 +12,8 @@ export function Tooltip({
   className?: string;
 }) {
   return (
-    <span className={`tooltip ${className ?? ""}`} data-tooltip={label}>
-      {children}
-    </span>
+    <AntdTooltip title={label} className={className}>
+      <span className="inline-flex">{children}</span>
+    </AntdTooltip>
   );
 }

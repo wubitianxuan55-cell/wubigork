@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { Layout, Drawer } from "antd";
 import {
   BarChart3, BookOpen, SquarePen, Brain, ChevronDown, Cpu, FolderGit2, FolderTree, GitBranch,
   PanelRightOpen, PanelRightClose, Settings as SettingsIcon, MessageSquare, FileText,
@@ -399,7 +400,7 @@ export default function App() {
   }, [state.items]);
   return (
     <ToastProvider>
-    <div className="app">
+    <Layout className="gaea-app-layout">
       <div
         className={[
           "layout",
@@ -553,8 +554,17 @@ export default function App() {
 
 
 
-        {workspacePanelOpen && (
-        <div className="flex flex-col min-w-0 overflow-hidden border-l border-border-soft bg-bg transition-all duration-200">
+        <Drawer
+          open={workspacePanelOpen}
+          placement="right"
+          width={workspacePanelMaximized ? viewportWidth - effectiveSidebarWidth : 400}
+          closable={false}
+          mask={false}
+          rootClassName="gaea-workspace-drawer"
+          styles={{ body: { padding: 0, background: "var(--bg)", display: "flex", flexDirection: "column" } }}
+          onClose={() => { setWorkspacePanel(false); setPendingViewMode(null); }}
+        >
+          <div className="flex flex-col min-w-0 overflow-hidden h-full">
           <div className="flex items-center border-b border-border-soft overflow-hidden shrink">
             <button
               className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "files" ? "text-accent border-accent" : ""}`}
@@ -616,9 +626,10 @@ export default function App() {
               <MessageNavigator items={state.items} scrollToTurn={scrollToTurn ?? undefined} />
             )}
           </div>
-        </div>
-      )}
+          </div>
+        </Drawer>
       </div>
+      </Layout>
 
       {state.approval && (
           <ApprovalModal
@@ -690,7 +701,6 @@ export default function App() {
         items={paletteItems}
         onClose={() => setPaletteOpen(false)}
       />
-    </div>
     </ToastProvider>
   );
 }
