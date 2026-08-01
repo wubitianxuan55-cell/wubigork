@@ -3,7 +3,6 @@ package bridge
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 
 	"github.com/gaea/gaea/internal/ai"
@@ -169,8 +168,6 @@ func TestBridge_Factory(t *testing.T) {
 		t.Errorf("Name = %q, want t", p.Name())
 	}
 }
-
-var errBoom = errors.New("boom")
 
 // TestBridge_Stream_EmptyModel 验证 model 为空时请求透传空模型名，
 // 由 ai.Client 按当前活跃引擎动态解析（办公板块跟随模型中心的关键）。

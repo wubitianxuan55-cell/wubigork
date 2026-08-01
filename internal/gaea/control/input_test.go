@@ -1,21 +1,11 @@
 package control
 
 import (
-	"context"
 	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/command"
 )
-
-type fakeTurnRunner struct {
-	inputs []string
-}
-
-func (f *fakeTurnRunner) Run(ctx context.Context, input string) error {
-	f.inputs = append(f.inputs, input)
-	return nil
-}
 
 func TestCustomCommandLookup(t *testing.T) {
 	c := New(Options{Commands: []command.Command{{Name: "review"}, {Name: "git:commit"}}})

@@ -11,7 +11,6 @@ type EventCallback = (...args: unknown[]) => void
 // 已知流式事件 — 这些事件需要 SSE 连接
 // 必须与 internal/rpc.go 中 streamEventMap 的值一致
 const STREAM_EVENTS = new Set([
-  'chapter-stream',
   'ghost-stream',
   'beat-prose-stream',
   'tts-stream',
