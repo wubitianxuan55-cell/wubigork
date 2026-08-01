@@ -81,8 +81,10 @@ func (s *Service) UpdateSection(proposalID, sectionID, title, content string) (*
 	if err != nil {
 		return nil, err
 	}
+	found := false
 	for _, sec := range flattenSections(p.Sections) {
 		if sec.ID == sectionID {
+			found = true
 			if title != "" {
 				sec.Title = title
 			}
@@ -90,6 +92,9 @@ func (s *Service) UpdateSection(proposalID, sectionID, title, content string) (*
 			sec.Status = "completed"
 			break
 		}
+	}
+	if !found {
+		return nil, fmt.Errorf("章节未找到: %s", sectionID)
 	}
 	if err := s.store.Update(p); err != nil {
 		return nil, err
@@ -310,6 +315,7 @@ func (s *Service) GenerateSection(ctx context.Context, proposalID, sectionID, in
 	}
 
 	targetSec.Content = reply
+	targetSec.Status = "completed"
 	p.UpdatedAt = now()
 
 	if err := s.store.Update(p); err != nil {
@@ -512,7 +518,7 @@ func (s *Service) RemoveRawFile(proposalID string, index int) (*Proposal, error)
 	p, err := s.store.Get(proposalID)
 	if err != nil { return nil, err }
 	if p.BidSummary == nil || index < 0 || index >= len(p.BidSummary.RawFiles) {
-		return p, nil
+		return nil, fmt.Errorf("原始文件索引越界: %d", index)
 	}
 	if f := p.BidSummary.RawFiles[index]; f.Path != "" {
 		_ = os.Remove(f.Path)
