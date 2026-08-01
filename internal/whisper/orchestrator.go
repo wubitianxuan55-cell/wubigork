@@ -32,6 +32,7 @@ type Orchestrator struct {
 	State            FullState
 	SessionID        string
 	Preset           PersonalityPreset
+	AssistantName    string // 助手自定义名字（空=回退"轻语"）
 	FactStore        *FactStore
 	KG               *KnowledgeGraph
 	WM               *WorkingMemory
@@ -251,7 +252,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	if ShouldInjectStrangerGuard(newL1.Stage) {
 		psycheBlock += "\n\n" + BuildStrangerGuardBlock(o.Preset.Label)
 	} else {
-		psycheBlock += "\n\n" + BuildAckemCanonBlock(o.Preset.Label)
+		psycheBlock += "\n\n" + BuildAckemCanonBlock(o.Preset.Label, o.AssistantName)
 	}
 
 	// 创造者记忆块
