@@ -22,18 +22,23 @@ func (w *whisperState) initWeixin() {
 	}
 	w.weixinServers = make(map[string]*weixin.Server)
 
-	// 首次启动：创建默认助手
-	if len(w.assistantMgr.List()) == 0 {
-		defaultAst := assistant.Assistant{
-			ID:            "default",
+	// 确保核心 AI 助手 gaea 始终存在（角色中心必须有 gaea；
+	// 旧数据无 gaea 时补建，已有则跳过）
+	if w.assistantMgr.FindByPersonality("gaea") == nil {
+		coreAst := assistant.Assistant{
+			ID:            "gaea",
 			Name:          "gaea",
 			PersonalityID: "gaea",
 			Enabled:       true,
 		}
 		if token := os.Getenv("WXCLAW_TOKEN"); token != "" {
-			defaultAst.WxToken = token
+			coreAst.WxToken = token
 		}
-		w.assistantMgr.Add(defaultAst)
+		if err := w.assistantMgr.Add(coreAst); err != nil {
+			slog.Warn("[assistant] 创建核心助手 gaea 失败", "err", err)
+		} else {
+			slog.Info("[assistant] 核心 AI 助手 gaea 已就绪")
+		}
 	}
 
 	for _, ast := range w.assistantMgr.Enabled() {
