@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Typography, Card, Switch, Button, Input, Space, Tag, message, Spin, Collapse, Select } from 'antd'
+import { Typography, Card, Switch, Button, Input, Space, Tag, message, Spin, Collapse, Select, Segmented } from 'antd'
 import {
   CloudOutlined, CheckCircleOutlined,
   CloseCircleOutlined, ReloadOutlined, ThunderboltOutlined,
@@ -20,6 +20,7 @@ import {
   getConfig, saveConfig,
   getImageBackendInfo, setImageBackend as setImageBackendAPI,
 } from '../api/settings'
+import { startComfyUI, stopComfyUI, getComfyUIStatus } from '../api/image'
 
 type Category = 'llm' | 'image' | 'tts' | 'engine'
 
@@ -71,6 +72,8 @@ const ModelCenterPage: React.FC = () => {
   const [comfyUIPath, setComfyUIPath] = useState('')
   const [comfyUIPythonPath, setComfyUIPythonPath] = useState('')
   const [imageBackendSaving, setImageBackendSaving] = useState(false)
+  const [comfyStatus, setComfyStatus] = useState<{ running: boolean; port: number }>({ running: false, port: 0 })
+  const [comfyBusy, setComfyBusy] = useState(false)
 
   // 语音管道三段激活模型（STT/LLM/TTS，来自模型中心选择）
   const [voiceCfg, setVoiceCfg] = useState<{ stt: { engine: string; model: string }; llm: { engine: string; model: string }; tts: { engine: string; model: string } }>({ stt: { engine: '', model: '' }, llm: { engine: '', model: '' }, tts: { engine: '', model: '' } })
@@ -93,12 +96,27 @@ const ModelCenterPage: React.FC = () => {
     try {
       const cfg: any = await getImageBackendInfo()
       if (cfg?.backend) setImageBackend(cfg.backend)
+      if (cfg?.image_model) setImageModel(cfg.image_model)
       if (cfg?.comfyui_url) setComfyUIURL(cfg.comfyui_url)
       if (cfg?.image_save_dir) setImageSaveDir(cfg.image_save_dir)
       if (cfg?.comfyui_path) setComfyUIPath(cfg.comfyui_path)
       if (cfg?.comfyui_python_path) setComfyUIPythonPath(cfg.comfyui_python_path)
     } catch (_) {}
+    try {
+      const st: any = await getComfyUIStatus()
+      if (st) setComfyStatus({ running: !!st.running, port: st.port || 0 })
+    } catch (_) {}
   }, [])
+
+  const handleToggleComfy = async () => {
+    setComfyBusy(true)
+    try {
+      if (comfyStatus.running) { await stopComfyUI(); setComfyStatus({ running: false, port: 0 }) }
+      else { await startComfyUI(); setComfyStatus({ running: true, port: comfyUIURL.split(':').pop() ? 8188 : 8188 }) }
+      message.success(comfyStatus.running ? 'ComfyUI 已停止' : 'ComfyUI 已启动')
+    } catch (err: any) { message.error(err?.message || '操作失败') }
+    finally { setComfyBusy(false) }
+  }
 
   // 加载语音管道三段激活模型
   const loadVoiceCfg = useCallback(async () => {
@@ -305,6 +323,15 @@ const ModelCenterPage: React.FC = () => {
                         <span style={{ width: 92, fontSize: 12.5, color: C('color-text'), fontWeight: 500 }}>
                           {f.icon} {f.label}
                         </span>
+                        {f.key === 'whisper' && (
+                          <>
+                            <Tag color="purple" style={{ fontSize: 9, margin: 0 }}>TTS {voiceCfg.tts.model || '自动'}</Tag>
+                            <Tag color="blue" style={{ fontSize: 9, margin: 0 }}>STT {voiceCfg.stt.model || '自动'}</Tag>
+                          </>
+                        )}
+                        {f.key === 'novel' && (
+                          <Tag color="orange" style={{ fontSize: 9, margin: 0 }}>剧照 {imageModel || '—'}</Tag>
+                        )}
                         <Select
                           size="small" placeholder="引擎" value={draft.engine || undefined}
                           onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: v, model: '' } }))}
@@ -328,6 +355,13 @@ const ModelCenterPage: React.FC = () => {
                       </div>
                     )
                   })}
+                  {/* 绘梦：自身界面选择，无需在此设置 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-subtle)' }}>
+                    <span style={{ fontSize: 12.5, color: C('color-text'), fontWeight: 500 }}>🎨 绘梦</span>
+                    <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>
+                      图片模型在绘梦界面内选择（后端 / 模型 / ComfyUI 启停），无需在模型中心重复设置
+                    </Typography.Text>
+                  </div>
                 </div>
               </Card>
               {llmModels.length === 0 && (
@@ -376,6 +410,74 @@ const ModelCenterPage: React.FC = () => {
           {/* Image */}
           {category === 'image' && (
             <>
+              {/* 图片后端 + ComfyUI + 模型 */}
+              <Card style={{ marginBottom: 20, background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {/* 后端选择 */}
+                  <div>
+                    <Typography.Text strong style={{ color: C('color-text'), fontSize: 14, display: 'block', marginBottom: 8 }}>图片生成后端</Typography.Text>
+                    <Segmented
+                      value={imageBackend}
+                      onChange={(v) => setImageBackend(v as string)}
+                      options={[
+                        { value: 'xai', label: '☁️ xAI 云端' },
+                        { value: 'comfyui', label: '🏠 ComfyUI 本地' },
+                        { value: 'herdsman', label: '🚀 Herdsman' },
+                        { value: 'ollama', label: '🖥 Ollama' },
+                      ]}
+                    />
+                  </div>
+
+                  {/* ComfyUI 配置（本机默认已写死，仅展示 + 启停） */}
+                  {imageBackend === 'comfyui' && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{
+                          width: 8, height: 8, borderRadius: '50%',
+                          background: comfyStatus.running ? '#22c55e' : '#64748b',
+                          boxShadow: comfyStatus.running ? '0 0 8px #22c55e' : 'none',
+                        }} />
+                        <Typography.Text style={{ color: C('color-text'), fontSize: 13, fontWeight: 600 }}>
+                          ComfyUI {comfyStatus.running ? `运行中 (端口 ${comfyStatus.port || 8188})` : '未启动'}
+                        </Typography.Text>
+                        <Button size="small" type={comfyStatus.running ? 'default' : 'primary'} loading={comfyBusy}
+                          onClick={handleToggleComfy} style={{ fontSize: 11 }}>
+                          {comfyStatus.running ? '⏹ 停止' : '▶ 启动'}
+                        </Button>
+                      </div>
+                      <div style={{ fontSize: 11, color: C('color-text-secondary'), marginTop: 8, lineHeight: 1.8 }}>
+                        <div>URL：<span style={{ color: C('color-text') }}>{comfyUIURL}</span></div>
+                        <div>启动位置：<span style={{ color: C('color-text') }}>{comfyUIPath || 'C:\\AI\\ComfyUI\\ComfyUI（默认）'}</span></div>
+                        <div>Python：<span style={{ color: C('color-text') }}>{comfyUIPythonPath || 'C:\\AI\\ComfyUI\\standalone-env\\python.exe（默认）'}</span></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 图片模型选择 */}
+                  <div>
+                    <Typography.Text strong style={{ color: C('color-text'), fontSize: 14, display: 'block', marginBottom: 8 }}>图片模型</Typography.Text>
+                    <Select
+                      size="middle" style={{ width: 320 }} value={imageModel}
+                      onChange={setImageModel}
+                      options={[
+                        ...imageModels.map(m => ({ value: m.modelId, label: m.modelName })),
+                        { value: 'krea2', label: 'krea2（ComfyUI 默认）' },
+                        { value: 'z-image-turbo', label: 'Z-Image-Turbo' },
+                        { value: 'grok-imagine-image-quality', label: 'Grok Imagine（xAI）' },
+                      ]}
+                    />
+                  </div>
+
+                  {/* 保存 */}
+                  <div>
+                    <Button type="primary" onClick={handleSaveImageBackend} loading={imageBackendSaving} style={{ borderRadius: 8 }}>
+                      💾 保存图片后端设置
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* 发现的图片模型 */}
               {imageModels.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
                   <Typography.Text strong style={{ color: C('color-text'), fontSize: 15, display: 'block', marginBottom: 10 }}>发现的图片模型</Typography.Text>
