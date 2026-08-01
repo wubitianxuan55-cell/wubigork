@@ -47,7 +47,7 @@ func GetQRCode() (*QRCodeResp, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
 	req.Header.Set("iLink-App-Id", "bot")
-	req.Header.Set("iLink-App-ClientVersion", "2.4.3")
+	req.Header.Set("iLink-App-ClientVersion", "132099") // buildClientVersion("2.4.3") = 0x020403
 
 	client := netclient.NewSimpleClient(15 * time.Second)
 	resp, err := client.Do(req)
@@ -75,7 +75,7 @@ func PollQRStatus(qrcode string) (*QRStatusResp, error) {
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
 	req.Header.Set("iLink-App-Id", "bot")
-	req.Header.Set("iLink-App-ClientVersion", "2.4.3")
+	req.Header.Set("iLink-App-ClientVersion", "132099") // buildClientVersion("2.4.3") = 0x020403
 
 	client := netclient.NewSimpleClient(qrPollTimeout)
 	resp, err := client.Do(req)
@@ -106,7 +106,7 @@ func PollQRStatusWithCode(qrcode, verifyCode string) (*QRStatusResp, error) {
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
 	req.Header.Set("iLink-App-Id", "bot")
-	req.Header.Set("iLink-App-ClientVersion", "2.4.3")
+	req.Header.Set("iLink-App-ClientVersion", "132099") // buildClientVersion("2.4.3") = 0x020403
 
 	client := netclient.NewSimpleClient(qrPollTimeout)
 	resp, err := client.Do(req)

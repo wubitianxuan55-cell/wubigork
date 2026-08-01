@@ -125,7 +125,7 @@ type inboundMsg struct {
 	ClientID     string `json:"client_id"`
 	ContextToken string `json:"context_token"`
 	ItemList     []struct {
-		ItemType int        `json:"item_type"`
+		Type     int        `json:"type"`
 		TextItem *textItem  `json:"text_item,omitempty"`
 	} `json:"item_list"`
 }
@@ -207,7 +207,7 @@ func (s *Server) pollLoop() {
 func (s *Server) handle(msg *inboundMsg) {
 	text := ""
 	for _, item := range msg.ItemList {
-		if item.ItemType == 1 && item.TextItem != nil {
+		if item.Type == 1 && item.TextItem != nil {
 			text += item.TextItem.Text
 		}
 	}
@@ -232,11 +232,11 @@ func (s *Server) Send(toUser, contextToken, text string) error {
 	msg := map[string]interface{}{
 		"from_user_id":  "",
 		"to_user_id":    toUser,
-		"client_id":     genUUID(),
+		"client_id":     genClientID(),
 		"message_type":  2,
 		"message_state": 2,
 		"item_list": []map[string]interface{}{
-			{"item_type": 1, "text_item": map[string]string{"text": text}},
+			{"type": 1, "text_item": map[string]string{"text": text}},
 		},
 	}
 	if contextToken != "" {
@@ -283,7 +283,7 @@ func (s *Server) apiPost(endpoint string, body []byte, timeout time.Duration) ([
 	req.Header.Set("Authorization", "Bearer "+s.cfg.BotToken)
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
 	req.Header.Set("iLink-App-Id", "bot")
-	req.Header.Set("iLink-App-ClientVersion", "2.4.3")
+	req.Header.Set("iLink-App-ClientVersion", "132099") // buildClientVersion("2.4.3") = 0x020403
 
 	c := s.client
 	if timeout < c.Timeout {
@@ -315,12 +315,17 @@ func (s *Server) sleepOrStop(d time.Duration) {
 
 // ─── 工具 ────────────────────────────────────────────────────
 
-func genUUID() string {
-	b := make([]byte, 16)
+// genClientID 对齐腾讯官方 openclaw-weixin："{prefix}:{ts}-{hex}" 格式
+func genClientID() string {
+	ts := time.Now().UnixMilli()
+	hex := randomHex(4)
+	return fmt.Sprintf("gaea-weixin:%d-%s", ts, hex)
+}
+
+func randomHex(n int) string {
+	b := make([]byte, n)
 	rand.Read(b)
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	return base64.RawURLEncoding.EncodeToString(b)
+	return fmt.Sprintf("%x", b)
 }
 
 func randomUIN() string {
