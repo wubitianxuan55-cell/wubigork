@@ -185,7 +185,7 @@ body {
   --workspace-width: 340px;
   position: relative;
   display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) minmax(0, var(--workspace-width));
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -206,10 +206,13 @@ body {
   grid-template-columns: var(--sidebar-width) minmax(200px, 1fr) minmax(0, var(--workspace-width));
 }
 .layout--workspace-maximized {
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) minmax(0, var(--workspace-width));
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
 }
 .layout--workspace-maximized .chat-pane {
   display: none;
+}
+.layout--workspace-maximized .workspace-pane {
+  grid-column: 2;
 }
 
 .sidebar-resizer {
@@ -520,6 +523,9 @@ body {
 @media (max-width: 1239px) {
   .layout--workspace-open {
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  }
+  .workspace-pane {
+    display: none;
   }
   .layout--workspace-open > .plan-approval-dock {
     right: 32px;
@@ -1411,10 +1417,7 @@ body::after {
   }
 }
 
-/* ── antd 布局壳适配：Drawer/Layout 跟随 gaea 主题变量 ── */
-.gaea-workspace-drawer .ant-drawer-content {
-  background: var(--bg);
-}
+/* ── antd 布局壳适配：Layout 跟随 gaea 主题变量 ── */
 .gaea-app-layout.ant-layout {
   background: var(--bg);
   height: 100%;
