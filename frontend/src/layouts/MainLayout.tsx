@@ -580,11 +580,10 @@ const MainLayout: React.FC = () => {
 
 
 
-      {projectOpen && (
-        <Footer style={{ padding: 0 }}>
-          <StatusBar stats={stats} info={projectInfo} />
-        </Footer>
-      )}
+      {/* 底栏常驻：已启用模型监控 + CPU/内存/GPU（无项目时也显示） */}
+      <Footer style={{ padding: 0 }}>
+        <StatusBar stats={stats} info={projectInfo} />
+      </Footer>
 
       {/* 搜索 */}
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />

@@ -1,11 +1,12 @@
 # gaea · 多功能 AI 助手
 
-## v1.6.2「方案模型条修复」(2026-08-02)
+## v1.6.2「方案模型条 + 底栏常驻」(2026-08-02)
 
-> 补丁：方案编写板块模型条不可见修复（OfficePage 主 return 为单行 Fragment，此前 JSX 未插入）。
+> 补丁：方案编写模型条不可见修复 + 底栏常驻（无项目时也显示模型监控与资源）。
 > tag v1.6.2，构建 36,109,824 字节。
 
-- OfficePage 顶部插入 FeatureModelBar（feature="office"），方案编写窗口显示绑定模型 + 启停
+- OfficePage 顶部插入 FeatureModelBar（feature="office"）
+- MainLayout 底栏 Footer 去掉 projectOpen 条件 → 常驻显示已启用模型 + CPU/内存/GPU
 - 验证：go build + tsc -b + vite + wails build 全绿
 
 ## v1.6.1「小说统一模型」(2026-08-02)
