@@ -133,6 +133,12 @@ const ModelCenterPage: React.FC = () => {
   }, [])
 
 
+  // ComfyUI 本地图片模型（本机硬编码：ComfyUI 非 LLM 引擎，模型不入引擎列表）
+  const COMFY_IMAGES = [
+    { modelId: 'krea2', modelName: 'Krea2 Turbo', engineId: 'comfyui', engineName: 'ComfyUI', status: 'running' },
+    { modelId: 'z-image-turbo', modelName: 'Z-Image-Turbo', engineId: 'comfyui', engineName: 'ComfyUI', status: 'running' },
+  ]
+
   // ── 功能模型绑定（聊天/轻语/小说/办公 各自独立 LLM，持久化重启不丢）──
   const FEATURES: { key: string; label: string; icon: string }[] = [
     { key: 'chat', label: '聊天', icon: '💬' },
@@ -460,9 +466,9 @@ const ModelCenterPage: React.FC = () => {
                       size="middle" style={{ width: 320 }} value={imageModel}
                       onChange={setImageModel}
                       options={[
+                        ...(imageBackend === 'comfyui' ? COMFY_IMAGES : []).map(m => ({ value: m.modelId, label: `${m.modelName}（ComfyUI 本地）` })),
                         ...imageModels.map(m => ({ value: m.modelId, label: m.modelName })),
-                        { value: 'krea2', label: 'krea2（ComfyUI 默认）' },
-                        { value: 'z-image-turbo', label: 'Z-Image-Turbo' },
+                        ...(imageBackend !== 'comfyui' ? COMFY_IMAGES.map(m => ({ value: m.modelId, label: `${m.modelName}（ComfyUI 本地）` })) : []),
                         { value: 'grok-imagine-image-quality', label: 'Grok Imagine（xAI）' },
                       ]}
                     />
@@ -477,12 +483,12 @@ const ModelCenterPage: React.FC = () => {
                 </div>
               </Card>
 
-              {/* 发现的图片模型 */}
-              {imageModels.length > 0 && (
+              {/* 发现的图片模型（含 ComfyUI 本地模型 krea2 / z-image-turbo） */}
+              {(imageModels.length > 0 || imageBackend === 'comfyui') && (
                 <div style={{ marginBottom: 24 }}>
                   <Typography.Text strong style={{ color: C('color-text'), fontSize: 15, display: 'block', marginBottom: 10 }}>发现的图片模型</Typography.Text>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-                    {imageModels.map(m => (
+                    {[...COMFY_IMAGES, ...imageModels.filter(m => m.engineId !== 'comfyui')].map(m => (
                       <Card key={m.modelId} size="small" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>
                         <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block', marginBottom: 6, wordBreak: 'break-all' }}>{m.modelName}</Typography.Text>
                         <Space>
