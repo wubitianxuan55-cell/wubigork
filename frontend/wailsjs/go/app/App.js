@@ -1174,6 +1174,10 @@ export function WhisperWeixinQRStatus(arg1) {
   return window['go']['app']['App']['WhisperWeixinQRStatus'](arg1);
 }
 
+export function WhisperWeixinQRStatusWithCode(arg1, arg2) {
+  return window['go']['app']['App']['WhisperWeixinQRStatusWithCode'](arg1, arg2);
+}
+
 export function WhisperWeixinStatus() {
   return window['go']['app']['App']['WhisperWeixinStatus']();
 }

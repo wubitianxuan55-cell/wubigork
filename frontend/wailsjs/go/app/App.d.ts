@@ -595,4 +595,6 @@ export function WhisperWeixinGetQR():Promise<Record<string, any>>;
 
 export function WhisperWeixinQRStatus(arg1:string):Promise<Record<string, any>>;
 
+export function WhisperWeixinQRStatusWithCode(arg1:string,arg2:string):Promise<Record<string, any>>;
+
 export function WhisperWeixinStatus():Promise<Array<Record<string, any>>>;

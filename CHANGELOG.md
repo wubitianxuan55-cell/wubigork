@@ -1,5 +1,32 @@
 # gaea · 多功能 AI 助手
 
+## v1.5.0「微信接通」(2026-08-02)
+
+> 微信 ClawBot 通道全链路打通（微信发消息 → AI 自动回复），办公板块 v1.4.0 回归修复。
+> 11 提交（v1.4.0 后），tag v1.5.0，构建 36,011,520 字节。
+> 详见 releases/v1.5.0.md
+
+### 微信 ClawBot 通道接通（核心）
+- 认证修复：`Authorization: Bearer <token>` + `iLink-App-Id` + `iLink-App-ClientVersion`（数字编码 132099）
+  + getUpdates 端点全小写 → 消除"会话过期"（errcode -14）
+- 消息字段对齐**腾讯官方 openclaw-weixin**：`item_list[].type`（type=1 文本）+ client_id `{prefix}:{ts}-{hex}`
+  （此前对齐社区 Rust SDK 误用 `item_type`，消息被静默丢弃 → 微信无回复的最终根因）
+- 扫码绑定流程补全：need_verifycode 配对码二次查询（新绑定 WhisperWeixinQRStatusWithCode）、
+  scaned_but_redirect/verify_code_blocked 处理；confirmed 返回完整 token + botId
+- 会话过期状态透出：UI 显示"微信会话过期 · 需重新绑定"替代虚假"在线"
+- 防脱敏 Token：前端含 `*` 用原值、后端含 `*` 拒绝
+- 助手名字注入：BuildAckemCanonBlock 名字参数化 + Orchestrator.AssistantName，微信 AI 自称助手名
+  （如"峨嵋"）而非默认"轻语"
+
+### 办公板块修复（v1.4.0 回归）
+- 右侧面板 Drawer 内联渲染（getContainer=false）+ 改为布局内 grid 列（340px）——不再跨页面残留/遮挡导航栏/凸出遮挡对话区
+- 恢复对话区样式（修复 eb7d5e6 误删 chat-pane/transcript/markdown 样式族，输出框消失）
+- 移除办公设置 + 明暗配色按钮（与系统重复，由主应用设置中心接管）
+
+### 验证
+- go test ./... 53 包全绿；tsc + vite build；wails build 产物 36,011,520 字节
+- 微信全链路用户实测通过（收到消息 → AI 回复 → 发送成功）
+
 ## v1.4.0「架构统一」(2026-08-02)
 
 > 后端四类重复收敛 + 前端两套 UI 体系统一。净删 6874 行（+555/-7429），10 提交，tag v1.4.0。
