@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/gaea/gaea/internal/netclient"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -82,6 +83,9 @@ func PollQRStatus(qrcode string) (*QRStatusResp, error) {
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
+
+	// 记录完整响应，排查 bot_token 脱敏/verify_code/ilink_bot_id 结构
+	slog.Info("[weixin] get_qrcode_status 原始响应", "body", string(b))
 
 	var result QRStatusResp
 	if err := json.Unmarshal(b, &result); err != nil {
