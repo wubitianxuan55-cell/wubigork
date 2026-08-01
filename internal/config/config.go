@@ -173,8 +173,9 @@ func Load() *Config {
 		ComfyUIURL:   "http://127.0.0.1:8188",
 		ImageSaveDir: "", // 默认不存盘
 		ImageModel:   "grok-imagine-image-quality",
-		ComfyUIPath:  "",          // 默认空，需用户配置
-		ComfyUIPythonPath: "",    // 默认空，自动查找
+		// 本机单用户定位：ComfyUI 启动位置直接写死（gaea 仅此电脑使用）
+		ComfyUIPath:      `C:\AI\ComfyUI\ComfyUI`,
+		ComfyUIPythonPath: `C:\AI\ComfyUI\standalone-env\python.exe`,
 	}
 
 	// 2. 环境变量覆盖（中优先级）
