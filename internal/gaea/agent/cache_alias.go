@@ -14,5 +14,3 @@ var (
 	CanonicalizeValue           = cache.CanonicalizeValue
 )
 
-// toolCache constructor aliased from cache.New.
-var newToolCache = cache.New

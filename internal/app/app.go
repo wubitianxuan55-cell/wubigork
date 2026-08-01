@@ -68,7 +68,6 @@ type App struct {
 	comfyUICmd    *exec.Cmd
 
 	// Ghost Text 取消控制器
-	ghostCancel context.CancelFunc
 
 	// 前端静态资源
 	distFS fs.FS

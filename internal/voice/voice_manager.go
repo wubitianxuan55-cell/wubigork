@@ -59,7 +59,6 @@ type Manager struct {
 	// VAD
 	vadBuffer         []byte // 累积的音频缓冲
 	vadSilenceMs      int    // 当前连续静音毫秒数
-	vadLastEnergy     float64
 	vadSpeechDetected bool // 是否已检测到语音
 
 	// 打断检测（P0修复: 对齐 ackem interruptSpeechMs 累积逻辑）

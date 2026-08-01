@@ -278,8 +278,6 @@ type AgentRunner struct {
 
 	// V5.11: ����Ŀ¼ָ�ơ������� stream() ʱ��¼������ÿ�ֱȽϡ�
 	// ��⹤�߼��仯��additive/breaking����breaking ʱ emit Warning��
-	lastToolFingerprint    ToolCatalogFingerprint
-	lastToolFingerprintSet bool
 
 	// V5.13: �������籩��·���������ͬ turn ���ظ����ã���ǰԤ����
 	paramStorm *ParamStormBreaker
@@ -431,7 +429,6 @@ func (a *AgentRunner) SetSession(s *Session) {
 	// a fresh session has different L1 content, so we must let it re-establish
 	// the baseline rather than panic on mismatch.
 	a.prefixFingerprintSet = false
-	a.lastToolFingerprintSet = false
 	// V8.4.1: reset session-level cache counters to prevent cross-session
 	// accumulation from producing hit rates > 100%. sessCacheHit/sessCacheMiss
 	// increment on every API call and must reset when starting a new session.

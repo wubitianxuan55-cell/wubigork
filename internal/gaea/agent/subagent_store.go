@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
@@ -65,7 +64,6 @@ func (r *SubagentRun) Release() {
 // continued across parent turns via continue_from.
 type SubagentStore struct {
 	dir string
-	mu  sync.Mutex
 }
 
 // NewSubagentStore creates a store rooted at dir. Callers should ensure

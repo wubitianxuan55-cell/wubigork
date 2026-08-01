@@ -25,7 +25,6 @@ type VectorStore struct {
 
 	// 稠密向量缓存（embedding 空间）
 	denseVectors   []denseVector
-	denseLastHash  string
 }
 
 type sparseVector struct {
