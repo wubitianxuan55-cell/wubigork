@@ -1,5 +1,33 @@
 # gaea · 多功能 AI 助手
 
+## v1.2.0「架构瘦身」(2026-08-01)
+
+> 后端臃肿治理：绑定层按域拆分（197 方法迁移）+ 死代码清理 + 办公板块设置写路径接通
+> + staticcheck U1000 全仓库清零 + 原子写实现去重。5 批提交，净删 ~600 行。
+
+### 绑定层拆分（App 聚合 + 嵌入提升）
+- App 结构体从 20+ 平铺字段收敛为 core + 4 域 State 嵌入引用（writing/media/whisper/office）
+- 197 个方法按域归位；Go 嵌入提升保证 Wails 绑定不变，前端零改动
+- 子服务持 app 反向指针协调跨域调用
+
+### 办公板块设置写路径接通（20 个存根）
+- 新增配置持久化（~/.config/gaea/config.toml 原子写）+ 改配置 → 保存 → 重建 controller
+- Agent 参数 / 权限 / 沙箱 / 模型设置真实生效；Provider 增删改转发模型中心
+- 回退 / 更新类改为明确错误语义，前端隐藏回退菜单
+
+### 死代码清理（staticcheck U1000 全仓库清零）
+- gaea 引擎：notify 包（2 文件）+ filteredSchemas + incompleteCanonicalTodos + runTurn
+- whisper：candidate_collector.go 整文件（179 行孤岛）+ emotion_fusion 7 函数 + 3 常量
+- ai：buildFluxWorkflow（已被 Z-Image/Krea 取代）
+
+### 原子写去重
+- 重建 fileutil.AtomicWrite，5 处手写重复实现收敛，净删 41 行
+
+### 验证
+- go build / go vet / 53 包测试全绿；staticcheck U1000 清零；前端 tsc 通过
+- 新增测试：配置持久化往返 + 嵌入提升编译期断言
+
+## v1.1.0「质量工程」(2026-08-01)
 ## v1.1.0「质量工程」(2026-08-01)
 
 > 稳定性加固 + 架构瘦身 + 测试防线建立：21 处 goroutine recover、SSE 阻塞修复、
