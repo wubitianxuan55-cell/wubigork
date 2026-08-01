@@ -737,7 +737,8 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   if (!open) return null
   return (
     <div style={{
-      height: '100%', display: 'flex', flexDirection: 'column',
+      flex: 1, width: '100%', minHeight: 0, alignSelf: 'stretch',
+      display: 'flex', flexDirection: 'column',
       background: 'linear-gradient(180deg, rgba(13,13,20,0.96) 0%, rgba(17,17,25,0.98) 100%)',
       overflow: 'hidden',
     }}>

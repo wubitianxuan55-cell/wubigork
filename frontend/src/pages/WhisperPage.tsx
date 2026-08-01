@@ -270,13 +270,15 @@ const WhisperPage: React.FC = () => {
   // 角色中心铺满主界面（非弹窗）：gaea 为 AI 助手，其余为角色
   if (personalityOpen) {
     return (
-      <AssistantManagerModal
-        open={personalityOpen}
-        activePersonality={activePersonality}
-        adultMode={adultMode}
-        onClose={() => setPersonalityOpen(false)}
-        onSwitchPersonality={handleSwitchPersonality}
-      />
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
+        <AssistantManagerModal
+          open={personalityOpen}
+          activePersonality={activePersonality}
+          adultMode={adultMode}
+          onClose={() => setPersonalityOpen(false)}
+          onSwitchPersonality={handleSwitchPersonality}
+        />
+      </div>
     )
   }
 
