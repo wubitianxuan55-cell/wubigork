@@ -5,12 +5,11 @@ import {
   HeartOutlined, SwapOutlined, SoundOutlined, DeleteOutlined,
   PlusOutlined, MessageOutlined, ApiOutlined, ClearOutlined,
   SearchOutlined, GlobalOutlined, StarFilled, EditOutlined,
-  SettingOutlined, MenuFoldOutlined, MenuUnfoldOutlined, CloseOutlined,
-  AudioOutlined, StopOutlined, RobotOutlined,
+  SettingOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+  AudioOutlined, StopOutlined,
 } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import { C } from '../utils/theme'
-import VoiceChatOrb from '../components/VoiceChatOrb'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { VOICE_LAUNCH_FLAG } from '../components/ModuleLauncher'
 import { WhisperEmotionPanel } from '../components/WhisperEmotionPanel'
@@ -102,47 +101,50 @@ const WhisperPage: React.FC = () => {
   const [traces, setTraces] = useState<any[]>([])
   const listRef = useRef<HTMLDivElement>(null); const inputRef = useRef<any>(null); const hasInitRef = useRef(false)
 
-  // ── 语音对话（轻语板块承载语音能力；对话目标 = 平台 AI 助手 gaea）──
-  const [voiceOpen, setVoiceOpen] = useState(false)
-  const [voiceUserText, setVoiceUserText] = useState('')
-  const [voiceReply, setVoiceReply] = useState('')
-  const voiceTargetSetRef = useRef(false)
-  const { state: voice, start: startVoice, stop: stopVoice, interrupt } = useVoiceChat({
-    onTranscript: (t) => { setVoiceUserText(t); setVoiceReply('') },
-    onReply: (t) => setVoiceReply(t),
+  // ── 语音对话（文本类：说话 → 识别文本进入聊天区，后端调用轻语对话 + TTS 朗读）──
+  const [voiceOn, setVoiceOn] = useState(false)
+  const onVoiceTranscript = useCallback((t: string) => {
+    const text = (t || '').trim()
+    if (!text) return
+    const um: Message = { id: nextMsgId(), role: 'user', content: text, timestamp: Date.now() }
+    setTopics(prev => {
+      const next = prev.map(topic => topic.id === activeId ? { ...topic, messages: [...topic.messages, um] } : topic)
+      saveTopics(next)
+      return next
+    })
+  }, [activeId])
+  const onVoiceReply = useCallback((t: string) => {
+    const text = (t || '').trim()
+    if (!text) return
+    const am: Message = { id: nextMsgId(), role: 'assistant', content: text, streaming: false, timestamp: Date.now() }
+    setTopics(prev => {
+      const next = prev.map(topic => topic.id === activeId ? { ...topic, messages: [...topic.messages, am] } : topic)
+      saveTopics(next)
+      return next
+    })
+  }, [activeId])
+  const { state: voice, start: startVoice, stop: stopVoice } = useVoiceChat({
+    onTranscript: onVoiceTranscript,
+    onReply: onVoiceReply,
   })
 
-  const openVoice = useCallback(async () => {
-    setVoiceOpen(true)
-    setVoiceUserText('')
-    setVoiceReply('')
-    try {
-      if (!voiceTargetSetRef.current) {
-        await App.VoiceSetChatTarget('gaea')
-        voiceTargetSetRef.current = true
-      }
-    } catch (err: any) {
-      console.warn('[whisper] 语音对话目标切换失败:', err)
-    }
+  const toggleVoice = useCallback(async () => {
+    if (voiceOn) { stopVoice(); setVoiceOn(false); return }
+    // 语音人格跟随当前激活人格（voiceManager 对话使用 PersonalityPresetID）
+    try { await (App as any).VoiceApplySettings?.({ personalityPresetId: activePersonality }) } catch (_) {}
+    setVoiceOn(true)
     await startVoice()
-  }, [startVoice])
+  }, [voiceOn, activePersonality, startVoice, stopVoice])
 
-  const closeVoice = useCallback(() => {
-    stopVoice()
-    setVoiceOpen(false)
-    setVoiceUserText('')
-    setVoiceReply('')
-  }, [stopVoice])
-
-  // 首页语音入口：进入轻语板块自动启动语音对话
+  // 首页语音入口：进入轻语板块自动开始聆听（文本类语音交互）
   useEffect(() => {
     let flag = false
     try { flag = sessionStorage.getItem(VOICE_LAUNCH_FLAG) === '1' } catch (_) {}
     if (flag) {
       try { sessionStorage.removeItem(VOICE_LAUNCH_FLAG) } catch (_) {}
-      openVoice()
+      toggleVoice()
     }
-  }, [openVoice])
+  }, [toggleVoice])
 
   const activeTopic = topics.find(t => t.id === activeId)
   const messages = activeTopic?.messages ?? []
@@ -311,11 +313,6 @@ const WhisperPage: React.FC = () => {
             <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
               style={{ color: C('color-text-secondary'), opacity: 0.5, width: 28, height: 28, padding: 0 }} />
           </Tooltip>
-          <Tooltip title={voiceOpen ? '结束语音对话' : '语音对话（gaea）'}>
-            <Button type="text" size="small" icon={<AudioOutlined />}
-              onClick={() => voiceOpen ? closeVoice() : openVoice()}
-              style={{ color: voiceOpen ? '#e85388' : C('color-text-secondary'), opacity: voiceOpen ? 1 : 0.5, width: 28, height: 28, padding: 0 }} />
-          </Tooltip>
           {hasMessages && (
             <Tooltip title="清空当前对话"><Button type="text" size="small" icon={<ClearOutlined />} onClick={handleClearMessages} style={{ color: C('color-text-secondary'), opacity: 0.4, width: 28, height: 28, padding: 0 }} /></Tooltip>
           )}
@@ -412,9 +409,17 @@ const WhisperPage: React.FC = () => {
 
         {/* 输入框 */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 16px 16px', pointerEvents: 'none' }}>
-          <div style={{ width: '100%', maxWidth: 660, display: 'flex', alignItems: 'flex-end', gap: 6, padding: '6px 10px', background: C('color-bg-container'), border: `1px solid ${C('color-border')}`, borderRadius: 16, boxShadow: '0 6px 24px rgba(0,0,0,0.06)', pointerEvents: 'auto' }}>
-            <Input.TextArea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="输入消息，Enter 发送 / Shift+Enter 换行" disabled={loading} autoSize={{ minRows: 1, maxRows: 5 }} className="chat-input-textarea" style={{ flex: 1, background: 'transparent', border: 'none', color: C('color-text'), borderRadius: 0, resize: 'none', fontSize: 13, lineHeight: 1.5, padding: '4px 2px', boxShadow: 'none' }} />
-            <Tooltip title="发送 (Enter)"><Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={loading} disabled={!input.trim()} style={{ background: input.trim() ? 'linear-gradient(135deg, #e85388, #a855f7)' : C('color-border'), borderColor: 'transparent', borderRadius: 10, width: 34, height: 34, minWidth: 34, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: input.trim() ? '0 2px 8px rgba(232,83,136,0.4)' : 'none', flexShrink: 0, transition: 'transform 0.15s', transform: 'scale(1)' }} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"} /></Tooltip>
+          <div style={{ width: '100%', maxWidth: 660, display: 'flex', alignItems: 'flex-end', gap: 6, padding: '6px 10px', background: C('color-bg-container'), border: `1px solid ${voiceOn ? 'rgba(232,83,136,0.5)' : C('color-border')}`, borderRadius: 16, boxShadow: voiceOn ? '0 0 16px rgba(232,83,136,0.2)' : '0 6px 24px rgba(0,0,0,0.06)', pointerEvents: 'auto', transition: 'border-color 0.2s, box-shadow 0.2s' }}>
+            <Tooltip title={voiceOn ? '结束聆听' : '语音输入（说话识别为文本对话）'}>
+              <Button type="text" icon={voiceOn ? <StopOutlined /> : <AudioOutlined />}
+                onClick={toggleVoice}
+                style={{ color: voiceOn ? '#e85388' : C('color-text-secondary'), borderRadius: 10, width: 34, height: 34, minWidth: 34, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: voiceOn ? 'rgba(232,83,136,0.12)' : 'transparent', flexShrink: 0, fontSize: 15 }} />
+            </Tooltip>
+            <Input.TextArea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
+              placeholder={voiceOn ? (voice.transcript || '正在聆听… 请说话') : '输入消息，Enter 发送 / Shift+Enter 换行'}
+              disabled={loading || voiceOn} autoSize={{ minRows: 1, maxRows: 5 }} className="chat-input-textarea"
+              style={{ flex: 1, background: 'transparent', border: 'none', color: C('color-text'), borderRadius: 0, resize: 'none', fontSize: 13, lineHeight: 1.5, padding: '4px 2px', boxShadow: 'none' }} />
+            <Tooltip title="发送 (Enter)"><Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={loading} disabled={(!input.trim()) || voiceOn} style={{ background: input.trim() ? 'linear-gradient(135deg, #e85388, #a855f7)' : C('color-border'), borderColor: 'transparent', borderRadius: 10, width: 34, height: 34, minWidth: 34, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: input.trim() ? '0 2px 8px rgba(232,83,136,0.4)' : 'none', flexShrink: 0, transition: 'transform 0.15s', transform: 'scale(1)' }} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"} /></Tooltip>
           </div>
         </div>
       </div>
@@ -639,108 +644,9 @@ const WhisperPage: React.FC = () => {
         onSwitchPersonality={(id) => handleSwitchPersonality(id)}
       />
 
-      {/* 语音对话浮层（轻语板块承载语音管道，对话目标 = gaea） */}
-      {voiceOpen && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 200,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(6px)',
-        }} onClick={() => closeVoice()}>
-          <div
-            className="md-glass-strong"
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: 440, maxWidth: '92vw', borderRadius: 24,
-              padding: '20px 26px 22px',
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.35), 0 0 40px color-mix(in srgb, var(--gaea-glow) 20%, transparent)',
-              animation: 'launcherFadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-          >
-            {/* 标题行 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginBottom: 2 }}>
-              <span className="live-dot" />
-              <Typography.Text strong style={{ fontSize: 14, color: 'var(--md-sys-color-text)', letterSpacing: '0.04em' }}>
-                语音对话
-              </Typography.Text>
-              <span style={{
-                fontSize: 10, padding: '1px 7px', borderRadius: 9,
-                background: 'color-mix(in srgb, var(--gaea-glow) 14%, transparent)',
-                color: 'var(--gaea-glow)', border: '1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent)',
-                fontWeight: 500, letterSpacing: '0.06em',
-              }}>
-                平台 AI 助手 gaea
-              </span>
-              <div style={{ flex: 1 }} />
-              <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => closeVoice()}
-                style={{ color: 'var(--md-sys-color-text-secondary)', width: 26, height: 26, padding: 0 }} />
-            </div>
 
-            {/* 语言粒子球 */}
-            <VoiceChatOrb
-              volume={voice.volume}
-              listening={voice.listening}
-              speaking={voice.speaking}
-              aiSpeaking={voice.aiSpeaking}
-              transcript={voice.transcript}
-              size={252}
-            />
 
-            {/* 状态行 */}
-            <div style={{ minHeight: 22, marginTop: 2, fontSize: 12, fontWeight: 500, letterSpacing: '0.05em',
-              color: voice.aiSpeaking ? '#64b5f6' : voice.listening ? '#ff8a65' : 'var(--md-sys-color-text-secondary)' }}>
-              {voice.aiSpeaking ? 'AI 回复中…' : voice.listening ? '正在聆听…' : '待机（请说话）'}
-            </div>
-
-            {/* 对话文本 */}
-            <div style={{ width: '100%', minHeight: 66, maxHeight: 140, overflowY: 'auto', marginTop: 8,
-              display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {voiceUserText && (
-                <div style={{ alignSelf: 'flex-end', maxWidth: '85%', padding: '7px 12px', borderRadius: 14,
-                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--gaea-glow) 22%, transparent), color-mix(in srgb, var(--gaea-glow) 10%, transparent))',
-                  border: '1px solid color-mix(in srgb, var(--gaea-glow) 32%, transparent)',
-                  color: 'var(--md-sys-color-text)', fontSize: 13, lineHeight: 1.55 }}>
-                  {voiceUserText}
-                </div>
-              )}
-              {voiceReply && (
-                <div style={{ alignSelf: 'flex-start', maxWidth: '88%', padding: '7px 12px', borderRadius: 14,
-                  background: 'var(--md-sys-color-surface-container-high)',
-                  border: '1px solid var(--md-sys-color-outline-variant)',
-                  color: 'var(--md-sys-color-text)', fontSize: 13, lineHeight: 1.6, wordBreak: 'break-word' }}>
-                  <RobotOutlined style={{ marginRight: 6, color: 'var(--gaea-glow)' }} />{voiceReply}
-                </div>
-              )}
-              {!voiceUserText && !voiceReply && (
-                <div style={{ textAlign: 'center', color: 'var(--md-sys-color-text-secondary)', fontSize: 12, opacity: 0.7, padding: '14px 0' }}>
-                  语言粒子汇聚成声 —— 说话即可与 gaea 对话
-                </div>
-              )}
-            </div>
-
-            {voice.error && (
-              <Typography.Text style={{ color: '#fb7185', fontSize: 12, marginTop: 4 }}>{voice.error}</Typography.Text>
-            )}
-
-            {/* 控制区 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
-              {voice.aiSpeaking && (
-                <Button shape="round" icon={<StopOutlined />} onClick={interrupt}
-                  style={{ border: '1px solid color-mix(in srgb, #fb7185 45%, transparent)', color: '#fb7185',
-                    background: 'color-mix(in srgb, #fb7185 10%, transparent)', fontSize: 13 }}>
-                  打断回复
-                </Button>
-              )}
-              <Button type="primary" danger icon={<StopOutlined />} onClick={() => closeVoice()}
-                style={{ borderRadius: 22, padding: '4px 24px', height: 40, fontSize: 13 }}>
-                结束语音对话
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
-
 export default WhisperPage
