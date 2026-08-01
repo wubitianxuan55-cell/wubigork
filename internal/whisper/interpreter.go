@@ -197,36 +197,36 @@ func hasNegationForPraise(msg string) bool {
 
 // intensityBase 各事件类型的基础强度值
 var intensityBase = map[EventType]float64{
-	EvtExtremeRedline: 1.0,
-	EvtPraise:         0.6,
-	EvtTease:          0.4,
-	EvtCasualChat:     0.2,
-	EvtCold:           0.3,
-	EvtHurtful:        0.7,
-	EvtApology:        0.6,
-	EvtVulnerable:     0.7,
-	EvtQuestion:       0.3,
-	EvtAdultFlirt:     0.6,
-	EvtAdultDominant:  0.7,
-	EvtAdultSubmissive:0.6,
-	EvtAdultExplicit:  0.9,
+	EvtExtremeRedline:  1.0,
+	EvtPraise:          0.6,
+	EvtTease:           0.4,
+	EvtCasualChat:      0.2,
+	EvtCold:            0.3,
+	EvtHurtful:         0.7,
+	EvtApology:         0.6,
+	EvtVulnerable:      0.7,
+	EvtQuestion:        0.3,
+	EvtAdultFlirt:      0.6,
+	EvtAdultDominant:   0.7,
+	EvtAdultSubmissive: 0.6,
+	EvtAdultExplicit:   0.9,
 }
 
 // sincerityBase 各事件类型的基础真诚度
 var sincerityBase = map[EventType]float64{
-	EvtExtremeRedline: 1.0,
-	EvtPraise:         0.8,
-	EvtTease:          0.5,
-	EvtCasualChat:     0.5,
-	EvtCold:           0.9,
-	EvtHurtful:        0.9,
-	EvtApology:        0.8,
-	EvtVulnerable:     0.9,
-	EvtQuestion:       0.5,
-	EvtAdultFlirt:     0.7,
-	EvtAdultDominant:  0.8,
-	EvtAdultSubmissive:0.8,
-	EvtAdultExplicit:  0.8,
+	EvtExtremeRedline:  1.0,
+	EvtPraise:          0.8,
+	EvtTease:           0.5,
+	EvtCasualChat:      0.5,
+	EvtCold:            0.9,
+	EvtHurtful:         0.9,
+	EvtApology:         0.8,
+	EvtVulnerable:      0.9,
+	EvtQuestion:        0.5,
+	EvtAdultFlirt:      0.7,
+	EvtAdultDominant:   0.8,
+	EvtAdultSubmissive: 0.8,
+	EvtAdultExplicit:   0.8,
 }
 
 // fuzzyWords 模糊词惩罚列表
@@ -294,6 +294,7 @@ func ClassifyAdultContent(msg string) (isAdult bool, subtype string) {
 	}
 	return false, ""
 }
+
 // InterpretInput L0 主入口：将用户输入分类为 Event
 // effectiveTrust 是当前 L1 信任值（0-100），用于极端区熔断
 func InterpretInput(msg string, effectiveTrust float64) Event {
@@ -329,7 +330,7 @@ func InterpretInput(msg string, effectiveTrust float64) Event {
 		}
 		return Event{
 			Type: evtType, Intensity: computeIntensity(msg, intensityBase[evtType]),
-			Sincerity: computeSincerity(msg, sincerityBase[evtType]),
+			Sincerity:      computeSincerity(msg, sincerityBase[evtType]),
 			IsAdultContent: true, AdultSubtype: adultSubtype,
 		}
 	}
@@ -401,8 +402,8 @@ func InterpretInput(msg string, effectiveTrust float64) Event {
 
 // DnDResult 勿扰检测结果（对齐 ackem）
 type DnDResult struct {
-	Detected      bool
-	Hours         int  // 期望勿扰时长（小时），0 表示未指定
+	Detected       bool
+	Hours          int  // 期望勿扰时长（小时），0 表示未指定
 	SuppressHealth bool // 是否同时抑制健康提醒
 }
 

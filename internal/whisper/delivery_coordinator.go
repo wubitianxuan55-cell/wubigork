@@ -27,11 +27,11 @@ type DeliveryCoordinator struct {
 
 // AgentTaskResult agent 任务结果
 type AgentTaskResult struct {
-	TaskID    string `json:"taskId"`
-	TurnID    string `json:"turnId"`
-	Success   bool   `json:"success"`
-	Summary   string `json:"summary"`
-	Content   string `json:"content"`
+	TaskID     string `json:"taskId"`
+	TurnID     string `json:"turnId"`
+	Success    bool   `json:"success"`
+	Summary    string `json:"summary"`
+	Content    string `json:"content"`
 	MemoryHint string `json:"memoryHint,omitempty"`
 }
 

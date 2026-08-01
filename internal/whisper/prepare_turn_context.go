@@ -8,11 +8,11 @@ import "time"
 
 // PreparedTurnContext 预计算上下文
 type PreparedTurnContext struct {
-	Retrieval    RetrievalResult
+	Retrieval     RetrievalResult
 	RelevanceHint RelevanceHint
-	TemporalCtx  TemporalContext
-	EmbedMs      int64
-	RetrieveMs   int64
+	TemporalCtx   TemporalContext
+	EmbedMs       int64
+	RetrieveMs    int64
 }
 
 // PrepareTurnContext 准备回合上下文
@@ -26,7 +26,6 @@ func PrepareTurnContext(
 	memoryBudgetChars int,
 	adultMode bool,
 ) *PreparedTurnContext {
-	
 
 	// 计算检索预算（预留工作记忆空间）
 	retrievalBudget := memoryBudgetChars - WorkingMemoryCharBudget
@@ -47,10 +46,10 @@ func PrepareTurnContext(
 	retrieveMs := time.Since(tEmbed).Milliseconds()
 
 	return &PreparedTurnContext{
-		Retrieval:    memRetrieval,
+		Retrieval:     memRetrieval,
 		RelevanceHint: hint,
-		TemporalCtx:  temporalCtx,
-		EmbedMs:      0, // 无 embedding
-		RetrieveMs:   retrieveMs,
+		TemporalCtx:   temporalCtx,
+		EmbedMs:       0, // 无 embedding
+		RetrieveMs:    retrieveMs,
 	}
 }

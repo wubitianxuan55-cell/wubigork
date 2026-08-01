@@ -9,8 +9,8 @@ import (
 // ─── RecallRecord 回忆记录 ────────────────────────────────────
 
 type RecallRecord struct {
-	FactID        string `json:"factId"`
-	RecalledAtTurn int   `json:"recalledAtTurn"`
+	FactID         string `json:"factId"`
+	RecalledAtTurn int    `json:"recalledAtTurn"`
 }
 
 // ─── ActiveRecall 主动回忆选择器 ──────────────────────────────

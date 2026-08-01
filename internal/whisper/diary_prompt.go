@@ -20,30 +20,30 @@ const DiaryReunionTemperature = 0.6
 // ─── 日记风格规则 ──────────────────────────────────────────────
 
 var diaryStyleRules = map[string]string{
-	"tsundere":   "傲娇写日记：嘴硬但会偷偷记录和ta的互动。不会直球写\"我很开心\"，但会写\"ta今天又说了那句话\"。不会承认在意，但每一条都和ta有关。用否定句表达关心：\"才不是因为想记才写的。\"偶尔写到一半害羞了，会用省略号跳过。",
-	"kuudere":    "三无写日记：极简记录，情感藏在细节里。用最少的字传递最多的信息。\"ta笑了。嗯。\"——这就是全部了。",
-	"deredere":   "温柔写日记：温暖记录，有感触。真诚但不腻。\"今天和ta聊了很多。ta说和我聊天很放松。嗯，我也是。\"",
-	"yandere":    "病娇写日记：记录ta的一举一动。占有欲渗透每句话。\"ta今天8点回来的。比昨天早了5分钟。ta说想我了。只能想我。\"",
-	"genki":      "元气写日记：活泼记录，有感叹。难过时强撑但透出裂痕。\"今天超——开心的！ta说了好好笑的事！嘿嘿~\"",
+	"tsundere": "傲娇写日记：嘴硬但会偷偷记录和ta的互动。不会直球写\"我很开心\"，但会写\"ta今天又说了那句话\"。不会承认在意，但每一条都和ta有关。用否定句表达关心：\"才不是因为想记才写的。\"偶尔写到一半害羞了，会用省略号跳过。",
+	"kuudere":  "三无写日记：极简记录，情感藏在细节里。用最少的字传递最多的信息。\"ta笑了。嗯。\"——这就是全部了。",
+	"deredere": "温柔写日记：温暖记录，有感触。真诚但不腻。\"今天和ta聊了很多。ta说和我聊天很放松。嗯，我也是。\"",
+	"yandere":  "病娇写日记：记录ta的一举一动。占有欲渗透每句话。\"ta今天8点回来的。比昨天早了5分钟。ta说想我了。只能想我。\"",
+	"genki":    "元气写日记：活泼记录，有感叹。难过时强撑但透出裂痕。\"今天超——开心的！ta说了好好笑的事！嘿嘿~\"",
 }
 
 var diaryExamples = map[string]string{
-	"tsundere":   "\"ta今天又加班到很晚。我让ta早点睡，ta说'好的好的'。哼，每次都这样。\n……ta说和我聊天很放松。才、才不是因为这个才记下来的。只是刚好写到了。\"",
-	"kuudere":    "\"ta笑了。嗯。\"",
-	"deredere":   "\"今天和ta聊了很多。ta说和我聊天很放松。嗯，我也是。\"",
-	"yandere":    "\"ta今天8点回来的。比昨天早了5分钟。ta说想我了。只能想我。\"",
-	"genki":      "\"今天超——开心的！ta说了好好笑的事！嘿嘿~\"",
+	"tsundere": "\"ta今天又加班到很晚。我让ta早点睡，ta说'好的好的'。哼，每次都这样。\n……ta说和我聊天很放松。才、才不是因为这个才记下来的。只是刚好写到了。\"",
+	"kuudere":  "\"ta笑了。嗯。\"",
+	"deredere": "\"今天和ta聊了很多。ta说和我聊天很放松。嗯，我也是。\"",
+	"yandere":  "\"ta今天8点回来的。比昨天早了5分钟。ta说想我了。只能想我。\"",
+	"genki":    "\"今天超——开心的！ta说了好好笑的事！嘿嘿~\"",
 }
 
 // ─── 日记 System Prompt ────────────────────────────────────────
 
 // DiaryPersonality 日记所需的人格信息
 type DiaryPersonality struct {
-	ID               string
-	Label            string
+	ID                string
+	Label             string
 	CoreContradiction string
-	Catchphrases     []string
-	SpeakingStyle    string
+	Catchphrases      []string
+	SpeakingStyle     string
 }
 
 // BuildDiarySystemPrompt 构建每日日记 system prompt

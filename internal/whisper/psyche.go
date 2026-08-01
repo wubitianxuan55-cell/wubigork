@@ -49,7 +49,10 @@ func EmoToExpression(label string, _ RelationshipStage) ExpressionParams {
 // ─── 沉默判定 ─────────────────────────────────────────────────
 
 // CalcSilence 判定本轮是否沉默
-func CalcSilence(event Event, rifts int, aro float64, stage RelationshipStage, adultMode bool, rngSeed *struct{ SessionID string; TurnIndex int }) bool {
+func CalcSilence(event Event, rifts int, aro float64, stage RelationshipStage, adultMode bool, rngSeed *struct {
+	SessionID string
+	TurnIndex int
+}) bool {
 	aroExcess := mathMax(0, mathAbs(aro)-AroExcessBaseline)
 	baseScore := event.Intensity*SilenceIntensityWeight + float64(rifts)*SilenceRiftsWeight + aroExcess*SilenceAroWeight
 

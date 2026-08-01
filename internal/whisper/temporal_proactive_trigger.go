@@ -27,8 +27,8 @@ type TemporalHintV2 struct {
 
 // TemporalProactiveSignalV2 时间主动触发信号
 type TemporalProactiveSignalV2 struct {
-	SpecialDates []SpecialDateV2  `json:"specialDates"`
-	TemporalHint *TemporalHintV2  `json:"temporalHint,omitempty"`
+	SpecialDates []SpecialDateV2 `json:"specialDates"`
+	TemporalHint *TemporalHintV2 `json:"temporalHint,omitempty"`
 }
 
 var expiryDaysV2 = map[string]int{

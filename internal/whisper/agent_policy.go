@@ -125,10 +125,10 @@ func normalizeAgentPath(path string) string {
 
 // AttentionBudget 注意力预算
 type AttentionBudget struct {
-	MaxActionsPerTurn int     `json:"maxActionsPerTurn"`
-	MaxTurnsPerTask   int     `json:"maxTurnsPerTask"`
-	UsedActions       int     `json:"usedActions"`
-	UsedTurns         int     `json:"usedTurns"`
+	MaxActionsPerTurn int `json:"maxActionsPerTurn"`
+	MaxTurnsPerTask   int `json:"maxTurnsPerTask"`
+	UsedActions       int `json:"usedActions"`
+	UsedTurns         int `json:"usedTurns"`
 }
 
 // NewAttentionBudget 创建预算

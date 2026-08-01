@@ -112,7 +112,6 @@ func buildSynthesizeSystemPrompt(template string) string {
 	}, "\n")
 }
 
-
 // buildSimpleReport builds a simple fallback report when LLM call fails
 func buildSimpleReport(findings []InvestigationFinding, template string) string {
 	return FormatFindingsFallbackReply(findingsToStrings(findings), nil)

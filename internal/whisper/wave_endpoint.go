@@ -6,7 +6,7 @@ package whisper
 
 // WaveEndpoint 端点配置
 type WaveEndpoint struct {
-	Provider  string            `json:"provider"`  // "openai" | "anthropic"
+	Provider  string            `json:"provider"` // "openai" | "anthropic"
 	URL       string            `json:"url"`
 	Headers   map[string]string `json:"headers"`
 	Model     string            `json:"model"`
@@ -37,7 +37,7 @@ type LocalChatConfig struct {
 // 供上层决定使用本地/云端模型
 func SelectWaveEndpoint(
 	waveIndex int,
-	mainProvider string,     // "openai" | "anthropic"
+	mainProvider string, // "openai" | "anthropic"
 	mainModel string,
 	mainMaxTokens int,
 	localConfig LocalChatConfig,

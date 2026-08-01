@@ -8,10 +8,10 @@ package whisper
 
 // CompanionTurnInput gaea对话轮次输入
 type CompanionTurnInput struct {
-	UserMsg    string
-	SessionID  string
-	AdultMode  bool
-	EngineID   string // LLM 引擎 ID
+	UserMsg   string
+	SessionID string
+	AdultMode bool
+	EngineID  string // LLM 引擎 ID
 }
 
 // ─── CompanionTurnResult ──────────────────────────────────────

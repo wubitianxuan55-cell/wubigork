@@ -12,30 +12,30 @@ import "strings"
 type TaskPlanPhase string
 
 const (
-	PhasePlanning    TaskPlanPhase = "planning"
-	PhaseExecuting   TaskPlanPhase = "executing"
-	PhaseVerifying   TaskPlanPhase = "verifying"
-	PhaseDelivering  TaskPlanPhase = "delivering"
-	PhaseCompleted   TaskPlanPhase = "completed"
+	PhasePlanning   TaskPlanPhase = "planning"
+	PhaseExecuting  TaskPlanPhase = "executing"
+	PhaseVerifying  TaskPlanPhase = "verifying"
+	PhaseDelivering TaskPlanPhase = "delivering"
+	PhaseCompleted  TaskPlanPhase = "completed"
 )
 
 // TaskPlanStep 单个计划步骤
 type TaskPlanStep struct {
 	Index       int    `json:"index"`
 	Description string `json:"description"`
-	ToolName    string `json:"toolName"`    // 使用的工具
-	Status      string `json:"status"`      // pending/active/done/failed
+	ToolName    string `json:"toolName"` // 使用的工具
+	Status      string `json:"status"`   // pending/active/done/failed
 	Result      string `json:"result"`
 }
 
 // AgentTaskPlan Agent 任务计划
 type AgentTaskPlan struct {
-	Goal            string         `json:"goal"`
-	TotalSteps      int            `json:"totalSteps"`
-	CompletedSteps  int            `json:"completedSteps"`
-	Steps           []TaskPlanStep `json:"steps"`
-	Phase           TaskPlanPhase  `json:"phase"`
-	PersistID       string         `json:"persistId"`
+	Goal           string         `json:"goal"`
+	TotalSteps     int            `json:"totalSteps"`
+	CompletedSteps int            `json:"completedSteps"`
+	Steps          []TaskPlanStep `json:"steps"`
+	Phase          TaskPlanPhase  `json:"phase"`
+	PersistID      string         `json:"persistId"`
 }
 
 // ─── ParseTaskPlan ────────────────────────────────────────────
@@ -74,8 +74,6 @@ func ParseTaskPlan(description string) *AgentTaskPlan {
 func splitTaskSteps(desc string) []string {
 	// 按"第N步"模式拆分
 	var steps []string
-	
-
 
 	// 回退：按句号或分号拆分
 	parts := strings.FieldsFunc(desc, func(r rune) bool {

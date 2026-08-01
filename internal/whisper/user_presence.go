@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	activeNowMin      = 20   // ≤20分钟 = active_now
-	recentlyActiveMin = 120  // ≤120分钟 = recently_active
-	idleMax           = 480  // ≤480分钟 = idle, >480 = likely_away
+	activeNowMin      = 20  // ≤20分钟 = active_now
+	recentlyActiveMin = 120 // ≤120分钟 = recently_active
+	idleMax           = 480 // ≤480分钟 = idle, >480 = likely_away
 )
 
 // ResolveUserEngagement 根据最后活跃时间推断参与度

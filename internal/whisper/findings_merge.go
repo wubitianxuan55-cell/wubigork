@@ -133,9 +133,9 @@ func pickBest(group []InvestigationFinding) InvestigationFinding {
 
 // MergeStats 合并统计
 type MergeStats struct {
-	TotalRaw     int `json:"totalRaw"`
-	TotalMerged  int `json:"totalMerged"`
-	Conflicts    int `json:"conflicts"`
+	TotalRaw     int            `json:"totalRaw"`
+	TotalMerged  int            `json:"totalMerged"`
+	Conflicts    int            `json:"conflicts"`
 	SourceCounts map[string]int `json:"sourceCounts"`
 }
 

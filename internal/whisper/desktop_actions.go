@@ -7,28 +7,28 @@ package whisper
 type DesktopAgentAction string
 
 const (
-	ActionListFolder        DesktopAgentAction = "list_folder"
-	ActionSearchFiles       DesktopAgentAction = "search_files"
-	ActionStatFile          DesktopAgentAction = "stat_file"
-	ActionGrepText          DesktopAgentAction = "grep_text"
-	ActionReadText          DesktopAgentAction = "read_text"
-	ActionReadDocument      DesktopAgentAction = "read_document"
-	ActionReadImage         DesktopAgentAction = "read_image"
-	ActionOpenFolder        DesktopAgentAction = "open_folder"
-	ActionOpenFile          DesktopAgentAction = "open_file"
-	ActionOpenApp           DesktopAgentAction = "open_app"
-	ActionCloseFile         DesktopAgentAction = "close_file"
-	ActionCloseApp          DesktopAgentAction = "close_app"
-	ActionCopyPath          DesktopAgentAction = "copy_path"
-	ActionMovePath          DesktopAgentAction = "move_path"
-	ActionMkdir             DesktopAgentAction = "mkdir"
-	ActionWriteText         DesktopAgentAction = "write_text"
-	ActionDeletePath        DesktopAgentAction = "delete_path"
-	ActionDownloadFile      DesktopAgentAction = "download_file"
+	ActionListFolder         DesktopAgentAction = "list_folder"
+	ActionSearchFiles        DesktopAgentAction = "search_files"
+	ActionStatFile           DesktopAgentAction = "stat_file"
+	ActionGrepText           DesktopAgentAction = "grep_text"
+	ActionReadText           DesktopAgentAction = "read_text"
+	ActionReadDocument       DesktopAgentAction = "read_document"
+	ActionReadImage          DesktopAgentAction = "read_image"
+	ActionOpenFolder         DesktopAgentAction = "open_folder"
+	ActionOpenFile           DesktopAgentAction = "open_file"
+	ActionOpenApp            DesktopAgentAction = "open_app"
+	ActionCloseFile          DesktopAgentAction = "close_file"
+	ActionCloseApp           DesktopAgentAction = "close_app"
+	ActionCopyPath           DesktopAgentAction = "copy_path"
+	ActionMovePath           DesktopAgentAction = "move_path"
+	ActionMkdir              DesktopAgentAction = "mkdir"
+	ActionWriteText          DesktopAgentAction = "write_text"
+	ActionDeletePath         DesktopAgentAction = "delete_path"
+	ActionDownloadFile       DesktopAgentAction = "download_file"
 	ActionDownloadAndInstall DesktopAgentAction = "download_and_install"
-	ActionRunInstaller      DesktopAgentAction = "run_installer"
-	ActionImportToAckem     DesktopAgentAction = "import_to_ackem"
-	ActionFocusApp          DesktopAgentAction = "focus_app"
+	ActionRunInstaller       DesktopAgentAction = "run_installer"
+	ActionImportToAckem      DesktopAgentAction = "import_to_ackem"
+	ActionFocusApp           DesktopAgentAction = "focus_app"
 )
 
 // DesktopAgentActionLabels 22 个操作的中文标签
@@ -65,10 +65,10 @@ var CloseActions = map[DesktopAgentAction]bool{
 
 // AppActions 应用操作集合
 var AppActions = map[DesktopAgentAction]bool{
-	ActionOpenApp:  true,
-	ActionCloseApp: true,
+	ActionOpenApp:   true,
+	ActionCloseApp:  true,
 	ActionCloseFile: true,
-	ActionFocusApp: true,
+	ActionFocusApp:  true,
 }
 
 // WriteActions 写入操作集合
@@ -82,9 +82,9 @@ var WriteActions = map[DesktopAgentAction]bool{
 
 // DownloadActions 下载操作集合
 var DownloadActions = map[DesktopAgentAction]bool{
-	ActionDownloadFile:      true,
+	ActionDownloadFile:       true,
 	ActionDownloadAndInstall: true,
-	ActionRunInstaller:      true,
+	ActionRunInstaller:       true,
 }
 
 // DocumentReadActions 文档读取操作集合

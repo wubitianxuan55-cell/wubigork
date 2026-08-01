@@ -579,10 +579,10 @@ func TestHumanizeFeltDuration(t *testing.T) {
 
 func TestEvaluateEmergence_StrangerNoEmergence(t *testing.T) {
 	ctx := EmergenceContext{
-		Stage: StageStranger,
-		Emotion: EmotionState{PrimaryLabel: "QUIET_FOND", Aff: 40, Sec: 30, Aro: 20, Dom: 0},
+		Stage:                      StageStranger,
+		Emotion:                    EmotionState{PrimaryLabel: "QUIET_FOND", Aff: 40, Sec: 30, Aro: 20, Dom: 0},
 		ConsecutiveMeaningfulTurns: 10,
-		CurrentTurn: 20,
+		CurrentTurn:                20,
 	}
 	e := EvaluateEmergence(ctx, "praise")
 	if e != nil {

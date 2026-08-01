@@ -121,13 +121,13 @@ func generateDesire(userMsg string, event Event, turnIndex int, stage Relationsh
 	category := trigger.categories[rand.Intn(len(trigger.categories))]
 
 	return &Desire{
-		ID:        fmt.Sprintf("d_%d_%d", turnIndex, rand.Intn(10000)),
-		Topic:     topic,
-		Category:  category,
-		Urgency:   1 + event.Intensity*2,
-		Status:    "active",
+		ID:         fmt.Sprintf("d_%d_%d", turnIndex, rand.Intn(10000)),
+		Topic:      topic,
+		Category:   category,
+		Urgency:    1 + event.Intensity*2,
+		Status:     "active",
 		SourceTurn: turnIndex,
-		CreatedAt: time.Now(),
+		CreatedAt:  time.Now(),
 	}
 }
 
@@ -243,7 +243,6 @@ func UpdateDesireStack(stack DesireStack, userMsg string, event Event, l1 L1Stat
 	if len(slots) > DesireMaxSlots {
 		slots = slots[:DesireMaxSlots]
 	}
-
 
 	return DesireStack{Slots: slots}, hints
 }

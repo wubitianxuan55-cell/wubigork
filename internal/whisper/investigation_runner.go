@@ -15,12 +15,12 @@ import (
 
 // InvestigationRun 一次调查运行
 type InvestigationRun struct {
-	ID             string                `json:"id"`
-	Intent         InvestigationIntent   `json:"intent"`
+	ID             string                 `json:"id"`
+	Intent         InvestigationIntent    `json:"intent"`
 	Checklist      InvestigationChecklist `json:"checklist"`
 	Findings       []InvestigationFinding `json:"findings"`
-	CompletedSteps int                   `json:"completedSteps"`
-	Status         string                `json:"status"` // running/synthesizing/done
+	CompletedSteps int                    `json:"completedSteps"`
+	Status         string                 `json:"status"` // running/synthesizing/done
 }
 
 // NewInvestigationRun creates a new investigation run

@@ -18,46 +18,46 @@ import (
 type DispatchDecision string
 
 const (
-	DispatchChat      DispatchDecision = "chat"       // 普通对话
-	DispatchPlan      DispatchDecision = "plan"       // 进入 plan/skill 模式
+	DispatchChat       DispatchDecision = "chat"        // 普通对话
+	DispatchPlan       DispatchDecision = "plan"        // 进入 plan/skill 模式
 	DispatchAutoInvoke DispatchDecision = "auto_invoke" // 自动触发
-	DispatchAskInvoke DispatchDecision = "ask_invoke"  // 询问是否触发
-	DispatchSilent    DispatchDecision = "silent"      // 候选存在但不触发
+	DispatchAskInvoke  DispatchDecision = "ask_invoke"  // 询问是否触发
+	DispatchSilent     DispatchDecision = "silent"      // 候选存在但不触发
 )
 
 // DispatchResult 分发结果
 type DispatchResult struct {
-	Decision   DispatchDecision `json:"decision"`
-	ExtensionID string          `json:"extensionId,omitempty"`
-	Confidence float64          `json:"confidence"`
-	Reasoning  string           `json:"reasoning"`
-	AskMessage string           `json:"askMessage,omitempty"`
-	PlanTopic  string           `json:"planTopic,omitempty"`
+	Decision    DispatchDecision `json:"decision"`
+	ExtensionID string           `json:"extensionId,omitempty"`
+	Confidence  float64          `json:"confidence"`
+	Reasoning   string           `json:"reasoning"`
+	AskMessage  string           `json:"askMessage,omitempty"`
+	PlanTopic   string           `json:"planTopic,omitempty"`
 }
 
 // RouteDispatchInput 路由调度输入
 type RouteDispatchInput struct {
-	UserMessage    string
-	SessionID      string
-	Candidates     []DispatchCandidate
-	Now            time.Time
-	PersonalityID  string
-	RecentContext  string
-	EmotionLabel   string
-	MemoryBlock    string
-	ActivityHint   string
-	LlmCall        func(prompt string) (string, error)
+	UserMessage   string
+	SessionID     string
+	Candidates    []DispatchCandidate
+	Now           time.Time
+	PersonalityID string
+	RecentContext string
+	EmotionLabel  string
+	MemoryBlock   string
+	ActivityHint  string
+	LlmCall       func(prompt string) (string, error)
 }
 
 // DispatchCandidate 分发候选条目
 type DispatchCandidate struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Summary     string   `json:"summary"`
-	Keywords    []string `json:"keywords"`
-	Scenarios   []string `json:"scenarios"`
-	Habits      []string `json:"habits"`
-	Score       float64  `json:"score"`
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Summary   string   `json:"summary"`
+	Keywords  []string `json:"keywords"`
+	Scenarios []string `json:"scenarios"`
+	Habits    []string `json:"habits"`
+	Score     float64  `json:"score"`
 }
 
 // ─── 阈值 ──────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ const (
 var personalityDispatchMod = map[string]float64{
 	"deredere": 1.15,
 	"tsundere": 0.90,
-	"kuudere": 1.25,
+	"kuudere":  1.25,
 	"genki":    0.85,
 }
 

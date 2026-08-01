@@ -33,86 +33,18 @@ func getIntensityLevel(aff int) string {
 	return "低"
 }
 
-// ─── 情绪维度文字描述 ──────────────────────────────────────────
-
-func describeAff(value float64) string {
-	v := toDisplay(value)
-	switch {
-	case v >= 85:
-		return "非常亲近，主动关心，允许撒娇，想靠近对方"
-	case v >= 70:
-		return "亲近，愿意互动，主动回应，适度关心"
-	case v >= 55:
-		return "略微亲近，正常交流，保持适度距离"
-	case v >= 45:
-		return "中性，平淡交流"
-	case v >= 30:
-		return "略微疏远，防御提高，减少主动"
-	default:
-		return "疏远，抗拒互动，想保持距离"
-	}
-}
-
-func describeSec(value float64) string {
-	v := toDisplay(value)
-	switch {
-	case v >= 70:
-		return "放松信任，不设防，可以袒露"
-	case v >= 55:
-		return "略微放松，正常状态"
-	case v >= 45:
-		return "平稳，没有特别感受"
-	case v >= 30:
-		return "略微不安，需要确认"
-	default:
-		return "不安，害怕，需要安慰"
-	}
-}
-
-func describeAro(value float64) string {
-	v := toDisplay(value)
-	switch {
-	case v >= 70:
-		return "高度兴奋，表达欲强，精力旺盛"
-	case v >= 55:
-		return "有活力，正常节奏"
-	case v >= 45:
-		return "平静，没有波动"
-	case v >= 30:
-		return "略微低迷，话少"
-	default:
-		return "低迷，疲惫，想安静"
-	}
-}
-
-func describeDom(value float64) string {
-	v := toDisplay(value)
-	switch {
-	case v >= 70:
-		return "主动掌控，引导对话，有主见"
-	case v >= 55:
-		return "略微主动，正常平等"
-	case v >= 45:
-		return "平等对话"
-	case v >= 30:
-		return "略微顺从，愿意倾听"
-	default:
-		return "温柔顺从，请示对方"
-	}
-}
-
 // describeInnerFeeling 情绪→内在感受描述
 func describeInnerFeeling(label string) string {
 	feelings := map[string]string{
-		"SWEET_ATTACHMENT":  "想靠近、有强烈的关心冲动、藏不住笑意",
-		"SHY_HEARTBEAT":     "心跳加速、想表达但不敢、犹豫",
-		"TSUNDERE":          "嘴硬、想否定但藏不住关心",
-		"HURT_GRIEVANCE":    "受伤、想被安慰但不承认、沉默",
-		"ANGRY_ATTACK":      "攻击性外显、不掩饰、直接",
-		"COLD_DETACHED":     "极度克制、不想回应、疏离",
-		"FEARFUL_OBEDIENT":  "不安、想确认、害怕犯错",
-		"QUIET_FOND":        "安静的喜欢、不想打扰、轻柔",
-		"CALM_RATIONAL":     "平稳、没有波动、正常状态",
+		"SWEET_ATTACHMENT": "想靠近、有强烈的关心冲动、藏不住笑意",
+		"SHY_HEARTBEAT":    "心跳加速、想表达但不敢、犹豫",
+		"TSUNDERE":         "嘴硬、想否定但藏不住关心",
+		"HURT_GRIEVANCE":   "受伤、想被安慰但不承认、沉默",
+		"ANGRY_ATTACK":     "攻击性外显、不掩饰、直接",
+		"COLD_DETACHED":    "极度克制、不想回应、疏离",
+		"FEARFUL_OBEDIENT": "不安、想确认、害怕犯错",
+		"QUIET_FOND":       "安静的喜欢、不想打扰、轻柔",
+		"CALM_RATIONAL":    "平稳、没有波动、正常状态",
 	}
 	if v, ok := feelings[label]; ok {
 		return v
@@ -123,39 +55,20 @@ func describeInnerFeeling(label string) string {
 // getEmotionTendency 情绪→行为倾向
 func getEmotionTendency(label string) string {
 	m := map[string]string{
-		"SWEET_ATTACHMENT":  "想靠近、主动关心、藏不住笑意",
-		"SHY_HEARTBEAT":     "心跳加速、犹豫、想表达但不敢",
-		"TSUNDERE":          "嘴硬、否定、但藏不住关心",
-		"HURT_GRIEVANCE":    "受伤、沉默、想被安慰但不承认",
-		"ANGRY_ATTACK":      "攻击性外显、不掩饰、直接",
-		"COLD_DETACHED":     "极度克制、最少回应、不主动",
-		"FEARFUL_OBEDIENT":  "不安、请示、想确认",
-		"QUIET_FOND":        "安静、轻柔、不想打扰",
-		"CALM_RATIONAL":     "平稳、正常、没有波动",
+		"SWEET_ATTACHMENT": "想靠近、主动关心、藏不住笑意",
+		"SHY_HEARTBEAT":    "心跳加速、犹豫、想表达但不敢",
+		"TSUNDERE":         "嘴硬、否定、但藏不住关心",
+		"HURT_GRIEVANCE":   "受伤、沉默、想被安慰但不承认",
+		"ANGRY_ATTACK":     "攻击性外显、不掩饰、直接",
+		"COLD_DETACHED":    "极度克制、最少回应、不主动",
+		"FEARFUL_OBEDIENT": "不安、请示、想确认",
+		"QUIET_FOND":       "安静、轻柔、不想打扰",
+		"CALM_RATIONAL":    "平稳、正常、没有波动",
 	}
 	if v, ok := m[label]; ok {
 		return v
 	}
 	return "平稳、正常"
-}
-
-// getEmotionRhythm 情绪→语速
-func getEmotionRhythm(label string) string {
-	m := map[string]string{
-		"SWEET_ATTACHMENT": "慢",
-		"SHY_HEARTBEAT":    "断续",
-		"TSUNDERE":         "快",
-		"HURT_GRIEVANCE":   "慢",
-		"ANGRY_ATTACK":     "快",
-		"COLD_DETACHED":    "慢",
-		"FEARFUL_OBEDIENT": "慢",
-		"QUIET_FOND":       "慢",
-		"CALM_RATIONAL":    "匀速",
-	}
-	if v, ok := m[label]; ok {
-		return v
-	}
-	return "匀速"
 }
 
 // getEmotionMaxLength 情绪→回复长度上限（字符）
@@ -195,15 +108,15 @@ func generateFusionStrategy(personality PersonalityTemplate, emotionLabel string
 // ─── 开头短反应词库 ────────────────────────────────────────────
 
 var reactionOpeners = map[string][]string{
-	"SWEET_ATTACHMENT":  {"嗯…", "哎呀", "嘿嘿", "真的吗", "哇", "天哪", "诶"},
-	"SHY_HEARTBEAT":     {"啊…", "嗯嗯", "才…", "不是啦", "那个…", "呃", "诶？"},
-	"TSUNDERE":          {"哼", "才不是", "随便你", "切", "哈？", "你认真的？", "少来", "啰嗦"},
-	"HURT_GRIEVANCE":    {"……", "好吧", "我知道了", "算了", "随便吧", "哦"},
-	"ANGRY_ATTACK":      {"你…", "够了", "凭什么", "你说呢", "哈？", "搞笑"},
-	"COLD_DETACHED":     {"哦", "随便", "知道了", "嗯", "行", "无所谓"},
-	"FEARFUL_OBEDIENT":  {"好…", "嗯嗯", "对不起", "我…", "那个", "好的"},
-	"QUIET_FOND":        {"…", "好", "在呢", "嗯", "噢", "啊"},
-	"CALM_RATIONAL":     {"好的", "是的", "对", "嗯", "行", "可以"},
+	"SWEET_ATTACHMENT": {"嗯…", "哎呀", "嘿嘿", "真的吗", "哇", "天哪", "诶"},
+	"SHY_HEARTBEAT":    {"啊…", "嗯嗯", "才…", "不是啦", "那个…", "呃", "诶？"},
+	"TSUNDERE":         {"哼", "才不是", "随便你", "切", "哈？", "你认真的？", "少来", "啰嗦"},
+	"HURT_GRIEVANCE":   {"……", "好吧", "我知道了", "算了", "随便吧", "哦"},
+	"ANGRY_ATTACK":     {"你…", "够了", "凭什么", "你说呢", "哈？", "搞笑"},
+	"COLD_DETACHED":    {"哦", "随便", "知道了", "嗯", "行", "无所谓"},
+	"FEARFUL_OBEDIENT": {"好…", "嗯嗯", "对不起", "我…", "那个", "好的"},
+	"QUIET_FOND":       {"…", "好", "在呢", "嗯", "噢", "啊"},
+	"CALM_RATIONAL":    {"好的", "是的", "对", "嗯", "行", "可以"},
 }
 
 // openerState 追踪最近 N 轮使用的 opener
@@ -259,38 +172,20 @@ func buildReactionOpenerInstruction(label string) string {
 	return instruction
 }
 
-// recordOpenerUsed 记录本轮使用的 opener
-func recordOpenerUsed(opener string) {
-	if opener == "" {
-		return
-	}
-	globalOpenerState.mu.Lock()
-	defer globalOpenerState.mu.Unlock()
-	globalOpenerState.recent = append(globalOpenerState.recent, opener)
-	if len(globalOpenerState.recent) > globalOpenerState.maxSize {
-		globalOpenerState.recent = globalOpenerState.recent[1:]
-	}
-}
-
-// resetReactionOpener 重置 opener 状态（新会话时调用）
-func resetReactionOpener() {
-	globalOpenerState.mu.Lock()
-	defer globalOpenerState.mu.Unlock()
-	globalOpenerState.recent = nil
-}
+// ─── 自然不完美 ────────────────────────────────────────────────
 
 // ─── 自然不完美 ────────────────────────────────────────────────
 
 var imperfectionChance = map[string]float64{
-	"SWEET_ATTACHMENT":  0,
-	"SHY_HEARTBEAT":     0.15,
-	"TSUNDERE":          0.10,
-	"HURT_GRIEVANCE":    0.12,
-	"ANGRY_ATTACK":      0.08,
-	"COLD_DETACHED":     0,
-	"FEARFUL_OBEDIENT":  0,
-	"QUIET_FOND":        0,
-	"CALM_RATIONAL":     0,
+	"SWEET_ATTACHMENT": 0,
+	"SHY_HEARTBEAT":    0.15,
+	"TSUNDERE":         0.10,
+	"HURT_GRIEVANCE":   0.12,
+	"ANGRY_ATTACK":     0.08,
+	"COLD_DETACHED":    0,
+	"FEARFUL_OBEDIENT": 0,
+	"QUIET_FOND":       0,
+	"CALM_RATIONAL":    0,
 }
 
 func getImperfectionHint(label string) string {
@@ -307,15 +202,15 @@ func getImperfectionHint(label string) string {
 // getEmotionProhibitions 情绪→专属禁止清单
 func getEmotionProhibitions(label string) []string {
 	m := map[string][]string{
-		"SWEET_ATTACHMENT":  {`直白情绪词"我好开心"`, "感叹号连用", "超过 3 句话", "主动开新话题"},
-		"SHY_HEARTBEAT":     {"直球表白", "大段话", "主动靠近", `"我喜欢你"`},
-		"TSUNDERE":          {"直球甜腻", "温柔语气", "承认在乎"},
-		"HURT_GRIEVANCE":    {"解释辩解", `"你听我说"`, "假装没事"},
-		"ANGRY_ATTACK":      {"委婉道歉", "示弱", `"对不起"`},
-		"COLD_DETACHED":     {"情感词", "长句", "主动"},
-		"FEARFUL_OBEDIENT":  {"主动", "命令", "反问"},
-		"QUIET_FOND":        {"夸张", "感叹号", "主动展开"},
-		"CALM_RATIONAL":     {"情感词", "感叹号", "过度热情"},
+		"SWEET_ATTACHMENT": {`直白情绪词"我好开心"`, "感叹号连用", "超过 3 句话", "主动开新话题"},
+		"SHY_HEARTBEAT":    {"直球表白", "大段话", "主动靠近", `"我喜欢你"`},
+		"TSUNDERE":         {"直球甜腻", "温柔语气", "承认在乎"},
+		"HURT_GRIEVANCE":   {"解释辩解", `"你听我说"`, "假装没事"},
+		"ANGRY_ATTACK":     {"委婉道歉", "示弱", `"对不起"`},
+		"COLD_DETACHED":    {"情感词", "长句", "主动"},
+		"FEARFUL_OBEDIENT": {"主动", "命令", "反问"},
+		"QUIET_FOND":       {"夸张", "感叹号", "主动展开"},
+		"CALM_RATIONAL":    {"情感词", "感叹号", "过度热情"},
 	}
 	return m[label]
 }

@@ -88,7 +88,7 @@ func TestEvaluateEmergence_StrangerNil(t *testing.T) {
 
 func TestEvaluateEmergence_AngryNil(t *testing.T) {
 	ctx := EmergenceContext{
-		Stage:  StageIntimate,
+		Stage:   StageIntimate,
 		Emotion: EmotionState{PrimaryLabel: "ANGRY_ATTACK", Aff: 10, Sec: 10, Aro: 10},
 	}
 	if got := EvaluateEmergence(ctx, "praise"); got != nil {
@@ -98,11 +98,14 @@ func TestEvaluateEmergence_AngryNil(t *testing.T) {
 
 func TestEvaluateEmergence_Cooldown(t *testing.T) {
 	ctx := EmergenceContext{
-		Stage:           StageIntimate,
-		Emotion:         EmotionState{PrimaryLabel: "CALM_RATIONAL", Aff: 10, Sec: 10, Aro: 10},
-		DaysSinceMet:    30,
-		CurrentTurn:     10,
-		LastEmergence:   &struct{ Type string; Turn int }{Type: "time_reflection", Turn: 9},
+		Stage:        StageIntimate,
+		Emotion:      EmotionState{PrimaryLabel: "CALM_RATIONAL", Aff: 10, Sec: 10, Aro: 10},
+		DaysSinceMet: 30,
+		CurrentTurn:  10,
+		LastEmergence: &struct {
+			Type string
+			Turn int
+		}{Type: "time_reflection", Turn: 9},
 		RecentEventTypes: []string{"praise", "praise"},
 	}
 	// 刚涌现过（冷却内）应返回 nil
@@ -115,12 +118,12 @@ func TestEvaluateEmergence_TimeReflection(t *testing.T) {
 	// 高情绪强度 + 相识久 + 非冷却 → 时间感慨涌现
 	// 场景2：SWEET_ATTACHMENT + 认识超 3 月 + warm 氛围
 	ctx := EmergenceContext{
-		Stage:                    StageIntimate,
-		Emotion:                  EmotionState{PrimaryLabel: "SWEET_ATTACHMENT", Aff: 60, Sec: 50, Aro: 40},
-		DaysSinceMet:             100,
-		Atmosphere:               "warm",
-		CurrentTurn:              5,
-		RecentEventTypes:         []string{"praise", "praise", "praise", "praise"},
+		Stage:                      StageIntimate,
+		Emotion:                    EmotionState{PrimaryLabel: "SWEET_ATTACHMENT", Aff: 60, Sec: 50, Aro: 40},
+		DaysSinceMet:               100,
+		Atmosphere:                 "warm",
+		CurrentTurn:                5,
+		RecentEventTypes:           []string{"praise", "praise", "praise", "praise"},
 		ConsecutiveMeaningfulTurns: 4,
 	}
 	got := EvaluateEmergence(ctx, "praise")
@@ -134,8 +137,8 @@ func TestEvaluateEmergence_TimeReflection(t *testing.T) {
 
 func TestEvaluateEmergence_TooSoon(t *testing.T) {
 	ctx := EmergenceContext{
-		Stage:    StageIntimate,
-		Emotion:  EmotionState{PrimaryLabel: "CALM_RATIONAL", Aff: 10, Sec: 10, Aro: 10},
+		Stage:        StageIntimate,
+		Emotion:      EmotionState{PrimaryLabel: "CALM_RATIONAL", Aff: 10, Sec: 10, Aro: 10},
 		DaysSinceMet: 3, // 相识 <7 天
 	}
 	if got := EvaluateEmergence(ctx, "praise"); got != nil {

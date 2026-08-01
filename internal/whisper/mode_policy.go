@@ -16,9 +16,9 @@ func ShouldOfferSkillTools(desktopAgentActive bool) bool {
 
 // WorkIntentResult 工作意图结果
 type WorkIntentResult struct {
-	Intent     string `json:"intent"`
+	Intent     string  `json:"intent"`
 	Confidence float64 `json:"confidence"`
-	Proactive  bool   `json:"proactive"`
+	Proactive  bool    `json:"proactive"`
 }
 
 // ApplyDesktopAgentModeToWorkIntent 桌面助手模式下修正工作意图

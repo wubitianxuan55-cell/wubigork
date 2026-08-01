@@ -10,19 +10,19 @@ import "strings"
 
 // Investigation 调查任务
 type Investigation struct {
-	ID        string              `json:"id"`
-	Question  string              `json:"question"`
-	Status    string              `json:"status"` // pending/collecting/synthesizing/done
-	Sources   []InvestigationSource `json:"sources"`
-	Synthesis string              `json:"synthesis"`
-	RoundCount int                `json:"roundCount"`
+	ID         string                `json:"id"`
+	Question   string                `json:"question"`
+	Status     string                `json:"status"` // pending/collecting/synthesizing/done
+	Sources    []InvestigationSource `json:"sources"`
+	Synthesis  string                `json:"synthesis"`
+	RoundCount int                   `json:"roundCount"`
 }
 
 // InvestigationSource 调查来源
 type InvestigationSource struct {
-	ToolName string `json:"toolName"`
-	Query    string `json:"query"`
-	Result   string `json:"result"`
+	ToolName  string  `json:"toolName"`
+	Query     string  `json:"query"`
+	Result    string  `json:"result"`
 	Relevance float64 `json:"relevance"` // 0-1
 }
 

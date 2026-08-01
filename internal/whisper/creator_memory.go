@@ -189,11 +189,11 @@ const (
 
 // CanonMRotationPick 轮播选取结果
 type CanonMRotationPick struct {
-	Entries           []CreatorMemoryEntry   `json:"entries"`
-	NextDeliveredIDs  []string               `json:"nextDeliveredIds"`
-	CycleReset        bool                   `json:"cycleReset"`
+	Entries           []CreatorMemoryEntry    `json:"entries"`
+	NextDeliveredIDs  []string                `json:"nextDeliveredIds"`
+	CycleReset        bool                    `json:"cycleReset"`
 	MatchedCategories []CreatorMemoryCategory `json:"matchedCategories"`
-	PickedCategory    CreatorMemoryCategory  `json:"pickedCategory,omitempty"`
+	PickedCategory    CreatorMemoryCategory   `json:"pickedCategory,omitempty"`
 }
 
 // PickRotatingCreatorMemoryEntry 轮播选取 1 条 Canon-M 记忆

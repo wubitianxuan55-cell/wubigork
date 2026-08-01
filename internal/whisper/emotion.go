@@ -140,10 +140,10 @@ func UnitNoise01(sessionID string, turnIndex int, salt string) float64 {
 
 // EmotionStepOpts 情绪递推选项
 type EmotionStepOpts struct {
-	SessionID      string
-	TurnIndex      int
+	SessionID       string
+	TurnIndex       int
 	DecayMultiplier float64
-	Sensitivity    float64
+	Sensitivity     float64
 	PersonalityTags []string
 }
 

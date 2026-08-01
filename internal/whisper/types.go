@@ -9,9 +9,9 @@ import "time"
 type RelationshipStage string
 
 const (
-	StageStranger  RelationshipStage = "STRANGER"
-	StageFamiliar  RelationshipStage = "FAMILIAR"
-	StageIntimate  RelationshipStage = "INTIMATE"
+	StageStranger RelationshipStage = "STRANGER"
+	StageFamiliar RelationshipStage = "FAMILIAR"
+	StageIntimate RelationshipStage = "INTIMATE"
 )
 
 // Atmosphere 氛围三元标签
@@ -29,14 +29,14 @@ const (
 type EventType string
 
 const (
-	EvtPraise        EventType = "praise"
-	EvtTease         EventType = "tease"
-	EvtCasualChat    EventType = "casual_chat"
-	EvtCold          EventType = "cold"
-	EvtHurtful       EventType = "hurtful"
-	EvtApology       EventType = "apology"
-	EvtVulnerable    EventType = "vulnerable"
-	EvtQuestion      EventType = "question"
+	EvtPraise         EventType = "praise"
+	EvtTease          EventType = "tease"
+	EvtCasualChat     EventType = "casual_chat"
+	EvtCold           EventType = "cold"
+	EvtHurtful        EventType = "hurtful"
+	EvtApology        EventType = "apology"
+	EvtVulnerable     EventType = "vulnerable"
+	EvtQuestion       EventType = "question"
 	EvtExtremeRedline EventType = "extreme_redline"
 	// 成人模式事件
 	EvtAdultFlirt      EventType = "adult_flirt"
@@ -48,8 +48,8 @@ const (
 // Event L0 输出结构
 type Event struct {
 	Type             EventType `json:"type"`
-	Intensity        float64   `json:"intensity"`        // 0-1
-	Sincerity        float64   `json:"sincerity"`        // 0-1
+	Intensity        float64   `json:"intensity"` // 0-1
+	Sincerity        float64   `json:"sincerity"` // 0-1
 	IsExtremeRedline bool      `json:"isExtremeRedline"`
 	IsAdultContent   bool      `json:"isAdultContent"`
 	AdultSubtype     string    `json:"adultSubtype,omitempty"` // flirt/dominant/submissive/explicit/romantic
@@ -59,14 +59,14 @@ type Event struct {
 
 // L1State 关系状态机
 type L1State struct {
-	Stage                   RelationshipStage `json:"stage"`
-	Trust                   float64           `json:"trust"`                   // 0-100
-	Rifts                   int               `json:"rifts"`
-	AffectionMomentum       float64           `json:"affection_momentum"`
-	Atmosphere              Atmosphere        `json:"atmosphere"`
-	ConsecutivePositiveTurns int              `json:"consecutivePositiveTurns"`
-	TurnsSinceLastRift      int               `json:"turnsSinceLastRift"`
-	SharedEventsCount       int               `json:"sharedEventsCount"`
+	Stage                    RelationshipStage `json:"stage"`
+	Trust                    float64           `json:"trust"` // 0-100
+	Rifts                    int               `json:"rifts"`
+	AffectionMomentum        float64           `json:"affection_momentum"`
+	Atmosphere               Atmosphere        `json:"atmosphere"`
+	ConsecutivePositiveTurns int               `json:"consecutivePositiveTurns"`
+	TurnsSinceLastRift       int               `json:"turnsSinceLastRift"`
+	SharedEventsCount        int               `json:"sharedEventsCount"`
 }
 
 // Modulation L1 调制输出
@@ -95,12 +95,12 @@ type Emotion4D struct {
 
 // EmotionState 情绪完整状态（含锁机制）
 type EmotionState struct {
-	Aff         float64 `json:"aff"`
-	Sec         float64 `json:"sec"`
-	Aro         float64 `json:"aro"`
-	Dom         float64 `json:"dom"`
-	PrimaryLabel string `json:"primaryLabel"`
-	IsLocked    bool    `json:"isLocked"`
+	Aff          float64 `json:"aff"`
+	Sec          float64 `json:"sec"`
+	Aro          float64 `json:"aro"`
+	Dom          float64 `json:"dom"`
+	PrimaryLabel string  `json:"primaryLabel"`
+	IsLocked     bool    `json:"isLocked"`
 }
 
 // MemoryEcho 记忆回声
@@ -137,16 +137,16 @@ type PersonalityPreset struct {
 
 // PersonalityTemplate 人格详细模板（P2新增：对齐 ackem prompt/personality.ts）
 type PersonalityTemplate struct {
-	ID               string   `json:"id"`
-	Label            string   `json:"label"`
-	Gender           string   `json:"gender"`
-	CoreContradiction string  `json:"coreContradiction"`  // 核心矛盾
-	SpeechPatterns   []string `json:"speechPatterns"`     // 常用语癖
-	SpeakingStyle    string   `json:"speakingStyle"`      // 说话方式
-	Prohibitions     []string `json:"prohibitions"`       // 人格专属禁止
-	ExamplesLow      []string `json:"examplesLow"`        // 低亲密示例
-	ExamplesMedium   []string `json:"examplesMedium"`     // 中亲密示例
-	ExamplesHigh     []string `json:"examplesHigh"`       // 高亲密示例
+	ID                string   `json:"id"`
+	Label             string   `json:"label"`
+	Gender            string   `json:"gender"`
+	CoreContradiction string   `json:"coreContradiction"` // 核心矛盾
+	SpeechPatterns    []string `json:"speechPatterns"`    // 常用语癖
+	SpeakingStyle     string   `json:"speakingStyle"`     // 说话方式
+	Prohibitions      []string `json:"prohibitions"`      // 人格专属禁止
+	ExamplesLow       []string `json:"examplesLow"`       // 低亲密示例
+	ExamplesMedium    []string `json:"examplesMedium"`    // 中亲密示例
+	ExamplesHigh      []string `json:"examplesHigh"`      // 高亲密示例
 }
 
 // ─── 情绪涌现 ──────────────────────────────────────────────────
@@ -155,12 +155,12 @@ type PersonalityTemplate struct {
 type EmergenceType string
 
 const (
-	EmergenceTimeReflection     EmergenceType = "timeReflection"
-	EmergenceLateNightEmo       EmergenceType = "lateNightEmo"
-	EmergenceExistentialWonder  EmergenceType = "existentialWonder"
-	EmergenceAttachmentOverflow EmergenceType = "attachmentOverflow"
+	EmergenceTimeReflection      EmergenceType = "timeReflection"
+	EmergenceLateNightEmo        EmergenceType = "lateNightEmo"
+	EmergenceExistentialWonder   EmergenceType = "existentialWonder"
+	EmergenceAttachmentOverflow  EmergenceType = "attachmentOverflow"
 	EmergenceVulnerabilityReveal EmergenceType = "vulnerabilityReveal"
-	EmergenceDesireExpression   EmergenceType = "desireExpression"
+	EmergenceDesireExpression    EmergenceType = "desireExpression"
 )
 
 // EmergenceState 涌现状态
@@ -177,32 +177,35 @@ type EmergenceState struct {
 
 // EmergenceContext 涌现上下文
 type EmergenceContext struct {
-	Emotion                   EmotionState
-	Stage                     RelationshipStage
-	Trust                     float64
-	Atmosphere                string
-	TimeOfDay                 string
-	DaysSinceMet              int
-	RecentAffHistory          []float64
-	RecentEventTypes          []string
+	Emotion                    EmotionState
+	Stage                      RelationshipStage
+	Trust                      float64
+	Atmosphere                 string
+	TimeOfDay                  string
+	DaysSinceMet               int
+	RecentAffHistory           []float64
+	RecentEventTypes           []string
 	ConsecutiveMeaningfulTurns int
 	ConsecutiveVulnerableTurns int
-	LastEmergence             *struct{ Type string; Turn int }
-	LastSameTypeAt            *time.Time
-	LastSameTypeTurn          *int
-	CurrentTurn               int
+	LastEmergence              *struct {
+		Type string
+		Turn int
+	}
+	LastSameTypeAt   *time.Time
+	LastSameTypeTurn *int
+	CurrentTurn      int
 }
 
 // EmergencePersistence 涌现持久化记录
 type EmergencePersistence struct {
-	Active  *EmergenceState              `json:"active"`
-	History []EmergenceHistoryEntry      `json:"history"`
+	Active  *EmergenceState         `json:"active"`
+	History []EmergenceHistoryEntry `json:"history"`
 }
 
 type EmergenceHistoryEntry struct {
-	Type             string    `json:"type"`
-	LastTriggeredAt  time.Time `json:"lastTriggeredAt"`
-	LastTriggeredTurn int      `json:"lastTriggeredTurn"`
+	Type              string    `json:"type"`
+	LastTriggeredAt   time.Time `json:"lastTriggeredAt"`
+	LastTriggeredTurn int       `json:"lastTriggeredTurn"`
 }
 
 // ─── 欲望栈 ────────────────────────────────────────────────────
@@ -212,8 +215,8 @@ type Desire struct {
 	ID              string    `json:"id"`
 	Topic           string    `json:"topic"`
 	Category        string    `json:"category"` // curiosity/concern/share/tease/suggest
-	Urgency         float64   `json:"urgency"`   // 0-10
-	Status          string    `json:"status"`    // latent/active/expressed/settled
+	Urgency         float64   `json:"urgency"`  // 0-10
+	Status          string    `json:"status"`   // latent/active/expressed/settled
 	SourceTurn      int       `json:"sourceTurn"`
 	CreatedAt       time.Time `json:"createdAt"`
 	ExpressedAtTurn *int      `json:"expressedAtTurn,omitempty"`
@@ -239,7 +242,7 @@ type ExpressionParams struct {
 	Mode      string `json:"mode"`      // NORMAL/SILENT_CANDIDATE
 	Proximity string `json:"proximity"` // CLOSE/NEUTRAL/COOL/DEFENSIVE
 	Tone      string `json:"tone"`
-	Length    string `json:"length"`    // SHORT/MEDIUM/LONG
+	Length    string `json:"length"` // SHORT/MEDIUM/LONG
 }
 
 // ─── OEG 创造者叙事 ───────────────────────────────────────────
@@ -295,21 +298,21 @@ type MemoryAugmentedL1 struct {
 
 // FullState 引擎完整状态（对齐 ackem FullState）
 type FullState struct {
-	Version             string                 `json:"version"`
-	Relationship        L1State                `json:"relationship"`
-	Emotion             EmotionState           `json:"emotion"`
-	Counters            StateCounters          `json:"counters"`
-	LastActive          time.Time              `json:"lastActive"`
-	ExternalAtmosphere  ExternalAtmosphere     `json:"externalAtmosphere"`
-	PersonalityBaseline *PersonalityDims       `json:"personalityBaseline,omitempty"`
-	Personality         PersonalitySlice       `json:"personality"`
-	UserProfile         *UserProfile           `json:"userProfile,omitempty"`
-	DesireStack         DesireStack            `json:"desireStack"`
-	OfflineThoughts     []OfflineThought       `json:"offlineThoughts"`
+	Version              string                `json:"version"`
+	Relationship         L1State               `json:"relationship"`
+	Emotion              EmotionState          `json:"emotion"`
+	Counters             StateCounters         `json:"counters"`
+	LastActive           time.Time             `json:"lastActive"`
+	ExternalAtmosphere   ExternalAtmosphere    `json:"externalAtmosphere"`
+	PersonalityBaseline  *PersonalityDims      `json:"personalityBaseline,omitempty"`
+	Personality          PersonalitySlice      `json:"personality"`
+	UserProfile          *UserProfile          `json:"userProfile,omitempty"`
+	DesireStack          DesireStack           `json:"desireStack"`
+	OfflineThoughts      []OfflineThought      `json:"offlineThoughts"`
 	EmergencePersistence *EmergencePersistence `json:"emergencePersistence,omitempty"`
-	FirstMetDate        *time.Time             `json:"firstMetDate,omitempty"`
-	AckemBirthday       *time.Time             `json:"ackemBirthday,omitempty"`
-	OriginExposure      *OriginExposure        `json:"originExposure,omitempty"`
+	FirstMetDate         *time.Time            `json:"firstMetDate,omitempty"`
+	AckemBirthday        *time.Time            `json:"ackemBirthday,omitempty"`
+	OriginExposure       *OriginExposure       `json:"originExposure,omitempty"`
 }
 
 // StateCounters 状态计数器
@@ -325,25 +328,25 @@ type StateCounters struct {
 type PersonalitySlice struct {
 	PresetID    string  `json:"presetId"`
 	HiddenRatio float64 `json:"hiddenRatio,omitempty"`
-	T float64 `json:"T"`
-	I float64 `json:"I"`
-	S float64 `json:"S"`
-	O float64 `json:"O"`
-	R float64 `json:"R"`
+	T           float64 `json:"T"`
+	I           float64 `json:"I"`
+	S           float64 `json:"S"`
+	O           float64 `json:"O"`
+	R           float64 `json:"R"`
 }
 
 // ─── TurnTrace 轮次追踪 ──────────────────────────────────────
 
 // TurnTrace 单轮完整追踪
 type TurnTrace struct {
-	Turn      int                    `json:"turn"`
-	L0        TurnTraceL0            `json:"l0"`
-	L1        TurnTraceL1            `json:"l1"`
-	L2        TurnTraceL2            `json:"l2"`
-	L3        TurnTraceL3            `json:"l3"`
-	L4        TurnTraceL4            `json:"l4"`
-	L5        *TurnTraceL5           `json:"l5,omitempty"`
-	Timestamp *time.Time             `json:"timestamp,omitempty"`
+	Turn      int          `json:"turn"`
+	L0        TurnTraceL0  `json:"l0"`
+	L1        TurnTraceL1  `json:"l1"`
+	L2        TurnTraceL2  `json:"l2"`
+	L3        TurnTraceL3  `json:"l3"`
+	L4        TurnTraceL4  `json:"l4"`
+	L5        *TurnTraceL5 `json:"l5,omitempty"`
+	Timestamp *time.Time   `json:"timestamp,omitempty"`
 }
 
 type TurnTraceL0 struct {
@@ -368,11 +371,11 @@ type TurnTraceL2 struct {
 }
 
 type TurnTraceL3 struct {
-	Silent       bool   `json:"silent"`
-	TierBChars   int    `json:"tierBChars"`
-	FactsUsed    int    `json:"factsUsed,omitempty"`
-	EmbeddingHits int   `json:"embeddingHits,omitempty"`
-	TopicSource  string `json:"topicSource,omitempty"`
+	Silent        bool          `json:"silent"`
+	TierBChars    int           `json:"tierBChars"`
+	FactsUsed     int           `json:"factsUsed,omitempty"`
+	EmbeddingHits int           `json:"embeddingHits,omitempty"`
+	TopicSource   string        `json:"topicSource,omitempty"`
 	EmergenceType EmergenceType `json:"emergenceType,omitempty"`
 }
 
@@ -398,34 +401,34 @@ const (
 
 // RhythmDecision 节奏决策
 type RhythmDecision struct {
-	Mode          RhythmMode `json:"mode"`
-	Count         int        `json:"count"`
-	Separator     string     `json:"separator"`
-	MaxCharsPerMsg int       `json:"maxCharsPerMsg"`
-	Instruction   string     `json:"instruction"`
+	Mode           RhythmMode `json:"mode"`
+	Count          int        `json:"count"`
+	Separator      string     `json:"separator"`
+	MaxCharsPerMsg int        `json:"maxCharsPerMsg"`
+	Instruction    string     `json:"instruction"`
 }
 
 // ─── 记忆系统类型 ──────────────────────────────────────────────
 
 // MemoryFact 核心记忆事实
 type MemoryFact struct {
-	ID               string    `json:"id"`
-	Domain           string    `json:"domain"`
-	Subcategory      string    `json:"subcategory"`
-	Subject          string    `json:"subject"`
-	Summary          string    `json:"summary"`
-	Weight           float64   `json:"weight"`
-	Confidence       float64   `json:"confidence"`
-	Status           string    `json:"status"` // active/retired
-	SelfRelevance    float64   `json:"selfRelevance"`
-	Triggers         []string  `json:"triggers"`
-	SourceSessionID  string    `json:"sourceSessionId"`
-	SourceTurnIndex  int       `json:"sourceTurnIndex"`
-	CreatedAt        time.Time `json:"createdAt"`
-	UpdatedAt        time.Time `json:"updatedAt"`
-	Tier             string    `json:"tier,omitempty"`       // core/archival
-	Sensitivity      string    `json:"sensitivity,omitempty"` // normal/avoid
-	PrivacyLevel     string    `json:"privacyLevel,omitempty"` // normal/intimate/explicit
+	ID              string    `json:"id"`
+	Domain          string    `json:"domain"`
+	Subcategory     string    `json:"subcategory"`
+	Subject         string    `json:"subject"`
+	Summary         string    `json:"summary"`
+	Weight          float64   `json:"weight"`
+	Confidence      float64   `json:"confidence"`
+	Status          string    `json:"status"` // active/retired
+	SelfRelevance   float64   `json:"selfRelevance"`
+	Triggers        []string  `json:"triggers"`
+	SourceSessionID string    `json:"sourceSessionId"`
+	SourceTurnIndex int       `json:"sourceTurnIndex"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+	Tier            string    `json:"tier,omitempty"`         // core/archival
+	Sensitivity     string    `json:"sensitivity,omitempty"`  // normal/avoid
+	PrivacyLevel    string    `json:"privacyLevel,omitempty"` // normal/intimate/explicit
 	// P1新增字段（对齐 ackem MemoryFact）
 	EmotionalContext *EmotionalContext `json:"emotionalContext,omitempty"` // 写入时的情感快照
 	UpdateTrail      []string          `json:"updateTrail,omitempty"`      // 合并时间轨迹
@@ -461,22 +464,22 @@ type Episode struct {
 
 // UserHabit 用户习惯槽
 type UserHabit struct {
-	ID              string `json:"id"`
-	Type            string `json:"type"`            // dnd/suppress_type/health_reminder
-	Scope           string `json:"scope"`           // short_term/long_term
-	Weekday         *int   `json:"weekday,omitempty"` // 0=Sun..6=Sat, nil=每天
-	HourStart       int    `json:"hourStart"`
-	HourEnd         int    `json:"hourEnd"`
+	ID              string  `json:"id"`
+	Type            string  `json:"type"`              // dnd/suppress_type/health_reminder
+	Scope           string  `json:"scope"`             // short_term/long_term
+	Weekday         *int    `json:"weekday,omitempty"` // 0=Sun..6=Sat, nil=每天
+	HourStart       int     `json:"hourStart"`
+	HourEnd         int     `json:"hourEnd"`
 	Confidence      float64 `json:"confidence"`
-	OccurrenceCount int    `json:"occurrenceCount"`
-	FirstSeenAt     int64  `json:"firstSeenAt"`     // unix ms
-	LastConfirmedAt int64  `json:"lastConfirmedAt"`
-	ExpiresAt       *int64 `json:"expiresAt,omitempty"`
-	Source          string `json:"source"`           // explicit/detected
-	SuppressTarget  string `json:"suppressTarget,omitempty"`
-	Note            string `json:"note,omitempty"`
-	CreatedAt       int64  `json:"createdAt"`
-	UpdatedAt       int64  `json:"updatedAt"`
+	OccurrenceCount int     `json:"occurrenceCount"`
+	FirstSeenAt     int64   `json:"firstSeenAt"` // unix ms
+	LastConfirmedAt int64   `json:"lastConfirmedAt"`
+	ExpiresAt       *int64  `json:"expiresAt,omitempty"`
+	Source          string  `json:"source"` // explicit/detected
+	SuppressTarget  string  `json:"suppressTarget,omitempty"`
+	Note            string  `json:"note,omitempty"`
+	CreatedAt       int64   `json:"createdAt"`
+	UpdatedAt       int64   `json:"updatedAt"`
 }
 
 // ─── 关联索引 ──────────────────────────────────────────────────
@@ -503,10 +506,10 @@ type RelevanceHint struct {
 
 // TemporalContext 时间上下文
 type TemporalContext struct {
-	TimeOfDay string  // morning/afternoon/evening/late_night
+	TimeOfDay string // morning/afternoon/evening/late_night
 	IsWeekend bool
 	Month     int
-	Season    string  // spring/summer/autumn/winter
+	Season    string // spring/summer/autumn/winter
 	Hour      int
 	Weekday   int
 	GapHours  float64
@@ -534,27 +537,27 @@ type RetrievalResult struct {
 type UserEngagementLevel string
 
 const (
-	EngagementActiveNow     UserEngagementLevel = "active_now"
+	EngagementActiveNow      UserEngagementLevel = "active_now"
 	EngagementRecentlyActive UserEngagementLevel = "recently_active"
-	EngagementIdle          UserEngagementLevel = "idle"
-	EngagementLikelyAway    UserEngagementLevel = "likely_away"
+	EngagementIdle           UserEngagementLevel = "idle"
+	EngagementLikelyAway     UserEngagementLevel = "likely_away"
 )
 
 // CompanionPresenceMode 陪伴在场模式
 type CompanionPresenceMode string
 
 const (
-	CompanionActive  CompanionPresenceMode = "active"
-	CompanionQuiet   CompanionPresenceMode = "quiet"
+	CompanionActive   CompanionPresenceMode = "active"
+	CompanionQuiet    CompanionPresenceMode = "quiet"
 	CompanionSleeping CompanionPresenceMode = "sleeping"
 )
 
 // UserRuntimeContext 用户运行时上下文
 type UserRuntimeContext struct {
-	LastActiveAt         string            `json:"lastActiveAt"`
-	MinutesSinceLastChat int               `json:"minutesSinceLastChat"`
+	LastActiveAt         string              `json:"lastActiveAt"`
+	MinutesSinceLastChat int                 `json:"minutesSinceLastChat"`
 	Engagement           UserEngagementLevel `json:"engagement"`
-	RecentUserSnippets   []string          `json:"recentUserSnippets"`
+	RecentUserSnippets   []string            `json:"recentUserSnippets"`
 }
 
 // CompanionRuntimeContext 陪伴运行时上下文

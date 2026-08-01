@@ -11,10 +11,10 @@ import "math/rand"
 type ProactiveMessageKind string
 
 const (
-	KindCheckIn     ProactiveMessageKind = "check_in"
-	KindMemoryEcho  ProactiveMessageKind = "memory_echo"
-	KindTimeGreet   ProactiveMessageKind = "time_greet"
-	KindMissYou     ProactiveMessageKind = "miss_you"
+	KindCheckIn      ProactiveMessageKind = "check_in"
+	KindMemoryEcho   ProactiveMessageKind = "memory_echo"
+	KindTimeGreet    ProactiveMessageKind = "time_greet"
+	KindMissYou      ProactiveMessageKind = "miss_you"
 	KindPlayfulNudge ProactiveMessageKind = "playful_nudge"
 )
 

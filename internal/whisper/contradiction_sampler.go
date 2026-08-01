@@ -7,9 +7,9 @@ package whisper
 import "sort"
 
 const (
-	contradictionMinWeight      = 1.0
+	contradictionMinWeight        = 1.0
 	contradictionSimilarityThresh = 0.25
-	contradictionSamplePairs    = 5
+	contradictionSamplePairs      = 5
 )
 
 // ContradictionCandidate 矛盾候选对

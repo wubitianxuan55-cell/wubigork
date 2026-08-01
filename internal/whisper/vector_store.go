@@ -17,14 +17,14 @@ type VectorStore struct {
 	mu sync.RWMutex
 
 	// TF-IDF 稀疏向量
-	idf         map[string]float64
-	vectors     []sparseVector
-	termToID    map[string]int
-	nextID      int
-	lastHash    string
+	idf      map[string]float64
+	vectors  []sparseVector
+	termToID map[string]int
+	nextID   int
+	lastHash string
 
 	// 稠密向量缓存（embedding 空间）
-	denseVectors   []denseVector
+	denseVectors []denseVector
 }
 
 type sparseVector struct {

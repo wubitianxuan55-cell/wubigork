@@ -242,12 +242,6 @@ func (c *Controller) SendWithRaw(input, raw string) {
 	c.runGuarded(func(ctx context.Context) error { return c.runTurnWithRaw(ctx, input, raw) })
 }
 
-// runTurn runs one model turn.
-
-func (c *Controller) runTurn(ctx context.Context, input string) error {
-	return c.runTurnWithRaw(ctx, input, input)
-}
-
 func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) error {
 	c.maybeSessionStart(ctx)
 

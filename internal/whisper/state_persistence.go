@@ -8,14 +8,14 @@ import "time"
 // DefaultL1 默认关系状态
 func DefaultL1() L1State {
 	return L1State{
-		Stage:                   StageStranger,
-		Trust:                   InitialTrust,
-		Rifts:                   0,
-		AffectionMomentum:       0,
-		Atmosphere:              AtmoNeutral,
+		Stage:                    StageStranger,
+		Trust:                    InitialTrust,
+		Rifts:                    0,
+		AffectionMomentum:        0,
+		Atmosphere:               AtmoNeutral,
 		ConsecutivePositiveTurns: 0,
-		TurnsSinceLastRift:      99,
-		SharedEventsCount:       0,
+		TurnsSinceLastRift:       99,
+		SharedEventsCount:        0,
 	}
 }
 
@@ -57,23 +57,23 @@ func DefaultOriginExposure() *OriginExposure {
 func DefaultFullState(personality PersonalitySlice) FullState {
 	now := time.Now()
 	return FullState{
-		Version:             StateJSONVersion,
-		Relationship:        DefaultL1(),
+		Version:      StateJSONVersion,
+		Relationship: DefaultL1(),
 		Emotion: EmotionState{
 			Aff: 0, Sec: 0, Aro: 0, Dom: 0,
 			PrimaryLabel: "CALM_RATIONAL",
 			IsLocked:     false,
 		},
-		Counters:            DefaultCounters(),
-		LastActive:          now,
-		ExternalAtmosphere:  ExternalAtmosphere{Level: 0, Label: AtmoNeutral},
-		PersonalityBaseline: &PersonalityDims{T: personality.T, I: personality.I, S: personality.S, O: personality.O, R: personality.R},
-		Personality:         personality,
-		UserProfile:         DefaultUserProfile(),
-		DesireStack:         DefaultDesireStack(),
-		OfflineThoughts:     []OfflineThought{},
+		Counters:             DefaultCounters(),
+		LastActive:           now,
+		ExternalAtmosphere:   ExternalAtmosphere{Level: 0, Label: AtmoNeutral},
+		PersonalityBaseline:  &PersonalityDims{T: personality.T, I: personality.I, S: personality.S, O: personality.O, R: personality.R},
+		Personality:          personality,
+		UserProfile:          DefaultUserProfile(),
+		DesireStack:          DefaultDesireStack(),
+		OfflineThoughts:      []OfflineThought{},
 		EmergencePersistence: &EmergencePersistence{Active: nil, History: []EmergenceHistoryEntry{}},
-		OriginExposure:      DefaultOriginExposure(),
+		OriginExposure:       DefaultOriginExposure(),
 	}
 }
 

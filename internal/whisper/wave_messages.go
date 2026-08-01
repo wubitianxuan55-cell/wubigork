@@ -8,8 +8,8 @@ import "fmt"
 
 // WaveSpec 波次规格
 type WaveSpec struct {
-	WaveIndex int
-	MaxChars  int
+	WaveIndex   int
+	MaxChars    int
 	SystemDelta string
 }
 

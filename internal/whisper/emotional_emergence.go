@@ -9,9 +9,9 @@ import (
 // ─── 模块级事件追踪状态 ───────────────────────────────────────
 
 var (
-	recentEventTypes            []string
-	consecutiveMeaningfulCount  int
-	consecutiveVulnerableCount  int
+	recentEventTypes           []string
+	consecutiveMeaningfulCount int
+	consecutiveVulnerableCount int
 )
 
 var meaningfulEventTypes = map[string]bool{

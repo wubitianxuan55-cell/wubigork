@@ -100,7 +100,7 @@ func dispatchWebSearch(act AgentAction) ToolResultForFollowUp {
 		Name:    "web_search",
 		Content: result,
 	}
-	}
+}
 
 // dispatchAppendMemory 分发记忆追加
 func dispatchAppendMemory(act AgentAction) ToolResultForFollowUp {

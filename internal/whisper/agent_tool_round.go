@@ -10,9 +10,9 @@ import "strings"
 
 // ToolRound 单轮工具执行
 type ToolRound struct {
-	Actions  []AgentAction
-	Results  []AgentToolResult
-	Writes   []string // 写入的文件路径
+	Actions []AgentAction
+	Results []AgentToolResult
+	Writes  []string // 写入的文件路径
 }
 
 // ExecuteToolRound 执行一轮工具调用

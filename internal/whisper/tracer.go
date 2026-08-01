@@ -18,9 +18,13 @@ func LogTurn(trace TurnTrace) {
 }
 
 func TraceLatest(n int) []TurnTrace {
-	if n <= 0 { return nil }
+	if n <= 0 {
+		return nil
+	}
 	start := len(traceRing) - n
-	if start < 0 { start = 0 }
+	if start < 0 {
+		start = 0
+	}
 	result := make([]TurnTrace, len(traceRing)-start)
 	copy(result, traceRing[start:])
 	return result
@@ -36,7 +40,9 @@ func TraceCount() int { return len(traceRing) }
 
 func PatchLatestTurnL5(turn int, toolCalls []string) {
 	for i := len(traceRing) - 1; i >= 0; i-- {
-		if traceRing[i].Turn != turn { continue }
+		if traceRing[i].Turn != turn {
+			continue
+		}
 		l5 := TurnTraceL5{ToolCalls: toolCalls}
 		traceRing[i].L5 = &l5
 		break

@@ -9,13 +9,13 @@ const UseComputerToolName = "use_computer"
 
 // UseComputerArgs 工具参数
 type UseComputerArgs struct {
-	Action  DesktopAgentAction     `json:"action"`
-	Path    string                 `json:"path,omitempty"`
-	PathTo  string                 `json:"path_to,omitempty"`
-	Target  string                 `json:"target,omitempty"`
-	Query   string                 `json:"query,omitempty"`
-	URL     string                 `json:"url,omitempty"`
-	Options *UseComputerOptions    `json:"options,omitempty"`
+	Action  DesktopAgentAction  `json:"action"`
+	Path    string              `json:"path,omitempty"`
+	PathTo  string              `json:"path_to,omitempty"`
+	Target  string              `json:"target,omitempty"`
+	Query   string              `json:"query,omitempty"`
+	URL     string              `json:"url,omitempty"`
+	Options *UseComputerOptions `json:"options,omitempty"`
 }
 
 // UseComputerOptions 额外选项

@@ -73,7 +73,7 @@ func parseExtractionSalvage(raw string, maxPerTurn int) *FactExtractionResult {
 				Summary       string   `json:"summary"`
 				Weight        float64  `json:"weight"`
 				Confidence    float64  `json:"confidence"`
-				SelfRelevance float64 `json:"selfRelevance"`
+				SelfRelevance float64  `json:"selfRelevance"`
 				Triggers      []string `json:"triggers"`
 			}
 			if err := json.Unmarshal(rawFact, &f); err != nil {

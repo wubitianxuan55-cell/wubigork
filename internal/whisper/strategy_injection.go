@@ -7,9 +7,9 @@ package whisper
 // ─── 注入标记常量 ─────────────────────────────────────────────
 
 const (
-	TemporalHintMarker    = "【时间感知"
-	EmergenceHintMarker   = "【情绪涌现"
-	CanonTemporalMarker   = "【Canon · 时间锚"
+	TemporalHintMarker     = "【时间感知"
+	EmergenceHintMarker    = "【情绪涌现"
+	CanonTemporalMarker    = "【Canon · 时间锚"
 	CanonAnniversaryMarker = "【Canon · 纪念日"
 )
 

@@ -13,7 +13,6 @@ import (
 
 // ─── 常量 ──────────────────────────────────────────────────────
 
-const rerankTemperature = 0.0
 const maxRerankCandidates = 20
 
 const rerankSystemPrompt = `你是一个记忆相关性裁判。用户说了一句话，系统检索到若干条候选记忆。你需要判断每条记忆与用户当前消息的语义相关性。

@@ -10,12 +10,12 @@ package whisper
 type UserArchetype string
 
 const (
-	ArchetypeUnknown      UserArchetype = "unknown"
-	ArchetypeClingy       UserArchetype = "clingy"        // 黏人型
-	ArchetypeIndependent  UserArchetype = "independent"   // 独立型
-	ArchetypeNurturing    UserArchetype = "nurturing"     // 照顾型
-	ArchetypePlayful      UserArchetype = "playful"       // 玩闹型
-	ArchetypeWithdrawn    UserArchetype = "withdrawn"     // 退缩型
+	ArchetypeUnknown     UserArchetype = "unknown"
+	ArchetypeClingy      UserArchetype = "clingy"      // 黏人型
+	ArchetypeIndependent UserArchetype = "independent" // 独立型
+	ArchetypeNurturing   UserArchetype = "nurturing"   // 照顾型
+	ArchetypePlayful     UserArchetype = "playful"     // 玩闹型
+	ArchetypeWithdrawn   UserArchetype = "withdrawn"   // 退缩型
 )
 
 // ─── UserProfiler ─────────────────────────────────────────────

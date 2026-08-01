@@ -166,14 +166,14 @@ func UpdateRelationship(event Event, prev L1State) L1State {
 	}
 
 	merged := L1State{
-		Stage:              prev.Stage, // P0修复: FSM演进需要传入当前阶段
-		Trust:              trust,
-		Rifts:              rifts,
-		AffectionMomentum:  affectionMomentum,
-		Atmosphere:         atmosphere,
+		Stage:                    prev.Stage, // P0修复: FSM演进需要传入当前阶段
+		Trust:                    trust,
+		Rifts:                    rifts,
+		AffectionMomentum:        affectionMomentum,
+		Atmosphere:               atmosphere,
 		ConsecutivePositiveTurns: consecutivePositiveTurns,
-		TurnsSinceLastRift: turnsSinceLastRift,
-		SharedEventsCount:  prev.SharedEventsCount,
+		TurnsSinceLastRift:       turnsSinceLastRift,
+		SharedEventsCount:        prev.SharedEventsCount,
 	}
 	merged.Stage = evolveStage(merged)
 

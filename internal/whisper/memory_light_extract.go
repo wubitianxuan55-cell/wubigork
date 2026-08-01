@@ -21,23 +21,23 @@ import (
 type FactDraftSource string
 
 const (
-	SourceLightRule       FactDraftSource = "light_rule"
+	SourceLightRule        FactDraftSource = "light_rule"
 	SourceExplicitRemember FactDraftSource = "explicit_remember"
 )
 
 // FactDraft 轻量提取的事实草稿
 type FactDraft struct {
-	Domain      string   `json:"domain"`
-	Subcategory string   `json:"subcategory"`
-	Subject     string   `json:"subject"`
-	Summary     string   `json:"summary"`
-	Weight      float64  `json:"weight"`
-	Confidence  float64  `json:"confidence"`
-	Triggers    []string `json:"triggers,omitempty"`
-	AgeMeta     *AgeMeta `json:"ageMeta,omitempty"`
+	Domain      string          `json:"domain"`
+	Subcategory string          `json:"subcategory"`
+	Subject     string          `json:"subject"`
+	Summary     string          `json:"summary"`
+	Weight      float64         `json:"weight"`
+	Confidence  float64         `json:"confidence"`
+	Triggers    []string        `json:"triggers,omitempty"`
+	AgeMeta     *AgeMeta        `json:"ageMeta,omitempty"`
 	Source      FactDraftSource `json:"source"`
-	RuleID      string   `json:"ruleId,omitempty"`
-	FamilyScope string   `json:"familyScope,omitempty"`
+	RuleID      string          `json:"ruleId,omitempty"`
+	FamilyScope string          `json:"familyScope,omitempty"`
 }
 
 // ─── 家人类系映射 ──────────────────────────────────────────────
@@ -61,7 +61,7 @@ var familyRelations = []familyRelation{
 // ─── 日期解析 ──────────────────────────────────────────────────
 
 var (
-	reBirthdayZH = regexp.MustCompile(`(\d{1,2})\s*月\s*(\d{1,2})\s*日?`)
+	reBirthdayZH    = regexp.MustCompile(`(\d{1,2})\s*月\s*(\d{1,2})\s*日?`)
 	reBirthdaySlash = regexp.MustCompile(`(\d{1,2})[/.](\d{1,2})`)
 	reBirthdayEN    = regexp.MustCompile(`(?i)\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})\b`)
 )

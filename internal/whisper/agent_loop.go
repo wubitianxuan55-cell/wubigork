@@ -25,26 +25,26 @@ type AgentToolResult struct {
 
 // AgentTurnResult 单轮 Agent 结果
 type AgentTurnResult struct {
-	AssistantText string            `json:"assistantText"`
-	ToolCalls     []AgentAction     `json:"toolCalls"`
-	ToolResults   []AgentToolResult `json:"toolResults"`
-	ShouldContinue bool             `json:"shouldContinue"`
-	TaskCompleted  bool             `json:"taskCompleted"`
+	AssistantText  string            `json:"assistantText"`
+	ToolCalls      []AgentAction     `json:"toolCalls"`
+	ToolResults    []AgentToolResult `json:"toolResults"`
+	ShouldContinue bool              `json:"shouldContinue"`
+	TaskCompleted  bool              `json:"taskCompleted"`
 }
 
 // AgentLoopConfig Agent 循环配置
 type AgentLoopConfig struct {
-	MaxToolRounds     int  `json:"maxToolRounds"`     // 最大工具轮数，默认 10
-	MaxInvestigationRounds int `json:"maxInvestigationRounds"` // 调查最大轮数
-	RequireConfirm    bool `json:"requireConfirm"`    // 写操作需要确认
+	MaxToolRounds          int  `json:"maxToolRounds"`          // 最大工具轮数，默认 10
+	MaxInvestigationRounds int  `json:"maxInvestigationRounds"` // 调查最大轮数
+	RequireConfirm         bool `json:"requireConfirm"`         // 写操作需要确认
 }
 
 // DefaultAgentConfig 默认配置
 func DefaultAgentConfig() AgentLoopConfig {
 	return AgentLoopConfig{
-		MaxToolRounds:     10,
+		MaxToolRounds:          10,
 		MaxInvestigationRounds: 5,
-		RequireConfirm:    true,
+		RequireConfirm:         true,
 	}
 }
 
@@ -52,11 +52,11 @@ func DefaultAgentConfig() AgentLoopConfig {
 
 // AgentLoop 通用 Agent 多轮循环
 type AgentLoop struct {
-	Config      AgentLoopConfig
-	TaskPlan    *AgentTaskPlan
-	History     []AgentTurnResult
-	RoundCount  int
-	TotalCost   int // token 估算
+	Config     AgentLoopConfig
+	TaskPlan   *AgentTaskPlan
+	History    []AgentTurnResult
+	RoundCount int
+	TotalCost  int // token 估算
 }
 
 // NewAgentLoop 创建 Agent 循环

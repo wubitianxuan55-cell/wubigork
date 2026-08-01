@@ -15,20 +15,20 @@ import (
 
 // extensionMap 中文关键词 → 扩展名映射
 var extensionMap = map[string][]string{
-	"pdf":     {".pdf"},
-	"word":    {".doc", ".docx"},
-	"excel":   {".xls", ".xlsx", ".csv"},
-	"ppt":     {".ppt", ".pptx"},
-	"图片":     {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"},
-	"照片":     {".jpg", ".jpeg", ".png", ".heic"},
-	"视频":     {".mp4", ".avi", ".mkv", ".mov", ".wmv"},
-	"音频":     {".mp3", ".wav", ".flac", ".aac", ".ogg"},
-	"文本":     {".txt", ".md", ".log"},
-	"代码":     {".go", ".py", ".js", ".ts", ".java", ".cpp", ".c", ".rs", ".html", ".css", ".json", ".yaml"},
-	"压缩":     {".zip", ".rar", ".7z", ".tar", ".gz"},
-	"笔记":     {".md", ".txt", ".rtf"},
-	"表格":     {".xls", ".xlsx", ".csv"},
-	"演示":     {".ppt", ".pptx"},
+	"pdf":   {".pdf"},
+	"word":  {".doc", ".docx"},
+	"excel": {".xls", ".xlsx", ".csv"},
+	"ppt":   {".ppt", ".pptx"},
+	"图片":    {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"},
+	"照片":    {".jpg", ".jpeg", ".png", ".heic"},
+	"视频":    {".mp4", ".avi", ".mkv", ".mov", ".wmv"},
+	"音频":    {".mp3", ".wav", ".flac", ".aac", ".ogg"},
+	"文本":    {".txt", ".md", ".log"},
+	"代码":    {".go", ".py", ".js", ".ts", ".java", ".cpp", ".c", ".rs", ".html", ".css", ".json", ".yaml"},
+	"压缩":    {".zip", ".rar", ".7z", ".tar", ".gz"},
+	"笔记":    {".md", ".txt", ".rtf"},
+	"表格":    {".xls", ".xlsx", ".csv"},
+	"演示":    {".ppt", ".pptx"},
 }
 
 // ─── 类型定义 ──────────────────────────────────────────────────
@@ -75,7 +75,7 @@ func ParseExtensionsFromQuery(query string) []string {
 // ─── 文件搜索 ──────────────────────────────────────────────────
 
 const (
-	maxSearchDepth = 5
+	maxSearchDepth   = 5
 	maxSearchResults = 200
 )
 

@@ -13,16 +13,16 @@ import (
 
 // MapCollectResult 采集结果
 type MapCollectResult struct {
-	Games    []MapEntry `json:"games"`
+	Games     []MapEntry `json:"games"`
 	Documents []MapEntry `json:"documents"`
-	Apps     []MapEntry `json:"apps"`
+	Apps      []MapEntry `json:"apps"`
 }
 
 // MapEntry 地图条目
 type MapEntry struct {
-	Path      string  `json:"path"`
-	Name      string  `json:"name"`
-	Source    string  `json:"source"`    // steam_common/epic_manifest/start_menu/desktop/program_files
+	Path       string  `json:"path"`
+	Name       string  `json:"name"`
+	Source     string  `json:"source"`     // steam_common/epic_manifest/start_menu/desktop/program_files
 	Confidence float64 `json:"confidence"` // high(0.9)/medium(0.6)/low(0.3)
 }
 

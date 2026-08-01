@@ -6,10 +6,10 @@ package whisper
 
 // TopicCandidate 话题候选
 type TopicCandidate struct {
-	Source   string  // emergence/desire/special_date/casual
-	Topic    string
-	Priority float64 // 越高越优先
-	Injection string // 注入文本
+	Source    string // emergence/desire/special_date/casual
+	Topic     string
+	Priority  float64 // 越高越优先
+	Injection string  // 注入文本
 }
 
 // ResolveTopicSelection 话题仲裁：选择最高优先级的话题

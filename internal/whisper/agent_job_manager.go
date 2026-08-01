@@ -26,9 +26,9 @@ type AgentJob struct {
 
 // AgentJobManager 后台任务管理器
 type AgentJobManager struct {
-	mu       sync.RWMutex
-	jobs     map[string]*AgentJob // sessionID → job
-	onState  func(state AgentJobState) // 状态变更回调（供 Wails 前端绑定）
+	mu      sync.RWMutex
+	jobs    map[string]*AgentJob      // sessionID → job
+	onState func(state AgentJobState) // 状态变更回调（供 Wails 前端绑定）
 }
 
 // NewAgentJobManager 创建任务管理器

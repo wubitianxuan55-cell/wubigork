@@ -29,25 +29,25 @@ type PreLLMResult struct {
 // ─── Orchestrator ─────────────────────────────────────────────
 
 type Orchestrator struct {
-	State     FullState
-	SessionID string
-	Preset    PersonalityPreset
-	FactStore *FactStore
-	KG        *KnowledgeGraph
-	WM        *WorkingMemory
-	Recall    *ActiveRecall
-	AssocIndex       *AssociationIndex       // P2: 关联索引（供 post-turn 纠正）
-	HabitsStore      *HabitsStore            // P2: 习惯存储（供 DnD/健康检测写入）
-	SelfEditor       *MemorySelfEditor       // v5.40: 记忆自编辑器
-	ProceduralHabits *ProceduralHabitStore   // v5.40: 程序化习惯存储
+	State            FullState
+	SessionID        string
+	Preset           PersonalityPreset
+	FactStore        *FactStore
+	KG               *KnowledgeGraph
+	WM               *WorkingMemory
+	Recall           *ActiveRecall
+	AssocIndex       *AssociationIndex     // P2: 关联索引（供 post-turn 纠正）
+	HabitsStore      *HabitsStore          // P2: 习惯存储（供 DnD/健康检测写入）
+	SelfEditor       *MemorySelfEditor     // v5.40: 记忆自编辑器
+	ProceduralHabits *ProceduralHabitStore // v5.40: 程序化习惯存储
 	EngineID         string
 	ModelName        string // v5.66: 轻语专属 LLM 模型名
 	ImageModelName   string // v5.66: 轻语专属生图模型名
 	AdultMode        bool
 	DataRoot         string // v5.41: SQLite 持久化数据根目录
 	// v5.43: 桌面助手子系统
-	ConfirmSvc       *ConfirmService         // 确认服务
-	DeliveryCoord    *DeliveryCoordinator    // 消息分发协调
+	ConfirmSvc    *ConfirmService      // 确认服务
+	DeliveryCoord *DeliveryCoordinator // 消息分发协调
 	// 情绪涌现追踪（每会话独立）
 	recentEventTypes           []string
 	consecutiveMeaningfulCount int
@@ -217,7 +217,10 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	// ═══ L3 表达参数 + 沉默 + 屏障 ═══
 	expr := EmoToExpression(newEmotion.PrimaryLabel, newL1.Stage)
 	silent := CalcSilence(event, newL1.Rifts, newEmotion.Aro, newL1.Stage, o.AdultMode,
-		&struct{ SessionID string; TurnIndex int }{o.SessionID, turnIndex})
+		&struct {
+			SessionID string
+			TurnIndex int
+		}{o.SessionID, turnIndex})
 	barrier := ComputeBarrierAwareness(newEmotion.Aff, newL1.Trust, newL1.Stage, newL1.SharedEventsCount, o.Preset.Label)
 
 	// ═══ 成人模式 ═══
@@ -601,19 +604,22 @@ func (o *Orchestrator) runAdultModeFSM(event Event, eventType string, emotion *E
 
 func (o *Orchestrator) runEmergence(state FullState, emotion EmotionState, l1 L1State, eventType string, turnIndex int) *EmergenceState {
 	ctx := EmergenceContext{
-		Emotion:                     emotion,
-		Stage:                       l1.Stage,
-		Trust:                       l1.Trust,
-		Atmosphere:                  string(l1.Atmosphere),
-		TimeOfDay:                   timeOfDayKey(),
-		DaysSinceMet:                daysSince(state.FirstMetDate),
-		RecentEventTypes:            o.recentEventTypes,
-		ConsecutiveMeaningfulTurns:  o.consecutiveMeaningfulCount,
-		ConsecutiveVulnerableTurns:  o.consecutiveVulnerableCount,
-		CurrentTurn:                 turnIndex,
+		Emotion:                    emotion,
+		Stage:                      l1.Stage,
+		Trust:                      l1.Trust,
+		Atmosphere:                 string(l1.Atmosphere),
+		TimeOfDay:                  timeOfDayKey(),
+		DaysSinceMet:               daysSince(state.FirstMetDate),
+		RecentEventTypes:           o.recentEventTypes,
+		ConsecutiveMeaningfulTurns: o.consecutiveMeaningfulCount,
+		ConsecutiveVulnerableTurns: o.consecutiveVulnerableCount,
+		CurrentTurn:                turnIndex,
 	}
 	if state.EmergencePersistence != nil && state.EmergencePersistence.Active != nil {
-		ctx.LastEmergence = &struct{ Type string; Turn int }{
+		ctx.LastEmergence = &struct {
+			Type string
+			Turn int
+		}{
 			Type: string(state.EmergencePersistence.Active.Type),
 			Turn: state.Counters.TotalTurns,
 		}

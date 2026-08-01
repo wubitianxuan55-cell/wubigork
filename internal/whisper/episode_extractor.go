@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	episodeExtractMsgTrunc  = 300
-	episodeSummaryMaxChars  = 200
+	episodeExtractMsgTrunc = 300
+	episodeSummaryMaxChars = 200
 )
 
 // EpisodeExtractor LLM 情节提取器

@@ -556,60 +556,9 @@ func New(prov provider.Provider, tools *tool.Registry, session *Session, opts Op
 // Run executes one turn with the single-model path (V5.0: Planner removed).
 // plan-mode gating is consistent. Call after construction.
 
-// filteredSchemas returns a reduced tool schema list for analysis-only
-// inputs. IMPORTANT: intentionally NOT called in runDirect() — DeepSeek prefix
-// cache requires immutable tools across a session. Available for session-level use.
-// When the input suggests code review/reading/explaining (no write
-// intent), writer tools are omitted to save prompt tokens (~15-25% savings).
-// Returns nil when no filtering is needed (full tool set).
-func (a *AgentRunner) filteredSchemas(input string) []provider.ToolSchema {
-	// Only filter for substantial inputs (>25 chars) — single words/commands
-	// like "explore" or "review" should not trigger filtering (too ambiguous).
-	if len(input) <= 25 {
-		return nil
-	}
-
-	lower := strings.ToLower(input)
-
-	// Development patterns: create, write, implement, fix, refactor, build
-	devKeywords := []string{
-		"create", "write", "implement", "fix", "refactor", "change",
-		"add", "remove", "delete", "update", "modify", "build",
-		"optimize", "migrate", "convert", "deploy",
-		"实现", "修复", "重构", "创建", "添加", "删除",
-		"修改", "优化", "迁移", "构建",
-	}
-	for _, kw := range devKeywords {
-		if strings.Contains(lower, kw) {
-			return nil // full tool set for development tasks
-		}
-	}
-
-	// Analysis-only patterns (must have at least one match)
-	analysisKeywords := []string{
-		"review", "explain", "analyze", "analyse",
-		"审查", "分析", "解释",
-	}
-	hasAnalysis := false
-	for _, kw := range analysisKeywords {
-		if strings.Contains(lower, kw) {
-			hasAnalysis = true
-			break
-		}
-	}
-	if !hasAnalysis {
-		return nil
-	}
-
-	// Filter to read-only + meta tools for analysis tasks.
-	return a.tools.FilteredSchemas([]string{
-		"read_file", "ls", "glob", "grep",
-		"git_status", "git_diff", "git_log",
-		"web_search", "web_fetch",
-		"todo_write", "complete_step",
-		"task", "ask",
-	})
-}
+// shouldMidTurnSteer detects error spirals during tool execution and injects
+// a corrective hint. Returns true if a steer was injected (caller should
+// continue the loop to let the model respond to the hint).
 
 // shouldMidTurnSteer detects error spirals during tool execution and injects
 // a corrective hint. Returns true if a steer was injected (caller should

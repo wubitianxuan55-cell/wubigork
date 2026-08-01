@@ -21,14 +21,14 @@ type FactExtractionResult struct {
 
 // ExtractedFact 抽取的原始事实
 type ExtractedFact struct {
-	Domain       string   `json:"domain"`
-	Subcategory  string   `json:"subcategory"`
-	Subject      string   `json:"subject"`
-	Summary      string   `json:"summary"`
-	Weight       float64  `json:"weight,omitempty"`
-	Confidence   float64  `json:"confidence,omitempty"`
-	SelfRelevance float64 `json:"selfRelevance,omitempty"`
-	Triggers     []string `json:"triggers,omitempty"`
+	Domain        string   `json:"domain"`
+	Subcategory   string   `json:"subcategory"`
+	Subject       string   `json:"subject"`
+	Summary       string   `json:"summary"`
+	Weight        float64  `json:"weight,omitempty"`
+	Confidence    float64  `json:"confidence,omitempty"`
+	SelfRelevance float64  `json:"selfRelevance,omitempty"`
+	Triggers      []string `json:"triggers,omitempty"`
 }
 
 // ─── EpisodeExtractionResult ─────────────────────────────────
@@ -40,9 +40,9 @@ type EpisodeExtractionResult struct {
 	EmotionalIntensity float64  `json:"emotionalIntensity"`
 	DominantEmotion    string   `json:"dominantEmotion"`
 	Keywords           []string `json:"keywords"`
-	KeyQuote           string   `json:"keyQuote,omitempty"`           // 用户原话（≤15字）
-	EmotionKeywords    []string `json:"emotionKeywords,omitempty"`    // 关键情绪词（最多3个）
-	TimeContext        string   `json:"timeContext,omitempty"`        // 时间语境
+	KeyQuote           string   `json:"keyQuote,omitempty"`        // 用户原话（≤15字）
+	EmotionKeywords    []string `json:"emotionKeywords,omitempty"` // 关键情绪词（最多3个）
+	TimeContext        string   `json:"timeContext,omitempty"`     // 时间语境
 }
 
 // ─── ConsolidationResult ─────────────────────────────────────

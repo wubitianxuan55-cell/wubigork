@@ -93,7 +93,6 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	}, nil
 }
 
-
 // injectLoraNodes 在工作流中注入 LoraLoaderModelOnly 节点链
 // 返回最后一个节点的 ID（UNETLoader 或最后一个 LoRA 节点）
 // loras 为空时直接返回 originalModelNodeID
@@ -117,23 +116,6 @@ func injectLoraNodes(workflow map[string]interface{}, originalModelNodeID string
 	return currentNodeID
 }
 
-func (b *ComfyUIBackend) buildFluxWorkflow(prompt string, negative string, width, height, seed, steps int) map[string]interface{} {
-	return map[string]interface{}{
-		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": "flux1\\flux1-fill-dev-OneReward-fp8.safetensors", "weight_dtype": "default"}},
-		"5":  map[string]interface{}{"class_type": "DualCLIPLoader", "inputs": map[string]interface{}{"clip_name1": "clip_l.safetensors", "clip_name2": "t5xxl_fp8_e4m3fn.safetensors", "type": "flux"}},
-		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "ae.safetensors"}},
-		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
-		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"5", 0}}},
-		"9":  map[string]interface{}{"class_type": "EmptySD3LatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
-		"14": map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{"4", 0}, "shift": 3}},
-		"10": map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
-			"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
-			"model": []interface{}{"14", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": []interface{}{"9", 0},
-		}},
-		"11": map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}},
-		"12": map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}},
-	}
-}
 // buildZImageWorkflow 构建 Z-Image-Turbo 工作流（官方 Comfy-Org 模板）
 // CLIPLoader lumina2, SD3Latent, AuraFlow shift=3, ConditioningZeroOut, CFG 1.0, res_multistep/simple
 func (b *ComfyUIBackend) buildZImageWorkflow(prompt string, negative string, width int, height int, seed int, steps int, unetModel string, loras []string) map[string]interface{} {

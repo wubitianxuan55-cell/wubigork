@@ -150,8 +150,6 @@ func collectSources(text string, category UserActivityCategory, gameActive bool)
 	return sources
 }
 
-const planOverrideMinConfidence = 0.7
-
 // ResolveUserActivity 规则推断用户生活场景大类 + 时态
 func ResolveUserActivity(input ResolveUserActivityInput) UserActivityContext {
 	// 游戏活跃直接判定

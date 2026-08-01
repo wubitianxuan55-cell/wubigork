@@ -11,10 +11,11 @@ import "time"
 // AssociationIndex 记忆关联索引
 // AssociationIndex 记忆关联索引
 type AssociationIndex struct {
-	assocs            []Association
-	byFactID          map[string][]int // factID → assoc indices
-	lastActivatedIDs  []string         // 本轮激活的关联 ID
+	assocs           []Association
+	byFactID         map[string][]int // factID → assoc indices
+	lastActivatedIDs []string         // 本轮激活的关联 ID
 }
+
 // NewAssociationIndex 创建空关联索引
 func NewAssociationIndex() *AssociationIndex {
 	return &AssociationIndex{byFactID: make(map[string][]int)}
@@ -68,7 +69,7 @@ func (ai *AssociationIndex) StrengthenOrCreate(factIDA, factIDB, assocType strin
 	for _, idx := range ai.byFactID[factIDA] {
 		existing := &ai.assocs[idx]
 		if existing.FactIDB == factIDB || existing.FactIDA == factIDB {
-		existing.Strength = clampF(1-(1-existing.Strength)*0.95, 0, 1)
+			existing.Strength = clampF(1-(1-existing.Strength)*0.95, 0, 1)
 			existing.LastActivatedAt = time.Now().UnixMilli()
 			return
 		}
@@ -81,6 +82,7 @@ func (ai *AssociationIndex) StrengthenOrCreate(factIDA, factIDB, assocType strin
 		Strength:        strength,
 	})
 }
+
 // RecordActivation 标记关联被激活（保留本轮 ID 供 post-turn 纠正）
 func (ai *AssociationIndex) RecordActivation(assocID string) {
 	nowMs := time.Now().UnixMilli()

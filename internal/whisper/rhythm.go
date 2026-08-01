@@ -118,21 +118,21 @@ func chatterDecision(stage RelationshipStage) RhythmDecision {
 		count = randInt(2, 3)
 	}
 	return RhythmDecision{
-		Mode:          RhythmChatter,
-		Count:         count,
-		Separator:     "[SPLIT]",
+		Mode:           RhythmChatter,
+		Count:          count,
+		Separator:      "[SPLIT]",
 		MaxCharsPerMsg: 30,
-		Instruction:   fmt.Sprintf("用碎碎念模式回复，分%d条短句，每条不超过30字，用 [SPLIT] 分隔。像微信连发消息一样。", count),
+		Instruction:    fmt.Sprintf("用碎碎念模式回复，分%d条短句，每条不超过30字，用 [SPLIT] 分隔。像微信连发消息一样。", count),
 	}
 }
 
 func monologueDecision() RhythmDecision {
 	return RhythmDecision{
-		Mode:          RhythmMonologue,
-		Count:         1,
-		Separator:     "",
+		Mode:           RhythmMonologue,
+		Count:          1,
+		Separator:      "",
 		MaxCharsPerMsg: 200,
-		Instruction:   "用认真说的模式回复，1-2条长句，可以稍长。",
+		Instruction:    "用认真说的模式回复，1-2条长句，可以稍长。",
 	}
 }
 
@@ -140,10 +140,10 @@ func defaultDecision() RhythmDecision {
 	consecutiveChatter = 0
 	consecutiveMonologue = 0
 	return RhythmDecision{
-		Mode:          RhythmDefault,
-		Count:         2,
-		Separator:     "",
+		Mode:           RhythmDefault,
+		Count:          2,
+		Separator:      "",
 		MaxCharsPerMsg: 100,
-		Instruction:   "",
+		Instruction:    "",
 	}
 }

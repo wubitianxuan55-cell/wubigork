@@ -41,10 +41,10 @@ type TFIDFVector map[string]float64
 
 // TfidfIndex TF-IDF 索引
 type TfidfIndex struct {
-	vectors   []TFIDFVector     // 每个文档的向量
-	docIDs    []string          // 文档 ID
-	idfCache  map[string]float64 // 词 → IDF
-	docCount  int
+	vectors  []TFIDFVector      // 每个文档的向量
+	docIDs   []string           // 文档 ID
+	idfCache map[string]float64 // 词 → IDF
+	docCount int
 }
 
 // NewTfidfIndex 创建 TF-IDF 索引

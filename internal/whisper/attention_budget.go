@@ -16,14 +16,14 @@ const hourMs = int64(time.Hour / time.Millisecond)
 // AttentionBudgetState 注意力预算状态
 type AttentionBudgetState struct {
 	ProactiveMessagesPerHour int              `json:"proactiveMessagesPerHour"`
-	LastProactiveAt          []int64          `json:"lastProactiveAt"`          // unix ms
+	LastProactiveAt          []int64          `json:"lastProactiveAt"`            // unix ms
 	CategoryCooldown         map[string]int64 `json:"categoryCooldown,omitempty"` // category → cooldown until ms
 	GlobalDnd                *GlobalDnd       `json:"globalDnd,omitempty"`
 }
 
 // GlobalDnd 全局免打扰
 type GlobalDnd struct {
-	Until  int64  `json:"until"`  // unix ms
+	Until  int64  `json:"until"` // unix ms
 	Reason string `json:"reason"`
 }
 

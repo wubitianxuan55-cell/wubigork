@@ -57,8 +57,8 @@ type PacedStreamCallbacks struct {
 // PacedStreamEmitter 节奏流发射器
 // 100% 对齐 ackem pacedStreamEmitter.ts PacedStreamEmitter
 type PacedStreamEmitter struct {
-	cb     PacedStreamCallbacks
-	gapMs  int
+	cb    PacedStreamCallbacks
+	gapMs int
 
 	mu            sync.Mutex
 	received      strings.Builder

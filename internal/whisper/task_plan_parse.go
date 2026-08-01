@@ -7,11 +7,11 @@ import "encoding/json"
 
 // TaskPlan 任务计划
 type TaskPlan struct {
-	ID        string        `json:"id"`
-	Title     string        `json:"title"`
-	Steps     []TaskStep    `json:"steps"`
-	CreatedAt string        `json:"createdAt"`
-	Status    string        `json:"status"` // active/completed/failed
+	ID        string     `json:"id"`
+	Title     string     `json:"title"`
+	Steps     []TaskStep `json:"steps"`
+	CreatedAt string     `json:"createdAt"`
+	Status    string     `json:"status"` // active/completed/failed
 }
 
 // TaskStep 任务步骤

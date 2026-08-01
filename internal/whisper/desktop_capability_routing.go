@@ -16,11 +16,11 @@ import (
 
 // DesktopCapabilityDef 桌面助手能力定义（含 exampleQueries）
 type DesktopCapabilityDef struct {
-	ID            string   `json:"id"`
-	Label         string   `json:"label"`
-	Handler       string   `json:"handler"`
+	ID             string   `json:"id"`
+	Label          string   `json:"label"`
+	Handler        string   `json:"handler"`
 	ExampleQueries []string `json:"exampleQueries"`
-	Enabled       bool     `json:"enabled"`
+	Enabled        bool     `json:"enabled"`
 }
 
 // ListRoutableCapabilities 可路由能力清单

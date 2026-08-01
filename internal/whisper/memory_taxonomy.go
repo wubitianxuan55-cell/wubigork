@@ -7,12 +7,12 @@ package whisper
 // ─── 领域常量 ──────────────────────────────────────────────────
 
 const (
-	DomainIdentity  = "IDENTITY"
-	DomainSocial    = "SOCIAL"
-	DomainDailyLife = "DAILY_LIFE"
-	DomainPursuits  = "PURSUITS"
+	DomainIdentity   = "IDENTITY"
+	DomainSocial     = "SOCIAL"
+	DomainDailyLife  = "DAILY_LIFE"
+	DomainPursuits   = "PURSUITS"
 	DomainInnerWorld = "INNER_WORLD"
-	DomainTemporal  = "TEMPORAL"
+	DomainTemporal   = "TEMPORAL"
 )
 
 // Subcategories 25 子类定义

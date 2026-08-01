@@ -10,12 +10,12 @@ import (
 
 // BuildRuntimeContextInput 构建运行时上下文输入
 type BuildRuntimeContextInput struct {
-	SessionID            string
-	LastActiveAt         time.Time
-	RecentUserExchanges  []string
-	MemoryFactSummaries  []string
-	GameActive           bool
-	Now                  time.Time
+	SessionID           string
+	LastActiveAt        time.Time
+	RecentUserExchanges []string
+	MemoryFactSummaries []string
+	GameActive          bool
+	Now                 time.Time
 }
 
 // BuildRuntimeContext 统一构建运行时上下文

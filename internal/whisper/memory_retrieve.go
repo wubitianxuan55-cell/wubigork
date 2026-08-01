@@ -162,7 +162,7 @@ func ComputeMemoryEchoFacts(ranked []sfPair, aff float64) MemoryEcho {
 			ec := sf.f.EmotionalContext
 			intensity := ec.Intensity
 			trust := ec.Trust
-			decay := math.Exp(-0.003 * time.Since(sf.f.CreatedAt).Hours()/24)
+			decay := math.Exp(-0.003 * time.Since(sf.f.CreatedAt).Hours() / 24)
 			w *= intensity * decay
 			if w <= 0 {
 				continue
@@ -176,7 +176,7 @@ func ComputeMemoryEchoFacts(ranked []sfPair, aff float64) MemoryEcho {
 			}
 			aroSum += intensity * w * MemoryEchoAroIntensityWeight
 			// dom 基于 trust 信号
-			domSignal := (trust-50)/50 * MemoryEchoDomTrustWeight
+			domSignal := (trust - 50) / 50 * MemoryEchoDomTrustWeight
 			domSum += domSignal * w
 		} else {
 			// 回退：无情感上下文时使用简单估算

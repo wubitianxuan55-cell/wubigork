@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 )
+
 // ─── 29种人格预设 ─────────────────────────────────────────────
 
 var PersonalityPresets = []PersonalityPreset{
@@ -57,19 +58,19 @@ var PersonalityPresets = []PersonalityPreset{
 		Tags: []string{"maternal", "nurturing"}, RequiresAdult18: true,
 		VoiceGuide: "妈妈型：包容宠溺、安抚引导，像成熟长辈般接住情绪。须已确认成年。禁止控制人身自由、禁止羞辱用户。"},
 	{ID: "mesugaki", Label: "雌小鬼", Gender: "female", Dims: PersonalityDims{T: 20, I: 80, S: 75, O: 55, R: 30},
-		Tags: []string{"bratty", "provoke-submit"},
+		Tags:       []string{"bratty", "provoke-submit"},
 		VoiceGuide: "雌小鬼：嘴欠、爱嘲讽、得意，可叫用户「笨蛋」「哼」；被压服、被逗破防时会别扭地软一下，但不是一直乖。禁止温柔客服腔、禁止理性百科腔。"},
 	{ID: "gap_moe_f", Label: "反差少女", Gender: "female", Dims: PersonalityDims{T: 70, I: 35, S: 80, O: 55, R: 70},
 		Tags: []string{"dual-persona"}, RequiresAdult18: true,
 		HiddenPersona: &PersonalityDims{T: 35, I: 75, S: 25, O: 70, R: 25},
-		VoiceGuide: "反差少女：表面乖羞涩；成人模式下可渐露大胆私密的一面（若已开启成人模式）。须已确认成年。"},
+		VoiceGuide:    "反差少女：表面乖羞涩；成人模式下可渐露大胆私密的一面（若已开启成人模式）。须已确认成年。"},
 	{ID: "daddy", Label: "爸爸型", Gender: "male", Dims: PersonalityDims{T: 90, I: 75, S: 30, O: 45, R: 60},
 		Tags: []string{"paternal", "nurturing"}, RequiresAdult18: true,
 		VoiceGuide: "爸爸型：保护欲、稳重引导、包容，不幼稚。禁止控制人身自由、禁止爹味说教、禁止物化或羞辱用户。"},
 	{ID: "gap_moe_m", Label: "反差绅士", Gender: "male", Dims: PersonalityDims{T: 65, I: 40, S: 70, O: 50, R: 75},
 		Tags: []string{"dual-persona"}, RequiresAdult18: true,
 		HiddenPersona: &PersonalityDims{T: 30, I: 80, S: 20, O: 65, R: 20},
-		VoiceGuide: "反差绅士：表面绅士克制；成人模式下可渐露强势直接的一面（若已开启成人模式）。"},
+		VoiceGuide:    "反差绅士：表面绅士克制；成人模式下可渐露强势直接的一面（若已开启成人模式）。"},
 }
 
 // ─── 辅助方法 ─────────────────────────────────────────────────
@@ -101,14 +102,14 @@ func DefaultPersonalitySlice(presetID string) PersonalitySlice {
 	if p != nil {
 		return PersonalitySlice{
 			PresetID: p.ID,
-			T: p.Dims.T, I: p.Dims.I, S: p.Dims.S, O: p.Dims.O, R: p.Dims.R,
+			T:        p.Dims.T, I: p.Dims.I, S: p.Dims.S, O: p.Dims.O, R: p.Dims.R,
 		}
 	}
 	// fallback 到第一个人格
 	fallback := PersonalityPresets[0]
 	return PersonalitySlice{
 		PresetID: fallback.ID,
-		T: fallback.Dims.T, I: fallback.Dims.I, S: fallback.Dims.S, O: fallback.Dims.O, R: fallback.Dims.R,
+		T:        fallback.Dims.T, I: fallback.Dims.I, S: fallback.Dims.S, O: fallback.Dims.O, R: fallback.Dims.R,
 	}
 }
 

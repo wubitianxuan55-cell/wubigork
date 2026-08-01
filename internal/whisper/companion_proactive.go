@@ -10,12 +10,12 @@ package whisper
 type ProactiveMessageType string
 
 const (
-	ProactiveCheckIn     ProactiveMessageType = "check_in"      // 关怀问候
-	ProactiveMemoryEcho  ProactiveMessageType = "memory_echo"   // 记忆回声
-	ProactiveHabitNudge  ProactiveMessageType = "habit_nudge"   // 习惯提醒
-	ProactiveTimeAware   ProactiveMessageType = "time_aware"    // 时间感知
-	ProactiveMissYou     ProactiveMessageType = "miss_you"      // 想念表达
-	ProactivePlayful     ProactiveMessageType = "playful_nudge" // 俏皮戳一戳
+	ProactiveCheckIn    ProactiveMessageType = "check_in"      // 关怀问候
+	ProactiveMemoryEcho ProactiveMessageType = "memory_echo"   // 记忆回声
+	ProactiveHabitNudge ProactiveMessageType = "habit_nudge"   // 习惯提醒
+	ProactiveTimeAware  ProactiveMessageType = "time_aware"    // 时间感知
+	ProactiveMissYou    ProactiveMessageType = "miss_you"      // 想念表达
+	ProactivePlayful    ProactiveMessageType = "playful_nudge" // 俏皮戳一戳
 )
 
 // ─── ProactiveCompose ─────────────────────────────────────────

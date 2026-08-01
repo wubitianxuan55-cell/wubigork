@@ -10,9 +10,9 @@ import (
 
 // ShortcutInfo 快捷方式信息
 type ShortcutInfo struct {
-	Name     string `json:"name"`
-	Target   string `json:"target"`
-	Path     string `json:"path"`
+	Name   string `json:"name"`
+	Target string `json:"target"`
+	Path   string `json:"path"`
 }
 
 // ParseDesktopShortcuts 解析桌面快捷方式

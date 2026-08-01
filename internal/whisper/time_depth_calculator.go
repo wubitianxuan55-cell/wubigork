@@ -13,13 +13,13 @@ import (
 
 // TimeDepthResult 时间深度计算结果
 type TimeDepthResult struct {
-	Label          string  `json:"label"`
-	LabelKey       string  `json:"labelKey"`
+	Label           string  `json:"label"`
+	LabelKey        string  `json:"labelKey"`
 	EmotionalWeight float64 `json:"emotionalWeight"`
-	IsExactYear    bool    `json:"isExactYear"`
-	IsMilestone    bool    `json:"isMilestone"`
-	YearsSince     int     `json:"yearsSince"`
-	DaysSince      int     `json:"daysSince"`
+	IsExactYear     bool    `json:"isExactYear"`
+	IsMilestone     bool    `json:"isMilestone"`
+	YearsSince      int     `json:"yearsSince"`
+	DaysSince       int     `json:"daysSince"`
 }
 
 var dateRE = regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})$`)

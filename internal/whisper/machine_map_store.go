@@ -16,7 +16,7 @@ import (
 
 // MapStoreEntry 持久化条目
 type MapStoreEntry struct {
-	Category     string    `json:"category"`     // game / document / app
+	Category     string    `json:"category"` // game / document / app
 	DisplayName  string    `json:"displayName"`
 	Path         string    `json:"path"`
 	Source       string    `json:"source"`

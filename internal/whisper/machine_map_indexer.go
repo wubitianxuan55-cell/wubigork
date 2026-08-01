@@ -4,9 +4,9 @@
 package whisper
 
 import (
-	"log/slog"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,8 +178,8 @@ func (m *MachineMapIndexer) GetStats() map[string]interface{} {
 // ─── 全局调度器 ──────────────────────────────────────────────────
 
 var (
-	globalIndexer     *MachineMapIndexer
-	globalIndexerMu   sync.Mutex
+	globalIndexer   *MachineMapIndexer
+	globalIndexerMu sync.Mutex
 )
 
 // GetGlobalIndexer 获取全局索引器

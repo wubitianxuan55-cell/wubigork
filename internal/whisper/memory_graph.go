@@ -15,12 +15,12 @@ import (
 
 // Triple 知识图谱三元组
 type Triple struct {
-	ID            string   `json:"id"`
-	Subject       string   `json:"subject"`
-	Predicate     string   `json:"predicate"`
-	Object        string   `json:"object"`
-	Confidence    float64  `json:"confidence"`
-	SourceFactIDs []string `json:"sourceFactIds"`
+	ID            string    `json:"id"`
+	Subject       string    `json:"subject"`
+	Predicate     string    `json:"predicate"`
+	Object        string    `json:"object"`
+	Confidence    float64   `json:"confidence"`
+	SourceFactIDs []string  `json:"sourceFactIds"`
 	CreatedAt     time.Time `json:"createdAt"`
 }
 

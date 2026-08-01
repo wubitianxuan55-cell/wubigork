@@ -13,11 +13,11 @@ import (
 
 // DocumentImportResult 文档导入结果
 type DocumentImportResult struct {
-	FileName    string `json:"fileName"`
-	Chunks      int    `json:"chunks"`
-	FactsFound  int    `json:"factsFound"`
-	EpisodesFound int  `json:"episodesFound"`
-	Error       string `json:"error,omitempty"`
+	FileName      string `json:"fileName"`
+	Chunks        int    `json:"chunks"`
+	FactsFound    int    `json:"factsFound"`
+	EpisodesFound int    `json:"episodesFound"`
+	Error         string `json:"error,omitempty"`
 }
 
 // ImportDocument 导入单个文档到记忆系统

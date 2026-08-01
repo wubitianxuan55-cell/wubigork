@@ -259,7 +259,6 @@ func buildDomainStats(allFacts, selectedFacts []MemoryFact) []AuditDomainStat {
 	return stats
 }
 
-
 // FormatMemoryAuditMarkdown formats the audit report as markdown text
 func FormatMemoryAuditMarkdown(report *MemoryAuditReport, mode AuditMode) string {
 	if report == nil {

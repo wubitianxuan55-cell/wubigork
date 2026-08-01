@@ -11,12 +11,12 @@ import (
 type ReunionTier string
 
 const (
-	ReunionQuickReturn    ReunionTier = "quick_return"
-	ReunionShortAbsence   ReunionTier = "short_absence"
-	ReunionDayApart       ReunionTier = "day_apart"
-	ReunionWeekApart      ReunionTier = "week_apart"
-	ReunionLongLost       ReunionTier = "long_lost"
-	ReunionStrangerAgain  ReunionTier = "stranger_again"
+	ReunionQuickReturn   ReunionTier = "quick_return"
+	ReunionShortAbsence  ReunionTier = "short_absence"
+	ReunionDayApart      ReunionTier = "day_apart"
+	ReunionWeekApart     ReunionTier = "week_apart"
+	ReunionLongLost      ReunionTier = "long_lost"
+	ReunionStrangerAgain ReunionTier = "stranger_again"
 )
 
 // ReunionShock 重逢冲击

@@ -21,9 +21,9 @@ type WaveEmotionHint struct {
 
 // WavePlan 波次计划
 type WavePlan struct {
-	WaveCount  WaveCount   `json:"waveCount"`
-	Waves      []WaveSpec  `json:"waves"`
-	RhythmMode RhythmMode  `json:"rhythmMode"`
+	WaveCount  WaveCount  `json:"waveCount"`
+	Waves      []WaveSpec `json:"waves"`
+	RhythmMode RhythmMode `json:"rhythmMode"`
 }
 
 // SkipWavesInput 是否跳过 Wave 的判断输入

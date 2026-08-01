@@ -6,9 +6,9 @@ import "strings"
 
 // CapabilityRoute 能力路由结果
 type CapabilityRoute struct {
-	CanHandle bool   `json:"canHandle"`
+	CanHandle  bool   `json:"canHandle"`
 	Capability string `json:"capability,omitempty"`
-	HelpReply string `json:"helpReply,omitempty"`
+	HelpReply  string `json:"helpReply,omitempty"`
 }
 
 // DesktopCapabilities 桌面助手能力列表

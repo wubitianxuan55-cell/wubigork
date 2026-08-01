@@ -24,11 +24,11 @@ type InvChatTurnContext struct {
 
 // InvChatTurnResult 调查对话结果
 type InvChatTurnResult struct {
-	Handled       bool   `json:"handled"`
-	Reply         string `json:"reply"`
-	MemoryWrite   string `json:"memoryWrite,omitempty"`
-	CapabilityID  string `json:"capabilityId,omitempty"`
-	Handler       string `json:"handler,omitempty"`
+	Handled      bool   `json:"handled"`
+	Reply        string `json:"reply"`
+	MemoryWrite  string `json:"memoryWrite,omitempty"`
+	CapabilityID string `json:"capabilityId,omitempty"`
+	Handler      string `json:"handler,omitempty"`
 }
 
 // ─── 主调度入口 ─────────────────────────────────────────────────

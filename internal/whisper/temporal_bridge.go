@@ -75,7 +75,6 @@ func ProduceTemporalSignal(
 
 // ─── HumanizeFeltDuration ─────────────────────────────────────
 
-
 func joinLines(lines []string) string {
 	result := ""
 	for _, l := range lines {

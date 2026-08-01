@@ -62,14 +62,10 @@ func (a *AgentRunner) CanonicalTodoState() []evidence.TodoItem {
 	return append([]evidence.TodoItem(nil), a.todoState...)
 }
 
-func (a *AgentRunner) incompleteCanonicalTodos() ([]evidence.TodoStepMatch, bool) {
-	a.todoMu.Lock()
-	defer a.todoMu.Unlock()
-	if len(a.todoState) == 0 {
-		return nil, false
-	}
-	return evidence.IncompleteTodos(a.todoState), true
-}
+// advanceCanonicalTodo flips the canonical todo matching a signed-off step to
+// completed (promoting the next pending item to in_progress) and emits a
+// synthetic todo_write so the task panel reflects it without the model
+// re-sending the whole list.
 
 // advanceCanonicalTodo flips the canonical todo matching a signed-off step to
 // completed (promoting the next pending item to in_progress) and emits a

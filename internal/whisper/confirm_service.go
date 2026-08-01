@@ -20,9 +20,9 @@ const (
 
 // ConfirmRequest 确认请求
 type ConfirmRequest struct {
-	RequestID      string `json:"requestId"`
-	Action         string `json:"action"`
-	Path           string `json:"path"`
+	RequestID       string `json:"requestId"`
+	Action          string `json:"action"`
+	Path            string `json:"path"`
 	HardBlockReason string `json:"hardBlockReason,omitempty"`
 }
 

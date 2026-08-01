@@ -90,14 +90,14 @@ func ShouldWriteTemporalAnchor(input ShouldWriteTemporalAnchorInput) bool {
 
 // TemporalAnchor 时间锚点记录
 type TemporalAnchor struct {
-	ID                string            `json:"id"`
-	AnchorDate        string            `json:"anchorDate"`
-	AnchorType        TemporalAnchorType `json:"anchorType"`
-	LinkedFactIDs     []string          `json:"linkedFactIds"`
-	EmotionalValence  float64           `json:"emotionalValence"`
-	EmotionalIntensity float64          `json:"emotionalIntensity"`
-	Domain            string            `json:"domain"`
-	Summary           string            `json:"summary"`
+	ID                 string             `json:"id"`
+	AnchorDate         string             `json:"anchorDate"`
+	AnchorType         TemporalAnchorType `json:"anchorType"`
+	LinkedFactIDs      []string           `json:"linkedFactIds"`
+	EmotionalValence   float64            `json:"emotionalValence"`
+	EmotionalIntensity float64            `json:"emotionalIntensity"`
+	Domain             string             `json:"domain"`
+	Summary            string             `json:"summary"`
 }
 
 // BuildTemporalAnchor 构建时间锚点记录

@@ -27,9 +27,9 @@ type EnrichResult struct {
 }
 
 type deferredEntry struct {
-	result   EnrichResult
-	done     chan struct{}
-	started  bool
+	result  EnrichResult
+	done    chan struct{}
+	started bool
 }
 
 var (

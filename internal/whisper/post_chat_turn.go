@@ -135,53 +135,53 @@ func writeSyncLightFacts(orch *Orchestrator, ctx PostTurnContext) []string {
 	switch ctx.Event.Type {
 	case EvtPraise:
 		f := orch.FactStore.Add(MemoryFact{
-			Domain:          "user_behavior",
-			Subcategory:     "PRAISE",
-			Subject:         "用户",
-			Summary:         "用户表达了赞赏：" + truncateStr(ctx.UserMsg, 100),
-			Weight:          0.5,
-			Confidence:      0.7,
-			SelfRelevance:   0.6,
-			SourceSessionID: ctx.SessionID,
-			SourceTurnIndex: ctx.TurnIndex,
+			Domain:           "user_behavior",
+			Subcategory:      "PRAISE",
+			Subject:          "用户",
+			Summary:          "用户表达了赞赏：" + truncateStr(ctx.UserMsg, 100),
+			Weight:           0.5,
+			Confidence:       0.7,
+			SelfRelevance:    0.6,
+			SourceSessionID:  ctx.SessionID,
+			SourceTurnIndex:  ctx.TurnIndex,
 			EmotionalContext: &ec,
-			PrivacyLevel:    "normal",
-			FactLayer:       "raw",
+			PrivacyLevel:     "normal",
+			FactLayer:        "raw",
 		})
 		facts = append(facts, f.ID)
 
 	case EvtVulnerable:
 		f := orch.FactStore.Add(MemoryFact{
-			Domain:          "user_state",
-			Subcategory:     "VULNERABILITIES",
-			Subject:         "用户",
-			Summary:         "用户表达了脆弱情绪：" + truncateStr(ctx.UserMsg, 100),
-			Weight:          0.8,
-			Confidence:      0.6,
-			SelfRelevance:   0.8,
-			SourceSessionID: ctx.SessionID,
-			SourceTurnIndex: ctx.TurnIndex,
+			Domain:           "user_state",
+			Subcategory:      "VULNERABILITIES",
+			Subject:          "用户",
+			Summary:          "用户表达了脆弱情绪：" + truncateStr(ctx.UserMsg, 100),
+			Weight:           0.8,
+			Confidence:       0.6,
+			SelfRelevance:    0.8,
+			SourceSessionID:  ctx.SessionID,
+			SourceTurnIndex:  ctx.TurnIndex,
 			EmotionalContext: &ec,
-			PrivacyLevel:    "intimate",
-			Sensitivity:     "avoid",
-			FactLayer:       "raw",
+			PrivacyLevel:     "intimate",
+			Sensitivity:      "avoid",
+			FactLayer:        "raw",
 		})
 		facts = append(facts, f.ID)
 
 	case EvtHurtful:
 		f := orch.FactStore.Add(MemoryFact{
-			Domain:          "user_behavior",
-			Subcategory:     "MOOD",
-			Subject:         "用户",
-			Summary:         "用户表达了负面情绪：" + truncateStr(ctx.UserMsg, 100),
-			Weight:          0.4,
-			Confidence:      0.7,
-			SelfRelevance:   0.7,
-			SourceSessionID: ctx.SessionID,
-			SourceTurnIndex: ctx.TurnIndex,
+			Domain:           "user_behavior",
+			Subcategory:      "MOOD",
+			Subject:          "用户",
+			Summary:          "用户表达了负面情绪：" + truncateStr(ctx.UserMsg, 100),
+			Weight:           0.4,
+			Confidence:       0.7,
+			SelfRelevance:    0.7,
+			SourceSessionID:  ctx.SessionID,
+			SourceTurnIndex:  ctx.TurnIndex,
 			EmotionalContext: &ec,
-			PrivacyLevel:    "normal",
-			FactLayer:       "raw",
+			PrivacyLevel:     "normal",
+			FactLayer:        "raw",
 		})
 		facts = append(facts, f.ID)
 	}
@@ -195,18 +195,18 @@ func writeCompanionReplyLog(orch *Orchestrator, ctx PostTurnContext) []string {
 	}
 	ec := CaptureEmotionalContext(orch.State.Relationship, orch.State.Emotion)
 	f := orch.FactStore.Add(MemoryFact{
-		Domain:          "companion_reply",
-		Subcategory:     "SELF_NARRATIVE",
-		Subject:         "轻语",
-		Summary:         "轻语回复：" + truncateStr(ctx.AssistantText, 200),
-		Weight:          0.3,
-		Confidence:      1.0,
-		SelfRelevance:   1.0,
-		SourceSessionID: ctx.SessionID,
-		SourceTurnIndex: ctx.TurnIndex,
+		Domain:           "companion_reply",
+		Subcategory:      "SELF_NARRATIVE",
+		Subject:          "轻语",
+		Summary:          "轻语回复：" + truncateStr(ctx.AssistantText, 200),
+		Weight:           0.3,
+		Confidence:       1.0,
+		SelfRelevance:    1.0,
+		SourceSessionID:  ctx.SessionID,
+		SourceTurnIndex:  ctx.TurnIndex,
 		EmotionalContext: &ec,
-		PrivacyLevel:    "normal",
-		FactLayer:       "raw",
+		PrivacyLevel:     "normal",
+		FactLayer:        "raw",
 	})
 	return []string{f.ID}
 }

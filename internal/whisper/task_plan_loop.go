@@ -5,11 +5,11 @@ package whisper
 
 // TaskPlanLoopState 任务计划循环状态
 type TaskPlanLoopState struct {
-	Round         int  `json:"round"`
-	MaxRounds     int  `json:"maxRounds"`
-	AllPassed     bool `json:"allPassed"`
-	ShouldStop    bool `json:"shouldStop"`
-	StopReason    string `json:"stopReason,omitempty"`
+	Round      int    `json:"round"`
+	MaxRounds  int    `json:"maxRounds"`
+	AllPassed  bool   `json:"allPassed"`
+	ShouldStop bool   `json:"shouldStop"`
+	StopReason string `json:"stopReason,omitempty"`
 }
 
 // CheckTaskPlanLoop 检查是否应继续 Agent 循环

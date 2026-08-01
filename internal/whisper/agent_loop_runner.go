@@ -22,12 +22,12 @@ type AgentLoopRunner struct {
 
 // AgentLoopResult 循环最终结果
 type AgentLoopResult struct {
-	FinalReply    string            `json:"finalReply"`
-	ToolRounds    int               `json:"toolRounds"`
-	TotalResults  int               `json:"totalResults"`
-	AllPassed     bool              `json:"allPassed"`
-	TaskPlan      *TaskPlan         `json:"taskPlan,omitempty"`
-	AuditEntries  []string          `json:"auditEntries,omitempty"`
+	FinalReply   string    `json:"finalReply"`
+	ToolRounds   int       `json:"toolRounds"`
+	TotalResults int       `json:"totalResults"`
+	AllPassed    bool      `json:"allPassed"`
+	TaskPlan     *TaskPlan `json:"taskPlan,omitempty"`
+	AuditEntries []string  `json:"auditEntries,omitempty"`
 }
 
 // DefaultAgentLoopRunner 创建默认运行器
@@ -92,7 +92,7 @@ func (r *AgentLoopRunner) RunAgentLoop(ctx context.Context, userMsg string, plan
 		if !r.shouldContinue(toolResults) {
 			// 生成最终回复
 			finalReply, _, _ := r.callLLM(append(messages, map[string]interface{}{
-				"role": "user",
+				"role":    "user",
 				"content": "以上是全部工具执行结果。请用自然中文给用户一个完整总结。",
 			}))
 			result.FinalReply = finalReply

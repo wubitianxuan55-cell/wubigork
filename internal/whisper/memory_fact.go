@@ -19,20 +19,20 @@ import (
 // Fact 内部事实表示（包装 MemoryFact + 运行时字段）
 type Fact struct {
 	MemoryFact
-	Active   bool   `json:"active"`
-	RawTier  string `json:"tier"` // core/memory/scratch
+	Active  bool   `json:"active"`
+	RawTier string `json:"tier"` // core/memory/scratch
 }
 
-func (f *Fact) IsActive() bool  { return f.Active && f.Status == "active" }
-func (f *Fact) IsCore() bool    { return f.IsActive() && f.RawTier == "core" }
+func (f *Fact) IsActive() bool { return f.Active && f.Status == "active" }
+func (f *Fact) IsCore() bool   { return f.IsActive() && f.RawTier == "core" }
 
 // ─── FactStore ────────────────────────────────────────────────
 
 // FactStore 增强版事实库
 type FactStore struct {
-	mu       sync.RWMutex
-	facts    []*Fact
-	byID     map[string]*Fact
+	mu              sync.RWMutex
+	facts           []*Fact
+	byID            map[string]*Fact
 	autoRetireCount int
 }
 
@@ -318,7 +318,6 @@ func (fs *FactStore) DedupByEmbedding(embedding []float64) bool {
 	return false
 }
 
-
 // CountSharedBondFacts 统计共享羁绊事实数
 func (fs *FactStore) CountSharedBondFacts() int {
 	fs.mu.RLock()
@@ -353,6 +352,7 @@ func (fs *FactStore) ComputeMemoirTrust() float64 {
 	}
 	return avg
 }
+
 // ─── 更新与退役 ──────────────────────────────────────────────
 
 // RetireFact 退役指定事实

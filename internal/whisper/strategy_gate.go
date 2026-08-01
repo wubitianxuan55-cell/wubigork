@@ -7,11 +7,11 @@ package whisper
 import "math"
 
 const (
-	affVolatilityWindow   = 10
-	affVolatileThreshold  = 20
-	affPositiveThreshold  = 60
-	affLowThreshold       = 30
-	riftsSilentThreshold  = 2
+	affVolatilityWindow  = 10
+	affVolatileThreshold = 20
+	affPositiveThreshold = 60
+	affLowThreshold      = 30
+	riftsSilentThreshold = 2
 )
 
 // ─── Aff 历史 ─────────────────────────────────────────────────
@@ -61,9 +61,9 @@ func ComputeAffVolatility() float64 {
 
 // ProactiveGateResult 门控决策结果
 type ProactiveGateResult struct {
-	Level        string  // silent/whisper/normal/proactive
-	Confidence   float64 // 0-1
-	ReasonCode   string  // 决策原因代码
+	Level      string  // silent/whisper/normal/proactive
+	Confidence float64 // 0-1
+	ReasonCode string  // 决策原因代码
 }
 
 // EvaluateProactiveGate 评估主动发言门控

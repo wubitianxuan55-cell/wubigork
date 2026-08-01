@@ -7,10 +7,10 @@ import "sync"
 
 // AlwaysConfirmActions 即使开启自动批准也必须单独确认的操作
 var AlwaysConfirmActions = map[DesktopAgentAction]bool{
-	ActionCloseFile:         true,
-	ActionCloseApp:          true,
-	ActionDeletePath:        true,
-	ActionRunInstaller:      true,
+	ActionCloseFile:          true,
+	ActionCloseApp:           true,
+	ActionDeletePath:         true,
+	ActionRunInstaller:       true,
 	ActionDownloadAndInstall: true,
 }
 
