@@ -47,6 +47,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   const [wxStatuses, setWxStatuses] = useState<Record<string, boolean>>({})
   const [wxSessionExpired, setWxSessionExpired] = useState<Record<string, boolean>>({})
   const [editing, setEditing] = useState<Assistant | null>(null) // null=列表视图, Assistant=编辑
+  const [detail, setDetail] = useState<Assistant | null>(null)   // 助手详情弹窗
   const [form, setForm] = useState<Assistant>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [showPersonalityPicker, setShowPersonalityPicker] = useState(false)
@@ -382,10 +383,14 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   // ─── 列表视图 ──────────────────────────────────────────────
 
   const renderList = () => {
-    // 按启用 + 当前对话排序：当前对话 > 启用 > 禁用
+    // 排序：gaea 核心助手第一 > 当前对话 > 启用 > 禁用
     const sorted = [...assistants].sort((a, b) => {
-      const act = (x: Assistant) => (x.personalityId === activePersonality ? 0 : x.enabled ? 1 : 2)
-      return act(a) - act(b)
+      const rank = (x: Assistant) => {
+        if (x.personalityId === 'gaea' || x.name === 'gaea') return 0
+        if (x.personalityId === activePersonality) return 1
+        return x.enabled ? 2 : 3
+      }
+      return rank(a) - rank(b)
     })
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(208px, 1fr))', gap: 14 }}>
@@ -397,8 +402,8 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           return (
             <div
               key={ast.id}
-              onClick={() => { if (!ast.enabled) return; onSwitchPersonality(ast.personalityId); onClose() }}
-              title={ast.enabled ? '切换为此助手对话' : '此助手已禁用'}
+              onClick={() => setDetail(ast)}
+              title="查看助手详情与参数"
               style={{
                 position: 'relative',
                 background: 'linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))',
@@ -516,6 +521,132 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     )
   }
 
+  // ─── 助手详情视图（角色卡参数设定，参照小说角色卡）──────────
+
+  const renderDetail = (ast: Assistant) => {
+    const p = getPersonality(ast.personalityId)
+    const wxOn = wxStatuses[ast.id] || false
+    const accent = PERSONALITY_COLORS[ast.personalityId] || '#a855f7'
+    const isActive = ast.personalityId === activePersonality
+    const dimKeys = [
+      { k: 'T', label: '温柔度', v: p?.dims.T ?? 0 },
+      { k: 'I', label: '主动性', v: p?.dims.I ?? 0 },
+      { k: 'S', label: '顺从度', v: p?.dims.S ?? 0 },
+      { k: 'O', label: '独特度', v: p?.dims.O ?? 0 },
+      { k: 'R', label: '矜持度', v: p?.dims.R ?? 0 },
+    ]
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* 返回列表 */}
+        <Button type="text" icon={<CloseOutlined />} onClick={() => setDetail(null)}
+          style={{ alignSelf: 'flex-start', color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
+          返回助手列表
+        </Button>
+
+        {/* 头部：视觉区 + 名称/标签 */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 18,
+          padding: '18px 20px', borderRadius: 18,
+          background: `linear-gradient(135deg, ${accent}2e, ${accent}12 55%, rgba(255,255,255,0.02))`,
+          border: `1px solid ${accent}33`,
+        }}>
+          <div style={{ width: 112, height: 112, borderRadius: '50%', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {p && <TisorRadar dims={p.dims} size={92} color={ast.enabled ? accent : '#666'} showLabels={false} />}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Text style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{ast.name}</Text>
+              {isActive && <Tag color={accent} style={{ margin: 0, fontWeight: 600 }}>● 当前对话</Tag>}
+              {!ast.enabled && <Tag style={{ margin: 0 }}>已禁用</Tag>}
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+              {p ? `${p.label} 人格 · ${p.gender === 'female' ? '♀ 女性' : p.gender === 'male' ? '♂ 男性' : '✦ 中性'}` : ast.personalityId}
+            </div>
+            {ast.wxToken && (
+              <div style={{ fontSize: 11, color: wxOn ? '#4ade80' : wxSessionExpired[ast.id] ? '#fbbf24' : '#94a3b8', marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 6px currentColor' }} />
+                微信通道 {wxOn ? '在线' : wxSessionExpired[ast.id] ? '会话过期 · 需重新绑定' : '离线'}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 五维参数 */}
+        <div style={{
+          padding: '14px 18px', borderRadius: 16,
+          background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)',
+        }}>
+          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 10, letterSpacing: '0.08em' }}>
+            人格五维参数
+          </Text>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+            {dimKeys.map(d => (
+              <div key={d.k} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: accent }}>{Math.round(d.v)}</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{d.label}</div>
+                <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.08)', marginTop: 6, overflow: 'hidden' }}>
+                  <div style={{ width: `${d.v}%`, height: '100%', borderRadius: 2, background: `linear-gradient(90deg, ${accent}66, ${accent})` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 人格设定（VoiceGuide 全文） */}
+        <div style={{ padding: '14px 18px', borderRadius: 16, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 8, letterSpacing: '0.08em' }}>
+            人格设定 · VoiceGuide
+          </Text>
+          <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', lineHeight: 1.8 }}>
+            {p?.voiceGuide || '暂无人格描述'}
+          </Text>
+        </div>
+
+        {/* 标签 + 微信参数 */}
+        <div style={{ display: 'grid', gridTemplateColumns: p?.tags?.length ? '1fr 1fr' : '1fr', gap: 12 }}>
+          {p?.tags?.length ? (
+            <div style={{ padding: '14px 18px', borderRadius: 16, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 8, letterSpacing: '0.08em' }}>标签</Text>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {p.tags.map(t => <Tag key={t} color={accent} style={{ margin: 0, fontSize: 10 }}>{t}</Tag>)}
+              </div>
+            </div>
+          ) : null}
+          <div style={{ padding: '14px 18px', borderRadius: 16, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 8, letterSpacing: '0.08em' }}>微信参数</Text>
+            {ast.wxToken ? (
+              <>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Token：{ast.wxToken.slice(0, 8)}…</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>Bot ID：{ast.wxBotId || '未绑定'}</div>
+              </>
+            ) : (
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>未绑定微信</Text>
+            )}
+          </div>
+        </div>
+
+        {/* 操作区 */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <Button type="primary" style={{
+            flex: 1, height: 40, borderRadius: 12, fontWeight: 600,
+            background: `linear-gradient(135deg, ${accent}, ${accent}cc)`, border: 'none',
+          }}
+            disabled={!ast.enabled}
+            onClick={() => { onSwitchPersonality(ast.personalityId); onClose(); setDetail(null) }}>
+            {isActive ? '正在与此助手对话' : `切换为「${ast.name}」对话`}
+          </Button>
+          <Button icon={<EditOutlined />} onClick={() => { setDetail(null); startEdit(ast) }}
+            style={{ height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+            编辑
+          </Button>
+          <Popconfirm title="删除此助手？" onConfirm={() => { handleDelete(ast.id); setDetail(null) }} okText="删除" cancelText="取消">
+            <Button danger icon={<DeleteOutlined />} style={{ height: 40, borderRadius: 12 }} />
+          </Popconfirm>
+        </div>
+      </div>
+    )
+  }
+
   // ─── 主弹窗 ────────────────────────────────────────────────
 
   return (
@@ -557,17 +688,17 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
         </span>
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>
-            {editing ? (editing.id ? `编辑 ${editing.name}` : '新建虚拟助手') : '虚拟助手管理中心'}
+            {detail ? `${detail.name} · 助手详情` : editing ? (editing.id ? `编辑 ${editing.name}` : '新建虚拟助手') : '虚拟助手管理中心'}
           </div>
           <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
-            {editing ? '' : `${assistants.length} 个助手 · 各绑定独立人格与微信`}
+            {detail ? '角色参数设定 · 参照小说角色卡' : editing ? '' : `${assistants.length} 个助手 · 各绑定独立人格与微信`}
           </Text>
         </div>
       </div>
 
       {/* 内容区 */}
       <div style={{ padding: '20px 24px' }}>
-        {editing ? renderEditor() : renderList()}
+        {detail ? renderDetail(detail) : editing ? renderEditor() : renderList()}
       </div>
     </Modal>
   )
