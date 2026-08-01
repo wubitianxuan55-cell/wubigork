@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"net/http"
 	"time"
@@ -44,7 +45,7 @@ func GetQRCode() (*QRCodeResp, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := netclient.NewSimpleClient(15 * time.Second)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("获取二维码失败: %w", err)
@@ -70,7 +71,7 @@ func PollQRStatus(qrcode string) (*QRStatusResp, error) {
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
 
-	client := &http.Client{Timeout: qrPollTimeout}
+	client := netclient.NewSimpleClient(qrPollTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("轮询状态失败: %w", err)
@@ -96,7 +97,7 @@ func PollQRStatusWithCode(qrcode, verifyCode string) (*QRStatusResp, error) {
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
 
-	client := &http.Client{Timeout: qrPollTimeout}
+	client := netclient.NewSimpleClient(qrPollTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

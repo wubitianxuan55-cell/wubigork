@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"log/slog"
 	"net/http"
@@ -27,7 +28,7 @@ func NewOpenAIImageBackend(baseURL string, apiKey string) *OpenAIImageBackend {
 	return &OpenAIImageBackend{
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
 		apiKey:     apiKey,
-		httpClient: &http.Client{Timeout: 10 * time.Minute},
+		httpClient: netclient.NewSimpleClient(10 * time.Minute),
 	}
 }
 

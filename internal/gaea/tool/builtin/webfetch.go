@@ -20,7 +20,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 
-	"github.com/gaea/gaea/internal/gaea/netclient"
+	"github.com/gaea/gaea/internal/netclient"
 	"golang.org/x/net/proxy"
 )
 

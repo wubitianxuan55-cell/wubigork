@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -43,7 +44,7 @@ func NewHerdsmanASR(baseURL, model string) *HerdsmanASR {
 	return &HerdsmanASR{
 		baseURL: baseURL,
 		model:   model,
-		client:  &http.Client{Timeout: 60 * time.Second},
+		client:  netclient.NewSimpleClient(60 * time.Second),
 	}
 }
 

@@ -57,29 +57,3 @@ const (
 	ActionWebSearch  DesktopAgentAction = "web_search"
 	ActionWebFetch   DesktopAgentAction = "web_fetch"
 )
-
-func Itoa(n int) string {
-	if n == 0 { return "0" }
-	neg := false
-	if n < 0 { neg = true; n = -n }
-	var buf [20]byte
-	i := len(buf)
-	for n > 0 { i--; buf[i] = byte('0'+n%10); n /= 10 }
-	if neg { i--; buf[i] = '-' }
-	return string(buf[i:])
-}
-
-func TruncStr(s string, maxLen int) string {
-	runes := []rune(s)
-	if len(runes) <= maxLen { return s }
-	return string(runes[:maxLen]) + "…"
-}
-
-func ContainsAny(s string, substrs ...string) bool {
-	for _, sub := range substrs {
-		for i := 0; i <= len(s)-len(sub); i++ {
-			if s[i:i+len(sub)] == sub { return true }
-		}
-	}
-	return false
-}

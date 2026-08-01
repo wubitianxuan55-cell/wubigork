@@ -6,6 +6,7 @@ package whisper
 
 import (
 	"fmt"
+	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"net/http"
 	"net/url"
@@ -15,7 +16,7 @@ import (
 )
 
 // httpClient 共享 HTTP 客户端（复用连接）
-var httpClient = &http.Client{Timeout: 12 * time.Second}
+var httpClient = netclient.NewSimpleClient(12 * time.Second)
 
 // userAgent 浏览器 UA（避免被反爬）
 const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"

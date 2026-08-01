@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"net/http"
 	"time"
@@ -24,7 +25,7 @@ func NewHerdsmanTTS(baseURL, model, voice string) *HerdsmanTTS {
 		baseURL: baseURL,
 		model:   model,
 		voice:   voice,
-		client:  &http.Client{Timeout: 30 * time.Second},
+		client:  netclient.NewSimpleClient(30 * time.Second),
 	}
 }
 
@@ -35,7 +36,7 @@ func NewHerdsmanTTSWithDesc(baseURL, model, voiceDescription string) *HerdsmanTT
 		baseURL:          baseURL,
 		model:            model,
 		voiceDescription: voiceDescription,
-		client:           &http.Client{Timeout: 30 * time.Second},
+		client:           netclient.NewSimpleClient(30 * time.Second),
 	}
 }
 

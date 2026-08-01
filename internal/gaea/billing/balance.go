@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"net/http"
 	"strings"
@@ -43,7 +44,7 @@ type deepseekResp struct {
 
 // httpClient bounds the balance query so a slow endpoint can't hang the status
 // line; the per-call ctx still cancels it on shutdown.
-var httpClient = &http.Client{Timeout: 12 * time.Second}
+var httpClient = netclient.NewSimpleClient(12 * time.Second)
 
 // Fetch queries url (a DeepSeek-style balance endpoint) with a Bearer apiKey and
 // returns the normalized balance. An empty url yields (nil, nil) — "not

@@ -137,36 +137,6 @@ func RenderTOML(c *Config) string {
 	fmt.Fprintf(&b, "bash    = %q\n", c.BashMode())
 	fmt.Fprintf(&b, "network = %v\n", c.Sandbox.Network)
 	b.WriteString("\n")
-	b.WriteString("\n")
-
-	b.WriteString("[comfyui]\n")
-	b.WriteString("# Local ComfyUI image generation backend. image_backend must be \"comfyui\".\n")
-	if c.ComfyUI.ImageBackend != "" {
-		fmt.Fprintf(&b, "image_backend = %q\n", c.ComfyUI.ImageBackend)
-	} else {
-		b.WriteString("image_backend = \"comfyui\"\n")
-	}
-	if c.ComfyUI.ImageModel != "" {
-		fmt.Fprintf(&b, "image_model = %q\n", c.ComfyUI.ImageModel)
-	} else {
-		b.WriteString("# image_model = \"flux\"\n")
-	}
-	if c.ComfyUI.ComfyUIURL != "" {
-		fmt.Fprintf(&b, "comfyui_url = %q\n", c.ComfyUI.ComfyUIURL)
-	} else {
-		b.WriteString("# comfyui_url = \"http://127.0.0.1:8188\"\n")
-	}
-	if c.ComfyUI.ComfyUIPath != "" {
-		fmt.Fprintf(&b, "comfyui_path = %q   # main.py 所在目录\n", c.ComfyUI.ComfyUIPath)
-	} else {
-		b.WriteString("# comfyui_path = \"D:\\\\ComfyUI\"   # main.py 所在目录\n")
-	}
-	if c.ComfyUI.ComfyUIPythonPath != "" {
-		fmt.Fprintf(&b, "comfyui_python_path = %q   # Python 解释器（留空自动查找）\n", c.ComfyUI.ComfyUIPythonPath)
-	} else {
-		b.WriteString("# comfyui_python_path = \"\"   # Python 解释器（留空自动查找）\n")
-	}
-	b.WriteString("\n")
 
 	b.WriteString("[statusline]\n")
 	b.WriteString("# A custom status line: a command whose first stdout line replaces the built-in\n")

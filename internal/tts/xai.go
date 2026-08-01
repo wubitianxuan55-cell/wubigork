@@ -7,6 +7,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // XaiTTS 使用 xAI TTS API 进行语音合成（最高优先级，在线高质量）
@@ -27,7 +29,7 @@ func NewXaiTTS(apiBase, voiceID string, getToken func() (string, error), httpCli
 		voiceID = "eve"
 	}
 	if httpClient == nil {
-		httpClient = &http.Client{}
+		httpClient = netclient.NewSimpleClient(0)
 	}
 	return &XaiTTS{apiBase: apiBase, voiceID: voiceID, getToken: getToken, httpClient: httpClient}
 }

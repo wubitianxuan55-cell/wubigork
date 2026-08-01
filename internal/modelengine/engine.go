@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gaea/gaea/internal/netclient"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -79,7 +80,7 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		engines:     make(map[string]*EngineConfig),
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
-		httpClient:  &http.Client{Timeout: 15 * time.Second},
+		httpClient:  netclient.NewSimpleClient(15 * time.Second),
 	}
 
 	// 预置四大引擎默认配置
@@ -301,6 +302,7 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 
 	return models, nil
 }
+
 // SetDefaultModel 设置引擎的默认模型
 func (m *Manager) SetDefaultModel(engineID, modelName string) error {
 	m.mu.Lock()

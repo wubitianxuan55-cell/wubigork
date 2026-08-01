@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // ─── 配置 ────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ func New(cfg Config, chatFn ChatFunc) *Server {
 	return &Server{
 		cfg:     cfg,
 		chatFn:  chatFn,
-		client:  &http.Client{Timeout: 90 * time.Second},
+		client:  netclient.NewSimpleClient(90 * time.Second),
 		stopCh:  make(chan struct{}),
 		pollTO:  30 * time.Second,
 	}
@@ -263,7 +264,7 @@ func (s *Server) apiPost(endpoint string, body []byte, timeout time.Duration) ([
 
 	c := s.client
 	if timeout < c.Timeout {
-		c = &http.Client{Timeout: timeout}
+		c = netclient.NewSimpleClient(timeout)
 	}
 	resp, err := c.Do(req)
 	if err != nil {

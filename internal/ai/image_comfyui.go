@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"log/slog"
 	"math/rand"
@@ -24,7 +25,7 @@ type ComfyUIBackend struct {
 func NewComfyUIBackend(baseURL string) *ComfyUIBackend {
 	return &ComfyUIBackend{
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
-		httpClient: &http.Client{Timeout: 30 * time.Minute}, // CPU 模式可能很慢
+		httpClient: netclient.NewSimpleClient(30 * time.Minute), // CPU 模式可能很慢
 	}
 }
 

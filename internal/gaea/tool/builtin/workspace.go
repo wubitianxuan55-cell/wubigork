@@ -1,7 +1,7 @@
 package builtin
 
 import (
-	"github.com/gaea/gaea/internal/gaea/netclient"
+	"github.com/gaea/gaea/internal/netclient"
 	"github.com/gaea/gaea/internal/gaea/sandbox"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )

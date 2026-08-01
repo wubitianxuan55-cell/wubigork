@@ -3,8 +3,8 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gaea/gaea/internal/netclient"
 	"io"
-	"net/http"
 	"time"
 )
 
@@ -22,7 +22,7 @@ type OIDCDiscovery struct {
 //	GET https://auth.x.ai/.well-known/openid-configuration
 //	→ { authorization_endpoint, token_endpoint }
 func DiscoverEndpoints() (*OIDCDiscovery, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := netclient.NewSimpleClient(15 * time.Second)
 	resp, err := client.Get("https://auth.x.ai/.well-known/openid-configuration")
 	if err != nil {
 		return nil, fmt.Errorf("OIDC Discovery 请求失败: %w", err)

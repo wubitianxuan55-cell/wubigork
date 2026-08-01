@@ -587,3 +587,37 @@ func TestForceIPv4Dials(t *testing.T) {
 		t.Error("forced-IPv4 dial should reject an IPv6 address")
 	}
 }
+
+func TestNewSimpleClientTimeoutAndTransport(t *testing.T) {
+	c := NewSimpleClient(7 * time.Second)
+	if c.Timeout != 7*time.Second {
+		t.Fatalf("Timeout = %v, want 7s", c.Timeout)
+	}
+	tr, _ := c.Transport.(*http.Transport)
+	// 直连 client 应使用克隆的默认 transport（含 HTTP/2 与连接池）
+	if tr == nil {
+		t.Fatal("Transport 应为 *http.Transport")
+	}
+	// 实际请求本地服务器验证可用
+	// 实际请求本地服务器验证可用
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	defer ln.Close()
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"))
+			conn.Close()
+		}
+	}()
+	resp, err := c.Get("http://" + ln.Addr().String())
+	if err != nil {
+		t.Fatalf("GET failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+}

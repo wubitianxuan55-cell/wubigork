@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"math"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // imageItem 单张生成图片结果（包级共享，供移动端任务处理器提取）
@@ -527,7 +527,7 @@ func (a *mediaState) GetComfyUIStatus() map[string]interface{} {
 
 // isComfyUIRunning 检查 ComfyUI 是否可连通
 func (a *mediaState) isComfyUIRunning() bool {
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := netclient.NewSimpleClient(2 * time.Second)
 	resp, err := client.Get(strings.TrimSuffix(a.cfg.ComfyUIURL, "/") + "/system_stats")
 	if err != nil {
 		return false
@@ -601,7 +601,7 @@ func (a *mediaState) GetSystemStats() map[string]interface{} {
 
 	// GPU 信息：ComfyUI 运行时从 API 获取，否则用 nvidia-smi/wmic
 	if a.isComfyUIRunning() {
-		client := &http.Client{Timeout: 3 * time.Second}
+		client := netclient.NewSimpleClient(3 * time.Second)
 		resp, err := client.Get(strings.TrimSuffix(a.cfg.ComfyUIURL, "/") + "/system_stats")
 		if err == nil {
 			defer resp.Body.Close()

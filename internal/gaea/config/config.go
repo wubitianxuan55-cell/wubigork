@@ -15,7 +15,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
-	"github.com/gaea/gaea/internal/gaea/netclient"
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // Config is Tianxuan's runtime configuration.
@@ -34,26 +34,9 @@ type Config struct {
 	Search       SearchConfig      `toml:"search"`
 	Network      NetworkConfig     `toml:"network"`
 	Serve        ServeConfig       `toml:"serve"`
-	ComfyUI      ComfyUIConfig     `toml:"comfyui"`
 }
 
-// ComfyUIConfig 配置 ComfyUI 本地图片生成后端
-type ComfyUIConfig struct {
-	ImageBackend      string `toml:"image_backend"`       // "comfyui"（固定，不再支持 xAI）
-	ImageModel        string `toml:"image_model"`         // 默认模型: "flux" 或 "z-image-turbo"
-	ComfyUIURL        string `toml:"comfyui_url"`         // ComfyUI 服务地址，默认 http://127.0.0.1:8188
-	ComfyUIPath       string `toml:"comfyui_path"`        // ComfyUI 安装目录（含 main.py）
-	ComfyUIPythonPath string `toml:"comfyui_python_path"` // Python 解释器路径（可选，自动检测）
-}
-
-// DefaultComfyUIConfig 返回 ComfyUI 配置的默认值
-func DefaultComfyUIConfig() ComfyUIConfig {
-	return ComfyUIConfig{
-		ImageBackend: "comfyui",
-		ImageModel:   "flux",
-		ComfyUIURL:   "http://127.0.0.1:8188",
-	}
-}
+// SearchConfig configures web search engines.
 
 // SearchConfig configures web search engines. Resolution order: local SearXNG
 // (fastest, private) → Tavily API → Brave Search API → public SearXNG instances.

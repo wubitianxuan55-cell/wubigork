@@ -4,12 +4,13 @@ package office
 import (
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 type ExecResult struct {
@@ -138,7 +139,7 @@ func execWebSearch(query string) ExecResult {
 
 func execWebFetch(url string) ExecResult {
 	if url == "" { return ExecResult{Success: false, Action: "web_fetch", Error: "missing URL"} }
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := netclient.NewSimpleClient(15 * time.Second)
 	resp, err := client.Get(url)
 	if err != nil { return ExecResult{Success: false, Action: "web_fetch", Error: err.Error()} }
 	defer resp.Body.Close()

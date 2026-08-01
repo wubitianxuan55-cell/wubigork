@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // PKCE 生成 code_verifier 和 code_challenge
@@ -207,8 +208,8 @@ func buildAuthURL(authEndpoint string, cfg *config.Config, redirectURI, challeng
 		"code_challenge_method": {"S256"},
 		"state":                 {state},
 		"nonce":                 {nonce},
-		"plan":                  {"generic"},  // 关键！没有此参数 xAI 拒绝 loopback OAuth
-		"referrer":              {"gaea"}, // 归因标识
+		"plan":                  {"generic"}, // 关键！没有此参数 xAI 拒绝 loopback OAuth
+		"referrer":              {"gaea"},    // 归因标识
 	}
 
 	return authEndpoint + "?" + params.Encode()
@@ -287,7 +288,7 @@ func RefreshAccessToken(cfg *config.Config, refreshToken string) (*Token, error)
 		"refresh_token": {refreshToken},
 	}
 
-	httpClient := &http.Client{Timeout: 15 * time.Second}
+	httpClient := netclient.NewSimpleClient(15 * time.Second)
 	resp, err := httpClient.PostForm(disc.TokenEndpoint, payload)
 	if err != nil {
 		return nil, fmt.Errorf("刷新 token 请求失败: %w", err)

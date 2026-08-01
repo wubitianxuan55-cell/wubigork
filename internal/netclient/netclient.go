@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/net/http/httpproxy"
 
-	"github.com/gaea/gaea/internal/gaea/sysproxy"
+	"github.com/gaea/gaea/internal/netclient/sysproxy"
 )
 
 const (
@@ -86,6 +86,15 @@ func NewHTTPClient(spec ProxySpec, opts TransportOptions) (*http.Client, error) 
 		return nil, err
 	}
 	return &http.Client{Transport: tr}, nil
+}
+
+// NewSimpleClient returns a direct (no-proxy) HTTP client with the given total
+// timeout, built on the cloned default transport. It is the shared replacement
+// for ad-hoc `&http.Client{Timeout: ...}` constructions across modules: same
+// HTTP/2 + connection-pooling defaults, one place to tune transport knobs.
+func NewSimpleClient(timeout time.Duration) *http.Client {
+	tr := defaultTransport()
+	return &http.Client{Transport: tr, Timeout: timeout}
 }
 
 // NewTransport clones net/http's default transport and overlays the requested

@@ -15,6 +15,7 @@ import (
 	"github.com/gaea/gaea/internal/auth"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/modelengine"
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // Client xAI API 客户端，封装认证和 HTTP 通信
@@ -44,7 +45,7 @@ func NewClient(cfg *config.Config) *Client {
 	const maxConcurrency = 4 // SuperGrok 并发限制
 	return &Client{
 		cfg:        cfg,
-		httpClient: &http.Client{Timeout: 0},
+		httpClient: netclient.NewSimpleClient(0),
 		tokenStore: auth.NewTokenStore(cfg.TokenStorePath),
 		sem:        make(chan struct{}, maxConcurrency),
 	}
@@ -352,7 +353,9 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			if !send(SSEChunk{Error: "请求已取消"}) { return }
+			if !send(SSEChunk{Error: "请求已取消"}) {
+				return
+			}
 			return
 		default:
 		}
@@ -402,18 +405,24 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 				}
 			}
 			if delta.FinishReason == "tool_calls" {
-				if !send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)}) { return }
+				if !send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)}) {
+					return
+				}
 				return
 			}
 			if delta.FinishReason != "" {
-				if !send(SSEChunk{Done: true}) { return }
+				if !send(SSEChunk{Done: true}) {
+					return
+				}
 				return
 			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		if !send(SSEChunk{Error: fmt.Sprintf("流读取错误: %v", err)}) { return }
+		if !send(SSEChunk{Error: fmt.Sprintf("流读取错误: %v", err)}) {
+			return
+		}
 		return
 	}
 
@@ -515,6 +524,7 @@ loop:
 	})
 	return result, nil
 }
+
 // SetImageBackend 设置图片生成后端（nil + backendType 回退到 xAI）
 func (c *Client) SetImageBackend(backend ImageBackend, backendType string) {
 	c.imageBackend = backend
@@ -531,7 +541,6 @@ func (c *Client) GetImageBackendType() string {
 	}
 	return c.imageBackendType
 }
-
 
 // ── Models ────────────────────────────────────────────────────
 // ListModels 获取可用模型列表（始终从 xAI 获取，本地引擎通过 engineManager）
