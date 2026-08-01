@@ -203,7 +203,7 @@ func TestChatSimpleStream_CollectsFullText(t *testing.T) {
 func TestResolveModelName_ReqModelWins(t *testing.T) {
 	cfg := &config.Config{Model: "default-model"}
 	c := &Client{cfg: cfg, sem: make(chan struct{}, 4)}
-	if got := c.resolveModelName("explicit"); got != "explicit" {
+	if got := c.resolveModelName("explicit", ""); got != "explicit" {
 		t.Errorf("resolveModelName = %q, want explicit", got)
 	}
 }
@@ -211,7 +211,7 @@ func TestResolveModelName_ReqModelWins(t *testing.T) {
 func TestResolveModelName_XAIFallback(t *testing.T) {
 	cfg := &config.Config{Model: "grok-4.20"}
 	c := &Client{cfg: cfg, sem: make(chan struct{}, 4)}
-	if got := c.resolveModelName(""); got != "grok-4.20" {
+	if got := c.resolveModelName("", ""); got != "grok-4.20" {
 		t.Errorf("resolveModelName = %q, want 默认模型", got)
 	}
 }

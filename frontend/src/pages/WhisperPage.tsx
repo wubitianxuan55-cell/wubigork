@@ -11,6 +11,7 @@ import {
 import * as App from '../../wailsjs/go/app/App'
 import { C } from '../utils/theme'
 import { useVoiceChat } from '../hooks/useVoiceChat'
+import { useFeatureModel } from '../hooks/useFeatureModel'
 import { VOICE_LAUNCH_FLAG } from '../components/ModuleLauncher'
 import { WhisperEmotionPanel } from '../components/WhisperEmotionPanel'
 import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
@@ -97,6 +98,9 @@ const WhisperPage: React.FC = () => {
   const [sharedEvents, setSharedEvents] = useState(0)
   const [searchEnabled, setSearchEnabled] = useState(true) // 上网搜索开关
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false) // 侧边栏折叠
+  // 轻语功能级模型（持久化，模型中心绑定）
+  const whisperModel = useFeatureModel('whisper')
+  const llmLabel = whisperModel.model ? `${whisperModel.engine || ''}/${whisperModel.model}` : '' 
   const [desireSlots, setDesireSlots] = useState<any[]>([])
   const [traces, setTraces] = useState<any[]>([])
   const listRef = useRef<HTMLDivElement>(null); const inputRef = useRef<any>(null); const hasInitRef = useRef(false)
@@ -309,7 +313,7 @@ const WhisperPage: React.FC = () => {
           ))}
         </div>
         <div style={{ padding: '8px 12px', borderTop: `1px solid ${C('color-border')}`, fontSize: 10, color: C('color-text-secondary'), opacity: 0.6 }}>
-          <ApiOutlined style={{ marginRight: 4 }} />{engineName || '默认引擎'}{modelName && <span> / {modelName}</span>}
+          <ApiOutlined style={{ marginRight: 4 }} />轻语模型 {llmLabel ? <span style={{ color: C('color-primary'), fontWeight: 600 }}>{llmLabel}</span> : '（跟随全局）'}
         </div>
       </div>
 

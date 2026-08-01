@@ -75,8 +75,10 @@ func (c *Client) ActiveEngineID() string {
 
 // resolveChatEndpoint 根据活跃引擎解析 chat completions 的 URL 和 API key。
 // 当活跃引擎是 xAI 时使用 OAuth token；其他引擎使用 engineManager。
-func (c *Client) resolveChatEndpoint() (endpoint string, apiKey string, err error) {
-	engineID := c.ActiveEngineID()
+func (c *Client) resolveChatEndpoint(engineID string) (endpoint string, apiKey string, err error) {
+	if engineID == "" {
+		engineID = c.ActiveEngineID()
+	}
 
 	if engineID != "xai" && c.engineMgr != nil {
 		return c.engineMgr.BuildChatURL(engineID)
@@ -95,8 +97,10 @@ func (c *Client) resolveChatEndpoint() (endpoint string, apiKey string, err erro
 // 规则：
 //   - xAI 引擎: 优先用请求指定的模型，否则用 cfg.Model
 //   - 其他引擎: 优先用请求指定的模型（除非是 xAI 默认模型名），否则用引擎默认模型
-func (c *Client) resolveModelName(reqModel string) string {
-	engineID := c.ActiveEngineID()
+func (c *Client) resolveModelName(reqModel string, engineID string) string {
+	if engineID == "" {
+		engineID = c.ActiveEngineID()
+	}
 
 	// xAI 引擎：保持原有逻辑
 	if engineID == "xai" || c.engineMgr == nil {
@@ -203,14 +207,14 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 	}
 	defer c.releaseSem()
 
-	endpoint, apiKey, err := c.resolveChatEndpoint()
+	endpoint, apiKey, err := c.resolveChatEndpoint(req.EngineID)
 	if err != nil {
 		return nil, err
 	}
 
 	// 如果请求中模型名为空，自动填充引擎默认模型
 	if req.Model == "" {
-		req.Model = c.resolveModelName("")
+		req.Model = c.resolveModelName("", req.EngineID)
 	}
 
 	body, err := json.Marshal(req)
@@ -239,7 +243,11 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 	}
 
 	// 仅 xAI 引擎做 401 token 刷新重试
-	if resp.StatusCode == 401 && c.ActiveEngineID() == "xai" {
+	reqEngine := req.EngineID
+	if reqEngine == "" {
+		reqEngine = c.ActiveEngineID()
+	}
+	if resp.StatusCode == 401 && reqEngine == "xai" {
 		c.releaseSem()
 		if err := c.tryRefreshToken(); err != nil {
 			return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
@@ -269,7 +277,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 		return nil, fmt.Errorf("等待 API 槽位: %w", err)
 	}
 
-	endpoint, apiKey, err := c.resolveChatEndpoint()
+	endpoint, apiKey, err := c.resolveChatEndpoint(req.EngineID)
 	if err != nil {
 		c.releaseSem()
 		return nil, err
@@ -277,7 +285,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 
 	// 如果请求中模型名为空，自动填充引擎默认模型
 	if req.Model == "" {
-		req.Model = c.resolveModelName("")
+		req.Model = c.resolveModelName("", req.EngineID)
 	}
 
 	req.Stream = true
@@ -305,7 +313,11 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	}
 
 	// 仅 xAI 做 401 重试
-	if resp.StatusCode == 401 && c.ActiveEngineID() == "xai" {
+	reqEngine := req.EngineID
+	if reqEngine == "" {
+		reqEngine = c.ActiveEngineID()
+	}
+	if resp.StatusCode == 401 && reqEngine == "xai" {
 		resp.Body.Close()
 		c.releaseSem()
 		if err := c.tryRefreshToken(); err != nil {
@@ -460,9 +472,13 @@ func (c *Client) ChatSimpleStreamWithOptions(ctx context.Context, model, systemP
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMinutes)*time.Minute)
 	defer cancel()
 
-	// 如果 model 为空，用引擎默认模型
+	// 如果 model 为空，用引擎默认模型（功能级引擎优先）
 	if model == "" {
-		model = c.resolveModelName("")
+		model = c.resolveModelName("", opts.EngineID)
+	}
+	reqEngine := opts.EngineID
+	if reqEngine == "" {
+		reqEngine = c.ActiveEngineID()
 	}
 
 	c.emit("request", map[string]interface{}{
@@ -470,7 +486,7 @@ func (c *Client) ChatSimpleStreamWithOptions(ctx context.Context, model, systemP
 		"system":    systemPrompt,
 		"user":      userMsg,
 		"reasoning": opts.ReasoningEffort,
-		"engine":    c.ActiveEngineID(),
+		"engine":    reqEngine,
 	})
 
 	temperature := opts.Temperature
@@ -484,6 +500,7 @@ func (c *Client) ChatSimpleStreamWithOptions(ctx context.Context, model, systemP
 
 	req := &ChatRequest{
 		Model:           model,
+		EngineID:        opts.EngineID,
 		Messages:        []ChatMessage{{Role: "system", Content: systemPrompt}, {Role: "user", Content: userMsg}},
 		MaxTokens:       maxTokens,
 		Temperature:     temperature,

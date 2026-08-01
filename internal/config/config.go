@@ -36,6 +36,15 @@ const (
 	KeyActiveASRModel      = "active_asr_model"  // 语音识别激活模型
 	KeyActiveTTSEngine     = "active_tts_engine" // 语音合成激活引擎
 	KeyActiveTTSModel      = "active_tts_model"  // 语音合成激活模型
+	// 功能级模型绑定（聊天/轻语/小说/办公 各自独立 LLM，持久化重启不丢）
+	KeyFuncChatEngine      = "func_chat_engine"
+	KeyFuncChatModel       = "func_chat_model"
+	KeyFuncWhisperEngine   = "func_whisper_engine"
+	KeyFuncWhisperModel    = "func_whisper_model"
+	KeyFuncNovelEngine     = "func_novel_engine"
+	KeyFuncNovelModel      = "func_novel_model"
+	KeyFuncOfficeEngine    = "func_office_engine"
+	KeyFuncOfficeModel     = "func_office_model"
 	KeyDeepseekAPIKey      = "deepseek_api_key"
 )
 
@@ -67,6 +76,14 @@ type configFile struct {
 	ActiveASRModel      string  `json:"active_asr_model,omitempty"`  // 语音识别激活模型
 	ActiveTTSEngine     string  `json:"active_tts_engine,omitempty"` // 语音合成激活引擎
 	ActiveTTSModel      string  `json:"active_tts_model,omitempty"`  // 语音合成激活模型
+	FuncChatEngine      string  `json:"func_chat_engine,omitempty"`
+	FuncChatModel       string  `json:"func_chat_model,omitempty"`
+	FuncWhisperEngine   string  `json:"func_whisper_engine,omitempty"`
+	FuncWhisperModel    string  `json:"func_whisper_model,omitempty"`
+	FuncNovelEngine     string  `json:"func_novel_engine,omitempty"`
+	FuncNovelModel      string  `json:"func_novel_model,omitempty"`
+	FuncOfficeEngine    string  `json:"func_office_engine,omitempty"`
+	FuncOfficeModel     string  `json:"func_office_model,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -132,6 +149,16 @@ type Config struct {
 	// 语音合成激活引擎 + 模型（来自模型中心选择，空=自动）
 	ActiveTTSEngine string
 	ActiveTTSModel  string
+
+	// 功能级模型绑定（各功能独立 LLM，空=用全局激活引擎+模型）
+	FuncChatEngine    string
+	FuncChatModel     string
+	FuncWhisperEngine string
+	FuncWhisperModel  string
+	FuncNovelEngine   string
+	FuncNovelModel    string
+	FuncOfficeEngine  string
+	FuncOfficeModel   string
 }
 
 // Load 加载配置（只应调用一次）。
@@ -340,6 +367,30 @@ func Load() *Config {
 			if cf.ActiveTTSModel != "" {
 				cfg.ActiveTTSModel = cf.ActiveTTSModel
 			}
+			if cf.FuncChatEngine != "" {
+				cfg.FuncChatEngine = cf.FuncChatEngine
+			}
+			if cf.FuncChatModel != "" {
+				cfg.FuncChatModel = cf.FuncChatModel
+			}
+			if cf.FuncWhisperEngine != "" {
+				cfg.FuncWhisperEngine = cf.FuncWhisperEngine
+			}
+			if cf.FuncWhisperModel != "" {
+				cfg.FuncWhisperModel = cf.FuncWhisperModel
+			}
+			if cf.FuncNovelEngine != "" {
+				cfg.FuncNovelEngine = cf.FuncNovelEngine
+			}
+			if cf.FuncNovelModel != "" {
+				cfg.FuncNovelModel = cf.FuncNovelModel
+			}
+			if cf.FuncOfficeEngine != "" {
+				cfg.FuncOfficeEngine = cf.FuncOfficeEngine
+			}
+			if cf.FuncOfficeModel != "" {
+				cfg.FuncOfficeModel = cf.FuncOfficeModel
+			}
 		}
 	}
 
@@ -436,4 +487,12 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyActiveASRModel:    func(cf *configFile, v string) error { cf.ActiveASRModel = v; return nil },
 	KeyActiveTTSEngine:   func(cf *configFile, v string) error { cf.ActiveTTSEngine = v; return nil },
 	KeyActiveTTSModel:    func(cf *configFile, v string) error { cf.ActiveTTSModel = v; return nil },
+	KeyFuncChatEngine:    func(cf *configFile, v string) error { cf.FuncChatEngine = v; return nil },
+	KeyFuncChatModel:     func(cf *configFile, v string) error { cf.FuncChatModel = v; return nil },
+	KeyFuncWhisperEngine: func(cf *configFile, v string) error { cf.FuncWhisperEngine = v; return nil },
+	KeyFuncWhisperModel:  func(cf *configFile, v string) error { cf.FuncWhisperModel = v; return nil },
+	KeyFuncNovelEngine:   func(cf *configFile, v string) error { cf.FuncNovelEngine = v; return nil },
+	KeyFuncNovelModel:    func(cf *configFile, v string) error { cf.FuncNovelModel = v; return nil },
+	KeyFuncOfficeEngine:  func(cf *configFile, v string) error { cf.FuncOfficeEngine = v; return nil },
+	KeyFuncOfficeModel:   func(cf *configFile, v string) error { cf.FuncOfficeModel = v; return nil },
 }

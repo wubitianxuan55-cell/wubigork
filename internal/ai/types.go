@@ -52,20 +52,22 @@ type ChatToolCallDelta struct {
 
 // ChatRequest Chat Completions 请求
 type ChatRequest struct {
-	Model            string          `json:"model"`
-	Messages         []ChatMessage   `json:"messages"`
-	MaxTokens        int             `json:"max_tokens,omitempty"`
-	Temperature      float64         `json:"temperature,omitempty"`
-	Stream           bool            `json:"stream"`
-	Tools            []ChatToolSchema `json:"tools,omitempty"`        // 工具定义（agent 工具循环用）
-	ReasoningEffort  string          `json:"reasoning_effort,omitempty"`  // Grok: "low" / "high" — 控制推理深度
-	TopP             float64         `json:"top_p,omitempty"`             // nucleus sampling
-	FrequencyPenalty float64         `json:"frequency_penalty,omitempty"` // -2.0..2.0，抑制重复
-	PresencePenalty  float64         `json:"presence_penalty,omitempty"`  // -2.0..2.0，鼓励新话题
+	Model            string           `json:"model"`
+	EngineID         string           `json:"-"` // 功能级引擎覆盖（空=全局激活引擎），不序列化
+	Messages         []ChatMessage    `json:"messages"`
+	MaxTokens        int              `json:"max_tokens,omitempty"`
+	Temperature      float64          `json:"temperature,omitempty"`
+	Stream           bool             `json:"stream"`
+	Tools            []ChatToolSchema `json:"tools,omitempty"`             // 工具定义（agent 工具循环用）
+	ReasoningEffort  string           `json:"reasoning_effort,omitempty"`  // Grok: "low" / "high" — 控制推理深度
+	TopP             float64          `json:"top_p,omitempty"`             // nucleus sampling
+	FrequencyPenalty float64          `json:"frequency_penalty,omitempty"` // -2.0..2.0，抑制重复
+	PresencePenalty  float64          `json:"presence_penalty,omitempty"`  // -2.0..2.0，鼓励新话题
 }
 
 // ChatSimpleOptions ChatSimpleStream 的可选参数覆盖
 type ChatSimpleOptions struct {
+	EngineID        string  // 功能级引擎覆盖（空=全局激活引擎）
 	Temperature     float64 // 覆盖默认 temperature（0 表示使用默认值）
 	MaxTokens       int     // 覆盖默认 max_tokens（0 表示使用默认值）
 	ReasoningEffort string  // 推理深度（"" 表示不开启推理）
@@ -82,10 +84,10 @@ type ChatChoice struct {
 
 // ChatDelta SSE 流式 delta
 type ChatDelta struct {
-	Role         string             `json:"role,omitempty"`
-	Content      string             `json:"content,omitempty"`
+	Role         string              `json:"role,omitempty"`
+	Content      string              `json:"content,omitempty"`
 	ToolCalls    []ChatToolCallDelta `json:"tool_calls,omitempty"` // 工具调用分片（按 Index 拼装）
-	FinishReason string             `json:"finish_reason,omitempty"`
+	FinishReason string              `json:"finish_reason,omitempty"`
 }
 
 // ChatResponse Chat Completions 响应（非流式）

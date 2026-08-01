@@ -29,6 +29,20 @@ func New(client ai.LLMClient, pm *project.Manager, cfg *config.Config, eng *prom
 	return &Agent{client: client, pm: pm, cfg: cfg, eng: eng}
 }
 
+// featureModel 小说功能级模型（持久化绑定，运行中切换即时生效；空=全局）
+func (a *Agent) featureModel() (engine, model string) {
+	return a.cfg.FuncNovelEngine, a.cfg.FuncNovelModel
+}
+
+// chat 功能级对话：带 novel 引擎覆盖
+func (a *Agent) chat(ctx context.Context, system, user string) (string, error) {
+	eng, model := a.featureModel()
+	if model == "" {
+		model = a.cfg.Model
+	}
+	return a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{EngineID: eng})
+}
+
 // ── 对话 ────────────────────────────────────────────────────
 
 // Chat 全局大纲对话
@@ -50,7 +64,7 @@ func (a *Agent) Chat(ctx context.Context, userMsg string) (string, error) {
 		"user_request":    userMsg,
 	})
 
-	return a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
+	return a.chat(ctx, systemPrompt, userPrompt)
 }
 
 // ChatNode 针对特定大纲节点对话
@@ -90,7 +104,7 @@ func (a *Agent) ChatNode(ctx context.Context, nodeID, userMsg string) (string, e
 		"user_request": userMsg,
 	})
 
-	return a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
+	return a.chat(ctx, systemPrompt, userPrompt)
 }
 
 // ── 续写与展开 ──────────────────────────────────────────────
@@ -131,7 +145,7 @@ func (a *Agent) Continue(ctx context.Context, count int) (*types.OutlineFile, er
 		"story_thread":      of.StoryThread,
 	})
 
-	reply, err := a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
+	reply, err := a.chat(ctx, systemPrompt, userPrompt)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +293,7 @@ func (a *Agent) ExpandNode(ctx context.Context, nodeID string, subCount int) (*t
 		"story_thread":      of.StoryThread,
 	})
 
-	reply, err := a.client.ChatSimpleStream(ctx, a.cfg.Model, systemPrompt, userPrompt)
+	reply, err := a.chat(ctx, systemPrompt, userPrompt)
 	if err != nil {
 		return nil, err
 	}
@@ -503,7 +517,7 @@ func FindNodeByID(node *types.OutlineNode, targetID string) *types.OutlineNode {
 
 // OutlineDialogueResult 对话式大纲生成结果
 type OutlineDialogueResult struct {
-	StoryTitle string   `json:"story_title"`
+	StoryTitle string `json:"story_title"`
 	Chapters   []struct {
 		Title   string `json:"chapter_title"`
 		Summary string `json:"chapter_summary"`
@@ -534,7 +548,7 @@ func (a *Agent) GenerateOutlineWithDialogue(ctx context.Context, storyPrompt str
 
 		// 学生提问
 		studentPrompt := fmt.Sprintf("故事设定：%s\n\n对话历史：\n%s\n\n请提出你的下一个问题：", storyPrompt, dialogueHistory)
-		question, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, studentSystem, studentPrompt, ai.ChatSimpleOptions{
+		question, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, studentSystem, studentPrompt, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
 			Temperature: 0.8,
 			MaxTokens:   256,
 		})
@@ -549,7 +563,7 @@ func (a *Agent) GenerateOutlineWithDialogue(ctx context.Context, storyPrompt str
 
 		// 专家回答
 		expertPrompt := fmt.Sprintf("故事设定：%s\n\n作者提问：%s\n\n请回答：", storyPrompt, question)
-		answer, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, expertSystem, expertPrompt, ai.ChatSimpleOptions{
+		answer, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, expertSystem, expertPrompt, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
 			Temperature: 0.7,
 			MaxTokens:   512,
 		})
@@ -583,7 +597,7 @@ func (a *Agent) GenerateOutlineWithDialogue(ctx context.Context, storyPrompt str
 
 	writerPrompt := fmt.Sprintf("故事设定：%s\n\n作者与编辑的对话：\n%s\n\n请**严格只生成 %d 章**的大纲，不要多也不要少。", storyPrompt, strings.Join(dialogue, "\n"), numChapters)
 
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, writerSystem, writerPrompt, ai.ChatSimpleOptions{
+	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, writerSystem, writerPrompt, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
 		Temperature: 0.3,
 		MaxTokens:   4096,
 	})

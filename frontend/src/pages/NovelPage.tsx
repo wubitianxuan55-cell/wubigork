@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { Tabs } from 'antd'
+import { Tabs, Typography, Tag } from 'antd'
+import { useFeatureModel } from '../hooks/useFeatureModel'
 import {
   HomeOutlined, FileTextOutlined, UserOutlined,
   ThunderboltOutlined, BookOutlined, ExportOutlined,
@@ -25,8 +26,17 @@ const tabItems = [
 
 const NovelPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NovelTab>('home')
+  const novelModel = useFeatureModel('novel')
+  const novelLabel = novelModel.model ? `${novelModel.engine || ''}/${novelModel.model}` : ''
 
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {novelLabel && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 16px 0', fontSize: 11 }}>
+          <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)' }}>📖 小说模型</Typography.Text>
+          <Tag color="green" style={{ fontSize: 10, margin: 0 }}>{novelLabel}</Tag>
+        </div>
+      )}
     <Tabs
       activeKey={activeTab}
       onChange={(key) => setActiveTab(key as NovelTab)}
@@ -38,6 +48,7 @@ const NovelPage: React.FC = () => {
       }))}
       style={{ height: '100%' }}
     />
+    </div>
   )
 }
 

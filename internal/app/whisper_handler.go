@@ -131,6 +131,14 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string) (result
 		slog.Error("[whisper] client is nil")
 		return nil, fmt.Errorf("model client not initialized")
 	}
+	// 功能级绑定：轻语独立引擎+模型（持久化，未绑定则沿用 orch/全局）
+	featEng, featModel := a.featureModel("whisper")
+	if featEng != "" {
+		orch.EngineID = featEng
+	}
+	if featModel != "" {
+		model = featModel
+	}
 	slog.Info("[whisper] calling LLM", "engine", orch.EngineID, "model", model)
 	reply, callErr := a.client.ChatSimpleStream(a.ctx, model, systemPrompt, userMsg)
 	if orch.EngineID != "" && orch.EngineID != origEngine {

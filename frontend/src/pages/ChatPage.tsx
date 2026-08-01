@@ -7,6 +7,7 @@ import {
 import ChatTopicSidebar, { type Topic } from '../components/ChatTopicSidebar'
 import * as App from '../../wailsjs/go/app/App'
 import { C } from '../utils/theme'
+import { useFeatureModel } from '../hooks/useFeatureModel'
 
 export interface Message {
   id: string; role: 'user' | 'assistant'; content: string; streaming?: boolean
@@ -43,6 +44,10 @@ const ChatPage: React.FC = () => {
   const messages = activeTopic?.messages ?? []
 
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight }, [messages, streamText])
+
+  // 聊天功能级模型（持久化，模型中心绑定）
+  const chatModel = useFeatureModel('chat')
+  const chatModelLabel = chatModel.model ? `${chatModel.engine || ''}/${chatModel.model}` : ''
 
   const handleSend = useCallback(async () => {
     const text = input.trim(); if (!text || loading) return

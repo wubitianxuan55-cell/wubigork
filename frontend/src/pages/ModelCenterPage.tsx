@@ -114,7 +114,42 @@ const ModelCenterPage: React.FC = () => {
     } catch (_) {}
   }, [])
 
-  useEffect(() => { loadAll(); loadImageBackend(); loadVoiceCfg() }, [loadVoiceCfg])
+
+  // ── 功能模型绑定（聊天/轻语/小说/办公 各自独立 LLM，持久化重启不丢）──
+  const FEATURES: { key: string; label: string; icon: string }[] = [
+    { key: 'chat', label: '聊天', icon: '💬' },
+    { key: 'whisper', label: '轻语', icon: '🫀' },
+    { key: 'novel', label: '小说', icon: '📖' },
+    { key: 'office', label: '方案编写', icon: '📄' },
+  ]
+  const [featureCfg, setFeatureCfg] = useState<Record<string, { engine: string; model: string }>>({})
+  const [featureDraft, setFeatureDraft] = useState<Record<string, { engine: string; model: string }>>({})
+
+  const loadFeatureCfg = useCallback(async () => {
+    try {
+      const cfg: Record<string, { engine: string; model: string }> = {}
+      for (const f of ['chat', 'whisper', 'novel', 'office']) {
+        const r: any = await App.GetFeatureModel(f)
+        cfg[f] = { engine: r?.engine || '', model: r?.model || '' }
+      }
+      setFeatureCfg(cfg)
+      setFeatureDraft(JSON.parse(JSON.stringify(cfg)))
+    } catch (_) {}
+  }, [])
+
+  const handleSaveFeature = async (key: string) => {
+    const d = featureDraft[key]
+    if (!d?.engine || !d?.model) { message.warning('请先选择引擎和模型'); return }
+    try {
+      await App.SetFeatureModel(key, d.engine, d.model)
+      message.success(`${FEATURES.find(f => f.key === key)?.label}模型已绑定并持久化`)
+      loadFeatureCfg()
+    } catch (err: any) {
+      message.error(err?.message || '保存失败')
+    }
+  }
+
+  useEffect(() => { loadAll(); loadImageBackend(); loadVoiceCfg(); loadFeatureCfg() }, [loadVoiceCfg, loadFeatureCfg])
 
   // 设为语音识别/合成（模型中心 → 语音管道）
   const handleSetVoiceModel = async (kind: 'asr' | 'tts', engineId: string, modelId: string) => {
@@ -250,6 +285,51 @@ const ModelCenterPage: React.FC = () => {
           {/* LLM */}
           {category === 'llm' && (
             <>
+              {/* ── 功能模型绑定（各功能独立 LLM，持久化重启不丢）── */}
+              <Card style={{ marginBottom: 20, background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <ThunderboltOutlined style={{ color: C('color-text-secondary') }} />
+                  <Typography.Text strong style={{ color: C('color-text'), fontSize: 14 }}>功能模型绑定</Typography.Text>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>
+                    各功能板块独立模型，设置后持久化（重启不丢）
+                  </Typography.Text>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                  {FEATURES.map(f => {
+                    const cur = featureCfg[f.key]
+                    const draft = featureDraft[f.key] || { engine: '', model: '' }
+                    const engineModels = draft.engine ? llmModels.filter(m => m.engineId === draft.engine) : []
+                    const bound = !!cur?.engine && !!cur?.model
+                    return (
+                      <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ width: 92, fontSize: 12.5, color: C('color-text'), fontWeight: 500 }}>
+                          {f.icon} {f.label}
+                        </span>
+                        <Select
+                          size="small" placeholder="引擎" value={draft.engine || undefined}
+                          onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: v, model: '' } }))}
+                          style={{ width: 130 }}
+                          options={engines.filter(e => e.enabled).map(e => ({ value: e.id, label: engineLabels[e.id] || e.id }))}
+                        />
+                        <Select
+                          size="small" placeholder="模型" value={draft.model || undefined}
+                          onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { ...(p[f.key] || {}), model: v } }))}
+                          style={{ width: 210 }}
+                          options={engineModels.map(m => ({ value: m.modelId, label: m.modelName }))}
+                        />
+                        <Button size="small" type={bound ? 'primary' : 'default'} onClick={() => handleSaveFeature(f.key)} style={{ fontSize: 11 }}>
+                          {bound ? '已绑定 · 更新' : '绑定'}
+                        </Button>
+                        {bound && (
+                          <Tag color="green" style={{ fontSize: 10, margin: 0 }}>
+                            ✔ {cur!.engine} / {cur!.model}
+                          </Tag>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </Card>
               {llmModels.length === 0 && (
                 <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, textAlign: 'center', padding: 40, marginBottom: 16 }}>
                   <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 14 }}>未发现语言模型。请在「引擎管理」中启用引擎并刷新模型。</Typography.Text>
