@@ -13,11 +13,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // HerdsmanASR 通过 Herdsman 的 OpenAI 兼容 ASR 端点进行语音识别
@@ -143,20 +145,10 @@ func (h *HerdsmanASR) doRequest(req *http.Request) (*TranscriptionResult, error)
 
 // NormalizeTranscription 对 ASR 结果做文本规范化
 func NormalizeTranscription(text string) string {
-	return trimSpace(text)
+	return strings.TrimSpace(text)
 }
 
-func trimSpace(s string) string {
-	start, end := 0, len(s)
-	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n' || s[start] == '\r') {
-		start++
-	}
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n' || s[end-1] == '\r') {
-		end--
-	}
-	return s[start:end]
-}
-
+// EncodeBase64 将字节编码为 base64 字符串
 // EncodeBase64 将字节编码为 base64 字符串
 func EncodeBase64(data []byte) string {
 	return base64.StdEncoding.EncodeToString(data)

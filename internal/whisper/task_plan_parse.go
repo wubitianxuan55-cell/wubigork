@@ -3,7 +3,10 @@
 // 从 LLM 输出解析结构化任务计划
 package whisper
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // TaskPlan 任务计划
 type TaskPlan struct {
@@ -77,7 +80,7 @@ func extractPlanJSON(raw string) string {
 
 	// 最后尝试直接找 { }
 	start := indexOf(raw, "{")
-	end := lastIndexOf(raw, "}")
+	end := strings.LastIndex(raw, "}")
 	if start >= 0 && end > start {
 		return raw[start : end+1]
 	}
@@ -94,11 +97,3 @@ func indexOf(s, sub string) int {
 	return -1
 }
 
-func lastIndexOf(s, sub string) int {
-	for i := len(s) - len(sub); i >= 0; i-- {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
-}

@@ -6,6 +6,7 @@ package whisper
 
 import (
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -31,15 +32,7 @@ func (h *UserHabit) upsertKey() string {
 }
 
 func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	s := ""
-	for n > 0 {
-		s = string(rune(n%10+'0')) + s
-		n /= 10
-	}
-	return s
+	return strconv.Itoa(n)
 }
 
 // Upsert 写入或更新习惯（对齐 upsertHabit）
