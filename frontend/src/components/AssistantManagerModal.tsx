@@ -13,7 +13,7 @@ const { Text } = Typography
 
 interface Assistant {
   id: string; name: string; personalityId: string
-  wxToken: string; wxUserId: string; enabled: boolean
+  wxToken: string; wxBotId: string; wxUserId: string; enabled: boolean
 }
 
 interface PersonalityPreset {
@@ -75,6 +75,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
         name: form.name.trim(),
         personalityId: form.personalityId || 'deredere',
         wxToken: form.wxToken || '',
+        wxBotId: form.wxBotId || '',
         wxUserId: form.wxUserId || '',
         enabled: form.enabled,
       })
@@ -101,10 +102,10 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
         try {
           const s: any = await (App as any).WhisperWeixinQRStatus(qr.qrcode)
           setQrStatus(s.status || 'wait')
-          if (s.status === 'confirmed' && s.botToken) {
+          if ((s.status === 'confirmed' || s.status === 'verified') && s.botToken) {
             clearInterval(poll)
             setQrPolling(false)
-            setForm(f => ({ ...f, wxToken: s.botToken }))
+            setForm(f => ({ ...f, wxToken: s.botToken, wxBotId: s.botId || '' }))
             message.success('微信绑定成功！')
             setQrImage('')
           } else if (s.status === 'expired') {
@@ -139,7 +140,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   // 新建
   const startNew = () => {
     setForm(emptyForm())
-    setEditing({ id: '', name: '', personalityId: 'deredere', wxToken: '', wxUserId: '', enabled: true })
+    setEditing({ id: '', name: '', personalityId: 'deredere', wxToken: '', wxBotId: '', wxUserId: '', enabled: true })
   }
 
   // 获取人格信息
@@ -242,6 +243,18 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
               扫码
             </Button>
           </div>
+          {/* 微信 Bot ID（回复消息的 from_user_id，扫码自动填入） */}
+          <div>
+            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>
+              <ApiOutlined style={{ marginRight: 4 }} />微信 Bot ID
+            </Text>
+            <Input
+              value={form.wxBotId}
+              onChange={e => setForm({ ...form, wxBotId: e.target.value })}
+              placeholder="扫码自动填入，回复消息必填"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', borderRadius: 10 }}
+            />
+          </div>
           {/* QR 码显示 */}
           {qrImage && (
             <div style={{
@@ -252,6 +265,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
               <div style={{ marginTop: 8, fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
                 {qrStatus === 'wait' && <><LoadingOutlined spin style={{ marginRight: 4 }} />等待扫码…</>}
                 {qrStatus === 'scanned' && '已扫码，请在手机上确认'}
+                {qrStatus === 'verified' && '已确认，正在获取凭证…'}
                 {qrStatus === 'expired' && <span style={{ color: '#ff4d4f' }}>二维码已过期 <Button type="link" size="small" icon={<ReloadOutlined />} onClick={handleQRScan} style={{ color: '#e85388', padding: 0 }}>重新获取</Button></span>}
               </div>
             </div>
@@ -406,5 +420,5 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
 }
 
 function emptyForm(): Assistant {
-  return { id: '', name: '', personalityId: 'deredere', wxToken: '', wxUserId: '', enabled: true }
+  return { id: '', name: '', personalityId: 'deredere', wxToken: '', wxBotId: '', wxUserId: '', enabled: true }
 }

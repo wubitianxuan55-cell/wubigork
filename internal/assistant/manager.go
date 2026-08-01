@@ -18,6 +18,7 @@ type Assistant struct {
 	Name          string `json:"name"`          // 助手名称
 	PersonalityID string `json:"personalityId"` // 绑定人格（deredere/tsundere...）
 	WxToken       string `json:"wxToken"`       // 微信 ClawBot Token
+	WxBotID       string `json:"wxBotId"`       // 微信 ClawBot Bot ID（ilink_bot_id，回复消息的 from_user_id）
 	WxUserID      string `json:"wxUserId"`      // 绑定的微信用户 OpenID（空=不限）
 	Enabled       bool   `json:"enabled"`       // 是否启用
 }

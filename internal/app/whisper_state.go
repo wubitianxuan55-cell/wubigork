@@ -45,6 +45,7 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 	cfg := weixin.Config{
 		ILinkURL:      "https://ilinkai.weixin.qq.com",
 		BotToken:      ast.WxToken,
+		BotID:         ast.WxBotID,
 		AssistantID:   ast.ID,
 		PersonalityID: ast.PersonalityID,
 	}
