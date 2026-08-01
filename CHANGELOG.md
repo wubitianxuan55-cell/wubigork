@@ -1,5 +1,28 @@
 # gaea · 多功能 AI 助手
 
+# gaea · 多功能 AI 助手
+
+## v1.4.0「架构统一」(2026-08-02)
+
+> 后端四类重复收敛 + 前端两套 UI 体系统一。净删 6874 行（+555/-7429），10 提交，tag v1.4.0。
+> 详见 releases/v1.4.0.md
+
+### 后端架构重构（-526 行）
+- HTTP client 统一：netclient 提升共享层，22 处裸 `http.Client` 收敛到 `NewSimpleClient`
+- 工具函数收敛：office 死代码 + asr/whisper 手写字符串函数替换标准库
+- 配置系统整合：删除 gaea config 零消费者死域（ComfyUI/Statusline/Notify/Serve/LSP）
+- AI 通道唯一化：删除 provider/stream_client.go，通道=前端→agent→bridge→ai.Client→modelengine
+
+### 前端两套 UI 体系统一（-6300+ 行）
+- 死代码清理：老栈 29 废弃组件 + gaea 7 死代码 + 4 死 hook/util + highlight.js（-5800 行）
+- 令牌层统一：gaea 颜色引用老栈 M3 令牌，删独立主题系统，暗亮双向联动
+- 图标体系统一：66 个 lucide → @ant-design/icons，lucide 依赖移除
+- 布局壳 antd 化：Layout/Drawer/Tooltip 用 antd，功能面板按分层原则保留自绘
+- 死样式清理：.app/workspace-panel 样式族删除（-690 行）
+
+### 验证
+- go test 77 包全绿；tsc + vite build 通过；wails build 产物 gaea.exe
+
 ## v1.3.0「未来感 UI」(2026-08-02)
 
 > 未来感 AI 多功能助手平台：深空星云 × 玻璃拟态 × 霓虹光效全链路统一 + 设置中心整合全部参数。
