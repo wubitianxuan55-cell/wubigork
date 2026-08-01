@@ -10,7 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/auth"
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -77,9 +80,15 @@ type SettingsView struct {
 
 // GaeaSettings 返回设置面板数据（引擎来自模型中心，agent 参数来自 gaea 配置）。
 func (a *App) GaeaSettings() SettingsView {
-	cfg, err := config.Load()
-	if err != nil {
-		cfg = config.Default()
+	ga.mu.Lock()
+	cfg := ga.cfg
+	ga.mu.Unlock()
+	if cfg == nil {
+		var err error
+		cfg, err = gaeaLoadConfig()
+		if err != nil {
+			cfg = gaeaConfig.Default()
+		}
 	}
 	view := SettingsView{
 		Providers:      []ProviderView{},
@@ -103,7 +112,20 @@ func (a *App) GaeaSettings() SettingsView {
 	}
 	view.Permissions = PermissionsView{Mode: cfg.Permissions.Mode, Allow: cfg.Permissions.Allow, Ask: cfg.Permissions.Ask, Deny: cfg.Permissions.Deny}
 	view.Sandbox = SandboxView{Bash: cfg.Sandbox.Bash, Network: cfg.Sandbox.Network, WorkspaceRoot: cfg.WriteRoots()[0], AllowWrite: cfg.WriteRoots()}
-	view.Agent = AgentView{Temperature: cfg.Agent.Temperature, MaxSteps: cfg.Agent.MaxSteps, SystemPrompt: cfg.Agent.SystemPrompt, Effort: cfg.Agent.Effort, PlannerEffort: cfg.Agent.PlannerEffort, SubagentEffort: cfg.Agent.SubagentEffort}
+	view.Agent = AgentView{
+		Temperature:         cfg.Agent.Temperature,
+		MaxSteps:            cfg.Agent.MaxSteps,
+		SystemPrompt:        cfg.Agent.SystemPrompt,
+		Effort:              cfg.Agent.Effort,
+		PlannerEffort:       cfg.Agent.PlannerEffort,
+		SubagentEffort:      cfg.Agent.SubagentEffort,
+		PlannerTemperature:  cfg.Agent.PlannerTemperature,
+		SubagentTemperature: cfg.Agent.SubagentTemperature,
+	}
+	view.PlannerModel = cfg.Agent.PlannerModel
+	view.SubagentModel = cfg.Agent.SubagentModel
+	view.SubagentModels = cfg.Agent.SubagentModels
+	view.ConfigPath = gaeaConfig.UserConfigPath()
 	if c := gaeaCtrl(); c != nil {
 		view.Bypass = c.PermLevel() != "ask"
 	}
@@ -117,40 +139,228 @@ func (a *App) GaeaSetDefaultModel(ref string) error {
 		engine, model = ref[:i], ref[i+1:]
 	}
 	if model == "" || a.engineMgr == nil {
-		return errNotSupported
+		return fmt.Errorf("无法设置默认模型: 引擎或模型无效（ref=%q）", ref)
 	}
 	return a.engineMgr.SetDefaultModel(engine, model)
 }
 
-// GaeaSaveProvider/GaeaDeleteProvider/GaeaLoginProvider/GaeaLogoutProvider/GaeaSetProviderKey
-// 引擎增删改由 gaea 模型中心管理，办公板块不直接操作。
-func (a *App) GaeaSaveProvider(p ProviderView) error            { return errNotSupported }
-func (a *App) GaeaDeleteProvider(name string) error             { return errNotSupported }
-func (a *App) GaeaLoginProvider(name string) error              { return errNotSupported }
-func (a *App) GaeaLogoutProvider(name string) error             { return errNotSupported }
-func (a *App) GaeaSetProviderKey(apiKeyEnv, value string) error { return errNotSupported }
+// gaeaApplyCfg 修改当前办公引擎配置并持久化，然后重建 controller 使变更生效。
+// 权限/沙箱/Agent 参数等引擎级设置统一走此通道：改 ga.cfg → Save → Rebuild。
+func (a *App) gaeaApplyCfg(mutate func(cfg *gaeaConfig.Config)) error {
+	if err := a.GaeaInit(); err != nil {
+		return err
+	}
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
+	if ga.cfg == nil {
+		return errors.New("gaea: 办公引擎配置未初始化")
+	}
+	mutate(ga.cfg)
+	if err := gaeaConfig.Save(ga.cfg); err != nil {
+		return fmt.Errorf("gaea: 保存配置失败: %w", err)
+	}
+	return a.gaeaRebuildLocked()
+}
 
-// GaeaSetPermissionMode/GaeaAddPermissionRule/GaeaRemovePermissionRule/GaeaSetSandbox
-// 权限与沙箱由办公引擎配置注入时确定，不支持运行时修改。
-func (a *App) GaeaSetPermissionMode(mode string) error          { return errNotSupported }
-func (a *App) GaeaAddPermissionRule(list, rule string) error    { return errNotSupported }
-func (a *App) GaeaRemovePermissionRule(list, rule string) error { return errNotSupported }
+// GaeaSaveProvider 保存模型中心引擎配置（更新已有引擎）。
+// 模型中心引擎为固定四大引擎（xai/ollama/herdsman/deepseek），不支持新增。
+func (a *App) GaeaSaveProvider(p ProviderView) error {
+	if a.engineMgr == nil {
+		return errors.New("gaea: 模型中心未初始化")
+	}
+	cfg := modelengine.EngineConfig{
+		ID:           p.Name,
+		Name:         p.Name,
+		Type:         modelengine.EngineType(p.Kind),
+		BaseURL:      p.BaseURL,
+		DefaultModel: p.Default,
+		Enabled:      true,
+	}
+	return a.engineMgr.SaveEngine(cfg)
+}
+
+// GaeaDeleteProvider 删除模型中心引擎。模型中心引擎固定，不支持删除。
+func (a *App) GaeaDeleteProvider(name string) error {
+	return fmt.Errorf("模型中心引擎 %s 为内置固定引擎，不支持删除", name)
+}
+
+// GaeaLoginProvider 触发 xAI OAuth 登录（办公板块 provider 面板入口）。
+// 仅 xai 引擎支持 OAuth 登录，其余引擎走 API Key 配置。
+func (a *App) GaeaLoginProvider(name string) error {
+	if name != "xai" && name != "xAI (Grok)" {
+		return fmt.Errorf("引擎 %s 不支持 OAuth 登录，请直接配置 API Key", name)
+	}
+	return a.Login()
+}
+
+// GaeaLogoutProvider 登出 xAI（清除本地 token）。
+func (a *App) GaeaLogoutProvider(name string) error {
+	if name != "xai" && name != "xAI (Grok)" {
+		return fmt.Errorf("引擎 %s 不支持 OAuth 登出", name)
+	}
+	if a.cfg == nil || a.cfg.TokenStorePath == "" {
+		return errors.New("gaea: token 存储路径未配置")
+	}
+	store := auth.NewTokenStore(a.cfg.TokenStorePath)
+	if err := store.Delete(); err != nil {
+		return fmt.Errorf("清除 xAI token 失败: %w", err)
+	}
+	if a.engineMgr != nil {
+		a.engineMgr.UpdateXAIKey("")
+	}
+	a.client = ai.NewClient(a.cfg)
+	a.configureClient()
+	return nil
+}
+
+// GaeaSetProviderKey 设置引擎 API Key（按引擎映射到模型中心的 key 槽位）。
+func (a *App) GaeaSetProviderKey(apiKeyEnv, value string) error {
+	if a.engineMgr == nil {
+		return errors.New("gaea: 模型中心未初始化")
+	}
+	env := strings.ToLower(apiKeyEnv)
+	switch {
+	case strings.Contains(env, "xai") || strings.Contains(env, "grok"):
+		a.engineMgr.UpdateXAIKey(value)
+		return nil
+	case strings.Contains(env, "deepseek") || strings.Contains(env, "deep"):
+		a.engineMgr.UpdateDeepseekKey(value)
+		return nil
+	default:
+		return fmt.Errorf("不支持的引擎 Key 环境变量 %q", apiKeyEnv)
+	}
+}
+
+// GaeaSetPermissionMode 设置权限模式（ask/auto/yolo），持久化并重建。
+func (a *App) GaeaSetPermissionMode(mode string) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
+		cfg.Permissions.Mode = mode
+	})
+}
+
+// GaeaAddPermissionRule 追加权限规则（allow/ask/deny 列表）。
+func (a *App) GaeaAddPermissionRule(list, rule string) error {
+	if rule == "" {
+		return errors.New("规则不能为空")
+	}
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
+		perms := &cfg.Permissions
+		switch list {
+		case "allow":
+			perms.Allow = appendUnique(perms.Allow, rule)
+		case "ask":
+			perms.Ask = appendUnique(perms.Ask, rule)
+		case "deny":
+			perms.Deny = appendUnique(perms.Deny, rule)
+		}
+	})
+}
+
+// GaeaRemovePermissionRule 移除权限规则。
+func (a *App) GaeaRemovePermissionRule(list, rule string) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
+		perms := &cfg.Permissions
+		switch list {
+		case "allow":
+			perms.Allow = removeString(perms.Allow, rule)
+		case "ask":
+			perms.Ask = removeString(perms.Ask, rule)
+		case "deny":
+			perms.Deny = removeString(perms.Deny, rule)
+		}
+	})
+}
+
+// GaeaSetSandbox 设置沙箱参数（bash 模式/网络/写入根），持久化并重建。
 func (a *App) GaeaSetSandbox(bash string, network bool, workspaceRoot string, allowWrite []string) error {
-	return errNotSupported
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
+		cfg.Sandbox.Bash = bash
+		cfg.Sandbox.Network = network
+		if workspaceRoot != "" {
+			cfg.Sandbox.WorkspaceRoot = workspaceRoot
+		}
+		if allowWrite != nil {
+			cfg.Sandbox.AllowWrite = allowWrite
+		}
+	})
 }
 
-// GaeaSetAgentParams 等 agent 参数不支持运行时热更。
+// GaeaSetAgentParams 设置 agent 核心参数（温度/最大步数/系统提示词），持久化并重建。
 func (a *App) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt string) error {
-	return errNotSupported
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
+		cfg.Agent.Temperature = temperature
+		cfg.Agent.MaxSteps = maxSteps
+		if systemPrompt != "" {
+			cfg.Agent.SystemPrompt = systemPrompt
+		}
+	})
 }
-func (a *App) GaeaSetPlannerTemperature(temp float64) error         { return errNotSupported }
-func (a *App) GaeaSetSubagentTemperature(temp float64) error        { return errNotSupported }
-func (a *App) GaeaSetEffort(effort string) error                    { return errNotSupported }
-func (a *App) GaeaSetPlannerEffort(effort string) error             { return errNotSupported }
-func (a *App) GaeaSetSubagentEffort(effort string) error            { return errNotSupported }
-func (a *App) GaeaSetSubagentModel(ref string) error                { return errNotSupported }
-func (a *App) GaeaSetSubagentModelForSkill(skill, ref string) error { return errNotSupported }
-func (a *App) GaeaSetPlannerModel(ref string) error                 { return errNotSupported }
+
+// GaeaSetPlannerTemperature 设置规划模型温度。
+func (a *App) GaeaSetPlannerTemperature(temp float64) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.PlannerTemperature = temp })
+}
+
+// GaeaSetSubagentTemperature 设置子代理温度。
+func (a *App) GaeaSetSubagentTemperature(temp float64) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.SubagentTemperature = temp })
+}
+
+// GaeaSetEffort 设置执行模型推理强度。
+func (a *App) GaeaSetEffort(effort string) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.Effort = effort })
+}
+
+// GaeaSetPlannerEffort 设置规划模型推理强度。
+func (a *App) GaeaSetPlannerEffort(effort string) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.PlannerEffort = effort })
+}
+
+// GaeaSetSubagentEffort 设置子代理推理强度。
+func (a *App) GaeaSetSubagentEffort(effort string) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.SubagentEffort = effort })
+}
+
+// GaeaSetSubagentModel 设置子代理模型。
+func (a *App) GaeaSetSubagentModel(ref string) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.SubagentModel = ref })
+}
+
+// GaeaSetSubagentModelForSkill 设置指定技能的子代理模型。
+func (a *App) GaeaSetSubagentModelForSkill(skill, ref string) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
+		if cfg.Agent.SubagentModels == nil {
+			cfg.Agent.SubagentModels = map[string]string{}
+		}
+		cfg.Agent.SubagentModels[skill] = ref
+	})
+}
+
+// GaeaSetPlannerModel 设置规划模型。
+func (a *App) GaeaSetPlannerModel(ref string) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.PlannerModel = ref })
+}
+
+// appendUnique 追加元素（去重）。
+func appendUnique(list []string, v string) []string {
+	for _, x := range list {
+		if x == v {
+			return list
+		}
+	}
+	return append(list, v)
+}
+
+// removeString 移除元素。
+func removeString(list []string, v string) []string {
+	out := list[:0]
+	for _, x := range list {
+		if x != v {
+			out = append(out, x)
+		}
+	}
+	return out
+}
 
 // GaeaSetPermLevel 设置权限级别（ask/auto/yolo），真实生效。
 func (a *App) GaeaSetPermLevel(level string) error {
@@ -371,7 +581,7 @@ func (a *App) GaeaAddMCPServer(input MCPServerInput) (int, error) {
 	if c == nil {
 		return 0, errors.New("办公引擎未初始化")
 	}
-	entry := config.PluginEntry{Name: input.Name, Command: input.Command, Args: input.Args, Env: input.Env}
+	entry := gaeaConfig.PluginEntry{Name: input.Name, Command: input.Command, Args: input.Args, Env: input.Env}
 	if input.URL != "" {
 		entry.URL = input.URL
 	}
@@ -432,8 +642,12 @@ type TabMeta struct {
 
 // GaeaCheckUpdate/GaeaApplyUpdate/GaeaOpenDownloadPage 更新由 gaea 自身管理。
 func (a *App) GaeaCheckUpdate() (*UpdateInfo, error) { return nil, nil }
-func (a *App) GaeaApplyUpdate() error                { return errNotSupported }
-func (a *App) GaeaOpenDownloadPage() error           { return errNotSupported }
+func (a *App) GaeaApplyUpdate() error {
+	return errors.New("桌面版无自动更新机制，请从发布渠道获取新版本")
+}
+func (a *App) GaeaOpenDownloadPage() error {
+	return errors.New("桌面版无自动更新机制，请从发布渠道获取新版本")
+}
 
 // UpdateInfo 是更新信息。
 type UpdateInfo struct {
@@ -454,8 +668,8 @@ type MemorySuggestionsView struct {
 }
 
 func (a *App) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) {
-	return "", errNotSupported
+	return "", errors.New("办公板块不提供记忆建议")
 }
 func (a *App) GaeaAcceptSkillSuggestion(candidate interface{}) (string, error) {
-	return "", errNotSupported
+	return "", errors.New("办公板块不提供技能建议")
 }

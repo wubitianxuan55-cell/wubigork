@@ -43,7 +43,6 @@ type CheckpointMeta struct {
 }
 
 var errActiveSession = errors.New("can't delete the session you're in — start a new one first")
-var errNotSupported = errors.New("办公板块暂不支持该操作")
 
 // gaeaCtrl 返回当前办公控制器（未初始化返回 nil）。
 func gaeaCtrl() *control.Controller {
@@ -146,10 +145,13 @@ func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {
 func (a *App) GaeaCheckpoints() []CheckpointMeta { return []CheckpointMeta{} }
 
 // GaeaRewind/GaeaFork/GaeaSummarizeFrom/GaeaSummarizeUpTo 暂不支持。
-func (a *App) GaeaRewind(turn int, scope string) error { return errNotSupported }
-func (a *App) GaeaFork(turn int) error                 { return errNotSupported }
-func (a *App) GaeaSummarizeFrom(turn int) error        { return errNotSupported }
-func (a *App) GaeaSummarizeUpTo(turn int) error        { return errNotSupported }
+// 办公引擎无 checkpoint/分支系统，无法在会话中途回退到历史回合。
+var errNoCheckpoint = errors.New("办公引擎不支持会话回退（无 checkpoint 系统）")
+
+func (a *App) GaeaRewind(turn int, scope string) error { return errNoCheckpoint }
+func (a *App) GaeaFork(turn int) error                 { return errNoCheckpoint }
+func (a *App) GaeaSummarizeFrom(turn int) error        { return errNoCheckpoint }
+func (a *App) GaeaSummarizeUpTo(turn int) error        { return errNoCheckpoint }
 
 // ── 会话辅助（照搬 gaeaW desktop/sessions.go）──────────────────────
 

@@ -3,7 +3,10 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
+
+	"github.com/BurntSushi/toml"
 
 	gaeaBoot "github.com/gaea/gaea/internal/gaea/boot"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
@@ -23,6 +26,77 @@ var ga = &gaeaRuntime{}
 type gaeaRuntime struct {
 	mu   sync.Mutex
 	ctrl *control.Controller
+	// cfg 是当前生效的办公引擎配置。设置面板的写操作（Agent 参数/权限/沙箱）
+	// 直接修改它并持久化到用户配置，随后重建 controller 使变更生效。
+	cfg *gaeaConfig.Config
+}
+
+// gaeaLoadConfig 加载办公引擎配置：内置默认 + 用户持久化文件（若有），
+// 再注入 bridge provider（kind=gaea 走 gaea 模型中心）。返回可直接修改的配置。
+func gaeaLoadConfig() (*gaeaConfig.Config, error) {
+	cfg := gaeaConfig.Default()
+	if p := gaeaConfig.UserConfigPath(); p != "" {
+		if b, err := os.ReadFile(p); err == nil {
+			if _, err := toml.Decode(string(b), cfg); err != nil {
+				return nil, fmt.Errorf("gaea: 解析持久化配置 %s: %w", p, err)
+			}
+		} else if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("gaea: 读取持久化配置 %s: %w", p, err)
+		}
+	}
+	cfg.DefaultModel = "gaea"
+	cfg.Providers = []gaeaConfig.ProviderEntry{{
+		Name:          "gaea",
+		Kind:          "wubigrok", // 内部 provider 注册名（bridge provider）
+		Model:         "",
+		ContextWindow: 1_000_000,
+	}}
+	// 全部 47 个工程工具注册（Enabled 为空 = 全部）
+	cfg.Tools.Enabled = nil
+	// 关闭写文件/网络类工具的沙箱限制，避免办公工具被无谓拦截
+	cfg.Sandbox.Bash = "off"
+	return cfg, nil
+}
+
+// gaeaBuildController 用当前配置构建 controller（不持有 ga.mu，调用方负责）。
+func (a *App) gaeaBuildController() (*control.Controller, error) {
+	// 事件转发：gaea 事件流 → 前端 gaea-event 回调
+	sink := event.FuncSink(func(e event.Event) {
+		a.emit("gaea-event", gaeaEventMap(e))
+	})
+	// 构建 controller（Hermes 规划 + Hephaestus 执行）
+	//    SessionDir 必须指向工作区会话目录（cwd/.gaea/sessions），与
+	//    GaeaListSessions/GaeaResumeSession 的读取路径一致，否则历史面板
+	//    永远看不到当前会话（会落到用户级 AppData/Roaming/gaea/sessions）。
+	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
+		Model:      "gaea",
+		RequireKey: false,
+		Sink:       sink,
+		MaxSteps:   0,
+		SessionDir: gaeaConfig.WorkspaceSessionDir(""),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("gaea: 引擎初始化失败: %w", err)
+	}
+	// 启用交互式审批：工具调用放行/拒绝、ask 结构化提问经前端确认，
+	// 否则全部工具（含写文件/网络）自动放行且审批弹窗永不出现。
+	ctrl.EnableInteractiveApproval()
+	return ctrl, nil
+}
+
+// gaeaRebuildLocked 用当前配置重建 controller（设置变更后生效），替换旧实例。
+// 调用方必须已持有 ga.mu。
+func (a *App) gaeaRebuildLocked() error {
+	newCtrl, err := a.gaeaBuildController()
+	if err != nil {
+		return err
+	}
+	old := ga.ctrl
+	ga.ctrl = newCtrl
+	if old != nil {
+		old.Close()
+	}
+	return nil
 }
 
 // GaeaInit 初始化办公引擎（幂等）。用 gaea 模型中心的默认引擎驱动。
@@ -36,48 +110,27 @@ func (a *App) GaeaInit() error {
 	// 1. 注入模型中心客户端（bridge provider 的底层）
 	bridge.SetClient(a.client)
 
-	// 2. 注入配置：bridge provider（kind=gaea 走 gaea 模型中心）
-	//    Model 留空：每次请求由 ai.Client 按当前活跃引擎动态解析默认模型，
-	//    实现办公板块自动跟随模型中心的引擎/模型切换。
-	cfg := gaeaConfig.Default()
-	cfg.DefaultModel = "gaea"
-	cfg.Providers = []gaeaConfig.ProviderEntry{{
-		Name:          "gaea",
-		Kind:          "wubigrok", // 内部 provider 注册名（bridge provider）
-		Model:         "",
-		ContextWindow: 1_000_000,
-	}}
-	// 全部 47 个工程工具注册（Enabled 为空 = 全部）
-	cfg.Tools.Enabled = nil
-	// 关闭写文件/网络类工具的沙箱限制，避免办公工具被无谓拦截
-	cfg.Sandbox.Bash = "off"
-	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) { return cfg, nil })
-
-	// 4. 事件转发：gaea 事件流 → 前端 gaea-event 回调
-
-	// 4. 事件转发：gaea 事件流 → 前端 gaea-event 回调
-	sink := event.FuncSink(func(e event.Event) {
-		a.emit("gaea-event", gaeaEventMap(e))
-	})
-
-	// 5. 构建 controller（Hermes 规划 + Hephaestus 执行）
-	//    SessionDir 必须指向工作区会话目录（cwd/.gaea/sessions），与
-	//    GaeaListSessions/GaeaResumeSession 的读取路径一致，否则历史面板
-	//    永远看不到当前会话（会落到用户级 AppData/Roaming/gaea/sessions）。
-	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
-		Model:      "gaea",
-		RequireKey: false,
-		Sink:       sink,
-		MaxSteps:   0,
-		SessionDir: gaeaConfig.WorkspaceSessionDir(""),
-	})
+	// 2. 注入配置：持久化文件（用户设置）+ bridge provider
+	cfg, err := gaeaLoadConfig()
 	if err != nil {
-		return fmt.Errorf("gaea: 引擎初始化失败: %w", err)
+		return err
+	}
+	ga.cfg = cfg
+	// loader 无锁读 ga.cfg：ga.cfg 指针的替换在持锁下进行，读取方只会拿到
+	// 一个完整可用的配置（旧指针在替换后不再被修改），不会与重建死锁。
+	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) {
+		if ga.cfg == nil {
+			return gaeaConfig.Default(), nil
+		}
+		return ga.cfg, nil
+	})
+
+	// 3. 构建 controller
+	ctrl, err := a.gaeaBuildController()
+	if err != nil {
+		return err
 	}
 	ga.ctrl = ctrl
-	// 启用交互式审批：工具调用放行/拒绝、ask 结构化提问经前端确认，
-	// 否则全部工具（含写文件/网络）自动放行且审批弹窗永不出现。
-	ctrl.EnableInteractiveApproval()
 	// 通知前端办公引擎就绪（对应 gaea/lib/bridge.ts 的 onReady 监听 gaea-ready）
 	a.emit("gaea-ready", map[string]interface{}{"kind": "ready"})
 	return nil
