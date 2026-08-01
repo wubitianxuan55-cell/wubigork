@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 )
@@ -350,11 +349,6 @@ func EpisodicBlock(mm []Memory) string {
 	b.WriteString("</episodic-memory>")
 	return b.String()
 }
-
-// ─── LinkGraph: [[memory-name]] cross-reference resolver ──────────────────
-
-// linkRefRe matches [[name]] references in memory bodies.
-var linkRefRe = regexp.MustCompile(`\[\[([a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)\]\]`)
 
 // InitDefaults creates default memory files when a project or user config has
 // none. It writes AGENTS.md at both the user-global level (shared across all

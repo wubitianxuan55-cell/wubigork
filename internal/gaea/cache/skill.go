@@ -211,20 +211,6 @@ func (l *SkillLayer) CurrentProfile() SkillProfile { return l.current }
 // CurrentVersion returns the current profile version.
 func (l *SkillLayer) CurrentVersion() int { return l.version }
 
-// maxVersion returns the highest available version for a kind.
-func maxVersion(kind TaskKind) int {
-	versions, ok := Profiles[kind]
-	if !ok {
-		return 1
-	}
-	max := 0
-	for v := range versions {
-		if v > max {
-			max = v
-		}
-	}
-	return max
-}
 
 // AutoGenerateProfiles fills in missing v2/v3 profiles by deriving them from
 // v1. Call this once during init to reduce manual maintenance of 18+ profiles.

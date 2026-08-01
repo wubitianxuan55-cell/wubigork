@@ -70,6 +70,3 @@ func hasBinary(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
 }
-
-// execLookPath is overridable in tests.
-var execLookPath = exec.LookPath

@@ -45,13 +45,6 @@ type ToolStat struct {
 	Sessions int    `json:"sessions"` // how many distinct sessions used it
 }
 
-// sessionMeta is the on-disk format for a session file header.
-type sessionMeta struct {
-	ID        string    `json:"id"`
-	Model     string    `json:"model"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
 // dreamText scans recent sessions and returns a structured analysis report.
 func (c *Controller) dreamText(dir string) string {
 	if dir == "" {
