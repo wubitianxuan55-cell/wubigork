@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react'
-import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag } from 'antd'
+import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag, notification } from 'antd'
 import {
   HomeOutlined,
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined, ConsoleSqlOutlined,
@@ -88,12 +88,35 @@ const statusBarStyle = {
 const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }> = ({ stats, info }) => {
   // 模型监控：已启动引擎 + 系统资源（轮询 3s，防止本地模型加载过多）
   const [monitor, setMonitor] = useState<{ engines: { engine: string; name: string; model: string }[]; stats: any } | null>(null)
+  const lastWarn = useRef<Record<string, number>>({})
   useEffect(() => {
     let alive = true
+    // 超载警告：CPU/GPU/内存/模型过多，60s 内同类型只弹一次
+    const checkOverload = (m: any) => {
+      const now = Date.now()
+      const ms = m?.stats
+      const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
+      const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
+      const gpuPct = ms?.gpuUsage || vramPct
+      const engCount = (m?.engines || []).length
+      const warns: { key: string; title: string; desc: string }[] = []
+      if ((ms?.cpu ?? 0) > 85) warns.push({ key: 'cpu', title: '⚠ CPU 负载过高', desc: `当前 CPU 使用率 ${ms.cpu}%，模型占用过大，建议停用部分模型` })
+      if (gpuPct > 85) warns.push({ key: 'gpu', title: '⚠ GPU 负载过高', desc: `GPU 使用率 ${gpuPct}%（显存占用），建议停用部分本地模型` })
+      if (memPct > 90) warns.push({ key: 'mem', title: '⚠ 内存占用过高', desc: `内存使用率 ${memPct}%，建议释放不用的模型` })
+      if (engCount > 3) warns.push({ key: 'models', title: '⚠ 已启动模型过多', desc: `已启用 ${engCount} 个引擎，建议停用不用的模型（各功能窗口 ⚡ 一键启停）` })
+      warns.forEach(w => {
+        if (now - (lastWarn.current[w.key] || 0) > 60_000) {
+          lastWarn.current[w.key] = now
+          notification.warning({ message: w.title, description: w.desc, placement: 'topRight', duration: 6 })
+        }
+      })
+    }
     const load = async () => {
       try {
         const m: any = await App.GetModelMonitor()
-        if (alive) setMonitor(m)
+        if (!alive) return
+        setMonitor(m)
+        checkOverload(m)
       } catch (_) {}
     }
     load()
