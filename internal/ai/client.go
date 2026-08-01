@@ -333,6 +333,16 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 	defer close(chunks)
 	defer c.releaseSem()
 
+	// send 在 ctx 取消或通道关闭时安全退出，避免消费者提前返回后永久阻塞泄漏
+	send := func(ch SSEChunk) bool {
+		select {
+		case chunks <- ch:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+
 	// 工具调用分片按 index 拼装
 	toolPending := make(map[int]*ChatToolCall)
 	var toolOrder []int
@@ -342,7 +352,7 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			chunks <- SSEChunk{Error: "请求已取消"}
+			if !send(SSEChunk{Error: "请求已取消"}) { return }
 			return
 		default:
 		}
@@ -358,9 +368,9 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 		data := strings.TrimPrefix(line, "data: ")
 		if data == "[DONE]" {
 			if len(toolOrder) > 0 {
-				chunks <- SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)}
+				send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)})
 			} else {
-				chunks <- SSEChunk{Done: true}
+				send(SSEChunk{Done: true})
 			}
 			return
 		}
@@ -375,7 +385,7 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 		if len(choice.Choices) > 0 {
 			delta := choice.Choices[0].Delta
 			if delta.Content != "" {
-				chunks <- SSEChunk{Content: delta.Content}
+				send(SSEChunk{Content: delta.Content})
 			}
 			for _, tc := range delta.ToolCalls {
 				p, ok := toolPending[tc.Index]
@@ -392,25 +402,25 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 				}
 			}
 			if delta.FinishReason == "tool_calls" {
-				chunks <- SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)}
+				if !send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)}) { return }
 				return
 			}
 			if delta.FinishReason != "" {
-				chunks <- SSEChunk{Done: true}
+				if !send(SSEChunk{Done: true}) { return }
 				return
 			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		chunks <- SSEChunk{Error: fmt.Sprintf("流读取错误: %v", err)}
+		if !send(SSEChunk{Error: fmt.Sprintf("流读取错误: %v", err)}) { return }
 		return
 	}
 
 	if len(toolOrder) > 0 {
-		chunks <- SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)}
+		send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)})
 	} else {
-		chunks <- SSEChunk{Done: true}
+		send(SSEChunk{Done: true})
 	}
 }
 

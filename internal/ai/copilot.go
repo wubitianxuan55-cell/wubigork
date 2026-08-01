@@ -63,22 +63,32 @@ func (c *Client) GhostComplete(ctx context.Context, model string, currentText st
 		}()
 		defer close(resultCh)
 
+		// send 在 ctx 取消时安全退出，避免消费者提前返回后永久阻塞泄漏
+		send := func(ch SSEChunk) bool {
+			select {
+			case resultCh <- ch:
+				return true
+			case <-ctx2.Done():
+				return false
+			}
+		}
+
 		chunks, err := c.ChatStream(ctx2, req)
 		if err != nil {
-			resultCh <- SSEChunk{Error: err.Error()}
+			send(SSEChunk{Error: err.Error()})
 			return
 		}
 
 		for chunk := range chunks {
 			if chunk.Error != "" {
-				resultCh <- chunk
+				send(chunk)
 				return
 			}
 			if chunk.Done {
-				resultCh <- chunk
+				send(chunk)
 				return
 			}
-			resultCh <- chunk
+			send(chunk)
 		}
 	}()
 
@@ -236,6 +246,16 @@ func (c *Client) GenerateProseFromBeat(ctx context.Context, model string, beat B
 		}()
 		defer close(resultCh)
 
+		// send 在 ctx 取消时安全退出，避免消费者提前返回后永久阻塞泄漏
+		send := func(ch SSEChunk) bool {
+			select {
+			case resultCh <- ch:
+				return true
+			case <-ctx.Done():
+				return false
+			}
+		}
+
 		req := &ChatRequest{
 			Model:       model,
 			Messages:    []ChatMessage{{Role: "system", Content: systemPrompt}, {Role: "user", Content: userPrompt}},
@@ -246,20 +266,20 @@ func (c *Client) GenerateProseFromBeat(ctx context.Context, model string, beat B
 
 		chunks, err := c.ChatStream(ctx, req)
 		if err != nil {
-			resultCh <- SSEChunk{Error: err.Error()}
+			send(SSEChunk{Error: err.Error()})
 			return
 		}
 
 		for chunk := range chunks {
 			if chunk.Error != "" {
-				resultCh <- chunk
+				send(chunk)
 				return
 			}
 			if chunk.Done {
-				resultCh <- chunk
+				send(chunk)
 				return
 			}
-			resultCh <- chunk
+			send(chunk)
 		}
 	}()
 
