@@ -45,6 +45,8 @@ const (
 	KeyFuncNovelModel      = "func_novel_model"
 	KeyFuncOfficeEngine    = "func_office_engine"
 	KeyFuncOfficeModel     = "func_office_model"
+	KeyFuncGaeaEngine      = "func_gaea_engine"
+	KeyFuncGaeaModel       = "func_gaea_model"
 	KeyDeepseekAPIKey      = "deepseek_api_key"
 )
 
@@ -84,6 +86,8 @@ type configFile struct {
 	FuncNovelModel      string  `json:"func_novel_model,omitempty"`
 	FuncOfficeEngine    string  `json:"func_office_engine,omitempty"`
 	FuncOfficeModel     string  `json:"func_office_model,omitempty"`
+	FuncGaeaEngine      string  `json:"func_gaea_engine,omitempty"`
+	FuncGaeaModel       string  `json:"func_gaea_model,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -159,6 +163,8 @@ type Config struct {
 	FuncNovelModel    string
 	FuncOfficeEngine  string
 	FuncOfficeModel   string
+	FuncGaeaEngine    string
+	FuncGaeaModel     string
 }
 
 // Load 加载配置（只应调用一次）。
@@ -391,6 +397,12 @@ func Load() *Config {
 			if cf.FuncOfficeModel != "" {
 				cfg.FuncOfficeModel = cf.FuncOfficeModel
 			}
+			if cf.FuncGaeaEngine != "" {
+				cfg.FuncGaeaEngine = cf.FuncGaeaEngine
+			}
+			if cf.FuncGaeaModel != "" {
+				cfg.FuncGaeaModel = cf.FuncGaeaModel
+			}
 		}
 	}
 
@@ -495,4 +507,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyFuncNovelModel:    func(cf *configFile, v string) error { cf.FuncNovelModel = v; return nil },
 	KeyFuncOfficeEngine:  func(cf *configFile, v string) error { cf.FuncOfficeEngine = v; return nil },
 	KeyFuncOfficeModel:   func(cf *configFile, v string) error { cf.FuncOfficeModel = v; return nil },
+	KeyFuncGaeaEngine:    func(cf *configFile, v string) error { cf.FuncGaeaEngine = v; return nil },
+	KeyFuncGaeaModel:     func(cf *configFile, v string) error { cf.FuncGaeaModel = v; return nil },
 }

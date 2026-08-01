@@ -6,6 +6,7 @@ import * as App from '../../wailsjs/go/app/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import mermaid from 'mermaid'
 import '../whisper-theme.css'
+import FeatureModelBar from '../components/FeatureModelBar'
 mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' })
 const { Title, Text, Paragraph } = Typography; const { TextArea } = Input
 

@@ -1,6 +1,7 @@
 import React from 'react'
 import GaeaApp from '../gaea/App'
 import { LocaleProvider } from '../gaea/lib/i18n'
+import FeatureModelBar from '../components/FeatureModelBar'
 import '../gaea/styles.css'
 import '../gaea/tailwind.css'
 
@@ -11,9 +12,16 @@ import '../gaea/tailwind.css'
 // 'useI18n must be used within a LocaleProvider'。
 function GaeaPage() {
   return (
-    <LocaleProvider>
-      <GaeaApp />
-    </LocaleProvider>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '4px 16px', flexShrink: 0 }}>
+        <FeatureModelBar feature="gaea" label="办公" />
+      </div>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <LocaleProvider>
+          <GaeaApp />
+        </LocaleProvider>
+      </div>
+    </div>
   )
 }
 

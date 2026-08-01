@@ -12,6 +12,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Z_INDEX } from '../utils/zIndex'
 import { useAppStore, type ThemePreset, type StatsData, type ProjectInfo } from '../stores/appStore'
 import ModuleLauncher, { type LauncherTarget } from '../components/ModuleLauncher'
+import * as App from '../../wailsjs/go/app/App'
 const NovelPage = React.lazy(() => import('../pages/NovelPage'))
 const SettingsPage = React.lazy(() => import('../pages/SettingsPage'))
 const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'))
@@ -85,7 +86,24 @@ const statusBarStyle = {
 }
 
 const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }> = ({ stats, info }) => {
-  if (!info && !stats) return null
+  // 模型监控：已启动引擎 + 系统资源（轮询 3s，防止本地模型加载过多）
+  const [monitor, setMonitor] = useState<{ engines: { engine: string; name: string; model: string }[]; stats: any } | null>(null)
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const m: any = await App.GetModelMonitor()
+        if (alive) setMonitor(m)
+      } catch (_) {}
+    }
+    load()
+    const t = setInterval(load, 3000)
+    return () => { alive = false; clearInterval(t) }
+  }, [])
+  const ms = monitor?.stats
+  const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
+  const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
+  const engLabel = (monitor?.engines || []).map(e => `${e.engine}${e.model ? '·' + String(e.model).split('/').pop() : ''}`)
   // 计算写作进度：已写章节/总大纲叶子节点（stats.chapterCount 为已有章节，保守取该值）
   const plannedChapters = stats?.chapterCount ? Math.max(stats.chapterCount, (stats as any).plannedChapters || 0) : 0
   const writtenChapters = stats?.chapterCount || 0
@@ -95,6 +113,9 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
     <div style={statusBarStyle}>
       <Space size={16}>
         <span className="live-dot" style={{ width: 6, height: 6 }} />
+        <span title="已启用引擎（模型中心可启停）" style={{ whiteSpace: 'nowrap' }}>
+          🧠 {engLabel.length ? engLabel.join('　') : <span style={{ opacity: 0.5 }}>无启用引擎</span>}
+        </span>
         {info && <span style={{ color: 'var(--md-sys-color-text)', fontWeight: 500 }}>{info.title}</span>}
         {/* 全书进度条 — 借鉴 Scrivener 写作目标 */}
         {stats && (
@@ -121,6 +142,11 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
         )}
       </Space>
       <Space size={16}>
+        <span title="CPU 使用率">💻 CPU {ms?.cpu ?? '--'}%</span>
+        <span title="内存使用率">🧠 内存 {ms ? memPct + '%' : '--'}</span>
+        {ms?.gpuName ? (
+          <span title={`GPU ${ms.gpuName}`}>🎮 GPU {ms.gpuUsage ? ms.gpuUsage + '%' : vramPct ? vramPct + '%' : '--'}</span>
+        ) : null}
         {stats && (
           <>
             <span><TeamOutlined style={{ marginRight: 4 }} />{stats.characterCount} 角色</span>

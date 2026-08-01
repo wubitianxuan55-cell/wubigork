@@ -145,6 +145,7 @@ const ModelCenterPage: React.FC = () => {
     { key: 'whisper', label: '轻语', icon: '🫀' },
     { key: 'novel', label: '小说', icon: '📖' },
     { key: 'office', label: '方案编写', icon: '📄' },
+    { key: 'gaea', label: '办公', icon: '🛠️' },
   ]
   const [featureCfg, setFeatureCfg] = useState<Record<string, { engine: string; model: string }>>({})
   const [featureDraft, setFeatureDraft] = useState<Record<string, { engine: string; model: string }>>({})
@@ -152,7 +153,7 @@ const ModelCenterPage: React.FC = () => {
   const loadFeatureCfg = useCallback(async () => {
     try {
       const cfg: Record<string, { engine: string; model: string }> = {}
-      for (const f of ['chat', 'whisper', 'novel', 'office']) {
+      for (const f of ['chat', 'whisper', 'novel', 'office', 'gaea']) {
         const r: any = await App.GetFeatureModel(f)
         cfg[f] = { engine: r?.engine || '', model: r?.model || '' }
       }

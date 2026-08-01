@@ -23,6 +23,8 @@ func featureModelKeys(feature string) (engineKey, modelKey string, ok bool) {
 		return config.KeyFuncNovelEngine, config.KeyFuncNovelModel, true
 	case "office":
 		return config.KeyFuncOfficeEngine, config.KeyFuncOfficeModel, true
+	case "gaea":
+		return config.KeyFuncGaeaEngine, config.KeyFuncGaeaModel, true
 	}
 	return "", "", false
 }
@@ -38,6 +40,8 @@ func (c *core) featureModel(feature string) (engine, model string) {
 		return c.cfg.FuncNovelEngine, c.cfg.FuncNovelModel
 	case "office":
 		return c.cfg.FuncOfficeEngine, c.cfg.FuncOfficeModel
+	case "gaea":
+		return c.cfg.FuncGaeaEngine, c.cfg.FuncGaeaModel
 	}
 	return "", ""
 }
@@ -82,6 +86,8 @@ func (c *core) SetFeatureModel(feature, engineID, modelName string) error {
 		c.cfg.FuncNovelEngine, c.cfg.FuncNovelModel = engineID, modelName
 	case "office":
 		c.cfg.FuncOfficeEngine, c.cfg.FuncOfficeModel = engineID, modelName
+	case "gaea":
+		c.cfg.FuncGaeaEngine, c.cfg.FuncGaeaModel = engineID, modelName
 	}
 	if err := config.Save(engineKey, engineID); err != nil {
 		slog.Warn("保存功能引擎失败", "feature", feature, "error", err)
@@ -98,4 +104,30 @@ func (c *core) SetFeatureModel(feature, engineID, modelName string) error {
 func (c *core) GetFeatureModel(feature string) map[string]string {
 	engine, model := c.featureModel(feature)
 	return map[string]string{"engine": engine, "model": model}
+}
+
+// GetModelMonitor 模型监控：返回所有已启用（运行中）引擎的模型列表 + 系统资源
+// 供底栏展示「已启动模型 / CPU / 内存 / GPU」，防止本地模型加载过多。
+func (a *App) GetModelMonitor() map[string]interface{} {
+	engines := []map[string]interface{}{}
+	if a.engineMgr != nil {
+		for _, e := range a.engineMgr.GetEngines() {
+			if !e.Enabled {
+				continue
+			}
+			engines = append(engines, map[string]interface{}{
+				"engine": e.ID,
+				"name":   e.Name,
+				"model":  e.DefaultModel,
+			})
+		}
+	}
+	var stats map[string]interface{}
+	if a.mediaState != nil {
+		stats = a.mediaState.GetSystemStats()
+	}
+	return map[string]interface{}{
+		"engines": engines,
+		"stats":   stats,
+	}
 }
