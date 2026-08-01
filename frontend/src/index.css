@@ -220,6 +220,16 @@ body {
               0 0 26px color-mix(in srgb, var(--gaea-glow) 24%, transparent);
 }
 
+/* ── 首页语音卡片（language-core）：边框透明，融入虚空，只留背景玻璃感 ── */
+.language-core {
+  border-color: transparent !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+              0 10px 36px rgba(0, 0, 0, 0.25);
+}
+.language-core.neon-card::before {
+  opacity: 0 !important;
+}
+
 /* 语音激活按钮呼吸脉冲 */
 .voice-btn-active {
   animation: voiceBtnPulse 1.6s ease-in-out infinite;
