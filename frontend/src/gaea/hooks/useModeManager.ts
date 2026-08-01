@@ -2,7 +2,6 @@
 // 主题统一：跟随主应用（老栈）darkMode，gaea 不再维护独立主题。
 import { useState, useCallback } from "react";
 import type { PermLevel } from "../lib/types";
-import { useAppStore } from "../../stores/appStore";
 import { app } from "../lib/bridge";
 
 const THINK_TEMPS: Record<string, number> = { fast: 0.1, normal: 0.3, deep: 0.7 };
@@ -16,12 +15,6 @@ export function useModeManager(
   const [permLevel, setPermLevelState] = useState<PermLevel>("ask");
   const [thinkLevel, setThinkLevel] = useState<"fast" | "normal" | "deep">("normal");
   const [switchingModel, setSwitchingModel] = useState(false);
-
-  // 主题跟随主应用：darkMode 即"暗色"，light 即"亮色"
-  const darkMode = useAppStore((s) => s.darkMode);
-  const toggleDarkMode = useAppStore((s) => s.toggleDarkMode);
-  const themeNow = darkMode ? "slate" : "paper";
-  const setTheme = toggleDarkMode;
 
   const setPermLevel = useCallback((level: PermLevel) => {
     setPermLevelState(level);
@@ -48,5 +41,5 @@ export function useModeManager(
     [setModel],
   );
 
-  return { permLevel, setPermLevel, thinkLevel, themeNow, setTheme, switchingModel, handleThinkLevelChange, switchModel };
+  return { permLevel, setPermLevel, thinkLevel, switchingModel, handleThinkLevelChange, switchModel };
 }

@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
   BarChart3, BookOpen, SquarePen, Brain, ChevronDown, Cpu, FolderGit2, FolderTree, GitBranch,
-  PanelRightOpen, PanelRightClose, Settings as SettingsIcon, MessageSquare, FileText,
+  PanelRightOpen, PanelRightClose, MessageSquare, FileText,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -18,7 +18,6 @@ import { TodoPanel } from "./components/TodoPanel";
 import { ApprovalModal } from "./components/ApprovalModal";
 import { AskCard } from "./components/AskCard";
 import { PlanCard } from "./components/PlanCard";
-import { ThemeSwitcher } from "./components/ThemeSwitcher";
 import { ToolbarButton } from "./components/ToolbarButton";
 import { StatusBar } from "./components/StatusBar";
 import { ContextBar } from "./components/StatusBar";
@@ -26,7 +25,6 @@ import { ModelSwitcher } from "./components/ModelSwitcher";
 import { MessageNavigator } from "./components/MessageNavigator";
 const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
-const SettingsPanel = lazy(() => import("./components/SettingsPanel").then(m => ({ default: m.SettingsPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
 import { WorkspacePanel } from "./components/WorkspacePanel";
@@ -136,11 +134,10 @@ export default function App() {
     changeFactType,
   } = useController();
   const t = useT();
-  const { permLevel, setPermLevel, themeNow, setTheme, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
+  const { permLevel, setPermLevel, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
   const [memView, setMemView] = useState<MemoryView | null>(null);
   const [histView, setHistView] = useState<SessionMeta[] | null>(null);
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, loadMore, hasMore, handleResumeSession, handleDeleteSession, handleRenameSession } = useSessionManager(newSession, listSessions, resumeSession, deleteSession, renameSession);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const newSessionAndReset = useCallback(async () => { setStatsReset(n => n + 1); await startNewSession(); }, [startNewSession]);
   const [statsReset, setStatsReset] = useState(0);
   const [capsOpen, setCapsOpen] = useState(false);
@@ -319,7 +316,6 @@ export default function App() {
       const inInput = t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
       if (ke.key === "Escape" && !inInput && !state.running) {
         if (capsOpen) { ke.preventDefault(); setCapsOpen(false); return; }
-        if (settingsOpen) { ke.preventDefault(); setSettingsOpen(false); return; }
         if (memView !== null) { ke.preventDefault(); setMemView(null); return; }
         if (histView !== null) { ke.preventDefault(); setHistView(null); return; }
         if (knowledgeOpen) { ke.preventDefault(); setKnowledgeOpen(false); return; }
@@ -327,7 +323,6 @@ export default function App() {
       if (!mod) return;
       if (ke.key === "n" && !state.running) { ke.preventDefault(); void newSessionAndReset(); return; }
       if (ke.key === "k") { ke.preventDefault(); setPaletteOpen(true); return; }
-      if (ke.key === ",") { ke.preventDefault(); setSettingsOpen(true); return; }
       if (ke.key === "H" && ke.shiftKey) { ke.preventDefault(); void openHistory(); return; }
       if (ke.key === "K" && ke.shiftKey) { ke.preventDefault(); void openKnowledge(); return; }
       if (ke.key === "H" && ke.shiftKey) { ke.preventDefault(); void openHistory(); return; }
@@ -336,7 +331,7 @@ export default function App() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [state.running, capsOpen, settingsOpen, memView, histView, knowledgeOpen, workspacePanelOpen]);
+  }, [state.running, capsOpen, memView, histView, knowledgeOpen, workspacePanelOpen]);
 
   const { toolCounts, skillCounts } = useToolStats(state.items);
 
@@ -358,7 +353,6 @@ export default function App() {
   const paletteItems = useMemo<PaletteItem[]>(() => {
     const cmds: PaletteItem[] = [
       { id: "cmd-new", group: t("palette.group.commands") ?? "命令", title: t("topbar.newSession") ?? "新建会话", icon: <SquarePen size={15} />, compact: true, keywords: ["new", "新建"], run: () => void newSessionAndReset() },
-      { id: "cmd-settings", group: t("palette.group.commands") ?? "命令", title: t("topbar.settings") ?? "设置", icon: <SettingsIcon size={15} />, compact: true, keywords: ["settings", "设置"], run: () => setSettingsOpen(true) },
       { id: "cmd-memory", group: t("palette.group.commands") ?? "命令", title: t("topbar.memory") ?? "记忆", icon: <Brain size={15} />, compact: true, keywords: ["memory", "记忆"], run: () => void openMemory() },
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
@@ -431,7 +425,6 @@ export default function App() {
           onOpenMemory={openMemory}
           onOpenCaps={() => setCapsOpen(true)}
           onOpenKnowledge={openKnowledge}
-          onOpenSettings={() => setSettingsOpen(true)}
           startResize={startSidebarResize}
           resizeWithKeyboard={resizeSidebarWithKeyboard}
           onDoubleClickResize={() => setExpandedSidebarWidth(SIDEBAR_DEFAULT_WIDTH)}
@@ -492,7 +485,6 @@ export default function App() {
               </ToolbarButton>
               <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); try { localStorage.setItem("gaea.compactMode", v ? "1" : "0"); } catch {} }} title={compactMode ? "展开模式" : "紧凑模式"}>{compactMode ? "⊞" : "⊟"}</ToolbarButton>
               <ToolbarButton onClick={() => downloadMarkdown(exportAsMarkdown(state.items))} disabled={state.items.length===0}>导出</ToolbarButton>
-              <ThemeSwitcher theme={themeNow} onSet={setTheme} />
             </div>
           </header>
 
@@ -672,10 +664,6 @@ export default function App() {
             onClose={closeHistory}
           />
         )}
-      </Suspense>
-
-      <Suspense fallback={null}>
-        {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} onChanged={() => void refreshMeta()} />}
       </Suspense>
 
       <Suspense fallback={null}>

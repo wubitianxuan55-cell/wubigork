@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import {
   SquarePen, Brain, Blocks, BookOpen, MessageSquare,
   PanelLeftClose, PanelLeftOpen,
-  Settings as SettingsIcon,
 } from "../icons";
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
@@ -28,7 +27,6 @@ export interface SidebarProps {
   onOpenMemory: () => void;
   onOpenCaps: () => void;
   onOpenKnowledge: () => void;
-  onOpenSettings: () => void;
   startResize: (e: ReactPointerEvent<HTMLButtonElement>) => void;
   resizeWithKeyboard: (e: KeyboardEvent<HTMLButtonElement>) => void;
   onDoubleClickResize: () => void;
@@ -53,7 +51,6 @@ export function Sidebar({
   onOpenMemory,
   onOpenCaps,
   onOpenKnowledge,
-  onOpenSettings,
   resizeWithKeyboard,
   startResize,
   onDoubleClickResize,
@@ -281,15 +278,6 @@ export function Sidebar({
           >
             <Blocks size={15} />
             {!collapsed && <span>{t("caps.title")}</span>}
-          </button>
-          <button
-            className={`flex items-center gap-2.5 h-8 px-2.5 rounded-md text-fg-faint text-[13px] no-drag transition-[color,background,transform] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover active:scale-[0.97] disabled:opacity-40 disabled:cursor-default ${collapsed ? "justify-center w-10 !p-0 !gap-0" : ""}`}
-            onClick={() => onOpenSettings()}
-            disabled={running}
-            title={running ? t("common.busyHint") : t("topbar.settings")}
-          >
-            <SettingsIcon size={15} />
-            {!collapsed && <span>{t("topbar.settings")}</span>}
           </button>
         </nav>
       </aside>
