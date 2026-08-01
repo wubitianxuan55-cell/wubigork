@@ -18,7 +18,6 @@ import (
 // command/ask/task）的 Schema 是否为合法 JSON。非法 schema 会在 bridge 发送
 // 消息时导致 json.Marshal 失败（"invalid character '}' after top-level value"）。
 
-
 func TestGaeaDynamicToolSchemasValid(t *testing.T) {
 	bridge.SetClient(ai.NewClient(config.Load()))
 	skStore := skill.New(skill.Options{DisableBuiltins: true})

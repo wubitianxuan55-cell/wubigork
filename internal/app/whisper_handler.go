@@ -6,22 +6,22 @@ import (
 	"log/slog"
 	"sync"
 
-	qrcode "github.com/skip2/go-qrcode"
 	"github.com/gaea/gaea/internal/assistant"
 	"github.com/gaea/gaea/internal/channels/weixin"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/whisper"
 	"github.com/gaea/gaea/internal/whisper/db"
 	"github.com/gaea/gaea/internal/whisper/db/repos"
+	qrcode "github.com/skip2/go-qrcode"
 )
 
 // Chat 实现 whisper.LlmClient 接口（接入 gaea 模型中心）
-func (a *App) Chat(systemPrompt, userPrompt string) (string, error) {
+func (a *whisperState) Chat(systemPrompt, userPrompt string) (string, error) {
 	return a.client.ChatSimpleStream(a.ctx, "", systemPrompt, userPrompt)
 }
 
 // GetEngineList 返回模型中心全部引擎 ID（轻语设置面板引擎选择器用）
-func (a *App) GetEngineList() []string {
+func (a *whisperState) GetEngineList() []string {
 	if a.engineMgr == nil {
 		return []string{"default"}
 	}
@@ -35,12 +35,13 @@ func (a *App) GetEngineList() []string {
 	}
 	return ids
 }
+
 var (
 	whisperSessions   = map[string]*whisper.Orchestrator{}
 	whisperSessionsMu sync.RWMutex
 )
 
-func (a *App) getOrCreateOrch(personalityID string) *whisper.Orchestrator {
+func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrator {
 	sessionID := "whisper_" + personalityID
 	whisperSessionsMu.RLock()
 	if orch, ok := whisperSessions[sessionID]; ok {
@@ -67,11 +68,11 @@ func (a *App) getOrCreateOrch(personalityID string) *whisper.Orchestrator {
 	return orch
 }
 
-func (a *App) WhisperGetPersonalities() []whisper.PersonalityPreset {
+func (a *whisperState) WhisperGetPersonalities() []whisper.PersonalityPreset {
 	return whisper.PersonalityPresets
 }
 
-func (a *App) WhisperChat(userMsg string, personalityID string) (result map[string]interface{}, err error) {
+func (a *whisperState) WhisperChat(userMsg string, personalityID string) (result map[string]interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("[whisper] PANIC", "panic", fmt.Sprintf("%v", r))
@@ -208,18 +209,18 @@ func buildFactsList(fs *whisper.FactStore) []map[string]interface{} {
 	facts := make([]map[string]interface{}, 0, len(active))
 	for _, f := range active {
 		fact := map[string]interface{}{
-			"id":         f.ID,
-			"domain":     f.Domain,
-			"subcategory": f.Subcategory,
-			"subject":    f.Subject,
-			"summary":    f.Summary,
-			"weight":     f.Weight,
-			"confidence": f.Confidence,
-			"createdAt":  f.CreatedAt.Format("2006-01-02 15:04"),
-			"updatedAt":  f.UpdatedAt.Format("2006-01-02 15:04"),
-			"tier":       f.RawTier,
-			"triggers":   f.Triggers,
-			"sensitivity": f.Sensitivity,
+			"id":           f.ID,
+			"domain":       f.Domain,
+			"subcategory":  f.Subcategory,
+			"subject":      f.Subject,
+			"summary":      f.Summary,
+			"weight":       f.Weight,
+			"confidence":   f.Confidence,
+			"createdAt":    f.CreatedAt.Format("2006-01-02 15:04"),
+			"updatedAt":    f.UpdatedAt.Format("2006-01-02 15:04"),
+			"tier":         f.RawTier,
+			"triggers":     f.Triggers,
+			"sensitivity":  f.Sensitivity,
 			"privacyLevel": f.PrivacyLevel,
 		}
 		if f.EmotionalContext != nil {
@@ -236,7 +237,7 @@ func buildFactsList(fs *whisper.FactStore) []map[string]interface{} {
 }
 
 // WhisperGetFacts 独立获取当前会话的记忆列表
-func (a *App) WhisperGetFacts(personalityID string) []map[string]interface{} {
+func (a *whisperState) WhisperGetFacts(personalityID string) []map[string]interface{} {
 	whisperSessionsMu.RLock()
 	orch, ok := whisperSessions["whisper_"+personalityID]
 	whisperSessionsMu.RUnlock()
@@ -247,7 +248,7 @@ func (a *App) WhisperGetFacts(personalityID string) []map[string]interface{} {
 }
 
 // WhisperDeleteFact 删除指定记忆
-func (a *App) WhisperDeleteFact(personalityID string, factID string) error {
+func (a *whisperState) WhisperDeleteFact(personalityID string, factID string) error {
 	whisperSessionsMu.RLock()
 	orch, ok := whisperSessions["whisper_"+personalityID]
 	whisperSessionsMu.RUnlock()
@@ -260,7 +261,7 @@ func (a *App) WhisperDeleteFact(personalityID string, factID string) error {
 }
 
 // WhisperUpdateFact 更新记忆字段
-func (a *App) WhisperUpdateFact(personalityID string, factID string, updates map[string]interface{}) error {
+func (a *whisperState) WhisperUpdateFact(personalityID string, factID string, updates map[string]interface{}) error {
 	whisperSessionsMu.RLock()
 	orch, ok := whisperSessions["whisper_"+personalityID]
 	whisperSessionsMu.RUnlock()
@@ -272,7 +273,7 @@ func (a *App) WhisperUpdateFact(personalityID string, factID string, updates map
 	return nil
 }
 
-func (a *App) WhisperGetState(personalityID string) map[string]interface{} {
+func (a *whisperState) WhisperGetState(personalityID string) map[string]interface{} {
 	whisperSessionsMu.RLock()
 	orch, ok := whisperSessions["whisper_"+personalityID]
 	whisperSessionsMu.RUnlock()
@@ -302,7 +303,7 @@ func (a *App) WhisperGetState(personalityID string) map[string]interface{} {
 	}
 }
 
-func (a *App) WhisperSetEngine(engineID string) error {
+func (a *whisperState) WhisperSetEngine(engineID string) error {
 	whisperSessionsMu.RLock()
 	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
@@ -311,7 +312,7 @@ func (a *App) WhisperSetEngine(engineID string) error {
 	return nil
 }
 
-func (a *App) WhisperGetEngine() string {
+func (a *whisperState) WhisperGetEngine() string {
 	whisperSessionsMu.RLock()
 	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
@@ -322,7 +323,7 @@ func (a *App) WhisperGetEngine() string {
 	return a.client.ActiveEngineID()
 }
 
-func (a *App) WhisperSetModel(engineID, modelName string) error {
+func (a *whisperState) WhisperSetModel(engineID, modelName string) error {
 	whisperSessionsMu.RLock()
 	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
@@ -332,7 +333,7 @@ func (a *App) WhisperSetModel(engineID, modelName string) error {
 	return nil
 }
 
-func (a *App) WhisperGetModel() string {
+func (a *whisperState) WhisperGetModel() string {
 	whisperSessionsMu.RLock()
 	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
@@ -343,7 +344,7 @@ func (a *App) WhisperGetModel() string {
 	return a.GetActiveModel()
 }
 
-func (a *App) WhisperSetImageModel(modelName string) error {
+func (a *whisperState) WhisperSetImageModel(modelName string) error {
 	whisperSessionsMu.RLock()
 	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
@@ -352,7 +353,7 @@ func (a *App) WhisperSetImageModel(modelName string) error {
 	return nil
 }
 
-func (a *App) WhisperGetImageModel() string {
+func (a *whisperState) WhisperGetImageModel() string {
 	whisperSessionsMu.RLock()
 	defer whisperSessionsMu.RUnlock()
 	for _, orch := range whisperSessions {
@@ -363,7 +364,7 @@ func (a *App) WhisperGetImageModel() string {
 	return ""
 }
 
-func (a *App) WhisperGetConfig() map[string]interface{} {
+func (a *whisperState) WhisperGetConfig() map[string]interface{} {
 	return map[string]interface{}{
 		"engine":       a.WhisperGetEngine(),
 		"model":        a.WhisperGetModel(),
@@ -374,11 +375,11 @@ func (a *App) WhisperGetConfig() map[string]interface{} {
 	}
 }
 
-func (a *App) WhisperGetEngines() []modelengine.EngineConfig {
+func (a *whisperState) WhisperGetEngines() []modelengine.EngineConfig {
 	return a.GetEngines()
 }
 
-func (a *App) WhisperClearSession(personalityID string) error {
+func (a *whisperState) WhisperClearSession(personalityID string) error {
 	sessionID := "whisper_" + personalityID
 	whisperSessionsMu.Lock()
 	delete(whisperSessions, sessionID)
@@ -386,7 +387,7 @@ func (a *App) WhisperClearSession(personalityID string) error {
 	return nil
 }
 
-func (a *App) WhisperSetAdultMode(personalityID string, enabled bool) error {
+func (a *whisperState) WhisperSetAdultMode(personalityID string, enabled bool) error {
 	whisperSessionsMu.RLock()
 	orch, ok := whisperSessions["whisper_"+personalityID]
 	whisperSessionsMu.RUnlock()
@@ -401,7 +402,7 @@ func (a *App) WhisperSetAdultMode(personalityID string, enabled bool) error {
 // ─── 上网查询 ──────────────────────────────────────────────────
 
 // WhisperWebSearch 执行上网查询（只读）
-func (a *App) WhisperWebSearch(query string) (map[string]interface{}, error) {
+func (a *whisperState) WhisperWebSearch(query string) (map[string]interface{}, error) {
 	slog.Info("[whisper] web search", "query", query)
 	result, err := whisper.WebSearch(query)
 	if err != nil {
@@ -418,7 +419,7 @@ func (a *App) WhisperWebSearch(query string) (map[string]interface{}, error) {
 }
 
 // WhisperChatWithSearch 带搜索增强的对话：自动检测是否需要上网查询
-func (a *App) WhisperChatWithSearch(userMsg string, personalityID string) (map[string]interface{}, error) {
+func (a *whisperState) WhisperChatWithSearch(userMsg string, personalityID string) (map[string]interface{}, error) {
 	// 检测搜索意图
 	if shouldSearchWeb(userMsg) {
 		slog.Info("[whisper] auto-search triggered", "msg", userMsg[:min(60, len(userMsg))])
@@ -458,33 +459,47 @@ func shouldSearchWeb(msg string) bool {
 
 // ─── 虚拟助手 CRUD ────────────────────────────────────────────
 
-func (a *App) WhisperAssistantList() []assistant.Assistant {
-	if a.assistantMgr == nil { return nil }
+func (a *whisperState) WhisperAssistantList() []assistant.Assistant {
+	if a.assistantMgr == nil {
+		return nil
+	}
 	return a.assistantMgr.List()
 }
 
-func (a *App) WhisperAssistantSave(ast assistant.Assistant) error {
-	if a.assistantMgr == nil { return fmt.Errorf("not ready") }
+func (a *whisperState) WhisperAssistantSave(ast assistant.Assistant) error {
+	if a.assistantMgr == nil {
+		return fmt.Errorf("not ready")
+	}
 	existing := a.assistantMgr.Get(ast.ID)
 	if existing != nil {
-		if err := a.assistantMgr.Update(ast.ID, ast); err != nil { return err }
+		if err := a.assistantMgr.Update(ast.ID, ast); err != nil {
+			return err
+		}
 		a.stopAssistantWx(ast.ID)
-		if ast.Enabled && ast.WxToken != "" { a.startAssistantWx(ast) }
+		if ast.Enabled && ast.WxToken != "" {
+			a.startAssistantWx(ast)
+		}
 		return nil
 	}
-	if err := a.assistantMgr.Add(ast); err != nil { return err }
-	if ast.Enabled && ast.WxToken != "" { a.startAssistantWx(ast) }
+	if err := a.assistantMgr.Add(ast); err != nil {
+		return err
+	}
+	if ast.Enabled && ast.WxToken != "" {
+		a.startAssistantWx(ast)
+	}
 	return nil
 }
 
-func (a *App) WhisperAssistantDelete(id string) error {
-	if a.assistantMgr == nil { return fmt.Errorf("not ready") }
+func (a *whisperState) WhisperAssistantDelete(id string) error {
+	if a.assistantMgr == nil {
+		return fmt.Errorf("not ready")
+	}
 	a.stopAssistantWx(id)
 	return a.assistantMgr.Delete(id)
 }
 
 // WhisperWeixinGetQR 获取微信扫码登录二维码
-func (a *App) WhisperWeixinGetQR() (map[string]interface{}, error) {
+func (a *whisperState) WhisperWeixinGetQR() (map[string]interface{}, error) {
 	qr, err := weixin.GetQRCode()
 	if err != nil {
 		return nil, err
@@ -503,7 +518,7 @@ func (a *App) WhisperWeixinGetQR() (map[string]interface{}, error) {
 }
 
 // WhisperWeixinQRStatus 轮询二维码状态
-func (a *App) WhisperWeixinQRStatus(qrcode string) (map[string]interface{}, error) {
+func (a *whisperState) WhisperWeixinQRStatus(qrcode string) (map[string]interface{}, error) {
 	status, err := weixin.PollQRStatus(qrcode)
 	if err != nil {
 		return nil, err
@@ -520,16 +535,20 @@ func (a *App) WhisperWeixinQRStatus(qrcode string) (map[string]interface{}, erro
 	return result, nil
 }
 
-func (a *App) WhisperWeixinStatus() []map[string]interface{} {
+func (a *whisperState) WhisperWeixinStatus() []map[string]interface{} {
 	result := []map[string]interface{}{}
-	if a.assistantMgr == nil { return result }
+	if a.assistantMgr == nil {
+		return result
+	}
 	for _, ast := range a.assistantMgr.List() {
 		item := map[string]interface{}{
 			"id": ast.ID, "name": ast.Name, "personalityId": ast.PersonalityID,
 			"enabled": ast.Enabled, "hasToken": ast.WxToken != "", "wxRunning": false,
 		}
 		a.weixinMu.Lock()
-		if srv, ok := a.weixinServers[ast.ID]; ok { item["wxRunning"] = srv.IsRunning() }
+		if srv, ok := a.weixinServers[ast.ID]; ok {
+			item["wxRunning"] = srv.IsRunning()
+		}
 		a.weixinMu.Unlock()
 		result = append(result, item)
 	}

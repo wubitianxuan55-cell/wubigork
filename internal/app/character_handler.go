@@ -12,7 +12,7 @@ import (
 // ── 角色 ──────────────────────────────────────────────────────
 
 // ChatCharacter 与角色 Agent 对话（自动解析并保存角色）
-func (a *App) ChatCharacter(userMsg string) (map[string]interface{}, error) {
+func (a *writingState) ChatCharacter(userMsg string) (map[string]interface{}, error) {
 	if a.characterAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -33,7 +33,7 @@ func (a *App) ChatCharacter(userMsg string) (map[string]interface{}, error) {
 }
 
 // GenerateCharacters AI 一键批量生成角色
-func (a *App) GenerateCharacters(count int) (map[string]interface{}, error) {
+func (a *writingState) GenerateCharacters(count int) (map[string]interface{}, error) {
 	if a.characterAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -53,7 +53,7 @@ func (a *App) GenerateCharacters(count int) (map[string]interface{}, error) {
 }
 
 // SaveCharacter 保存/更新单个角色
-func (a *App) SaveCharacter(chJSON string) error {
+func (a *writingState) SaveCharacter(chJSON string) error {
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -65,7 +65,7 @@ func (a *App) SaveCharacter(chJSON string) error {
 }
 
 // DeleteCharacter 删除角色
-func (a *App) DeleteCharacter(id string) error {
+func (a *writingState) DeleteCharacter(id string) error {
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -73,7 +73,7 @@ func (a *App) DeleteCharacter(id string) error {
 }
 
 // GenerateSingleCharacter 随机生成单个角色详情
-func (a *App) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) {
+func (a *writingState) GenerateSingleCharacter(chJSON string) (map[string]interface{}, error) {
 	if a.characterAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -96,7 +96,7 @@ func (a *App) GenerateSingleCharacter(chJSON string) (map[string]interface{}, er
 }
 
 // ChatCharacterDetail 针对特定角色对话
-func (a *App) ChatCharacterDetail(charID, userMsg string) (map[string]interface{}, error) {
+func (a *writingState) ChatCharacterDetail(charID, userMsg string) (map[string]interface{}, error) {
 	if a.characterAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -117,7 +117,7 @@ func (a *App) ChatCharacterDetail(charID, userMsg string) (map[string]interface{
 }
 
 // SaveOrganization 保存/更新组织
-func (a *App) SaveOrganization(orgJSON string) error {
+func (a *writingState) SaveOrganization(orgJSON string) error {
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -129,7 +129,7 @@ func (a *App) SaveOrganization(orgJSON string) error {
 }
 
 // DeleteOrganization 删除组织
-func (a *App) DeleteOrganization(id string) error {
+func (a *writingState) DeleteOrganization(id string) error {
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -137,7 +137,7 @@ func (a *App) DeleteOrganization(id string) error {
 }
 
 // ToggleOrgMember 切换角色-组织成员关系
-func (a *App) ToggleOrgMember(charID, orgID string) error {
+func (a *writingState) ToggleOrgMember(charID, orgID string) error {
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -145,7 +145,7 @@ func (a *App) ToggleOrgMember(charID, orgID string) error {
 }
 
 // SaveRelationship 保存/更新关系
-func (a *App) SaveRelationship(relJSON string) error {
+func (a *writingState) SaveRelationship(relJSON string) error {
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -157,7 +157,7 @@ func (a *App) SaveRelationship(relJSON string) error {
 }
 
 // DeleteRelationship 删除关系
-func (a *App) DeleteRelationship(fromID, toID string) error {
+func (a *writingState) DeleteRelationship(fromID, toID string) error {
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -165,7 +165,7 @@ func (a *App) DeleteRelationship(fromID, toID string) error {
 }
 
 // SaveCharacters 保存角色文件
-func (a *App) SaveCharacters(cfJSON string) error {
+func (a *writingState) SaveCharacters(cfJSON string) error {
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -177,7 +177,7 @@ func (a *App) SaveCharacters(cfJSON string) error {
 }
 
 // GetCharacters 获取角色文件
-func (a *App) GetCharacters() map[string]interface{} {
+func (a *writingState) GetCharacters() map[string]interface{} {
 	if a.characterAgent == nil {
 		return nil
 	}
@@ -193,7 +193,7 @@ func (a *App) GetCharacters() map[string]interface{} {
 }
 
 // GenerateCharacterPortrait 生成角色剧照
-func (a *App) GenerateCharacterPortrait(charID string, model string) (string, error) {
+func (a *writingState) GenerateCharacterPortrait(charID string, model string) (string, error) {
 	if a.characterAgent == nil {
 		return "", fmt.Errorf("请先打开项目")
 	}
@@ -201,7 +201,7 @@ func (a *App) GenerateCharacterPortrait(charID string, model string) (string, er
 }
 
 // SetCharacterPortrait 将外部图片数据设为角色剧照（来自 AI 绘梦）
-func (a *App) SetCharacterPortrait(charID string, imageData string) error {
+func (a *writingState) SetCharacterPortrait(charID string, imageData string) error {
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -210,7 +210,7 @@ func (a *App) SetCharacterPortrait(charID string, imageData string) error {
 
 // SaveCharactersBatch 批量创建角色（仅名称，其余字段留空）
 // 前端确认新角色后调用。namesJSON: JSON 字符串数组，如 `["林风","苏婉"]`
-func (a *App) SaveCharactersBatch(namesJSON string) (map[string]interface{}, error) {
+func (a *writingState) SaveCharactersBatch(namesJSON string) (map[string]interface{}, error) {
 	if a.characterAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}

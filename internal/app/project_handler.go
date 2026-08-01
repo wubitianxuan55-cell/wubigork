@@ -20,6 +20,7 @@ func (a *App) CreateProject(dir, title, genre, style string) (map[string]interfa
 		"style": pm.Meta.Style,
 	}, nil
 }
+
 // ═══════════════════════════════════════════════════════════════
 
 // OpenProject 打开已有项目

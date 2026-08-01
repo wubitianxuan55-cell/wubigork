@@ -12,7 +12,7 @@ import (
 	"github.com/gaea/gaea/internal/util"
 )
 
-func (a *App) CreateChapter(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string, skillName string) (map[string]interface{}, error) {
+func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string, skillName string) (map[string]interface{}, error) {
 	if a.client == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
@@ -86,15 +86,15 @@ func (a *App) CreateChapter(setting, prevSummary, plotReq string, chapterNum int
 	go a.streamCreateChapter(pm, of, setting, prevSummary, plotReq, chapterNum, branchFromNodeID, systemPrompt, userPrompt, minWords, maxContinues, targetNum, nodeID, branch)
 
 	return map[string]interface{}{
-		"streaming":   true,
-		"chapterNum":  targetNum,
-		"nodeId":      nodeID,
-		"branch":      branch,
+		"streaming":  true,
+		"chapterNum": targetNum,
+		"nodeId":     nodeID,
+		"branch":     branch,
 	}, nil
 }
 
 // streamCreateChapter 在后台 goroutine 中流式生成章节，字数不足时续写
-func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID, systemPrompt, userPrompt string, minWords, maxContinues int, targetNum int, nodeID string, branch string) {
+func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID, systemPrompt, userPrompt string, minWords, maxContinues int, targetNum int, nodeID string, branch string) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("CreateChapter stream panic", "panic", r)
@@ -102,8 +102,8 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 		}
 	}()
 
-	var fullText string  // 全部原始内容（含摘要标记，用于提取 summary）
-	var bodyText string  // 纯正文（不含 ---CHAPTER_SUMMARY--- 及摘要，用于字数和最终保存）
+	var fullText string // 全部原始内容（含摘要标记，用于提取 summary）
+	var bodyText string // 纯正文（不含 ---CHAPTER_SUMMARY--- 及摘要，用于字数和最终保存）
 	currentPrompt := userPrompt
 
 	for attempt := 0; attempt <= maxContinues; attempt++ {
@@ -201,7 +201,7 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 		if len([]rune(bodyText)) >= minWords {
 			break // 达标
 		}
-		}
+	}
 
 	// 提取正文和摘要
 	content := strings.TrimSpace(bodyText) // 纯正文（含续写内容）
@@ -256,8 +256,9 @@ func (a *App) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, se
 	// 异步提取章节角色（不阻塞 done 事件）
 	go a.extractCharactersAfterChapter(pm, content, targetNum)
 }
+
 // ensureChapterNode 确定章节号并创建/复用节点（同步，在 AI 生成前执行）
-func (a *App) ensureChapterNode(pm *project.Manager, of *types.OutlineFile, chapterNum int, branchFromNodeID string) (targetNum int, nodeID string, branch string) {
+func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineFile, chapterNum int, branchFromNodeID string) (targetNum int, nodeID string, branch string) {
 	if chapterNum > 0 {
 		targetNum = chapterNum
 		for _, n := range of.Nodes {
@@ -292,7 +293,10 @@ func (a *App) ensureChapterNode(pm *project.Manager, of *types.OutlineFile, chap
 			}
 		}
 		for _, l := range []string{"a", "b", "c"} {
-			if !used[l] { branch = l; break }
+			if !used[l] {
+				branch = l
+				break
+			}
 		}
 		if branch == "" {
 			return 0, "", ""
@@ -300,7 +304,7 @@ func (a *App) ensureChapterNode(pm *project.Manager, of *types.OutlineFile, chap
 		nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
 		of.Nodes = append(of.Nodes, types.OutlineNode{
 			ID: nodeID, ParentID: branchFromNodeID,
-			Title: fmt.Sprintf("第%d%s章", targetNum, branch),
+			Title:      fmt.Sprintf("第%d%s章", targetNum, branch),
 			OrderIndex: targetNum, Branch: branch,
 			Status: "generating", ChapterFile: fmt.Sprintf("%03d%s.md", targetNum, branch),
 		})
@@ -317,10 +321,9 @@ func (a *App) ensureChapterNode(pm *project.Manager, of *types.OutlineFile, chap
 	return
 }
 
-
 // buildCharacterSummary 构建角色摘要字符串（用于注入章节生成 prompt）
 // 格式：每角色一行「姓名 · 身份 · 性格关键词 · 状态」
-func (a *App) buildCharacterSummary(pm *project.Manager) string {
+func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
 	cf, err := pm.ReadCharacters()
 	if err != nil || cf == nil || len(cf.Characters) == 0 {
 		return "（暂无角色设定）"
@@ -346,7 +349,7 @@ func (a *App) buildCharacterSummary(pm *project.Manager) string {
 
 // extractNewCharacters 从章节摘要中提取新角色，与已有角色对照去重
 // 返回新角色名列表，如果全部已知则返回空
-func (a *App) extractNewCharacters(pm *project.Manager, summary *types.ChapterSummary) []string {
+func (a *writingState) extractNewCharacters(pm *project.Manager, summary *types.ChapterSummary) []string {
 	if summary == nil || len(summary.CharactersAppeared) == 0 {
 		return nil
 	}
@@ -369,7 +372,7 @@ func (a *App) extractNewCharacters(pm *project.Manager, summary *types.ChapterSu
 
 // extractCharactersAfterChapter 章节生成后异步提取角色
 // 调用 chapter-summary AI → 提取 characters_appeared → 对照去重 → 通知前端
-func (a *App) extractCharactersAfterChapter(pm *project.Manager, content string, chapterNum int) {
+func (a *writingState) extractCharactersAfterChapter(pm *project.Manager, content string, chapterNum int) {
 	if a.chapterAgent == nil {
 		slog.Warn("extractCharactersAfterChapter: chapterAgent 未初始化")
 		return

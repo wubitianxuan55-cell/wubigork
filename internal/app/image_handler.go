@@ -34,7 +34,7 @@ type imageItem struct {
 // GenerateFreeImage 自由图片生成 — 供 AI 绘梦 Tab 使用
 // GenerateFreeImage 自由图片生成 — 供 AI 绘梦 Tab 使用
 // 参数: prompt, negative, size, style, model, seed (0=随机), n (1-4)
-func (a *App) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int, lora string) (map[string]interface{}, error) {
+func (a *mediaState) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int, lora string) (map[string]interface{}, error) {
 	if a.client == nil {
 		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
 	}
@@ -49,7 +49,6 @@ func (a *App) GenerateFreeImage(prompt string, negative string, size string, sty
 	if n < 1 || n > 4 {
 		n = 1
 	}
-
 
 	images := make([]imageItem, 0, n)
 	var lastErr string
@@ -129,7 +128,7 @@ func (a *App) GenerateFreeImage(prompt string, negative string, size string, sty
 }
 
 // saveImageToDisk 将图片数据保存到 ImageSaveDir，返回保存路径
-func (a *App) saveImageToDisk(imageData string, prompt string) string {
+func (a *mediaState) saveImageToDisk(imageData string, prompt string) string {
 	dir := a.cfg.ImageSaveDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return ""
@@ -168,8 +167,8 @@ func (a *App) saveImageToDisk(imageData string, prompt string) string {
 }
 
 // saveToNovelImages 将图片保存到当前小说的 images/ 目录
-func (a *App) saveToNovelImages(imageData string, prompt string) {
-	pm := a.getPM()
+func (a *mediaState) saveToNovelImages(imageData string, prompt string) {
+	pm := a.app.getPM()
 	if pm == nil {
 		return
 	}
@@ -206,7 +205,7 @@ func (a *App) saveToNovelImages(imageData string, prompt string) {
 }
 
 // GetImageBackend 获取当前图片后端类型（供前端显示）
-func (a *App) GetImageBackend() string {
+func (a *mediaState) GetImageBackend() string {
 	if a.client != nil {
 		return a.client.GetImageBackendType()
 	}
@@ -214,7 +213,7 @@ func (a *App) GetImageBackend() string {
 }
 
 // GetImageBackendInfo 获取当前图片后端类型和模型（供前端显示）
-func (a *App) GetImageBackendInfo() map[string]string {
+func (a *mediaState) GetImageBackendInfo() map[string]string {
 	return map[string]string{
 		"backend": a.GetImageBackend(),
 		"model":   a.cfg.ImageModel,
@@ -222,7 +221,7 @@ func (a *App) GetImageBackendInfo() map[string]string {
 }
 
 // SetImageBackend 切换图片生成后端（供设置页调用）
-func (a *App) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error {
+func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageModel string, imageSaveDir string) error {
 	if a.client == nil {
 		return fmt.Errorf("AI 客户端未初始化")
 	}
@@ -274,7 +273,7 @@ func (a *App) SetImageBackend(backend string, comfyUIURL string, imageModel stri
 }
 
 // GetImageBackendConfig 返回当前图像后端配置（供角色剧照等场景使用）
-func (a *App) GetImageBackendConfig() map[string]interface{} {
+func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 	backend := a.cfg.ImageBackend
 	if backend == "" {
 		backend = "xai"
@@ -352,7 +351,7 @@ func (a *App) GetImageBackendConfig() map[string]interface{} {
 // ── ComfyUI 进程管理 ──────────────────────────────────────────
 
 // StartComfyUI 启动 ComfyUI 服务
-func (a *App) StartComfyUI() error {
+func (a *mediaState) StartComfyUI() error {
 	if a.cfg.ComfyUIPath == "" {
 		return fmt.Errorf("请先在设置中配置 ComfyUI 安装路径")
 	}
@@ -385,7 +384,6 @@ func (a *App) StartComfyUI() error {
 	// 不强制指定 GPU 后端，让 ComfyUI 自动检测（支持 NVIDIA CUDA / AMD ROCm / DirectML）
 	// 若需要强制 CPU 模式，可在设置中指定 `--cpu` 参数
 
-
 	cmd := exec.CommandContext(ctx, pythonExe, args...)
 	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8", "TQDM_DISABLE=1")
 	cmd.Dir = a.cfg.ComfyUIPath
@@ -395,12 +393,13 @@ func (a *App) StartComfyUI() error {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	
 	if err := cmd.Start(); err != nil {
 		cancel()
-				a.comfyUICancel = nil
+		a.comfyUICancel = nil
 		errMsg := stderr.String()
-		if len(errMsg) > 300 { errMsg = errMsg[:300] + "..." }
+		if len(errMsg) > 300 {
+			errMsg = errMsg[:300] + "..."
+		}
 		if errMsg != "" {
 			return fmt.Errorf("启动 ComfyUI 失败: %w\n%s", err, errMsg)
 		}
@@ -441,8 +440,8 @@ func findPython(comfyUIPath string, cfgPythonPath string) string {
 	// 2. ComfyUI 便携版
 	if comfyUIPath != "" {
 		candidates := []string{
-			filepath.Join(comfyUIPath, "..", "python", "python.exe"),    // 整合包 python/
-			filepath.Join(comfyUIPath, "python_embeded", "python.exe"),  // 便携版
+			filepath.Join(comfyUIPath, "..", "python", "python.exe"),   // 整合包 python/
+			filepath.Join(comfyUIPath, "python_embeded", "python.exe"), // 便携版
 			filepath.Join(comfyUIPath, "venv", "Scripts", "python.exe"),
 			filepath.Join(comfyUIPath, ".venv", "Scripts", "python.exe"),
 		}
@@ -466,8 +465,9 @@ func findPython(comfyUIPath string, cfgPythonPath string) string {
 	}
 	return ""
 }
+
 // StopComfyUI 停止 ComfyUI 服务（不管是谁启动的都能停）
-func (a *App) StopComfyUI() error {
+func (a *mediaState) StopComfyUI() error {
 	port := extractPort(a.cfg.ComfyUIURL)
 
 	// 1. 先通过 gaea 内部引用杀进程
@@ -512,7 +512,7 @@ func findProcessByPort(port string) int {
 }
 
 // GetComfyUIStatus 返回 ComfyUI 运行状态（含监控：检测到进程退出自动清理引用）
-func (a *App) GetComfyUIStatus() map[string]interface{} {
+func (a *mediaState) GetComfyUIStatus() map[string]interface{} {
 	running := a.isComfyUIRunning()
 	// 监控：如果进程不在运行但引用还在，自动清理
 	if !running && (a.comfyUICancel != nil || a.comfyUICmd != nil) {
@@ -526,7 +526,7 @@ func (a *App) GetComfyUIStatus() map[string]interface{} {
 }
 
 // isComfyUIRunning 检查 ComfyUI 是否可连通
-func (a *App) isComfyUIRunning() bool {
+func (a *mediaState) isComfyUIRunning() bool {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(strings.TrimSuffix(a.cfg.ComfyUIURL, "/") + "/system_stats")
 	if err != nil {
@@ -548,7 +548,7 @@ func extractPort(url string) string {
 // ── 文件夹打开 ──────────────────────────────────────────────
 
 // OpenImageSaveDir 在文件管理器中打开图片存放目录
-func (a *App) OpenImageSaveDir() error {
+func (a *mediaState) OpenImageSaveDir() error {
 	dir := a.cfg.ImageSaveDir
 	if dir == "" {
 		dir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "gaea")
@@ -559,10 +559,9 @@ func (a *App) OpenImageSaveDir() error {
 	return openDir(dir)
 }
 
-
 // OpenNovelImagesDir 在文件管理器中打开当前小说的图片目录
-func (a *App) OpenNovelImagesDir() error {
-	pm := a.getPM()
+func (a *mediaState) OpenNovelImagesDir() error {
+	pm := a.app.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开小说")
 	}
@@ -589,14 +588,14 @@ func openDir(dir string) error {
 }
 
 // GetSystemStats 获取系统状态（CPU + GPU）
-func (a *App) GetSystemStats() map[string]interface{} {
+func (a *mediaState) GetSystemStats() map[string]interface{} {
 	result := map[string]interface{}{
-		"cpu":      getCPUUsage(),
-		"memTotal": getTotalMemory(),
-		"memUsed":  getUsedMemory(),
-		"gpuName":  "",
-		"gpuUsage": 0,
-		"vramUsed": 0.0,
+		"cpu":       getCPUUsage(),
+		"memTotal":  getTotalMemory(),
+		"memUsed":   getUsedMemory(),
+		"gpuName":   "",
+		"gpuUsage":  0,
+		"vramUsed":  0.0,
 		"vramTotal": 0.0,
 	}
 
@@ -724,4 +723,3 @@ func getGPUInfo() (name string, totalGB float64, usedGB float64) {
 	}
 	return
 }
-

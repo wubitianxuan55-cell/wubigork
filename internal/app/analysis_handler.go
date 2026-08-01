@@ -8,7 +8,7 @@ import (
 // ── 分析 ────────────────────────────────────────────────────
 
 // AnalyzeChapter 分析指定章节
-func (a *App) AnalyzeChapter(chapterNum int) (map[string]interface{}, error) {
+func (a *writingState) AnalyzeChapter(chapterNum int) (map[string]interface{}, error) {
 	if a.analysisAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -38,7 +38,7 @@ func (a *App) AnalyzeChapter(chapterNum int) (map[string]interface{}, error) {
 }
 
 // GetForeshadows 获取伏笔列表
-func (a *App) GetForeshadows() map[string]interface{} {
+func (a *writingState) GetForeshadows() map[string]interface{} {
 	pm := a.getPM()
 	if pm == nil {
 		return nil
@@ -54,7 +54,7 @@ func (a *App) GetForeshadows() map[string]interface{} {
 }
 
 // ReviewBook AI 全书审稿
-func (a *App) ReviewBook() (map[string]interface{}, error) {
+func (a *writingState) ReviewBook() (map[string]interface{}, error) {
 	if a.analysisAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -73,7 +73,7 @@ func (a *App) ReviewBook() (map[string]interface{}, error) {
 }
 
 // GetBookData 获取全书聚合数据（用于前端统计画布，不调 AI）
-func (a *App) GetBookData() map[string]interface{} {
+func (a *writingState) GetBookData() map[string]interface{} {
 	if a.analysisAgent == nil {
 		return nil
 	}

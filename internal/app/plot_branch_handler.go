@@ -25,7 +25,7 @@ type PlotBranch struct {
 }
 
 // BrainstormBranches 为指定大纲节点生成 3-5 个剧情分支
-func (a *App) BrainstormBranches(nodeID string) (map[string]interface{}, error) {
+func (a *writingState) BrainstormBranches(nodeID string) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -120,7 +120,7 @@ func (a *App) BrainstormBranches(nodeID string) (map[string]interface{}, error) 
 
 // ApplyBranch 将选中分支写入大纲节点 + 同步角色和世界观
 // userInput 可选：用户在分支基础上的手工补充
-func (a *App) ApplyBranch(nodeID string, branchIndex int, userInput string) (map[string]interface{}, error) {
+func (a *writingState) ApplyBranch(nodeID string, branchIndex int, userInput string) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -194,8 +194,9 @@ func (a *App) ApplyBranch(nodeID string, branchIndex int, userInput string) (map
 		"outlines": of.Nodes,
 	}, nil
 }
+
 // QuickBrainstormBranches 轻量分支构思——直接接收小说设定和前文摘要，不需要大纲节点
-func (a *App) QuickBrainstormBranches(setting, prevSummary string) (map[string]interface{}, error) {
+func (a *writingState) QuickBrainstormBranches(setting, prevSummary string) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")

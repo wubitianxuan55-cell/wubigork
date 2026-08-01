@@ -12,7 +12,7 @@ import (
 // ── 大纲 Agent ──────────────────────────────────────────────
 
 // GetOutlines 获取大纲树（已排序，安全返回）
-func (a *App) GetOutlines() map[string]interface{} {
+func (a *writingState) GetOutlines() map[string]interface{} {
 	if a.outlineAgent == nil {
 		slog.Warn("GetOutlines: outlineAgent 未初始化")
 		return map[string]interface{}{"nodes": []interface{}{}, "story_thread": ""}
@@ -26,7 +26,7 @@ func (a *App) GetOutlines() map[string]interface{} {
 }
 
 // ChatOutline 与大纲 Agent 对话
-func (a *App) ChatOutline(userMsg string) (map[string]interface{}, error) {
+func (a *writingState) ChatOutline(userMsg string) (map[string]interface{}, error) {
 	if a.outlineAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -41,7 +41,7 @@ func (a *App) ChatOutline(userMsg string) (map[string]interface{}, error) {
 }
 
 // ChatOutlineNode 针对特定大纲节点对话
-func (a *App) ChatOutlineNode(nodeID, userMsg string) (map[string]interface{}, error) {
+func (a *writingState) ChatOutlineNode(nodeID, userMsg string) (map[string]interface{}, error) {
 	if a.outlineAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -56,7 +56,7 @@ func (a *App) ChatOutlineNode(nodeID, userMsg string) (map[string]interface{}, e
 }
 
 // SaveOutlineNode 保存/更新单个大纲节点
-func (a *App) SaveOutlineNode(nodeJSON string) error {
+func (a *writingState) SaveOutlineNode(nodeJSON string) error {
 	if a.outlineAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -68,7 +68,7 @@ func (a *App) SaveOutlineNode(nodeJSON string) error {
 }
 
 // AddOutlineNode 添加大纲节点
-func (a *App) AddOutlineNode(nodeJSON string) error {
+func (a *writingState) AddOutlineNode(nodeJSON string) error {
 	if a.outlineAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -80,7 +80,7 @@ func (a *App) AddOutlineNode(nodeJSON string) error {
 }
 
 // DeleteOutlineNode 删除大纲节点
-func (a *App) DeleteOutlineNode(nodeID string) error {
+func (a *writingState) DeleteOutlineNode(nodeID string) error {
 	if a.outlineAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
@@ -88,7 +88,7 @@ func (a *App) DeleteOutlineNode(nodeID string) error {
 }
 
 // ContinueOutline AI 续写大纲
-func (a *App) ContinueOutline(count int) (map[string]interface{}, error) {
+func (a *writingState) ContinueOutline(count int) (map[string]interface{}, error) {
 	if a.outlineAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -109,7 +109,7 @@ func (a *App) ContinueOutline(count int) (map[string]interface{}, error) {
 }
 
 // ExpandOutlineNode 展开大纲节点为子章节
-func (a *App) ExpandOutlineNode(nodeID string, subCount int) (map[string]interface{}, error) {
+func (a *writingState) ExpandOutlineNode(nodeID string, subCount int) (map[string]interface{}, error) {
 	if a.outlineAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -125,7 +125,7 @@ func (a *App) ExpandOutlineNode(nodeID string, subCount int) (map[string]interfa
 }
 
 // GenerateOutlineWithDialogue 使用学生-专家 LLM 对话生成大纲
-func (a *App) GenerateOutlineWithDialogue(storyPrompt string, numChapters int, maxTurns int) (map[string]interface{}, error) {
+func (a *writingState) GenerateOutlineWithDialogue(storyPrompt string, numChapters int, maxTurns int) (map[string]interface{}, error) {
 	if a.outlineAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}

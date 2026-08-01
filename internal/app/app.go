@@ -16,25 +16,40 @@ import (
 	"github.com/gaea/gaea/internal/analysis"
 	"github.com/gaea/gaea/internal/assistant"
 	"github.com/gaea/gaea/internal/auth"
+	"github.com/gaea/gaea/internal/channels/weixin"
 	"github.com/gaea/gaea/internal/chapter"
 	"github.com/gaea/gaea/internal/character"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/modelengine"
+	"github.com/gaea/gaea/internal/office/proposal"
 	"github.com/gaea/gaea/internal/outline"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
 	"github.com/gaea/gaea/internal/skill"
 	"github.com/gaea/gaea/internal/voice"
-	"github.com/gaea/gaea/internal/channels/weixin"
-	"github.com/gaea/gaea/internal/office/proposal"
 	"github.com/gaea/gaea/internal/worldview"
 )
 
-// App Wails 应用实例 — 管理所有 Agent 和生命周期
-type App struct {
+// core 是所有子服务共享的基础依赖（ctx/client/cfg/engineMgr 等）。
+// 通过指针嵌入到 App 与各子服务，保证同一实例、方法体零改动。
+type core struct {
 	ctx    context.Context
 	cfg    *config.Config
 	client *ai.Client
+
+	// 模型引擎管理器
+	engineMgr *modelengine.Manager
+
+	// 前端静态资源
+	distFS fs.FS
+}
+
+// writingState 是小说写作域状态（章节/角色/大纲/世界观/分析/图谱）。
+type writingState struct {
+	*core
+
+	// app 反向引用：跨域调用（媒体/轻语）经 App 协调。
+	app *App
 
 	mu sync.RWMutex // 保护 pm 的并发读写
 
@@ -43,9 +58,6 @@ type App struct {
 
 	// 共享 prompt engine（单例）
 	eng *prompt.Engine
-
-	// 模型引擎管理器
-	engineMgr *modelengine.Manager
 
 	// 子代理
 	worldviewAgent *worldview.Agent
@@ -56,6 +68,15 @@ type App struct {
 
 	// Skill
 	skillLoader *skill.Loader
+}
+
+// mediaState 是媒体域状态（图像生成/TTS/语音/ComfyUI 进程）。
+type mediaState struct {
+	*core
+
+	// app 反向引用：跨域调用（写作/轻语）经 App 协调。
+	app *App
+
 	// TTS 语音朗读
 	activeTTSEngine string
 	activeTTSModel  string
@@ -66,11 +87,14 @@ type App struct {
 	// ComfyUI 进程管理
 	comfyUICancel context.CancelFunc
 	comfyUICmd    *exec.Cmd
+}
 
-	// Ghost Text 取消控制器
+// whisperState 是轻语域状态（AI 人格/虚拟助手/微信通道）。
+type whisperState struct {
+	*core
 
-	// 前端静态资源
-	distFS fs.FS
+	// app 反向引用：跨域调用（媒体）经 App 协调。
+	app *App
 
 	// 轻语模块数据根目录（SQLite 持久化）
 	whisperDataRoot string
@@ -80,26 +104,56 @@ type App struct {
 	// 微信通道（多实例：assistantID → Server）
 	weixinServers map[string]*weixin.Server
 	weixinMu      sync.Mutex
+}
 
-	// 方案编写模块
+// officeState 是办公域状态（方案编写模块）。
+type officeState struct {
+	*core
+
+	// app 反向引用：跨域调用经 App 协调。
+	app *App
+
 	proposalSvc *proposal.Service
 }
 
-// emit 统一事件发射 — 发送到 Wails 前端
-func (a *App) emit(eventName string, data map[string]interface{}) {
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, eventName, data)
+// App Wails 应用实例 — 聚合各域子服务，方法经嵌入提升到 App 供前端绑定。
+// Wails 要求绑定单对象：所有子服务方法通过 Go 嵌入自动提升，前端调用不变。
+type App struct {
+	*core
+	*writingState
+	*mediaState
+	*whisperState
+	*officeState
+}
+
+// emit 统一事件发射 — 发送到 Wails 前端。定义在 core 上，
+// 子服务内嵌 core 后直接可用（App 经嵌入也获得该方法）。
+func (c *core) emit(eventName string, data map[string]interface{}) {
+	if c.ctx != nil {
+		runtime.EventsEmit(c.ctx, eventName, data)
 	}
 }
 
 // New 创建 App 实例
 func New() *App {
 	cfg := config.Load()
-	return &App{
-		cfg:             cfg,
-		eng:             prompt.NewEngine(filepath.Join(cfg.ResourceDir, "prompts")),
-		whisperDataRoot: filepath.Join(cfg.ResourceDir, "whisper_data"),
+	c := &core{cfg: cfg, client: ai.NewClient(cfg)}
+	a := &App{core: c}
+	a.writingState = &writingState{
+		core: c,
+		app:  a,
+		eng:  prompt.NewEngine(filepath.Join(cfg.ResourceDir, "prompts")),
+		mu:   sync.RWMutex{},
 	}
+	a.mediaState = &mediaState{core: c, app: a}
+	a.whisperState = &whisperState{
+		core:            c,
+		app:             a,
+		whisperDataRoot: filepath.Join(cfg.ResourceDir, "whisper_data"),
+		weixinServers:   map[string]*weixin.Server{},
+	}
+	a.officeState = &officeState{core: c, app: a}
+	return a
 }
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
@@ -193,137 +247,9 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 }
 
-// ── 并发安全访问器 ────────────────────────────────────────────
-
-// getPM 以读锁获取当前项目（调用方用完即释放引用）
-func (a *App) getPM() *project.Manager {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.pm
-}
-
-
-// setPM 以写锁设置当前项目
-func (a *App) setPM(pm *project.Manager) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.pm = pm
-}
-
-// closePM 以写锁关闭并清空当前项目
-func (a *App) closePM() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.pm == nil {
-		return nil
-	}
-	err := a.pm.Close()
-	a.pm = nil
-	return err
-}
-
-func (a *App) initAgents() {
-	a.worldviewAgent = worldview.New(a.client, a.pm, a.cfg, a.eng)
-	a.characterAgent = character.New(a.client, a.pm, a.cfg, a.eng)
-	a.outlineAgent = outline.New(a.client, a.pm, a.cfg, a.eng)
-	a.chapterAgent = chapter.New(a.client, a.pm, a.cfg, a.eng)
-	a.analysisAgent = analysis.New(a.client, a.pm, a.cfg, a.eng)
-	a.skillLoader = skill.NewLoader(filepath.Join(a.cfg.ResourceDir, "skills"))
-
-	// 恢复上次保存的图像后端配置
-	a.restoreImageBackend()
-}
-
-// restoreImageBackend 从配置恢复图像后端（应用重启后自动恢复）
-func (a *App) restoreImageBackend() {
-	if a.client == nil {
-		return
-	}
-	switch a.cfg.ImageBackend {
-	case "comfyui":
-		if a.cfg.ComfyUIURL != "" {
-			a.client.SetImageBackend(ai.NewComfyUIBackend(a.cfg.ComfyUIURL), "comfyui")
-			slog.Info("已恢复 ComfyUI 图像后端", "url", a.cfg.ComfyUIURL, "model", a.cfg.ImageModel)
-		}
-	case "herdsman":
-		if a.engineMgr != nil {
-			if eng, ok := a.engineMgr.GetEngine("herdsman"); ok && eng.Enabled {
-				a.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "herdsman")
-				slog.Info("已恢复 Herdsman 图像后端")
-			}
-		}
-	case "ollama":
-		if a.engineMgr != nil {
-			if eng, ok := a.engineMgr.GetEngine("ollama"); ok && eng.Enabled {
-				a.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "ollama")
-				slog.Info("已恢复 Ollama 图像后端")
-			}
-		}
-	// xai 不需要恢复（默认就是 xai fallback）
-	}
-}
-// initWeixin 加载助手并启动各自微信通道
-func (a *App) initWeixin() {
-	var err error
-	a.assistantMgr, err = assistant.Load(a.whisperDataRoot)
-	if err != nil {
-		slog.Error("[assistant] 加载失败，重试", "err", err)
-		if a.assistantMgr, err = assistant.Load(a.whisperDataRoot); err != nil {
-			slog.Error("[assistant] 重试加载仍失败，使用空管理器", "err", err)
-			a.assistantMgr = assistant.NewEmpty(a.whisperDataRoot)
-		}
-	}
-	a.weixinServers = make(map[string]*weixin.Server)
-
-	// 首次启动：创建默认助手
-	if len(a.assistantMgr.List()) == 0 {
-		defaultAst := assistant.Assistant{
-			ID:            "default",
-			Name:          "轻语",
-			PersonalityID: "deredere",
-			Enabled:       true,
-		}
-		if token := os.Getenv("WXCLAW_TOKEN"); token != "" {
-			defaultAst.WxToken = token
-		}
-		a.assistantMgr.Add(defaultAst)
-	}
-
-	for _, ast := range a.assistantMgr.Enabled() {
-		a.startAssistantWx(ast)
-	}
-}
-
-func (a *App) startAssistantWx(ast assistant.Assistant) {
-	cfg := weixin.Config{
-		ILinkURL:      "https://ilinkai.weixin.qq.com",
-		BotToken:      ast.WxToken,
-		AssistantID:   ast.ID,
-		PersonalityID: ast.PersonalityID,
-	}
-	srv := weixin.New(cfg, func(userMsg, fromUser string) (string, error) {
-		result, err := a.WhisperChatWithSearch(userMsg, ast.PersonalityID)
-		if err != nil { return "", err }
-		reply, _ := result["reply"].(string)
-		if reply == "" { reply = "（思考中…）" }
-		return reply, nil
-	})
-	if err := srv.Start(); err != nil {
-		slog.Error("[assistant] 微信启动失败", "assistant", ast.ID, "err", err)
-		return
-	}
-	a.weixinMu.Lock()
-	a.weixinServers[ast.ID] = srv
-	a.weixinMu.Unlock()
-}
-
-func (a *App) stopAssistantWx(id string) {
-	a.weixinMu.Lock()
-	srv, ok := a.weixinServers[id]
-	if ok { delete(a.weixinServers, id) }
-	a.weixinMu.Unlock()
-	if ok { srv.Stop() }
-}
+// getPM/setPM/closePM/initAgents/restoreImageBackend 已迁移到
+// writing_state.go（writingState 域）。App 经嵌入提升，Startup 调用不变。
+// initWeixin/startAssistantWx/stopAssistantWx 已迁移到 whisper_state.go。
 
 // SetDistFS 设置前端静态资源 embed.FS（由 main.go 在启动前调用）
 func (a *App) SetDistFS(fsys fs.FS) {

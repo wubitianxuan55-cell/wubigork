@@ -77,9 +77,9 @@ func (e *voiceEmitter) EmitVoiceError(err error) {
 // ── 初始化 ──
 
 // initVoice 初始化语音管理器（在 Startup 中调用）
-func (a *App) initVoice() {
+func (a *mediaState) initVoice() {
 	config := voice.DefaultVoiceConfig()
-	emitter := &voiceEmitter{app: a}
+	emitter := &voiceEmitter{app: a.app}
 	a.voiceManager = voice.NewManager(emitter, config)
 
 	// 设置 ASR 客户端（如果 Herdsman 可用）
@@ -87,7 +87,7 @@ func (a *App) initVoice() {
 
 	// 设置 whisper 对话回调（使用搜索增强版，语音也能上网查）
 	a.voiceManager.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
-		result, err := a.WhisperChatWithSearch(userMsg, personalityID)
+		result, err := a.app.WhisperChatWithSearch(userMsg, personalityID)
 		if err != nil {
 			return "", "", err
 		}
@@ -108,7 +108,7 @@ func (a *App) initVoice() {
 }
 
 // trySetASRClient 尝试为语音管理器设置 ASR 客户端
-func (a *App) trySetASRClient() {
+func (a *mediaState) trySetASRClient() {
 	if a.engineMgr == nil {
 		return
 	}
@@ -121,7 +121,7 @@ func (a *App) trySetASRClient() {
 }
 
 // synthesizeVoiceTTS 语音管道专用的 TTS 合成（带情感参数）
-func (a *App) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, string, error) {
+func (a *mediaState) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, string, error) {
 	// 如果有 voiceDescription 且 Herdsman qwen3-tts-voicedesign 可用，优先使用
 	if voiceDescription != "" && a.engineMgr != nil {
 		if eng, ok := a.engineMgr.GetEngine("herdsman"); ok && eng.Enabled {
@@ -131,32 +131,32 @@ func (a *App) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, string,
 			}
 			slog.Debug("voicedesign TTS 失败，回退常规 TTS")
 		}
-	// 回退到标准 TTSSpeakBase64
-	result, err := a.TTSSpeakBase64(text)
-	if err != nil {
-		return nil, "", err
+		// 回退到标准 TTSSpeakBase64
+		result, err := a.TTSSpeakBase64(text)
+		if err != nil {
+			return nil, "", err
+		}
+		b64, _ := result["base64"].(string)
+		mime, _ := result["mimeType"].(string)
+		if b64 == "" {
+			return nil, "", fmt.Errorf("TTS 返回空音频")
+		}
+		if mime == "" {
+			mime = "audio/mp3"
+		}
+		audio, err := base64.StdEncoding.DecodeString(b64)
+		if err != nil {
+			return nil, "", fmt.Errorf("TTS base64 解码失败: %w", err)
+		}
+		return audio, mime, nil
 	}
-	b64, _ := result["base64"].(string)
-	mime, _ := result["mimeType"].(string)
-	if b64 == "" {
-		return nil, "", fmt.Errorf("TTS 返回空音频")
-	}
-	if mime == "" {
-		mime = "audio/mp3"
-	}
-	audio, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return nil, "", fmt.Errorf("TTS base64 解码失败: %w", err)
-	}
-	return audio, mime, nil
-}
 	return nil, "", fmt.Errorf("使用流式 TTS 路径")
 }
 
 // ── Wails API 端点 ──
 
 // VoiceStart 启动语音管道
-func (a *App) VoiceStart() error {
+func (a *mediaState) VoiceStart() error {
 	if a.voiceManager == nil {
 		a.initVoice()
 	}
@@ -164,7 +164,7 @@ func (a *App) VoiceStart() error {
 }
 
 // VoiceStop 停止语音管道
-func (a *App) VoiceStop() error {
+func (a *mediaState) VoiceStop() error {
 	if a.voiceManager == nil {
 		return nil
 	}
@@ -174,7 +174,7 @@ func (a *App) VoiceStop() error {
 
 // VoicePushAudio 推送麦克风 PCM 音频块（16kHz/16bit/mono）
 // 对齐 Ackem voice:audio-chunk IPC
-func (a *App) VoicePushAudio(chunk []byte) error {
+func (a *mediaState) VoicePushAudio(chunk []byte) error {
 	if a.voiceManager == nil {
 		return fmt.Errorf("语音管理器未初始化")
 	}
@@ -183,7 +183,7 @@ func (a *App) VoicePushAudio(chunk []byte) error {
 
 // VoiceSetMode 设置语音输入模式
 // mode: "vad" | "ptt" | "off"
-func (a *App) VoiceSetMode(mode string) error {
+func (a *mediaState) VoiceSetMode(mode string) error {
 	if a.voiceManager == nil {
 		a.initVoice()
 	}
@@ -204,7 +204,7 @@ func (a *App) VoiceSetMode(mode string) error {
 
 // VoiceSetInputChannel 设置输入通道
 // channel: "dual" | "voice-only" | "text-only"
-func (a *App) VoiceSetInputChannel(channel string) error {
+func (a *mediaState) VoiceSetInputChannel(channel string) error {
 	if a.voiceManager == nil {
 		a.initVoice()
 	}
@@ -224,7 +224,7 @@ func (a *App) VoiceSetInputChannel(channel string) error {
 }
 
 // VoiceApplySettings 应用语音设置（对齐 Ackem voice:apply-settings）
-func (a *App) VoiceApplySettings(settings map[string]interface{}) error {
+func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 	if a.voiceManager == nil {
 		a.initVoice()
 	}
@@ -273,7 +273,7 @@ func (a *App) VoiceApplySettings(settings map[string]interface{}) error {
 }
 
 // VoiceGetSettings 获取当前语音设置
-func (a *App) VoiceGetSettings() map[string]interface{} {
+func (a *mediaState) VoiceGetSettings() map[string]interface{} {
 	if a.voiceManager == nil {
 		config := voice.DefaultVoiceConfig()
 		return configToMap(&config)
@@ -283,7 +283,7 @@ func (a *App) VoiceGetSettings() map[string]interface{} {
 }
 
 // VoiceCancelTTS 打断当前 TTS 播放（对齐 Ackem voice:cancel-tts）
-func (a *App) VoiceCancelTTS() error {
+func (a *mediaState) VoiceCancelTTS() error {
 	if a.voiceManager == nil {
 		return nil
 	}
@@ -292,7 +292,7 @@ func (a *App) VoiceCancelTTS() error {
 }
 
 // VoiceSetPTTActive PTT 按键按下/释放（对齐 Ackem voice:ptt-active）
-func (a *App) VoiceSetPTTActive(active bool) error {
+func (a *mediaState) VoiceSetPTTActive(active bool) error {
 	if a.voiceManager == nil {
 		return fmt.Errorf("语音管理器未初始化")
 	}
@@ -301,7 +301,7 @@ func (a *App) VoiceSetPTTActive(active bool) error {
 }
 
 // VoiceHealth 健康检查（对齐 Ackem voice:health）
-func (a *App) VoiceHealth() map[string]interface{} {
+func (a *mediaState) VoiceHealth() map[string]interface{} {
 	if a.voiceManager == nil {
 		return map[string]interface{}{
 			"asrReady": false,
@@ -313,7 +313,7 @@ func (a *App) VoiceHealth() map[string]interface{} {
 }
 
 // VoiceRestartService 重启语音服务（重新检测 ASR/TTS 可用性）
-func (a *App) VoiceRestartService() error {
+func (a *mediaState) VoiceRestartService() error {
 	if a.voiceManager != nil {
 		a.voiceManager.Stop()
 	}
@@ -322,7 +322,7 @@ func (a *App) VoiceRestartService() error {
 }
 
 // VoiceGetState 获取当前语音状态
-func (a *App) VoiceGetState() map[string]interface{} {
+func (a *mediaState) VoiceGetState() map[string]interface{} {
 	if a.voiceManager == nil {
 		return map[string]interface{}{
 			"active":    false,

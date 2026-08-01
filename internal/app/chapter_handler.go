@@ -8,7 +8,7 @@ import (
 )
 
 // ── 章节 I/O ─────────────────────────────────────────────────
-func (a *App) GetChapter(num int) (map[string]interface{}, error) {
+func (a *writingState) GetChapter(num int) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -28,7 +28,7 @@ func (a *App) GetChapter(num int) (map[string]interface{}, error) {
 }
 
 // GetChapterBranch 读取分支章节内容（branch 为空时读主线）
-func (a *App) GetChapterBranch(num int, branch string) (map[string]interface{}, error) {
+func (a *writingState) GetChapterBranch(num int, branch string) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -54,7 +54,7 @@ func (a *App) GetChapterBranch(num int, branch string) (map[string]interface{}, 
 }
 
 // SaveChapterContent 手动保存章节内容（主线）
-func (a *App) SaveChapterContent(num int, content string) error {
+func (a *writingState) SaveChapterContent(num int, content string) error {
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
@@ -63,16 +63,17 @@ func (a *App) SaveChapterContent(num int, content string) error {
 }
 
 // SaveChapterBranchContent 手动保存分支章节内容
-func (a *App) SaveChapterBranchContent(num int, branch string, content string) error {
+func (a *writingState) SaveChapterBranchContent(num int, branch string, content string) error {
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
 	}
 	return pm.WriteChapterBranch(num, branch, content)
-	}
+}
+
 // GenerateSceneIllustration 为指定章节生成场景插图（Aurora）
 // GenerateSceneIllustration 为指定章节生成场景插图（Aurora）
-func (a *App) GenerateSceneIllustration(chapterNum int) (map[string]interface{}, error) {
+func (a *writingState) GenerateSceneIllustration(chapterNum int) (map[string]interface{}, error) {
 	if a.chapterAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -123,7 +124,7 @@ func (a *App) GenerateSceneIllustration(chapterNum int) (map[string]interface{},
 // ── v4 场景 API ──────────────────────────────────────────────
 
 // GetChapterScenes 获取章节的场景列表
-func (a *App) GetChapterScenes(chapterNum int) ([]map[string]interface{}, error) {
+func (a *writingState) GetChapterScenes(chapterNum int) ([]map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -176,7 +177,7 @@ func (a *App) GetChapterScenes(chapterNum int) ([]map[string]interface{}, error)
 }
 
 // SaveScene 保存单个场景
-func (a *App) SaveScene(chapterNum int, sceneID string, content string) error {
+func (a *writingState) SaveScene(chapterNum int, sceneID string, content string) error {
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
@@ -196,7 +197,7 @@ func (a *App) SaveScene(chapterNum int, sceneID string, content string) error {
 }
 
 // ReorderScenes 重排场景顺序
-func (a *App) ReorderScenes(chapterNum int, sceneIDs []string) error {
+func (a *writingState) ReorderScenes(chapterNum int, sceneIDs []string) error {
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
@@ -208,7 +209,7 @@ func (a *App) ReorderScenes(chapterNum int, sceneIDs []string) error {
 }
 
 // CreateSnapshot 手动创建场景快照
-func (a *App) CreateSnapshot(sceneID string, chapterNum int, label string) (map[string]interface{}, error) {
+func (a *writingState) CreateSnapshot(sceneID string, chapterNum int, label string) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -244,7 +245,7 @@ func (a *App) CreateSnapshot(sceneID string, chapterNum int, label string) (map[
 }
 
 // ListSnapshots 列出场景的所有快照
-func (a *App) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interface{}, error) {
+func (a *writingState) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -270,7 +271,7 @@ func (a *App) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interf
 }
 
 // RestoreSnapshot 恢复到指定快照
-func (a *App) RestoreSnapshot(snapshotID string, sceneID string, chapterNum int) error {
+func (a *writingState) RestoreSnapshot(snapshotID string, sceneID string, chapterNum int) error {
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
@@ -295,7 +296,7 @@ func (a *App) RestoreSnapshot(snapshotID string, sceneID string, chapterNum int)
 }
 
 // MigrateProjectToV4 手动触发项目迁移到 v4
-func (a *App) MigrateProjectToV4() error {
+func (a *writingState) MigrateProjectToV4() error {
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
@@ -304,7 +305,7 @@ func (a *App) MigrateProjectToV4() error {
 }
 
 // IsProjectV4 检查当前项目是否为 v4 结构
-func (a *App) IsProjectV4() bool {
+func (a *writingState) IsProjectV4() bool {
 	pm := a.getPM()
 	if pm == nil {
 		return false

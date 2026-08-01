@@ -125,19 +125,19 @@ func (a *App) GetDashboard(dailyGoal int) (map[string]interface{}, error) {
 	}
 
 	return map[string]interface{}{
-		"total_words":        d.TotalWords,
-		"chapter_count":      d.ChapterCount,
-		"avg_words":          d.AvgWordsPerChap,
-		"character_count":    d.CharacterCount,
-		"location_count":     d.LocationCount,
-		"daily_stats":        dailyStats,
+		"total_words":         d.TotalWords,
+		"chapter_count":       d.ChapterCount,
+		"avg_words":           d.AvgWordsPerChap,
+		"character_count":     d.CharacterCount,
+		"location_count":      d.LocationCount,
+		"daily_stats":         dailyStats,
 		"chapter_word_counts": chapterWCs,
-		"daily_goal":         d.DailyGoal,
-		"today_words":        d.TodayWords,
-		"goal_progress":      d.GoalProgress,
-		"streak_days":        d.StreakDays,
-		"completed_days":     d.CompletedDays,
-		"achievements":       achievements,
+		"daily_goal":          d.DailyGoal,
+		"today_words":         d.TodayWords,
+		"goal_progress":       d.GoalProgress,
+		"streak_days":         d.StreakDays,
+		"completed_days":      d.CompletedDays,
+		"achievements":        achievements,
 	}, nil
 }
 
@@ -207,7 +207,7 @@ func (a *App) ImportStyleProfile(markdownContent string, profileName string) (ma
 	}
 
 	return map[string]interface{}{
-		"name": profile.Name,
+		"name":   profile.Name,
 		"status": "imported",
 	}, nil
 }

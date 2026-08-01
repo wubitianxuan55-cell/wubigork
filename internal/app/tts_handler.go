@@ -12,7 +12,7 @@ import (
 // ── TTS 语音朗读 ─────────────────────────────────────────────
 
 // GetTTSConfig 获取 TTS 配置（VoxCPM 已移除，返回空配置）
-func (a *App) GetTTSConfig() map[string]interface{} {
+func (a *mediaState) GetTTSConfig() map[string]interface{} {
 	return map[string]interface{}{
 		"modelPath":  "",
 		"serverPath": "",
@@ -23,12 +23,12 @@ func (a *App) GetTTSConfig() map[string]interface{} {
 }
 
 // SaveTTSConfig 保存 TTS 配置（VoxCPM 已移除，无操作）
-func (a *App) SaveTTSConfig(modelPath string, serverPath string, port int, backend string, speed float64) error {
+func (a *mediaState) SaveTTSConfig(modelPath string, serverPath string, port int, backend string, speed float64) error {
 	return nil
 }
 
 // GetTTSStatus 获取 TTS 状态（VoxCPM 已移除，始终返回未运行）
-func (a *App) GetTTSStatus() map[string]interface{} {
+func (a *mediaState) GetTTSStatus() map[string]interface{} {
 	return map[string]interface{}{
 		"running": false,
 		"port":    0,
@@ -36,36 +36,36 @@ func (a *App) GetTTSStatus() map[string]interface{} {
 }
 
 // StartTTSServer 启动 TTS 服务（VoxCPM 已移除，无操作）
-func (a *App) StartTTSServer(modelPath string, port int, backend string) error {
+func (a *mediaState) StartTTSServer(modelPath string, port int, backend string) error {
 	return nil
 }
 
 // StopTTSServer 停止 TTS 服务（VoxCPM 已移除，无操作）
-func (a *App) StopTTSServer() error {
+func (a *mediaState) StopTTSServer() error {
 	return nil
 }
 
 // TTSSpeak 合成语音并返回文件路径（VoxCPM 已移除，返回错误）
-func (a *App) TTSSpeak(text string) (string, error) {
+func (a *mediaState) TTSSpeak(text string) (string, error) {
 	return "", fmt.Errorf("VoxCPM 已移除，请使用朗读按钮（Base64 模式）")
 }
 
 // SetActiveTTSModel 设置用户选中的 TTS 模型
-func (a *App) SetActiveTTSModel(engineID, modelID string) error {
+func (a *mediaState) SetActiveTTSModel(engineID, modelID string) error {
 	a.activeTTSEngine = engineID
 	a.activeTTSModel = modelID
 	return nil
 }
 
 // GetActiveTTSModel 获取用户选中的 TTS 模型
-func (a *App) GetActiveTTSModel() map[string]string {
+func (a *mediaState) GetActiveTTSModel() map[string]string {
 	return map[string]string{
 		"engine": a.activeTTSEngine,
 		"model":  a.activeTTSModel,
 	}
 }
 
-func (a *App) TTSSpeakBase64(text string) (map[string]interface{}, error) {
+func (a *mediaState) TTSSpeakBase64(text string) (map[string]interface{}, error) {
 	// 1. 用户选中的 TTS 模型
 	if a.activeTTSModel != "" && a.engineMgr != nil {
 		if eng, ok := a.engineMgr.GetEngine(a.activeTTSEngine); ok && eng.Enabled {
@@ -130,7 +130,7 @@ func (a *App) TTSSpeakBase64(text string) (map[string]interface{}, error) {
 
 // TTSSpeakStreaming 流式合成：逐句生成。
 // 引擎优先级：Herdsman TTS → xAI TTS → Edge TTS → WinTTS (SAPI)
-func (a *App) TTSSpeakStreaming(text string) error {
+func (a *mediaState) TTSSpeakStreaming(text string) error {
 	sentences := tts.SplitSentences(text)
 	if len(sentences) == 0 {
 		return fmt.Errorf("无可朗读的文本")
@@ -151,7 +151,10 @@ func (a *App) TTSSpeakStreaming(text string) error {
 			} {
 				htts := tts.NewHerdsmanTTS(herdEngine.BaseURL, model, voice)
 				engines = append(engines, htts)
-				metas = append(metas, struct{ Label string; Format string }{"herdsman-" + model, "mp3"})
+				metas = append(metas, struct {
+					Label  string
+					Format string
+				}{"herdsman-" + model, "mp3"})
 			}
 		}
 	}
@@ -159,11 +162,17 @@ func (a *App) TTSSpeakStreaming(text string) error {
 	// 1. Edge TTS（免费在线）
 	edgeTTS := tts.NewEdgeTTS()
 	engines = append(engines, edgeTTS)
-	metas = append(metas, struct{ Label string; Format string }{"edge", "mp3"})
+	metas = append(metas, struct {
+		Label  string
+		Format string
+	}{"edge", "mp3"})
 
 	// 3. WinTTS SAPI（离线）
 	engines = append(engines, tts.NewWinTTS())
-	metas = append(metas, struct{ Label string; Format string }{"sapi", "wav"})
+	metas = append(metas, struct {
+		Label  string
+		Format string
+	}{"sapi", "wav"})
 
 	chain := tts.NewSynthesizerChain(engines...)
 

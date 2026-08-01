@@ -10,7 +10,7 @@ import (
 // ── Lorebook ──────────────────────────────────────────────────
 
 // GetLorebookEntries 获取所有词条
-func (a *App) GetLorebookEntries() map[string]interface{} {
+func (a *writingState) GetLorebookEntries() map[string]interface{} {
 	pm := a.getPM()
 	if pm == nil {
 		return nil
@@ -25,7 +25,7 @@ func (a *App) GetLorebookEntries() map[string]interface{} {
 }
 
 // SaveLorebookEntry 保存/更新一个词条
-func (a *App) SaveLorebookEntry(entryJSON string) error {
+func (a *writingState) SaveLorebookEntry(entryJSON string) error {
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
@@ -58,7 +58,7 @@ func (a *App) SaveLorebookEntry(entryJSON string) error {
 }
 
 // DeleteLorebookEntry 删除词条
-func (a *App) DeleteLorebookEntry(key string) error {
+func (a *writingState) DeleteLorebookEntry(key string) error {
 	pm := a.getPM()
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
@@ -76,4 +76,3 @@ func (a *App) DeleteLorebookEntry(key string) error {
 	lf.Entries = filtered
 	return pm.WriteLorebook(lf)
 }
-

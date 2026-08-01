@@ -9,7 +9,7 @@ import (
 // ── 知识图谱 API ────────────────────────────────────────────
 
 // BuildBacklinkIndex 构建全项目反向链接索引
-func (a *App) BuildBacklinkIndex() (map[string]interface{}, error) {
+func (a *writingState) BuildBacklinkIndex() (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -42,7 +42,7 @@ func (a *App) BuildBacklinkIndex() (map[string]interface{}, error) {
 }
 
 // GetBacklinks 获取指定实体的反向链接
-func (a *App) GetBacklinks(entityName string) ([]map[string]interface{}, error) {
+func (a *writingState) GetBacklinks(entityName string) ([]map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -67,17 +67,17 @@ func (a *App) GetBacklinks(entityName string) ([]map[string]interface{}, error) 
 }
 
 // ParseLinks 解析文本中的 [[wiki-link]]
-func (a *App) ParseLinks(content string) []string {
+func (a *writingState) ParseLinks(content string) []string {
 	return graph.ParseLinks(content)
 }
 
 // FindUnlinkedMentions 查找文本中未链接的实体名
-func (a *App) FindUnlinkedMentions(content string, entityNames []string) []string {
+func (a *writingState) FindUnlinkedMentions(content string, entityNames []string) []string {
 	return graph.FindUnlinkedMentions(content, entityNames)
 }
 
 // SyncEntityDB 同步实体数据库
-func (a *App) SyncEntityDB() (map[string]interface{}, error) {
+func (a *writingState) SyncEntityDB() (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -96,18 +96,18 @@ func (a *App) SyncEntityDB() (map[string]interface{}, error) {
 
 	all := db.Query("")
 	return map[string]interface{}{
-		"total":       len(all),
-		"characters":  len(db.Query(graph.EntityCharacter)),
-		"locations":   len(db.Query(graph.EntityLocation)),
-		"items":       len(db.Query(graph.EntityItem)),
-		"events":      len(db.Query(graph.EntityEvent)),
-		"concepts":    len(db.Query(graph.EntityConcept)),
+		"total":         len(all),
+		"characters":    len(db.Query(graph.EntityCharacter)),
+		"locations":     len(db.Query(graph.EntityLocation)),
+		"items":         len(db.Query(graph.EntityItem)),
+		"events":        len(db.Query(graph.EntityEvent)),
+		"concepts":      len(db.Query(graph.EntityConcept)),
 		"organizations": len(db.Query(graph.EntityOrganization)),
 	}, nil
 }
 
 // QueryEntities 查询实体
-func (a *App) QueryEntities(entityType string) ([]map[string]interface{}, error) {
+func (a *writingState) QueryEntities(entityType string) ([]map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -140,7 +140,7 @@ func (a *App) QueryEntities(entityType string) ([]map[string]interface{}, error)
 }
 
 // CheckConsistency 运行一致性检查
-func (a *App) CheckConsistency() (map[string]interface{}, error) {
+func (a *writingState) CheckConsistency() (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -172,7 +172,7 @@ func (a *App) CheckConsistency() (map[string]interface{}, error) {
 }
 
 // GetEntityRelations 获取实体关系图数据
-func (a *App) GetEntityRelations() (map[string]interface{}, error) {
+func (a *writingState) GetEntityRelations() (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")

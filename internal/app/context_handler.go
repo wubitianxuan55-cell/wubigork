@@ -11,7 +11,7 @@ import (
 // ── 上下文智能 API ──────────────────────────────────────────
 
 // SearchMemories 语义检索相关记忆
-func (a *App) SearchMemories(query string, maxResults int) ([]map[string]interface{}, error) {
+func (a *writingState) SearchMemories(query string, maxResults int) ([]map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -30,19 +30,19 @@ func (a *App) SearchMemories(query string, maxResults int) ([]map[string]interfa
 	var output []map[string]interface{}
 	for _, m := range results {
 		output = append(output, map[string]interface{}{
-			"id":           m.ID,
-			"chapter_num":  m.ChapterNum,
-			"text":         m.Text,
-			"category":     m.Category,
-			"tokens":       m.Tokens,
-			"score":        m.Score,
+			"id":          m.ID,
+			"chapter_num": m.ChapterNum,
+			"text":        m.Text,
+			"category":    m.Category,
+			"tokens":      m.Tokens,
+			"score":       m.Score,
 		})
 	}
 	return output, nil
 }
 
 // InjectMemories 将相关记忆注入到当前上下文
-func (a *App) InjectMemories(currentContext string, maxMemories int, maxTokens int) (map[string]interface{}, error) {
+func (a *writingState) InjectMemories(currentContext string, maxMemories int, maxTokens int) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -80,7 +80,7 @@ func (a *App) InjectMemories(currentContext string, maxMemories int, maxTokens i
 }
 
 // FindLorebookTriggers 查找文本中触发的 Lorebook 词条
-func (a *App) FindLorebookTriggers(text string) ([]map[string]interface{}, error) {
+func (a *writingState) FindLorebookTriggers(text string) ([]map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -95,17 +95,17 @@ func (a *App) FindLorebookTriggers(text string) ([]map[string]interface{}, error
 	var result []map[string]interface{}
 	for _, rule := range triggered {
 		result = append(result, map[string]interface{}{
-			"key":       rule.Entry.Key,
-			"content":   rule.Entry.Content,
-			"category":  rule.Entry.Category,
-			"priority":  rule.Priority,
+			"key":      rule.Entry.Key,
+			"content":  rule.Entry.Content,
+			"category": rule.Entry.Category,
+			"priority": rule.Priority,
 		})
 	}
 	return result, nil
 }
 
 // BuildContextBudget 构建上下文并返回 Token 预算
-func (a *App) BuildContextBudget(systemPrompt string, currentScene string, previousScene string, characterInfo string, memoryInfo string, modelCapacity int) (map[string]interface{}, error) {
+func (a *writingState) BuildContextBudget(systemPrompt string, currentScene string, previousScene string, characterInfo string, memoryInfo string, modelCapacity int) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -119,12 +119,12 @@ func (a *App) BuildContextBudget(systemPrompt string, currentScene string, previ
 	engine.Load()
 
 	sys, usr, budget := engine.BuildFullContext(context.BuildOptions{
-		SystemPrompt:   systemPrompt,
-		CurrentScene:   currentScene,
-		PreviousScene:  previousScene,
-		CharacterInfo:  characterInfo,
-		MemoryInfo:     memoryInfo,
-		ModelCapacity:  modelCapacity,
+		SystemPrompt:  systemPrompt,
+		CurrentScene:  currentScene,
+		PreviousScene: previousScene,
+		CharacterInfo: characterInfo,
+		MemoryInfo:    memoryInfo,
+		ModelCapacity: modelCapacity,
 	})
 
 	// 构建分区的 JSON 表示
@@ -139,18 +139,18 @@ func (a *App) BuildContextBudget(systemPrompt string, currentScene string, previ
 	}
 
 	return map[string]interface{}{
-		"system_prompt":  sys,
-		"user_prompt":    usr,
-		"capacity":       budget.Capacity,
-		"used":           budget.Used,
-		"remaining":      budget.Remaining(),
-		"usage_percent":  budget.UsagePercent(),
-		"sections":       sections,
+		"system_prompt": sys,
+		"user_prompt":   usr,
+		"capacity":      budget.Capacity,
+		"used":          budget.Used,
+		"remaining":     budget.Remaining(),
+		"usage_percent": budget.UsagePercent(),
+		"sections":      sections,
 	}, nil
 }
 
 // GetAllEntityNames 获取所有实体名（用于 @-mention）
-func (a *App) GetAllEntityNames() ([]map[string]interface{}, error) {
+func (a *writingState) GetAllEntityNames() ([]map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -193,7 +193,7 @@ func (a *App) GetAllEntityNames() ([]map[string]interface{}, error) {
 }
 
 // BuildRichContext 一键构建富上下文（语义记忆 + Lorebook 注入）
-func (a *App) BuildRichContext(systemPrompt string, userText string) (map[string]interface{}, error) {
+func (a *writingState) BuildRichContext(systemPrompt string, userText string) (map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")

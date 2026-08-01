@@ -9,7 +9,7 @@ import (
 
 // TestGetEngineList_NilManager 模型中心未初始化时回退默认引擎。
 func TestGetEngineList_NilManager(t *testing.T) {
-	a := &App{} // engineMgr 为 nil
+	a := &App{core: &core{}, whisperState: &whisperState{core: &core{}}} // engineMgr 为 nil
 	got := a.GetEngineList()
 	want := []string{"default"}
 	if !reflect.DeepEqual(got, want) {
@@ -19,7 +19,7 @@ func TestGetEngineList_NilManager(t *testing.T) {
 
 // TestGetEngineList_WithEngines 返回模型中心预置引擎 ID。
 func TestGetEngineList_WithEngines(t *testing.T) {
-	a := &App{engineMgr: modelengine.NewManager("", "")}
+	a := &App{core: &core{engineMgr: modelengine.NewManager("", "")}, whisperState: &whisperState{core: &core{engineMgr: modelengine.NewManager("", "")}}}
 	got := a.GetEngineList()
 	// NewManager 预置 xai/ollama 等引擎，必须全部出现在列表中
 	for _, id := range []string{"xai", "ollama"} {

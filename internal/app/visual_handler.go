@@ -9,8 +9,8 @@ import (
 // ── 视觉叙事 API ────────────────────────────────────────────
 
 // ExtractTimeline 提取故事时间线
-func (a *App) ExtractTimeline() (map[string]interface{}, error) {
-	pm := a.getPM()
+func (a *mediaState) ExtractTimeline() (map[string]interface{}, error) {
+	pm := a.app.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -44,8 +44,8 @@ func (a *App) ExtractTimeline() (map[string]interface{}, error) {
 }
 
 // ExtractEmotionCurve 提取情绪曲线
-func (a *App) ExtractEmotionCurve() ([]map[string]interface{}, error) {
-	pm := a.getPM()
+func (a *mediaState) ExtractEmotionCurve() ([]map[string]interface{}, error) {
+	pm := a.app.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -70,8 +70,8 @@ func (a *App) ExtractEmotionCurve() ([]map[string]interface{}, error) {
 }
 
 // ExtractCharacterHeatmap 提取角色热力图
-func (a *App) ExtractCharacterHeatmap() (map[string]interface{}, error) {
-	pm := a.getPM()
+func (a *mediaState) ExtractCharacterHeatmap() (map[string]interface{}, error) {
+	pm := a.app.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
@@ -93,15 +93,15 @@ func (a *App) ExtractCharacterHeatmap() (map[string]interface{}, error) {
 	}
 
 	return map[string]interface{}{
-		"cells":        cellMaps,
-		"characters":   charNames,
+		"cells":         cellMaps,
+		"characters":    charNames,
 		"chapter_count": maxChapter,
 	}, nil
 }
 
 // GenerateDefaultCanvas 生成默认画布
-func (a *App) GenerateDefaultCanvas() (map[string]interface{}, error) {
-	pm := a.getPM()
+func (a *mediaState) GenerateDefaultCanvas() (map[string]interface{}, error) {
+	pm := a.app.getPM()
 	if pm == nil {
 		return nil, fmt.Errorf("请先打开项目")
 	}
