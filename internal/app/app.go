@@ -131,6 +131,11 @@ func (a *App) Startup(ctx context.Context) {
 	// 后台刷新所有引擎模型列表
 	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {
 		go func(id string) {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("app: refresh models goroutine panic recovered", "engine", id, "panic", r)
+				}
+			}()
 			eng, ok := a.engineMgr.GetEngine(id)
 			if !ok || !eng.Enabled {
 				return

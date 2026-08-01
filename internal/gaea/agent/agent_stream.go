@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"log/slog"
 	"context"
 	"encoding/json"
 	"strings"
@@ -80,6 +81,11 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 				tc.Name != "complete_step" && tc.Name != "todo_write" {
 				a.preWG.Add(1)
 				go func(call provider.ToolCall) {
+					defer func() {
+						if r := recover(); r != nil {
+							slog.Error("agent: pre-exec goroutine panic recovered", "tool", call.Name, "panic", r)
+						}
+					}()
 					defer a.preWG.Done()
 					o := a.executeOne(ctx, call)
 					a.preMu.Lock()
