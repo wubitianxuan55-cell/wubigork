@@ -1,17 +1,16 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react'
-import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag } from 'antd'
+import { Layout, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag } from 'antd'
 import {
-  ReadOutlined, HomeOutlined,
+  HomeOutlined,
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined, ConsoleSqlOutlined,
-  ApiOutlined, PictureOutlined, MessageOutlined, HeartOutlined,
-  FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined, ToolOutlined,
+  FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined,
   BarChartOutlined, DownOutlined,
 } from '@ant-design/icons'
 import SearchModal from '../components/SearchModal'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Z_INDEX } from '../utils/zIndex'
-import AppBar from '../components/AppBar'
 import { useAppStore, type ThemePreset, type StatsData, type ProjectInfo } from '../stores/appStore'
+import ModuleLauncher, { type LauncherTarget } from '../components/ModuleLauncher'
 const NovelPage = React.lazy(() => import('../pages/NovelPage'))
 const SettingsPage = React.lazy(() => import('../pages/SettingsPage'))
 const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'))
@@ -22,22 +21,12 @@ const OfficePage = React.lazy(() => import('../pages/OfficePage'))
 const GaeaPage = React.lazy(() => import('../pages/GaeaPage'))
 const { Header, Footer, Content } = Layout
 
-type Page = 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' | 'whisper' | 'office' | 'gaea'
+type Page = 'home' | 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' | 'whisper' | 'office' | 'gaea'
 
-// 所有页面 key 的扁平列表（用于 navigate 事件校验 + 快捷键映射）
+// 功能模块 key（navigate 事件校验 + Ctrl+1~4 快捷键映射；home 启动器不参与）
 const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'whisper', 'office', 'gaea', 'modelcenter']
 
-const menuItems: any[] = [
-  { key: 'chat', icon: <MessageOutlined />, label: '聊天' },
-  { key: 'novel', icon: <ReadOutlined />, label: '小说' },
-  { key: 'imagegen', icon: <PictureOutlined />, label: '绘梦' },
-  { key: 'whisper', icon: <HeartOutlined />, label: '轻语' },
-  { key: 'office', icon: <FileTextOutlined />, label: '方案编写' },
-  { key: 'gaea', icon: <ToolOutlined />, label: '办公' },
-  { key: 'modelcenter', icon: <ApiOutlined />, label: '模型中心' },
-]
-
-const pageComponents: Record<Page, React.ReactNode> = {
+const pageComponents: Record<Exclude<Page, 'home'>, React.ReactNode> = {
   novel: <NovelPage />,
   imagegen: <ImageGenPage />,
   settings: <SettingsPage />,
@@ -130,7 +119,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
 }
 
 const pageLabels: Record<Page, string> = {
-  novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天', whisper: '轻语', office: '方案编写', gaea: '办公',
+  home: '首页', novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天', whisper: '轻语', office: '方案编写', gaea: '办公',
 }
 
 // ─── 主布局 ─────────────────────────────────────────────────
@@ -138,7 +127,7 @@ const pageLabels: Record<Page, string> = {
 // ─── 主布局 ─────────────────────────────────────────────────
 // ─── 主布局 ─────────────────────────────────────────────────
 const MainLayout: React.FC = () => {
-  const [page, setPage] = useState<Page>('chat')
+  const [page, setPage] = useState<Page>('home')
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [consoleOpen, setConsoleOpen] = useState(true)
   const [expandedLog, setExpandedLog] = useState<number | null>(null)
@@ -151,7 +140,7 @@ const MainLayout: React.FC = () => {
   } = useAppStore()
 
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set(['chat']))
+  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set(['home']))
 
   // 跟踪已访问的页面，避免切换 tab 时销毁组件丢失状态
   React.useEffect(() => {
@@ -278,13 +267,20 @@ const MainLayout: React.FC = () => {
             </Typography.Text>
           </div>
 
-          <Menu
-            mode="horizontal"
-            selectedKeys={[page]}
-            items={menuItems}
-            onClick={({ key }) => setPage(key as Page)}
-            style={{ flex: 1, minWidth: 0, background: 'transparent', borderBottom: 'none' }}
-          />
+          {/* 纯启动器模式：进入模块后靠「返回首页」回到卡片墙 */}
+          {page !== 'home' && (
+            <Button
+              type="text"
+              size="small"
+              icon={<HomeOutlined />}
+              onClick={() => setPage('home')}
+              style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 13 }}
+            >
+              首页
+            </Button>
+          )}
+
+          <div style={{ flex: 1, minWidth: 0 }} />
 
           <Space size={6}>
             {/* 4 色块 */}
@@ -349,7 +345,7 @@ const MainLayout: React.FC = () => {
       <Layout style={{ flex: 1, flexDirection: 'row' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {/* 面包屑导航 */}
-          {projectOpen && page !== 'novel' && (
+          {projectOpen && page !== 'novel' && page !== 'home' && (
             <div style={{
               padding: '6px 16px 0', background: 'var(--color-bg-layout)',
             }}>
@@ -365,8 +361,8 @@ const MainLayout: React.FC = () => {
             </div>
           )}
           <Content style={{
-            padding: page === 'chat' ? 0 : '8px 16px 16px',
-            paddingBottom: page === 'chat' ? 0 : '16px',
+            padding: page === 'chat' ? 0 : (page === 'home' ? '16px' : '8px 16px 16px'),
+            paddingBottom: page === 'chat' || page === 'home' ? 0 : '16px',
             background: page === 'chat' ? 'var(--md-sys-color-surface)' : 'var(--md-sys-color-bg-layout)',
             overflow: page === 'chat' ? 'hidden' : 'auto',
             flex: 1,
@@ -377,7 +373,9 @@ const MainLayout: React.FC = () => {
               <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Spin size="large" /></div>}>
                 {Array.from(visitedPages).map((p) => (
                   <div key={p} style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
-                    {pageComponents[p]}
+                    {p === 'home'
+                      ? <ModuleLauncher onNavigate={(target: LauncherTarget) => setPage(target as Page)} />
+                      : pageComponents[p]}
                   </div>
                 ))}
               </Suspense>
@@ -385,7 +383,7 @@ const MainLayout: React.FC = () => {
           </Content>
         </div>
 
-{consoleOpen && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && page !== 'whisper' && page !== 'office' && page !== 'gaea' && (
+{consoleOpen && page !== 'home' && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && page !== 'whisper' && page !== 'office' && page !== 'gaea' && (
   <div style={{
     width: 380, flexShrink: 0, alignSelf: 'stretch',
     maxHeight: 'calc(100vh - 80px)',
@@ -473,7 +471,7 @@ const MainLayout: React.FC = () => {
   </div>
 )}
 
-{!consoleOpen && page !== 'modelcenter' && (
+{!consoleOpen && page !== 'modelcenter' && page !== 'home' && (
     <Button
     onClick={() => setConsoleOpen(true)}
     style={{

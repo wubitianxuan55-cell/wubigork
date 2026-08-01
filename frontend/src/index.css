@@ -169,6 +169,24 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ═══ 启动器卡片入场 ═══ */
+@keyframes launcherFadeUp {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.launcher-card {
+  animation: launcherFadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+/* 动画结束后保留 hover 抬升（backwards 填充只在 delay 期间生效） */
+.launcher-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--md-sys-elevation-3);
+}
+.launcher-card:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
 .writing-cursor::after {
   content: '▌';
   color: var(--md-sys-color-primary);
