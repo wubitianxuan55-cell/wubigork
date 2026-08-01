@@ -1,5 +1,13 @@
 # gaea · 多功能 AI 助手
 
+## v1.6.2「方案模型条修复」(2026-08-02)
+
+> 补丁：方案编写板块模型条不可见修复（OfficePage 主 return 为单行 Fragment，此前 JSX 未插入）。
+> tag v1.6.2，构建 36,109,824 字节。
+
+- OfficePage 顶部插入 FeatureModelBar（feature="office"），方案编写窗口显示绑定模型 + 启停
+- 验证：go build + tsc -b + vite + wails build 全绿
+
 ## v1.6.1「小说统一模型」(2026-08-02)
 
 > 补丁：小说板块章节/角色/世界观 agent 统一接入 func_novel，整部小说用一个 LLM 模型（v1.6.0 已知限制 1 修复）。
