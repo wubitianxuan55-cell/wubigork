@@ -244,6 +244,12 @@ func TestPersonalityPresets_GaeaCore(t *testing.T) {
 	if !containsTag(p.Tags, "core-assistant") {
 		t.Errorf("gaea 应带 core-assistant 标签")
 	}
+	if !containsTag(p.Tags, "goddess") {
+		t.Errorf("gaea 应带 goddess 标签（大地女神）")
+	}
+	if p.Gender != "female" {
+		t.Errorf("gaea 应为 female（大地女神）: %s", p.Gender)
+	}
 }
 
 func TestPersonalityPresets_GetPreset(t *testing.T) {
