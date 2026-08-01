@@ -124,7 +124,7 @@ type inboundMsg struct {
 	ClientID     string `json:"client_id"`
 	ContextToken string `json:"context_token"`
 	ItemList     []struct {
-		Type     int        `json:"type"`
+		ItemType int        `json:"item_type"`
 		TextItem *textItem  `json:"text_item,omitempty"`
 	} `json:"item_list"`
 }
@@ -197,7 +197,7 @@ func (s *Server) pollLoop() {
 func (s *Server) handle(msg *inboundMsg) {
 	text := ""
 	for _, item := range msg.ItemList {
-		if item.Type == 1 && item.TextItem != nil {
+		if item.ItemType == 1 && item.TextItem != nil {
 			text += item.TextItem.Text
 		}
 	}
@@ -211,25 +211,29 @@ func (s *Server) handle(msg *inboundMsg) {
 		slog.Error("[weixin] AI回复失败", "err", err)
 		reply = "思考中…请稍后再试"
 	}
-	if err := s.Send(msg.FromUserID, reply); err != nil {
+	if err := s.Send(msg.FromUserID, msg.ContextToken, reply); err != nil {
 		slog.Error("[weixin] 回复失败", "err", err)
 	}
 }
 
 // ─── 发送 ────────────────────────────────────────────────────
 
-func (s *Server) Send(toUser, text string) error {
-	body, _ := json.Marshal(map[string]interface{}{
-		"msg": map[string]interface{}{
-			"from_user_id":  s.cfg.BotID,
-			"to_user_id":    toUser,
-			"client_id":     genUUID(),
-			"message_type":  2,
-			"message_state": 2,
-			"item_list": []map[string]interface{}{
-				{"type": 1, "text_item": map[string]string{"text": text}},
-			},
+func (s *Server) Send(toUser, contextToken, text string) error {
+	msg := map[string]interface{}{
+		"from_user_id":  "",
+		"to_user_id":    toUser,
+		"client_id":     genUUID(),
+		"message_type":  2,
+		"message_state": 2,
+		"item_list": []map[string]interface{}{
+			{"item_type": 1, "text_item": map[string]string{"text": text}},
 		},
+	}
+	if contextToken != "" {
+		msg["context_token"] = contextToken
+	}
+	body, _ := json.Marshal(map[string]interface{}{
+		"msg":       msg,
 		"base_info": s.baseInfo(),
 	})
 
@@ -241,7 +245,7 @@ func (s *Server) Send(toUser, text string) error {
 
 func (s *Server) getUpdates(req *pollReq, timeout time.Duration) (*pollResp, error) {
 	body, _ := json.Marshal(req)
-	respBody, err := s.apiPost("/ilink/bot/getUpdates", body, timeout)
+	respBody, err := s.apiPost("/ilink/bot/getupdates", body, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -266,8 +270,10 @@ func (s *Server) apiPost(endpoint string, body []byte, timeout time.Duration) ([
 	req, _ := http.NewRequest("POST", s.cfg.ILinkURL+endpoint, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("AuthorizationType", "ilink_bot_token")
-	req.Header.Set("Authorization", s.cfg.BotToken)
+	req.Header.Set("Authorization", "Bearer "+s.cfg.BotToken)
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
+	req.Header.Set("iLink-App-Id", "bot")
+	req.Header.Set("iLink-App-ClientVersion", "2.4.3")
 
 	c := s.client
 	if timeout < c.Timeout {
@@ -287,7 +293,7 @@ func (s *Server) apiPost(endpoint string, body []byte, timeout time.Duration) ([
 }
 
 func (s *Server) baseInfo() map[string]string {
-	return map[string]string{"channel_version": "1.0.0"}
+	return map[string]string{"channel_version": "2.4.3", "bot_agent": "gaea-desktop/1.0.0"}
 }
 
 func (s *Server) sleepOrStop(d time.Duration) {

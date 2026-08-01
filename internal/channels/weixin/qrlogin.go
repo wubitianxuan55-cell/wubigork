@@ -34,6 +34,7 @@ type QRStatusResp struct {
 	BaseURL      string `json:"baseurl,omitempty"`
 	ILinkUserID  string `json:"ilink_user_id,omitempty"`
 	RedirectHost string `json:"redirect_host,omitempty"`
+	VerifyCode   string `json:"verify_code,omitempty"`
 }
 
 // GetQRCode 获取微信扫码登录的二维码
@@ -45,6 +46,8 @@ func GetQRCode() (*QRCodeResp, error) {
 	req, _ := http.NewRequest("POST", qrBaseURL+qrCodeEndpoint, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
+	req.Header.Set("iLink-App-Id", "bot")
+	req.Header.Set("iLink-App-ClientVersion", "2.4.3")
 
 	client := netclient.NewSimpleClient(15 * time.Second)
 	resp, err := client.Do(req)
@@ -71,6 +74,8 @@ func PollQRStatus(qrcode string) (*QRStatusResp, error) {
 
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
+	req.Header.Set("iLink-App-Id", "bot")
+	req.Header.Set("iLink-App-ClientVersion", "2.4.3")
 
 	client := netclient.NewSimpleClient(qrPollTimeout)
 	resp, err := client.Do(req)
@@ -100,6 +105,8 @@ func PollQRStatusWithCode(qrcode, verifyCode string) (*QRStatusResp, error) {
 
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("X-WECHAT-UIN", randomUIN())
+	req.Header.Set("iLink-App-Id", "bot")
+	req.Header.Set("iLink-App-ClientVersion", "2.4.3")
 
 	client := netclient.NewSimpleClient(qrPollTimeout)
 	resp, err := client.Do(req)

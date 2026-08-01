@@ -45,8 +45,10 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   // QR 扫码
   const [qrImage, setQrImage] = useState('')
   const [qrCode, setQrCode] = useState('')
-  const [qrStatus, setQrStatus] = useState('') // wait | scanned | confirmed | expired
+  const [qrStatus, setQrStatus] = useState('') // wait | scaned | confirmed | expired | need_verifycode ...
   const [qrPolling, setQrPolling] = useState(false)
+  const [needVerify, setNeedVerify] = useState(false)
+  const [verifyInput, setVerifyInput] = useState('')
   // 加载数据
   const reload = useCallback(async () => {
     try {
@@ -109,21 +111,72 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
         try {
           const s: any = await (App as any).WhisperWeixinQRStatus(qr.qrcode)
           setQrStatus(s.status || 'wait')
-          if ((s.status === 'confirmed' || s.status === 'verified') && s.botToken) {
+          if (s.status === 'confirmed' && s.botToken) {
             clearInterval(poll)
             setQrPolling(false)
             setForm(f => ({ ...f, wxToken: s.botToken, wxBotId: s.botId || '' }))
             message.success('微信绑定成功！')
             setQrImage('')
-          } else if (s.status === 'expired') {
+          } else if (s.status === 'need_verifycode') {
+            // 需要手机端显示的配对码
             clearInterval(poll)
             setQrPolling(false)
-            setQrStatus('expired')
+            setNeedVerify(true)
+            setQrStatus('need_verifycode')
+          } else if (s.status === 'expired' || s.status === 'verify_code_blocked') {
+            clearInterval(poll)
+            setQrPolling(false)
+            setQrStatus(s.status)
           }
         } catch (_) {}
       }, 3000)
     } catch (e: any) {
       message.error('获取二维码失败')
+    }
+  }
+
+  // 提交手机配对码后继续轮询
+  const handleVerifyCode = async () => {
+    if (!qrCode || !verifyInput.trim()) return
+    setQrPolling(true)
+    try {
+      const s: any = await (App as any).WhisperWeixinQRStatusWithCode(qrCode, verifyInput.trim())
+      setQrStatus(s.status || 'wait')
+      if (s.status === 'confirmed' && s.botToken) {
+        setQrPolling(false)
+        setNeedVerify(false)
+        setForm(f => ({ ...f, wxToken: s.botToken, wxBotId: s.botId || '' }))
+        message.success('微信绑定成功！')
+        setQrImage('')
+        return
+      }
+      if (s.status === 'expired' || s.status === 'verify_code_blocked') {
+        setQrPolling(false)
+        setQrStatus(s.status)
+        return
+      }
+      // 其他状态继续轮询
+      const poll = setInterval(async () => {
+        try {
+          const s2: any = await (App as any).WhisperWeixinQRStatus(qrCode)
+          setQrStatus(s2.status || 'wait')
+          if (s2.status === 'confirmed' && s2.botToken) {
+            clearInterval(poll)
+            setQrPolling(false)
+            setNeedVerify(false)
+            setForm(f => ({ ...f, wxToken: s2.botToken, wxBotId: s2.botId || '' }))
+            message.success('微信绑定成功！')
+            setQrImage('')
+          } else if (s2.status === 'expired' || s2.status === 'verify_code_blocked') {
+            clearInterval(poll)
+            setQrPolling(false)
+            setQrStatus(s2.status)
+          }
+        } catch (_) {}
+      }, 3000)
+    } catch (e: any) {
+      message.error('提交配对码失败')
+      setQrPolling(false)
     }
   }
 
@@ -271,8 +324,28 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
               <img src={qrImage} alt="QR" style={{ width: 180, height: 180, borderRadius: 8, background: '#fff', padding: 8 }} />
               <div style={{ marginTop: 8, fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
                 {qrStatus === 'wait' && <><LoadingOutlined spin style={{ marginRight: 4 }} />等待扫码…</>}
-                {qrStatus === 'scanned' && '已扫码，请在手机上确认'}
-                {qrStatus === 'verified' && '已确认，正在获取凭证…'}
+                {qrStatus === 'scaned' && '已扫码，请在手机上确认'}
+                {qrStatus === 'scaned_but_redirect' && '已扫码，请在手机确认并允许登录'}
+                {qrStatus === 'need_verifycode' && (
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{ marginBottom: 4 }}>请在手机上查看配对码并输入：</div>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                      <Input
+                        value={verifyInput}
+                        onChange={e => setVerifyInput(e.target.value)}
+                        placeholder="手机显示的配对码"
+                        style={{ width: 140, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', borderRadius: 8 }}
+                      />
+                      <Button size="small" type="primary" loading={qrPolling} onClick={handleVerifyCode}
+                        style={{ background: 'linear-gradient(135deg, #e85388, #c02660)', border: 'none', borderRadius: 8 }}>
+                        提交
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {qrStatus === 'verify_code_blocked' && (
+                  <span style={{ color: '#ff4d4f' }}>配对码错误次数过多 <Button type="link" size="small" icon={<ReloadOutlined />} onClick={handleQRScan} style={{ color: '#e85388', padding: 0 }}>重新扫码</Button></span>
+                )}
                 {qrStatus === 'expired' && <span style={{ color: '#ff4d4f' }}>二维码已过期 <Button type="link" size="small" icon={<ReloadOutlined />} onClick={handleQRScan} style={{ color: '#e85388', padding: 0 }}>重新获取</Button></span>}
               </div>
             </div>

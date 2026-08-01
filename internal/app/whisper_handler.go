@@ -531,6 +531,33 @@ func (a *whisperState) WhisperWeixinQRStatus(qrcode string) (map[string]interfac
 	result := map[string]interface{}{
 		"status": status.Status,
 	}
+	if status.RedirectHost != "" {
+		result["redirectHost"] = status.RedirectHost
+	}
+	if status.VerifyCode != "" {
+		result["verifyCode"] = status.VerifyCode
+	}
+	if status.BotToken != "" {
+		result["botToken"] = status.BotToken
+		result["botId"] = status.ILinkBotID
+		result["baseUrl"] = status.BaseURL
+		result["userId"] = status.ILinkUserID
+	}
+	return result, nil
+}
+
+// WhisperWeixinQRStatusWithCode 带手机配对码轮询二维码状态（need_verifycode 状态时使用）
+func (a *whisperState) WhisperWeixinQRStatusWithCode(qrcode, verifyCode string) (map[string]interface{}, error) {
+	status, err := weixin.PollQRStatusWithCode(qrcode, verifyCode)
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]interface{}{
+		"status": status.Status,
+	}
+	if status.RedirectHost != "" {
+		result["redirectHost"] = status.RedirectHost
+	}
 	if status.BotToken != "" {
 		result["botToken"] = status.BotToken
 		result["botId"] = status.ILinkBotID
