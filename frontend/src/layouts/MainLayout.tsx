@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react'
-import { Layout, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag } from 'antd'
+import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag } from 'antd'
 import {
   HomeOutlined,
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined, ConsoleSqlOutlined,
+  ReadOutlined, PictureOutlined, MessageOutlined, HeartOutlined, ToolOutlined, ApiOutlined,
   FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined,
   BarChartOutlined, DownOutlined,
 } from '@ant-design/icons'
@@ -25,6 +26,18 @@ type Page = 'home' | 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' 
 
 // 功能模块 key（navigate 事件校验 + Ctrl+1~4 快捷键映射；home 启动器不参与）
 const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'whisper', 'office', 'gaea', 'modelcenter']
+
+// 顶栏横向导航（含首页启动器），点击直接切换模块
+const menuItems: any[] = [
+  { key: 'home', icon: <HomeOutlined />, label: '首页' },
+  { key: 'chat', icon: <MessageOutlined />, label: '聊天' },
+  { key: 'novel', icon: <ReadOutlined />, label: '小说' },
+  { key: 'imagegen', icon: <PictureOutlined />, label: '绘梦' },
+  { key: 'whisper', icon: <HeartOutlined />, label: '轻语' },
+  { key: 'office', icon: <FileTextOutlined />, label: '方案编写' },
+  { key: 'gaea', icon: <ToolOutlined />, label: '办公' },
+  { key: 'modelcenter', icon: <ApiOutlined />, label: '模型中心' },
+]
 
 const pageComponents: Record<Exclude<Page, 'home'>, React.ReactNode> = {
   novel: <NovelPage />,
@@ -267,20 +280,13 @@ const MainLayout: React.FC = () => {
             </Typography.Text>
           </div>
 
-          {/* 纯启动器模式：进入模块后靠「返回首页」回到卡片墙 */}
-          {page !== 'home' && (
-            <Button
-              type="text"
-              size="small"
-              icon={<HomeOutlined />}
-              onClick={() => setPage('home')}
-              style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 13 }}
-            >
-              首页
-            </Button>
-          )}
-
-          <div style={{ flex: 1, minWidth: 0 }} />
+          <Menu
+            mode="horizontal"
+            selectedKeys={[page]}
+            items={menuItems}
+            onClick={({ key }) => setPage(key as Page)}
+            style={{ flex: 1, minWidth: 0, background: 'transparent', borderBottom: 'none' }}
+          />
 
           <Space size={6}>
             {/* 4 色块 */}
