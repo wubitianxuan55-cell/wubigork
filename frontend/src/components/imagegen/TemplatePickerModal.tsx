@@ -44,8 +44,8 @@ const TemplatePickerModal: React.FC<Props> = ({
       footer={null}
       width={560}
       styles={{
-        body: { background: C('color-bg-container'), padding: '16px 20px' },
-        header: { background: C('color-bg-container') },
+        body: { background: 'transparent', padding: '16px 20px' },
+        header: { background: 'transparent' },
       }}
     >
       {/* 分类 pill */}

@@ -52,7 +52,7 @@ const NextChapterModal: React.FC<NextChapterModalProps> = ({
       onCancel={onClose}
       footer={null}
       width={600}
-      styles={{ body: { background: C('color-bg-container'), maxHeight: '70vh', overflow: 'auto' }, header: { background: C('color-bg-container') } }}
+      styles={{ body: { background: 'transparent', maxHeight: '70vh', overflow: 'auto' }, header: { background: 'transparent' } }}
     >
       <BranchSelectorPanel
         loading={loading}

@@ -22,7 +22,7 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
 }) => (
   <div
     key={card.path}
-    className="glass-card"
+    className="neon-card"
     onClick={() => onOpen(card)}
     style={{
       gridColumn: isHero ? 'span 2' : 'span 1',
@@ -31,19 +31,28 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
       padding: '20px 24px',
       display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
       borderRadius: 'var(--radius-xl)',
-      border: isActive ? '1px solid var(--color-primary)' : '1px solid var(--border-subtle)',
-      boxShadow: isActive ? 'var(--shadow-glow)' : 'var(--shadow-md)',
+      background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
+      WebkitBackdropFilter: 'blur(14px) saturate(130%)',
+      backdropFilter: 'blur(14px) saturate(130%)',
+      border: isActive ? '1px solid var(--gaea-glow)' : '1px solid var(--border-subtle)',
+      boxShadow: isActive
+        ? '0 0 0 1px var(--gaea-glow), 0 8px 28px rgba(from var(--gaea-glow) r g b / 0.2)'
+        : 'var(--shadow-md)',
       transition: 'all var(--transition-normal)',
       position: 'relative',
       overflow: 'hidden',
     }}
     onMouseEnter={(e) => {
-      e.currentTarget.style.transform = 'translateY(-2px)'
-      e.currentTarget.style.boxShadow = 'var(--shadow-lg)'
+      e.currentTarget.style.transform = 'translateY(-3px)'
+      e.currentTarget.style.boxShadow = isActive
+        ? '0 0 0 1px var(--gaea-glow), 0 12px 36px rgba(from var(--gaea-glow) r g b / 0.3)'
+        : '0 0 0 1px var(--gaea-glow), 0 10px 30px rgba(from var(--gaea-glow) r g b / 0.18)'
     }}
     onMouseLeave={(e) => {
       e.currentTarget.style.transform = 'translateY(0)'
-      e.currentTarget.style.boxShadow = isActive ? 'var(--shadow-glow)' : 'var(--shadow-md)'
+      e.currentTarget.style.boxShadow = isActive
+        ? '0 0 0 1px var(--gaea-glow), 0 8px 28px rgba(from var(--gaea-glow) r g b / 0.2)'
+        : 'var(--shadow-md)'
     }}
   >
     {/* 装饰光晕 */}
@@ -51,7 +60,7 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
       <div style={{
         position: 'absolute', top: -40, right: -40,
         width: 120, height: 120, borderRadius: '50%',
-        background: `radial-gradient(circle, rgba(var(--accent-rgb), 0.12) 0%, transparent 70%)`,
+        background: `radial-gradient(circle, color-mix(in srgb, var(--gaea-glow) 16%, transparent) 0%, transparent 70%)`,
         pointerEvents: 'none',
       }} />
     )}

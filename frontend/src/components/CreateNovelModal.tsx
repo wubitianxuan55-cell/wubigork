@@ -37,8 +37,8 @@ const CreateNovelModal: React.FC<CreateNovelModalProps> = ({
     cancelText="取消"
     width={520}
     styles={{
-      body: { background: C('color-bg-container') },
-      header: { background: C('color-bg-container') },
+      body: { background: 'transparent' },
+      header: { background: 'transparent' },
     }}
   >
     <Space direction="vertical" size={14} style={{ width: '100%' }}>

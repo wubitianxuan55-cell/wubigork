@@ -446,9 +446,11 @@ const ImageGenPage: React.FC = () => {
         {/* 左栏 — 320px 控制面板 */}
         <div style={{ width: 350, flexShrink: 0, paddingRight: 8, overflowY: 'auto', overflowX: 'hidden' }}>
           <div style={{
-            background: 'rgba(255,255,255,0.03)',
+            background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
+            WebkitBackdropFilter: 'blur(18px) saturate(140%)',
+            backdropFilter: 'blur(18px) saturate(140%)',
             borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-subtle)',
+            border: '1px solid var(--md-sys-color-outline-variant)',
             padding: '14px 16px',
             display: 'flex', flexDirection: 'column', gap: 14,
           }}>

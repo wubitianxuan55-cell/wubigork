@@ -13,8 +13,10 @@ body {
   font-family: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: var(--md-sys-color-surface);
+  background: var(--gaea-aurora-bg, var(--md-sys-color-surface));
+  background-attachment: fixed;
   color: var(--md-sys-color-on-surface);
+  transition: background 0.6s ease;
 }
 
 /* ═══ 滚动条 ═══ */
@@ -313,10 +315,12 @@ body {
 
 /* ═══ M3 Modal (Ant Design 覆盖) ═══ */
 .ant-modal-content {
-  background: var(--md-sys-color-surface-container-high) !important;
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container-high)) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  backdrop-filter: blur(28px) saturate(160%);
   border-radius: var(--md-sys-radius-xl) !important;
   box-shadow: var(--md-sys-elevation-5) !important;
-  border: none !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
 }
 .ant-modal-header {
   background: transparent !important;
@@ -328,8 +332,8 @@ body {
 }
 .ant-modal-close { color: var(--md-sys-color-on-surface-variant) !important; }
 .ant-modal-mask {
-  background: rgba(0, 0, 0, 0.5) !important;
-  backdrop-filter: none !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: blur(2px) !important;
 }
 
 /* ═══ Bento Grid 响应式 ═══ */
@@ -359,4 +363,297 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ══ 未来感 · Neo-Futuristic Layer（深空星云 / 玻璃拟态 / 霓虹）══
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 全屏背景层（MainLayout 挂载 .gaea-bg）── */
+.gaea-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+/* 赛博网格 */
+.gaea-bg .cyber-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--md-sys-color-outline-variant) 1px, transparent 1px),
+    linear-gradient(90deg, var(--md-sys-color-outline-variant) 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.28;
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
+}
+/* 星点 */
+.gaea-bg .star-dots {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.2px 1.2px at 12% 28%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(1px 1px at 68% 12%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(1.4px 1.4px at 82% 42%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(1px 1px at 24% 64%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(1.2px 1.2px at 44% 86%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(1px 1px at 92% 74%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(1.1px 1.1px at 6% 88%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(1px 1px at 56% 4%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(1.2px 1.2px at 33% 46%, var(--gaea-glow) 50%, transparent 55%),
+    radial-gradient(1px 1px at 76% 60%, var(--gaea-glow) 50%, transparent 55%);
+  opacity: 0.5;
+  animation: starTwinkle 6s ease-in-out infinite alternate;
+}
+/* 漂浮光球（aurora orb） */
+.gaea-bg .aurora-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.gaea-bg .aurora-orb.orb-a {
+  width: 420px; height: 420px;
+  top: -120px; left: -80px;
+  background: radial-gradient(circle, var(--gaea-glow), transparent 70%);
+  animation: orbFloatA 22s ease-in-out infinite alternate;
+}
+.gaea-bg .aurora-orb.orb-b {
+  width: 360px; height: 360px;
+  bottom: -100px; right: -60px;
+  background: radial-gradient(circle, var(--gaea-glow), transparent 70%);
+  opacity: 0.35;
+  animation: orbFloatB 28s ease-in-out infinite alternate;
+}
+
+@keyframes starTwinkle {
+  0%   { opacity: 0.3; }
+  50%  { opacity: 0.65; }
+  100% { opacity: 0.35; }
+}
+@keyframes orbFloatA {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(70px, 50px) scale(1.15); }
+}
+@keyframes orbFloatB {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(-60px, -40px) scale(0.9); }
+}
+
+/* ── 玻璃拟态工具类 ── */
+.md-glass {
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+.md-glass-strong {
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+/* ── 霓虹光效工具类 ── */
+.neon-glow-text {
+  color: var(--md-sys-color-text);
+  text-shadow: 0 0 18px var(--gaea-glow), 0 0 42px var(--gaea-glow);
+}
+.neon-glow-icon {
+  filter: drop-shadow(0 0 8px var(--gaea-glow));
+}
+
+/* ── 霓虹渐变描边卡片（hover 时发光） ── */
+.neon-card {
+  position: relative;
+  background: var(--md-sys-color-surface-container);
+  border-radius: var(--md-sys-radius-xl);
+  box-shadow: var(--md-sys-elevation-1);
+  cursor: pointer;
+  transition: transform var(--md-sys-transition-normal),
+              box-shadow var(--md-sys-transition-normal);
+  overflow: hidden;
+}
+.neon-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    var(--gaea-glow) 0%,
+    transparent 30%,
+    transparent 70%,
+    var(--gaea-glow) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.35;
+  transition: opacity var(--md-sys-transition-normal);
+  pointer-events: none;
+}
+.neon-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 1px var(--gaea-glow),
+              0 10px 34px rgba(from var(--gaea-glow) r g b / 0.22);
+}
+.neon-card:hover::before { opacity: 1; }
+.neon-card:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+
+/* ── 发光圆点（在线/运行状态）── */
+.live-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow), 0 0 18px var(--gaea-glow);
+  animation: livePulse 2.2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 6px var(--gaea-glow), 0 0 14px var(--gaea-glow); opacity: 1; }
+  50%      { box-shadow: 0 0 14px var(--gaea-glow), 0 0 30px var(--gaea-glow); opacity: 0.75; }
+}
+
+/* ── 流光扫描线（顶部装饰）── */
+.scanline-top {
+  position: relative;
+}
+.scanline-top::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gaea-glow), transparent);
+  opacity: 0.7;
+  animation: scanSweep 6s ease-in-out infinite;
+}
+@keyframes scanSweep {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ── 滚动条霓虹化 ── */
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--gaea-glow), var(--md-sys-color-outline));
+  opacity: 0.7;
+}
+
+/* ── 文本选区主题化 ── */
+::selection {
+  background: var(--gaea-glow);
+  color: var(--md-sys-color-on-primary, #042f2e);
+}
+
+/* ── 品牌文字霓虹 ── */
+.gaea-brand-text {
+  text-shadow: 0 0 12px var(--gaea-glow), 0 0 32px var(--gaea-glow);
+  letter-spacing: 0.02em;
+}
+
+/* ── antd 顶栏 Menu 未来感定制 ── */
+.ant-menu-horizontal {
+  line-height: 46px !important;
+}
+.ant-menu-horizontal > .ant-menu-item {
+  position: relative;
+  transition: color var(--md-sys-transition-fast);
+}
+.ant-menu-horizontal > .ant-menu-item:hover {
+  color: var(--gaea-glow) !important;
+  text-shadow: 0 0 10px var(--gaea-glow);
+}
+.ant-menu-horizontal > .ant-menu-item::after {
+  border-bottom-color: var(--gaea-glow) !important;
+  box-shadow: 0 1px 8px var(--gaea-glow);
+  height: 2px !important;
+}
+.ant-menu-horizontal > .ant-menu-item-selected {
+  color: var(--gaea-glow) !important;
+  text-shadow: 0 0 12px var(--gaea-glow);
+}
+
+/* ── 启动器卡片 hover 微交互 ── */
+.launcher-card:hover .launcher-icon {
+  transform: scale(1.08);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--gaea-glow) 45%, transparent);
+}
+.launcher-card:hover .launcher-arrow {
+  opacity: 1 !important;
+  transform: translateX(0) !important;
+}
+
+/* ── 欢迎页登录按钮 hover ── */
+.welcome-login-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 34px color-mix(in srgb, var(--gaea-glow) 65%, transparent) !important;
+}
+
+/* ── 主题色块 hover ── */
+.theme-dot:hover {
+  transform: scale(1.22) !important;
+  opacity: 1 !important;
+}
+
+/* ── 聊天输入栏聚焦霓虹 ── */
+.chat-input-wrap:focus-within {
+  border-color: var(--gaea-glow) !important;
+  box-shadow: 0 0 0 1px var(--gaea-glow),
+              0 0 22px color-mix(in srgb, var(--gaea-glow) 22%, transparent),
+              0 8px 32px rgba(0,0,0,0.12) !important;
+}
+
+/* ── 绘梦画廊卡片 hover ── */
+.img-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--gaea-glow) !important;
+  box-shadow: 0 0 0 1px var(--gaea-glow),
+              0 10px 28px rgba(from var(--gaea-glow) r g b / 0.18);
+}
+
+/* ── antd 弹层玻璃化（Dropdown / Popover / Select / Tooltip / Picker）── */
+.ant-dropdown,
+.ant-dropdown-menu,
+.ant-popover-inner,
+.ant-select-dropdown,
+.ant-picker-dropdown .ant-picker-panel-container,
+.ant-tooltip-inner {
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container-high)) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(150%) !important;
+  backdrop-filter: blur(24px) saturate(150%) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  box-shadow: var(--md-sys-elevation-3) !important;
+}
+.ant-dropdown-menu-item:hover,
+.ant-dropdown-menu-item-selected,
+.ant-select-item-option-active {
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent) !important;
+}
+.ant-dropdown-menu-item-selected,
+.ant-select-item-option-selected {
+  color: var(--gaea-glow) !important;
+  background: color-mix(in srgb, var(--gaea-glow) 14%, transparent) !important;
+}
+
+/* ── antd Tabs 霓虹选中态（页内导航）── */
+.ant-tabs-top > .ant-tabs-nav::before {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+.ant-tabs-tab:hover {
+  color: var(--gaea-glow) !important;
+}
+.ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--gaea-glow) !important;
+  text-shadow: 0 0 10px var(--gaea-glow);
+}
+.ant-tabs-ink-bar {
+  background: var(--gaea-glow) !important;
+  box-shadow: 0 1px 8px var(--gaea-glow);
 }

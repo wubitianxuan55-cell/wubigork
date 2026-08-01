@@ -168,7 +168,7 @@ const ChapterPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C('color-bg-container'), borderRadius: 8, border: '1px solid ' + C('color-border'), overflow: 'hidden' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))', WebkitBackdropFilter: 'blur(16px) saturate(140%)', backdropFilter: 'blur(16px) saturate(140%)', borderRadius: 8, border: '1px solid var(--md-sys-color-outline-variant)', overflow: 'hidden' }}>
               {/* 标签栏 + 前后章节按钮 */}
               {!focusMode && (
                 <div style={{ borderBottom: '1px solid ' + C('color-border'), display: 'flex', alignItems: 'center', paddingRight: 8 }}>

@@ -52,13 +52,15 @@ const ResultGallery: React.FC<Props> = ({ results, generating, onPreview, onDown
       {results.map((r, i) => (
         <div
           key={i}
+          className="img-card"
           style={{
             position: 'relative',
             borderRadius: 'var(--radius-md)',
             overflow: 'hidden',
-            border: '1px solid var(--border-subtle)',
-            background: 'var(--bg-elevated)',
+            border: '1px solid var(--md-sys-color-outline-variant)',
+            background: 'var(--gaea-glass-bg, var(--bg-elevated))',
             cursor: 'pointer',
+            transition: 'box-shadow 0.2s, border-color 0.2s, transform 0.2s',
           }}
           onClick={() => onPreview(i)}
         >

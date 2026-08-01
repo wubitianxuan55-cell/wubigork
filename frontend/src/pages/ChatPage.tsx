@@ -130,18 +130,18 @@ const ChatPage: React.FC = () => {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0 }}>
       <ChatTopicSidebar topics={topicList} activeId={activeId} onSelect={setActiveId} onCreate={handleCreate} onDelete={handleDelete} onRename={handleRename} />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden', background: C('color-bg-container'), position: 'relative' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden', background: 'transparent', position: 'relative' }}>
         <div ref={listRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: hasMessages ? '24px 0 160px' : '0' }}>
           {!hasMessages ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '48px 32px', overflow: 'auto' }}>
-              <div style={{ width: 88, height: 88, borderRadius: 26, background: `linear-gradient(135deg, ${C('color-primary')}, ${C('color-primary')}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28, boxShadow: `0 8px 32px ${C('color-primary')}33` }}><RobotOutlined style={{ fontSize: 44, color: '#fff' }} /></div>
+              <div style={{ width: 88, height: 88, borderRadius: 26, background: `linear-gradient(135deg, ${C('color-primary')}, ${C('color-primary')}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28, boxShadow: `0 8px 32px ${C('color-primary')}33, 0 0 42px color-mix(in srgb, var(--gaea-glow) 30%, transparent)`, border: '1px solid var(--gaea-glow)' }}><RobotOutlined style={{ fontSize: 44, color: '#fff' }} /></div>
               <Typography.Text style={{ color: C('color-text'), fontSize: 24, fontWeight: 700, marginBottom: 6 }}>gaea AI</Typography.Text>
               <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 14, marginBottom: 32, textAlign: 'center', lineHeight: 1.6, maxWidth: 400 }}>你的智能 AI 助手——聊天、写作、翻译、学习，随时随地</Typography.Text>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, maxWidth: 600, width: '100%' }}>
                 {[{ icon: '💬', label: '随便聊聊', desc: '和 AI 畅聊任何话题' }, { icon: '🔍', label: '帮我查资料', desc: '快速搜索和整理信息' }, { icon: '📝', label: '写篇文章', desc: '博客、报告、文案随时生成' }, { icon: '💡', label: '头脑风暴', desc: '一起碰撞灵感火花' }, { icon: '🌐', label: '翻译内容', desc: '多语言互译，保持原意' }, { icon: '🧠', label: '解释概念', desc: '深入浅出地讲解知识点' }].map(s => (
-                  <div key={s.label} onClick={() => { setInput(s.label); inputRef.current?.focus() }} style={{ padding: '14px 16px', borderRadius: 14, background: C('color-bg-elevated'), border: `1px solid ${C('color-border')}`, cursor: 'pointer', transition: 'all 0.15s', userSelect: 'none' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = C('color-primary'); e.currentTarget.style.boxShadow = `0 4px 16px ${C('color-primary')}12`; e.currentTarget.style.transform = 'translateY(-2px)' }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = C('color-border'); e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)' }}>
+                  <div key={s.label} className="chat-suggestion-card" onClick={() => { setInput(s.label); inputRef.current?.focus() }} style={{ padding: '14px 16px', borderRadius: 14, background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))', WebkitBackdropFilter: 'blur(12px) saturate(130%)', backdropFilter: 'blur(12px) saturate(130%)', border: '1px solid var(--md-sys-color-outline-variant)', cursor: 'pointer', transition: 'all 0.18s', userSelect: 'none' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gaea-glow)'; e.currentTarget.style.boxShadow = '0 4px 20px color-mix(in srgb, var(--gaea-glow) 22%, transparent)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--md-sys-color-outline-variant)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)' }}>
                     <div style={{ fontSize: 20, marginBottom: 6 }}>{s.icon}</div><div style={{ color: C('color-text'), fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{s.label}</div><div style={{ color: C('color-text-secondary'), fontSize: 11, lineHeight: 1.4 }}>{s.desc}</div>
                   </div>
                 ))}
@@ -157,7 +157,18 @@ const ChatPage: React.FC = () => {
                   <div key={msg.id} className="chat-message-item" style={{ display: 'flex', gap: 14, marginBottom: 28, flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start' }}>
                     <Avatar size={32} icon={isUser ? <UserOutlined /> : <RobotOutlined />} style={{ background: isUser ? C('color-primary') : C('color-bg-elevated'), color: isUser ? '#fff' : C('color-text-secondary'), flexShrink: 0, marginTop: 2 }} />
                     <div style={{ flex: isUser ? undefined : 1, maxWidth: isUser ? '70%' : '100%', display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-                      <div style={{ color: C('color-text'), whiteSpace: 'pre-wrap', lineHeight: 1.75, fontSize: 14, wordBreak: 'break-word', padding: isUser ? '8px 16px' : '0', borderRadius: isUser ? 18 : 0, background: isUser ? `${C('color-primary')}12` : 'transparent' }}>
+                      <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.75, fontSize: 14, wordBreak: 'break-word',
+                        padding: '10px 16px',
+                        borderRadius: isUser ? 18 : 16,
+                        background: isUser
+                          ? `linear-gradient(135deg, ${C('color-primary')}, color-mix(in srgb, ${C('color-primary')} 78%, #000))`
+                          : 'var(--gaea-glass-bg, transparent)',
+                        color: isUser ? '#fff' : C('color-text'),
+                        WebkitBackdropFilter: isUser ? undefined : 'blur(14px) saturate(130%)',
+                        backdropFilter: isUser ? undefined : 'blur(14px) saturate(130%)',
+                        border: isUser ? 'none' : '1px solid var(--md-sys-color-outline-variant)',
+                        borderLeft: isUser ? 'none' : '3px solid var(--gaea-glow)',
+                        boxShadow: isUser ? `0 4px 18px ${C('color-primary')}44` : '0 4px 18px rgba(0,0,0,0.10)' }}>
                         {displayContent}{isStreaming && <span className="cursor-blink" />}
                       </div>
                       {msg.content && !msg.streaming && (
@@ -193,7 +204,7 @@ const ChatPage: React.FC = () => {
 
         {/* 输入框 */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 24px 24px', pointerEvents: 'none' }}>
-          <div style={{ width: '100%', maxWidth: 768, display: 'flex', alignItems: 'flex-end', gap: 6, padding: '8px 12px', background: C('color-bg-container'), border: `1px solid ${C('color-border')}`, borderRadius: 20, boxShadow: `0 8px 32px rgba(0,0,0,0.08)`, pointerEvents: 'auto' }}>
+          <div className="chat-input-wrap" style={{ width: '100%', maxWidth: 768, display: 'flex', alignItems: 'flex-end', gap: 6, padding: '8px 12px', background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))', WebkitBackdropFilter: 'blur(20px) saturate(150%)', backdropFilter: 'blur(20px) saturate(150%)', border: '1px solid var(--md-sys-color-outline-variant)', borderRadius: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', pointerEvents: 'auto', transition: 'border-color 0.2s, box-shadow 0.2s' }}>
             <Tooltip title={voice.active ? '退出语音' : '语音聊天'}>
               <Button type="text" icon={<AudioOutlined />} onClick={() => voice.active ? stopVoice() : startVoice()}
                 style={{ color: voice.active ? C('color-primary') : C('color-text-secondary'), borderRadius: 12, width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: voice.active ? `${C('color-primary')}12` : 'transparent', flexShrink: 0 }} />
@@ -204,7 +215,7 @@ const ChatPage: React.FC = () => {
               style={{ flex: 1, background: 'transparent', border: 'none', color: C('color-text'), borderRadius: 0, resize: 'none', fontSize: 14, lineHeight: 1.6, padding: '6px 2px', boxShadow: 'none' }} />
             <Tooltip title="发送">
               <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={loading} disabled={(!input.trim() && !loading) || voice.active}
-                style={{ background: input.trim() ? C('color-primary') : C('color-border'), borderColor: 'transparent', borderRadius: 14, width: 40, height: 40, minWidth: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: input.trim() ? `0 2px 10px ${C('color-primary')}44` : 'none', flexShrink: 0 }} />
+                style={{ background: input.trim() ? C('color-primary') : C('color-border'), borderColor: 'transparent', borderRadius: 14, width: 40, height: 40, minWidth: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: input.trim() ? '0 0 16px color-mix(in srgb, var(--gaea-glow) 45%, transparent)' : 'none', flexShrink: 0 }} />
             </Tooltip>
           </div>
         </div>

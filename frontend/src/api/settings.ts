@@ -68,3 +68,32 @@ export async function stopTTSServer(): Promise<void> {
 export async function migrateProjectToV4(): Promise<void> {
   await App.MigrateProjectToV4()
 }
+
+/** 获取当前激活的 AI 模型名 */
+export async function getActiveModel(): Promise<string> {
+  const m = await App.GetActiveModel()
+  return (m as string) || ''
+}
+
+/** 获取语音服务健康状态 */
+export async function voiceHealth(): Promise<Record<string, any>> {
+  const h = await (App as any).VoiceHealth?.()
+  return (h as Record<string, any>) || { asrReady: false, ttsReady: false }
+}
+
+/** 获取语音设置 */
+export async function getVoiceSettings(): Promise<Record<string, any>> {
+  const v = await (App as any).VoiceGetSettings?.()
+  return (v as Record<string, any>) || {}
+}
+
+/** 应用语音设置补丁 */
+export async function applyVoiceSettings(patch: Record<string, any>): Promise<void> {
+  await (App as any).VoiceApplySettings?.(patch)
+}
+
+/** 获取办公引擎设置摘要（GaeaSettings） */
+export async function gaeaSettings(): Promise<Record<string, any>> {
+  const v = await App.GaeaSettings()
+  return (v as Record<string, any>) || {}
+}

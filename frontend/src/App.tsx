@@ -71,6 +71,11 @@ const App: React.FC = () => {
     set('--md-sys-transition-normal', tokens.transitionNormal)
     set('--md-sys-transition-slow', tokens.transitionSlow)
 
+    // ── 未来感扩展令牌 ──
+    set('--gaea-glow', tokens.glow)
+    set('--gaea-glass-bg', tokens.glassBg)
+    set('--gaea-aurora-bg', tokens.auroraBg)
+
     // ═══ Backward-compat shims (old var names → new M3 tokens) ═══
     set('--accent-rgb', tokens.accentRgb)
     set('--color-primary', tokens.colorPrimary)

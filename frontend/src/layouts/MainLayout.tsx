@@ -76,8 +76,11 @@ function fmtWords(n: number): string {
 const statusBarStyle = {
   display: 'flex' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const,
   padding: '0 16px', height: 32, fontSize: 12,
-  background: 'var(--md-sys-color-surface-container)',
+  background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
+  WebkitBackdropFilter: 'blur(16px) saturate(140%)',
+  backdropFilter: 'blur(16px) saturate(140%)',
   borderTop: '1px solid var(--md-sys-color-outline-variant)',
+  boxShadow: '0 -1px 0 var(--gaea-glow)',
   color: 'var(--md-sys-color-text-secondary)',
 }
 
@@ -91,6 +94,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
   return (
     <div style={statusBarStyle}>
       <Space size={16}>
+        <span className="live-dot" style={{ width: 6, height: 6 }} />
         {info && <span style={{ color: 'var(--md-sys-color-text)', fontWeight: 500 }}>{info.title}</span>}
         {/* 全书进度条 — 借鉴 Scrivener 写作目标 */}
         {stats && (
@@ -100,7 +104,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
               size="small"
               showInfo={false}
               style={{ width: 100, minWidth: 60, margin: 0 }}
-              strokeColor="var(--md-sys-color-primary)"
+              strokeColor="var(--gaea-glow)"
               trailColor="var(--md-sys-color-outline-variant)"
             />
             <span style={{ fontSize: 10, whiteSpace: 'nowrap' }}>
@@ -262,18 +266,32 @@ const MainLayout: React.FC = () => {
   }, [logs])
 
   return (
-    <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, var(--md-sys-color-surface-dim) 0%, var(--md-sys-color-surface) 100%)' }}>
+    <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'transparent' }}>
+      {/* ── 未来感背景层（星云 + 网格 + 星点，fixed 且不拦截事件）── */}
+      <div className="gaea-bg" aria-hidden="true">
+        <div className="cyber-grid" />
+        <div className="star-dots" />
+        <div className="aurora-orb orb-a" />
+        <div className="aurora-orb orb-b" />
+      </div>
       {/* ═══ 顶栏 ═══ */}
-        <Header style={{
+        <Header className="scanline-top" style={{
           display: 'flex', alignItems: 'center', height: 48, padding: '0 16px',
-          background: 'var(--md-sys-color-surface-container)',
+          background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
+          WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+          backdropFilter: 'blur(20px) saturate(140%)',
           borderBottom: '1px solid var(--md-sys-color-outline-variant)',
+          boxShadow: '0 1px 0 var(--gaea-glow)',
           lineHeight: '48px',
           position: 'sticky', top: 0, zIndex: 100,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 24 }}>
-            <img src="/favicon.svg" alt="gaea" style={{ width: 26, height: 26 }} />
-            <Typography.Text strong style={{
+            <img src="/favicon.svg" alt="gaea" style={{
+              width: 26, height: 26,
+              filter: 'drop-shadow(0 0 6px var(--gaea-glow))',
+              transition: 'filter var(--md-sys-transition-normal)',
+            }} />
+            <Typography.Text strong className="gaea-brand-text" style={{
               color: 'var(--md-sys-color-primary)', fontSize: 16,
             }}>
               gaea
@@ -295,13 +313,17 @@ const MainLayout: React.FC = () => {
               return (
                 <Tooltip key={t} title={themeLabels[t]}>
                   <span
+                    className="theme-dot"
                     onClick={() => setTheme(t)}
                     style={{
                       width: 18, height: 18, borderRadius: '50%',
-                      background: themeDots[t], cursor: 'pointer',
-                      border: active ? '2px solid var(--md-sys-color-text)' : '2px solid transparent',
-                      opacity: active ? 1 : 0.5,
-                      transition: 'opacity 0.15s, border 0.15s',
+                      background: `radial-gradient(circle at 35% 30%, ${themeDots[t]}, color-mix(in srgb, ${themeDots[t]} 55%, #000))`,
+                      cursor: 'pointer',
+                      border: active ? '2px solid var(--gaea-glow)' : '2px solid transparent',
+                      boxShadow: active ? `0 0 10px ${themeDots[t]}, 0 0 22px color-mix(in srgb, ${themeDots[t]} 45%, transparent)` : `0 0 6px color-mix(in srgb, ${themeDots[t]} 30%, transparent)`,
+                      opacity: active ? 1 : 0.55,
+                      transform: active ? 'scale(1.12)' : 'scale(1)',
+                      transition: 'opacity 0.15s, border 0.15s, transform 0.2s, box-shadow 0.2s',
                     }}
                   />
                 </Tooltip>
@@ -348,7 +370,7 @@ const MainLayout: React.FC = () => {
         </Header>
       {/* ═══ 主体：面包屑 + 内容 + 右侧 XAI ═══ */}
       {/* ═══ 主体：面包屑 + 内容 + 右侧 XAI ═══ */}
-      <Layout style={{ flex: 1, flexDirection: 'row' }}>
+      <Layout style={{ flex: 1, flexDirection: 'row', background: 'transparent' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {/* 面包屑导航 */}
           {projectOpen && page !== 'novel' && page !== 'home' && (
@@ -369,18 +391,26 @@ const MainLayout: React.FC = () => {
           <Content style={{
             padding: page === 'chat' ? 0 : (page === 'home' ? '16px' : '8px 16px 16px'),
             paddingBottom: page === 'chat' || page === 'home' ? 0 : '16px',
-            background: page === 'chat' ? 'var(--md-sys-color-surface)' : 'var(--md-sys-color-bg-layout)',
+            background: page === 'chat' ? 'var(--gaea-glass-bg, var(--md-sys-color-surface))' : 'transparent',
             overflow: page === 'chat' ? 'hidden' : 'auto',
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
           }}>
             <ErrorBoundary>
-              <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Spin size="large" /></div>}>
+              <Suspense fallback={(
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 14, height: '100%' }}>
+                  <Spin size="large" style={{ color: 'var(--gaea-glow)' }} />
+                  <span className="live-dot" />
+                  <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12, letterSpacing: '0.06em' }}>
+                    正在唤醒 AI 模块…
+                  </Typography.Text>
+                </div>
+              )}>
                 {Array.from(visitedPages).map((p) => (
-                  <div key={p} style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
+                  <div key={p} className="page-enter" style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
                     {p === 'home'
-                      ? <ModuleLauncher onNavigate={(target: LauncherTarget) => setPage(target as Page)} />
+                      ? <ModuleLauncher onNavigate={(target: LauncherTarget) => setPage(target as Page)} activeModel={activeModel || undefined} />
                       : pageComponents[p]}
                   </div>
                 ))}
@@ -389,12 +419,14 @@ const MainLayout: React.FC = () => {
           </Content>
         </div>
 
-{consoleOpen && page !== 'home' && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && page !== 'whisper' && page !== 'office' && page !== 'gaea' && (
+{consoleOpen && page !== 'home' && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && page !== 'whisper' && page !== 'office' && page !== 'gaea' && page !== 'settings' && (
   <div style={{
     width: 380, flexShrink: 0, alignSelf: 'stretch',
     maxHeight: 'calc(100vh - 80px)',
     margin: '8px 8px 8px 0',
-    background: 'var(--md-sys-color-surface-container)',
+    background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
+    WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+    backdropFilter: 'blur(24px) saturate(140%)',
     border: '1px solid var(--md-sys-color-outline-variant)',
     borderRadius: 'var(--md-sys-radius-lg)',
     boxShadow: 'var(--md-sys-elevation-2)',
@@ -415,7 +447,7 @@ const MainLayout: React.FC = () => {
           display: 'inline-block',
           boxShadow: logs.length > 0 ? '0 0 6px var(--md-sys-color-primary)' : 'none',
         }} />
-        <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 10, fontWeight: 500 }}>
+        <Typography.Text style={{ color: 'var(--gaea-glow)', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textShadow: '0 0 10px var(--gaea-glow)' }}>
           AI 控制台
         </Typography.Text>
       </Space>
@@ -477,7 +509,7 @@ const MainLayout: React.FC = () => {
   </div>
 )}
 
-{!consoleOpen && page !== 'modelcenter' && page !== 'home' && (
+{!consoleOpen && page !== 'modelcenter' && page !== 'home' && page !== 'settings' && (
     <Button
     onClick={() => setConsoleOpen(true)}
     style={{
