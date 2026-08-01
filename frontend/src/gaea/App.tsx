@@ -560,6 +560,9 @@ export default function App() {
           width={workspacePanelMaximized ? viewportWidth - effectiveSidebarWidth : 400}
           closable={false}
           mask={false}
+          // 内联渲染（不 portal 到 body）：Drawer 保留在 .layout（position: relative）内，
+          // 切页 display:none 时随之隐藏，且不会以 fixed+zIndex 1100 遮挡全局导航栏。
+          getContainer={false}
           rootClassName="gaea-workspace-drawer"
           styles={{ body: { padding: 0, background: "var(--bg)", display: "flex", flexDirection: "column" } }}
           onClose={() => { setWorkspacePanel(false); setPendingViewMode(null); }}
