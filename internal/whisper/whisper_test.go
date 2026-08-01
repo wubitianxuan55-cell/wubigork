@@ -228,8 +228,21 @@ func TestEmotionStep_Clamping(t *testing.T) {
 // ─── 人格预设测试 ──────────────────────────────────────────────
 
 func TestPersonalityPresets_Count(t *testing.T) {
-	if len(PersonalityPresets) != 29 {
-		t.Errorf("expected 29 personalities, got %d", len(PersonalityPresets))
+	if len(PersonalityPresets) != 30 {
+		t.Errorf("expected 30 personalities (含核心助手 gaea), got %d", len(PersonalityPresets))
+	}
+}
+
+func TestPersonalityPresets_GaeaCore(t *testing.T) {
+	p := GetPreset("gaea")
+	if p == nil {
+		t.Fatal("gaea 核心助手 preset not found")
+	}
+	if p.Label != "gaea" {
+		t.Errorf("gaea label mismatch: %s", p.Label)
+	}
+	if !containsTag(p.Tags, "core-assistant") {
+		t.Errorf("gaea 应带 core-assistant 标签")
 	}
 }
 

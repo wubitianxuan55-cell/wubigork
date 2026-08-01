@@ -92,7 +92,7 @@ func DefaultVoiceConfig() VoiceRuntimeConfig {
 		InterruptThresholdMs: 500,
 		SilenceThresholdMs:   1000,
 		InputChannel:         InputDual,
-		PersonalityPresetID:  "deredere",
+		PersonalityPresetID:  "gaea",
 	}
 }
 

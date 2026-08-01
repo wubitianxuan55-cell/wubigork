@@ -31,6 +31,7 @@ const DIM_COLORS: Record<string, string> = { T: '#f472b6', I: '#fb923c', S: '#4a
 const KEYS = ['T', 'I', 'S', 'O', 'R'] as const
 
 const GROUPS = [
+  { key: 'core', label: 'Core', icon: <ThunderboltOutlined />, ids: ['gaea'] },
   { key: 'female', label: 'Female', icon: <UserOutlined />, ids: ['tsundere','yandere','oneesan','genki','kuudere','deredere','shitakiri','bokke','ice_queen','girl_next_door'] },
   { key: 'male', label: 'Male', icon: <TeamOutlined />, ids: ['ceo_dom','gentle_warmth','puppy','iceberg','schemer','loyal_knight','bad_boy','artistic','innocent_boy','boy_next_door'] },
   { key: 'ds', label: 'D/s', icon: <FireOutlined />, ids: ['submissive','dominatrix','loyal_pup','tamer'] },

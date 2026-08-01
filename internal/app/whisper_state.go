@@ -26,8 +26,8 @@ func (w *whisperState) initWeixin() {
 	if len(w.assistantMgr.List()) == 0 {
 		defaultAst := assistant.Assistant{
 			ID:            "default",
-			Name:          "轻语",
-			PersonalityID: "deredere",
+			Name:          "gaea",
+			PersonalityID: "gaea",
 			Enabled:       true,
 		}
 		if token := os.Getenv("WXCLAW_TOKEN"); token != "" {

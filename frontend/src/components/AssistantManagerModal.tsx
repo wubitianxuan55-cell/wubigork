@@ -82,7 +82,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
       await (App as any).WhisperAssistantSave({
         id: form.id || `ast_${Date.now()}`,
         name: form.name.trim(),
-        personalityId: form.personalityId || 'deredere',
+        personalityId: form.personalityId || 'gaea',
         wxToken: token || '',
         wxBotId: form.wxBotId || '',
         wxUserId: form.wxUserId || '',
@@ -200,7 +200,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   // 新建
   const startNew = () => {
     setForm(emptyForm())
-    setEditing({ id: '', name: '', personalityId: 'deredere', wxToken: '', wxBotId: '', wxUserId: '', enabled: true })
+    setEditing({ id: '', name: '', personalityId: 'gaea', wxToken: '', wxBotId: '', wxUserId: '', enabled: true })
   }
 
   // 获取人格信息
@@ -502,5 +502,5 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
 }
 
 function emptyForm(): Assistant {
-  return { id: '', name: '', personalityId: 'deredere', wxToken: '', wxBotId: '', wxUserId: '', enabled: true }
+  return { id: '', name: '', personalityId: 'gaea', wxToken: '', wxBotId: '', wxUserId: '', enabled: true }
 }

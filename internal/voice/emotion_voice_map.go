@@ -113,6 +113,7 @@ func GetEdgeTTSParams(emotionLabel string) (rate string, pitch string) {
 // 对齐 Ackem emotionVoiceMap.ts 中的人格修饰逻辑
 // 例如：tsundere 人格会插入 "傲娇又"
 var PersonalityVoiceModifier = map[string]string{
+	"gaea":      "专业又",
 	"tsundere":  "傲娇又",
 	"yandere":   "病态又",
 	"kuudere":   "更",

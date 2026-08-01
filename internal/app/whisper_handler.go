@@ -53,7 +53,7 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 
 	preset := whisper.GetPreset(personalityID)
 	if preset == nil {
-		preset = whisper.GetPreset("deredere")
+		preset = whisper.GetPreset("gaea")
 	}
 	if preset == nil {
 		preset = &whisper.PersonalityPresets[0]

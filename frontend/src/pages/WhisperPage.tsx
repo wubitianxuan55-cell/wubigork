@@ -73,7 +73,7 @@ const WhisperPage: React.FC = () => {
   const [editValue, setEditValue] = useState('')
   const [personalities, setPersonalities] = useState<Personality[]>([])
   const [activePersonality, setActivePersonality] = useState<string>(() => {
-    try { return (localStorage.getItem(PERSONALITY_KEY) ?? localStorage.getItem(LEGACY_PERSONALITY_KEY)) || 'deredere' } catch { return 'deredere' }
+    try { return (localStorage.getItem(PERSONALITY_KEY) ?? localStorage.getItem(LEGACY_PERSONALITY_KEY)) || 'gaea' } catch { return 'gaea' }
   })
   const [personalityOpen, setPersonalityOpen] = useState(false)
   const [input, setInput] = useState('')
