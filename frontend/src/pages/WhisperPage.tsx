@@ -151,6 +151,7 @@ const WhisperPage: React.FC = () => {
   const streamingMsg = messages.find(m => m.streaming)
   const hasMessages = messages.length > 0
   const emoColors: Record<string,string> = {SWEET_ATTACHMENT:"#f472b6",SHY_HEARTBEAT:"#fb7185",TSUNDERE:"#f59e0b",HURT_GRIEVANCE:"#a78bfa",ANGRY_ATTACK:"#ef4444",COLD_DETACHED:"#94a3b8",FEARFUL_OBEDIENT:"#c084fc",QUIET_FOND:"#fbbf24",CALM_RATIONAL:"#60a5fa"}
+  const emoEmojis: Record<string,string> = {SWEET_ATTACHMENT:"🥰",SHY_HEARTBEAT:"💓",TSUNDERE:"😤",HURT_GRIEVANCE:"😢",ANGRY_ATTACK:"😡",COLD_DETACHED:"🧊",FEARFUL_OBEDIENT:"😳",QUIET_FOND:"🌙",CALM_RATIONAL:"😌"}
   const emoColor = emoColors[emotion] || "#e85388"
   const topicList = useMemo(() => topics.map(({ id, title, createdAt }) => ({ id, title, createdAt })), [topics])
 
@@ -224,6 +225,14 @@ const WhisperPage: React.FC = () => {
       setLoading(false)
     }
   }, [input, loading, activeId, activePersonality])
+
+const QUICK_REPLIES = [
+  { label: '💛 抱抱我', text: '能抱抱我吗，今天有点累' },
+  { label: '🌙 晚安', text: '晚安，做个好梦' },
+  { label: '😢 有点低落', text: '今天心情不太好，陪我聊聊' },
+  { label: '🎉 分享开心事', text: '告诉你一件开心的事！' },
+  { label: '🧠 深入聊聊', text: '我们来深入聊聊这个话题吧' },
+]
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }
   const handleCopy = async (content: string, id: string) => {
@@ -314,48 +323,65 @@ const WhisperPage: React.FC = () => {
         <style>{mdStyles}</style>
         <ParticleFlow aro={aro} />
         <SoundWaveOverlay active={speakingId !== null} aff={aff} aro={aro} />
-        {/* 设置按钮 */}
-        <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 8 }}>
-          <Tooltip title="语音设置">
-            <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
-              style={{ color: C('color-text-secondary'), opacity: 0.5, width: 28, height: 28, padding: 0 }} />
-          </Tooltip>
-          {hasMessages && (
-            <Tooltip title="清空当前对话"><Button type="text" size="small" icon={<ClearOutlined />} onClick={handleClearMessages} style={{ color: C('color-text-secondary'), opacity: 0.4, width: 28, height: 28, padding: 0 }} /></Tooltip>
-          )}
-        </div>
-
-        {/* 人格信息头 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderBottom: `1px solid ${C('color-border')}`, flexShrink: 0, background: C('color-bg-elevated') }}>
+        {/* 角色状态头：常驻头像 + 名字 + 阶段/情绪徽章 + 信任进度条 + 右上操作（角色存在感核心） */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: `1px solid ${C('color-border')}`, flexShrink: 0, background: C('color-bg-elevated') }}>
           <CompanionAvatar size={48} state={speakingId ? 'speaking' : loading ? 'thinking' : 'idle'} emotionColor={emoColor} />
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Typography.Text strong style={{ fontSize: 13, color: C('color-text') }}>{companionName}</Typography.Text>
-              <Button type="text" size="small" onClick={() => setPersonalityOpen(true)}
-                style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 6px', height: 22, opacity: 0.75 }}>
-                <Tooltip title="管理虚拟助手">虚拟助手管理中心</Tooltip>
-              </Button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Typography.Text strong style={{ fontSize: 14, color: C('color-text') }}>{companionName}</Typography.Text>
+              <span style={{
+                padding: '1px 8px', borderRadius: 999, fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
+                background: 'var(--whisper-accent-glow)', color: 'var(--whisper-accent)',
+                border: '1px solid var(--whisper-glass-border)',
+              }}>
+                {stage === 'INTIMATE' ? '💞 亲密' : stage === 'FAMILIAR' ? '💛 熟悉' : '🤝 初识'}
+              </span>
+              {emotion && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 8px', borderRadius: 999,
+                  fontSize: 10, fontWeight: 500, whiteSpace: 'nowrap',
+                  background: `${emoColor}1a`, color: emoColor, border: `1px solid ${emoColor}44`,
+                }}>
+                  {emoEmojis[emotion] || '💭'} {emotion}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, maxWidth: 320 }}>
+              <span style={{ fontSize: 10, color: 'var(--whisper-ink-muted)', flexShrink: 0 }}>信任</span>
+              <div style={{ flex: 1, height: 5, borderRadius: 999, background: C('color-bg-container'), overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', width: `${Math.min(100, Math.max(0, trust))}%`, borderRadius: 999,
+                  background: 'linear-gradient(90deg, #f472b6, var(--whisper-trust, #c4a870))',
+                  boxShadow: '0 0 8px var(--whisper-trust-glow)',
+                  transition: 'width 700ms cubic-bezier(0.4,0,0.2,1)',
+                }} />
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--whisper-trust, #c4a870)', flexShrink: 0 }}>{trust}</span>
+              {rifts > 0 && <span style={{ fontSize: 10, color: 'var(--whisper-rift, #c47070)', flexShrink: 0 }}>💔{rifts}</span>}
+              <span style={{ fontSize: 10, color: 'var(--whisper-ink-muted)', flexShrink: 0, marginLeft: 2 }}>对话 {totalTurns} 轮</span>
             </div>
           </div>
-        </div>
-
-
-        {/* 引擎状态条 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 16px', borderBottom: `1px solid ${C('color-border')}`, flexShrink: 0, fontSize: 10, color: C('color-text-secondary'), background: C('color-bg-elevated'), flexWrap: 'wrap' }}>
-            <span>💭{emotion}</span><span style={{ opacity: 0.2 }}>|</span>
-            <span>🤝{stage === 'STRANGER' ? '初识' : stage === 'FAMILIAR' ? '熟悉' : stage === 'INTIMATE' ? '亲密' : stage}</span><span style={{ opacity: 0.2 }}>|</span>
-            <span>💚{trust}</span><span style={{ opacity: 0.2 }}>|</span>
-            {rifts > 0 && <><span style={{ opacity: 0.2 }}>|</span><span>💔{rifts}</span></>}
-            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Tooltip title={searchEnabled ? '上网搜索已开启（自动检测搜索意图）' : '上网搜索已关闭'}>
-                <Button type="text" size="small"
-                  icon={<GlobalOutlined style={{ color: searchEnabled ? '#52c41a' : C('color-text-secondary') }} />}
-                  onClick={() => setSearchEnabled(!searchEnabled)}
-                  style={{ padding: '0 2px', height: 18, fontSize: 12, opacity: searchEnabled ? 1 : 0.5 }} />
-              </Tooltip>
-              <span style={{ opacity: 0.4 }}>#{totalTurns}</span>
-            </span>
+          {/* 右上操作 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+            <Tooltip title={searchEnabled ? '上网搜索已开启（自动检测搜索意图）' : '上网搜索已关闭'}>
+              <Button type="text" size="small"
+                icon={<GlobalOutlined style={{ color: searchEnabled ? '#52c41a' : C('color-text-secondary') }} />}
+                onClick={() => setSearchEnabled(!searchEnabled)}
+                style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
+            </Tooltip>
+            <Tooltip title="虚拟助手管理中心">
+              <Button type="text" size="small" onClick={() => setPersonalityOpen(true)}
+                style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 6px', height: 24, opacity: 0.75 }}>管理中心</Button>
+            </Tooltip>
+            <Tooltip title="语音设置">
+              <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
+                style={{ color: C('color-text-secondary'), opacity: 0.5, width: 26, height: 26, padding: 0 }} />
+            </Tooltip>
+            {hasMessages && (
+              <Tooltip title="清空当前对话"><Button type="text" size="small" icon={<ClearOutlined />} onClick={handleClearMessages} style={{ color: C('color-text-secondary'), opacity: 0.4, width: 26, height: 26, padding: 0 }} /></Tooltip>
+            )}
           </div>
+        </div>
 
         {/* 消息区 */}
         <div ref={listRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: hasMessages ? '20px 0 150px' : '0' }}>
@@ -390,9 +416,33 @@ const WhisperPage: React.FC = () => {
                         </span>
                       </div>
                     )}
-                    <div style={{ color: isUser ? 'var(--whisper-ink-muted)' : 'var(--whisper-ink)', lineHeight: 1.75, fontSize: 13, wordBreak: 'break-word' }}>
-                      {isUser ? displayContent : <MarkdownContent source={displayContent} className="md-content" />}
-                      {isStreaming && <span className="cursor-blink" />}
+                    <div style={{
+                      display: 'inline-block', maxWidth: '100%',
+                      padding: '10px 14px', borderRadius: 16,
+                      background: isUser
+                        ? 'linear-gradient(135deg, #e85388, #a855f7)'
+                        : 'var(--whisper-glass-bg)',
+                      WebkitBackdropFilter: isUser ? undefined : 'blur(14px) saturate(130%)',
+                      backdropFilter: isUser ? undefined : 'blur(14px) saturate(130%)',
+                      color: isUser ? '#fff' : 'var(--whisper-ink)',
+                      border: isUser ? 'none' : '1px solid var(--whisper-glass-border)',
+                      boxShadow: isUser
+                        ? '0 4px 18px rgba(232,83,136,0.32)'
+                        : '0 2px 12px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.4)',
+                      textAlign: 'left',
+                      lineHeight: 1.75, fontSize: 13, wordBreak: 'break-word',
+                    }}>
+                      {isStreaming ? (
+                        displayContent ? (<>{displayContent}<span className="cursor-blink" /></>) : (
+                          <span className="whisper-typing-indicator" style={{ display: 'inline-flex', gap: 3, padding: '2px 0' }}>
+                            <span className="whisper-typing-dot" /><span className="whisper-typing-dot" /><span className="whisper-typing-dot" />
+                          </span>
+                        )
+                      ) : isUser ? (
+                        displayContent
+                      ) : (
+                        <MarkdownContent source={displayContent} className="md-content" />
+                      )}
                     </div>
                     {msg.content && !msg.streaming && (
                       <div style={{ display: 'flex', gap: 2, marginTop: 3 }}>
@@ -416,8 +466,21 @@ const WhisperPage: React.FC = () => {
           )}
         </div>
 
-        {/* 输入框 */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 16px 16px', pointerEvents: 'none' }}>
+        {/* 输入框：快捷情绪回复 chips + 输入条 */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '0 16px 16px', pointerEvents: 'none' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', pointerEvents: 'auto' }}>
+            {QUICK_REPLIES.map(q => (
+              <button key={q.label} onClick={() => { setInput(q.text); inputRef.current?.focus() }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--whisper-accent)'; e.currentTarget.style.color = 'var(--whisper-accent)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--whisper-glass-border)'; e.currentTarget.style.color = 'var(--whisper-ink-muted)'; e.currentTarget.style.transform = 'translateY(0)' }}
+                style={{ padding: '4px 12px', borderRadius: 999, cursor: 'pointer', userSelect: 'none',
+                  background: 'var(--whisper-glass-bg)', border: '1px solid var(--whisper-glass-border)',
+                  color: 'var(--whisper-ink-muted)', fontSize: 11, transition: 'all 0.15s',
+                  WebkitBackdropFilter: 'blur(10px)', backdropFilter: 'blur(10px)' }}>
+                {q.label}
+              </button>
+            ))}
+          </div>
           <div style={{ width: '100%', maxWidth: 660, display: 'flex', alignItems: 'flex-end', gap: 6, padding: '6px 10px', background: C('color-bg-container'), border: `1px solid ${voiceOn ? 'rgba(232,83,136,0.5)' : C('color-border')}`, borderRadius: 16, boxShadow: voiceOn ? '0 0 16px rgba(232,83,136,0.2)' : '0 6px 24px rgba(0,0,0,0.06)', pointerEvents: 'auto', transition: 'border-color 0.2s, box-shadow 0.2s' }}>
             <Tooltip title={voiceOn ? '结束聆听' : '语音输入（说话识别为文本对话）'}>
               <Button type="text" icon={voiceOn ? <StopOutlined /> : <AudioOutlined />}
