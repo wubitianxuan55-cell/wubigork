@@ -1,0 +1,120 @@
+/* ── 记忆中枢科幻感样式（cyberpunk 霓虹 + 玻璃拟态）──────────────
+   配色与 gaea 主题协调：主霓虹 indigo #6366F1，辅助 cyan/pink/amber/emerald
+   对应各记忆库 type 色（与 3D 图谱着色一致）。本机单用户桌面工具，克制不过度。 */
+
+/* 背景：深空渐变 + 网格 + 径向光晕 */
+.hub-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 40%, rgba(99, 102, 241, 0.10), transparent 70%),
+    radial-gradient(ellipse 40% 35% at 15% 85%, rgba(34, 211, 238, 0.05), transparent 70%),
+    radial-gradient(ellipse 40% 35% at 85% 15%, rgba(244, 114, 182, 0.05), transparent 70%),
+    linear-gradient(180deg, #0b1020 0%, #0e1428 100%);
+}
+/* 网格线 */
+.hub-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 65% at 50% 45%, black 40%, transparent 100%);
+}
+/* 扫描线（缓慢下移） */
+.hub-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 90px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(34, 211, 238, 0.045), transparent);
+  animation: hub-scan 9s linear infinite;
+}
+@keyframes hub-scan {
+  0% { top: -10%; }
+  100% { top: 110%; }
+}
+
+/* 标题发光 */
+.hub-title {
+  background: linear-gradient(90deg, #a5b4fc, #e0e7ff 45%, #67e8f9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 24px rgba(99, 102, 241, 0.35);
+  letter-spacing: 0.02em;
+}
+
+/* 玻璃拟态模块卡片 */
+.hub-card {
+  position: relative;
+  background: linear-gradient(150deg, rgba(30, 41, 59, 0.55), rgba(15, 23, 42, 0.45));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 14px;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  cursor: pointer;
+  overflow: hidden;
+}
+.hub-card::before {
+  /* 顶部霓虹高光条 */
+  content: "";
+  position: absolute;
+  top: 0; left: 12%; right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hub-color, #6366f1), transparent);
+  opacity: 0.7;
+}
+.hub-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--hub-color, #6366f1) 55%, transparent);
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--hub-color, #6366f1) 28%, transparent),
+    0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.hub-card:active { transform: translateY(-1px); }
+
+/* 卡片图标霓虹发光 */
+.hub-card-icon {
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--hub-color, #6366f1) 65%, transparent));
+}
+
+/* 数据角标 */
+.hub-badge {
+  background: color-mix(in srgb, var(--hub-color, #6366f1) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hub-color, #6366f1) 35%, transparent);
+  color: color-mix(in srgb, var(--hub-color, #a5b4fc) 85%, white);
+}
+
+/* 进入动画（stagger，delay 由内联 style 控制） */
+.hub-enter {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: hub-rise 0.5s ease forwards;
+}
+@keyframes hub-rise {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 中央图谱容器（卡片不遮挡） */
+.hub-graph-shell {
+  position: relative;
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 16px;
+  background: radial-gradient(ellipse 70% 60% at 50% 45%, rgba(15, 23, 42, 0.55), rgba(11, 16, 32, 0.85));
+  overflow: hidden;
+}
+.hub-graph-shell::after {
+  /* 角标装饰 */
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.10);
+  border-radius: 12px;
+  pointer-events: none;
+}

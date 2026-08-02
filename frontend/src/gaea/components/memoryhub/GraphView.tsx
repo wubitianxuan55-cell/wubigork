@@ -20,8 +20,10 @@ const LINK_COLORS: Record<string, string> = {
   reference: "rgba(244,114,182,0.40)",
 };
 
-/** GraphView 记忆 3D 图谱：节点=记忆实体，边=同标签/同分类/[[引用]]。 */
-export function GraphView() {
+/** GraphView 记忆 3D 图谱：节点=记忆实体，边=同标签/同分类/[[引用]]。
+ *  variant="page" 带工具条（库面板内）；variant="home" 纯净展示（首页中央）。 */
+export function GraphView(p: { variant?: "page" | "home" }) {
+  const variant = p.variant ?? "page";
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
   const dataRef = useRef<MemoryGraphView | null>(null);
@@ -98,7 +100,8 @@ export function GraphView() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* 工具条 */}
+      {/* 工具条（home 模式隐藏，纯净展示） */}
+      {variant === "page" && (
       <div className="shrink-0 flex items-center gap-2 px-4 pt-3 pb-2">
         <div className="text-fg text-[13px] font-medium">记忆 3D 图谱</div>
         <span className="text-fg-faint text-[11px]">
@@ -122,9 +125,10 @@ export function GraphView() {
           ))}
         </div>
       </div>
+      )}
 
       {/* 图区 */}
-      <div className="flex-1 min-h-0 relative mx-4 mb-4 rounded-xl overflow-hidden border border-border-soft">
+      <div className={`flex-1 min-h-0 relative ${variant === "page" ? "mx-4 mb-4 rounded-xl overflow-hidden border border-border-soft" : "w-full h-full"}`}>
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-bg/60 z-10">
             <Spin tip="构建记忆图谱…" />

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { HeartOutlined, NodeIndexOutlined } from "@ant-design/icons";
+import { HeartOutlined, NodeIndexOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { BookOpen, Brain, Coins, FileText } from "../gaea/icons";
 import { LocaleProvider } from "../gaea/lib/i18n";
 import { app } from "../gaea/lib/bridge";
@@ -10,11 +10,22 @@ import { OfficeMemoryLibrary } from "../gaea/components/memoryhub/OfficeMemoryLi
 import { WhisperMemoryLibrary } from "../gaea/components/memoryhub/WhisperMemoryLibrary";
 import { GraphView } from "../gaea/components/memoryhub/GraphView";
 import { CostLibrary } from "../gaea/components/memoryhub/CostLibrary";
-import { ComingSoon } from "../gaea/components/memoryhub/ComingSoon";
+import { ModuleCard } from "../gaea/components/memoryhub/ModuleCard";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
+import "../gaea/components/memoryhub/hub.css";
 
 type LibraryKey = "knowledge" | "cost" | "profile" | "office" | "whisper" | "graph";
+
+// 各库霓虹色（与 3D 图谱着色一致：indigo 知识 / amber 成本 / emerald 办公 / pink 轻语）
+const LIB_COLORS: Record<LibraryKey, string> = {
+  knowledge: "#818cf8",
+  cost: "#fbbf24",
+  profile: "#a78bfa",
+  office: "#34d399",
+  whisper: "#f472b6",
+  graph: "#22d3ee",
+};
 
 interface LibraryDef {
   key: LibraryKey;
@@ -24,18 +35,22 @@ interface LibraryDef {
 }
 
 const LIBRARIES: LibraryDef[] = [
-  { key: "knowledge", label: "知识库", icon: <BookOpen size={15} />, hint: "工程知识条目（规范/案例/经验）" },
-  { key: "cost", label: "成本库", icon: <Coins size={15} />, hint: "成本条目（单价/单位/来源）" },
-  { key: "profile", label: "用户画像", icon: <Brain size={15} />, hint: "跨板块共享画像" },
-  { key: "office", label: "办公记忆", icon: <FileText size={15} />, hint: "Hephaestus 工作事实" },
-  { key: "whisper", label: "轻语记忆", icon: <HeartOutlined style={{ fontSize: 14 }} />, hint: "Hermes 人格记忆（只读）" },
-  { key: "graph", label: "记忆图谱", icon: <NodeIndexOutlined style={{ fontSize: 14 }} />, hint: "3D 记忆关系图（下阶段）" },
+  { key: "knowledge", label: "知识库", icon: <BookOpen size={17} />, hint: "规范/案例/经验条目" },
+  { key: "cost", label: "成本库", icon: <Coins size={17} />, hint: "单价/单位/来源" },
+  { key: "profile", label: "用户画像", icon: <Brain size={17} />, hint: "跨板块共享画像" },
+  { key: "office", label: "办公记忆", icon: <FileText size={17} />, hint: "Hephaestus 工作事实" },
+  { key: "whisper", label: "轻语记忆", icon: <HeartOutlined style={{ fontSize: 16 }} />, hint: "Hermes 人格记忆 · 只读" },
+  { key: "graph", label: "记忆图谱", icon: <NodeIndexOutlined style={{ fontSize: 16 }} />, hint: "3D 关系图谱" },
 ];
 
-// 记忆中枢：三脑架构（主脑/左脑/右脑）的统一前端入口。
-// 左脑办公记忆 + 主脑知识/画像集中管理，右脑轻语记忆只读浏览，图谱下阶段。
+// 首页卡片排布：左列 3 + 右列 3
+const LEFT_CARDS: LibraryKey[] = ["knowledge", "cost", "profile"];
+const RIGHT_CARDS: LibraryKey[] = ["office", "whisper", "graph"];
+
+// 记忆中枢首页：中央 3D 图谱 + 四周霓虹玻璃模块卡片。
+// 点击卡片切换到对应库面板；三脑记忆（主脑知识/画像 + 左脑办公 + 右脑轻语）统一入口。
 function MemoryHubPage() {
-  const [active, setActive] = useState<LibraryKey>("knowledge");
+  const [active, setActive] = useState<"home" | LibraryKey>("home");
   const [overview, setOverview] = useState<MemoryHubOverview | null>(null);
 
   useEffect(() => {
@@ -51,49 +66,102 @@ function MemoryHubPage() {
       }
     : {};
 
+  // ── 科幻首页 ─────────────────────────────────────────────────
+  if (active === "home") {
+    return (
+      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <div className="flex-1 min-h-0 relative">
+          <div className="hub-bg" />
+          <div className="hub-grid" />
+          <div className="hub-scanline" />
+
+          <div className="relative h-full flex flex-col px-5 pt-4 pb-4">
+            {/* 标题 + 总览 */}
+            <div className="shrink-0 flex items-end gap-3 mb-3">
+              <div className="hub-title text-[22px] font-bold leading-none tracking-wide">记忆中枢</div>
+              <div className="text-fg-faint text-[11px] leading-tight pb-0.5">
+                三脑记忆 · 统一入口
+                {overview?.latestUpdated && (
+                  <span className="ml-2 font-mono text-fg-faint/70">更新 {overview.latestUpdated}</span>
+                )}
+              </div>
+            </div>
+
+            {/* 主区：左卡列 | 中央图谱 | 右卡列 */}
+            <div className="flex-1 min-h-0 flex gap-4">
+              {/* 左卡列 */}
+              <div className="w-52 shrink-0 flex flex-col gap-3 justify-center">
+                {LEFT_CARDS.map((key, i) => {
+                  const lib = LIBRARIES.find((l) => l.key === key)!;
+                  return (
+                    <ModuleCard
+                      key={key}
+                      index={i}
+                      label={lib.label}
+                      icon={lib.icon}
+                      hint={lib.hint}
+                      count={counts[key]}
+                      color={LIB_COLORS[key]}
+                      onClick={() => setActive(key)}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* 中央 3D 图谱 */}
+              <div className="hub-graph-shell flex-1 min-w-0">
+                <GraphView variant="home" />
+              </div>
+
+              {/* 右卡列 */}
+              <div className="w-52 shrink-0 flex flex-col gap-3 justify-center">
+                {RIGHT_CARDS.map((key, i) => {
+                  const lib = LIBRARIES.find((l) => l.key === key)!;
+                  return (
+                    <ModuleCard
+                      key={key}
+                      index={i + 3}
+                      label={lib.label}
+                      icon={lib.icon}
+                      hint={lib.hint}
+                      count={counts[key]}
+                      color={LIB_COLORS[key]}
+                      onClick={() => setActive(key)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 库面板（从首页点入）────────────────────────────────────
+  const lib = LIBRARIES.find((l) => l.key === active)!;
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-        {/* ── 左侧分库导航 ─────────────────────────────────── */}
-        <aside className="w-48 shrink-0 border-r border-border-soft flex flex-col bg-bg-soft/40">
-          <div className="px-4 pt-4 pb-2">
-            <div className="text-fg text-[14px] font-semibold tracking-tight">记忆中枢</div>
-            <div className="text-fg-faint text-[10.5px] mt-0.5">三脑记忆统一管理</div>
-          </div>
-          <nav className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-0.5">
-            {LIBRARIES.map((lib) => {
-              const count = counts[lib.key];
-              const isActive = active === lib.key;
-              return (
-                <button
-                  key={lib.key}
-                  onClick={() => setActive(lib.key)}
-                  className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors ${
-                    isActive ? "bg-sidebar-active text-fg" : "text-fg-dim hover:text-fg hover:bg-bg-soft"
-                  }`}
-                  title={lib.hint}
-                >
-                  <span className={`shrink-0 ${isActive ? "text-accent" : "text-fg-faint"}`}>{lib.icon}</span>
-                  <span className="flex-1 min-w-0 truncate text-[12.5px]">{lib.label}</span>
-                  {typeof count === "number" && (
-                    <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-bg-elev text-fg-faint text-[10px]">{count}</span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-          <div className="px-4 py-3 border-t border-border-soft text-fg-faint text-[10.5px] leading-relaxed">
-            主脑统一记忆 API
-            <br />
-            Hephaestus.db · hermes.db
-          </div>
-        </aside>
+      {/* 返回首页条 */}
+      <div className="shrink-0 flex items-center gap-2 px-4 pt-3 pb-1">
+        <button
+          onClick={() => setActive("home")}
+          className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
+        >
+          <ArrowLeftOutlined style={{ fontSize: 11 }} /> 返回首页
+        </button>
+        <span className="w-px h-4 bg-border-soft mx-1" />
+        <span style={{ color: LIB_COLORS[active] }} className="text-[13px] font-semibold">
+          {lib.label}
+        </span>
+        <span className="text-fg-faint text-[11px]">{lib.hint}</span>
+      </div>
 
-        {/* ── 右侧内容区 ─────────────────────────────────── */}
-        <main className="flex-1 min-w-0 flex flex-col bg-bg">
-          <LocaleProvider>
+      {/* 库内容 */}
+      <div className="flex-1 min-h-0">
+        <LocaleProvider>
           {active === "knowledge" && (
-            <div className="flex-1 min-h-0">
+            <div className="h-full">
               <KnowledgePanel variant="page" onClose={() => {}} />
             </div>
           )}
@@ -101,9 +169,8 @@ function MemoryHubPage() {
           {active === "profile" && <ProfileLibrary />}
           {active === "office" && <OfficeMemoryLibrary />}
           {active === "whisper" && <WhisperMemoryLibrary />}
-          {active === "graph" && <GraphView />}
-          </LocaleProvider>
-        </main>
+          {active === "graph" && <GraphView variant="page" />}
+        </LocaleProvider>
       </div>
     </div>
   );
