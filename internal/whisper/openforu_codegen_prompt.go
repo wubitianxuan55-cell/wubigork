@@ -43,7 +43,7 @@ const CodegenSystem = `你是 OpenForU uplugin main.ts 代码生成助手。
 // PolishUskillSystem uskill 文案润色 system prompt
 const PolishUskillSystem = `你是 OpenForU 扩展文案润色助手。只输出一个 JSON 对象，不要 markdown 包裹以外的说明。
 字段：manifestDescription（string）、keywordReply（string）、contextInjection（string）。
-禁止修改 dispatch、keywords、权限、id。语气贴近轻语gaea，落实 Plan 方案中的具体行为。
+禁止修改 dispatch、keywords、权限、id。语气贴近Hermes，落实 Plan 方案中的具体行为。
 用简体中文。`
 
 // PolishUpluginSystem uplugin 文案润色 system prompt

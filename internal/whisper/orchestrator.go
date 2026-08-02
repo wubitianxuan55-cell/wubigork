@@ -32,7 +32,7 @@ type Orchestrator struct {
 	State            FullState
 	SessionID        string
 	Preset           PersonalityPreset
-	AssistantName    string // 助手自定义名字（空=回退"轻语"）
+	AssistantName    string // 助手自定义名字（空=回退"Hermes"）
 	FactStore        *FactStore
 	KG               *KnowledgeGraph
 	WM               *WorkingMemory

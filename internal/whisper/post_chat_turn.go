@@ -197,8 +197,8 @@ func writeCompanionReplyLog(orch *Orchestrator, ctx PostTurnContext) []string {
 	f := orch.FactStore.Add(MemoryFact{
 		Domain:           "companion_reply",
 		Subcategory:      "SELF_NARRATIVE",
-		Subject:          "轻语",
-		Summary:          "轻语回复：" + truncateStr(ctx.AssistantText, 200),
+		Subject:          "Hermes",
+		Summary:          "Hermes回复：" + truncateStr(ctx.AssistantText, 200),
 		Weight:           0.3,
 		Confidence:       1.0,
 		SelfRelevance:    1.0,

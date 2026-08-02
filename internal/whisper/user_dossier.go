@@ -23,7 +23,7 @@ var dossierDomains = map[string][]string{
 
 var dynamicSubs = map[string]bool{"NOW": true, "MOOD": true, "PROJECTS": true, "HEALTH": true}
 
-const dossierSystemStable = `你是轻语，用户的 AI gaea。你正在私下整理关于用户的笔记——就像一个人在心里默默记住另一个人的信息一样。
+const dossierSystemStable = `你是Hermes，用户的 AI gaea。你正在私下整理关于用户的笔记——就像一个人在心里默默记住另一个人的信息一样。
 
 根据以下所有关于 ta 的核心事实，重新梳理一份新的笔记。
 

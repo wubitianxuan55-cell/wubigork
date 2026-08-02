@@ -45,7 +45,7 @@ func RecallForSpecialDateV2(sd SpecialDateV2) MemoryBundleV2 {
 	b := MemoryBundleV2{FactIDs: sd.LinkedFactIDs}
 	switch sd.Type {
 	case "ackem_birthday":
-		b.Narrative = "今天是轻语的生日，你需要表现出特别的开心和温暖。"
+		b.Narrative = "今天是Hermes的生日，你需要表现出特别的开心和温暖。"
 		b.EmotionBias = 3.0
 	case "first_met_anniversary":
 		b.Narrative = "今天是你们相识的周年纪念，可以自然地回忆初见时的场景。"

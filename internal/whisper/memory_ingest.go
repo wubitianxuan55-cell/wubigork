@@ -165,7 +165,7 @@ func extractBasicTriples(f *Fact) []Triple {
 	case "BASIC_PROFILE":
 		return []Triple{{Subject: "用户", Predicate: f.Subject, Object: f.Summary, Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}}
 	case "PRAISE":
-		return []Triple{{Subject: "用户", Predicate: "赞赏", Object: "轻语", Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}}
+		return []Triple{{Subject: "用户", Predicate: "赞赏", Object: "Hermes", Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}}
 	case "VULNERABILITIES":
 		return []Triple{{Subject: "用户", Predicate: "表达脆弱", Object: f.Summary, Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}}
 	case "OUR_BOND":
@@ -225,7 +225,7 @@ func (p *MemoryIngestPipeline) generateEpisodeViaLLM(args IngestTurnArgs) string
 	var lines []string
 	for _, e := range args.RecentExchanges {
 		lines = append(lines, "用户："+e.User)
-		lines = append(lines, "轻语："+e.Assistant)
+		lines = append(lines, "Hermes："+e.Assistant)
 	}
 	reply, err := p.llm.Chat(episodeExtractionPrompt, strings.Join(lines, "\n"))
 	if err != nil {
@@ -278,7 +278,7 @@ func buildEpisodeSummary(exchanges []ExchangePair) string {
 		last = last[:80]
 	}
 	if last != "" {
-		return "用户说「" + first + "…」→ 轻语回应「" + last + "…」"
+		return "用户说「" + first + "…」→ Hermes回应「" + last + "…」"
 	}
 	return "用户说「" + first + "…」"
 }

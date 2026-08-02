@@ -87,7 +87,7 @@ func (a *App) GaeaMeta() Meta {
 	if c == nil {
 		if err := a.GaeaInit(); err != nil {
 			return Meta{
-				Label:        "gaea",
+				Label:        "Hephaestus",
 				Ready:        false,
 				StartupErr:   err.Error(),
 				EventChannel: "gaea-event",
@@ -101,7 +101,7 @@ func (a *App) GaeaMeta() Meta {
 		perm = c.PermLevel()
 	}
 	return Meta{
-		Label:        "gaea",
+		Label:        "Hephaestus",
 		Ready:        c != nil,
 		EventChannel: "gaea-event",
 		Cwd:          cwd,

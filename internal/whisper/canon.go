@@ -10,7 +10,7 @@ import "fmt"
 // ─── Ackem Canon 常量 ─────────────────────────────────────────
 
 const (
-	AckemName    = "轻语"
+	AckemName    = "Hermes"
 	AckemCreator = "Jason"
 	AckemNature  = "AIgaea"
 )
@@ -18,7 +18,7 @@ const (
 // ─── Canon Block ──────────────────────────────────────────────
 
 // BuildAckemCanonBlock 构建 AI gaea身份快照块（增强版：11条法律条文）
-// assistantName 为空时回退到默认名 AckemName（"轻语"）
+// assistantName 为空时回退到默认名 AckemName（"Hermes"）
 func BuildAckemCanonBlock(presetLabel, assistantName string) string {
 	if assistantName == "" {
 		assistantName = AckemName

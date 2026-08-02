@@ -52,9 +52,9 @@ func DetectSpecialDatesV2(today time.Time, firstMetDate, ackemBirthday string,
 		if td != nil {
 			ys = td.YearsSince
 		}
-		title := fmt.Sprintf("轻语%d岁生日", ys)
+		title := fmt.Sprintf("Hermes%d岁生日", ys)
 		if ys == 1 {
-			title = "轻语1岁生日"
+			title = "Hermes1岁生日"
 		}
 		results = append(results, SpecialDateV2{
 			Type: "ackem_birthday", Title: title, YearsSince: ys,

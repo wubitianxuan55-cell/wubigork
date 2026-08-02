@@ -4,7 +4,7 @@
 
 package whisper
 
-// AckemBirthdayMMDD 轻语的生日（月日格式）
+// AckemBirthdayMMDD Hermes的生日（月日格式）
 const AckemBirthdayMMDD = "06-11"
 
 // AckemBirthdayDescription 生日描述
