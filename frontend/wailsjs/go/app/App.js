@@ -1217,3 +1217,7 @@ export function GaeaProfileSave(arg1) {
 export function GaeaWhisperMemories() {
   return window['go']['app']['App']['GaeaWhisperMemories']();
 }
+
+export function GaeaMemoryGraph() {
+  return window['go']['app']['App']['GaeaMemoryGraph']();
+}

@@ -501,3 +501,21 @@ export interface MemoryHubOverview {
   whisperCount: number;
   latestUpdated: string;
 }
+
+// ── 记忆图谱 ────────────────────────────────────────────────────────
+export interface GraphNode {
+  id: string;
+  name: string;
+  type: string; // knowledge / profile / office / whisper
+  desc: string;
+  val: number;
+}
+export interface GraphLink {
+  source: string;
+  target: string;
+  type: string; // same-tag / same-category / reference
+}
+export interface MemoryGraphView {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}

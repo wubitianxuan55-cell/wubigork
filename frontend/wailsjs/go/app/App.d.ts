@@ -616,3 +616,5 @@ export function GaeaProfileList():Promise<Array<app.ProfileFactView>>;
 export function GaeaProfileSave(arg1:app.ProfileFactView):Promise<void>;
 
 export function GaeaWhisperMemories():Promise<Array<app.WhisperMemoryView>>;
+
+export function GaeaMemoryGraph():Promise<app.MemoryGraphView>;

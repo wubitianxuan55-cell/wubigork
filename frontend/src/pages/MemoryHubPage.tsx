@@ -8,6 +8,7 @@ import { KnowledgePanel } from "../gaea/components/KnowledgePanel";
 import { ProfileLibrary } from "../gaea/components/memoryhub/ProfileLibrary";
 import { OfficeMemoryLibrary } from "../gaea/components/memoryhub/OfficeMemoryLibrary";
 import { WhisperMemoryLibrary } from "../gaea/components/memoryhub/WhisperMemoryLibrary";
+import { GraphView } from "../gaea/components/memoryhub/GraphView";
 import { ComingSoon } from "../gaea/components/memoryhub/ComingSoon";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
@@ -89,11 +90,10 @@ function MemoryHubPage() {
 
         {/* ── 右侧内容区 ─────────────────────────────────── */}
         <main className="flex-1 min-w-0 flex flex-col bg-bg">
+          <LocaleProvider>
           {active === "knowledge" && (
             <div className="flex-1 min-h-0">
-              <LocaleProvider>
-                <KnowledgePanel variant="page" onClose={() => {}} />
-              </LocaleProvider>
+              <KnowledgePanel variant="page" onClose={() => {}} />
             </div>
           )}
           {active === "cost" && (
@@ -106,13 +106,8 @@ function MemoryHubPage() {
           {active === "profile" && <ProfileLibrary />}
           {active === "office" && <OfficeMemoryLibrary />}
           {active === "whisper" && <WhisperMemoryLibrary />}
-          {active === "graph" && (
-            <ComingSoon
-              icon={<NodeIndexOutlined style={{ fontSize: 24 }} />}
-              title="记忆 3D 图谱"
-              desc="以知识/记忆/画像为节点、同库/同标签/引用为边的三维关系图谱（three-forcegraph）。下一阶段上线。"
-            />
-          )}
+          {active === "graph" && <GraphView />}
+          </LocaleProvider>
         </main>
       </div>
     </div>

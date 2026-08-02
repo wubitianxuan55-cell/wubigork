@@ -171,6 +171,7 @@ export interface AppBindings {
   ProfileDelete(name: string): Promise<void>;
   ProfileConflicts(): Promise<string[]>;
   WhisperMemories(): Promise<WhisperMemoryView[]>;
+  MemoryGraph(): Promise<MemoryGraphView>;
   KnowledgeGet(name: string): Promise<KnowledgeEntry | null>;
   KnowledgeSave(entry: KnowledgeSaveRequest): Promise<void>;
   KnowledgeDelete(name: string): Promise<void>;
@@ -318,6 +319,7 @@ const gaeaToGaea: Record<string, string> = {
   ProfileDelete: "GaeaProfileDelete",
   ProfileConflicts: "GaeaProfileConflicts",
   WhisperMemories: "GaeaWhisperMemories",
+  MemoryGraph: "GaeaMemoryGraph",
   KnowledgeGet: "GaeaKnowledgeGet",
   KnowledgeSave: "GaeaKnowledgeSave",
   KnowledgeDelete: "GaeaKnowledgeDelete",

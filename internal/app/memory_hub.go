@@ -2,6 +2,9 @@ package app
 
 import (
 	"os"
+	"regexp"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/config"
@@ -144,4 +147,163 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 		ov.LatestUpdated = latest.Format("2006-01-02 15:04")
 	}
 	return ov
+}
+
+// ── 记忆 3D 图谱 ──────────────────────────────────────────────────
+
+// GraphNode 图谱节点（three-forcegraph nodes）。
+type GraphNode struct {
+	ID   string  `json:"id"`
+	Name string  `json:"name"`
+	Type string  `json:"type"` // knowledge / profile / office / whisper
+	Desc string  `json:"desc"`
+	Val  float64 `json:"val"` // 节点大小（重要度）
+}
+
+// GraphLink 图谱边（three-forcegraph links）。
+type GraphLink struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Type   string `json:"type"` // same-tag / same-category / reference
+}
+
+// MemoryGraphView 记忆图谱数据。
+type MemoryGraphView struct {
+	Nodes []GraphNode `json:"nodes"`
+	Links []GraphLink `json:"links"`
+}
+
+const (
+	maxGraphNodes = 400
+	maxGraphLinks = 800
+	whisperGraphN = 40 // 轻语节点上限（按权重取前 N）
+)
+
+// GaeaMemoryGraph 构建记忆图谱：知识/画像/办公/轻语为节点，
+// 同标签/同分类/[[引用]]为边。前端 three-forcegraph 渲染。
+func (a *App) GaeaMemoryGraph() MemoryGraphView {
+	var g MemoryGraphView
+	idSet := make(map[string]bool, maxGraphNodes)
+	tagIndex := make(map[string][]string)
+	catIndex := make(map[string][]string)
+	nameID := make(map[string]string) // 记忆名 → 节点 id（[[引用]]解析用）
+
+	addNode := func(id, name, typ, desc string, val float64) {
+		if len(g.Nodes) >= maxGraphNodes || idSet[id] || id == "" {
+			return
+		}
+		idSet[id] = true
+		g.Nodes = append(g.Nodes, GraphNode{ID: id, Name: name, Type: typ, Desc: desc, Val: val})
+	}
+	addLink := func(src, tgt, typ string) {
+		if len(g.Links) >= maxGraphLinks || src == "" || tgt == "" || src == tgt {
+			return
+		}
+		for _, l := range g.Links { // 小图线性去重足够
+			if (l.Source == src && l.Target == tgt) || (l.Source == tgt && l.Target == src) {
+				return
+			}
+		}
+		g.Links = append(g.Links, GraphLink{Source: src, Target: tgt, Type: typ})
+	}
+
+	// 知识条目
+	if store, err := knowledge.Global().Store(); err == nil {
+		for _, e := range store.ReadAll() {
+			id := "k:" + e.Name
+			addNode(id, e.Title, "knowledge", e.Category+" · "+e.Discipline, 1)
+			nameID[e.Name] = id
+			if e.Category != "" {
+				catIndex[e.Category] = append(catIndex[e.Category], id)
+			}
+			for _, t := range e.Tags {
+				tagIndex[t] = append(tagIndex[t], id)
+			}
+		}
+	}
+
+	// 主脑画像
+	for _, m := range a.hubProfileStore().All() {
+		id := "p:" + m.Name
+		addNode(id, displayName(m.Title, m.Name), "profile", m.Description, 1.2)
+		nameID[m.Name] = id
+		for _, t := range m.Tags {
+			tagIndex[t] = append(tagIndex[t], id)
+		}
+	}
+
+	// 办公事实
+	for _, m := range a.hubOfficeStore().List() {
+		id := "o:" + m.Name
+		addNode(id, displayName(m.Title, m.Name), "office", m.Description, 1)
+		nameID[m.Name] = id
+		for _, t := range m.Tags {
+			tagIndex[t] = append(tagIndex[t], id)
+		}
+	}
+
+	// 轻语事实（按权重取前 N，控制规模）
+	whisperFacts := whisperdb.LoadFactsFromDB(a.whisperDataRoot)
+	sort.Slice(whisperFacts, func(i, j int) bool { return whisperFacts[i].Weight > whisperFacts[j].Weight })
+	for i, f := range whisperFacts {
+		if i >= whisperGraphN {
+			break
+		}
+		addNode("w:"+f.ID, f.Subject, "whisper", f.Summary, 0.8+f.Weight)
+	}
+
+	// 边：同标签（每 tag 限 15 对）
+	for _, ids := range tagIndex {
+		if len(ids) < 2 {
+			continue
+		}
+		for i := 0; i < len(ids) && i < 15; i++ {
+			for j := i + 1; j < len(ids) && j < 16; j++ {
+				addLink(ids[i], ids[j], "same-tag")
+			}
+		}
+	}
+
+	// 边：知识同分类（每分类限 10 对）
+	for _, ids := range catIndex {
+		if len(ids) < 2 {
+			continue
+		}
+		for i := 0; i < len(ids) && i < 10; i++ {
+			for j := i + 1; j < len(ids) && j < 11; j++ {
+				addLink(ids[i], ids[j], "same-category")
+			}
+		}
+	}
+
+	// 边：[[引用]]（办公/画像 body 指向其他记忆）
+	refRe := regexp.MustCompile(`\[\[([^\]|]+)(?:\|[^\]]+)?\]\]`)
+	for _, m := range a.hubOfficeStore().List() {
+		if tid, ok := nameID[m.Name]; ok {
+			for _, ref := range refRe.FindAllStringSubmatch(m.Body, -1) {
+				if rid, ok2 := nameID[strings.TrimSpace(ref[1])]; ok2 {
+					addLink(tid, rid, "reference")
+				}
+			}
+		}
+	}
+	for _, m := range a.hubProfileStore().All() {
+		if tid, ok := nameID[m.Name]; ok {
+			for _, ref := range refRe.FindAllStringSubmatch(m.Body, -1) {
+				if rid, ok2 := nameID[strings.TrimSpace(ref[1])]; ok2 {
+					addLink(tid, rid, "reference")
+				}
+			}
+		}
+	}
+
+	return g
+}
+
+// displayName 标题回退为 name（与 memory 包 displayTitle 一致）。
+func displayName(title, name string) string {
+	if t := strings.TrimSpace(title); t != "" {
+		return t
+	}
+	return strings.ReplaceAll(name, "-", " ")
 }
