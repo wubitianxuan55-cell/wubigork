@@ -54,16 +54,19 @@ export function GraphView(p: { variant?: "page" | "home" }) {
   // 初始化 ForceGraph3D（once）
   useEffect(() => {
     if (!containerRef.current || graphRef.current) return;
+    // 图谱背景跟随主题（读 gaea 令牌 --bg-soft，亮暗切换时首帧一致）
+    const themeBg =
+      getComputedStyle(document.documentElement).getPropertyValue("--bg-soft").trim() || "#1B2336";
     const fg: any = (ForceGraph3D as any)()(containerRef.current)
-      .backgroundColor("#0b1020")
+      .backgroundColor(themeBg)
       .nodeVal((d: any) => d.val ?? 1)
       .nodeColor((d: any) => TYPE_COLORS[d.type] ?? "#64748b")
       .nodeLabel(
         (d: any) =>
-          `<div style="font:12px sans-serif;color:#e2e8f0;background:rgba(15,23,42,0.92);border:1px solid rgba(99,102,241,0.4);border-radius:8px;padding:6px 10px;max-width:260px">` +
+          `<div style="font:12px sans-serif;color:var(--fg);background:color-mix(in srgb, var(--bg-elev) 92%, transparent);border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;padding:6px 10px;max-width:260px">` +
           `<div style="font-weight:600;font-size:13px">${d.name}</div>` +
-          `<div style="color:${TYPE_COLORS[d.type] ?? "#94a3b8"};margin:2px 0">${TYPE_LABELS[d.type] ?? d.type}</div>` +
-          `<div style="color:#94a3b8;line-height:1.4">${d.desc ?? ""}</div>` +
+          `<div style="color:${TYPE_COLORS[d.type] ?? "var(--fg-dim)"};margin:2px 0">${TYPE_LABELS[d.type] ?? d.type}</div>` +
+          `<div style="color:var(--fg-faint);line-height:1.4">${d.desc ?? ""}</div>` +
           `</div>`,
       )
       .linkColor((l: any) => LINK_COLORS[l.type] ?? "rgba(148,163,184,0.25)")

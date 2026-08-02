@@ -565,7 +565,7 @@ const MainLayout: React.FC = () => {
   </div>
 )}
 
-{!consoleOpen && page !== 'modelcenter' && page !== 'home' && page !== 'settings' && (
+{!consoleOpen && page !== 'modelcenter' && page !== 'home' && page !== 'settings' && page !== 'memoryhub' && (
     <Button
     onClick={() => setConsoleOpen(true)}
     style={{
