@@ -371,8 +371,21 @@ const WhisperPage: React.FC = () => {
                 style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
             </Tooltip>
             <Tooltip title="虚拟助手管理中心">
-              <Button type="text" size="small" onClick={() => setPersonalityOpen(true)}
-                style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 6px', height: 24, opacity: 0.75 }}>管理中心</Button>
+              <div role="button" tabIndex={0}
+                onClick={() => setPersonalityOpen(true)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPersonalityOpen(true) } }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--whisper-accent)'; e.currentTarget.style.boxShadow = '0 0 12px var(--whisper-accent-glow)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--whisper-glass-border)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)' }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '4px 10px', borderRadius: 10, cursor: 'pointer', userSelect: 'none',
+                  background: 'var(--whisper-accent-glow)',
+                  border: '1px solid var(--whisper-glass-border)',
+                  transition: 'all 0.15s',
+                }}>
+                <SettingOutlined style={{ color: 'var(--whisper-accent)', fontSize: 12 }} />
+                <span style={{ fontSize: 11, color: 'var(--whisper-accent)', fontWeight: 600, whiteSpace: 'nowrap' }}>虚拟助手</span>
+              </div>
             </Tooltip>
             <Tooltip title="语音设置">
               <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
