@@ -5,6 +5,7 @@ import { Modal, Button, Input, Switch, Tag, Typography, Popconfirm, message, Emp
 import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined, CloseOutlined, CheckOutlined, QrcodeOutlined, LoadingOutlined, ReloadOutlined, PictureOutlined, ReadOutlined } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import TisorRadar from './TisorRadar'
+import CompanionAvatar from './CompanionAvatar'
 import { generateImage } from '../api/image'
 import PersonalityPreview from './PersonalityPreview'
 
@@ -502,7 +503,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
                 {ast.portraitUrl ? (
                   <img src={ast.portraitUrl} alt={ast.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', display: 'block' }} />
                 ) : (
-                  p && <TisorRadar dims={p.dims} size={64} color={ast.enabled ? accent : '#666'} showLabels={false} />
+                  <CompanionAvatar size={88} state="idle" emotionColor={ast.enabled ? accent : '#666'} />
                 )}
                 {/* 当前对话徽标 */}
                 {isActive && (
@@ -545,6 +546,21 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
                 {/* 分隔线 */}
                 <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />
 
+                {/* 性格标签 chips */}
+                {(ast.tags?.length || p?.tags?.length) ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                    {(ast.tags || p?.tags || []).slice(0, 3).map((t) => (
+                      <span key={t} style={{
+                        fontSize: 9, padding: '1px 7px', borderRadius: 999,
+                        background: `${accent}1f`, color: accent, border: `1px solid ${accent}33`,
+                        whiteSpace: 'nowrap',
+                      }}>{t}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ height: 2 }} />
+                )}
+
                 {/* 人格预览（VoiceGuide 摘要） */}
                 <Text style={{
                   color: 'rgba(255,255,255,0.4)', fontSize: 10, lineHeight: 1.5,
@@ -554,6 +570,20 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
                 }}>
                   {p?.voiceGuide || '暂无人格描述'}
                 </Text>
+
+                {/* 迷你五维条（T/I/S/O/R） */}
+                {p && (
+                  <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
+                    {[{ k: 'T', v: p.dims.T }, { k: 'I', v: p.dims.I }, { k: 'S', v: p.dims.S }, { k: 'O', v: p.dims.O }, { k: 'R', v: p.dims.R }].map((d) => (
+                      <div key={d.k} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <div style={{ height: 2, borderRadius: 1, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${Math.min(100, Math.max(0, d.v))}%`, background: accent, opacity: 0.85 }} />
+                        </div>
+                        <span style={{ fontSize: 7.5, color: 'rgba(255,255,255,0.3)', textAlign: 'center', lineHeight: 1 }}>{d.k}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* 操作 */}
                 <div style={{ display: 'flex', gap: 2, marginTop: 6 }}>
@@ -628,7 +658,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           border: `1px solid ${accent}33`,
         }}>
           <div style={{
-            width: 112, height: 132, borderRadius: 14, flexShrink: 0, overflow: 'hidden',
+            width: 128, height: 148, borderRadius: 16, flexShrink: 0, overflow: 'hidden',
             background: 'rgba(255,255,255,0.03)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             border: `1px solid ${accent}33`,
@@ -636,7 +666,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
             {ast.portraitUrl ? (
               <img src={ast.portraitUrl} alt={ast.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', display: 'block' }} />
             ) : (
-              p && <TisorRadar dims={p.dims} size={88} color={ast.enabled ? accent : '#666'} showLabels={false} />
+              <CompanionAvatar size={124} state="idle" emotionColor={ast.enabled ? accent : '#666'} />
             )}
           </div>
           <div style={{ minWidth: 0 }}>
@@ -648,6 +678,16 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
               {p ? `${p.label} 人格 · ${p.gender === 'female' ? '♀ 女性' : p.gender === 'male' ? '♂ 男性' : '✦ 中性'}` : ast.personalityId}
             </div>
+            {(ast.tags?.length || p?.tags?.length) ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {(ast.tags || p?.tags || []).map((t) => (
+                  <span key={t} style={{
+                    fontSize: 10, padding: '2px 10px', borderRadius: 999,
+                    background: `${accent}1f`, color: accent, border: `1px solid ${accent}44`,
+                  }}>{t}</span>
+                ))}
+              </div>
+            ) : null}
             {ast.wxToken && (
               <div style={{ fontSize: 11, color: wxOn ? '#4ade80' : wxSessionExpired[ast.id] ? '#fbbf24' : '#94a3b8', marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 6px currentColor' }} />
@@ -657,24 +697,30 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           </div>
         </div>
 
-        {/* 五维参数 */}
+        {/* 五维参数：雷达 + 条形并排 */}
         <div style={{
           padding: '14px 18px', borderRadius: 16,
           background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)',
+          display: 'flex', gap: 18, alignItems: 'center',
         }}>
-          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 10, letterSpacing: '0.08em' }}>
-            人格五维参数
-          </Text>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
-            {dimKeys.map(d => (
-              <div key={d.k} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: accent }}>{Math.round(d.v)}</div>
-                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{d.label}</div>
-                <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.08)', marginTop: 6, overflow: 'hidden' }}>
-                  <div style={{ width: `${d.v}%`, height: '100%', borderRadius: 2, background: `linear-gradient(90deg, ${accent}66, ${accent})` }} />
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {p && <TisorRadar dims={p.dims} size={132} color={ast.enabled ? accent : '#666'} showLabels={false} />}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 10, letterSpacing: '0.08em' }}>
+              人格五维参数
+            </Text>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {dimKeys.map(d => (
+                <div key={d.k} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ width: 40, fontSize: 10, color: 'rgba(255,255,255,0.45)', flexShrink: 0 }}>{d.label}</span>
+                  <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(100, Math.max(0, d.v))}%`, height: '100%', borderRadius: 2, background: `linear-gradient(90deg, ${accent}66, ${accent})`, transition: 'width 600ms cubic-bezier(0.4,0,0.2,1)' }} />
+                  </div>
+                  <span style={{ width: 26, fontSize: 12, fontWeight: 700, color: accent, textAlign: 'right', flexShrink: 0 }}>{Math.round(d.v)}</span>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
