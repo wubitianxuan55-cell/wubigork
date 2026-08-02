@@ -9,7 +9,7 @@ import (
 )
 
 // edit.go is the programmatic mutation surface a settings UI drives: change the
-// default model, add/remove a provider, set the planner, edit permission rules,
+// default model, add/remove a provider, edit permission rules,
 // add/remove an MCP server — each validated, then persisted with SaveTo. It is
 // separate from the `gaea setup` wizard (cli) so a GUI can apply one setting at a
 // time without replaying the whole interactive flow. Every mutator works on the
@@ -90,8 +90,7 @@ func (c *Config) UpsertProvider(e ProviderEntry) error {
 
 // RemoveProvider deletes the named provider. It refuses to remove the current
 // default_model (reassign it first, so the config never points at a missing
-// model); if the removed provider was the planner, planner_model is cleared as
-// a side effect since it is optional. Errors when the name isn't configured.
+// model). Errors when the name isn't configured.
 func (c *Config) RemoveProvider(name string) error {
 	idx := -1
 	for i := range c.Providers {

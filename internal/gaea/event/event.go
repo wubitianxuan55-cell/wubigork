@@ -39,8 +39,7 @@ const (
 	// Notice is an out-of-band message — a warning, truncation, block, or
 	// compaction notice (Level + Text).
 	Notice
-	// Phase marks a coordinator boundary, e.g. planner→executor handoff (Text =
-	// label such as "deepseek · planning").
+	// Phase marks a turn phase boundary (Text = label such as "deepseek · executing").
 	Phase
 	// ApprovalRequest asks the frontend to approve a pending tool call
 	// (Approval: ID/Tool/Subject). The run blocks until the controller's

@@ -39,7 +39,7 @@ func (c *Compiler) FilteredSchemas(names []string) []provider.ToolSchema {
 // SetRegistry updates the tool registry.
 func (c *Compiler) SetRegistry(reg *tool.Registry) { c.l1.SetRegistry(reg) }
 
-// Fork creates a child Compiler for a sub-agent or planner that shares the
+// Fork creates a child Compiler for a sub-agent that shares the
 // same L1 identity bytes. Call WithInstructions to add custom instructions
 // (e.g. SingleModelPrompt) that come after the L1 prefix in the system prompt.
 func (c *Compiler) Fork() *Compiler {

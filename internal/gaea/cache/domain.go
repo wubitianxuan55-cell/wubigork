@@ -18,7 +18,7 @@ const (
 	KindWriting      TaskKind = "writing"
 	KindGeneral      TaskKind = "general"
 	// V10.XX: simple query — short input with read-only keywords;
-	// detected before other classifications so the planner can ask user.
+	// detected before other classifications so the agent can answer directly.
 	KindSimple TaskKind = "simple"
 )
 

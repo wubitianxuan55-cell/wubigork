@@ -329,7 +329,7 @@ func classifyIntent(input string) TaskKind {
 	lower := strings.ToLower(input)
 
 	// V10.XX: simple query detection — short input with read-only keywords.
-	// Returns KindSimple so the planner can ask user before skipping.
+	// Returns KindSimple so the agent can answer directly without tools.
 	if IsSimpleQuery(lower, input) {
 		return KindSimple
 	}

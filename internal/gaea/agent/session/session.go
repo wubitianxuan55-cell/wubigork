@@ -45,7 +45,7 @@ func (s *Session) PrependSystem(content string) {
 }
 
 // Truncate cuts the message log back to n messages. Used to roll back
-// unapproved plan output from the planner's session.
+// session state on error or cancellation.
 func (s *Session) Truncate(n int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
