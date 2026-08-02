@@ -1,7 +1,7 @@
 // Package boot assembles a ready-to-drive control.Controller from configuration:
-// it loads config, resolves the model(s), builds the tool registry (built-ins +
-// plugins), wires the permission gate, and constructs the executor — optionally
-// wrapping it in a two-model Hermes. It is the one place that turns "what the
+// it loads config, resolves the model, builds the tool registry (built-ins +
+// plugins), wires the permission gate, and constructs the single-model executor.
+// It is the one place that turns "what the
 // user configured" into "a Controller a frontend can drive", so every frontend —
 // the terminal TUI, the HTTP/SSE server, the desktop webview — shares the exact
 // same assembly instead of each re-deriving it. Frontends pass only a sink and a

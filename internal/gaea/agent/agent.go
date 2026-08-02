@@ -60,7 +60,7 @@ func CallContext(ctx context.Context) (parentID string, sink event.Sink, asker A
 }
 
 // TurnResult is a structured result produced by an AgentRunner after one turn.
-// It lets upstream callers (e.g. Hermes) consume execution outcomes without
+// It lets upstream callers (e.g. the controller) consume execution outcomes without
 // having to extract them post-hoc from the agent's session.
 type TurnResult struct {
 	FilesCreated  []string // paths of files newly created this turn (vs. modified)

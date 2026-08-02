@@ -312,9 +312,6 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 			if q.Header != "" {
 				qq["header"] = q.Header
 			}
-			if q.Plan != "" {
-				qq["plan"] = q.Plan
-			}
 			qs = append(qs, qq)
 		}
 		m["ask"] = map[string]interface{}{"id": e.Ask.ID, "questions": qs}
