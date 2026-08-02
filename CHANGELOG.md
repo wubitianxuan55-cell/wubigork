@@ -1,6 +1,18 @@
 # gaea · 多功能 AI 助手
 
-## v1.9.0「记忆中枢」(2026-08-02)
+## v1.10.0「科幻记忆中枢 · 架构归拢」(2026-08-02)
+
+> 记忆中枢科幻感首页（中央 3D 图谱 + 霓虹玻璃卡片）+ 3D 图谱白屏修复（three-forcegraph → 3d-force-graph）+ AI 控制台归小说专用 + 小说专属代码归拢 components/novel/。
+> tag v1.10.0，构建 37,617,152 字节。
+
+- 记忆中枢科幻首页：中央 3D 图谱 + 四周霓虹玻璃模块卡片（hub.css 玻璃拟态 + 扫描线 + stagger），点击切库面板
+- 3D 图谱白屏修复：误装底层库 three-forcegraph（class 需 new）→ 换 3d-force-graph（Kapsule 可调用）；图谱渲染时序修复（数据到达即构图）
+- AI 控制台：默认关闭 + 记忆中枢隐藏（面板/按钮双层排除）+ 从 MainLayout 抽出为 components/novel/AIConsole.tsx 仅小说页挂载
+- 小说代码归拢：16 组件 + hooks/api 全部移入 components/novel/（git 识别 18 rename），MainLayout 删 ~380 行小说控制台代码
+- 界面配色跟随系统主题：hub.css 硬编码深色 → gaea 令牌（--bg/--fg/--accent），图谱背景/label 走令牌
+- 验证：go test 57 包 0 失败（后端零改动）+ tsc -b + vite + wails build 全绿
+
+「记忆中枢」(2026-08-02)
 
 > 记忆体系三脑架构落地（命名 Hephaestus/Hermes + 主脑 Hephaestus.db + 左脑办公 SQLite + 右脑 hermes.db + 调度路由 + 知识库 RAG）+ 记忆中枢板块（七库统一管理）+ 3D 记忆图谱 + 成本库。
 > tag v1.9.0，构建 36,552,704 字节。
