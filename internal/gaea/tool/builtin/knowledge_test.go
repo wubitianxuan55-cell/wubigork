@@ -9,10 +9,12 @@ import (
 )
 
 func TestKnowledgeAddAndSearch(t *testing.T) {
-	// Use a temp dir as HOME to isolate from real knowledge base.
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("USERPROFILE", t.TempDir())
-	knowledge.ResetForTest() // 重建进程级 Service，指向新 HOME
+	// 隔离真实知识库/数据库：注入临时文件 store。
+	isoStore, isoErr := knowledge.Open(t.TempDir())
+	if isoErr != nil {
+		t.Fatal(isoErr)
+	}
+	knowledge.SetStoreForTest(isoStore)
 
 	ka := knowledgeAdd{}
 	result, err := ka.Execute(nil, toJSON(t, map[string]interface{}{
@@ -41,9 +43,11 @@ func TestKnowledgeAddAndSearch(t *testing.T) {
 }
 
 func TestKnowledgeSearchOverview(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("USERPROFILE", t.TempDir())
-	knowledge.ResetForTest()
+	isoStore, isoErr := knowledge.Open(t.TempDir())
+	if isoErr != nil {
+		t.Fatal(isoErr)
+	}
+	knowledge.SetStoreForTest(isoStore)
 
 	// Add one entry first.
 	ka := knowledgeAdd{}
@@ -71,9 +75,11 @@ func TestKnowledgeSearchOverview(t *testing.T) {
 }
 
 func TestKnowledgeAddGeneratesUniqueName(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("USERPROFILE", t.TempDir())
-	knowledge.ResetForTest()
+	isoStore, isoErr := knowledge.Open(t.TempDir())
+	if isoErr != nil {
+		t.Fatal(isoErr)
+	}
+	knowledge.SetStoreForTest(isoStore)
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("USERPROFILE", t.TempDir())
 
@@ -102,9 +108,11 @@ func TestKnowledgeAddGeneratesUniqueName(t *testing.T) {
 }
 
 func TestKnowledgeSearchByCategory(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("USERPROFILE", t.TempDir())
-	knowledge.ResetForTest()
+	isoStore, isoErr := knowledge.Open(t.TempDir())
+	if isoErr != nil {
+		t.Fatal(isoErr)
+	}
+	knowledge.SetStoreForTest(isoStore)
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("USERPROFILE", t.TempDir())
 

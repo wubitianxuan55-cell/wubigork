@@ -1,9 +1,13 @@
 package knowledge
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/db"
 )
 
 // Service is the shared entry point for the knowledge base. All consumers —
@@ -54,7 +58,21 @@ func (s *Service) Store() (*Store, error) {
 		return nil, s.err
 	}
 	if s.store == nil {
-		st, err := Open(DefaultDir())
+		// 主脑 Hephaestus.db 为默认后端；旧 Markdown 知识库首次打开自动迁移。
+		gdb := db.GetDatabase(config.MemoryUserDir())
+		if gdb == nil {
+			st, err := Open(DefaultDir())
+			if err != nil {
+				s.err = err
+				return nil, err
+			}
+			s.store = st
+			return s.store, nil
+		}
+		if _, err := MigrateLegacyKnowledge(gdb, DefaultDir()); err != nil {
+			log.Printf("[hephaestus] 知识库迁移失败: %v", err)
+		}
+		st, err := OpenSQLite(gdb)
 		if err != nil {
 			s.err = err
 			return nil, err
@@ -62,6 +80,21 @@ func (s *Service) Store() (*Store, error) {
 		s.store = st
 	}
 	return s.store, nil
+}
+
+// SetStoreForTest overrides the process-wide store (test isolation). Tests call
+// this with a temp-dir store so they never touch the real Hephaestus.db or
+// ~/.gaea/knowledge.
+func SetStoreForTest(st *Store) {
+	globalMu.Lock()
+	defer globalMu.Unlock()
+	if global == nil {
+		global = &Service{}
+	}
+	global.mu.Lock()
+	global.store = st
+	global.err = nil
+	global.mu.Unlock()
 }
 
 // ResetForTest clears the process-wide service so tests can open a fresh dir.

@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	gaesearch "github.com/gaea/gaea/internal/gaea/search"
 )
 
 // Filter constrains search results.
@@ -15,13 +17,15 @@ type Filter struct {
 }
 
 // Search searches the store for entries matching the query and filter.
-// Returns up to 20 results sorted by relevance (descending).
+// Ranking blends the keyword score (title/tag/category/body) with TF-IDF
+// vector similarity (RAG) so semantically related entries surface even when
+// they share no exact keywords. Returns up to 20 results (descending).
 func Search(s *Store, query string, filter Filter) []Entry {
-	entries := s.readAll()
+	entries := s.ReadAll()
+	query = strings.TrimSpace(query)
 
-	var scored []scoredEntry
+	var candidates []Entry
 	for _, e := range entries {
-		// Apply filters first.
 		if filter.Category != "" && e.Category != filter.Category {
 			continue
 		}
@@ -34,12 +38,33 @@ func Search(s *Store, query string, filter Filter) []Entry {
 		if filter.Status != "" && e.Status != filter.Status {
 			continue
 		}
+		candidates = append(candidates, e)
+	}
 
-		score := scoreEntry(e, query)
-		if query != "" && score == 0 {
-			continue
+	// TF-IDF 向量相似度（RAG）：查询与条目正文的语义距离。
+	vecScores := map[string]float64{}
+	if query != "" && len(candidates) > 0 {
+		idx := gaesearch.NewTfidfIndex()
+		docs := make([]gaesearch.Doc, 0, len(candidates))
+		for _, e := range candidates {
+			docs = append(docs, gaesearch.Doc{ID: e.Name, Text: e.Title + " " + e.Category + " " + e.Body})
 		}
-		scored = append(scored, scoredEntry{Entry: e, score: score})
+		idx.Build(docs)
+		for _, r := range idx.Search(query, len(candidates), 0.02) {
+			vecScores[r.ID] = r.Score
+		}
+	}
+
+	var scored []scoredEntry
+	for _, e := range candidates {
+		kw := scoreEntry(e, query)
+		vec := vecScores[e.Name]
+		// 关键词分（0~10+）为主，向量分（0~1）×8 增强语义召回。
+		total := float64(kw) + vec*8
+		if query != "" && kw == 0 && vec < 0.1 {
+			continue // 无关条目（无关键词且向量极低）
+		}
+		scored = append(scored, scoredEntry{Entry: e, score: total})
 	}
 
 	sort.Slice(scored, func(i, j int) bool {
@@ -62,7 +87,7 @@ func Search(s *Store, query string, filter Filter) []Entry {
 
 type scoredEntry struct {
 	Entry
-	score int
+	score float64
 }
 
 // scoreEntry computes a relevance score for an entry against a query.

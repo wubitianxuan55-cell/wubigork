@@ -94,7 +94,12 @@ func (knowledgeAdd) Execute(_ context.Context, args json.RawMessage) (string, er
 		return "", fmt.Errorf("保存失败: %w", err)
 	}
 
-	filePath := filepath.Join(store.Dir, knowledge.FileName(e))
+	filePath := ""
+	if store.Dir != "" {
+		filePath = filepath.Join(store.Dir, knowledge.FileName(e))
+	} else {
+		filePath = "Hephaestus.db://知识库/" + e.Name
+	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "✅ 已保存知识条目\n\n")
