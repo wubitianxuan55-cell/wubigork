@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import {
-  CheckOutlined, DesktopOutlined, MoonOutlined, PaletteOutlined,
+  CheckOutlined, DesktopOutlined, MoonOutlined, BgColorsOutlined,
   SunOutlined, ThunderboltOutlined, FontSizeOutlined, DashboardOutlined, CompressOutlined,
 } from '@ant-design/icons'
 import { Button, InputNumber, Select, Typography } from 'antd'
@@ -81,8 +81,14 @@ function ThemeCard({ t, active, onClick, onHover }: {
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
-      onMouseEnter={() => onHover(true)}
-      onMouseLeave={() => onHover(false)}
+      onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
+        onHover(true)
+        if (!active) e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--gaea-glow) 45%, transparent)'
+      }}
+      onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
+        onHover(false)
+        if (!active) e.currentTarget.style.borderColor = 'var(--md-sys-color-outline-variant)'
+      }}
       style={{
         borderRadius: 14, overflow: 'hidden', cursor: 'pointer', userSelect: 'none',
         background: 'var(--md-sys-color-surface-container)',
@@ -91,12 +97,7 @@ function ThemeCard({ t, active, onClick, onHover }: {
         transition: 'all var(--md-sys-transition-fast)',
         position: 'relative',
       }}
-      onMouseEnterCapture={(e) => {
-        if (!active) e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--gaea-glow) 45%, transparent)'
-      }}
-      onMouseLeaveCapture={(e) => {
-        if (!active) e.currentTarget.style.borderColor = 'var(--md-sys-color-outline-variant)'
-      }}
+
     >
       {/* 氛围预览条：暗底星云 + 主题色霓虹光晕 */}
       <div style={{
@@ -340,7 +341,7 @@ export const AccentPanel: React.FC = () => {
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
           color: 'var(--md-sys-color-text-secondary)',
           background: 'var(--md-sys-color-surface-variant)',
-        }}><PaletteOutlined /></span>
+        }}><BgColorsOutlined /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--md-sys-color-text)' }}>
             {accentColor ? `自定义 · ${accentColor}` : '跟随主题'}

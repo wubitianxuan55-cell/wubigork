@@ -354,6 +354,10 @@ export function GaeaPermLevel() {
   return window['go']['app']['App']['GaeaPermLevel']();
 }
 
+export function GaeaPickDirectory() {
+  return window['go']['app']['App']['GaeaPickDirectory']();
+}
+
 export function GaeaPickFiles() {
   return window['go']['app']['App']['GaeaPickFiles']();
 }
@@ -540,6 +544,10 @@ export function GaeaUpdateFact(arg1, arg2) {
 
 export function GaeaVersion() {
   return window['go']['app']['App']['GaeaVersion']();
+}
+
+export function GaeaWhisperExportArchive(arg1) {
+  return window['go']['app']['App']['GaeaWhisperExportArchive'](arg1);
 }
 
 export function GaeaWhisperMemories() {

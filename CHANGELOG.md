@@ -1,16 +1,21 @@
 # gaea · 多功能 AI 助手
 
-## 持续优化（2026-08-02 · 未发布）
+## v1.11.0「界面体验深化 · 全站重设计」(2026-08-02)
 
-> 轻语管线测试深化（覆盖率 16.8% → 21.8%）+ P3 archiveExporter 记忆归档导出 + 三模块行业 TOP 优化（模型三态徽章 / 设置全局搜索 / 即时生效统一标注）。
+> 设置中心外观细化升华（实时预览/三态显示/字体/密度/动效/强调色）+ 聊天 Markdown 消息体验 + 轻语面板 UI 重设计（角色状态头/气泡/情绪回复）+ 虚拟助手面板与角色卡详情重设计 + 轻语测试深化（21.8%）+ P3 archiveExporter 记忆归档导出。
+> tag v1.11.0，构建 37,676,544 字节。
 
-- 轻语测试深化：新增 33 个测试覆盖 memory_ingest 管线（LLM 抽取/自动退役/三元组/情节生成/隐私透传）、association_cold_start（文本重叠批量建边/孤儿链接/边去重）、paced_stream（气泡分隔/流排空）、memory 检索路径（触发词 boost/隐私过滤/budget 截断/情节检索/关联扩散/记忆回声）
+- 轻语测试深化：新增 33 个测试覆盖 memory_ingest 管线（LLM 抽取/自动退役/三元组/情节生成/隐私透传）、association_cold_start（文本重叠批量建边/孤儿链接/边去重）、paced_stream（气泡分隔/流排空）、memory 检索路径（触发词 boost/隐私过滤/budget 截断/情节检索/关联扩散/记忆回声）；覆盖率 16.8% → 21.8%
 - 修复 paced_stream 真实 bug：流结束发完末段不 finishBubble → MarkDone 等待循环死锁（中文无断点文本必现）；FirstDisplayUnitLen 返回 rune 索引但调用方按字节切片 → 中文句号处切乱码（现转字节偏移）
 - P3 archiveExporter：记忆归档导出（对齐 ackem archiveExporter）——README 索引（事实/核心/情节统计 + 领域分布表）+ 每个领域/子类一个 Markdown 文件；退役事实不入档；whisper.WriteArchive 写盘；绑定 GaeaWhisperExportArchive（hermes.db 数据源）+ GaeaPickDirectory 目录选择；记忆中枢轻语库「导出归档」按钮
 - 模型中心：LLM 主卡片补三态状态徽章（● 运行中 / ○ 就绪 / ○ 已停止），对齐行业「模型状态三态」基准
-- 设置中心：全局搜索（tab 关键词索引 + 实时过滤 + 自动切换到匹配分组 + 匹配计数），对齐 VS Code 设置搜索基准
-- 设置中心：即时生效统一标注——SettingsSection 新增 instant 徽章「⚡ 即时生效」（标题行右侧霓虹标签），5 面板（引擎/绘梦/办公/语音/轻语）去除文案内嵌「即时生效」改走统一徽章
-- 验证：go vet clean + go build ./... 全过 + go test whisper/app 全绿 + frontend tsc 0 错误
+- 设置中心：全局搜索（tab 关键词索引 + 实时过滤 + 自动切换到匹配分组 + 匹配计数）+ 即时生效统一徽章（SettingsSection instant prop，5 面板统一）
+- 外观设置细化升华：外观实时预览区（主题+模式组合微缩界面，hover 主题卡即时联动「👆 预览中」）+ 主题色系大预览卡（氛围渐变 + 霓虹光晕 + 选中发光对勾）+ 显示模式三卡（暗色/亮色/跟随系统，matchMedia 实时派生，darkMode 保持 boolean 兼容现有消费者零改动）
+- 外观设置扩展非颜色维度：字体设置（5 预置字体 + 字号 12-20 带预览）、界面密度（标准/紧凑，ConfigProvider token + .ui-compact CSS）、动效强度（完整/减弱，.ui-reduced-motion 全局禁用动画对齐 macOS 减弱动态）、强调色自定义（取色器覆盖 --gaea-glow/primary 令牌链，留空跟随主题）
+- 聊天板块消息体验升级：Markdown 渲染（ChatMarkdown：代码块深色底+复制按钮/表格/列表，完成态渲染）+ 消息分组（同角色连续紧凑 + 组首头像）+ hover 操作栏（复制/朗读/重新生成显隐）+ 重新生成 + 建议卡点击即发送 + 头部元信息（你/gaea AI）+ 错误态红色气泡 + 玻璃内高光
+- 轻语面板 UI 重设计：角色状态头（头像 + 关系阶段徽章 + L2 情绪 emoji 徽章 + 信任霓虹进度条 + 对话轮数）+ 消息气泡化（AI 琥珀玻璃气泡 / 用户粉紫渐变）+ 等待期 typing dots 修复（原空白光标）+ 快捷情绪回复 chips + 虚拟助手管理中心按钮卡片化（暖色玻璃入口卡）
+- 虚拟助手面板 + 角色卡详情重设计：列表卡视觉区 TisorRadar → CompanionAvatar 粒子光球 + 性格标签 chips + 迷你五维条；详情卡大视觉区粒子球 + 五维区「左 TisorRadar 大雷达 + 右条形列表」并排
+- 验证：go vet clean + go build ./... 全过 + go test whisper/app 全绿 + frontend tsc 0 错误（全流程每步验证）
 
 ## v1.10.0「科幻记忆中枢 · 架构归拢」(2026-08-02)
 

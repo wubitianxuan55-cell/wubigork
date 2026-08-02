@@ -185,6 +185,8 @@ export function GaeaOpenWorkspacePath(arg1:string):Promise<void>;
 
 export function GaeaPermLevel():Promise<string>;
 
+export function GaeaPickDirectory():Promise<string>;
+
 export function GaeaPickFiles():Promise<Array<app.FilePickResult>>;
 
 export function GaeaPickWorkspace():Promise<string>;
@@ -278,6 +280,8 @@ export function GaeaTools():Promise<Array<Record<string, any>>>;
 export function GaeaUpdateFact(arg1:string,arg2:string):Promise<string>;
 
 export function GaeaVersion():Promise<string>;
+
+export function GaeaWhisperExportArchive(arg1:string):Promise<number>;
 
 export function GaeaWhisperMemories():Promise<Array<app.WhisperMemoryView>>;
 

@@ -5,7 +5,7 @@ import { Modal, Button, Input, Switch, Tag, Typography, Popconfirm, message, Emp
 import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined, CloseOutlined, CheckOutlined, QrcodeOutlined, LoadingOutlined, ReloadOutlined, PictureOutlined, ReadOutlined } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import TisorRadar from './TisorRadar'
-import CompanionAvatar from './CompanionAvatar'
+import { CompanionAvatar } from './CompanionAvatar'
 import { generateImage } from '../api/image'
 import PersonalityPreview from './PersonalityPreview'
 

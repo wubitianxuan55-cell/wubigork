@@ -651,5 +651,13 @@ export function makeMockApp(): AppBindings {
       // In dev mode there is no native dialog -- return empty.
       return [];
     },
+    async WhisperExportArchive(_dir: string): Promise<number> {
+      // mock: no-op
+      return 0;
+    },
+    async PickDirectory(): Promise<string> {
+      // mock: no native dialog
+      return "";
+    },
   };
 }
