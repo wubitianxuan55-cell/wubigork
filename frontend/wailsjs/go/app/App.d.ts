@@ -604,3 +604,15 @@ export function WhisperWeixinQRStatus(arg1:string):Promise<Record<string, any>>;
 export function WhisperWeixinQRStatusWithCode(arg1:string,arg2:string):Promise<Record<string, any>>;
 
 export function WhisperWeixinStatus():Promise<Array<Record<string, any>>>;
+
+export function GaeaMemoryHubOverview():Promise<app.MemoryHubOverview>;
+
+export function GaeaProfileConflicts():Promise<Array<string>>;
+
+export function GaeaProfileDelete(arg1:string):Promise<void>;
+
+export function GaeaProfileList():Promise<Array<app.ProfileFactView>>;
+
+export function GaeaProfileSave(arg1:app.ProfileFactView):Promise<void>;
+
+export function GaeaWhisperMemories():Promise<Array<app.WhisperMemoryView>>;

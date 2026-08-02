@@ -164,6 +164,13 @@ export interface AppBindings {
   KnowledgeList(): Promise<KnowledgeSummary[]>;
   // KnowledgeSearch 全文检索（标题/分类/标签/正文），空 query 等价于 List。
   KnowledgeSearch(query: string, category: string, phase: string, status: string): Promise<KnowledgeSummary[]>;
+  // ── 记忆中枢 ──
+  MemoryHubOverview(): Promise<MemoryHubOverview>;
+  ProfileList(): Promise<ProfileFactView[]>;
+  ProfileSave(f: ProfileFactView): Promise<void>;
+  ProfileDelete(name: string): Promise<void>;
+  ProfileConflicts(): Promise<string[]>;
+  WhisperMemories(): Promise<WhisperMemoryView[]>;
   KnowledgeGet(name: string): Promise<KnowledgeEntry | null>;
   KnowledgeSave(entry: KnowledgeSaveRequest): Promise<void>;
   KnowledgeDelete(name: string): Promise<void>;
@@ -305,6 +312,12 @@ const gaeaToGaea: Record<string, string> = {
   SaveWindowState: "GaeaSaveWindowState",
   KnowledgeList: "GaeaKnowledgeList",
   KnowledgeSearch: "GaeaKnowledgeSearch",
+  MemoryHubOverview: "GaeaMemoryHubOverview",
+  ProfileList: "GaeaProfileList",
+  ProfileSave: "GaeaProfileSave",
+  ProfileDelete: "GaeaProfileDelete",
+  ProfileConflicts: "GaeaProfileConflicts",
+  WhisperMemories: "GaeaWhisperMemories",
   KnowledgeGet: "GaeaKnowledgeGet",
   KnowledgeSave: "GaeaKnowledgeSave",
   KnowledgeDelete: "GaeaKnowledgeDelete",

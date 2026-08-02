@@ -465,3 +465,39 @@ export interface FilePickResult {
   type: "image" | "file";
   name: string;
 }
+
+// ── 记忆中枢（Memory Hub）类型 ──────────────────────────────────────
+
+// ProfileFactView 主脑全局画像事实（跨板块共享的用户画像）。
+export interface ProfileFactView {
+  name: string;
+  title: string;
+  description: string;
+  type: string;
+  kind: string;
+  tags: string[];
+  body: string;
+}
+
+// WhisperMemoryView 轻语（hermes.db）记忆事实只读视图。
+export interface WhisperMemoryView {
+  id: string;
+  domain: string;
+  subcategory: string;
+  subject: string;
+  summary: string;
+  weight: number;
+  confidence: number;
+  tier: string;
+  status: string;
+  updatedAt: string;
+}
+
+// MemoryHubOverview 记忆中枢聚合总览。
+export interface MemoryHubOverview {
+  knowledgeCount: number;
+  profileCount: number;
+  officeCount: number;
+  whisperCount: number;
+  latestUpdated: string;
+}

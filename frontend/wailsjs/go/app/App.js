@@ -1193,3 +1193,27 @@ export function WhisperWeixinQRStatusWithCode(arg1, arg2) {
 export function WhisperWeixinStatus() {
   return window['go']['app']['App']['WhisperWeixinStatus']();
 }
+
+export function GaeaMemoryHubOverview() {
+  return window['go']['app']['App']['GaeaMemoryHubOverview']();
+}
+
+export function GaeaProfileConflicts() {
+  return window['go']['app']['App']['GaeaProfileConflicts']();
+}
+
+export function GaeaProfileDelete(arg1) {
+  return window['go']['app']['App']['GaeaProfileDelete'](arg1);
+}
+
+export function GaeaProfileList() {
+  return window['go']['app']['App']['GaeaProfileList']();
+}
+
+export function GaeaProfileSave(arg1) {
+  return window['go']['app']['App']['GaeaProfileSave'](arg1);
+}
+
+export function GaeaWhisperMemories() {
+  return window['go']['app']['App']['GaeaWhisperMemories']();
+}
