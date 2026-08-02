@@ -1,6 +1,6 @@
 # gaea 记忆体系三脑架构
 
-> 状态：实施中（2026-08，阶段 1-5）
+> 状态：已完成（2026-08，阶段 1-5 全部落地）
 > 依据：用户决策 + 行业调研（ChatGPT/Claude Memory、SillyTavern 四轨、Character Card V2）
 
 ## 一、命名体系（希腊神话宇宙观）
@@ -64,10 +64,10 @@
 ## 三、实施路线
 
 1. **阶段 1 命名落地**：Hephaestus/Hermes 改名（提示词 + Meta + 记忆内容）✅
-2. **阶段 2 主脑底座**：Hephaestus.db 建库 + 统一记忆 API 骨架
-3. **阶段 3 左脑接通**：办公记忆从 Markdown 迁 Hephaestus.db（含迁移工具）
-4. **阶段 4 调度+画像**：路由规则 + 全局画像 + 冲突裁决
-5. **阶段 5 知识库 RAG**：知识迁 Hephaestus.db + 复用轻语向量能力升级检索
+2. **阶段 2 主脑底座**：Hephaestus.db 建库 + 统一记忆 API 后端抽象 ✅
+3. **阶段 3 左脑接通**：办公记忆迁 Hephaestus.db（迁移工具 + memory_get 工具）✅
+4. **阶段 4 调度+画像**：路由规则 + 主脑画像 + 冲突检测 ✅
+5. **阶段 5 知识库 RAG**：知识迁 Hephaestus.db + 共享 TF-IDF 向量层检索 ✅
 
 ## 四、设计原则
 
