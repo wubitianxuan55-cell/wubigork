@@ -6,7 +6,7 @@ import {
   SoundOutlined, PictureOutlined, SettingOutlined, InfoCircleOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
-import AppearancePanel, { DarkModePanel } from '../components/settings/AppearancePanel'
+import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, AccentPanel } from '../components/settings/AppearancePanel'
 import WorkspacePanel from '../components/settings/WorkspacePanel'
 import ProposalPanel from '../components/settings/ProposalPanel'
 import VoicePanel from '../components/settings/VoicePanel'
@@ -24,8 +24,8 @@ const SettingsPage: React.FC = () => {
     {
       key: 'appearance',
       label: (<span><AppstoreOutlined style={{ marginRight: 6 }} />外观</span>),
-      keywords: ['外观', '主题', '暗色', '亮色', '深色', '模式', '昼夜', '深色模式'],
-      children: (<><AppearancePanel /><DarkModePanel /></>),
+      keywords: ['外观', '主题', '暗色', '亮色', '深色', '模式', '昼夜', '字体', '字号', '密度', '紧凑', '动效', '动画', '强调色', '颜色', '跟随系统'],
+      children: (<><AppearancePanel /><DarkModePanel /><FontPanel /><DensityPanel /><MotionPanel /><AccentPanel /></>),
     },
     {
       key: 'workspace',

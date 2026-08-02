@@ -739,3 +739,24 @@ body {
   background: var(--gaea-glow) !important;
   box-shadow: 0 1px 8px var(--gaea-glow);
 }
+
+/* ── 外观设置：动效减弱（可访问性，对齐 macOS 减弱动态）── */
+.ui-reduced-motion *,
+.ui-reduced-motion *::before,
+.ui-reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ── 外观设置：紧凑模式辅助（antd 控件由 ConfigProvider token 驱动，此处补全局区块密度）── */
+.ui-compact .md-glass {
+  padding: 14px 16px;
+}
+.ui-compact .ant-card .ant-card-body {
+  padding: 14px 16px;
+}
+.ui-compact .ant-tabs-top > .ant-tabs-nav {
+  margin-bottom: 12px;
+}

@@ -84,6 +84,52 @@ const LEGACY_THEME_KEY = 'wubigork-theme'
 const DARK_KEY = 'gaea-dark'
 const LEGACY_DARK_KEY = 'wubigork-dark'
 const MODE_KEY = 'gaea-display-mode'
+const DENSITY_KEY = 'gaea-density'
+const MOTION_KEY = 'gaea-motion'
+const ACCENT_KEY = 'gaea-accent'
+const FONT_KEY = 'gaea-font-family'
+const FONT_SIZE_KEY = 'gaea-font-size'
+
+/** 预置界面字体（key → 完整 font-family 值） */
+export const FONT_OPTIONS: { key: string; label: string; value: string }[] = [
+  { key: 'system',   label: '系统默认', value: "system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif" },
+  { key: 'yahei',    label: '微软雅黑', value: "'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif" },
+  { key: 'noto',     label: '思源黑体', value: "'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif" },
+  { key: 'songti',   label: '宋体衬线', value: "'SimSun', 'Songti SC', 'Noto Serif SC', serif" },
+  { key: 'mono',     label: '等宽字体', value: "'Cascadia Code', 'Consolas', 'JetBrains Mono', monospace" },
+]
+
+function loadFontFamily(): string {
+  try {
+    const v = localStorage.getItem(FONT_KEY)
+    if (v && FONT_OPTIONS.some((o) => o.key === v)) return v
+  } catch (_) {}
+  return 'system'
+}
+function loadFontSize(): number {
+  try {
+    const v = parseInt(localStorage.getItem(FONT_SIZE_KEY) || '', 10)
+    if (v >= 12 && v <= 20) return v
+  } catch (_) {}
+  return 14
+}
+
+/** 界面密度：standard 标准 / compact 紧凑 */
+export type Density = 'standard' | 'compact'
+/** 动效强度：full 完整 / reduced 减弱（可访问性） */
+export type MotionPref = 'full' | 'reduced'
+
+function loadDensity(): Density {
+  try { const v = localStorage.getItem(DENSITY_KEY); if (v === 'compact' || v === 'standard') return v } catch (_) {}
+  return 'standard'
+}
+function loadMotion(): MotionPref {
+  try { const v = localStorage.getItem(MOTION_KEY); if (v === 'reduced' || v === 'full') return v } catch (_) {}
+  return 'full'
+}
+function loadAccent(): string {
+  try { return localStorage.getItem(ACCENT_KEY) || '' } catch (_) { return '' }
+}
 
 /** 显示模式：light/dark/system（system = 跟随操作系统明暗） */
 export type DisplayMode = 'light' | 'dark' | 'system'
@@ -126,6 +172,11 @@ interface AppState {
   mode: DisplayMode            // light/dark/system
   systemDark: boolean          // 操作系统当前明暗（matchMedia）
   darkMode: boolean            // 派生实际明暗：system 时跟随 systemDark
+  density: Density             // 界面密度 standard/compact
+  motion: MotionPref           // 动效强度 full/reduced
+  accentColor: string          // 强调色自定义（'' = 跟随主题）
+  fontFamily: string           // 界面字体预设 key（FONT_OPTIONS）
+  fontSize: number             // 界面字号 12-20
   projectInfo: ProjectInfo | null
   stats: StatsData | null
   login: () => Promise<void>
@@ -140,6 +191,11 @@ interface AppState {
   setTheme: (base: ThemePreset) => void
   setMode: (m: DisplayMode) => void
   toggleDarkMode: () => void
+  setDensity: (d: Density) => void
+  setMotion: (m: MotionPref) => void
+  setAccentColor: (c: string) => void
+  setFontFamily: (f: string) => void
+  setFontSize: (n: number) => void
   loadProjectInfo: () => Promise<void>
   loadStats: () => Promise<void>
   setNovelsDir: (dir: string) => Promise<void>
@@ -156,6 +212,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   mode: loadMode(),
   systemDark: systemPrefersDark(),
   darkMode: resolveDark(loadMode(), systemPrefersDark()),
+  density: loadDensity(),
+  motion: loadMotion(),
+  accentColor: loadAccent(),
+  fontFamily: loadFontFamily(),
+  fontSize: loadFontSize(),
   projectInfo: null,
   stats: null,
 
@@ -173,6 +234,31 @@ export const useAppStore = create<AppState>((set, get) => ({
   setMode: (m: DisplayMode) => {
     set({ mode: m, darkMode: resolveDark(m, get().systemDark) })
     try { localStorage.setItem(MODE_KEY, m) } catch (_) {}
+  },
+
+  setDensity: (d: Density) => {
+    set({ density: d })
+    try { localStorage.setItem(DENSITY_KEY, d) } catch (_) {}
+  },
+
+  setMotion: (m: MotionPref) => {
+    set({ motion: m })
+    try { localStorage.setItem(MOTION_KEY, m) } catch (_) {}
+  },
+
+  setAccentColor: (c: string) => {
+    set({ accentColor: c })
+    try { if (c) localStorage.setItem(ACCENT_KEY, c); else localStorage.removeItem(ACCENT_KEY) } catch (_) {}
+  },
+
+  setFontFamily: (f: string) => {
+    set({ fontFamily: f })
+    try { localStorage.setItem(FONT_KEY, f) } catch (_) {}
+  },
+
+  setFontSize: (n: number) => {
+    set({ fontSize: n })
+    try { localStorage.setItem(FONT_SIZE_KEY, String(n)) } catch (_) {}
   },
 
   login: async () => {
