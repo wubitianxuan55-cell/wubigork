@@ -201,7 +201,7 @@ const pageLabels: Record<Page, string> = {
 const MainLayout: React.FC = () => {
   const [page, setPage] = useState<Page>('home')
   const [logs, setLogs] = useState<LogEntry[]>([])
-  const [consoleOpen, setConsoleOpen] = useState(true)
+  const [consoleOpen, setConsoleOpen] = useState(false)
   const [expandedLog, setExpandedLog] = useState<number | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const logEnd = useRef<HTMLDivElement>(null)
@@ -475,7 +475,7 @@ const MainLayout: React.FC = () => {
           </Content>
         </div>
 
-{consoleOpen && page !== 'home' && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && page !== 'whisper' && page !== 'office' && page !== 'gaea' && page !== 'settings' && (
+{consoleOpen && page !== 'home' && page !== 'imagegen' && page !== 'modelcenter' && page !== 'chat' && page !== 'whisper' && page !== 'office' && page !== 'gaea' && page !== 'settings' && page !== 'memoryhub' && (
   <div style={{
     width: 380, flexShrink: 0, alignSelf: 'stretch',
     maxHeight: 'calc(100vh - 80px)',
