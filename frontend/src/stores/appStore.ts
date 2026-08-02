@@ -83,6 +83,29 @@ const THEME_KEY = 'gaea-theme'
 const LEGACY_THEME_KEY = 'wubigork-theme'
 const DARK_KEY = 'gaea-dark'
 const LEGACY_DARK_KEY = 'wubigork-dark'
+const MODE_KEY = 'gaea-display-mode'
+
+/** 显示模式：light/dark/system（system = 跟随操作系统明暗） */
+export type DisplayMode = 'light' | 'dark' | 'system'
+
+function resolveDark(mode: DisplayMode, systemDark: boolean): boolean {
+  return mode === 'system' ? systemDark : mode === 'dark'
+}
+
+function systemPrefersDark(): boolean {
+  try { return window.matchMedia('(prefers-color-scheme: dark)').matches } catch (_) { return true }
+}
+
+function loadMode(): DisplayMode {
+  try {
+    const v = localStorage.getItem(MODE_KEY)
+    if (v === 'light' || v === 'dark' || v === 'system') return v
+    // 兼容旧版 boolean（'1'=暗 '0'=亮）
+    const legacy = localStorage.getItem(DARK_KEY) ?? localStorage.getItem(LEGACY_DARK_KEY)
+    if (legacy === '0') return 'light'
+  } catch (_) {}
+  return 'dark'
+}
 
 function loadBase(): ThemePreset {
   try {
@@ -90,15 +113,6 @@ function loadBase(): ThemePreset {
     if (v && v in darkFn) return v as ThemePreset
   } catch (_) {}
   return 'nightJade'
-}
-
-function loadDark(): boolean {
-  try {
-    const v = localStorage.getItem(DARK_KEY) ?? localStorage.getItem(LEGACY_DARK_KEY)
-    if (v === '0') return false
-  } catch (_) {}
-  return true // 默认暗色
-  return true // 默认暗色
 }
 
 interface AppState {
@@ -109,7 +123,9 @@ interface AppState {
   novelsDir: string
   projects: ProjectCard[]
   baseTheme: ThemePreset      // 色系（暗色名）
-  darkMode: boolean            // true=暗 false=亮
+  mode: DisplayMode            // light/dark/system
+  systemDark: boolean          // 操作系统当前明暗（matchMedia）
+  darkMode: boolean            // 派生实际明暗：system 时跟随 systemDark
   projectInfo: ProjectInfo | null
   stats: StatsData | null
   login: () => Promise<void>
@@ -122,6 +138,7 @@ interface AppState {
   loadNovelsDir: () => Promise<void>
   deleteProject: (path: string) => Promise<void>
   setTheme: (base: ThemePreset) => void
+  setMode: (m: DisplayMode) => void
   toggleDarkMode: () => void
   loadProjectInfo: () => Promise<void>
   loadStats: () => Promise<void>
@@ -136,7 +153,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   novelsDir: 'C:\\AI\\xiaoshuo',
   projects: [],
   baseTheme: loadBase(),
-  darkMode: loadDark(),
+  mode: loadMode(),
+  systemDark: systemPrefersDark(),
+  darkMode: resolveDark(loadMode(), systemPrefersDark()),
   projectInfo: null,
   stats: null,
 
@@ -147,8 +166,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   toggleDarkMode: () => {
     const next = !get().darkMode
-    set({ darkMode: next })
-    try { localStorage.setItem(DARK_KEY, next ? '1' : '0') } catch (_) {}
+    set({ mode: next ? 'dark' : 'light', darkMode: next })
+    try { localStorage.setItem(MODE_KEY, next ? 'dark' : 'light'); localStorage.setItem(DARK_KEY, next ? '1' : '0') } catch (_) {}
+  },
+
+  setMode: (m: DisplayMode) => {
+    set({ mode: m, darkMode: resolveDark(m, get().systemDark) })
+    try { localStorage.setItem(MODE_KEY, m) } catch (_) {}
   },
 
   login: async () => {
@@ -262,3 +286,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 }))
+
+// system 显示模式：监听操作系统明暗变化，实时派生 darkMode
+if (typeof window !== 'undefined' && window.matchMedia) {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)')
+  const handler = (e: MediaQueryListEvent) => {
+    useAppStore.setState((s) => ({
+      systemDark: e.matches,
+      darkMode: s.mode === 'system' ? e.matches : s.darkMode,
+    }))
+  }
+  if (typeof mq.addEventListener === 'function') mq.addEventListener('change', handler)
+}
