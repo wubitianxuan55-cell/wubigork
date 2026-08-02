@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ type Set struct {
 type Options struct {
 	CWD     string
 	UserDir string
+	DB      *sql.DB // 非 nil 时自动记忆走后脑 SQLite 后端（Hephaestus.db）
 }
 
 // Load discovers all memory for a session: the hierarchical docs and the
@@ -38,7 +40,12 @@ func Load(opts Options) *Set {
 	if cwd == "" {
 		cwd = "."
 	}
-	store := StoreFor(opts.UserDir, cwd)
+	var store Store
+	if opts.DB != nil {
+		store = SQLiteStoreFor(opts.DB, opts.UserDir, cwd)
+	} else {
+		store = StoreFor(opts.UserDir, cwd)
+	}
 	docs := discoverDocs(cwd, opts.UserDir)
 	return &Set{
 		Docs:    docs,
