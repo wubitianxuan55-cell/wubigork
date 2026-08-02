@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import ForceGraph3D from "three-forcegraph";
+import ForceGraph3D from "3d-force-graph";
 import { Modal, Spin } from "antd";
 import { app } from "../../lib/bridge";
 import type { GraphNode, MemoryGraphView } from "../../lib/types";
@@ -42,8 +42,13 @@ export function GraphView(p: { variant?: "page" | "home" }) {
         setNodeCount(g.nodes.length);
         setLinkCount(g.links.length);
         setLoading(false);
+        // 数据到达 → 若图已初始化立即构图（修复：此前数据返回后无任何触发，图谱空白）
+        if (graphRef.current) {
+          applyFilter(graphRef.current, g, typeFilter);
+        }
       })
       .catch(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 初始化 ForceGraph3D（once）
