@@ -218,6 +218,26 @@ export function GaeaContext() {
   return window['go']['app']['App']['GaeaContext']();
 }
 
+export function GaeaCostDelete(arg1) {
+  return window['go']['app']['App']['GaeaCostDelete'](arg1);
+}
+
+export function GaeaCostGet(arg1) {
+  return window['go']['app']['App']['GaeaCostGet'](arg1);
+}
+
+export function GaeaCostList() {
+  return window['go']['app']['App']['GaeaCostList']();
+}
+
+export function GaeaCostSave(arg1) {
+  return window['go']['app']['App']['GaeaCostSave'](arg1);
+}
+
+export function GaeaCostSearch(arg1, arg2, arg3) {
+  return window['go']['app']['App']['GaeaCostSearch'](arg1, arg2, arg3);
+}
+
 export function GaeaDeleteProvider(arg1) {
   return window['go']['app']['App']['GaeaDeleteProvider'](arg1);
 }
@@ -294,6 +314,14 @@ export function GaeaMemory() {
   return window['go']['app']['App']['GaeaMemory']();
 }
 
+export function GaeaMemoryGraph() {
+  return window['go']['app']['App']['GaeaMemoryGraph']();
+}
+
+export function GaeaMemoryHubOverview() {
+  return window['go']['app']['App']['GaeaMemoryHubOverview']();
+}
+
 export function GaeaMemorySuggestions() {
   return window['go']['app']['App']['GaeaMemorySuggestions']();
 }
@@ -332,6 +360,26 @@ export function GaeaPickFiles() {
 
 export function GaeaPickWorkspace() {
   return window['go']['app']['App']['GaeaPickWorkspace']();
+}
+
+export function GaeaProfileConflicts() {
+  return window['go']['app']['App']['GaeaProfileConflicts']();
+}
+
+export function GaeaProfileDelete(arg1) {
+  return window['go']['app']['App']['GaeaProfileDelete'](arg1);
+}
+
+export function GaeaProfileList() {
+  return window['go']['app']['App']['GaeaProfileList']();
+}
+
+export function GaeaProfileResolveConflict(arg1, arg2) {
+  return window['go']['app']['App']['GaeaProfileResolveConflict'](arg1, arg2);
+}
+
+export function GaeaProfileSave(arg1) {
+  return window['go']['app']['App']['GaeaProfileSave'](arg1);
 }
 
 export function GaeaReadFile(arg1) {
@@ -492,6 +540,10 @@ export function GaeaUpdateFact(arg1, arg2) {
 
 export function GaeaVersion() {
   return window['go']['app']['App']['GaeaVersion']();
+}
+
+export function GaeaWhisperMemories() {
+  return window['go']['app']['App']['GaeaWhisperMemories']();
 }
 
 export function GaeaWorkspaceChanges() {
@@ -1192,56 +1244,4 @@ export function WhisperWeixinQRStatusWithCode(arg1, arg2) {
 
 export function WhisperWeixinStatus() {
   return window['go']['app']['App']['WhisperWeixinStatus']();
-}
-
-export function GaeaMemoryHubOverview() {
-  return window['go']['app']['App']['GaeaMemoryHubOverview']();
-}
-
-export function GaeaProfileConflicts() {
-  return window['go']['app']['App']['GaeaProfileConflicts']();
-}
-
-export function GaeaProfileDelete(arg1) {
-  return window['go']['app']['App']['GaeaProfileDelete'](arg1);
-}
-
-export function GaeaProfileList() {
-  return window['go']['app']['App']['GaeaProfileList']();
-}
-
-export function GaeaProfileSave(arg1) {
-  return window['go']['app']['App']['GaeaProfileSave'](arg1);
-}
-
-export function GaeaWhisperMemories() {
-  return window['go']['app']['App']['GaeaWhisperMemories']();
-}
-
-export function GaeaMemoryGraph() {
-  return window['go']['app']['App']['GaeaMemoryGraph']();
-}
-
-export function GaeaCostDelete(arg1) {
-  return window['go']['app']['App']['GaeaCostDelete'](arg1);
-}
-
-export function GaeaCostGet(arg1) {
-  return window['go']['app']['App']['GaeaCostGet'](arg1);
-}
-
-export function GaeaCostList() {
-  return window['go']['app']['App']['GaeaCostList']();
-}
-
-export function GaeaCostSave(arg1) {
-  return window['go']['app']['App']['GaeaCostSave'](arg1);
-}
-
-export function GaeaCostSearch(arg1,arg2,arg3) {
-  return window['go']['app']['App']['GaeaCostSearch'](arg1,arg2,arg3);
-}
-
-export function GaeaProfileResolveConflict(arg1,arg2) {
-  return window['go']['app']['App']['GaeaProfileResolveConflict'](arg1,arg2);
 }

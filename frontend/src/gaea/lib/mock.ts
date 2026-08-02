@@ -607,6 +607,46 @@ export function makeMockApp(): AppBindings {
     async KnowledgeDelete(_name: string) {
       // mock: no-op
     },
+    // ── 记忆中枢 Mock ────────────────────────────────────────
+    async MemoryHubOverview() {
+      return { knowledgeCount: 4, profileCount: 0, officeCount: 0, whisperCount: 0, latestUpdated: "" };
+    },
+    async ProfileList() {
+      return [];
+    },
+    async ProfileSave() {
+      // mock: no-op
+    },
+    async ProfileDelete() {
+      // mock: no-op
+    },
+    async ProfileConflicts() {
+      return [];
+    },
+    async ProfileResolveConflict() {
+      // mock: no-op
+    },
+    async WhisperMemories() {
+      return [];
+    },
+    async MemoryGraph() {
+      return { nodes: [], links: [] };
+    },
+    async CostList() {
+      return [];
+    },
+    async CostSearch() {
+      return [];
+    },
+    async CostGet() {
+      return null;
+    },
+    async CostSave() {
+      // mock: no-op
+    },
+    async CostDelete() {
+      // mock: no-op
+    },
     async PickFiles(): Promise<import("./types").FilePickResult[]> {
       // In dev mode there is no native dialog -- return empty.
       return [];

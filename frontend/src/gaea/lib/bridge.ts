@@ -37,6 +37,12 @@ import type {
   UpdateProgress,
   WireEvent,
   WorkspaceView,
+  MemoryHubOverview,
+  ProfileFactView,
+  WhisperMemoryView,
+  MemoryGraphView,
+  CostSummary,
+  CostEntry,
 } from "./types";
 
 // AppBindings mirrors desktop/app.go's exported method set. Keep in sync by hand
@@ -175,7 +181,7 @@ export interface AppBindings {
   // ── 成本库 ──
   CostList(): Promise<CostSummary[]>;
   CostSearch(query: string, category: string, status: string): Promise<CostSummary[]>;
-  CostGet(name: string): Promise<CostEntry>;
+  CostGet(name: string): Promise<CostEntry | null>;
   CostSave(e: CostEntry): Promise<void>;
   CostDelete(name: string): Promise<void>;
   // 画像冲突裁决

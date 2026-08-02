@@ -45,7 +45,7 @@ export function CostLibrary() {
   const openEdit = (s: CostSummary) => {
     setEditing(s);
     app.CostGet(s.name).then((e) => {
-      form.setFieldsValue({ ...e, tags: (e.tags ?? []).join(", ") });
+      if (e) form.setFieldsValue({ ...e, tags: (e.tags ?? []).join(", ") });
     });
     setModalOpen(true);
   };
@@ -146,7 +146,7 @@ export function CostLibrary() {
         {loading ? (
           <div className="py-10 text-center text-fg-faint text-[13px]">加载中…</div>
         ) : entries.length === 0 ? (
-          <EmptyState title="暂无成本条目" desc="添加机械/材料/人工等成本数据，供方案测算复用" />
+          <EmptyState message="暂无成本条目 — 添加机械/材料/人工等成本数据，供方案测算复用" />
         ) : (
           entries.map((e) => (
             <div key={e.name} className="p-3 rounded-lg border border-border bg-bg-soft/60">

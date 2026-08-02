@@ -85,7 +85,7 @@ export function WhisperMemoryLibrary() {
         {loading ? (
           <div className="py-10 text-center text-fg-faint text-[13px]">加载中…</div>
         ) : filtered.length === 0 ? (
-          <EmptyState title="暂无轻语记忆" desc="与 Hermes 对话产生的人格记忆会出现在这里（只读浏览）" />
+          <EmptyState message="暂无轻语记忆 — 与 Hermes 对话产生的人格记忆会出现在这里（只读浏览）" />
         ) : (
           groups.map((g) => (
             <div key={g.domain}>

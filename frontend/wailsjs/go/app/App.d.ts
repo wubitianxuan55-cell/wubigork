@@ -117,6 +117,16 @@ export function GaeaCommands():Promise<Array<app.CommandInfo>>;
 
 export function GaeaContext():Promise<app.ContextInfo>;
 
+export function GaeaCostDelete(arg1:string):Promise<void>;
+
+export function GaeaCostGet(arg1:string):Promise<app.CostEntry>;
+
+export function GaeaCostList():Promise<Array<app.CostSummary>>;
+
+export function GaeaCostSave(arg1:app.CostEntry):Promise<void>;
+
+export function GaeaCostSearch(arg1:string,arg2:string,arg3:string):Promise<Array<app.CostSummary>>;
+
 export function GaeaDeleteProvider(arg1:string):Promise<void>;
 
 export function GaeaDeleteSession(arg1:string):Promise<void>;
@@ -155,6 +165,10 @@ export function GaeaLogoutProvider(arg1:string):Promise<void>;
 
 export function GaeaMemory():Promise<app.MemoryView>;
 
+export function GaeaMemoryGraph():Promise<app.MemoryGraphView>;
+
+export function GaeaMemoryHubOverview():Promise<app.MemoryHubOverview>;
+
 export function GaeaMemorySuggestions():Promise<app.MemorySuggestionsView>;
 
 export function GaeaMeta():Promise<app.Meta>;
@@ -174,6 +188,16 @@ export function GaeaPermLevel():Promise<string>;
 export function GaeaPickFiles():Promise<Array<app.FilePickResult>>;
 
 export function GaeaPickWorkspace():Promise<string>;
+
+export function GaeaProfileConflicts():Promise<Array<string>>;
+
+export function GaeaProfileDelete(arg1:string):Promise<void>;
+
+export function GaeaProfileList():Promise<Array<app.ProfileFactView>>;
+
+export function GaeaProfileResolveConflict(arg1:string,arg2:string):Promise<void>;
+
+export function GaeaProfileSave(arg1:app.ProfileFactView):Promise<void>;
 
 export function GaeaReadFile(arg1:string):Promise<app.FilePreview>;
 
@@ -254,6 +278,8 @@ export function GaeaTools():Promise<Array<Record<string, any>>>;
 export function GaeaUpdateFact(arg1:string,arg2:string):Promise<string>;
 
 export function GaeaVersion():Promise<string>;
+
+export function GaeaWhisperMemories():Promise<Array<app.WhisperMemoryView>>;
 
 export function GaeaWorkspaceChanges():Promise<Array<app.WorkspaceChangeView>>;
 
@@ -604,29 +630,3 @@ export function WhisperWeixinQRStatus(arg1:string):Promise<Record<string, any>>;
 export function WhisperWeixinQRStatusWithCode(arg1:string,arg2:string):Promise<Record<string, any>>;
 
 export function WhisperWeixinStatus():Promise<Array<Record<string, any>>>;
-
-export function GaeaMemoryHubOverview():Promise<app.MemoryHubOverview>;
-
-export function GaeaProfileConflicts():Promise<Array<string>>;
-
-export function GaeaProfileDelete(arg1:string):Promise<void>;
-
-export function GaeaProfileList():Promise<Array<app.ProfileFactView>>;
-
-export function GaeaProfileSave(arg1:app.ProfileFactView):Promise<void>;
-
-export function GaeaWhisperMemories():Promise<Array<app.WhisperMemoryView>>;
-
-export function GaeaMemoryGraph():Promise<app.MemoryGraphView>;
-
-export function GaeaCostDelete(arg1:string):Promise<void>;
-
-export function GaeaCostGet(arg1:string):Promise<app.CostEntry>;
-
-export function GaeaCostList():Promise<Array<app.CostSummary>>;
-
-export function GaeaCostSave(arg1:app.CostEntry):Promise<void>;
-
-export function GaeaCostSearch(arg1:string,arg2:string,arg3:string):Promise<Array<app.CostSummary>>;
-
-export function GaeaProfileResolveConflict(arg1:string,arg2:string):Promise<void>;

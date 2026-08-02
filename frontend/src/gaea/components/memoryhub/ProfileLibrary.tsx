@@ -139,7 +139,7 @@ export function ProfileLibrary() {
         {loading ? (
           <div className="py-10 text-center text-fg-faint text-[13px]">加载中…</div>
         ) : facts.length === 0 ? (
-          <EmptyState title="暂无用户画像" desc="办公 agent 记住的用户偏好会出现在这里（remember type=user）" />
+          <EmptyState message="暂无用户画像 — 办公 agent 记住的用户偏好会出现在这里（remember type=user）" />
         ) : (
           facts.map((f) => (
             <div key={f.name} className="p-3 rounded-lg border border-border bg-bg-soft/60">

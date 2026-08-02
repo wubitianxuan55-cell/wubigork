@@ -1,6 +1,23 @@
 # gaea · 多功能 AI 助手
 
-## v1.8.0「单模型架构 · 知识库板块」(2026-08-02)
+## v1.9.0「记忆中枢」(2026-08-02)
+
+> 记忆体系三脑架构落地（命名 Hephaestus/Hermes + 主脑 Hephaestus.db + 左脑办公 SQLite + 右脑 hermes.db + 调度路由 + 知识库 RAG）+ 记忆中枢板块（七库统一管理）+ 3D 记忆图谱 + 成本库。
+> tag v1.9.0，构建 36,552,704 字节。
+
+- 命名体系：办公 agent → Hephaestus（火神），轻语 agent → Hermes（信使），gaea 之子女；AIgaea 产品类型统一
+- 三脑架构：新建 Hephaestus.db（facts/profile/knowledge 三表 + 迁移链）；memory.Store 后端抽象（文件/SQLite 双后端，调用方零改动）
+- 左脑接通：办公记忆 Markdown → Hephaestus.db 幂等迁移 + memory_get 工具 + boot/controller 默认 SQLite
+- 右脑更名：whisper.db → hermes.db（首次打开自动迁移，保留备份）
+- 调度路由：remember type=user → 主脑画像（profile 跨 agent 共享）+ DetectConflicts 冲突检测
+- 知识库 RAG：迁入 Hephaestus.db + 共享向量层 internal/gaea/search（TF-IDF + 中文 bigram 余弦）混合排序
+- 记忆中枢板块：知识库入口升级为多库面板（知识/成本/画像/办公三 tab/轻语只读/图谱），12+ 新绑定
+- 3D 记忆图谱：three-forcegraph（type 着色/按库过滤/hover/点击详情），后端预计算 nodes+links
+- 成本库：cost_entries 表（schema V2）+ cost 包 + CostLibrary（基础版）
+- 画像冲突一键裁决（以画像为准 / 以 facts 为准）+ 轻语详情弹窗
+- 验证：go test 全量 57 包 0 失败 + tsc + vite + wails build 全绿
+
+「单模型架构 · 知识库板块」(2026-08-02)
 
 > 办公板块删除双模型架构（Hermes/Hephaestus → 单模型）+ 知识库整合为独立板块（统一服务层 + 全文检索）+ AI 聊天双会话面板修复。
 > tag v1.8.0，构建 36,084,224 字节。

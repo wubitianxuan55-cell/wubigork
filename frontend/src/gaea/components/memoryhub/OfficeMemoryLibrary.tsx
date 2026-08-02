@@ -158,10 +158,7 @@ export function OfficeMemoryLibrary() {
             {loading ? (
               <div className="py-10 text-center text-fg-faint text-[13px]">加载中…</div>
             ) : filtered.length === 0 ? (
-              <EmptyState
-                title={view?.available === false ? "办公记忆不可用" : "暂无记忆"}
-                desc={view?.available === false ? "未配置用户目录" : "办公 agent 用 remember 工具保存的事实会出现在这里"}
-              />
+              <EmptyState message={view?.available === false ? "办公记忆不可用 — 未配置用户目录" : "暂无记忆 — 办公 agent 用 remember 工具保存的事实会出现在这里"} />
             ) : (
               filtered.map((f: MemoryFact) => (
                 <FactCard
