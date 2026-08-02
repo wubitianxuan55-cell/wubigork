@@ -96,17 +96,17 @@ func (m *Manager) Get(id string) *Assistant {
 	return m.byID[id]
 }
 
-// FindByWxUser 根据微信用户 ID 查找绑定的助手
-// FindByPersonality 按人格 ID 查找助手（支持自定义人格角色）
-func (m *Manager) FindByPersonality(personalityID string) *Assistant {
+// FindByPersonality 按人格 ID 查找助手（支持自定义人格角色）。
+// 返回值副本，避免锁外使用 slice 元素指针与 Update 并发写产生 data race。
+func (m *Manager) FindByPersonality(personalityID string) (Assistant, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for i := range m.assistants {
 		if m.assistants[i].PersonalityID == personalityID {
-			return &m.assistants[i]
+			return m.assistants[i], true
 		}
 	}
-	return nil
+	return Assistant{}, false
 }
 
 func (m *Manager) FindByWxUser(wxUserID string) *Assistant {

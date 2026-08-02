@@ -388,8 +388,9 @@ func (a *mediaState) StartComfyUI() error {
 
 	// 构建启动参数
 	args := []string{"main.py", "--listen", "127.0.0.1", "--port", extractPort(a.cfg.ComfyUIURL)}
-	// 使用内置 Python 时加 --windows-standalone-build
-	if strings.Contains(pythonExe, "python\\python.exe") || strings.Contains(pythonExe, "python_embeded") {
+	// 使用内置 Python / standalone-env 时加 --windows-standalone-build
+	//（standalone-env 是 ROCm PyTorch 环境，Krea2/Z-Image-Turbo 必需；系统 Python 为 CPU-only）
+	if strings.Contains(pythonExe, "python\\python.exe") || strings.Contains(pythonExe, "python_embeded") || strings.Contains(pythonExe, "standalone-env") {
 		args = append(args, "--windows-standalone-build")
 	}
 	// 不强制指定 GPU 后端，让 ComfyUI 自动检测（支持 NVIDIA CUDA / AMD ROCm / DirectML）
@@ -448,11 +449,12 @@ func findPython(comfyUIPath string, cfgPythonPath string) string {
 		slog.Warn("配置的 Python 路径不存在，尝试自动查找", "path", cfgPythonPath)
 	}
 
-	// 2. ComfyUI 便携版
+	// 2. ComfyUI 便携版（standalone-env 为 ROCm PyTorch 环境，Krea2/ZIT 必需，优先级最高）
 	if comfyUIPath != "" {
 		candidates := []string{
-			filepath.Join(comfyUIPath, "..", "python", "python.exe"),   // 整合包 python/
-			filepath.Join(comfyUIPath, "python_embeded", "python.exe"), // 便携版
+			filepath.Join(comfyUIPath, "..", "standalone-env", "python.exe"), // standalone-env（ROCm PyTorch）
+			filepath.Join(comfyUIPath, "..", "python", "python.exe"),         // 整合包 python/
+			filepath.Join(comfyUIPath, "python_embeded", "python.exe"),       // 便携版
 			filepath.Join(comfyUIPath, "venv", "Scripts", "python.exe"),
 			filepath.Join(comfyUIPath, ".venv", "Scripts", "python.exe"),
 		}
@@ -600,10 +602,11 @@ func openDir(dir string) error {
 
 // GetSystemStats 获取系统状态（CPU + GPU）
 func (a *mediaState) GetSystemStats() map[string]interface{} {
+	memTotal, memUsed := getMemoryStats()
 	result := map[string]interface{}{
 		"cpu":       getCPUUsage(),
-		"memTotal":  getTotalMemory(),
-		"memUsed":   getUsedMemory(),
+		"memTotal":  memTotal,
+		"memUsed":   memUsed,
 		"gpuName":   "",
 		"gpuUsage":  0,
 		"vramUsed":  0.0,
@@ -664,47 +667,33 @@ func getCPUUsage() int {
 	return usage
 }
 
-// getTotalMemory 获取 Windows 总内存 (GB)
-func getTotalMemory() float64 {
-	cmd := exec.Command("wmic", "OS", "get", "TotalVisibleMemorySize")
+// getMemoryStats 获取 Windows 总内存与已用内存 (GB)，一次 wmic 调用取两列
+// getMemoryStats 获取 Windows 总内存与已用内存 (GB)，一次 wmic 调用取两列
+func getMemoryStats() (totalGB, usedGB float64) {
+	cmd := exec.Command("wmic", "OS", "get", "TotalVisibleMemorySize,FreePhysicalMemory")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, err := cmd.Output()
 	if err != nil {
-		return 0
+		return 0, 0
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	if len(lines) < 2 {
-		return 0
+		return 0, 0
 	}
-	kb, err := strconv.ParseFloat(strings.TrimSpace(lines[1]), 64)
-	if err != nil {
-		return 0
+	fields := strings.Fields(lines[1])
+	if len(fields) < 2 {
+		return 0, 0
 	}
-	return kb / 1e6
-}
-
-// getUsedMemory 获取 Windows 已用内存 (GB)
-func getUsedMemory() float64 {
-	total := getTotalMemory()
-	cmd := exec.Command("wmic", "OS", "get", "FreePhysicalMemory")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	out, err := cmd.Output()
-	if err != nil {
-		return 0
+	totalKB, err1 := strconv.ParseFloat(fields[0], 64)
+	freeKB, err2 := strconv.ParseFloat(fields[1], 64)
+	if err1 != nil || err2 != nil {
+		return 0, 0
 	}
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) < 2 {
-		return 0
-	}
-	freeKB, err := strconv.ParseFloat(strings.TrimSpace(lines[1]), 64)
-	if err != nil {
-		return 0
-	}
-	used := total - freeKB/1e6
+	used := (totalKB - freeKB) / 1e6
 	if used < 0 {
 		used = 0
 	}
-	return used
+	return totalKB / 1e6, used
 }
 
 // getGPUInfo 获取 GPU 名称、总显存、已用显存 (GB)

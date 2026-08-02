@@ -386,6 +386,10 @@ export function GaeaSaveProvider(arg1) {
   return window['go']['app']['App']['GaeaSaveProvider'](arg1);
 }
 
+export function GaeaSaveSettings(arg1) {
+  return window['go']['app']['App']['GaeaSaveSettings'](arg1);
+}
+
 export function GaeaSaveWindowState(arg1) {
   return window['go']['app']['App']['GaeaSaveWindowState'](arg1);
 }
@@ -542,6 +546,10 @@ export function GenerateSingleCharacter(arg1) {
   return window['go']['app']['App']['GenerateSingleCharacter'](arg1);
 }
 
+export function GetActiveASRModel() {
+  return window['go']['app']['App']['GetActiveASRModel']();
+}
+
 export function GetActiveEngine() {
   return window['go']['app']['App']['GetActiveEngine']();
 }
@@ -556,6 +564,10 @@ export function GetActiveTTSModel() {
 
 export function GetAllEntityNames() {
   return window['go']['app']['App']['GetAllEntityNames']();
+}
+
+export function GetAppInfo() {
+  return window['go']['app']['App']['GetAppInfo']();
 }
 
 export function GetBacklinks(arg1) {
@@ -614,6 +626,10 @@ export function GetEntityRelations() {
   return window['go']['app']['App']['GetEntityRelations']();
 }
 
+export function GetFeatureModel(arg1) {
+  return window['go']['app']['App']['GetFeatureModel'](arg1);
+}
+
 export function GetForeshadows() {
   return window['go']['app']['App']['GetForeshadows']();
 }
@@ -636,6 +652,10 @@ export function GetLoginStatus() {
 
 export function GetLorebookEntries() {
   return window['go']['app']['App']['GetLorebookEntries']();
+}
+
+export function GetModelMonitor() {
+  return window['go']['app']['App']['GetModelMonitor']();
 }
 
 export function GetNovelsDir() {
@@ -668,6 +688,10 @@ export function GetTTSConfig() {
 
 export function GetTTSStatus() {
   return window['go']['app']['App']['GetTTSStatus']();
+}
+
+export function GetVoicePipelineConfig() {
+  return window['go']['app']['App']['GetVoicePipelineConfig']();
 }
 
 export function GetWorldMapImage() {
@@ -966,6 +990,10 @@ export function SearchMemories(arg1, arg2) {
   return window['go']['app']['App']['SearchMemories'](arg1, arg2);
 }
 
+export function SetActiveASRModel(arg1, arg2) {
+  return window['go']['app']['App']['SetActiveASRModel'](arg1, arg2);
+}
+
 export function SetActiveEngine(arg1) {
   return window['go']['app']['App']['SetActiveEngine'](arg1);
 }
@@ -988,6 +1016,10 @@ export function SetDistFS(arg1) {
 
 export function SetEngineDefaultModel(arg1, arg2) {
   return window['go']['app']['App']['SetEngineDefaultModel'](arg1, arg2);
+}
+
+export function SetFeatureModel(arg1, arg2, arg3) {
+  return window['go']['app']['App']['SetFeatureModel'](arg1, arg2, arg3);
 }
 
 export function SetImageBackend(arg1, arg2, arg3, arg4) {

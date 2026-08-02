@@ -85,7 +85,8 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         finalTranscript: isFinal ? s.finalTranscript + text : s.finalTranscript,
       }))
       if (isFinal && text) {
-        onTranscript?.(stateRef.current.finalTranscript + text)
+        // 只发当前识别片段，避免累积拼接导致旧句子重复入聊天
+        onTranscript?.(text)
       }
     }))
 

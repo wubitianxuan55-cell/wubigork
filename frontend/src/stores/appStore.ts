@@ -133,7 +133,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   projectOpen: false,
   projectPath: '',
   projectTitle: '',
-  novelsDir: 'D:\\AI\\xiaoshuo',
+  novelsDir: 'C:\\AI\\xiaoshuo',
   projects: [],
   baseTheme: loadBase(),
   darkMode: loadDark(),

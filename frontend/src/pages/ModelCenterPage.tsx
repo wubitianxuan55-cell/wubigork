@@ -5,6 +5,7 @@ import {
   CloseCircleOutlined, ReloadOutlined, ThunderboltOutlined,
   DesktopOutlined, RocketOutlined, PictureOutlined, SoundOutlined, AudioOutlined,
   CaretRightOutlined, SettingOutlined, LoginOutlined, LogoutOutlined, KeyOutlined,
+  LinkOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import SettingField from '../components/SettingField'
@@ -22,7 +23,7 @@ import {
 } from '../api/settings'
 import { startComfyUI, stopComfyUI, getComfyUIStatus } from '../api/image'
 
-type Category = 'llm' | 'image' | 'tts' | 'engine'
+type Category = 'llm' | 'image' | 'tts' | 'engine' | 'bind'
 
 interface ModelCardData {
   modelId: string; modelName: string
@@ -272,6 +273,7 @@ const ModelCenterPage: React.FC = () => {
           {sidebarBtn('image', <PictureOutlined />, '图片生成')}
           {sidebarBtn('tts', <SoundOutlined />, '语音模型')}
           {sidebarBtn('engine', <SettingOutlined />, '引擎管理')}
+          {sidebarBtn('bind', <LinkOutlined />, '功能绑定')}
         </div>
 
         <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
@@ -310,67 +312,6 @@ const ModelCenterPage: React.FC = () => {
           {/* LLM */}
           {category === 'llm' && (
             <>
-              {/* ── 功能模型绑定（各功能独立 LLM，持久化重启不丢）── */}
-              <Card style={{ marginBottom: 20, background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <ThunderboltOutlined style={{ color: C('color-text-secondary') }} />
-                  <Typography.Text strong style={{ color: C('color-text'), fontSize: 14 }}>功能模型绑定</Typography.Text>
-                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>
-                    各功能板块独立模型，设置后持久化（重启不丢）
-                  </Typography.Text>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-                  {FEATURES.map(f => {
-                    const cur = featureCfg[f.key]
-                    const draft = featureDraft[f.key] || { engine: '', model: '' }
-                    const engineModels = draft.engine ? llmModels.filter(m => m.engineId === draft.engine) : []
-                    const bound = !!cur?.engine && !!cur?.model
-                    return (
-                      <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        <span style={{ width: 92, fontSize: 12.5, color: C('color-text'), fontWeight: 500 }}>
-                          {f.icon} {f.label}
-                        </span>
-                        {f.key === 'whisper' && (
-                          <>
-                            <Tag color="purple" style={{ fontSize: 9, margin: 0 }}>TTS {voiceCfg.tts.model || '自动'}</Tag>
-                            <Tag color="blue" style={{ fontSize: 9, margin: 0 }}>STT {voiceCfg.stt.model || '自动'}</Tag>
-                          </>
-                        )}
-                        {f.key === 'novel' && (
-                          <Tag color="orange" style={{ fontSize: 9, margin: 0 }}>剧照 {imageModel || '—'}</Tag>
-                        )}
-                        <Select
-                          size="small" placeholder="引擎" value={draft.engine || undefined}
-                          onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: v, model: '' } }))}
-                          style={{ width: 130 }}
-                          options={engines.filter(e => e.enabled).map(e => ({ value: e.id, label: engineLabels[e.id] || e.id }))}
-                        />
-                        <Select
-                          size="small" placeholder="模型" value={draft.model || undefined}
-                          onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { ...(p[f.key] || {}), model: v } }))}
-                          style={{ width: 210 }}
-                          options={engineModels.map(m => ({ value: m.modelId, label: m.modelName }))}
-                        />
-                        <Button size="small" type={bound ? 'primary' : 'default'} onClick={() => handleSaveFeature(f.key)} style={{ fontSize: 11 }}>
-                          {bound ? '已绑定 · 更新' : '绑定'}
-                        </Button>
-                        {bound && (
-                          <Tag color="green" style={{ fontSize: 10, margin: 0 }}>
-                            ✔ {cur!.engine} / {cur!.model}
-                          </Tag>
-                        )}
-                      </div>
-                    )
-                  })}
-                  {/* 绘梦：自身界面选择，无需在此设置 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-subtle)' }}>
-                    <span style={{ fontSize: 12.5, color: C('color-text'), fontWeight: 500 }}>🎨 绘梦</span>
-                    <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>
-                      图片模型在绘梦界面内选择（后端 / 模型 / ComfyUI 启停），无需在模型中心重复设置
-                    </Typography.Text>
-                  </div>
-                </div>
-              </Card>
               {llmModels.length === 0 && (
                 <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, textAlign: 'center', padding: 40, marginBottom: 16 }}>
                   <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 14 }}>未发现语言模型。请在「引擎管理」中启用引擎并刷新模型。</Typography.Text>
@@ -415,6 +356,70 @@ const ModelCenterPage: React.FC = () => {
           )}
 
           {/* Image */}
+          {category === 'bind' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                <LinkOutlined style={{ color: C('color-text-secondary') }} />
+                <Typography.Text strong style={{ color: C('color-text'), fontSize: 15 }}>功能模型绑定</Typography.Text>
+                <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>
+                  各功能板块独立模型，设置后持久化（重启不丢）
+                </Typography.Text>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+                {FEATURES.map(f => {
+                  const cur = featureCfg[f.key]
+                  const draft = featureDraft[f.key] || { engine: '', model: '' }
+                  const engineModels = draft.engine ? llmModels.filter(m => m.engineId === draft.engine) : []
+                  const bound = !!cur?.engine && !!cur?.model
+                  return (
+                    <Card key={f.key} size="small" style={{ background: 'var(--bg-glass)', border: bound ? '1px solid rgba(34,197,94,0.35)' : '1px solid var(--border-subtle)', borderRadius: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+                        <Space size={6}>
+                          <span style={{ fontSize: 16 }}>{f.icon}</span>
+                          <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>{f.label}</Typography.Text>
+                          {f.key === 'whisper' && (
+                            <>
+                              <Tag color="purple" style={{ fontSize: 9, margin: 0 }}>TTS {voiceCfg.tts.model || '自动'}</Tag>
+                              <Tag color="blue" style={{ fontSize: 9, margin: 0 }}>STT {voiceCfg.stt.model || '自动'}</Tag>
+                            </>
+                          )}
+                          {f.key === 'novel' && <Tag color="orange" style={{ fontSize: 9, margin: 0 }}>剧照 {imageModel || '—'}</Tag>}
+                        </Space>
+                        <Tag color={bound ? 'green' : 'default'} style={{ fontSize: 10, margin: 0 }}>{bound ? '已绑定' : '未绑定'}</Tag>
+                      </div>
+                      <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {bound ? `当前：${cur!.engine} / ${cur!.model}` : '尚未绑定，选择引擎和模型后点绑定'}
+                      </Typography.Text>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <Select size="small" placeholder="引擎" value={draft.engine || undefined}
+                          onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: v, model: '' } }))}
+                          style={{ flex: 1, minWidth: 0 }}
+                          options={engines.filter(e => e.enabled).map(e => ({ value: e.id, label: engineLabels[e.id] || e.id }))} />
+                        <Select size="small" placeholder="模型" value={draft.model || undefined}
+                          onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { ...(p[f.key] || {}), model: v } }))}
+                          style={{ flex: 1, minWidth: 0 }}
+                          options={engineModels.map(m => ({ value: m.modelId, label: m.modelName }))} />
+                      </div>
+                      <Button size="small" type={bound ? 'primary' : 'default'} block onClick={() => handleSaveFeature(f.key)} style={{ marginTop: 10, fontSize: 11 }}>
+                        {bound ? '更新绑定' : '绑定'}
+                      </Button>
+                    </Card>
+                  )
+                })}
+                {/* 绘梦：自身界面选择 */}
+                <Card size="small" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-subtle)', borderRadius: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>🎨</span>
+                    <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>绘梦</Typography.Text>
+                  </div>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginTop: 8, lineHeight: 1.6 }}>
+                    图片模型在绘梦界面内选择（后端 / 模型 / ComfyUI 启停），无需在此重复设置
+                  </Typography.Text>
+                </Card>
+              </div>
+            </div>
+          )}
+
           {category === 'image' && (
             <>
               {/* 图片后端 + ComfyUI + 模型 */}

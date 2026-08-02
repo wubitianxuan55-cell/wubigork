@@ -98,7 +98,10 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
       const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
       const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
       const gpuPct = ms?.gpuUsage || vramPct
-      const engCount = (m?.engines || []).length
+      // 模型加载预警只统计本地模型（herdsman/ollama 已启用 + ComfyUI 运行中），
+      // 云端引擎（xai/deepseek）走 API 不占本机资源，不计入
+      const localEngCount = (m?.engines || []).filter((e: any) => e.isLocal).length + (m?.comfyRunning ? 1 : 0)
+      const engCount = localEngCount
       const warns: { key: string; title: string; desc: string }[] = []
       if ((ms?.cpu ?? 0) > 85) warns.push({ key: 'cpu', title: '⚠ CPU 负载过高', desc: `当前 CPU 使用率 ${ms.cpu}%，模型占用过大，建议停用部分模型` })
       if (gpuPct > 85) warns.push({ key: 'gpu', title: '⚠ GPU 负载过高', desc: `GPU 使用率 ${gpuPct}%（显存占用），建议停用部分本地模型` })

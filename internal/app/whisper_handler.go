@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/assistant"
 	"github.com/gaea/gaea/internal/channels/weixin"
 	"github.com/gaea/gaea/internal/modelengine"
@@ -59,7 +60,7 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 		preset = &whisper.PersonalityPresets[0]
 	}
 	// 小说角色导入的自定义人格：助手记录带 voiceGuide 时覆盖预设
-	if ast := a.assistantMgr.FindByPersonality(personalityID); ast != nil && ast.VoiceGuide != "" {
+	if ast, ok := a.assistantMgr.FindByPersonality(personalityID); ok && ast.VoiceGuide != "" {
 		dims := ast.Dims
 		if dims.T == 0 && dims.I == 0 && dims.S == 0 && dims.O == 0 && dims.R == 0 {
 			dims = whisper.PersonalityDims{T: 50, I: 50, S: 50, O: 50, R: 50}
@@ -117,33 +118,23 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string) (result
 		systemPrompt = systemPrompt + "\n\n【本轮格式要求】\n" + turnPlan.FormatHint
 	}
 
-	origEngine := ""
-	if orch.EngineID != "" {
-		origEngine = a.client.ActiveEngineID()
-		slog.Info("[whisper] engine switch", "from", origEngine, "to", orch.EngineID)
-		if orch.EngineID != origEngine {
-			a.client.SetActiveEngine(orch.EngineID)
-		}
+	// 功能级绑定：轻语独立引擎+模型（持久化，未绑定则沿用 orch/全局）
+	featEng, featModel := a.featureModel("whisper")
+	engine := orch.EngineID
+	if featEng != "" {
+		engine = featEng
 	}
-
 	model := orch.ModelName
+	if featModel != "" {
+		model = featModel
+	}
+	// per-call 引擎覆盖：不影响全局激活引擎，多会话并发安全
 	if a.client == nil {
 		slog.Error("[whisper] client is nil")
 		return nil, fmt.Errorf("model client not initialized")
 	}
-	// 功能级绑定：轻语独立引擎+模型（持久化，未绑定则沿用 orch/全局）
-	featEng, featModel := a.featureModel("whisper")
-	if featEng != "" {
-		orch.EngineID = featEng
-	}
-	if featModel != "" {
-		model = featModel
-	}
-	slog.Info("[whisper] calling LLM", "engine", orch.EngineID, "model", model)
-	reply, callErr := a.client.ChatSimpleStream(a.ctx, model, systemPrompt, userMsg)
-	if orch.EngineID != "" && orch.EngineID != origEngine {
-		a.client.SetActiveEngine(origEngine)
-	}
+	slog.Info("[whisper] calling LLM", "engine", engine, "model", model)
+	reply, callErr := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userMsg, ai.ChatSimpleOptions{EngineID: engine})
 	if callErr != nil {
 		slog.Error("[whisper] LLM call failed", "error", callErr)
 		return nil, callErr

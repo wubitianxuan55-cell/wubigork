@@ -12,14 +12,15 @@ import '../gaea/tailwind.css'
 // 'useI18n must be used within a LocaleProvider'。
 function GaeaPage() {
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '4px 16px', flexShrink: 0 }}>
-        <FeatureModelBar feature="gaea" label="办公" />
-      </div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
       <div style={{ flex: 1, minHeight: 0 }}>
         <LocaleProvider>
           <GaeaApp />
         </LocaleProvider>
+      </div>
+      {/* 绑定模型卡（左下角浮动） */}
+      <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
+        <FeatureModelBar feature="gaea" label="办公" />
       </div>
     </div>
   )

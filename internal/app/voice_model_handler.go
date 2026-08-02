@@ -8,6 +8,7 @@
 package app
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/gaea/gaea/internal/config"
@@ -26,6 +27,19 @@ func (a *mediaState) SetActiveASRModel(engineID, modelID string) error {
 	}
 	if !eng.Enabled {
 		return &appError{"引擎未启用: " + engineID}
+	}
+	// 校验模型在引擎可用列表（有列表时），避免静默配置无效 ASR
+	if len(eng.Models) > 0 {
+		found := false
+		for _, m := range eng.Models {
+			if m.ID == modelID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return &appError{fmt.Sprintf("模型 %s 不在引擎 %s 的可用列表", modelID, engineID)}
+		}
 	}
 
 	a.activeASREngine = engineID

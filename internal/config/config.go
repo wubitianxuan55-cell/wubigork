@@ -7,7 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 )
+
+// ── 配置键常量 ──────────────────────────────────────────
 
 // ── 配置键常量 ──────────────────────────────────────────
 const (
@@ -167,6 +170,46 @@ type Config struct {
 	FuncGaeaModel     string
 }
 
+// funcMu 保护功能级模型绑定字段（GetFeatureModel/SetFeatureModel 并发读写）
+var funcMu sync.RWMutex
+
+// GetFeatureModel 读取功能绑定的 (engine, model)，空 = 用全局激活
+func (c *Config) GetFeatureModel(feature string) (engine, model string) {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	switch feature {
+	case "chat":
+		return c.FuncChatEngine, c.FuncChatModel
+	case "whisper":
+		return c.FuncWhisperEngine, c.FuncWhisperModel
+	case "novel":
+		return c.FuncNovelEngine, c.FuncNovelModel
+	case "office":
+		return c.FuncOfficeEngine, c.FuncOfficeModel
+	case "gaea":
+		return c.FuncGaeaEngine, c.FuncGaeaModel
+	}
+	return "", ""
+}
+
+// SetFeatureModel 写入功能绑定的 (engine, model)
+func (c *Config) SetFeatureModel(feature, engine, model string) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	switch feature {
+	case "chat":
+		c.FuncChatEngine, c.FuncChatModel = engine, model
+	case "whisper":
+		c.FuncWhisperEngine, c.FuncWhisperModel = engine, model
+	case "novel":
+		c.FuncNovelEngine, c.FuncNovelModel = engine, model
+	case "office":
+		c.FuncOfficeEngine, c.FuncOfficeModel = engine, model
+	case "gaea":
+		c.FuncGaeaEngine, c.FuncGaeaModel = engine, model
+	}
+}
+
 // Load 加载配置（只应调用一次）。
 // 优先级：config 文件 > 环境变量 > 默认值。
 func Load() *Config {
@@ -185,7 +228,8 @@ func Load() *Config {
 		OIDCDiscoveryURL:   "https://auth.x.ai/.well-known/openid-configuration",
 		Model:              "grok-4.20",
 		TokenStorePath:     tokenPath,
-		NovelsDir:          filepath.Join(home, "gaea-novels"),
+		// 本机单用户定位：小说目录固定为 C:\AI\xiaoshuo（记忆：novels-directory）
+		NovelsDir:          `C:\AI\xiaoshuo`,
 		HTTPTimeoutSeconds:  180,
 		DefaultTemperature:  0.7,
 		AnalysisTemperature: 0.15,   // 分析任务低温度以确保精确
@@ -443,9 +487,15 @@ func dirExists(path string) bool {
 	return err == nil && info.IsDir()
 }
 
+// saveMu 串行化 Save 的 read-modify-write（并发写不同 key 不互相覆盖）
+var saveMu sync.Mutex
+
 // Save 将单个配置项写回 ~/.gaea_config.json。
 // 使用 config 包的 Key* 常量指定 key。
 func Save(key, value string) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err

@@ -1,26 +1,99 @@
 import React, { useEffect, useState } from 'react'
-import { Button, Descriptions, Typography, message } from 'antd'
-import { DatabaseOutlined, ExperimentOutlined, RocketOutlined } from '@ant-design/icons'
-import { getConfig, migrateProjectToV4 } from '../../api/settings'
+import { Button, Descriptions, Tag, Timeline, Typography, message } from 'antd'
+import { ThunderboltOutlined } from '@ant-design/icons'
+import { getConfig } from '../../api/settings'
 import SettingsSection from './SettingsSection'
+import * as App from '../../../wailsjs/go/app/App'
 
-/** SystemPanel — 系统信息 + 数据迁移 */
+interface ReleaseInfo {
+  version: string
+  title: string
+  date: string
+  intro: string
+  points: string
+}
+
+/** SystemPanel — 更新信息 + 系统信息 + 数据迁移 */
 const SystemPanel: React.FC = () => {
   const [config, setConfig] = useState<Record<string, string>>({})
+  const [appInfo, setAppInfo] = useState<{ name: string; version: string; tagline: string; releases: ReleaseInfo[] } | null>(null)
 
   useEffect(() => {
-    getConfig().then((cfg) => setConfig(cfg || {})).catch(() => {})
+    try {
+      App.GetAppInfo().then((r: any) => setAppInfo(r)).catch(() => {})
+    } catch (_) {}
   }, [])
 
-  const handleMigrate = async () => {
-    try {
-      await migrateProjectToV4()
-      message.success('项目已升级到 v4.0')
-    } catch (err: any) { message.error(err?.message || '升级失败') }
-  }
+
 
   return (
     <>
+      {/* ── 更新信息：关于 + 版本 + 更新日志 ── */}
+      <SettingsSection
+        title={<>更新信息</>}
+        desc="当前版本与最近更新记录。"
+      >
+        {/* 关于卡 */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 14,
+          padding: '16px 18px', borderRadius: 12, marginBottom: 16,
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(37,99,235,0.04))',
+          border: '1px solid rgba(99,102,241,0.2)',
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+            background: 'linear-gradient(135deg, #6366f1, #2563eb)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 6px 20px rgba(99,102,241,0.35)',
+          }}>
+            <ThunderboltOutlined style={{ fontSize: 24, color: '#fff' }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Typography.Text strong style={{ color: 'var(--md-sys-color-text)', fontSize: 16 }}>gaea</Typography.Text>
+              <Tag color="geekblue" style={{ margin: 0, borderRadius: 8 }}>v{appInfo?.version || '…'}</Tag>
+            </div>
+            <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12, display: 'block', marginTop: 2 }}>
+              {appInfo?.tagline || '多功能 AI 助手'}
+            </Typography.Text>
+          </div>
+        </div>
+
+        {/* 更新日志 */}
+        {appInfo?.releases && appInfo.releases.length > 0 && (
+          <Timeline
+            items={appInfo.releases.map((r) => ({
+              color: r.version === `v${appInfo.version}` ? 'blue' : 'gray',
+              children: (
+                <div style={{ paddingBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Typography.Text strong style={{ color: 'var(--md-sys-color-text)', fontSize: 13 }}>
+                      {r.version}
+                    </Typography.Text>
+                    <Typography.Text style={{ color: 'var(--md-sys-color-text)', fontSize: 13 }}>
+                      {r.title}
+                    </Typography.Text>
+                    <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 11 }}>{r.date}</Typography.Text>
+                  </div>
+                  {r.intro && (
+                    <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 11, display: 'block', marginTop: 2 }}>
+                      {r.intro}
+                    </Typography.Text>
+                  )}
+                  {r.points && (
+                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                      {r.points.split('\n').filter(Boolean).map((p, idx) => (
+                        <li key={idx} style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 11, lineHeight: 1.7 }}>{p}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ),
+            }))}
+          />
+        )}
+      </SettingsSection>
+
       <SettingsSection
         title={<>系统信息</>}
         desc="当前引擎、API 与凭证存储路径。"
@@ -39,31 +112,7 @@ const SystemPanel: React.FC = () => {
         </Descriptions>
       </SettingsSection>
 
-      <SettingsSection
-        title={<>数据与升级</>}
-        desc="项目结构迁移与数据管理。"
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div>
-            <Typography.Text style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>
-              <RocketOutlined style={{ color: 'var(--gaea-glow)', marginRight: 6 }} />v4.0 项目升级
-            </Typography.Text>
-            <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: '6px 0 8px' }}>
-              将当前项目升级到 v4.0 结构（非破坏性迁移，原始文件备份到 _v3_backup/）。
-              升级后可享受场景编辑、快照版本、AI 协写等新功能。
-            </Typography.Paragraph>
-            <Button icon={<ExperimentOutlined />} onClick={handleMigrate} style={{ borderRadius: 'var(--md-sys-radius-md)' }}>
-              升级到 v4.0
-            </Button>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, opacity: 0.7 }}>
-            <DatabaseOutlined style={{ color: 'var(--gaea-glow)' }} />
-            <Typography.Text style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
-              配置文件：~/.gaea_config.json · 办公配置：~/.config/gaea/config.toml
-            </Typography.Text>
-          </div>
-        </div>
-      </SettingsSection>
+
     </>
   )
 }

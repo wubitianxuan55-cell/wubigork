@@ -112,36 +112,7 @@ func (a *mediaState) setWhisperChatFn() {
 		return reply, emotion, nil
 	})
 }
-
-// VoiceSetChatTarget 切换语音对话目标
-// target:
-//   - "gaea"    → 直接与默认平台 AI 助手 gaea 对话（通用对话，无人格）
-//   - "whisper" → 轻语人格化对话（搜索增强，默认）
-func (a *mediaState) VoiceSetChatTarget(target string) error {
-	if a.voiceManager == nil {
-		a.initVoice()
-	}
-	switch target {
-	case "gaea":
-		a.voiceManager.SetWhisperChatFn(func(userMsg, _ string) (string, string, error) {
-			result, err := a.app.ChatGeneral(userMsg)
-			if err != nil {
-				return "", "", err
-			}
-			reply, _ := result["reply"].(string)
-			if reply == "" {
-				return "", "", fmt.Errorf("gaea 对话返回空回复")
-			}
-			return reply, "CALM_RATIONAL", nil
-		})
-	case "whisper":
-		a.setWhisperChatFn()
-	default:
-		return fmt.Errorf("未知对话目标: %s", target)
-	}
-	slog.Info("语音对话目标已切换", "target", target)
-	return nil
-}
+// applyASRClient 配置 ASR 客户端（模型中心 STT 模型引擎路由）
 
 // applyASRClient 配置 ASR 客户端（模型中心 STT 模型引擎路由）
 // 优先级：用户选中的 STT 模型（模型中心）→ 扫描各引擎 STT 模型 → 默认 herdsman whisper-base

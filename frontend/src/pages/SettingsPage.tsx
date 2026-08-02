@@ -1,13 +1,15 @@
 import React from 'react'
 import { Tabs, Typography } from 'antd'
 import {
-  AppstoreOutlined, FolderOpenOutlined,
+  AppstoreOutlined, FolderOpenOutlined, BookOutlined, FileTextOutlined, HeartOutlined,
   SoundOutlined, PictureOutlined, SettingOutlined, InfoCircleOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
 import AppearancePanel, { DarkModePanel } from '../components/settings/AppearancePanel'
 import WorkspacePanel from '../components/settings/WorkspacePanel'
+import ProposalPanel from '../components/settings/ProposalPanel'
 import VoicePanel from '../components/settings/VoicePanel'
+import WhisperPanel from '../components/settings/WhisperPanel'
 import ImageGenPanel from '../components/settings/ImageGenPanel'
 import OfficePanel from '../components/settings/OfficePanel'
 import SystemPanel from '../components/settings/SystemPanel'
@@ -22,7 +24,7 @@ const SettingsPage: React.FC = () => {
     },
     {
       key: 'workspace',
-      label: (<span><FolderOpenOutlined style={{ marginRight: 6 }} />工作空间</span>),
+      label: (<span><BookOutlined style={{ marginRight: 6 }} />小说</span>),
       children: (<WorkspacePanel />),
     },
     {
@@ -31,9 +33,19 @@ const SettingsPage: React.FC = () => {
       children: (<VoicePanel />),
     },
     {
+      key: 'whisper',
+      label: (<span><HeartOutlined style={{ marginRight: 6 }} />轻语</span>),
+      children: (<WhisperPanel />),
+    },
+    {
       key: 'imagegen',
       label: (<span><PictureOutlined style={{ marginRight: 6 }} />绘梦</span>),
       children: (<ImageGenPanel />),
+    },
+    {
+      key: 'proposal',
+      label: (<span><FileTextOutlined style={{ marginRight: 6 }} />方案</span>),
+      children: (<ProposalPanel />),
     },
     {
       key: 'office',
@@ -59,7 +71,7 @@ const SettingsPage: React.FC = () => {
           设置中心
         </Typography.Title>
         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12 }}>
-          整合 gaea 全部设置参数 —— 外观 / 工作空间 / 语音 / 绘梦 / 办公 / 系统
+          整合 gaea 全部设置参数 —— 外观 / 小说 / 语音 / 轻语 / 绘梦 / 方案 / 办公 / 系统
         </Typography.Text>
       </div>
 

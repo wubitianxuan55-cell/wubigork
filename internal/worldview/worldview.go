@@ -236,7 +236,7 @@ func extractMarkdownBlock(reply string) string {
 
 // featureModel 小说功能级模型（持久化绑定 func_novel，运行中切换即时生效；空=全局）
 func (a *Agent) featureModel() (engine, model string) {
-	return a.cfg.FuncNovelEngine, a.cfg.FuncNovelModel
+	return a.cfg.GetFeatureModel("novel")
 }
 
 // chat 功能级对话：带 novel 引擎覆盖

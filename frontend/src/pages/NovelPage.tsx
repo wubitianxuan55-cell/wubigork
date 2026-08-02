@@ -28,10 +28,7 @@ const NovelPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NovelTab>('home')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '4px 16px 0' }}>
-        <FeatureModelBar feature="novel" label="小说" />
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
     <Tabs
       activeKey={activeTab}
       onChange={(key) => setActiveTab(key as NovelTab)}
@@ -43,6 +40,10 @@ const NovelPage: React.FC = () => {
       }))}
       style={{ height: '100%' }}
     />
+      {/* 绑定模型卡（左下角浮动） */}
+      <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
+        <FeatureModelBar feature="novel" label="小说" />
+      </div>
     </div>
   )
 }

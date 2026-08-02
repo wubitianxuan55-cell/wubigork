@@ -201,6 +201,8 @@ export function GaeaSavePastedImage(arg1:string):Promise<string>;
 
 export function GaeaSaveProvider(arg1:app.ProviderView):Promise<void>;
 
+export function GaeaSaveSettings(arg1:app.SettingsView):Promise<void>;
+
 export function GaeaSaveWindowState(arg1:Record<string, any>):Promise<void>;
 
 export function GaeaSelectTab(arg1:string):Promise<void>;
@@ -279,6 +281,8 @@ export function GenerateSceneIllustration(arg1:number):Promise<Record<string, an
 
 export function GenerateSingleCharacter(arg1:string):Promise<Record<string, any>>;
 
+export function GetActiveASRModel():Promise<Record<string, string>>;
+
 export function GetActiveEngine():Promise<string>;
 
 export function GetActiveModel():Promise<string>;
@@ -286,6 +290,8 @@ export function GetActiveModel():Promise<string>;
 export function GetActiveTTSModel():Promise<Record<string, string>>;
 
 export function GetAllEntityNames():Promise<Array<Record<string, any>>>;
+
+export function GetAppInfo():Promise<Record<string, any>>;
 
 export function GetBacklinks(arg1:string):Promise<Array<Record<string, any>>>;
 
@@ -315,6 +321,8 @@ export function GetEngines():Promise<Array<modelengine.EngineConfig>>;
 
 export function GetEntityRelations():Promise<Record<string, any>>;
 
+export function GetFeatureModel(arg1:string):Promise<Record<string, string>>;
+
 export function GetForeshadows():Promise<Record<string, any>>;
 
 export function GetImageBackend():Promise<string>;
@@ -326,6 +334,8 @@ export function GetImageBackendInfo():Promise<Record<string, string>>;
 export function GetLoginStatus():Promise<boolean>;
 
 export function GetLorebookEntries():Promise<Record<string, any>>;
+
+export function GetModelMonitor():Promise<Record<string, any>>;
 
 export function GetNovelsDir():Promise<string>;
 
@@ -342,6 +352,8 @@ export function GetSystemStats():Promise<Record<string, any>>;
 export function GetTTSConfig():Promise<Record<string, any>>;
 
 export function GetTTSStatus():Promise<Record<string, any>>;
+
+export function GetVoicePipelineConfig():Promise<Record<string, any>>;
 
 export function GetWorldMapImage():Promise<string>;
 
@@ -491,6 +503,8 @@ export function Search(arg1:string):Promise<Record<string, Array<search.Result>>
 
 export function SearchMemories(arg1:string,arg2:number):Promise<Array<Record<string, any>>>;
 
+export function SetActiveASRModel(arg1:string,arg2:string):Promise<void>;
+
 export function SetActiveEngine(arg1:string):Promise<void>;
 
 export function SetActiveTTSModel(arg1:string,arg2:string):Promise<void>;
@@ -502,6 +516,8 @@ export function SetDeepseekKey(arg1:string):Promise<void>;
 export function SetDistFS(arg1:fs.FS):Promise<void>;
 
 export function SetEngineDefaultModel(arg1:string,arg2:string):Promise<void>;
+
+export function SetFeatureModel(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function SetImageBackend(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 

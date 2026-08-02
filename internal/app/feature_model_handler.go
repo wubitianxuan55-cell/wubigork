@@ -31,19 +31,7 @@ func featureModelKeys(feature string) (engineKey, modelKey string, ok bool) {
 
 // featureModel 读取功能绑定的 (engine, model)，空 = 用全局激活
 func (c *core) featureModel(feature string) (engine, model string) {
-	switch feature {
-	case "chat":
-		return c.cfg.FuncChatEngine, c.cfg.FuncChatModel
-	case "whisper":
-		return c.cfg.FuncWhisperEngine, c.cfg.FuncWhisperModel
-	case "novel":
-		return c.cfg.FuncNovelEngine, c.cfg.FuncNovelModel
-	case "office":
-		return c.cfg.FuncOfficeEngine, c.cfg.FuncOfficeModel
-	case "gaea":
-		return c.cfg.FuncGaeaEngine, c.cfg.FuncGaeaModel
-	}
-	return "", ""
+	return c.cfg.GetFeatureModel(feature)
 }
 
 // SetFeatureModel 设置功能绑定的引擎 + 模型（持久化，重启不丢）
@@ -77,18 +65,7 @@ func (c *core) SetFeatureModel(feature, engineID, modelName string) error {
 		}
 	}
 
-	switch feature {
-	case "chat":
-		c.cfg.FuncChatEngine, c.cfg.FuncChatModel = engineID, modelName
-	case "whisper":
-		c.cfg.FuncWhisperEngine, c.cfg.FuncWhisperModel = engineID, modelName
-	case "novel":
-		c.cfg.FuncNovelEngine, c.cfg.FuncNovelModel = engineID, modelName
-	case "office":
-		c.cfg.FuncOfficeEngine, c.cfg.FuncOfficeModel = engineID, modelName
-	case "gaea":
-		c.cfg.FuncGaeaEngine, c.cfg.FuncGaeaModel = engineID, modelName
-	}
+	c.cfg.SetFeatureModel(feature, engineID, modelName)
 	if err := config.Save(engineKey, engineID); err != nil {
 		slog.Warn("保存功能引擎失败", "feature", feature, "error", err)
 	}
@@ -106,8 +83,9 @@ func (c *core) GetFeatureModel(feature string) map[string]string {
 	return map[string]string{"engine": engine, "model": model}
 }
 
-// GetModelMonitor 模型监控：返回所有已启用（运行中）引擎的模型列表 + 系统资源
-// 供底栏展示「已启动模型 / CPU / 内存 / GPU」，防止本地模型加载过多。
+// GetModelMonitor 模型监控：返回已启用引擎的模型列表 + 系统资源。
+// isLocal 标记本地模型（herdsman/ollama 占本机资源，预警统计用；云端 xai/deepseek 不算）；
+// comfyRunning 标记 ComfyUI 是否运行中（本地大模型加载，预警需计入）。
 func (a *App) GetModelMonitor() map[string]interface{} {
 	engines := []map[string]interface{}{}
 	if a.engineMgr != nil {
@@ -116,18 +94,32 @@ func (a *App) GetModelMonitor() map[string]interface{} {
 				continue
 			}
 			engines = append(engines, map[string]interface{}{
-				"engine": e.ID,
-				"name":   e.Name,
-				"model":  e.DefaultModel,
+				"engine":  e.ID,
+				"name":    e.Name,
+				"model":   e.DefaultModel,
+				"isLocal": isLocalEngine(e.ID),
 			})
 		}
 	}
+	comfyRunning := false
 	var stats map[string]interface{}
 	if a.mediaState != nil {
+		comfyRunning = a.mediaState.isComfyUIRunning()
 		stats = a.mediaState.GetSystemStats()
 	}
 	return map[string]interface{}{
-		"engines": engines,
-		"stats":   stats,
+		"engines":      engines,
+		"stats":        stats,
+		"comfyRunning": comfyRunning,
 	}
+}
+
+// isLocalEngine 判断引擎是否为本地模型（占本机资源，预警统计用）。
+// 云端引擎（xai/deepseek 走 API）不加载到本机，不计入模型加载预警。
+func isLocalEngine(id string) bool {
+	switch id {
+	case "herdsman", "ollama":
+		return true
+	}
+	return false
 }

@@ -110,7 +110,8 @@ const ChatPage: React.FC = () => {
   const streamingMsg = messages.find(m => m.streaming)
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, position: 'relative' }}>
+      <ChatTopicSidebar topics={topicList} activeId={activeId} onSelect={setActiveId} onCreate={handleCreate} onDelete={handleDelete} onRename={handleRename} />
       <ChatTopicSidebar topics={topicList} activeId={activeId} onSelect={setActiveId} onCreate={handleCreate} onDelete={handleDelete} onRename={handleRename} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden', background: 'transparent', position: 'relative' }}>
@@ -198,6 +199,12 @@ const ChatPage: React.FC = () => {
             </Tooltip>
           </div>
         </div>
+
+      </div>
+
+      {/* 绑定模型卡（左下角浮动，聊天页补充显示） */}
+      <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
+        <FeatureModelBar feature="chat" label="聊天" />
       </div>
     </div>
   )

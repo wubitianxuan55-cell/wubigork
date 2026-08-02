@@ -162,6 +162,66 @@ func (a *App) gaeaApplyCfg(mutate func(cfg *gaeaConfig.Config)) error {
 	return a.gaeaRebuildLocked()
 }
 
+// GaeaSaveSettings 保存办公引擎设置（模型 / Agent 参数 / 权限 / 沙箱），
+// 经 gaeaApplyCfg 通道：改 ga.cfg → Save → 重建 controller 即时生效。
+// 空字段/零值跳过，不覆盖已配置项；Network 布尔显式写入。
+func (a *App) GaeaSaveSettings(view SettingsView) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
+		if view.DefaultModel != "" {
+			cfg.DefaultModel = view.DefaultModel
+		}
+		if view.PlannerModel != "" {
+			cfg.Agent.PlannerModel = view.PlannerModel
+		}
+		if view.SubagentModel != "" {
+			cfg.Agent.SubagentModel = view.SubagentModel
+		}
+		if view.Agent.SystemPrompt != "" {
+			cfg.Agent.SystemPrompt = view.Agent.SystemPrompt
+		}
+		if view.Agent.MaxSteps > 0 {
+			cfg.Agent.MaxSteps = view.Agent.MaxSteps
+		}
+		if view.Agent.Temperature > 0 {
+			cfg.Agent.Temperature = view.Agent.Temperature
+		}
+		if view.Agent.PlannerTemperature > 0 {
+			cfg.Agent.PlannerTemperature = view.Agent.PlannerTemperature
+		}
+		if view.Agent.SubagentTemperature > 0 {
+			cfg.Agent.SubagentTemperature = view.Agent.SubagentTemperature
+		}
+		if view.Agent.Effort != "" {
+			cfg.Agent.Effort = view.Agent.Effort
+		}
+		if view.Agent.PlannerEffort != "" {
+			cfg.Agent.PlannerEffort = view.Agent.PlannerEffort
+		}
+		if view.Agent.SubagentEffort != "" {
+			cfg.Agent.SubagentEffort = view.Agent.SubagentEffort
+		}
+		if view.Permissions.Mode != "" {
+			cfg.Permissions.Mode = view.Permissions.Mode
+		}
+		if view.Permissions.Allow != nil {
+			cfg.Permissions.Allow = view.Permissions.Allow
+		}
+		if view.Permissions.Ask != nil {
+			cfg.Permissions.Ask = view.Permissions.Ask
+		}
+		if view.Permissions.Deny != nil {
+			cfg.Permissions.Deny = view.Permissions.Deny
+		}
+		if view.Sandbox.Bash != "" {
+			cfg.Sandbox.Bash = view.Sandbox.Bash
+		}
+		cfg.Sandbox.Network = view.Sandbox.Network
+		if view.Sandbox.WorkspaceRoot != "" {
+			cfg.Sandbox.WorkspaceRoot = view.Sandbox.WorkspaceRoot
+		}
+	})
+}
+
 // GaeaSaveProvider 保存模型中心引擎配置（更新已有引擎）。
 // 模型中心引擎为固定四大引擎（xai/ollama/herdsman/deepseek），不支持新增。
 func (a *App) GaeaSaveProvider(p ProviderView) error {

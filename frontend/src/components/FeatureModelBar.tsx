@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Tag, Tooltip, Button, message } from 'antd'
+import { Button, Tooltip, message } from 'antd'
 import { PoweroffOutlined } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import { getEngines, saveEngine } from '../api/engines'
 import { useFeatureModel } from '../hooks/useFeatureModel'
 
 /**
- * 功能模型状态条 — 显示某功能的绑定模型 + 引擎运行状态 + 一键启停按钮。
- * 状态明确区分：运行中（绿）/ 已停用（灰）/ 未绑定（描边虚线）；
+ * 功能模型状态卡 — 显示某功能的绑定模型 + 引擎运行状态 + 一键启停按钮。
+ * 卡片形态，统一放置在各功能页面左下角（由页面用 absolute 定位包裹）。
+ * 状态明确区分：运行中（绿）/ 已停用（灰）/ 未绑定（虚线紫）；
  * 启停操作友好降级，绝不弹错。
  */
 const FeatureModelBar: React.FC<{ feature: string; label: string }> = ({ feature, label }) => {
@@ -57,37 +58,57 @@ const FeatureModelBar: React.FC<{ feature: string; label: string }> = ({ feature
     }
   }
 
-  const statusColor = bound ? (running ? '#22c55e' : '#64748b') : '#a855f7'
+  const runningColor = '#22c55e'
+  const idleColor = '#64748b'
+  const unboundColor = '#a855f7'
+  const statusColor = bound ? (running ? runningColor : idleColor) : unboundColor
   const statusText = !bound ? '未绑定' : running ? '运行中' : '已停用'
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-      <Tag color="default" style={{ fontSize: 10, margin: 0 }}>{label}</Tag>
-      <span style={{
-        width: 7, height: 7, borderRadius: '50%',
-        background: statusColor,
-        boxShadow: running ? '0 0 6px #22c55e' : 'none',
-        display: 'inline-block',
-      }} />
-      <span style={{
+    <div style={{
+      width: 200,
+      borderRadius: 14,
+      padding: '10px 12px',
+      background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
+      WebkitBackdropFilter: 'blur(16px) saturate(140%)',
+      backdropFilter: 'blur(16px) saturate(140%)',
+      border: bound ? (running ? '1px solid rgba(34,197,94,0.4)' : '1px solid var(--md-sys-color-outline-variant)') : '1px dashed rgba(168,85,247,0.45)',
+      boxShadow: running ? '0 8px 24px rgba(34,197,94,0.15)' : '0 8px 24px rgba(0,0,0,0.18)',
+      display: 'flex', flexDirection: 'column', gap: 8, fontSize: 11,
+    }}>
+      {/* 头部：功能名 + 状态徽标 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontWeight: 600, color: 'var(--md-sys-color-text)', fontSize: 12 }}>{label}</span>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          fontSize: 10, padding: '1px 8px', borderRadius: 8, lineHeight: '16px',
+          color: bound ? (running ? runningColor : '#94a3b8') : unboundColor,
+          background: bound ? (running ? 'rgba(34,197,94,0.12)' : 'rgba(100,116,139,0.08)') : 'rgba(168,85,247,0.08)',
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, boxShadow: running ? `0 0 6px ${runningColor}` : 'none', display: 'inline-block' }} />
+          {statusText}
+        </span>
+      </div>
+      {/* 模型名 */}
+      <div style={{
         color: running ? 'var(--md-sys-color-text)' : 'var(--md-sys-color-text-secondary)',
         fontWeight: running ? 600 : 400,
-        maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      }}>
-        {m.model || (m.engine ? `${m.engine} 默认` : '未绑定')}
-      </span>
-      <span style={{
-        fontSize: 10, padding: '0 6px', borderRadius: 8, lineHeight: '16px',
-        color: bound ? (running ? '#22c55e' : '#94a3b8') : '#a855f7',
-        background: bound ? (running ? 'rgba(34,197,94,0.1)' : 'rgba(100,116,139,0.08)') : 'rgba(168,85,247,0.08)',
-        border: bound ? 'none' : '1px dashed rgba(168,85,247,0.4)',
-      }}>
-        {statusText}
-      </span>
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }} title={m.model || ''}>
+        {m.model || (m.engine ? `${m.engine} 默认` : '未绑定模型')}
+      </div>
+      {/* 启停按钮 */}
       <Tooltip title={!bound ? '先到模型中心绑定' : (running ? `停用「${label}」模型` : `启动「${label}」模型`)}>
-        <Button type="text" size="small" loading={busy} onClick={toggle}
-          icon={<PoweroffOutlined style={{ color: running ? '#22c55e' : 'var(--md-sys-color-text-secondary)' }} />}
-          style={{ width: 22, height: 22, minWidth: 22, padding: 0, fontSize: 11 }} />
+        <Button size="small" block loading={busy} onClick={toggle}
+          icon={<PoweroffOutlined />}
+          style={{
+            fontSize: 11, height: 24,
+            color: running ? runningColor : 'var(--md-sys-color-text-secondary)',
+            borderColor: running ? 'rgba(34,197,94,0.5)' : 'var(--md-sys-color-outline-variant)',
+            background: running ? 'rgba(34,197,94,0.06)' : 'transparent',
+          }}>
+          {running ? '停用' : '启动'}
+        </Button>
       </Tooltip>
     </div>
   )

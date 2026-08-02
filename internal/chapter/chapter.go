@@ -45,7 +45,7 @@ func (a *Agent) GenerateSummary(ctx context.Context, chapterContent string) (*ty
 	})
 
 	// 摘要任务：低温度确保精确
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
+	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, a.novelModelName(), systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: a.novelEngineName(),
 		Temperature: 0.15,
 		MaxTokens:   2048,
 	})
@@ -135,7 +135,7 @@ func (a *Agent) ReviewChapter(ctx context.Context, chapterContent string, outlin
 		"prev_chapter_hint":  prevChapterHint,
 	})
 
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
+	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, a.novelModelName(), systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: a.novelEngineName(),
 		Temperature:    0.15, // 审查需精确
 		MaxTokens:      2048,
 		TimeoutMinutes: 5,
@@ -165,7 +165,7 @@ func (a *Agent) reviewChapterFallback(ctx context.Context, chapterContent, outli
 
 	userPrompt := fmt.Sprintf("大纲节点: %s\n上一章结尾: %s\n\n本章正文:\n%s\n\n请审查并给出修改方案。", outlineNodeTitle, prevChapterHint, chapterContent)
 
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
+	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, a.novelModelName(), systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: a.novelEngineName(),
 		Temperature: 0.15,
 		MaxTokens:   2048,
 	})
@@ -182,7 +182,19 @@ func (a *Agent) reviewChapterFallback(ctx context.Context, chapterContent, outli
 
 // featureModel 小说功能级模型（持久化绑定 func_novel，运行中切换即时生效；空=全局）
 func (a *Agent) featureModel() (engine, model string) {
-	return a.cfg.FuncNovelEngine, a.cfg.FuncNovelModel
+	return a.cfg.GetFeatureModel("novel")
+}
+
+// novelModelName 小说功能绑定模型名（空 = 让客户端按引擎解析默认/全局模型）
+func (a *Agent) novelModelName() string {
+	_, m := a.featureModel()
+	return m
+}
+
+// novelEngineName 小说功能绑定引擎名（空 = 全局激活引擎）
+func (a *Agent) novelEngineName() string {
+	e, _ := a.featureModel()
+	return e
 }
 
 // chat 功能级对话：带 novel 引擎覆盖

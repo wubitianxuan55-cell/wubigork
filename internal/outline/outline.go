@@ -29,9 +29,21 @@ func New(client ai.LLMClient, pm *project.Manager, cfg *config.Config, eng *prom
 	return &Agent{client: client, pm: pm, cfg: cfg, eng: eng}
 }
 
-// featureModel 小说功能级模型（持久化绑定，运行中切换即时生效；空=全局）
+// featureModel 小说功能级模型（持久化绑定 func_novel，运行中切换即时生效；空=全局）
 func (a *Agent) featureModel() (engine, model string) {
-	return a.cfg.FuncNovelEngine, a.cfg.FuncNovelModel
+	return a.cfg.GetFeatureModel("novel")
+}
+
+// novelModelName 小说功能绑定模型名（空 = 让客户端按引擎解析默认/全局模型）
+func (a *Agent) novelModelName() string {
+	_, m := a.featureModel()
+	return m
+}
+
+// novelEngineName 小说功能绑定引擎名（空 = 全局激活引擎）
+func (a *Agent) novelEngineName() string {
+	e, _ := a.featureModel()
+	return e
 }
 
 // chat 功能级对话：带 novel 引擎覆盖
@@ -548,7 +560,7 @@ func (a *Agent) GenerateOutlineWithDialogue(ctx context.Context, storyPrompt str
 
 		// 学生提问
 		studentPrompt := fmt.Sprintf("故事设定：%s\n\n对话历史：\n%s\n\n请提出你的下一个问题：", storyPrompt, dialogueHistory)
-		question, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, studentSystem, studentPrompt, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
+		question, err := a.client.ChatSimpleStreamWithOptions(ctx, a.novelModelName(), studentSystem, studentPrompt, ai.ChatSimpleOptions{EngineID: a.novelEngineName(),
 			Temperature: 0.8,
 			MaxTokens:   256,
 		})
@@ -563,7 +575,7 @@ func (a *Agent) GenerateOutlineWithDialogue(ctx context.Context, storyPrompt str
 
 		// 专家回答
 		expertPrompt := fmt.Sprintf("故事设定：%s\n\n作者提问：%s\n\n请回答：", storyPrompt, question)
-		answer, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, expertSystem, expertPrompt, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
+		answer, err := a.client.ChatSimpleStreamWithOptions(ctx, a.novelModelName(), expertSystem, expertPrompt, ai.ChatSimpleOptions{EngineID: a.novelEngineName(),
 			Temperature: 0.7,
 			MaxTokens:   512,
 		})
@@ -597,7 +609,7 @@ func (a *Agent) GenerateOutlineWithDialogue(ctx context.Context, storyPrompt str
 
 	writerPrompt := fmt.Sprintf("故事设定：%s\n\n作者与编辑的对话：\n%s\n\n请**严格只生成 %d 章**的大纲，不要多也不要少。", storyPrompt, strings.Join(dialogue, "\n"), numChapters)
 
-	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, writerSystem, writerPrompt, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
+	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, a.novelModelName(), writerSystem, writerPrompt, ai.ChatSimpleOptions{EngineID: a.novelEngineName(),
 		Temperature: 0.3,
 		MaxTokens:   4096,
 	})

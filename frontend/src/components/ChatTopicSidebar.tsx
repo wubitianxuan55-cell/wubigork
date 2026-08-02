@@ -97,7 +97,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
       </div>
 
       {/* 话题列表 */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 8px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 88px' }}>
         {topics.length === 0 ? (
           <div
             style={{

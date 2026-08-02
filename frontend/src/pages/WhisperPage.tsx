@@ -18,7 +18,6 @@ import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
 import { ParticleFlow } from '../components/ParticleFlow'
 import { SoundWaveOverlay } from '../components/SoundWaveOverlay'
 import VoiceSettingsPanel from '../components/VoiceSettingsPanel'
-import WhisperSettingsPanel from '../components/WhisperSettingsPanel'
 import WhisperTracePanel from '../components/WhisperTracePanel'
 import WhisperDesirePanel from '../components/WhisperDesirePanel'
 import WhisperMemoryModal from '../components/WhisperMemoryModal'
@@ -87,9 +86,8 @@ const WhisperPage: React.FC = () => {
   const [aff, setAff] = useState(0); const [sec, setSec] = useState(0); const [aro, setAro] = useState(0); const [dom, setDom] = useState(0)
   const [rifts, setRifts] = useState(0); const [totalTurns, setTotalTurns] = useState(0)
   const [engineName, setEngineName] = useState(''); const [modelName, setModelName] = useState('')
-  const [showSettings, setShowSettings] = useState(false)
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
-  const [adultMode, setAdultMode] = useState(false)
+  const [adultMode, setAdultMode] = useState<boolean>(() => { try { return localStorage.getItem('gaea_whisper_adult_mode') === '1' } catch { return false } })
   const [sidebarTab, setSidebarTab] = useState<string>('status') // 侧边栏标签页
   const [collapsedMemoryGroups, setCollapsedMemoryGroups] = useState<Set<string>>(new Set())
   const [showMemoryPage, setShowMemoryPage] = useState(false)
@@ -286,12 +284,12 @@ const WhisperPage: React.FC = () => {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, position: 'relative' }}>
       {/* 左侧话题侧边栏 */}
-      <div style={{ width: 200, minWidth: 200, borderRight: `1px solid ${C('color-border')}`, background: C('color-bg-elevated'), display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ width: 240, minWidth: 240, borderRight: `1px solid ${C('color-border')}`, background: C('color-bg-elevated'), display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '10px 12px', borderBottom: `1px solid ${C('color-border')}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography.Text strong style={{ fontSize: 12, color: C('color-text') }}>对话</Typography.Text>
           <Button type="text" size="small" icon={<PlusOutlined />} onClick={handleCreateTopic} style={{ color: C('color-text-secondary'), width: 24, height: 24, padding: 0, borderRadius: 6 }} />
         </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: '4px 6px 88px' }}>
           {topicList.map(t => (
             <div key={t.id} onClick={() => setActiveId(t.id)} onDoubleClick={() => handleRenameTopic(t.id)}
               style={{ padding: '7px 10px', borderRadius: 8, cursor: 'pointer', marginBottom: 2, background: t.id === activeId ? `${C('color-primary')}12` : 'transparent', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: t.id === activeId ? C('color-primary') : C('color-text') }}>
@@ -309,9 +307,6 @@ const WhisperPage: React.FC = () => {
             </div>
           ))}
         </div>
-        <div style={{ padding: '6px 12px', borderTop: `1px solid ${C('color-border')}` }}>
-          <FeatureModelBar feature="whisper" label="轻语" />
-        </div>
       </div>
 
       {/* 右侧主聊天区 */}
@@ -321,10 +316,6 @@ const WhisperPage: React.FC = () => {
         <SoundWaveOverlay active={speakingId !== null} aff={aff} aro={aro} />
         {/* 设置按钮 */}
         <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 8 }}>
-          <Tooltip title="gaea设置">
-            <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setShowSettings(true)}
-              style={{ color: C('color-text-secondary'), opacity: 0.5, width: 28, height: 28, padding: 0 }} />
-          </Tooltip>
           <Tooltip title="语音设置">
             <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
               style={{ color: C('color-text-secondary'), opacity: 0.5, width: 28, height: 28, padding: 0 }} />
@@ -372,7 +363,6 @@ const WhisperPage: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: 32 }}>
               <CompanionAvatar size={120} state="idle" emotionColor={emoColor} />
               <div style={{ height: 16 }} />
-              <Typography.Text style={{ color: C('color-text'), fontSize: 20, fontWeight: 700, marginBottom: 4 }}>轻语</Typography.Text>
               <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13, marginBottom: 20 }}>选择一位AIgaea，开始对话 💫</Typography.Text>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, maxWidth: 460, width: '100%', marginBottom: 20 }}>\n                {[{ icon: '💬', label: '聊聊今天', desc: '分享你的日常' }, { icon: '💭', label: '倾诉心情', desc: '说说心里话' }, { icon: '🌐', label: '上网查询', desc: '搜最新资讯' }, { icon: '🎵', label: '分享兴趣', desc: '聊聊你喜欢的东西' }, { icon: '🌙', label: '晚安问候', desc: '睡前聊一会儿' }].map(s => (
                   <div key={s.label} onClick={() => { setInput(s.label); inputRef.current?.focus() }}
@@ -613,25 +603,6 @@ const WhisperPage: React.FC = () => {
               }} />
           </Tooltip>
         </div>
-      {/* 设置弹窗 */}
-      <Modal
-        open={showSettings}
-        onCancel={() => setShowSettings(false)}
-        footer={null}
-        width={520}
-        centered
-        destroyOnClose
-      >
-        <WhisperSettingsPanel
-          activePersonality={activePersonality}
-          personalities={personalities}
-          adultMode={adultMode}
-          engineID={engineName}
-          onPersonalityChange={(id) => handleSwitchPersonality(id)}
-          onAdultModeChange={async (v) => { setAdultMode(v); try { await (App as any).WhisperSetAdultMode?.(activePersonality, v) } catch (_) {} }}
-          onClearSession={handleClearMessages}
-        />
-      </Modal>
 
       {/* 语音设置弹窗 */}
       <Modal
@@ -656,7 +627,14 @@ const WhisperPage: React.FC = () => {
 
 
 
+
+      {/* 绑定模型卡（左下角浮动） */}
+      <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
+        <FeatureModelBar feature="whisper" label="轻语" />
+      </div>
+
     </div>
   )
 }
+
 export default WhisperPage

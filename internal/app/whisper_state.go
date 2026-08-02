@@ -24,7 +24,7 @@ func (w *whisperState) initWeixin() {
 
 	// 确保核心 AI 助手 gaea 始终存在（角色中心必须有 gaea；
 	// 旧数据无 gaea 时补建，已有则跳过）
-	if w.assistantMgr.FindByPersonality("gaea") == nil {
+	if _, ok := w.assistantMgr.FindByPersonality("gaea"); !ok {
 		coreAst := assistant.Assistant{
 			ID:            "gaea",
 			Name:          "gaea",

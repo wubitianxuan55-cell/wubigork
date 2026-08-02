@@ -346,7 +346,7 @@ func (a *Agent) GenerateCharacters(ctx context.Context, count int, genre string,
 
 	// ── 调用 LLM + JSON 解析重试（蒸馏自 MM-StoryAgent）──
 	caller := func(ctx context.Context, sys, usr string) (string, error) {
-		return a.client.ChatSimpleStreamWithOptions(ctx, a.cfg.Model, sys, usr, ai.ChatSimpleOptions{EngineID: a.cfg.FuncNovelEngine,
+		return a.client.ChatSimpleStreamWithOptions(ctx, a.novelModelName(), sys, usr, ai.ChatSimpleOptions{EngineID: a.novelEngineName(),
 			Temperature: 0.7,
 			MaxTokens:   4096,
 		})
@@ -617,7 +617,19 @@ func (a *Agent) mergeCharacters(cf *types.CharacterFile, updates []types.Charact
 
 // featureModel 小说功能级模型（持久化绑定 func_novel，运行中切换即时生效；空=全局）
 func (a *Agent) featureModel() (engine, model string) {
-	return a.cfg.FuncNovelEngine, a.cfg.FuncNovelModel
+	return a.cfg.GetFeatureModel("novel")
+}
+
+// novelModelName 小说功能绑定模型名（空 = 让客户端按引擎解析默认/全局模型）
+func (a *Agent) novelModelName() string {
+	_, m := a.featureModel()
+	return m
+}
+
+// novelEngineName 小说功能绑定引擎名（空 = 全局激活引擎）
+func (a *Agent) novelEngineName() string {
+	e, _ := a.featureModel()
+	return e
 }
 
 // chat 功能级对话：带 novel 引擎覆盖
