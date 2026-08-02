@@ -565,6 +565,16 @@ export function makeMockApp(): AppBindings {
         { name: "hdp-liner-spec", title: "HDPE 土工膜施工技术规范", category: "材料工艺", tags: ["HDPE", "土工膜", "防渗"], status: "现行", updatedAt: "2024-09-05T00:00:00.000Z" },
       ];
     },
+    async KnowledgeSearch(query: string, category: string, phase: string, status: string): Promise<KnowledgeSummary[]> {
+      let list = await this.KnowledgeList();
+      if (category && category !== "all") list = list.filter((e) => e.category === category);
+      if (status && status !== "all") list = list.filter((e) => e.status === status);
+      if (query) {
+        const q = query.trim().toLowerCase();
+        list = list.filter((e) => [e.title, e.name, e.category, ...e.tags].join(" ").toLowerCase().includes(q));
+      }
+      return list;
+    },
     async KnowledgeGet(name: string): Promise<KnowledgeEntry | null> {
       const entries: Record<string, KnowledgeEntry> = {
         "gb50300-2024": {

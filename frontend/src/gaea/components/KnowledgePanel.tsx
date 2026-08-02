@@ -9,8 +9,8 @@ const CATEGORIES = ["all", "规范标准", "工程案例", "经验总结", "材�
 const PHASES = ["all", "调查", "设计", "施工", "验收", "运维", "全程"];
 const STATUSES = ["all", "现行", "已归档", "常用", "草稿"];
 
-export function KnowledgePanel(p: { onClose: () => void }) {
-  const { onClose } = p;
+export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "page" }) {
+  const { onClose, variant = "modal" } = p;
   const t = useT();
   const [entries, setEntries] = useState<KnowledgeSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,21 +42,41 @@ export function KnowledgePanel(p: { onClose: () => void }) {
     });
   }, []);
 
+  // 全文检索：query 非空时走后端全文搜索（含正文），否则走 List + 前端分类过滤。
+  const doSearch = useCallback(async (q: string, cat: string, ph: string, st: string) => {
+    setLoading(true);
+    try {
+      const list = q.trim()
+        ? await app.KnowledgeSearch(q, cat, ph, st)
+        : await app.KnowledgeList();
+      setEntries(list);
+    } catch { /* 搜索失败保持原列表 */ }
+    setLoading(false);
+  }, []);
+
   useEffect(() => { loadList(); }, [loadList]);
   useEffect(() => { searchRef.current?.focus(); }, []);
+  // query/分类/阶段/状态变化时全文检索（防抖 250ms）。
+  // 后端 Search 同时过滤正文与元数据，前端 filtered 仅作兜底（数据已过滤）。
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void doSearch(query, category, phase, status);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query, category, phase, status, doSearch]);
 
   // Normalized query
   const normalizedQuery = query.trim().toLowerCase();
+  // 列表数据已由 doSearch 处理（query 走后端全文，空 query 走 List），
+  // 这里只做分类/阶段/状态的前端过滤。
   const filtered = useMemo(
     () => entries.filter((e) => {
       if (category !== "all" && e.category !== category) return false;
       if (phase !== "all" && (e as unknown as Record<string, unknown>).phase !== phase) return false;
       if (status !== "all" && e.status !== status) return false;
-      if (!normalizedQuery) return true;
-      return [e.title, e.name, e.category, ...e.tags]
-        .join(" ").toLowerCase().includes(normalizedQuery);
+      return true;
     }),
-    [entries, normalizedQuery, category, phase, status],
+    [entries, category, phase, status],
   );
 
   // Highlight matching text
@@ -122,14 +142,18 @@ export function KnowledgePanel(p: { onClose: () => void }) {
     }
   };
 
+  const rootCls = variant === "page"
+    ? "w-full h-full flex flex-col bg-bg"
+    : "fixed inset-0 z-50 flex items-start justify-center pt-[64px] pb-8";
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[64px] pb-8" style={{ background: "var(--ds-overlay)" }}>
-      <div className="relative w-full max-w-[620px] max-h-full flex flex-col rounded-xl border border-border-soft bg-bg shadow-xl overflow-hidden">
-        {/* Header */}
+    <div className={rootCls} style={variant === "modal" ? { background: "var(--ds-overlay)" } : undefined}>
+      <div className={variant === "page" ? "w-full h-full flex flex-col min-h-0" : "relative w-full max-w-[620px] max-h-full flex flex-col rounded-xl border border-border-soft bg-bg shadow-xl overflow-hidden"}>
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border-soft shrink-0">
-          <BookOpen size={17} className="text-accent" />
-          <h2 className="flex-1 text-fg text-[14px] font-semibold">{t("knowledge.title")}</h2>
-          <button className="inline-flex items-center justify-center w-7 h-7 border-0 rounded-md bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors" onClick={onClose} aria-label={t("common.close")} type="button"><X size={15} /></button>
+          <BookOpen size={variant === "page" ? 19 : 17} className="text-accent" />
+          <h2 className={`flex-1 text-fg font-semibold ${variant === "page" ? "text-[15px]" : "text-[14px]"}`}>{t("knowledge.title")}</h2>
+          {variant === "modal" && (
+            <button className="inline-flex items-center justify-center w-7 h-7 border-0 rounded-md bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors" onClick={onClose} aria-label={t("common.close")} type="button"><X size={15} /></button>
+          )}
         </div>
 
         {/* Search & Filters */}
@@ -246,9 +270,7 @@ export function KnowledgePanel(p: { onClose: () => void }) {
                               {expandedEntry.reviewer && <span>审核: {expandedEntry.reviewer}</span>}
                               {expandedEntry.createdAt && <span>创建: {new Date(expandedEntry.createdAt).toLocaleDateString()}</span>}
                             </div>
-                            <div className="text-fg text-[12.5px] leading-relaxed whitespace-pre-wrap break-words">
-                              {expandedEntry.body}
-                            </div>
+                            <div className="text-fg text-[12.5px] leading-relaxed whitespace-pre-wrap break-words max-h-[320px] overflow-y-auto pr-1">{expandedEntry.body}</div>
                             <div className="flex gap-2 pt-1">
                               <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-bg-soft text-fg text-[11px] hover:bg-sidebar-hover" onClick={() => startEdit(expandedEntry)} type="button"><Pencil size={12} />{t("common.edit")}</button>
                               {deleteConfirm === entry.name ? (

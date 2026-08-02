@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/gaea/gaea/internal/gaea/knowledge"
 )
 
 func TestKnowledgeAddAndSearch(t *testing.T) {
 	// Use a temp dir as HOME to isolate from real knowledge base.
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("USERPROFILE", t.TempDir())
+	knowledge.ResetForTest() // 重建进程级 Service，指向新 HOME
 
 	ka := knowledgeAdd{}
 	result, err := ka.Execute(nil, toJSON(t, map[string]interface{}{
@@ -40,6 +43,7 @@ func TestKnowledgeAddAndSearch(t *testing.T) {
 func TestKnowledgeSearchOverview(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("USERPROFILE", t.TempDir())
+	knowledge.ResetForTest()
 
 	// Add one entry first.
 	ka := knowledgeAdd{}
@@ -69,6 +73,9 @@ func TestKnowledgeSearchOverview(t *testing.T) {
 func TestKnowledgeAddGeneratesUniqueName(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("USERPROFILE", t.TempDir())
+	knowledge.ResetForTest()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir())
 
 	ka := knowledgeAdd{}
 	// Add the same title twice.
@@ -95,6 +102,9 @@ func TestKnowledgeAddGeneratesUniqueName(t *testing.T) {
 }
 
 func TestKnowledgeSearchByCategory(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir())
+	knowledge.ResetForTest()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("USERPROFILE", t.TempDir())
 

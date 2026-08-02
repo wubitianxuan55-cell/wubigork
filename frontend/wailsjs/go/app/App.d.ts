@@ -141,6 +141,8 @@ export function GaeaKnowledgeList():Promise<Array<app.KnowledgeSummary>>;
 
 export function GaeaKnowledgeSave(arg1:app.KnowledgeEntry):Promise<void>;
 
+export function GaeaKnowledgeSearch(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Array<app.KnowledgeSummary>>;
+
 export function GaeaListDir(arg1:string):Promise<Array<app.DirEntry>>;
 
 export function GaeaListSessions():Promise<Array<app.SessionMeta>>;

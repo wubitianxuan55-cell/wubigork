@@ -52,7 +52,7 @@ gaea/
 │   ├── app/                   # App 绑定 + 各模块 handler
 │   ├── ai/                    # AI 调用层（SSE 流式 + 图片）
 │   ├── auth/                  # OAuth PKCE + token
-│   ├── gaea/                  # 办公引擎（agent/tool/control/skill/boot）
+│   ├── gaea/                  # 办公引擎（agent/tool/control/skill/boot/knowledge）
 │   ├── whisper/               # 轻语模块（人格/记忆/分发）
 │   ├── modelengine/           # 模型中心
 │   ├── weixin/                # 微信助手
@@ -62,7 +62,7 @@ gaea/
 │   └── config/                # 全局配置（~/.gaea_config.json）
 ├── frontend/                  # React 前端
 │   └── src/
-│       ├── pages/             # 对话/轻语/小说/绘梦/模型中心/办公
+│       ├── pages/             # 对话/轻语/小说/绘梦/模型中心/办公/知识库
 │       ├── gaea/              # 办公板块（gaeaW 原生 UI）
 │       └── stores/            # Zustand 状态
 ├── prompts/                   # RTCO Prompt 模板

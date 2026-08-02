@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -391,18 +390,9 @@ type KnowledgeEntry struct {
 	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
-// openKnowledgeStore 打开用户知识目录。
-func openKnowledgeStore() (*knowledge.Store, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-	return knowledge.Open(filepath.Join(home, ".gaea", "knowledge"))
-}
-
 // GaeaKnowledgeList 返回知识条目摘要列表。
 func (a *App) GaeaKnowledgeList() []KnowledgeSummary {
-	store, err := openKnowledgeStore()
+	store, err := knowledge.Global().Store()
 	if err != nil {
 		return []KnowledgeSummary{}
 	}
@@ -414,9 +404,34 @@ func (a *App) GaeaKnowledgeList() []KnowledgeSummary {
 	return out
 }
 
+// GaeaKnowledgeSearch 全文检索知识库（标题/分类/标签/正文），返回匹配条目摘要。
+// 空 query 等价于 List；category/phase/status 为 "all" 或空时不过滤。
+func (a *App) GaeaKnowledgeSearch(query, category, phase, status string) []KnowledgeSummary {
+	store, err := knowledge.Global().Store()
+	if err != nil {
+		return []KnowledgeSummary{}
+	}
+	filter := knowledge.Filter{Category: category, Phase: phase, Status: status}
+	if filter.Category == "all" {
+		filter.Category = ""
+	}
+	if filter.Phase == "all" {
+		filter.Phase = ""
+	}
+	if filter.Status == "all" {
+		filter.Status = ""
+	}
+	results := knowledge.Search(store, query, filter)
+	out := make([]KnowledgeSummary, 0, len(results))
+	for _, e := range results {
+		out = append(out, KnowledgeSummary{Name: e.Name, Title: e.Title, Category: e.Category, Tags: e.Tags, Status: e.Status, UpdatedAt: e.UpdatedAt})
+	}
+	return out
+}
+
 // GaeaKnowledgeGet 返回单条知识条目（未找到返回 nil）。
 func (a *App) GaeaKnowledgeGet(name string) *KnowledgeEntry {
-	store, err := openKnowledgeStore()
+	store, err := knowledge.Global().Store()
 	if err != nil {
 		return nil
 	}
@@ -429,7 +444,7 @@ func (a *App) GaeaKnowledgeGet(name string) *KnowledgeEntry {
 
 // GaeaKnowledgeSave 保存知识条目。
 func (a *App) GaeaKnowledgeSave(e KnowledgeEntry) error {
-	store, err := openKnowledgeStore()
+	store, err := knowledge.Global().Store()
 	if err != nil {
 		return err
 	}
@@ -438,7 +453,7 @@ func (a *App) GaeaKnowledgeSave(e KnowledgeEntry) error {
 
 // GaeaKnowledgeDelete 删除知识条目。
 func (a *App) GaeaKnowledgeDelete(name string) error {
-	store, err := openKnowledgeStore()
+	store, err := knowledge.Global().Store()
 	if err != nil {
 		return err
 	}

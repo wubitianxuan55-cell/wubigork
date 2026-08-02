@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/knowledge"
@@ -45,7 +43,7 @@ func (knowledgeSearch) Execute(_ context.Context, args json.RawMessage) (string,
 		return "", fmt.Errorf("参数无效: %w", err)
 	}
 
-	store, err := openKnowledgeStore()
+	store, err := knowledge.Global().Store()
 	if err != nil {
 		return "", fmt.Errorf("打开知识库失败: %w", err)
 	}
@@ -119,15 +117,6 @@ func knowledgeOverview(store *knowledge.Store) (string, error) {
 	fmt.Fprintf(&b, "| **合计** | **%d** |\n\n", total)
 	b.WriteString("使用 `knowledge_search` 搜索或 `knowledge_add` 添加条目。")
 	return b.String(), nil
-}
-
-func openKnowledgeStore() (*knowledge.Store, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-	dir := filepath.Join(home, ".gaea", "knowledge")
-	return knowledge.Open(dir)
 }
 
 func bodySnippet(body string) string {

@@ -58,7 +58,7 @@ func (knowledgeAdd) Execute(_ context.Context, args json.RawMessage) (string, er
 		return "", fmt.Errorf("title、category 和 body 为必填项")
 	}
 
-	store, err := openKnowledgeStore()
+	store, err := knowledge.Global().Store()
 	if err != nil {
 		return "", fmt.Errorf("打开知识库失败: %w", err)
 	}

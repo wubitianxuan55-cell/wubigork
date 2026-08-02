@@ -162,6 +162,8 @@ export interface AppBindings {
   SaveWindowState(state: {width:number;height:number;x:number;y:number;maximised:boolean}): Promise<void>;
   // Knowledge base panel.
   KnowledgeList(): Promise<KnowledgeSummary[]>;
+  // KnowledgeSearch 全文检索（标题/分类/标签/正文），空 query 等价于 List。
+  KnowledgeSearch(query: string, category: string, phase: string, status: string): Promise<KnowledgeSummary[]>;
   KnowledgeGet(name: string): Promise<KnowledgeEntry | null>;
   KnowledgeSave(entry: KnowledgeSaveRequest): Promise<void>;
   KnowledgeDelete(name: string): Promise<void>;
@@ -302,6 +304,7 @@ const gaeaToGaea: Record<string, string> = {
   OpenDownloadPage: "GaeaOpenDownloadPage",
   SaveWindowState: "GaeaSaveWindowState",
   KnowledgeList: "GaeaKnowledgeList",
+  KnowledgeSearch: "GaeaKnowledgeSearch",
   KnowledgeGet: "GaeaKnowledgeGet",
   KnowledgeSave: "GaeaKnowledgeSave",
   KnowledgeDelete: "GaeaKnowledgeDelete",

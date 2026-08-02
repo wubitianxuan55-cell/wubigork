@@ -266,6 +266,10 @@ export function GaeaKnowledgeSave(arg1) {
   return window['go']['app']['App']['GaeaKnowledgeSave'](arg1);
 }
 
+export function GaeaKnowledgeSearch(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['GaeaKnowledgeSearch'](arg1, arg2, arg3, arg4);
+}
+
 export function GaeaListDir(arg1) {
   return window['go']['app']['App']['GaeaListDir'](arg1);
 }

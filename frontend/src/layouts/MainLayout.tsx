@@ -4,7 +4,7 @@ import {
   HomeOutlined,
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined, ConsoleSqlOutlined,
   ReadOutlined, PictureOutlined, MessageOutlined, HeartOutlined, ToolOutlined, ApiOutlined,
-  FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined,
+  FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined, BookOutlined,
   BarChartOutlined, DownOutlined,
 } from '@ant-design/icons'
 import SearchModal from '../components/SearchModal'
@@ -21,12 +21,13 @@ const ChatPage = React.lazy(() => import('../pages/ChatPage'))
 const WhisperPage = React.lazy(() => import('../pages/WhisperPage'))
 const OfficePage = React.lazy(() => import('../pages/OfficePage'))
 const GaeaPage = React.lazy(() => import('../pages/GaeaPage'))
+const KnowledgePage = React.lazy(() => import('../pages/KnowledgePage'))
 const { Header, Footer, Content } = Layout
 
-type Page = 'home' | 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' | 'whisper' | 'office' | 'gaea'
+type Page = 'home' | 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' | 'whisper' | 'office' | 'gaea' | 'knowledge'
 
 // 功能模块 key（navigate 事件校验 + Ctrl+1~4 快捷键映射；home 启动器不参与）
-const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'whisper', 'office', 'gaea', 'modelcenter']
+const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'whisper', 'office', 'gaea', 'knowledge', 'modelcenter']
 
 // 顶栏横向导航（含首页启动器），点击直接切换模块
 const menuItems: any[] = [
@@ -37,6 +38,7 @@ const menuItems: any[] = [
   { key: 'whisper', icon: <HeartOutlined />, label: '轻语' },
   { key: 'office', icon: <FileTextOutlined />, label: '方案编写' },
   { key: 'gaea', icon: <ToolOutlined />, label: '办公' },
+  { key: 'knowledge', icon: <BookOutlined />, label: '知识库' },
   { key: 'modelcenter', icon: <ApiOutlined />, label: '模型中心' },
 ]
 
@@ -49,6 +51,7 @@ const pageComponents: Record<Exclude<Page, 'home'>, React.ReactNode> = {
   whisper: <WhisperPage />,
   office: <OfficePage />,
   gaea: <GaeaPage />,
+  knowledge: <KnowledgePage />,
 }
 
 interface LogEntry {
@@ -188,7 +191,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
 }
 
 const pageLabels: Record<Page, string> = {
-  home: '首页', novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天', whisper: '轻语', office: '方案编写', gaea: '办公',
+  home: '首页', novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天', whisper: '轻语', office: '方案编写', gaea: '办公', knowledge: '知识库',
 }
 
 // ─── 主布局 ─────────────────────────────────────────────────
