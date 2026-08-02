@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { ConfigProvider, theme } from 'antd'
 import MainLayout from './layouts/MainLayout'
 import { useAppStore, getThemeTokens, FONT_OPTIONS } from './stores/appStore'
@@ -32,9 +32,13 @@ const App: React.FC = () => {
   const effFontFamily = FONT_OPTIONS.find((o) => o.key === fontFamily)?.value ?? FONT_OPTIONS[0].value
 
   // 强调色自定义：覆盖主题默认 glow/primary（accentRgb 供 rgb() 使用）
-  const effTokens = accentColor
-    ? { ...tokens, glow: accentColor, colorPrimary: accentColor, accentRgb: hexToRgb(accentColor) || tokens.accentRgb }
-    : tokens
+  // useMemo：无 accent 时保持 tokens 同一引用，避免 useEffect 每次渲染重复写 CSS 变量
+  const effTokens = useMemo(
+    () => accentColor
+      ? { ...tokens, glow: accentColor, colorPrimary: accentColor, accentRgb: hexToRgb(accentColor) || tokens.accentRgb }
+      : tokens,
+    [tokens, accentColor],
+  )
 
   // 同步 M3 CSS 变量到 :root
   useEffect(() => {
