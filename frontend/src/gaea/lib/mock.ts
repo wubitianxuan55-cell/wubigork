@@ -128,8 +128,7 @@ export function makeMockApp(): AppBindings {
     ],
     permissions: { mode: "ask", allow: ["ls", "read_file"], ask: [], deny: ["bash(rm *)"] },
     sandbox: { bash: "enforce", network: true, workspaceRoot: "", allowWrite: [] },
-    agent: { temperature: 0.2, maxSteps: 0, systemPrompt: "You are gaea, a coding agent.", plannerTemperature: 0, subagentTemperature: 0, effort: "", plannerEffort: "", subagentEffort: "" },
-    plannerModel: "",
+    agent: { temperature: 0.2, maxSteps: 0, systemPrompt: "You are gaea, a coding agent.", subagentTemperature: 0, effort: "", subagentEffort: "" },
     subagentModel: "",
     subagentModels: {},
     subagentSkills: ["explore", "research", "review", "security-review"],
@@ -233,7 +232,7 @@ export function makeMockApp(): AppBindings {
       return mockSwitchWorkspace(path);
     },
     async ContextUsage() {
-      return { used: 1280, window: 1_000_000, plannerUsed: 640, plannerWindow: 1_000_000 };
+      return { used: 1280, window: 1_000_000 };
     },
     async TCCAReport() {
       return JSON.stringify({
@@ -509,20 +508,11 @@ export function makeMockApp(): AppBindings {
       if (!settings.subagentModels) settings.subagentModels = {};
       settings.subagentModels[_skill] = ref;
     },
-    async SetPlannerModel(ref: string) {
-      settings.plannerModel = ref;
-    },
-    async SetPlannerTemperature(temp: number) {
-      settings.agent.plannerTemperature = temp;
-    },
     async SetSubagentTemperature(temp: number) {
       settings.agent.subagentTemperature = temp;
     },
     async SetEffort(effort: string) {
       settings.agent.effort = effort;
-    },
-    async SetPlannerEffort(effort: string) {
-      settings.agent.plannerEffort = effort;
     },
     async SetSubagentEffort(effort: string) {
       settings.agent.subagentEffort = effort;

@@ -198,31 +198,21 @@ func (c *Config) BashMode() string {
 	return "enforce"
 }
 
-// AgentConfig configures the harness loop. PlannerModel is optional: when set
-// to another provider's name it enables two-model collaboration, where the
-// planner handles low-frequency planning in its own session (kept separate so
-// each model's prompt prefix stays cache-stable). SubagentModel is the optional
-// default for runAs=subagent skills; SubagentModels overrides it per skill name.
+// AgentConfig configures the harness loop. SubagentModel is the optional default
+// for runAs=subagent skills; SubagentModels overrides it per skill name.
 type AgentConfig struct {
 	SystemPrompt     string            `toml:"system_prompt"`
 	SystemPromptFile string            `toml:"system_prompt_file"`
 	MaxSteps         int               `toml:"max_steps"` // tool-call rounds per turn; 0 = unlimited
 	Temperature      float64           `toml:"temperature"`
-	PlannerModel     string            `toml:"planner_model"`
 	SubagentModel    string            `toml:"subagent_model"`
 	SubagentModels   map[string]string `toml:"subagent_models"`
-	// PlannerTemperature overrides Temperature for the Hermes planner model.
-	// 0 means "use Temperature" (backward compatible). Negative means "use Temperature".
-	PlannerTemperature float64 `toml:"planner_temperature"`
 	// SubagentTemperature overrides Temperature for task-tool sub-agents.
 	// 0 means "use Temperature". Negative means "use Temperature".
 	SubagentTemperature float64 `toml:"subagent_temperature"`
-	// Effort overrides the reasoning effort for the executor (Hephaestus).
+	// Effort overrides the reasoning effort for the executor.
 	// "" means provider default. For DeepSeek: "high" (default) or "max".
 	Effort string `toml:"effort"`
-	// PlannerEffort overrides Effort for the Hermes planner.
-	// "" means "use Effort" (or provider default). For DeepSeek: "high" or "max".
-	PlannerEffort string `toml:"planner_effort"`
 	// SubagentEffort overrides Effort for task-tool sub-agents.
 	// "" means "use Effort" (or provider default). For DeepSeek: "high" or "max".
 	SubagentEffort string `toml:"subagent_effort"`
@@ -237,15 +227,6 @@ type AgentConfig struct {
 	AutoPlanClassifier string `toml:"auto_plan_classifier"`
 }
 
-// PlannerTemp returns the effective temperature for the Hermes planner.
-// Falls back to Temperature when PlannerTemperature is zero or negative.
-func (a AgentConfig) PlannerTemp() float64 {
-	if a.PlannerTemperature > 0 {
-		return a.PlannerTemperature
-	}
-	return a.Temperature
-}
-
 // SubagentTemp returns the effective temperature for task-tool sub-agents.
 // Falls back to Temperature when SubagentTemperature is zero or negative.
 func (a AgentConfig) SubagentTemp() float64 {
@@ -254,15 +235,6 @@ func (a AgentConfig) SubagentTemp() float64 {
 	}
 	return a.Temperature
 }
-// PlannerEffortVal returns the effective reasoning effort for Hermes.
-// Falls back to Effort when PlannerEffort is empty.
-func (a AgentConfig) PlannerEffortVal() string {
-	if a.PlannerEffort != "" {
-		return a.PlannerEffort
-	}
-	return a.Effort
-}
-
 // SubagentEffortVal returns the effective reasoning effort for sub-agents.
 // Falls back to Effort when SubagentEffort is empty.
 func (a AgentConfig) SubagentEffortVal() string {
@@ -403,8 +375,7 @@ const DefaultSystemPrompt = `你是 gaea，一个土壤修复工程办公专用A
 使用提供的工具读取和写入文件以及运行 shell 命令。
 
 **工作流程：**
-用户提交任务 → Hermes（规划者）分析并产出结构化方案 → 用户确认方案 → 你（Hephaestus）按方案执行。
-上述工作流程已由系统自动编排，你收到的任务消息已包含 Hermes 方案和用户确认，直接按步骤执行，不要再重新规划或等待批准。
+用户提交任务 → 你先规划（调研现状、明确步骤）→ 直接执行 → 每步验证 → complete_step 签退。规划与执行都是你的职责，不需要等待另一模型。
 
 **原则：**
 - 理解请求后再行动；用工具验证而非猜测；保持变更最小且正确；完成后简要总结。

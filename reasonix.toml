@@ -10,7 +10,7 @@ default_model = "deepseek-flash"
 # system_prompt = """..."""   # omit to use the built-in prompt for this version
 # system_prompt_file = "prompts/system.md"   # overrides system_prompt when set
 # max_steps         = 0   # executor tool-call rounds; 0 = no limit
-# planner_max_steps = 12   # planner read-only tool-call rounds; 0 = no limit
+# 单模型架构：不再有独立规划者。max_steps 限制总工具轮次。
 temperature       = 0.0
 auto_plan   = "off"   # off|on; off keeps plan mode manual
 # reasoning_language = "zh"   # visible reasoning language: auto|zh|en
@@ -21,7 +21,7 @@ compact_force_ratio = 0.9   # force compacting at this high-water mark
 # keep                = ["errors"]   # compaction keep policy: errors, user_marked
 # recent_keep         = 2   # minimum recent messages kept verbatim
 cold_resume_prune   = true   # elide stale tool results when reopening a session past the provider cache window
-# planner_model = "mimo"   # optional: enable two-model collaboration
+# 单模型架构：规划与执行由同一模型完成，无需 planner_model。
 # subagent_model = "deepseek-pro"   # optional default for runAs=subagent skills
 # subagent_models = { review = "deepseek-pro", security_review = "deepseek-pro" }   # per-skill overrides
 # subagent_effort = "high"   # optional default effort for subagents

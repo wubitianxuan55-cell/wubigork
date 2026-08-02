@@ -18,7 +18,7 @@ import (
 )
 
 // ── gaea 工程办公板块（移植自 gaeaW）─────────────────────────────
-// 独立板块：47 个工程工具 + 6 个技能 + Hermes/Hephaestus 双模型 agent。
+// 独立板块：47 个工程工具 + 6 个技能 + 单模型 agent（规划+执行一体）。
 // 模型走 gaea 模型中心（bridge provider），前端 UI + AI 双通道调用。
 
 var ga = &gaeaRuntime{}
@@ -64,7 +64,7 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	sink := event.FuncSink(func(e event.Event) {
 		a.emit("gaea-event", gaeaEventMap(e))
 	})
-	// 构建 controller（Hermes 规划 + Hephaestus 执行）
+	// 构建 controller（单模型 agent）
 	//    SessionDir 必须指向工作区会话目录（cwd/.gaea/sessions），与
 	//    GaeaListSessions/GaeaResumeSession 的读取路径一致，否则历史面板
 	//    永远看不到当前会话（会落到用户级 AppData/Roaming/gaea/sessions）。

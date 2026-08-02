@@ -35,20 +35,6 @@ func (c *Config) SetDefaultModel(name string) error {
 	return nil
 }
 
-// SetPlannerModel sets (or, with "", clears) agent.planner_model for two-model
-// collaboration. A non-empty name must be a configured provider.
-func (c *Config) SetPlannerModel(name string) error {
-	if name == "" {
-		c.Agent.PlannerModel = ""
-		return nil
-	}
-	if _, ok := c.ResolveModel(name); !ok {
-		return fmt.Errorf("set planner: no provider %q (configured: %s)", name, c.providerNames())
-	}
-	c.Agent.PlannerModel = name
-	return nil
-}
-
 // SetSubagentModel sets (or, with "", clears) agent.subagent_model — the default
 // model for sub-agents (task tool and runAs=subagent skills). An empty string
 // means the sub-agent inherits the parent's execution provider. A non-empty name
@@ -121,9 +107,6 @@ func (c *Config) RemoveProvider(name string) error {
 		return fmt.Errorf("remove provider: %q is the default model — set a different default_model first", name)
 	}
 	c.Providers = append(c.Providers[:idx], c.Providers[idx+1:]...)
-	if c.Agent.PlannerModel == name || strings.HasPrefix(c.Agent.PlannerModel, name+"/") {
-		c.Agent.PlannerModel = ""
-	}
 	return nil
 }
 

@@ -29,8 +29,7 @@ export interface ControllerState {
   turnStartAt: number; turnTokens: number; seq: number;
   sessionTotal: number;
   perTurnUsage: WireUsage | null | undefined; // V5.30: whole-turn accumulated usage
-  perTurnPlannerUsage?: WireUsage;  // V10.31: planner model usage only
-  perTurnExecutorUsage?: WireUsage; // V10.31: executor (main) model usage only
+  perTurnExecutorUsage?: WireUsage; // 执行模型 usage
   perTurnSubUsage?: WireUsage;      // V10.22: subagent usage only
   turnSteps: WireUsage[]; // V5.31: raw per-step usage within current turn
   sessionNonce: number; // V5.25: 每次新建/恢复会话递增，确保统计面板按会话区分
@@ -60,7 +59,7 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
   if (s.discardTurn) { if (e.kind === "turn_done") return { ...s, discardTurn: false, running: false, turnActive: false, currentAssistant: undefined }; return s; }
   if (s.pendingUser !== undefined && e.kind !== "turn_started" && e.kind !== "turn_done") s = flushPendingUser(s);
   switch (e.kind) {
-    case "turn_started": return { ...s, running: true, turnActive: true, currentAssistant: undefined, lastAssistantIdx: -1, turnStartAt: Date.now(), turnTokens: 0, perTurnUsage: null, perTurnPlannerUsage: undefined, perTurnExecutorUsage: undefined, perTurnSubUsage: undefined, turnSteps: [] };
+    case "turn_started": return { ...s, running: true, turnActive: true, currentAssistant: undefined, lastAssistantIdx: -1, turnStartAt: Date.now(), turnTokens: 0, perTurnUsage: null, perTurnExecutorUsage: undefined, perTurnSubUsage: undefined, turnSteps: [] };
     case "text": case "reasoning": {
       // O(1) 查找最后一个 assistant 项：用 lastAssistantIdx 避免流式时每 chunk O(n) 扫描。
       // 若最后 assistant 已终结（上一轮 turn_done 已将 streaming 置 false）且当前轮活跃，
@@ -149,11 +148,10 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
         sessionCacheMissTokens: u.sessionCacheMissTokens > 0 ? u.sessionCacheMissTokens : (s.perTurnUsage?.sessionCacheMissTokens ?? 0),
         costUsd: (s.perTurnUsage.costUsd ?? 0) + (u.costUsd ?? 0),
       } : u;
-      // V10.31: split by source — planner / executor / subagent
-      const isPlanner = u?.source === "planner";
+      // split by source — executor / subagent
       const isSub = u?.source === "subagent";
-      const isExecutor = u && !isPlanner && !isSub; // "main" or legacy without source
-      const prevPlanner = s.perTurnPlannerUsage, prevExecutor = s.perTurnExecutorUsage, prevSub = s.perTurnSubUsage;
+      const isExecutor = u && !isSub; // "main", "executor" or legacy without source
+      const prevExecutor = s.perTurnExecutorUsage, prevSub = s.perTurnSubUsage;
       const accSrc = (prev?: WireUsage, cur?: WireUsage) => !cur ? prev : !prev ? cur : {
         promptTokens: prev.promptTokens + cur.promptTokens,
         completionTokens: prev.completionTokens + cur.completionTokens,
@@ -165,7 +163,7 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
         costUsd: (prev.costUsd ?? 0) + (cur.costUsd ?? 0),
       };
       const tagged = u ? { ...u } : undefined; const steps = tagged ? [...s.turnSteps, tagged] : s.turnSteps;
-      return { ...s, usage: tagged, perTurnUsage: acc, perTurnPlannerUsage: accSrc(prevPlanner, isPlanner ? u : undefined), perTurnExecutorUsage: accSrc(prevExecutor, isExecutor ? u : undefined), perTurnSubUsage: accSrc(prevSub, isSub ? u : undefined), turnSteps: steps, context: { ...s.context, used }, turnTokens: s.turnTokens + (tagged?.completionTokens ?? 0) };
+      return { ...s, usage: tagged, perTurnUsage: acc, perTurnExecutorUsage: accSrc(prevExecutor, isExecutor ? u : undefined), perTurnSubUsage: accSrc(prevSub, isSub ? u : undefined), turnSteps: steps, context: { ...s.context, used }, turnTokens: s.turnTokens + (tagged?.completionTokens ?? 0) };
     }
     case "notice": return { ...s, running: s.turnActive ? s.running : false, seq: s.seq + 1, items: [...s.items, { kind: "notice", id: `n${s.seq}`, level: e.level ?? "info", text: e.text ?? "" }] };
     case "phase": return { ...s, seq: s.seq + 1, items: [...s.items, { kind: "phase", id: `p${s.seq}`, text: e.text ?? "" }] };
@@ -203,7 +201,7 @@ function reducer(s: ControllerState, a: Action): ControllerState {
 const initialState: ControllerState = {
   items: [], running: false, turnActive: false,
   approval: undefined, ask: undefined, usage: undefined,
-  context: { used: 0, window: 0, plannerUsed: 0, plannerWindow: 0 }, meta: undefined, balance: undefined,
+  context: { used: 0, window: 0 }, meta: undefined, balance: undefined,
   tcca: undefined,
   jobs: [], currentAssistant: undefined, pendingUser: undefined, discardTurn: false, lastAssistantIdx: -1,
   turnStartAt: 0, turnTokens: 0, seq: 0, sessionTotal: 0, sessionNonce: 0, perTurnUsage: null, turnSteps: [],

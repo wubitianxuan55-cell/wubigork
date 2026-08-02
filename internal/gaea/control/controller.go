@@ -382,10 +382,6 @@ func (c *Controller) EnableInteractiveApproval() {
 		c.executor.SetGate(permission.NewGate(c.policy, gateApprover{c}))
 		c.executor.SetAsker(c)
 	}
-	// V10.34: wire Hermes plan confirmation — planner asks user before executing.
-	if hermes, ok := c.runner.(*agent.Hermes); ok {
-		hermes.SetAsker(c)
-	}
 }
 
 // Ask implements agent.Asker: it emits an AskRequest and blocks until
@@ -655,15 +651,6 @@ func (c *Controller) ContextSnapshot() (int, int) {
 		return 0, c.executor.ContextWindow()
 	}
 	return u.PromptTokens, c.executor.ContextWindow()
-}
-
-// PlannerContextSnapshot returns the planner's last usage and window, or zeros
-// when no planner is active (single-model mode).
-func (c *Controller) PlannerContextSnapshot() (int, int) {
-	if h, ok := c.runner.(interface{ PlannerContext() (int, int) }); ok {
-		return h.PlannerContext()
-	}
-	return 0, 0
 }
 
 // CompactRatio returns the auto-compaction threshold as a fraction of the window

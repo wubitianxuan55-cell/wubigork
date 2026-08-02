@@ -7,15 +7,12 @@ import * as App from '../../../wailsjs/go/app/App'
 
 interface DraftView {
   defaultModel: string
-  plannerModel: string
   subagentModel: string
   systemPrompt: string
   temperature: number
-  plannerTemperature: number
   subagentTemperature: number
   maxSteps: number
   effort: string
-  plannerEffort: string
   subagentEffort: string
   permMode: string
   permAllow: string
@@ -27,9 +24,9 @@ interface DraftView {
 }
 
 const emptyDraft: DraftView = {
-  defaultModel: '', plannerModel: '', subagentModel: '', systemPrompt: '',
-  temperature: 0, plannerTemperature: 0, subagentTemperature: 0, maxSteps: 0,
-  effort: '', plannerEffort: '', subagentEffort: '', permMode: 'ask', permAllow: '', permAsk: '', permDeny: '',
+  defaultModel: '', subagentModel: '', systemPrompt: '',
+  temperature: 0, subagentTemperature: 0, maxSteps: 0,
+  effort: '', subagentEffort: '', permMode: 'ask', permAllow: '', permAsk: '', permDeny: '',
   sandboxBash: 'enforce', sandboxNetwork: true, workspaceRoot: '',
 }
 
@@ -48,15 +45,12 @@ const OfficePanel: React.FC = () => {
       const sandbox = (v as any)?.sandbox || {}
       setDraft({
         defaultModel: (v as any)?.defaultModel || '',
-        plannerModel: (v as any)?.plannerModel || '',
         subagentModel: (v as any)?.subagentModel || '',
         systemPrompt: agent.systemPrompt || '',
         temperature: agent.temperature || 0,
-        plannerTemperature: agent.plannerTemperature || 0,
         subagentTemperature: agent.subagentTemperature || 0,
         maxSteps: agent.maxSteps || 0,
         effort: agent.effort || '',
-        plannerEffort: agent.plannerEffort || '',
         subagentEffort: agent.subagentEffort || '',
         permMode: perms.mode || 'ask',
         permAllow: (perms.allow || []).join(', '),
@@ -77,16 +71,13 @@ const OfficePanel: React.FC = () => {
     try {
       await (App as any).GaeaSaveSettings({
         defaultModel: draft.defaultModel,
-        plannerModel: draft.plannerModel,
         subagentModel: draft.subagentModel,
         agent: {
           systemPrompt: draft.systemPrompt,
           temperature: draft.temperature,
-          plannerTemperature: draft.plannerTemperature,
           subagentTemperature: draft.subagentTemperature,
           maxSteps: draft.maxSteps,
           effort: draft.effort,
-          plannerEffort: draft.plannerEffort,
           subagentEffort: draft.subagentEffort,
         },
         permissions: {
@@ -140,10 +131,6 @@ const OfficePanel: React.FC = () => {
             <InputNumber size="small" min={0} max={100} value={draft.maxSteps}
               onChange={(v) => setDraft({ ...draft, maxSteps: v || 0 })} style={selectStyle} />
           ), '0 = 不限制')}
-          {field('Planner 模型', (
-            <Input size="small" placeholder="如 xai / grok-4.20" value={draft.plannerModel}
-              onChange={(e) => setDraft({ ...draft, plannerModel: e.target.value })} />
-          ))}
           {field('Subagent 模型', (
             <Input size="small" placeholder="如 xai / grok-4.20" value={draft.subagentModel}
               onChange={(e) => setDraft({ ...draft, subagentModel: e.target.value })} />
@@ -160,10 +147,6 @@ const OfficePanel: React.FC = () => {
             <InputNumber size="small" min={0} max={2} step={0.05} value={draft.temperature}
               onChange={(v) => setDraft({ ...draft, temperature: v || 0 })} style={selectStyle} />
           ))}
-          {field('Planner 温度', (
-            <InputNumber size="small" min={0} max={2} step={0.05} value={draft.plannerTemperature}
-              onChange={(v) => setDraft({ ...draft, plannerTemperature: v || 0 })} style={selectStyle} />
-          ))}
           {field('Subagent 温度', (
             <InputNumber size="small" min={0} max={2} step={0.05} value={draft.subagentTemperature}
               onChange={(v) => setDraft({ ...draft, subagentTemperature: v || 0 })} style={selectStyle} />
@@ -172,12 +155,6 @@ const OfficePanel: React.FC = () => {
             <Select size="small" allowClear placeholder="提供方默认"
               value={draft.effort || undefined}
               onChange={(v) => setDraft({ ...draft, effort: v || '' })}
-              options={[{ value: 'high', label: 'high' }, { value: 'max', label: 'max' }]} style={selectStyle} />
-          ))}
-          {field('Planner 推理强度', (
-            <Select size="small" allowClear placeholder="同主推理强度"
-              value={draft.plannerEffort || undefined}
-              onChange={(v) => setDraft({ ...draft, plannerEffort: v || '' })}
               options={[{ value: 'high', label: 'high' }, { value: 'max', label: 'max' }]} style={selectStyle} />
           ))}
           {field('Subagent 推理强度', (

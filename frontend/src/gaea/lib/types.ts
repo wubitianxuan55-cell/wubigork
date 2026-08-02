@@ -137,14 +137,11 @@ export interface WorkspaceView {
 export interface ContextInfo {
   used: number;
   window: number;
-  plannerUsed: number;
-  plannerWindow: number;
 }
 
 export interface Meta {
   label: string;
   subagentLabel?: string;
-  plannerLabel?: string;
   ready: boolean;
   startupErr?: string;
   eventChannel: string;
@@ -339,16 +336,13 @@ export interface AgentView {
   temperature: number;
   maxSteps: number;
   systemPrompt: string;
-  plannerTemperature: number;
   subagentTemperature: number;
   effort: string;
-  plannerEffort: string;
   subagentEffort: string;
 }
 
 export interface SettingsView {
   defaultModel: string;
-  plannerModel: string;
   subagentModel: string;
   subagentModels: Record<string, string>; // per-skill overrides
   subagentSkills: string[]; // builtin subagent skill names

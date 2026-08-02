@@ -333,11 +333,6 @@ type AgentRunner struct {
 	// Set via SetReasoningLanguage.
 	// (Design adopted from DeepSeek-Reasonix-V1.12)
 	reasoningLanguage atomic.Value // string
-
-	// plannerMode skips executor-specific logic — turn preferences,
-	// todo rebuild, steer, repeat detection, bg cycle detection,
-	// and grace round (V10.46).
-	plannerMode bool
 }
 
 // SetActiveSchemas installs a tool subset for this session. Pass nil to revert
@@ -524,11 +519,10 @@ func New(prov provider.Provider, tools *tool.Registry, session *Session, opts Op
 		dispatcher:    opts.Dispatcher,
 		ctxMgr:        opts.CtxMgr,
 		auditFunc:     opts.AuditFunc,
-		tc:            cache.New(-1), // V5.8: session �����棬mtime У�������
-		goal:          opts.Goal,     // V6.0 P7: �ỰĿ��
+		tc:            cache.New(-1), // V5.8: session 缓存，mtime 校验器
 		disableVerify: opts.DisableVerify,
-		plannerMode:   opts.PlannerMode,
 	}
+	// V5.13: 参数风暴断路器
 	// V5.13: �������籩��·��
 	if opts.ParamStorm != nil {
 		r.paramStorm = NewParamStormBreaker(*opts.ParamStorm)

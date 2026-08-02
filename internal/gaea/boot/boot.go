@@ -60,10 +60,10 @@ type Options struct {
 	SessionDir string
 }
 
-// Build loads config, resolves the model(s), and returns a Controller wrapping a
-// single Agent, or a two-model Hermes when agent.planner_model is set. The
-// returned controller owns plugin subprocesses; call Close (via Controller.Close)
-// to release them.
+// Build loads config, resolves the model, and returns a Controller wrapping a
+// single Agent (single-model architecture; the two-model Hermes wrapper was
+// removed). The returned controller owns plugin subprocesses; call Close (via
+// Controller.Close) to release them.
 var (
 	sandboxWarnOnce sync.Once
 	bashWarnOnce   sync.Once
@@ -273,7 +273,7 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 		applyCompactToolset(reg)
 	}
 
-	execSess := agent.NewSession(compiler.SystemPrompt() + "\n\n" + agent.HephaestusPrompt)
+	execSess := agent.NewSession(compiler.SystemPrompt() + "\n\n" + agent.SingleModelPrompt)
 	executor := agent.New(execProv, reg, execSess, agent.Options{
 		MaxSteps:      maxSteps,
 		Temperature:   cfg.Agent.Temperature,
@@ -327,91 +327,9 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 	// V10.32: use provider name as label so users can distinguish models from
 	// different providers (e.g. "flash" vs "pro") even when they share the same
 	// underlying model name (e.g. both "deepseek-chat").
+	// 单模型架构：runner 即 executor，不再有 Hermes/Hephaestus 双模型包装。
 	label := entry.Name
-
-	// V10.30: two-model collaboration — when planner_model names a provider
-	// different from the executor, wrap the executor in a Hermes with its
-	// own planner session for cache stability.
-	var runner agent.Runner = executor
-	if pm := cfg.Agent.PlannerModel; pm != "" {
-		if pe, ok := cfg.ResolveModel(pm); ok {
-		if e := cfg.Agent.PlannerEffortVal(); e != "" { pe.Effort = e }
-			// If the planner model has no pricing configured, fall back to
-			// the executor's pricing so cost statistics show real values.
-			if pe.Price == nil && entry.Price != nil {
-				pe.Price = entry.Price
-			}
-			plannerProv, err := NewProvider(pe)
-			if err != nil {
-				return nil, fmt.Errorf("planner %q: %w", pm, err)
-			}
-			plannerSess := agent.NewSession(agent.HermesPrompt + "\n\n# Project context\n\n" + mem.Block())
-			// V10.32: build a read-only tool subset for the planner so it can
-			// investigate before proposing a plan (read_file, ls, csv_parse,
-			// docx_read, pdf_extract, xlsx_read, format_convert, web_search,
-			// web_fetch, memory_search, read_skill, and MCP read-only tools).
-			readOnlyReg := newReadOnlyRegistry(reg)
-
-			// V10.42: 为规划者注入只读子代理工具（task/explore/research/
-			// review/security_review）。每个子代理工具的 parentReg =
-			// readOnlyReg，确保子代理也只拿到只读工具 — headlessGate 无害。
-			plannerTaskTool := agent.NewTaskTool(plannerProv, pe.Price, readOnlyReg, maxSteps,
-				pe.ContextWindow, cfg.Agent.SubagentTemp(), config.ArchiveDir(), "", headlessGate)
-			plannerTaskTool.SetCompiler(&taskCompilerAdapter{c: compiler})
-			plannerTaskTool.SetRuntimePrompt(runtimeCtx.SystemPrompt())
-			if subRef := strings.TrimSpace(cfg.Agent.SubagentModel); subRef != "" {
-				if subEntry, ok := cfg.ResolveModel(subRef); ok {
-					if e := cfg.Agent.SubagentEffortVal(); e != "" { subEntry.Effort = e }
-					if subProv, err := NewProvider(subEntry); err == nil {
-						plannerTaskTool.SetSubagentProvider(subProv, subEntry.Price, subEntry.ContextWindow)
-					}
-				}
-			}
-			readOnlyReg.Add(plannerTaskTool)
-
-			// 只读 skillRunner — 源 registry 为 readOnlyReg，子代理工具集被限定为只读
-			plannerSkillRunner := func(sctx context.Context, sk skill.Skill, task string) (string, error) {
-				prov, price, ctxWin := plannerProv, pe.Price, pe.ContextWindow
-				if modelRef := subagentModelRef(cfg, sk); modelRef != "" {
-					if me, ok := cfg.ResolveModel(modelRef); ok {
-						if p, err := NewProvider(me); err == nil {
-							prov, price, ctxWin = p, me.Price, me.ContextWindow
-						}
-					}
-				}
-				subReg := agent.FilterRegistry(readOnlyReg, sk.AllowedTools, agent.SubagentMetaTools()...)
-				steps := maxSteps
-				if steps > 0 {
-					if steps /= 2; steps < 5 {
-						steps = 5
-					}
-				}
-				childCompiler := compiler.Fork()
-				sysPrompt := childCompiler.SystemPrompt()
-				return agent.RunSubAgent(sctx, prov, subReg, sysPrompt, sk.Body+"\n\n"+task, agent.Options{
-					MaxSteps:       steps,
-					Temperature:    cfg.Agent.Temperature,
-					Pricing:        price,
-					Gate:           headlessGate,
-					ContextWindow:  ctxWin,
-					Compaction:     agent.CompactionConfig{ArchiveDir: config.ArchiveDir()},
-					RuntimePrompt:  runtimeCtx.SystemPrompt(),
-					TemplatePrefix: lookupSubagentTemplatePrefix(sk.Name),
-					ActiveSchemas:  readOnlyReg.Schemas(),
-				}, agent.NestedSink(sctx, event.Discard), nil)
-			}
-			readOnlyReg.Add(skill.NewRunSkillTool(skillStore, plannerSkillRunner))
-			readOnlyReg.Add(skill.NewParallelSkillsTool(skillStore, plannerSkillRunner))
-			for _, t := range skill.BuiltinSubagentTools(skillStore, plannerSkillRunner) {
-				readOnlyReg.Add(t)
-			}
-
-			runner = agent.NewHermes(plannerProv, plannerSess, pe.Price, executor, cfg.Agent.PlannerTemp(), sink, readOnlyReg, 0, pe.ContextWindow, config.ArchiveDir())
-			label = entry.Name + " + planner " + pe.Name
-		} else {
-			return nil, fmt.Errorf("planner_model %q is not a configured provider", pm)
-		}
-	}
+	runner := executor
 
 	skillLayer := cache.NewSkillLayer()
 
@@ -672,48 +590,4 @@ func applyCompactToolset(reg *tool.Registry) {
 
 	// File listing: glob is redundant with ls (which supports patterns)
 	reg.HideUnlessOnly([]string{"glob"}, []string{"ls"})
-}
-
-// newReadOnlyRegistry builds a tool registry containing only the read-only tools
-// from the full registry. Used to give the planner AgentRunner powers to
-// investigate code (read_file, grep, glob, web_search, web_fetch, etc.)
-// without any write/destructive capability. MCP tools are included when their
-// ReadOnly() returns true.
-// Subagent-spawning tools (task, explore, research, review, security_review,
-// run_skill, parallel_skills) are excluded regardless of ReadOnly — the planner
-// must not spawn sub-agents that create independent API calls and evict its
-// cache prefix.
-func newReadOnlyRegistry(full *tool.Registry) *tool.Registry {
-	ro := tool.NewRegistry()
-	if full == nil {
-		return ro
-	}
-	// Subagent-spawning tools are excluded regardless of ReadOnly — the planner
-	// must not spawn sub-agents that create independent API calls and evict its
-	// cache prefix. explore/research/review/security_review report ReadOnly=true
-	// (they are conceptually read-only) but each spawns a full-toolset sub-agent
-	// that can write files through headlessGate.
-	exclude := map[string]bool{
-		"task": true, "run_skill": true, "parallel_skills": true,
-		"explore": true, "research": true, "review": true, "security_review": true,
-	}
-	for _, name := range full.Names() {
-		if exclude[name] {
-			continue
-		}
-		// 排除代码分析工具（可能从外部 MCP 服务器注入）
-		if strings.HasPrefix(name, "mcp__codegraph__") ||
-			strings.HasPrefix(name, "mcp__gitnexus__") ||
-			strings.HasPrefix(name, "lsp_") {
-			continue
-		}
-		t, ok := full.Get(name)
-		if !ok {
-			continue
-		}
-		if t.ReadOnly() {
-			ro.Add(t)
-		}
-	}
-	return ro
 }

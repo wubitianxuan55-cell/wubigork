@@ -410,10 +410,6 @@ export function GaeaSetDefaultModel(arg1) {
   return window['go']['app']['App']['GaeaSetDefaultModel'](arg1);
 }
 
-export function GaeaSetEffort(arg1) {
-  return window['go']['app']['App']['GaeaSetEffort'](arg1);
-}
-
 export function GaeaSetEngine(arg1) {
   return window['go']['app']['App']['GaeaSetEngine'](arg1);
 }
@@ -434,18 +430,6 @@ export function GaeaSetPermissionMode(arg1) {
   return window['go']['app']['App']['GaeaSetPermissionMode'](arg1);
 }
 
-export function GaeaSetPlannerEffort(arg1) {
-  return window['go']['app']['App']['GaeaSetPlannerEffort'](arg1);
-}
-
-export function GaeaSetPlannerModel(arg1) {
-  return window['go']['app']['App']['GaeaSetPlannerModel'](arg1);
-}
-
-export function GaeaSetPlannerTemperature(arg1) {
-  return window['go']['app']['App']['GaeaSetPlannerTemperature'](arg1);
-}
-
 export function GaeaSetProviderKey(arg1, arg2) {
   return window['go']['app']['App']['GaeaSetProviderKey'](arg1, arg2);
 }
@@ -458,16 +442,8 @@ export function GaeaSetSubagentEffort(arg1) {
   return window['go']['app']['App']['GaeaSetSubagentEffort'](arg1);
 }
 
-export function GaeaSetSubagentModel(arg1) {
-  return window['go']['app']['App']['GaeaSetSubagentModel'](arg1);
-}
-
 export function GaeaSetSubagentModelForSkill(arg1, arg2) {
   return window['go']['app']['App']['GaeaSetSubagentModelForSkill'](arg1, arg2);
-}
-
-export function GaeaSetSubagentTemperature(arg1) {
-  return window['go']['app']['App']['GaeaSetSubagentTemperature'](arg1);
 }
 
 export function GaeaSettings() {

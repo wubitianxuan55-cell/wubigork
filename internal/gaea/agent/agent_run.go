@@ -28,17 +28,13 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	// wrap user input with transient language preference blocks
 	// (Design adopted from DeepSeek-Reasonix-V1.12)
 	// V10.46: planner skips language wrappers — its output is a plan, not user text.
-	if !a.plannerMode {
-		input = a.withTurnPreferences(input)
-	}
+	input = a.withTurnPreferences(input)
 	a.session.Add(provider.Message{Role: provider.RoleUser, Content: input})
 
 	// rebuild canonical todo state from session history
 	// (Design adopted from DeepSeek-Reasonix-V1.12)
 	// V10.46: planner doesn't use todo_write.
-	if !a.plannerMode {
-		a.rebuildTodoState(a.session.Messages)
-	}
+	a.rebuildTodoState(a.session.Messages)
 
 	// P0-1: reset tool filter from previous turn (prefix must be immutable).
 	a.activeSchemasMu.Lock()
@@ -71,9 +67,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 
 	// recall-reminder lets the model know mid-turn context remains
 	// V10.46: planner doesn't need recall reminders.
-	if !a.plannerMode {
-		a.maybeRecallReminder()
-	}
+	a.maybeRecallReminder()
 
 	graceRound := false
 	// stream recovery + empty final detection counters
@@ -87,11 +81,9 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		// consume a queued mid-turn steer as session guidance
 		// (Design adopted from DeepSeek-Reasonix-V1.12)
 		// V10.46: planner doesn't accept mid-turn steers.
-		if !a.plannerMode {
-			if text, ok := a.consumeSteer(); ok {
-				a.session.Add(provider.Message{Role: provider.RoleUser, Content: midTurnSteerMessage(text)})
-				a.sink.Emit(event.Event{Kind: event.Steer, Text: text})
-			}
+		if text, ok := a.consumeSteer(); ok {
+			a.session.Add(provider.Message{Role: provider.RoleUser, Content: midTurnSteerMessage(text)})
+			a.sink.Emit(event.Event{Kind: event.Steer, Text: text})
 		}
 		text, reasoning, signature, calls, usage, interrupted, err := a.stream(ctx, step+1)
 		if err != nil {
@@ -325,26 +317,26 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 
 		// P0-3: mid-turn steer — detect error patterns and inject corrective hints.
 		// V10.46: planner uses read-only tools — no error spirals to correct.
-		if !a.plannerMode && a.shouldMidTurnSteer(calls, results) {
+		if a.shouldMidTurnSteer(calls, results) {
 			continue // steer injected, skip compaction and continue loop
 		}
 
 		// bg start-kill cycle — detect repeated background job start→kill
 		// without reading output, inject corrective nudge after 3 cycles.
 		// V10.46: planner never starts background jobs.
-		if !a.plannerMode && a.checkBgStartKillCycle() {
+		if a.checkBgStartKillCycle() {
 			continue
 		}
 
 		// repeat-detection — inject nudge after 3 same-tool calls
 		// V10.46: planner repeating tool calls is normal research behaviour.
-		if !a.plannerMode && a.detectRepeatedSteps(calls) {
+		if a.detectRepeatedSteps(calls) {
 			continue // nudge injected, skip compaction and continue loop
 		}
 
 		// Grace Round — when maxSteps is reached, give one extra final turn.
 		// V10.46: planner uses its own maxSteps; no grace round needed.
-		if !a.plannerMode && a.maxSteps > 0 && step+1 >= a.maxSteps && !graceRound {
+		if a.maxSteps > 0 && step+1 >= a.maxSteps && !graceRound {
 			graceRound = true
 			nudge := "Do not call any more tools — your tool-call round limit (agent.max_steps) has been reached. Instead, synthesize a final answer from all the work already completed: summarize what was accomplished, what remains to be done, and any decisions the user should make."
 			a.session.Add(provider.Message{

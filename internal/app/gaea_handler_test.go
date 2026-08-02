@@ -17,7 +17,7 @@ import (
 )
 
 // TestGaeaBootBuild 验证办公引擎核心链路：bridge provider 注册 + 配置装载 +
-// boot.Build 构建 Hermes/Hephaestus 双模型控制器。
+// boot.Build 构建单模型控制器。
 // 对应 GaeaInit 的核心逻辑（跳过 Wails runtime 的 emit 路径，避免
 // runtime.EventsEmit 在非 Wails 上下文 log.Fatal）。
 // chdir 到临时目录，避免会话/归档污染仓库（cwd/.gaea）。

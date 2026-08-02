@@ -75,7 +75,7 @@ price       = { cache_hit = 0.025, input = 3.0, output = 6.0, currency = "¥" }
 		t.Logf("Resolved provider: %q (expected deepseek-pro)", entry.Name)
 	}
 	if entry.Price == nil {
-		t.Fatal("Price is nil — planner cost will be 0. TOML 'prices' map is likely not parsed.")
+		t.Fatal("Price is nil — cost will be 0. TOML 'prices' map is likely not parsed.")
 	}
 	t.Logf("Resolved: provider=%q model=%q price=%+v",
 		entry.Name, entry.Model, entry.Price)

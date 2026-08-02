@@ -213,8 +213,6 @@ export function GaeaSetAgentParams(arg1:number,arg2:number,arg3:string):Promise<
 
 export function GaeaSetDefaultModel(arg1:string):Promise<void>;
 
-export function GaeaSetEffort(arg1:string):Promise<void>;
-
 export function GaeaSetEngine(arg1:string):Promise<void>;
 
 export function GaeaSetMCPServerEnabled(arg1:string,arg2:boolean):Promise<void>;
@@ -225,23 +223,13 @@ export function GaeaSetPermLevel(arg1:string):Promise<void>;
 
 export function GaeaSetPermissionMode(arg1:string):Promise<void>;
 
-export function GaeaSetPlannerEffort(arg1:string):Promise<void>;
-
-export function GaeaSetPlannerModel(arg1:string):Promise<void>;
-
-export function GaeaSetPlannerTemperature(arg1:number):Promise<void>;
-
 export function GaeaSetProviderKey(arg1:string,arg2:string):Promise<void>;
 
 export function GaeaSetSandbox(arg1:string,arg2:boolean,arg3:string,arg4:Array<string>):Promise<void>;
 
 export function GaeaSetSubagentEffort(arg1:string):Promise<void>;
 
-export function GaeaSetSubagentModel(arg1:string):Promise<void>;
-
 export function GaeaSetSubagentModelForSkill(arg1:string,arg2:string):Promise<void>;
-
-export function GaeaSetSubagentTemperature(arg1:number):Promise<void>;
 
 export function GaeaSettings():Promise<app.SettingsView>;
 

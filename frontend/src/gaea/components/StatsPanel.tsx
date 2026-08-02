@@ -161,8 +161,8 @@ export function useStatsPersistence(
 }
 
 // ─── 统计表格 ─────────────────────────────────────────────
-function StatsTable({ title, planner, executor, sub, total, collapsed }: {
-  title: string; planner: ColStats; executor: ColStats; sub: ColStats; total: ColStats;
+function StatsTable({ title, executor, sub, total, collapsed }: {
+  title: string; executor: ColStats; sub: ColStats; total: ColStats;
   collapsed?: boolean;
 }) {
   // ── collapsed: summary only ──
@@ -212,7 +212,6 @@ function StatsTable({ title, planner, executor, sub, total, collapsed }: {
         <thead>
           <tr className="text-fg-faint border-b border-border-soft">
             <th className="text-left font-semibold pb-1 text-[10px] uppercase tracking-wider text-fg-faint" style={{width:"28%"}}>{title}</th>
-            <th className="text-right font-normal pb-1" style={{width:"24%"}}>规划</th>
             <th className="text-right font-normal pb-1" style={{width:"24%"}}>执行</th>
             <th className="text-right font-normal pb-1" style={{width:"24%"}}>子代理</th>
           </tr>
@@ -220,7 +219,6 @@ function StatsTable({ title, planner, executor, sub, total, collapsed }: {
         <tbody>
           {rows.map((row) => {
             const isHitRow = row.label === "缓存命中";
-            const pRate = isHitRow && planner.cacheHit + planner.cacheMiss > 0 ? (planner.cacheHit / (planner.cacheHit + planner.cacheMiss) * 100) : 0;
             const eRate = isHitRow && executor.cacheHit + executor.cacheMiss > 0 ? (executor.cacheHit / (executor.cacheHit + executor.cacheMiss) * 100) : 0;
             const sRate = isHitRow && sub.cacheHit + sub.cacheMiss > 0 ? (sub.cacheHit / (sub.cacheHit + sub.cacheMiss) * 100) : 0;
             return (
@@ -228,8 +226,8 @@ function StatsTable({ title, planner, executor, sub, total, collapsed }: {
                 <td className="py-1 text-fg-dim">{row.label}</td>
                 {isHitRow ? (
                   <>
-                    <td className={`py-1 text-right font-mono tabular-nums font-bold ${hitRateColor(pRate)}`}>
-                      {planner.cacheHit + planner.cacheMiss > 0 ? `${pRate.toFixed(2)}%` : "—"}
+                    <td className={`py-1 text-right font-mono tabular-nums font-bold ${hitRateColor(eRate)}`}>
+                      {executor.cacheHit + executor.cacheMiss > 0 ? `${eRate.toFixed(2)}%` : "—"}
                     </td>
                     <td className={`py-1 text-right font-mono tabular-nums font-bold ${hitRateColor(eRate)}`}>
                       {executor.cacheHit + executor.cacheMiss > 0 ? `${eRate.toFixed(2)}%` : "—"}
@@ -240,7 +238,6 @@ function StatsTable({ title, planner, executor, sub, total, collapsed }: {
                   </>
                 ) : (
                   <>
-                    <td className="py-1 text-right font-mono tabular-nums">{row.render(planner)}</td>
                     <td className="py-1 text-right font-mono tabular-nums">{row.render(executor)}</td>
                     <td className="py-1 text-right font-mono tabular-nums">{row.render(sub)}</td>
                   </>
@@ -390,12 +387,12 @@ function TokenTrendChart({ history }: { history: TurnRecord[] }) {
 // 纯展示组件，不再管理 localStorage 持久化。
 // 持久化由 App 层调用 useStatsPersistence 负责。
 
-export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCounts, skillCounts, perTurnPlannerUsage, perTurnExecutorUsage, perTurnSubUsage }: {
+export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCounts, skillCounts, perTurnExecutorUsage, perTurnSubUsage }: {
   data: StoredData;
   clearData: () => void;
   turnSteps?: WireUsage[]; subagentModel?: string;
   toolCounts: Record<string, number>; skillCounts: Record<string, number>;
-  perTurnPlannerUsage?: WireUsage; perTurnExecutorUsage?: WireUsage; perTurnSubUsage?: WireUsage;
+  perTurnExecutorUsage?: WireUsage; perTurnSubUsage?: WireUsage;
 }) {
   const { turns: history, steps: stepHistory } = data;
   const [sessionExpanded, setSessionExpanded] = useState(false);
@@ -404,31 +401,28 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
   // ── stats computation ──────────────────────────────────
 
   // session-level: aggregate from localStorage stepHistory, split by source
-  const plannerSteps = stepHistory.filter(s => s.source === "planner");
   const executorSteps = stepHistory.filter(s => s.source === "main" || s.source === "executor" || !s.source);
   const subSteps = stepHistory.filter(s => s.source === "subagent");
-  const sessPlanner = useMemo(() => aggSteps(plannerSteps), [plannerSteps]);
   const sessExecutor = useMemo(() => aggSteps(executorSteps), [executorSteps]);
   const sessSub = useMemo(() => aggSteps(subSteps), [subSteps]);
   const sessTotal = useMemo(() => ({
-    prompt: sessPlanner.prompt + sessExecutor.prompt + sessSub.prompt,
-    completion: sessPlanner.completion + sessExecutor.completion + sessSub.completion,
-    cacheHit: sessPlanner.cacheHit + sessExecutor.cacheHit + sessSub.cacheHit,
-    cacheMiss: sessPlanner.cacheMiss + sessExecutor.cacheMiss + sessSub.cacheMiss,
-    cost: sessPlanner.cost + sessExecutor.cost + sessSub.cost,
-  }), [sessPlanner, sessExecutor, sessSub]);
+    prompt: sessExecutor.prompt + sessSub.prompt,
+    completion: sessExecutor.completion + sessSub.completion,
+    cacheHit: sessExecutor.cacheHit + sessSub.cacheHit,
+    cacheMiss: sessExecutor.cacheMiss + sessSub.cacheMiss,
+    cost: sessExecutor.cost + sessSub.cost,
+  }), [sessExecutor, sessSub]);
 
   // turn-level: from store accumulators
-  const turnPlanner = useMemo(() => colFromUsage(perTurnPlannerUsage), [perTurnPlannerUsage]);
   const turnExecutor = useMemo(() => colFromUsage(perTurnExecutorUsage), [perTurnExecutorUsage]);
   const turnSub = useMemo(() => colFromUsage(perTurnSubUsage), [perTurnSubUsage]);
   const turnTotal = useMemo(() => ({
-    prompt: turnPlanner.prompt + turnExecutor.prompt + turnSub.prompt,
-    completion: turnPlanner.completion + turnExecutor.completion + turnSub.completion,
-    cacheHit: turnPlanner.cacheHit + turnExecutor.cacheHit + turnSub.cacheHit,
-    cacheMiss: turnPlanner.cacheMiss + turnExecutor.cacheMiss + turnSub.cacheMiss,
-    cost: turnPlanner.cost + turnExecutor.cost + turnSub.cost,
-  }), [turnPlanner, turnExecutor, turnSub]);
+    prompt: turnExecutor.prompt + turnSub.prompt,
+    completion: turnExecutor.completion + turnSub.completion,
+    cacheHit: turnExecutor.cacheHit + turnSub.cacheHit,
+    cacheMiss: turnExecutor.cacheMiss + turnSub.cacheMiss,
+    cost: turnExecutor.cost + turnSub.cost,
+  }), [turnExecutor, turnSub]);
 
   const lastStep = stepHistory[stepHistory.length - 1];
   const hasAnyData = history.length > 0 || stepHistory.length > 0;
@@ -449,7 +443,7 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
         <div className="cursor-pointer select-none" onClick={() => setSessionExpanded(!sessionExpanded)}>
           <StatsTable
             title={`会话 (${history.length}轮·${stepHistory.length}步)`}
-            planner={sessPlanner} executor={sessExecutor} sub={sessSub} total={sessTotal}
+            executor={sessExecutor} sub={sessSub} total={sessTotal}
             collapsed={!sessionExpanded}
           />
         </div>
@@ -458,10 +452,10 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
 
         {/* ── 本轮级统计表格 ── */}
 
-        {(perTurnPlannerUsage || perTurnExecutorUsage || perTurnSubUsage) && (
+        {(perTurnExecutorUsage || perTurnSubUsage) && (
           <>
             <div className="cursor-pointer select-none" onClick={() => setTurnExpanded(!turnExpanded)}>
-              <StatsTable title={`本轮 (${turnSteps?.length || 0}步)`} planner={turnPlanner} executor={turnExecutor} sub={turnSub} total={turnTotal} collapsed={!turnExpanded} />
+              <StatsTable title={`本轮 (${turnSteps?.length || 0}步)`} executor={turnExecutor} sub={turnSub} total={turnTotal} collapsed={!turnExpanded} />
             </div>
             {turnExpanded && (<div className="text-[10px] text-fg-faint text-center -mt-2 mb-1">▲ 点击收起明细</div>)}
             {!turnExpanded && (<div className="text-[10px] text-fg-faint text-center -mt-2 mb-1">▼ 点击展开明细</div>)}
@@ -474,8 +468,8 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
             <div className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">
               当前步 #{lastStep.step}
               {lastStep.source && (
-                <span className={`ml-2 text-[9px] px-1 rounded ${lastStep.source === "subagent" ? "bg-warn-soft text-warning" : lastStep.source === "planner" ? "bg-accent-soft/50 text-accent/80" : "bg-accent-soft text-accent"}`}>
-                  {lastStep.source === "subagent" ? "子代理" : lastStep.source === "planner" ? "规划模型" : "执行模型"}
+                <span className={`ml-2 text-[9px] px-1 rounded ${lastStep.source === "subagent" ? "bg-warn-soft text-warning" : "bg-accent-soft text-accent"}`}>
+                  {lastStep.source === "subagent" ? "子代理" : "执行模型"}
                 </span>
               )}
             </div>
@@ -496,11 +490,8 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
           </div>
         )}
 
-        {/* ── 命中率趋势（规划）── */}
-        <HitRateTrend steps={plannerSteps} title="命中率趋势 · Hermes" color="var(--accent)" callCount={plannerSteps.length} />
-
         {/* ── 命中率趋势（执行）── */}
-        <HitRateTrend steps={executorSteps} title="命中率趋势 · Hephaestus" color="#3b82f6" callCount={executorSteps.length} />
+        <HitRateTrend steps={executorSteps} title="命中率趋势 · 执行模型" color="#3b82f6" callCount={executorSteps.length} />
 
         {/* ── 命中率趋势（子代理）── */}
         <HitRateTrend steps={subSteps} title={`命中率趋势 · ${subagentModel || "子代理"}`} color="var(--warn)" callCount={subSteps.length} />

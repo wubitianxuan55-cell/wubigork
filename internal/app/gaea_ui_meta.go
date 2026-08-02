@@ -18,10 +18,8 @@ import (
 
 // ContextInfo 是提示词 vs 上下文窗口的仪表读数。
 type ContextInfo struct {
-	Used          int `json:"used"`
-	Window        int `json:"window"`
-	PlannerUsed   int `json:"plannerUsed"`
-	PlannerWindow int `json:"plannerWindow"`
+	Used   int `json:"used"`
+	Window int `json:"window"`
 }
 
 // BalanceInfo 是状态栏的钱包余额读数。
@@ -44,7 +42,6 @@ type JobView struct {
 type Meta struct {
 	Label         string `json:"label"`
 	SubagentLabel string `json:"subagentLabel,omitempty"`
-	PlannerLabel  string `json:"plannerLabel,omitempty"`
 	Ready         bool   `json:"ready"`
 	StartupErr    string `json:"startupErr,omitempty"`
 	EventChannel  string `json:"eventChannel"`
@@ -201,8 +198,7 @@ func (a *App) GaeaContext() ContextInfo {
 		return ContextInfo{}
 	}
 	used, window := c.ContextSnapshot()
-	pUsed, pWindow := c.PlannerContextSnapshot()
-	return ContextInfo{Used: used, Window: window, PlannerUsed: pUsed, PlannerWindow: pWindow}
+	return ContextInfo{Used: used, Window: window}
 }
 
 // GaeaTCCAReport 返回 TCCA 缓存指标 JSON 字符串。

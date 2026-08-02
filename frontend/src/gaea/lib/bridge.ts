@@ -135,16 +135,11 @@ export interface AppBindings {
   RemovePermissionRule(list: string, rule: string): Promise<void>;
   SetSandbox(bash: string, network: boolean, workspaceRoot: string, allowWrite: string[]): Promise<void>;
   SetAgentParams(temperature: number, maxSteps: number, systemPrompt: string): Promise<void>;
-  // SetPlannerTemperature sets the planner-specific temperature override.
-  // 0 means "use the global temperature".
-  SetPlannerTemperature(temp: number): Promise<void>;
   // SetSubagentTemperature sets the subagent-specific temperature override.
   // 0 means "use the global temperature".
   SetSubagentTemperature(temp: number): Promise<void>;
   // SetEffort sets the reasoning effort for the executor. "" = provider default.
   SetEffort(effort: string): Promise<void>;
-  // SetPlannerEffort sets the reasoning effort for Hermes. "" = inherit from Effort.
-  SetPlannerEffort(effort: string): Promise<void>;
   // SetSubagentEffort sets the reasoning effort for sub-agents. "" = inherit from Effort.
   SetSubagentEffort(effort: string): Promise<void>;
   // SetSubagentModel sets the default model for spawned sub-agents. An empty string
@@ -153,8 +148,6 @@ export interface AppBindings {
   // SetSubagentModelForSkill sets a per-skill sub-agent model override.
   // skill is one of explore|research|review|security-review. Empty ref = inherit.
   SetSubagentModelForSkill(skill: string, ref: string): Promise<void>;
-  // SetPlannerModel sets (or, with "", clears) the two-model planner.
-  SetPlannerModel(ref: string): Promise<void>;
   // SetPermLevel controls permission strictness: "ask" (default, prompt before writes),
   // "auto" (allow writes without asking), or "yolo" (skip all prompts).
   SetPermLevel(level: string): Promise<void>;
@@ -297,14 +290,11 @@ const gaeaToGaea: Record<string, string> = {
   RemovePermissionRule: "GaeaRemovePermissionRule",
   SetSandbox: "GaeaSetSandbox",
   SetAgentParams: "GaeaSetAgentParams",
-  SetPlannerTemperature: "GaeaSetPlannerTemperature",
   SetSubagentTemperature: "GaeaSetSubagentTemperature",
   SetEffort: "GaeaSetEffort",
-  SetPlannerEffort: "GaeaSetPlannerEffort",
   SetSubagentEffort: "GaeaSetSubagentEffort",
   SetSubagentModel: "GaeaSetSubagentModel",
   SetSubagentModelForSkill: "GaeaSetSubagentModelForSkill",
-  SetPlannerModel: "GaeaSetPlannerModel",
   SetPermLevel: "GaeaSetPermLevel",
   Version: "GaeaVersion",
   CheckUpdate: "GaeaCheckUpdate",

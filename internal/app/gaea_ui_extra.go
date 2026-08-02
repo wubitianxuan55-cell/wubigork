@@ -55,17 +55,14 @@ type AgentView struct {
 	Temperature         float64 `json:"temperature"`
 	MaxSteps            int     `json:"maxSteps"`
 	SystemPrompt        string  `json:"systemPrompt"`
-	PlannerTemperature  float64 `json:"plannerTemperature"`
 	SubagentTemperature float64 `json:"subagentTemperature"`
 	Effort              string  `json:"effort"`
-	PlannerEffort       string  `json:"plannerEffort"`
 	SubagentEffort      string  `json:"subagentEffort"`
 }
 
 // SettingsView 是设置面板完整负载。
 type SettingsView struct {
 	DefaultModel   string            `json:"defaultModel"`
-	PlannerModel   string            `json:"plannerModel"`
 	SubagentModel  string            `json:"subagentModel"`
 	SubagentModels map[string]string `json:"subagentModels"`
 	SubagentSkills []string          `json:"subagentSkills"`
@@ -117,12 +114,9 @@ func (a *App) GaeaSettings() SettingsView {
 		MaxSteps:            cfg.Agent.MaxSteps,
 		SystemPrompt:        cfg.Agent.SystemPrompt,
 		Effort:              cfg.Agent.Effort,
-		PlannerEffort:       cfg.Agent.PlannerEffort,
 		SubagentEffort:      cfg.Agent.SubagentEffort,
-		PlannerTemperature:  cfg.Agent.PlannerTemperature,
 		SubagentTemperature: cfg.Agent.SubagentTemperature,
 	}
-	view.PlannerModel = cfg.Agent.PlannerModel
 	view.SubagentModel = cfg.Agent.SubagentModel
 	view.SubagentModels = cfg.Agent.SubagentModels
 	view.ConfigPath = gaeaConfig.UserConfigPath()
@@ -170,9 +164,6 @@ func (a *App) GaeaSaveSettings(view SettingsView) error {
 		if view.DefaultModel != "" {
 			cfg.DefaultModel = view.DefaultModel
 		}
-		if view.PlannerModel != "" {
-			cfg.Agent.PlannerModel = view.PlannerModel
-		}
 		if view.SubagentModel != "" {
 			cfg.Agent.SubagentModel = view.SubagentModel
 		}
@@ -185,17 +176,11 @@ func (a *App) GaeaSaveSettings(view SettingsView) error {
 		if view.Agent.Temperature > 0 {
 			cfg.Agent.Temperature = view.Agent.Temperature
 		}
-		if view.Agent.PlannerTemperature > 0 {
-			cfg.Agent.PlannerTemperature = view.Agent.PlannerTemperature
-		}
 		if view.Agent.SubagentTemperature > 0 {
 			cfg.Agent.SubagentTemperature = view.Agent.SubagentTemperature
 		}
 		if view.Agent.Effort != "" {
 			cfg.Agent.Effort = view.Agent.Effort
-		}
-		if view.Agent.PlannerEffort != "" {
-			cfg.Agent.PlannerEffort = view.Agent.PlannerEffort
 		}
 		if view.Agent.SubagentEffort != "" {
 			cfg.Agent.SubagentEffort = view.Agent.SubagentEffort
@@ -356,36 +341,11 @@ func (a *App) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt
 	})
 }
 
-// GaeaSetPlannerTemperature 设置规划模型温度。
-func (a *App) GaeaSetPlannerTemperature(temp float64) error {
-	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.PlannerTemperature = temp })
-}
-
-// GaeaSetSubagentTemperature 设置子代理温度。
-func (a *App) GaeaSetSubagentTemperature(temp float64) error {
-	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.SubagentTemperature = temp })
-}
-
-// GaeaSetEffort 设置执行模型推理强度。
-func (a *App) GaeaSetEffort(effort string) error {
-	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.Effort = effort })
-}
-
-// GaeaSetPlannerEffort 设置规划模型推理强度。
-func (a *App) GaeaSetPlannerEffort(effort string) error {
-	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.PlannerEffort = effort })
-}
-
 // GaeaSetSubagentEffort 设置子代理推理强度。
 func (a *App) GaeaSetSubagentEffort(effort string) error {
 	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.SubagentEffort = effort })
 }
-
-// GaeaSetSubagentModel 设置子代理模型。
-func (a *App) GaeaSetSubagentModel(ref string) error {
-	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.SubagentModel = ref })
-}
-
+// GaeaSetSubagentModelForSkill 设置指定技能的子代理模型。
 // GaeaSetSubagentModelForSkill 设置指定技能的子代理模型。
 func (a *App) GaeaSetSubagentModelForSkill(skill, ref string) error {
 	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
@@ -396,10 +356,7 @@ func (a *App) GaeaSetSubagentModelForSkill(skill, ref string) error {
 	})
 }
 
-// GaeaSetPlannerModel 设置规划模型。
-func (a *App) GaeaSetPlannerModel(ref string) error {
-	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.PlannerModel = ref })
-}
+// appendUnique 追加元素（去重）。
 
 // appendUnique 追加元素（去重）。
 func appendUnique(list []string, v string) []string {
