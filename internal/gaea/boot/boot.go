@@ -23,6 +23,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/command"
 	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/db"
 	tiancontext "github.com/gaea/gaea/internal/gaea/context"
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/event"
@@ -193,7 +194,7 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 	// The `remember` tool lets the model persist durable facts to the project's
 	// auto-memory store; `forget` prunes ones that turn out wrong. The saved index
 	// loads into the prefix on the next session.
-	reg.Add(memory.NewRememberTool(mem.Store))
+	reg.Add(memory.NewRememberTool(mem.Store, memory.NewProfileStore(db.GetDatabase(config.MemoryUserDir()))))
 	reg.Add(memory.NewForgetTool(mem.Store))
 	reg.Add(memory.NewPromoteSessionFactsTool())
 	reg.Add(memory.NewMemoryGetTool(mem.Store))

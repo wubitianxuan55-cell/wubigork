@@ -12,12 +12,19 @@ import (
 // It is stateful (bound to one project's Store), so boot constructs it and adds
 // it to the registry — the same pattern as the task tool — rather than
 // self-registering as a stateless built-in.
-type rememberTool struct{ store Store }
+type rememberTool struct {
+	store   Store
+	profile *ProfileStore // 主脑全局画像（type=user 时路由到这里）
+}
 
-// NewRememberTool returns the `remember` tool bound to store. A zero/disabled
-// store yields a tool that reports the store is unavailable rather than silently
+// NewRememberTool returns the `remember` tool bound to store. When profile is
+// non-nil, Type=user facts are routed to the main-brain profile table
+// (cross-agent shared) instead of the project facts. A zero/disabled store
+// yields a tool that reports the store is unavailable rather than silently
 // dropping saves.
-func NewRememberTool(store Store) tool.Tool { return rememberTool{store: store} }
+func NewRememberTool(store Store, profile *ProfileStore) tool.Tool {
+	return rememberTool{store: store, profile: profile}
+}
 
 func (rememberTool) Name() string { return "remember" }
 
@@ -100,7 +107,17 @@ func (t rememberTool) Execute(ctx context.Context, args json.RawMessage) (string
 		return fmt.Sprintf("Saved to session memory (\"%s\"). It applies this session. Call promote_session_facts to make it permanent.", slug(name)), nil
 	}
 
-	// Permanent save: write to disk.
+	// Permanent save: Type=user routes to the main-brain profile (cross-agent
+	// shared user portrait); everything else stays in the project facts store.
+	if t.profile != nil && NormalizeType(in.Type) == TypeUser {
+		if err := t.profile.Save(m); err != nil {
+			return "", err
+		}
+		if q, ok := QueueFromContext(ctx); ok {
+			q.QueueMemory("Saved user profile \"" + slug(name) + "\": " + oneLine(in.Description))
+		}
+		return fmt.Sprintf("Saved to global user profile (\"%s\", shared across agents): %s", slug(name), oneLine(in.Description)), nil
+	}
 	path, err := t.store.Save(m)
 	if err != nil {
 		return "", err

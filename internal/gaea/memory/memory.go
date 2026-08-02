@@ -245,11 +245,22 @@ func (s *Set) ProfileBlock() string {
 	if s == nil {
 		return ""
 	}
-	memories := s.Store.List()
 	var userFacts []string
-	for _, m := range memories {
+	seen := map[string]bool{}
+	if s.DB != nil {
+		for _, m := range NewProfileStore(s.DB).All() {
+			if d := strings.TrimSpace(m.Description); d != "" {
+				userFacts = append(userFacts, "- "+d)
+				seen[slug(m.Name)] = true
+			}
+		}
+	}
+	for _, m := range s.Store.List() {
 		if m.Kind != KindSemantic || m.Type != TypeUser {
 			continue
+		}
+		if seen[slug(m.Name)] {
+			continue // 已在主脑画像中
 		}
 		if d := strings.TrimSpace(m.Description); d != "" {
 			userFacts = append(userFacts, "- "+d)
