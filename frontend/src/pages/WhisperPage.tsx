@@ -50,6 +50,15 @@ function loadTopics(): Topic[] {
 function saveTopics(t: Topic[]) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(t)) } catch (_) {} }
 function createTopic(title: string): Topic { return { id: genTopicId(), title, messages: [], createdAt: Date.now() } }
 
+/** 快捷情绪回复（伴侣类标配，点击填入输入框） */
+const QUICK_REPLIES = [
+  { label: '💛 抱抱我', text: '能抱抱我吗，今天有点累' },
+  { label: '🌙 晚安', text: '晚安，做个好梦' },
+  { label: '😢 有点低落', text: '今天心情不太好，陪我聊聊' },
+  { label: '🎉 分享开心事', text: '告诉你一件开心的事！' },
+  { label: '🧠 深入聊聊', text: '我们来深入聊聊这个话题吧' },
+]
+
 // ─── 记忆精确分类映射（对齐后端 memory_taxonomy.go 6 domain）───
 const DOMAIN_LABELS: Record<string, string> = {
   IDENTITY: '🪪 身份', SOCIAL: '💕 社交', DAILY_LIFE: '🏠 日常',
@@ -225,14 +234,6 @@ const WhisperPage: React.FC = () => {
       setLoading(false)
     }
   }, [input, loading, activeId, activePersonality])
-
-const QUICK_REPLIES = [
-  { label: '💛 抱抱我', text: '能抱抱我吗，今天有点累' },
-  { label: '🌙 晚安', text: '晚安，做个好梦' },
-  { label: '😢 有点低落', text: '今天心情不太好，陪我聊聊' },
-  { label: '🎉 分享开心事', text: '告诉你一件开心的事！' },
-  { label: '🧠 深入聊聊', text: '我们来深入聊聊这个话题吧' },
-]
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }
   const handleCopy = async (content: string, id: string) => {
