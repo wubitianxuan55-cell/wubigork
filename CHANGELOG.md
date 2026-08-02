@@ -21,6 +21,14 @@
 - KnowledgeGraph 新增 Restore（保留原 ID/CreatedAt）+ ListAll（含新增三元组，供全量写回）
 - 验证：新增 whisper 3 测试（ConcurrentSafe/RestoreAndListAll/Query 命中）+ 集成测试扩展 KG 往返断言；go test ./... 全绿 + go vet clean + go build 全过
 
+## 「持续优化」续二 (2026-08-02)
+
+> 情节记忆接入对话上下文：EpisodicStore 并发安全 + TierB 提示注入补情节检索/触发词 boost。
+
+- EpisodicStore 并发安全：新增 sync.RWMutex（原无锁——情节生成在异步 goroutine Add + buildTierBBlock 主流程 Search，并发 append 实测丢数据）；Add/Search/ListAll/Get/Count/Latest 加锁
+- TierB 记忆上下文补全：buildTierBBlock 新增情节记忆检索（EpisodicStore.Search → 【相关记忆片段】，跨重启持久化后首次接入提示注入）+ 触发词命中事实 boost 1.5x（对齐 ackem retriever 触发词加权）
+- 验证：新增 whisper 2 测试（EpisodicStore 并发 20 goroutine 不丢数据 / TierB 情节注入）；go test ./... 全绿 + go vet clean + go build 全过
+
 ## v1.11.0「界面体验深化 · 全站重设计」(2026-08-02)
 
 > 设置中心外观细化升华（实时预览/三态显示/字体/密度/动效/强调色）+ 聊天 Markdown 消息体验 + 轻语面板 UI 重设计（角色状态头/气泡/情绪回复）+ 虚拟助手面板与角色卡详情重设计 + 轻语测试深化（21.8%）+ P3 archiveExporter 记忆归档导出。

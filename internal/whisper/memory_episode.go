@@ -7,6 +7,7 @@ package whisper
 import (
 	"math"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -14,6 +15,7 @@ import (
 
 // EpisodicStore 情节记忆存储
 type EpisodicStore struct {
+	mu       sync.RWMutex
 	episodes []Episode
 }
 
@@ -30,11 +32,15 @@ func (es *EpisodicStore) Add(ep Episode) {
 	if ep.CreatedAt.IsZero() {
 		ep.CreatedAt = time.Now()
 	}
+	es.mu.Lock()
+	defer es.mu.Unlock()
 	es.episodes = append(es.episodes, ep)
 }
 
 // Search 关键词检索（对齐 ackem episodic search）
 func (es *EpisodicStore) Search(query string, max int) []Episode {
+	es.mu.RLock()
+	defer es.mu.RUnlock()
 	now := time.Now()
 	type scored struct {
 		ep Episode
@@ -84,6 +90,8 @@ func (es *EpisodicStore) Search(query string, max int) []Episode {
 
 // ListAll 返回所有情节
 func (es *EpisodicStore) ListAll() []Episode {
+	es.mu.RLock()
+	defer es.mu.RUnlock()
 	result := make([]Episode, len(es.episodes))
 	copy(result, es.episodes)
 	return result
@@ -91,6 +99,8 @@ func (es *EpisodicStore) ListAll() []Episode {
 
 // Get 按 ID 查找
 func (es *EpisodicStore) Get(id string) *Episode {
+	es.mu.RLock()
+	defer es.mu.RUnlock()
 	for i := range es.episodes {
 		if es.episodes[i].ID == id {
 			return &es.episodes[i]
@@ -101,11 +111,15 @@ func (es *EpisodicStore) Get(id string) *Episode {
 
 // Count 情节数量
 func (es *EpisodicStore) Count() int {
+	es.mu.RLock()
+	defer es.mu.RUnlock()
 	return len(es.episodes)
 }
 
 // Latest 返回最新的情节（P2 新增）
 func (es *EpisodicStore) Latest() *Episode {
+	es.mu.RLock()
+	defer es.mu.RUnlock()
 	if len(es.episodes) == 0 {
 		return nil
 	}

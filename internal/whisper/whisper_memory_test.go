@@ -1,6 +1,7 @@
 package whisper
 
 import (
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -353,6 +354,52 @@ func TestKnowledgeGraph_RestoreAndListAll(t *testing.T) {
 	kg.Add("用户", "喜欢", "咖啡", 0.9, nil)
 	if got := kg.Size(); got != 3 {
 		t.Fatalf("Add 后 Size = %d, want 3", got)
+	}
+}
+
+// ─── memory_episode: 并发安全 ─────────────────────────────────
+
+func TestEpisodicStore_ConcurrentSafe(t *testing.T) {
+	es := NewEpisodicStore()
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			es.Add(Episode{Summary: "测试情节", DominantEmotion: "平静", EmotionalIntensity: 0.3})
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = es.Search("测试", 3)
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = es.Count()
+		}()
+	}
+	wg.Wait()
+	if got := es.Count(); got != 20 {
+		t.Fatalf("并发 Add 后 Count = %d, want 20", got)
+	}
+}
+
+// ─── orchestrator: TierB 情节记忆注入 ────────────────────────
+
+func TestOrchestrator_BuildTierBBlockIncludesEpisodes(t *testing.T) {
+	orch := NewOrchestrator("sess-t", PersonalityPresets[0])
+	orch.EpisodicStore.Add(Episode{
+		Summary: "用户说喜欢雨天散步", DominantEmotion: "开心",
+		EmotionalIntensity: 0.7, Keywords: []string{"雨"},
+	})
+	orch.FactStore.Add(MemoryFact{
+		Domain: "preference", Subcategory: "FOOD", Subject: "用户",
+		Summary: "喜欢吃辣", Weight: 2,
+	})
+	block := orch.buildTierBBlock("你喜欢雨天散步吗", 60, 1)
+	if !strings.Contains(block, "相关记忆片段") || !strings.Contains(block, "雨天散步") {
+		t.Fatalf("buildTierBBlock 应注入情节记忆片段: %s", block)
 	}
 }
 

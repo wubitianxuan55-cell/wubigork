@@ -822,6 +822,12 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 
 	facts := o.FactStore.SelectForInjection(TierBCharBudget, MinConfidenceForInjection, currentAff/100, currentAff)
 
+	// 触发词命中事实 boost 1.5x（对齐 ackem retriever 触发词加权）
+	triggerIDs := make(map[string]bool)
+	for _, f := range o.FactStore.SearchByTriggers(userMsg) {
+		triggerIDs[f.ID] = true
+	}
+
 	// v5.40: 时间感知调制 — 根据当前时间节律加权记忆排序
 	if len(facts) > 0 {
 		now := time.Now()
@@ -835,7 +841,11 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 		var ranked []scoredFact
 		boost := ComputeTemporalBoost(tCtx)
 		for _, f := range facts {
-			ranked = append(ranked, scoredFact{f, f.Weight * f.SelfRelevance * boost})
+			score := f.Weight * f.SelfRelevance * boost
+			if triggerIDs[f.ID] {
+				score *= 1.5
+			}
+			ranked = append(ranked, scoredFact{f, score})
 		}
 		sort.Slice(ranked, func(i, j int) bool { return ranked[i].score > ranked[j].score })
 
@@ -849,6 +859,18 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 
 	if kg := o.KG.BuildContextBlock(userMsg, KGCharBudget); kg != "" {
 		parts = append(parts, kg)
+	}
+
+	// 情节记忆检索（跨重启持久化后首次接入提示注入）
+	if o.EpisodicStore != nil {
+		if eps := o.EpisodicStore.Search(userMsg, 3); len(eps) > 0 {
+			var el []string
+			el = append(el, "【相关记忆片段】")
+			for _, ep := range eps {
+				el = append(el, "· "+truncStr(ep.Summary, 100))
+			}
+			parts = append(parts, strings.Join(el, "\n"))
+		}
 	}
 
 	if c := o.Recall.SelectRecallCandidate(o.FactStore, turnIndex, nil); c != nil {
