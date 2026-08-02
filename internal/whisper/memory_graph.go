@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -28,6 +29,7 @@ type Triple struct {
 
 // KnowledgeGraph 轻量知识图谱（实体倒排索引）
 type KnowledgeGraph struct {
+	mu        sync.RWMutex
 	triples   []Triple
 	entityIdx map[string][]int // entity → triple indices
 }
@@ -39,6 +41,8 @@ func NewKnowledgeGraph() *KnowledgeGraph {
 
 // Add 添加三元组
 func (kg *KnowledgeGraph) Add(subj, pred, obj string, conf float64, src []string) Triple {
+	kg.mu.Lock()
+	defer kg.mu.Unlock()
 	b := make([]byte, 8)
 	rand.Read(b)
 	t := Triple{
@@ -64,6 +68,8 @@ func (kg *KnowledgeGraph) addIdx(entity string, idx int) {
 
 // Query 文本查询（一跳），返回匹配的三元组
 func (kg *KnowledgeGraph) Query(text string, max int) []Triple {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
 	ql := strings.ToLower(text)
 	type scored struct {
 		t Triple
@@ -73,8 +79,9 @@ func (kg *KnowledgeGraph) Query(text string, max int) []Triple {
 	for _, t := range kg.triples {
 		tl := strings.ToLower(t.Subject + " " + t.Predicate + " " + t.Object)
 		s := 0.0
-		for e := range kg.entityIdx {
-			if strings.Contains(ql, e) {
+		// 实体命中：query 包含该三元组自身的 subject/object（避免全局索引误加分）
+		for _, ent := range []string{t.Subject, t.Object} {
+			if el := strings.ToLower(ent); el != "" && strings.Contains(ql, el) {
 				s += 3.0
 			}
 		}
@@ -123,5 +130,28 @@ func (kg *KnowledgeGraph) BuildContextBlock(text string, budget int) string {
 
 // Size 三元组数量
 func (kg *KnowledgeGraph) Size() int {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
 	return len(kg.triples)
+}
+
+// Restore 从持久化层灌入三元组（保留原 ID/CreatedAt，重建倒排索引）
+func (kg *KnowledgeGraph) Restore(triples []Triple) {
+	kg.mu.Lock()
+	defer kg.mu.Unlock()
+	for _, t := range triples {
+		idx := len(kg.triples)
+		kg.triples = append(kg.triples, t)
+		kg.addIdx(t.Subject, idx)
+		kg.addIdx(t.Object, idx)
+	}
+}
+
+// ListAll 返回全部三元组（供持久化全量写回）
+func (kg *KnowledgeGraph) ListAll() []Triple {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+	out := make([]Triple, len(kg.triples))
+	copy(out, kg.triples)
+	return out
 }

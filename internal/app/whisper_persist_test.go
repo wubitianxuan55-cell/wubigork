@@ -30,6 +30,7 @@ func TestWhisperMemoryPersistRoundTrip(t *testing.T) {
 		Summary: "用户分享了吃辣爱好", DominantEmotion: "开心",
 		EmotionalIntensity: 0.8, Keywords: []string{"辣", "美食"},
 	})
+	orch1.KG.Add("用户", "喜欢", "辣", 1, nil)
 	persistWhisperState(orch1)
 
 	// 会话 2（同 session）：恢复后事实/情节/退役态都在
@@ -49,6 +50,12 @@ func TestWhisperMemoryPersistRoundTrip(t *testing.T) {
 	}
 	if ep := orch2.EpisodicStore.Latest(); ep == nil || ep.Summary != "用户分享了吃辣爱好" {
 		t.Fatalf("情节内容未恢复: %+v", ep)
+	}
+	if got := orch2.KG.Size(); got != 1 {
+		t.Fatalf("恢复后知识图谱三元组 = %d, want 1", got)
+	}
+	if got := len(orch2.KG.Query("辣", 5)); got != 1 {
+		t.Fatalf("恢复后 KG 检索(辣) = %d, want 1", got)
 	}
 
 	// 多会话不互踩：会话 3 新增事实，写回后会话 1 的事实仍在（合并而非全量覆盖）

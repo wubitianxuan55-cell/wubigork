@@ -1,6 +1,7 @@
 package whisper
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
@@ -298,6 +299,60 @@ func TestFactStore_Restore(t *testing.T) {
 	fs2.Restore([]MemoryFact{{ID: "x", Domain: "d", Subcategory: "s", Subject: "u", Summary: "无状态", Status: ""}})
 	if fs2.Count() != 1 {
 		t.Error("空 status 事实应视为 active")
+	}
+}
+
+// ─── memory_graph: 并发安全 / Restore / ListAll ──────────────
+
+func TestKnowledgeGraph_ConcurrentSafe(t *testing.T) {
+	kg := NewKnowledgeGraph()
+	kg.Add("用户", "喜欢", "辣", 1, nil)
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			kg.Add("实体", "关系", "对象", 0.5, nil)
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = kg.Query("辣", 5)
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = kg.ListAll()
+		}()
+	}
+	wg.Wait()
+	if kg.Size() != 21 {
+		t.Fatalf("并发 Add 后 Size = %d, want 21", kg.Size())
+	}
+}
+
+func TestKnowledgeGraph_RestoreAndListAll(t *testing.T) {
+	kg := NewKnowledgeGraph()
+	kg.Restore([]Triple{
+		{ID: "t1", Subject: "用户", Predicate: "喜欢", Object: "辣", Confidence: 1},
+		{ID: "t2", Subject: "用户", Predicate: "职业", Object: "程序员", Confidence: 0.8},
+	})
+	if kg.Size() != 2 {
+		t.Fatalf("Restore 后 Size = %d, want 2", kg.Size())
+	}
+	// 倒排索引重建：Query 可命中
+	if got := len(kg.Query("辣", 5)); got != 1 {
+		t.Fatalf("Restore 后 Query(辣) = %d, want 1", got)
+	}
+	// ListAll 保留原 ID
+	all := kg.ListAll()
+	if len(all) != 2 || all[0].ID != "t1" || all[1].ID != "t2" {
+		t.Fatalf("ListAll 应保留原 ID: %+v", all)
+	}
+	// Add 后新三元组在 ListAll 中
+	kg.Add("用户", "喜欢", "咖啡", 0.9, nil)
+	if got := kg.Size(); got != 3 {
+		t.Fatalf("Add 后 Size = %d, want 3", got)
 	}
 }
 

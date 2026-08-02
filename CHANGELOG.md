@@ -11,6 +11,16 @@
 - 影响面：记忆中枢轻语库/总览/归档首次能读到真实数据（此前 LoadFactsFromDB 一直为空）
 - 验证：新增 whisper 2 测试（Restore/ListAll）+ app 集成测试 TestWhisperMemoryPersistRoundTrip（写入→持久化→恢复→多会话合并不互踩）；go test ./... 全绿 + go vet clean + go build 全过
 
+## 「持续优化」续 (2026-08-02)
+
+> 知识图谱贯通：KG 三元组接入 hermes.db（此前 knowledge_triples 表零调用，重启即丢）+ KnowledgeGraph 并发安全 + Query 误命中修复。
+
+- KG 三元组持久化：restoreWhisperState 加载三元组到 orch.KG（倒排索引重建）；persistWhisperState 全量写回（persistKGToDB）；hermes.db knowledge_triples 表首次有数据，跨重启知识图谱上下文（orchestrator 提示注入）生效
+- KnowledgeGraph 并发安全：新增 sync.RWMutex（原无锁——extractTriples 在异步 goroutine 写 + PreLLMTurn 主流程读，Go map 并发写读会 fatal）；Add/Query/Size 加锁
+- 修复 Query 评分 bug：原遍历全局 entityIdx 给所有三元组加分（图谱越大误命中越多）→ 改为匹配三元组自身 subject/object；单字实体（如"辣"）可命中
+- KnowledgeGraph 新增 Restore（保留原 ID/CreatedAt）+ ListAll（含新增三元组，供全量写回）
+- 验证：新增 whisper 3 测试（ConcurrentSafe/RestoreAndListAll/Query 命中）+ 集成测试扩展 KG 往返断言；go test ./... 全绿 + go vet clean + go build 全过
+
 ## v1.11.0「界面体验深化 · 全站重设计」(2026-08-02)
 
 > 设置中心外观细化升华（实时预览/三态显示/字体/密度/动效/强调色）+ 聊天 Markdown 消息体验 + 轻语面板 UI 重设计（角色状态头/气泡/情绪回复）+ 虚拟助手面板与角色卡详情重设计 + 轻语测试深化（21.8%）+ P3 archiveExporter 记忆归档导出。

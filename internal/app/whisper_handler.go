@@ -635,7 +635,7 @@ func restoreWhisperState(orch *whisper.Orchestrator) error {
 			TurnIndex: int(ti), UserText: ut, AssistantText: at,
 		})
 	}
-	// 记忆贯通：始终尝试恢复事实库与情节库（不受 state/rows 缺失影响）
+	// 记忆贯通：始终尝试恢复事实库/情节库/知识图谱（不受 state/rows 缺失影响）
 	if facts := repos.LoadFactsFromDB(orch.DataRoot); len(facts) > 0 {
 		orch.FactStore.Restore(facts)
 	}
@@ -643,6 +643,9 @@ func restoreWhisperState(orch *whisper.Orchestrator) error {
 		for _, ep := range eps {
 			orch.EpisodicStore.Add(ep)
 		}
+	}
+	if tris, err := repos.LoadTriplesFromDB(orch.DataRoot); err == nil && len(tris) > 0 {
+		orch.KG.Restore(tris)
 	}
 	return nil
 }
@@ -661,9 +664,10 @@ func persistWhisperState(orch *whisper.Orchestrator) {
 		}
 		_ = repos.SaveChatHistoryToDB(orch.DataRoot, orch.SessionID, rows)
 	}
-	// 记忆贯通：事实库合并写回（本会话事实以内存为准，保留其他会话），情节库全量写回
+	// 记忆贯通：事实库合并写回（本会话事实以内存为准，保留其他会话），情节/图谱全量写回
 	persistFactsToDB(orch)
 	persistEpisodesToDB(orch)
+	persistKGToDB(orch)
 }
 
 // persistFactsToDB 事实合并写回：本会话 ID 用内存版替换（含退役态），其他会话保留 DB 版
@@ -694,7 +698,12 @@ func persistEpisodesToDB(orch *whisper.Orchestrator) {
 	}
 }
 
-// buildRecentExchanges 从工作记忆组装近期对话对（情节生成前置输入）
+// persistKGToDB 知识图谱全量写回（三元组从 facts 派生，每会话 KG 为全局快照 + 增量）
+func persistKGToDB(orch *whisper.Orchestrator) {
+	if tris := orch.KG.ListAll(); len(tris) > 0 {
+		_ = repos.ReplaceTriplesInDB(orch.DataRoot, tris)
+	}
+}
 func buildRecentExchanges(orch *whisper.Orchestrator) []whisper.ExchangePair {
 	exs := orch.WM.GetAll(orch.SessionID)
 	pairs := make([]whisper.ExchangePair, 0, len(exs))
