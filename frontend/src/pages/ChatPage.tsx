@@ -2,15 +2,16 @@ import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Input, Button, Avatar, Typography, Tooltip, message } from 'antd'
 import {
   SendOutlined, RobotOutlined, UserOutlined, CopyOutlined, CheckOutlined,
-  MessageOutlined, SoundOutlined,
+  MessageOutlined, SoundOutlined, ReloadOutlined, CloseCircleOutlined,
 } from '@ant-design/icons'
 import ChatTopicSidebar, { type Topic } from '../components/ChatTopicSidebar'
+import ChatMarkdown from '../components/ChatMarkdown'
 import * as App from '../../wailsjs/go/app/App'
 import { C } from '../utils/theme'
 import FeatureModelBar from '../components/FeatureModelBar'
 
 export interface Message {
-  id: string; role: 'user' | 'assistant'; content: string; streaming?: boolean
+  id: string; role: 'user' | 'assistant'; content: string; streaming?: boolean; error?: boolean
 }
 interface StoredTopic {
   id: string; title: string; messages: Message[]; createdAt: number
@@ -28,6 +29,15 @@ function loadTopics(): StoredTopic[] {
 function saveTopics(topics: StoredTopic[]): void { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(topics)) } catch (_) {} }
 function createTopic(title: string): StoredTopic { return { id: generateId(), title, messages: [], createdAt: Date.now() } }
 
+const SUGGESTIONS = [
+  { icon: '💬', label: '随便聊聊', desc: '和 AI 畅聊任何话题' },
+  { icon: '🔍', label: '帮我查资料', desc: '快速搜索和整理信息' },
+  { icon: '📝', label: '写篇文章', desc: '博客、报告、文案随时生成' },
+  { icon: '💡', label: '头脑风暴', desc: '一起碰撞灵感火花' },
+  { icon: '🌐', label: '翻译内容', desc: '多语言互译，保持原意' },
+  { icon: '🧠', label: '解释概念', desc: '深入浅出地讲解知识点' },
+]
+
 const ChatPage: React.FC = () => {
   const [topics, setTopics] = useState<StoredTopic[]>(() => loadTopics())
   const [activeId, setActiveId] = useState<string>(() => loadTopics()[0]?.id || '')
@@ -36,6 +46,7 @@ const ChatPage: React.FC = () => {
   const [streamText, setStreamText] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [speakingId, setSpeakingId] = useState<string | null>(null)
+  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<any>(null)
 
@@ -45,14 +56,23 @@ const ChatPage: React.FC = () => {
 
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight }, [messages, streamText])
 
-  const handleSend = useCallback(async () => {
-    const text = input.trim(); if (!text || loading) return
+  /** 发送核心：text 必填（建议卡/重新生成复用）；replaceMsgId 存在时替换该 AI 消息（重新生成） */
+  const doSend = useCallback(async (text: string, replaceMsgId?: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || loading) return
     setInput(''); setLoading(true)
-    const userMsg: Message = { id: nextMsgId(), role: 'user', content: text }
+    const userMsg: Message = { id: nextMsgId(), role: 'user', content: trimmed }
     const aiMsg: Message = { id: nextMsgId(), role: 'assistant', content: '', streaming: true }
-    setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: [...t.messages, userMsg, aiMsg] } : t))
+
+    setTopics(prev => prev.map(t => {
+      if (t.id !== activeId) return t
+      // 重新生成：先移除被替换的旧 AI 消息
+      const base = replaceMsgId ? t.messages.filter(m => m.id !== replaceMsgId) : t.messages
+      return { ...t, messages: [...base, userMsg, aiMsg] }
+    }))
+
     try {
-      const result = await App.ChatGeneral(text)
+      const result = await App.ChatGeneral(trimmed)
       const reply = (result as any)?.reply
       if (typeof reply === 'string') {
         setStreamText('')
@@ -61,10 +81,19 @@ const ChatPage: React.FC = () => {
         setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: t.messages.map(m => m.id === aiMsg.id ? { ...aiMsg } : m) } : t))
       }
     } catch (err: any) {
-      aiMsg.content = `❌ 错误: ${err.message || err}`; aiMsg.streaming = false
+      aiMsg.content = `错误: ${err.message || err}`; aiMsg.streaming = false; aiMsg.error = true
       setTopics(prev => prev.map(t => t.id === activeId ? { ...t, messages: t.messages.map(m => m.id === aiMsg.id ? { ...aiMsg } : m) } : t))
     } finally { setLoading(false) }
-  }, [input, loading, activeId])
+  }, [loading, activeId])
+
+  const handleSend = useCallback(() => { doSend(input) }, [input, doSend])
+  const handleSuggestion = useCallback((label: string) => { doSend(label) }, [doSend])
+  const handleRegenerate = useCallback((msgId: string) => {
+    const idx = messages.findIndex(m => m.id === msgId)
+    const userMsg = messages[idx - 1]
+    if (!userMsg || userMsg.role !== 'user' || loading) return
+    doSend(userMsg.content, msgId)
+  }, [messages, loading, doSend])
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }
 
@@ -121,8 +150,8 @@ const ChatPage: React.FC = () => {
               <Typography.Text style={{ color: C('color-text'), fontSize: 24, fontWeight: 700, marginBottom: 6 }}>gaea AI</Typography.Text>
               <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 14, marginBottom: 32, textAlign: 'center', lineHeight: 1.6, maxWidth: 400 }}>你的智能 AI 助手——聊天、写作、翻译、学习，随时随地</Typography.Text>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, maxWidth: 600, width: '100%' }}>
-                {[{ icon: '💬', label: '随便聊聊', desc: '和 AI 畅聊任何话题' }, { icon: '🔍', label: '帮我查资料', desc: '快速搜索和整理信息' }, { icon: '📝', label: '写篇文章', desc: '博客、报告、文案随时生成' }, { icon: '💡', label: '头脑风暴', desc: '一起碰撞灵感火花' }, { icon: '🌐', label: '翻译内容', desc: '多语言互译，保持原意' }, { icon: '🧠', label: '解释概念', desc: '深入浅出地讲解知识点' }].map(s => (
-                  <div key={s.label} className="chat-suggestion-card" onClick={() => { setInput(s.label); inputRef.current?.focus() }} style={{ padding: '14px 16px', borderRadius: 14, background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))', WebkitBackdropFilter: 'blur(12px) saturate(130%)', backdropFilter: 'blur(12px) saturate(130%)', border: '1px solid var(--md-sys-color-outline-variant)', cursor: 'pointer', transition: 'all 0.18s', userSelect: 'none' }}
+                {SUGGESTIONS.map(s => (
+                  <div key={s.label} className="chat-suggestion-card" onClick={() => handleSuggestion(s.label)} style={{ padding: '14px 16px', borderRadius: 14, background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))', WebkitBackdropFilter: 'blur(12px) saturate(130%)', backdropFilter: 'blur(12px) saturate(130%)', border: '1px solid var(--md-sys-color-outline-variant)', cursor: 'pointer', transition: 'all 0.18s', userSelect: 'none' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gaea-glow)'; e.currentTarget.style.boxShadow = '0 4px 20px color-mix(in srgb, var(--gaea-glow) 22%, transparent)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--md-sys-color-outline-variant)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)' }}>
                     <div style={{ fontSize: 20, marginBottom: 6 }}>{s.icon}</div><div style={{ color: C('color-text'), fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{s.label}</div><div style={{ color: C('color-text-secondary'), fontSize: 11, lineHeight: 1.4 }}>{s.desc}</div>
@@ -132,41 +161,81 @@ const ChatPage: React.FC = () => {
             </div>
           ) : (
             <div style={{ maxWidth: 768, margin: '0 auto', padding: '0 24px' }}>
-              {messages.map(msg => {
+              {messages.map((msg, idx) => {
                 const isUser = msg.role === 'user'
                 const isStreaming = msg.streaming && msg === streamingMsg
                 const displayContent = isStreaming ? streamText : msg.content
+                // 消息分组：与上一条同角色 → 组内紧凑间距 12px 且不重复头像；角色切换 → 组间 28px + 头像
+                const prev = messages[idx - 1]
+                const sameGroup = prev && prev.role === msg.role
+                const marginBottom = (sameGroup || idx === messages.length - 1) ? 12 : 28
+                const showAvatar = !sameGroup
                 return (
-                  <div key={msg.id} className="chat-message-item" style={{ display: 'flex', gap: 14, marginBottom: 28, flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start' }}>
-                    <Avatar size={32} icon={isUser ? <UserOutlined /> : <RobotOutlined />} style={{ background: isUser ? C('color-primary') : C('color-bg-elevated'), color: isUser ? '#fff' : C('color-text-secondary'), flexShrink: 0, marginTop: 2 }} />
+                  <div key={msg.id} className="chat-message-item" style={{ display: 'flex', gap: 14, marginBottom, flexDirection: isUser ? 'row-reverse' : 'row', alignItems: 'flex-start' }}
+                    onMouseEnter={() => setHoveredMsgId(msg.id)}
+                    onMouseLeave={() => setHoveredMsgId(null)}>
+                    {showAvatar && (
+                      <Avatar size={32} icon={isUser ? <UserOutlined /> : <RobotOutlined />} style={{ background: isUser ? C('color-primary') : C('color-bg-elevated'), color: isUser ? '#fff' : C('color-text-secondary'), flexShrink: 0, marginTop: 2 }} />
+                    )}
                     <div style={{ flex: isUser ? undefined : 1, maxWidth: isUser ? '70%' : '100%', display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-                      <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.75, fontSize: 14, wordBreak: 'break-word',
+                      {showAvatar && (
+                        <div style={{ fontSize: 11, color: C('color-text-secondary'), marginBottom: 4, marginLeft: 2 }}>
+                          {isUser ? '你' : 'gaea AI'}
+                        </div>
+                      )}
+                      <div style={{
+                        whiteSpace: msg.error || (isStreaming || isUser) ? 'pre-wrap' : undefined,
+                        lineHeight: 1.75, fontSize: 14, wordBreak: 'break-word',
                         padding: '10px 16px',
                         borderRadius: isUser ? 18 : 16,
-                        background: isUser
-                          ? `linear-gradient(135deg, ${C('color-primary')}, color-mix(in srgb, ${C('color-primary')} 78%, #000))`
-                          : 'var(--gaea-glass-bg, transparent)',
-                        color: isUser ? '#fff' : C('color-text'),
+                        background: msg.error
+                          ? 'color-mix(in srgb, var(--md-sys-color-error) 10%, transparent)'
+                          : isUser
+                            ? `linear-gradient(135deg, ${C('color-primary')}, color-mix(in srgb, ${C('color-primary')} 78%, #000))`
+                            : 'var(--gaea-glass-bg, transparent)',
+                        color: isUser ? '#fff' : msg.error ? 'var(--md-sys-color-error)' : C('color-text'),
                         WebkitBackdropFilter: isUser ? undefined : 'blur(14px) saturate(130%)',
                         backdropFilter: isUser ? undefined : 'blur(14px) saturate(130%)',
-                        border: isUser ? 'none' : '1px solid var(--md-sys-color-outline-variant)',
+                        border: isUser ? 'none' : msg.error ? '1px solid var(--md-sys-color-error)' : '1px solid var(--md-sys-color-outline-variant)',
                         borderLeft: isUser ? 'none' : '3px solid var(--gaea-glow)',
-                        boxShadow: isUser ? `0 4px 18px ${C('color-primary')}44` : '0 4px 18px rgba(0,0,0,0.10)' }}>
-                        {displayContent}{isStreaming && <span className="cursor-blink" />}
+                        boxShadow: isUser ? `0 4px 18px ${C('color-primary')}44` : '0 4px 18px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.10)',
+                      }}>
+                        {isStreaming ? (
+                          <>{displayContent}<span className="cursor-blink" /></>
+                        ) : msg.error ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <CloseCircleOutlined /> {displayContent}
+                          </span>
+                        ) : isUser ? (
+                          displayContent
+                        ) : (
+                          <ChatMarkdown text={displayContent} />
+                        )}
                       </div>
                       {msg.content && !msg.streaming && (
-                        <div style={{ display: 'flex', gap: 2, marginTop: 4 }}>
+                        <div style={{
+                          display: 'flex', gap: 2, marginTop: 4,
+                          opacity: hoveredMsgId === msg.id ? 1 : 0,
+                          transition: 'opacity 0.15s',
+                        }}>
                           <Tooltip title={copiedId === msg.id ? '已复制' : '复制'}>
                             <Button type="text" size="small" icon={copiedId === msg.id ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />}
                               onClick={() => handleCopy(msg.content, msg.id)}
-                              style={{ color: C('color-text-secondary'), opacity: 0.4, fontSize: 12, padding: '0 4px', height: 22 }} />
+                              style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
                           </Tooltip>
+                          {!isUser && !msg.error && (
+                            <Tooltip title="重新生成">
+                              <Button type="text" size="small" icon={<ReloadOutlined />}
+                                onClick={() => handleRegenerate(msg.id)}
+                                style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
+                            </Tooltip>
+                          )}
                           {!isUser && (
                             <Tooltip title={speakingId === msg.id ? '朗读中...' : '朗读'}>
                               <Button type="text" size="small" icon={<SoundOutlined />}
                                 loading={speakingId === msg.id}
                                 onClick={() => handleSpeak(msg.content, msg.id)}
-                                style={{ color: C('color-text-secondary'), opacity: 0.4, fontSize: 12, padding: '0 4px', height: 22 }} />
+                                style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
                             </Tooltip>
                           )}
                         </div>
@@ -187,7 +256,7 @@ const ChatPage: React.FC = () => {
 
         {/* 输入框 */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', padding: '0 24px 24px', pointerEvents: 'none' }}>
-          <div className="chat-input-wrap" style={{ width: '100%', maxWidth: 768, display: 'flex', alignItems: 'flex-end', gap: 6, padding: '8px 12px', background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))', WebkitBackdropFilter: 'blur(20px) saturate(150%)', backdropFilter: 'blur(20px) saturate(150%)', border: '1px solid var(--md-sys-color-outline-variant)', borderRadius: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', pointerEvents: 'auto', transition: 'border-color 0.2s, box-shadow 0.2s' }}>
+          <div className="chat-input-wrap" style={{ width: '100%', maxWidth: 768, display: 'flex', alignItems: 'flex-end', gap: 6, padding: '8px 12px', background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))', WebkitBackdropFilter: 'blur(20px) saturate(150%)', backdropFilter: 'blur(20px) saturate(150%)', border: '1px solid var(--md-sys-color-outline-variant)', borderRadius: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.10)', pointerEvents: 'auto', transition: 'border-color 0.2s, box-shadow 0.2s' }}>
             <Input.TextArea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
               placeholder="输入消息，Enter 发送 / Shift+Enter 换行" disabled={loading}
               autoSize={{ minRows: 1, maxRows: 6 }} className="chat-input-textarea"
