@@ -618,3 +618,15 @@ export function GaeaProfileSave(arg1:app.ProfileFactView):Promise<void>;
 export function GaeaWhisperMemories():Promise<Array<app.WhisperMemoryView>>;
 
 export function GaeaMemoryGraph():Promise<app.MemoryGraphView>;
+
+export function GaeaCostDelete(arg1:string):Promise<void>;
+
+export function GaeaCostGet(arg1:string):Promise<app.CostEntry>;
+
+export function GaeaCostList():Promise<Array<app.CostSummary>>;
+
+export function GaeaCostSave(arg1:app.CostEntry):Promise<void>;
+
+export function GaeaCostSearch(arg1:string,arg2:string,arg3:string):Promise<Array<app.CostSummary>>;
+
+export function GaeaProfileResolveConflict(arg1:string,arg2:string):Promise<void>;

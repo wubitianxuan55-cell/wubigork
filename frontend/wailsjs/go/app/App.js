@@ -1221,3 +1221,27 @@ export function GaeaWhisperMemories() {
 export function GaeaMemoryGraph() {
   return window['go']['app']['App']['GaeaMemoryGraph']();
 }
+
+export function GaeaCostDelete(arg1) {
+  return window['go']['app']['App']['GaeaCostDelete'](arg1);
+}
+
+export function GaeaCostGet(arg1) {
+  return window['go']['app']['App']['GaeaCostGet'](arg1);
+}
+
+export function GaeaCostList() {
+  return window['go']['app']['App']['GaeaCostList']();
+}
+
+export function GaeaCostSave(arg1) {
+  return window['go']['app']['App']['GaeaCostSave'](arg1);
+}
+
+export function GaeaCostSearch(arg1,arg2,arg3) {
+  return window['go']['app']['App']['GaeaCostSearch'](arg1,arg2,arg3);
+}
+
+export function GaeaProfileResolveConflict(arg1,arg2) {
+  return window['go']['app']['App']['GaeaProfileResolveConflict'](arg1,arg2);
+}

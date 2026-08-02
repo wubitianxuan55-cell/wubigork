@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"sort"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
@@ -306,4 +308,106 @@ func displayName(title, name string) string {
 		return t
 	}
 	return strings.ReplaceAll(name, "-", " ")
+}
+
+// ── 成本库（记忆中枢扩展库）────────────────────────────────────────
+
+// CostSummary 成本条目轻量视图。
+type CostSummary struct {
+	Name      string    `json:"name"`
+	Title     string    `json:"title"`
+	Category  string    `json:"category"`
+	Unit      string    `json:"unit"`
+	Price     float64   `json:"price"`
+	Spec      string    `json:"spec"`
+	Source    string    `json:"source"`
+	Tags      []string  `json:"tags"`
+	Status    string    `json:"status"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// CostEntry 完整成本条目。
+type CostEntry struct {
+	CostSummary
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// hubCostStore 构造成本库存储。
+func (a *App) hubCostStore() *cost.Store {
+	return cost.Open(db.GetDatabase(config.MemoryUserDir()))
+}
+
+// GaeaCostList 返回成本条目摘要列表。
+func (a *App) GaeaCostList() []CostSummary {
+	list := a.hubCostStore().List()
+	out := make([]CostSummary, 0, len(list))
+	for _, s := range list {
+		out = append(out, toCostSummary(s))
+	}
+	return out
+}
+
+// GaeaCostSearch 检索成本条目（关键词 + 分类/状态过滤）。
+func (a *App) GaeaCostSearch(query, category, status string) []CostSummary {
+	list := a.hubCostStore().Search(query, category, status)
+	out := make([]CostSummary, 0, len(list))
+	for _, s := range list {
+		out = append(out, toCostSummary(s))
+	}
+	return out
+}
+
+// GaeaCostGet 返回单条成本条目（未找到返回 nil）。
+func (a *App) GaeaCostGet(name string) *CostEntry {
+	e, err := a.hubCostStore().Get(name)
+	if err != nil || e == nil {
+		return nil
+	}
+	return &CostEntry{
+		CostSummary: toCostSummary(cost.Summary{
+			Name: e.Name, Title: e.Title, Category: e.Category, Unit: e.Unit,
+			Price: e.Price, Spec: e.Spec, Source: e.Source, Tags: e.Tags,
+			Status: e.Status, UpdatedAt: e.UpdatedAt,
+		}),
+		Body: e.Body, CreatedAt: e.CreatedAt,
+	}
+}
+
+// GaeaCostSave 保存成本条目。
+func (a *App) GaeaCostSave(e CostEntry) error {
+	return a.hubCostStore().Save(cost.Entry{
+		Name: e.Name, Title: e.Title, Category: e.Category, Unit: e.Unit,
+		Price: e.Price, Spec: e.Spec, Source: e.Source, Tags: e.Tags,
+		Status: e.Status, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
+	})
+}
+
+// GaeaCostDelete 删除成本条目。
+func (a *App) GaeaCostDelete(name string) error {
+	return a.hubCostStore().Delete(name)
+}
+
+func toCostSummary(s cost.Summary) CostSummary {
+	return CostSummary{
+		Name: s.Name, Title: s.Title, Category: s.Category, Unit: s.Unit,
+		Price: s.Price, Spec: s.Spec, Source: s.Source, Tags: s.Tags,
+		Status: s.Status, UpdatedAt: s.UpdatedAt,
+	}
+}
+
+// ── 画像冲突一键裁决 ───────────────────────────────────────────────
+
+// GaeaProfileResolveConflict 裁决画像与办公 facts 的冲突。
+// prefer="profile"：删除办公 facts 中的同名 user 事实（以画像为准）；
+// prefer="facts"：删除画像（以办公 facts 为准）。
+func (a *App) GaeaProfileResolveConflict(name, prefer string) error {
+	switch prefer {
+	case "profile":
+		return a.hubOfficeStore().Delete(name)
+	case "facts":
+		return a.hubProfileStore().Delete(name)
+	default:
+		return fmt.Errorf("prefer 必须是 profile 或 facts")
+	}
 }

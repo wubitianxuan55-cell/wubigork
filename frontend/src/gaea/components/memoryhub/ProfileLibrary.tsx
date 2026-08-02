@@ -71,6 +71,12 @@ export function ProfileLibrary() {
     load();
   };
 
+  // 冲突裁决：prefer=profile 删 facts（以画像为准）；prefer=facts 删画像
+  const handleResolve = async (name: string, prefer: "profile" | "facts") => {
+    await app.ProfileResolveConflict(name, prefer);
+    load();
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* 冲突提示横幅 */}
@@ -79,9 +85,30 @@ export function ProfileLibrary() {
           <AlertCircle size={14} className="text-yellow-300 mt-0.5 shrink-0" />
           <div>
             <div className="font-medium text-yellow-200">画像与遗留 facts 冲突（{conflicts.length}）</div>
-            {conflicts.map((c, i) => (
-              <div key={i} className="text-fg-faint">{c}</div>
-            ))}
+            {conflicts.map((c, i) => {
+              const name = c.split(":")[0].trim();
+              return (
+                <div key={i} className="flex items-start gap-2 text-fg-faint">
+                  <span className="flex-1 min-w-0">{c}</span>
+                  <span className="flex items-center gap-1 shrink-0">
+                    <button
+                      className="px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-200 text-[10.5px] hover:bg-amber-400/30"
+                      onClick={() => handleResolve(name, "profile")}
+                      title="删除办公 facts 中的同名事实，以画像为准"
+                    >
+                      以画像为准
+                    </button>
+                    <button
+                      className="px-1.5 py-0.5 rounded bg-bg-elev text-fg-faint text-[10.5px] hover:text-fg"
+                      onClick={() => handleResolve(name, "facts")}
+                      title="删除画像，以办公 facts 为准"
+                    >
+                      以 facts 为准
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

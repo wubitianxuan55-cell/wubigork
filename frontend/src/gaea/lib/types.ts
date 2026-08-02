@@ -519,3 +519,21 @@ export interface MemoryGraphView {
   nodes: GraphNode[];
   links: GraphLink[];
 }
+
+// ── 成本库 ──────────────────────────────────────────────────────────
+export interface CostSummary {
+  name: string;
+  title: string;
+  category: string;
+  unit: string;
+  price: number;
+  spec: string;
+  source: string;
+  tags: string[];
+  status: string;
+  updatedAt: string;
+}
+export interface CostEntry extends CostSummary {
+  body: string;
+  createdAt: string;
+}

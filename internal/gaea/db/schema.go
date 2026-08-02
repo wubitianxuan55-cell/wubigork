@@ -60,3 +60,24 @@ CREATE TABLE IF NOT EXISTS knowledge (
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge(category);
 `
+
+// SchemaV2 成本库（记忆中枢扩展库）：cost_entries 表。
+// 成本条目：单价/单位/规格/来源，供方案测算与预结算复用。
+const SchemaV2 = `
+CREATE TABLE IF NOT EXISTS cost_entries (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL UNIQUE,
+  title      TEXT NOT NULL DEFAULT '',
+  category   TEXT NOT NULL DEFAULT '',
+  unit       TEXT NOT NULL DEFAULT '',
+  price      REAL NOT NULL DEFAULT 0,
+  spec       TEXT NOT NULL DEFAULT '',
+  source     TEXT NOT NULL DEFAULT '',
+  tags       TEXT NOT NULL DEFAULT '[]',
+  status     TEXT NOT NULL DEFAULT '草稿',
+  body       TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_cost_category ON cost_entries(category);
+`

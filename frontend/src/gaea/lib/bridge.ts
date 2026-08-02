@@ -172,6 +172,14 @@ export interface AppBindings {
   ProfileConflicts(): Promise<string[]>;
   WhisperMemories(): Promise<WhisperMemoryView[]>;
   MemoryGraph(): Promise<MemoryGraphView>;
+  // ── 成本库 ──
+  CostList(): Promise<CostSummary[]>;
+  CostSearch(query: string, category: string, status: string): Promise<CostSummary[]>;
+  CostGet(name: string): Promise<CostEntry>;
+  CostSave(e: CostEntry): Promise<void>;
+  CostDelete(name: string): Promise<void>;
+  // 画像冲突裁决
+  ProfileResolveConflict(name: string, prefer: string): Promise<void>;
   KnowledgeGet(name: string): Promise<KnowledgeEntry | null>;
   KnowledgeSave(entry: KnowledgeSaveRequest): Promise<void>;
   KnowledgeDelete(name: string): Promise<void>;
@@ -320,6 +328,12 @@ const gaeaToGaea: Record<string, string> = {
   ProfileConflicts: "GaeaProfileConflicts",
   WhisperMemories: "GaeaWhisperMemories",
   MemoryGraph: "GaeaMemoryGraph",
+  CostList: "GaeaCostList",
+  CostSearch: "GaeaCostSearch",
+  CostGet: "GaeaCostGet",
+  CostSave: "GaeaCostSave",
+  CostDelete: "GaeaCostDelete",
+  ProfileResolveConflict: "GaeaProfileResolveConflict",
   KnowledgeGet: "GaeaKnowledgeGet",
   KnowledgeSave: "GaeaKnowledgeSave",
   KnowledgeDelete: "GaeaKnowledgeDelete",

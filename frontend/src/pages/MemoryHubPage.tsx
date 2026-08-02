@@ -9,6 +9,7 @@ import { ProfileLibrary } from "../gaea/components/memoryhub/ProfileLibrary";
 import { OfficeMemoryLibrary } from "../gaea/components/memoryhub/OfficeMemoryLibrary";
 import { WhisperMemoryLibrary } from "../gaea/components/memoryhub/WhisperMemoryLibrary";
 import { GraphView } from "../gaea/components/memoryhub/GraphView";
+import { CostLibrary } from "../gaea/components/memoryhub/CostLibrary";
 import { ComingSoon } from "../gaea/components/memoryhub/ComingSoon";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
@@ -24,7 +25,7 @@ interface LibraryDef {
 
 const LIBRARIES: LibraryDef[] = [
   { key: "knowledge", label: "知识库", icon: <BookOpen size={15} />, hint: "工程知识条目（规范/案例/经验）" },
-  { key: "cost", label: "成本库", icon: <Coins size={15} />, hint: "成本数据（预留）" },
+  { key: "cost", label: "成本库", icon: <Coins size={15} />, hint: "成本条目（单价/单位/来源）" },
   { key: "profile", label: "用户画像", icon: <Brain size={15} />, hint: "跨板块共享画像" },
   { key: "office", label: "办公记忆", icon: <FileText size={15} />, hint: "Hephaestus 工作事实" },
   { key: "whisper", label: "轻语记忆", icon: <HeartOutlined style={{ fontSize: 14 }} />, hint: "Hermes 人格记忆（只读）" },
@@ -96,13 +97,7 @@ function MemoryHubPage() {
               <KnowledgePanel variant="page" onClose={() => {}} />
             </div>
           )}
-          {active === "cost" && (
-            <ComingSoon
-              icon={<Coins size={24} />}
-              title="成本库"
-              desc="成本测算数据、单价库、费率库即将上线。数据模型确定后将在此提供统一的成本条目管理与检索。"
-            />
-          )}
+          {active === "cost" && <CostLibrary />}
           {active === "profile" && <ProfileLibrary />}
           {active === "office" && <OfficeMemoryLibrary />}
           {active === "whisper" && <WhisperMemoryLibrary />}

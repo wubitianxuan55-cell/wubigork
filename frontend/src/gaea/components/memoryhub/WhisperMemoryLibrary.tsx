@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HeartOutlined } from "@ant-design/icons";
+import { Modal } from "antd";
 import { RefreshCw } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { WhisperMemoryView } from "../../lib/types";
@@ -17,6 +18,7 @@ export function WhisperMemoryLibrary() {
   const [facts, setFacts] = useState<WhisperMemoryView[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<WhisperMemoryView | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -94,7 +96,11 @@ export function WhisperMemoryLibrary() {
               </div>
               <div className="space-y-1.5">
                 {g.items.map((f) => (
-                  <div key={f.id} className="p-2.5 rounded-lg border border-border bg-bg-soft/50">
+                  <div
+                    key={f.id}
+                    className="p-2.5 rounded-lg border border-border bg-bg-soft/50 hover:border-accent/50 cursor-pointer transition-colors"
+                    onClick={() => setSelected(f)}
+                  >
                     <div className="flex items-center gap-2">
                       <span className="text-fg text-[12.5px] font-medium truncate">{f.subject}</span>
                       {f.tier === "core" && (
@@ -115,6 +121,47 @@ export function WhisperMemoryLibrary() {
           ))
         )}
       </div>
+
+      {/* 详情弹窗 */}
+      <Modal
+        open={!!selected}
+        onCancel={() => setSelected(null)}
+        footer={null}
+        width={520}
+        title={
+          <span>
+            <span className="text-pink-400">轻语记忆</span>
+            {" · "}{selected?.subject}
+          </span>
+        }
+      >
+        {selected && (
+          <div className="space-y-2.5">
+            <div className="p-3 rounded-lg bg-bg-soft border border-border text-fg-dim text-[13px] leading-relaxed whitespace-pre-wrap">
+              {selected.summary}
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
+              <RowItem label="领域" value={selected.domain} />
+              <RowItem label="子类" value={selected.subcategory} />
+              <RowItem label="权重" value={selected.weight.toFixed(2)} />
+              <RowItem label="置信度" value={selected.confidence.toFixed(2)} />
+              <RowItem label="层级" value={selected.tier === "core" ? "核心" : selected.tier || "普通"} />
+              <RowItem label="状态" value={selected.status === "retired" ? "已退役" : "活跃"} />
+              <RowItem label="更新" value={selected.updatedAt ? new Date(selected.updatedAt).toLocaleString() : ""} />
+              <RowItem label="ID" value={selected.id} mono />
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+function RowItem(p: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-fg-faint w-14 shrink-0">{p.label}</span>
+      <span className={`text-fg-dim truncate ${p.mono ? "font-mono text-[11px]" : ""}`}>{p.value}</span>
     </div>
   );
 }
