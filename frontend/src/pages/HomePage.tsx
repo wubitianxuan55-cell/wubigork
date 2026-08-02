@@ -7,7 +7,7 @@ import { useAppStore, type ProjectCard } from '../stores/appStore'
 import { C } from '../utils/theme'
 
 import WelcomePage from '../components/WelcomePage'
-import CreateNovelModal from '../components/CreateNovelModal'
+import CreateNovelModal from '../components/novel/CreateNovelModal'
 import ProjectCardItem from '../components/ProjectCardItem'
 
 const HomePage: React.FC = () => {

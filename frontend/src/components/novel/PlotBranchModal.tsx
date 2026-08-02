@@ -1,8 +1,8 @@
 import React from 'react'
 import { Modal, message } from 'antd'
 import { BranchesOutlined } from '@ant-design/icons'
-import { C } from '../utils/theme'
-import { usePlotBranch } from '../hooks/usePlotBranch'
+import { C } from '../../utils/theme'
+import { usePlotBranch } from './hooks/usePlotBranch'
 import BranchSelectorPanel from './BranchSelectorPanel'
 
 interface PlotBranchModalProps {

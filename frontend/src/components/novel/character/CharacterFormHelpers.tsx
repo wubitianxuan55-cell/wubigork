@@ -1,6 +1,6 @@
 import React from 'react'
 import { Typography, Input, Select } from 'antd'
-import { C } from '../../utils/theme'
+import { C } from '../../../utils/theme'
 
 /** Block 带标题的折叠块 */
 export function Block({ title, extra, children }: { title: React.ReactNode; extra?: React.ReactNode; children: React.ReactNode }) {

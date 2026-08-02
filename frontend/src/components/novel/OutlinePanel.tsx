@@ -4,8 +4,8 @@ import {
   BookOutlined, UnorderedListOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined,
 } from '@ant-design/icons'
-import { C } from '../utils/theme'
-import type { OutlineNode } from '../types'
+import { C } from '../../utils/theme'
+import type { OutlineNode } from '../../types'
 
 interface OutlinePanelProps {
   outlines: OutlineNode[]

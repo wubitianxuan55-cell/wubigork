@@ -5,7 +5,7 @@
 import { create } from 'zustand'
 import type { OutlineNode } from '../types'
 import { sortNodes } from '../utils/outline'
-import { loadOutlines as fetchOutlines } from '../api/outlines'
+import { loadOutlines as fetchOutlines } from '../components/novel/api/outlines'
 
 interface OutlineState {
   outlines: OutlineNode[]

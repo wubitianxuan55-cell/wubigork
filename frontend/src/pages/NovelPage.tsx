@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Tabs } from 'antd'
 import FeatureModelBar from '../components/FeatureModelBar'
+import { AIConsole } from '../components/novel/AIConsole'
 import {
   HomeOutlined, FileTextOutlined, UserOutlined,
   ThunderboltOutlined, BookOutlined, ExportOutlined,
@@ -44,6 +45,8 @@ const NovelPage: React.FC = () => {
       <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
         <FeatureModelBar feature="novel" label="小说" />
       </div>
+      {/* 小说专属：AI 控制台（右上角悬浮） */}
+      <AIConsole />
     </div>
   )
 }

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Typography, Button, Modal, message } from 'antd'
 import { BranchesOutlined } from '@ant-design/icons'
-import { C } from '../utils/theme'
-import type { OutlineNode } from '../types'
-import { usePlotBranch } from '../hooks/usePlotBranch'
+import { C } from '../../utils/theme'
+import type { OutlineNode } from '../../types'
+import { usePlotBranch } from './hooks/usePlotBranch'
 import BranchSelectorPanel from './BranchSelectorPanel'
 
 interface NextChapterModalProps {

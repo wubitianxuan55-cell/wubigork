@@ -3,8 +3,8 @@
  * 封装所有后端角色调用，消除 @ts-ignore
  */
 
-import type { CharacterData, OrganizationData, RelationshipData } from '../types'
-import * as App from '../../wailsjs/go/app/App'
+import type { CharacterData, OrganizationData, RelationshipData } from '../../../types'
+import * as App from '../../../../wailsjs/go/app/App'
 
 export interface CharacterPageData {
   characters: CharacterData[]

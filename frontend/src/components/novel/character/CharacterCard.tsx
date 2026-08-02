@@ -1,8 +1,8 @@
 import React from 'react'
 import { Typography, Tag, Space } from 'antd'
 import { UserOutlined } from '@ant-design/icons'
-import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../../utils/theme'
-import type { CharacterData } from '../../types'
+import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../../../utils/theme'
+import type { CharacterData } from '../../../types'
 
 export interface CharacterCardProps {
   character: CharacterData

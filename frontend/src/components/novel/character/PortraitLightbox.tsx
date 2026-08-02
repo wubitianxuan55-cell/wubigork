@@ -1,5 +1,5 @@
 import React from 'react'
-import Lightbox from '../Lightbox'
+import Lightbox from '../../Lightbox'
 
 interface PortraitLightboxProps {
   imageUrl: string

@@ -1,7 +1,7 @@
 import React from 'react'
 import { Typography, Button, Space, Select, Modal } from 'antd'
-import { C } from '../../utils/theme'
-import type { CharacterData, OrganizationData, RelationshipData } from '../../types'
+import { C } from '../../../utils/theme'
+import type { CharacterData, OrganizationData, RelationshipData } from '../../../types'
 
 interface RelationshipModalProps {
   open: boolean

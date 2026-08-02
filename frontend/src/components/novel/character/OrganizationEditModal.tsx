@@ -1,8 +1,8 @@
 import React from 'react'
 import { Typography, Button, Space, Tag, Modal } from 'antd'
 import { ApartmentOutlined, DeleteOutlined } from '@ant-design/icons'
-import { C } from '../../utils/theme'
-import type { OrganizationData } from '../../types'
+import { C } from '../../../utils/theme'
+import type { OrganizationData } from '../../../types'
 import { OrgField } from './CharacterFormHelpers'
 
 interface OrganizationEditModalProps {

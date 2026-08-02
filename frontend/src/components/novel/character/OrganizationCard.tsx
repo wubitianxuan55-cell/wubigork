@@ -1,8 +1,8 @@
 import React from 'react'
 import { Typography, Card, Tag, Space } from 'antd'
 import { ApartmentOutlined } from '@ant-design/icons'
-import { C } from '../../utils/theme'
-import type { OrganizationData } from '../../types'
+import { C } from '../../../utils/theme'
+import type { OrganizationData } from '../../../types'
 
 export interface OrganizationCardProps {
   organization: OrganizationData

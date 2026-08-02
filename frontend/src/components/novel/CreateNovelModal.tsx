@@ -1,6 +1,6 @@
 import React from 'react'
 import { Typography, Button, Space, Input, Modal, Checkbox } from 'antd'
-import { C } from '../utils/theme'
+import { C } from '../../utils/theme'
 
 const GENRE_OPTIONS = [
   '玄幻', '奇幻', '武侠', '仙侠', '都市',

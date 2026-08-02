@@ -3,7 +3,7 @@
  * 封装所有大纲相关的后端调用，消除页面间重复代码
  */
 
-import type { OutlineNode } from '../types'
+import type { OutlineNode } from '../../../types'
 
 export interface OutlineData {
   nodes: OutlineNode[]

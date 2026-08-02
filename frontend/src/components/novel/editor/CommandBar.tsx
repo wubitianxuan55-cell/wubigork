@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Modal, Input, Button, Space, Typography, Spin, Tag } from 'antd'
 import { ThunderboltOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
 import DiffReview from './DiffReview'
-import { C } from '../../utils/theme'
+import { C } from '../../../utils/theme'
 
 /**
  * CommandBar — Cmd+K 命令编辑

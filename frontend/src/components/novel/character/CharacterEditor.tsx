@@ -4,8 +4,8 @@ import {
   DeleteOutlined, ThunderboltOutlined, ReloadOutlined, HeartOutlined,
   SmileOutlined, AimOutlined, BarChartOutlined, BookOutlined,
 } from '@ant-design/icons'
-import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels, RELATION_LABELS as relationLabels } from '../../utils/theme'
-import type { CharacterData, OrganizationData, RelationshipData } from '../../types'
+import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels, RELATION_LABELS as relationLabels } from '../../../utils/theme'
+import type { CharacterData, OrganizationData, RelationshipData } from '../../../types'
 import { Block, Field, extractTags } from './CharacterFormHelpers'
 
 export interface CharacterEditorProps {

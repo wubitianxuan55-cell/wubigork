@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
 import { Button, Space, Tag, Input, Typography, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, EditOutlined, ColumnWidthOutlined, RedoOutlined } from '@ant-design/icons'
-import type { ChapterTabData } from '../types'
+import type { ChapterTabData } from '../../types'
 import GhostText from './editor/GhostText'
 import CommandBar from './editor/CommandBar'
-import { C } from '../utils/theme'
-import { Z_INDEX } from '../utils/zIndex'
+import { C } from '../../utils/theme'
+import { Z_INDEX } from '../../utils/zIndex'
 
 interface ChapterEditorProps {
   tab: ChapterTabData

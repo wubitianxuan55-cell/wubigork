@@ -3,8 +3,8 @@ import { Typography, Button, Space, Tag, Input, Spin, Card, Row, Col } from 'ant
 import {
   ThunderboltOutlined, EditOutlined, HeartOutlined,
 } from '@ant-design/icons'
-import { C } from '../utils/theme'
-import { toneColors, type Branch } from '../hooks/usePlotBranch'
+import { C } from '../../utils/theme'
+import { toneColors, type Branch } from './hooks/usePlotBranch'
 
 interface BranchSelectorPanelProps {
   /** 从 usePlotBranch hook 传入 */

@@ -13,18 +13,18 @@ import type { CharacterData, OrganizationData, RelationshipData } from '../types
 import ChatPanel from '../components/ChatPanel'
 import { useAppStore } from '../stores/appStore'
 import { C } from '../utils/theme'
-import CharacterCard from '../components/character/CharacterCard'
-import OrganizationCard from '../components/character/OrganizationCard'
-import CharacterEditor from '../components/character/CharacterEditor'
-import RelationshipModal from '../components/character/RelationshipModal'
-import OrganizationEditModal from '../components/character/OrganizationEditModal'
-import PortraitLightbox from '../components/character/PortraitLightbox'
+import CharacterCard from '../components/novel/character/CharacterCard'
+import OrganizationCard from '../components/novel/character/OrganizationCard'
+import CharacterEditor from '../components/novel/character/CharacterEditor'
+import RelationshipModal from '../components/novel/character/RelationshipModal'
+import OrganizationEditModal from '../components/novel/character/OrganizationEditModal'
+import PortraitLightbox from '../components/novel/character/PortraitLightbox'
 import {
   getCharacters, saveCharacter, deleteCharacter,
   generateCharacters, generateSingleCharacter, chatCharacter,
   saveOrganization, deleteOrganization, toggleOrgMember,
   saveRelationship, deleteRelationship,
-} from '../api/character'
+} from '../components/novel/api/character'
 
 const statusOptions = [
   { value: 'Alive', label: '存活' }, { value: 'Dead', label: '已故' },
