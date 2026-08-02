@@ -249,6 +249,58 @@ func TestAttentionBudget_GlobalDnd(t *testing.T) {
 	}
 }
 
+// ─── memory_fact: Restore / ListAll（DB 持久化贯通）────────────
+
+func TestFactStore_ListAll(t *testing.T) {
+	fs := NewFactStore()
+	fs.Add(MemoryFact{Domain: "preference", Subcategory: "FOOD", Subject: "用户", Summary: "喜欢吃辣"})
+	f2 := fs.Add(MemoryFact{Domain: "user_state", Subcategory: "MOOD", Subject: "用户", Summary: "最近睡不好"})
+	fs.RetireFact(f2.ID)
+
+	all := fs.ListAll()
+	if len(all) != 2 {
+		t.Fatalf("ListAll 应含退役事实，got %d want 2", len(all))
+	}
+	active := fs.ListActive()
+	if len(active) != 1 {
+		t.Fatalf("ListActive 应只剩 1 条，got %d", len(active))
+	}
+}
+
+func TestFactStore_Restore(t *testing.T) {
+	fs := NewFactStore()
+	// 模拟从 hermes.db 加载：active + retired 混合
+	fs.Restore([]MemoryFact{
+		{ID: "f1", Domain: "preference", Subcategory: "FOOD", Subject: "用户", Summary: "喜欢吃辣", Status: "active", Weight: 2},
+		{ID: "f2", Domain: "user_state", Subcategory: "MOOD", Subject: "用户", Summary: "最近睡不好", Status: "retired", Weight: 1},
+		{ID: "f3", Domain: "user_profile", Subcategory: "BASIC_PROFILE", Subject: "用户", Summary: "程序员", Status: "archived", Weight: 1},
+	})
+
+	if got := fs.Count(); got != 1 {
+		t.Fatalf("Restore 后 Count（活跃）应 1（仅 active），got %d", got)
+	}
+	if len(fs.ListActive()) != 1 {
+		t.Fatal("仅 status=active 应算活跃，retired/archived 不应算")
+	}
+	if got := len(fs.ListAll()); got != 3 {
+		t.Fatalf("ListAll 应保留全部 3 条（含退役），got %d", got)
+	}
+	// ID 与状态保留
+	f2 := fs.Get("f2")
+	if f2 == nil {
+		t.Fatal("Restore 后应按原 ID 可查")
+	}
+	if f2.IsActive() {
+		t.Error("retired 事实恢复后不应 active")
+	}
+	// 空 status 按 active 处理
+	fs2 := NewFactStore()
+	fs2.Restore([]MemoryFact{{ID: "x", Domain: "d", Subcategory: "s", Subject: "u", Summary: "无状态", Status: ""}})
+	if fs2.Count() != 1 {
+		t.Error("空 status 事实应视为 active")
+	}
+}
+
 func TestAttentionBudget_ProactiveLimit(t *testing.T) {
 	am := NewAttentionManager()
 	now := time.Now()

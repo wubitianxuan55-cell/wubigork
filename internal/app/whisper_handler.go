@@ -171,7 +171,9 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string) (result
 			UserMsg: userMsg, AssistantText: reply,
 			L1: l1Snap, L2: l2Snap,
 			FactStore: orch.FactStore, TotalTurns: turns, KG: orch.KG,
-			EpisodicStore: nil, AdultMode: orch.AdultMode,
+			EpisodicStore:   orch.EpisodicStore,
+			RecentExchanges: buildRecentExchanges(orch),
+			AdultMode:       orch.AdultMode,
 		})
 	}()
 
@@ -609,14 +611,16 @@ func restoreWhisperState(orch *whisper.Orchestrator) error {
 	}
 	db.GetDatabase(orch.DataRoot)
 	state, err := repos.LoadCompanionStateFromDB(orch.DataRoot, orch.SessionID)
-	if err != nil || state == nil {
+	if err != nil {
 		return err
 	}
-	personality := orch.State.Personality
-	orch.State = *state
-	orch.State.Personality = personality
+	if state != nil {
+		personality := orch.State.Personality
+		orch.State = *state
+		orch.State.Personality = personality
+	}
 	rows, err := repos.LoadChatHistoryFromDB(orch.DataRoot, orch.SessionID)
-	if err != nil || rows == nil {
+	if err != nil {
 		return err
 	}
 	for _, r := range rows {
@@ -631,9 +635,17 @@ func restoreWhisperState(orch *whisper.Orchestrator) error {
 			TurnIndex: int(ti), UserText: ut, AssistantText: at,
 		})
 	}
+	// 记忆贯通：始终尝试恢复事实库与情节库（不受 state/rows 缺失影响）
+	if facts := repos.LoadFactsFromDB(orch.DataRoot); len(facts) > 0 {
+		orch.FactStore.Restore(facts)
+	}
+	if eps, err := repos.LoadEpisodesFromDB(orch.DataRoot); err == nil && len(eps) > 0 {
+		for _, ep := range eps {
+			orch.EpisodicStore.Add(ep)
+		}
+	}
 	return nil
 }
-
 func persistWhisperState(orch *whisper.Orchestrator) {
 	if orch.DataRoot == "" {
 		return
@@ -649,4 +661,45 @@ func persistWhisperState(orch *whisper.Orchestrator) {
 		}
 		_ = repos.SaveChatHistoryToDB(orch.DataRoot, orch.SessionID, rows)
 	}
+	// 记忆贯通：事实库合并写回（本会话事实以内存为准，保留其他会话），情节库全量写回
+	persistFactsToDB(orch)
+	persistEpisodesToDB(orch)
+}
+
+// persistFactsToDB 事实合并写回：本会话 ID 用内存版替换（含退役态），其他会话保留 DB 版
+func persistFactsToDB(orch *whisper.Orchestrator) {
+	all := orch.FactStore.ListAll()
+	mine := make(map[string]bool, len(all))
+	for _, f := range all {
+		mine[f.ID] = true
+	}
+	dbFacts := repos.LoadFactsFromDB(orch.DataRoot)
+	merged := make([]whisper.MemoryFact, 0, len(dbFacts)+len(all))
+	for _, f := range dbFacts {
+		if mine[f.ID] {
+			continue // 本会话事实由内存版提供
+		}
+		merged = append(merged, f)
+	}
+	for _, f := range all {
+		merged = append(merged, f.MemoryFact)
+	}
+	_ = repos.ReplaceFactsInDB(orch.DataRoot, merged)
+}
+
+// persistEpisodesToDB 情节全量写回（每会话 store 均为全局快照 + 新增，冲突窗口极小）
+func persistEpisodesToDB(orch *whisper.Orchestrator) {
+	if eps := orch.EpisodicStore.ListAll(); len(eps) > 0 {
+		_ = repos.ReplaceEpisodesInDB(orch.DataRoot, eps)
+	}
+}
+
+// buildRecentExchanges 从工作记忆组装近期对话对（情节生成前置输入）
+func buildRecentExchanges(orch *whisper.Orchestrator) []whisper.ExchangePair {
+	exs := orch.WM.GetAll(orch.SessionID)
+	pairs := make([]whisper.ExchangePair, 0, len(exs))
+	for _, e := range exs {
+		pairs = append(pairs, whisper.ExchangePair{User: e.UserText, Assistant: e.AssistantText})
+	}
+	return pairs
 }

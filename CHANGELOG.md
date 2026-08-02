@@ -1,5 +1,16 @@
 # gaea · 多功能 AI 助手
 
+## 「持续优化」(2026-08-02)
+
+> 轻语记忆贯通 hermes.db：FactStore/EpisodicStore 与数据库真正打通（此前运行时只写内存，重启即丢、记忆中枢永远空）+ 情节记忆运行时生效。
+
+- 记忆贯通（右脑落地的关键缺口修复）：Orchestrator 新增 EpisodicStore 运行时实例（原 handler 硬编码 nil）；restoreWhisperState 从 hermes.db 恢复事实库与情节库（重启不丢记忆）；persistWhisperState 写回——事实合并写回（本会话以内存为准含退役态，保留其他会话事实），情节全量写回
+- 修复 restoreWhisperState 早期返回缺陷：companion_state/chat_history 无行时提前 return，阻断事实/情节恢复（首次使用或清空历史后记忆永不加载）
+- 情节记忆运行时生效：EnqueueMemoryWrite 传入 EpisodicStore + RecentExchanges（工作记忆组装），情节生成前置条件（≥3 轮对话 + 6/10 轮间隔 + 情绪阈值）首次可满足；hermes.db episodes 表从零填充
+- FactStore 新增 Restore（DB 事实灌入保留原 ID/退役态，空 status 规范化为 active）+ ListAll（含退役事实，供持久化全量写回）
+- 影响面：记忆中枢轻语库/总览/归档首次能读到真实数据（此前 LoadFactsFromDB 一直为空）
+- 验证：新增 whisper 2 测试（Restore/ListAll）+ app 集成测试 TestWhisperMemoryPersistRoundTrip（写入→持久化→恢复→多会话合并不互踩）；go test ./... 全绿 + go vet clean + go build 全过
+
 ## v1.11.0「界面体验深化 · 全站重设计」(2026-08-02)
 
 > 设置中心外观细化升华（实时预览/三态显示/字体/密度/动效/强调色）+ 聊天 Markdown 消息体验 + 轻语面板 UI 重设计（角色状态头/气泡/情绪回复）+ 虚拟助手面板与角色卡详情重设计 + 轻语测试深化（21.8%）+ P3 archiveExporter 记忆归档导出。

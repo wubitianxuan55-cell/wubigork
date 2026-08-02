@@ -121,6 +121,39 @@ func (fs *FactStore) ListActive() []*Fact {
 	return r
 }
 
+// ListAll 返回全部事实（含退役/归档，供持久化全量写回）
+func (fs *FactStore) ListAll() []*Fact {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+	r := make([]*Fact, len(fs.facts))
+	copy(r, fs.facts)
+	return r
+}
+
+// Restore 从持久化层灌入事实（保留原 ID/状态，不走去重合并）
+// Active 与 Status 保持一致：retired/archived 非活跃，空 status 视为 active
+func (fs *FactStore) Restore(facts []MemoryFact) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	for _, raw := range facts {
+		if raw.Status == "" {
+			raw.Status = "active"
+		}
+		f := &Fact{
+			MemoryFact: raw,
+			Active:     raw.Status == "active",
+		}
+		if f.ID == "" {
+			f.ID = genHexID()
+		}
+		if f.RawTier == "" {
+			f.RawTier = computeTier(f.Weight)
+		}
+		fs.facts = append(fs.facts, f)
+		fs.byID[f.ID] = f
+	}
+}
+
 // ListBySessionTurn 返回指定会话指定轮次的事实（用于冷启动关联）
 func (fs *FactStore) ListBySessionTurn(sessionID string, turnIndex int) []*Fact {
 	fs.mu.RLock()

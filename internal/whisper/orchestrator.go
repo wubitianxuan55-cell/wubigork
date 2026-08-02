@@ -36,6 +36,7 @@ type Orchestrator struct {
 	FactStore        *FactStore
 	KG               *KnowledgeGraph
 	WM               *WorkingMemory
+	EpisodicStore    *EpisodicStore // 情节记忆（运行时实例，随会话持久化到 hermes.db）
 	Recall           *ActiveRecall
 	AssocIndex       *AssociationIndex     // P2: 关联索引（供 post-turn 纠正）
 	HabitsStore      *HabitsStore          // P2: 习惯存储（供 DnD/健康检测写入）
@@ -77,6 +78,7 @@ func NewOrchestrator(sessionID string, preset PersonalityPreset) *Orchestrator {
 		FactStore:        NewFactStore(),
 		KG:               NewKnowledgeGraph(),
 		WM:               NewWorkingMemory(),
+		EpisodicStore:    NewEpisodicStore(),
 		Recall:           NewActiveRecall(),
 		AssocIndex:       NewAssociationIndex(),
 		HabitsStore:      NewHabitsStore(),
