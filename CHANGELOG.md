@@ -1,5 +1,20 @@
 # gaea · 多功能 AI 助手
 
+## v1.8.0「单模型架构 · 知识库板块」(2026-08-02)
+
+> 办公板块删除双模型架构（Hermes/Hephaestus → 单模型）+ 知识库整合为独立板块（统一服务层 + 全文检索）+ AI 聊天双会话面板修复。
+> tag v1.8.0，构建 36,084,224 字节。
+
+- 办公板块：删除 Hermes/Hephaestus 双模型 agent（hermes.go 645 行 + 测试），runner 直接用 executor 单 Agent；
+  config 删 planner_model/temperature/effort；前端删 Planner 配置/统计列/RunStatus 简化
+- 单模型工作流梳理：系统提示词分层（DefaultSystemPrompt=领域知识 / SingleModelPrompt=执行纪律），
+  boot 拼接保执行纪律不丢；删除 PlanCard 计划确认死链路（AskQuestion.Plan 字段全链清理）
+- 知识库独立板块：knowledge.Service 进程级单例（工具/UI 统一走 ~/.gaea/knowledge），
+  新增 GaeaKnowledgeSearch 全文检索（含正文）；KnowledgePage 板块页 + 导航五处注册；
+  与记忆系统明确区分（显式知识 vs 隐式事实）
+- AI 聊天：删除 ChatTopicSidebar 重复渲染（双会话面板修复）
+- 验证：go test 全量 0 失败 + tsc + vite + wails build 全绿
+
 ## v1.7.0「设置中心重构 · 模型统一」(2026-08-02)
 
 > 设置中心全面重构（小说/方案/办公/轻语/更新信息）+ 模型绑定统一左下角卡片 + 代码审查修复 9 项并发与绑定 bug。
