@@ -112,7 +112,6 @@ const ChatPage: React.FC = () => {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, position: 'relative' }}>
       <ChatTopicSidebar topics={topicList} activeId={activeId} onSelect={setActiveId} onCreate={handleCreate} onDelete={handleDelete} onRename={handleRename} />
-      <ChatTopicSidebar topics={topicList} activeId={activeId} onSelect={setActiveId} onCreate={handleCreate} onDelete={handleDelete} onRename={handleRename} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden', background: 'transparent', position: 'relative' }}>
         <div ref={listRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: hasMessages ? '24px 0 160px' : '0' }}>
