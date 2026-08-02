@@ -157,7 +157,7 @@ func (c *Controller) refreshMemoryLocked() {
 	if c.mem == nil {
 		return
 	}
-	c.mem = memory.Load(memory.Options{CWD: c.mem.CWD, UserDir: c.mem.UserDir})
+	c.mem = memory.Load(memory.Options{CWD: c.mem.CWD, UserDir: c.mem.UserDir, DB: c.mem.DB})
 	builtin.SetMemorySearchIndex(c.mem.Search)
 }
 

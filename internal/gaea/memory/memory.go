@@ -21,6 +21,7 @@ type Set struct {
 	Search  *SearchIndex // V5.31: in-memory inverted index for memory_search
 	CWD     string       // project working dir used for discovery
 	UserDir string       // user config root (may be "")
+	DB      *sql.DB      // Hephaestus.db 连接（SQLite 后端时非 nil，refresh 复用）
 }
 
 // Options configures discovery. CWD defaults to "." and UserDir is the user
@@ -54,6 +55,7 @@ func Load(opts Options) *Set {
 		Search:  store.BuildSearchIndex(docs),
 		CWD:     cwd,
 		UserDir: opts.UserDir,
+		DB:      opts.DB,
 	}
 }
 

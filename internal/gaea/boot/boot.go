@@ -196,6 +196,7 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 	reg.Add(memory.NewRememberTool(mem.Store))
 	reg.Add(memory.NewForgetTool(mem.Store))
 	reg.Add(memory.NewPromoteSessionFactsTool())
+	reg.Add(memory.NewMemoryGetTool(mem.Store))
 
 	// The `ask` tool puts structured multiple-choice questions to the user. It
 	// reaches them through the Asker on the call context, which interactive

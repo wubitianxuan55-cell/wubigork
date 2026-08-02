@@ -3,11 +3,13 @@ package boot
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/outputstyle"
 	"github.com/gaea/gaea/internal/gaea/skill"
@@ -37,7 +39,12 @@ func buildSystemPrompt(cfg *config.Config, stderrPath io.Writer) (*syspromptOut,
 	}
 	sysPrompt += "\n\n" + config.LanguagePolicy
 
-	mem := memory.Load(memory.Options{CWD: ".", UserDir: config.MemoryUserDir()})
+	userDir := config.MemoryUserDir()
+	gdb := db.GetDatabase(userDir)
+	if _, err := memory.MigrateLegacyFileMemory(userDir, gdb); err != nil {
+		log.Printf("[hephaestus] 办公记忆迁移失败: %v", err)
+	}
+	mem := memory.Load(memory.Options{CWD: ".", UserDir: userDir, DB: gdb})
 	sysPrompt = memory.Compose(sysPrompt, mem)
 	builtin.SetMemorySearchIndex(mem.Search)
 	builtin.SetSearchConfig(cfg.Search)
