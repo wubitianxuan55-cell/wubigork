@@ -99,7 +99,8 @@ const EnginePanel: React.FC = () => {
       {/* 引擎列表 */}
       <SettingsSection
         title={<>引擎配置</>}
-        desc="管理模型引擎：启用状态、API 地址与默认模型。修改后即时生效。"
+        desc="管理模型引擎：启用状态、API 地址与默认模型。"
+        instant
       >
         {engines.length === 0 && !loading && (
           <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12 }}>

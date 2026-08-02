@@ -1,8 +1,9 @@
 import React from 'react'
 import { Typography } from 'antd'
 
-/** SettingsSection — 设置中心玻璃区块（未来感：霓虹标题条 + 玻璃卡片） */
-const SettingsSection: React.FC<{ title: React.ReactNode; desc?: string; children: React.ReactNode; noMargin?: boolean }> = ({ title, desc, children, noMargin }) => (
+/** SettingsSection — 设置中心玻璃区块（未来感：霓虹标题条 + 玻璃卡片）
+ * instant 标记设置项是否即时生效（统一视觉徽章，避免各面板文案风格不一）。 */
+const SettingsSection: React.FC<{ title: React.ReactNode; desc?: string; instant?: boolean; children: React.ReactNode; noMargin?: boolean }> = ({ title, desc, instant, children, noMargin }) => (
   <div
     className="md-glass"
     style={{
@@ -25,6 +26,15 @@ const SettingsSection: React.FC<{ title: React.ReactNode; desc?: string; childre
       <Typography.Text strong style={{ fontSize: 14, color: 'var(--md-sys-color-text)' }}>
         {title}
       </Typography.Text>
+      {instant && (
+        <span style={{
+          marginLeft: 'auto', fontSize: 11, lineHeight: 1, padding: '3px 8px',
+          borderRadius: 999, color: '#34d399', border: '1px solid #34d39944',
+          background: '#34d39914', fontWeight: 500, whiteSpace: 'nowrap',
+        }}>
+          ⚡ 即时生效
+        </span>
+      )}
     </div>
     {desc && (
       <Typography.Text style={{

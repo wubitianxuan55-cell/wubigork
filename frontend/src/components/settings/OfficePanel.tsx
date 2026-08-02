@@ -115,7 +115,8 @@ const OfficePanel: React.FC = () => {
     <>
       <SettingsSection
         title={<>办公引擎设置</>}
-        desc="完整设置（模型 / Agent 参数 / 权限 / 沙箱），持久化到 ~/.config/gaea/config.toml 并即时生效。"
+        desc="完整设置（模型 / Agent 参数 / 权限 / 沙箱），持久化到 ~/.config/gaea/config.toml。"
+        instant
       >
         {/* 模型区 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0 16px' }}>

@@ -104,7 +104,8 @@ const WhisperPanel: React.FC = () => {
 
       <SettingsSection
         title={<>人格</>}
-        desc="轻语对话使用的人格（默认 gaea 大地女神）。切换即时生效。"
+        desc="轻语对话使用的人格（默认 gaea 大地女神）。"
+        instant
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Select size="small" value={activePersonality} style={{ width: 200 }}

@@ -37,6 +37,11 @@ func FirstDisplayUnitLen(unsent string) int {
 	}
 	end := FindSafeSentenceBreak(unsent)
 	if end > 0 {
+		// FindSafeSentenceBreak 返回 rune 索引；调用方按字节切片，需转字节偏移
+		runes := []rune(unsent)
+		if end <= len(runes) {
+			return len(string(runes[:end]))
+		}
 		return end
 	}
 	return -1
@@ -272,6 +277,9 @@ func (p *PacedStreamEmitter) pump() {
 
 		p.emitChunk(unsent)
 		p.sentLen += len(unsent)
+		if p.sentLen >= len(received) {
+			p.finishBubble()
+		}
 		p.mu.Unlock()
 		return
 	}

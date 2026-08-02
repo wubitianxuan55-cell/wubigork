@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { HeartOutlined } from "@ant-design/icons";
-import { Modal } from "antd";
+import { DownloadOutlined, HeartOutlined } from "@ant-design/icons";
+import { Modal, message } from "antd";
 import { RefreshCw } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { WhisperMemoryView } from "../../lib/types";
@@ -32,6 +32,17 @@ export function WhisperMemoryLibrary() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleExport = useCallback(async () => {
+    const dir = await app.PickDirectory();
+    if (!dir) return;
+    try {
+      const n = await app.WhisperExportArchive(dir);
+      message.success(`已导出 ${n} 个 Markdown 档案到 ${dir}`);
+    } catch (err) {
+      message.error(`导出失败: ${String(err)}`);
+    }
+  }, []);
 
   const q = query.trim().toLowerCase();
   const filtered = useMemo(
@@ -70,6 +81,14 @@ export function WhisperMemoryLibrary() {
             placeholder="搜索记忆…"
             className="w-44 px-3 h-8 rounded-lg border border-border bg-bg text-fg text-[12px] placeholder:text-fg-faint outline-none focus:border-accent transition-colors"
           />
+          <button
+            className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
+            onClick={handleExport}
+            title="导出归档（Markdown 按领域/子类分目录）"
+          >
+            <DownloadOutlined style={{ fontSize: 12 }} />
+            导出归档
+          </button>
           <button
             className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
             onClick={load}

@@ -66,7 +66,8 @@ const VoicePanel: React.FC = () => {
 
       <SettingsSection
         title={<>语音功能</>}
-        desc="控制轻语对话中的语音交互行为，修改实时生效。"
+        desc="控制轻语对话中的语音交互行为。"
+        instant
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

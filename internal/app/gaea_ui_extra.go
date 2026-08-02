@@ -469,6 +469,21 @@ func (a *App) GaeaRevealWorkspacePath(rel string) error {
 // GaeaWorkspaceChanges 办公板块不追踪工作区变更，返回空。
 func (a *App) GaeaWorkspaceChanges() []WorkspaceChangeView { return []WorkspaceChangeView{} }
 
+// GaeaPickDirectory 使用系统目录对话框选择导出目录（记忆归档导出用）。
+func (a *App) GaeaPickDirectory() string {
+	if a.ctx == nil {
+		return ""
+	}
+	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title:            "选择导出目录",
+		DefaultDirectory: gaeaCwd(),
+	})
+	if err != nil {
+		return ""
+	}
+	return dir
+}
+
 // GaeaPickFiles 使用系统文件对话框选择文件。
 func (a *App) GaeaPickFiles() []FilePickResult {
 	if a.ctx == nil {

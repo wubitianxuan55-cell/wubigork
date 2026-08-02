@@ -177,6 +177,10 @@ export interface AppBindings {
   ProfileDelete(name: string): Promise<void>;
   ProfileConflicts(): Promise<string[]>;
   WhisperMemories(): Promise<WhisperMemoryView[]>;
+  // WhisperExportArchive 导出轻语记忆归档（hermes.db → Markdown 分目录），返回文件数。
+  WhisperExportArchive(dir: string): Promise<number>;
+  // PickDirectory 系统目录选择对话框，返回所选目录（取消返回空串）。
+  PickDirectory(): Promise<string>;
   MemoryGraph(): Promise<MemoryGraphView>;
   // ── 成本库 ──
   CostList(): Promise<CostSummary[]>;
@@ -333,6 +337,8 @@ const gaeaToGaea: Record<string, string> = {
   ProfileDelete: "GaeaProfileDelete",
   ProfileConflicts: "GaeaProfileConflicts",
   WhisperMemories: "GaeaWhisperMemories",
+  WhisperExportArchive: "GaeaWhisperExportArchive",
+  PickDirectory: "GaeaPickDirectory",
   MemoryGraph: "GaeaMemoryGraph",
   CostList: "GaeaCostList",
   CostSearch: "GaeaCostSearch",

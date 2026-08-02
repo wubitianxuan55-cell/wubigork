@@ -341,9 +341,14 @@ const ModelCenterPage: React.FC = () => {
                         return (
                           <Card key={card.modelId} size="small" style={{ background: active ? `linear-gradient(135deg, ${color}18, ${color}08)` : 'var(--bg-glass)', border: active ? `2px solid ${color}` : '1px solid var(--border-subtle)', borderRadius: 10 }}>
                             <Typography.Text strong style={{ color: active ? color : C('color-text'), fontSize: 13, display: 'block', marginBottom: 6, wordBreak: 'break-all' }}>{card.modelName}</Typography.Text>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <Tag color={color} style={{ fontSize: 10, margin: 0 }}>{engineLabels[card.engineId]}</Tag>
-                              <Button type={active ? 'default' : 'primary'} size="small" icon={active ? <CheckCircleOutlined /> : <CaretRightOutlined />} onClick={() => handleStartModel(card)} disabled={active} style={{ borderRadius: 8, fontSize: 11 }}>{active ? '已启动' : '启动'}</Button>
+                              {active ? (
+                                <Tag color="green" style={{ fontSize: 10, margin: 0 }}>● 运行中</Tag>
+                              ) : (
+                                <Tag color={card.status === 'stopped' ? 'default' : 'blue'} style={{ fontSize: 10, margin: 0 }}>{card.status === 'stopped' ? '○ 已停止' : '○ 就绪'}</Tag>
+                              )}
+                              <Button type={active ? 'default' : 'primary'} size="small" icon={active ? <CheckCircleOutlined /> : <CaretRightOutlined />} onClick={() => handleStartModel(card)} disabled={active} style={{ borderRadius: 8, fontSize: 11, marginLeft: 'auto' }}>{active ? '已启动' : '启动'}</Button>
                             </div>
                           </Card>
                         )

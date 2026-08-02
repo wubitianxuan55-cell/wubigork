@@ -44,7 +44,8 @@ const ImageGenPanel: React.FC = () => {
     <>
       <SettingsSection
         title={<>当前绘梦后端</>}
-        desc="AI 图像生成所使用的引擎与模型。切换后绘梦工作台即时生效。"
+        desc="AI 图像生成所使用的引擎与模型。"
+        instant
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <PictureOutlined style={{ fontSize: 18, color: 'var(--gaea-glow)', filter: 'drop-shadow(0 0 6px var(--gaea-glow))' }} />

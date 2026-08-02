@@ -13,6 +13,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/whisper"
 	whisperdb "github.com/gaea/gaea/internal/whisper/db/repos"
 )
 
@@ -122,6 +123,24 @@ func (a *App) GaeaWhisperMemories() []WhisperMemoryView {
 		})
 	}
 	return out
+}
+
+// GaeaWhisperExportArchive 导出轻语记忆归档（hermes.db → Markdown 按领域/子类分目录）。
+// 对齐 ackem archiveExporter：生成 README 索引 + 每个领域/子类一个 .md 文件。
+func (a *App) GaeaWhisperExportArchive(dir string) (int, error) {
+	facts := whisperdb.LoadFactsFromDB(a.whisperDataRoot)
+	if len(facts) == 0 {
+		return 0, nil
+	}
+	wrapped := make([]*whisper.Fact, 0, len(facts))
+	for i := range facts {
+		wrapped = append(wrapped, &whisper.Fact{MemoryFact: facts[i], Active: true})
+	}
+	n, err := whisper.WriteArchiveFromFacts(wrapped, nil, dir)
+	if err != nil {
+		return 0, fmt.Errorf("archive export: %w", err)
+	}
+	return n, nil
 }
 
 // GaeaMemoryHubOverview 返回记忆中枢聚合总览：各库条目数 + 最近更新时间。
