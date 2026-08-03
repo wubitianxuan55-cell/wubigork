@@ -493,6 +493,19 @@ export interface WhisperMemoryView {
   updatedAt: string;
 }
 
+// WhisperEpisodeView 轻语（hermes.db）情节记忆只读视图（时间倒序）。
+export interface WhisperEpisodeView {
+  id: string;
+  summary: string;
+  dominantEmotion: string;
+  emotionalIntensity: number;
+  keywords: string[];
+  startTurn: number;
+  endTurn: number;
+  createdAt: string;
+  sourceSessionId: string;
+}
+
 // MemoryHubOverview 记忆中枢聚合总览。
 export interface MemoryHubOverview {
   knowledgeCount: number;

@@ -44,6 +44,14 @@
 - buildTierBBlock 新增关联扩散：对本次检索 Top5 事实，经 AssocIndex.GetAssociations 取关联边，去重后展示活跃关联事实摘要（【关联记忆】块）——此前 AssocIndex 只在冷启动建边/纠正写侧接线，读侧从未进入对话上下文
 - 验证：新增 1 测试（两事实建关联边，检索其一扩散出另一事实）；go test ./... 全绿 + go vet clean + go build 全过
 
+## 「持续优化」续五 (2026-08-02)
+
+> 记忆中枢轻语库新增「情节」Tab：情节记忆时间线展示（调研：Replika/Talkie 只做角色主页分组列表，时间线 + 情绪可视化属差异化领先设计）。
+
+- 后端：新增 GaeaWhisperEpisodes 绑定（LoadEpisodesFromDB → WhisperEpisodeView，时间倒序）；类型含 摘要/主导情绪/情绪强度/关键词/轮次范围/时间/会话
+- 前端：WhisperMemoryLibrary 新增「事实/情节」Tab 切换；情节 tab 时间线流（竖线 + 情绪 emoji 节点 + 玻璃卡片），卡片要素：摘要 + 情绪 emoji 角标 + 强度渐变条 + 关键词暖色 chips + 时间 + 轮次范围；情节详情弹窗
+- 验证：tsc 0 错误 + vite build 成功 + go test ./... 全绿
+
 ## v1.11.0「界面体验深化 · 全站重设计」(2026-08-02)
 
 > 设置中心外观细化升华（实时预览/三态显示/字体/密度/动效/强调色）+ 聊天 Markdown 消息体验 + 轻语面板 UI 重设计（角色状态头/气泡/情绪回复）+ 虚拟助手面板与角色卡详情重设计 + 轻语测试深化（21.8%）+ P3 archiveExporter 记忆归档导出。

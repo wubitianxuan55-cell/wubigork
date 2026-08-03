@@ -48,6 +48,19 @@ type WhisperMemoryView struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
+// WhisperEpisodeView 轻语情节记忆只读视图（时间倒序展示）。
+type WhisperEpisodeView struct {
+	ID                 string    `json:"id"`
+	Summary            string    `json:"summary"`
+	DominantEmotion    string    `json:"dominantEmotion"`
+	EmotionalIntensity float64   `json:"emotionalIntensity"`
+	Keywords           []string  `json:"keywords"`
+	StartTurn          int       `json:"startTurn"`
+	EndTurn            int       `json:"endTurn"`
+	CreatedAt          time.Time `json:"createdAt"`
+	SourceSessionID    string    `json:"sourceSessionId"`
+}
+
 // MemoryHubOverview 记忆中枢聚合总览（各库统计 + 最近条目）。
 type MemoryHubOverview struct {
 	KnowledgeCount int    `json:"knowledgeCount"`
@@ -122,6 +135,25 @@ func (a *App) GaeaWhisperMemories() []WhisperMemoryView {
 			UpdatedAt: f.UpdatedAt,
 		})
 	}
+	return out
+}
+
+// GaeaWhisperEpisodes 返回轻语（hermes.db）情节记忆只读列表（时间倒序）。
+func (a *App) GaeaWhisperEpisodes() []WhisperEpisodeView {
+	eps, err := whisperdb.LoadEpisodesFromDB(a.whisperDataRoot)
+	if err != nil {
+		return nil
+	}
+	out := make([]WhisperEpisodeView, 0, len(eps))
+	for _, ep := range eps {
+		out = append(out, WhisperEpisodeView{
+			ID: ep.ID, Summary: ep.Summary,
+			DominantEmotion: ep.DominantEmotion, EmotionalIntensity: ep.EmotionalIntensity,
+			Keywords: ep.Keywords, StartTurn: ep.StartTurn, EndTurn: ep.EndTurn,
+			CreatedAt: ep.CreatedAt, SourceSessionID: ep.SourceSessionID,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	return out
 }
 

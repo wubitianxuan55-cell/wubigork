@@ -39,6 +39,7 @@ import type {
   WorkspaceView,
   MemoryHubOverview,
   ProfileFactView,
+  WhisperEpisodeView,
   WhisperMemoryView,
   MemoryGraphView,
   CostSummary,
@@ -177,6 +178,8 @@ export interface AppBindings {
   ProfileDelete(name: string): Promise<void>;
   ProfileConflicts(): Promise<string[]>;
   WhisperMemories(): Promise<WhisperMemoryView[]>;
+  // WhisperEpisodes 轻语情节记忆（hermes.db，时间倒序）。
+  WhisperEpisodes(): Promise<WhisperEpisodeView[]>;
   // WhisperExportArchive 导出轻语记忆归档（hermes.db → Markdown 分目录），返回文件数。
   WhisperExportArchive(dir: string): Promise<number>;
   // PickDirectory 系统目录选择对话框，返回所选目录（取消返回空串）。
@@ -337,6 +340,7 @@ const gaeaToGaea: Record<string, string> = {
   ProfileDelete: "GaeaProfileDelete",
   ProfileConflicts: "GaeaProfileConflicts",
   WhisperMemories: "GaeaWhisperMemories",
+  WhisperEpisodes: "GaeaWhisperEpisodes",
   WhisperExportArchive: "GaeaWhisperExportArchive",
   PickDirectory: "GaeaPickDirectory",
   MemoryGraph: "GaeaMemoryGraph",

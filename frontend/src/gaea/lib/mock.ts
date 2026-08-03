@@ -629,6 +629,9 @@ export function makeMockApp(): AppBindings {
     async WhisperMemories() {
       return [];
     },
+    async WhisperEpisodes() {
+      return [];
+    },
     async MemoryGraph() {
       return { nodes: [], links: [] };
     },
