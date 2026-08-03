@@ -52,6 +52,13 @@
 - 前端：WhisperMemoryLibrary 新增「事实/情节」Tab 切换；情节 tab 时间线流（竖线 + 情绪 emoji 节点 + 玻璃卡片），卡片要素：摘要 + 情绪 emoji 角标 + 强度渐变条 + 关键词暖色 chips + 时间 + 轮次范围；情节详情弹窗
 - 验证：tsc 0 错误 + vite build 成功 + go test ./... 全绿
 
+## 「持续优化」续六 (2026-08-02)
+
+> 轻语三元组入图：记忆图谱首次含轻语语义关系（实体节点 + 关系边），whisper 节点不再孤立。
+
+- GaeaMemoryGraph 新增轻语三元组：LoadTriplesFromDB（按置信度取前 60）→ 实体节点（"t:"+实体名，类型 whisper 复用现有粉色）+ 关系边（subject → object，predicate 作边类型）；共享实体自动去重合并（多个三元组共用"用户"只出 1 节点）
+- 验证：新增集成测试 TestGaeaMemoryGraph_WhisperTriples（实体节点存在/去重/关系边 2 条）；go test ./... 全绿 + go vet clean + go build 全过
+
 ## v1.11.0「界面体验深化 · 全站重设计」(2026-08-02)
 
 > 设置中心外观细化升华（实时预览/三态显示/字体/密度/动效/强调色）+ 聊天 Markdown 消息体验 + 轻语面板 UI 重设计（角色状态头/气泡/情绪回复）+ 虚拟助手面板与角色卡详情重设计 + 轻语测试深化（21.8%）+ P3 archiveExporter 记忆归档导出。

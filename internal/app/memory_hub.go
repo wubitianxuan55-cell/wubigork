@@ -227,9 +227,10 @@ type MemoryGraphView struct {
 }
 
 const (
-	maxGraphNodes = 400
-	maxGraphLinks = 800
-	whisperGraphN = 40 // 轻语节点上限（按权重取前 N）
+	maxGraphNodes       = 400
+	maxGraphLinks       = 800
+	whisperGraphN       = 40 // 轻语节点上限（按权重取前 N）
+	whisperTripleGraphN = 60 // 轻语三元组入图上限（按置信度取前 N）
 )
 
 // GaeaMemoryGraph 构建记忆图谱：知识/画像/办公/轻语为节点，
@@ -303,6 +304,20 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 			break
 		}
 		addNode("w:"+f.ID, f.Subject, "whisper", f.Summary, 0.8+f.Weight)
+	}
+
+	// 轻语知识图谱三元组：实体节点 + 关系边（按置信度取前 N，实体名去重合并）
+	triples, _ := whisperdb.LoadTriplesFromDB(a.whisperDataRoot)
+	sort.Slice(triples, func(i, j int) bool { return triples[i].Confidence > triples[j].Confidence })
+	for i, t := range triples {
+		if i >= whisperTripleGraphN {
+			break
+		}
+		subjID := "t:" + t.Subject
+		objID := "t:" + t.Object
+		addNode(subjID, t.Subject, "whisper", "轻语图谱实体", 1)
+		addNode(objID, t.Object, "whisper", "轻语图谱实体", 1)
+		addLink(subjID, objID, t.Predicate)
 	}
 
 	// 边：同标签（每 tag 限 15 对）
