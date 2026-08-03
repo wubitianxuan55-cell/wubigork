@@ -281,6 +281,8 @@ export function GaeaUpdateFact(arg1:string,arg2:string):Promise<string>;
 
 export function GaeaVersion():Promise<string>;
 
+export function GaeaWhisperEpisodes():Promise<Array<app.WhisperEpisodeView>>;
+
 export function GaeaWhisperExportArchive(arg1:string):Promise<number>;
 
 export function GaeaWhisperMemories():Promise<Array<app.WhisperMemoryView>>;

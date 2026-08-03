@@ -546,6 +546,10 @@ export function GaeaVersion() {
   return window['go']['app']['App']['GaeaVersion']();
 }
 
+export function GaeaWhisperEpisodes() {
+  return window['go']['app']['App']['GaeaWhisperEpisodes']();
+}
+
 export function GaeaWhisperExportArchive(arg1) {
   return window['go']['app']['App']['GaeaWhisperExportArchive'](arg1);
 }

@@ -1,63 +1,19 @@
 # gaea · 多功能 AI 助手
 
-## 「持续优化」(2026-08-02)
+## v1.12.0「轻语记忆贯通」(2026-08-03)
 
-> 轻语记忆贯通 hermes.db：FactStore/EpisodicStore 与数据库真正打通（此前运行时只写内存，重启即丢、记忆中枢永远空）+ 情节记忆运行时生效。
+> 轻语记忆系统与 hermes.db 全链路贯通（事实/情节/知识图谱三表持久化）+ TierB 记忆上下文补全（情节/触发词/关联扩散/记忆回声）+ 记忆中枢展示（情节 Tab + 三元组入图）。
+> tag v1.12.0，构建 37,743,616 字节。
 
-- 记忆贯通（右脑落地的关键缺口修复）：Orchestrator 新增 EpisodicStore 运行时实例（原 handler 硬编码 nil）；restoreWhisperState 从 hermes.db 恢复事实库与情节库（重启不丢记忆）；persistWhisperState 写回——事实合并写回（本会话以内存为准含退役态，保留其他会话事实），情节全量写回
-- 修复 restoreWhisperState 早期返回缺陷：companion_state/chat_history 无行时提前 return，阻断事实/情节恢复（首次使用或清空历史后记忆永不加载）
-- 情节记忆运行时生效：EnqueueMemoryWrite 传入 EpisodicStore + RecentExchanges（工作记忆组装），情节生成前置条件（≥3 轮对话 + 6/10 轮间隔 + 情绪阈值）首次可满足；hermes.db episodes 表从零填充
-- FactStore 新增 Restore（DB 事实灌入保留原 ID/退役态，空 status 规范化为 active）+ ListAll（含退役事实，供持久化全量写回）
-- 影响面：记忆中枢轻语库/总览/归档首次能读到真实数据（此前 LoadFactsFromDB 一直为空）
-- 验证：新增 whisper 2 测试（Restore/ListAll）+ app 集成测试 TestWhisperMemoryPersistRoundTrip（写入→持久化→恢复→多会话合并不互踩）；go test ./... 全绿 + go vet clean + go build 全过
-
-## 「持续优化」续 (2026-08-02)
-
-> 知识图谱贯通：KG 三元组接入 hermes.db（此前 knowledge_triples 表零调用，重启即丢）+ KnowledgeGraph 并发安全 + Query 误命中修复。
-
-- KG 三元组持久化：restoreWhisperState 加载三元组到 orch.KG（倒排索引重建）；persistWhisperState 全量写回（persistKGToDB）；hermes.db knowledge_triples 表首次有数据，跨重启知识图谱上下文（orchestrator 提示注入）生效
-- KnowledgeGraph 并发安全：新增 sync.RWMutex（原无锁——extractTriples 在异步 goroutine 写 + PreLLMTurn 主流程读，Go map 并发写读会 fatal）；Add/Query/Size 加锁
-- 修复 Query 评分 bug：原遍历全局 entityIdx 给所有三元组加分（图谱越大误命中越多）→ 改为匹配三元组自身 subject/object；单字实体（如"辣"）可命中
-- KnowledgeGraph 新增 Restore（保留原 ID/CreatedAt）+ ListAll（含新增三元组，供全量写回）
-- 验证：新增 whisper 3 测试（ConcurrentSafe/RestoreAndListAll/Query 命中）+ 集成测试扩展 KG 往返断言；go test ./... 全绿 + go vet clean + go build 全过
-
-## 「持续优化」续二 (2026-08-02)
-
-> 情节记忆接入对话上下文：EpisodicStore 并发安全 + TierB 提示注入补情节检索/触发词 boost。
-
-- EpisodicStore 并发安全：新增 sync.RWMutex（原无锁——情节生成在异步 goroutine Add + buildTierBBlock 主流程 Search，并发 append 实测丢数据）；Add/Search/ListAll/Get/Count/Latest 加锁
-- TierB 记忆上下文补全：buildTierBBlock 新增情节记忆检索（EpisodicStore.Search → 【相关记忆片段】，跨重启持久化后首次接入提示注入）+ 触发词命中事实 boost 1.5x（对齐 ackem retriever 触发词加权）
-- 验证：新增 whisper 2 测试（EpisodicStore 并发 20 goroutine 不丢数据 / TierB 情节注入）；go test ./... 全绿 + go vet clean + go build 全过
-
-## 「持续优化」续三 (2026-08-02)
-
-> 记忆回声接线：检索到的事实情绪聚合（MemoryEcho）首次叠加到对话状态情绪，ApplyMemoryEcho/ComputeMemoryEchoFacts 从零调用变为生效。
-
-- 记忆回声链路接通：buildTierBBlock 用本次检索事实的 EmotionalContext 聚合记忆回声（ComputeMemoryEchoFacts，正/负效价、强度、信任信号 → Aff/Sec/Aro/Dom 四维）；PreLLMTurn 叠加到 o.State.Emotion（ApplyMemoryEcho，clamp ±100）——此前 ApplyMemoryEcho/ComputeMemoryEchoFacts 均为零调用孤岛，记忆对情绪的调制从未生效
-- 结构：buildTierBBlock 签名改为 (string, MemoryEcho)；scoredFact 提升至函数级供回声聚合复用
-- 验证：新增 2 测试（有情感事实时回声非零且正效价 Aff>0 / ApplyMemoryEcho 叠加与 clamp）；go test ./... 全绿 + go vet clean + go build 全过
-
-## 「持续优化」续四 (2026-08-02)
-
-> 关联扩散接入 TierB：检索到的事实通过 AssocIndex 向关联记忆扩散（记忆联想），【关联记忆】块首次进入提示。
-
-- buildTierBBlock 新增关联扩散：对本次检索 Top5 事实，经 AssocIndex.GetAssociations 取关联边，去重后展示活跃关联事实摘要（【关联记忆】块）——此前 AssocIndex 只在冷启动建边/纠正写侧接线，读侧从未进入对话上下文
-- 验证：新增 1 测试（两事实建关联边，检索其一扩散出另一事实）；go test ./... 全绿 + go vet clean + go build 全过
-
-## 「持续优化」续五 (2026-08-02)
-
-> 记忆中枢轻语库新增「情节」Tab：情节记忆时间线展示（调研：Replika/Talkie 只做角色主页分组列表，时间线 + 情绪可视化属差异化领先设计）。
-
-- 后端：新增 GaeaWhisperEpisodes 绑定（LoadEpisodesFromDB → WhisperEpisodeView，时间倒序）；类型含 摘要/主导情绪/情绪强度/关键词/轮次范围/时间/会话
-- 前端：WhisperMemoryLibrary 新增「事实/情节」Tab 切换；情节 tab 时间线流（竖线 + 情绪 emoji 节点 + 玻璃卡片），卡片要素：摘要 + 情绪 emoji 角标 + 强度渐变条 + 关键词暖色 chips + 时间 + 轮次范围；情节详情弹窗
-- 验证：tsc 0 错误 + vite build 成功 + go test ./... 全绿
-
-## 「持续优化」续六 (2026-08-02)
-
-> 轻语三元组入图：记忆图谱首次含轻语语义关系（实体节点 + 关系边），whisper 节点不再孤立。
-
-- GaeaMemoryGraph 新增轻语三元组：LoadTriplesFromDB（按置信度取前 60）→ 实体节点（"t:"+实体名，类型 whisper 复用现有粉色）+ 关系边（subject → object，predicate 作边类型）；共享实体自动去重合并（多个三元组共用"用户"只出 1 节点）
-- 验证：新增集成测试 TestGaeaMemoryGraph_WhisperTriples（实体节点存在/去重/关系边 2 条）；go test ./... 全绿 + go vet clean + go build 全过
+- 轻语记忆贯通 hermes.db（右脑落地的关键缺口）：Orchestrator 新增 EpisodicStore 运行时实例（原 handler 硬编码 nil，情节从未生成）；restoreWhisperState 从 hermes.db 恢复事实库/情节库/图谱（重启不丢记忆）；persistWhisperState 写回——事实合并写回（本会话以内存为准含退役态，保留其他会话事实），情节/图谱全量写回
+- 修复 restoreWhisperState 早期返回缺陷：companion_state/chat_history 无行时提前 return，阻断记忆恢复（首次使用或清空历史后记忆永不加载）
+- 修复数据竞争：KnowledgeGraph/EpisodicStore 无锁——extractTriples/情节生成在异步 goroutine 写 + PreLLMTurn 主流程读，Go map 并发写读会 fatal / slice append 实测丢数据 → 加 sync.RWMutex
+- 修复 KnowledgeGraph.Query 评分 bug：原遍历全局 entityIdx 给所有三元组加分（图谱越大误命中越多）→ 改为匹配三元组自身 subject/object；单字实体可命中
+- TierB 记忆上下文补全：情节检索（EpisodicStore.Search → 【相关记忆片段】）+ 触发词命中事实 boost 1.5x + 关联扩散（Top5 事实经 AssocIndex → 【关联记忆】）
+- 记忆回声接线：buildTierBBlock 用检索事实 EmotionalContext 聚合记忆回声（Aff/Sec/Aro/Dom），PreLLMTurn 叠加到状态情绪（ApplyMemoryEcho/ComputeMemoryEchoFacts 从零调用孤岛变为生效，clamp ±100）
+- 记忆中枢展示：轻语库新增「事实/情节」Tab（情节时间线流：情绪 emoji 角标 + 强度渐变条 + 关键词 chips + 轮次范围，按 AI 伴侣记忆库调研）；记忆图谱新增轻语三元组（实体节点 t: 复用 whisper 色 + predicate 关系边，共享实体去重）
+- FactStore 新增 Restore（保留原 ID/退役态）/ListAll；KnowledgeGraph 新增 Restore/ListAll；影响面：记忆中枢轻语库/总览/归档/图谱首次读到真实数据
+- 验证：新增 12+ 测试（FactStore Restore/ListAll、KG 并发/Restore/Query、EpisodicStore 并发、TierB 情节注入/记忆回声/关联扩散、集成往返、图谱三元组）；go test ./... 全绿 + go vet clean + go build 全过 + tsc 0 错误 + vite build 成功
 
 ## v1.11.0「界面体验深化 · 全站重设计」(2026-08-02)
 
