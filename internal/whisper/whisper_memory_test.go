@@ -443,6 +443,26 @@ func TestApplyMemoryEcho_ModifiesEmotion(t *testing.T) {
 	}
 }
 
+// ─── orchestrator: TierB 关联扩散 ────────────────────────────
+
+func TestOrchestrator_BuildTierBBlockAssociationSpread(t *testing.T) {
+	orch := NewOrchestrator("sess-t", PersonalityPresets[0])
+	f1 := orch.FactStore.Add(MemoryFact{
+		Domain: "preference", Subcategory: "FOOD", Subject: "用户",
+		Summary: "喜欢吃辣", Weight: 2, Confidence: 0.8,
+	})
+	f2 := orch.FactStore.Add(MemoryFact{
+		Domain: "preference", Subcategory: "DRINK", Subject: "用户",
+		Summary: "喜欢喝冰红茶配辣", Weight: 1, Confidence: 0.8,
+	})
+	orch.AssocIndex.StrengthenOrCreate(f1.ID, f2.ID, "thematic", 0.8)
+
+	block, _ := orch.buildTierBBlock("你记得我吃辣吗", 60, 1)
+	if !strings.Contains(block, "关联记忆") || !strings.Contains(block, "冰红茶") {
+		t.Fatalf("buildTierBBlock 应扩散关联记忆: %s", block)
+	}
+}
+
 func TestAttentionBudget_ProactiveLimit(t *testing.T) {
 	am := NewAttentionManager()
 	now := time.Now()

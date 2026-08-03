@@ -37,6 +37,13 @@
 - 结构：buildTierBBlock 签名改为 (string, MemoryEcho)；scoredFact 提升至函数级供回声聚合复用
 - 验证：新增 2 测试（有情感事实时回声非零且正效价 Aff>0 / ApplyMemoryEcho 叠加与 clamp）；go test ./... 全绿 + go vet clean + go build 全过
 
+## 「持续优化」续四 (2026-08-02)
+
+> 关联扩散接入 TierB：检索到的事实通过 AssocIndex 向关联记忆扩散（记忆联想），【关联记忆】块首次进入提示。
+
+- buildTierBBlock 新增关联扩散：对本次检索 Top5 事实，经 AssocIndex.GetAssociations 取关联边，去重后展示活跃关联事实摘要（【关联记忆】块）——此前 AssocIndex 只在冷启动建边/纠正写侧接线，读侧从未进入对话上下文
+- 验证：新增 1 测试（两事实建关联边，检索其一扩散出另一事实）；go test ./... 全绿 + go vet clean + go build 全过
+
 ## v1.11.0「界面体验深化 · 全站重设计」(2026-08-02)
 
 > 设置中心外观细化升华（实时预览/三态显示/字体/密度/动效/强调色）+ 聊天 Markdown 消息体验 + 轻语面板 UI 重设计（角色状态头/气泡/情绪回复）+ 虚拟助手面板与角色卡详情重设计 + 轻语测试深化（21.8%）+ P3 archiveExporter 记忆归档导出。

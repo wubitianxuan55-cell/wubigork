@@ -884,6 +884,34 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 		}
 	}
 
+	// 关联扩散：从本次检索到的事实向关联记忆扩散（对齐 ackem retriever 关联扩散）
+	if o.AssocIndex != nil && len(ranked) > 0 {
+		var al []string
+		seen := make(map[string]bool)
+		top := ranked
+		if len(top) > 5 {
+			top = top[:5]
+		}
+		for _, sf := range top {
+			for _, a := range o.AssocIndex.GetAssociations(sf.fact.ID) {
+				peerID := a.FactIDB
+				if a.FactIDB == sf.fact.ID {
+					peerID = a.FactIDA
+				}
+				if seen[peerID] {
+					continue
+				}
+				seen[peerID] = true
+				if peer := o.FactStore.Get(peerID); peer != nil && peer.IsActive() {
+					al = append(al, "· "+truncStr(peer.Summary, 80))
+				}
+			}
+		}
+		if len(al) > 0 {
+			parts = append(parts, "【关联记忆】\n"+strings.Join(al, "\n"))
+		}
+	}
+
 	if c := o.Recall.SelectRecallCandidate(o.FactStore, turnIndex, nil); c != nil {
 		parts = append(parts, "【可以自然提起的旧事】\n"+c.Prompt)
 		o.Recall.MarkRecalled(c.FactID, turnIndex)
