@@ -29,6 +29,14 @@
 - TierB 记忆上下文补全：buildTierBBlock 新增情节记忆检索（EpisodicStore.Search → 【相关记忆片段】，跨重启持久化后首次接入提示注入）+ 触发词命中事实 boost 1.5x（对齐 ackem retriever 触发词加权）
 - 验证：新增 whisper 2 测试（EpisodicStore 并发 20 goroutine 不丢数据 / TierB 情节注入）；go test ./... 全绿 + go vet clean + go build 全过
 
+## 「持续优化」续三 (2026-08-02)
+
+> 记忆回声接线：检索到的事实情绪聚合（MemoryEcho）首次叠加到对话状态情绪，ApplyMemoryEcho/ComputeMemoryEchoFacts 从零调用变为生效。
+
+- 记忆回声链路接通：buildTierBBlock 用本次检索事实的 EmotionalContext 聚合记忆回声（ComputeMemoryEchoFacts，正/负效价、强度、信任信号 → Aff/Sec/Aro/Dom 四维）；PreLLMTurn 叠加到 o.State.Emotion（ApplyMemoryEcho，clamp ±100）——此前 ApplyMemoryEcho/ComputeMemoryEchoFacts 均为零调用孤岛，记忆对情绪的调制从未生效
+- 结构：buildTierBBlock 签名改为 (string, MemoryEcho)；scoredFact 提升至函数级供回声聚合复用
+- 验证：新增 2 测试（有情感事实时回声非零且正效价 Aff>0 / ApplyMemoryEcho 叠加与 clamp）；go test ./... 全绿 + go vet clean + go build 全过
+
 ## v1.11.0「界面体验深化 · 全站重设计」(2026-08-02)
 
 > 设置中心外观细化升华（实时预览/三态显示/字体/密度/动效/强调色）+ 聊天 Markdown 消息体验 + 轻语面板 UI 重设计（角色状态头/气泡/情绪回复）+ 虚拟助手面板与角色卡详情重设计 + 轻语测试深化（21.8%）+ P3 archiveExporter 记忆归档导出。

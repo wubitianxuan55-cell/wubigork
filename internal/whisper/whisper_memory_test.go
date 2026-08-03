@@ -397,9 +397,49 @@ func TestOrchestrator_BuildTierBBlockIncludesEpisodes(t *testing.T) {
 		Domain: "preference", Subcategory: "FOOD", Subject: "用户",
 		Summary: "喜欢吃辣", Weight: 2,
 	})
-	block := orch.buildTierBBlock("你喜欢雨天散步吗", 60, 1)
+	block, _ := orch.buildTierBBlock("你喜欢雨天散步吗", 60, 1)
 	if !strings.Contains(block, "相关记忆片段") || !strings.Contains(block, "雨天散步") {
 		t.Fatalf("buildTierBBlock 应注入情节记忆片段: %s", block)
+	}
+}
+
+// ─── orchestrator: 记忆回声 ──────────────────────────────────
+
+func TestOrchestrator_MemoryEchoComputed(t *testing.T) {
+	orch := NewOrchestrator("sess-t", PersonalityPresets[0])
+	// 有情感上下文的事实：检索时产生记忆回声（正效价）
+	orch.FactStore.Add(MemoryFact{
+		Domain: "user_behavior", Subcategory: "PRAISE", Subject: "用户",
+		Summary: "用户上次夸奖过Hermes", Weight: 1, SelfRelevance: 0.8, Confidence: 0.7,
+		EmotionalContext: &EmotionalContext{Valence: 60, Intensity: 0.8, Trust: 70},
+	})
+	_, echo := orch.buildTierBBlock("你记得夸奖", 60, 1)
+	if echo == (MemoryEcho{}) {
+		t.Fatal("有情感事实时记忆回声不应为零")
+	}
+	if echo.Aff <= 0 {
+		t.Fatalf("正效价记忆的回声 Aff 应 > 0, got %f", echo.Aff)
+	}
+
+	// 无事实时回声为零
+	orch2 := NewOrchestrator("sess-t2", PersonalityPresets[0])
+	_, echo2 := orch2.buildTierBBlock("随便聊聊", 60, 1)
+	if echo2 != (MemoryEcho{}) {
+		t.Fatalf("无事实时记忆回声应为零: %+v", echo2)
+	}
+}
+
+func TestApplyMemoryEcho_ModifiesEmotion(t *testing.T) {
+	base := EmotionState{Aff: 50, Sec: 40, Aro: 30, Dom: 20}
+	echo := MemoryEcho{Aff: 10, Sec: -5, Aro: 3, Dom: 0}
+	got := ApplyMemoryEcho(base, echo)
+	if got.Aff != 60 || got.Sec != 35 || got.Aro != 33 || got.Dom != 20 {
+		t.Fatalf("ApplyMemoryEcho 结果不符: %+v", got)
+	}
+	// clamp 到 ±100
+	extreme := ApplyMemoryEcho(base, MemoryEcho{Aff: 200, Sec: -200})
+	if extreme.Aff != 100 || extreme.Sec != -100 {
+		t.Fatalf("回声应 clamp 到 ±100: %+v", extreme)
 	}
 }
 

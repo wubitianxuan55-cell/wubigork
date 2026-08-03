@@ -362,8 +362,12 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	o.State = newState
 
 	// ═══ Tier B 记忆检索 ═══
-	tierBBlock := o.buildTierBBlock(userMsg, newEmotion.Aff, turnIndex)
+	tierBBlock, memEcho := o.buildTierBBlock(userMsg, newEmotion.Aff, turnIndex)
 
+	// 记忆回声叠加到状态情绪（对齐 ackem applyMemoryEcho）
+	if memEcho != (MemoryEcho{}) {
+		o.State.Emotion = ApplyMemoryEcho(o.State.Emotion, memEcho)
+	}
 	// ═══ Tier A gaea快照 ═══
 	tierABlock := o.buildTierASnapshot(newL1, newEmotion)
 
@@ -813,7 +817,7 @@ func (o *Orchestrator) buildTierASnapshot(l1 L1State, emotion EmotionState) stri
 
 // ─── Tier B 记忆上下文 ───────────────────────────────────────
 
-func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnIndex int) string {
+func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnIndex int) (string, MemoryEcho) {
 	var parts []string
 
 	if wm := o.WM.BuildContextBlock(o.SessionID); wm != "" {
@@ -829,16 +833,16 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 	}
 
 	// v5.40: 时间感知调制 — 根据当前时间节律加权记忆排序
+	type scoredFact struct {
+		fact  *Fact
+		score float64
+	}
+	var ranked []scoredFact
 	if len(facts) > 0 {
 		now := time.Now()
 		gapHours := time.Since(o.State.LastActive).Hours()
 		tCtx := BuildTemporalContext(gapHours, now)
 
-		type scoredFact struct {
-			fact  *Fact
-			score float64
-		}
-		var ranked []scoredFact
 		boost := ComputeTemporalBoost(tCtx)
 		for _, f := range facts {
 			score := f.Weight * f.SelfRelevance * boost
@@ -856,6 +860,13 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 		}
 		parts = append(parts, strings.Join(fl, "\n"))
 	}
+
+	// 记忆回声：从本次检索到的事实聚合情绪信号（对齐 ackem computeMemoryEcho）
+	sfPairs := make([]sfPair, 0, len(ranked))
+	for _, sf := range ranked {
+		sfPairs = append(sfPairs, sfPair{f: sf.fact, s: sf.score})
+	}
+	echo := ComputeMemoryEchoFacts(sfPairs, currentAff)
 
 	if kg := o.KG.BuildContextBlock(userMsg, KGCharBudget); kg != "" {
 		parts = append(parts, kg)
@@ -885,7 +896,7 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 			result = string(runes[:TierBCharBudget])
 		}
 	}
-	return result
+	return result, echo
 }
 
 // ─── 人格一致性守卫 ──────────────────────────────────────────
