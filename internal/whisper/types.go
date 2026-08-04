@@ -497,13 +497,6 @@ type Association struct {
 
 // ─── 检索类型 ──────────────────────────────────────────────────
 
-// RelevanceHint 检索方向提示
-type RelevanceHint struct {
-	StageMultiplier float64
-	AroVolatility   float64
-	TrustTrajectory string
-}
-
 // TemporalContext 时间上下文
 type TemporalContext struct {
 	TimeOfDay string // morning/afternoon/evening/late_night
@@ -514,21 +507,6 @@ type TemporalContext struct {
 	Weekday   int
 	GapHours  float64
 	LocalDate string
-}
-
-// RetrievalResult 检索结果
-type RetrievalResult struct {
-	TierBBlock             string
-	MemoryEcho             MemoryEcho
-	FactsUsed              int
-	EmbeddingHits          int
-	AssociationHits        int
-	AssociationActivations int
-	TemporalAnchorHits     int
-	EpisodesUsed           int
-	MemoirTrust            *float64
-	SharedCount            int
-	ActivatedAssocIDs      []string
 }
 
 // ─── v5.41: Context 系统类型 ─────────────────────────────────
