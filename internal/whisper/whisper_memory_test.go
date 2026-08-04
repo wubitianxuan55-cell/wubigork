@@ -477,3 +477,51 @@ func TestAttentionBudget_ProactiveLimit(t *testing.T) {
 		t.Error("达到限制应超限（>= 语义）")
 	}
 }
+
+// ─── orchestrator: FTS 全文检索召回（v5.80）────────────────────
+
+func TestOrchestrator_BuildTierBBlockFTSSearch(t *testing.T) {
+	orch := NewOrchestrator("sess-fts", PersonalityPresets[0])
+	// 触发词是「咖啡」，但用户问「她平时喝什么」不含触发词 → 触发词检索不到
+	orch.FactStore.Add(MemoryFact{
+		Domain: "preference", Subcategory: "FOOD", Subject: "用户",
+		Summary: "她喜欢喝美式咖啡", Triggers: []string{"咖啡"},
+		Weight: 2, Confidence: 0.9, SelfRelevance: 0.8,
+	})
+	// 注入 FTS 回调：模拟 hermes.db 全文索引命中「咖啡」所在事实
+	orch.FTSSearch = func(query string, limit int) []string {
+		if query == "她平时喝什么" {
+			return []string{orch.FactStore.ListActive()[0].ID}
+		}
+		return nil
+	}
+
+	block, _ := orch.buildTierBBlock("她平时喝什么", 60, 1)
+	if !strings.Contains(block, "美式咖啡") {
+		t.Fatalf("FTS 命中事实应补入 TierB 候选: %s", block)
+	}
+}
+
+func TestOrchestrator_BuildTierBBlockFTSSearchEmpty(t *testing.T) {
+	orch := NewOrchestrator("sess-fts2", PersonalityPresets[0])
+	orch.FactStore.Add(MemoryFact{
+		Domain: "preference", Subcategory: "FOOD", Subject: "用户",
+		Summary: "她喜欢喝美式咖啡", Triggers: []string{"咖啡"},
+		Weight: 2, Confidence: 0.9, SelfRelevance: 0.8,
+	})
+	// 无 FTS 回调（DataRoot 未注入）→ 保持原行为不 panic
+	block, _ := orch.buildTierBBlock("随便聊聊", 60, 1)
+	_ = block // 不崩溃即可；触发词未命中时无检索块也正常
+}
+
+func TestOrchestrator_BuildTierBBlockFTSNilCallback(t *testing.T) {
+	orch := NewOrchestrator("sess-fts3", PersonalityPresets[0])
+	orch.FactStore.Add(MemoryFact{
+		Domain: "preference", Subcategory: "FOOD", Subject: "用户",
+		Summary: "她喜欢喝美式咖啡", Triggers: []string{"咖啡"},
+		Weight: 2, Confidence: 0.9, SelfRelevance: 0.8,
+	})
+	block, echo := orch.buildTierBBlock("她平时喝什么", 60, 1)
+	_ = block
+	_ = echo
+}

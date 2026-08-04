@@ -77,6 +77,14 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 	}
 	orch := whisper.NewOrchestrator(sessionID, *preset)
 	orch.DataRoot = a.whisperDataRoot
+	// FTS 全文检索回调：buildTierBBlock 经此走 hermes.db FTS5 索引（含 LIKE 中文降级）
+	orch.FTSSearch = func(query string, limit int) []string {
+		ids, err := repos.SearchFactIDsFTS(a.whisperDataRoot, query, limit)
+		if err != nil {
+			return nil
+		}
+		return ids
+	}
 
 	whisperSessionsMu.Lock()
 	whisperSessions[sessionID] = orch
@@ -689,15 +697,18 @@ func persistFactsToDB(orch *whisper.Orchestrator) {
 		merged = append(merged, f.MemoryFact)
 	}
 	_ = repos.ReplaceFactsInDB(orch.DataRoot, merged)
+	// FTS 全文索引重建：事实写回后让 memory_facts_fts 与主表同步
+	_ = repos.RebuildFactsFTS(orch.DataRoot)
 }
 
 // persistEpisodesToDB 情节全量写回（每会话 store 均为全局快照 + 新增，冲突窗口极小）
 func persistEpisodesToDB(orch *whisper.Orchestrator) {
 	if eps := orch.EpisodicStore.ListAll(); len(eps) > 0 {
 		_ = repos.ReplaceEpisodesInDB(orch.DataRoot, eps)
+		// FTS 全文索引重建：情节写回后让 episodes_fts 与主表同步
+		_ = repos.RebuildEpisodesFTS(orch.DataRoot)
 	}
 }
-
 // persistKGToDB 知识图谱全量写回（三元组从 facts 派生，每会话 KG 为全局快照 + 增量）
 func persistKGToDB(orch *whisper.Orchestrator) {
 	if tris := orch.KG.ListAll(); len(tris) > 0 {

@@ -47,6 +47,8 @@ type Orchestrator struct {
 	ImageModelName   string // v5.66: 轻语专属生图模型名
 	AdultMode        bool
 	DataRoot         string // v5.41: SQLite 持久化数据根目录
+	// v5.80: FTS 全文检索回调（app 层注入 repos.SearchFactIDsFTS 实现，避免主包依赖 db/repos 形成循环）
+	FTSSearch func(query string, limit int) []string
 	// v5.43: 桌面助手子系统
 	ConfirmSvc    *ConfirmService      // 确认服务
 	DeliveryCoord *DeliveryCoordinator // 消息分发协调
@@ -832,24 +834,52 @@ func (o *Orchestrator) buildTierBBlock(userMsg string, currentAff float64, turnI
 		triggerIDs[f.ID] = true
 	}
 
+	// FTS 全文检索召回（v5.80）：触发词只匹配 Triggers 字段，用户提到摘要里的词
+	// （如「咖啡」）时子串匹配不到；FTS5 索引（含 LIKE 中文降级）按
+	// subject/summary/triggers_text 全文命中，扩大召回。
+	ftsHits := make(map[string]bool)
+	if o.FTSSearch != nil {
+		for _, id := range o.FTSSearch(userMsg, 8) {
+			if f := o.FactStore.Get(id); f != nil && f.IsActive() {
+				ftsHits[f.ID] = true
+			}
+		}
+	}
+
 	// v5.40: 时间感知调制 — 根据当前时间节律加权记忆排序
 	type scoredFact struct {
 		fact  *Fact
 		score float64
 	}
 	var ranked []scoredFact
-	if len(facts) > 0 {
+	if len(facts) > 0 || len(ftsHits) > 0 {
 		now := time.Now()
 		gapHours := time.Since(o.State.LastActive).Hours()
 		tCtx := BuildTemporalContext(gapHours, now)
 
 		boost := ComputeTemporalBoost(tCtx)
+		seen := make(map[string]bool, len(facts)+len(ftsHits))
 		for _, f := range facts {
+			seen[f.ID] = true
 			score := f.Weight * f.SelfRelevance * boost
 			if triggerIDs[f.ID] {
 				score *= 1.5
 			}
+			if ftsHits[f.ID] {
+				score *= 1.3
+			}
 			ranked = append(ranked, scoredFact{f, score})
+		}
+		// FTS 命中的事实若不在 SelectForInjection 预算内（子串命中但相关性分低），仍补入候选
+		for id := range ftsHits {
+			if seen[id] {
+				continue
+			}
+			if f := o.FactStore.Get(id); f != nil {
+				seen[id] = true
+				score := f.Weight * f.SelfRelevance * boost * 1.3
+				ranked = append(ranked, scoredFact{f, score})
+			}
 		}
 		sort.Slice(ranked, func(i, j int) bool { return ranked[i].score > ranked[j].score })
 
