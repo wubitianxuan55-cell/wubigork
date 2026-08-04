@@ -1,5 +1,19 @@
 # gaea · 多功能 AI 助手
 
+# gaea · 多功能 AI 助手
+
+## v1.13.0「记忆检索升级」(2026-08-04)
+
+> 轻语记忆检索体系升级：检索双轨收敛为单轨（buildTierBBlock）+ FTS 全文检索接线（触发词之外的摘要词召回）+ 语音链路测试补齐（voice/tts）。
+> tag v1.13.0
+
+- 记忆检索双轨收敛为单轨：删除零调用孤岛 PrepareTurnContext → MemoryRetriever.Retrieve（重复实现整套检索但从未被消费），统一到 orchestrator.buildTierBBlock 单一主流程；精简 memory_retrieve/types，删除 RelevanceHint/RetrievalResult 类型与 7 个 TestRetrieve_* 死路径测试（净删 353 行）
+- FTS5 全文索引修复（此前建而不用）：V2 外部内容表列名与主表不匹配（fact_id vs id）导致 rebuild 必失败 → V11 迁移独立表；rebuild 改为显式全量同步（修复 MaxOpenConns(1) 下 rows 未关时 Exec 死锁）；SearchFactIDsFTS 修复 MATCH 成功但空结果不降级 bug
+- 中文全文检索：LIKE 降级升级为 2-gram 多模式（整句 + 相邻两字）——用户说「咖啡」能命中摘要「她喜欢喝美式咖啡」，解决触发词之外摘要词无法召回的问题
+- FTS 全文检索接入 TierB 记忆上下文：Orchestrator 新增 FTSSearch 回调（app 层注入 repos 实现，避免循环依赖）；buildTierBBlock 把 FTS 命中事实补入候选（×1.3 加权）；persist 写回后自动重建索引（RebuildFactsFTS/RebuildEpisodesFTS 从零调用变为活跃）
+- 语音链路测试补齐：voice 包 0% → 54.2%（31 测试，情绪→TTS 映射/配置校验/VAD 状态机/打断检测，核心状态机 100% 覆盖）；tts 包 0% → 20.9%（26 测试，分句/SSML 转义/RFC6455 握手向量/引擎回退链）
+- 验证：新增 60+ 测试（FTS 重建/中文降级/2-gram 模式/引擎回退/语音状态机）；go vet clean + go build ./... 全过 + go test ./... 60 包全绿 + frontend tsc 0 错误
+
 ## v1.12.0「轻语记忆贯通」(2026-08-03)
 
 > 轻语记忆系统与 hermes.db 全链路贯通（事实/情节/知识图谱三表持久化）+ TierB 记忆上下文补全（情节/触发词/关联扩散/记忆回声）+ 记忆中枢展示（情节 Tab + 三元组入图）。
