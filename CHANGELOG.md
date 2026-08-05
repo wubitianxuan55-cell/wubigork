@@ -2,6 +2,15 @@
 
 # gaea · 多功能 AI 助手
 
+## v1.21.0「UI 工作台」(2026-08-05)
+
+> 方案编写板块重构为三栏工作台：左侧项目/方案树（检查分数徽章）＋ 中间文档工作区 ＋ 右侧 AI 上下文面板（招标要点/检查摘要/单人复核清单）；去除 Office 页 emoji 标签与 whisper-theme 依赖。
+
+- 后端：Proposal 增加 CheckSummary（failed/warn/total）与 ReviewChecklist（复核项 Done），SchemaV7 落库；CheckAll 自动写入检查摘要并补默认复核清单（废标逐条/工期一致/评分覆盖/暗标合规/规范引用/签字盖章）；toMap/fromMap 透传
+- 前端三栏：左栏项目与方案树（点击过滤/选中，方案卡显示模板、检查分数红/橙徽章）；中栏保留流程步骤条 + 6 个 Tab；右栏 AI 上下文 Drawer（招标要点、检查摘要、复核清单勾选保存、来源定位提示）
+- 视觉：移除 Office 页全部 emoji 标签与 `whisper-theme.css` 引用，统一走主题令牌
+- 验证：新增 1 测试（摘要与清单持久化）；go vet clean + go test ./... 全绿 + tsc 0 错误 + vite build + wails build 成功
+
 ## v1.20.0「工作流编排」(2026-08-05)
 
 > 方案编写板块引入四阶段流水线（招标解读→投标生成→投标检查→排版导出）与阶段闸门；一键流水线；办公 agent（Hephaestus）新增方案读写/导出工具。
