@@ -90,3 +90,11 @@
 - 土壤修复通用技术知识（原 `SoilRemediationKB` 硬编码）同步入库（Category=经验总结），硬编码保留为兜底。
 - 方案模板库是工作流专属配置，保留在 office.db `templates` 表，不混入通用知识。
 - 知识库测试一律使用临时 store（`knowledge.Open(t.TempDir())` + `SetKnowledgeStoreForTest`），不触碰真实 Hephaestus.db。
+
+## 六、方案板块工作流状态（2026-08-05，P7–P8 收尾）
+
+方案编写板块 P1–P8 重设计已完成（v1.14.0–v1.21.0）。与记忆中枢的关系边界：
+
+- **记忆中枢**只承载知识资产（规范/素材/历史方案）；方案工作流状态（Stage parse/generate/check/format、CheckSummary、ReviewChecklist）属于办公过程数据，存 office.db（SchemaV6/V7），不写入记忆库。
+- 方案归档（ArchiveProposal）是唯一把办公产出回写记忆中枢的动作：以「设计方案」分类 + `legacy-proposal` 标签入库，供同类方案生成时注入参考。
+- 办公 agent（Hephaestus）经 `proposal.GlobalService()` 读写方案（proposal_list/write/export），不影响记忆链路。
