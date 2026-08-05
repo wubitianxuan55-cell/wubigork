@@ -28,6 +28,7 @@ import {
 import { getEngines, testEngineConnection, setActiveEngine, setEngineDefaultModel, type EngineConfig } from '../api/engines'
 import { setImageBackend as setImageBackendAPI } from '../api/settings'
 import type { GenResult } from '../components/imagegen/types'
+import { filterLorasByModel, loraFamily, loraFamiliesForModel } from '../utils/loraFilter'
 
 // ── 常量 ──
 
@@ -107,11 +108,13 @@ const ImageGenPage: React.FC = () => {
     { label: 'Z-Image-Turbo', value: 'z-image-turbo' },
   ], [])
 
-  // LoRA 选项：动态读取 ComfyUI 实际 models/loras 列表，避免硬编码文件名
-  // 与本地安装不一致导致提交 400（value_not_in_list）
+  // LoRA 选项：动态读取 ComfyUI 实际 models/loras 列表，并按当前模型族过滤，
+  // 避免硬编码文件名与本地安装不一致导致提交 400，也避免跨模型误选
   const loraOptions = useMemo(
-    () => (backend === 'comfyui' ? comfyLoras.map((name) => ({ label: loraLabel(name), value: name })) : []),
-    [backend, comfyLoras],
+    () => (backend === 'comfyui'
+      ? filterLorasByModel(model, comfyLoras).map((name) => ({ label: loraLabel(name), value: name }))
+      : []),
+    [backend, comfyLoras, model],
   )
 
   const modelOptions = useMemo(() => {
@@ -196,6 +199,12 @@ const ImageGenPage: React.FC = () => {
     const timer = setInterval(refreshComfyLoras, 30000)
     return () => clearInterval(timer)
   }, [refreshComfyLoras])
+
+  // 切换模型时清掉不属于该模型族的已选 LoRA，避免提交无效 lora_name
+  useEffect(() => {
+    const allowed = loraFamiliesForModel(model)
+    setSelectedLoras((prev) => prev.filter((v) => allowed.includes(loraFamily(v))))
+  }, [model])
 
   // ── 系统状态轮询（所有后端显示 CPU+内存，GPU 仅 ComfyUI） ──
   useEffect(() => {
