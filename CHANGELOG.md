@@ -2,6 +2,17 @@
 
 # gaea · 多功能 AI 助手
 
+## v1.18.0「校验引擎」(2026-08-05)
+
+> 方案编写板块检查能力升级：可插拔 CheckRule 引擎 + 结构化规则（废标响应/数据一致性/跨章重复/暗标格式/规范引用）+ AI 语义覆盖规则，统一检查报告前端逐项处理。
+
+- 校验引擎框架：CheckRule 接口 + ruleFunc 适配器 + RunChecks 运行器（规则错误转 error item）
+- 结构化规则（确定性，无需 LLM）：废标条款响应（未明确回应 warn）、项目事实一致性（未体现 warn/工期冲突 fail/暗标单位名 fail）、跨章重复（20 字 n-gram 交并比，>50% fail / >30% warn）、暗标格式（加粗/删除线/emoji）、规范引用（无引用 warn/编号不在知识库 warn）
+- AI 语义覆盖规则：对照招标评分标准 full/partial/none 检查（LLM）
+- CheckAll 聚合全部规则输出统一检查报告；既有 CheckCoverage 内部复用并保持绑定兼容
+- 绑定 ProposalCheckAll；前端导出 Tab「全面检查」报告面板（规则/状态着色/证据/章节定位跳转）
+- 验证：新增 15+ 测试（框架/规则/聚合/绑定）；go vet clean + go test ./... 全绿 + tsc 0 错误 + vite build + wails build 成功
+
 ## v1.17.0「记忆中枢知识资产」(2026-08-05)
 
 > 方案编写板块知识资产统一集成 gaea 记忆中枢：规范条文/素材/历史方案全部入库 Hephaestus.db knowledge 表，spec_query 改读知识库，方案可归档回写并提供同类型参考；模板库落库。
