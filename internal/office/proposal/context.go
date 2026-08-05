@@ -125,6 +125,11 @@ func (s *Service) SectionContext(ctx context.Context, proposalID, sectionID stri
 			}
 		}
 	}
+	if p.Template != "" || p.Category != "" {
+		if ref := s.legacyRefFor(p.Template, p.Category); ref != "" {
+			parts = append(parts, "\n【历史方案参考（同类型，仅供结构/措辞参考，不得抄袭）】\n"+ref)
+		}
+	}
 	parts = append(parts, fmt.Sprintf("\n本章节字数目标：%d 字", wordTarget))
 
 	systemPrompt := enrichSoilPrompt(p.Template, fmt.Sprintf(`你是一位专业的环保工程投标方案撰写专家，精通土壤修复领域。现在撰写投标技术方案中的「%s」章节。

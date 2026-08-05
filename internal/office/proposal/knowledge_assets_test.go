@@ -70,3 +70,31 @@ func TestAssetsCRUD(t *testing.T) {
 		t.Fatalf("删除后数量异常")
 	}
 }
+
+func TestArchiveProposal_And_Reference(t *testing.T) {
+	st := newTestKnowledgeStore(t)
+	s := newServiceAt(t, t.TempDir(), &mockAI{def: "mock"})
+	s.SetKnowledgeStoreForTest(st)
+	proj, _ := s.store.EnsureDefaultProject()
+	p, _ := s.store.Create("某修复投标方案", "soil-remediation-bid", "需求", "环保工程", proj.ID, []ProposalSection{
+		{Title: "第一章", Level: 1, Content: "项目概况正文"},
+	})
+	name, err := s.ArchiveProposal(p.ID)
+	if err != nil {
+		t.Fatalf("ArchiveProposal: %v", err)
+	}
+	if name == "" {
+		t.Fatal("归档名为空")
+	}
+	refs := s.SearchLegacyProposals("修复")
+	if len(refs) == 0 {
+		t.Fatal("历史方案检索无结果")
+	}
+	ref := s.legacyRefFor("soil-remediation-bid", "环保工程")
+	if ref == "" {
+		t.Fatal("同类型参考为空")
+	}
+	if !containsAny(ref, "某修复投标方案", "项目概况正文") {
+		t.Fatalf("参考内容异常: %s", ref)
+	}
+}

@@ -183,3 +183,71 @@ func (s *Service) RemoveAsset(name string) error {
 	}
 	return st.Delete(name)
 }
+
+// ArchiveProposal 把方案装配全文归档到记忆中枢（幂等覆盖），返回条目名
+func (s *Service) ArchiveProposal(proposalID string) (string, error) {
+	st := s.knowledgeStore()
+	if st == nil {
+		return "", fmt.Errorf("知识库不可用")
+	}
+	p, err := s.store.Get(proposalID)
+	if err != nil {
+		return "", err
+	}
+	name := "proposal-" + p.ID
+	entry := knowledge.Entry{
+		Name:     name,
+		Title:    "【历史方案】" + p.Title,
+		Category: knowledge.CatDesign,
+		Tags:     []string{"legacy-proposal", p.Category, p.Template},
+		Status:   "已发布",
+		Source:   p.Category,
+		Body:     Assemble(p),
+	}
+	if err := st.Save(entry); err != nil {
+		return "", err
+	}
+	return name, nil
+}
+
+// SearchLegacyProposals 检索历史方案
+func (s *Service) SearchLegacyProposals(query string) []AssetRef {
+	st := s.knowledgeStore()
+	if st == nil {
+		return nil
+	}
+	var out []AssetRef
+	for _, e := range knowledge.Search(st, query, knowledge.Filter{Category: knowledge.CatDesign, Tag: "legacy-proposal"}) {
+		out = append(out, AssetRef{Name: e.Name, Title: e.Title, Tags: e.Tags, Body: e.Body})
+	}
+	return out
+}
+
+// legacyRefFor 返回同模板/同分类历史方案的参考摘要（最多 600 字）
+func (s *Service) legacyRefFor(template, category string) string {
+	st := s.knowledgeStore()
+	if st == nil {
+		return ""
+	}
+	for _, e := range st.ReadAll() {
+		if e.Category != knowledge.CatDesign || !hasTag(e.Tags, "legacy-proposal") {
+			continue
+		}
+		if template != "" && hasTag(e.Tags, template) {
+			return truncate(e.Body, 600)
+		}
+		if category != "" && hasTag(e.Tags, category) {
+			return truncate(e.Body, 600)
+		}
+	}
+	return ""
+}
+
+func hasTag(tags []string, tag string) bool {
+	for _, t := range tags {
+		if t == tag {
+			return true
+		}
+	}
+	return false
+}
