@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/knowledge"
-	"github.com/gaea/gaea/internal/gaea/tool/builtin"
+	"github.com/gaea/gaea/internal/gaea/specdata"
 )
 
 // SetKnowledgeStoreForTest 覆盖知识库存储（测试隔离）
@@ -39,7 +39,7 @@ func (s *Service) EnsureSpecAssets() error {
 	if st == nil {
 		return fmt.Errorf("知识库不可用")
 	}
-	for _, e := range builtin.SpecLibrary() {
+	for _, e := range specdata.SpecLibrary() {
 		name := "spec-" + slugSpec(e.Code+"-"+e.Clause)
 		body := e.Content
 		if e.Explanation != "" {
