@@ -44,8 +44,36 @@ func (a *officeState) ProposalTemplates() []map[string]interface{} {
 	}
 	return r
 }
-func (a *officeState) ProposalCreate(title, tmpl, req, cat string) (map[string]interface{}, error) {
-	p, err := a.proposalSvc.Create(title, tmpl, req, cat)
+
+func (a *officeState) ProposalProjectList() []map[string]interface{} {
+	if a.proposalSvc == nil {
+		return nil
+	}
+	projs, err := a.proposalSvc.ListProjects()
+	if err != nil {
+		return nil
+	}
+	var r []map[string]interface{}
+	for i := range projs {
+		r = append(r, projectToMap(&projs[i]))
+	}
+	return r
+}
+
+func (a *officeState) ProposalProjectCreate(name, category, client string) (map[string]interface{}, error) {
+	p, err := a.proposalSvc.CreateProject(name, category, client)
+	if err != nil {
+		return nil, err
+	}
+	return projectToMap(p), nil
+}
+
+func (a *officeState) ProposalProjectDelete(id string) error {
+	return a.proposalSvc.DeleteProject(id)
+}
+
+func (a *officeState) ProposalCreate(title, tmpl, req, cat, projectID string) (map[string]interface{}, error) {
+	p, err := a.proposalSvc.Create(title, tmpl, req, cat, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -328,14 +356,14 @@ func toMap(p *proposal.Proposal) map[string]interface{} {
 	for i, s := range p.Sections {
 		ss[i] = stm(s)
 	}
-	r := map[string]interface{}{"id": p.ID, "title": p.Title, "category": p.Category, "template": p.Template, "requirements": p.Requirements, "status": p.Status, "sections": ss, "createdAt": p.CreatedAt, "updatedAt": p.UpdatedAt}
+	r := map[string]interface{}{"id": p.ID, "projectId": p.ProjectID, "title": p.Title, "category": p.Category, "template": p.Template, "requirements": p.Requirements, "status": p.Status, "version": p.Version, "sections": ss, "createdAt": p.CreatedAt, "updatedAt": p.UpdatedAt}
 	if p.BidSummary != nil {
 		r["bidSummary"] = btm(p.BidSummary)
 	}
 	return r
 }
 func stm(s proposal.ProposalSection) map[string]interface{} {
-	r := map[string]interface{}{"id": s.ID, "proposalId": s.ProposalID, "parentId": s.ParentID, "index": s.Index, "level": s.Level, "title": s.Title, "content": s.Content, "status": s.Status}
+	r := map[string]interface{}{"id": s.ID, "proposalId": s.ProposalID, "parentId": s.ParentID, "index": s.Index, "level": s.Level, "title": s.Title, "content": s.Content, "status": s.Status, "sources": s.Sources}
 	if len(s.Children) > 0 {
 		ch := make([]map[string]interface{}, len(s.Children))
 		for i, c := range s.Children {
@@ -344,6 +372,17 @@ func stm(s proposal.ProposalSection) map[string]interface{} {
 		r["children"] = ch
 	}
 	return r
+}
+
+func projectToMap(p *proposal.Project) map[string]interface{} {
+	if p == nil {
+		return nil
+	}
+	return map[string]interface{}{
+		"id": p.ID, "name": p.Name, "category": p.Category,
+		"client": p.Client, "status": p.Status,
+		"createdAt": p.CreatedAt, "updatedAt": p.UpdatedAt,
+	}
 }
 func btm(bs *proposal.BidSummary) map[string]interface{} {
 	sc := make([]map[string]interface{}, len(bs.TechScoring))
@@ -371,6 +410,12 @@ func fromMap(m map[string]interface{}) *proposal.Proposal {
 	}
 	if v, ok := m["status"].(string); ok {
 		p.Status = v
+	}
+	if v, ok := m["projectId"].(string); ok {
+		p.ProjectID = v
+	}
+	if v, ok := m["version"].(float64); ok {
+		p.Version = int(v)
 	}
 	if v, ok := m["createdAt"].(string); ok {
 		p.CreatedAt = v
@@ -415,6 +460,9 @@ func sfm(m map[string]interface{}) proposal.ProposalSection {
 	}
 	if v, ok := m["status"].(string); ok {
 		s.Status = v
+	}
+	if v, ok := m["sources"].(string); ok {
+		s.Sources = v
 	}
 	if ch, ok := m["children"].([]interface{}); ok {
 		for _, ci := range ch {

@@ -33,6 +33,9 @@ func NewService(dataRoot string, ai AIClient) *Service {
 		return &Service{store: nil, ai: ai}
 	}
 	st := NewStore(dbs, officeDir)
+	if _, err := st.EnsureDefaultProject(); err != nil {
+		log.Printf("[proposal] 初始化默认项目失败: %v", err)
+	}
 	if _, err := MigrateLegacyJSON(st); err != nil {
 		log.Printf("[proposal] 旧数据迁移失败: %v", err)
 	}
