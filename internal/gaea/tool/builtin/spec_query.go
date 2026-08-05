@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -164,6 +165,25 @@ func (specQuery) Execute(ctx context.Context, args json.RawMessage) (string, err
 	}
 	if p.Question == "" {
 		return "", fmt.Errorf("question 不能为空")
+	}
+
+	// 优先从记忆中枢知识库检索（已入库的规范条文）
+	if st, err := knowledge.Global().Store(); err == nil && st != nil {
+		if entries := knowledge.Search(st, p.Question, knowledge.Filter{Category: knowledge.CatStandard}); len(entries) > 0 {
+			var b strings.Builder
+			fmt.Fprintf(&b, "🔍 查询「%s」找到 %d 条相关规范条文（知识库）：\n\n", p.Question, len(entries))
+			for i, e := range entries {
+				if i >= 5 {
+					break
+				}
+				fmt.Fprintf(&b, "━━━ [%d/%d] %s ━━━\n", i+1, len(entries), e.Title)
+				fmt.Fprintf(&b, "📋 原文：%s\n", e.Body)
+				if i < 4 && i < len(entries)-1 {
+					fmt.Fprintf(&b, "\n")
+				}
+			}
+			return tool.WrapText(b.String()), nil
+		}
 	}
 
 	q := strings.ToLower(strings.TrimSpace(p.Question))
