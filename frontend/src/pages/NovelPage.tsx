@@ -30,23 +30,26 @@ const NovelPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
-    <Tabs
-      activeKey={activeTab}
-      onChange={(key) => setActiveTab(key as NovelTab)}
-      destroyInactiveTabPane={false}
-      items={tabItems.map((t) => ({
-        key: t.key,
-        label: <span>{t.icon}<span style={{ marginLeft: 6 }}>{t.label}</span></span>,
-        children: <React.Suspense fallback={null}><t.component /></React.Suspense>,
-      }))}
-      style={{ height: '100%' }}
-    />
+      {/* 内容 + AI 控制台：横向布局，控制台在右侧（还原 MainLayout 重构前的边栏设计） */}
+      <div style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, minWidth: 0 }}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={(key) => setActiveTab(key as NovelTab)}
+          destroyInactiveTabPane={false}
+          items={tabItems.map((t) => ({
+            key: t.key,
+            label: <span>{t.icon}<span style={{ marginLeft: 6 }}>{t.label}</span></span>,
+            children: <React.Suspense fallback={null}><t.component /></React.Suspense>,
+          }))}
+          style={{ height: '100%', flex: 1, minWidth: 0 }}
+        />
+        {/* 小说专属：AI 控制台（右侧边栏） */}
+        <AIConsole />
+      </div>
       {/* 绑定模型卡（左下角浮动） */}
       <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
         <FeatureModelBar feature="novel" label="小说" />
       </div>
-      {/* 小说专属：AI 控制台（右上角悬浮） */}
-      <AIConsole />
     </div>
   )
 }
