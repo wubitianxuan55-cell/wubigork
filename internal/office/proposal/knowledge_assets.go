@@ -1,0 +1,115 @@
+// Package proposal — 记忆中枢知识资产接入（规范/素材/历史方案）
+package proposal
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/knowledge"
+	"github.com/gaea/gaea/internal/gaea/tool/builtin"
+)
+
+// SetKnowledgeStoreForTest 覆盖知识库存储（测试隔离）
+func (s *Service) SetKnowledgeStoreForTest(st *knowledge.Store) { s.kb = st }
+
+// knowledgeStore 返回可用知识库存储；未注入时走全局单例，失败返回 nil
+func (s *Service) knowledgeStore() *knowledge.Store {
+	if s.kb != nil {
+		return s.kb
+	}
+	st, err := knowledge.Global().Store()
+	if err != nil {
+		return nil
+	}
+	return st
+}
+
+// EnsureSpecAssets 把内置规范索引与土壤修复技术知识幂等写入记忆中枢
+func (s *Service) EnsureSpecAssets() error {
+	st := s.knowledgeStore()
+	if st == nil {
+		return fmt.Errorf("知识库不可用")
+	}
+	for _, e := range builtin.SpecLibrary() {
+		name := "spec-" + slugSpec(e.Code+"-"+e.Clause)
+		body := e.Content
+		if e.Explanation != "" {
+			body += "\n\n💡 解释：" + e.Explanation
+		}
+		entry := knowledge.Entry{
+			Name: name, Title: fmt.Sprintf("%s %s %s", e.Code, e.Clause, e.Title),
+			Category: knowledge.CatStandard, Tags: []string{e.Category},
+			Status: "已发布", Source: e.Code, Body: body,
+		}
+		if err := st.Save(entry); err != nil {
+			return err
+		}
+	}
+	// 土壤修复通用技术知识
+	soil := knowledge.Entry{
+		Name: "soil-remediation-tech", Title: "土壤修复常用技术与规范标准",
+		Category: knowledge.CatExperience, Tags: []string{"土壤修复", "技术比选"},
+		Status: "已发布", Source: "gaea 内置", Body: SoilRemediationKB,
+	}
+	return st.Save(soil)
+}
+
+func slugSpec(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('-')
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+// SpecRef 规范检索结果
+type SpecRef struct {
+	Name  string `json:"name"`
+	Title string `json:"title"`
+	Code  string `json:"code"`
+	Body  string `json:"body"`
+}
+
+// SearchSpecs 在记忆中枢检索规范条文（Top 8）
+func (s *Service) SearchSpecs(query string) []SpecRef {
+	st := s.knowledgeStore()
+	if st == nil || strings.TrimSpace(query) == "" {
+		return nil
+	}
+	tokens := strings.Fields(query)
+	var candidates []knowledge.Entry
+	for _, e := range st.ReadAll() {
+		if e.Category != knowledge.CatStandard {
+			continue
+		}
+		if specScore(e, tokens) > 0 {
+			candidates = append(candidates, e)
+		}
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return specScore(candidates[i], tokens) > specScore(candidates[j], tokens)
+	})
+	var out []SpecRef
+	for _, e := range candidates {
+		if len(out) >= 8 {
+			break
+		}
+		out = append(out, SpecRef{Name: e.Name, Title: e.Title, Code: e.Source, Body: e.Body})
+	}
+	return out
+}
+
+// specScore 按查询令牌重排：标题命中 3 分/次，正文命中 1 分/次
+func specScore(e knowledge.Entry, tokens []string) int {
+	score := 0
+	for _, tok := range tokens {
+		score += strings.Count(e.Title, tok) * 3
+		score += strings.Count(e.Body, tok)
+	}
+	return score
+}

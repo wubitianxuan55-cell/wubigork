@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/knowledge"
 	officedb "github.com/gaea/gaea/internal/office/db"
 )
 
@@ -22,6 +23,7 @@ type AIClient interface {
 type Service struct {
 	store *Store
 	ai    AIClient
+	kb    *knowledge.Store
 }
 
 // NewService 创建服务实例（打开 office.db，执行旧数据迁移）

@@ -35,8 +35,8 @@ func (specQuery) ReadOnly() bool { return true }
 func (specQuery) CompactDescription() string     { return compactDesc["spec_query"] }
 func (specQuery) CompactSchema() json.RawMessage { return compactSchema["spec_query"] }
 
-// specEntry 一条规范条文
-type specEntry struct {
+// SpecEntry 一条规范条文
+type SpecEntry struct {
 	Code        string `json:"code"`        // 规范编号 e.g. "GB 36600-2018"
 	Clause      string `json:"clause"`      // 条文编号 e.g. "表1"
 	Title       string `json:"title"`       // 规范名称
@@ -46,7 +46,7 @@ type specEntry struct {
 }
 
 // 内置规范索引（土壤修复核心规范关键条文）
-var specIndex = []specEntry{
+var specIndex = []SpecEntry{
 	// ===== GB 36600-2018 土壤环境质量标准 =====
 	{Code: "GB 36600-2018", Clause: "表1", Title: "土壤环境质量标准 建设用地", Category: "标准",
 		Content:     "建设用地土壤污染风险筛选值和管控值（基本项目45项）：砷(As)筛选值：一类用地20mg/kg、二类用地60mg/kg；管控值：一类用地120mg/kg、二类用地140mg/kg。镉(Cd)筛选值：一类20mg/kg、二类65mg/kg。六价铬(Cr6+)筛选值：一类3.0mg/kg、二类5.0mg/kg。铜(Cu)筛选值：一类2000mg/kg、二类18000mg/kg。铅(Pb)筛选值：一类400mg/kg、二类800mg/kg。汞(Hg)筛选值：一类8mg/kg、二类38mg/kg。镍(Ni)筛选值：一类150mg/kg、二类900mg/kg。四氯化碳：一类0.9mg/kg、二类2.8mg/kg。氯仿：一类0.3mg/kg、二类0.9mg/kg。",
@@ -148,6 +148,13 @@ var specIndex = []specEntry{
 
 // (EXW) 暴露参数后续可追加
 
+// SpecLibrary 返回内置土壤修复规范索引（供知识库入库使用）
+func SpecLibrary() []SpecEntry {
+	out := make([]SpecEntry, len(specIndex))
+	copy(out, specIndex)
+	return out
+}
+
 func (specQuery) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Question string `json:"question"`
@@ -162,7 +169,7 @@ func (specQuery) Execute(ctx context.Context, args json.RawMessage) (string, err
 	q := strings.ToLower(strings.TrimSpace(p.Question))
 
 	// 尝试匹配最相关的规范条文
-	var matches []specEntry
+	var matches []SpecEntry
 	bestScore := 0
 
 	// 关键词权重映射（用于匹配评分）
@@ -290,7 +297,7 @@ func (specQuery) Execute(ctx context.Context, args json.RawMessage) (string, err
 }
 
 // scoreEntry 计算单条条文与查询的相关度分数
-func scoreEntry(q string, e specEntry) int {
+func scoreEntry(q string, e SpecEntry) int {
 	score := 0
 	text := strings.ToLower(e.Code + " " + e.Clause + " " + e.Title + " " + e.Content + " " + e.Explanation)
 	ql := strings.ToLower(q)
