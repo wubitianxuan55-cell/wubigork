@@ -809,6 +809,10 @@ html.gaea-raf-degraded .chat-message-item {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes imgStageShimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
 .img-stage-enter {
   animation: imgStageEnter 0.45s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
@@ -829,11 +833,13 @@ html.gaea-raf-degraded .chat-message-item {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
+.img-card:hover .img-card-actions { opacity: 1; }
 html.gaea-raf-degraded .img-stage-enter,
 html.gaea-raf-degraded .img-card {
   animation: none !important;
   transition: none !important;
 }
+html.gaea-raf-degraded .img-card-actions { opacity: 1 !important; }
 
 /* ── 外观设置：紧凑模式辅助（antd 控件由 ConfigProvider token 驱动，此处补全局区块密度）── */
 .ui-compact .md-glass {
