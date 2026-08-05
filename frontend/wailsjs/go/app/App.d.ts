@@ -507,6 +507,8 @@ export function ProposalRemoveSection(arg1:string,arg2:string):Promise<Record<st
 
 export function ProposalRenameSection(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;
 
+export function ProposalRunPipeline(arg1:string):Promise<void>;
+
 export function ProposalSaveRawText(arg1:string,arg2:string):Promise<Record<string, any>>;
 
 export function ProposalSaveUploadedFile(arg1:string,arg2:string,arg3:Array<number>):Promise<Record<string, any>>;
