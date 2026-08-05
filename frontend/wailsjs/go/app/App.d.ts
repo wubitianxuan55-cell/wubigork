@@ -451,11 +451,21 @@ export function ProposalConvertFiles(arg1:string):Promise<void>;
 
 export function ProposalCreate(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<Record<string, any>>;
 
+export function ProposalDarkRuleDelete(arg1:string):Promise<void>;
+
+export function ProposalDarkRuleSave(arg1:Record<string, any>):Promise<void>;
+
+export function ProposalDarkRulesList():Promise<Array<Record<string, any>>>;
+
 export function ProposalDelete(arg1:string):Promise<void>;
 
 export function ProposalExport(arg1:string):Promise<string>;
 
 export function ProposalExportDocx(arg1:string):Promise<string>;
+
+export function ProposalExportDocxWithOptions(arg1:string,arg2:boolean,arg3:boolean,arg4:string):Promise<string>;
+
+export function ProposalExportSectionDocx(arg1:string,arg2:string):Promise<string>;
 
 export function ProposalGenerateChart(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;
 

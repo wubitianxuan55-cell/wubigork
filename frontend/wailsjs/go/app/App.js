@@ -886,6 +886,18 @@ export function ProposalCreate(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['app']['App']['ProposalCreate'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function ProposalDarkRuleDelete(arg1) {
+  return window['go']['app']['App']['ProposalDarkRuleDelete'](arg1);
+}
+
+export function ProposalDarkRuleSave(arg1) {
+  return window['go']['app']['App']['ProposalDarkRuleSave'](arg1);
+}
+
+export function ProposalDarkRulesList() {
+  return window['go']['app']['App']['ProposalDarkRulesList']();
+}
+
 export function ProposalDelete(arg1) {
   return window['go']['app']['App']['ProposalDelete'](arg1);
 }
@@ -896,6 +908,14 @@ export function ProposalExport(arg1) {
 
 export function ProposalExportDocx(arg1) {
   return window['go']['app']['App']['ProposalExportDocx'](arg1);
+}
+
+export function ProposalExportDocxWithOptions(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['ProposalExportDocxWithOptions'](arg1, arg2, arg3, arg4);
+}
+
+export function ProposalExportSectionDocx(arg1, arg2) {
+  return window['go']['app']['App']['ProposalExportSectionDocx'](arg1, arg2);
 }
 
 export function ProposalGenerateChart(arg1, arg2, arg3) {
