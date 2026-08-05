@@ -5,19 +5,21 @@ import "time"
 
 // Proposal 方案文档
 type Proposal struct {
-	ID           string            `json:"id"`
-	ProjectID    string            `json:"projectId"`
-	Title        string            `json:"title"`
-	Category     string            `json:"category"` // 分类（环保工程/市政工程/水利工程/其他）
-	Template     string            `json:"template"`
-	Requirements string            `json:"requirements"`
-	BidSummary   *BidSummary       `json:"bidSummary,omitempty"`
-	Status       string            `json:"status"`
-	Version      int               `json:"version"`
-	Stage        string            `json:"stage,omitempty"` // parse|generate|check|format
-	Sections     []ProposalSection `json:"sections"`
-	CreatedAt    string            `json:"createdAt"`
-	UpdatedAt    string            `json:"updatedAt"`
+	ID              string            `json:"id"`
+	ProjectID       string            `json:"projectId"`
+	Title           string            `json:"title"`
+	Category        string            `json:"category"` // 分类（环保工程/市政工程/水利工程/其他）
+	Template        string            `json:"template"`
+	Requirements    string            `json:"requirements"`
+	BidSummary      *BidSummary       `json:"bidSummary,omitempty"`
+	Status          string            `json:"status"`
+	Version         int               `json:"version"`
+	Stage           string            `json:"stage,omitempty"` // parse|generate|check|format
+	CheckSummary    *CheckSummary     `json:"checkSummary,omitempty"`
+	ReviewChecklist []ReviewItem      `json:"reviewChecklist,omitempty"`
+	Sections        []ProposalSection `json:"sections"`
+	CreatedAt       string            `json:"createdAt"`
+	UpdatedAt       string            `json:"updatedAt"`
 }
 type ScoringItem struct {
 	Name        string      `json:"name"`
@@ -142,6 +144,21 @@ type BidItem struct {
 	Name    string      `json:"name"`
 	Content string      `json:"content"`
 	Sources []SourceRef `json:"sources"`
+}
+
+// CheckSummary 最近一次检查摘要
+type CheckSummary struct {
+	Failed    int    `json:"failed"`
+	Warnings  int    `json:"warnings"`
+	Total     int    `json:"total"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+// ReviewItem 复核项
+type ReviewItem struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Done  bool   `json:"done"`
 }
 
 // 大纲生成策略

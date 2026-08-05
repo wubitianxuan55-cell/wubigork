@@ -497,7 +497,7 @@ func toMap(p *proposal.Proposal) map[string]interface{} {
 	for i, s := range p.Sections {
 		ss[i] = stm(s)
 	}
-	r := map[string]interface{}{"id": p.ID, "projectId": p.ProjectID, "title": p.Title, "category": p.Category, "template": p.Template, "requirements": p.Requirements, "status": p.Status, "version": p.Version, "sections": ss, "createdAt": p.CreatedAt, "updatedAt": p.UpdatedAt}
+	r := map[string]interface{}{"id": p.ID, "projectId": p.ProjectID, "title": p.Title, "category": p.Category, "template": p.Template, "requirements": p.Requirements, "status": p.Status, "version": p.Version, "stage": p.Stage, "checkSummary": p.CheckSummary, "reviewChecklist": p.ReviewChecklist, "sections": ss, "createdAt": p.CreatedAt, "updatedAt": p.UpdatedAt}
 	if p.BidSummary != nil {
 		r["bidSummary"] = btm(p.BidSummary)
 	}
@@ -560,6 +560,20 @@ func fromMap(m map[string]interface{}) *proposal.Proposal {
 	}
 	if v, ok := m["version"].(float64); ok {
 		p.Version = int(v)
+	}
+	if v, ok := m["stage"].(string); ok {
+		p.Stage = v
+	}
+	if cs, ok := m["checkSummary"].(map[string]interface{}); ok {
+		data, _ := json.Marshal(cs)
+		var summary proposal.CheckSummary
+		if json.Unmarshal(data, &summary) == nil {
+			p.CheckSummary = &summary
+		}
+	}
+	if rc, ok := m["reviewChecklist"].([]interface{}); ok {
+		data, _ := json.Marshal(rc)
+		_ = json.Unmarshal(data, &p.ReviewChecklist)
 	}
 	if v, ok := m["createdAt"].(string); ok {
 		p.CreatedAt = v

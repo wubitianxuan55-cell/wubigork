@@ -241,10 +241,10 @@ func (s *Store) Get(id string) (*Proposal, error) {
 	if err := s.errIfUnavailable(); err != nil {
 		return nil, err
 	}
-	row := s.db.QueryRow(`SELECT id, project_id, title, category, template, requirements, status, version, bid_summary, stage, created_at, updated_at FROM proposals WHERE id = ?`, id)
+	row := s.db.QueryRow(`SELECT id, project_id, title, category, template, requirements, status, version, bid_summary, stage, check_summary, review_checklist, created_at, updated_at FROM proposals WHERE id = ?`, id)
 	var p Proposal
-	var bs string
-	if err := row.Scan(&p.ID, &p.ProjectID, &p.Title, &p.Category, &p.Template, &p.Requirements, &p.Status, &p.Version, &bs, &p.Stage, &p.CreatedAt, &p.UpdatedAt); err != nil {
+	var bs, cs, rc string
+	if err := row.Scan(&p.ID, &p.ProjectID, &p.Title, &p.Category, &p.Template, &p.Requirements, &p.Status, &p.Version, &bs, &p.Stage, &cs, &rc, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 	if bs != "" {
@@ -252,6 +252,15 @@ func (s *Store) Get(id string) (*Proposal, error) {
 		if err := json.Unmarshal([]byte(bs), &summary); err == nil {
 			p.BidSummary = &summary
 		}
+	}
+	if cs != "" {
+		var summary CheckSummary
+		if err := json.Unmarshal([]byte(cs), &summary); err == nil {
+			p.CheckSummary = &summary
+		}
+	}
+	if rc != "" {
+		_ = json.Unmarshal([]byte(rc), &p.ReviewChecklist)
 	}
 	sections, err := s.loadSections(id)
 	if err != nil {
@@ -616,41 +625,60 @@ func (s *Store) loadSections(proposalID string) ([]ProposalSection, error) {
 }
 
 func insertProposalTx(tx *sql.Tx, p *Proposal) error {
-	bs := ""
-	if p.BidSummary != nil {
-		data, err := json.Marshal(p.BidSummary)
-		if err != nil {
-			return err
-		}
-		bs = string(data)
+	bs, cs, rc, err := proposalJSONs(p)
+	if err != nil {
+		return err
 	}
-	_, err := tx.Exec(
-		`INSERT INTO proposals(id, project_id, title, category, template, requirements, status, version, bid_summary, stage, created_at, updated_at)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-		p.ID, p.ProjectID, p.Title, p.Category, p.Template, p.Requirements, p.Status, p.Version, bs, p.Stage, p.CreatedAt, p.UpdatedAt,
+	_, err = tx.Exec(
+		`INSERT INTO proposals(id, project_id, title, category, template, requirements, status, version, bid_summary, stage, check_summary, review_checklist, created_at, updated_at)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		p.ID, p.ProjectID, p.Title, p.Category, p.Template, p.Requirements, p.Status, p.Version, bs, p.Stage, cs, rc, p.CreatedAt, p.UpdatedAt,
 	)
 	return err
 }
 
 func upsertProposalTx(tx *sql.Tx, p *Proposal) error {
-	bs := ""
-	if p.BidSummary != nil {
-		data, err := json.Marshal(p.BidSummary)
-		if err != nil {
-			return err
-		}
-		bs = string(data)
+	bs, cs, rc, err := proposalJSONs(p)
+	if err != nil {
+		return err
 	}
-	_, err := tx.Exec(
-		`INSERT INTO proposals(id, project_id, title, category, template, requirements, status, version, bid_summary, stage, created_at, updated_at)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+	_, err = tx.Exec(
+		`INSERT INTO proposals(id, project_id, title, category, template, requirements, status, version, bid_summary, stage, check_summary, review_checklist, created_at, updated_at)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		 ON CONFLICT(id) DO UPDATE SET
 		   project_id=excluded.project_id, title=excluded.title, category=excluded.category,
 		   template=excluded.template, requirements=excluded.requirements, status=excluded.status,
-		   version=excluded.version, bid_summary=excluded.bid_summary, stage=excluded.stage, updated_at=excluded.updated_at`,
-		p.ID, p.ProjectID, p.Title, p.Category, p.Template, p.Requirements, p.Status, p.Version, bs, p.Stage, p.CreatedAt, p.UpdatedAt,
+		   version=excluded.version, bid_summary=excluded.bid_summary, stage=excluded.stage,
+		   check_summary=excluded.check_summary, review_checklist=excluded.review_checklist, updated_at=excluded.updated_at`,
+		p.ID, p.ProjectID, p.Title, p.Category, p.Template, p.Requirements, p.Status, p.Version, bs, p.Stage, cs, rc, p.CreatedAt, p.UpdatedAt,
 	)
 	return err
+}
+
+// proposalJSONs 序列化方案 JSON 列（bid_summary/check_summary/review_checklist）
+func proposalJSONs(p *Proposal) (bs, cs, rc string, err error) {
+	if p.BidSummary != nil {
+		data, e := json.Marshal(p.BidSummary)
+		if e != nil {
+			return "", "", "", e
+		}
+		bs = string(data)
+	}
+	if p.CheckSummary != nil {
+		data, e := json.Marshal(p.CheckSummary)
+		if e != nil {
+			return "", "", "", e
+		}
+		cs = string(data)
+	}
+	if len(p.ReviewChecklist) > 0 {
+		data, e := json.Marshal(p.ReviewChecklist)
+		if e != nil {
+			return "", "", "", e
+		}
+		rc = string(data)
+	}
+	return bs, cs, rc, nil
 }
 
 func replaceSectionsTx(tx *sql.Tx, proposalID string, sections []ProposalSection) error {

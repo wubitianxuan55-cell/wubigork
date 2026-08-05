@@ -133,3 +133,9 @@ CREATE TABLE IF NOT EXISTS dark_rules (
 const SchemaV6 = `
 ALTER TABLE proposals ADD COLUMN stage TEXT NOT NULL DEFAULT '';
 `
+
+// SchemaV7 方案检查摘要与复核清单。
+const SchemaV7 = `
+ALTER TABLE proposals ADD COLUMN check_summary TEXT NOT NULL DEFAULT '';
+ALTER TABLE proposals ADD COLUMN review_checklist TEXT NOT NULL DEFAULT '';
+`

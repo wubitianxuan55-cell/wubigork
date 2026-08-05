@@ -335,12 +335,37 @@ func (s *Service) CheckAll(ctx context.Context, proposalID string) (*Proposal, [
 		return nil, nil, err
 	}
 	items := RunChecks(ctx, p, s.defaultRules())
+	summary := &CheckSummary{Total: len(items), UpdatedAt: now()}
+	for _, it := range items {
+		if it.Status == "fail" || it.Status == "error" {
+			summary.Failed++
+		} else if it.Status == "warn" {
+			summary.Warnings++
+		}
+	}
+	p.CheckSummary = summary
+	ensureReviewChecklist(p)
 	p.advanceStage(StageCheck)
 	p.UpdatedAt = now()
 	if err := s.store.Update(p); err != nil {
 		return nil, nil, err
 	}
 	return p, items, nil
+}
+
+// ensureReviewChecklist 为空时补默认单人复核清单
+func ensureReviewChecklist(p *Proposal) {
+	if len(p.ReviewChecklist) > 0 {
+		return
+	}
+	p.ReviewChecklist = []ReviewItem{
+		{ID: "r1", Label: "废标条款逐条核对"},
+		{ID: "r2", Label: "工期要求一致"},
+		{ID: "r3", Label: "评分标准覆盖"},
+		{ID: "r4", Label: "暗标格式合规"},
+		{ID: "r5", Label: "规范引用准确"},
+		{ID: "r6", Label: "签字盖章复核"},
+	}
 }
 
 // CheckCoverage 语义覆盖检查（兼容旧绑定，内部走覆盖规则）
