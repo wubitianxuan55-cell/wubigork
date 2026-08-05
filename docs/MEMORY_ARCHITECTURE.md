@@ -75,3 +75,18 @@
 - **API 统一、存储自治**：统一记忆 API 收口三板块读写；底层存储各自为政不强制合并
 - **显式优先**：办公记忆偏显式（用户可管），轻语延续自动提取 + 自我编辑混合
 - **不造第四套存储**：新增记忆一律走 Hephaestus.db 或 hermes.db 两库之一
+
+## 五、方案编写板块知识资产接入（2026-08-05，P4）
+
+方案编写板块的工程知识资产**不单独造库**，统一集成到主脑 Hephaestus.db `knowledge` 表（经 `knowledge.Service` 单例与共享检索层）：
+
+| 资产 | 入库方式 | 说明 |
+|---|---|---|
+| 规范条文 | 内置规范索引（GB 36600/15618、HJ 25.x 等 15+ 条）启动/工具调用时幂等入库 | Category=规范标准，tags 为分类；`spec_query` 工具优先读知识库 |
+| 素材库 | office 侧 AddAsset/ListAssets/SearchAssets/RemoveAsset | Category=素材库，tags=业绩/人员/设备/段落，名称纳秒级唯一 |
+| 历史方案 | 方案完成后 ArchiveProposal 一键归档 | Category=设计方案 + tag legacy-proposal；SectionContext 注入同类型参考摘要 |
+
+关联约定：
+- 土壤修复通用技术知识（原 `SoilRemediationKB` 硬编码）同步入库（Category=经验总结），硬编码保留为兜底。
+- 方案模板库是工作流专属配置，保留在 office.db `templates` 表，不混入通用知识。
+- 知识库测试一律使用临时 store（`knowledge.Open(t.TempDir())` + `SetKnowledgeStoreForTest`），不触碰真实 Hephaestus.db。
