@@ -2,6 +2,7 @@ package proposal
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -83,6 +84,140 @@ func (s *Service) RenameSection(proposalID, sectionID, title string) (*Proposal,
 		return nil, err
 	}
 	return p, nil
+}
+
+// MoveSection 在同级内移动章节（delta=-1 上移，1 下移），自动重编号
+func (s *Service) MoveSection(proposalID, sectionID string, delta int) (*Proposal, error) {
+	p, err := s.store.Get(proposalID)
+	if err != nil {
+		return nil, err
+	}
+	if delta == 0 {
+		return p, nil
+	}
+	flat := flattenSections(p.Sections)
+	var target *ProposalSection
+	for _, sec := range flat {
+		if sec.ID == sectionID {
+			target = sec
+			break
+		}
+	}
+	if target == nil {
+		return nil, fmt.Errorf("章节未找到: %s", sectionID)
+	}
+	siblings := siblingsOf(p.Sections, target.ParentID)
+	idx := -1
+	for i := range siblings {
+		if siblings[i].ID == sectionID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 || idx+delta < 0 || idx+delta >= len(siblings) {
+		return p, nil
+	}
+	siblings[idx], siblings[idx+delta] = siblings[idx+delta], siblings[idx]
+	reindexSections(p.Sections)
+	p.UpdatedAt = now()
+	if err := s.store.Update(p); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// siblingsOf 返回指定父节点下的子章节切片（顶层 parentID 为空）
+func siblingsOf(ss []ProposalSection, parentID string) []ProposalSection {
+	if parentID == "" {
+		return ss
+	}
+	for i := range ss {
+		if ss[i].ID == parentID {
+			return ss[i].Children
+		}
+		if r := siblingsOf(ss[i].Children, parentID); r != nil {
+			return r
+		}
+	}
+	return nil
+}
+
+// ImportOutline 从 Markdown 标题解析章节树（#/##/###），替换现有大纲
+func (s *Service) ImportOutline(proposalID, markdown string) (*Proposal, error) {
+	p, err := s.store.Get(proposalID)
+	if err != nil {
+		return nil, err
+	}
+	var roots []*outlineNode
+	var stack []*outlineNode
+	idx := 0
+	for _, line := range strings.Split(markdown, "\n") {
+		trimmed := strings.TrimSpace(line)
+		level := headingLevel(trimmed)
+		if level == 0 {
+			continue
+		}
+		title := strings.TrimSpace(trimmed[level:])
+		n := &outlineNode{sec: ProposalSection{
+			ID: uuid.New().String(), ProposalID: proposalID, Level: level,
+			Index: idx, Title: title, Status: "pending",
+		}}
+		idx++
+		for len(stack) >= level {
+			stack = stack[:len(stack)-1]
+		}
+		if len(stack) > 0 {
+			parent := stack[len(stack)-1]
+			n.sec.ParentID = parent.sec.ID
+			parent.children = append(parent.children, n)
+		} else {
+			roots = append(roots, n)
+		}
+		stack = append(stack, n)
+	}
+	if len(roots) == 0 {
+		return nil, fmt.Errorf("未解析到任何 Markdown 标题")
+	}
+	sections := make([]ProposalSection, 0, len(roots))
+	for _, r := range roots {
+		sections = append(sections, materializeNode(r))
+	}
+	p.Sections = sections
+	reindexSections(p.Sections)
+	p.UpdatedAt = now()
+	if err := s.store.Update(p); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// outlineNode 大纲导入用的内部节点树
+type outlineNode struct {
+	sec      ProposalSection
+	children []*outlineNode
+}
+
+// materializeNode 把内部节点树转换为值树
+func materializeNode(n *outlineNode) ProposalSection {
+	sec := n.sec
+	for _, c := range n.children {
+		sec.Children = append(sec.Children, materializeNode(c))
+	}
+	return sec
+}
+
+func headingLevel(s string) int {
+	if !strings.HasPrefix(s, "#") {
+		return 0
+	}
+	n := 0
+	for n < len(s) && s[n] == '#' {
+		n++
+	}
+	if n > 3 || n >= len(s) || s[n] != ' ' {
+		return 0
+	}
+	return n
 }
 
 func findSection(ss []ProposalSection, id string) *ProposalSection {

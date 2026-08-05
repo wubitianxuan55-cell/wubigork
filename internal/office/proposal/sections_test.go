@@ -92,3 +92,38 @@ func TestAddSectionThroughService(t *testing.T) {
 		t.Fatalf("删除子章节失败: %+v", p.Sections)
 	}
 }
+
+func TestMoveSectionWithinSiblings(t *testing.T) {
+	svc := newServiceAt(t, t.TempDir(), nil)
+	p, _ := svc.Create("方案", "blank", "", "其他")
+	p, _ = svc.AddSection(p.ID, "", "第一章")
+	p, _ = svc.AddSection(p.ID, "", "第二章")
+	p, _ = svc.AddSection(p.ID, "", "第三章")
+	first := p.Sections[0].ID
+	p, err := svc.MoveSection(p.ID, first, 1)
+	if err != nil {
+		t.Fatalf("MoveSection: %v", err)
+	}
+	if p.Sections[0].Title != "第二章" || p.Sections[1].Title != "第一章" {
+		t.Fatalf("下移失败: %+v", p.Sections)
+	}
+	if p.Sections[0].Index != 0 || p.Sections[1].Index != 1 {
+		t.Fatalf("重编号失败: %+v", p.Sections)
+	}
+}
+
+func TestImportOutlineFromMarkdown(t *testing.T) {
+	svc := newServiceAt(t, t.TempDir(), nil)
+	p, _ := svc.Create("方案", "blank", "", "其他")
+	md := "# 第一章 项目概述\n## 1.1 项目背景\n### 1.1.1 场地现状\n## 1.2 修复目标\n# 第二章 技术路线\n"
+	p, err := svc.ImportOutline(p.ID, md)
+	if err != nil {
+		t.Fatalf("ImportOutline: %v", err)
+	}
+	if len(p.Sections) != 2 {
+		t.Fatalf("章数 = %d, want 2", len(p.Sections))
+	}
+	if len(p.Sections[0].Children) != 2 || len(p.Sections[0].Children[0].Children) != 1 {
+		t.Fatalf("树形异常: %+v", p.Sections)
+	}
+}
