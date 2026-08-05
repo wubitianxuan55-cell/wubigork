@@ -380,6 +380,62 @@ func TestGenerateSection(t *testing.T) {
 	}
 }
 
+func TestParseBidFileV2_WithSources(t *testing.T) {
+	ai := &mockAI{replies: map[string]string{
+		"招标文件": `{
+  "overview": "本项目为污染场地修复",
+  "overviewQuote": "本项目为污染场地修复工程",
+  "duration": "90 日历天",
+  "durationQuote": "工期要求：90 日历天",
+  "qualification": [{"name":"环保工程专业承包资质","content":"需具备环保工程专业承包三级及以上","quote":"环保工程专业承包三级及以上"}],
+  "techScoring": [{"name":"施工方案","maxScore":"20","requirement":"方案完整合理","quote":"施工方案 20 分"}],
+  "keyRequirements": ["项目经理须常驻现场"],
+  "redLines": [{"name":"废标条款","content":"投标文件未按要求签字盖章","quote":"未按要求签字盖章"}],
+  "format": [{"name":"装订要求","content":"A4 双面打印","quote":"A4 双面打印"}],
+  "darkRules": [{"name":"暗标要求","content":"不得出现单位名称","quote":"不得出现单位名称"}]
+}`,
+	}}
+	s := newServiceAt(t, t.TempDir(), ai)
+	p, _ := s.Create("方案", "blank", "", "其他")
+	// 注入一个已转换的招标文件
+	fileID, err := s.store.AddFile(p.ID, "tender", "招标文件.pdf", "x.pdf", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.BidSummary = &BidSummary{
+		RawFiles: []FileDoc{{
+			FileID: fileID, Name: "招标文件.pdf", Path: "x.pdf",
+			Markdown: "一、项目概况\n本项目为污染场地修复工程。\n二、工期要求\n工期要求：90 日历天。\n三、资质要求\n需具备环保工程专业承包三级及以上资质。\n四、评分标准\n施工方案 20 分。\n五、其他\n投标文件未按要求签字盖章作废标处理；A4 双面打印；暗标不得出现单位名称。",
+		}},
+		RawMarkdown: "一、项目概况\n本项目为污染场地修复工程。",
+	}
+	if err := s.store.Update(p); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.ParseBidFile(context.Background(), p.ID)
+	if err != nil {
+		t.Fatalf("ParseBidFile: %v", err)
+	}
+	if got.BidSummary.ParseStatus != "done" {
+		t.Errorf("ParseStatus = %q", got.BidSummary.ParseStatus)
+	}
+	if len(got.BidSummary.Qualification) != 1 || len(got.BidSummary.Qualification[0].Sources) == 0 {
+		t.Fatalf("资质来源缺失: %+v", got.BidSummary.Qualification)
+	}
+	src := got.BidSummary.Qualification[0].Sources[0]
+	if src.Snippet == "" || src.Confidence <= 0 {
+		t.Errorf("来源异常: %+v", src)
+	}
+	if got.BidSummary.TechScoring[0].Sources[0].Page != 0 {
+		t.Errorf("页码异常: %+v", got.BidSummary.TechScoring[0].Sources)
+	}
+	rows, err := s.store.ListParseResults(p.ID)
+	if err != nil || len(rows) == 0 {
+		t.Fatalf("parse_results 未落库: %v %+v", err, rows)
+	}
+}
+
 // ─── 模板 ────────────────────────────────────────────────────
 
 func TestListTemplates(t *testing.T) {

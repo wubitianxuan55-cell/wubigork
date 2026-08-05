@@ -442,94 +442,9 @@ func (s *Service) Polish(ctx context.Context, proposalID, sectionID, content, op
 
 // ─── 投标方案增强 ──────────────────────────────────────────
 
-// ParseBidFile 基于已转换的 Markdown 招标文件，AI 提取结构化摘要
+// ParseBidFile 执行结构化解析管线（v2）
 func (s *Service) ParseBidFile(ctx context.Context, proposalID string) (*Proposal, error) {
-	if s.ai == nil {
-		return nil, fmt.Errorf("AI 客户端未初始化")
-	}
-	p, err := s.store.Get(proposalID)
-	if err != nil {
-		return nil, err
-	}
-
-	rawMD := ""
-	if p.BidSummary != nil {
-		rawMD = p.BidSummary.RawMarkdown
-	}
-	if rawMD == "" {
-		return nil, fmt.Errorf("请先导入招标文件（选择 PDF/Word → 自动转换为 Markdown），再点击 AI 解析")
-	}
-
-	systemPrompt := `你是一位专业的招投标专家。请基于以下招标文件（已转为 Markdown 格式），提取所有对投标方案编写有影响的关键信息。
-
-返回纯 JSON：
-{
-  "techScoring": [{"name":"评分项","maxScore":"分值","requirement":"具体要求"}],
-  "keyRequirements": ["核心要求"],
-  "duration": "工期要求",
-  "redLines": ["废标条款/否决项"],
-  "overview": "项目概况（200字以内）",
-  "extra": {"分类":"内容"}
-}
-
-要求：
-- 不要遗漏任何影响投标的关键信息
-- extra 字段自行命名分类，灵活发挥
-- 不存在的类别填空数组或空字符串即可`
-
-	const chunkSize = 15000
-	rawRunes := []rune(rawMD)
-
-	if len(rawRunes) <= chunkSize {
-		userMsg := "请解析以下招标文件（已转为 Markdown 格式）：\n\n" + rawMD
-		reply, err := s.ai.ChatSimpleStream(ctx, "", systemPrompt, userMsg)
-		if err != nil {
-			return nil, fmt.Errorf("AI 解析失败: %w", err)
-		}
-		return s.applyBidSummary(p, reply)
-	}
-
-	// 大文件：分块提取
-	var allResults []string
-	for start := 0; start < len(rawRunes); start += chunkSize {
-		end := start + chunkSize
-		if end > len(rawRunes) {
-			end = len(rawRunes)
-		}
-		chunk := string(rawRunes[start:end])
-		chunkPrompt := fmt.Sprintf("请解析以下招标文件（第%d-%d字，共%d字）：\n\n%s\n\n请提取本段中的所有关键信息，返回同样格式的JSON。",
-			start+1, end, len(rawRunes), chunk)
-		reply, err := s.ai.ChatSimpleStream(ctx, "", systemPrompt, chunkPrompt)
-		if err != nil {
-			continue
-		}
-		allResults = append(allResults, extractJSON(reply))
-	}
-
-	if len(allResults) == 1 {
-		return s.applyBidSummary(p, allResults[0])
-	}
-	mergePrompt := fmt.Sprintf("以下是招标文件分段解析的%d个结果，请合并去重：\n\n%s\n\n返回合并后的完整 JSON。",
-		len(allResults), strings.Join(allResults, "\n---\n"))
-	reply, err := s.ai.ChatSimpleStream(ctx, "", systemPrompt, mergePrompt)
-	if err != nil {
-		return nil, fmt.Errorf("AI 汇总失败: %w", err)
-	}
-	return s.applyBidSummary(p, reply)
-}
-func (s *Service) applyBidSummary(p *Proposal, reply string) (*Proposal, error) {
-	reply = extractJSON(reply)
-	var bs BidSummary
-	if err := json.Unmarshal([]byte(reply), &bs); err != nil {
-		return nil, fmt.Errorf("解析 AI 输出失败: %w\n原始输出: %s", err, truncate(reply, 500))
-	}
-	bs.RawMarkdown = p.BidSummary.RawMarkdown // 保留已转换的 Markdown
-	p.BidSummary = &bs
-	p.UpdatedAt = now()
-	if err := s.store.Update(p); err != nil {
-		return nil, err
-	}
-	return p, nil
+	return s.ParseBidFileV2(ctx, proposalID)
 }
 
 // SaveRawText 追加文件：转换→存入RawFiles→合并RawMarkdown

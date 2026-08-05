@@ -19,9 +19,10 @@ type Proposal struct {
 	UpdatedAt    string            `json:"updatedAt"`
 }
 type ScoringItem struct {
-	Name        string `json:"name"`
-	MaxScore    string `json:"maxScore"`
-	Requirement string `json:"requirement"`
+	Name        string      `json:"name"`
+	MaxScore    string      `json:"maxScore"`
+	Requirement string      `json:"requirement"`
+	Sources     []SourceRef `json:"sources,omitempty"`
 }
 
 type BidSummary struct {
@@ -31,9 +32,16 @@ type BidSummary struct {
 	RedLines        []string          `json:"redLines"`
 	Overview        string            `json:"overview"`
 	Extra           map[string]string `json:"extra"`
-	RawMarkdown     string            `json:"rawMarkdown"` // 合并后的 Markdown 全文（AI解析用）
-	RawFiles        []FileDoc         `json:"rawFiles"`    // 多文件列表（上传的原始文件+转换结果）
-	RawText         string            `json:"rawText"`     // 兼容旧版
+	RawMarkdown     string            `json:"rawMarkdown"`             // 合并后的 Markdown 全文（AI解析用）
+	RawFiles        []FileDoc         `json:"rawFiles"`                // 多文件列表（上传的原始文件+转换结果）
+	RawText         string            `json:"rawText"`                 // 兼容旧版
+	Qualification   []BidItem         `json:"qualification,omitempty"` // 资质要求
+	Format          []BidItem         `json:"format,omitempty"`        // 格式要求
+	DarkRules       []BidItem         `json:"darkRules,omitempty"`     // 暗标要求
+	RedLineItems    []BidItem         `json:"redLineItems,omitempty"`  // 废标条款（带来源）
+	OverviewSources []SourceRef       `json:"overviewSources,omitempty"`
+	DurationSources []SourceRef       `json:"durationSources,omitempty"`
+	ParseStatus     string            `json:"parseStatus,omitempty"` // none|done|partial
 }
 
 type FileDoc struct {
@@ -110,4 +118,22 @@ type ParseResultItem struct {
 	End        int     `json:"end"`
 	Snippet    string  `json:"snippet"`
 	Confidence float64 `json:"confidence"`
+}
+
+// SourceRef 来源引用（文件 + 页码 + Markdown 偏移 + 原文摘录）
+type SourceRef struct {
+	FileID     string  `json:"fileId"`
+	FileName   string  `json:"fileName"`
+	Page       int     `json:"page"`
+	Start      int     `json:"start"`
+	End        int     `json:"end"`
+	Snippet    string  `json:"snippet"`
+	Confidence float64 `json:"confidence"`
+}
+
+// BidItem 带来源的要求项（资质/格式/暗标/废标）
+type BidItem struct {
+	Name    string      `json:"name"`
+	Content string      `json:"content"`
+	Sources []SourceRef `json:"sources"`
 }
