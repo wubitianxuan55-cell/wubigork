@@ -452,7 +452,7 @@ func (s *Store) SaveProjectFacts(projectID string, facts map[string]string) erro
 // ─── 内部方法 ────────────────────────────────────────────
 
 func (s *Store) loadSections(proposalID string) ([]ProposalSection, error) {
-	rows, err := s.db.Query(`SELECT id, proposal_id, parent_id, "index", level, title, content, status, sources FROM sections WHERE proposal_id = ? ORDER BY "index"`, proposalID)
+	rows, err := s.db.Query(`SELECT id, proposal_id, parent_id, "index", level, title, content, status, sources, word_target, words FROM sections WHERE proposal_id = ? ORDER BY "index"`, proposalID)
 	if err != nil {
 		return nil, err
 	}
@@ -460,7 +460,7 @@ func (s *Store) loadSections(proposalID string) ([]ProposalSection, error) {
 	byID := make(map[string]*ProposalSection)
 	for rows.Next() {
 		sec := &ProposalSection{}
-		if err := rows.Scan(&sec.ID, &sec.ProposalID, &sec.ParentID, &sec.Index, &sec.Level, &sec.Title, &sec.Content, &sec.Status, &sec.Sources); err != nil {
+		if err := rows.Scan(&sec.ID, &sec.ProposalID, &sec.ParentID, &sec.Index, &sec.Level, &sec.Title, &sec.Content, &sec.Status, &sec.Sources, &sec.WordTarget, &sec.Words); err != nil {
 			return nil, err
 		}
 		byID[sec.ID] = sec
@@ -539,9 +539,9 @@ func replaceSectionsTx(tx *sql.Tx, proposalID string, sections []ProposalSection
 	walk = func(ss []ProposalSection) error {
 		for _, sec := range ss {
 			if _, err := tx.Exec(
-				`INSERT INTO sections(id, proposal_id, parent_id, "index", level, title, content, status, sources, created_at, updated_at)
-				 VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
-				sec.ID, proposalID, sec.ParentID, sec.Index, sec.Level, sec.Title, sec.Content, sec.Status, sec.Sources, now(), now(),
+				`INSERT INTO sections(id, proposal_id, parent_id, "index", level, title, content, status, sources, word_target, words, created_at, updated_at)
+				 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+				sec.ID, proposalID, sec.ParentID, sec.Index, sec.Level, sec.Title, sec.Content, sec.Status, sec.Sources, sec.WordTarget, sec.Words, now(), now(),
 			); err != nil {
 				return err
 			}

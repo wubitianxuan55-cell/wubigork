@@ -109,3 +109,9 @@ CREATE TABLE IF NOT EXISTS project_facts (
   updated_at TEXT NOT NULL DEFAULT ''
 );
 `
+
+// SchemaV4 章节字数目标与字数（P3 大纲与撰写引擎）。
+const SchemaV4 = `
+ALTER TABLE sections ADD COLUMN word_target INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE sections ADD COLUMN words INTEGER NOT NULL DEFAULT 0;
+`

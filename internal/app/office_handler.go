@@ -229,72 +229,19 @@ func (a *officeState) ProposalGenerateSectionStream(pid, sid, inst string) {
 				a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": "生成异常: " + fmt.Sprint(r)})
 			}
 		}()
-		p, err := a.proposalSvc.Get(pid)
+		sc, err := a.proposalSvc.SectionContext(a.ctx, pid, sid)
 		if err != nil {
-			a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": "加载方案失败: " + err.Error()})
+			a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": err.Error()})
 			return
 		}
-		var ts *proposal.ProposalSection
-		for _, sec := range fSRP(p.Sections) {
-			if sec.ID == sid {
-				ts = sec
-				break
-			}
-		}
-		if ts == nil {
-			a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": "章节未找到"})
-			return
-		}
-		// 构建上下文：需求 + 大纲 + 招标要点 + 前一章节
+		p := sc.Proposal
+		ts := sc.Target
 		var ctx []string
-		ctx = append(ctx, "方案："+p.Title)
-		ctx = append(ctx, "方案类型："+p.Template)
-		if p.Requirements != "" {
-			ctx = append(ctx, "需求描述："+p.Requirements)
+		ctx = append(ctx, sc.UserPrompt)
+		if inst != "" {
+			ctx = append(ctx, "【额外要求】"+inst)
 		}
-		if p.BidSummary != nil {
-			if len(p.BidSummary.TechScoring) > 0 {
-				ctx = append(ctx, "【招标评分标准】")
-				for _, sc := range p.BidSummary.TechScoring {
-					ctx = append(ctx, fmt.Sprintf("- %s(%s分):%s", sc.Name, sc.MaxScore, sc.Requirement))
-				}
-			}
-			if len(p.BidSummary.KeyRequirements) > 0 {
-				ctx = append(ctx, "【核心要求】")
-				for _, r := range p.BidSummary.KeyRequirements {
-					ctx = append(ctx, "- "+r)
-				}
-			}
-			if len(p.BidSummary.RedLines) > 0 {
-				ctx = append(ctx, "【废标条款（严禁违反）】")
-				for _, r := range p.BidSummary.RedLines {
-					ctx = append(ctx, "- "+r)
-				}
-			}
-			if p.BidSummary.Overview != "" {
-				ctx = append(ctx, "【项目概况】"+p.BidSummary.Overview)
-			}
-			if p.BidSummary.Duration != "" {
-				ctx = append(ctx, "【工期】"+p.BidSummary.Duration)
-			}
-		}
-		ctx = append(ctx, "方案大纲：")
-		for _, sec := range fSRP(p.Sections) {
-			ctx = append(ctx, fmt.Sprintf("%s%d. %s", strings.Repeat("  ", max(0, sec.Level-1)), sec.Index+1, sec.Title))
-		}
-		var prevContent string
-		for _, sec := range fSRP(p.Sections) {
-			if sec.ID == sid {
-				break
-			}
-			if sec.Content != "" {
-				prevContent = sec.Content
-			}
-		}
-		if prevContent != "" {
-			ctx = append(ctx, "前一章节内容参考："+prevContent)
-		}
-		sp := eSP(p.Template, fmt.Sprintf("撰写「%s」章节。专业、Markdown，紧扣标题。字数500-1500字（核心章节更详细）。直接输出章节正文，不需要标题。", ts.Title))
+		sp := sc.SystemPrompt
 		var body string
 		for attempt := 0; attempt <= 3; attempt++ {
 			cp := strings.Join(ctx, "\n")
