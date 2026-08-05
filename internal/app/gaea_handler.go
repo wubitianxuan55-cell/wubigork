@@ -73,7 +73,7 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		RequireKey: false,
 		Sink:       sink,
 		MaxSteps:   0,
-		SessionDir: gaeaConfig.WorkspaceSessionDir(""),
+		SessionDir: gaeaConfig.WorkspaceSessionDir(gaeaCwd()),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gaea: 引擎初始化失败: %w", err)

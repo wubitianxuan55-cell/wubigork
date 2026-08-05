@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -82,7 +81,7 @@ func (a *App) hubProfileStore() *memory.ProfileStore {
 // hubOfficeStore 构造左脑办公记忆存储（SQLite 后端）。
 func (a *App) hubOfficeStore() memory.Store {
 	userDir := config.MemoryUserDir()
-	cwd, _ := os.Getwd()
+	cwd := gaeaCwd()
 	return memory.SQLiteStoreFor(db.GetDatabase(userDir), userDir, cwd)
 }
 

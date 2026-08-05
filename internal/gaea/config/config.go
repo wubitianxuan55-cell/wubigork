@@ -22,6 +22,7 @@ import (
 type Config struct {
 	DefaultModel string            `toml:"default_model"`
 	Language     string            `toml:"language"` // ui/model language tag (e.g. "zh"); empty = auto-detect from $LANG / $TIANXUAN_LANG
+	Workspace    string            `toml:"workspace"` // 办公工作空间目录（空 = 进程启动目录）
 	Agent        AgentConfig       `toml:"agent"`
 	Providers    []ProviderEntry   `toml:"providers"`
 	Tools        ToolsConfig       `toml:"tools"`

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"strings"
 	"time"
 
@@ -83,7 +82,7 @@ type ModelInfo struct {
 // 避免办公板块一直停留在"正在连接智能体"加载态。
 func (a *App) GaeaMeta() Meta {
 	c := gaeaCtrl()
-	cwd, _ := os.Getwd()
+	cwd := gaeaCwd()
 	if c == nil {
 		if err := a.GaeaInit(); err != nil {
 			return Meta{

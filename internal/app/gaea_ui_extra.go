@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -419,8 +420,11 @@ type WorkspaceChangeView struct {
 	Removed int    `json:"removed"`
 }
 
-// gaeaCwd 返回办公引擎工作目录。
+// gaeaCwd 返回办公引擎工作目录：优先当前工作空间配置，回退进程启动目录。
 func gaeaCwd() string {
+	if ga.cfg != nil && ga.cfg.Workspace != "" {
+		return ga.cfg.Workspace
+	}
 	cwd, _ := os.Getwd()
 	return cwd
 }
@@ -593,18 +597,86 @@ func (a *App) GaeaAttachmentDataURL(path string) (string, error) {
 
 // ── 工作区切换 / MCP / 更新 / 其他 ────────────────────────────────
 
-// GaeaListWorkspaces 返回工作区列表（gaea 单工作区：当前目录）。
-func (a *App) GaeaListWorkspaces() []WorkspaceView { return []WorkspaceView{{Path: gaeaCwd()}} }
+// GaeaListWorkspaces 返回工作区列表（gaea 单工作区：当前工作空间）。
+func (a *App) GaeaListWorkspaces() []WorkspaceView {
+	cwd := gaeaCwd()
+	return []WorkspaceView{{Path: cwd, Name: filepath.Base(cwd), Current: true}}
+}
 
 // WorkspaceView 是工作区条目。
 type WorkspaceView struct {
-	Path string `json:"path"`
+	Path    string `json:"path"`
+	Name    string `json:"name"`
+	Current bool   `json:"current"`
 }
 
-// GaeaPickWorkspace 选择并切换工作区（gaea 办公板块固定当前目录）。
-func (a *App) GaeaPickWorkspace() string { return "" }
+// GaeaPickWorkspace 弹出系统目录对话框选择/新建工作空间并切换。
+// 用户取消或对话框失败返回空串（前端 no-op）。
+func (a *App) GaeaPickWorkspace() string {
+	if a.ctx == nil {
+		return ""
+	}
+	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title:            "选择工作空间（可在对话框内新建文件夹）",
+		DefaultDirectory: gaeaCwd(),
+	})
+	if err != nil || dir == "" {
+		return ""
+	}
+	return a.GaeaSwitchWorkspace(dir)
+}
+
+// GaeaSwitchWorkspace 切换并持久化工作空间；无效路径保持当前工作空间。
 func (a *App) GaeaSwitchWorkspace(path string) string {
-	return gaeaCwd()
+	if path == "" {
+		return gaeaCwd()
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return gaeaCwd()
+	}
+	info, err := os.Stat(abs)
+	if err != nil || !info.IsDir() {
+		return gaeaCwd()
+	}
+	return a.switchWorkspace(abs)
+}
+
+// switchWorkspace 切换并持久化工作空间，随后重建办公引擎使会话目录生效。
+func (a *App) switchWorkspace(abs string) string {
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
+	if err := a.persistWorkspaceLocked(abs); err != nil {
+		slog.Error("保存工作空间失败", "error", err)
+		return gaeaCwd()
+	}
+	// 重建办公引擎使会话目录跟随新工作空间。失败仅记日志（工作空间已持久化，
+	// 下次启动生效），绝不让引擎重建问题阻塞工作空间切换。
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("重建办公引擎 panic recovered（工作空间已切换）", "panic", r)
+			}
+		}()
+		if err := a.gaeaRebuildLocked(); err != nil {
+			slog.Error("重建办公引擎失败（工作空间已持久化）", "error", err)
+		}
+	}()
+	return abs
+}
+
+// persistWorkspaceLocked 持久化工作空间路径到内存配置与用户配置文件。
+// 调用方必须已持有 ga.mu。
+func (a *App) persistWorkspaceLocked(abs string) error {
+	if ga.cfg == nil {
+		cfg, err := gaeaLoadConfig()
+		if err != nil {
+			return err
+		}
+		ga.cfg = cfg
+	}
+	ga.cfg.Workspace = abs
+	return gaeaConfig.Save(ga.cfg)
 }
 
 // GaeaAddMCPServer 添加 MCP 服务器（真实生效）。
