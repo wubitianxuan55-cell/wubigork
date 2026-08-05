@@ -128,3 +128,8 @@ CREATE TABLE IF NOT EXISTS dark_rules (
   updated_at  TEXT NOT NULL DEFAULT ''
 );
 `
+
+// SchemaV6 方案工作流阶段（parse/generate/check/format）。
+const SchemaV6 = `
+ALTER TABLE proposals ADD COLUMN stage TEXT NOT NULL DEFAULT '';
+`

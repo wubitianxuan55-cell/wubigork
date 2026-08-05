@@ -21,7 +21,14 @@ func (s *Service) ExportDocxWithOptions(proposalID string, opts ExportOptions) (
 	if err != nil {
 		return "", err
 	}
-	return renderDocxToFileWithRule(p, opts, s.store.ExportDir(), getDarkRule(s, opts.DarkRuleID))
+	path, err := renderDocxToFileWithRule(p, opts, s.store.ExportDir(), getDarkRule(s, opts.DarkRuleID))
+	if err != nil {
+		return "", err
+	}
+	p.advanceStage(StageFormat)
+	p.UpdatedAt = now()
+	_ = s.store.Update(p)
+	return path, nil
 }
 
 // ExportSectionDocx 导出单章节（含子章节）
@@ -35,7 +42,14 @@ func (s *Service) ExportSectionDocx(proposalID, sectionID string, opts ExportOpt
 		return "", fmt.Errorf("章节未找到: %s", sectionID)
 	}
 	mini := &Proposal{ID: p.ID + "-" + sectionID, Title: sec.Title, Template: p.Template, Sections: []ProposalSection{*sec}}
-	return renderDocxToFile(mini, opts, s.store.ExportDir())
+	path, err := renderDocxToFile(mini, opts, s.store.ExportDir())
+	if err != nil {
+		return "", err
+	}
+	p.advanceStage(StageFormat)
+	p.UpdatedAt = now()
+	_ = s.store.Update(p)
+	return path, nil
 }
 
 // ReadPdfFile 读取 PDF 文件文本内容

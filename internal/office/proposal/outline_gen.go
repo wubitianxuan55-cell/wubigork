@@ -18,6 +18,9 @@ func (s *Service) GenerateOutline(ctx context.Context, proposalID, requirements,
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireStage(p, StageGenerate); err != nil {
+		return nil, err
+	}
 	if strategy == "" {
 		strategy = OutlineStrategyReference
 	}
@@ -99,6 +102,7 @@ func (s *Service) GenerateOutline(ctx context.Context, proposalID, requirements,
 	p.Status = "writing"
 	p.Sections = buildSectionsTree(proposalID, outline.Sections)
 	applyWordBudgetToProposal(p.Sections, totalWords)
+	p.advanceStage(StageGenerate)
 	p.UpdatedAt = now()
 
 	if err := s.store.Update(p); err != nil {

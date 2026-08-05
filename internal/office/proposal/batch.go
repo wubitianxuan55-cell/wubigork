@@ -47,6 +47,9 @@ func (s *Service) RunBatch(ctx context.Context, proposalID string, progress Batc
 	if err != nil {
 		return err
 	}
+	if err := s.requireStage(p, StageGenerate); err != nil {
+		return err
+	}
 	units := BuildBatchUnits(p.Sections)
 	total := len(units)
 	current := 0

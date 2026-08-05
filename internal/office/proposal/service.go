@@ -335,6 +335,11 @@ func (s *Service) CheckAll(ctx context.Context, proposalID string) (*Proposal, [
 		return nil, nil, err
 	}
 	items := RunChecks(ctx, p, s.defaultRules())
+	p.advanceStage(StageCheck)
+	p.UpdatedAt = now()
+	if err := s.store.Update(p); err != nil {
+		return nil, nil, err
+	}
 	return p, items, nil
 }
 

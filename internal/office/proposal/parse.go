@@ -129,6 +129,7 @@ func (s *Service) parseBidFile(ctx context.Context, proposalID string, onProgres
 		p.BidSummary = &BidSummary{}
 	}
 	applyParseResult(p.BidSummary, merged)
+	p.advanceStage(StageParse)
 	if partial {
 		p.BidSummary.ParseStatus = "partial"
 	} else {

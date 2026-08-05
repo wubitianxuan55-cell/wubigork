@@ -14,6 +14,7 @@ type Proposal struct {
 	BidSummary   *BidSummary       `json:"bidSummary,omitempty"`
 	Status       string            `json:"status"`
 	Version      int               `json:"version"`
+	Stage        string            `json:"stage,omitempty"` // parse|generate|check|format
 	Sections     []ProposalSection `json:"sections"`
 	CreatedAt    string            `json:"createdAt"`
 	UpdatedAt    string            `json:"updatedAt"`

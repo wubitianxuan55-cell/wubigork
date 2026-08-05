@@ -241,10 +241,10 @@ func (s *Store) Get(id string) (*Proposal, error) {
 	if err := s.errIfUnavailable(); err != nil {
 		return nil, err
 	}
-	row := s.db.QueryRow(`SELECT id, project_id, title, category, template, requirements, status, version, bid_summary, created_at, updated_at FROM proposals WHERE id = ?`, id)
+	row := s.db.QueryRow(`SELECT id, project_id, title, category, template, requirements, status, version, bid_summary, stage, created_at, updated_at FROM proposals WHERE id = ?`, id)
 	var p Proposal
 	var bs string
-	if err := row.Scan(&p.ID, &p.ProjectID, &p.Title, &p.Category, &p.Template, &p.Requirements, &p.Status, &p.Version, &bs, &p.CreatedAt, &p.UpdatedAt); err != nil {
+	if err := row.Scan(&p.ID, &p.ProjectID, &p.Title, &p.Category, &p.Template, &p.Requirements, &p.Status, &p.Version, &bs, &p.Stage, &p.CreatedAt, &p.UpdatedAt); err != nil {
 		return nil, err
 	}
 	if bs != "" {
@@ -625,9 +625,9 @@ func insertProposalTx(tx *sql.Tx, p *Proposal) error {
 		bs = string(data)
 	}
 	_, err := tx.Exec(
-		`INSERT INTO proposals(id, project_id, title, category, template, requirements, status, version, bid_summary, created_at, updated_at)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
-		p.ID, p.ProjectID, p.Title, p.Category, p.Template, p.Requirements, p.Status, p.Version, bs, p.CreatedAt, p.UpdatedAt,
+		`INSERT INTO proposals(id, project_id, title, category, template, requirements, status, version, bid_summary, stage, created_at, updated_at)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+		p.ID, p.ProjectID, p.Title, p.Category, p.Template, p.Requirements, p.Status, p.Version, bs, p.Stage, p.CreatedAt, p.UpdatedAt,
 	)
 	return err
 }
@@ -642,13 +642,13 @@ func upsertProposalTx(tx *sql.Tx, p *Proposal) error {
 		bs = string(data)
 	}
 	_, err := tx.Exec(
-		`INSERT INTO proposals(id, project_id, title, category, template, requirements, status, version, bid_summary, created_at, updated_at)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?)
+		`INSERT INTO proposals(id, project_id, title, category, template, requirements, status, version, bid_summary, stage, created_at, updated_at)
+		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
 		 ON CONFLICT(id) DO UPDATE SET
 		   project_id=excluded.project_id, title=excluded.title, category=excluded.category,
 		   template=excluded.template, requirements=excluded.requirements, status=excluded.status,
-		   version=excluded.version, bid_summary=excluded.bid_summary, updated_at=excluded.updated_at`,
-		p.ID, p.ProjectID, p.Title, p.Category, p.Template, p.Requirements, p.Status, p.Version, bs, p.CreatedAt, p.UpdatedAt,
+		   version=excluded.version, bid_summary=excluded.bid_summary, stage=excluded.stage, updated_at=excluded.updated_at`,
+		p.ID, p.ProjectID, p.Title, p.Category, p.Template, p.Requirements, p.Status, p.Version, bs, p.Stage, p.CreatedAt, p.UpdatedAt,
 	)
 	return err
 }

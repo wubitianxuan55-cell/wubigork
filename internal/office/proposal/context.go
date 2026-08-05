@@ -27,6 +27,9 @@ func (s *Service) SectionContext(ctx context.Context, proposalID, sectionID stri
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireStage(p, StageGenerate); err != nil {
+		return nil, err
+	}
 	flat := flattenSections(p.Sections)
 	var target *ProposalSection
 	var prevContent string
