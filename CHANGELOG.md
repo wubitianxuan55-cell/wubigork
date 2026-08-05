@@ -2,6 +2,18 @@
 
 # gaea · 多功能 AI 助手
 
+## v1.20.0「工作流编排」(2026-08-05)
+
+> 方案编写板块引入四阶段流水线（招标解读→投标生成→投标检查→排版导出）与阶段闸门；一键流水线；办公 agent（Hephaestus）新增方案读写/导出工具。
+
+- 阶段模型：Proposal.Stage（parse/generate/check/format，SchemaV6 proposals.stage 列）；解析成功→parse、大纲→generate、全面检查→check、导出→format 自动推进
+- 阶段闸门：有招标文件但未解析时，生成大纲/章节/批量生成返回明确提示（空白方案不拦截）
+- 一键流水线：RunPipeline 按序执行 解析→大纲→批量生成→全面检查，进度事件 proposal-pipeline-progress
+- 办公 agent 打通：proposal 全局服务单例（测试可注入）+ 内置工具 proposal_list / proposal_write / proposal_export，Hephaestus 可直接读写方案需求/章节并导出
+- 规范索引抽离共享包 specdata（builtin 工具与 proposal 模块共用，解除导入环）
+- 前端：顶部 5 步步骤条（解析/大纲/编制/检查/导出）+ 一键流水线按钮 + 下一步引导（按阶段跳 Tab）
+- 验证：新增 6 测试（闸门/阶段推进/流水线/办公工具）；go vet clean + go test ./... 全绿 + tsc 0 错误 + vite build + wails build 成功
+
 ## v1.19.0「排版导出」(2026-08-05)
 
 > 方案编写板块 docx 导出升级为可配置排版引擎：封面/目录/标题层级/页眉页脚页码/Markdown 表格与代码块；按章节导出；暗标规则库（内置土壤修复通用规则，导出自动清理）。
