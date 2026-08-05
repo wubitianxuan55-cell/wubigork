@@ -19,6 +19,7 @@ type Provider struct {
 	name   string
 	model  string
 	client ai.LLMClient
+	engine string // 办公功能级引擎（空 = 由 ai.Client 按活跃引擎解析）
 }
 
 // Name 返回 provider 实例名。
@@ -32,6 +33,7 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 		Tools:       toChatTools(req.Tools),
 		MaxTokens:   req.MaxTokens,
 		Temperature: req.Temperature,
+		EngineID:    p.engine,
 	}
 	raw, err := p.client.ChatStream(ctx, creq)
 	if err != nil {
@@ -100,12 +102,27 @@ var client ai.LLMClient
 // SetClient 注入 gaea ai.LLMClient。须在创建任何 Provider 前调用。
 func SetClient(c ai.LLMClient) { client = c }
 
+// featureEngine/featureModel 是办公功能级模型绑定（老栈 func_gaea_engine/
+// func_gaea_model），由 app 层在 GaeaInit 时注入。它让办公 agent 走指定
+// 引擎（如 deepseek），而不是全局活跃引擎——避免活跃引擎为 xai 时把
+// 其他模型名发到 xAI 导致 404。空值 = 跟随全局活跃引擎（原行为）。
+var featureEngine, featureModel string
+
+// SetFeature 注入办公功能级引擎与模型（空 = 跟随全局活跃引擎）。
+func SetFeature(engine, model string) {
+	featureEngine, featureModel = engine, model
+}
+
 func init() {
 	provider.Register("wubigrok", func(cfg provider.Config) (provider.Provider, error) {
 		if client == nil {
 			return nil, errors.New("bridge: ai.LLMClient 未注入，请先调用 bridge.SetClient")
 		}
-		return &Provider{name: cfg.Name, model: cfg.Model, client: client}, nil
+		model := cfg.Model
+		if model == "" {
+			model = featureModel // 功能级模型（未绑定则为空，由 ai.Client 动态解析）
+		}
+		return &Provider{name: cfg.Name, model: model, engine: featureEngine, client: client}, nil
 	})
 }
 

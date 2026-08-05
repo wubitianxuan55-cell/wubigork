@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"log/slog"
 	"sync"
 
 	"github.com/BurntSushi/toml"
@@ -109,6 +110,13 @@ func (a *App) GaeaInit() error {
 
 	// 1. 注入模型中心客户端（bridge provider 的底层）
 	bridge.SetClient(a.client)
+	// 注入办公功能级模型绑定（func_gaea_engine/model）：办公 agent 走指定
+	// 引擎，而非全局活跃引擎——避免活跃引擎为 xai 时把其他模型名发到 xAI
+	// 导致 404。未绑定则跟随全局活跃引擎。
+	if eng, model := a.cfg.GetFeatureModel("gaea"); eng != "" {
+		bridge.SetFeature(eng, model)
+		slog.Info("办公模型绑定已注入", "engine", eng, "model", model)
+	}
 
 	// 2. 注入配置：持久化文件（用户设置）+ bridge provider
 	cfg, err := gaeaLoadConfig()

@@ -185,3 +185,55 @@ func TestBridge_Stream_EmptyModel(t *testing.T) {
 		t.Errorf("model = %q, want 空（由 ai.Client 动态解析）", mc.gotReq.Model)
 	}
 }
+
+// TestBridge_FeatureEngine 验证办公功能级绑定（SetFeature）注入：
+// Provider 构造时 model 取功能模型（provider model 为空时），
+// Stream 请求携带功能引擎，使办公 agent 走指定引擎而非全局活跃引擎。
+// 对应修复：办公 chat 误走活跃引擎(xai)+cfg.Model(Qwen3.5) 导致 404。
+func TestBridge_FeatureEngine(t *testing.T) {
+	mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+	SetClient(mc)
+	SetFeature("deepseek", "deepseek-v4-flash")
+	defer SetFeature("", "")
+
+	p, err := provider.New("wubigrok", provider.Config{Name: "gaea", Model: ""})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := p.Stream(context.Background(), provider.Request{Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}}}); err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	if mc.gotReq == nil {
+		t.Fatal("client 未收到请求")
+	}
+	if mc.gotReq.EngineID != "deepseek" {
+		t.Errorf("EngineID = %q, want %q（办公功能绑定引擎）", mc.gotReq.EngineID, "deepseek")
+	}
+	if mc.gotReq.Model != "deepseek-v4-flash" {
+		t.Errorf("Model = %q, want %q（办公功能绑定模型）", mc.gotReq.Model, "deepseek-v4-flash")
+	}
+}
+
+// TestBridge_FeatureEngine_NoBinding 验证未注入功能绑定时保持原行为
+// （engine/model 为空，由 ai.Client 按活跃引擎解析）。
+func TestBridge_FeatureEngine_NoBinding(t *testing.T) {
+	mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+	SetClient(mc)
+	SetFeature("", "")
+	p, err := provider.New("wubigrok", provider.Config{Name: "gaea", Model: ""})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := p.Stream(context.Background(), provider.Request{Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}}}); err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	if mc.gotReq == nil {
+		t.Fatal("client 未收到请求")
+	}
+	if mc.gotReq.EngineID != "" {
+		t.Errorf("EngineID = %q, want 空（未绑定功能引擎）", mc.gotReq.EngineID)
+	}
+	if mc.gotReq.Model != "" {
+		t.Errorf("Model = %q, want 空（未绑定功能模型）", mc.gotReq.Model)
+	}
+}
