@@ -804,6 +804,37 @@ html.gaea-raf-degraded .chat-message-item {
   animation: none !important;
 }
 
+/* ── 绘梦重设计：Studio Console 动效与交互 ── */
+@keyframes imgStageEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.img-stage-enter {
+  animation: imgStageEnter 0.45s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.img-picker-btn {
+  transition: transform 0.15s cubic-bezier(0.32, 0.72, 0, 1),
+              background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.img-picker-btn:active { transform: scale(0.97); }
+.img-picker-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+.img-card {
+  transition: transform 0.2s cubic-bezier(0.32, 0.72, 0, 1),
+              box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.img-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+html.gaea-raf-degraded .img-stage-enter,
+html.gaea-raf-degraded .img-card {
+  animation: none !important;
+  transition: none !important;
+}
+
 /* ── 外观设置：紧凑模式辅助（antd 控件由 ConfigProvider token 驱动，此处补全局区块密度）── */
 .ui-compact .md-glass {
   padding: 14px 16px;
