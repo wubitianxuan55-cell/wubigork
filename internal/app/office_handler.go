@@ -272,7 +272,13 @@ func (a *officeState) ProposalGenerateSectionStream(pid, sid, inst string) {
 			if body != "" {
 				cp = fmt.Sprintf("%s\n\n【已生成内容，请自然续写，不要重复前面内容】\n%s", cp, body)
 			}
-			chunks, err := a.client.ChatStream(a.ctx, &ai.ChatRequest{Model: a.cfg.Model, Messages: []ai.ChatMessage{{Role: "system", Content: sp}, {Role: "user", Content: cp}}})
+			// 办公功能级模型绑定（func_office_engine/model）；未绑定回退全局模型。
+			// 直接用 a.cfg.Model 会把历史残留模型名发到活跃引擎（如 xAI）导致 404。
+			eng, model := a.featureModel("office")
+			if model == "" {
+				model = a.cfg.Model
+			}
+			chunks, err := a.client.ChatStream(a.ctx, &ai.ChatRequest{Model: model, EngineID: eng, Messages: []ai.ChatMessage{{Role: "system", Content: sp}, {Role: "user", Content: cp}}})
 			if err != nil {
 				if body == "" {
 					a.emit("proposal-stream", map[string]interface{}{"type": "error", "error": "AI 生成失败: " + err.Error()})
