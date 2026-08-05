@@ -314,6 +314,53 @@ func (a *officeState) ProposalReadFile(path string) (string, error) {
 func (a *officeState) ProposalExportDocx(pid string) (string, error) {
 	return a.proposalSvc.ExportDocx(pid)
 }
+
+func (a *officeState) ProposalExportDocxWithOptions(pid string, includeCover, includeTOC bool, darkRuleID string) (string, error) {
+	opts := proposal.DefaultExportOptions()
+	opts.IncludeCover = includeCover
+	opts.IncludeTOC = includeTOC
+	opts.DarkRuleID = darkRuleID
+	return a.proposalSvc.ExportDocxWithOptions(pid, opts)
+}
+
+func (a *officeState) ProposalExportSectionDocx(pid, sid string) (string, error) {
+	return a.proposalSvc.ExportSectionDocx(pid, sid, proposal.DefaultExportOptions())
+}
+
+func (a *officeState) ProposalDarkRulesList() []map[string]interface{} {
+	if a.proposalSvc == nil {
+		return nil
+	}
+	rules, err := a.proposalSvc.Store().ListDarkRules()
+	if err != nil {
+		return nil
+	}
+	var out []map[string]interface{}
+	for i := range rules {
+		r := rules[i]
+		out = append(out, map[string]interface{}{
+			"id": r.ID, "name": r.Name, "description": r.Description,
+			"options": r.Options, "enabled": r.Enabled,
+		})
+	}
+	return out
+}
+
+func (a *officeState) ProposalDarkRuleSave(m map[string]interface{}) error {
+	if a.proposalSvc == nil {
+		return fmt.Errorf("方案服务不可用")
+	}
+	data, _ := json.Marshal(m)
+	var r proposal.DarkRule
+	if err := json.Unmarshal(data, &r); err != nil {
+		return err
+	}
+	return a.proposalSvc.Store().SaveDarkRule(r)
+}
+
+func (a *officeState) ProposalDarkRuleDelete(id string) error {
+	return a.proposalSvc.Store().DeleteDarkRule(id)
+}
 func (a *officeState) ProposalSaveUploadedFile(pid, name string, data []byte) (map[string]interface{}, error) {
 	p, err := a.proposalSvc.SaveUploadedFile(pid, name, data)
 	if err != nil {

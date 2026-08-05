@@ -178,3 +178,46 @@ func TestOfficeCheckAllBinding(t *testing.T) {
 		t.Fatal("ProposalCheckAll 无检查项")
 	}
 }
+
+func TestOfficeExportOptionsAndDarkRulesBindings(t *testing.T) {
+	dir := t.TempDir()
+	st := &officeState{proposalSvc: proposal.NewService(dir, nil)}
+	t.Cleanup(func() { _ = officedb.CloseDatabase(filepath.Join(dir, "office")) })
+
+	rules := st.ProposalDarkRulesList()
+	if len(rules) == 0 {
+		t.Fatal("暗标规则未初始化")
+	}
+	custom := map[string]interface{}{"name": "测试规则", "options": map[string]interface{}{"noBold": true}, "enabled": true}
+	if err := st.ProposalDarkRuleSave(custom); err != nil {
+		t.Fatalf("ProposalDarkRuleSave: %v", err)
+	}
+	rules = st.ProposalDarkRulesList()
+	if len(rules) != 2 {
+		t.Fatalf("规则数 = %d, want 2", len(rules))
+	}
+	var customID string
+	for _, r := range rules {
+		if r["name"] == "测试规则" {
+			customID, _ = r["id"].(string)
+		}
+	}
+	if customID == "" {
+		t.Fatal("自定义规则 ID 缺失")
+	}
+	if err := st.ProposalDarkRuleDelete(customID); err != nil {
+		t.Fatal(err)
+	}
+
+	proj, _ := st.ProposalProjectCreate("项目", "环保工程", "客户")
+	projectID, _ := proj["id"].(string)
+	p, err := st.ProposalCreate("某方案", "blank", "", "环保工程", projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, _ := p["id"].(string)
+	path, err := st.ProposalExportDocxWithOptions(pid, true, true, "")
+	if err != nil || path == "" {
+		t.Fatalf("ProposalExportDocxWithOptions: %q %v", path, err)
+	}
+}
