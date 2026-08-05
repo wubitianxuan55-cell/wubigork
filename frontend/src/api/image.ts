@@ -48,6 +48,16 @@ export async function getComfyUIStatus(): Promise<ComfyUIStatus> {
   return s as unknown as ComfyUIStatus
 }
 
+/** 获取 ComfyUI 当前可用的 LoRA 列表（models/loras 相对路径，含子目录） */
+export async function getComfyUILoras(): Promise<string[]> {
+  try {
+    const list = await App.GetComfyUILoras()
+    return Array.isArray(list) ? list : []
+  } catch (_) {
+    return []
+  }
+}
+
 /** 获取系统状态 */
 export async function getSystemStats(): Promise<SystemStats | null> {
   try {

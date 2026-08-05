@@ -638,6 +638,10 @@ export function GetCharacters() {
   return window['go']['app']['App']['GetCharacters']();
 }
 
+export function GetComfyUILoras() {
+  return window['go']['app']['App']['GetComfyUILoras']();
+}
+
 export function GetComfyUIStatus() {
   return window['go']['app']['App']['GetComfyUIStatus']();
 }

@@ -21,6 +21,7 @@ import {
 import {
   getImageBackendInfo, getCharacters,
   getComfyUIStatus, getSystemStats,
+  getComfyUILoras,
   generateImage, startComfyUI, stopComfyUI,
   openImageSaveDir, openNovelImagesDir,
   setCharacterPortrait as setPortrait,
@@ -49,6 +50,14 @@ function classifyModel(id: string): string {
   return 'llm'
 }
 
+/** LoRA 文件名 → 可读标签（去掉扩展名/路径，下划线转空格） */
+function loraLabel(name: string): string {
+  const base = name.replace(/\.(safetensors|pt|bin|ckpt|sft)$/i, '')
+  const rel = base.replace(/\\/g, '/')
+  const file = rel.split('/').pop() || rel
+  return file.replace(/_/g, ' ')
+}
+
 // ── 主组件 ──
 
 const ImageGenPage: React.FC = () => {
@@ -63,6 +72,7 @@ const ImageGenPage: React.FC = () => {
   const [customHeight, setCustomHeight] = useState(1024)
   const [backend, setBackend] = useState('xai')
   const [selectedLoras, setSelectedLoras] = useState<string[]>([])
+  const [comfyLoras, setComfyLoras] = useState<string[]>([])
   const [generating, setGenerating] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [lastTime, setLastTime] = useState(0)
@@ -97,14 +107,12 @@ const ImageGenPage: React.FC = () => {
     { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' },
   ], [])
 
-  const loraOptions = useMemo(() => [
-    { label: '✨ 细节增强', value: 'zimage\\z-image-细节增强v2.safetensors' },
-    { label: '🎨 3D卡通', value: 'zimage\\z-Image-3D卡通_V1.safetensors' },
-    { label: '🌫️ 朦胧光影', value: 'zimage\\z-image-朦胧氛围光影LORA_V1.0.safetensors' },
-    { label: '📷 照片写实', value: 'zimage\\z-image-照片写实.safetensors' },
-    { label: '👧 少女风格', value: 'zimage\\z-image-少女-ben_nd.safetensors' },
-    { label: '🔞 NSFW', value: 'zimage\\NSFW_master_ZIT_000017532.safetensors' },
-  ], [])
+  // LoRA 选项：动态读取 ComfyUI 实际 models/loras 列表，避免硬编码文件名
+  // 与本地安装不一致导致提交 400（value_not_in_list）
+  const loraOptions = useMemo(
+    () => (backend === 'comfyui' ? comfyLoras.map((name) => ({ label: loraLabel(name), value: name })) : []),
+    [backend, comfyLoras],
+  )
 
   const modelOptions = useMemo(() => {
     if (backend === 'comfyui') return comfyModels
@@ -169,6 +177,25 @@ const ImageGenPage: React.FC = () => {
     const timer = setInterval(check, 8000)
     return () => clearInterval(timer)
   }, [backend])
+
+  // ── ComfyUI LoRA 列表动态加载 ──
+  const refreshComfyLoras = useCallback(async () => {
+    if (backend !== 'comfyui') { setComfyLoras([]); return }
+    const list = await getComfyUILoras()
+    setComfyLoras(list)
+    // 已选 LoRA 若不在最新列表中则清除，避免提交无效名称
+    setSelectedLoras((prev) => (list.length ? prev.filter((v) => list.includes(v)) : prev))
+  }, [backend])
+
+  useEffect(() => {
+    if (backend === 'comfyui' && engineRunning) refreshComfyLoras()
+  }, [backend, engineRunning, refreshComfyLoras])
+
+  useEffect(() => {
+    refreshComfyLoras()
+    const timer = setInterval(refreshComfyLoras, 30000)
+    return () => clearInterval(timer)
+  }, [refreshComfyLoras])
 
   // ── 系统状态轮询（所有后端显示 CPU+内存，GPU 仅 ComfyUI） ──
   useEffect(() => {
@@ -240,6 +267,7 @@ const ImageGenPage: React.FC = () => {
       await setImageBackendAPI(newBackend, '', defaultModel, '')
       setBackend(newBackend)
       if (defaultModel) setModel(defaultModel)
+      if (newBackend !== 'comfyui') setSelectedLoras([])
     } catch (err: any) { message.error(err?.message || '切换失败') }
     finally { setBackendSwitching(false) }
   }, [backend, engines])

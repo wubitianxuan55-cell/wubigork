@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -27,6 +28,96 @@ func NewComfyUIBackend(baseURL string) *ComfyUIBackend {
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
 		httpClient: netclient.NewSimpleClient(30 * time.Minute), // CPU 模式可能很慢
 	}
+}
+
+// ListLoras 返回 ComfyUI 当前可用的 LoRA 名称列表（models/loras 下相对路径，含子目录）。
+// 通过 object_info 获取 LoraLoaderModelOnly / LoraLoader 节点的 lora_name 可选值，
+// 避免前端硬编码文件名与本地 models/loras 不一致导致提交 400。
+func (b *ComfyUIBackend) ListLoras(ctx context.Context) ([]string, error) {
+	for _, nodeType := range []string{"LoraLoaderModelOnly", "LoraLoader"} {
+		names, err := b.listLorasForNode(ctx, nodeType)
+		if err == nil {
+			sort.Strings(names)
+			return names, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		// 节点类型不存在（404 / 空响应）时尝试下一种
+	}
+	return nil, fmt.Errorf("ComfyUI 未提供 LoRA 列表（object_info 中找不到 LoraLoader 节点）")
+}
+
+// listLorasForNode 查询单个节点类型的 lora_name 可选值。
+func (b *ComfyUIBackend) listLorasForNode(ctx context.Context, nodeType string) ([]string, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, b.baseURL+"/object_info/"+nodeType, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := b.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("连接 ComfyUI 失败 (%s): %w", b.baseURL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("ComfyUI HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var info map[string]struct {
+		Input struct {
+			Required map[string]json.RawMessage `json:"required"`
+		} `json:"input"`
+	}
+	if err := json.Unmarshal(body, &info); err != nil {
+		return nil, fmt.Errorf("解析 object_info 失败: %w", err)
+	}
+	node, ok := info[nodeType]
+	if !ok {
+		return nil, fmt.Errorf("object_info 缺少节点 %s", nodeType)
+	}
+	raw, ok := node.Input.Required["lora_name"]
+	if !ok {
+		return nil, fmt.Errorf("节点 %s 缺少 lora_name 输入", nodeType)
+	}
+
+	names, err := parseLoraNames(raw)
+	if err != nil {
+		return nil, err
+	}
+	return names, nil
+}
+
+// parseLoraNames 解析 object_info 中 lora_name 可选值，兼容多种版本结构：
+//   A. [["file1.safetensors", ...]]                      （仅一层包装）
+//   B. ["LORAS", ["file1.safetensors", ...]]             （标准 ComfyUI）
+//   C. ["LORAS", {"file1.safetensors": {...}}]           （对象映射）
+func parseLoraNames(raw json.RawMessage) ([]string, error) {
+	var pair []json.RawMessage
+	if err := json.Unmarshal(raw, &pair); err != nil {
+		return nil, fmt.Errorf("lora_name 结构异常: %s", trimStr(string(raw), 120))
+	}
+	var names []string
+	for _, item := range pair {
+		var list []string
+		if err := json.Unmarshal(item, &list); err == nil {
+			names = append(names, list...)
+			continue
+		}
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal(item, &m); err == nil {
+			for k := range m {
+				names = append(names, k)
+			}
+		}
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("lora_name 列表为空: %s", trimStr(string(raw), 120))
+	}
+	return names, nil
 }
 
 // GenerateImage 通过 ComfyUI 生成图片
@@ -194,7 +285,9 @@ func (b *ComfyUIBackend) queuePrompt(ctx context.Context, workflow map[string]in
 	if resp.StatusCode != 200 {
 		errMsg := trimStr(string(respBody), 500)
 		extra := ""
-		if strings.Contains(errMsg, "ZImagePowerNodes") {
+		if strings.Contains(errMsg, "value_not_in_list") {
+			extra = "\n💡 提交的模型/LoRA 不在 ComfyUI 列表中：请在绘梦页重新选择 LoRA（列表已与本地 ComfyUI 同步），或确认 ComfyUI models 目录包含所选文件"
+		} else if strings.Contains(errMsg, "ZImagePowerNodes") {
 			extra = "\n💡 请安装 ComfyUI 插件: ZImagePowerNodes\n   cd custom_nodes && git clone https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes.git"
 		} else if strings.Contains(errMsg, "UnetLoaderGGUF") || strings.Contains(errMsg, "CLIPLoaderGGUF") {
 			extra = "\n💡 请安装 ComfyUI 插件: ComfyUI-GGUF\n   cd custom_nodes && git clone https://github.com/city96/ComfyUI-GGUF.git"

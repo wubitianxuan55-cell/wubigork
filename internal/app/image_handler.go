@@ -538,6 +538,19 @@ func (a *mediaState) GetComfyUIStatus() map[string]interface{} {
 	}
 }
 
+// GetComfyUILoras 返回 ComfyUI 当前可用的 LoRA 列表（绘梦 LoRA 多选动态加载）
+func (a *mediaState) GetComfyUILoras() ([]string, error) {
+	if a.cfg.ComfyUIURL == "" {
+		return nil, fmt.Errorf("ComfyUI 地址未配置")
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	backend := ai.NewComfyUIBackend(a.cfg.ComfyUIURL)
+	return backend.ListLoras(ctx)
+}
+
 // isComfyUIRunning 检查 ComfyUI 是否可连通
 func (a *mediaState) isComfyUIRunning() bool {
 	client := netclient.NewSimpleClient(2 * time.Second)

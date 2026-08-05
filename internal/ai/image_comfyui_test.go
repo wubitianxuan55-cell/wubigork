@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -84,6 +85,46 @@ func TestBuildZImageWorkflow(t *testing.T) {
 	}
 	if wf["13"].(map[string]interface{})["class_type"] != "ConditioningZeroOut" {
 		t.Errorf("节点13 = %v, want ConditioningZeroOut", wf["13"].(map[string]interface{})["class_type"])
+	}
+}
+
+func TestParseLoraNames(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{
+			name: "单层包装（本机 ComfyUI 结构）",
+			raw:  `[["flux1\\a.safetensors", "zimage\\b.safetensors"]]`,
+			want: []string{"flux1\\a.safetensors", "zimage\\b.safetensors"},
+		},
+		{
+			name: "标准 ComfyUI",
+			raw:  `["LORAS", ["flux1\\a.safetensors", "zimage\\b.safetensors"]]`,
+			want: []string{"flux1\\a.safetensors", "zimage\\b.safetensors"},
+		},
+		{
+			name: "对象映射结构",
+			raw:  `["LORAS", {"flux1\\a.safetensors": {"weight": 1}, "zimage\\b.safetensors": {}}]`,
+			want: []string{"flux1\\a.safetensors", "zimage\\b.safetensors"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseLoraNames(json.RawMessage(tc.raw))
+			if err != nil {
+				t.Fatalf("parseLoraNames: %v", err)
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Errorf("got[%d]=%q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
 	}
 }
 

@@ -327,6 +327,8 @@ export function GetChapterScenes(arg1:number):Promise<Array<Record<string, any>>
 
 export function GetCharacters():Promise<Record<string, any>>;
 
+export function GetComfyUILoras():Promise<Array<string>>;
+
 export function GetComfyUIStatus():Promise<Record<string, any>>;
 
 export function GetCompileTemplates():Promise<Array<Record<string, any>>>;
