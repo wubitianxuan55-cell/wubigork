@@ -115,3 +115,16 @@ const SchemaV4 = `
 ALTER TABLE sections ADD COLUMN word_target INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE sections ADD COLUMN words INTEGER NOT NULL DEFAULT 0;
 `
+
+// SchemaV5 暗标规则库：导出排版时自动清理格式。
+const SchemaV5 = `
+CREATE TABLE IF NOT EXISTS dark_rules (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  options     TEXT NOT NULL DEFAULT '{}',
+  enabled     INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT NOT NULL DEFAULT '',
+  updated_at  TEXT NOT NULL DEFAULT ''
+);
+`

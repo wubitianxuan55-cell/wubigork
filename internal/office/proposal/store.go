@@ -494,6 +494,83 @@ func (s *Store) ListTemplatesDB() ([]Template, error) {
 	return out, rows.Err()
 }
 
+// SeedDarkRules 幂等写入内置暗标规则
+func (s *Store) SeedDarkRules() error {
+	if err := s.errIfUnavailable(); err != nil {
+		return err
+	}
+	for _, r := range DefaultDarkRules() {
+		enabled := 0
+		if r.Enabled {
+			enabled = 1
+		}
+		if _, err := s.db.Exec(
+			`INSERT INTO dark_rules(id, name, description, options, enabled, created_at, updated_at)
+			 VALUES(?,?,?,?,?,?,?)
+			 ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, options=excluded.options, enabled=excluded.enabled, updated_at=excluded.updated_at`,
+			r.ID, r.Name, r.Description, marshalOptions(r.Options), enabled, now(), now(),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ListDarkRules 列出暗标规则
+func (s *Store) ListDarkRules() ([]DarkRule, error) {
+	if err := s.errIfUnavailable(); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query("SELECT id, name, description, options, enabled FROM dark_rules ORDER BY rowid")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []DarkRule
+	for rows.Next() {
+		var r DarkRule
+		var raw string
+		var enabled int
+		if err := rows.Scan(&r.ID, &r.Name, &r.Description, &raw, &enabled); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(raw), &r.Options)
+		r.Enabled = enabled == 1
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// SaveDarkRule 保存暗标规则（ID 为空自动生成）
+func (s *Store) SaveDarkRule(r DarkRule) error {
+	if err := s.errIfUnavailable(); err != nil {
+		return err
+	}
+	if r.ID == "" {
+		r.ID = uuid.New().String()
+	}
+	enabled := 0
+	if r.Enabled {
+		enabled = 1
+	}
+	_, err := s.db.Exec(
+		`INSERT INTO dark_rules(id, name, description, options, enabled, created_at, updated_at)
+		 VALUES(?,?,?,?,?,?,?)
+		 ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, options=excluded.options, enabled=excluded.enabled, updated_at=excluded.updated_at`,
+		r.ID, r.Name, r.Description, marshalOptions(r.Options), enabled, now(), now(),
+	)
+	return err
+}
+
+// DeleteDarkRule 删除暗标规则
+func (s *Store) DeleteDarkRule(id string) error {
+	if err := s.errIfUnavailable(); err != nil {
+		return err
+	}
+	_, err := s.db.Exec("DELETE FROM dark_rules WHERE id = ?", id)
+	return err
+}
+
 // ─── 内部方法 ────────────────────────────────────────────
 
 func (s *Store) loadSections(proposalID string) ([]ProposalSection, error) {

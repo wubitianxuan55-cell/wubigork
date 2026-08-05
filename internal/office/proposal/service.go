@@ -37,6 +37,9 @@ func NewService(dataRoot string, ai AIClient) *Service {
 	if err := st.SeedTemplates(); err != nil {
 		log.Printf("[proposal] 模板初始化失败: %v", err)
 	}
+	if err := st.SeedDarkRules(); err != nil {
+		log.Printf("[proposal] 暗标规则初始化失败: %v", err)
+	}
 	if _, err := st.EnsureDefaultProject(); err != nil {
 		log.Printf("[proposal] 初始化默认项目失败: %v", err)
 	}

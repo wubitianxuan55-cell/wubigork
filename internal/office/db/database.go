@@ -83,7 +83,7 @@ func CloseDatabase(officeDir string) error {
 	return nil
 }
 
-var migrations = []string{SchemaV1, SchemaV2, SchemaV3, SchemaV4}
+var migrations = []string{SchemaV1, SchemaV2, SchemaV3, SchemaV4, SchemaV5}
 
 func runMigrations(db *sql.DB) error {
 	if _, err := db.Exec(SchemaV1); err != nil {

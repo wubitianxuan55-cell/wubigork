@@ -7,135 +7,35 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/carmel/gooxml/document"
-	"github.com/carmel/gooxml/measurement"
-	"github.com/carmel/gooxml/schema/soo/wml"
 	"github.com/ledongthuc/pdf"
 )
 
-// ExportDocx 导出方案为 Word (.docx) 文件，返回文件路径
+// ExportDocx 导出方案为 Word（默认排版选项）
 func (s *Service) ExportDocx(proposalID string) (string, error) {
+	return s.ExportDocxWithOptions(proposalID, DefaultExportOptions())
+}
+
+// ExportDocxWithOptions 按选项导出方案
+func (s *Service) ExportDocxWithOptions(proposalID string, opts ExportOptions) (string, error) {
 	p, err := s.store.Get(proposalID)
 	if err != nil {
 		return "", err
 	}
-
-	doc := document.New()
-
-	// 封面标题
-	titlePara := doc.AddParagraph()
-	titlePara.Properties().SetAlignment(wml.ST_JcCenter)
-	titleRun := titlePara.AddRun()
-	titleRun.AddText(p.Title)
-	titleRun.Properties().SetSize(28 * measurement.Point)
-	titleRun.Properties().SetBold(true)
-
-	// 元信息
-	metaPara := doc.AddParagraph()
-	metaPara.Properties().SetAlignment(wml.ST_JcCenter)
-	metaPara.AddRun().AddText(fmt.Sprintf("类型：%s | 状态：%s | 更新：%s", p.Template, p.Status, p.UpdatedAt))
-	doc.AddParagraph()
-
-	if p.Requirements != "" {
-		docxAddHeading(doc, "需求描述", 1)
-		docxAddBody(doc, p.Requirements)
-	}
-
-	if p.BidSummary != nil {
-		docxAddHeading(doc, "投标要点摘要", 1)
-		if p.BidSummary.Duration != "" {
-			docxAddBody(doc, "工期："+p.BidSummary.Duration)
-		}
-		if p.BidSummary.Overview != "" {
-			docxAddBody(doc, "项目概况："+p.BidSummary.Overview)
-		}
-		if len(p.BidSummary.TechScoring) > 0 {
-			docxAddHeading(doc, "评分标准", 2)
-			for _, sc := range p.BidSummary.TechScoring {
-				docxAddBody(doc, fmt.Sprintf("• %s（%s分）：%s", sc.Name, sc.MaxScore, sc.Requirement))
-			}
-		}
-		if len(p.BidSummary.RedLines) > 0 {
-			docxAddHeading(doc, "废标条款", 2)
-			for _, rl := range p.BidSummary.RedLines {
-				docxAddBody(doc, "⚠ "+rl)
-			}
-		}
-		doc.AddParagraph()
-	}
-
-	var walk func(ss []ProposalSection, level int)
-	walk = func(ss []ProposalSection, level int) {
-		for _, sec := range ss {
-			docxAddHeading(doc, sec.Title, level)
-			if sec.Content != "" {
-				docxAddMarkdown(doc, sec.Content)
-			} else {
-				docxAddBody(doc, "（待撰写）")
-			}
-			doc.AddParagraph()
-			walk(sec.Children, level+1)
-		}
-	}
-	walk(p.Sections, 1)
-
-	exportDir := s.store.ExportDir()
-	if err := os.MkdirAll(exportDir, 0755); err != nil {
-		return "", fmt.Errorf("创建导出目录失败: %w", err)
-	}
-	exportPath := filepathInDir(exportDir, p.ID+".docx")
-	if err := doc.SaveToFile(exportPath); err != nil {
-		return "", fmt.Errorf("保存 docx 失败: %w", err)
-	}
-	return exportPath, nil
+	return renderDocxToFileWithRule(p, opts, s.store.ExportDir(), getDarkRule(s, opts.DarkRuleID))
 }
 
-func docxAddHeading(doc *document.Document, text string, level int) {
-	para := doc.AddParagraph()
-	para.Properties().SetAlignment(wml.ST_JcLeft)
-	run := para.AddRun()
-	run.AddText(text)
-	pr := run.Properties()
-	pr.SetBold(true)
-	switch level {
-	case 1:
-		pr.SetSize(20 * measurement.Point)
-	case 2:
-		pr.SetSize(16 * measurement.Point)
-	default:
-		pr.SetSize(14 * measurement.Point)
+// ExportSectionDocx 导出单章节（含子章节）
+func (s *Service) ExportSectionDocx(proposalID, sectionID string, opts ExportOptions) (string, error) {
+	p, err := s.store.Get(proposalID)
+	if err != nil {
+		return "", err
 	}
-}
-
-func docxAddBody(doc *document.Document, text string) {
-	para := doc.AddParagraph()
-	para.AddRun().AddText(text)
-}
-
-func docxAddMarkdown(doc *document.Document, md string) {
-	lines := strings.Split(md, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "### ") {
-			docxAddHeading(doc, strings.TrimPrefix(line, "### "), 3)
-		} else if strings.HasPrefix(line, "## ") {
-			docxAddHeading(doc, strings.TrimPrefix(line, "## "), 2)
-		} else if strings.HasPrefix(line, "# ") {
-			docxAddHeading(doc, strings.TrimPrefix(line, "# "), 1)
-		} else if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
-			docxAddBody(doc, "• "+strings.TrimPrefix(strings.TrimPrefix(line, "- "), "* "))
-		} else if strings.HasPrefix(line, "```") {
-			continue
-		} else {
-			clean := strings.ReplaceAll(line, "**", "")
-			clean = strings.ReplaceAll(clean, "__", "")
-			clean = strings.ReplaceAll(clean, "*", "")
-			docxAddBody(doc, clean)
-		}
+	sec := findSectionByID(p.Sections, sectionID)
+	if sec == nil {
+		return "", fmt.Errorf("章节未找到: %s", sectionID)
 	}
+	mini := &Proposal{ID: p.ID + "-" + sectionID, Title: sec.Title, Template: p.Template, Sections: []ProposalSection{*sec}}
+	return renderDocxToFile(mini, opts, s.store.ExportDir())
 }
 
 // ReadPdfFile 读取 PDF 文件文本内容

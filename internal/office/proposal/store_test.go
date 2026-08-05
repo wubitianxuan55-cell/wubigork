@@ -202,3 +202,41 @@ func TestTemplateSeedAndList(t *testing.T) {
 		t.Fatalf("土壤修复模板未入库: %+v", list)
 	}
 }
+
+func newTestStoreAt(t *testing.T, dir string) *Store {
+	t.Helper()
+	db := officedb.GetDatabase(filepath.Join(dir, "office"))
+	if db == nil {
+		t.Fatal("office.db 不可用")
+	}
+	t.Cleanup(func() { _ = officedb.CloseDatabase(filepath.Join(dir, "office")) })
+	return NewStore(db, filepath.Join(dir, "office"))
+}
+
+func TestDarkRuleSeedApplyAndStore(t *testing.T) {
+	st := newTestStoreAt(t, t.TempDir())
+	if err := st.SeedDarkRules(); err != nil {
+		t.Fatalf("SeedDarkRules: %v", err)
+	}
+	rules, err := st.ListDarkRules()
+	if err != nil || len(rules) == 0 {
+		t.Fatalf("ListDarkRules: %v %+v", err, rules)
+	}
+	rule := rules[0]
+	got := rule.Apply("正文 **加粗** 和 ~~删除~~ 与 🎉 emoji\n\n\n多余空行")
+	if containsAny(got, "**", "~~", "🎉") {
+		t.Fatalf("暗标清理失败: %q", got)
+	}
+	// 自定义规则 CRUD
+	custom := DarkRule{Name: "自定义", Options: DarkRuleOptions{NoBold: true}, Enabled: true}
+	if err := st.SaveDarkRule(custom); err != nil {
+		t.Fatal(err)
+	}
+	rules, _ = st.ListDarkRules()
+	if len(rules) != 2 {
+		t.Fatalf("保存后规则数 = %d, want 2", len(rules))
+	}
+	if err := st.DeleteDarkRule(rules[1].ID); err != nil {
+		t.Fatal(err)
+	}
+}
