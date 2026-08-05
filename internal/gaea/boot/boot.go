@@ -37,6 +37,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // Options carries the per-run knobs a frontend chooses; everything else is read
@@ -58,6 +59,10 @@ type Options struct {
 	// SessionDir overrides the global session directory. When empty,
 	// config.SessionDir() (user-global) is used. Desktop mode sets this to
 	// config.WorkspaceSessionDir(cwd) so sessions stay with the project.
+	// Cwd 是工作空间根目录（桌面端 = gaeaCwd()）。非空时基础工具
+	// （read_file/write_file/bash/ls）的相对路径基于它，而非进程 cwd。
+	// 空 = 进程当前目录（CLI 原行为）。
+	Cwd string
 	SessionDir string
 }
 
@@ -123,7 +128,10 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 	runtimeCtx := sp.runtimeCtx
 	skillStore := sp.store
 
-	cwd, _ := os.Getwd()
+	cwd := opts.Cwd
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
 	reg := tool.NewRegistry()
 	bashSpec := sandbox.Spec{Mode: cfg.BashMode(), WriteRoots: cfg.WriteRoots(), Network: cfg.Sandbox.Network}
 	if bashSpec.Mode == "enforce" && !sandbox.Available() {
@@ -132,7 +140,7 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 	if sandbox.ResolveShell().Kind == sandbox.ShellPowerShell {
 		bashWarnOnce.Do(func() { fmt.Fprintln(stderr, "warning: bash not found on PATH; the shell tool will run commands under Windows PowerShell. Install Git for Windows or WSL to use bash.") })
 	}
-	addBuiltins(reg, cfg.Tools.Enabled, cfg.WriteRoots(), bashSpec, stderr)
+	addBuiltins(reg, opts.Cwd, cfg.Tools.Enabled, cfg.WriteRoots(), bashSpec, cfg.NetworkProxySpec(), stderr)
 	// Always construct a host, even with no plugins configured, so the controller's
 	// host pointer is stable for the session and `/mcp add` can hot-add into it.
 	// V10.22: plugins + LSP assembled in plugins.go
@@ -450,7 +458,7 @@ func NewProvider(e *config.ProviderEntry) (provider.Provider, error) {
 // them. writeRoots confines the file-writing built-ins to the workspace: after
 // the (unconfined) defaults are added, each enabled writer is replaced by an
 // instance bound to writeRoots (preserving registry order).
-func addBuiltins(reg *tool.Registry, enabled, writeRoots []string, bashSpec sandbox.Spec, stderr io.Writer) {
+func addBuiltins(reg *tool.Registry, dir string, enabled, writeRoots []string, bashSpec sandbox.Spec, proxySpec netclient.ProxySpec, stderr io.Writer) {
 	if len(enabled) == 0 {
 		for _, t := range tool.Builtins() {
 			reg.Add(t)
@@ -467,6 +475,16 @@ func addBuiltins(reg *tool.Registry, enabled, writeRoots []string, bashSpec sand
 	// Replace the unconfined defaults with confined instances (registry order is
 	// preserved on replace): file-writers bound to the workspace, bash to the OS
 	// sandbox. Only replace tools actually enabled/present.
+	// 桌面端（dir 非空）：基础工具绑定工作空间目录，相对路径基于工作空间而非进程 cwd
+	if dir != "" {
+		ws := builtin.Workspace{Dir: dir, WriteRoots: writeRoots, Bash: bashSpec, ProxySpec: proxySpec}
+		for _, t := range ws.Tools() {
+			if _, ok := reg.Get(t.Name()); ok {
+				reg.Add(t)
+			}
+		}
+		return
+	}
 	confined := append(builtin.ConfineWriters(writeRoots), builtin.ConfineBash(bashSpec))
 	for _, t := range confined {
 		if _, ok := reg.Get(t.Name()); ok {

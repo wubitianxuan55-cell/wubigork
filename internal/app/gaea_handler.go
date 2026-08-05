@@ -56,6 +56,11 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 	cfg.Tools.Enabled = nil
 	// 关闭写文件/网络类工具的沙箱限制，避免办公工具被无谓拦截
 	cfg.Sandbox.Bash = "off"
+	// 写入根跟随工作空间：文件写入工具（write_file/edit_file）限制在
+	// 当前工作空间内，而不是进程启动目录（WriteRoots 空时回退 os.Getwd）。
+	if cfg.Workspace != "" {
+		cfg.Sandbox.WorkspaceRoot = cfg.Workspace
+	}
 	return cfg, nil
 }
 
@@ -75,6 +80,9 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		Sink:       sink,
 		MaxSteps:   0,
 		SessionDir: gaeaConfig.WorkspaceSessionDir(gaeaCwd()),
+		// 工作空间根：基础工具（read/write/bash/ls）相对路径基于它，
+		// 而非进程 cwd（否则办公 agent 在启动目录而非用户工作空间操作）。
+		Cwd: gaeaCwd(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gaea: 引擎初始化失败: %w", err)
