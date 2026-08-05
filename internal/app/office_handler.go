@@ -171,6 +171,29 @@ func (a *officeState) ProposalBatchCancel(pid string) {
 		a.batchCancel = nil
 	}
 }
+
+func (a *officeState) ProposalArchive(pid string) (string, error) {
+	return a.proposalSvc.ArchiveProposal(pid)
+}
+
+func (a *officeState) ProposalAssetsList() []map[string]interface{} {
+	if a.proposalSvc == nil {
+		return nil
+	}
+	var r []map[string]interface{}
+	for _, x := range a.proposalSvc.ListAssets() {
+		r = append(r, assetToMap(x))
+	}
+	return r
+}
+
+func (a *officeState) ProposalAssetAdd(title string, tags []string, body string) error {
+	return a.proposalSvc.AddAsset(title, tags, body)
+}
+
+func (a *officeState) ProposalAssetRemove(name string) error {
+	return a.proposalSvc.RemoveAsset(name)
+}
 func (a *officeState) ProposalGenerateSection(pid, sid, inst string) (map[string]interface{}, error) {
 	p, err := a.proposalSvc.GenerateSection(a.ctx, pid, sid, inst)
 	if err != nil {
@@ -393,6 +416,10 @@ func projectToMap(p *proposal.Project) map[string]interface{} {
 		"client": p.Client, "status": p.Status,
 		"createdAt": p.CreatedAt, "updatedAt": p.UpdatedAt,
 	}
+}
+
+func assetToMap(a proposal.AssetRef) map[string]interface{} {
+	return map[string]interface{}{"name": a.Name, "title": a.Title, "tags": a.Tags, "body": a.Body}
 }
 func btm(bs *proposal.BidSummary) map[string]interface{} {
 	data, _ := json.Marshal(bs)

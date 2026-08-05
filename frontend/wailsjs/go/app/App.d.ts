@@ -429,6 +429,14 @@ export function ParseLinks(arg1:string):Promise<Array<string>>;
 
 export function ProposalAddSection(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;
 
+export function ProposalArchive(arg1:string):Promise<string>;
+
+export function ProposalAssetAdd(arg1:string,arg2:Array<string>,arg3:string):Promise<void>;
+
+export function ProposalAssetRemove(arg1:string):Promise<void>;
+
+export function ProposalAssetsList():Promise<Array<Record<string, any>>>;
+
 export function ProposalBatchCancel(arg1:string):Promise<void>;
 
 export function ProposalBatchGenerate(arg1:string):Promise<void>;

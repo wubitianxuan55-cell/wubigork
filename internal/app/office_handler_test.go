@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gaea/gaea/internal/gaea/knowledge"
 	officedb "github.com/gaea/gaea/internal/office/db"
 	"github.com/gaea/gaea/internal/office/proposal"
 )
@@ -107,5 +108,46 @@ func TestOfficeOutlineAndFactsBindings(t *testing.T) {
 	facts := st.ProposalProjectFactsGet(projectID)
 	if facts["工期"] != "90 天" {
 		t.Fatalf("ProposalProjectFactsGet 异常: %+v", facts)
+	}
+}
+
+func TestOfficeArchiveAndAssetsBindings(t *testing.T) {
+	dir := t.TempDir()
+	kst, err := knowledge.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := &officeState{proposalSvc: proposal.NewService(dir, nil)}
+	st.proposalSvc.SetKnowledgeStoreForTest(kst)
+	t.Cleanup(func() { _ = officedb.CloseDatabase(filepath.Join(dir, "office")) })
+
+	proj, err := st.ProposalProjectCreate("项目", "环保工程", "客户")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectID, _ := proj["id"].(string)
+	p, err := st.ProposalCreate("某方案", "soil-remediation-bid", "", "环保工程", projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, _ := p["id"].(string)
+
+	name, err := st.ProposalArchive(pid)
+	if err != nil || name == "" {
+		t.Fatalf("ProposalArchive: %q %v", name, err)
+	}
+	if err := st.ProposalAssetAdd("某业绩", []string{"业绩"}, "正文"); err != nil {
+		t.Fatalf("ProposalAssetAdd: %v", err)
+	}
+	list := st.ProposalAssetsList()
+	if len(list) != 1 {
+		t.Fatalf("ProposalAssetsList len = %d, want 1", len(list))
+	}
+	assetName, _ := list[0]["name"].(string)
+	if err := st.ProposalAssetRemove(assetName); err != nil {
+		t.Fatalf("ProposalAssetRemove: %v", err)
+	}
+	if len(st.ProposalAssetsList()) != 0 {
+		t.Fatal("删除后素材未清空")
 	}
 }

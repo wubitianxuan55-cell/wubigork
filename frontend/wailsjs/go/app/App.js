@@ -842,6 +842,22 @@ export function ProposalAddSection(arg1, arg2, arg3) {
   return window['go']['app']['App']['ProposalAddSection'](arg1, arg2, arg3);
 }
 
+export function ProposalArchive(arg1) {
+  return window['go']['app']['App']['ProposalArchive'](arg1);
+}
+
+export function ProposalAssetAdd(arg1, arg2, arg3) {
+  return window['go']['app']['App']['ProposalAssetAdd'](arg1, arg2, arg3);
+}
+
+export function ProposalAssetRemove(arg1) {
+  return window['go']['app']['App']['ProposalAssetRemove'](arg1);
+}
+
+export function ProposalAssetsList() {
+  return window['go']['app']['App']['ProposalAssetsList']();
+}
+
 export function ProposalBatchCancel(arg1) {
   return window['go']['app']['App']['ProposalBatchCancel'](arg1);
 }
