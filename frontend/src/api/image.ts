@@ -3,7 +3,7 @@
  * 封装所有后端图片调用，消除 (window as any)
  */
 
-import type { GenResult } from '../components/ResultGallery'
+import type { GenResult } from '../components/imagegen/types'
 import * as App from '../../wailsjs/go/app/App'
 
 export interface BackendInfo {

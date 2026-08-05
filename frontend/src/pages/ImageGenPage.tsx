@@ -1,18 +1,16 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
-import { Typography, Tag, Button, Space, message } from 'antd'
+import { Typography, Button, Space, message } from 'antd'
 import {
   PictureOutlined, FolderOpenOutlined,
-  PlayCircleOutlined, PoweroffOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
-import PromptPanel from '../components/PromptPanel'
-import GenControls from '../components/GenControls'
-import GenButton from '../components/GenButton'
-import ResultGallery from '../components/ResultGallery'
-import HistoryStrip from '../components/HistoryStrip'
 import Lightbox from '../components/Lightbox'
 import CustomTemplateModal from '../components/imagegen/CustomTemplateModal'
 import TemplatePickerModal from '../components/imagegen/TemplatePickerModal'
+import { ControlPanel } from '../components/imagegen/ControlPanel'
+import { ResultStage } from '../components/imagegen/ResultStage'
+import { HistoryRail } from '../components/imagegen/HistoryRail'
+import { StatusDot } from '../components/imagegen/ui'
 import {
   TEMPLATES, getAllCategories,
   loadCustomTemplates, saveCustomTemplates, generateTemplateId,
@@ -29,7 +27,7 @@ import {
 } from '../api/image'
 import { getEngines, testEngineConnection, setActiveEngine, setEngineDefaultModel, type EngineConfig } from '../api/engines'
 import { setImageBackend as setImageBackendAPI } from '../api/settings'
-import type { GenResult } from '../components/ResultGallery'
+import type { GenResult } from '../components/imagegen/types'
 
 // ── 常量 ──
 
@@ -76,6 +74,7 @@ const ImageGenPage: React.FC = () => {
   const [generating, setGenerating] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [lastTime, setLastTime] = useState(0)
+  const [genError, setGenError] = useState('')
 
   // ── 引擎 & 后端状态 ──
   const [engines, setEngines] = useState<EngineConfig[]>([])
@@ -224,6 +223,7 @@ const ImageGenPage: React.FC = () => {
     if (generatingRef.current) return
     generatingRef.current = true
     setGenerating(true)
+    setGenError('')
     setResults([])
     setLightboxIndex(-1)
     const genStart = Date.now()
@@ -232,6 +232,7 @@ const ImageGenPage: React.FC = () => {
       const loraStr = selectedLoras.join(',')
       const res = await generateImage(prompt, negative, finalSize, model, seed, count, loraStr)
       if (res?.error) {
+        setGenError(res.error)
         message.error(res.error)
       } else if (res?.images?.length) {
         const genResults = res.images
@@ -244,6 +245,7 @@ const ImageGenPage: React.FC = () => {
         message.success(`✨ 已生成 ${genResults.length} 张图片`)
       }
     } catch (err: any) {
+      setGenError(err?.message || '生成失败')
       message.error(err?.message || '生成失败')
     } finally {
       generatingRef.current = false
@@ -395,239 +397,93 @@ const ImageGenPage: React.FC = () => {
     message.success('已删除')
   }, [customTemplates])
 
-  // ── 后端选择器（注入 GenControls） ──
-  const backendSelector = (
-    <div>
-      <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10, display: 'block', marginBottom: 6 }}>
-        🚀 引擎
-      </Typography.Text>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-        {BACKEND_OPTIONS.map((b) => {
-          const selected = b.value === backend
-          return (
-            <div
-              key={b.value}
-              onClick={() => handleSwitchBackend(b.value)}
-              style={{
-                padding: '5px 10px',
-                borderRadius: 'var(--radius-sm)',
-                border: selected
-                  ? '1px solid var(--color-primary)'
-                  : '1px solid var(--border-subtle)',
-                background: selected
-                  ? 'rgba(99, 102, 241, 0.12)'
-                  : 'rgba(255,255,255,0.03)',
-                cursor: 'pointer',
-                fontSize: 11,
-                fontWeight: selected ? 600 : 400,
-                color: selected ? 'var(--color-primary)' : C('color-text-secondary'),
-                transition: 'all 0.15s',
-                textAlign: 'center' as const,
-                whiteSpace: 'nowrap' as const,
-                userSelect: 'none' as const,
-              }}
-            >
-              {b.label}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-
   // ── 渲染 ──
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 12, flexShrink: 0,
-      }}>
-        <Typography.Title level={4} style={{ color: C('color-text'), margin: 0 }}>
-          <PictureOutlined style={{ marginRight: 10 }} />AI 绘梦
-        </Typography.Title>
-        <Space size={8}>
-          {/* 引擎连接状态 */}
-          {isLocalEngine && (
-            <Tag color={engineRunning ? 'green' : 'default'} style={{ borderRadius: 'var(--radius-md)', margin: 0, fontSize: 11 }}>
-              {engineRunning ? `🟢 已连接 (${engineModelCount}模型)` : '⚫ 未连接'}
-            </Tag>
-          )}
-          {!isLocalEngine && (
-            <Tag color="blue" style={{ borderRadius: 'var(--radius-md)', margin: 0, fontSize: 11 }}>☁️ 云端</Tag>
-          )}
-          <Tag color={
-            backend === 'comfyui' ? 'green' : backend === 'herdsman' ? 'orange' : backend === 'ollama' ? 'purple' : 'blue'
-          } style={{ borderRadius: 'var(--radius-md)', margin: 0, fontSize: 11 }}>
-            {BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend}
-          </Tag>
+      {/* 顶栏 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.25)',
+            color: 'var(--color-primary)', fontSize: 16,
+          }}>
+            <PictureOutlined />
+          </div>
+          <div>
+            <Typography.Title level={5} style={{ color: C('color-text'), margin: 0, fontSize: 16, fontWeight: 600, lineHeight: 1.2 }}>
+              AI 绘梦
+            </Typography.Title>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+              <StatusDot tone={engineStarting ? 'warn' : isLocalEngine ? (engineRunning ? 'ok' : 'idle') : 'ok'} />
+              <span style={{ fontSize: 11, color: C('color-text-secondary') }}>
+                {engineStarting
+                  ? '引擎启动中...'
+                  : isLocalEngine
+                    ? (engineRunning ? `${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 运行中` : '引擎未连接')
+                    : `${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 云端`}
+              </span>
+            </div>
+          </div>
+        </div>
+        <Space size={6}>
           <Button type="text" size="small" icon={<FolderOpenOutlined />}
             onClick={handleOpenNovelDir} title="小说图片目录"
-            style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 4px' }} />
-          <Button type="text" size="small" icon={<PictureOutlined />}
+            style={{ color: C('color-text-secondary'), fontSize: 13, padding: '0 6px' }} />
+          <Button type="text" size="small" icon={<FolderOpenOutlined />}
             onClick={handleOpenDir} title="生成图片目录"
-            style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 4px' }} />
+            style={{ color: C('color-text-secondary'), fontSize: 13, padding: '0 6px' }} />
         </Space>
       </div>
 
-      {/* 主工作区：左栏控制面板 + 右栏结果 */}
+      {/* 主工作区：左控制面板 + 中结果舞台 + 右历史胶片 */}
       <div style={{ flex: 1, display: 'flex', gap: 12, minHeight: 0 }}>
-        {/* 左栏 — 320px 控制面板 */}
-        <div style={{ width: 350, flexShrink: 0, paddingRight: 8, overflowY: 'auto', overflowX: 'hidden' }}>
-          <div style={{
-            background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
-            WebkitBackdropFilter: 'blur(18px) saturate(140%)',
-            backdropFilter: 'blur(18px) saturate(140%)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--md-sys-color-outline-variant)',
-            padding: '14px 16px',
-            display: 'flex', flexDirection: 'column', gap: 14,
-          }}>
-            <PromptPanel
-              prompt={prompt} negative={negative}
-              onPromptChange={setPrompt} onNegativeChange={setNegative}
-              onTemplateSelect={applyTemplate}
-              onOpenTemplatePicker={() => setTemplatePickerOpen(true)}
-            />
-
-            <div style={{ height: 1, background: 'var(--border-subtle)' }} />
-
-            <GenControls
-              size={size} model={model} seed={seed} count={count}
-              modelOptions={modelOptions}
-              customWidth={customWidth} customHeight={customHeight}
-              onSizeChange={setSize} onModelChange={setModel}
-              onSeedChange={setSeed} onCountChange={setCount}
-              onCustomWidthChange={setCustomWidth}
-              onCustomHeightChange={setCustomHeight}
-              backendSelector={backendSelector}
-              selectedLoras={selectedLoras}
-              loraOptions={backend === 'comfyui' ? loraOptions : []}
-              onLorasChange={setSelectedLoras}
-            />
-            {isLocalEngine && (() => {
-              const isStarting = engineStarting
-              const isRunning = engineRunning && !isStarting
-              const bg = isRunning ? 'rgba(74,222,128,0.06)' : isStarting ? 'rgba(250,204,21,0.06)' : 'rgba(255,255,255,0.02)'
-              const border = isRunning ? 'rgba(74,222,128,0.25)' : isStarting ? 'rgba(250,204,21,0.35)' : 'var(--border-subtle)'
-              const textColor = isRunning ? '#4ade80' : isStarting ? '#facc15' : C('color-text-secondary')
-              const label = isRunning ? `🟢 ${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 运行中`
-                : isStarting ? `🟡 启动中... 等待 ${backend === 'comfyui' ? 'ComfyUI' : '引擎'} 就绪`
-                : `⚫ 引擎未启动`
-              return (
-              <div style={{
-                background: bg, borderRadius: 'var(--radius-sm)', border: `1px solid ${border}`,
-                padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8,
-              }}>
-                <span style={{ fontSize: 11, color: textColor, flex: 1 }}>{label}</span>
-                {isRunning ? (
-                  <Button size="small" danger icon={<PoweroffOutlined />} onClick={handleStopEngine}
-                    style={{ borderRadius: 'var(--radius-sm)', fontSize: 11, flexShrink: 0 }}>停止</Button>
-                ) : (
-                  <Button size="small" type="primary" icon={<PlayCircleOutlined />}
-                    loading={isStarting} onClick={handleStartEngine}
-                    style={{ borderRadius: 'var(--radius-sm)', fontSize: 11, flexShrink: 0 }}>启动</Button>
-                )}
-              </div>
-              )
-            })()}
-            <GenButton
-              generating={generating} count={count}
-              lastTime={lastTime} elapsed={elapsed}
-              backend={backend} model={model}
-              onGenerate={handleGenerate}
-            />
-
-            {/* 系统状态（仅 ComfyUI） */}
-            {sysStats && (
-              <>
-                <div style={{ height: 1, background: 'var(--border-subtle)' }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10 }}>
-                    📊 系统状态
-                  </Typography.Text>
-                  {/* CPU */}
-                  {/* CPU */}
-                  <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-sm)', padding: '6px 10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, color: C('color-text-secondary') }}>🖥 CPU</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: sysStats.cpu < 60 ? '#4ade80' : sysStats.cpu < 85 ? '#facc15' : '#f87171' }}>
-                        {sysStats.cpu}%
-                      </span>
-                    </div>
-                    <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{
-                        width: `${Math.min(sysStats.cpu, 100)}%`, height: '100%',
-                        background: sysStats.cpu < 60 ? '#4ade80' : sysStats.cpu < 85 ? '#facc15' : '#f87171',
-                        borderRadius: 2, transition: 'width 0.6s ease',
-                      }} />
-                    </div>
-                  </div>
-                  {/* 内存 */}
-                  {(() => {
-                    const memPct = sysStats.memTotal > 0 ? (sysStats.memUsed / sysStats.memTotal) * 100 : 0
-                    const memColor = memPct < 60 ? '#4ade80' : memPct < 85 ? '#facc15' : '#f87171'
-                    return (
-                    <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-sm)', padding: '6px 10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontSize: 10, color: C('color-text-secondary') }}>🧠 内存</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: memColor }}>
-                          {memPct.toFixed(0)}% <span style={{ fontWeight: 400, fontSize: 9, color: C('color-text-secondary') }}>({sysStats.memUsed.toFixed(0)}/{sysStats.memTotal.toFixed(0)}GB)</span>
-                        </span>
-                      </div>
-                      <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{
-                          width: `${Math.min(memPct, 100)}%`, height: '100%',
-                          background: memColor, borderRadius: 2, transition: 'width 0.6s ease',
-                        }} />
-                      </div>
-                    </div>
-                    )
-                  })()}
-                  {/* GPU */}
-                  {sysStats.gpuName && (() => {
-                    const vramPct = sysStats.vramTotal > 0 ? (sysStats.vramUsed / sysStats.vramTotal) * 100 : 0
-                    const vramColor = vramPct < 60 ? '#4ade80' : vramPct < 85 ? '#facc15' : '#f87171'
-                    const shortName = sysStats.gpuName.length > 20 ? sysStats.gpuName.slice(0, 20) + '…' : sysStats.gpuName
-                    return (
-                    <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-sm)', padding: '6px 10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontSize: 10, color: C('color-text-secondary') }}>🎮 {shortName}</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: vramColor }}>
-                          {vramPct.toFixed(0)}% <span style={{ fontWeight: 400, fontSize: 9, color: C('color-text-secondary') }}>({sysStats.vramUsed.toFixed(0)}/{sysStats.vramTotal.toFixed(0)}GB)</span>
-                        </span>
-                      </div>
-                      <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{
-                          width: `${Math.min(vramPct, 100)}%`, height: '100%',
-                          background: vramColor, borderRadius: 2, transition: 'width 0.6s ease',
-                        }} />
-                      </div>
-                    </div>
-                    )
-                  })()}
-                </div>
-              </>
-            )}
-          </div>
+        {/* 左栏 — 控制面板 */}
+        <div style={{ width: 350, flexShrink: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+          <ControlPanel
+            prompt={prompt} negative={negative}
+            onPromptChange={setPrompt} onNegativeChange={setNegative}
+            onOpenTemplatePicker={() => setTemplatePickerOpen(true)}
+            model={model} modelOptions={modelOptions}
+            onModelChange={setModel}
+            size={size} onSizeChange={setSize}
+            customWidth={customWidth} customHeight={customHeight}
+            onCustomWidthChange={setCustomWidth} onCustomHeightChange={setCustomHeight}
+            seed={seed} onSeedChange={setSeed}
+            count={count} onCountChange={setCount}
+            selectedLoras={selectedLoras}
+            loraOptions={backend === 'comfyui' ? loraOptions : []}
+            onLorasChange={setSelectedLoras}
+            backend={backend} backendSwitching={backendSwitching}
+            engineRunning={engineRunning} engineStarting={engineStarting} engineModelCount={engineModelCount}
+            onSwitchBackend={handleSwitchBackend}
+            onStartEngine={handleStartEngine} onStopEngine={handleStopEngine}
+            sysStats={sysStats}
+            generating={generating} elapsed={elapsed} lastTime={lastTime}
+            onGenerate={handleGenerate}
+          />
         </div>
 
-        {/* 中间 — 画布 */}
+        {/* 中间 — 结果舞台 */}
         <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
-          <ResultGallery
-            results={results} generating={generating}
+          <ResultStage
+            results={results} generating={generating} error={genError}
             onPreview={(i) => setLightboxIndex(i)}
             onDownload={handleDownload}
             onReuse={handleReuse}
             onDelete={handleDelete}
+            onRetry={handleGenerate}
+            onOpenTemplatePicker={() => setTemplatePickerOpen(true)}
           />
         </div>
 
-        {/* 右侧 — 历史记录 (180px) */}
-        <div style={{ width: 180, flexShrink: 0, overflowY: 'auto', overflowX: 'hidden',
-          background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border-subtle)', padding: 8 }}>
-          <HistoryStrip
+        {/* 右侧 — 历史胶片 */}
+        <div style={{ width: 176, flexShrink: 0, overflowY: 'auto', overflowX: 'hidden',
+          background: 'var(--gaea-glass-bg, var(--bg-elevated))', borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--md-sys-color-outline-variant)', padding: 10 }}>
+          <HistoryRail
             history={history}
+            selectedIndex={lightboxIndex}
             onSelect={(i) => setLightboxIndex(i)}
             onClear={() => setHistory([])}
           />

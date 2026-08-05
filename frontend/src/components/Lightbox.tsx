@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Typography, Button, Space, Tag, Select } from 'antd'
 import { DownloadOutlined, SyncOutlined, CloseOutlined, LeftOutlined, RightOutlined, UserOutlined, ZoomInOutlined } from '@ant-design/icons'
-import type { GenResult } from './ResultGallery'
+import type { GenResult } from './imagegen/types'
 import { Z_INDEX } from '../utils/zIndex'
 
 interface Character {

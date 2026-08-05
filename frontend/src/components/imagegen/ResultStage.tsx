@@ -5,7 +5,7 @@ import {
   DeleteOutlined, ReloadOutlined, AppstoreOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import type { GenResult } from '../ResultGallery'
+import type { GenResult } from './types'
 
 interface Props {
   results: GenResult[]

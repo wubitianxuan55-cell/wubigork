@@ -2,7 +2,7 @@ import React from 'react'
 import { Button, Typography } from 'antd'
 import { DeleteOutlined, HistoryOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import type { GenResult } from '../ResultGallery'
+import type { GenResult } from './types'
 
 interface Props {
   history: GenResult[]
