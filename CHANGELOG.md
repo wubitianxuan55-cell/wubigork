@@ -2,6 +2,18 @@
 
 # gaea · 多功能 AI 助手
 
+## v1.15.0「招标解析管线」(2026-08-05)
+
+> 方案编写板块招标解析升级：结构化字段提取（概况/工期/资质/评分/废标/格式/暗标）+ 原文来源定位 + parse_results 落库 + 前端结构化卡片与原文抽屉。OCR 仅定义可插拔接口，文字型 PDF 优先。
+
+- 文档分页文本提取（doctext.go）：PDF 按页返回真实页码，DOCX/TXT 单页（Page=0），供来源定位使用
+- office.db SchemaV2：新增 parse_results 表（字段/页码/Markdown 偏移/摘录/置信度），Store 提供 SaveParseResults/ListParseResults；AddFile 返回文件 ID
+- 来源定位器（locate.go）：AI 摘录 quote 先精确匹配，失败后做忽略空白匹配，映射回原文偏移与页码
+- 招标解析管线 v2（parse.go）：逐文件/分块 LLM 提取字段+原文摘录 → 后端确定性定位 → 结果写入 parse_results 与 BidSummary（qualification/format/darkRules/redLineItems/parseStatus，旧字段全兼容）
+- 绑定序列化：btm/bsf 改为 JSON 往返，新字段自动透传前端
+- 前端：招标解析 Tab 由 JSON 文本框改为结构化字段卡（可编辑保存）+ 来源 chip + 原文预览抽屉（滚动高亮摘录）
+- 验证：新增 20+ 测试（分页提取/定位器/解析结果 CRUD/解析管线/序列化往返）；go vet clean + go test ./... 全绿 + tsc 0 错误 + vite build + wails build 成功
+
 ## v1.14.0「方案数据底座」(2026-08-05)
 
 > 方案编写板块数据底座重建：JSON 文件存储迁移 SQLite（office.db），引入项目（标段）层级、版本快照与旧数据无损迁移；方案列表按项目分组。
