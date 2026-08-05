@@ -599,6 +599,7 @@ func (a *App) GaeaAttachmentDataURL(path string) (string, error) {
 
 // GaeaListWorkspaces 返回工作区列表（gaea 单工作区：当前工作空间）。
 func (a *App) GaeaListWorkspaces() []WorkspaceView {
+	slog.Info("GaeaListWorkspaces 被调用", "cwd", gaeaCwd())
 	cwd := gaeaCwd()
 	return []WorkspaceView{{Path: cwd, Name: filepath.Base(cwd), Current: true}}
 }
@@ -613,14 +614,27 @@ type WorkspaceView struct {
 // GaeaPickWorkspace 弹出系统目录对话框选择/新建工作空间并切换。
 // 用户取消或对话框失败返回空串（前端 no-op）。
 func (a *App) GaeaPickWorkspace() string {
+	slog.Info("GaeaPickWorkspace 被调用", "ctxNil", a.ctx == nil, "defaultDir", gaeaCwd())
 	if a.ctx == nil {
 		return ""
 	}
+	// 工作空间目录可能已被删除（配置残留）：此时传空默认目录，
+	// 否则 Wails 的 OpenDirectoryDialog 会因 DefaultDirectory 不存在直接报错。
+	defaultDir := gaeaCwd()
+	if _, err := os.Stat(defaultDir); err != nil {
+		slog.Warn("GaeaPickWorkspace 默认目录不存在，使用系统默认位置", "dir", defaultDir)
+		defaultDir = ""
+	}
 	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:            "选择工作空间（可在对话框内新建文件夹）",
-		DefaultDirectory: gaeaCwd(),
+		DefaultDirectory: defaultDir,
 	})
-	if err != nil || dir == "" {
+	if err != nil {
+		slog.Error("GaeaPickWorkspace 目录对话框失败", "error", err)
+		return ""
+	}
+	slog.Info("GaeaPickWorkspace 对话框返回", "dir", dir, "cancel", dir == "")
+	if dir == "" {
 		return ""
 	}
 	return a.GaeaSwitchWorkspace(dir)

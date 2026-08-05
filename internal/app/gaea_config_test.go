@@ -10,11 +10,17 @@ import (
 // TestGaeaConfigPersistRoundTrip 验证办公引擎配置持久化往返：
 // 默认配置 → 修改 Agent 参数 → Save → 重新加载 → 值保持。
 func TestGaeaConfigPersistRoundTrip(t *testing.T) {
-	// 指向临时用户配置目录，避免污染真实 ~/.config/gaea
-	oldCfg := os.Getenv("XDG_CONFIG_HOME")
-	tmp := t.TempDir()
-	os.Setenv("XDG_CONFIG_HOME", tmp)
-	defer os.Setenv("XDG_CONFIG_HOME", oldCfg)
+	// 指向临时用户配置目录，避免污染真实配置。
+	// os.UserConfigDir() 在 Windows 读 APPDATA（不吃 XDG_CONFIG_HOME），
+	// 两个都必须重定向；Linux/macOS 兜底 XDG_CONFIG_HOME。
+	oldAPPDATA := os.Getenv("APPDATA")
+	oldXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("APPDATA", t.TempDir())
+	os.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	defer func() {
+		os.Setenv("APPDATA", oldAPPDATA)
+		os.Setenv("XDG_CONFIG_HOME", oldXDG)
+	}()
 
 	cfg, err := gaeaLoadConfig()
 	if err != nil {

@@ -3,22 +3,44 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 )
 
 // workspaceTestIsolate 将配置与工作目录隔离到临时目录，避免污染真实环境。
+// os.UserConfigDir() 在 Windows 读 APPDATA（不吃 XDG_CONFIG_HOME），
+// 两个都必须重定向；Linux/macOS 兜底 XDG_CONFIG_HOME。
 // 返回恢复函数。
 func workspaceTestIsolate(t *testing.T) func() {
 	t.Helper()
+	oldAPPDATA := os.Getenv("APPDATA")
 	oldXDG := os.Getenv("XDG_CONFIG_HOME")
 	oldWD, _ := os.Getwd()
+	os.Setenv("APPDATA", t.TempDir())
 	os.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	_ = os.Chdir(t.TempDir())
 	return func() {
+		os.Setenv("APPDATA", oldAPPDATA)
 		os.Setenv("XDG_CONFIG_HOME", oldXDG)
 		_ = os.Chdir(oldWD)
+	}
+}
+
+// TestWorkspaceTestIsolate 验证隔离机制有效：UserConfigPath 必须指向
+// 临时 APPDATA（而非真实 AppData\Roaming），防止测试污染真实配置。
+func TestWorkspaceTestIsolate(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
+
+	p := gaeaConfig.UserConfigPath()
+	appdata := os.Getenv("APPDATA")
+	if appdata == "" {
+		t.Skip("APPDATA 未设置（非 Windows），跳过路径前缀断言")
+	}
+	if !strings.HasPrefix(p, appdata) {
+		t.Errorf("UserConfigPath() = %q, want 前缀 %q（测试必须隔离到临时目录）", p, appdata)
 	}
 }
 
