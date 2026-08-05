@@ -293,7 +293,7 @@ func TestGenerateOutline(t *testing.T) {
 	s := newServiceAt(t, dir, ai)
 	p, _ := s.Create("方案", "soil-remediation-bid", "污染场地修复", "环保工程")
 
-	got, err := s.GenerateOutline(context.Background(), p.ID, "污染场地修复")
+	got, err := s.GenerateOutline(context.Background(), p.ID, "污染场地修复", OutlineStrategyReference, 150000)
 	if err != nil {
 		t.Fatalf("GenerateOutline: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestGenerateOutline(t *testing.T) {
 func TestGenerateOutline_AINil(t *testing.T) {
 	s := newServiceAt(t, t.TempDir(), nil)
 	p, _ := s.Create("方案", "soil-remediation-bid", "", "")
-	if _, err := s.GenerateOutline(context.Background(), p.ID, ""); err == nil {
+	if _, err := s.GenerateOutline(context.Background(), p.ID, "", OutlineStrategyReference, 150000); err == nil {
 		t.Error("AI 为 nil 应报错")
 	}
 }
@@ -338,7 +338,7 @@ func TestGenerateOutline_BadJSON(t *testing.T) {
 	s := newServiceAt(t, t.TempDir(), ai)
 	p, _ := s.Create("方案", "soil-remediation-bid", "", "")
 	// 非法 JSON 不应崩溃，应报错或返回原方案
-	_, err := s.GenerateOutline(context.Background(), p.ID, "需求")
+	_, err := s.GenerateOutline(context.Background(), p.ID, "需求", OutlineStrategyReference, 150000)
 	if err == nil {
 		// 某些实现可能容忍，检查方案未被破坏
 		if got, _ := s.Get(p.ID); got.Title != "方案" {
@@ -355,7 +355,7 @@ func TestGenerateSection(t *testing.T) {
 	s := newServiceAt(t, t.TempDir(), ai)
 	p, _ := s.Create("方案", "soil-remediation-bid", "", "")
 	// 生成大纲后生成章节
-	p, err := s.GenerateOutline(context.Background(), p.ID, "需求")
+	p, err := s.GenerateOutline(context.Background(), p.ID, "需求", OutlineStrategyReference, 150000)
 	if err != nil {
 		t.Fatalf("GenerateOutline: %v", err)
 	}

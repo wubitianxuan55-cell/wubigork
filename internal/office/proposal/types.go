@@ -42,6 +42,7 @@ type BidSummary struct {
 	OverviewSources []SourceRef       `json:"overviewSources,omitempty"`
 	DurationSources []SourceRef       `json:"durationSources,omitempty"`
 	ParseStatus     string            `json:"parseStatus,omitempty"` // none|done|partial
+	TotalWords      int               `json:"totalWords,omitempty"`  // 招标文件要求的正文字数（0=未要求）
 }
 
 type FileDoc struct {
@@ -62,7 +63,9 @@ type ProposalSection struct {
 	Content    string            `json:"content"`
 	Status     string            `json:"status"` // pending | writing | completed
 	Sources    string            `json:"sources,omitempty"`
-	Children   []ProposalSection `json:"children,omitempty"` // 前端树形展示用
+	WordTarget int               `json:"wordTarget,omitempty"` // 字数目标（叶子节点）
+	Words      int               `json:"words,omitempty"`      // 当前字数
+	Children   []ProposalSection `json:"children,omitempty"`   // 前端树形展示用
 }
 
 // Template 方案模板
@@ -137,3 +140,13 @@ type BidItem struct {
 	Content string      `json:"content"`
 	Sources []SourceRef `json:"sources"`
 }
+
+// 大纲生成策略
+const (
+	OutlineStrategyScoring   = "scoring"   // 严格按评标办法
+	OutlineStrategyFormat    = "format"    // 严格按投标文件格式要求
+	OutlineStrategyReference = "reference" // 参考评标办法及格式
+)
+
+// FallbackTotalWords 兜底总字数：招标文件未提取到要求且用户未设置时使用
+const FallbackTotalWords = 100000

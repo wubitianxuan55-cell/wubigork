@@ -28,6 +28,7 @@ type parseScoring struct {
 type parseFileResult struct {
 	Overview        string         `json:"overview"`
 	OverviewQuote   string         `json:"overviewQuote"`
+	TotalWords      int            `json:"totalWords"` // 招标文件要求的正文字数（未要求填 0）
 	Duration        string         `json:"duration"`
 	DurationQuote   string         `json:"durationQuote"`
 	Qualification   []parseItem    `json:"qualification"`
@@ -42,6 +43,7 @@ const parseSystemPrompt = `你是一位专业的招投标专家。基于给定�
 
 返回纯 JSON，格式：
 {
+  "totalWords": 120000,
   "overview": "项目概况（150 字以内）",
   "overviewQuote": "项目概况在原文中的一字不差摘录（尽量完整的一句）",
   "duration": "工期要求",
@@ -56,6 +58,7 @@ const parseSystemPrompt = `你是一位专业的招投标专家。基于给定�
 
 要求：
 - quote 必须是文档中出现的原文片段（可含标点，尽量短但足以定位）
+- totalWords 填写招标文件要求的正文字数（页数要求可按一页约800字换算；未要求填 0）
 - 不存在的类别填空数组或空字符串
 - 不要遗漏影响投标的关键信息`
 
@@ -261,11 +264,15 @@ func resolveParseItems(fileID, fileName string, pages []PageText, markdown strin
 	for _, it := range res.DarkRules {
 		add("darkRules", it.Name+"："+it.Content, it.Quote)
 	}
+	if res.TotalWords > 0 {
+		add("totalWords", fmt.Sprintf("%d", res.TotalWords), "")
+	}
 	return out
 }
 
 // applyParseResult 把解析结果映射到 BidSummary（保持旧字段兼容）
 func applyParseResult(bs *BidSummary, res parseFileResult) {
+	bs.TotalWords = res.TotalWords
 	bs.Overview = res.Overview
 	bs.Duration = res.Duration
 	bs.Qualification = toBidItems(res.Qualification)

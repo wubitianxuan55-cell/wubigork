@@ -103,7 +103,7 @@ func (a *officeState) ProposalUpdate(m map[string]interface{}) error {
 }
 func (a *officeState) ProposalDelete(id string) error { return a.proposalSvc.Delete(id) }
 func (a *officeState) ProposalGenerateOutline(pid, req string) (map[string]interface{}, error) {
-	p, err := a.proposalSvc.GenerateOutline(a.ctx, pid, req)
+	p, err := a.proposalSvc.GenerateOutline(a.ctx, pid, req, "", 0)
 	if err != nil {
 		return nil, err
 	}
