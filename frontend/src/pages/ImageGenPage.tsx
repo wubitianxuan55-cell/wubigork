@@ -102,8 +102,8 @@ const ImageGenPage: React.FC = () => {
   const generatingRef = useRef(false)
 
   const comfyModels = useMemo(() => [
-    { label: '🎨 Krea2 Turbo', value: 'krea2' },
-    { label: '⚡ Z-Image-Turbo', value: 'z-image-turbo' },
+    { label: 'Krea2 Turbo', value: 'krea2' },
+    { label: 'Z-Image-Turbo', value: 'z-image-turbo' },
   ], [])
 
   // LoRA 选项：动态读取 ComfyUI 实际 models/loras 列表，避免硬编码文件名
