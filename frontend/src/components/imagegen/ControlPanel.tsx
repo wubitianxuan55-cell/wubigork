@@ -116,7 +116,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       borderRadius: 'var(--radius-lg)', border: '1px solid var(--md-sys-color-outline-variant)',
       padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 16,
     }}>
-      {/* ── ① 提示词 ── */}
+      {/* ── ① 提示词（最先：据此选择引擎/模型/LoRA） ── */}
       <SectionBlock title="提示词" icon={<EditOutlined />}>
         <TextArea
           placeholder="描述你想要的画面，例如：一座悬浮在云端的东方仙侠城市，琉璃瓦宫殿，瀑布倾泻，落日余晖..."
@@ -164,10 +164,45 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
       <SectionDivider />
 
-      {/* ── ② 参数 ── */}
-      <SectionBlock title="参数" icon={<SlidersOutlined />}>
+      {/* ── ① 引擎 ── */}
+      <SectionBlock title="引擎" icon={<CloudServerOutlined />}>
+        <PickerGroup
+          options={BACKEND_OPTIONS}
+          value={backend}
+          onChange={onSwitchBackend}
+          columns={4}
+        />
+        {isLocal && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'var(--bg-elevated)', borderRadius: 10,
+            border: '1px solid var(--border-subtle)', padding: '8px 10px',
+          }}>
+            <StatusDot tone={engineStarting ? 'warn' : engineRunning ? 'ok' : 'idle'} />
+            <span style={{ fontSize: 12, color: C('color-text-secondary'), flex: 1 }}>
+              {engineStarting
+                ? '启动中，等待就绪...'
+                : engineRunning
+                  ? `运行中${engineModelCount > 0 ? ` · ${engineModelCount} 个模型` : ''}`
+                  : '未启动'}
+            </span>
+            {engineRunning && !engineStarting ? (
+              <Button size="small" danger icon={<PoweroffOutlined />} onClick={onStopEngine}
+                style={{ borderRadius: 999, fontSize: 12, flexShrink: 0 }}>停止</Button>
+            ) : (
+              <Button size="small" type="primary" icon={<PlayCircleOutlined />}
+                loading={engineStarting || backendSwitching} onClick={onStartEngine}
+                style={{ borderRadius: 999, fontSize: 12, flexShrink: 0 }}>启动</Button>
+            )}
+          </div>
+        )}
+      </SectionBlock>
+
+      <SectionDivider />
+
+      {/* ── ② 模型（含 LoRA） ── */}
+      <SectionBlock title="模型" icon={<RobotOutlined />}>
         <div>
-          <Typography.Text style={labelStyle}><RobotOutlined />模型</Typography.Text>
           {modelOptions.length > 0 ? (
             <PickerGroup options={modelOptions} value={model} onChange={onModelChange} />
           ) : (
@@ -177,7 +212,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
 
         {loraOptions.length > 0 && (
-          <div>
+          <div style={{ marginTop: 2 }}>
             <div style={{ ...labelStyle, justifyContent: 'space-between' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                 <ExperimentOutlined />LoRA
@@ -216,6 +251,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             </div>
           </div>
         )}
+      </SectionBlock>
+
+      <SectionDivider />
+
+      {/* ── ③ 参数 ── */}
+      <SectionBlock title="参数" icon={<SlidersOutlined />}>
 
         <div>
           <Typography.Text style={labelStyle}><PictureOutlined />尺寸</Typography.Text>
@@ -250,42 +291,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             <PickerGroup options={COUNT_OPTIONS} value={count} onChange={onCountChange} columns={4} />
           </div>
         </div>
-      </SectionBlock>
-
-      <SectionDivider />
-
-      {/* ── ③ 引擎 ── */}
-      <SectionBlock title="引擎" icon={<CloudServerOutlined />}>
-        <PickerGroup
-          options={BACKEND_OPTIONS}
-          value={backend}
-          onChange={onSwitchBackend}
-          columns={4}
-        />
-        {isLocal && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: 'var(--bg-elevated)', borderRadius: 10,
-            border: '1px solid var(--border-subtle)', padding: '8px 10px',
-          }}>
-            <StatusDot tone={engineStarting ? 'warn' : engineRunning ? 'ok' : 'idle'} />
-            <span style={{ fontSize: 12, color: C('color-text-secondary'), flex: 1 }}>
-              {engineStarting
-                ? '启动中，等待就绪...'
-                : engineRunning
-                  ? `运行中${engineModelCount > 0 ? ` · ${engineModelCount} 个模型` : ''}`
-                  : '未启动'}
-            </span>
-            {engineRunning && !engineStarting ? (
-              <Button size="small" danger icon={<PoweroffOutlined />} onClick={onStopEngine}
-                style={{ borderRadius: 999, fontSize: 12, flexShrink: 0 }}>停止</Button>
-            ) : (
-              <Button size="small" type="primary" icon={<PlayCircleOutlined />}
-                loading={engineStarting || backendSwitching} onClick={onStartEngine}
-                style={{ borderRadius: 999, fontSize: 12, flexShrink: 0 }}>启动</Button>
-            )}
-          </div>
-        )}
       </SectionBlock>
 
       {sysStats && (
