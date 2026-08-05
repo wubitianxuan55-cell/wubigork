@@ -118,7 +118,7 @@ func TestStoreAddFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddFile(p.ID, "attachment", "a.pdf", filepath.Join(s.FilesDir(), p.ID, "a.pdf"), 10); err != nil {
+	if _, err := s.AddFile(p.ID, "attachment", "a.pdf", filepath.Join(s.FilesDir(), p.ID, "a.pdf"), 10); err != nil {
 		t.Fatalf("AddFile: %v", err)
 	}
 	var fn int
@@ -127,5 +127,36 @@ func TestStoreAddFile(t *testing.T) {
 	}
 	if fn != 1 {
 		t.Errorf("files rows = %d, want 1", fn)
+	}
+}
+
+func TestParseResultsCRUD(t *testing.T) {
+	s := newTestStore(t)
+	proj, _ := s.EnsureDefaultProject()
+	p, err := s.Create("方案", "blank", "", "其他", proj.ID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []ParseResultItem{
+		{FileID: "f1", Field: "duration", Value: "90 日历天", Page: 3, Start: 100, End: 120, Snippet: "工期 90 日历天", Confidence: 1},
+		{FileID: "f1", Field: "techScoring", Value: "施工方案 20 分", Page: 5, Start: 300, End: 330, Snippet: "施工方案（20 分）", Confidence: 0.8},
+	}
+	if err := s.SaveParseResults(p.ID, items); err != nil {
+		t.Fatalf("SaveParseResults: %v", err)
+	}
+	got, err := s.ListParseResults(p.ID)
+	if err != nil {
+		t.Fatalf("ListParseResults: %v", err)
+	}
+	if len(got) != 2 || got[0].Field != "duration" || got[0].Page != 3 {
+		t.Fatalf("解析结果异常: %+v", got)
+	}
+	// 幂等重存：先删后插
+	if err := s.SaveParseResults(p.ID, []ParseResultItem{{FileID: "f1", Field: "overview", Value: "项目概况", Snippet: "本项目为…"}}); err != nil {
+		t.Fatal(err)
+	}
+	got2, _ := s.ListParseResults(p.ID)
+	if len(got2) != 1 || got2[0].Field != "overview" {
+		t.Fatalf("重存后异常: %+v", got2)
 	}
 }

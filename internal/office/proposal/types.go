@@ -37,6 +37,7 @@ type BidSummary struct {
 }
 
 type FileDoc struct {
+	FileID   string `json:"fileId"`   // files 表 ID（旧数据为空时用 file-<index>）
 	Name     string `json:"name"`     // 文件名
 	Path     string `json:"path"`     // 文件路径（供后端转换用）
 	Markdown string `json:"markdown"` // 转换后的 Markdown（空=未转换）
@@ -97,4 +98,16 @@ type Project struct {
 	Status    string `json:"status"`
 	CreatedAt string `json:"createdAt"`
 	UpdatedAt string `json:"updatedAt"`
+}
+
+// ParseResultItem 解析结果行（parse_results 表）
+type ParseResultItem struct {
+	FileID     string  `json:"fileId"`
+	Field      string  `json:"field"`
+	Value      string  `json:"value"`
+	Page       int     `json:"page"`
+	Start      int     `json:"start"`
+	End        int     `json:"end"`
+	Snippet    string  `json:"snippet"`
+	Confidence float64 `json:"confidence"`
 }

@@ -344,16 +344,69 @@ func (s *Store) HasProposal(id string) bool {
 	return n > 0
 }
 
-// AddFile 登记附件
-func (s *Store) AddFile(proposalID, kind, name, path string, size int) error {
+// AddFile 登记附件，返回文件行 ID
+func (s *Store) AddFile(proposalID, kind, name, path string, size int) (string, error) {
+	if err := s.errIfUnavailable(); err != nil {
+		return "", err
+	}
+	id := uuid.New().String()
+	_, err := s.db.Exec(
+		"INSERT INTO files(id, proposal_id, kind, name, path, size, created_at) VALUES(?,?,?,?,?,?,?)",
+		id, proposalID, kind, name, path, size, now(),
+	)
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// SaveParseResults 全量替换方案解析结果（先删后插）
+func (s *Store) SaveParseResults(proposalID string, items []ParseResultItem) error {
 	if err := s.errIfUnavailable(); err != nil {
 		return err
 	}
-	_, err := s.db.Exec(
-		"INSERT INTO files(id, proposal_id, kind, name, path, size, created_at) VALUES(?,?,?,?,?,?,?)",
-		uuid.New().String(), proposalID, kind, name, path, size, now(),
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec("DELETE FROM parse_results WHERE proposal_id = ?", proposalID); err != nil {
+		return err
+	}
+	for _, it := range items {
+		if _, err := tx.Exec(
+			`INSERT INTO parse_results(proposal_id, file_id, field, value, page, start, end, snippet, confidence, created_at)
+			 VALUES(?,?,?,?,?,?,?,?,?,?)`,
+			proposalID, it.FileID, it.Field, it.Value, it.Page, it.Start, it.End, it.Snippet, it.Confidence, now(),
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// ListParseResults 列出方案解析结果
+func (s *Store) ListParseResults(proposalID string) ([]ParseResultItem, error) {
+	if err := s.errIfUnavailable(); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(
+		`SELECT file_id, field, value, page, start, end, snippet, confidence FROM parse_results WHERE proposal_id = ? ORDER BY id`,
+		proposalID,
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ParseResultItem
+	for rows.Next() {
+		var it ParseResultItem
+		if err := rows.Scan(&it.FileID, &it.Field, &it.Value, &it.Page, &it.Start, &it.End, &it.Snippet, &it.Confidence); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
 }
 
 // ─── 内部方法 ────────────────────────────────────────────

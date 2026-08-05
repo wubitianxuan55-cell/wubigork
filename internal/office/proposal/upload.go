@@ -31,11 +31,12 @@ func (s *Service) SaveUploadedFile(proposalID, fileName string, data []byte) (*P
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return nil, fmt.Errorf("保存文件失败: %w", err)
 	}
-	if err := s.store.AddFile(proposalID, "attachment", filepath.Base(path), path, len(data)); err != nil {
+	fileID, err := s.store.AddFile(proposalID, "attachment", filepath.Base(path), path, len(data))
+	if err != nil {
 		return nil, err
 	}
 	p.BidSummary.RawFiles = append(p.BidSummary.RawFiles, FileDoc{
-		Name: filepath.Base(path), Path: path, Size: len(data),
+		FileID: fileID, Name: filepath.Base(path), Path: path, Size: len(data),
 	})
 	p.UpdatedAt = now()
 	if err := s.store.Update(p); err != nil {

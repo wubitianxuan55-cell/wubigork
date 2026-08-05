@@ -82,3 +82,21 @@ CREATE TABLE IF NOT EXISTS templates (
   updated_at  TEXT NOT NULL DEFAULT ''
 );
 `
+
+// SchemaV2 招标解析结果表：结构化字段 + 来源定位。
+const SchemaV2 = `
+CREATE TABLE IF NOT EXISTS parse_results (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  proposal_id TEXT NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+  file_id     TEXT NOT NULL DEFAULT '',
+  field       TEXT NOT NULL,
+  value       TEXT NOT NULL DEFAULT '',
+  page        INTEGER NOT NULL DEFAULT 0,
+  start       INTEGER NOT NULL DEFAULT 0,
+  end         INTEGER NOT NULL DEFAULT 0,
+  snippet     TEXT NOT NULL DEFAULT '',
+  confidence  REAL NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_parse_results_proposal ON parse_results(proposal_id);
+`
