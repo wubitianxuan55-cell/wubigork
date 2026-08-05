@@ -34,6 +34,9 @@ func NewService(dataRoot string, ai AIClient) *Service {
 		return &Service{store: nil, ai: ai}
 	}
 	st := NewStore(dbs, officeDir)
+	if err := st.SeedTemplates(); err != nil {
+		log.Printf("[proposal] 模板初始化失败: %v", err)
+	}
 	if _, err := st.EnsureDefaultProject(); err != nil {
 		log.Printf("[proposal] 初始化默认项目失败: %v", err)
 	}
@@ -53,6 +56,11 @@ func (s *Service) Store() *Store { return s.store }
 
 // ListTemplates 列出所有模板
 func (s *Service) ListTemplates() []Template {
+	if s.store != nil {
+		if list, err := s.store.ListTemplatesDB(); err == nil && len(list) > 0 {
+			return list
+		}
+	}
 	return DefaultTemplates
 }
 

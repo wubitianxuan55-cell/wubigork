@@ -179,3 +179,26 @@ func TestProjectFactsRoundTrip(t *testing.T) {
 		t.Fatalf("facts 往返异常: %+v", got)
 	}
 }
+
+func TestTemplateSeedAndList(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.SeedTemplates(); err != nil {
+		t.Fatalf("SeedTemplates: %v", err)
+	}
+	if err := s.SeedTemplates(); err != nil {
+		t.Fatalf("SeedTemplates 二次: %v", err)
+	}
+	list, err := s.ListTemplatesDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, tmpl := range list {
+		if tmpl.ID == "soil-remediation-bid" && len(tmpl.Sections) == 15 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("土壤修复模板未入库: %+v", list)
+	}
+}

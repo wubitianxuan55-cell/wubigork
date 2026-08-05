@@ -449,6 +449,51 @@ func (s *Store) SaveProjectFacts(projectID string, facts map[string]string) erro
 	return err
 }
 
+// SeedTemplates 把默认模板幂等写入 templates 表
+func (s *Store) SeedTemplates() error {
+	if err := s.errIfUnavailable(); err != nil {
+		return err
+	}
+	for _, t := range DefaultTemplates {
+		data, err := json.Marshal(t.Sections)
+		if err != nil {
+			return err
+		}
+		if _, err := s.db.Exec(
+			`INSERT INTO templates(id, name, description, sections, created_at, updated_at)
+			 VALUES(?,?,?,?,?,?)
+			 ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, sections=excluded.sections, updated_at=excluded.updated_at`,
+			t.ID, t.Name, t.Description, string(data), now(), now(),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ListTemplatesDB 从库中读取模板
+func (s *Store) ListTemplatesDB() ([]Template, error) {
+	if err := s.errIfUnavailable(); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query("SELECT id, name, description, sections FROM templates ORDER BY rowid")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Template
+	for rows.Next() {
+		var t Template
+		var raw string
+		if err := rows.Scan(&t.ID, &t.Name, &t.Description, &raw); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(raw), &t.Sections)
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // ─── 内部方法 ────────────────────────────────────────────
 
 func (s *Store) loadSections(proposalID string) ([]ProposalSection, error) {
