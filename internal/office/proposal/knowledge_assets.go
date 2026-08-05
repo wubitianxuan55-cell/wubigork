@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
@@ -112,4 +113,73 @@ func specScore(e knowledge.Entry, tokens []string) int {
 		score += strings.Count(e.Body, tok)
 	}
 	return score
+}
+
+// officeAssetsCategory 素材库在记忆中枢中的分类
+const officeAssetsCategory = "素材库"
+
+// AssetRef 素材条目
+type AssetRef struct {
+	Name  string   `json:"name"`
+	Title string   `json:"title"`
+	Tags  []string `json:"tags"`
+	Body  string   `json:"body"`
+}
+
+// AddAsset 新增素材（业绩/人员/设备/常用段落）
+func (s *Service) AddAsset(title string, tags []string, body string) error {
+	st := s.knowledgeStore()
+	if st == nil {
+		return fmt.Errorf("知识库不可用")
+	}
+	if title == "" || body == "" {
+		return fmt.Errorf("title 与 body 不能为空")
+	}
+	return st.Save(knowledge.Entry{
+		Name:     fmt.Sprintf("asset-%s-%d", slugSpec(title), time.Now().UnixNano()),
+		Title:    title,
+		Category: officeAssetsCategory,
+		Tags:     tags,
+		Status:   "已发布",
+		Body:     body,
+	})
+}
+
+// ListAssets 列出全部素材
+func (s *Service) ListAssets() []AssetRef {
+	st := s.knowledgeStore()
+	if st == nil {
+		return nil
+	}
+	var out []AssetRef
+	for _, e := range st.ReadAll() {
+		if e.Category != officeAssetsCategory {
+			continue
+		}
+		out = append(out, AssetRef{Name: e.Name, Title: e.Title, Tags: e.Tags, Body: e.Body})
+	}
+	return out
+}
+
+// SearchAssets 检索素材（query 与 tag 可空）
+func (s *Service) SearchAssets(query, tag string) []AssetRef {
+	st := s.knowledgeStore()
+	if st == nil {
+		return nil
+	}
+	filter := knowledge.Filter{Category: officeAssetsCategory, Tag: tag}
+	var out []AssetRef
+	for _, e := range knowledge.Search(st, query, filter) {
+		out = append(out, AssetRef{Name: e.Name, Title: e.Title, Tags: e.Tags, Body: e.Body})
+	}
+	return out
+}
+
+// RemoveAsset 删除素材
+func (s *Service) RemoveAsset(name string) error {
+	st := s.knowledgeStore()
+	if st == nil {
+		return fmt.Errorf("知识库不可用")
+	}
+	return st.Delete(name)
 }
