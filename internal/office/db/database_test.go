@@ -13,7 +13,7 @@ func TestGetDatabaseCreatesSchema(t *testing.T) {
 	}
 	defer CloseDatabase(dir)
 
-	for _, tbl := range []string{"projects", "proposals", "sections", "files", "versions", "templates", "parse_results", "schema_meta"} {
+	for _, tbl := range []string{"projects", "proposals", "sections", "files", "versions", "templates", "parse_results", "project_facts", "schema_meta"} {
 		var n int
 		if err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", tbl).Scan(&n); err != nil {
 			t.Fatalf("query %s: %v", tbl, err)

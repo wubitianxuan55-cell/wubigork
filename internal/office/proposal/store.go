@@ -409,6 +409,46 @@ func (s *Store) ListParseResults(proposalID string) ([]ParseResultItem, error) {
 	return out, rows.Err()
 }
 
+// GetProjectFacts 读取项目事实基线（JSON 对象）
+func (s *Store) GetProjectFacts(projectID string) (map[string]string, error) {
+	if err := s.errIfUnavailable(); err != nil {
+		return nil, err
+	}
+	var raw string
+	err := s.db.QueryRow("SELECT facts FROM project_facts WHERE project_id = ?", projectID).Scan(&raw)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return map[string]string{}, nil
+		}
+		return nil, err
+	}
+	out := map[string]string{}
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &out)
+	}
+	return out, nil
+}
+
+// SaveProjectFacts 保存项目事实基线（全量覆盖）
+func (s *Store) SaveProjectFacts(projectID string, facts map[string]string) error {
+	if err := s.errIfUnavailable(); err != nil {
+		return err
+	}
+	if facts == nil {
+		facts = map[string]string{}
+	}
+	data, err := json.Marshal(facts)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(
+		`INSERT INTO project_facts(project_id, facts, updated_at) VALUES(?,?,?)
+		 ON CONFLICT(project_id) DO UPDATE SET facts=excluded.facts, updated_at=excluded.updated_at`,
+		projectID, string(data), now(),
+	)
+	return err
+}
+
 // ─── 内部方法 ────────────────────────────────────────────
 
 func (s *Store) loadSections(proposalID string) ([]ProposalSection, error) {

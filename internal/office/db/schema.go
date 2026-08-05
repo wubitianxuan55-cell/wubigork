@@ -100,3 +100,12 @@ CREATE TABLE IF NOT EXISTS parse_results (
 );
 CREATE INDEX IF NOT EXISTS idx_parse_results_proposal ON parse_results(proposal_id);
 `
+
+// SchemaV3 项目事实基线：跨方案共享的项目级事实（工期/单位/人员/设备/术语等）。
+const SchemaV3 = `
+CREATE TABLE IF NOT EXISTS project_facts (
+  project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  facts      TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+`

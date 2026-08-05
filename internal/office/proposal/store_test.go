@@ -160,3 +160,22 @@ func TestParseResultsCRUD(t *testing.T) {
 		t.Fatalf("重存后异常: %+v", got2)
 	}
 }
+
+func TestProjectFactsRoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	proj, _ := s.EnsureDefaultProject()
+	facts := map[string]string{
+		"工期": "90 日历天", "业主单位": "某区生态环境局",
+		"修复目标": "砷 ≤ 60 mg/kg", "项目经理": "张三",
+	}
+	if err := s.SaveProjectFacts(proj.ID, facts); err != nil {
+		t.Fatalf("SaveProjectFacts: %v", err)
+	}
+	got, err := s.GetProjectFacts(proj.ID)
+	if err != nil {
+		t.Fatalf("GetProjectFacts: %v", err)
+	}
+	if got["工期"] != "90 日历天" || got["修复目标"] != "砷 ≤ 60 mg/kg" {
+		t.Fatalf("facts 往返异常: %+v", got)
+	}
+}
