@@ -2,6 +2,17 @@
 
 # gaea · 多功能 AI 助手
 
+## v1.14.0「方案数据底座」(2026-08-05)
+
+> 方案编写板块数据底座重建：JSON 文件存储迁移 SQLite（office.db），引入项目（标段）层级、版本快照与旧数据无损迁移；方案列表按项目分组。
+
+- office.db 网关（internal/office/db）：SchemaV1 六表（projects/proposals/sections/files/versions/templates）+ schema_meta 迁移链，纯 Go SQLite 驱动，与主脑库同模式
+- proposal.Store 迁移 SQLite：项目 CRUD、方案/章节树持久化（含子章节递归归一化）、版本快照（每次更新 +1）、级联删除、附件登记
+- Service 接线：启动自动建库 + 确保「未归档项目」+ 旧 JSON 无损迁移（幂等、只读不删原文件）；导出/上传目录迁至 office/exports、office/files；应用退出关闭 office.db
+- 后端绑定：新增 ProposalProjectList/Create/Delete，ProposalCreate 支持 projectId；方案/章节数据带 projectId/version/sources
+- 前端项目化：方案列表按项目分组（含未分组）、新建方案可选已有项目或新建项目
+- 验证：新增 30+ 测试（网关/Store CRUD/树形持久化/版本/迁移/绑定）；go vet clean + go test ./... 全绿 + tsc 0 错误 + vite build + wails build 成功
+
 ## v1.13.0「记忆检索升级」(2026-08-04)
 
 > 轻语记忆检索体系升级：检索双轨收敛为单轨（buildTierBBlock）+ FTS 全文检索接线（触发词之外的摘要词召回）+ 语音链路测试补齐（voice/tts）。
