@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -52,6 +51,7 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 
 	images := make([]imageItem, 0, n)
 	var lastErr string
+	comfyRecovered := false
 
 	for i := 0; i < n; i++ {
 		genSeed := seed
@@ -80,6 +80,14 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 		}
 		start := time.Now()
 		resp, err := a.client.GenerateImage(a.ctx, imgReq)
+		// 孤儿 ComfyUI 实例（stderr 失效）会在执行时报 [Errno 22]：
+		// 自动重启一次后重试，避免用户手动处理
+		if err != nil && !comfyRecovered && a.cfg.ImageBackend == "comfyui" && strings.Contains(err.Error(), "[Errno 22]") {
+			slog.Warn("ComfyUI stderr 失效（疑似孤儿实例），自动重启后重试", "error", err)
+			a.recoverComfyUI()
+			comfyRecovered = true
+			resp, err = a.client.GenerateImage(a.ctx, imgReq)
+		}
 		elapsed := time.Since(start).Seconds()
 
 		if err != nil {
@@ -401,16 +409,38 @@ func (a *mediaState) StartComfyUI() error {
 	cmd.Dir = a.cfg.ComfyUIPath
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
-	// 捕获 stderr 用于诊断
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	// stdout/stderr 重定向到日志文件（~/.gaea/logs/comfyui.log）：
+	// 文件句柄在 gaea 进程退出后依然有效，避免孤儿 ComfyUI 实例的 stderr
+	// 失效，导致生成时 tqdm flush 报 [Errno 22] Invalid argument。
+	var logFile *os.File
+	if home, err := os.UserHomeDir(); err == nil {
+		logDir := filepath.Join(home, ".gaea", "logs")
+		if err := os.MkdirAll(logDir, 0755); err == nil {
+			if f, err := os.OpenFile(filepath.Join(logDir, "comfyui.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+				logFile = f
+			}
+		}
+	}
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
 
 	if err := cmd.Start(); err != nil {
 		cancel()
 		a.comfyUICancel = nil
-		errMsg := stderr.String()
-		if len(errMsg) > 300 {
-			errMsg = errMsg[:300] + "..."
+		if logFile != nil {
+			logFile.Close()
+		}
+		errMsg := ""
+		if home, err := os.UserHomeDir(); err == nil {
+			if b, err := os.ReadFile(filepath.Join(home, ".gaea", "logs", "comfyui.log")); err == nil {
+				if len(b) > 4096 {
+					b = b[len(b)-4096:]
+				}
+				errMsg = string(b)
+			}
+		}
+		if len(errMsg) > 600 {
+			errMsg = "..." + errMsg[len(errMsg)-600:]
 		}
 		if errMsg != "" {
 			return fmt.Errorf("启动 ComfyUI 失败: %w\n%s", err, errMsg)
@@ -426,6 +456,9 @@ func (a *mediaState) StartComfyUI() error {
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("image: comfyui wait goroutine panic recovered", "panic", r)
+			}
+			if logFile != nil {
+				logFile.Close()
 			}
 		}()
 		if err := cmd.Wait(); err != nil {
@@ -503,6 +536,28 @@ func (a *mediaState) StopComfyUI() error {
 
 	slog.Info("ComfyUI 已停止")
 	return nil
+}
+
+// recoverComfyUI 重启 ComfyUI 并等待就绪（用于孤儿实例 stderr 失效的自动恢复）。
+// 最多等待约 90 秒；失败仅记录日志，由上层按原错误返回。
+func (a *mediaState) recoverComfyUI() {
+	if err := a.StopComfyUI(); err != nil {
+		slog.Warn("自动恢复：停止 ComfyUI 失败", "error", err)
+	}
+	// 等待端口释放，避免立刻重启时端口仍被占用
+	time.Sleep(2 * time.Second)
+	if err := a.StartComfyUI(); err != nil {
+		slog.Warn("自动恢复：启动 ComfyUI 失败", "error", err)
+		return
+	}
+	for i := 0; i < 30; i++ {
+		time.Sleep(3 * time.Second)
+		if a.isComfyUIRunning() {
+			slog.Info("ComfyUI 自动恢复完成")
+			return
+		}
+	}
+	slog.Warn("ComfyUI 自动恢复超时")
 }
 
 // findProcessByPort 查找监听指定端口的进程 PID（Windows netstat）
