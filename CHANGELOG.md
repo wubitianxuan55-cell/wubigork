@@ -2,6 +2,17 @@
 
 # gaea · 多功能 AI 助手
 
+## v1.19.0「排版导出」(2026-08-05)
+
+> 方案编写板块 docx 导出升级为可配置排版引擎：封面/目录/标题层级/页眉页脚页码/Markdown 表格与代码块；按章节导出；暗标规则库（内置土壤修复通用规则，导出自动清理）。
+
+- docx 排版引擎：A4 页边距、页眉（方案标题）、页脚页码（PAGE 字段）、封面页、静态目录、章节三级标题（22/16/14 磅）、正文 12 磅宋体；Markdown 块解析（段落/标题/列表/表格→docx 表格/代码块等宽字体）
+- 按章节导出：ExportSectionDocx 单章（含子章节）渲染为独立 docx；按章节 MD 已有
+- 暗标规则库：office.db SchemaV5 dark_rules 表；内置“土壤修复通用暗标规则”（无加粗/斜体/下划线/彩色/emoji/特殊符号/压缩空行）；规则可增删改；导出选项选择规则后自动清理内容且标题不加粗
+- 绑定：ProposalExportDocxWithOptions（封面/目录/暗标规则）、ProposalExportSectionDocx、ProposalDarkRulesList/Save/Delete
+- 前端：导出设置 Modal（封面/目录开关 + 暗标规则选择）、单章导出（章节下拉）、暗标规则库管理 Modal（列表/编辑/选项 Checkbox/删除）
+- 验证：新增 8 测试（渲染封面目录表格、单章导出隔离、暗标 seed/清理/CRUD、绑定）；go vet clean + go test ./... 全绿 + tsc 0 错误 + vite build + wails build 成功
+
 ## v1.18.0「校验引擎」(2026-08-05)
 
 > 方案编写板块检查能力升级：可插拔 CheckRule 引擎 + 结构化规则（废标响应/数据一致性/跨章重复/暗标格式/规范引用）+ AI 语义覆盖规则，统一检查报告前端逐项处理。
