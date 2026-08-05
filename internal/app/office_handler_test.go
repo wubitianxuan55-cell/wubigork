@@ -53,3 +53,16 @@ func TestOfficeProjectBindings(t *testing.T) {
 		t.Errorf("删除后项目数 = %d, want 1", len(remaining))
 	}
 }
+
+func TestBidSummaryRoundTripKeepsNewFields(t *testing.T) {
+	bs := &proposal.BidSummary{
+		Overview:      "项目概况",
+		Qualification: []proposal.BidItem{{Name: "资质", Content: "三级", Sources: []proposal.SourceRef{{Snippet: "原文"}}}},
+		ParseStatus:   "done",
+	}
+	m := btm(bs)
+	got := bsf(m)
+	if got.ParseStatus != "done" || len(got.Qualification) != 1 || got.Qualification[0].Sources[0].Snippet != "原文" {
+		t.Fatalf("往返丢失新字段: %+v", got)
+	}
+}

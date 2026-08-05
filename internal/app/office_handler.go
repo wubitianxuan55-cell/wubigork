@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -385,11 +386,10 @@ func projectToMap(p *proposal.Project) map[string]interface{} {
 	}
 }
 func btm(bs *proposal.BidSummary) map[string]interface{} {
-	sc := make([]map[string]interface{}, len(bs.TechScoring))
-	for i, x := range bs.TechScoring {
-		sc[i] = map[string]interface{}{"name": x.Name, "maxScore": x.MaxScore, "requirement": x.Requirement}
-	}
-	return map[string]interface{}{"techScoring": sc, "keyRequirements": bs.KeyRequirements, "duration": bs.Duration, "redLines": bs.RedLines, "overview": bs.Overview, "extra": bs.Extra, "rawMarkdown": bs.RawMarkdown, "rawFiles": ftm(bs.RawFiles)}
+	data, _ := json.Marshal(bs)
+	var m map[string]interface{}
+	_ = json.Unmarshal(data, &m)
+	return m
 }
 func fromMap(m map[string]interface{}) *proposal.Proposal {
 	p := &proposal.Proposal{}
@@ -474,80 +474,8 @@ func sfm(m map[string]interface{}) proposal.ProposalSection {
 	return s
 }
 func bsf(m map[string]interface{}) *proposal.BidSummary {
-	bs := &proposal.BidSummary{Extra: make(map[string]string)}
-	if v, ok := m["duration"].(string); ok {
-		bs.Duration = v
-	}
-	if v, ok := m["overview"].(string); ok {
-		bs.Overview = v
-	}
-	if v, ok := m["rawMarkdown"].(string); ok {
-		bs.RawMarkdown = v
-	}
-	if arr, ok := m["keyRequirements"].([]interface{}); ok {
-		for _, x := range arr {
-			if s, ok := x.(string); ok {
-				bs.KeyRequirements = append(bs.KeyRequirements, s)
-			}
-		}
-	}
-	if arr, ok := m["redLines"].([]interface{}); ok {
-		for _, x := range arr {
-			if s, ok := x.(string); ok {
-				bs.RedLines = append(bs.RedLines, s)
-			}
-		}
-	}
-	if arr, ok := m["techScoring"].([]interface{}); ok {
-		for _, x := range arr {
-			if sm, ok := x.(map[string]interface{}); ok {
-				si := proposal.ScoringItem{}
-				if v, ok := sm["name"].(string); ok {
-					si.Name = v
-				}
-				if v, ok := sm["maxScore"].(string); ok {
-					si.MaxScore = v
-				}
-				if v, ok := sm["requirement"].(string); ok {
-					si.Requirement = v
-				}
-				bs.TechScoring = append(bs.TechScoring, si)
-			}
-		}
-	}
-	if ex, ok := m["extra"].(map[string]interface{}); ok {
-		for k, v := range ex {
-			if s, ok := v.(string); ok {
-				bs.Extra[k] = s
-			}
-		}
-	}
-	if arr, ok := m["rawFiles"].([]interface{}); ok {
-		for _, x := range arr {
-			if fm, ok := x.(map[string]interface{}); ok {
-				fd := proposal.FileDoc{}
-				if v, ok := fm["name"].(string); ok {
-					fd.Name = v
-				}
-				if v, ok := fm["path"].(string); ok {
-					fd.Path = v
-				}
-				if v, ok := fm["markdown"].(string); ok {
-					fd.Markdown = v
-				}
-				if v, ok := fm["size"].(float64); ok {
-					fd.Size = int(v)
-				}
-				bs.RawFiles = append(bs.RawFiles, fd)
-			}
-		}
-	}
-	return bs
-}
-func ftm(files []proposal.FileDoc) []map[string]interface{} {
-	r := make([]map[string]interface{}, len(files))
-	for i, f := range files {
-		r[i] = map[string]interface{}{"name": f.Name, "path": f.Path, "markdown": f.Markdown, "size": f.Size}
-	}
-	return r
+	data, _ := json.Marshal(m)
+	var bs proposal.BidSummary
+	_ = json.Unmarshal(data, &bs)
+	return &bs
 }
