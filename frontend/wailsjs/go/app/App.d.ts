@@ -435,7 +435,7 @@ export function ProposalCheckCoverage(arg1:string):Promise<Record<string, any>>;
 
 export function ProposalConvertFiles(arg1:string):Promise<void>;
 
-export function ProposalCreate(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Record<string, any>>;
+export function ProposalCreate(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<Record<string, any>>;
 
 export function ProposalDelete(arg1:string):Promise<void>;
 
@@ -458,6 +458,12 @@ export function ProposalList():Promise<Array<Record<string, any>>>;
 export function ProposalParseBidFile(arg1:string):Promise<Record<string, any>>;
 
 export function ProposalPolish(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Record<string, any>>;
+
+export function ProposalProjectCreate(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;
+
+export function ProposalProjectDelete(arg1:string):Promise<void>;
+
+export function ProposalProjectList():Promise<Array<Record<string, any>>>;
 
 export function ProposalReadFile(arg1:string):Promise<string>;
 
