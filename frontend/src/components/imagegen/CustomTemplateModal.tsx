@@ -1,14 +1,28 @@
 import React from 'react'
-import { Typography, Button, Input, Space, Modal } from 'antd'
+import { Typography, Button, Input, Space, Modal, Select } from 'antd'
 import { C } from '../../utils/theme'
 
 const { TextArea } = Input
+
+export const TEMPLATE_SIZE_OPTIONS = [
+  { label: '不指定', value: '' },
+  { label: '1:1 方形', value: '1:1' },
+  { label: '16:9 横屏', value: '16:9' },
+  { label: '9:16 竖屏', value: '9:16' },
+  { label: '4:3', value: '4:3' },
+  { label: '3:4', value: '3:4' },
+  { label: '2:3 立绘', value: '2:3' },
+]
 
 interface CustomTemplateModalProps {
   open: boolean
   editing: boolean
   label: string
   onLabelChange: (v: string) => void
+  description: string
+  onDescriptionChange: (v: string) => void
+  size: string
+  onSizeChange: (v: string) => void
   prompt: string
   onPromptChange: (v: string) => void
   negative: string
@@ -17,9 +31,10 @@ interface CustomTemplateModalProps {
   onCancel: () => void
 }
 
-/** CustomTemplateModal — 自定义模板编辑弹窗 */
+/** CustomTemplateModal — 自定义模板编辑弹窗（含用途说明与推荐画幅） */
 const CustomTemplateModal: React.FC<CustomTemplateModalProps> = ({
   open, editing, label, onLabelChange,
+  description, onDescriptionChange, size, onSizeChange,
   prompt, onPromptChange, negative, onNegativeChange,
   onSave, onCancel,
 }) => (
@@ -30,16 +45,32 @@ const CustomTemplateModal: React.FC<CustomTemplateModalProps> = ({
     onCancel={onCancel}
     okText="保存"
     cancelText="取消"
-    width={420}
+    width={440}
     styles={{
       body: { background: 'transparent' },
       header: { background: 'transparent' },
     }}
   >
     <Space direction="vertical" size={10} style={{ width: '100%' }}>
-      <Input placeholder="模板名称（如：古风武侠）" value={label}
+      <Input placeholder="模板名称（如：古风侠客）" value={label}
         onChange={(e) => onLabelChange(e.target.value)}
         style={{ background: C('color-bg-layout'), borderColor: C('color-border'), color: C('color-text') }} />
+      <Input placeholder="用途说明（可选，一句话描述适合什么场景）" value={description}
+        onChange={(e) => onDescriptionChange(e.target.value)}
+        style={{ background: C('color-bg-layout'), borderColor: C('color-border'), color: C('color-text') }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Typography.Text style={{ fontSize: 12, color: C('color-text-secondary'), flexShrink: 0 }}>
+          推荐画幅
+        </Typography.Text>
+        <Select
+          value={size}
+          onChange={onSizeChange}
+          options={TEMPLATE_SIZE_OPTIONS}
+          size="small"
+          style={{ width: 160 }}
+          popupMatchSelectWidth={false}
+        />
+      </div>
       <TextArea
         placeholder="正面 Prompt（点击模板时追加到主 prompt）"
         value={prompt} onChange={(e) => onPromptChange(e.target.value)}

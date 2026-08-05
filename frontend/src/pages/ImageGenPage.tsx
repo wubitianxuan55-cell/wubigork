@@ -12,7 +12,7 @@ import { ResultStage } from '../components/imagegen/ResultStage'
 import { HistoryRail } from '../components/imagegen/HistoryRail'
 import { StatusDot } from '../components/imagegen/ui'
 import {
-  TEMPLATES, getAllCategories,
+  TEMPLATES,
   loadCustomTemplates, saveCustomTemplates, generateTemplateId,
   type Template, type CustomTemplate,
 } from '../data/imageTemplates'
@@ -90,12 +90,13 @@ const ImageGenPage: React.FC = () => {
   const [lightboxIndex, setLightboxIndex] = useState(-1)
   const [characters, setCharacters] = useState<{ id: string; name: string }[]>([])
 
-  const [templateCat, setTemplateCat] = useState<string | undefined>()
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
   const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>(() => loadCustomTemplates())
   const [customModalOpen, setCustomModalOpen] = useState(false)
   const [editingCustom, setEditingCustom] = useState<CustomTemplate | null>(null)
   const [customLabel, setCustomLabel] = useState('')
+  const [customDescription, setCustomDescription] = useState('')
+  const [customSize, setCustomSize] = useState('')
   const [customPrompt, setCustomPrompt] = useState('')
   const [customNegative, setCustomNegative] = useState('')
 
@@ -350,12 +351,15 @@ const ImageGenPage: React.FC = () => {
   // ── 模板操作 ──
   const applyTemplate = useCallback((t: Template) => {
     setPrompt((p) => p ? p + '，' + t.prompt : t.prompt)
-    if (t.negative) setNegative((n) => n ? n + ', ' + t.negative : t.negative)
+    const neg = t.negative
+    if (neg) setNegative((n) => n ? n + ', ' + neg : neg)
   }, [])
 
   const openCustomAdd = useCallback(() => {
     setEditingCustom(null)
     setCustomLabel('')
+    setCustomDescription('')
+    setCustomSize('')
     setCustomPrompt('')
     setCustomNegative('')
     setCustomModalOpen(true)
@@ -364,8 +368,10 @@ const ImageGenPage: React.FC = () => {
   const openCustomEdit = useCallback((t: CustomTemplate) => {
     setEditingCustom(t)
     setCustomLabel(t.label)
+    setCustomDescription(t.description || '')
+    setCustomSize(t.size || '')
     setCustomPrompt(t.prompt)
-    setCustomNegative(t.negative)
+    setCustomNegative(t.negative || '')
     setCustomModalOpen(true)
   }, [])
 
@@ -376,19 +382,28 @@ const ImageGenPage: React.FC = () => {
     }
     if (editingCustom) {
       const updated = customTemplates.map((t) =>
-        t.id === editingCustom.id ? { ...t, label: customLabel, prompt: customPrompt, negative: customNegative } : t,
+        t.id === editingCustom.id
+          ? {
+              ...t,
+              label: customLabel, description: customDescription, size: customSize,
+              prompt: customPrompt, negative: customNegative,
+            }
+          : t,
       )
       setCustomTemplates(updated)
       saveCustomTemplates(updated)
     } else {
-      const created: CustomTemplate = { id: generateTemplateId(), label: customLabel, prompt: customPrompt, negative: customNegative }
+      const created: CustomTemplate = {
+        id: generateTemplateId(), label: customLabel, description: customDescription, size: customSize,
+        prompt: customPrompt, negative: customNegative,
+      }
       const updated = [...customTemplates, created]
       setCustomTemplates(updated)
       saveCustomTemplates(updated)
     }
     setCustomModalOpen(false)
     message.success(editingCustom ? '模板已更新' : '模板已添加')
-  }, [customTemplates, editingCustom, customLabel, customPrompt, customNegative])
+  }, [customTemplates, editingCustom, customLabel, customDescription, customSize, customPrompt, customNegative])
 
   const deleteCustom = useCallback((id: string) => {
     const updated = customTemplates.filter((t) => t.id !== id)
@@ -509,6 +524,8 @@ const ImageGenPage: React.FC = () => {
         open={customModalOpen}
         editing={!!editingCustom}
         label={customLabel} onLabelChange={setCustomLabel}
+        description={customDescription} onDescriptionChange={setCustomDescription}
+        size={customSize} onSizeChange={setCustomSize}
         prompt={customPrompt} onPromptChange={setCustomPrompt}
         negative={customNegative} onNegativeChange={setCustomNegative}
         onSave={saveCustom}
