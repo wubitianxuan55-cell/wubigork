@@ -2,6 +2,18 @@
 
 # gaea · 多功能 AI 助手
 
+## v1.17.0「记忆中枢知识资产」(2026-08-05)
+
+> 方案编写板块知识资产统一集成 gaea 记忆中枢：规范条文/素材/历史方案全部入库 Hephaestus.db knowledge 表，spec_query 改读知识库，方案可归档回写并提供同类型参考；模板库落库。
+
+- 规范知识入库：内置土壤修复规范索引（GB 36600/15618、HJ 25.x、HJ 682、HJ 1185 等 15+ 条文）与「土壤修复常用技术」幂等写入记忆中枢（Category=规范标准/经验总结），SearchSpecs 按查询令牌重排（标题 3 分/正文 1 分）
+- 素材库：业绩/人员/设备/常用段落以 Category=素材库 入库（AddAsset/ListAssets/SearchAssets/RemoveAsset），名称纳秒级唯一
+- 历史方案：ArchiveProposal 将装配全文归档（Category=设计方案 + tag legacy-proposal），SearchLegacyProposals 检索；SectionContext 自动注入同类型历史方案参考摘要（≤600 字，注明不得抄袭）
+- spec_query 改读记忆中枢：优先检索知识库规范条文（Top 5），知识库不可用时回退内置索引
+- 模板库落库：DefaultTemplates 幂等 seed 到 office.db templates 表，ListTemplates 优先读库（失败回退默认）
+- 前端：导出 Tab「归档到记忆中枢」按钮；右上角「素材库」弹窗（搜索/新增/删除）
+- 验证：新增 15+ 测试（规范入库/检索重排、素材 CRUD、归档与参考注入、模板 seed、spec_query 知识库优先、绑定）；go vet clean + go test ./... 全绿 + tsc 0 错误 + vite build + wails build 成功
+
 ## v1.16.0「大纲与撰写引擎」(2026-08-05)
 
 > 方案编写板块长篇生成落地：目录策略 + 字数预算分解（以招标文件要求为准）+ 大纲重排/目录导入 + 项目事实基线 + 统一章节上下文 + 批量生成队列（断点续写/合并装配）+ 工艺流程图/组织架构图预设。
