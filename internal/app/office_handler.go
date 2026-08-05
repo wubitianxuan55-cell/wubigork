@@ -308,6 +308,27 @@ func (a *officeState) ProposalCheckAll(pid string) (map[string]interface{}, erro
 	}
 	return map[string]interface{}{"proposal": toMap(p), "items": items}, nil
 }
+
+func (a *officeState) ProposalRunPipeline(pid string) {
+	if a.proposalSvc == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("office: pipeline panic recovered", "panic", r)
+			}
+		}()
+		_, items, err := a.proposalSvc.RunPipeline(a.ctx, pid, func(step, status, detail string) {
+			a.emit("proposal-pipeline-progress", map[string]interface{}{"step": step, "status": status, "detail": detail})
+		})
+		if err != nil {
+			a.emit("proposal-pipeline-progress", map[string]interface{}{"step": "error", "status": "error", "detail": err.Error()})
+			return
+		}
+		a.emit("proposal-pipeline-progress", map[string]interface{}{"step": "done", "status": "done", "detail": fmt.Sprintf("检查 %d 项", len(items))})
+	}()
+}
 func (a *officeState) ProposalReadFile(path string) (string, error) {
 	return proposal.ReadTextFile(path)
 }
