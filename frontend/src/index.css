@@ -750,6 +750,50 @@ body {
   scroll-behavior: auto !important;
 }
 
+/* ── WebView2 rAF 节流降级（main.tsx 检测到后给 <html> 加 gaea-raf-degraded）──
+   WebView2 误判窗口为后台时会把 CSS 动画 tick 一起挂起：antd 弹层打开动画
+   卡在 keyframe 首帧（opacity:0 / scale(0)），表现为下拉弹不出来/延迟数秒才显示。
+   降级后：打开动画直接去掉并复位 opacity/transform（立即显示），
+   关闭动画直接隐藏（等 rc-motion 卸载）。 */
+html.gaea-raf-degraded [class*='ant-slide-up-enter'],
+html.gaea-raf-degraded [class*='ant-slide-up-appear'],
+html.gaea-raf-degraded [class*='ant-slide-down-enter'],
+html.gaea-raf-degraded [class*='ant-slide-down-appear'],
+html.gaea-raf-degraded [class*='ant-slide-left-enter'],
+html.gaea-raf-degraded [class*='ant-slide-left-appear'],
+html.gaea-raf-degraded [class*='ant-slide-right-enter'],
+html.gaea-raf-degraded [class*='ant-slide-right-appear'],
+html.gaea-raf-degraded [class*='ant-zoom-enter'],
+html.gaea-raf-degraded [class*='ant-zoom-appear'],
+html.gaea-raf-degraded [class*='ant-move-up-enter'],
+html.gaea-raf-degraded [class*='ant-move-up-appear'],
+html.gaea-raf-degraded [class*='ant-move-down-enter'],
+html.gaea-raf-degraded [class*='ant-move-down-appear'],
+html.gaea-raf-degraded [class*='ant-move-left-enter'],
+html.gaea-raf-degraded [class*='ant-move-left-appear'],
+html.gaea-raf-degraded [class*='ant-move-right-enter'],
+html.gaea-raf-degraded [class*='ant-move-right-appear'],
+html.gaea-raf-degraded [class*='ant-fade-enter'],
+html.gaea-raf-degraded [class*='ant-fade-appear'] {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+html.gaea-raf-degraded [class*='ant-slide-up-leave'],
+html.gaea-raf-degraded [class*='ant-slide-down-leave'],
+html.gaea-raf-degraded [class*='ant-slide-left-leave'],
+html.gaea-raf-degraded [class*='ant-slide-right-leave'],
+html.gaea-raf-degraded [class*='ant-zoom-leave'],
+html.gaea-raf-degraded [class*='ant-move-up-leave'],
+html.gaea-raf-degraded [class*='ant-move-down-leave'],
+html.gaea-raf-degraded [class*='ant-move-left-leave'],
+html.gaea-raf-degraded [class*='ant-move-right-leave'],
+html.gaea-raf-degraded [class*='ant-fade-leave'] {
+  display: none !important;
+}
+
 /* ── 外观设置：紧凑模式辅助（antd 控件由 ConfigProvider token 驱动，此处补全局区块密度）── */
 .ui-compact .md-glass {
   padding: 14px 16px;
