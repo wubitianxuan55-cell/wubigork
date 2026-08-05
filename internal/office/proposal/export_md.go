@@ -30,7 +30,7 @@ func (s *Service) ExportMarkdown(proposalID string) (string, error) {
 		}
 	}
 	walk(p.Sections, 2)
-	exportPath := filepathInDir(s.store.dir, p.ID+".md")
+	exportPath := filepathInDir(s.store.ExportDir(), p.ID+".md")
 	if err := writeFile(exportPath, sb.String()); err != nil {
 		return "", err
 	}

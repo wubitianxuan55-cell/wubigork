@@ -21,6 +21,7 @@ import (
 	"github.com/gaea/gaea/internal/character"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/modelengine"
+	officedb "github.com/gaea/gaea/internal/office/db"
 	"github.com/gaea/gaea/internal/office/proposal"
 	"github.com/gaea/gaea/internal/outline"
 	"github.com/gaea/gaea/internal/project"
@@ -258,6 +259,9 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 	if err := a.closePM(); err != nil {
 		slog.Error("关闭项目失败", "error", err)
+	}
+	if err := officedb.CloseDatabase(filepath.Join(a.whisperDataRoot, "office")); err != nil {
+		slog.Error("关闭 office.db 失败", "error", err)
 	}
 }
 

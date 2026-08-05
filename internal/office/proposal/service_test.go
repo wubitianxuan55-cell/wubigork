@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	officedb "github.com/gaea/gaea/internal/office/db"
 )
 
 // mockAI 简单 AI 客户端 mock — 按调用返回预设文本
@@ -25,7 +27,15 @@ func (m *mockAI) ChatSimpleStream(ctx context.Context, model, systemPrompt, user
 
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	return NewService(t.TempDir(), &mockAI{def: "mock"})
+	return newServiceAt(t, t.TempDir(), &mockAI{def: "mock"})
+}
+
+// newServiceAt 在指定目录创建服务并注册数据库关闭清理
+func newServiceAt(t *testing.T, dir string, ai AIClient) *Service {
+	t.Helper()
+	svc := NewService(dir, ai)
+	t.Cleanup(func() { _ = officedb.CloseDatabase(filepath.Join(dir, "office")) })
+	return svc
 }
 
 // ─── CRUD ────────────────────────────────────────────────────
@@ -52,6 +62,21 @@ func TestCreateAndGet(t *testing.T) {
 	}
 	if got.Title != p.Title || got.Category != "环保工程" {
 		t.Errorf("Get 返回不一致: %+v", got)
+	}
+}
+
+func TestCreateAttachesToDefaultProject(t *testing.T) {
+	s := newTestService(t)
+	p, err := s.Create("方案", "blank", "", "其他")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if p.ProjectID != "default" {
+		t.Errorf("ProjectID = %q, want default", p.ProjectID)
+	}
+	proj, err := s.store.GetProject("default")
+	if err != nil || proj.Name != "未归档项目" {
+		t.Fatalf("默认项目异常: %v %+v", err, proj)
 	}
 }
 
@@ -125,10 +150,10 @@ func TestDelete(t *testing.T) {
 func TestPersistence_AcrossServiceInstances(t *testing.T) {
 	// 模拟重启：新 Service 指向同一目录，数据应保留
 	dir := t.TempDir()
-	s1 := NewService(dir, &mockAI{def: "mock"})
+	s1 := newServiceAt(t, dir, &mockAI{def: "mock"})
 	p, _ := s1.Create("持久化方案", "soil-remediation-bid", "", "")
 
-	s2 := NewService(dir, &mockAI{def: "mock"})
+	s2 := newServiceAt(t, dir, &mockAI{def: "mock"})
 	got, err := s2.Get(p.ID)
 	if err != nil {
 		t.Fatalf("重启后 Get: %v", err)
@@ -265,7 +290,7 @@ const outlineJSON = `{"title":"土壤修复施工方案","sections":[
 func TestGenerateOutline(t *testing.T) {
 	dir := t.TempDir()
 	ai := &mockAI{replies: map[string]string{"需求描述": outlineJSON}}
-	s := NewService(dir, ai)
+	s := newServiceAt(t, dir, ai)
 	p, _ := s.Create("方案", "soil-remediation-bid", "污染场地修复", "环保工程")
 
 	got, err := s.GenerateOutline(context.Background(), p.ID, "污染场地修复")
@@ -301,7 +326,7 @@ func TestGenerateOutline(t *testing.T) {
 }
 
 func TestGenerateOutline_AINil(t *testing.T) {
-	s := NewService(t.TempDir(), nil)
+	s := newServiceAt(t, t.TempDir(), nil)
 	p, _ := s.Create("方案", "soil-remediation-bid", "", "")
 	if _, err := s.GenerateOutline(context.Background(), p.ID, ""); err == nil {
 		t.Error("AI 为 nil 应报错")
@@ -310,7 +335,7 @@ func TestGenerateOutline_AINil(t *testing.T) {
 
 func TestGenerateOutline_BadJSON(t *testing.T) {
 	ai := &mockAI{def: "不是JSON内容"}
-	s := NewService(t.TempDir(), ai)
+	s := newServiceAt(t, t.TempDir(), ai)
 	p, _ := s.Create("方案", "soil-remediation-bid", "", "")
 	// 非法 JSON 不应崩溃，应报错或返回原方案
 	_, err := s.GenerateOutline(context.Background(), p.ID, "需求")
@@ -327,7 +352,7 @@ func TestGenerateSection(t *testing.T) {
 		replies: map[string]string{"需求描述": outlineJSON},
 		def:     "这是生成的章节内容，字数足够长。" + strings.Repeat("内容", 50),
 	}
-	s := NewService(t.TempDir(), ai)
+	s := newServiceAt(t, t.TempDir(), ai)
 	p, _ := s.Create("方案", "soil-remediation-bid", "", "")
 	// 生成大纲后生成章节
 	p, err := s.GenerateOutline(context.Background(), p.ID, "需求")

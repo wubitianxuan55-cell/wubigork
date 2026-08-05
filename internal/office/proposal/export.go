@@ -79,7 +79,11 @@ func (s *Service) ExportDocx(proposalID string) (string, error) {
 	}
 	walk(p.Sections, 1)
 
-	exportPath := filepathInDir(s.store.dir, p.ID+".docx")
+	exportDir := s.store.ExportDir()
+	if err := os.MkdirAll(exportDir, 0755); err != nil {
+		return "", fmt.Errorf("创建导出目录失败: %w", err)
+	}
+	exportPath := filepathInDir(exportDir, p.ID+".docx")
 	if err := doc.SaveToFile(exportPath); err != nil {
 		return "", fmt.Errorf("保存 docx 失败: %w", err)
 	}

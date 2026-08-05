@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	officedb "github.com/gaea/gaea/internal/office/db"
 	"github.com/google/uuid"
 )
 
@@ -19,14 +21,23 @@ type AIClient interface {
 
 // Service 方案服务（业务逻辑 + AI）
 type Service struct {
-	store  *Store
-	ai     AIClient
+	store *Store
+	ai    AIClient
 }
 
-// NewService 创建服务实例
+// NewService 创建服务实例（打开 office.db，执行旧数据迁移）
 func NewService(dataRoot string, ai AIClient) *Service {
+	officeDir := filepath.Join(dataRoot, "office")
+	dbs := officedb.GetDatabase(officeDir)
+	if dbs == nil {
+		return &Service{store: nil, ai: ai}
+	}
+	st := NewStore(dbs, officeDir)
+	if _, err := MigrateLegacyJSON(st); err != nil {
+		log.Printf("[proposal] 旧数据迁移失败: %v", err)
+	}
 	return &Service{
-		store: NewStore(dataRoot),
+		store: st,
 		ai:    ai,
 	}
 }
@@ -41,9 +52,50 @@ func (s *Service) ListTemplates() []Template {
 	return DefaultTemplates
 }
 
+// ─── 项目 ────────────────────────────────────────────────
+
+// CreateProject 新建项目
+func (s *Service) CreateProject(name, category, client string) (*Project, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("方案存储不可用")
+	}
+	return s.store.CreateProject(name, category, client)
+}
+
+// ListProjects 列出全部项目
+func (s *Service) ListProjects() ([]Project, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("方案存储不可用")
+	}
+	return s.store.ListProjects()
+}
+
+// DeleteProject 删除项目
+func (s *Service) DeleteProject(id string) error {
+	if s.store == nil {
+		return fmt.Errorf("方案存储不可用")
+	}
+	return s.store.DeleteProject(id)
+}
+
 // ─── CRUD ────────────────────────────────────────────────
 
-func (s *Service) Create(title, templateID, requirements, category string) (*Proposal, error) {
+// Create 创建方案（projectID 为空时挂到「未归档项目」）
+func (s *Service) Create(title, templateID, requirements, category string, projectID ...string) (*Proposal, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("方案存储不可用")
+	}
+	pid := ""
+	if len(projectID) > 0 {
+		pid = projectID[0]
+	}
+	if pid == "" {
+		proj, err := s.store.EnsureDefaultProject()
+		if err != nil {
+			return nil, err
+		}
+		pid = proj.ID
+	}
 	tmpl := GetTemplate(templateID)
 	if tmpl == nil {
 		tmpl = &DefaultTemplates[len(DefaultTemplates)-1]
@@ -52,7 +104,7 @@ func (s *Service) Create(title, templateID, requirements, category string) (*Pro
 		title = "未命名方案"
 	}
 	sections := SectionsFromTemplate(tmpl)
-	return s.store.Create(title, tmpl.ID, requirements, category, sections)
+	return s.store.Create(title, tmpl.ID, requirements, category, pid, sections)
 }
 
 // List 列出所有方案
@@ -191,11 +243,15 @@ func (s *Service) GenerateOutline(ctx context.Context, proposalID, requirements 
 			ID: uuid.New().String(), ProposalID: proposalID,
 			Index: idx, Level: ch.Level, Title: ch.Title, Status: "pending",
 		}
-		if ch.Level == 0 { chSec.Level = 1 }
+		if ch.Level == 0 {
+			chSec.Level = 1
+		}
 		idx++
 		for _, sec := range ch.Children {
 			secLevel := sec.Level
-			if secLevel == 0 { secLevel = 2 }
+			if secLevel == 0 {
+				secLevel = 2
+			}
 			subSec := ProposalSection{
 				ID: uuid.New().String(), ProposalID: proposalID,
 				ParentID: chSec.ID, Index: idx, Level: secLevel,
@@ -204,7 +260,9 @@ func (s *Service) GenerateOutline(ctx context.Context, proposalID, requirements 
 			idx++
 			for _, sub := range sec.Children {
 				subLevel := sub.Level
-				if subLevel == 0 { subLevel = 3 }
+				if subLevel == 0 {
+					subLevel = 3
+				}
 				subSec.Children = append(subSec.Children, ProposalSection{
 					ID: uuid.New().String(), ProposalID: proposalID,
 					ParentID: subSec.ID, Index: idx, Level: subLevel,
@@ -490,7 +548,9 @@ func (s *Service) SaveRawText(proposalID, filePath string) (*Proposal, error) {
 	// 追加文件
 	info, _ := os.Stat(filePath)
 	size := 0
-	if info != nil { size = int(info.Size()) }
+	if info != nil {
+		size = int(info.Size())
+	}
 	p.BidSummary.RawFiles = append(p.BidSummary.RawFiles, FileDoc{
 		Name: filepath.Base(filePath), Markdown: markdown, Size: size,
 	})
@@ -516,7 +576,9 @@ func (s *Service) SaveRawText(proposalID, filePath string) (*Proposal, error) {
 // RemoveRawFile 删除已上传的文件
 func (s *Service) RemoveRawFile(proposalID string, index int) (*Proposal, error) {
 	p, err := s.store.Get(proposalID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	if p.BidSummary == nil || index < 0 || index >= len(p.BidSummary.RawFiles) {
 		return nil, fmt.Errorf("原始文件索引越界: %d", index)
 	}
@@ -566,18 +628,22 @@ func (s *Service) CheckCoverage(ctx context.Context, proposalID string) (*Propos
 	}
 	sp := fmt.Sprintf("你是环保工程投标评审专家。对照评分标准检查方案：\n%s\n返回 JSON: [{\"name\":\"\",\"maxScore\":\"\",\"covered\":\"full|partial|none\",\"score\":\"\",\"suggestion\":\"\"}]", scoringList.String())
 	reply, err := s.ai.ChatSimpleStream(ctx, "", sp, allContent.String())
-	if err != nil { return nil, nil, fmt.Errorf("AI 检查失败: %w", err) }
+	if err != nil {
+		return nil, nil, fmt.Errorf("AI 检查失败: %w", err)
+	}
 	reply = extractJSON(reply)
 	var results []CoverageResult
-	if err := json.Unmarshal([]byte(reply), &results); err != nil { return nil, nil, fmt.Errorf("解析失败: %w", err) }
+	if err := json.Unmarshal([]byte(reply), &results); err != nil {
+		return nil, nil, fmt.Errorf("解析失败: %w", err)
+	}
 	return p, results, nil
 }
 
 // CoverageResult 覆盖检查结果
 type CoverageResult struct {
-	Name        string `json:"name"`
-	MaxScore    string `json:"maxScore"`
-	Covered     string `json:"covered"`
-	Score       string `json:"score"`
-	Suggestion  string `json:"suggestion"`
+	Name       string `json:"name"`
+	MaxScore   string `json:"maxScore"`
+	Covered    string `json:"covered"`
+	Score      string `json:"score"`
+	Suggestion string `json:"suggestion"`
 }

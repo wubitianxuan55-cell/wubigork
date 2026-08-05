@@ -23,13 +23,16 @@ func (s *Service) SaveUploadedFile(proposalID, fileName string, data []byte) (*P
 	if p.BidSummary == nil {
 		p.BidSummary = &BidSummary{Extra: make(map[string]string)}
 	}
-	dir := filepath.Join(s.store.dir, "uploads", proposalID)
+	dir := filepath.Join(s.store.FilesDir(), proposalID)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("创建上传目录失败: %w", err)
 	}
 	path := uniquePath(filepath.Join(dir, sanitizeFileName(fileName)))
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return nil, fmt.Errorf("保存文件失败: %w", err)
+	}
+	if err := s.store.AddFile(proposalID, "attachment", filepath.Base(path), path, len(data)); err != nil {
+		return nil, err
 	}
 	p.BidSummary.RawFiles = append(p.BidSummary.RawFiles, FileDoc{
 		Name: filepath.Base(path), Path: path, Size: len(data),

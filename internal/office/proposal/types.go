@@ -2,15 +2,18 @@
 package proposal
 
 import "time"
+
 // Proposal 方案文档
 type Proposal struct {
 	ID           string            `json:"id"`
+	ProjectID    string            `json:"projectId"`
 	Title        string            `json:"title"`
-	Category     string            `json:"category"`    // 分类（环保工程/市政工程/水利工程/其他）
+	Category     string            `json:"category"` // 分类（环保工程/市政工程/水利工程/其他）
 	Template     string            `json:"template"`
 	Requirements string            `json:"requirements"`
 	BidSummary   *BidSummary       `json:"bidSummary,omitempty"`
 	Status       string            `json:"status"`
+	Version      int               `json:"version"`
 	Sections     []ProposalSection `json:"sections"`
 	CreatedAt    string            `json:"createdAt"`
 	UpdatedAt    string            `json:"updatedAt"`
@@ -28,9 +31,9 @@ type BidSummary struct {
 	RedLines        []string          `json:"redLines"`
 	Overview        string            `json:"overview"`
 	Extra           map[string]string `json:"extra"`
-	RawMarkdown     string     `json:"rawMarkdown"` // 合并后的 Markdown 全文（AI解析用）
-	RawFiles        []FileDoc  `json:"rawFiles"`    // 多文件列表（上传的原始文件+转换结果）
-	RawText         string     `json:"rawText"`     // 兼容旧版
+	RawMarkdown     string            `json:"rawMarkdown"` // 合并后的 Markdown 全文（AI解析用）
+	RawFiles        []FileDoc         `json:"rawFiles"`    // 多文件列表（上传的原始文件+转换结果）
+	RawText         string            `json:"rawText"`     // 兼容旧版
 }
 
 type FileDoc struct {
@@ -41,14 +44,15 @@ type FileDoc struct {
 }
 
 type ProposalSection struct {
-	ID         string `json:"id"`
-	ProposalID string `json:"proposalId"`
-	ParentID   string `json:"parentId"`   // 父节点ID（空=顶级章）
-	Index      int    `json:"index"`
-	Level      int    `json:"level"`      // 1=章 2=节 3=小节
-	Title      string `json:"title"`
-	Content    string `json:"content"`
-	Status     string `json:"status"`     // pending | writing | completed
+	ID         string            `json:"id"`
+	ProposalID string            `json:"proposalId"`
+	ParentID   string            `json:"parentId"` // 父节点ID（空=顶级章）
+	Index      int               `json:"index"`
+	Level      int               `json:"level"` // 1=章 2=节 3=小节
+	Title      string            `json:"title"`
+	Content    string            `json:"content"`
+	Status     string            `json:"status"` // pending | writing | completed
+	Sources    string            `json:"sources,omitempty"`
 	Children   []ProposalSection `json:"children,omitempty"` // 前端树形展示用
 }
 
@@ -83,3 +87,14 @@ type PolishInput struct {
 }
 
 func now() string { return time.Now().Format("2006-01-02 15:04:05") }
+
+// Project 投标项目/标段
+type Project struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Category  string `json:"category"`
+	Client    string `json:"client"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
+}

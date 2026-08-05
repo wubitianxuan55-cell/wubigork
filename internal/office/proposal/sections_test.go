@@ -52,7 +52,7 @@ func TestRemoveSectionByID(t *testing.T) {
 }
 
 func TestAddSectionThroughService(t *testing.T) {
-	svc := NewService(t.TempDir(), nil)
+	svc := newServiceAt(t, t.TempDir(), nil)
 	p, err := svc.Create("测试方案", "blank", "需求", "其他")
 	if err != nil {
 		t.Fatal(err)
