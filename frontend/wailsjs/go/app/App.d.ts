@@ -441,6 +441,8 @@ export function ProposalBatchCancel(arg1:string):Promise<void>;
 
 export function ProposalBatchGenerate(arg1:string):Promise<void>;
 
+export function ProposalCheckAll(arg1:string):Promise<Record<string, any>>;
+
 export function ProposalCheckCompliance(arg1:string):Promise<Record<string, any>>;
 
 export function ProposalCheckCoverage(arg1:string):Promise<Record<string, any>>;

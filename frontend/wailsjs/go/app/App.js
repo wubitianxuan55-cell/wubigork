@@ -866,6 +866,10 @@ export function ProposalBatchGenerate(arg1) {
   return window['go']['app']['App']['ProposalBatchGenerate'](arg1);
 }
 
+export function ProposalCheckAll(arg1) {
+  return window['go']['app']['App']['ProposalCheckAll'](arg1);
+}
+
 export function ProposalCheckCompliance(arg1) {
   return window['go']['app']['App']['ProposalCheckCompliance'](arg1);
 }
