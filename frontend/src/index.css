@@ -794,6 +794,16 @@ html.gaea-raf-degraded [class*='ant-fade-leave'] {
   display: none !important;
 }
 
+/* ── WebView2 降级：自定义 CSS 入场动画（非 antd motion）同样会卡在首帧
+   （opacity:0 / translateX(100%)），一并禁用让内容立即显示：
+   AI 控制台面板 / 页面切换 / 启动器卡片 / 聊天气泡 ── */
+html.gaea-raf-degraded .ai-console-panel,
+html.gaea-raf-degraded .page-enter,
+html.gaea-raf-degraded .launcher-card,
+html.gaea-raf-degraded .chat-message-item {
+  animation: none !important;
+}
+
 /* ── 外观设置：紧凑模式辅助（antd 控件由 ConfigProvider token 驱动，此处补全局区块密度）── */
 .ui-compact .md-glass {
   padding: 14px 16px;

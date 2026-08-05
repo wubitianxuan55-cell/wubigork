@@ -59,7 +59,7 @@ export function AIConsole() {
   return (
     <>
       {consoleOpen && (
-        <div style={{
+        <div className="ai-console-panel" style={{
           width: 380, flexShrink: 0, alignSelf: 'stretch',
           maxHeight: 'calc(100vh - 80px)',
           margin: '8px 8px 8px 0',
