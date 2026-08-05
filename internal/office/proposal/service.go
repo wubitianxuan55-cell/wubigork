@@ -23,6 +23,7 @@ type Service struct {
 	store *Store
 	ai    AIClient
 	kb    *knowledge.Store
+	ocr   OCRProvider
 }
 
 // NewService 创建服务实例（打开 office.db，执行旧数据迁移）
@@ -244,7 +245,7 @@ func (s *Service) Polish(ctx context.Context, proposalID, sectionID, content, op
 
 // ParseBidFile 执行结构化解析管线（v2）
 func (s *Service) ParseBidFile(ctx context.Context, proposalID string) (*Proposal, error) {
-	return s.ParseBidFileV2(ctx, proposalID)
+	return s.parseBidFile(ctx, proposalID, nil)
 }
 
 // SaveRawText 追加文件：转换→存入RawFiles→合并RawMarkdown

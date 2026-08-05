@@ -934,6 +934,10 @@ export function ProposalParseBidFile(arg1) {
   return window['go']['app']['App']['ProposalParseBidFile'](arg1);
 }
 
+export function ProposalParseBidFileWithProgress(arg1) {
+  return window['go']['app']['App']['ProposalParseBidFileWithProgress'](arg1);
+}
+
 export function ProposalPolish(arg1, arg2, arg3, arg4) {
   return window['go']['app']['App']['ProposalPolish'](arg1, arg2, arg3, arg4);
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const parseChunkSize = 12000
@@ -62,8 +63,13 @@ const parseSystemPrompt = `你是一位专业的招投标专家。基于给定�
 - 不存在的类别填空数组或空字符串
 - 不要遗漏影响投标的关键信息`
 
-// ParseBidFileV2 执行完整解析管线：逐文件分块提取 → 来源定位 → 落库
-func (s *Service) ParseBidFileV2(ctx context.Context, proposalID string) (*Proposal, error) {
+// ParseBidFileWithProgress 执行完整解析管线（可回调进度）
+func (s *Service) ParseBidFileWithProgress(ctx context.Context, proposalID string, onProgress func(stage, detail string)) (*Proposal, error) {
+	return s.parseBidFile(ctx, proposalID, onProgress)
+}
+
+// parseBidFile 执行完整解析管线：逐文件分块提取 → 来源定位 → 落库
+func (s *Service) parseBidFile(ctx context.Context, proposalID string, onProgress func(stage, detail string)) (*Proposal, error) {
 	if s.ai == nil {
 		return nil, fmt.Errorf("AI 客户端未初始化")
 	}
@@ -82,6 +88,9 @@ func (s *Service) ParseBidFileV2(ctx context.Context, proposalID string) (*Propo
 		if f.Markdown == "" {
 			continue
 		}
+		if onProgress != nil {
+			onProgress("parse-file", "AI 分析「"+f.Name+"」")
+		}
 		fileID := f.FileID
 		if fileID == "" {
 			fileID = fmt.Sprintf("file-%d", i)
@@ -90,7 +99,7 @@ func (s *Service) ParseBidFileV2(ctx context.Context, proposalID string) (*Propo
 		if len(pages) == 0 {
 			pages = []PageText{{Page: 0, Text: f.Markdown}}
 		}
-		res, ok := s.parseFileChunks(ctx, f.Markdown)
+		res, ok := s.parseFileChunks(ctx, f.Markdown, onProgress, f.Name)
 		if !ok {
 			partial = true
 			continue
@@ -99,6 +108,18 @@ func (s *Service) ParseBidFileV2(ctx context.Context, proposalID string) (*Propo
 		resultItems = append(resultItems, resolveParseItems(fileID, f.Name, pages, f.Markdown, res)...)
 	}
 	if len(resultItems) == 0 {
+		var reasons []string
+		for _, f := range p.BidSummary.RawFiles {
+			switch {
+			case f.Error != "":
+				reasons = append(reasons, f.Name+"："+f.Error)
+			case f.Markdown == "":
+				reasons = append(reasons, f.Name+"：未转换")
+			}
+		}
+		if len(reasons) > 0 {
+			return nil, fmt.Errorf("AI 解析失败：%d 个文件未成功转换（%s）。请先检查转换结果（含扫描件 OCR）后重试", len(reasons), strings.Join(reasons, "；"))
+		}
 		return nil, fmt.Errorf("AI 解析失败，未提取到任何字段")
 	}
 	if err := s.store.SaveParseResults(proposalID, resultItems); err != nil {
@@ -121,12 +142,18 @@ func (s *Service) ParseBidFileV2(ctx context.Context, proposalID string) (*Propo
 }
 
 // parseFileChunks 对单个文件分块调用 AI 并合并
-func (s *Service) parseFileChunks(ctx context.Context, markdown string) (parseFileResult, bool) {
+func (s *Service) parseFileChunks(ctx context.Context, markdown string, onProgress func(stage, detail string), fileName string) (parseFileResult, bool) {
 	runes := []rune(markdown)
 	if len(runes) <= parseChunkSize {
+		if onProgress != nil {
+			onProgress("parse-request", "发送 AI 解析请求（"+fileName+"）")
+		}
 		reply, err := s.ai.ChatSimpleStream(ctx, "", parseSystemPrompt, "请解析以下招标文件：\n\n"+markdown)
 		if err != nil {
 			return parseFileResult{}, false
+		}
+		if onProgress != nil {
+			onProgress("parse-reply", "收到 AI 解析结果（"+fileName+"）")
 		}
 		return decodeParseResult(reply), true
 	}
@@ -138,6 +165,9 @@ func (s *Service) parseFileChunks(ctx context.Context, markdown string) (parseFi
 			end = len(runes)
 		}
 		chunk := string(runes[start:end])
+		if onProgress != nil {
+			onProgress("parse-chunk", fmt.Sprintf("分块 %d-%d（%s）", start+1, end, fileName))
+		}
 		reply, err := s.ai.ChatSimpleStream(ctx, "", parseSystemPrompt,
 			fmt.Sprintf("请解析以下招标文件片段（第 %d-%d 字，共 %d 字）：\n\n%s", start+1, end, len(runes), chunk))
 		if err != nil {

@@ -13,6 +13,16 @@
 - 绑定 ProposalCheckAll；前端导出 Tab「全面检查」报告面板（规则/状态着色/证据/章节定位跳转）
 - 验证：新增 15+ 测试（框架/规则/聚合/绑定）；go vet clean + go test ./... 全绿 + tsc 0 错误 + vite build + wails build 成功
 
+### v1.18.0 补充「转换诊断与扫描件 OCR」(2026-08-05)
+
+> 修复桌面实测问题：招标解析失败根因多为第一步转换未成功且不可见。新增扫描件 OCR、转换结果阅览、AI 工作台。
+
+- 根因修复：convertPdfToMD 无页面文字时不再返回“仅页眉”的伪成功（此前扫描件被误判已转换）→ 返回明确错误并触发 OCR；ParseBidFile 全文件转换失败时错误信息包含每个文件名与原因
+- 扫描件 OCR：OCRProvider 可插拔接口 + Python 管线（PyMuPDF 渲染 300dpi 页面 → rapidocr_onnxruntime 识别，中文支持）；自动检测，无 OCR 引擎时给出安装指引；FileDoc 增加 error/ocrStatus 字段，OCR 结果标记“OCR 转换”
+- 转换结果阅览：文件列表状态细化（已转换/OCR 转换/转换失败+原因 tooltip/待转换）+「查看」抽屉预览转换后 Markdown 或失败原因
+- AI 工作台：转换与 AI 分析全过程事件（proposal-ai-progress：start/parse-file/parse-request/parse-reply/done/error），前端阶段动画（Spin+阶段文案）与右侧日志面板（自动滚动）；AI 分析按钮在“任一文件转换成功”时可用（不再被失败文件卡死）
+- 验证：新增 6 测试（OCR 调用/OCR 不可用报错/全文件失败明确错误/进度事件）；go vet clean + go test ./... 全绿 + tsc 0 错误 + vite build + wails build 成功
+
 ## v1.17.0「记忆中枢知识资产」(2026-08-05)
 
 > 方案编写板块知识资产统一集成 gaea 记忆中枢：规范条文/素材/历史方案全部入库 Hephaestus.db knowledge 表，spec_query 改读知识库，方案可归档回写并提供同类型参考；模板库落库。

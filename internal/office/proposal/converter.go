@@ -2,6 +2,7 @@
 package proposal
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,6 +27,34 @@ func ConvertToMarkdown(filePath string) (string, error) {
 
 	// 内置转换器
 	return builtinConvert(filePath)
+}
+
+// convertFile 转换文件：文本提取优先，扫描件/文字过少时回退 OCR。
+// 返回 (markdown, 是否使用OCR, 错误)。
+func (s *Service) convertFile(ctx context.Context, filePath string) (string, bool, error) {
+	md, err := ConvertToMarkdown(filePath)
+	if err == nil && len([]rune(md)) >= 30 {
+		return md, false, nil
+	}
+	if isOCRFile(filePath) {
+		s.ensureOCR()
+		if s.ocr == nil {
+			reason := "提取文字过少"
+			if err != nil {
+				reason = err.Error()
+			}
+			return "", false, fmt.Errorf("未提取到文字（可能是扫描件），OCR 不可用：%s；请安装 Python 依赖（pip install rapidocr_onnxruntime pymupdf）", reason)
+		}
+		text, oerr := s.ocr.OCR(ctx, filePath)
+		if oerr != nil {
+			return "", false, fmt.Errorf("文字提取失败且 OCR 失败：%v", oerr)
+		}
+		return "# 招标文件（OCR 识别）\n\n" + text, true, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return "", false, fmt.Errorf("未提取到文字")
 }
 
 func markitdownAvailable() bool {
@@ -83,21 +112,27 @@ func convertPdfToMD(filePath string) (string, error) {
 	var buf strings.Builder
 	totalPage := r.NumPage()
 	buf.WriteString(fmt.Sprintf("# 招标文件\n\n> 来源：%s | 共 %d 页\n\n", filepath.Base(filePath), totalPage))
+	textFound := false
 
 	for i := 1; i <= totalPage; i++ {
 		page := r.Page(i)
-		if page.V.IsNull() { continue }
+		if page.V.IsNull() {
+			continue
+		}
 		text, err := page.GetPlainText(nil)
-		if err != nil { continue }
+		if err != nil {
+			continue
+		}
 		md := pdfTextToMD(text)
 		if strings.TrimSpace(md) != "" {
+			textFound = true
 			buf.WriteString(md + "\n\n")
 		}
 	}
 
 	result := buf.String()
-	if result == "" {
-		return "", fmt.Errorf("PDF 无可提取文本（可能是扫描件，请安装 markitdown: pip install markitdown）")
+	if !textFound {
+		return "", fmt.Errorf("PDF 无可提取文本（可能是扫描件，将尝试 OCR）")
 	}
 	return result, nil
 }
@@ -107,17 +142,27 @@ func pdfTextToMD(text string) string {
 	var result []string
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" { continue }
-		if isHeading(trimmed) { result = append(result, "## "+trimmed) } else { result = append(result, trimmed) }
+		if trimmed == "" {
+			continue
+		}
+		if isHeading(trimmed) {
+			result = append(result, "## "+trimmed)
+		} else {
+			result = append(result, trimmed)
+		}
 	}
 	return strings.Join(result, "\n")
 }
 
 func isHeading(line string) bool {
-	if len([]rune(line)) > 40 { return false }
+	if len([]rune(line)) > 40 {
+		return false
+	}
 	patterns := []string{"第", "一、", "二、", "三、", "1.", "招标", "投标", "项目", "技术"}
 	for _, p := range patterns {
-		if strings.Contains(line, p) { return true }
+		if strings.Contains(line, p) {
+			return true
+		}
 	}
 	return false
 }
@@ -134,14 +179,22 @@ func convertDocxToMD(filePath string) (string, error) {
 	for _, para := range doc.Paragraphs() {
 		var parts []string
 		for _, run := range para.Runs() {
-			if t := run.Text(); t != "" { parts = append(parts, t) }
+			if t := run.Text(); t != "" {
+				parts = append(parts, t)
+			}
 		}
 		text := strings.TrimSpace(strings.Join(parts, ""))
-		if text == "" { buf.WriteString("\n"); continue }
+		if text == "" {
+			buf.WriteString("\n")
+			continue
+		}
 		style := para.Properties().Style()
 		isBold := false
 		for _, run := range para.Runs() {
-			if run.Properties().IsBold() { isBold = true; break }
+			if run.Properties().IsBold() {
+				isBold = true
+				break
+			}
 		}
 		if strings.Contains(style, "Heading") || strings.Contains(style, "标题") || (isBold && len([]rune(text)) < 60) {
 			buf.WriteString("## " + text + "\n\n")

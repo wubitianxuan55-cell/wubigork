@@ -475,6 +475,8 @@ export function ProposalMoveSection(arg1:string,arg2:string,arg3:number):Promise
 
 export function ProposalParseBidFile(arg1:string):Promise<Record<string, any>>;
 
+export function ProposalParseBidFileWithProgress(arg1:string):Promise<void>;
+
 export function ProposalPolish(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Record<string, any>>;
 
 export function ProposalProjectCreate(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;

@@ -46,11 +46,13 @@ type BidSummary struct {
 }
 
 type FileDoc struct {
-	FileID   string `json:"fileId"`   // files 表 ID（旧数据为空时用 file-<index>）
-	Name     string `json:"name"`     // 文件名
-	Path     string `json:"path"`     // 文件路径（供后端转换用）
-	Markdown string `json:"markdown"` // 转换后的 Markdown（空=未转换）
-	Size     int    `json:"size"`     // 原始大小（字节）
+	FileID    string `json:"fileId"`              // files 表 ID（旧数据为空时用 file-<index>）
+	Name      string `json:"name"`                // 文件名
+	Path      string `json:"path"`                // 文件路径（供后端转换用）
+	Markdown  string `json:"markdown"`            // 转换后的 Markdown（空=未转换）
+	Size      int    `json:"size"`                // 原始大小（字节）
+	Error     string `json:"error,omitempty"`     // 转换失败原因（成功为空）
+	OCRStatus string `json:"ocrStatus,omitempty"` // 空=文本提取；ocr=OCR 识别
 }
 
 type ProposalSection struct {

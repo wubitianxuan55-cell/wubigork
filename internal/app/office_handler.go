@@ -225,6 +225,28 @@ func (a *officeState) ProposalParseBidFile(pid string) (map[string]interface{}, 
 	}
 	return toMap(p), nil
 }
+
+func (a *officeState) ProposalParseBidFileWithProgress(pid string) {
+	if a.proposalSvc == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("office: parse progress goroutine panic recovered", "panic", r)
+			}
+		}()
+		a.emit("proposal-ai-progress", map[string]interface{}{"stage": "start", "detail": "开始 AI 分析"})
+		_, err := a.proposalSvc.ParseBidFileWithProgress(a.ctx, pid, func(stage, detail string) {
+			a.emit("proposal-ai-progress", map[string]interface{}{"stage": stage, "detail": detail})
+		})
+		if err != nil {
+			a.emit("proposal-ai-progress", map[string]interface{}{"stage": "error", "detail": err.Error()})
+			return
+		}
+		a.emit("proposal-ai-progress", map[string]interface{}{"stage": "done", "detail": "AI 分析完成"})
+	}()
+}
 func (a *officeState) ProposalSaveRawText(pid, fp string) (map[string]interface{}, error) {
 	p, err := a.proposalSvc.SaveRawText(pid, fp)
 	if err != nil {
@@ -242,7 +264,7 @@ func (a *officeState) ProposalConvertFiles(pid string) {
 				slog.Error("office: convert files goroutine panic recovered", "panic", r)
 			}
 		}()
-		a.proposalSvc.ConvertFiles(pid, func(cur, total int, name, status string) {
+		a.proposalSvc.ConvertFiles(a.ctx, pid, func(cur, total int, name, status string) {
 			a.emit("proposal-convert-progress", map[string]interface{}{"current": cur, "total": total, "filename": name, "status": status})
 		})
 	}()
