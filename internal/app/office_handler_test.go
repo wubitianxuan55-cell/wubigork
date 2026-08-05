@@ -151,3 +151,30 @@ func TestOfficeArchiveAndAssetsBindings(t *testing.T) {
 		t.Fatal("删除后素材未清空")
 	}
 }
+
+func TestOfficeCheckAllBinding(t *testing.T) {
+	dir := t.TempDir()
+	st := &officeState{proposalSvc: proposal.NewService(dir, nil)}
+	t.Cleanup(func() { _ = officedb.CloseDatabase(filepath.Join(dir, "office")) })
+	proj, err := st.ProposalProjectCreate("项目", "环保工程", "客户")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectID, _ := proj["id"].(string)
+	p, err := st.ProposalCreate("某方案", "blank", "", "环保工程", projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.proposalSvc.SaveProjectFacts(projectID, map[string]string{"工期": "90 日历天"}); err != nil {
+		t.Fatal(err)
+	}
+	pid, _ := p["id"].(string)
+	r, err := st.ProposalCheckAll(pid)
+	if err != nil {
+		t.Fatalf("ProposalCheckAll: %v", err)
+	}
+	items, _ := r["items"].([]proposal.CheckItem)
+	if len(items) == 0 {
+		t.Fatal("ProposalCheckAll 无检查项")
+	}
+}

@@ -3,7 +3,6 @@ package proposal
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -322,40 +321,33 @@ func (s *Service) RemoveRawFile(proposalID string, index int) (*Proposal, error)
 	return p, nil
 }
 
-func (s *Service) CheckCoverage(ctx context.Context, proposalID string) (*Proposal, []CoverageResult, error) {
-	if s.ai == nil {
-		return nil, nil, fmt.Errorf("AI 客户端未初始化")
+// CheckAll 运行全部校验规则，返回统一检查报告
+func (s *Service) CheckAll(ctx context.Context, proposalID string) (*Proposal, []CheckItem, error) {
+	if s.store == nil {
+		return nil, nil, fmt.Errorf("方案存储不可用")
 	}
 	p, err := s.store.Get(proposalID)
 	if err != nil {
 		return nil, nil, err
 	}
-	if p.BidSummary == nil || len(p.BidSummary.TechScoring) == 0 {
-		return nil, nil, fmt.Errorf("未解析招标文件，请先上传并解析招标文件")
-	}
+	items := RunChecks(ctx, p, s.defaultRules())
+	return p, items, nil
+}
 
-	// 收集所有章节内容
-	var allContent strings.Builder
-	for _, sec := range flattenSections(p.Sections) {
-		if sec.Content != "" {
-			allContent.WriteString(fmt.Sprintf("【%s】\n%s\n\n", sec.Title, sec.Content))
-		}
-	}
-	var scoringList strings.Builder
-	for _, item := range p.BidSummary.TechScoring {
-		scoringList.WriteString(fmt.Sprintf("- %s（%s分）：%s\n", item.Name, item.MaxScore, item.Requirement))
-	}
-	sp := fmt.Sprintf("你是环保工程投标评审专家。对照评分标准检查方案：\n%s\n返回 JSON: [{\"name\":\"\",\"maxScore\":\"\",\"covered\":\"full|partial|none\",\"score\":\"\",\"suggestion\":\"\"}]", scoringList.String())
-	reply, err := s.ai.ChatSimpleStream(ctx, "", sp, allContent.String())
+// CheckCoverage 语义覆盖检查（兼容旧绑定，内部走覆盖规则）
+func (s *Service) CheckCoverage(ctx context.Context, proposalID string) (*Proposal, []CoverageResult, error) {
+	p, items, err := s.CheckAll(ctx, proposalID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("AI 检查失败: %w", err)
+		return nil, nil, err
 	}
-	reply = extractJSON(reply)
-	var results []CoverageResult
-	if err := json.Unmarshal([]byte(reply), &results); err != nil {
-		return nil, nil, fmt.Errorf("解析失败: %w", err)
+	var out []CoverageResult
+	for _, it := range items {
+		if it.Rule != "评分覆盖检查" {
+			continue
+		}
+		out = append(out, CoverageResult{Name: it.Message, Covered: it.Status, Suggestion: it.Evidence})
 	}
-	return p, results, nil
+	return p, out, nil
 }
 
 // CoverageResult 覆盖检查结果

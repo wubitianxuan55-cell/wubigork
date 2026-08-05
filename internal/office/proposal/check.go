@@ -63,3 +63,9 @@ func RunChecks(ctx context.Context, p *Proposal, rules []CheckRule) []CheckItem 
 type ruleError struct{ msg string }
 
 func (e *ruleError) Error() string { return e.msg }
+
+// defaultRules 完整规则集：结构化 + AI 语义
+func (s *Service) defaultRules() []CheckRule {
+	return append(s.structuredRules(),
+		ruleFunc{name: "评分覆盖检查", severity: "warning", fn: s.runCoverageRule})
+}

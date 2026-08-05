@@ -70,3 +70,16 @@ func TestStructuredRules(t *testing.T) {
 		t.Fatalf("规范引用规则未执行")
 	}
 }
+
+func TestCheckAll_AggregatesRules(t *testing.T) {
+	s := newServiceAt(t, t.TempDir(), &mockAI{def: "mock"})
+	p, _ := s.Create("方案", "blank", "", "其他")
+	_ = s.store.SaveProjectFacts(p.ProjectID, map[string]string{"工期": "90 日历天"})
+	_, items, err := s.CheckAll(context.Background(), p.ID)
+	if err != nil {
+		t.Fatalf("CheckAll: %v", err)
+	}
+	if len(items) == 0 {
+		t.Fatal("CheckAll 无结果")
+	}
+}

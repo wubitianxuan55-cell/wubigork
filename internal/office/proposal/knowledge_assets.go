@@ -19,8 +19,15 @@ func (s *Service) knowledgeStore() *knowledge.Store {
 	if s.kb != nil {
 		return s.kb
 	}
-	st, err := knowledge.Global().Store()
-	if err != nil {
+	st, err := func() (st *knowledge.Store, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				st, err = nil, fmt.Errorf("知识库不可用: %v", r)
+			}
+		}()
+		return knowledge.Global().Store()
+	}()
+	if err != nil || st == nil {
 		return nil
 	}
 	return st

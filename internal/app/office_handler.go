@@ -268,6 +268,24 @@ func (a *officeState) ProposalCheckCompliance(pid string) (map[string]interface{
 	}
 	return map[string]interface{}{"proposal": toMap(p), "items": items}, nil
 }
+
+func (a *officeState) ProposalCheckAll(pid string) (map[string]interface{}, error) {
+	if a.proposalSvc == nil {
+		return nil, fmt.Errorf("方案服务不可用")
+	}
+	var ctx context.Context
+	if a.core != nil {
+		ctx = a.ctx
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	p, items, err := a.proposalSvc.CheckAll(ctx, pid)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"proposal": toMap(p), "items": items}, nil
+}
 func (a *officeState) ProposalReadFile(path string) (string, error) {
 	return proposal.ReadTextFile(path)
 }
