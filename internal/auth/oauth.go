@@ -52,7 +52,7 @@ type OAuthResult struct {
 // 完整对齐 hermes-agent 的 _xai_oauth_loopback_login + _xai_oauth_discovery 流程:
 //  1. OIDC Discovery 获取真实端点
 //  2. 生成 PKCE code_verifier / code_challenge
-//  3. 打开浏览器让用户授权 (含 plan=generic / referrer=gaea /
+//  3. 打开浏览器让用户授权 (含 plan=generic / referrer=wubigork /
 //     nonce 等 xAI 必要参数)
 //  4. 本机 HTTP server 接收 callback
 //  5. 用 code + code_verifier + code_challenge 换取 token
@@ -196,7 +196,7 @@ func DoLogin(cfg *config.Config) (*OAuthResult, error) {
 //
 // 对齐 hermes-agent 的 _xai_oauth_build_authorize_url：
 // — plan=generic 是 xAI 的关键参数：缺少它，非白名单客户端会被拒绝
-// — referrer=gaea 让 xAI 可以归因 OAuth 来源
+// — referrer=wubigork 是 xAI client 注册的归因标识，不可随品牌名更改（9290b44 曾误改为 gaea 导致 500）
 // — nonce 是 OIDC 规范要求
 func buildAuthURL(authEndpoint string, cfg *config.Config, redirectURI, challenge, state, nonce string) string {
 	params := url.Values{
@@ -209,7 +209,7 @@ func buildAuthURL(authEndpoint string, cfg *config.Config, redirectURI, challeng
 		"state":                 {state},
 		"nonce":                 {nonce},
 		"plan":                  {"generic"}, // 关键！没有此参数 xAI 拒绝 loopback OAuth
-		"referrer":              {"gaea"},    // 归因标识
+		"referrer":              {"wubigork"}, // 归因标识：xAI client 注册值，勿改（改则 token 阶段 500）
 	}
 
 	return authEndpoint + "?" + params.Encode()

@@ -58,7 +58,7 @@ func TestBuildAuthURL(t *testing.T) {
 		"state":                 "test_state",
 		"nonce":                 "test_nonce",
 		"plan":                  "generic", // 关键参数！
-		"referrer":              "gaea",
+		"referrer":              "wubigork", // xAI client 注册的归因标识（品牌重塑不得更改，见 git 9290b44 事故）
 		"scope":                 "openid profile email offline_access grok-cli:access api:access",
 	}
 
