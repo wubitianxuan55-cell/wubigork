@@ -842,6 +842,14 @@ export function ProposalAddSection(arg1, arg2, arg3) {
   return window['go']['app']['App']['ProposalAddSection'](arg1, arg2, arg3);
 }
 
+export function ProposalBatchCancel(arg1) {
+  return window['go']['app']['App']['ProposalBatchCancel'](arg1);
+}
+
+export function ProposalBatchGenerate(arg1) {
+  return window['go']['app']['App']['ProposalBatchGenerate'](arg1);
+}
+
 export function ProposalCheckCompliance(arg1) {
   return window['go']['app']['App']['ProposalCheckCompliance'](arg1);
 }
@@ -874,8 +882,8 @@ export function ProposalGenerateChart(arg1, arg2, arg3) {
   return window['go']['app']['App']['ProposalGenerateChart'](arg1, arg2, arg3);
 }
 
-export function ProposalGenerateOutline(arg1, arg2) {
-  return window['go']['app']['App']['ProposalGenerateOutline'](arg1, arg2);
+export function ProposalGenerateOutline(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['ProposalGenerateOutline'](arg1, arg2, arg3, arg4);
 }
 
 export function ProposalGenerateSection(arg1, arg2, arg3) {
@@ -890,8 +898,16 @@ export function ProposalGet(arg1) {
   return window['go']['app']['App']['ProposalGet'](arg1);
 }
 
+export function ProposalImportOutline(arg1, arg2) {
+  return window['go']['app']['App']['ProposalImportOutline'](arg1, arg2);
+}
+
 export function ProposalList() {
   return window['go']['app']['App']['ProposalList']();
+}
+
+export function ProposalMoveSection(arg1, arg2, arg3) {
+  return window['go']['app']['App']['ProposalMoveSection'](arg1, arg2, arg3);
 }
 
 export function ProposalParseBidFile(arg1) {
@@ -908,6 +924,14 @@ export function ProposalProjectCreate(arg1, arg2, arg3) {
 
 export function ProposalProjectDelete(arg1) {
   return window['go']['app']['App']['ProposalProjectDelete'](arg1);
+}
+
+export function ProposalProjectFactsGet(arg1) {
+  return window['go']['app']['App']['ProposalProjectFactsGet'](arg1);
+}
+
+export function ProposalProjectFactsSet(arg1, arg2) {
+  return window['go']['app']['App']['ProposalProjectFactsSet'](arg1, arg2);
 }
 
 export function ProposalProjectList() {

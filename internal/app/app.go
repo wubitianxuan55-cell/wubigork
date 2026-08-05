@@ -119,6 +119,7 @@ type officeState struct {
 	app *App
 
 	proposalSvc *proposal.Service
+	batchCancel context.CancelFunc
 }
 
 // App Wails 应用实例 — 聚合各域子服务，方法经嵌入提升到 App 供前端绑定。

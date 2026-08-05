@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -102,12 +103,73 @@ func (a *officeState) ProposalUpdate(m map[string]interface{}) error {
 	return a.proposalSvc.Update(fromMap(m))
 }
 func (a *officeState) ProposalDelete(id string) error { return a.proposalSvc.Delete(id) }
-func (a *officeState) ProposalGenerateOutline(pid, req string) (map[string]interface{}, error) {
-	p, err := a.proposalSvc.GenerateOutline(a.ctx, pid, req, "", 0)
+func (a *officeState) ProposalGenerateOutline(pid, req, strategy string, totalWords int) (map[string]interface{}, error) {
+	p, err := a.proposalSvc.GenerateOutline(a.ctx, pid, req, strategy, totalWords)
 	if err != nil {
 		return nil, err
 	}
 	return toMap(p), nil
+}
+
+func (a *officeState) ProposalMoveSection(pid, sid string, delta int) (map[string]interface{}, error) {
+	p, err := a.proposalSvc.MoveSection(pid, sid, delta)
+	if err != nil {
+		return nil, err
+	}
+	return toMap(p), nil
+}
+
+func (a *officeState) ProposalImportOutline(pid, markdown string) (map[string]interface{}, error) {
+	p, err := a.proposalSvc.ImportOutline(pid, markdown)
+	if err != nil {
+		return nil, err
+	}
+	return toMap(p), nil
+}
+
+func (a *officeState) ProposalProjectFactsGet(projectID string) map[string]string {
+	if a.proposalSvc == nil {
+		return nil
+	}
+	facts, err := a.proposalSvc.GetProjectFacts(projectID)
+	if err != nil {
+		return nil
+	}
+	return facts
+}
+
+func (a *officeState) ProposalProjectFactsSet(projectID string, facts map[string]string) error {
+	return a.proposalSvc.SaveProjectFacts(projectID, facts)
+}
+
+func (a *officeState) ProposalBatchGenerate(pid string) {
+	if a.proposalSvc == nil {
+		return
+	}
+	if a.batchCancel != nil {
+		a.batchCancel()
+	}
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.batchCancel = cancel
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("office: batch goroutine panic recovered", "panic", r)
+			}
+		}()
+		_ = a.proposalSvc.RunBatch(ctx, pid, func(cur, total int, sid, status string, words int) {
+			a.emit("proposal-batch-progress", map[string]interface{}{
+				"current": cur, "total": total, "sectionId": sid, "status": status, "words": words,
+			})
+		})
+	}()
+}
+
+func (a *officeState) ProposalBatchCancel(pid string) {
+	if a.batchCancel != nil {
+		a.batchCancel()
+		a.batchCancel = nil
+	}
 }
 func (a *officeState) ProposalGenerateSection(pid, sid, inst string) (map[string]interface{}, error) {
 	p, err := a.proposalSvc.GenerateSection(a.ctx, pid, sid, inst)

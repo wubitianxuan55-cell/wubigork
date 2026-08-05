@@ -80,6 +80,22 @@ func (s *Service) DeleteProject(id string) error {
 	return s.store.DeleteProject(id)
 }
 
+// GetProjectFacts 读取项目事实
+func (s *Service) GetProjectFacts(projectID string) (map[string]string, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("方案存储不可用")
+	}
+	return s.store.GetProjectFacts(projectID)
+}
+
+// SaveProjectFacts 保存项目事实
+func (s *Service) SaveProjectFacts(projectID string, facts map[string]string) error {
+	if s.store == nil {
+		return fmt.Errorf("方案存储不可用")
+	}
+	return s.store.SaveProjectFacts(projectID, facts)
+}
+
 // ─── CRUD ────────────────────────────────────────────────
 
 // Create 创建方案（projectID 为空时挂到「未归档项目」）

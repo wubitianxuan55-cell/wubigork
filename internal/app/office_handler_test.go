@@ -66,3 +66,46 @@ func TestBidSummaryRoundTripKeepsNewFields(t *testing.T) {
 		t.Fatalf("往返丢失新字段: %+v", got)
 	}
 }
+
+func TestOfficeOutlineAndFactsBindings(t *testing.T) {
+	dir := t.TempDir()
+	st := &officeState{proposalSvc: proposal.NewService(dir, nil)}
+	t.Cleanup(func() { _ = officedb.CloseDatabase(filepath.Join(dir, "office")) })
+
+	proj, err := st.ProposalProjectCreate("项目", "环保工程", "客户")
+	if err != nil {
+		t.Fatalf("ProposalProjectCreate: %v", err)
+	}
+	projectID, _ := proj["id"].(string)
+	p, err := st.ProposalCreate("方案", "blank", "", "环保工程", projectID)
+	if err != nil {
+		t.Fatalf("ProposalCreate: %v", err)
+	}
+	proposalID, _ := p["id"].(string)
+
+	imported, err := st.ProposalImportOutline(proposalID, "# 第一章\n## 1.1\n# 第二章\n")
+	if err != nil {
+		t.Fatalf("ProposalImportOutline: %v", err)
+	}
+	secs, _ := imported["sections"].([]map[string]interface{})
+	if len(secs) != 2 {
+		t.Fatalf("导入章节数 = %d, want 2", len(secs))
+	}
+	firstID, _ := secs[0]["id"].(string)
+	moved, err := st.ProposalMoveSection(proposalID, firstID, 1)
+	if err != nil {
+		t.Fatalf("ProposalMoveSection: %v", err)
+	}
+	movedSecs, _ := moved["sections"].([]map[string]interface{})
+	if movedSecs[0]["title"] != "第二章" {
+		t.Fatalf("移动后首章异常: %+v", movedSecs)
+	}
+
+	if err := st.ProposalProjectFactsSet(projectID, map[string]string{"工期": "90 天"}); err != nil {
+		t.Fatalf("ProposalProjectFactsSet: %v", err)
+	}
+	facts := st.ProposalProjectFactsGet(projectID)
+	if facts["工期"] != "90 天" {
+		t.Fatalf("ProposalProjectFactsGet 异常: %+v", facts)
+	}
+}

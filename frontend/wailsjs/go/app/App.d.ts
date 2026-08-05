@@ -429,6 +429,10 @@ export function ParseLinks(arg1:string):Promise<Array<string>>;
 
 export function ProposalAddSection(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;
 
+export function ProposalBatchCancel(arg1:string):Promise<void>;
+
+export function ProposalBatchGenerate(arg1:string):Promise<void>;
+
 export function ProposalCheckCompliance(arg1:string):Promise<Record<string, any>>;
 
 export function ProposalCheckCoverage(arg1:string):Promise<Record<string, any>>;
@@ -445,7 +449,7 @@ export function ProposalExportDocx(arg1:string):Promise<string>;
 
 export function ProposalGenerateChart(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;
 
-export function ProposalGenerateOutline(arg1:string,arg2:string):Promise<Record<string, any>>;
+export function ProposalGenerateOutline(arg1:string,arg2:string,arg3:string,arg4:number):Promise<Record<string, any>>;
 
 export function ProposalGenerateSection(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;
 
@@ -453,7 +457,11 @@ export function ProposalGenerateSectionStream(arg1:string,arg2:string,arg3:strin
 
 export function ProposalGet(arg1:string):Promise<Record<string, any>>;
 
+export function ProposalImportOutline(arg1:string,arg2:string):Promise<Record<string, any>>;
+
 export function ProposalList():Promise<Array<Record<string, any>>>;
+
+export function ProposalMoveSection(arg1:string,arg2:string,arg3:number):Promise<Record<string, any>>;
 
 export function ProposalParseBidFile(arg1:string):Promise<Record<string, any>>;
 
@@ -462,6 +470,10 @@ export function ProposalPolish(arg1:string,arg2:string,arg3:string,arg4:string):
 export function ProposalProjectCreate(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;
 
 export function ProposalProjectDelete(arg1:string):Promise<void>;
+
+export function ProposalProjectFactsGet(arg1:string):Promise<Record<string, string>>;
+
+export function ProposalProjectFactsSet(arg1:string,arg2:Record<string, string>):Promise<void>;
 
 export function ProposalProjectList():Promise<Array<Record<string, any>>>;
 
