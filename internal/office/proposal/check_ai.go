@@ -28,7 +28,12 @@ func (s *Service) runCoverageRule(ctx context.Context, p *Proposal) ([]CheckItem
 	if err != nil {
 		return nil, err
 	}
-	reply = extractJSON(reply)
+	raw := strings.TrimSpace(reply)
+	if strings.HasPrefix(raw, "[") {
+		reply = raw
+	} else {
+		reply = extractJSON(raw)
+	}
 	var results []struct {
 		Name       string `json:"name"`
 		MaxScore   string `json:"maxScore"`
@@ -36,7 +41,21 @@ func (s *Service) runCoverageRule(ctx context.Context, p *Proposal) ([]CheckItem
 		Suggestion string `json:"suggestion"`
 	}
 	if err := json.Unmarshal([]byte(reply), &results); err != nil {
-		return nil, fmt.Errorf("解析覆盖检查失败: %w", err)
+		// 兼容对象包裹 {"results":[...]}
+		var wrapped struct {
+			Results []struct {
+				Name       string `json:"name"`
+				MaxScore   string `json:"maxScore"`
+				Covered    string `json:"covered"`
+				Suggestion string `json:"suggestion"`
+			} `json:"results"`
+		}
+		if err2 := json.Unmarshal([]byte(reply), &wrapped); err2 != nil {
+			return nil, fmt.Errorf("解析覆盖检查失败: %w", err)
+		}
+		for _, r := range wrapped.Results {
+			results = append(results, r)
+		}
 	}
 	var out []CheckItem
 	for _, r := range results {

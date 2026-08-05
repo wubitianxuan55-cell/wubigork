@@ -159,6 +159,9 @@ func decodeParseResult(reply string) parseFileResult {
 }
 
 func mergeParseResults(a, b parseFileResult) parseFileResult {
+	if a.TotalWords == 0 {
+		a.TotalWords = b.TotalWords
+	}
 	if a.Overview == "" {
 		a.Overview = b.Overview
 		a.OverviewQuote = b.OverviewQuote
