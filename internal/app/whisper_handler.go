@@ -54,6 +54,12 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 	whisperSessionsMu.RUnlock()
 
 	preset := whisper.GetPreset(personalityID)
+	// 全局角色库优先：库内角色（含可编辑的内置人格）直接作为聊天人格
+	if a.charLib != nil {
+		if c, err := a.charLib.Get(personalityID); err == nil && c != nil && !c.Hidden && c.ChatEnabled {
+			preset = c.ToPreset()
+		}
+	}
 	if preset == nil {
 		preset = whisper.GetPreset("gaea")
 	}
@@ -96,6 +102,19 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 }
 
 func (a *whisperState) WhisperGetPersonalities() []whisper.PersonalityPreset {
+	// 统一人格列表 = 角色库中可聊天角色（内置人格已种子化进库，可在库内编辑）
+	if a.charLib != nil {
+		items := a.charLib.ListChatEnabled()
+		out := make([]whisper.PersonalityPreset, 0, len(items))
+		for i := range items {
+			if p := items[i].ToPreset(); p != nil {
+				out = append(out, *p)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
 	return whisper.PersonalityPresets
 }
 

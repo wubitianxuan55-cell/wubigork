@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 13:55:00
+> 最后更新: 2026-08-07 14:10:00
 
 ## 2.0 P0 基线加固（✅ 已完成）
 
@@ -141,13 +141,18 @@
 - 无障碍/防降级：消息区 `role="log" aria-live="polite"`、focus-visible 环、`prefers-reduced-motion` 禁用打字机与入场动画、`prefers-reduced-transparency` 玻璃降级；emoji 图标全部替换为 antd icons
 - 验收：新增 4 个测试（ChatImportTopic 导入/跳过非法角色、ChatTopicSetMode、ChatTopicClear）；E16 守卫迁移到 ChatPage + 新增 E25 合并不变量守卫；`scripts/ci.ps1` CI OK；`wails build` 成功（build/bin/gaea.exe 38MB）
 
-## 2.10 角色库（小说角色 × 轻语角色统一，✅ 已完成，2026-08-07）
+## 2.10 全局统一角色库（架构重构版，✅ 已完成，2026-08-07）
 
-- 市场调研：`docs/market-research-2026-08-character-library.md`——角色卡是"角色资产单一事实源"：Sudowrite 证明角色卡须是 AI 实时引用的结构化画像（对话样本 > 特质列表、跨章注入、随弧线更新）；Character.AI 定义"人格+说话方式+行为规则+情感逻辑"；QMAI 做角色状态快照一致性审计；lore-weave 按"在场角色"注入关系图谱。文档第 5/6 节给出小说与聊天各自使用角色的落地路径
-- 新页面 `CharacterLibraryPage.tsx`：双 Tab（小说角色 + 轻语角色）。小说 Tab 复用 CharacterCard/CharacterEditor/PortraitLightbox，支持筛选/AI 生成/新建/剧照/编辑/AI 补全/导入轻语，未开项目显示引导空态；轻语 Tab 人格预设只读卡片（五维雷达 + 设为当前）+ `WhisperRolePanel` 管理面板（原 AssistantManagerModal 页面化，列表/详情/编辑/新建成人/微信扫码/配对码/剧照/导出到小说/设为当前人格）
-- 导航：MainLayout 菜单新增「角色库」（TeamOutlined，模型中心之后），ChatPage 的「虚拟助手管理」入口与人格空态按钮均改为跳转角色库；`gaea-persona-changed` 事件 + localStorage 实现角色库 ↔ 聊天人格联动
-- 数据零后端改动：小说角色仍落项目 `characters.json`，轻语角色走 assistant 存储；`PortraitLightbox imageUrl` 笔误修复；删除被替代的死代码 AssistantManagerModal / WhisperPersonalityModal / PersonalityPreview（git 可恢复）
-- 验收：`npm run build`、`scripts/ci.ps1` CI OK、`wails build` 成功
+> 推翻 2.10 初版"双 Tab 套壳"设计，按用户三点反馈重构：①角色不绑定小说；②面向大量角色；③小说角色与轻语角色是同一资产。
+
+- **统一数据模型**：新增 `internal/characterlib`（SQLite `characterlib.db`）。一张 `characters` 表承载全部角色——小说字段（定位/性格/背景/外貌/身材/动机/弧线/状态/备注/对话样本）+ 聊天字段（五维 TISOR/口吻指南/行为规则/情感逻辑/可聊天）长在同一行，另有来源类型（builtin/custom/assistant）、剧照、标签、时间戳
+- **角色全局化，小说只是引用**：`project_characters` 关联表（项目目录 + 角色 + 项目内定位/弧线状态/状态），同一角色可被多本小说引用，删除小说页角色只移除引用、角色保留在库；项目 `characters.json` 变为从库物化的工作副本，小说 Agent 注入链路零改动
+- **聊天直接用库**：29 个内置人格启动种子化为可编辑角色；`getOrCreateOrch` 优先从库解析人格（`ToPreset` 把行为规则/情感逻辑并入 voiceGuide）；`WhisperGetPersonalities` 返回库内可聊天角色，聊天人格列表与角色库同源；assistant 记录降级为"微信通道配置"（CharacterSave 自动同步/创建 assistant）
+- **面向大量角色**：分页查询 + 名称/标签/性格搜索 + 类型筛选 + 可聊天筛选；`CharacterList` 绑定分页返回
+- **双向一致**：打开/新建项目自动导入（幂等，按 ID 优先、名称去重合并，薄记录不覆盖丰富全局字段）；小说页 SaveCharacter/DeleteCharacter/GenerateCharacters/ChatCharacter 写后自动回写全局库；角色库"同步到项目"把引用物化回 characters.json
+- **前端重写**：单一统一列表（搜索/筛选/分页/统一卡片），统一编辑器 `CharacterLibEditor`（基础/小说/聊天三段 + 五维滑杆 + 剧照 + 对话样本）；操作：设为聊天人格、加入当前项目/移出、同步、导入、删除（内置软隐藏）；删除初版双 Tab 与 WhisperRolePanel
+- 新增绑定：CharacterList/Get/Save/Delete、ImportProject/ListByProject/Associate/Dissociate/SyncProject
+- 验收：新增 10 个回归测试（characterlib 种子幂等/搜索筛选分页/内置软删自定义硬删/导入去重幂等/项目弧线状态物化/助手镜像/ToPreset；App 层保存→助手+聊天桥接、跨项目引用、物化回写、JSON 往返）；`scripts/ci.ps1` CI OK；`wails build` 成功（build/bin/gaea.exe 38MB）
 
 ## 2.11 去除成人限制（私人非商用，✅ 已完成，2026-08-07）
 

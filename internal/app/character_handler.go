@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gaea/gaea/internal/types"
@@ -21,6 +22,7 @@ func (a *writingState) ChatCharacter(userMsg string) (map[string]interface{}, er
 		return nil, err
 	}
 	cf := a.characterAgent.GetCharacters()
+	_ = a.app.syncCurrentProjectToLibrary() // 角色 Agent 可能自动保存新角色 → 回写全局库
 	if cf == nil {
 		return map[string]interface{}{"reply": reply}, nil
 	}
@@ -45,6 +47,7 @@ func (a *writingState) GenerateCharacters(count int) (map[string]interface{}, er
 	if err != nil {
 		return nil, err
 	}
+	_ = a.app.syncCurrentProjectToLibrary() // 批量生成的角色进入全局库 + 项目引用
 	return map[string]interface{}{
 		"characters":    cf.Characters,
 		"organizations": cf.Organizations,
@@ -61,7 +64,10 @@ func (a *writingState) SaveCharacter(chJSON string) error {
 	if err := json.Unmarshal([]byte(chJSON), &ch); err != nil {
 		return fmt.Errorf("解析角色数据失败: %w", err)
 	}
-	return a.characterAgent.SaveCharacter(ch)
+	if err := a.characterAgent.SaveCharacter(ch); err != nil {
+		return err
+	}
+	return a.app.syncCurrentProjectToLibrary()
 }
 
 // DeleteCharacter 删除角色
@@ -69,7 +75,14 @@ func (a *writingState) DeleteCharacter(id string) error {
 	if a.characterAgent == nil {
 		return fmt.Errorf("请先打开项目")
 	}
-	return a.characterAgent.DeleteCharacter(id)
+	if err := a.characterAgent.DeleteCharacter(id); err != nil {
+		return err
+	}
+	// 小说页删除 = 从项目移除引用；角色本身保留在全局库
+	if err := a.app.CharacterDissociate(id); err != nil {
+		slog.Warn("删除角色后同步角色库失败（角色保留在库中）", "error", err)
+	}
+	return nil
 }
 
 // GenerateSingleCharacter 随机生成单个角色详情

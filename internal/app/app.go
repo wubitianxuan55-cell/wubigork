@@ -19,6 +19,7 @@ import (
 	"github.com/gaea/gaea/internal/channels/weixin"
 	"github.com/gaea/gaea/internal/chapter"
 	"github.com/gaea/gaea/internal/character"
+	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/modelengine"
@@ -29,6 +30,7 @@ import (
 	"github.com/gaea/gaea/internal/prompt"
 	"github.com/gaea/gaea/internal/skill"
 	"github.com/gaea/gaea/internal/voice"
+	"github.com/gaea/gaea/internal/whisper"
 	"github.com/gaea/gaea/internal/worldview"
 )
 
@@ -44,6 +46,9 @@ type core struct {
 
 	// 统一聊天会话存储（聊天/轻语合并：话题 + 消息）
 	chatStore *chat.Store
+
+	// 全局统一角色库（小说 × 聊天共享的角色资产）
+	charLib *characterlib.Store
 
 	// 前端静态资源
 	distFS fs.FS
@@ -208,6 +213,17 @@ func (a *App) Startup(ctx context.Context) {
 	a.initVoice()
 	a.initWeixin()
 
+	// 全局角色库：内置人格 + 助手全部种子化为统一角色
+	a.charLib = characterlib.NewStore(filepath.Join(a.whisperDataRoot, "characterlib"))
+	if a.charLib != nil {
+		if err := a.charLib.EnsureBuiltins(whisper.PersonalityPresets); err != nil {
+			slog.Error("角色库种子化内置角色失败", "error", err)
+		}
+		if err := a.charLib.EnsureAssistants(a.assistantMgr.List(), whisper.PersonalityPresets); err != nil {
+			slog.Error("角色库同步助手失败", "error", err)
+		}
+	}
+
 	// 初始化方案编写模块
 	a.proposalSvc = proposal.NewService(a.whisperDataRoot, a.client)
 	// 统一聊天会话存储（chat.db）
@@ -287,6 +303,9 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 	if err := chat.CloseDatabase(filepath.Join(a.whisperDataRoot, "chat")); err != nil {
 		slog.Error("关闭 chat.db 失败", "error", err)
+	}
+	if err := characterlib.CloseDatabase(filepath.Join(a.whisperDataRoot, "characterlib")); err != nil {
+		slog.Error("关闭 characterlib.db 失败", "error", err)
 	}
 }
 

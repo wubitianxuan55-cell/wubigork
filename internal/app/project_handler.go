@@ -14,6 +14,7 @@ func (a *App) CreateProject(dir, title, genre, style string) (map[string]interfa
 	}
 	a.setPM(pm)
 	a.initAgents()
+	_ = a.syncCurrentProjectToLibrary() // 项目角色自动进全局库（幂等）
 	return map[string]interface{}{
 		"title": pm.Meta.Title,
 		"genre": pm.Meta.Genre,
@@ -31,6 +32,7 @@ func (a *App) OpenProject(dir string) (map[string]interface{}, error) {
 	}
 	a.setPM(pm)
 	a.initAgents()
+	_ = a.syncCurrentProjectToLibrary() // 打开即导入：项目只是引用，角色属于全局库
 	return map[string]interface{}{
 		"title": pm.Meta.Title,
 		"genre": pm.Meta.Genre,

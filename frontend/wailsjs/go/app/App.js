@@ -46,6 +46,42 @@ export function BuildRichContext(arg1, arg2) {
   return window['go']['app']['App']['BuildRichContext'](arg1, arg2);
 }
 
+export function CharacterAssociate(arg1, arg2) {
+  return window['go']['app']['App']['CharacterAssociate'](arg1, arg2);
+}
+
+export function CharacterDelete(arg1) {
+  return window['go']['app']['App']['CharacterDelete'](arg1);
+}
+
+export function CharacterDissociate(arg1) {
+  return window['go']['app']['App']['CharacterDissociate'](arg1);
+}
+
+export function CharacterGet(arg1) {
+  return window['go']['app']['App']['CharacterGet'](arg1);
+}
+
+export function CharacterImportProject() {
+  return window['go']['app']['App']['CharacterImportProject']();
+}
+
+export function CharacterList(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['App']['CharacterList'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function CharacterListByProject() {
+  return window['go']['app']['App']['CharacterListByProject']();
+}
+
+export function CharacterSave(arg1) {
+  return window['go']['app']['App']['CharacterSave'](arg1);
+}
+
+export function CharacterSyncProject() {
+  return window['go']['app']['App']['CharacterSyncProject']();
+}
+
 export function Chat(arg1, arg2) {
   return window['go']['app']['App']['Chat'](arg1, arg2);
 }
