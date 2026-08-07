@@ -6,7 +6,7 @@ frontend/dist/
 frontend/node_modules/
 node_modules/
 package-lock.json
-package.json
+/package.json
 *.tsbuildinfo
 frontend/package.json.md5
 dist/

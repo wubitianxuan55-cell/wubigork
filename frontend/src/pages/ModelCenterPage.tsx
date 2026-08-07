@@ -401,7 +401,7 @@ const ModelCenterPage: React.FC = () => {
                           style={{ flex: 1, minWidth: 0 }}
                           options={engines.filter(e => e.enabled).map(e => ({ value: e.id, label: engineLabels[e.id] || e.id }))} />
                         <Select size="small" placeholder="模型" value={draft.model || undefined}
-                          onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { ...(p[f.key] || {}), model: v } }))}
+                          onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: p[f.key]?.engine || '', model: v } }))}
                           style={{ flex: 1, minWidth: 0 }}
                           options={engineModels.map(m => ({ value: m.modelId, label: m.modelName }))} />
                       </div>
