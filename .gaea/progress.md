@@ -77,3 +77,11 @@
 - 前端：`useFeatureModel` 返回 enabled 并监听事件；FeatureModelBar 状态细分「运行中/已停用/引擎已停用/未绑定」，启停调功能级接口；模型中心「功能绑定」卡片新增启用开关
 - 绑定：wailsjs 再生成（`wails build`），仅新增 Get/SetFeatureModelEnabled 两个方法
 - 验收：新增 6 个回归测试（enabled 配置往返/停用回退全局/重绑恢复/未知功能报错/持久化），E03/E09/E10 路由回归保持绿，`scripts/ci.ps1` CI OK
+
+## 2.3 Cmd+K 编辑引擎路由（✅ 已完成，2026-08-07）
+
+- 修复 P1 已知限制「CmdKEdit 无 EngineID 参数」：此前 `Client.CmdKEdit` 只用模型名、引擎随活跃引擎，`App.CmdKEdit` 直接传全局 `cfg.Model`——小说编辑器里的 AI 改写完全忽略 novel 功能绑定
+- `Client.CmdKEdit` 新增 engineID 参数并透传 `ChatSimpleOptions.EngineID`（空=活跃引擎回退，兼容既有调用）
+- `App.CmdKEdit` 改走 `routeModel("novel")`：绑定引擎+模型进入请求，模型名不再取全局陈旧值
+- 防御：`a.ctx` 为空时回退 `context.Background()`（测试/异常路径不 panic）
+- 验收：新增 2 个回归测试（ai 层 EngineID 路由命中绑定引擎、app 层 novel 绑定生效且不误走 xAI），`scripts/ci.ps1` CI OK
