@@ -64,6 +64,15 @@ func CountEpisodesInDB(dataRoot string) int {
 
 // LoadEpisodesFromDB 加载全部情节（按创建时间升序）
 func LoadEpisodesFromDB(dataRoot string) ([]whisper.Episode, error) {
+	return queryEpisodes(dataRoot, "")
+}
+
+// LoadEpisodesFromDBForSession 按会话加载情节（角色记忆隔离：每个角色只恢复自己的）
+func LoadEpisodesFromDBForSession(dataRoot, sessionID string) ([]whisper.Episode, error) {
+	return queryEpisodes(dataRoot, "WHERE source_session_id = ?", sessionID)
+}
+
+func queryEpisodes(dataRoot, where string, args ...interface{}) ([]whisper.Episode, error) {
 	sqlDB := db.GetDatabase(dataRoot)
 	if sqlDB == nil {
 		return nil, fmt.Errorf("数据库不可用")
@@ -71,7 +80,7 @@ func LoadEpisodesFromDB(dataRoot string) ([]whisper.Episode, error) {
 
 	rows, err := sqlDB.Query(`SELECT id, summary, emotional_intensity, dominant_emotion, keywords,
 		prev_episode_id, source_session_id, start_turn, end_turn, created_at
-		FROM episodes ORDER BY created_at ASC`)
+		FROM episodes `+where+` ORDER BY created_at ASC`, args...)
 	if err != nil {
 		return nil, err
 	}

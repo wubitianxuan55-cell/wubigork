@@ -147,6 +147,15 @@ func CountFactsInDB(dataRoot string) int {
 
 // LoadFactsFromDB 加载全部记忆事实
 func LoadFactsFromDB(dataRoot string) []whisper.MemoryFact {
+	return queryFacts(dataRoot, "")
+}
+
+// LoadFactsFromDBForSession 按会话加载记忆事实（角色记忆隔离：每个角色只恢复自己的）
+func LoadFactsFromDBForSession(dataRoot, sessionID string) []whisper.MemoryFact {
+	return queryFacts(dataRoot, "WHERE source_session_id = ?", sessionID)
+}
+
+func queryFacts(dataRoot, where string, args ...interface{}) []whisper.MemoryFact {
 	sqlDB := db.GetDatabase(dataRoot)
 	if sqlDB == nil {
 		return nil
@@ -157,7 +166,7 @@ func LoadFactsFromDB(dataRoot string) []whisper.MemoryFact {
 		source_session_id, source_turn_index, created_at, updated_at,
 		derived_from, fact_layer, tier, sensitivity, privacy_level,
 		age_value, age_birth_year, age_birthday_mmdd, age_recorded_at, age_is_estimate
-		FROM memory_facts`)
+		FROM memory_facts `+where, args...)
 	if err != nil {
 		return nil
 	}

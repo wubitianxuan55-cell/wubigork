@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 14:40:00
+> 最后更新: 2026-08-07 14:50:00
 
 ## 2.0 P0 基线加固（✅ 已完成）
 
@@ -170,6 +170,15 @@
 - 清理聊天内残留管理入口文案：「虚拟助手管理」→「角色库管理」，空状态改为「选择角色」+「去角色库管理角色」
 - 审计结论（供下一步决策）：人格注入为结构化分块（口吻指南 + 角色状态 Tier A + 心理状态 + Tier B 记忆块 + 运行时上下文）；记忆按 `whisper_<角色ID>` 隔离状态/历史，但**事实/情节/知识图谱恢复时未按会话过滤**（`LoadFactsFromDB` 全量加载），存在跨角色事实串扰——待确认语义后修复
 - 验收：`npm run build`、`scripts/ci.ps1` CI OK、`wails build` 成功（build/bin/gaea.exe 38MB）
+
+## 2.14 角色记忆隔离（方案 A：每个角色只恢复/保存自己的记忆，✅ 已完成，2026-08-07）
+
+- 用户确认方案 A：事实/情节/知识图谱全部按角色会话隔离，不做跨角色共享
+- 恢复侧：新增 `LoadFactsFromDBForSession` / `LoadEpisodesFromDBForSession`（按 `source_session_id` 过滤）；知识图谱表无会话列，按三元组 `source_fact_ids` 命中本会话事实 ID 过滤归属；每个角色只灌入自己的记忆
+- 持久化侧：事实维持按 ID 合并；**情节从全量替换改为按会话合并**（本会话内存版替换，其他会话保留 DB 版）；**知识图谱从全量替换改为按归属合并**（命中本会话事实的三元组以内存为准，其余保留），杜绝 A 角色写回时冲掉 B 角色的记忆
+- 无来源事实的三元组视为全局遗留：不注入任何角色、也不在写回时删除（保守保留）
+- 更新既有 `TestWhisperMemoryPersistRoundTrip` 为隔离语义；新增 `TestWhisperMemoryRestore_IsolatedBySession` / `TestWhisperPersist_PreservesOtherSessions`
+- 验收：`go test ./...`、`scripts/ci.ps1` CI OK、`wails build` 成功（build/bin/gaea.exe 38MB）
 
 ## 2.11 去除成人限制（私人非商用，✅ 已完成，2026-08-07）
 

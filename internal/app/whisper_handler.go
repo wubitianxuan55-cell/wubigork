@@ -663,17 +663,31 @@ func restoreWhisperState(orch *whisper.Orchestrator) error {
 			TurnIndex: int(ti), UserText: ut, AssistantText: at,
 		})
 	}
-	// 记忆贯通：始终尝试恢复事实库/情节库/知识图谱（不受 state/rows 缺失影响）
-	if facts := repos.LoadFactsFromDB(orch.DataRoot); len(facts) > 0 {
+	// 角色记忆隔离：事实/情节按会话加载，知识图谱按归属事实过滤——
+	// 每个角色只恢复自己的记忆，不串其他角色
+	facts := repos.LoadFactsFromDBForSession(orch.DataRoot, orch.SessionID)
+	if len(facts) > 0 {
 		orch.FactStore.Restore(facts)
 	}
-	if eps, err := repos.LoadEpisodesFromDB(orch.DataRoot); err == nil && len(eps) > 0 {
+	ownFactIDs := make(map[string]bool, len(facts))
+	for _, f := range facts {
+		ownFactIDs[f.ID] = true
+	}
+	if eps, err := repos.LoadEpisodesFromDBForSession(orch.DataRoot, orch.SessionID); err == nil && len(eps) > 0 {
 		for _, ep := range eps {
 			orch.EpisodicStore.Add(ep)
 		}
 	}
 	if tris, err := repos.LoadTriplesFromDB(orch.DataRoot); err == nil && len(tris) > 0 {
-		orch.KG.Restore(tris)
+		var mine []whisper.Triple
+		for _, t := range tris {
+			if tripleOwnedBySession(t, ownFactIDs) {
+				mine = append(mine, t)
+			}
+		}
+		if len(mine) > 0 {
+			orch.KG.Restore(mine)
+		}
 	}
 	return nil
 }
@@ -692,7 +706,7 @@ func persistWhisperState(orch *whisper.Orchestrator) {
 		}
 		_ = repos.SaveChatHistoryToDB(orch.DataRoot, orch.SessionID, rows)
 	}
-	// 记忆贯通：事实库合并写回（本会话事实以内存为准，保留其他会话），情节/图谱全量写回
+	// 记忆贯通：事实/情节/图谱均按会话合并写回，其他角色的记忆不被覆盖
 	persistFactsToDB(orch)
 	persistEpisodesToDB(orch)
 	persistKGToDB(orch)
@@ -721,19 +735,63 @@ func persistFactsToDB(orch *whisper.Orchestrator) {
 	_ = repos.RebuildFactsFTS(orch.DataRoot)
 }
 
-// persistEpisodesToDB 情节全量写回（每会话 store 均为全局快照 + 新增，冲突窗口极小）
+// persistEpisodesToDB 情节按会话合并写回：本会话以内存为准，其他会话保留 DB 版
 func persistEpisodesToDB(orch *whisper.Orchestrator) {
-	if eps := orch.EpisodicStore.ListAll(); len(eps) > 0 {
-		_ = repos.ReplaceEpisodesInDB(orch.DataRoot, eps)
+	eps := orch.EpisodicStore.ListAll()
+	dbEps, err := repos.LoadEpisodesFromDB(orch.DataRoot)
+	merged := make([]whisper.Episode, 0, len(dbEps)+len(eps))
+	if err == nil {
+		for _, e := range dbEps {
+			if e.SourceSessionID == orch.SessionID {
+				continue // 本会话情节由内存版提供
+			}
+			merged = append(merged, e)
+		}
+	}
+	merged = append(merged, eps...)
+	if len(merged) > 0 {
+		_ = repos.ReplaceEpisodesInDB(orch.DataRoot, merged)
 		// FTS 全文索引重建：情节写回后让 episodes_fts 与主表同步
 		_ = repos.RebuildEpisodesFTS(orch.DataRoot)
 	}
 }
-// persistKGToDB 知识图谱全量写回（三元组从 facts 派生，每会话 KG 为全局快照 + 增量）
+
+// persistKGToDB 知识图谱按归属合并写回：三元组从 facts 派生，
+// 归属本会话（source_fact_ids 命中本会话事实）的以内存为准，其余保留 DB 版
 func persistKGToDB(orch *whisper.Orchestrator) {
-	if tris := orch.KG.ListAll(); len(tris) > 0 {
-		_ = repos.ReplaceTriplesInDB(orch.DataRoot, tris)
+	tris := orch.KG.ListAll()
+	ownFactIDs := make(map[string]bool)
+	for _, f := range orch.FactStore.ListAll() {
+		ownFactIDs[f.ID] = true
 	}
+	dbTris, err := repos.LoadTriplesFromDB(orch.DataRoot)
+	merged := make([]whisper.Triple, 0, len(dbTris)+len(tris))
+	if err == nil {
+		for _, t := range dbTris {
+			if tripleOwnedBySession(t, ownFactIDs) {
+				continue // 本会话三元组由内存版提供
+			}
+			merged = append(merged, t)
+		}
+	}
+	merged = append(merged, tris...)
+	if len(merged) > 0 {
+		_ = repos.ReplaceTriplesInDB(orch.DataRoot, merged)
+	}
+}
+
+// tripleOwnedBySession 判断三元组是否归属某会话（source_fact_ids 命中该会话任一事实）。
+// 无来源事实的三元组视为全局遗留，不归属任何会话。
+func tripleOwnedBySession(t whisper.Triple, factIDs map[string]bool) bool {
+	if len(t.SourceFactIDs) == 0 {
+		return false
+	}
+	for _, id := range t.SourceFactIDs {
+		if factIDs[id] {
+			return true
+		}
+	}
+	return false
 }
 func buildRecentExchanges(orch *whisper.Orchestrator) []whisper.ExchangePair {
 	exs := orch.WM.GetAll(orch.SessionID)
