@@ -47,11 +47,13 @@ func builtinSkills() []Skill {
 
 ## 可用工具
 - chart_gen：生成 matplotlib 图表（bar/line/pie/scatter）
+- read_file / ls / bash：读取数据（xlsx/csv 用 bash + python 的 openpyxl/pandas 提取，再喂给 chart_gen）
 
 ## 操作方式
 1. 确认数据类别和数值
-2. 选择合适的图表类型
-3. 使用 chart_gen 工具生成并保存图片
+2. 数据在表格文件（xlsx/csv）中时，先用 bash + python 提取为 labels/values
+3. 选择合适的图表类型（bar/line/pie/scatter）
+4. 使用 chart_gen 工具生成并保存图片
 
 ## 最终输出
 - 返回图片文件路径
@@ -65,7 +67,7 @@ func builtinSkills() []Skill {
 			Scope:        ScopeBuiltin,
 			Path:         "(builtin)",
 			RunAs:        RunSubagent,
-			AllowedTools: []string{"chart_gen", "read_file", "write_file", "xlsx_read", "csv_parse"},
+			AllowedTools: []string{"chart_gen", "read_file", "write_file", "bash", "ls"},
 		},
 		{
 			Name:        "doc-assemble",
@@ -73,15 +75,17 @@ func builtinSkills() []Skill {
 			Body: `你作为文档拼装子代理运行。将多份文档素材拼装为完整报告。
 
 ## 可用工具
-- doc_merge：合并多个 docx 文档
-- read_file / write_file：读取和写入 Markdown 片段
-- docx_write：将最终 Markdown 输出为 docx
+- read_file / ls：读取素材片段
+- format_convert：将 docx/xlsx/pdf 源文件转成 Markdown 片段
+- write_file：写出拼装好的 Markdown 报告
+- bash：按需把最终 Markdown 转成 docx（全局 node 'docx' 库或 LibreOffice soffice）
 
 ## 操作方式
 1. 收集所有文档片段（Markdown 或 docx）
 2. 按报告结构组织：封面→目录→正文→附录
-3. 使用 doc_merge 合并 docx 文件，或手动拼装 Markdown
-4. 使用 docx_write 输出最终文档
+3. docx 源先用 format_convert 转为 Markdown
+4. 手动拼装 Markdown，用 write_file 输出报告（默认 .md）
+5. 用户明确要 .docx 时，再用 bash 调用 node 'docx' 或 soffice 转换
 
 ## 最终输出
 - 返回完整报告文件路径
@@ -95,7 +99,7 @@ func builtinSkills() []Skill {
 			Scope:        ScopeBuiltin,
 			Path:         "(builtin)",
 			RunAs:        RunSubagent,
-			AllowedTools: []string{"doc_merge", "docx_write", "docx_read", "read_file", "write_file", "format_convert"},
+			AllowedTools: []string{"read_file", "write_file", "format_convert", "bash", "ls"},
 		},
 	}
 }

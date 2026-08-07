@@ -154,10 +154,10 @@ func TestBuiltinSubagentSkillsDeclareAllowedTools(t *testing.T) {
 			"format_convert", "read_file", "write_file",
 		},
 		"chart-builder": {
-			"chart_gen", "read_file", "write_file", "xlsx_read", "csv_parse",
+			"chart_gen", "read_file", "write_file", "bash", "ls",
 		},
 		"doc-assemble": {
-			"doc_merge", "docx_write", "docx_read", "read_file", "write_file", "format_convert",
+			"read_file", "write_file", "format_convert", "bash", "ls",
 		},
 	}
 	for name, want := range cases {

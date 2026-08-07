@@ -7,13 +7,7 @@ const REPORT_EXTS = [".md", ".docx", ".xlsx", ".csv", ".pdf", ".pptx", ".html", 
 
 function getSourceTool(name: string): string {
   const n = name.toLowerCase();
-  if (n.includes("survey") || n.includes("调查") || n.includes("初调") || n.includes("详调")) return "survey_report";
-  if (n.includes("bid") || n.includes("投标") || n.includes("标书")) return "bid_proposal";
-  if (n.includes("imple") || n.includes("实施") || n.includes("施工") || n.includes("方案")) return "imple_plan";
-  if (n.includes("cost") || n.includes("成本") || n.includes("测算") || n.includes("费用")) return "cost_estimate";
-  if (n.includes("data") || n.includes("检测") || n.includes("数据") || n.includes("分析")) return "data_analysis";
   if (n.includes("chart") || n.includes("图")) return "chart_builder";
-  if (n.includes("ppt") || n.includes("演示") || n.includes("汇报")) return "pptx_create";
   if (n.includes("report") || n.includes("报告") || n.includes("汇总") || n.includes("总报告")) return "doc_assemble";
   if (n.includes("format") || n.includes("转换") || n.includes("markdown")) return "format_convert";
   if (n.includes("xlsx") || n.includes("表格") || n.includes("sheet")) return "spreadsheet";
@@ -22,14 +16,8 @@ function getSourceTool(name: string): string {
 
 function getSourceLabel(source: string): string {
   const map: Record<string, string> = {
-    survey_report: "调查报告",
-    bid_proposal: "投标方案",
-    imple_plan: "实施方案",
-    cost_estimate: "成本测算",
-    risk_assessment: "风险评估",
-    data_analysis: "数据分析",
     chart_builder: "图表生成",
-    pptx_create: "PPT制作",
+    doc_assemble: "报告拼装",
     format_convert: "格式转换",
     spreadsheet: "表格数据",
     other: "其他",

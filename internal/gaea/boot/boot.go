@@ -256,7 +256,6 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 	}, agent.NestedSink(sctx, event.Discard), nil)
 	}
 	reg.Add(skill.NewRunSkillTool(skillStore, skillRunner))
-	reg.Add(skill.NewParallelSkillsTool(skillStore, skillRunner))
 	reg.Add(skill.NewInstallSkillTool(skillStore, nil))
 		// V5.30: 注册内置子代理模板，同类子代理共享 L4 前缀缓存
 	for _, st := range cache.BuiltinSpawnTemplates() {

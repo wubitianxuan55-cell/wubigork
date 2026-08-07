@@ -2,6 +2,26 @@
 
 # gaea · 多功能 AI 助手
 
+## v2.4.3「精简内置工具集」(2026-08-07)
+
+> 按市场调研结论（同类产品 10~20 个核心工具、文档/表格用技能扩展）把内置工具从 38 个精简到 17 个核心工具。
+
+- 删除 21 个冗余内置工具：计算器（calc_math/calc_stats/calc_unit）、压缩（archive）、
+  电脑操作（computer_use）、甘特图（gantt_gen）、项目初始化（project_init）、工具链模板（run/save_template）、
+  方案 agent 工具（proposal_list/write/export），以及被 ModelScope docx/pdf/xlsx 技能覆盖的文档专项工具
+  （docx_read/docx_write/pdf_create/pdf_extract/pptx_create/xlsx_read/xlsx_write/doc_merge/csv_parse）
+- 删除与 run_skill 重叠的 parallel_skills（保留 RunDAG 管道基础设施）
+- 保留 17 个核心工具：文件与命令（read_file/write_file/ls/bash/bash_output/kill_shell/wait）、
+  网络（web_search/web_fetch）、任务（todo_write/complete_step）、记忆与知识（memory_search/knowledge_add/knowledge_search）、
+  技能（read_skill）、办公引擎（format_convert/chart_gen）
+- 内置技能去工具依赖：chart-builder 改为 bash + python 读表、doc-assemble 改为 format_convert + bash 拼装，
+  不再依赖已删除的 xlsx_read/csv_parse/doc_merge/docx_write
+- 系统提示词与单模型执行纪律改写为「文档创建/编辑交给 docx/xlsx/pdf 技能，格式转换用 format_convert」
+- 修复 chart_gen 在 Windows 被 python3 商店别名劫持的问题，并抑制 matplotlib 字体告警污染 JSON 输出
+- 前端能力抽屉工具列表重建为实际 7 组 29 个工具（compact 模式对模型隐藏 kill_shell/wait），
+  清理 git/notebook/edit 等死条目与报告来源旧映射
+- 验证：go build + go test ./... 全绿；tsc + vite build OK；vitest 32 例全过；format_convert 与 chart_gen 端到端验证通过
+
 ## v2.4.2「通用办公改造 · ModelScope 文档技能」(2026-08-07)
 
 > 「智能办公」精简为「通用办公」：删除土壤修复专项工具与技能，安装 ModelScope 的 docx/pdf/xlsx 文档技能。

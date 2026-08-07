@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -45,6 +46,10 @@ func (chartGen) CompactSchema() json.RawMessage { return compactSchema["chart_ge
 
 var chartScript = `
 import json, sys, os
+import logging, warnings
+warnings.filterwarnings("ignore")
+logging.getLogger("matplotlib").setLevel(logging.ERROR)
+logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 try:
     import matplotlib
     matplotlib.use('Agg')
@@ -140,13 +145,14 @@ func (chartGen) Execute(ctx context.Context, args json.RawMessage) (string, erro
 		os.MkdirAll(dir, 0755)
 	}
 
-	// 查找 Python
-	python, err := exec.LookPath("python3")
+	// 查找 Python：Windows 优先 python（python3 常被商店别名劫持）
+	candidates := []string{"python", "python3"}
+	if runtime.GOOS != "windows" {
+		candidates = []string{"python3", "python"}
+	}
+	python, err := lookPathFirst(candidates)
 	if err != nil {
-		python, err = exec.LookPath("python")
-		if err != nil {
-			return "", fmt.Errorf("未找到 Python（需要安装 Python 和 matplotlib）")
-		}
+		return "", fmt.Errorf("未找到 Python（需要安装 Python 和 matplotlib）")
 	}
 
 	input := map[string]interface{}{
@@ -182,4 +188,17 @@ func (chartGen) Execute(ctx context.Context, args json.RawMessage) (string, erro
 
 	return tool.WrapText(fmt.Sprintf("✅ 图表已生成: %s（%d 字节，类型: %s）\n标题: %s\n数据点: %d",
 		result.Output, result.SizeBytes, p.ChartType, p.Title, len(p.Labels))), nil
+}
+
+// lookPathFirst returns the first executable found among candidates.
+func lookPathFirst(candidates []string) (string, error) {
+	var lastErr error
+	for _, c := range candidates {
+		if p, err := exec.LookPath(c); err == nil {
+			return p, nil
+		} else {
+			lastErr = err
+		}
+	}
+	return "", lastErr
 }

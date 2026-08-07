@@ -451,7 +451,7 @@ func xlsxToMarkdown(path string) (string, error) {
 	return md.String(), nil
 }
 
-// pdfToMarkdown 提取 PDF 文本（重用现有 pdf_extract 逻辑 + 分页支持）
+// pdfToMarkdown 提取 PDF 文本（含分页支持与 OCR 扫描件回退）
 func pdfToMarkdown(path string, pages string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

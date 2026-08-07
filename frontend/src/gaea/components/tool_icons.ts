@@ -17,13 +17,17 @@ export const ICONS: Record<string, Icon> = {
   // 规范
   ls: FolderOpen, glob: Search, grep: Search, check: CheckCircle,
   // 项目
-  task: ListTree, run_skill: Zap, parallel_skills: Layers, install_skill: PlusCircle,
+  task: ListTree, run_skill: Zap, install_skill: PlusCircle, slash_command: Zap,
   // 图表
   stats: Table, chart: Table,
+  chart_gen: Table, "chart-builder": Table,
+  // 办公
+  format_convert: FileText, "format-convert": FileText, "doc-assemble": Layers,
   // 通讯
   web_fetch: Globe, web_search: Globe, message: Users, chat: Users,
   // 通用
-  memory_search: Brain, remember: Brain, read_skill: BookOpen,
+  memory_search: Brain, remember: Brain, memory_get: Brain, read_skill: BookOpen,
+  knowledge_search: Search, knowledge_add: PlusCircle, promote_session_facts: Sparkles,
   wait: Hourglass, complete_step: CheckCircle, ask: List, brainstorm: Sparkles,
 };
 
