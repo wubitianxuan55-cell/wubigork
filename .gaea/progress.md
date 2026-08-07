@@ -2,6 +2,24 @@
 
 > 最后更新: 2026-08-07 19:45:00
 
+## 2.21 设置面板重设计（✅ 已完成，2026-08-07）
+- 审计结论：EnginePanel 为死代码（从未引用）；「方案」Tab 与「办公」重复且一半是纯文档；
+  「语音」面板与聊天页 VoiceSettingsPanel 重复；「聊天」面板的主动搭话开关无人读取、清除会话与聊天板块重复
+- 布局重设计：顶部 Tab 改为左侧功能分组导航（通用 / 聊天 / 小说 / 绘梦 / 办公 / 模型 / 关于），
+  窄屏转横向滚动 chips；新增 `settings-page.css`，保留全局搜索并可过滤分组，激活分组自动切换
+- 聊天（新 ChatPanel）：合并 AI 伴侣（称呼/性别）+ 默认人格（角色库管理提示）+ 语音核心项
+  （语音对话/朗读回复/合成音色），移除死开关与重复数据管理；完整语音面板仍在聊天板块
+- 办公：并入「方案编写模型」FeatureModelBar（原方案 Tab 唯一有效内容），删除「方案生成」纯文档列表
+- 模型（新 ModelPanel）：找回丢失入口的全局「推理强度」（saveConfig reasoning_effort），
+  展示当前模型，新增「前往模型中心」跳转（navigate 事件）
+- 关于（新 AboutPanel）：版本卡片 + 系统信息（配置路径，替换 antd Descriptions 为普通定义列表，
+  消除 jsdom 下 matchMedia 依赖与 labelStyle 弃用警告）+ 可折叠更新日志
+- 清理：删除 EnginePanel/VoicePanel/ProposalPanel/WhisperPanel/SystemPanel 五个文件；
+  SettingsSection 即时生效徽章改用主题 success 令牌
+- 测试：新增 SettingsPage.test.tsx 4 例（七个分组渲染/默认通用/搜索过滤自动切换/关于分组），
+  `npm run test` 共 32 例全过；`tsc` + `vite build` OK；`scripts/ci.ps1` CI OK；
+  设置页主包 77.6KB → 56.8KB
+
 ## 2.20 网页调试桥接 + 办公引擎热加载（✅ 已完成，2026-08-07）
 - 新增 `internal/httpbridge`：`POST /api/rpc` 反射分发全部 Wails 绑定方法（缺失尾参补零值、panic 转 error）、`GET /api/stream?id=` SSE 事件推送（15s keep-alive + connected 帧）、`/api/health` 存活探针；`core.emit` 统一发布到桥接订阅者（无 Wails 上下文也推送，网页/移动端调试与桌面端完全对齐）
 - `main.go`：设置 `GAEA_HTTP_PORT`（如 8080）后自动启动桥接，Vite 把 `/api` 代理到桥接

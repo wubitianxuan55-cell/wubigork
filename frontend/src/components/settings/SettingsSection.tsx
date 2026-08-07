@@ -38,8 +38,10 @@ const SettingsSection: React.FC<{ title: React.ReactNode; desc?: string; instant
       {instant && (
         <span style={{
           marginLeft: 'auto', fontSize: 11, lineHeight: 1, padding: '3px 8px',
-          borderRadius: 999, color: '#34d399', border: '1px solid #34d39944',
-          background: '#34d39914', fontWeight: 500, whiteSpace: 'nowrap',
+          borderRadius: 999, color: 'var(--md-sys-color-success)',
+          border: '1px solid color-mix(in srgb, var(--md-sys-color-success) 30%, transparent)',
+          background: 'color-mix(in srgb, var(--md-sys-color-success) 10%, transparent)',
+          fontWeight: 500, whiteSpace: 'nowrap',
         }}>
           ⚡ 即时生效
         </span>

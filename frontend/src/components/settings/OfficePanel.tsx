@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Button, Input, InputNumber, Select, Space, Switch, Tag, Typography, message } from 'antd'
 import { SaveOutlined, RobotOutlined, ApiOutlined, CheckCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { gaeaSettings } from '../../api/settings'
+import FeatureModelBar from '../FeatureModelBar'
 import SettingsSection from './SettingsSection'
 import * as App from '../../../wailsjs/go/app/App'
 
@@ -152,6 +153,16 @@ const OfficePanel: React.FC = () => {
               onChange={(e) => setDraft({ ...draft, subagentModel: e.target.value })} />
           ))}
         </div>
+      </SettingsSection>
+
+      <SettingsSection
+        title={<>方案编写模型</>}
+        desc="招标解析 / 大纲生成 / 文本编制 / 图表制作 / 汇总导出使用的模型。绑定到「模型中心 → 功能绑定」统一管理，此处仅显示状态。"
+      >
+        <FeatureModelBar feature="office" label="方案" />
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: '10px 0 0' }}>
+          切换引擎 / 模型、启停绑定引擎，请到「模型中心 → 功能绑定」标签页操作，或使用方案窗口左下角模型卡一键启停。
+        </Typography.Paragraph>
       </SettingsSection>
 
       <SettingsSection
