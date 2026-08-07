@@ -129,3 +129,14 @@
 - 防御：`core.emit` 预检 Wails ctx（"events" 标记），非 Wails 上下文跳过发射——修复测试中异步记忆写入经 routeModel emit 触发 `log.Fatalf` 杀进程的问题（生产行为不变）
 - 验收：新增 7 个测试（whisper→chat 迁移/chat 优先、chat store CRUD/级联删除、ChatSend plain/persona 落库与元数据）；wails build 再生成绑定（+6 方法）；`scripts/ci.ps1` CI OK
 - 遗留：前端两页合并 + localStorage 话题导入 chat.db 留待下一轮
+
+## 2.9 聊天×轻语前端合并 + 市场调研（✅ 已完成，2026-08-07）
+
+- 市场调研：`docs/market-research-2026-08-chat-ui.md`（Claude 式居中流、陪伴产品临场感、CDT 暗模式红线、Liquid Glass、会话可读性、错误就近、无障碍）→ 落地为本次设计决策
+- 设计：desktop AI 陪伴聊天 · 单人重度用户 · 克制暗色玻璃语言，沿用 gaea M3 tokens（night 系列），Liquid Glass 为 web 近似（外层壳 + 内芯高光）；dials variance 6 / motion 5 / density 5
+- 前端合并：ChatPage 重写为单一聊天板块——模式切换条（普通对话 / 轻语人格）、人格状态条（CompanionAvatar + 情绪/信任/轮次只读元数据）、右侧记忆抽屉（状态/记忆/追踪三页）、Claude 式消息流（助手通栏文本 max 820 + 用户右侧轻量胶囊）、双层玻璃输入岛、错误内联 + 重试、快捷情绪 chips、语音输入；删除 WhisperPage.tsx
+- 会话可读性：ChatTopicSidebar 升级为标题 + 首条预览 + 模式徽章（`chat.Topic.preview` 由 ListTopics 子查询填充，避免 N+1）
+- 数据迁移：旧 localStorage 话题（`gaea_chat_topics` / `gaea_whisper_topics` + legacy 键）启动时经 `ChatImportTopic` 导入 chat.db 后清理本地键；新增 `ChatTopicSetMode`（模式切换持久化）与 `ChatTopicClear`（清空对话真删消息）
+- 导航收敛：MainLayout 移除独立「轻语」菜单项；首页启动器轻语卡片改为一键进入聊天板块 persona 模式（`utils/chatNav.ts` 信号 + 事件）
+- 无障碍/防降级：消息区 `role="log" aria-live="polite"`、focus-visible 环、`prefers-reduced-motion` 禁用打字机与入场动画、`prefers-reduced-transparency` 玻璃降级；emoji 图标全部替换为 antd icons
+- 验收：新增 4 个测试（ChatImportTopic 导入/跳过非法角色、ChatTopicSetMode、ChatTopicClear）；E16 守卫迁移到 ChatPage + 新增 E25 合并不变量守卫；`scripts/ci.ps1` CI OK；`wails build` 成功（build/bin/gaea.exe 38MB）

@@ -62,6 +62,10 @@ export function ChatGeneral(arg1) {
   return window['go']['app']['App']['ChatGeneral'](arg1);
 }
 
+export function ChatImportTopic(arg1, arg2, arg3) {
+  return window['go']['app']['App']['ChatImportTopic'](arg1, arg2, arg3);
+}
+
 export function ChatMessagesList(arg1) {
   return window['go']['app']['App']['ChatMessagesList'](arg1);
 }
@@ -78,6 +82,10 @@ export function ChatSend(arg1, arg2, arg3) {
   return window['go']['app']['App']['ChatSend'](arg1, arg2, arg3);
 }
 
+export function ChatTopicClear(arg1) {
+  return window['go']['app']['App']['ChatTopicClear'](arg1);
+}
+
 export function ChatTopicCreate(arg1, arg2) {
   return window['go']['app']['App']['ChatTopicCreate'](arg1, arg2);
 }
@@ -88,6 +96,10 @@ export function ChatTopicDelete(arg1) {
 
 export function ChatTopicRename(arg1, arg2) {
   return window['go']['app']['App']['ChatTopicRename'](arg1, arg2);
+}
+
+export function ChatTopicSetMode(arg1, arg2) {
+  return window['go']['app']['App']['ChatTopicSetMode'](arg1, arg2);
 }
 
 export function ChatTopicsList() {

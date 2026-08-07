@@ -13,6 +13,7 @@ type Topic struct {
 	Mode      string `json:"mode"` // "plain" | personaID
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
+	Preview   string `json:"preview,omitempty"` // 首条消息内容（侧边栏可读预览）
 }
 
 // Message 统一聊天消息。
@@ -80,6 +81,14 @@ func (s *Store) ListTopics() ([]Topic, error) {
 		}
 		out = append(out, t)
 	}
+	// 侧边栏预览：取每个话题首条消息内容（子查询，避免 N+1）。
+	for i := range out {
+		var preview string
+		if err := s.db.QueryRow(
+			"SELECT content FROM chat_messages WHERE topic_id = ? ORDER BY seq LIMIT 1", out[i].ID).Scan(&preview); err == nil {
+			out[i].Preview = preview
+		}
+	}
 	return out, rows.Err()
 }
 
@@ -95,6 +104,37 @@ func (s *Store) RenameTopic(id, title string) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("话题不存在: %s", id)
 	}
+	return nil
+}
+
+// SetMode 切换话题模式（plain ↔ personaID）。
+func (s *Store) SetMode(id, mode string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	if mode == "" {
+		mode = "plain"
+	}
+	res, err := s.db.Exec("UPDATE chat_topics SET mode = ?, updated_at = ? WHERE id = ?", mode, now(), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("话题不存在: %s", id)
+	}
+	return nil
+}
+
+// ClearMessages 清空话题全部消息（保留话题与模式）。
+func (s *Store) ClearMessages(id string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	_, err := s.db.Exec("DELETE FROM chat_messages WHERE topic_id = ?", id)
+	if err != nil {
+		return err
+	}
+	_, _ = s.db.Exec("UPDATE chat_topics SET updated_at = ? WHERE id = ?", now(), id)
 	return nil
 }
 
@@ -124,6 +164,7 @@ func (s *Store) AppendMessage(topicID, role, content, extra string) (*Message, e
 	if err != nil {
 		return nil, err
 	}
+	_, _ = s.db.Exec("UPDATE chat_topics SET updated_at = ? WHERE id = ?", ts, topicID)
 	id, _ := res.LastInsertId()
 	return &Message{ID: id, TopicID: topicID, Role: role, Content: content, Extra: extra, Seq: seq, CreatedAt: ts}, nil
 }

@@ -3,7 +3,7 @@ import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Bread
 import {
   HomeOutlined,
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
-  ReadOutlined, PictureOutlined, MessageOutlined, HeartOutlined, ToolOutlined, ApiOutlined,
+  ReadOutlined, PictureOutlined, MessageOutlined, ToolOutlined, ApiOutlined,
   FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined, DatabaseOutlined,
   BarChartOutlined, DownOutlined,
 } from '@ant-design/icons'
@@ -18,16 +18,15 @@ const SettingsPage = React.lazy(() => import('../pages/SettingsPage'))
 const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'))
 const ModelCenterPage = React.lazy(() => import('../pages/ModelCenterPage'))
 const ChatPage = React.lazy(() => import('../pages/ChatPage'))
-const WhisperPage = React.lazy(() => import('../pages/WhisperPage'))
 const OfficePage = React.lazy(() => import('../pages/OfficePage'))
 const GaeaPage = React.lazy(() => import('../pages/GaeaPage'))
 const MemoryHubPage = React.lazy(() => import('../pages/MemoryHubPage'))
 const { Header, Footer, Content } = Layout
 
-type Page = 'home' | 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' | 'whisper' | 'office' | 'gaea' | 'memoryhub'
+type Page = 'home' | 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'chat' | 'office' | 'gaea' | 'memoryhub'
 
 // 功能模块 key（navigate 事件校验 + Ctrl+1~4 快捷键映射；home 启动器不参与）
-const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'whisper', 'office', 'gaea', 'memoryhub', 'modelcenter']
+const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'office', 'gaea', 'memoryhub', 'modelcenter']
 
 // 顶栏横向导航（含首页启动器），点击直接切换模块
 const menuItems: any[] = [
@@ -35,7 +34,6 @@ const menuItems: any[] = [
   { key: 'chat', icon: <MessageOutlined />, label: '聊天' },
   { key: 'novel', icon: <ReadOutlined />, label: '小说' },
   { key: 'imagegen', icon: <PictureOutlined />, label: '绘梦' },
-  { key: 'whisper', icon: <HeartOutlined />, label: '轻语' },
   { key: 'office', icon: <FileTextOutlined />, label: '方案编写' },
   { key: 'gaea', icon: <ToolOutlined />, label: '办公' },
   { key: 'memoryhub', icon: <DatabaseOutlined />, label: '记忆中枢' },
@@ -48,7 +46,6 @@ const pageComponents: Record<Exclude<Page, 'home'>, React.ReactNode> = {
   settings: <SettingsPage />,
   modelcenter: <ModelCenterPage />,
   chat: <ChatPage />,
-  whisper: <WhisperPage />,
   office: <OfficePage />,
   gaea: <GaeaPage />,
   memoryhub: <MemoryHubPage />,
@@ -184,7 +181,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
 }
 
 const pageLabels: Record<Page, string> = {
-  home: '首页', novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天', whisper: '轻语', office: '方案编写', gaea: '办公', memoryhub: '记忆中枢',
+  home: '首页', novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', chat: 'AI 聊天', office: '方案编写', gaea: '办公', memoryhub: '记忆中枢',
 }
 
 // ─── 主布局 ─────────────────────────────────────────────────

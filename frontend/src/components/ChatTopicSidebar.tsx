@@ -11,6 +11,12 @@ export interface Topic {
   id: string
   title: string
   createdAt: number
+  /** topic mode: 'plain' or personaID */
+  mode?: string
+  /** display label for the mode badge (empty string for plain) */
+  modeLabel?: string
+  /** first message preview */
+  preview?: string
 }
 
 interface ChatTopicSidebarProps {
@@ -52,92 +58,59 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
   return (
     <div
       style={{
-        width: 260,
+        width: 264,
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
-        borderRight: `2px solid ${C('color-primary')}20`,
+        borderRight: `1px solid ${C('color-border')}`,
         background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
-        WebkitBackdropFilter: 'blur(18px) saturate(140%)',
-        backdropFilter: 'blur(18px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+        backdropFilter: 'blur(20px) saturate(140%)',
         height: '100%',
         userSelect: 'none',
-        boxShadow: `2px 0 12px rgba(0,0,0,0.04)`,
+        boxShadow: '2px 0 14px rgba(0,0,0,0.05)',
       }}
     >
-      {/* 顶栏：标题 + 新建按钮 */}
+      {/* header: title + new topic button */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '14px 14px 10px',
+          padding: '12px 14px 10px',
         }}
       >
-        <Typography.Text
-          strong
-          style={{ color: C('color-text'), fontSize: 14 }}
-        >
+        <Typography.Text strong style={{ color: C('color-text'), fontSize: 13.5 }}>
           <MessageOutlined style={{ marginRight: 8, color: C('color-primary') }} />
-          话题
+          会话
         </Typography.Text>
-        <Tooltip title="新建话题" placement="bottom">
+        <Tooltip title="新建会话" placement="bottom">
           <Button
             type="text"
             size="small"
             icon={<PlusOutlined />}
             onClick={onCreate}
-            style={{
-              color: C('color-primary'),
-              borderRadius: 8,
-              transition: 'background 0.15s',
-            }}
+            style={{ color: C('color-primary'), borderRadius: 8 }}
           />
         </Tooltip>
       </div>
 
-      {/* 话题列表 */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 88px' }}>
+      {/* topic list */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '2px 8px 88px' }}>
         {topics.length === 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              padding: '48px 16px',
-              textAlign: 'center',
-            }}
-          >
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 14,
-                background: `${C('color-primary')}10`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 14,
-              }}
-            >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 16px', textAlign: 'center' }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: 14,
+              background: `${C('color-primary')}10`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              marginBottom: 14,
+            }}>
               <MessageOutlined style={{ fontSize: 24, color: C('color-primary') }} />
             </div>
-            <Typography.Text
-              style={{
-                color: C('color-text-secondary'),
-                fontSize: 13,
-                marginBottom: 4,
-              }}
-            >
-              暂无话题
+            <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13, marginBottom: 4 }}>
+              暂无会话
             </Typography.Text>
-            <Typography.Text
-              style={{
-                color: C('color-text-secondary'),
-                fontSize: 12,
-                opacity: 0.7,
-              }}
-            >
+            <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, opacity: 0.7 }}>
               点击 + 创建新对话
             </Typography.Text>
           </div>
@@ -149,31 +122,19 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
               return (
                 <div
                   key={topic.id}
+                  className={`chat-topic-item${active ? ' active' : ''}`}
                   onClick={() => onSelect(topic.id)}
                   onMouseEnter={() => setHoveredId(topic.id)}
                   onMouseLeave={() => setHoveredId(null)}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '9px 12px',
-                    marginBottom: 2,
-                    borderRadius: 10,
-                    cursor: 'pointer',
                     background: active
                       ? `${C('color-primary')}15`
                       : hovered
                         ? C('color-bg-container')
                         : 'transparent',
-                    border: active
-                      ? `1px solid ${C('color-primary')}30`
-                      : '1px solid transparent',
-                    transition: 'background 0.15s, border 0.15s, box-shadow 0.15s',
-                    boxShadow: active
-                      ? `0 1px 4px ${C('color-primary')}12`
-                      : 'none',
                   }}
                 >
-                  {/* 标题（可双击编辑） */}
+                  {/* title + preview (double-click to edit) */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {editingId === topic.id ? (
                       <Input
@@ -184,50 +145,53 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                         onBlur={commitEdit}
                         onPressEnter={commitEdit}
                         onClick={(e) => e.stopPropagation()}
-                        style={{
-                          background: C('color-bg-container'),
-                          borderColor: C('color-primary'),
-                          color: C('color-text'),
-                          borderRadius: 6,
-                        }}
+                        style={{ background: C('color-bg-container'), borderColor: C('color-primary'), color: C('color-text'), borderRadius: 6 }}
                       />
                     ) : (
-                      <Typography.Text
-                        ellipsis
-                        onDoubleClick={() => startEdit(topic)}
-                        style={{
-                          color: active ? C('color-primary') : C('color-text'),
-                          fontSize: 13,
-                          fontWeight: active ? 500 : 400,
-                          display: 'block',
-                          lineHeight: '20px',
-                        }}
-                      >
-                        {topic.title}
-                      </Typography.Text>
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                          <Typography.Text
+                            ellipsis
+                            onDoubleClick={() => startEdit(topic)}
+                            style={{
+                              color: active ? C('color-primary') : C('color-text'),
+                              fontSize: 12.5,
+                              fontWeight: active ? 600 : 500,
+                              display: 'block',
+                              lineHeight: '18px',
+                              minWidth: 0,
+                            }}
+                          >
+                            {topic.title}
+                          </Typography.Text>
+                          {topic.modeLabel && (
+                            <span className="chat-topic-badge" title={`${topic.modeLabel} 模式`}>
+                              {topic.modeLabel}
+                            </span>
+                          )}
+                        </div>
+                        {topic.preview && (
+                          <div className="chat-topic-preview" title={topic.preview}>
+                            {topic.preview}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 
-                  {/* 删除按钮 — hover / active 时显示 */}
+                  {/* delete button — visible on hover / active */}
                   <div
                     style={{
-                      width: 26,
-                      height: 26,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      marginLeft: 4,
+                      width: 26, height: 26,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, marginLeft: 4,
                       opacity: hovered || active ? 1 : 0,
                       transition: 'opacity 0.12s',
                     }}
                   >
                     <Popconfirm
-                      title="确定删除此话题？"
-                      onConfirm={(e) => {
-                        e?.stopPropagation()
-                        onDelete(topic.id)
-                      }}
+                      title="确定删除此会话？"
+                      onConfirm={(e) => { e?.stopPropagation(); onDelete(topic.id) }}
                       onCancel={(e) => e?.stopPropagation()}
                       okText="删除"
                       cancelText="取消"
@@ -240,14 +204,9 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                         onClick={(e) => e.stopPropagation()}
                         style={{
                           color: C('color-text-secondary'),
-                          width: 26,
-                          height: 26,
-                          padding: 0,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          width: 26, height: 26, padding: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
                           borderRadius: 6,
-                          transition: 'color 0.15s, background 0.15s',
                         }}
                       />
                     </Popconfirm>

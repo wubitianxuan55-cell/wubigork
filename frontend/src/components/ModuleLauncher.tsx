@@ -9,16 +9,17 @@ import { Typography, Button, Tooltip } from 'antd'
 import VoiceChatOrb from './VoiceChatOrb'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import * as App from '../../wailsjs/go/app/App'
+import { requestPersonaEnter } from '../utils/chatNav'
 
 /** 启动器可跳转的目标页（与 MainLayout 的 Page 类型保持一致的子集） */
 export type LauncherTarget =
-  | 'chat' | 'novel' | 'imagegen' | 'whisper' | 'office' | 'gaea' | 'modelcenter' | 'settings'
+  | 'chat' | 'novel' | 'imagegen' | 'office' | 'gaea' | 'modelcenter' | 'settings'
 
 /** 轻语板块语音入口信号（首页现在本页启动语音，该信号保留兼容旧入口） */
 export const VOICE_LAUNCH_FLAG = 'gaea_voice_launch'
 
 interface LauncherModule {
-  key: LauncherTarget
+  key: LauncherTarget | 'whisper'
   name: string
   desc: string
   icon: React.ReactNode
@@ -30,7 +31,7 @@ const modules: LauncherModule[] = [
   { key: 'chat', name: '聊天', desc: '与 AI 对话，激发灵感', icon: <MessageOutlined />, accent: '#60a5fa' },
   { key: 'novel', name: '小说', desc: '世界观、角色与大纲创作', icon: <ReadOutlined />, accent: '#a78bfa' },
   { key: 'imagegen', name: '绘梦', desc: 'AI 图像生成工作台', icon: <PictureOutlined />, accent: '#f472b6' },
-  { key: 'whisper', name: '轻语', desc: '陪伴式 AI 心灵对话', icon: <HeartOutlined />, accent: '#fb7185' },
+  { key: 'whisper', name: '轻语', desc: '陪伴式 AI 对话（人格模式）', icon: <HeartOutlined />, accent: '#fb7185' },
   { key: 'office', name: '方案编写', desc: '投标方案六标签页编写', icon: <FileTextOutlined />, accent: '#f59e0b' },
   { key: 'gaea', name: '办公', desc: 'gaea 办公套件与文档', icon: <ToolOutlined />, accent: '#2dd4bf' },
   { key: 'modelcenter', name: '模型中心', desc: '模型引擎管理与配置', icon: <ApiOutlined />, accent: '#34d399' },
@@ -112,7 +113,14 @@ const LauncherCard: React.FC<{ m: LauncherModule; idx: number; onOpen: () => voi
 const CardColumn: React.FC<{ list: LauncherModule[]; onNavigate: (t: LauncherTarget) => void }> = ({ list, onNavigate }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 16, justifyContent: 'center' }}>
     {list.map((m, i) => (
-      <LauncherCard key={m.key} m={m} idx={i} onOpen={() => onNavigate(m.key)} />
+      <LauncherCard key={m.key} m={m} idx={i} onOpen={() => {
+        if (m.key === 'whisper') {
+          requestPersonaEnter()
+          onNavigate('chat')
+          return
+        }
+        onNavigate(m.key)
+      }} />
     ))}
   </div>
 )
