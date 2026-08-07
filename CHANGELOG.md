@@ -2,6 +2,17 @@
 
 # gaea · 多功能 AI 助手
 
+## v2.1.0「二代完善」(2026-08-07)
+
+> 在 v2.0.1 基础上迭代六轮：模型中心完善、功能级模型启停、Cmd+K 引擎路由、OAuth 回归验证、前端 E 系列核对、小说链路审计。
+
+- 模型中心：引擎状态持久化（`whisper_data/engines.json`）+ 稳定顺序 + 连接状态缓存；修复 `active_engine_id` 只存不读；DeepSeek 脱敏与真实活跃模型展示
+- 模型路由：FeatureModelBar 启停改为功能级开关（`func_*_enabled`），不再误关全局引擎；Cmd+K 编辑走 novel 绑定；5 个 agent 未绑定回退按引擎解析默认模型
+- OAuth：discovery 配置化（`OIDCDiscoveryURL` 生效）+ 换 token 超时客户端；E04/E13 回归
+- 前端：E16/E22/E23/E24 核对 + 静态回归守卫 `scripts/frontend-e-check.mjs` 接入 CI
+- 小说：角色注入剥离剧照 base64（`types.PromptView`）；E02/E03 回归
+- 验证：go build/vet/test + tsc + vite build + 前端守卫全绿（`scripts/ci.ps1` CI OK）
+
 ## v2.0.1「三脑底座」(2026-08-07)
 
 > 在 v1.21.0 基础上迭代：模型路由、三脑记忆、主脑可选编排、基线加固。
