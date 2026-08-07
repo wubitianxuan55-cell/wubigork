@@ -5,11 +5,15 @@ import type { LibraryCharacter } from '../../api/characterlib'
 
 vi.mock('../../api/characterlib', () => ({
   saveCharacter: vi.fn(),
+  generateFill: vi.fn(),
+  generatePortrait: vi.fn(),
 }))
 
-import { saveCharacter } from '../../api/characterlib'
+import { saveCharacter, generateFill, generatePortrait } from '../../api/characterlib'
 
 const mockedSave = vi.mocked(saveCharacter)
+const mockedFill = vi.mocked(generateFill)
+const mockedPortrait = vi.mocked(generatePortrait)
 
 function makeCharacter(overrides: Partial<LibraryCharacter> = {}): LibraryCharacter {
   return {
@@ -56,6 +60,8 @@ function renderEditor(overrides: {
 
 beforeEach(() => {
   mockedSave.mockReset()
+  mockedFill.mockReset()
+  mockedPortrait.mockReset()
 })
 
 describe('CharacterLibEditor（档案详情）', () => {
@@ -130,5 +136,35 @@ describe('CharacterLibEditor（档案详情）', () => {
   it('渲染项目引用信息', () => {
     renderEditor({ projects: ['星落之城'] })
     expect(screen.getByText(/被 1 个项目引用/)).toBeTruthy()
+  })
+
+  it('随机补齐调用 generateFill 并回填空缺字段', async () => {
+    mockedFill.mockResolvedValue(makeCharacter({ personality: '清冷剑修，寡言重诺' }) as any)
+    renderEditor()
+    fireEvent.click(screen.getByText('随机补齐'))
+    await vi.waitFor(() => {
+      expect(mockedFill).toHaveBeenCalledTimes(1)
+      const areas = document.body.querySelectorAll('.cd-area')
+      expect((areas[0] as HTMLTextAreaElement).value).toBe('清冷剑修，寡言重诺')
+    })
+  })
+
+  it('生成剧照调用 generatePortrait 并更新立绘横幅', async () => {
+    mockedPortrait.mockResolvedValue('data:image/png;base64,AAAA')
+    renderEditor()
+    fireEvent.click(screen.getByText('生成剧照'))
+    await vi.waitFor(() => {
+      expect(mockedPortrait).toHaveBeenCalledTimes(1)
+      expect(document.body.querySelector('.cd-hero-img')?.getAttribute('src')).toBe('data:image/png;base64,AAAA')
+    })
+  })
+
+  it('名称为空时随机补齐与生成剧照不调用后端', async () => {
+    renderEditor()
+    fireEvent.change(screen.getByPlaceholderText('角色名'), { target: { value: '' } })
+    fireEvent.click(screen.getByText('随机补齐'))
+    fireEvent.click(screen.getByText('生成剧照'))
+    expect(mockedFill).not.toHaveBeenCalled()
+    expect(mockedPortrait).not.toHaveBeenCalled()
   })
 })

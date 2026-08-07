@@ -80,3 +80,14 @@ export async function syncProjectCharacters(): Promise<void> {
 export async function drawRandom(count: number, gender: string, tags: string, chatOnly: boolean): Promise<LibraryCharacter[]> {
   return App.CharacterDrawRandom(count, gender, tags, chatOnly)
 }
+
+/** 一键随机补齐角色空缺内容：只填充空字段、保留已有内容，不依赖小说项目 */
+export async function generateFill(c: Partial<LibraryCharacter>): Promise<LibraryCharacter> {
+  const json = await App.CharacterGenerateFill(JSON.stringify(c))
+  return JSON.parse(json) as LibraryCharacter
+}
+
+/** 生成角色剧照：按角色字段构建智能 prompt，返回图片 data URL / 远程 URL（不自动保存） */
+export async function generatePortrait(c: Partial<LibraryCharacter>, model = ''): Promise<string> {
+  return App.CharacterGeneratePortrait(JSON.stringify(c), model)
+}

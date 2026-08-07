@@ -116,6 +116,23 @@
     linear-gradient(0deg, rgba(0, 0, 0, 0.55), transparent 55%);
 }
 
+.cd-hero-gen {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 4;
+  border-radius: 999px;
+  background: rgba(10, 10, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.cd-hero-gen:hover {
+  color: #fff !important;
+  border-color: rgba(244, 114, 182, 0.7) !important;
+}
+
 .cd-hero-info {
   position: absolute;
   left: 18px;
@@ -215,6 +232,12 @@
   height: 1px;
   background: var(--md-sys-color-outline-variant);
   opacity: 0.6;
+}
+
+.cd-sec-action {
+  border-radius: 999px;
+  height: 24px;
+  font-size: 11px;
 }
 
 .cd-fields {

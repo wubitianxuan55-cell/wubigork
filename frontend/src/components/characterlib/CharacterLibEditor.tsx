@@ -4,10 +4,10 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   Modal, Input, Select, Switch, Slider, Tag, Typography, message, Button,
 } from 'antd'
-import { SaveOutlined, CloseOutlined } from '@ant-design/icons'
+import { SaveOutlined, CloseOutlined, PictureOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import TisorRadar from '../TisorRadar'
 import { C } from '../../utils/theme'
-import { saveCharacter, type LibraryCharacter } from '../../api/characterlib'
+import { saveCharacter, generateFill, generatePortrait, type LibraryCharacter } from '../../api/characterlib'
 import './character-detail.css'
 
 const { Text } = Typography
@@ -89,6 +89,8 @@ const CharacterLibEditor: React.FC<Props> = ({
 }) => {
   const [form, setForm] = useState<Partial<LibraryCharacter>>(() => toForm(character))
   const [saving, setSaving] = useState(false)
+  const [filling, setFilling] = useState(false)
+  const [genPortrait, setGenPortrait] = useState(false)
 
   useEffect(() => {
     if (open) setForm(toForm(character))
@@ -126,6 +128,51 @@ const CharacterLibEditor: React.FC<Props> = ({
     }
   }
 
+  const handleFill = async () => {
+    if (!form.name?.trim()) {
+      message.warning('角色名称不能为空')
+      return
+    }
+    setFilling(true)
+    try {
+      const filled = await generateFill(form)
+      let filledCount = 0
+      const textKeys = ['roleType', 'gender', 'age', 'personality', 'appearance', 'figure',
+        'background', 'motivation', 'arc', 'status', 'notes'] as const
+      for (const k of textKeys) {
+        const f = form[k] as string | undefined
+        const g = filled[k] as string | undefined
+        if (!f?.trim() && g?.trim()) filledCount++
+      }
+      if (!(form.tags ?? []).length && (filled.tags ?? []).length) filledCount++
+      setForm(filled as Partial<LibraryCharacter>)
+      message.success(filledCount > 0
+        ? `已补齐 ${filledCount} 处空缺，检查后保存`
+        : '没有空缺字段需要补齐')
+    } catch (err: any) {
+      message.error(`补齐失败：${err?.message || String(err)}`)
+    } finally {
+      setFilling(false)
+    }
+  }
+
+  const handleGeneratePortrait = async () => {
+    if (!form.name?.trim()) {
+      message.warning('角色名称不能为空')
+      return
+    }
+    setGenPortrait(true)
+    try {
+      const img = await generatePortrait(form)
+      patch({ portraitUrl: img })
+      message.success('剧照已生成，检查后保存')
+    } catch (err: any) {
+      message.error(`剧照生成失败：${err?.message || String(err)}`)
+    } finally {
+      setGenPortrait(false)
+    }
+  }
+
   const dims = useMemo(() => form.dims ?? emptyDims(), [form.dims])
   const heroMeta = [
     form.roleType ? ROLE_LABELS[form.roleType] || form.roleType : '',
@@ -138,9 +185,9 @@ const CharacterLibEditor: React.FC<Props> = ({
     <label className="cd-label">{t}</label>
   )
 
-  const section = (title: string, children: React.ReactNode) => (
+  const section = (title: string, children: React.ReactNode, action?: React.ReactNode) => (
     <section className="cd-sec">
-      <h4 className="cd-sec-title">{title}</h4>
+      <h4 className="cd-sec-title">{title}{action}</h4>
       {children}
     </section>
   )
@@ -183,6 +230,16 @@ const CharacterLibEditor: React.FC<Props> = ({
               <div className="cd-hero-ph">{form.name?.slice(0, 1) || '?'}</div>
             )}
             <div className="cd-hero-shade" />
+            <Button
+              size="small"
+              icon={<PictureOutlined />}
+              loading={genPortrait}
+              onClick={handleGeneratePortrait}
+              className="cd-hero-gen"
+              title="按角色设定生成剧照"
+            >
+              生成剧照
+            </Button>
             <div className="cd-hero-info">
               <h2 className="cd-hero-name">{form.name || '未命名角色'}</h2>
               {heroMeta && <p className="cd-hero-meta">{heroMeta}</p>}
@@ -279,6 +336,11 @@ const CharacterLibEditor: React.FC<Props> = ({
                     </div>
                   ))}
                 </div>
+              ), (
+                <Button size="small" icon={<ThunderboltOutlined />} loading={filling}
+                  onClick={handleFill} className="cd-sec-action" title="AI 随机补齐空缺字段">
+                  随机补齐
+                </Button>
               ))}
               {section('对话样本', (
                 <div className="cd-field">
