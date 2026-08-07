@@ -102,3 +102,10 @@
   - E24 记忆中枢 3D 图谱用 3d-force-graph（GraphView 默认导入 + 正确初始化，MemoryHubPage 已挂载）
 - 新增 `scripts/frontend-e-check.mjs` 静态回归守卫（无前端测试框架时的不变式检查），接入 `scripts/ci.ps1`——四项任一回归即 CI 拦截
 - 验收：守卫本机运行全过，`scripts/ci.ps1` CI OK；docs/evaluation-set.md 中 E16/E22/E23/E24 状态改为「已核实修复 + 回归守卫」
+
+## 2.6 小说链路审计：剧照泄漏 + 全局模型回退（✅ 已完成，2026-08-07）
+
+- E02 剧照泄漏（确认存在并修复）：角色对话/详情/批量生成的 prompt 把整个 `CharacterFile`（含 ComfyUI base64 剧照）序列化注入；大纲 `loadCharsContext`、章节分析 `Analyze` 同样泄漏 → 新增 `types.Character.PromptView`/`CharacterFile.PromptView`（剥离 portrait_url，深拷贝），五处注入统一收口
+- E03 全局模型回退（确认存在并修复）：角色/大纲/章节/分析/世界观 5 个 agent 的 `chat()` 在 novel 未绑定时强制 `model = cfg.Model`（把 xAI 默认名 grok-4.20 发给非 xAI 活跃引擎会 404）→ 改为留空让客户端按活跃引擎解析默认模型（等价 routeModel 全局路径）；章节/分支/Cmd+K/风格此前已走 `routeModel("novel")`
+- 新增 6 个回归测试：角色 Chat/详情 prompt 无剧照、未绑定留空解析、绑定生效、PromptView 剥离与深拷贝
+- 验收：`scripts/ci.ps1` CI OK；docs/evaluation-set.md 中 E02/E03 状态更新
