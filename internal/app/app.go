@@ -130,6 +130,8 @@ type App struct {
 	*mediaState
 	*whisperState
 	*officeState
+
+	brain *BrainStore
 }
 
 // emit 统一事件发射 — 发送到 Wails 前端。定义在 core 上，
@@ -193,6 +195,7 @@ func (a *App) Startup(ctx context.Context) {
 
 	// 初始化方案编写模块
 	a.proposalSvc = proposal.NewService(a.whisperDataRoot, a.client)
+	a.initBrain()
 
 	// 后台刷新所有引擎模型列表
 	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {
