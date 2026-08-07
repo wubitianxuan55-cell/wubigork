@@ -7,6 +7,7 @@ import (
 	"github.com/gaea/gaea/internal/netclient"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -35,14 +36,15 @@ type ModelInfo struct {
 
 // EngineConfig 引擎配置
 type EngineConfig struct {
-	ID           string      `json:"id"`
-	Name         string      `json:"name"`
-	Type         EngineType  `json:"type"`
-	BaseURL      string      `json:"base_url"`
-	APIKey       string      `json:"api_key,omitempty"`
-	Enabled      bool        `json:"enabled"`
-	DefaultModel string      `json:"default_model"`
-	Models       []ModelInfo `json:"models,omitempty"`
+	ID           string       `json:"id"`
+	Name         string       `json:"name"`
+	Type         EngineType   `json:"type"`
+	BaseURL      string       `json:"base_url"`
+	APIKey       string       `json:"api_key,omitempty"`
+	Enabled      bool         `json:"enabled"`
+	DefaultModel string       `json:"default_model"`
+	Models       []ModelInfo  `json:"models,omitempty"`
+	Status       EngineStatus `json:"status,omitempty"` // 最近连接状态缓存（刷新/测试后更新，随状态文件持久化）
 }
 
 // EngineStatus 引擎连接状态
@@ -69,8 +71,10 @@ type modelsListResponse struct {
 type Manager struct {
 	mu          sync.RWMutex
 	engines     map[string]*EngineConfig
-	xaiKey      string // xAI API key（来自 OAuth token）
-	deepseekKey string // DeepSeek API key（用户手动配置）
+	order       []string // 稳定展示顺序（GetEngines 按此返回，避免 map 随机序）
+	statePath   string   // 状态文件路径（空=不落盘）
+	xaiKey      string   // xAI API key（来自 OAuth token）
+	deepseekKey string   // DeepSeek API key（用户手动配置）
 	httpClient  *http.Client
 }
 
@@ -78,6 +82,7 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
+		order:       []string{"xai", "ollama", "herdsman", "deepseek"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		httpClient:  netclient.NewSimpleClient(15 * time.Second),
@@ -140,7 +145,11 @@ func (m *Manager) GetEngines() []EngineConfig {
 	defer m.mu.RUnlock()
 
 	result := make([]EngineConfig, 0, len(m.engines))
-	for _, e := range m.engines {
+	for _, id := range m.order {
+		e, ok := m.engines[id]
+		if !ok {
+			continue
+		}
 		cfg := *e
 		// 不暴露 API key 到前端
 		cfg.APIKey = ""
@@ -171,10 +180,9 @@ func (m *Manager) GetEngine(id string) (*EngineConfig, bool) {
 // SaveEngine 保存引擎配置
 func (m *Manager) SaveEngine(cfg EngineConfig) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	existing, ok := m.engines[cfg.ID]
 	if !ok {
+		m.mu.Unlock()
 		return fmt.Errorf("引擎 %s 不存在", cfg.ID)
 	}
 
@@ -190,7 +198,9 @@ func (m *Manager) SaveEngine(cfg EngineConfig) error {
 	}
 	// Enabled 由前端控制
 	existing.Enabled = cfg.Enabled
+	m.mu.Unlock()
 
+	m.saveState()
 	return nil
 }
 
@@ -212,6 +222,11 @@ func (m *Manager) TestConnection(ctx context.Context, engineID string) (*EngineS
 	if err != nil {
 		status.Connected = false
 		status.Error = err.Error()
+		// 缓存失败状态（前端可看到上次连接错误）
+		m.mu.Lock()
+		engine.Status = *status
+		m.mu.Unlock()
+		m.saveState()
 		slog.Warn("模型引擎连接失败", "engine", engineID, "error", err)
 		return status, nil // 不返回 error，让前端展示状态
 	}
@@ -222,10 +237,12 @@ func (m *Manager) TestConnection(ctx context.Context, engineID string) (*EngineS
 	// 更新引擎的模型列表
 	m.mu.Lock()
 	engine.Models = models
+	engine.Status = *status
 	if engine.DefaultModel == "" && len(models) > 0 {
 		engine.DefaultModel = models[0].ID
 	}
 	m.mu.Unlock()
+	m.saveState()
 
 	return status, nil
 }
@@ -246,7 +263,14 @@ func (m *Manager) RefreshModels(ctx context.Context, engineID string) ([]ModelIn
 
 	m.mu.Lock()
 	engine.Models = models
+	engine.Status = EngineStatus{
+		ID:          engineID,
+		Connected:   true,
+		ModelCount:  len(models),
+		LastChecked: time.Now().Format("2006-01-02 15:04:05"),
+	}
 	m.mu.Unlock()
+	m.saveState()
 
 	return models, nil
 }
@@ -306,10 +330,9 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 // SetDefaultModel 设置引擎的默认模型
 func (m *Manager) SetDefaultModel(engineID, modelName string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	engine, ok := m.engines[engineID]
 	if !ok {
+		m.mu.Unlock()
 		return fmt.Errorf("引擎 %s 不存在", engineID)
 	}
 
@@ -322,10 +345,13 @@ func (m *Manager) SetDefaultModel(engineID, modelName string) error {
 		}
 	}
 	if !found && len(engine.Models) > 0 {
+		m.mu.Unlock()
 		return fmt.Errorf("模型 %s 不在引擎 %s 的可用列表中", modelName, engineID)
 	}
 
 	engine.DefaultModel = modelName
+	m.mu.Unlock()
+	m.saveState()
 	slog.Info("设置默认模型", "engine", engineID, "model", modelName)
 	return nil
 }
@@ -340,6 +366,85 @@ func (m *Manager) GetDefaultModel(engineID string) (string, error) {
 		return "", fmt.Errorf("引擎 %s 不存在", engineID)
 	}
 	return engine.DefaultModel, nil
+}
+
+// ── 状态持久化（engines.json）───────────────────────────────
+
+// stateFile 磁盘状态文件结构。
+type stateFile struct {
+	Engines map[string]EngineConfig `json:"engines"`
+}
+
+// LoadState 从 path 加载引擎状态并设置自动落盘路径。
+// 首次启动文件不存在时静默降级（保留预置默认）。
+func (m *Manager) LoadState(path string) error {
+	m.mu.Lock()
+	m.statePath = path
+	m.mu.Unlock()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var f stateFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		slog.Warn("引擎状态文件解析失败", "path", path, "error", err)
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, st := range f.Engines {
+		eng, ok := m.engines[id]
+		if !ok {
+			// 未知引擎（新版本移除/手改文件）不创建
+			continue
+		}
+		if st.BaseURL != "" {
+			eng.BaseURL = st.BaseURL
+		}
+		eng.Enabled = st.Enabled
+		if st.DefaultModel != "" {
+			eng.DefaultModel = st.DefaultModel
+		}
+		if st.Models != nil {
+			eng.Models = st.Models
+		}
+		if st.Status.LastChecked != "" {
+			eng.Status = st.Status
+		}
+	}
+	return nil
+}
+
+// saveState 将当前引擎状态快照写回状态文件（path 未设置时跳过）。
+// 调用方不得持有写锁；内部自行加读锁快照。
+func (m *Manager) saveState() {
+	m.mu.RLock()
+	path := m.statePath
+	if path == "" {
+		m.mu.RUnlock()
+		return
+	}
+	f := stateFile{Engines: make(map[string]EngineConfig, len(m.engines))}
+	for id, e := range m.engines {
+		cfg := *e
+		cfg.APIKey = ""
+		f.Engines[id] = cfg
+	}
+	m.mu.RUnlock()
+
+	data, err := json.MarshalIndent(f, "", "  ")
+	if err != nil {
+		slog.Warn("序列化引擎状态失败", "error", err)
+		return
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		slog.Warn("保存引擎状态失败", "path", path, "error", err)
+	}
 }
 
 // buildChatURL 根据引擎类型构建 chat completions URL

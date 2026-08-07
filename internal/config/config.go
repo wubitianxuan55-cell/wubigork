@@ -402,6 +402,9 @@ func Load() *Config {
 			if cf.Model != "" {
 				cfg.Model = cf.Model
 			}
+			if cf.ActiveEngineID != "" {
+				cfg.ActiveEngineID = cf.ActiveEngineID
+			}
 			if cf.DeepseekAPIKey != "" {
 				cfg.DeepseekAPIKey = cf.DeepseekAPIKey
 			}

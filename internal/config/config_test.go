@@ -148,3 +148,14 @@ func TestSave_MultipleKeysRoundTrip(t *testing.T) {
 		t.Errorf("DefaultTemperature = %f", cfg.DefaultTemperature)
 	}
 }
+
+func TestSave_ActiveEngineIDRoundTrip(t *testing.T) {
+	err := saveWithTempHome(t, KeyActiveEngineID, "ollama")
+	if err != nil {
+		t.Fatalf("Save 失败: %s", err)
+	}
+	cfg := Load()
+	if cfg.ActiveEngineID != "ollama" {
+		t.Errorf("ActiveEngineID = %q, 期望 ollama（保存后重启必须恢复全局活跃引擎）", cfg.ActiveEngineID)
+	}
+}
