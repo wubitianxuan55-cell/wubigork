@@ -18,6 +18,18 @@ export function ApplyBranch(arg1, arg2, arg3) {
   return window['go']['app']['App']['ApplyBranch'](arg1, arg2, arg3);
 }
 
+export function BrainCrossRefs(arg1) {
+  return window['go']['app']['App']['BrainCrossRefs'](arg1);
+}
+
+export function BrainSearch(arg1, arg2) {
+  return window['go']['app']['App']['BrainSearch'](arg1, arg2);
+}
+
+export function BrainWrite(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['BrainWrite'](arg1, arg2, arg3, arg4);
+}
+
 export function BrainstormBranches(arg1) {
   return window['go']['app']['App']['BrainstormBranches'](arg1);
 }
@@ -706,6 +718,10 @@ export function GetModelMonitor() {
   return window['go']['app']['App']['GetModelMonitor']();
 }
 
+export function GetModelRoute(arg1) {
+  return window['go']['app']['App']['GetModelRoute'](arg1);
+}
+
 export function GetNovelsDir() {
   return window['go']['app']['App']['GetNovelsDir']();
 }
@@ -784,6 +800,10 @@ export function Login() {
 
 export function Logout() {
   return window['go']['app']['App']['Logout']();
+}
+
+export function MainBrainChat(arg1) {
+  return window['go']['app']['App']['MainBrainChat'](arg1);
 }
 
 export function MigrateProjectToV4() {
@@ -1040,6 +1060,10 @@ export function RestoreSnapshot(arg1, arg2, arg3) {
 
 export function ReviewBook() {
   return window['go']['app']['App']['ReviewBook']();
+}
+
+export function RunModule(arg1, arg2, arg3) {
+  return window['go']['app']['App']['RunModule'](arg1, arg2, arg3);
 }
 
 export function SaveAllWorldviewSections(arg1) {

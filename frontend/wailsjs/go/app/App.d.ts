@@ -17,6 +17,12 @@ export function AnalyzeStyle():Promise<Record<string, any>>;
 
 export function ApplyBranch(arg1:string,arg2:number,arg3:string):Promise<Record<string, any>>;
 
+export function BrainCrossRefs(arg1:string):Promise<string>;
+
+export function BrainSearch(arg1:string,arg2:string):Promise<string>;
+
+export function BrainWrite(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
 export function BrainstormBranches(arg1:string):Promise<Record<string, any>>;
 
 export function BuildBacklinkIndex():Promise<Record<string, any>>;
@@ -361,6 +367,8 @@ export function GetLorebookEntries():Promise<Record<string, any>>;
 
 export function GetModelMonitor():Promise<Record<string, any>>;
 
+export function GetModelRoute(arg1:string):Promise<string>;
+
 export function GetNovelsDir():Promise<string>;
 
 export function GetOutlines():Promise<Record<string, any>>;
@@ -400,6 +408,8 @@ export function ListSnapshots(arg1:string,arg2:number):Promise<Array<Record<stri
 export function Login():Promise<void>;
 
 export function Logout():Promise<void>;
+
+export function MainBrainChat(arg1:string):Promise<string>;
 
 export function MigrateProjectToV4():Promise<void>;
 
@@ -528,6 +538,8 @@ export function ReorderScenes(arg1:number,arg2:Array<string>):Promise<void>;
 export function RestoreSnapshot(arg1:string,arg2:string,arg3:number):Promise<void>;
 
 export function ReviewBook():Promise<Record<string, any>>;
+
+export function RunModule(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function SaveAllWorldviewSections(arg1:string):Promise<void>;
 
