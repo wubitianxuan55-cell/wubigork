@@ -64,3 +64,6 @@ whisper_data/
 
 # gaea 引擎运行时缓存
 **/.gaea/cache/
+
+# 备份产物
+backups/
