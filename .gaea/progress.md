@@ -85,3 +85,10 @@
 - `App.CmdKEdit` 改走 `routeModel("novel")`：绑定引擎+模型进入请求，模型名不再取全局陈旧值
 - 防御：`a.ctx` 为空时回退 `context.Background()`（测试/异常路径不 panic）
 - 验收：新增 2 个回归测试（ai 层 EngineID 路由命中绑定引擎、app 层 novel 绑定生效且不误走 xAI），`scripts/ci.ps1` CI OK
+
+## 2.4 xAI OAuth 回归验证（✅ 已完成，2026-08-07）
+
+- 修复：`DiscoverEndpoints` 此前硬编码 `https://auth.x.ai/...`，`cfg.OIDCDiscoveryURL` 与 `XAI_OIDC_DISCOVERY_URL` 环境变量完全失效（刷新链路也因此无法用测试桩验证）→ 改为取配置 URL（默认不变）
+- 加固：`exchangeCodeForToken` 从无超时的 `http.PostForm` 改为 15s 超时客户端（与 `RefreshAccessToken` 一致，E04 换 token 挂起场景可及时失败）
+- 回归（E04/E13 状态更新）：新增 8 个测试——discovery 配置化、换 token 成功（verifier/challenge 齐全）/500/403/空 verifier、刷新 token 成功/500/403；referrer=wubigork 已有 TestBuildAuthURL 断言
+- 验收：`scripts/ci.ps1` CI OK；docs/evaluation-set.md 中 E04/E13 状态改为「已转回归测试」
