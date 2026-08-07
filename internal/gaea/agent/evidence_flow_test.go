@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,6 +12,25 @@ import (
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
+
+// isolateProgressCwd 把 cwd 切到带独立 .gaea/ 的临时目录：
+// todo_write 的 V10.6 进度持久化会向上查找 .gaea 并写 progress.md，
+// 不加隔离会把测试进度写进仓库根 .gaea/progress.md（E21 类测试污染）。
+func isolateProgressCwd(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".gaea"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+}
 // Run() sees tool calls on turn 1 and a plain final answer on turn 2.
 type scriptedProvider struct {
 	name  string
@@ -132,6 +153,7 @@ func TestEvidenceFlowRejectsUncitedCommand(t *testing.T) {
 }
 
 func TestEvidenceFlowRejectsStepMissingFromTodoWrite(t *testing.T) {
+	isolateProgressCwd(t)
 	todoWrite, ok := tool.LookupBuiltin("todo_write")
 	if !ok {
 		t.Fatal("todo_write builtin not registered")
@@ -170,6 +192,7 @@ func TestEvidenceFlowRejectsStepMissingFromTodoWrite(t *testing.T) {
 }
 
 func TestEvidenceFlowAcceptsTodoCompletionAfterCompleteStep(t *testing.T) {
+	isolateProgressCwd(t)
 	todoWrite, ok := tool.LookupBuiltin("todo_write")
 	if !ok {
 		t.Fatal("todo_write builtin not registered")
@@ -207,6 +230,7 @@ func TestEvidenceFlowAcceptsTodoCompletionAfterCompleteStep(t *testing.T) {
 }
 
 func TestEvidenceFlowRejectsTodoCompletionWithoutCompleteStep(t *testing.T) {
+	isolateProgressCwd(t)
 	todoWrite, ok := tool.LookupBuiltin("todo_write")
 	if !ok {
 		t.Fatal("todo_write builtin not registered")
@@ -239,6 +263,7 @@ func TestEvidenceFlowRejectsTodoCompletionWithoutCompleteStep(t *testing.T) {
 }
 
 func TestEvidenceFlowFailedCompleteStepDoesNotAuthorizeTodoCompletion(t *testing.T) {
+	isolateProgressCwd(t)
 	todoWrite, ok := tool.LookupBuiltin("todo_write")
 	if !ok {
 		t.Fatal("todo_write builtin not registered")
@@ -278,6 +303,7 @@ func TestEvidenceFlowFailedCompleteStepDoesNotAuthorizeTodoCompletion(t *testing
 }
 
 func TestEvidenceFlowRejectsReplacedTodoAfterNumericCompleteStep(t *testing.T) {
+	isolateProgressCwd(t)
 	todoWrite, ok := tool.LookupBuiltin("todo_write")
 	if !ok {
 		t.Fatal("todo_write builtin not registered")
@@ -317,6 +343,7 @@ func TestEvidenceFlowRejectsReplacedTodoAfterNumericCompleteStep(t *testing.T) {
 }
 
 func TestEvidenceFlowAcceptsReorderedTodoAfterNumericCompleteStep(t *testing.T) {
+	isolateProgressCwd(t)
 	todoWrite, ok := tool.LookupBuiltin("todo_write")
 	if !ok {
 		t.Fatal("todo_write builtin not registered")
