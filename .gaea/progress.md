@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 15:00:00
+> 最后更新: 2026-08-07 15:10:00
 
 ## 2.0 P0 基线加固（✅ 已完成）
 
@@ -170,6 +170,15 @@
 - 清理聊天内残留管理入口文案：「虚拟助手管理」→「角色库管理」，空状态改为「选择角色」+「去角色库管理角色」
 - 审计结论（供下一步决策）：人格注入为结构化分块（口吻指南 + 角色状态 Tier A + 心理状态 + Tier B 记忆块 + 运行时上下文）；记忆按 `whisper_<角色ID>` 隔离状态/历史，但**事实/情节/知识图谱恢复时未按会话过滤**（`LoadFactsFromDB` 全量加载），存在跨角色事实串扰——待确认语义后修复
 - 验收：`npm run build`、`scripts/ci.ps1` CI OK、`wails build` 成功（build/bin/gaea.exe 38MB）
+
+## 2.16 发布 2.2.0「统一角色库」（✅ 已完成，2026-08-07）
+
+- 版本号：wails.json / versioninfo.rc / CHANGELOG / README → 2.2.0
+- 构建：wails build 成功（build/bin/gaea.exe 38MB），已复制到桌面 + releases/gaea-v2.2.0.exe
+- 校验和：releases/SHA256SUMS-v2.2.0.txt（89715c6e…）
+- 发布文档：releases/v2.2.0.md（2.10–2.15 六轮迭代摘要：统一角色库 / 小说单向抽卡 / 聊天选角色 / 记忆隔离 / 状态归集 / 取消轻语）
+- 备份：scripts/backup.ps1 已运行（whisper_data/配置 → backups/20260807-150559）
+- 全量验收：scripts/ci.ps1 CI OK，提交后打 tag v2.2.0 并推送 origin
 
 ## 2.14 角色记忆隔离（方案 A：每个角色只恢复/保存自己的记忆，✅ 已完成，2026-08-07）
 
