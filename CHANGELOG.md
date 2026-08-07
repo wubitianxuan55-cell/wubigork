@@ -2,6 +2,17 @@
 
 # gaea · 多功能 AI 助手
 
+## v2.0.1「三脑底座」(2026-08-07)
+
+> 在 v1.21.0 基础上迭代：模型路由、三脑记忆、主脑可选编排、基线加固。
+
+- 基线：frontend/package.json 纳入版本控制；scripts/ci.ps1 闸门；E01-E24 评估集 + 首批回归
+- 模型：routeModel 降级链（功能绑定→全局→首个可用）；novel/whisper 调用收敛；模型中心"当前生效"
+- 记忆：BrainStore 三脑统一访问 + brain_links 跨脑关联；记忆中枢三脑检索
+- 编排：ModuleRegistry + RunModule + MainBrainChat（可选入口，不经由模块直达路径）
+- 互联：方案生成自动注入跨脑记忆；3.0 模块协议文档预留
+- 验证：go build/vet/test 全绿 + tsc + vite build + wails build（见 releases/v2.0.1.md）
+
 ## v1.21.0「UI 工作台」(2026-08-05)
 
 > 方案编写板块重构为三栏工作台：左侧项目/方案树（检查分数徽章）＋ 中间文档工作区 ＋ 右侧 AI 上下文面板（招标要点/检查摘要/单人复核清单）；去除 Office 页 emoji 标签与 whisper-theme 依赖。
