@@ -434,6 +434,10 @@ func (a *officeState) ProposalGenerateSectionStream(pid, sid, inst string) {
 		if inst != "" {
 			ctx = append(ctx, "【额外要求】"+inst)
 		}
+		// P4：跨脑记忆注入（轻语右脑甲方偏好 → 方案左脑写作上下文）
+		if a.app != nil && a.app.brain != nil {
+			ctx = append(ctx, buildBrainMaterials(a.app.brain, p.Title, p.Requirements, inst)...)
+		}
 		sp := sc.SystemPrompt
 		var body string
 		for attempt := 0; attempt <= 3; attempt++ {
