@@ -158,6 +158,7 @@ var migrations = []string{
 	SchemaV9,
 	SchemaV10,
 	SchemaV11,
+	SchemaV12,
 }
 
 // runMigrations 执行递增迁移链 V1 → V11

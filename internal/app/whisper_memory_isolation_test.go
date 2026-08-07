@@ -122,3 +122,25 @@ func TestWhisperPersist_PreservesOtherSessions(t *testing.T) {
 		t.Fatalf("图谱写回覆盖了其他角色: %v", trIDs)
 	}
 }
+
+// TestWhisperTraces_IsolatedBySession 轮次追踪按会话隔离（角色库「追踪」页数据源）
+func TestWhisperTraces_IsolatedBySession(t *testing.T) {
+	a := newChatServiceTestApp(t)
+	now := time.Now()
+	trA := whisper.TurnTrace{Turn: 1, Timestamp: &now}
+	trB := whisper.TurnTrace{Turn: 2, Timestamp: &now}
+	if err := repos.AppendTurnTraceToDB(a.whisperDataRoot, "whisper_isoA", trA); err != nil {
+		t.Fatalf("写入 A 追踪: %v", err)
+	}
+	if err := repos.AppendTurnTraceToDB(a.whisperDataRoot, "whisper_isoB", trB); err != nil {
+		t.Fatalf("写入 B 追踪: %v", err)
+	}
+	tracesA := a.WhisperGetTraces("isoA")
+	if len(tracesA) != 1 || tracesA[0].Turn != 1 {
+		t.Fatalf("A 追踪应为仅 1 条: %+v", tracesA)
+	}
+	tracesB := a.WhisperGetTraces("isoB")
+	if len(tracesB) != 1 || tracesB[0].Turn != 2 {
+		t.Fatalf("B 追踪应为仅 1 条: %+v", tracesB)
+	}
+}

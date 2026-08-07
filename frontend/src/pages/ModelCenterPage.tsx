@@ -148,10 +148,10 @@ const ModelCenterPage: React.FC = () => {
     { modelId: 'z-image-turbo', modelName: 'Z-Image-Turbo', engineId: 'comfyui', engineName: 'ComfyUI', status: 'running' },
   ]
 
-  // ── 功能模型绑定（聊天/轻语/小说/办公 各自独立 LLM，持久化重启不丢）──
+  // ── 功能模型绑定（聊天/小说/办公 各自独立 LLM，持久化重启不丢）──
   const FEATURES: { key: string; label: string; icon: string }[] = [
     { key: 'chat', label: '聊天', icon: '💬' },
-    { key: 'whisper', label: '轻语', icon: '🫀' },
+    { key: 'whisper', label: '聊天', icon: '🫀' },
     { key: 'novel', label: '小说', icon: '📖' },
     { key: 'office', label: '方案编写', icon: '📄' },
     { key: 'gaea', label: '办公', icon: '🛠️' },

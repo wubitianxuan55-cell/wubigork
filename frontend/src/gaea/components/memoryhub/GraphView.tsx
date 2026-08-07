@@ -11,7 +11,7 @@ const TYPE_COLORS: Record<string, string> = {
   whisper: "#f472b6", // pink
 };
 const TYPE_LABELS: Record<string, string> = {
-  knowledge: "知识", profile: "画像", office: "办公记忆", whisper: "轻语",
+  knowledge: "知识", profile: "画像", office: "办公记忆", whisper: "聊天记忆",
 };
 const TYPE_KEYS = ["knowledge", "profile", "office", "whisper"] as const;
 const LINK_COLORS: Record<string, string> = {
@@ -172,7 +172,7 @@ export function GraphView(p: { variant?: "page" | "home" }) {
               </div>
             )}
             <div className="text-fg-faint text-[11px]">
-              来自：{selected.type === "knowledge" ? "知识库" : selected.type === "profile" ? "用户画像" : selected.type === "office" ? "办公记忆" : "轻语记忆"}
+              来自：{selected.type === "knowledge" ? "知识库" : selected.type === "profile" ? "用户画像" : selected.type === "office" ? "办公记忆" : "聊天记忆"}
             </div>
           </div>
         )}

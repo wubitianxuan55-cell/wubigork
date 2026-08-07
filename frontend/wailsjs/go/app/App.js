@@ -1418,6 +1418,10 @@ export function WhisperGetState(arg1) {
   return window['go']['app']['App']['WhisperGetState'](arg1);
 }
 
+export function WhisperGetTraces(arg1) {
+  return window['go']['app']['App']['WhisperGetTraces'](arg1);
+}
+
 export function WhisperSetAdultMode(arg1, arg2) {
   return window['go']['app']['App']['WhisperSetAdultMode'](arg1, arg2);
 }

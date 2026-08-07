@@ -719,6 +719,8 @@ export function WhisperGetPersonalities():Promise<Array<whisper.PersonalityPrese
 
 export function WhisperGetState(arg1:string):Promise<Record<string, any>>;
 
+export function WhisperGetTraces(arg1:string):Promise<Array<whisper.TurnTrace>>;
+
 export function WhisperSetAdultMode(arg1:string,arg2:boolean):Promise<void>;
 
 export function WhisperSetEngine(arg1:string):Promise<void>;

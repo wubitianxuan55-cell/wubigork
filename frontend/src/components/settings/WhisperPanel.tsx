@@ -34,7 +34,7 @@ function saveSettings(s: CompanionSettings) {
   try { localStorage.setItem(COMPANION_SETTINGS_KEY, JSON.stringify(s)) } catch (_) {}
 }
 
-/** WhisperPanel — 轻语设置（原轻语界面设置面板，合并到设置中心） */
+/** WhisperPanel — 聊天设置（AI 伴侣：称呼 / 性别 / 人格 / 互动） */
 const WhisperPanel: React.FC = () => {
   const [settings, setSettings] = useState<CompanionSettings>(loadSettings)
   const [personalities, setPersonalities] = useState<Personality[]>([])
@@ -55,13 +55,13 @@ const WhisperPanel: React.FC = () => {
     try { await (App as any).WhisperClearSession(activePersonality) } catch (_) {}
     setActivePersonality(id)
     try { localStorage.setItem(PERSONALITY_KEY, id) } catch (_) {}
-    message.success(`已切换为「${personalities.find(p => p.id === id)?.label || id}」人格（轻语界面生效）`)
+    message.success(`已切换为「${personalities.find(p => p.id === id)?.label || id}」人格（聊天板块生效）`)
   }
 
   const handleClearAll = async () => {
     try { localStorage.removeItem(TOPICS_KEY); localStorage.removeItem(LEGACY_TOPICS_KEY) } catch (_) {}
     try { await (App as any).WhisperClearSession(activePersonality) } catch (_) {}
-    message.success('轻语全部会话已清除')
+    message.success('聊天全部会话已清除')
   }
 
   const currentPersonality = personalities.find(p => p.id === activePersonality)
@@ -70,7 +70,7 @@ const WhisperPanel: React.FC = () => {
     <>
       <SettingsSection
         title={<>AI 伴侣</>}
-        desc="轻语 AI 伴侣的基础设定（称呼 / 性别）。"
+        desc="聊天 AI 伴侣的基础设定（称呼 / 性别）。"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
@@ -91,7 +91,7 @@ const WhisperPanel: React.FC = () => {
 
       <SettingsSection
         title={<>人格</>}
-        desc="轻语对话使用的人格（默认 gaea 大地女神）。"
+        desc="聊天使用的人格（默认 gaea 大地女神）。"
         instant
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -119,7 +119,7 @@ const WhisperPanel: React.FC = () => {
 
       <SettingsSection
         title={<>互动</>}
-        desc="轻语互动行为设置。"
+        desc="聊天互动行为设置。"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -135,9 +135,9 @@ const WhisperPanel: React.FC = () => {
 
       <SettingsSection
         title={<>数据管理</>}
-        desc="清除轻语全部会话记录与后端上下文。"
+        desc="清除聊天全部会话记录与后端上下文。"
       >
-        <Popconfirm title="确认清除全部轻语会话？" okText="清除" cancelText="取消" onConfirm={handleClearAll}>
+        <Popconfirm title="确认清除全部聊天会话？" okText="清除" cancelText="取消" onConfirm={handleClearAll}>
           <Button size="small" danger>清除全部会话</Button>
         </Popconfirm>
       </SettingsSection>

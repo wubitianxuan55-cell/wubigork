@@ -1,4 +1,4 @@
-// WhisperMemoryModal.tsx — 轻语记忆管理弹窗 v2
+// WhisperMemoryModal.tsx — 角色记忆管理弹窗（角色库内使用）
 import React, { useState, useMemo, useCallback } from 'react'
 import { Input, Button, Modal, Tag, Select, Tooltip, message, Popconfirm } from 'antd'
 import { SearchOutlined, DeleteOutlined, EditOutlined, CloseOutlined, CheckOutlined, StarFilled } from '@ant-design/icons'

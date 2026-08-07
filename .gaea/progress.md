@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 14:50:00
+> 最后更新: 2026-08-07 15:00:00
 
 ## 2.0 P0 基线加固（✅ 已完成）
 
@@ -179,6 +179,14 @@
 - 无来源事实的三元组视为全局遗留：不注入任何角色、也不在写回时删除（保守保留）
 - 更新既有 `TestWhisperMemoryPersistRoundTrip` 为隔离语义；新增 `TestWhisperMemoryRestore_IsolatedBySession` / `TestWhisperPersist_PreservesOtherSessions`
 - 验收：`go test ./...`、`scripts/ci.ps1` CI OK、`wails build` 成功（build/bin/gaea.exe 38MB）
+
+## 2.15 状态/记忆/追踪归集角色库 + 取消「轻语」称谓（✅ 已完成，2026-08-07）
+
+- 聊天面板只留对话：移除右侧记忆抽屉（状态/记忆/追踪三页）、记忆管理弹窗、人格状态条上的情绪/信任/轮次/裂痕展示；保留头像/名字与情绪氛围色（视觉反馈，非状态面板）
+- 新增角色库「记忆」入口（可聊天角色卡片）：`CharacterMemoryModal` 三个 Tab——状态（WhisperEmotionPanel + 欲望面板）、记忆（WhisperMemoryList 只读分组 + 管理弹窗）、追踪（WhisperTracePanel）
+- 追踪按角色持久化：`turn_traces` 新增 `session_id` 列（Schema V12 迁移），每轮对话写入归属会话；新增 `WhisperGetTraces` 绑定按会话读取；`WhisperGetState`/`WhisperGetFacts` 改为无会话时自动恢复（角色库查看任意角色状态不再要求先聊过）
+- 取消「轻语」称谓（统称聊天）：模式条「轻语·X」→「角色·X」；设置页/语音设置/模型中心/记忆中枢/首页启动器等全部改「聊天」或「聊天记忆」；首页删除重复的「轻语」启动卡片；删除 chatNav 死信号
+- 验收：`npm run build`、`scripts/ci.ps1` CI OK、`wails build` 成功（build/bin/gaea.exe 38MB）
 
 ## 2.11 去除成人限制（私人非商用，✅ 已完成，2026-08-07）
 

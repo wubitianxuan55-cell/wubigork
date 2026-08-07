@@ -101,7 +101,7 @@ const TisorBars: React.FC<{ T: number; I: number; S: number; O: number; R: numbe
   )
 }
 
-// ─── 轻语情感面板 ─────────────────────────────────────────────
+// ─── 角色状态面板 ─────────────────────────────────────────────
 
 export interface EmotionPanelProps {
   emotion: string; stage: string

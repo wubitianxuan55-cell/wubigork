@@ -11,8 +11,8 @@ import (
 	"github.com/gaea/gaea/internal/whisper/db"
 )
 
-// AppendTurnTraceToDB 追加一条轮次追踪
-func AppendTurnTraceToDB(dataRoot string, trace whisper.TurnTrace) error {
+// AppendTurnTraceToDB 追加一条轮次追踪（带会话归属，角色追踪隔离）
+func AppendTurnTraceToDB(dataRoot, sessionID string, trace whisper.TurnTrace) error {
 	sqlDB := db.GetDatabase(dataRoot)
 	if sqlDB == nil {
 		return fmt.Errorf("数据库不可用")
@@ -27,8 +27,8 @@ func AppendTurnTraceToDB(dataRoot string, trace whisper.TurnTrace) error {
 	createdAt := time.Now().Format(time.RFC3339)
 
 	_, err = sqlDB.Exec(
-		"INSERT INTO turn_traces(date, trace_json, created_at) VALUES (?, ?, ?)",
-		date, string(traceJSON), createdAt,
+		"INSERT INTO turn_traces(date, trace_json, created_at, session_id) VALUES (?, ?, ?, ?)",
+		date, string(traceJSON), createdAt, sessionID,
 	)
 	return err
 }
@@ -61,6 +61,42 @@ func LoadTurnTracesFromDB(dataRoot, date string) ([]whisper.TurnTrace, error) {
 		}
 	}
 	return traces, nil
+}
+
+// LoadTurnTracesFromDBSession 按会话加载最近 N 条轮次追踪（升序返回）
+func LoadTurnTracesFromDBSession(dataRoot, sessionID string, limit int) ([]whisper.TurnTrace, error) {
+	sqlDB := db.GetDatabase(dataRoot)
+	if sqlDB == nil {
+		return nil, fmt.Errorf("数据库不可用")
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 80
+	}
+	rows, err := sqlDB.Query(
+		"SELECT trace_json FROM turn_traces WHERE session_id = ? ORDER BY created_at DESC LIMIT ?",
+		sessionID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var traces []whisper.TurnTrace
+	for rows.Next() {
+		var traceJSON string
+		if err := rows.Scan(&traceJSON); err != nil {
+			continue
+		}
+		var t whisper.TurnTrace
+		if json.Unmarshal([]byte(traceJSON), &t) == nil {
+			traces = append(traces, t)
+		}
+	}
+	// 倒序取回后反转，按时间升序返回
+	for i, j := 0, len(traces)-1; i < j; i, j = i+1, j-1 {
+		traces[i], traces[j] = traces[j], traces[i]
+	}
+	return traces, rows.Err()
 }
 
 // CountTracesInDB 返回追踪总数

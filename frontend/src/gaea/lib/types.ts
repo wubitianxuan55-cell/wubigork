@@ -479,7 +479,7 @@ export interface ProfileFactView {
   body: string;
 }
 
-// WhisperMemoryView 轻语（hermes.db）记忆事实只读视图。
+// WhisperMemoryView 聊天（hermes.db）记忆事实只读视图。
 export interface WhisperMemoryView {
   id: string;
   domain: string;
@@ -493,7 +493,7 @@ export interface WhisperMemoryView {
   updatedAt: string;
 }
 
-// WhisperEpisodeView 轻语（hermes.db）情节记忆只读视图（时间倒序）。
+// WhisperEpisodeView 聊天（hermes.db）情节记忆只读视图（时间倒序）。
 export interface WhisperEpisodeView {
   id: string;
   summary: string;

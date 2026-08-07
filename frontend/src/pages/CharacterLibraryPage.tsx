@@ -6,10 +6,11 @@ import {
 } from 'antd'
 import {
   PlusOutlined, SearchOutlined, TeamOutlined, EditOutlined, DeleteOutlined,
-  ImportOutlined, SyncOutlined, SwapOutlined, UserOutlined, ReadOutlined,
+  ImportOutlined, SyncOutlined, SwapOutlined, UserOutlined, ReadOutlined, DatabaseOutlined,
 } from '@ant-design/icons'
 import TisorRadar from '../components/TisorRadar'
 import CharacterLibEditor from '../components/characterlib/CharacterLibEditor'
+import CharacterMemoryModal from '../components/characterlib/CharacterMemoryModal'
 import { C } from '../utils/theme'
 import { useAppStore } from '../stores/appStore'
 import {
@@ -51,6 +52,7 @@ const CharacterLibraryPage: React.FC = () => {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<LibraryCharacter | null>(null)
   const [editingProjects, setEditingProjects] = useState<string[]>([])
+  const [memoryChar, setMemoryChar] = useState<LibraryCharacter | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -259,6 +261,10 @@ const CharacterLibraryPage: React.FC = () => {
                         onClick={() => openEdit(c)} style={{ fontSize: 12, padding: '0 6px' }} />
                       <Button size="small" type="text" icon={<SwapOutlined />} title="设为当前聊天人格" disabled={!c.chatEnabled}
                         onClick={() => handleSetPersona(c)} style={{ fontSize: 12, padding: '0 6px' }} />
+                      {c.chatEnabled && (
+                        <Button size="small" type="text" icon={<DatabaseOutlined />} title="查看状态 / 记忆 / 追踪"
+                          onClick={() => setMemoryChar(c)} style={{ fontSize: 12, padding: '0 6px' }} />
+                      )}
                       {hasProject && (
                         inProject
                           ? <Button size="small" type="text" title="从当前项目移除（角色保留在库）"
@@ -300,6 +306,11 @@ const CharacterLibraryPage: React.FC = () => {
         projects={editingProjects}
         onClose={() => setEditorOpen(false)}
         onSaved={handleSaved}
+      />
+      <CharacterMemoryModal
+        open={!!memoryChar}
+        character={memoryChar}
+        onClose={() => setMemoryChar(null)}
       />
     </div>
   )

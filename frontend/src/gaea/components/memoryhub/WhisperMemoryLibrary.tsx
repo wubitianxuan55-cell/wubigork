@@ -34,7 +34,7 @@ function formatTime(iso: string): string {
   return `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** WhisperMemoryLibrary 右脑轻语记忆库（只读）：hermes.db 记忆事实 + 情节记忆浏览。 */
+/** WhisperMemoryLibrary 右脑聊天记忆库（只读）：hermes.db 记忆事实 + 情节记忆浏览。 */
 export function WhisperMemoryLibrary() {
   const [tab, setTab] = useState<"facts" | "episodes">("facts");
   const [facts, setFacts] = useState<WhisperMemoryView[]>([]);
@@ -102,7 +102,7 @@ export function WhisperMemoryLibrary() {
     <div className="h-full flex flex-col">
       {/* 工具条 */}
       <div className="shrink-0 flex items-center gap-2 px-4 pt-3 pb-2">
-        <div className="text-fg text-[13px] font-medium">轻语记忆</div>
+        <div className="text-fg text-[13px] font-medium">聊天记忆</div>
         <span className="text-fg-faint text-[11px]">Hermes 的人格记忆（hermes.db，只读）</span>
         <div className="ml-auto flex items-center gap-2">
           {/* Tab 切换：事实 / 情节 */}
@@ -205,7 +205,7 @@ export function WhisperMemoryLibrary() {
             </div>
           )
         ) : filtered.length === 0 ? (
-          <EmptyState message="暂无轻语记忆 — 与 Hermes 对话产生的人格记忆会出现在这里（只读浏览）" />
+          <EmptyState message="暂无聊天记忆 — 与角色对话产生的人格记忆会出现在这里（只读浏览）" />
         ) : (
           /* ── 事实分组列表 ── */
           <div className="space-y-4">
@@ -253,7 +253,7 @@ export function WhisperMemoryLibrary() {
         width={520}
         title={
           <span>
-            <span className="text-pink-400">轻语记忆</span>
+            <span className="text-pink-400">聊天记忆</span>
             {" · "}{selected?.subject}
           </span>
         }

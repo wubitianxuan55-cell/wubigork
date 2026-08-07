@@ -41,8 +41,8 @@ const SettingsPage: React.FC = () => {
     },
     {
       key: 'whisper',
-      label: (<span><HeartOutlined style={{ marginRight: 6 }} />轻语</span>),
-      keywords: ['轻语', '人格', '记忆', '对话', 'hermes', '角色'],
+      label: (<span><HeartOutlined style={{ marginRight: 6 }} />聊天</span>),
+      keywords: ['聊天', '人格', '记忆', '对话', 'hermes', '角色'],
       children: (<WhisperPanel />),
     },
     {
@@ -100,7 +100,7 @@ const SettingsPage: React.FC = () => {
           设置中心
         </Typography.Title>
         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12 }}>
-          整合 gaea 全部设置参数 —— 外观 / 小说 / 语音 / 轻语 / 绘梦 / 方案 / 办公 / 系统
+          整合 gaea 全部设置参数 —— 外观 / 小说 / 语音 / 聊天 / 绘梦 / 方案 / 办公 / 系统
         </Typography.Text>
       </div>
 

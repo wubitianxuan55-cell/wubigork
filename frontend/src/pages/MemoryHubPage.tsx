@@ -17,7 +17,7 @@ import "../gaea/components/memoryhub/hub.css";
 
 type LibraryKey = "knowledge" | "cost" | "profile" | "office" | "whisper" | "graph";
 
-// 各库霓虹色（与 3D 图谱着色一致：indigo 知识 / amber 成本 / emerald 办公 / pink 轻语）
+// 各库霓虹色（与 3D 图谱着色一致：indigo 知识 / amber 成本 / emerald 办公 / pink 聊天记忆）
 const LIB_COLORS: Record<LibraryKey, string> = {
   knowledge: "#818cf8",
   cost: "#fbbf24",
@@ -39,7 +39,7 @@ const LIBRARIES: LibraryDef[] = [
   { key: "cost", label: "成本库", icon: <Coins size={17} />, hint: "单价/单位/来源" },
   { key: "profile", label: "用户画像", icon: <Brain size={17} />, hint: "跨板块共享画像" },
   { key: "office", label: "办公记忆", icon: <FileText size={17} />, hint: "Hephaestus 工作事实" },
-  { key: "whisper", label: "轻语记忆", icon: <HeartOutlined style={{ fontSize: 16 }} />, hint: "Hermes 人格记忆 · 只读" },
+  { key: "whisper", label: "聊天记忆", icon: <HeartOutlined style={{ fontSize: 16 }} />, hint: "Hermes 人格记忆 · 只读" },
   { key: "graph", label: "记忆图谱", icon: <NodeIndexOutlined style={{ fontSize: 16 }} />, hint: "3D 关系图谱" },
 ];
 
@@ -48,7 +48,7 @@ const LEFT_CARDS: LibraryKey[] = ["knowledge", "cost", "profile"];
 const RIGHT_CARDS: LibraryKey[] = ["office", "whisper", "graph"];
 
 // 记忆中枢首页：中央 3D 图谱 + 四周霓虹玻璃模块卡片。
-// 点击卡片切换到对应库面板；三脑记忆（主脑知识/画像 + 左脑办公 + 右脑轻语）统一入口。
+// 点击卡片切换到对应库面板；三脑记忆（主脑知识/画像 + 左脑办公 + 右脑聊天记忆）统一入口。
 function MemoryHubPage() {
   const [active, setActive] = useState<"home" | LibraryKey>("home");
   const [overview, setOverview] = useState<MemoryHubOverview | null>(null);

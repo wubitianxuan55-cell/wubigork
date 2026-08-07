@@ -1,4 +1,4 @@
-// VoiceSettingsPanel.tsx — 轻语语音设置面板
+// VoiceSettingsPanel.tsx — 聊天语音设置面板
 // 对齐 ackem VoiceSettings.tsx
 
 import React, { useState, useEffect } from 'react'

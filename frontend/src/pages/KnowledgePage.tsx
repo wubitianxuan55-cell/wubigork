@@ -7,7 +7,7 @@ import '../gaea/tailwind.css'
 
 // 知识库板块：独立页面，显式工程知识条目（规范/案例/经验）的管理与检索。
 // 与记忆系统（隐式跨会话事实，侧边栏 MemoryPanel）明确区分——
-// 知识库是可编辑、可分类、可全文检索的显式知识，服务于办公/方案/轻语等板块
+// 知识库是可编辑、可分类、可全文检索的显式知识，服务于办公/方案/聊天等板块
 // 通过 knowledge_search/knowledge_add 工具（MCP 式）按需调用。
 // LocaleProvider 必须包在最外层（组件自身调用 useT）。
 function KnowledgePage() {

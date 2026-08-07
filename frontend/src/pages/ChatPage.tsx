@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
-import { Input, Button, Typography, Tooltip, Modal, Tabs, Tag, message, Space } from 'antd'
+import { Input, Button, Typography, Tooltip, Modal, message, Space } from 'antd'
 import {
   SendOutlined, RobotOutlined, CopyOutlined, CheckOutlined,
   SoundOutlined, ReloadOutlined, CloseCircleOutlined,
-  GlobalOutlined, SettingOutlined, ClearOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+  GlobalOutlined, SettingOutlined, ClearOutlined,
   AudioOutlined, StopOutlined, HeartOutlined, MessageOutlined, SearchOutlined,
   EditOutlined, BulbOutlined, BookOutlined, TranslationOutlined, StarFilled,
-  ThunderboltOutlined, InboxOutlined, SwapOutlined,
+  ThunderboltOutlined, SwapOutlined,
 } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import { C } from '../utils/theme'
@@ -15,17 +15,12 @@ import ChatTopicSidebar, { type Topic as SidebarTopic } from '../components/Chat
 import ChatMarkdown from '../components/ChatMarkdown'
 import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
 import { CompanionAvatar } from '../components/CompanionAvatar'
-import { WhisperEmotionPanel } from '../components/WhisperEmotionPanel'
-import WhisperDesirePanel from '../components/WhisperDesirePanel'
-import WhisperTracePanel from '../components/WhisperTracePanel'
-import WhisperMemoryModal from '../components/WhisperMemoryModal'
 import VoiceSettingsPanel from '../components/VoiceSettingsPanel'
 import PersonaPicker from '../components/PersonaPicker'
 import { ParticleFlow } from '../components/ParticleFlow'
 import { SoundWaveOverlay } from '../components/SoundWaveOverlay'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { VOICE_LAUNCH_FLAG } from '../components/ModuleLauncher'
-import { requestPersonaEnter, consumePersonaEnter } from '../utils/chatNav'
 import '../chat-board.css'
 
 interface Personality {
@@ -84,35 +79,11 @@ const PERSONA_SUGGESTIONS = [
   { icon: <ThunderboltOutlined />, label: '晚安问候', desc: '睡前聊一会儿' },
 ]
 
-// ── 记忆分类映射（对齐后端 memory_taxonomy.go 6 domain） ──
-const DOMAIN_LABELS: Record<string, string> = {
-  IDENTITY: '身份', SOCIAL: '社交', DAILY_LIFE: '日常',
-  PURSUITS: '追求', INNER_WORLD: '内心', TEMPORAL: '时间',
-}
-const DOMAIN_ORDER = ['IDENTITY', 'SOCIAL', 'DAILY_LIFE', 'PURSUITS', 'INNER_WORLD', 'TEMPORAL']
-const SUB_LABELS: Record<string, string> = {
-  BASIC_PROFILE: '基本信息', LIFE_STORY: '人生故事', VALUES_BELIEFS: '价值观', SELF_PERCEPTION: '自我认知',
-  OUR_BOND: '我们的羁绊', FAMILY: '家庭', FRIENDS: '朋友', PARTNER: '伴侣',
-  ROUTINES: '日常习惯', HEALTH: '健康', LIVING_SPACE: '居住', LIFESTYLE: '生活方式',
-  CAREER: '职业', LEARNING: '学习', GOALS: '目标', PROJECTS: '项目', PROCEDURES: '流程',
-  MOOD: '情绪', TASTES: '品味', VULNERABILITIES: '脆弱面', INSIDE_JOKES: '内部梗',
-  NOW: '当下', COMMITMENTS: '承诺', PLANS: '计划', WORLD: '世界观',
-}
-
 const EMO_COLORS: Record<string, string> = {
   SWEET_ATTACHMENT: '#f472b6', SHY_HEARTBEAT: '#fb7185', TSUNDERE: '#f59e0b',
   HURT_GRIEVANCE: '#a78bfa', ANGRY_ATTACK: '#ef4444', COLD_DETACHED: '#94a3b8',
   FEARFUL_OBEDIENT: '#c084fc', QUIET_FOND: '#fbbf24', CALM_RATIONAL: '#60a5fa',
 }
-const EMO_LABELS: Record<string, string> = {
-  SWEET_ATTACHMENT: '甜蜜依恋', SHY_HEARTBEAT: '害羞心动', TSUNDERE: '傲娇',
-  HURT_GRIEVANCE: '委屈受伤', ANGRY_ATTACK: '愤怒反击', COLD_DETACHED: '冷淡疏离',
-  FEARFUL_OBEDIENT: '不安顺从', QUIET_FOND: '安静的喜欢', CALM_RATIONAL: '平静理性',
-}
-const STAGE_LABELS: Record<string, string> = {
-  INTIMATE: '亲密', FAMILIAR: '熟悉', STRANGER: '初识',
-}
-
 let msgSeq = 0
 function nextMsgKey(): string { msgSeq++; return `m_${msgSeq}_${Date.now()}` }
 function nowStr(): string { return new Date().toISOString() }
@@ -172,109 +143,6 @@ async function migrateLegacyTopics(): Promise<boolean> {
   return true
 }
 
-/** 右侧记忆抽屉（人格模式） */
-const MemoryDrawer: React.FC<{
-  facts: any[]; personalityLabel: string
-  search: string; onSearch: (v: string) => void
-  collapsed: Set<string>; onToggle: (d: string) => void
-  onOpenPage: () => void
-}> = ({ facts, personalityLabel, search, onSearch, collapsed, onToggle, onOpenPage }) => {
-  const filtered = facts.filter((f: any) =>
-    !search ||
-    String(f.subject || '').toLowerCase().includes(search.toLowerCase()) ||
-    String(f.summary || '').toLowerCase().includes(search.toLowerCase()))
-  const grouped = DOMAIN_ORDER.map(d => ({
-    domain: d,
-    label: DOMAIN_LABELS[d] || d,
-    facts: filtered.filter((f: any) => f.domain === d || f.domain === d.toLowerCase()),
-  })).filter(g => g.facts.length > 0)
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 4, padding: '2px 8px 8px' }}>
-      <Input
-        prefix={<SearchOutlined />} size="small" placeholder="搜索记忆"
-        value={search} onChange={e => onSearch(e.target.value)} allowClear
-        style={{ borderRadius: 8, fontSize: 11 }}
-      />
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        {facts.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 26, color: C('color-text-secondary'), fontSize: 12, lineHeight: 1.7 }}>
-            <InboxOutlined style={{ fontSize: 20, opacity: 0.5, marginBottom: 8, display: 'block' }} />
-            还没有记忆，多聊几句吧
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 26, color: C('color-text-secondary'), fontSize: 12 }}>无匹配</div>
-        ) : (
-          grouped.map(g => {
-            const isCollapsed = collapsed.has(g.domain)
-            const coreCount = g.facts.filter((f: any) => f.tier === 'core').length
-            return (
-              <div key={g.domain} style={{ marginBottom: 2 }}>
-                <div
-                  role="button" tabIndex={0}
-                  onClick={() => onToggle(g.domain)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(g.domain) } }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 4, padding: '6px',
-                    borderRadius: 8, cursor: 'pointer', userSelect: 'none',
-                    background: isCollapsed ? 'transparent' : `${C('bg-elevated')}80`,
-                    transition: 'background 150ms',
-                  }}
-                >
-                  <span style={{ fontSize: 10, transition: 'transform 200ms', transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▼</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: C('color-text'), flex: 1 }}>{g.label}</span>
-                  <Tag style={{ fontSize: 9, margin: 0, padding: '0 5px', lineHeight: '16px', background: 'transparent', border: '1px solid var(--md-sys-color-outline-variant)', color: C('color-text-secondary') }}>
-                    {g.facts.length}
-                  </Tag>
-                  {coreCount > 0 && <StarFilled style={{ fontSize: 9, color: '#faad14' }} />}
-                </div>
-                {!isCollapsed && g.facts.map((f: any) => (
-                  <div
-                    key={f.id}
-                    role="button" tabIndex={0}
-                    onClick={onOpenPage}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenPage() } }}
-                    style={{
-                      padding: '6px 8px 6px 18px', margin: '1px 0', borderRadius: 8, cursor: 'pointer',
-                      background: f.tier === 'core' ? `${C('color-primary')}06` : 'transparent',
-                      borderLeft: f.tier === 'core' ? `2px solid #faad14` : '2px solid transparent',
-                      transition: 'background 150ms',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {f.tier === 'core' && <StarFilled style={{ color: '#faad14', fontSize: 9 }} />}
-                      <span style={{ fontSize: 11, fontWeight: 600, color: C('color-text'), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {f.subject}
-                      </span>
-                      <span style={{ fontSize: 9, color: C('color-text-secondary'), opacity: 0.55, flexShrink: 0 }}>
-                        {SUB_LABELS[f.subcategory] || f.subcategory || ''}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 9, color: C('color-text-secondary'), marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.7 }}>
-                      {String(f.summary || '').slice(0, 50)}{f.summary?.length > 50 ? '…' : ''}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                      <span style={{ fontSize: 8, color: C('color-text-secondary'), opacity: 0.55 }}>W{f.weight?.toFixed?.(1) ?? '–'}</span>
-                      {f.emotionalContext?.valence != null && (
-                        <span style={{ fontSize: 8, color: f.emotionalContext.valence > 0.2 ? '#52c41a' : f.emotionalContext.valence < -0.2 ? '#ff4d4f' : '#8c8c8c' }}>
-                          {f.emotionalContext.valence > 0.2 ? '正' : f.emotionalContext.valence < -0.2 ? '负' : '平'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          })
-        )}
-      </div>
-      <Typography.Text style={{ fontSize: 10, color: C('color-text-secondary'), opacity: 0.6, textAlign: 'center', paddingBottom: 4 }}>
-        {personalityLabel} · 只读记忆
-      </Typography.Text>
-    </div>
-  )
-}
-
 const ChatPage: React.FC = () => {
   const [topics, setTopics] = useState<any[]>([])
   const [activeId, setActiveId] = useState<string>('')
@@ -289,22 +157,9 @@ const ChatPage: React.FC = () => {
   const [activePersonality, setActivePersonality] = useState<string>(() => loadPersonality())
   // 人格元数据（只读展示，不操纵）
   const [emotion, setEmotion] = useState('')
-  const [stage, setStage] = useState('')
-  const [trust, setTrust] = useState(50)
-  const [rifts, setRifts] = useState(0)
-  const [aff, setAff] = useState(0); const [sec, setSec] = useState(0); const [aro, setAro] = useState(0); const [dom, setDom] = useState(0)
-  const [totalTurns, setTotalTurns] = useState(0)
-  const [facts, setFacts] = useState<any[]>([])
-  const [traces, setTraces] = useState<any[]>([])
-  const [desireSlots, setDesireSlots] = useState<any[]>([])
-  const [sharedEvents, setSharedEvents] = useState(0)
+  const [aff, setAff] = useState(0); const [aro, setAro] = useState(0)
   const [searchEnabled, setSearchEnabled] = useState(true)
 
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [drawerTab, setDrawerTab] = useState('status')
-  const [memorySearch, setMemorySearch] = useState('')
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-  const [showMemoryPage, setShowMemoryPage] = useState(false)
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [speakingId, setSpeakingId] = useState<string | null>(null)
@@ -313,7 +168,6 @@ const ChatPage: React.FC = () => {
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<any>(null)
   const initRef = useRef(false)
-  const pendingPersonaRef = useRef(false)
   const topicsRef = useRef<any[]>([])
   topicsRef.current = topics
   const modeRef = useRef(mode)
@@ -326,7 +180,7 @@ const ChatPage: React.FC = () => {
     () => loadCompanionName(currentPersonality?.label || 'gaea'),
     [currentPersonality])
   const emoColor = EMO_COLORS[emotion] || 'var(--gaea-glow, #2dd4bf)'
-  const personaLabel = currentPersonality?.label || '轻语'
+  const personaLabel = currentPersonality?.label || '角色'
 
   // ── 语音对话（文本类：说话 → 识别文本进入聊天区） ──
   const onVoiceTranscript = useCallback((t: string) => {
@@ -357,16 +211,10 @@ const ChatPage: React.FC = () => {
   }, [toggleVoice])
 
   const resetPersonaMeta = useCallback(() => {
-    setEmotion(''); setStage(''); setTrust(50); setRifts(0)
-    setAff(0); setSec(0); setAro(0); setDom(0); setTotalTurns(0)
-    setFacts([]); setTraces([]); setDesireSlots([]); setSharedEvents(0)
+    setEmotion(''); setAff(0); setAro(0)
   }, [])
 
-  const loadFacts = useCallback(async (personaId: string) => {
-    try { const f = await App.WhisperGetFacts(personaId); setFacts(Array.isArray(f) ? f : []) } catch (_) {}
-  }, [])
-
-  // ── 初始化：话题列表 + 旧数据迁移 + 人格列表 + 首页轻语入口 ──
+  // ── 初始化：话题列表 + 旧数据迁移 + 人格列表 + 首页角色入口 ──
   useEffect(() => {
     if (initRef.current) return
     initRef.current = true
@@ -410,17 +258,13 @@ const ChatPage: React.FC = () => {
       if (topicMode !== modeRef.current) setMode(topicMode)
       resetPersonaMeta()
       if (topicMode !== 'plain') {
-        loadFacts(topicMode)
         const last = [...list].reverse().find(m => m.role === 'assistant' && m.extra)
         if (last?.extra) {
           if (last.extra.emotion) setEmotion(last.extra.emotion)
-          if (last.extra.stage) setStage(last.extra.stage)
-          if (typeof last.extra.trust === 'number') setTrust(Math.round(last.extra.trust))
-          if (typeof last.extra.totalTurns === 'number') setTotalTurns(last.extra.totalTurns)
         }
       }
     } catch (_) { setMessages([]) }
-  }, [loadFacts, resetPersonaMeta])
+  }, [resetPersonaMeta])
 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
@@ -467,37 +311,12 @@ const ChatPage: React.FC = () => {
       resetPersonaMeta()
     } else {
       try { localStorage.setItem(PERSONALITY_KEY, next) } catch (_) {}
-      loadFacts(next)
-      setDrawerOpen(true)
     }
     if (activeIdRef.current) {
       try { await App.ChatTopicSetMode(activeIdRef.current, next) } catch (_) {}
       setTopics(prev => prev.map(t => t.id === activeIdRef.current ? { ...t, mode: next } : t))
     }
-  }, [loadFacts, resetPersonaMeta])
-
-  // 首页「轻语」卡片 → persona 模式（事件可能早于会话加载完成）
-  useEffect(() => {
-    const enterPersona = () => {
-      if (topics.length > 0 && activeId) {
-        switchMode(activePersonality)
-        setDrawerOpen(true)
-      } else {
-        pendingPersonaRef.current = true
-      }
-    }
-    if (consumePersonaEnter()) enterPersona()
-    window.addEventListener('gaea-chat-persona-enter', enterPersona)
-    return () => window.removeEventListener('gaea-chat-persona-enter', enterPersona)
-  }, [topics.length, activeId, activePersonality, switchMode])
-
-  // 会话加载完成后补执行轻语入口请求（避免被话题模式覆盖）
-  useEffect(() => {
-    if (!pendingPersonaRef.current || topics.length === 0 || !activeId) return
-    pendingPersonaRef.current = false
-    switchMode(activePersonality)
-    setDrawerOpen(true)
-  }, [topics, activeId, activePersonality, switchMode])
+  }, [resetPersonaMeta])
 
   const handleSwitchPersonality = useCallback(async (id: string) => {
     try { await (App as any).WhisperClearSession(activePersonality) } catch (_) {}
@@ -511,12 +330,11 @@ const ChatPage: React.FC = () => {
       const id = (e as CustomEvent).detail?.id
       if (!id) return
       setActivePersonality(id)
-      loadFacts(id)
       switchMode(id)
     }
     window.addEventListener('gaea-persona-changed', onPersona)
     return () => window.removeEventListener('gaea-persona-changed', onPersona)
-  }, [loadFacts, switchMode])
+  }, [switchMode])
 
   const updateMessage = useCallback((key: string, patch: Partial<ChatMsg>) => {
     setMessages(prev => prev.map(m => m.key === key ? { ...m, ...patch } : m))
@@ -556,23 +374,10 @@ const ChatPage: React.FC = () => {
       setStreamText(''); setStreamKey(null)
       const extra: Record<string, any> = {}
       if (res.emotion) extra.emotion = res.emotion
-      if (typeof res.trust === 'number') extra.trust = res.trust
-      if (res.stage) extra.stage = res.stage
-      if (typeof res.totalTurns === 'number') extra.totalTurns = res.totalTurns
       updateMessage(am.key, { content: reply, streaming: false, extra })
       if (res.emotion) setEmotion(res.emotion)
-      if (res.stage) setStage(res.stage)
-      if (typeof res.trust === 'number') setTrust(Math.round(res.trust))
       if (typeof res.aff === 'number') setAff(Math.round(res.aff))
-      if (typeof res.sec === 'number') setSec(Math.round(res.sec))
       if (typeof res.aro === 'number') setAro(Math.round(res.aro))
-      if (typeof res.dom === 'number') setDom(Math.round(res.dom))
-      if (typeof res.rifts === 'number') setRifts(res.rifts)
-      if (typeof res.totalTurns === 'number') setTotalTurns(res.totalTurns)
-      if (res.desireSlots) setDesireSlots(res.desireSlots)
-      if (res.trace) setTraces(prev => [...prev, res.trace])
-      if (res.facts) setFacts(res.facts)
-      if (typeof res.sharedEvents === 'number') setSharedEvents(res.sharedEvents)
       // 自动命名
       const topic = topicsRef.current.find(t => t.id === active)
       if (topic?.title === '新对话') {
@@ -640,7 +445,7 @@ const ChatPage: React.FC = () => {
 
   const topicList: SidebarTopic[] = topics.map(t => ({
     id: t.id, title: t.title, createdAt: new Date(t.created_at || 0).getTime() || Date.now(),
-    mode: t.mode, modeLabel: t.mode === 'plain' ? '' : (personalities.find(p => p.id === t.mode)?.label || '轻语'),
+    mode: t.mode, modeLabel: t.mode === 'plain' ? '' : (personalities.find(p => p.id === t.mode)?.label || '角色'),
     preview: t.preview || '',
   }))
 
@@ -669,7 +474,7 @@ const ChatPage: React.FC = () => {
             </button>
             <button role="tab" aria-selected={mode !== 'plain'} className={mode !== 'plain' ? 'active' : ''}
               onClick={() => { if (mode === 'plain') switchMode(activePersonality) }}>
-              <HeartOutlined style={{ fontSize: 12 }} /> 轻语 · {mode !== 'plain' ? personaLabel : (currentPersonality?.label || '人格')}
+              <HeartOutlined style={{ fontSize: 12 }} /> 角色 · {mode !== 'plain' ? personaLabel : (currentPersonality?.label || '人格')}
             </button>
           </div>
           <div style={{ flex: 1 }} />
@@ -700,10 +505,6 @@ const ChatPage: React.FC = () => {
                     style={{ color: C('color-text-secondary'), height: 24 }} />
                 </Tooltip>
               )}
-              <Tooltip title={drawerOpen ? '折叠记忆抽屉' : '展开记忆抽屉'}>
-                <Button type="text" size="small" icon={drawerOpen ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
-                  onClick={() => setDrawerOpen(!drawerOpen)} style={{ color: C('color-text-secondary'), height: 24 }} />
-              </Tooltip>
             </Space>
           ) : (
             <Tooltip title="清空当前对话">
@@ -713,7 +514,7 @@ const ChatPage: React.FC = () => {
           )}
         </div>
 
-        {/* 人格状态条（临场感：头像常驻 + 只读情绪/信任/轮次） */}
+        {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}
         {mode !== 'plain' && (
           <div className="chat-persona-bar">
             <CompanionAvatar size={46} state={speakingId ? 'speaking' : sending ? 'thinking' : 'idle'} emotionColor={emoColor} />
@@ -724,19 +525,6 @@ const ChatPage: React.FC = () => {
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--gaea-glow)' }} />
                   AI 陪伴
                 </span>
-                <span className="chat-chip">{STAGE_LABELS[stage] || '初识'}</span>
-                {emotion && (
-                  <span className="chat-chip" style={{ color: emoColor, borderColor: `${emoColor}44`, background: `${emoColor}14` }}>
-                    {EMO_LABELS[emotion] || emotion}
-                  </span>
-                )}
-              </div>
-              <div className="chat-trust-track">
-                <span style={{ fontSize: 10, color: C('color-text-secondary'), flexShrink: 0 }}>信任</span>
-                <div className="chat-trust-bar"><div className="chat-trust-fill" style={{ width: `${Math.min(100, Math.max(0, trust))}%` }} /></div>
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--gaea-glow)', flexShrink: 0 }}>{trust}</span>
-                {rifts > 0 && <span style={{ fontSize: 10, color: 'var(--whisper-rift)', flexShrink: 0 }}>裂痕 {rifts}</span>}
-                <span style={{ fontSize: 10, color: C('color-text-secondary'), flexShrink: 0, marginLeft: 2 }}>对话 {totalTurns} 轮</span>
               </div>
             </div>
           </div>
@@ -903,58 +691,6 @@ const ChatPage: React.FC = () => {
         </div>
       </main>
 
-      {/* 右侧记忆抽屉（人格模式） */}
-      {mode !== 'plain' && (
-        <aside className="chat-drawer gaea-glass-shell" style={{ width: drawerOpen ? 300 : 0, minWidth: drawerOpen ? 300 : 0, display: drawerOpen ? 'flex' : 'none' }}>
-          {drawerOpen && (
-            <Tabs
-              activeKey={drawerTab}
-              onChange={setDrawerTab}
-              size="small"
-              tabBarStyle={{ margin: '0 10px', borderBottom: `1px solid ${C('color-border')}` }}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
-              items={[
-                {
-                  key: 'status',
-                  label: <span style={{ fontSize: 11 }}>状态</span>,
-                  children: (
-                    <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                      <WhisperEmotionPanel
-                        emotion={emotion} stage={stage} trust={trust} rifts={rifts}
-                        aff={aff} sec={sec} aro={aro} dom={dom}
-                        T={currentPersonality?.dims?.T ?? 50} I={currentPersonality?.dims?.I ?? 50}
-                        S={currentPersonality?.dims?.S ?? 50} O={currentPersonality?.dims?.O ?? 50}
-                        R={currentPersonality?.dims?.R ?? 50}
-                        totalTurns={totalTurns}
-                        personalityLabel={personaLabel}
-                      />
-                      <WhisperDesirePanel desireStack={{ slots: desireSlots }} sharedEventsCount={sharedEvents} />
-                    </div>
-                  ),
-                },
-                {
-                  key: 'memory',
-                  label: <span style={{ fontSize: 11 }}>记忆 {facts.length > 0 && <Tag style={{ fontSize: 9, margin: 0, padding: '0 4px', lineHeight: '14px' }}>{facts.length}</Tag>}</span>,
-                  children: (
-                    <MemoryDrawer
-                      facts={facts} personalityLabel={personaLabel}
-                      search={memorySearch} onSearch={setMemorySearch}
-                      collapsed={collapsedGroups} onToggle={(d) => setCollapsedGroups(prev => { const next = new Set(prev); next.has(d) ? next.delete(d) : next.add(d); return next })}
-                      onOpenPage={() => setShowMemoryPage(true)}
-                    />
-                  ),
-                },
-                {
-                  key: 'trace',
-                  label: <span style={{ fontSize: 11 }}>追踪</span>,
-                  children: <WhisperTracePanel traces={traces} currentTurn={totalTurns} />,
-                },
-              ]}
-            />
-          )}
-        </aside>
-      )}
-
       {/* 绑定模型条（聊天板块统一入口；whisper 为 chat 别名） */}
       <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
         <FeatureModelBar feature="chat" label="聊天" />
@@ -964,9 +700,6 @@ const ChatPage: React.FC = () => {
         <VoiceSettingsPanel />
       </Modal>
 
-      <Modal title={null} open={showMemoryPage} onCancel={() => setShowMemoryPage(false)} footer={null} width={720} centered bodyStyle={{ maxHeight: '70vh', overflow: 'auto' }}>
-        <WhisperMemoryModal facts={facts} personalityID={mode !== 'plain' ? mode : activePersonality} onFactsChange={setFacts} />
-      </Modal>
     </div>
   )
 }

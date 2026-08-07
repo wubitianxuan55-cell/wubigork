@@ -44,7 +44,7 @@ const VoicePanel: React.FC = () => {
     <>
       <SettingsSection
         title={<>语音服务状态</>}
-        desc="本地语音识别与合成服务健康检测（轻语对话使用）。"
+        desc="本地语音识别与合成服务健康检测（聊天对话使用）。"
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -66,7 +66,7 @@ const VoicePanel: React.FC = () => {
 
       <SettingsSection
         title={<>语音功能</>}
-        desc="控制轻语对话中的语音交互行为。"
+        desc="控制聊天对话中的语音交互行为。"
         instant
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -167,7 +167,7 @@ const VoicePanel: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
           <ThunderboltOutlined style={{ color: 'var(--gaea-glow)' }} />
           <Typography.Text style={{ fontSize: 12, color: 'var(--md-sys-color-text-secondary)' }}>
-            详细语音与轻语人格设置请前往「轻语」模块
+            详细语音与聊天人格设置请前往「角色库」
           </Typography.Text>
         </div>
       </SettingsSection>

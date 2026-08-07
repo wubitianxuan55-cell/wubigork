@@ -187,6 +187,8 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string) (result
 		UserMsg: userMsg, AssistantText: reply,
 		Event: preResult.Event, AdultMode: orch.AdultMode,
 	})
+	// 轮次追踪持久化（按会话归属，供角色库「追踪」页查看）
+	_ = repos.AppendTurnTraceToDB(orch.DataRoot, orch.SessionID, preResult.Trace)
 
 	go func() {
 		defer func() {
@@ -284,13 +286,23 @@ func buildFactsList(fs *whisper.FactStore) []map[string]interface{} {
 
 // WhisperGetFacts 独立获取当前会话的记忆列表
 func (a *whisperState) WhisperGetFacts(personalityID string) []map[string]interface{} {
-	whisperSessionsMu.RLock()
-	orch, ok := whisperSessions["whisper_"+personalityID]
-	whisperSessionsMu.RUnlock()
-	if !ok {
+	orch := a.getOrCreateOrch(personalityID)
+	if orch == nil {
 		return nil
 	}
 	return buildFactsList(orch.FactStore)
+}
+
+// WhisperGetTraces 获取角色的轮次追踪（角色库「追踪」页；按会话从 hermes.db 读取）
+func (a *whisperState) WhisperGetTraces(personalityID string) []whisper.TurnTrace {
+	if a.whisperDataRoot == "" {
+		return nil
+	}
+	traces, err := repos.LoadTurnTracesFromDBSession(a.whisperDataRoot, "whisper_"+personalityID, 80)
+	if err != nil {
+		return nil
+	}
+	return traces
 }
 
 // WhisperDeleteFact 删除指定记忆
@@ -320,10 +332,8 @@ func (a *whisperState) WhisperUpdateFact(personalityID string, factID string, up
 }
 
 func (a *whisperState) WhisperGetState(personalityID string) map[string]interface{} {
-	whisperSessionsMu.RLock()
-	orch, ok := whisperSessions["whisper_"+personalityID]
-	whisperSessionsMu.RUnlock()
-	if !ok {
+	orch := a.getOrCreateOrch(personalityID)
+	if orch == nil {
 		return map[string]interface{}{"error": "no active session"}
 	}
 	state := orch.State
@@ -339,6 +349,7 @@ func (a *whisperState) WhisperGetState(personalityID string) map[string]interfac
 			"dom": state.Emotion.Dom, "label": state.Emotion.PrimaryLabel, "locked": state.Emotion.IsLocked,
 		},
 		"totalTurns": state.Counters.TotalTurns,
+		"desireStack": state.DesireStack,
 		"personality": map[string]interface{}{
 			"id": state.Personality.PresetID, "T": state.Personality.T,
 			"I": state.Personality.I, "S": state.Personality.S,
