@@ -139,9 +139,6 @@ def _ensure_comment_relationships(unpacked_dir: Path) -> None:
     if not rels_path.exists():
         return
 
-    if _has_relationship(rels_path, "comments.xml"):
-        return  
-
     dom = defusedxml.minidom.parseString(rels_path.read_text(encoding="utf-8"))
     root = dom.documentElement
     next_rid = _get_next_rid(rels_path)
@@ -165,12 +162,17 @@ def _ensure_comment_relationships(unpacked_dir: Path) -> None:
         ),
     ]
 
+    existing_targets = {
+        rel.getAttribute("Target") for rel in dom.getElementsByTagName("Relationship")
+    }
     for rel_type, target in rels:
+        if target in existing_targets:
+            continue
         rel = dom.createElement("Relationship")
         rel.setAttribute("Id", f"rId{next_rid}")
         rel.setAttribute("Type", rel_type)
         rel.setAttribute("Target", target)
-        root.appendChild(rel)  
+        root.appendChild(rel)
         next_rid += 1
 
     rels_path.write_bytes(dom.toxml(encoding="UTF-8"))
@@ -180,9 +182,6 @@ def _ensure_comment_content_types(unpacked_dir: Path) -> None:
     ct_path = unpacked_dir / "[Content_Types].xml"
     if not ct_path.exists():
         return
-
-    if _has_content_type(ct_path, "/word/comments.xml"):
-        return  
 
     dom = defusedxml.minidom.parseString(ct_path.read_text(encoding="utf-8"))
     root = dom.documentElement
@@ -206,11 +205,16 @@ def _ensure_comment_content_types(unpacked_dir: Path) -> None:
         ),
     ]
 
+    existing_parts = {
+        ov.getAttribute("PartName") for ov in dom.getElementsByTagName("Override")
+    }
     for part_name, content_type in overrides:
+        if part_name in existing_parts:
+            continue
         override = dom.createElement("Override")
         override.setAttribute("PartName", part_name)
         override.setAttribute("ContentType", content_type)
-        root.appendChild(override)  
+        root.appendChild(override)
 
     ct_path.write_bytes(dom.toxml(encoding="UTF-8"))
 
@@ -234,8 +238,8 @@ def add_comment(
     first_comment = not comments.exists()
     if first_comment:
         shutil.copy(TEMPLATE_DIR / "comments.xml", comments)
-        _ensure_comment_relationships(Path(unpacked_dir))
-        _ensure_comment_content_types(Path(unpacked_dir))
+    _ensure_comment_relationships(Path(unpacked_dir))
+    _ensure_comment_content_types(Path(unpacked_dir))
     _append_xml(
         comments,
         "w:comments",
