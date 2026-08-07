@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 10:15:38
+> 最后更新: 2026-08-07 13:00:00
 
 ## 2.0 P0 基线加固（✅ 已完成）
 
@@ -109,3 +109,14 @@
 - E03 全局模型回退（确认存在并修复）：角色/大纲/章节/分析/世界观 5 个 agent 的 `chat()` 在 novel 未绑定时强制 `model = cfg.Model`（把 xAI 默认名 grok-4.20 发给非 xAI 活跃引擎会 404）→ 改为留空让客户端按活跃引擎解析默认模型（等价 routeModel 全局路径）；章节/分支/Cmd+K/风格此前已走 `routeModel("novel")`
 - 新增 6 个回归测试：角色 Chat/详情 prompt 无剧照、未绑定留空解析、绑定生效、PromptView 剥离与深拷贝
 - 验收：`scripts/ci.ps1` CI OK；docs/evaluation-set.md 中 E02/E03 状态更新
+
+## 2.7 发布 2.1.0（✅ 已完成，2026-08-07）
+
+- 版本号：wails.json / versioninfo.rc / CHANGELOG / README → 2.1.0（versioninfo.rc 顺手修正陈旧的 ProductVersion 1.13.0）
+- 构建：wails build 成功（build/bin/gaea.exe 38MB），已复制到桌面 + releases/gaea-v2.1.0.exe
+- 校验和：releases/SHA256SUMS-v2.1.0.txt（d76d93ac…）
+- 发布文档：releases/v2.1.0.md（2.1–2.6 六轮迭代摘要）
+- 备份：scripts/backup.ps1 已运行（whisper_data/配置 → backups/ 时间戳目录）
+- 全量验收：scripts/ci.ps1 CI OK，工作区干净
+- Git 标签：v2.1.0（annotated）；远程推送：main + v2.1.0 → origin
+- 说明：wails v2.13 不把根目录 versioninfo.rc 编译进 exe（历史版本同），版本资源缺失为仓库既有状态
