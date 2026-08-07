@@ -27,7 +27,8 @@ func newTestClient(t *testing.T, handler http.Handler) (*Client, *httptest.Serve
 		sem:        make(chan struct{}, 4),
 	}
 	// 直接注入有效 token，避免走 tokenStore / 刷新流程
-	c.token = &auth.Token{AccessToken: "test-token", ObtainedAt: time.Now(), ExpiresIn: 3600}
+	// ExpiresIn 需大于 3600（IsExpired 提前 1 小时刷新），否则偶发"登录已过期"。
+	c.token = &auth.Token{AccessToken: "test-token", ObtainedAt: time.Now(), ExpiresIn: 7200}
 	return c, srv
 }
 
@@ -188,6 +189,9 @@ func TestChatSimpleStream_CollectsFullText(t *testing.T) {
 		w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"第一段\"}}]}\n\n"))
 		w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"第二段\"}}]}\n\n"))
 		w.Write([]byte("data: [DONE]\n\n"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush() // SSE 逐块冲刷，避免 [DONE] 未落盘前连接关闭导致 flaky
+		}
 	}))
 	text, err := c.ChatSimpleStream(context.Background(), "grok-4.20", "sys", "user")
 	if err != nil {
