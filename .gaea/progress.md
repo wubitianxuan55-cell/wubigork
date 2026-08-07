@@ -1,6 +1,14 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 15:10:00
+> 最后更新: 2026-08-07 19:30:00
+
+## 2.17 角色库「人物档案卡」重设计（✅ 已完成，2026-08-07）
+- 首次引入 Vitest 前端测试设施：`vitest@4 / jsdom@30 / @testing-library/react@16`，`test` 脚本 + vite test 配置 + setup 自动 cleanup
+- 新增档案卡组件 `CharacterCard`（独立 CSS）：档案眉编号/类型/可聊天 → 4:3 立绘横幅（图片/首字占位 + 悬停光泽）→ 正文（名称/元数据发丝线/弧线引言/最多 3 个 # 标签）→ 底部（五维雷达 + 悬停操作区）；当前人格角标、已加入标记、`prefers-reduced-motion` 降级
+- 列表页接入：网格改用 `CharacterCard`，头部发丝线分隔；当前人格状态（localStorage + `gaea-persona-changed` 事件同步）；清理旧内联卡片与未用导入
+- 组件测试 9 用例（编号/元数据/弧线/标签/立绘/雷达/回调/当前人格/已加入）全部 PASS
+- 验证：`npx tsc -b` 无错误、`npm run build` 成功、`scripts/ci.ps1` CI OK、`wails build` 成功（build/bin/gaea.exe）
+- 计划文档 `docs/superpowers/plans/2026-08-07-角色库档案卡重设计.md` 勾选完成（Task 4 的 UI 目检与聊天联动回归待人工验证）
 
 ## 2.0 P0 基线加固（✅ 已完成）
 
