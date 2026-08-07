@@ -76,7 +76,7 @@ export default function TisorRadar({ dims, size = 200, color = '#e85388', showLa
       {/* 参考网格 */}
       {gridPolygons.map((pts, i) => (
         <polygon key={`grid-${i}`} points={pts} fill="none"
-          stroke="rgba(255,255,255,0.06)" strokeWidth={i === 4 ? 1 : 0.5}
+          stroke="var(--md-sys-color-outline-variant)" strokeWidth={i === 4 ? 1 : 0.5}
           strokeDasharray={i === 4 ? 'none' : '3 3'} />
       ))}
 
@@ -84,7 +84,7 @@ export default function TisorRadar({ dims, size = 200, color = '#e85388', showLa
       {angles.map((a, i) => {
         const [x, y] = polar(cx, cy, radius, a)
         return <line key={`axis-${i}`} x1={cx} y1={cy} x2={x} y2={y}
-          stroke="rgba(255,255,255,0.04)" strokeWidth={0.5} />
+          stroke="var(--md-sys-color-outline-variant)" strokeWidth={0.5} />
       })}
 
       {/* 数据区域填充 — 底层虹彩 */}
@@ -112,8 +112,9 @@ export default function TisorRadar({ dims, size = 200, color = '#e85388', showLa
         return (
           <g>
             <rect x={d.x - 28} y={d.y - 32} width={56} height={22} rx={6}
-              fill="rgba(10,10,20,0.9)" stroke="rgba(255,255,255,0.1)" strokeWidth={0.5} />
-            <text x={d.x} y={d.y - 15} textAnchor="middle" fill="#fff"
+              fill="var(--md-sys-color-surface-container-high)"
+              stroke="var(--md-sys-color-outline-variant)" strokeWidth={0.5} />
+            <text x={d.x} y={d.y - 15} textAnchor="middle" fill="var(--md-sys-color-text)"
               fontSize={10} fontWeight={600}>{FULL_LABELS[hovered]}</text>
             <text x={d.x} y={d.y - 4} textAnchor="middle" fill={color}
               fontSize={10} fontWeight={700}>{d.value}</text>
@@ -124,7 +125,7 @@ export default function TisorRadar({ dims, size = 200, color = '#e85388', showLa
       {/* 轴标签 */}
       {showLabels && labelPositions.map(([x, y], i) => (
         <text key={`label-${i}`} x={x} y={y} textAnchor="middle" dominantBaseline="middle"
-          fill="rgba(255,255,255,0.35)" fontSize={9} fontWeight={500}
+          fill="var(--md-sys-color-text-secondary)" fontSize={9} fontWeight={500}
           style={{ letterSpacing: '0.5px' }}>
           {LABELS[i]}
         </text>

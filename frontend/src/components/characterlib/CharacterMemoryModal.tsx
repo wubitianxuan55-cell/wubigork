@@ -58,7 +58,7 @@ const CharacterMemoryModal: React.FC<Props> = ({ open, character, onClose }) => 
       <Modal open={open} onCancel={onClose} footer={null} width={680} destroyOnClose
         title={
           <span style={{ color: C('color-text') }}>
-            <HeartOutlined style={{ color: '#f472b6', marginRight: 8 }} />
+            <HeartOutlined style={{ color: 'var(--gaea-glow)', marginRight: 8 }} />
             {character.name} · 状态 / 记忆 / 追踪
           </span>
         }

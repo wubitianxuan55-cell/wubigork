@@ -13,6 +13,22 @@ interface Props {
 const N = 64 // 粒子数
 const R = 0.55 // 球半径
 
+// canvas 不支持 CSS 变量，这里把 var(--x, fallback) 解析成具体颜色再拼透明度后缀
+function resolveCanvasColor(raw: string): string {
+  const s = (raw || '').trim()
+  const m = s.match(/^var\(\s*(--[\w-]+)\s*(?:,\s*([^)]+))?\)$/)
+  if (m) {
+    try {
+      const computed = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim()
+      if (computed && !computed.startsWith('var(')) return computed
+    } catch {
+      /* 非浏览器环境（测试等）忽略 */
+    }
+    if (m[2]) return m[2].trim()
+  }
+  return s
+}
+
 export const CompanionAvatar: React.FC<Props> = ({
   size = 280,
   state = 'idle',
@@ -32,6 +48,7 @@ export const CompanionAvatar: React.FC<Props> = ({
     canvas.width = size * dpr
     canvas.height = size * dpr
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const baseColor = resolveCanvasColor(emotionColor)
 
     // 生成球面点云
     const points: { theta: number; phi: number; r: number; baseR: number }[] = []
@@ -60,8 +77,8 @@ export const CompanionAvatar: React.FC<Props> = ({
       // 外发光
       const grd = ctx.createRadialGradient(cx, cy, R * size * 0.3, cx, cy, R * size * 0.8)
       grd.addColorStop(0, 'transparent')
-      grd.addColorStop(0.5, `${emotionColor}22`)
-      grd.addColorStop(1, `${emotionColor}${Math.round(glow * 255).toString(16).padStart(2, '0')}`)
+      grd.addColorStop(0.5, `${baseColor}22`)
+      grd.addColorStop(1, `${baseColor}${Math.round(glow * 255).toString(16).padStart(2, '0')}`)
       ctx.fillStyle = grd
       ctx.beginPath()
       ctx.arc(cx, cy, R * size * 0.8, 0, Math.PI * 2)
@@ -87,7 +104,7 @@ export const CompanionAvatar: React.FC<Props> = ({
 
         ctx.beginPath()
         ctx.arc(sx, sy, r, 0, Math.PI * 2)
-        ctx.fillStyle = `${emotionColor}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`
+        ctx.fillStyle = `${baseColor}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`
         ctx.fill()
       }
 

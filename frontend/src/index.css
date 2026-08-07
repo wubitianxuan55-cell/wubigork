@@ -604,23 +604,6 @@ body {
 }
 
 /* ── 流光扫描线（顶部装饰）── */
-.scanline-top {
-  position: relative;
-}
-.scanline-top::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; top: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--gaea-glow), transparent);
-  opacity: 0.7;
-  animation: scanSweep 6s ease-in-out infinite;
-}
-@keyframes scanSweep {
-  0%   { transform: translateX(-100%); }
-  50%  { transform: translateX(100%); }
-  100% { transform: translateX(100%); }
-}
 
 /* ── 滚动条霓虹化 ── */
 ::-webkit-scrollbar-thumb {
@@ -792,6 +775,20 @@ html.gaea-raf-degraded [class*='ant-move-left-leave'],
 html.gaea-raf-degraded [class*='ant-move-right-leave'],
 html.gaea-raf-degraded [class*='ant-fade-leave'] {
   display: none !important;
+}
+
+/* WebView2 compat: Popover/Tooltip zoom-big animation breaks rc-align positioning
+   (popup lands ~10x viewport height off-screen; click shows feedback but no popup).
+   Disable popup zoom animations globally: open shows instantly, positioning correct. */
+.ant-popover,
+.ant-tooltip,
+[class*='ant-zoom-big-enter'],
+[class*='ant-zoom-big-appear'],
+[class*='ant-zoom-big-leave'] {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
 }
 
 /* ── WebView2 降级：自定义 CSS 入场动画（非 antd motion）同样会卡在首帧

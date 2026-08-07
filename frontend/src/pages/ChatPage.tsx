@@ -527,6 +527,13 @@ const ChatPage: React.FC = () => {
                 </span>
               </div>
             </div>
+            <PersonaPicker activeId={mode !== 'plain' ? mode : activePersonality}
+              onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
+              <Button type="primary" size="small" icon={<SwapOutlined />}
+                style={{ borderRadius: 16, height: 30, fontSize: 12, flexShrink: 0 }}>
+                选择角色
+              </Button>
+            </PersonaPicker>
           </div>
         )}
 
@@ -544,6 +551,12 @@ const ChatPage: React.FC = () => {
                 <CompanionAvatar size={112} state="idle" emotionColor={emoColor} />
                 <h2>{companionName}</h2>
                 <p>我是{personaLabel}，今天想聊点什么？</p>
+                <PersonaPicker activeId={activePersonality}
+                  onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
+                  <Button type="primary" icon={<SwapOutlined />} style={{ marginTop: 18, marginBottom: 20, borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13 }}>
+                    选择角色
+                  </Button>
+                </PersonaPicker>
                 <div className="chat-suggestion-grid">
                   {PERSONA_SUGGESTIONS.map(s => (
                     <div key={s.label} className="chat-suggestion-card" onClick={() => handleFillInput(s.label)}>
@@ -553,12 +566,6 @@ const ChatPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                <PersonaPicker activeId={activePersonality}
-                  onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
-                  <Button type="primary" icon={<SwapOutlined />} style={{ marginTop: 22, borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13 }}>
-                    选择角色
-                  </Button>
-                </PersonaPicker>
                 <div style={{ marginTop: 10 }}>
                   <Button type="link" size="small" icon={<SettingOutlined />} onClick={navigateToCharacterLib}
                     style={{ color: C('color-text-secondary'), fontSize: 11.5 }}>

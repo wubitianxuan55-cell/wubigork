@@ -1,4 +1,6 @@
-/* 角色库详情档案视图：档案眉 → 立绘横幅 → 身份栏 + 卷宗正文 → 底部操作条 */
+/* 角色库详情：档案册视图（档案眉 → 立绘横幅 → 身份栏 + 卷宗正文 → 底部操作条）
+   强调色跟随主题 var(--gaea-glow)，深浅色模式均可用 */
+
 .cd {
   display: flex;
   flex-direction: column;
@@ -18,14 +20,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 11px 16px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   flex-shrink: 0;
 }
 
 .cd-no {
   font-size: 10.5px;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.14em;
   color: var(--md-sys-color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -37,42 +40,51 @@
   min-width: 0;
 }
 
+/* 类型标记：直角旗标 */
 .cd-kind {
-  margin: 0;
   font-size: 9.5px;
-  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+  white-space: nowrap;
 }
 
 .cd-chat {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 10px;
-  color: #f472b6;
+  font-weight: 500;
+  color: var(--gaea-glow);
   white-space: nowrap;
 }
 
 .cd-chat-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #f472b6;
-  box-shadow: 0 0 6px rgba(244, 114, 182, 0.7);
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
 }
 
 .cd-current {
-  padding: 2px 9px;
+  padding: 2px 10px;
   border-radius: 999px;
   font-size: 9.5px;
   font-weight: 600;
-  color: #fff;
-  background: rgba(244, 114, 182, 0.9);
-  box-shadow: 0 2px 10px rgba(244, 114, 182, 0.4);
+  color: var(--md-sys-color-on-primary);
+  background: var(--md-sys-color-primary);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--gaea-glow) 42%, transparent);
   white-space: nowrap;
 }
 
 .cd-close {
   border-radius: 999px;
+  color: var(--md-sys-color-text-secondary);
 }
 
 /* 立绘横幅 */
@@ -80,7 +92,7 @@
   position: relative;
   aspect-ratio: 21 / 9;
   min-height: 170px;
-  max-height: 240px;
+  max-height: 250px;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -98,12 +110,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 72px;
+  font-size: 76px;
   font-weight: 700;
-  color: rgba(244, 114, 182, 0.5);
+  color: var(--gaea-glow);
+  opacity: 0.9;
   background:
-    radial-gradient(90% 160% at 18% 0%, rgba(244, 114, 182, 0.18), transparent 55%),
-    linear-gradient(140deg, rgba(244, 114, 182, 0.08), transparent 60%),
+    radial-gradient(90% 160% at 18% 0%, color-mix(in srgb, var(--gaea-glow) 20%, transparent), transparent 55%),
+    linear-gradient(140deg, color-mix(in srgb, var(--gaea-glow) 10%, transparent), transparent 60%),
     var(--md-sys-color-surface-container-high);
 }
 
@@ -112,8 +125,8 @@
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.42), transparent 55%),
-    linear-gradient(0deg, rgba(0, 0, 0, 0.55), transparent 55%);
+    linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 56%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.7), transparent 58%);
 }
 
 .cd-hero-gen {
@@ -121,29 +134,31 @@
   top: 12px;
   right: 12px;
   z-index: 4;
-  border-radius: 999px;
+  border-radius: 10px;
   background: rgba(10, 10, 20, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.22);
   color: #fff;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .cd-hero-gen:hover {
   color: #fff !important;
-  border-color: rgba(244, 114, 182, 0.7) !important;
+  border-color: var(--gaea-glow) !important;
 }
 
 .cd-hero-info {
   position: absolute;
-  left: 18px;
-  bottom: 14px;
+  left: 20px;
+  bottom: 16px;
   z-index: 2;
   max-width: 78%;
 }
 
 .cd-hero-name {
   margin: 0;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0.01em;
@@ -151,14 +166,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.72), 0 0 3px rgba(0, 0, 0, 0.45);
 }
 
 .cd-hero-meta {
-  margin: 5px 0 0;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.78);
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.65), 0 0 2px rgba(0, 0, 0, 0.4);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -172,7 +187,7 @@
   pointer-events: none;
   background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.12) 50%, transparent 60%);
   transform: translateX(-130%);
-  transition: transform 450ms ease;
+  transition: transform 480ms ease;
 }
 
 .cd-hero:hover .cd-sheen::after {
@@ -187,23 +202,103 @@
 }
 
 .cd-rail {
-  width: 264px;
+  width: 268px;
   flex-shrink: 0;
-  padding: 14px;
+  padding: 16px;
   border-right: 1px solid var(--md-sys-color-outline-variant);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: rgba(0, 0, 0, 0.06);
+  gap: 14px;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 52%, transparent);
 }
 
 .cd-main {
   flex: 1;
   min-width: 0;
-  padding: 14px 16px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
+}
+
+/* 随机生成工具条 */
+.cd-genbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--gaea-glow) 28%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 6%, transparent);
+  flex-shrink: 0;
+}
+
+.cd-genbar-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--gaea-glow);
+  white-space: nowrap;
+}
+
+.cd-genbar-hint {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--md-sys-color-text-secondary);
+  white-space: nowrap;
+}
+
+/* 字段标签行 + 单独随机骰子 */
+.cd-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cd-label-row .cd-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.cd-dice {
+  color: var(--md-sys-color-text-secondary) !important;
+  font-size: 12px !important;
+  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cd-dice:hover {
+  color: var(--gaea-glow) !important;
+  background: color-mix(in srgb, var(--gaea-glow) 10%, transparent) !important;
+}
+
+.cd-dice:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 1px;
+}
+
+/* 五维人格：标题行 + 随机 */
+.cd-radar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 2px;
+}
+
+.cd-radar-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--md-sys-color-text);
 }
 
 .cd-sec {
@@ -212,14 +307,14 @@
 
 .cd-sec + .cd-sec {
   border-top: 1px solid var(--md-sys-color-outline-variant);
-  padding-top: 14px;
+  padding-top: 16px;
 }
 
 .cd-sec-title {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: var(--gaea-glow, var(--md-sys-color-primary));
   display: flex;
   align-items: center;
@@ -230,8 +325,7 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--md-sys-color-outline-variant);
-  opacity: 0.6;
+  background: linear-gradient(90deg, var(--md-sys-color-outline-variant), transparent);
 }
 
 .cd-sec-action {
@@ -243,18 +337,19 @@
 .cd-fields {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .cd-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
 }
 
 .cd-label {
-  font-size: 10.5px;
+  font-size: 11px;
+  font-weight: 500;
   letter-spacing: 0.04em;
   color: var(--md-sys-color-text-secondary);
 }
@@ -262,7 +357,7 @@
 .cd-grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
 }
 
 /* 标签 pill */
@@ -280,8 +375,8 @@
 }
 
 .cd-thumb {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 10px;
   object-fit: cover;
   margin-top: 4px;
@@ -293,8 +388,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 10px 0;
+  gap: 8px;
+  padding: 12px 0;
   border-top: 1px solid var(--md-sys-color-outline-variant);
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
@@ -303,26 +398,28 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .cd-dim {
   display: grid;
   grid-template-columns: 62px 1fr 30px;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .cd-dim-label {
-  font-size: 10px;
+  font-size: 10.5px;
+  font-weight: 500;
   color: var(--md-sys-color-text-secondary);
   white-space: nowrap;
 }
 
 .cd-dim-val {
-  font-size: 10.5px;
+  font-size: 11px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-text);
 }
 
 /* 可聊天开关 */
@@ -331,31 +428,33 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  padding: 4px 0 2px;
 }
 
 .cd-toggle-title {
-  font-size: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--md-sys-color-text);
 }
 
 .cd-toggle-desc {
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--md-sys-color-text-secondary);
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
-/* 文本域与输入统一玻璃质感（作用域限定，覆盖 antd 默认） */
+/* 输入统一玻璃质感（深浅色均可） */
 .cd .ant-input,
 .cd .ant-input-affix-wrapper,
 .cd .ant-select-selector {
-  background: rgba(0, 0, 0, 0.16) !important;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 58%, transparent) !important;
   border-color: var(--md-sys-color-outline-variant) !important;
   color: var(--md-sys-color-text) !important;
 }
 
 .cd-area {
   font-size: 12.5px;
-  line-height: 1.6;
+  line-height: 1.65;
 }
 
 .cd-note {
@@ -369,9 +468,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-top: 1px solid var(--md-sys-color-outline-variant);
-  background: var(--md-sys-color-surface-container-high);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent);
   flex-shrink: 0;
 }
 
@@ -394,6 +493,7 @@
   border-radius: 999px;
   padding-left: 18px;
   padding-right: 18px;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--gaea-glow) 28%, transparent);
 }
 
 .cd-foot-actions .ant-btn:not(.cd-save) {

@@ -1,0 +1,130 @@
+/* ═══════════════════════════════════════════════════════════════
+   智能办公 · 整层重设计
+   参考 Claude / ChatGPT / Linear 的简洁工作台：
+   - 统一玻璃面层与 1px 细边，去掉花哨阴影与光晕
+   - 对话区铺满面板宽度，正文保持 74ch 阅读宽度
+   - 消息层级清晰：助手干净整块、用户柔和气泡、工具卡片安静
+   - 顶栏极简、状态栏低调、侧栏清爽
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 作用域令牌微调（仅 gaea 工作台内生效） ── */
+.gaea-app-layout {
+  --radius: 12px;
+  --border-soft: color-mix(in srgb, var(--fg-faint) 16%, transparent);
+  --border: color-mix(in srgb, var(--fg-faint) 26%, transparent);
+  --ds-shadow-topbar: none;
+  --ds-shadow-composer: 0 12px 34px rgba(0, 0, 0, 0.22);
+}
+
+/* ── 面层统一 ── */
+.gaea-app-layout,
+.layout,
+.chat-pane {
+  background: var(--bg);
+}
+
+/* ── 侧栏：清爽玻璃面，去掉渐变 ── */
+aside[aria-label="gaea navigation"] {
+  background: color-mix(in srgb, var(--sidebar-bg) 86%, var(--bg)) !important;
+  border-right: 1px solid var(--border-soft);
+}
+
+aside[aria-label="gaea navigation"] input {
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-soft) 82%, transparent);
+}
+
+/* ── 顶栏：极简一条线 ── */
+.chat-pane > header {
+  background: color-mix(in srgb, var(--bg) 97%, var(--fg) 3%) !important;
+  box-shadow: none !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* ── 对话线程：铺满 + 留白 ── */
+.transcript {
+  scroll-behavior: smooth;
+}
+
+.transcript > div {
+  padding-bottom: 26px;
+}
+
+/* ── 消息 ── */
+.msg--assistant {
+  padding: 5px 0;
+}
+
+.msg--assistant .msg__body {
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.msg--user .msg__body {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev-2));
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 16px 16px 4px 16px;
+  padding: 8px 14px;
+}
+
+/* 推理面板：安静、细线引导 */
+.reasoning__head {
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+.reasoning__body {
+  border-left-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ── 输入框：光晕收拢，聚焦才亮 ── */
+.composer-glow::before {
+  opacity: 0.24;
+}
+
+.composer-glow:focus-within::before {
+  opacity: 0.55;
+}
+
+/* ── 工作区面板：统一面层 ── */
+.workspace-pane {
+  background: var(--bg);
+  border-left: 1px solid var(--border-soft);
+}
+
+.workspace-pane > div:first-child {
+  background: color-mix(in srgb, var(--bg) 97%, var(--fg) 3%);
+}
+
+/* ── 滚动条：细、融入背景 ── */
+.gaea-app-layout ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.gaea-app-layout ::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+  border: 2px solid var(--bg);
+}
+
+.gaea-app-layout ::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-faint);
+}
+
+/* ── 欢迎页（空状态）── */
+.welcome-logo {
+  border-radius: 12px;
+}
+
+.welcome-stagger-3 button[class*="rounded-xl"] {
+  border-radius: 14px;
+}
+
+/* 焦点环统一 */
+.gaea-app-layout :focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+}

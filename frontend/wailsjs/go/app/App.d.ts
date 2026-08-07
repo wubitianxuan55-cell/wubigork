@@ -45,6 +45,8 @@ export function CharacterGenerateFill(arg1:string):Promise<string>;
 
 export function CharacterGeneratePortrait(arg1:string,arg2:string):Promise<string>;
 
+export function CharacterGenerateRandom(arg1:string,arg2:string):Promise<string>;
+
 export function CharacterGet(arg1:string):Promise<Record<string, any>>;
 
 export function CharacterImportProject():Promise<number>;

@@ -104,7 +104,7 @@ export function Welcome({
   const recentSessions = sessions?.filter(s => !s.current).slice(0, 3) ?? [];
 
   return (
-    <div className="h-full flex flex-col items-center max-w-2xl mx-auto px-6 overflow-y-auto pt-16">
+    <div className="h-full flex flex-col items-center max-w-3xl mx-auto px-6 overflow-y-auto pt-12">
       {cwdName && (
         <div className={`inline-flex items-center gap-2 px-3 py-1.5 mb-5 rounded-full bg-accent-soft border border-accent/20 text-fg-dim ${compact ? "text-[11px]" : "text-[12px]"}`}>
           <FolderOpen size={compact ? 12 : 13} className="text-accent" />

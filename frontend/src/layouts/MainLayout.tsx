@@ -19,15 +19,14 @@ const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'))
 const ModelCenterPage = React.lazy(() => import('../pages/ModelCenterPage'))
 const CharacterLibraryPage = React.lazy(() => import('../pages/CharacterLibraryPage'))
 const ChatPage = React.lazy(() => import('../pages/ChatPage'))
-const OfficePage = React.lazy(() => import('../pages/OfficePage'))
-const GaeaPage = React.lazy(() => import('../pages/GaeaPage'))
+const OfficeHubPage = React.lazy(() => import('../pages/OfficeHubPage'))
 const MemoryHubPage = React.lazy(() => import('../pages/MemoryHubPage'))
 const { Header, Footer, Content } = Layout
 
-type Page = 'home' | 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'characterlib' | 'chat' | 'office' | 'gaea' | 'memoryhub'
+type Page = 'home' | 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'characterlib' | 'chat' | 'gaea' | 'memoryhub'
 
 // 功能模块 key（navigate 事件校验 + Ctrl+1~4 快捷键映射；home 启动器不参与）
-const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'office', 'gaea', 'memoryhub', 'modelcenter', 'characterlib']
+const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib']
 
 // 顶栏横向导航（含首页启动器），点击直接切换模块
 const menuItems: any[] = [
@@ -35,7 +34,6 @@ const menuItems: any[] = [
   { key: 'chat', icon: <MessageOutlined />, label: '聊天' },
   { key: 'novel', icon: <ReadOutlined />, label: '小说' },
   { key: 'imagegen', icon: <PictureOutlined />, label: '绘梦' },
-  { key: 'office', icon: <FileTextOutlined />, label: '方案编写' },
   { key: 'gaea', icon: <ToolOutlined />, label: '办公' },
   { key: 'memoryhub', icon: <DatabaseOutlined />, label: '记忆中枢' },
   { key: 'modelcenter', icon: <ApiOutlined />, label: '模型中心' },
@@ -48,8 +46,7 @@ const pageComponents: Record<Exclude<Page, 'home'>, React.ReactNode> = {
   settings: <SettingsPage />,
   modelcenter: <ModelCenterPage />,
   chat: <ChatPage />,
-  office: <OfficePage />,
-  gaea: <GaeaPage />,
+  gaea: <OfficeHubPage />,
   memoryhub: <MemoryHubPage />,
   characterlib: <CharacterLibraryPage />,
 }
@@ -184,7 +181,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
 }
 
 const pageLabels: Record<Page, string> = {
-  home: '首页', novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', characterlib: '角色库', chat: 'AI 聊天', office: '方案编写', gaea: '办公', memoryhub: '记忆中枢',
+  home: '首页', novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', characterlib: '角色库', chat: 'AI 聊天', gaea: '办公', memoryhub: '记忆中枢',
 }
 
 // ─── 主布局 ─────────────────────────────────────────────────
@@ -285,7 +282,7 @@ const MainLayout: React.FC = () => {
         <div className="space-dust" />
       </div>
       {/* ═══ 顶栏 ═══ */}
-        <Header className="scanline-top" style={{
+        <Header style={{
           display: 'flex', alignItems: 'center', height: 48, padding: '0 16px',
           background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
           WebkitBackdropFilter: 'blur(20px) saturate(140%)',

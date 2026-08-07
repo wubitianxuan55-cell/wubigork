@@ -1,0 +1,536 @@
+/* 首页 · AI 指挥中枢启动器
+   设计：单一主题强调色（跟随 --gaea-glow），玻璃档案化卡片，明确层级与状态 */
+
+.ml {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 24px 26px;
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+}
+
+.ml-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: min(1280px, 100%);
+  min-height: 0;
+  flex: 1;
+}
+
+/* ── 顶栏 ── */
+.ml-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 18px;
+  border-radius: 16px;
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  border: 1px solid var(--md-sys-color-outline-variant);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 34px rgba(0, 0, 0, 0.18);
+  flex-shrink: 0;
+  animation: mlCardIn 420ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.ml-top-icon {
+  font-size: 18px;
+  color: var(--gaea-glow);
+  filter: drop-shadow(0 0 8px var(--gaea-glow));
+  flex-shrink: 0;
+}
+
+.ml-top-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ml-top-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--md-sys-color-text);
+}
+
+.ml-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 28%, transparent);
+  white-space: nowrap;
+}
+
+.ml-chip-model {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ml-top-sub {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--md-sys-color-text-secondary);
+}
+
+.ml-chat-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--gaea-glow);
+  padding: 7px 15px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 11%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--gaea-glow) 20%, transparent);
+  transition: box-shadow var(--md-sys-transition-normal), transform var(--md-sys-transition-normal), background var(--md-sys-transition-normal);
+  flex-shrink: 0;
+}
+
+.ml-chat-cta:hover {
+  background: color-mix(in srgb, var(--gaea-glow) 17%, transparent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--gaea-glow) 32%, transparent);
+  transform: translateY(-1px);
+}
+
+.ml-chat-cta:active {
+  transform: scale(0.97);
+}
+
+.ml-chat-cta:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+
+/* ── 主区 ── */
+.ml-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(360px, 1.7fr) minmax(200px, 1fr);
+  gap: 20px;
+  align-items: center;
+}
+
+.ml-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* ── 模块卡片 ── */
+.ml-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 17px 18px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--gaea-glow) 5%, transparent), transparent 42%),
+    var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  border: 1px solid var(--md-sys-color-outline-variant);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  animation: mlCardIn 440ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--ml-i, 0) * 45ms);
+  transition:
+    transform 240ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 240ms ease,
+    box-shadow 240ms ease;
+}
+
+.ml-card::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gaea-glow) 35%, transparent), transparent);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.ml-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--gaea-glow) 42%, transparent);
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.24),
+    0 0 0 1px color-mix(in srgb, var(--gaea-glow) 14%, transparent),
+    0 8px 28px color-mix(in srgb, var(--gaea-glow) 13%, transparent);
+}
+
+.ml-card:active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+.ml-card:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+
+.ml-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 24%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--gaea-glow) 16%, transparent);
+  flex-shrink: 0;
+  transition: box-shadow var(--md-sys-transition-normal), transform var(--md-sys-transition-normal);
+}
+
+.ml-card:hover .ml-card-icon {
+  transform: scale(1.06);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--gaea-glow) 18%, transparent),
+    0 0 22px color-mix(in srgb, var(--gaea-glow) 30%, transparent);
+}
+
+.ml-card-body {
+  min-width: 0;
+}
+
+.ml-card-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--md-sys-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ml-card-arrow {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--gaea-glow);
+  opacity: 0;
+  transform: translateX(-5px);
+  transition: opacity 200ms ease, transform 200ms ease;
+  flex-shrink: 0;
+}
+
+.ml-card:hover .ml-card-arrow,
+.ml-card:focus-within .ml-card-arrow {
+  opacity: 1;
+  transform: none;
+}
+
+.ml-card-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--md-sys-color-text-secondary);
+}
+
+@keyframes mlCardIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── 正中：语音交互中枢 ── */
+.ml-center {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 22px 20px;
+  border-radius: 24px;
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  border: 1px solid var(--md-sys-color-outline-variant);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 20px 60px rgba(0, 0, 0, 0.26);
+  overflow: hidden;
+  animation: mlCardIn 520ms cubic-bezier(0.16, 1, 0.3, 1) 120ms backwards;
+}
+
+.ml-center-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ml-center-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--md-sys-color-text);
+}
+
+.ml-orb-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 6px 0 2px;
+}
+
+.ml-status {
+  min-height: 24px;
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--md-sys-color-text-secondary);
+  transition: color 0.3s ease;
+}
+
+.ml-status-active {
+  color: var(--gaea-glow);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--gaea-glow) 45%, transparent);
+}
+
+.ml-status-listening {
+  color: var(--md-sys-color-warning);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--md-sys-color-warning) 40%, transparent);
+}
+
+.ml-status-speaking {
+  color: var(--gaea-glow);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--gaea-glow) 55%, transparent);
+}
+
+.ml-bubbles {
+  width: 100%;
+  min-height: 62px;
+  max-height: 116px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 2px;
+}
+
+.ml-bubble-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--md-sys-color-text-secondary);
+  font-size: 12px;
+  opacity: 0.78;
+  text-align: center;
+  line-height: 1.7;
+}
+
+.ml-bubble-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ml-bubble-user {
+  justify-content: flex-end;
+}
+
+.ml-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.ml-avatar-ai {
+  background: color-mix(in srgb, var(--gaea-glow) 16%, transparent);
+  color: var(--gaea-glow);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--gaea-glow) 28%, transparent);
+}
+
+.ml-avatar-user {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--md-sys-color-text-secondary);
+}
+
+.ml-bubble {
+  max-width: 82%;
+  padding: 7px 12px;
+  border-radius: 13px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--md-sys-color-text);
+  word-break: break-word;
+}
+
+.ml-bubble-user .ml-bubble {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--gaea-glow) 22%, transparent),
+    color-mix(in srgb, var(--gaea-glow) 10%, transparent));
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 32%, transparent);
+}
+
+.ml-bubble-ai .ml-bubble {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.ml-voice-err {
+  color: #fb7185;
+  font-size: 12px;
+  margin-top: 4px;
+  text-align: center;
+}
+
+.ml-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ml-start-btn {
+  height: 46px;
+  padding: 0 26px;
+  border-radius: 23px;
+  border: none;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--md-sys-color-on-primary);
+  background: linear-gradient(135deg,
+    var(--gaea-glow),
+    color-mix(in srgb, var(--gaea-glow) 52%, var(--md-sys-color-primary-container)));
+  box-shadow: 0 0 26px color-mix(in srgb, var(--gaea-glow) 42%, transparent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: box-shadow var(--md-sys-transition-normal), transform var(--md-sys-transition-normal), filter var(--md-sys-transition-normal);
+}
+
+.ml-start-btn:hover {
+  box-shadow: 0 0 36px color-mix(in srgb, var(--gaea-glow) 55%, transparent);
+  filter: brightness(1.05);
+}
+
+.ml-start-btn:active {
+  transform: scale(0.97);
+}
+
+.ml-start-btn:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+
+.ml-start-btn.ml-starting {
+  background: linear-gradient(135deg, #fb7185, #f43f5e);
+  color: #fff;
+  box-shadow: 0 0 24px rgba(244, 63, 94, 0.5);
+  animation: voiceBtnPulse 1.6s ease-in-out infinite;
+}
+
+.ml-interrupt-btn {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 19px;
+  font-size: 13px;
+  color: #fb7185;
+  background: color-mix(in srgb, #fb7185 10%, transparent);
+  border: 1px solid color-mix(in srgb, #fb7185 45%, transparent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform var(--md-sys-transition-fast), background var(--md-sys-transition-fast);
+}
+
+.ml-interrupt-btn:hover {
+  background: color-mix(in srgb, #fb7185 16%, transparent);
+}
+
+.ml-interrupt-btn:active {
+  transform: scale(0.97);
+}
+
+/* 移动端 / 窄窗口：竖排，中枢置顶 */
+@media (max-width: 1080px) {
+  .ml-main {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    flex: none;
+    overflow: visible;
+  }
+  .ml-center {
+    order: -1;
+  }
+  .ml-col {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .ml-col .ml-card {
+    flex: 1 1 210px;
+  }
+  .ml {
+    align-items: flex-start;
+    padding-top: 8px;
+  }
+}
+
+/* 减弱动态 */
+@media (prefers-reduced-motion: reduce) {
+  .ml-card,
+  .ml-center,
+  .ml-top,
+  .ml-card-icon,
+  .ml-card-arrow,
+  .ml-start-btn,
+  .ml-chat-cta {
+    animation: none !important;
+    transition: none !important;
+  }
+  .ml-card:hover {
+    transform: none;
+  }
+}
+
+/* WebView2 rAF 降级：禁用入场动画，避免卡片停在 opacity:0 */
+html.gaea-raf-degraded .ml-card,
+html.gaea-raf-degraded .ml-center,
+html.gaea-raf-degraded .ml-top {
+  animation: none !important;
+}

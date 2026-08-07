@@ -9,6 +9,7 @@ import * as App from '../../wailsjs/go/app/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import mermaid from 'mermaid'
 import FeatureModelBar from '../components/FeatureModelBar'
+import './office-page.css'
 mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' })
 const { Title, Text, Paragraph } = Typography; const { TextArea } = Input
 
@@ -150,7 +151,7 @@ const OfficePage: React.FC = () => {
   const [pipeMsg, setPipeMsg] = useState('')
   const [projSel, setProjSel] = useState(''); const [aiCtxOpen, setAiCtxOpen] = useState(false); const [reviewList, setReviewList] = useState<any[]>([])
   const [am, setAm] = useState<{ parentId: string } | null>(null); const [at, setAt] = useState(''); const [rn, setRn] = useState<{ id: string; title: string } | null>(null)
-  const [tab, setTab] = useState('shelves'); const sp = pp.find(x => x.id === sid)
+  const [tab, setTab] = useState('parse'); const sp = pp.find(x => x.id === sid)
   const rf = useCallback(async () => { try { setPp((await App.ProposalList() as any) || []) } catch (e) { } }, [])
   const rfp = useCallback(async () => { try { setPrs((await App.ProposalProjectList() as any) || []) } catch (e) { } }, [])
   const openFacts = async (projectID?: string) => { if (!projectID) return; try { const f = (await App.ProposalProjectFactsGet(projectID) as any) || {}; setFactsRows(Object.entries(f).map(([k, v]) => ({ k, v: v as string }))); setFactsOpen(true) } catch (e: any) { message.error(String(e)) } }
@@ -171,7 +172,7 @@ const OfficePage: React.FC = () => {
   const hdel = (id: string) => { Modal.confirm({ title: '删除该章节？', content: '其全部子章节内容也将一并删除。', okText: '删除', okType: 'danger', cancelText: '取消', onOk: async () => { try { await App.ProposalRemoveSection(sid!, id); if (ssid === id) setSsid(null); rf() } catch (e: any) { message.error(String(e)) } } }) }
   const addParentTitle = am ? (flatS(sp?.sections || []).find(x => x.id === am.parentId)?.title || '（顶级章节）') : ''
   const sprops = { sid, sp, ssid, onSS: oss, onR: rf, onAdd: (id: string) => setAm({ parentId: id }), onRename: ren, onDel: hdel }
-  const items = [{ key: 'shelves', label: <span><BookOutlined /> 方案列表</span>, children: <ShelvesTab pp={pp} prs={prs} sid={sid} onS={os} onN={on} onD={od} tt={tt} /> },{ key: 'parse', label: <span><UploadOutlined /> 招标解析</span>, children: <ParseTab sid={sid} sp={sp} onR={rf} /> },{ key: 'outline', label: <span><UnorderedListOutlined /> 大纲生成</span>, children: <OutlineTab {...sprops} /> },{ key: 'write', label: <span><EditOutlined /> 文本编制</span>, children: <WriteTab {...sprops} /> },{ key: 'chart', label: <span><PieChartOutlined /> 图表制作</span>, children: <ChartTab {...sprops} /> },{ key: 'export', label: <span><ExportOutlined /> 汇总导出</span>, children: <ExportTab {...sprops} onGoto={(id) => { oss(id); setTab('write') }} /> }]
+  const items = [{ key: 'parse', label: <span><UploadOutlined /> 招标解析</span>, children: <ParseTab sid={sid} sp={sp} onR={rf} /> },{ key: 'outline', label: <span><UnorderedListOutlined /> 大纲生成</span>, children: <OutlineTab {...sprops} /> },{ key: 'write', label: <span><EditOutlined /> 文本编制</span>, children: <WriteTab {...sprops} /> },{ key: 'chart', label: <span><PieChartOutlined /> 图表制作</span>, children: <ChartTab {...sprops} /> },{ key: 'export', label: <span><ExportOutlined /> 汇总导出</span>, children: <ExportTab {...sprops} onGoto={(id) => { oss(id); setTab('write') }} /> }]
   const stageIdx = (st?: string) => st === 'parse' ? 0 : st === 'generate' ? 1 : st === 'check' ? 2 : st === 'format' ? 3 : 0
   const saveReview = async () => { if (!sp) return; try { await App.ProposalUpdate({ ...sp, reviewChecklist: reviewList } as any); rf(); message.success('已保存复核') } catch (e: any) { message.error(String(e)) } }
   const nextStep = () => { const st = sp?.stage; if (!st || st === 'parse') { message.info('请先完成招标解析（或点击一键流水线）'); setTab('parse') } else if (st === 'generate') { message.info('请完成文本编制（可批量生成）'); setTab('write') } else { setTab('export') } }

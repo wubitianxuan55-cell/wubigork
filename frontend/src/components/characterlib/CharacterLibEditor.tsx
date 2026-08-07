@@ -1,13 +1,19 @@
-// CharacterLibEditor.tsx — 角色库详情：档案册视图
-// 档案眉 → 立绘横幅 → 身份栏 + 卷宗正文 → 底部操作条；字段与保存语义不变。
+// CharacterLibEditor.tsx — 角色库详情：档案册视图（相卡面板）
+// 档案眉 → 立绘横幅 → 身份栏 + 卷宗正文 → 底部操作条
+// 随机生成：顶部「随机补全 / 全部随机」，每个字段旁 ↻ 可单独随机（含性格）
 import React, { useEffect, useMemo, useState } from 'react'
 import {
-  Modal, Input, Select, Switch, Slider, Tag, Typography, message, Button,
+  Modal, Input, Select, Switch, Slider, Typography, message, Button,
 } from 'antd'
-import { SaveOutlined, CloseOutlined, PictureOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import {
+  SaveOutlined, CloseOutlined, PictureOutlined, ThunderboltOutlined,
+  ExperimentOutlined, RetweetOutlined, LoadingOutlined,
+} from '@ant-design/icons'
 import TisorRadar from '../TisorRadar'
-import { C } from '../../utils/theme'
-import { saveCharacter, generateFill, generatePortrait, type LibraryCharacter } from '../../api/characterlib'
+import {
+  saveCharacter, generateFill, generateRandom, generatePortrait,
+  type LibraryCharacter,
+} from '../../api/characterlib'
 import './character-detail.css'
 
 const { Text } = Typography
@@ -16,7 +22,7 @@ const { TextArea } = Input
 const GENDER_OPTIONS = [
   { value: 'female', label: '女性' },
   { value: 'male', label: '男性' },
-  { value: 'neutral', label: '中性/其他' },
+  { value: 'neutral', label: '中性其他' },
 ]
 
 const ROLE_OPTIONS = [
@@ -41,10 +47,10 @@ const DIM_META: { key: keyof LibraryCharacter['dims']; label: string; desc: stri
   { key: 'R', label: 'R 矜持', desc: '克制与距离' },
 ]
 
-const KIND_META: Record<string, { label: string; color: string }> = {
-  builtin: { label: '内置', color: 'gold' },
-  custom: { label: '自定义', color: 'green' },
-  assistant: { label: '助手', color: 'geekblue' },
+const KIND_META: Record<string, string> = {
+  builtin: '内置',
+  custom: '自定义',
+  assistant: '助手',
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -58,6 +64,30 @@ const GENDER_LABELS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   Alive: '存活', Dead: '已故', Missing: '失踪', Transformed: '变身',
 }
+
+// AI 可单独随机的字段 → 中文名（用于按钮 title 与提示）
+const FIELD_LABELS: Record<string, string> = {
+  personality: '性格',
+  background: '背景',
+  appearance: '外貌',
+  figure: '身材',
+  motivation: '动机',
+  arc: '角色弧线',
+  notes: '备注',
+  tags: '标签',
+  dialogueSamples: '对话样本',
+  voiceGuide: '口吻指南',
+  behaviorRules: '行为规则',
+  emotionLogic: '情感逻辑',
+}
+
+// 本地即时随机的年龄池（无需 AI）
+const AGE_POOL = [
+  '17', '18', '19', '20', '21', '22', '23', '24', '25', '26',
+  '27', '28', '29', '30', '31', '32', '34', '36', '38', '40', '45',
+]
+
+const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)]
 
 interface Props {
   open: boolean
@@ -90,6 +120,8 @@ const CharacterLibEditor: React.FC<Props> = ({
   const [form, setForm] = useState<Partial<LibraryCharacter>>(() => toForm(character))
   const [saving, setSaving] = useState(false)
   const [filling, setFilling] = useState(false)
+  const [genAll, setGenAll] = useState(false)
+  const [fieldGen, setFieldGen] = useState<string | null>(null)
   const [genPortrait, setGenPortrait] = useState(false)
 
   useEffect(() => {
@@ -97,7 +129,8 @@ const CharacterLibEditor: React.FC<Props> = ({
   }, [open, character])
 
   const isNew = !character
-  const km = character?.kind ? KIND_META[character.kind] || KIND_META.custom : KIND_META.custom
+  const kindLabel = character?.kind ? KIND_META[character.kind] || KIND_META.custom : KIND_META.custom
+  const busy = saving || filling || genAll || !!fieldGen
 
   const patch = (p: Partial<LibraryCharacter>) => setForm(prev => ({ ...prev, ...p }))
   const patchTags = (v: string) => patch({ tags: v.split(/[,，]/).map(s => s.trim()).filter(Boolean) })
@@ -129,6 +162,7 @@ const CharacterLibEditor: React.FC<Props> = ({
   }
 
   const handleFill = async () => {
+    if (busy) return
     if (!form.name?.trim()) {
       message.warning('角色名称不能为空')
       return
@@ -156,7 +190,77 @@ const CharacterLibEditor: React.FC<Props> = ({
     }
   }
 
+  const handleRandomAll = async () => {
+    if (busy) return
+    if (!form.name?.trim()) {
+      message.warning('角色名称不能为空')
+      return
+    }
+    setGenAll(true)
+    try {
+      const next = await generateRandom(form, 'all')
+      setForm(next as Partial<LibraryCharacter>)
+      message.success('已重新随机全部设定（含性格，姓名不变），检查后保存')
+    } catch (err: any) {
+      message.error(`全部随机失败：${err?.message || String(err)}`)
+    } finally {
+      setGenAll(false)
+    }
+  }
+
+  const randomizeDims = () => {
+    if (busy) return
+    const next = {} as LibraryCharacter['dims']
+    ;(['T', 'I', 'S', 'O', 'R'] as const).forEach(k => {
+      next[k] = 25 + Math.floor(Math.random() * 66)
+    })
+    patch({ dims: next })
+    message.success('已随机五维数值')
+  }
+
+  const randomizeField = async (key: string) => {
+    if (busy) return
+    if (!form.name?.trim()) {
+      message.warning('角色名称不能为空')
+      return
+    }
+    // 枚举字段本地即时随机（无需 AI）
+    if (key === 'gender') {
+      patch({ gender: pick(GENDER_OPTIONS).value })
+      message.success('已随机性别')
+      return
+    }
+    if (key === 'roleType') {
+      patch({ roleType: pick(ROLE_OPTIONS).value })
+      message.success('已随机定位')
+      return
+    }
+    if (key === 'status') {
+      patch({ status: pick(STATUS_OPTIONS).value })
+      message.success('已随机状态')
+      return
+    }
+    if (key === 'age') {
+      patch({ age: pick(AGE_POOL) })
+      message.success('已随机年龄')
+      return
+    }
+    // 文本字段走 AI 按字段随机
+    const label = FIELD_LABELS[key] || key
+    setFieldGen(key)
+    try {
+      const next = await generateRandom(form, key)
+      setForm(next as Partial<LibraryCharacter>)
+      message.success(`已重新随机${label}，检查后保存`)
+    } catch (err: any) {
+      message.error(`随机${label}失败：${err?.message || String(err)}`)
+    } finally {
+      setFieldGen(null)
+    }
+  }
+
   const handleGeneratePortrait = async () => {
+    if (busy) return
     if (!form.name?.trim()) {
       message.warning('角色名称不能为空')
       return
@@ -181,8 +285,22 @@ const CharacterLibEditor: React.FC<Props> = ({
     form.status ? STATUS_LABELS[form.status] || form.status : '',
   ].filter(Boolean).join(' · ')
 
-  const fieldLabel = (t: string) => (
-    <label className="cd-label">{t}</label>
+  const fieldLabel = (t: string, diceKey?: string) => (
+    <div className="cd-label-row">
+      <label className="cd-label">{t}</label>
+      {diceKey && (
+        <Button
+          size="small"
+          type="text"
+          className="cd-dice"
+          icon={fieldGen === diceKey ? <LoadingOutlined /> : <RetweetOutlined />}
+          loading={fieldGen === diceKey}
+          disabled={busy && fieldGen !== diceKey}
+          title={`随机生成${FIELD_LABELS[diceKey] || t}`}
+          onClick={() => randomizeField(diceKey)}
+        />
+      )}
+    </div>
   )
 
   const section = (title: string, children: React.ReactNode, action?: React.ReactNode) => (
@@ -198,7 +316,7 @@ const CharacterLibEditor: React.FC<Props> = ({
       onCancel={onClose}
       footer={null}
       closable={false}
-      width={880}
+      width={900}
       className="cd-modal"
       styles={{
         content: { padding: 0, borderRadius: 16, overflow: 'hidden', background: 'var(--md-sys-color-surface-container)' },
@@ -213,7 +331,7 @@ const CharacterLibEditor: React.FC<Props> = ({
               {isNew ? '新建档案' : `角色档案 · NO.${String(index + 1).padStart(3, '0')}`}
             </span>
             <div className="cd-head-right">
-              {!isNew && <Tag color={km.color} className="cd-kind">{km.label}</Tag>}
+              {!isNew && <span className="cd-kind">{kindLabel}</span>}
               {form.chatEnabled && (
                 <span className="cd-chat"><i className="cd-chat-dot" />可聊天</span>
               )}
@@ -234,6 +352,7 @@ const CharacterLibEditor: React.FC<Props> = ({
               size="small"
               icon={<PictureOutlined />}
               loading={genPortrait}
+              disabled={busy}
               onClick={handleGeneratePortrait}
               className="cd-hero-gen"
               title="按角色设定生成剧照"
@@ -265,28 +384,28 @@ const CharacterLibEditor: React.FC<Props> = ({
               </div>
               <div className="cd-grid2">
                 <div className="cd-field">
-                  {fieldLabel('性别')}
+                  {fieldLabel('性别', 'gender')}
                   <Select size="small" value={form.gender ?? ''} style={{ width: '100%' }}
                     onChange={v => patch({ gender: v })} options={GENDER_OPTIONS} allowClear />
                 </div>
                 <div className="cd-field">
-                  {fieldLabel('年龄')}
+                  {fieldLabel('年龄', 'age')}
                   <Input size="small" value={form.age ?? ''} onChange={e => patch({ age: e.target.value })}
                     placeholder="23 / 外观二十五六" />
                 </div>
                 <div className="cd-field">
-                  {fieldLabel('定位')}
+                  {fieldLabel('定位', 'roleType')}
                   <Select size="small" value={form.roleType ?? ''} style={{ width: '100%' }}
                     onChange={v => patch({ roleType: v })} options={ROLE_OPTIONS} allowClear />
                 </div>
                 <div className="cd-field">
-                  {fieldLabel('状态')}
+                  {fieldLabel('状态', 'status')}
                   <Select size="small" value={form.status ?? ''} style={{ width: '100%' }}
                     onChange={v => patch({ status: v })} options={STATUS_OPTIONS} allowClear />
                 </div>
               </div>
               <div className="cd-field">
-                {fieldLabel('标签')}
+                {fieldLabel('标签', 'tags')}
                 <Input size="small" value={(form.tags ?? []).join('，')} onChange={e => patchTags(e.target.value)}
                   placeholder="女主，剑修" />
                 {(form.tags ?? []).length > 0 && (
@@ -296,7 +415,12 @@ const CharacterLibEditor: React.FC<Props> = ({
                 )}
               </div>
               <div className="cd-radar">
-                <TisorRadar dims={dims} size={132} color="#f472b6" />
+                <div className="cd-radar-head">
+                  <Text className="cd-radar-title">五维人格</Text>
+                  <Button size="small" type="text" className="cd-dice" icon={<RetweetOutlined />}
+                    title="随机五维数值" disabled={busy} onClick={randomizeDims} />
+                </div>
+                <TisorRadar dims={dims} size={132} color="var(--gaea-glow)" />
                 <div className="cd-dims">
                   {DIM_META.map(d => (
                     <div key={d.key} className="cd-dim">
@@ -319,6 +443,18 @@ const CharacterLibEditor: React.FC<Props> = ({
 
             {/* 卷宗正文 */}
             <main className="cd-main">
+              {/* 随机生成工具条 */}
+              <div className="cd-genbar">
+                <span className="cd-genbar-title">随机生成</span>
+                <Button size="small" icon={<ThunderboltOutlined />} loading={filling}
+                  disabled={busy && !filling} onClick={handleFill}
+                  title="仅补齐空缺字段，保留已有内容">随机补齐</Button>
+                <Button size="small" icon={<ExperimentOutlined />} loading={genAll}
+                  disabled={busy && !genAll} onClick={handleRandomAll}
+                  title="重新随机全部设定（含性格），姓名不变">全部随机</Button>
+                <span className="cd-genbar-hint">字段旁 ↻ 可单独随机</span>
+              </div>
+
               {section('小说设定', (
                 <div className="cd-fields">
                   {[
@@ -330,24 +466,19 @@ const CharacterLibEditor: React.FC<Props> = ({
                     { key: 'arc' as const, label: '角色弧线', rows: 2 },
                   ].map(f => (
                     <div key={f.key} className="cd-field">
-                      {fieldLabel(f.label)}
+                      {fieldLabel(f.label, f.key)}
                       <TextArea className="cd-area" size="small" rows={f.rows} value={form[f.key] ?? ''}
                         onChange={e => patch({ [f.key]: e.target.value } as any)} />
                     </div>
                   ))}
                 </div>
-              ), (
-                <Button size="small" icon={<ThunderboltOutlined />} loading={filling}
-                  onClick={handleFill} className="cd-sec-action" title="AI 随机补齐空缺字段">
-                  随机补齐
-                </Button>
               ))}
               {section('对话样本', (
                 <div className="cd-field">
-                  {fieldLabel('每行一条，教 AI 说话节奏')}
+                  {fieldLabel('每行一条，供 AI 说话节拍', 'dialogueSamples')}
                   <TextArea className="cd-area" size="small" rows={3} value={(form.dialogueSamples ?? []).join('\n')}
                     onChange={e => patchSamples(e.target.value)}
-                    placeholder={'“你…你才不是为我来的吧？”\n“剑修不问红尘。”'} />
+                    placeholder={'「你……你才不是为我来的吧。」\n「剑修不问红尘。」'} />
                 </div>
               ))}
               {section('备注', (
@@ -355,16 +486,19 @@ const CharacterLibEditor: React.FC<Props> = ({
                   <TextArea className="cd-area" size="small" rows={2} value={form.notes ?? ''}
                     onChange={e => patch({ notes: e.target.value })} />
                 </div>
+              ), (
+                <Button size="small" type="text" className="cd-dice" icon={<RetweetOutlined />}
+                  title="随机生成备注" disabled={busy} onClick={() => randomizeField('notes')} />
               ))}
               {section('聊天设定', (
                 <div className="cd-fields">
                   {[
                     { key: 'voiceGuide' as const, label: '口吻指南', rows: 3, ph: '角色怎么说话：语气、用词、节奏…' },
                     { key: 'behaviorRules' as const, label: '行为规则', rows: 2, ph: '互动中的行为边界与习惯' },
-                    { key: 'emotionLogic' as const, label: '情感逻辑', rows: 2, ph: '对用户的情感反应模式' },
+                    { key: 'emotionLogic' as const, label: '情感逻辑', rows: 2, ph: '对用户的情绪反应模式' },
                   ].map(f => (
                     <div key={f.key} className="cd-field">
-                      {fieldLabel(f.label)}
+                      {fieldLabel(f.label, f.key)}
                       <TextArea className="cd-area" size="small" rows={f.rows} value={form[f.key] ?? ''} placeholder={f.ph}
                         onChange={e => patch({ [f.key]: e.target.value } as any)} />
                     </div>
@@ -373,7 +507,7 @@ const CharacterLibEditor: React.FC<Props> = ({
               ))}
               {form.assistantId && (
                 <div className="cd-note">
-                  聊天通道：assistantId={form.assistantId}（微信/通道配置以助手记录为准）
+                  聊天通道：assistantId={form.assistantId}（微信通道配置以助手记录为准）
                 </div>
               )}
             </main>

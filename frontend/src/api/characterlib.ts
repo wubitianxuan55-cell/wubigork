@@ -87,6 +87,15 @@ export async function generateFill(c: Partial<LibraryCharacter>): Promise<Librar
   return JSON.parse(json) as LibraryCharacter
 }
 
+/**
+ * 按字段随机再生成角色设定。
+ * fields: 'all' 全部字段重新随机（含性格，姓名不变）；单个/多个字段用逗号分隔（如 'personality,appearance'）
+ */
+export async function generateRandom(c: Partial<LibraryCharacter>, fields: string): Promise<LibraryCharacter> {
+  const json = await App.CharacterGenerateRandom(JSON.stringify(c), fields)
+  return JSON.parse(json) as LibraryCharacter
+}
+
 /** 生成角色剧照：按角色字段构建智能 prompt，返回图片 data URL / 远程 URL（不自动保存） */
 export async function generatePortrait(c: Partial<LibraryCharacter>, model = ''): Promise<string> {
   return App.CharacterGeneratePortrait(JSON.stringify(c), model)

@@ -14,7 +14,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onLogin }) => (
     alignItems: 'center', height: '100%', minHeight: '70vh', gap: 0,
   }}>
     {/* 玻璃品牌卡 */}
-    <div className="md-glass scanline-top" style={{
+    <div className="md-glass" style={{
       position: 'relative',
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       padding: '48px 64px 40px', borderRadius: 'var(--md-sys-radius-xl)',

@@ -1,25 +1,51 @@
-/* 角色库档案卡：竖版人物设定卡 */
+/* 角色库档案卡：Cast Wall 竖版角色设定卡
+   设计：立绘主导 + 档案眉（编号/类型/可聊天）+ 底部操作栏
+   全部强调色跟随主题 var(--gaea-glow)，不再硬编码粉色 */
+
 .ccard {
   position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  border-radius: 16px;
+  border-radius: 18px;
   border: 1px solid var(--md-sys-color-outline-variant);
-  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--gaea-glow) 5%, transparent), transparent 30%),
+    var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
   overflow: hidden;
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  isolation: isolate;
+  animation: ccardIn 460ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--ccard-i, 0) * 24ms);
+  transition:
+    transform 240ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 240ms ease,
+    box-shadow 240ms ease;
 }
 
 .ccard:hover {
-  transform: translateY(-3px);
-  border-color: #f472b6;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(244, 114, 182, 0.14);
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--gaea-glow) 45%, transparent);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.26),
+    0 0 0 1px color-mix(in srgb, var(--gaea-glow) 16%, transparent),
+    0 10px 32px color-mix(in srgb, var(--gaea-glow) 14%, transparent);
 }
 
 .ccard:active {
-  transform: scale(0.98);
+  transform: translateY(-1px) scale(0.985);
+}
+
+.ccard:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+
+@keyframes ccardIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* 档案眉 */
@@ -28,67 +54,80 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 14px 8px;
+  padding: 10px 14px 9px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   flex-shrink: 0;
 }
 
 .ccard-no {
   font-size: 10px;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   color: var(--md-sys-color-text-secondary);
   font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 .ccard-head-right {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
 }
 
-.ccard-kind-tag {
-  margin: 0;
+/* 类型标记：直角旗标（替换 pill Tag） */
+.ccard-kind {
   font-size: 9px;
-  line-height: 15px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+  white-space: nowrap;
 }
 
 .ccard-chat {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 9.5px;
-  color: #f472b6;
+  font-weight: 500;
+  color: var(--gaea-glow);
   white-space: nowrap;
 }
 
 .ccard-chat-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #f472b6;
-  box-shadow: 0 0 6px rgba(244, 114, 182, 0.7);
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
+  animation: livePulse 2.4s ease-in-out infinite;
 }
 
-/* 当前人格标记 */
+/* 当前人格标记：浮在立绘左上 */
 .ccard-current {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 3;
-  padding: 2px 8px;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 9.5px;
   font-weight: 600;
-  color: #fff;
-  background: rgba(244, 114, 182, 0.9);
-  box-shadow: 0 2px 10px rgba(244, 114, 182, 0.4);
+  letter-spacing: 0.04em;
+  color: var(--md-sys-color-on-primary);
+  background: var(--md-sys-color-primary);
+  box-shadow: 0 3px 14px color-mix(in srgb, var(--gaea-glow) 45%, transparent);
+  pointer-events: none;
 }
 
-/* 立绘横幅 */
+/* 立绘：4:5 竖版，底部渐变压暗 + 身份信息覆盖 */
 .ccard-portrait {
   position: relative;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 4 / 5;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -98,6 +137,11 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 480ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.ccard:hover .ccard-portrait-img {
+  transform: scale(1.04);
 }
 
 .ccard-placeholder {
@@ -106,38 +150,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 46px;
+  font-size: 48px;
   font-weight: 700;
-  color: rgba(244, 114, 182, 0.55);
+  color: var(--gaea-glow);
+  opacity: 0.78;
   background:
-    radial-gradient(120% 120% at 15% 0%, rgba(244, 114, 182, 0.16), transparent 55%),
-    linear-gradient(145deg, rgba(244, 114, 182, 0.08), transparent 60%),
+    radial-gradient(130% 90% at 50% 0%, color-mix(in srgb, var(--gaea-glow) 22%, transparent), transparent 58%),
+    linear-gradient(155deg, color-mix(in srgb, var(--gaea-glow) 10%, transparent), transparent 55%),
     var(--md-sys-color-surface-container-high);
 }
 
-.ccard-sheen::after {
-  content: '';
+/* 底部身份区 */
+.ccard-id {
   position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.13) 50%, transparent 60%);
-  transform: translateX(-130%);
-  transition: transform 450ms ease;
-}
-
-.ccard:hover .ccard-sheen::after {
-  transform: translateX(130%);
-}
-
-/* 档案正文 */
-.ccard-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px 10px;
-  flex: 1;
-  min-height: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  padding: 42px 14px 13px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.42) 46%, transparent 76%);
 }
 
 .ccard-name {
@@ -145,30 +176,59 @@
   font-size: 19px;
   font-weight: 700;
   line-height: 1.25;
-  color: var(--md-sys-color-text);
+  color: #fff;
+  letter-spacing: 0.01em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .ccard-meta {
-  margin: 0;
-  font-size: 10.5px;
+  margin: 4px 0 0;
+  font-size: 11px;
   line-height: 1.5;
-  color: var(--md-sys-color-text-secondary);
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* 光泽扫过 */
+.ccard-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.12) 50%, transparent 60%);
+  transform: translateX(-130%);
+  transition: transform 480ms ease;
+}
+
+.ccard:hover .ccard-sheen::after {
+  transform: translateX(130%);
+}
+
+/* 档案正文：弧线 + 标签 */
+.ccard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  flex: 1;
+  min-height: 0;
+}
+
 .ccard-arc {
-  margin: 2px 0 0;
-  padding-left: 8px;
-  border-left: 2px solid rgba(244, 114, 182, 0.45);
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--gaea-glow) 55%, transparent);
   font-size: 11px;
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--md-sys-color-text);
-  opacity: 0.82;
+  opacity: 0.84;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -178,15 +238,17 @@
 .ccard-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 8px;
-  margin-top: 2px;
+  gap: 5px 10px;
+  margin-top: auto;
+  padding-top: 2px;
 }
 
 .ccard-tag {
   font-size: 10px;
-  color: var(--gaea-glow, var(--md-sys-color-primary));
+  font-weight: 500;
+  color: var(--md-sys-color-text-secondary);
   letter-spacing: 0.02em;
-  opacity: 0.9;
+  opacity: 0.92;
 }
 
 /* 底部：雷达 + 操作 */
@@ -195,10 +257,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 14px 10px;
+  padding: 9px 12px 10px;
   border-top: 1px solid var(--md-sys-color-outline-variant);
   margin-top: auto;
   flex-shrink: 0;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 74%, transparent);
 }
 
 .ccard-actions {
@@ -206,24 +269,110 @@
   align-items: center;
   gap: 2px;
   min-width: 0;
-  opacity: 0;
-  transform: translateY(3px);
-  transition: opacity 160ms ease, transform 160ms ease;
+  opacity: 0.72;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .ccard:hover .ccard-actions,
 .ccard:focus-within .ccard-actions {
   opacity: 1;
-  transform: none;
+}
+
+.ccard-actions .ant-btn {
+  color: var(--md-sys-color-text-secondary);
+  font-size: 12px;
+}
+
+.ccard-actions .ant-btn:hover {
+  color: var(--gaea-glow) !important;
+  background: color-mix(in srgb, var(--gaea-glow) 10%, transparent) !important;
+}
+
+.ccard-actions .ant-btn-dangerous:hover {
+  color: #f87171 !important;
+  background: color-mix(in srgb, #f87171 10%, transparent) !important;
+}
+
+/* 列表页：档案墙网格 */
+.clib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 899px) {
+  .clib-grid {
+    grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+    gap: 12px;
+  }
+  .ccard-name {
+    font-size: 16px;
+  }
+}
+
+/* 加载骨架 */
+.clib-skel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container);
+}
+
+.clib-skel-portrait {
+  aspect-ratio: 4 / 5;
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--gaea-glow) 8%, var(--md-sys-color-surface-container-high)),
+    var(--md-sys-color-surface-container-high));
+}
+
+.clib-skel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 16px;
+}
+
+.clib-skel-line {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--md-sys-color-outline-variant);
+  opacity: 0.55;
+}
+
+.clib-skel-line.short {
+  width: 58%;
+}
+
+.clib-skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.08) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: clibShimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes clibShimmer {
+  to { transform: translateX(100%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ccard,
   .ccard-sheen::after,
-  .ccard-actions {
+  .ccard-actions,
+  .ccard-portrait-img,
+  .clib-skel::after {
+    animation: none !important;
     transition: none !important;
   }
   .ccard:hover {
     transform: none;
   }
+}
+
+/* WebView2 rAF 降级：禁用入场动画，避免卡片停在 opacity:0 */
+html.gaea-raf-degraded .ccard {
+  animation: none !important;
 }

@@ -7,13 +7,15 @@ vi.mock('../../api/characterlib', () => ({
   saveCharacter: vi.fn(),
   generateFill: vi.fn(),
   generatePortrait: vi.fn(),
+  generateRandom: vi.fn(),
 }))
 
-import { saveCharacter, generateFill, generatePortrait } from '../../api/characterlib'
+import { saveCharacter, generateFill, generatePortrait, generateRandom } from '../../api/characterlib'
 
 const mockedSave = vi.mocked(saveCharacter)
 const mockedFill = vi.mocked(generateFill)
 const mockedPortrait = vi.mocked(generatePortrait)
+const mockedRandom = vi.mocked(generateRandom)
 
 function makeCharacter(overrides: Partial<LibraryCharacter> = {}): LibraryCharacter {
   return {
@@ -62,6 +64,7 @@ beforeEach(() => {
   mockedSave.mockReset()
   mockedFill.mockReset()
   mockedPortrait.mockReset()
+  mockedRandom.mockReset()
 })
 
 describe('CharacterLibEditor（档案详情）', () => {
@@ -166,5 +169,35 @@ describe('CharacterLibEditor（档案详情）', () => {
     fireEvent.click(screen.getByText('生成剧照'))
     expect(mockedFill).not.toHaveBeenCalled()
     expect(mockedPortrait).not.toHaveBeenCalled()
+  })
+
+  it('全部随机调用 generateRandom(fields=all) 并回填性格', async () => {
+    mockedRandom.mockResolvedValue(makeCharacter({ personality: '冷冽刀客，言出必践' }) as any)
+    renderEditor()
+    fireEvent.click(screen.getByText('全部随机'))
+    await vi.waitFor(() => {
+      expect(mockedRandom).toHaveBeenCalledTimes(1)
+      expect(mockedRandom.mock.calls[0][1]).toBe('all')
+      const areas = document.body.querySelectorAll('.cd-area')
+      expect((areas[0] as HTMLTextAreaElement).value).toBe('冷冽刀客，言出必践')
+    })
+  })
+
+  it('字段骰子单独随机：性格', async () => {
+    mockedRandom.mockResolvedValue(makeCharacter({ personality: '高冷寡言，外冷内热' }) as any)
+    renderEditor()
+    fireEvent.click(screen.getByTitle('随机生成性格'))
+    await vi.waitFor(() => {
+      expect(mockedRandom).toHaveBeenCalledTimes(1)
+      expect(mockedRandom.mock.calls[0][1]).toBe('personality')
+      const areas = document.body.querySelectorAll('.cd-area')
+      expect((areas[0] as HTMLTextAreaElement).value).toBe('高冷寡言，外冷内热')
+    })
+  })
+
+  it('枚举字段（性别）本地随机，不调用后端', () => {
+    renderEditor()
+    fireEvent.click(screen.getByTitle('随机生成性别'))
+    expect(mockedRandom).not.toHaveBeenCalled()
   })
 })

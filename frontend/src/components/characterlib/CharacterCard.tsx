@@ -1,7 +1,7 @@
 // CharacterCard.tsx — 角色库「人物档案卡」
 // 竖版设定卡：档案眉（编号/类型/可聊天）→ 立绘横幅 → 正文（名称/元数据/弧线/标签）→ 底部（雷达 + 操作）
 import React from 'react'
-import { Button, Popconfirm, Tag } from 'antd'
+import { Button, Popconfirm } from 'antd'
 import {
   EditOutlined, SwapOutlined, DatabaseOutlined, DeleteOutlined, ReadOutlined,
 } from '@ant-design/icons'
@@ -10,10 +10,10 @@ import type { LibraryCharacter } from '../../api/characterlib'
 import { C } from '../../utils/theme'
 import './character-card.css'
 
-const KIND_META: Record<string, { label: string; color: string }> = {
-  builtin: { label: '内置', color: 'gold' },
-  custom: { label: '自定义', color: 'green' },
-  assistant: { label: '助手', color: 'geekblue' },
+const KIND_META: Record<string, string> = {
+  builtin: '内置',
+  custom: '自定义',
+  assistant: '助手',
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -57,7 +57,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onDissociate,
   onDelete,
 }) => {
-  const km = KIND_META[c.kind] || KIND_META.custom
+  const kindLabel = KIND_META[c.kind] || KIND_META.custom
   const meta = [
     c.roleType ? ROLE_LABELS[c.roleType] || c.roleType : '',
     c.gender ? GENDER_LABELS[c.gender] || c.gender : '',
@@ -69,6 +69,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   return (
     <div
       className="ccard"
+      style={{ '--ccard-i': String(Math.min(index % 12, 11)) } as React.CSSProperties}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick ? () => onClick(c) : undefined}
@@ -80,12 +81,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         }
       } : undefined}
     >
-      {isCurrentPersona && <span className="ccard-current">当前人格</span>}
-
       <div className="ccard-head">
         <span className="ccard-no">NO.{String(index + 1).padStart(3, '0')}</span>
         <span className="ccard-head-right">
-          <Tag color={km.color} className="ccard-kind-tag">{km.label}</Tag>
+          <span className="ccard-kind">{kindLabel}</span>
           {c.chatEnabled && (
             <span className="ccard-chat"><i className="ccard-chat-dot" />可聊天</span>
           )}
@@ -93,16 +92,19 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       </div>
 
       <div className="ccard-portrait ccard-sheen">
+        {isCurrentPersona && <span className="ccard-current">当前人格</span>}
         {c.portraitUrl ? (
           <img className="ccard-portrait-img" src={c.portraitUrl} alt={c.name} />
         ) : (
           <div className="ccard-placeholder"><span>{c.name.slice(0, 1) || '?'}</span></div>
         )}
+        <div className="ccard-id">
+          <h3 className="ccard-name">{c.name}</h3>
+          {meta && <p className="ccard-meta">{meta}</p>}
+        </div>
       </div>
 
       <div className="ccard-body">
-        <h3 className="ccard-name">{c.name}</h3>
-        {meta && <p className="ccard-meta">{meta}</p>}
         {c.arc && <p className="ccard-arc">{c.arc}</p>}
         {c.tags && c.tags.length > 0 && (
           <div className="ccard-tags">
@@ -115,7 +117,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
       <div className="ccard-foot">
         {c.chatEnabled && (
-          <TisorRadar dims={c.dims} size={52} color="#f472b6" showLabels={false} />
+          <TisorRadar dims={c.dims} size={52} color="var(--gaea-glow)" showLabels={false} />
         )}
         <div className="ccard-actions">
           <Button size="small" type="text" icon={<EditOutlined />} title="编辑"

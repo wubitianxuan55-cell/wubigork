@@ -225,7 +225,7 @@ export function Transcript({
 
   return (
     <div className="transcript" ref={scrollRef} onScroll={onScroll}>
-      <div className="max-w-[--maxw] mx-auto px-8" ref={entranceRef}>
+      <div className="w-full px-8 md:px-12 py-4" ref={entranceRef}>
         {items.length === 0 && (
           <Welcome onPrompt={onPrompt} cwd={cwd} cwdName={cwdName} sessions={sessions} onResumeSession={onResumeSession} meta={meta} />
         )}
