@@ -1,6 +1,15 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 19:40:00
+> 最后更新: 2026-08-07 19:45:00
+
+## 2.19 角色详情：一键随机补齐 + 生成剧照（✅ 已完成，2026-08-07）
+- 后端新增库作用域方法 `CharacterGenerateFill`：`character-generate-single` 模板（正确注入 name/worldview/story_thread）+ novel 功能级路由 → 只填空字段合并（role_type→roleType 归一、空 tags 才填、已有内容一律保留）；无项目时也能用（有项目则借题材/世界观）
+- 后端新增 `CharacterGeneratePortrait`：按角色字段构建中文智能 prompt（外貌/身材/气质/标签 + 半身像构图，跳过空字段），复用 `GenerateFreeImage` 管线（ComfyUI/xAI/Herdsman/Ollama 自动恢复与落盘）
+- 前端：详情「小说设定」分区标题行加「随机补齐」（提示已补齐 N 处/无空缺），立绘横幅右上加玻璃 pill「生成剧照」（返回后即时预览，保存才落库）；空名拦截
+- 绑定：`wails generate module` 再生成 `CharacterGenerateFill` / `CharacterGeneratePortrait`
+- 测试：Go 单测 5 用例（只填空合并/role_type 归一/空 tags/剧照 prompt 构建与跳空/摘要）+ 前端 25 用例 PASS（新增补齐回填、剧照更新横幅、空名拦截）
+- 验证：`go build/vet/test`、`tsc -b`、`npm run build`、`scripts/ci.ps1` CI OK、`wails build` 成功
+- 文档：`docs/superpowers/specs/2026-08-07-角色详情补齐与剧照-design.md` + `plans/2026-08-07-角色详情补齐与剧照.md`（Task 3 人工 UI 目检待验证）
 
 ## 2.18 角色卡「详情档案」重设计（✅ 已完成，2026-08-07）
 - 按 `redesign-existing-projects` skill 审计并重写 `CharacterLibEditor`：档案眉（编号/类型/可聊天/当前人格徽标）→ 21:9 立绘横幅（图片/首字占位 + 光泽 + 名称元数据叠层）→ 左侧身份栏（名称/立绘 URL/性别/年龄/定位/状态/标签/五维雷达+滑块/可聊天开关）→ 右侧卷宗正文（小说设定/对话样本/备注/聊天设定发丝线分区）→ 底部操作条（项目引用 + 取消/保存 pill）；字段与保存语义不变
