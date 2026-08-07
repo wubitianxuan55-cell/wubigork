@@ -690,6 +690,10 @@ export function GetFeatureModel(arg1) {
   return window['go']['app']['App']['GetFeatureModel'](arg1);
 }
 
+export function GetFeatureModelEnabled(arg1) {
+  return window['go']['app']['App']['GetFeatureModelEnabled'](arg1);
+}
+
 export function GetForeshadows() {
   return window['go']['app']['App']['GetForeshadows']();
 }
@@ -1176,6 +1180,10 @@ export function SetEngineDefaultModel(arg1, arg2) {
 
 export function SetFeatureModel(arg1, arg2, arg3) {
   return window['go']['app']['App']['SetFeatureModel'](arg1, arg2, arg3);
+}
+
+export function SetFeatureModelEnabled(arg1, arg2) {
+  return window['go']['app']['App']['SetFeatureModelEnabled'](arg1, arg2);
 }
 
 export function SetImageBackend(arg1, arg2, arg3, arg4) {

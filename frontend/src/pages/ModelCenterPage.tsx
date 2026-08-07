@@ -158,6 +158,7 @@ const ModelCenterPage: React.FC = () => {
   ]
   const [featureCfg, setFeatureCfg] = useState<Record<string, { engine: string; model: string }>>({})
   const [featureDraft, setFeatureDraft] = useState<Record<string, { engine: string; model: string }>>({})
+  const [featureEnabled, setFeatureEnabled] = useState<Record<string, boolean>>({})
   const [modelRoutes, setModelRoutes] = useState<Record<string, { engine: string; model: string; source: string }>>({})
 
   // 当前生效路由（后端 routeModel 降级链结果：feature / global / fallback）
@@ -180,11 +181,14 @@ const ModelCenterPage: React.FC = () => {
   const loadFeatureCfg = useCallback(async () => {
     try {
       const cfg: Record<string, { engine: string; model: string }> = {}
+      const en: Record<string, boolean> = {}
       for (const f of ['chat', 'whisper', 'novel', 'office', 'gaea']) {
         const r: any = await App.GetFeatureModel(f)
         cfg[f] = { engine: r?.engine || '', model: r?.model || '' }
+        try { en[f] = !!(await App.GetFeatureModelEnabled(f)) } catch (_) { en[f] = true }
       }
       setFeatureCfg(cfg)
+      setFeatureEnabled(en)
       setFeatureDraft(JSON.parse(JSON.stringify(cfg)))
     } catch (_) {}
   }, [])
@@ -198,6 +202,17 @@ const ModelCenterPage: React.FC = () => {
       loadFeatureCfg()
     } catch (err: any) {
       message.error(err?.message || '保存失败')
+    }
+  }
+
+  const handleToggleFeatureEnabled = async (key: string, enabled: boolean) => {
+    try {
+      await App.SetFeatureModelEnabled(key, enabled)
+      message.success(`${FEATURES.find(f => f.key === key)?.label}功能模型已${enabled ? '启用' : '停用'}`)
+      setFeatureEnabled(prev => ({ ...prev, [key]: enabled }))
+      loadFeatureCfg()
+    } catch (err: any) {
+      message.error(err?.message || '操作失败')
     }
   }
 
@@ -446,7 +461,11 @@ const ModelCenterPage: React.FC = () => {
                           style={{ flex: 1, minWidth: 0 }}
                           options={engineModels.map(m => ({ value: m.modelId, label: m.modelName }))} />
                       </div>
-                      <Button size="small" type={bound ? 'primary' : 'default'} block onClick={() => handleSaveFeature(f.key)} style={{ marginTop: 10, fontSize: 11 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, gap: 8 }}>
+                        <span style={{ fontSize: 11, color: C('color-text-secondary') }}>功能启用（停用后回退全局模型）</span>
+                        <Switch size="small" checked={featureEnabled[f.key] !== false} onChange={(v: boolean) => handleToggleFeatureEnabled(f.key, v)} />
+                      </div>
+                      <Button size="small" type={bound ? 'primary' : 'default'} block onClick={() => handleSaveFeature(f.key)} style={{ marginTop: 8, fontSize: 11 }}>
                         {bound ? '更新绑定' : '绑定'}
                       </Button>
                     </Card>

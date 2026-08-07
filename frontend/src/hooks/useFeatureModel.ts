@@ -4,15 +4,18 @@ import { EventsOn } from '../../wailsjs/runtime/runtime'
 
 /**
  * 功能模型 hook — 读取并实时监听某功能的绑定模型（持久化，重启不丢）。
- * feature: 'chat' | 'whisper' | 'novel' | 'office'
+ * feature: 'chat' | 'whisper' | 'novel' | 'office' | 'gaea'
+ * enabled: 功能级启停（FeatureModelBar 启停语义，默认启用）
  */
-export function useFeatureModel(feature: string): { engine: string; model: string } {
-  const [m, setM] = useState<{ engine: string; model: string }>({ engine: '', model: '' })
+export function useFeatureModel(feature: string): { engine: string; model: string; enabled: boolean } {
+  const [m, setM] = useState<{ engine: string; model: string; enabled: boolean }>({ engine: '', model: '', enabled: true })
 
   const refresh = useCallback(async () => {
     try {
       const r: any = await App.GetFeatureModel(feature)
-      setM({ engine: r?.engine || '', model: r?.model || '' })
+      let enabled = true
+      try { enabled = !!(await App.GetFeatureModelEnabled(feature)) } catch (_) {}
+      setM({ engine: r?.engine || '', model: r?.model || '', enabled })
     } catch (_) {}
   }, [feature])
 
@@ -21,7 +24,12 @@ export function useFeatureModel(feature: string): { engine: string; model: strin
     let unsub: any
     try {
       unsub = EventsOn('feature-model-changed', (d: any) => {
-        if (d?.feature === feature) setM({ engine: d.engine || '', model: d.model || '' })
+        if (d?.feature !== feature) return
+        setM(prev => ({
+          engine: d.engine ?? prev.engine,
+          model: d.model ?? prev.model,
+          enabled: d.enabled !== undefined ? !!d.enabled : prev.enabled,
+        }))
       })
     } catch (_) {}
     return () => {

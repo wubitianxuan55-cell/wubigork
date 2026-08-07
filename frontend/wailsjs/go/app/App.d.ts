@@ -353,6 +353,8 @@ export function GetEntityRelations():Promise<Record<string, any>>;
 
 export function GetFeatureModel(arg1:string):Promise<Record<string, string>>;
 
+export function GetFeatureModelEnabled(arg1:string):Promise<boolean>;
+
 export function GetForeshadows():Promise<Record<string, any>>;
 
 export function GetImageBackend():Promise<string>;
@@ -596,6 +598,8 @@ export function SetDistFS(arg1:fs.FS):Promise<void>;
 export function SetEngineDefaultModel(arg1:string,arg2:string):Promise<void>;
 
 export function SetFeatureModel(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function SetFeatureModelEnabled(arg1:string,arg2:boolean):Promise<void>;
 
 export function SetImageBackend(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
