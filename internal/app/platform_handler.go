@@ -150,7 +150,8 @@ func (a *App) AnalyzeStyle() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("请先打开项目")
 	}
 
-	analyzer := style.NewAnalyzer(pm, a.client, a.cfg.Model)
+	_, featModel, _ := a.routeModel("novel")
+	analyzer := style.NewAnalyzer(pm, a.client, featModel)
 	profile, err := analyzer.Analyze()
 	if err != nil {
 		return nil, err

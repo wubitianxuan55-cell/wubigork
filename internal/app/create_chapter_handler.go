@@ -128,15 +128,17 @@ func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.Outlin
 		}
 
 		// 向 AI 控制台发送请求日志
+		featEng, featModel, _ := a.routeModel("novel")
 		a.emit("xai-output", map[string]interface{}{
 			"type":   "request",
-			"model":  a.cfg.Model,
+			"model":  featModel,
 			"system": systemPrompt,
 			"user":   currentPrompt,
 		})
 
 		chunks, err := a.client.ChatStream(a.ctx, &ai.ChatRequest{
-			Model:    a.cfg.Model,
+			Model:    featModel,
+			EngineID: featEng,
 			Messages: []ai.ChatMessage{{Role: "system", Content: systemPrompt}, {Role: "user", Content: currentPrompt}},
 		})
 		if err != nil {
@@ -236,9 +238,10 @@ func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.Outlin
 	}
 
 	// AI 控制台响应日志
+	_, respModel, _ := a.routeModel("novel")
 	a.emit("xai-output", map[string]interface{}{
 		"type":    "response",
-		"model":   a.cfg.Model,
+		"model":   respModel,
 		"content": content,
 		"length":  len([]rune(content)),
 	})

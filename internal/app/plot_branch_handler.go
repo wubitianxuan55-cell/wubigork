@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/outline"
 	"github.com/gaea/gaea/internal/types"
 	"github.com/gaea/gaea/internal/util"
@@ -96,7 +97,8 @@ func (a *writingState) BrainstormBranches(nodeID string) (map[string]interface{}
 		"characters":                a.buildCharacterSummary(pm),
 	})
 
-	reply, err := a.client.ChatSimpleStream(a.ctx, a.cfg.Model, systemPrompt, userPrompt)
+	eng, model, _ := a.routeModel("novel")
+	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: eng})
 	if err != nil {
 		return nil, fmt.Errorf("剧情分支推理失败: %w", err)
 	}
@@ -215,7 +217,8 @@ func (a *writingState) QuickBrainstormBranches(setting, prevSummary string) (map
 		"characters":                a.buildCharacterSummary(pm),
 	})
 
-	reply, err := a.client.ChatSimpleStream(a.ctx, a.cfg.Model, systemPrompt, userPrompt)
+	eng, model, _ := a.routeModel("novel")
+	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: eng})
 	if err != nil {
 		return nil, fmt.Errorf("剧情分支推理失败: %w", err)
 	}
