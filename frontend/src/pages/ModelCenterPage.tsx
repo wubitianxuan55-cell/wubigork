@@ -150,6 +150,24 @@ const ModelCenterPage: React.FC = () => {
   ]
   const [featureCfg, setFeatureCfg] = useState<Record<string, { engine: string; model: string }>>({})
   const [featureDraft, setFeatureDraft] = useState<Record<string, { engine: string; model: string }>>({})
+  const [modelRoutes, setModelRoutes] = useState<Record<string, { engine: string; model: string; source: string }>>({})
+
+  // 当前生效路由（后端 routeModel 降级链结果：feature / global / fallback）
+  useEffect(() => {
+    let alive = true
+    const bind = (window as any).go?.app?.App
+    if (!bind?.GetModelRoute) return
+    ;(async () => {
+      const next: Record<string, { engine: string; model: string; source: string }> = {}
+      for (const f of FEATURES) {
+        try {
+          next[f.key] = JSON.parse(await bind.GetModelRoute(f.key))
+        } catch { /* 单功能失败忽略 */ }
+      }
+      if (alive) setModelRoutes(next)
+    })()
+    return () => { alive = false }
+  }, [])
 
   const loadFeatureCfg = useCallback(async () => {
     try {
@@ -395,6 +413,11 @@ const ModelCenterPage: React.FC = () => {
                       <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {bound ? `当前：${cur!.engine} / ${cur!.model}` : '尚未绑定，选择引擎和模型后点绑定'}
                       </Typography.Text>
+                      {modelRoutes[f.key] && (
+                        <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block' }}>
+                          当前生效：{modelRoutes[f.key].engine || '-'} / {modelRoutes[f.key].model || '-'}（{modelRoutes[f.key].source || '-'}）
+                        </Typography.Text>
+                      )}
                       <div style={{ display: 'flex', gap: 8 }}>
                         <Select size="small" placeholder="引擎" value={draft.engine || undefined}
                           onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: v, model: '' } }))}
