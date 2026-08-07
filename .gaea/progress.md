@@ -27,6 +27,13 @@
 - BrainWrite/BrainSearch/BrainCrossRefs 绑定 + 记忆中枢三脑检索区块
 - 验收：右脑"甲方A 保守报价" → 跨脑检索同时命中右脑与左脑标书；现有数据零迁移
 
+## 2.0 P3 主脑助手（✅ 已完成）
+
+- ModuleRegistry 模块注册与统一派发 + RunModule 绑定（gaea/whisper/novel/office/imagegen）
+- 主脑意图识别（规则分类）+ MainBrainChat 后端能力（跨脑材料 + 模块派发 + 汇总）
+- 定位：可选编排入口，不经由任何模块的直接路径；前端主脑页不做（留待 3.0）
+- 验收：一句话任务派发到正确模块，跨脑材料随结果返回；模块直达路径不受影响
+
 | 状态 | 任务 |
 |------|------|
 | ⬜ | Write tests |
