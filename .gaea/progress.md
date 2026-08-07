@@ -60,3 +60,12 @@
 |------|------|
 | ⬜ | Write tests |
 | ✅ | Add parser |
+
+## 2.1 模型中心完善（✅ 已完成，2026-08-07）
+
+- 引擎状态持久化：`whisper_data/engines.json`（enabled / base_url / default_model / models / 最近连接状态缓存），启动自动恢复，任何变更自动落盘；API Key 不入状态文件
+- 修复 `active_engine_id` 只存不读：`config.Load()` 恢复全局活跃引擎（此前重启必然回退 xai）
+- 稳定引擎顺序：`GetEngines` 固定 xai → ollama → herdsman → deepseek（消除 map 随机序）
+- 连接状态可观测：`EngineConfig.status` 缓存 + 前端「已连接/失败 + 模型数 + 上次检查时间」；测试连接/刷新后即时回填
+- 前端修复：DeepSeek Key 脱敏字段映射（masked）、挂载时加载真实活跃模型、ComfyUI 端口死代码清理、保存 Key 后清空输入框（避免把脱敏串当 Key 保存）
+- 验收：新增 8 个回归测试（持久化往返/排除 Key/未知引擎忽略/顺序稳定/状态缓存/状态随文件恢复/ActiveEngineID 读取），`scripts/ci.ps1` CI OK
