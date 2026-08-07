@@ -49,6 +49,13 @@
 - 备份：scripts/backup.ps1（whisper_data/novels/配置 → backups/ 时间戳目录，已运行验证）
 - 全量验收：scripts/ci.ps1 CI OK，工作区干净
 
+## 2.0 发布与推送（✅ 已完成）
+
+- 桌面端最终构建：wails build → build/bin/gaea.exe（38MB），已复制到桌面
+- 校验和：releases/SHA256SUMS-v2.0.1.txt（b57b4452…）
+- Git 标签：v2.0.1（annotated）
+- 远程推送：main + v2.0.1 → origin
+
 | 状态 | 任务 |
 |------|------|
 | ⬜ | Write tests |
