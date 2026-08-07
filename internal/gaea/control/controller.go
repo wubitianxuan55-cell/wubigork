@@ -701,6 +701,21 @@ func (c *Controller) Commands() []command.Command { return c.commands }
 // Skills returns the discoverable skills (for the slash menu and `/skill`).
 func (c *Controller) Skills() []skill.Skill { return c.skills }
 
+// Tools returns the executor's live tool set (enabled built-ins + plugins +
+// dynamic tools) in registration order. nil registry (never built) → nil.
+func (c *Controller) Tools() []tool.Tool {
+	if c.reg == nil {
+		return nil
+	}
+	out := make([]tool.Tool, 0, c.reg.Len())
+	for _, name := range c.reg.Names() {
+		if t, ok := c.reg.Get(name); ok {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 // HookRunner returns the session's hook runner (nil-safe; may hold zero hooks),
 // so a frontend can list the active hooks via `/hooks`.
 func (c *Controller) HookRunner() *hook.Runner { return c.hooks }

@@ -96,6 +96,10 @@ export const zhTW: Record<DictKey, string> = {
   // mcp & skills drawer
   "caps.title": "MCP 和技能",
   "caps.loading": "載入中…",
+  "caps.reload": "熱載入",
+  "caps.reloading": "正在熱載入…",
+  "caps.reloadHint": "重新讀取磁碟上的引擎設定並重建控制器（技能/工具/外掛無需重啟即生效）",
+  "caps.reloaded": "引擎已熱載入：{tools} 個工具 · {skills} 個技能",
   "caps.summary": "{connected} 已連線 · {failed} 問題 · {skills} 技能",
   "caps.connectorsTab": "MCP 伺服器",
   "caps.skillsTab": "代理技能",

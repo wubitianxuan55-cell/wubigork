@@ -93,6 +93,10 @@ export const en = {
   // mcp & skills drawer
   "caps.title": "MCP & Skills",
   "caps.loading": "Loading…",
+  "caps.reload": "Reload",
+  "caps.reloading": "Reloading…",
+  "caps.reloadHint": "Re-read engine config from disk and rebuild the controller (skills/tools/plugins take effect without a restart)",
+  "caps.reloaded": "Engine reloaded: {tools} tools · {skills} skills",
   "caps.summary": "{connected} connected · {failed} issues · {skills} skills",
   "caps.connectorsTab": "MCP servers",
   "caps.skillsTab": "Agent skills",

@@ -3,8 +3,8 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"log/slog"
+	"os"
 	"sync"
 
 	"github.com/BurntSushi/toml"
@@ -150,6 +150,49 @@ func (a *App) GaeaInit() error {
 	// 通知前端办公引擎就绪（对应 gaea/lib/bridge.ts 的 onReady 监听 gaea-ready）
 	a.emit("gaea-ready", map[string]interface{}{"kind": "ready"})
 	return nil
+}
+
+// GaeaReloadResult 热加载结果摘要：重建后生效的工具/技能数量，前端可据此提示。
+type GaeaReloadResult struct {
+	Tools  int `json:"tools"`
+	Skills int `json:"skills"`
+}
+
+// GaeaReload 热加载办公引擎：重新读取磁盘上的持久化配置（Agent 参数/权限/
+// 沙箱/技能路径/插件），并重建 controller 使变更立即生效——新增或修改的
+// 技能/工具/插件无需重启桌面端即可被引擎感知。未初始化时先完成初始化。
+// 成功后广播 gaea-ready（kind=reloaded），前端 store 会重新拉取数据。
+// 失败时保持旧引擎继续运行，不替换任何状态。
+func (a *App) GaeaReload() (GaeaReloadResult, error) {
+	ga.mu.Lock()
+	initialized := ga.ctrl != nil
+	ga.mu.Unlock()
+	if !initialized {
+		if err := a.GaeaInit(); err != nil {
+			return GaeaReloadResult{}, err
+		}
+	}
+
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
+
+	cfg, err := gaeaLoadConfig()
+	if err != nil {
+		return GaeaReloadResult{}, fmt.Errorf("gaea: 热加载配置失败: %w", err)
+	}
+	// 替换生效配置。gaeaConfig.SetLoader 的闭包实时读取 ga.cfg，boot.Build
+	// 全程只读该指针，持锁替换后旧指针不再被修改，不会与重建死锁。
+	ga.cfg = cfg
+	if err := a.gaeaRebuildLocked(); err != nil {
+		return GaeaReloadResult{}, err
+	}
+
+	res := GaeaReloadResult{
+		Tools:  len(ga.ctrl.Tools()),
+		Skills: len(ga.ctrl.Skills()),
+	}
+	a.emit("gaea-ready", map[string]interface{}{"kind": "reloaded"})
+	return res, nil
 }
 
 // GaeaSend 提交对话（异步，事件经 gaea-event 回调）。未初始化时自动初始化。

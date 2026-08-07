@@ -257,6 +257,8 @@ export function GaeaProfileSave(arg1:app.ProfileFactView):Promise<void>;
 
 export function GaeaReadFile(arg1:string):Promise<app.FilePreview>;
 
+export function GaeaReload():Promise<app.GaeaReloadResult>;
+
 export function GaeaRemember(arg1:string,arg2:string):Promise<string>;
 
 export function GaeaRemoveMCPServer(arg1:string):Promise<void>;

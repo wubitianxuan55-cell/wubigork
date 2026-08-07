@@ -15,6 +15,7 @@ import type {
   DirEntry,
   FilePickResult,
   FilePreview,
+  GaeaReloadResult,
   HistoryMessage,
   JobView,
   KnowledgeEntry,
@@ -62,6 +63,9 @@ export interface AppBindings {
   AgentMode(): Promise<string>;
   Compact(): Promise<void>;
   NewSession(): Promise<void>;
+  // Reload 热加载办公引擎：重新读取磁盘上的持久化配置并重建 controller，
+  // 使技能/工具/插件/参数变更无需重启即生效；返回重建后的工具/技能数量。
+  Reload(): Promise<GaeaReloadResult>;
   History(): Promise<HistoryMessage[]>;
   // Checkpoints lists the session's rewind points; Rewind restores one (scope
   // "code" | "conversation" | "both"), after which the caller re-reads History.
@@ -263,6 +267,7 @@ const gaeaToGaea: Record<string, string> = {
   Approve: "GaeaApprove",
   AnswerQuestion: "GaeaAnswer",
   NewSession: "GaeaNewSession",
+  Reload: "GaeaReload",
   History: "GaeaHistory",
   Checkpoints: "GaeaCheckpoints",
   Rewind: "GaeaRewind",

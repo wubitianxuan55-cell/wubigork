@@ -8,17 +8,16 @@
 
 type EventCallback = (...args: unknown[]) => void
 
-// 已知流式事件 — 这些事件需要 SSE 连接
-// 必须与 internal/rpc.go 中 streamEventMap 的值一致
-const STREAM_EVENTS = new Set([
-  'ghost-stream',
-  'beat-prose-stream',
-  'tts-stream',
-  'xai-output',
-])
-
 // 活跃的 EventSource 连接
 const activeSSE = new Map<string, EventSource>()
+
+// 桥接探测：HTTP 模式先确认 Go 内核桥接（/api/health）存在，再建立 SSE，
+// 避免无后端时对 /api/stream 无限重连刷错误。
+let bridgeProbed = false
+let bridgeAvailable = false
+// 探测完成前订阅的事件先入队，探测成功后一次性全部建连，
+// 避免启动时多个 EventsOn 并发订阅只连上第一个事件的竞态。
+const pendingSSE = new Set<string>()
 
 // 内存事件总线
 const eventBus = new Map<string, Set<EventCallback>>()
@@ -53,10 +52,8 @@ export function initRuntimePolyfill(): void {
     }
     eventBus.get(eventName)!.add(callback)
 
-    // 流式事件 — 建立 SSE 连接
-    if (STREAM_EVENTS.has(eventName) && !activeSSE.has(eventName)) {
-      connectSSE(eventName)
-    }
+    // 所有事件都尝试走 Go 内核的 SSE 推送（网页版对齐桌面端）
+    ensureBridgeSSE(eventName)
   }
 
   // EventsOff — 注销事件监听
@@ -84,6 +81,29 @@ export function initRuntimePolyfill(): void {
     ;(window as any).runtime.EventsOn(eventName, onceWrapper)
   }
 
+  // EventsOnMultiple — 注册监听，最多触发 maxCallbacks 次。
+  // wailsjs/runtime/runtime.js 的 EventsOn(-1)/EventsOnce(1) 均通过它实现，
+  // HTTP 环境不补齐会导致 "window.runtime.EventsOnMultiple is not a function"。
+  ;(window as any).runtime.EventsOnMultiple = (eventName: string, callback: EventCallback, maxCallbacks: number) => {
+    if (maxCallbacks < 0) {
+      // -1 = 不限次数，等价 EventsOn
+      ;(window as any).runtime.EventsOn(eventName, callback)
+      return () => (window as any).runtime.EventsOff(eventName, callback)
+    }
+    // 正数 = 达到次数后自动注销（1 = 单次，等价 EventsOnce）
+    let count = 0
+    const wrapper = (...args: unknown[]) => {
+      count++
+      if (count > maxCallbacks) {
+        ;(window as any).runtime.EventsOff(eventName, wrapper)
+        return
+      }
+      callback(...args)
+    }
+    ;(window as any).runtime.EventsOn(eventName, wrapper)
+    return () => (window as any).runtime.EventsOff(eventName, wrapper)
+  }
+
   // EventsEmit — 发射事件到本地总线（HTTP 环境无后端推送时使用）
   ;(window as any).runtime.EventsEmit = (eventName: string, ...args: unknown[]) => {
     const cbs = eventBus.get(eventName)
@@ -95,6 +115,39 @@ export function initRuntimePolyfill(): void {
         console.error(`[runtime] EventsEmit ${eventName} 回调异常:`, e)
       }
     }
+  }
+}
+
+/**
+ * 探测 Go 内核桥接；可用时为指定事件建立 SSE 连接。
+ */
+function ensureBridgeSSE(eventName: string): void {
+  if (activeSSE.has(eventName)) return
+  if (bridgeAvailable) {
+    connectSSE(eventName)
+    return
+  }
+  pendingSSE.add(eventName)
+  if (bridgeProbed) {
+    // 上次探测失败（或桥接后启动）：下一次订阅时重新探测，
+    // 让浏览器页面在桥接就绪后也能自动建连，无需刷新。
+    bridgeProbed = false
+  } else {
+    bridgeProbed = true
+    fetch('/api/health')
+      .then((r) => {
+        bridgeAvailable = r.ok
+        if (bridgeAvailable) {
+          for (const name of pendingSSE) {
+            if (!activeSSE.has(name)) connectSSE(name)
+          }
+        }
+        pendingSSE.clear()
+      })
+      .catch(() => {
+        bridgeAvailable = false
+        pendingSSE.clear()
+      })
   }
 }
 

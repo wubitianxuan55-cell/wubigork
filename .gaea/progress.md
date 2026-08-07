@@ -2,6 +2,15 @@
 
 > 最后更新: 2026-08-07 19:45:00
 
+## 2.20 网页调试桥接 + 办公引擎热加载（✅ 已完成，2026-08-07）
+- 新增 `internal/httpbridge`：`POST /api/rpc` 反射分发全部 Wails 绑定方法（缺失尾参补零值、panic 转 error）、`GET /api/stream?id=` SSE 事件推送（15s keep-alive + connected 帧）、`/api/health` 存活探针；`core.emit` 统一发布到桥接订阅者（无 Wails 上下文也推送，网页/移动端调试与桌面端完全对齐）
+- `main.go`：设置 `GAEA_HTTP_PORT`（如 8080）后自动启动桥接，Vite 把 `/api` 代理到桥接
+- 前端 HTTP 模式：`runtimePolyfill` 补齐 EventsOn/EventsOff/EventsOnMultiple/EventsEmit，所有事件经 SSE 对齐桌面端；修复并发订阅只连首个事件的探测竞态（未就绪事件入队、成功后全部建连、失败可随下次订阅重探）；`bridge.ts` 将 `window.go.app.App.*` 代理到 `/api/rpc`
+- 办公引擎热加载：`GaeaReload` 重新读取磁盘持久化配置并重建 controller（Agent 参数/权限/沙箱/技能路径/插件），成功返回工具/技能数量并广播 gaea-ready（kind=reloaded）令前端 store 重新拉取；失败保持旧引擎继续运行
+- 前端入口：能力抽屉（MCP/工具/技能）标题行新增「热加载」按钮（成功后展示 N 工具 · N 技能，失败内联提示）；设置→办公新增「从磁盘热加载」；三语 i18n 同步
+- 测试：httpbridge RPC 分发/未知方法/缺参补零/SSE 发布 2 例 + `TestGaeaReloadHotLoadsConfig`（磁盘改温度 0.2→0.85 热加载生效）共 3 例
+- 验证：`go build/vet/test` 全绿、`tsc` + `vite build` OK、`scripts/ci.ps1` CI OK；版本 2.3.0 → 2.4.0（wails.json / versioninfo.rc / CHANGELOG / README）
+
 ## 2.19 角色详情：一键随机补齐 + 生成剧照（✅ 已完成，2026-08-07）
 - 后端新增库作用域方法 `CharacterGenerateFill`：`character-generate-single` 模板（正确注入 name/worldview/story_thread）+ novel 功能级路由 → 只填空字段合并（role_type→roleType 归一、空 tags 才填、已有内容一律保留）；无项目时也能用（有项目则借题材/世界观）
 - 后端新增 `CharacterGeneratePortrait`：按角色字段构建中文智能 prompt（外貌/身材/气质/标签 + 半身像构图，跳过空字段），复用 `GenerateFreeImage` 管线（ComfyUI/xAI/Herdsman/Ollama 自动恢复与落盘）

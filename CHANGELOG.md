@@ -2,6 +2,25 @@
 
 # gaea · 多功能 AI 助手
 
+## v2.4.0「网页调试桥接 · 办公引擎热加载」(2026-08-07)
+
+> 新增 `GAEA_HTTP_PORT` 网页调试桥接：浏览器/手机直接驱动同一个 Go 内核（RPC + SSE），
+> 办公引擎支持从磁盘热加载，技能/工具/插件变更无需重启桌面端即可生效。
+
+- HTTP 调试桥接（`internal/httpbridge`）：`POST /api/rpc` 反射分发全部 Wails 绑定方法、
+  `GET /api/stream?id=` SSE 事件推送（15s keep-alive）、`/api/health` 存活探针；
+  `core.emit` 统一发布到桥接订阅者（无 Wails 上下文也推送）
+- 前端 HTTP 模式：`runtimePolyfill` 补齐 EventsOn/EventsOff/EventsOnMultiple/EventsEmit，
+  所有事件经 SSE 对齐桌面端——修复并发订阅只连首个事件的竞态，探测失败后桥接就绪可自动重连；
+  `bridge.ts` 将 `window.go.app.App.*` 代理到 `/api/rpc`；Vite 将 `/api` 代理到桥接
+- 办公引擎热加载：`GaeaReload` 重新读取磁盘持久化配置并重建 controller
+  （Agent 参数/权限/沙箱/技能路径/插件），成功后广播 gaea-ready 令前端 store 重新拉取；
+  失败时保持旧引擎继续运行，不替换任何状态
+- 前端入口：能力抽屉（MCP/工具/技能）新增「热加载」按钮并展示重建后的工具/技能数量；
+  设置→办公新增「从磁盘热加载」；三语 i18n 同步
+- 验证：新增 httpbridge RPC/SSE 2 例 + GaeaReload 热加载 1 例；`go vet` + `go test ./...` 全绿、
+  `tsc` + `vite build` OK、`scripts/ci.ps1` CI OK
+
 ## v2.3.0「界面焕新 · 办公整合」(2026-08-07)
 
 > 在 v2.2.0 基础上迭代：角色库/首页/办公板块全面重设计，办公双模块合并为独立二级导航，随机生成能力补全（含人格）。

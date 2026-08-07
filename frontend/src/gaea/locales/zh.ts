@@ -96,6 +96,10 @@ export const zh: Record<DictKey, string> = {
   // MCP 与技能抽屉
   "caps.title": "MCP 与技能",
   "caps.loading": "加载中…",
+  "caps.reload": "热加载",
+  "caps.reloading": "正在热加载…",
+  "caps.reloadHint": "重新读取磁盘上的引擎配置并重建控制器（技能/工具/插件无需重启即生效）",
+  "caps.reloaded": "引擎已热加载：{tools} 个工具 · {skills} 个技能",
   "caps.summary": "{connected} 个已连接 · {failed} 个异常 · {skills} 个技能",
   "caps.connectorsTab": "MCP 服务器",
   "caps.skillsTab": "Agent 技能",

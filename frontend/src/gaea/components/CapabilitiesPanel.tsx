@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X, Globe, Cpu, ChevronDown, Search } from "../icons";
+import { X, Globe, Cpu, ChevronDown, Search, RefreshCw } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import type { CapabilitiesView, MCPServerInput, ServerView, SkillView } from "../lib/types";
@@ -25,6 +25,8 @@ export function CapabilitiesPanel({
   const [view, setView] = useState<CapabilitiesView | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [reloading, setReloading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [addingContext7, setAddingContext7] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -39,6 +41,23 @@ export function CapabilitiesPanel({
   useEffect(() => {
     void reload();
   }, []);
+
+  // reloadEngine 热加载办公引擎：重建 controller 后重新拉取能力快照，
+  // 外部编辑的技能/工具/插件目录无需重启桌面端即可被引擎感知。
+  const reloadEngine = async () => {
+    setReloading(true);
+    setNotice(null);
+    setErr(null);
+    try {
+      const res = await app.Reload();
+      await reload();
+      setNotice(t("caps.reloaded", { tools: res.tools, skills: res.skills }));
+    } catch (e) {
+      setErr(String((e as Error)?.message ?? e));
+    } finally {
+      setReloading(false);
+    }
+  };
 
   // mutate runs an MCP edit, re-reads the snapshot, and surfaces any failure as an
   // inline banner (a connect error, a missing binary, a bad URL).
@@ -138,6 +157,19 @@ export function CapabilitiesPanel({
             <DrawerTitle text={t("caps.title")} />
             {view && <DrawerSubtitle text={summary} />}
           </div>
+          <button
+            className="flex items-center gap-1.5 px-2 py-1 text-xs border border-border-soft rounded text-fg-dim cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors disabled:opacity-40 disabled:cursor-default"
+            disabled={reloading}
+            onClick={() => void reloadEngine()}
+            title={t("caps.reloadHint")}
+          >
+            {reloading ? (
+              <span className="animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full" />
+            ) : (
+              <RefreshCw size={13} />
+            )}
+            <span>{reloading ? t("caps.reloading") : t("caps.reload")}</span>
+          </button>
         </DrawerHeader>
 
         {!view ? (
@@ -145,6 +177,7 @@ export function CapabilitiesPanel({
         ) : (
           <div className="overflow-y-auto px-4 py-3.5 flex flex-col gap-5">
             {err && <div className="shrink-0 px-4 py-2 text-[12.5px] bg-del-bg text-err border-b border-border-soft">{err}</div>}
+            {notice && <div className="shrink-0 px-4 py-2 text-[12.5px] bg-ok/10 text-ok border-b border-ok/20">{notice}</div>}
             <div className="flex border-b border-border-soft mb-3" role="tablist" aria-label={t("caps.title")}>
               <button
                 className={`flex-1 px-4 py-2 border-0 border-b-2 bg-transparent text-[13px] font-medium cursor-pointer transition-[color,border] duration-[var(--dur-fast)] ${

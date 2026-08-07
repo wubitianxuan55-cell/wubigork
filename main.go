@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/wailsapp/wails/v2"
@@ -10,6 +11,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
 	"github.com/gaea/gaea/internal/app"
+	"github.com/gaea/gaea/internal/httpbridge"
 )
 
 //go:embed all:dist
@@ -25,6 +27,18 @@ func main() {
 	// 启动桌面应用
 	application := app.New()
 	application.SetDistFS(assets)
+
+	// 网页/移动端调试桥接：设置 GAEA_HTTP_PORT（如 8080）后，浏览器页面
+	// 可通过 /api/rpc + /api/stream 驱动同一个 Go 内核，与桌面端完全对齐。
+	if port := os.Getenv("GAEA_HTTP_PORT"); port != "" {
+		addr := "127.0.0.1:" + port
+		go func() {
+			slog.Info("HTTP 调试桥接已启动", "addr", addr)
+			if err := httpbridge.Serve(addr, application); err != nil {
+				slog.Error("HTTP 调试桥接退出", "error", err)
+			}
+		}()
+	}
 
 	err := wails.Run(&options.App{
 		Title:     "gaea · 多功能 AI 助手",

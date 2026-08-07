@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Input, InputNumber, Select, Space, Switch, Tag, Typography, message } from 'antd'
-import { SaveOutlined, RobotOutlined, ApiOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { SaveOutlined, RobotOutlined, ApiOutlined, CheckCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { gaeaSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
 import * as App from '../../../wailsjs/go/app/App'
@@ -36,6 +36,7 @@ const OfficePanel: React.FC = () => {
   const [draft, setDraft] = useState<DraftView>(emptyDraft)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [reloading, setReloading] = useState(false)
 
   useEffect(() => {
     gaeaSettings().then((v) => {
@@ -98,6 +99,20 @@ const OfficePanel: React.FC = () => {
       message.error(err?.message || '保存失败')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // handleReload 从磁盘重新读取引擎配置并重建控制器——外部直接编辑
+  // config.toml 或技能/工具目录后，无需重启桌面端即可生效。
+  const handleReload = async () => {
+    setReloading(true)
+    try {
+      const res = await (App as any).GaeaReload()
+      message.success(`引擎已热加载：${res.tools} 个工具 · ${res.skills} 个技能`)
+    } catch (err: any) {
+      message.error(err?.message || '热加载失败')
+    } finally {
+      setReloading(false)
     }
   }
 
@@ -221,7 +236,10 @@ const OfficePanel: React.FC = () => {
         ))}
       </SettingsSection>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+        <Button icon={<ReloadOutlined />} loading={reloading} onClick={handleReload}>
+          从磁盘热加载
+        </Button>
         <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}
           style={{ background: 'var(--md-sys-color-primary)', borderColor: 'var(--md-sys-color-primary)', borderRadius: 'var(--md-sys-radius-md)' }}>
           保存并生效

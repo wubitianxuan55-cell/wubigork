@@ -494,6 +494,10 @@ export function GaeaReadFile(arg1) {
   return window['go']['app']['App']['GaeaReadFile'](arg1);
 }
 
+export function GaeaReload() {
+  return window['go']['app']['App']['GaeaReload']();
+}
+
 export function GaeaRemember(arg1, arg2) {
   return window['go']['app']['App']['GaeaRemember'](arg1, arg2);
 }

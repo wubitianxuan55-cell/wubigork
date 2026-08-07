@@ -22,6 +22,7 @@ import (
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/httpbridge"
 	"github.com/gaea/gaea/internal/modelengine"
 	officedb "github.com/gaea/gaea/internal/office/db"
 	"github.com/gaea/gaea/internal/office/proposal"
@@ -148,6 +149,8 @@ type App struct {
 // emit 统一事件发射 — 发送到 Wails 前端。定义在 core 上，
 // 子服务内嵌 core 后直接可用（App 经嵌入也获得该方法）。
 func (c *core) emit(eventName string, data map[string]interface{}) {
+	// 本地 HTTP 桥接订阅（网页/移动端调试）：无 Wails 上下文也发布。
+	httpbridge.Publish(eventName, data)
 	if c.ctx == nil {
 		return
 	}

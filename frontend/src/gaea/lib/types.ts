@@ -54,6 +54,12 @@ export interface WireUsage {
   source?: string; // "main" | "subagent"
 }
 
+// GaeaReloadResult 是办公引擎热加载的结果摘要（工具/技能数量）。
+export interface GaeaReloadResult {
+  tools: number;
+  skills: number;
+}
+
 export interface WireApproval {
   id: string;
   tool: string;

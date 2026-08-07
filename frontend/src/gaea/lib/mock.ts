@@ -189,6 +189,10 @@ export function makeMockApp(): AppBindings {
     async AgentMode() { return "develop"; },
     async Compact() {},
     async NewSession() {},
+    async Reload() {
+      // mock: 无真实内核，返回空结果
+      return { tools: 0, skills: 0 };
+    },
     async Checkpoints() {
       return [];
     },
