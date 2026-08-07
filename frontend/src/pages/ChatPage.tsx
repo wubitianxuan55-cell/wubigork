@@ -6,7 +6,7 @@ import {
   GlobalOutlined, SettingOutlined, ClearOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
   AudioOutlined, StopOutlined, HeartOutlined, MessageOutlined, SearchOutlined,
   EditOutlined, BulbOutlined, BookOutlined, TranslationOutlined, StarFilled,
-  ThunderboltOutlined, InboxOutlined,
+  ThunderboltOutlined, InboxOutlined, SwapOutlined,
 } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 import { C } from '../utils/theme'
@@ -20,6 +20,7 @@ import WhisperDesirePanel from '../components/WhisperDesirePanel'
 import WhisperTracePanel from '../components/WhisperTracePanel'
 import WhisperMemoryModal from '../components/WhisperMemoryModal'
 import VoiceSettingsPanel from '../components/VoiceSettingsPanel'
+import PersonaPicker from '../components/PersonaPicker'
 import { ParticleFlow } from '../components/ParticleFlow'
 import { SoundWaveOverlay } from '../components/SoundWaveOverlay'
 import { useVoiceChat } from '../hooks/useVoiceChat'
@@ -678,10 +679,17 @@ const ChatPage: React.FC = () => {
                 <Button type="text" size="small" icon={<GlobalOutlined style={{ color: searchEnabled ? '#52c41a' : C('color-text-secondary') }} />}
                   onClick={() => setSearchEnabled(!searchEnabled)} style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
               </Tooltip>
-              <Tooltip title="虚拟助手管理">
+              <Tooltip title="角色库管理">
                 <Button type="text" size="small" icon={<SettingOutlined />} onClick={navigateToCharacterLib}
                   style={{ color: C('color-text-secondary'), height: 24 }} />
               </Tooltip>
+              <PersonaPicker activeId={mode !== 'plain' ? mode : activePersonality}
+                onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
+                <Tooltip title="切换角色">
+                  <Button type="text" size="small" icon={<SwapOutlined />}
+                    style={{ color: C('color-text-secondary'), height: 24 }} />
+                </Tooltip>
+              </PersonaPicker>
               <Tooltip title="语音设置">
                 <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
                   style={{ color: C('color-text-secondary'), height: 24 }} />
@@ -757,9 +765,18 @@ const ChatPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                <Button type="primary" onClick={navigateToCharacterLib} style={{ marginTop: 22, borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13 }}>
-                  虚拟助手管理
-                </Button>
+                <PersonaPicker activeId={activePersonality}
+                  onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
+                  <Button type="primary" icon={<SwapOutlined />} style={{ marginTop: 22, borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13 }}>
+                    选择角色
+                  </Button>
+                </PersonaPicker>
+                <div style={{ marginTop: 10 }}>
+                  <Button type="link" size="small" icon={<SettingOutlined />} onClick={navigateToCharacterLib}
+                    style={{ color: C('color-text-secondary'), fontSize: 11.5 }}>
+                    去角色库管理角色
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="chat-empty">
