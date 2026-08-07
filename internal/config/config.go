@@ -50,6 +50,12 @@ const (
 	KeyFuncOfficeModel     = "func_office_model"
 	KeyFuncGaeaEngine      = "func_gaea_engine"
 	KeyFuncGaeaModel       = "func_gaea_model"
+	// 功能级启停（FeatureModelBar 启停语义：只影响该功能的路由，不影响整个引擎）
+	KeyFuncChatEnabled      = "func_chat_enabled"
+	KeyFuncWhisperEnabled   = "func_whisper_enabled"
+	KeyFuncNovelEnabled     = "func_novel_enabled"
+	KeyFuncOfficeEnabled    = "func_office_enabled"
+	KeyFuncGaeaEnabled      = "func_gaea_enabled"
 	KeyDeepseekAPIKey      = "deepseek_api_key"
 )
 
@@ -91,6 +97,11 @@ type configFile struct {
 	FuncOfficeModel     string  `json:"func_office_model,omitempty"`
 	FuncGaeaEngine      string  `json:"func_gaea_engine,omitempty"`
 	FuncGaeaModel       string  `json:"func_gaea_model,omitempty"`
+	FuncChatEnabled     *bool   `json:"func_chat_enabled,omitempty"`    // nil=默认启用
+	FuncWhisperEnabled  *bool   `json:"func_whisper_enabled,omitempty"`
+	FuncNovelEnabled    *bool   `json:"func_novel_enabled,omitempty"`
+	FuncOfficeEnabled   *bool   `json:"func_office_enabled,omitempty"`
+	FuncGaeaEnabled     *bool   `json:"func_gaea_enabled,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -168,6 +179,12 @@ type Config struct {
 	FuncOfficeModel   string
 	FuncGaeaEngine    string
 	FuncGaeaModel     string
+	// 功能级启停（默认启用；停用后该功能路由回退全局）
+	FuncChatEnabled    bool
+	FuncWhisperEnabled bool
+	FuncNovelEnabled   bool
+	FuncOfficeEnabled  bool
+	FuncGaeaEnabled    bool
 }
 
 // funcMu 保护功能级模型绑定字段（GetFeatureModel/SetFeatureModel 并发读写）
@@ -210,6 +227,43 @@ func (c *Config) SetFeatureModel(feature, engine, model string) {
 	}
 }
 
+// GetFeatureModelEnabled 读取功能级启停状态（未显式配置时默认启用）。
+func (c *Config) GetFeatureModelEnabled(feature string) bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	switch feature {
+	case "chat":
+		return c.FuncChatEnabled
+	case "whisper":
+		return c.FuncWhisperEnabled
+	case "novel":
+		return c.FuncNovelEnabled
+	case "office":
+		return c.FuncOfficeEnabled
+	case "gaea":
+		return c.FuncGaeaEnabled
+	}
+	return true
+}
+
+// SetFeatureModelEnabled 写入功能级启停状态。
+func (c *Config) SetFeatureModelEnabled(feature string, enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	switch feature {
+	case "chat":
+		c.FuncChatEnabled = enabled
+	case "whisper":
+		c.FuncWhisperEnabled = enabled
+	case "novel":
+		c.FuncNovelEnabled = enabled
+	case "office":
+		c.FuncOfficeEnabled = enabled
+	case "gaea":
+		c.FuncGaeaEnabled = enabled
+	}
+}
+
 // Load 加载配置（只应调用一次）。
 // 优先级：config 文件 > 环境变量 > 默认值。
 func Load() *Config {
@@ -236,6 +290,12 @@ func Load() *Config {
 		ReasoningEffort:     "high", // 分析任务默认开启深度推理
 		QualityThreshold:    6,      // 章节质量低于 6 分自动重试
 		QualityMaxRetries:   2,      // 最多重试 2 次
+		// 功能级模型默认启用（未显式停用时，绑定立即生效）
+		FuncChatEnabled:    true,
+		FuncWhisperEnabled: true,
+		FuncNovelEnabled:   true,
+		FuncOfficeEnabled:  true,
+		FuncGaeaEnabled:    true,
 
 		// TTS 默认值
 		TTSBinaryPath: filepath.Join(home, "voxcpm-tts", "voxcpm_tts.exe"),
@@ -450,6 +510,21 @@ func Load() *Config {
 			if cf.FuncGaeaModel != "" {
 				cfg.FuncGaeaModel = cf.FuncGaeaModel
 			}
+			if cf.FuncChatEnabled != nil {
+				cfg.FuncChatEnabled = *cf.FuncChatEnabled
+			}
+			if cf.FuncWhisperEnabled != nil {
+				cfg.FuncWhisperEnabled = *cf.FuncWhisperEnabled
+			}
+			if cf.FuncNovelEnabled != nil {
+				cfg.FuncNovelEnabled = *cf.FuncNovelEnabled
+			}
+			if cf.FuncOfficeEnabled != nil {
+				cfg.FuncOfficeEnabled = *cf.FuncOfficeEnabled
+			}
+			if cf.FuncGaeaEnabled != nil {
+				cfg.FuncGaeaEnabled = *cf.FuncGaeaEnabled
+			}
 		}
 	}
 
@@ -562,4 +637,18 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyFuncOfficeModel:   func(cf *configFile, v string) error { cf.FuncOfficeModel = v; return nil },
 	KeyFuncGaeaEngine:    func(cf *configFile, v string) error { cf.FuncGaeaEngine = v; return nil },
 	KeyFuncGaeaModel:     func(cf *configFile, v string) error { cf.FuncGaeaModel = v; return nil },
+	KeyFuncChatEnabled:   func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncChatEnabled = b; return nil },
+	KeyFuncWhisperEnabled: func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncWhisperEnabled = b; return nil },
+	KeyFuncNovelEnabled:   func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncNovelEnabled = b; return nil },
+	KeyFuncOfficeEnabled:  func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncOfficeEnabled = b; return nil },
+	KeyFuncGaeaEnabled:    func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncGaeaEnabled = b; return nil },
+}
+
+// parseBoolPtr 解析 "true"/"1"/"0" 等布尔值并返回指针（用于 *bool 配置项）。
+func parseBoolPtr(v string) (*bool, error) {
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
 }

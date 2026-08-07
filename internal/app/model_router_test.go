@@ -64,6 +64,39 @@ func TestRouteModelDisabledBindingFallsBack(t *testing.T) {
 	}
 }
 
+// 功能级停用（FeatureModelBar「停用」语义）：绑定仍在但停用 → 路由不得用 feature 绑定。
+func TestRouteModelFeatureDisabledFallsBack(t *testing.T) {
+	c := newRouterTestCore(t)
+	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetFeatureModelEnabled("novel", false); err != nil {
+		t.Fatal(err)
+	}
+	eng, model, source := c.routeModel("novel")
+	if eng != "xai" || model != "grok-4.20" || source != "global" {
+		t.Fatalf("停用后 route = (%q,%q,%q)，期望全局 (xai,grok-4.20,global)", eng, model, source)
+	}
+}
+
+// 功能停用后重新绑定 → 立即恢复 feature 路由。
+func TestRouteModelFeatureReenabledByRebind(t *testing.T) {
+	c := newRouterTestCore(t)
+	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetFeatureModelEnabled("novel", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatal(err)
+	}
+	_, model, source := c.routeModel("novel")
+	if model != "qwen3-8b" || source != "feature" {
+		t.Fatalf("重新绑定后 route = (%q,%q)，期望 (qwen3-8b,feature)", model, source)
+	}
+}
+
 // 全局活跃引擎也不可用 → 首个启用引擎兜底。
 func TestRouteModelFirstEnabledFallback(t *testing.T) {
 	c := newRouterTestCore(t)

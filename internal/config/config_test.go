@@ -159,3 +159,33 @@ func TestSave_ActiveEngineIDRoundTrip(t *testing.T) {
 		t.Errorf("ActiveEngineID = %q, 期望 ollama（保存后重启必须恢复全局活跃引擎）", cfg.ActiveEngineID)
 	}
 }
+
+func TestSave_FuncEnabledRoundTrip(t *testing.T) {
+	// 未配置时默认启用（绑定即生效）
+	cfg := Load()
+	if !cfg.GetFeatureModelEnabled("chat") {
+		t.Error("未配置时 chat 功能模型默认应启用")
+	}
+
+	// 显式停用 → 持久化 → 读取为 false
+	err := saveWithTempHome(t, KeyFuncChatEnabled, "0")
+	if err != nil {
+		t.Fatalf("Save 失败: %s", err)
+	}
+	cfg = Load()
+	if cfg.GetFeatureModelEnabled("chat") {
+		t.Error("保存 0 后 chat 功能模型应为停用")
+	}
+	if !cfg.GetFeatureModelEnabled("whisper") {
+		t.Error("未写入的功能应保持默认启用")
+	}
+
+	// 重新启用
+	if err := saveWithTempHome(t, KeyFuncChatEnabled, "1"); err != nil {
+		t.Fatalf("Save 失败: %s", err)
+	}
+	cfg = Load()
+	if !cfg.GetFeatureModelEnabled("chat") {
+		t.Error("保存 1 后 chat 功能模型应为启用")
+	}
+}

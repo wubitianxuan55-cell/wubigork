@@ -90,6 +90,51 @@ func TestSetFeatureModel_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestSetFeatureModelEnabled_RoundTrip 功能级启停：停用 → 持久化 → 重新启用
+func TestSetFeatureModelEnabled_RoundTrip(t *testing.T) {
+	c := newTestCore(t)
+
+	if err := c.SetFeatureModelEnabled("novel", false); err != nil {
+		t.Fatalf("SetFeatureModelEnabled(false): %v", err)
+	}
+	if c.GetFeatureModelEnabled("novel") {
+		t.Error("停用后 GetFeatureModelEnabled 应为 false")
+	}
+	// 持久化：临时 HOME 下配置文件可读回 false
+	if cfg := config.Load(); cfg.GetFeatureModelEnabled("novel") {
+		t.Error("持久化后配置文件应为停用")
+	}
+
+	if err := c.SetFeatureModelEnabled("novel", true); err != nil {
+		t.Fatalf("SetFeatureModelEnabled(true): %v", err)
+	}
+	if !c.GetFeatureModelEnabled("novel") {
+		t.Error("重新启用后应为 true")
+	}
+}
+
+// TestSetFeatureModelEnabled_UnknownFeature 未知功能必须报错
+func TestSetFeatureModelEnabled_UnknownFeature(t *testing.T) {
+	c := newTestCore(t)
+	if err := c.SetFeatureModelEnabled("foo", false); err == nil {
+		t.Fatal("未知功能应报错，实际 nil")
+	}
+}
+
+// TestSetFeatureModel_RebindReenables 重新绑定时功能应自动恢复启用
+func TestSetFeatureModel_RebindReenables(t *testing.T) {
+	c := newTestCore(t)
+	if err := c.SetFeatureModelEnabled("novel", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetFeatureModel("novel", "herdsman", "qwen3-8b"); err != nil {
+		t.Fatalf("重新绑定: %v", err)
+	}
+	if !c.GetFeatureModelEnabled("novel") {
+		t.Error("重新绑定后功能应自动启用")
+	}
+}
+
 // TestSetActiveASRModel_Validation 模型不在引擎列表时必须报错（防静默配置无效 ASR）
 func TestSetActiveASRModel_Validation(t *testing.T) {
 	c := newTestCore(t)

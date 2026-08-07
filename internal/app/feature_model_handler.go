@@ -8,6 +8,7 @@ package app
 import (
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/gaea/gaea/internal/config"
 )
@@ -27,6 +28,23 @@ func featureModelKeys(feature string) (engineKey, modelKey string, ok bool) {
 		return config.KeyFuncGaeaEngine, config.KeyFuncGaeaModel, true
 	}
 	return "", "", false
+}
+
+// featureModelEnabledKey 功能 → 启停配置键映射
+func featureModelEnabledKey(feature string) (key string, ok bool) {
+	switch feature {
+	case "chat":
+		return config.KeyFuncChatEnabled, true
+	case "whisper":
+		return config.KeyFuncWhisperEnabled, true
+	case "novel":
+		return config.KeyFuncNovelEnabled, true
+	case "office":
+		return config.KeyFuncOfficeEnabled, true
+	case "gaea":
+		return config.KeyFuncGaeaEnabled, true
+	}
+	return "", false
 }
 
 // featureModel 读取功能绑定的 (engine, model)，空 = 用全局激活
@@ -66,15 +84,46 @@ func (c *core) SetFeatureModel(feature, engineID, modelName string) error {
 	}
 
 	c.cfg.SetFeatureModel(feature, engineID, modelName)
+	c.cfg.SetFeatureModelEnabled(feature, true) // 绑定即启用
 	if err := config.Save(engineKey, engineID); err != nil {
 		slog.Warn("保存功能引擎失败", "feature", feature, "error", err)
 	}
 	if err := config.Save(modelKey, modelName); err != nil {
 		slog.Warn("保存功能模型失败", "feature", feature, "error", err)
 	}
-	c.emit("feature-model-changed", map[string]interface{}{"feature": feature, "engine": engineID, "model": modelName})
+	enabledKey, _ := featureModelEnabledKey(feature)
+	if err := config.Save(enabledKey, "1"); err != nil {
+		slog.Warn("保存功能启用状态失败", "feature", feature, "error", err)
+	}
+	c.emit("feature-model-changed", map[string]interface{}{
+		"feature": feature, "engine": engineID, "model": modelName, "enabled": true,
+	})
 	slog.Info("功能模型已绑定", "feature", feature, "engine", engineID, "model", modelName)
 	return nil
+}
+
+// SetFeatureModelEnabled 功能级启停（FeatureModelBar 启停语义）：
+// 只影响该功能的路由（停用后回退全局），不影响引擎整体启用状态。
+func (c *core) SetFeatureModelEnabled(feature string, enabled bool) error {
+	key, ok := featureModelEnabledKey(feature)
+	if !ok {
+		return &appError{"未知功能: " + feature}
+	}
+	c.cfg.SetFeatureModelEnabled(feature, enabled)
+	if err := config.Save(key, strconv.FormatBool(enabled)); err != nil {
+		slog.Warn("保存功能启用状态失败", "feature", feature, "error", err)
+		return err
+	}
+	c.emit("feature-model-changed", map[string]interface{}{
+		"feature": feature, "enabled": enabled,
+	})
+	slog.Info("功能模型启停", "feature", feature, "enabled", enabled)
+	return nil
+}
+
+// GetFeatureModelEnabled 获取功能级启停状态（默认启用）。
+func (c *core) GetFeatureModelEnabled(feature string) bool {
+	return c.cfg.GetFeatureModelEnabled(feature)
 }
 
 // GetFeatureModel 获取功能绑定的模型（空 = 全局激活）

@@ -6,8 +6,8 @@ import "encoding/json"
 // 降级链：功能绑定 → 全局活跃 → 首个可用引擎。
 // source: feature | global | fallback（供前端与诊断展示）。
 func (c *core) routeModel(feature string) (engine, model, source string) {
-	// 1. 功能绑定（引擎必须存在且启用）
-	if eng, m := c.cfg.GetFeatureModel(feature); eng != "" && m != "" {
+	// 1. 功能绑定（功能启用 + 引擎必须存在且启用；FeatureModelBar 停用后回退全局）
+	if eng, m := c.cfg.GetFeatureModel(feature); c.cfg.GetFeatureModelEnabled(feature) && eng != "" && m != "" {
 		if e, ok := c.engineMgr.GetEngine(eng); ok && e.Enabled {
 			c.emitModelRoute(feature, eng, m, "feature")
 			return eng, m, "feature"
