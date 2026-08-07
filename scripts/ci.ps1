@@ -28,5 +28,9 @@ npm.cmd run build
 if ($LASTEXITCODE -ne 0) { Pop-Location; throw 'frontend build failed' }
 Pop-Location
 
+Write-Host '=== frontend E-series regression guard ==='
+node scripts\frontend-e-check.mjs
+if ($LASTEXITCODE -ne 0) { throw 'frontend E-series regression guard failed' }
+
 if (-not (Test-Path (Join-Path $root 'dist\index.html'))) { throw 'dist/index.html missing' }
 Write-Host 'CI OK'
