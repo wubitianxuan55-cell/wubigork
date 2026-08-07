@@ -1,8 +1,19 @@
 # gaea 轻语模块 — 版本汇总
 
+## gaea 桌面端 v2.x 发布
+
+| 版本 | 日期 | 安装包 | 核心变更 |
+|------|------|------|------|
+| v2.4.5 | 08-08 | [gaea-v2.4.5.exe](gaea-v2.4.5.exe) | 通用办公欢迎页重设计 + 文件预览 + 工具精简（含 v2.4.2~2.4.4） |
+| v2.3.0 | 08-07 | [gaea-v2.3.0.exe](gaea-v2.3.0.exe) | 界面焕新与办公整合 |
+| v2.2.0 | 08-07 | [gaea-v2.2.0.exe](gaea-v2.2.0.exe) | 统一角色库 |
+| v2.1.0 | 08-07 | [gaea-v2.1.0.exe](gaea-v2.1.0.exe) | 二代完善：模型中心持久化 + 三脑底座 |
+
+详细发布说明见 [v2.4.5.md](v2.4.5.md) 及各版本 `vX.Y.Z.md`。
+
 ## 产物
 
-`C:\AI\wubigrok\build\bin\gaea.exe` — 15MB (Wails v2.13.0 + Go, windows/amd64)
+`C:\AI\wubigrok\build\bin\gaea.exe` — 约 37.5MB (Wails v2.13.0 + Go, windows/amd64)
 
 ## 版本历史
 

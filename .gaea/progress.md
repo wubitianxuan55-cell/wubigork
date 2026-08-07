@@ -1,6 +1,39 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 19:45:00
+> 最后更新: 2026-08-08 00:10:00
+
+## 2.25 通用办公欢迎页重设计（✅ 已完成，2026-08-08，v2.4.5）
+- 移除土壤修复专项卡片（场地调查/标书/修复方案/污染风险/成本测算），改为 6 个通用办公核心能力：
+  文档撰写/表格处理/格式转换/图表生成/报告拼装/知识沉淀
+- 新增内置技能 chips：format-convert / chart-builder / doc-assemble / docx / xlsx / pdf，点击填入任务提示词
+- 视觉升级：GAEA OFFICE + 「今天想做什么？」主视觉、能力卡 hover 顶部高光线 + 箭头、渐次入场动画
+  （.welcome-rise-*，尊重 prefers-reduced-motion）；保留工作区/模型 pill 与最近会话并优化
+- 文案清理：welcome.tagline 与 skeleton 加载描述改为通用办公，删除 locale 中土壤修复死条目
+- 验证：tsc + vite build OK、vitest 37 例全过、Edge headless 实拍确认布局
+
+## 2.24 文件预览与右侧面板精简（✅ 已完成，2026-08-07，v2.4.4）
+- 右侧面板删除「消息」「报告」标签页（MessageNavigator/ReportPreviewPanel 组件一并删除），保留文件/统计，面板默认折叠
+- 对话内文件可点击预览：Markdown 本地路径渲染为文件 chip、@ 附件可点，打开居中大尺寸预览弹层
+  （FilePreviewModal：Esc/遮罩关闭、文件管理器定位、外部打开）
+- 后端新增 GaeaPreview 统一预览接口：图片 dataURL、md/文本原文、docx/xlsx/pdf 转 Markdown 内联预览（含 OCR 回退），不支持格式给外部打开入口
+- 转换引擎抽取至 internal/office/docmd（format_convert 工具与预览共用），修复 openpyxl inlineStr 丢表头
+- 工作区「文件」面板预览同步升级为 Markdown 渲染；修复旧 ReadFile 字段不匹配导致的空预览
+- 测试：新增 FilePreviewModal 3 例 + Markdown 文件链接 2 例，前端 37 例全过
+
+## 2.23 内置工具精简 38→17（✅ 已完成，2026-08-07，v2.4.3）
+- 按市场调研结论（同类产品 10~20 核心工具、文档用技能扩展）删除 21 个内置工具：
+  计算器/压缩/电脑操作/甘特图/项目初始化/模板链/方案 agent 工具 + 被 ModelScope 技能覆盖的文档专项工具
+- 删除与 run_skill 重叠的 parallel_skills（保留 RunDAG 管道基础设施）
+- 保留 17 个核心工具；内置技能去工具依赖（chart-builder 用 bash+python 读表、doc-assemble 用 format_convert+bash）
+- 修复 chart_gen Windows python3 商店别名劫持；安装 matplotlib 3.11.1；compact 死条目清理
+- 前端能力抽屉工具列表重建为实际 7 组；README/CHANGELOG/wails.json 同步
+
+## 2.22 通用办公改造 + ModelScope 文档技能（✅ 已完成，2026-08-07，v2.4.2）
+- 「智能办公」精简为「通用办公」：删除 6 个土壤修复专项工具与 5 个土壤办公技能
+- 内置子代理技能收敛为 format-convert / chart-builder / doc-assemble（wrapper 工具 + 测试）
+- 安装 ModelScope docx/pdf/xlsx 技能至 ~/.codex/skills 与 .gaea/skills（127 文件）
+- 环境：LibreOffice 26.2、npm 全局 docx、Python 依赖（lxml/openpyxl/pypdf/pdfplumber/reportlab/pandas/pdf2image/pytesseract）
+- 系统提示词与单模型纪律改写为通用办公；端到端验证 docx 生成→PDF→validate→comment→pack、xlsx recalc
 
 ## 2.21 设置面板重设计（✅ 已完成，2026-08-07）
 - 审计结论：EnginePanel 为死代码（从未引用）；「方案」Tab 与「办公」重复且一半是纯文档；
