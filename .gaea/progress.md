@@ -1,6 +1,14 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 19:30:00
+> 最后更新: 2026-08-07 19:40:00
+
+## 2.18 角色卡「详情档案」重设计（✅ 已完成，2026-08-07）
+- 按 `redesign-existing-projects` skill 审计并重写 `CharacterLibEditor`：档案眉（编号/类型/可聊天/当前人格徽标）→ 21:9 立绘横幅（图片/首字占位 + 光泽 + 名称元数据叠层）→ 左侧身份栏（名称/立绘 URL/性别/年龄/定位/状态/标签/五维雷达+滑块/可聊天开关）→ 右侧卷宗正文（小说设定/对话样本/备注/聊天设定发丝线分区）→ 底部操作条（项目引用 + 取消/保存 pill）；字段与保存语义不变
+- 档案卡整卡可点击进入详情：`CharacterCard` 可选 `onClick` + `role="button"`/`tabIndex`/Enter/Space 键盘支持，操作按钮 stopPropagation 不误触
+- 列表页接线：卡片点击走 `openEdit`，详情同步当前人格徽标与列表编号
+- 测试：新增 `CharacterLibEditor.test.tsx` 10 用例 + `CharacterCard` 点击/键盘 3 用例，共 22 用例 PASS
+- 验证：`npx tsc -b` 无错误、`npm run build` 成功、`scripts/ci.ps1` CI OK、`wails build` 成功（build/bin/gaea.exe）
+- 文档：`docs/superpowers/specs/2026-08-07-角色卡详情重设计-design.md` + `docs/superpowers/plans/2026-08-07-角色卡详情重设计.md`（Task 4 人工 UI 目检待验证）
 
 ## 2.17 角色库「人物档案卡」重设计（✅ 已完成，2026-08-07）
 - 首次引入 Vitest 前端测试设施：`vitest@4 / jsdom@30 / @testing-library/react@16`，`test` 脚本 + vite test 配置 + setup 自动 cleanup
