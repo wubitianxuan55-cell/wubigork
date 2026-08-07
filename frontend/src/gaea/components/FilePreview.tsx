@@ -1,66 +1,62 @@
-import { useState, useEffect } from "react";
-import { File, ExternalLink, AlertCircle } from "../icons";
+import { useEffect, useState } from "react";
+import { AlertCircle, ExternalLink, File, FileText, FolderTree, Loader2, X } from "../icons";
 import { app } from "../lib/bridge";
+import type { PreviewResult } from "../lib/types";
+import { Markdown } from "./Markdown";
+
+function formatSize(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
 
 export function FilePreview({ relPath, onClose }: { relPath: string | null; onClose: () => void }) {
-  const [preview, setPreview] = useState<{ text?: string; err?: string; isImage?: boolean; dataUrl?: string } | null>(null);
+  const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!relPath) { setPreview(null); return; }
+    let live = true;
     setLoading(true);
     setPreview(null);
-
-    const ext = relPath.split(".").pop()?.toLowerCase();
-    const imageExts = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
-
-    if (imageExts.includes(ext ?? "")) {
-      app.AttachmentDataURL(relPath).then((url) => {
-        setPreview({ isImage: true, dataUrl: url });
-        setLoading(false);
-      }).catch(() => {
-        // Not in attachments, try ReadFile's content
-        app.ReadFile(relPath).then((r) => {
-          if (r.err) setPreview({ err: r.err });
-          else setPreview({ text: r.body ?? "(图片文件，请使用外部程序打开)" });
-          setLoading(false);
-        }).catch(() => {
-          setPreview({ err: "无法预览" });
-          setLoading(false);
-        });
-      });
-    } else {
-      app.ReadFile(relPath).then((r) => {
-        if (r.err) setPreview({ err: r.err });
-        else if (r.binary) setPreview({ text: `(二进制文件，${r.size ?? "?"} 字节)` });
-        else setPreview({ text: r.body ?? "(空文件)" });
-        setLoading(false);
-      }).catch(() => {
-        setPreview({ err: "无法读取文件" });
-        setLoading(false);
-      });
-    }
+    app.Preview(relPath)
+      .then((r) => { if (live) setPreview(r); })
+      .catch(() => { if (live) setPreview({ path: relPath, name: relPath.split("/").pop() ?? relPath, ext: "", size: 0, kind: "error", body: "", dataUrl: "", error: "读取文件失败" }); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
   }, [relPath]);
 
   if (!relPath) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-fg-faint/40 text-xs gap-2">
-        <File size={24} className="opacity-30" />
+        <File size={26} className="opacity-30" />
         <span>选择文件以预览</span>
       </div>
     );
   }
 
-  const fileName = relPath.split("/").pop() ?? relPath;
+  const fileName = preview?.name ?? relPath.split("/").pop() ?? relPath;
+  const kind = preview?.kind ?? "text";
 
   return (
     <div className="flex flex-col h-full text-[12px]">
       {/* 文件标题栏 */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border-soft">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border-soft shrink-0">
+        <FileText size={13} className="text-accent shrink-0" />
         <span className="font-mono text-fg truncate flex-1 text-[12px]">{fileName}</span>
+        {preview && preview.size > 0 && (
+          <span className="text-fg-faint text-[10px] shrink-0">{formatSize(preview.size)}</span>
+        )}
         <button
           className="flex items-center gap-1 px-2 py-0.5 border border-border-soft rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft"
-          onClick={() => app.OpenWorkspacePath(relPath)}
+          onClick={() => app.RevealWorkspacePath(relPath).catch(() => {})}
+          title="在文件管理器中定位"
+        >
+          <FolderTree size={10} />
+        </button>
+        <button
+          className="flex items-center gap-1 px-2 py-0.5 border border-border-soft rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft"
+          onClick={() => app.OpenWorkspacePath(relPath).catch(() => {})}
           title="在外部程序中打开"
         >
           <ExternalLink size={10} />
@@ -70,28 +66,43 @@ export function FilePreview({ relPath, onClose }: { relPath: string | null; onCl
           className="flex items-center justify-center w-5 h-5 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg rounded"
           onClick={onClose}
         >
-          ✕
+          <X size={13} />
         </button>
       </div>
 
       {/* 预览内容 */}
       <div className="flex-1 overflow-auto">
         {loading && (
-          <div className="flex items-center justify-center h-full text-fg-faint text-xs">加载中⋯</div>
-        )}
-        {preview?.err && (
-          <div className="flex flex-col items-center justify-center h-full text-err/60 text-xs gap-2 p-4">
-            <AlertCircle size={20} />
-            <span>{preview.err}</span>
+          <div className="flex flex-col items-center justify-center h-full text-fg-faint text-xs gap-2">
+            <Loader2 size={18} className="animate-spin text-accent" />
+            <span>加载中…</span>
           </div>
         )}
-        {preview?.isImage && preview.dataUrl && (
-          <div className="flex items-center justify-center p-4">
-            <img src={preview.dataUrl} alt={fileName} className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-sm" />
+        {!loading && preview?.kind === "image" && preview.dataUrl && (
+          <div className="flex items-center justify-center p-4 min-h-full">
+            <img src={preview.dataUrl} alt={fileName} className="max-w-full max-h-[62vh] object-contain rounded-lg shadow-sm" />
           </div>
         )}
-        {preview?.text !== undefined && !preview.isImage && (
-          <pre className="p-3 text-[11px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">{preview.text}</pre>
+        {!loading && preview?.kind === "markdown" && (
+          <div className="px-4 py-3">
+            <Markdown text={preview.body} />
+          </div>
+        )}
+        {!loading && preview?.kind === "text" && (
+          <pre className="p-3 text-[12px] text-fg-dim font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">{preview.body}</pre>
+        )}
+        {!loading && (preview?.kind === "unsupported" || preview?.kind === "error") && (
+          <div className="flex flex-col items-center justify-center h-full text-fg-faint text-xs gap-3 p-4 text-center">
+            <AlertCircle size={22} className={preview.kind === "error" ? "text-err/60" : "text-amber-500/60"} />
+            <span className="text-fg-dim">{preview.error || "无法预览"}</span>
+            <button
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-accent text-bg text-[11px] font-medium cursor-pointer hover:opacity-90"
+              onClick={() => app.OpenWorkspacePath(relPath).catch(() => {})}
+            >
+              <ExternalLink size={11} />
+              在外部程序中打开
+            </button>
+          </div>
         )}
       </div>
     </div>

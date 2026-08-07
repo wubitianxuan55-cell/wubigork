@@ -7,7 +7,7 @@ import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { displayReasoningText } from "../lib/reasoningDisplay";
 import { useNow } from "../lib/useNow";
-import { useTurnStartAt } from "../lib/store";
+import { usePreviewStore, useTurnStartAt } from "../lib/store";
 import type { Item } from "../lib/store";
 
 type AssistantItem = Extract<Item, { kind: "assistant" }>;
@@ -16,6 +16,7 @@ type AssistantItem = Extract<Item, { kind: "assistant" }>;
 function InlineAttachment({ path }: { path: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [isImage, setIsImage] = useState(false);
+  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   useEffect(() => {
     let live = true;
     if (/\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(path)) {
@@ -28,19 +29,37 @@ function InlineAttachment({ path }: { path: string }) {
   }, [path]);
   const fileName = path.split("/").pop() ?? path;
   if (isImage && dataUrl) {
-    return <img src={dataUrl} alt={fileName} className="max-w-[240px] max-h-[180px] rounded-lg border border-border-soft my-1 object-cover" loading="lazy" />;
+    return (
+      <button
+        type="button"
+        onClick={() => openFilePreview(path)}
+        title={`点击预览 ${path}`}
+        className="block p-0 border-0 bg-transparent cursor-pointer rounded-lg my-1"
+      >
+        <img src={dataUrl} alt={fileName} className="max-w-[240px] max-h-[180px] rounded-lg border border-border-soft object-cover hover:opacity-85 transition-opacity" loading="lazy" />
+      </button>
+    );
   }
   if (isImage) {
-    return <span className="text-accent/60 text-[12px] italic">[{fileName}]</span>;
+    return (
+      <button type="button" onClick={() => openFilePreview(path)} className="text-accent/60 text-[12px] italic cursor-pointer hover:text-accent">
+        [{fileName}]
+      </button>
+    );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-soft border border-border-soft text-fg-dim text-[11px] font-mono mx-0.5">
+    <button
+      type="button"
+      onClick={() => openFilePreview(path)}
+      title={`点击预览 ${path}`}
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-soft border border-border-soft text-fg-dim text-[11px] font-mono mx-0.5 cursor-pointer hover:border-accent/40 hover:text-fg transition-colors"
+    >
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent shrink-0">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
         <polyline points="14 2 14 8 20 8" />
       </svg>
       {fileName}
-    </span>
+    </button>
   );
 }
 

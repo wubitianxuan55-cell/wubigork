@@ -210,6 +210,19 @@ const initialState: ControllerState = {
 
 export const useStore = create<ControllerState>()((set) => ({ ...initialState, _dispatch: (a: Action) => set((s) => reducer(s, a)) } as ControllerState));
 
+// 文件预览弹层：全局 UI 状态，独立于 controller（对话内点击文件路径打开）。
+interface PreviewState {
+  previewFile: string | null;
+  openFilePreview: (rel: string) => void;
+  closeFilePreview: () => void;
+}
+
+export const usePreviewStore = create<PreviewState>()((set) => ({
+  previewFile: null,
+  openFilePreview: (rel: string) => set({ previewFile: rel }),
+  closeFilePreview: () => set({ previewFile: null }),
+}));
+
 export function useController() {
   const store = useStore;
   const state = store(useShallow(s => s));

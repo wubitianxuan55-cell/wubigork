@@ -376,6 +376,32 @@ export function makeMockApp(): AppBindings {
         binary: false,
       };
     },
+    async Preview(rel: string) {
+      const samples: Record<string, string> = {
+        "README.md": "# gaea\n\nBrowser-dev workspace preview.\n\n- Chat in the center\n- Browse files on the right\n- Keep sessions on the left\n",
+        "go.mod": "module gaea\n\ngo 1.23\n",
+      };
+      const ext = rel.split(".").pop()?.toLowerCase() ?? "";
+      if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) {
+        return {
+          path: rel, name: rel.split("/").pop() ?? rel, ext: `.${ext}`,
+          size: 1024, kind: "image" as const,
+          body: "", dataUrl: "data:image/png;base64,iVBORw0KGgo=", error: "",
+        };
+      }
+      if (ext === "md") {
+        return {
+          path: rel, name: rel.split("/").pop() ?? rel, ext: ".md",
+          size: samples[rel]?.length ?? 0, kind: "markdown" as const,
+          body: samples[rel] ?? "# Mock\n\n预览内容来自浏览器 mock。", dataUrl: "", error: "",
+        };
+      }
+      return {
+        path: rel, name: rel.split("/").pop() ?? rel, ext: `.${ext}`,
+        size: samples[rel]?.length ?? 0, kind: "text" as const,
+        body: samples[rel] ?? `// ${rel}\n\nMock file body from browser dev.`, dataUrl: "", error: "",
+      };
+    },
     async OpenWorkspacePath(rel: string) {
       console.info("mock OpenWorkspacePath", rel);
     },

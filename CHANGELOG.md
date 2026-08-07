@@ -2,6 +2,21 @@
 
 # gaea · 多功能 AI 助手
 
+## v2.4.4「文件预览与右侧面板精简」(2026-08-07)
+
+> 右侧面板去掉「消息/报告」标签并默认折叠；对话内可直接点击文件路径打开全新的预览阅览面板。
+
+- 右侧面板：删除「消息」与「报告」标签页（MessageNavigator / ReportPreviewPanel），保留「文件」「统计」；
+  面板改为默认折叠，点工具栏按钮展开
+- 对话内文件预览：Markdown 渲染中的本地文件路径（.md/.docx/.xlsx/.pdf/.png 等）渲染为可点击的文件 chip，
+  用户消息里的 @ 附件同样可点击；点击打开居中大尺寸预览弹层（Esc/遮罩关闭，支持定位与外部打开）
+- 预览面板重设计：后端新增 GaeaPreview 统一预览接口——图片返回 dataURL、Markdown/文本原文渲染、
+  docx/xlsx/pdf 经 docmd 转 Markdown 内联预览（含 OCR 回退），不支持格式给出外部打开入口；
+  工作区「文件」面板的预览同步升级为 Markdown 渲染
+- 转换引擎抽取：format_convert 的 docx/xlsx/pdf→Markdown 逻辑迁至 internal/office/docmd 包，
+  工具与预览面板共用一份实现；修复 openpyxl 内联字符串单元格（inlineStr）丢表头的问题
+- 测试：新增 FilePreviewModal 3 例 + Markdown 本地文件链接 2 例，前端 37 例全过；go test 全绿
+
 ## v2.4.3「精简内置工具集」(2026-08-07)
 
 > 按市场调研结论（同类产品 10~20 个核心工具、文档/表格用技能扩展）把内置工具从 38 个精简到 17 个核心工具。

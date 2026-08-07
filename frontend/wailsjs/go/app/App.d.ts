@@ -245,6 +245,8 @@ export function GaeaPickFiles():Promise<Array<app.FilePickResult>>;
 
 export function GaeaPickWorkspace():Promise<string>;
 
+export function GaeaPreview(arg1:string):Promise<app.PreviewResult>;
+
 export function GaeaProfileConflicts():Promise<Array<string>>;
 
 export function GaeaProfileDelete(arg1:string):Promise<void>;

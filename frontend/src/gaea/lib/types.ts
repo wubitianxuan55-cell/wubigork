@@ -181,6 +181,18 @@ export interface FilePreview {
   err?: string;
 }
 
+// 文件预览负载：kind 决定渲染方式（image/markdown/text/unsupported/error）。
+export interface PreviewResult {
+  path: string;
+  name: string;
+  ext: string;
+  size: number;
+  kind: "image" | "markdown" | "text" | "unsupported" | "error";
+  body: string;
+  dataUrl: string;
+  error: string;
+}
+
 // MCP & Skills drawer (desktop/app.go Capabilities) — the GUI counterpart to
 // /mcp + /skill: connected/failed servers and discoverable skills.
 export interface ServerView {

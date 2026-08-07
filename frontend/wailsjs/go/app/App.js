@@ -470,6 +470,10 @@ export function GaeaPickWorkspace() {
   return window['go']['app']['App']['GaeaPickWorkspace']();
 }
 
+export function GaeaPreview(arg1) {
+  return window['go']['app']['App']['GaeaPreview'](arg1);
+}
+
 export function GaeaProfileConflicts() {
   return window['go']['app']['App']['GaeaProfileConflicts']();
 }

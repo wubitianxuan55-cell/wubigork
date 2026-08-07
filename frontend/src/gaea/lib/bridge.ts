@@ -15,6 +15,7 @@ import type {
   DirEntry,
   FilePickResult,
   FilePreview,
+  PreviewResult,
   GaeaReloadResult,
   HistoryMessage,
   JobView,
@@ -109,6 +110,7 @@ export interface AppBindings {
   SlashArgs(input: string): Promise<SlashArgsResult>;
   ListDir(rel: string): Promise<DirEntry[]>;
   ReadFile(rel: string): Promise<FilePreview>;
+  Preview(rel: string): Promise<PreviewResult>;
   OpenWorkspacePath(rel: string): Promise<void>;
   // WorkspaceChanges returns files modified during this session by the agent.
   WorkspaceChanges(): Promise<WorkspaceChangeView[]>;
@@ -295,6 +297,7 @@ const gaeaToGaea: Record<string, string> = {
   SlashArgs: "GaeaSlashArgs",
   ListDir: "GaeaListDir",
   ReadFile: "GaeaReadFile",
+  Preview: "GaeaPreview",
   OpenWorkspacePath: "GaeaOpenWorkspacePath",
   WorkspaceChanges: "GaeaWorkspaceChanges",
   RevealWorkspacePath: "GaeaRevealWorkspacePath",
@@ -367,7 +370,9 @@ export const app: AppBindings = new Proxy({} as AppBindings, {
   get(_t, prop) {
     const target = realApp() ?? getMock();
     const key = gaeaToGaea[String(prop)] ?? String(prop);
-    const v = (target as unknown as Record<string, unknown>)[key];
+    const rec = target as unknown as Record<string, unknown>;
+    // 真实绑定按 Gaea 前缀查找；浏览器 mock 直接暴露同名字段，需回退。
+    const v = rec[key] ?? rec[String(prop)];
     return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(target) : v;
   },
 });
