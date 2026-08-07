@@ -19,6 +19,14 @@
 - office/gaea 绑定回归（E09/E10）；GetModelRoute 绑定 + 模型中心"当前生效"展示
 - 已知限制：CmdKEdit 无 EngineID 参数（模型名已路由，引擎随活跃引擎）；outlineAgent 在 1.x 从未初始化（死路径）
 
+## 2.0 P2 三脑记忆（✅ 已完成）
+
+- BrainStore 统一访问层：Read/Write/Search/Link/CrossRefs
+- 主脑适配器（画像+知识库）、右脑适配器（hermes.db）、左脑适配器（方案）
+- brain_links 跨脑关联索引（Hephaestus.db 零迁移建表，内存/SQLite 双模式）
+- BrainWrite/BrainSearch/BrainCrossRefs 绑定 + 记忆中枢三脑检索区块
+- 验收：右脑"甲方A 保守报价" → 跨脑检索同时命中右脑与左脑标书；现有数据零迁移
+
 | 状态 | 任务 |
 |------|------|
 | ⬜ | Write tests |
