@@ -69,3 +69,11 @@
 - 连接状态可观测：`EngineConfig.status` 缓存 + 前端「已连接/失败 + 模型数 + 上次检查时间」；测试连接/刷新后即时回填
 - 前端修复：DeepSeek Key 脱敏字段映射（masked）、挂载时加载真实活跃模型、ComfyUI 端口死代码清理、保存 Key 后清空输入框（避免把脱敏串当 Key 保存）
 - 验收：新增 8 个回归测试（持久化往返/排除 Key/未知引擎忽略/顺序稳定/状态缓存/状态随文件恢复/ActiveEngineID 读取），`scripts/ci.ps1` CI OK
+
+## 2.2 功能级模型启停（✅ 已完成，2026-08-07）
+
+- 语义修复：FeatureModelBar「启动/停用」此前切换整个引擎的 enabled（停用轻语=全局关掉 xAI），改为功能级开关 `func_*_enabled`（只影响该功能路由，停用后回退全局）
+- 后端：config 新增 5 个 `func_*_enabled` 键（默认启用、`*bool` 区分显式停用）；`SetFeatureModelEnabled`/`GetFeatureModelEnabled` 绑定；`routeModel` 功能绑定步骤增加启用门控；重新绑定自动恢复启用
+- 前端：`useFeatureModel` 返回 enabled 并监听事件；FeatureModelBar 状态细分「运行中/已停用/引擎已停用/未绑定」，启停调功能级接口；模型中心「功能绑定」卡片新增启用开关
+- 绑定：wailsjs 再生成（`wails build`），仅新增 Get/SetFeatureModelEnabled 两个方法
+- 验收：新增 6 个回归测试（enabled 配置往返/停用回退全局/重绑恢复/未知功能报错/持久化），E03/E09/E10 路由回归保持绿，`scripts/ci.ps1` CI OK
