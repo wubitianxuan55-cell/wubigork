@@ -41,6 +41,7 @@ const CharacterLibraryPage: React.FC = () => {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<LibraryCharacter | null>(null)
   const [editingProjects, setEditingProjects] = useState<string[]>([])
+  const [editingIndex, setEditingIndex] = useState(0)
   const [memoryChar, setMemoryChar] = useState<LibraryCharacter | null>(null)
   const [currentPersona, setCurrentPersonaState] = useState<string>(() => {
     try { return localStorage.getItem(PERSONALITY_KEY) || '' } catch { return '' }
@@ -81,11 +82,14 @@ const CharacterLibraryPage: React.FC = () => {
   const openNew = () => {
     setEditing(null)
     setEditingProjects([])
+    setEditingIndex(0)
     setEditorOpen(true)
   }
 
   const openEdit = async (c: LibraryCharacter) => {
     try {
+      const idx = items.findIndex(i => i.id === c.id)
+      setEditingIndex(idx >= 0 ? idx : 0)
       const detail = await getCharacter(c.id)
       setEditing(detail.character)
       setEditingProjects(detail.projects || [])
@@ -226,6 +230,7 @@ const CharacterLibraryPage: React.FC = () => {
                     inProject={inProject}
                     isCurrentPersona={currentPersona === c.id}
                     hasProject={hasProject}
+                    onClick={openEdit}
                     onEdit={openEdit}
                     onSetPersona={handleSetPersona}
                     onMemory={setMemoryChar}
@@ -251,6 +256,8 @@ const CharacterLibraryPage: React.FC = () => {
         open={editorOpen}
         character={editing}
         projects={editingProjects}
+        index={editingIndex}
+        isCurrentPersona={currentPersona === editing?.id}
         onClose={() => setEditorOpen(false)}
         onSaved={handleSaved}
       />
