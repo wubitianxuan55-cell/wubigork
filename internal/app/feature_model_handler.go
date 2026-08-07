@@ -19,7 +19,8 @@ func featureModelKeys(feature string) (engineKey, modelKey string, ok bool) {
 	case "chat":
 		return config.KeyFuncChatEngine, config.KeyFuncChatModel, true
 	case "whisper":
-		return config.KeyFuncWhisperEngine, config.KeyFuncWhisperModel, true
+		// 2.x 聊天/轻语合并：轻语绑定并入聊天，读写同一组键
+		return config.KeyFuncChatEngine, config.KeyFuncChatModel, true
 	case "novel":
 		return config.KeyFuncNovelEngine, config.KeyFuncNovelModel, true
 	case "office":
@@ -36,7 +37,7 @@ func featureModelEnabledKey(feature string) (key string, ok bool) {
 	case "chat":
 		return config.KeyFuncChatEnabled, true
 	case "whisper":
-		return config.KeyFuncWhisperEnabled, true
+		return config.KeyFuncChatEnabled, true
 	case "novel":
 		return config.KeyFuncNovelEnabled, true
 	case "office":

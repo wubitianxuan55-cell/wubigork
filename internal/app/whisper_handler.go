@@ -19,7 +19,7 @@ import (
 
 // Chat 实现 whisper.LlmClient 接口（接入 gaea 模型中心）
 func (a *whisperState) Chat(systemPrompt, userPrompt string) (string, error) {
-	eng, model, _ := a.routeModel("whisper")
+	eng, model, _ := a.routeModel("chat") // 2.x 聊天/轻语合并：统一走 chat 路由
 	return a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: eng})
 }
 
@@ -127,8 +127,8 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string) (result
 		systemPrompt = systemPrompt + "\n\n【本轮格式要求】\n" + turnPlan.FormatHint
 	}
 
-	// 功能级绑定：轻语独立引擎+模型（持久化，未绑定则沿用 orch/全局）
-	featEng, featModel := a.featureModel("whisper")
+	// 功能级绑定：聊天/轻语合并后统一用 chat 绑定（未绑定则沿用 orch/全局）
+	featEng, featModel := a.featureModel("chat")
 	engine := orch.EngineID
 	if featEng != "" {
 		engine = featEng

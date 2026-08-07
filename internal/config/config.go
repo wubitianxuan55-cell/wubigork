@@ -42,8 +42,6 @@ const (
 	// 功能级模型绑定（聊天/轻语/小说/办公 各自独立 LLM，持久化重启不丢）
 	KeyFuncChatEngine      = "func_chat_engine"
 	KeyFuncChatModel       = "func_chat_model"
-	KeyFuncWhisperEngine   = "func_whisper_engine"
-	KeyFuncWhisperModel    = "func_whisper_model"
 	KeyFuncNovelEngine     = "func_novel_engine"
 	KeyFuncNovelModel      = "func_novel_model"
 	KeyFuncOfficeEngine    = "func_office_engine"
@@ -52,7 +50,6 @@ const (
 	KeyFuncGaeaModel       = "func_gaea_model"
 	// 功能级启停（FeatureModelBar 启停语义：只影响该功能的路由，不影响整个引擎）
 	KeyFuncChatEnabled      = "func_chat_enabled"
-	KeyFuncWhisperEnabled   = "func_whisper_enabled"
 	KeyFuncNovelEnabled     = "func_novel_enabled"
 	KeyFuncOfficeEnabled    = "func_office_enabled"
 	KeyFuncGaeaEnabled      = "func_gaea_enabled"
@@ -89,8 +86,10 @@ type configFile struct {
 	ActiveTTSModel      string  `json:"active_tts_model,omitempty"`  // 语音合成激活模型
 	FuncChatEngine      string  `json:"func_chat_engine,omitempty"`
 	FuncChatModel       string  `json:"func_chat_model,omitempty"`
+	// ── 旧品牌遗留（聊天/轻语合并前）：仅用于读取迁移，不再写入 ──
 	FuncWhisperEngine   string  `json:"func_whisper_engine,omitempty"`
 	FuncWhisperModel    string  `json:"func_whisper_model,omitempty"`
+	FuncWhisperEnabled  *bool   `json:"func_whisper_enabled,omitempty"`
 	FuncNovelEngine     string  `json:"func_novel_engine,omitempty"`
 	FuncNovelModel      string  `json:"func_novel_model,omitempty"`
 	FuncOfficeEngine    string  `json:"func_office_engine,omitempty"`
@@ -98,7 +97,6 @@ type configFile struct {
 	FuncGaeaEngine      string  `json:"func_gaea_engine,omitempty"`
 	FuncGaeaModel       string  `json:"func_gaea_model,omitempty"`
 	FuncChatEnabled     *bool   `json:"func_chat_enabled,omitempty"`    // nil=默认启用
-	FuncWhisperEnabled  *bool   `json:"func_whisper_enabled,omitempty"`
 	FuncNovelEnabled    *bool   `json:"func_novel_enabled,omitempty"`
 	FuncOfficeEnabled   *bool   `json:"func_office_enabled,omitempty"`
 	FuncGaeaEnabled     *bool   `json:"func_gaea_enabled,omitempty"`
@@ -171,8 +169,6 @@ type Config struct {
 	// 功能级模型绑定（各功能独立 LLM，空=用全局激活引擎+模型）
 	FuncChatEngine    string
 	FuncChatModel     string
-	FuncWhisperEngine string
-	FuncWhisperModel  string
 	FuncNovelEngine   string
 	FuncNovelModel    string
 	FuncOfficeEngine  string
@@ -180,11 +176,10 @@ type Config struct {
 	FuncGaeaEngine    string
 	FuncGaeaModel     string
 	// 功能级启停（默认启用；停用后该功能路由回退全局）
-	FuncChatEnabled    bool
-	FuncWhisperEnabled bool
-	FuncNovelEnabled   bool
-	FuncOfficeEnabled  bool
-	FuncGaeaEnabled    bool
+	FuncChatEnabled   bool
+	FuncNovelEnabled  bool
+	FuncOfficeEnabled bool
+	FuncGaeaEnabled   bool
 }
 
 // funcMu 保护功能级模型绑定字段（GetFeatureModel/SetFeatureModel 并发读写）
@@ -198,7 +193,8 @@ func (c *Config) GetFeatureModel(feature string) (engine, model string) {
 	case "chat":
 		return c.FuncChatEngine, c.FuncChatModel
 	case "whisper":
-		return c.FuncWhisperEngine, c.FuncWhisperModel
+		// 2.x 聊天/轻语合并：轻语绑定并入聊天，查询走 chat 别名
+		return c.FuncChatEngine, c.FuncChatModel
 	case "novel":
 		return c.FuncNovelEngine, c.FuncNovelModel
 	case "office":
@@ -217,7 +213,8 @@ func (c *Config) SetFeatureModel(feature, engine, model string) {
 	case "chat":
 		c.FuncChatEngine, c.FuncChatModel = engine, model
 	case "whisper":
-		c.FuncWhisperEngine, c.FuncWhisperModel = engine, model
+		// 2.x 聊天/轻语合并：写入 chat 绑定
+		c.FuncChatEngine, c.FuncChatModel = engine, model
 	case "novel":
 		c.FuncNovelEngine, c.FuncNovelModel = engine, model
 	case "office":
@@ -235,7 +232,7 @@ func (c *Config) GetFeatureModelEnabled(feature string) bool {
 	case "chat":
 		return c.FuncChatEnabled
 	case "whisper":
-		return c.FuncWhisperEnabled
+		return c.FuncChatEnabled
 	case "novel":
 		return c.FuncNovelEnabled
 	case "office":
@@ -254,7 +251,7 @@ func (c *Config) SetFeatureModelEnabled(feature string, enabled bool) {
 	case "chat":
 		c.FuncChatEnabled = enabled
 	case "whisper":
-		c.FuncWhisperEnabled = enabled
+		c.FuncChatEnabled = enabled
 	case "novel":
 		c.FuncNovelEnabled = enabled
 	case "office":
@@ -291,11 +288,10 @@ func Load() *Config {
 		QualityThreshold:    6,      // 章节质量低于 6 分自动重试
 		QualityMaxRetries:   2,      // 最多重试 2 次
 		// 功能级模型默认启用（未显式停用时，绑定立即生效）
-		FuncChatEnabled:    true,
-		FuncWhisperEnabled: true,
-		FuncNovelEnabled:   true,
-		FuncOfficeEnabled:  true,
-		FuncGaeaEnabled:    true,
+		FuncChatEnabled:   true,
+		FuncNovelEnabled:  true,
+		FuncOfficeEnabled: true,
+		FuncGaeaEnabled:   true,
 
 		// TTS 默认值
 		TTSBinaryPath: filepath.Join(home, "voxcpm-tts", "voxcpm_tts.exe"),
@@ -486,12 +482,6 @@ func Load() *Config {
 			if cf.FuncChatModel != "" {
 				cfg.FuncChatModel = cf.FuncChatModel
 			}
-			if cf.FuncWhisperEngine != "" {
-				cfg.FuncWhisperEngine = cf.FuncWhisperEngine
-			}
-			if cf.FuncWhisperModel != "" {
-				cfg.FuncWhisperModel = cf.FuncWhisperModel
-			}
 			if cf.FuncNovelEngine != "" {
 				cfg.FuncNovelEngine = cf.FuncNovelEngine
 			}
@@ -513,9 +503,6 @@ func Load() *Config {
 			if cf.FuncChatEnabled != nil {
 				cfg.FuncChatEnabled = *cf.FuncChatEnabled
 			}
-			if cf.FuncWhisperEnabled != nil {
-				cfg.FuncWhisperEnabled = *cf.FuncWhisperEnabled
-			}
 			if cf.FuncNovelEnabled != nil {
 				cfg.FuncNovelEnabled = *cf.FuncNovelEnabled
 			}
@@ -524,6 +511,15 @@ func Load() *Config {
 			}
 			if cf.FuncGaeaEnabled != nil {
 				cfg.FuncGaeaEnabled = *cf.FuncGaeaEnabled
+			}
+			// 2.x 聊天/轻语合并：旧配置只写 func_whisper_* 时迁移到 func_chat；
+			// chat 显式配置优先，不覆盖；func_whisper_enabled=false 同步为 chat 停用。
+			if cfg.FuncChatEngine == "" && cf.FuncWhisperEngine != "" {
+				cfg.FuncChatEngine = cf.FuncWhisperEngine
+				cfg.FuncChatModel = cf.FuncWhisperModel
+				if cf.FuncWhisperEnabled != nil {
+					cfg.FuncChatEnabled = *cf.FuncWhisperEnabled
+				}
 			}
 		}
 	}
@@ -629,8 +625,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyActiveTTSModel:    func(cf *configFile, v string) error { cf.ActiveTTSModel = v; return nil },
 	KeyFuncChatEngine:    func(cf *configFile, v string) error { cf.FuncChatEngine = v; return nil },
 	KeyFuncChatModel:     func(cf *configFile, v string) error { cf.FuncChatModel = v; return nil },
-	KeyFuncWhisperEngine: func(cf *configFile, v string) error { cf.FuncWhisperEngine = v; return nil },
-	KeyFuncWhisperModel:  func(cf *configFile, v string) error { cf.FuncWhisperModel = v; return nil },
 	KeyFuncNovelEngine:   func(cf *configFile, v string) error { cf.FuncNovelEngine = v; return nil },
 	KeyFuncNovelModel:    func(cf *configFile, v string) error { cf.FuncNovelModel = v; return nil },
 	KeyFuncOfficeEngine:  func(cf *configFile, v string) error { cf.FuncOfficeEngine = v; return nil },
@@ -638,7 +632,6 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyFuncGaeaEngine:    func(cf *configFile, v string) error { cf.FuncGaeaEngine = v; return nil },
 	KeyFuncGaeaModel:     func(cf *configFile, v string) error { cf.FuncGaeaModel = v; return nil },
 	KeyFuncChatEnabled:   func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncChatEnabled = b; return nil },
-	KeyFuncWhisperEnabled: func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncWhisperEnabled = b; return nil },
 	KeyFuncNovelEnabled:   func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncNovelEnabled = b; return nil },
 	KeyFuncOfficeEnabled:  func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncOfficeEnabled = b; return nil },
 	KeyFuncGaeaEnabled:    func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncGaeaEnabled = b; return nil },

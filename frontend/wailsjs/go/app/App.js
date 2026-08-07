@@ -62,12 +62,36 @@ export function ChatGeneral(arg1) {
   return window['go']['app']['App']['ChatGeneral'](arg1);
 }
 
+export function ChatMessagesList(arg1) {
+  return window['go']['app']['App']['ChatMessagesList'](arg1);
+}
+
 export function ChatOutline(arg1) {
   return window['go']['app']['App']['ChatOutline'](arg1);
 }
 
 export function ChatOutlineNode(arg1, arg2) {
   return window['go']['app']['App']['ChatOutlineNode'](arg1, arg2);
+}
+
+export function ChatSend(arg1, arg2, arg3) {
+  return window['go']['app']['App']['ChatSend'](arg1, arg2, arg3);
+}
+
+export function ChatTopicCreate(arg1, arg2) {
+  return window['go']['app']['App']['ChatTopicCreate'](arg1, arg2);
+}
+
+export function ChatTopicDelete(arg1) {
+  return window['go']['app']['App']['ChatTopicDelete'](arg1);
+}
+
+export function ChatTopicRename(arg1, arg2) {
+  return window['go']['app']['App']['ChatTopicRename'](arg1, arg2);
+}
+
+export function ChatTopicsList() {
+  return window['go']['app']['App']['ChatTopicsList']();
 }
 
 export function ChatWorldview(arg1, arg2) {

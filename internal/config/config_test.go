@@ -176,7 +176,7 @@ func TestSave_FuncEnabledRoundTrip(t *testing.T) {
 	if cfg.GetFeatureModelEnabled("chat") {
 		t.Error("保存 0 后 chat 功能模型应为停用")
 	}
-	if !cfg.GetFeatureModelEnabled("whisper") {
+	if !cfg.GetFeatureModelEnabled("novel") {
 		t.Error("未写入的功能应保持默认启用")
 	}
 
@@ -187,5 +187,54 @@ func TestSave_FuncEnabledRoundTrip(t *testing.T) {
 	cfg = Load()
 	if !cfg.GetFeatureModelEnabled("chat") {
 		t.Error("保存 1 后 chat 功能模型应为启用")
+	}
+}
+
+// TestLoad_MigratesWhisperBindingToChat 旧版 func_whisper_* 绑定合并到 func_chat：
+// 老配置文件（只有 func_whisper_*）加载后 chat 绑定接管，whisper 查询别名到 chat。
+func TestLoad_MigratesWhisperBindingToChat(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	legacy := `{
+		"func_whisper_engine": "herdsman",
+		"func_whisper_model": "qwen3-8b",
+		"func_whisper_enabled": false
+	}`
+	if err := os.WriteFile(filepath.Join(home, ".gaea_config.json"), []byte(legacy), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Load()
+	if cfg.FuncChatEngine != "herdsman" || cfg.FuncChatModel != "qwen3-8b" {
+		t.Errorf("迁移后 FuncChat = (%q,%q), want (herdsman,qwen3-8b)", cfg.FuncChatEngine, cfg.FuncChatModel)
+	}
+	eng, model := cfg.GetFeatureModel("whisper")
+	if eng != "herdsman" || model != "qwen3-8b" {
+		t.Errorf("GetFeatureModel(whisper) = (%q,%q), want chat 别名", eng, model)
+	}
+	if cfg.GetFeatureModelEnabled("whisper") {
+		t.Error("func_whisper_enabled=false 应迁移为 chat 停用")
+	}
+}
+
+// TestLoad_FuncChatWinsWhenBothSet 新旧绑定并存时 func_chat 优先（不覆盖已有 chat 配置）。
+func TestLoad_FuncChatWinsWhenBothSet(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	legacy := `{
+		"func_chat_engine": "xai",
+		"func_chat_model": "grok-4.20",
+		"func_whisper_engine": "herdsman",
+		"func_whisper_model": "qwen3-8b"
+	}`
+	if err := os.WriteFile(filepath.Join(home, ".gaea_config.json"), []byte(legacy), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Load()
+	if cfg.FuncChatEngine != "xai" || cfg.FuncChatModel != "grok-4.20" {
+		t.Errorf("FuncChat = (%q,%q), want 保留已有 chat 绑定", cfg.FuncChatEngine, cfg.FuncChatModel)
 	}
 }

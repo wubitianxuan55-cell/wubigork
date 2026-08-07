@@ -19,6 +19,7 @@ import (
 	"github.com/gaea/gaea/internal/channels/weixin"
 	"github.com/gaea/gaea/internal/chapter"
 	"github.com/gaea/gaea/internal/character"
+	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/modelengine"
 	officedb "github.com/gaea/gaea/internal/office/db"
@@ -40,6 +41,9 @@ type core struct {
 
 	// 模型引擎管理器
 	engineMgr *modelengine.Manager
+
+	// 统一聊天会话存储（聊天/轻语合并：话题 + 消息）
+	chatStore *chat.Store
 
 	// 前端静态资源
 	distFS fs.FS
@@ -139,9 +143,15 @@ type App struct {
 // emit 统一事件发射 — 发送到 Wails 前端。定义在 core 上，
 // 子服务内嵌 core 后直接可用（App 经嵌入也获得该方法）。
 func (c *core) emit(eventName string, data map[string]interface{}) {
-	if c.ctx != nil {
-		runtime.EventsEmit(c.ctx, eventName, data)
+	if c.ctx == nil {
+		return
 	}
+	// Wails runtime 要求 ctx 携带生命周期值（"events"）；非 Wails 上下文（测试等）
+	// 直接调用会 log.Fatalf 退出进程，这里预检后跳过发射。
+	if c.ctx.Value("events") == nil {
+		return
+	}
+	runtime.EventsEmit(c.ctx, eventName, data)
 }
 
 // New 创建 App 实例
@@ -200,6 +210,8 @@ func (a *App) Startup(ctx context.Context) {
 
 	// 初始化方案编写模块
 	a.proposalSvc = proposal.NewService(a.whisperDataRoot, a.client)
+	// 统一聊天会话存储（chat.db）
+	a.chatStore = chat.NewStore(filepath.Join(a.whisperDataRoot, "chat"))
 	a.initBrain()
 	a.initModules()
 
@@ -272,6 +284,9 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 	if err := officedb.CloseDatabase(filepath.Join(a.whisperDataRoot, "office")); err != nil {
 		slog.Error("关闭 office.db 失败", "error", err)
+	}
+	if err := chat.CloseDatabase(filepath.Join(a.whisperDataRoot, "chat")); err != nil {
+		slog.Error("关闭 chat.db 失败", "error", err)
 	}
 }
 
