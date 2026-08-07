@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"time"
@@ -15,15 +16,21 @@ type OIDCDiscovery struct {
 	TokenEndpoint         string `json:"token_endpoint"`
 }
 
-// DiscoverEndpoints 通过 OIDC Discovery 获取 xAI 的授权和 token 端点
+// DiscoverEndpoints 通过 OIDC Discovery 获取 xAI 的授权和 token 端点。
+// URL 取自 cfg.OIDCDiscoveryURL（默认 auth.x.ai，可用 XAI_OIDC_DISCOVERY_URL 覆盖），
+// 此前硬编码导致配置与环境变量失效，也无法用测试桩验证刷新链路。
 //
 // 端点摘自 hermes-agent 的 _xai_oauth_discovery()：
 //
 //	GET https://auth.x.ai/.well-known/openid-configuration
 //	→ { authorization_endpoint, token_endpoint }
-func DiscoverEndpoints() (*OIDCDiscovery, error) {
+func DiscoverEndpoints(cfg *config.Config) (*OIDCDiscovery, error) {
+	discoveryURL := "https://auth.x.ai/.well-known/openid-configuration"
+	if cfg != nil && cfg.OIDCDiscoveryURL != "" {
+		discoveryURL = cfg.OIDCDiscoveryURL
+	}
 	client := netclient.NewSimpleClient(15 * time.Second)
-	resp, err := client.Get("https://auth.x.ai/.well-known/openid-configuration")
+	resp, err := client.Get(discoveryURL)
 	if err != nil {
 		return nil, fmt.Errorf("OIDC Discovery 请求失败: %w", err)
 	}

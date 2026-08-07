@@ -58,7 +58,7 @@ type OAuthResult struct {
 //  5. 用 code + code_verifier + code_challenge 换取 token
 func DoLogin(cfg *config.Config) (*OAuthResult, error) {
 	// ── 1. OIDC Discovery ──────────────────────────────────────────
-	disc, err := DiscoverEndpoints()
+	disc, err := DiscoverEndpoints(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("获取 OIDC 端点失败: %w", err)
 	}
@@ -236,7 +236,8 @@ func exchangeCodeForToken(cfg *config.Config, tokenEndpoint, code, redirectURI s
 		"code_challenge_method": {"S256"},
 	}
 
-	resp, err := http.PostForm(tokenEndpoint, payload)
+	httpClient := netclient.NewSimpleClient(15 * time.Second)
+	resp, err := httpClient.PostForm(tokenEndpoint, payload)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("请求 token 失败: %w", err)
 	}
@@ -277,7 +278,7 @@ func exchangeCodeForToken(cfg *config.Config, tokenEndpoint, code, redirectURI s
 // — 通过 OIDC Discovery 获取 token_endpoint
 // — 发送 client_id + refresh_token
 func RefreshAccessToken(cfg *config.Config, refreshToken string) (*Token, error) {
-	disc, err := DiscoverEndpoints()
+	disc, err := DiscoverEndpoints(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("获取 OIDC 端点失败: %w", err)
 	}

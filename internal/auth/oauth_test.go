@@ -103,7 +103,7 @@ func TestValidateInferenceBaseURL(t *testing.T) {
 
 func TestOIDCDiscovery(t *testing.T) {
 	// 真实网络调用：验证 xAI OIDC Discovery 端点的实际响应
-	disc, err := DiscoverEndpoints()
+	disc, err := DiscoverEndpoints(config.Load())
 	if err != nil {
 		t.Logf("OIDC Discovery 可能因网络问题失败: %v", err)
 		return
