@@ -12,6 +12,13 @@
 - 基线修复：empty.pdf 坏夹具重建、parseLoraNames map 顺序稳定、findChangelogPath cwd 优先（E21 类测试隔离）
 - 基线：main v1.21.0（9093930），P0 在 codex/gaea2-p0-baseline 分支
 
+## 2.0 P1 模型路由（✅ 已完成）
+
+- routeModel 降级链：功能绑定 → 全局活跃 → 首个可用引擎；model.route 事件可观测
+- novel 系收敛：章节/分支/风格（E03）；whisper 收敛（空模型直连修复）
+- office/gaea 绑定回归（E09/E10）；GetModelRoute 绑定 + 模型中心"当前生效"展示
+- 已知限制：CmdKEdit 无 EngineID 参数（模型名已路由，引擎随活跃引擎）；outlineAgent 在 1.x 从未初始化（死路径）
+
 | 状态 | 任务 |
 |------|------|
 | ⬜ | Write tests |
