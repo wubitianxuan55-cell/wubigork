@@ -58,6 +58,10 @@ export function CharacterDissociate(arg1) {
   return window['go']['app']['App']['CharacterDissociate'](arg1);
 }
 
+export function CharacterDrawRandom(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['CharacterDrawRandom'](arg1, arg2, arg3, arg4);
+}
+
 export function CharacterGet(arg1) {
   return window['go']['app']['App']['CharacterGet'](arg1);
 }
@@ -76,6 +80,10 @@ export function CharacterListByProject() {
 
 export function CharacterSave(arg1) {
   return window['go']['app']['App']['CharacterSave'](arg1);
+}
+
+export function CharacterSetProjectState(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['CharacterSetProjectState'](arg1, arg2, arg3, arg4);
 }
 
 export function CharacterSyncProject() {

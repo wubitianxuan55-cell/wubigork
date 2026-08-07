@@ -18,41 +18,6 @@ export async function getCharacters(): Promise<CharacterPageData> {
   return data as unknown as CharacterPageData
 }
 
-/** 保存单个角色 */
-export async function saveCharacter(char: CharacterData): Promise<void> {
-  await App.SaveCharacter(JSON.stringify(char))
-}
-
-/** 删除角色 */
-export async function deleteCharacter(id: string): Promise<void> {
-  await App.DeleteCharacter(id)
-}
-
-/** 批量生成角色 */
-export async function generateCharacters(count: number): Promise<CharacterPageData> {
-  const result = await App.GenerateCharacters(count)
-  return result as unknown as CharacterPageData
-}
-
-/** 单角色 AI 补全 */
-export async function generateSingleCharacter(char: CharacterData): Promise<{ character?: string; reply?: string }> {
-  const result = await App.GenerateSingleCharacter(JSON.stringify({
-    id: char.id, name: char.name, role_type: char.role_type,
-  }))
-  return result as unknown as { character?: string; reply?: string }
-}
-
-/** 角色 Agent 对话 */
-export async function chatCharacter(userMsg: string): Promise<CharacterPageData & { reply?: string }> {
-  const result = await App.ChatCharacter(userMsg)
-  return result as unknown as CharacterPageData & { reply?: string }
-}
-
-/** 生成角色剧照 */
-export async function generateCharacterPortrait(charID: string, model?: string): Promise<string> {
-  return await App.GenerateCharacterPortrait(charID, model || '')
-}
-
 // ── 组织 ──
 
 /** 保存组织 */

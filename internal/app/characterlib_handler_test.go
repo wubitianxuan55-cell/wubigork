@@ -157,3 +157,60 @@ func TestCharacterSave_JSONRoundTrip(t *testing.T) {
 		t.Fatalf("往返不一致: %s %+v", string(b), out["character"])
 	}
 }
+
+func TestNovelSaveDoesNotPolluteLibrary(t *testing.T) {
+	a := newCharacterLibTestApp(t)
+	dir := filepath.Join(t.TempDir(), "novel")
+	pm, _ := project.Create(dir, "测试", "玄幻", "", "")
+	a.setPM(pm)
+	a.characterAgent = character.New(nil, pm, a.cfg, nil)
+
+	// 库内先有丰富设定
+	if _, err := a.CharacterSave(`{"id":"ch_1","name":"林晚","background":"库内丰富背景","arc":"崛起"}`); err != nil {
+		t.Fatalf("库内保存: %v", err)
+	}
+	// 小说页保存同名同 ID 的薄记录
+	if err := a.SaveCharacter(`{"id":"ch_1","name":"林晚","background":"项目薄记录","arc":"黑化"}`); err != nil {
+		t.Fatalf("小说页保存: %v", err)
+	}
+	c, err := a.charLib.Get("ch_1")
+	if err != nil || c == nil {
+		t.Fatalf("读取库内角色: %v %v", c, err)
+	}
+	if c.Background != "库内丰富背景" || c.Arc != "崛起" {
+		t.Fatalf("小说页反向污染了全局角色库: %+v", c)
+	}
+}
+
+func TestCharacterSyncProject_RefusesLegacyChars(t *testing.T) {
+	a := newCharacterLibTestApp(t)
+	dir := filepath.Join(t.TempDir(), "novel")
+	pm, _ := project.Create(dir, "测试", "玄幻", "", "")
+	a.setPM(pm)
+	a.characterAgent = character.New(nil, pm, a.cfg, nil)
+	// 项目里有未入库角色（旧数据）
+	cf := &types.CharacterFile{Characters: []types.Character{{ID: "ch_9", Name: "未入库角色"}}}
+	_ = pm.WriteCharacters(cf)
+	if err := a.CharacterSyncProject(); err == nil {
+		t.Fatalf("存在未入库角色时同步应被拒绝（防止覆盖丢数据）")
+	}
+}
+
+func TestCharacterDrawRandom_ReturnsLibraryCharacters(t *testing.T) {
+	a := newCharacterLibTestApp(t)
+	_, _ = a.CharacterSave(`{"id":"lib_a","name":"林晚","gender":"female","chatEnabled":true}`)
+	_, _ = a.CharacterSave(`{"id":"lib_b","name":"顾长风","gender":"male","chatEnabled":true}`)
+	_, _ = a.CharacterSave(`{"id":"lib_c","name":"苏小小","gender":"female","chatEnabled":false}`)
+	items := a.CharacterDrawRandom(10, "", "", false)
+	if len(items) != 3 {
+		t.Fatalf("抽卡应返回全部 3 个: %d", len(items))
+	}
+	items = a.CharacterDrawRandom(10, "female", "", false)
+	if len(items) != 2 {
+		t.Fatalf("女性抽卡应返回 2 个: %d", len(items))
+	}
+	items = a.CharacterDrawRandom(10, "", "", true)
+	if len(items) != 2 {
+		t.Fatalf("可聊天抽卡应返回 2 个: %d", len(items))
+	}
+}

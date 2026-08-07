@@ -61,6 +61,11 @@ export async function associateToProject(charID: string, role: string): Promise<
   return App.CharacterAssociate(charID, role)
 }
 
+/** 更新角色在当前项目的状态（定位/弧线/状态，仅项目内覆盖，不影响全局角色） */
+export async function setProjectState(charID: string, role: string, arcState: string, status: string): Promise<void> {
+  return App.CharacterSetProjectState(charID, role, arcState, status)
+}
+
 /** 把角色从当前项目移除（角色保留在全局库） */
 export async function dissociateFromProject(charID: string): Promise<void> {
   return App.CharacterDissociate(charID)
@@ -69,4 +74,9 @@ export async function dissociateFromProject(charID: string): Promise<void> {
 /** 把项目引用物化回 characters.json（小说 Agent 消费） */
 export async function syncProjectCharacters(): Promise<void> {
   return App.CharacterSyncProject()
+}
+
+/** 从角色库随机抽卡（小说角色面板不再自行生成角色） */
+export async function drawRandom(count: number, gender: string, tags: string, chatOnly: boolean): Promise<LibraryCharacter[]> {
+  return App.CharacterDrawRandom(count, gender, tags, chatOnly)
 }

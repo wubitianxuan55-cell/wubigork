@@ -22,7 +22,6 @@ func (a *writingState) ChatCharacter(userMsg string) (map[string]interface{}, er
 		return nil, err
 	}
 	cf := a.characterAgent.GetCharacters()
-	_ = a.app.syncCurrentProjectToLibrary() // 角色 Agent 可能自动保存新角色 → 回写全局库
 	if cf == nil {
 		return map[string]interface{}{"reply": reply}, nil
 	}
@@ -47,7 +46,6 @@ func (a *writingState) GenerateCharacters(count int) (map[string]interface{}, er
 	if err != nil {
 		return nil, err
 	}
-	_ = a.app.syncCurrentProjectToLibrary() // 批量生成的角色进入全局库 + 项目引用
 	return map[string]interface{}{
 		"characters":    cf.Characters,
 		"organizations": cf.Organizations,
@@ -67,7 +65,8 @@ func (a *writingState) SaveCharacter(chJSON string) error {
 	if err := a.characterAgent.SaveCharacter(ch); err != nil {
 		return err
 	}
-	return a.app.syncCurrentProjectToLibrary()
+	// 单向约束：小说只写自己的 characters.json，绝不回写全局角色库
+	return nil
 }
 
 // DeleteCharacter 删除角色

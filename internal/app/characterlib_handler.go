@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gaea/gaea/internal/assistant"
@@ -217,20 +218,49 @@ func (a *App) CharacterSyncProject() error {
 	if cf == nil {
 		cf = &types.CharacterFile{}
 	}
+	// 防误清保护：项目里还有未入库角色时拒绝覆盖，先走一次性导入
+	refs, err := a.charLib.ListByProject(pm.Dir)
+	if err != nil {
+		return err
+	}
+	refSet := make(map[string]bool, len(refs))
+	for _, r := range refs {
+		refSet[r.CharacterID] = true
+	}
+	var legacy []string
+	for _, ch := range cf.Characters {
+		if !refSet[ch.ID] {
+			legacy = append(legacy, ch.Name)
+		}
+	}
+	if len(legacy) > 0 {
+		return fmt.Errorf("项目还有 %d 个角色未入库（%s），请先在角色库「导入项目」完成一次性迁移", len(legacy), strings.Join(legacy[:min(len(legacy), 3)], "、"))
+	}
 	cf.Characters = chars
 	return pm.WriteCharacters(cf)
 }
 
-// syncCurrentProjectToLibrary 小说页写角色后回写全局库（幂等，保持单一事实源）。
-func (a *App) syncCurrentProjectToLibrary() error {
+// CharacterSetProjectState 更新角色在当前项目的状态（项目内覆盖，不影响全局角色）。
+// 这是小说面板唯一允许的角色写入：只写关联表的 role/arc_state/status。
+func (a *App) CharacterSetProjectState(charID, role, arcState, status string) error {
 	pm := a.getPM()
-	if pm == nil || a.charLib == nil {
+	if pm == nil {
+		return fmt.Errorf("请先打开小说项目")
+	}
+	if a.charLib == nil {
+		return fmt.Errorf("角色库未初始化")
+	}
+	return a.charLib.Associate(pm.Dir, charID, role, arcState, status)
+}
+
+// CharacterDrawRandom 从角色库随机抽卡（小说角色面板不再自行生成角色）。
+func (a *App) CharacterDrawRandom(count int, gender, tags string, chatOnly bool) []characterlib.Character {
+	if a.charLib == nil {
 		return nil
 	}
-	cf, err := pm.ReadCharacters()
+	items, err := a.charLib.DrawRandom(count, gender, tags, chatOnly)
 	if err != nil {
-		return err
+		return nil
 	}
-	_, err = a.charLib.ImportProjectCharacters(pm.Dir, cf.Characters)
-	return err
+	return items
 }

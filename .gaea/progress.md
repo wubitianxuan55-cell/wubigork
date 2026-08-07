@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 14:10:00
+> 最后更新: 2026-08-07 14:30:00
 
 ## 2.0 P0 基线加固（✅ 已完成）
 
@@ -153,6 +153,15 @@
 - **前端重写**：单一统一列表（搜索/筛选/分页/统一卡片），统一编辑器 `CharacterLibEditor`（基础/小说/聊天三段 + 五维滑杆 + 剧照 + 对话样本）；操作：设为聊天人格、加入当前项目/移出、同步、导入、删除（内置软隐藏）；删除初版双 Tab 与 WhisperRolePanel
 - 新增绑定：CharacterList/Get/Save/Delete、ImportProject/ListByProject/Associate/Dissociate/SyncProject
 - 验收：新增 10 个回归测试（characterlib 种子幂等/搜索筛选分页/内置软删自定义硬删/导入去重幂等/项目弧线状态物化/助手镜像/ToPreset；App 层保存→助手+聊天桥接、跨项目引用、物化回写、JSON 往返）；`scripts/ci.ps1` CI OK；`wails build` 成功（build/bin/gaea.exe 38MB）
+
+## 2.12 单向约束：小说只使用角色库，角色面板改抽卡（✅ 已完成，2026-08-07）
+
+- 按用户要求补上硬约束：**小说只是角色库的引用方，任何小说侧写入都不能反向污染全局角色**。删除此前"小说页写角色自动回写全局库"的反向路径（SaveCharacter/GenerateCharacters/ChatCharacter 不再触碰角色库；打开项目不再自动导入）
+- 导入改为**只增不改**：`ImportProjectCharacters` ID 命中 → 仅补项目关联，绝不动库内记录；ID 不存在 → 以项目 ID 新建；不做名称合并（避免 ID 重映射破坏项目内关系引用）。旧项目数据在小说面板横幅提示"一次性迁移"
+- **同步防误清保护**：`CharacterSyncProject` 检测到项目里还有未入库角色时拒绝覆盖，先导入再同步，防止同步把旧数据冲掉
+- **小说角色面板重写**（CharacterPage）：删除"新建角色/批量生成/角色 Agent 对话/AI 补全/剧照生成/导入轻语"全部自建路径；改为「抽卡」——`CharacterDrawRandom` 从全局库随机抽（数量/性别/标签/可聊天过滤），抽中即加入本书；卡片点击只编辑**项目内覆盖**（定位/弧线状态/状态，写 `project_characters` 关联表），全局设定只读并引导去角色库编辑；组织/关系仍为项目内数据保留原能力
+- 新增绑定：`CharacterDrawRandom`、`CharacterSetProjectState`；前端新增 4 个回归测试（小说保存不污染库/同步拒绝未入库/抽卡过滤与上限/导入只增不改）
+- 验收：`scripts/ci.ps1` CI OK；`wails build` 成功（build/bin/gaea.exe 38MB）
 
 ## 2.11 去除成人限制（私人非商用，✅ 已完成，2026-08-07）
 

@@ -352,8 +352,9 @@ func (s *Store) ProjectIDsForCharacter(charID string) ([]string, error) {
 	return out, rows.Err()
 }
 
-// ImportProjectCharacters 把项目 characters.json 的角色导入全局库并建立关联（幂等）。
-// 去重规则：ID 命中 → 更新；否则名称命中 → 合并；否则以原 ID 新建。
+// ImportProjectCharacters 把项目 characters.json 的角色导入全局库并建立关联（幂等，单向）。
+// 约束：小说只是引用方——库内已存在的角色绝不被项目数据覆盖（只增不改）；
+// ID 命中 → 仅补关联；ID 不存在 → 以项目 ID 新建；不做名称合并，避免项目内 ID 重映射破坏关系引用。
 func (s *Store) ImportProjectCharacters(projectID string, chars []types.Character) (int, error) {
 	if s == nil || s.db == nil {
 		return 0, fmt.Errorf("角色库未初始化")
@@ -364,56 +365,8 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 		if err != nil {
 			return count, err
 		}
-		if target == nil && ch.Name != "" {
-			target, err = s.FindByName(ch.Name)
-			if err != nil {
-				return count, err
-			}
-		}
 		if target == nil {
 			target = &Character{ID: ch.ID, Kind: KindCustom}
-		} else if target.ID != ch.ID {
-			// 按名称合并：仅补全非空字段，避免薄项目记录覆盖全局库里的丰富设定
-			if ch.Gender != "" {
-				target.Gender = ch.Gender
-			}
-			if ch.Age != "" {
-				target.Age = ch.Age
-			}
-			if ch.PortraitURL != "" {
-				target.PortraitURL = ch.PortraitURL
-			}
-			if ch.RoleType != "" {
-				target.RoleType = ch.RoleType
-			}
-			if ch.Personality != "" {
-				target.Personality = ch.Personality
-			}
-			if ch.Background != "" {
-				target.Background = ch.Background
-			}
-			if ch.Appearance != "" {
-				target.Appearance = ch.Appearance
-			}
-			if ch.Figure != "" {
-				target.Figure = ch.Figure
-			}
-			if ch.Motivation != "" {
-				target.Motivation = ch.Motivation
-			}
-			if ch.Arc != "" {
-				target.Arc = ch.Arc
-			}
-			if ch.Status != "" {
-				target.Status = ch.Status
-			}
-			if ch.Notes != "" {
-				target.Notes = ch.Notes
-			}
-		}
-		if target.ID != ch.ID {
-			target.Name = ch.Name
-		} else {
 			target.Name = ch.Name
 			target.Gender = ch.Gender
 			target.Age = ch.Age
@@ -427,9 +380,9 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 			target.Arc = ch.Arc
 			target.Status = ch.Status
 			target.Notes = ch.Notes
-		}
-		if err := s.Upsert(target); err != nil {
-			return count, err
+			if err := s.Upsert(target); err != nil {
+				return count, err
+			}
 		}
 		if err := s.Associate(projectID, target.ID, ch.RoleType, ch.Arc, ch.Status); err != nil {
 			return count, err
@@ -437,6 +390,53 @@ func (s *Store) ImportProjectCharacters(projectID string, chars []types.Characte
 		count++
 	}
 	return count, nil
+}
+
+// DrawRandom 从全局库随机抽卡（小说角色面板用）。
+// 只返回库内可见角色；可选性别/标签/仅可聊天过滤。
+func (s *Store) DrawRandom(count int, gender, tags string, chatOnly bool) ([]Character, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("角色库未初始化")
+	}
+	if count <= 0 || count > 30 {
+		count = 5
+	}
+	where := []string{"hidden = 0"}
+	args := []interface{}{}
+	if gender != "" {
+		where = append(where, "gender = ?")
+		args = append(args, gender)
+	}
+	if tags != "" {
+		where = append(where, "tags LIKE ?")
+		args = append(args, "%"+tags+"%")
+	}
+	if chatOnly {
+		where = append(where, "chat_enabled = 1")
+	}
+	cond := strings.Join(where, " AND ")
+	rows, err := s.db.Query(`
+		SELECT id, name, kind, gender, age, tags, portrait_url,
+			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
+			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
+			assistant_id, hidden, created_at, updated_at
+		FROM characters WHERE `+cond+` ORDER BY RANDOM() LIMIT ?`,
+		append(args, count)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Character
+	for rows.Next() {
+		c, err := scanCharacter(rows)
+		if err != nil {
+			return nil, err
+		}
+		if c != nil {
+			out = append(out, *c)
+		}
+	}
+	return out, rows.Err()
 }
 
 // ProjectCharactersForNovel 物化项目引用 → 小说角色列表。

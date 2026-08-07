@@ -127,7 +127,7 @@ func TestDelete_BuiltinSoftCustomHard(t *testing.T) {
 	}
 }
 
-func TestImportProjectCharacters_IdempotentAndDedupe(t *testing.T) {
+func TestImportProjectCharacters_IdempotentAndOneWay(t *testing.T) {
 	s := newTestStore(t)
 	chars := []types.Character{
 		{ID: "ch_1", Name: "林晚", RoleType: "protagonist", Arc: "崛起", Status: "Alive", Background: "孤儿"},
@@ -142,22 +142,34 @@ func TestImportProjectCharacters_IdempotentAndDedupe(t *testing.T) {
 	if err != nil || n != 2 {
 		t.Fatalf("重复导入 = %d, %v", n, err)
 	}
-	// 名称去重：另一项目同名角色合并到同一 ID
-	other := []types.Character{{ID: "ch_99", Name: "林晚", RoleType: "supporting", Arc: "回归"}}
+
+	// 单向约束：已存在的库内角色绝不被项目数据覆盖
+	if err := s.Upsert(&Character{ID: "ch_1", Name: "林晚", Kind: KindCustom, Background: "库内丰富背景", Arc: "崛起"}); err != nil {
+		t.Fatalf("预置库内角色失败: %v", err)
+	}
+	reimport := []types.Character{{ID: "ch_1", Name: "林晚", RoleType: "supporting", Arc: "黑化", Background: "项目薄记录"}}
+	n, err = s.ImportProjectCharacters("projA", reimport)
+	if err != nil || n != 1 {
+		t.Fatalf("再次导入 = %d, %v", n, err)
+	}
+	c, _ := s.Get("ch_1")
+	if c.Background != "库内丰富背景" || c.Arc != "崛起" {
+		t.Fatalf("项目导入污染了库内角色: %+v", c)
+	}
+	// 关联仍建立（项目可引用已存在的库内角色）
+	refs, _ := s.ProjectIDsForCharacter("ch_1")
+	if len(refs) != 1 || refs[0] != "projA" {
+		t.Fatalf("关联异常: %v", refs)
+	}
+	// 另一项目同名角色：不合并（避免 ID 重映射破坏项目内关系引用）
+	other := []types.Character{{ID: "ch_99", Name: "林晚", RoleType: "supporting"}}
 	n, err = s.ImportProjectCharacters("projB", other)
 	if err != nil || n != 1 {
 		t.Fatalf("跨项目导入 = %d, %v", n, err)
 	}
-	c, _ := s.Get("ch_1")
-	if c == nil {
-		t.Fatalf("应按名称合并到 ch_1")
-	}
-	if c.Background != "孤儿" {
-		t.Fatalf("合并应保留已有小说字段: %+v", c)
-	}
-	projects, _ := s.ProjectIDsForCharacter("ch_1")
-	if len(projects) != 2 {
-		t.Fatalf("同一角色应被两个项目引用: %v", projects)
+	c99, _ := s.Get("ch_99")
+	if c99 == nil || c99.Name != "林晚" {
+		t.Fatalf("应以项目 ID 新建独立角色: %+v", c99)
 	}
 }
 
@@ -232,5 +244,41 @@ func TestToPreset_CarriesChatFields(t *testing.T) {
 	}
 	if !strings.Contains(p.VoiceGuide, "行为规则：说话简短") || !strings.Contains(p.VoiceGuide, "情感逻辑：外冷内热") {
 		t.Fatalf("行为规则/情感逻辑未注入 voiceGuide: %s", p.VoiceGuide)
+	}
+}
+
+func TestDrawRandom_FiltersAndLimit(t *testing.T) {
+	s := newTestStore(t)
+	base := []Character{
+		{ID: "a", Name: "A", Kind: KindCustom, Gender: "female", ChatEnabled: true},
+		{ID: "b", Name: "B", Kind: KindCustom, Gender: "male", ChatEnabled: true},
+		{ID: "c", Name: "C", Kind: KindCustom, Gender: "female", ChatEnabled: false},
+		{ID: "d", Name: "D", Kind: KindCustom, Gender: "male", ChatEnabled: true},
+	}
+	for _, c := range base {
+		_ = s.Upsert(&c)
+	}
+	// 仅女性
+	items, err := s.DrawRandom(10, "female", "", false)
+	if err != nil {
+		t.Fatalf("DrawRandom: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("女性角色应抽到 2 个: %d", len(items))
+	}
+	for _, c := range items {
+		if c.Gender != "female" {
+			t.Fatalf("抽到性别不符角色: %+v", c)
+		}
+	}
+	// 仅可聊天
+	items, _ = s.DrawRandom(10, "", "", true)
+	if len(items) != 3 {
+		t.Fatalf("可聊天角色应抽到 3 个: %d", len(items))
+	}
+	// 数量上限
+	items, _ = s.DrawRandom(99, "", "", false)
+	if len(items) != 4 {
+		t.Fatalf("抽卡数量不应超过库内总数: %d", len(items))
 	}
 }

@@ -39,6 +39,8 @@ export function CharacterDelete(arg1:string):Promise<void>;
 
 export function CharacterDissociate(arg1:string):Promise<void>;
 
+export function CharacterDrawRandom(arg1:number,arg2:string,arg3:string,arg4:boolean):Promise<Array<characterlib.Character>>;
+
 export function CharacterGet(arg1:string):Promise<Record<string, any>>;
 
 export function CharacterImportProject():Promise<number>;
@@ -48,6 +50,8 @@ export function CharacterList(arg1:string,arg2:string,arg3:boolean,arg4:number,a
 export function CharacterListByProject():Promise<Array<characterlib.ProjectCharacter>>;
 
 export function CharacterSave(arg1:string):Promise<characterlib.Character>;
+
+export function CharacterSetProjectState(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function CharacterSyncProject():Promise<void>;
 
