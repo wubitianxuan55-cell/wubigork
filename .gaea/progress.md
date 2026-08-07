@@ -120,3 +120,12 @@
 - 全量验收：scripts/ci.ps1 CI OK，工作区干净
 - Git 标签：v2.1.0（annotated）；远程推送：main + v2.1.0 → origin
 - 说明：wails v2.13 不把根目录 versioninfo.rc 编译进 exe（历史版本同），版本资源缺失为仓库既有状态
+
+## 2.8 聊天×轻语后端合并（✅ 已完成，2026-08-07）
+
+- 统一入口：`App.ChatSend(topicID, message, mode)`——`plain` 走普通对话（featureModel("chat")），人格 ID 走轻语 Orchestrator（记忆/情绪），persona 返回保留情绪/信任/轮次等元数据
+- 统一会话存储：新增 `internal/chat`（chat.db，SQLite，与 office.db 同模式）——话题 CRUD + 消息（seq 自增、级联删除）；绑定 `ChatTopicsList/Create/Rename/Delete/MessagesList`
+- 绑定合并：`func_whisper_*` → `func_chat_*`——旧配置自动迁移（chat 显式配置优先，`func_whisper_enabled=false` 同步为 chat 停用）；`Get/SetFeatureModel("whisper")` 与启停均走 chat 别名；写入侧删除 whisper 键，微信/助手/主脑模块统一经 chat 路由
+- 防御：`core.emit` 预检 Wails ctx（"events" 标记），非 Wails 上下文跳过发射——修复测试中异步记忆写入经 routeModel emit 触发 `log.Fatalf` 杀进程的问题（生产行为不变）
+- 验收：新增 7 个测试（whisper→chat 迁移/chat 优先、chat store CRUD/级联删除、ChatSend plain/persona 落库与元数据）；wails build 再生成绑定（+6 方法）；`scripts/ci.ps1` CI OK
+- 遗留：前端两页合并 + localStorage 话题导入 chat.db 留待下一轮
