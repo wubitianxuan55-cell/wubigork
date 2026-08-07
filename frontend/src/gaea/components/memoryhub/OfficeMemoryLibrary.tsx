@@ -16,7 +16,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "archives", label: "归档" },
 ];
 
-/** OfficeMemoryLibrary 左脑办公记忆库：Hephaestus 的 facts/docs/archives 管理。 */
+/** OfficeMemoryLibrary 左脑办公记忆库：gaea 的 facts/docs/archives 管理。 */
 export function OfficeMemoryLibrary() {
   const [view, setView] = useState<MemoryView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +93,7 @@ export function OfficeMemoryLibrary() {
       {/* 工具条 */}
       <div className="shrink-0 flex items-center gap-2 px-4 pt-3 pb-2">
         <div className="text-fg text-[13px] font-medium">办公记忆</div>
-        <span className="text-fg-faint text-[11px]">Hephaestus 跨会话记忆（facts/docs/归档）</span>
+        <span className="text-fg-faint text-[11px]">gaea 跨会话记忆（facts/docs/归档）</span>
         <div className="ml-auto flex items-center gap-2">
           {tab === "facts" && (
             <input

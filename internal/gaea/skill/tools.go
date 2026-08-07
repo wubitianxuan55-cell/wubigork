@@ -155,11 +155,12 @@ type subagentSkillTool struct {
 
 func (t *subagentSkillTool) Name() string { return t.toolName }
 
-// ReadOnly is true: doc-writer/data-analyst/spec-checker/report-builder are all read-only by nature.
-// The sub-agent itself inherits plan mode from the parent, so any writer tool
-// calls within the sub-agent are blocked at the sub-agent's own executeOne gate.
-// Making these available in plan mode enables research-heavy workflows without
-// affecting the prefix cache (ReadOnly is a runtime property, not part of the API schema).
+// ReadOnly is true: format-convert/chart-builder/doc-assemble are read-only at
+// the parent gate. The sub-agent itself inherits plan mode from the parent, so
+// any writer tool calls within the sub-agent are blocked at the sub-agent's own
+// executeOne gate. Making these available in plan mode enables research-heavy
+// workflows without affecting the prefix cache (ReadOnly is a runtime property,
+// not part of the API schema).
 func (*subagentSkillTool) ReadOnly() bool        { return true }
 func (t *subagentSkillTool) Description() string { return t.description }
 
@@ -220,18 +221,15 @@ func BuiltinSubagentTools(store *Store, runner SubagentRunner) []tool.Tool {
 	specs := []struct {
 		toolName, skillName, description, taskDesc string
 	}{
-		{"site-survey", "site-survey",
-			"场地调查子代理：编制初调/详调报告，含布点方案、检测数据评价、超标判定。使用前确保检测数据已导入。",
-			"具体的调查任务。子代理没有你的上下文——说明地块信息、关注污染物、需要生成的报告类型和格式要求。"},
-		{"bid-writer", "bid-writer",
-			"投标方案子代理：编制土壤修复项目投标技术方案，技术路线比选、施工组织、人员设备配置。",
-			"具体的投标任务。子代理没有你的上下文——说明招标要求、项目概况、投标单位信息、评审重点。"},
-		{"remed-plan", "remed-plan",
-			"修复方案子代理：污染修复技术筛选、工艺参数设计、设备选型、二次污染防控、施工组织。",
-			"具体的修复方案任务。子代理没有你的上下文——说明污染物类型、修复目标、场地条件、工期要求。"},
-		{"cost-calc", "cost-calc",
-			"成本测算子代理：钻孔/检测/药剂/土方/设备/人工/效果评估七项汇总，含管理费利润税金。",
-			"具体的成本测算任务。子代理没有你的上下文——说明修复方量、技术类型、单价信息、取费标准。"},
+		{"format-convert", "format-convert",
+			"格式转换子代理：将 docx/xlsx/pdf 转换为可编辑 Markdown，统一不同来源的文档。",
+			"具体的格式转换任务。子代理没有你的上下文——说明源文件路径、目标格式（Markdown/文本）和输出要求。"},
+		{"chart-builder", "chart-builder",
+			"图表生成子代理：从数据生成统计图表（柱状图/折线图/饼图/散点图），适用于报告数据可视化。",
+			"具体的图表生成任务。子代理没有你的上下文——说明数据来源或文件路径、图表类型、标题和输出要求。"},
+		{"doc-assemble", "doc-assemble",
+			"文档拼装子代理：将多份 Markdown 文档片段合并为完整报告，含封面、目录、正文、附录。",
+			"具体的文档拼装任务。子代理没有你的上下文——说明素材文件清单、报告结构和输出要求。"},
 	}
 	var out []tool.Tool
 	for _, s := range specs {

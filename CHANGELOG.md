@@ -2,6 +2,20 @@
 
 # gaea · 多功能 AI 助手
 
+## v2.4.2「通用办公改造 · ModelScope 文档技能」(2026-08-07)
+
+> 「智能办公」精简为「通用办公」：删除土壤修复专项工具与技能，安装 ModelScope 的 docx/pdf/xlsx 文档技能。
+
+- 办公定位：DefaultSystemPrompt 与单模型执行纪律改写为通用办公助手（文档/表格/图表/演示/检索/方案报告/任务跟踪）
+- 删除 6 个土壤修复专项工具：survey_report/bid_proposal/imple_plan/spec_query/spec_judge/material_query，
+  并从 compact 描述/模式表中清理
+- 内置子代理技能收敛为 3 个通用技能：format-convert / chart-builder / doc-assemble（含 wrapper 工具与测试）
+- 删除项目内 5 个土壤办公技能（site-survey/risk-assessment/remed-design/bid-package/data-report），保留 skill-creator
+- 安装 ModelScope 技能：docx / pdf / xlsx（SKILL.md + 完整 scripts/schemas/templates），
+  同时写入 ~/.codex/skills 与 .gaea/skills，供 Codex 与 gaea 通用办公使用
+- 前端文案统一：智能办公→通用办公，报告类型映射改为通用办公类型，移除 Hephaestus 残留
+- 验证：go vet + go test ./... 全绿；tsc + vite build OK；vitest 32 例全过
+
 ## v2.4.1「设置面板重设计」(2026-08-07)
 
 > 按当前功能板块重构设置中心：左侧模块导航 + 全局搜索，清除死代码与重复面板。

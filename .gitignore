@@ -35,6 +35,8 @@ mobile/dist/
 
 # Go
 *.exe~
+__pycache__/
+*.pyc
 
 # Wails 构建产物
 build/bin/

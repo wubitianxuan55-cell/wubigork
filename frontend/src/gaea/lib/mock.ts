@@ -103,8 +103,9 @@ export function makeMockApp(): AppBindings {
   ];
   const capSkills: SkillView[] = [
     { name: "research", description: "Research a question with web search and analysis", scope: "builtin", runAs: "subagent" },
-    { name: "risk-assessment", description: "Create a risk assessment report", scope: "project", runAs: "inline" },
-    { name: "site-survey", description: "Generate a site survey report from field data", scope: "project", runAs: "inline" },
+    { name: "format-convert", description: "Convert docx/xlsx/pdf to editable Markdown", scope: "builtin", runAs: "subagent" },
+    { name: "chart-builder", description: "Generate statistics charts from data", scope: "builtin", runAs: "subagent" },
+    { name: "doc-assemble", description: "Assemble multiple documents into a complete report", scope: "builtin", runAs: "subagent" },
   ];
   const mockSwitchWorkspace = async (path: string) => {
     cwd = path || "~";
@@ -113,9 +114,9 @@ export function makeMockApp(): AppBindings {
   };
   // Mutable so delete/rename are observable in browser dev.
   const sessions: SessionMeta[] = freshMock ? [] : [
-    { path: "/mock/sessions/a.jsonl", preview: "generate soil remediation report", turns: 12, modTime: t0 - 3_600_000, current: true },
-    { path: "/mock/sessions/b.jsonl", preview: "create site survey document", turns: 5, modTime: t0 - 6 * 3_600_000, current: false },
-    { path: "/mock/sessions/c.jsonl", preview: "draft risk assessment matrix", turns: 8, modTime: t0 - day - 3_600_000, current: false },
+    { path: "/mock/sessions/a.jsonl", preview: "compile quarterly report", turns: 12, modTime: t0 - 3_600_000, current: true },
+    { path: "/mock/sessions/b.jsonl", preview: "convert docx to markdown", turns: 5, modTime: t0 - 6 * 3_600_000, current: false },
+    { path: "/mock/sessions/c.jsonl", preview: "build chart from data", turns: 8, modTime: t0 - day - 3_600_000, current: false },
     { path: "/mock/sessions/d.jsonl", preview: "explain the plugin host design", turns: 3, modTime: t0 - 4 * day, current: false },
   ];
   // Mutable settings so the Settings panel's edits are observable in browser dev.

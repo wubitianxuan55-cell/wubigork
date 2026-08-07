@@ -27,15 +27,8 @@ var compactDesc = map[string]string{
 	"calc_math":        "数学表达式计算(AST解析+math函数)",
 	"calc_stats":       "基础统计分析(均值/中位数/标准差)",
 	"calc_unit":        "单位转换(长度/重量/温度/压力)",
-	"material_query":   "工程材料属性查询(钢/铝/混凝土等)",
 	"gantt_gen":        "生成Mermaid甘特图(Markdown代码块)",
 	"project_init":     "初始化项目目录结构(工程标准模板)",
-	"spec_query":       "土壤修复规范智能查询(内置GB/HJ规范索引)",
-	"spec_judge":       "检测数据超标判定(对标GB 36600/15618)",
-	"survey_report":    "初调/详调报告模板(项目概况→结论建议)",
-	"bid_proposal":     "投标方案框架(技术路线+施工组织)",
-	"imple_plan":       "修复实施方案(工艺参数+设备选型)",
-	"cost_estimate":    "成本测算表(钻孔/检测/药剂/土方/人工七项)",
 	"xlsx_read":        "读取Excel文件(解析xlsx表格数据)",
 	"xlsx_write":       "创建Excel文件(表头+数据→xlsx,支持多工作表和内置图表)",
 	"docx_read":        "读取Word文件(提取docx段落文本)",
@@ -46,7 +39,6 @@ var compactDesc = map[string]string{
 	"format_convert":   "文档格式转换(docx/xlsx/pdf→Markdown，含OCR扫描件回退)",
 	"chart_gen":        "matplotlib图表生成(bar/line/pie/scatter)",
 	"run_template":     "加载运行工具链模板(参数替换)",
-	"cost_query":       "工程成本数据查询(造价/人工/材料/机械/估算/统计)",
 	"knowledge_search": "搜索工程知识库(关键词+分类+标签过滤)",
 	"knowledge_add":    "向知识库添加条目(标题+分类+正文)",
 }
@@ -95,24 +87,10 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"values":{"type":"array","items":{"type":"number"}}},"required":["values"]}`),
 	"calc_unit": json.RawMessage(
 		`{"type":"object","properties":{"value":{"type":"number"},"from_unit":{"type":"string"},"to_unit":{"type":"string"}},"required":["value","from_unit","to_unit"]}`),
-	"material_query": json.RawMessage(
-		`{"type":"object","properties":{"material":{"type":"string"},"property":{"type":"string"}},"required":["material"]}`),
 	"gantt_gen": json.RawMessage(
 		`{"type":"object","properties":{"title":{"type":"string"},"tasks":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"start":{"type":"string"},"end":{"type":"string"},"duration":{"type":"string"},"depends":{"type":"string"},"section":{"type":"string"}},"required":["name"]}}},"required":["tasks"]}`),
 	"project_init": json.RawMessage(
 		`{"type":"object","properties":{"name":{"type":"string"},"type":{"type":"string"}},"required":["name","type"]}`),
-	"spec_query": json.RawMessage(
-		`{"type":"object","properties":{"question":{"type":"string"}},"required":["question"]}`),
-	"spec_judge": json.RawMessage(
-		`{"type":"object","properties":{"pollutants":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"value":{"type":"number"}},"required":["name","value"]}},"land_type":{"type":"string"},"soil_ph":{"type":"number"}},"required":["pollutants","land_type"]}`),
-	"survey_report": json.RawMessage(
-		`{"type":"object","properties":{"report_type":{"type":"string"},"site_name":{"type":"string"},"site_address":{"type":"string"},"site_area":{"type":"number"},"land_use":{"type":"string"},"past_use":{"type":"string"},"pollutants_suspected":{"type":"array","items":{"type":"string"}},"sampling_points":{"type":"integer"},"client":{"type":"string"},"survey_company":{"type":"string"},"include_toc":{"type":"boolean"}},"required":["site_name"]}`),
-	"bid_proposal": json.RawMessage(
-		`{"type":"object","properties":{"project_name":{"type":"string"},"bidder":{"type":"string"},"site_area":{"type":"number"},"soil_volume":{"type":"number"},"contaminants":{"type":"array","items":{"type":"string"}},"technology":{"type":"string"},"target_value":{"type":"string"},"construction_period":{"type":"string"},"team_size":{"type":"integer"},"key_equipment":{"type":"string"}},"required":["project_name","bidder"]}`),
-	"imple_plan": json.RawMessage(
-		`{"type":"object","properties":{"project_name":{"type":"string"},"site_address":{"type":"string"},"contaminants":{"type":"array","items":{"type":"string"}},"soil_volume":{"type":"number"},"repair_area":{"type":"number"},"technology":{"type":"string"},"target_value":{"type":"string"},"construction_period":{"type":"string"},"unit_name":{"type":"string"},"groundwater":{"type":"boolean"},"depth_range":{"type":"string"}},"required":["project_name","technology"]}`),
-	"cost_estimate": json.RawMessage(
-		`{"type":"object","properties":{"project_name":{"type":"string"},"soil_volume":{"type":"number"},"tech_type":{"type":"string"},"borehole_count":{"type":"integer"},"sampling_count":{"type":"integer"},"lab_cost_per_sample":{"type":"number"},"unit_medicament_cost":{"type":"number"},"unit_transport_cost":{"type":"number"},"unit_disposal_cost":{"type":"number"},"equipment_cost":{"type":"number"},"labor_months":{"type":"number"},"labor_monthly_rate":{"type":"number"},"overhead_rate":{"type":"number"},"profit_rate":{"type":"number"},"tax_rate":{"type":"number"}},"required":["project_name","soil_volume","tech_type"]}`),
 	"xlsx_read": json.RawMessage(
 		`{"type":"object","properties":{"path":{"type":"string"},"all_sheets":{"type":"boolean"},"sheet_index":{"type":"integer"}},"required":["path"]}`),
 	"xlsx_write": json.RawMessage(
@@ -139,8 +117,6 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"name":{"type":"string"},"description":{"type":"string"},"steps":{"type":"array","items":{"type":"object","properties":{"tool":{"type":"string"},"args":{"type":"object"}},"required":["tool"]}}},"required":["name","steps"]}}`),
 	"run_template": json.RawMessage(
 		`{"type":"object","properties":{"name":{"type":"string"},"params":{"type":"object"}},"required":["name"]}`),
-	"cost_query": json.RawMessage(
-		`{"type":"object","properties":{"keyword":{"type":"string"},"category":{"type":"string"},"region":{"type":"string"},"kind":{"type":"string","enum":["cost","labor","material","machine"]},"action":{"type":"string","enum":["estimate","stats","regions"]},"codes":{"type":"array","items":{"type":"string"}},"quantities":{"type":"array","items":{"type":"number"}}}}`),
 	"knowledge_search": json.RawMessage(
 		`{"type":"object","properties":{"query":{"type":"string"},"category":{"type":"string"},"tag":{"type":"string"}}}}`),
 	"knowledge_add": json.RawMessage(

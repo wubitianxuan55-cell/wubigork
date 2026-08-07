@@ -15,19 +15,23 @@ function getSourceTool(name: string): string {
   if (n.includes("chart") || n.includes("图")) return "chart_builder";
   if (n.includes("ppt") || n.includes("演示") || n.includes("汇报")) return "pptx_create";
   if (n.includes("report") || n.includes("报告") || n.includes("汇总") || n.includes("总报告")) return "doc_assemble";
+  if (n.includes("format") || n.includes("转换") || n.includes("markdown")) return "format_convert";
+  if (n.includes("xlsx") || n.includes("表格") || n.includes("sheet")) return "spreadsheet";
   return "other";
 }
 
 function getSourceLabel(source: string): string {
   const map: Record<string, string> = {
-    survey_report: "场地调查",
-    bid_proposal: "投标文件",
+    survey_report: "调查报告",
+    bid_proposal: "投标方案",
     imple_plan: "实施方案",
     cost_estimate: "成本测算",
     risk_assessment: "风险评估",
     data_analysis: "数据分析",
     chart_builder: "图表生成",
     pptx_create: "PPT制作",
+    format_convert: "格式转换",
+    spreadsheet: "表格数据",
     other: "其他",
   };
   return map[source] ?? source;
@@ -126,7 +130,7 @@ export function ReportPreviewPanel(_props: { cwd?: string }) {
             </div>
             <div className="text-fg-faint mb-1">尚未生成报告</div>
             <div className="text-[11px] text-fg-faint/70 max-w-[200px]">
-              尝试使用 / 命令或直接描述需求来生成土壤修复工程报告
+              尝试使用 / 命令或直接描述需求来生成办公文档
             </div>
           </div>
         )}

@@ -21,7 +21,7 @@ interface OfficeModule {
 const OFFICE_MODULES: OfficeModule[] = [
   {
     id: 'agent',
-    label: '智能办公',
+    label: '通用办公',
     icon: <RobotOutlined />,
     render: () => <GaeaPage />,
   },

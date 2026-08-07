@@ -76,7 +76,7 @@ func TestCleanSkillName(t *testing.T) {
 		"doc-writer":              "doc-writer",
 		"doc-writer [🧬 subagent]": "doc-writer",
 		"[🧬 subagent] doc-writer": "doc-writer",
-		" remed-plan ":            "remed-plan",
+		" doc-assemble ":          "doc-assemble",
 		"[only a tag]":            "",
 		"":                        "",
 	}
@@ -99,17 +99,17 @@ func TestBuiltinSubagentToolsRunner(t *testing.T) {
 		Execute(context.Context, json.RawMessage) (string, error)
 	}
 	for _, tl := range tools {
-		if tl.Name() == "site-survey" {
+		if tl.Name() == "format-convert" {
 			docWriter = tl
 		}
 	}
 	if docWriter == nil {
-		t.Fatal("site-survey wrapper tool not built")
+		t.Fatal("format-convert wrapper tool not built")
 	}
-	if _, err := docWriter.Execute(context.Background(), json.RawMessage(`{"task":"write a report"}`)); err != nil {
+	if _, err := docWriter.Execute(context.Background(), json.RawMessage(`{"task":"convert a document"}`)); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if ran != "site-survey:write a report" {
+	if ran != "format-convert:convert a document" {
 		t.Errorf("runner not invoked correctly: %q", ran)
 	}
 }

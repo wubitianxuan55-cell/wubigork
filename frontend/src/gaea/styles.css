@@ -1426,7 +1426,7 @@ body::after {
   background: transparent;
 }
 
-/* ══ 智能办公重设计：清爽化覆写 ══
+/* ══ 通用办公重设计：清爽化覆写 ══
    对话区随窗口自适应铺满面板（--maxw 仅约束输入框），统一消息圆角、增强留白。 */
 .msg--user .msg__body {
   border-radius: 16px 16px 4px 16px;
