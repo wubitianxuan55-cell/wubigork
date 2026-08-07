@@ -23,8 +23,8 @@ if ($LASTEXITCODE -ne 0) { throw 'go test failed' }
 
 Write-Host '=== frontend build ==='
 Push-Location frontend
-if (-not (Test-Path node_modules)) { npm install }
-npm run build
+if (-not (Test-Path node_modules)) { npm.cmd install }
+npm.cmd run build
 if ($LASTEXITCODE -ne 0) { Pop-Location; throw 'frontend build failed' }
 Pop-Location
 
