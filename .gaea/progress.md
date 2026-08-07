@@ -41,6 +41,14 @@
 - 3.0 模块协议文档：docs/gaea2/module-protocol.md（ModuleRegistry/RunModule/MainBrainChat/三脑访问）
 - 基线加固：TestChatSimpleStream flaky 修复（SSE Flush + token 过期边界）
 
+## 2.0 P5 发布 2.0.1（✅ 已完成）
+
+- 版本号：wails.json / versioninfo.rc / CHANGELOG → 2.0.1
+- 构建：wails build 成功（build/bin/gaea.exe 38MB），SHA256SUMS-v2.0.1.txt 已生成
+- 发布文档：releases/v2.0.1.md；Wails 绑定更新（RunModule/BrainSearch/MainBrainChat 等）
+- 备份：scripts/backup.ps1（whisper_data/novels/配置 → backups/ 时间戳目录，已运行验证）
+- 全量验收：scripts/ci.ps1 CI OK，工作区干净
+
 | 状态 | 任务 |
 |------|------|
 | ⬜ | Write tests |
