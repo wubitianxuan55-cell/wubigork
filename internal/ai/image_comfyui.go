@@ -109,9 +109,12 @@ func parseLoraNames(raw json.RawMessage) ([]string, error) {
 		}
 		var m map[string]json.RawMessage
 		if err := json.Unmarshal(item, &m); err == nil {
+			keys := make([]string, 0, len(m))
 			for k := range m {
-				names = append(names, k)
+				keys = append(keys, k)
 			}
+			sort.Strings(keys) // map 迭代顺序随机：排序保证 LoRA 列表顺序稳定（E01/C03 flaky）
+			names = append(names, keys...)
 		}
 	}
 	if len(names) == 0 {
