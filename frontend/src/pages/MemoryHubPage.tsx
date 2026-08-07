@@ -52,6 +52,16 @@ const RIGHT_CARDS: LibraryKey[] = ["office", "whisper", "graph"];
 function MemoryHubPage() {
   const [active, setActive] = useState<"home" | LibraryKey>("home");
   const [overview, setOverview] = useState<MemoryHubOverview | null>(null);
+  const [brainQuery, setBrainQuery] = useState("");
+  const [brainHits, setBrainHits] = useState<Array<{ brain: string; entity: string; text: string }>>([]);
+
+  const runBrainSearch = async () => {
+    const bind = (window as any).go?.app?.App;
+    if (!bind?.BrainSearch) return;
+    try {
+      setBrainHits(JSON.parse(await bind.BrainSearch(brainQuery, "")));
+    } catch { /* 忽略单次检索失败 */ }
+  };
 
   useEffect(() => {
     app.MemoryHubOverview().then(setOverview).catch(() => {});
@@ -85,7 +95,36 @@ function MemoryHubPage() {
                   <span className="ml-2 font-mono text-fg-faint/70">更新 {overview.latestUpdated}</span>
                 )}
               </div>
+              <div className="ml-auto flex items-center gap-2">
+                <input
+                  value={brainQuery}
+                  onChange={(e) => setBrainQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") runBrainSearch(); }}
+                  placeholder="三脑检索"
+                  className="h-7 w-44 rounded-lg px-2.5 text-[12px] bg-bg-soft border border-border-soft focus:outline-none"
+                />
+                <button
+                  onClick={runBrainSearch}
+                  className="inline-flex items-center h-7 px-3 rounded-lg text-[12px] bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors"
+                >
+                  检索
+                </button>
+              </div>
             </div>
+
+            {brainHits.length > 0 && (
+              <div className="shrink-0 mb-3 max-h-40 overflow-auto rounded-xl border border-border-soft bg-bg-soft/70 p-3">
+                {brainHits.map((h, i) => (
+                  <div key={i} className="flex items-start gap-2 py-1 text-[12px] border-b border-border-soft/50 last:border-0">
+                    <span className={`shrink-0 px-1.5 rounded text-[10px] ${h.brain === "brain.right" ? "bg-pink-500/20 text-pink-300" : h.brain === "brain.left" ? "bg-emerald-500/20 text-emerald-300" : "bg-violet-500/20 text-violet-300"}`}>
+                      {h.brain === "brain.right" ? "右脑" : h.brain === "brain.left" ? "左脑" : "主脑"}
+                    </span>
+                    <span className="text-fg font-medium shrink-0">{h.entity}</span>
+                    <span className="text-fg-faint truncate">{h.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* 主区：左卡列 | 中央图谱 | 右卡列 */}
             <div className="flex-1 min-h-0 flex gap-4">
