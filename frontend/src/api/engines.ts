@@ -19,6 +19,7 @@ export interface EngineConfig {
   enabled: boolean
   default_model: string
   models: ModelInfo[]
+  status?: EngineStatus
 }
 export interface EngineStatus {
   id: string
@@ -77,7 +78,7 @@ export async function setDeepseekKey(apiKey: string): Promise<void> {
 }
 
 /** 获取 DeepSeek Key 状态（脱敏显示） */
-export async function getDeepseekKeyStatus(): Promise<{ configured: boolean; maskedKey: string }> {
+export async function getDeepseekKeyStatus(): Promise<{ configured: boolean; masked: string }> {
   const result = await App().GetDeepseekKeyStatus()
-  return result as { configured: boolean; maskedKey: string }
+  return result as { configured: boolean; masked: string }
 }

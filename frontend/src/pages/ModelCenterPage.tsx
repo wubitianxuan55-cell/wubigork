@@ -82,12 +82,20 @@ const ModelCenterPage: React.FC = () => {
   const loadAll = useCallback(async () => {
     try {
       const list = await getEngines(); setEngines(list)
+      // 引擎最近连接状态缓存（后端随 engines.json 持久化，重启后仍可见）
+      const st: Record<string, EngineStatus> = {}
+      list.forEach(e => { if (e.status) st[e.id] = e.status })
+      setEngineStatuses(st)
       const urls: Record<string, string> = {}
       list.forEach(e => { urls[e.id] = e.base_url || '' })
       try { const ae = await getActiveEngine(); if (ae) setActiveEngineState(ae) } catch (_) {}
       try {
+        const am = await App.GetActiveModel()
+        if (am) setActiveModel(String(am))
+      } catch (_) {}
+      try {
         const ks = await getDeepseekKeyStatus()
-        if (ks) { setDeepseekKeyMasked(ks.maskedKey || ''); if (ks.configured) setDeepseekKeyState(ks.maskedKey) }
+        if (ks) { setDeepseekKeyMasked(ks.masked || '') }
       } catch (_) {}
     } catch (_) {}
     finally { setLoading(false) }
@@ -113,7 +121,7 @@ const ModelCenterPage: React.FC = () => {
     setComfyBusy(true)
     try {
       if (comfyStatus.running) { await stopComfyUI(); setComfyStatus({ running: false, port: 0 }) }
-      else { await startComfyUI(); setComfyStatus({ running: true, port: comfyUIURL.split(':').pop() ? 8188 : 8188 }) }
+      else { await startComfyUI(); setComfyStatus({ running: true, port: 8188 }) }
       message.success(comfyStatus.running ? 'ComfyUI 已停止' : 'ComfyUI 已启动')
     } catch (err: any) { message.error(err?.message || '操作失败') }
     finally { setComfyBusy(false) }
@@ -222,7 +230,11 @@ const ModelCenterPage: React.FC = () => {
 
   const handleTestConnection = async (id: string) => {
     setTestingEngine(id)
-    try { await testEngineConnection(id); await loadAll() } catch (err: any) { message.error(err.message) }
+    try {
+      const st = await testEngineConnection(id)
+      if (st) setEngineStatuses(prev => ({ ...prev, [id]: st }))
+      await loadAll()
+    } catch (err: any) { message.error(err.message) }
     finally { setTestingEngine(null) }
   }
 
@@ -257,7 +269,8 @@ const ModelCenterPage: React.FC = () => {
       await setDeepseekKey(deepseekKey.trim())
       message.success('DeepSeek Key 已保存')
       const ks = await getDeepseekKeyStatus()
-      if (ks) setDeepseekKeyMasked(ks.maskedKey || '')
+      if (ks) setDeepseekKeyMasked(ks.masked || '')
+      setDeepseekKeyState('')
     } catch (err: any) { message.error(err.message) }
   }
 
@@ -347,6 +360,11 @@ const ModelCenterPage: React.FC = () => {
                         <Typography.Text strong style={{ color: C('color-text'), fontSize: 15 }}>{engine.name}</Typography.Text>
                         <Tag color={color} style={{ fontSize: 10 }}>{engineLabels[engine.id]}</Tag>
                         <Tag style={{ fontSize: 10 }}>{engineModels.length} 个</Tag>
+                        {engineStatuses[engine.id] && (
+                          <Tag color={engineStatuses[engine.id].connected ? 'green' : 'red'} style={{ fontSize: 10 }}>
+                            {engineStatuses[engine.id].connected ? '● 已连接' : '✗ 连接失败'}
+                          </Tag>
+                        )}
                       </Space>
                       <Space size={4}>
                         <Button size="small" onClick={() => handleTestConnection(engine.id)} loading={testingEngine === engine.id} style={{ fontSize: 11 }}>测试连接</Button>
@@ -696,7 +714,12 @@ const ModelCenterPage: React.FC = () => {
                     )}
                     {engineStatuses[engine.id] && (
                       <div style={{ marginTop: 6, fontSize: 11 }}>
-                        {engineStatuses[engine.id].connected ? <span style={{ color: '#34d399' }}>✓ 已连接</span> : <span style={{ color: '#fb7185' }}>✗ {engineStatuses[engine.id].error}</span>}
+                        {engineStatuses[engine.id].connected
+                          ? <span style={{ color: '#34d399' }}>✓ 已连接（{engineStatuses[engine.id].model_count} 个模型）</span>
+                          : <span style={{ color: '#fb7185' }}>✗ {engineStatuses[engine.id].error}</span>}
+                        {engineStatuses[engine.id].last_checked && (
+                          <span style={{ color: 'var(--md-sys-color-text-secondary)', marginLeft: 8 }}>上次检查 {engineStatuses[engine.id].last_checked}</span>
+                        )}
                       </div>
                     )}
                   </Card>
