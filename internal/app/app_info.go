@@ -84,7 +84,9 @@ func findChangelogPath() string {
 			dir = parent
 		}
 	}
-	candidates = append(candidates, "CHANGELOG.md")
+	// cwd 优先（与函数注释一致）：开发/测试时 cwd 下若有 CHANGELOG.md 应最先命中，
+	// 否则 ci 把 TMP 指到仓库内时，测试二进制会沿上级目录误命中仓库根的 CHANGELOG.md（E21 测试隔离）。
+	candidates = append([]string{"CHANGELOG.md"}, candidates...)
 	for _, p := range candidates {
 		if _, err := os.Stat(p); err == nil {
 			return p
