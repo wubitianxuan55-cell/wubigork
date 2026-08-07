@@ -1,4 +1,7 @@
-import { FolderOpen, MessageSquare, Clock, ScrollText, BarChart3, FileSpreadsheet, FileImage, Puzzle, BookOpen, ClipboardList } from "../icons";
+import {
+  ArrowUpRight, BarChart3, BookOpen, Brain, Clock, FileText, FolderOpen,
+  MessageSquare, RefreshCw, ScrollText, Sparkles, Table, Wand2,
+} from "../icons";
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
 import { useT } from "../lib/i18n";
@@ -16,72 +19,67 @@ function formatTimeAgo(ms: number): string {
   return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-// ── 工程技能模块 ────────────────────────────────────────────────────
-interface SkillCard {
+// ── 通用办公能力卡片 ──────────────────────────────────────────────
+interface OfficeCapability {
   icon: React.ReactNode;
   name: string;
   desc: string;
-  badge: string;   // 类型徽章
   prompt: string;
 }
 
-const SKILL_MODULES: SkillCard[] = [
+const OFFICE_CAPABILITIES: OfficeCapability[] = [
   {
-    icon: <ClipboardList size={18} />,
-    name: "场地环境调查",
-    desc: "初调/详调报告框架，含场地基本信息、历史使用、周边敏感目标",
-    badge: "🧬 子代理",
-    prompt: "启动场地环境调查初调报告框架，梳理场地基本信息、历史使用情况、周边敏感目标等关键内容。",
+    icon: <FileText size={17} />,
+    name: "文档撰写",
+    desc: "报告、方案、公文，Word 与 Markdown 一键成稿",
+    prompt: "帮我写一份项目总结报告，包含背景、进展、问题和下一步计划，输出为 Markdown。",
   },
   {
-    icon: <FileSpreadsheet size={18} />,
-    name: "投标方案编制",
-    desc: "10章技术标书：工程概况、施工组织、质量控制、安全文明",
-    badge: "📄 文档",
-    prompt: "启动投标方案编制，生成土壤修复工程技术标投标方案，包括工程概况、施工组织设计、质量保证措施等。",
+    icon: <Table size={17} />,
+    name: "表格处理",
+    desc: "xlsx / csv 数据整理、公式计算与分类汇总",
+    prompt: "帮我整理表格数据（xlsx/csv），做分类汇总并说明口径。",
   },
   {
-    icon: <Puzzle size={18} />,
-    name: "修复方案设计",
-    desc: "工艺参数 + 设备选型 + 施工部署 + 监测验收全流程",
-    badge: "🧬 子代理",
-    prompt: "撰写污染土壤修复实施方案，包括技术比选、工艺设计、施工部署等内容。",
+    icon: <RefreshCw size={17} />,
+    name: "格式转换",
+    desc: "docx / xlsx / pdf 与 Markdown 互转，保留结构",
+    prompt: "把这份 docx/xlsx/pdf 文档转换成 Markdown，保留标题层级和表格。",
   },
   {
-    icon: <BarChart3 size={18} />,
-    name: "数据报告生成",
-    desc: "导入检测数据，统计分析、超标识别、空间分布一键生成",
-    badge: "📊 图表",
-    prompt: "导入检测数据CSV文件，进行统计分析，包括超标识别、空间分布、统计描述等。",
-  },
-  {
-    icon: <ScrollText size={18} />,
-    name: "污染风险评估",
-    desc: "对标 GB 36600 / GB 15618 进行超标判定与风险计算",
-    badge: "🧬 子代理",
-    prompt: "根据提供的检测数据，对标 GB 36600 和 GB 15618 进行超标判定，计算污染风险并给出评估结论。",
-  },
-  {
-    icon: <BookOpen size={18} />,
-    name: "成本测算",
-    desc: "七项汇总成本：钻孔/检测/药剂/土方/设备/人工/评估",
-    badge: "📊 图表",
-    prompt: "生成土壤修复工程七项汇总成本测算表，涵盖场地调查、风险评估、方案设计、施工实施、监测验收等各阶段费用。",
-  },
-  {
-    icon: <FileImage size={18} />,
+    icon: <BarChart3 size={17} />,
     name: "图表生成",
-    desc: "柱状/折线/饼图/散点图，自动检测中文字体，PNG/SVG 输出",
-    badge: "📊 图表",
-    prompt: "根据数据分析结果生成可视化图表，支持柱状图、折线图、饼图、散点图等多种类型。",
+    desc: "柱状、折线、饼图、散点图，数据可视化",
+    prompt: "根据这份数据生成图表（柱状图/折线图），输出 PNG 图片。",
   },
   {
-    icon: <MessageSquare size={18} />,
-    name: "文档汇总",
-    desc: "多份 docx 合并、格式转换、PPT 演示稿一键生成",
-    badge: "📄 文档",
-    prompt: "汇总多份文档资料，合并生成综合报告或演示文稿。",
+    icon: <ScrollText size={17} />,
+    name: "报告拼装",
+    desc: "多份素材合并为完整报告，含封面、目录、附录",
+    prompt: "把这几份文档素材拼装成一份完整的报告，包含封面、目录、正文和附录。",
   },
+  {
+    icon: <Brain size={17} />,
+    name: "知识沉淀",
+    desc: "规范、结论存入知识库，跨会话复用",
+    prompt: "把这段内容加入知识库（分类、标签），方便以后检索复用。",
+  },
+];
+
+// ── 内置技能 chips ────────────────────────────────────────────────
+interface SkillChip {
+  label: string;
+  sub: string;
+  prompt: string;
+}
+
+const OFFICE_SKILLS: SkillChip[] = [
+  { label: "format-convert", sub: "格式转换", prompt: "用 format-convert 把文档转换为可编辑 Markdown。" },
+  { label: "chart-builder", sub: "图表生成", prompt: "用 chart-builder 从数据生成统计图表。" },
+  { label: "doc-assemble", sub: "文档拼装", prompt: "用 doc-assemble 把多份素材拼装成完整报告。" },
+  { label: "docx", sub: "Word 文档", prompt: "用 docx 技能创建或编辑 Word 文档。" },
+  { label: "xlsx", sub: "表格", prompt: "用 xlsx 技能创建或处理表格文件。" },
+  { label: "pdf", sub: "PDF 文档", prompt: "用 pdf 技能读取、合并或创建 PDF 文档。" },
 ];
 
 export function Welcome({
@@ -101,76 +99,126 @@ export function Welcome({
 }) {
   const t = useT();
   const compact = useCompact();
-  const recentSessions = sessions?.filter(s => !s.current).slice(0, 3) ?? [];
+  const recentSessions = sessions?.filter((s) => !s.current).slice(0, 3) ?? [];
 
   return (
-    <div className="h-full flex flex-col items-center max-w-3xl mx-auto px-6 overflow-y-auto pt-12">
-      {cwdName && (
-        <div className={`inline-flex items-center gap-2 px-3 py-1.5 mb-5 rounded-full bg-accent-soft border border-accent/20 text-fg-dim ${compact ? "text-[11px]" : "text-[12px]"}`}>
-          <FolderOpen size={compact ? 12 : 13} className="text-accent" />
-          <span className="font-medium text-accent">{cwdName}</span>
-          {meta?.label && <span className="text-fg-faint">· {meta.label}</span>}
-        </div>
-      )}
-      <div className="welcome-stagger-1">
-        <img src={logoSvg} className={`rounded-[10px] mb-5 welcome-logo dark:hidden ${compact ? "w-8 h-8" : "w-10 h-10"}`} alt="gaea" />
-        <img src={logoLightSvg} className={`rounded-[10px] mb-5 welcome-logo hidden dark:block ${compact ? "w-8 h-8" : "w-10 h-10"}`} alt="gaea" />
-      </div>
-      <div className={`welcome-stagger-2 text-fg-dim mb-8 text-center ${compact ? "text-[13px]" : "text-[14px]"}`} style={{fontFamily: "var(--ds-font-display)", fontWeight: 500, letterSpacing: "-0.01em"}}>
-        {t("welcome.tagline")}
+    <div className="h-full flex flex-col items-center max-w-4xl mx-auto px-6 overflow-y-auto welcome-shell">
+      {/* 顶部工作区 pill */}
+      <div className="welcome-rise welcome-rise-0 mt-8 mb-6">
+        {cwdName && (
+          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-soft border border-accent/20 text-fg-dim ${compact ? "text-[11px]" : "text-[12px]"}`}>
+            <FolderOpen size={compact ? 12 : 13} className="text-accent" />
+            <span className="font-medium text-accent">{cwdName}</span>
+            {meta?.label && <span className="text-fg-faint">· {meta.label}</span>}
+          </div>
+        )}
       </div>
 
-      {/* ── 技能模块网格 ─────────────────────────────────────────────── */}
-      <div className="welcome-stagger-3 w-full">
-        <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-3 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
-          <Puzzle size={12} />
-          工程技能模块
+      {/* 主视觉：logo + 标题 */}
+      <div className="welcome-rise welcome-rise-1 flex flex-col items-center text-center">
+        <div className="relative mb-6">
+          <img src={logoSvg} className={`rounded-[12px] welcome-logo dark:hidden ${compact ? "w-12 h-12" : "w-14 h-14"}`} alt="gaea" />
+          <img src={logoLightSvg} className={`rounded-[12px] welcome-logo hidden dark:block ${compact ? "w-12 h-12" : "w-14 h-14"}`} alt="gaea" />
+          <span className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent">
+            <Sparkles size={10} />
+          </span>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {SKILL_MODULES.map((skill) => (
+        <div
+          className="text-fg-faint uppercase tracking-[0.18em] text-[10.5px] mb-2 flex items-center gap-1.5"
+        >
+          <Wand2 size={11} />
+          GAEA OFFICE
+        </div>
+        <h1
+          className={`text-fg font-semibold leading-tight ${compact ? "text-[24px]" : "text-[30px]"}`}
+          style={{ fontFamily: "var(--ds-font-display)", letterSpacing: "-0.02em" }}
+        >
+          今天想做什么？
+        </h1>
+        <p className={`text-fg-dim mt-2.5 ${compact ? "text-[12.5px]" : "text-[13.5px]"}`}>
+          {t("welcome.tagline")}
+        </p>
+      </div>
+
+      {/* 通用办公能力网格 */}
+      <div className="welcome-rise welcome-rise-2 w-full mt-9">
+        <div className={`flex items-center justify-between mb-3 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+          <span className="font-semibold text-fg-faint uppercase tracking-wider flex items-center gap-1.5">
+            <BookOpen size={12} />
+            核心能力
+          </span>
+          <span className="text-fg-faint/60">点击卡片快速发起</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {OFFICE_CAPABILITIES.map((cap) => (
             <button
-              key={skill.name}
-              onClick={() => onPrompt(skill.prompt)}
-              className={`group flex flex-col items-start text-left font-[inherit] bg-bg-elev border border-border-soft rounded-xl p-3.5 cursor-pointer transition-all hover:border-accent/25 hover:bg-bg-elev hover:-translate-y-px hover:shadow-[var(--ds-shadow-card)] ${compact ? "p-3" : "p-3.5"}`}
-              title={skill.prompt}
+              key={cap.name}
+              onClick={() => onPrompt(cap.prompt)}
+              className="group relative flex flex-col items-start text-left font-[inherit] bg-bg-elev border border-border-soft rounded-xl p-3.5 cursor-pointer transition-all duration-200 hover:border-accent/30 hover:bg-bg-elev hover:-translate-y-0.5 hover:shadow-[var(--ds-shadow-card)] overflow-hidden"
+              title={cap.prompt}
             >
-              <div className="flex items-center gap-2 w-full mb-2">
-                <span className="text-accent shrink-0">{skill.icon}</span>
-                <span className={`font-semibold text-fg truncate ${compact ? "text-[12px]" : "text-[13px]"}`}>{skill.name}</span>
-                <span className={`ml-auto text-[10px] text-fg-faint whitespace-nowrap px-1.5 py-0.5 rounded-full bg-bg-soft border border-border-soft ${compact ? "hidden" : ""}`}>
-                  {skill.badge}
+              <span className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/25 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="flex items-center gap-2.5 w-full mb-2.5">
+                <span className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/15 text-accent flex items-center justify-center shrink-0 group-hover:bg-accent/15 transition-colors">
+                  {cap.icon}
                 </span>
+                <span className={`font-semibold text-fg ${compact ? "text-[12.5px]" : "text-[13.5px]"}`}>{cap.name}</span>
+                <ArrowUpRight size={12} className="ml-auto rotate-45 text-fg-faint/0 group-hover:text-accent transition-all group-hover:translate-x-0 group-hover:translate-y-0 -translate-x-0.5 translate-y-0.5" />
               </div>
               <p className={`text-fg-dim leading-relaxed line-clamp-2 ${compact ? "text-[11px]" : "text-[12px]"}`}>
-                {skill.desc}
+                {cap.desc}
               </p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── 自由提问提示 ─────────────────────────────────────────────── */}
-      <div className={`welcome-stagger-3 w-full mt-5 px-3 py-2.5 rounded-lg bg-bg-soft border border-border-soft text-fg-faint text-center ${compact ? "text-[11px]" : "text-[12px]"}`}>
-        或直接输入工程问题，开始对话
+      {/* 内置技能 */}
+      <div className="welcome-rise welcome-rise-3 w-full mt-6">
+        <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+          <Wand2 size={12} />
+          内置技能
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {OFFICE_SKILLS.map((skill) => (
+            <button
+              key={skill.label}
+              onClick={() => onPrompt(skill.prompt)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border-soft bg-bg-soft text-fg-dim text-[11.5px] font-mono cursor-pointer hover:border-accent/30 hover:bg-accent/5 hover:text-fg transition-all"
+              title={skill.prompt}
+            >
+              <span className="text-accent">{skill.label}</span>
+              <span className="text-fg-faint/70 text-[10.5px]">· {skill.sub}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── 最近会话 ─────────────────────────────────────────────────── */}
+      {/* 自由提问提示 */}
+      <div className={`welcome-rise welcome-rise-3 w-full mt-6 px-3 py-2.5 rounded-lg bg-bg-soft border border-border-soft text-fg-faint text-center ${compact ? "text-[11px]" : "text-[12px]"}`}>
+        或直接输入你的办公需求，开始对话
+      </div>
+
+      {/* 最近会话 */}
       {recentSessions.length > 0 && onResumeSession && (
-        <div className="w-full mt-5 pt-4 border-t border-border-soft mb-8">
-          <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+        <div className="w-full mt-6 pt-5 border-t border-border-soft mb-10">
+          <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-3 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
             <Clock size={12} />
             最近会话
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {recentSessions.map((s) => (
               <button
                 key={s.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg bg-bg-soft border border-border-soft text-left font-[inherit] text-fg-dim hover:text-fg hover:bg-bg-elev hover:border-fg-faint transition-all ${compact ? "text-[11px]" : "text-[12px]"}`}
+                className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-lg bg-bg-soft border border-border-soft text-left font-[inherit] text-fg-dim hover:text-fg hover:bg-bg-elev hover:border-fg-faint/40 transition-all ${compact ? "text-[11.5px]" : "text-[12.5px]"}`}
                 onClick={() => void onResumeSession(s.path)}
               >
-                <MessageSquare size={compact ? 12 : 13} className="text-fg-faint shrink-0" />
+                <span className="w-7 h-7 rounded-md bg-accent/10 border border-accent/15 text-accent flex items-center justify-center shrink-0">
+                  <MessageSquare size={compact ? 12 : 13} />
+                </span>
                 <span className="flex-1 truncate font-medium">{sessionTitle(s, "未命名会话")}</span>
                 <span className={`text-fg-faint shrink-0 ${compact ? "text-[10px]" : "text-[11px]"}`}>{formatTimeAgo(s.modTime)}</span>
+                <ArrowUpRight size={11} className="rotate-45 text-fg-faint/0 group-hover:text-accent transition-colors shrink-0" />
               </button>
             ))}
           </div>

@@ -87,6 +87,7 @@ function wrap(Comp: ComponentType<any>): Icon {
 export const AlertCircle: Icon = wrap(AlertOutlined);
 export const ArrowDown: Icon = wrap(ArrowDownOutlined);
 export const ArrowUp: Icon = wrap(ArrowUpOutlined);
+export const ArrowUpRight: Icon = wrap(ArrowUpOutlined);
 export const BarChart3: Icon = wrap(BarChartOutlined);
 export const BookOpen: Icon = wrap(BookOutlined);
 export const Bot: Icon = wrap(RobotOutlined);
@@ -142,6 +143,7 @@ export const Sun: Icon = wrap(SunOutlined);
 export const Trash2: Icon = wrap(DeleteOutlined);
 export const TrendingUp: Icon = wrap(LineChartOutlined);
 export const Wallet: Icon = wrap(WalletOutlined);
+export const Wand2: Icon = wrap(BulbOutlined);
 export const Wrench: Icon = wrap(ToolOutlined);
 export const X: Icon = wrap(CloseOutlined);
 export const XasXIcon: Icon = wrap(CloseOutlined);

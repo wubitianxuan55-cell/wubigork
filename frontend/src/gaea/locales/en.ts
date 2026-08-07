@@ -146,29 +146,16 @@ export const en = {
   "caps.noSkillMatches": "No matching skills.",
 
   // welcome / empty state
-  "welcome.tagline": "A soil remediation engineering AI assistant — describe a task or ask anything.",
+  "welcome.tagline": "Documents, spreadsheets, charts and reports, done in one sentence.",
   "welcome.hintCommands": "commands",
   "welcome.hintFiles": "reference files",
   "welcome.hintSend": "send",
-  // V5.16: Quick task cards
-  "welcome.card1.title": "Site Investigation",
-  "welcome.card1.desc": "Start a preliminary/detailed investigation report framework",
-  "welcome.card1.prompt": "Help me start a preliminary site investigation report framework, covering site basic info, historical usage, and surrounding sensitive targets.",
-  "welcome.card2.title": "Risk Assessment",
-  "welcome.card2.desc": "Evaluate contamination against GB 36600/GB 15618 standards",
-  "welcome.card2.prompt": "Based on the provided testing data, evaluate against GB 36600 and GB 15618 standards for exceedance determination and risk assessment.",
-  "welcome.card3.title": "Cost Estimation",
-  "welcome.card3.desc": "Generate a 7-category cost breakdown for remediation projects",
-  "welcome.card3.prompt": "Generate a 7-category cost estimation table for soil remediation engineering, covering site investigation, risk assessment, design, construction, monitoring and acceptance.",
-  "welcome.ex1": "What soil pollution risk control standards exist",
-  "welcome.ex2": "How to choose remediation technologies",
-  "welcome.ex3": "How to write a site investigation report",
 
   // loading
   "skeleton.title": "Connecting…",
-  "skeleton.desc": "gaea is initializing the remediation engine. Sit tight — you'll be working in a moment.",
+  "skeleton.desc": "gaea is initializing the office engine. Sit tight, you'll be working in a moment.",
   "skeleton.tools": "Tools",
-  "skeleton.toolsDesc": "Doc/calc/spec tools",
+  "skeleton.toolsDesc": "File/web/task tools",
   "skeleton.skills": "Skills",
   "skeleton.skillsDesc": "Office skill adaptive",
   "skeleton.models": "Models",

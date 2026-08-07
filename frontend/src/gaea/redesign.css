@@ -123,6 +123,32 @@ aside[aria-label="gaea navigation"] input {
   border-radius: 14px;
 }
 
+/* 欢迎页渐次入场：每组内容依次升起，克制且不干扰阅读 */
+.welcome-rise {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: welcome-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.welcome-rise-0 { animation-delay: 40ms; }
+.welcome-rise-1 { animation-delay: 110ms; }
+.welcome-rise-2 { animation-delay: 190ms; }
+.welcome-rise-3 { animation-delay: 270ms; }
+
+@keyframes welcome-rise {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-rise {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
+
 /* 焦点环统一 */
 .gaea-app-layout :focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);

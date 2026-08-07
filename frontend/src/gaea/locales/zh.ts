@@ -149,29 +149,16 @@ export const zh: Record<DictKey, string> = {
   "caps.noSkillMatches": "没有匹配的技能。",
 
   // 欢迎 / 空状态
-  "welcome.tagline": "土壤修复工程办公专用AI助手 —— 描述任务或随便问点什么。",
+  "welcome.tagline": "文档、表格、图表、报告，一句话完成。",
   "welcome.hintCommands": "命令",
   "welcome.hintFiles": "引用文件",
   "welcome.hintSend": "发送",
-  // V5.16: 快捷任务卡片
-  "welcome.card1.title": "场地环境调查",
-  "welcome.card1.desc": "启动初调/详调报告框架，梳理场地基本信息",
-  "welcome.card1.prompt": "请帮我启动场地环境调查初调报告框架，梳理场地基本信息、历史使用情况、周边敏感目标等关键内容。",
-  "welcome.card2.title": "污染风险评估",
-  "welcome.card2.desc": "对标 GB 36600/GB 15618 进行超标判定与风险计算",
-  "welcome.card2.prompt": "请根据提供的检测数据，对标 GB 36600 和 GB 15618 进行超标判定，计算污染风险并给出评估结论。",
-  "welcome.card3.title": "费用估算",
-  "welcome.card3.desc": "生成七项汇总成本测算表，涵盖调查/修复全流程",
-  "welcome.card3.prompt": "请生成土壤修复工程七项汇总成本测算表，包括场地调查、风险评估、方案设计、施工实施、监测验收等各阶段费用。",
-  "welcome.ex1": "土壤污染风险管控标准有哪些",
-  "welcome.ex2": "污染场地修复技术怎么选",
-  "welcome.ex3": "场地环境调查报告怎么写",
 
   // 加载
   "skeleton.title": "正在连接智能体…",
-  "skeleton.desc": "gaea 正在初始化土壤修复引擎，请稍后。准备好后，你就可以开始工作了。",
+  "skeleton.desc": "gaea 正在初始化通用办公引擎，请稍后。准备好后，你就可以开始工作了。",
   "skeleton.tools": "工具",
-  "skeleton.toolsDesc": "文档/计算/规范工具",
+  "skeleton.toolsDesc": "文件/网络/任务工具",
   "skeleton.skills": "技能",
   "skeleton.skillsDesc": "办公技能自适应",
   "skeleton.models": "模型",
