@@ -97,11 +97,12 @@ func (c *Client) GhostComplete(ctx context.Context, model string, currentText st
 
 // ── Cmd+K 命令编辑 ──────────────────────────────────────────
 
-// CmdKEdit 根据自然语言指令编辑选中文本
+// CmdKEdit 根据自然语言指令编辑选中文本。
+// engineID 指定引擎（功能绑定路由后传入；空=活跃引擎回退），model 指定模型名。
 // selectedText: 用户选中的文本，instruction: 自然语言编辑指令（如"用更紧张的节奏重写"）
 // styleProfile: 可选的风格指导
 // 返回编辑后的文本
-func (c *Client) CmdKEdit(ctx context.Context, model string, selectedText string, instruction string, styleProfile string) (string, error) {
+func (c *Client) CmdKEdit(ctx context.Context, engineID, model string, selectedText string, instruction string, styleProfile string) (string, error) {
 	styleInstruction := ""
 	if styleProfile != "" {
 		styleInstruction = fmt.Sprintf("\n整体风格要求：%s", styleProfile)
@@ -128,6 +129,7 @@ func (c *Client) CmdKEdit(ctx context.Context, model string, selectedText string
 	reply, err := c.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ChatSimpleOptions{
 		Temperature: 0.6,
 		MaxTokens:   util.Max(len([]rune(selectedText))*2, 1024),
+		EngineID:    engineID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("Cmd+K 编辑失败: %w", err)
