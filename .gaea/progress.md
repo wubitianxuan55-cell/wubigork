@@ -34,6 +34,13 @@
 - 定位：可选编排入口，不经由任何模块的直接路径；前端主脑页不做（留待 3.0）
 - 验收：一句话任务派发到正确模块，跨脑材料随结果返回；模块直达路径不受影响
 
+## 2.0 P4 模块互联验收 + 3.0 接口预留（✅ 已完成）
+
+- 方案生成注入跨脑记忆（buildBrainMaterials：右脑甲方偏好 → 写作上下文，最多 3 条去重）
+- 完成判据回归：右脑"保守报价" → 方案上下文可命中；主脑一句话派发可用
+- 3.0 模块协议文档：docs/gaea2/module-protocol.md（ModuleRegistry/RunModule/MainBrainChat/三脑访问）
+- 基线加固：TestChatSimpleStream flaky 修复（SSE Flush + token 过期边界）
+
 | 状态 | 任务 |
 |------|------|
 | ⬜ | Write tests |
