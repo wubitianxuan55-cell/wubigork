@@ -53,6 +53,46 @@ func TestWorldviewFile_ToMarkdown_NilSections(t *testing.T) {
 	}
 }
 
+// ── E02：PromptView 剧照剥离 ──────────────────────────────
+
+func TestCharacterPromptView_StripsPortrait(t *testing.T) {
+	orig := Character{ID: "mc", Name: "林晚", PortraitURL: "data:image/png;base64,AAAA"}
+	view := orig.PromptView()
+	if view.PortraitURL != "" {
+		t.Errorf("PromptView.PortraitURL = %q, want 空", view.PortraitURL)
+	}
+	if view.Name != "林晚" {
+		t.Errorf("PromptView.Name = %q", view.Name)
+	}
+	if orig.PortraitURL != "data:image/png;base64,AAAA" {
+		t.Error("PromptView 不应修改原角色")
+	}
+}
+
+func TestCharacterFilePromptView_DeepCopy(t *testing.T) {
+	cf := &CharacterFile{
+		Characters: []Character{
+			{ID: "a", Name: "甲", PortraitURL: "data:image/png;base64,BBBB"},
+			{ID: "b", Name: "乙"},
+		},
+		Organizations: []Organization{{ID: "org1", Name: "青云宗"}},
+		Relationships: []Relationship{{FromID: "a", ToID: "b", RelationType: "friend"}},
+	}
+	view := cf.PromptView()
+	if view.Characters[0].PortraitURL != "" {
+		t.Error("PromptView 未剥离剧照")
+	}
+	if len(view.Organizations) != 1 || view.Organizations[0].Name != "青云宗" {
+		t.Errorf("组织未保留: %+v", view.Organizations)
+	}
+	if len(view.Relationships) != 1 {
+		t.Errorf("关系未保留: %+v", view.Relationships)
+	}
+	if cf.Characters[0].PortraitURL != "data:image/png;base64,BBBB" {
+		t.Error("PromptView 修改了原文件")
+	}
+}
+
 // ── 常量枚举 ──────────────────────────────────────────────
 
 func TestOutlineNodeStatus_Constants(t *testing.T) {

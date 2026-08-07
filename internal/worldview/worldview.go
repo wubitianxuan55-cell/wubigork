@@ -242,8 +242,7 @@ func (a *Agent) featureModel() (engine, model string) {
 // chat 功能级对话：带 novel 引擎覆盖
 func (a *Agent) chat(ctx context.Context, system, user string) (string, error) {
 	eng, model := a.featureModel()
-	if model == "" {
-		model = a.cfg.Model
-	}
+	// 未绑定（model 为空）时留空，由客户端按活跃引擎解析默认模型（等价 routeModel 全局路径），
+	// 避免把全局 cfg.Model 发给非 xAI 引擎导致 404（E03）。
 	return a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{EngineID: eng})
 }

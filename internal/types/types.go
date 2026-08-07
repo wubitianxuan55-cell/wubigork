@@ -78,6 +78,27 @@ type Character struct {
 	PortraitURL string `json:"portrait_url,omitempty"` // 角色剧照 URL 或 data URL
 }
 
+// PromptView 返回去除剧照等二进制字段的角色副本（E02：防 base64 剧照泄漏进 LLM prompt）。
+func (c Character) PromptView() Character {
+	c.PortraitURL = ""
+	return c
+}
+
+// PromptView 返回去除剧照字段的角色文件副本（组织/关系原样保留）。
+func (cf *CharacterFile) PromptView() *CharacterFile {
+	if cf == nil {
+		return nil
+	}
+	clone := *cf
+	clone.Characters = make([]Character, len(cf.Characters))
+	for i, c := range cf.Characters {
+		clone.Characters[i] = c.PromptView()
+	}
+	clone.Organizations = append([]Organization(nil), cf.Organizations...)
+	clone.Relationships = append([]Relationship(nil), cf.Relationships...)
+	return &clone
+}
+
 // Organization 组织/势力
 type Organization struct {
 	ID          string   `json:"id"`

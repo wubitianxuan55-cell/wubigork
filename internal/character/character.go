@@ -39,7 +39,7 @@ func (a *Agent) Chat(ctx context.Context, userMsg string) (string, error) {
 	if err != nil {
 		slog.Warn("角色 Chat: 读取角色失败", "error", err)
 	}
-	charsJSON := string(util.MustMarshal(cf))
+	charsJSON := string(util.MustMarshal(cf.PromptView()))
 
 	tmpl := a.eng.Get("character-agent")
 	if tmpl == nil {
@@ -87,7 +87,7 @@ func (a *Agent) ChatCharacterDetail(ctx context.Context, charID, userMsg string)
 		return "", fmt.Errorf("未找到角色: %s", charID)
 	}
 
-	targetJSON := string(util.MustMarshal(target))
+	targetJSON := string(util.MustMarshal(target.PromptView()))
 	wvCtx := a.loadWorldviewContext()
 
 	tmpl := a.eng.Get("character-detail")
@@ -336,7 +336,7 @@ func (a *Agent) GenerateCharacters(ctx context.Context, count int, genre string,
 	})
 	extraUser := "请生成角色。"
 	if currentCF != nil && len(currentCF.Characters) > 0 {
-		b := util.MustMarshalCompact(currentCF)
+		b := util.MustMarshalCompact(currentCF.PromptView())
 		extraUser = fmt.Sprintf("现有角色:\n%s\n\n请补充生成 %d 个新角色（不重复）。", string(b), count)
 	}
 	if len(extraContext) > 0 && extraContext[0] != "" {
@@ -635,8 +635,7 @@ func (a *Agent) novelEngineName() string {
 // chat 功能级对话：带 novel 引擎覆盖
 func (a *Agent) chat(ctx context.Context, system, user string) (string, error) {
 	eng, model := a.featureModel()
-	if model == "" {
-		model = a.cfg.Model
-	}
+	// 未绑定（model 为空）时留空，由客户端按活跃引擎解析默认模型（等价 routeModel 全局路径），
+	// 避免把全局 cfg.Model（如 xAI 的 grok-4.20）发给非 xAI 引擎导致 404（E03）。
 	return a.client.ChatSimpleStreamWithOptions(ctx, model, system, user, ai.ChatSimpleOptions{EngineID: eng})
 }
