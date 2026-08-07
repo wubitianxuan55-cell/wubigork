@@ -19,7 +19,8 @@ import (
 
 // Chat 实现 whisper.LlmClient 接口（接入 gaea 模型中心）
 func (a *whisperState) Chat(systemPrompt, userPrompt string) (string, error) {
-	return a.client.ChatSimpleStream(a.ctx, "", systemPrompt, userPrompt)
+	eng, model, _ := a.routeModel("whisper")
+	return a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: eng})
 }
 
 // GetEngineList 返回模型中心全部引擎 ID（轻语设置面板引擎选择器用）
