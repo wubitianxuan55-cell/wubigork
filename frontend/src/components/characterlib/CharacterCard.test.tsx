@@ -97,4 +97,30 @@ describe('CharacterCard', () => {
     render(<CharacterCard character={makeCharacter()} index={0} inProject hasProject {...baseProps} />)
     expect(screen.getAllByText('已加入').length).toBeGreaterThan(0)
   })
+
+  it('点击卡片主体调用 onClick', () => {
+    const c = makeCharacter()
+    const onClick = vi.fn()
+    const { container } = render(<CharacterCard character={c} index={0} onClick={onClick} {...baseProps} />)
+    fireEvent.click(container.querySelector('.ccard') as HTMLElement)
+    expect(onClick).toHaveBeenCalledWith(c)
+  })
+
+  it('点击编辑按钮不触发 onClick', () => {
+    const onClick = vi.fn()
+    const onEdit = vi.fn()
+    render(<CharacterCard character={makeCharacter()} index={0} onClick={onClick} onEdit={onEdit}
+      onSetPersona={noop} onMemory={noop} onAssociate={noop} onDissociate={noop} onDelete={noop} />)
+    fireEvent.click(screen.getByTitle('编辑'))
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it('键盘 Enter 触发 onClick', () => {
+    const c = makeCharacter()
+    const onClick = vi.fn()
+    const { container } = render(<CharacterCard character={c} index={0} onClick={onClick} {...baseProps} />)
+    fireEvent.keyDown(container.querySelector('.ccard') as HTMLElement, { key: 'Enter' })
+    expect(onClick).toHaveBeenCalledWith(c)
+  })
 })

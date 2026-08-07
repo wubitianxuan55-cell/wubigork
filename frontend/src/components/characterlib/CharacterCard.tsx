@@ -34,6 +34,7 @@ interface CharacterCardProps {
   inProject?: boolean
   isCurrentPersona?: boolean
   hasProject?: boolean
+  onClick?: (c: LibraryCharacter) => void
   onEdit: (c: LibraryCharacter) => void
   onSetPersona: (c: LibraryCharacter) => void
   onMemory: (c: LibraryCharacter) => void
@@ -48,6 +49,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   inProject = false,
   isCurrentPersona = false,
   hasProject = false,
+  onClick,
   onEdit,
   onSetPersona,
   onMemory,
@@ -65,7 +67,19 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   ].filter(Boolean).join(' · ')
 
   return (
-    <div className="ccard">
+    <div
+      className="ccard"
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick ? () => onClick(c) : undefined}
+      onKeyDown={onClick ? (e) => {
+        if (e.currentTarget !== e.target) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick(c)
+        }
+      } : undefined}
+    >
       {isCurrentPersona && <span className="ccard-current">当前人格</span>}
 
       <div className="ccard-head">
@@ -105,20 +119,21 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         )}
         <div className="ccard-actions">
           <Button size="small" type="text" icon={<EditOutlined />} title="编辑"
-            onClick={() => onEdit(c)} />
+            onClick={e => { e.stopPropagation(); onEdit(c) }} />
           <Button size="small" type="text" icon={<SwapOutlined />} title="设为当前聊天人格"
-            disabled={!c.chatEnabled} onClick={() => onSetPersona(c)} />
+            disabled={!c.chatEnabled}
+            onClick={e => { e.stopPropagation(); onSetPersona(c) }} />
           {c.chatEnabled && (
             <Button size="small" type="text" icon={<DatabaseOutlined />} title="查看状态 / 记忆 / 追踪"
-              onClick={() => onMemory(c)} />
+              onClick={e => { e.stopPropagation(); onMemory(c) }} />
           )}
           {hasProject && (
             inProject ? (
               <Button size="small" type="text" icon={<ReadOutlined />} title="从当前项目移除"
-                onClick={() => onDissociate(c)}>已加入</Button>
+                onClick={e => { e.stopPropagation(); onDissociate(c) }}>已加入</Button>
             ) : (
               <Button size="small" type="text" icon={<ReadOutlined />} title="加入当前项目"
-                onClick={() => onAssociate(c)}>加入项目</Button>
+                onClick={e => { e.stopPropagation(); onAssociate(c) }}>加入项目</Button>
             )
           )}
           <Popconfirm
@@ -126,6 +141,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             okText={c.kind === 'builtin' ? '隐藏' : '删除'} cancelText="取消"
             onConfirm={() => onDelete(c)}>
             <Button size="small" type="text" danger icon={<DeleteOutlined />} title="删除"
+              onClick={e => e.stopPropagation()}
               style={{ color: C('color-text-secondary') }} />
           </Popconfirm>
         </div>
