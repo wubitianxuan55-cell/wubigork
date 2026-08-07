@@ -1,11 +1,14 @@
+// CharacterLibEditor.tsx — 角色库详情：档案册视图
+// 档案眉 → 立绘横幅 → 身份栏 + 卷宗正文 → 底部操作条；字段与保存语义不变。
 import React, { useEffect, useMemo, useState } from 'react'
 import {
-  Modal, Input, Select, Switch, Slider, Tag, Typography, message, Space, Divider,
+  Modal, Input, Select, Switch, Slider, Tag, Typography, message, Button,
 } from 'antd'
 import { SaveOutlined, CloseOutlined } from '@ant-design/icons'
 import TisorRadar from '../TisorRadar'
 import { C } from '../../utils/theme'
 import { saveCharacter, type LibraryCharacter } from '../../api/characterlib'
+import './character-detail.css'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -38,12 +41,32 @@ const DIM_META: { key: keyof LibraryCharacter['dims']; label: string; desc: stri
   { key: 'R', label: 'R 矜持', desc: '克制与距离' },
 ]
 
+const KIND_META: Record<string, { label: string; color: string }> = {
+  builtin: { label: '内置', color: 'gold' },
+  custom: { label: '自定义', color: 'green' },
+  assistant: { label: '助手', color: 'geekblue' },
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  protagonist: '主角', antagonist: '反派', supporting: '配角', minor: '龙套',
+}
+
+const GENDER_LABELS: Record<string, string> = {
+  female: '女性', male: '男性', neutral: '中性',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  Alive: '存活', Dead: '已故', Missing: '失踪', Transformed: '变身',
+}
+
 interface Props {
   open: boolean
   character: LibraryCharacter | null
   projects: string[]
   onClose: () => void
   onSaved: (c: LibraryCharacter) => void
+  isCurrentPersona?: boolean
+  index?: number
 }
 
 function emptyDims() {
@@ -60,7 +83,10 @@ function toForm(c: LibraryCharacter | null): Partial<LibraryCharacter> {
   }
 }
 
-const CharacterLibEditor: React.FC<Props> = ({ open, character, projects, onClose, onSaved }) => {
+const CharacterLibEditor: React.FC<Props> = ({
+  open, character, projects, onClose, onSaved,
+  isCurrentPersona = false, index = 0,
+}) => {
   const [form, setForm] = useState<Partial<LibraryCharacter>>(() => toForm(character))
   const [saving, setSaving] = useState(false)
 
@@ -69,7 +95,7 @@ const CharacterLibEditor: React.FC<Props> = ({ open, character, projects, onClos
   }, [open, character])
 
   const isNew = !character
-  const kindLabel = character?.kind === 'builtin' ? '内置人格' : character?.kind === 'assistant' ? '助手角色' : '自定义角色'
+  const km = character?.kind ? KIND_META[character.kind] || KIND_META.custom : KIND_META.custom
 
   const patch = (p: Partial<LibraryCharacter>) => setForm(prev => ({ ...prev, ...p }))
   const patchTags = (v: string) => patch({ tags: v.split(/[,，]/).map(s => s.trim()).filter(Boolean) })
@@ -101,161 +127,212 @@ const CharacterLibEditor: React.FC<Props> = ({ open, character, projects, onClos
   }
 
   const dims = useMemo(() => form.dims ?? emptyDims(), [form.dims])
+  const heroMeta = [
+    form.roleType ? ROLE_LABELS[form.roleType] || form.roleType : '',
+    form.gender ? GENDER_LABELS[form.gender] || form.gender : '',
+    form.age,
+    form.status ? STATUS_LABELS[form.status] || form.status : '',
+  ].filter(Boolean).join(' · ')
 
-  const sectionTitle = (t: string) => (
-    <Text strong style={{ color: C('color-text'), fontSize: 12.5, display: 'block', marginBottom: 8 }}>
-      {t}
-    </Text>
+  const fieldLabel = (t: string) => (
+    <label className="cd-label">{t}</label>
+  )
+
+  const section = (title: string, children: React.ReactNode) => (
+    <section className="cd-sec">
+      <h4 className="cd-sec-title">{title}</h4>
+      {children}
+    </section>
   )
 
   return (
     <Modal
       open={open}
       onCancel={onClose}
-      onOk={handleSave}
-      okText="保存"
-      cancelText="取消"
-      okButtonProps={{ icon: <SaveOutlined />, loading: saving }}
-      cancelButtonProps={{ icon: <CloseOutlined /> }}
-      width={760}
-      title={
-        <Space>
-          <span style={{ color: C('color-text') }}>{isNew ? '新建统一角色' : `编辑角色 · ${character?.name}`}</span>
-          {!isNew && <Tag color={character?.kind === 'builtin' ? 'gold' : character?.kind === 'assistant' ? 'geekblue' : 'green'} style={{ margin: 0 }}>{kindLabel}</Tag>}
-        </Space>
-      }
-      styles={{ body: { maxHeight: '68vh', overflowY: 'auto', paddingRight: 8 } }}
+      footer={null}
+      closable={false}
+      width={880}
+      className="cd-modal"
+      styles={{
+        content: { padding: 0, borderRadius: 16, overflow: 'hidden', background: 'var(--md-sys-color-surface-container)' },
+        body: { padding: 0 },
+      }}
     >
-      {/* ── 基础信息 ── */}
-      {sectionTitle('基础信息')}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-        <div>
-          <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>名称 *</Text>
-          <Input size="small" value={form.name ?? ''} onChange={e => patch({ name: e.target.value })}
-            placeholder="角色名" style={{ marginTop: 4 }} />
-        </div>
-        <div>
-          <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>性别</Text>
-          <Select size="small" value={form.gender ?? ''} style={{ width: '100%', marginTop: 4 }}
-            onChange={v => patch({ gender: v })} options={GENDER_OPTIONS} allowClear />
-        </div>
-        <div>
-          <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>年龄</Text>
-          <Input size="small" value={form.age ?? ''} onChange={e => patch({ age: e.target.value })}
-            placeholder="如：23 / 外观二十五六" style={{ marginTop: 4 }} />
-        </div>
-        <div>
-          <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>标签（逗号分隔）</Text>
-          <Input size="small" value={(form.tags ?? []).join('，')} onChange={e => patchTags(e.target.value)}
-            placeholder="女主，剑修" style={{ marginTop: 4 }} />
-        </div>
-      </div>
-      <div style={{ marginBottom: 12 }}>
-        <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>剧照 URL</Text>
-        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-          <Input size="small" value={form.portraitUrl ?? ''} onChange={e => patch({ portraitUrl: e.target.value })}
-            placeholder="https://... 或 data:image/..." />
-          {form.portraitUrl && (
-            <img src={form.portraitUrl} alt="角色剧照" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-          )}
-        </div>
-      </div>
-
-      <Divider style={{ margin: '12px 0' }} />
-
-      {/* ── 小说设定 ── */}
-      {sectionTitle('小说设定')}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-        <div>
-          <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>定位</Text>
-          <Select size="small" value={form.roleType ?? ''} style={{ width: '100%', marginTop: 4 }}
-            onChange={v => patch({ roleType: v })} options={ROLE_OPTIONS} allowClear />
-        </div>
-        <div>
-          <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>状态</Text>
-          <Select size="small" value={form.status ?? ''} style={{ width: '100%', marginTop: 4 }}
-            onChange={v => patch({ status: v })} options={STATUS_OPTIONS} allowClear />
-        </div>
-      </div>
-      {[
-        { key: 'personality' as const, label: '性格', rows: 2 },
-        { key: 'background' as const, label: '背景', rows: 2 },
-        { key: 'appearance' as const, label: '外貌', rows: 2 },
-        { key: 'figure' as const, label: '身材体型', rows: 1 },
-        { key: 'motivation' as const, label: '动机', rows: 2 },
-        { key: 'arc' as const, label: '角色弧线', rows: 2 },
-      ].map(f => (
-        <div key={f.key} style={{ marginBottom: 8 }}>
-          <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>{f.label}</Text>
-          <TextArea size="small" rows={f.rows} value={form[f.key] ?? ''}
-            onChange={e => patch({ [f.key]: e.target.value } as any)}
-            style={{ marginTop: 4, fontSize: 12.5, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-subtle)', color: C('color-text') }} />
-        </div>
-      ))}
-      <div style={{ marginBottom: 8 }}>
-        <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>备注</Text>
-        <TextArea size="small" rows={2} value={form.notes ?? ''}
-          onChange={e => patch({ notes: e.target.value })}
-          style={{ marginTop: 4, fontSize: 12.5, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-subtle)', color: C('color-text') }} />
-      </div>
-      <div style={{ marginBottom: 8 }}>
-        <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>对话样本（每行一条，教 AI 说话节奏）</Text>
-        <TextArea size="small" rows={3} value={(form.dialogueSamples ?? []).join('\n')}
-          onChange={e => patchSamples(e.target.value)}
-          placeholder={'“你…你才不是为我来的吧？”\n“剑修不问红尘。”'}
-          style={{ marginTop: 4, fontSize: 12.5, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-subtle)', color: C('color-text') }} />
-      </div>
-
-      <Divider style={{ margin: '12px 0' }} />
-
-      {/* ── 聊天设定 ── */}
-      {sectionTitle('聊天设定')}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div>
-          <Text style={{ fontSize: 12, color: C('color-text') }}>可聊天</Text>
-          <div style={{ fontSize: 10, color: C('color-text-secondary') }}>开启后出现在聊天板块的人格列表，可直接对话</div>
-        </div>
-        <Switch size="small" checked={!!form.chatEnabled} onChange={v => patch({ chatEnabled: v })} />
-      </div>
-      <div style={{ display: 'flex', gap: 14, marginBottom: 10 }}>
-        <div style={{ flexShrink: 0 }}>
-          <TisorRadar dims={dims} size={110} color="#f472b6" />
-        </div>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {DIM_META.map(d => (
-            <div key={d.key} style={{ display: 'grid', gridTemplateColumns: '58px 1fr 26px', alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 10.5, color: C('color-text-secondary') }}>{d.label}</Text>
-              <Slider min={0} max={100} value={dims[d.key] ?? 50}
-                onChange={v => patchDims(d.key, Number(v))} tooltip={{ formatter: (v?: number) => `${v}` }} />
-              <Text style={{ fontSize: 10.5, color: C('color-text'), textAlign: 'right' }}>{dims[d.key] ?? 50}</Text>
+      <div className="cd">
+        <div className="cd-scroll">
+          {/* 档案眉 */}
+          <div className="cd-head">
+            <span className="cd-no">
+              {isNew ? '新建档案' : `角色档案 · NO.${String(index + 1).padStart(3, '0')}`}
+            </span>
+            <div className="cd-head-right">
+              {!isNew && <Tag color={km.color} className="cd-kind">{km.label}</Tag>}
+              {form.chatEnabled && (
+                <span className="cd-chat"><i className="cd-chat-dot" />可聊天</span>
+              )}
+              {isCurrentPersona && <span className="cd-current">当前人格</span>}
+              <Button type="text" size="small" icon={<CloseOutlined />} title="关闭" onClick={onClose} className="cd-close" />
             </div>
-          ))}
+          </div>
+
+          {/* 立绘横幅 */}
+          <div className="cd-hero cd-sheen">
+            {form.portraitUrl ? (
+              <img className="cd-hero-img" src={form.portraitUrl} alt={form.name || '角色立绘'} />
+            ) : (
+              <div className="cd-hero-ph">{form.name?.slice(0, 1) || '?'}</div>
+            )}
+            <div className="cd-hero-shade" />
+            <div className="cd-hero-info">
+              <h2 className="cd-hero-name">{form.name || '未命名角色'}</h2>
+              {heroMeta && <p className="cd-hero-meta">{heroMeta}</p>}
+            </div>
+          </div>
+
+          <div className="cd-body">
+            {/* 身份栏 */}
+            <aside className="cd-rail">
+              <div className="cd-field">
+                {fieldLabel('名称 *')}
+                <Input size="small" value={form.name ?? ''} onChange={e => patch({ name: e.target.value })}
+                  placeholder="角色名" />
+              </div>
+              <div className="cd-field">
+                {fieldLabel('立绘 URL')}
+                <Input size="small" value={form.portraitUrl ?? ''}
+                  onChange={e => patch({ portraitUrl: e.target.value })}
+                  placeholder="https://... 或 data:image/..." />
+                {form.portraitUrl && (
+                  <img className="cd-thumb" src={form.portraitUrl} alt="立绘预览" />
+                )}
+              </div>
+              <div className="cd-grid2">
+                <div className="cd-field">
+                  {fieldLabel('性别')}
+                  <Select size="small" value={form.gender ?? ''} style={{ width: '100%' }}
+                    onChange={v => patch({ gender: v })} options={GENDER_OPTIONS} allowClear />
+                </div>
+                <div className="cd-field">
+                  {fieldLabel('年龄')}
+                  <Input size="small" value={form.age ?? ''} onChange={e => patch({ age: e.target.value })}
+                    placeholder="23 / 外观二十五六" />
+                </div>
+                <div className="cd-field">
+                  {fieldLabel('定位')}
+                  <Select size="small" value={form.roleType ?? ''} style={{ width: '100%' }}
+                    onChange={v => patch({ roleType: v })} options={ROLE_OPTIONS} allowClear />
+                </div>
+                <div className="cd-field">
+                  {fieldLabel('状态')}
+                  <Select size="small" value={form.status ?? ''} style={{ width: '100%' }}
+                    onChange={v => patch({ status: v })} options={STATUS_OPTIONS} allowClear />
+                </div>
+              </div>
+              <div className="cd-field">
+                {fieldLabel('标签')}
+                <Input size="small" value={(form.tags ?? []).join('，')} onChange={e => patchTags(e.target.value)}
+                  placeholder="女主，剑修" />
+                {(form.tags ?? []).length > 0 && (
+                  <div className="cd-tags">
+                    {(form.tags ?? []).slice(0, 6).map(t => <span key={t} className="cd-tag">#{t}</span>)}
+                  </div>
+                )}
+              </div>
+              <div className="cd-radar">
+                <TisorRadar dims={dims} size={132} color="#f472b6" />
+                <div className="cd-dims">
+                  {DIM_META.map(d => (
+                    <div key={d.key} className="cd-dim">
+                      <Text className="cd-dim-label" title={d.desc}>{d.label}</Text>
+                      <Slider min={0} max={100} value={dims[d.key] ?? 50}
+                        onChange={v => patchDims(d.key, Number(v))} tooltip={{ formatter: (v?: number) => `${v}` }} />
+                      <Text className="cd-dim-val">{dims[d.key] ?? 50}</Text>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="cd-chat-toggle">
+                <div>
+                  <Text className="cd-toggle-title">可聊天</Text>
+                  <div className="cd-toggle-desc">出现在聊天板块的人格列表</div>
+                </div>
+                <Switch size="small" checked={!!form.chatEnabled} onChange={v => patch({ chatEnabled: v })} />
+              </div>
+            </aside>
+
+            {/* 卷宗正文 */}
+            <main className="cd-main">
+              {section('小说设定', (
+                <div className="cd-fields">
+                  {[
+                    { key: 'personality' as const, label: '性格', rows: 2 },
+                    { key: 'background' as const, label: '背景', rows: 2 },
+                    { key: 'appearance' as const, label: '外貌', rows: 2 },
+                    { key: 'figure' as const, label: '身材体型', rows: 1 },
+                    { key: 'motivation' as const, label: '动机', rows: 2 },
+                    { key: 'arc' as const, label: '角色弧线', rows: 2 },
+                  ].map(f => (
+                    <div key={f.key} className="cd-field">
+                      {fieldLabel(f.label)}
+                      <TextArea className="cd-area" size="small" rows={f.rows} value={form[f.key] ?? ''}
+                        onChange={e => patch({ [f.key]: e.target.value } as any)} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {section('对话样本', (
+                <div className="cd-field">
+                  {fieldLabel('每行一条，教 AI 说话节奏')}
+                  <TextArea className="cd-area" size="small" rows={3} value={(form.dialogueSamples ?? []).join('\n')}
+                    onChange={e => patchSamples(e.target.value)}
+                    placeholder={'“你…你才不是为我来的吧？”\n“剑修不问红尘。”'} />
+                </div>
+              ))}
+              {section('备注', (
+                <div className="cd-field">
+                  <TextArea className="cd-area" size="small" rows={2} value={form.notes ?? ''}
+                    onChange={e => patch({ notes: e.target.value })} />
+                </div>
+              ))}
+              {section('聊天设定', (
+                <div className="cd-fields">
+                  {[
+                    { key: 'voiceGuide' as const, label: '口吻指南', rows: 3, ph: '角色怎么说话：语气、用词、节奏…' },
+                    { key: 'behaviorRules' as const, label: '行为规则', rows: 2, ph: '互动中的行为边界与习惯' },
+                    { key: 'emotionLogic' as const, label: '情感逻辑', rows: 2, ph: '对用户的情感反应模式' },
+                  ].map(f => (
+                    <div key={f.key} className="cd-field">
+                      {fieldLabel(f.label)}
+                      <TextArea className="cd-area" size="small" rows={f.rows} value={form[f.key] ?? ''} placeholder={f.ph}
+                        onChange={e => patch({ [f.key]: e.target.value } as any)} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {form.assistantId && (
+                <div className="cd-note">
+                  聊天通道：assistantId={form.assistantId}（微信/通道配置以助手记录为准）
+                </div>
+              )}
+            </main>
+          </div>
+        </div>
+
+        {/* 底部操作条 */}
+        <div className="cd-foot">
+          <div className="cd-foot-meta">
+            {projects.length > 0 && (
+              <span>被 {projects.length} 个项目引用：{projects.join('、')}</span>
+            )}
+          </div>
+          <div className="cd-foot-actions">
+            <Button icon={<CloseOutlined />} onClick={onClose}>取消</Button>
+            <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave} className="cd-save">
+              保存
+            </Button>
+          </div>
         </div>
       </div>
-      {[
-        { key: 'voiceGuide' as const, label: '口吻指南', rows: 3, ph: '角色怎么说话：语气、用词、节奏…' },
-        { key: 'behaviorRules' as const, label: '行为规则', rows: 2, ph: '互动中的行为边界与习惯' },
-        { key: 'emotionLogic' as const, label: '情感逻辑', rows: 2, ph: '对用户的情感反应模式' },
-      ].map(f => (
-        <div key={f.key} style={{ marginBottom: 8 }}>
-          <Text style={{ fontSize: 11, color: C('color-text-secondary') }}>{f.label}</Text>
-          <TextArea size="small" rows={f.rows} value={form[f.key] ?? ''} placeholder={f.ph}
-            onChange={e => patch({ [f.key]: e.target.value } as any)}
-            style={{ marginTop: 4, fontSize: 12.5, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-subtle)', color: C('color-text') }} />
-        </div>
-      ))}
-
-      {form.assistantId && (
-        <div style={{ marginTop: 10, fontSize: 10.5, color: C('color-text-secondary') }}>
-          聊天通道：assistantId={form.assistantId}（微信/通道配置以助手记录为准）
-        </div>
-      )}
-
-      {projects.length > 0 && (
-        <div style={{ marginTop: 10, fontSize: 10.5, color: C('color-text-secondary') }}>
-          被 {projects.length} 个项目引用：{projects.join('、')}
-        </div>
-      )}
     </Modal>
   )
 }

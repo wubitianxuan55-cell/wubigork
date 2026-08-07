@@ -1,0 +1,384 @@
+/* 角色库详情档案视图：档案眉 → 立绘横幅 → 身份栏 + 卷宗正文 → 底部操作条 */
+.cd {
+  display: flex;
+  flex-direction: column;
+  max-height: 78vh;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.cd-scroll {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* 档案眉 */
+.cd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  flex-shrink: 0;
+}
+
+.cd-no {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--md-sys-color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.cd-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cd-kind {
+  margin: 0;
+  font-size: 9.5px;
+  line-height: 16px;
+}
+
+.cd-chat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #f472b6;
+  white-space: nowrap;
+}
+
+.cd-chat-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f472b6;
+  box-shadow: 0 0 6px rgba(244, 114, 182, 0.7);
+}
+
+.cd-current {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(244, 114, 182, 0.9);
+  box-shadow: 0 2px 10px rgba(244, 114, 182, 0.4);
+  white-space: nowrap;
+}
+
+.cd-close {
+  border-radius: 999px;
+}
+
+/* 立绘横幅 */
+.cd-hero {
+  position: relative;
+  aspect-ratio: 21 / 9;
+  min-height: 170px;
+  max-height: 240px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.cd-hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cd-hero-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 72px;
+  font-weight: 700;
+  color: rgba(244, 114, 182, 0.5);
+  background:
+    radial-gradient(90% 160% at 18% 0%, rgba(244, 114, 182, 0.18), transparent 55%),
+    linear-gradient(140deg, rgba(244, 114, 182, 0.08), transparent 60%),
+    var(--md-sys-color-surface-container-high);
+}
+
+.cd-hero-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.42), transparent 55%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.55), transparent 55%);
+}
+
+.cd-hero-info {
+  position: absolute;
+  left: 18px;
+  bottom: 14px;
+  z-index: 2;
+  max-width: 78%;
+}
+
+.cd-hero-name {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+}
+
+.cd-hero-meta {
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.78);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cd-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.12) 50%, transparent 60%);
+  transform: translateX(-130%);
+  transition: transform 450ms ease;
+}
+
+.cd-hero:hover .cd-sheen::after {
+  transform: translateX(130%);
+}
+
+/* 两栏主体 */
+.cd-body {
+  display: flex;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.cd-rail {
+  width: 264px;
+  flex-shrink: 0;
+  padding: 14px;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.cd-main {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cd-sec {
+  min-width: 0;
+}
+
+.cd-sec + .cd-sec {
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  padding-top: 14px;
+}
+
+.cd-sec-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--gaea-glow, var(--md-sys-color-primary));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cd-sec-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--md-sys-color-outline-variant);
+  opacity: 0.6;
+}
+
+.cd-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.cd-label {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--md-sys-color-text-secondary);
+}
+
+.cd-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* 标签 pill */
+.cd-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.cd-tag {
+  font-size: 10px;
+  color: var(--gaea-glow, var(--md-sys-color-primary));
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+}
+
+.cd-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  object-fit: cover;
+  margin-top: 4px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+/* 五维 */
+.cd-radar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.cd-dims {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cd-dim {
+  display: grid;
+  grid-template-columns: 62px 1fr 30px;
+  align-items: center;
+  gap: 6px;
+}
+
+.cd-dim-label {
+  font-size: 10px;
+  color: var(--md-sys-color-text-secondary);
+  white-space: nowrap;
+}
+
+.cd-dim-val {
+  font-size: 10.5px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 可聊天开关 */
+.cd-chat-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cd-toggle-title {
+  font-size: 12px;
+  color: var(--md-sys-color-text);
+}
+
+.cd-toggle-desc {
+  font-size: 10px;
+  color: var(--md-sys-color-text-secondary);
+  margin-top: 2px;
+}
+
+/* 文本域与输入统一玻璃质感（作用域限定，覆盖 antd 默认） */
+.cd .ant-input,
+.cd .ant-input-affix-wrapper,
+.cd .ant-select-selector {
+  background: rgba(0, 0, 0, 0.16) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-text) !important;
+}
+
+.cd-area {
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.cd-note {
+  font-size: 10.5px;
+  color: var(--md-sys-color-text-secondary);
+}
+
+/* 底部操作条 */
+.cd-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  flex-shrink: 0;
+}
+
+.cd-foot-meta {
+  font-size: 10.5px;
+  color: var(--md-sys-color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cd-foot-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cd-save {
+  border-radius: 999px;
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+.cd-foot-actions .ant-btn:not(.cd-save) {
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-sheen::after {
+    transition: none !important;
+  }
+}
