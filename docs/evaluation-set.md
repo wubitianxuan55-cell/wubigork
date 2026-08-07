@@ -20,15 +20,15 @@
 | E13 | ecc3573 | xAI OAuth 登录失败（referrer 误改） | referrer 改回 wubigork | 已有实现 + 回归（TestBuildAuthURL 断言 referrer=wubigork） |
 | E14 | 25bcbb9 | FTS5 索引与事实表不同步 | 独立表 + 显式全量 rebuild | 已有实现，待后续阶段补回归 |
 | E15 | efd6f9d | KG 三元组持久化缺失、Query 误命中 | KG 贯通 hermes.db + 并发安全 | 已有实现，待后续阶段补回归 |
-| E16 | 1c1c746 | QUICK_REPLIES 常量误插组件体内 | 常量移至模块顶层 | 前端项（frontend/src），待前端阶段验证 |
+| E16 | 1c1c746 | QUICK_REPLIES 常量误插组件体内 | 常量移至模块顶层 | 已核实修复 + 回归守卫（scripts/frontend-e-check.mjs） |
 | E17 | bd95f58 | 微信助手固定叫"轻语"不跟随自定义名字 | 使用自定义名字 | 待后续阶段验证 |
 | E18 | ea6fc2e | 微信消息字段不匹配官方协议 | 字段对齐 openclaw-weixin | 待后续阶段验证 |
 | E19 | 41d2a4a | 微信无回复且 token 被脱敏 | 会话过期透出 + 防脱敏保存 | 待后续阶段验证 |
 | E20 | 7ed7124 | 微信无回复（BotID 未传递） | 透传 BotID | 待后续阶段验证 |
 | E21 | 2b6cc9b | 工作空间对话框因配置测试污染静默失败 | 测试隔离修复 | 已修复同类问题（app_info.go findChangelogPath cwd 优先） |
-| E22 | b195473 | AI 控制台打不开（降级态 CSS 入场动画） | 降级态禁用自定义 CSS 动画 | 前端项，待前端阶段验证 |
-| E23 | 2e08a0d | 功能绑定下拉打不开（WebView2 节流） | rAF/CSS 动画节流降级 | 前端项，待前端阶段验证 |
-| E24 | 93b4ae3 | 记忆中枢白屏（3D 图谱误装底层库） | 换用 3d-force-graph | 前端项，待前端阶段验证 |
+| E22 | b195473 | AI 控制台打不开（降级态 CSS 入场动画） | 降级态禁用自定义 CSS 动画 | 已核实修复 + 回归守卫（index.css .ai-console-panel 规则） |
+| E23 | 2e08a0d | 功能绑定下拉打不开（WebView2 节流） | rAF/CSS 动画节流降级 | 已核实修复 + 回归守卫（main.tsx ensureRAF + index.css antd motion） |
+| E24 | 93b4ae3 | 记忆中枢白屏（3D 图谱误装底层库） | 换用 3d-force-graph | 已核实修复 + 回归守卫（GraphView 用 3d-force-graph） |
 
 ## 可达性说明
 

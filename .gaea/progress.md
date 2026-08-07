@@ -92,3 +92,13 @@
 - 加固：`exchangeCodeForToken` 从无超时的 `http.PostForm` 改为 15s 超时客户端（与 `RefreshAccessToken` 一致，E04 换 token 挂起场景可及时失败）
 - 回归（E04/E13 状态更新）：新增 8 个测试——discovery 配置化、换 token 成功（verifier/challenge 齐全）/500/403/空 verifier、刷新 token 成功/500/403；referrer=wubigork 已有 TestBuildAuthURL 断言
 - 验收：`scripts/ci.ps1` CI OK；docs/evaluation-set.md 中 E04/E13 状态改为「已转回归测试」
+
+## 2.5 前端 E 系列核对 + 回归守卫（✅ 已完成，2026-08-07）
+
+- 逐项核对四项前端历史修复均已在代码落地：
+  - E16 QUICK_REPLIES 常量在模块顶层（WhisperPage.tsx:54，组件在 :77）
+  - E22 AI 控制台降级动画禁用（index.css `html.gaea-raf-degraded .ai-console-panel`）
+  - E23 WebView2 rAF 节流降级（main.tsx ensureRAF：帧率<30fps 降级 setTimeout(16ms) + index.css antd motion enter/leave 禁用）
+  - E24 记忆中枢 3D 图谱用 3d-force-graph（GraphView 默认导入 + 正确初始化，MemoryHubPage 已挂载）
+- 新增 `scripts/frontend-e-check.mjs` 静态回归守卫（无前端测试框架时的不变式检查），接入 `scripts/ci.ps1`——四项任一回归即 CI 拦截
+- 验收：守卫本机运行全过，`scripts/ci.ps1` CI OK；docs/evaluation-set.md 中 E16/E22/E23/E24 状态改为「已核实修复 + 回归守卫」
