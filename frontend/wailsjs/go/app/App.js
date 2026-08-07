@@ -62,6 +62,14 @@ export function CharacterDrawRandom(arg1, arg2, arg3, arg4) {
   return window['go']['app']['App']['CharacterDrawRandom'](arg1, arg2, arg3, arg4);
 }
 
+export function CharacterGenerateFill(arg1) {
+  return window['go']['app']['App']['CharacterGenerateFill'](arg1);
+}
+
+export function CharacterGeneratePortrait(arg1, arg2) {
+  return window['go']['app']['App']['CharacterGeneratePortrait'](arg1, arg2);
+}
+
 export function CharacterGet(arg1) {
   return window['go']['app']['App']['CharacterGet'](arg1);
 }

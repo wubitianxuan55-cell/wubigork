@@ -41,6 +41,10 @@ export function CharacterDissociate(arg1:string):Promise<void>;
 
 export function CharacterDrawRandom(arg1:number,arg2:string,arg3:string,arg4:boolean):Promise<Array<characterlib.Character>>;
 
+export function CharacterGenerateFill(arg1:string):Promise<string>;
+
+export function CharacterGeneratePortrait(arg1:string,arg2:string):Promise<string>;
+
 export function CharacterGet(arg1:string):Promise<Record<string, any>>;
 
 export function CharacterImportProject():Promise<number>;
