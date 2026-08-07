@@ -1,14 +1,13 @@
 // CharacterLibraryPage.tsx — 全局统一角色库
 // 角色是独立资产：不绑定任何一本小说，小说只是引用；聊天直接把角色当人格用。
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
-  Typography, Input, Select, Switch, Button, Tag, message, Row, Col, Pagination, Popconfirm, Empty, Space,
+  Typography, Input, Select, Switch, Button, message, Row, Col, Pagination, Empty,
 } from 'antd'
 import {
-  PlusOutlined, SearchOutlined, TeamOutlined, EditOutlined, DeleteOutlined,
-  ImportOutlined, SyncOutlined, SwapOutlined, UserOutlined, ReadOutlined, DatabaseOutlined,
+  PlusOutlined, SearchOutlined, TeamOutlined, ImportOutlined, SyncOutlined,
 } from '@ant-design/icons'
-import TisorRadar from '../components/TisorRadar'
+import CharacterCard from '../components/characterlib/CharacterCard'
 import CharacterLibEditor from '../components/characterlib/CharacterLibEditor'
 import CharacterMemoryModal from '../components/characterlib/CharacterMemoryModal'
 import { C } from '../utils/theme'
@@ -21,16 +20,6 @@ import {
 
 const PAGE_SIZE = 24
 const PERSONALITY_KEY = 'gaea_whisper_personality'
-
-const KIND_META: Record<string, { label: string; color: string }> = {
-  builtin: { label: '内置', color: 'gold' },
-  custom: { label: '自定义', color: 'green' },
-  assistant: { label: '助手', color: 'geekblue' },
-}
-
-const ROLE_LABELS: Record<string, string> = {
-  protagonist: '主角', antagonist: '反派', supporting: '配角', minor: '龙套',
-}
 
 /** 设为当前聊天人格：本地持久化 + 广播（聊天板块联动） */
 function setCurrentPersona(id: string) {
@@ -53,6 +42,9 @@ const CharacterLibraryPage: React.FC = () => {
   const [editing, setEditing] = useState<LibraryCharacter | null>(null)
   const [editingProjects, setEditingProjects] = useState<string[]>([])
   const [memoryChar, setMemoryChar] = useState<LibraryCharacter | null>(null)
+  const [currentPersona, setCurrentPersonaState] = useState<string>(() => {
+    try { return localStorage.getItem(PERSONALITY_KEY) || '' } catch { return '' }
+  })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -78,6 +70,13 @@ const CharacterLibraryPage: React.FC = () => {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { loadProjectRefs() }, [loadProjectRefs])
+  useEffect(() => {
+    const onPersona = (e: Event) => {
+      setCurrentPersonaState((e as CustomEvent<{ id: string }>).detail?.id || '')
+    }
+    window.addEventListener('gaea-persona-changed', onPersona)
+    return () => window.removeEventListener('gaea-persona-changed', onPersona)
+  }, [])
 
   const openNew = () => {
     setEditing(null)
@@ -167,7 +166,12 @@ const CharacterLibraryPage: React.FC = () => {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
       {/* ── 头部：搜索 + 筛选 + 操作 ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        marginBottom: 12, paddingBottom: 12,
+        borderBottom: '1px solid var(--md-sys-color-outline-variant)',
+        flexShrink: 0, flexWrap: 'wrap',
+      }}>
         <Typography.Title level={4} style={{ margin: 0, color: C('color-text'), fontSize: 17 }}>
           <TeamOutlined style={{ marginRight: 8, color: 'var(--gaea-glow)' }} />角色库
         </Typography.Title>
@@ -212,80 +216,23 @@ const CharacterLibraryPage: React.FC = () => {
           </Empty>
         ) : (
           <Row gutter={[12, 12]}>
-            {items.map(c => {
-              const km = KIND_META[c.kind] || KIND_META.custom
+            {items.map((c, idx) => {
               const inProject = projectRefs.has(c.id)
               return (
                 <Col key={c.id} xs={24} sm={12} lg={8} xl={6}>
-                  <div
-                    style={{
-                      padding: '12px 12px 10px', borderRadius: 14, height: '100%',
-                      border: '1px solid var(--md-sys-color-outline-variant)',
-                      background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
-                      display: 'flex', flexDirection: 'column', gap: 6,
-                      transition: 'transform 180ms, border-color 180ms',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = '#f472b6' }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'var(--md-sys-color-outline-variant)' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      {c.portraitUrl
-                        ? <img src={c.portraitUrl} alt={c.name} style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }} />
-                        : <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(244,114,182,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <UserOutlined style={{ fontSize: 18, color: '#f472b6' }} />
-                          </div>}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Typography.Text strong style={{ color: C('color-text'), fontSize: 13.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</Typography.Text>
-                          <Tag color={km.color} style={{ fontSize: 9, margin: 0, lineHeight: '14px' }}>{km.label}</Tag>
-                          {c.chatEnabled && <Tag color="pink" style={{ fontSize: 9, margin: 0, lineHeight: '14px' }}>可聊天</Tag>}
-                        </div>
-                        <div style={{ fontSize: 10.5, color: C('color-text-secondary'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {c.roleType ? `${ROLE_LABELS[c.roleType] || c.roleType}` : '未设定位'}
-                          {c.status ? ` · ${c.status}` : ''}
-                          {c.gender ? ` · ${c.gender === 'female' ? '女' : c.gender === 'male' ? '男' : c.gender}` : ''}
-                        </div>
-                      </div>
-                      {c.chatEnabled && <TisorRadar dims={c.dims} size={46} color="#f472b6" showLabels={false} />}
-                    </div>
-
-                    {(c.tags?.length > 0 || c.arc) && (
-                      <div style={{ fontSize: 10.5, color: C('color-text-secondary'), lineHeight: 1.5, minHeight: 16 }}>
-                        {c.tags?.slice(0, 3).map(t => <Tag key={t} style={{ fontSize: 9, margin: '0 4px 2px 0', lineHeight: '14px' }}>{t}</Tag>)}
-                        {c.arc && <span style={{ opacity: 0.75 }}>弧线：{c.arc}</span>}
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', gap: 4, marginTop: 'auto', paddingTop: 4 }}>
-                      <Button size="small" type="text" icon={<EditOutlined />} title="编辑"
-                        onClick={() => openEdit(c)} style={{ fontSize: 12, padding: '0 6px' }} />
-                      <Button size="small" type="text" icon={<SwapOutlined />} title="设为当前聊天人格" disabled={!c.chatEnabled}
-                        onClick={() => handleSetPersona(c)} style={{ fontSize: 12, padding: '0 6px' }} />
-                      {c.chatEnabled && (
-                        <Button size="small" type="text" icon={<DatabaseOutlined />} title="查看状态 / 记忆 / 追踪"
-                          onClick={() => setMemoryChar(c)} style={{ fontSize: 12, padding: '0 6px' }} />
-                      )}
-                      {hasProject && (
-                        inProject
-                          ? <Button size="small" type="text" title="从当前项目移除（角色保留在库）"
-                              onClick={() => handleDissociate(c)} style={{ fontSize: 12, padding: '0 6px', color: C('color-text-secondary') }}>
-                              <ReadOutlined /> 已加入
-                            </Button>
-                          : <Button size="small" type="text" title="加入当前项目"
-                              onClick={() => handleAssociate(c)} style={{ fontSize: 12, padding: '0 6px' }}>
-                              加入项目
-                            </Button>
-                      )}
-                      <div style={{ flex: 1 }} />
-                      <Popconfirm
-                        title={c.kind === 'builtin' ? `隐藏「${c.name}」？` : `删除「${c.name}」？删除会同时清理项目引用与聊天通道`}
-                        okText={c.kind === 'builtin' ? '隐藏' : '删除'} cancelText="取消"
-                        onConfirm={() => handleDelete(c)}>
-                        <Button size="small" type="text" danger icon={<DeleteOutlined />} title="删除"
-                          style={{ fontSize: 12, padding: '0 6px' }} />
-                      </Popconfirm>
-                    </div>
-                  </div>
+                  <CharacterCard
+                    character={c}
+                    index={idx}
+                    inProject={inProject}
+                    isCurrentPersona={currentPersona === c.id}
+                    hasProject={hasProject}
+                    onEdit={openEdit}
+                    onSetPersona={handleSetPersona}
+                    onMemory={setMemoryChar}
+                    onAssociate={handleAssociate}
+                    onDissociate={handleDissociate}
+                    onDelete={handleDelete}
+                  />
                 </Col>
               )
             })}
