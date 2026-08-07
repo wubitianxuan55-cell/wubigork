@@ -19,7 +19,6 @@ import { WhisperEmotionPanel } from '../components/WhisperEmotionPanel'
 import WhisperDesirePanel from '../components/WhisperDesirePanel'
 import WhisperTracePanel from '../components/WhisperTracePanel'
 import WhisperMemoryModal from '../components/WhisperMemoryModal'
-import AssistantManagerModal from '../components/AssistantManagerModal'
 import VoiceSettingsPanel from '../components/VoiceSettingsPanel'
 import { ParticleFlow } from '../components/ParticleFlow'
 import { SoundWaveOverlay } from '../components/SoundWaveOverlay'
@@ -56,7 +55,6 @@ const PERSONALITY_KEY = 'gaea_whisper_personality'
 const LEGACY_PERSONALITY_KEY = 'wubigrok_whisper_personality'
 const COMPANION_SETTINGS_KEY = 'gaea_whisper_companion_settings'
 const LEGACY_COMPANION_SETTINGS_KEY = 'wubigrok_whisper_companion_settings'
-const ADULT_MODE_KEY = 'gaea_whisper_adult_mode'
 const ACTIVE_TOPIC_KEY = 'gaea_chat_active_topic'
 
 // ── 快捷情绪回复（人格模式输入区 chips） ──
@@ -117,6 +115,9 @@ const STAGE_LABELS: Record<string, string> = {
 let msgSeq = 0
 function nextMsgKey(): string { msgSeq++; return `m_${msgSeq}_${Date.now()}` }
 function nowStr(): string { return new Date().toISOString() }
+function navigateToCharacterLib(): void {
+  window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'characterlib' } }))
+}
 function parseExtra(raw?: string): Record<string, any> | undefined {
   if (!raw) return undefined
   try { const o = JSON.parse(raw); return typeof o === 'object' && o ? o : undefined } catch (_) { return undefined }
@@ -285,9 +286,6 @@ const ChatPage: React.FC = () => {
   const [mode, setMode] = useState<string>('plain') // 'plain' | personaID
   const [personalities, setPersonalities] = useState<Personality[]>([])
   const [activePersonality, setActivePersonality] = useState<string>(() => loadPersonality())
-  const [personalityOpen, setPersonalityOpen] = useState(false)
-  const [adultMode, setAdultMode] = useState<boolean>(() => { try { return localStorage.getItem(ADULT_MODE_KEY) === '1' } catch { return false } })
-
   // 人格元数据（只读展示，不操纵）
   const [emotion, setEmotion] = useState('')
   const [stage, setStage] = useState('')
@@ -503,9 +501,21 @@ const ChatPage: React.FC = () => {
   const handleSwitchPersonality = useCallback(async (id: string) => {
     try { await (App as any).WhisperClearSession(activePersonality) } catch (_) {}
     setActivePersonality(id)
-    setPersonalityOpen(false)
     await switchMode(id)
   }, [activePersonality, switchMode])
+
+  // 角色库切换人格 → 聊天板块联动
+  useEffect(() => {
+    const onPersona = (e: Event) => {
+      const id = (e as CustomEvent).detail?.id
+      if (!id) return
+      setActivePersonality(id)
+      loadFacts(id)
+      switchMode(id)
+    }
+    window.addEventListener('gaea-persona-changed', onPersona)
+    return () => window.removeEventListener('gaea-persona-changed', onPersona)
+  }, [loadFacts, switchMode])
 
   const updateMessage = useCallback((key: string, patch: Partial<ChatMsg>) => {
     setMessages(prev => prev.map(m => m.key === key ? { ...m, ...patch } : m))
@@ -633,21 +643,6 @@ const ChatPage: React.FC = () => {
     preview: t.preview || '',
   }))
 
-  // 人格管理器全屏页（保留原轻语管理能力：人物选择/成人模式/微信）
-  if (personalityOpen) {
-    return (
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
-        <AssistantManagerModal
-          open={personalityOpen}
-          activePersonality={activePersonality}
-          adultMode={adultMode}
-          onClose={() => setPersonalityOpen(false)}
-          onSwitchPersonality={handleSwitchPersonality}
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="chat-board" style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, position: 'relative' }}>
       <ChatTopicSidebar
@@ -684,7 +679,7 @@ const ChatPage: React.FC = () => {
                   onClick={() => setSearchEnabled(!searchEnabled)} style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
               </Tooltip>
               <Tooltip title="虚拟助手管理">
-                <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setPersonalityOpen(true)}
+                <Button type="text" size="small" icon={<SettingOutlined />} onClick={navigateToCharacterLib}
                   style={{ color: C('color-text-secondary'), height: 24 }} />
               </Tooltip>
               <Tooltip title="语音设置">
@@ -762,7 +757,7 @@ const ChatPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                <Button type="primary" onClick={() => setPersonalityOpen(true)} style={{ marginTop: 22, borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13 }}>
+                <Button type="primary" onClick={navigateToCharacterLib} style={{ marginTop: 22, borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13 }}>
                   虚拟助手管理
                 </Button>
               </div>

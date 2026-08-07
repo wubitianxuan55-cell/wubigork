@@ -1,32 +1,33 @@
-// AssistantManagerModal.tsx — 虚拟助手管理中心
-// 替代 WhisperPersonalityModal，管理多个助手（每人独立人格 + 微信）
+// WhisperRolePanel.tsx — 轻语角色管理面板（角色库轻语 Tab）
+// 管理虚拟助手（独立人格 + 微信通道 + 剧照）与人格切换，供角色库嵌入。
 import React, { useState, useEffect, useCallback } from 'react'
-import { Modal, Button, Input, Switch, Tag, Typography, Popconfirm, message, Empty, Select } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined, CloseOutlined, CheckOutlined, QrcodeOutlined, LoadingOutlined, ReloadOutlined, PictureOutlined, ReadOutlined } from '@ant-design/icons'
-import * as App from '../../wailsjs/go/app/App'
-import TisorRadar from './TisorRadar'
-import { CompanionAvatar } from './CompanionAvatar'
-import { generateImage } from '../api/image'
-import PersonalityPreview from './PersonalityPreview'
+import { Button, Input, Switch, Tag, Typography, Popconfirm, message, Select } from 'antd'
+import {
+  PlusOutlined, EditOutlined, DeleteOutlined, UserOutlined, ApiOutlined,
+  CloseOutlined, CheckOutlined, QrcodeOutlined, LoadingOutlined, ReloadOutlined,
+  PictureOutlined, ReadOutlined,
+} from '@ant-design/icons'
+import * as App from '../../../wailsjs/go/app/App'
+import TisorRadar from '../TisorRadar'
+import { CompanionAvatar } from '../CompanionAvatar'
+import { generateImage } from '../../api/image'
 
 const { Text } = Typography
 
-// ─── 类型 ────────────────────────────────────────────────────
-
-interface Assistant {
+export interface WhisperAssistant {
   id: string; name: string; personalityId: string
   wxToken: string; wxBotId: string; wxUserId: string; enabled: boolean
   portraitUrl?: string
   voiceGuide?: string; gender?: string; tags?: string[]; dims?: { T: number; I: number; S: number; O: number; R: number }
 }
 
-interface PersonalityPreset {
+export interface WhisperPersonality {
   id: string; label: string; gender: string; tags?: string[]
   dims: { T: number; I: number; S: number; O: number; R: number }
   voiceGuide?: string; requiresAdult18?: boolean
 }
 
-// 人格 → 主题色（角色卡左侧边条 + 视觉区渐变）
+// 人格 → 主题色
 const PERSONALITY_COLORS: Record<string, string> = {
   gaea: '#34d399', deredere: '#e85388', tsundere: '#f59e0b', yandere: '#ef4444',
   kuudere: '#60a5fa', oneesan: '#a855f7', genki: '#22c55e', shitakiri: '#f97316',
@@ -35,24 +36,23 @@ const PERSONALITY_COLORS: Record<string, string> = {
 }
 
 interface Props {
-  open: boolean
   activePersonality: string
-  adultMode: boolean
-  onClose: () => void
+  /** 切换当前轻语人格（已写入 localStorage + 广播 gaea-persona-changed） */
   onSwitchPersonality: (id: string) => void
 }
 
-// ─── 组件 ────────────────────────────────────────────────────
+function emptyForm(): WhisperAssistant {
+  return { id: '', name: '', personalityId: 'gaea', wxToken: '', wxBotId: '', wxUserId: '', enabled: true, portraitUrl: '' }
+}
 
-export default function AssistantManagerModal({ open, activePersonality, adultMode, onClose, onSwitchPersonality }: Props) {
-  // 状态
-  const [assistants, setAssistants] = useState<Assistant[]>([])
-  const [personalities, setPersonalities] = useState<PersonalityPreset[]>([])
+export default function WhisperRolePanel({ activePersonality, onSwitchPersonality }: Props) {
+  const [assistants, setAssistants] = useState<WhisperAssistant[]>([])
+  const [personalities, setPersonalities] = useState<WhisperPersonality[]>([])
   const [wxStatuses, setWxStatuses] = useState<Record<string, boolean>>({})
   const [wxSessionExpired, setWxSessionExpired] = useState<Record<string, boolean>>({})
-  const [editing, setEditing] = useState<Assistant | null>(null) // null=列表视图, Assistant=编辑
-  const [detail, setDetail] = useState<Assistant | null>(null)   // 助手详情弹窗
-  const [form, setForm] = useState<Assistant>(emptyForm())
+  const [editing, setEditing] = useState<WhisperAssistant | null>(null)
+  const [detail, setDetail] = useState<WhisperAssistant | null>(null)
+  const [form, setForm] = useState<WhisperAssistant>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [showPersonalityPicker, setShowPersonalityPicker] = useState(false)
   const [generatingPortrait, setGeneratingPortrait] = useState(false)
@@ -61,14 +61,14 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   // QR 扫码
   const [qrImage, setQrImage] = useState('')
   const [qrCode, setQrCode] = useState('')
-  const [qrStatus, setQrStatus] = useState('') // wait | scaned | confirmed | expired | need_verifycode ...
+  const [qrStatus, setQrStatus] = useState('')
   const [qrPolling, setQrPolling] = useState(false)
   const [needVerify, setNeedVerify] = useState(false)
   const [verifyInput, setVerifyInput] = useState('')
-  // 加载数据
+
   const reload = useCallback(async () => {
     try {
-      const list: Assistant[] = await (App as any).WhisperAssistantList()
+      const list: WhisperAssistant[] = await (App as any).WhisperAssistantList()
       setAssistants(list || [])
       const statuses: any[] = await (App as any).WhisperWeixinStatus()
       const map: Record<string, boolean> = {}
@@ -83,16 +83,9 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   }, [])
 
   useEffect(() => {
-    if (open) {
-      reload()
-      App.WhisperGetPersonalities().then(setPersonalities).catch(() => {})
-    }
-  }, [open, reload])
-
-  // 加载剧照可用模型（后端恒含 ComfyUI 本地模型 krea2/z-image-turbo/flux）
-  useEffect(() => {
-    if (!open) return
-    (async () => {
+    reload()
+    App.WhisperGetPersonalities().then(setPersonalities).catch(() => {})
+    ;(async () => {
       try {
         const cfg: any = await App.GetImageBackendConfig()
         const list = cfg?.availableModels || []
@@ -100,9 +93,9 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
         if (!portraitModel && cfg?.currentModel) setPortraitModel(cfg.currentModel)
       } catch (_) {}
     })()
-  }, [open])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reload])
 
-  // 保存助手
   const handleSave = async () => {
     if (!form.name.trim()) return message.warning('请输入助手名称')
     setSaving(true)
@@ -125,7 +118,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     }
     setSaving(false)
   }
-  // QR 扫码绑定
+
   const handleQRScan = async () => {
     try {
       setQrStatus('')
@@ -134,37 +127,27 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
       setQrCode(qr.qrcode)
       setQrStatus('wait')
       setQrPolling(true)
-
-      // 轮询扫码状态
       const poll = setInterval(async () => {
         try {
           const s: any = await (App as any).WhisperWeixinQRStatus(qr.qrcode)
           setQrStatus(s.status || 'wait')
           if (s.status === 'confirmed' && s.botToken) {
-            clearInterval(poll)
-            setQrPolling(false)
+            clearInterval(poll); setQrPolling(false)
             setForm(f => ({ ...f, wxToken: s.botToken, wxBotId: s.botId || '' }))
-            message.success('微信绑定成功！')
+            message.success('微信绑定成功')
             setQrImage('')
           } else if (s.status === 'need_verifycode') {
-            // 需要手机端显示的配对码
-            clearInterval(poll)
-            setQrPolling(false)
-            setNeedVerify(true)
-            setQrStatus('need_verifycode')
+            clearInterval(poll); setQrPolling(false); setNeedVerify(true); setQrStatus('need_verifycode')
           } else if (s.status === 'expired' || s.status === 'verify_code_blocked') {
-            clearInterval(poll)
-            setQrPolling(false)
-            setQrStatus(s.status)
+            clearInterval(poll); setQrPolling(false); setQrStatus(s.status)
           }
         } catch (_) {}
       }, 3000)
-    } catch (e: any) {
+    } catch (_) {
       message.error('获取二维码失败')
     }
   }
 
-  // 提交手机配对码后继续轮询
   const handleVerifyCode = async () => {
     if (!qrCode || !verifyInput.trim()) return
     setQrPolling(true)
@@ -172,44 +155,35 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
       const s: any = await (App as any).WhisperWeixinQRStatusWithCode(qrCode, verifyInput.trim())
       setQrStatus(s.status || 'wait')
       if (s.status === 'confirmed' && s.botToken) {
-        setQrPolling(false)
-        setNeedVerify(false)
+        setQrPolling(false); setNeedVerify(false)
         setForm(f => ({ ...f, wxToken: s.botToken, wxBotId: s.botId || '' }))
-        message.success('微信绑定成功！')
+        message.success('微信绑定成功')
         setQrImage('')
         return
       }
       if (s.status === 'expired' || s.status === 'verify_code_blocked') {
-        setQrPolling(false)
-        setQrStatus(s.status)
-        return
+        setQrPolling(false); setQrStatus(s.status); return
       }
-      // 其他状态继续轮询
       const poll = setInterval(async () => {
         try {
           const s2: any = await (App as any).WhisperWeixinQRStatus(qrCode)
           setQrStatus(s2.status || 'wait')
           if (s2.status === 'confirmed' && s2.botToken) {
-            clearInterval(poll)
-            setQrPolling(false)
-            setNeedVerify(false)
+            clearInterval(poll); setQrPolling(false); setNeedVerify(false)
             setForm(f => ({ ...f, wxToken: s2.botToken, wxBotId: s2.botId || '' }))
-            message.success('微信绑定成功！')
+            message.success('微信绑定成功')
             setQrImage('')
           } else if (s2.status === 'expired' || s2.status === 'verify_code_blocked') {
-            clearInterval(poll)
-            setQrPolling(false)
-            setQrStatus(s2.status)
+            clearInterval(poll); setQrPolling(false); setQrStatus(s2.status)
           }
         } catch (_) {}
       }, 3000)
-    } catch (e: any) {
+    } catch (_) {
       message.error('提交配对码失败')
       setQrPolling(false)
     }
   }
 
-  // 删除助手
   const handleDelete = async (id: string) => {
     try {
       await (App as any).WhisperAssistantDelete(id)
@@ -220,22 +194,25 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     }
   }
 
-  // 开始编辑
-  const startEdit = (ast: Assistant) => {
+  const startEdit = (ast: WhisperAssistant) => {
     setForm({ ...ast })
     setEditing(ast)
   }
 
-  // 新建
   const startNew = () => {
     setForm(emptyForm())
     setEditing({ id: '', name: '', personalityId: 'gaea', wxToken: '', wxBotId: '', wxUserId: '', enabled: true })
   }
 
-  // 获取人格信息
   const getPersonality = (id: string) => personalities.find(p => p.id === id)
 
-  // ─── 人格选择器（简化版）───────────────────────────────────
+  /** 切换当前轻语人格：本地持久化 + 广播（角色库与聊天页联动） */
+  const switchTo = (id: string) => {
+    try { localStorage.setItem('gaea_whisper_personality', id) } catch (_) {}
+    window.dispatchEvent(new CustomEvent('gaea-persona-changed', { detail: { id } }))
+    onSwitchPersonality(id)
+    setDetail(null)
+  }
 
   const renderPersonalityPicker = () => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 6, maxHeight: 200, overflow: 'auto', padding: '4px 0' }}>
@@ -261,27 +238,20 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     </div>
   )
 
-  // ─── 编辑视图 ──────────────────────────────────────────────
-
   const renderEditor = () => {
     const selPersonality = getPersonality(form.personalityId)
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* 返回按钮 */}
         <Button type="text" icon={<CloseOutlined />} onClick={() => setEditing(null)}
           style={{ alignSelf: 'flex-start', color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
           返回列表
         </Button>
-
-        {/* 名称 */}
         <div>
           <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>助手名称</Text>
           <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
             placeholder="如：小秘书、知心姐姐…"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', borderRadius: 10 }} />
         </div>
-
-        {/* 人格选择 */}
         <div>
           <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>绑定人格</Text>
           <div onClick={() => setShowPersonalityPicker(!showPersonalityPicker)}
@@ -307,8 +277,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           </div>
           {showPersonalityPicker && renderPersonalityPicker()}
         </div>
-
-        {/* 微信Token */}
         <div>
           <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>
             <ApiOutlined style={{ marginRight: 4 }} />微信 ClawBot Token
@@ -324,16 +292,12 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
               icon={qrPolling ? <LoadingOutlined /> : <QrcodeOutlined />}
               onClick={handleQRScan}
               disabled={qrPolling}
-              style={{
-                borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)',
-                background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)',
-              }}
+              style={{ borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)' }}
             >
               扫码
             </Button>
           </div>
-          {/* 微信 Bot ID（回复消息的 from_user_id，扫码自动填入） */}
-          <div>
+          <div style={{ marginTop: 10 }}>
             <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 4 }}>
               <ApiOutlined style={{ marginRight: 4 }} />微信 Bot ID
             </Text>
@@ -344,13 +308,12 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', borderRadius: 10 }}
             />
           </div>
-          {/* QR 码显示 */}
           {qrImage && (
             <div style={{
               marginTop: 8, padding: 12, borderRadius: 12, textAlign: 'center',
               background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
             }}>
-              <img src={qrImage} alt="QR" style={{ width: 180, height: 180, borderRadius: 8, background: '#fff', padding: 8 }} />
+              <img src={qrImage} alt="微信绑定二维码" style={{ width: 180, height: 180, borderRadius: 8, background: '#fff', padding: 8 }} />
               <div style={{ marginTop: 8, fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
                 {qrStatus === 'wait' && <><LoadingOutlined spin style={{ marginRight: 4 }} />等待扫码…</>}
                 {qrStatus === 'scaned' && '已扫码，请在手机上确认'}
@@ -380,14 +343,10 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
             </div>
           )}
         </div>
-
-        {/* 启用 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
           <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>启用助手</Text>
           <Switch checked={form.enabled} onChange={v => setForm({ ...form, enabled: v })} />
         </div>
-
-        {/* 保存 */}
         <Button type="primary" onClick={handleSave} loading={saving} icon={<CheckOutlined />}
           style={{
             background: 'linear-gradient(135deg, #e85388, #c02660)', border: 'none',
@@ -400,10 +359,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     )
   }
 
-  // ─── 列表视图 ──────────────────────────────────────────────
-
-  // 生成角色剧照（参照小说板块：AI 图像 + 提示词画像，自动保存）
-  const handleGeneratePortrait = async (ast: Assistant) => {
+  const handleGeneratePortrait = async (ast: WhisperAssistant) => {
     const p = getPersonality(ast.personalityId)
     setGeneratingPortrait(true)
     try {
@@ -414,7 +370,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
       if (res?.error) { message.error(res.error); return }
       const url = res?.images?.[0]?.image
       if (!url) { message.error('生成失败'); return }
-      // 自动保存剧照到助手
       await (App as any).WhisperAssistantSave({ ...ast, portraitUrl: url })
       message.success('角色剧照已生成')
       setDetail({ ...ast, portraitUrl: url })
@@ -426,8 +381,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     }
   }
 
-  // 导出为小说角色（轻语 → 小说，打通互传通道）
-  const handleExportToNovel = async (ast: Assistant) => {
+  const handleExportToNovel = async (ast: WhisperAssistant) => {
     const p = getPersonality(ast.personalityId)
     try {
       const ch = {
@@ -453,9 +407,8 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
   }
 
   const renderList = () => {
-    // 排序：gaea 核心助手第一 > 当前对话 > 启用 > 禁用
     const sorted = [...assistants].sort((a, b) => {
-      const rank = (x: Assistant) => {
+      const rank = (x: WhisperAssistant) => {
         if (x.personalityId === 'gaea' || x.name === 'gaea') return 0
         if (x.personalityId === activePersonality) return 1
         return x.enabled ? 2 : 3
@@ -473,7 +426,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
             <div
               key={ast.id}
               onClick={() => setDetail(ast)}
-              title="查看助手详情与参数"
+              title="查看详情与参数"
               style={{
                 position: 'relative',
                 background: 'linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))',
@@ -493,7 +446,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
               onMouseEnter={(e) => { if (ast.enabled) { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 12px 30px rgba(0,0,0,0.35), 0 0 24px ${accent}30` } }}
               onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isActive ? `0 0 22px ${accent}30` : '0 6px 20px rgba(0,0,0,0.25)' }}
             >
-              {/* 视觉区：剧照 / 人格渐变 + 雷达图 */}
               <div style={{
                 height: 108, position: 'relative', flexShrink: 0,
                 background: ast.portraitUrl ? 'none' : `linear-gradient(135deg, ${accent}33, ${accent}14 55%, rgba(255,255,255,0.02))`,
@@ -505,7 +457,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
                 ) : (
                   <CompanionAvatar size={88} state="idle" emotionColor={ast.enabled ? accent : '#666'} />
                 )}
-                {/* 当前对话徽标 */}
                 {isActive && (
                   <span style={{
                     position: 'absolute', top: 8, left: 8,
@@ -528,7 +479,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
                 )}
               </div>
 
-              {/* 信息区 */}
               <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <Text strong style={{ fontSize: 14, color: ast.enabled ? '#fff' : 'rgba(255,255,255,0.5)' }}>
@@ -542,11 +492,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
                   {p ? `${p.label} · ${p.gender === 'female' ? '♀' : p.gender === 'male' ? '♂' : '✦'}` : ast.personalityId}
                 </div>
-
-                {/* 分隔线 */}
                 <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />
-
-                {/* 性格标签 chips */}
                 {(ast.tags?.length || p?.tags?.length) ? (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
                     {(ast.tags || p?.tags || []).slice(0, 3).map((t) => (
@@ -560,8 +506,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
                 ) : (
                   <div style={{ height: 2 }} />
                 )}
-
-                {/* 人格预览（VoiceGuide 摘要） */}
                 <Text style={{
                   color: 'rgba(255,255,255,0.4)', fontSize: 10, lineHeight: 1.5,
                   overflow: 'hidden', textOverflow: 'ellipsis',
@@ -570,8 +514,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
                 }}>
                   {p?.voiceGuide || '暂无人格描述'}
                 </Text>
-
-                {/* 迷你五维条（T/I/S/O/R） */}
                 {p && (
                   <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
                     {[{ k: 'T', v: p.dims.T }, { k: 'I', v: p.dims.I }, { k: 'S', v: p.dims.S }, { k: 'O', v: p.dims.O }, { k: 'R', v: p.dims.R }].map((d) => (
@@ -584,8 +526,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
                     ))}
                   </div>
                 )}
-
-                {/* 操作 */}
                 <div style={{ display: 'flex', gap: 2, marginTop: 6 }}>
                   <Button type="text" size="small" icon={<EditOutlined />}
                     onClick={(e) => { e.stopPropagation(); startEdit(ast) }}
@@ -604,7 +544,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           )
         })}
 
-        {/* 新建助手卡（虚线上浮） */}
         <div
           onClick={startNew}
           style={{
@@ -628,9 +567,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     )
   }
 
-  // ─── 助手详情视图（角色卡参数设定，参照小说角色卡）──────────
-
-  const renderDetail = (ast: Assistant) => {
+  const renderDetail = (ast: WhisperAssistant) => {
     const p = getPersonality(ast.personalityId)
     const wxOn = wxStatuses[ast.id] || false
     const accent = PERSONALITY_COLORS[ast.personalityId] || '#a855f7'
@@ -644,13 +581,11 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     ]
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* 返回列表 */}
         <Button type="text" icon={<CloseOutlined />} onClick={() => setDetail(null)}
           style={{ alignSelf: 'flex-start', color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
-          返回助手列表
+          返回角色列表
         </Button>
 
-        {/* 头部：视觉区 + 名称/标签 */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 18,
           padding: '18px 20px', borderRadius: 18,
@@ -697,7 +632,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           </div>
         </div>
 
-        {/* 五维参数：雷达 + 条形并排 */}
         <div style={{
           padding: '14px 18px', borderRadius: 16,
           background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)',
@@ -724,7 +658,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           </div>
         </div>
 
-        {/* 人格设定（VoiceGuide 全文） */}
         <div style={{ padding: '14px 18px', borderRadius: 16, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
           <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', display: 'block', marginBottom: 8, letterSpacing: '0.08em' }}>
             人格设定 · VoiceGuide
@@ -734,7 +667,6 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           </Text>
         </div>
 
-        {/* 标签 + 微信参数 */}
         <div style={{ display: 'grid', gridTemplateColumns: p?.tags?.length ? '1fr 1fr' : '1fr', gap: 12 }}>
           {p?.tags?.length ? (
             <div style={{ padding: '14px 18px', borderRadius: 16, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
@@ -757,8 +689,7 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
           </div>
         </div>
 
-        {/* 操作区 */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+        <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 6 }}>
             <Select
               size="middle" placeholder="出图模型" value={portraitModel || undefined}
@@ -782,12 +713,12 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
             导出到小说
           </Button>
           <Button type="primary" style={{
-            flex: 1, height: 40, borderRadius: 12, fontWeight: 600,
+            flex: 1, minWidth: 220, height: 40, borderRadius: 12, fontWeight: 600,
             background: `linear-gradient(135deg, ${accent}, ${accent}cc)`, border: 'none',
           }}
             disabled={!ast.enabled}
-            onClick={() => { onSwitchPersonality(ast.personalityId); onClose(); setDetail(null) }}>
-            {isActive ? '正在与此助手对话' : `切换为「${ast.name}」对话`}
+            onClick={() => switchTo(ast.personalityId)}>
+            {isActive ? '正在与此角色对话' : `切换为「${ast.name}」对话`}
           </Button>
           <Button icon={<EditOutlined />} onClick={() => { setDetail(null); startEdit(ast) }}
             style={{ height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
@@ -801,54 +732,44 @@ export default function AssistantManagerModal({ open, activePersonality, adultMo
     )
   }
 
-  // ─── 主弹窗 ────────────────────────────────────────────────
-
-  // 铺满主界面（非弹窗）：角色中心全页视图
-  if (!open) return null
   return (
-    <div style={{
-      flex: 1, width: '100%', minHeight: 0, alignSelf: 'stretch',
-      display: 'flex', flexDirection: 'column',
-      background: 'linear-gradient(180deg, rgba(13,13,20,0.96) 0%, rgba(17,17,25,0.98) 100%)',
-      overflow: 'hidden',
-    }}>
-      {/* 头部工具栏 */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      {/* 面板头 */}
       <div style={{
-        padding: '12px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)',
-        background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(20px)',
-        display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '10px 14px', marginBottom: 14,
+        borderRadius: 14,
+        background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)',
+        backdropFilter: 'blur(18px)',
       }}>
         <span style={{
-          fontSize: 18, width: 38, height: 38, borderRadius: 12,
-          background: 'linear-gradient(135deg, rgba(232,83,136,0.15), rgba(168,85,247,0.1))',
-          border: '1px solid rgba(232,83,136,0.2)',
+          fontSize: 16, width: 34, height: 34, borderRadius: 11, flexShrink: 0,
+          background: 'linear-gradient(135deg, rgba(232,83,136,0.16), rgba(168,85,247,0.1))',
+          border: '1px solid rgba(232,83,136,0.22)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <UserOutlined style={{ color: '#e85388', fontSize: 15 }} />
+          <UserOutlined style={{ color: '#e85388', fontSize: 14 }} />
         </span>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>
-            {detail ? `${detail.name} · 角色详情` : editing ? (editing.id ? `编辑 ${editing.name}` : '新建角色') : '角色中心'}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'rgba(255,255,255,0.92)' }}>
+            {detail ? `${detail.name} · 角色详情` : editing ? (editing.id ? `编辑 ${editing.name}` : '新建角色') : `轻语角色（${assistants.length}）`}
           </div>
-          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-            {detail ? '角色参数设定 · 参照小说角色卡' : editing ? '' : `${assistants.length} 个角色 · gaea 为核心 AI 助手，其余为角色`}
+          <Text style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.4)' }}>
+            {detail ? '角色参数设定 · 参照小说角色卡' : editing ? '' : 'gaea 为核心 AI 助手，其余为角色 · 点击卡片切换对话人格'}
           </Text>
         </div>
         <div style={{ flex: 1 }} />
-        <Button icon={<CloseOutlined />} onClick={onClose}
-          style={{ borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
-          返回聊天
-        </Button>
+        {!detail && !editing && (
+          <Button size="small" icon={<PlusOutlined />} onClick={startNew}
+            style={{ borderRadius: 10, background: 'rgba(232,83,136,0.14)', border: '1px solid rgba(232,83,136,0.28)', color: '#f472b6', fontWeight: 600 }}>
+            新建角色
+          </Button>
+        )}
       </div>
 
-      {/* 内容滚动区 */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '0 2px 12px' }}>
         {detail ? renderDetail(detail) : editing ? renderEditor() : renderList()}
       </div>
     </div>
   )
-}
-
-function emptyForm(): Assistant {
-  return { id: '', name: '', personalityId: 'gaea', wxToken: '', wxBotId: '', wxUserId: '', enabled: true, portraitUrl: '' }
 }

@@ -421,8 +421,8 @@ func (a *whisperState) WhisperSetAdultMode(personalityID string, enabled bool) e
 	if !ok {
 		return nil
 	}
-	orch.AdultMode = enabled
-	orch.AdultMode = enabled
+	// 私人非商用：成人内容始终开启，忽略开关参数，保留方法以兼容旧调用
+	orch.AdultMode = true
 	return nil
 }
 

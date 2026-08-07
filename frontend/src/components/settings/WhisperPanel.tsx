@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Button, Checkbox, Input, Popconfirm, Radio, Select, Switch, Tag, Typography, message } from 'antd'
+import { Button, Input, Popconfirm, Radio, Select, Switch, Tag, Typography, message } from 'antd'
 import * as App from '../../../wailsjs/go/app/App'
 import SettingsSection from './SettingsSection'
 
@@ -7,7 +7,6 @@ const PERSONALITY_KEY = 'gaea_whisper_personality'
 const LEGACY_PERSONALITY_KEY = 'wubigrok_whisper_personality'
 const COMPANION_SETTINGS_KEY = 'gaea_whisper_companion_settings'
 const LEGACY_COMPANION_SETTINGS_KEY = 'wubigrok_whisper_companion_settings'
-const ADULT_MODE_KEY = 'gaea_whisper_adult_mode'
 const TOPICS_KEY = 'gaea_whisper_topics'
 const LEGACY_TOPICS_KEY = 'wubigrok_whisper_topics'
 
@@ -21,7 +20,6 @@ interface CompanionSettings {
   companionName: string
   companionGender: 'male' | 'female'
   companionHarassEnabled: boolean
-  ageConfirmed18: boolean
 }
 
 function loadSettings(): CompanionSettings {
@@ -29,7 +27,7 @@ function loadSettings(): CompanionSettings {
     const r = localStorage.getItem(COMPANION_SETTINGS_KEY) ?? localStorage.getItem(LEGACY_COMPANION_SETTINGS_KEY)
     if (r) return JSON.parse(r)
   } catch (_) {}
-  return { companionName: '', companionGender: 'female', companionHarassEnabled: false, ageConfirmed18: false }
+  return { companionName: '', companionGender: 'female', companionHarassEnabled: false }
 }
 
 function saveSettings(s: CompanionSettings) {
@@ -43,10 +41,6 @@ const WhisperPanel: React.FC = () => {
   const [activePersonality, setActivePersonality] = useState<string>(() => {
     try { return (localStorage.getItem(PERSONALITY_KEY) ?? localStorage.getItem(LEGACY_PERSONALITY_KEY)) || 'gaea' } catch { return 'gaea' }
   })
-  const [adultMode, setAdultMode] = useState<boolean>(() => {
-    try { return localStorage.getItem(ADULT_MODE_KEY) === '1' } catch { return false }
-  })
-
   useEffect(() => {
     try { App.WhisperGetPersonalities().then((p: any) => setPersonalities(p || [])).catch(() => {}) } catch (_) {}
   }, [])
@@ -62,13 +56,6 @@ const WhisperPanel: React.FC = () => {
     setActivePersonality(id)
     try { localStorage.setItem(PERSONALITY_KEY, id) } catch (_) {}
     message.success(`已切换为「${personalities.find(p => p.id === id)?.label || id}」人格（轻语界面生效）`)
-  }
-
-  const handleAdultMode = async (v: boolean) => {
-    setAdultMode(v)
-    try { localStorage.setItem(ADULT_MODE_KEY, v ? '1' : '0') } catch (_) {}
-    try { await (App as any).WhisperSetAdultMode(activePersonality, v) } catch (_) {}
-    message.success(v ? '已开启成人模式' : '已关闭成人模式')
   }
 
   const handleClearAll = async () => {
@@ -110,7 +97,7 @@ const WhisperPanel: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Select size="small" value={activePersonality} style={{ width: 200 }}
             onChange={handleSwitchPersonality}
-            options={personalities.map(p => ({ value: p.id, label: `${p.gender === 'male' ? '🤵' : '👩'} ${p.label}${p.requiresAdult18 ? ' (18+)' : ''}` }))} />
+            options={personalities.map(p => ({ value: p.id, label: `${p.gender === 'male' ? '🤵' : '👩'} ${p.label}` }))} />
           {currentPersonality && (
             <span style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}>
               {['T', 'I', 'S', 'O', 'R'].map((dim, i) => {
@@ -126,7 +113,7 @@ const WhisperPanel: React.FC = () => {
           )}
         </div>
         <Typography.Paragraph type="secondary" style={{ fontSize: 11, margin: '8px 0 0' }}>
-          角色管理（自定义人格 / 角色剧照 / 小说互传）在轻语界面「虚拟助手管理中心」操作。
+          角色管理（自定义人格 / 角色剧照 / 小说互传）在导航栏「角色库」操作。
         </Typography.Paragraph>
       </SettingsSection>
 
@@ -143,24 +130,6 @@ const WhisperPanel: React.FC = () => {
             <Switch size="small" checked={settings.companionHarassEnabled}
               onChange={(v) => updateSettings({ companionHarassEnabled: v })} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <Typography.Text style={{ fontSize: 12, color: 'var(--md-sys-color-text)' }}>成人模式</Typography.Text>
-              <div style={{ fontSize: 10, color: 'var(--md-sys-color-text-secondary)', marginTop: 2 }}>启用更亲密的话题和互动</div>
-            </div>
-            <Switch size="small" checked={adultMode} disabled={!settings.ageConfirmed18} onChange={handleAdultMode} />
-          </div>
-          <Checkbox
-            checked={settings.ageConfirmed18}
-            onChange={(e) => {
-              const checked = e.target.checked
-              updateSettings({ ageConfirmed18: checked })
-              if (!checked && adultMode) handleAdultMode(false)
-            }}
-            style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)' }}
-          >
-            我确认已年满 18 岁
-          </Checkbox>
         </div>
       </SettingsSection>
 

@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-07 13:00:00
+> 最后更新: 2026-08-07 13:55:00
 
 ## 2.0 P0 基线加固（✅ 已完成）
 
@@ -140,3 +140,18 @@
 - 导航收敛：MainLayout 移除独立「轻语」菜单项；首页启动器轻语卡片改为一键进入聊天板块 persona 模式（`utils/chatNav.ts` 信号 + 事件）
 - 无障碍/防降级：消息区 `role="log" aria-live="polite"`、focus-visible 环、`prefers-reduced-motion` 禁用打字机与入场动画、`prefers-reduced-transparency` 玻璃降级；emoji 图标全部替换为 antd icons
 - 验收：新增 4 个测试（ChatImportTopic 导入/跳过非法角色、ChatTopicSetMode、ChatTopicClear）；E16 守卫迁移到 ChatPage + 新增 E25 合并不变量守卫；`scripts/ci.ps1` CI OK；`wails build` 成功（build/bin/gaea.exe 38MB）
+
+## 2.10 角色库（小说角色 × 轻语角色统一，✅ 已完成，2026-08-07）
+
+- 市场调研：`docs/market-research-2026-08-character-library.md`——角色卡是"角色资产单一事实源"：Sudowrite 证明角色卡须是 AI 实时引用的结构化画像（对话样本 > 特质列表、跨章注入、随弧线更新）；Character.AI 定义"人格+说话方式+行为规则+情感逻辑"；QMAI 做角色状态快照一致性审计；lore-weave 按"在场角色"注入关系图谱。文档第 5/6 节给出小说与聊天各自使用角色的落地路径
+- 新页面 `CharacterLibraryPage.tsx`：双 Tab（小说角色 + 轻语角色）。小说 Tab 复用 CharacterCard/CharacterEditor/PortraitLightbox，支持筛选/AI 生成/新建/剧照/编辑/AI 补全/导入轻语，未开项目显示引导空态；轻语 Tab 人格预设只读卡片（五维雷达 + 设为当前）+ `WhisperRolePanel` 管理面板（原 AssistantManagerModal 页面化，列表/详情/编辑/新建成人/微信扫码/配对码/剧照/导出到小说/设为当前人格）
+- 导航：MainLayout 菜单新增「角色库」（TeamOutlined，模型中心之后），ChatPage 的「虚拟助手管理」入口与人格空态按钮均改为跳转角色库；`gaea-persona-changed` 事件 + localStorage 实现角色库 ↔ 聊天人格联动
+- 数据零后端改动：小说角色仍落项目 `characters.json`，轻语角色走 assistant 存储；`PortraitLightbox imageUrl` 笔误修复；删除被替代的死代码 AssistantManagerModal / WhisperPersonalityModal / PersonalityPreview（git 可恢复）
+- 验收：`npm run build`、`scripts/ci.ps1` CI OK、`wails build` 成功
+
+## 2.11 去除成人限制（私人非商用，✅ 已完成，2026-08-07）
+
+- 用户声明软件私人使用、不商业化 → 移除成人内容门禁，成人内容默认开启
+- 后端：`NewOrchestrator` 默认 `AdultMode: true`（成人状态机/表达策略/记忆隐私分级随会话创建即生效）；`WhisperSetAdultMode` 保留方法但强制 true（兼容旧调用）；成人内容引擎内的安全阀门（hard stop / 拒绝词 / 关系阶段门控 / 未成年红线）原样保留
+- 前端：设置面板删除「我确认已年满 18 岁」复选与「成人模式」开关（`ageConfirmed18` / `gaea_whisper_adult_mode` 一并移除）；人格下拉与角色库卡片去除 18+ 标记；ChatPage 删除无用 adultMode state；`WhisperRolePanel` 删除 adultMode 死参数
+- 验收：`npm run build`、`scripts/ci.ps1` CI OK、`wails build` 成功
