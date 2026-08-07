@@ -1,0 +1,8 @@
+{
+  "name": "@gaea/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "types/index.ts",
+  "types": "types/index.ts",
+  "description": "gaea 桌面端 + 移动端 共享类型与工具"
+}
