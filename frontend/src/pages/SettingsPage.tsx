@@ -83,7 +83,7 @@ const CATEGORIES: Category[] = [
   },
 ]
 
-/** SettingsPage — 设置中心：左侧按功能板块导航，支持全局搜索过滤 */
+/** SettingsPage — 设置中心：二级分类磁贴平铺在顶部（与其他功能板块一致），支持全局搜索过滤 */
 const SettingsPage: React.FC = () => {
   const [query, setQuery] = useState('')
   const [activeKey, setActiveKey] = useState('general')
@@ -124,32 +124,34 @@ const SettingsPage: React.FC = () => {
         />
       </header>
 
-      <div className="settings-page__layout">
-        <nav className="settings-rail" aria-label="设置分类">
-          {visible.map((it) => (
-            <button
-              key={it.key}
-              type="button"
-              className={`settings-rail__item${it.key === effectiveKey ? ' is-active' : ''}`}
-              onClick={() => setActiveKey(it.key)}
-            >
-              {it.icon}
-              <span>{it.label}</span>
-              <span className="settings-rail__desc">{it.desc}</span>
-            </button>
-          ))}
-        </nav>
+      {/* 二级分类：平铺在顶部，滚动时吸顶保持可切换 */}
+      <nav className="settings-tiles" aria-label="设置分类">
+        {visible.map((it) => (
+          <button
+            key={it.key}
+            type="button"
+            className={`settings-tile${it.key === effectiveKey ? ' is-active' : ''}`}
+            onClick={() => setActiveKey(it.key)}
+            aria-current={it.key === effectiveKey ? 'page' : undefined}
+          >
+            <span className="settings-tile__icon">{it.icon}</span>
+            <span className="settings-tile__label">{it.label}</span>
+            <span className="settings-tile__desc">{it.desc}</span>
+          </button>
+        ))}
+      </nav>
 
-        <main className="settings-content">
-          {visible.length === 0 ? (
-            <div className="md-glass" style={{ borderRadius: 'var(--md-sys-radius-lg)', padding: '48px 20px', textAlign: 'center', color: 'var(--md-sys-color-text-secondary)' }}>
-              没有匹配的设置项，试试「主题」「模型」或「存储」
-            </div>
-          ) : (
-            active.panel
-          )}
-        </main>
-      </div>
+      <main className="settings-content">
+        {visible.length === 0 ? (
+          <div className="md-glass" style={{ borderRadius: 'var(--md-sys-radius-lg)', padding: '48px 20px', textAlign: 'center', color: 'var(--md-sys-color-text-secondary)' }}>
+            没有匹配的设置项，试试「主题」「模型」或「存储」
+          </div>
+        ) : (
+          <div key={effectiveKey} className="settings-panel-enter">
+            {active.panel}
+          </div>
+        )}
+      </main>
     </div>
   )
 }

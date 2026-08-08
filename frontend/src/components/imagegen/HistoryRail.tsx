@@ -1,6 +1,6 @@
 import React from 'react'
 import { Button, Typography } from 'antd'
-import { DeleteOutlined, HistoryOutlined } from '@ant-design/icons'
+import { DeleteOutlined, HistoryOutlined, VideoCameraOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import type { GenResult } from './types'
 
@@ -32,7 +32,7 @@ export const HistoryRail: React.FC<Props> = ({ history, selectedIndex, onSelect,
       <Typography.Text style={{
         color: C('color-text-secondary'), fontSize: 11, textAlign: 'center', display: 'block', padding: '18px 8px',
       }}>
-        生成的图片会出现在这里
+        生成的图片与视频会出现在这里
       </Typography.Text>
     ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', flex: 1 }}>
@@ -51,7 +51,20 @@ export const HistoryRail: React.FC<Props> = ({ history, selectedIndex, onSelect,
                 boxShadow: selected ? 'var(--shadow-sm)' : 'none',
               }}
             >
-              <img src={h.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {h.kind === 'video' ? (
+                <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000' }}>
+                  <video src={h.image} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <span style={{
+                    position: 'absolute', right: 3, bottom: 3, width: 16, height: 16, borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.65)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9,
+                  }}>
+                    <VideoCameraOutlined />
+                  </span>
+                </div>
+              ) : (
+                <img src={h.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              )}
             </div>
           )
         })}

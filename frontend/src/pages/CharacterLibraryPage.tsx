@@ -10,6 +10,7 @@ import {
 import CharacterCard from '../components/characterlib/CharacterCard'
 import CharacterLibEditor from '../components/characterlib/CharacterLibEditor'
 import CharacterMemoryModal from '../components/characterlib/CharacterMemoryModal'
+import FeatureModelBar from '../components/FeatureModelBar'
 import { C } from '../utils/theme'
 import { useAppStore } from '../stores/appStore'
 import {
@@ -294,6 +295,11 @@ const CharacterLibraryPage: React.FC = () => {
         character={memoryChar}
         onClose={() => setMemoryChar(null)}
       />
+
+      {/* 绑定模型卡（左下角浮动）：角色库 AI 生成/补全走独立绑定 */}
+      <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
+        <FeatureModelBar feature="characterlib" label="角色库" />
+      </div>
     </div>
   )
 }

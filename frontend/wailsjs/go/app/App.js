@@ -690,6 +690,10 @@ export function GenerateFreeImage(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8
   return window['go']['app']['App']['GenerateFreeImage'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
+export function GenerateMedia(arg1) {
+  return window['go']['app']['App']['GenerateMedia'](arg1);
+}
+
 export function GenerateOutlineWithDialogue(arg1, arg2, arg3) {
   return window['go']['app']['App']['GenerateOutlineWithDialogue'](arg1, arg2, arg3);
 }
@@ -832,6 +836,10 @@ export function GetNovelsDir() {
 
 export function GetOutlines() {
   return window['go']['app']['App']['GetOutlines']();
+}
+
+export function GetPortraitConfig() {
+  return window['go']['app']['App']['GetPortraitConfig']();
 }
 
 export function GetProjectInfo() {
@@ -1288,6 +1296,10 @@ export function SetFeatureModelEnabled(arg1, arg2) {
 
 export function SetImageBackend(arg1, arg2, arg3, arg4) {
   return window['go']['app']['App']['SetImageBackend'](arg1, arg2, arg3, arg4);
+}
+
+export function SetPortraitConfig(arg1, arg2) {
+  return window['go']['app']['App']['SetPortraitConfig'](arg1, arg2);
 }
 
 export function StartComfyUI() {

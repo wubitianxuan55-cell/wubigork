@@ -27,6 +27,11 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 
 ## 版本状态
 
-- 最新发布：v2.4.5（2026-08-08）「通用办公 · 文件预览 · 欢迎页重设计」，合并 v2.4.2~v2.4.5
-- 里程碑：v2.4.2 通用办公改造 + ModelScope 文档技能；v2.4.3 内置工具 38→17；
-  v2.4.4 文件预览重设计 + 右侧面板精简；v2.4.5 欢迎页重设计
+- 最新发布：v2.5.0（2026-08-08）「全界面科幻视觉重设计 · 绘梦图生图/文生视频 · 角色库模型绑定」
+- 里程碑：设置/首页/聊天欢迎屏/小说/绘梦五板块统一玻璃 HUD 设计语言；
+  绘梦新增图生图（ComfyUI 低 denoise）与文生视频（LTX-Video，GenerateMedia 绑定）；
+  模型中心功能绑定实时同步 + 办公/聊天去重合并；角色库新增 LLM 绑定（func_characterlib_*）
+  与剧照独立后端/模型（portrait_backend / portrait_model）；vision 技能切 Qwen3.6-35B-A3B
+  并修复 PS 5.1 UTF-8 编码（BOM + .NET HttpClient）
+- 已知注意：角色库剧照默认跟随绘梦（ImageBackend/ImageModel），可在模型中心单独绑定；
+  文生视频依赖本地 ComfyUI 安装 LTX-Video 模型

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Typography, Card, Switch, Button, Input, Space, Tag, message, Spin, Collapse, Select, Segmented } from 'antd'
 import {
   CloudOutlined, CheckCircleOutlined,
@@ -21,6 +21,7 @@ import {
   getConfig, saveConfig,
   getImageBackendInfo, setImageBackend as setImageBackendAPI,
 } from '../api/settings'
+import { getPortraitConfig, setPortraitConfig } from '../api/image'
 import { startComfyUI, stopComfyUI, getComfyUIStatus } from '../api/image'
 
 type Category = 'llm' | 'image' | 'tts' | 'engine' | 'bind'
@@ -148,44 +149,73 @@ const ModelCenterPage: React.FC = () => {
     { modelId: 'z-image-turbo', modelName: 'Z-Image-Turbo', engineId: 'comfyui', engineName: 'ComfyUI', status: 'running' },
   ]
 
-  // ── 功能模型绑定（聊天/小说/办公 各自独立 LLM，持久化重启不丢）──
-  const FEATURES: { key: string; label: string; icon: string }[] = [
+  // ── 功能模型绑定（聊天/小说/办公/角色库 各自独立 LLM，持久化重启不丢）──
+  // 聊天已合并轻语（后端 whisper 为 chat 别名）；办公合并通用办公+方案编写（mergeKeys 一并写入）。
+  const FEATURES: { key: string; label: string; icon: string; mergeKeys?: string[] }[] = [
     { key: 'chat', label: '聊天', icon: '💬' },
-    { key: 'whisper', label: '聊天', icon: '🫀' },
     { key: 'novel', label: '小说', icon: '📖' },
-    { key: 'office', label: '方案编写', icon: '📄' },
-    { key: 'gaea', label: '办公', icon: '🛠️' },
+    { key: 'office', label: '办公', icon: '🛠️', mergeKeys: ['gaea'] },
+    { key: 'characterlib', label: '角色库', icon: '🎭' },
   ]
   const [featureCfg, setFeatureCfg] = useState<Record<string, { engine: string; model: string }>>({})
   const [featureDraft, setFeatureDraft] = useState<Record<string, { engine: string; model: string }>>({})
   const [featureEnabled, setFeatureEnabled] = useState<Record<string, boolean>>({})
   const [modelRoutes, setModelRoutes] = useState<Record<string, { engine: string; model: string; source: string }>>({})
+  const [portraitCfg, setPortraitCfg] = useState<{ backend: string; model: string }>({ backend: '', model: '' })
+  const [portraitDraft, setPortraitDraft] = useState<{ backend: string; model: string }>({ backend: '', model: '' })
+  const [portraitSaving, setPortraitSaving] = useState(false)
 
   // 当前生效路由（后端 routeModel 降级链结果：feature / global / fallback）
-  useEffect(() => {
-    let alive = true
+  const refreshRoutes = useCallback(async () => {
     const bind = (window as any).go?.app?.App
     if (!bind?.GetModelRoute) return
-    ;(async () => {
-      const next: Record<string, { engine: string; model: string; source: string }> = {}
-      for (const f of FEATURES) {
-        try {
-          next[f.key] = JSON.parse(await bind.GetModelRoute(f.key))
-        } catch { /* 单功能失败忽略 */ }
-      }
-      if (alive) setModelRoutes(next)
-    })()
-    return () => { alive = false }
+    const next: Record<string, { engine: string; model: string; source: string }> = {}
+    for (const key of ['chat', 'novel', 'office', 'gaea', 'characterlib']) {
+      try {
+        next[key] = JSON.parse(await bind.GetModelRoute(key))
+      } catch { /* 单功能失败忽略 */ }
+    }
+    setModelRoutes(next)
   }, [])
+  useEffect(() => { refreshRoutes() }, [refreshRoutes])
+
+  // 角色库剧照独立后端/模型选项（空 = 跟随绘梦）
+  const portraitModelOptions = useMemo(() => {
+    const b = portraitDraft.backend
+    if (!b) return [{ label: '跟随绘梦', value: '' }]
+    if (b === 'comfyui') {
+      return [
+        { label: '跟随绘梦', value: '' },
+        { label: 'Krea2 Turbo', value: 'krea2' },
+        { label: 'Z-Image-Turbo', value: 'z-image-turbo' },
+      ]
+    }
+    const eng = engines.find(e => e.id === b)
+    const imgs = (eng?.models || []).filter(m => classifyModel(m.id) === 'image')
+    return [
+      { label: '跟随绘梦', value: '' },
+      ...imgs.map(m => ({ label: m.id, value: m.id })),
+    ]
+  }, [portraitDraft.backend, engines])
 
   const loadFeatureCfg = useCallback(async () => {
     try {
       const cfg: Record<string, { engine: string; model: string }> = {}
       const en: Record<string, boolean> = {}
-      for (const f of ['chat', 'whisper', 'novel', 'office', 'gaea']) {
-        const r: any = await App.GetFeatureModel(f)
-        cfg[f] = { engine: r?.engine || '', model: r?.model || '' }
-        try { en[f] = !!(await App.GetFeatureModelEnabled(f)) } catch (_) { en[f] = true }
+      for (const f of FEATURES) {
+        const keys = [f.key, ...(f.mergeKeys || [])]
+        let engine = ''
+        let model = ''
+        let on = true
+        for (const k of keys) {
+          const r: any = await App.GetFeatureModel(k)
+          if (!engine && r?.engine) { engine = r.engine; model = r.model || '' }
+          let e = true
+          try { e = !!(await App.GetFeatureModelEnabled(k)) } catch (_) { e = true }
+          on = on && e
+        }
+        cfg[f.key] = { engine, model }
+        en[f.key] = on
       }
       setFeatureCfg(cfg)
       setFeatureEnabled(en)
@@ -193,22 +223,43 @@ const ModelCenterPage: React.FC = () => {
     } catch (_) {}
   }, [])
 
+  // 同步：其他页面（FeatureModelBar 等）修改绑定后，本面板即时刷新
+  useEffect(() => {
+    const reload = () => { loadFeatureCfg(); refreshRoutes() }
+    let unsub: any
+    try {
+      unsub = (window as any).runtime?.EventsOn?.('feature-model-changed', reload)
+    } catch (_) {}
+    return () => {
+      try { if (typeof unsub === 'function') unsub() } catch (_) {}
+    }
+  }, [loadFeatureCfg, refreshRoutes])
+
   const handleSaveFeature = async (key: string) => {
     const d = featureDraft[key]
     if (!d?.engine || !d?.model) { message.warning('请先选择引擎和模型'); return }
+    const f = FEATURES.find(x => x.key === key)
     try {
       await App.SetFeatureModel(key, d.engine, d.model)
-      message.success(`${FEATURES.find(f => f.key === key)?.label}模型已绑定并持久化`)
+      for (const k of f?.mergeKeys || []) {
+        await App.SetFeatureModel(k, d.engine, d.model)
+      }
+      message.success(`${f?.label || key}模型已绑定并持久化`)
       loadFeatureCfg()
+      refreshRoutes()
     } catch (err: any) {
       message.error(err?.message || '保存失败')
     }
   }
 
   const handleToggleFeatureEnabled = async (key: string, enabled: boolean) => {
+    const f = FEATURES.find(x => x.key === key)
     try {
       await App.SetFeatureModelEnabled(key, enabled)
-      message.success(`${FEATURES.find(f => f.key === key)?.label}功能模型已${enabled ? '启用' : '停用'}`)
+      for (const k of f?.mergeKeys || []) {
+        await App.SetFeatureModelEnabled(k, enabled)
+      }
+      message.success(`${f?.label || key}功能模型已${enabled ? '启用' : '停用'}`)
       setFeatureEnabled(prev => ({ ...prev, [key]: enabled }))
       loadFeatureCfg()
     } catch (err: any) {
@@ -216,7 +267,31 @@ const ModelCenterPage: React.FC = () => {
     }
   }
 
+  const handleSavePortrait = async () => {
+    setPortraitSaving(true)
+    try {
+      await setPortraitConfig(portraitDraft.backend, portraitDraft.model)
+      setPortraitCfg({ ...portraitDraft })
+      message.success(
+        portraitDraft.backend
+          ? `角色库剧照已绑定：${portraitDraft.backend} / ${portraitDraft.model || '跟随绘梦'}`
+          : '角色库剧照已恢复为跟随绘梦',
+      )
+    } catch (err: any) {
+      message.error(err?.message || '保存失败')
+    } finally {
+      setPortraitSaving(false)
+    }
+  }
+
   useEffect(() => { loadAll(); loadImageBackend(); loadVoiceCfg(); loadFeatureCfg() }, [loadVoiceCfg, loadFeatureCfg])
+  useEffect(() => {
+    (async () => {
+      const p = await getPortraitConfig()
+      setPortraitCfg(p)
+      setPortraitDraft(p)
+    })()
+  }, [])
 
   // 设为语音识别/合成（模型中心 → 语音管道）
   const handleSetVoiceModel = async (kind: 'asr' | 'tts', engineId: string, modelId: string) => {
@@ -433,13 +508,14 @@ const ModelCenterPage: React.FC = () => {
                         <Space size={6}>
                           <span style={{ fontSize: 16 }}>{f.icon}</span>
                           <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>{f.label}</Typography.Text>
-                          {f.key === 'whisper' && (
+                          {f.key === 'chat' && (
                             <>
                               <Tag color="purple" style={{ fontSize: 9, margin: 0 }}>TTS {voiceCfg.tts.model || '自动'}</Tag>
                               <Tag color="blue" style={{ fontSize: 9, margin: 0 }}>STT {voiceCfg.stt.model || '自动'}</Tag>
                             </>
                           )}
-                          {f.key === 'novel' && <Tag color="orange" style={{ fontSize: 9, margin: 0 }}>剧照 {imageModel || '—'}</Tag>}
+                          {f.key === 'office' && <Tag color="cyan" style={{ fontSize: 9, margin: 0 }}>通用 + 方案 + 知识库</Tag>}
+                          {f.key === 'characterlib' && <Tag color="geekblue" style={{ fontSize: 9, margin: 0 }}>生成 / 补全</Tag>}
                         </Space>
                         <Tag color={bound ? 'green' : 'default'} style={{ fontSize: 10, margin: 0 }}>{bound ? '已绑定' : '未绑定'}</Tag>
                       </div>
@@ -449,6 +525,11 @@ const ModelCenterPage: React.FC = () => {
                       {modelRoutes[f.key] && (
                         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block' }}>
                           当前生效：{modelRoutes[f.key].engine || '-'} / {modelRoutes[f.key].model || '-'}（{modelRoutes[f.key].source || '-'}）
+                        </Typography.Text>
+                      )}
+                      {f.key === 'office' && modelRoutes['gaea'] && (
+                        <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginTop: 2 }}>
+                          通用办公 / 知识库路由：{modelRoutes['gaea'].engine || '-'} / {modelRoutes['gaea'].model || '-'}（{modelRoutes['gaea'].source || '-'}）
                         </Typography.Text>
                       )}
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -480,6 +561,52 @@ const ModelCenterPage: React.FC = () => {
                   <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginTop: 8, lineHeight: 1.6 }}>
                     图片模型在绘梦界面内选择（后端 / 模型 / ComfyUI 启停），无需在此重复设置
                   </Typography.Text>
+                </Card>
+
+                {/* 角色库剧照：独立图片后端/模型（空 = 跟随绘梦） */}
+                <Card size="small" style={{ background: portraitCfg.backend ? 'var(--bg-glass)' : 'rgba(255,255,255,0.02)', border: portraitCfg.backend ? '1px solid rgba(96,165,250,0.35)' : '1px dashed var(--border-subtle)', borderRadius: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+                    <Space size={6}>
+                      <span style={{ fontSize: 16 }}>🖼️</span>
+                      <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>角色库剧照</Typography.Text>
+                      <Tag color="blue" style={{ fontSize: 9, margin: 0 }}>图片</Tag>
+                    </Space>
+                    <Tag color={portraitCfg.backend ? 'blue' : 'default'} style={{ fontSize: 10, margin: 0 }}>
+                      {portraitCfg.backend ? `${portraitCfg.backend} / ${portraitCfg.model || '跟随绘梦'}` : '跟随绘梦'}
+                    </Tag>
+                  </div>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 10, lineHeight: 1.6 }}>
+                    角色卡「生成剧照」使用独立后端；留空则跟随绘梦页当前选择
+                  </Typography.Text>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Select
+                      size="small"
+                      placeholder="后端"
+                      value={portraitDraft.backend || undefined}
+                      onChange={(v: string) => setPortraitDraft({ backend: v, model: '' })}
+                      style={{ flex: 1, minWidth: 0 }}
+                      options={[
+                        { value: '', label: '跟随绘梦' },
+                        { value: 'xai', label: 'xAI 云端' },
+                        { value: 'comfyui', label: 'ComfyUI 本地' },
+                        { value: 'herdsman', label: 'Herdsman 本地' },
+                        { value: 'ollama', label: 'Ollama 本地' },
+                      ]}
+                    />
+                    <Select
+                      size="small"
+                      placeholder="模型"
+                      value={portraitDraft.model || undefined}
+                      onChange={(v: string) => setPortraitDraft(p => ({ ...p, model: v }))}
+                      style={{ flex: 1, minWidth: 0 }}
+                      options={portraitModelOptions}
+                    />
+                  </div>
+                  <Button size="small" type={portraitCfg.backend ? 'primary' : 'default'} block
+                    loading={portraitSaving} onClick={handleSavePortrait}
+                    style={{ marginTop: 10, fontSize: 11 }}>
+                    {portraitCfg.backend ? '更新剧照绑定' : '绑定剧照后端'}
+                  </Button>
                 </Card>
               </div>
             </div>

@@ -355,6 +355,8 @@ export function GenerateDefaultCanvas():Promise<Record<string, any>>;
 
 export function GenerateFreeImage(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:number,arg7:number,arg8:string):Promise<Record<string, any>>;
 
+export function GenerateMedia(arg1:string):Promise<Record<string, any>>;
+
 export function GenerateOutlineWithDialogue(arg1:string,arg2:number,arg3:number):Promise<Record<string, any>>;
 
 export function GenerateSceneIllustration(arg1:number):Promise<Record<string, any>>;
@@ -426,6 +428,8 @@ export function GetModelRoute(arg1:string):Promise<string>;
 export function GetNovelsDir():Promise<string>;
 
 export function GetOutlines():Promise<Record<string, any>>;
+
+export function GetPortraitConfig():Promise<Record<string, string>>;
 
 export function GetProjectInfo():Promise<Record<string, any>>;
 
@@ -654,6 +658,8 @@ export function SetFeatureModel(arg1:string,arg2:string,arg3:string):Promise<voi
 export function SetFeatureModelEnabled(arg1:string,arg2:boolean):Promise<void>;
 
 export function SetImageBackend(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function SetPortraitConfig(arg1:string,arg2:string):Promise<void>;
 
 export function StartComfyUI():Promise<void>;
 

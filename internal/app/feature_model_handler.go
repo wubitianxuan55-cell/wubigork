@@ -27,6 +27,8 @@ func featureModelKeys(feature string) (engineKey, modelKey string, ok bool) {
 		return config.KeyFuncOfficeEngine, config.KeyFuncOfficeModel, true
 	case "gaea":
 		return config.KeyFuncGaeaEngine, config.KeyFuncGaeaModel, true
+	case "characterlib":
+		return config.KeyFuncCharLibEngine, config.KeyFuncCharLibModel, true
 	}
 	return "", "", false
 }
@@ -44,6 +46,8 @@ func featureModelEnabledKey(feature string) (key string, ok bool) {
 		return config.KeyFuncOfficeEnabled, true
 	case "gaea":
 		return config.KeyFuncGaeaEnabled, true
+	case "characterlib":
+		return config.KeyFuncCharLibEnabled, true
 	}
 	return "", false
 }

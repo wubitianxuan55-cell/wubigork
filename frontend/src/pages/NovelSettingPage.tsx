@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Button, Input, Space, message } from 'antd'
 import {
-  ImportOutlined, ExportOutlined, SaveOutlined,
+  ImportOutlined, ExportOutlined, SaveOutlined, FileTextOutlined,
 } from '@ant-design/icons'
 import ChatPanel from '../components/ChatPanel'
 import type { Message } from '../components/ChatPanel'
@@ -79,64 +79,61 @@ const NovelSettingPage: React.FC = () => {
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', height: '100%',
-      padding: '16px', maxWidth: 900, margin: '0 auto', gap: 12,
+      display: 'flex', flexDirection: 'row', width: '100%', height: '100%',
+      padding: '16px', maxWidth: 1240, margin: '0 auto', gap: 14, minHeight: 0, minWidth: 0,
     }}>
-      {/* 工具栏 */}
-      <div style={{
-        display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
-      }}>
-        <Space size={8}>
-          <Button icon={<ImportOutlined />} onClick={handleImport}
-            style={{ borderColor: '#60a5fa', color: '#60a5fa' }}>
-            导入
-          </Button>
-          <Button icon={<ExportOutlined />} onClick={handleExport}
-            style={{ borderColor: '#f59e0b', color: '#f59e0b' }}>
-            导出
-          </Button>
-          <Button icon={<SaveOutlined />} onClick={handleSave}
-            loading={saving}
-            style={{ borderColor: '#4ade80', color: '#4ade80' }}>
-            保存
-          </Button>
-        </Space>
+      {/* 左栏：设定编辑器 */}
+      <div className="novel-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        <div className="novel-panel-head">
+          <span className="novel-panel-title"><FileTextOutlined />设定编辑器</span>
+          <div style={{ flex: 1 }} />
+          <Space size={8}>
+            <Button icon={<ImportOutlined />} onClick={handleImport}
+              style={{ borderColor: '#60a5fa', color: '#60a5fa' }}>
+              导入
+            </Button>
+            <Button icon={<ExportOutlined />} onClick={handleExport}
+              style={{ borderColor: '#f59e0b', color: '#f59e0b' }}>
+              导出
+            </Button>
+            <Button icon={<SaveOutlined />} onClick={handleSave}
+              loading={saving}
+              style={{ borderColor: '#4ade80', color: '#4ade80' }}>
+              保存
+            </Button>
+          </Space>
+        </div>
+
+        {/* 隐藏的文件导入 input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".txt,.md,.json"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
+
+        {/* 编辑器 */}
+        <Input.TextArea
+          className="novel-editor"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="在此撰写或粘贴小说设定（世界观、剧情框架、人物关系、规则体系等）…"
+          style={{ flex: 1, minHeight: 0, resize: 'none' }}
+        />
       </div>
 
-      {/* 隐藏的文件导入 input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".txt,.md,.json"
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
-
-      {/* 编辑器 */}
-      <Input.TextArea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder="在此撰写或粘贴小说设定（世界观、剧情框架、人物关系、规则体系等）…"
-        style={{
-          flex: 1, minHeight: 300, resize: 'none',
-          background: C('color-bg-container'),
-          borderColor: C('color-border'),
-          color: C('color-text'),
-          fontFamily: 'var(--font-mono, "SF Mono", "Fira Code", monospace)',
-          fontSize: 14,
-          lineHeight: 1.8,
-        }}
-      />
-
-      {/* AI 对话 */}
-      <ChatPanel
-        title="设定 Agent"
-        messages={messages}
-        onSend={handleChatSend}
-        onMessagesChange={setMessages}
-        placeholder="描述你想要的设定修改，AI 帮你调整…"
-        defaultCollapsed
-      />
+      {/* 右栏：设定 Agent 常驻对话 */}
+      <div className="novel-panel" style={{ width: 380, flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <ChatPanel
+          title="设定 Agent"
+          messages={messages}
+          onSend={handleChatSend}
+          onMessagesChange={setMessages}
+          placeholder="描述你想要的设定修改，AI 帮你调整…"
+          fillHeight
+        />
+      </div>
     </div>
   )
 }

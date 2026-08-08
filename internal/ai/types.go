@@ -129,6 +129,11 @@ type ImageGenerationRequest struct {
 	ResponseFormat string `json:"response_format,omitempty"` // "url" 或 "b64_json"
 	Seed           int    `json:"seed,omitempty"`
 	Lora           string `json:"lora,omitempty"` // LoRA 文件名（逗号分隔多个）
+	Mode           string `json:"mode,omitempty"` // txt2img | img2img | t2v
+	InitImage      string `json:"init_image,omitempty"` // img2img 参考图（base64 data URL）
+	Denoise        float64 `json:"denoise,omitempty"`   // img2img 重绘幅度 0-1
+	Frames         int    `json:"frames,omitempty"`     // t2v 帧数
+	FPS            int    `json:"fps,omitempty"`        // t2v 帧率
 }
 
 // ImageData 单张图片结果
@@ -136,6 +141,7 @@ type ImageData struct {
 	URL           string `json:"url,omitempty"`
 	B64JSON       string `json:"b64_json,omitempty"`
 	RevisedPrompt string `json:"revised_prompt,omitempty"`
+	Kind          string `json:"kind,omitempty"` // image | video
 }
 
 // ImageGenerationResponse /v1/images/generations 响应

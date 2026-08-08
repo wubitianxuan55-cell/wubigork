@@ -1,6 +1,32 @@
 # 任务进度
 
-> 最后更新: 2026-08-08 00:10:00
+> 最后更新: 2026-08-08 09:05:00
+
+## 2.26 全界面科幻视觉重设计 + 绘梦多模态 + 角色库绑定（✅ 已完成，2026-08-08，v2.5.0）
+
+- 设置面板：左侧导航 → 顶部平铺分类磁贴（吸顶可切换），HUD 角标/聚焦/按压反馈；
+  修复 flex + margin auto 容器收缩（641px → 1080px）；按 ui-ux-pro-max 审计校准（动画 ≤300ms、说明 11px）
+- 首页：语音中枢升级为视觉主角——HUD 角标框、雷达脉冲环、声谱均衡条、等宽遥测读数、
+  聆听/回复扫描光带；orb 380px 自适应；全部纳入 reduced-motion 与 gaea-raf-degraded 保护
+- 聊天欢迎屏：普通模式 VoiceChatOrb、角色模式 CompanionAvatar（随语音状态变色）+ HUD 双欢迎屏；
+  建议卡补齐键盘可达；角色模式空状态隐藏重复人格条、修复 orb flex 压缩
+- 小说板块：NovelPage 默认 Tabs → 顶部二级导航平铺（子页保持挂载不丢状态）；新增 novel-workspace.css
+  （玻璃面板/HUD 面板头/节点树/纸面化衬线编辑面/antd Tabs 玻璃化）；OutlinePanel 硬编码紫色 → var(--gaea-glow)；
+  设定页改左右双栏（左编辑器 + 右设定 Agent 常驻，修复 flex 宽度收缩）
+- 绘梦：三模式导航（文生图/图生图/文生视频）；后端 ComfyUI 图生图工作流（LoadImage+VAEEncode+低 denoise）、
+  LTX-Video 文生视频工作流（帧数 %8 归一化）；输出解析扩展 images/gifs/videos（按 MIME 返回）；
+  新增 GenerateMedia 绑定；结果舞台/历史胶片/灯箱支持视频；修复引擎列表为空崩溃
+- 模型中心：功能绑定监听 feature-model-changed 实时同步（实测 herdsman→ollama 即时刷新）；
+  聊天合并轻语、办公合并方案（office+gaea 双写）、删除重复行；新增角色库 LLM 绑定
+  （func_characterlib_*，CharacterGenerateFill/Random 改走独立绑定）
+- 角色库剧照：独立图片后端/模型绑定（portrait_backend/portrait_model，空=跟随绘梦），
+  新增 Get/SetPortraitConfig 绑定 + 模型中心「角色库剧照」卡；删除小说卡剧照标签
+- 视觉识别管线：vision 默认模型切 Qwen3.6-35B-A3B-Uncensored（单行 7 磁贴/5+1 主题卡布局识别正确）；
+  修复 PS 5.1 UTF-8 编码（脚本转 BOM + .NET HttpClient，请求/响应中文均正常）
+- 验证：go build/vet/test 全绿（新增图生图/文生视频工作流单测）、tsc + vite build OK、
+  vitest 37 例全过、Edge headless 六大界面实拍 + 视觉复核；wails build 成功
+
+## 2.25 通用办公欢迎页重设计（✅ 已完成，2026-08-08，v2.4.5）
 
 ## 2.25 通用办公欢迎页重设计（✅ 已完成，2026-08-08，v2.4.5）
 - 移除土壤修复专项卡片（场地调查/标书/修复方案/污染风险/成本测算），改为 6 个通用办公核心能力：

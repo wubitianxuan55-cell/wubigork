@@ -1,0 +1,287 @@
+/* ============================================================
+   novel-workspace.css — 小说板块统一设计层
+   外壳沿用 gaea 玻璃 HUD（M3 token + --gaea-glow 单一强调色），
+   正文编辑区保持纸面化的衬线书写面（克制、少干扰）。
+   ============================================================ */
+
+/* ── 小说板块外壳 ── */
+.novel-hub {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+
+.novel-hub-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.novel-hub-body > div {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+/* ── 二级导航（平铺在顶部，与其他板块一致） ── */
+.novel-subnav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 72%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.novel-subnav::-webkit-scrollbar {
+  display: none;
+}
+
+.novel-subnav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--md-sys-color-text-secondary);
+  white-space: nowrap;
+  transition:
+    color var(--md-sys-transition-fast),
+    background var(--md-sys-transition-fast),
+    border-color var(--md-sys-transition-fast),
+    box-shadow var(--md-sys-transition-fast),
+    transform var(--md-sys-transition-fast);
+}
+
+.novel-subnav-item:hover {
+  color: var(--md-sys-color-text);
+  background: color-mix(in srgb, var(--gaea-glow) 7%, transparent);
+}
+
+.novel-subnav-item:active {
+  transform: scale(0.97);
+}
+
+.novel-subnav-item:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+
+.novel-subnav-item.is-active {
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border-color: color-mix(in srgb, var(--gaea-glow) 30%, transparent);
+  box-shadow: 0 2px 14px color-mix(in srgb, var(--gaea-glow) 20%, transparent);
+}
+
+.novel-subnav-item .anticon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* ── 玻璃面板 ── */
+.novel-panel {
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-radius-lg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* HUD 面板头 */
+.novel-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  flex-shrink: 0;
+}
+
+.novel-panel-head::before {
+  content: '';
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
+  flex-shrink: 0;
+}
+
+.novel-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--md-sys-color-text);
+}
+
+.novel-panel-title .anticon {
+  color: var(--gaea-glow);
+  font-size: 13px;
+}
+
+/* ── 章节节点树 ── */
+.novel-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+}
+
+.novel-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border-left: 2px solid transparent;
+  color: var(--md-sys-color-text);
+  font-size: 12px;
+  transition:
+    background var(--md-sys-transition-fast),
+    border-color var(--md-sys-transition-fast);
+}
+
+.novel-tree-item:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.novel-tree-item:focus-within {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.novel-tree-item.is-active {
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border-left-color: var(--gaea-glow);
+  color: var(--md-sys-color-text);
+}
+
+/* 大纲面板行悬停（配合 OutlinePanel 内联底色） */
+.novel-outline-row:hover {
+  background: color-mix(in srgb, var(--gaea-glow) 7%, transparent) !important;
+}
+
+.novel-tree-status {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.novel-tree-status.is-todo      { background: #6b7280; }
+.novel-tree-status.is-writing   { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }
+.novel-tree-status.is-done      { background: #22c55e; box-shadow: 0 0 6px rgba(34, 197, 94, 0.5); }
+.novel-tree-status.is-abandoned { background: #374151; }
+
+/* ── 正文编辑面（纸面化衬线书写） ── */
+.novel-editor {
+  font-family: 'Georgia', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif !important;
+  background: var(--md-sys-color-surface-container) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  border-radius: var(--md-sys-radius-md) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  padding: 20px 24px !important;
+  font-size: 15px !important;
+  line-height: 1.9 !important;
+  letter-spacing: 0.02em;
+  resize: none;
+  transition: border-color var(--md-sys-transition-fast), box-shadow var(--md-sys-transition-fast);
+}
+
+.novel-editor:focus {
+  border-color: color-mix(in srgb, var(--gaea-glow) 55%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gaea-glow) 12%, transparent) !important;
+}
+
+/* ── antd Tabs 玻璃化（角色页 / 章节页） ── */
+.novel-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.novel-tabs .ant-tabs-tab {
+  color: var(--md-sys-color-text-secondary);
+  transition: color var(--md-sys-transition-fast);
+}
+
+.novel-tabs .ant-tabs-tab:hover {
+  color: var(--md-sys-color-text);
+}
+
+.novel-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--gaea-glow);
+  text-shadow: 0 0 10px var(--gaea-glow);
+}
+
+/* 章节页 editable-card tabs 微调 */
+.novel-editor-tabs .ant-tabs-nav {
+  margin-bottom: 0 !important;
+  background: transparent !important;
+}
+
+.novel-editor-tabs .ant-tabs-tab {
+  font-size: 12px;
+  border-radius: 8px 8px 0 0 !important;
+}
+
+/* ── 快捷键键帽 ── */
+.novel-kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 10px;
+  color: var(--md-sys-color-text-secondary);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent);
+}
+
+/* 状态点 */
+.novel-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.novel-dot.ok {
+  background: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+}
+
+.novel-dot.dirty {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+
+/* ── 无障碍：减弱动态 ── */
+@media (prefers-reduced-motion: reduce) {
+  .novel-subnav-item,
+  .novel-tree-item,
+  .novel-tabs .ant-tabs-tab,
+  .novel-editor {
+    transition: none !important;
+  }
+}

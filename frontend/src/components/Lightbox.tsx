@@ -136,16 +136,31 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
           userSelect: 'none',
         }}
       >
-        <img
-          src={imageSrc} alt=""
-          draggable={false}
-          style={{
-            maxWidth: '100%', maxHeight: isSingle ? '95vh' : '70vh',
-            borderRadius: 8, objectFit: 'contain',
-            transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-            transition: dragging ? 'none' : 'transform 0.15s ease-out',
-          }}
-        />
+        {r?.kind === 'video' ? (
+          <video
+            src={imageSrc}
+            controls
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{
+              maxWidth: '100%', maxHeight: isSingle ? '95vh' : '70vh',
+              borderRadius: 8,
+            }}
+          />
+        ) : (
+          <img
+            src={imageSrc} alt=""
+            draggable={false}
+            style={{
+              maxWidth: '100%', maxHeight: isSingle ? '95vh' : '70vh',
+              borderRadius: 8, objectFit: 'contain',
+              transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+              transition: dragging ? 'none' : 'transform 0.15s ease-out',
+            }}
+          />
+        )}
       </div>
 
       {/* 信息区（单图模式不显示） */}

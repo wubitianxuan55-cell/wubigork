@@ -111,9 +111,9 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
 
   // 粒子球尺寸随视口高度自适应（全局窗口变化实时响应，400 为上限）
   const [orbSize, setOrbSize] = useState(() =>
-    Math.min(400, Math.max(260, (typeof window !== 'undefined' ? window.innerHeight : 800) - 460)))
+    Math.min(380, Math.max(240, (typeof window !== 'undefined' ? window.innerHeight : 800) - 480)))
   useEffect(() => {
-    const onResize = () => setOrbSize(Math.min(400, Math.max(260, window.innerHeight - 460)))
+    const onResize = () => setOrbSize(Math.min(380, Math.max(240, window.innerHeight - 480)))
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
@@ -148,6 +148,12 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
         : 'ml-status'
 
   const hasChat = !!userText || !!aiReply
+
+  // 语音状态 → 中枢面板状态类（驱动 HUD 脉冲环 / 声谱 / 扫描线的强度与配色）
+  const centerClass = [
+    'ml-center',
+    voice.aiSpeaking ? 'is-speaking' : voice.listening ? 'is-listening' : voice.active ? 'is-active' : '',
+  ].filter(Boolean).join(' ')
 
   return (
     <div className="ml">
@@ -186,7 +192,15 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
           <CardColumn list={leftModules} onNavigate={onNavigate} />
 
           {/* 正中：语音粒子交互 */}
-          <div className="ml-center">
+          <div className={centerClass}>
+            {/* 科幻 HUD 边框角标 */}
+            <div className="ml-hud-frame" aria-hidden="true">
+              <span className="ml-hud-corner ml-hud-tl" />
+              <span className="ml-hud-corner ml-hud-tr" />
+              <span className="ml-hud-corner ml-hud-bl" />
+              <span className="ml-hud-corner ml-hud-br" />
+            </div>
+
             <div className="ml-center-head">
               <span className="live-dot" />
               <span className="ml-center-title">语音交互中枢</span>
@@ -194,6 +208,10 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
             </div>
 
             <div className="ml-orb-wrap">
+              {/* 雷达脉冲环：待机慢速呼吸，聆听/回复加速扩散 */}
+              <span className="ml-ring ml-ring-1" aria-hidden="true" />
+              <span className="ml-ring ml-ring-2" aria-hidden="true" />
+              <span className="ml-ring ml-ring-3" aria-hidden="true" />
               <VoiceChatOrb
                 volume={voice.volume}
                 listening={voice.listening}
@@ -202,6 +220,25 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
                 transcript={voice.transcript}
                 size={orbSize}
               />
+            </div>
+
+            {/* 声谱均衡条：随语音状态律动 */}
+            <div className="ml-eq" aria-hidden="true">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <span key={i} className="ml-eq-bar" style={{ '--eq-i': i } as React.CSSProperties} />
+              ))}
+            </div>
+
+            {/* HUD 遥测读数 */}
+            <div className="ml-telemetry">
+              <span className="ml-tele-dot" />
+              CORE <b>GAEA-07</b>
+              <span className="ml-tele-sep" />
+              LINK <b>OK</b>
+              <span className="ml-tele-sep" />
+              VAD <b>{voice.active ? 'ON' : 'STBY'}</b>
+              <span className="ml-tele-sep" />
+              VOL <b>{voice.active ? `${Math.round(voice.volume * 100)}%` : '--'}</b>
             </div>
 
             <div className={statusClass}>

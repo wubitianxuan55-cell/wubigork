@@ -1,11 +1,12 @@
 import React from 'react'
-import { Input, InputNumber, Button, Typography } from 'antd'
+import { Input, InputNumber, Button, Typography, Slider } from 'antd'
 import {
   CloudOutlined, DesktopOutlined, RocketOutlined, KeyOutlined,
   EditOutlined, SlidersOutlined, CloudServerOutlined, DashboardOutlined,
   RobotOutlined, ExperimentOutlined, PictureOutlined, ShakeOutlined, NumberOutlined,
   MinusCircleOutlined, PlusCircleOutlined, AppstoreOutlined,
   PlayCircleOutlined, PoweroffOutlined,
+  UploadOutlined, CloseCircleOutlined, VideoCameraOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import type { SystemStats } from '../../api/image'
@@ -23,6 +24,22 @@ const SIZE_OPTIONS = [
   { label: '自定义', value: 'custom' },
 ]
 
+const VIDEO_SIZE_OPTIONS = [
+  { label: '16:9', value: '640x384' },
+  { label: '3:2', value: '768x512' },
+  { label: '1:1', value: '704x704' },
+  { label: '2:3', value: '512x768' },
+  { label: '16:9 HD', value: '1280x736' },
+  { label: '自定义', value: 'custom' },
+]
+
+const VIDEO_DURATION_OPTIONS = [
+  { label: '约 6 秒', value: '49-8' },
+  { label: '约 12 秒', value: '97-8' },
+  { label: '约 6 秒@16', value: '97-16' },
+  { label: '约 4 秒@24', value: '97-24' },
+]
+
 const COUNT_OPTIONS = [
   { label: '1', value: 1 },
   { label: '2', value: 2 },
@@ -37,7 +54,9 @@ const BACKEND_OPTIONS = [
   { label: 'Ollama', value: 'ollama', icon: <KeyOutlined /> },
 ]
 
-const estimateTime = (backend: string, model: string, count: number) => {
+const estimateTime = (backend: string, model: string, count: number, mode: string, frames: number, fps: number) => {
+  if (mode === 't2v') return Math.round((frames / Math.max(fps, 1)) * 4)
+  if (mode === 'img2img') return count * 12
   if (backend === 'xai') return count * 5
   if (model === 'z-image-turbo') return count * 20
   if (model.startsWith('krea2')) return count * 300
@@ -55,6 +74,7 @@ const inputStyle: React.CSSProperties = {
 }
 
 export interface ControlPanelProps {
+  mode: 'txt2img' | 'img2img' | 't2v'
   prompt: string
   negative: string
   onPromptChange: (v: string) => void
@@ -73,6 +93,14 @@ export interface ControlPanelProps {
   onSeedChange: (v: number) => void
   count: number
   onCountChange: (v: number) => void
+  initImage: string
+  onInitImageChange: (v: string) => void
+  denoise: number
+  onDenoiseChange: (v: number) => void
+  frames: number
+  onFramesChange: (v: number) => void
+  fps: number
+  onFpsChange: (v: number) => void
   selectedLoras: string[]
   loraOptions: { label: string; value: string }[]
   onLorasChange: (v: string[]) => void
@@ -92,21 +120,33 @@ export interface ControlPanelProps {
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
+  mode,
   prompt, negative, onPromptChange, onNegativeChange, onOpenTemplatePicker,
   model, modelOptions, onModelChange,
   size, onSizeChange, customWidth, customHeight, onCustomWidthChange, onCustomHeightChange,
   seed, onSeedChange, count, onCountChange,
+  initImage, onInitImageChange, denoise, onDenoiseChange,
+  frames, onFramesChange, fps, onFpsChange,
   selectedLoras, loraOptions, onLorasChange,
   backend, backendSwitching, engineRunning, engineStarting, engineModelCount,
   onSwitchBackend, onStartEngine, onStopEngine,
   sysStats, generating, elapsed, lastTime, onGenerate,
 }) => {
   const [showNegative, setShowNegative] = React.useState(false)
+  const fileRef = React.useRef<HTMLInputElement>(null)
   const isLocal = ['comfyui', 'herdsman', 'ollama'].includes(backend)
-  const est = estimateTime(backend, model, count)
+  const est = estimateTime(backend, model, count, mode, frames, fps)
   const hint = generating
     ? `已用时 ${elapsed}s`
     : lastTime > 0 ? `上次 ${lastTime}s · 预计约 ${est}s` : `预计约 ${est}s`
+  const needsComfy = mode !== 'txt2img' && backend !== 'comfyui'
+
+  const readFile = (file?: File | null) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => onInitImageChange(String(reader.result || ''))
+    reader.readAsDataURL(file)
+  }
 
   return (
     <div style={{
@@ -162,7 +202,92 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
       </SectionBlock>
 
+      {/* ── 图生图：参考图 ── */}
+      {mode === 'img2img' && (
+        <>
+          <SectionDivider />
+          <SectionBlock title="参考图" icon={<PictureOutlined />}>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => { readFile(e.target.files?.[0]); e.target.value = '' }}
+            />
+            {initImage ? (
+              <div style={{ position: 'relative' }}>
+                <img
+                  src={initImage}
+                  alt="参考图"
+                  style={{ width: '100%', maxHeight: 180, objectFit: 'contain', borderRadius: 12, border: '1px solid var(--border-subtle)' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => { onInitImageChange(''); }}
+                  title="移除参考图"
+                  className="img-picker-btn"
+                  style={{
+                    position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
+                    border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.55)',
+                    color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  <CloseCircleOutlined style={{ fontSize: 13 }} />
+                </button>
+              </div>
+            ) : (
+              <div
+                className="ig-upload-zone"
+                onClick={() => fileRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); readFile(e.dataTransfer.files?.[0]) }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileRef.current?.click() } }}
+              >
+                <UploadOutlined style={{ fontSize: 22, color: 'var(--color-primary)' }} />
+                <div style={{ fontSize: 12.5, color: 'var(--color-text)' }}>点击上传或拖入参考图</div>
+                <div style={{ fontSize: 11, color: C('color-text-secondary') }}>PNG / JPG / WebP，将作为构图基础</div>
+              </div>
+            )}
+            <div>
+              <div style={{ ...labelStyle, justifyContent: 'space-between' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <SlidersOutlined />重绘幅度
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>
+                  {Math.round(denoise * 100)}%
+                </span>
+              </div>
+              <Slider
+                min={0.2}
+                max={1}
+                step={0.05}
+                value={denoise}
+                onChange={onDenoiseChange}
+                tooltip={{ formatter: (v) => `${Math.round((v || 0) * 100)}%` }}
+              />
+              <div style={{ fontSize: 10.5, color: C('color-text-secondary'), lineHeight: 1.5 }}>
+                低幅度保留构图微调风格，高幅度更接近全新创作
+              </div>
+            </div>
+          </SectionBlock>
+        </>
+      )}
+
       <SectionDivider />
+
+      {/* ── 非 ComfyUI 后端提示 ── */}
+      {needsComfy && (
+        <div style={{
+          padding: '9px 11px', borderRadius: 10, fontSize: 11.5, lineHeight: 1.6,
+          border: '1px solid rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.08)',
+          color: '#f59e0b',
+        }}>
+          <VideoCameraOutlined style={{ marginRight: 5 }} />
+          图生图 / 文生视频需使用 ComfyUI 本地后端，请在上方引擎切换
+        </div>
+      )}
 
       {/* ── ① 引擎 ── */}
       <SectionBlock title="引擎" icon={<CloudServerOutlined />}>
@@ -260,7 +385,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
         <div>
           <Typography.Text style={labelStyle}><PictureOutlined />尺寸</Typography.Text>
-          <PickerGroup options={SIZE_OPTIONS} value={size} onChange={onSizeChange} columns={4} />
+          <PickerGroup
+            options={mode === 't2v' ? VIDEO_SIZE_OPTIONS : SIZE_OPTIONS}
+            value={size}
+            onChange={onSizeChange}
+            columns={mode === 't2v' ? 3 : 4}
+          />
           {size === 'custom' && (
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <InputNumber value={customWidth} onChange={(v) => onCustomWidthChange(v || 1024)}
@@ -270,6 +400,31 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             </div>
           )}
         </div>
+
+        {mode === 't2v' && (
+          <div>
+            <Typography.Text style={labelStyle}><VideoCameraOutlined />时长 / 帧率</Typography.Text>
+            <PickerGroup
+              options={VIDEO_DURATION_OPTIONS}
+              value={`${frames}-${fps}`}
+              onChange={(v) => {
+                const [f, p] = String(v).split('-').map(Number)
+                onFramesChange(f)
+                onFpsChange(p)
+              }}
+              columns={2}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <InputNumber value={frames} onChange={(v) => onFramesChange(v || 49)}
+                size="small" min={16} max={600} step={8} addonBefore="帧" style={{ flex: 1 }} />
+              <InputNumber value={fps} onChange={(v) => onFpsChange(v || 8)}
+                size="small" min={4} max={30} step={1} addonBefore="fps" style={{ flex: 1 }} />
+            </div>
+            <div style={{ fontSize: 10.5, color: C('color-text-secondary'), marginTop: 6 }}>
+              输出为动画 WebP，时长约 {(frames / Math.max(fps, 1)).toFixed(1)} 秒（LTX-Video）
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1 }}>
@@ -286,10 +441,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               }
             />
           </div>
-          <div>
-            <Typography.Text style={labelStyle}><NumberOutlined />数量</Typography.Text>
-            <PickerGroup options={COUNT_OPTIONS} value={count} onChange={onCountChange} columns={4} />
-          </div>
+          {mode !== 't2v' && (
+            <div>
+              <Typography.Text style={labelStyle}><NumberOutlined />数量</Typography.Text>
+              <PickerGroup options={COUNT_OPTIONS} value={count} onChange={onCountChange} columns={4} />
+            </div>
+          )}
         </div>
       </SectionBlock>
 
@@ -317,7 +474,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* ── ⑤ 生成（常驻底部） ── */}
       <ActionButton
         loading={generating}
-        label={generating ? '生成中' : `生成 ${count} 张`}
+        disabled={needsComfy}
+        label={generating ? '生成中' : mode === 't2v' ? '生成视频' : `生成 ${count} 张`}
         hint={hint}
         onClick={onGenerate}
       />

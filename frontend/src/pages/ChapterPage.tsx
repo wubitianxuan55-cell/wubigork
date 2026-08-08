@@ -168,11 +168,11 @@ const ChapterPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))', WebkitBackdropFilter: 'blur(16px) saturate(140%)', backdropFilter: 'blur(16px) saturate(140%)', borderRadius: 8, border: '1px solid var(--md-sys-color-outline-variant)', overflow: 'hidden' }}>
+            <div className="novel-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {/* 标签栏 + 前后章节按钮 */}
               {!focusMode && (
                 <div style={{ borderBottom: '1px solid ' + C('color-border'), display: 'flex', alignItems: 'center', paddingRight: 8 }}>
-                  <Tabs activeKey={activeKey} onChange={setActiveKey}
+                  <Tabs className="novel-editor-tabs" activeKey={activeKey} onChange={setActiveKey}
                     onEdit={(key, action) => { if (action === 'remove' && typeof key === 'string') closeTab(key) }}
                     items={tabItems} type="editable-card" size="small"
                     style={{ flex: 1, marginBottom: 0 }} tabBarStyle={{ marginBottom: 0 }}
@@ -215,8 +215,8 @@ const ChapterPage: React.FC = () => {
 
             {/* 底部快捷键提示栏 */}
             <div style={{ padding: '2px 12px', display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: C('color-text-secondary'), opacity: 0.7 }}>
-              <span><kbd style={{ border: '1px solid ' + C('color-border'), borderRadius: 3, padding: '0 4px', fontSize: 10, fontFamily: 'monospace' }}>F11</kbd> 专注模式</span>
-              <span><kbd style={{ border: '1px solid ' + C('color-border'), borderRadius: 3, padding: '0 4px', fontSize: 10, fontFamily: 'monospace' }}>Ctrl+S</kbd> 保存</span>
+              <span><kbd className="novel-kbd">F11</kbd> 专注模式</span>
+              <span><kbd className="novel-kbd">Ctrl+S</kbd> 保存</span>
               {focusMode && (
                 <>
                   <div style={{ flex: 1 }} />

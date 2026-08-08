@@ -2,7 +2,7 @@ import React from 'react'
 import { Button, Typography } from 'antd'
 import {
   PictureOutlined, ExpandOutlined, DownloadOutlined, SyncOutlined,
-  DeleteOutlined, ReloadOutlined, AppstoreOutlined,
+  DeleteOutlined, ReloadOutlined, AppstoreOutlined, VideoCameraOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import type { GenResult } from './types'
@@ -11,6 +11,8 @@ interface Props {
   results: GenResult[]
   generating: boolean
   error?: string
+  mode?: 'txt2img' | 'img2img' | 't2v'
+  initImage?: string
   onPreview: (index: number) => void
   onDownload: (index: number) => void
   onReuse: (index: number) => void
@@ -20,16 +22,23 @@ interface Props {
 }
 
 const getAspect = (size: string) => {
-  if (size === '576x1024') return '9 / 16'
-  if (size === '1024x576') return '16 / 9'
-  if (size === '1280x544') return '21 / 9'
-  if (size === '1024x768' || size === '768x1024') return '4 / 3'
+  const m = /^(\d+)x(\d+)$/.exec(size || '')
+  if (m) return `${m[1]} / ${m[2]}`
   return '1 / 1'
 }
 
 export const ResultStage: React.FC<Props> = ({
-  results, generating, error, onPreview, onDownload, onReuse, onDelete, onRetry, onOpenTemplatePicker,
+  results, generating, error, mode = 'txt2img', initImage, onPreview, onDownload, onReuse, onDelete, onRetry, onOpenTemplatePicker,
 }) => {
+  const emptyTitle = mode === 't2v' ? '输入描述，生成你的第一支 AI 视频'
+    : mode === 'img2img' ? '上传参考图，开始重绘'
+    : '输入描述，开始创作'
+  const emptyDesc = mode === 't2v'
+    ? '在左侧写下画面描述，选择分辨率与时长后点击生成（需 ComfyUI + LTX-Video）'
+    : mode === 'img2img'
+      ? '上传参考图并描述想要的改动，控制重绘幅度生成新画面'
+      : '在左侧写下想要的画面，选择模型与参数后点击生成'
+
   // 生成中且无结果：骨架屏
   if (generating && results.length === 0) {
     return (
@@ -83,22 +92,32 @@ export const ResultStage: React.FC<Props> = ({
     return (
       <div className="img-stage-enter" style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: 12, paddingTop: 110,
+        gap: 12, paddingTop: mode === 'img2img' && initImage ? 40 : 110,
       }}>
+        {mode === 'img2img' && initImage && (
+          <div style={{ position: 'relative' }}>
+            <img
+              src={initImage}
+              alt="参考图"
+              style={{ width: 160, height: 160, objectFit: 'cover', borderRadius: 14, border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
+            />
+            <span style={{
+              position: 'absolute', left: '50%', bottom: -10, transform: 'translateX(-50%)',
+              background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: 10, padding: '2px 10px', borderRadius: 999,
+              border: '1px solid var(--border-subtle)', whiteSpace: 'nowrap',
+            }}>参考图已就绪</span>
+          </div>
+        )}
         <div style={{
           width: 56, height: 56, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(var(--accent-rgb), 0.12)', color: 'var(--color-primary)', fontSize: 24,
           border: '1px solid rgba(var(--accent-rgb), 0.2)',
         }}>
-          <PictureOutlined />
+          {mode === 't2v' ? <VideoCameraOutlined /> : <PictureOutlined />}
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ color: 'var(--color-text)', fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
-            输入描述，开始创作
-          </div>
-          <div style={{ color: C('color-text-secondary'), fontSize: 12, maxWidth: 280, lineHeight: 1.6 }}>
-            在左侧写下想要的画面，选择模型与参数后点击生成
-          </div>
+          <div style={{ color: 'var(--color-text)', fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{emptyTitle}</div>
+          <div style={{ color: C('color-text-secondary'), fontSize: 12, maxWidth: 300, lineHeight: 1.6 }}>{emptyDesc}</div>
         </div>
         {onOpenTemplatePicker && (
           <Button icon={<AppstoreOutlined />} onClick={onOpenTemplatePicker}
@@ -121,11 +140,32 @@ export const ResultStage: React.FC<Props> = ({
           }}
           onClick={() => onPreview(i)}
         >
-          <img
-            src={r.image}
-            alt=""
-            style={{ width: '100%', display: 'block', aspectRatio: getAspect(r.size), objectFit: 'cover' }}
-          />
+          {r.kind === 'video' ? (
+            <video
+              src={r.image}
+              controls
+              autoPlay
+              loop
+              muted
+              playsInline
+              style={{ width: '100%', display: 'block', aspectRatio: getAspect(r.size), objectFit: 'cover', background: '#000' }}
+            />
+          ) : (
+            <img
+              src={r.image}
+              alt=""
+              style={{ width: '100%', display: 'block', aspectRatio: getAspect(r.size), objectFit: 'cover' }}
+            />
+          )}
+          {r.kind === 'video' && (
+            <span style={{
+              position: 'absolute', top: 6, left: 6, display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: 'rgba(0,0,0,0.55)', borderRadius: 999, padding: '2px 8px', fontSize: 10, color: '#fff',
+              backdropFilter: 'blur(4px)',
+            }}>
+              <VideoCameraOutlined style={{ fontSize: 10 }} /> 视频
+            </span>
+          )}
           <div style={{
             position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)',
             borderRadius: 999, padding: '2px 8px', fontSize: 10, color: '#fff', backdropFilter: 'blur(4px)',

@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
-import { Tabs } from 'antd'
 import FeatureModelBar from '../components/FeatureModelBar'
 import { AIConsole } from '../components/novel/AIConsole'
 import {
   HomeOutlined, FileTextOutlined, UserOutlined,
   ThunderboltOutlined, BookOutlined, ExportOutlined,
 } from '@ant-design/icons'
+import '../novel-workspace.css'
 
 const HomePage = React.lazy(() => import('./HomePage'))
 const NovelSettingPage = React.lazy(() => import('./NovelSettingPage'))
@@ -29,20 +29,33 @@ const NovelPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NovelTab>('home')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+    <div className="novel-hub">
+      {/* 二级导航：平铺在顶部（与其他功能板块一致） */}
+      <nav className="novel-subnav" aria-label="小说板块">
+        {tabItems.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={`novel-subnav-item${activeTab === t.key ? ' is-active' : ''}`}
+            onClick={() => setActiveTab(t.key)}
+            aria-current={activeTab === t.key ? 'page' : undefined}
+          >
+            {t.icon}
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
       {/* 内容 + AI 控制台：横向布局，控制台在右侧（还原 MainLayout 重构前的边栏设计） */}
       <div style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0, minWidth: 0 }}>
-        <Tabs
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key as NovelTab)}
-          destroyInactiveTabPane={false}
-          items={tabItems.map((t) => ({
-            key: t.key,
-            label: <span>{t.icon}<span style={{ marginLeft: 6 }}>{t.label}</span></span>,
-            children: <React.Suspense fallback={null}><t.component /></React.Suspense>,
-          }))}
-          style={{ height: '100%', flex: 1, minWidth: 0 }}
-        />
+        {/* 各子页保持挂载，按需显示（切换不丢失状态） */}
+        <div className="novel-hub-body">
+          {tabItems.map((t) => (
+            <div key={t.key} style={{ display: activeTab === t.key ? 'flex' : 'none' }}>
+              <React.Suspense fallback={null}><t.component /></React.Suspense>
+            </div>
+          ))}
+        </div>
         {/* 小说专属：AI 控制台（右侧边栏） */}
         <AIConsole />
       </div>

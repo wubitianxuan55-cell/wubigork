@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { Typography, Button, Space, message } from 'antd'
 import {
   PictureOutlined, FolderOpenOutlined,
+  SwapOutlined, VideoCameraOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
 import Lightbox from '../components/Lightbox'
@@ -21,6 +22,7 @@ import {
   getComfyUIStatus, getSystemStats,
   getComfyUILoras,
   generateImage, startComfyUI, stopComfyUI,
+  generateMedia, type MediaParams,
   openImageSaveDir, openNovelImagesDir,
   setCharacterPortrait as setPortrait,
   type SystemStats,
@@ -29,6 +31,7 @@ import { getEngines, testEngineConnection, setActiveEngine, setEngineDefaultMode
 import { setImageBackend as setImageBackendAPI } from '../api/settings'
 import type { GenResult } from '../components/imagegen/types'
 import { filterLorasByModel, loraFamily, loraFamiliesForModel } from '../utils/loraFilter'
+import '../components/imagegen/imagegen.css'
 
 // ── 常量 ──
 
@@ -61,9 +64,14 @@ function loraLabel(name: string): string {
 
 const ImageGenPage: React.FC = () => {
   // ── 核心状态 ──
+  const [mode, setMode] = useState<'txt2img' | 'img2img' | 't2v'>('txt2img')
   const [prompt, setPrompt] = useState('')
   const [negative, setNegative] = useState('')
   const [size, setSize] = useState('1024x1024')
+  const [initImage, setInitImage] = useState('')
+  const [denoise, setDenoise] = useState(0.65)
+  const [frames, setFrames] = useState(97)
+  const [fps, setFps] = useState(8)
   const [model, setModel] = useState('krea2')
   const [seed, setSeed] = useState(0)
   const [count, setCount] = useState(1)
@@ -139,11 +147,11 @@ const ImageGenPage: React.FC = () => {
         if (info?.backend) setBackend(info.backend)
         if (info?.model) setModel(info.model)
         const chars = await getCharacters()
-        setCharacters(chars)
+        setCharacters(chars || [])
       } catch (_) { /* ignore */ }
       try {
         const list = await getEngines()
-        setEngines(list)
+        setEngines(list || [])
       } catch (_) { /* ignore */ }
     })()
   }, [])
@@ -229,8 +237,13 @@ const ImageGenPage: React.FC = () => {
 
   // ── 生成 ──
   const handleGenerate = useCallback(async () => {
-    if (!prompt.trim()) { message.warning('请输入图片描述'); return }
+    if (!prompt.trim()) { message.warning(mode === 't2v' ? '请输入视频画面描述' : '请输入图片描述'); return }
     if (generatingRef.current) return
+    if (mode === 'img2img' && !initImage) { message.warning('请先上传参考图'); return }
+    if (mode !== 'txt2img' && backend !== 'comfyui') {
+      message.warning('图生图 / 文生视频仅支持 ComfyUI 本地后端，请先在左侧切换引擎')
+      return
+    }
     generatingRef.current = true
     setGenerating(true)
     setGenError('')
@@ -240,7 +253,16 @@ const ImageGenPage: React.FC = () => {
     try {
       const finalSize = size === 'custom' ? `${customWidth}x${customHeight}` : size
       const loraStr = selectedLoras.join(',')
-      const res = await generateImage(prompt, negative, finalSize, model, seed, count, loraStr)
+      const mediaParams: MediaParams = {
+        prompt, negative, size: finalSize, model, seed, lora: loraStr,
+        count: mode === 't2v' ? 1 : count,
+        mode,
+      }
+      if (mode === 'img2img') { mediaParams.initImage = initImage; mediaParams.denoise = denoise }
+      if (mode === 't2v') { mediaParams.frames = frames; mediaParams.fps = fps }
+      const res: { error?: string; images?: GenResult[]; results?: GenResult[] } = mode === 'txt2img'
+        ? await generateImage(prompt, negative, finalSize, model, seed, count, loraStr)
+        : await generateMedia(mediaParams)
       if (res?.error) {
         setGenError(res.error)
         message.error(res.error)
@@ -252,7 +274,16 @@ const ImageGenPage: React.FC = () => {
         )])
         setLightboxIndex(0)
         setLastTime(Math.round((Date.now() - genStart) / 1000))
-        message.success(`✨ 已生成 ${genResults.length} 张图片`)
+        message.success(mode === 't2v' ? '✨ 视频已生成' : `✨ 已生成 ${genResults.length} 张图片`)
+      } else if (res?.results?.length) {
+        const genResults = res.results
+        setResults(genResults)
+        setHistory((prev) => [...genResults, ...prev.filter((h) =>
+          !genResults.some((g) => g.seed === h.seed && g.prompt === h.prompt),
+        )])
+        setLightboxIndex(0)
+        setLastTime(Math.round((Date.now() - genStart) / 1000))
+        message.success(mode === 't2v' ? '✨ 视频已生成' : `✨ 已生成 ${genResults.length} 张图片`)
       }
     } catch (err: any) {
       setGenError(err?.message || '生成失败')
@@ -261,7 +292,8 @@ const ImageGenPage: React.FC = () => {
       generatingRef.current = false
       setGenerating(false)
     }
-  }, [prompt, negative, size, model, seed, count, customWidth, customHeight, selectedLoras])
+  }, [prompt, negative, size, model, seed, count, customWidth, customHeight, selectedLoras,
+    mode, initImage, denoise, frames, fps, backend])
 
   // ── 切换后端 ──
   const handleSwitchBackend = useCallback(async (newBackend: string) => {
@@ -283,6 +315,13 @@ const ImageGenPage: React.FC = () => {
     } catch (err: any) { message.error(err?.message || '切换失败') }
     finally { setBackendSwitching(false) }
   }, [backend, engines])
+
+  // ── 切换模式：非 ComfyUI 后端仅保留文生图 ──
+  const handleSwitchMode = useCallback((m: 'txt2img' | 'img2img' | 't2v') => {
+    setMode(m)
+    setResults([])
+    setLightboxIndex(-1)
+  }, [])
 
   // ── 引擎启停 ──
   const isLocalEngine = ['comfyui', 'herdsman', 'ollama'].includes(backend)
@@ -460,11 +499,43 @@ const ImageGenPage: React.FC = () => {
         </Space>
       </div>
 
+      {/* 模式导航：文生图 / 图生图 / 文生视频 */}
+      <div className="ig-mode-nav" role="tablist" aria-label="生成模式">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'txt2img'}
+          className={`ig-mode-item${mode === 'txt2img' ? ' is-active' : ''}`}
+          onClick={() => handleSwitchMode('txt2img')}
+        >
+          <PictureOutlined /> 文生图
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'img2img'}
+          className={`ig-mode-item${mode === 'img2img' ? ' is-active' : ''}`}
+          onClick={() => handleSwitchMode('img2img')}
+        >
+          <SwapOutlined /> 图生图
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 't2v'}
+          className={`ig-mode-item${mode === 't2v' ? ' is-active' : ''}`}
+          onClick={() => handleSwitchMode('t2v')}
+        >
+          <VideoCameraOutlined /> 文生视频
+        </button>
+      </div>
+
       {/* 主工作区：左控制面板 + 中结果舞台 + 右历史胶片 */}
       <div style={{ flex: 1, display: 'flex', gap: 12, minHeight: 0 }}>
         {/* 左栏 — 控制面板 */}
         <div style={{ width: 350, flexShrink: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
           <ControlPanel
+            mode={mode}
             prompt={prompt} negative={negative}
             onPromptChange={setPrompt} onNegativeChange={setNegative}
             onOpenTemplatePicker={() => setTemplatePickerOpen(true)}
@@ -475,6 +546,10 @@ const ImageGenPage: React.FC = () => {
             onCustomWidthChange={setCustomWidth} onCustomHeightChange={setCustomHeight}
             seed={seed} onSeedChange={setSeed}
             count={count} onCountChange={setCount}
+            initImage={initImage} onInitImageChange={setInitImage}
+            denoise={denoise} onDenoiseChange={setDenoise}
+            frames={frames} onFramesChange={setFrames}
+            fps={fps} onFpsChange={setFps}
             selectedLoras={selectedLoras}
             loraOptions={backend === 'comfyui' ? loraOptions : []}
             onLorasChange={setSelectedLoras}
@@ -491,7 +566,8 @@ const ImageGenPage: React.FC = () => {
         {/* 中间 — 结果舞台 */}
         <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
           <ResultStage
-            results={results} generating={generating} error={genError}
+            results={results} generating={generating} error={genError} mode={mode}
+            initImage={initImage}
             onPreview={(i) => setLightboxIndex(i)}
             onDownload={handleDownload}
             onReuse={handleReuse}

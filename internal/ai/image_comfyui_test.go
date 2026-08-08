@@ -148,3 +148,45 @@ func TestBuildKreaWorkflow_LoRAInjection(t *testing.T) {
 		t.Errorf("节点20 model 指向 %v, want 4", got)
 	}
 }
+
+func TestBuildKreaImg2ImgWorkflow(t *testing.T) {
+	b := &ComfyUIBackend{}
+	wf := b.buildKreaImg2ImgWorkflow("测试 prompt", "坏手", 1024, 1024, 42, 8, nil, "ref.png", 0.65)
+
+	if wf["1"].(map[string]interface{})["class_type"] != "LoadImage" {
+		t.Errorf("节点1 = %v, want LoadImage", wf["1"].(map[string]interface{})["class_type"])
+	}
+	if got := nodeInput(t, wf, "1", "image"); got != "ref.png" {
+		t.Errorf("LoadImage 图片 = %v, want ref.png", got)
+	}
+	if got := nodeInput(t, wf, "15", "pixels"); got.([]interface{})[0] != "1" {
+		t.Errorf("VAEEncode pixels 指向 %v, want 1（LoadImage 输出）", got)
+	}
+	if got := nodeInput(t, wf, "10", "latent_image"); got.([]interface{})[0] != "15" {
+		t.Errorf("KSampler latent 指向 %v, want 15（VAEEncode 输出）", got)
+	}
+	if got := nodeInput(t, wf, "10", "denoise"); got.(float64) != 0.65 {
+		t.Errorf("KSampler denoise = %v, want 0.65", got)
+	}
+}
+
+func TestBuildLTXVideoWorkflow(t *testing.T) {
+	b := &ComfyUIBackend{}
+	wf := b.buildLTXVideoWorkflow("测试 prompt", "低质量", 768, 512, 42, 97, 8, "")
+
+	if wf["1"].(map[string]interface{})["class_type"] != "LTXVLoader" {
+		t.Errorf("节点1 = %v, want LTXVLoader", wf["1"].(map[string]interface{})["class_type"])
+	}
+	if wf["8"].(map[string]interface{})["class_type"] != "SaveAnimatedWEBP" {
+		t.Errorf("节点8 = %v, want SaveAnimatedWEBP", wf["8"].(map[string]interface{})["class_type"])
+	}
+	if got := nodeInput(t, wf, "5", "length"); got.(int) != 96 {
+		t.Errorf("视频帧数 = %v, want 96（97 归一化为 8 的倍数）", got)
+	}
+	if got := nodeInput(t, wf, "5", "width"); got.(int) != 768 {
+		t.Errorf("视频宽度 = %v, want 768", got)
+	}
+	if got := nodeInput(t, wf, "8", "fps"); got.(int) != 8 {
+		t.Errorf("视频 fps = %v, want 8", got)
+	}
+}

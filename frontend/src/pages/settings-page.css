@@ -1,29 +1,45 @@
-/* 设置中心重设计：左侧模块导航 + 内容区（按功能板块整理） */
+/* 设置中心重设计：二级分类磁贴平铺在顶部 + 内容区（与其他功能板块一致的横向二级导航） */
 .settings-page {
-  max-width: 1040px;
+  width: 100%;
+  max-width: 1080px;
   margin: 0 auto;
   padding: 20px 24px 48px;
   min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
+/* ── 页头：标题 + 全局搜索 ── */
 .settings-page__header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 22px;
 }
 
 .settings-page__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   margin: 0;
-  font-size: 22px;
-  font-weight: 650;
+  font-size: 24px;
+  font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--md-sys-color-text);
 }
 
+.settings-page__title::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 10px var(--gaea-glow);
+}
+
 .settings-page__subtitle {
-  margin: 5px 0 0;
+  margin: 6px 0 0;
   font-size: 12px;
   color: var(--md-sys-color-text-secondary);
 }
@@ -32,111 +48,164 @@
   width: 240px;
 }
 
-.settings-page__layout {
-  display: grid;
-  grid-template-columns: 212px minmax(0, 1fr);
-  gap: 22px;
-  align-items: start;
-}
-
-.settings-rail {
+/* ── 二级分类磁贴：平铺在顶部，内容滚动时吸顶保持可切换 ── */
+.settings-tiles {
   position: sticky;
-  top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px;
+  top: 6px;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 8px;
+  padding: 10px;
   border-radius: var(--md-sys-radius-lg);
   background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
   border: 1px solid var(--md-sys-color-outline-variant);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--gaea-glow) 10%, transparent);
 }
 
-.settings-rail__item {
+.settings-tile {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 12px;
-  border: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  padding: 11px 13px 10px;
   border-radius: var(--md-sys-radius-md);
+  border: 1px solid transparent;
   background: transparent;
   color: var(--md-sys-color-text-secondary);
-  font-size: 13px;
+  font-family: inherit;
   text-align: left;
   cursor: pointer;
   transition:
     background var(--md-sys-transition-fast),
-    color var(--md-sys-transition-fast);
+    color var(--md-sys-transition-fast),
+    border-color var(--md-sys-transition-fast),
+    box-shadow var(--md-sys-transition-fast),
+    transform var(--md-sys-transition-fast);
 }
 
-.settings-rail__item:hover {
+.settings-tile:hover {
   background: var(--md-sys-color-surface-container-high);
   color: var(--md-sys-color-text);
+  transform: translateY(-1px);
 }
 
-.settings-rail__item.is-active {
+.settings-tile:active {
+  transform: scale(0.97);
+}
+
+.settings-tile:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+
+.settings-tile.is-active {
   background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border-color: color-mix(in srgb, var(--gaea-glow) 32%, transparent);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--gaea-glow) 22%, transparent);
   color: var(--md-sys-color-text);
-  font-weight: 600;
 }
 
-.settings-rail__item.is-active::before {
+.settings-tile.is-active::after {
   content: '';
   position: absolute;
-  left: 0;
-  top: 24%;
-  bottom: 24%;
-  width: 3px;
-  border-radius: 2px;
+  top: 9px;
+  right: 9px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
   background: var(--gaea-glow);
-  box-shadow: 0 0 8px var(--gaea-glow);
+  box-shadow: 0 0 7px var(--gaea-glow);
 }
 
-.settings-rail__item .anticon {
+.settings-tile__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 4px;
+  border-radius: 9px;
   font-size: 15px;
   color: var(--md-sys-color-text-secondary);
-  transition: color var(--md-sys-transition-fast);
+  background: var(--md-sys-color-surface-variant);
+  transition:
+    color var(--md-sys-transition-fast),
+    background var(--md-sys-transition-fast),
+    box-shadow var(--md-sys-transition-fast);
 }
 
-.settings-rail__item.is-active .anticon {
+.settings-tile.is-active .settings-tile__icon {
   color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 14%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--gaea-glow) 25%, transparent);
 }
 
-.settings-rail__desc {
-  margin-left: auto;
-  font-size: 10px;
-  opacity: 0.7;
+.settings-tile__label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: inherit;
 }
 
+.settings-tile__desc {
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.72;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 内容区：切换分类时轻量入场 ── */
 .settings-content {
   min-width: 0;
 }
 
-/* 窄屏：导航转为横向滚动 chips */
+.settings-panel-enter {
+  animation: settingsPanelIn 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes settingsPanelIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* WebView2 降级：与全局一致，关闭入场动画避免卡首帧 */
+html.gaea-raf-degraded .settings-panel-enter {
+  animation: none !important;
+}
+
+/* ── 窄屏适配 ── */
 @media (max-width: 900px) {
-  .settings-page__layout {
-    grid-template-columns: 1fr;
-  }
-  .settings-rail {
-    position: static;
-    flex-direction: row;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .settings-rail__item {
-    flex: 0 0 auto;
-  }
-  .settings-rail__desc {
-    display: none;
-  }
   .settings-page__header {
     flex-direction: column;
     align-items: stretch;
   }
   .settings-page__search {
     width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-tiles {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .settings-tiles::-webkit-scrollbar {
+    display: none;
+  }
+  .settings-tile {
+    flex: 0 0 112px;
+  }
+  .settings-tile__desc {
+    display: none;
   }
 }

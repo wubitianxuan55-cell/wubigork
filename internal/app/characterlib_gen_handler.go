@@ -143,7 +143,8 @@ func (a *App) characterGenerate(chJSON, mode string, targets []string) (string, 
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	eng, model := a.cfg.GetFeatureModel("novel")
+	// 角色库使用独立功能绑定（未绑定时回退全局激活引擎）
+	eng, model := a.cfg.GetFeatureModel("characterlib")
 	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
 		EngineID:    eng,
 		Temperature: 0.85,
@@ -250,8 +251,8 @@ func isEmptyGen(v interface{}) bool {
 }
 
 // CharacterGeneratePortrait 为角色库角色生成剧照：按角色字段构建智能 prompt。
-// 复用图片生成管线（ComfyUI / xAI / Herdsman / Ollama），返回图片 data URL 或远程 URL。
-// 前端拿到后写入 portraitUrl 再随角色保存。
+// 使用独立的剧照后端/模型（未单独配置时跟随绘梦），不影响绘梦页当前选择。
+// 返回图片 data URL 或远程 URL，前端拿到后写入 portraitUrl 再随角色保存。
 func (a *App) CharacterGeneratePortrait(chJSON, model string) (string, error) {
 	var c characterlib.Character
 	if err := json.Unmarshal([]byte(chJSON), &c); err != nil {
@@ -261,19 +262,78 @@ func (a *App) CharacterGeneratePortrait(chJSON, model string) (string, error) {
 		return "", fmt.Errorf("角色名称不能为空")
 	}
 
+	backend := a.cfg.PortraitBackend // 空 = 跟随绘梦
+	imgModel := a.cfg.PortraitModel
+	if imgModel == "" {
+		imgModel = a.cfg.ImageModel
+	}
+	if model != "" {
+		imgModel = model // 显式传入的模型优先
+	}
+
+	client, err := a.buildPortraitClient()
+	if err != nil {
+		return "", err
+	}
 	negative := "文字, 水印, 签名, 低质量, 模糊, 肢体变形, 多余手指, 多眼多嘴"
-	res, err := a.GenerateFreeImage(buildPortraitPrompt(c), negative, "1024x1024", "", model, 0, 1, "")
+	req := &ai.ImageGenerationRequest{
+		Model:    imgModel,
+		Prompt:   buildPortraitPrompt(c),
+		Negative: negative,
+		N:        1,
+		Size:     "1024x1024",
+	}
+	if backend != "comfyui" {
+		req.Size = ""
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	resp, err := client.GenerateImage(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("剧照生成失败: %w", err)
 	}
-	if errMsg, ok := res["error"].(string); ok && errMsg != "" {
-		return "", fmt.Errorf("剧照生成失败: %s", errMsg)
-	}
-	imgs, ok := res["images"].([]imageItem)
-	if !ok || len(imgs) == 0 || imgs[0].Image == "" {
+	if len(resp.Data) == 0 {
 		return "", fmt.Errorf("剧照生成返回为空")
 	}
-	return imgs[0].Image, nil
+	img := resp.Data[0].URL
+	if img == "" {
+		img = resp.Data[0].B64JSON
+	}
+	if img == "" {
+		return "", fmt.Errorf("剧照生成返回为空")
+	}
+	return img, nil
+}
+
+// buildPortraitClient 为角色剧照构建独立图片客户端（不改变绘梦当前后端）。
+// backend: comfyui / herdsman / ollama 走对应后端，xai 或空走 xAI 原生管线。
+func (a *App) buildPortraitClient() (*ai.Client, error) {
+	backend := a.cfg.PortraitBackend
+	if backend == "" {
+		backend = a.cfg.ImageBackend
+	}
+	if backend == "" {
+		backend = "xai"
+	}
+	client := ai.NewClient(a.cfg)
+	switch backend {
+	case "comfyui":
+		if a.cfg.ComfyUIURL == "" {
+			return nil, fmt.Errorf("未配置 ComfyUI 地址")
+		}
+		client.SetImageBackend(ai.NewComfyUIBackend(a.cfg.ComfyUIURL), "comfyui")
+	case "herdsman", "ollama":
+		eng, ok := a.engineMgr.GetEngine(backend)
+		if !ok || !eng.Enabled {
+			return nil, fmt.Errorf("剧照引擎 %s 未启用，请先在模型中心启用", backend)
+		}
+		client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), backend)
+	default: // xai
+		client.SetImageBackend(nil, "xai")
+	}
+	return client, nil
 }
 
 // mergeFill 用生成结果填充当前为空的字段（role_type → roleType 归一化）。

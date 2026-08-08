@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/netclient"
 )
 
@@ -28,6 +29,7 @@ type imageItem struct {
 	Prompt string  `json:"prompt"`
 	Model  string  `json:"model"`
 	Size   string  `json:"size"`
+	Kind   string  `json:"kind,omitempty"` // image | video
 }
 
 // GenerateFreeImage 自由图片生成 — 供 AI 绘梦 Tab 使用
@@ -135,6 +137,216 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 	}, nil
 }
 
+// mediaGenParams 绘梦多模式生成参数（GenerateMedia 入参，JSON 字符串）
+type mediaGenParams struct {
+	Prompt    string  `json:"prompt"`
+	Negative  string  `json:"negative"`
+	Size      string  `json:"size"`
+	Model     string  `json:"model"`
+	Seed      int     `json:"seed"`
+	Lora      string  `json:"lora"`
+	Count     int     `json:"count"`
+	Mode      string  `json:"mode"`      // txt2img | img2img | t2v
+	InitImage string  `json:"initImage"` // 图生图参考图 data URL
+	Denoise   float64 `json:"denoise"`   // 重绘幅度 0-1
+	Frames    int     `json:"frames"`    // 视频帧数
+	FPS       int     `json:"fps"`       // 视频帧率
+}
+
+// GenerateMedia 多模式媒体生成：文生图 / 图生图 / 文生视频（供绘梦页使用）
+func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, error) {
+	if a.client == nil {
+		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
+	}
+	var p mediaGenParams
+	if err := json.Unmarshal([]byte(paramsJSON), &p); err != nil {
+		return map[string]interface{}{"error": "参数解析失败: " + err.Error()}, nil
+	}
+	mode := p.Mode
+	if mode == "" {
+		mode = "txt2img"
+	}
+	if mode != "txt2img" && a.cfg.ImageBackend != "comfyui" {
+		return map[string]interface{}{"error": "图生图 / 文生视频目前仅支持 ComfyUI 本地后端，请先在左侧切换引擎"}, nil
+	}
+	if mode == "img2img" && strings.TrimSpace(p.InitImage) == "" {
+		return map[string]interface{}{"error": "图生图需要先上传参考图"}, nil
+	}
+	if strings.TrimSpace(p.Prompt) == "" {
+		return map[string]interface{}{"error": "请输入画面描述"}, nil
+	}
+
+	size := p.Size
+	if size == "" {
+		size = "1024x1024"
+		if mode == "t2v" {
+			size = "768x512"
+		}
+	}
+	n := p.Count
+	if n < 1 || n > 4 {
+		n = 1
+	}
+	if mode == "t2v" {
+		n = 1 // 视频一次只生成一条
+	}
+
+	results := make([]imageItem, 0, n)
+	var lastErr string
+	for i := 0; i < n; i++ {
+		genSeed := p.Seed
+		if genSeed == 0 {
+			genSeed = int(time.Now().UnixNano()%1000000) + i*777
+		}
+		imgModel := a.cfg.ImageModel
+		if p.Model != "" {
+			imgModel = p.Model
+		}
+		imgReq := &ai.ImageGenerationRequest{
+			Model:     imgModel,
+			Prompt:    p.Prompt,
+			Negative:  p.Negative,
+			N:         1,
+			Size:      size,
+			Seed:      genSeed,
+			Lora:      p.Lora,
+			Mode:      mode,
+			InitImage: p.InitImage,
+			Denoise:   p.Denoise,
+			Frames:    p.Frames,
+			FPS:       p.FPS,
+		}
+		if a.cfg.ImageBackend != "comfyui" {
+			imgReq.Size = ""
+		}
+		start := time.Now()
+		resp, err := a.client.GenerateImage(a.ctx, imgReq)
+		elapsed := time.Since(start).Seconds()
+		if err != nil {
+			slog.Warn("媒体生成失败", "mode", mode, "attempt", i+1, "error", err)
+			lastErr = err.Error()
+			continue
+		}
+		if len(resp.Data) == 0 {
+			lastErr = "API 返回空结果"
+			continue
+		}
+		imageData := resp.Data[0].URL
+		if imageData == "" {
+			imageData = resp.Data[0].B64JSON
+		}
+		kind := resp.Data[0].Kind
+		if kind == "" {
+			kind = "image"
+		}
+		results = append(results, imageItem{
+			Image:  imageData,
+			Seed:   genSeed,
+			Time:   math.Round(elapsed*10) / 10,
+			Prompt: p.Prompt,
+			Model:  imgModel,
+			Size:   size,
+			Kind:   kind,
+		})
+
+		if imageData != "" {
+			if a.cfg.ImageSaveDir != "" {
+				a.saveMediaToDisk(imageData, p.Prompt, a.cfg.ImageSaveDir)
+			} else {
+				a.saveMediaToNovelImages(imageData, p.Prompt)
+			}
+		}
+	}
+
+	if len(results) == 0 {
+		msg := "生成失败"
+		if lastErr != "" {
+			msg = msg + "：" + lastErr
+		}
+		return map[string]interface{}{"error": msg}, nil
+	}
+	return map[string]interface{}{"results": results, "mode": mode}, nil
+}
+
+// saveMediaToDisk 按 data URL 的 MIME 推断扩展名，保存图片/视频到指定目录
+func (a *mediaState) saveMediaToDisk(imageData string, prompt string, dir string) string {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return ""
+	}
+	ext := mediaExt(imageData)
+	filename := mediaFilename(prompt, ext)
+	fullPath := filepath.Join(dir, filename)
+	if data, ok := decodeDataURL(imageData); ok {
+		if err := os.WriteFile(fullPath, data, 0644); err != nil {
+			return ""
+		}
+		return fullPath
+	}
+	return ""
+}
+
+// saveMediaToNovelImages 保存图片/视频到当前小说 images/ 目录
+func (a *mediaState) saveMediaToNovelImages(imageData string, prompt string) {
+	pm := a.app.getPM()
+	if pm == nil {
+		return
+	}
+	dir := filepath.Join(pm.Dir, "images")
+	a.saveMediaToDisk(imageData, prompt, dir)
+}
+
+// mediaExt 从 data URL 推断扩展名
+func mediaExt(imageData string) string {
+	switch {
+	case strings.HasPrefix(imageData, "data:video/mp4"):
+		return ".mp4"
+	case strings.HasPrefix(imageData, "data:video/webm"):
+		return ".webm"
+	case strings.HasPrefix(imageData, "data:video/quicktime"):
+		return ".mov"
+	case strings.HasPrefix(imageData, "data:image/webp"):
+		return ".webp"
+	case strings.HasPrefix(imageData, "data:image/gif"):
+		return ".gif"
+	case strings.HasPrefix(imageData, "data:image/jpeg"), strings.HasPrefix(imageData, "data:image/jpg"):
+		return ".jpg"
+	default:
+		return ".png"
+	}
+}
+
+// mediaFilename 生成媒体文件名（时间戳 + 前 20 字提示词）
+func mediaFilename(prompt string, ext string) string {
+	ts := time.Now().Format("20060102-150405")
+	safePrompt := strings.TrimSpace(prompt)
+	if r := []rune(safePrompt); len(r) > 20 {
+		safePrompt = string(r[:20])
+	}
+	safePrompt = strings.Map(func(r rune) rune {
+		if strings.ContainsRune(`\/:*?"<>|`, r) {
+			return '_'
+		}
+		return r
+	}, safePrompt)
+	return fmt.Sprintf("%s_%s%s", ts, safePrompt, ext)
+}
+
+// decodeDataURL 解码 data URL 内容
+func decodeDataURL(imageData string) ([]byte, bool) {
+	if !strings.HasPrefix(imageData, "data:") {
+		return nil, false
+	}
+	commaIdx := strings.Index(imageData, ",")
+	if commaIdx < 0 {
+		return nil, false
+	}
+	data, err := base64.StdEncoding.DecodeString(imageData[commaIdx+1:])
+	if err != nil {
+		return nil, false
+	}
+	return data, true
+}
+
 // saveImageToDisk 将图片数据保存到 ImageSaveDir，返回保存路径
 func (a *mediaState) saveImageToDisk(imageData string, prompt string) string {
 	dir := a.cfg.ImageSaveDir
@@ -226,6 +438,30 @@ func (a *mediaState) GetImageBackendInfo() map[string]string {
 		"backend": a.GetImageBackend(),
 		"model":   a.cfg.ImageModel,
 	}
+}
+
+// GetPortraitConfig 获取角色库剧照独立后端/模型（空 = 跟随绘梦）
+func (a *App) GetPortraitConfig() map[string]string {
+	return map[string]string{
+		"backend": a.cfg.PortraitBackend,
+		"model":   a.cfg.PortraitModel,
+	}
+}
+
+// SetPortraitConfig 设置角色库剧照独立后端/模型（空 = 跟随绘梦）
+func (a *App) SetPortraitConfig(backend, model string) error {
+	a.cfg.PortraitBackend = backend
+	a.cfg.PortraitModel = model
+	if err := config.Save(config.KeyPortraitBackend, backend); err != nil {
+		slog.Warn("保存剧照后端失败", "error", err)
+		return err
+	}
+	if err := config.Save(config.KeyPortraitModel, model); err != nil {
+		slog.Warn("保存剧照模型失败", "error", err)
+		return err
+	}
+	slog.Info("角色库剧照绑定已设置", "backend", backend, "model", model)
+	return nil
 }
 
 // SetImageBackend 切换图片生成后端（供设置页调用）

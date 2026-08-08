@@ -29,9 +29,9 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
           cards.push(
             <div key={n.id} style={{
               padding: '6px 10px', marginTop: depth === 0 ? 0 : 4,
-              background: 'rgba(192,132,252,0.08)',
-              borderLeft: '3px solid #c084fc', borderRadius: '0 4px 4px 0',
-              fontSize: 12, fontWeight: 600, color: '#c084fc',
+              background: 'color-mix(in srgb, var(--gaea-glow) 10%, transparent)',
+              borderLeft: '3px solid var(--gaea-glow)', borderRadius: '0 4px 4px 0',
+              fontSize: 12, fontWeight: 600, color: 'var(--gaea-glow)',
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
               <BookOutlined style={{ fontSize: 11 }} />
@@ -48,15 +48,15 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
               n.status === 'done' ? '定稿' :
               n.status === 'abandoned' ? '废弃' : '未写'
           cards.push(
-            <div key={n.id} onClick={() => onSelectNode(n)} style={{
+            <div key={n.id} className="novel-outline-row" onClick={() => onSelectNode(n)} style={{
               padding: '6px 10px', paddingLeft: 10 + depth * 16,
               margin: '2px 0', cursor: 'pointer',
-              background: isSelected ? 'rgba(192,132,252,0.08)' : 'transparent',
+              background: isSelected ? 'color-mix(in srgb, var(--gaea-glow) 12%, transparent)' : 'transparent',
               borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
-              borderLeft: isSelected ? '3px solid #c084fc' : '3px solid transparent',
+              borderLeft: isSelected ? '3px solid var(--gaea-glow)' : '3px solid transparent',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: '#c084fc', fontSize: 10, fontWeight: 600 }}>
+                <span style={{ color: 'var(--gaea-glow)', fontSize: 10, fontWeight: 600 }}>
                   {n.order_index || '·'}
                 </span>
                 <span style={{ flex: 1, fontSize: 12 }}>{(n.title || '').trim() || `第${n.order_index || '?'}章`}</span>
@@ -80,10 +80,8 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
   }
 
   return (
-    <div style={{
+    <div className="novel-panel" style={{
       width: collapsed ? 40 : 220, flexShrink: 0, overflow: 'hidden',
-      background: 'var(--bg-glass)', borderRadius: 'var(--radius-lg)',
-      border: '1px solid var(--border-subtle)',
       display: 'flex', flexDirection: 'column', transition: 'width 0.2s',
     }}>
       <div style={{

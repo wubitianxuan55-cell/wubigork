@@ -516,7 +516,7 @@ const CharacterPage: React.FC = () => {
       </div>
 
       <div style={{ flex: 1, overflow: 'auto' }}>
-        <Tabs items={tabItems} size="small" style={{ color: C('color-text'), flex: 1, minHeight: 0 }} tabBarStyle={{ borderColor: C('color-border') }} />
+        <Tabs className="novel-tabs" items={tabItems} size="small" style={{ color: C('color-text'), flex: 1, minHeight: 0 }} tabBarStyle={{ borderColor: C('color-border') }} />
       </div>
 
       {renderProjectEditModal()}

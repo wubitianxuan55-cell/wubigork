@@ -31,6 +31,8 @@ const (
 	KeyComfyUIURL          = "comfyui_url"
 	KeyImageSaveDir        = "image_save_dir"
 	KeyImageModel          = "image_model"
+	KeyPortraitBackend     = "portrait_backend" // 角色库剧照独立后端（空=跟随绘梦）
+	KeyPortraitModel       = "portrait_model"   // 角色库剧照独立模型（空=跟随绘梦）
 	KeyComfyUIPath         = "comfyui_path"
 	KeyComfyUIPythonPath   = "comfyui_python_path"
 	KeyActiveEngineID      = "active_engine_id"
@@ -48,11 +50,14 @@ const (
 	KeyFuncOfficeModel     = "func_office_model"
 	KeyFuncGaeaEngine      = "func_gaea_engine"
 	KeyFuncGaeaModel       = "func_gaea_model"
+	KeyFuncCharLibEngine   = "func_characterlib_engine"
+	KeyFuncCharLibModel    = "func_characterlib_model"
 	// 功能级启停（FeatureModelBar 启停语义：只影响该功能的路由，不影响整个引擎）
 	KeyFuncChatEnabled      = "func_chat_enabled"
 	KeyFuncNovelEnabled     = "func_novel_enabled"
 	KeyFuncOfficeEnabled    = "func_office_enabled"
 	KeyFuncGaeaEnabled      = "func_gaea_enabled"
+	KeyFuncCharLibEnabled   = "func_characterlib_enabled"
 	KeyDeepseekAPIKey      = "deepseek_api_key"
 )
 
@@ -72,6 +77,8 @@ type configFile struct {
 	ComfyUIURL          string  `json:"comfyui_url,omitempty"`
 	ImageSaveDir        string  `json:"image_save_dir,omitempty"`   // 图片生成存放目录
 	ImageModel          string  `json:"image_model,omitempty"`    // 图片模型
+	PortraitBackend     string  `json:"portrait_backend,omitempty"` // 角色库剧照后端（空=跟随绘梦）
+	PortraitModel       string  `json:"portrait_model,omitempty"`   // 角色库剧照模型（空=跟随绘梦）
 	ComfyUIPath         string  `json:"comfyui_path,omitempty"`  // ComfyUI 安装目录
 	ComfyUIPythonPath   string  `json:"comfyui_python_path,omitempty"` // Python 解释器路径
 	TTSPort             int     `json:"tts_port,omitempty"`       // TTS 服务端口
@@ -96,10 +103,13 @@ type configFile struct {
 	FuncOfficeModel     string  `json:"func_office_model,omitempty"`
 	FuncGaeaEngine      string  `json:"func_gaea_engine,omitempty"`
 	FuncGaeaModel       string  `json:"func_gaea_model,omitempty"`
+	FuncCharLibEngine   string  `json:"func_characterlib_engine,omitempty"`
+	FuncCharLibModel    string  `json:"func_characterlib_model,omitempty"`
 	FuncChatEnabled     *bool   `json:"func_chat_enabled,omitempty"`    // nil=默认启用
 	FuncNovelEnabled    *bool   `json:"func_novel_enabled,omitempty"`
 	FuncOfficeEnabled   *bool   `json:"func_office_enabled,omitempty"`
 	FuncGaeaEnabled     *bool   `json:"func_gaea_enabled,omitempty"`
+	FuncCharLibEnabled  *bool   `json:"func_characterlib_enabled,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -149,6 +159,8 @@ type Config struct {
 	ComfyUIURL   string // ComfyUI 服务地址，默认 http://127.0.0.1:8188
 	ImageSaveDir string // 生成图片存放目录，空字符串=不存盘
 	ImageModel   string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "flux" | "z-image-turbo"
+	PortraitBackend string // 角色库剧照后端（空=跟随绘梦）
+	PortraitModel   string // 角色库剧照模型（空=跟随绘梦）
 	ComfyUIPath string // ComfyUI 安装目录（main.py 所在路径），空=需手动启动
 	ComfyUIPythonPath string // Python 解释器路径（留空则自动查找）
 
@@ -175,11 +187,14 @@ type Config struct {
 	FuncOfficeModel   string
 	FuncGaeaEngine    string
 	FuncGaeaModel     string
+	FuncCharLibEngine string
+	FuncCharLibModel  string
 	// 功能级启停（默认启用；停用后该功能路由回退全局）
 	FuncChatEnabled   bool
 	FuncNovelEnabled  bool
 	FuncOfficeEnabled bool
 	FuncGaeaEnabled   bool
+	FuncCharLibEnabled bool
 }
 
 // funcMu 保护功能级模型绑定字段（GetFeatureModel/SetFeatureModel 并发读写）
@@ -201,6 +216,8 @@ func (c *Config) GetFeatureModel(feature string) (engine, model string) {
 		return c.FuncOfficeEngine, c.FuncOfficeModel
 	case "gaea":
 		return c.FuncGaeaEngine, c.FuncGaeaModel
+	case "characterlib":
+		return c.FuncCharLibEngine, c.FuncCharLibModel
 	}
 	return "", ""
 }
@@ -221,6 +238,8 @@ func (c *Config) SetFeatureModel(feature, engine, model string) {
 		c.FuncOfficeEngine, c.FuncOfficeModel = engine, model
 	case "gaea":
 		c.FuncGaeaEngine, c.FuncGaeaModel = engine, model
+	case "characterlib":
+		c.FuncCharLibEngine, c.FuncCharLibModel = engine, model
 	}
 }
 
@@ -239,6 +258,8 @@ func (c *Config) GetFeatureModelEnabled(feature string) bool {
 		return c.FuncOfficeEnabled
 	case "gaea":
 		return c.FuncGaeaEnabled
+	case "characterlib":
+		return c.FuncCharLibEnabled
 	}
 	return true
 }
@@ -258,6 +279,8 @@ func (c *Config) SetFeatureModelEnabled(feature string, enabled bool) {
 		c.FuncOfficeEnabled = enabled
 	case "gaea":
 		c.FuncGaeaEnabled = enabled
+	case "characterlib":
+		c.FuncCharLibEnabled = enabled
 	}
 }
 
@@ -292,6 +315,7 @@ func Load() *Config {
 		FuncNovelEnabled:  true,
 		FuncOfficeEnabled: true,
 		FuncGaeaEnabled:   true,
+		FuncCharLibEnabled: true,
 
 		// TTS 默认值
 		TTSBinaryPath: filepath.Join(home, "voxcpm-tts", "voxcpm_tts.exe"),
@@ -443,6 +467,12 @@ func Load() *Config {
 			if cf.ImageModel != "" {
 				cfg.ImageModel = cf.ImageModel
 			}
+			if cf.PortraitBackend != "" {
+				cfg.PortraitBackend = cf.PortraitBackend
+			}
+			if cf.PortraitModel != "" {
+				cfg.PortraitModel = cf.PortraitModel
+			}
 			if cf.ComfyUIPath != "" {
 				cfg.ComfyUIPath = cf.ComfyUIPath
 			}
@@ -500,6 +530,12 @@ func Load() *Config {
 			if cf.FuncGaeaModel != "" {
 				cfg.FuncGaeaModel = cf.FuncGaeaModel
 			}
+			if cf.FuncCharLibEngine != "" {
+				cfg.FuncCharLibEngine = cf.FuncCharLibEngine
+			}
+			if cf.FuncCharLibModel != "" {
+				cfg.FuncCharLibModel = cf.FuncCharLibModel
+			}
 			if cf.FuncChatEnabled != nil {
 				cfg.FuncChatEnabled = *cf.FuncChatEnabled
 			}
@@ -511,6 +547,9 @@ func Load() *Config {
 			}
 			if cf.FuncGaeaEnabled != nil {
 				cfg.FuncGaeaEnabled = *cf.FuncGaeaEnabled
+			}
+			if cf.FuncCharLibEnabled != nil {
+				cfg.FuncCharLibEnabled = *cf.FuncCharLibEnabled
 			}
 			// 2.x 聊天/轻语合并：旧配置只写 func_whisper_* 时迁移到 func_chat；
 			// chat 显式配置优先，不覆盖；func_whisper_enabled=false 同步为 chat 停用。
@@ -612,6 +651,8 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyComfyUIURL:         func(cf *configFile, v string) error { cf.ComfyUIURL = v; return nil },
 	KeyImageSaveDir:       func(cf *configFile, v string) error { cf.ImageSaveDir = v; return nil },
 	KeyImageModel:         func(cf *configFile, v string) error { cf.ImageModel = v; return nil },
+	KeyPortraitBackend:    func(cf *configFile, v string) error { cf.PortraitBackend = v; return nil },
+	KeyPortraitModel:      func(cf *configFile, v string) error { cf.PortraitModel = v; return nil },
 	KeyComfyUIPath:        func(cf *configFile, v string) error { cf.ComfyUIPath = v; return nil },
 	KeyComfyUIPythonPath:  func(cf *configFile, v string) error { cf.ComfyUIPythonPath = v; return nil },
 	KeyTTSPort:           func(cf *configFile, v string) error { n, err := strconv.Atoi(v); if err != nil { return err }; cf.TTSPort = n; return nil },
@@ -631,10 +672,13 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyFuncOfficeModel:   func(cf *configFile, v string) error { cf.FuncOfficeModel = v; return nil },
 	KeyFuncGaeaEngine:    func(cf *configFile, v string) error { cf.FuncGaeaEngine = v; return nil },
 	KeyFuncGaeaModel:     func(cf *configFile, v string) error { cf.FuncGaeaModel = v; return nil },
+	KeyFuncCharLibEngine: func(cf *configFile, v string) error { cf.FuncCharLibEngine = v; return nil },
+	KeyFuncCharLibModel:  func(cf *configFile, v string) error { cf.FuncCharLibModel = v; return nil },
 	KeyFuncChatEnabled:   func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncChatEnabled = b; return nil },
 	KeyFuncNovelEnabled:   func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncNovelEnabled = b; return nil },
 	KeyFuncOfficeEnabled:  func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncOfficeEnabled = b; return nil },
 	KeyFuncGaeaEnabled:    func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncGaeaEnabled = b; return nil },
+	KeyFuncCharLibEnabled: func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncCharLibEnabled = b; return nil },
 }
 
 // parseBoolPtr 解析 "true"/"1"/"0" 等布尔值并返回指针（用于 *bool 配置项）。

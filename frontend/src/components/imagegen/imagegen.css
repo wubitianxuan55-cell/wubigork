@@ -1,0 +1,118 @@
+/* imagegen.css — 绘梦多模式工作台（模式导航 + 参考图上传区） */
+
+/* ── 模式导航：文生图 / 图生图 / 文生视频 ── */
+.ig-mode-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+  border-radius: var(--md-sys-radius-lg);
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  border: 1px solid var(--md-sys-color-outline-variant);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ig-mode-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.ig-mode-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--md-sys-color-text-secondary);
+  white-space: nowrap;
+  transition:
+    color var(--md-sys-transition-fast),
+    background var(--md-sys-transition-fast),
+    border-color var(--md-sys-transition-fast),
+    box-shadow var(--md-sys-transition-fast),
+    transform var(--md-sys-transition-fast);
+}
+
+.ig-mode-item:hover {
+  color: var(--md-sys-color-text);
+  background: color-mix(in srgb, var(--gaea-glow) 7%, transparent);
+}
+
+.ig-mode-item:active {
+  transform: scale(0.97);
+}
+
+.ig-mode-item:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+
+.ig-mode-item.is-active {
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border-color: color-mix(in srgb, var(--gaea-glow) 30%, transparent);
+  box-shadow: 0 2px 14px color-mix(in srgb, var(--gaea-glow) 20%, transparent);
+}
+
+.ig-mode-item .anticon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* ── 图生图参考图上传区 ── */
+.ig-upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 26px 16px;
+  border-radius: 12px;
+  border: 1.5px dashed var(--md-sys-color-outline-variant);
+  background: color-mix(in srgb, var(--gaea-glow) 4%, transparent);
+  cursor: pointer;
+  user-select: none;
+  text-align: center;
+  transition:
+    border-color var(--md-sys-transition-fast),
+    background var(--md-sys-transition-fast),
+    transform var(--md-sys-transition-fast);
+}
+
+.ig-upload-zone:hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 50%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 8%, transparent);
+  transform: translateY(-1px);
+}
+
+.ig-upload-zone:active {
+  transform: scale(0.99);
+}
+
+.ig-upload-zone:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+
+/* ── 无障碍：减弱动态 / WebView2 降级 ── */
+@media (prefers-reduced-motion: reduce) {
+  .ig-mode-item,
+  .ig-upload-zone {
+    transition: none !important;
+  }
+}
+
+html.gaea-raf-degraded .ig-mode-item,
+html.gaea-raf-degraded .ig-upload-zone {
+  transition: none !important;
+}

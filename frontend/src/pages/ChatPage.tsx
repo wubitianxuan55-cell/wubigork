@@ -15,6 +15,7 @@ import ChatTopicSidebar, { type Topic as SidebarTopic } from '../components/Chat
 import ChatMarkdown from '../components/ChatMarkdown'
 import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
 import { CompanionAvatar } from '../components/CompanionAvatar'
+import VoiceChatOrb from '../components/VoiceChatOrb'
 import VoiceSettingsPanel from '../components/VoiceSettingsPanel'
 import PersonaPicker from '../components/PersonaPicker'
 import { ParticleFlow } from '../components/ParticleFlow'
@@ -78,6 +79,21 @@ const PERSONA_SUGGESTIONS = [
   { icon: <StarFilled />, label: '分享兴趣', desc: '聊聊你喜欢的东西' },
   { icon: <ThunderboltOutlined />, label: '晚安问候', desc: '睡前聊一会儿' },
 ]
+
+/** 欢迎屏建议卡：键盘可达 + 焦点可见 */
+const SuggestionCard: React.FC<{ s: { icon: React.ReactNode; label: string; desc: string }; onClick: () => void }> = ({ s, onClick }) => (
+  <div
+    role="button"
+    tabIndex={0}
+    className="chat-suggestion-card"
+    onClick={onClick}
+    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
+  >
+    <div className="chat-suggestion-icon">{s.icon}</div>
+    <div className="chat-suggestion-label">{s.label}</div>
+    <div className="chat-suggestion-desc">{s.desc}</div>
+  </div>
+)
 
 const EMO_COLORS: Record<string, string> = {
   SWEET_ATTACHMENT: '#f472b6', SHY_HEARTBEAT: '#fb7185', TSUNDERE: '#f59e0b',
@@ -515,7 +531,7 @@ const ChatPage: React.FC = () => {
         </div>
 
         {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}
-        {mode !== 'plain' && (
+        {mode !== 'plain' && hasMessages && (
           <div className="chat-persona-bar">
             <CompanionAvatar size={46} state={speakingId ? 'speaking' : sending ? 'thinking' : 'idle'} emotionColor={emoColor} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -547,23 +563,47 @@ const ChatPage: React.FC = () => {
             </div>
           ) : !hasMessages ? (
             mode !== 'plain' ? (
-              <div className="chat-empty">
-                <CompanionAvatar size={112} state="idle" emotionColor={emoColor} />
+              <div className="chat-welcome">
+                <div className="chat-welcome-frame" aria-hidden="true">
+                  <span className="chat-wel-corner chat-wel-tl" />
+                  <span className="chat-wel-corner chat-wel-tr" />
+                  <span className="chat-wel-corner chat-wel-bl" />
+                  <span className="chat-wel-corner chat-wel-br" />
+                </div>
+
+                <span className="chat-wel-kicker">// COMPANION · {personaLabel}</span>
+
+                <div className="chat-wel-orb chat-wel-orb-sm">
+                  <span className="chat-wel-ring chat-wel-ring-1" aria-hidden="true" />
+                  <span className="chat-wel-ring chat-wel-ring-2" aria-hidden="true" />
+                  <CompanionAvatar
+                    size={146}
+                    state={voice.aiSpeaking ? 'speaking' : voice.listening ? 'listening' : 'idle'}
+                    emotionColor={emoColor}
+                  />
+                </div>
+
                 <h2>{companionName}</h2>
                 <p>我是{personaLabel}，今天想聊点什么？</p>
+
+                <div className="chat-wel-telemetry">
+                  <span className="chat-wel-dot" />
+                  BOND <b>ACTIVE</b>
+                  <span className="chat-wel-sep" />
+                  VOICE <b>{voice.listening ? 'LISTEN' : voice.aiSpeaking ? 'SPEAK' : 'STANDBY'}</b>
+                  <span className="chat-wel-sep" />
+                  INPUT <b>READY</b>
+                </div>
+
                 <PersonaPicker activeId={activePersonality}
                   onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
-                  <Button type="primary" icon={<SwapOutlined />} style={{ marginTop: 18, marginBottom: 20, borderRadius: 20, padding: '4px 22px', height: 38, fontSize: 13 }}>
+                  <Button type="primary" icon={<SwapOutlined />} style={{ marginTop: 14, marginBottom: 16, borderRadius: 20, padding: '4px 22px', height: 36, fontSize: 13 }}>
                     选择角色
                   </Button>
                 </PersonaPicker>
                 <div className="chat-suggestion-grid">
                   {PERSONA_SUGGESTIONS.map(s => (
-                    <div key={s.label} className="chat-suggestion-card" onClick={() => handleFillInput(s.label)}>
-                      <div style={{ fontSize: 17, marginBottom: 6, color: 'var(--gaea-glow)' }}>{s.icon}</div>
-                      <div style={{ color: C('color-text'), fontSize: 12.5, fontWeight: 500, marginBottom: 2 }}>{s.label}</div>
-                      <div style={{ color: C('color-text-secondary'), fontSize: 11, lineHeight: 1.4 }}>{s.desc}</div>
-                    </div>
+                    <SuggestionCard key={s.label} s={s} onClick={() => handleFillInput(s.label)} />
                   ))}
                 </div>
                 <div style={{ marginTop: 10 }}>
@@ -574,17 +614,44 @@ const ChatPage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="chat-empty">
-                <div className="chat-empty-orb"><RobotOutlined style={{ fontSize: 40 }} /></div>
+              <div className="chat-welcome">
+                <div className="chat-welcome-frame" aria-hidden="true">
+                  <span className="chat-wel-corner chat-wel-tl" />
+                  <span className="chat-wel-corner chat-wel-tr" />
+                  <span className="chat-wel-corner chat-wel-bl" />
+                  <span className="chat-wel-corner chat-wel-br" />
+                </div>
+
+                <span className="chat-wel-kicker">// GAEA CORE · 语音就绪</span>
+
+                <div className="chat-wel-orb">
+                  <span className="chat-wel-ring chat-wel-ring-1" aria-hidden="true" />
+                  <span className="chat-wel-ring chat-wel-ring-2" aria-hidden="true" />
+                  <VoiceChatOrb
+                    volume={voice.volume}
+                    listening={voice.listening}
+                    speaking={voice.speaking}
+                    aiSpeaking={voice.aiSpeaking}
+                    transcript={voice.transcript}
+                    size={188}
+                  />
+                </div>
+
                 <h2>gaea AI</h2>
-                <p>你的智能 AI 助手：聊天、写作、翻译、学习，随时待命</p>
+                <p>你的智能 AI 助手：聊天、写作、翻译、学习，随时待命 —— 说话即可开始对话</p>
+
+                <div className="chat-wel-telemetry">
+                  <span className="chat-wel-dot" />
+                  VOICE <b>{voice.listening ? 'LISTEN' : voice.aiSpeaking ? 'SPEAK' : 'STANDBY'}</b>
+                  <span className="chat-wel-sep" />
+                  CORE <b>ONLINE</b>
+                  <span className="chat-wel-sep" />
+                  INPUT <b>READY</b>
+                </div>
+
                 <div className="chat-suggestion-grid">
                   {PLAIN_SUGGESTIONS.map(s => (
-                    <div key={s.label} className="chat-suggestion-card" onClick={() => handleSuggestion(s.label)}>
-                      <div style={{ fontSize: 17, marginBottom: 6, color: 'var(--gaea-glow)' }}>{s.icon}</div>
-                      <div style={{ color: C('color-text'), fontSize: 12.5, fontWeight: 500, marginBottom: 2 }}>{s.label}</div>
-                      <div style={{ color: C('color-text-secondary'), fontSize: 11, lineHeight: 1.4 }}>{s.desc}</div>
-                    </div>
+                    <SuggestionCard key={s.label} s={s} onClick={() => handleSuggestion(s.label)} />
                   ))}
                 </div>
               </div>

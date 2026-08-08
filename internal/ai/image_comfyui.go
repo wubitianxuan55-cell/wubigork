@@ -10,7 +10,9 @@ import (
 	"io"
 	"log/slog"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -123,7 +125,7 @@ func parseLoraNames(raw json.RawMessage) ([]string, error) {
 	return names, nil
 }
 
-// GenerateImage 通过 ComfyUI 生成图片
+// GenerateImage 通过 ComfyUI 生成图片 / 图生图 / 文生视频
 func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
 	// 解析尺寸
 	width, height := 1024, 1024
@@ -139,6 +141,10 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	if seed == 0 {
 		seed = rand.Intn(1 << 31)
 	}
+	mode := req.Mode
+	if mode == "" {
+		mode = "txt2img"
+	}
 
 	// 解析 LoRA 列表
 	var loras []string
@@ -152,19 +158,59 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	}
 
 	var workflow map[string]interface{}
-	switch {
-	case strings.HasPrefix(req.Model, "krea2"):
-		steps := 8
-		workflow = b.buildKreaWorkflow(req.Prompt, width, height, seed, steps, loras)
-	case req.Model == "z-image-turbo":
-		steps := 8
-		unetModel := "z_image_turbo_bf16_完整版_效果最好.safetensors"
-		workflow = b.buildZImageWorkflow(req.Prompt, req.Negative, width, height, seed, steps, unetModel, loras)
+	kind := "image"
+	switch mode {
+	case "img2img":
+		// 图生图：上传参考图 → LoadImage + VAEEncode → 低 denoise 重绘
+		if req.InitImage == "" {
+			return nil, fmt.Errorf("图生图需要提供参考图")
+		}
+		imageName, err := b.uploadImage(ctx, req.InitImage)
+		if err != nil {
+			return nil, err
+		}
+		denoise := req.Denoise
+		if denoise <= 0 || denoise > 1 {
+			denoise = 0.65
+		}
+		switch {
+		case req.Model == "z-image-turbo":
+			unetModel := "z_image_turbo_bf16_完整版_效果最好.safetensors"
+			workflow = b.buildZImageImg2ImgWorkflow(req.Prompt, req.Negative, width, height, seed, 8, unetModel, loras, imageName, denoise)
+		default:
+			workflow = b.buildKreaImg2ImgWorkflow(req.Prompt, req.Negative, width, height, seed, 8, loras, imageName, denoise)
+		}
+	case "t2v":
+		// 文生视频：LTX-Video 工作流（输出 SaveAnimatedWEBP 动画）
+		if req.Size == "" {
+			width, height = 768, 512
+		}
+		frames := req.Frames
+		if frames <= 0 {
+			frames = 97
+		}
+		fps := req.FPS
+		if fps <= 0 {
+			fps = 8
+		}
+		workflow = b.buildLTXVideoWorkflow(req.Prompt, req.Negative, width, height, seed, frames, fps, req.Model)
+		kind = "video"
 	default:
-		// 默认走 Krea2 Turbo
-		slog.Info("ComfyUI 默认使用 Krea2 Turbo", "model", req.Model)
-		steps := 8
-		workflow = b.buildKreaWorkflow(req.Prompt, width, height, seed, steps, loras)
+		// 文生图（默认）
+		switch {
+		case strings.HasPrefix(req.Model, "krea2"):
+			steps := 8
+			workflow = b.buildKreaWorkflow(req.Prompt, width, height, seed, steps, loras)
+		case req.Model == "z-image-turbo":
+			steps := 8
+			unetModel := "z_image_turbo_bf16_完整版_效果最好.safetensors"
+			workflow = b.buildZImageWorkflow(req.Prompt, req.Negative, width, height, seed, steps, unetModel, loras)
+		default:
+			// 默认走 Krea2 Turbo
+			slog.Info("ComfyUI 默认使用 Krea2 Turbo", "model", req.Model)
+			steps := 8
+			workflow = b.buildKreaWorkflow(req.Prompt, width, height, seed, steps, loras)
+		}
 	}
 
 	// 1. 提交任务
@@ -175,15 +221,18 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	slog.Info("ComfyUI 任务已提交", "promptID", promptID, "size", fmt.Sprintf("%dx%d", width, height))
 
 	// 2. 轮询等待完成
-	imageData, err := b.waitForResult(ctx, promptID)
+	imageData, outKind, err := b.waitForResult(ctx, promptID)
 	if err != nil {
 		return nil, fmt.Errorf("ComfyUI 生成失败: %w", err)
+	}
+	if outKind != "" {
+		kind = outKind
 	}
 
 	return &ImageGenerationResponse{
 		Created: time.Now().Unix(),
 		Data: []ImageData{
-			{B64JSON: imageData},
+			{B64JSON: imageData, Kind: kind},
 		},
 	}, nil
 }
@@ -260,6 +309,144 @@ func (b *ComfyUIBackend) buildKreaWorkflow(prompt string, width, height, seed, s
 	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
 	return wf
 }
+
+// buildKreaImg2ImgWorkflow 构建 Krea2 Turbo 图生图工作流：
+// LoadImage(参考图) → VAEEncode → KSampler(低 denoise) → VAEDecode → SaveImage
+func (b *ComfyUIBackend) buildKreaImg2ImgWorkflow(prompt, negative string, width, height, seed, steps int, loras []string, imageName string, denoise float64) map[string]interface{} {
+	wf := map[string]interface{}{
+		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": "krea2_turbo_fp8_scaled.safetensors", "weight_dtype": "default"}},
+		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "qwen3vl_4b_fp8_scaled.safetensors", "type": "krea2"}},
+		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "qwen_image_vae.safetensors"}},
+		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
+		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"5", 0}}},
+		"13": map[string]interface{}{"class_type": "ConditioningZeroOut", "inputs": map[string]interface{}{"conditioning": []interface{}{"8", 0}}},
+		"1":  map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": imageName}},
+		"15": map[string]interface{}{"class_type": "VAEEncode", "inputs": map[string]interface{}{"pixels": []interface{}{"1", 0}, "vae": []interface{}{"6", 0}}},
+	}
+	modelSourceID := injectLoraNodes(wf, "4", loras)
+	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
+		"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": denoise,
+		"model": []interface{}{modelSourceID, 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"13", 0}, "latent_image": []interface{}{"15", 0},
+	}}
+	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
+	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
+	return wf
+}
+
+// buildZImageImg2ImgWorkflow 构建 Z-Image-Turbo 图生图工作流
+func (b *ComfyUIBackend) buildZImageImg2ImgWorkflow(prompt, negative string, width, height, seed, steps int, unetModel string, loras []string, imageName string, denoise float64) map[string]interface{} {
+	wf := map[string]interface{}{
+		"4":  map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": unetModel, "weight_dtype": "default"}},
+		"5":  map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "z-image\\qwen_3_4b.safetensors", "type": "lumina2"}},
+		"6":  map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "z-image-qwen.safetensors"}},
+		"7":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
+		"8":  map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"5", 0}}},
+		"13": map[string]interface{}{"class_type": "ConditioningZeroOut", "inputs": map[string]interface{}{"conditioning": []interface{}{"8", 0}}},
+		"1":  map[string]interface{}{"class_type": "LoadImage", "inputs": map[string]interface{}{"image": imageName}},
+		"15": map[string]interface{}{"class_type": "VAEEncode", "inputs": map[string]interface{}{"pixels": []interface{}{"1", 0}, "vae": []interface{}{"6", 0}}},
+	}
+	modelSourceID := injectLoraNodes(wf, "4", loras)
+	wf["14"] = map[string]interface{}{"class_type": "ModelSamplingAuraFlow", "inputs": map[string]interface{}{"model": []interface{}{modelSourceID, 0}, "shift": 3}}
+	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
+		"seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "res_multistep", "scheduler": "simple", "denoise": denoise,
+		"model": []interface{}{"14", 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"13", 0}, "latent_image": []interface{}{"15", 0},
+	}}
+	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
+	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
+	return wf
+}
+
+// buildLTXVideoWorkflow 构建 LTX-Video 文生视频工作流（ComfyUI 核心节点）：
+// LTXVLoader → CLIPTextEncode ×2 → LTXVConditioning → EmptyLTXVLatentVideo
+// → LTXVSampler → VAEDecode → SaveAnimatedWEBP
+func (b *ComfyUIBackend) buildLTXVideoWorkflow(prompt, negative string, width, height, seed, frames, fps int, model string) map[string]interface{} {
+	ckpt := strings.TrimSpace(model)
+	if ckpt == "" {
+		ckpt = "ltx-video-2b-v0.9.safetensors"
+	}
+	if frames < 16 {
+		frames = 16
+	}
+	frames = frames / 8 * 8 // LTX 潜空间帧数需为 8 的倍数
+	if fps <= 0 {
+		fps = 8
+	}
+	wf := map[string]interface{}{
+		"1": map[string]interface{}{"class_type": "LTXVLoader", "inputs": map[string]interface{}{"ckpt_name": ckpt}},
+		"2": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"1", 1}}},
+		"3": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"1", 1}}},
+		"4": map[string]interface{}{"class_type": "LTXVConditioning", "inputs": map[string]interface{}{"positive": []interface{}{"2", 0}, "negative": []interface{}{"3", 0}}},
+		"5": map[string]interface{}{"class_type": "EmptyLTXVLatentVideo", "inputs": map[string]interface{}{"width": width, "height": height, "length": frames, "batch_size": 1}},
+		"6": map[string]interface{}{"class_type": "LTXVSampler", "inputs": map[string]interface{}{
+			"model": []interface{}{"1", 0}, "positive": []interface{}{"4", 0}, "negative": []interface{}{"4", 1}, "latent": []interface{}{"5", 0},
+			"seed": seed, "steps": 24, "cfg": 2.0, "sampler_name": "euler", "scheduler": "normal",
+		}},
+		"7": map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"6", 0}, "vae": []interface{}{"1", 2}}},
+		"8": map[string]interface{}{"class_type": "SaveAnimatedWEBP", "inputs": map[string]interface{}{"images": []interface{}{"7", 0}, "filename_prefix": "gaea", "fps": fps, "quality": 85, "lossless": false}},
+	}
+	return wf
+}
+
+// uploadImage 将 base64 data URL 参考图上传到 ComfyUI /upload/image，返回文件名
+func (b *ComfyUIBackend) uploadImage(ctx context.Context, dataURL string) (string, error) {
+	commaIdx := strings.Index(dataURL, ",")
+	if commaIdx < 0 {
+		return "", fmt.Errorf("参考图 data URL 无效")
+	}
+	raw, err := base64.StdEncoding.DecodeString(dataURL[commaIdx+1:])
+	if err != nil {
+		return "", fmt.Errorf("参考图解码失败: %w", err)
+	}
+	ext := "png"
+	switch {
+	case strings.HasPrefix(dataURL, "data:image/jpeg"), strings.HasPrefix(dataURL, "data:image/jpg"):
+		ext = "jpg"
+	case strings.HasPrefix(dataURL, "data:image/webp"):
+		ext = "webp"
+	case strings.HasPrefix(dataURL, "data:image/gif"):
+		ext = "gif"
+	}
+	filename := fmt.Sprintf("gaea_init_%d.%s", time.Now().UnixNano(), ext)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	part, err := mw.CreateFormFile("image", filename)
+	if err != nil {
+		return "", err
+	}
+	if _, err := part.Write(raw); err != nil {
+		return "", err
+	}
+	_ = mw.WriteField("overwrite", "true")
+	_ = mw.Close()
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.baseURL+"/upload/image", &buf)
+	if err != nil {
+		return "", err
+	}
+	httpReq.Header.Set("Content-Type", mw.FormDataContentType())
+
+	resp, err := b.httpClient.Do(httpReq)
+	if err != nil {
+		return "", fmt.Errorf("上传参考图失败 (%s): %w", b.baseURL, err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("上传参考图失败 HTTP %d: %s", resp.StatusCode, trimStr(string(body), 300))
+	}
+	var res struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(body, &res); err != nil || res.Name == "" {
+		return "", fmt.Errorf("上传参考图响应异常: %s", trimStr(string(body), 200))
+	}
+	return res.Name, nil
+}
+
 func (b *ComfyUIBackend) queuePrompt(ctx context.Context, workflow map[string]interface{}) (string, error) {
 	body := map[string]interface{}{
 		"prompt": workflow,
@@ -313,41 +500,50 @@ func (b *ComfyUIBackend) queuePrompt(ctx context.Context, workflow map[string]in
 	return result.PromptID, nil
 }
 
-// waitForResult 轮询等待 ComfyUI 生成完成，返回 base64 图片
-func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string) (string, error) {
+// comfyOutputFile ComfyUI 输出文件（图片或视频）
+type comfyOutputFile struct {
+	filename  string
+	subfolder string
+	outputType string
+	kind      string // image | video
+	format    string
+}
+
+// waitForResult 轮询等待 ComfyUI 生成完成，返回 base64 data URL 与输出类型
+func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string) (string, string, error) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
-	timeout := time.After(10 * time.Minute)
+	timeout := time.After(15 * time.Minute)
 
 	for {
 		select {
 		case <-ctx.Done():
-			return "", ctx.Err()
+			return "", "", ctx.Err()
 		case <-timeout:
-			return "", fmt.Errorf("ComfyUI 生成超时 (10分钟)")
+			return "", "", fmt.Errorf("ComfyUI 生成超时 (15分钟)")
 		case <-ticker.C:
-			images, done, err := b.checkHistory(promptID)
+			files, done, err := b.checkHistory(promptID)
 			if err != nil {
 				if done {
-					return "", err
+					return "", "", err
 				}
 				slog.Warn("ComfyUI 轮询失败", "error", err)
 				continue
 			}
 			if done {
-				if len(images) == 0 {
-					return "", fmt.Errorf("ComfyUI 完成但无输出图片")
+				if len(files) == 0 {
+					return "", "", fmt.Errorf("ComfyUI 完成但无输出文件")
 				}
-				// 下载第一张图片并返回 base64
-				return b.downloadImage(ctx, images[0])
+				dataURL, err := b.downloadFile(ctx, files[0])
+				return dataURL, files[0].kind, err
 			}
 		}
 	}
 }
 
-// checkHistory 查询任务状态，返回 (图片文件名列表, 是否完成, 错误)
-func (b *ComfyUIBackend) checkHistory(promptID string) ([]string, bool, error) {
+// checkHistory 查询任务状态，返回 (输出文件列表, 是否完成, 错误)
+func (b *ComfyUIBackend) checkHistory(promptID string) ([]comfyOutputFile, bool, error) {
 	resp, err := b.httpClient.Get(b.baseURL + "/history/" + promptID)
 	if err != nil {
 		return nil, false, err
@@ -401,34 +597,57 @@ func (b *ComfyUIBackend) checkHistory(promptID string) ([]string, bool, error) {
 		return nil, true, nil
 	}
 
-	// 遍历输出节点找图片
-	var imageFiles []string
+	// 遍历输出节点，收集 images / gifs / videos
+	var files []comfyOutputFile
 	for _, output := range outputs {
 		outputMap, ok := output.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		imgs, ok := outputMap["images"].([]interface{})
-		if !ok {
-			continue
-		}
-		for _, img := range imgs {
-			imgMap, ok := img.(map[string]interface{})
+		for _, key := range []string{"images", "gifs", "videos"} {
+			items, ok := outputMap[key].([]interface{})
 			if !ok {
 				continue
 			}
-			if fn, ok := imgMap["filename"].(string); ok {
-				imageFiles = append(imageFiles, fn)
+			for _, item := range items {
+				itemMap, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				fn, _ := itemMap["filename"].(string)
+				if fn == "" {
+					continue
+				}
+				f := comfyOutputFile{
+					filename:   fn,
+					subfolder:  strOr(itemMap["subfolder"]),
+					outputType: strOr(itemMap["type"]),
+					format:     strOr(itemMap["format"]),
+					kind:       "image",
+				}
+				if f.outputType == "" {
+					f.outputType = "output"
+				}
+				if key == "videos" {
+					f.kind = "video"
+				}
+				files = append(files, f)
 			}
 		}
 	}
 
-	return imageFiles, true, nil
+	return files, true, nil
 }
 
-// downloadImage 从 ComfyUI 下载图片并返回 base64 data URL
-func (b *ComfyUIBackend) downloadImage(ctx context.Context, filename string) (string, error) {
-	url := fmt.Sprintf("%s/view?filename=%s&subfolder=&type=output", b.baseURL, filename)
+func strOr(v interface{}) string {
+	s, _ := v.(string)
+	return s
+}
+
+// downloadFile 从 ComfyUI 下载输出文件并返回 base64 data URL
+func (b *ComfyUIBackend) downloadFile(ctx context.Context, f comfyOutputFile) (string, error) {
+	url := fmt.Sprintf("%s/view?filename=%s&subfolder=%s&type=%s",
+		b.baseURL, url.QueryEscape(f.filename), url.QueryEscape(f.subfolder), f.outputType)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "", err
@@ -436,7 +655,7 @@ func (b *ComfyUIBackend) downloadImage(ctx context.Context, filename string) (st
 
 	resp, err := b.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("下载图片失败: %w", err)
+		return "", fmt.Errorf("下载输出文件失败: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -446,8 +665,23 @@ func (b *ComfyUIBackend) downloadImage(ctx context.Context, filename string) (st
 	}
 
 	mimeType := "image/png"
-	if resp.Header.Get("Content-Type") != "" {
-		mimeType = resp.Header.Get("Content-Type")
+	switch f.format {
+	case "webp":
+		mimeType = "image/webp"
+	case "gif":
+		mimeType = "image/gif"
+	case "jpeg", "jpg":
+		mimeType = "image/jpeg"
+	case "mp4":
+		mimeType = "video/mp4"
+	case "webm":
+		mimeType = "video/webm"
+	case "mov":
+		mimeType = "video/quicktime"
+	default:
+		if ct := resp.Header.Get("Content-Type"); ct != "" {
+			mimeType = ct
+		}
 	}
 
 	return "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data), nil

@@ -68,6 +68,21 @@ export async function getSystemStats(): Promise<SystemStats | null> {
   }
 }
 
+/** 获取角色库剧照独立后端/模型（空 = 跟随绘梦） */
+export async function getPortraitConfig(): Promise<{ backend: string; model: string }> {
+  try {
+    const r = await App.GetPortraitConfig()
+    return (r || { backend: '', model: '' }) as { backend: string; model: string }
+  } catch (_) {
+    return { backend: '', model: '' }
+  }
+}
+
+/** 设置角色库剧照独立后端/模型（空 = 跟随绘梦） */
+export async function setPortraitConfig(backend: string, model: string): Promise<void> {
+  await App.SetPortraitConfig(backend, model)
+}
+
 /** 生成图片 */
 export async function generateImage(
   prompt: string, negative: string, size: string,
@@ -83,6 +98,44 @@ export async function generateImage(
       size: img.size || size, negative: negative,
     }))
     return { images }
+  }
+  return {}
+}
+
+/** 多模式媒体生成参数（文生图 / 图生图 / 文生视频） */
+export interface MediaParams {
+  prompt: string
+  negative: string
+  size: string
+  model: string
+  seed: number
+  lora: string
+  count: number
+  mode: 'txt2img' | 'img2img' | 't2v'
+  initImage?: string
+  denoise?: number
+  frames?: number
+  fps?: number
+}
+
+/** 多模式媒体生成（绘梦页：图生图 / 文生视频） */
+export async function generateMedia(
+  params: MediaParams,
+): Promise<{ error?: string; results?: GenResult[]; mode?: string }> {
+  const res = await App.GenerateMedia(JSON.stringify(params))
+  if (res?.error) return { error: res.error }
+  if (res?.results?.length) {
+    const results: GenResult[] = res.results.map((img: any) => ({
+      image: img.image,
+      seed: img.seed,
+      time: img.time,
+      prompt: img.prompt || params.prompt,
+      model: img.model || params.model,
+      size: img.size || params.size,
+      negative: params.negative,
+      kind: img.kind || 'image',
+    }))
+    return { results, mode: res.mode }
   }
   return {}
 }

@@ -253,31 +253,29 @@ const CreatePage: React.FC = () => {
       <div style={{ flex: 1, display: 'flex', gap: 12, minHeight: 0 }}>
 
         {/* 左：章节节点树 */}
-        <Card size="small" title={<><ShareAltOutlined style={{ marginRight: 6 }} />节点树</>}
-          style={{ width: 260, flexShrink: 0, background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column' }}
-          bodyStyle={{ flex: 1, overflow: 'auto', padding: 8 }}>
-          {flatNodes.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 24, color: C('color-text-secondary'), fontSize: 12 }}>
-              <BookOutlined style={{ fontSize: 24, opacity: 0.3, display: 'block', marginBottom: 8 }} />暂无章节
-            </div>
-          ) : flatNodes.map(tn => {
-            const n = tn.node
-            const isActive = activeId === n.id
-            const chapNum = n.order_index || 1
-            const isBranch = !!n.parent_id
-            const nodeBranch = (n as any).branch || ''
-            return (
-              <div key={n.id} style={{ marginBottom: 2 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  padding: '4px 6px', paddingLeft: 6 + tn.depth * 16,
-                  borderRadius: 6,
-                  background: isActive ? 'var(--md-sys-color-primary-container)' : 'transparent',
-                  borderLeft: isBranch ? '2px solid var(--md-sys-color-outline-variant)' : undefined,
-                }}>
+        <aside className="novel-panel" style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="novel-panel-head">
+            <span className="novel-panel-title"><ShareAltOutlined />节点树</span>
+          </div>
+          <div className="novel-tree" style={{ flex: 1, overflow: 'auto' }}>
+            {flatNodes.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 24, color: C('color-text-secondary'), fontSize: 12 }}>
+                <BookOutlined style={{ fontSize: 24, opacity: 0.3, display: 'block', marginBottom: 8 }} />暂无章节
+              </div>
+            ) : flatNodes.map(tn => {
+              const n = tn.node
+              const isActive = activeId === n.id
+              const chapNum = n.order_index || 1
+              const isBranch = !!n.parent_id
+              return (
+                <div
+                  key={n.id}
+                  className={`novel-tree-item${isActive ? ' is-active' : ''}`}
+                  style={{ paddingLeft: 8 + tn.depth * 16, borderLeft: isBranch ? '2px solid var(--md-sys-color-outline-variant)' : undefined }}
+                >
                   <div onClick={() => selectChapter(n)}
                     title={n.summary ? `摘要: ${n.summary.slice(0, 100)}${n.summary.length > 100 ? '...' : ''}` : `ID: ${n.id}`}
-                    style={{ flex: 1, cursor: 'pointer', color: isActive ? 'var(--md-sys-color-on-primary-container)' : C('color-text'), fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                    style={{ flex: 1, cursor: 'pointer', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                     {isBranch ? <ShareAltOutlined style={{ fontSize: 9, marginRight: 4, opacity: 0.5 }} /> : <RightOutlined style={{ fontSize: 10, marginRight: 4, opacity: 0.4 }} />}
                     {n.title || `第${chapNum}章`}
                   </div>
@@ -309,14 +307,14 @@ const CreatePage: React.FC = () => {
                       title={tn.children.length > 0 ? '添加子分支' : '生成下一章'} />
                   </Space>
                 </div>
-              </div>
-            )
-          })}
-          <div onClick={() => openWizard(outlines.length)}
-            style={{ marginTop: 8, padding: '8px', borderRadius: 6, cursor: 'pointer', border: '1px dashed var(--md-sys-color-primary)', textAlign: 'center', color: 'var(--md-sys-color-primary)', fontSize: 13 }}>
-            <PlusOutlined style={{ marginRight: 4 }} />生成第{outlines.length + 1}章
+              )
+            })}
+            <div onClick={() => openWizard(outlines.length)}
+              style={{ marginTop: 8, padding: '8px', borderRadius: 6, cursor: 'pointer', border: '1px dashed var(--md-sys-color-primary)', textAlign: 'center', color: 'var(--md-sys-color-primary)', fontSize: 13 }}>
+              <PlusOutlined style={{ marginRight: 4 }} />生成第{outlines.length + 1}章
+            </div>
           </div>
-        </Card>
+        </aside>
 
         {/* 右：编辑区 */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
@@ -338,8 +336,8 @@ const CreatePage: React.FC = () => {
                   style={{ width: 220, alignSelf: 'flex-end' }}
                 />
               )}
-              <TextArea value={content} onChange={e => setContent(e.target.value)}
-                style={{ flex: 1, resize: 'none', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: C('color-text'), borderRadius: 'var(--radius-md)', fontSize: 14, lineHeight: 1.8, fontFamily: '"Noto Serif SC", "Source Han Serif SC", "SimSun", serif', minHeight: 0 }}
+              <TextArea className="novel-editor" value={content} onChange={e => setContent(e.target.value)}
+                style={{ flex: 1, minHeight: 0, resize: 'none' }}
               />
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 {activeNode && <Button icon={<ReloadOutlined />} onClick={() => handleRegenerate(activeNode)}>重新生成</Button>}
@@ -347,14 +345,14 @@ const CreatePage: React.FC = () => {
               </div>
             </>
           ) : (
-            <Card style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-glass)', border: '1px dashed var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+            <div className="novel-panel" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed' }}>
               <div style={{ textAlign: 'center' }}>
                 <EditOutlined style={{ fontSize: 36, opacity: 0.2, marginBottom: 12, color: C('color-text-secondary') }} />
                 <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13, display: 'block' }}>
                   {flatNodes.length === 0 ? '点击底部「生成第1章」开始' : '选择左侧节点查看或编辑'}
                 </Typography.Text>
               </div>
-            </Card>
+            </div>
           )}
         </div>
       </div>

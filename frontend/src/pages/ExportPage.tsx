@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Typography, Button, Card, Space, Tag } from 'antd'
+import { Typography, Button, Space, Tag } from 'antd'
 import { FileTextOutlined, FileMarkdownOutlined, BookOutlined } from '@ant-design/icons'
 import { C } from '../utils/theme'
 
@@ -23,7 +23,7 @@ const ExportPage: React.FC = () => {
   return (
     <div>
 
-      <Card style={{ background: 'var(--bg-glass)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', padding: 24, textAlign: 'center', marginBottom: 24 }}>
+      <div className="novel-panel" style={{ padding: 24, textAlign: 'center', marginBottom: 24 }}>
         <Typography.Paragraph style={{ color: C('color-text-secondary') }}>
           一键导出全部格式到小说目录下的 export/ 文件夹。
         </Typography.Paragraph>
@@ -38,35 +38,39 @@ const ExportPage: React.FC = () => {
         >
           导出全部格式 (TXT + Markdown + EPUB)
         </Button>
-      </Card>
+      </div>
 
       {Object.keys(results).length > 0 && (
-        <Card style={{ background: 'var(--bg-glass)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)' }}>
-          <Typography.Title level={5} style={{ color: C('color-text') }}>导出结果</Typography.Title>
-          <Space direction="vertical" size={8} style={{ width: '100%' }}>
-            {Object.entries(results).map(([ext, path]) => (
-              <div key={ext} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 0 }}>
-                <Space>
-                  {ext === '.epub' ? <BookOutlined style={{ color: C('color-primary') }} /> :
-                   ext === '.md' ? <FileMarkdownOutlined style={{ color: '#60a5fa' }} /> :
-                   <FileTextOutlined style={{ color: C('color-text-secondary') }} />}
-                  <Tag>{ext.toUpperCase()}</Tag>
-                </Space>
-                <Typography.Text style={{
-                  color: path.startsWith('失败') ? '#f87171' : C('color-primary'),
-                  fontSize: 12,
-                  maxWidth: 400,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  wordBreak: 'break-all',
-                }}>
-                  {path}
-                </Typography.Text>
-              </div>
-            ))}
-          </Space>
-        </Card>
+        <div className="novel-panel" style={{ overflow: 'hidden' }}>
+          <div className="novel-panel-head">
+            <span className="novel-panel-title"><FileTextOutlined />导出结果</span>
+          </div>
+          <div style={{ padding: 14 }}>
+            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+              {Object.entries(results).map(([ext, path]) => (
+                <div key={ext} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 0 }}>
+                  <Space>
+                    {ext === '.epub' ? <BookOutlined style={{ color: C('color-primary') }} /> :
+                     ext === '.md' ? <FileMarkdownOutlined style={{ color: '#60a5fa' }} /> :
+                     <FileTextOutlined style={{ color: C('color-text-secondary') }} />}
+                    <Tag>{ext.toUpperCase()}</Tag>
+                  </Space>
+                  <Typography.Text style={{
+                    color: path.startsWith('失败') ? '#f87171' : C('color-primary'),
+                    fontSize: 12,
+                    maxWidth: 400,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    wordBreak: 'break-all',
+                  }}>
+                    {path}
+                  </Typography.Text>
+                </div>
+              ))}
+            </Space>
+          </div>
+        </div>
       )}
     </div>
   )
