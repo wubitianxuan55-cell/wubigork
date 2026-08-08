@@ -438,6 +438,20 @@ func (a *AgentRunner) SetSession(s *Session) {
 // maybeCompact.
 func (a *AgentRunner) LastUsage() *provider.Usage { return a.lastUsage.Load() }
 
+// SeedUsage 写入一条合成的用量记录。恢复会话后用它给上下文状态条一个初始
+// 读数，避免重启后顶栏"上下文"一直显示 0。
+func (a *AgentRunner) SeedUsage(u provider.Usage) { a.lastUsage.Store(&u) }
+
+// EstimateContextTokens 估算当前会话的提示词 token 数（字节数 × 当前
+// tokens/字节 比率，未校准前用 ~4 字节/token 兜底）。恢复会话后用于
+// 初始化上下文读数，真实用量会在下一轮由 provider 上报后覆盖。
+func (a *AgentRunner) EstimateContextTokens() int {
+	if a.session == nil {
+		return 0
+	}
+	return int(float64(charsOfMessages(a.session.Messages)) * a.tokPerChar())
+}
+
 // SessionCache returns the cumulative cache hit/miss prompt tokens across every
 // API call this session �� the basis for the status line's aggregate hit-rate.
 func (a *AgentRunner) SessionCache() (hit, miss int) {

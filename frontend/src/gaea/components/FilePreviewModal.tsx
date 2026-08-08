@@ -163,7 +163,7 @@ export function FilePreviewModal() {
 
           {!loading && preview?.kind === "markdown" && (
             <div className="px-8 py-6 max-w-[860px] mx-auto">
-              <Markdown text={preview.body} />
+              <Markdown text={preview.body} autoExportMermaid={false} />
             </div>
           )}
 

@@ -7,7 +7,7 @@ import {
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
 import { useT } from "../lib/i18n";
-import { sessionTitle, sessionTime } from "../lib/session";
+import { sessionTitle } from "../lib/session";
 import type { SessionMeta } from "../lib/types";
 
 export interface SidebarProps {
@@ -34,6 +34,35 @@ export interface SidebarProps {
   SIDEBAR_MIN_WIDTH: number;
   SIDEBAR_MAX_WIDTH: number;
 }
+
+// Codex 风格：按时间分桶（今天 / 昨天 / 前 7 天 / 前 30 天 / 更早）
+function sessionBucket(ms: number): string {
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date()) - startOfDay(new Date(ms))) / 86_400_000);
+  if (days <= 0) return "今天";
+  if (days === 1) return "昨天";
+  if (days <= 7) return "前 7 天";
+  if (days <= 30) return "前 30 天";
+  return "更早";
+}
+
+// Codex 风格：相对时间（刚刚 / X 分钟前 / X 小时前 / 昨天 / M-D）
+function relativeTime(ms: number): string {
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diff = Date.now() - ms;
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return "刚刚";
+  if (min < 60) return `${min} 分钟前`;
+  const days = Math.round((startOfDay(new Date()) - startOfDay(new Date(ms))) / 86_400_000);
+  if (days <= 0) {
+    const h = Math.floor(min / 60);
+    return h < 24 ? `${h} 小时前` : new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  if (days === 1) return "昨天";
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}-${d.getDate()}`;
+}
+
 export function Sidebar({
   collapsed,
   toggleSidebar,
@@ -151,7 +180,7 @@ export function Sidebar({
             <div className="min-h-0 overflow-y-auto pr-0.5">
               {(() => {
                 const q = localQuery.trim().toLowerCase();
-                const visible = q
+                const filtered = q
                   ? sessions.filter((s: SessionMeta) =>
                       (s.title || s.preview || "").toLowerCase().includes(q) ||
                       s.path.toLowerCase().includes(q)
@@ -159,9 +188,9 @@ export function Sidebar({
                   : sessions;
                 if (sessions.length === 0)
                   return <div className="py-2 px-2.5 text-fg-faint text-xs">{t("sidebar.noRecent")}</div>;
-                if (visible.length === 0 && q)
+                if (filtered.length === 0 && q)
                   return <div className="py-2 px-2.5 text-fg-faint text-xs">无匹配</div>;
-                return visible.map((session: SessionMeta) => (
+                const renderItem = (session: SessionMeta) => (
                   <div
                     className={`flex items-start gap-1 py-1 pl-2.5 pr-1 mb-0.5 rounded-md hover:bg-sidebar-hover group ${
                       session.current
@@ -210,8 +239,15 @@ export function Sidebar({
                             {sessionTitle(session, t("history.emptySession"))}
                           </span>
                         )}
-                        <span className="text-fg-faint font-mono text-[10.5px]">
-                          {session.current ? t("history.current") : sessionTime(session.modTime)}
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="text-fg-faint font-mono text-[10.5px] shrink-0">
+                            {session.current ? t("history.current") : relativeTime(session.modTime)}
+                          </span>
+                          {!session.current && session.preview && (
+                            <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-fg-faint/60 text-[10.5px]">
+                              {session.preview}
+                            </span>
+                          )}
                         </span>
                       </span>
                     </button>
@@ -235,6 +271,25 @@ export function Sidebar({
                         </button>
                       )
                     )}
+                  </div>
+                );
+                // 搜索时保持平铺；未搜索时按 Codex 风格日期分组
+                if (q) return filtered.map(renderItem);
+                const groups: { label: string; items: SessionMeta[] }[] = [];
+                for (const s of filtered) {
+                  const label = sessionBucket(s.modTime);
+                  const last = groups[groups.length - 1];
+                  if (last && last.label === label) last.items.push(s);
+                  else groups.push({ label, items: [s] });
+                }
+                return groups.map((g) => (
+                  <div key={g.label} className="mb-1.5">
+                    <div className="flex items-center gap-1.5 px-2 pt-1.5 pb-1 text-fg-faint text-[10px] font-semibold uppercase tracking-wider">
+                      <span className="w-1 h-1 rounded-full bg-fg-faint/30" />
+                      {g.label}
+                      <span className="text-fg-faint/40 font-mono font-normal normal-case tracking-normal">{g.items.length}</span>
+                    </div>
+                    {g.items.map(renderItem)}
                   </div>
                 ));
               })()}

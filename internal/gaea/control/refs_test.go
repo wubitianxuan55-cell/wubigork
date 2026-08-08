@@ -1,11 +1,14 @@
 package control
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/gaea/gaea/internal/gaea/vision"
 )
 
 func TestParseRefTokens(t *testing.T) {
@@ -58,6 +61,101 @@ func TestClassifyRef(t *testing.T) {
 			t.Errorf("classifyRef(%q) kind = %v, want %v", c.token, r.kind, c.wantKnd)
 		}
 	}
+}
+
+// TestResolveRefs_ImageRecognition 图片引用应自动识图并把描述注入上下文。
+func TestResolveRefs_ImageRecognition(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if err := ensureAttachmentRoot(); err != nil {
+		t.Fatal(err)
+	}
+	rel, f, err := createAttachmentFile(".png")
+	if err != nil {
+		t.Fatalf("createAttachmentFile: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := visionRecognize
+	visionRecognize = func(_ context.Context, imagePath, _ string) (string, error) {
+		if !strings.HasSuffix(imagePath, ".png") {
+			t.Errorf("imagePath = %q, want png", imagePath)
+		}
+		return "这是一张办公截图，包含标题和两段文字。", nil
+	}
+	defer func() { visionRecognize = orig }()
+
+	c := &Controller{}
+	block, errs := c.ResolveRefs(context.Background(), "帮我看看 @"+rel)
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v", errs)
+	}
+	if !strings.Contains(block, "【图片识别】") || !strings.Contains(block, "这是一张办公截图") {
+		t.Errorf("block = %q, want 识别内容", block)
+	}
+}
+
+// TestResolveRefs_UploadsImage 普通图片路径（.gaea/uploads 等）也应识图注入。
+func TestResolveRefs_UploadsImage(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if err := os.MkdirAll(".gaea/uploads", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rel := ".gaea/uploads/paste-1.png"
+	if err := os.WriteFile(rel, []byte("not-a-real-png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := visionRecognize
+	visionRecognize = func(_ context.Context, imagePath, _ string) (string, error) {
+		if imagePath != rel {
+			t.Errorf("imagePath = %q, want %q", imagePath, rel)
+		}
+		return "截图包含表格与标题。", nil
+	}
+	defer func() { visionRecognize = orig }()
+
+	c := &Controller{}
+	block, errs := c.ResolveRefs(context.Background(), "识别 @"+rel)
+	if len(errs) != 0 {
+		t.Fatalf("errs = %v", errs)
+	}
+	if !strings.Contains(block, "【图片识别】") || !strings.Contains(block, "截图包含表格与标题") {
+		t.Errorf("block = %q, want 识别内容", block)
+	}
+}
+
+// TestResolveRefs_ImageRecognitionFallback 识图失败时回退为占位提示。
+func TestResolveRefs_ImageRecognitionFallback(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if err := ensureAttachmentRoot(); err != nil {
+		t.Fatal(err)
+	}
+	rel, f, err := createAttachmentFile(".png")
+	if err != nil {
+		t.Fatalf("createAttachmentFile: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := visionRecognize
+	visionRecognize = func(_ context.Context, _, _ string) (string, error) {
+		return "", context.DeadlineExceeded
+	}
+	defer func() { visionRecognize = orig }()
+
+	c := &Controller{}
+	block, _ := c.ResolveRefs(context.Background(), "看看 @"+rel)
+	if !strings.Contains(block, "识图失败") {
+		t.Errorf("block = %q, want 识图失败回退", block)
+	}
+	// 确保恢复原实现后类型正确
+	if visionRecognize == nil {
+		t.Fatal("visionRecognize 不应为 nil")
+	}
+	_ = vision.RecognizeImage
 }
 
 func TestReadFileRef(t *testing.T) {

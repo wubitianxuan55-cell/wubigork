@@ -51,7 +51,7 @@ const OfficePanel: React.FC = () => {
         systemPrompt: agent.systemPrompt || '',
         temperature: agent.temperature || 0,
         subagentTemperature: agent.subagentTemperature || 0,
-        maxSteps: agent.maxSteps || 0,
+        maxSteps: typeof agent.maxSteps === 'number' ? agent.maxSteps : 0,
         effort: agent.effort || '',
         subagentEffort: agent.subagentEffort || '',
         permMode: perms.mode || 'ask',

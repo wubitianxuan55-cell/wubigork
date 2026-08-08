@@ -50,6 +50,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const recognitionRef = useRef<any>(null)
   const recognitionActiveRef = useRef(false)
   const pendingSpeechRef = useRef(0)
+  const volSmoothRef = useRef(0)
   const volTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const simTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const stateRef = useRef<VoiceChatState>(state)
@@ -167,8 +168,8 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
   // ── 音频播放 ──
 
-  const playAudio = useCallback(async (audioData: Uint8Array | number[] | null, mimeType: string) => {
-    if (!audioData || audioData.length === 0) return
+  const playAudio = useCallback(async (audioData: any, mimeType: string) => {
+    if (!audioData) return
 
     // 确保 playback context 存在
     if (!playbackCtxRef.current || playbackCtxRef.current.state === 'closed') {
@@ -181,8 +182,17 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     const ctx = playbackCtxRef.current
     if (ctx.state === 'suspended') await ctx.resume()
 
-    // 转换数据
-    const bytes = audioData instanceof Uint8Array ? audioData : new Uint8Array(audioData)
+    // 转换数据：Wails 事件中 []byte 以 base64 字符串传输（对齐 TTSPlayer atob 解码）
+    let bytes: Uint8Array
+    if (typeof audioData === 'string') {
+      const bin = atob(audioData)
+      bytes = Uint8Array.from(bin, c => c.charCodeAt(0))
+    } else if (audioData instanceof Uint8Array) {
+      bytes = audioData
+    } else {
+      bytes = new Uint8Array(audioData)
+    }
+    if (bytes.length === 0) return
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) as ArrayBuffer
 
     try {
@@ -213,7 +223,15 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
         App.VoicePlaybackDone().catch(() => {})
       }
-      await audio.play()
+      try {
+        await audio.play()
+      } catch (playErr) {
+        // 播放被阻止等失败：兜底释放状态机，避免后端一直等待播放完成
+        URL.revokeObjectURL(url)
+        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+        App.VoicePlaybackDone().catch(() => {})
+      }
     }
   }, [setState2])
 
@@ -260,7 +278,11 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       volTimerRef.current = setInterval(() => {
         analyser.getByteFrequencyData(freqBuf)
         const avg = freqBuf.reduce((a, b) => a + b, 0) / freqBuf.length
-        setState2({ volume: Math.min(avg / 128, 1), speaking: avg / 128 > 0.06 })
+        // 平滑 + 较高阈值：过滤环境杂音导致的"正在聆听"误亮
+        const raw = avg / 128
+        volSmoothRef.current = volSmoothRef.current * 0.7 + raw * 0.3
+        const vol = Math.min(volSmoothRef.current, 1)
+        setState2({ volume: vol, speaking: vol > 0.12 })
       }, 80)
 
       // ScriptProcessorNode 用于 PCM 采集（对齐 Ackem）
@@ -359,6 +381,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
   const start = useCallback(async () => {
     abortRef.current = false
+    volSmoothRef.current = 0
     setState2({
       active: true, listening: false, speaking: false, aiSpeaking: false,
       transcript: '', finalTranscript: '', volume: 0, error: null,
@@ -391,6 +414,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     App.VoiceStop().catch(() => {})
 
     // 停止采集
+    volSmoothRef.current = 0
     if (volTimerRef.current) { clearInterval(volTimerRef.current); volTimerRef.current = null }
     if (simTimerRef.current) { clearInterval(simTimerRef.current); simTimerRef.current = null }
     if (processorRef.current) {

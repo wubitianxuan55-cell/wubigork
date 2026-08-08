@@ -207,8 +207,19 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 	}
 	defer c.releaseSem()
 
+	start := time.Now()
+	reqEngine := req.EngineID
+	if reqEngine == "" {
+		reqEngine = c.ActiveEngineID()
+	}
+	reqModel := req.Model
+	if reqModel == "" {
+		reqModel = c.resolveModelName("", req.EngineID)
+	}
+
 	endpoint, apiKey, err := c.resolveChatEndpoint(req.EngineID)
 	if err != nil {
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 		return nil, err
 	}
 
@@ -219,11 +230,13 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 
 	body, err := json.Marshal(req)
 	if err != nil {
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("构造请求失败: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -233,38 +246,46 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("API 请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("read response body: %w", err)
 	}
 
 	// 仅 xAI 引擎做 401 token 刷新重试
-	reqEngine := req.EngineID
-	if reqEngine == "" {
-		reqEngine = c.ActiveEngineID()
-	}
 	if resp.StatusCode == 401 && reqEngine == "xai" {
-		c.releaseSem()
 		if err := c.tryRefreshToken(); err != nil {
+			c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 			return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
 		}
 		return c.Chat(ctx, req)
 	}
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
+		errMsg := fmt.Sprintf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, errMsg)
+		return nil, fmt.Errorf("%s", errMsg)
 	}
 
 	var chatResp ChatResponse
 	if err := json.Unmarshal(respBody, &chatResp); err != nil {
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 	if chatResp.Error != nil {
-		return nil, fmt.Errorf("[%s] %s", chatResp.Error.Code, chatResp.Error.Message)
+		errMsg := fmt.Sprintf("[%s] %s", chatResp.Error.Code, chatResp.Error.Message)
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, errMsg)
+		return nil, fmt.Errorf("%s", errMsg)
 	}
+	var inTok, outTok int64
+	if chatResp.Usage != nil {
+		inTok, outTok = chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens
+	}
+	c.recordUsage(reqEngine, reqModel, start, inTok, outTok, true, "")
 	return &chatResp, nil
 }
 
@@ -277,9 +298,20 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 		return nil, fmt.Errorf("等待 API 槽位: %w", err)
 	}
 
+	start := time.Now()
+	reqEngine := req.EngineID
+	if reqEngine == "" {
+		reqEngine = c.ActiveEngineID()
+	}
+	reqModel := req.Model
+	if reqModel == "" {
+		reqModel = c.resolveModelName("", req.EngineID)
+	}
+
 	endpoint, apiKey, err := c.resolveChatEndpoint(req.EngineID)
 	if err != nil {
 		c.releaseSem()
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 		return nil, err
 	}
 
@@ -289,15 +321,22 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	}
 
 	req.Stream = true
+	// 流式接口默认不返回 usage；显式请求 include_usage 以便统计 Token。
+	// 部分服务端不支持该字段（400），会在下方去掉后重试一次。
+	if !req.skipIncludeUsage && req.StreamOptions == nil {
+		req.StreamOptions = &ChatStreamOptions{IncludeUsage: true}
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		c.releaseSem()
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("marshal stream request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {
 		c.releaseSem()
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("构造流式请求失败: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -309,18 +348,16 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.releaseSem()
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("流式请求失败: %w", err)
 	}
 
 	// 仅 xAI 做 401 重试
-	reqEngine := req.EngineID
-	if reqEngine == "" {
-		reqEngine = c.ActiveEngineID()
-	}
 	if resp.StatusCode == 401 && reqEngine == "xai" {
 		resp.Body.Close()
 		c.releaseSem()
 		if err := c.tryRefreshToken(); err != nil {
+			c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
 			return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
 		}
 		return c.ChatStream(ctx, req)
@@ -329,19 +366,30 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 		body, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		c.releaseSem()
-		if readErr != nil {
-			return nil, fmt.Errorf("API 错误 (HTTP %d): <无法读取响应体>", resp.StatusCode)
+		// 服务端不支持 stream_options.include_usage 时去掉该字段重试一次。
+		if resp.StatusCode == 400 && req.StreamOptions != nil && readErr == nil &&
+			(bytes.Contains(body, []byte("stream_options")) || bytes.Contains(body, []byte("include_usage"))) {
+			req.skipIncludeUsage = true
+			req.StreamOptions = nil
+			return c.ChatStream(ctx, req)
 		}
-		return nil, fmt.Errorf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(body), 500))
+		errMsg := ""
+		if readErr != nil {
+			errMsg = fmt.Sprintf("API 错误 (HTTP %d): <无法读取响应体>", resp.StatusCode)
+		} else {
+			errMsg = fmt.Sprintf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(body), 500))
+		}
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, errMsg)
+		return nil, fmt.Errorf("%s", errMsg)
 	}
 
 	chunks := make(chan SSEChunk, 64)
-	go c.parseStreamEvents(ctx, resp, chunks)
+	go c.parseStreamEvents(ctx, resp, chunks, reqEngine, reqModel, start)
 	return chunks, nil
 }
 
 // parseStreamEvents 解析 SSE 事件流并发送到 chunks channel
-func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chunks chan SSEChunk) {
+func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chunks chan SSEChunk, reqEngine, reqModel string, start time.Time) {
 	defer resp.Body.Close()
 	defer close(chunks)
 	defer c.releaseSem()
@@ -359,6 +407,28 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 	// 工具调用分片按 index 拼装
 	toolPending := make(map[int]*ChatToolCall)
 	var toolOrder []int
+	var streamUsage *ChatUsage // 流结束块携带的用量（OpenAI 兼容 API 在最后一块带 usage）
+	var streamOK bool // 是否正常收到结束帧
+
+	defer func() {
+		if c.engineMgr == nil {
+			return
+		}
+		var inTok, outTok int64
+		if streamUsage != nil {
+			inTok = streamUsage.PromptTokens
+			outTok = streamUsage.CompletionTokens
+		}
+		c.engineMgr.RecordCall(modelengine.ModelCallUsage{
+			EngineID:     reqEngine,
+			Model:        reqModel,
+			InputTokens:  inTok,
+			OutputTokens: outTok,
+			DurationMs:   time.Since(start).Milliseconds(),
+			Success:      streamOK,
+			FinishedAt:   time.Now().Format("2006-01-02 15:04:05"),
+		})
+	}()
 
 	scanner := bufio.NewScanner(resp.Body)
 
@@ -383,18 +453,23 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 		data := strings.TrimPrefix(line, "data: ")
 		if data == "[DONE]" {
 			if len(toolOrder) > 0 {
-				send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)})
+				send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder), Usage: streamUsage})
 			} else {
-				send(SSEChunk{Done: true})
+				send(SSEChunk{Done: true, Usage: streamUsage})
 			}
+			streamOK = true
 			return
 		}
 
 		var choice struct {
 			Choices []ChatChoice `json:"choices"`
+			Usage   *ChatUsage   `json:"usage"`
 		}
 		if err := json.Unmarshal([]byte(data), &choice); err != nil {
 			continue
+		}
+		if choice.Usage != nil {
+			streamUsage = choice.Usage
 		}
 
 		if len(choice.Choices) > 0 {
@@ -417,32 +492,36 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 				}
 			}
 			if delta.FinishReason == "tool_calls" {
-				if !send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)}) {
+				if !send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder), Usage: streamUsage}) {
 					return
 				}
+				streamOK = true
 				return
 			}
 			if delta.FinishReason != "" {
-				if !send(SSEChunk{Done: true}) {
+				if !send(SSEChunk{Done: true, Usage: streamUsage}) {
 					return
 				}
+				streamOK = true
 				return
 			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		if !send(SSEChunk{Error: fmt.Sprintf("流读取错误: %v", err)}) {
+		errMsg := fmt.Sprintf("流读取错误: %v", err)
+		if !send(SSEChunk{Error: errMsg}) {
 			return
 		}
 		return
 	}
 
 	if len(toolOrder) > 0 {
-		send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder)})
+		send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder), Usage: streamUsage})
 	} else {
-		send(SSEChunk{Done: true})
+		send(SSEChunk{Done: true, Usage: streamUsage})
 	}
+	streamOK = true
 }
 
 // flushToolCalls 按出现顺序输出拼装完成的工具调用列表。
@@ -454,6 +533,23 @@ func flushToolCalls(pending map[int]*ChatToolCall, order []int) []ChatToolCall {
 		}
 	}
 	return out
+}
+
+// recordUsage 上报一次模型调用统计（非流式路径 / 流式前置失败路径）。
+func (c *Client) recordUsage(engineID, model string, start time.Time, inTok, outTok int64, success bool, errMsg string) {
+	if c.engineMgr == nil {
+		return
+	}
+	c.engineMgr.RecordCall(modelengine.ModelCallUsage{
+		EngineID:     engineID,
+		Model:        model,
+		InputTokens:  inTok,
+		OutputTokens: outTok,
+		DurationMs:   time.Since(start).Milliseconds(),
+		Success:      success,
+		ErrorMessage: errMsg,
+		FinishedAt:   time.Now().Format("2006-01-02 15:04:05"),
+	})
 }
 
 // ChatSimpleStream 简化流式对话，收集完整回复（5 分钟超时）。

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown } from "../icons";
+import { ArrowDown, Brain, ChevronRight } from "../icons";
 import type { Item } from "../lib/store";
-import { useItems } from "../lib/store";
+import { useItems, useTurnStartAt } from "../lib/store";
 import { AssistantMessage, UserMessage } from "./Message";
 import { StreamingIndicator } from "./StreamingIndicator";
 import { ToolCard } from "./ToolCard";
@@ -9,6 +9,9 @@ import { ToolGroup, scanGroups } from "./ToolGroup";
 import { ErrorCard } from "./ErrorCard";
 import { Welcome } from "./Welcome";
 import { useEntranceAnimation } from "../lib/useEntranceAnimation";
+import { useGSAPCollapse } from "../lib/useGSAPCollapse";
+import { useNow } from "../lib/useNow";
+import { displayReasoningText } from "../lib/reasoningDisplay";
 
 
 // ── 滚动参数 ──────────────────────────────────────────────────────────
@@ -58,6 +61,264 @@ function mergeConsecutiveReasoning(items: Item[]): Item[] {
     }
   }
   return out;
+}
+
+type AssistantItem = Extract<Item, { kind: "assistant" }>;
+
+// ── 过程卡：把一轮助手回合的“思考 + 工具调用”收进可折叠卡片 ──
+// 参考 tianxuan 桌面端 TurnCollapse：运行中自动展开，完成后自动收起，
+// 头部显示耗时 / 工具数 / 思考段数，正文按“思考 → 工具批次”分段。
+
+type Segment = { processItems: Item[]; outsideItems: Item[] };
+
+// 流式进行中的轮：与 tianxuan 一致，正文与过程卡交替出现。
+function alternatingSegments(turn: Item[]): Segment[] {
+  const segments: Segment[] = [];
+  let curProcess: Item[] = [];
+  let curOutside: Item[] = [];
+  const flush = () => {
+    if (curProcess.length > 0 || curOutside.length > 0) {
+      segments.push({ processItems: curProcess, outsideItems: curOutside });
+      curProcess = [];
+      curOutside = [];
+    }
+  };
+  for (const it of turn) {
+    if (it.kind === "user") {
+      flush();
+      segments.push({ processItems: [], outsideItems: [it] });
+      continue;
+    }
+    if (it.kind === "assistant") {
+      if (it.text) {
+        // 与 tianxuan 一致：正文出现时先落盘当前过程，正文留在外面，
+        // 后续工具/思考再开新过程段 —— 形成“文本 ↔ 过程卡”交替效果。
+        if (curOutside.length > 0) flush();
+        if (it.reasoning) curProcess.push({ ...it, text: "" } as Item);
+        curOutside.push({ ...it, reasoning: "" } as Item);
+      } else {
+        if (curOutside.length > 0) flush();
+        curProcess.push(it);
+      }
+      continue;
+    }
+    if (curOutside.length > 0) flush();
+    if (it.kind === "tool" || it.kind === "compaction" || it.kind === "notice") {
+      curProcess.push(it);
+    } else {
+      curOutside.push(it);
+    }
+  }
+  flush();
+  return segments;
+}
+
+// 已完成的轮：把思考、工具和中间正文折叠成一张大过程卡，
+// 只把最终正文留在外面（“最后输出时前面的折叠成一个大的过程卡”）。
+function consolidatedSegments(turn: Item[]): Segment[] {
+  const users: Item[] = turn.filter((it) => it.kind === "user");
+  const rest = turn.filter((it) => it.kind !== "user");
+  const process: Item[] = [];
+
+  // 最后一个带正文的 assistant 视为最终输出；中间文本与思考/工具进过程卡
+  let lastTextIdx = -1;
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i].kind === "assistant" && (rest[i] as AssistantItem).text) lastTextIdx = i;
+  }
+
+  let finalText: Item | null = null;
+  rest.forEach((it, i) => {
+    if (it.kind === "assistant") {
+      if (it.reasoning) process.push({ ...it, text: "" } as Item);
+      if (i === lastTextIdx) {
+        finalText = { ...it, reasoning: "" } as Item;
+      } else if (it.text) {
+        process.push({ ...it, reasoning: "" } as Item);
+      }
+      return;
+    }
+    if (it.kind === "tool" || it.kind === "compaction" || it.kind === "notice") {
+      process.push(it);
+    } else {
+      users.push(it); // phase 等正文元素与用户消息同段，先于过程卡
+    }
+  });
+
+  // 渲染顺序必须是 [用户问题] → [过程卡] → [最终输出]：
+  // 把用户消息拆成独立段先渲染，过程卡与最终正文放同一段，否则卡片会
+  // 跑到用户问题上方（看起来像被顶到窗口最上方）。
+  const segments: Segment[] = [];
+  if (users.length > 0) segments.push({ processItems: [], outsideItems: users });
+  segments.push({ processItems: process, outsideItems: finalText ? [finalText] : [] });
+  return segments;
+}
+
+export function buildSegments(items: Item[], running = false): Segment[] {
+  // 先按用户消息切成轮
+  const turns: Item[][] = [];
+  let curTurn: Item[] = [];
+  for (const it of items) {
+    if (it.kind === "user") {
+      if (curTurn.length > 0) turns.push(curTurn);
+      curTurn = [it];
+    } else {
+      curTurn.push(it);
+    }
+  }
+  if (curTurn.length > 0) turns.push(curTurn);
+
+  const segments: Segment[] = [];
+  turns.forEach((turn, ti) => {
+    const isLastTurn = ti === turns.length - 1;
+    // 只有“正在流式输出的最后一轮”保持交替；其余已完成轮一律折叠成大过程卡
+    if (isLastTurn && running) {
+      segments.push(...alternatingSegments(turn));
+    } else {
+      segments.push(...consolidatedSegments(turn));
+    }
+  });
+  return segments;
+}
+
+// 过程卡内的思考块（复用 .reasoning 样式）
+function InlineReasoning({ item }: { item: AssistantItem }) {
+  const [open, setOpen] = useState(true);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useGSAPCollapse(bodyRef, open);
+  const running = item.streaming && !item.text;
+  const reasoning = displayReasoningText(item.reasoning ?? "", {
+    streaming: item.streaming ?? false,
+    truncateStreaming: true,
+  });
+  if (!reasoning) return null;
+  return (
+    <div className="reasoning">
+      <button
+        type="button"
+        className="reasoning__head"
+        data-running={running ? "" : undefined}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <Brain size={12} className="reasoning__icon" />
+        <span className="reasoning__label">思考</span>
+        <ChevronRight size={12} className={`reasoning__chevron${open ? " reasoning__chevron--open" : ""}`} />
+      </button>
+      <div ref={bodyRef} style={{ overflow: "hidden" }}>
+        <div className="reasoning__body">{reasoning}</div>
+      </div>
+    </div>
+  );
+}
+
+function ProcessCard({
+  items,
+  toolCount,
+  thoughtCount,
+  running = false,
+  subcallsByParent,
+}: {
+  items: Item[];
+  toolCount: number;
+  thoughtCount: number;
+  running?: boolean;
+  subcallsByParent: Map<string, ToolItem[]>;
+}) {
+  const [open, setOpen] = useState(running);
+  const userOverridden = useRef(false);
+  const prevRunningRef = useRef(running);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const turnStartAt = useTurnStartAt();
+  const now = useNow();
+  const finalElapsedRef = useRef(0);
+  useGSAPCollapse(bodyRef, open);
+
+  useEffect(() => {
+    const wasRunning = prevRunningRef.current;
+    prevRunningRef.current = running;
+    if (running) {
+      if (!wasRunning) userOverridden.current = false;
+      if (!userOverridden.current) setOpen(true);
+    } else if (wasRunning && !userOverridden.current) {
+      setOpen(false);
+      finalElapsedRef.current = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
+    }
+  }, [running, turnStartAt, now]);
+
+  const elapsed = running
+    ? (turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0)
+    : finalElapsedRef.current;
+  const elapsedStr = elapsed > 0
+    ? (elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m${elapsed % 60}s`)
+    : "";
+
+  const labelParts: string[] = [];
+  if (elapsedStr) labelParts.push(`已工作 ${elapsedStr}`);
+  if (toolCount > 0) labelParts.push(`${toolCount} 个工具`);
+  if (thoughtCount > 0) labelParts.push(`${thoughtCount} 段思考`);
+  const label = labelParts.length > 0
+    ? labelParts.join(" · ")
+    : (running ? "处理中…" : "过程");
+
+  const body = useMemo(() => {
+    const out: React.ReactNode[] = [];
+    const grouped = scanGroups(items);
+    for (const gi of grouped) {
+      if (gi.kind === "group") {
+        out.push(<ToolGroup key={gi.id} tools={gi.tools} />);
+        continue;
+      }
+      const it = gi.item;
+      switch (it.kind) {
+        case "assistant":
+          if (it.reasoning) out.push(<InlineReasoning key={it.id} item={it as AssistantItem} />);
+          if (it.text) {
+            out.push(
+              <div key={`${it.id}-text`} className="px-2.5 py-1.5 rounded-lg bg-bg/60 border border-border-soft/50 text-fg-dim text-[12.5px] leading-relaxed whitespace-pre-wrap">
+                {it.text}
+              </div>,
+            );
+          }
+          break;
+        case "tool":
+          if (it.parentId) break;
+          out.push(<ToolCard key={it.id} item={it as ToolItem} subcalls={subcallsByParent.get(it.id)} />);
+          break;
+        case "phase":
+          out.push(
+            <div key={it.id} className="phase"><Brain size={12} /><span>{it.text}</span></div>,
+          );
+          break;
+        case "notice":
+          out.push(<div key={it.id} className="notice">{it.text}</div>);
+          break;
+        case "compaction":
+          out.push(<CompactionCard key={it.id} item={it as CompactionItem} />);
+          break;
+      }
+    }
+    return out;
+  }, [items, subcallsByParent]);
+
+  return (
+    <div className={`my-1.5 border rounded-xl overflow-hidden bg-bg-soft/40 transition-colors ${running ? "border-accent/25" : "border-border-soft"}`}>
+      <button
+        type="button"
+        className="flex items-center gap-2 w-full px-3 py-2 text-left cursor-pointer hover:bg-bg-elev/60 transition-colors"
+        data-running={running ? "" : undefined}
+        onClick={() => { userOverridden.current = true; setOpen((v) => !v); }}
+        aria-expanded={open}
+      >
+        <ChevronRight size={13} className={`shrink-0 text-fg-faint transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+        <Brain size={13} className={`shrink-0 ${running ? "text-accent animate-pulse" : "text-fg-faint"}`} />
+        <span className="text-[11px] font-medium text-fg-dim">{label}</span>
+        {running && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />}
+      </button>
+      <div ref={bodyRef} style={{ overflow: "hidden" }}>
+        <div className="px-2.5 pb-2.5 pt-0.5 space-y-1">{body}</div>
+      </div>
+    </div>
+  );
 }
 
 export function Transcript({
@@ -151,7 +412,8 @@ export function Transcript({
   useEffect(() => {
     if (items.length === 0) turnEls.current.clear();
   }, [items.length]);
-  const grouped = useMemo(() => scanGroups(mergeConsecutiveReasoning(items)), [items]);
+  const merged = useMemo(() => mergeConsecutiveReasoning(items), [items]);
+  const segments = useMemo(() => buildSegments(merged, running), [merged, running]);
 
   // turn→DOM 元素映射（用于跳转）
   const turnEls = useRef(new Map<number, HTMLElement>());
@@ -217,6 +479,78 @@ export function Transcript({
     return map;
   }, [items]);
 
+  // ── 分段渲染：过程（思考/工具）进过程卡，正文留在外面 ──
+  const renderSegment = useCallback((outsideItems: Item[]) => {
+    const gs = scanGroups(outsideItems);
+    return gs.map((g) => {
+      if (g.kind === "group") {
+        return <ToolGroup key={g.id} tools={g.tools} onCollapse={scheduleMeasure} />;
+      }
+      const it = g.item;
+      switch (it.kind) {
+        case "user": {
+          const tn = userTurn.get(it.id);
+          return (
+            <div
+              key={it.id}
+              data-turn={tn != null ? tn : undefined}
+              data-entrance={it.id}
+              ref={(el) => {
+                if (el && tn != null) {
+                  turnEls.current.set(tn, el);
+                } else if (tn != null) {
+                  turnEls.current.delete(tn);
+                }
+              }}
+            >
+              <UserMessage
+                text={it.text} turn={tn}
+                open={tn != null && openTurn === tn}
+                onToggle={() => setOpenTurn((cur) => (cur === tn ? null : (tn ?? null)))}
+                onRewind={(turn, scope) => { onRewind?.(turn, scope); setOpenTurn(null); }}
+              />
+            </div>
+          );
+        }
+        case "assistant":
+          return (
+            <div key={it.id} data-entrance={it.id}>
+              <AssistantMessage item={it} onCollapse={scheduleMeasure} />
+            </div>
+          );
+        case "tool":
+          if (it.parentId) return null;
+          if (it.name === "todo_write") return null;
+          return (
+            <div key={it.id} data-entrance={it.id}>
+              <ToolCard item={it} subcalls={subcallsByParent.get(it.id)} />
+            </div>
+          );
+        case "phase":
+          return <div key={it.id} className="phase">{it.text}</div>;
+        case "notice":
+          if (it.level === "warn") {
+            if (dismissedErrors.has(it.id)) return null;
+            return <ErrorCard key={it.id} item={it as Extract<Item, { kind: "notice" }>} onDismiss={(id) => setDismissedErrors((p) => new Set(p).add(id))} />;
+          }
+          if (it.text.startsWith("diagnostics:")) {
+            const clean = it.text.includes("— clean");
+            return (
+              <div key={it.id} className={`flex items-center gap-1.5 px-4 py-1 text-[11px] ${clean ? "text-ok" : "text-warning"}`}>
+                <span className="shrink-0">{clean ? "✔" : "⚠"}</span>
+                <span>{it.text}</span>
+              </div>
+            );
+          }
+          return <div key={it.id} className="notice">{it.text}</div>;
+        case "compaction":
+          return <CompactionCard key={it.id} item={it} />;
+        default:
+          return null;
+      }
+    });
+  }, [userTurn, openTurn, onRewind, scheduleMeasure, subcallsByParent, dismissedErrors]);
+
   const scrollDown = useCallback(() => {
     stick.current = true;
     setShowScrollDown(false);
@@ -230,72 +564,26 @@ export function Transcript({
           <Welcome onPrompt={onPrompt} cwd={cwd} cwdName={cwdName} sessions={sessions} onResumeSession={onResumeSession} meta={meta} />
         )}
         <StreamingIndicator running={running} items={items} />
-        {grouped.map((g) => {
-          if (g.kind === "group") {
-            return <ToolGroup key={g.id} tools={g.tools} onCollapse={scheduleMeasure} />;
-          }
-          const it = g.item;
-          switch (it.kind) {
-            case "user": {
-              const tn = userTurn.get(it.id);
-              return (
-                <div
-                  key={it.id}
-                  data-turn={tn != null ? tn : undefined}
-                  data-entrance={it.id}
-                  ref={(el) => {
-                    if (el && tn != null) {
-                      turnEls.current.set(tn, el);
-                    } else if (tn != null) {
-                      turnEls.current.delete(tn);
-                    }
-                  }}
-                >
-                  <UserMessage
-                    text={it.text} turn={tn}
-                    open={tn != null && openTurn === tn}
-                    onToggle={() => setOpenTurn((cur) => (cur === tn ? null : (tn ?? null)))}
-                    onRewind={(turn, scope) => { onRewind?.(turn, scope); setOpenTurn(null); }}
-                  />
-                </div>
-              );
-            }
-            case "assistant":
-              return (
-                <div key={it.id} data-entrance={it.id}>
-                  <AssistantMessage item={it} onCollapse={scheduleMeasure} />
-                </div>
-              );
-            case "tool":
-              if (it.parentId) return null;
-              if (it.name === "todo_write") return null;
-              return (
-                <div key={it.id} data-entrance={it.id}>
-                  <ToolCard item={it} subcalls={subcallsByParent.get(it.id)} />
-                </div>
-              );
-            case "phase":
-              return <div key={it.id} className="phase">{it.text}</div>;
-            case "notice":
-              if (it.level === "warn") {
-                if (dismissedErrors.has(it.id)) return null;
-                return <ErrorCard key={it.id} item={it as Extract<Item, { kind: "notice" }>} onDismiss={(id) => setDismissedErrors((p) => new Set(p).add(id))} />;
-              }
-              if (it.text.startsWith("diagnostics:")) {
-                const clean = it.text.includes("— clean");
-                return (
-                  <div key={it.id} className={`flex items-center gap-1.5 px-4 py-1 text-[11px] ${clean ? "text-ok" : "text-warning"}`}>
-                    <span className="shrink-0">{clean ? "✔" : "⚠"}</span>
-                    <span>{it.text}</span>
-                  </div>
-                );
-              }
-              return <div key={it.id} className="notice">{it.text}</div>;
-            case "compaction":
-              return <CompactionCard key={it.id} item={it} />;
-            default:
-              return null;
-          }
+        {segments.map((seg, segIdx, arr) => {
+          const toolCount = seg.processItems.filter((it) => it.kind === "tool" && !it.parentId).length;
+          const thoughtCount = seg.processItems.filter((it) => it.kind === "assistant" && it.reasoning).length;
+          const hasProcess = seg.processItems.length > 0;
+          const isLast = segIdx === arr.length - 1;
+          const segKey = seg.processItems[0]?.id ?? seg.outsideItems[0]?.id ?? `seg${segIdx}`;
+          return (
+            <div key={segKey}>
+              {hasProcess && (
+                <ProcessCard
+                  items={seg.processItems}
+                  toolCount={toolCount}
+                  thoughtCount={thoughtCount}
+                  running={running && isLast}
+                  subcallsByParent={subcallsByParent}
+                />
+              )}
+              {seg.outsideItems.length > 0 && renderSegment(seg.outsideItems)}
+            </div>
+          );
         })}
       </div>
       {/* 回到底部按钮 —— 居中圆形，accent 色调 */}

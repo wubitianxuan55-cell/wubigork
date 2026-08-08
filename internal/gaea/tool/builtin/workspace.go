@@ -41,6 +41,7 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 		writeFile{workDir: w.Dir, roots: roots},
 		bash{workDir: w.Dir, sb: w.Bash},
 		listDir{workDir: w.Dir},
+		screenCapture{workDir: w.Dir},
 		webFetch{proxySpec: w.ProxySpec},
 	}
 	if len(enabled) == 0 {

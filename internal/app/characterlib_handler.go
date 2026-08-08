@@ -187,6 +187,8 @@ func (a *App) CharacterAssociate(charID, role string) error {
 }
 
 // CharacterDissociate 把角色从当前项目移除（角色保留在全局库）。
+// 同时清理项目 characters.json 中的物化副本及相关组织成员/关系引用，
+// 避免小说角色面板残留已移出的角色。
 func (a *App) CharacterDissociate(charID string) error {
 	pm := a.getPM()
 	if pm == nil {
@@ -195,7 +197,44 @@ func (a *App) CharacterDissociate(charID string) error {
 	if a.charLib == nil {
 		return fmt.Errorf("角色库未初始化")
 	}
-	return a.charLib.Dissociate(pm.Dir, charID)
+	// 1. 移除项目关联
+	if err := a.charLib.Dissociate(pm.Dir, charID); err != nil {
+		return err
+	}
+	// 2. 同步从 characters.json 移除物化副本（角色本体保留在全局库）
+	cf, err := pm.ReadCharacters()
+	if err != nil {
+		return err
+	}
+	if cf == nil {
+		return nil
+	}
+	filtered := cf.Characters[:0]
+	for _, ch := range cf.Characters {
+		if ch.ID != charID {
+			filtered = append(filtered, ch)
+		}
+	}
+	cf.Characters = filtered
+	// 清理组织成员引用
+	for i := range cf.Organizations {
+		members := cf.Organizations[i].Members[:0]
+		for _, m := range cf.Organizations[i].Members {
+			if m != charID {
+				members = append(members, m)
+			}
+		}
+		cf.Organizations[i].Members = members
+	}
+	// 清理关系引用
+	rels := cf.Relationships[:0]
+	for _, r := range cf.Relationships {
+		if r.FromID != charID && r.ToID != charID {
+			rels = append(rels, r)
+		}
+	}
+	cf.Relationships = rels
+	return pm.WriteCharacters(cf)
 }
 
 // CharacterSyncProject 把项目引用的库角色物化回 characters.json（小说 Agent 消费的工作副本）。

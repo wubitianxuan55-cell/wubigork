@@ -80,6 +80,8 @@ const ImageGenPage: React.FC = () => {
   const [backend, setBackend] = useState('xai')
   const [selectedLoras, setSelectedLoras] = useState<string[]>([])
   const [comfyLoras, setComfyLoras] = useState<string[]>([])
+  const [loraLoading, setLoraLoading] = useState(false)
+  const [loraError, setLoraError] = useState('')
   const [generating, setGenerating] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [lastTime, setLastTime] = useState(0)
@@ -191,9 +193,17 @@ const ImageGenPage: React.FC = () => {
 
   // ── ComfyUI LoRA 列表动态加载 ──
   const refreshComfyLoras = useCallback(async () => {
-    if (backend !== 'comfyui') { setComfyLoras([]); return }
-    const list = await getComfyUILoras()
+    if (backend !== 'comfyui') {
+      setComfyLoras([])
+      setLoraError('')
+      setLoraLoading(false)
+      return
+    }
+    setLoraLoading(true)
+    const { list, error } = await getComfyUILoras()
     setComfyLoras(list)
+    setLoraError(error || '')
+    setLoraLoading(false)
     // 已选 LoRA 若不在最新列表中则清除，避免提交无效名称
     setSelectedLoras((prev) => (list.length ? prev.filter((v) => list.includes(v)) : prev))
   }, [backend])
@@ -312,6 +322,20 @@ const ImageGenPage: React.FC = () => {
       setBackend(newBackend)
       if (defaultModel) setModel(defaultModel)
       if (newBackend !== 'comfyui') setSelectedLoras([])
+      // 切换到 ComfyUI 而服务尚未启动时自动启动，避免面板 LoRA 空白、无法生图
+      if (newBackend === 'comfyui') {
+        try {
+          const st = await getComfyUIStatus()
+          if (!st?.running) {
+            setEngineStarting(true)
+            await startComfyUI()
+            message.success('ComfyUI 正在启动，就绪后自动加载 LoRA…')
+          }
+        } catch (err: any) {
+          setEngineStarting(false)
+          message.error(err?.message || 'ComfyUI 启动失败，请检查安装路径')
+        }
+      }
     } catch (err: any) { message.error(err?.message || '切换失败') }
     finally { setBackendSwitching(false) }
   }, [backend, engines])
@@ -552,6 +576,8 @@ const ImageGenPage: React.FC = () => {
             fps={fps} onFpsChange={setFps}
             selectedLoras={selectedLoras}
             loraOptions={backend === 'comfyui' ? loraOptions : []}
+            loraLoading={loraLoading}
+            loraError={loraError}
             onLorasChange={setSelectedLoras}
             backend={backend} backendSwitching={backendSwitching}
             engineRunning={engineRunning} engineStarting={engineStarting} engineModelCount={engineModelCount}

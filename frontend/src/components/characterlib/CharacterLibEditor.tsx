@@ -172,7 +172,7 @@ const CharacterLibEditor: React.FC<Props> = ({
       const filled = await generateFill(form)
       let filledCount = 0
       const textKeys = ['roleType', 'gender', 'age', 'personality', 'appearance', 'figure',
-        'background', 'motivation', 'arc', 'status', 'notes'] as const
+        'background', 'motivation', 'arc', 'status', 'notes', 'behaviorRules', 'emotionLogic'] as const
       for (const k of textKeys) {
         const f = form[k] as string | undefined
         const g = filled[k] as string | undefined
@@ -340,34 +340,34 @@ const CharacterLibEditor: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* 立绘横幅 */}
-          <div className="cd-hero cd-sheen">
-            {form.portraitUrl ? (
-              <img className="cd-hero-img" src={form.portraitUrl} alt={form.name || '角色立绘'} />
-            ) : (
-              <div className="cd-hero-ph">{form.name?.slice(0, 1) || '?'}</div>
-            )}
-            <div className="cd-hero-shade" />
-            <Button
-              size="small"
-              icon={<PictureOutlined />}
-              loading={genPortrait}
-              disabled={busy}
-              onClick={handleGeneratePortrait}
-              className="cd-hero-gen"
-              title="按角色设定生成剧照"
-            >
-              生成剧照
-            </Button>
-            <div className="cd-hero-info">
-              <h2 className="cd-hero-name">{form.name || '未命名角色'}</h2>
-              {heroMeta && <p className="cd-hero-meta">{heroMeta}</p>}
-            </div>
-          </div>
-
           <div className="cd-body">
             {/* 身份栏 */}
             <aside className="cd-rail">
+              {/* 立绘档案卡（竖向 3:4，剧照完整可见） */}
+              <div className="cd-hero cd-sheen">
+                {form.portraitUrl ? (
+                  <img className="cd-hero-img" src={form.portraitUrl} alt={form.name || '角色立绘'} />
+                ) : (
+                  <div className="cd-hero-ph">{form.name?.slice(0, 1) || '?'}</div>
+                )}
+                <div className="cd-hero-shade" />
+                <Button
+                  size="small"
+                  icon={<PictureOutlined />}
+                  loading={genPortrait}
+                  disabled={busy}
+                  onClick={handleGeneratePortrait}
+                  className="cd-hero-gen"
+                  title="按角色设定生成剧照"
+                >
+                  生成剧照
+                </Button>
+                <div className="cd-hero-info">
+                  <h2 className="cd-hero-name">{form.name || '未命名角色'}</h2>
+                  {heroMeta && <p className="cd-hero-meta">{heroMeta}</p>}
+                </div>
+              </div>
+
               <div className="cd-field">
                 {fieldLabel('名称 *')}
                 <Input size="small" value={form.name ?? ''} onChange={e => patch({ name: e.target.value })}

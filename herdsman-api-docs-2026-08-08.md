@@ -2,7 +2,7 @@
 
 查看系统API接口文档
 
-> 生成时间: 2026/07/26 08:02:43
+> 生成时间: 2026/08/08 21:47:56
 
 ## OpenAI Compatible 接入点
 
@@ -332,6 +332,106 @@ Content-Type: application/json
   "image_width": 640,
   "image_height": 360,
   "elapsed_ms": 1327
+}
+```
+
+### 文档解析接口
+
+使用 MinerU 将 PDF 和图片转换为 Markdown 与结构化文档解析结果，可在 Pipeline 与 Hybrid 模式间切换
+
+**请求方法:** POST
+**接口地址:** /v1/documents/parse
+
+#### 支持的模型
+
+| 模型名称 | 描述 |
+|---|---|
+| mineru-pipeline-hybrid | MinerU Pipeline + Hybrid 文档解析模型 |
+
+#### apiDoc.documentParseSupportedFileTypes
+
+apiDoc.documentParseSupportedFileTypesDesc
+
+#### 参数
+
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| model | string | ✓ | 文档解析模型名称，目前支持 mineru-pipeline-hybrid |
+| file / document / input | file | Multipart 必填 | 通过 multipart/form-data 上传的文档文件，支持 PDF 和图片文件 |
+| file_base64 / document_base64 / input_base64 | string | JSON 必填 | 文档内容，支持纯 base64 或 data:...;base64 格式 |
+| filename / file_name | string | optional | apiDoc.documentParseFilenameDesc |
+| mime_type | string | optional | apiDoc.documentParseMimeTypeDesc |
+| path | string | ✗ | Herdsman 服务可访问的本地文档路径；提供文件或 base64 时可不填 |
+| format | string | ✗ | 响应格式：json 或 text，默认 json |
+| target_pages | string | ✗ | 可选页码范围，例如 1-3 或 1,3,5 |
+| max_pages | number | ✗ | 最多解析页数 |
+| dpi | number | ✗ | 需要 OCR 时使用的渲染 DPI |
+| ocr_enabled | boolean | optional | 是否为扫描页和图片启用 OCR 回退 |
+| max_ocr_images | number | optional | apiDoc.documentParseMaxOcrImagesDesc |
+| max_ocr_image_side | number | optional | apiDoc.documentParseMaxOcrImageSideDesc |
+
+#### 请求示例
+
+```http
+POST /v1/documents/parse
+Content-Type: application/json
+
+{
+  "model": "mineru-pipeline-hybrid",
+  "path": "C:\\Users\\me\\Documents\\sample.pdf",
+  "format": "json",
+  "mode": "pipeline"
+}
+
+POST /v1/documents/parse
+Content-Type: multipart/form-data
+
+model=mineru-pipeline-hybrid&file=@sample.pdf&format=text&mode=hybrid
+```
+
+#### 响应示例
+
+```json
+{
+  "model": "mineru-pipeline-hybrid",
+  "text": "提取出的完整文档文本",
+  "pages": [
+    {
+      "page_number": 1,
+      "text": "单页提取文本",
+      "text_items": [
+        {
+          "text": "带坐标的单个文本元素",
+          "x": 82.5,
+          "y": 104.0,
+          "width": 180.0,
+          "height": 16.0,
+          "confidence": 0.98
+        }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "type": "heading",
+      "text": "Document title",
+      "level": 1
+    },
+    {
+      "type": "table",
+      "rows": [["A1", "B1"]]
+    }
+  ],
+  "metadata": {
+    "page_count": 1,
+    "elapsed_ms": 1520,
+    "ocr_enabled": true,
+    "runtime": "mineru",
+    "input_format": "pdf",
+    "parser": "pipeline",
+    "ocr_image_count": 0,
+    "unsupported_features": []
+  }
 }
 ```
 

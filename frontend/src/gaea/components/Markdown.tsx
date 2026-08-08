@@ -1,22 +1,65 @@
-import { memo, useCallback, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { Check, Copy, FileText } from "../icons";
+import mermaid from "mermaid";
+import { Check, Copy, FileText, Loader } from "../icons";
 
-import { openExternal } from "../lib/bridge";
+import { app, openExternal } from "../lib/bridge";
 import { usePreviewStore } from "../lib/store";
+import { useToast } from "./Toast";
 
-// 本地文件路径识别：排除 URL/锚点，匹配常见文件扩展名。
-const FILE_EXT_RE = /\.(md|markdown|txt|json|jsonl|csv|tsv|xml|yaml|yml|toml|ini|log|docx?|xlsx?|pdf|pptx?|png|jpe?g|gif|webp|svg|bmp|ico|html?|css|js|jsx|ts|tsx|go|py|java|c|h|cpp|hpp|rs|rb|php|sh|bat|ps1|sql)$/i;
+// 本地文件路径识别：排除 URL/锚点，匹配常见文件扩展名（含全部办公格式）。
+const FILE_EXT_RE = /\.(md|markdown|mmd|mermaid|txt|json|jsonl|csv|tsv|xml|yaml|yml|toml|ini|log|docx?|xlsx?|pdf|pptx?|odt|ods|odp|rtf|wps|et|dps|ofd|pages|numbers|key|png|jpe?g|gif|webp|svg|bmp|ico|html?|css|js|jsx|ts|tsx|go|py|java|c|h|cpp|hpp|rs|rb|php|sh|bat|ps1|sql)$/i;
 
 function isLocalFilePath(href: string): boolean {
   const trimmed = href.trim();
   if (!trimmed || /^(https?:|mailto:|tel:|data:|javascript:|#|\/\/)/i.test(trimmed)) return false;
   const clean = trimmed.replace(/^\.{0,2}\//, "");
   return FILE_EXT_RE.test(clean);
+}
+
+// 纯文本中的本地绝对路径（盘符:\… 或 /…），以已知文件扩展名结尾。
+// 用于把 agent 输出里的“输出文件：C:\AI\xxx.docx”渲染成可点击预览。
+const ABS_PATH_RE = /(?:[A-Za-z]:[\\/]|(?<=^|[\s,，:：])[\\/])[^\s，。；、（）【】《》"“”‘’'<>|)\]}]+\.[A-Za-z0-9]{1,8}/g;
+
+// 解析前预处理：把纯文本中的本地文件路径包成 markdown 链接，
+// 交给自定义 `a` 渲染器打开预览。代码块 / 内联代码 / 公式保持不变。
+function linkifyFilePaths(md: string): string {
+  if (!/[A-Za-z]:[\\/]/.test(md) && !/^[\\/][^\\/\s]/.test(md) && !/[\s,，:：][\\/][^\\/\s]/.test(md)) {
+    return md;
+  }
+  const protectedBlocks = new Map<string, string>();
+  let counter = 0;
+  const protect = (s: string) => {
+    const key = `\u0000FILELINK${counter++}\u0000`;
+    protectedBlocks.set(key, s);
+    return key;
+  };
+
+  let result = md
+    // 1) 围栏代码块整体保护
+    .replace(/(```+|~~~+)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, (m) => protect(m))
+    // 2) 行内代码 `...`
+    .replace(/`[^`\n]+`/g, (m) => protect(m))
+    // 3) 数学公式 $...$ / $$...$$
+    .replace(/\$\$[\s\S]+?\$\$|\$[^$\n]+\$/g, (m) => protect(m));
+
+  // 4) 纯文本中的绝对路径 → 可点击链接；已在 markdown 链接目标内则跳过
+  result = result.replace(ABS_PATH_RE, (path, offset: number, full: string) => {
+    if (!isLocalFilePath(path)) return path;
+    const before = full.slice(0, offset);
+    if (/\]\(\s*<?$|\(\s*<?$/.test(before)) return path;
+    return `[${path}](<${path}>)`;
+  });
+
+  // 5) 还原保护内容
+  for (const [key, value] of protectedBlocks) {
+    result = result.split(key).join(value);
+  }
+  return result;
 }
 
 // KaTeX CSS 延迟注入：避免非数学对话的 ~23KB CSS 开销。
@@ -35,6 +78,319 @@ function ensureKatexCss() {
 function hasMathContent(text: string): boolean {
   return text.includes("$$") || (text.includes("$") && /\$\S[^$]*\S\$/.test(text));
 }
+
+// ── Mermaid 图表渲染（agent 生成的流程图/架构图/思维导图等）─────────────
+
+let mermaidInitedTheme: string | null = null;
+
+// 已自动导出过的 Mermaid 代码（按内容哈希去重，避免历史消息滚动重复生成）。
+const autoExportedCodes = new Set<string>();
+
+function codeHash(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  return String(h);
+}
+
+function utf8ToB64(s: string): string {
+  return btoa(unescape(encodeURIComponent(s)));
+}
+
+// standaloneHtmlFromSvg 把渲染后的 Mermaid SVG 包成可独立打开的 HTML 页面。
+function standaloneHtmlFromSvg(svg: string): string {
+  const bg = mermaidTheme() === "dark" ? "#1e1e2e" : "#ffffff";
+  return `<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Mermaid 图表</title>
+<style>html,body{margin:0;padding:16px;background:${bg};font-family:system-ui,-apple-system,'Segoe UI',sans-serif;} svg{max-width:100%;height:auto;}</style>
+</head>
+<body>
+${svg}
+</body>
+</html>`;
+}
+
+function mermaidTheme(): "default" | "dark" {
+  if (typeof window === "undefined" || !window.matchMedia) return "default";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default";
+}
+
+function ensureMermaid(theme: "default" | "dark") {
+  if (mermaidInitedTheme === theme) return;
+  mermaidInitedTheme = theme;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme,
+    securityLevel: "strict",
+    fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+  });
+}
+
+const MermaidBlock = memo(function MermaidBlock({ code, autoExport = true }: { code: string; autoExport?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const idRef = useRef(0);
+  const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportedPath, setExportedPath] = useState<string | null>(null);
+  const [svgExporting, setSvgExporting] = useState(false);
+  const [view, setView] = useState<"chart" | "code" | "html">("chart");
+  const [zoom, setZoom] = useState(1);
+  const htmlDocRef = useRef<string | null>(null);
+  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
+  const toast = useToast();
+
+  const setZoomClamped = (next: number) => setZoom(Math.min(4, Math.max(0.5, Math.round(next * 100) / 100)));
+
+  // 把已渲染的 SVG 转成 PNG data URL（SVG 图片异步加载，返回 Promise）。
+  const toPngDataUrl = useCallback((): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const el = ref.current?.querySelector("svg");
+      if (!el) {
+        resolve(null);
+        return;
+      }
+      const vb = el.getAttribute("viewBox")?.split(/\s+/).map(Number);
+      const rect = el.getBoundingClientRect();
+      const w = vb?.[2] || rect.width || 800;
+      const h = vb?.[3] || rect.height || 600;
+      const scale = 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(w * scale));
+      canvas.height = Math.max(1, Math.round(h * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(null);
+        return;
+      }
+      const bg = getComputedStyle(el).backgroundColor;
+      ctx.fillStyle = bg && bg !== "rgba(0, 0, 0, 0)" ? bg : mermaidTheme() === "dark" ? "#1e1e2e" : "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const xml = new XMLSerializer().serializeToString(el);
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => resolve(null);
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+    });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+    ensureMermaid(mermaidTheme());
+    const id = `gm-${Date.now()}-${idRef.current++}`;
+    mermaid
+      .render(id, code)
+      .then(({ svg }) => {
+        if (cancelled || !ref.current) return;
+        htmlDocRef.current = standaloneHtmlFromSvg(svg);
+        ref.current.innerHTML = svg;
+        const svgEl = ref.current.querySelector("svg");
+        if (svgEl) {
+          svgEl.style.background = "transparent";
+          svgEl.style.width = "100%";
+          svgEl.style.height = "auto";
+          svgEl.style.maxWidth = "none";
+        }
+        // 自动导出 PNG 到工作区（每个唯一图表只导出一次）。
+        if (autoExport) {
+          const key = codeHash(code);
+          if (!autoExportedCodes.has(key)) {
+            autoExportedCodes.add(key);
+            void toPngDataUrl().then((dataUrl) => {
+              if (!dataUrl || cancelled) return;
+              return app.SavePastedImage(dataUrl)
+                .then((path) => { if (!cancelled) setExportedPath(path); })
+                .catch(() => {});
+            });
+          }
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(String((e as Error)?.message ?? e));
+      });
+    return () => { cancelled = true; };
+  }, [code, autoExport, toPngDataUrl]);
+
+  // 手动导出图片：存到工作区并打开预览。
+  const exportPng = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const dataUrl = await toPngDataUrl();
+      if (!dataUrl) {
+        toast.show("导出图片失败：图表尚未渲染完成", "warn");
+        return;
+      }
+      const path = await app.SavePastedImage(dataUrl);
+      setExportedPath(path);
+      toast.show(`已导出图片：${path}`);
+      openFilePreview(path);
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, toPngDataUrl, openFilePreview, toast]);
+
+  // 导出 SVG：序列化渲染后的 SVG，保存到工作区并打开预览。
+  const exportSvg = useCallback(async () => {
+    const el = ref.current?.querySelector("svg");
+    if (!el || svgExporting) return;
+    setSvgExporting(true);
+    try {
+      const xml = new XMLSerializer().serializeToString(el);
+      const name = `diagram-${Date.now()}.svg`;
+      const path = await app.SaveAttachmentFile(name, utf8ToB64(xml));
+      setExportedPath(path);
+      toast.show(`已导出 SVG：${path}`);
+      openFilePreview(path);
+    } catch (e: unknown) {
+      toast.show(String((e as Error)?.message ?? e), "warn");
+    } finally {
+      setSvgExporting(false);
+    }
+  }, [svgExporting, openFilePreview, toast]);
+
+  // 导出 HTML：保存独立页面到工作区并打开预览。
+  const exportHtml = useCallback(async () => {
+    const html = htmlDocRef.current;
+    if (!html) return;
+    try {
+      const name = `diagram-${Date.now()}.html`;
+      const path = await app.SaveAttachmentFile(name, utf8ToB64(html));
+      setExportedPath(path);
+      toast.show(`已导出 HTML：${path}`);
+      openFilePreview(path);
+    } catch (e: unknown) {
+      toast.show(String((e as Error)?.message ?? e), "warn");
+    }
+  }, [openFilePreview, toast]);
+
+  if (error) {
+    return (
+      <div className="my-3 rounded-md border border-warning/30 bg-warning/5 overflow-hidden">
+        <div className="px-3 py-1.5 border-b border-warning/20 text-[11px] text-warning">Mermaid 渲染失败，显示源码</div>
+        <pre className="px-3 py-2.5 font-mono text-[12.5px] leading-[1.55] overflow-auto whitespace-pre text-fg">{code}</pre>
+      </div>
+    );
+  }
+  return (
+    <div className="my-3 rounded-md border border-border-soft overflow-hidden">
+      <div className="flex items-center gap-1 px-2.5 py-1 bg-bg-soft/80 border-b border-border-soft/50 text-[10px] select-none">
+        <span className="text-fg-faint/60 font-mono font-medium uppercase tracking-wider mr-1.5">Mermaid</span>
+        {/* 图表 / 代码切换 */}
+        <div className="flex rounded-md overflow-hidden border border-border-soft/60">
+          {(["chart", "code", "html"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              className={`px-2 py-0.5 cursor-pointer transition-colors ${view === v ? "bg-accent/15 text-accent" : "bg-transparent text-fg-faint hover:text-fg"}`}
+              onClick={() => setView(v)}
+            >
+              {v === "chart" ? "图表" : v === "code" ? "代码" : "HTML"}
+            </button>
+          ))}
+        </div>
+        {view === "chart" && (
+          <div className="flex items-center gap-0.5 ml-1 text-fg-faint">
+            <button type="button" className="px-1 py-0.5 cursor-pointer hover:text-fg" onClick={() => setZoomClamped(zoom / 1.25)} title="缩小">−</button>
+            <span className="w-7 text-center text-fg-dim">{Math.round(zoom * 100)}%</span>
+            <button type="button" className="px-1 py-0.5 cursor-pointer hover:text-fg" onClick={() => setZoomClamped(zoom * 1.25)} title="放大">＋</button>
+            <button type="button" className="px-1 py-0.5 cursor-pointer hover:text-fg" onClick={() => setZoom(1)} title="适应窗口宽度">适应</button>
+          </div>
+        )}
+        <div className="ml-auto flex items-center gap-1">
+          {view === "html" && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/60 cursor-pointer hover:text-fg transition-colors"
+              onClick={() => void exportHtml()}
+              title="导出为独立 HTML 页面，保存到工作区"
+            >
+              <FileText size={10} />
+              HTML
+            </button>
+          )}
+          {view === "chart" && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/60 cursor-pointer hover:text-fg transition-colors disabled:opacity-50 disabled:cursor-default"
+              onClick={() => void exportSvg()}
+              disabled={svgExporting}
+              title="导出为 SVG 矢量图，保存到工作区"
+            >
+              {svgExporting ? <Loader size={10} className="animate-spin" /> : <FileText size={10} />}
+              SVG
+            </button>
+          )}
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/60 cursor-pointer hover:text-fg transition-colors disabled:opacity-50 disabled:cursor-default"
+            onClick={() => void exportPng()}
+            disabled={exporting}
+            title="导出为 PNG 图片，保存到工作区"
+          >
+            {exporting ? <Loader size={10} className="animate-spin" /> : <FileText size={10} />}
+            PNG
+          </button>
+        </div>
+      </div>
+      <div
+        className="overflow-auto p-3 bg-bg-elev-2/40"
+        aria-label="Mermaid 图表"
+        style={{ display: view === "chart" ? undefined : "none" }}
+      >
+        <div style={{ zoom }} className="w-full">
+          <div ref={ref} />
+        </div>
+      </div>
+      {view === "code" && (
+        <div className="relative bg-bg">
+          <pre className="px-3 py-2.5 font-mono text-[12px] leading-[1.55] overflow-auto whitespace-pre text-fg max-h-80">{code}</pre>
+          <button
+            type="button"
+            className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border-soft bg-bg-elev-2 text-fg-dim text-[10.5px] cursor-pointer hover:text-fg"
+            onClick={() => { void navigator.clipboard.writeText(code); toast.show("Mermaid 源码已复制"); }}
+          >
+            <Copy size={10} /> 复制
+          </button>
+        </div>
+      )}
+      {view === "html" && (
+        <div className="bg-bg">
+          {htmlDocRef.current ? (
+            <iframe
+              title="Mermaid HTML 查看器"
+              srcDoc={htmlDocRef.current}
+              className="w-full h-80 border-0 bg-white"
+              sandbox=""
+            />
+          ) : (
+            <div className="py-8 text-center text-fg-faint text-xs">HTML 尚未生成，请稍候</div>
+          )}
+        </div>
+      )}
+      {exportedPath && (
+        <div className="px-3 py-1.5 border-t border-border-soft/50 bg-bg-soft/40 text-[11px]">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-accent cursor-pointer hover:underline"
+            onClick={() => openFilePreview(exportedPath)}
+            title="点击预览导出的图片文件"
+          >
+            <FileText size={11} />
+            已导出：{exportedPath.split("/").pop()}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
 
 // ── 代码块复制按钮 ──────────────────────────────────────────────────
 
@@ -64,7 +420,7 @@ function CodeBlockHeader({ language, text }: { language?: string; text: string }
 
 // ── Markdown 组件 ────────────────────────────────────────────────────
 
-function buildComponents(onOpenFile: (rel: string) => void): Components {
+function buildComponents(onOpenFile: (rel: string) => void, autoExportMermaid = true): Components {
   return {
     pre: ({ children }) => <>{children}</>,
     code: ({ className, children }) => {
@@ -72,6 +428,9 @@ function buildComponents(onOpenFile: (rel: string) => void): Components {
       const match = /language-([\w-]+)/.exec(className ?? "");
       const lang = match?.[1];
       const isBlock = match !== null || text.includes("\n");
+      if (lang === "mermaid") {
+        return <MermaidBlock code={text} autoExport={autoExportMermaid} />;
+      }
       if (isBlock) {
         return (
           <div className="my-3 rounded-md border border-border-soft overflow-hidden">
@@ -149,13 +508,18 @@ function normalizeMath(s: string): string {
   return r;
 }
 
-export const Markdown = memo(function Markdown({ text }: { text: string }) {
+export const Markdown = memo(function Markdown({ text, autoExportMermaid = true }: { text: string; autoExportMermaid?: boolean }) {
   if (hasMathContent(text)) ensureKatexCss();
   const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   return (
     <div className="md text-[14px] leading-relaxed">
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={buildComponents(openFilePreview)}>
-        {normalizeMath(text)}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={buildComponents(openFilePreview, autoExportMermaid)}
+        urlTransform={(url) => (isLocalFilePath(url) ? url : defaultUrlTransform(url))}
+      >
+        {normalizeMath(linkifyFilePaths(text))}
       </ReactMarkdown>
     </div>
   );

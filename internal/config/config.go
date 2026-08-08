@@ -59,6 +59,8 @@ const (
 	KeyFuncGaeaEnabled      = "func_gaea_enabled"
 	KeyFuncCharLibEnabled   = "func_characterlib_enabled"
 	KeyDeepseekAPIKey      = "deepseek_api_key"
+	KeyOpencodeGoAPIKey    = "opencode_go_api_key"
+	KeyOpencodeZenAPIKey   = "opencode_zen_api_key"
 )
 
 // configFile 表示 ~/.gaea_config.json 的结构
@@ -87,6 +89,8 @@ type configFile struct {
 	ActiveEngineID      string  `json:"active_engine_id,omitempty"` // 活跃模型引擎 ID
 	Model               string  `json:"model,omitempty"`             // 默认 LLM 模型名
 	DeepseekAPIKey      string  `json:"deepseek_api_key,omitempty"`  // DeepSeek API Key
+	OpenCodeGoAPIKey    string  `json:"opencode_go_api_key,omitempty"` // OpenCode Go API Key
+	OpenCodeZenAPIKey   string  `json:"opencode_zen_api_key,omitempty"` // OpenCode Zen API Key
 	ActiveASREngine     string  `json:"active_asr_engine,omitempty"` // 语音识别激活引擎
 	ActiveASRModel      string  `json:"active_asr_model,omitempty"`  // 语音识别激活模型
 	ActiveTTSEngine     string  `json:"active_tts_engine,omitempty"` // 语音合成激活引擎
@@ -169,6 +173,12 @@ type Config struct {
 
 	// DeepSeek API Key
 	DeepseekAPIKey string
+
+	// OpenCode Go API Key（opencode.ai 订阅，模型中心配置）
+	OpenCodeGoAPIKey string
+
+	// OpenCode Zen API Key（按量付费，opencode.ai/auth 获取）
+	OpenCodeZenAPIKey string
 
 	// 语音识别激活引擎 + 模型（来自模型中心选择，空=自动）
 	ActiveASREngine string
@@ -494,6 +504,12 @@ func Load() *Config {
 			if cf.DeepseekAPIKey != "" {
 				cfg.DeepseekAPIKey = cf.DeepseekAPIKey
 			}
+			if cf.OpenCodeGoAPIKey != "" {
+				cfg.OpenCodeGoAPIKey = cf.OpenCodeGoAPIKey
+			}
+			if cf.OpenCodeZenAPIKey != "" {
+				cfg.OpenCodeZenAPIKey = cf.OpenCodeZenAPIKey
+			}
 			if cf.ActiveASREngine != "" {
 				cfg.ActiveASREngine = cf.ActiveASREngine
 			}
@@ -660,6 +676,8 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyActiveEngineID:    func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
 	KeyModel:             func(cf *configFile, v string) error { cf.Model = v; return nil },
 	KeyDeepseekAPIKey:    func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
+	KeyOpencodeGoAPIKey:  func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
+	KeyOpencodeZenAPIKey: func(cf *configFile, v string) error { cf.OpenCodeZenAPIKey = v; return nil },
 	KeyActiveASREngine:   func(cf *configFile, v string) error { cf.ActiveASREngine = v; return nil },
 	KeyActiveASRModel:    func(cf *configFile, v string) error { cf.ActiveASRModel = v; return nil },
 	KeyActiveTTSEngine:   func(cf *configFile, v string) error { cf.ActiveTTSEngine = v; return nil },

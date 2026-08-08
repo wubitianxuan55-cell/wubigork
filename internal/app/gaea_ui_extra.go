@@ -171,9 +171,9 @@ func (a *App) GaeaSaveSettings(view SettingsView) error {
 		if view.Agent.SystemPrompt != "" {
 			cfg.Agent.SystemPrompt = view.Agent.SystemPrompt
 		}
-		if view.Agent.MaxSteps > 0 {
-			cfg.Agent.MaxSteps = view.Agent.MaxSteps
-		}
+		// max_steps 语义：0 = 不限制（无限工具调用轮次）。0 是合法值，
+		// 不能用 >0 守卫跳过，否则设置面板无法把轮次限制改回「无限」。
+		cfg.Agent.MaxSteps = view.Agent.MaxSteps
 		if view.Agent.Temperature > 0 {
 			cfg.Agent.Temperature = view.Agent.Temperature
 		}
@@ -464,10 +464,17 @@ func (a *App) GaeaReadFile(rel string) FilePreview {
 
 // GaeaOpenWorkspacePath/GaeaRevealWorkspacePath 在文件管理器中打开/定位。
 func (a *App) GaeaOpenWorkspacePath(rel string) error {
+	if filepath.IsAbs(rel) {
+		return exec.Command("explorer", rel).Start()
+	}
 	return exec.Command("explorer", filepath.Join(gaeaCwd(), rel)).Start()
 }
 func (a *App) GaeaRevealWorkspacePath(rel string) error {
-	return exec.Command("explorer", "/select,", filepath.Join(gaeaCwd(), rel)).Start()
+	target := rel
+	if !filepath.IsAbs(rel) {
+		target = filepath.Join(gaeaCwd(), rel)
+	}
+	return exec.Command("explorer", "/select,", target).Start()
 }
 
 // GaeaWorkspaceChanges 办公板块不追踪工作区变更，返回空。

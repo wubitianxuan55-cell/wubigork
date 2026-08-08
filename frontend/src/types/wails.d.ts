@@ -85,7 +85,9 @@ interface AppAPI {
   SaveRelationship(relJSON: string): Promise<void>
   DeleteRelationship(fromID: string, toID: string): Promise<void>
   SaveCharacters(cfJSON: string): Promise<void>
-  GenerateCharacterPortrait(charID: string): Promise<string>
+  GenerateCharacterPortrait(charID: string, model: string): Promise<string>
+  GenerateProjectCharacterFill(chJSON: string): Promise<string>
+  MergeCharacters(keepID: string, mergeID: string): Promise<void>
   SetCharacterPortrait(charID: string, imageData: string): Promise<void>
 
   // ── 世界观 ──

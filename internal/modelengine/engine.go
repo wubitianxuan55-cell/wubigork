@@ -23,6 +23,10 @@ const (
 	EngineOllama   EngineType = "ollama"
 	EngineHerdsman EngineType = "herdsman"
 	EngineDeepseek EngineType = "deepseek"
+	// EngineOpencodeGo OpenCode Go 云端目录（OpenAI 兼容 /chat/completions）
+	EngineOpencodeGo EngineType = "opencode-go"
+	// EngineOpencodeZen OpenCode Zen 云端目录（OpenAI 兼容 /chat/completions 子集）
+	EngineOpencodeZen EngineType = "opencode-zen"
 )
 
 // ── 数据结构 ───────────────────────────────────────────────
@@ -75,14 +79,18 @@ type Manager struct {
 	statePath   string   // 状态文件路径（空=不落盘）
 	xaiKey      string   // xAI API key（来自 OAuth token）
 	deepseekKey string   // DeepSeek API key（用户手动配置）
+	opencodeKey string   // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
+	opencodeZenKey string // OpenCode Zen API key（按量付费，opencode.ai/auth 获取）
 	httpClient  *http.Client
+	statsMu     sync.Mutex // 保护 statsRec 的懒初始化
+	statsRec    *statsRecorder // 模型调用统计（可为 nil，首次记录时创建）
 }
 
 // NewManager 创建引擎管理器
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek"},
+		order:       []string{"xai", "ollama", "herdsman", "deepseek", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		httpClient:  netclient.NewSimpleClient(15 * time.Second),
@@ -121,6 +129,22 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		Enabled:      true,
 		DefaultModel: "deepseek-v4-pro",
 	}
+	m.engines["opencode-go"] = &EngineConfig{
+		ID:           "opencode-go",
+		Name:         "OpenCode Go (云端)",
+		Type:         EngineOpencodeGo,
+		BaseURL:      "https://opencode.ai/zen/go/v1",
+		Enabled:      true,
+		DefaultModel: "deepseek-v4-pro",
+	}
+	m.engines["opencode-zen"] = &EngineConfig{
+		ID:           "opencode-zen",
+		Name:         "OpenCode Zen (云端)",
+		Type:         EngineOpencodeZen,
+		BaseURL:      "https://opencode.ai/zen/v1",
+		Enabled:      true,
+		DefaultModel: "deepseek-v4-pro",
+	}
 
 	return m
 }
@@ -137,6 +161,20 @@ func (m *Manager) UpdateDeepseekKey(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.deepseekKey = key
+}
+
+// UpdateOpencodeKey 更新 OpenCode Go API key
+func (m *Manager) UpdateOpencodeKey(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.opencodeKey = key
+}
+
+// UpdateOpencodeZenKey 更新 OpenCode Zen API key
+func (m *Manager) UpdateOpencodeZenKey(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.opencodeZenKey = key
 }
 
 // GetEngines 获取所有引擎配置
@@ -286,11 +324,15 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
-	// xAI 和 DeepSeek 需要认证
+	// xAI / DeepSeek / OpenCode Go 需要认证
 	if engine.Type == EngineXAI && m.xaiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.xaiKey)
 	} else if engine.Type == EngineDeepseek && m.deepseekKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.deepseekKey)
+	} else if engine.Type == EngineOpencodeGo && m.opencodeKey != "" {
+		req.Header.Set("Authorization", "Bearer "+m.opencodeKey)
+	} else if engine.Type == EngineOpencodeZen && m.opencodeZenKey != "" {
+		req.Header.Set("Authorization", "Bearer "+m.opencodeZenKey)
 	}
 
 	resp, err := m.httpClient.Do(req)
@@ -305,6 +347,10 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 				return nil, fmt.Errorf("HTTP 401: 未登录 xAI，请先点击「登录 xAI」获取授权")
 			} else if engine.Type == EngineDeepseek {
 				return nil, fmt.Errorf("HTTP 401: DeepSeek API Key 无效或未配置，请在设置中配置")
+			} else if engine.Type == EngineOpencodeGo {
+				return nil, fmt.Errorf("HTTP 401: OpenCode Go API Key 无效或未配置，请先在模型中心配置（opencode.ai 订阅获取）")
+			} else if engine.Type == EngineOpencodeZen {
+				return nil, fmt.Errorf("HTTP 401: OpenCode Zen API Key 无效或未配置，请先在模型中心配置（opencode.ai/auth 获取）")
 			}
 		}
 		return nil, fmt.Errorf("HTTP %d: 模型列表获取失败", resp.StatusCode)
@@ -317,6 +363,15 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 
 	models := make([]ModelInfo, len(result.Data))
 	for i, d := range result.Data {
+		// OpenCode 目录端点分布与 Go 不同（如 grok 在 Zen 走 /responses、
+		// minimax 在 Zen 走 chat/completions），按引擎分别过滤，
+		// 只保留当前聊天客户端支持的 OpenAI 兼容 /chat/completions 模型。
+		if engine.Type == EngineOpencodeGo && !opencodeGoCompatible(d.ID) {
+			continue
+		}
+		if engine.Type == EngineOpencodeZen && !opencodeZenCompatible(d.ID) {
+			continue
+		}
 		models[i] = ModelInfo{
 			ID:      d.ID,
 			OwnedBy: d.OwnedBy,
@@ -324,7 +379,42 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		}
 	}
 
+	// 过滤后可能有空洞（continue 跳过），压缩数组
+	if engine.Type == EngineOpencodeGo || engine.Type == EngineOpencodeZen {
+		filtered := make([]ModelInfo, 0, len(models))
+		for _, m := range models {
+			if m.ID != "" {
+				filtered = append(filtered, m)
+			}
+		}
+		models = filtered
+	}
+
 	return models, nil
+}
+
+// opencodeGoCompatible 判断 OpenCode Go 模型是否走 OpenAI /chat/completions 端点。
+// 参考 https://dev.opencode.ai/docs/go 端点分类表。
+func opencodeGoCompatible(modelID string) bool {
+	id := strings.ToLower(modelID)
+	if strings.HasPrefix(id, "qwen3") || strings.HasPrefix(id, "minimax") || id == "gpt-5.6-luna" {
+		return false
+	}
+	return true
+}
+
+// opencodeZenCompatible 判断 OpenCode Zen 模型是否走 OpenAI /chat/completions 端点。
+// 参考 https://dev.opencode.ai/docs/zen 端点分类表：
+//   - gpt-* / grok-* → /responses；claude-* / qwen3* → /messages；gemini-* → 专用端点
+//   - deepseek-* / minimax-* / glm-* / kimi-* / mimo-* / 免费模型等 → /chat/completions
+func opencodeZenCompatible(modelID string) bool {
+	id := strings.ToLower(modelID)
+	for _, prefix := range []string{"gpt-", "claude-", "gemini-", "qwen3", "grok-"} {
+		if strings.HasPrefix(id, prefix) {
+			return false
+		}
+	}
+	return true
 }
 
 // SetDefaultModel 设置引擎的默认模型
@@ -467,6 +557,10 @@ func (m *Manager) BuildChatURL(engineID string) (string, string, error) {
 		apiKey = m.xaiKey
 	} else if engine.Type == EngineDeepseek {
 		apiKey = m.deepseekKey
+	} else if engine.Type == EngineOpencodeGo {
+		apiKey = m.opencodeKey
+	} else if engine.Type == EngineOpencodeZen {
+		apiKey = m.opencodeZenKey
 	}
 
 	return chatURL, apiKey, nil

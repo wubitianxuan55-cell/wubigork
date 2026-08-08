@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/agent/testutil"
@@ -79,5 +81,81 @@ func TestBuildUnknownModel(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("未知模型应返回错误")
+	}
+}
+
+// TestBuildWorkspaceLanguageNotInjected 回归：办公文档工作区不得在系统提示词中
+// 被标成 Go/代码工程（此前 Profile.Scan 无条件硬编码 Language="Go"，且扫描的是
+// 进程目录而非工作区，导致通用办公 AI 表现得像编程 agent）。
+func TestBuildWorkspaceLanguageNotInjected(t *testing.T) {
+	chdirTemp(t)
+
+	// 办公工作区：只有文档 + 少量辅助脚本，无任何工程清单
+	ws := t.TempDir()
+	os.WriteFile(filepath.Join(ws, "方案.md"), []byte("# 方案\n"), 0644)
+	os.MkdirAll(filepath.Join(ws, "scripts"), 0755)
+	os.WriteFile(filepath.Join(ws, "scripts", "check.py"), []byte("print(1)\n"), 0644)
+
+	// 对照组：真实 Go 工程（go.mod）
+	goDir := t.TempDir()
+	os.WriteFile(filepath.Join(goDir, "go.mod"), []byte("module example.com/test\n"), 0644)
+
+	buildAndRun := func(kind, cwd string) string {
+		t.Helper()
+		var mp *testutil.MockProvider
+		provider.Register(kind, func(cfg provider.Config) (provider.Provider, error) {
+			mp = testutil.NewMock("mock",
+				testutil.Turn{Text: "好的，收到。"},
+				testutil.Turn{Text: "好的，收到。"},
+				testutil.Turn{Text: "好的，收到。"},
+				testutil.Turn{Text: "好的，收到。"},
+				testutil.Turn{Text: "好的，收到。"},
+			)
+			return mp, nil
+		})
+		cfg := config.Default()
+		cfg.DefaultModel = "mock"
+		cfg.Providers = []config.ProviderEntry{{
+			Name:          "mock",
+			Kind:          kind,
+			Model:         "grok-3",
+			ContextWindow: 1_000_000,
+		}}
+		config.SetLoader(func() (*config.Config, error) { return cfg, nil })
+
+		ctrl, err := boot.Build(context.Background(), boot.Options{
+			Model:      "mock",
+			RequireKey: false,
+			Sink:       event.FuncSink(func(event.Event) {}),
+			Stderr:     io.Discard,
+			Cwd:        cwd,
+			SessionDir: t.TempDir(),
+		})
+		if err != nil {
+			t.Fatalf("Build(%s) 失败: %v", cwd, err)
+		}
+		defer ctrl.Close()
+		if err := ctrl.Run(context.Background(), "你好"); err != nil {
+			t.Fatalf("Run(%s) 失败: %v", cwd, err)
+		}
+		if mp == nil || len(mp.Requests()) == 0 {
+			t.Fatalf("(%s) 未捕获到模型请求", cwd)
+		}
+		return mp.Requests()[0].Messages[0].Content
+	}
+	defer config.SetLoader(nil)
+
+	officeSys := buildAndRun("test-mock-boot-office", ws)
+	if strings.Contains(officeSys, "l=Go") || strings.Contains(officeSys, "Language: Go") {
+		t.Errorf("办公工作区系统提示词被标成 Go 工程:\n%s", officeSys)
+	}
+	// 工作区根目录（root=…）应来自 opts.Cwd，而不是进程目录
+	if !strings.Contains(officeSys, "root="+filepath.Base(ws)) {
+		t.Errorf("办公系统提示词缺少工作区根 root=%s:\n%s", filepath.Base(ws), officeSys)
+	}
+
+	goSys := buildAndRun("test-mock-boot-go", goDir)
+	if !strings.Contains(goSys, "l=Go") && !strings.Contains(goSys, "Language: Go") {
+		t.Errorf("Go 工程系统提示词未识别语言:\n%s", goSys)
 	}
 }

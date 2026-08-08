@@ -63,6 +63,13 @@ type ChatRequest struct {
 	TopP             float64          `json:"top_p,omitempty"`             // nucleus sampling
 	FrequencyPenalty float64          `json:"frequency_penalty,omitempty"` // -2.0..2.0，抑制重复
 	PresencePenalty  float64          `json:"presence_penalty,omitempty"`  // -2.0..2.0，鼓励新话题
+	StreamOptions    *ChatStreamOptions `json:"stream_options,omitempty"`    // 流式用量上报（include_usage）
+	skipIncludeUsage bool               `json:"-"`                           // 内部：重试时不再请求 include_usage
+}
+
+// ChatStreamOptions OpenAI 兼容流式附加选项。
+type ChatStreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 // ChatSimpleOptions ChatSimpleStream 的可选参数覆盖
@@ -95,10 +102,18 @@ type ChatResponse struct {
 	ID      string       `json:"id,omitempty"`
 	Model   string       `json:"model,omitempty"`
 	Choices []ChatChoice `json:"choices"`
+	Usage   *ChatUsage   `json:"usage,omitempty"`
 	Error   *struct {
 		Message string `json:"message"`
 		Code    string `json:"code"`
 	} `json:"error,omitempty"`
+}
+
+// ChatUsage OpenAI 兼容 usage 字段（流式最后一块通常也携带）。
+type ChatUsage struct {
+	PromptTokens     int64 `json:"prompt_tokens,omitempty"`
+	CompletionTokens int64 `json:"completion_tokens,omitempty"`
+	TotalTokens      int64 `json:"total_tokens,omitempty"`
 }
 
 // SSEChunk 流式响应的一帧
@@ -107,6 +122,7 @@ type SSEChunk struct {
 	Done      bool           `json:"done"`    // 是否结束
 	Error     string         `json:"error,omitempty"`
 	ToolCalls []ChatToolCall `json:"tool_calls,omitempty"` // 完整工具调用（finish_reason=tool_calls 时携带）
+	Usage     *ChatUsage     `json:"usage,omitempty"`      // 流结束块携带的用量（若有）
 }
 
 // ModelsResponse /v1/models
@@ -135,6 +151,10 @@ type ImageGenerationRequest struct {
 	Frames         int    `json:"frames,omitempty"`     // t2v 帧数
 	FPS            int    `json:"fps,omitempty"`        // t2v 帧率
 }
+
+// PortraitStylePrefix 角色剧照统一前置风格提示词（写实摄影风）。
+// 角色库与小说角色的剧照生成共用，保证出图风格一致。
+const PortraitStylePrefix = "写实摄影风格，自然光线，超高分辨率，逼真质感，细节丰富，8K，专业拍摄，"
 
 // ImageData 单张图片结果
 type ImageData struct {

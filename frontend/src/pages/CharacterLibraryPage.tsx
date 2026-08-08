@@ -2,10 +2,10 @@
 // 角色是独立资产：不绑定任何一本小说，小说只是引用；聊天直接把角色当人格用。
 import React, { useCallback, useEffect, useState } from 'react'
 import {
-  Input, Segmented, Switch, Button, message, Pagination,
+  Input, Segmented, Switch, Button, message, Pagination, Modal, Spin,
 } from 'antd'
 import {
-  PlusOutlined, SearchOutlined, TeamOutlined, ImportOutlined, SyncOutlined,
+  PlusOutlined, SearchOutlined, TeamOutlined, ImportOutlined, SyncOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import CharacterCard from '../components/characterlib/CharacterCard'
 import CharacterLibEditor from '../components/characterlib/CharacterLibEditor'
@@ -16,7 +16,7 @@ import { useAppStore } from '../stores/appStore'
 import {
   listCharacters, getCharacter, deleteCharacter, importProjectCharacters,
   listProjectCharacters, associateToProject, dissociateFromProject, syncProjectCharacters,
-  type LibraryCharacter,
+  fillAllCharacters, type LibraryCharacter,
 } from '../api/characterlib'
 import '../components/characterlib/character-library.css'
 
@@ -38,6 +38,8 @@ const CharacterLibraryPage: React.FC = () => {
   const [kind, setKind] = useState('')
   const [chatOnly, setChatOnly] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [fillingAll, setFillingAll] = useState(false)
+  const [fillProgress, setFillProgress] = useState('')
 
   const [projectRefs, setProjectRefs] = useState<Set<string>>(new Set())
   const [editorOpen, setEditorOpen] = useState(false)
@@ -129,6 +131,8 @@ const CharacterLibraryPage: React.FC = () => {
       await dissociateFromProject(c.id)
       message.success(`「${c.name}」已从当前项目移除（角色保留在库中）`)
       loadProjectRefs()
+      // 通知已挂载的小说角色面板刷新（MainLayout 切换页面不销毁组件）
+      window.dispatchEvent(new CustomEvent('gaea-project-chars-changed'))
     } catch (err: any) {
       message.error(err?.message || '移除失败')
     }
@@ -157,6 +161,49 @@ const CharacterLibraryPage: React.FC = () => {
     }
   }
 
+  // ── 一键补齐：为全部角色填充空缺字段（基于已有设定推断） ──
+  const handleFillAll = () => {
+    if (!total) return
+    Modal.confirm({
+      title: '一键补齐全部角色信息？',
+      content: `将为 ${total} 位角色补齐空缺字段（定位/性别/年龄/性格/外貌/背景/动机/弧线等），
+基于已有设定（如人格）推断，只填空缺、不改已有内容。角色较多时耗时较长。`,
+      okText: '开始补齐',
+      cancelText: '取消',
+      onOk: () => { void runFillAll() },
+    })
+  }
+
+  const runFillAll = async () => {
+    const onProgress = (ev: any) => {
+      const d = ev?.detail || ev
+      if (d?.current && d?.total) setFillProgress(`正在补齐 ${d.current}/${d.total}：${d.name || ''}`)
+    }
+    try {
+      window.runtime?.EventsOn?.('character-fill-progress', onProgress)
+      setFillingAll(true)
+      setFillProgress('准备中…')
+      const res = await fillAllCharacters()
+      const { filled, skipped, failed, failNames } = res || {}
+      if (failed > 0) {
+        message.warning(
+          `补齐完成：填充 ${filled} 位，无空缺跳过 ${skipped} 位，失败 ${failed} 位` +
+          (failNames?.length ? `（${failNames.slice(0, 3).join('、')}${failNames.length > 3 ? '…' : ''}）` : ''),
+        )
+      } else {
+        message.success(`已补齐 ${filled} 位角色，${skipped} 位无空缺`)
+      }
+      load()
+      loadProjectRefs()
+    } catch (err: any) {
+      message.error(`补齐失败：${err?.message || String(err)}`)
+    } finally {
+      window.runtime?.EventsOff?.('character-fill-progress')
+      setFillingAll(false)
+      setFillProgress('')
+    }
+  }
+
   const handleSyncProject = async () => {
     if (!projectPath) { message.warning('请先打开小说项目'); return }
     try {
@@ -181,6 +228,11 @@ const CharacterLibraryPage: React.FC = () => {
           </div>
         </div>
         <div className="clib-actions">
+          <Button size="small" icon={<ThunderboltOutlined />} loading={fillingAll}
+            onClick={handleFillAll}
+            title="为所有角色补齐空缺字段（基于已有设定推断）">
+            {fillingAll ? '补齐中…' : '一键补齐'}
+          </Button>
           <Button size="small" icon={<ImportOutlined />} disabled={!hasProject}
             onClick={handleImportProject}
             title="把当前项目的 characters.json 导入全局库">导入项目</Button>
@@ -219,6 +271,12 @@ const CharacterLibraryPage: React.FC = () => {
       {!hasProject && (
         <div className="clib-hint">
           当前未打开小说项目：角色仍可全局管理、设为聊天人格；打开项目后可将角色加入小说。
+        </div>
+      )}
+
+      {fillingAll && fillProgress && (
+        <div className="clib-hint">
+          <Spin size="small" /> {fillProgress}（AI 逐个补齐中，可继续浏览其他页面）
         </div>
       )}
 

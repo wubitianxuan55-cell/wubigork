@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/types"
 	"github.com/gaea/gaea/internal/util"
 )
@@ -220,8 +222,11 @@ func (a *writingState) SetCharacterPortrait(charID string, imageData string) err
 	return a.characterAgent.SetPortrait(charID, imageData)
 }
 
-// SaveCharactersBatch 批量创建角色（仅名称，其余字段留空）
-// 前端确认新角色后调用。namesJSON: JSON 字符串数组，如 `["林风","苏婉"]`
+// SaveCharactersBatch 批量创建章节新发现角色。
+// 先让 AI 生成完整档案（性格/背景/外貌等），再写入项目 characters.json；
+// AI 生成失败时降级为仅名称（配角·存活），不阻塞添加。
+// 只写项目文件：角色入库（全局角色库）由用户在「角色」面板手动「一次性迁移」，
+// 捕获角色不自动进入全局库。
 func (a *writingState) SaveCharactersBatch(namesJSON string) (map[string]interface{}, error) {
 	if a.characterAgent == nil {
 		return nil, fmt.Errorf("请先打开项目")
@@ -244,6 +249,12 @@ func (a *writingState) SaveCharactersBatch(namesJSON string) (map[string]interfa
 		existingNames[ch.Name] = true
 	}
 
+	// 项目题材（用于角色档案生成，保持与世界观一致）
+	genre := ""
+	if a.pm != nil && a.pm.Meta != nil {
+		genre = a.pm.Meta.Genre
+	}
+
 	var created []types.Character
 	for _, name := range names {
 		if name == "" || existingNames[name] {
@@ -254,6 +265,15 @@ func (a *writingState) SaveCharactersBatch(namesJSON string) (map[string]interfa
 			Name:     name,
 			RoleType: "supporting",
 			Status:   "Alive",
+		}
+		// AI 生成完整档案；失败保留裸名字
+		if a.ctx != nil {
+			gen, err := a.characterAgent.GenerateSingleCharacter(a.ctx, ch, genre)
+			if err == nil && gen != nil {
+				mergeGeneratedProfile(&ch, gen)
+			} else {
+				slog.Warn("角色档案生成失败，保存基础信息", "name", name, "error", err)
+			}
 		}
 		if err := a.characterAgent.SaveCharacter(ch); err != nil {
 			return nil, fmt.Errorf("保存角色 %s 失败: %w", name, err)
@@ -266,4 +286,246 @@ func (a *writingState) SaveCharactersBatch(namesJSON string) (map[string]interfa
 		"created": created,
 		"total":   len(cf.Characters) + len(created),
 	}, nil
+}
+
+// projectCharToLib 项目角色 → 角色库字段（补全复用角色库 AI 逻辑）。
+func projectCharToLib(c types.Character) characterlib.Character {
+	return characterlib.Character{
+		ID:          c.ID,
+		Name:        c.Name,
+		Gender:      c.Gender,
+		Age:         c.Age,
+		PortraitURL: c.PortraitURL,
+		RoleType:    c.RoleType,
+		Personality: c.Personality,
+		Background:  c.Background,
+		Appearance:  c.Appearance,
+		Figure:      c.Figure,
+		Motivation:  c.Motivation,
+		Arc:         c.Arc,
+		Status:      c.Status,
+		Notes:       c.Notes,
+	}
+}
+
+// libCharToProject 角色库字段 → 项目角色。
+func libCharToProject(c characterlib.Character) types.Character {
+	return types.Character{
+		ID:          c.ID,
+		Name:        c.Name,
+		Gender:      c.Gender,
+		Age:         c.Age,
+		PortraitURL: c.PortraitURL,
+		RoleType:    c.RoleType,
+		Personality: c.Personality,
+		Background:  c.Background,
+		Appearance:  c.Appearance,
+		Figure:      c.Figure,
+		Motivation:  c.Motivation,
+		Arc:         c.Arc,
+		Status:      c.Status,
+		Notes:       c.Notes,
+	}
+}
+
+// GenerateProjectCharacterFill 为小说项目角色 AI 补齐空缺字段（只填空缺，保留已有）。
+// 复用角色库的补全逻辑，但只写项目 characters.json，绝不回写全局角色库。
+func (a *writingState) GenerateProjectCharacterFill(chJSON string) (string, error) {
+	if a.characterAgent == nil {
+		return "", fmt.Errorf("请先打开项目")
+	}
+	var ch types.Character
+	if err := json.Unmarshal([]byte(chJSON), &ch); err != nil {
+		return "", fmt.Errorf("解析角色数据失败: %w", err)
+	}
+	if strings.TrimSpace(ch.Name) == "" {
+		return "", fmt.Errorf("角色名称不能为空")
+	}
+	if a.app == nil || a.app.client == nil || a.app.eng == nil {
+		return "", fmt.Errorf("AI 客户端未初始化")
+	}
+	merged, err := a.app.characterGenerate(string(util.MustMarshal(projectCharToLib(ch))), "fill", nil)
+	if err != nil {
+		return "", err
+	}
+	var next characterlib.Character
+	if err := json.Unmarshal([]byte(merged), &next); err != nil {
+		return "", fmt.Errorf("解析补全结果失败: %w", err)
+	}
+	updated := libCharToProject(next)
+	updated.ID = ch.ID // 保护身份，AI 不得改名/换 ID
+	if err := a.characterAgent.SaveCharacter(updated); err != nil {
+		return "", fmt.Errorf("保存角色失败: %w", err)
+	}
+	return string(util.MustMarshal(updated)), nil
+}
+
+// MergeCharacters 合并两个实为同一人的项目角色：mergeID 并入 keepID。
+// 保留角色的空缺字段用被合并角色填充；关系与组织成员引用全部重定向；
+// 被合并角色从 characters.json 移除。只改项目文件，不动全局角色库。
+func (a *writingState) MergeCharacters(keepID, mergeID string) (map[string]interface{}, error) {
+	pm := a.getPM()
+	if pm == nil {
+		return nil, fmt.Errorf("请先打开项目")
+	}
+	if keepID == "" || mergeID == "" {
+		return nil, fmt.Errorf("角色 ID 不能为空")
+	}
+	if keepID == mergeID {
+		return nil, fmt.Errorf("不能合并到自身")
+	}
+	cf, err := pm.ReadCharacters()
+	if err != nil {
+		return nil, fmt.Errorf("读取角色失败: %w", err)
+	}
+	if cf == nil {
+		cf = &types.CharacterFile{}
+	}
+	var keep, merge *types.Character
+	mergeIdx := -1
+	for i := range cf.Characters {
+		switch cf.Characters[i].ID {
+		case keepID:
+			keep = &cf.Characters[i]
+		case mergeID:
+			merge, mergeIdx = &cf.Characters[i], i
+		}
+	}
+	if keep == nil {
+		return nil, fmt.Errorf("保留角色不存在: %s", keepID)
+	}
+	if merge == nil {
+		return nil, fmt.Errorf("被合并角色不存在: %s", mergeID)
+	}
+
+	// 1. 用被合并角色填充保留角色的空缺字段
+	fillCharacterGaps(keep, merge)
+
+	// 2. 关系重定向 + 去重 + 去自环
+	rels := cf.Relationships[:0]
+	seenRel := make(map[string]bool)
+	for _, r := range cf.Relationships {
+		if r.FromID == mergeID {
+			r.FromID = keepID
+		}
+		if r.ToID == mergeID {
+			r.ToID = keepID
+		}
+		if r.FromID == r.ToID {
+			continue // 自身关系无意义
+		}
+		key := r.FromID + "|" + r.ToID + "|" + r.RelationType
+		if seenRel[key] {
+			continue
+		}
+		seenRel[key] = true
+		rels = append(rels, r)
+	}
+	cf.Relationships = rels
+
+	// 3. 组织成员重定向 + 去重
+	for i := range cf.Organizations {
+		var members []string
+		seen := make(map[string]bool)
+		for _, m := range cf.Organizations[i].Members {
+			if m == mergeID {
+				m = keepID
+			}
+			if seen[m] {
+				continue
+			}
+			seen[m] = true
+			members = append(members, m)
+		}
+		cf.Organizations[i].Members = members
+	}
+
+	// 4. 移除被合并角色
+	cf.Characters = append(cf.Characters[:mergeIdx], cf.Characters[mergeIdx+1:]...)
+	if err := pm.WriteCharacters(cf); err != nil {
+		return nil, fmt.Errorf("保存角色失败: %w", err)
+	}
+	return map[string]interface{}{
+		"characters":    cf.Characters,
+		"organizations": cf.Organizations,
+		"relationships": cf.Relationships,
+	}, nil
+}
+
+// fillCharacterGaps 用 src 的非空字段填充 dst 的空字段。
+func fillCharacterGaps(dst, src *types.Character) {
+	if dst == nil || src == nil {
+		return
+	}
+	if dst.Name == "" {
+		dst.Name = src.Name
+	}
+	if dst.RoleType == "" {
+		dst.RoleType = src.RoleType
+	}
+	if dst.Gender == "" {
+		dst.Gender = src.Gender
+	}
+	if dst.Age == "" {
+		dst.Age = src.Age
+	}
+	if dst.Personality == "" {
+		dst.Personality = src.Personality
+	}
+	if dst.Background == "" {
+		dst.Background = src.Background
+	}
+	if dst.Appearance == "" {
+		dst.Appearance = src.Appearance
+	}
+	if dst.Figure == "" {
+		dst.Figure = src.Figure
+	}
+	if dst.Motivation == "" {
+		dst.Motivation = src.Motivation
+	}
+	if dst.Arc == "" {
+		dst.Arc = src.Arc
+	}
+	if dst.Status == "" {
+		dst.Status = src.Status
+	}
+	if dst.Notes == "" {
+		dst.Notes = src.Notes
+	}
+	if dst.PortraitURL == "" {
+		dst.PortraitURL = src.PortraitURL
+	}
+}
+
+// mergeGeneratedProfile 把 AI 生成的档案字段合并进基础角色，
+// 保留「配角·存活」默认值，只填充内容字段。
+func mergeGeneratedProfile(dst, src *types.Character) {
+	if dst == nil || src == nil {
+		return
+	}
+	if src.Gender != "" {
+		dst.Gender = src.Gender
+	}
+	if src.Age != "" {
+		dst.Age = src.Age
+	}
+	if src.Personality != "" {
+		dst.Personality = src.Personality
+	}
+	if src.Background != "" {
+		dst.Background = src.Background
+	}
+	if src.Appearance != "" {
+		dst.Appearance = src.Appearance
+	}
+	if src.Figure != "" {
+		dst.Figure = src.Figure
+	}
+	if src.Motivation != "" {
+		dst.Motivation = src.Motivation
+	}
+	if src.Arc != "" {
+		dst.Arc = src.Arc
+	}
 }

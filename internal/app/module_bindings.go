@@ -39,7 +39,7 @@ func (a *App) initModules() {
 			setting, _ := input["setting"].(string)
 			plotReq, _ := input["plot_req"].(string)
 			num := intField(input, "chapter_num", 1)
-			return a.CreateChapter(setting, "", plotReq, num, "", "")
+			return a.CreateChapter(setting, "", plotReq, num, "", "", 0, 0)
 		},
 	})
 	_ = a.modules.Register(Module{

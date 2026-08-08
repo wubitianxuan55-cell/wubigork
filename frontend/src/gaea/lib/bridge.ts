@@ -118,6 +118,10 @@ export interface AppBindings {
   SavePastedImage(dataUrl: string): Promise<string>;
   SaveAttachmentFile(fileName: string, base64Data: string): Promise<string>;
   AttachmentDataURL(path: string): Promise<string>;
+  // CaptureScreen 捕获整个屏幕（返回 PNG data URL）；RecognizeImage 用本地
+  // 视觉模型识别图片内容，返回文本描述。
+  CaptureScreen(): Promise<string>;
+  RecognizeImage(imagePath: string, prompt: string): Promise<string>;
   Models(): Promise<ModelInfo[]>;
   SetModel(name: string): Promise<void>;
   // Memory panel: read the loaded REASONIX.md hierarchy + saved auto-memories,
@@ -304,6 +308,8 @@ const gaeaToGaea: Record<string, string> = {
   SavePastedImage: "GaeaSavePastedImage",
   SaveAttachmentFile: "GaeaSaveAttachmentFile",
   AttachmentDataURL: "GaeaAttachmentDataURL",
+  CaptureScreen: "GaeaCaptureScreen",
+  RecognizeImage: "GaeaRecognizeImage",
   Models: "GaeaModels",
   SetModel: "GaeaSetModel",
   Memory: "GaeaMemory",

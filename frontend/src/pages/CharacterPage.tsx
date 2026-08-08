@@ -3,18 +3,19 @@
 // 面板内可改的只有项目内覆盖（定位 / 弧线状态 / 状态），全局设定一律去角色库。
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Typography, Empty, Button, Input, Modal, InputNumber,
-  Select, message, Row, Col, Tabs, Space, Tag, Switch, Popconfirm,
+  Typography, Empty, Button, Input, Modal, InputNumber, Drawer,
+  Select, message, Tabs, Tag, Switch, Popconfirm,
 } from 'antd'
 import {
-  ThunderboltOutlined, PlusOutlined,
+  ThunderboltOutlined, PlusOutlined, ExperimentOutlined, CameraOutlined, MergeCellsOutlined,
   UserOutlined, ApartmentOutlined, LinkOutlined, TeamOutlined,
   ImportOutlined, SyncOutlined, EditOutlined, SwapOutlined, DeleteOutlined,
+  GlobalOutlined, BookOutlined,
 } from '@ant-design/icons'
 import RelationGraph from '../components/RelationGraph'
 import type { CharacterData, OrganizationData, RelationshipData } from '../types'
 import { useAppStore } from '../stores/appStore'
-import { C } from '../utils/theme'
+import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../utils/theme'
 import CharacterCard from '../components/novel/character/CharacterCard'
 import OrganizationCard from '../components/novel/character/OrganizationCard'
 import RelationshipModal from '../components/novel/character/RelationshipModal'
@@ -23,12 +24,14 @@ import PortraitLightbox from '../components/novel/character/PortraitLightbox'
 import {
   getCharacters, saveOrganization, deleteOrganization, toggleOrgMember,
   saveRelationship, deleteRelationship,
+  generateCharacterFill, generateCharacterPortrait, mergeCharacters,
 } from '../components/novel/api/character'
 import {
   listProjectCharacters, associateToProject, dissociateFromProject,
   syncProjectCharacters, importProjectCharacters, drawRandom, setProjectState,
   type LibraryCharacter,
 } from '../api/characterlib'
+import './character-page.css'
 
 const statusOptions = [
   { value: 'Alive', label: '存活' }, { value: 'Dead', label: '已故' },
@@ -60,6 +63,7 @@ const CharacterPage: React.FC = () => {
   const [filterRole, setFilterRole] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterOrg, setFilterOrg] = useState<string>('')
+  const [loading, setLoading] = useState(true)
 
   // 抽卡
   const [drawOpen, setDrawOpen] = useState(false)
@@ -73,6 +77,10 @@ const CharacterPage: React.FC = () => {
 
   // 项目内状态编辑（唯一允许的小说侧写入）
   const [projectEdit, setProjectEdit] = useState<CharacterData | null>(null)
+  const [filling, setFilling] = useState(false)
+  const [genPortrait, setGenPortrait] = useState(false)
+  const [mergeOpen, setMergeOpen] = useState(false)
+  const [mergeTargetId, setMergeTargetId] = useState('')
   const [peRole, setPeRole] = useState('')
   const [peArc, setPeArc] = useState('')
   const [peStatus, setPeStatus] = useState('')
@@ -80,12 +88,14 @@ const CharacterPage: React.FC = () => {
   const projectPath = useAppStore(s => s.projectPath)
 
   const loadData = useCallback(async () => {
+    setLoading(true)
     try {
       const data = await getCharacters()
       setCharacters(data.characters || [])
       setOrganizations(data.organizations || [])
       setRelationships(data.relationships || [])
     } catch (err) { console.error('[CharacterPage] loadData:', err) }
+    finally { setLoading(false) }
   }, [])
 
   const loadRefs = useCallback(async () => {
@@ -111,6 +121,13 @@ const CharacterPage: React.FC = () => {
     await loadData()
     await loadRefs()
   }, [loadData, loadRefs])
+
+  // 角色库侧移出本书后，已挂载的本面板保持同步刷新（MainLayout 不销毁组件）
+  useEffect(() => {
+    const handler = () => { refreshAll() }
+    window.addEventListener('gaea-project-chars-changed', handler)
+    return () => window.removeEventListener('gaea-project-chars-changed', handler)
+  }, [refreshAll])
 
   // ── 抽卡：从角色库随机抽取，加入当前项目 ──
   const handleDraw = async () => {
@@ -207,6 +224,51 @@ const CharacterPage: React.FC = () => {
     }
   }
 
+  // ── 章节捕获角色的补齐 / 剧照 / 合并（未入库时可用，只写本书） ──
+  const handleProjectFill = async (ch: CharacterData) => {
+    if (filling) return
+    setFilling(true)
+    try {
+      const updated = await generateCharacterFill(ch)
+      setProjectEdit(updated)
+      await loadData()
+      message.success('已补齐空缺字段（只写本书，未动角色库）')
+    } catch (err: any) {
+      message.error(err?.message || '补齐失败')
+    } finally {
+      setFilling(false)
+    }
+  }
+
+  const handleProjectPortrait = async (ch: CharacterData) => {
+    if (genPortrait) return
+    setGenPortrait(true)
+    try {
+      await generateCharacterPortrait(ch.id)
+      await loadData()
+      message.success('剧照已生成')
+    } catch (err: any) {
+      message.error(err?.message || '剧照生成失败')
+    } finally {
+      setGenPortrait(false)
+    }
+  }
+
+  const handleMergeConfirm = async () => {
+    if (!projectEdit || !mergeTargetId) return
+    try {
+      // 当前角色（A）并入目标角色（B），保留 B
+      await mergeCharacters(mergeTargetId, projectEdit.id)
+      setMergeOpen(false)
+      setMergeTargetId('')
+      setProjectEdit(null)
+      await refreshAll()
+      message.success('已合并：空缺信息已补充，关系与组织引用已重定向')
+    } catch (err: any) {
+      message.error(err?.message || '合并失败')
+    }
+  }
+
   // ── 组织 / 关系（项目内数据，保留原能力）──
   const getCharName = (id: string) =>
     characters.find(c => c.id === id)?.name || organizations.find(o => o.id === id)?.name || id
@@ -266,57 +328,129 @@ const CharacterPage: React.FC = () => {
     return true
   }), [characters, filterGender, filterRole, filterStatus, filterOrg, organizations])
 
-  // ── 项目角色状态弹窗 ──
-  const renderProjectEditModal = () => {
+  // ── 角色详情抽屉：左全局信息（只读） + 右本书局部设定（可编辑） ──
+  const renderProjectDetail = () => {
     if (!projectEdit) return null
+    const ch = projectEdit
+    const orgs = organizations.filter(o => o.members?.includes(ch.id))
+    const relCount = relationships.filter(r => r.from_id === ch.id || r.to_id === ch.id).length
+    const roleLabel = roleLabels[ch.role_type] || ch.role_type
+    const roleColor = roleColors[ch.role_type] || 'default'
+    const statusLabel = statusOptions.find(s => s.value === ch.status)?.label || ch.status || '未设'
+    const genderText = ch.gender === 'male' ? '♂ 男' : ch.gender === 'female' ? '♀ 女' : (ch.gender || '未设')
+
+    const globalFields: Array<{ label: string; value: string }> = [
+      { label: '性格', value: ch.personality },
+      { label: '背景', value: ch.background },
+      { label: '外貌', value: ch.appearance },
+      { label: '身材', value: ch.figure },
+      { label: '动机', value: ch.motivation },
+      { label: '全局弧线', value: ch.arc },
+    ]
+
     return (
-      <Modal
+      <Drawer
         open={!!projectEdit}
-        title={`「${projectEdit.name}」· 本书状态`}
-        onCancel={() => setProjectEdit(null)}
+        onClose={() => setProjectEdit(null)}
+        width={780}
+        closable={false}
+        className="char-detail-drawer"
         footer={
-          <Space>
-            <Popconfirm title={`把「${projectEdit.name}」从本书移除？角色保留在角色库`}
-              okText="移除" cancelText="取消" onConfirm={() => handleRemoveFromProject(projectEdit)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Popconfirm title={`把「${ch.name}」从本书移除？角色保留在角色库`}
+              okText="移除" cancelText="取消" onConfirm={() => handleRemoveFromProject(ch)}>
               <Button danger size="small" icon={<DeleteOutlined />}>移出本书</Button>
             </Popconfirm>
             <div style={{ flex: 1 }} />
-            <Button size="small" icon={<TeamOutlined />} onClick={() => { setProjectEdit(null); navigateToCharacterLib() }}>
-              在角色库编辑全局设定
-            </Button>
+            <Button size="small" onClick={() => setProjectEdit(null)}>取消</Button>
             <Button size="small" type="primary" icon={<EditOutlined />} onClick={handleSaveProjectState}>
               保存本书状态
             </Button>
-          </Space>
+          </div>
         }
-        width={620}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-          <div>
-            <Typography.Text style={{ fontSize: 11, color: C('color-text-secondary') }}>本书定位</Typography.Text>
-            <Select size="small" value={peRole} onChange={setPeRole} style={{ width: '100%', marginTop: 4 }}
-              options={roleOptions} />
+        <div className="char-detail">
+          {/* 头部：剧照 + 名称 + 元信息 + 跳转角色库 */}
+          <div className="char-detail-head">
+            {ch.portrait_url
+              ? <img className="char-detail-avatar" src={ch.portrait_url} alt={ch.name} />
+              : <div className="char-detail-avatar char-detail-avatar--empty"><UserOutlined /></div>}
+            <div className="char-detail-head-main">
+              <div className="char-detail-name">{ch.name}</div>
+              <div className="char-detail-chips">
+                <Tag color={roleColor}>{roleLabel}</Tag>
+                <Tag>{statusLabel}</Tag>
+                <span className="char-detail-meta">{genderText}{ch.age ? ` · ${ch.age}岁` : ''}</span>
+                <span className="char-detail-meta">🔗 {relCount} 个关系</span>
+                {orgs.length > 0 && (
+                  <span className="char-detail-meta">🏛 {orgs.map(o => o.name).join('、')}</span>
+                )}
+              </div>
+            </div>
+            <div className="char-detail-head-actions">
+              {!projectRefs.has(ch.id) && (
+                <>
+                  <Button size="small" icon={<ExperimentOutlined />} loading={filling}
+                    onClick={() => handleProjectFill(ch)}>AI 补齐</Button>
+                  <Button size="small" icon={<CameraOutlined />} loading={genPortrait}
+                    onClick={() => handleProjectPortrait(ch)}>生成剧照</Button>
+                  <Button size="small" icon={<MergeCellsOutlined />}
+                    onClick={() => { setMergeTargetId(''); setMergeOpen(true) }}>合并</Button>
+                </>
+              )}
+              <Button size="small" icon={<TeamOutlined />} onClick={() => { setProjectEdit(null); navigateToCharacterLib() }}>
+                在角色库编辑
+              </Button>
+            </div>
           </div>
-          <div>
-            <Typography.Text style={{ fontSize: 11, color: C('color-text-secondary') }}>本书状态</Typography.Text>
-            <Select size="small" value={peStatus} onChange={setPeStatus} style={{ width: '100%', marginTop: 4 }}
-              options={statusOptions} />
+
+          {/* 双栏：全局信息 / 本书局部设定 */}
+          <div className="char-detail-cols">
+            <section className="char-detail-col">
+              <div className="char-detail-section-title">
+                <GlobalOutlined />全局信息
+                <Tag className="char-detail-section-tag">只读 · 来自角色库</Tag>
+              </div>
+              <div className="char-detail-fields">
+                {globalFields.map(f => (
+                  <div key={f.label} className="char-detail-field">
+                    <div className="char-detail-field-label">{f.label}</div>
+                    <div className={`char-detail-field-value${f.value ? '' : ' is-empty'}`}>
+                      {f.value || '（未填写）'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="char-detail-col char-detail-col--local">
+              <div className="char-detail-section-title">
+                <BookOutlined />本书局部设定
+                <Tag className="char-detail-section-tag">仅本小说生效</Tag>
+              </div>
+              <div className="char-detail-form">
+                <div className="char-detail-form-item">
+                  <label>本书定位</label>
+                  <Select size="small" value={peRole} onChange={setPeRole} style={{ width: '100%' }} options={roleOptions} />
+                </div>
+                <div className="char-detail-form-item">
+                  <label>本书状态</label>
+                  <Select size="small" value={peStatus} onChange={setPeStatus} style={{ width: '100%' }} options={statusOptions} />
+                </div>
+                <div className="char-detail-form-item">
+                  <label>本书弧线状态（覆盖全局弧线）</label>
+                  <Input.TextArea size="small" rows={4} value={peArc} onChange={e => setPeArc(e.target.value)}
+                    placeholder="如：第一卷结尾黑化；第二卷开始救赎…"
+                    style={{ fontSize: 12.5 }} />
+                </div>
+                <div className="char-detail-hint">
+                  未填写项沿用全局值；这里的修改只影响本书，不会改动角色库。
+                </div>
+              </div>
+            </section>
           </div>
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <Typography.Text style={{ fontSize: 11, color: C('color-text-secondary') }}>本书弧线状态（覆盖全局弧线，仅本小说生效）</Typography.Text>
-          <Input.TextArea size="small" rows={2} value={peArc} onChange={e => setPeArc(e.target.value)}
-            placeholder="如：第一卷结尾黑化；第二卷开始救赎…"
-            style={{ marginTop: 4, fontSize: 12.5, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--border-subtle)', color: C('color-text') }} />
-        </div>
-        <div style={{ fontSize: 11, color: C('color-text-secondary'), borderTop: '1px solid var(--border-subtle)', paddingTop: 10 }}>
-          全局设定（只读）：{(projectEdit.personality || projectEdit.background || projectEdit.appearance || projectEdit.motivation)
-            ? [projectEdit.personality && `性格：${projectEdit.personality}`, projectEdit.background && `背景：${projectEdit.background}`,
-               projectEdit.appearance && `外貌：${projectEdit.appearance}`, projectEdit.motivation && `动机：${projectEdit.motivation}`]
-              .filter(Boolean).join('；')
-            : '（未填写）'}
-        </div>
-      </Modal>
+      </Drawer>
     )
   }
 
@@ -350,37 +484,50 @@ const CharacterPage: React.FC = () => {
       {drawResult.length === 0 ? (
         <Empty description="抽到的角色会显示在这里，点「加入本书」引用" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 40 }} />
       ) : (
-        <Row gutter={[10, 10]}>
+        <div className="char-grid char-grid--slim">
           {drawResult.map(c => {
             const added = projectRefs.has(c.id)
             return (
-              <Col key={c.id} xs={24} sm={12} lg={8}>
-                <div style={{
-                  padding: 10, borderRadius: 12, border: '1px solid var(--md-sys-color-outline-variant)',
-                  background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
-                  display: 'flex', gap: 10, alignItems: 'center',
-                }}>
-                  {c.portraitUrl
-                    ? <img src={c.portraitUrl} alt={c.name} style={{ width: 42, height: 42, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
-                    : <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(244,114,182,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <UserOutlined style={{ color: '#f472b6' }} />
-                      </div>}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, color: C('color-text') }}>{c.name}</div>
-                    <div style={{ fontSize: 10.5, color: C('color-text-secondary'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {c.roleType ? roleOptions.find(r => r.value === c.roleType)?.label || c.roleType : '未设定位'}
-                      {c.tags?.length ? ` · ${c.tags.slice(0, 2).join('、')}` : ''}
-                    </div>
+              <div key={c.id} className="char-draw-card">
+                {c.portraitUrl
+                  ? <img className="char-draw-avatar" src={c.portraitUrl} alt={c.name} />
+                  : <div className="char-draw-fallback"><UserOutlined /></div>}
+                <div className="char-draw-info">
+                  <div className="char-draw-name">{c.name}</div>
+                  <div className="char-draw-sub">
+                    {c.roleType ? roleOptions.find(r => r.value === c.roleType)?.label || c.roleType : '未设定位'}
+                    {c.tags?.length ? ` · ${c.tags.slice(0, 2).join('、')}` : ''}
                   </div>
-                  {added
-                    ? <Tag style={{ margin: 0 }}>已加入</Tag>
-                    : <Button size="small" type="primary" icon={<SwapOutlined />} onClick={() => handleAddDrawn(c)}>加入</Button>}
                 </div>
-              </Col>
+                {added
+                  ? <Tag style={{ margin: 0 }}>已加入</Tag>
+                  : <Button size="small" type="primary" icon={<SwapOutlined />} onClick={() => handleAddDrawn(c)}>加入</Button>}
+              </div>
             )
           })}
-        </Row>
+        </div>
       )}
+    </Modal>
+  )
+
+  // ── 合并角色弹窗：同一人的不同称呼合并为一张卡 ──
+  const renderMergeModal = () => (
+    <Modal open={mergeOpen} title={`合并「${projectEdit?.name || ''}」到其他角色`}
+      onCancel={() => { setMergeOpen(false); setMergeTargetId('') }}
+      onOk={handleMergeConfirm} okText="合并" okButtonProps={{ disabled: !mergeTargetId }}
+      width={460}>
+      <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 0 }}>
+        用于同一人不同称呼的角色卡（如只是换了名字）。合并后保留目标角色，当前角色的空缺信息会被补充，关系与组织引用自动重定向。
+      </Typography.Paragraph>
+      <Select
+        placeholder="选择要保留的角色…"
+        style={{ width: '100%' }}
+        value={mergeTargetId || undefined}
+        onChange={setMergeTargetId}
+        options={characters
+          .filter(c => c.id !== projectEdit?.id)
+          .map(c => ({ value: c.id, label: `${c.name}${c.role_type ? `（${roleLabels[c.role_type] || c.role_type}）` : ''}` }))}
+      />
     </Modal>
   )
 
@@ -392,8 +539,8 @@ const CharacterPage: React.FC = () => {
       children: (
         <>
           {characters.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-              <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, flexShrink: 0 }}>筛选:</Typography.Text>
+            <div className="char-toolbar">
+              <Typography.Text className="char-toolbar-label">筛选</Typography.Text>
               <Select size="small" value={filterGender} onChange={setFilterGender} style={{ width: 90 }}
                 options={[{ label: '全部性别', value: '' }, { label: '♂ 男', value: 'male' }, { label: '♀ 女', value: 'female' }]} />
               <Select size="small" value={filterRole} onChange={setFilterRole} style={{ width: 100 }}
@@ -408,29 +555,38 @@ const CharacterPage: React.FC = () => {
               )}
             </div>
           )}
-          {characters.length === 0 ? (
+          {loading ? (
+            <div className="char-grid">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="char-card-skeleton">
+                  <div className="char-card-skeleton--portrait" />
+                  <div className="char-card-skeleton--line" />
+                  <div className="char-card-skeleton--line short" />
+                </div>
+              ))}
+            </div>
+          ) : characters.length === 0 ? (
             <Empty description="本书还没有角色，去角色库抽卡吧" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 80 }}>
               <Button type="primary" icon={<ThunderboltOutlined />} onClick={() => setDrawOpen(true)}>抽卡</Button>
             </Empty>
           ) : filteredCharacters.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: C('color-text-secondary'), fontSize: 12 }}>
+            <div className="char-empty" style={{ textAlign: 'center', color: C('color-text-secondary'), fontSize: 12 }}>
               没有匹配筛选条件的角色
             </div>
           ) : (
-            <Row gutter={[12, 12]}>
+            <div className="char-grid">
               {filteredCharacters.map(ch => {
                 const relCount = relationships.filter(r => r.from_id === ch.id || r.to_id === ch.id).length
                 return (
-                  <Col key={ch.id} xs={24} sm={12} lg={8} xl={6}>
-                    <CharacterCard
-                      character={ch} relationCount={relCount}
-                      onClick={() => openProjectEdit(ch)}
-                      onPortraitFullscreen={setPortraitFullscreen}
-                    />
-                  </Col>
+                  <CharacterCard
+                    key={ch.id}
+                    character={ch} relationCount={relCount}
+                    onClick={() => openProjectEdit(ch)}
+                    onPortraitFullscreen={setPortraitFullscreen}
+                  />
                 )
               })}
-            </Row>
+            </div>
           )}
         </>
       ),
@@ -439,17 +595,15 @@ const CharacterPage: React.FC = () => {
       key: 'orgs',
       label: <span><ApartmentOutlined /> 组织 ({organizations.length})</span>,
       children: organizations.length === 0 ? (
-        <Empty description="暂无组织" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 80 }}>
+        <Empty description="暂无组织，新建一个试试" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 80 }}>
           <Button icon={<PlusOutlined />} onClick={handleNewOrg}>新建组织</Button>
         </Empty>
       ) : (
-        <Row gutter={[12, 12]}>
+        <div className="char-grid char-grid--slim">
           {organizations.map(org => (
-            <Col key={org.id} xs={24} sm={12} lg={8} xl={6}>
-              <OrganizationCard organization={org} onClick={() => { setModalOrg(org); setEditOrg({ ...org }) }} />
-            </Col>
+            <OrganizationCard key={org.id} organization={org} onClick={() => { setModalOrg(org); setEditOrg({ ...org }) }} />
           ))}
-        </Row>
+        </div>
       ),
     },
     {
@@ -491,36 +645,41 @@ const CharacterPage: React.FC = () => {
   ]
 
   return (
-    <div style={{ height: 'calc(100vh - 112px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="char-panel-root">
       {/* 旧数据迁移提示：小说只引用角色库，旧项目角色需一次性入库 */}
       {unimported.length > 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, flexShrink: 0,
-          background: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.25)', fontSize: 12,
-        }}>
+        <div className="char-migration-banner">
           <span style={{ color: C('color-text') }}>检测到 {unimported.length} 个旧项目角色尚未进入角色库（{unimported.slice(0, 3).map(c => c.name).join('、')}…）。迁入后本书只引用角色库，不再自己生成角色。</span>
-          <Button size="small" icon={<ImportOutlined />} onClick={handleImportLegacy}>一次性迁移</Button>
+          <Button size="small" type="primary" ghost icon={<ImportOutlined />} onClick={handleImportLegacy}>一次性迁移</Button>
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexShrink: 0 }}>
-        <Space>
-          <Button size="small" icon={<TeamOutlined />} onClick={navigateToCharacterLib}
-            style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(96, 165, 250, 0.3)', color: '#60a5fa', borderRadius: 'var(--radius-md)' }}>去角色库</Button>
-          <Button size="small" icon={<SyncOutlined />} onClick={handleSync} loading={syncing}
-            disabled={unimported.length > 0}
-            style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(96, 165, 250, 0.3)', color: '#60a5fa', borderRadius: 'var(--radius-md)' }}>同步</Button>
-          <Button size="small" type="primary" icon={<ThunderboltOutlined />} onClick={() => setDrawOpen(true)}
-            style={{ boxShadow: 'var(--shadow-glow)', borderRadius: 'var(--radius-md)' }}>抽卡</Button>
-        </Space>
+      {/* 头部信息栏 */}
+      <div className="char-panel-header">
+        <span className="char-panel-title"><TeamOutlined />角色面板</span>
+        <div className="char-panel-stats">
+          <span className="char-panel-stat">角色 <strong>{characters.length}</strong></span>
+          <span className="char-panel-stat">组织 <strong>{organizations.length}</strong></span>
+          <span className="char-panel-stat">关系 <strong>{relationships.length}</strong></span>
+          {unimported.length > 0 && (
+            <span className="char-panel-stat is-warn">未入库 <strong>{unimported.length}</strong></span>
+          )}
+        </div>
+        <div className="char-panel-actions">
+          <Button size="small" icon={<TeamOutlined />} onClick={navigateToCharacterLib}>去角色库</Button>
+          <Button size="small" icon={<SyncOutlined />} onClick={handleSync} loading={syncing} disabled={unimported.length > 0}>同步</Button>
+          <Button size="small" type="primary" icon={<ThunderboltOutlined />} onClick={() => setDrawOpen(true)}>抽卡</Button>
+        </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        <Tabs className="novel-tabs" items={tabItems} size="small" style={{ color: C('color-text'), flex: 1, minHeight: 0 }} tabBarStyle={{ borderColor: C('color-border') }} />
+      {/* 主面板 */}
+      <div className="char-panel-main">
+        <Tabs className="char-tabs novel-tabs" items={tabItems} size="small" style={{ color: C('color-text'), flex: 1, minHeight: 0 }} tabBarStyle={{ borderColor: C('color-border') }} />
       </div>
 
-      {renderProjectEditModal()}
+      {renderProjectDetail()}
       {renderDrawModal()}
+      {renderMergeModal()}
 
       {/* 组织编辑弹窗 */}
       <OrganizationEditModal

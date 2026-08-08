@@ -189,13 +189,16 @@ func (a *Agent) GeneratePortrait(ctx context.Context, charID string, model strin
 	}
 
 	// 构建智能 prompt — 跳过空字段
+	prompt := buildNovelPortraitPrompt(*target)
 	if model == "" {
 		model = a.cfg.ImageModel
 	}
 	req := &ai.ImageGenerationRequest{
-		Model: model,
-		N:     1,
-		Size:  "1024x1024",
+		Model:    model,
+		Prompt:   prompt,
+		Negative: "文字, 水印, 签名, 低质量, 模糊, 肢体变形, 多余手指, 多眼多嘴",
+		N:        1,
+		Size:     "1024x1024",
 	}
 
 	resp, err := a.client.GenerateImage(ctx, req)
@@ -226,6 +229,32 @@ func (a *Agent) GeneratePortrait(ctx context.Context, charID string, model strin
 	}
 
 	return portraitURL, nil
+}
+
+// buildNovelPortraitPrompt 按小说角色字段构建剧照 prompt（跳过空字段），
+// 统一前置写实摄影风格词，与角色库剧照保持一致。
+func buildNovelPortraitPrompt(c types.Character) string {
+	parts := []string{ai.PortraitStylePrefix + "角色剧照，" + c.Name}
+	if c.Gender != "" {
+		parts = append(parts, c.Gender)
+	}
+	if c.Age != "" {
+		parts = append(parts, "年龄"+c.Age)
+	}
+	if c.Appearance != "" {
+		parts = append(parts, "外貌："+c.Appearance)
+	}
+	if c.Figure != "" {
+		parts = append(parts, "身材："+c.Figure)
+	}
+	if c.Personality != "" {
+		parts = append(parts, "气质："+c.Personality)
+	}
+	if c.Background != "" {
+		parts = append(parts, "背景："+c.Background)
+	}
+	parts = append(parts, "半身像，居中构图，干净简洁背景")
+	return strings.Join(parts, "。")
 }
 
 // savePortraitToProject 将剧照 base64 数据保存到项目 portraits/ 子目录

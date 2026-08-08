@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ClipboardEvent, DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { ArrowUp, Check, ChevronDown, FolderGit2, FolderPlus, Paperclip, Search, Square, X } from "../icons";
+import { ArrowUp, Camera, Check, ChevronDown, Eye, FolderGit2, FolderPlus, Loader, Paperclip, Search, Square, X, Zap } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import { clearLayoutSize, loadOptionalLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
 import type { CommandInfo, DirEntry, SlashArgItem, SlashArgsResult, WorkspaceView } from "../lib/types";
+import { useToast } from "./Toast";
 import { SlashMenu } from "./SlashMenu";
 import { ArgMenu } from "./ArgMenu";
 import { FileMenu } from "./FileMenu";
 import { usePasteBlocks, PasteBlocksUI } from "./PasteManager";
+import { ScreenCropOverlay } from "./ScreenCropOverlay";
 
 interface Attachment { path: string; previewUrl: string; type: "image" | "file"; }
 
@@ -45,10 +47,14 @@ export function Composer({
   onPickFolder: (path?: string) => Promise<string>; disabled?: boolean;
 }) {
   const t = useT();
+  const toast = useToast();
   const [text, setText] = useState("");
   const debouncedText = useDebounce(text, 80);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [pendingPaste, setPendingPaste] = useState(0);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [captureBusy, setCaptureBusy] = useState(false);
+  const [recognizingPath, setRecognizingPath] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -67,13 +73,32 @@ export function Composer({
   // 排队
   const queueRef = useRef<string[]>([]);
   const [queueLen, setQueueLen] = useState(0);
+  const [queueDisplay, setQueueDisplay] = useState<string[]>([]); // 可视化队列列表
+  const correctionRef = useRef<string | null>(null);               // 纠正模式待发送文本
   const onSendRef = useRef(onSend);
   onSendRef.current = onSend;
+  // Shift 键追踪（用于发送按钮提示 / 纠正发送）
+  const [shiftHeld, setShiftHeld] = useState(false);
   useEffect(() => {
+    const onDown = (e: globalThis.KeyboardEvent) => { if (e.key === "Shift") setShiftHeld(true); };
+    const onUp = (e: globalThis.KeyboardEvent) => { if (e.key === "Shift") setShiftHeld(false); };
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    return () => { window.removeEventListener("keydown", onDown); window.removeEventListener("keyup", onUp); };
+  }, []);
+  useEffect(() => {
+    // 纠正模式优先：取消后 running→false，立即发送纠正文本
+    if (!running && correctionRef.current) {
+      const correction = correctionRef.current;
+      correctionRef.current = null;
+      onSendRef.current(correction, correction);
+      return;
+    }
     if (!running && queueRef.current.length > 0) {
       const timer = setTimeout(() => {
         const next = queueRef.current.shift()!;
         setQueueLen(queueRef.current.length);
+        setQueueDisplay([...queueRef.current]);
         onSendRef.current(next, next);
       }, 50);
       return () => clearTimeout(timer);
@@ -151,7 +176,14 @@ export function Composer({
       } catch {}
     }
     setHistoryIndex(-1);
-    if (running) { queueRef.current.push(submitText); setQueueLen(queueRef.current.length); setText(""); setAttachments([]); return; }
+    if (running) {
+      queueRef.current.push(submitText);
+      setQueueLen(queueRef.current.length);
+      setQueueDisplay([...queueRef.current]);
+      setText("");
+      setAttachments([]);
+      return;
+    }
     onSend(displayText, submitText); setText(""); setAttachments([]);
   };
 
@@ -218,7 +250,20 @@ export function Composer({
   };
   const onDragLeave = () => setDragOver(false);
 
-  const handleCancel = () => { queueRef.current = []; setQueueLen(0); const restored = onCancel(); if (typeof restored === "string") setTextCaretEnd(restored); };
+  const handleCancel = () => {
+    queueRef.current = [];
+    setQueueLen(0);
+    setQueueDisplay([]);
+    const restored = onCancel();
+    if (typeof restored === "string") setTextCaretEnd(restored);
+  };
+
+  // 逐条取消排队
+  const cancelQueueItem = (index: number) => {
+    queueRef.current.splice(index, 1);
+    setQueueLen(queueRef.current.length);
+    setQueueDisplay([...queueRef.current]);
+  };
 
   // 导入文件：通过原生对话框选择文件
   const handlePickFiles = async () => {
@@ -236,6 +281,56 @@ export function Composer({
       }
     } catch {
       // 静默处理（旧后端不支持）
+    }
+  };
+
+  // ── 截图：整屏捕获 → 裁剪浮层 → 复用图片附件流程 ──
+  const handleScreenshot = async () => {
+    if (running || captureBusy) return;
+    setCaptureBusy(true);
+    try {
+      const dataUrl = await app.CaptureScreen();
+      setCropSrc(dataUrl);
+    } catch (e: any) {
+      toast.show(String(e?.message ?? e), "warn");
+    } finally {
+      setCaptureBusy(false);
+    }
+  };
+
+  const handleCropConfirm = async (dataUrl: string) => {
+    setCropSrc(null);
+    setPendingPaste((n) => n + 1);
+    try {
+      const path = await app.SavePastedImage(dataUrl);
+      const previewUrl = await app.AttachmentDataURL(path);
+      setAttachments((prev) => [...prev, { path, previewUrl, type: "image" }]);
+    } catch (e: any) {
+      toast.show(String(e?.message ?? e), "warn");
+    } finally {
+      setPendingPaste((n) => Math.max(0, n - 1));
+    }
+  };
+
+  // ── 识图：本地视觉模型识别附件图片，把结果作为用户消息发给助手 ──
+  const handleRecognize = async (att: Attachment) => {
+    if (running || recognizingPath) return;
+    setRecognizingPath(att.path);
+    try {
+      const desc = await app.RecognizeImage(
+        att.path,
+        "请详细描述这张图片的内容，包括所有可见文字、布局和关键细节。",
+      );
+      const name = att.path.split(/[/\\]/).pop() || att.path;
+      const msg = `【图片识图：${name}】\n${desc}`;
+      setText("");
+      setAttachments((prev) => prev.filter((x) => x.path !== att.path));
+      onSendRef.current(msg, msg);
+      toast.show("识别完成，已发送给助手");
+    } catch (e: any) {
+      toast.show(String(e?.message ?? e), "warn");
+    } finally {
+      setRecognizingPath(null);
     }
   };
 
@@ -297,6 +392,32 @@ export function Composer({
       if (e.key === "ArrowUp" && text === "") { e.preventDefault(); navigateHistory(1); return; }
       if (e.key === "ArrowDown" && historyIndex >= 0) { e.preventDefault(); navigateHistory(-1); return; }
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown" && historyIndex >= 0) setHistoryIndex(-1);
+    }
+    if (e.key === "Enter" && e.shiftKey && !composing) {
+      // 纠正模式：Shift+Enter → 清空队列 + 取消当前轮次 + 立即发送新文本
+      e.preventDefault();
+      if (disabled) return;
+      const tTrim = text.trim();
+      if ((!tTrim && attachments.length === 0) || pendingPaste > 0) return;
+      const refs = attachments.map((a) => `@${a.path}`).join(" ");
+      const displayText = [tTrim, refs].filter(Boolean).join(tTrim && refs ? " " : "");
+      const submitText = [paste.expandBlocks(tTrim), refs].filter(Boolean).join(tTrim && refs ? " " : "");
+      if (displayText.trim()) {
+        try {
+          const history = JSON.parse(sessionStorage.getItem(INPUT_HISTORY_KEY) || "[]") as string[];
+          history.unshift(displayText);
+          sessionStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_INPUT_HISTORY)));
+        } catch {}
+      }
+      setHistoryIndex(-1);
+      queueRef.current = [];
+      setQueueLen(0);
+      setQueueDisplay([]);
+      onCancel();
+      correctionRef.current = submitText;
+      setText("");
+      setAttachments([]);
+      return;
     }
     if (e.key === "Enter" && !e.shiftKey && !composing) { e.preventDefault(); submit(); }
     if (e.key === "Escape" && running) { e.preventDefault(); handleCancel(); }
@@ -396,6 +517,17 @@ export function Composer({
                 </svg>
               )}
               <span className="max-w-[120px] truncate text-fg-dim font-mono text-[11px]">{a.path.split("/").pop()}</span>
+              {a.type === "image" && (
+                <button
+                  type="button"
+                  className="flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded text-fg-dim cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+                  title={running ? "助手回复中，稍后再试" : "识图：本地视觉模型识别图片内容"}
+                  disabled={running || !!recognizingPath}
+                  onClick={() => void handleRecognize(a)}
+                >
+                  {recognizingPath === a.path ? <Loader size={12} className="animate-spin" /> : <Eye size={12} />}
+                </button>
+              )}
               <button type="button" className="flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded text-fg-faint cursor-pointer hover:text-err hover:bg-bg-soft transition-colors" title="移除" onClick={() => setAttachments((prev) => prev.filter((x) => x.path !== a.path))}><X size={13} /></button>
             </div>
           ))}
@@ -410,6 +542,25 @@ export function Composer({
         onExpand={paste.expandBlock}
         onRemove={paste.removeBlock}
       />
+
+      {/* ── 排队列表 ── */}
+      {running && queueDisplay.length > 0 && (
+        <div className="mb-2 max-h-[120px] overflow-y-auto rounded-xl border border-border-soft bg-bg-elev px-2 py-1.5">
+          <div className="text-fg-faint/50 text-[10px] font-medium px-2 pb-1 select-none">排队中 ({queueDisplay.length})</div>
+          {queueDisplay.map((item, i) => (
+            <div key={i} className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-bg-soft group transition-colors duration-100">
+              <span className="text-xs text-fg-dim flex-1 truncate">{item.slice(0, 80)}</span>
+              <button
+                className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-5 h-5 border-0 rounded bg-transparent text-fg-faint hover:text-err hover:bg-err/10 cursor-pointer transition-all duration-150"
+                onClick={() => cancelQueueItem(i)}
+                title="取消排队"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── 输入卡片 ── */}
       <div
@@ -445,13 +596,15 @@ export function Composer({
             </button>
           )}
           <button
-            className={`inline-flex items-center justify-center w-[32px] h-[32px] border-0 rounded-full cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] active:scale-95 ${running ? "bg-bg-elev-2 text-fg-dim hover:bg-accent hover:text-accent-fg hover:scale-105" : "bg-accent text-accent-fg hover:brightness-110"} disabled:bg-bg-elev-2 disabled:text-fg-faint disabled:cursor-default disabled:hover:scale-100 disabled:active:scale-100 disabled:shadow-none`}
+            className={`inline-flex items-center justify-center w-[32px] h-[32px] border-0 rounded-full cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] active:scale-95 ${running ? (shiftHeld ? "bg-warn/20 text-warn hover:bg-warn hover:text-white shadow-[0_0_8px_var(--warn)]" : "bg-bg-elev-2 text-fg-dim hover:bg-accent hover:text-accent-fg hover:scale-105") : "bg-accent text-accent-fg hover:brightness-110"} disabled:bg-bg-elev-2 disabled:text-fg-faint disabled:cursor-default disabled:hover:scale-100 disabled:active:scale-100 disabled:shadow-none`}
             style={!running && !disabled ? {boxShadow: "var(--ds-shadow-accent-btn)"} : undefined}
             onClick={submit}
             disabled={disabled || pendingPaste > 0 || (!text.trim() && attachments.length === 0 && (!running || queueLen === 0))}
-            title={running ? (queueLen > 0 ? `排队发送 (${queueLen})` : t("composer.queue")) : t("composer.send")}
+            title={running ? (shiftHeld ? "纠正发送（Shift+Enter）" : queueLen > 0 ? `排队发送 (${queueLen})` : t("composer.queue")) : t("composer.send")}
           >
-            {running && queueLen > 0 ? (
+            {running && shiftHeld ? (
+              <Zap size={16} />
+            ) : running && queueLen > 0 ? (
               <span className="text-xs font-semibold leading-none">{queueLen}</span>
             ) : (
               <ArrowUp size={16} />
@@ -486,6 +639,16 @@ export function Composer({
             <Paperclip size={14} />
           </button>
 
+          {/* 截图按钮：整屏捕获后裁剪并附加 */}
+          <button
+            className={`inline-flex items-center justify-center w-[28px] h-[28px] border-0 rounded-md bg-transparent text-fg-dim cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-bg-soft disabled:cursor-default disabled:opacity-40 shrink-0 ${captureBusy ? "pointer-events-none opacity-40" : ""}`}
+            onClick={() => void handleScreenshot()}
+            disabled={running || captureBusy}
+            title={running ? t("common.busyHint") : "截图：捕获屏幕并裁剪附加"}
+          >
+            {captureBusy ? <Loader size={14} className="animate-spin" /> : <Camera size={14} />}
+          </button>
+
           {/* 权限级别选择器：询问 / 自动 / YOLO */}
           <div className="flex gap-[3px]">
             {(["ask", "auto", "yolo"] as const).map((level) => {
@@ -512,9 +675,19 @@ export function Composer({
           <span className="ml-auto text-fg-faint/40 text-[10px] select-none hidden sm:inline-flex items-center gap-1.5">
             <span>/ 命令</span>
             <span>@ 文件</span>
+            {running && <span className="text-warn/60">Shift+Enter 纠正</span>}
           </span>
         </div>
       </div>
+
+      {/* 截图裁剪浮层 */}
+      {cropSrc && (
+        <ScreenCropOverlay
+          src={cropSrc}
+          onCancel={() => setCropSrc(null)}
+          onConfirm={(d) => void handleCropConfirm(d)}
+        />
+      )}
     </div>
   );
 }

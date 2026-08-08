@@ -10,12 +10,21 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/vision"
 )
 
 // maxFileRefBytes caps how much of an @-referenced file is injected into a
 // message, so "@somehuge.log" can't blow the context window. The head is kept
 // and the rest noted as truncated.
 const maxFileRefBytes = 64 * 1024
+
+// visionRecognize 图片识图入口（可注入以便测试）。识别失败时回退为
+// 原有占位提示，保证 @图片 引用始终能进入上下文。
+var visionRecognize = vision.RecognizeImage
+
+// maxVisionTextBytes 限制注入的识图文本长度，避免撑爆上下文。
+const maxVisionTextBytes = 1200
 
 // refKind distinguishes the two things an @reference can resolve to.
 type refKind int
@@ -118,16 +127,51 @@ func (c *Controller) ResolveRefs(ctx context.Context, line string) (block string
 				errs = append(errs, "@"+r.raw+" — "+err.Error())
 				continue
 			}
-			tag := "file"
 			if isDir {
-				tag = "dir"
+				appendRefBlock(&b, "dir", `path="`+r.path+`"`, text)
+				continue
 			}
-			appendRefBlock(&b, tag, `path="`+r.path+`"`, text)
+			if isImagePath(r.path) {
+				c.appendImageBlock(ctx, &b, r)
+				continue
+			}
+			appendRefBlock(&b, "file", `path="`+r.path+`"`, text)
 		case refImage:
-			appendRefBlock(&b, "image", `path="`+r.path+`"`, "[image attachment available at @"+r.path+"; use an image/OCR/vision MCP tool if visual understanding is needed]")
+			c.appendImageBlock(ctx, &b, r)
 		}
 	}
 	return b.String(), errs
+}
+
+// appendImageBlock 识别图片并把结果注入引用块；识别失败时回退占位提示。
+func (c *Controller) appendImageBlock(ctx context.Context, b *strings.Builder, r ref) {
+	desc, err := visionRecognize(ctx, r.path, "")
+	if err != nil || strings.TrimSpace(desc) == "" {
+		msg := "[image attachment available at @" + r.path + "; use an image/OCR/vision MCP tool if visual understanding is needed]"
+		if err != nil {
+			msg = "[图片附件 @" + r.path + " 识图失败：" + err.Error() + "]"
+		}
+		appendRefBlock(b, "image", `path="`+r.path+`"`, msg)
+		return
+	}
+	appendRefBlock(b, "image", `path="`+r.path+`"`, "【图片识别】\n"+truncateVision(desc))
+}
+
+// isImagePath 按扩展名判断是否为图片文件（refFile 命中图片时也走识图）。
+func isImagePath(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif":
+		return true
+	}
+	return false
+}
+
+// truncateVision 截断识图文本到最大长度。
+func truncateVision(s string) string {
+	if len(s) <= maxVisionTextBytes {
+		return s
+	}
+	return s[:maxVisionTextBytes] + "…[已截断]"
 }
 
 func appendRefBlock(b *strings.Builder, tag, attr, body string) {

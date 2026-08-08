@@ -7,12 +7,15 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/ai"
+	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 	"github.com/gaea/gaea/internal/util"
 )
 
-func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string, skillName string) (map[string]interface{}, error) {
+// CreateChapter 生成章节。minWords 为单章目标字数（<=0 使用默认 5000）；
+// temperature 为生成温度（<=0 使用模型服务端默认值）。
+func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64) (map[string]interface{}, error) {
 	if a.client == nil {
 		return nil, fmt.Errorf("AI client not ready")
 	}
@@ -74,7 +77,9 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 			slog.Warn("CreateChapter Skill 未找到", "skill", skillMD)
 		}
 	}
-	const minWords = 5000
+	if minWords <= 0 {
+		minWords = 5000
+	}
 	const maxContinues = 20
 	// 5. 确定/创建节点（同步，前端立即可用）
 	targetNum, nodeID, branch := a.ensureChapterNode(pm, of, chapterNum, branchFromNodeID)
@@ -83,7 +88,7 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	}
 
 	// 启动流式生成 + 字数守卫（续写模式）
-	go a.streamCreateChapter(pm, of, setting, prevSummary, plotReq, chapterNum, branchFromNodeID, systemPrompt, userPrompt, minWords, maxContinues, targetNum, nodeID, branch)
+	go a.streamCreateChapter(pm, of, setting, prevSummary, plotReq, chapterNum, branchFromNodeID, systemPrompt, userPrompt, minWords, maxContinues, temperature, targetNum, nodeID, branch)
 
 	return map[string]interface{}{
 		"streaming":  true,
@@ -94,7 +99,7 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 }
 
 // streamCreateChapter 在后台 goroutine 中流式生成章节，字数不足时续写
-func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID, systemPrompt, userPrompt string, minWords, maxContinues int, targetNum int, nodeID string, branch string) {
+func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID, systemPrompt, userPrompt string, minWords, maxContinues int, temperature float64, targetNum int, nodeID string, branch string) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("CreateChapter stream panic", "panic", r)
@@ -136,11 +141,15 @@ func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.Outlin
 			"user":   currentPrompt,
 		})
 
-		chunks, err := a.client.ChatStream(a.ctx, &ai.ChatRequest{
+		req := &ai.ChatRequest{
 			Model:    featModel,
 			EngineID: featEng,
 			Messages: []ai.ChatMessage{{Role: "system", Content: systemPrompt}, {Role: "user", Content: currentPrompt}},
-		})
+		}
+		if temperature > 0 {
+			req.Temperature = temperature
+		}
+		chunks, err := a.client.ChatStream(a.ctx, req)
 		if err != nil {
 			a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": err.Error()})
 			return
@@ -350,27 +359,47 @@ func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
 	return strings.Join(lines, "\n")
 }
 
-// extractNewCharacters 从章节摘要中提取新角色，与已有角色对照去重
-// 返回新角色名列表，如果全部已知则返回空
-func (a *writingState) extractNewCharacters(pm *project.Manager, summary *types.ChapterSummary) []string {
+// extractNewCharacters 从章节摘要中提取新角色，与项目角色 + 全局角色库对照去重。
+// 返回两部分：
+//   newChars       项目与角色库都没有的全新角色名
+//   libraryMatches 角色库中已有同名角色（前端提示直接关联，不新建）
+func (a *writingState) extractNewCharacters(pm *project.Manager, summary *types.ChapterSummary) (newChars []string, libraryMatches []characterlib.Character) {
 	if summary == nil || len(summary.CharactersAppeared) == 0 {
-		return nil
+		return nil, nil
 	}
-	cf, err := pm.ReadCharacters()
-	if err != nil || cf == nil {
-		return summary.CharactersAppeared // 无已有角色，全部算新
-	}
+
+	// 1. 对照项目 characters.json 去重
 	existingNames := make(map[string]bool)
-	for _, ch := range cf.Characters {
-		existingNames[ch.Name] = true
-	}
-	var newChars []string
-	for _, name := range summary.CharactersAppeared {
-		if !existingNames[name] && name != "" {
-			newChars = append(newChars, name)
+	if cf, err := pm.ReadCharacters(); err == nil && cf != nil {
+		for _, ch := range cf.Characters {
+			existingNames[ch.Name] = true
 		}
 	}
-	return newChars
+	var unknown []string
+	for _, name := range summary.CharactersAppeared {
+		if name == "" || existingNames[name] {
+			continue
+		}
+		unknown = append(unknown, name)
+	}
+	if len(unknown) == 0 {
+		return nil, nil
+	}
+
+	// 2. 对照全局角色库去重：库内已有同名 → 走关联而非新建
+	if a.app != nil && a.app.charLib != nil {
+		var remain []string
+		for _, name := range unknown {
+			c, err := a.app.charLib.FindByName(name)
+			if err != nil || c == nil {
+				remain = append(remain, name)
+				continue
+			}
+			libraryMatches = append(libraryMatches, *c)
+		}
+		unknown = remain
+	}
+	return unknown, libraryMatches
 }
 
 // extractCharactersAfterChapter 章节生成后异步提取角色
@@ -389,17 +418,30 @@ func (a *writingState) extractCharactersAfterChapter(pm *project.Manager, conten
 		return
 	}
 
-	// 2. 对照已有角色去重
-	newChars := a.extractNewCharacters(pm, summary)
-	if len(newChars) == 0 {
+	// 2. 对照项目 + 角色库去重
+	newChars, libMatches := a.extractNewCharacters(pm, summary)
+	if len(newChars) == 0 && len(libMatches) == 0 {
 		slog.Info("章节角色提取完成，无新角色", "chapter", chapterNum, "appeared", len(summary.CharactersAppeared))
 		return
 	}
 
-	// 3. 通知前端发现新角色
-	slog.Info("发现新角色", "chapter", chapterNum, "new", newChars)
-	a.emit("new-characters-discovered", map[string]interface{}{
+	// 3. 通知前端发现新角色（全新名字 + 库内已有同名角色）
+	payload := map[string]interface{}{
 		"chapterNum": chapterNum,
 		"characters": newChars,
-	})
+	}
+	if len(libMatches) > 0 {
+		matches := make([]map[string]interface{}, 0, len(libMatches))
+		for _, c := range libMatches {
+			matches = append(matches, map[string]interface{}{
+				"id":          c.ID,
+				"name":        c.Name,
+				"roleType":    c.RoleType,
+				"portraitUrl": c.PortraitURL,
+			})
+		}
+		payload["libraryMatches"] = matches
+	}
+	slog.Info("发现新角色", "chapter", chapterNum, "new", newChars, "libraryMatches", len(libMatches))
+	a.emit("new-characters-discovered", payload)
 }

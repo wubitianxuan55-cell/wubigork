@@ -29,10 +29,13 @@ type syspromptOut struct {
 // buildSystemPrompt assembles the L1 identity block: base system prompt +
 // output style + language policy + persistent memory + skills index. It also
 // scans the project profile and initialises the runtime context layer.
-func buildSystemPrompt(cfg *config.Config, stderrPath io.Writer) (*syspromptOut, error) {
+func buildSystemPrompt(cfg *config.Config, cwd string, stderrPath io.Writer) (*syspromptOut, error) {
 	sysPrompt, err := cfg.ResolveSystemPrompt()
 	if err != nil {
 		return nil, err
+	}
+	if cwd == "" {
+		cwd, _ = os.Getwd()
 	}
 	if st, ok := outputstyle.Resolve(cfg.Agent.OutputStyle, outputstyle.Dirs()); ok {
 		sysPrompt = outputstyle.Apply(sysPrompt, st)
@@ -44,7 +47,9 @@ func buildSystemPrompt(cfg *config.Config, stderrPath io.Writer) (*syspromptOut,
 	if _, err := memory.MigrateLegacyFileMemory(userDir, gdb); err != nil {
 		log.Printf("[hephaestus] 办公记忆迁移失败: %v", err)
 	}
-	mem := memory.Load(memory.Options{CWD: ".", UserDir: userDir, DB: gdb})
+	// 记忆发现（项目级 AGENTS.md/文档索引）基于工作区根，桌面端传入的是
+	// 用户选定的工作空间（opts.Cwd），而不是进程启动目录。
+	mem := memory.Load(memory.Options{CWD: cwd, UserDir: userDir, DB: gdb})
 	sysPrompt = memory.Compose(sysPrompt, mem)
 	builtin.SetMemorySearchIndex(mem.Search)
 	builtin.SetSearchConfig(cfg.Search)
@@ -52,7 +57,6 @@ func buildSystemPrompt(cfg *config.Config, stderrPath io.Writer) (*syspromptOut,
 		memory.InitDefaults(mem)
 	}
 
-	cwd, _ := os.Getwd()
 	skillStore := skill.New(skill.Options{ProjectRoot: cwd, CustomPaths: cfg.SkillCustomPaths(), Stderr: stderrPath})
 	skills := skillStore.List()
 	sysPrompt = skill.ApplyIndex(sysPrompt, skills)

@@ -129,7 +129,7 @@ export function makeMockApp(): AppBindings {
     ],
     permissions: { mode: "ask", allow: ["ls", "read_file"], ask: [], deny: ["bash(rm *)"] },
     sandbox: { bash: "enforce", network: true, workspaceRoot: "", allowWrite: [] },
-    agent: { temperature: 0.2, maxSteps: 0, systemPrompt: "You are gaea, a coding agent.", subagentTemperature: 0, effort: "", subagentEffort: "" },
+    agent: { temperature: 0.2, maxSteps: 0, systemPrompt: "你是 gaea 的通用办公助手，负责文档撰写与编辑、表格与数据处理、方案与报告编写等办公工作。所有思考和输出必须使用中文。", subagentTemperature: 0, effort: "", subagentEffort: "" },
     subagentModel: "",
     subagentModels: {},
     subagentSkills: ["explore", "research", "review", "security-review"],
@@ -146,20 +146,17 @@ export function makeMockApp(): AppBindings {
       if (cancelled) return;
       if (runningMock) await delay(1500); // simulate existing reasoning in progress
       const isPoetry = /(诗|古诗|词)/.test(input);
-      const isCodeReq = !isPoetry && /(写|创建|程序|代码|函数|排序)/.test(input);
       const think = isPoetry ? "用户想写诗，直接创作即可。"
-        : isCodeReq ? `用户说"${input}"，这是编程任务，先检查项目结构。`
-        : `用户说"${input}"，让我看看上下文再回复。`;
+        : `用户说"${input}"，先查看工作区里的资料再回复。`;
       for (const ch of think) { if (cancelled) break; emit({ kind: "reasoning", reasoning: ch }); await delay(12); }
       await delay(200);
-      emit({ kind: "tool_dispatch", tool: { id: "t1", name: "glob", args: '{"pattern":"**/*.go"}', readOnly: true } });
+      emit({ kind: "tool_dispatch", tool: { id: "t1", name: "ls", args: '{"path":"."}', readOnly: true } });
       await delay(400);
-      emit({ kind: "tool_result", tool: { id: "t1", name: "glob", output: "cmd/gaea/main.go\ninternal/agent/agent.go", readOnly: true } });
+      emit({ kind: "tool_result", tool: { id: "t1", name: "ls", output: "方案.md\n成本测算.md\n表格.xlsx", readOnly: true } });
       await delay(200);
       let reply: string;
       if (isPoetry) reply = "**《山居秋暝》**\n\n> 空山新雨后，天气晚来秋。\n> 明月松间照，清泉石上流。";
-      else if (isCodeReq) reply = `好的，"${input}"：项目是 Go，入口在 cmd/gaea/main.go。要具体实现什么？`;
-      else reply = `收到！**${input}**\n\nGo 项目 gaea，核心在 internal/。需要做什么？`;
+      else reply = `收到！**${input}**\n\n我先查看当前办公目录中的资料（方案、成本测算、表格等），整理好后给你。`;
       for (const ch of reply) { if (cancelled) break; emit({ kind: "text", text: ch }); await delay(10); }
       emit({ kind: "message", text: reply });
       emit({ kind: "usage", usage: { promptTokens: 1200, completionTokens: 200, totalTokens: 1400, cacheHitTokens: 800, cacheMissTokens: 400, sessionCacheHitTokens: 800, sessionCacheMissTokens: 400 } });
@@ -417,6 +414,13 @@ export function makeMockApp(): AppBindings {
     },
     async AttachmentDataURL(_path: string) {
       return "data:image/png;base64,iVBORw0KGgo=";
+    },
+    async CaptureScreen() {
+      // 1x1 红色 PNG，占位截图
+      return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    },
+    async RecognizeImage(_imagePath: string, _prompt: string) {
+      return "（开发预览）这是一张模拟识图结果：截图内容为一份通用办公任务清单。";
     },
     async Models() {
       return [

@@ -69,3 +69,47 @@ func TestProfileEmptyProject(t *testing.T) {
 		t.Errorf("empty project should render empty: %s", p.Render())
 	}
 }
+
+// TestProfileScanLanguageDetection 回归：办公文档目录不得被标成 Go 工程，
+// 工程语言必须来自实际清单文件（go.mod/package.json/tsconfig.json 等）。
+func TestProfileScanLanguageDetection(t *testing.T) {
+	// 纯办公/文档目录（即使含少量脚本）不应报告任何工程语言
+	office := t.TempDir()
+	os.MkdirAll(filepath.Join(office, "scripts"), 0755)
+	os.WriteFile(filepath.Join(office, "scripts", "check.py"), []byte("print(1)\n"), 0644)
+	os.WriteFile(filepath.Join(office, "方案.md"), []byte("# 方案\n"), 0644)
+
+	var p Profile
+	p.Scan(office)
+	if p.Language != "" {
+		t.Errorf("办公目录 Language = %q, want \"\"（不应误报工程语言）", p.Language)
+	}
+
+	// Go 工程（go.mod）→ Go
+	goDir := t.TempDir()
+	os.WriteFile(filepath.Join(goDir, "go.mod"), []byte("module example.com/test\n"), 0644)
+	var gp Profile
+	gp.Scan(goDir)
+	if gp.Language != "Go" {
+		t.Errorf("go.mod 目录 Language = %q, want Go", gp.Language)
+	}
+
+	// TypeScript 工程（tsconfig.json 优先于 package.json）
+	tsDir := t.TempDir()
+	os.WriteFile(filepath.Join(tsDir, "package.json"), []byte("{}\n"), 0644)
+	os.WriteFile(filepath.Join(tsDir, "tsconfig.json"), []byte("{}\n"), 0644)
+	var tp Profile
+	tp.Scan(tsDir)
+	if tp.Language != "TypeScript" {
+		t.Errorf("tsconfig 目录 Language = %q, want TypeScript", tp.Language)
+	}
+
+	// 纯 npm（仅 package.json）→ JavaScript
+	jsDir := t.TempDir()
+	os.WriteFile(filepath.Join(jsDir, "package.json"), []byte("{}\n"), 0644)
+	var jp Profile
+	jp.Scan(jsDir)
+	if jp.Language != "JavaScript" {
+		t.Errorf("package.json 目录 Language = %q, want JavaScript", jp.Language)
+	}
+}

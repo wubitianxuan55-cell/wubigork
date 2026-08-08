@@ -56,6 +56,26 @@ import App from './App.tsx'
   }, 3000)
 })()
 
+// ═══ 固定窗口缩放 ═══════════════════════════════════════════════════
+// WebView2 默认允许 Ctrl+滚轮 / 触控板捏合（映射为 Ctrl+滚轮）/ Ctrl+±
+// 缩放整个页面。这里在 JS 层拦截，让滚轮只滚动、窗口缩放保持固定 100%。
+;(function lockWindowZoom() {
+  const prevent = (e: Event) => e.preventDefault()
+  window.addEventListener(
+    'wheel',
+    (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault()
+    },
+    { passive: false },
+  )
+  document.addEventListener('gesturestart', prevent, { passive: false })
+  document.addEventListener('gesturechange', prevent, { passive: false })
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return
+    if (['+', '-', '=', '_', '0'].includes(e.key)) e.preventDefault()
+  })
+})()
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

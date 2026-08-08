@@ -4,7 +4,7 @@ import {
   CloudOutlined, CheckCircleOutlined,
   CloseCircleOutlined, ReloadOutlined, ThunderboltOutlined,
   DesktopOutlined, RocketOutlined, PictureOutlined, SoundOutlined, AudioOutlined,
-  CaretRightOutlined, SettingOutlined, LoginOutlined, LogoutOutlined, KeyOutlined,
+  CaretRightOutlined, SettingOutlined, LoginOutlined, LogoutOutlined, KeyOutlined, GlobalOutlined,
   LinkOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
@@ -15,7 +15,10 @@ import {
   getEngines, saveEngine, testEngineConnection,
   refreshEngineModels, setEngineDefaultModel,
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
-  type EngineConfig, type ModelInfo, type EngineStatus,
+  setOpencodeGoKey, getOpencodeGoKeyStatus,
+  setOpencodeZenKey, getOpencodeZenKeyStatus,
+  getModelCallStats, resetModelCallStats,
+  type EngineConfig, type ModelInfo, type EngineStatus, type ModelStatsSummary,
 } from '../api/engines'
 import {
   getConfig, saveConfig,
@@ -24,7 +27,7 @@ import {
 import { getPortraitConfig, setPortraitConfig } from '../api/image'
 import { startComfyUI, stopComfyUI, getComfyUIStatus } from '../api/image'
 
-type Category = 'llm' | 'image' | 'tts' | 'engine' | 'bind'
+type Category = 'llm' | 'image' | 'tts' | 'engine' | 'bind' | 'stats'
 
 interface ModelCardData {
   modelId: string; modelName: string
@@ -44,13 +47,170 @@ function classifyModel(id: string): ModelKind {
 }
 
 const engineIcons: Record<string, React.ReactNode> = {
-  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />,
+  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />,
 }
 const engineColors: Record<string, string> = {
-  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6',
+  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa',
 }
 const engineLabels: Record<string, string> = {
-  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端',
+  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端',
+}
+
+// ── 费用展示工具（与后端 usdToCny=7.2 保持一致） ────────────────
+const USD_TO_CNY = 7.2
+const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman'
+const costToCNY = (cost: number, currency?: string) => (currency === 'USD' ? cost * USD_TO_CNY : cost)
+const fmtCost = (cost?: number, currency?: string): string => {
+  const c = cost ?? 0
+  if (currency === 'USD') return `$${c.toFixed(2)}`
+  if (currency === 'CNY') return `¥${c.toFixed(2)}`
+  return ''
+}
+
+type StatsSort = 'calls' | 'tokens' | 'cost'
+type TrendRange = 'today' | '7d' | '30d'
+
+interface TrendDatum {
+  key: string
+  label: string
+  calls: number
+  successCalls: number
+  failCalls: number
+  inputTokens: number
+  outputTokens: number
+  cost: number
+}
+
+const fmtCompact = (v: number): string => {
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}k`
+  return `${Math.round(v)}`
+}
+
+// niceMax 把最大值规整为 1/2/2.5/5×10^n，让坐标轴刻度好看。
+function niceMax(v: number): number {
+  if (v <= 0) return 1
+  const exp = Math.floor(Math.log10(v))
+  const base = Math.pow(10, exp)
+  const f = v / base
+  const nf = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10
+  return nf * base
+}
+
+const trendXTicks = (n: number): number[] => {
+  if (n <= 1) return [0]
+  const count = Math.min(6, n)
+  return Array.from({ length: count }, (_, i) => Math.round((i * (n - 1)) / (count - 1)))
+}
+
+// RequestsTrendChart 请求趋势折线图（红点标注失败调用）。
+const RequestsTrendChart: React.FC<{ data: TrendDatum[]; color: string }> = ({ data, color }) => {
+  const W = 720, H = 200, padL = 44, padR = 16, padT = 16, padB = 28
+  const plotW = W - padL - padR
+  const plotH = H - padT - padB
+  const maxV = niceMax(Math.max(...data.map(d => d.calls), 1))
+  const x = (i: number) => (data.length === 1 ? padL + plotW / 2 : padL + (i / (data.length - 1)) * plotW)
+  const y = (v: number) => padT + plotH * (1 - v / maxV)
+  const line = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(d.calls).toFixed(1)}`).join(' ')
+  const area = `${line} L${x(data.length - 1).toFixed(1)},${(padT + plotH).toFixed(1)} L${x(0).toFixed(1)},${(padT + plotH).toFixed(1)} Z`
+  const ticks = Array.from({ length: 5 }, (_, i) => (maxV * i) / 4)
+  const labelIdx = trendXTicks(data.length)
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      {ticks.map((t, i) => (
+        <g key={i}>
+          <line x1={padL} y1={y(t)} x2={W - padR} y2={y(t)} stroke="rgba(128,128,128,0.14)" strokeWidth={1} />
+          <text x={padL - 6} y={y(t) + 3} textAnchor="end" fontSize={10} style={{ fill: C('color-text-secondary') }}>{fmtCompact(t)}</text>
+        </g>
+      ))}
+      <path d={area} fill={`${color}20`} />
+      <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      {data.map((d, i) => (
+        <g key={d.key}>
+          {d.failCalls > 0 && (
+            <circle cx={x(i)} cy={y(d.calls)} r={3} fill="#f87171" stroke="#1e1e2e" strokeWidth={1}>
+              <title>{`${d.label} · ${d.calls} 次（失败 ${d.failCalls}）`}</title>
+            </circle>
+          )}
+          <circle cx={x(i)} cy={y(d.calls)} r={0}>
+            <title>{`${d.label} · ${d.calls} 次 · 成功 ${d.successCalls} · 失败 ${d.failCalls}`}</title>
+          </circle>
+        </g>
+      ))}
+      {labelIdx.map(i => {
+        const anchor = i === 0 ? 'start' : i === labelIdx[labelIdx.length - 1] ? 'end' : 'middle'
+        const dx = i === 0 ? 2 : i === labelIdx[labelIdx.length - 1] ? -2 : 0
+        return (
+          <text key={i} x={x(i) + dx} y={H - 8} textAnchor={anchor} fontSize={10} style={{ fill: C('color-text-secondary') }}>{data[i].label}</text>
+        )
+      })}
+    </svg>
+  )
+}
+
+// TokenTrendChart Token 堆叠柱状图（入蓝/出绿）+ 费用红线（右侧轴）。
+const TokenTrendChart: React.FC<{ data: TrendDatum[] }> = ({ data }) => {
+  const W = 720, H = 200, padL = 48, padR = 64, padT = 16, padB = 28
+  const plotW = W - padL - padR
+  const plotH = H - padT - padB
+  const maxTok = niceMax(Math.max(...data.map(d => d.inputTokens + d.outputTokens), 1))
+  const maxCost = niceMax(Math.max(...data.map(d => d.cost), 0))
+  const hasCost = data.some(d => d.cost > 0)
+  const x = (i: number) => padL + (i + 0.5) * (plotW / data.length)
+  const yT = (v: number) => padT + plotH * (1 - v / maxTok)
+  const yC = (v: number) => padT + plotH * (1 - v / maxCost)
+  const barW = Math.max(2, Math.min(28, (plotW / data.length) * 0.55))
+  const costLine = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${yC(d.cost).toFixed(1)}`).join(' ')
+  const fmtAxis = (v: number) => (maxCost >= 0.01 ? `¥${v.toFixed(2)}` : `¥${v.toFixed(3)}`)
+  const ticks = Array.from({ length: 5 }, (_, i) => (maxTok * i) / 4)
+  const labelIdx = trendXTicks(data.length)
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      {ticks.map((t, i) => (
+        <g key={i}>
+          <line x1={padL} y1={yT(t)} x2={W - padR} y2={yT(t)} stroke="rgba(128,128,128,0.14)" strokeWidth={1} />
+          <text x={padL - 6} y={yT(t) + 3} textAnchor="end" fontSize={10} style={{ fill: C('color-text-secondary') }}>{fmtCompact(t)}</text>
+        </g>
+      ))}
+      {hasCost && (
+        <>
+          {[0.5, 1].map(r => (
+            <text key={r} x={W - padR + 8} y={yC(maxCost * r) + 3} fontSize={10} style={{ fill: '#f87171' }}>{fmtAxis(maxCost * r)}</text>
+          ))}
+          <path d={costLine} fill="none" stroke="#f87171" strokeWidth={1.6} strokeDasharray="4 3" />
+        </>
+      )}
+      {data.map((d, i) => {
+        const x0 = x(i) - barW / 2
+        const hIn = (d.inputTokens / maxTok) * plotH
+        const hOut = (d.outputTokens / maxTok) * plotH
+        const yIn = padT + plotH - hIn
+        const yOut = yIn - hOut
+        return (
+          <g key={d.key}>
+            <rect x={x0} y={yIn} width={barW} height={Math.max(0, hIn)} fill="#60a5fa">
+              <title>{`${d.label} · 输入 ${d.inputTokens} Token`}</title>
+            </rect>
+            <rect x={x0} y={yOut} width={barW} height={Math.max(0, hOut)} fill="#34d399">
+              <title>{`${d.label} · 输出 ${d.outputTokens} Token`}</title>
+            </rect>
+            {hasCost && d.cost > 0 && (
+              <circle cx={x(i)} cy={yC(d.cost)} r={2} fill="#f87171">
+                <title>{`${d.label} · 费用 ${fmtAxis(d.cost)}`}</title>
+              </circle>
+            )}
+          </g>
+        )
+      })}
+      {labelIdx.map(i => {
+        const anchor = i === 0 ? 'start' : i === labelIdx[labelIdx.length - 1] ? 'end' : 'middle'
+        const dx = i === 0 ? 2 : i === labelIdx[labelIdx.length - 1] ? -2 : 0
+        return (
+          <text key={i} x={x(i) + dx} y={H - 8} textAnchor={anchor} fontSize={10} style={{ fill: C('color-text-secondary') }}>{data[i].label}</text>
+        )
+      })}
+    </svg>
+  )
 }
 
 const ModelCenterPage: React.FC = () => {
@@ -66,6 +226,13 @@ const ModelCenterPage: React.FC = () => {
   const [engineStatuses, setEngineStatuses] = useState<Record<string, EngineStatus>>({})
   const [deepseekKey, setDeepseekKeyState] = useState('')
   const [deepseekKeyMasked, setDeepseekKeyMasked] = useState('')
+  const [opencodeGoKey, setOpencodeGoKeyState] = useState('')
+  const [opencodeGoKeyMasked, setOpencodeGoKeyMasked] = useState('')
+  const [opencodeZenKey, setOpencodeZenKeyState] = useState('')
+  const [opencodeZenKeyMasked, setOpencodeZenKeyMasked] = useState('')
+  const [callStats, setCallStats] = useState<ModelStatsSummary | null>(null)
+  const [statsSort, setStatsSort] = useState<StatsSort>('calls')
+  const [trendRange, setTrendRange] = useState<TrendRange>('7d')
   const [loggingIn, setLoggingIn] = useState(false)
   const [imageBackend, setImageBackend] = useState('xai')
   const [comfyUIURL, setComfyUIURL] = useState('http://127.0.0.1:8188')
@@ -98,9 +265,43 @@ const ModelCenterPage: React.FC = () => {
         const ks = await getDeepseekKeyStatus()
         if (ks) { setDeepseekKeyMasked(ks.masked || '') }
       } catch (_) {}
+      try {
+        const ks = await getOpencodeGoKeyStatus()
+        if (ks) { setOpencodeGoKeyMasked(ks.masked || '') }
+      } catch (_) {}
+      try {
+        const ks = await getOpencodeZenKeyStatus()
+        if (ks) { setOpencodeZenKeyMasked(ks.masked || '') }
+      } catch (_) {}
     } catch (_) {}
     finally { setLoading(false) }
   }, [])
+
+  const loadCallStats = useCallback(async () => {
+    try {
+      const s = await getModelCallStats()
+      if (s) setCallStats(s)
+    } catch (_) {}
+  }, [])
+
+  // 调用统计页定时刷新
+  useEffect(() => {
+    if (category !== 'stats') return
+    loadCallStats()
+    const timer = window.setInterval(loadCallStats, 15000)
+    return () => window.clearInterval(timer)
+  }, [category, loadCallStats])
+
+  const handleResetCallStats = async () => {
+    try {
+      await resetModelCallStats()
+      setCallStats(null)
+      message.success('模型调用统计已清空')
+      loadCallStats()
+    } catch (err: any) {
+      message.error(err?.message || '重置失败')
+    }
+  }
 
   const loadImageBackend = useCallback(async () => {
     try {
@@ -197,6 +398,40 @@ const ModelCenterPage: React.FC = () => {
       ...imgs.map(m => ({ label: m.id, value: m.id })),
     ]
   }, [portraitDraft.backend, engines])
+
+  // 趋势数据：后端按小时返回，按当前范围聚合为小时或天粒度。
+  const trendData = useMemo<TrendDatum[]>(() => {
+    if (!callStats?.trend?.length) return []
+    const agg = new Map<string, TrendDatum>()
+    for (const p of callStats.trend) {
+      const hourly = trendRange === 'today'
+      const key = hourly ? p.time : p.time.slice(0, 10)
+      const label = hourly ? p.time.slice(5, 16).replace('T', ' ') : p.time.slice(5)
+      const cur = agg.get(key)
+      if (cur) {
+        cur.calls += p.calls
+        cur.successCalls += p.success_calls
+        cur.failCalls += p.fail_calls
+        cur.inputTokens += p.input_tokens
+        cur.outputTokens += p.output_tokens
+        cur.cost += p.cost
+      } else {
+        agg.set(key, {
+          key,
+          label,
+          calls: p.calls,
+          successCalls: p.success_calls,
+          failCalls: p.fail_calls,
+          inputTokens: p.input_tokens,
+          outputTokens: p.output_tokens,
+          cost: p.cost,
+        })
+      }
+    }
+    const list = Array.from(agg.values()).sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+    const limit = trendRange === 'today' ? 24 : trendRange === '7d' ? 7 : 30
+    return list.slice(-limit)
+  }, [callStats, trendRange])
 
   const loadFeatureCfg = useCallback(async () => {
     try {
@@ -364,6 +599,28 @@ const ModelCenterPage: React.FC = () => {
     } catch (err: any) { message.error(err.message) }
   }
 
+  const handleSaveOpencodeGoKey = async () => {
+    if (!opencodeGoKey.trim()) { message.warning('请输入 API Key'); return }
+    try {
+      await setOpencodeGoKey(opencodeGoKey.trim())
+      message.success('OpenCode Go Key 已保存')
+      const ks = await getOpencodeGoKeyStatus()
+      if (ks) setOpencodeGoKeyMasked(ks.masked || '')
+      setOpencodeGoKeyState('')
+    } catch (err: any) { message.error(err.message) }
+  }
+
+  const handleSaveOpencodeZenKey = async () => {
+    if (!opencodeZenKey.trim()) { message.warning('请输入 API Key'); return }
+    try {
+      await setOpencodeZenKey(opencodeZenKey.trim())
+      message.success('OpenCode Zen Key 已保存')
+      const ks = await getOpencodeZenKeyStatus()
+      if (ks) setOpencodeZenKeyMasked(ks.masked || '')
+      setOpencodeZenKeyState('')
+    } catch (err: any) { message.error(err.message) }
+  }
+
   const makeModels = (engine: EngineConfig): ModelCardData[] =>
     (engine.models || []).map(m => ({ modelId: m.id, modelName: m.id, engineId: engine.id, engineName: engine.name, engineType: engine.type, engineEnabled: engine.enabled, status: m.status || 'running' }))
 
@@ -395,6 +652,7 @@ const ModelCenterPage: React.FC = () => {
           {sidebarBtn('tts', <SoundOutlined />, '语音模型')}
           {sidebarBtn('engine', <SettingOutlined />, '引擎管理')}
           {sidebarBtn('bind', <LinkOutlined />, '功能绑定')}
+          {sidebarBtn('stats', <ThunderboltOutlined />, '调用统计')}
         </div>
 
         <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
@@ -609,6 +867,232 @@ const ModelCenterPage: React.FC = () => {
                   </Button>
                 </Card>
               </div>
+            </div>
+          )}
+
+          {/* 模型调用统计（独立标签页，参考 CCSwitch 的按提供商分组展示） */}
+          {category === 'stats' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                <Space size={8}>
+                  <ThunderboltOutlined style={{ color: '#fbbf24' }} />
+                  <Typography.Text strong style={{ color: C('color-text'), fontSize: 15 }}>模型调用统计</Typography.Text>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>
+                    {callStats?.since ? `统计自 ${callStats.since}` : '按引擎 / 模型维度统计调用情况与估算费用'}
+                  </Typography.Text>
+                </Space>
+                <Space size={4}>
+                  <Segmented
+                    size="small"
+                    value={statsSort}
+                    onChange={(v) => setStatsSort(v as StatsSort)}
+                    options={[
+                      { value: 'calls', label: '调用最多' },
+                      { value: 'tokens', label: 'Token 最多' },
+                      { value: 'cost', label: '费用最高' },
+                    ]}
+                    style={{ fontSize: 11 }}
+                  />
+                  <Button size="small" icon={<ReloadOutlined />} onClick={loadCallStats} style={{ fontSize: 11 }}>刷新</Button>
+                  <Button size="small" danger onClick={handleResetCallStats} style={{ fontSize: 11 }}>清空统计</Button>
+                </Space>
+              </div>
+
+              {!callStats || callStats.total_calls === 0 ? (
+                <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, textAlign: 'center', padding: 48 }}>
+                  <ThunderboltOutlined style={{ fontSize: 30, color: C('color-text-secondary'), marginBottom: 12 }} />
+                  <Typography.Text style={{ color: C('color-text'), fontSize: 14, display: 'block' }}>暂无调用记录</Typography.Text>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, display: 'block', marginTop: 6 }}>
+                    对话、语音、办公等模块调用模型后，这里会自动统计次数、Token、耗时与估算费用
+                  </Typography.Text>
+                </Card>
+              ) : (
+                <>
+                  {/* 全局指标 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
+                    <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '12px 14px' }}>
+                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginBottom: 4 }}>总调用</div>
+                      <div style={{ color: C('color-text'), fontSize: 22, fontWeight: 700 }}>{callStats.total_calls}</div>
+                      <div style={{ color: '#34d399', fontSize: 11, marginTop: 2 }}>成功 {callStats.success_calls} · 失败 {callStats.fail_calls}</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '12px 14px' }}>
+                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginBottom: 4 }}>Token 用量</div>
+                      <div style={{ color: C('color-text'), fontSize: 22, fontWeight: 700 }}>{callStats.total_tokens.toLocaleString()}</div>
+                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginTop: 2 }}>入 {callStats.input_tokens.toLocaleString()} / 出 {callStats.output_tokens.toLocaleString()}</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '12px 14px' }}>
+                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginBottom: 4 }}>估算费用</div>
+                      <div style={{ color: '#fbbf24', fontSize: 22, fontWeight: 700 }}>{fmtCost(callStats.total_cost, 'CNY')}</div>
+                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginTop: 2 }}>美元按 1:7.2 折算</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '12px 14px' }}>
+                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginBottom: 4 }}>成功率</div>
+                      <div style={{ color: C('color-text'), fontSize: 22, fontWeight: 700 }}>
+                        {((callStats.success_calls / callStats.total_calls) * 100).toFixed(1)}%
+                      </div>
+                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginTop: 2 }}>{callStats.per_model.length} 个模型</div>
+                    </div>
+                    <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '12px 14px' }}>
+                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginBottom: 4 }}>平均耗时</div>
+                      <div style={{ color: C('color-text'), fontSize: 22, fontWeight: 700 }}>{(callStats.avg_duration_ms / 1000).toFixed(1)}s</div>
+                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginTop: 2 }}>累计 {(callStats.total_duration_ms / 1000).toFixed(1)}s</div>
+                    </div>
+                  </div>
+
+                  {/* 用量趋势（CCSwitch 风格：请求折线 + Token 堆叠 + 费用线） */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                      <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>用量趋势</Typography.Text>
+                      <Segmented
+                        size="small"
+                        value={trendRange}
+                        onChange={(v) => setTrendRange(v as TrendRange)}
+                        options={[
+                          { value: 'today', label: '今日' },
+                          { value: '7d', label: '最近 7 天' },
+                          { value: '30d', label: '最近 30 天' },
+                        ]}
+                        style={{ fontSize: 11 }}
+                      />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
+                      <Card size="small" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Typography.Text strong style={{ color: C('color-text'), fontSize: 12 }}>请求趋势</Typography.Text>
+                          <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10 }}>折线 = 调用 · 红点 = 失败</Typography.Text>
+                        </div>
+                        {trendData.length > 0 ? (
+                          <RequestsTrendChart data={trendData} color="#60a5fa" />
+                        ) : (
+                          <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C('color-text-secondary'), fontSize: 12 }}>暂无趋势数据</div>
+                        )}
+                      </Card>
+                      <Card size="small" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Typography.Text strong style={{ color: C('color-text'), fontSize: 12 }}>Token 趋势</Typography.Text>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 10, color: C('color-text-secondary') }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: '#60a5fa', display: 'inline-block' }} />输入</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: '#34d399', display: 'inline-block' }} />输出</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 14, height: 0, borderTop: '2px dashed #f87171', display: 'inline-block' }} />费用</span>
+                          </span>
+                        </div>
+                        {trendData.length > 0 ? (
+                          <TokenTrendChart data={trendData} />
+                        ) : (
+                          <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C('color-text-secondary'), fontSize: 12 }}>暂无趋势数据</div>
+                        )}
+                      </Card>
+                    </div>
+                  </div>
+
+                  {/* 按引擎分组的模型用量（CCSwitch 风格：提供商卡片 + 模型行） */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {(() => {
+                      const groups = new Map<string, typeof callStats.per_model>()
+                      callStats.per_model.forEach(s => {
+                        const list = groups.get(s.engine_id) || []
+                        list.push(s)
+                        groups.set(s.engine_id, list)
+                      })
+                      return Array.from(groups.entries()).map(([engineId, rows]) => {
+                        const color = engineColors[engineId] || '#888'
+                        const calls = rows.reduce((a, b) => a + b.call_count, 0)
+                        const succ = rows.reduce((a, b) => a + b.success_count, 0)
+                        const tokens = rows.reduce((a, b) => a + b.total_tokens, 0)
+                        const engCost = rows.reduce((a, b) => a + costToCNY(b.estimated_cost ?? 0, b.currency), 0)
+                        const rate = calls > 0 ? ((succ / calls) * 100).toFixed(0) : '0'
+                        const sorted = [...rows].sort((a, b) => {
+                          if (statsSort === 'tokens') return b.total_tokens - a.total_tokens
+                          if (statsSort === 'cost') return (b.estimated_cost ?? 0) - (a.estimated_cost ?? 0)
+                          return b.call_count - a.call_count
+                        })
+                        const maxCalls = Math.max(...sorted.map(s => s.call_count), 1)
+                        return (
+                          <Card key={engineId} size="small" style={{ background: 'var(--bg-glass)', border: `1px solid ${color}28`, borderRadius: 12, padding: 0 }}>
+                            {/* 引擎汇总 */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)', background: `color-mix(in srgb, ${color} 8%, transparent)` }}>
+                              <span style={{ fontSize: 18, color }}>{engineIcons[engineId]}</span>
+                              <div style={{ minWidth: 0 }}>
+                                <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block' }}>{engineLabels[engineId] || engineId}</Typography.Text>
+                                <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10.5 }}>{rows.length} 个模型</Typography.Text>
+                              </div>
+                              <div style={{ marginLeft: 'auto', display: 'flex', gap: 18, alignItems: 'center' }}>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ color: C('color-text'), fontSize: 15, fontWeight: 600 }}>{calls}</div>
+                                  <div style={{ color: C('color-text-secondary'), fontSize: 10 }}>调用</div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ color: C('color-text'), fontSize: 15, fontWeight: 600 }}>{tokens.toLocaleString()}</div>
+                                  <div style={{ color: C('color-text-secondary'), fontSize: 10 }}>Token</div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ color: '#fbbf24', fontSize: 15, fontWeight: 600 }}>{fmtCost(engCost, 'CNY')}</div>
+                                  <div style={{ color: C('color-text-secondary'), fontSize: 10 }}>估算费用</div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ color: succ === calls ? '#34d399' : '#fb7185', fontSize: 15, fontWeight: 600 }}>{rate}%</div>
+                                  <div style={{ color: C('color-text-secondary'), fontSize: 10 }}>成功率</div>
+                                </div>
+                              </div>
+                            </div>
+                            {/* 模型明细（对齐 CCSwitch 模型统计字段：模型 / 请求数 / 输入输出 Token / 平均延迟 / 估算费用 / 成功率） */}
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 1.6fr) 56px 128px 64px 92px 52px', gap: 8, padding: '6px 14px', borderBottom: '1px solid var(--border-subtle)', color: C('color-text-secondary'), fontSize: 10 }}>
+                                <div>模型</div>
+                                <div style={{ textAlign: 'right' }}>请求数</div>
+                                <div style={{ textAlign: 'right' }}>输入 / 输出 Token</div>
+                                <div style={{ textAlign: 'right' }}>平均延迟</div>
+                                <div style={{ textAlign: 'right' }}>估算费用</div>
+                                <div style={{ textAlign: 'right' }}>成功率</div>
+                              </div>
+                              {sorted.map(s => {
+                                const r2 = s.call_count > 0 ? ((s.success_count / s.call_count) * 100).toFixed(0) : '0'
+                                const share = Math.round((s.call_count / maxCalls) * 100)
+                                const avgSec = s.call_count > 0 ? (s.total_duration_ms / s.call_count / 1000).toFixed(1) : '0.0'
+                                const costText = fmtCost(s.estimated_cost, s.currency) || (isLocalEngine(s.engine_id) ? '免费' : '—')
+                                return (
+                                  <div key={s.engine_id + '|' + s.model} style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(140px, 1.6fr) 56px 128px 64px 92px 52px', gap: 8, alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+                                    {/* 调用占比背景条 */}
+                                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${share}%`, background: `color-mix(in srgb, ${color} 7%, transparent)`, pointerEvents: 'none' }} />
+                                    <div style={{ position: 'relative', minWidth: 0 }}>
+                                      <Typography.Text style={{ color: C('color-text'), fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {s.model}
+                                        {s.last_error && <span style={{ color: '#fb7185', marginLeft: 6 }} title={s.last_error}>⚠</span>}
+                                      </Typography.Text>
+                                      <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10 }}>
+                                        {s.last_called_at ? `最近 ${s.last_called_at.slice(5, 16)}` : '—'}
+                                      </Typography.Text>
+                                    </div>
+                                    <div style={{ position: 'relative', textAlign: 'right' }}>
+                                      <Typography.Text style={{ color: C('color-text'), fontSize: 12 }}>{s.call_count}</Typography.Text>
+                                      {s.fail_count > 0 && (
+                                        <Typography.Text style={{ color: '#fb7185', fontSize: 10, display: 'block' }}>失败 {s.fail_count}</Typography.Text>
+                                      )}
+                                    </div>
+                                    <div style={{ position: 'relative', textAlign: 'right' }}>
+                                      <Typography.Text style={{ color: C('color-text'), fontSize: 11, display: 'block' }}>入 {s.input_tokens.toLocaleString()}</Typography.Text>
+                                      <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10 }}>出 {s.output_tokens.toLocaleString()}</Typography.Text>
+                                    </div>
+                                    <div style={{ position: 'relative', textAlign: 'right' }}>
+                                      <Typography.Text style={{ color: C('color-text'), fontSize: 12 }}>{avgSec}s</Typography.Text>
+                                    </div>
+                                    <div style={{ position: 'relative', textAlign: 'right' }}>
+                                      <Typography.Text style={{ color: costText === '—' ? C('color-text-secondary') : '#fbbf24', fontSize: 12, fontWeight: 600 }}>{costText}</Typography.Text>
+                                    </div>
+                                    <div style={{ position: 'relative', textAlign: 'right' }}>
+                                      <Typography.Text style={{ color: s.fail_count > 0 ? '#fb7185' : '#34d399', fontSize: 12, fontWeight: 600 }}>{r2}%</Typography.Text>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </Card>
+                        )
+                      })
+                    })()}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -846,7 +1330,7 @@ const ModelCenterPage: React.FC = () => {
                       {mc.image > 0 && <Tag color="orange" style={{ fontSize: 10 }}>🖼️ {mc.image} 图片</Tag>}
                       {em.length === 0 && <Tag style={{ fontSize: 10 }}>暂无模型</Tag>}
                     </div>
-                    {engine.type !== 'xai' && engine.type !== 'deepseek' && (
+                    {engine.type !== 'xai' && engine.type !== 'deepseek' && engine.type !== 'opencode-go' && engine.type !== 'opencode-zen' && (
                       <Space.Compact style={{ width: '100%' }}>
                         <Input size="small" value={editingURLs[engine.id] || ''} onChange={e => setEditingURLs(prev => ({ ...prev, [engine.id]: e.target.value }))} disabled={!engine.enabled} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', color: C('color-text'), fontSize: 12 }} />
                         <Button size="small" onClick={() => handleSaveURL(engine)} loading={savingEngine === engine.id} disabled={!engine.enabled}>保存</Button>
@@ -856,6 +1340,18 @@ const ModelCenterPage: React.FC = () => {
                       <Space.Compact style={{ width: '100%' }}>
                         <Input size="small" value={deepseekKey} onChange={e => setDeepseekKeyState(e.target.value)} placeholder={deepseekKeyMasked || 'sk-...'} disabled={!engine.enabled} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', color: C('color-text'), fontSize: 12 }} />
                         <Button size="small" onClick={handleSaveDeepseekKey} loading={savingEngine === engine.id} disabled={!engine.enabled}>保存 Key</Button>
+                      </Space.Compact>
+                    )}
+                    {engine.type === 'opencode-go' && (
+                      <Space.Compact style={{ width: '100%' }}>
+                        <Input size="small" value={opencodeGoKey} onChange={e => setOpencodeGoKeyState(e.target.value)} placeholder={opencodeGoKeyMasked || 'oc-...（opencode.ai 订阅获取）'} disabled={!engine.enabled} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', color: C('color-text'), fontSize: 12 }} />
+                        <Button size="small" onClick={handleSaveOpencodeGoKey} loading={savingEngine === engine.id} disabled={!engine.enabled}>保存 Key</Button>
+                      </Space.Compact>
+                    )}
+                    {engine.type === 'opencode-zen' && (
+                      <Space.Compact style={{ width: '100%' }}>
+                        <Input size="small" value={opencodeZenKey} onChange={e => setOpencodeZenKeyState(e.target.value)} placeholder={opencodeZenKeyMasked || 'zen-...（opencode.ai/auth 获取）'} disabled={!engine.enabled} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)', color: C('color-text'), fontSize: 12 }} />
+                        <Button size="small" onClick={handleSaveOpencodeZenKey} loading={savingEngine === engine.id} disabled={!engine.enabled}>保存 Key</Button>
                       </Space.Compact>
                     )}
                     {engineStatuses[engine.id] && (

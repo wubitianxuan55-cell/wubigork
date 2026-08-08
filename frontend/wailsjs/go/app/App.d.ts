@@ -41,6 +41,8 @@ export function CharacterDissociate(arg1:string):Promise<void>;
 
 export function CharacterDrawRandom(arg1:number,arg2:string,arg3:string,arg4:boolean):Promise<Array<characterlib.Character>>;
 
+export function CharacterFillAll():Promise<Record<string, any>>;
+
 export function CharacterGenerateFill(arg1:string):Promise<string>;
 
 export function CharacterGeneratePortrait(arg1:string,arg2:string):Promise<string>;
@@ -101,7 +103,7 @@ export function CmdKEdit(arg1:string,arg2:string,arg3:string):Promise<Record<str
 
 export function ContinueOutline(arg1:number):Promise<Record<string, any>>;
 
-export function CreateChapter(arg1:string,arg2:string,arg3:string,arg4:number,arg5:string,arg6:string):Promise<Record<string, any>>;
+export function CreateChapter(arg1:string,arg2:string,arg3:string,arg4:number,arg5:string,arg6:string,arg7:number,arg8:number):Promise<Record<string, any>>;
 
 export function CreateProject(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Record<string, any>>;
 
@@ -160,6 +162,8 @@ export function GaeaCallTool(arg1:string,arg2:string):Promise<string>;
 export function GaeaCancel():Promise<void>;
 
 export function GaeaCapabilities():Promise<app.CapabilitiesView>;
+
+export function GaeaCaptureScreen():Promise<string>;
 
 export function GaeaChangeFactType(arg1:string,arg2:string):Promise<string>;
 
@@ -258,6 +262,8 @@ export function GaeaProfileResolveConflict(arg1:string,arg2:string):Promise<void
 export function GaeaProfileSave(arg1:app.ProfileFactView):Promise<void>;
 
 export function GaeaReadFile(arg1:string):Promise<app.FilePreview>;
+
+export function GaeaRecognizeImage(arg1:string,arg2:string):Promise<string>;
 
 export function GaeaReload():Promise<app.GaeaReloadResult>;
 
@@ -359,6 +365,8 @@ export function GenerateMedia(arg1:string):Promise<Record<string, any>>;
 
 export function GenerateOutlineWithDialogue(arg1:string,arg2:number,arg3:number):Promise<Record<string, any>>;
 
+export function GenerateProjectCharacterFill(arg1:string):Promise<string>;
+
 export function GenerateSceneIllustration(arg1:number):Promise<Record<string, any>>;
 
 export function GenerateSingleCharacter(arg1:string):Promise<Record<string, any>>;
@@ -421,11 +429,17 @@ export function GetLoginStatus():Promise<boolean>;
 
 export function GetLorebookEntries():Promise<Record<string, any>>;
 
+export function GetModelCallStats():Promise<modelengine.ModelStatsSummary>;
+
 export function GetModelMonitor():Promise<Record<string, any>>;
 
 export function GetModelRoute(arg1:string):Promise<string>;
 
 export function GetNovelsDir():Promise<string>;
+
+export function GetOpencodeGoKeyStatus():Promise<Record<string, any>>;
+
+export function GetOpencodeZenKeyStatus():Promise<Record<string, any>>;
 
 export function GetOutlines():Promise<Record<string, any>>;
 
@@ -468,6 +482,8 @@ export function Login():Promise<void>;
 export function Logout():Promise<void>;
 
 export function MainBrainChat(arg1:string):Promise<string>;
+
+export function MergeCharacters(arg1:string,arg2:string):Promise<Record<string, any>>;
 
 export function MigrateProjectToV4():Promise<void>;
 
@@ -593,6 +609,8 @@ export function RefreshEngineModels(arg1:string):Promise<Array<modelengine.Model
 
 export function ReorderScenes(arg1:number,arg2:Array<string>):Promise<void>;
 
+export function ResetModelCallStats():Promise<void>;
+
 export function RestoreSnapshot(arg1:string,arg2:string,arg3:number):Promise<void>;
 
 export function ReviewBook():Promise<Record<string, any>>;
@@ -658,6 +676,10 @@ export function SetFeatureModel(arg1:string,arg2:string,arg3:string):Promise<voi
 export function SetFeatureModelEnabled(arg1:string,arg2:boolean):Promise<void>;
 
 export function SetImageBackend(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function SetOpencodeGoKey(arg1:string):Promise<void>;
+
+export function SetOpencodeZenKey(arg1:string):Promise<void>;
 
 export function SetPortraitConfig(arg1:string,arg2:string):Promise<void>;
 

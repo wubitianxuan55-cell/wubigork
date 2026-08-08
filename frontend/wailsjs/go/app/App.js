@@ -62,6 +62,10 @@ export function CharacterDrawRandom(arg1, arg2, arg3, arg4) {
   return window['go']['app']['App']['CharacterDrawRandom'](arg1, arg2, arg3, arg4);
 }
 
+export function CharacterFillAll() {
+  return window['go']['app']['App']['CharacterFillAll']();
+}
+
 export function CharacterGenerateFill(arg1) {
   return window['go']['app']['App']['CharacterGenerateFill'](arg1);
 }
@@ -182,8 +186,8 @@ export function ContinueOutline(arg1) {
   return window['go']['app']['App']['ContinueOutline'](arg1);
 }
 
-export function CreateChapter(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['app']['App']['CreateChapter'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function CreateChapter(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['app']['App']['CreateChapter'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function CreateProject(arg1, arg2, arg3, arg4) {
@@ -300,6 +304,10 @@ export function GaeaCancel() {
 
 export function GaeaCapabilities() {
   return window['go']['app']['App']['GaeaCapabilities']();
+}
+
+export function GaeaCaptureScreen() {
+  return window['go']['app']['App']['GaeaCaptureScreen']();
 }
 
 export function GaeaChangeFactType(arg1, arg2) {
@@ -496,6 +504,10 @@ export function GaeaProfileSave(arg1) {
 
 export function GaeaReadFile(arg1) {
   return window['go']['app']['App']['GaeaReadFile'](arg1);
+}
+
+export function GaeaRecognizeImage(arg1, arg2) {
+  return window['go']['app']['App']['GaeaRecognizeImage'](arg1, arg2);
 }
 
 export function GaeaReload() {
@@ -698,6 +710,10 @@ export function GenerateOutlineWithDialogue(arg1, arg2, arg3) {
   return window['go']['app']['App']['GenerateOutlineWithDialogue'](arg1, arg2, arg3);
 }
 
+export function GenerateProjectCharacterFill(arg1) {
+  return window['go']['app']['App']['GenerateProjectCharacterFill'](arg1);
+}
+
 export function GenerateSceneIllustration(arg1) {
   return window['go']['app']['App']['GenerateSceneIllustration'](arg1);
 }
@@ -822,6 +838,10 @@ export function GetLorebookEntries() {
   return window['go']['app']['App']['GetLorebookEntries']();
 }
 
+export function GetModelCallStats() {
+  return window['go']['app']['App']['GetModelCallStats']();
+}
+
 export function GetModelMonitor() {
   return window['go']['app']['App']['GetModelMonitor']();
 }
@@ -832,6 +852,14 @@ export function GetModelRoute(arg1) {
 
 export function GetNovelsDir() {
   return window['go']['app']['App']['GetNovelsDir']();
+}
+
+export function GetOpencodeGoKeyStatus() {
+  return window['go']['app']['App']['GetOpencodeGoKeyStatus']();
+}
+
+export function GetOpencodeZenKeyStatus() {
+  return window['go']['app']['App']['GetOpencodeZenKeyStatus']();
 }
 
 export function GetOutlines() {
@@ -916,6 +944,10 @@ export function Logout() {
 
 export function MainBrainChat(arg1) {
   return window['go']['app']['App']['MainBrainChat'](arg1);
+}
+
+export function MergeCharacters(arg1, arg2) {
+  return window['go']['app']['App']['MergeCharacters'](arg1, arg2);
 }
 
 export function MigrateProjectToV4() {
@@ -1166,6 +1198,10 @@ export function ReorderScenes(arg1, arg2) {
   return window['go']['app']['App']['ReorderScenes'](arg1, arg2);
 }
 
+export function ResetModelCallStats() {
+  return window['go']['app']['App']['ResetModelCallStats']();
+}
+
 export function RestoreSnapshot(arg1, arg2, arg3) {
   return window['go']['app']['App']['RestoreSnapshot'](arg1, arg2, arg3);
 }
@@ -1296,6 +1332,14 @@ export function SetFeatureModelEnabled(arg1, arg2) {
 
 export function SetImageBackend(arg1, arg2, arg3, arg4) {
   return window['go']['app']['App']['SetImageBackend'](arg1, arg2, arg3, arg4);
+}
+
+export function SetOpencodeGoKey(arg1) {
+  return window['go']['app']['App']['SetOpencodeGoKey'](arg1);
+}
+
+export function SetOpencodeZenKey(arg1) {
+  return window['go']['app']['App']['SetOpencodeZenKey'](arg1);
 }
 
 export function SetPortraitConfig(arg1, arg2) {

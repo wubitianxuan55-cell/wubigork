@@ -60,9 +60,12 @@ type Manager struct {
 	state VoiceState
 
 	// VAD
-	vadBuffer         []byte // 累积的音频缓冲
-	vadSilenceMs      int    // 当前连续静音毫秒数
-	vadSpeechDetected bool   // 是否已检测到语音
+	vadBuffer         []byte  // 累积的音频缓冲
+	vadSilenceMs      int     // 当前连续静音毫秒数
+	vadSpeechDetected bool    // 是否已确认检测到语音
+	speechFrames      int     // 连续语音帧计数（过滤环境噪声尖峰）
+	noiseFloor        float64 // 环境噪声底噪估计（指数移动平均）
+	vadTurnMs         int     // 当前轮已录时长（单轮超时保护）
 
 	// 打断检测（P0修复: 对齐 ackem interruptSpeechMs 累积逻辑）
 	interruptSpeechMs int // 连续语音打断累积毫秒数（需超阈值才触发打断）
@@ -194,11 +197,14 @@ func (m *Manager) Stop() {
 	m.vadBuffer = nil
 	m.vadSilenceMs = 0
 	m.vadSpeechDetected = false
+	m.speechFrames = 0
+	m.vadTurnMs = 0
 	m.ttsActive = false
 	m.speakStopCh = nil
 	m.turnCancelCh = nil
 	m.interrupted = false
 	m.running = false
+	m.noiseFloor = 0
 	m.mu.Unlock()
 
 	m.setState(StateIdle)
@@ -223,10 +229,10 @@ func (m *Manager) PushAudioChunk(chunk []byte) error {
 		return nil // 不在监听/说话状态，忽略
 	}
 
-	// 在 AI 说话时检测打断（累积阈值模式）
+	// 在 AI 说话时检测打断（累积阈值模式，阈值随噪声底噪自适应）
 	if state == StateSpeaking {
 		energy := rmsEnergy(chunk)
-		if energy > SpeechEnergyThreshold {
+		if energy > m.speechThreshold() {
 			// 用户说话中：累积打断时长
 			m.mu.Lock()
 			m.interruptSpeechMs += ChunkMs
@@ -256,40 +262,104 @@ func (m *Manager) PushAudioChunk(chunk []byte) error {
 // processVAD 处理 VAD（对齐 Ackem voiceManager VAD 逻辑）
 func (m *Manager) processVAD(chunk []byte, config VoiceRuntimeConfig) error {
 	energy := rmsEnergy(chunk)
-	isSpeech := energy > SpeechEnergyThreshold
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	threshold := m.speechThresholdLocked()
+
+	// 环境噪声学习：仅未确认语音时，低于当前阈值的帧（静音/环境噪声）
+	// 更新底噪（快速向下、慢速向上）；语音帧不参与，避免说话声抬高底噪
+	// 导致后续语音被误判为静音。
+	if !m.vadSpeechDetected && energy < threshold {
+		m.updateNoiseFloor(energy)
+		threshold = m.speechThresholdLocked() // 底噪抬高后阈值同步抬高
+	}
+
+	isSpeech := energy > threshold
+
 	if isSpeech {
 		// 语音活跃
 		m.vadSilenceMs = 0
+		m.vadTurnMs += ChunkMs
 		m.vadBuffer = append(m.vadBuffer, chunk...)
 
 		if !m.vadSpeechDetected {
-			m.vadSpeechDetected = true
-			slog.Debug("VAD: 检测到语音", "energy", energy)
-			if m.emitter != nil {
-				m.emitter.EmitVoiceListening(true)
+			// 连续多帧语音才确认（过滤环境噪声尖峰）；确认前的开头帧
+			// 保留在缓冲里，避免截掉句首。
+			m.speechFrames++
+			if m.speechFrames >= MinSpeechFrames {
+				m.vadSpeechDetected = true
+				slog.Debug("VAD: 检测到语音", "energy", energy, "threshold", threshold)
+				if m.emitter != nil {
+					m.emitter.EmitVoiceListening(true)
+				}
 			}
 		}
 	} else if m.vadSpeechDetected {
 		// 静音中，但之前检测到语音
 		m.vadSilenceMs += ChunkMs
+		m.vadTurnMs += ChunkMs
 		m.vadBuffer = append(m.vadBuffer, chunk...)
 
 		if m.vadSilenceMs >= config.SilenceThresholdMs {
 			// 静音超阈值 → 触发识别
 			slog.Debug("VAD: 静音超阈值，触发识别", "duration_ms", m.vadSilenceMs)
 			go m.handleSpeechEnd(copyBytes(m.vadBuffer))
-			m.vadBuffer = nil
-			m.vadSilenceMs = 0
-			m.vadSpeechDetected = false
+			m.resetVAD()
+		} else if m.vadTurnMs >= MaxTurnMs {
+			// 单轮超时保护：环境噪声让静音迟迟不来时，强制触发识别
+			slog.Debug("VAD: 录音超时，强制识别", "turn_ms", m.vadTurnMs)
+			go m.handleSpeechEnd(copyBytes(m.vadBuffer))
+			m.resetVAD()
 		}
+	} else {
+		// 未确认语音前的静音/噪声：丢弃缓冲并重置帧计数
+		m.speechFrames = 0
+		m.vadBuffer = nil
 	}
-	// 语音未开始前的静音直接丢弃
 
 	return nil
+}
+
+// speechThresholdLocked 返回当前语音判定阈值（调用方需持有锁）：
+// 固定最小阈值与自适应噪声底噪阈值取较大值，环境杂音大时自动抬高。
+func (m *Manager) speechThresholdLocked() float64 {
+	t := float64(SpeechEnergyThreshold)
+	if m.noiseFloor*NoiseFloorFactor > t {
+		t = m.noiseFloor * NoiseFloorFactor
+	}
+	return t
+}
+
+// speechThreshold 返回当前语音判定阈值（读锁封装）
+func (m *Manager) speechThreshold() float64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.speechThresholdLocked()
+}
+
+// updateNoiseFloor 更新噪声底噪估计：快速向下跟随静音/停顿，
+// 慢速向上跟随环境噪声缓慢变化，避免被突发语音尖峰污染。
+func (m *Manager) updateNoiseFloor(energy float64) {
+	if m.noiseFloor <= 0 {
+		m.noiseFloor = energy
+		return
+	}
+	if energy < m.noiseFloor {
+		m.noiseFloor = energy
+	} else {
+		m.noiseFloor += (energy - m.noiseFloor) * noiseFloorUpAlpha
+	}
+}
+
+// resetVAD 清空当前 VAD 轮次状态（触发识别后调用）
+func (m *Manager) resetVAD() {
+	m.vadBuffer = nil
+	m.vadSilenceMs = 0
+	m.vadSpeechDetected = false
+	m.speechFrames = 0
+	m.vadTurnMs = 0
 }
 
 // ── 语音识别 → Whisper → TTS 管道 ──

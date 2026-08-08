@@ -64,6 +64,9 @@ type Options struct {
 	// 空 = 进程当前目录（CLI 原行为）。
 	Cwd string
 	SessionDir string
+	// ExtraTools 是前端（桌面端）额外注入的工具（如 image_gen 这类需要
+	// 应用服务/客户端的工具）。空 = 不注入；与内置工具同名会被覆盖。
+	ExtraTools []tool.Tool
 }
 
 // Build loads config, resolves the model, and returns a Controller wrapping a
@@ -116,8 +119,14 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 		return nil, err
 	}
 
+	cwd := opts.Cwd
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+
 	// V10.22: system prompt + memory + skills assembled in sysprompt.go
-	sp, err := buildSystemPrompt(cfg, opts.Stderr)
+	// 传入工作空间根（opts.Cwd），项目画像/技能索引基于真实工作区而非进程目录。
+	sp, err := buildSystemPrompt(cfg, cwd, opts.Stderr)
 	if err != nil {
 		return nil, err
 	}
@@ -128,10 +137,6 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 	runtimeCtx := sp.runtimeCtx
 	skillStore := sp.store
 
-	cwd := opts.Cwd
-	if cwd == "" {
-		cwd, _ = os.Getwd()
-	}
 	reg := tool.NewRegistry()
 	bashSpec := sandbox.Spec{Mode: cfg.BashMode(), WriteRoots: cfg.WriteRoots(), Network: cfg.Sandbox.Network}
 	if bashSpec.Mode == "enforce" && !sandbox.Available() {
@@ -332,6 +337,13 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 		})
 	}
 	reg.Add(command.NewSlashCommandTool(slashEntries))
+
+	// 前端注入的工具（如桌面端 image_gen）追加到注册表。
+	for _, t := range opts.ExtraTools {
+		if t != nil {
+			reg.Add(t)
+		}
+	}
 
 	// V10.32: use provider name as label so users can distinguish models from
 	// different providers (e.g. "flash" vs "pro") even when they share the same

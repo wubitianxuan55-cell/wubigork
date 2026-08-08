@@ -154,4 +154,20 @@ const (
 	// 语音能量阈值（RMS，对齐 Ackem SPEECH_ENERGY_THRESHOLD = 0.012）
 	// Go 端使用 int16 样本的均方根阈值
 	SpeechEnergyThreshold = 400 // int16 RMS ≈ 400 对应 float32 RMS ≈ 0.012
+
+	// 语音确认所需连续语音帧数（每帧 ChunkMs=200ms）：
+	// 单帧能量尖峰（环境噪声、键盘声）不算语音，连续多帧才确认。
+	MinSpeechFrames = 2
+
+	// 语音判定阈值相对噪声底噪的倍数：
+	// threshold = max(SpeechEnergyThreshold, noiseFloor * NoiseFloorFactor)。
+	// 环境噪声大时阈值自动抬高，避免风扇/空调声被误判为语音。
+	NoiseFloorFactor = 2.0
+
+	// 噪声底噪慢速上升系数（环境噪声缓慢变化时向上跟随）
+	noiseFloorUpAlpha = 0.02
+
+	// 单轮最大录音时长（毫秒）：达到后强制触发识别，
+	// 防止环境噪声导致 VAD 缓冲无限增长。
+	MaxTurnMs = 30000
 )

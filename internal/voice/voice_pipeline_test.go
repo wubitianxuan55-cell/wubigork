@@ -58,15 +58,17 @@ func TestManager_VoiceRoundTrip(t *testing.T) {
 	}
 	defer m.Stop()
 
-	// Push one speech-energy chunk to arm the VAD.
+	// Push two speech-energy chunks to confirm the VAD (noise-spike filter).
 	speech := make([]byte, ChunkBytes)
 	for i := 0; i < len(speech); i += 2 {
 		v := int16(1500)
 		speech[i] = byte(v)
 		speech[i+1] = byte(v >> 8)
 	}
-	if err := m.PushAudioChunk(speech); err != nil {
-		t.Fatalf("PushAudioChunk(speech): %v", err)
+	for i := 0; i < 2; i++ {
+		if err := m.PushAudioChunk(speech); err != nil {
+			t.Fatalf("PushAudioChunk(speech %d): %v", i, err)
+		}
 	}
 
 	// Push enough silence (5 x 200ms >= SilenceThresholdMs) to end the turn.

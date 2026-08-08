@@ -49,12 +49,17 @@ export async function getComfyUIStatus(): Promise<ComfyUIStatus> {
 }
 
 /** 获取 ComfyUI 当前可用的 LoRA 列表（models/loras 相对路径，含子目录） */
-export async function getComfyUILoras(): Promise<string[]> {
+export interface ComfyLorasResult {
+  list: string[]
+  error?: string
+}
+
+export async function getComfyUILoras(): Promise<ComfyLorasResult> {
   try {
     const list = await App.GetComfyUILoras()
-    return Array.isArray(list) ? list : []
-  } catch (_) {
-    return []
+    return { list: Array.isArray(list) ? list : [] }
+  } catch (e: any) {
+    return { list: [], error: e?.message || 'LoRA 列表加载失败' }
   }
 }
 

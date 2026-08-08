@@ -22,6 +22,8 @@ var compactDesc = map[string]string{
 	"chart_gen":        "matplotlib图表生成(bar/line/pie/scatter)",
 	"knowledge_search": "搜索工程知识库(关键词,分类+标签过滤)",
 	"knowledge_add":    "向知识库添加条目(标题+分类+正文)",
+	"screen_capture":   "捕获屏幕截图保存为PNG,返回文件路径(可指定region局部截图)",
+	"vision":           "用本地视觉模型识别图片内容(文字/布局/细节),配合screen_capture理解截图",
 }
 
 var compactSchema = map[string]json.RawMessage{
@@ -59,4 +61,8 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"query":{"type":"string"},"category":{"type":"string"},"tag":{"type":"string"}}}`),
 	"knowledge_add": json.RawMessage(
 		`{"type":"object","properties":{"title":{"type":"string"},"category":{"type":"string"},"body":{"type":"string"},"tags":{"type":"string"},"phase":{"type":"string"},"discipline":{"type":"string"},"source":{"type":"string"}},"required":["title","category","body"]}`),
+	"screen_capture": json.RawMessage(
+		`{"type":"object","properties":{"region":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"width":{"type":"integer"},"height":{"type":"integer"}}}}}`),
+	"vision": json.RawMessage(
+		`{"type":"object","properties":{"image_path":{"type":"string"},"prompt":{"type":"string"}},"required":["image_path"]}`),
 }

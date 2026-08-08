@@ -16,10 +16,11 @@ func TestNewManager_Presets(t *testing.T) {
 	if m == nil {
 		t.Fatal("NewManager returned nil")
 	}
-	// 预置 4 引擎
+	// 预置 6 引擎
 	want := map[string]EngineType{
 		"xai": EngineXAI, "ollama": EngineOllama,
 		"herdsman": EngineHerdsman, "deepseek": EngineDeepseek,
+		"opencode-go": EngineOpencodeGo, "opencode-zen": EngineOpencodeZen,
 	}
 	for id, typ := range want {
 		e, ok := m.GetEngine(id)
@@ -83,8 +84,8 @@ func TestGetEngine_StripsAPIKey(t *testing.T) {
 func TestGetEngines_CountAndKeys(t *testing.T) {
 	m := NewManager("", "")
 	es := m.GetEngines()
-	if len(es) != 4 {
-		t.Fatalf("GetEngines 数量 = %d, want 4", len(es))
+	if len(es) != 6 {
+		t.Fatalf("GetEngines 数量 = %d, want 6", len(es))
 	}
 	for _, e := range es {
 		if e.APIKey != "" {
@@ -306,6 +307,183 @@ func TestRefreshModels_401Deepseek(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "DeepSeek API Key") {
 		t.Errorf("错误信息 = %q, want 包含 DeepSeek Key 提示", err.Error())
+	}
+}
+
+// ─── OpenCode Go 引擎 ───────────────────────────────────────
+
+func TestOpencodeGo_DefaultConfig(t *testing.T) {
+	m := NewManager("", "")
+	e, ok := m.GetEngine("opencode-go")
+	if !ok {
+		t.Fatal("opencode-go 引擎未预置")
+	}
+	if e.Type != EngineOpencodeGo {
+		t.Errorf("类型 = %s, want opencode-go", e.Type)
+	}
+	if e.BaseURL != "https://opencode.ai/zen/go/v1" {
+		t.Errorf("BaseURL = %q, want https://opencode.ai/zen/go/v1", e.BaseURL)
+	}
+	if e.DefaultModel != "deepseek-v4-pro" {
+		t.Errorf("默认模型 = %q, want deepseek-v4-pro", e.DefaultModel)
+	}
+}
+
+func TestOpencodeGo_BuildChatURL(t *testing.T) {
+	m := NewManager("", "")
+	m.UpdateOpencodeKey("oc-key-123")
+	url, key, err := m.BuildChatURL("opencode-go")
+	if err != nil {
+		t.Fatalf("BuildChatURL(opencode-go): %v", err)
+	}
+	if key != "oc-key-123" {
+		t.Errorf("key = %q, want oc-key-123", key)
+	}
+	if url != "https://opencode.ai/zen/go/v1/chat/completions" {
+		t.Errorf("URL = %q, want .../v1/chat/completions", url)
+	}
+}
+
+func TestOpencodeGo_RefreshModels_FiltersIncompatible(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{
+				{"id": "kimi-k2.7-code", "owned_by": "opencode-go"},
+				{"id": "deepseek-v4-pro", "owned_by": "opencode-go"},
+				{"id": "qwen3.7-max", "owned_by": "opencode-go"},      // Anthropic /messages，应过滤
+				{"id": "minimax-m3", "owned_by": "opencode-go"},        // Anthropic /messages，应过滤
+				{"id": "gpt-5.6-luna", "owned_by": "opencode-go"},      // /responses，应过滤
+				{"id": "glm-5.2", "owned_by": "opencode-go"},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	m := NewManager("", "")
+	m.SaveEngine(EngineConfig{ID: "opencode-go", BaseURL: srv.URL, Enabled: true})
+	m.UpdateOpencodeKey("oc-key")
+	models, err := m.RefreshModels(context.Background(), "opencode-go")
+	if err != nil {
+		t.Fatalf("RefreshModels(opencode-go): %v", err)
+	}
+	if gotAuth != "Bearer oc-key" {
+		t.Errorf("Authorization = %q, want Bearer oc-key", gotAuth)
+	}
+	want := []string{"kimi-k2.7-code", "deepseek-v4-pro", "glm-5.2"}
+	if len(models) != len(want) {
+		t.Fatalf("过滤后模型数 = %d, want %d: %+v", len(models), len(want), models)
+	}
+	for i, id := range want {
+		if models[i].ID != id {
+			t.Errorf("models[%d].ID = %q, want %q", i, models[i].ID, id)
+		}
+	}
+}
+
+func TestOpencodeGo_RefreshModels_401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(srv.Close)
+	m := NewManager("", "")
+	m.SaveEngine(EngineConfig{ID: "opencode-go", BaseURL: srv.URL, Enabled: true})
+	m.UpdateOpencodeKey("oc-key")
+	_, err := m.RefreshModels(context.Background(), "opencode-go")
+	if err == nil {
+		t.Fatal("401 应报错")
+	}
+	if !strings.Contains(err.Error(), "OpenCode Go API Key") {
+		t.Errorf("错误信息 = %q, want 包含 OpenCode Go Key 提示", err.Error())
+	}
+}
+
+// ─── OpenCode Zen 引擎 ───────────────────────────────────────
+
+func TestOpencodeZen_DefaultConfig(t *testing.T) {
+	m := NewManager("", "")
+	e, ok := m.GetEngine("opencode-zen")
+	if !ok {
+		t.Fatal("opencode-zen 引擎未预置")
+	}
+	if e.Type != EngineOpencodeZen {
+		t.Errorf("类型 = %s, want opencode-zen", e.Type)
+	}
+	if e.BaseURL != "https://opencode.ai/zen/v1" {
+		t.Errorf("BaseURL = %q, want https://opencode.ai/zen/v1", e.BaseURL)
+	}
+}
+
+func TestOpencodeZen_BuildChatURL(t *testing.T) {
+	m := NewManager("", "")
+	m.UpdateOpencodeZenKey("zen-key-456")
+	url, key, err := m.BuildChatURL("opencode-zen")
+	if err != nil {
+		t.Fatalf("BuildChatURL(opencode-zen): %v", err)
+	}
+	if key != "zen-key-456" {
+		t.Errorf("key = %q, want zen-key-456", key)
+	}
+	if url != "https://opencode.ai/zen/v1/chat/completions" {
+		t.Errorf("URL = %q, want .../v1/chat/completions", url)
+	}
+}
+
+func TestOpencodeZen_RefreshModels_FiltersIncompatible(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{
+				{"id": "deepseek-v4-pro", "owned_by": "opencode"},
+				{"id": "glm-5.2", "owned_by": "opencode"},
+				{"id": "minimax-m3", "owned_by": "opencode"},      // Zen 走 chat/completions，应保留
+				{"id": "gpt-5.5", "owned_by": "opencode"},          // /responses，应过滤
+				{"id": "claude-opus-4-5", "owned_by": "opencode"},  // /messages，应过滤
+				{"id": "gemini-3.5-flash", "owned_by": "opencode"}, // 专用端点，应过滤
+				{"id": "qwen3.7-max", "owned_by": "opencode"},      // /messages，应过滤
+				{"id": "grok-4.5", "owned_by": "opencode"},         // Zen 走 /responses，应过滤
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+	m := NewManager("", "")
+	m.SaveEngine(EngineConfig{ID: "opencode-zen", BaseURL: srv.URL, Enabled: true})
+	m.UpdateOpencodeZenKey("zen-key")
+	models, err := m.RefreshModels(context.Background(), "opencode-zen")
+	if err != nil {
+		t.Fatalf("RefreshModels(opencode-zen): %v", err)
+	}
+	if gotAuth != "Bearer zen-key" {
+		t.Errorf("Authorization = %q, want Bearer zen-key", gotAuth)
+	}
+	want := []string{"deepseek-v4-pro", "glm-5.2", "minimax-m3"}
+	if len(models) != len(want) {
+		t.Fatalf("过滤后模型数 = %d, want %d: %+v", len(models), len(want), models)
+	}
+	for i, id := range want {
+		if models[i].ID != id {
+			t.Errorf("models[%d].ID = %q, want %q", i, models[i].ID, id)
+		}
+	}
+}
+
+func TestOpencodeZen_RefreshModels_401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(srv.Close)
+	m := NewManager("", "")
+	m.SaveEngine(EngineConfig{ID: "opencode-zen", BaseURL: srv.URL, Enabled: true})
+	m.UpdateOpencodeZenKey("zen-key")
+	_, err := m.RefreshModels(context.Background(), "opencode-zen")
+	if err == nil {
+		t.Fatal("401 应报错")
+	}
+	if !strings.Contains(err.Error(), "OpenCode Zen API Key") {
+		t.Errorf("错误信息 = %q, want 包含 OpenCode Zen Key 提示", err.Error())
 	}
 }
 

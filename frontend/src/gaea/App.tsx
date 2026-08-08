@@ -2,8 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
-  BarChart3, BookOpen, SquarePen, Brain, ChevronDown, Cpu, FolderGit2, FolderTree, GitBranch,
-  PanelRightOpen, PanelRightClose, MessageSquare,
+  BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, Cpu, FolderGit2, FolderTree, GitBranch,
+  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -18,8 +18,7 @@ import { TodoPanel } from "./components/TodoPanel";
 import { ApprovalModal } from "./components/ApprovalModal";
 import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
-import { StatusBar } from "./components/StatusBar";
-import { ContextBar } from "./components/StatusBar";
+import { ContextBar } from "./components/ContextBar";
 import { ModelSwitcher } from "./components/ModelSwitcher";
 const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
@@ -126,6 +125,7 @@ export default function App() {
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === "undefined" ? 1440 : window.innerWidth));
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const {
     sidebarCollapsed, sidebarWidth, sidebarResizing, effectiveSidebarWidth,
@@ -219,6 +219,19 @@ export default function App() {
     async (path: string, title: string) => { await handleRenameSession(path, title); setHistView(await refreshSessions()); },
     [handleRenameSession, refreshSessions],
   );
+
+  // 删除当前会话：无需打开侧边栏，顶栏直接操作；删除后自动开启新会话
+  const confirmDeleteCurrent = useCallback(async () => {
+    setDeleteConfirm(false);
+    try {
+      const all = await refreshSessions();
+      const cur = all.find((s) => s.current);
+      if (cur) await deleteSession(cur.path);
+    } catch {
+      // 删除失败不阻塞新建会话
+    }
+    await newSessionAndReset();
+  }, [refreshSessions, deleteSession, newSessionAndReset]);
 
   // Workspace: open the folder chooser and switch projects. The hook resets the
   // transcript and refreshes meta on a pick; refresh the sidebar sessions too so
@@ -441,6 +454,29 @@ export default function App() {
               </ToolbarButton>
               <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); try { localStorage.setItem("gaea.compactMode", v ? "1" : "0"); } catch {} }} title={compactMode ? "展开模式" : "紧凑模式"}>{compactMode ? "⊞" : "⊟"}</ToolbarButton>
               <ToolbarButton onClick={() => downloadMarkdown(exportAsMarkdown(state.items))} disabled={state.items.length===0}>导出</ToolbarButton>
+              {deleteConfirm ? (
+                <span className="flex items-center gap-1 rounded-md border border-err/30 bg-del-bg px-1.5 py-1">
+                  <span className="text-[11px] text-err whitespace-nowrap">删除当前会话？</span>
+                  <button
+                    className="inline-flex items-center justify-center w-5 h-5 border-0 rounded bg-transparent text-err cursor-pointer hover:bg-err/15"
+                    onClick={() => void confirmDeleteCurrent()}
+                    title="确认删除"
+                  >
+                    <Check size={12} />
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-center w-5 h-5 border-0 rounded bg-transparent text-fg-faint cursor-pointer hover:bg-bg-soft hover:text-fg"
+                    onClick={() => setDeleteConfirm(false)}
+                    title="取消"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ) : (
+                <ToolbarButton onClick={() => setDeleteConfirm(true)} disabled={state.running} title="删除当前会话">
+                  <Trash2 size={13} />
+                </ToolbarButton>
+              )}
             </div>
           </header>
 
@@ -483,17 +519,6 @@ export default function App() {
               disabled={state.meta?.ready === false || state.approval != null}
             />
             </div>
-            <StatusBar
-              usage={state.usage}
-              balance={state.balance}
-              jobs={state.jobs}
-              running={state.running}
-              bridgeAlive={bridgeAlive}
-              sessionTotal={state.sessionTotal}
-              model={state.meta?.label}
-              subagentModel={state.meta?.subagentLabel}
-              permLevel={permLevel}
-            />
             </CompactContext.Provider>
           </footer>
         </section>

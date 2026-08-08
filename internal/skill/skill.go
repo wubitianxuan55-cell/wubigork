@@ -135,9 +135,10 @@ func parseSkillFile(path string) (*Skill, error) {
 
 	skill := &Skill{Body: strings.TrimSpace(body)}
 
-	// 简单逐行解析 YAML
-	for _, line := range strings.Split(frontmatter, "\n") {
-		line = strings.TrimSpace(line)
+	// 简单逐行解析 YAML（支持单行 [a, b] 与多行 - item 列表）
+	lines := strings.Split(frontmatter, "\n")
+	for i := 0; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
@@ -147,22 +148,35 @@ func parseSkillFile(path string) (*Skill, error) {
 		}
 		key := strings.TrimSpace(parts[0])
 		val := strings.TrimSpace(parts[1])
-		val = strings.Trim(val, "\"'")
 
 		switch key {
 		case "name":
-			skill.Name = val
+			skill.Name = strings.Trim(val, "\"'")
 		case "description":
-			skill.Description = val
+			skill.Description = strings.Trim(val, "\"'")
 		case "version":
-			skill.Version = val
+			skill.Version = strings.Trim(val, "\"'")
 		case "applies_to":
-			// 解析 YAML 列表: [chapter, outline]
-			val = strings.Trim(val, "[]")
-			for _, item := range strings.Split(val, ",") {
+			// 单行列表: [chapter, outline] 或 "chapter, outline"
+			v := strings.Trim(val, "[]\"'")
+			for _, item := range strings.Split(v, ",") {
 				item = strings.TrimSpace(item)
 				if item != "" {
 					skill.AppliesTo = append(skill.AppliesTo, item)
+				}
+			}
+			// 多行列表: applies_to: 换行后逐行 "- item"
+			if strings.TrimSpace(val) == "" {
+				for i+1 < len(lines) {
+					next := strings.TrimSpace(lines[i+1])
+					if !strings.HasPrefix(next, "- ") {
+						break
+					}
+					item := strings.Trim(strings.TrimSpace(strings.TrimPrefix(next, "- ")), "\"'")
+					if item != "" {
+						skill.AppliesTo = append(skill.AppliesTo, item)
+					}
+					i++
 				}
 			}
 		}

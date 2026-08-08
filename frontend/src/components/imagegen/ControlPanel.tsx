@@ -73,6 +73,12 @@ const inputStyle: React.CSSProperties = {
   color: 'var(--color-text)', borderRadius: 10, fontSize: 13,
 }
 
+const loraHintStyle: React.CSSProperties = {
+  fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.5,
+  padding: '7px 10px', borderRadius: 8, border: '1px dashed var(--border-subtle)',
+  background: 'rgba(255,255,255,0.02)',
+}
+
 export interface ControlPanelProps {
   mode: 'txt2img' | 'img2img' | 't2v'
   prompt: string
@@ -103,6 +109,8 @@ export interface ControlPanelProps {
   onFpsChange: (v: number) => void
   selectedLoras: string[]
   loraOptions: { label: string; value: string }[]
+  loraLoading?: boolean
+  loraError?: string
   onLorasChange: (v: string[]) => void
   backend: string
   backendSwitching: boolean
@@ -127,7 +135,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   seed, onSeedChange, count, onCountChange,
   initImage, onInitImageChange, denoise, onDenoiseChange,
   frames, onFramesChange, fps, onFpsChange,
-  selectedLoras, loraOptions, onLorasChange,
+  selectedLoras, loraOptions, loraLoading, loraError, onLorasChange,
   backend, backendSwitching, engineRunning, engineStarting, engineModelCount,
   onSwitchBackend, onStartEngine, onStopEngine,
   sysStats, generating, elapsed, lastTime, onGenerate,
@@ -336,7 +344,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           )}
         </div>
 
-        {loraOptions.length > 0 && (
+        {backend === 'comfyui' && (
           <div style={{ marginTop: 2 }}>
             <div style={{ ...labelStyle, justifyContent: 'space-between' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -348,32 +356,44 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 </span>
               )}
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-              {loraOptions.map((lo) => {
-                const active = selectedLoras.includes(lo.value)
-                return (
-                  <button
-                    key={lo.value}
-                    type="button"
-                    title={lo.label}
-                    onClick={() => onLorasChange(
-                      active ? selectedLoras.filter((v) => v !== lo.value) : [...selectedLoras, lo.value],
-                    )}
-                    className="img-picker-btn"
-                    style={{
-                      padding: '5px 9px', borderRadius: 999, cursor: 'pointer', fontSize: 11,
-                      border: '1px solid',
-                      borderColor: active ? 'var(--color-primary)' : 'var(--border-subtle)',
-                      background: active ? 'rgba(var(--accent-rgb), 0.14)' : 'rgba(255,255,255,0.03)',
-                      color: active ? 'var(--color-primary)' : C('color-text-secondary'),
-                      fontWeight: active ? 600 : 400, fontFamily: 'inherit', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {lo.label}
-                  </button>
-                )
-              })}
-            </div>
+            {!engineRunning ? (
+              <div style={loraHintStyle}>
+                {loraLoading ? '正在启动引擎…' : 'ComfyUI 未运行，启动后自动加载 LoRA'}
+              </div>
+            ) : loraLoading ? (
+              <div style={loraHintStyle}>正在加载 LoRA…</div>
+            ) : loraError ? (
+              <div style={{ ...loraHintStyle, color: '#f87171' }}>LoRA 加载失败：{loraError}</div>
+            ) : loraOptions.length === 0 ? (
+              <div style={loraHintStyle}>当前模型 {model} 暂无匹配的 LoRA</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {loraOptions.map((lo) => {
+                  const active = selectedLoras.includes(lo.value)
+                  return (
+                    <button
+                      key={lo.value}
+                      type="button"
+                      title={lo.label}
+                      onClick={() => onLorasChange(
+                        active ? selectedLoras.filter((v) => v !== lo.value) : [...selectedLoras, lo.value],
+                      )}
+                      className="img-picker-btn"
+                      style={{
+                        padding: '5px 9px', borderRadius: 999, cursor: 'pointer', fontSize: 11,
+                        border: '1px solid',
+                        borderColor: active ? 'var(--color-primary)' : 'var(--border-subtle)',
+                        background: active ? 'rgba(var(--accent-rgb), 0.14)' : 'rgba(255,255,255,0.03)',
+                        color: active ? 'var(--color-primary)' : C('color-text-secondary'),
+                        fontWeight: active ? 600 : 400, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {lo.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </SectionBlock>

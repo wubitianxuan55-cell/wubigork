@@ -135,15 +135,17 @@ func TestManager_PushAudioChunk_ListeningAccumulatesVAD(t *testing.T) {
 	m, em := newTestManager()
 	_ = m.Start()
 
-	// 推入语音能量块（int16 1000 振幅 > 400 阈值）→ 检测到语音
+	// 推入连续语音能量块（int16 1000 振幅 > 400 阈值）→ 连续 2 帧确认语音
 	chunk := make([]byte, 6400)
 	for i := 0; i < len(chunk); i += 2 {
 		v := int16(1000)
 		chunk[i] = byte(v)
 		chunk[i+1] = byte(v >> 8)
 	}
-	if err := m.PushAudioChunk(chunk); err != nil {
-		t.Fatalf("PushAudioChunk: %v", err)
+	for i := 0; i < 2; i++ {
+		if err := m.PushAudioChunk(chunk); err != nil {
+			t.Fatalf("PushAudioChunk %d: %v", i, err)
+		}
 	}
 	m.mu.Lock()
 	detected := m.vadSpeechDetected
@@ -152,13 +154,107 @@ func TestManager_PushAudioChunk_ListeningAccumulatesVAD(t *testing.T) {
 	if !detected {
 		t.Error("语音块应触发 vadSpeechDetected")
 	}
-	if bufLen != 6400 {
-		t.Errorf("VAD 缓冲应累积 6400 字节, got %d", bufLen)
+	if bufLen != 12800 {
+		t.Errorf("VAD 缓冲应累积 12800 字节（2 帧）, got %d", bufLen)
 	}
 	em.mu.Lock()
 	defer em.mu.Unlock()
 	if len(em.listening) != 2 || !em.listening[1] {
 		t.Errorf("检测到语音应再次 emit listening(true), got %v", em.listening)
+	}
+}
+
+func TestManager_VAD_NoiseSpikeDoesNotTriggerSpeech(t *testing.T) {
+	m, em := newTestManager()
+	_ = m.Start()
+
+	// 环境噪声：能量高于固定阈值 400（模拟风扇/键盘声尖峰），但只有 1 帧
+	noise := make([]byte, 6400)
+	for i := 0; i < len(noise); i += 2 {
+		v := int16(600)
+		noise[i] = byte(v)
+		noise[i+1] = byte(v >> 8)
+	}
+	if err := m.PushAudioChunk(noise); err != nil {
+		t.Fatalf("PushAudioChunk(noise): %v", err)
+	}
+	// 紧跟静音 → 帧计数应被重置，不确认语音
+	if err := m.PushAudioChunk(make([]byte, 6400)); err != nil {
+		t.Fatalf("PushAudioChunk(silence): %v", err)
+	}
+	m.mu.Lock()
+	detected := m.vadSpeechDetected
+	frames := m.speechFrames
+	bufLen := len(m.vadBuffer)
+	m.mu.Unlock()
+	if detected {
+		t.Error("单帧噪声尖峰不应确认语音")
+	}
+	if frames != 0 {
+		t.Errorf("噪声后静音应重置帧计数, got %d", frames)
+	}
+	if bufLen != 0 {
+		t.Errorf("噪声尖峰不应残留缓冲, got %d", bufLen)
+	}
+	em.mu.Lock()
+	defer em.mu.Unlock()
+	if len(em.listening) != 1 {
+		t.Errorf("噪声不应 emit listening(true), got %v", em.listening)
+	}
+}
+
+func TestManager_VAD_AdaptiveNoiseFloorRaisesThreshold(t *testing.T) {
+	m, _ := newTestManager()
+	_ = m.Start()
+
+	// 持续环境噪声（RMS 300，低于初始固定阈值 400）：底噪应被学到，
+	// 语音阈值抬到 max(400, 300*2)=600
+	noise := make([]byte, 6400)
+	for i := 0; i < len(noise); i += 2 {
+		v := int16(300)
+		noise[i] = byte(v)
+		noise[i+1] = byte(v >> 8)
+	}
+	for i := 0; i < 10; i++ {
+		_ = m.PushAudioChunk(noise)
+	}
+	threshold := m.speechThreshold()
+	if threshold < 500 {
+		t.Errorf("自适应阈值应随噪声抬高到 ~600, got %.1f", threshold)
+	}
+
+	// 500 振幅的"伪语音"连续多帧也不应触发（低于自适应阈值 600）
+	mid := make([]byte, 6400)
+	for i := 0; i < len(mid); i += 2 {
+		v := int16(500)
+		mid[i] = byte(v)
+		mid[i+1] = byte(v >> 8)
+	}
+	for i := 0; i < 3; i++ {
+		_ = m.PushAudioChunk(mid)
+	}
+	m.mu.Lock()
+	detected := m.vadSpeechDetected
+	m.mu.Unlock()
+	if detected {
+		t.Error("低于自适应阈值的噪声不应确认语音")
+	}
+
+	// 真实语音（1500 > 600）连续 2 帧 → 确认
+	speech := make([]byte, 6400)
+	for i := 0; i < len(speech); i += 2 {
+		v := int16(1500)
+		speech[i] = byte(v)
+		speech[i+1] = byte(v >> 8)
+	}
+	for i := 0; i < 2; i++ {
+		_ = m.PushAudioChunk(speech)
+	}
+	m.mu.Lock()
+	detected = m.vadSpeechDetected
+	m.mu.Unlock()
+	if !detected {
+		t.Error("高于自适应阈值的真实语音应确认")
 	}
 }
 

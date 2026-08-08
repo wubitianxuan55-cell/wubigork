@@ -144,6 +144,91 @@ func (c *core) GetDeepseekKeyStatus() map[string]interface{} {
 	}
 }
 
+// ── OpenCode Go API ─────────────────────────────────────────
+
+// SetOpencodeGoKey 设置 OpenCode Go API Key
+func (c *core) SetOpencodeGoKey(apiKey string) error {
+	if c.engineMgr == nil {
+		return errNoEngineMgr
+	}
+	c.engineMgr.UpdateOpencodeKey(apiKey)
+	c.cfg.OpenCodeGoAPIKey = apiKey
+	if err := config.Save(config.KeyOpencodeGoAPIKey, apiKey); err != nil {
+		slog.Warn("保存 OpenCode Go API Key 失败", "error", err)
+		return err
+	}
+	slog.Info("OpenCode Go API Key 已更新")
+	return nil
+}
+
+// GetOpencodeGoKeyStatus 获取 OpenCode Go API Key 配置状态
+func (c *core) GetOpencodeGoKeyStatus() map[string]interface{} {
+	hasKey := c.cfg.OpenCodeGoAPIKey != ""
+	masked := ""
+	if hasKey {
+		k := c.cfg.OpenCodeGoAPIKey
+		if len(k) > 8 {
+			masked = k[:4] + "****" + k[len(k)-4:]
+		} else {
+			masked = "****"
+		}
+	}
+	return map[string]interface{}{
+		"configured": hasKey,
+		"masked":     masked,
+	}
+}
+
+// SetOpencodeZenKey 设置 OpenCode Zen API Key
+func (c *core) SetOpencodeZenKey(apiKey string) error {
+	if c.engineMgr == nil {
+		return errNoEngineMgr
+	}
+	c.engineMgr.UpdateOpencodeZenKey(apiKey)
+	c.cfg.OpenCodeZenAPIKey = apiKey
+	if err := config.Save(config.KeyOpencodeZenAPIKey, apiKey); err != nil {
+		slog.Warn("保存 OpenCode Zen API Key 失败", "error", err)
+		return err
+	}
+	slog.Info("OpenCode Zen API Key 已更新")
+	return nil
+}
+
+// GetOpencodeZenKeyStatus 获取 OpenCode Zen API Key 配置状态
+func (c *core) GetOpencodeZenKeyStatus() map[string]interface{} {
+	hasKey := c.cfg.OpenCodeZenAPIKey != ""
+	masked := ""
+	if hasKey {
+		k := c.cfg.OpenCodeZenAPIKey
+		if len(k) > 8 {
+			masked = k[:4] + "****" + k[len(k)-4:]
+		} else {
+			masked = "****"
+		}
+	}
+	return map[string]interface{}{
+		"configured": hasKey,
+		"masked":     masked,
+	}
+}
+
+// GetModelCallStats 获取模型调用统计汇总（按引擎/模型维度）。
+func (c *core) GetModelCallStats() modelengine.ModelStatsSummary {
+	if c.engineMgr == nil {
+		return modelengine.ModelStatsSummary{}
+	}
+	return c.engineMgr.GetModelCallStats()
+}
+
+// ResetModelCallStats 清空全部模型调用统计。
+func (c *core) ResetModelCallStats() {
+	if c.engineMgr == nil {
+		return
+	}
+	c.engineMgr.ResetModelCallStats()
+	slog.Info("模型调用统计已重置")
+}
+
 // ── 错误 ──────────────────────────────────────────────────────
 
 var errNoEngineMgr = &appError{"模型引擎管理器未初始化"}

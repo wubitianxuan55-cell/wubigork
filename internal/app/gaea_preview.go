@@ -81,6 +81,18 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		base.Kind = "markdown"
 		base.Body = string(b)
 		return base
+	case ".mmd", ".mermaid":
+		// Mermaid 图表源码：按 markdown 渲染，聊天/预览中的 ```mermaid
+		// 代码块会直接渲染成图。
+		b, err := os.ReadFile(path)
+		if err != nil {
+			base.Kind = "error"
+			base.Error = err.Error()
+			return base
+		}
+		base.Kind = "markdown"
+		base.Body = "```mermaid\n" + string(b) + "\n```"
+		return base
 	case ".docx", ".doc", ".xlsx", ".xls", ".pdf":
 		md, err := docmd.Convert(path, "")
 		if err != nil {

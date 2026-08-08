@@ -15,6 +15,7 @@ import (
 var libFillKeys = []string{
 	"roleType", "gender", "age", "personality", "appearance", "figure",
 	"background", "motivation", "arc", "status", "notes",
+	"behaviorRules", "emotionLogic",
 }
 
 // libRandomKeys 所有可随机生成的字段（"all" 时全部重生成）。
@@ -26,6 +27,7 @@ var libFillLabels = map[string]string{
 	"roleType": "定位", "gender": "性别", "age": "年龄", "personality": "性格",
 	"appearance": "外貌", "figure": "身材", "background": "背景",
 	"motivation": "动机", "arc": "角色弧线", "status": "状态", "notes": "备注",
+	"behaviorRules": "行为规则", "emotionLogic": "情感逻辑",
 }
 
 // libRandomLabels 随机字段的中文标签（all / 单字段随机时用于 prompt）。
@@ -55,6 +57,88 @@ func (a *App) CharacterGenerateRandom(chJSON, fields string) (string, error) {
 		return a.characterGenerate(chJSON, "fill", nil)
 	}
 	return a.characterGenerate(chJSON, "random", targets)
+}
+
+// CharacterFillAll 批量补齐全局角色库所有可见角色的空缺字段。
+// 复用单角色补全逻辑（character-generate-single + fill 模式）：
+// 只填充空缺、保留已有内容，基于已有设定（性格等）推断；
+// 逐角色处理并广播 character-fill-progress 进度事件。
+func (a *App) CharacterFillAll() (map[string]interface{}, error) {
+	if a.charLib == nil {
+		return nil, fmt.Errorf("角色库未初始化")
+	}
+	if a.client == nil || a.eng == nil {
+		return nil, fmt.Errorf("AI 客户端未初始化")
+	}
+	all, _, err := a.charLib.List("", "", false, 100000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("读取角色库失败: %w", err)
+	}
+	if len(all) == 0 {
+		return map[string]interface{}{
+			"total": 0, "filled": 0, "skipped": 0, "failed": 0, "failNames": []string{},
+		}, nil
+	}
+
+	filled, skipped, failed := 0, 0, 0
+	var failNames []string
+	for i, c := range all {
+		a.emit("character-fill-progress", map[string]interface{}{
+			"current": i + 1,
+			"total":   len(all),
+			"name":    c.Name,
+		})
+		if !hasMissingFillFields(c) {
+			skipped++
+			continue
+		}
+		merged, err := a.characterGenerate(string(util.MustMarshal(c)), "fill", nil)
+		if err != nil {
+			failed++
+			failNames = append(failNames, c.Name)
+			continue
+		}
+		var next characterlib.Character
+		if err := json.Unmarshal([]byte(merged), &next); err != nil {
+			failed++
+			failNames = append(failNames, c.Name)
+			continue
+		}
+		// 保护身份与底层字段不被 AI 结果覆盖
+		next.ID = c.ID
+		next.Kind = c.Kind
+		next.CreatedAt = c.CreatedAt
+		next.AssistantID = c.AssistantID
+		next.ChatEnabled = c.ChatEnabled
+		next.Hidden = c.Hidden
+		if err := a.charLib.Upsert(&next); err != nil {
+			failed++
+			failNames = append(failNames, c.Name)
+			continue
+		}
+		filled++
+	}
+	return map[string]interface{}{
+		"total":     len(all),
+		"filled":    filled,
+		"skipped":   skipped,
+		"failed":    failed,
+		"failNames": failNames,
+	}, nil
+}
+
+// hasMissingFillFields 判断角色是否存在可补齐的空缺字段。
+func hasMissingFillFields(c characterlib.Character) bool {
+	for _, v := range []string{
+		c.RoleType, c.Gender, c.Age, c.Personality, c.Appearance,
+		c.Figure, c.Background, c.Motivation, c.Arc, c.Status, c.Notes,
+		c.BehaviorRules, c.EmotionLogic,
+	} {
+		if strings.TrimSpace(v) == "" {
+			return true
+		}
+	}
+	return len(c.Tags) == 0
 }
 
 // parseRandomFields 解析随机列表；"all" 返回全部可随机字段。
@@ -336,12 +420,14 @@ func (a *App) buildPortraitClient() (*ai.Client, error) {
 	return client, nil
 }
 
-// mergeFill 用生成结果填充当前为空的字段（role_type → roleType 归一化）。
+// mergeFill 用生成结果填充当前为空的字段（兼容 AI 输出的 snake_case 字段名）。
 func mergeFill(cur, gen map[string]interface{}) {
 	for _, k := range libFillKeys {
 		genVal, ok := gen[k].(string)
-		if !ok && k == "roleType" {
-			genVal, ok = gen["role_type"].(string)
+		if !ok {
+			if snake, has := libSnakeFallback[k]; has {
+				genVal, ok = gen[snake].(string)
+			}
 		}
 		if !ok {
 			continue
@@ -358,6 +444,14 @@ func mergeFill(cur, gen map[string]interface{}) {
 			cur["tags"] = genTags
 		}
 	}
+}
+
+// libSnakeFallback AI 输出字段名 → 库内 camelCase 键的映射（模板输出常带下划线）。
+var libSnakeFallback = map[string]string{
+	"roleType":      "role_type",
+	"behaviorRules": "behavior_rules",
+	"emotionLogic":  "emotion_logic",
+	"voiceGuide":    "voice_guide",
 }
 
 // summarizeExisting 汇总当前非空字段（中文标签），供 AI 保持一致。
@@ -384,7 +478,7 @@ func summarizeExisting(cur map[string]interface{}) string {
 
 // buildPortraitPrompt 按角色字段构建剧照 prompt（跳过空字段）。
 func buildPortraitPrompt(c characterlib.Character) string {
-	parts := []string{"角色立绘，" + c.Name}
+	parts := []string{ai.PortraitStylePrefix + "角色立绘，" + c.Name}
 	if c.Gender != "" {
 		parts = append(parts, c.Gender)
 	}

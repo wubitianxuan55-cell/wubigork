@@ -198,9 +198,12 @@ func (a *App) Startup(ctx context.Context) {
 
 	// 初始化模型引擎管理器，尝试恢复已保存的 xAI token
 	a.engineMgr = modelengine.NewManager("", a.cfg.DeepseekAPIKey)
+	a.engineMgr.UpdateOpencodeKey(a.cfg.OpenCodeGoAPIKey)
+	a.engineMgr.UpdateOpencodeZenKey(a.cfg.OpenCodeZenAPIKey)
 	if err := a.engineMgr.LoadState(filepath.Join(a.whisperDataRoot, "engines.json")); err != nil {
 		slog.Warn("加载引擎状态失败（回退预置默认）", "error", err)
 	}
+	a.engineMgr.SetStatsPath(modelengine.StatsPathFor(filepath.Join(a.whisperDataRoot, "engines.json")))
 	if tok, err := auth.NewTokenStore(a.cfg.TokenStorePath).Load(); err == nil && tok != nil && !tok.IsExpired() {
 		a.engineMgr.UpdateXAIKey(tok.AccessToken)
 	}

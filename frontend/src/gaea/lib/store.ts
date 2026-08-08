@@ -289,7 +289,19 @@ export function useController() {
   const setPermLevel = useCallback((level: string) => { app.SetPermLevel(level).catch(() => {}); }, []);
   const newSession = useCallback(async () => { await app.NewSession().catch(() => {}); dispatch({ type: "reset" }); }, [dispatch]);
   const listSessions = useCallback((): Promise<SessionMeta[]> => app.ListSessions().catch(() => []), []);
-  const resumeSession = useCallback(async (path: string) => { const ms = await app.ResumeSession(path).catch(() => [] as HistoryMessage[]); dispatch({ type: "reset" }); if (ms.length) dispatch({ type: "history", messages: ms }); app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch(() => {}); }, [dispatch]);
+  const resumeSession = useCallback(async (path: string) => {
+    const ms = await app.ResumeSession(path).catch((e: unknown) => {
+      // 恢复失败不要静默清空：给用户明确提示
+      dispatch({
+        type: "event",
+        e: { kind: "notice", level: "warn", text: `恢复会话失败：${e instanceof Error ? e.message : String(e)}` },
+      });
+      return [] as HistoryMessage[];
+    });
+    dispatch({ type: "reset" });
+    if (ms.length) dispatch({ type: "history", messages: ms });
+    app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch(() => {});
+  }, [dispatch]);
   const deleteSession = useCallback((path: string) => app.DeleteSession(path).catch(() => {}), []);
   const renameSession = useCallback((path: string, title: string) => app.RenameSession(path, title).catch(() => {}), []);
   const refreshMeta = useCallback(async () => { try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} }, [dispatch]);

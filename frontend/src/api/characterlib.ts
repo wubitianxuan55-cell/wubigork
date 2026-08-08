@@ -96,6 +96,20 @@ export async function generateRandom(c: Partial<LibraryCharacter>, fields: strin
   return JSON.parse(json) as LibraryCharacter
 }
 
+export interface FillAllResult {
+  total: number
+  filled: number
+  skipped: number
+  failed: number
+  failNames: string[]
+}
+
+/** 一键补齐全局角色库所有可见角色的空缺字段（只填空缺，保留已有内容） */
+export async function fillAllCharacters(): Promise<FillAllResult> {
+  const res = await App.CharacterFillAll()
+  return res as unknown as FillAllResult
+}
+
 /** 生成角色剧照：按角色字段构建智能 prompt，返回图片 data URL / 远程 URL（不自动保存） */
 export async function generatePortrait(c: Partial<LibraryCharacter>, model = ''): Promise<string> {
   return App.CharacterGeneratePortrait(JSON.stringify(c), model)

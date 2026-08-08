@@ -1,6 +1,6 @@
 import React from 'react'
-import { Typography, Tag, Space } from 'antd'
-import { UserOutlined } from '@ant-design/icons'
+import { Typography, Tag } from 'antd'
+import { EditOutlined, UserOutlined } from '@ant-design/icons'
 import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../../../utils/theme'
 import type { CharacterData } from '../../../types'
 
@@ -36,106 +36,69 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ character, relationCount,
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      style={{
-        background: 'var(--bg-glass)',
-        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-lg)',
-        cursor: 'pointer',
-        transition: 'box-shadow 0.25s, transform 0.25s',
-        height: '100%',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        borderLeft: `3px solid ${sideColor}`,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0px)'
-        e.currentTarget.style.boxShadow = 'none'
-      }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
+      className="char-card"
+      style={{ ['--char-side' as any]: sideColor }}
     >
       {/* 剧照区域 */}
-      <div
-        style={{
-          height: 220,
-          background: !ch.portrait_url
-            ? `linear-gradient(135deg, ${sideColor}44, ${sideColor}22)`
-            : 'none',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative', flexShrink: 0, overflow: 'hidden',
-        }}
-      >
+      <div className="char-card-portrait">
         {ch.portrait_url ? (
           <>
-            <img src={ch.portrait_url} alt={ch.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', display: 'block' }} />
+            <img src={ch.portrait_url} alt={ch.name} />
             <div
+              className="char-card-portrait-overlay"
               onClick={(e) => { e.stopPropagation(); onPortraitFullscreen(ch.portrait_url!) }}
-              style={{
-                position: 'absolute', inset: 0,
-                cursor: 'zoom-in',
-                background: 'rgba(0,0,0,0)',
-                transition: 'background 0.2s',
-              }}
               title="点击放大"
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.15)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0)' }}
             />
           </>
         ) : (
-          <UserOutlined style={{ fontSize: 56, color: sideColor, opacity: 0.4 }} />
+          <div className="char-card-portrait-placeholder"><UserOutlined /></div>
         )}
       </div>
 
       {/* 信息区域 */}
-      <div style={{ padding: '8px 10px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div className="char-card-body">
         {/* 名称 */}
-        <Typography.Text strong style={{ color: C('color-text'), fontSize: 14, lineHeight: 1.3 }}>
+        <Typography.Text strong className="char-card-name" style={{ color: C('color-text') }}>
           {ch.name}
         </Typography.Text>
 
         {/* 标签行 */}
-        <Space size={4} wrap>
-          <Tag color={roleColor} style={{ fontSize: 9, lineHeight: '16px', padding: '0 5px', margin: 0, borderRadius: 3 }}>
+        <div className="char-card-tags">
+          <Tag color={roleColor}>
             {roleLabels[ch.role_type] || ch.role_type}
           </Tag>
           {statusInfo && (
-            <Tag color={statusInfo.color} style={{ fontSize: 9, lineHeight: '16px', padding: '0 5px', margin: 0, borderRadius: 3 }}>
+            <Tag color={statusInfo.color}>
               {statusInfo.label}
             </Tag>
           )}
-        </Space>
+        </div>
 
         {/* 性别 · 年龄 */}
-        <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10 }}>
+        <Typography.Text className="char-card-meta" style={{ color: C('color-text-secondary') }}>
           {(ch.gender === 'male' ? '♂ 男' : ch.gender === 'female' ? '♀ 女' : ch.gender || '?')}
           {ch.age ? ` · ${ch.age}岁` : ''}
         </Typography.Text>
 
         {/* 分隔线 */}
-        <div style={{ height: 1, background: 'var(--border-subtle)', margin: '2px 0' }} />
+        <div className="char-card-divider" />
 
         {/* 性格预览 */}
-        <Typography.Text style={{
-          color: C('color-text-secondary'), fontSize: 10, lineHeight: 1.5,
-          overflow: 'hidden', textOverflow: 'ellipsis',
-          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-          flex: 1,
-        }}>
+        <Typography.Text className="char-card-preview" style={{ color: C('color-text-secondary') }}>
           {preview || '暂无描述'}
         </Typography.Text>
 
-        {/* 关系数 */}
-        {relationCount > 0 && (
-          <Typography.Text style={{ color: '#60a5fa', fontSize: 9 }}>
-            🔗 {relationCount} 个关系
-          </Typography.Text>
-        )}
+        {/* 底部：关系数 + 编辑提示 */}
+        <div className="char-card-footer">
+          {relationCount > 0
+            ? <span>🔗 {relationCount} 个关系</span>
+            : <span>暂无关系</span>}
+          <EditOutlined />
+        </div>
       </div>
     </div>
   )

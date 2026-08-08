@@ -59,6 +59,9 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 		genSeed := seed
 		if genSeed == 0 {
 			genSeed = int(time.Now().UnixNano()%1000000) + i*777
+		} else if n > 1 {
+			// 固定种子且一次生成多张时，每张用 seed+i，避免 n 张完全雷同
+			genSeed = seed + i
 		}
 
 		imgModel := a.cfg.ImageModel
@@ -197,6 +200,9 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		genSeed := p.Seed
 		if genSeed == 0 {
 			genSeed = int(time.Now().UnixNano()%1000000) + i*777
+		} else if n > 1 {
+			// 固定种子且一次生成多张时，每张用 seed+i，避免 n 张完全雷同
+			genSeed = p.Seed + i
 		}
 		imgModel := a.cfg.ImageModel
 		if p.Model != "" {

@@ -16,6 +16,7 @@ import {
   BlockOutlined,
   BookOutlined,
   BulbOutlined,
+  CameraOutlined,
   CheckCircleOutlined,
   CheckOutlined,
   ClockCircleOutlined,
@@ -57,6 +58,7 @@ import {
   RobotOutlined,
   SafetyCertificateOutlined,
   SaveOutlined,
+  ScanOutlined,
   SearchOutlined,
   SettingOutlined,
   StopOutlined,
@@ -93,6 +95,7 @@ export const BookOpen: Icon = wrap(BookOutlined);
 export const Bot: Icon = wrap(RobotOutlined);
 export const Box: Icon = wrap(BlockOutlined);
 export const Brain: Icon = wrap(ApiOutlined);
+export const Camera: Icon = wrap(CameraOutlined);
 export const Check: Icon = wrap(CheckOutlined);
 
 export const CheckCircle: Icon = wrap(CheckCircleOutlined);
@@ -134,6 +137,7 @@ export const QrCode: Icon = wrap(QrcodeOutlined);
 export const RefreshCw: Icon = wrap(ReloadOutlined);
 export const Save: Icon = wrap(SaveOutlined);
 export const ScrollText: Icon = wrap(FileTextOutlined);
+export const Scan: Icon = wrap(ScanOutlined);
 export const Search: Icon = wrap(SearchOutlined);
 export const Shield: Icon = wrap(SafetyCertificateOutlined);
 export const ShieldAlert: Icon = wrap(WarningOutlined);

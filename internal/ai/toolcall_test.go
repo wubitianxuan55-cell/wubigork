@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // mockSSEServer 返回一个 SSE 服务，按帧推送自定义事件。
@@ -44,7 +45,7 @@ func TestParseStreamEvents_ToolCalls(t *testing.T) {
 		t.Fatalf("acquireSem: %v", err)
 	}
 	chunks := make(chan SSEChunk, 16)
-	go c.parseStreamEvents(context.Background(), resp, chunks)
+	go c.parseStreamEvents(context.Background(), resp, chunks, "xai", "grok-4.20", time.Now())
 
 	var got []SSEChunk
 	for ch := range chunks {

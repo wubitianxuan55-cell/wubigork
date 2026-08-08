@@ -83,6 +83,8 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		// 工作空间根：基础工具（read/write/bash/ls）相对路径基于它，
 		// 而非进程 cwd（否则办公 agent 在启动目录而非用户工作空间操作）。
 		Cwd: gaeaCwd(),
+		// 注入需要应用服务的工具（生图/画图复用模型中心模型与图片后端）。
+		ExtraTools: []tool.Tool{imageGenTool{a: a}, diagramTool{a: a}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gaea: 引擎初始化失败: %w", err)
@@ -147,6 +149,9 @@ func (a *App) GaeaInit() error {
 		return err
 	}
 	ga.ctrl = ctrl
+	// 重启后自动恢复最近一次会话（仅首次初始化；设置变更重建时不干预当前会话），
+	// 避免用户重启桌面端后看到"上下文全部清零"的空对话。
+	a.resumeLastSession(ctrl)
 	// 通知前端办公引擎就绪（对应 gaea/lib/bridge.ts 的 onReady 监听 gaea-ready）
 	a.emit("gaea-ready", map[string]interface{}{"kind": "ready"})
 	return nil

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,7 +84,9 @@ func (a *App) GaeaHistory() []HistoryMessage {
 
 // GaeaListSessions 返回已保存会话（新→旧），标记当前会话。
 func (a *App) GaeaListSessions() []SessionMeta {
-	dir := gaeaConfig.WorkspaceSessionDir("")
+	// 会话写入统一在 gaeaCwd()/.gaea/sessions（见 gaeaBuildController），
+	// 这里必须用同一路径读取，否则从不同目录启动时历史会"消失"。
+	dir := gaeaConfig.WorkspaceSessionDir(gaeaCwd())
 	infos, err := agent.ListSessions(dir)
 	if err != nil {
 		return []SessionMeta{}
@@ -119,16 +122,20 @@ func (a *App) GaeaDeleteSession(path string) error {
 	if c := gaeaCtrl(); c != nil && c.SessionPath() == path {
 		return errActiveSession
 	}
-	return deleteSessionFile(gaeaConfig.WorkspaceSessionDir(""), path)
+	return deleteSessionFile(gaeaConfig.WorkspaceSessionDir(gaeaCwd()), path)
 }
 
 // GaeaRenameSession 设置会话自定义名称（空清除）。
 func (a *App) GaeaRenameSession(path, title string) error {
-	return setSessionTitle(gaeaConfig.WorkspaceSessionDir(""), path, title)
+	return setSessionTitle(gaeaConfig.WorkspaceSessionDir(gaeaCwd()), path, title)
 }
 
 // GaeaResumeSession 快照当前会话并加载目标会话继续，返回其消息。
 func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {
+	// 引擎未初始化时先初始化（幂等），避免重启后首次点击会话报"引擎未初始化"
+	if err := a.GaeaInit(); err != nil {
+		return nil, err
+	}
 	c := gaeaCtrl()
 	if c == nil {
 		return nil, errors.New("办公引擎未初始化")
@@ -139,7 +146,27 @@ func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {
 	}
 	_ = c.Snapshot() // 切换前持久化当前会话
 	c.Resume(loaded, path)
+	c.SeedContextUsage() // 恢复后上下文读数立即反映该会话，而非 0
 	return a.GaeaHistory(), nil
+}
+
+// resumeLastSession 自动恢复会话目录中最近一次有内容的会话。
+// 仅在办公引擎首次初始化时调用；返回最近会话路径（无可恢复会话时为空）。
+func (a *App) resumeLastSession(ctrl *control.Controller) string {
+	dir := gaeaConfig.WorkspaceSessionDir(gaeaCwd())
+	infos, err := agent.ListSessions(dir)
+	if err != nil || len(infos) == 0 {
+		return ""
+	}
+	loaded, err := agent.LoadSession(infos[0].Path)
+	if err != nil {
+		slog.Warn("gaea: 自动恢复最近会话失败", "path", infos[0].Path, "error", err)
+		return ""
+	}
+	ctrl.Resume(loaded, infos[0].Path)
+	ctrl.SeedContextUsage()
+	slog.Info("gaea: 已自动恢复最近会话", "path", infos[0].Path, "messages", len(loaded.Messages))
+	return infos[0].Path
 }
 
 // GaeaCheckpoints 列出会话回退点（办公板块暂不支持回退，返回空）。

@@ -239,7 +239,19 @@ func (c *Controller) Send(input string) {
 // resolved @-reference payloads so referenced file contents cannot inflate the
 // complexity score.
 func (c *Controller) SendWithRaw(input, raw string) {
-	c.runGuarded(func(ctx context.Context) error { return c.runTurnWithRaw(ctx, input, raw) })
+	c.runGuarded(func(ctx context.Context) error {
+		// 与 Submit 路径保持一致：先解析 @ 引用（文件内容 / MCP 资源 /
+		// 图片识图结果），再进入回合，保证桌面端和 HTTP 端行为一致。
+		block, errs := c.ResolveRefs(ctx, input)
+		for _, e := range errs {
+			c.notice(e)
+		}
+		sent := input
+		if block != "" {
+			sent = "Referenced context:\n\n" + block + "\n\n" + input
+		}
+		return c.runTurnWithRaw(ctx, sent, raw)
+	})
 }
 
 func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) error {
@@ -500,6 +512,11 @@ func (c *Controller) maybeSessionStart(ctx context.Context) {
 		c.mu.Unlock()
 		return
 	}
+	// 首次对话自动创建会话文件：不点「新会话」直接开聊也应可持久化，
+	// 否则 Snapshot() 因 sessionPath 为空而跳过，重启后历史全部丢失。
+	if c.sessionPath == "" && c.sessionDir != "" {
+		c.sessionPath = agent.NewSessionPath(c.sessionDir, c.label)
+	}
 	c.startedOnce = true
 	c.mu.Unlock()
 	c.hooks.SessionStart(ctx)
@@ -651,6 +668,15 @@ func (c *Controller) ContextSnapshot() (int, int) {
 		return 0, c.executor.ContextWindow()
 	}
 	return u.PromptTokens, c.executor.ContextWindow()
+}
+
+// SeedContextUsage 用当前会话消息估算的 token 数作为初始上下文用量，
+// 使恢复会话后顶栏"上下文"状态立即显示真实读数而非 0。
+func (c *Controller) SeedContextUsage() {
+	if c.executor == nil {
+		return
+	}
+	c.executor.SeedUsage(provider.Usage{PromptTokens: c.executor.EstimateContextTokens()})
 }
 
 // CompactRatio returns the auto-compaction threshold as a fraction of the window

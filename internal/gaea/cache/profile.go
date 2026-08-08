@@ -29,9 +29,43 @@ func (p *Profile) Scan(root string) {
 	if root == "" {
 		root = "."
 	}
-	p.Language = "Go"
+	p.Language = detectLanguage(root)
 	p.readModule(root)
 	p.scanTree(root)
+}
+
+// detectLanguage 从标准工程清单文件推断主语言；无任何代码工程标记时返回空。
+// 注意 tsconfig.json 优先于 package.json，避免 npm 工程被误报为 TypeScript。
+func detectLanguage(root string) string {
+	type marker struct{ lang, file string }
+	markers := []marker{
+		{"Go", "go.mod"},
+		{"TypeScript", "tsconfig.json"},
+		{"JavaScript", "package.json"},
+		{"Python", "pyproject.toml"},
+		{"Python", "requirements.txt"},
+		{"Python", "setup.py"},
+		{"Python", "Pipfile"},
+		{"Rust", "Cargo.toml"},
+		{"Java", "pom.xml"},
+		{"Java", "build.gradle"},
+		{"Kotlin", "build.gradle.kts"},
+		{"Ruby", "Gemfile"},
+		{"PHP", "composer.json"},
+		{"Swift", "Package.swift"},
+	}
+	for _, m := range markers {
+		if _, err := os.Stat(filepath.Join(root, m.file)); err == nil {
+			return m.lang
+		}
+	}
+	// C# 工程（解决方案/项目文件散落根目录）
+	for _, pattern := range []string{"*.sln", "*.csproj"} {
+		if matches, _ := filepath.Glob(filepath.Join(root, pattern)); len(matches) > 0 {
+			return "C#"
+		}
+	}
+	return ""
 }
 
 // Render returns a compact Markdown block suitable for the Context domain.
