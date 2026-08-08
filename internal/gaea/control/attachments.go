@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
 const maxImageAttachmentBytes = 10 * 1024 * 1024
@@ -134,7 +136,9 @@ if ($null -eq $img) { [Console]::Error.WriteLine('clipboard has no image'); exit
 $ms = New-Object System.IO.MemoryStream
 $img.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
 [Convert]::ToBase64String($ms.ToArray())`
-	out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script).Output()
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
+	out, err := cmd.Output()
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
 			return "", fmt.Errorf("read clipboard image: %s", strings.TrimSpace(string(ee.Stderr)))

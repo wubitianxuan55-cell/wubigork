@@ -12,6 +12,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
 // Convert renders a docx/xlsx/pdf file as Markdown. pages only applies to PDFs
@@ -508,6 +510,7 @@ func ocrPDF(path string, pages string) (string, error) {
 	pngPrefix := filepath.Join(tmpDir, "page")
 	args := []string{"-png", "-r", "300", path, pngPrefix}
 	cmd := exec.Command(pdftoppmPath, args...)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("pdftoppm 执行失败: %w\n输出: %s", err, string(out))
 	}
@@ -537,6 +540,7 @@ func ocrPDF(path string, pages string) (string, error) {
 		}
 		// tesseract: PNG → 文本
 		cmd := exec.Command(tesseractPath, pngPath, "stdout", "-l", "chi_sim+eng", "--psm", "3")
+		proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 		out, err := cmd.Output()
 		if err != nil {
 			return "", fmt.Errorf("tesseract OCR 第 %d 页失败: %w", pageNum, err)

@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/gaea/gaea/internal/netclient"
 )
 
@@ -91,8 +93,7 @@ func execSearchFile(dir, query string) ExecResult {
 }
 
 func execOpenFile(path string) ExecResult {
-	cmd := exec.Command("cmd", "/c", "start", "", path)
-	if err := cmd.Start(); err != nil { return ExecResult{Success: false, Action: "open_file", Path: path, Error: err.Error()} }
+	if err := openWithDefaultApp(path); err != nil { return ExecResult{Success: false, Action: "open_file", Path: path, Error: err.Error()} }
 	return ExecResult{Success: true, Action: "open_file", Path: path, Summary: "opened " + filepath.Base(path)}
 }
 
@@ -132,9 +133,32 @@ func execDeleteFile(path string) ExecResult {
 
 func execWebSearch(query string) ExecResult {
 	if query == "" { return ExecResult{Success: false, Action: "web_search", Error: "missing query"} }
-	cmd := exec.Command("cmd", "/c", "start", "", "https://www.bing.com/search?q="+strings.ReplaceAll(query, " ", "+"))
-	if err := cmd.Start(); err != nil { return ExecResult{Success: false, Action: "web_search", Error: err.Error()} }
+	if err := openWithDefaultApp("https://www.bing.com/search?q=" + strings.ReplaceAll(query, " ", "+")); err != nil { return ExecResult{Success: false, Action: "web_search", Error: err.Error()} }
 	return ExecResult{Success: true, Action: "web_search", Summary: "searching: " + query}
+}
+
+// openWithDefaultApp opens a file or URL with the OS default handler without
+// spawning a console window. It replaces `cmd /c start`, which flashes a CMD
+// black window every time on Windows.
+func openWithDefaultApp(target string) error {
+	var name string
+	var args []string
+	switch runtime.GOOS {
+	case "windows":
+		name = "rundll32"
+		args = []string{"url.dll,FileProtocolHandler", target}
+	case "darwin":
+		name = "open"
+		args = []string{target}
+	case "linux":
+		name = "xdg-open"
+		args = []string{target}
+	default:
+		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+	cmd := exec.Command(name, args...)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
+	return cmd.Start()
 }
 
 func execWebFetch(url string) ExecResult {

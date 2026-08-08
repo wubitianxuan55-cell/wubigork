@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/carmel/gooxml/document"
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/ledongthuc/pdf"
 )
 
@@ -60,6 +61,7 @@ func (s *Service) convertFile(ctx context.Context, filePath string) (string, boo
 func markitdownAvailable() bool {
 	// 检查 python 和 markitdown 是否可用
 	cmd := exec.Command("python", "-c", "from markitdown import MarkItDown")
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	return cmd.Run() == nil
 }
 
@@ -73,6 +75,7 @@ result = md.convert(sys.argv[1])
 print(result.text_content)
 `
 	cmd := exec.Command("python", "-c", script, filePath)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("MarkItDown 转换失败: %w\n输出: %s", err, string(out))

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
 // OCRProvider 扫描件/图片 OCR 提供者
@@ -73,6 +75,7 @@ print("\n\n".join(pages))
 func DetectPythonOCR() (OCRProvider, bool) {
 	for _, bin := range []string{"python", "python3"} {
 		cmd := exec.Command(bin, "-c", "import fitz, rapidocr_onnxruntime")
+		proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 		if cmd.Run() == nil {
 			return &pythonOCR{pythonBin: bin}, true
 		}
@@ -87,6 +90,7 @@ func (p *pythonOCR) OCR(ctx context.Context, filePath string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, p.pythonBin, "-c", pythonOCRScript, filePath)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("OCR 识别失败: %w\n输出: %s", err, truncate(string(out), 500))

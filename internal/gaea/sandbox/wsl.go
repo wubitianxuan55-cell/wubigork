@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
 // WSL2Distro holds the name of an available WSL2 Linux distribution.
@@ -30,6 +32,7 @@ func DetectWSL2() *WSL2Distro {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "wsl.exe", "--list", "--quiet")
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	out, err := cmd.Output()
 	if err != nil {
 		return nil
@@ -75,6 +78,7 @@ func (d *WSL2Distro) CommandViaWSL2(ctx context.Context, shellCmd string) (strin
 	defer cancel()
 
 	cmd := exec.CommandContext(execCtx, argv[0], argv[1:]...)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

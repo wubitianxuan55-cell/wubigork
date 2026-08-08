@@ -167,6 +167,7 @@ func (chartGen) Execute(ctx context.Context, args json.RawMessage) (string, erro
 	inputJSON, _ := json.Marshal(input)
 
 	cmd := exec.CommandContext(ctx, python, "-c", chartScript)
+	hideBashWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	cmd.Stdin = strings.NewReader(string(inputJSON))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
