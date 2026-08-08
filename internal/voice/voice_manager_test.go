@@ -8,11 +8,13 @@ import (
 
 // mockEmitter 记录事件调用
 type mockEmitter struct {
-	mu         sync.Mutex
-	states     []VoiceState
-	listening  []bool
-	thinking   []bool
-	errors     []error
+	mu           sync.Mutex
+	states       []VoiceState
+	listening    []bool
+	thinking     []bool
+	errors       []error
+	ttsAudioCnt  int
+	ttsCancelCnt int
 	listenCalls int
 }
 
@@ -23,9 +25,17 @@ func (e *mockEmitter) EmitVoiceState(s VoiceState) {
 }
 func (e *mockEmitter) EmitVoiceTranscript(text string, isFinal bool) {}
 func (e *mockEmitter) EmitVoiceReply(text string)                     {}
-func (e *mockEmitter) EmitVoiceTTSAudio(audio []byte, mimeType string) {}
-func (e *mockEmitter) EmitVoiceTTSSpeakText(text string)              {}
-func (e *mockEmitter) EmitVoiceTTSCancel()                            {}
+func (e *mockEmitter) EmitVoiceTTSAudio(audio []byte, mimeType string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.ttsAudioCnt++
+}
+func (e *mockEmitter) EmitVoiceTTSSpeakText(text string) {}
+func (e *mockEmitter) EmitVoiceTTSCancel() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.ttsCancelCnt++
+}
 func (e *mockEmitter) EmitVoiceListening(active bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -175,6 +185,8 @@ func TestManager_PushAudioChunk_SpeakingInterruptAccumulates(t *testing.T) {
 	m.mu.Lock()
 	m.state = StateSpeaking
 	m.config.InterruptThresholdMs = 500
+	m.ttsActive = true
+	m.speakStopCh = make(chan struct{})
 	m.mu.Unlock()
 
 	// 连续 3 块语音（200ms×3=600ms > 500ms 阈值）→ 触发 interruptCh
@@ -189,11 +201,11 @@ func TestManager_PushAudioChunk_SpeakingInterruptAccumulates(t *testing.T) {
 			t.Fatalf("PushAudioChunk %d: %v", i, err)
 		}
 	}
-	select {
-	case <-m.InterruptCh():
-		// 触发成功
-	default:
-		t.Error("累积超过打断阈值应触发打断信号")
+	m.mu.Lock()
+	stopped := m.speakStopCh == nil
+	m.mu.Unlock()
+	if !stopped {
+		t.Error("累积超过打断阈值应停止当前 TTS（speakStopCh 应被置空）")
 	}
 }
 

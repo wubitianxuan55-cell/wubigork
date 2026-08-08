@@ -29,6 +29,10 @@ const SAMPLE_RATE = 16000
 const CHUNK_MS = 200
 const CHUNK_SIZE = SAMPLE_RATE * 2 * CHUNK_MS / 1000 // 6400 bytes
 
+// 浏览器端自带语音识别（WebView2 / Edge 内核，微软云端识别），
+// 免去后端 ASR 模型，识别更快。
+const browserASRAvailable = typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+
 export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const [state, setState] = useState<VoiceChatState>({
     active: false, listening: false, speaking: false, aiSpeaking: false,
@@ -43,6 +47,9 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const gainRef = useRef<GainNode | null>(null)
   const abortRef = useRef(false)
   const pttRef = useRef(false)
+  const recognitionRef = useRef<any>(null)
+  const recognitionActiveRef = useRef(false)
+  const pendingSpeechRef = useRef(0)
   const volTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const simTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const stateRef = useRef<VoiceChatState>(state)
@@ -100,10 +107,14 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     // TTS 音频播放
     unsubs.push(EventsOn('voice:tts-audio', async (data: any) => {
       if (abortRef.current) return
+      pendingSpeechRef.current += 1
+      setState2({ aiSpeaking: true })
       try {
         await playAudio(data.audio, data.mimeType)
       } catch (err) {
         console.error('[Voice] TTS 播放失败:', err)
+        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
       }
     }))
 
@@ -115,7 +126,18 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
         const u = new SpeechSynthesisUtterance(text)
         u.lang = 'zh-CN'
         u.rate = 1.0
-        u.onend = () => setState2({ aiSpeaking: false })
+        pendingSpeechRef.current += 1
+        setState2({ aiSpeaking: true })
+        u.onend = () => {
+          pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+          if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+          App.VoicePlaybackDone().catch(() => {})
+        }
+        u.onerror = () => {
+          pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+          if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+          App.VoicePlaybackDone().catch(() => {})
+        }
         speechSynthesis.cancel()
         speechSynthesis.speak(u)
       }
@@ -168,20 +190,36 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       const source = ctx.createBufferSource()
       source.buffer = audioBuffer
       source.connect(gainRef.current!)
-      source.onended = () => setState2({ aiSpeaking: false })
+      source.onended = () => {
+        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+        App.VoicePlaybackDone().catch(() => {})
+      }
       source.start(0)
     } catch (err) {
       // decodeAudioData 可能失败（非浏览器原生格式），尝试用 Audio 元素
       const blob = new Blob([bytes as BlobPart], { type: mimeType || 'audio/mp3' })
       const url = URL.createObjectURL(blob)
       const audio = new Audio(url)
-      audio.onended = () => { URL.revokeObjectURL(url); setState2({ aiSpeaking: false }) }
-      audio.onerror = () => { URL.revokeObjectURL(url) }
+      audio.onended = () => {
+        URL.revokeObjectURL(url)
+        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+        App.VoicePlaybackDone().catch(() => {})
+      }
+      audio.onerror = () => {
+        URL.revokeObjectURL(url)
+        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+        App.VoicePlaybackDone().catch(() => {})
+      }
       await audio.play()
     }
   }, [setState2])
 
   const stopPlayback = useCallback(() => {
+    pendingSpeechRef.current = 0
+    setState2({ aiSpeaking: false })
     if (playbackCtxRef.current && playbackCtxRef.current.state !== 'closed') {
       playbackCtxRef.current.close().catch(() => {})
     }
@@ -189,6 +227,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     gainRef.current = null
     speechSynthesis.cancel()
     App.VoiceCancelTTS().catch(() => {})
+    App.VoicePlaybackDone().catch(() => {})
   }, [])
 
   // ── 音频采集 ──
@@ -232,8 +271,8 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
       processor.onaudioprocess = (event) => {
         if (abortRef.current) return
-        // 仅在 PTT 激活或 VAD 模式下发送
-        if (pttRef.current || stateRef.current.mode === 'vad') {
+        // 仅在 PTT 激活或 VAD 模式下发送；浏览器识别模式下不上送后端 ASR
+        if (!browserASRAvailable && (pttRef.current || stateRef.current.mode === 'vad')) {
           const input = event.inputBuffer.getChannelData(0)
           const int16 = float32ToInt16(input)
           App.VoicePushAudio(Array.from(new Uint8Array(int16.buffer))).catch(() => {})
@@ -255,6 +294,69 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
   // ── start / stop ──
 
+  // ── 浏览器端语音识别（Web Speech API，WebView2 自带） ──
+
+  const startBrowserRecognition = useCallback(() => {
+    if (!browserASRAvailable) return
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR || recognitionActiveRef.current) return
+    recognitionActiveRef.current = true
+
+    const rec = new SR()
+    recognitionRef.current = rec
+    rec.lang = 'zh-CN'
+    rec.continuous = true
+    rec.interimResults = true
+    rec.maxAlternatives = 1
+
+    rec.onresult = (e: any) => {
+      if (abortRef.current) return
+      let interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i]
+        if (!res) continue
+        const text = (res[0]?.transcript || '').trim()
+        if (!text) continue
+        if (res.isFinal) {
+          setState2(s => ({ ...s, transcript: '', finalTranscript: s.finalTranscript + text }))
+          // 直接进入后端对话管道（跳过 ASR 模型，识别更快）
+          App.VoiceChatText(text).catch(() => {})
+        } else {
+          interim += text
+        }
+      }
+      setState2(s => ({ ...s, transcript: interim }))
+    }
+
+    rec.onerror = (e: any) => {
+      console.warn('[Voice] 浏览器识别错误:', e?.error)
+      if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
+        setState2({ error: '语音识别被拒绝（麦克风权限或服务不可用）' })
+      }
+    }
+
+    rec.onend = () => {
+      // continuous 模式在静音后可能自行结束，自动重连保持聆听
+      if (!abortRef.current && recognitionActiveRef.current) {
+        setTimeout(() => {
+          if (!abortRef.current && recognitionActiveRef.current && recognitionRef.current) {
+            try { recognitionRef.current.start() } catch (_) {}
+          }
+        }, 150)
+      }
+    }
+
+    try { rec.start() } catch (_) {}
+  }, [setState2])
+
+  const stopBrowserRecognition = useCallback(() => {
+    recognitionActiveRef.current = false
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch (_) {}
+      recognitionRef.current = null
+    }
+  }, [])
+
   const start = useCallback(async () => {
     abortRef.current = false
     setState2({
@@ -262,20 +364,28 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       transcript: '', finalTranscript: '', volume: 0, error: null,
     })
 
-    // 启动后端语音管道
+    // 启动后端语音管道（浏览器识别模式下后端仅负责对话与 TTS）
     try {
-      await App.VoiceStart()
+      await App.VoiceStart(browserASRAvailable)
     } catch (err: any) {
       setState2({ error: `语音启动失败: ${err?.message || err}` })
       return
     }
 
-    // 启动本地音频采集
+    // 启动本地音频采集（音量可视化）
     await startCapture()
+
+    // 浏览器端自带识别：直接出文本，不需要后端 ASR 模型
+    if (browserASRAvailable) {
+      startBrowserRecognition()
+    }
   }, [startCapture, setState2])
 
   const stop = useCallback(() => {
     abortRef.current = true
+
+    // 停止浏览器端识别
+    stopBrowserRecognition()
 
     // 停止后端
     App.VoiceStop().catch(() => {})
@@ -298,6 +408,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
     // 停止播放
     stopPlayback()
+    pendingSpeechRef.current = 0
 
     setState2({
       active: false, listening: false, speaking: false, aiSpeaking: false,
@@ -325,6 +436,11 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   useEffect(() => {
     return () => {
       abortRef.current = true
+      recognitionActiveRef.current = false
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch (_) {}
+        recognitionRef.current = null
+      }
       if (volTimerRef.current) clearInterval(volTimerRef.current)
       if (simTimerRef.current) clearInterval(simTimerRef.current)
       if (processorRef.current) { try { processorRef.current.disconnect() } catch (_) {} }

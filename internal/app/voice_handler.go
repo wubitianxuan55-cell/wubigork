@@ -112,6 +112,7 @@ func (a *mediaState) setWhisperChatFn() {
 		return reply, emotion, nil
 	})
 }
+
 // applyASRClient 配置 ASR 客户端（模型中心 STT 模型引擎路由）
 
 // applyASRClient 配置 ASR 客户端（模型中心 STT 模型引擎路由）
@@ -207,12 +208,42 @@ func (a *mediaState) synthesizeFromBase64(text string) ([]byte, string, error) {
 
 // ── Wails API 端点 ──
 
-// VoiceStart 启动语音管道
-func (a *mediaState) VoiceStart() error {
+// VoiceStart 启动语音管道。browserASR 为 true 时使用浏览器端
+// Web Speech API 识别（无需 herdsman STT 模型），后端只负责对话与 TTS。
+func (a *mediaState) VoiceStart(browserASR bool) error {
 	if a.voiceManager == nil {
 		a.initVoice()
 	}
+	if !browserASR {
+		if a.voiceManager == nil || !a.voiceManager.ASRReady() {
+			return fmt.Errorf("语音识别未就绪：请在模型中心启用 STT 模型（如 whisper-base / funasr）并确认 herdsman 引擎可用，或改用浏览器端语音识别")
+		}
+	}
+	if !a.voiceManager.WhisperReady() {
+		return fmt.Errorf("语音对话引擎未就绪，请检查模型中心配置")
+	}
 	return a.voiceManager.Start()
+}
+
+// VoiceChatText 浏览器端识别文本直接进入对话管道（跳过 herdsman ASR）
+func (a *mediaState) VoiceChatText(text string) error {
+	if a.voiceManager == nil {
+		a.initVoice()
+	}
+	if a.voiceManager == nil {
+		return fmt.Errorf("语音管理器未初始化")
+	}
+	a.voiceManager.HandleUserText(text)
+	return nil
+}
+
+// VoicePlaybackDone 前端 TTS 播放完成回调，释放后端状态机继续监听
+func (a *mediaState) VoicePlaybackDone() error {
+	if a.voiceManager == nil {
+		return nil
+	}
+	a.voiceManager.PlaybackDone()
+	return nil
 }
 
 // VoiceStop 停止语音管道

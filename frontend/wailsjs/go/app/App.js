@@ -1350,6 +1350,10 @@ export function VoiceCancelTTS() {
   return window['go']['app']['App']['VoiceCancelTTS']();
 }
 
+export function VoiceChatText(arg1) {
+  return window['go']['app']['App']['VoiceChatText'](arg1);
+}
+
 export function VoiceGetSettings() {
   return window['go']['app']['App']['VoiceGetSettings']();
 }
@@ -1360,6 +1364,10 @@ export function VoiceGetState() {
 
 export function VoiceHealth() {
   return window['go']['app']['App']['VoiceHealth']();
+}
+
+export function VoicePlaybackDone() {
+  return window['go']['app']['App']['VoicePlaybackDone']();
 }
 
 export function VoicePushAudio(arg1) {
@@ -1382,8 +1390,8 @@ export function VoiceSetPTTActive(arg1) {
   return window['go']['app']['App']['VoiceSetPTTActive'](arg1);
 }
 
-export function VoiceStart() {
-  return window['go']['app']['App']['VoiceStart']();
+export function VoiceStart(arg1) {
+  return window['go']['app']['App']['VoiceStart'](arg1);
 }
 
 export function VoiceStop() {

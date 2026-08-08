@@ -2,9 +2,9 @@
 //
 // 100% 对齐 Ackem voiceManager.ts 的状态机和管道设计：
 //
-//  状态机: idle → listening → thinking → speaking → idle
-//                          ↑                        │
-//                          └──── interrupt ──────────┘
+//	状态机: idle → listening → thinking → speaking → idle
+//	                        ↑                        │
+//	                        └──── interrupt ──────────┘
 //
 // VAD：基于 RMS 能量检测，可配置沉默/打断阈值
 // 管道：音频输入 → VAD → ASR → Whisper gaea引擎 → TTS → 音频输出
@@ -15,10 +15,13 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/asr"
+	"github.com/gaea/gaea/internal/tts"
 )
 
 // ── 回调接口 ──
@@ -27,7 +30,7 @@ import (
 type EventEmitter interface {
 	EmitVoiceState(state VoiceState)
 	EmitVoiceTranscript(text string, isFinal bool)
-	EmitVoiceReply(text string)              // AI 回复文本（对话中显示）
+	EmitVoiceReply(text string) // AI 回复文本（对话中显示）
 	EmitVoiceTTSAudio(audio []byte, mimeType string)
 	EmitVoiceTTSSpeakText(text string) // 浏览器 fallback
 	EmitVoiceTTSCancel()
@@ -59,10 +62,10 @@ type Manager struct {
 	// VAD
 	vadBuffer         []byte // 累积的音频缓冲
 	vadSilenceMs      int    // 当前连续静音毫秒数
-	vadSpeechDetected bool // 是否已检测到语音
+	vadSpeechDetected bool   // 是否已检测到语音
 
 	// 打断检测（P0修复: 对齐 ackem interruptSpeechMs 累积逻辑）
-	interruptSpeechMs int  // 连续语音打断累积毫秒数（需超阈值才触发打断）
+	interruptSpeechMs int // 连续语音打断累积毫秒数（需超阈值才触发打断）
 
 	// ASR
 	asrClient *asr.HerdsmanASR
@@ -71,9 +74,14 @@ type Manager struct {
 	whisperChatFn WhisperChatFn
 	ttsSynthFn    TTSSynthesizeFn
 
-	// 打断
-	interruptCh chan struct{}
-	ttsActive   bool
+	// 打断与轮次控制
+	playbackDoneCh chan struct{} // 当前句播放完成信号（前端回调）
+	speakStopCh    chan struct{} // 每轮 speak 的停止信号（打断时 close）
+	turnCancelCh   chan struct{} // 每轮对话的取消信号（thinking 阶段插话时 close）
+	turnMu         sync.Mutex    // 串行化对话轮次，防止多输入并发进入管道
+	interrupted    bool          // 上一轮语音回复是否被用户打断（下一轮注入模型）
+	ttsActive      bool
+	running        bool
 }
 
 // NewManager 创建语音管理器
@@ -82,12 +90,12 @@ func NewManager(emitter EventEmitter, config VoiceRuntimeConfig) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Manager{
-		config:      config,
-		emitter:     emitter,
-		ctx:         ctx,
-		cancel:      cancel,
-		state:       StateIdle,
-		interruptCh: make(chan struct{}, 1),
+		config:         config,
+		emitter:        emitter,
+		ctx:            ctx,
+		cancel:         cancel,
+		state:          StateIdle,
+		playbackDoneCh: make(chan struct{}, 1),
 	}
 }
 
@@ -161,6 +169,10 @@ func (m *Manager) Start() error {
 	m.ttsActive = false
 	m.mu.Unlock()
 
+	m.mu.Lock()
+	m.running = true
+	m.mu.Unlock()
+
 	m.setState(StateListening)
 	if m.emitter != nil {
 		m.emitter.EmitVoiceListening(true)
@@ -183,6 +195,10 @@ func (m *Manager) Stop() {
 	m.vadSilenceMs = 0
 	m.vadSpeechDetected = false
 	m.ttsActive = false
+	m.speakStopCh = nil
+	m.turnCancelCh = nil
+	m.interrupted = false
+	m.running = false
 	m.mu.Unlock()
 
 	m.setState(StateIdle)
@@ -193,6 +209,7 @@ func (m *Manager) Stop() {
 
 	slog.Info("语音管道停止")
 }
+
 // PushAudioChunk 推送 PCM16/16k mono 音频块
 // 对齐 Ackem voice:audio-chunk IPC 通道
 // P0修复: 打断检测改为累积阈值模式，对齐 ackem interruptSpeechMs 逻辑
@@ -218,13 +235,10 @@ func (m *Manager) PushAudioChunk(chunk []byte) error {
 
 			// 累积超过打断阈值才触发打断（对齐 ackem: 默认500ms）
 			if m.interruptSpeechMs >= config.InterruptThresholdMs {
-				select {
-				case m.interruptCh <- struct{}{}:
-				default:
-				}
 				m.mu.Lock()
 				m.interruptSpeechMs = 0
 				m.mu.Unlock()
+				m.handleInterrupt()
 			}
 		} else {
 			// 静音：重置累积
@@ -306,23 +320,67 @@ func (m *Manager) handleSpeechEnd(audioData []byte) {
 	}
 
 	slog.Info("ASR 识别结果", "text", text)
+	m.runReply(text)
+}
+
+// runReply 串行执行一轮语音对话。所有输入入口（浏览器识别 / 后端 ASR）
+// 共用同一把 turnMu，避免上一轮还在播 TTS 时新输入并发进入对话管道。
+func (m *Manager) runReply(text string) {
+	m.turnMu.Lock()
+	defer m.turnMu.Unlock()
+	m.handleReply(text)
+}
+
+// handleReply 处理已识别文本：Whisper 对话 → 流式 TTS 播放 → 恢复监听。
+// 同时被 handleSpeechEnd（后端 ASR）与 HandleUserText（浏览器端识别）复用。
+func (m *Manager) handleReply(text string) {
+	config := m.GetConfig()
+
+	// 防重入：若上一轮仍在说话/思考（例如浏览器连续识别），先停掉旧语音
+	m.mu.RLock()
+	state := m.state
+	m.mu.RUnlock()
+	if state == StateSpeaking || state == StateThinking {
+		m.CancelTTS()
+	}
+
+	// 本轮取消通道：thinking 阶段（LLM 生成中）被插话打断时关闭，
+	// 生成完成后跳过播放，让排队的新输入接话。
+	m.mu.Lock()
+	m.turnCancelCh = make(chan struct{})
+	turnCancel := m.turnCancelCh
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		m.turnCancelCh = nil
+		m.mu.Unlock()
+	}()
+
+	m.setState(StateThinking)
+	if m.emitter != nil {
+		m.emitter.EmitVoiceThinking(true)
+		m.emitter.EmitVoiceListening(false)
+	}
+
+	// 发送识别文本到前端（用于对话显示）
 	if m.emitter != nil {
 		m.emitter.EmitVoiceTranscript(text, true)
 	}
 
-	// 2. 获取情感参数
-	config := m.GetConfig()
-	emotionLabel := "CALM_RATIONAL" // 默认，将被 whisper 覆盖
-	voiceDesc := GetVoiceDescription(emotionLabel)
-
-	// 3. Whisper 对话
+	// Whisper 对话
 	if m.whisperChatFn == nil {
 		slog.Warn("whisper 对话回调未设置")
 		m.setState(StateIdle)
 		return
 	}
 
-	reply, emotionLabel, err := m.whisperChatFn(text, config.PersonalityPresetID)
+	// 上一轮被打断时，把这一事实告诉模型（对齐 Hermes 的 SPEECH_INTERRUPTED_NOTE）
+	userMsg := text
+	if m.takeInterrupted() {
+		userMsg = "[注意：用户打断了你上一轮未说完的语音回复。] " + text
+	}
+
+	reply, emotionLabel, err := m.whisperChatFn(userMsg, config.PersonalityPresetID)
 	if err != nil {
 		slog.Error("whisper 对话失败", "error", err)
 		if m.emitter != nil {
@@ -331,15 +389,28 @@ func (m *Manager) handleSpeechEnd(audioData []byte) {
 		m.setState(StateIdle)
 		return
 	}
+
+	// 生成期间被打断：不播放旧回复，让排队的新输入接话
+	select {
+	case <-turnCancel:
+		slog.Debug("生成期间被打断，跳过播放旧回复")
+		m.setState(StateIdle)
+		if m.emitter != nil {
+			m.emitter.EmitVoiceThinking(false)
+		}
+		return
+	default:
+	}
+
 	// 发送回复文本到前端（用于对话显示）
 	if m.emitter != nil {
 		m.emitter.EmitVoiceReply(reply)
 	}
 
 	// 获取带人格修饰的语音指令
-	voiceDesc = GetVoiceDescriptionWithPersonality(emotionLabel, config.PersonalityPresetID)
+	voiceDesc := GetVoiceDescriptionWithPersonality(emotionLabel, config.PersonalityPresetID)
 
-	// 4. TTS 合成并播放
+	// 流式 TTS：逐句合成并播放（支持 barge-in 打断）
 	if config.TTSEnabled && m.ttsSynthFn != nil {
 		m.speak(reply, voiceDesc)
 	} else {
@@ -354,11 +425,11 @@ func (m *Manager) handleSpeechEnd(audioData []byte) {
 		m.emitter.EmitVoiceThinking(false)
 	}
 
-	// 5. 自动恢复监听（如果是连续对话模式）
-	if config.VoiceMode == VoiceModeVAD {
+	// 自动恢复监听（如果是连续对话模式）
+	if config.VoiceMode == VoiceModeVAD && m.isRunning() {
 		time.Sleep(300 * time.Millisecond)
 		m.mu.RLock()
-		canListen := m.state == StateIdle
+		canListen := m.state == StateIdle && m.running
 		m.mu.RUnlock()
 		if canListen {
 			m.Start()
@@ -366,32 +437,140 @@ func (m *Manager) handleSpeechEnd(audioData []byte) {
 	}
 }
 
-// speak TTS 合成并通知前端播放（对齐 Ackem speak 流程）
+// HandleUserText 浏览器端（Web Speech API）识别出的文本直接进入对话管道，
+// 跳过后端 herdsman ASR，识别更快。AI 正在说话/思考时调用会先打断
+// （barge-in），让用户立刻接话。
+func (m *Manager) HandleUserText(text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+
+	// 插话打断：立即停掉当前 AI 语音，新输入随后进入串行管道
+	m.mu.RLock()
+	state := m.state
+	m.mu.RUnlock()
+	if state == StateSpeaking || state == StateThinking {
+		m.interruptTurn()
+		m.CancelTTS()
+	}
+
+	go m.runReply(text)
+}
+
+// sentenceAudio 一句 TTS 合成结果
+type sentenceAudio struct {
+	audio    []byte
+	mimeType string
+}
+
+// speak 流式 TTS：逐句合成并播放（Hermes 式"边合成边播"）。
+// 合成侧 goroutine 预合成下一句，播放侧等当前句播放完成（前端回调
+// PlaybackDone）后再取下一句，从而隐藏合成延迟；打断时 close(speakStopCh)，
+// 合成与播放两侧立即退出，不再播后续句子。
 func (m *Manager) speak(text string, voiceDesc string) {
 	m.mu.Lock()
 	m.ttsActive = true
+	m.speakStopCh = make(chan struct{})
+	stop := m.speakStopCh
 	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		m.ttsActive = false
+		m.speakStopCh = nil
+		m.mu.Unlock()
+	}()
 
 	m.setState(StateSpeaking)
 	if m.emitter != nil {
 		m.emitter.EmitVoiceThinking(false)
 	}
 
-	audio, mimeType, err := m.ttsSynthFn(text, voiceDesc)
-	if err != nil {
-		slog.Error("TTS 合成失败", "error", err)
-		if m.emitter != nil {
-			m.emitter.EmitVoiceError(fmt.Errorf("语音合成失败: %w", err))
-			// fallback 到浏览器 TTS
-			m.emitter.EmitVoiceTTSSpeakText(text)
-		}
-	} else if len(audio) > 0 && m.emitter != nil {
-		m.emitter.EmitVoiceTTSAudio(audio, mimeType)
+	sentences := tts.SplitSentences(text)
+	if len(sentences) == 0 {
+		sentences = []string{text}
 	}
 
-	m.mu.Lock()
-	m.ttsActive = false
-	m.mu.Unlock()
+	ctx := m.ctx // 捕获：Stop() 会替换 m.ctx，避免读到新 context 而不退出
+	audioCh := make(chan sentenceAudio, 1)
+	seen := make(map[string]struct{})
+
+	// 合成侧：逐句合成并送入队列（预取下一句，隐藏合成延迟）
+	go func() {
+		defer close(audioCh)
+		for _, sentence := range sentences {
+			select {
+			case <-ctx.Done():
+				return
+			case <-stop:
+				return
+			default:
+			}
+
+			// 口语化清洗 + 去重（对齐 Hermes 的 _strip_markdown_for_tts）
+			cleaned := cleanForSpeech(sentence)
+			if cleaned == "" {
+				continue
+			}
+			if _, dup := seen[cleaned]; dup {
+				continue
+			}
+			seen[cleaned] = struct{}{}
+
+			audio, mimeType, err := m.ttsSynthFn(cleaned, voiceDesc)
+			if err != nil {
+				slog.Error("TTS 合成失败", "error", err)
+				if m.emitter != nil {
+					m.emitter.EmitVoiceError(fmt.Errorf("语音合成失败: %w", err))
+					m.emitter.EmitVoiceTTSSpeakText(sentence) // fallback 浏览器 TTS
+				}
+				return
+			}
+			if len(audio) == 0 {
+				continue
+			}
+			select {
+			case audioCh <- sentenceAudio{audio: audio, mimeType: mimeType}:
+			case <-ctx.Done():
+				return
+			case <-stop:
+				return
+			}
+		}
+	}()
+
+	// 播放侧：等当前句播完 → 取下一句；打断/停止随时退出
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-stop:
+			return
+		case sa, ok := <-audioCh:
+			if !ok {
+				return // 所有句子已合成并播完
+			}
+
+			// 每句用独立的 ack 通道，避免上一句的残留信号误放行下一句
+			ackCh := make(chan struct{}, 1)
+			m.mu.Lock()
+			m.playbackDoneCh = ackCh
+			m.mu.Unlock()
+
+			if m.emitter != nil {
+				m.emitter.EmitVoiceTTSAudio(sa.audio, sa.mimeType)
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-stop:
+				return
+			case <-ackCh:
+				// 当前句播放完成，继续下一句
+			}
+		}
+	}
 }
 
 // transcribe 调用 ASR 进行语音识别
@@ -400,7 +579,8 @@ func (m *Manager) transcribe(audioData []byte) (string, error) {
 		return "", fmt.Errorf("ASR 客户端未设置")
 	}
 
-	base64Audio := asr.EncodeBase64(audioData)
+	wavAudio := wrapPCMAsWAV(audioData)
+	base64Audio := asr.EncodeBase64(wavAudio)
 	result, err := m.asrClient.TranscribeBase64(base64Audio, "audio/wav")
 	if err != nil {
 		return "", err
@@ -414,9 +594,16 @@ func (m *Manager) transcribe(audioData []byte) (string, error) {
 // CancelTTS 打断当前 TTS 播放（对齐 Ackem voice:cancel-tts）
 func (m *Manager) CancelTTS() {
 	m.mu.Lock()
+	stop := m.speakStopCh
+	m.speakStopCh = nil
 	wasActive := m.ttsActive
 	m.ttsActive = false
+	m.interrupted = true // 用户打断：下一轮告诉模型
 	m.mu.Unlock()
+
+	if stop != nil {
+		close(stop) // 让 speak 的合成/播放循环立即退出
+	}
 
 	if wasActive && m.emitter != nil {
 		m.emitter.EmitVoiceTTSCancel()
@@ -425,9 +612,26 @@ func (m *Manager) CancelTTS() {
 	slog.Debug("TTS 已打断")
 }
 
-// InterruptCh 返回打断通道
-func (m *Manager) InterruptCh() <-chan struct{} {
-	return m.interruptCh
+// interruptTurn 取消当前轮次（thinking 阶段插话时关闭轮次取消通道，
+// 让生成完成后的回复不再播放）。与 CancelTTS 分工：CancelTTS 停播放，
+// interruptTurn 停"将要播放"。
+func (m *Manager) interruptTurn() {
+	m.mu.Lock()
+	tc := m.turnCancelCh
+	m.turnCancelCh = nil
+	m.mu.Unlock()
+	if tc != nil {
+		close(tc)
+	}
+}
+
+// takeInterrupted 读取并清除"上一轮被打断"标记（每轮 handleReply 开头调用）。
+func (m *Manager) takeInterrupted() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	v := m.interrupted
+	m.interrupted = false
+	return v
 }
 
 // ── PTT 模式 ──
@@ -485,6 +689,34 @@ func (m *Manager) HealthCheck() map[string]interface{} {
 
 // ── 工具函数 ──
 
+// ── TTS 口语化清洗 ──
+
+var (
+	markdownFenceRe  = regexp.MustCompile("(?s)```.*?```")
+	markdownInlineRe = regexp.MustCompile("`[^`]*`")
+	markdownLinkRe   = regexp.MustCompile(`\[([^\]]+)\]\([^)]*\)`)
+	urlRe            = regexp.MustCompile(`https?://\S+`)
+	markdownHeaderRe = regexp.MustCompile(`(?m)^#{1,6}\s*`)
+)
+
+// cleanForSpeech 清洗一句 TTS 文本（对齐 Hermes 的 _strip_markdown_for_tts）：
+// 去掉 markdown 代码块/行内代码/链接/标题/强调符号与裸 URL，压缩空白。
+// 避免 Edge/SAPI 把 "**加粗**" 或 "[链接](url)" 念出来。
+func cleanForSpeech(s string) string {
+	s = markdownFenceRe.ReplaceAllString(s, " ")
+	s = markdownInlineRe.ReplaceAllString(s, " ")
+	s = markdownLinkRe.ReplaceAllString(s, "$1")
+	s = urlRe.ReplaceAllString(s, "")
+	s = markdownHeaderRe.ReplaceAllString(s, "")
+	s = strings.ReplaceAll(s, "**", "")
+	s = strings.ReplaceAll(s, "*", "")
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	return strings.Join(strings.Fields(s), " ")
+}
+
 // rmsEnergy 计算 int16 PCM 块的均方根能量
 // 对齐 Ackem audioWav.ts getRMS()
 func rmsEnergy(samples []byte) float64 {
@@ -508,4 +740,54 @@ func copyBytes(src []byte) []byte {
 	dst := make([]byte, len(src))
 	copy(dst, src)
 	return dst
+}
+
+// handleInterrupt performs a barge-in: stop the AI's speech so the user can
+// take the floor. Called synchronously from PushAudioChunk once the
+// accumulated speech duration exceeds the interrupt threshold, so the stop
+// signal reaches speak() on the same audio path without an extra goroutine.
+func (m *Manager) handleInterrupt() {
+	m.mu.RLock()
+	state := m.state
+	m.mu.RUnlock()
+	if state != StateSpeaking {
+		return
+	}
+	m.CancelTTS()
+}
+
+// PlaybackDone is called by the frontend when one TTS sentence finishes
+// playing. It releases speak() so the next sentence can start.
+func (m *Manager) PlaybackDone() {
+	m.mu.RLock()
+	state := m.state
+	ch := m.playbackDoneCh
+	m.mu.RUnlock()
+	if state != StateSpeaking || ch == nil {
+		return
+	}
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+}
+
+// isRunning reports whether the voice pipeline is in an active Start/Stop
+// cycle (used to avoid auto-restarting listening after Stop).
+func (m *Manager) isRunning() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.running
+}
+
+// ASRReady reports whether an ASR client has been configured.
+func (m *Manager) ASRReady() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.asrClient != nil
+}
+
+// WhisperReady reports whether the whisper chat callback has been configured.
+func (m *Manager) WhisperReady() bool {
+	return m.whisperChatFn != nil
 }
