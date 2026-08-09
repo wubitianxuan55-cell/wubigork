@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/netclient"
 	"log/slog"
 	"net/http"
@@ -38,6 +39,7 @@ type ModelInfo struct {
 	ID      string `json:"id"`
 	OwnedBy string `json:"owned_by"`
 	Status  string `json:"status,omitempty"` // "running" / "stopped" / "unknown"
+	Kind    string `json:"kind,omitempty"`   // "llm" / "tts" / "stt" / "image"，由后端按引擎/名称分类，前端不再猜测
 }
 
 // EngineConfig 引擎配置
@@ -45,6 +47,10 @@ type EngineConfig struct {
 	ID           string       `json:"id"`
 	Name         string       `json:"name"`
 	Type         EngineType   `json:"type"`
+	Label        string       `json:"label,omitempty"`    // 展示名（如 "Ollama 本地"），前端优先使用
+	Color        string       `json:"color,omitempty"`    // 主题色（十六进制），前端优先使用
+	Icon         string       `json:"icon,omitempty"`     // 图标键（cloud/desktop/rocket/key/global），前端映射
+	IsLocal      bool         `json:"is_local,omitempty"` // 本地引擎（免费/本机资源）
 	BaseURL      string       `json:"base_url"`
 	APIKey       string       `json:"api_key,omitempty"`
 	Enabled      bool         `json:"enabled"`
@@ -75,17 +81,17 @@ type modelsListResponse struct {
 // ── 引擎管理器 ─────────────────────────────────────────────
 
 type Manager struct {
-	mu          sync.RWMutex
-	engines     map[string]*EngineConfig
-	order       []string // 稳定展示顺序（GetEngines 按此返回，避免 map 随机序）
-	statePath   string   // 状态文件路径（空=不落盘）
-	xaiKey      string   // xAI API key（来自 OAuth token）
-	deepseekKey string   // DeepSeek API key（用户手动配置）
-	opencodeKey string   // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
-	opencodeZenKey string // OpenCode Zen API key（按量付费，opencode.ai/auth 获取）
-	httpClient  *http.Client
-	statsMu     sync.Mutex // 保护 statsRec 的懒初始化
-	statsRec    *statsRecorder // 模型调用统计（可为 nil，首次记录时创建）
+	mu             sync.RWMutex
+	engines        map[string]*EngineConfig
+	order          []string // 稳定展示顺序（GetEngines 按此返回，避免 map 随机序）
+	statePath      string   // 状态文件路径（空=不落盘）
+	xaiKey         string   // xAI API key（来自 OAuth token）
+	deepseekKey    string   // DeepSeek API key（用户手动配置）
+	opencodeKey    string   // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
+	opencodeZenKey string   // OpenCode Zen API key（按量付费，opencode.ai/auth 获取）
+	httpClient     *http.Client
+	statsMu        sync.Mutex     // 保护 statsRec 的懒初始化
+	statsRec       *statsRecorder // 模型调用统计（可为 nil，首次记录时创建）
 }
 
 // NewManager 创建引擎管理器
@@ -103,6 +109,9 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		ID:           "xai",
 		Name:         "xAI (Grok)",
 		Type:         EngineXAI,
+		Label:        "xAI 云端",
+		Color:        "#60a5fa",
+		Icon:         "cloud",
 		BaseURL:      "https://api.x.ai/v1",
 		Enabled:      true,
 		DefaultModel: "grok-4.20",
@@ -111,6 +120,10 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		ID:           "ollama",
 		Name:         "Ollama",
 		Type:         EngineOllama,
+		Label:        "Ollama 本地",
+		Color:        "#f59e0b",
+		Icon:         "desktop",
+		IsLocal:      true,
 		BaseURL:      "http://localhost:11434/v1",
 		Enabled:      true,
 		DefaultModel: "",
@@ -119,6 +132,10 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		ID:           "herdsman",
 		Name:         "Herdsman",
 		Type:         EngineHerdsman,
+		Label:        "Herdsman 本地",
+		Color:        "#84cc16",
+		Icon:         "rocket",
+		IsLocal:      true,
 		BaseURL:      "http://localhost:8080/v1",
 		Enabled:      true,
 		DefaultModel: "",
@@ -127,6 +144,9 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		ID:           "deepseek",
 		Name:         "DeepSeek",
 		Type:         EngineDeepseek,
+		Label:        "DeepSeek 云端",
+		Color:        "#8b5cf6",
+		Icon:         "key",
 		BaseURL:      "https://api.deepseek.com",
 		Enabled:      true,
 		DefaultModel: "deepseek-v4-pro",
@@ -135,6 +155,10 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		ID:           "cosyvoice",
 		Name:         "CosyVoice2 (本地)",
 		Type:         EngineCosyVoice,
+		Label:        "CosyVoice2 本地",
+		Color:        "#f472b6",
+		Icon:         "rocket",
+		IsLocal:      true,
 		BaseURL:      "http://127.0.0.1:8010/v1",
 		Enabled:      true,
 		DefaultModel: "CosyVoice2-0.5B",
@@ -143,6 +167,9 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		ID:           "opencode-go",
 		Name:         "OpenCode Go (云端)",
 		Type:         EngineOpencodeGo,
+		Label:        "OpenCode Go 云端",
+		Color:        "#22d3ee",
+		Icon:         "global",
 		BaseURL:      "https://opencode.ai/zen/go/v1",
 		Enabled:      true,
 		DefaultModel: "deepseek-v4-pro",
@@ -151,6 +178,9 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		ID:           "opencode-zen",
 		Name:         "OpenCode Zen (云端)",
 		Type:         EngineOpencodeZen,
+		Label:        "OpenCode Zen 云端",
+		Color:        "#a78bfa",
+		Icon:         "global",
 		BaseURL:      "https://opencode.ai/zen/v1",
 		Enabled:      true,
 		DefaultModel: "deepseek-v4-pro",
@@ -180,7 +210,7 @@ func (m *Manager) EnsureModel(engineID, modelID string) {
 			return
 		}
 	}
-	engine.Models = append(engine.Models, ModelInfo{ID: modelID, OwnedBy: engineID})
+	engine.Models = append(engine.Models, ModelInfo{ID: modelID, OwnedBy: engineID, Kind: classifyModelKind(engine.Type, modelID)})
 	m.mu.Unlock()
 	m.saveState()
 }
@@ -405,6 +435,7 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 			ID:      d.ID,
 			OwnedBy: d.OwnedBy,
 			Status:  d.Status,
+			Kind:    classifyModelKind(engine.Type, d.ID),
 		}
 	}
 
@@ -429,11 +460,33 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 			}
 		}
 		if !found {
-			models = append(models, ModelInfo{ID: "grok-tts", OwnedBy: "xai"})
+			models = append(models, ModelInfo{ID: "grok-tts", OwnedBy: "xai", Kind: "tts"})
 		}
 	}
 
 	return models, nil
+}
+
+// classifyModelKind 按引擎类型与模型名分类（llm/tts/stt/image）。
+// 分类下沉到后端后，前端不再需要根据名称猜测；逻辑与旧前端启发式保持一致，避免行为跳变。
+func classifyModelKind(engineType EngineType, modelID string) string {
+	l := strings.ToLower(modelID)
+	if engineType == EngineCosyVoice ||
+		strings.Contains(l, "tts") || strings.Contains(l, "voice") ||
+		strings.Contains(l, "edge") || strings.Contains(l, "speech") {
+		return "tts"
+	}
+	if strings.Contains(l, "sherpa") || strings.Contains(l, "whisper") ||
+		strings.Contains(l, "zipformer") || strings.Contains(l, "asr") {
+		return "stt"
+	}
+	if strings.Contains(l, "image") || strings.Contains(l, "zimage") ||
+		strings.Contains(l, "flux") || strings.Contains(l, "turbo") ||
+		strings.Contains(l, "sd") || strings.Contains(l, "dalle") ||
+		strings.Contains(l, "krea") {
+		return "image"
+	}
+	return "llm"
 }
 
 // opencodeGoCompatible 判断 OpenCode Go 模型是否走 OpenAI /chat/completions 端点。
@@ -575,7 +628,7 @@ func (m *Manager) saveState() {
 		slog.Warn("序列化引擎状态失败", "error", err)
 		return
 	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := fileutil.AtomicWrite(path, data, 0644); err != nil {
 		slog.Warn("保存引擎状态失败", "path", path, "error", err)
 	}
 }

@@ -9,12 +9,17 @@ export interface ModelInfo {
   id: string
   owned_by: string
   status: string
+  kind?: string // 后端分类：llm / tts / stt / image
 }
 
 export interface EngineConfig {
   id: string
   name: string
   type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'cosyvoice' | 'opencode-go' | 'opencode-zen'
+  label?: string
+  color?: string
+  icon?: string
+  is_local?: boolean
   base_url: string
   enabled: boolean
   default_model: string

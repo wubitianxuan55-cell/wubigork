@@ -57,10 +57,13 @@ func (c *core) SetEngineDefaultModel(engineID, modelName string) error {
 		return err
 	}
 
-	// 同步更新 cfg.Model，确保 xAI 引擎和其他回退路径使用最新模型
-	c.cfg.Model = modelName
-	if err := config.Save("model", modelName); err != nil {
-		slog.Warn("保存模型配置失败", "model", modelName, "error", err)
+	// 仅 xAI 引擎的默认模型同步为全局回退模型（cfg.Model）；
+	// 其他引擎（本地/第三方）不再污染全局配置，避免陈旧模型名发给活跃引擎（E03 同类问题）。
+	if engineID == "xai" {
+		c.cfg.Model = modelName
+		if err := config.Save(config.KeyModel, modelName); err != nil {
+			slog.Warn("保存模型配置失败", "model", modelName, "error", err)
+		}
 	}
 
 	c.emit("model-changed", map[string]interface{}{"engine": engineID, "model": modelName})
@@ -87,6 +90,14 @@ func (c *core) SetActiveEngine(engineID string) error {
 	// 持久化到配置文件
 	if err := config.Save(config.KeyActiveEngineID, engineID); err != nil {
 		slog.Warn("保存活跃引擎配置失败", "engine", engineID, "error", err)
+	}
+
+	// 切换活跃引擎时同步全局回退模型，确保旧路径（xAI 回退等）使用该引擎的默认模型
+	if eng.DefaultModel != "" {
+		c.cfg.Model = eng.DefaultModel
+		if err := config.Save(config.KeyModel, eng.DefaultModel); err != nil {
+			slog.Warn("保存全局模型配置失败", "model", eng.DefaultModel, "error", err)
+		}
 	}
 
 	// 通知前端模型已切换

@@ -2,6 +2,7 @@ package modelengine
 
 import (
 	"encoding/json"
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -175,13 +176,21 @@ type statsFile struct {
 
 // statsRecorder 模型调用统计（线程安全 + JSON 持久化）。
 type statsRecorder struct {
-	mu     sync.Mutex
-	path   string
-	since  string
-	models map[string]*ModelUsageStats
-	trends map[string]*TrendPoint
-	loaded bool
+	mu       sync.Mutex
+	path     string
+	since    string
+	models   map[string]*ModelUsageStats
+	trends   map[string]*TrendPoint
+	loaded   bool
+	lastSave time.Time // 上次落盘时间（节流用）
+	pending  int       // 自上次落盘以来累计的调用数（节流用）
 }
+
+// 统计落盘节流：高频调用时避免每条记录都全量写盘。
+const (
+	statsSaveInterval = 3 * time.Second
+	statsSaveBatch    = 25
+)
 
 func newStatsRecorder() *statsRecorder {
 	return &statsRecorder{
@@ -262,6 +271,8 @@ func (r *statsRecorder) save() {
 	for k, v := range r.trends {
 		f.Trends[k] = *v
 	}
+	r.lastSave = time.Now()
+	r.pending = 0
 	r.mu.Unlock()
 
 	data, err := json.MarshalIndent(f, "", "  ")
@@ -269,7 +280,7 @@ func (r *statsRecorder) save() {
 		slog.Warn("序列化模型统计失败", "error", err)
 		return
 	}
-	if err := os.WriteFile(r.path, data, 0644); err != nil {
+	if err := fileutil.AtomicWrite(r.path, data, 0644); err != nil {
 		slog.Warn("保存模型统计失败", "path", r.path, "error", err)
 	}
 }
@@ -334,9 +345,13 @@ func (r *statsRecorder) record(u ModelCallUsage) {
 	tp.TotalTokens += u.InputTokens + u.OutputTokens
 	tp.Cost += costCNY
 	r.pruneTrendsLocked()
+	r.pending++
+	shouldSave := r.lastSave.IsZero() || time.Since(r.lastSave) >= statsSaveInterval || r.pending >= statsSaveBatch
 	r.mu.Unlock()
 
-	r.save()
+	if shouldSave {
+		r.save()
+	}
 }
 
 // summary 汇总全部统计（按引擎、调用次数降序）。

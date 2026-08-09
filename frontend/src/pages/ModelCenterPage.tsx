@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Typography, Card, Switch, Button, Input, Space, Tag, message, Spin, Collapse, Select, Segmented } from 'antd'
+import { Typography, Card, Switch, Button, Input, Space, Tag, message, Spin, Collapse, Select, Segmented, Popconfirm } from 'antd'
 import {
   CloudOutlined, CheckCircleOutlined,
   CloseCircleOutlined, ReloadOutlined, ThunderboltOutlined,
@@ -34,6 +34,7 @@ interface ModelCardData {
   engineId: string; engineName: string
   engineType: string; engineEnabled: boolean
   status: string
+  kind?: string
 }
 
 type ModelKind = 'llm' | 'tts' | 'stt' | 'image'
@@ -55,6 +56,12 @@ const engineColors: Record<string, string> = {
 const engineLabels: Record<string, string> = {
   xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', cosyvoice: 'CosyVoice2 本地', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端',
 }
+
+// 引擎展示元数据：优先使用后端下发（label/color），未下发时回退本地映射。
+const engineLabel = (e: { id?: string; engineId?: string; label?: string }) => e.label || engineLabels[e.id || e.engineId || ''] || e.id || e.engineId || ''
+const engineColor = (e: { id?: string; engineId?: string; color?: string }) => e.color || engineColors[e.id || e.engineId || ''] || '#888'
+// 模型分类：优先使用后端 kind，缺失时回退旧名称启发式。
+const kindOf = (m: ModelCardData): ModelKind => (m.kind as ModelKind) || classifyModel(m.modelId)
 
 // xAI Grok TTS 音色（与设置面板一致，模型中心绑定卡内可直接选择）
 const XAI_VOICES = [
@@ -323,7 +330,9 @@ const ModelCenterPage: React.FC = () => {
         const ks = await getOpencodeZenKeyStatus()
         if (ks) { setOpencodeZenKeyMasked(ks.masked || '') }
       } catch (_) {}
-    } catch (_) {}
+    } catch (err: any) {
+      message.error(err?.message || '加载引擎列表失败，请重试')
+    }
     finally { setLoading(false) }
   }, [])
 
@@ -444,7 +453,7 @@ const ModelCenterPage: React.FC = () => {
       ]
     }
     const eng = engines.find(e => e.id === b)
-    const imgs = (eng?.models || []).filter(m => classifyModel(m.id) === 'image')
+    const imgs = (eng?.models || []).filter(m => ((m.kind as ModelKind) || classifyModel(m.id)) === 'image')
     return [
       { label: '跟随绘梦', value: '' },
       ...imgs.map(m => ({ label: m.id, value: m.id })),
@@ -521,6 +530,19 @@ const ModelCenterPage: React.FC = () => {
       try { if (typeof unsub === 'function') unsub() } catch (_) {}
     }
   }, [loadFeatureCfg, refreshRoutes])
+
+  // 同步：其他页面切换活跃模型/语音模型后，本面板即时刷新
+  useEffect(() => {
+    const reload = () => { loadAll(); refreshRoutes() }
+    const reloadVoice = () => { loadVoiceCfg() }
+    let unsub1: any, unsub2: any
+    try { unsub1 = (window as any).runtime?.EventsOn?.('model-changed', reload) } catch (_) {}
+    try { unsub2 = (window as any).runtime?.EventsOn?.('voice-model-changed', reloadVoice) } catch (_) {}
+    return () => {
+      try { if (typeof unsub1 === 'function') unsub1() } catch (_) {}
+      try { if (typeof unsub2 === 'function') unsub2() } catch (_) {}
+    }
+  }, [loadAll, loadVoiceCfg, refreshRoutes])
 
   const handleSaveFeature = async (key: string) => {
     const d = featureDraft[key]
@@ -660,7 +682,7 @@ const ModelCenterPage: React.FC = () => {
   }, [chatVoiceDraft, chatVoiceSpeakers, voiceCfg.tts.voice])
 
   const handleStartModel = async (card: ModelCardData) => {
-    const kind = classifyModel(card.modelId)
+    const kind = kindOf(card)
     if (kind === 'tts') {
       // 本地 TTS 模型：启动对应本地服务（CosyVoice2 8010，幂等）
       try {
@@ -751,13 +773,13 @@ const ModelCenterPage: React.FC = () => {
   }
 
   const makeModels = (engine: EngineConfig): ModelCardData[] =>
-    (engine.models || []).map(m => ({ modelId: m.id, modelName: m.id, engineId: engine.id, engineName: engine.name, engineType: engine.type, engineEnabled: engine.enabled, status: m.status || 'running' }))
+    (engine.models || []).map(m => ({ modelId: m.id, modelName: m.id, engineId: engine.id, engineName: engine.name, engineType: engine.type, engineEnabled: engine.enabled, status: m.status || 'running', kind: m.kind || '' }))
 
   const allModels = engines.filter(e => e.enabled).flatMap(e => makeModels(e))
-  const llmModels = allModels.filter(m => classifyModel(m.modelId) === 'llm')
-  const ttsModels = allModels.filter(m => classifyModel(m.modelId) === 'tts')
-  const sttModels = allModels.filter(m => classifyModel(m.modelId) === 'stt')
-  const imageModels = allModels.filter(m => classifyModel(m.modelId) === 'image')
+  const llmModels = allModels.filter(m => kindOf(m) === 'llm')
+  const ttsModels = allModels.filter(m => kindOf(m) === 'tts')
+  const sttModels = allModels.filter(m => kindOf(m) === 'stt')
+  const imageModels = allModels.filter(m => kindOf(m) === 'image')
 
   const sidebarBtn = (key: Category, icon: React.ReactNode, label: string) => (
     <Button type={category === key ? 'primary' : 'text'} icon={icon as any}
@@ -828,14 +850,14 @@ const ModelCenterPage: React.FC = () => {
               {engines.filter(e => e.enabled).map(engine => {
                 const engineModels = llmModels.filter(m => m.engineId === engine.id)
                 if (engineModels.length === 0) return null
-                const color = engineColors[engine.id] || '#888'
+                const color = engineColor(engine)
                 return (
                   <div key={engine.id} style={{ marginBottom: 24 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${color}30` }}>
                       <Space size={8}>
                         <span style={{ fontSize: 18, color }}>{engineIcons[engine.id]}</span>
                         <Typography.Text strong style={{ color: C('color-text'), fontSize: 15 }}>{engine.name}</Typography.Text>
-                        <Tag color={color} style={{ fontSize: 10 }}>{engineLabels[engine.id]}</Tag>
+                        <Tag color={color} style={{ fontSize: 10 }}>{engineLabel(engine)}</Tag>
                         <Tag style={{ fontSize: 10 }}>{engineModels.length} 个</Tag>
                         {engineStatuses[engine.id] && (
                           <Tag color={engineStatuses[engine.id].connected ? 'green' : 'red'} style={{ fontSize: 10 }}>
@@ -855,7 +877,7 @@ const ModelCenterPage: React.FC = () => {
                           <Card key={card.modelId} size="small" style={{ background: active ? `linear-gradient(135deg, ${color}18, ${color}08)` : 'var(--bg-glass)', border: active ? `2px solid ${color}` : '1px solid var(--border-subtle)', borderRadius: 10 }}>
                             <Typography.Text strong style={{ color: active ? color : C('color-text'), fontSize: 13, display: 'block', marginBottom: 6, wordBreak: 'break-all' }}>{card.modelName}</Typography.Text>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <Tag color={color} style={{ fontSize: 10, margin: 0 }}>{engineLabels[card.engineId]}</Tag>
+                              <Tag color={color} style={{ fontSize: 10, margin: 0 }}>{engineLabel(card)}</Tag>
                               {active ? (
                                 <Tag color="green" style={{ fontSize: 10, margin: 0 }}>● 运行中</Tag>
                               ) : (
@@ -923,7 +945,7 @@ const ModelCenterPage: React.FC = () => {
                         <Select size="small" placeholder="引擎" value={draft.engine || undefined}
                           onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: v, model: '' } }))}
                           style={{ flex: 1, minWidth: 0 }}
-                          options={engines.filter(e => e.enabled).map(e => ({ value: e.id, label: engineLabels[e.id] || e.id }))} />
+                          options={engines.filter(e => e.enabled).map(e => ({ value: e.id, label: engineLabel(e) }))} />
                         <Select size="small" placeholder="模型" value={draft.model || undefined}
                           onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: p[f.key]?.engine || '', model: v } }))}
                           style={{ flex: 1, minWidth: 0 }}
@@ -962,7 +984,7 @@ const ModelCenterPage: React.FC = () => {
                     <Select size="small" placeholder="引擎" value={chatVoiceDraft.engine || undefined}
                       onChange={(v: string) => setChatVoiceDraft({ engine: v, model: '' })}
                       style={{ flex: 1, minWidth: 0 }}
-                      options={engines.filter(e => e.enabled && ttsModels.some(m => m.engineId === e.id)).map(e => ({ value: e.id, label: engineLabels[e.id] || e.id }))} />
+                      options={engines.filter(e => e.enabled && ttsModels.some(m => m.engineId === e.id)).map(e => ({ value: e.id, label: engineLabel(e) }))} />
                     <Select size="small" placeholder="语音模型" value={chatVoiceDraft.model || undefined}
                       onChange={(v: string) => setChatVoiceDraft(p => ({ ...p, model: v }))}
                       style={{ flex: 1, minWidth: 0 }}
@@ -1078,7 +1100,15 @@ const ModelCenterPage: React.FC = () => {
                     style={{ fontSize: 11 }}
                   />
                   <Button size="small" icon={<ReloadOutlined />} onClick={loadCallStats} style={{ fontSize: 11 }}>刷新</Button>
-                  <Button size="small" danger onClick={handleResetCallStats} style={{ fontSize: 11 }}>清空统计</Button>
+                  <Popconfirm
+                    title="确定清空全部模型调用统计？"
+                    description="此操作不可恢复，将清空次数、Token 与费用记录。"
+                    okText="清空"
+                    cancelText="取消"
+                    onConfirm={handleResetCallStats}
+                  >
+                    <Button size="small" danger style={{ fontSize: 11 }}>清空统计</Button>
+                  </Popconfirm>
                 </Space>
               </div>
 
@@ -1179,7 +1209,7 @@ const ModelCenterPage: React.FC = () => {
                         groups.set(s.engine_id, list)
                       })
                       return Array.from(groups.entries()).map(([engineId, rows]) => {
-                        const color = engineColors[engineId] || '#888'
+                        const color = engineColor({ id: engineId })
                         const calls = rows.reduce((a, b) => a + b.call_count, 0)
                         const succ = rows.reduce((a, b) => a + b.success_count, 0)
                         const tokens = rows.reduce((a, b) => a + b.total_tokens, 0)
@@ -1197,7 +1227,7 @@ const ModelCenterPage: React.FC = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)', background: `color-mix(in srgb, ${color} 8%, transparent)` }}>
                               <span style={{ fontSize: 18, color }}>{engineIcons[engineId]}</span>
                               <div style={{ minWidth: 0 }}>
-                                <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block' }}>{engineLabels[engineId] || engineId}</Typography.Text>
+                                <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block' }}>{engineLabel({ id: engineId })}</Typography.Text>
                                 <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10.5 }}>{rows.length} 个模型</Typography.Text>
                               </div>
                               <div style={{ marginLeft: 'auto', display: 'flex', gap: 18, alignItems: 'center' }}>
@@ -1355,10 +1385,10 @@ const ModelCenterPage: React.FC = () => {
                   <Typography.Text strong style={{ color: C('color-text'), fontSize: 15, display: 'block', marginBottom: 10 }}>发现的图片模型</Typography.Text>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
                     {[...COMFY_IMAGES, ...imageModels.filter(m => m.engineId !== 'comfyui')].map(m => (
-                      <Card key={m.modelId} size="small" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>
+                      <Card key={`${m.engineId}:${m.modelId}`} size="small" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>
                         <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block', marginBottom: 6, wordBreak: 'break-all' }}>{m.modelName}</Typography.Text>
                         <Space>
-                          <Tag color={engineColors[m.engineId]} style={{ fontSize: 10, margin: 0 }}>{engineLabels[m.engineId]}</Tag>
+                          <Tag color={engineColor(m)} style={{ fontSize: 10, margin: 0 }}>{engineLabel(m)}</Tag>
                           <Tag color="orange" style={{ fontSize: 10, margin: 0 }}>图片</Tag>
                           <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10, margin: 0 }}>{m.status === 'running' ? '● 运行中' : '○ 已停止'}</Tag>
                         </Space>
@@ -1420,7 +1450,7 @@ const ModelCenterPage: React.FC = () => {
                         {ttsModels.map(m => {
                           const active = voiceCfg.tts.engine === m.engineId && voiceCfg.tts.model === m.modelId
                           return (
-                            <Card key={m.modelId} size="small" style={{
+                            <Card key={`${m.engineId}:${m.modelId}`} size="small" style={{
                               background: 'var(--bg-glass)',
                               border: active ? '1px solid var(--md-sys-color-primary)' : '1px solid var(--border-subtle)',
                               borderRadius: 10,
@@ -1429,7 +1459,7 @@ const ModelCenterPage: React.FC = () => {
                             }}>
                               <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block', marginBottom: 6 }}>{m.modelName}</Typography.Text>
                               <Space>
-                                <Tag color={engineColors[m.engineId]} style={{ fontSize: 10 }}>{engineLabels[m.engineId]}</Tag>
+                                <Tag color={engineColor(m)} style={{ fontSize: 10 }}>{engineLabel(m)}</Tag>
                                 <Tag color="purple" style={{ fontSize: 10 }}>TTS</Tag>
                                 <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10 }}>{m.status === 'running' ? '● 运行中' : '○ 已停止'}</Tag>
                               </Space>
@@ -1452,7 +1482,7 @@ const ModelCenterPage: React.FC = () => {
                         {sttModels.map(m => {
                           const active = voiceCfg.stt.engine === m.engineId && voiceCfg.stt.model === m.modelId
                           return (
-                            <Card key={m.modelId} size="small" style={{
+                            <Card key={`${m.engineId}:${m.modelId}`} size="small" style={{
                               background: 'var(--bg-glass)',
                               border: active ? '1px solid var(--md-sys-color-primary)' : '1px solid var(--border-subtle)',
                               borderRadius: 10,
@@ -1461,7 +1491,7 @@ const ModelCenterPage: React.FC = () => {
                             }}>
                               <Typography.Text strong style={{ color: C('color-text'), fontSize: 13, display: 'block', marginBottom: 6 }}>{m.modelName}</Typography.Text>
                               <Space>
-                                <Tag color={engineColors[m.engineId]} style={{ fontSize: 10 }}>{engineLabels[m.engineId]}</Tag>
+                                <Tag color={engineColor(m)} style={{ fontSize: 10 }}>{engineLabel(m)}</Tag>
                                 <Tag color="blue" style={{ fontSize: 10 }}>STT</Tag>
                                 <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10 }}>{m.status === 'running' ? '● 运行中' : '○ 已停止'}</Tag>
                               </Space>
@@ -1486,9 +1516,9 @@ const ModelCenterPage: React.FC = () => {
           {category === 'engine' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {engines.map(engine => {
-                const color = engineColors[engine.id] || '#888'
+                const color = engineColor(engine)
                 const em = makeModels(engine)
-                const mc = { llm: em.filter(m => classifyModel(m.modelId) === 'llm').length, tts: em.filter(m => classifyModel(m.modelId) === 'tts').length, stt: em.filter(m => classifyModel(m.modelId) === 'stt').length, image: em.filter(m => classifyModel(m.modelId) === 'image').length }
+                const mc = { llm: em.filter(m => kindOf(m) === 'llm').length, tts: em.filter(m => kindOf(m) === 'tts').length, stt: em.filter(m => kindOf(m) === 'stt').length, image: em.filter(m => kindOf(m) === 'image').length }
                 return (
                   <Card key={engine.id} size="small" style={{ background: 'var(--bg-glass)', border: engine.enabled ? `1px solid ${color}30` : '1px solid var(--border-subtle)', borderRadius: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -1497,7 +1527,7 @@ const ModelCenterPage: React.FC = () => {
                         <div>
                           <Typography.Text strong style={{ color: C('color-text'), fontSize: 14 }}>{engine.name}</Typography.Text>
                           <div style={{ marginTop: 2 }}>
-                            <Tag color={color} style={{ fontSize: 10 }}>{engineLabels[engine.id]}</Tag>
+                            <Tag color={color} style={{ fontSize: 10 }}>{engineLabel(engine)}</Tag>
                             <Switch size="small" checked={engine.enabled} onChange={(v) => handleToggleEngine(engine, v)} />
                           </div>
                         </div>
