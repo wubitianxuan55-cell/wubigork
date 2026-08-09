@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../lib/i18n";
 import type { QuestionAnswer, WireAsk, WireAskQuestion } from "../lib/types";
+import { Markdown } from "./Markdown";
 
 /** 卡片至少保留在屏幕内的边距 (px) */
 const DRAG_MARGIN = 40;
@@ -181,7 +182,9 @@ export function AskCard({
                 <span className="text-fg text-[14px] font-semibold leading-tight">{q.header}</span>
               </div>
             )}
-            <div className="text-fg-dim text-[13px] leading-relaxed">{q.prompt}</div>
+            <div className="text-fg-dim text-[13px] leading-relaxed">
+              <Markdown text={q.prompt} autoExportMermaid={false} />
+            </div>
             <div className="flex flex-col gap-1.5">
               {q.options.map((o) => {
                 const on = (sel[q.id] ?? []).includes(o.label);

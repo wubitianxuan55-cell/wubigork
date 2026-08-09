@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/office/docmd"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
@@ -44,23 +45,72 @@ var imageExts = map[string]bool{
 	".bmp": true, ".svg": true, ".ico": true,
 }
 
+// previewSearchDirs 裸文件名预览的常见输出目录（按优先级）。
+var previewSearchDirs = []string{
+	"exports", ".gaea/exports", "outputs", "reports", "docs",
+	".gaea/uploads", "uploads", "attachments", ".gaea/attachments",
+	"templates", ".gaea/templates",
+}
+
+// resolvePreviewPath 把工作区相对路径解析为绝对路径并返回展示用相对路径；
+// 裸文件名（无目录分隔符）直接找不到时，在常见输出目录里查找同名文件，
+// 使“输出文件：成本测算.xlsx”这类纯文件名引用也能直接预览。
+func resolvePreviewPath(rel string) (path, displayRel string) {
+	root := gaeaCwd()
+	if filepath.IsAbs(rel) {
+		return filepath.Clean(rel), rel
+	}
+	display := filepath.ToSlash(rel)
+	joined := filepath.Join(root, rel)
+	if fileExists(joined) {
+		return joined, display
+	}
+	if !strings.ContainsAny(rel, `/\`) {
+		if found := findInOutputDirs(root, rel); found != "" {
+			if r, err := filepath.Rel(root, found); err == nil {
+				display = filepath.ToSlash(r)
+			}
+			return found, display
+		}
+	}
+	return joined, display
+}
+
+func fileExists(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && !info.IsDir()
+}
+
+func findInOutputDirs(root, name string) string {
+	best := ""
+	var bestMod time.Time
+	for _, dir := range previewSearchDirs {
+		p := filepath.Join(root, dir, name)
+		info, err := os.Stat(p)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		if best == "" || info.ModTime().After(bestMod) {
+			best, bestMod = p, info.ModTime()
+		}
+	}
+	return best
+}
+
 // GaeaPreview 读取工作区相对路径并返回结构化预览。
 func (a *App) GaeaPreview(rel string) PreviewResult {
-	path := rel
-	if !filepath.IsAbs(rel) {
-		path = filepath.Join(gaeaCwd(), rel)
-	}
+	path, displayRel := resolvePreviewPath(rel)
 	info, err := os.Stat(path)
 	if err != nil {
-		return PreviewResult{Path: rel, Kind: "error", Error: "文件不存在"}
+		return PreviewResult{Path: displayRel, Kind: "error", Error: "文件不存在"}
 	}
 	if info.IsDir() {
-		return PreviewResult{Path: rel, Kind: "error", Error: "目录无法预览"}
+		return PreviewResult{Path: displayRel, Kind: "error", Error: "目录无法预览"}
 	}
 
 	ext := strings.ToLower(filepath.Ext(rel))
 	name := filepath.Base(rel)
-	base := PreviewResult{Path: rel, Name: name, Ext: ext, Size: info.Size()}
+	base := PreviewResult{Path: displayRel, Name: name, Ext: ext, Size: info.Size()}
 
 	if imageExts[ext] {
 		b, err := os.ReadFile(path)

@@ -172,6 +172,13 @@ export interface DirEntry {
   isDir: boolean;
 }
 
+export interface FileSearchHit {
+  path: string; // 工作区相对路径（/ 分隔）
+  name: string;
+  isDir: boolean;
+  size?: number;
+}
+
 export interface FilePreview {
   path: string;
   body: string;

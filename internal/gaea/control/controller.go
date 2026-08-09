@@ -20,6 +20,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/billing"
+	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/command"
 	tiancontext "github.com/gaea/gaea/internal/gaea/context"
 	"github.com/gaea/gaea/internal/gaea/event"
@@ -91,6 +92,7 @@ type Controller struct {
 	nextID      int
 	turn        int
 	autoApprove bool
+	autoPlan    bool
 
 	// permLevel controls permission strictness: "ask" (prompt before writes, default),
 	// "auto" (allow writes without asking), or "yolo" (skip all prompts).
@@ -143,6 +145,8 @@ type Options struct {
 	Registry  *tool.Registry
 	PluginCtx context.Context
 	CtxMgr    *tiancontext.ContextManager // V3.0 Phase 5
+	// AutoPlan 开启开工前计划确认：非简单查询的回合先出计划卡片，用户确认再执行。
+	AutoPlan bool
 	// no confinement). Frontends pass the cwd they launched the session in.
 	WorkspaceRoot string
 }
@@ -179,6 +183,7 @@ func New(opts Options) *Controller {
 		pluginCtx:    pluginCtx,
 		ctxMgr:       opts.CtxMgr,
 		permLevel:    "ask",
+		autoPlan:     opts.AutoPlan,
 		approvals:    map[string]chan approvalReply{},
 		asks:         map[string]chan []event.AskAnswer{},
 		granted:      map[string]bool{},
@@ -288,6 +293,14 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 			return nil // the hook's notify callback already surfaced the reason
 		}
 		defer func() { c.hooks.Stop(ctx, lastAssistantText(c.History()), turn) }()
+	}
+	// 开工前计划确认：非简单查询且开启 AutoPlan 时，先出计划卡片再执行
+	if c.autoPlan && !cache.IsSimpleQuery(strings.ToLower(input), input) {
+		if ok, err := c.planGate(ctx, input); err != nil {
+			return err
+		} else if !ok {
+			return nil
+		}
 	}
 	if _, err := c.runner.Run(ctx, input); err != nil {
 		return err

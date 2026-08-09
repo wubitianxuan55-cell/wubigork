@@ -1,13 +1,11 @@
 import { memo, useRef, useState, useEffect, useMemo } from "react";
 import { Markdown } from "./Markdown";
+import { escapeHtml, htmlFileLinks } from "../lib/fileLinks";
+import { usePreviewStore } from "../lib/store";
 
 interface MemoMarkdownProps {
   text: string;
   streaming: boolean;
-}
-
-function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /**
@@ -67,21 +65,21 @@ function renderPending(text: string): string {
 
     if (line.startsWith("```")) {
       inFence = !inFence;
-      out.push(`<span class="text-fg-faint font-mono text-[90%]">${esc(line)}</span>`);
+      out.push(`<span class="text-fg-faint font-mono text-[90%]">${escapeHtml(line)}</span>`);
     } else if (inFence) {
-      out.push(`<span class="font-mono text-[90%]">${esc(line)}</span>`);
+      out.push(`<span class="font-mono text-[90%]">${escapeHtml(line)}</span>`);
     } else if (/^#{1,4}\s/.test(line)) {
-      out.push(`<span class="font-bold">${esc(line)}</span>`);
+      out.push(`<span class="font-bold">${htmlFileLinks(line)}</span>`);
     } else if (/^[-*+]\s/.test(line)) {
-      out.push(`<span class="text-fg-dim">  · ${esc(line.slice(2))}</span>`);
+      out.push(`<span class="text-fg-dim">  · ${htmlFileLinks(line.slice(2))}</span>`);
     } else if (/^\d+\.\s/.test(line)) {
-      out.push(`<span class="text-fg-dim">  ${esc(line)}</span>`);
+      out.push(`<span class="text-fg-dim">  ${htmlFileLinks(line)}</span>`);
     } else if (/^>\s/.test(line)) {
-      out.push(`<span class="text-fg-faint">│ ${esc(line.slice(2))}</span>`);
+      out.push(`<span class="text-fg-faint">│ ${htmlFileLinks(line.slice(2))}</span>`);
     } else if (line.trim() === "" && !isLast) {
       out.push("");
     } else {
-      out.push(esc(line));
+      out.push(htmlFileLinks(line));
     }
   }
 
@@ -107,6 +105,7 @@ function useProgressiveMarkdown(text: string): { stable: string; pending: string
  * 未完成尾部用简单样式。流式结束后全量 Markdown 渲染。
  */
 export const MemoMarkdown = memo(function MemoMarkdown({ text, streaming }: MemoMarkdownProps) {
+  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   // RAF 节流：每帧最多更新一次
   const [visible, setVisible] = useState(text);
   const rafRef = useRef(0);
@@ -144,6 +143,13 @@ export const MemoMarkdown = memo(function MemoMarkdown({ text, streaming }: Memo
         <div
           className="!font-sans whitespace-pre-wrap !bg-transparent !p-0 !m-0 !text-[inherit] !border-0 leading-relaxed text-[14px]"
           dangerouslySetInnerHTML={{ __html: renderPending(pending) }}
+          onClick={(e) => {
+            const btn = (e.target as HTMLElement).closest?.("button[data-file-preview]");
+            if (btn instanceof HTMLElement) {
+              const path = btn.getAttribute("data-file-preview");
+              if (path) openFilePreview(path);
+            }
+          }}
         />
       )}
       <span

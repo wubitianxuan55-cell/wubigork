@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
-  BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, Cpu, FolderGit2, FolderTree,
+  BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, Cpu, FileText, FolderGit2, FolderTree, Paperclip,
   PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
@@ -28,6 +28,8 @@ const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m =
 import { WorkspacePanel } from "./components/WorkspacePanel";
 import { FilePreview } from "./components/FilePreview";
 import { FilePreviewModal } from "./components/FilePreviewModal";
+import { DeliverablesPanel, type SessionDeliverable } from "./components/DeliverablesPanel";
+import { MaterialsPanel } from "./components/MaterialsPanel";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { StatsPanel, useStatsPersistence } from "./components/StatsPanel";
 import { Skeleton } from "./components/Skeleton";
@@ -52,6 +54,8 @@ import {
 import CompactContext from "./hooks/useCompact";
 import { fmtTokens } from "./lib/stats";
 import { useNow } from "./lib/useNow";
+import { deliverableMentions } from "./lib/fileLinks";
+import { useUpdatedFilesStore } from "./lib/store";
 
 function NewSessionToast({ done }: { done: boolean }) {
   const toast = useToast();
@@ -143,7 +147,7 @@ export default function App() {
   const [statsReset, setStatsReset] = useState(0);
   const [capsOpen, setCapsOpen] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
-  const [rightTab, setRightTab] = useState<"files" | "stats">("files");
+  const [rightTab, setRightTab] = useState<"files" | "materials" | "deliverables" | "stats">("files");
   const [compactMode, setCompactMode] = useState(() => { try { return localStorage.getItem("gaea.compactMode") === "1"; } catch { return false; } });
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -405,6 +409,32 @@ export default function App() {
   }, [state.running, capsOpen, memView, histView, knowledgeOpen, workspacePanelOpen, previewFile]);
 
   const { toolCounts, skillCounts } = useToolStats(state.items);
+  // 会话产物：从会话消息文本中提取交付文件（去重、按消息顺序），
+  // 供右侧「产物」面板展示（对标 Kimi 工作空间 / 千问办公产物面板）。
+  const sessionDeliverables = useMemo<SessionDeliverable[]>(() => {
+    const seen = new Set<string>();
+    const out: SessionDeliverable[] = [];
+    let turn = -1;
+    for (const it of state.items) {
+      if (it.kind === "user") {
+        turn++;
+        continue;
+      }
+      if (it.kind !== "assistant" || !it.text) continue;
+      for (const p of deliverableMentions(it.text)) {
+        if (seen.has(p)) continue;
+        seen.add(p);
+        out.push({ path: p, sourceId: it.id, turn: Math.max(0, turn) });
+      }
+    }
+    return out;
+  }, [state.items]);
+  // 编辑后自动回写刷新：docx/xlsx 预览内编辑成功 → 文件树自动刷新（替代手动刷新）
+  const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
+  useEffect(() => {
+    if (Object.keys(updatedAt).length === 0) return;
+    setWorkspaceRefreshKey((k) => k + 1);
+  }, [updatedAt]);
 
   // 当前会话标识：直接使用 Go 后端生成的 .jsonl 文件路径作为 key。
   // 每个会话文件对应唯一的 localStorage key：新会话自然空数据开始，
@@ -628,6 +658,20 @@ export default function App() {
               <span>文件</span>
             </button>
             <button
+              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "materials" ? "text-accent border-accent" : ""}`}
+              onClick={() => setRightTab("materials")}
+            >
+              <FileText size={13} />
+              <span>资料</span>
+            </button>
+            <button
+              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "deliverables" ? "text-accent border-accent" : ""}`}
+              onClick={() => setRightTab("deliverables")}
+            >
+              <Paperclip size={13} />
+              <span>产物</span>
+            </button>
+            <button
               className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "stats" ? "text-accent border-accent" : ""}`}
               onClick={() => setRightTab("stats")}
             >
@@ -646,6 +690,9 @@ export default function App() {
                 onClose={() => setWorkspacePanel(false)}
               />
             ) : null}
+            {rightTab === "materials" && (
+              <MaterialsPanel onOpenFile={openFilePreview} />
+            )}
             {rightTab === "stats" && (
               <StatsPanel
                 data={statsPersistence.data}
@@ -656,6 +703,16 @@ export default function App() {
                 subagentModel={state.meta?.subagentLabel}
                 toolCounts={toolCounts}
                 skillCounts={skillCounts}
+              />
+            )}
+            {rightTab === "deliverables" && (
+              <DeliverablesPanel
+                items={sessionDeliverables}
+                onOpenFile={openFilePreview}
+                onLocateSource={(turn) => {
+                  setWorkspacePanel(false);
+                  scrollToTurn?.(turn);
+                }}
               />
             )}
           </div>

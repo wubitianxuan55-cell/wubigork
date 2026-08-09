@@ -346,6 +346,7 @@ func (a *App) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt
 func (a *App) GaeaSetSubagentEffort(effort string) error {
 	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) { cfg.Agent.SubagentEffort = effort })
 }
+
 // GaeaSetSubagentModelForSkill 设置指定技能的子代理模型。
 // GaeaSetSubagentModelForSkill 设置指定技能的子代理模型。
 func (a *App) GaeaSetSubagentModelForSkill(skill, ref string) error {
@@ -452,6 +453,146 @@ func (a *App) GaeaListDir(rel string) []DirEntry {
 	return out
 }
 
+// FileSearchHit 工作区文件名搜索结果（@ 引用增强用）。
+type FileSearchHit struct {
+	Path    string `json:"path"` // 工作区相对路径（/ 分隔）
+	Name    string `json:"name"`
+	IsDir   bool   `json:"isDir"`
+	Size    int64  `json:"size"`
+	ModTime int64  `json:"modTime"` // unix 毫秒（资料概览排序用）
+}
+
+// searchSkipDirs 工作区搜索跳过的噪音目录（依赖/构建/运行时缓存等）。
+var searchSkipDirs = map[string]bool{
+	".git": true, "node_modules": true, "dist": true, "build": true,
+	".cache": true, ".codegraph": true, ".tianxuan": true, ".reasonix": true,
+}
+
+// GaeaFileSearch 工作区文件名搜索（跨目录定位资料）：按名称子串匹配、
+// 不区分大小写，限制深度与数量，跳过噪音目录。供 @ 菜单的「搜一下」使用。
+func (a *App) GaeaFileSearch(query string, limit int) []FileSearchHit {
+	if limit <= 0 || limit > 100 {
+		limit = 30
+	}
+	q := strings.ToLower(strings.TrimSpace(query))
+	root := gaeaCwd()
+	out := []FileSearchHit{}
+	matched := 0
+
+	var walk func(dir, rel string, depth int)
+	walk = func(dir, rel string, depth int) {
+		if matched >= limit || depth > 6 {
+			return
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		for _, e := range entries {
+			if matched >= limit {
+				return
+			}
+			name := e.Name()
+			relPath := name
+			if rel != "" {
+				relPath = rel + "/" + name
+			}
+			if e.IsDir() {
+				if searchSkipDirs[name] || strings.HasPrefix(name, ".tmp") {
+					continue
+				}
+				if q == "" || strings.Contains(strings.ToLower(name), q) {
+					out = append(out, FileSearchHit{Path: relPath, Name: name, IsDir: true})
+					matched++
+				}
+				walk(filepath.Join(dir, name), relPath, depth+1)
+				continue
+			}
+			if q == "" || strings.Contains(strings.ToLower(name), q) {
+				info, _ := e.Info()
+				size := int64(0)
+				if info != nil {
+					size = info.Size()
+				}
+				out = append(out, FileSearchHit{Path: relPath, Name: name, IsDir: false, Size: size})
+				matched++
+			}
+		}
+	}
+	walk(root, "", 0)
+	return out
+}
+
+// materialExts 资料概览收录的扩展名（办公 + 文本类）。
+var materialExts = map[string]bool{
+	".docx": true, ".doc": true, ".xlsx": true, ".xls": true,
+	".pptx": true, ".ppt": true, ".pdf": true, ".md": true,
+	".markdown": true, ".txt": true, ".csv": true,
+}
+
+// GaeaMaterials 工作区资料概览：office/文本类文件按修改时间倒序返回
+// （开工前「有哪些资料可用」视图，配合一键 @ 引用）。
+func (a *App) GaeaMaterials(limit int) []FileSearchHit {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	root := gaeaCwd()
+	out := []FileSearchHit{}
+	var walk func(dir, rel string, depth int)
+	walk = func(dir, rel string, depth int) {
+		if len(out) >= limit || depth > 5 {
+			return
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		for _, e := range entries {
+			if len(out) >= limit {
+				return
+			}
+			name := e.Name()
+			if e.IsDir() {
+				if searchSkipDirs[name] || strings.HasPrefix(name, ".tmp") {
+					continue
+				}
+				dirRel := name
+				if rel != "" {
+					dirRel = rel + "/" + name
+				}
+				walk(filepath.Join(dir, name), dirRel, depth+1)
+				continue
+			}
+			if !materialExts[strings.ToLower(filepath.Ext(name))] {
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+			relPath := name
+			if rel != "" {
+				relPath = rel + "/" + name
+			}
+			out = append(out, FileSearchHit{
+				Path:    relPath,
+				Name:    name,
+				IsDir:   false,
+				Size:    info.Size(),
+				ModTime: info.ModTime().UnixMilli(),
+			})
+		}
+	}
+	walk(root, "", 0)
+	// 修改时间倒序（最新在前）
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j].ModTime > out[j-1].ModTime; j-- {
+			out[j], out[j-1] = out[j-1], out[j]
+		}
+	}
+	return out
+}
+
 // GaeaReadFile 读取工作区相对路径的文件文本。
 func (a *App) GaeaReadFile(rel string) FilePreview {
 	path := filepath.Join(gaeaCwd(), rel)
@@ -464,17 +605,12 @@ func (a *App) GaeaReadFile(rel string) FilePreview {
 
 // GaeaOpenWorkspacePath/GaeaRevealWorkspacePath 在文件管理器中打开/定位。
 func (a *App) GaeaOpenWorkspacePath(rel string) error {
-	if filepath.IsAbs(rel) {
-		return exec.Command("explorer", rel).Start()
-	}
-	return exec.Command("explorer", filepath.Join(gaeaCwd(), rel)).Start()
+	path, _ := resolvePreviewPath(rel)
+	return exec.Command("explorer", path).Start()
 }
 func (a *App) GaeaRevealWorkspacePath(rel string) error {
-	target := rel
-	if !filepath.IsAbs(rel) {
-		target = filepath.Join(gaeaCwd(), rel)
-	}
-	return exec.Command("explorer", "/select,", target).Start()
+	path, _ := resolvePreviewPath(rel)
+	return exec.Command("explorer", "/select,", path).Start()
 }
 
 // GaeaWorkspaceChanges 办公板块不追踪工作区变更，返回空。

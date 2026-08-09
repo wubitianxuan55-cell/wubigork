@@ -8,59 +8,10 @@ import mermaid from "mermaid";
 import { Check, Copy, FileText, Loader } from "../icons";
 
 import { app, openExternal } from "../lib/bridge";
+import { isLocalFilePath } from "../lib/fileLinks";
+import { remarkFileLinks } from "../lib/remarkFileLinks";
 import { usePreviewStore } from "../lib/store";
 import { useToast } from "./Toast";
-
-// 本地文件路径识别：排除 URL/锚点，匹配常见文件扩展名（含全部办公格式）。
-const FILE_EXT_RE = /\.(md|markdown|mmd|mermaid|txt|json|jsonl|csv|tsv|xml|yaml|yml|toml|ini|log|docx?|xlsx?|pdf|pptx?|odt|ods|odp|rtf|wps|et|dps|ofd|pages|numbers|key|png|jpe?g|gif|webp|svg|bmp|ico|html?|css|js|jsx|ts|tsx|go|py|java|c|h|cpp|hpp|rs|rb|php|sh|bat|ps1|sql)$/i;
-
-function isLocalFilePath(href: string): boolean {
-  const trimmed = href.trim();
-  if (!trimmed || /^(https?:|mailto:|tel:|data:|javascript:|#|\/\/)/i.test(trimmed)) return false;
-  const clean = trimmed.replace(/^\.{0,2}\//, "");
-  return FILE_EXT_RE.test(clean);
-}
-
-// 纯文本中的本地绝对路径（盘符:\… 或 /…），以已知文件扩展名结尾。
-// 用于把 agent 输出里的“输出文件：C:\AI\xxx.docx”渲染成可点击预览。
-const ABS_PATH_RE = /(?:[A-Za-z]:[\\/]|(?<=^|[\s,，:：])[\\/])[^\s，。；、（）【】《》"“”‘’'<>|)\]}]+\.[A-Za-z0-9]{1,8}/g;
-
-// 解析前预处理：把纯文本中的本地文件路径包成 markdown 链接，
-// 交给自定义 `a` 渲染器打开预览。代码块 / 内联代码 / 公式保持不变。
-function linkifyFilePaths(md: string): string {
-  if (!/[A-Za-z]:[\\/]/.test(md) && !/^[\\/][^\\/\s]/.test(md) && !/[\s,，:：][\\/][^\\/\s]/.test(md)) {
-    return md;
-  }
-  const protectedBlocks = new Map<string, string>();
-  let counter = 0;
-  const protect = (s: string) => {
-    const key = `\u0000FILELINK${counter++}\u0000`;
-    protectedBlocks.set(key, s);
-    return key;
-  };
-
-  let result = md
-    // 1) 围栏代码块整体保护
-    .replace(/(```+|~~~+)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, (m) => protect(m))
-    // 2) 行内代码 `...`
-    .replace(/`[^`\n]+`/g, (m) => protect(m))
-    // 3) 数学公式 $...$ / $$...$$
-    .replace(/\$\$[\s\S]+?\$\$|\$[^$\n]+\$/g, (m) => protect(m));
-
-  // 4) 纯文本中的绝对路径 → 可点击链接；已在 markdown 链接目标内则跳过
-  result = result.replace(ABS_PATH_RE, (path, offset: number, full: string) => {
-    if (!isLocalFilePath(path)) return path;
-    const before = full.slice(0, offset);
-    if (/\]\(\s*<?$|\(\s*<?$/.test(before)) return path;
-    return `[${path}](<${path}>)`;
-  });
-
-  // 5) 还原保护内容
-  for (const [key, value] of protectedBlocks) {
-    result = result.split(key).join(value);
-  }
-  return result;
-}
 
 // KaTeX CSS 延迟注入：避免非数学对话的 ~23KB CSS 开销。
 // 有数学内容时才加载（$$ 或 $ 包裹的公式）。
@@ -514,12 +465,12 @@ export const Markdown = memo(function Markdown({ text, autoExportMermaid = true 
   return (
     <div className="md text-[14px] leading-relaxed">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[remarkGfm, remarkMath, remarkFileLinks]}
         rehypePlugins={[rehypeKatex]}
         components={buildComponents(openFilePreview, autoExportMermaid)}
         urlTransform={(url) => (isLocalFilePath(url) ? url : defaultUrlTransform(url))}
       >
-        {normalizeMath(linkifyFilePaths(text))}
+        {normalizeMath(text)}
       </ReactMarkdown>
     </div>
   );

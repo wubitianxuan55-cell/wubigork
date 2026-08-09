@@ -193,6 +193,34 @@ func (c *Controller) PromoteSessionFacts() (int, error) {
 	return n, nil
 }
 
+// SaveDreamFacts 把「自动做梦」提炼出的事实直接写入长期记忆（按 name 去重，
+// 与 PromoteSessionFacts 同一写入路径，但不经过会话事实）。空 name 或
+// 无内容的事实跳过；返回实际写入/更新条数。
+func (c *Controller) SaveDreamFacts(facts []memory.Memory) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.mem == nil || len(facts) == 0 {
+		return 0, nil
+	}
+	n := 0
+	for _, m := range facts {
+		if strings.TrimSpace(m.Name) == "" {
+			continue
+		}
+		if strings.TrimSpace(m.Description) == "" && strings.TrimSpace(m.Body) == "" {
+			continue
+		}
+		m.Type = memory.NormalizeType(string(m.Type))
+		m.Kind = memory.NormalizeKind(string(m.Kind))
+		if _, err := c.mem.Store.Save(m); err != nil {
+			return n, fmt.Errorf("dream save %q: %w", m.Name, err)
+		}
+		n++
+	}
+	c.refreshMemoryLocked()
+	return n, nil
+}
+
 // SessionFacts returns the current session-only facts (for the memory panel).
 func (c *Controller) SessionFacts() []memory.Memory {
 	c.mu.Lock()

@@ -46,6 +46,8 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 		}
 	}
 	cfg.DefaultModel = "gaea"
+	// 开工前计划确认：非简单任务先出计划卡片，用户确认再执行（可配置关闭）
+	cfg.Agent.AutoPlan = "ask"
 	cfg.Providers = []gaeaConfig.ProviderEntry{{
 		Name:          "gaea",
 		Kind:          "wubigrok", // 内部 provider 注册名（bridge provider）
@@ -69,6 +71,10 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	// 事件转发：gaea 事件流 → 前端 gaea-event 回调
 	sink := event.FuncSink(func(e event.Event) {
 		a.emit("gaea-event", gaeaEventMap(e))
+		// 自动做梦：轮次成功后后台整理记忆（单飞、有实质内容才跑）
+		if e.Kind == event.TurnDone && e.Err == nil {
+			a.maybeDreamAfterTurn()
+		}
 	})
 	// 构建 controller（单模型 agent）
 	//    SessionDir 必须指向工作区会话目录（cwd/.gaea/sessions），与

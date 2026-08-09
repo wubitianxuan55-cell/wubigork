@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { renderAsync } from "docx-preview";
 import { AlertCircle, Check, FileText, Loader2, Sparkles, Wand2, X } from "../icons";
 import { app } from "../lib/bridge";
+import { useUpdatedFilesStore } from "../lib/store";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -38,6 +39,7 @@ export function DocxPreview({
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [docDataUrl, setDocDataUrl] = useState(dataUrl);
+  const markUpdated = useUpdatedFilesStore((s) => s.markUpdated);
   const [status, setStatus] = useState<"loading" | "done" | "error">("loading");
   const [error, setError] = useState("");
 
@@ -155,6 +157,7 @@ export function DocxPreview({
     try {
       const r = await app.DocxApplyEdit(relPath, selected, proposal);
       setDocDataUrl(r.dataUrl);
+      markUpdated(relPath);
       setSelected(null);
       setProposal(null);
       setInstruction("");
@@ -181,6 +184,7 @@ export function DocxPreview({
       try {
         const r = await app.DocxAcceptChanges(relPath, accept);
         setDocDataUrl(r.dataUrl);
+        markUpdated(relPath);
         setSelected(null);
         setProposal(null);
         setHasRevisions(false);

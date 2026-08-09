@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { AlertCircle, Check, FileText, Loader2, RefreshCw, Table, Wand2, X } from "../icons";
 import { app } from "../lib/bridge";
+import { useUpdatedFilesStore } from "../lib/store";
 import type { XlsxCell, XlsxPreview, XlsxSheet } from "../lib/types";
 
 function parseRef(ref: string): { col: number; row: number } {
@@ -105,6 +106,7 @@ export function XlsxPreview({
   const [active, setActive] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [docBody, setDocBody] = useState(body);
+  const markUpdated = useUpdatedFilesStore((s) => s.markUpdated);
   const [instruction, setInstruction] = useState("");
   const [running, setRunning] = useState(false);
   const [editError, setEditError] = useState("");
@@ -145,6 +147,7 @@ export function XlsxPreview({
     try {
       const r = await app.XlsxEdit(relPath, sheet.name, instruction.trim(), selected);
       setDocBody(r.preview);
+      markUpdated(relPath);
       setSelected(null);
       setInstruction("");
       setNotice(`已应用：${r.summary}`);
@@ -181,6 +184,7 @@ export function XlsxPreview({
       try {
         const r = await app.XlsxSetCell(relPath, sheet.name, ref, raw);
         setDocBody(r.preview);
+        markUpdated(relPath);
         setNotice(`已更新 ${ref}`);
         window.setTimeout(() => setNotice(""), 4000);
       } catch (e) {
@@ -227,6 +231,7 @@ export function XlsxPreview({
     try {
       const r = await app.XlsxRecalc(relPath);
       setDocBody(r.preview);
+      markUpdated(relPath);
       setNotice(r.summary);
       window.setTimeout(() => setNotice(""), 5000);
     } catch (e) {
@@ -247,6 +252,7 @@ export function XlsxPreview({
       try {
         const r = await app.XlsxRowOps(relPath, sheet.name, action, selected);
         setDocBody(r.preview);
+        markUpdated(relPath);
         setSelected(null);
         setNotice(r.summary);
         window.setTimeout(() => setNotice(""), 5000);
@@ -274,6 +280,7 @@ export function XlsxPreview({
       try {
         const r = await app.XlsxColOps(relPath, sheet.name, action, `${selectedCol}1`);
         setDocBody(r.preview);
+        markUpdated(relPath);
         setSelected(null);
         setSelectedCol(null);
         setNotice(r.summary);

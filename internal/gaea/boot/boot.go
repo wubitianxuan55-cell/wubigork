@@ -23,9 +23,9 @@ import (
 	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/command"
 	"github.com/gaea/gaea/internal/gaea/config"
-	"github.com/gaea/gaea/internal/gaea/db"
 	tiancontext "github.com/gaea/gaea/internal/gaea/context"
 	"github.com/gaea/gaea/internal/gaea/control"
+	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/hook"
 	"github.com/gaea/gaea/internal/gaea/jobs"
@@ -62,7 +62,7 @@ type Options struct {
 	// Cwd 是工作空间根目录（桌面端 = gaeaCwd()）。非空时基础工具
 	// （read_file/write_file/bash/ls）的相对路径基于它，而非进程 cwd。
 	// 空 = 进程当前目录（CLI 原行为）。
-	Cwd string
+	Cwd        string
 	SessionDir string
 	// ExtraTools 是前端（桌面端）额外注入的工具（如 image_gen 这类需要
 	// 应用服务/客户端的工具）。空 = 不注入；与内置工具同名会被覆盖。
@@ -75,7 +75,7 @@ type Options struct {
 // Controller.Close) to release them.
 var (
 	sandboxWarnOnce sync.Once
-	bashWarnOnce   sync.Once
+	bashWarnOnce    sync.Once
 )
 
 func Build(ctx context.Context, opts Options) (*control.Controller, error) {
@@ -114,7 +114,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	jm := jobs.NewManager(sink)
 
 	execProv, err := NewProvider(entry)
-if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
+	if cfg.Agent.Effort != "" {
+		entry.Effort = cfg.Agent.Effort
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -140,10 +142,14 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 	reg := tool.NewRegistry()
 	bashSpec := sandbox.Spec{Mode: cfg.BashMode(), WriteRoots: cfg.WriteRoots(), Network: cfg.Sandbox.Network}
 	if bashSpec.Mode == "enforce" && !sandbox.Available() {
-		sandboxWarnOnce.Do(func() { fmt.Fprintln(stderr, "warning: bash sandbox requested but unavailable on this platform; running bash unconfined") })
+		sandboxWarnOnce.Do(func() {
+			fmt.Fprintln(stderr, "warning: bash sandbox requested but unavailable on this platform; running bash unconfined")
+		})
 	}
 	if sandbox.ResolveShell().Kind == sandbox.ShellPowerShell {
-		bashWarnOnce.Do(func() { fmt.Fprintln(stderr, "warning: bash not found on PATH; the shell tool will run commands under Windows PowerShell. Install Git for Windows or WSL to use bash.") })
+		bashWarnOnce.Do(func() {
+			fmt.Fprintln(stderr, "warning: bash not found on PATH; the shell tool will run commands under Windows PowerShell. Install Git for Windows or WSL to use bash.")
+		})
 	}
 	addBuiltins(reg, opts.Cwd, cfg.Tools.Enabled, cfg.WriteRoots(), bashSpec, cfg.NetworkProxySpec(), stderr)
 	// Always construct a host, even with no plugins configured, so the controller's
@@ -196,7 +202,9 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 	// calls mean the parent's prefix cache is unaffected.
 	if subRef := strings.TrimSpace(cfg.Agent.SubagentModel); subRef != "" {
 		if subEntry, ok := cfg.ResolveModel(subRef); ok {
-			if e := cfg.Agent.SubagentEffortVal(); e != "" { subEntry.Effort = e }
+			if e := cfg.Agent.SubagentEffortVal(); e != "" {
+				subEntry.Effort = e
+			}
 			if subProv, err := NewProvider(subEntry); err == nil {
 				taskTool.SetSubagentProvider(subProv, subEntry.Price, subEntry.ContextWindow)
 			}
@@ -247,22 +255,22 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 		sysPrompt := childCompiler.SystemPrompt()
 
 		return agent.RunSubAgent(sctx, prov, subReg, sysPrompt, sk.Body+"\n\n"+task, agent.Options{
-		MaxSteps:      steps,
-		Temperature:   cfg.Agent.Temperature,
-		Pricing:       price,
-		Gate:          headlessGate,
-		ContextWindow: ctxWin,
-		Compaction: agent.CompactionConfig{ArchiveDir: config.ArchiveDir()},
-		RuntimePrompt: runtimeCtx.SystemPrompt(),
-		// V5.30: 根据技能名查找子代理模板 — 同类子代理共享前缀缓存
-		TemplatePrefix: lookupSubagentTemplatePrefix(sk.Name),
-		// V10.36: 对齐父代理工具集以保证缓存命中
-		ActiveSchemas:  reg.Schemas(),
-	}, agent.NestedSink(sctx, event.Discard), nil)
+			MaxSteps:      steps,
+			Temperature:   cfg.Agent.Temperature,
+			Pricing:       price,
+			Gate:          headlessGate,
+			ContextWindow: ctxWin,
+			Compaction:    agent.CompactionConfig{ArchiveDir: config.ArchiveDir()},
+			RuntimePrompt: runtimeCtx.SystemPrompt(),
+			// V5.30: 根据技能名查找子代理模板 — 同类子代理共享前缀缓存
+			TemplatePrefix: lookupSubagentTemplatePrefix(sk.Name),
+			// V10.36: 对齐父代理工具集以保证缓存命中
+			ActiveSchemas: reg.Schemas(),
+		}, agent.NestedSink(sctx, event.Discard), nil)
 	}
 	reg.Add(skill.NewRunSkillTool(skillStore, skillRunner))
 	reg.Add(skill.NewInstallSkillTool(skillStore, nil))
-		// V5.30: 注册内置子代理模板，同类子代理共享 L4 前缀缓存
+	// V5.30: 注册内置子代理模板，同类子代理共享 L4 前缀缓存
 	for _, st := range cache.BuiltinSpawnTemplates() {
 		cache.RegisterSpawnTemplate(st)
 	}
@@ -296,8 +304,8 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 		Hooks:         hookRunner,
 		Jobs:          jm,
 		ContextWindow: entry.ContextWindow,
-		Compaction: agent.CompactionConfig{ArchiveDir: config.ArchiveDir()},
-		Dispatcher: toolDispatcher,
+		Compaction:    agent.CompactionConfig{ArchiveDir: config.ArchiveDir()},
+		Dispatcher:    toolDispatcher,
 	}, sink)
 
 	// V7.0: session archive for cross-session Dream/Distill
@@ -377,13 +385,13 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 	compiler.IdentityLayer().SaveHash(cacheDir) // best-effort
 
 	ctrlOpts := control.Options{
-		Runner:            runner,
-		Executor:          executor,
-		Sink:              sink,
-		Policy:            policy,
-		Label:             label,
-		SystemPrompt:      sysPrompt,
-		SessionDir:        orDefault(opts.SessionDir, config.SessionDir()),
+		Runner:        runner,
+		Executor:      executor,
+		Sink:          sink,
+		Policy:        policy,
+		Label:         label,
+		SystemPrompt:  sysPrompt,
+		SessionDir:    orDefault(opts.SessionDir, config.SessionDir()),
 		Host:          pluginHost,
 		Commands:      cmds,
 		Skills:        skills,
@@ -395,10 +403,23 @@ if cfg.Agent.Effort != "" { entry.Effort = cfg.Agent.Effort }
 		Jobs:          jm,
 		Registry:      reg,
 		PluginCtx:     ctx,
-		CtxMgr:           ctxMgr,
-		WorkspaceRoot:    cwd,
+		CtxMgr:        ctxMgr,
+		AutoPlan:      autoPlanEnabled(cfg),
+		WorkspaceRoot: cwd,
 	}
 	return control.New(ctrlOpts), nil
+}
+
+// autoPlanEnabled 读取配置：auto_plan = "ask"/"on" 时开启开工前计划确认。
+func autoPlanEnabled(cfg *config.Config) bool {
+	if cfg == nil {
+		return false
+	}
+	switch strings.ToLower(cfg.Agent.AutoPlan) {
+	case "ask", "on", "true", "1", "yes":
+		return true
+	}
+	return false
 }
 
 func subagentModelRef(cfg *config.Config, sk skill.Skill) string {
@@ -561,7 +582,7 @@ type taskCompilerAdapter struct {
 }
 
 func (a *taskCompilerAdapter) Fork() interface{ SystemPrompt() string } { return a.c.Fork() }
-func (a *taskCompilerAdapter) SystemPrompt() string                      { return a.c.SystemPrompt() }
+func (a *taskCompilerAdapter) SystemPrompt() string                     { return a.c.SystemPrompt() }
 
 func orDefault(val, def string) string {
 	if val != "" {

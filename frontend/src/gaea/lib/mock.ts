@@ -402,6 +402,25 @@ export function makeMockApp(): AppBindings {
       }
       return [{ name: "file.go", isDir: false }];
     },
+    async FileSearch(query: string, limit = 30) {
+      const tree = [
+        { path: "README.md", name: "README.md", isDir: false, size: 18 },
+        { path: "desktop/file.go", name: "file.go", isDir: false, size: 42 },
+        { path: "docs/成本测算.xlsx", name: "成本测算.xlsx", isDir: false, size: 120 },
+        { path: "docs/方案.docx", name: "方案.docx", isDir: false, size: 80 },
+        { path: "internal/control", name: "control", isDir: true },
+      ];
+      const q = query.toLowerCase();
+      return tree.filter((f) => f.name.toLowerCase().includes(q)).slice(0, limit);
+    },
+    async Materials(limit = 100) {
+      const now = Date.now();
+      return [
+        { path: "docs/成本测算.xlsx", name: "成本测算.xlsx", isDir: false, size: 120, modTime: now },
+        { path: "docs/方案.docx", name: "方案.docx", isDir: false, size: 80, modTime: now - 1000 },
+        { path: "docs/说明.md", name: "说明.md", isDir: false, size: 40, modTime: now - 2000 },
+      ].slice(0, limit);
+    },
     async ReadFile(rel: string) {
       const samples: Record<string, string> = {
         "README.md": "# gaea\n\nBrowser-dev workspace preview.\n\n- Chat in the center\n- Browse files on the right\n- Keep sessions on the left\n",

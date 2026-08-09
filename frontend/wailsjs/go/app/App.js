@@ -394,6 +394,10 @@ export function GaeaFactBasePromote() {
   return window['go']['app']['App']['GaeaFactBasePromote']();
 }
 
+export function GaeaFileSearch(arg1, arg2) {
+  return window['go']['app']['App']['GaeaFileSearch'](arg1, arg2);
+}
+
 export function GaeaForget(arg1) {
   return window['go']['app']['App']['GaeaForget'](arg1);
 }
@@ -452,6 +456,10 @@ export function GaeaLoginProvider(arg1) {
 
 export function GaeaLogoutProvider(arg1) {
   return window['go']['app']['App']['GaeaLogoutProvider'](arg1);
+}
+
+export function GaeaMaterials(arg1) {
+  return window['go']['app']['App']['GaeaMaterials'](arg1);
 }
 
 export function GaeaMemory() {

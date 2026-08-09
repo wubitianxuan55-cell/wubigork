@@ -27,7 +27,12 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 
 ## 版本状态
 
-- 最新发布：v2.6.9（2026-08-09）「移除 VoxCPM2」：实测不达标（耗时长/音色男女混乱），本地 TTS 仅 CosyVoice2
+- 最新发布：v2.10.1（2026-08-10）「开工前 · 交付收尾 · 记忆自进化」：开工前计划卡片 +
+  @ 引用增强/资料概览；对话内文件链接点击即预览 + 交付物卡片 + 会话产物面板（溯源/已更新）；
+  自动做梦（会话后后台提炼事实/偏好入库）；粘贴表格即数据；三轮竞品优点蒸馏文档 +
+  调用链核对文档。产物 gaea-v2.10.1.exe（40.8MB）
+  - v2.10.0（2026-08-09）：通用办公三阶段闭环（解析/编辑/输出）+ Codex 式预览布局 +
+    成本测算模板；桌面端体验重构
   - v2.6.5/2.6.6：CosyVoice2 LLM 切 GGUF+Vulkan（提速 8–10×）、VoxCPM2 本地引擎接入（ROCm）
 - 里程碑：设置/首页/聊天欢迎屏/小说/绘梦五板块统一玻璃 HUD 设计语言；
   绘梦新增图生图（ComfyUI 低 denoise）与文生视频（LTX-Video，GenerateMedia 绑定）；
@@ -93,4 +98,3 @@ gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后�
 - 实现在 `internal/app/tts_service.go`（`core.ensureLocalTTSService` 幂等 + 异步轮询，
   emit `tts-service-status`；CosyVoice 直接 python server.py，隐藏窗口 CREATE_NO_WINDOW）
 - 端口探测：CosyVoice2 `8010/v1/models`
-

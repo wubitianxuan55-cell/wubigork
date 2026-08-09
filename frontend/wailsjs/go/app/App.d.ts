@@ -207,6 +207,8 @@ export function GaeaFactBaseClear():Promise<void>;
 
 export function GaeaFactBasePromote():Promise<number>;
 
+export function GaeaFileSearch(arg1:string,arg2:number):Promise<Array<app.FileSearchHit>>;
+
 export function GaeaForget(arg1:string):Promise<void>;
 
 export function GaeaFork(arg1:number):Promise<void>;
@@ -236,6 +238,8 @@ export function GaeaListWorkspaces():Promise<Array<app.WorkspaceView>>;
 export function GaeaLoginProvider(arg1:string):Promise<void>;
 
 export function GaeaLogoutProvider(arg1:string):Promise<void>;
+
+export function GaeaMaterials(arg1:number):Promise<Array<app.FileSearchHit>>;
 
 export function GaeaMemory():Promise<app.MemoryView>;
 

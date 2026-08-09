@@ -9,6 +9,7 @@ import { displayReasoningText } from "../lib/reasoningDisplay";
 import { useNow } from "../lib/useNow";
 import { usePreviewStore, useTurnStartAt } from "../lib/store";
 import type { Item } from "../lib/store";
+import { DeliverableCards } from "./DeliverableCards";
 
 type AssistantItem = Extract<Item, { kind: "assistant" }>;
 
@@ -232,6 +233,8 @@ export const AssistantMessage = memo(function AssistantMessage({
               <MemoMarkdown text={item.text} streaming={streaming} />
             </div>
           )}
+          {/* 交付物附件卡片：正文中的文件引用渲染成可点击预览卡片 */}
+          {item.text && <DeliverableCards text={item.text} />}
 
           {/* 沉淀为技能：把这次成功对话一键封装为可复用 playbook */}
           {onCapture && !streaming && item.text && (

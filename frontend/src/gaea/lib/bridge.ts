@@ -18,6 +18,7 @@ import type {
   ExportDeliverableInput,
   ExportDeliverableResult,
   FactBaseView,
+  FileSearchHit,
   FilePickResult,
   FilePreview,
   PreviewResult,
@@ -128,6 +129,10 @@ export interface AppBindings {
   SetMCPServerEnabled(name: string, enabled: boolean): Promise<void>;
   SlashArgs(input: string): Promise<SlashArgsResult>;
   ListDir(rel: string): Promise<DirEntry[]>;
+  // FileSearch 工作区文件名搜索（@ 引用增强：跨目录定位资料）。
+  FileSearch(query: string, limit?: number): Promise<FileSearchHit[]>;
+  // Materials 工作区资料概览：office/文本文件按修改时间倒序。
+  Materials(limit?: number): Promise<FileSearchHit[]>;
   ReadFile(rel: string): Promise<FilePreview>;
   Preview(rel: string): Promise<PreviewResult>;
   // OfficeEditText 框选即改：按指令生成选中文本的替换；DocxApplyEdit 以修订模式
@@ -346,6 +351,8 @@ const gaeaToGaea: Record<string, string> = {
   SetMCPServerEnabled: "GaeaSetMCPServerEnabled",
   SlashArgs: "GaeaSlashArgs",
   ListDir: "GaeaListDir",
+  FileSearch: "GaeaFileSearch",
+  Materials: "GaeaMaterials",
   ReadFile: "GaeaReadFile",
   Preview: "GaeaPreview",
   OfficeEditText: "GaeaOfficeEditText",

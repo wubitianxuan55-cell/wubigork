@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ClipboardEvent, DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { ArrowUp, Camera, Check, ChevronDown, Eye, FileText, FolderGit2, FolderPlus, Loader, Paperclip, Search, Square, X, Zap } from "../icons";
+import { ArrowUp, Camera, Check, ChevronDown, Eye, FileText, FolderGit2, FolderPlus, Loader, Paperclip, Search, Square, Table, X, Zap } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import { clearLayoutSize, loadOptionalLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
-import type { CommandInfo, DirEntry, SlashArgItem, SlashArgsResult, WorkspaceView } from "../lib/types";
+import { applyTableConversion, detectTableBlock } from "../lib/tableData";
+import type { CommandInfo, DirEntry, FileSearchHit, SlashArgItem, SlashArgsResult, WorkspaceView } from "../lib/types";
 import { useToast } from "./Toast";
+import { useComposerInsertStore } from "../lib/store";
 import { SlashMenu } from "./SlashMenu";
 import { ArgMenu } from "./ArgMenu";
-import { FileMenu } from "./FileMenu";
+import { FileMenu, type AtEntry } from "./FileMenu";
 import { usePasteBlocks, PasteBlocksUI } from "./PasteManager";
 import { ScreenCropOverlay } from "./ScreenCropOverlay";
 
@@ -49,6 +51,9 @@ export function Composer({
   const t = useT();
   const toast = useToast();
   const [text, setText] = useState("");
+  // 粘贴表格即数据：识别 CSV/TSV 表格块，发送时转 Markdown 表格（可关）
+  const tableInfo = useMemo(() => detectTableBlock(text), [text]);
+  const [tableMode, setTableMode] = useState(true);
   const debouncedText = useDebounce(text, 80);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [pendingPaste, setPendingPaste] = useState(0);
@@ -147,15 +152,63 @@ export function Composer({
     app.ListDir(atDir).then((es) => { const list = es ?? []; dirCache.current[atDir] = list; if (live) setEntries(list); }).catch(() => {});
     return () => { live = false; };
   }, [atRaw === null, atDir]);
-  const atMatches = useMemo(() => (atRaw === null ? [] : entries.filter((e) => e.name.toLowerCase().includes(atFrag)).slice(0, 10)), [atRaw, atFrag, entries]);
+  // 工作区跨目录搜索（@ 引用增强：搜一下定位资料）
+  const [atHits, setAtHits] = useState<FileSearchHit[]>([]);
+  useEffect(() => {
+    if (atRaw === null) { setAtHits([]); return; }
+    let live = true;
+    app.FileSearch(atFrag, 30).then((h) => { if (live) setAtHits(h ?? []); }).catch(() => {});
+    return () => { live = false; };
+  }, [atRaw, atFrag]);
+  // 最近使用文件（@ 选择过的文件，本地持久化）
+  const RECENT_AT_KEY = "gaea.atRecentFiles";
+  const [recent, setRecent] = useState<AtEntry[]>(() => {
+    try { return JSON.parse(localStorage.getItem(RECENT_AT_KEY) || "[]") as AtEntry[]; } catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(RECENT_AT_KEY, JSON.stringify(recent.slice(0, 20))); } catch {}
+  }, [recent]);
+  // 右侧资料面板「一键 @ 引用」→ 插入输入框
+  const pendingAt = useComposerInsertStore((s) => s.pendingAt);
+  useEffect(() => {
+    if (!pendingAt) return;
+    const at = useComposerInsertStore.getState().consumeAt();
+    if (!at) return;
+    setText((prev) => prev + (prev && !prev.endsWith(" ") ? " " : "") + "@" + at + " ");
+    requestAnimationFrame(() => { taRef.current?.focus(); });
+  }, [pendingAt]);
+  // 统一 @ 条目：目录内浏览（路径前缀）或 最近使用 + 工作区搜索 + 当前目录
+  const atItems: AtEntry[] = useMemo(() => {
+    if (atRaw === null) return [];
+    const out: AtEntry[] = [];
+    const seen = new Set<string>();
+    const push = (e: AtEntry) => { if (!seen.has(e.path) && out.length < 12) { seen.add(e.path); out.push(e); } };
+    if (atDir !== "") {
+      for (const e of entries) {
+        if (!e.name.toLowerCase().includes(atFrag)) continue;
+        push({ path: atDir + e.name + (e.isDir ? "/" : ""), name: e.name, isDir: e.isDir });
+      }
+      return out;
+    }
+    for (const r of recent) if (r.name.toLowerCase().includes(atFrag)) push(r);
+    for (const h of atHits) {
+      if (!h.name.toLowerCase().includes(atFrag)) continue;
+      push({ path: h.isDir ? h.path + "/" : h.path, name: h.name, isDir: h.isDir, size: h.size });
+    }
+    for (const e of entries) {
+      if (!e.name.toLowerCase().includes(atFrag)) continue;
+      push({ path: e.name + (e.isDir ? "/" : ""), name: e.name, isDir: e.isDir });
+    }
+    return out;
+  }, [atRaw, atDir, atFrag, entries, atHits, recent]);
 
   // ── 菜单状态 ──
   const menuMode: "slash" | "slasharg" | "at" | null =
     slashMatches.length > 0 && !dismissed ? "slash"
     : argRes && argRes.items.length > 0 && !dismissed ? "slasharg"
-    : atMatches.length > 0 && !dismissed ? "at"
+    : atItems.length > 0 && !dismissed ? "at"
     : null;
-  const menuCount = menuMode === "slash" ? slashMatches.length : menuMode === "slasharg" ? argRes!.items.length : menuMode === "at" ? atMatches.length : 0;
+  const menuCount = menuMode === "slash" ? slashMatches.length : menuMode === "slasharg" ? argRes!.items.length : menuMode === "at" ? atItems.length : 0;
   useEffect(() => { setActive(0); setDismissed(false); }, [slashQuery, atRaw]);
 
   const setTextCaretEnd = (next: string) => {
@@ -165,7 +218,8 @@ export function Composer({
 
   const submit = () => {
     if (disabled) return;
-    const tTrim = text.trim();
+    const converted = tableMode ? applyTableConversion(text, true) : text;
+    const tTrim = converted.trim();
     if ((!tTrim && attachments.length === 0) || pendingPaste > 0) return;
     const refs = attachments.map((a) => `@${a.path}`).join(" ");
     const displayText = [tTrim, refs].filter(Boolean).join(tTrim && refs ? " " : "");
@@ -361,16 +415,21 @@ export function Composer({
   };
 
   const pickCommand = (c: CommandInfo) => setTextCaretEnd("/" + c.name + " ");
-  const pickEntry = (e: DirEntry) => {
+  const pickEntry = (e: AtEntry) => {
     const atPos = text.length - (atRaw?.length ?? 0) - 1;
     const prefix = text.slice(0, atPos);
-    setTextCaretEnd(prefix + "@" + atDir + e.name + (e.isDir ? "/" : " "));
+    if (e.isDir) {
+      setTextCaretEnd(prefix + "@" + e.path);
+      return;
+    }
+    setRecent((prev) => [{ path: e.path, name: e.name, isDir: false, size: e.size }, ...prev.filter((r) => r.path !== e.path)].slice(0, 20));
+    setTextCaretEnd(prefix + "@" + e.path + " ");
   };
   const pickArg = (it: SlashArgItem) => { if (!argRes) return; setTextCaretEnd(text.slice(0, argRes.from) + it.insert); };
   const pickActive = () => {
     if (menuMode === "slash") pickCommand(slashMatches[active]);
     else if (menuMode === "slasharg" && argRes) pickArg(argRes.items[active]);
-    else if (menuMode === "at") pickEntry(atMatches[active]);
+    else if (menuMode === "at") pickEntry(atItems[active]);
   };
 
   // ── 工作区菜单 ──
@@ -423,7 +482,8 @@ export function Composer({
       // 纠正模式：Shift+Enter → 清空队列 + 取消当前轮次 + 立即发送新文本
       e.preventDefault();
       if (disabled) return;
-      const tTrim = text.trim();
+      const converted = tableMode ? applyTableConversion(text, true) : text;
+      const tTrim = converted.trim();
       if ((!tTrim && attachments.length === 0) || pendingPaste > 0) return;
       const refs = attachments.map((a) => `@${a.path}`).join(" ");
       const displayText = [tTrim, refs].filter(Boolean).join(tTrim && refs ? " " : "");
@@ -527,7 +587,7 @@ export function Composer({
       {/* ── 菜单（命令/参数/文件）── */}
       {menuMode === "slash" && <SlashMenu items={slashMatches} activeIndex={active} onPick={pickCommand} onHover={setActive} />}
       {menuMode === "slasharg" && argRes && <ArgMenu items={argRes.items} activeIndex={active} onPick={pickArg} onHover={setActive} />}
-      {menuMode === "at" && <FileMenu items={atMatches} activeIndex={active} onPick={pickEntry} onHover={setActive} />}
+      {menuMode === "at" && <FileMenu items={atItems} activeIndex={active} onPick={pickEntry} onHover={setActive} />}
 
       {/* ── 附件预览 ── */}
       {attachments.length > 0 && (
@@ -611,6 +671,25 @@ export function Composer({
           onPointerDown={onComposerResizeStart}
           onDoubleClick={resetComposerHeight}
         />
+
+        {/* 粘贴表格即数据：检测到表格块时提示，可关 */}
+        {tableInfo && !disabled && (
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-soft/60 bg-accent/[0.03] text-[11px]">
+            <Table size={12} className="text-accent shrink-0" />
+            <span className="text-fg-dim">
+              已识别表格数据：{tableInfo.rows} 行 × {tableInfo.cols} 列
+            </span>
+            <label className="flex items-center gap-1 ml-auto cursor-pointer select-none text-fg-faint hover:text-fg transition-colors">
+              <input
+                type="checkbox"
+                checked={tableMode}
+                onChange={(e) => setTableMode(e.target.checked)}
+                className="accent-accent"
+              />
+              发送时转为 Markdown 表格
+            </label>
+          </div>
+        )}
 
         {/* 主输入行 */}
         <div

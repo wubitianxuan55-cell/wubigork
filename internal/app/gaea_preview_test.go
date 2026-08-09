@@ -45,6 +45,32 @@ func TestGaeaPreview_Missing(t *testing.T) {
 	}
 }
 
+// TestGaeaPreview_BareFilenameFallback 验证裸文件名（无目录分隔符）在常见输出
+// 目录（exports 等）中可被解析，使“输出文件：成本测算.xlsx”这类引用可直接预览。
+func TestGaeaPreview_BareFilenameFallback(t *testing.T) {
+	t.Chdir(t.TempDir())
+	rel := filepath.Join("exports", "成本测算.xlsx")
+	if err := os.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "预算")
+	f.SetCellValue("预算", "A1", "项目")
+	if err := f.SaveAs(rel); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	a := &App{}
+	got := a.GaeaPreview("成本测算.xlsx")
+	if got.Kind != "xlsx" {
+		t.Fatalf("kind = %q, want xlsx（裸文件名应解析到 exports 目录）", got.Kind)
+	}
+	if want := filepath.ToSlash(rel); got.Path != want {
+		t.Fatalf("Path = %q, want %q", got.Path, want)
+	}
+}
+
 // TestGaeaPreview_Docx 验证 .docx 返回原始字节 dataUrl（前端 docx-preview 保真渲染）。
 func TestGaeaPreview_Docx(t *testing.T) {
 	t.Chdir(t.TempDir())

@@ -10,12 +10,12 @@ FILETYPE 0x1
     {
       VALUE "CompanyName", "gaea"
       VALUE "FileDescription", "gaea AI Assistant"
-      VALUE "FileVersion", "2.6.9"
+      VALUE "FileVersion", "2.10.1"
       VALUE "InternalName", "gaea"
       VALUE "LegalCopyright", "gaea"
       VALUE "OriginalFilename", "gaea.exe"
       VALUE "ProductName", "gaea"
-      VALUE "ProductVersion", "2.6.9"
+      VALUE "ProductVersion", "2.10.1"
     }
   }
   BLOCK "VarFileInfo"
