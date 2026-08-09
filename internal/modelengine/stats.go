@@ -58,6 +58,7 @@ type ModelStatsSummary struct {
 	Trend           []TrendPoint      `json:"trend"`      // 按小时的趋势序列（升序）
 	PerModel        []ModelUsageStats `json:"per_model"`
 	Since           string            `json:"since,omitempty"`
+	UsdToCny        float64           `json:"usd_to_cny"` // 展示用美元→人民币汇率（单一来源，前端不再硬编码）
 }
 
 // TrendPoint 单个小时桶的用量趋势。
@@ -362,6 +363,7 @@ func (r *statsRecorder) summary() ModelStatsSummary {
 
 	var sum ModelStatsSummary
 	sum.Since = r.since
+	sum.UsdToCny = usdToCny
 	for _, st := range r.models {
 		sum.TotalCalls += st.CallCount
 		sum.SuccessCalls += st.SuccessCount

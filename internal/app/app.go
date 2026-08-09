@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -22,6 +23,7 @@ import (
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/httpbridge"
 	"github.com/gaea/gaea/internal/modelengine"
 	officedb "github.com/gaea/gaea/internal/office/db"
@@ -89,12 +91,12 @@ type mediaState struct {
 	app *App
 
 	// TTS 语音朗读（模型中心选择）
-	activeTTSEngine string
-	activeTTSModel  string
-	activeTTSVoice  string
+	activeTTSEngine     string
+	activeTTSModel      string
+	activeTTSVoice      string
 	activePersonalityID string
-	chatVoiceEngine string
-	chatVoiceModel  string
+	chatVoiceEngine     string
+	chatVoiceModel      string
 
 	// ASR 语音识别（模型中心选择）
 	activeASREngine string
@@ -200,10 +202,18 @@ func (a *App) Startup(ctx context.Context) {
 	// 创建 AI client（仅此一次；token 由 GetToken 懒加载）
 	a.client = ai.NewClient(a.cfg)
 
+	// 密钥保护：旧版明文一次性迁移为 DPAPI 密文，再解密供内存使用
+	encryptSecretIfLegacy(config.KeyDeepseekAPIKey, &a.cfg.DeepseekAPIKey)
+	encryptSecretIfLegacy(config.KeyOpencodeGoAPIKey, &a.cfg.OpenCodeGoAPIKey)
+	encryptSecretIfLegacy(config.KeyOpencodeZenAPIKey, &a.cfg.OpenCodeZenAPIKey)
+	deepseekKey, _ := secure.DecryptString(a.cfg.DeepseekAPIKey)
+	opencodeGoKey, _ := secure.DecryptString(a.cfg.OpenCodeGoAPIKey)
+	opencodeZenKey, _ := secure.DecryptString(a.cfg.OpenCodeZenAPIKey)
+
 	// 初始化模型引擎管理器，尝试恢复已保存的 xAI token
-	a.engineMgr = modelengine.NewManager("", a.cfg.DeepseekAPIKey)
-	a.engineMgr.UpdateOpencodeKey(a.cfg.OpenCodeGoAPIKey)
-	a.engineMgr.UpdateOpencodeZenKey(a.cfg.OpenCodeZenAPIKey)
+	a.engineMgr = modelengine.NewManager("", deepseekKey)
+	a.engineMgr.UpdateOpencodeKey(opencodeGoKey)
+	a.engineMgr.UpdateOpencodeZenKey(opencodeZenKey)
 	if err := a.engineMgr.LoadState(filepath.Join(a.whisperDataRoot, "engines.json")); err != nil {
 		slog.Warn("加载引擎状态失败（回退预置默认）", "error", err)
 	}
@@ -365,4 +375,21 @@ func CLILogin() {
 		fmt.Printf("⚠️ 保存 token 失败: %v\n", err)
 	}
 	fmt.Println("✅ 已成功登录 xAI，可以开始写作！")
+}
+
+// encryptSecretIfLegacy 将旧版明文密钥就地加密并落盘（一次性迁移）。
+// 已带 "dpapi:" 前缀（密文）或为空时跳过，避免每次启动重复写配置。
+func encryptSecretIfLegacy(key string, v *string) {
+	if *v == "" || strings.HasPrefix(*v, "dpapi:") {
+		return
+	}
+	enc, err := secure.EncryptString(*v)
+	if err != nil || enc == *v {
+		return
+	}
+	if err := config.Save(key, enc); err != nil {
+		slog.Warn("迁移密钥为密文失败", "key", key, "error", err)
+		return
+	}
+	*v = enc
 }

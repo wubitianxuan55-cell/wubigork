@@ -97,9 +97,10 @@ const XAI_VOICES = [
 const COSYVOICE_FALLBACK_VOICES = ['中文女', '中文男', '英文女', '英文男']
 
 
-// ── 费用展示工具（与后端 usdToCny=7.2 保持一致） ────────────────
+// ── 费用展示工具（汇率单一来源：优先取后端下发的 usd_to_cny） ───
 const USD_TO_CNY = 7.2
 const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman' || id === 'cosyvoice'
+const costToCNY = (cost: number, currency?: string, rate: number = USD_TO_CNY) => (currency === 'USD' ? cost * rate : cost)
 
 // 本地 TTS 引擎的服务端音色兜底：CosyVoice2 4 个内置音色（中文女/男、英文女/男）
 const localTTSFallbackVoices = (model: string): string[] => {
@@ -111,7 +112,6 @@ const localTTSDefaultVoice = (model: string): string | undefined => {
   const l = model.toLowerCase()
   return l.includes('cosyvoice') ? '中文女' : undefined
 }
-const costToCNY = (cost: number, currency?: string) => (currency === 'USD' ? cost * USD_TO_CNY : cost)
 const fmtCost = (cost?: number, currency?: string): string => {
   const c = cost ?? 0
   if (currency === 'USD') return `$${c.toFixed(2)}`
@@ -268,6 +268,7 @@ const TokenTrendChart: React.FC<{ data: TrendDatum[] }> = ({ data }) => {
 const ModelCenterPage: React.FC = () => {
   const { loggedIn, login, logout } = useAppStore()
   const [category, setCategory] = useState<Category>('llm')
+  const [llmSearch, setLlmSearch] = useState('')
   const [engines, setEngines] = useState<EngineConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [activeEngine, setActiveEngineState] = useState('xai')
@@ -842,13 +843,25 @@ const ModelCenterPage: React.FC = () => {
           {/* LLM */}
           {category === 'llm' && (
             <>
+              <Input.Search
+                allowClear
+                placeholder="搜索模型名称"
+                value={llmSearch}
+                onChange={e => setLlmSearch(e.target.value)}
+                style={{ maxWidth: 320, marginBottom: 16 }}
+              />
               {llmModels.length === 0 && (
                 <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, textAlign: 'center', padding: 40, marginBottom: 16 }}>
                   <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 14 }}>未发现语言模型。请在「引擎管理」中启用引擎并刷新模型。</Typography.Text>
                 </Card>
               )}
+              {llmModels.length > 0 && !llmModels.some(m => !llmSearch || m.modelName.toLowerCase().includes(llmSearch.toLowerCase())) && (
+                <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, textAlign: 'center', padding: 24, marginBottom: 16 }}>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13 }}>没有匹配「{llmSearch}」的模型</Typography.Text>
+                </Card>
+              )}
               {engines.filter(e => e.enabled).map(engine => {
-                const engineModels = llmModels.filter(m => m.engineId === engine.id)
+                const engineModels = llmModels.filter(m => m.engineId === engine.id && (!llmSearch || m.modelName.toLowerCase().includes(llmSearch.toLowerCase())))
                 if (engineModels.length === 0) return null
                 const color = engineColor(engine)
                 return (
@@ -1137,7 +1150,7 @@ const ModelCenterPage: React.FC = () => {
                     <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '12px 14px' }}>
                       <div style={{ color: C('color-text-secondary'), fontSize: 11, marginBottom: 4 }}>估算费用</div>
                       <div style={{ color: '#fbbf24', fontSize: 22, fontWeight: 700 }}>{fmtCost(callStats.total_cost, 'CNY')}</div>
-                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginTop: 2 }}>美元按 1:7.2 折算</div>
+                      <div style={{ color: C('color-text-secondary'), fontSize: 11, marginTop: 2 }}>美元按 1:{callStats?.usd_to_cny ?? USD_TO_CNY} 折算</div>
                     </div>
                     <div style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '12px 14px' }}>
                       <div style={{ color: C('color-text-secondary'), fontSize: 11, marginBottom: 4 }}>成功率</div>
@@ -1213,7 +1226,7 @@ const ModelCenterPage: React.FC = () => {
                         const calls = rows.reduce((a, b) => a + b.call_count, 0)
                         const succ = rows.reduce((a, b) => a + b.success_count, 0)
                         const tokens = rows.reduce((a, b) => a + b.total_tokens, 0)
-                        const engCost = rows.reduce((a, b) => a + costToCNY(b.estimated_cost ?? 0, b.currency), 0)
+                        const engCost = rows.reduce((a, b) => a + costToCNY(b.estimated_cost ?? 0, b.currency, callStats?.usd_to_cny ?? USD_TO_CNY), 0)
                         const rate = calls > 0 ? ((succ / calls) * 100).toFixed(0) : '0'
                         const sorted = [...rows].sort((a, b) => {
                           if (statsSort === 'tokens') return b.total_tokens - a.total_tokens
@@ -1276,6 +1289,9 @@ const ModelCenterPage: React.FC = () => {
                                       <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10 }}>
                                         {s.last_called_at ? `最近 ${s.last_called_at.slice(5, 16)}` : '—'}
                                       </Typography.Text>
+                                      {s.call_count >= 5 && s.fail_count / s.call_count >= 0.2 && (
+                                        <Tag color="red" style={{ fontSize: 9, marginTop: 2 }}>高失败率</Tag>
+                                      )}
                                     </div>
                                     <div style={{ position: 'relative', textAlign: 'right' }}>
                                       <Typography.Text style={{ color: C('color-text'), fontSize: 12 }}>{s.call_count}</Typography.Text>

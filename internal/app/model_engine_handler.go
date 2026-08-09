@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/modelengine"
 )
 
@@ -135,9 +136,13 @@ func (c *core) SetDeepseekKey(apiKey string) error {
 	if c.engineMgr == nil {
 		return errNoEngineMgr
 	}
+	enc, err := secure.EncryptString(apiKey)
+	if err != nil {
+		return &appError{"API Key 加密失败: " + err.Error()}
+	}
 	c.engineMgr.UpdateDeepseekKey(apiKey)
-	c.cfg.DeepseekAPIKey = apiKey
-	if err := config.Save(config.KeyDeepseekAPIKey, apiKey); err != nil {
+	c.cfg.DeepseekAPIKey = enc
+	if err := config.Save(config.KeyDeepseekAPIKey, enc); err != nil {
 		slog.Warn("保存 DeepSeek API Key 失败", "error", err)
 		return err
 	}
@@ -147,16 +152,7 @@ func (c *core) SetDeepseekKey(apiKey string) error {
 
 // GetDeepseekKeyStatus 获取 DeepSeek API Key 配置状态
 func (c *core) GetDeepseekKeyStatus() map[string]interface{} {
-	hasKey := c.cfg.DeepseekAPIKey != ""
-	masked := ""
-	if hasKey {
-		k := c.cfg.DeepseekAPIKey
-		if len(k) > 8 {
-			masked = k[:4] + "****" + k[len(k)-4:]
-		} else {
-			masked = "****"
-		}
-	}
+	hasKey, masked := maskKeyStatus(c.cfg.DeepseekAPIKey)
 	return map[string]interface{}{
 		"configured": hasKey,
 		"masked":     masked,
@@ -170,9 +166,13 @@ func (c *core) SetOpencodeGoKey(apiKey string) error {
 	if c.engineMgr == nil {
 		return errNoEngineMgr
 	}
+	enc, err := secure.EncryptString(apiKey)
+	if err != nil {
+		return &appError{"API Key 加密失败: " + err.Error()}
+	}
 	c.engineMgr.UpdateOpencodeKey(apiKey)
-	c.cfg.OpenCodeGoAPIKey = apiKey
-	if err := config.Save(config.KeyOpencodeGoAPIKey, apiKey); err != nil {
+	c.cfg.OpenCodeGoAPIKey = enc
+	if err := config.Save(config.KeyOpencodeGoAPIKey, enc); err != nil {
 		slog.Warn("保存 OpenCode Go API Key 失败", "error", err)
 		return err
 	}
@@ -182,16 +182,7 @@ func (c *core) SetOpencodeGoKey(apiKey string) error {
 
 // GetOpencodeGoKeyStatus 获取 OpenCode Go API Key 配置状态
 func (c *core) GetOpencodeGoKeyStatus() map[string]interface{} {
-	hasKey := c.cfg.OpenCodeGoAPIKey != ""
-	masked := ""
-	if hasKey {
-		k := c.cfg.OpenCodeGoAPIKey
-		if len(k) > 8 {
-			masked = k[:4] + "****" + k[len(k)-4:]
-		} else {
-			masked = "****"
-		}
-	}
+	hasKey, masked := maskKeyStatus(c.cfg.OpenCodeGoAPIKey)
 	return map[string]interface{}{
 		"configured": hasKey,
 		"masked":     masked,
@@ -203,9 +194,13 @@ func (c *core) SetOpencodeZenKey(apiKey string) error {
 	if c.engineMgr == nil {
 		return errNoEngineMgr
 	}
+	enc, err := secure.EncryptString(apiKey)
+	if err != nil {
+		return &appError{"API Key 加密失败: " + err.Error()}
+	}
 	c.engineMgr.UpdateOpencodeZenKey(apiKey)
-	c.cfg.OpenCodeZenAPIKey = apiKey
-	if err := config.Save(config.KeyOpencodeZenAPIKey, apiKey); err != nil {
+	c.cfg.OpenCodeZenAPIKey = enc
+	if err := config.Save(config.KeyOpencodeZenAPIKey, enc); err != nil {
 		slog.Warn("保存 OpenCode Zen API Key 失败", "error", err)
 		return err
 	}
@@ -215,20 +210,27 @@ func (c *core) SetOpencodeZenKey(apiKey string) error {
 
 // GetOpencodeZenKeyStatus 获取 OpenCode Zen API Key 配置状态
 func (c *core) GetOpencodeZenKeyStatus() map[string]interface{} {
-	hasKey := c.cfg.OpenCodeZenAPIKey != ""
-	masked := ""
-	if hasKey {
-		k := c.cfg.OpenCodeZenAPIKey
-		if len(k) > 8 {
-			masked = k[:4] + "****" + k[len(k)-4:]
-		} else {
-			masked = "****"
-		}
-	}
+	hasKey, masked := maskKeyStatus(c.cfg.OpenCodeZenAPIKey)
 	return map[string]interface{}{
 		"configured": hasKey,
 		"masked":     masked,
 	}
+}
+
+// maskKeyStatus 解密持久化的密钥并返回脱敏展示。
+// 存储值可能为 DPAPI 密文或旧版明文；解密失败时保守显示 ****。
+func maskKeyStatus(enc string) (hasKey bool, masked string) {
+	if enc == "" {
+		return false, ""
+	}
+	dec, err := secure.DecryptString(enc)
+	if err != nil || dec == "" {
+		return true, "****"
+	}
+	if len(dec) > 8 {
+		return true, dec[:4] + "****" + dec[len(dec)-4:]
+	}
+	return true, "****"
 }
 
 // GetModelCallStats 获取模型调用统计汇总（按引擎/模型维度）。

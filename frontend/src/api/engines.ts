@@ -74,6 +74,7 @@ export interface ModelStatsSummary {
   trend: TrendPoint[]
   per_model: ModelUsageStats[]
   since?: string
+  usd_to_cny?: number
 }
 
 // ── API 函数 ─────────────────────────────────────────────────
