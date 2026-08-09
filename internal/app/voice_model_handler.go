@@ -10,8 +10,10 @@ package app
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/tts"
 )
 
 // ── 语音识别 (STT) 模型选择 ──────────────────────────────────
@@ -117,6 +119,112 @@ func (a *mediaState) GetVoicePipelineConfig() map[string]interface{} {
 	return map[string]interface{}{
 		"stt": map[string]string{"engine": asr["engine"], "model": asr["model"]},
 		"llm": map[string]string{"engine": a.GetActiveEngine(), "model": a.GetActiveModel()},
-		"tts": map[string]string{"engine": tts["engine"], "model": tts["model"]},
+		"tts": map[string]string{"engine": tts["engine"], "model": tts["model"], "voice": a.activeTTSVoice},
+		"chatTts": map[string]string{"engine": a.chatVoiceEngine, "model": a.chatVoiceModel},
 	}
+}
+
+// SetChatVoiceModel 设置聊天语音合成模型（功能绑定，空引擎=清除绑定回退全局 TTS）
+// 模型中心「功能绑定」区块调用；持久化后语音管道优先使用该绑定。
+func (a *mediaState) SetChatVoiceModel(engineID, modelID string) error {
+	if a.engineMgr == nil {
+		return errNoEngineMgr
+	}
+
+	// 清空绑定：回退全局 TTS
+	if engineID == "" || modelID == "" {
+		a.chatVoiceEngine = ""
+		a.chatVoiceModel = ""
+		if err := config.Save(config.KeyFuncChatVoiceEngine, ""); err != nil {
+			slog.Warn("保存聊天语音引擎失败", "error", err)
+		}
+		if err := config.Save(config.KeyFuncChatVoiceModel, ""); err != nil {
+			slog.Warn("保存聊天语音模型失败", "error", err)
+		}
+		a.emit("voice-model-changed", map[string]interface{}{"chatTtsEngine": "", "chatTtsModel": ""})
+		return nil
+	}
+
+	eng, ok := a.engineMgr.GetEngine(engineID)
+	if !ok {
+		return &appError{"引擎不存在: " + engineID}
+	}
+	if !eng.Enabled {
+		return &appError{"引擎未启用: " + engineID}
+	}
+	// 校验模型在引擎可用列表（有列表时），并确认是 TTS/语音模型
+	found := false
+	for _, m := range eng.Models {
+		l := strings.ToLower(m.ID)
+		if m.ID == modelID && (strings.Contains(l, "tts") || strings.Contains(l, "voice") || strings.Contains(l, "speech") || strings.Contains(l, "edge") || strings.Contains(l, "cosyvoice")) {
+			found = true
+			break
+		}
+	}
+	if len(eng.Models) > 0 && !found {
+		return &appError{fmt.Sprintf("模型 %s 不是引擎 %s 的语音模型", modelID, engineID)}
+	}
+
+	a.chatVoiceEngine = engineID
+	a.chatVoiceModel = modelID
+	if err := config.Save(config.KeyFuncChatVoiceEngine, engineID); err != nil {
+		slog.Warn("保存聊天语音引擎失败", "error", err)
+	}
+	if err := config.Save(config.KeyFuncChatVoiceModel, modelID); err != nil {
+		slog.Warn("保存聊天语音模型失败", "error", err)
+	}
+	a.emit("voice-model-changed", map[string]interface{}{"chatTtsEngine": engineID, "chatTtsModel": modelID})
+	slog.Info("聊天语音模型已绑定", "engine", engineID, "model", modelID)
+	return nil
+}
+
+// GetChatVoiceModel 获取聊天语音合成绑定（空 = 回退全局 TTS）
+func (a *mediaState) GetChatVoiceModel() map[string]string {
+	return map[string]string{
+		"engine": a.chatVoiceEngine,
+		"model":  a.chatVoiceModel,
+	}
+}
+
+// ttsVoiceForModel 返回语音合成使用的音色（设置面板选择优先，空则按模型默认）
+func (a *mediaState) ttsVoiceForModel(model string) string {
+	if v := strings.TrimSpace(a.activeTTSVoice); v != "" {
+		return v
+	}
+	l := strings.ToLower(model)
+	switch {
+	case strings.Contains(l, "edge"):
+		return "zh-CN-YunxiNeural"
+	case strings.Contains(l, "voicedesign"):
+		return ""
+	case strings.Contains(l, "grok-tts"):
+		return "eve"
+	case strings.Contains(l, "cosyvoice"):
+		return "中文女"
+	default:
+		return "serena"
+	}
+}
+
+// GetTTSSpeakers 获取指定 Herdsman TTS 模型支持的音色列表（设置面板据此渲染选择器）
+func (a *mediaState) GetTTSSpeakers(model string) ([]string, error) {
+	if a.engineMgr == nil {
+		return nil, fmt.Errorf("引擎管理器未初始化")
+	}
+	engineID := "herdsman"
+	if strings.Contains(strings.ToLower(model), "cosyvoice") {
+		engineID = "cosyvoice"
+	}
+	eng, ok := a.engineMgr.GetEngine(engineID)
+	if !ok || !eng.Enabled {
+		return nil, fmt.Errorf("%s 引擎未启用", engineID)
+	}
+	if model == "" {
+		model = a.activeTTSModel
+	}
+	if model == "" {
+		model = "qwen3-tts-customvoice"
+	}
+	htts := tts.NewHerdsmanTTS(eng.BaseURL, model, "")
+	return htts.SupportedSpeakers(), nil
 }

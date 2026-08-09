@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -74,7 +75,8 @@ func (s *StreamASR) Connect() error {
 	}
 
 	// 构造 WebSocket URL
-	u, err := url.Parse(s.baseURL)
+	base := strings.TrimSuffix(strings.TrimRight(s.baseURL, "/"), "/v1")
+	u, err := url.Parse(base)
 	if err != nil {
 		return fmt.Errorf("asr stream: parse base URL: %w", err)
 	}

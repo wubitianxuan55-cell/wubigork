@@ -47,18 +47,51 @@ function classifyModel(id: string): ModelKind {
 }
 
 const engineIcons: Record<string, React.ReactNode> = {
-  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />,
+  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />,
 }
 const engineColors: Record<string, string> = {
-  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa',
+  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', cosyvoice: '#f472b6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa',
 }
 const engineLabels: Record<string, string> = {
-  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端',
+  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', cosyvoice: 'CosyVoice2 本地', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端',
 }
+
+// xAI Grok TTS 音色（与设置面板一致，模型中心绑定卡内可直接选择）
+const XAI_VOICES = [
+  { value: 'eve', label: 'Eve（默认）' },
+  { value: 'ara', label: 'Ara（温暖友好）' },
+  { value: 'rex', label: 'Rex（自信清晰）' },
+  { value: 'sal', label: 'Sal（平滑均衡）' },
+  { value: 'leo', label: 'Leo（权威）' },
+  { value: 'lumen', label: 'Lumen' },
+  { value: 'castor', label: 'Castor' },
+  { value: 'naksh', label: 'Naksh' },
+  { value: 'atlas', label: 'Atlas' },
+  { value: 'carina', label: 'Carina' },
+  { value: 'zagan', label: 'Zagan' },
+  { value: 'helix', label: 'Helix' },
+  { value: 'orion', label: 'Orion' },
+  { value: 'luna', label: 'Luna' },
+  { value: 'celeste', label: 'Celeste' },
+  { value: 'cosmo', label: 'Cosmo' },
+  { value: 'helios', label: 'Helios' },
+  { value: 'iris', label: 'Iris' },
+  { value: 'kepler', label: 'Kepler' },
+  { value: 'lux', label: 'Lux' },
+  { value: 'perseus', label: 'Perseus' },
+  { value: 'rigel', label: 'Rigel' },
+  { value: 'sirius', label: 'Sirius' },
+  { value: 'ursa', label: 'Ursa' },
+  { value: 'zenith', label: 'Zenith' },
+  { value: 'altair', label: 'Altair' },
+]
+
+// CosyVoice2 内置音色兜底（服务端 /v1/audio/info 查询失败时）
+const COSYVOICE_FALLBACK_VOICES = ['中文女', '中文男', '英文女', '英文男', '日语男', '粤语女', '韩语女']
 
 // ── 费用展示工具（与后端 usdToCny=7.2 保持一致） ────────────────
 const USD_TO_CNY = 7.2
-const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman'
+const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman' || id === 'cosyvoice'
 const costToCNY = (cost: number, currency?: string) => (currency === 'USD' ? cost * USD_TO_CNY : cost)
 const fmtCost = (cost?: number, currency?: string): string => {
   const c = cost ?? 0
@@ -245,7 +278,12 @@ const ModelCenterPage: React.FC = () => {
   const [comfyBusy, setComfyBusy] = useState(false)
 
   // 语音管道三段激活模型（STT/LLM/TTS，来自模型中心选择）
-  const [voiceCfg, setVoiceCfg] = useState<{ stt: { engine: string; model: string }; llm: { engine: string; model: string }; tts: { engine: string; model: string } }>({ stt: { engine: '', model: '' }, llm: { engine: '', model: '' }, tts: { engine: '', model: '' } })
+  const [voiceCfg, setVoiceCfg] = useState<{ stt: { engine: string; model: string }; llm: { engine: string; model: string }; tts: { engine: string; model: string; voice: string } }>({ stt: { engine: '', model: '' }, llm: { engine: '', model: '' }, tts: { engine: '', model: '', voice: '' } })
+  // 功能绑定：聊天语音合成（优先于全局 TTS，便于后续扩展更多语音绑定）
+  const [chatVoiceCfg, setChatVoiceCfg] = useState<{ engine: string; model: string }>({ engine: '', model: '' })
+  const [chatVoiceDraft, setChatVoiceDraft] = useState<{ engine: string; model: string }>({ engine: '', model: '' })
+  const [chatVoiceSaving, setChatVoiceSaving] = useState(false)
+  const [chatVoiceSpeakers, setChatVoiceSpeakers] = useState<string[]>([])
 
   const loadAll = useCallback(async () => {
     try {
@@ -337,8 +375,10 @@ const ModelCenterPage: React.FC = () => {
         setVoiceCfg({
           stt: { engine: cfg.stt?.engine || '', model: cfg.stt?.model || '' },
           llm: { engine: cfg.llm?.engine || '', model: cfg.llm?.model || '' },
-          tts: { engine: cfg.tts?.engine || '', model: cfg.tts?.model || '' },
+          tts: { engine: cfg.tts?.engine || '', model: cfg.tts?.model || '', voice: cfg.tts?.voice || '' },
         })
+        setChatVoiceCfg({ engine: cfg.chatTts?.engine || '', model: cfg.chatTts?.model || '' })
+        setChatVoiceDraft({ engine: cfg.chatTts?.engine || '', model: cfg.chatTts?.model || '' })
       }
     } catch (_) {}
   }, [])
@@ -539,6 +579,73 @@ const ModelCenterPage: React.FC = () => {
       message.error(err?.message || '设置失败')
     }
   }
+
+  // 保存功能绑定「聊天语音」（功能绑定 → 语音管道，空=清除绑定回退全局 TTS）
+  const handleSaveChatVoice = async () => {
+    const d = chatVoiceDraft
+    if (!d.engine || !d.model) {
+      message.warning('请选择引擎和语音模型（清除绑定请用右侧「清除」按钮）')
+      return
+    }
+    setChatVoiceSaving(true)
+    try {
+      await App.SetChatVoiceModel(d.engine, d.model)
+      message.success(`聊天语音已绑定：${d.model}`)
+      loadVoiceCfg()
+    } catch (err: any) {
+      message.error(err?.message || '绑定失败')
+    }
+    setChatVoiceSaving(false)
+  }
+
+  // 清除功能绑定「聊天语音」
+  const handleClearChatVoice = async () => {
+    setChatVoiceSaving(true)
+    try {
+      await App.SetChatVoiceModel('', '')
+      message.success('已清除聊天语音绑定（回退全局 TTS）')
+      setChatVoiceDraft({ engine: '', model: '' })
+      loadVoiceCfg()
+    } catch (err: any) {
+      message.error(err?.message || '清除失败')
+    }
+    setChatVoiceSaving(false)
+  }
+
+  // 聊天语音绑定卡：非 xAI 引擎时拉取服务端音色列表
+  useEffect(() => {
+    const { engine, model } = chatVoiceDraft
+    if (!engine || !model || engine === 'xai') {
+      setChatVoiceSpeakers([])
+      return
+    }
+    ;(App as any).GetTTSSpeakers?.(model)
+      .then((sp: any) => setChatVoiceSpeakers(Array.isArray(sp) ? sp : []))
+      .catch(() => setChatVoiceSpeakers([]))
+  }, [chatVoiceDraft])
+
+  // 聊天语音绑定卡的音色选项：xAI → 固定列表；其他 → 服务端列表 / 兜底
+  const chatVoiceOptions = useMemo(() => {
+    const { engine, model } = chatVoiceDraft
+    if (!engine || !model) return []
+    if (engine === 'xai') return XAI_VOICES
+    const list = chatVoiceSpeakers.length > 0
+      ? chatVoiceSpeakers
+      : model.toLowerCase().includes('cosyvoice') ? COSYVOICE_FALLBACK_VOICES : []
+    return list.map(v => ({ value: v, label: v }))
+  }, [chatVoiceDraft, chatVoiceSpeakers])
+
+  const chatVoiceValue = useMemo(() => {
+    const { engine, model } = chatVoiceDraft
+    if (!engine || !model) return undefined
+    const cur = voiceCfg.tts.voice || ''
+    if (engine === 'xai') return XAI_VOICES.some(v => v.value === cur) ? cur : 'eve'
+    const list = chatVoiceSpeakers.length > 0
+      ? chatVoiceSpeakers
+      : model.toLowerCase().includes('cosyvoice') ? COSYVOICE_FALLBACK_VOICES : []
+    if (list.includes(cur)) return cur
+    return model.toLowerCase().includes('cosyvoice') ? '中文女' : undefined
+  }, [chatVoiceDraft, chatVoiceSpeakers, voiceCfg.tts.voice])
 
   const handleStartModel = async (card: ModelCardData) => {
     if (classifyModel(card.modelId) !== 'llm') return
@@ -768,7 +875,7 @@ const ModelCenterPage: React.FC = () => {
                           <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>{f.label}</Typography.Text>
                           {f.key === 'chat' && (
                             <>
-                              <Tag color="purple" style={{ fontSize: 9, margin: 0 }}>TTS {voiceCfg.tts.model || '自动'}</Tag>
+                              <Tag color="purple" style={{ fontSize: 9, margin: 0 }}>TTS {chatVoiceCfg.model || voiceCfg.tts.model || '自动'}</Tag>
                               <Tag color="blue" style={{ fontSize: 9, margin: 0 }}>STT {voiceCfg.stt.model || '自动'}</Tag>
                             </>
                           )}
@@ -810,6 +917,61 @@ const ModelCenterPage: React.FC = () => {
                     </Card>
                   )
                 })}
+                {/* 功能绑定：聊天语音（优先于全局 TTS，模型列表随引擎自动刷新） */}
+                <Card size="small" style={{ background: 'var(--bg-glass)', border: chatVoiceCfg.model ? '1px solid rgba(168,85,247,0.35)' : '1px dashed var(--border-subtle)', borderRadius: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+                    <Space size={6}>
+                      <span style={{ fontSize: 16 }}>🗣️</span>
+                      <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>聊天语音</Typography.Text>
+                      <Tag color="purple" style={{ fontSize: 9, margin: 0 }}>TTS</Tag>
+                      {chatVoiceCfg.model && <Tag color="geekblue" style={{ fontSize: 9, margin: 0 }}>功能绑定</Tag>}
+                    </Space>
+                    <Tag color={chatVoiceCfg.model ? 'green' : 'default'} style={{ fontSize: 10, margin: 0 }}>
+                      {chatVoiceCfg.model ? '已绑定' : '未绑定'}
+                    </Tag>
+                  </div>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {chatVoiceCfg.model ? `当前：${chatVoiceCfg.engine} / ${chatVoiceCfg.model}` : '未绑定：语音对话使用全局 TTS（语音模型页）'}
+                  </Typography.Text>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10, display: 'block', marginBottom: 8 }}>
+                    优先于全局 TTS；列表随引擎模型自动刷新，后续新增语音模型无需改代码
+                  </Typography.Text>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Select size="small" placeholder="引擎" value={chatVoiceDraft.engine || undefined}
+                      onChange={(v: string) => setChatVoiceDraft({ engine: v, model: '' })}
+                      style={{ flex: 1, minWidth: 0 }}
+                      options={engines.filter(e => e.enabled && ttsModels.some(m => m.engineId === e.id)).map(e => ({ value: e.id, label: engineLabels[e.id] || e.id }))} />
+                    <Select size="small" placeholder="语音模型" value={chatVoiceDraft.model || undefined}
+                      onChange={(v: string) => setChatVoiceDraft(p => ({ ...p, model: v }))}
+                      style={{ flex: 1, minWidth: 0 }}
+                      options={ttsModels.filter(m => m.engineId === chatVoiceDraft.engine).map(m => ({ value: m.modelId, label: m.modelName }))} />
+                  </div>
+                  {chatVoiceDraft.engine && chatVoiceDraft.model && chatVoiceOptions.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                      <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, whiteSpace: 'nowrap' }}>音色</Typography.Text>
+                      <Select size="small" value={chatVoiceValue} placeholder="选择音色"
+                        onChange={async (v: string) => {
+                          try {
+                            await (App as any).VoiceApplySettings?.({ ttsVoice: v })
+                            message.success('音色已更新：' + v)
+                          } catch (err: any) {
+                            message.error(err?.message || '音色更新失败')
+                          }
+                          setVoiceCfg(p => ({ ...p, tts: { ...p.tts, voice: v } }))
+                        }}
+                        style={{ flex: 1, minWidth: 0 }}
+                        options={chatVoiceOptions} />
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <Button size="small" type={chatVoiceCfg.model ? 'primary' : 'default'} block loading={chatVoiceSaving} onClick={handleSaveChatVoice} style={{ fontSize: 11 }}>
+                      {chatVoiceCfg.model ? '更新绑定' : '绑定聊天语音'}
+                    </Button>
+                    {chatVoiceCfg.model && (
+                      <Button size="small" danger onClick={handleClearChatVoice} loading={chatVoiceSaving} style={{ fontSize: 11 }}>清除</Button>
+                    )}
+                  </div>
+                </Card>
                 {/* 绘梦：自身界面选择 */}
                 <Card size="small" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-subtle)', borderRadius: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

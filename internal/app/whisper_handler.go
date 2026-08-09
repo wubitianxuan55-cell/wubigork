@@ -53,34 +53,46 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 	}
 	whisperSessionsMu.RUnlock()
 
-	preset := whisper.GetPreset(personalityID)
-	// 全局角色库优先：库内角色（含可编辑的内置人格）直接作为聊天人格
-	if a.charLib != nil {
-		if c, err := a.charLib.Get(personalityID); err == nil && c != nil && !c.Hidden && c.ChatEnabled {
-			preset = c.ToPreset()
-		}
-	}
-	if preset == nil {
-		preset = whisper.GetPreset("gaea")
-	}
-	if preset == nil {
-		preset = &whisper.PersonalityPresets[0]
-	}
-	// 小说角色导入的自定义人格：助手记录带 voiceGuide 时覆盖预设
-	if ast, ok := a.assistantMgr.FindByPersonality(personalityID); ok && ast.VoiceGuide != "" {
-		dims := ast.Dims
-		if dims.T == 0 && dims.I == 0 && dims.S == 0 && dims.O == 0 && dims.R == 0 {
-			dims = whisper.PersonalityDims{T: 50, I: 50, S: 50, O: 50, R: 50}
-		}
+	var preset *whisper.PersonalityPreset
+	if personalityID == "" || personalityID == "plain" {
+		// 普通对话：聊天板块 plain 模式的语音回复使用中性助手，不套用任何角色
 		preset = &whisper.PersonalityPreset{
-			ID:         ast.PersonalityID,
-			Label:      ast.Name,
-			Gender:     ast.Gender,
-			Dims:       dims,
-			Tags:       ast.Tags,
-			VoiceGuide: ast.VoiceGuide,
+			ID:     "plain",
+			Label:  "普通对话",
+			Gender: "neutral",
+			Dims:   whisper.PersonalityDims{T: 60, I: 50, S: 50, O: 60, R: 50},
+			VoiceGuide: "普通对话：你是自然、直接、务实的 AI 助手，不扮演任何角色。语气平和清晰，先准确理解问题，再给出简洁有用的回答。",
 		}
-		slog.Info("使用自定义人格角色", "personalityID", personalityID, "name", ast.Name)
+	} else {
+		preset = whisper.GetPreset(personalityID)
+		// 全局角色库优先：库内角色（含可编辑的内置人格）直接作为聊天人格
+		if a.charLib != nil {
+			if c, err := a.charLib.Get(personalityID); err == nil && c != nil && !c.Hidden && c.ChatEnabled {
+				preset = c.ToPreset()
+			}
+		}
+		if preset == nil {
+			preset = whisper.GetPreset("gaea")
+		}
+		if preset == nil {
+			preset = &whisper.PersonalityPresets[0]
+		}
+		// 小说角色导入的自定义人格：助手记录带 voiceGuide 时覆盖预设
+		if ast, ok := a.assistantMgr.FindByPersonality(personalityID); ok && ast.VoiceGuide != "" {
+			dims := ast.Dims
+			if dims.T == 0 && dims.I == 0 && dims.S == 0 && dims.O == 0 && dims.R == 0 {
+				dims = whisper.PersonalityDims{T: 50, I: 50, S: 50, O: 50, R: 50}
+			}
+			preset = &whisper.PersonalityPreset{
+				ID:         ast.PersonalityID,
+				Label:      ast.Name,
+				Gender:     ast.Gender,
+				Dims:       dims,
+				Tags:       ast.Tags,
+				VoiceGuide: ast.VoiceGuide,
+			}
+			slog.Info("使用自定义人格角色", "personalityID", personalityID, "name", ast.Name)
+		}
 	}
 	orch := whisper.NewOrchestrator(sessionID, *preset)
 	orch.DataRoot = a.whisperDataRoot

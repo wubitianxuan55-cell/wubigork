@@ -14,7 +14,7 @@ export interface ModelInfo {
 export interface EngineConfig {
   id: string
   name: string
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'opencode-go' | 'opencode-zen'
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'cosyvoice' | 'opencode-go' | 'opencode-zen'
   base_url: string
   enabled: boolean
   default_model: string

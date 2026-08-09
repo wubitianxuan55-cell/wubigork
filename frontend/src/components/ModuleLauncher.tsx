@@ -102,7 +102,7 @@ const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ ro
 /**
  * ModuleLauncher — AI 中枢首页（正中语言粒子语音交互 + 模块启动器）。
  * 点击「进入语音对话」直接在本页启动麦克风开始语音交互（不跳转）。
- * 语音后端走聊天 voiceManager 管道，对话人格 = 核心助手 gaea（大地女神）。
+ * 语音后端走聊天 voiceManager 管道，对话人格与聊天板块保持一致（后端持久化）。
  */
 const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel }) => {
   // ── 语音交互（本页直启麦克风）──
@@ -122,14 +122,36 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     onReply: (t) => setAiReply(t),
   })
 
+  // 当前语音角色（与聊天板块一致：读后端持久化的语音角色，含普通对话）
+  const [voicePersonaId, setVoicePersonaId] = useState('gaea')
+  const [voicePersonaLabel, setVoicePersonaLabel] = useState('gaea · 大地女神')
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const [settings, ps] = await Promise.all([
+          (App as any).VoiceGetSettings?.(),
+          (App as any).WhisperGetPersonalities?.(),
+        ])
+        const id = settings?.personalityPresetId || 'gaea'
+        setVoicePersonaId(id)
+        if (id === 'plain') {
+          setVoicePersonaLabel('普通对话')
+        } else {
+          const found = (ps || []).find((p: any) => p.id === id)
+          setVoicePersonaLabel(found ? `${id} · ${found.label}` : (id === 'gaea' ? 'gaea · 大地女神' : `${id} · 角色`))
+        }
+      } catch (_) { /* 忽略 */ }
+    })()
+  }, [])
+
   const toggleVoice = useCallback(async () => {
     if (voice.active) { stop(); return }
-    // 语音人格锁定为核心助手 gaea（大地女神）；后端走聊天对话管道
-    try { await (App as any).VoiceApplySettings?.({ personalityPresetId: 'gaea' }) } catch (_) {}
+    // 角色与聊天板块保持一致：plain → 普通对话，其余 → 对应人格
+    try { await (App as any).VoiceApplySettings?.({ personalityPresetId: voicePersonaId }) } catch (_) {}
     setUserText('')
     setAiReply('')
     await start()
-  }, [voice.active, start, stop])
+  }, [voice.active, voicePersonaId, start, stop])
 
   const voiceStateLabel = voice.aiSpeaking
     ? 'AI 回复中…'
@@ -173,7 +195,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
               )}
             </div>
             <div className="ml-top-sub">
-              正中语音晶核直启麦克风 —— 与核心助手 gaea（大地女神）语音对话
+              正中语音晶核直启麦克风 —— 与「{voicePersonaLabel}」语音对话
             </div>
           </div>
           <span
@@ -204,7 +226,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
             <div className="ml-center-head">
               <span className="live-dot" />
               <span className="ml-center-title">语音交互中枢</span>
-              <span className="ml-chip">gaea · 大地女神</span>
+              <span className="ml-chip">{voicePersonaLabel}</span>
             </div>
 
             <div className="ml-orb-wrap">

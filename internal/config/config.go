@@ -41,6 +41,10 @@ const (
 	KeyActiveASRModel      = "active_asr_model"  // 语音识别激活模型
 	KeyActiveTTSEngine     = "active_tts_engine" // 语音合成激活引擎
 	KeyActiveTTSModel      = "active_tts_model"  // 语音合成激活模型
+	KeyTTSVoice            = "tts_voice"         // 语音合成音色（Herdsman / Edge）
+	KeyVoicePersonality    = "voice_personality" // 语音对话角色（与聊天板块保持一致）
+	KeyFuncChatVoiceEngine = "func_chat_voice_engine" // 聊天语音合成引擎（功能绑定，空=全局 TTS）
+	KeyFuncChatVoiceModel  = "func_chat_voice_model"  // 聊天语音合成模型
 	// 功能级模型绑定（聊天/轻语/小说/办公 各自独立 LLM，持久化重启不丢）
 	KeyFuncChatEngine      = "func_chat_engine"
 	KeyFuncChatModel       = "func_chat_model"
@@ -95,6 +99,10 @@ type configFile struct {
 	ActiveASRModel      string  `json:"active_asr_model,omitempty"`  // 语音识别激活模型
 	ActiveTTSEngine     string  `json:"active_tts_engine,omitempty"` // 语音合成激活引擎
 	ActiveTTSModel      string  `json:"active_tts_model,omitempty"`  // 语音合成激活模型
+	TTSVoice            string  `json:"tts_voice,omitempty"`         // 语音合成音色
+	VoicePersonality    string  `json:"voice_personality,omitempty"` // 语音对话角色
+	FuncChatVoiceEngine string  `json:"func_chat_voice_engine,omitempty"` // 聊天语音合成引擎
+	FuncChatVoiceModel  string  `json:"func_chat_voice_model,omitempty"`  // 聊天语音合成模型
 	FuncChatEngine      string  `json:"func_chat_engine,omitempty"`
 	FuncChatModel       string  `json:"func_chat_model,omitempty"`
 	// ── 旧品牌遗留（聊天/轻语合并前）：仅用于读取迁移，不再写入 ──
@@ -187,6 +195,10 @@ type Config struct {
 	// 语音合成激活引擎 + 模型（来自模型中心选择，空=自动）
 	ActiveTTSEngine string
 	ActiveTTSModel  string
+	TTSVoice        string // 语音合成音色（来自设置面板，空=按模型默认）
+	VoicePersonality string // 语音对话角色（与聊天板块一致，空=gaea）
+	FuncChatVoiceEngine string // 聊天语音合成引擎（功能绑定，空=全局 TTS）
+	FuncChatVoiceModel  string // 聊天语音合成模型
 
 	// 功能级模型绑定（各功能独立 LLM，空=用全局激活引擎+模型）
 	FuncChatEngine    string
@@ -522,6 +534,18 @@ func Load() *Config {
 			if cf.ActiveTTSModel != "" {
 				cfg.ActiveTTSModel = cf.ActiveTTSModel
 			}
+			if cf.TTSVoice != "" {
+				cfg.TTSVoice = cf.TTSVoice
+			}
+			if cf.VoicePersonality != "" {
+				cfg.VoicePersonality = cf.VoicePersonality
+			}
+			if cf.FuncChatVoiceEngine != "" {
+				cfg.FuncChatVoiceEngine = cf.FuncChatVoiceEngine
+			}
+			if cf.FuncChatVoiceModel != "" {
+				cfg.FuncChatVoiceModel = cf.FuncChatVoiceModel
+			}
 			if cf.FuncChatEngine != "" {
 				cfg.FuncChatEngine = cf.FuncChatEngine
 			}
@@ -682,6 +706,10 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyActiveASRModel:    func(cf *configFile, v string) error { cf.ActiveASRModel = v; return nil },
 	KeyActiveTTSEngine:   func(cf *configFile, v string) error { cf.ActiveTTSEngine = v; return nil },
 	KeyActiveTTSModel:    func(cf *configFile, v string) error { cf.ActiveTTSModel = v; return nil },
+	KeyTTSVoice:          func(cf *configFile, v string) error { cf.TTSVoice = v; return nil },
+	KeyVoicePersonality:  func(cf *configFile, v string) error { cf.VoicePersonality = v; return nil },
+	KeyFuncChatVoiceEngine: func(cf *configFile, v string) error { cf.FuncChatVoiceEngine = v; return nil },
+	KeyFuncChatVoiceModel:  func(cf *configFile, v string) error { cf.FuncChatVoiceModel = v; return nil },
 	KeyFuncChatEngine:    func(cf *configFile, v string) error { cf.FuncChatEngine = v; return nil },
 	KeyFuncChatModel:     func(cf *configFile, v string) error { cf.FuncChatModel = v; return nil },
 	KeyFuncNovelEngine:   func(cf *configFile, v string) error { cf.FuncNovelEngine = v; return nil },

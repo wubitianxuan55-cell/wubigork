@@ -169,7 +169,12 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   // ── 音频播放 ──
 
   const playAudio = useCallback(async (audioData: any, mimeType: string) => {
-    if (!audioData) return
+    if (!audioData) {
+      pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+      if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+      App.VoicePlaybackDone().catch(() => {})
+      return
+    }
 
     // 确保 playback context 存在
     if (!playbackCtxRef.current || playbackCtxRef.current.state === 'closed') {
@@ -192,7 +197,12 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     } else {
       bytes = new Uint8Array(audioData)
     }
-    if (bytes.length === 0) return
+    if (bytes.length === 0) {
+      pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+      if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+      App.VoicePlaybackDone().catch(() => {})
+      return
+    }
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) as ArrayBuffer
 
     try {

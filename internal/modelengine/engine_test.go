@@ -84,8 +84,8 @@ func TestGetEngine_StripsAPIKey(t *testing.T) {
 func TestGetEngines_CountAndKeys(t *testing.T) {
 	m := NewManager("", "")
 	es := m.GetEngines()
-	if len(es) != 6 {
-		t.Fatalf("GetEngines 数量 = %d, want 6", len(es))
+	if len(es) != 7 {
+		t.Fatalf("GetEngines 数量 = %d, want 7", len(es))
 	}
 	for _, e := range es {
 		if e.APIKey != "" {
@@ -268,18 +268,21 @@ func TestRefreshModels_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RefreshModels: %v", err)
 	}
-	if len(models) != 2 {
-		t.Fatalf("模型数 = %d, want 2", len(models))
+	if len(models) != 3 {
+		t.Fatalf("模型数 = %d, want 3（含内置 grok-tts）", len(models))
 	}
 	if models[0].ID != "model-a" || models[0].OwnedBy != "gaea" || models[0].Status != "running" {
 		t.Errorf("模型解析错误: %+v", models[0])
+	}
+	if models[len(models)-1].ID != "grok-tts" {
+		t.Errorf("xAI 刷新后应包含内置 grok-tts, got %q", models[len(models)-1].ID)
 	}
 	if gotAuth != "Bearer xai-tok" {
 		t.Errorf("Authorization = %q, want Bearer xai-tok", gotAuth)
 	}
 	// 刷新后引擎的 Models 应更新
 	e, _ := m.GetEngine("xai")
-	if len(e.Models) != 2 {
+	if len(e.Models) != 3 {
 		t.Errorf("引擎 Models 未更新, 长度 = %d", len(e.Models))
 	}
 }

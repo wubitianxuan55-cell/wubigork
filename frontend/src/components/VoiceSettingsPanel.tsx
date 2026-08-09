@@ -1,19 +1,67 @@
 // VoiceSettingsPanel.tsx — 聊天语音设置面板
-// 对齐 ackem VoiceSettings.tsx
 
-import React, { useState, useEffect } from 'react'
-import { Card, Switch, Select, Slider, Button, Typography, message, Tag } from 'antd'
-import { SoundOutlined, AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
+import React, { useState, useEffect, useMemo } from 'react'
+import { Card, Switch, Select, Slider, Button, Typography, Tag } from 'antd'
+import { AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
 
 const { Text } = Typography
 
-const TTS_VOICES = [
+// Edge TTS 音色（在线免费，zh-CN）
+const EDGE_VOICES = [
   { value: 'zh-CN-YunxiNeural', label: '云希 (男)' },
   { value: 'zh-CN-XiaoxiaoNeural', label: '晓晓 (女)' },
   { value: 'zh-CN-YunjianNeural', label: '云健 (男)' },
   { value: 'zh-CN-XiaoyiNeural', label: '晓伊 (女)' },
 ]
+
+// Herdsman qwen3-tts 音色兜底（服务端支持列表查询失败时使用）
+const HERDSMAN_VOICES = ['serena', 'vivian', 'sohee', 'aiden', 'dylan', 'eric', 'ono_anna', 'ryan', 'uncle_fu']
+
+// xAI Grok TTS 音色（云端；经典 5 个 + 旗舰 21 个，大小写不敏感）
+const XAI_VOICES = [
+  { value: 'eve', label: 'Eve（默认）' },
+  { value: 'ara', label: 'Ara（温暖友好）' },
+  { value: 'rex', label: 'Rex（自信清晰）' },
+  { value: 'sal', label: 'Sal（平滑均衡）' },
+  { value: 'leo', label: 'Leo（权威）' },
+  { value: 'lumen', label: 'Lumen' },
+  { value: 'castor', label: 'Castor' },
+  { value: 'naksh', label: 'Naksh' },
+  { value: 'atlas', label: 'Atlas' },
+  { value: 'carina', label: 'Carina' },
+  { value: 'zagan', label: 'Zagan' },
+  { value: 'helix', label: 'Helix' },
+  { value: 'orion', label: 'Orion' },
+  { value: 'luna', label: 'Luna' },
+  { value: 'celeste', label: 'Celeste' },
+  { value: 'cosmo', label: 'Cosmo' },
+  { value: 'helios', label: 'Helios' },
+  { value: 'iris', label: 'Iris' },
+  { value: 'kepler', label: 'Kepler' },
+  { value: 'lux', label: 'Lux' },
+  { value: 'perseus', label: 'Perseus' },
+  { value: 'rigel', label: 'Rigel' },
+  { value: 'sirius', label: 'Sirius' },
+  { value: 'ursa', label: 'Ursa' },
+  { value: 'zenith', label: 'Zenith' },
+  { value: 'altair', label: 'Altair' },
+]
+
+// CosyVoice2 内置音色（本地服务端 /v1/audio/info 返回，查询失败时兜底）
+const COSYVOICE_VOICES = ['中文女', '中文男', '英文女', '英文男', '日语男', '粤语女', '韩语女']
+
+const VOICE_LABELS: Record<string, string> = {
+  serena: 'Serena (女)',
+  vivian: 'Vivian (女)',
+  sohee: 'Sohee (女)',
+  aiden: 'Aiden (男)',
+  dylan: 'Dylan (男)',
+  eric: 'Eric (男)',
+  ryan: 'Ryan (男)',
+  ono_anna: 'Anna (女)',
+  uncle_fu: 'Uncle Fu (男)',
+}
 
 export default function VoiceSettingsPanel() {
   const [health, setHealth] = useState<any>(null)
@@ -22,6 +70,8 @@ export default function VoiceSettingsPanel() {
   // 语音设置
   const [ttsEnabled, setTtsEnabled] = useState(true)
   const [ttsVoice, setTtsVoice] = useState('zh-CN-YunxiNeural')
+  const [ttsModel, setTtsModel] = useState('')
+  const [herdsmanVoices, setHerdsmanVoices] = useState<string[]>([])
   const [voiceMode, setVoiceMode] = useState<'vad' | 'ptt'>('vad')
   const [interruptMs, setInterruptMs] = useState(500)
   const [silenceMs, setSilenceMs] = useState(1000)
@@ -37,11 +87,79 @@ export default function VoiceSettingsPanel() {
     setChecking(false)
   }
 
-  useEffect(() => { checkHealth() }, [])
+  const loadSettings = async () => {
+    try {
+      const [v, pipeline] = await Promise.all([
+        (App as any).VoiceGetSettings?.(),
+        (App as any).GetVoicePipelineConfig?.(),
+      ])
+      const settings = v || {}
+      if (settings.ttsEnabled !== undefined) setTtsEnabled(!!settings.ttsEnabled)
+      if (settings.ttsVoice) setTtsVoice(settings.ttsVoice)
+      if (settings.voiceMode) setVoiceMode(settings.voiceMode === 'ptt' ? 'ptt' : 'vad')
+      if (settings.interruptThresholdMs) setInterruptMs(settings.interruptThresholdMs)
+      if (settings.silenceThresholdMs) setSilenceMs(settings.silenceThresholdMs)
+
+      const model = pipeline?.chatTts?.model || pipeline?.tts?.model || ''
+      setTtsModel(model)
+      const lower = model.toLowerCase()
+      if (lower.includes('qwen3') || lower.includes('customvoice') || lower.includes('cosyvoice')) {
+        try {
+          const speakers = (await (App as any).GetTTSSpeakers?.(model)) || []
+          if (Array.isArray(speakers) && speakers.length > 0) {
+            setHerdsmanVoices(speakers)
+            // 当前音色不在支持列表时自动对齐到默认音色
+            if (settings.ttsVoice && !speakers.includes(settings.ttsVoice)) {
+              const fallback = speakers.includes('serena') ? 'serena' : speakers[0]
+              setTtsVoice(fallback)
+              ;(App as any).VoiceApplySettings?.({ ttsVoice: fallback }).catch(() => {})
+            }
+          }
+        } catch (_) { /* 查询失败使用兜底列表 */ }
+      }
+    } catch (_) { /* 初始化失败忽略 */ }
+  }
+
+  useEffect(() => { checkHealth(); loadSettings() }, [])
 
   const applyVoiceSettings = (patch: Record<string, any>) => {
     (App as any).VoiceApplySettings?.(patch).catch(() => {})
   }
+
+  // 根据当前 TTS 模型决定音色选项：qwen3/customvoice → Herdsman 音色，其余 → Edge 音色
+  const isHerdsman = useMemo(() => {
+    const l = ttsModel.toLowerCase()
+    return l.includes('qwen3') || l.includes('customvoice')
+  }, [ttsModel])
+
+  const isXai = useMemo(() => ttsModel.toLowerCase().includes('grok-tts'), [ttsModel])
+  const isCosyvoice = useMemo(() => ttsModel.toLowerCase().includes('cosyvoice'), [ttsModel])
+
+  const voiceOptions = useMemo(() => {
+    if (isHerdsman) {
+      const list = herdsmanVoices.length > 0 ? herdsmanVoices : HERDSMAN_VOICES
+      return list.map(v => ({ value: v, label: VOICE_LABELS[v] || v }))
+    }
+    if (isXai) return XAI_VOICES
+    if (isCosyvoice) {
+      const list = herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES
+      return list.map(v => ({ value: v, label: v }))
+    }
+    return EDGE_VOICES
+  }, [isHerdsman, isXai, isCosyvoice, herdsmanVoices])
+
+  const effectiveVoice = useMemo(() => {
+    if (isHerdsman) {
+      const list = herdsmanVoices.length > 0 ? herdsmanVoices : HERDSMAN_VOICES
+      return list.includes(ttsVoice) ? ttsVoice : (list.includes('serena') ? 'serena' : (list[0] || 'serena'))
+    }
+    if (isXai) return XAI_VOICES.some(v => v.value === ttsVoice) ? ttsVoice : 'eve'
+    if (isCosyvoice) {
+      const list = herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES
+      return list.includes(ttsVoice) ? ttsVoice : '中文女'
+    }
+    return ttsVoice || 'zh-CN-YunxiNeural'
+  }, [isHerdsman, isXai, isCosyvoice, herdsmanVoices, ttsVoice])
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -85,12 +203,27 @@ export default function VoiceSettingsPanel() {
       {/* TTS 音色 */}
       <Card size="small" style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
         <div style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 6 }}>合成音色</div>
+        {isHerdsman && ttsModel && (
+          <div style={{ fontSize: 10, color: '#8b5cf6', marginBottom: 6 }}>
+            当前模型：{ttsModel}（Herdsman 音色，实时从服务端获取）
+          </div>
+        )}
+        {isXai && ttsModel && (
+          <div style={{ fontSize: 10, color: '#60a5fa', marginBottom: 6 }}>
+            当前模型：{ttsModel}（xAI 云端 Grok 音色）
+          </div>
+        )}
+        {isCosyvoice && ttsModel && (
+          <div style={{ fontSize: 10, color: '#f472b6', marginBottom: 6 }}>
+            当前模型：{ttsModel}（本地 CosyVoice2，支持参考音频克隆音色）
+          </div>
+        )}
         <Select
           size="small"
-          value={ttsVoice}
+          value={effectiveVoice}
           onChange={v => { setTtsVoice(v); applyVoiceSettings({ ttsVoice: v }) }}
           style={{ width: '100%' }}
-          options={TTS_VOICES}
+          options={voiceOptions}
         />
       </Card>
 

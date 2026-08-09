@@ -28,6 +28,53 @@ const TTS_VOICES = [
   { value: 'zh-CN-XiaoyiNeural', label: '晓伊 (女)' },
 ]
 
+const HERDSMAN_VOICES = ['serena', 'vivian', 'sohee', 'aiden', 'dylan', 'eric', 'ono_anna', 'ryan', 'uncle_fu']
+
+// xAI Grok TTS 音色（云端；经典 5 个 + 旗舰 21 个，大小写不敏感）
+const XAI_VOICES = [
+  { value: 'eve', label: 'Eve（默认）' },
+  { value: 'ara', label: 'Ara（温暖友好）' },
+  { value: 'rex', label: 'Rex（自信清晰）' },
+  { value: 'sal', label: 'Sal（平滑均衡）' },
+  { value: 'leo', label: 'Leo（权威）' },
+  { value: 'lumen', label: 'Lumen' },
+  { value: 'castor', label: 'Castor' },
+  { value: 'naksh', label: 'Naksh' },
+  { value: 'atlas', label: 'Atlas' },
+  { value: 'carina', label: 'Carina' },
+  { value: 'zagan', label: 'Zagan' },
+  { value: 'helix', label: 'Helix' },
+  { value: 'orion', label: 'Orion' },
+  { value: 'luna', label: 'Luna' },
+  { value: 'celeste', label: 'Celeste' },
+  { value: 'cosmo', label: 'Cosmo' },
+  { value: 'helios', label: 'Helios' },
+  { value: 'iris', label: 'Iris' },
+  { value: 'kepler', label: 'Kepler' },
+  { value: 'lux', label: 'Lux' },
+  { value: 'perseus', label: 'Perseus' },
+  { value: 'rigel', label: 'Rigel' },
+  { value: 'sirius', label: 'Sirius' },
+  { value: 'ursa', label: 'Ursa' },
+  { value: 'zenith', label: 'Zenith' },
+  { value: 'altair', label: 'Altair' },
+]
+
+// CosyVoice2 内置音色（本地服务端 /v1/audio/info 返回，查询失败时兜底）
+const COSYVOICE_VOICES = ['中文女', '中文男', '英文女', '英文男', '日语男', '粤语女', '韩语女']
+
+const VOICE_LABELS: Record<string, string> = {
+  serena: 'Serena (女)',
+  vivian: 'Vivian (女)',
+  sohee: 'Sohee (女)',
+  aiden: 'Aiden (男)',
+  dylan: 'Dylan (男)',
+  eric: 'Eric (男)',
+  ryan: 'Ryan (男)',
+  ono_anna: 'Anna (女)',
+  uncle_fu: 'Uncle Fu (男)',
+}
+
 function loadSettings(): CompanionSettings {
   try {
     const r = localStorage.getItem(COMPANION_SETTINGS_KEY) ?? localStorage.getItem(LEGACY_COMPANION_SETTINGS_KEY)
@@ -54,13 +101,45 @@ const ChatPanel: React.FC = () => {
     try { return (localStorage.getItem(PERSONALITY_KEY) ?? localStorage.getItem(LEGACY_PERSONALITY_KEY)) || 'gaea' } catch { return 'gaea' }
   })
   const [voice, setVoice] = useState<Record<string, any>>({})
+  const [herdsmanVoices, setHerdsmanVoices] = useState<string[]>([])
+  const [ttsModel, setTtsModel] = useState('')
 
   useEffect(() => {
     try {
       App.WhisperGetPersonalities().then((p: any) => setPersonalities(p || [])).catch(() => {})
     } catch (_) { /* 未初始化时静默 */ }
     getVoiceSettings().then((v) => setVoice(v || {})).catch(() => {})
+    ;(App as any).GetVoicePipelineConfig?.().then((p: any) => {
+      const model = p?.chatTts?.model || p?.tts?.model || ''
+      setTtsModel(model)
+      const lower = model.toLowerCase()
+      if (lower.includes('qwen3') || lower.includes('customvoice') || lower.includes('cosyvoice')) {
+        ;(App as any).GetTTSSpeakers?.(model).then((speakers: any) => {
+          if (Array.isArray(speakers) && speakers.length > 0) setHerdsmanVoices(speakers)
+        }).catch(() => {})
+      }
+    }).catch(() => {})
   }, [])
+
+  const isHerdsmanVoice = ttsModel.toLowerCase().includes('qwen3') || ttsModel.toLowerCase().includes('customvoice')
+  const isXaiVoice = ttsModel.toLowerCase().includes('grok-tts')
+  const isCosyvoiceVoice = ttsModel.toLowerCase().includes('cosyvoice')
+  const voiceOptions = isHerdsmanVoice
+    ? (herdsmanVoices.length > 0 ? herdsmanVoices : HERDSMAN_VOICES).map(v => ({ value: v, label: VOICE_LABELS[v] || v }))
+    : isXaiVoice
+      ? XAI_VOICES
+      : isCosyvoiceVoice
+        ? (herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES).map(v => ({ value: v, label: v }))
+        : TTS_VOICES
+  const effectiveVoice = isHerdsmanVoice
+    ? (herdsmanVoices.length > 0 ? herdsmanVoices : HERDSMAN_VOICES).includes(voice.ttsVoice)
+      ? voice.ttsVoice
+      : 'serena'
+    : isXaiVoice
+      ? XAI_VOICES.some(v => v.value === voice.ttsVoice) ? voice.ttsVoice : 'eve'
+      : isCosyvoiceVoice
+        ? (herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES).includes(voice.ttsVoice) ? voice.ttsVoice : '中文女'
+        : voice.ttsVoice
 
   const updateSettings = (patch: Partial<CompanionSettings>) => {
     const next = { ...settings, ...patch }
@@ -160,11 +239,11 @@ const ChatPanel: React.FC = () => {
             </div>
             <Select
               size="small"
-              value={voice.ttsVoice || undefined}
+              value={effectiveVoice || undefined}
               placeholder="选择音色"
               onChange={(v) => patchVoice('ttsVoice', v)}
               style={{ width: 180 }}
-              options={TTS_VOICES}
+              options={voiceOptions}
             />
           </div>
         </div>

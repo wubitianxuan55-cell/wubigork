@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"strings"
 
+	appconfig "github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/asr"
 	"github.com/gaea/gaea/internal/tts"
 	"github.com/gaea/gaea/internal/voice"
@@ -80,6 +81,12 @@ func (e *voiceEmitter) EmitVoiceError(err error) {
 // initVoice 初始化语音管理器（在 Startup 中调用）
 func (a *mediaState) initVoice() {
 	config := voice.DefaultVoiceConfig()
+	if v := strings.TrimSpace(a.activeTTSVoice); v != "" {
+		config.TTSVoice = v
+	}
+	if v := strings.TrimSpace(a.activePersonalityID); v != "" {
+		config.PersonalityPresetID = v
+	}
 	emitter := &voiceEmitter{app: a.app}
 	a.voiceManager = voice.NewManager(emitter, config)
 
@@ -163,26 +170,72 @@ func isSTTModel(id string) bool {
 }
 
 // synthesizeVoiceTTS 语音管道专用的 TTS 合成（带情感参数）
-// 优先级：用户选中的 TTS 模型（模型中心，voicedesign 注入情感描述）→ TTSSpeakBase64 统一路由
+// 优先级：功能绑定「聊天语音」→ 模型中心全局 TTS → TTSSpeakBase64 统一路由
 func (a *mediaState) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, string, error) {
-	// 1. 用户选中的 TTS 模型（模型中心）优先
-	if a.activeTTSModel != "" && a.engineMgr != nil {
-		if eng, ok := a.engineMgr.GetEngine(a.activeTTSEngine); ok && eng.Enabled {
-			var htts *tts.HerdsmanTTS
-			if strings.Contains(strings.ToLower(a.activeTTSModel), "voicedesign") {
-				htts = tts.NewHerdsmanTTSWithDesc(eng.BaseURL, a.activeTTSModel, voiceDescription)
-			} else {
-				htts = tts.NewHerdsmanTTS(eng.BaseURL, a.activeTTSModel, "Cherry")
-			}
-			if audio, err := htts.Synthesize(text); err == nil && len(audio) > 0 {
-				return audio, "audio/mp3", nil
-			}
-			slog.Debug("用户选中 TTS 模型失败，回退自动路由", "engine", a.activeTTSEngine, "model", a.activeTTSModel)
+	// 1. 功能绑定「聊天语音」优先（模型中心 → 功能绑定）
+	if a.chatVoiceEngine != "" && a.chatVoiceModel != "" {
+		if audio, mime, ok := a.tryEngineTTS(a.chatVoiceEngine, a.chatVoiceModel, text, voiceDescription); ok {
+			return audio, mime, nil
 		}
+		slog.Debug("聊天语音绑定模型失败，回退全局 TTS", "engine", a.chatVoiceEngine, "model", a.chatVoiceModel)
+	}
+	// 2. 全局 TTS（模型中心 → 语音模型）
+	if a.activeTTSModel != "" {
+		if audio, mime, ok := a.tryEngineTTS(a.activeTTSEngine, a.activeTTSModel, text, voiceDescription); ok {
+			return audio, mime, nil
+		}
+		slog.Debug("用户选中 TTS 模型失败，回退自动路由", "engine", a.activeTTSEngine, "model", a.activeTTSModel)
 	}
 
-	// 2. 统一路由（TTSSpeakBase64：扫描引擎 TTS 模型 → Edge → SAPI）
+	// 3. 统一路由（TTSSpeakBase64：扫描引擎 TTS 模型 → Edge → SAPI）
 	return a.synthesizeFromBase64(text)
+}
+
+// tryEngineTTS 用指定引擎+模型尝试 TTS 合成
+// xAI 走云端 Grok TTS（/v1/tts），其余引擎走 Herdsman 风格 /v1/audio/speech
+func (a *mediaState) tryEngineTTS(engineID, model, text, voiceDescription string) ([]byte, string, bool) {
+	if a.engineMgr == nil {
+		return nil, "", false
+	}
+	eng, ok := a.engineMgr.GetEngine(engineID)
+	if !ok || !eng.Enabled {
+		return nil, "", false
+	}
+	if engineID == "xai" {
+		return a.tryXaiTTS(eng.BaseURL, text)
+	}
+	var htts *tts.HerdsmanTTS
+	if strings.Contains(strings.ToLower(model), "voicedesign") {
+		htts = tts.NewHerdsmanTTSWithDesc(eng.BaseURL, model, voiceDescription)
+	} else {
+		htts = tts.NewHerdsmanTTS(eng.BaseURL, model, a.ttsVoiceForModel(model))
+	}
+	audio, mime, err := htts.SynthesizeWithMime(text)
+	if err != nil || len(audio) == 0 {
+		return nil, "", false
+	}
+	if mime == "" {
+		mime = "audio/mp3"
+	}
+	return audio, mime, true
+}
+
+// tryXaiTTS 通过 xAI 云端 Grok TTS 合成（复用 OAuth token；音色无效时回退 eve）
+func (a *mediaState) tryXaiTTS(baseURL, text string) ([]byte, string, bool) {
+	if a.client == nil {
+		return nil, "", false
+	}
+	voice := strings.TrimSpace(a.activeTTSVoice)
+	if !tts.IsXaiVoice(voice) {
+		voice = "eve"
+	}
+	xtts := tts.NewXaiTTS(baseURL, voice, a.client.GetToken, nil)
+	audio, mime, err := xtts.SynthesizeWithMime(text)
+	if err != nil || len(audio) == 0 {
+		slog.Debug("xAI TTS 合成失败，回退其他引擎", "voice", voice, "error", err)
+		return nil, "", false
+	}
+	return audio, mime, true
 }
 
 // synthesizeFromBase64 通过 TTSSpeakBase64 路由合成并解码
@@ -327,6 +380,10 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 	}
 	if v, ok := settings["ttsVoice"].(string); ok {
 		config.TTSVoice = v
+		a.activeTTSVoice = v
+		if err := appconfig.Save(appconfig.KeyTTSVoice, v); err != nil {
+			slog.Warn("保存 TTS 音色配置失败", "error", err)
+		}
 	}
 	if v, ok := settings["ttsEngine"].(string); ok {
 		config.TTSEngine = voice.TTSEngine(v)
@@ -349,6 +406,10 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 	}
 	if v, ok := settings["personalityPresetId"].(string); ok {
 		config.PersonalityPresetID = v
+		a.activePersonalityID = v
+		if err := appconfig.Save(appconfig.KeyVoicePersonality, v); err != nil {
+			slog.Warn("保存语音角色配置失败", "error", err)
+		}
 	}
 
 	a.voiceManager.ApplyConfig(config)

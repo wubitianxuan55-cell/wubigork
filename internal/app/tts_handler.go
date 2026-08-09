@@ -9,7 +9,7 @@ import (
 	"github.com/gaea/gaea/internal/tts"
 )
 
-// ── TTS 语音朗读 ─────────────────────────────────────────────
+// ── TTS 语音朗读 ──────────────────────────────────────────────────────────────
 
 // GetTTSConfig 获取 TTS 配置（VoxCPM 已移除，返回空配置）
 func (a *mediaState) GetTTSConfig() map[string]interface{} {
@@ -50,13 +50,17 @@ func (a *mediaState) TTSSpeak(text string) (string, error) {
 	return "", fmt.Errorf("VoxCPM 已移除，请使用朗读按钮（Base64 模式）")
 }
 
+// TTSSpeakBase64 合成语音并返回 Base64 音频
+// 引擎优先级：用户选中的 TTS 模型 → 扫描各引擎 TTS 模型 → Edge TTS → WinTTS (SAPI)
 func (a *mediaState) TTSSpeakBase64(text string) (map[string]interface{}, error) {
 	// 1. 用户选中的 TTS 模型
 	if a.activeTTSModel != "" && a.engineMgr != nil {
 		if eng, ok := a.engineMgr.GetEngine(a.activeTTSEngine); ok && eng.Enabled {
-			htts := tts.NewHerdsmanTTS(eng.BaseURL, a.activeTTSModel, "Cherry")
-			if audio, err := htts.Synthesize(text); err == nil && len(audio) > 0 {
-				return map[string]interface{}{"base64": base64.StdEncoding.EncodeToString(audio), "mimeType": "audio/mp3"}, nil
+			if audio, mime, ok := a.tryEngineTTS(a.activeTTSEngine, a.activeTTSModel, text, ""); ok {
+				if mime == "" {
+					mime = "audio/mp3"
+				}
+				return map[string]interface{}{"base64": base64.StdEncoding.EncodeToString(audio), "mimeType": mime}, nil
 			}
 			slog.Debug("用户选中TTS模型失败，尝试其他模型", "engine", a.activeTTSEngine, "model", a.activeTTSModel)
 		}
@@ -64,7 +68,7 @@ func (a *mediaState) TTSSpeakBase64(text string) (map[string]interface{}, error)
 
 	// 2. 扫描所有引擎的 TTS 模型列表
 	if a.engineMgr != nil {
-		for _, eid := range []string{"herdsman", "ollama", "xai", "deepseek"} {
+		for _, eid := range []string{"herdsman", "cosyvoice", "ollama", "xai", "deepseek"} {
 			eng, ok := a.engineMgr.GetEngine(eid)
 			if !ok || !eng.Enabled {
 				continue
@@ -75,21 +79,12 @@ func (a *mediaState) TTSSpeakBase64(text string) (map[string]interface{}, error)
 					continue
 				}
 				if strings.Contains(id, "tts") || strings.Contains(id, "voice") || strings.Contains(id, "speech") {
-					voice := "Cherry"
-					// 为已知模型匹配最佳声音
-					if strings.Contains(id, "edge") {
-						voice = "zh-CN-YunxiNeural"
-					} else if strings.Contains(id, "qwen3") {
-						if strings.Contains(id, "voicedesign") {
-							voice = ""
-						} else {
-							voice = "Cherry"
-						}
-					}
-					htts := tts.NewHerdsmanTTS(eng.BaseURL, m.ID, voice)
-					if audio, err := htts.Synthesize(text); err == nil && len(audio) > 0 {
+					if audio, mime, ok := a.tryEngineTTS(eid, m.ID, text, ""); ok {
 						slog.Info("TTS 自动选择模型", "engine", eid, "model", m.ID)
-						return map[string]interface{}{"base64": base64.StdEncoding.EncodeToString(audio), "mimeType": "audio/mp3"}, nil
+						if mime == "" {
+							mime = "audio/mp3"
+						}
+						return map[string]interface{}{"base64": base64.StdEncoding.EncodeToString(audio), "mimeType": mime}, nil
 					}
 				}
 			}
@@ -110,11 +105,11 @@ func (a *mediaState) TTSSpeakBase64(text string) (map[string]interface{}, error)
 		}
 	}
 
-	return nil, fmt.Errorf("无可用 TTS 模型：请在模型中心启动一个语音模型")
+	return nil, fmt.Errorf("无可用的 TTS 模型：请在模型中心启动一个语音模型")
 }
 
 // TTSSpeakStreaming 流式合成：逐句生成。
-// 引擎优先级：Herdsman TTS → xAI TTS → Edge TTS → WinTTS (SAPI)
+// 引擎优先级：Herdsman TTS → Edge TTS → WinTTS (SAPI)
 func (a *mediaState) TTSSpeakStreaming(text string) error {
 	sentences := tts.SplitSentences(text)
 	if len(sentences) == 0 {
@@ -131,16 +126,35 @@ func (a *mediaState) TTSSpeakStreaming(text string) error {
 	if a.engineMgr != nil {
 		herdEngine, ok := a.engineMgr.GetEngine("herdsman")
 		if ok && herdEngine.Enabled {
-			for model, voice := range map[string]string{
-				"edge-tts": "zh-CN-YunxiNeural", "qwen3-tts-customvoice": "Cherry", "qwen3-tts-voicedesign": "",
-			} {
+			for _, model := range []string{"edge-tts", "qwen3-tts-customvoice", "qwen3-tts-voicedesign"} {
+				voice := a.ttsVoiceForModel(model)
 				htts := tts.NewHerdsmanTTS(herdEngine.BaseURL, model, voice)
 				engines = append(engines, htts)
+				format := "mp3"
+				if strings.Contains(strings.ToLower(model), "qwen3") {
+					format = "wav"
+				}
 				metas = append(metas, struct {
 					Label  string
 					Format string
-				}{"herdsman-" + model, "mp3"})
+				}{"herdsman-" + model, format})
 			}
+		}
+	}
+
+	// 0.5 xAI Grok TTS（若全局语音模型选择了 xAI，流式朗读优先走云端）
+	if a.activeTTSEngine == "xai" && a.activeTTSModel == "grok-tts" && a.client != nil && a.engineMgr != nil {
+		if xaiEng, ok := a.engineMgr.GetEngine("xai"); ok && xaiEng.Enabled {
+			voice := strings.TrimSpace(a.activeTTSVoice)
+			if !tts.IsXaiVoice(voice) {
+				voice = "eve"
+			}
+			xtts := tts.NewXaiTTS(xaiEng.BaseURL, voice, a.client.GetToken, nil)
+			engines = append(engines, xtts)
+			metas = append(metas, struct {
+				Label  string
+				Format string
+			}{"xai", "mpeg"})
 		}
 	}
 
@@ -152,7 +166,7 @@ func (a *mediaState) TTSSpeakStreaming(text string) error {
 		Format string
 	}{"edge", "mp3"})
 
-	// 3. WinTTS SAPI（离线）
+	// 2. WinTTS SAPI（离线）
 	engines = append(engines, tts.NewWinTTS())
 	metas = append(metas, struct {
 		Label  string

@@ -23,6 +23,8 @@ const (
 	EngineOllama   EngineType = "ollama"
 	EngineHerdsman EngineType = "herdsman"
 	EngineDeepseek EngineType = "deepseek"
+	// EngineCosyVoice 本地 CosyVoice2 TTS 服务（OpenAI 兼容 /v1/audio/speech）
+	EngineCosyVoice EngineType = "cosyvoice"
 	// EngineOpencodeGo OpenCode Go 云端目录（OpenAI 兼容 /chat/completions）
 	EngineOpencodeGo EngineType = "opencode-go"
 	// EngineOpencodeZen OpenCode Zen 云端目录（OpenAI 兼容 /chat/completions 子集）
@@ -90,7 +92,7 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek", "opencode-go", "opencode-zen"},
+		order:       []string{"xai", "ollama", "herdsman", "deepseek", "cosyvoice", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		httpClient:  netclient.NewSimpleClient(15 * time.Second),
@@ -129,6 +131,14 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		Enabled:      true,
 		DefaultModel: "deepseek-v4-pro",
 	}
+	m.engines["cosyvoice"] = &EngineConfig{
+		ID:           "cosyvoice",
+		Name:         "CosyVoice2 (本地)",
+		Type:         EngineCosyVoice,
+		BaseURL:      "http://127.0.0.1:8010/v1",
+		Enabled:      true,
+		DefaultModel: "CosyVoice2-0.5B",
+	}
 	m.engines["opencode-go"] = &EngineConfig{
 		ID:           "opencode-go",
 		Name:         "OpenCode Go (云端)",
@@ -154,6 +164,25 @@ func (m *Manager) UpdateXAIKey(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.xaiKey = key
+}
+
+// EnsureModel 确保引擎模型列表中包含指定模型（用于内置伪模型，如 xAI grok-tts），缺失则追加并持久化
+func (m *Manager) EnsureModel(engineID, modelID string) {
+	m.mu.Lock()
+	engine, ok := m.engines[engineID]
+	if !ok {
+		m.mu.Unlock()
+		return
+	}
+	for _, mdl := range engine.Models {
+		if mdl.ID == modelID {
+			m.mu.Unlock()
+			return
+		}
+	}
+	engine.Models = append(engine.Models, ModelInfo{ID: modelID, OwnedBy: engineID})
+	m.mu.Unlock()
+	m.saveState()
 }
 
 // UpdateDeepseekKey 更新 DeepSeek API key
@@ -388,6 +417,20 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 			}
 		}
 		models = filtered
+	}
+
+	// xAI 引擎补充内置语音模型 grok-tts（TTS API 不返回在 /v1/models 列表中）
+	if engine.Type == EngineXAI {
+		found := false
+		for _, mdl := range models {
+			if mdl.ID == "grok-tts" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			models = append(models, ModelInfo{ID: "grok-tts", OwnedBy: "xai"})
+		}
 	}
 
 	return models, nil

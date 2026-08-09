@@ -1,6 +1,86 @@
 # gaea · 多功能 AI 助手
 
+## v2.6.5「CosyVoice2 LLM 核显加速」(2026-08-09)
+
+> CosyVoice2 LLM 环节从 PyTorch CPU 切换到 llama.cpp GGUF + Vulkan（Radeon 8060S 核显），
+> 整条合成管线提速约 8–10 倍：短句 6.5s→~1.5s，长句 24.5s→~2.8s。
+> 默认使用 f16 GGUF（音质最接近原始权重），q8 为更快备选。
+- 调研：Tinysoft/Cosyvoice2-0.5B-GGUF + llama.cpp PR #14711（Qwen2 bias 支持）
+- 引擎：`cosyvoice/llm/gguf_engine.py`（token 直喂、KV cache、复刻 ras_sampling），
+  `Qwen2LM.load_gguf()` 接入，实测词表布局 logits 相关性 0.9999
+- 服务：server.py 默认加载 `gguf\cosyvoice_f16.gguf`（环境变量 `COSYVOICE_LLM_GGUF` 可切），
+  启动预热 shader；失败自动回退 torch
+- 修复：`mask_to_bias` fp16 下 -1e10 溢出 -inf 导致 ONNX Softmax NaN（fp16 改用 -3e4）
+- 否决：fp16 flow estimator（误差累积，波形相关性 0.016）、LLM 单步 ONNX（链式发散）、
+  bf16（EOS 失效）、flow 4 步（无稳定收益）
+- 验证：直连 `/v1/audio/speech` 短句 ~1.4–1.8s、长句 ~2.8s；7 音色/中英日正常
+  （详细记录：`docs/2026-08-09-cosyvoice2-llm-gguf-speed-optimization.md`）
+- 发布：`go build/vet/test` + `tsc/vite build` + E 系列回归全绿；`wails build` 成功，
+  `releases/gaea-v2.6.5.exe` + `SHA256SUMS-v2.6.5.txt` + `v2.6.5.md`，桌面 `gaea.exe` 已同步
+
 # gaea · 多功能 AI 助手
+
+## v2.6.4「CosyVoice2 提速 + 模型中心音色选择」(2026-08-09)
+
+> CosyVoice2 合成提速约 35%（短句 6.5s → 4.1s）：flow 解码器切 ONNX + DirectML（AMD 核显），
+> 采样步数 10→5，音质与 torch 路径相关性 1.0000；
+> 「功能绑定 → 聊天语音」卡片新增音色选择（xAI / CosyVoice2 / Herdsman）。
+- CosyVoice2 提速：`flow.decoder.estimator.fp32.onnx` + `DmlExecutionProvider` 替换 torch estimator，
+  flow 步数 5；服务端 server.py 内置，重启服务即生效
+- LLM 优化探索：Qwen2 单步 ONNX 导出成功（fp32 CPU 28.8ms/步、DML 10ms/步），
+  但链式推理数值发散导致音频失真，暂不启用；bf16 破坏 EOS 采样，弃用
+- 模型中心：聊天语音绑定卡新增「音色」下拉（xAI 26 音色 / CosyVoice2 7 音色 / Herdsman 服务端列表），
+  选择即写 `tts_voice` 持久化
+- 验证：直连 4.1s/0.92s wav；go test 全绿；tsc + vite build 通过
+  （releases/gaea-v2.6.4.exe，SHA256SUMS-v2.6.4.txt）
+
+## v2.6.3「CosyVoice2-0.5B 本地音色克隆接入」(2026-08-08)
+
+> 模型中心新增「CosyVoice2 (本地)」引擎：本地 OpenAI 兼容 TTS 服务（127.0.0.1:8010），
+> 聊天语音可绑定 CosyVoice2-0.5B，内置 7 个音色并支持参考音频零样本克隆。
+- 引擎接入：modelengine 新增 `cosyvoice` 类型与内置引擎，启动/刷新自动补齐 `CosyVoice2-0.5B` 模型；
+  「语音模型」页与「功能绑定 → 聊天语音」均可选择
+- 音色支持：`/v1/audio/info` 拉取音色列表（中文女/男、英文女/男、日语男、粤语女、韩语女），
+  设置面板/聊天设置新增 CosyVoice 选择器；无效音色回退「中文女」，
+  `defaultVoiceForModel`/`ttsVoiceForModel` 补齐 cosyvoice 默认音色
+- 服务端：`POST /v1/audio/speech`（OpenAI 兼容）+ `POST /v1/voices`（参考音频注册新音色，持久化到 spk2info.pt）
+- 实测：直连合成 6.5s/0.92s 音频（RTF 6.8x，PyTorch CPU）；gaea 客户端端到端 38KB wav；
+  go test 全绿、tsc + vite build 通过
+  （releases/gaea-v2.6.3.exe，SHA256SUMS-v2.6.3.txt）
+
+## v2.6.2「xAI Grok TTS 接入」(2026-08-08)
+
+> xAI 引擎内置 `grok-tts` 云端语音模型：模型中心「功能绑定 → 聊天语音」可绑定 xAI，
+> 语音对话/朗读优先走 Grok 音色（Eve/Ara/Rex/Sal/Leo + 旗舰 21 个），
+> 实测合成约 1.4~2.4 秒，快于本地 qwen3-tts（声码器 CPU）的 2.7~3.3 秒。
+- xAI TTS 路由：语音管道新增 `tryEngineTTS`，xAI 走 `POST /v1/tts`（复用 OAuth token），
+  聊天语音绑定 → 全局 TTS → 自动路由均生效；流式朗读选中 xAI 时同样优先云端
+- 模型中心：xAI 引擎保活内置 `grok-tts`（启动/刷新均自动补齐），
+  功能绑定与「语音模型」页可直接选择；设置面板/聊天设置新增 xAI 音色选择器，
+  无效音色自动回退 `eve`，`tts_voice` 持久化
+- xAI TTS 客户端完善：`SynthesizeWithMime` 返回真实 MIME，音色列表静态校验 + 单测
+- 验证：`go build/test ./internal/{tts,modelengine,app}/...` 全绿；`tsc` + `vite build` 通过；
+  直连 `api.x.ai/v1/tts` 实测 HTTP 200 / audio/mpeg；`wails build` 成功
+  （releases/gaea-v2.6.2.exe，SHA256SUMS-v2.6.2.txt）
+
+## v2.6.1「语音交互打通 · 音色可配置 · 首页语音角色与聊天一致」(2026-08-08)
+
+> 按 Herdsman 新版接口重新打通语音对话：AI 回复后 TTS 朗读恢复正常，不再卡在“正在聆听”；
+> 语音音色可在设置面板直接选择并持久化；首页语音角色与聊天板块保持一致。
+- 语音交互打通：TTS `audio_url` 支持 data URI / 相对路径 / 绝对 URL 三种形态并返回真实 MIME；
+  合成前动态查询 `/v1/audio/info` 音色列表，`Cherry` 等已移除音色自动回退可用音色；
+  修复 ASR `/v1/v1/audio/transcriptions` 双重前缀 404；TTS 播放期间保持“AI 回复中”状态
+- 音色设置：聊天面板「语音设置」新增 Herdsman 音色选择器（实时拉取服务端支持列表），
+  写入 `~/.gaea_config.json` 的 `tts_voice` 持久化；设置页聊天设置同步
+- 首页语音角色：不再写死 gaea，读取聊天板块保存的同一角色键并动态显示标签；
+  后端新增 `voice_personality` 持久化
+- 普通对话联动：聊天板块切换「普通对话」时语音回复使用中性助手口吻，
+  首页语音同步为「普通对话」；切换人格时首页语音跟随该人格
+- 模型中心「功能绑定」新增聊天语音模型：单独绑定聊天语音的引擎+模型（持久化），
+  未绑定回退全局 TTS；语音模型列表随引擎自动刷新，便于后续扩展
+- 验证：go build/vet 全绿；tsc + vite build OK；前端 E 系列回归守卫 OK；
+  直连 Herdsman 端到端验证合成 122KB 真实语音；wails build 成功
+  （releases/gaea-v2.6.1.exe，SHA256SUMS-v2.6.1.txt）
 
 ## v2.6.0「小说创作工作台重设计 · 角色卡补齐/剧照/合并」(2026-08-08)
 

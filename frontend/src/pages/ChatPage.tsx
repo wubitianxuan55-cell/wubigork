@@ -188,6 +188,11 @@ const ChatPage: React.FC = () => {
   topicsRef.current = topics
   const modeRef = useRef(mode)
   modeRef.current = mode
+
+  // 语音角色跟随聊天模式：plain → 普通对话，其余 → 对应人格（后端持久化，首页语音保持一致）
+  useEffect(() => {
+    try { (App as any).VoiceApplySettings?.({ personalityPresetId: modeRef.current }) } catch (_) {}
+  }, [mode])
   const activeIdRef = useRef(activeId)
   activeIdRef.current = activeId
 
@@ -211,7 +216,7 @@ const ChatPage: React.FC = () => {
 
   const toggleVoice = useCallback(async () => {
     if (voiceOn) { stopVoice(); setVoiceOn(false); return }
-    try { await (App as any).VoiceApplySettings?.({ personalityPresetId: modeRef.current !== 'plain' ? modeRef.current : activePersonality }) } catch (_) {}
+    try { await (App as any).VoiceApplySettings?.({ personalityPresetId: modeRef.current }) } catch (_) {}
     setVoiceOn(true)
     await startVoice()
   }, [voiceOn, activePersonality, startVoice, stopVoice])

@@ -103,6 +103,13 @@ func BuildPresetVoiceGuide(preset PersonalityPreset, adultMode bool) string {
 
 // DefaultPersonalitySlice 默认人格切片
 func DefaultPersonalitySlice(presetID string) PersonalitySlice {
+	// 普通对话（聊天板块 plain 模式）：中性维度，不套用任何角色
+	if presetID == "" || presetID == "plain" {
+		return PersonalitySlice{
+			PresetID: "plain",
+			T:        60, I: 50, S: 50, O: 60, R: 50,
+		}
+	}
 	p := GetPreset(presetID)
 	if p != nil {
 		return PersonalitySlice{

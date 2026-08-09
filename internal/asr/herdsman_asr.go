@@ -72,7 +72,7 @@ func (h *HerdsmanASR) TranscribeBase64(audioBase64, mimeType string) (*Transcrip
 
 // TranscribeBytes 通过原始音频字节进行识别（multipart/form-data 上传）
 func (h *HerdsmanASR) TranscribeBytes(audioData []byte, filename string) (*TranscriptionResult, error) {
-	url := h.baseURL + "/v1/audio/transcriptions"
+	url := openAIEndpoint(h.baseURL, "/audio/transcriptions")
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -111,7 +111,7 @@ func (h *HerdsmanASR) doTranscribe(body map[string]interface{}) (*TranscriptionR
 		return nil, fmt.Errorf("asr: marshal: %w", err)
 	}
 
-	url := h.baseURL + "/v1/audio/transcriptions"
+	url := openAIEndpoint(h.baseURL, "/audio/transcriptions")
 	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("asr: create request: %w", err)
@@ -152,4 +152,12 @@ func NormalizeTranscription(text string) string {
 // EncodeBase64 将字节编码为 base64 字符串
 func EncodeBase64(data []byte) string {
 	return base64.StdEncoding.EncodeToString(data)
+}
+
+// openAIEndpoint 将 OpenAI 兼容 base URL 与 API 路径拼接：
+// baseURL 可能以 /v1 结尾（Herdsman/Ollama/xAI），也可能不带（DeepSeek），统一得到 .../v1<path>
+func openAIEndpoint(baseURL, path string) string {
+	base := strings.TrimRight(baseURL, "/")
+	base = strings.TrimSuffix(base, "/v1")
+	return base + "/v1" + path
 }

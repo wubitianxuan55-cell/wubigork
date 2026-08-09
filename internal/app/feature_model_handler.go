@@ -172,7 +172,7 @@ func (a *App) GetModelMonitor() map[string]interface{} {
 // 云端引擎（xai/deepseek 走 API）不加载到本机，不计入模型加载预警。
 func isLocalEngine(id string) bool {
 	switch id {
-	case "herdsman", "ollama":
+	case "herdsman", "ollama", "cosyvoice":
 		return true
 	}
 	return false

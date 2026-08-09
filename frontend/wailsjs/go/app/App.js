@@ -770,6 +770,10 @@ export function GetCharacters() {
   return window['go']['app']['App']['GetCharacters']();
 }
 
+export function GetChatVoiceModel() {
+  return window['go']['app']['App']['GetChatVoiceModel']();
+}
+
 export function GetComfyUILoras() {
   return window['go']['app']['App']['GetComfyUILoras']();
 }
@@ -888,6 +892,10 @@ export function GetSystemStats() {
 
 export function GetTTSConfig() {
   return window['go']['app']['App']['GetTTSConfig']();
+}
+
+export function GetTTSSpeakers(arg1) {
+  return window['go']['app']['App']['GetTTSSpeakers'](arg1);
 }
 
 export function GetTTSStatus() {
@@ -1308,6 +1316,10 @@ export function SetActiveTTSModel(arg1, arg2) {
 
 export function SetCharacterPortrait(arg1, arg2) {
   return window['go']['app']['App']['SetCharacterPortrait'](arg1, arg2);
+}
+
+export function SetChatVoiceModel(arg1, arg2) {
+  return window['go']['app']['App']['SetChatVoiceModel'](arg1, arg2);
 }
 
 export function SetDeepseekKey(arg1) {

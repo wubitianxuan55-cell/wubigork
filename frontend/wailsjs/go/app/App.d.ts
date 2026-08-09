@@ -395,6 +395,8 @@ export function GetChapterScenes(arg1:number):Promise<Array<Record<string, any>>
 
 export function GetCharacters():Promise<Record<string, any>>;
 
+export function GetChatVoiceModel():Promise<Record<string, string>>;
+
 export function GetComfyUILoras():Promise<Array<string>>;
 
 export function GetComfyUIStatus():Promise<Record<string, any>>;
@@ -454,6 +456,8 @@ export function GetStyleProfile():Promise<Record<string, any>>;
 export function GetSystemStats():Promise<Record<string, any>>;
 
 export function GetTTSConfig():Promise<Record<string, any>>;
+
+export function GetTTSSpeakers(arg1:string):Promise<Array<string>>;
 
 export function GetTTSStatus():Promise<Record<string, any>>;
 
@@ -664,6 +668,8 @@ export function SetActiveEngine(arg1:string):Promise<void>;
 export function SetActiveTTSModel(arg1:string,arg2:string):Promise<void>;
 
 export function SetCharacterPortrait(arg1:string,arg2:string):Promise<void>;
+
+export function SetChatVoiceModel(arg1:string,arg2:string):Promise<void>;
 
 export function SetDeepseekKey(arg1:string):Promise<void>;
 

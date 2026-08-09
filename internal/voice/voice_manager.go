@@ -552,9 +552,6 @@ func (m *Manager) speak(text string, voiceDesc string) {
 	}()
 
 	m.setState(StateSpeaking)
-	if m.emitter != nil {
-		m.emitter.EmitVoiceThinking(false)
-	}
 
 	sentences := tts.SplitSentences(text)
 	if len(sentences) == 0 {

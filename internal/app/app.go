@@ -91,6 +91,10 @@ type mediaState struct {
 	// TTS 语音朗读（模型中心选择）
 	activeTTSEngine string
 	activeTTSModel  string
+	activeTTSVoice  string
+	activePersonalityID string
+	chatVoiceEngine string
+	chatVoiceModel  string
 
 	// ASR 语音识别（模型中心选择）
 	activeASREngine string
@@ -204,6 +208,10 @@ func (a *App) Startup(ctx context.Context) {
 		slog.Warn("加载引擎状态失败（回退预置默认）", "error", err)
 	}
 	a.engineMgr.SetStatsPath(modelengine.StatsPathFor(filepath.Join(a.whisperDataRoot, "engines.json")))
+	// 确保 xAI 引擎始终提供内置语音模型 grok-tts（TTS API 不返回在 /v1/models 列表）
+	a.engineMgr.EnsureModel("xai", "grok-tts")
+	// 确保本地 CosyVoice2 引擎提供语音模型（OpenAI 兼容 TTS 服务）
+	a.engineMgr.EnsureModel("cosyvoice", "CosyVoice2-0.5B")
 	if tok, err := auth.NewTokenStore(a.cfg.TokenStorePath).Load(); err == nil && tok != nil && !tok.IsExpired() {
 		a.engineMgr.UpdateXAIKey(tok.AccessToken)
 	}
@@ -215,6 +223,10 @@ func (a *App) Startup(ctx context.Context) {
 	a.activeASRModel = a.cfg.ActiveASRModel
 	a.activeTTSEngine = a.cfg.ActiveTTSEngine
 	a.activeTTSModel = a.cfg.ActiveTTSModel
+	a.activeTTSVoice = a.cfg.TTSVoice
+	a.activePersonalityID = a.cfg.VoicePersonality
+	a.chatVoiceEngine = a.cfg.FuncChatVoiceEngine
+	a.chatVoiceModel = a.cfg.FuncChatVoiceModel
 
 	a.initVoice()
 	a.initWeixin()
