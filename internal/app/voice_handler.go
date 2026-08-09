@@ -201,6 +201,10 @@ func (a *mediaState) tryEngineTTS(engineID, model, text, voiceDescription string
 	if !ok || !eng.Enabled {
 		return nil, "", false
 	}
+	// 本地 TTS 服务兜底：cosyvoice 未就绪时自动拉起（幂等，已就绪零开销）
+	if engineID == "cosyvoice" {
+		a.ensureLocalTTSService(engineID)
+	}
 	if engineID == "xai" {
 		return a.tryXaiTTS(eng.BaseURL, text)
 	}

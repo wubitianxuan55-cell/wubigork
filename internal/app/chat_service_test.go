@@ -77,7 +77,7 @@ func TestChatSend_Plain(t *testing.T) {
 		t.Fatalf("话题数 = %d, want 1", len(topics))
 	}
 
-	out, err := a.ChatSend(topics[0].ID, "你好", "plain")
+	out, err := a.ChatSend(topics[0].ID, "你好", "plain", false)
 	if err != nil {
 		t.Fatalf("ChatSend: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestChatSend_Persona(t *testing.T) {
 	}
 	topics := a.ChatTopicsList()
 
-	out, err := a.ChatSend(topics[0].ID, "你好", "gaea")
+	out, err := a.ChatSend(topics[0].ID, "你好", "gaea", false)
 	if err != nil {
 		t.Fatalf("ChatSend persona: %v", err)
 	}

@@ -192,7 +192,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange }) => {
     <Space size={4} align="center">
       {engine && (playing || loading) && (
         <Typography.Text style={{ fontSize: 9, color: 'var(--color-text-secondary)', background: 'var(--bg-elevated)', borderRadius: 4, padding: '1px 6px', lineHeight: '18px' }}>
-          {engine === 'xai' ? 'xAI' : engine === 'edge' ? 'Edge' : engine === 'sapi' ? 'SAPI' : engine === 'voxcpm' ? 'VoxCPM' : engine}
+          {engine === 'xai' ? 'xAI' : engine === 'edge' ? 'Edge' : engine === 'sapi' ? 'SAPI' : engine}
         </Typography.Text>
       )}
       {loading || playing ? (

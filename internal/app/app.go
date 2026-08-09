@@ -249,6 +249,9 @@ func (a *App) Startup(ctx context.Context) {
 	a.initBrain()
 	a.initModules()
 
+	// 本地 TTS 服务保活：模型中心内置 CosyVoice2，gaea 启动即自动拉起（幂等，已就绪零开销）
+	a.ensureLocalTTSService("cosyvoice")
+
 	// 后台刷新所有引擎模型列表
 	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {
 		go func(id string) {

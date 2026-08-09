@@ -1,18 +1,21 @@
 package builtin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"io"
-	"net"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	nethtml "golang.org/x/net/html"
+
 	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 func init() { tool.RegisterBuiltin(webSearch{}) }
@@ -43,7 +46,7 @@ type searchEngine interface {
 func (webSearch) Name() string { return "web_search" }
 
 func (webSearch) Description() string {
-	return "搜索公开网页（通过 SearXNG / Tavily / Brave Search）。返回结构化 JSON 数组，每项含 title/url/snippet/source 字段，支持引用追踪。当答案的正确性依赖于当前状态时使用——任何随时间变化的内容（事件、价格、发布版本、现实世界的状态）。先搜索再回答；常青问题不需要此工具。"
+	return "搜索公开网页（通过 SearXNG / Tavily / Brave Search / Bing / DuckDuckGo）。返回结构化 JSON 数组，每项含 title/url/snippet/source 字段，支持引用追踪。当答案的正确性依赖于当前状态时使用——任何随时间变化的内容（事件、价格、发布版本、现实世界的状态）。先搜索再回答；常青问题不需要此工具。"
 }
 
 func (webSearch) Schema() json.RawMessage {
@@ -186,39 +189,44 @@ func (webSearch) buildEngines() []searchEngine {
 	// 4. Public SearXNG instances (always available as fallback)
 	engines = append(engines, &publicSearxNGEngine{})
 
+	// 5. Bing web search (keyless; reachable without a proxy in mainland China)
+	engines = append(engines, &bingEngine{})
+
+	// 6. DuckDuckGo Lite (keyless; reliable in most regions)
+	engines = append(engines, &duckDuckGoLiteEngine{})
+
 	return engines
 }
 
 // --- HTTP client ---
 
+// searchHTTPClient returns an HTTP client with SSRF protection and the same
+// proxy behaviour as web_fetch (auto/env/custom/off from the gaea network
+// config). Without this, search engines behind a proxy all time out and the
+// tool reports "所有搜索引擎失败".
 func searchHTTPClient() *http.Client {
 	timeout := webSearchTimeout
 	if searchCfg != nil {
 		timeout = searchCfg.SearchTimeout()
 	}
-	dialer := &net.Dialer{Timeout: timeout}
-	return &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				host, port, err := net.SplitHostPort(addr)
-				if err != nil {
-					return nil, err
-				}
-				ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-				if err != nil {
-					return nil, err
-				}
-				for _, ip := range ips {
-					if blockedFetchIP(ip.IP) {
-						return nil, fmt.Errorf("refusing to connect to internal address %s", host)
-					}
-				}
-				return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
-			},
-			ForceAttemptHTTP2: false,
-		},
+	return ssrfGuardedClient(timeout, searchProxyURLFor)
+}
+
+// searchProxyURLFor resolves the configured network proxy for a search request.
+// An empty result means direct connection (no proxy applies).
+func searchProxyURLFor(req *http.Request) (string, error) {
+	pf, err := netclient.ProxyFunc(searchProxy)
+	if err != nil {
+		return "", err
 	}
+	if pf == nil {
+		return "", nil
+	}
+	u, err := pf(req)
+	if err != nil || u == nil {
+		return "", err
+	}
+	return u.String(), nil
 }
 
 // --- Local SearXNG Engine ---
@@ -257,6 +265,194 @@ func (e *publicSearxNGEngine) Search(ctx context.Context, query string, limit in
 		lastErr = err
 	}
 	return nil, lastErr
+}
+
+// --- Bing Web Search Engine (keyless HTML fallback) ---
+
+type bingEngine struct{}
+
+func (e *bingEngine) Name() string    { return "bing" }
+func (e *bingEngine) Available() bool { return true }
+func (e *bingEngine) Search(ctx context.Context, query string, limit int) ([]searchResult, error) {
+	searchURL := fmt.Sprintf("https://www.bing.com/search?q=%s&count=%d&setlang=zh-CN&mkt=zh-CN",
+		url.QueryEscape(query), limit)
+	body, err := doSearchRequest(ctx, searchHTTPClient(), searchURL, webSearchMaxRetries)
+	if err != nil {
+		return nil, err
+	}
+	return parseBingResults(body, limit)
+}
+
+// parseBingResults extracts organic results from a Bing SERP: <li class="b_algo">
+// blocks with the title in <h2><a> and the snippet inside <div class="b_caption">.
+func parseBingResults(body []byte, limit int) ([]searchResult, error) {
+	doc, err := nethtml.Parse(bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("parse bing response: %w", err)
+	}
+	var results []searchResult
+	var walk func(*nethtml.Node)
+	walk = func(n *nethtml.Node) {
+		if len(results) >= limit {
+			return
+		}
+		if n.Type == nethtml.ElementNode && n.Data == "li" && hasClass(n, "b_algo") {
+			if r, ok := bingResultFromBlock(n); ok {
+				results = append(results, r)
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no bing results parsed")
+	}
+	return results, nil
+}
+
+func bingResultFromBlock(li *nethtml.Node) (searchResult, bool) {
+	var title, href, snippet string
+	var walk func(*nethtml.Node)
+	walk = func(n *nethtml.Node) {
+		if href != "" && snippet != "" {
+			return
+		}
+		if n.Type == nethtml.ElementNode && n.Data == "h2" && href == "" {
+			if a := firstChildElement(n, "a"); a != nil {
+				href = strings.TrimSpace(attrValue(a, "href"))
+				title = strings.TrimSpace(nodeText(a))
+			}
+		}
+		if n.Type == nethtml.ElementNode && n.Data == "div" && hasClass(n, "b_caption") && snippet == "" {
+			if p := firstDescendantElement(n, "p"); p != nil {
+				snippet = strings.TrimSpace(nodeText(p))
+			}
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(li)
+	if title == "" || href == "" || strings.HasPrefix(href, "javascript:") {
+		return searchResult{}, false
+	}
+	return searchResult{Title: title, URL: href, Snippet: truncate(snippet, 300), Source: "bing"}, true
+}
+
+// --- DuckDuckGo Lite Engine (keyless HTML fallback) ---
+
+type duckDuckGoLiteEngine struct{}
+
+func (e *duckDuckGoLiteEngine) Name() string    { return "duckduckgo-lite" }
+func (e *duckDuckGoLiteEngine) Available() bool { return true }
+func (e *duckDuckGoLiteEngine) Search(ctx context.Context, query string, limit int) ([]searchResult, error) {
+	searchURL := "https://lite.duckduckgo.com/lite/?q=" + url.QueryEscape(query)
+	body, err := doSearchRequest(ctx, searchHTTPClient(), searchURL, 0)
+	if err != nil {
+		return nil, err
+	}
+	return parseDDGLiteResults(body, limit)
+}
+
+// parseDDGLiteResults extracts results from DuckDuckGo Lite: <a class="result-link">
+// entries with snippets in <td class="result-snippet"> cells.
+func parseDDGLiteResults(body []byte, limit int) ([]searchResult, error) {
+	doc, err := nethtml.Parse(bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("parse duckduckgo response: %w", err)
+	}
+	var results []searchResult
+	var snippets []string
+	var walk func(*nethtml.Node)
+	walk = func(n *nethtml.Node) {
+		if n.Type == nethtml.ElementNode && n.Data == "a" && hasClass(n, "result-link") && len(results) < limit {
+			href := strings.TrimSpace(attrValue(n, "href"))
+			title := strings.TrimSpace(nodeText(n))
+			if href != "" && title != "" {
+				results = append(results, searchResult{Title: title, URL: href, Source: "duckduckgo"})
+			}
+		}
+		if n.Type == nethtml.ElementNode && n.Data == "td" && hasClass(n, "result-snippet") {
+			snippets = append(snippets, strings.TrimSpace(nodeText(n)))
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no duckduckgo results parsed")
+	}
+	for i := range results {
+		if i < len(snippets) {
+			results[i].Snippet = truncate(snippets[i], 300)
+		}
+	}
+	return results, nil
+}
+
+// --- HTML helpers ---
+
+func hasClass(n *nethtml.Node, class string) bool {
+	for _, a := range n.Attr {
+		if a.Key != "class" {
+			continue
+		}
+		for _, c := range strings.Fields(a.Val) {
+			if c == class {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func attrValue(n *nethtml.Node, key string) string {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return a.Val
+		}
+	}
+	return ""
+}
+
+func nodeText(n *nethtml.Node) string {
+	var sb strings.Builder
+	var walk func(*nethtml.Node)
+	walk = func(m *nethtml.Node) {
+		if m.Type == nethtml.TextNode {
+			sb.WriteString(m.Data)
+		}
+		for c := m.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(n)
+	return sb.String()
+}
+
+func firstChildElement(n *nethtml.Node, tag string) *nethtml.Node {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == nethtml.ElementNode && c.Data == tag {
+			return c
+		}
+	}
+	return nil
+}
+
+func firstDescendantElement(n *nethtml.Node, tag string) *nethtml.Node {
+	if n.Type == nethtml.ElementNode && n.Data == tag {
+		return n
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if r := firstDescendantElement(c, tag); r != nil {
+			return r
+		}
+	}
+	return nil
 }
 
 // --- Tavily Search API Engine ---
@@ -446,6 +642,10 @@ type searxNGResponse struct {
 // --- shared HTTP ---
 
 func doSearchRequest(ctx context.Context, client *http.Client, urlStr string, maxRetries int) ([]byte, error) {
+	timeout := webSearchTimeout
+	if searchCfg != nil {
+		timeout = searchCfg.SearchTimeout()
+	}
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
@@ -457,29 +657,32 @@ func doSearchRequest(ctx context.Context, client *http.Client, urlStr string, ma
 			}
 		}
 
-		reqCtx, cancel := context.WithTimeout(ctx, webSearchTimeout)
+		reqCtx, cancel := context.WithTimeout(ctx, timeout)
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, urlStr, nil)
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("build request: %w", err)
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; gaea/1.0)")
-		req.Header.Set("Accept", "text/html,application/json")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36")
+		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8")
 
 		resp, err := client.Do(req)
-		cancel()
 		if err != nil {
+			cancel()
 			lastErr = err
 			continue
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
+			resp.Body.Close()
+			cancel()
 			lastErr = fmt.Errorf("search engine returned %d", resp.StatusCode)
-			continue
+			break // rate-limited / overloaded: no point retrying, try next engine
 		}
 
 		body, err := io.ReadAll(io.LimitReader(resp.Body, webSearchMaxRead))
+		resp.Body.Close()
+		cancel()
 		if err != nil {
 			lastErr = fmt.Errorf("read body: %w", err)
 			continue

@@ -32,7 +32,7 @@ func TestBuildEpisodeSummary_UserAndAssistant(t *testing.T) {
 	if !strings.Contains(got, "用户说「今天下雨了…」") {
 		t.Errorf("缺少用户侧摘要: %s", got)
 	}
-	if !strings.Contains(got, "Hermes回应「不客气…」") {
+	if !strings.Contains(got, "gaea回应「不客气…」") {
 		t.Errorf("缺少助手侧摘要: %s", got)
 	}
 }

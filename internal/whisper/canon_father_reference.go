@@ -10,7 +10,7 @@ import "strings"
 type FatherRefKind string
 
 const (
-	FatherRefAckemCreator FatherRefKind = "ackem_creator" // 问Ackem的创造者/Jason
+	FatherRefAckemCreator FatherRefKind = "ackem_creator" // 问 gaea 的创造者/Jason
 	FatherRefUserFamily   FatherRefKind = "user_family"   // 用户说自己的家人
 	FatherRefNone         FatherRefKind = ""
 )
@@ -24,19 +24,19 @@ type FatherRefCase struct {
 
 // FatherRefRegressionCases 父亲指称回归用例全集
 var FatherRefRegressionCases = []FatherRefCase{
-	// Ackem 创造者 / Jason
+	// gaea 创造者 / Jason
 	{Query: "你是谁创造的？", Kind: FatherRefAckemCreator},
 	{Query: "谁造了你？", Kind: FatherRefAckemCreator},
 	{Query: "谁创造了你？", Kind: FatherRefAckemCreator},
 	{Query: "你的创造者是谁", Kind: FatherRefAckemCreator},
-	{Query: "你的父亲是谁", Kind: FatherRefAckemCreator, Note: "问 Ackem 本人"},
+	{Query: "你的父亲是谁", Kind: FatherRefAckemCreator, Note: "问 gaea 本人"},
 	{Query: "Jason 和你的关系是什么？", Kind: FatherRefAckemCreator},
 	{Query: "Jason 是不是你爸爸", Kind: FatherRefAckemCreator},
 	{Query: "讲讲你的出身故事", Kind: FatherRefAckemCreator},
 	{Query: "你是怎么被造出来的？", Kind: FatherRefAckemCreator},
 	{Query: "GitHub 上那个 Jason 是你什么人", Kind: FatherRefAckemCreator},
 	{Query: "你想见 Jason 吗", Kind: FatherRefAckemCreator},
-	{Query: "Ackem 是谁做出来的", Kind: FatherRefAckemCreator},
+	{Query: "gaea 是谁做出来的", Kind: FatherRefAckemCreator},
 
 	// 用户自己的家人
 	{Query: "我爸今天催我回家", Kind: FatherRefUserFamily},
@@ -59,10 +59,10 @@ var FatherRefRegressionCases = []FatherRefCase{
 
 // ClassifyFatherRef 检测消息中的父亲指称类型
 func ClassifyFatherRef(text string) FatherRefKind {
-	// Ackem创造者信号词
+	// gaea 创造者信号词
 	creatorSignals := []string{
 		"谁创造", "谁造了", "创造者", "出身故事", "造出来",
-		"Jason", "Ackem是谁", "你的父亲是谁", "GitHub上那个",
+		"Jason", "gaea是谁", "你的父亲是谁", "GitHub上那个",
 	}
 	for _, s := range creatorSignals {
 		if strings.Contains(text, s) {

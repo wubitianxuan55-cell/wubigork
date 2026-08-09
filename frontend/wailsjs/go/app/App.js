@@ -138,8 +138,8 @@ export function ChatOutlineNode(arg1, arg2) {
   return window['go']['app']['App']['ChatOutlineNode'](arg1, arg2);
 }
 
-export function ChatSend(arg1, arg2, arg3) {
-  return window['go']['app']['App']['ChatSend'](arg1, arg2, arg3);
+export function ChatSend(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['ChatSend'](arg1, arg2, arg3, arg4);
 }
 
 export function ChatTopicClear(arg1) {
@@ -1360,6 +1360,10 @@ export function SetPortraitConfig(arg1, arg2) {
 
 export function StartComfyUI() {
   return window['go']['app']['App']['StartComfyUI']();
+}
+
+export function StartLocalTTSService(arg1) {
+  return window['go']['app']['App']['StartLocalTTSService'](arg1);
 }
 
 export function StartTTSServer(arg1, arg2, arg3) {

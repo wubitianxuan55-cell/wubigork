@@ -129,7 +129,7 @@ export function makeMockApp(): AppBindings {
     ],
     permissions: { mode: "ask", allow: ["ls", "read_file"], ask: [], deny: ["bash(rm *)"] },
     sandbox: { bash: "enforce", network: true, workspaceRoot: "", allowWrite: [] },
-    agent: { temperature: 0.2, maxSteps: 0, systemPrompt: "你是 gaea 的通用办公助手，负责文档撰写与编辑、表格与数据处理、方案与报告编写等办公工作。所有思考和输出必须使用中文。", subagentTemperature: 0, effort: "", subagentEffort: "" },
+    agent: { temperature: 0.2, maxSteps: 0, systemPrompt: "你是 gaea（盖亚）——用户的通用办公 AI 助手，负责文档撰写与编辑、表格与数据处理、方案与报告编写等办公工作。沉稳、清晰、可靠，温和而不说教。所有思考和输出必须使用中文。", subagentTemperature: 0, effort: "", subagentEffort: "" },
     subagentModel: "",
     subagentModels: {},
     subagentSkills: ["explore", "research", "review", "security-review"],

@@ -8,23 +8,31 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/chat"
+	"github.com/gaea/gaea/internal/whisper"
 )
 
 // ChatSend 统一聊天入口（聊天/轻语板块合并，后端）。
 // mode 为空或 "plain" → 普通对话；否则按人格 ID 走轻语 Orchestrator（记忆/情绪）。
-func (a *App) ChatSend(topicID, message, mode string) (map[string]interface{}, error) {
+// searchEnabled 打开时自动检测搜索意图并注入实时搜索结果（普通对话同样生效）。
+func (a *App) ChatSend(topicID, message, mode string, searchEnabled bool) (map[string]interface{}, error) {
 	if topicID == "" {
 		return nil, fmt.Errorf("话题 ID 不能为空")
 	}
 	if mode == "" || mode == "plain" {
-		return a.chatSendPlain(topicID, message)
+		return a.chatSendPlain(topicID, message, searchEnabled)
 	}
-	return a.chatSendPersona(topicID, message, mode)
+	return a.chatSendPersona(topicID, message, mode, searchEnabled)
 }
 
-func (a *App) chatSendPlain(topicID, message string) (map[string]interface{}, error) {
+func (a *App) chatSendPlain(topicID, message string, searchEnabled bool) (map[string]interface{}, error) {
 	if a.client == nil {
 		return nil, fmt.Errorf("AI 客户端未初始化")
+	}
+	// 联网搜索增强：命中搜索意图时先查实时网页，注入为上下文再回答。
+	if searchEnabled && shouldSearchWeb(message) {
+		if result, err := whisper.WebSearch(message); err == nil && result != "" {
+			message = fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", message, result)
+		}
 	}
 	eng, model := a.featureModel("chat")
 	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model,
@@ -36,8 +44,14 @@ func (a *App) chatSendPlain(topicID, message string) (map[string]interface{}, er
 	return map[string]interface{}{"reply": reply, "mode": "plain", "topicID": topicID}, nil
 }
 
-func (a *App) chatSendPersona(topicID, message, mode string) (map[string]interface{}, error) {
-	out, err := a.WhisperChat(message, mode)
+func (a *App) chatSendPersona(topicID, message, mode string, searchEnabled bool) (map[string]interface{}, error) {
+	var out map[string]interface{}
+	var err error
+	if searchEnabled {
+		out, err = a.WhisperChatWithSearch(message, mode)
+	} else {
+		out, err = a.WhisperChat(message, mode)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const companionReplySubjectPrefix = "Ackem回复"
+const companionReplySubjectPrefix = "gaea回复"
 const dailySummaryMaxChars = 2400
 
 func clipStr(s string, max int) string {
@@ -79,7 +79,7 @@ func WriteCompanionReplyLog(store *FactStore, sessionID string, turnIndex int, u
 		Summary:         line,
 		Weight:          0.6,
 		Confidence:      1.0,
-		Triggers:        []string{"Ackem回复"},
+		Triggers:        []string{"gaea回复"},
 		SourceSessionID: sessionID,
 		SourceTurnIndex: turnIndex,
 		FactLayer:       "raw",

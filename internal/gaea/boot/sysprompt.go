@@ -53,6 +53,7 @@ func buildSystemPrompt(cfg *config.Config, cwd string, stderrPath io.Writer) (*s
 	sysPrompt = memory.Compose(sysPrompt, mem)
 	builtin.SetMemorySearchIndex(mem.Search)
 	builtin.SetSearchConfig(cfg.Search)
+	builtin.SetSearchProxy(cfg.NetworkProxySpec())
 	if mem.Empty() {
 		memory.InitDefaults(mem)
 	}

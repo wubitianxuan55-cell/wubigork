@@ -49,7 +49,8 @@ const XAI_VOICES = [
 ]
 
 // CosyVoice2 内置音色（本地服务端 /v1/audio/info 返回，查询失败时兜底）
-const COSYVOICE_VOICES = ['中文女', '中文男', '英文女', '英文男', '日语男', '粤语女', '韩语女']
+const COSYVOICE_VOICES = ['中文女', '中文男', '英文女', '英文男']
+
 
 const VOICE_LABELS: Record<string, string> = {
   serena: 'Serena (女)',

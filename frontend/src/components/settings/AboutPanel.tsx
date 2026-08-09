@@ -29,7 +29,7 @@ const AboutPanel: React.FC = () => {
       <SettingsSection
         icon={<span style={{ fontSize: 15 }}>🌏</span>}
         title="关于 gaea"
-        desc="盖亚——大地女神。一个不断完善的本地 AI 助手。"
+        desc="gaea（盖亚）——你的通用办公与日常 AI 伙伴：可靠、清晰、有温度。"
       >
         <div style={{
           display: 'flex', alignItems: 'center', gap: 14,

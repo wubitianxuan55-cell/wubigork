@@ -46,7 +46,7 @@ const BACKEND_OPTIONS = [
 
 function classifyModel(id: string): string {
   const lid = id.toLowerCase()
-  if (lid.includes('tts') || lid.includes('voice') || lid.includes('vox') || lid.includes('edge')) return 'tts'
+  if (lid.includes('tts') || lid.includes('voice') || lid.includes('edge')) return 'tts'
   if (lid.includes('sherpa') || lid.includes('whisper') || lid.includes('zipformer') || lid.includes('asr')) return 'stt'
   if (lid.includes('image') || lid.includes('zimage') || lid.includes('flux') || lid.includes('turbo') || lid.includes('sd') || lid.includes('dalle')) return 'image'
   return 'llm'

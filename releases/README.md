@@ -4,6 +4,10 @@
 
 | 版本 | 日期 | 安装包 | 核心变更 |
 |------|------|------|------|
+| v2.6.9 | 08-09 | [gaea-v2.6.9.exe](gaea-v2.6.9.exe) | 办公搜索修复（Bing/DDG 兜底+代理）+ 聊天联网搜索接通 + gaea 人格重设计 + 首页语音固定 gaea；移除 VoxCPM2 |
+| v2.6.8 | 08-09 | [gaea-v2.6.8.exe](gaea-v2.6.8.exe) | 模型中心一键启动本地 TTS 服务（gaea 启动保活 + 启动按钮 + 测试连接/合成兜底自动拉起） |
+| v2.6.7 | 08-09 | [gaea-v2.6.7.exe](gaea-v2.6.7.exe) | VoxCPM2 Vulkan GGUF 加速（克隆 RTF 0.65–0.84 / 语音设计 0.60），4 音色替换为火山引擎样本，CosyVoice 同步 |
+| v2.6.6 | 08-09 | （并入 v2.6.7） | VoxCPM2 本地引擎接入（ROCm），4 音色替换 |
 | v2.6.5 | 08-09 | [gaea-v2.6.5.exe](gaea-v2.6.5.exe) | CosyVoice2 LLM 切 GGUF+Vulkan 核显，整管线提速 8–10 倍（短句 ~1.5s / 长句 ~2.8s），默认 f16 |
 | v2.6.4 | 08-09 | [gaea-v2.6.4.exe](gaea-v2.6.4.exe) | CosyVoice2 提速 35%（ONNX+DirectML）+ 模型中心聊天语音音色选择 |
 | v2.6.3 | 08-08 | [gaea-v2.6.3.exe](gaea-v2.6.3.exe) | CosyVoice2-0.5B 本地音色克隆接入：7 内置音色 + 参考音频克隆 |

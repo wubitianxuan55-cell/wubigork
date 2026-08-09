@@ -40,7 +40,7 @@ type ModelKind = 'llm' | 'tts' | 'stt' | 'image'
 
 function classifyModel(id: string): ModelKind {
   const lid = id.toLowerCase()
-  if (lid.includes('tts') || lid.includes('voice') || lid.includes('vox') || lid.includes('edge')) return 'tts'
+  if (lid.includes('tts') || lid.includes('voice') || lid.includes('edge')) return 'tts'
   if (lid.includes('sherpa') || lid.includes('whisper') || lid.includes('zipformer') || lid.includes('asr')) return 'stt'
   if (lid.includes('image') || lid.includes('zimage') || lid.includes('flux') || lid.includes('turbo') || lid.includes('sd') || lid.includes('dalle') || lid.includes('krea')) return 'image'
   return 'llm'
@@ -87,11 +87,23 @@ const XAI_VOICES = [
 ]
 
 // CosyVoice2 内置音色兜底（服务端 /v1/audio/info 查询失败时）
-const COSYVOICE_FALLBACK_VOICES = ['中文女', '中文男', '英文女', '英文男', '日语男', '粤语女', '韩语女']
+const COSYVOICE_FALLBACK_VOICES = ['中文女', '中文男', '英文女', '英文男']
+
 
 // ── 费用展示工具（与后端 usdToCny=7.2 保持一致） ────────────────
 const USD_TO_CNY = 7.2
 const isLocalEngine = (id: string) => id === 'ollama' || id === 'herdsman' || id === 'cosyvoice'
+
+// 本地 TTS 引擎的服务端音色兜底：CosyVoice2 4 个内置音色（中文女/男、英文女/男）
+const localTTSFallbackVoices = (model: string): string[] => {
+  const l = model.toLowerCase()
+  if (l.includes('cosyvoice')) return COSYVOICE_FALLBACK_VOICES
+  return []
+}
+const localTTSDefaultVoice = (model: string): string | undefined => {
+  const l = model.toLowerCase()
+  return l.includes('cosyvoice') ? '中文女' : undefined
+}
 const costToCNY = (cost: number, currency?: string) => (currency === 'USD' ? cost * USD_TO_CNY : cost)
 const fmtCost = (cost?: number, currency?: string): string => {
   const c = cost ?? 0
@@ -631,7 +643,7 @@ const ModelCenterPage: React.FC = () => {
     if (engine === 'xai') return XAI_VOICES
     const list = chatVoiceSpeakers.length > 0
       ? chatVoiceSpeakers
-      : model.toLowerCase().includes('cosyvoice') ? COSYVOICE_FALLBACK_VOICES : []
+      : localTTSFallbackVoices(model)
     return list.map(v => ({ value: v, label: v }))
   }, [chatVoiceDraft, chatVoiceSpeakers])
 
@@ -642,13 +654,23 @@ const ModelCenterPage: React.FC = () => {
     if (engine === 'xai') return XAI_VOICES.some(v => v.value === cur) ? cur : 'eve'
     const list = chatVoiceSpeakers.length > 0
       ? chatVoiceSpeakers
-      : model.toLowerCase().includes('cosyvoice') ? COSYVOICE_FALLBACK_VOICES : []
+      : localTTSFallbackVoices(model)
     if (list.includes(cur)) return cur
-    return model.toLowerCase().includes('cosyvoice') ? '中文女' : undefined
+    return localTTSDefaultVoice(model)
   }, [chatVoiceDraft, chatVoiceSpeakers, voiceCfg.tts.voice])
 
   const handleStartModel = async (card: ModelCardData) => {
-    if (classifyModel(card.modelId) !== 'llm') return
+    const kind = classifyModel(card.modelId)
+    if (kind === 'tts') {
+      // 本地 TTS 模型：启动对应本地服务（CosyVoice2 8010，幂等）
+      try {
+        const res = await App.StartLocalTTSService(card.engineId)
+        if (res?.ready) message.success(`本地 TTS 服务已就绪：${card.engineName}`)
+        else message.success(`正在启动本地 TTS 服务：${card.engineName}（首次约 1–2 分钟）`)
+      } catch (err: any) { message.error(`启动失败：${err.message || err}`) }
+      return
+    }
+    if (kind !== 'llm') return
     try {
       if (activeEngine !== card.engineId) { await setActiveEngine(card.engineId); setActiveEngineState(card.engineId) }
       await setEngineDefaultModel(card.engineId, card.modelId)

@@ -64,9 +64,9 @@ func (webFetch) CompactSchema() json.RawMessage { return compactSchema["web_fetc
 // Loopback is allowed: the agent can already reach localhost via bash, so a local
 // dev server stays fetchable. The check runs at dial time on the resolved IP, so a
 // public host that redirects or DNS-rebinds to an internal address is caught too.
-func ssrfGuardedClient(proxyURLFor func(*http.Request) (string, error)) *http.Client {
+func ssrfGuardedClient(timeout time.Duration, proxyURLFor func(*http.Request) (string, error)) *http.Client {
 	return &http.Client{
-		Timeout:   webFetchTimeout,
+		Timeout:   timeout,
 		Transport: webFetchRoundTripper{proxyURLFor: proxyURLFor},
 	}
 }
@@ -326,7 +326,7 @@ func (wf webFetch) Execute(ctx context.Context, args json.RawMessage) (string, e
 			case <-time.After(backoff):
 			}
 		}
-		result, err := doFetch(ctx, p.URL, ssrfGuardedClient(wf.proxyURLFor))
+		result, err := doFetch(ctx, p.URL, ssrfGuardedClient(webFetchTimeout, wf.proxyURLFor))
 		if err == nil {
 			return result, nil
 		}

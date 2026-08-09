@@ -79,7 +79,7 @@ export function ChatOutline(arg1:string):Promise<Record<string, any>>;
 
 export function ChatOutlineNode(arg1:string,arg2:string):Promise<Record<string, any>>;
 
-export function ChatSend(arg1:string,arg2:string,arg3:string):Promise<Record<string, any>>;
+export function ChatSend(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<Record<string, any>>;
 
 export function ChatTopicClear(arg1:string):Promise<void>;
 
@@ -690,6 +690,8 @@ export function SetOpencodeZenKey(arg1:string):Promise<void>;
 export function SetPortraitConfig(arg1:string,arg2:string):Promise<void>;
 
 export function StartComfyUI():Promise<void>;
+
+export function StartLocalTTSService(arg1:string):Promise<Record<string, any>>;
 
 export function StartTTSServer(arg1:string,arg2:number,arg3:string):Promise<void>;
 

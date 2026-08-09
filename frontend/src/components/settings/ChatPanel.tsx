@@ -61,7 +61,8 @@ const XAI_VOICES = [
 ]
 
 // CosyVoice2 内置音色（本地服务端 /v1/audio/info 返回，查询失败时兜底）
-const COSYVOICE_VOICES = ['中文女', '中文男', '英文女', '英文男', '日语男', '粤语女', '韩语女']
+const COSYVOICE_VOICES = ['中文女', '中文男', '英文女', '英文男']
+
 
 const VOICE_LABELS: Record<string, string> = {
   serena: 'Serena (女)',
@@ -188,7 +189,7 @@ const ChatPanel: React.FC = () => {
       <SettingsSection
         icon={<span style={{ fontSize: 15 }}>🎭</span>}
         title="默认人格"
-        desc="聊天默认使用的人格（默认 gaea 大地女神）。自定义人格与剧照在「角色库」管理。"
+        desc="聊天默认使用的人格（默认 gaea）。自定义人格与剧照在「角色库」管理。"
         instant
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>

@@ -11,7 +11,7 @@ import (
 
 // ── TTS 语音朗读 ──────────────────────────────────────────────────────────────
 
-// GetTTSConfig 获取 TTS 配置（VoxCPM 已移除，返回空配置）
+// GetTTSConfig 获取旧版子进程 TTS 配置（已废弃：TTS 改为模型中心引擎模式，返回空配置）
 func (a *mediaState) GetTTSConfig() map[string]interface{} {
 	return map[string]interface{}{
 		"modelPath":  "",
@@ -22,12 +22,12 @@ func (a *mediaState) GetTTSConfig() map[string]interface{} {
 	}
 }
 
-// SaveTTSConfig 保存 TTS 配置（VoxCPM 已移除，无操作）
+// SaveTTSConfig 保存旧版子进程 TTS 配置（已废弃：TTS 改为模型中心引擎模式，无操作）
 func (a *mediaState) SaveTTSConfig(modelPath string, serverPath string, port int, backend string, speed float64) error {
 	return nil
 }
 
-// GetTTSStatus 获取 TTS 状态（VoxCPM 已移除，始终返回未运行）
+// GetTTSStatus 获取旧版子进程 TTS 状态（已废弃：TTS 改为模型中心引擎模式，始终返回未运行）
 func (a *mediaState) GetTTSStatus() map[string]interface{} {
 	return map[string]interface{}{
 		"running": false,
@@ -35,19 +35,19 @@ func (a *mediaState) GetTTSStatus() map[string]interface{} {
 	}
 }
 
-// StartTTSServer 启动 TTS 服务（VoxCPM 已移除，无操作）
+// StartTTSServer 启动旧版子进程 TTS 服务（已废弃：TTS 改为模型中心引擎模式，无操作）
 func (a *mediaState) StartTTSServer(modelPath string, port int, backend string) error {
 	return nil
 }
 
-// StopTTSServer 停止 TTS 服务（VoxCPM 已移除，无操作）
+// StopTTSServer 停止旧版子进程 TTS 服务（已废弃：TTS 改为模型中心引擎模式，无操作）
 func (a *mediaState) StopTTSServer() error {
 	return nil
 }
 
-// TTSSpeak 合成语音并返回文件路径（VoxCPM 已移除，返回错误）
+// TTSSpeak 合成语音并返回文件路径（旧版接口已废弃，返回错误）
 func (a *mediaState) TTSSpeak(text string) (string, error) {
-	return "", fmt.Errorf("VoxCPM 已移除，请使用朗读按钮（Base64 模式）")
+	return "", fmt.Errorf("请使用朗读按钮（Base64/流式模式）")
 }
 
 // TTSSpeakBase64 合成语音并返回 Base64 音频

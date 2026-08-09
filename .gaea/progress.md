@@ -1,6 +1,46 @@
 # 任务进度
 
-> 最后更新: 2026-08-08 09:05:00
+> 最后更新: 2026-08-09 14:40:00
+
+## 2.30 发布 v2.6.9：搜索修复 + 聊天联网 + gaea 人格重设计 + 首页语音固定（✅ 已完成，2026-08-09，v2.6.9）
+- 办公 web_search 修复：修复「所有搜索引擎失败」→ 新增 Bing/DuckDuckGo Lite 无 key 兜底（Bing 国内直连约 0.5s），
+  搜索请求接入应用代理（auto/env/custom，与 web_fetch 一致），修复 doSearchRequest 提前 cancel、429 盲目重试，UA 换浏览器标识
+- 聊天联网搜索接通：ChatSend 新增 searchEnabled，普通+角色对话命中搜索意图自动注入实时结果；
+  前端「联网搜索」开关真正生效（普通模式也显示）；whisper WebSearch 升级（Bing 优先约 0.3s、带标题/链接、HTML 实体清理、跟随系统代理）
+- gaea 人格与提示词重设计：统一 gaea（盖亚）身份，清除 Ackem/Hermes 旧名与「大地女神」神话设定；
+  办公默认提示词加人格段；聊天主提示词/身份宪法/产品守卫重写（删除「永远不要说你是 AI」等矛盾句）；
+  清空 config.toml 土壤修复旧覆盖（备份 config.toml.bak-20260809）；20+ 处用户可见旧名 → gaea
+- 首页语音固定 gaea：ModuleLauncher 不再读后端持久化语音人格；删除聊天切人格自动同步语音的副作用
+- 发布：wails build 成功，releases/gaea-v2.6.9.exe + SHA256SUMS-v2.6.9.txt + v2.6.9.md + CHANGELOG/README 同步
+
+## 2.29 移除 VoxCPM2（✅ 已完成，2026-08-09，v2.6.9）
+- 实测不达标：耗时长（单句 2–3s+）、音色男女混乱、克隆不稳定 → 按用户要求删除
+- gaea 代码全面移除 voxcpm（engine.go、app.go、TTS/voice handler、herdsman 默认音色、
+  tts_service 仅留 CosyVoice、前端 6 文件、测试断言 8→7）
+- 删除本地 C:\AI\voxcpm（10.15GB）与 C:\AI\llama-omni（4.07GB），释放约 14GB；
+  停止 8020/8021/8030；CosyVoice2（8010）保留
+- 发布 gaea-v2.6.9.exe；AGENTS.md/docs 将 VoxCPM 标记为废弃教训，防止重复安装
+
+## 2.28 模型中心一键启动本地 TTS 服务（✅ 已完成，2026-08-09，v2.6.8）
+- 新增 internal/app/tts_service.go：core.ensureLocalTTSService（幂等，异步拉起+轮询就绪，
+  emit tts-service-status）+ mediaState.StartLocalTTSService（Wails 绑定）
+- 触发点：gaea 启动保活；模型中心 TTS 模型「启动」按钮；引擎「测试连接」（等 ≤8s）；
+  TTS 合成前兜底（tryEngineTTS）
+- 拉起：CosyVoice 直接 python server.py（8010）；VoxCPM 执行 start_voxcpm_stack.ps1（8030/8021/8020），隐藏窗口
+- 验证：go build/test 全绿、tsc + vite build 通过、wails build 成功并发布 v2.6.8
+
+## 2.27 VoxCPM2 Vulkan GGUF 加速 + 4 音色替换（✅ 已完成，2026-08-09，v2.6.6+v2.6.7）
+- VoxCPM2 三层架构落地：8030 llama-tts-server（llama.cpp-omni + Vulkan，Q8_0+F16 GGUF）主后端，
+  8021 ROCm PyTorch 备胎，8020 adapter.py 统一入口（gaea 零改动）
+- 关键修复：SSLServer 空证书导致 bind 失败（改普通 httplib::Server）；
+  AudioVAE 参考特征 frame-major 布局对齐 Python（克隆从近静音恢复）
+- 性能：短句克隆 RTF 0.65–0.84（6 步 / CFG 1.5），语音设计 0.57–0.60；
+  对比 ROCm 5 步 RTF ≈1.06–1.12，整体快 1.5–1.8×
+- 音色：CosyVoice / VoxCPM2 统一替换为火山引擎 4 音色（中文女/男、英文女/男），
+  参考音频 ≤7s / 16kHz，适配器自动音量归一
+- 验证：go build/test 全绿、tsc + vite build 通过、四音色端到端实测通过；
+  wails build 成功并发布 releases/gaea-v2.6.7.exe + SHA256SUMS-v2.6.7.txt + v2.6.7.md
+- 记忆：优化方法已写入 .gaea/AGENTS.md「本地 TTS 引擎」章节与 docs/2026-08-09-voxcpm2-integration.md
 
 ## 2.26 全界面科幻视觉重设计 + 绘梦多模态 + 角色库绑定（✅ 已完成，2026-08-08，v2.5.0）
 

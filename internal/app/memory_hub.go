@@ -122,7 +122,7 @@ func (a *App) GaeaProfileConflicts() []string {
 }
 
 // GaeaWhisperMemories 返回轻语（hermes.db）记忆事实只读列表。
-// 轻语记忆由 Hermes 自己管理，记忆中枢只读浏览，不提供写入。
+// 轻语记忆由 gaea 自己管理，记忆中枢只读浏览，不提供写入。
 func (a *App) GaeaWhisperMemories() []WhisperMemoryView {
 	facts := whisperdb.LoadFactsFromDB(a.whisperDataRoot)
 	out := make([]WhisperMemoryView, 0, len(facts))

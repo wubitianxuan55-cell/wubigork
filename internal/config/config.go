@@ -42,7 +42,7 @@ const (
 	KeyActiveTTSEngine     = "active_tts_engine" // 语音合成激活引擎
 	KeyActiveTTSModel      = "active_tts_model"  // 语音合成激活模型
 	KeyTTSVoice            = "tts_voice"         // 语音合成音色（Herdsman / Edge）
-	KeyVoicePersonality    = "voice_personality" // 语音对话角色（与聊天板块保持一致）
+	KeyVoicePersonality    = "voice_personality" // 语音对话角色（首页语音固定 gaea；聊天板块内语音跟随所选人格）
 	KeyFuncChatVoiceEngine = "func_chat_voice_engine" // 聊天语音合成引擎（功能绑定，空=全局 TTS）
 	KeyFuncChatVoiceModel  = "func_chat_voice_model"  // 聊天语音合成模型
 	// 功能级模型绑定（聊天/轻语/小说/办公 各自独立 LLM，持久化重启不丢）
@@ -160,8 +160,8 @@ type Config struct {
 	ResourceDir string
 
 	// TTS 语音朗读配置
-	TTSServerPath string  // voxcpm-server 可执行文件路径（保留兼容）
-	TTSBinaryPath string  // voxcpm_tts CLI 可执行文件路径
+	TTSServerPath string  // 旧版 TTS server 可执行文件路径（保留兼容）
+	TTSBinaryPath string  // 旧版 TTS CLI 可执行文件路径
 	TTSModelPath  string  // GGUF 模型文件路径
 	TTSPort       int     // TTS 服务端口（默认 8765）
 	TTSBackend    string  // 推理后端: cpu / cuda / vulkan（默认 cuda）
@@ -340,9 +340,9 @@ func Load() *Config {
 		FuncCharLibEnabled: true,
 
 		// TTS 默认值
-		TTSBinaryPath: filepath.Join(home, "voxcpm-tts", "voxcpm_tts.exe"),
+		TTSBinaryPath: filepath.Join(home, "legacy-tts", "legacy_tts.exe"),
 		TTSServerPath: "", // 默认不设置，优先用 TTSBinaryPath
-		TTSModelPath:  filepath.Join(home, "voxcpm-tts", "models", "voxcpm1.5-q8_0-audiovae-f16.gguf"),
+		TTSModelPath:  filepath.Join(home, "legacy-tts", "models", "legacy-tts-model.gguf"),
 		TTSPort:       8765,
 		TTSBackend:    "cpu",
 		TTSSpeed:      1.0,

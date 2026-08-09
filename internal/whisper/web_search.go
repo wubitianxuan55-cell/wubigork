@@ -1,95 +1,53 @@
 // Package whisper — web_search.go
-// 多引擎 Web 搜索：DuckDuckGo Lite → Bing → 本地降级
-// 补齐 agent_loop_runner.go + agent_tool_batch.go 的占位实现
+// 聊天/轻语联网搜索：Bing（国内可用）优先 → DuckDuckGo Lite 兜底。
+// 返回带标题、链接、摘要的结果文本，供 LLM 参考回答。
 
 package whisper
 
 import (
 	"fmt"
-	"github.com/gaea/gaea/internal/netclient"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/netclient"
 )
 
-// httpClient 共享 HTTP 客户端（复用连接）
-var httpClient = netclient.NewSimpleClient(12 * time.Second)
+// httpClient 共享 HTTP 客户端：自动模式跟随系统/环境代理，
+// 这样开启 VPN 梯子（系统代理或 TUN）时聊天搜索同样能出网。
+var httpClient = func() *http.Client {
+	c, err := netclient.NewHTTPClient(netclient.ProxySpec{Mode: netclient.ModeAuto}, netclient.TransportOptions{})
+	if err != nil {
+		return netclient.NewSimpleClient(12 * time.Second)
+	}
+	c.Timeout = 12 * time.Second
+	return c
+}()
 
-// userAgent 浏览器 UA（避免被反爬）
+// userAgent 浏览器 UA（避免被反爬拦截）
 const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
 // maxResults 单次搜索最多返回条数
 const maxResults = 5
 
-// ─── 主入口：多引擎 fallback ──────────────────────────────────
-
-// WebSearch 执行 Web 搜索，DDG 优先，失败降级到 Bing
+// WebSearch 执行 Web 搜索：Bing 优先（国内直连可用），失败降级到 DuckDuckGo Lite。
 func WebSearch(query string) (string, error) {
-	// 引擎 1：DuckDuckGo Lite（国际通用，隐私友好）
-	result, err := searchDDG(query)
-	if err == nil && result != "" && !strings.Contains(result, "暂无结果") {
+	if result, err := searchBing(query); err == nil && result != "" && !strings.Contains(result, "暂无结果") {
 		return result, nil
 	}
-
-	// 引擎 2：Bing（国内可用性更好）
-	result, err = searchBing(query)
-	if err == nil && result != "" && !strings.Contains(result, "暂无结果") {
+	if result, err := searchDDG(query); err == nil && result != "" && !strings.Contains(result, "暂无结果") {
 		return result, nil
 	}
-
-	// 降级：返回占位
 	return fmt.Sprintf("搜索「%s」暂无结果", query), nil
 }
 
-// ─── 引擎 1：DuckDuckGo Lite ──────────────────────────────────
-
-func searchDDG(query string) (string, error) {
-	u := "https://lite.duckduckgo.com/lite/?" + url.Values{"q": {query}}.Encode()
-	body, err := fetchURL(u)
-	if err != nil {
-		return "", err
-	}
-
-	snippets := extractDDGSnippets(body)
-	if len(snippets) == 0 {
-		return fmt.Sprintf("搜索「%s」暂无结果", query), nil
-	}
-
-	var b strings.Builder
-	b.WriteString(fmt.Sprintf("搜索「%s」结果：\n", query))
-	for i, s := range snippets {
-		if i >= maxResults {
-			break
-		}
-		b.WriteString(fmt.Sprintf("%d. %s\n", i+1, s))
-	}
-	return b.String(), nil
-}
-
-func extractDDGSnippets(html string) []string {
-	re := regexp.MustCompile(`class="result-snippet">(.*?)</td>`)
-	matches := re.FindAllStringSubmatch(html, -1)
-
-	var snippets []string
-	for _, m := range matches {
-		if len(m) >= 2 {
-			text := cleanHTML(m[1])
-			text = strings.TrimSpace(text)
-			if text != "" && len(text) > 5 {
-				snippets = append(snippets, text)
-			}
-		}
-	}
-	return snippets
-}
-
-// ─── 引擎 2：Bing ─────────────────────────────────────────────
+// ─── 引擎 1：Bing ───
 
 func searchBing(query string) (string, error) {
-	// 使用 cn.bing.com（国内用户首选）
 	u := "https://cn.bing.com/search?" + url.Values{"q": {query}, "count": {"10"}}.Encode()
 	body, err := fetchURL(u)
 	if err != nil {
@@ -100,63 +58,108 @@ func searchBing(query string) (string, error) {
 			return "", err
 		}
 	}
-
-	snippets := extractBingSnippets(body)
-	if len(snippets) == 0 {
+	results := extractBingResults(body)
+	if len(results) == 0 {
 		return fmt.Sprintf("搜索「%s」暂无结果", query), nil
 	}
+	return formatResults(query, results), nil
+}
 
-	var b strings.Builder
-	b.WriteString(fmt.Sprintf("搜索「%s」结果：\n", query))
-	for i, s := range snippets {
-		if i >= maxResults {
+var (
+	bingBlockRe = regexp.MustCompile(`<li class="b_algo[^"]*"[^>]*>([\s\S]*?)</li>`)
+	bingTitleRe = regexp.MustCompile(`<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a>`)
+	bingSnipRe  = regexp.MustCompile(`class="b_caption"[^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)</p>`)
+)
+
+type webResult struct {
+	Title   string
+	URL     string
+	Snippet string
+}
+
+func extractBingResults(body string) []webResult {
+	var results []webResult
+	for _, m := range bingBlockRe.FindAllStringSubmatch(body, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		block := m[1]
+		title, href := "", ""
+		if tm := bingTitleRe.FindStringSubmatch(block); len(tm) >= 3 {
+			href = strings.TrimSpace(tm[1])
+			title = cleanHTML(tm[2])
+		}
+		if title == "" || href == "" || strings.HasPrefix(href, "javascript:") {
+			continue
+		}
+		snippet := ""
+		if sm := bingSnipRe.FindStringSubmatch(block); len(sm) >= 2 {
+			snippet = cleanHTML(sm[1])
+		}
+		results = append(results, webResult{Title: title, URL: href, Snippet: snippet})
+		if len(results) >= maxResults {
 			break
 		}
-		b.WriteString(fmt.Sprintf("%d. %s\n", i+1, s))
 	}
-	return b.String(), nil
+	return results
 }
 
-func extractBingSnippets(html string) []string {
-	// 策略 1：匹配 b_algo 结果块中的摘要段落
-	// Bing 结果格式多样，使用多个正则 fallback
-	var snippets []string
+// ─── 引擎 2：DuckDuckGo Lite ───
 
-	// 模式 1：b_caption 内的 <p> 文本
-	re1 := regexp.MustCompile(`class="b_caption"[^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)</p>`)
-	matches1 := re1.FindAllStringSubmatch(html, -1)
-	for _, m := range matches1 {
-		if len(m) >= 2 {
-			text := cleanHTML(m[1])
-			text = strings.TrimSpace(text)
-			if text != "" && len(text) > 10 {
-				snippets = append(snippets, text)
-			}
-		}
+func searchDDG(query string) (string, error) {
+	u := "https://lite.duckduckgo.com/lite/?" + url.Values{"q": {query}}.Encode()
+	body, err := fetchURL(u)
+	if err != nil {
+		return "", err
 	}
-	if len(snippets) > 0 {
-		return snippets
+	results := extractDDGResults(body)
+	if len(results) == 0 {
+		return fmt.Sprintf("搜索「%s」暂无结果", query), nil
 	}
-
-	// 模式 2：b_algo 块内的任意可见文本
-	re2 := regexp.MustCompile(`<li class="b_algo"[^>]*>[\s\S]*?</li>`)
-	blocks := re2.FindAllString(html, -1)
-	for _, block := range blocks {
-		text := cleanHTML(block)
-		text = strings.TrimSpace(text)
-		// 提取标题后的摘要文本（去掉标题本身）
-		if idx := strings.Index(text, "·"); idx > 0 && idx < len(text)-1 {
-			text = strings.TrimSpace(text[idx+1:])
-		}
-		if text != "" && len(text) > 10 {
-			snippets = append(snippets, text)
-		}
-	}
-
-	return snippets
+	return formatResults(query, results), nil
 }
 
-// ─── HTTP 抓取 ────────────────────────────────────────────────
+var (
+	ddgLinkRe = regexp.MustCompile(`<a[^>]*class="result-link"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)</a>`)
+	ddgSnipRe = regexp.MustCompile(`class="result-snippet">(.*?)</td>`)
+)
+
+func extractDDGResults(body string) []webResult {
+	var links []webResult
+	for _, m := range ddgLinkRe.FindAllStringSubmatch(body, -1) {
+		if len(m) < 3 {
+			continue
+		}
+		href := strings.TrimSpace(m[1])
+		title := cleanHTML(m[2])
+		if href == "" || title == "" {
+			continue
+		}
+		links = append(links, webResult{Title: title, URL: href})
+	}
+	snippets := ddgSnipRe.FindAllStringSubmatch(body, -1)
+	for i := range links {
+		if i < len(snippets) && len(snippets[i]) >= 2 {
+			links[i].Snippet = cleanHTML(snippets[i][1])
+		}
+	}
+	if len(links) > maxResults {
+		links = links[:maxResults]
+	}
+	return links
+}
+
+// formatResults 输出为带标题/链接/摘要的编号列表，便于 LLM 引用。
+func formatResults(query string, results []webResult) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("搜索「%s」结果：\n", query))
+	for i, r := range results {
+		b.WriteString(fmt.Sprintf("%d. %s\n   %s\n   %s\n", i+1, r.Title, r.URL, r.Snippet))
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// ─── HTTP 抓取 ───
 
 func fetchURL(rawURL string) (string, error) {
 	req, err := http.NewRequest("GET", rawURL, nil)
@@ -180,16 +183,11 @@ func fetchURL(rawURL string) (string, error) {
 	return string(body), nil
 }
 
-// ─── HTML 清洗 ─────────────────────────────────────────────────
+// ─── HTML 清洗 ───
 
 func cleanHTML(s string) string {
 	s = regexp.MustCompile(`<[^>]+>`).ReplaceAllString(s, "")
-	s = strings.ReplaceAll(s, "&amp;", "&")
-	s = strings.ReplaceAll(s, "&lt;", "<")
-	s = strings.ReplaceAll(s, "&gt;", ">")
-	s = strings.ReplaceAll(s, "&quot;", "\"")
-	s = strings.ReplaceAll(s, "&nbsp;", " ")
-	s = strings.ReplaceAll(s, "&#39;", "'")
+	s = html.UnescapeString(s)
 	// 压缩多余空白
 	s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
 	return strings.TrimSpace(s)

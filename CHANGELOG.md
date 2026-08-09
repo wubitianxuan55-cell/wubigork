@@ -1,5 +1,52 @@
 # gaea · 多功能 AI 助手
 
+## v2.6.9「搜索修复 · 人格重设计 · 移除 VoxCPM2」（2026-08-09）
+
+> 通用办公搜索修复（新增 Bing/DDG 兜底 + 代理接入，不再报「所有搜索引擎失败」）；
+> 聊天板块联网搜索接通（ChatSend searchEnabled + 开关生效）；gaea 人格与提示词整体重设计
+> （统一 gaea 身份，清除 Ackem/Hermes/大地女神旧文案，清空 config.toml 土壤修复旧覆盖）；
+> 首页语音固定 gaea；按用户要求移除实测不达标的 VoxCPM2，本地 TTS 保留 CosyVoice2。
+- web_search：Bing/DuckDuckGo Lite 无 key 兜底、代理复用 web_fetch 链路、修复 cancel bug 与 429 重试、UA 换浏览器标识
+- 聊天搜索：ChatSend(searchEnabled) 普通+角色对话自动联网注入结果；前端开关生效（普通模式也显示）；whisper WebSearch Bing 优先约 0.3s 带标题/链接
+- 人格：personality/canon/product_identity/main_chat 提示词重写，gaea 预设去 goddess 标签；20+ 处 Hermes/Ackem → gaea；AboutPanel/首页语音标签同步
+- 首页语音：固定 gaea，删除聊天人格自动同步语音的副作用
+- 移除 VoxCPM2：引擎/前端 6 文件删除，本地 C:\AI\voxcpm、C:\AI\llama-omni 清理，释放约 14GB
+- 验证：go build/test 全绿、tsc+vite build 通过、wails build 成功（releases/gaea-v2.6.9.exe + SHA256SUMS）
+
+## v2.6.8「模型中心一键启动本地 TTS 服务」（2026-08-09）
+
+> 本地 TTS 不再需要手动运行启动脚本：gaea 启动时自动保活 CosyVoice2 / VoxCPM2；
+> 模型中心点击模型的「启动」按钮也会即时拉起对应服务；「测试连接」与语音合成前兜底同样自动拉起。
+- 新增 internal/app/tts_service.go：core.ensureLocalTTSService（幂等）+ mediaState.StartLocalTTSService（Wails 绑定）
+- 探测：CosyVoice2 http://127.0.0.1:8010/v1/models；VoxCPM2 http://127.0.0.1:8020/v1/status
+- 拉起（隐藏窗口 CREATE_NO_WINDOW，不阻塞 UI）；异步轮询就绪（cosyvoice ≤10s / voxcpm ≤180s），就绪/失败通过 tts-service-status 事件通知前端
+- 验证：go build/test 全绿、tsc + vite build 通过、wails build 成功（releases/gaea-v2.6.8.exe + SHA256SUMS）
+
+## v2.6.7「VoxCPM2 Vulkan GGUF 加速 · 4 音色替换」（2026-08-09）
+
+> 实测 VoxCPM2 三层架构落地：8030 llama-tts-server（llama.cpp-omni + Vulkan，Q8_0+F16 GGUF）为主后端；
+> 8021 ROCm PyTorch 备胎；8020 adapter.py 统一入口（gaea 零改动）。
+- 关键修复：SSLServer 空证书导致 bind 失败（改普通 httplib::Server）；AudioVAE 参考特征 frame-major 布局对齐 Python（克隆从近静音恢复）
+- 性能：短句克隆 RTF 0.65–0.84（6 步/CFG 1.5），语音设计 0.57–0.60；对比 ROCm 5 步 RTF ≈0.06–0.12，整体快 1.5–8 倍
+- 音色：CosyVoice / VoxCPM2 统一替换为火山引擎 4 音色（中文女/男、英文女/男）；参考音频 ≤3s/16kHz，适配器自动音量归一
+- 验证：go build/test 全绿、tsc + vite build 通过、四音色端到端实测通过；wails build 成功（releases/gaea-v2.6.7.exe + SHA256SUMS）
+## v2.6.6「VoxCPM2 本地语音引擎接入」（2026-08-09）
+
+> 模型中心新增「VoxCPM2 (本地)」引擎：本地 OpenAI 兼容 TTS 服务（127.0.0.1:8020），
+> 2B 扩散式多语种 TTS、48kHz 高保真输出，内置 7 音色 + 参考音频零样本克隆 + 声音设计；
+> ROCm 驱动 Radeon 8060S 核显 + TunableOp 调优，实测 RTF ≈ 2.0。
+- 引擎接入：modelengine 新增 `voxcpm` 类型与内置引擎，启动自动补齐 `VoxCPM2` 模型；
+  「语音模型」页与「功能绑定 → 聊天语音」均可选择
+- 服务端（`C:\AI\voxcpm\server.py`）：OpenAI 兼容 `/v1/audio/speech`、
+  `/v1/audio/info`、`/v1/models`、`/v1/voices`（参考音频注册克隆音色，持久化）；
+  Python 3.12 venv + torch 2.9.1+rocm7.2.1（AMD ROCm Windows）+ voxcpm 2.0.3
+- 性能：ROCm 核显推理 + TunableOp GEMM 调优缓存（4~5 倍）；CFG 1.5 避免长文本跑飞重试；
+  实测 7.7s 中文约 16s（RTF ≈ 2.0），短句 RTF ≈ 1.35；启动预热后首个请求即达稳态
+- 音质：48kHz 输出；内置 7 个与 CosyVoice2 同源参考音色（中文女/男、英文女/男、日语男、粤语女、韩语女）；
+  支持声音设计（自然语言描述音色）与参考音频克隆
+- 验证：go build/test 全绿、tsc 通过；服务端直连合成 / 克隆 / 音色列表实测通过
+  （详细记录：`docs/2026-08-09-voxcpm2-integration.md`）
+
 ## v2.6.5「CosyVoice2 LLM 核显加速」(2026-08-09)
 
 > CosyVoice2 LLM 环节从 PyTorch CPU 切换到 llama.cpp GGUF + Vulkan（Radeon 8060S 核显），

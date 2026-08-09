@@ -122,36 +122,17 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     onReply: (t) => setAiReply(t),
   })
 
-  // 当前语音角色（与聊天板块一致：读后端持久化的语音角色，含普通对话）
-  const [voicePersonaId, setVoicePersonaId] = useState('gaea')
-  const [voicePersonaLabel, setVoicePersonaLabel] = useState('gaea · 大地女神')
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const [settings, ps] = await Promise.all([
-          (App as any).VoiceGetSettings?.(),
-          (App as any).WhisperGetPersonalities?.(),
-        ])
-        const id = settings?.personalityPresetId || 'gaea'
-        setVoicePersonaId(id)
-        if (id === 'plain') {
-          setVoicePersonaLabel('普通对话')
-        } else {
-          const found = (ps || []).find((p: any) => p.id === id)
-          setVoicePersonaLabel(found ? `${id} · ${found.label}` : (id === 'gaea' ? 'gaea · 大地女神' : `${id} · 角色`))
-        }
-      } catch (_) { /* 忽略 */ }
-    })()
-  }, [])
+  // 首页语音固定使用核心人格 gaea（与聊天板块解耦，不跟随聊天所选人格）
+  const voicePersonaLabel = 'gaea'
 
   const toggleVoice = useCallback(async () => {
     if (voice.active) { stop(); return }
-    // 角色与聊天板块保持一致：plain → 普通对话，其余 → 对应人格
-    try { await (App as any).VoiceApplySettings?.({ personalityPresetId: voicePersonaId }) } catch (_) {}
+    // 首页语音始终使用 gaea
+    try { await (App as any).VoiceApplySettings?.({ personalityPresetId: 'gaea' }) } catch (_) {}
     setUserText('')
     setAiReply('')
     await start()
-  }, [voice.active, voicePersonaId, start, stop])
+  }, [voice.active, start, stop])
 
   const voiceStateLabel = voice.aiSpeaking
     ? 'AI 回复中…'

@@ -55,7 +55,7 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 		PersonalityID: ast.PersonalityID,
 	}
 	srv := weixin.New(cfg, func(userMsg, fromUser string) (string, error) {
-		// 注入助手自定义名字（如"峨嵋"），系统提示词用该名字而非默认"Hermes"
+		// 注入助手自定义名字（如"峨嵋"），系统提示词用该名字而非默认"gaea"
 		if orch := w.getOrCreateOrch(ast.PersonalityID); orch != nil && ast.Name != "" {
 			orch.AssistantName = ast.Name
 		}

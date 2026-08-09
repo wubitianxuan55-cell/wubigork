@@ -103,7 +103,7 @@ export function WhisperMemoryLibrary() {
       {/* 工具条 */}
       <div className="shrink-0 flex items-center gap-2 px-4 pt-3 pb-2">
         <div className="text-fg text-[13px] font-medium">聊天记忆</div>
-        <span className="text-fg-faint text-[11px]">Hermes 的人格记忆（hermes.db，只读）</span>
+        <span className="text-fg-faint text-[11px]">gaea 的人格记忆（hermes.db，只读）</span>
         <div className="ml-auto flex items-center gap-2">
           {/* Tab 切换：事实 / 情节 */}
           <div className="flex rounded-lg border border-border bg-bg p-0.5">
@@ -158,7 +158,7 @@ export function WhisperMemoryLibrary() {
         ) : tab === "episodes" ? (
           /* ── 情节时间线（时间倒序，情绪角标 + 强度条 + 关键词） ── */
           filteredEpisodes.length === 0 ? (
-            <EmptyState message="暂无情节记忆 — 与 Hermes 深入对话（≥3 轮/情绪峰值）后会自动沉淀记忆片段" />
+            <EmptyState message="暂无情节记忆 — 与 gaea 深入对话（≥3 轮/情绪峰值）后会自动沉淀记忆片段" />
           ) : (
             <div className="relative space-y-2.5 py-1">
               {/* 时间线竖线 */}

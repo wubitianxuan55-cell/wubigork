@@ -39,7 +39,7 @@ const LIBRARIES: LibraryDef[] = [
   { key: "cost", label: "成本库", icon: <Coins size={17} />, hint: "单价/单位/来源" },
   { key: "profile", label: "用户画像", icon: <Brain size={17} />, hint: "跨板块共享画像" },
   { key: "office", label: "办公记忆", icon: <FileText size={17} />, hint: "跨会话办公事实" },
-  { key: "whisper", label: "聊天记忆", icon: <HeartOutlined style={{ fontSize: 16 }} />, hint: "Hermes 人格记忆 · 只读" },
+  { key: "whisper", label: "聊天记忆", icon: <HeartOutlined style={{ fontSize: 16 }} />, hint: "轻语人格记忆 · 只读" },
   { key: "graph", label: "记忆图谱", icon: <NodeIndexOutlined style={{ fontSize: 16 }} />, hint: "3D 关系图谱" },
 ];
 

@@ -189,10 +189,6 @@ const ChatPage: React.FC = () => {
   const modeRef = useRef(mode)
   modeRef.current = mode
 
-  // 语音角色跟随聊天模式：plain → 普通对话，其余 → 对应人格（后端持久化，首页语音保持一致）
-  useEffect(() => {
-    try { (App as any).VoiceApplySettings?.({ personalityPresetId: modeRef.current }) } catch (_) {}
-  }, [mode])
   const activeIdRef = useRef(activeId)
   activeIdRef.current = activeId
 
@@ -382,7 +378,7 @@ const ChatPage: React.FC = () => {
     const active = activeIdRef.current
     const curMode = modeRef.current
     try {
-      const res: any = await App.ChatSend(active, trimmed, curMode)
+      const res: any = await App.ChatSend(active, trimmed, curMode, searchEnabled)
       const reply = typeof res?.reply === 'string' ? res.reply : ''
       const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
       if (!reduced && reply.length > 40) {
@@ -528,10 +524,16 @@ const ChatPage: React.FC = () => {
               )}
             </Space>
           ) : (
-            <Tooltip title="清空当前对话">
-              <Button type="text" size="small" icon={<ClearOutlined />} onClick={handleClearMessages}
-                style={{ color: C('color-text-secondary'), height: 24, opacity: hasMessages ? 1 : 0.35 }} />
-            </Tooltip>
+            <Space size={2}>
+              <Tooltip title={searchEnabled ? '联网搜索已开启（自动检测搜索意图）' : '联网搜索已关闭'}>
+                <Button type="text" size="small" icon={<GlobalOutlined style={{ color: searchEnabled ? '#52c41a' : C('color-text-secondary') }} />}
+                  onClick={() => setSearchEnabled(!searchEnabled)} style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
+              </Tooltip>
+              <Tooltip title="清空当前对话">
+                <Button type="text" size="small" icon={<ClearOutlined />} onClick={handleClearMessages}
+                  style={{ color: C('color-text-secondary'), height: 24, opacity: hasMessages ? 1 : 0.35 }} />
+              </Tooltip>
+            </Space>
           )}
         </div>
 

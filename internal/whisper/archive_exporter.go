@@ -31,7 +31,7 @@ var archiveDomainOrder = []string{
 }
 
 // archiveFileHeader 归档文件头部
-const archiveFileHeader = "> Hermes 记忆归档 · 自动生成，勿手工编辑"
+const archiveFileHeader = "> gaea 记忆归档 · 自动生成，勿手工编辑"
 
 // ─── BuildArchive ─────────────────────────────────────────────
 
@@ -191,7 +191,7 @@ func buildSubcategoryMarkdown(domain, subcategory string, facts []*Fact) string 
 // buildReadmeMarkdown 生成归档总览
 func buildReadmeMarkdown(active []*Fact, eps *EpisodicStore, coreCount int) string {
 	var sb strings.Builder
-	sb.WriteString("# Hermes 记忆归档\n\n")
+	sb.WriteString("# gaea 记忆归档\n\n")
 	sb.WriteString(archiveFileHeader + "\n\n")
 	sb.WriteString(fmt.Sprintf("> 生成时间: %s\n\n", time.Now().Format("2006-01-02 15:04:05")))
 
