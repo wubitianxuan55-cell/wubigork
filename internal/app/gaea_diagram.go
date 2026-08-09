@@ -123,6 +123,39 @@ func (t diagramTool) Execute(ctx context.Context, args json.RawMessage) (string,
 	return fmt.Sprintf("已生成%s并保存：[%s](%s)\n\n```mermaid\n%s\n```\n提示：该图表在对话中会自动导出 PNG 图片到工作区（图表下方会显示图片文件链接）。", label, filepath.Base(rel), rel, code), nil
 }
 
+// GenerateDiagram 绘梦「流程图/框架图」模式：LLM 直接生成 Mermaid 代码，
+// 由前端渲染为 PNG 图片。走代码渲染而非 Z-Image-Turbo 生图，中文标签天然清晰。
+func (a *mediaState) GenerateDiagram(prompt string) (map[string]interface{}, error) {
+	if a.core == nil || a.client == nil {
+		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
+	}
+	userPrompt := strings.TrimSpace(prompt)
+	if userPrompt == "" {
+		return map[string]interface{}{"error": "请输入图表描述"}, nil
+	}
+
+	systemPrompt := "你是专业图表设计师，擅长把用户描述转化为规范、清晰、可直接渲染的 Mermaid 代码。" +
+		"根据内容自动选择图表类型：flowchart 流程图、graph 架构图、sequenceDiagram 时序图、" +
+		"gantt 甘特图、mindmap 思维导图、pie 饼图、flowchart TD 组织架构图等。" +
+		"节点 ID 一律使用简短英文（如 A、B、service1、layer2），节点文字用 ID[\"中文标签\"] 形式，" +
+		"文字保持简短、准确；架构图/框架图优先使用 flowchart TD 或 LR，节点用圆角矩形，层次清晰。" +
+		"确保 Mermaid 语法正确，不生成 Mermaid 不支持的内容。"
+	userMsg := fmt.Sprintf("请根据以下描述生成 Mermaid 图表代码：\n%s\n\n只输出 Mermaid 代码：以 ```mermaid 开头、``` 结尾，不要输出任何解释文字。", userPrompt)
+
+	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, "", systemPrompt, userMsg, ai.ChatSimpleOptions{Temperature: 0.4})
+	if err != nil {
+		return map[string]interface{}{"error": fmt.Sprintf("生成图表代码失败: %v", err)}, nil
+	}
+	code := extractDiagramMermaid(reply)
+	if code == "" {
+		return map[string]interface{}{"error": "AI 未能生成有效的 Mermaid 代码，请调整描述后重试"}, nil
+	}
+	if !validMermaidStart(code) {
+		return map[string]interface{}{"error": fmt.Sprintf("生成的代码不是有效 Mermaid（%s）", truncateStr(code, 120))}, nil
+	}
+	return map[string]interface{}{"code": code}, nil
+}
+
 // extractDiagramMermaid 从模型回复中提取 Mermaid 代码（兼容围栏与裸代码）。
 func extractDiagramMermaid(raw string) string {
 	raw = strings.TrimSpace(raw)

@@ -1,0 +1,308 @@
+package app
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/gaea/gaea/internal/office/xlsxedit"
+	"github.com/gaea/gaea/internal/office/xlsxpreview"
+	"github.com/gaea/gaea/internal/util"
+	"github.com/xuri/excelize/v2"
+)
+
+// XlsxEditResult 是单元格编辑结果：更新后的预览 + 应用摘要。
+type XlsxEditResult struct {
+	Preview string `json:"preview"` // xlsxpreview JSON（前端重渲染）
+	Summary string `json:"summary"`
+	Applied int    `json:"applied"`
+}
+
+// GaeaXlsxEdit 单元格级操作闭环：上下文 → AI 规划操作 → excelize 执行 →
+// LibreOffice 重算公式 → 返回更新预览。
+func (a *App) GaeaXlsxEdit(rel, sheet, instruction, selection string) (XlsxEditResult, error) {
+	if rel == "" {
+		return XlsxEditResult{}, fmt.Errorf("缺少文件路径")
+	}
+	path := rel
+	if !filepath.IsAbs(rel) {
+		path = filepath.Join(gaeaCwd(), rel)
+	}
+	if _, err := os.Stat(path); err != nil {
+		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
+	}
+	if sheet == "" {
+		sheet = firstSheetName(path)
+	}
+	if instruction == "" {
+		return XlsxEditResult{}, fmt.Errorf("编辑指令为空")
+	}
+	if a.client == nil {
+		return XlsxEditResult{}, fmt.Errorf("AI 客户端未初始化")
+	}
+
+	ctxJSON, err := xlsxedit.BuildContext(path, sheet)
+	if err != nil {
+		return XlsxEditResult{}, err
+	}
+
+	featEng, featModel, _ := a.routeModel("office")
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	reply, err := a.client.XlsxEditOps(ctx, featEng, featModel, ctxJSON, selection, instruction)
+	if err != nil {
+		return XlsxEditResult{}, err
+	}
+	var ops []xlsxedit.Op
+	if err := json.Unmarshal([]byte(util.ExtractJSON(reply)), &ops); err != nil || len(ops) == 0 {
+		return XlsxEditResult{}, fmt.Errorf("AI 未返回有效操作，请换个说法重试")
+	}
+
+	summary, err := xlsxedit.ApplyOps(path, ops)
+	if err != nil {
+		return XlsxEditResult{}, err
+	}
+
+	// 公式重算（best-effort：LibreOffice 不可用时编辑仍然生效）
+	recalcNote := ""
+	if rep, rerr := xlsxedit.Recalc(path, gaeaCwd()); rerr == nil {
+		if rep.TotalErrors > 0 {
+			recalcNote = fmt.Sprintf("；重算发现 %d 处公式错误（%s）", rep.TotalErrors, rep.Status)
+		}
+	} else if strings.Contains(rerr.Error(), "未找到 recalc.py") {
+		recalcNote = "；公式重算跳过（未找到 recalc.py）"
+	}
+
+	preview, err := xlsxpreview.Render(path)
+	if err != nil {
+		return XlsxEditResult{}, err
+	}
+	return XlsxEditResult{
+		Preview: preview,
+		Summary: strings.Join(summary, "；") + recalcNote,
+		Applied: len(ops),
+	}, nil
+}
+
+func firstSheetName(path string) string {
+	f, err := excelize.OpenFile(path, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	if list := f.GetSheetList(); len(list) > 0 {
+		return list[0]
+	}
+	return ""
+}
+
+// GaeaXlsxSetCell 直接写单元格（Excel 式双击编辑）：写入值或公式 →
+// LibreOffice 重算 → 返回更新预览。
+func (a *App) GaeaXlsxSetCell(rel, sheet, ref, value string) (XlsxEditResult, error) {
+	if rel == "" || ref == "" {
+		return XlsxEditResult{}, fmt.Errorf("缺少文件路径或单元格")
+	}
+	path := rel
+	if !filepath.IsAbs(rel) {
+		path = filepath.Join(gaeaCwd(), rel)
+	}
+	if _, err := os.Stat(path); err != nil {
+		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
+	}
+	if _, _, err := excelize.CellNameToCoordinates(ref); err != nil {
+		return XlsxEditResult{}, fmt.Errorf("无效单元格引用：%s", ref)
+	}
+	if sheet == "" {
+		sheet = firstSheetName(path)
+	}
+
+	f, err := excelize.OpenFile(path, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
+	if err != nil {
+		return XlsxEditResult{}, fmt.Errorf("打开文件失败：%w", err)
+	}
+	defer f.Close()
+
+	trimmed := strings.TrimSpace(value)
+	if strings.HasPrefix(trimmed, "=") {
+		if err := f.SetCellFormula(sheet, ref, strings.TrimPrefix(trimmed, "=")); err != nil {
+			return XlsxEditResult{}, fmt.Errorf("写入公式失败：%w", err)
+		}
+	} else if trimmed == "" {
+		if err := f.SetCellValue(sheet, ref, ""); err != nil {
+			return XlsxEditResult{}, fmt.Errorf("清空单元格失败：%w", err)
+		}
+	} else if n, perr := strconv.ParseFloat(trimmed, 64); perr == nil {
+		// 纯数字按数值写入，保持可计算
+		if err := f.SetCellValue(sheet, ref, n); err != nil {
+			return XlsxEditResult{}, fmt.Errorf("写入单元格失败：%w", err)
+		}
+	} else {
+		if err := f.SetCellValue(sheet, ref, value); err != nil {
+			return XlsxEditResult{}, fmt.Errorf("写入单元格失败：%w", err)
+		}
+	}
+	if err := f.Save(); err != nil {
+		return XlsxEditResult{}, fmt.Errorf("保存文件失败：%w", err)
+	}
+
+	return a.renderXlsxAfterChange(path, fmt.Sprintf("已更新 %s!%s", sheet, ref), 1)
+}
+
+// GaeaXlsxRecalc 手动重算全部公式（LibreOffice）并返回更新预览。
+// 预览自动重算兜底之外，用户也可以主动点“重算”刷新结果。
+func (a *App) GaeaXlsxRecalc(rel string) (XlsxEditResult, error) {
+	if rel == "" {
+		return XlsxEditResult{}, fmt.Errorf("缺少文件路径")
+	}
+	path := rel
+	if !filepath.IsAbs(rel) {
+		path = filepath.Join(gaeaCwd(), rel)
+	}
+	if _, err := os.Stat(path); err != nil {
+		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
+	}
+
+	rep, rerr := xlsxedit.Recalc(path, gaeaCwd())
+	if rerr != nil {
+		return XlsxEditResult{}, fmt.Errorf("公式重算失败：%w", rerr)
+	}
+	return a.renderXlsxAfterChange(path, fmt.Sprintf("已重算 %d 个公式", rep.TotalFormulas), rep.TotalFormulas)
+}
+
+// GaeaXlsxRowOps 行级操作（基于选中单元格所在行）：
+//   insert_before 在选中行上方插入空行；insert_after 在下方插入；delete 删除该行。
+// 同表公式/合并区域由 excelize 平移，随后 LibreOffice 重算刷新结果。
+func (a *App) GaeaXlsxRowOps(rel, sheet, action, ref string) (XlsxEditResult, error) {
+	if rel == "" || ref == "" {
+		return XlsxEditResult{}, fmt.Errorf("缺少文件路径或单元格")
+	}
+	_, row, err := excelize.CellNameToCoordinates(ref)
+	if err != nil {
+		return XlsxEditResult{}, fmt.Errorf("无效单元格引用：%s", ref)
+	}
+	path := rel
+	if !filepath.IsAbs(rel) {
+		path = filepath.Join(gaeaCwd(), rel)
+	}
+	if _, err := os.Stat(path); err != nil {
+		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
+	}
+	if sheet == "" {
+		sheet = firstSheetName(path)
+	}
+
+	f, err := excelize.OpenFile(path, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
+	if err != nil {
+		return XlsxEditResult{}, fmt.Errorf("打开文件失败：%w", err)
+	}
+	defer f.Close()
+
+	var summary string
+	switch action {
+	case "insert_before":
+		if err := f.InsertRows(sheet, row, 1); err != nil {
+			return XlsxEditResult{}, fmt.Errorf("插入行失败：%w", err)
+		}
+		summary = fmt.Sprintf("已在第 %d 行上方插入空行", row)
+	case "insert_after":
+		if err := f.InsertRows(sheet, row+1, 1); err != nil {
+			return XlsxEditResult{}, fmt.Errorf("插入行失败：%w", err)
+		}
+		summary = fmt.Sprintf("已在第 %d 行下方插入空行", row)
+	case "delete":
+		if err := f.RemoveRow(sheet, row); err != nil {
+			return XlsxEditResult{}, fmt.Errorf("删除行失败：%w", err)
+		}
+		summary = fmt.Sprintf("已删除第 %d 行", row)
+	default:
+		return XlsxEditResult{}, fmt.Errorf("不支持的操作：%s", action)
+	}
+	if err := f.Save(); err != nil {
+		return XlsxEditResult{}, fmt.Errorf("保存文件失败：%w", err)
+	}
+	return a.renderXlsxAfterChange(path, summary, 1)
+}
+
+// GaeaXlsxColOps 列级操作（基于选中单元格所在列）：
+//   insert_before 在选中列左侧插入空列；insert_after 在右侧插入；delete 删除该列。
+func (a *App) GaeaXlsxColOps(rel, sheet, action, ref string) (XlsxEditResult, error) {
+	if rel == "" || ref == "" {
+		return XlsxEditResult{}, fmt.Errorf("缺少文件路径或单元格")
+	}
+	colName, _, err := excelize.SplitCellName(ref)
+	if err != nil || colName == "" {
+		return XlsxEditResult{}, fmt.Errorf("无效单元格引用：%s", ref)
+	}
+	colNum, err := excelize.ColumnNameToNumber(colName)
+	if err != nil {
+		return XlsxEditResult{}, fmt.Errorf("无效单元格引用：%s", ref)
+	}
+	path := rel
+	if !filepath.IsAbs(rel) {
+		path = filepath.Join(gaeaCwd(), rel)
+	}
+	if _, err := os.Stat(path); err != nil {
+		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
+	}
+	if sheet == "" {
+		sheet = firstSheetName(path)
+	}
+
+	f, err := excelize.OpenFile(path, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
+	if err != nil {
+		return XlsxEditResult{}, fmt.Errorf("打开文件失败：%w", err)
+	}
+	defer f.Close()
+
+	var summary string
+	switch action {
+	case "insert_before":
+		if err := f.InsertCols(sheet, colName, 1); err != nil {
+			return XlsxEditResult{}, fmt.Errorf("插入列失败：%w", err)
+		}
+		summary = fmt.Sprintf("已在 %s 列左侧插入空列", colName)
+	case "insert_after":
+		next, err := excelize.ColumnNumberToName(colNum + 1)
+		if err != nil {
+			return XlsxEditResult{}, fmt.Errorf("无效列号：%w", err)
+		}
+		if err := f.InsertCols(sheet, next, 1); err != nil {
+			return XlsxEditResult{}, fmt.Errorf("插入列失败：%w", err)
+		}
+		summary = fmt.Sprintf("已在 %s 列右侧插入空列", colName)
+	case "delete":
+		if err := f.RemoveCol(sheet, colName); err != nil {
+			return XlsxEditResult{}, fmt.Errorf("删除列失败：%w", err)
+		}
+		summary = fmt.Sprintf("已删除 %s 列", colName)
+	default:
+		return XlsxEditResult{}, fmt.Errorf("不支持的操作：%s", action)
+	}
+	if err := f.Save(); err != nil {
+		return XlsxEditResult{}, fmt.Errorf("保存文件失败：%w", err)
+	}
+	return a.renderXlsxAfterChange(path, summary, 1)
+}
+
+// renderXlsxAfterChange 通用收尾：LibreOffice 重算（best-effort）→ 渲染预览。
+func (a *App) renderXlsxAfterChange(path, summary string, applied int) (XlsxEditResult, error) {
+	recalcNote := ""
+	if rep, rerr := xlsxedit.Recalc(path, gaeaCwd()); rerr == nil {
+		if rep.TotalErrors > 0 {
+			recalcNote = fmt.Sprintf("；重算发现 %d 处公式错误（%s）", rep.TotalErrors, rep.Status)
+		}
+	} else if strings.Contains(rerr.Error(), "未找到 recalc.py") {
+		recalcNote = "；公式重算跳过（未找到 recalc.py）"
+	}
+	preview, err := xlsxpreview.Render(path)
+	if err != nil {
+		return XlsxEditResult{}, err
+	}
+	return XlsxEditResult{Preview: preview, Summary: summary + recalcNote, Applied: applied}, nil
+}

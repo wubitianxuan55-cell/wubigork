@@ -181,16 +181,102 @@ export interface FilePreview {
   err?: string;
 }
 
-// 文件预览负载：kind 决定渲染方式（image/markdown/text/unsupported/error）。
+// 文件预览负载：kind 决定渲染方式（image/docx/xlsx/markdown/text/unsupported/error）。
+// docx 时 dataUrl 为原始文件（前端 docx-preview 保真渲染）。
+// xlsx 时 body 为结构化单元格 JSON（值/公式/样式，前端表格渲染）。
 export interface PreviewResult {
   path: string;
   name: string;
   ext: string;
   size: number;
-  kind: "image" | "markdown" | "text" | "unsupported" | "error";
+  kind: "image" | "docx" | "xlsx" | "markdown" | "text" | "unsupported" | "error";
   body: string;
   dataUrl: string;
   error: string;
+}
+
+// OfficeEditResult 是框选即改的 AI 编辑结果（替换文本）。
+export interface OfficeEditResult {
+  edited: string;
+}
+
+// ── xlsx 单元格级预览 ──────────────────────────────────────
+export interface XlsxCellStyle {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  fontColor?: string;
+  fill?: string;
+  align?: "left" | "center" | "right";
+  wrap?: boolean;
+  numFmt?: string;
+  border?: boolean;
+}
+
+export interface XlsxCell {
+  ref: string; // "A1"
+  value: string;
+  formula?: string;
+  type?: string; // number|string|bool|date|formula|error
+  style?: XlsxCellStyle;
+}
+
+export interface XlsxSheet {
+  name: string;
+  rows: XlsxCell[][];
+  merged?: string[]; // "A1:B2"
+  colWidths?: Record<string, number>;
+  freeze?: { row?: number; col?: number }; // 冻结窗格（表头）
+  truncated?: boolean;
+}
+
+export interface XlsxPreview {
+  sheets: XlsxSheet[];
+}
+
+// XlsxEditResult 是单元格编辑结果：更新后的预览 + 摘要。
+export interface XlsxEditResult {
+  preview: string;
+  summary: string;
+  applied: number;
+}
+
+// ── 统一交付出口（事实底座 → 多形态交付） ──────────────────
+export interface ExportDeliverableInput {
+  markdown: string;
+  format: "docx" | "pptx" | "xlsx" | "md";
+  title?: string;
+  template?: "通用" | "公文" | "报告" | "合同";
+  cover?: boolean;
+  toc?: boolean;
+  header?: string;
+  footer?: string;
+}
+
+export interface ExportDeliverableResult {
+  path: string;
+  name: string;
+  format: string;
+  size: number;
+}
+
+// ── 跨应用联动（xlsx 数据 → 图表 → 嵌入 docx/pptx） ────────
+export interface CrossEmbedInput {
+  xlsxRel: string;
+  sheet?: string;
+  range?: string; // "A1:B6"，空 = 自动
+  chartType?: "bar" | "line" | "pie" | "scatter";
+  title?: string;
+  into: "docx" | "pptx";
+  output?: string;
+}
+
+export interface CrossEmbedResult {
+  path: string;
+  name: string;
+  size: number;
+  chartPath: string;
 }
 
 // MCP & Skills drawer (desktop/app.go Capabilities) — the GUI counterpart to
@@ -333,6 +419,41 @@ export interface JobView {
   label: string;
   status: string; // "running"
   startedAt: number; // unix milliseconds
+}
+
+// FactView: one settled fact in the conversation fact base (sidebar panel).
+export interface FactView {
+  key: string;
+  value: string;
+  source?: string;
+  category?: string;
+  updatedAt: number;
+}
+
+// FactBaseView: the fact-base panel view: facts + copy-ready Markdown.
+export interface FactBaseView {
+  facts: FactView[];
+  markdown: string;
+  count: number;
+  path: string;
+}
+
+// SkillCaptureInput 是一次成功对话沉淀为技能的输入（桌面端 GaeaCaptureSkill）。
+export interface SkillCaptureInput {
+  name: string;
+  description: string;
+  task: string;
+  solution: string;
+}
+
+// SkillCaptureResult 是沉淀结果；reloaded=true 表示技能已热加载进引擎。
+export interface SkillCaptureResult {
+  name: string;
+  description: string;
+  path: string;
+  reloaded: boolean;
+  tools: number;
+  skills: number;
 }
 
 export interface PermissionsView {

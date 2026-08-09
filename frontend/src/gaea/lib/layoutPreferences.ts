@@ -3,6 +3,7 @@ export type LayoutSizeKey =
   | "workspacePanelWidth"
   | "workspaceFileTreePanelWidth"
   | "workspaceTreeWidth"
+  | "workspacePreviewWidth"
   | "composerHeight"
   | "drawerWidth"
   | "settingsDrawerWidth";
@@ -18,6 +19,7 @@ const LEGACY_SIZE_KEYS: Record<LayoutSizeKey, string[]> = {
   workspacePanelWidth: ["gaea.workspacePanel.width"],
   workspaceFileTreePanelWidth: [],
   workspaceTreeWidth: ["gaea.workspaceTree.width"],
+  workspacePreviewWidth: [],
   composerHeight: ["gaea.composerHeight"],
   drawerWidth: ["gaea.drawer.width"],
   settingsDrawerWidth: ["gaea.settingsDrawer.width"],
@@ -89,4 +91,21 @@ export function clearLayoutSize(key: LayoutSizeKey): void {
   const sizes = { ...(prefs.sizes ?? {}) };
   delete sizes[key];
   writePrefs({ ...prefs, sizes });
+}
+
+// 主区域预览面板宽度（Codex 式：点文件后在聊天区右侧展开，可拖拽调整）
+export const PREVIEW_MIN_WIDTH = 320;
+export const PREVIEW_MAX_WIDTH = 1100;
+export const PREVIEW_DEFAULT_WIDTH = 620;
+
+export function clampPreviewWidth(width: number): number {
+  return Math.min(PREVIEW_MAX_WIDTH, Math.max(PREVIEW_MIN_WIDTH, Math.round(width)));
+}
+
+export function loadPreviewWidth(): number {
+  return loadLayoutSize("workspacePreviewWidth", PREVIEW_DEFAULT_WIDTH, clampPreviewWidth);
+}
+
+export function savePreviewWidth(width: number): void {
+  saveLayoutSize("workspacePreviewWidth", width, clampPreviewWidth);
 }

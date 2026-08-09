@@ -6,6 +6,13 @@ import (
 )
 
 // CheckItem 单条检查结果
+// CheckLocation 原文定位：問題出現在哪一章、原文摘錄與起始偏移。
+type CheckLocation struct {
+	SectionID string `json:"sectionId,omitempty"`
+	Excerpt   string `json:"excerpt,omitempty"`
+	Offset    int    `json:"offset,omitempty"`
+}
+
 type CheckItem struct {
 	Rule      string `json:"rule"`
 	Severity  string `json:"severity"` // critical | warning | info
@@ -13,6 +20,10 @@ type CheckItem struct {
 	SectionID string `json:"sectionId,omitempty"`
 	Message   string `json:"message"`
 	Evidence  string `json:"evidence,omitempty"`
+	// Suggestion 是整改建議：指出該怎麼改，直接可照做。
+	Suggestion string `json:"suggestion,omitempty"`
+	// Locations 是原文定位：命中的章節 + 上下文摘錄，前端可一鍵跳轉。
+	Locations []CheckLocation `json:"locations,omitempty"`
 }
 
 // CheckRule 校验规则接口

@@ -23,6 +23,7 @@ import {
   getComfyUILoras,
   generateImage, startComfyUI, stopComfyUI,
   generateMedia, type MediaParams,
+  generateDiagram,
   openImageSaveDir, openNovelImagesDir,
   setCharacterPortrait as setPortrait,
   type SystemStats,
@@ -31,6 +32,7 @@ import { getEngines, testEngineConnection, setActiveEngine, setEngineDefaultMode
 import { setImageBackend as setImageBackendAPI } from '../api/settings'
 import type { GenResult } from '../components/imagegen/types'
 import { filterLorasByModel, loraFamily, loraFamiliesForModel } from '../utils/loraFilter'
+import { renderMermaidToPng } from '../utils/mermaidPng'
 import '../components/imagegen/imagegen.css'
 
 // ── 常量 ──
@@ -116,6 +118,7 @@ const ImageGenPage: React.FC = () => {
   const comfyModels = useMemo(() => [
     { label: 'Krea2 Turbo', value: 'krea2' },
     { label: 'Z-Image-Turbo', value: 'z-image-turbo' },
+    { label: '流程图 / 框架图（代码渲染）', value: 'diagram' },
   ], [])
 
   // LoRA 选项：动态读取 ComfyUI 实际 models/loras 列表，并按当前模型族过滤，
@@ -261,6 +264,42 @@ const ImageGenPage: React.FC = () => {
     setLightboxIndex(-1)
     const genStart = Date.now()
     try {
+      if (model === 'diagram') {
+        const res = await generateDiagram(prompt)
+        if (res?.error) {
+          setGenError(res.error)
+          message.error(res.error)
+          return
+        }
+        if (!res.code) {
+          setGenError('AI 未返回有效的图表代码，请调整描述后重试')
+          message.error('AI 未返回有效的图表代码，请调整描述后重试')
+          return
+        }
+        const png = await renderMermaidToPng(res.code)
+        if (!png) {
+          setGenError('图表渲染失败，请调整描述后重试')
+          message.error('图表渲染失败，请调整描述后重试')
+          return
+        }
+        const diagramResult: GenResult = {
+          image: png.dataUrl,
+          seed: 0,
+          time: Math.round((Date.now() - genStart) / 1000),
+          prompt,
+          negative,
+          model: '流程图 / 框架图',
+          size: `${png.width}x${png.height}`,
+        }
+        setResults([diagramResult])
+        setHistory((prev) => [diagramResult, ...prev.filter((h) =>
+          !(h.prompt === diagramResult.prompt && h.model === diagramResult.model),
+        )])
+        setLightboxIndex(0)
+        setLastTime(Math.round((Date.now() - genStart) / 1000))
+        message.success('✔ 图表已生成')
+        return
+      }
       const finalSize = size === 'custom' ? `${customWidth}x${customHeight}` : size
       const loraStr = selectedLoras.join(',')
       const mediaParams: MediaParams = {

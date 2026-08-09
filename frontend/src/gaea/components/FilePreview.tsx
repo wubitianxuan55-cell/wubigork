@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { AlertCircle, ExternalLink, File, FileText, FolderTree, Loader2, X } from "../icons";
 import { app } from "../lib/bridge";
 import type { PreviewResult } from "../lib/types";
+import { DocxPreview } from "./DocxPreview";
 import { Markdown } from "./Markdown";
+import { XlsxPreview } from "./XlsxPreview";
 
 function formatSize(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -10,7 +12,15 @@ function formatSize(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function FilePreview({ relPath, onClose }: { relPath: string | null; onClose: () => void }) {
+export function FilePreview({
+  relPath,
+  onClose,
+  onBackToFiles,
+}: {
+  relPath: string | null;
+  onClose: () => void;
+  onBackToFiles?: () => void;
+}) {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -42,6 +52,16 @@ export function FilePreview({ relPath, onClose }: { relPath: string | null; onCl
     <div className="flex flex-col h-full text-[12px]">
       {/* 文件标题栏 */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border-soft shrink-0">
+        {onBackToFiles && (
+          <button
+            className="flex items-center gap-1 px-2 py-0.5 border border-border-soft rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft"
+            onClick={onBackToFiles}
+            title="返回文件列表"
+          >
+            <FolderTree size={10} />
+            文件
+          </button>
+        )}
         <FileText size={13} className="text-accent shrink-0" />
         <span className="font-mono text-fg truncate flex-1 text-[12px]">{fileName}</span>
         {preview && preview.size > 0 && (
@@ -65,6 +85,7 @@ export function FilePreview({ relPath, onClose }: { relPath: string | null; onCl
         <button
           className="flex items-center justify-center w-5 h-5 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg rounded"
           onClick={onClose}
+          title="关闭预览"
         >
           <X size={13} />
         </button>
@@ -82,6 +103,12 @@ export function FilePreview({ relPath, onClose }: { relPath: string | null; onCl
           <div className="flex items-center justify-center p-4 min-h-full">
             <img src={preview.dataUrl} alt={fileName} className="max-w-full max-h-[62vh] object-contain rounded-lg shadow-sm" />
           </div>
+        )}
+        {!loading && preview?.kind === "docx" && preview.dataUrl && (
+          <DocxPreview dataUrl={preview.dataUrl} fileName={fileName} relPath={relPath} />
+        )}
+        {!loading && preview?.kind === "xlsx" && (
+          <XlsxPreview body={preview.body} fileName={fileName} relPath={relPath} />
         )}
         {!loading && preview?.kind === "markdown" && (
           <div className="px-4 py-3">

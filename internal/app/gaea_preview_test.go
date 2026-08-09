@@ -1,10 +1,16 @@
 package app
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/base64"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xuri/excelize/v2"
 )
 
 // TestGaeaPreview_Mermaid 验证 .mmd 图表文件可按 markdown 预览（渲染成图）。
@@ -36,5 +42,116 @@ func TestGaeaPreview_Missing(t *testing.T) {
 	got := a.GaeaPreview("nope.mmd")
 	if got.Kind != "error" {
 		t.Fatalf("kind = %q, want error", got.Kind)
+	}
+}
+
+// TestGaeaPreview_Docx 验证 .docx 返回原始字节 dataUrl（前端 docx-preview 保真渲染）。
+func TestGaeaPreview_Docx(t *testing.T) {
+	t.Chdir(t.TempDir())
+	rel := filepath.Join(".gaea", "uploads", "preview-test.docx")
+	if err := os.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rel, minimalDocx(t), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	a := &App{}
+	got := a.GaeaPreview(filepath.ToSlash(rel))
+	if got.Kind != "docx" {
+		t.Fatalf("kind = %q, want docx", got.Kind)
+	}
+	wantPrefix := "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,"
+	if !strings.HasPrefix(got.DataURL, wantPrefix) {
+		t.Errorf("dataUrl = %.60s..., want prefix %q", got.DataURL, wantPrefix)
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(got.DataURL, wantPrefix))
+	if err != nil {
+		t.Fatalf("dataUrl base64 解码失败: %v", err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatalf("dataUrl 不是合法 zip/docx: %v", err)
+	}
+	var documentXML []byte
+	for _, f := range zr.File {
+		if f.Name == "word/document.xml" {
+			rc, err := f.Open()
+			if err != nil {
+				t.Fatal(err)
+			}
+			documentXML, _ = io.ReadAll(rc)
+			rc.Close()
+		}
+	}
+	if !bytes.Contains(documentXML, []byte("preview-test")) {
+		t.Errorf("docx 内容缺失 preview-test 标记")
+	}
+}
+
+// minimalDocx 构造一个最小合法 docx（zip 包），内容包含 preview-test 标记。
+func minimalDocx(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	files := map[string]string{
+		"[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`,
+		"_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`,
+		"word/document.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>preview-test 保真预览</w:t></w:r></w:p>
+  </w:body>
+</w:document>`,
+	}
+	for name, body := range files {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// TestGaeaPreview_Xlsx 验证 .xlsx 返回结构化单元格 JSON（kind=xlsx）。
+func TestGaeaPreview_Xlsx(t *testing.T) {
+	t.Chdir(t.TempDir())
+	rel := filepath.Join(".gaea", "uploads", "preview-test.xlsx")
+	if err := os.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := excelize.NewFile()
+	f.SetSheetName("Sheet1", "预算")
+	f.SetCellValue("预算", "A1", "项目")
+	f.SetCellValue("预算", "B1", "金额")
+	f.SetCellValue("预算", "A2", "设备")
+	f.SetCellValue("预算", "B2", 120.5)
+	f.SetCellFormula("预算", "B3", "SUM(B2)")
+	if err := f.SaveAs(rel); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	a := &App{}
+	got := a.GaeaPreview(filepath.ToSlash(rel))
+	if got.Kind != "xlsx" {
+		t.Fatalf("kind = %q, want xlsx", got.Kind)
+	}
+	if !strings.Contains(got.Body, `"name":"预算"`) || !strings.Contains(got.Body, `"formula":"SUM(B2)"`) {
+		t.Errorf("body 缺少工作表/公式信息: %.200s", got.Body)
 	}
 }

@@ -21,6 +21,20 @@ import tempfile
 from pathlib import Path
 
 
+def find_soffice() -> str:
+    """Locate the LibreOffice executable: common install paths, then PATH."""
+    if os.name == "nt":
+        candidates = [
+            os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "LibreOffice", "program", "soffice.exe"),
+            os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"), "LibreOffice", "program", "soffice.exe"),
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "LibreOffice", "program", "soffice.exe"),
+        ]
+        for c in candidates:
+            if c and os.path.isfile(c):
+                return c
+    return "soffice"  # fall back to PATH (macOS/Linux or PATH-configured Windows)
+
+
 def get_soffice_env() -> dict:
     env = os.environ.copy()
     env["SAL_USE_VCLPLUGIN"] = "svp"
@@ -34,7 +48,7 @@ def get_soffice_env() -> dict:
 
 def run_soffice(args: list[str], **kwargs) -> subprocess.CompletedProcess:
     env = get_soffice_env()
-    return subprocess.run(["soffice"] + args, env=env, **kwargs)
+    return subprocess.run([find_soffice()] + args, env=env, **kwargs)
 
 
 

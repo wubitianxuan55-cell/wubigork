@@ -231,22 +231,38 @@ pdftk input.pdf rotate 1east output rotated.pdf
 ## Common Tasks
 
 ### Extract Text from Scanned PDFs
+
+ **首选本地 OCR（离线、零外部依赖，发挥 gaea 本地模型优势）**：
+
+```bash
+# 扫描件 PDF / 图片 → 本地 OCR
+# 自动链路：OvisOCR2 文档解析（推荐，Markdown/表格/公式）→ RapidOCR → Windows 原生 OCR → 本地视觉模型
+python scripts/ocr_local.py 扫描件.pdf --mode auto --out 识别结果.txt
+
+# 强制只用 OvisOCR2（0.8B 端到端文档解析，GGUF + Vulkan，已装于 C:\AI\gaea-ocr）
+python scripts/ocr_local.py 扫描件.pdf --mode ovis --out 识别结果.txt
+
+# 强制只用 RapidOCR（PP-OCR 转 ONNX，需 venv：C:\AI\gaea-ocr-env\Scripts\python.exe）
+C:\AI\gaea-ocr-env\Scripts\python.exe scripts/ocr_local.py 扫描件.pdf --mode rapid --out 识别结果.txt
+
+# 强制只用本地视觉模型（版式/表格理解更强，需要 herdsman 视觉服务在 127.0.0.1:8080 运行）
+python scripts/ocr_local.py 扫描件.pdf --mode local --out 识别结果.txt
+```
+
+链路：PyMuPDF 渲染 PDF 页（默认 300 DPI）→ **OvisOCR2**（llama.cpp Vulkan，
+`C:\AI\gaea-ocr`，路径可用 `GAEA_OCR_DIR` / `GAEA_OCR_LLAMA` / `GAEA_OCR_MODEL` / `GAEA_OCR_MMPROJ`
+覆盖）→ RapidOCR（PP-OCR，onnxruntime）→ WinRT OcrEngine（离线、zh-Hans）→
+本地视觉模型（herdsman，`GAEA_VISION_BASE_URL` / `GAEA_VISION_MODEL` 可覆盖）。
+文本过短/为空时逐级降级。输出 UTF-8 文本或 JSON（每页 + 工具来源）。
+
+可选外部方案（仅当本地通道都不可用时）：
 ```python
-# Requires: pip install pytesseract pdf2image
+# Requires: pip install pytesseract pdf2image + tesseract.exe
 import pytesseract
 from pdf2image import convert_from_path
-
-# Convert PDF to images
 images = convert_from_path('scanned.pdf')
-
-# OCR each page
-text = ""
 for i, image in enumerate(images):
-    text += f"Page {i+1}:\n"
-    text += pytesseract.image_to_string(image)
-    text += "\n\n"
-
-print(text)
+    print(f"Page {i+1}:\n{pytesseract.image_to_string(image)}")
 ```
 
 ### Add Watermark
@@ -293,6 +309,38 @@ with open("encrypted.pdf", "wb") as output:
     writer.write(output)
 ```
 
+### PDF → Word（可编辑 .docx）
+
+用 LibreOffice 转换（Windows 上 soffice.exe 常见于 `C:\Program Files\LibreOffice\program\soffice.exe`，
+不在 PATH 时用完整路径）：
+
+```bash
+python - <<'PY'
+import os, subprocess, glob
+soffice = r"C:\Program Files\LibreOffice\program\soffice.exe"
+if not os.path.isfile(soffice):
+    soffice = "soffice"  # 已加入 PATH 时
+for pdf in glob.glob("*.pdf"):
+    subprocess.run([soffice, "--headless", "--convert-to", "docx", pdf], check=True)
+PY
+```
+
+转换后必须验证：用 python-docx 打开 .docx 抽查标题与段落是否完整；扫描件（无文本层）转换结果为空时，
+先 OCR（见"Extract Text from Scanned PDFs"）再转换。
+
+### 表格提取 → Excel（闭环）
+
+```python
+import pdfplumber, pandas as pd
+
+with pdfplumber.open("报表.pdf") as pdf:
+    tables = [t for page in pdf.pages for t in page.extract_tables() if t]
+df = pd.concat([pd.DataFrame(t[1:], columns=t[0]) for t in tables], ignore_index=True)
+df.to_excel("报表.xlsx", index=False)
+```
+
+表格提取后必须人工核对列对齐与合并单元格（pdfplumber 对复杂表格可能拆错列）。
+
 ## Quick Reference
 
 | Task | Best Tool | Command/Code |
@@ -301,6 +349,8 @@ with open("encrypted.pdf", "wb") as output:
 | Split PDFs | pypdf | One page per file |
 | Extract text | pdfplumber | `page.extract_text()` |
 | Extract tables | pdfplumber | `page.extract_tables()` |
+| PDF → Word | LibreOffice | `soffice --headless --convert-to docx` |
+| 表格 → Excel | pdfplumber + pandas | `page.extract_tables()` → `to_excel()` |
 | Create PDFs | reportlab | Canvas or Platypus |
 | Command line merge | qpdf | `qpdf --empty --pages ...` |
 | OCR scanned PDFs | pytesseract | Convert to image first |

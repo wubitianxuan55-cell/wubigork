@@ -67,7 +67,8 @@ func (s *Service) runCoverageRule(ctx context.Context, p *Proposal) ([]CheckItem
 		}
 		out = append(out, CheckItem{
 			Status: status, Message: fmt.Sprintf("评分项「%s」（%s分）：%s", r.Name, r.MaxScore, r.Covered),
-			Evidence: r.Suggestion,
+			Evidence:   r.Suggestion,
+			Suggestion: r.Suggestion,
 		})
 	}
 	return out, nil

@@ -2,18 +2,24 @@ import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useState, useEffect } from "react";
 import {
   SquarePen, Brain, Blocks, BookOpen, MessageSquare,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, Loader2, FileText,
 } from "../icons";
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
 import { useT } from "../lib/i18n";
 import { sessionTitle } from "../lib/session";
-import type { SessionMeta } from "../lib/types";
+import type { FactBaseView, JobView, SessionMeta } from "../lib/types";
+import { app } from "../lib/bridge";
+import { useToast } from "./Toast";
 
 export interface SidebarProps {
   collapsed: boolean;
   toggleSidebar: () => void;
   running: boolean;
+  jobs: JobView[];
+  factBase: FactBaseView;
+  onClearFactBase: () => void;
+  onPromoteFactBase: () => Promise<number>;
   newSessionAndReset: () => void;
   sessions: SessionMeta[];
   searchQuery: string;
@@ -67,6 +73,10 @@ export function Sidebar({
   collapsed,
   toggleSidebar,
   running,
+  jobs,
+  factBase,
+  onClearFactBase,
+  onPromoteFactBase,
   newSessionAndReset,
   sessions,
   searchQuery,
@@ -88,11 +98,13 @@ export function Sidebar({
   SIDEBAR_MAX_WIDTH,
 }: SidebarProps) {
   const t = useT();
+  const toast = useToast();
   const toggleTitle = collapsed ? t("sidebar.expand") : t("sidebar.collapse");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [localQuery, setLocalQuery] = useState(searchQuery);
+  const [exportTemplate, setExportTemplate] = useState<"通用" | "公文" | "报告" | "合同">("报告");
   useEffect(() => { setLocalQuery(searchQuery); }, [searchQuery]);
   useEffect(() => {
     const timer = setTimeout(() => onSearchChange(localQuery), 200);
@@ -303,6 +315,144 @@ export function Sidebar({
                 </button>
               )}
             </div>
+          </section>
+        )}
+
+        {/* 后台任务（仅展开态显示运行中的任务） */}
+        {!collapsed && jobs.length > 0 && (
+          <section className="shrink-0 px-1 pt-2 pb-2 border-t border-border-soft">
+            <div className="flex items-center gap-2 px-1 pl-2.5 pb-1.5 text-fg-faint font-mono text-[11px] uppercase tracking-wider">
+              <span className="flex items-center gap-1.5">
+                <Loader2 size={12} className="text-accent" />
+                {t("status.jobsTitle")}
+              </span>
+              <span className="text-fg-faint/50">{jobs.length}</span>
+            </div>
+            <div className="flex flex-col gap-1 max-h-36 overflow-y-auto pr-0.5">
+              {jobs.map((j) => (
+                <div
+                  key={j.id}
+                  className="flex items-start gap-2 px-2.5 py-1.5 rounded-md bg-bg-soft/60 border border-border-soft"
+                  title={j.id}
+                >
+                  <span
+                    className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${
+                      j.status === "running" ? "bg-accent animate-pulse" : "bg-ok"
+                    }`}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-fg-dim text-[12px] leading-snug">{j.label}</span>
+                    <span className="block text-fg-faint text-[10px] font-mono">
+                      {j.kind} · {relativeTime(j.startedAt)}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 事实底座：交付前沉淀的事实，docx/pptx/xlsx 基于同一底座生成 */}
+        {!collapsed && (
+          <section className="shrink-0 px-1 pt-2 pb-2 border-t border-border-soft">
+            <div className="flex items-center gap-2 px-1 pl-2.5 pb-1.5 text-fg-faint font-mono text-[11px] uppercase tracking-wider">
+              <span className="flex items-center gap-1.5">
+                <FileText size={12} className="text-accent" />
+                事实底座
+              </span>
+              {factBase.count > 0 && <span className="text-fg-faint/50">{factBase.count}</span>}
+            </div>
+            {factBase.count === 0 ? (
+              <div className="px-2.5 pb-1 text-fg-faint text-[11px] leading-snug">
+                交付类任务会自动沉淀事实，docx/pptx/xlsx 基于同一底座生成
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col gap-1 max-h-40 overflow-y-auto pr-0.5">
+                  {factBase.facts.map((f) => (
+                    <div
+                      key={f.key}
+                      className="px-2.5 py-1.5 rounded-md bg-bg-soft/60 border border-border-soft"
+                      title={f.value}
+                    >
+                      <span className="block truncate text-fg-dim text-[12px] leading-snug">{f.key}</span>
+                      <span className="block truncate text-fg-faint text-[11px] leading-snug">{f.value}</span>
+                      {f.source ? (
+                        <span className="block truncate text-fg-faint/60 text-[10px] font-mono">来源：{f.source}</span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-1.5 px-1 pt-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      className="h-6 rounded-md text-[11px] text-fg-dim bg-bg-soft/60 border border-border-soft outline-none cursor-pointer"
+                      value={exportTemplate}
+                      onChange={(e) => setExportTemplate(e.target.value as "通用" | "公文" | "报告" | "合同")}
+                      title="选择交付模板（公文/报告/合同/通用）"
+                    >
+                      <option value="报告">报告</option>
+                      <option value="公文">公文</option>
+                      <option value="合同">合同</option>
+                      <option value="通用">通用</option>
+                    </select>
+                    <button
+                      className="flex-1 h-6 rounded-md text-[11px] text-accent bg-accent/10 border border-accent/25 cursor-pointer transition-[background,color] hover:bg-accent/20"
+                      title="把当前事实底座一键导出为所选模板的 Word 报告（docx/pptx/xlsx 同管线，一稿多用）"
+                      onClick={() => {
+                        void app.ExportDeliverable({
+                          markdown: factBase.markdown,
+                          format: "docx",
+                          title: "事实底座报告",
+                          template: exportTemplate,
+                          cover: exportTemplate === "报告" || exportTemplate === "通用",
+                          toc: exportTemplate === "报告",
+                        })
+                          .then((r) => {
+                            toast.show(`已导出 ${r.name}`, "info");
+                            void app.RevealWorkspacePath(r.path).catch(() => {});
+                          })
+                          .catch((e) => toast.show(e?.message || "导出失败", "warn"));
+                      }}
+                    >
+                      导出报告
+                    </button>
+                  </div>
+                  <button
+                    className="h-6 rounded-md text-[11px] text-accent bg-accent/10 border border-accent/25 cursor-pointer transition-[background,color] hover:bg-accent/20"
+                    title="把当前会话事实写入长期记忆，后续对话自动加载"
+                    onClick={() => {
+                      void onPromoteFactBase().then((n) => {
+                        toast.show(n > 0 ? `已沉淀 ${n} 条事实到长期记忆` : "暂无事实可沉淀", "info");
+                      });
+                    }}
+                  >
+                    沉淀为长期记忆
+                  </button>
+                  <div className="flex items-center gap-2">
+                  <button
+                    className="flex-1 h-6 rounded-md text-[11px] text-fg-dim bg-bg-soft/60 border border-border-soft cursor-pointer transition-[background,color] hover:text-fg hover:bg-sidebar-hover"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(factBase.markdown).then(
+                        () => toast.show("事实底座 Markdown 已复制", "info"),
+                        () => {},
+                      );
+                    }}
+                  >
+                    复制 Markdown
+                  </button>
+                  <button
+                    className="flex-1 h-6 rounded-md text-[11px] text-fg-faint bg-transparent border border-border-soft cursor-pointer transition-[background,color] hover:text-warning hover:border-warning/50"
+                    onClick={() => {
+                      if (window.confirm("确定清空当前会话的事实底座？")) onClearFactBase();
+                    }}
+                  >
+                    清空
+                  </button>
+                  </div>
+                </div>
+              </>
+            )}
           </section>
         )}
 

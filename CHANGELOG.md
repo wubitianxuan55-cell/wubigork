@@ -1,5 +1,377 @@
 # gaea · 多功能 AI 助手
 
+## v2.10.0「正式发布 · 通用办公三阶段闭环」（2026-08-09）
+> 自 v2.6.9 之后最大一次发布：把「办公前期的文件解析、中期的 Word/Excel
+> 编辑、后期的文件输出与预览」串成一条完整闭环，并完成桌面端体验重构与
+> 真实模型端到端验收。本版本包含 v2.7.0–v2.9.4 的全部累积特性。
+- 前期解析：docx/xlsx/pdf → Markdown 提速（docx 约 12x / PDF 约 4x）；
+  扫描件 OCR 四级管线（OvisOCR2 常驻服务 → RapidOCR → WinRT → 本地视觉模型），
+  粘贴图片「提取文字/识图」双入口；事实底座（fact_add/list/clear + 侧栏面板 +
+  一键沉淀长期记忆，后续对话自动加载）
+- 中期编辑：Word 框选即改 + 修订模式逐条接受/拒绝 + diff 回看；Excel 单元格级
+  预览/编辑（双击改值/写公式、fx 栏、AI 指令编辑、插入/删除行与列、LibreOffice
+  公式重算、数字格式/冻结表头/合并单元格）；跨应用联动（Excel 数据 → 图表 →
+  嵌入 Word/PPT 并随数据同步刷新）
+- 后期输出：统一交付出口（对话成果一键导出 docx/pptx/xlsx/md）、模板与样式体系、
+  成本测算模板（市政道路改造工程，公式全联动 + 原生图表，真实 DeepSeek 绑定
+  自主生成端到端验收通过）
+- 桌面端体验：Codex 式文件预览布局（右侧文件树、主区域可拖宽预览、Esc/按钮
+  快捷收起）、文件就地编辑不跳出对话
+- 发布说明：产物 gaea-v2.10.0.exe（Windows x64，约 40MB），桌面端同步；
+  go test / vitest 59 例全过，tsc 类型检查与 wails build 通过
+
+## v2.9.4「表格列操作：插入/删除列」（2026-08-09）
+> 按用户要求：排序/筛选/条件格式不在 gaea 内做预览层实现（不写回文件），
+> 后期交给 Excel/WPS 专业软件处理；本次仅落地会真实写文件的列操作。
+- 插入/删除列：点击列字母选中整列，工具栏出现「← 插列 / → 插列 / 删除列」
+  （删除二次确认），后端 excelize InsertCols/RemoveCol + 重算刷新，改动落盘
+- 新增后端 GaeaXlsxColOps；列选择与单元格选择互斥
+- 清理：移除本轮试验性的排序宏（LibreOffice）、AutoFilter 写入与条件格式渲染
+- 验证：Go 单测（插列/删列错位、非法操作/非法引用）+ 前端列操作用例；
+  go test / vitest 59 例全过；桌面 gaea.exe 已重建同步
+
+## v2.9.3「表格行操作：插入/删除行」（2026-08-09）
+> 按用户要求补齐高频表格操作——行级插入与删除。
+- 预览头部新增「↑ 插行 / ↓ 插行 / 删除行」：基于选中单元格所在行，
+  插入空行或删除整行；删除需二次确认（点击后变为「确认删除」）
+- 后端新增 GaeaXlsxRowOps（excelize InsertRows/RemoveRow 平移同表公式与合并区，
+  随后 LibreOffice 重算刷新结果并重渲染预览）
+- 验证：Go 单测（插入错位/删除上移/非法操作/非法引用）+ 前端插行用例；
+  go test / vitest 58 例全过；桌面 gaea.exe 已重建同步
+
+## v2.9.2「公式结果显示 + 表格功能补强」（2026-08-09）
+> 修复公式格只显示 fx 无结果的问题，并补上两类高频表格能力。
+- 公式结果：根因是 openpyxl 生成的文件公式没有缓存值（未重算），预览渲染时
+  只剩 fx 标记。现在 GaeaPreview 自动检测「无缓存值公式」→ LibreOffice 重算后
+  再渲染；预览头部新增「重算公式」按钮可手动刷新；新增 GaeaXlsxRecalc 接口
+- 数字格式：NumFmt 已提取但前端未应用，现按格式显示千分位/百分比/货币/小数位
+  （内置编号 1-11、44-47 及常见自定义格式），公式结果也按单元格格式呈现
+- 冻结表头：提取 sheet 冻结窗格（GetPanes），预览中冻结行 sticky 固定，
+  滚动数据时表头不跑
+- 验证：新增 NeedsRecalc 单测 + 冒烟回归（真实成本表 51 个公式全部有结果，
+  预览自动重算 1.5s）+ 前端数字格式用例；go test / vitest 57 例全过；
+  桌面 gaea.exe 已重建同步
+
+## v2.9.1「预览拖拽修复 + 表格就地编辑」（2026-08-09）
+> 修复 Codex 式预览的两个实测问题：拖拽分割条失效、表格只能看不能改。
+- 修复拖拽：预览宽度上下限计算写反导致宽度卡死（恒为最大），改回
+  320–1100px 自由拖拽；分割条命中区 6px→10px，悬停/拖拽高亮
+- 表格 Excel 式就地编辑：双击单元格直接输入（Enter 保存 / Esc 取消），
+  上方 fx 公式栏也可输入值或 `=公式` 回车写回；纯数字按数值写入保持可计算，
+  等号开头写公式，写回后 LibreOffice 重算并即时刷新预览
+- 新增后端 GaeaXlsxSetCell 直写接口（excelize 写值/公式 + 重算 + 预览）
+- 验证：新增 Go 单测（写值/写公式/非法引用）+ 前端双击编辑用例；
+  go test / tsc / vitest 56 例全过；桌面 gaea.exe 已重建同步
+
+## v2.9.0「Codex 式文件预览布局」（2026-08-09）
+> 参照 Codex 桌面端交互改造办公文件查看：右侧面板收敛为「增强文件树」，
+> 点击文件后原右侧面板隐藏，预览在聊天区右侧主区域展开（全高、宽度可拖），
+> 聊天与预览互不遮挡，可边对话边看文件。
+- 布局：点文件 → 树收起 → 主区域出现预览面板，聊天区保留在左侧；
+  预览与聊天之间加 6px 拖拽分割条，宽度 320–1100px 自由调整并持久化（localStorage）
+- 预览头部：新增「文件」返回按钮（回到文件树）、文件名/大小、定位/外部打开/关闭；
+  Esc 或工具栏面板按钮均可收起预览回到树
+- 文件树增强：docx 蓝 / xlsx 绿 / pptx 橙 / pdf 红 / 图片紫 按扩展名着色，
+  文件夹优先 + 自然排序；新增手动刷新按钮（强制重载目录）
+- 清理：移除已被树内嵌预览取代的「最大化面板」逻辑与重复的“查看文件变更”按钮
+- 验证：tsc --noEmit 通过；vitest 55 例全过；wails build 成功，桌面 gaea.exe 已同步
+
+## v2.8.9「自主生成验收 · gaea 自己生成成本测算表」（2026-08-09）
+> 让 gaea 智能体用真实模型（办公绑定 deepseek/deepseek-v4-flash）自主生成
+> 成本测算表：无头驱动 Controller.Run + bridge provider + 完整工具链，验证
+> 产物含公式与原生图表——桌面端已构建，办公功能绑定已生效。
+- 新增 TestGaeaSelfGenerateCost（GAEA_SELFGEN 门控）：读取 ~/.gaea_config.json
+  办公功能绑定路由引擎/模型；照桌面端接线 engineMgr + ai.Client + bridge；
+  提示词要求 openpyxl 建表、公式联动、原生饼图/柱状图、LibreOffice 重算
+- 实测结果（900s）：智能体自主完成环境检查→写脚本→生成→重算→自检；
+  产物 3 工作表（成本测算/费用汇总/编制说明）、35 个公式、2 个原生图表，
+  openpyxl 断言全过；路由日志「来源 feature」确认走了用户绑定
+- 顺手修复既有测试全局污染：TestGaeaBootBuild 注入 gaeaConfig.SetLoader
+  未恢复，会影响同包后续 boot.Build（真实模型跑测试时被 agent 诊断发现）；
+  已 defer 恢复；自生成测试产物自动复制到 .gaea/exports/
+- 验证：go vet/test ./internal/app 全绿；桌面端 gaea.exe 已重新构建并
+  同步桌面（含全部办公能力与绑定）
+
+## v2.8.8「成本测算模板 · 真实样例交付」（2026-08-09）
+> 新增可复用成本测算生成脚本 cost_estimate.py（openpyxl）：市政道路改造工程
+> 成本测算工作簿——按费用构成（人工/材料/机械/企管/规费/利润/税金）建表，
+> 公式全联动（数量×单价=合价、小计、占比、含税总价、综合单价），原生饼图+
+> 柱状图，LibreOffice 重算后带缓存值。
+- 交付物：.gaea/exports/市政道路改造工程成本测算.xlsx（含税总价
+  9,992,806.15 元，综合单价 462.63 元/m²，53 个公式 0 错误，2 个原生图表）
+- 验证：openpyxl 数值/公式/图表断言、PDF 渲染文本核验（表/图表标题/编制说明
+  完整）、gaea GaeaPreview 单元格预览管线读取正常（GAEA_SMOKE_COST 门控）
+
+## v2.8.7「P2 跨应用联动 · Excel 数据 → 图表 → 嵌入 Word/PPT」（2026-08-09）
+> 联动闭环：xlsx 数据一键生成 matplotlib 图表并嵌入 docx（报告模板：标题+
+> 图表+数据表）或 pptx（图表页+数据明细页）；数据源更新后重新导出即刷新图表，
+> 实现「图表与数据保持同步」（避免脆弱的 OLE 活链接）。
+- 新增 internal/office/crosslink：xlsx 数据提取（自动/显式区域 A1:B6，表头+
+  数值列解析、千分位清洗）、matplotlib 图表生成（bar/line/pie/scatter，中文
+  字体、无窗口执行）、docx/pptx 嵌入 spec 构建（docx 含数据表，pptx 图表页+
+  数据明细页）
+- create_pptx.py 新增每页 image 支持（图表页居中嵌入）；脚本镜像同步
+- 新增 GaeaCrossEmbed 绑定：格式/图表类型校验、产物与图表落到 .gaea/exports/
+- 前端 XlsxPreview 新增「图表→Word」「图表→PPT」按钮：取当前工作表数据一键
+  联动，成功后自动定位产物
+- 验证：crosslink 单测（数据提取/区域裁剪/spec 构建）+ 真实 matplotlib 图表
+  冒烟（23KB PNG，0.5s）+ docx/pptx 嵌入冒烟（产物合法 zip 且含 media 图片）；
+  go test ./... 全绿、vet 干净；tsc + vite build 通过；vitest 55 例全过
+
+## v2.8.6「打磨联调 · 边界加固 + 端到端走查」（2026-08-09）
+> 把前几轮的能力串成一条全流程验证：解析 → 修订式编辑 → 接受修订 →
+> 提取成果 → 模板化多形态交付，并补齐三处常见边界。
+- 边界加固：
+  - docxedit：表格单元格（w:tbl>w:tr>w:tc>w:p）内修订与接受全链路（合同场景）；
+  - xlsxedit：transform 公式保留 $ 绝对引用、跳过函数名（LOG10/ROUND）误判，
+    行引用调整专项用例；
+  - 交付出口：标题含 Windows 非法字符（< > : " / ? 等）时清洗且保留中文
+- 端到端：
+  - 新增 TestOfficeFullPipeline（纯 Go）：编辑→接受→提取→导出 xlsx/md；
+  - 新增真实文档全链路走查（GAEA_SMOKE_PIPELINE 门控）：26MB 方案文档
+    编辑→接受→提取→报告模板导出 docx，全程 4s 完成、产物内容正确
+- 验证：go test ./... 全绿、vet 干净；tsc + vite build 通过；vitest 54 例全过
+
+## v2.8.5「后期输出 · 模板与样式体系」（2026-08-09）
+> P1 模板库落地：统一交付出口支持 通用/公文/报告/合同 四套版式预设——
+> 字体、标题色/标题字体、表头底色按模板切换，事实底座一键出对应样式的 Word。
+- create_docx.py 新增 --template 预设：通用（宋体+深蓝标题）、公文（仿宋正文+
+  黑体标题）、报告（微软雅黑+蓝标题）、合同（宋体+黑色标题）；封面标题色、
+  标题 run、表头底色全部参数化贯穿
+- GaeaExportDeliverable 新增 Template 字段（默认通用，非法值明确报错），
+  docx 出口透传 --template
+- 事实底座侧栏「导出报告」升级为「模板选择 + 导出」：报告（封面+目录）/
+  公文 / 合同 / 通用，导出后自动定位文件
+- 验证：四套模板实测生成（颜色/字体抽查：通用 1F3864/宋体、报告 2E74B5/
+  微软雅黑、公文 000000/仿宋）；docx 导出冒烟带模板通过；go test ./... 全绿；
+  tsc + vite build 通过；vitest 54 例全过；技能镜像 ~/.codex/skills 已同步
+
+## v2.8.4「中期编辑 · 修订接受/拒绝 + diff 回看」（2026-08-09）
+> P1 信任机制落地：框选即改的修订不再只能去 Word 里处理——预览里直接
+> 「接受修订 / 拒绝修订」一键扁平化（按作者 gaea AI，不动他人修订），
+> 修订样式本身即 diff 回看（原文划除 + 新文插入）。
+- docxedit 新增 AcceptChanges / RejectChanges：字节级扁平化 w:del/w:ins
+  （接受=删 w:del 留 w:ins；拒绝=删 w:ins 还原 delText→t 并保留 run 格式），
+  只处理指定作者、跳过嵌套/重叠、无修订时明确报错
+- 新增 GaeaDocxAcceptChanges 绑定（accept=true/false），返回更新预览
+- 前端 DocxPreview：渲染后自动检测 ins/del 修订，标题栏出现「接受修订 /
+  拒绝修订」按钮（加载中禁用），操作后重渲染并提示
+- 验证：docxedit 接受/拒绝/无修订/他人修订不动四类单测 + 真实 26MB 文档
+  「修订→接受」冒烟（1.7s 完成、XML 合法、标记清空）；go test ./... 全绿；
+  tsc + vite build 通过；vitest 54 例全过
+
+## v2.8.3「后期输出 · 事实底座 → 多形态交付统一出口」（2026-08-09）
+> P0-④ 落地：统一交付管线「受控 Markdown → docx / pptx / xlsx / md」——
+> 事实底座与对话成果一稿多用，多形态基于同一底座生成、彼此一致。
+- 新增 GaeaExportDeliverable 绑定：格式校验、标题自动推导、时间戳防重名、
+  非法字符清洗（保留中文）、交付到 .gaea/exports/ 并返回相对路径
+- docx：复用 create_docx.py（python-docx，封面/目录/页眉页脚/页码参数化）；
+  pptx：Markdown → slides spec（# 标题开新页、要点/表格行转要点）→ create_pptx.py；
+  xlsx：Go 侧 excelize 直接提取 Markdown 表格为工作表（无表格时正文入 Sheet1）；
+  md：直写；python 子进程带超时与 stderr 捕获
+- 前端两个入口：会话工具栏新增「导出 Word」（对话成果一键交付，成功后自动定位）；
+  事实底座侧栏新增「导出报告」（封面+目录，基于同一底座）
+- 验证：md/xlsx/校验单测（纯 Go）+ docx/pptx 真实脚本冒烟（GAEA_SMOKE_EXPORT，
+  实测通过、产物为合法 zip）；go test ./... 全绿；tsc + vite build 通过；
+  vitest 54 例全过
+
+## v2.8.2「中期编辑 · Excel 单元格级操作」（2026-08-09）
+> P0-③ 闭环：在单元格预览上「选中单元格 → 指令（求和/平均/拆分列/清洗/替换/
+> 自定义）→ AI 规划操作 → excelize 执行 → LibreOffice 重算公式 → 重渲染」，
+> 公式可校验、结果可检查。
+- 新增 internal/office/xlsxedit：AI 操作集（set_formula/set_value/fill_range/
+  transform/replace/split_column/clean）校验与执行；transform 逐行公式自动调整
+  相对行引用（跳过 $ 绝对引用与函数名）；操作数量/单元格数上限防滥用
+- 新增 ai.XlsxEditOps：表格上下文（工作表/表头/抽样数据）+ 指令 → 严格 JSON 操作集；
+  GaeaXlsxEdit 绑定走 office 功能绑定路由，闭环后返回更新预览与逐条摘要
+- 公式重算：复用技能环境 recalc.py（LibreOffice 宏，自动探测 soffice），
+  best-effort——重算不可用时编辑仍生效并提示；真实重算冒烟 1.75s 通过
+- 前端 XlsxPreview 新增选中编辑工具栏：四预设（求和/平均值/拆分列/清洗）+ 自定义
+  指令，执行后重渲染并展示应用摘要
+- 验证：xlsxedit 单测（公式/逐行变换/填充/替换/拆分/清洗/错误分支）+ app 校验
+  单测 + 真实 LibreOffice 重算冒烟；go test ./... 全绿；tsc + vite build 通过；
+  vitest 53 例全过
+
+## v2.8.1「中期编辑 · Excel 单元格级预览」（2026-08-09）
+> P0-③ 第一步：xlsx 预览从「转 Markdown 弱表格」升级为「单元格级保真视图」——
+> sheet 切换、公式标识与公式栏、样式近似还原、合并单元格与列宽，为后续
+> 「选中区域 → 指令（公式/清洗/透视）→ 写回」的单元格编辑打底。
+- 新增 internal/office/xlsxpreview：excelize v2.11.0（已修复 2026 年三个 CVE）
+  提取结构化单元格 JSON（值/公式/类型/样式/合并/列宽）；超大表格截断到
+  2000 行 × 100 列并标记；图表/宏表自动跳过；.xls 保持原 markdown 兜底
+- GaeaPreview 对 .xlsx 返回 kind=xlsx（body 为 JSON），wire 契约复用原字段
+- 前端新增 XlsxPreview 组件：sheet 标签切换、公式栏（点击 fx 单元格显示公式）、
+  表头行列冻结、样式（加粗/填充/对齐/边框/颜色）、合并单元格 colspan/rowspan、
+  列宽近似；侧栏与弹层两个预览入口接入
+- 验证：xlsxpreview 单测（样式/公式/合并/列宽/多 sheet/截断）+ app 层
+  GaeaPreview 端到端；go test ./... 全绿；tsc + vite build 通过；vitest 52 例全过
+
+## v2.8.0「中期编辑 · Word 框选即改 / 修订模式」（2026-08-09）
+> P0「中期编辑 · Word 框选即改」落地：在保真预览底座上，选中文字 → 指令
+> （AI 四预设 + 自定义）→ AI 生成替换 → 以 Word 修订模式（w:del + w:ins）
+> 就地写入并重渲染，其余内容与版式零扰动。
+- 新增 internal/office/docxedit：字节级 XML 手术（不重建 OOXML）定位选中文本并执行
+  修订式替换；保留 run rPr 格式、应用实体转义、空白折叠匹配兜底、优先修订非 hyperlink
+  段落（TOC 目录项不被 docx-preview 映射 ins/del）；选区包含图片/制表符/换行等特殊
+  格式时明确拒绝
+- 新增 GaeaOfficeEditText 绑定（办公向改写提示词：关键信息不变、纯文本输出，走 office
+  功能绑定路由）+ GaeaDocxApplyEdit（修订写入并返回更新预览，标记作者「gaea AI」）
+- 前端 DocxPreview 新增「框选即改」工具栏：选中文字后出现，四类快捷指令
+  （润色/精简/翻译中文/扩写）+ 自定义指令输入，diff 预览（原文 → AI 替换）后
+  「应用修订 / 放弃」；应用后修订样式重渲染
+- 验证：docxedit 单测（单 run 拆分/跨 run 切分/XML 转义/空白折叠兜底/超链接优先/
+  特殊格式拒绝）+ 真实 26MB 方案文档冒烟（0.9s 修订、合法回写、docx-preview 映射
+  <ins>/<del>）；go test ./... 全绿；tsc + vite build 通过；vitest 49 例全过
+
+## v2.7.9「通用办公 · 粘贴图片一键提取文字」（2026-08-09）
+
+> 便捷入口闭环：截图/扫描件贴进对话后，点图片附件的「提取文字」即可用本地 OvisOCR2
+> 常驻服务抽出图中文字，作为用户消息发给助手——不用再靠模型读图，离线、秒级。
+- 新增 GaeaOCRText 绑定（docmd.OCRImageText）：复用常驻 llama-server（自动拉起/共享端口），
+  图片不存在或服务不可用时给出明确错误
+- Composer 图片附件新增「提取文字」按钮（FileText 图标，位于「识图」旁），识别中显示 spinner，
+  完成后以【图片文字提取：文件名】发送给助手；与既有「识图」（本地视觉模型）互补——
+  识图给描述、提取文字给原文
+- 验证：docmd 新增 OCRImageText 端到端测试（GAEA_TEST_OCR_IMAGE 门控，实测 0.76s 返回
+  「项目周报…营收 120 万元…」）；go test ./... 全绿、tsc + vite build 通过、vitest 47 例全过
+
+## v2.7.8「扫描件 OCR · 常驻服务 + format_convert 闭环」（2026-08-09）
+
+> 多页扫描提速 + 内置转换器闭环：llama-server 常驻（按需拉起、共享 8137 端口），
+> 多页 PDF 不再每页重载模型（单页约 5s → 整页 2.4s）；format_convert/文件预览的扫描件
+> 兜底从「提示装 tesseract」改为直连本地 OvisOCR2 服务，tesseract 降为兜底。
+- 常驻服务：ocr_local.py 与 docmd 共用同一端口（GAEA_OCR_URL/GAEA_OCR_PORT 可覆盖），
+  健康检查发现未运行即按需拉起 llama-server（Vulkan，隐藏窗口），多页逐页复用；
+  路径用 GAEA_OCR_DIR / GAEA_OCR_LLAMA / GAEA_OCR_MODEL / GAEA_OCR_MMPROJ 覆盖
+- format_convert 闭环：docmd.ocrPDF 先试 OvisOCR2 服务（按页 POST），不可用时退回
+  tesseract；findPdftoppm 探测真实 poppler exe（本机 PATH 里的 .cmd 包装器指向
+  不存在路径，直接执行会失败，回退 codex 运行时自带的 pdftoppm.exe）
+- 修复扫描件被误当文本：extractRawText 曾把 PDF 对象字典/trailer/ICC/图像流的可打印
+  垃圾当正文返回，OCR 永远不触发——新增 stripNonTextStreams（关键字感知流扫描，只保留
+  含 BT/ET/Tj 的文本流）+ 内容质量门槛（按空白分词、拒绝高熵符号串），扫描件正确落入 OCR
+- 文本提取增强：extractPDFText 支持 TJ 数组的十六进制字符串（UTF-16BE，Word/LibreOffice
+  中文 PDF 常见），带 BOM/无 BOM/ASCII 自动判别
+- 验证：docmd 新增 httptest 客户端、hex 解码、流剥离、端到端扫描件（env 门控）测试；
+  go test ./... 全绿；pdf 技能已同步 ~/.codex/skills 镜像
+
+## v2.7.7「扫描件 OCR · OvisOCR2 本地文档解析」（2026-08-09）
+
+> 按用户建议安装专用本地 OCR 模型：OvisOCR2（0.8B 端到端文档解析，Qwen3.5-0.8B 后训练，
+> OmniDocBench 96.58，GGUF + llama.cpp Vulkan，Apache-2.0）成为扫描件 OCR 首选通道，
+> 直接输出 Markdown（含 LaTeX 公式与表格），中文印刷体/表格识别显著强于 WinRT。
+- 安装：llama.cpp b10333（Vulkan，适配 Radeon 8060S 核显）+ OvisOCR2-Q5_K_M（578MB）+
+  mmproj-F16（205MB），落位 C:\AI\gaea-ocr（约 850MB）
+- ocr_local.py 新增 --mode ovis 与自动链路：auto = OvisOCR2 → RapidOCR → WinRT → 本地视觉模型，
+  文本过短/为空时逐级降级；路径可用 GAEA_OCR_DIR / GAEA_OCR_LLAMA / GAEA_OCR_MODEL /
+  GAEA_OCR_MMPROJ 环境变量覆盖
+- 顺带补齐 RapidOCR（PP-OCR 转 ONNX，隔离 venv C:\AI\gaea-ocr-env）作为 Ovis 缺失时的离线兜底
+- 实测：真实扫描 PDF（微软雅黑渲染后嵌图）→ Ovis 识别「项目周报：本周完成 8 项需求 /
+  营收 120 万元，同比增长 18% / 修复目标：砷 ≤ 60 mg/kg（GB 36600-2018）」，
+  公式转 LaTeX、单页约 5s（含模型加载）；WinRT / RapidOCR 通道同步验证
+- 验证：pdf 技能与 ~/.codex/skills 镜像同步；go build/test 不受影响
+
+## v2.7.6「性能专项 · 大文件转换提速」（2026-08-09）
+
+> P1「性能专项」落地：先用基准量化 format_convert 热点再针对性优化——
+> docx→Markdown 百页级文件提速约 12 倍（69ms→5.8ms），PDF 提速约 4 倍（5.0ms→1.2ms）。
+- 根因：docxToMarkdown 主循环每次迭代都对剩余全文搜索 `<w:p>` 与 `<w:p ` 两种形式，
+  带属性形式在多数文档中不存在，导致 O(n²) 全文扫描（CPU profile 显示 findOpenTag 占 83%）
+- 修复：新增 nextOpenTag 单趟扫描（按 `<` 推进 + 标签名边界判断），一次定位最早的段落/表格标签；
+  PDF 页数统计从逐 rune 转 string 的热循环改为 strings.Count("/Type /Page")；
+  xlsx 工作表按名建索引替代逐 sheet 全文件扫描，sharedStrings 索引解析改用 strconv.Atoi
+- 基准（新增 docmd bench_test.go：gooxml 构造百页 docx / 千行 xlsx / 1500 页 PDF）：
+  docx 300 段 + 20 表 69ms→5.8ms（约 12x）；PDF 1500 页 5.0ms→1.2ms（约 4x）；xlsx 1000x10 微调
+- 验证：docmd 既有用例全部通过（表格 round-trip / 属性段落），go test ./... 全绿
+
+## v2.7.5「方案校验 · 原文定位 + 整改建议」（2026-08-09）
+
+> P1「方案校验规则引擎」增强：全面检查从「报问题」升级为「指出在哪、怎么改」——
+> 每条发现带整改建议与原文定位（章节 + 上下文摘录 + 一键跳转）。
+- CheckItem 新增 Suggestion（整改建议）与 Locations（原文定位：sectionId/excerpt/offset）：
+  废标条款响应、数据一致性（缺失事实/工期冲突/暗标单位）、跨章节重复、暗标格式（加粗/删除线/emoji）、
+  规范引用（未引用/编号存疑）逐条补齐可照做的整改建议
+- 原文定位：locateNeedle 忽略空白差异在章节内定位命中，excerptAround 按 rune 截取上下文摘录
+  （不切坏 UTF-8，前后省略号）；重复检测给出主章节与重复章节两处定位；AI 评分覆盖检查的
+  suggestion 同步透传到整改建议
+- 前端：校验报告新增「整改建议」行与原文定位 chips（摘录 + 定位按钮，点击跳转对应章节）
+- 验证：新增 check_advice 测试（建议/定位/双章节/覆盖建议透传/摘录 UTF-8 安全）；
+  go test 全绿、tsc + vite build 通过、vitest 47 例全过
+
+## v2.7.4「事实底座 · 长期记忆沉淀」（2026-08-09）
+
+> P0「记忆与自进化」落地：事实底座不再止步于会话内——一键把交付前沉淀的事实写入长期记忆，
+> 后续对话自动加载，越用越懂你、不用反复交代。
+- 新增 GaeaFactBasePromote 绑定 + 侧栏「沉淀为长期记忆」按钮：把当前会话事实底座逐条写入
+  memory 存储（kind=semantic），按稳定 ASCII slug 去重（中文 key 走 hash 兜底），
+  重复沉淀同 key 原位更新不产生重复条目；preference 分类映射为用户画像（type=user），其余为项目事实
+- 面板按钮点击后 toast 反馈沉淀条数；事实底座本身保留，可继续编辑/清空
+- 验证：新增 promote 单测（写入/去重更新/中文 slug 稳定性/分类映射/单行摘要）；go test 全绿、
+  tsc + vite build 通过、vitest 47 例全过
+
+## v2.7.3「事实底座 · 一稿多用」（2026-08-09）
+
+> P0「多形态成果交付」核心闭环：通用办公引入 任务 → 事实底座 → 多形态交付 的默认工作流，
+> 交付物（docx/pptx/xlsx/图表）基于同一事实底座生成，跨交付物保持一致、可回看、可复制。
+- 新增 fact_add / fact_list / fact_clear 三个会话级事实底座工具（ExtraTool）：
+  fact_add 按 key 沉淀/修正事实（含来源与分类，空值即删除），fact_list 输出 Markdown 表格，
+  fact_clear 开启新任务时清空；事实按会话持久化到 .gaea/sessions/<session>-facts.json
+- 侧栏新增「事实底座」面板：事实列表（key/值/来源）+ 复制 Markdown + 清空，随 fact_* 工具结果
+  与回合结束实时刷新；删除会话时事实底座同步清理
+- 办公提示词新增「事实底座（一稿多用）」纪律：交付任务先沉淀后交付，交付物基于同一底座生成，
+  事实有更新先 fact_add 修正再重新生成，新任务先 fact_clear 隔离上一任务事实
+- 验证：新增 factbase 包单测（upsert/清空/Markdown 转义/round-trip/路径）+ app 侧工具与绑定测试；
+  go build/test 全绿、tsc + vite build 通过、vitest 47 例全过
+
+## v2.7.1「办公三件套核心闭环修复」（2026-08-09）
+
+> 触及核心：修复 Word/Excel/PDF 三个工具的真实断点，端到端实测打通。
+> 此前通用办公的 docx 技能依赖未安装的 node docx-js 与 pandoc，Excel 公式重算在 Windows
+> 上因 soffice 不在 PATH 而失败——这三个断点全部修复并补回归测试。
+- format_convert（docmd）：修复 docx→Markdown 表格解析把 `<w:tcPr>` 等 XML 当文本的 bug；
+  `findWt` 偏移错位导致段落/单元格文本错乱；兼容带属性段落（w14:paraId）与 `<w:tabs>` 内嵌标签
+  （新增 TestConvertDocxTableRoundTrip / TestConvertDocxAttrParagraphs 回归测试）
+- docx 技能：新增 scripts/create_docx.py（python-docx，环境已装）——Markdown/JSON spec → 排版 Word
+  （A4/Letter、封面、目录域、标题层级、表格、列表、页眉页脚、页码、图片），替代未装的 docx-js 成为主路径；
+  读取兜底改为 gaea 内置 format_convert；SKILL.md 依赖清单同步更新
+- xlsx 技能：scripts/office/soffice.py 增加 Windows 安装路径自动探测（Program Files / (x86) / LOCALAPPDATA），
+  recalc.py 不再因 soffice 不在 PATH 失败；SKILL.md 补批量合并/统一格式流程
+- docx 技能 soffice.py 同步路径探测（docx→PDF 转换同样受益）；pdf 技能补 PDF→Word 与表格→xlsx 闭环流程
+- 实测：Markdown→docx→format_convert 表格 round-trip 正确；openpyxl 写公式→LibreOffice 重算 4 公式 0 错误
+  （SUM/差额/利润率读回 220/130/90/40.9%）；reportlab PDF→pdfplumber 表格提取→xlsx 结构完整
+- 验证：go test ./... 全绿（docmd 新增 2 例）；技能修改已同步镜像 ~/.codex/skills
+
+## v2.7.2「本地模型优势落地 · 扫描件本地 OCR」（2026-08-09）
+
+> 善用 gaea 本地模型资产：扫描件 PDF 的 OCR 不再依赖未安装的 pytesseract，
+> 改走本地双通道——Windows 原生 OCR（WinRT，离线零成本）+ 本地视觉模型（herdsman Qwen3.6）兜底。
+- pdf 技能新增 scripts/ocr_local.py：PyMuPDF 渲染 PDF 页（300 DPI）→ windows-ocr.ps1（WinRT zh-Hans）
+  → 文本过短/为空时降级本地视觉模型（GAEA_VISION_BASE_URL/GAEA_VISION_MODEL 可覆盖）；
+  输出 UTF-8 文本或 JSON（每页 + 工具来源），支持 --mode auto|winrt|local
+- pdf 技能自带 scripts/windows-ocr.ps1（WinRT OcrEngine 离线调用，与 ds-vision-skill 同源）
+- SKILL.md：扫描件 OCR 节改为本地 OCR 主路径，pytesseract 降为可选外部方案
+- 办公提示词新增「本地能力优先」纪律：扫描件/图片文字提取优先本地 OCR 或 vision，敏感文档本地处理不出机
+- 实测：中文 docx→PDF→本地 OCR 识别出「项目周报 / 本周完成 8 项需求 / 营收 120 万元，同比增长 18%」；
+  表格 PDF→OCR 数字与表头全部识别；英文/中文双链路均离线跑通
+- 验证：技能修改已同步镜像 ~/.codex/skills
+
+## v2.7.0「通用办公强化 · PPT 交付 + 技能沉淀 + 便捷入口 + 后台任务」（2026-08-09）
+
+> 按《市场调研：通用办公 AI 智能体》P0 结论落地：新增 pptx 演示文稿技能（python-pptx 一键成稿）、
+> 欢迎页新增「演示文稿」入口、一次成功对话一键沉淀为可复用技能、粘贴剪贴板图片即转图片附件上下文、
+> 侧栏后台任务面板（运行中任务 + 完成 toast）、办公提示词增强（PPT 交付纪律 + 偏好主动记忆沉淀）。
+- pptx 技能：新增 `.gaea/skills/pptx` 并镜像 `~/.codex/skills/pptx`（SKILL.md + scripts/create_pptx.py，
+  16:9 封面/章节要点/演讲备注，缺 python-pptx 时自动 pip 安装，生成后回读校验页数）
+- 前端入口：欢迎页核心能力新增「演示文稿」卡 + 内置技能新增 pptx chip；icons 兼容层新增 FilePpt
+- 提示词：SingleModelPrompt 执行纪律加入 pptx 技能与演示大纲流程；新增「记忆沉淀」检查点
+  （用户偏好/项目事实/踩坑经验主动 remember，避免重复交代）
+- 便捷入口：Composer 粘贴剪贴板图片（截图/网页图）不再静默丢弃，转为图片附件上下文（复用 SavePastedImage）
+- 后台任务：侧栏新增「后台作业」面板（运行中 bash/task 列表 + 状态点 + 相对时间，仅展开态显示）；
+  JobDoneNotifier 在任务从运行列表消失时自动 toast「后台任务已完成」
+- 技能沉淀：助手消息新增「沉淀为技能」操作，弹窗预填本次任务/回答，确认后写入 .gaea/skills/<name>/SKILL.md
+  并镜像 ~/.codex/skills，热加载后立即以 /技能名 调用（GaeaCaptureSkill + skill.RenderSkillFile，含校验/覆盖/测试）
+- 验证：go build/test 全绿（含 skill capture 新用例）、tsc + vite build 通过、vitest 47 例全过、
+  pptx --demo 端到端生成 3 页演示文稿
+
 ## v2.6.9「搜索修复 · 人格重设计 · 移除 VoxCPM2」（2026-08-09）
 
 > 通用办公搜索修复（新增 Bing/DDG 兜底 + 代理接入，不再报「所有搜索引擎失败」）；

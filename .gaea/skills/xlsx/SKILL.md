@@ -71,7 +71,7 @@ A user may ask you to create, edit, or analyze the contents of an .xlsx file. Yo
 
 ## Important Requirements
 
-**LibreOffice Required for Formula Recalculation**: You can assume LibreOffice is installed for recalculating formula values using the `scripts/recalc.py` script. The script automatically configures LibreOffice on first run, including in sandboxed environments where Unix sockets are restricted (handled by `scripts/office/soffice.py`)
+**LibreOffice Required for Formula Recalculation**: You can assume LibreOffice is installed for recalculating formula values using the `scripts/recalc.py` script. The script automatically configures LibreOffice on first run, including in sandboxed environments where Unix sockets are restricted (handled by `scripts/office/soffice.py`). On Windows, `soffice.exe` is located automatically (`C:\Program Files\LibreOffice\program\soffice.exe` 等常见路径) — it does NOT need to be on PATH. 实测闭环：openpyxl 写公式 → recalc.py 重算 → `load_workbook(data_only=True)` 读回缓存值，全部公式必须为数值或预期结果，不允许 #VALUE!/#REF! 等。
 
 ## Reading and analyzing data
 
@@ -147,6 +147,29 @@ This applies to ALL calculations - totals, percentages, ratios, differences, etc
      - `#DIV/0!`: Division by zero
      - `#VALUE!`: Wrong data type in formula
      - `#NAME?`: Unrecognized formula name
+
+### 批量处理多个表格文件（对标"一次指令批量处理"）
+
+用户要求批量整理/合并/统一格式时，用 bash + python 一次处理整个目录：
+
+```bash
+# 合并目录下所有 xlsx/csv 为一张总表（按文件名/来源列区分）
+python - <<'PY'
+import glob, pandas as pd
+frames = []
+for path in sorted(glob.glob("data/*.xlsx")):
+    df = pd.read_excel(path)
+    df.insert(0, "来源", path)
+    frames.append(df)
+pd.concat(frames, ignore_index=True).to_excel("合并.xlsx", index=False)
+PY
+```
+
+批量原则：
+- 先 `format_convert` 或 pandas 探查所有文件的表头/编码/列结构，口径一致再合并
+- 统一格式（字体/列宽/表头底纹）用 openpyxl 循环每个文件后保存
+- 涉及公式的文件逐个 recalc.py 重算并核对错误数
+- 输出汇总表的同时附统计口径（行数、来源数、异常记录）
 
 ### Creating new Excel files
 

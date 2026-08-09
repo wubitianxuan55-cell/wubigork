@@ -1,5 +1,5 @@
 import {
-  ArrowUpRight, BarChart3, BookOpen, Brain, Clock, FileText, FolderOpen,
+  ArrowUpRight, BarChart3, BookOpen, Brain, Clock, FilePpt, FileText, FolderOpen,
   MessageSquare, RefreshCw, ScrollText, Sparkles, Table, Wand2,
 } from "../icons";
 import logoSvg from "../assets/logo.svg";
@@ -59,6 +59,12 @@ const OFFICE_CAPABILITIES: OfficeCapability[] = [
     prompt: "把这几份文档素材拼装成一份完整的报告，包含封面、目录、正文和附录。",
   },
   {
+    icon: <FilePpt size={17} />,
+    name: "演示文稿",
+    desc: "PPT 大纲与成稿，汇报材料一键生成",
+    prompt: "根据这份内容生成一份 PPT 演示文稿（.pptx），先列大纲再成稿。",
+  },
+  {
     icon: <Brain size={17} />,
     name: "知识沉淀",
     desc: "规范、结论存入知识库，跨会话复用",
@@ -80,6 +86,7 @@ const OFFICE_SKILLS: SkillChip[] = [
   { label: "docx", sub: "Word 文档", prompt: "用 docx 技能创建或编辑 Word 文档。" },
   { label: "xlsx", sub: "表格", prompt: "用 xlsx 技能创建或处理表格文件。" },
   { label: "pdf", sub: "PDF 文档", prompt: "用 pdf 技能读取、合并或创建 PDF 文档。" },
+  { label: "pptx", sub: "演示文稿", prompt: "用 pptx 技能把内容做成 PowerPoint 演示文稿。" },
 ];
 
 export function Welcome({

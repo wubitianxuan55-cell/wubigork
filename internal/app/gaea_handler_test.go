@@ -38,6 +38,8 @@ func TestGaeaBootBuild(t *testing.T) {
 	cfg.Tools.Enabled = nil
 	cfg.Sandbox.Bash = "off"
 	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) { return cfg, nil })
+	// 恢复全局 loader，避免污染同包后续测试（如 boot.Build 读到注入配置而失败）
+	defer gaeaConfig.SetLoader(nil)
 
 	// 与 GaeaInit 保持一致：SessionDir 指向工作区会话目录（cwd/.gaea/sessions）
 	ctrl, err := gaeaBoot.Build(context.Background(), gaeaBoot.Options{

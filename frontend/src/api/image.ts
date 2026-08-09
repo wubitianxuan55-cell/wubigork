@@ -107,6 +107,14 @@ export async function generateImage(
   return {}
 }
 
+/** 生成流程图/框架图：LLM 返回 Mermaid 代码，前端渲染为 PNG */
+export async function generateDiagram(
+  prompt: string,
+): Promise<{ error?: string; code?: string }> {
+  const res = await App.GenerateDiagram(prompt.trim())
+  return (res || {}) as { error?: string; code?: string }
+}
+
 /** 多模式媒体生成参数（文生图 / 图生图 / 文生视频） */
 export interface MediaParams {
   prompt: string

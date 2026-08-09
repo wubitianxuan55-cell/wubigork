@@ -30,6 +30,37 @@ import type { AppBindings } from "./bridge";
 
 const EVENT_CHANNEL = "agent:event";
 
+// 浏览器开发 mock 用的最小 docx（含标题/正文/表格），由 docx-preview 渲染。
+const MOCK_DOCX_DATA_URL =
+  "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,UEsDBBQAAAAIAEmjCV3XeYTq8QAAALgBAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbH2QzU7DMBCE730Ky9cqccoBIZSkB36OwKE8wMreJFb9J69b2rdn00KREOVozXwz62nXB+/EHjPZGDq5qhspMOhobBg7+b55ru6koALBgIsBO3lEkut+0W6OCUkwHKiTUynpXinSE3qgOiYMrAwxeyj8zKNKoLcworppmlulYygYSlXmDNkvhGgfcYCdK+LpwMr5loyOpHg4e+e6TkJKzmoorKt9ML+Kqq+SmsmThyabaMkGqa6VzOL1jh/0lSfK1qB4g1xewLNRfcRslIl65xmu/0/649o4DFbjhZ/TUo4aiXh77+qL4sGG71+06jR8/wlQSwMEFAAAAAgASaMJXSAbhuqyAAAALgEAAAsAAABfcmVscy8ucmVsc43Puw6CMBQG4J2naM4uBQdjDIXFmLAafICmPZRGeklbL7y9HRzEODie23fyN93TzOSOIWpnGdRlBQStcFJbxeAynDZ7IDFxK/nsLDJYMELXFs0ZZ57yTZy0jyQjNjKYUvIHSqOY0PBYOo82T0YXDE+5DIp6Lq5cId1W1Y6GTwPagpAVS3rJIPSyBjIsHv/h3ThqgUcnbgZt+vHlayPLPChMDB4uSCrf7TKzQHNKuorZvgBQSwMEFAAAAAgASaMJXV5N4XGjAQAAcwMAABEAAAB3b3JkL2RvY3VtZW50LnhtbJVTS0vEMBC++ytCTnrQrA9Elm1FD549KJ7bNO5W26QkcaueFhEUPBRRfKEs6kFvPkBYRPDHuM3qvzB9iQ921ctkpvPNfDNf0srkqu+BOuHCZdSAw0MlCAjFzHFp1YDzczODExAIaVHH8hglBlwjAk6afZWw7DC84hMqge5ARTk0YE3KoIyQwDXiW2KIBYTq3CLjviV1yKsoZNwJOMNECE3ge2ikVBpHvuVSaPYBoLvazFlL3DQIzMTM8uRYwiAs1y3PgFiTEg6RWUEf2cxkvo0SK9YL/Oh4js3z0lTN/ThqtR9P2s9nndPm28Xm69U26PcZXh5IgDKDZwRfp8k7vD4fq6Mb9RDpwvj4On5qxNGuuj6Pn6J2a6ezfwe0PKuDASd1l4RAte5Vc69zsqlOG/FtBBa0DkAdbKnzy5fGRndKaXuZX0T5BrY3rTvoW0sjFhSrJqp6BIJkfQOOwVQJm0nJ/J4QjyzKngDuVmu9EOjrUKgY9tPw2eTY/KZkvH0Ipn4qkH7B3Uumu5eglOx35uH/sY78iTFfPX3NqHjOiVf8LuY7UEsBAhQAFAAAAAgASaMJXdd5hOrxAAAAuAEAABMAAAAAAAAAAAAAAIABAAAAAFtDb250ZW50X1R5cGVzXS54bWxQSwECFAAUAAAACABJowldIBuG6rIAAAAuAQAACwAAAAAAAAAAAAAAgAEiAQAAX3JlbHMvLnJlbHNQSwECFAAUAAAACABJowldXk3hcaMBAABzAwAAEQAAAAAAAAAAAAAAgAH9AQAAd29yZC9kb2N1bWVudC54bWxQSwUGAAAAAAMAAwC5AAAAzwMAAAAA";
+
+// 浏览器开发 mock 用的 xlsx 结构化预览（含公式/样式/合并/多 sheet）。
+const MOCK_XLSX_BODY = JSON.stringify({
+  sheets: [
+    {
+      name: "预算",
+      rows: [
+        [{ ref: "A1", value: "项目", type: "string", style: { bold: true, fill: "4472C4", fontColor: "FFFFFF", align: "center", border: true } },
+         { ref: "B1", value: "金额", type: "string", style: { bold: true, fill: "4472C4", fontColor: "FFFFFF", align: "center", border: true } }],
+        [{ ref: "A2", value: "设备", type: "string" }, { ref: "B2", value: "120.50", type: "number", style: { numFmt: "0.00%" } }],
+        [{ ref: "A3", value: "人工", type: "string" }, { ref: "B3", value: "80", type: "number", style: { numFmt: "0.00%" } }],
+        [{ ref: "A4", value: "合计", type: "string", style: { bold: true } }, { ref: "B4", value: "200.50", formula: "SUM(B2:B3)", type: "string", style: { bold: true } }],
+        [{ ref: "A5", value: "合并单元格（mock）", type: "string" }],
+      ],
+      merged: ["A5:B5"],
+      colWidths: { A: 16, B: 14 },
+    },
+    {
+      name: "明细",
+      rows: [
+        [{ ref: "A1", value: "日期", type: "string", style: { bold: true } }, { ref: "B1", value: "备注", type: "string", style: { bold: true } }],
+        [{ ref: "A2", value: "2026-08-09", type: "string" }, { ref: "B2", value: "mock 数据", type: "string" }],
+      ],
+      colWidths: { A: 12, B: 20 },
+    },
+  ],
+});
+
 export const mockListeners = new Set<(e: WireEvent) => void>();
 
 export function mockSubscribe(cb: (e: WireEvent) => void): () => void {
@@ -191,6 +222,10 @@ export function makeMockApp(): AppBindings {
       // mock: 无真实内核，返回空结果
       return { tools: 0, skills: 0 };
     },
+    async CaptureSkill(_input) {
+      // mock: 浏览器开发环境不写磁盘，返回假结果
+      return { name: _input.name || "mock-skill", description: _input.description, path: "", reloaded: false, tools: 0, skills: 0 };
+    },
     async Checkpoints() {
       return [];
     },
@@ -258,6 +293,15 @@ export function makeMockApp(): AppBindings {
     },
     async Jobs() {
       return []; // browser dev mock has no background jobs
+    },
+    async FactBase() {
+      return { facts: [], markdown: "", count: 0, path: "" };
+    },
+    async FactBaseClear() {
+      // browser dev mock: nothing to clear
+    },
+    async FactBasePromote() {
+      return 0; // browser dev mock: no persistent memory
     },
     async Meta(): Promise<Meta> {
       return {
@@ -386,6 +430,22 @@ export function makeMockApp(): AppBindings {
           body: "", dataUrl: "data:image/png;base64,iVBORw0KGgo=", error: "",
         };
       }
+      if (ext === "docx") {
+        // 最小 docx（mock），由 docx-preview 渲染成版式预览。
+        return {
+          path: rel, name: rel.split("/").pop() ?? rel, ext: ".docx",
+          size: 1728, kind: "docx" as const,
+          body: "", dataUrl: MOCK_DOCX_DATA_URL, error: "",
+        };
+      }
+      if (ext === "xlsx") {
+        // 结构化单元格预览（mock），由 XlsxPreview 渲染。
+        return {
+          path: rel, name: rel.split("/").pop() ?? rel, ext: ".xlsx",
+          size: 2048, kind: "xlsx" as const,
+          body: MOCK_XLSX_BODY, dataUrl: "", error: "",
+        };
+      }
       if (ext === "md") {
         return {
           path: rel, name: rel.split("/").pop() ?? rel, ext: ".md",
@@ -401,6 +461,76 @@ export function makeMockApp(): AppBindings {
     },
     async OpenWorkspacePath(rel: string) {
       console.info("mock OpenWorkspacePath", rel);
+    },
+    async OfficeEditText(selectedText: string, instruction: string) {
+      return { edited: `${selectedText}（mock 编辑：${instruction}）` };
+    },
+    async DocxApplyEdit(rel: string) {
+      return {
+        path: rel, name: rel.split("/").pop() ?? rel, ext: ".docx",
+        size: 1728, kind: "docx" as const,
+        body: "", dataUrl: MOCK_DOCX_DATA_URL, error: "",
+      };
+    },
+    async DocxAcceptChanges(rel: string, accept: boolean) {
+      return {
+        path: rel, name: rel.split("/").pop() ?? rel, ext: ".docx",
+        size: 1728, kind: "docx" as const,
+        body: "", dataUrl: MOCK_DOCX_DATA_URL, error: "",
+      };
+    },
+    async XlsxEdit(_rel: string, sheet: string, instruction: string, selection: string) {
+      return {
+        preview: MOCK_XLSX_BODY,
+        summary: `（mock）已在 ${sheet} 应用操作：${instruction}（选区 ${selection}）`,
+        applied: 1,
+      };
+    },
+    async XlsxSetCell(_rel: string, sheet: string, ref: string, value: string) {
+      return {
+        preview: MOCK_XLSX_BODY,
+        summary: `（mock）已更新 ${sheet}!${ref} = ${value}`,
+        applied: 1,
+      };
+    },
+    async XlsxRecalc(_rel: string) {
+      return {
+        preview: MOCK_XLSX_BODY,
+        summary: "（mock）已重算公式",
+        applied: 1,
+      };
+    },
+    async XlsxRowOps(_rel: string, sheet: string, action: string, ref: string) {
+      return {
+        preview: MOCK_XLSX_BODY,
+        summary: `（mock）已在 ${sheet} 执行行操作 ${action}@${ref}`,
+        applied: 1,
+      };
+    },
+    async XlsxColOps(_rel: string, sheet: string, action: string, ref: string) {
+      return {
+        preview: MOCK_XLSX_BODY,
+        summary: `（mock）已在 ${sheet} 执行列操作 ${action}@${ref}`,
+        applied: 1,
+      };
+    },
+    async ExportDeliverable(input: { markdown: string; format: string; title?: string }) {
+      const format = input.format.replace(".", "");
+      return {
+        path: `.gaea/exports/${input.title || "deliverable"}-mock.${format}`,
+        name: `${input.title || "deliverable"}-mock.${format}`,
+        format,
+        size: input.markdown.length,
+      };
+    },
+    async CrossEmbed(input: { xlsxRel: string; into: string; title?: string }) {
+      const name = `${input.title || "chart"}-mock.${input.into}`;
+      return {
+        path: `.gaea/exports/${name}`,
+        name,
+        size: 4096,
+        chartPath: `.gaea/exports/${input.title || "chart"}-chart-mock.png`,
+      };
     },
     async WorkspaceChanges() { return []; },
     async RevealWorkspacePath(rel: string) {
@@ -421,6 +551,9 @@ export function makeMockApp(): AppBindings {
     },
     async RecognizeImage(_imagePath: string, _prompt: string) {
       return "（开发预览）这是一张模拟识图结果：截图内容为一份通用办公任务清单。";
+    },
+    async OCRText(_imagePath: string) {
+      return "（开发预览）模拟文字提取：项目周报 / 营收 120 万元 / 同比增长 18%。";
     },
     async Models() {
       return [

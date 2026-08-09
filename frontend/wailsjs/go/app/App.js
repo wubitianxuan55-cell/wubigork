@@ -310,6 +310,10 @@ export function GaeaCaptureScreen() {
   return window['go']['app']['App']['GaeaCaptureScreen']();
 }
 
+export function GaeaCaptureSkill(arg1) {
+  return window['go']['app']['App']['GaeaCaptureSkill'](arg1);
+}
+
 export function GaeaChangeFactType(arg1, arg2) {
   return window['go']['app']['App']['GaeaChangeFactType'](arg1, arg2);
 }
@@ -350,6 +354,10 @@ export function GaeaCostSearch(arg1, arg2, arg3) {
   return window['go']['app']['App']['GaeaCostSearch'](arg1, arg2, arg3);
 }
 
+export function GaeaCrossEmbed(arg1) {
+  return window['go']['app']['App']['GaeaCrossEmbed'](arg1);
+}
+
 export function GaeaDeleteProvider(arg1) {
   return window['go']['app']['App']['GaeaDeleteProvider'](arg1);
 }
@@ -358,8 +366,32 @@ export function GaeaDeleteSession(arg1) {
   return window['go']['app']['App']['GaeaDeleteSession'](arg1);
 }
 
+export function GaeaDocxAcceptChanges(arg1, arg2) {
+  return window['go']['app']['App']['GaeaDocxAcceptChanges'](arg1, arg2);
+}
+
+export function GaeaDocxApplyEdit(arg1, arg2, arg3) {
+  return window['go']['app']['App']['GaeaDocxApplyEdit'](arg1, arg2, arg3);
+}
+
 export function GaeaEngines() {
   return window['go']['app']['App']['GaeaEngines']();
+}
+
+export function GaeaExportDeliverable(arg1) {
+  return window['go']['app']['App']['GaeaExportDeliverable'](arg1);
+}
+
+export function GaeaFactBase() {
+  return window['go']['app']['App']['GaeaFactBase']();
+}
+
+export function GaeaFactBaseClear() {
+  return window['go']['app']['App']['GaeaFactBaseClear']();
+}
+
+export function GaeaFactBasePromote() {
+  return window['go']['app']['App']['GaeaFactBasePromote']();
 }
 
 export function GaeaForget(arg1) {
@@ -452,6 +484,14 @@ export function GaeaModels() {
 
 export function GaeaNewSession() {
   return window['go']['app']['App']['GaeaNewSession']();
+}
+
+export function GaeaOCRText(arg1) {
+  return window['go']['app']['App']['GaeaOCRText'](arg1);
+}
+
+export function GaeaOfficeEditText(arg1, arg2) {
+  return window['go']['app']['App']['GaeaOfficeEditText'](arg1, arg2);
 }
 
 export function GaeaOpenDownloadPage() {
@@ -686,6 +726,26 @@ export function GaeaWorkspaceChanges() {
   return window['go']['app']['App']['GaeaWorkspaceChanges']();
 }
 
+export function GaeaXlsxColOps(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['GaeaXlsxColOps'](arg1, arg2, arg3, arg4);
+}
+
+export function GaeaXlsxEdit(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['GaeaXlsxEdit'](arg1, arg2, arg3, arg4);
+}
+
+export function GaeaXlsxRecalc(arg1) {
+  return window['go']['app']['App']['GaeaXlsxRecalc'](arg1);
+}
+
+export function GaeaXlsxRowOps(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['GaeaXlsxRowOps'](arg1, arg2, arg3, arg4);
+}
+
+export function GaeaXlsxSetCell(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['GaeaXlsxSetCell'](arg1, arg2, arg3, arg4);
+}
+
 export function GenerateCharacterPortrait(arg1, arg2) {
   return window['go']['app']['App']['GenerateCharacterPortrait'](arg1, arg2);
 }
@@ -696,6 +756,10 @@ export function GenerateCharacters(arg1) {
 
 export function GenerateDefaultCanvas() {
   return window['go']['app']['App']['GenerateDefaultCanvas']();
+}
+
+export function GenerateDiagram(arg1) {
+  return window['go']['app']['App']['GenerateDiagram'](arg1);
 }
 
 export function GenerateFreeImage(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {

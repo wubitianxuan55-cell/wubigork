@@ -14,6 +14,7 @@ import (
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/factbase"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
@@ -224,6 +225,10 @@ func deleteSessionFile(dir, sessionPath string) error {
 	key := filepath.Base(sessionPath)
 	if err := os.Remove(sessionPath); err != nil && !os.IsNotExist(err) {
 		return err
+	}
+	// 事实底座与会话同生共死：删除会话时顺带清理 <session>-facts.json。
+	if factsPath := factbase.PathFor(sessionPath); factsPath != "" {
+		_ = os.Remove(factsPath)
 	}
 	m := loadSessionTitles(dir)
 	if _, ok := m[key]; ok {

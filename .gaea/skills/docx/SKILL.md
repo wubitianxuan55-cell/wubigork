@@ -15,7 +15,7 @@ A .docx file is a ZIP archive containing XML files.
 | Task | Approach |
 |------|----------|
 | Read/analyze content | `pandoc` or unpack for raw XML |
-| Create new document | Use `docx-js` - see Creating New Documents below |
+| Create new document | Use `scripts/create_docx.py` (python-docx) - see Creating New Documents below |
 | Edit existing document | Unpack → edit XML → repack - see Editing Existing Documents below |
 
 ### Converting .doc to .docx
@@ -31,6 +31,10 @@ python scripts/office/soffice.py --headless --convert-to docx document.doc
 ```bash
 # Text extraction with tracked changes
 pandoc --track-changes=all document.docx -o output.md
+
+# Fallback when pandoc is unavailable (Windows 桌面端通常无 pandoc):
+# 用 gaea 的 format_convert 工具（Go 自研 docx→Markdown，含标题/表格）——
+# run_skill 或工具面板里的 format_convert，或直接 bash 调 gaea 转换引擎。
 
 # Raw XML access
 python scripts/office/unpack.py document.docx unpacked/
@@ -55,7 +59,23 @@ python scripts/accept_changes.py input.docx output.docx
 
 ## Creating New Documents
 
-Generate .docx files with JavaScript, then validate. Install: `npm install -g docx`
+首选 `scripts/create_docx.py`（python-docx，环境已装）——从 Markdown 或 JSON spec 直接生成排版规整的
+Word 文档（A4/Letter、封面、目录域、标题层级、表格、列表、页眉页脚、页码、图片）。这是主路径，不依赖
+node docx-js。
+
+```bash
+# Markdown → Word（推荐：agent 输出即 Markdown，直通排版）
+python scripts/create_docx.py 报告.md 报告.docx --cover --toc --header "页眉" --footer "第 {page} 页"
+
+# JSON spec（细粒度控制：图片/自定义表格/页边距）
+python scripts/create_docx.py spec.json 报告.docx --spec
+```
+
+生成后必须验证：脚本回读段落/表格数量；再用 `python -c "from docx import Document; ..."` 抽查标题与表格内容。
+
+### 高级：docx-js 精确排版（可选，需要 `npm install -g docx`）
+
+当需要脚本能力之外的精确控制（跨页表格、复杂页眉、脚注、双栏）时，用 docx-js 生成，然后 validate：
 
 ### Setup
 ```javascript
@@ -584,7 +604,9 @@ After running `comment.py` (see Step 2), add markers to document.xml. For replie
 
 ## Dependencies
 
-- **pandoc**: Text extraction
-- **docx**: `npm install -g docx` (new documents)
-- **LibreOffice**: PDF conversion (auto-configured for sandboxed environments via `scripts/office/soffice.py`)
+- **python-docx**: 新建文档（`scripts/create_docx.py`，缺失时脚本自动 pip 安装）
+- **format_convert（gaea 内置）**: docx→Markdown 读取兜底，pandoc 不可用时优先用它
+- **pandoc**: 文本提取（可选；未安装时用 format_convert 兜底）
+- **docx**: `npm install -g docx`（可选，高级精确排版）
+- **LibreOffice**: PDF 转换与公式重算（`scripts/office/soffice.py` 自动探测 Windows 安装路径，无需加入 PATH）
 - **Poppler**: `pdftoppm` for images

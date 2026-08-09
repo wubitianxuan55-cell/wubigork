@@ -12,7 +12,12 @@ import type {
   CheckpointMeta,
   CommandInfo,
   ContextInfo,
+  CrossEmbedInput,
+  CrossEmbedResult,
   DirEntry,
+  ExportDeliverableInput,
+  ExportDeliverableResult,
+  FactBaseView,
   FilePickResult,
   FilePreview,
   PreviewResult,
@@ -26,6 +31,8 @@ import type {
   MemorySuggestion,
   MemorySuggestionsView,
   MemoryView,
+  OfficeEditResult,
+  XlsxEditResult,
   SkillSuggestion,
   TabMeta,
   Meta,
@@ -34,6 +41,8 @@ import type {
   QuestionAnswer,
   SessionMeta,
   SettingsView,
+  SkillCaptureInput,
+  SkillCaptureResult,
   SlashArgsResult,
   UpdateInfo,
   UpdateProgress,
@@ -95,6 +104,16 @@ export interface AppBindings {
   // Jobs lists the running background jobs (bash/task started in the background)
   // for the status-bar indicator.
   Jobs(): Promise<JobView[]>;
+  // FactBase reads the current conversation's fact base (settled facts before
+  // deliverables); FactBaseClear resets it from the sidebar panel.
+  FactBase(): Promise<FactBaseView>;
+  FactBaseClear(): Promise<void>;
+  // FactBasePromote writes the fact base into permanent memory (dedup by key),
+  // returning how many facts were saved/updated.
+  FactBasePromote(): Promise<number>;
+  // CaptureSkill 把一次成功对话沉淀为可复用技能（写入 .gaea/skills + 全局镜像，
+  // 成功后热加载引擎）。同名技能允许覆盖。
+  CaptureSkill(input: SkillCaptureInput): Promise<SkillCaptureResult>;
   Meta(): Promise<Meta>;
   Commands(): Promise<CommandInfo[]>;
   // Capabilities feeds the MCP & Skills drawer: connected/failed servers + skills.
@@ -111,6 +130,27 @@ export interface AppBindings {
   ListDir(rel: string): Promise<DirEntry[]>;
   ReadFile(rel: string): Promise<FilePreview>;
   Preview(rel: string): Promise<PreviewResult>;
+  // OfficeEditText 框选即改：按指令生成选中文本的替换；DocxApplyEdit 以修订模式
+  // （w:del+w:ins）写入 docx 并返回更新后的预览。
+  OfficeEditText(selectedText: string, instruction: string): Promise<OfficeEditResult>;
+  DocxApplyEdit(rel: string, selectedText: string, replacement: string): Promise<PreviewResult>;
+  // DocxAcceptChanges 接受/拒绝 gaea 的待处理修订，返回更新预览。
+  DocxAcceptChanges(rel: string, accept: boolean): Promise<PreviewResult>;
+  // XlsxEdit 单元格级操作：上下文 → AI 规划 → excelize 执行 + LibreOffice 重算 →
+  // 返回更新预览。
+  XlsxEdit(rel: string, sheet: string, instruction: string, selection: string): Promise<XlsxEditResult>;
+  // XlsxSetCell 直接写单元格（Excel 式双击编辑）：写值/公式 + LibreOffice 重算。
+  XlsxSetCell(rel: string, sheet: string, ref: string, value: string): Promise<XlsxEditResult>;
+  // XlsxRecalc 手动重算全部公式（LibreOffice）并返回更新预览。
+  XlsxRecalc(rel: string): Promise<XlsxEditResult>;
+  // XlsxRowOps 行级操作：insert_before / insert_after / delete（基于选中单元格所在行）。
+  XlsxRowOps(rel: string, sheet: string, action: string, ref: string): Promise<XlsxEditResult>;
+  // XlsxColOps 列级操作：insert_before / insert_after / delete（基于选中单元格所在列）。
+  XlsxColOps(rel: string, sheet: string, action: string, ref: string): Promise<XlsxEditResult>;
+  // ExportDeliverable 统一交付出口：受控 Markdown → docx/pptx/xlsx/md。
+  ExportDeliverable(input: ExportDeliverableInput): Promise<ExportDeliverableResult>;
+  // CrossEmbed 跨应用联动：xlsx 数据 → 图表 → 嵌入 docx/pptx。
+  CrossEmbed(input: CrossEmbedInput): Promise<CrossEmbedResult>;
   OpenWorkspacePath(rel: string): Promise<void>;
   // WorkspaceChanges returns files modified during this session by the agent.
   WorkspaceChanges(): Promise<WorkspaceChangeView[]>;
@@ -122,6 +162,8 @@ export interface AppBindings {
   // 视觉模型识别图片内容，返回文本描述。
   CaptureScreen(): Promise<string>;
   RecognizeImage(imagePath: string, prompt: string): Promise<string>;
+  // OCRText 用本地 OvisOCR2 常驻服务提取图片中的文字（办公「提取文字」入口）。
+  OCRText(imagePath: string): Promise<string>;
   Models(): Promise<ModelInfo[]>;
   SetModel(name: string): Promise<void>;
   // Memory panel: read the loaded REASONIX.md hierarchy + saved auto-memories,
@@ -274,6 +316,7 @@ const gaeaToGaea: Record<string, string> = {
   AnswerQuestion: "GaeaAnswer",
   NewSession: "GaeaNewSession",
   Reload: "GaeaReload",
+  CaptureSkill: "GaeaCaptureSkill",
   History: "GaeaHistory",
   Checkpoints: "GaeaCheckpoints",
   Rewind: "GaeaRewind",
@@ -291,6 +334,9 @@ const gaeaToGaea: Record<string, string> = {
   TCCAReport: "GaeaTCCAReport",
   Balance: "GaeaBalance",
   Jobs: "GaeaJobs",
+  FactBase: "GaeaFactBase",
+  FactBaseClear: "GaeaFactBaseClear",
+  FactBasePromote: "GaeaFactBasePromote",
   Meta: "GaeaMeta",
   Commands: "GaeaCommands",
   Capabilities: "GaeaCapabilities",
@@ -302,6 +348,16 @@ const gaeaToGaea: Record<string, string> = {
   ListDir: "GaeaListDir",
   ReadFile: "GaeaReadFile",
   Preview: "GaeaPreview",
+  OfficeEditText: "GaeaOfficeEditText",
+  DocxApplyEdit: "GaeaDocxApplyEdit",
+  DocxAcceptChanges: "GaeaDocxAcceptChanges",
+  XlsxEdit: "GaeaXlsxEdit",
+  XlsxSetCell: "GaeaXlsxSetCell",
+  XlsxRecalc: "GaeaXlsxRecalc",
+  XlsxRowOps: "GaeaXlsxRowOps",
+  XlsxColOps: "GaeaXlsxColOps",
+  ExportDeliverable: "GaeaExportDeliverable",
+  CrossEmbed: "GaeaCrossEmbed",
   OpenWorkspacePath: "GaeaOpenWorkspacePath",
   WorkspaceChanges: "GaeaWorkspaceChanges",
   RevealWorkspacePath: "GaeaRevealWorkspacePath",
@@ -310,6 +366,7 @@ const gaeaToGaea: Record<string, string> = {
   AttachmentDataURL: "GaeaAttachmentDataURL",
   CaptureScreen: "GaeaCaptureScreen",
   RecognizeImage: "GaeaRecognizeImage",
+  OCRText: "GaeaOCRText",
   Models: "GaeaModels",
   SetModel: "GaeaSetModel",
   Memory: "GaeaMemory",

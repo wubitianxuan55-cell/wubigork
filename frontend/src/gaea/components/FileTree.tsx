@@ -3,13 +3,21 @@ import { ChevronRight, ChevronDown, File, Folder, Image, FileText } from "../ico
 import { app } from "../lib/bridge";
 import type { DirEntry } from "../lib/types";
 
-// 文件图标映射（按扩展名）
+// 文件图标映射（按扩展名着色，办公文件优先）
 function fileIcon(name: string, isDir: boolean) {
   if (isDir) return <Folder size={14} className="text-accent shrink-0" />;
-  const ext = name.split(".").pop()?.toLowerCase();
-  if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext ?? ""))
-    return <Image size={14} className="text-fg-dim shrink-0" />;
-  if (["md", "txt", "json", "toml", "yaml", "yml", "csv", "xml", "html", "css", "js", "ts", "tsx", "jsx", "go", "py"].includes(ext ?? ""))
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  if (["doc", "docx"].includes(ext))
+    return <FileText size={14} className="text-sky-400 shrink-0" />;
+  if (["xls", "xlsx", "csv"].includes(ext))
+    return <FileText size={14} className="text-emerald-400 shrink-0" />;
+  if (["ppt", "pptx"].includes(ext))
+    return <FileText size={14} className="text-orange-400 shrink-0" />;
+  if (ext === "pdf")
+    return <FileText size={14} className="text-red-400 shrink-0" />;
+  if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext))
+    return <Image size={14} className="text-violet-400 shrink-0" />;
+  if (["md", "txt", "json", "toml", "yaml", "yml", "xml", "html", "css", "js", "ts", "tsx", "jsx", "go", "py"].includes(ext))
     return <FileText size={14} className="text-fg-dim shrink-0" />;
   return <File size={14} className="text-fg-faint shrink-0" />;
 }
@@ -100,6 +108,10 @@ function DirNode({
         <div>
           {entries
             .filter((e) => !e.name.startsWith("."))
+            .sort((a, b) => {
+              if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+              return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+            })
             .map((e) => {
               const childPath = relPath ? `${relPath}/${e.name}` : e.name;
               if (e.isDir) {

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gaea/gaea/internal/ai"
 )
 
 // TestDiagramToolMeta 校验画图工具元信息与 Schema。
@@ -72,5 +74,28 @@ func TestSaveDiagramMermaid(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "flowchart") {
 		t.Error("文件内容不正确")
+	}
+}
+
+// TestGenerateDiagramGuard 绘梦图表模式的空提示词 / 未初始化保护。
+func TestGenerateDiagramGuard(t *testing.T) {
+	// 未初始化客户端
+	a := &mediaState{}
+	res, err := a.GenerateDiagram("订单处理流程图")
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if res["error"] == nil {
+		t.Fatal("未初始化客户端应返回错误")
+	}
+
+	// 空提示词（不触发 LLM 调用）
+	a = &mediaState{core: &core{client: &ai.Client{}}}
+	res, err = a.GenerateDiagram("   ")
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if res["error"] == nil {
+		t.Fatal("空提示词应返回错误")
 	}
 }

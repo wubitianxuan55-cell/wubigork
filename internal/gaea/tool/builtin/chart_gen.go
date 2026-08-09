@@ -67,7 +67,7 @@ for font in ['SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei', 'Noto Sans CJK 
     except:
         continue
 
-params = json.loads(sys.stdin.read())
+params = json.loads(sys.stdin.buffer.read().decode('utf-8'))
 labels = params.get('labels', [])
 values = params.get('values', [])
 ctype = params.get('chart_type', 'bar')

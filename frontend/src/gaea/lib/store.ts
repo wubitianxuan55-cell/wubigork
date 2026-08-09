@@ -5,7 +5,7 @@ import { create } from "zustand";
 import { useShallow } from "zustand/shallow";
 import { app, onEvent, onReady } from "./bridge";
 import type {
-  BalanceInfo, ContextInfo, HistoryMessage, JobView, MemoryView,
+  BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView, MemoryView,
   Meta, QuestionAnswer, SessionMeta, TCCAReport, WireApproval, WireAsk,
   WireEvent, WireUsage,
 } from "./types";
@@ -22,7 +22,7 @@ export type Item =
 
 export interface ControllerState {
   items: Item[]; running: boolean; turnActive: boolean; approval?: WireApproval; ask?: WireAsk;
-  usage?: WireUsage; context: ContextInfo; meta?: Meta; balance?: BalanceInfo; jobs: JobView[];
+  usage?: WireUsage; context: ContextInfo; meta?: Meta; balance?: BalanceInfo; jobs: JobView[]; factBase: FactBaseView;
   tcca?: TCCAReport;
   currentAssistant?: string; pendingUser?: string; discardTurn?: boolean;
   lastAssistantIdx: number; // 最后一个 assistant 项的索引，避免流式 text/reasoning 事件中 O(n) 反向查找
@@ -39,7 +39,7 @@ export interface ControllerState {
 type Action =
   | { type: "event"; e: WireEvent } | { type: "user"; text: string } | { type: "unsend" }
   | { type: "meta"; meta: Meta } | { type: "context"; context: ContextInfo }
-  | { type: "balance"; balance: BalanceInfo } | { type: "jobs"; jobs: JobView[] }
+  | { type: "balance"; balance: BalanceInfo } | { type: "jobs"; jobs: JobView[] } | { type: "factbase"; factBase: FactBaseView }
   | { type: "tcca"; report: TCCAReport }
   | { type: "history"; messages: HistoryMessage[] } | { type: "clearApproval" } | { type: "clearAsk" } | { type: "reset" };
 
@@ -187,7 +187,7 @@ function reducer(s: ControllerState, a: Action): ControllerState {
     case "user": return { ...s, running: true, turnStartAt: Date.now(), turnTokens: 0, pendingUser: a.text, discardTurn: false, seq: s.seq + 1, items: [...s.items, { kind: "user", id: `u${s.seq}`, text: a.text }] };
     case "unsend": return { ...s, pendingUser: undefined, discardTurn: true, running: false };
     case "meta": return { ...s, meta: a.meta }; case "context": return { ...s, context: a.context };
-    case "balance": return { ...s, balance: a.balance }; case "jobs": return { ...s, jobs: a.jobs };
+    case "balance": return { ...s, balance: a.balance }; case "jobs": return { ...s, jobs: a.jobs }; case "factbase": return { ...s, factBase: a.factBase };
     case "tcca": return { ...s, tcca: a.report };
     case "history": { const visible = a.messages.filter(m => (m.role === "user" || m.role === "assistant") && m.content.trim() !== ""); const lastIdx = visible.reduceRight((acc, m, i) => acc >= 0 ? acc : m.role === "assistant" ? i : -1, -1); return { ...s, items: visible.map((m, i) => m.role === "user" ? { kind: "user", id: `h${i}`, text: m.content } as Item : { kind: "assistant", id: `h${i}`, text: m.content, reasoning: "", streaming: false } as Item), seq: s.seq + visible.length, lastAssistantIdx: lastIdx }; }
     case "clearApproval": return { ...s, approval: undefined }; case "clearAsk": return { ...s, ask: undefined };
@@ -204,6 +204,7 @@ const initialState: ControllerState = {
   context: { used: 0, window: 0 }, meta: undefined, balance: undefined,
   tcca: undefined,
   jobs: [], currentAssistant: undefined, pendingUser: undefined, discardTurn: false, lastAssistantIdx: -1,
+  factBase: { facts: [], markdown: "", count: 0, path: "" },
   turnStartAt: 0, turnTokens: 0, seq: 0, sessionTotal: 0, sessionNonce: 0, perTurnUsage: null, turnSteps: [],
   _dispatch: () => {},
 };
@@ -237,6 +238,10 @@ export function useController() {
     } catch {}
   }, [dispatch]);
 
+  const refreshFactBase = useCallback(() => {
+    app.FactBase().then(factBase => dispatch({ type: "factbase", factBase })).catch(() => {});
+  }, [dispatch]);
+
   useEffect(() => {
     const off = onEvent((e) => {
       // 流式 text/reasoning 用 queueMicrotask 确保每次 chunk 即时渲染，
@@ -256,12 +261,17 @@ export function useController() {
       }
       if (e.kind === "turn_done" || e.kind === "notice") {
         app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch(() => {});
+        refreshFactBase();
+      }
+      if (e.kind === "tool_result" && e.tool?.name?.startsWith("fact_")) {
+        refreshFactBase();
       }
     });
     const offReady = onReady(() => {
       void loadSessionData();
       app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch(() => {});
       app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch(() => {});
+      refreshFactBase();
       app.TCCAReport().then(raw => {
         try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); } catch {}
       }).catch(() => {});
@@ -269,8 +279,9 @@ export function useController() {
     void loadSessionData();
     app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch(() => {});
     app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch(() => {});
+    refreshFactBase();
     return () => { off(); offReady(); };
-  }, [loadSessionData]);
+  }, [loadSessionData, refreshFactBase]);
 
   const send = useCallback((displayText: string, submitText = displayText) => {
     dispatch({ type: "user", text: displayText });
@@ -287,7 +298,7 @@ export function useController() {
   const approve = useCallback((id: string, allow: boolean, session: boolean) => { dispatch({ type: "clearApproval" }); app.Approve(id, allow, session).catch(() => {}); }, [dispatch]);
   const answerQuestion = useCallback((id: string, answers: QuestionAnswer[]) => { dispatch({ type: "clearAsk" }); app.AnswerQuestion(id, answers).catch(() => {}); }, [dispatch]);
   const setPermLevel = useCallback((level: string) => { app.SetPermLevel(level).catch(() => {}); }, []);
-  const newSession = useCallback(async () => { await app.NewSession().catch(() => {}); dispatch({ type: "reset" }); }, [dispatch]);
+  const newSession = useCallback(async () => { await app.NewSession().catch(() => {}); dispatch({ type: "reset" }); refreshFactBase(); }, [dispatch, refreshFactBase]);
   const listSessions = useCallback((): Promise<SessionMeta[]> => app.ListSessions().catch(() => []), []);
   const resumeSession = useCallback(async (path: string) => {
     const ms = await app.ResumeSession(path).catch((e: unknown) => {
@@ -301,12 +312,13 @@ export function useController() {
     dispatch({ type: "reset" });
     if (ms.length) dispatch({ type: "history", messages: ms });
     app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch(() => {});
-  }, [dispatch]);
+    refreshFactBase();
+  }, [dispatch, refreshFactBase]);
   const deleteSession = useCallback((path: string) => app.DeleteSession(path).catch(() => {}), []);
   const renameSession = useCallback((path: string, title: string) => app.RenameSession(path, title).catch(() => {}), []);
   const refreshMeta = useCallback(async () => { try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} }, [dispatch]);
-  const pickWorkspace = useCallback(async (): Promise<string> => { const p = await app.PickWorkspace().catch(() => ""); if (p) { dispatch({ type: "reset" }); try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} } return p; }, [dispatch]);
-  const switchWorkspace = useCallback(async (path: string): Promise<string> => { const n = await app.SwitchWorkspace(path).catch(() => ""); if (n) { dispatch({ type: "reset" }); try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} } return n; }, [dispatch]);
+  const pickWorkspace = useCallback(async (): Promise<string> => { const p = await app.PickWorkspace().catch(() => ""); if (p) { dispatch({ type: "reset" }); refreshFactBase(); try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} } return p; }, [dispatch, refreshFactBase]);
+  const switchWorkspace = useCallback(async (path: string): Promise<string> => { const n = await app.SwitchWorkspace(path).catch(() => ""); if (n) { dispatch({ type: "reset" }); refreshFactBase(); try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} } return n; }, [dispatch, refreshFactBase]);
   const compact = useCallback(() => { app.Compact().catch(() => {}); }, []);
   const setModel = useCallback(async (name: string) => { await app.SetModel(name).catch(() => {}); try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} }, [dispatch]);
   const fetchMemory = useCallback((): Promise<MemoryView> => app.Memory().catch(() => ({ docs: [], facts: [], scopes: [], storeDir: "", available: false } as MemoryView)), []);
@@ -315,9 +327,17 @@ export function useController() {
   const saveDoc = useCallback(async (path: string, body: string) => { await app.SaveDoc(path, body).catch(() => {}); }, []);
   const updateFact = useCallback(async (name: string, body: string) => { await app.UpdateFact(name, body).catch(() => {}); }, []);
   const changeFactType = useCallback(async (name: string, typ: string) => { await app.ChangeFactType(name, typ).catch(() => {}); }, []);
+  const clearFactBase = useCallback(async () => {
+    await app.FactBaseClear().catch(() => {});
+    refreshFactBase();
+  }, [refreshFactBase]);
+  const promoteFactBase = useCallback(async (): Promise<number> => {
+    const n = await app.FactBasePromote().catch(() => 0);
+    return n;
+  }, []);
   const rewind = useCallback(async (turn: number, scope: string) => { if (scope === "fork") await app.Fork(turn).catch(() => {}); else if (scope === "summ-from") await app.SummarizeFrom(turn).catch(() => {}); else if (scope === "summ-upto") await app.SummarizeUpTo(turn).catch(() => {}); else await app.Rewind(turn, scope).catch(() => {}); const ms = await app.History().catch(() => [] as HistoryMessage[]); dispatch({ type: "reset" }); if (ms.length) dispatch({ type: "history", messages: ms }); app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch(() => {}); }, [dispatch]);
 
-  return { state, send, cancel, approve, answerQuestion,  setPermLevel, newSession, listSessions, resumeSession, deleteSession, renameSession, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType };
+  return { state, send, cancel, approve, answerQuestion,  setPermLevel, newSession, listSessions, resumeSession, deleteSession, renameSession, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase };
 }
 
 // useItems 订阅 items 数组，与 useController 分离。

@@ -31,6 +31,7 @@ import {
   FileExcelOutlined,
   FileImageOutlined,
   FileOutlined,
+  FilePptOutlined,
   FileTextOutlined,
   FolderAddOutlined,
   FolderOpenOutlined,
@@ -115,6 +116,7 @@ export const Eye: Icon = wrap(EyeOutlined);
 export const File: Icon = wrap(FileOutlined);
 export const FileImage: Icon = wrap(FileImageOutlined);
 export const FileSpreadsheet: Icon = wrap(FileExcelOutlined);
+export const FilePpt: Icon = wrap(FilePptOutlined);
 export const FileText: Icon = wrap(FileTextOutlined);
 export const Folder: Icon = wrap(FolderOutlined);
 export const FolderGit2: Icon = wrap(FolderOpenOutlined);

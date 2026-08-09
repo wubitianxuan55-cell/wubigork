@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
-import { ChevronRight, Brain } from "../icons";
+import { ChevronRight, Brain, Wand2 } from "../icons";
 import { app } from "../lib/bridge";
 import { MemoMarkdown } from "./MemoMarkdown";
 import { useT } from "../lib/i18n";
@@ -154,7 +154,15 @@ export const UserMessage = memo(function UserMessage({
 
 // ── AssistantMessage ──────────────────────────────────────────────────────
 
-export const AssistantMessage = memo(function AssistantMessage({ item }: { item: AssistantItem; onCollapse?: () => void }) {
+export const AssistantMessage = memo(function AssistantMessage({
+  item,
+  onCollapse,
+  onCapture,
+}: {
+  item: AssistantItem;
+  onCollapse?: () => void;
+  onCapture?: (solution: string) => void;
+}) {
   const t = useT();
   const compact = useCompact();
   const now = useNow();
@@ -222,6 +230,21 @@ export const AssistantMessage = memo(function AssistantMessage({ item }: { item:
           {item.text && (
             <div className="min-w-0">
               <MemoMarkdown text={item.text} streaming={streaming} />
+            </div>
+          )}
+
+          {/* 沉淀为技能：把这次成功对话一键封装为可复用 playbook */}
+          {onCapture && !streaming && item.text && (
+            <div className="mt-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/60 text-[10.5px] cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+                onClick={() => onCapture(item.text)}
+                title="把这次任务与回答保存为可复用技能（/技能名 调用）"
+              >
+                <Wand2 size={11} />
+                沉淀为技能
+              </button>
             </div>
           )}
         </div>

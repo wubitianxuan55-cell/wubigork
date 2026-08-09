@@ -3,7 +3,9 @@ import { AlertCircle, ExternalLink, FileText, FolderTree, Loader2, X } from "../
 import { app } from "../lib/bridge";
 import { usePreviewStore } from "../lib/store";
 import type { PreviewResult } from "../lib/types";
+import { DocxPreview } from "./DocxPreview";
 import { Markdown } from "./Markdown";
+import { XlsxPreview } from "./XlsxPreview";
 
 function formatSize(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -13,6 +15,8 @@ function formatSize(n: number): string {
 
 const KIND_LABEL: Record<PreviewResult["kind"], string> = {
   image: "图片",
+  docx: "Word 文档",
+  xlsx: "Excel 表格",
   markdown: "文档",
   text: "文本",
   unsupported: "不支持内联预览",
@@ -159,6 +163,14 @@ export function FilePreviewModal() {
                 className="max-w-full max-h-[calc(86vh-60px)] object-contain rounded-lg shadow-2xl"
               />
             </div>
+          )}
+
+          {!loading && preview?.kind === "docx" && preview.dataUrl && (
+            <DocxPreview dataUrl={preview.dataUrl} fileName={name} relPath={previewFile} />
+          )}
+
+          {!loading && preview?.kind === "xlsx" && (
+            <XlsxPreview body={preview.body} fileName={name} relPath={previewFile} />
           )}
 
           {!loading && preview?.kind === "markdown" && (

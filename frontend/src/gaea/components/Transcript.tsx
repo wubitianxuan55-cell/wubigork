@@ -3,6 +3,7 @@ import { ArrowDown, Brain, ChevronRight } from "../icons";
 import type { Item } from "../lib/store";
 import { useItems, useTurnStartAt } from "../lib/store";
 import { AssistantMessage, UserMessage } from "./Message";
+import { SkillCaptureModal } from "./SkillCaptureModal";
 import { StreamingIndicator } from "./StreamingIndicator";
 import { ToolCard } from "./ToolCard";
 import { ToolGroup, scanGroups } from "./ToolGroup";
@@ -460,6 +461,7 @@ export function Transcript({
 
   const [dismissedErrors, setDismissedErrors] = useState(new Set<string>());
   const [openTurn, setOpenTurn] = useState<number | null>(null);
+  const [capture, setCapture] = useState<{ task: string; solution: string } | null>(null);
   useEffect(() => {
     if (openTurn === null) return;
     const onDown = (e: MouseEvent) => {
@@ -482,11 +484,13 @@ export function Transcript({
   // ── 分段渲染：过程（思考/工具）进过程卡，正文留在外面 ──
   const renderSegment = useCallback((outsideItems: Item[]) => {
     const gs = scanGroups(outsideItems);
+    let lastUserText = "";
     return gs.map((g) => {
       if (g.kind === "group") {
         return <ToolGroup key={g.id} tools={g.tools} onCollapse={scheduleMeasure} />;
       }
       const it = g.item;
+      if (it.kind === "user") lastUserText = it.text;
       switch (it.kind) {
         case "user": {
           const tn = userTurn.get(it.id);
@@ -515,7 +519,15 @@ export function Transcript({
         case "assistant":
           return (
             <div key={it.id} data-entrance={it.id}>
-              <AssistantMessage item={it} onCollapse={scheduleMeasure} />
+              <AssistantMessage
+                item={it}
+                onCollapse={scheduleMeasure}
+                onCapture={
+                  lastUserText
+                    ? (solution) => setCapture({ task: lastUserText, solution })
+                    : undefined
+                }
+              />
             </div>
           );
         case "tool":
@@ -597,6 +609,12 @@ export function Transcript({
           <ArrowDown size={15} />
         </button>
       )}
+      <SkillCaptureModal
+        open={capture !== null}
+        task={capture?.task ?? ""}
+        solution={capture?.solution ?? ""}
+        onClose={() => setCapture(null)}
+      />
     </div>
   );
 }

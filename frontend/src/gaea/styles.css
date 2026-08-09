@@ -205,14 +205,48 @@ body {
 .layout--workspace-open {
   grid-template-columns: var(--sidebar-width) minmax(200px, 1fr) minmax(0, var(--workspace-width));
 }
-.layout--workspace-maximized {
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+.layout--preview-open {
+  grid-template-columns: var(--sidebar-width) minmax(200px, 1fr) 10px minmax(0, var(--preview-width));
 }
-.layout--workspace-maximized .chat-pane {
+.layout--preview-open .workspace-pane {
   display: none;
 }
-.layout--workspace-maximized .workspace-pane {
-  grid-column: 2;
+
+/* 主区域预览面板：点文件后展开在聊天区右侧，宽度可拖 */
+.preview-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+  border-left: 1px solid var(--border-soft);
+  overflow: hidden;
+}
+.preview-resizer {
+  position: relative;
+  cursor: col-resize;
+  background: transparent;
+  touch-action: none;
+}
+.preview-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast);
+}
+.preview-resizer:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.preview-resizer:hover::after,
+.preview-resizer.is-active::after,
+.layout--preview-resizing .preview-resizer::after {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
 .sidebar-resizer {

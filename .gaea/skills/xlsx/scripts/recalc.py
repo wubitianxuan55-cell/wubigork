@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from office.soffice import get_soffice_env
+from office.soffice import find_soffice, get_soffice_env
 
 from openpyxl import load_workbook
 
@@ -58,7 +58,7 @@ def setup_libreoffice_macro():
 
     if not os.path.exists(macro_dir):
         subprocess.run(
-            ["soffice", "--headless", "--terminate_after_init"],
+            [find_soffice(), "--headless", "--terminate_after_init"],
             capture_output=True,
             timeout=10,
             env=get_soffice_env(),
@@ -82,7 +82,7 @@ def recalc(filename, timeout=30):
         return {"error": "Failed to setup LibreOffice macro"}
 
     cmd = [
-        "soffice",
+        find_soffice(),
         "--headless",
         "--norestore",
         "vnd.sun.star.script:Standard.Module1.RecalculateAndSave?language=Basic&location=application",

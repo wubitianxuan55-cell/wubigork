@@ -165,6 +165,8 @@ export function GaeaCapabilities():Promise<app.CapabilitiesView>;
 
 export function GaeaCaptureScreen():Promise<string>;
 
+export function GaeaCaptureSkill(arg1:app.SkillCaptureInput):Promise<app.SkillCaptureResult>;
+
 export function GaeaChangeFactType(arg1:string,arg2:string):Promise<string>;
 
 export function GaeaCheckUpdate():Promise<app.UpdateInfo>;
@@ -185,11 +187,25 @@ export function GaeaCostSave(arg1:app.CostEntry):Promise<void>;
 
 export function GaeaCostSearch(arg1:string,arg2:string,arg3:string):Promise<Array<app.CostSummary>>;
 
+export function GaeaCrossEmbed(arg1:app.CrossEmbedInput):Promise<app.CrossEmbedResult>;
+
 export function GaeaDeleteProvider(arg1:string):Promise<void>;
 
 export function GaeaDeleteSession(arg1:string):Promise<void>;
 
+export function GaeaDocxAcceptChanges(arg1:string,arg2:boolean):Promise<app.PreviewResult>;
+
+export function GaeaDocxApplyEdit(arg1:string,arg2:string,arg3:string):Promise<app.PreviewResult>;
+
 export function GaeaEngines():Promise<Array<modelengine.EngineConfig>>;
+
+export function GaeaExportDeliverable(arg1:app.ExportDeliverableInput):Promise<app.ExportDeliverableResult>;
+
+export function GaeaFactBase():Promise<app.FactBaseView>;
+
+export function GaeaFactBaseClear():Promise<void>;
+
+export function GaeaFactBasePromote():Promise<number>;
 
 export function GaeaForget(arg1:string):Promise<void>;
 
@@ -236,6 +252,10 @@ export function GaeaModel():Promise<string>;
 export function GaeaModels():Promise<Array<app.ModelInfo>>;
 
 export function GaeaNewSession():Promise<void>;
+
+export function GaeaOCRText(arg1:string):Promise<string>;
+
+export function GaeaOfficeEditText(arg1:string,arg2:string):Promise<Record<string, any>>;
 
 export function GaeaOpenDownloadPage():Promise<void>;
 
@@ -353,11 +373,23 @@ export function GaeaWhisperMemories():Promise<Array<app.WhisperMemoryView>>;
 
 export function GaeaWorkspaceChanges():Promise<Array<app.WorkspaceChangeView>>;
 
+export function GaeaXlsxColOps(arg1:string,arg2:string,arg3:string,arg4:string):Promise<app.XlsxEditResult>;
+
+export function GaeaXlsxEdit(arg1:string,arg2:string,arg3:string,arg4:string):Promise<app.XlsxEditResult>;
+
+export function GaeaXlsxRecalc(arg1:string):Promise<app.XlsxEditResult>;
+
+export function GaeaXlsxRowOps(arg1:string,arg2:string,arg3:string,arg4:string):Promise<app.XlsxEditResult>;
+
+export function GaeaXlsxSetCell(arg1:string,arg2:string,arg3:string,arg4:string):Promise<app.XlsxEditResult>;
+
 export function GenerateCharacterPortrait(arg1:string,arg2:string):Promise<string>;
 
 export function GenerateCharacters(arg1:number):Promise<Record<string, any>>;
 
 export function GenerateDefaultCanvas():Promise<Record<string, any>>;
+
+export function GenerateDiagram(arg1:string):Promise<Record<string, any>>;
 
 export function GenerateFreeImage(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:number,arg7:number,arg8:string):Promise<Record<string, any>>;
 

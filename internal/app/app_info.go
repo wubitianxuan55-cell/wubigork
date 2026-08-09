@@ -8,7 +8,7 @@ import (
 )
 
 // AppVersion 应用版本（与 wails.json productVersion 对齐）
-const AppVersion = "2.5.0"
+const AppVersion = "2.10.0"
 
 // GetAppInfo 返回应用信息与最近更新日志（供设置中心「更新信息」展示）
 func (a *core) GetAppInfo() map[string]interface{} {

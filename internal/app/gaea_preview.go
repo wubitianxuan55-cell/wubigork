@@ -7,11 +7,15 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/office/docmd"
+	"github.com/gaea/gaea/internal/office/xlsxedit"
+	"github.com/gaea/gaea/internal/office/xlsxpreview"
 )
 
 // PreviewResult 是文件预览负载：kind 决定前端渲染方式。
 //   - image       → dataUrl 提供图片
-//   - markdown    → body 为 Markdown（.md 原文或 docx/xlsx/pdf 转换结果）
+//   - docx        → dataUrl 提供原始 docx（前端 docx-preview 保真渲染）
+//   - xlsx        → body 为结构化单元格 JSON（值/公式/样式，前端表格渲染）
+//   - markdown    → body 为 Markdown（.md 原文或 .doc/.xls/pdf 转换结果）
 //   - text        → body 为纯文本
 //   - unsupported → 无法内联预览，前端提供"外部打开"
 //   - error       → error 描述原因
@@ -93,7 +97,33 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		base.Kind = "markdown"
 		base.Body = "```mermaid\n" + string(b) + "\n```"
 		return base
-	case ".docx", ".doc", ".xlsx", ".xls", ".pdf":
+	case ".docx":
+		// 原始 docx 交给前端 docx-preview 保真渲染（版式/表格/页眉页脚/修订）。
+		b, err := os.ReadFile(path)
+		if err != nil {
+			base.Kind = "error"
+			base.Error = err.Error()
+			return base
+		}
+		base.Kind = "docx"
+		base.DataURL = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64," +
+			base64.StdEncoding.EncodeToString(b)
+		return base
+	case ".xlsx":
+		// 公式无缓存值时先补一次 LibreOffice 重算，保证预览显示计算结果
+		if need, _ := xlsxpreview.NeedsRecalc(path); need {
+			_, _ = xlsxedit.Recalc(path, gaeaCwd())
+		}
+		j, err := xlsxpreview.Render(path)
+		if err != nil {
+			base.Kind = "unsupported"
+			base.Error = err.Error()
+			return base
+		}
+		base.Kind = "xlsx"
+		base.Body = j
+		return base
+	case ".doc", ".xls", ".pdf":
 		md, err := docmd.Convert(path, "")
 		if err != nil {
 			base.Kind = "unsupported"

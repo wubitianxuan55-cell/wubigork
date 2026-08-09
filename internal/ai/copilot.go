@@ -144,6 +144,84 @@ func (c *Client) CmdKEdit(ctx context.Context, engineID, model string, selectedT
 	return cleaned, nil
 }
 
+// OfficeEditText 根据自然语言指令编辑选中的办公文本（框选即改）。
+// 与 CmdKEdit（小说向）不同：提示词面向办公文档——措辞严谨、关键信息
+// （数字/日期/单位/专有名词）不变、输出纯文本。
+func (c *Client) OfficeEditText(ctx context.Context, engineID, model string, selectedText string, instruction string) (string, error) {
+	styleInstruction := "\n5. 保留文档原语气与行文风格，不擅自添加营销腔或夸张表达"
+
+	systemPrompt := fmt.Sprintf(`你是专业办公文档编辑助手。根据用户指令精确编辑给定文本。
+
+核心规则：
+1. 仅编辑用户选中的文本，不要添加解释、标题、批注或额外内容
+2. 严格遵循编辑指令（润色/改写/精简/翻译/扩写/换措辞等）
+3. 保持关键信息不变：数字、日期、单位、金额、专有名词、条款含义
+4. 输出纯文本，不要 Markdown 标记、引号包裹或前后缀说明
+%s`, styleInstruction)
+
+	userPrompt := fmt.Sprintf(`编辑指令：%s
+
+原始文本：
+---
+%s
+---
+
+请输出编辑后的文本：`, instruction, selectedText)
+
+	reply, err := c.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ChatSimpleOptions{
+		Temperature: 0.3,
+		MaxTokens:   util.Max(len([]rune(selectedText))*2, 1024),
+		EngineID:    engineID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("AI 编辑失败: %w", err)
+	}
+
+	// 清理可能的 markdown 包裹
+	cleaned := strings.TrimSpace(reply)
+	cleaned = strings.TrimPrefix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSpace(cleaned)
+	return cleaned, nil
+}
+
+// XlsxEditOps 根据表格上下文与用户指令，规划 Excel 单元格操作（JSON 数组）。
+// 返回的字符串由调用方用 util.ExtractJSON 解析为 xlsxedit.Op 列表。
+func (c *Client) XlsxEditOps(ctx context.Context, engineID, model string, contextJSON string, selection string, instruction string) (string, error) {
+	systemPrompt := `你是 Excel 表格操作规划器。根据表格上下文与用户指令，输出严格 JSON 数组，每个元素是一个操作对象。
+支持的操作类型（sheet 使用给定工作表名）：
+{"type":"set_formula","sheet":"..","target":"B4","formula":"SUM(B2:B3)"}  在指定单元格写入公式（不含前导 =）
+{"type":"set_value","sheet":"..","target":"B4","value":100}  写入常量（数字不带引号）
+{"type":"fill_range","sheet":"..","range":"B2:B10","value":0}  常量填充整个区域
+{"type":"transform","sheet":"..","range":"C2:C10","formula":"=B2*0.13"}  按区域逐行写公式，模板写第一行公式，相对行引用自动下移
+{"type":"replace","sheet":"..","range":"A1:A20","find":"旧","replace":"新"}  区域内查找替换文本
+{"type":"split_column","sheet":"..","col":"A","sep":"-","newCols":["B","C"],"headers":["省","市"]}  按分隔符拆分列到新列（可选写表头）
+{"type":"clean","sheet":"..","range":"B2:B10","trim":true,"upper":false,"lower":false}  清洗：去空格/转大写/转小写
+规则：
+1. 只输出 JSON 数组，不要任何解释、Markdown 或注释
+2. target/range 必须落在数据区域内，列字母大写
+3. 只做用户要求的最小改动，不得臆造数据（计算类优先用公式而非写死结果）
+4. 用户选区是目标单元格时优先用 set_formula/set_value；列级操作（拆分/清洗/变换）才用区域`
+
+	userPrompt := fmt.Sprintf(`表格上下文（JSON）：
+%s
+
+用户选区：%s
+用户指令：%s
+
+请输出操作 JSON 数组：`, contextJSON, selection, instruction)
+
+	reply, err := c.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ChatSimpleOptions{
+		Temperature: 0.2,
+		MaxTokens:   2048,
+		EngineID:    engineID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("表格操作规划失败: %w", err)
+	}
+	return reply, nil
+}
+
 // ── Beat-to-Prose ────────────────────────────────────────────
 
 // Beat 一个叙事节拍（简短动作描述，如"Elara 推开大门，发现大厅空无一人"）

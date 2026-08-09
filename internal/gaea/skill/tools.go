@@ -387,6 +387,14 @@ func renderSkillFile(name, desc, body string, runAs RunAs, model string, allowed
 	return fm.String() + strings.TrimRight(body, " \t\r\n") + "\n"
 }
 
+// RenderSkillFile assembles a flat inline skill file (frontmatter + body) using
+// the same canonical rendering as install_skill. Exported for host-side authors
+// (e.g. the desktop "capture a turn as a skill" flow) that write skills outside
+// the agent loop.
+func RenderSkillFile(name, desc, body string) string {
+	return renderSkillFile(name, desc, body, RunInline, "", nil)
+}
+
 // --- shared helpers ---
 
 // Render builds a skill's invocation text: a header (name, description, source)

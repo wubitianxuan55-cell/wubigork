@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ClipboardEvent, DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { ArrowUp, Camera, Check, ChevronDown, Eye, FolderGit2, FolderPlus, Loader, Paperclip, Search, Square, X, Zap } from "../icons";
+import { ArrowUp, Camera, Check, ChevronDown, Eye, FileText, FolderGit2, FolderPlus, Loader, Paperclip, Search, Square, X, Zap } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import { clearLayoutSize, loadOptionalLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
@@ -55,6 +55,7 @@ export function Composer({
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [captureBusy, setCaptureBusy] = useState(false);
   const [recognizingPath, setRecognizingPath] = useState<string | null>(null);
+  const [ocrPath, setOcrPath] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -232,10 +233,16 @@ export function Composer({
   const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(e.clipboardData.files);
     if (files.length > 0) { e.preventDefault(); void attachDroppedFiles(files); return; }
-    const hasImageData = Array.from(e.clipboardData.items).some(
+    // 剪贴板图片（如截图/复制的网页图片）：转为图片附件上下文，而不是静默丢弃
+    const imageItem = Array.from(e.clipboardData.items).find(
       (it) => it.type.startsWith("image/")
     );
-    if (hasImageData) { e.preventDefault(); return; }
+    if (imageItem) {
+      e.preventDefault();
+      const file = imageItem.getAsFile();
+      if (file) void attachDroppedFiles([file]);
+      return;
+    }
     paste.onPaste(e);
   };
 
@@ -331,6 +338,25 @@ export function Composer({
       toast.show(String(e?.message ?? e), "warn");
     } finally {
       setRecognizingPath(null);
+    }
+  };
+
+  // ── 提取文字：本地 OvisOCR2 常驻服务识别图片中的文字，结果作为用户消息发给助手 ──
+  const handleOCRText = async (att: Attachment) => {
+    if (running || ocrPath) return;
+    setOcrPath(att.path);
+    try {
+      const text = await app.OCRText(att.path);
+      const name = att.path.split(/[/\\]/).pop() || att.path;
+      const msg = `【图片文字提取：${name}】\n${text}`;
+      setText("");
+      setAttachments((prev) => prev.filter((x) => x.path !== att.path));
+      onSendRef.current(msg, msg);
+      toast.show("文字提取完成，已发送给助手");
+    } catch (e: any) {
+      toast.show(String(e?.message ?? e), "warn");
+    } finally {
+      setOcrPath(null);
     }
   };
 
@@ -526,6 +552,17 @@ export function Composer({
                   onClick={() => void handleRecognize(a)}
                 >
                   {recognizingPath === a.path ? <Loader size={12} className="animate-spin" /> : <Eye size={12} />}
+                </button>
+              )}
+              {a.type === "image" && (
+                <button
+                  type="button"
+                  className="flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded text-fg-dim cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+                  title={running ? "助手回复中，稍后再试" : "提取文字：本地 OvisOCR2 识别图中文字"}
+                  disabled={running || !!ocrPath}
+                  onClick={() => void handleOCRText(a)}
+                >
+                  {ocrPath === a.path ? <Loader size={12} className="animate-spin" /> : <FileText size={12} />}
                 </button>
               )}
               <button type="button" className="flex items-center justify-center w-5 h-5 bg-transparent border-0 rounded text-fg-faint cursor-pointer hover:text-err hover:bg-bg-soft transition-colors" title="移除" onClick={() => setAttachments((prev) => prev.filter((x) => x.path !== a.path))}><X size={13} /></button>
