@@ -81,3 +81,90 @@ CREATE TABLE IF NOT EXISTS cost_entries (
 );
 CREATE INDEX IF NOT EXISTS idx_cost_category ON cost_entries(category);
 `
+
+// SchemaV3 办公记忆生命周期（P1-⑤/⑥ 记忆生命周期 + 溯源）：
+// facts 增加最近使用时间（高频排序注入）、来源会话/消息（记忆可控与溯源）。
+const SchemaV3 = `
+ALTER TABLE facts ADD COLUMN last_used_at TEXT NOT NULL DEFAULT '';
+ALTER TABLE facts ADD COLUMN source_session TEXT NOT NULL DEFAULT '';
+ALTER TABLE facts ADD COLUMN source_message TEXT NOT NULL DEFAULT '';
+`
+
+// SchemaV4 成本库价格更新（P1-⑤/⑥/⑦）：价格源订阅、抓取记录、价格历史。
+// price_sources 存订阅源配置（URL/解析器/频率/自定义头）；price_fetch 存
+// 每次抓取的待确认结果（无确认不写回 cost_entries）；cost_price_history 存
+// 每次发布的价格快照（旧价保留、可回看环比）。
+const SchemaV4 = `
+CREATE TABLE IF NOT EXISTS price_sources (
+  id              TEXT PRIMARY KEY,
+  name            TEXT NOT NULL DEFAULT '',
+  url             TEXT NOT NULL DEFAULT '',
+  parser          TEXT NOT NULL DEFAULT 'sc_table',
+  frequency_hours INTEGER NOT NULL DEFAULT 0,
+  area            TEXT NOT NULL DEFAULT '',
+  headers         TEXT NOT NULL DEFAULT '{}',
+  enabled         INTEGER NOT NULL DEFAULT 1,
+  last_fetch_at   TEXT NOT NULL DEFAULT '',
+  created_at      TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS price_fetch (
+  id          TEXT PRIMARY KEY,
+  source_id   TEXT NOT NULL DEFAULT '',
+  source_name TEXT NOT NULL DEFAULT '',
+  url         TEXT NOT NULL DEFAULT '',
+  period      TEXT NOT NULL DEFAULT '',
+  fetched_at  TEXT NOT NULL DEFAULT '',
+  status      TEXT NOT NULL DEFAULT 'pending',
+  summary     TEXT NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS idx_price_fetch_status ON price_fetch(status);
+CREATE TABLE IF NOT EXISTS cost_price_history (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL DEFAULT '',
+  title      TEXT NOT NULL DEFAULT '',
+  unit       TEXT NOT NULL DEFAULT '',
+  price      REAL NOT NULL DEFAULT 0,
+  source     TEXT NOT NULL DEFAULT '',
+  period     TEXT NOT NULL DEFAULT '',
+  fetched_at TEXT NOT NULL DEFAULT '',
+  note       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_price_history_name ON cost_price_history(name);
+`
+
+// SchemaV5 本地语义向量索引（P1-⑦）：semantic_vectors 共享表，按 (kind,id)
+// 存 bge-m3 向量 JSON，供成本/知识/办公记忆跨库语义检索。入库即写、增量
+// 更新（Ensure 只向量化缺失项），查询只嵌 query + 余弦，避免每查询全量批量。
+const SchemaV5 = `
+CREATE TABLE IF NOT EXISTS semantic_vectors (
+  kind       TEXT NOT NULL,
+  id         TEXT NOT NULL,
+  vec        TEXT NOT NULL DEFAULT '[]',
+  doc        TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (kind, id)
+);
+`
+
+// SchemaV6 知识库版本历史（P1）：knowledge_history 保存每次内容变更前的快照，
+// 供版本回溯与审核（配合 knowledge.version/reviewer 字段）。
+const SchemaV6 = `
+CREATE TABLE IF NOT EXISTS knowledge_history (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL DEFAULT '',
+  title      TEXT NOT NULL DEFAULT '',
+  version    INTEGER NOT NULL DEFAULT 0,
+  category   TEXT NOT NULL DEFAULT '',
+  phase      TEXT NOT NULL DEFAULT '',
+  discipline TEXT NOT NULL DEFAULT '',
+  tags       TEXT NOT NULL DEFAULT '[]',
+  status     TEXT NOT NULL DEFAULT '',
+  author     TEXT NOT NULL DEFAULT '',
+  reviewer   TEXT NOT NULL DEFAULT '',
+  source     TEXT NOT NULL DEFAULT '',
+  body       TEXT NOT NULL DEFAULT '',
+  changed_at TEXT NOT NULL DEFAULT '',
+  note       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_history_name ON knowledge_history(name);
+`

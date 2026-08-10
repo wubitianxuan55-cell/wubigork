@@ -5,6 +5,7 @@ import {app} from '../models';
 import {chat} from '../models';
 import {event} from '../models';
 import {modelengine} from '../models';
+import {pricefeed} from '../models';
 import {office} from '../models';
 import {search} from '../models';
 import {fs} from '../models';
@@ -181,6 +182,12 @@ export function GaeaCostDelete(arg1:string):Promise<void>;
 
 export function GaeaCostGet(arg1:string):Promise<app.CostEntry>;
 
+export function GaeaCostImportAIParse(arg1:string):Promise<app.CostImportPreview>;
+
+export function GaeaCostImportApply(arg1:Array<app.CostEntry>):Promise<number>;
+
+export function GaeaCostImportPreview(arg1:string):Promise<app.CostImportPreview>;
+
 export function GaeaCostList():Promise<Array<app.CostSummary>>;
 
 export function GaeaCostSave(arg1:app.CostEntry):Promise<void>;
@@ -207,7 +214,11 @@ export function GaeaFactBaseClear():Promise<void>;
 
 export function GaeaFactBasePromote():Promise<number>;
 
+export function GaeaFileIndexRebuild():Promise<app.FileIndexStatus>;
+
 export function GaeaFileSearch(arg1:string,arg2:number):Promise<Array<app.FileSearchHit>>;
+
+export function GaeaFileSemanticSearch(arg1:string,arg2:number):Promise<Array<app.FileSemanticHit>>;
 
 export function GaeaForget(arg1:string):Promise<void>;
 
@@ -221,9 +232,25 @@ export function GaeaJobs():Promise<Array<app.JobView>>;
 
 export function GaeaKnowledgeDelete(arg1:string):Promise<void>;
 
+export function GaeaKnowledgeExport(arg1:string):Promise<number>;
+
+export function GaeaKnowledgeFindSimilar(arg1:string):Promise<Array<app.SimilarView>>;
+
 export function GaeaKnowledgeGet(arg1:string):Promise<app.KnowledgeEntry>;
 
+export function GaeaKnowledgeHistory(arg1:string):Promise<Array<app.KnowledgeHistoryView>>;
+
+export function GaeaKnowledgeImportAIParse(arg1:string):Promise<app.KnowledgeImportPreview>;
+
+export function GaeaKnowledgeImportApply(arg1:Array<app.KnowledgeEntry>):Promise<number>;
+
+export function GaeaKnowledgeImportPreview(arg1:string):Promise<app.KnowledgeImportPreview>;
+
 export function GaeaKnowledgeList():Promise<Array<app.KnowledgeSummary>>;
+
+export function GaeaKnowledgeMerge(arg1:string,arg2:Array<string>):Promise<string>;
+
+export function GaeaKnowledgeReview(arg1:string,arg2:boolean,arg3:string):Promise<void>;
 
 export function GaeaKnowledgeSave(arg1:app.KnowledgeEntry):Promise<void>;
 
@@ -243,9 +270,13 @@ export function GaeaMaterials(arg1:number):Promise<Array<app.FileSearchHit>>;
 
 export function GaeaMemory():Promise<app.MemoryView>;
 
+export function GaeaMemoryDuplicates(arg1:number):Promise<Array<app.MemoryDuplicateView>>;
+
 export function GaeaMemoryGraph():Promise<app.MemoryGraphView>;
 
 export function GaeaMemoryHubOverview():Promise<app.MemoryHubOverview>;
+
+export function GaeaMemoryMerge(arg1:string,arg2:Array<string>):Promise<string>;
 
 export function GaeaMemorySuggestions():Promise<app.MemorySuggestionsView>;
 
@@ -273,7 +304,27 @@ export function GaeaPickFiles():Promise<Array<app.FilePickResult>>;
 
 export function GaeaPickWorkspace():Promise<string>;
 
+export function GaeaPinMaterial(arg1:string):Promise<Array<app.FileSearchHit>>;
+
+export function GaeaPinnedMaterials():Promise<Array<app.FileSearchHit>>;
+
 export function GaeaPreview(arg1:string):Promise<app.PreviewResult>;
+
+export function GaeaPriceFetch(arg1:string):Promise<pricefeed.FetchRecord>;
+
+export function GaeaPriceFetchApply(arg1:string,arg2:Array<string>):Promise<number>;
+
+export function GaeaPriceFetchIgnore(arg1:string):Promise<void>;
+
+export function GaeaPriceFetches():Promise<Array<pricefeed.FetchRecord>>;
+
+export function GaeaPriceHistory(arg1:string):Promise<Array<pricefeed.History>>;
+
+export function GaeaPriceSourceDelete(arg1:string):Promise<void>;
+
+export function GaeaPriceSourceSave(arg1:pricefeed.Source):Promise<void>;
+
+export function GaeaPriceSources():Promise<Array<pricefeed.Source>>;
 
 export function GaeaProfileConflicts():Promise<Array<string>>;
 
@@ -323,6 +374,8 @@ export function GaeaSaveWindowState(arg1:Record<string, any>):Promise<void>;
 
 export function GaeaSelectTab(arg1:string):Promise<void>;
 
+export function GaeaSemanticSearch(arg1:string):Promise<Array<app.SemanticHitView>>;
+
 export function GaeaSend(arg1:string):Promise<void>;
 
 export function GaeaSetAgentParams(arg1:number,arg2:number,arg3:string):Promise<void>;
@@ -332,6 +385,8 @@ export function GaeaSetDefaultModel(arg1:string):Promise<void>;
 export function GaeaSetEngine(arg1:string):Promise<void>;
 
 export function GaeaSetMCPServerEnabled(arg1:string,arg2:boolean):Promise<void>;
+
+export function GaeaSetMemoryEnabled(arg1:boolean):Promise<void>;
 
 export function GaeaSetModel(arg1:string):Promise<void>;
 
@@ -353,6 +408,8 @@ export function GaeaSkills():Promise<Array<Record<string, any>>>;
 
 export function GaeaSlashArgs(arg1:string):Promise<app.SlashArgsResult>;
 
+export function GaeaSummarizeFile(arg1:string,arg2:string):Promise<app.GaeaSummaryResult>;
+
 export function GaeaSummarizeFrom(arg1:number):Promise<void>;
 
 export function GaeaSummarizeUpTo(arg1:number):Promise<void>;
@@ -363,7 +420,11 @@ export function GaeaTCCAReport():Promise<string>;
 
 export function GaeaTabMeta():Promise<Array<app.TabMeta>>;
 
+export function GaeaTaskTemplates():Promise<Array<app.TaskTemplate>>;
+
 export function GaeaTools():Promise<Array<Record<string, any>>>;
+
+export function GaeaUnpinMaterial(arg1:string):Promise<Array<app.FileSearchHit>>;
 
 export function GaeaUpdateFact(arg1:string,arg2:string):Promise<string>;
 
@@ -376,6 +437,8 @@ export function GaeaWhisperExportArchive(arg1:string):Promise<number>;
 export function GaeaWhisperMemories():Promise<Array<app.WhisperMemoryView>>;
 
 export function GaeaWorkspaceChanges():Promise<Array<app.WorkspaceChangeView>>;
+
+export function GaeaWorkspaceSearch(arg1:string,arg2:number):Promise<Array<app.WorkspaceSearchHit>>;
 
 export function GaeaXlsxColOps(arg1:string,arg2:string,arg3:string,arg4:string):Promise<app.XlsxEditResult>;
 

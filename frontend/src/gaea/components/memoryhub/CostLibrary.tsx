@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Modal, Form, Input, InputNumber, Select } from "antd";
-import { Coins, Pencil, Plus, RefreshCw, Trash2 } from "../../icons";
+import { Modal } from "antd";
+import { CloudUpload, Coins, Pencil, Plus, RefreshCw, Trash2 } from "../../icons";
 import { app } from "../../lib/bridge";
-import type { CostEntry, CostSummary } from "../../lib/types";
+import type { CostSummary, FilePickResult } from "../../lib/types";
 import { EmptyState } from "../EmptyState";
+import { CostEntryModal } from "./CostEntryModal";
+import { CostImportModal } from "./CostImportModal";
+import { PriceSourcesPanel } from "./PriceSourcesPanel";
 
 const CATEGORIES = ["all", "机械", "材料", "人工", "运输", "检测", "其他"];
 const STATUSES = ["all", "现行", "草稿", "已归档"];
@@ -18,7 +21,8 @@ export function CostLibrary() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<CostSummary | null>(null);
   const [deleteName, setDeleteName] = useState<string | null>(null);
-  const [form] = Form.useForm();
+  const [importFile, setImportFile] = useState<FilePickResult | null>(null);
+  const [mode, setMode] = useState<"list" | "sources">("list");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -38,37 +42,21 @@ export function CostLibrary() {
 
   const openCreate = () => {
     setEditing(null);
-    form.resetFields();
-    form.setFieldsValue({ category: "其他", status: "现行" });
     setModalOpen(true);
   };
   const openEdit = (s: CostSummary) => {
     setEditing(s);
-    app.CostGet(s.name).then((e) => {
-      if (e) form.setFieldsValue({ ...e, tags: (e.tags ?? []).join(", ") });
-    });
     setModalOpen(true);
   };
-  const handleSubmit = async () => {
-    const v = await form.validateFields();
-    const entry: CostEntry = {
-      name: editing?.name ?? v.name,
-      title: v.title,
-      category: v.category ?? "其他",
-      unit: v.unit ?? "",
-      price: v.price ?? 0,
-      spec: v.spec ?? "",
-      source: v.source ?? "",
-      tags: (v.tags ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
-      status: v.status ?? "现行",
-      body: v.body ?? "",
-      updatedAt: "",
-      createdAt: editing ? "" : "",
-    };
-    await app.CostSave(entry);
-    setModalOpen(false);
-    load();
-  };
+  const pickImport = useCallback(async () => {
+    try {
+      const files = await app.PickFiles();
+      const f = files?.[0];
+      if (f) setImportFile(f);
+    } catch {
+      // 原生对话框不可用时静默
+    }
+  }, []);
   const handleDelete = async () => {
     if (!deleteName) return;
     await app.CostDelete(deleteName);
@@ -83,6 +71,26 @@ export function CostLibrary() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* 视图切换：成本条目 / 价格源 */}
+      <div className="shrink-0 flex items-center gap-1 px-4 pt-3">
+        {(["list", "sources"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`px-2.5 h-7 rounded-full text-[11.5px] transition-colors ${
+              mode === m ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
+            }`}
+          >
+            {m === "list" ? "成本条目" : "价格源"}
+          </button>
+        ))}
+      </div>
+      {mode === "sources" ? (
+        <div className="flex-1 min-h-0">
+          <PriceSourcesPanel onChanged={load} />
+        </div>
+      ) : (
+      <>
       {/* 工具条 */}
       <div className="shrink-0 flex items-center gap-2 px-4 pt-3 pb-2">
         <div className="text-fg text-[13px] font-medium">成本库</div>
@@ -100,6 +108,14 @@ export function CostLibrary() {
             title="刷新"
           >
             <RefreshCw size={13} />
+          </button>
+          <button
+            className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
+            onClick={() => void pickImport()}
+            title="导入 xlsx/csv 报价单或测算表"
+          >
+            <CloudUpload size={13} className="text-amber-400" />
+            导入
           </button>
           <button
             className="inline-flex items-center gap-1 px-3 h-8 rounded-lg bg-accent text-white text-[12px] hover:opacity-90 transition-opacity"
@@ -177,57 +193,25 @@ export function CostLibrary() {
         )}
       </div>
 
-      {/* 新建/编辑 Modal */}
-      <Modal
-        title={editing ? "编辑成本" : "新建成本"}
+      {/* 新建/编辑 Modal（与办公侧成本库共用） */}
+      <CostEntryModal
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={handleSubmit}
-        okText="保存"
-        cancelText="取消"
-        width={560}
-      >
-        <Form form={form} layout="vertical" size="small">
-          {!editing && (
-            <Form.Item label="名称（kebab-case，如 hp300）" name="name" rules={[{ required: true, message: "请输入名称" }]}>
-              <Input placeholder="hp300" />
-            </Form.Item>
-          )}
-          <Form.Item label="标题" name="title" rules={[{ required: true, message: "请输入标题" }]}>
-            <Input placeholder="如：HP300 高频液压振动锤" />
-          </Form.Item>
-          <div className="grid grid-cols-3 gap-3">
-            <Form.Item label="分类" name="category">
-              <Select options={CATEGORIES.filter((c) => c !== "all").map((c) => ({ value: c, label: c }))} />
-            </Form.Item>
-            <Form.Item label="单价（元）" name="price">
-              <InputNumber min={0} style={{ width: "100%" }} placeholder="3200" />
-            </Form.Item>
-            <Form.Item label="单位" name="unit">
-              <Input placeholder="台班/吨/m³/工日" />
-            </Form.Item>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Form.Item label="规格型号" name="spec">
-              <Input placeholder="300kW" />
-            </Form.Item>
-            <Form.Item label="来源" name="source">
-              <Input placeholder="定额/市场询价/历史项目" />
-            </Form.Item>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Form.Item label="状态" name="status">
-              <Select options={["现行", "草稿", "已归档"].map((s) => ({ value: s, label: s }))} />
-            </Form.Item>
-            <Form.Item label="标签（逗号分隔）" name="tags">
-              <Input placeholder="振动锤, 桩基" />
-            </Form.Item>
-          </div>
-          <Form.Item label="备注 / 计算说明" name="body">
-            <Input.TextArea rows={3} placeholder="含燃油与操作手等说明" />
-          </Form.Item>
-        </Form>
-      </Modal>
+        editing={editing}
+        onClose={() => setModalOpen(false)}
+        onSaved={() => {
+          setModalOpen(false);
+          load();
+        }}
+      />
+
+      {/* 导入文件 → 解析预览 → 确认入库 */}
+      <CostImportModal
+        open={!!importFile}
+        path={importFile?.path ?? ""}
+        fileName={importFile?.name ?? ""}
+        onClose={() => setImportFile(null)}
+        onImported={load}
+      />
 
       {/* 删除确认 */}
       <Modal
@@ -241,6 +225,8 @@ export function CostLibrary() {
       >
         <p className="text-[13px] text-fg-dim">确定删除成本条目「{deleteName}」吗？</p>
       </Modal>
+      </>
+      )}
     </div>
   );
 }

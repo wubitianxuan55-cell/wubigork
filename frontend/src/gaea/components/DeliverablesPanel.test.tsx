@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { DeliverablesPanel } from "./DeliverablesPanel";
-import { usePreviewStore, useUpdatedFilesStore } from "../lib/store";
+import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 
 describe("DeliverablesPanel 会话产物面板", () => {
   it("展示会话交付文件，点击打开预览", () => {
@@ -49,5 +49,30 @@ describe("DeliverablesPanel 会话产物面板", () => {
     );
     fireEvent.click(screen.getByTitle("跳转到生成它的消息"));
     expect(calls).toEqual([2]);
+  });
+
+  it("表格产物提供「沉淀到成本库」操作，指令进入输入框通道", () => {
+    useComposerInsertStore.setState({ pendingText: null });
+    render(
+      <DeliverablesPanel
+        items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
+        onOpenFile={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTitle("沉淀到成本库：把单价明细用 cost_save 写回成本库"));
+    const text = useComposerInsertStore.getState().pendingText ?? "";
+    expect(text).toContain("cost_save");
+    expect(text).toContain("[成本测算.xlsx](exports/成本测算.xlsx)");
+    useComposerInsertStore.getState().consumeText();
+  });
+
+  it("非表格产物不显示「沉淀到成本库」操作", () => {
+    render(
+      <DeliverablesPanel
+        items={[{ path: ".gaea/exports/方案.docx", sourceId: "a2" }]}
+        onOpenFile={() => {}}
+      />,
+    );
+    expect(screen.queryByTitle("沉淀到成本库：把单价明细用 cost_save 写回成本库")).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/gaea/pins"
 	"github.com/gaea/gaea/internal/whisper"
 	whisperdb "github.com/gaea/gaea/internal/whisper/db/repos"
 )
@@ -65,7 +67,9 @@ type MemoryHubOverview struct {
 	KnowledgeCount int    `json:"knowledgeCount"`
 	ProfileCount   int    `json:"profileCount"`
 	OfficeCount    int    `json:"officeCount"`
+	CostCount      int    `json:"costCount"`
 	WhisperCount   int    `json:"whisperCount"`
+	PinnedCount    int    `json:"pinnedCount"` // 项目资料：工作区固定常用文件数
 	LatestUpdated  string `json:"latestUpdated"`
 }
 
@@ -80,10 +84,28 @@ func (a *App) hubProfileStore() *memory.ProfileStore {
 
 // hubOfficeStore 构造左脑办公记忆存储（SQLite 后端）。
 func (a *App) hubOfficeStore() memory.Store {
+	if officeStoreOverrideSet {
+		return officeStoreOverride
+	}
 	userDir := config.MemoryUserDir()
 	cwd := gaeaCwd()
 	return memory.SQLiteStoreFor(db.GetDatabase(userDir), userDir, cwd)
 }
+
+// officeStoreOverride 测试注入的隔离办公记忆存储（避免触碰真实用户库）。
+var (
+	officeStoreOverride    memory.Store
+	officeStoreOverrideSet bool
+)
+
+// SetOfficeStoreForTest 注入隔离的办公记忆存储（测试用）。
+func SetOfficeStoreForTest(s memory.Store) {
+	officeStoreOverride = s
+	officeStoreOverrideSet = true
+}
+
+// ResetOfficeStoreForTest 清除测试注入，恢复真实办公记忆存储。
+func ResetOfficeStoreForTest() { officeStoreOverrideSet = false }
 
 // GaeaProfileList 返回主脑全局画像事实列表。
 func (a *App) GaeaProfileList() []ProfileFactView {
@@ -183,7 +205,9 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 	}
 	ov.ProfileCount = len(a.hubProfileStore().All())
 	ov.OfficeCount = len(a.hubOfficeStore().List())
+	ov.CostCount = len(a.hubCostStore().List())
 	ov.WhisperCount = len(whisperdb.LoadFactsFromDB(a.whisperDataRoot))
+	ov.PinnedCount = hubPinnedCount()
 
 	// 最近更新时间：知识库条目带 UpdatedAt；办公 facts/画像的时间由各自
 	// 后端维护（SQLite updated_at），前端按条目展示。
@@ -201,13 +225,22 @@ func (a *App) GaeaMemoryHubOverview() MemoryHubOverview {
 	return ov
 }
 
+// hubPinnedCount 返回当前工作区固定常用资料数（项目资料卡片计数）。
+func hubPinnedCount() int {
+	paths, err := pins.Load(gaeaCwd())
+	if err != nil {
+		return 0
+	}
+	return len(paths)
+}
+
 // ── 记忆 3D 图谱 ──────────────────────────────────────────────────
 
 // GraphNode 图谱节点（three-forcegraph nodes）。
 type GraphNode struct {
 	ID   string  `json:"id"`
 	Name string  `json:"name"`
-	Type string  `json:"type"` // knowledge / profile / office / whisper
+	Type string  `json:"type"` // knowledge / profile / office / whisper / material
 	Desc string  `json:"desc"`
 	Val  float64 `json:"val"` // 节点大小（重要度）
 }
@@ -292,6 +325,14 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 		nameID[m.Name] = id
 		for _, t := range m.Tags {
 			tagIndex[t] = append(tagIndex[t], id)
+		}
+	}
+
+	// 项目资料：工作区固定常用文件作为资料节点入图（与三脑记忆同图可见）
+	if paths, err := pins.Load(gaeaCwd()); err == nil {
+		for _, rel := range paths {
+			name := filepath.Base(filepath.FromSlash(rel))
+			addNode("m:"+rel, name, "material", rel+" · 固定常用资料（新会话自动带入上下文）", 1.0)
 		}
 	}
 
@@ -416,6 +457,17 @@ func (a *App) GaeaCostList() []CostSummary {
 // GaeaCostSearch 检索成本条目（关键词 + 分类/状态过滤）。
 func (a *App) GaeaCostSearch(query, category, status string) []CostSummary {
 	list := a.hubCostStore().Search(query, category, status)
+	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回（别名/口语表达）。
+	if len(list) < 3 && strings.TrimSpace(query) != "" {
+		if sem := a.semanticCostRecall(query, list, 10); len(sem) > 0 {
+			list = sem
+		}
+	}
+	// 本地语义精排（Herdsman bge-reranker-v2-m3）：候选多时提升排序精度，
+	// 模型不可用/失败自动回退 SQL 结果；纯本地推理，不消耗云端 token。
+	if reranked := a.rerankCostSearch(query, list, 20); len(reranked) > 0 {
+		list = reranked
+	}
 	out := make([]CostSummary, 0, len(list))
 	for _, s := range list {
 		out = append(out, toCostSummary(s))

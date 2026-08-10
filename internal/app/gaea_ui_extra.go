@@ -807,6 +807,10 @@ func (a *App) switchWorkspace(abs string) string {
 		slog.Error("保存工作空间失败", "error", err)
 		return gaeaCwd()
 	}
+	// 任务模板库安装到新工作区（幂等；失败只记日志，不阻塞切换）。
+	if err := ensureTaskTemplateCommands(abs); err != nil {
+		slog.Warn("新工作区任务模板安装失败", "error", err)
+	}
 	// 重建办公引擎使会话目录跟随新工作空间。失败仅记日志（工作空间已持久化，
 	// 下次启动生效），绝不让引擎重建问题阻塞工作空间切换。
 	func() {
@@ -918,19 +922,3 @@ type UpdateInfo struct {
 
 // GaeaSaveWindowState 窗口状态由 gaea 主窗口管理。
 func (a *App) GaeaSaveWindowState(state map[string]interface{}) error { return nil }
-
-// GaeaMemorySuggestions 返回记忆建议（办公板块不提供，返回空）。
-func (a *App) GaeaMemorySuggestions() MemorySuggestionsView { return MemorySuggestionsView{} }
-
-// MemorySuggestionsView 是记忆建议负载。
-type MemorySuggestionsView struct {
-	Facts  []interface{} `json:"facts"`
-	Skills []interface{} `json:"skills"`
-}
-
-func (a *App) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) {
-	return "", errors.New("办公板块不提供记忆建议")
-}
-func (a *App) GaeaAcceptSkillSuggestion(candidate interface{}) (string, error) {
-	return "", errors.New("办公板块不提供技能建议")
-}

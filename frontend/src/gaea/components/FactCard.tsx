@@ -103,6 +103,16 @@ export function FactCard(p: {
               {fact.description}
             </div>
           )}
+          {(fact.sourceSession || fact.lastUsedAt) && (
+            <div className="flex items-center gap-2 mt-1 text-[10px] text-fg-faint/70 flex-wrap">
+              {fact.sourceSession && (
+                <span title="沉淀来源会话（自动做梦写入）">来源 {fact.sourceSession}</span>
+              )}
+              {fact.lastUsedAt && (
+                <span title="最近一次被模型读取/检索">最近使用 {formatTime(fact.lastUsedAt)}</span>
+              )}
+            </div>
+          )}
           {!expanded && fact.body && (
             <pre className="m-0 mt-1.5 text-fg-dim/70 text-[11px] leading-relaxed whitespace-pre-wrap line-clamp-3 font-mono border-0 bg-transparent p-0">
               {renderWithLinks(fact.body, factNames, onJump)}
@@ -243,4 +253,12 @@ export function FactCard(p: {
       )}
     </div>
   );
+}
+
+// formatTime 把 RFC3339 显示为 MM-DD HH:mm（溯源/生命周期元信息）。
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

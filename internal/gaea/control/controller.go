@@ -43,16 +43,17 @@ type Controller struct {
 	sink     event.Sink
 	policy   permission.Policy
 
-	label        string
-	systemPrompt string
-	sessionDir   string
-	host         *plugin.Host
-	commands     []command.Command
-	skills       []skill.Skill
-	hooks        *hook.Runner // session hook runner; nil-safe (no hooks configured)
-	mem          *memory.Set
-	cleanup      func()
-	startedOnce  bool // guards the one-shot SessionStart hook on first turn
+	label         string
+	systemPrompt  string
+	sessionDir    string
+	host          *plugin.Host
+	commands      []command.Command
+	skills        []skill.Skill
+	hooks         *hook.Runner // session hook runner; nil-safe (no hooks configured)
+	mem           *memory.Set
+	memoryEnabled bool // false 时跳过逐轮记忆上下文注入（记忆开关）
+	cleanup       func()
+	startedOnce   bool // guards the one-shot SessionStart hook on first turn
 
 	// balanceURL/balanceKey target the active provider's optional wallet-balance
 	// endpoint (empty when the provider declares none). Captured at build so a
@@ -147,6 +148,9 @@ type Options struct {
 	CtxMgr    *tiancontext.ContextManager // V3.0 Phase 5
 	// AutoPlan 开启开工前计划确认：非简单查询的回合先出计划卡片，用户确认再执行。
 	AutoPlan bool
+	// MemoryDisabled 关闭自动记忆注入（系统提示词画像 + 逐轮记忆上下文）。
+	// 零值（false）= 记忆开启；文档记忆文件不受影响，重新开启即恢复。
+	MemoryDisabled bool
 	// no confinement). Frontends pass the cwd they launched the session in.
 	WorkspaceRoot string
 }
@@ -162,31 +166,32 @@ func New(opts Options) *Controller {
 		pluginCtx = context.Background()
 	}
 	c := &Controller{
-		runner:       opts.Runner,
-		executor:     opts.Executor,
-		sink:         sink,
-		policy:       opts.Policy,
-		label:        opts.Label,
-		systemPrompt: opts.SystemPrompt,
-		sessionDir:   opts.SessionDir,
-		sessionPath:  opts.SessionPath,
-		host:         opts.Host,
-		commands:     opts.Commands,
-		skills:       opts.Skills,
-		hooks:        opts.Hooks,
-		mem:          opts.Memory,
-		cleanup:      opts.Cleanup,
-		balanceURL:   opts.BalanceURL,
-		balanceKey:   opts.BalanceKey,
-		jobs:         opts.Jobs,
-		reg:          opts.Registry,
-		pluginCtx:    pluginCtx,
-		ctxMgr:       opts.CtxMgr,
-		permLevel:    "ask",
-		autoPlan:     opts.AutoPlan,
-		approvals:    map[string]chan approvalReply{},
-		asks:         map[string]chan []event.AskAnswer{},
-		granted:      map[string]bool{},
+		runner:        opts.Runner,
+		executor:      opts.Executor,
+		sink:          sink,
+		policy:        opts.Policy,
+		label:         opts.Label,
+		systemPrompt:  opts.SystemPrompt,
+		sessionDir:    opts.SessionDir,
+		sessionPath:   opts.SessionPath,
+		host:          opts.Host,
+		commands:      opts.Commands,
+		skills:        opts.Skills,
+		hooks:         opts.Hooks,
+		mem:           opts.Memory,
+		memoryEnabled: !opts.MemoryDisabled,
+		cleanup:       opts.Cleanup,
+		balanceURL:    opts.BalanceURL,
+		balanceKey:    opts.BalanceKey,
+		jobs:          opts.Jobs,
+		reg:           opts.Registry,
+		pluginCtx:     pluginCtx,
+		ctxMgr:        opts.CtxMgr,
+		permLevel:     "ask",
+		autoPlan:      opts.AutoPlan,
+		approvals:     map[string]chan approvalReply{},
+		asks:          map[string]chan []event.AskAnswer{},
+		granted:       map[string]bool{},
 	}
 	// Checkpoints: bind a store to the session and route writer pre-edits into it.
 	if c.executor != nil {

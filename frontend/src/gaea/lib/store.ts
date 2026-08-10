@@ -242,6 +242,9 @@ interface ComposerInsertState {
   pendingAt: string | null;
   requestAt: (path: string) => void;
   consumeAt: () => string | null;
+  pendingText: string | null;
+  requestText: (text: string) => void;
+  consumeText: () => string | null;
 }
 
 export const useComposerInsertStore = create<ComposerInsertState>()((set, get) => ({
@@ -251,6 +254,13 @@ export const useComposerInsertStore = create<ComposerInsertState>()((set, get) =
     const p = get().pendingAt;
     set({ pendingAt: null });
     return p;
+  },
+  pendingText: null,
+  requestText: (text: string) => set({ pendingText: text }),
+  consumeText: () => {
+    const t = get().pendingText;
+    set({ pendingText: null });
+    return t;
   },
 }));
 

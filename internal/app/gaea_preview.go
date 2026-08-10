@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/base64"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,9 @@ type PreviewResult struct {
 	Body    string `json:"body"`
 	DataURL string `json:"dataUrl"`
 	Error   string `json:"error"`
+	// Truncated/TotalPages 标记 PDF 预览页数截断（前端展示明确提示）。
+	Truncated  bool `json:"truncated,omitempty"`
+	TotalPages int  `json:"totalPages,omitempty"`
 }
 
 var textExts = map[string]bool{
@@ -39,6 +43,10 @@ var textExts = map[string]bool{
 	".c": true, ".h": true, ".cpp": true, ".hpp": true, ".rs": true, ".rb": true,
 	".php": true, ".sh": true, ".bat": true, ".ps1": true, ".sql": true, ".mdx": true,
 }
+
+// maxPreviewBytes 是 md/文本类预览的正文上限：超过时截断并带可见标记，
+// 避免超大文件把整个正文塞进前端（对标 xlsx 既有 Truncated 标记）。
+const maxPreviewBytes = 2 << 20 // 2MB
 
 var imageExts = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true,
@@ -126,26 +134,28 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 
 	switch ext {
 	case ".md", ".markdown":
-		b, err := os.ReadFile(path)
+		body, truncated, err := readPreviewCapped(path)
 		if err != nil {
 			base.Kind = "error"
 			base.Error = err.Error()
 			return base
 		}
 		base.Kind = "markdown"
-		base.Body = string(b)
+		base.Body = previewTruncateNote(body, truncated)
+		base.Truncated = truncated
 		return base
 	case ".mmd", ".mermaid":
 		// Mermaid 图表源码：按 markdown 渲染，聊天/预览中的 ```mermaid
 		// 代码块会直接渲染成图。
-		b, err := os.ReadFile(path)
+		body, truncated, err := readPreviewCapped(path)
 		if err != nil {
 			base.Kind = "error"
 			base.Error = err.Error()
 			return base
 		}
 		base.Kind = "markdown"
-		base.Body = "```mermaid\n" + string(b) + "\n```"
+		base.Body = "```mermaid\n" + body + "\n```" + previewTruncateNote("", truncated)
+		base.Truncated = truncated
 		return base
 	case ".docx":
 		// 原始 docx 交给前端 docx-preview 保真渲染（版式/表格/页眉页脚/修订）。
@@ -174,7 +184,22 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		base.Body = j
 		return base
 	case ".doc", ".xls", ".pdf":
-		md, err := docmd.Convert(path, "")
+		// 扫描件 OCR 逐页进度经事件通道回传前端（仅 Wails/HTTP 桥接环境真正发布）。
+		md, total, truncated, err := docmd.ConvertLimitProgress(path, "", docmd.DefaultMaxPDFPages,
+			func(done, n int) {
+				if n <= 0 {
+					return
+				}
+				a.emit("gaea-event", map[string]interface{}{
+					"kind": "preview_progress",
+					"path": rel,
+					"progress": map[string]interface{}{
+						"path":  rel,
+						"done":  done,
+						"total": n,
+					},
+				})
+			})
 		if err != nil {
 			base.Kind = "unsupported"
 			base.Error = err.Error()
@@ -182,24 +207,62 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		}
 		base.Kind = "markdown"
 		base.Body = md
+		base.TotalPages = total
+		base.Truncated = truncated
+		if truncated {
+			base.Body += fmt.Sprintf("\n\n> ⚠️ 预览已截断：PDF 共 %d 页，仅显示前 %d 页。可让 AI 使用 summarize_file 获取全文摘要，或拆分文件后处理。",
+				total, docmd.DefaultMaxPDFPages)
+		}
 		return base
 	}
 
 	if textExts[ext] {
-		b, err := os.ReadFile(path)
+		body, truncated, err := readPreviewCapped(path)
 		if err != nil {
 			base.Kind = "error"
 			base.Error = err.Error()
 			return base
 		}
 		base.Kind = "text"
-		base.Body = string(b)
+		base.Body = previewTruncateNote(body, truncated)
+		base.Truncated = truncated
 		return base
 	}
 
 	base.Kind = "unsupported"
 	base.Error = "该格式暂不支持内联预览，可点击右上角在外部程序中打开"
 	return base
+}
+
+// readPreviewCapped 读取预览正文：超过 maxPreviewBytes 时截断（不切断 UTF-8
+// 字符），返回截断后的正文与 truncated 标记（标记文案由 previewTruncateNote 追加）。
+func readPreviewCapped(path string) (body string, truncated bool, err error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", false, err
+	}
+	if len(b) <= maxPreviewBytes {
+		return string(b), false, nil
+	}
+	head := b[:maxPreviewBytes]
+	// 回退到 UTF-8 字符边界，避免截断处出现乱码。
+	i := len(head)
+	for i > 0 && head[i-1]&0xC0 == 0x80 {
+		i--
+	}
+	return string(head[:i]), true, nil
+}
+
+// previewTruncateNote 在截断时追加可见标记（md/text 在正文后；mermaid 传空正文，
+// 标记追加在围栏外）。
+func previewTruncateNote(body string, truncated bool) string {
+	if !truncated {
+		return body
+	}
+	if body != "" {
+		body += "\n\n"
+	}
+	return body + "> ⚠️ 预览已截断：文件过大（>2MB），仅显示前 2MB。可让 AI 使用 summarize_file 获取全文摘要。"
 }
 
 func mimeFor(ext string) string {

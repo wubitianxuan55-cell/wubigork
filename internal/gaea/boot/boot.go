@@ -29,6 +29,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/hook"
 	"github.com/gaea/gaea/internal/gaea/jobs"
+	"github.com/gaea/gaea/internal/gaea/largefile"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/permission"
 	"github.com/gaea/gaea/internal/gaea/plugin"
@@ -277,6 +278,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	for _, t := range skill.BuiltinSubagentTools(skillStore, skillRunner) {
 		reg.Add(t)
 	}
+	// 大文件分块摘要工具：需要注入会话 provider，故在 boot 处注册
+	// （对标千问 500 页超长文 / WPS 整本书 / 豆包分段摘要）。
+	reg.Add(largefile.NewSummarizeTool(execProv))
 
 	compiler.SetRegistry(reg)
 
@@ -320,7 +324,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 
 	// Custom slash commands (.gaea/commands + user dir). Best-effort: a malformed
 	// file is skipped, and a load error never blocks the session.
-	cmds, _ := command.Load(config.CommandDirs()...)
+	// 基于工作区根（opts.Cwd）发现命令，与技能/记忆保持一致：桌面端切换
+	// 工作空间后，模板与自定义命令跟随新工作区（进程目录不再影响发现）。
+	cmds, _ := command.Load(config.CommandDirsAt(cwd)...)
 
 	// Expose the loaded slash commands (skills + custom commands) to the model via
 	// the slash_command tool, so it can invoke a project playbook by name the way a
@@ -385,27 +391,28 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	compiler.IdentityLayer().SaveHash(cacheDir) // best-effort
 
 	ctrlOpts := control.Options{
-		Runner:        runner,
-		Executor:      executor,
-		Sink:          sink,
-		Policy:        policy,
-		Label:         label,
-		SystemPrompt:  sysPrompt,
-		SessionDir:    orDefault(opts.SessionDir, config.SessionDir()),
-		Host:          pluginHost,
-		Commands:      cmds,
-		Skills:        skills,
-		Hooks:         hookRunner,
-		Memory:        mem,
-		Cleanup:       cleanup,
-		BalanceURL:    entry.BalanceURL,
-		BalanceKey:    entry.APIKey(),
-		Jobs:          jm,
-		Registry:      reg,
-		PluginCtx:     ctx,
-		CtxMgr:        ctxMgr,
-		AutoPlan:      autoPlanEnabled(cfg),
-		WorkspaceRoot: cwd,
+		Runner:         runner,
+		Executor:       executor,
+		Sink:           sink,
+		Policy:         policy,
+		Label:          label,
+		SystemPrompt:   sysPrompt,
+		SessionDir:     orDefault(opts.SessionDir, config.SessionDir()),
+		Host:           pluginHost,
+		Commands:       cmds,
+		Skills:         skills,
+		Hooks:          hookRunner,
+		Memory:         mem,
+		MemoryDisabled: !cfg.Memory.Enabled,
+		Cleanup:        cleanup,
+		BalanceURL:     entry.BalanceURL,
+		BalanceKey:     entry.APIKey(),
+		Jobs:           jm,
+		Registry:       reg,
+		PluginCtx:      ctx,
+		CtxMgr:         ctxMgr,
+		AutoPlan:       autoPlanEnabled(cfg),
+		WorkspaceRoot:  cwd,
 	}
 	return control.New(ctrlOpts), nil
 }

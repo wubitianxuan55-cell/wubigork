@@ -22,6 +22,7 @@ import type {
   FilePickResult,
   FilePreview,
   PreviewResult,
+  GaeaSummaryResult,
   GaeaReloadResult,
   HistoryMessage,
   JobView,
@@ -35,6 +36,7 @@ import type {
   OfficeEditResult,
   XlsxEditResult,
   SkillSuggestion,
+  TaskTemplate,
   TabMeta,
   Meta,
   ModelInfo,
@@ -54,8 +56,20 @@ import type {
   WhisperEpisodeView,
   WhisperMemoryView,
   MemoryGraphView,
+  WorkspaceSearchHit,
   CostSummary,
   CostEntry,
+  CostImportPreview,
+  PriceSource,
+  PriceFetchRecord,
+  PriceHistory,
+  SemanticHitView,
+  KnowledgeImportPreview,
+  KnowledgeHistoryView,
+  SimilarView,
+  MemoryDuplicateView,
+  FileIndexStatus,
+  FileSemanticHit,
 } from "./types";
 
 // AppBindings mirrors desktop/app.go's exported method set. Keep in sync by hand
@@ -133,6 +147,16 @@ export interface AppBindings {
   FileSearch(query: string, limit?: number): Promise<FileSearchHit[]>;
   // Materials 工作区资料概览：office/文本文件按修改时间倒序。
   Materials(limit?: number): Promise<FileSearchHit[]>;
+  // WorkspaceSearch 工作区全文搜索（轻量 RAG）：正文关键词 + 命中片段。
+  WorkspaceSearch(query: string, limit?: number): Promise<WorkspaceSearchHit[]>;
+  // 常用资料固定（P1-②）：钉住的文件在新会话启动时自动带入上下文。
+  PinnedMaterials(): Promise<FileSearchHit[]>;
+  PinMaterial(rel: string): Promise<FileSearchHit[]>;
+  UnpinMaterial(rel: string): Promise<FileSearchHit[]>;
+  // SummarizeFile 工作区资料分块摘要（map-reduce），供资料面板「摘要后引用」。
+  SummarizeFile(rel: string, focus?: string): Promise<GaeaSummaryResult>;
+  // TaskTemplates 返回预置办公任务模板库（欢迎页 + slash 共用）。
+  TaskTemplates(): Promise<TaskTemplate[]>;
   ReadFile(rel: string): Promise<FilePreview>;
   Preview(rel: string): Promise<PreviewResult>;
   // OfficeEditText 框选即改：按指令生成选中文本的替换；DocxApplyEdit 以修订模式
@@ -180,6 +204,9 @@ export interface AppBindings {
   SaveDoc(path: string, body: string): Promise<string>;
   UpdateFact(name: string, body: string): Promise<string>;
   ChangeFactType(name: string, type: string): Promise<string>;
+  // SetMemoryEnabled 记忆开关（记忆可控性）：关闭后不再注入画像/规则/事实，
+  // 持久化并重建办公引擎立即生效。
+  SetMemoryEnabled(enabled: boolean): Promise<void>;
   MemorySuggestions(): Promise<MemorySuggestionsView>;
   AcceptMemorySuggestion(candidate: MemorySuggestion): Promise<string>;
   AcceptSkillSuggestion(candidate: SkillSuggestion): Promise<string>;
@@ -248,6 +275,46 @@ export interface AppBindings {
   CostGet(name: string): Promise<CostEntry | null>;
   CostSave(e: CostEntry): Promise<void>;
   CostDelete(name: string): Promise<void>;
+  // CostImportPreview 解析 xlsx/csv 报价单/测算表为可确认的成本条目。
+  CostImportPreview(path: string): Promise<CostImportPreview>;
+  // CostImportAIParse 用办公功能模型把表格行归一化为成本条目（AI 解析）。
+  CostImportAIParse(path: string): Promise<CostImportPreview>;
+  // CostImportApply 批量写入确认后的成本条目，返回成功条数。
+  CostImportApply(rows: CostEntry[]): Promise<number>;
+  // ── 价格源（定时抓取价格更新）──
+  PriceSources(): Promise<PriceSource[]>;
+  PriceSourceSave(src: PriceSource): Promise<void>;
+  PriceSourceDelete(id: string): Promise<void>;
+  // PriceFetch 立即抓取价格源，返回待确认候选（存 pending 记录）。
+  PriceFetch(id: string): Promise<PriceFetchRecord>;
+  PriceFetches(): Promise<PriceFetchRecord[]>;
+  // PriceFetchApply 确认发布抓取结果（按标题选择），返回写入条数。
+  PriceFetchApply(fetchId: string, titles: string[]): Promise<number>;
+  PriceFetchIgnore(fetchId: string): Promise<void>;
+  // PriceHistory 返回某成本条目的价格历史（新→旧）。
+  PriceHistory(name: string): Promise<PriceHistory[]>;
+  // SemanticSearch 跨库统一语义检索（成本/知识/办公记忆，本地 bge-m3）。
+  SemanticSearch(query: string): Promise<SemanticHitView[]>;
+  // ── 知识库导入 ──
+  KnowledgeImportPreview(path: string): Promise<KnowledgeImportPreview>;
+  KnowledgeImportAIParse(path: string): Promise<KnowledgeImportPreview>;
+  KnowledgeImportApply(rows: KnowledgeEntry[]): Promise<number>;
+  // KnowledgeHistory 返回某条目的版本历史（新→旧）。
+  KnowledgeHistory(name: string): Promise<KnowledgeHistoryView[]>;
+  // KnowledgeFindSimilar 查重：标题模糊相似的既有条目。
+  KnowledgeFindSimilar(title: string): Promise<SimilarView[]>;
+  // KnowledgeExport 批量导出知识库为 Markdown，返回条数。
+  KnowledgeExport(dir: string): Promise<number>;
+  // KnowledgeReview 审核流：approve=true 置为现行并记录审核人，false 驳回。
+  KnowledgeReview(name: string, approve: boolean, reviewer: string): Promise<void>;
+  // KnowledgeMerge 把 sourceNames 合并进 targetName（标签并集/来源合并），返回目标名。
+  KnowledgeMerge(targetName: string, sourceNames: string[]): Promise<string>;
+  // ── 办公记忆查重/合并 ──
+  MemoryDuplicates(min: number): Promise<MemoryDuplicateView[]>;
+  MemoryMerge(targetName: string, sourceNames: string[]): Promise<string>;
+  // ── 工作区文件语义索引 ──
+  FileIndexRebuild(): Promise<FileIndexStatus>;
+  FileSemanticSearch(query: string, topN: number): Promise<FileSemanticHit[]>;
   // 画像冲突裁决
   ProfileResolveConflict(name: string, prefer: string): Promise<void>;
   KnowledgeGet(name: string): Promise<KnowledgeEntry | null>;
@@ -353,6 +420,11 @@ const gaeaToGaea: Record<string, string> = {
   ListDir: "GaeaListDir",
   FileSearch: "GaeaFileSearch",
   Materials: "GaeaMaterials",
+  WorkspaceSearch: "GaeaWorkspaceSearch",
+  PinnedMaterials: "GaeaPinnedMaterials",
+  PinMaterial: "GaeaPinMaterial",
+  UnpinMaterial: "GaeaUnpinMaterial",
+  TaskTemplates: "GaeaTaskTemplates",
   ReadFile: "GaeaReadFile",
   Preview: "GaeaPreview",
   OfficeEditText: "GaeaOfficeEditText",
@@ -382,6 +454,7 @@ const gaeaToGaea: Record<string, string> = {
   SaveDoc: "GaeaSaveDoc",
   UpdateFact: "GaeaUpdateFact",
   ChangeFactType: "GaeaChangeFactType",
+  SetMemoryEnabled: "GaeaSetMemoryEnabled",
   MemorySuggestions: "GaeaMemorySuggestions",
   AcceptMemorySuggestion: "GaeaAcceptMemorySuggestion",
   AcceptSkillSuggestion: "GaeaAcceptSkillSuggestion",
@@ -427,6 +500,30 @@ const gaeaToGaea: Record<string, string> = {
   CostGet: "GaeaCostGet",
   CostSave: "GaeaCostSave",
   CostDelete: "GaeaCostDelete",
+  CostImportPreview: "GaeaCostImportPreview",
+  CostImportAIParse: "GaeaCostImportAIParse",
+  CostImportApply: "GaeaCostImportApply",
+  PriceSources: "GaeaPriceSources",
+  PriceSourceSave: "GaeaPriceSourceSave",
+  PriceSourceDelete: "GaeaPriceSourceDelete",
+  PriceFetch: "GaeaPriceFetch",
+  PriceFetches: "GaeaPriceFetches",
+  PriceFetchApply: "GaeaPriceFetchApply",
+  PriceFetchIgnore: "GaeaPriceFetchIgnore",
+  PriceHistory: "GaeaPriceHistory",
+  SemanticSearch: "GaeaSemanticSearch",
+  KnowledgeImportPreview: "GaeaKnowledgeImportPreview",
+  KnowledgeImportAIParse: "GaeaKnowledgeImportAIParse",
+  KnowledgeImportApply: "GaeaKnowledgeImportApply",
+  KnowledgeHistory: "GaeaKnowledgeHistory",
+  KnowledgeFindSimilar: "GaeaKnowledgeFindSimilar",
+  KnowledgeExport: "GaeaKnowledgeExport",
+  KnowledgeReview: "GaeaKnowledgeReview",
+  KnowledgeMerge: "GaeaKnowledgeMerge",
+  MemoryDuplicates: "GaeaMemoryDuplicates",
+  MemoryMerge: "GaeaMemoryMerge",
+  FileIndexRebuild: "GaeaFileIndexRebuild",
+  FileSemanticSearch: "GaeaFileSemanticSearch",
   ProfileResolveConflict: "GaeaProfileResolveConflict",
   KnowledgeGet: "GaeaKnowledgeGet",
   KnowledgeSave: "GaeaKnowledgeSave",

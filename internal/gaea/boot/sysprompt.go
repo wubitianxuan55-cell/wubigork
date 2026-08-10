@@ -6,12 +6,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/outputstyle"
+	"github.com/gaea/gaea/internal/gaea/pins"
 	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 )
@@ -50,13 +52,22 @@ func buildSystemPrompt(cfg *config.Config, cwd string, stderrPath io.Writer) (*s
 	// 记忆发现（项目级 AGENTS.md/文档索引）基于工作区根，桌面端传入的是
 	// 用户选定的工作空间（opts.Cwd），而不是进程启动目录。
 	mem := memory.Load(memory.Options{CWD: cwd, UserDir: userDir, DB: gdb})
-	sysPrompt = memory.Compose(sysPrompt, mem)
+	// 记忆开关：关闭时不把画像/文档索引折进系统提示词（磁盘记忆保留，
+	// 面板仍可管理；重新开启后下一次引擎重建即恢复注入）。
+	if cfg.Memory.Enabled {
+		sysPrompt = memory.Compose(sysPrompt, mem)
+		if mem.Empty() {
+			memory.InitDefaults(mem)
+		}
+	}
+	// 常用资料（已固定）：工作区 .gaea/pinned.json 清单自动带入新会话，
+	// 文本类附正文摘要、办公文档列名按需读取（装配而非灌输）。
+	if block := pins.Block(cwd); block != "" {
+		sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + block
+	}
 	builtin.SetMemorySearchIndex(mem.Search)
 	builtin.SetSearchConfig(cfg.Search)
 	builtin.SetSearchProxy(cfg.NetworkProxySpec())
-	if mem.Empty() {
-		memory.InitDefaults(mem)
-	}
 
 	skillStore := skill.New(skill.Options{ProjectRoot: cwd, CustomPaths: cfg.SkillCustomPaths(), Stderr: stderrPath})
 	skills := skillStore.List()

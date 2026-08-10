@@ -23,18 +23,41 @@ import (
 	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
+// DefaultMaxPDFPages caps PDF conversion/preview at this many pages per call
+// (mirrors the industry norm: Gemini/Kimi/MinerU cap PDFs at 500-1000 pages
+// and stream or chunk the rest). 0 disables the cap.
+const DefaultMaxPDFPages = 500
+
 // Convert renders a docx/xlsx/pdf file as Markdown. pages only applies to PDFs
 // ("1-5" or "1,3,5"); unsupported extensions return an error.
 func Convert(path, pages string) (string, error) {
+	md, _, _, err := ConvertLimit(path, pages, 0)
+	return md, err
+}
+
+// ConvertLimit is like Convert but caps PDF output at maxPages pages
+// (maxPages <= 0 disables the cap). It returns the markdown, the PDF's total
+// page count (0 for non-PDFs), whether the cap dropped pages, and any error.
+// Callers use the total/truncated values to surface an honest "已截断" notice.
+func ConvertLimit(path, pages string, maxPages int) (md string, total int, truncated bool, err error) {
+	return ConvertLimitProgress(path, pages, maxPages, nil)
+}
+
+// ConvertLimitProgress is ConvertLimit with an optional per-page progress
+// callback (done, total) fired while OCR-ing a scanned PDF page-by-page.
+// nil disables callbacks; the OCR loop never fires one for in-memory text PDFs.
+func ConvertLimitProgress(path, pages string, maxPages int, progress func(done, total int)) (md string, total int, truncated bool, err error) {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".docx", ".doc":
-		return docxToMarkdown(path)
+		md, err := docxToMarkdown(path)
+		return md, 0, false, err
 	case ".xlsx", ".xls":
-		return xlsxToMarkdown(path)
+		md, err := xlsxToMarkdown(path)
+		return md, 0, false, err
 	case ".pdf":
-		return pdfToMarkdown(path, pages)
+		return pdfToMarkdownLimit(path, pages, maxPages, progress)
 	default:
-		return "", fmt.Errorf("不支持的文件格式: %s（支持 .docx/.xlsx/.pdf）", filepath.Ext(path))
+		return "", 0, false, fmt.Errorf("不支持的文件格式: %s（支持 .docx/.xlsx/.pdf）", filepath.Ext(path))
 	}
 }
 
@@ -483,11 +506,19 @@ func xlsxToMarkdown(path string) (string, error) {
 	return md.String(), nil
 }
 
-// pdfToMarkdown 提取 PDF 文本（含分页支持与 OCR 扫描件回退）
+// pdfToMarkdown 提取 PDF 文本（含分页支持与 OCR 扫描件回退）。
 func pdfToMarkdown(path string, pages string) (string, error) {
+	md, _, _, err := pdfToMarkdownLimit(path, pages, 0, nil)
+	return md, err
+}
+
+// pdfToMarkdownLimit 提取 PDF 文本；maxPages > 0 时按页数上限截断（配合扫描件
+// 分页 OCR，避免整本超大 PDF 一次渲染/识别）。返回 markdown、总页数、是否被
+// 上限截断、错误。progress 在逐页 OCR 时回调 (done, total)。
+func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, total int)) (string, int, bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return "", 0, false, err
 	}
 
 	content := string(data)
@@ -500,6 +531,13 @@ func pdfToMarkdown(path string, pages string) (string, error) {
 	totalPages := strings.Count(content, "/Type /Page")
 	if totalPages == 0 {
 		totalPages = 1
+	}
+
+	// 页数上限保护：把 pages 规格收敛到 maxPages 内（空规格 → 1-maxPages），
+	// 超限部分不再进入正文；OCR 路径用同一规格只渲染需要的页。
+	effSpec, truncated, err := capPageSpec(pages, maxPages, totalPages)
+	if err != nil {
+		return "", totalPages, false, err
 	}
 
 	// 提取 BT...ET 文本
@@ -518,7 +556,7 @@ func pdfToMarkdown(path string, pages string) (string, error) {
 		block := remaining[:etIdx]
 		text := extractPDFText(block)
 		if strings.TrimSpace(text) != "" {
-			if pages != "" && !pageInRange(pageNum, pages) {
+			if effSpec != "" && !pageInRange(pageNum, effSpec) {
 				pageNum++
 				continue
 			}
@@ -533,10 +571,141 @@ func pdfToMarkdown(path string, pages string) (string, error) {
 		result = extractRawText(data)
 	}
 	if result == "" {
-		// 文本提取失败 → 回退 OCR（扫描件 PDF）
-		return ocrPDF(path, pages)
+		// 文本提取失败 → 回退 OCR（扫描件 PDF），只渲染 effSpec 覆盖的页
+		first, last := pageBounds(effSpec, totalPages)
+		md, ocrErr := ocrPDFRange(path, effSpec, first, last, totalPages, progress)
+		if ocrErr != nil {
+			return "", totalPages, false, ocrErr
+		}
+		return md, totalPages, truncated, nil
 	}
-	return result, nil
+	return result, totalPages, truncated, nil
+}
+
+// capPageSpec 应用 maxPages 上限（<=0 不限）到页码范围规格，返回收敛后的规格
+// 与是否截断。给定规格整体超出上限时返回错误，避免静默输出空文档。
+func capPageSpec(spec string, maxPages, total int) (string, bool, error) {
+	if maxPages <= 0 {
+		return spec, false, nil
+	}
+	last := total
+	if spec != "" {
+		if f, l, ok := parsePageSpecBounds(spec); ok {
+			last = l
+			if f > maxPages {
+				return "", false, fmt.Errorf("请求页码超出转换上限（最大 %d 页）", maxPages)
+			}
+		}
+	}
+	if last <= maxPages {
+		return spec, false, nil
+	}
+	if spec == "" {
+		return fmt.Sprintf("1-%d", maxPages), true, nil
+	}
+	return clampPageSpec(spec, maxPages), true, nil
+}
+
+// parsePageSpecBounds 解析 "1-5"/"1,3,5"/"3" 得到覆盖的 (first,last)。
+func parsePageSpecBounds(spec string) (first, last int, ok bool) {
+	first, last = 1<<30, 0
+	for _, part := range strings.Split(spec, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if strings.Contains(part, "-") {
+			parts := strings.SplitN(part, "-", 2)
+			var s, e int
+			if _, err := fmt.Sscanf(parts[0], "%d", &s); err != nil {
+				continue
+			}
+			e = s
+			if len(parts) > 1 {
+				if _, err := fmt.Sscanf(parts[1], "%d", &e); err != nil {
+					e = s
+				}
+			}
+			if s < first {
+				first = s
+			}
+			if e > last {
+				last = e
+			}
+			ok = true
+		} else {
+			var p int
+			if _, err := fmt.Sscanf(part, "%d", &p); err != nil {
+				continue
+			}
+			if p < first {
+				first = p
+			}
+			if p > last {
+				last = p
+			}
+			ok = true
+		}
+	}
+	if !ok {
+		return 1, 0, false
+	}
+	return first, last, true
+}
+
+// clampPageSpec 把 "1-3,7-9,11" 这类规格裁到 max 页以内，丢弃越界段。
+func clampPageSpec(spec string, max int) string {
+	var parts []string
+	for _, part := range strings.Split(spec, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if strings.Contains(part, "-") {
+			ps := strings.SplitN(part, "-", 2)
+			var s, e int
+			if _, err := fmt.Sscanf(ps[0], "%d", &s); err != nil {
+				continue
+			}
+			e = s
+			if len(ps) > 1 {
+				if _, err := fmt.Sscanf(ps[1], "%d", &e); err != nil {
+					e = s
+				}
+			}
+			if s > max {
+				continue
+			}
+			if e > max {
+				e = max
+			}
+			if s == e {
+				parts = append(parts, fmt.Sprintf("%d", s))
+			} else {
+				parts = append(parts, fmt.Sprintf("%d-%d", s, e))
+			}
+		} else {
+			var p int
+			if _, err := fmt.Sscanf(part, "%d", &p); err != nil {
+				continue
+			}
+			if p <= max {
+				parts = append(parts, fmt.Sprintf("%d", p))
+			}
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
+// pageBounds 返回规格覆盖的 (first,last) 页边界（OCR 渲染范围用）。
+func pageBounds(spec string, total int) (int, int) {
+	if spec == "" {
+		return 1, total
+	}
+	if f, l, ok := parsePageSpecBounds(spec); ok {
+		return f, l
+	}
+	return 1, total
 }
 
 func pageInRange(page int, spec string) bool {
@@ -723,7 +892,7 @@ func OCRImageText(path string) (string, error) {
 
 // ocrPDF 处理扫描件 PDF：本地 OvisOCR2（常驻 llama-server）优先，
 // 未安装/不可用时退回 tesseract（pdftoppm → tesseract 流水线）。
-func ocrPDF(path string, pages string) (string, error) {
+func ocrPDFRange(path, pages string, first, last, total int, progress func(done, totalN int)) (string, error) {
 	pdftoppmPath := findPdftoppm()
 	if pdftoppmPath == "" {
 		return "", fmt.Errorf("扫描件 PDF 需要 poppler 渲染（pdftoppm），但未找到。" +
@@ -747,7 +916,14 @@ func ocrPDF(path string, pages string) (string, error) {
 
 	// pdftoppm: PDF → PNG（逐页）
 	pngPrefix := filepath.Join(tmpDir, "page")
-	args := []string{"-png", "-r", "300", path, pngPrefix}
+	args := []string{"-png", "-r", "300"}
+	if first != 1 {
+		args = append(args, "-f", strconv.Itoa(first))
+	}
+	if last < total {
+		args = append(args, "-l", strconv.Itoa(last))
+	}
+	args = append(args, path, pngPrefix)
 	cmd := exec.Command(pdftoppmPath, args...)
 	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -772,6 +948,11 @@ func ocrPDF(path string, pages string) (string, error) {
 	// 逐页 OCR
 	var pageTexts []string
 	pageNum := 1
+	totalOCR := last - first + 1
+	if totalOCR < 1 {
+		totalOCR = 0
+	}
+	done := 0
 	for _, pngPath := range pngFiles {
 		if pages != "" && !pageInRange(pageNum, pages) {
 			pageNum++
@@ -797,6 +978,10 @@ func ocrPDF(path string, pages string) (string, error) {
 			pageTexts = append(pageTexts, text)
 		}
 		pageNum++
+		done++
+		if progress != nil && totalOCR > 0 {
+			progress(done, totalOCR)
+		}
 	}
 
 	if len(pageTexts) == 0 {

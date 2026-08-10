@@ -146,6 +146,11 @@ func (a *App) GaeaInit() error {
 		return err
 	}
 	ga.cfg = cfg
+	// 任务模板库：把内置模板落盘为 .gaea/commands/*.md（幂等，不覆盖用户文件），
+	// 使 / 菜单与 Submit 通过既有自定义命令管线直接解析模板。
+	if err := ensureTaskTemplateCommands(gaeaCwd()); err != nil {
+		slog.Warn("任务模板安装失败（不影响引擎启动）", "error", err)
+	}
 	// loader 无锁读 ga.cfg：ga.cfg 指针的替换在持锁下进行，读取方只会拿到
 	// 一个完整可用的配置（旧指针在替换后不再被修改），不会与重建死锁。
 	gaeaConfig.SetLoader(func() (*gaeaConfig.Config, error) {

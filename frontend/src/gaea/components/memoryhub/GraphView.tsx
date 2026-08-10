@@ -9,11 +9,12 @@ const TYPE_COLORS: Record<string, string> = {
   profile: "#fbbf24", // amber
   office: "#34d399", // emerald
   whisper: "#f472b6", // pink
+  material: "#38bdf8", // sky：项目资料（固定常用文件）
 };
 const TYPE_LABELS: Record<string, string> = {
-  knowledge: "知识", profile: "画像", office: "办公记忆", whisper: "聊天记忆",
+  knowledge: "知识", profile: "画像", office: "办公记忆", whisper: "聊天记忆", material: "项目资料",
 };
-const TYPE_KEYS = ["knowledge", "profile", "office", "whisper"] as const;
+const TYPE_KEYS = ["knowledge", "profile", "office", "whisper", "material"] as const;
 const LINK_COLORS: Record<string, string> = {
   "same-tag": "rgba(129,140,248,0.30)",
   "same-category": "rgba(52,211,153,0.30)",
@@ -172,7 +173,7 @@ export function GraphView(p: { variant?: "page" | "home" }) {
               </div>
             )}
             <div className="text-fg-faint text-[11px]">
-              来自：{selected.type === "knowledge" ? "知识库" : selected.type === "profile" ? "用户画像" : selected.type === "office" ? "办公记忆" : "聊天记忆"}
+              来自：{selected.type === "knowledge" ? "知识库" : selected.type === "profile" ? "用户画像" : selected.type === "office" ? "办公记忆" : selected.type === "material" ? "项目资料（固定常用文件）" : "聊天记忆"}
             </div>
           </div>
         )}

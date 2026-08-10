@@ -12,6 +12,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+
+	"github.com/gaea/gaea/internal/gaea/bm25"
 )
 
 // Entry 成本条目。
@@ -127,7 +130,8 @@ func (s *Store) List() []Summary {
 	return s.Search("", "", "")
 }
 
-// Search 检索成本条目：关键词匹配标题/规格/来源/正文，category/status 过滤。
+// Search 检索成本条目：关键词匹配名称/标题/规格/来源/标签/正文，
+// category/status 过滤。
 func (s *Store) Search(query, category, status string) []Summary {
 	if s.db == nil {
 		return nil
@@ -141,12 +145,6 @@ func (s *Store) Search(query, category, status string) []Summary {
 	if strings.TrimSpace(status) != "" && status != "all" {
 		conds = append(conds, "status = ?")
 		args = append(args, status)
-	}
-	q := strings.TrimSpace(query)
-	if q != "" {
-		like := "%" + q + "%"
-		conds = append(conds, "(title LIKE ? OR spec LIKE ? OR source LIKE ? OR body LIKE ?)")
-		args = append(args, like, like, like, like)
 	}
 	sqlText := "SELECT name, title, category, unit, price, spec, source, tags, status, updated_at FROM cost_entries"
 	if len(conds) > 0 {
@@ -170,7 +168,58 @@ func (s *Store) Search(query, category, status string) []Summary {
 		sm.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 		out = append(out, sm)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	// 关键词在 Go 侧做包含过滤：按词拆分（词间 AND、字段间 OR），
+	// 精确子串匹配。刻意不在 SQL 里拼 6 列 OR LIKE 链——modernc/sqlite
+	// 对特定形状的长 OR 链存在返回空集的怪癖（单列 LIKE 正常）。
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q != "" {
+		terms := strings.Fields(q)
+		filtered := out[:0]
+		for _, e := range out {
+			hay := strings.ToLower(e.Name + "\x00" + e.Title + "\x00" + e.Unit + "\x00" + e.Spec + "\x00" + e.Source + "\x00" + strings.Join(e.Tags, " "))
+			ok := true
+			for _, term := range terms {
+				if !strings.Contains(hay, term) {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				filtered = append(filtered, e)
+			}
+		}
+		out = filtered
+		// BM25 本地排序（零 token）：命中词越多/密度越高排越前，
+		// 未命中 BM25 的纯子串命中条目保持原顺序排在后面。
+		if len(out) > 1 {
+			docs := make([]bm25.Doc, len(out))
+			for i, e := range out {
+				docs[i] = bm25.Doc{ID: i, Text: e.Name + " " + e.Title + " " + e.Unit + " " + e.Spec + " " + e.Source + " " + strings.Join(e.Tags, " ")}
+			}
+			scored := bm25.NewRanker(docs).Rank(query)
+			if len(scored) > 0 {
+				seen := make(map[int]bool, len(scored))
+				ranked := make([]Summary, 0, len(out))
+				for _, s := range scored {
+					if s.ID >= 0 && s.ID < len(out) {
+						ranked = append(ranked, out[s.ID])
+						seen[s.ID] = true
+					}
+				}
+				for i, e := range out {
+					if !seen[i] {
+						ranked = append(ranked, e)
+					}
+				}
+				out = ranked
+			}
+		}
+	}
+	// 有查询词时保留 BM25/精排后的相关度顺序；空查询保持 name 排序
+	//（SQL 已 ORDER BY name，此处仅为兜底保证确定性）。
+	if q == "" {
+		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	}
 	return out
 }
 
@@ -181,4 +230,29 @@ func parseTagsJSON(raw string) []string {
 	}
 	_ = json.Unmarshal([]byte(raw), &tags)
 	return tags
+}
+
+// SlugName 由标题确定性生成唯一键（稳定 UPSERT）：保留中文/字母/数字，其余
+// 折叠为连字符，小写截断。同名标题重复保存会覆盖更新而非新增。
+// cost_save 工具与文件导入共用此规则，保证同一标题的条目键一致。
+func SlugName(title string) string {
+	var b strings.Builder
+	prevDash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(title)) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+			prevDash = false
+		} else if !prevDash {
+			b.WriteRune('-')
+			prevDash = true
+		}
+	}
+	name := strings.Trim(b.String(), "-")
+	if name == "" {
+		name = "cost"
+	}
+	if runes := []rune(name); len(runes) > 60 {
+		name = string(runes[:60])
+	}
+	return name
 }

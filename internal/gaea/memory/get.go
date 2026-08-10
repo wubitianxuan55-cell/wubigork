@@ -51,6 +51,8 @@ func (t memoryGetTool) Execute(_ context.Context, args json.RawMessage) (string,
 	if !ok {
 		return "", fmt.Errorf("memory %q not found", p.Name)
 	}
+	// 读取即使用：更新 last_used_at，供「关键词+时间+高频」注入排序。
+	_ = t.store.Touch(p.Name)
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n", displayTitle(m.Title, m.Name))
 	fmt.Fprintf(&b, "- name: %s\n- type: %s\n- kind: %s\n", m.Name, m.Type, m.Kind)

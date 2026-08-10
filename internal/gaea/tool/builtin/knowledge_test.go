@@ -2,10 +2,15 @@ package builtin
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/knowledge"
+	"github.com/gaea/gaea/internal/gaea/db"
+	"github.com/gaea/gaea/internal/gaea/retrieval"
+	"github.com/gaea/gaea/internal/gaea/semantic"
 )
 
 func TestKnowledgeAddAndSearch(t *testing.T) {
@@ -105,6 +110,62 @@ func TestKnowledgeAddGeneratesUniqueName(t *testing.T) {
 	if r1 == r2 {
 		t.Error("expected different file paths for duplicate titles")
 	}
+}
+
+// TestKnowledgeSearchSemanticRecall 验证关键词召回不足时走本地 embedding 补召回：
+// 「打桩锤」不命中任何标题/正文，但语义上应召回含「振动锤选型」的条目。
+func TestKnowledgeSearchSemanticRecall(t *testing.T) {
+	isoStore, err := knowledge.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	knowledge.SetStoreForTest(isoStore)
+	_ = isoStore.Save(knowledge.Entry{Name: "cement", Title: "水泥材料", Category: knowledge.CatMaterial, Body: "P.O 42.5 水泥", Status: "现行"})
+	_ = isoStore.Save(knowledge.Entry{Name: "pile", Title: "桩基施工要点", Category: knowledge.CatCase, Body: "振动锤选型需匹配地质条件", Status: "现行"})
+
+	dbDir := t.TempDir()
+	gdb := db.GetDatabase(dbDir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	defer db.CloseDatabase(dbDir)
+	SetSemanticStoreForTest(semantic.Open(gdb))
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/models" {
+			_, _ = w.Write([]byte(`{"data":[{"id":"bge-m3"}]}`))
+			return
+		}
+		var req struct {
+			Input []string `json:"input"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		data := make([]map[string]any, 0, len(req.Input))
+		for i, s := range req.Input {
+			vec := []float32{0, 0}
+			if strings.Contains(s, "锤") || strings.Contains(s, "桩") {
+				vec[0] = 1
+			}
+			if strings.Contains(s, "水泥") {
+				vec[1] = 1
+			}
+			data = append(data, map[string]any{"index": i, "embedding": vec})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	}))
+	defer srv.Close()
+	SetEmbedderForTest(retrieval.NewEmbedder(srv.URL, "bge-m3"))
+
+	ks := knowledgeSearch{}
+	res, err := ks.Execute(nil, toJSON(t, map[string]interface{}{"query": "打桩锤"}))
+	if err != nil {
+		t.Fatalf("knowledgeSearch failed: %v", err)
+	}
+	if !strings.Contains(res, "桩基施工要点") {
+		t.Fatalf("semantic recall should surface 桩基施工要点: %s", res)
+	}
+	SetEmbedderForTest(nil)
+	SetSemanticStoreForTest(nil)
 }
 
 func TestKnowledgeSearchByCategory(t *testing.T) {

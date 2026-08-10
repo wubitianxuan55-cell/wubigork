@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileText, RefreshCw } from "../../icons";
+import { Modal } from "antd";
+import { FileText, RefreshCw, Sparkles } from "../../icons";
 import { app } from "../../lib/bridge";
-import type { MemoryFact, MemoryView } from "../../lib/types";
+import type { MemoryDuplicateView, MemoryFact, MemoryView } from "../../lib/types";
 import { FactCard } from "../FactCard";
 import { DocEditor } from "../DocEditor";
 import { ArchivesSection } from "../ArchivesSection";
@@ -26,6 +27,10 @@ export function OfficeMemoryLibrary() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [highlight, setHighlight] = useState<string | null>(null);
+  const [dupOpen, setDupOpen] = useState(false);
+  const [dups, setDups] = useState<MemoryDuplicateView[]>([]);
+  const [dupMsg, setDupMsg] = useState<string | null>(null);
+  const [merging, setMerging] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -88,6 +93,39 @@ export function OfficeMemoryLibrary() {
     await refresh();
   };
 
+  const openDuplicates = useCallback(async () => {
+    const hits = await app.MemoryDuplicates(0.55).catch(() => [] as MemoryDuplicateView[]);
+    setDups(hits ?? []);
+    setDupMsg(null);
+    setDupOpen(true);
+  }, []);
+
+  const doMergePair = useCallback(async (keep: string, dup: string) => {
+    setMerging(keep);
+    try {
+      await app.MemoryMerge(keep, [dup]);
+      setDups((prev) => prev.filter((d) => !(d.keep === keep && d.dup === dup)));
+      setDupMsg(`已合并「${dup}」→「${keep}」`);
+      await refresh();
+    } finally {
+      setMerging(null);
+    }
+  }, [refresh]);
+
+  const doMergeAll = useCallback(async () => {
+    setMerging("all");
+    try {
+      for (const d of [...dups]) {
+        await app.MemoryMerge(d.keep, [d.dup]).catch(() => {});
+      }
+      setDups([]);
+      setDupMsg(`已合并 ${dups.length} 对重复记忆`);
+      await refresh();
+    } finally {
+      setMerging(null);
+    }
+  }, [dups, refresh]);
+
   return (
     <div className="h-full flex flex-col">
       {/* 工具条 */}
@@ -102,6 +140,16 @@ export function OfficeMemoryLibrary() {
               placeholder="搜索记忆…"
               className="w-44 px-3 h-8 rounded-lg border border-border bg-bg text-fg text-[12px] placeholder:text-fg-faint outline-none focus:border-accent transition-colors"
             />
+          )}
+          {tab === "facts" && (
+            <button
+              className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
+              onClick={() => void openDuplicates()}
+              title="查重：合并疑似重复的记忆事实"
+            >
+              <Sparkles size={13} className="text-accent" />
+              查重合并
+            </button>
           )}
           <button
             className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
@@ -200,6 +248,59 @@ export function OfficeMemoryLibrary() {
           <ArchivesSection archives={view?.archives ?? []} />
         </div>
       )}
+
+      {/* 查重合并弹窗 */}
+      <Modal
+        title="查重合并：疑似重复记忆"
+        open={dupOpen}
+        onCancel={() => setDupOpen(false)}
+        footer={
+          <div className="flex items-center gap-2">
+            <span className="mr-auto text-[11px] text-fg-faint">{dups.length} 对疑似重复</span>
+            <button className="px-3 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft text-[12px]" onClick={() => setDupOpen(false)} type="button">关闭</button>
+            {dups.length > 0 && (
+              <button
+                className="px-3 h-8 rounded-lg bg-accent text-white text-[12px] hover:opacity-90 disabled:opacity-50"
+                onClick={() => void doMergeAll()}
+                disabled={merging !== null}
+                type="button"
+              >
+                {merging === "all" ? "合并中…" : `全部合并（${dups.length} 对）`}
+              </button>
+            )}
+          </div>
+        }
+        width={620}
+      >
+        {dupMsg && <div className="mb-2 px-3 py-2 rounded-lg bg-bg-elev text-accent text-[11.5px]">{dupMsg}</div>}
+        {dups.length === 0 ? (
+          <div className="py-6 text-center text-fg-faint text-[12px]">
+            {dupMsg ? dupMsg : "暂无疑似重复记忆"}
+          </div>
+        ) : (
+          <div className="space-y-1.5 max-h-[46vh] overflow-auto">
+            {dups.map((d) => (
+              <div key={`${d.keep}-${d.dup}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-bg-soft/40 text-[12px]">
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="text-fg">{d.keepTitle}</span>
+                  <span className="text-fg-faint"> ⇄ </span>
+                  <span className="text-fg-dim">{d.dupTitle}</span>
+                </span>
+                <span className="shrink-0 text-fg-faint text-[10.5px]">{Math.round(d.score * 100)}%</span>
+                <button
+                  className="shrink-0 px-2 h-6 rounded-md bg-accent/15 text-accent text-[11px] cursor-pointer hover:bg-accent/25 disabled:opacity-50"
+                  disabled={merging !== null}
+                  onClick={() => void doMergePair(d.keep, d.dup)}
+                  type="button"
+                  title={`把「${d.dupTitle}」合并进「${d.keepTitle}」（标签并集、来源删除）`}
+                >
+                  {merging === d.keep ? "合并中…" : "合并"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

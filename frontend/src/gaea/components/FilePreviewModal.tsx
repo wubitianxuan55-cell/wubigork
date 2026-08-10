@@ -5,6 +5,7 @@ import { usePreviewStore } from "../lib/store";
 import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
 import { Markdown } from "./Markdown";
+import { usePreviewProgress } from "../hooks/usePreviewProgress";
 import { XlsxPreview } from "./XlsxPreview";
 
 function formatSize(n: number): string {
@@ -27,6 +28,7 @@ export function FilePreviewModal() {
   const { previewFile, closeFilePreview } = usePreviewStore();
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const ocrProgress = usePreviewProgress(previewFile);
   const [loadKey, setLoadKey] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -150,8 +152,17 @@ export function FilePreviewModal() {
         <div className="flex-1 min-h-0 overflow-auto bg-bg">
           {loading && (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-fg-faint text-[13px]">
-              <Loader2 size={26} className="animate-spin text-accent" />
-              <span>正在加载预览…</span>
+              {ocrProgress ? (
+                <>
+                  <Loader2 size={26} className="animate-spin text-accent" />
+                  <span>OCR 识别中 {ocrProgress.done}/{ocrProgress.total} 页…</span>
+                </>
+              ) : (
+                <>
+                  <Loader2 size={26} className="animate-spin text-accent" />
+                  <span>正在加载预览…</span>
+                </>
+              )}
             </div>
           )}
 
@@ -175,6 +186,11 @@ export function FilePreviewModal() {
 
           {!loading && preview?.kind === "markdown" && (
             <div className="px-8 py-6 max-w-[860px] mx-auto">
+              {preview.truncated && (
+                <div className="mb-3 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[12px] leading-relaxed">
+                  ⚠️ 预览已截断（{preview.totalPages ? `PDF 共 ${preview.totalPages} 页` : "文件过大"}），仅展示前部内容；可让 AI 调用 summarize_file 获取全文摘要。
+                </div>
+              )}
               <Markdown text={preview.body} autoExportMermaid={false} />
             </div>
           )}

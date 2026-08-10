@@ -1,9 +1,11 @@
-import { BookOpen, Search, X, Plus, Pencil, Trash2, Check, X as XIcon, Save } from "../icons";
+import { BookOpen, Clock, CloudUpload, Search, X, Plus, Pencil, Trash2, Check, X as XIcon, Save } from "../icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { KnowledgeEntry, KnowledgeSaveRequest, KnowledgeSummary } from "../lib/types";
+import { Modal } from "antd";
+import type { FilePickResult, KnowledgeEntry, KnowledgeHistoryView, KnowledgeSaveRequest, KnowledgeSummary, SimilarView } from "../lib/types";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import { EmptyState } from "./EmptyState";
+import { KnowledgeImportModal } from "./memoryhub/KnowledgeImportModal";
 
 const CATEGORIES = ["all", "规范标准", "工程案例", "经验总结", "材料工艺", "法规政策", "调查报告", "设计方案", "其他"];
 const PHASES = ["all", "调查", "设计", "施工", "验收", "运维", "全程"];
@@ -25,6 +27,18 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
   const [isEditing, setIsEditing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [importFile, setImportFile] = useState<FilePickResult | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [similar, setSimilar] = useState<SimilarView[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyName, setHistoryName] = useState("");
+  const [historyRows, setHistoryRows] = useState<KnowledgeHistoryView[]>([]);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState<string>("");
+  const [mergeCandidates, setMergeCandidates] = useState<SimilarView[]>([]);
+  const [mergeSelected, setMergeSelected] = useState<Set<string>>(new Set());
+  const [mergeMsg, setMergeMsg] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // Edit form state
@@ -38,9 +52,106 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
     setLoading(true);
     app.KnowledgeList().then((list) => {
       setEntries(list);
+      setSelected((prev) => {
+        const names = new Set(list.map((e) => e.name));
+        return new Set([...prev].filter((n) => names.has(n)));
+      });
       setLoading(false);
     });
   }, []);
+
+  const pickImport = useCallback(async () => {
+    try {
+      const files = await app.PickFiles();
+      const f = files?.[0];
+      if (f) setImportFile(f);
+    } catch { /* 原生对话框不可用时静默 */ }
+  }, []);
+
+  const toggleSelect = useCallback((name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
+  const batchDelete = useCallback(async () => {
+    if (selected.size === 0) return;
+    await Promise.all([...selected].map((n) => app.KnowledgeDelete(n).catch(() => {})));
+    setSelected(new Set());
+    loadList();
+  }, [selected, loadList]);
+
+  const batchStatus = useCallback(async (next: string) => {
+    if (selected.size === 0 || !next) return;
+    for (const name of selected) {
+      const e = await app.KnowledgeGet(name).catch(() => null);
+      if (e) await app.KnowledgeSave({ ...e, status: next }).catch(() => {});
+    }
+    setSelected(new Set());
+    loadList();
+  }, [selected, loadList]);
+
+  // 查重：新建/编辑且标题非空时，防抖提示疑似重复条目。
+  useEffect(() => {
+    const title = form.title.trim();
+    if (!isAdding && !isEditing) { setSimilar([]); return; }
+    if (!title) { setSimilar([]); return; }
+    const timer = setTimeout(() => {
+      app.KnowledgeFindSimilar(title).then((hits) => {
+        const mine = isEditing ? form.name : "";
+        setSimilar((hits ?? []).filter((h) => h.name !== mine));
+      }).catch(() => {});
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [form.title, form.name, isAdding, isEditing]);
+
+  const openHistory = useCallback(async (name: string) => {
+    setHistoryName(name);
+    setHistoryRows([]);
+    setHistoryOpen(true);
+    const rows = await app.KnowledgeHistory(name).catch(() => [] as KnowledgeHistoryView[]);
+    setHistoryRows(rows ?? []);
+  }, []);
+
+  const doExport = useCallback(async () => {
+    setExportMsg("导出中…");
+    try {
+      const n = await app.KnowledgeExport("");
+      setExportMsg(`已导出 ${n} 条到 .gaea/exports/knowledge-*`);
+      setTimeout(() => setExportMsg(null), 3000);
+    } catch {
+      setExportMsg("导出失败");
+      setTimeout(() => setExportMsg(null), 3000);
+    }
+  }, []);
+
+  const doReview = useCallback(async (entry: KnowledgeEntry) => {
+    await app.KnowledgeReview(entry.name, true, "").catch(() => {});
+    const fresh = await app.KnowledgeGet(entry.name).catch(() => null);
+    if (fresh) setExpandedEntry(fresh);
+    loadList();
+  }, [loadList]);
+
+  const openMerge = useCallback(async (entry: KnowledgeEntry) => {
+    setMergeTarget(entry.name);
+    setMergeSelected(new Set());
+    const hits = await app.KnowledgeFindSimilar(entry.title).catch(() => [] as SimilarView[]);
+    setMergeCandidates(hits ?? []);
+    setMergeOpen(true);
+  }, []);
+
+  const doMerge = useCallback(async () => {
+    if (mergeSelected.size === 0) return;
+    const sources = [...mergeSelected];
+    const target = await app.KnowledgeMerge(mergeTarget, sources).catch(() => "");
+    setMergeOpen(false);
+    setMergeMsg(`已把 ${sources.length} 条合并到「${target}」`);
+    setTimeout(() => setMergeMsg(null), 3000);
+    loadList();
+  }, [mergeSelected, mergeTarget, loadList]);
 
   // 全文检索：query 非空时走后端全文搜索（含正文），否则走 List + 前端分类过滤。
   const doSearch = useCallback(async (q: string, cat: string, ph: string, st: string) => {
@@ -182,8 +293,30 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                 {st === "all" ? t("knowledge.all") : st}
               </button>
             ))}
-            <button className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md bg-accent text-white text-[12px] hover:opacity-90" onClick={startAdd} type="button"><Plus size={13} />{t("knowledge.new")}</button>
+            <button className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md bg-bg-soft text-fg text-[12px] hover:bg-sidebar-hover" onClick={() => void pickImport()} type="button" title="导入 md/txt/docx/pdf/xlsx/csv">
+              <CloudUpload size={13} className="text-accent" />导入
+            </button>
+            <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-bg-soft text-fg text-[12px] hover:bg-sidebar-hover" onClick={() => void doExport()} type="button" title="批量导出为 Markdown">
+              <Save size={13} />导出
+            </button>
+            <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-accent text-white text-[12px] hover:opacity-90" onClick={startAdd} type="button"><Plus size={13} />{t("knowledge.new")}</button>
           </div>
+          {exportMsg && <div className="text-[11px] text-accent">{exportMsg}</div>}
+          {mergeMsg && <div className="text-[11px] text-amber-400">{mergeMsg}</div>}
+          {selected.size > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11.5px] text-accent">已选 {selected.size}</span>
+              <select
+                value=""
+                onChange={(e) => { if (e.target.value) void batchStatus(e.target.value); }}
+                className="px-1.5 h-6 rounded-md bg-bg-soft text-fg-dim text-[11px] border border-border outline-none"
+              >
+                <option value="" disabled>改状态…</option>
+                {["现行", "草稿", "常用", "已归档"].map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <button className="px-2 h-6 rounded-md bg-red-500/15 text-red-400 text-[11px] cursor-pointer hover:bg-red-500/25" onClick={() => void batchDelete()} type="button">批量删除</button>
+            </div>
+          )}
           <div className="text-[11px] text-fg-faint">{t("knowledge.count", { n: filtered.length })}</div>
         </div>
 
@@ -207,7 +340,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
               {/* New entry form */}
               {isAdding && (
                 <div className="p-3 rounded-lg border border-accent bg-sidebar-active">
-                  <EditForm form={form} setForm={setForm} t={t} />
+                  <EditForm form={form} setForm={setForm} t={t} similar={similar} />
                   <div className="flex gap-2 mt-2 justify-end">
                     <button className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-600 text-white text-[12px]" onClick={handleSave} type="button"><Save size={13} />{t("knowledge.save")}</button>
                     <button className="px-2.5 py-1 rounded-md bg-bg-soft text-fg text-[12px]" onClick={cancelEdit} type="button">{t("common.cancel")}</button>
@@ -218,30 +351,39 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
               {filtered.map((entry) => (
                 <div key={entry.name}>
                   {/* Card */}
-                  <button className={`w-full text-left flex flex-col gap-1 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${expanded === entry.name ? "border-accent bg-sidebar-active" : "border-border-soft bg-bg hover:border-accent-soft hover:bg-bg-soft"}`}
-                    onClick={() => void handleToggle(entry.name)} type="button">
-                    <div className="flex items-start gap-2">
-                      <span className="flex-1 text-fg text-[13px] font-medium leading-snug">
-                        {normalizedQuery ? highlightText(entry.title) : entry.title}
-                      </span>
-                      <span className="shrink-0 text-[10.5px] text-accent font-medium px-1.5 py-0.5 rounded-full bg-accent/10">{entry.category}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 text-[10px] text-fg-faint">
-                      {(entry as unknown as Record<string, string>).phase && <span>{(entry as unknown as Record<string, string>).phase}</span>}
-                      {(entry as unknown as Record<string, string>).phase && <span>·</span>}
-                      {entry.status && <span>{entry.status}</span>}
-                    </div>
-                    {entry.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {entry.tags.map((tag) => (
-                          <span key={tag} className="text-[10px] text-fg-faint px-1.5 py-0.5 rounded-full bg-bg-soft">
-                            {normalizedQuery ? highlightText(tag) : tag}
-                          </span>
-                        ))}
+                  <div className="flex items-start gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(entry.name)}
+                      onChange={() => toggleSelect(entry.name)}
+                      title="多选（批量删除/改状态）"
+                      className="mt-2.5 shrink-0"
+                    />
+                    <button className={`w-full text-left flex flex-col gap-1 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${expanded === entry.name ? "border-accent bg-sidebar-active" : "border-border-soft bg-bg hover:border-accent-soft hover:bg-bg-soft"}`}
+                      onClick={() => void handleToggle(entry.name)} type="button">
+                      <div className="flex items-start gap-2">
+                        <span className="flex-1 text-fg text-[13px] font-medium leading-snug">
+                          {normalizedQuery ? highlightText(entry.title) : entry.title}
+                        </span>
+                        <span className="shrink-0 text-[10.5px] text-accent font-medium px-1.5 py-0.5 rounded-full bg-accent/10">{entry.category}</span>
                       </div>
-                    )}
-                    <div className="text-[10.5px] text-fg-faint">{entry.updatedAt && new Date(entry.updatedAt).toLocaleDateString()}</div>
-                  </button>
+                      <div className="flex flex-wrap gap-1.5 text-[10px] text-fg-faint">
+                        {(entry as unknown as Record<string, string>).phase && <span>{(entry as unknown as Record<string, string>).phase}</span>}
+                        {(entry as unknown as Record<string, string>).phase && <span>·</span>}
+                        {entry.status && <span>{entry.status}</span>}
+                      </div>
+                      {entry.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {entry.tags.map((tag) => (
+                            <span key={tag} className="text-[10px] text-fg-faint px-1.5 py-0.5 rounded-full bg-bg-soft">
+                              {normalizedQuery ? highlightText(tag) : tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-[10.5px] text-fg-faint">{entry.updatedAt && new Date(entry.updatedAt).toLocaleDateString()}</div>
+                    </button>
+                  </div>
 
                   {/* Expanded detail */}
                   {expanded === entry.name && (
@@ -253,7 +395,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                       ) : expandedEntry ? (
                         isEditing ? (
                           <div>
-                            <EditForm form={form} setForm={setForm} t={t} />
+                            <EditForm form={form} setForm={setForm} t={t} similar={similar} />
                             <div className="flex gap-2 mt-3 justify-end">
                               <button className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-600 text-white text-[12px]" onClick={handleSave} type="button"><Save size={13} />{t("knowledge.save")}</button>
                               <button className="px-2.5 py-1 rounded-md bg-bg-soft text-fg text-[12px]" onClick={cancelEdit} type="button">{t("common.cancel")}</button>
@@ -273,6 +415,11 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
                             <div className="text-fg text-[12.5px] leading-relaxed whitespace-pre-wrap break-words max-h-[320px] overflow-y-auto pr-1">{expandedEntry.body}</div>
                             <div className="flex gap-2 pt-1">
                               <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-bg-soft text-fg text-[11px] hover:bg-sidebar-hover" onClick={() => startEdit(expandedEntry)} type="button"><Pencil size={12} />{t("common.edit")}</button>
+                              <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-bg-soft text-fg text-[11px] hover:bg-sidebar-hover" onClick={() => void openHistory(expandedEntry.name)} type="button"><Clock size={12} />版本历史</button>
+                              {expandedEntry.status === "草稿" && (
+                                <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-green-600/15 text-green-500 text-[11px] hover:bg-green-600/25" onClick={() => void doReview(expandedEntry)} type="button"><Check size={12} />审核通过</button>
+                              )}
+                              <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-bg-soft text-fg text-[11px] hover:bg-sidebar-hover" onClick={() => void openMerge(expandedEntry)} type="button" title="把相似条目合并进本条（标签并集、来源合并、旧条目留档删除）">合并相似…</button>
                               {deleteConfirm === entry.name ? (
                                 <div className="flex items-center gap-1">
                                   <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-600 text-white text-[11px]" onClick={handleDeleteConfirm} type="button"><Check size={12} />{t("common.confirm")}</button>
@@ -293,21 +440,100 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
           )}
         </div>
       </div>
+      <Modal
+        title={`版本历史：${historyName}`}
+        open={historyOpen}
+        onCancel={() => setHistoryOpen(false)}
+        footer={null}
+        width={560}
+      >
+        <div className="space-y-2 max-h-[46vh] overflow-auto">
+          {historyRows.length === 0 ? (
+            <div className="py-6 text-center text-fg-faint text-[12px]">暂无版本历史（保存时内容变化会自动留档）</div>
+          ) : (
+            historyRows.map((h, i) => (
+              <div key={i} className="p-2 rounded-lg bg-bg-soft/40 text-[12px]">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-fg">v{h.version}</span>
+                  <span className="text-fg-faint">{h.note}</span>
+                  <span className="ml-auto text-fg-faint text-[10.5px]">{h.changedAt ? new Date(h.changedAt).toLocaleString("zh-CN", { hour12: false }) : ""}</span>
+                </div>
+                <div className="mt-1 text-fg-dim whitespace-pre-wrap break-words max-h-[120px] overflow-y-auto">{h.body}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </Modal>
+      <Modal
+        title={`合并相似条目到「${mergeTarget}」`}
+        open={mergeOpen}
+        onCancel={() => setMergeOpen(false)}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <button className="px-3 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft text-[12px]" onClick={() => setMergeOpen(false)} type="button">取消</button>
+            <button
+              className="px-3 h-8 rounded-lg bg-accent text-white text-[12px] hover:opacity-90 disabled:opacity-50"
+              onClick={() => void doMerge()}
+              disabled={mergeSelected.size === 0}
+              type="button"
+            >
+              合并 {mergeSelected.size} 条
+            </button>
+          </div>
+        }
+        width={520}
+      >
+        {mergeCandidates.length === 0 ? (
+          <div className="py-6 text-center text-fg-faint text-[12px]">暂无相似条目</div>
+        ) : (
+          <div className="space-y-1.5 max-h-[40vh] overflow-auto">
+            {mergeCandidates.map((s) => (
+              <label key={s.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-bg-soft/40 text-[12px] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={mergeSelected.has(s.name)}
+                  onChange={() => setMergeSelected((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(s.name)) next.delete(s.name);
+                    else next.add(s.name);
+                    return next;
+                  })}
+                />
+                <span className="flex-1 truncate">{s.title}</span>
+                <span className="shrink-0 text-fg-faint text-[10.5px]">{Math.round(s.score * 100)}% 相似</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </Modal>
+      <KnowledgeImportModal
+        open={!!importFile}
+        path={importFile?.path ?? ""}
+        fileName={importFile?.name ?? ""}
+        onClose={() => setImportFile(null)}
+        onImported={loadList}
+      />
     </div>
   );
 }
 
 /** Inline edit form for knowledge entry fields */
-function EditForm({ form, setForm, t }: {
+function EditForm({ form, setForm, t, similar }: {
   form: KnowledgeSaveRequest;
   setForm: (f: KnowledgeSaveRequest) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   t: (...args: any[]) => string;
+  similar?: SimilarView[];
 }) {
   const update = (partial: Partial<KnowledgeSaveRequest>) => setForm({ ...form, ...partial });
 
   return (
     <div className="space-y-2">
+      {similar && similar.length > 0 && (
+        <div className="px-2 py-1.5 rounded-md bg-amber-500/10 text-amber-400 text-[11px]">
+          疑似重复：{similar.slice(0, 3).map((s) => `${s.title}（${Math.round(s.score * 100)}%）`).join("、")}
+        </div>
+      )}
       <div className="flex gap-2">
         <input className="flex-1 px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none focus:border-accent" placeholder={t("knowledge.namePlaceholder")} value={form.name} onChange={(e) => update({ name: e.target.value })} disabled={!!(form.updatedAt && form.updatedAt !== "")} />
         <select className="px-2 py-1 rounded bg-bg border border-border text-[12px] text-fg outline-none" value={form.category} onChange={(e) => update({ category: e.target.value })}>

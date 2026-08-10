@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/knowledge"
+	"github.com/gaea/gaea/internal/gaea/semantic"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -58,8 +60,20 @@ func (knowledgeSearch) Execute(_ context.Context, args json.RawMessage) (string,
 	}
 
 	results := knowledge.Search(store, p.Query, filter)
+	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回（别名/口语表达）。
+	if len(results) < 3 && strings.TrimSpace(p.Query) != "" {
+		if sem := semanticKnowledgeRecall(store, p.Query, results, 10); len(sem) > 0 {
+			results = sem
+		}
+	}
 	if len(results) == 0 {
 		return "未找到匹配的知识条目。", nil
+	}
+	// 本地语义精排（bge-reranker-v2-m3）：候选多时提升排序精度，失败回退。
+	if reranked := rerankKnowledgeResults(p.Query, results, 20); len(reranked) > 0 {
+		results = reranked
+	} else if len(results) > 20 {
+		results = results[:20]
 	}
 
 	var b strings.Builder
@@ -86,6 +100,109 @@ func (knowledgeSearch) Execute(_ context.Context, args json.RawMessage) (string,
 	}
 
 	return tool.WrapText(b.String()), nil
+}
+
+// semanticKnowledgeRecall 知识库语义召回：持久化向量索引（kind=knowledge）。
+func semanticKnowledgeRecall(store *knowledge.Store, query string, have []knowledge.Entry, topN int) []knowledge.Entry {
+	e := costEmbedder()
+	if e == nil {
+		return nil
+	}
+	st := openSemanticStore()
+	if st == nil || !st.Available() {
+		return nil
+	}
+	all := store.ReadAll()
+	if len(all) == 0 {
+		return nil
+	}
+	docs := make([]semantic.Doc, len(all))
+	keep := make(map[string]bool, len(all))
+	for i, e2 := range all {
+		docs[i] = semantic.Doc{ID: e2.Name, Text: knowledgeDocText(e2)}
+		keep[e2.Name] = true
+	}
+	_, _ = st.Stale("knowledge", keep)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	hits, err := st.Search(ctx, e, "knowledge", docs, query, topN)
+	if err != nil || len(hits) == 0 {
+		return nil
+	}
+	haveNames := make(map[string]bool, len(have))
+	for _, h := range have {
+		haveNames[h.Name] = true
+	}
+	byName := make(map[string]knowledge.Entry, len(all))
+	for _, e2 := range all {
+		byName[e2.Name] = e2
+	}
+	out := append([]knowledge.Entry{}, have...)
+	for _, h := range hits {
+		if e2, ok := byName[h.ID]; ok && !haveNames[h.ID] {
+			out = append(out, e2)
+		}
+	}
+	return out
+}
+
+// rerankKnowledgeResults 知识条目本地精排（失败回退原顺序）。
+func rerankKnowledgeResults(query string, list []knowledge.Entry, topN int) []knowledge.Entry {
+	if len(list) <= 8 || strings.TrimSpace(query) == "" || topN <= 0 {
+		return nil
+	}
+	r := costReranker()
+	if r == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if !r.Available(ctx) {
+		return nil
+	}
+	docs := make([]string, len(list))
+	for i, e := range list {
+		docs[i] = knowledgeDocText(e)
+	}
+	scored, err := r.Rerank(ctx, query, docs, topN)
+	if err != nil || len(scored) == 0 {
+		return nil
+	}
+	out := make([]knowledge.Entry, 0, len(scored))
+	for _, s := range scored {
+		if s.Index >= 0 && s.Index < len(list) {
+			out = append(out, list[s.Index])
+		}
+	}
+	return out
+}
+
+func knowledgeDocText(e knowledge.Entry) string {
+	var b strings.Builder
+	b.WriteString(e.Title)
+	if e.Category != "" {
+		b.WriteString(" 分类" + e.Category)
+	}
+	if e.Phase != "" {
+		b.WriteString(" 阶段" + e.Phase)
+	}
+	if e.Discipline != "" {
+		b.WriteString(" 专业" + e.Discipline)
+	}
+	if len(e.Tags) > 0 {
+		b.WriteString(" 标签" + strings.Join(e.Tags, ","))
+	}
+	if e.Source != "" {
+		b.WriteString(" 来源" + e.Source)
+	}
+	body := strings.TrimSpace(e.Body)
+	if r := []rune(body); len(r) > 2000 {
+		body = string(r[:2000])
+	}
+	if body != "" {
+		b.WriteString("\n" + body)
+	}
+	return b.String()
 }
 
 func knowledgeOverview(store *knowledge.Store) (string, error) {

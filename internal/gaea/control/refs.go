@@ -10,14 +10,21 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/gaea/vision"
+	"github.com/gaea/gaea/internal/office/docmd"
 )
 
 // maxFileRefBytes caps how much of an @-referenced file is injected into a
 // message, so "@somehuge.log" can't blow the context window. The head is kept
 // and the rest noted as truncated.
 const maxFileRefBytes = 64 * 1024
+
+// refOfficeMaxPages caps how many PDF pages an @-referenced office document
+// injects (head-only; the rest is reachable via summarize_file / format_convert
+// with a pages range). Kept small so @-ing a 1000-page PDF stays instant.
+const refOfficeMaxPages = 20
 
 // visionRecognize 图片识图入口（可注入以便测试）。识别失败时回退为
 // 原有占位提示，保证 @图片 引用始终能进入上下文。
@@ -247,13 +254,62 @@ func readFileRef(path string) (content string, isDir bool, err error) {
 	if mime := imageMime(data, path); mime != "" {
 		return fmt.Sprintf("[image file %s, mime=%s, %d bytes — image bytes are not inlined. Use an available MCP image/OCR/vision tool with this path when visual understanding is needed.]", path, mime, info.Size()), false, nil
 	}
+	if isOfficePath(path) {
+		// 办公文档：转 Markdown 注入头部（PDF 限前 refOfficeMaxPages 页），
+		// 而不是把 zip/PDF 二进制当 "not shown" 丢弃。
+		if md, total, truncated, convErr := docmd.ConvertLimit(path, "", refOfficeMaxPages); convErr == nil && strings.TrimSpace(md) != "" {
+			return officeRefBlock(md, path, info.Size(), total, truncated), false, nil
+		}
+		// 转换失败（缺依赖等）时退回通用二进制提示，保证引用不失效
+	}
 	if bytes.IndexByte(data[:min(n, 8192)], 0) >= 0 {
 		return fmt.Sprintf("[binary file %s, %d bytes — not shown]", path, info.Size()), false, nil
 	}
 	if n > maxFileRefBytes {
-		return string(data[:maxFileRefBytes]) + fmt.Sprintf("\n…[truncated; file is %d bytes]…", info.Size()), false, nil
+		return string(data[:maxFileRefBytes]) + fmt.Sprintf("\n…[truncated; file is %d bytes]…\n[文件较大：可调用 summarize_file 获取全文摘要，或用 read_file 按 offset 分页读取]", info.Size()), false, nil
 	}
 	return string(data), false, nil
+}
+
+// isOfficePath 判断是否为 docmd 可转换的办公文档。
+func isOfficePath(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".docx", ".doc", ".xls", ".xlsx", ".pdf":
+		return true
+	}
+	return false
+}
+
+// officeRefBlock 把办公文档转换后的 Markdown 注入 @ 引用：截到注入上限并带明确
+// 标记（总大小/页数/可用的深入读取方式），引导模型用 summarize_file 读全文。
+func officeRefBlock(md, path string, size int64, totalPages int, truncated bool) string {
+	md = truncateUTF8(md, maxFileRefBytes)
+	var b strings.Builder
+	b.WriteString(md)
+	fmt.Fprintf(&b, "\n\n[office document %s, %d bytes", path, size)
+	if totalPages > 0 {
+		fmt.Fprintf(&b, ", %d 页", totalPages)
+	}
+	if truncated {
+		fmt.Fprintf(&b, "，已注入前 %d 页", refOfficeMaxPages)
+	}
+	b.WriteString("；可调用 summarize_file 获取全文摘要，或 format_convert 转换指定页]")
+	return b.String()
+}
+
+// truncateUTF8 按字节截断但不切断多字节 UTF-8 字符。
+func truncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	i := maxBytes
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	if i == 0 {
+		return s[:maxBytes]
+	}
+	return s[:i]
 }
 
 func imageMime(data []byte, path string) string {

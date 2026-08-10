@@ -11,6 +11,9 @@
 // 缓存安全: 纯前端 mock，不触及 Go 内核。
 
 import type {
+  CostSummary,
+  PriceFetchRecord,
+  PriceSource,
   KnowledgeEntry,
   KnowledgeSaveRequest,
   KnowledgeSummary,
@@ -29,6 +32,63 @@ import type {
 import type { AppBindings } from "./bridge";
 
 const EVENT_CHANNEL = "agent:event";
+
+// 浏览器开发 mock 的固定资料清单（内存态，对应后端 .gaea/pinned.json）。
+let pinnedMock: string[] = [];
+
+// 成本库 mock：与记忆中枢 CostLibrary 同库的单价条目，供办公侧「成本库」
+// Tab 浏览/引用与产物「沉淀到成本库」流程联调。
+let costMock: CostSummary[] = [
+  {
+    name: "hp300", title: "HP300 高频液压振动锤", category: "机械", unit: "台班",
+    price: 3200, spec: "300kW", source: "市场询价", tags: ["振动锤", "桩基"], status: "现行", updatedAt: "",
+  },
+  {
+    name: "cement", title: "P.O 42.5 水泥", category: "材料", unit: "吨",
+    price: 480, spec: "", source: "定额", tags: [], status: "现行", updatedAt: "",
+  },
+];
+
+// 价格源 mock：内置重庆/四川两个造价信息源，抓取返回样例候选（更新/新增）。
+const initialPriceSourcesMock: PriceSource[] = [
+  {
+    id: "src-cq", name: "重庆施工造价信息网", parser: "sc_table", frequencyHours: 24, area: "重庆",
+    url: "http://www.cqsgczjxx.org/Pages/CQZJW/priceInformation.aspx",
+    enabled: true, lastFetchAt: "", createdAt: "2026-08-10T00:00:00Z",
+  },
+  {
+    id: "src-sc", name: "四川造价信息网（期 758）", parser: "sc_table", frequencyHours: 24, area: "成都市区",
+    url: "http://202.61.90.35:8032/pubpages/pricelist.aspx?period=758",
+    enabled: true, lastFetchAt: "", createdAt: "2026-08-10T00:00:00Z",
+  },
+];
+let priceSourcesMock: PriceSource[] = initialPriceSourcesMock.map((s) => ({ ...s }));
+const initialPriceFetchMock: PriceFetchRecord[] = [
+  {
+    id: "fetch-1", sourceId: "src-sc", sourceName: "四川造价信息网（期 758）",
+    url: "http://202.61.90.35:8032/pubpages/pricelist.aspx?period=758",
+    period: "758", fetchedAt: new Date().toISOString(), status: "pending",
+    candidates: [
+      {
+        title: "热轧光圆钢筋", spec: "HPB300 Φ12", unit: "t", price: 3750, tax: "不含税",
+        existingName: "rebar", existingPrice: 3000, status: "更新", diff: 750, diffPct: 25,
+        anomaly: true, anomalyReason: "单期跳幅 +25.0%（基准 ¥3,000）",
+      },
+      {
+        title: "螺纹钢", spec: "HRB400 Φ20", unit: "t", price: 3420, tax: "不含税",
+        existingName: "", existingPrice: 0, status: "新增", diff: 0, diffPct: 0,
+        anomaly: false, anomalyReason: "",
+      },
+    ],
+  },
+];
+let priceFetchMock: PriceFetchRecord[] = initialPriceFetchMock.map((f) => ({ ...f, fetchedAt: new Date().toISOString() }));
+
+// 测试辅助：重置价格源/抓取记录 mock 状态（避免用例间串扰）。
+export function __resetPriceMocksForTest() {
+  priceFetchMock = initialPriceFetchMock.map((f) => ({ ...f, fetchedAt: new Date().toISOString() }));
+  priceSourcesMock = initialPriceSourcesMock.map((s) => ({ ...s }));
+}
 
 // 浏览器开发 mock 用的最小 docx（含标题/正文/表格），由 docx-preview 渲染。
 const MOCK_DOCX_DATA_URL =
@@ -421,6 +481,66 @@ export function makeMockApp(): AppBindings {
         { path: "docs/说明.md", name: "说明.md", isDir: false, size: 40, modTime: now - 2000 },
       ].slice(0, limit);
     },
+    async WorkspaceSearch(query: string, limit = 20) {
+      const q = query.toLowerCase();
+      const corpus = [
+        { path: "docs/成本测算.xlsx", name: "成本测算.xlsx", size: 120, body: "成本测算总金额 100 万元，材料费 60 万、人工费 40 万。" },
+        { path: "docs/方案.docx", name: "方案.docx", size: 80, body: "市政道路改造方案：背景、目标、实施计划与预算。" },
+        { path: "docs/说明.md", name: "说明.md", size: 40, body: "这是固定的项目说明，包含本周进展与下周计划。" },
+        { path: "README.md", name: "README.md", size: 18, body: "gaea 办公助手使用说明。" },
+      ];
+      const now = Date.now();
+      return corpus
+        .filter((f) => f.name.toLowerCase().includes(q) || f.body.toLowerCase().includes(q))
+        .slice(0, limit)
+        .map((f, i) => ({
+          path: f.path,
+          name: f.name,
+          size: f.size,
+          modTime: now - i * 1000,
+          score: 0.9 - i * 0.1,
+          snippet: f.body.length > 40 ? `…${f.body.slice(0, 40)}…` : f.body,
+        }));
+    },
+    async PinnedMaterials() {
+      return pinnedMock.map((path) => ({
+        path,
+        name: path.split("/").pop() ?? path,
+        isDir: false,
+        size: 40,
+        modTime: Date.now(),
+      }));
+    },
+    async PinMaterial(rel: string) {
+      if (!pinnedMock.includes(rel)) pinnedMock.push(rel);
+      return this.PinnedMaterials();
+    },
+    async UnpinMaterial(rel: string) {
+      pinnedMock = pinnedMock.filter((p) => p !== rel);
+      return this.PinnedMaterials();
+    },
+    async SummarizeFile(rel: string, focus?: string) {
+      const name = rel.split("/").pop() ?? rel;
+      return {
+        path: rel,
+        totalPages: 0,
+        chars: 120,
+        chunks: 1,
+        summary: `${name} 的分块摘要（mock）：主题、要点与关键数据概览${focus ? `，侧重「${focus}」` : ""}。`,
+      };
+    },
+    async TaskTemplates() {
+      return [
+        { name: "weekly-report", title: "周报", description: "结构化周报：进展 / 数据 / 问题 / 下周计划", prompt: "帮我生成一份本周工作周报：按「本周进展 / 关键数据 / 遇到的问题 / 下周计划」四部分撰写，输出 Markdown 并保存到 .gaea/exports/。" },
+        { name: "meeting-minutes", title: "会议纪要", description: "纪要模板：议题 / 结论 / 行动项", prompt: "帮我整理一份会议纪要：按「议题与讨论 / 结论 / 行动项」组织，行动项包含负责人和截止时间。" },
+        { name: "cost-estimate", title: "成本测算", description: "生成 xlsx 成本测算表：公式 + 图表", prompt: "帮我制作一份成本测算表（.xlsx）：\n1. 先与我对齐测算范围和科目（人工/材料/机械/管理费/税费等）；\n2. 测算前先用 cost_search 查询成本库中的历史单价作为定价依据：命中的科目直接引用并在正文注明依据的条目名称，缺失科目与用户确认或给出合理估价并说明假设；\n3. 用 xlsx 能力创建表格：科目、单位、数量、单价、金额，金额用公式计算（数量×单价），并提供汇总行；\n4. 为费用构成生成原生图表（柱状/饼图）；\n5. 测算完成后用 cost_save 把本次采用的单价沉淀为成本条目（来源标注本次项目/文件，同名覆盖），并在正文汇报新增/更新条数；\n6. 保存到 .gaea/exports/ 并在正文给出可点击的 [文件名](路径)。" },
+        { name: "proposal-outline", title: "方案大纲", description: "背景 / 目标 / 方案对比 / 实施 / 预算 / 风险", prompt: "帮我撰写一份方案大纲：按「背景与目标 / 现状分析 / 方案设计 / 实施计划 / 预算 / 风险」组织。" },
+        { name: "data-analysis", title: "数据分析", description: "清洗 → 透视 → 图表 → 结论", prompt: "帮我做一份数据分析：清洗数据 → 分类汇总 → 生成图表 → 输出结论。" },
+        { name: "document-convert", title: "文档转换", description: "docx / xlsx / pdf 与 Markdown 互转", prompt: "帮我转换这份文档：用 format_convert 转为 Markdown 并保留标题层级与表格。" },
+        { name: "report-assemble", title: "报告拼装", description: "多素材合并为完整报告", prompt: "帮我拼装一份完整报告：封面 / 目录 / 正文 / 附录，保留来源标注。" },
+        { name: "ppt-deck", title: "演示文稿", description: "大纲 → PPT 成稿（.pptx）", prompt: "帮我生成一份演示文稿（.pptx）：先列 8-12 页大纲再成稿。" },
+      ];
+    },
     async ReadFile(rel: string) {
       const samples: Record<string, string> = {
         "README.md": "# gaea\n\nBrowser-dev workspace preview.\n\n- Chat in the center\n- Browse files on the right\n- Keep sessions on the left\n",
@@ -470,6 +590,31 @@ export function makeMockApp(): AppBindings {
           path: rel, name: rel.split("/").pop() ?? rel, ext: ".md",
           size: samples[rel]?.length ?? 0, kind: "markdown" as const,
           body: samples[rel] ?? "# Mock\n\n预览内容来自浏览器 mock。", dataUrl: "", error: "",
+        };
+      }
+      if (ext === "pdf") {
+        if (rel === "scan.pdf") {
+          // 扫描件 PDF：模拟 OCR 逐页进度事件，随后返回识别结果。
+          emit({ kind: "preview_progress", path: rel, progress: { path: rel, done: 1, total: 3 } });
+          await delay(80);
+          emit({ kind: "preview_progress", path: rel, progress: { path: rel, done: 2, total: 3 } });
+          await delay(80);
+          emit({ kind: "preview_progress", path: rel, progress: { path: rel, done: 3, total: 3 } });
+          return {
+            path: rel, name: rel.split("/").pop() ?? rel, ext: ".pdf",
+            size: 2048, kind: "markdown" as const,
+            body: "（以下内容由 OCR 识别）\n\n扫描页内容。", dataUrl: "", error: "",
+          };
+        }
+        // 大 PDF 预览截断样例：truncated/totalPages 由后端 GaeaPreview 填充。
+        const truncated = rel === "big.pdf";
+        return {
+          path: rel, name: rel.split("/").pop() ?? rel, ext: ".pdf",
+          size: truncated ? 2_400_000 : 1024, kind: "markdown" as const,
+          body: truncated ? "第 1 页内容\n\n> ⚠️ 预览已截断：PDF 共 1200 页，仅显示前 500 页。" : "# PDF mock",
+          dataUrl: "", error: "",
+          truncated: truncated || undefined,
+          totalPages: truncated ? 1200 : undefined,
         };
       }
       return {
@@ -603,8 +748,12 @@ export function makeMockApp(): AppBindings {
             description: "User prefers tabs",
             type: "user",
             body: "Indent with tabs.",
+            lastUsedAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+            sourceSession: "session-mock-demo.jsonl",
+            sourceMessage: "turn 2",
           },
         ],
+        enabled: true,
         scopes: [
           { scope: "user", path: "~/.config/gaea/REASONIX.md" },
           { scope: "project", path: "REASONIX.md" },
@@ -630,6 +779,9 @@ export function makeMockApp(): AppBindings {
     async ChangeFactType(name: string, typ: string) {
       emit({ kind: "notice", level: "info", text: `type changed → ${name} (${typ})` });
       return name;
+    },
+    async SetMemoryEnabled(enabled: boolean) {
+      emit({ kind: "notice", level: "info", text: `memory ${enabled ? "enabled" : "disabled"}` });
     },
     async MemorySuggestions() {
       return { memories: [], skills: [], generatedAt: new Date().toISOString(), available: false, source: "mock" };
@@ -796,7 +948,7 @@ export function makeMockApp(): AppBindings {
     },
     // ── 记忆中枢 Mock ────────────────────────────────────────
     async MemoryHubOverview() {
-      return { knowledgeCount: 4, profileCount: 0, officeCount: 0, whisperCount: 0, latestUpdated: "" };
+      return { knowledgeCount: 4, profileCount: 0, officeCount: 0, costCount: 2, whisperCount: 0, pinnedCount: pinnedMock.length, latestUpdated: "" };
     },
     async ProfileList() {
       return [];
@@ -823,19 +975,208 @@ export function makeMockApp(): AppBindings {
       return { nodes: [], links: [] };
     },
     async CostList() {
-      return [];
+      return costMock;
     },
-    async CostSearch() {
-      return [];
+    async CostSearch(query: string, category: string, status: string) {
+      const q = (query ?? "").toLowerCase();
+      return costMock.filter((e) => {
+        if (category && category !== "all" && e.category !== category) return false;
+        if (status && status !== "all" && e.status !== status) return false;
+        if (!q) return true;
+        return [e.name, e.title, e.spec, e.source].some((s) => (s ?? "").toLowerCase().includes(q));
+      });
     },
-    async CostGet() {
-      return null;
+    async CostGet(name: string) {
+      const e = costMock.find((c) => c.name === name);
+      return e ? { ...e, body: "", createdAt: "" } : null;
     },
     async CostSave() {
       // mock: no-op
     },
     async CostDelete() {
       // mock: no-op
+    },
+    // ── 成本库导入（mock：对已知文件返回样例候选）──
+    async CostImportPreview(path: string) {
+      return {
+        path,
+        fileName: path.split(/[\\/]/).pop() ?? path,
+        columns: ["材料名称", "规格型号", "单位", "单价(元)", "供应商"],
+        unmapped: ["备注"],
+        rows: [
+          {
+            name: "hp300", title: "HP300 高频液压振动锤", category: "机械", unit: "台班",
+            price: 3200, spec: "300kW", source: "XX租赁", status: "现行",
+            existingName: "hp300", existingPrice: 3000, matchNote: "将覆盖更新（现价 ¥3,000）",
+            raw: "HP300 高频液压振动锤 | 300kW | 台班 | 3200 | XX租赁", skip: false, skipReason: "",
+          },
+          {
+            name: "", title: "P.O 42.5 水泥", category: "材料", unit: "吨",
+            price: 480, spec: "", source: "海螺", status: "现行",
+            existingName: "", existingPrice: 0, matchNote: "新增",
+            raw: "P.O 42.5 水泥 | | 吨 | 480 | 海螺", skip: false, skipReason: "",
+          },
+        ],
+        message: "",
+        aiUsed: false,
+      };
+    },
+    async CostImportAIParse(path: string) {
+      const pv = await this.CostImportPreview(path);
+      pv.aiUsed = true;
+      pv.message = "AI 智能解析完成，请核对后确认导入。";
+      return pv;
+    },
+    async CostImportApply() {
+      return 0;
+    },
+    // ── 价格源（mock）──
+    async PriceSources() {
+      return priceSourcesMock;
+    },
+    async PriceSourceSave(src: PriceSource) {
+      const i = priceSourcesMock.findIndex((s) => s.id === src.id);
+      if (i >= 0) priceSourcesMock[i] = src;
+      else priceSourcesMock.push(src);
+    },
+    async PriceSourceDelete(id: string) {
+      priceSourcesMock = priceSourcesMock.filter((s) => s.id !== id);
+    },
+    async PriceFetch(id: string) {
+      const src = priceSourcesMock.find((s) => s.id === id);
+      const rec: PriceFetchRecord = {
+        id: "fetch-" + Date.now(), sourceId: id, sourceName: src?.name ?? id,
+        url: src?.url ?? "", period: "758", fetchedAt: new Date().toISOString(), status: "pending",
+        candidates: priceFetchMock[0]?.candidates ?? [],
+      };
+      priceFetchMock = [rec, ...priceFetchMock.filter((f) => f.id !== rec.id)];
+      if (src) src.lastFetchAt = rec.fetchedAt;
+      return rec;
+    },
+    async PriceFetches() {
+      return priceFetchMock;
+    },
+    async PriceFetchApply(fetchId: string, titles: string[]) {
+      const rec = priceFetchMock.find((f) => f.id === fetchId);
+      if (rec) rec.status = "applied";
+      return titles.length;
+    },
+    async PriceFetchIgnore(fetchId: string) {
+      const rec = priceFetchMock.find((f) => f.id === fetchId);
+      if (rec) rec.status = "ignored";
+    },
+    async PriceHistory(name: string) {
+      return [
+        {
+          name, title: "热轧光圆钢筋", unit: "t", price: 3181, source: "四川造价信息网",
+          period: "758", fetchedAt: new Date().toISOString(), note: "价格源更新",
+        },
+        {
+          name, title: "热轧光圆钢筋", unit: "t", price: 3000, source: "手动录入",
+          period: "", fetchedAt: "", note: "",
+        },
+      ];
+    },
+    async SemanticSearch(query: string) {
+      if (!query.trim()) return [];
+      return [
+        {
+          kind: "cost", name: "hp300", score: 0.86,
+          text: "HP300 高频液压振动锤（300kW） 单位台班 单价3200元 分类机械 来源市场询价",
+        },
+        {
+          kind: "knowledge", name: "桩基-施工要点", score: 0.71,
+          text: "桩基施工要点 工程案例 振动锤选型需匹配地质条件…",
+        },
+      ];
+    },
+    // ── 知识库导入（mock）──
+    async KnowledgeImportPreview(path: string) {
+      return {
+        path,
+        fileName: path.split(/[\\/]/).pop() ?? path,
+        columns: ["标题", "分类", "正文"],
+        unmapped: [],
+        rows: [
+          {
+            name: "gb36600", title: "GB 36600 风险管控", category: "规范标准", phase: "", discipline: "",
+            tags: [], status: "现行", source: path.split(/[\\/]/).pop() ?? path,
+            body: "建设用地土壤污染风险管控标准要点…",
+            existingName: "", matchNote: "新增", similarName: "", similarNote: "",
+            raw: "", skip: false, skipReason: "",
+          },
+          {
+            name: "", title: "桩基施工要点", category: "工程案例", phase: "施工", discipline: "岩土工程",
+            tags: ["振动锤", "桩基"], status: "现行", source: path.split(/[\\/]/).pop() ?? path,
+            body: "振动锤选型需匹配地质条件…",
+            existingName: "pile", matchNote: "将覆盖更新", similarName: "", similarNote: "",
+            raw: "", skip: false, skipReason: "",
+          },
+        ],
+        message: "",
+        aiUsed: false,
+      };
+    },
+    async KnowledgeImportAIParse(path: string) {
+      const pv = await this.KnowledgeImportPreview(path);
+      pv.aiUsed = true;
+      pv.message = "AI 智能解析完成，请核对后确认导入。";
+      return pv;
+    },
+    async KnowledgeImportApply() {
+      return 0;
+    },
+    async KnowledgeHistory(name: string) {
+      return [
+        {
+          name, title: "桩基施工要点", version: 2, category: "工程案例", phase: "施工",
+          discipline: "岩土工程", tags: ["振动锤", "桩基"], status: "现行",
+          author: "", reviewer: "", source: "导入文件",
+          body: "旧版正文：振动锤选型需匹配地质条件…",
+          changedAt: new Date().toISOString(), note: "内容更新",
+        },
+      ];
+    },
+    async KnowledgeFindSimilar(title: string) {
+      if (!title.trim()) return [];
+      return [{ name: "pile", title: "桩基施工要点", score: 0.87 }];
+    },
+    async KnowledgeExport() {
+      return 4;
+    },
+    async KnowledgeReview() {
+      // mock: no-op
+    },
+    async KnowledgeMerge(_target: string, _sources: string[]) {
+      return _target;
+    },
+    async MemoryDuplicates() {
+      return [
+        {
+          keep: "pile", keepTitle: "桩基施工要点",
+          dup: "pile-v2", dupTitle: "桩基施工 要点（修订）",
+          score: 0.87,
+        },
+      ];
+    },
+    async MemoryMerge(target: string) {
+      return target;
+    },
+    async FileIndexRebuild() {
+      return { total: 3, skipped: 0, error: "" };
+    },
+    async FileSemanticSearch(query: string) {
+      if (!query.trim()) return [];
+      return [
+        {
+          path: "docs/桩基施工方案.md", score: 0.82,
+          snippet: "振动锤选型需匹配地质条件，HP300 高频液压振动锤…",
+        },
+        {
+          path: "docs/成本测算.xlsx", score: 0.63,
+          snippet: "机械台班单价明细：挖掘机、振动锤…",
+        },
+      ];
     },
     async PickFiles(): Promise<import("./types").FilePickResult[]> {
       // In dev mode there is no native dialog -- return empty.

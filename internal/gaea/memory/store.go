@@ -65,6 +65,11 @@ type Memory struct {
 	Kind        Kind     // cognitive function: semantic / episodic / procedural
 	Tags        []string // trigger tags for episodic memories (empty for others)
 	Body        string   // the fact itself (Markdown)
+	// 生命周期与溯源（SQLite 后端持久化；file 后端不落盘，语义为空）：
+	UpdatedAt     time.Time // 最近一次写入/修订时间（近期排序用）
+	LastUsedAt    time.Time // 最近一次被模型读取/检索的时间（高频排序用）
+	SourceSession string    // 沉淀来源会话（如 session-20260810-xxx.jsonl）
+	SourceMessage string    // 沉淀来源消息/轮次（如 turn 3 或消息摘要）
 }
 
 // ArchivedMemory is a saved fact that has been removed from active memory but
@@ -88,6 +93,7 @@ type backend interface {
 	Archive(name string) (string, error)
 	Delete(name string) error
 	ChangeType(name string, newType Type) error
+	Touch(name string) error
 	List() []Memory
 	ListArchived() []ArchivedMemory
 	Get(name string) (Memory, bool)
@@ -174,6 +180,10 @@ func (s Store) Delete(name string) error { return s.engine().Delete(name) }
 func (s Store) ChangeType(name string, newType Type) error {
 	return s.engine().ChangeType(name, newType)
 }
+
+// Touch 记录一条记忆被使用（更新 last_used_at，SQLite 后端持久化；
+// file 后端为 no-op）。读取事实的 memory_get 等入口调用，供高频排序。
+func (s Store) Touch(name string) error { return s.engine().Touch(name) }
 
 // List returns the saved memories, sorted by name. Used by /memory and the
 // desktop memory panel.

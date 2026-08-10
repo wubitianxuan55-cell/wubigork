@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,6 +11,64 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/vision"
 )
+
+// buildTextPDF 生成带唯一文本的合成 PDF（文本流，无外部依赖）。
+func buildTextPDF(t *testing.T, pages int) string {
+	t.Helper()
+	var sb strings.Builder
+	sb.WriteString("%PDF-1.4\n")
+	for i := 1; i <= pages; i++ {
+		fmt.Fprintf(&sb, "/Type /Page\nBT /F1 12 Tf 72 720 Td (第 %d 页内容) Tj ET\n", i)
+	}
+	path := filepath.Join(t.TempDir(), "office.pdf")
+	if err := os.WriteFile(path, []byte(sb.String()), 0o644); err != nil {
+		t.Fatalf("write pdf: %v", err)
+	}
+	return path
+}
+
+// TestReadFileRef_OfficePDF @ 办公文档应转 Markdown 注入头部，而不是输出
+// "binary not shown"；超过 refOfficeMaxPages 的 PDF 带页数截断标记。
+func TestReadFileRef_OfficePDF(t *testing.T) {
+	path := buildTextPDF(t, 30)
+	content, isDir, err := readFileRef(path)
+	if err != nil {
+		t.Fatalf("readFileRef: %v", err)
+	}
+	if isDir {
+		t.Fatal("isDir = true, want false")
+	}
+	if strings.Contains(content, "binary file") {
+		t.Errorf("office PDF fell back to binary marker")
+	}
+	if !strings.Contains(content, "第 1 页内容") {
+		t.Errorf("office PDF missing injected text head")
+	}
+	if !strings.Contains(content, "30 页") || !strings.Contains(content, "已注入前 20 页") {
+		t.Errorf("office PDF marker missing page info: %q", content)
+	}
+	if !strings.Contains(content, "summarize_file") {
+		t.Errorf("office PDF marker missing summarize_file hint")
+	}
+}
+
+// TestReadFileRef_LargeTextMarker 大文本文件截断标记应指引 summarize_file/read_file。
+func TestReadFileRef_LargeTextMarker(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "big.log")
+	if err := os.WriteFile(path, []byte(strings.Repeat("a", maxFileRefBytes+100)), 0o644); err != nil {
+		t.Fatalf("write big file: %v", err)
+	}
+	content, _, err := readFileRef(path)
+	if err != nil {
+		t.Fatalf("readFileRef: %v", err)
+	}
+	if !strings.Contains(content, "truncated") {
+		t.Errorf("missing truncated marker")
+	}
+	if !strings.Contains(content, "summarize_file") {
+		t.Errorf("missing summarize_file hint")
+	}
+}
 
 func TestParseRefTokens(t *testing.T) {
 	cases := []struct {

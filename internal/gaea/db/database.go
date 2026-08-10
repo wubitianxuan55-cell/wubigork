@@ -129,7 +129,7 @@ func WithTransaction(userDir string, fn func(tx *sql.Tx) error) error {
 
 // ─── 迁移框架（对齐 whisper db）────────────────────────────────────
 
-var migrations = []string{SchemaV1, SchemaV2}
+var migrations = []string{SchemaV1, SchemaV2, SchemaV3, SchemaV4, SchemaV5, SchemaV6}
 
 func runMigrations(db *sql.DB) error {
 	if _, err := db.Exec(SchemaV1); err != nil {

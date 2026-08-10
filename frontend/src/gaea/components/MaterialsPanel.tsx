@@ -5,8 +5,10 @@ import {
   FilePpt,
   FileSpreadsheet,
   FileText,
+  Pin,
   Paperclip,
   RefreshCw,
+  Sparkles,
 } from "../icons";
 import { app } from "../lib/bridge";
 import { useComposerInsertStore } from "../lib/store";
@@ -37,24 +39,58 @@ export const MaterialsPanel = memo(function MaterialsPanel({
 }) {
   const [items, setItems] = useState<FileSearchHit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pinned, setPinned] = useState<FileSearchHit[]>([]);
+  const [summarizing, setSummarizing] = useState<Set<string>>(new Set());
   const requestAt = useComposerInsertStore((s) => s.requestAt);
   const toast = useToast();
 
+  const loadPinned = useCallback(() => {
+    app.PinnedMaterials()
+      .then((p) => setPinned(p ?? []))
+      .catch(() => setPinned([]));
+  }, []);
   const load = useCallback(() => {
     setLoading(true);
     app.Materials(120)
       .then((h) => setItems(h ?? []))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
+    loadPinned();
   }, []);
   useEffect(() => { load(); }, [load]);
+  // 一键 @ 引用后也刷新固定清单（引用本身不改固定，仅保持面板同步）
+  useEffect(() => { loadPinned(); }, [requestAt, loadPinned]);
 
   const reference = useCallback((path: string) => {
     requestAt(path);
     toast.show(`已引用 @${path}`, "info");
   }, [requestAt, toast]);
 
+  const togglePin = useCallback((path: string) => {
+    const isPinned = pinned.some((p) => p.path === path);
+    const op = isPinned ? app.UnpinMaterial(path) : app.PinMaterial(path);
+    op.then((next) => {
+      setPinned(next ?? []);
+      toast.show(isPinned ? `已取消固定 ${path}` : `已固定 ${path}（新会话自动带入上下文）`, "info");
+    }).catch(() => {});
+  }, [pinned, toast]);
+
+  // 摘要后引用：分块摘要 → 把摘要文本插入输入框（对标千问/aily 摘要后引用）。
+  const summarize = useCallback(async (path: string) => {
+    setSummarizing((s) => new Set(s).add(path));
+    try {
+      const res = await app.SummarizeFile(path);
+      useComposerInsertStore.getState().requestText(res.summary);
+      toast.show(`已插入「${path}」的摘要到输入框，可编辑后发送`, "info");
+    } catch (e) {
+      toast.show(`摘要失败：${String(e)}`, "warn");
+    } finally {
+      setSummarizing((s) => { const n = new Set(s); n.delete(path); return n; });
+    }
+  }, [toast]);
+
   const total = items.length;
+  const pinnedPaths = new Set(pinned.map((p) => p.path));
   return (
     <div className="flex flex-col h-full text-fg-dim text-xs">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border-soft">
@@ -77,6 +113,47 @@ export const MaterialsPanel = memo(function MaterialsPanel({
           </button>
         </div>
       </div>
+
+      {pinned.length > 0 && (
+        <div className="px-3 py-2 border-b border-border-soft">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-faint/60 font-medium mb-1.5">
+            <Pin size={11} className="text-accent" />
+            已固定 · {pinned.length}
+            <span className="ml-auto normal-case tracking-normal text-fg-faint/50">
+              新会话自动带入上下文
+            </span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            {pinned.map((f) => (
+              <div
+                key={f.path}
+                className="group flex items-center gap-2 px-2 py-1 rounded-md border border-accent/20 bg-accent/5 hover:border-accent/35 transition-colors"
+              >
+                <span className="shrink-0 w-5 h-5 rounded bg-accent/15 text-accent flex items-center justify-center">
+                  <Pin size={10} />
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onOpenFile(f.path)}
+                  title={`点击预览 ${f.path}`}
+                  className="min-w-0 flex-1 text-left cursor-pointer"
+                >
+                  <span className="block truncate text-[11.5px] text-fg font-medium leading-tight">{f.name}</span>
+                  <span className="block truncate text-[9.5px] text-fg-faint font-mono leading-tight">{f.path}</span>
+                </button>
+                <button
+                  type="button"
+                  className="shrink-0 flex items-center justify-center w-5 h-5 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-err hover:bg-err/10 transition-colors"
+                  onClick={() => togglePin(f.path)}
+                  title="取消固定"
+                >
+                  <Pin size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {total === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 gap-2 px-6 text-center text-fg-faint/50">
@@ -115,6 +192,11 @@ export const MaterialsPanel = memo(function MaterialsPanel({
                       >
                         <span className="block truncate text-[12px] text-fg font-medium leading-tight">
                           {f.name}
+                          {f.size > 5 * 1024 * 1024 && (
+                            <span className="ml-1.5 text-[9px] text-amber-500/90 font-mono align-middle">
+                              大文件
+                            </span>
+                          )}
                         </span>
                         <span className="block truncate text-[10px] text-fg-faint font-mono leading-tight">
                           {f.path}
@@ -122,6 +204,24 @@ export const MaterialsPanel = memo(function MaterialsPanel({
                         </span>
                       </button>
                       <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-fg-faint cursor-pointer hover:text-accent hover:bg-accent/10 transition-colors"
+                          onClick={() => void summarize(f.path)}
+                          title="摘要后引用：分块摘要并插入输入框"
+                        >
+                          <Sparkles size={12} className={summarizing.has(f.path) ? "animate-pulse" : ""} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent cursor-pointer hover:bg-bg-soft transition-colors ${
+                            pinnedPaths.has(f.path) ? "text-accent" : "text-fg-faint hover:text-fg"
+                          }`}
+                          onClick={() => togglePin(f.path)}
+                          title={pinnedPaths.has(f.path) ? "取消固定" : "固定为常用资料（新会话自动带入）"}
+                        >
+                          <Pin size={12} />
+                        </button>
                         <button
                           type="button"
                           className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"

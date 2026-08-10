@@ -5,6 +5,7 @@ import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
 import { Markdown } from "./Markdown";
 import { XlsxPreview } from "./XlsxPreview";
+import { usePreviewProgress } from "../hooks/usePreviewProgress";
 
 function formatSize(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -23,6 +24,7 @@ export function FilePreview({
 }) {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const ocrProgress = usePreviewProgress(relPath);
 
   useEffect(() => {
     if (!relPath) { setPreview(null); return; }
@@ -95,8 +97,19 @@ export function FilePreview({
       <div className="flex-1 overflow-auto">
         {loading && (
           <div className="flex flex-col items-center justify-center h-full text-fg-faint text-xs gap-2">
-            <Loader2 size={18} className="animate-spin text-accent" />
-            <span>加载中…</span>
+            {ocrProgress ? (
+              <>
+                <Loader2 size={18} className="animate-spin text-accent" />
+                <span>
+                  OCR 识别中 {ocrProgress.done}/{ocrProgress.total} 页…
+                </span>
+              </>
+            ) : (
+              <>
+                <Loader2 size={18} className="animate-spin text-accent" />
+                <span>加载中…</span>
+              </>
+            )}
           </div>
         )}
         {!loading && preview?.kind === "image" && preview.dataUrl && (
@@ -112,6 +125,11 @@ export function FilePreview({
         )}
         {!loading && preview?.kind === "markdown" && (
           <div className="px-4 py-3">
+            {preview.truncated && (
+              <div className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
+                ⚠️ 预览已截断（{preview.totalPages ? `PDF 共 ${preview.totalPages} 页` : "文件过大"}），仅展示前部内容；可让 AI 调用 summarize_file 获取全文摘要。
+              </div>
+            )}
             <Markdown text={preview.body} />
           </div>
         )}

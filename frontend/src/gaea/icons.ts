@@ -51,6 +51,7 @@ import {
   PaperClipOutlined,
   PartitionOutlined,
   PictureOutlined,
+  PushpinOutlined,
   PlusOutlined,
   PullRequestOutlined,
   QrcodeOutlined,
@@ -131,6 +132,7 @@ export const MessageSquare: Icon = wrap(MessageOutlined);
 export const Moon: Icon = wrap(MoonOutlined);
 export const Palette: Icon = wrap(EditOutlined);
 export const Paperclip: Icon = wrap(PaperClipOutlined);
+export const Pin: Icon = wrap(PushpinOutlined);
 export const Pencil: Icon = wrap(EditOutlined);
 export const Plug: Icon = wrap(ThunderboltOutlined);
 export const Plus: Icon = wrap(PlusOutlined);

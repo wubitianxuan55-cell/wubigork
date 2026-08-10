@@ -1,8 +1,10 @@
 import { Plus, RefreshCw, Search, X } from "../icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MemorySuggestion, MemorySuggestionsView, MemoryView, SkillSuggestion } from "../lib/types";
+import { app } from "../lib/bridge";
 import { DocEditor } from "./DocEditor";
 import { useT } from "../lib/i18n";
+import { useToast } from "./Toast";
 import { FactCard } from "./FactCard";
 import { FilterChip } from "./FilterChip";
 import { TabButton } from "./TabButton";
@@ -43,6 +45,9 @@ export function MemoryPanel(p: {
   const [suggestions, setSuggestions] = useState<MemorySuggestionsView | null>(null);
   const [suggestionsBusy, setSuggestionsBusy] = useState(false);
   const [acceptedSuggestions, setAcceptedSuggestions] = useState<Set<string>>(new Set());
+  // 记忆开关（记忆可控性）：与后端配置同步，切换后引擎重建立即生效
+  const [memoryEnabled, setMemoryEnabled] = useState(view?.enabled ?? true);
+  const toast = useToast();
   const scopes = view?.scopes ?? [];
   const factNames = useMemo(() => new Set(facts.map((f) => f.name)), [facts]);
   const factTypes = useMemo(
@@ -57,6 +62,26 @@ export function MemoryPanel(p: {
   useEffect(() => {
     if (!scope && scopes.length > 0) setScope(scopes[0].scope);
   }, [scope, scopes]);
+
+  useEffect(() => {
+    setMemoryEnabled(view?.enabled ?? true);
+  }, [view?.enabled]);
+
+  const toggleMemory = useCallback(() => {
+    const next = !memoryEnabled;
+    setMemoryEnabled(next);
+    app
+      .SetMemoryEnabled(next)
+      .then(() => {
+        toast.show(
+          next
+            ? "记忆已开启：画像/规则/事实将自动带入上下文"
+            : "记忆已关闭：不再注入画像/规则/事实（磁盘记忆保留）",
+          "info",
+        );
+      })
+      .catch(() => setMemoryEnabled(!next));
+  }, [memoryEnabled, toast]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredFacts = useMemo(
@@ -182,9 +207,26 @@ export function MemoryPanel(p: {
               </div>
             )}
           </div>
-          <button className="drawer__close" onClick={onClose} aria-label={t("common.close")}>
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleMemory}
+              className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full border text-[11px] cursor-pointer transition-colors ${
+                memoryEnabled
+                  ? "border-accent/30 bg-accent/10 text-accent"
+                  : "border-border text-fg-faint hover:text-fg"
+              }`}
+              title={memoryEnabled ? "点击关闭记忆注入" : "点击开启记忆注入"}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${memoryEnabled ? "bg-accent" : "bg-fg-faint/50"}`}
+              />
+              记忆 {memoryEnabled ? "开" : "关"}
+            </button>
+            <button className="drawer__close" onClick={onClose} aria-label={t("common.close")}>
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* ═══ 快速添加区 ═══ */}

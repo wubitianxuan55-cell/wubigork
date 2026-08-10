@@ -121,6 +121,9 @@ func (b *fileBackend) ChangeType(name string, newType Type) error {
 	return err
 }
 
+// Touch 是 file 后端的生命周期 no-op：文件记忆不记录使用时间。
+func (b *fileBackend) Touch(string) error { return nil }
+
 // List returns the saved memories parsed from their files, sorted by name. Used
 // by `/memory` and the desktop memory panel. Files that fail to parse are
 // skipped so one bad file never hides the rest.

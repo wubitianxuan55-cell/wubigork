@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // Set is everything memory loaded for one session: the hierarchical docs and a
@@ -240,17 +241,18 @@ func Compose(base string, s *Set) string {
 
 // ProfileBlock auto-aggregates Type=user semantic memories into a structured
 // user profile. Only semantic memories are included (episodic and procedural are
-// handled separately). Returns "" when there are no user-typed semantic memories.
+// handled separately). 条目按「近期/高频」排序并压缩到画像注入预算（600 rune），
+// 保证记忆再多也不挤爆系统提示词。Returns "" when there are none.
 func (s *Set) ProfileBlock() string {
 	if s == nil {
 		return ""
 	}
-	var userFacts []string
+	var userFacts []Memory
 	seen := map[string]bool{}
 	if s.DB != nil {
 		for _, m := range NewProfileStore(s.DB).All() {
-			if d := strings.TrimSpace(m.Description); d != "" {
-				userFacts = append(userFacts, "- "+d)
+			if strings.TrimSpace(m.Description) != "" || strings.TrimSpace(m.Body) != "" {
+				userFacts = append(userFacts, m)
 				seen[slug(m.Name)] = true
 			}
 		}
@@ -262,17 +264,42 @@ func (s *Set) ProfileBlock() string {
 		if seen[slug(m.Name)] {
 			continue // 已在主脑画像中
 		}
-		if d := strings.TrimSpace(m.Description); d != "" {
-			userFacts = append(userFacts, "- "+d)
+		if strings.TrimSpace(m.Description) != "" || strings.TrimSpace(m.Body) != "" {
+			userFacts = append(userFacts, m)
 		}
 	}
 	if len(userFacts) == 0 {
 		return ""
 	}
+	// 近期/高频优先：画像注入预算有限，新近沉淀的画像优先带入
+	sort.SliceStable(userFacts, func(i, j int) bool {
+		ti := userFacts[i].UpdatedAt
+		if userFacts[i].LastUsedAt.After(ti) {
+			ti = userFacts[i].LastUsedAt
+		}
+		tj := userFacts[j].UpdatedAt
+		if userFacts[j].LastUsedAt.After(tj) {
+			tj = userFacts[j].LastUsedAt
+		}
+		if !ti.Equal(tj) {
+			return ti.After(tj)
+		}
+		return userFacts[i].Name < userFacts[j].Name
+	})
 	var b strings.Builder
 	b.WriteString("## User Profile (auto-aggregated)\n")
+	written := 0
 	for _, f := range userFacts {
-		b.WriteString(f + "\n")
+		desc := strings.TrimSpace(f.Description)
+		if desc == "" {
+			desc = displayTitle(f.Title, f.Name)
+		}
+		line := "- " + oneLine(desc) + "\n"
+		if written+utf8.RuneCountInString(line) > profileBudget {
+			break
+		}
+		b.WriteString(line)
+		written += utf8.RuneCountInString(line)
 	}
 	return b.String()
 }

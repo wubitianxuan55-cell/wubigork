@@ -136,6 +136,17 @@ type officeState struct {
 
 	proposalSvc *proposal.Service
 	batchCancel context.CancelFunc
+
+	// 价格源定时抓取调度（P1-⑥）：app 启动后按订阅频率检查到期源。
+	priceMu       sync.Mutex
+	priceCronStop chan struct{}
+	priceCronOnce sync.Once
+	priceStopOnce sync.Once
+
+	// 文件语义索引自动维护：每 10 分钟增量重建（Ensure 内容感知）。
+	fileIndexStop     chan struct{}
+	fileIndexOnce     sync.Once
+	fileIndexStopOnce sync.Once
 }
 
 // App Wails 应用实例 — 聚合各域子服务，方法经嵌入提升到 App 供前端绑定。
@@ -262,6 +273,11 @@ func (a *App) Startup(ctx context.Context) {
 	// 本地 TTS 服务保活：模型中心内置 CosyVoice2，gaea 启动即自动拉起（幂等，已就绪零开销）
 	a.ensureLocalTTSService("cosyvoice")
 
+	// 价格源定时抓取调度：启动后立即检查一次，之后每 30 分钟按订阅频率轮询。
+	a.startPriceCron()
+	// 文件语义索引自动维护：启动后立即增量重建一次，之后每 10 分钟。
+	a.startFileIndexCron()
+
 	// 后台刷新所有引擎模型列表
 	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {
 		go func(id string) {
@@ -338,6 +354,17 @@ func (a *App) Shutdown(ctx context.Context) {
 	if err := characterlib.CloseDatabase(filepath.Join(a.whisperDataRoot, "characterlib")); err != nil {
 		slog.Error("关闭 characterlib.db 失败", "error", err)
 	}
+	// 停止价格源定时抓取调度。
+	a.officeState.priceStopOnce.Do(func() {
+		if a.officeState.priceCronStop != nil {
+			close(a.officeState.priceCronStop)
+		}
+	})
+	a.officeState.fileIndexStopOnce.Do(func() {
+		if a.officeState.fileIndexStop != nil {
+			close(a.officeState.fileIndexStop)
+		}
+	})
 }
 
 // getPM/setPM/closePM/initAgents/restoreImageBackend 已迁移到

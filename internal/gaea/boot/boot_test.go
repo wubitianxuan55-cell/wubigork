@@ -84,6 +84,70 @@ func TestBuildUnknownModel(t *testing.T) {
 	}
 }
 
+// TestBuildWorkspaceCommandsAndPins 验证办公引擎按工作区（而非进程目录）发现
+// 命令：任务模板库落盘 .gaea/commands/*.md 后，/ 菜单与 Submit 即可解析；
+// 固定资料文件存在且能随系统提示词组装（pins 包单测覆盖正文块，此处验证
+// Build 不因清单存在而失败，并确认命令被发现）。
+func TestBuildWorkspaceCommandsAndPins(t *testing.T) {
+	chdirTemp(t)
+	const kind = "test-mock-boot-cmds"
+	provider.Register(kind, func(cfg provider.Config) (provider.Provider, error) {
+		return testutil.NewMock("mock"), nil
+	})
+
+	cfg := config.Default()
+	cfg.DefaultModel = "mock"
+	cfg.Providers = []config.ProviderEntry{{Name: "mock", Kind: kind, Model: "grok-3", ContextWindow: 1_000_000}}
+	config.SetLoader(func() (*config.Config, error) { return cfg, nil })
+	defer config.SetLoader(nil)
+
+	ws := t.TempDir()
+	// 任务模板命令文件（模拟 ensureTaskTemplateCommands 落盘结果）
+	cmdDir := filepath.Join(ws, ".gaea", "commands")
+	if err := os.MkdirAll(cmdDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmdBody := "---\ndescription: 结构化周报\n---\n\n帮我生成周报：按「本周进展 / 下周计划」撰写。"
+	if err := os.WriteFile(filepath.Join(cmdDir, "weekly-report.md"), []byte(cmdBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// 固定资料清单 + 文本文件
+	pinDir := filepath.Join(ws, ".gaea")
+	if err := os.WriteFile(filepath.Join(pinDir, "pinned.json"), []byte(`["docs/说明.md"]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(ws, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "docs", "说明.md"), []byte("这是固定资料正文。"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctrl, err := boot.Build(context.Background(), boot.Options{
+		Model:      "mock",
+		RequireKey: false,
+		Sink:       event.FuncSink(func(event.Event) {}),
+		Stderr:     io.Discard,
+		SessionDir: t.TempDir(),
+		Cwd:        ws,
+	})
+	if err != nil {
+		t.Fatalf("Build 失败: %v", err)
+	}
+	defer ctrl.Close()
+
+	found := false
+	for _, c := range ctrl.Commands() {
+		if c.Name == "weekly-report" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("工作区 .gaea/commands 下的模板命令未被发现")
+	}
+}
+
 // TestBuildWorkspaceLanguageNotInjected 回归：办公文档工作区不得在系统提示词中
 // 被标成 Go/代码工程（此前 Profile.Scan 无条件硬编码 Language="Go"，且扫描的是
 // 进程目录而非工作区，导致通用办公 AI 表现得像编程 agent）。

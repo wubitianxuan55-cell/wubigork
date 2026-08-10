@@ -177,6 +177,15 @@ export function Composer({
     setText((prev) => prev + (prev && !prev.endsWith(" ") ? " " : "") + "@" + at + " ");
     requestAnimationFrame(() => { taRef.current?.focus(); });
   }, [pendingAt]);
+  // 资料面板「摘要后引用」：把摘要文本插入输入框（可编辑后再发送）。
+  const pendingText = useComposerInsertStore((s) => s.pendingText);
+  useEffect(() => {
+    if (!pendingText) return;
+    const text = useComposerInsertStore.getState().consumeText();
+    if (!text) return;
+    setText((prev) => prev + (prev ? "\n\n" : "") + text);
+    requestAnimationFrame(() => { taRef.current?.focus(); });
+  }, [pendingText]);
   // 统一 @ 条目：目录内浏览（路径前缀）或 最近使用 + 工作区搜索 + 当前目录
   const atItems: AtEntry[] = useMemo(() => {
     if (atRaw === null) return [];

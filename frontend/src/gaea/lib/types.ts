@@ -15,7 +15,15 @@ export type EventKind =
   | "ask_request"
   | "turn_done"
   | "compaction_started"
-  | "compaction_done";
+  | "compaction_done"
+  | "preview_progress";
+
+// WirePreviewProgress 是预览（扫描件 PDF OCR）的逐页进度。
+export interface WirePreviewProgress {
+  path: string;
+  done: number;
+  total: number;
+}
 
 export interface WireCompaction {
   trigger?: string; // "auto" | "manual"
@@ -100,6 +108,8 @@ export interface WireEvent {
   approval?: WireApproval;
   ask?: WireAsk;
   compaction?: WireCompaction;
+  progress?: WirePreviewProgress;
+  path?: string; // preview_progress: 当前预览文件（冗余，便于前端过滤）
   err?: string;
 }
 
@@ -179,6 +189,35 @@ export interface FileSearchHit {
   size?: number;
 }
 
+// WorkspaceSearchHit 是工作区全文搜索的一条命中（轻量 RAG）。
+export interface WorkspaceSearchHit {
+  path: string;
+  name: string;
+  size: number;
+  modTime: number;
+  score: number;
+  snippet: string;
+  truncated?: boolean;
+  skipped?: string;
+}
+
+// GaeaSummaryResult 是资料「摘要」操作的结果（map-reduce 分块摘要）。
+export interface GaeaSummaryResult {
+  path: string;
+  totalPages: number;
+  chars: number;
+  chunks: number;
+  summary: string;
+}
+
+// TaskTemplate 是预置办公任务模板（欢迎页「任务模板」区 + slash 命令）。
+export interface TaskTemplate {
+  name: string;
+  title: string;
+  description: string;
+  prompt: string;
+}
+
 export interface FilePreview {
   path: string;
   body: string;
@@ -200,6 +239,8 @@ export interface PreviewResult {
   body: string;
   dataUrl: string;
   error: string;
+  truncated?: boolean;
+  totalPages?: number;
 }
 
 // OfficeEditResult 是框选即改的 AI 编辑结果（替换文本）。
@@ -354,6 +395,9 @@ export interface MemoryFact {
   description: string;
   type: string; // "user" | "feedback" | "project" | "reference"
   body: string;
+  lastUsedAt?: string; // RFC3339 最近使用（生命周期/高频展示）
+  sourceSession?: string; // 沉淀来源会话
+  sourceMessage?: string; // 沉淀来源消息/轮次
 }
 
 export interface MemoryScope {
@@ -367,6 +411,7 @@ export interface MemoryView {
   scopes: MemoryScope[];
   storeDir: string;
   available: boolean;
+  enabled?: boolean; // 记忆开关（当前生效值）
   archives?: MemoryArchive[];
 }
 
@@ -657,7 +702,9 @@ export interface MemoryHubOverview {
   knowledgeCount: number;
   profileCount: number;
   officeCount: number;
+  costCount: number;
   whisperCount: number;
+  pinnedCount: number; // 项目资料：工作区固定常用文件数
   latestUpdated: string;
 }
 
@@ -695,4 +742,168 @@ export interface CostSummary {
 export interface CostEntry extends CostSummary {
   body: string;
   createdAt: string;
+}
+
+// 导入预览中的一条候选成本条目（前端可编辑后确认导入）。
+export interface CostImportRow {
+  name: string;
+  title: string;
+  category: string;
+  unit: string;
+  price: number;
+  spec: string;
+  source: string;
+  status: string;
+  existingName: string;
+  existingPrice: number;
+  matchNote: string; // 新增 / 将覆盖更新（现价 ¥xxx）
+  raw: string;
+  skip: boolean;
+  skipReason: string;
+}
+
+// 文件导入解析结果（无确认不落库，确认走 CostImportApply）。
+export interface CostImportPreview {
+  path: string;
+  fileName: string;
+  columns: string[];
+  unmapped: string[];
+  rows: CostImportRow[];
+  message: string;
+  aiUsed: boolean;
+}
+
+// ── 价格源（定时抓取价格更新）──────────────────────────────────
+export interface PriceSource {
+  id: string;
+  name: string;
+  url: string;
+  parser: string; // sc_table：造价信息网价格表
+  frequencyHours: number; // 0=仅手动
+  area: string;
+  headers?: Record<string, string>;
+  enabled: boolean;
+  lastFetchAt: string;
+  createdAt: string;
+}
+
+export interface PriceCandidate {
+  title: string;
+  spec: string;
+  unit: string;
+  price: number;
+  tax: string;
+  existingName: string;
+  existingPrice: number;
+  status: "更新" | "无变化" | "新增";
+  diff: number;
+  diffPct: number;
+  anomaly: boolean; // 偏离历史价格区间（价格异常）
+  anomalyReason: string;
+}
+
+export interface PriceFetchRecord {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  url: string;
+  period: string;
+  fetchedAt: string;
+  status: "pending" | "applied" | "ignored";
+  candidates: PriceCandidate[];
+}
+
+export interface PriceHistory {
+  name: string;
+  title: string;
+  unit: string;
+  price: number;
+  source: string;
+  period: string;
+  fetchedAt: string;
+  note: string;
+}
+
+// 跨库统一语义检索命中（cost / knowledge / office，本地 bge-m3）。
+export interface SemanticHitView {
+  kind: "cost" | "knowledge" | "office";
+  name: string;
+  score: number;
+  text: string;
+}
+
+// ── 知识库导入（无确认不落库）────────────────────────────────
+export interface KnowledgeImportRow {
+  name: string;
+  title: string;
+  category: string;
+  phase: string;
+  discipline: string;
+  tags: string[];
+  status: string;
+  source: string;
+  body: string;
+  existingName: string;
+  matchNote: string; // 新增 / 将覆盖更新
+  similarName: string;
+  similarNote: string; // 与「xxx」相似 87%，建议合并
+  raw: string;
+  skip: boolean;
+  skipReason: string;
+}
+
+export interface KnowledgeImportPreview {
+  path: string;
+  fileName: string;
+  columns: string[];
+  unmapped: string[];
+  rows: KnowledgeImportRow[];
+  message: string;
+  aiUsed: boolean;
+}
+
+// 知识条目版本历史快照。
+export interface KnowledgeHistoryView {
+  name: string;
+  title: string;
+  version: number;
+  category: string;
+  phase: string;
+  discipline: string;
+  tags: string[];
+  status: string;
+  author: string;
+  reviewer: string;
+  source: string;
+  body: string;
+  changedAt: string;
+  note: string;
+}
+
+// 查重命中的相似条目。
+export interface SimilarView {
+  name: string;
+  title: string;
+  score: number;
+}
+
+// 办公记忆疑似重复对（keep 为建议保留项）。
+export interface MemoryDuplicateView {
+  keep: string;
+  keepTitle: string;
+  dup: string;
+  dupTitle: string;
+  score: number;
+}
+
+// 工作区文件语义索引状态 / 命中。
+export interface FileIndexStatus {
+  total: number;
+  skipped: number;
+  error: string;
+}
+export interface FileSemanticHit {
+  path: string;
+  score: number;
+  snippet: string;
 }

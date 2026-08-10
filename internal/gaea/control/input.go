@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/skill"
 )
 
@@ -56,16 +55,12 @@ func (c *Controller) Compose(text string) string {
 		}
 	}
 	// V10.18+: LangMem-inspired kind-aware memory injection.
-	// Procedural rules → always injected (every turn).
-	// Episodic memories → injected when user input matches trigger tags.
-	if c.mem != nil {
-		if rules := c.mem.ProceduralBlock(); rules != "" {
-			text = rules + "\n\n" + text
-		}
-		if episodic := c.mem.EpisodicMatches(text); len(episodic) > 0 {
-			if block := memory.EpisodicBlock(episodic); block != "" {
-				text = block + "\n\n" + text
-			}
+	// 轻量检索 + 压缩注入（P1-⑤）：procedural 常驻、episodic 按触发标签、
+	// 相关 semantic 事实按关键词命中，统一按「关键词+时间+高频」排序并压缩到
+	// 注入预算（默认 800 rune），不再全量塞入。
+	if c.mem != nil && c.memoryEnabled {
+		if block := c.mem.RecallBlock(text, 0); block != "" {
+			text = block + "\n\n" + text
 		}
 	}
 

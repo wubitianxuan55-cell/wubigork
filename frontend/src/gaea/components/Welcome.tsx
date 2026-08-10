@@ -2,12 +2,14 @@ import {
   ArrowUpRight, BarChart3, BookOpen, Brain, Clock, FilePpt, FileText, FolderOpen,
   MessageSquare, RefreshCw, ScrollText, Sparkles, Table, Wand2,
 } from "../icons";
+import { useEffect, useState } from "react";
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
+import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { sessionTitle } from "../lib/session";
-import type { Meta, SessionMeta } from "../lib/types";
+import type { Meta, SessionMeta, TaskTemplate } from "../lib/types";
 
 function formatTimeAgo(ms: number): string {
   const diff = Date.now() - ms;
@@ -106,6 +108,14 @@ export function Welcome({
 }) {
   const t = useT();
   const compact = useCompact();
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
+  useEffect(() => {
+    let live = true;
+    app.TaskTemplates()
+      .then((ts) => { if (live) setTemplates(ts ?? []); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
   const recentSessions = sessions?.filter((s) => !s.current).slice(0, 3) ?? [];
 
   return (
@@ -179,6 +189,33 @@ export function Welcome({
           ))}
         </div>
       </div>
+
+      {/* 任务模板库：常见办公任务一键发起（与 slash 命令同源） */}
+      {templates.length > 0 && (
+        <div className="welcome-rise welcome-rise-3 w-full mt-6">
+          <div className={`font-semibold text-fg-faint uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+            <Sparkles size={12} />
+            任务模板
+            <span className="text-fg-faint/60 normal-case tracking-normal font-normal">/weekly-report、/cost-estimate 等斜杠命令同样可用</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {templates.map((tm) => (
+              <button
+                key={tm.name}
+                onClick={() => onPrompt(tm.prompt)}
+                className="group flex flex-col items-start text-left font-[inherit] bg-bg-soft border border-border-soft rounded-lg p-2.5 cursor-pointer transition-all duration-200 hover:border-accent/35 hover:bg-bg-elev hover:-translate-y-0.5"
+                title={tm.prompt}
+              >
+                <span className="flex items-center gap-1.5 w-full mb-1">
+                  <span className={`font-semibold text-fg ${compact ? "text-[11.5px]" : "text-[12.5px]"}`}>{tm.title}</span>
+                  <span className="ml-auto font-mono text-[9px] text-accent/80 bg-accent/10 rounded px-1 py-px">/{tm.name}</span>
+                </span>
+                <span className="text-fg-faint leading-snug line-clamp-2 text-[10.5px]">{tm.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 内置技能 */}
       <div className="welcome-rise welcome-rise-3 w-full mt-6">

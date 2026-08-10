@@ -1,7 +1,7 @@
 import { memo, useCallback } from "react";
-import { Copy, ExternalLink, File, FileImage, FilePpt, FileSpreadsheet, FileText, FolderTree, MessageSquare, Paperclip } from "../icons";
+import { Coins, Copy, ExternalLink, File, FileImage, FilePpt, FileSpreadsheet, FileText, FolderTree, MessageSquare, Paperclip } from "../icons";
 import { app } from "../lib/bridge";
-import { usePreviewStore, useUpdatedFilesStore } from "../lib/store";
+import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import { useToast } from "./Toast";
 
 export interface SessionDeliverable {
@@ -11,6 +11,7 @@ export interface SessionDeliverable {
 }
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
+const SPREADSHEET_EXT_RE = /\.(xlsx?|csv|et|ods)$/i;
 
 function extOf(path: string): string {
   const m = /\.[^.\\/]+$/.exec(path);
@@ -53,6 +54,15 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     } catch {
       toast.show("复制失败：剪贴板不可用", "warn");
     }
+  }, [toast]);
+
+  // 沉淀到成本库：把测算/表格产物一键转为 cost_save 指令进入输入框，
+  // agent 读取文件后将单价明细写回成本库（来源标注该文件，同名覆盖）。
+  const depositToCost = useCallback((path: string) => {
+    const name = baseName(path);
+    const prompt = `请读取 [${name}](${path})，用 cost_save 把其中的单价明细沉淀到成本库：逐行提取科目/单位/单价/规格，来源标注该文件；同名条目覆盖更新，完成后汇报新增/更新条数。`;
+    useComposerInsertStore.getState().requestText(prompt);
+    toast.show(`已把沉淀指令插入输入框，可编辑后发送`, "info");
   }, [toast]);
 
   // 最新在前
@@ -149,6 +159,16 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                   >
                     <FolderTree size={12} />
                   </button>
+                  {SPREADSHEET_EXT_RE.test(ext) && (
+                    <button
+                      type="button"
+                      className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-amber-400 cursor-pointer hover:text-amber-300 hover:bg-bg-soft transition-colors"
+                      onClick={() => depositToCost(path)}
+                      title="沉淀到成本库：把单价明细用 cost_save 写回成本库"
+                    >
+                      <Coins size={12} />
+                    </button>
+                  )}
                 </div>
               </div>
             );

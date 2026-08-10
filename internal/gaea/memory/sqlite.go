@@ -56,15 +56,18 @@ func (b *sqliteBackend) Save(m Memory) (string, error) {
 		}
 	}
 	_, err := b.db.Exec(`
-INSERT INTO facts(project, name, title, description, type, kind, tags, body, archived, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,0,?,?)
+INSERT INTO facts(project, name, title, description, type, kind, tags, body, archived, created_at, updated_at, last_used_at, source_session, source_message)
+VALUES(?,?,?,?,?,?,?,?,0,?,?,?,?,?)
 ON CONFLICT(project, name) DO UPDATE SET
   title=excluded.title, description=excluded.description,
   type=excluded.type, kind=excluded.kind, tags=excluded.tags,
-  body=excluded.body, archived=0, updated_at=excluded.updated_at`,
+  body=excluded.body, archived=0, updated_at=excluded.updated_at,
+  last_used_at=CASE WHEN excluded.last_used_at != '' THEN excluded.last_used_at ELSE facts.last_used_at END,
+  source_session=excluded.source_session,
+  source_message=excluded.source_message`,
 		b.project, name, m.Title, m.Description,
 		string(NormalizeType(string(m.Type))), string(NormalizeKind(string(m.Kind))),
-		tags, m.Body, now, now)
+		tags, m.Body, now, now, fmtTime(m.LastUsedAt), m.SourceSession, m.SourceMessage)
 	if err != nil {
 		return "", err
 	}
@@ -114,9 +117,22 @@ func (b *sqliteBackend) ChangeType(name string, newType Type) error {
 	return nil
 }
 
+// Touch 更新事实的 last_used_at（记录「最近一次被使用」用于高频排序）。
+func (b *sqliteBackend) Touch(name string) error {
+	name = slug(name)
+	if name == "" {
+		return fmt.Errorf("memory needs a name")
+	}
+	_, err := b.db.Exec(
+		`UPDATE facts SET last_used_at=? WHERE project=? AND name=? AND archived=0`,
+		time.Now().UTC().Format(time.RFC3339), b.project, name)
+	return err
+}
+
 func (b *sqliteBackend) List() []Memory {
 	rows, err := b.db.Query(
-		`SELECT name, title, description, type, kind, tags, body FROM facts WHERE project=? AND archived=0 ORDER BY name`,
+		`SELECT name, title, description, type, kind, tags, body, created_at, updated_at, last_used_at, source_session, source_message
+		 FROM facts WHERE project=? AND archived=0 ORDER BY name`,
 		b.project)
 	if err != nil {
 		return nil
@@ -125,13 +141,18 @@ func (b *sqliteBackend) List() []Memory {
 	var out []Memory
 	for rows.Next() {
 		var m Memory
-		var typ, kind, tags string
-		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body); err != nil {
+		var typ, kind, tags, created, updated, lastUsed, srcSession, srcMessage string
+		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body,
+			&created, &updated, &lastUsed, &srcSession, &srcMessage); err != nil {
 			continue
 		}
 		m.Type = NormalizeType(typ)
 		m.Kind = NormalizeKind(kind)
 		m.Tags = parseTags(tags)
+		m.SourceSession = srcSession
+		m.SourceMessage = srcMessage
+		m.UpdatedAt = parseRFC3339(updated)
+		m.LastUsedAt = parseRFC3339(lastUsed)
 		out = append(out, m)
 	}
 	return out
@@ -169,17 +190,30 @@ func (b *sqliteBackend) ListArchived() []ArchivedMemory {
 func (b *sqliteBackend) Get(name string) (Memory, bool) {
 	name = slug(name)
 	var m Memory
-	var typ, kind, tags string
+	var typ, kind, tags, lastUsed, srcSession, srcMessage string
 	err := b.db.QueryRow(
-		`SELECT name, title, description, type, kind, tags, body FROM facts WHERE project=? AND name=? AND archived=0`,
-		b.project, name).Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body)
+		`SELECT name, title, description, type, kind, tags, body, last_used_at, source_session, source_message
+		 FROM facts WHERE project=? AND name=? AND archived=0`,
+		b.project, name).Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body,
+		&lastUsed, &srcSession, &srcMessage)
 	if err != nil {
 		return Memory{}, false
 	}
 	m.Type = NormalizeType(typ)
 	m.Kind = NormalizeKind(kind)
 	m.Tags = parseTags(tags)
+	m.SourceSession = srcSession
+	m.SourceMessage = srcMessage
+	m.LastUsedAt = parseRFC3339(lastUsed)
 	return m, true
+}
+
+// fmtTime 把 time.Time 格式化为 RFC3339（零值输出空串，保持列默认）。
+func fmtTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 func parseRFC3339(s string) time.Time {

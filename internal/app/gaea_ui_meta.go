@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/i18n"
 	"github.com/gaea/gaea/internal/gaea/knowledge"
@@ -256,11 +257,14 @@ type MemoryDoc struct {
 
 // MemoryFact 是一个已保存的自动记忆。
 type MemoryFact struct {
-	Name        string `json:"name"`
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description"`
-	Type        string `json:"type"`
-	Body        string `json:"body"`
+	Name          string `json:"name"`
+	Title         string `json:"title,omitempty"`
+	Description   string `json:"description"`
+	Type          string `json:"type"`
+	Body          string `json:"body"`
+	LastUsedAt    string `json:"lastUsedAt,omitempty"`    // 最近使用（RFC3339，溯源/高频展示）
+	SourceSession string `json:"sourceSession,omitempty"` // 沉淀来源会话
+	SourceMessage string `json:"sourceMessage,omitempty"` // 沉淀来源消息/轮次
 }
 
 // MemoryScope 是一个可写快捷添加目标。
@@ -276,6 +280,7 @@ type MemoryView struct {
 	Scopes    []MemoryScope `json:"scopes"`
 	StoreDir  string        `json:"storeDir"`
 	Available bool          `json:"available"`
+	Enabled   bool          `json:"enabled"` // 记忆开关（当前生效值）
 }
 
 var writableScopes = []memory.Scope{memory.ScopeUser, memory.ScopeProject, memory.ScopeLocal}
@@ -297,14 +302,45 @@ func (a *App) GaeaMemory() MemoryView {
 		view.Docs = append(view.Docs, MemoryDoc{Path: d.Path, Scope: string(d.Scope), Body: d.Body})
 	}
 	for _, f := range set.Store.List() {
-		view.Facts = append(view.Facts, MemoryFact{Name: f.Name, Title: f.Title, Description: f.Description, Type: string(f.Type), Body: f.Body})
+		view.Facts = append(view.Facts, MemoryFact{
+			Name: f.Name, Title: f.Title, Description: f.Description,
+			Type: string(f.Type), Body: f.Body,
+			LastUsedAt:    fmtTimeOrEmpty(f.LastUsedAt),
+			SourceSession: f.SourceSession,
+			SourceMessage: f.SourceMessage,
+		})
 	}
 	for _, sc := range writableScopes {
 		if p := set.DocPath(sc); p != "" {
 			view.Scopes = append(view.Scopes, MemoryScope{Scope: string(sc), Path: p})
 		}
 	}
+	view.Enabled = memoryEnabled()
 	return view
+}
+
+// memoryEnabled 返回当前生效的记忆开关值（配置读取失败时默认开启）。
+func memoryEnabled() bool {
+	ga.mu.Lock()
+	cfg := ga.cfg
+	ga.mu.Unlock()
+	if cfg == nil {
+		if c, err := gaeaLoadConfig(); err == nil {
+			cfg = c
+		}
+	}
+	if cfg == nil {
+		return true
+	}
+	return cfg.Memory.Enabled
+}
+
+// fmtTimeOrEmpty 把 time.Time 格式化为 RFC3339（零值空串）。
+func fmtTimeOrEmpty(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 // GaeaRemember 快捷添加一条记忆。
@@ -347,6 +383,15 @@ func (a *App) GaeaSaveDoc(path, body string) (string, error) {
 		return c.SaveDoc(path, body)
 	}
 	return "", nil
+}
+
+// GaeaSetMemoryEnabled 设置办公记忆开关（记忆可控性）：关闭后系统提示词与
+// 逐轮上下文不再注入画像/规则/事实（磁盘记忆保留，面板仍可管理），持久化并
+// 重建办公引擎立即生效。
+func (a *App) GaeaSetMemoryEnabled(enabled bool) error {
+	return a.gaeaApplyCfg(func(cfg *gaeaConfig.Config) {
+		cfg.Memory.Enabled = enabled
+	})
 }
 
 // parseScope 映射前端作用域 id 到 memory.Scope。
@@ -421,6 +466,18 @@ func (a *App) GaeaKnowledgeSearch(query, category, phase, status string) []Knowl
 		filter.Status = ""
 	}
 	results := knowledge.Search(store, query, filter)
+	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回。
+	if len(results) < 3 && strings.TrimSpace(query) != "" {
+		if sem := a.semanticKnowledgeRecall(query, results, 10); len(sem) > 0 {
+			results = sem
+		}
+	}
+	// 本地语义精排（bge-reranker-v2-m3），失败自动回退。
+	if reranked := a.rerankKnowledgeResults(query, results, 20); len(reranked) > 0 {
+		results = reranked
+	} else if len(results) > 20 {
+		results = results[:20]
+	}
 	out := make([]KnowledgeSummary, 0, len(results))
 	for _, e := range results {
 		out = append(out, KnowledgeSummary{Name: e.Name, Title: e.Title, Category: e.Category, Tags: e.Tags, Status: e.Status, UpdatedAt: e.UpdatedAt})
@@ -447,7 +504,7 @@ func (a *App) GaeaKnowledgeSave(e KnowledgeEntry) error {
 	if err != nil {
 		return err
 	}
-	return store.Save(knowledge.Entry{Name: e.Name, Title: e.Title, Category: e.Category, Phase: e.Phase, Discipline: e.Discipline, Tags: e.Tags, Status: e.Status, Version: e.Version, Author: e.Author, Reviewer: e.Reviewer, Source: e.Source, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt})
+	return saveKnowledgeVersioned(store, knowledge.Entry{Name: e.Name, Title: e.Title, Category: e.Category, Phase: e.Phase, Discipline: e.Discipline, Tags: e.Tags, Status: e.Status, Version: e.Version, Author: e.Author, Reviewer: e.Reviewer, Source: e.Source, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt})
 }
 
 // GaeaKnowledgeDelete 删除知识条目。

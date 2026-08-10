@@ -1,21 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { HeartOutlined, NodeIndexOutlined, ArrowLeftOutlined } from "@ant-design/icons";
-import { BookOpen, Brain, Coins, FileText } from "../gaea/icons";
+import { BookOpen, Brain, Coins, FileText, Pin } from "../gaea/icons";
 import { LocaleProvider } from "../gaea/lib/i18n";
 import { app } from "../gaea/lib/bridge";
-import type { MemoryHubOverview } from "../gaea/lib/types";
+import { useComposerInsertStore, usePreviewStore } from "../gaea/lib/store";
+import type { MemoryHubOverview, SemanticHitView, WorkspaceSearchHit } from "../gaea/lib/types";
 import { KnowledgePanel } from "../gaea/components/KnowledgePanel";
 import { ProfileLibrary } from "../gaea/components/memoryhub/ProfileLibrary";
 import { OfficeMemoryLibrary } from "../gaea/components/memoryhub/OfficeMemoryLibrary";
 import { WhisperMemoryLibrary } from "../gaea/components/memoryhub/WhisperMemoryLibrary";
 import { GraphView } from "../gaea/components/memoryhub/GraphView";
 import { CostLibrary } from "../gaea/components/memoryhub/CostLibrary";
+import { MaterialsLibrary } from "../gaea/components/memoryhub/MaterialsLibrary";
 import { ModuleCard } from "../gaea/components/memoryhub/ModuleCard";
+import { FilePreviewModal } from "../gaea/components/FilePreviewModal";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
 
-type LibraryKey = "knowledge" | "cost" | "profile" | "office" | "whisper" | "graph";
+type LibraryKey = "knowledge" | "cost" | "profile" | "office" | "materials" | "whisper" | "graph";
 
 // 各库霓虹色（与 3D 图谱着色一致：indigo 知识 / amber 成本 / emerald 办公 / pink 聊天记忆）
 const LIB_COLORS: Record<LibraryKey, string> = {
@@ -23,6 +26,7 @@ const LIB_COLORS: Record<LibraryKey, string> = {
   cost: "#fbbf24",
   profile: "#a78bfa",
   office: "#34d399",
+  materials: "#38bdf8",
   whisper: "#f472b6",
   graph: "#22d3ee",
 };
@@ -39,13 +43,23 @@ const LIBRARIES: LibraryDef[] = [
   { key: "cost", label: "成本库", icon: <Coins size={17} />, hint: "单价/单位/来源" },
   { key: "profile", label: "用户画像", icon: <Brain size={17} />, hint: "跨板块共享画像" },
   { key: "office", label: "办公记忆", icon: <FileText size={17} />, hint: "跨会话办公事实" },
+  { key: "materials", label: "项目资料", icon: <Pin size={17} />, hint: "固定常用文件 · 新会话带入" },
   { key: "whisper", label: "聊天记忆", icon: <HeartOutlined style={{ fontSize: 16 }} />, hint: "轻语人格记忆 · 只读" },
   { key: "graph", label: "记忆图谱", icon: <NodeIndexOutlined style={{ fontSize: 16 }} />, hint: "3D 关系图谱" },
 ];
 
 // 首页卡片排布：左列 3 + 右列 3
-const LEFT_CARDS: LibraryKey[] = ["knowledge", "cost", "profile"];
+const LEFT_CARDS: LibraryKey[] = ["knowledge", "cost", "profile", "materials"];
 const RIGHT_CARDS: LibraryKey[] = ["office", "whisper", "graph"];
+
+// 三脑检索 + 工作区全文搜索的合并命中。
+interface HubSearchHit {
+  kind: "brain" | "file";
+  brain: string; // 脑名或 "文件"
+  entity: string;
+  text: string;
+  path?: string;
+}
 
 // 记忆中枢首页：中央 3D 图谱 + 四周霓虹玻璃模块卡片。
 // 点击卡片切换到对应库面板；三脑记忆（主脑知识/画像 + 左脑办公 + 右脑聊天记忆）统一入口。
@@ -53,14 +67,61 @@ function MemoryHubPage() {
   const [active, setActive] = useState<"home" | LibraryKey>("home");
   const [overview, setOverview] = useState<MemoryHubOverview | null>(null);
   const [brainQuery, setBrainQuery] = useState("");
-  const [brainHits, setBrainHits] = useState<Array<{ brain: string; entity: string; text: string }>>([]);
+  const [hits, setHits] = useState<HubSearchHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [referenced, setReferenced] = useState<string | null>(null);
 
-  const runBrainSearch = async () => {
+  // 三脑检索 + 工作区全文搜索合并：记忆与资料一次找齐。
+  const runSearch = async () => {
+    const q = brainQuery.trim();
+    if (!q) {
+      setHits([]);
+      return;
+    }
+    setSearching(true);
     const bind = (window as any).go?.app?.App;
-    if (!bind?.BrainSearch) return;
     try {
-      setBrainHits(JSON.parse(await bind.BrainSearch(brainQuery, "")));
+      const [brainRaw, files, sem, fileSem] = await Promise.all([
+        bind?.BrainSearch ? bind.BrainSearch(q, "") : Promise.resolve("[]"),
+        app.WorkspaceSearch(q, 8).catch(() => [] as WorkspaceSearchHit[]),
+        app.SemanticSearch(q).catch(() => [] as SemanticHitView[]),
+        app.FileSemanticSearch(q, 6).catch(() => [] as import("../gaea/lib/types").FileSemanticHit[]),
+      ]);
+      let brain: Array<{ brain: string; entity: string; text: string }> = [];
+      try { brain = JSON.parse(brainRaw ?? "[]"); } catch { brain = []; }
+      const kindLabel: Record<string, string> = { cost: "语义·成本", knowledge: "语义·知识", office: "语义·办公" };
+      setHits([
+        ...brain.map((h) => ({ kind: "brain" as const, brain: h.brain, entity: h.entity, text: h.text })),
+        ...(files ?? []).map((f) => ({
+          kind: "file" as const,
+          brain: "文件",
+          entity: f.name,
+          text: f.snippet || f.path,
+          path: f.path,
+        })),
+        ...(sem ?? []).map((h) => ({
+          kind: "brain" as const,
+          brain: kindLabel[h.kind] ?? "语义",
+          entity: h.name,
+          text: h.text,
+        })),
+        ...(fileSem ?? []).map((h) => ({
+          kind: "file" as const,
+          brain: "语义·文件",
+          entity: h.path.split("/").pop() ?? h.path,
+          text: h.snippet,
+          path: h.path,
+        })),
+      ]);
     } catch { /* 忽略单次检索失败 */ }
+    finally { setSearching(false); }
+  };
+
+  // 一键 @ 引用：写入全局输入框通道，回到办公板块后自动插入
+  const referenceFile = (path: string) => {
+    useComposerInsertStore.getState().requestAt(path);
+    setReferenced(path);
+    setTimeout(() => setReferenced((p) => (p === path ? null : p)), 1500);
   };
 
   useEffect(() => {
@@ -72,6 +133,8 @@ function MemoryHubPage() {
         knowledge: overview.knowledgeCount,
         profile: overview.profileCount,
         office: overview.officeCount,
+        cost: overview.costCount,
+        materials: overview.pinnedCount,
         whisper: overview.whisperCount,
       }
     : {};
@@ -99,28 +162,63 @@ function MemoryHubPage() {
                 <input
                   value={brainQuery}
                   onChange={(e) => setBrainQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") runBrainSearch(); }}
-                  placeholder="三脑检索"
+                  onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
+                  placeholder="三脑检索 · 工作区资料"
                   className="h-7 w-44 rounded-lg px-2.5 text-[12px] bg-bg-soft border border-border-soft focus:outline-none"
                 />
                 <button
-                  onClick={runBrainSearch}
+                  onClick={runSearch}
+                  disabled={searching}
                   className="inline-flex items-center h-7 px-3 rounded-lg text-[12px] bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors"
                 >
-                  检索
+                  {searching ? "检索中…" : "检索"}
                 </button>
               </div>
             </div>
 
-            {brainHits.length > 0 && (
-              <div className="shrink-0 mb-3 max-h-40 overflow-auto rounded-xl border border-border-soft bg-bg-soft/70 p-3">
-                {brainHits.map((h, i) => (
+            {hits.length > 0 && (
+              <div className="shrink-0 mb-3 max-h-44 overflow-auto rounded-xl border border-border-soft bg-bg-soft/70 p-3">
+                {hits.map((h, i) => (
                   <div key={i} className="flex items-start gap-2 py-1 text-[12px] border-b border-border-soft/50 last:border-0">
-                    <span className={`shrink-0 px-1.5 rounded text-[10px] ${h.brain === "brain.right" ? "bg-pink-500/20 text-pink-300" : h.brain === "brain.left" ? "bg-emerald-500/20 text-emerald-300" : "bg-violet-500/20 text-violet-300"}`}>
-                      {h.brain === "brain.right" ? "右脑" : h.brain === "brain.left" ? "左脑" : "主脑"}
+                    <span className={`shrink-0 px-1.5 rounded text-[10px] ${
+                      h.kind === "file"
+                        ? "bg-sky-500/20 text-sky-300"
+                        : h.brain === "brain.right"
+                          ? "bg-pink-500/20 text-pink-300"
+                          : h.brain === "brain.left"
+                            ? "bg-emerald-500/20 text-emerald-300"
+                            : "bg-violet-500/20 text-violet-300"
+                    }`}>
+                      {h.kind === "file" ? "文件" : h.brain === "brain.right" ? "右脑" : h.brain === "brain.left" ? "左脑" : "主脑"}
                     </span>
-                    <span className="text-fg font-medium shrink-0">{h.entity}</span>
-                    <span className="text-fg-faint truncate">{h.text}</span>
+                    {h.kind === "file" && h.path ? (
+                      <>
+                        <button
+                          type="button"
+                          className="text-fg font-medium shrink-0 hover:text-accent cursor-pointer"
+                          onClick={() => usePreviewStore.getState().openFilePreview(h.path!)}
+                          title="点击预览"
+                        >
+                          {h.entity}
+                        </button>
+                        <span className="text-fg-faint truncate min-w-0 flex-1">{h.text}</span>
+                        <button
+                          type="button"
+                          className={`shrink-0 px-1.5 rounded text-[10px] cursor-pointer transition-colors ${
+                            referenced === h.path ? "bg-accent/25 text-accent" : "text-fg-faint hover:text-accent"
+                          }`}
+                          onClick={() => referenceFile(h.path!)}
+                          title="一键 @ 引用（回到办公板块自动插入输入框）"
+                        >
+                          {referenced === h.path ? "已引用" : "@ 引用"}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-fg font-medium shrink-0">{h.entity}</span>
+                        <span className="text-fg-faint truncate">{h.text}</span>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -207,10 +305,14 @@ function MemoryHubPage() {
           {active === "cost" && <CostLibrary />}
           {active === "profile" && <ProfileLibrary />}
           {active === "office" && <OfficeMemoryLibrary />}
+          {active === "materials" && <MaterialsLibrary />}
           {active === "whisper" && <WhisperMemoryLibrary />}
           {active === "graph" && <GraphView variant="page" />}
         </LocaleProvider>
       </div>
+
+      {/* 文件预览弹层：项目资料 / 检索命中共用 */}
+      <FilePreviewModal />
     </div>
   );
 }

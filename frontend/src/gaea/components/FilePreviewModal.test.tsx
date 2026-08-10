@@ -24,4 +24,18 @@ describe("FilePreviewModal", () => {
     const { container } = render(<FilePreviewModal />);
     expect(container.firstChild).toBeNull();
   });
+
+  it("PDF 预览页数截断时显示提示", async () => {
+    usePreviewStore.setState({ previewFile: "big.pdf" });
+    render(<FilePreviewModal />);
+    expect(await screen.findByText(/仅展示前部内容/)).toBeTruthy();
+    expect(screen.getAllByText(/1200/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("扫描件 PDF 预览显示 OCR 逐页进度", async () => {
+    usePreviewStore.setState({ previewFile: "scan.pdf" });
+    render(<FilePreviewModal />);
+    expect(await screen.findByText(/OCR 识别中/)).toBeTruthy();
+    expect(await screen.findByText(/扫描页内容/)).toBeTruthy();
+  });
 });

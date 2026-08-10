@@ -21,7 +21,7 @@ import (
 // Config is Tianxuan's runtime configuration.
 type Config struct {
 	DefaultModel string            `toml:"default_model"`
-	Language     string            `toml:"language"` // ui/model language tag (e.g. "zh"); empty = auto-detect from $LANG / $TIANXUAN_LANG
+	Language     string            `toml:"language"`  // ui/model language tag (e.g. "zh"); empty = auto-detect from $LANG / $TIANXUAN_LANG
 	Workspace    string            `toml:"workspace"` // 办公工作空间目录（空 = 进程启动目录）
 	Agent        AgentConfig       `toml:"agent"`
 	Providers    []ProviderEntry   `toml:"providers"`
@@ -32,6 +32,14 @@ type Config struct {
 	Skills       SkillsConfig      `toml:"skills"`
 	Search       SearchConfig      `toml:"search"`
 	Network      NetworkConfig     `toml:"network"`
+	Memory       MemoryConfig      `toml:"memory"`
+}
+
+// MemoryConfig 是办公记忆开关（记忆可控性：用户可一键关闭记忆注入）。
+type MemoryConfig struct {
+	// Enabled 控制自动记忆（画像/规则/事实）是否注入系统提示词与逐轮上下文。
+	// 关闭后记忆不写入提示词（文档记忆文件仍保留在磁盘，重新开启即恢复）。
+	Enabled bool `toml:"enabled"`
 }
 
 // SearchConfig configures web search engines.
@@ -85,7 +93,6 @@ func (c *SearchConfig) SearchTimeout() time.Duration {
 
 // ── Network proxy (V10.31) ──────────────────────────────────────────
 
-
 // NetworkConfig controls how outgoing HTTP requests reach the internet.
 // ProxyMode selects the strategy: "auto" (system proxy), "env" (HTTP_PROXY/
 // HTTPS_PROXY/all_proxy env vars), "custom" (ProxyURL), or "off" (direct).
@@ -93,21 +100,19 @@ func (c *SearchConfig) SearchTimeout() time.Duration {
 // Proxy takes precedence.
 type NetworkConfig struct {
 	ProxyMode string             `toml:"proxy_mode"` // auto | env | custom | off
-	ProxyURL  string             `toml:"proxy_url"`   // http://host:port or socks5://host:port
-	NoProxy   string             `toml:"no_proxy"`    // comma-separated host suffixes excluded from proxying
-	Proxy     NetworkProxyConfig `toml:"proxy"`       // structured alternative to ProxyURL
+	ProxyURL  string             `toml:"proxy_url"`  // http://host:port or socks5://host:port
+	NoProxy   string             `toml:"no_proxy"`   // comma-separated host suffixes excluded from proxying
+	Proxy     NetworkProxyConfig `toml:"proxy"`      // structured alternative to ProxyURL
 }
 
 // NetworkProxyConfig is the structured form of proxy configuration.
 type NetworkProxyConfig struct {
-	Type     string `toml:"type"`     // http | https | socks5 | socks5h
+	Type     string `toml:"type"` // http | https | socks5 | socks5h
 	Server   string `toml:"server"`
 	Port     int    `toml:"port"`
 	Username string `toml:"username"`
 	Password string `toml:"password"`
 }
-
-
 
 // NetworkProxySpec returns a netclient.ProxySpec suitable for configuring
 
@@ -236,6 +241,7 @@ func (a AgentConfig) SubagentTemp() float64 {
 	}
 	return a.Temperature
 }
+
 // SubagentEffortVal returns the effective reasoning effort for sub-agents.
 // Falls back to Effort when SubagentEffort is empty.
 func (a AgentConfig) SubagentEffortVal() string {
@@ -263,7 +269,7 @@ type ProviderEntry struct {
 	// models with different rates. The TOML key "prices" maps model names to
 	// their Pricing. ModelList() includes these keys and ResolveModel picks
 	// the matching Price when resolving "provider/model".
-	Prices   map[string]*provider.Pricing `toml:"prices"`
+	Prices map[string]*provider.Pricing `toml:"prices"`
 	// Thinking / Effort are provider-kind-specific knobs forwarded to the provider
 	// via Config.Extra. The anthropic provider reads Thinking="adaptive" to enable
 	// extended thinking and Effort ("low".."max") to tune depth. The
@@ -442,6 +448,8 @@ func Default() *Config {
 		// resolves to allow) while `gaea chat` prompts before writers. Users add
 		// deny/allow rules to harden or quiet specific tools.
 		Permissions: PermissionsConfig{Mode: "ask", Allow: []string{"run_skill"}},
+		// 办公记忆默认开启；用户在记忆面板可一键关闭（记忆可控性）。
+		Memory: MemoryConfig{Enabled: true},
 		// Sandbox on by default: bash is jailed (macOS), network allowed so
 		// builds/downloads work. Set bash = "off" to disable. Network=true here
 		// so an absent [sandbox] in a user's file keeps egress (zero value would
@@ -601,14 +609,15 @@ func conventionSubdirsAsc(base, sub string) []string {
 	return out
 }
 
-// CommandDirs returns the directories scanned for custom slash commands, lowest
-// priority first, so a later (more specific) directory overrides an earlier one
-// on a name clash. Order: home-dir convention dirs (~/.claude/commands … ~/.gaea/commands),
-// the legacy XDG user dir (~/.config/gaea/commands), then the project's
-// convention dirs (.claude/commands … .gaea/commands). Scanning the .claude /
-// .agents / .agent dirs lets commands authored for other agent tools (same .md +
-// frontmatter format) work here unchanged.
-func CommandDirs() []string {
+// CommandDirsAt returns the directories scanned for custom slash commands,
+// lowest priority first, so a later (more specific) directory overrides an
+// earlier one on a name clash. Order: home-dir convention dirs
+// (~/.claude/commands … ~/.gaea/commands), the legacy XDG user dir
+// (~/.config/gaea/commands), then the project's convention dirs under cwd
+// (.claude/commands … .gaea/commands). Scanning the .claude / .agents / .agent
+// dirs lets commands authored for other agent tools (same .md + frontmatter
+// format) work here unchanged.
+func CommandDirsAt(cwd string) []string {
 	var dirs []string
 	if home, err := os.UserHomeDir(); err == nil {
 		dirs = append(dirs, conventionSubdirsAsc(home, "commands")...)
@@ -616,8 +625,13 @@ func CommandDirs() []string {
 	if dir, err := os.UserConfigDir(); err == nil {
 		dirs = append(dirs, filepath.Join(dir, "gaea", "commands")) // legacy XDG user dir
 	}
-	dirs = append(dirs, conventionSubdirsAsc(".", "commands")...)
+	dirs = append(dirs, conventionSubdirsAsc(cwd, "commands")...)
 	return dirs
+}
+
+// CommandDirs 是基于进程工作目录的命令扫描目录（兼容 CLI 场景）。
+func CommandDirs() []string {
+	return CommandDirsAt(".")
 }
 
 // SourcePath returns the highest-priority config file that exists, or "" if none.

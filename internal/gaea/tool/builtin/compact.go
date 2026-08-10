@@ -23,6 +23,8 @@ var compactDesc = map[string]string{
 	"diagram_gen":      "框架图/流程图生成(matplotlib,中文清晰,替代文生图画文字)",
 	"knowledge_search": "搜索工程知识库(关键词,分类+标签过滤)",
 	"knowledge_add":    "向知识库添加条目(标题+分类+正文)",
+	"cost_search":      "搜索成本库(关键词/分类/状态,返回单价表)",
+	"cost_save":        "写入/更新成本库条目(同名覆盖,含单价/单位/来源)",
 	"screen_capture":   "捕获屏幕截图保存为PNG,返回文件路径(可指定region局部截图)",
 	"vision":           "用本地视觉模型识别图片内容(文字/布局/细节),配合screen_capture理解截图",
 }
@@ -64,6 +66,10 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"query":{"type":"string"},"category":{"type":"string"},"tag":{"type":"string"}}}`),
 	"knowledge_add": json.RawMessage(
 		`{"type":"object","properties":{"title":{"type":"string"},"category":{"type":"string"},"body":{"type":"string"},"tags":{"type":"string"},"phase":{"type":"string"},"discipline":{"type":"string"},"source":{"type":"string"}},"required":["title","category","body"]}`),
+	"cost_search": json.RawMessage(
+		`{"type":"object","properties":{"query":{"type":"string"},"category":{"type":"string"},"status":{"type":"string"},"limit":{"type":"integer"}}}`),
+	"cost_save": json.RawMessage(
+		`{"type":"object","properties":{"name":{"type":"string"},"title":{"type":"string"},"category":{"type":"string"},"unit":{"type":"string"},"price":{"type":"number"},"spec":{"type":"string"},"source":{"type":"string"},"tags":{"type":"string"},"status":{"type":"string"},"body":{"type":"string"}},"required":["title","price"]}`),
 	"screen_capture": json.RawMessage(
 		`{"type":"object","properties":{"region":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"width":{"type":"integer"},"height":{"type":"integer"}}}}}`),
 	"vision": json.RawMessage(

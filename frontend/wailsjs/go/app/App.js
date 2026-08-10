@@ -342,6 +342,18 @@ export function GaeaCostGet(arg1) {
   return window['go']['app']['App']['GaeaCostGet'](arg1);
 }
 
+export function GaeaCostImportAIParse(arg1) {
+  return window['go']['app']['App']['GaeaCostImportAIParse'](arg1);
+}
+
+export function GaeaCostImportApply(arg1) {
+  return window['go']['app']['App']['GaeaCostImportApply'](arg1);
+}
+
+export function GaeaCostImportPreview(arg1) {
+  return window['go']['app']['App']['GaeaCostImportPreview'](arg1);
+}
+
 export function GaeaCostList() {
   return window['go']['app']['App']['GaeaCostList']();
 }
@@ -394,8 +406,16 @@ export function GaeaFactBasePromote() {
   return window['go']['app']['App']['GaeaFactBasePromote']();
 }
 
+export function GaeaFileIndexRebuild() {
+  return window['go']['app']['App']['GaeaFileIndexRebuild']();
+}
+
 export function GaeaFileSearch(arg1, arg2) {
   return window['go']['app']['App']['GaeaFileSearch'](arg1, arg2);
+}
+
+export function GaeaFileSemanticSearch(arg1, arg2) {
+  return window['go']['app']['App']['GaeaFileSemanticSearch'](arg1, arg2);
 }
 
 export function GaeaForget(arg1) {
@@ -422,12 +442,44 @@ export function GaeaKnowledgeDelete(arg1) {
   return window['go']['app']['App']['GaeaKnowledgeDelete'](arg1);
 }
 
+export function GaeaKnowledgeExport(arg1) {
+  return window['go']['app']['App']['GaeaKnowledgeExport'](arg1);
+}
+
+export function GaeaKnowledgeFindSimilar(arg1) {
+  return window['go']['app']['App']['GaeaKnowledgeFindSimilar'](arg1);
+}
+
 export function GaeaKnowledgeGet(arg1) {
   return window['go']['app']['App']['GaeaKnowledgeGet'](arg1);
 }
 
+export function GaeaKnowledgeHistory(arg1) {
+  return window['go']['app']['App']['GaeaKnowledgeHistory'](arg1);
+}
+
+export function GaeaKnowledgeImportAIParse(arg1) {
+  return window['go']['app']['App']['GaeaKnowledgeImportAIParse'](arg1);
+}
+
+export function GaeaKnowledgeImportApply(arg1) {
+  return window['go']['app']['App']['GaeaKnowledgeImportApply'](arg1);
+}
+
+export function GaeaKnowledgeImportPreview(arg1) {
+  return window['go']['app']['App']['GaeaKnowledgeImportPreview'](arg1);
+}
+
 export function GaeaKnowledgeList() {
   return window['go']['app']['App']['GaeaKnowledgeList']();
+}
+
+export function GaeaKnowledgeMerge(arg1, arg2) {
+  return window['go']['app']['App']['GaeaKnowledgeMerge'](arg1, arg2);
+}
+
+export function GaeaKnowledgeReview(arg1, arg2, arg3) {
+  return window['go']['app']['App']['GaeaKnowledgeReview'](arg1, arg2, arg3);
 }
 
 export function GaeaKnowledgeSave(arg1) {
@@ -466,12 +518,20 @@ export function GaeaMemory() {
   return window['go']['app']['App']['GaeaMemory']();
 }
 
+export function GaeaMemoryDuplicates(arg1) {
+  return window['go']['app']['App']['GaeaMemoryDuplicates'](arg1);
+}
+
 export function GaeaMemoryGraph() {
   return window['go']['app']['App']['GaeaMemoryGraph']();
 }
 
 export function GaeaMemoryHubOverview() {
   return window['go']['app']['App']['GaeaMemoryHubOverview']();
+}
+
+export function GaeaMemoryMerge(arg1, arg2) {
+  return window['go']['app']['App']['GaeaMemoryMerge'](arg1, arg2);
 }
 
 export function GaeaMemorySuggestions() {
@@ -526,8 +586,48 @@ export function GaeaPickWorkspace() {
   return window['go']['app']['App']['GaeaPickWorkspace']();
 }
 
+export function GaeaPinMaterial(arg1) {
+  return window['go']['app']['App']['GaeaPinMaterial'](arg1);
+}
+
+export function GaeaPinnedMaterials() {
+  return window['go']['app']['App']['GaeaPinnedMaterials']();
+}
+
 export function GaeaPreview(arg1) {
   return window['go']['app']['App']['GaeaPreview'](arg1);
+}
+
+export function GaeaPriceFetch(arg1) {
+  return window['go']['app']['App']['GaeaPriceFetch'](arg1);
+}
+
+export function GaeaPriceFetchApply(arg1, arg2) {
+  return window['go']['app']['App']['GaeaPriceFetchApply'](arg1, arg2);
+}
+
+export function GaeaPriceFetchIgnore(arg1) {
+  return window['go']['app']['App']['GaeaPriceFetchIgnore'](arg1);
+}
+
+export function GaeaPriceFetches() {
+  return window['go']['app']['App']['GaeaPriceFetches']();
+}
+
+export function GaeaPriceHistory(arg1) {
+  return window['go']['app']['App']['GaeaPriceHistory'](arg1);
+}
+
+export function GaeaPriceSourceDelete(arg1) {
+  return window['go']['app']['App']['GaeaPriceSourceDelete'](arg1);
+}
+
+export function GaeaPriceSourceSave(arg1) {
+  return window['go']['app']['App']['GaeaPriceSourceSave'](arg1);
+}
+
+export function GaeaPriceSources() {
+  return window['go']['app']['App']['GaeaPriceSources']();
 }
 
 export function GaeaProfileConflicts() {
@@ -626,6 +726,10 @@ export function GaeaSelectTab(arg1) {
   return window['go']['app']['App']['GaeaSelectTab'](arg1);
 }
 
+export function GaeaSemanticSearch(arg1) {
+  return window['go']['app']['App']['GaeaSemanticSearch'](arg1);
+}
+
 export function GaeaSend(arg1) {
   return window['go']['app']['App']['GaeaSend'](arg1);
 }
@@ -644,6 +748,10 @@ export function GaeaSetEngine(arg1) {
 
 export function GaeaSetMCPServerEnabled(arg1, arg2) {
   return window['go']['app']['App']['GaeaSetMCPServerEnabled'](arg1, arg2);
+}
+
+export function GaeaSetMemoryEnabled(arg1) {
+  return window['go']['app']['App']['GaeaSetMemoryEnabled'](arg1);
 }
 
 export function GaeaSetModel(arg1) {
@@ -686,6 +794,10 @@ export function GaeaSlashArgs(arg1) {
   return window['go']['app']['App']['GaeaSlashArgs'](arg1);
 }
 
+export function GaeaSummarizeFile(arg1, arg2) {
+  return window['go']['app']['App']['GaeaSummarizeFile'](arg1, arg2);
+}
+
 export function GaeaSummarizeFrom(arg1) {
   return window['go']['app']['App']['GaeaSummarizeFrom'](arg1);
 }
@@ -706,8 +818,16 @@ export function GaeaTabMeta() {
   return window['go']['app']['App']['GaeaTabMeta']();
 }
 
+export function GaeaTaskTemplates() {
+  return window['go']['app']['App']['GaeaTaskTemplates']();
+}
+
 export function GaeaTools() {
   return window['go']['app']['App']['GaeaTools']();
+}
+
+export function GaeaUnpinMaterial(arg1) {
+  return window['go']['app']['App']['GaeaUnpinMaterial'](arg1);
 }
 
 export function GaeaUpdateFact(arg1, arg2) {
@@ -732,6 +852,10 @@ export function GaeaWhisperMemories() {
 
 export function GaeaWorkspaceChanges() {
   return window['go']['app']['App']['GaeaWorkspaceChanges']();
+}
+
+export function GaeaWorkspaceSearch(arg1, arg2) {
+  return window['go']['app']['App']['GaeaWorkspaceSearch'](arg1, arg2);
 }
 
 export function GaeaXlsxColOps(arg1, arg2, arg3, arg4) {

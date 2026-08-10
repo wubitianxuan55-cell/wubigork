@@ -54,9 +54,13 @@ func (formatConvert) Execute(ctx context.Context, args json.RawMessage) (string,
 		return "", fmt.Errorf("path 不能为空")
 	}
 
-	md, err := docmd.Convert(p.Path, p.Pages)
+	md, total, truncated, err := docmd.ConvertLimit(p.Path, p.Pages, docmd.DefaultMaxPDFPages)
 	if err != nil {
 		return "", err
+	}
+	if truncated {
+		md += fmt.Sprintf("\n\n> 转换已截断：PDF 共 %d 页，本次仅处理前 %d 页。可指定 pages 参数分段转换，或使用 summarize_file 获取全文摘要。",
+			total, docmd.DefaultMaxPDFPages)
 	}
 	md = fmt.Sprintf("# 文档转换: %s\n\n%s\n\n---\n*由 gaea format_convert 转换*", filepath.Base(p.Path), md)
 
