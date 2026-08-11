@@ -114,9 +114,19 @@ func Assemble(p *Proposal) string {
 		idx := 0
 		for _, sec := range ss {
 			idx++
+			// 历史/导入数据常不带层级（Level 0）：顶层按章节、嵌套按子节处理，
+			// 避免编号变成 ".1"、标题层级变成 ###。
+			level := sec.Level
+			if level <= 0 {
+				if prefix == "" {
+					level = 1
+				} else {
+					level = 2
+				}
+			}
 			num := ""
 			markdownLevel := 0
-			switch sec.Level {
+			switch level {
 			case 1:
 				num = fmt.Sprintf("第%d章", idx)
 				markdownLevel = 1
@@ -135,7 +145,7 @@ func Assemble(p *Proposal) string {
 				sb.WriteString("（待撰写）\n\n")
 			}
 			childChapter := idx
-			if sec.Level != 1 {
+			if level != 1 {
 				childChapter = chapter
 			}
 			walk(sec.Children, num, childChapter)

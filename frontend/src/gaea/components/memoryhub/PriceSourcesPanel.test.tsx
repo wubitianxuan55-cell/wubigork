@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PriceSourcesPanel } from "./PriceSourcesPanel";
 import { ToastProvider } from "../Toast";
@@ -14,8 +14,8 @@ describe("PriceSourcesPanel 价格源", () => {
   it("展示订阅源与待确认抓取结果，确认发布价格更新", async () => {
     render(wrap(<PriceSourcesPanel />));
 
-    // 订阅源列表（含用户提供的四川源 URL）。
-    expect(await screen.findByText("http://202.61.90.35:8032/pubpages/pricelist.aspx?period=758")).toBeTruthy();
+    // 订阅源列表：完整显示抓取地址（含用户提供的四川源 URL）。
+    expect(await screen.findByText(/抓取地址：http:\/\/202\.61\.90\.35:8032\/pubpages\/pricelist\.aspx\?period=758/)).toBeTruthy();
     expect(screen.getByText("重庆施工造价信息网")).toBeTruthy();
 
     // 待确认抓取：更新 + 新增 各 1 条，默认勾选 → 发布 2 条。
@@ -37,5 +37,27 @@ describe("PriceSourcesPanel 价格源", () => {
 
     fireEvent.click(screen.getByText("忽略"));
     await waitFor(() => expect(screen.getByText("已忽略")).toBeTruthy());
+  });
+
+  it("一键抓取全部启用价格源并提示结果", async () => {
+    render(wrap(<PriceSourcesPanel />));
+    await screen.findByText("重庆施工造价信息网");
+
+    fireEvent.click(screen.getByText("一键抓取"));
+    await waitFor(() => expect(screen.getByText(/一键抓取完成：2 个价格源已抓取/)).toBeTruthy());
+  });
+
+  it("抓取地址可复制到剪贴板", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    render(wrap(<PriceSourcesPanel />));
+    await screen.findAllByText(/抓取地址：/);
+
+    fireEvent.click(screen.getAllByTitle("复制抓取地址")[0]);
+    await waitFor(() => expect(screen.getByText("已复制抓取地址")).toBeTruthy());
+    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/^https?:/));
   });
 });

@@ -1,6 +1,7 @@
 import React from 'react'
 import { Button, Typography } from 'antd'
 import { WarningOutlined } from '@ant-design/icons'
+import { app } from '../gaea/lib/bridge'
 
 interface Props {
   children: React.ReactNode
@@ -20,6 +21,21 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // 渲染错误默认只会让 React 静默卸载整棵应用（窗口变死图、点不了）。
+    // 这里把错误打到控制台并写入 gaea.log，下次可直接定位。
+    console.error("[ErrorBoundary]", error, info.componentStack)
+    try {
+      void app
+        .LogFrontendError(
+          `[ErrorBoundary] ${error.message}\n${error.stack ?? ""}\n${info.componentStack ?? ""}`,
+        )
+        .catch(() => {})
+    } catch {
+      /* 日志通道不可用时静默 */
+    }
   }
 
   render() {

@@ -1,9 +1,7 @@
-import { useEffect } from "react";
-import { Form, Input, InputNumber, Modal, Select } from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { Form, Input, InputNumber, Modal, Select, TreeSelect } from "antd";
 import { app } from "../../lib/bridge";
-import type { CostEntry, CostSummary } from "../../lib/types";
-
-const CATEGORIES = ["机械", "材料", "人工", "运输", "检测", "其他"];
+import type { CostCategory, CostEntry, CostSummary } from "../../lib/types";
 
 // CostEntryModal 成本条目新建/编辑弹窗（记忆中枢 CostLibrary 与办公侧
 // CostLibraryPanel 共用，避免两处维护两份表单逻辑）。
@@ -19,25 +17,47 @@ export function CostEntryModal({
   onSaved: () => void;
 }) {
   const [form] = Form.useForm();
+  const [categories, setCategories] = useState<CostCategory[]>([]);
+
+  // 分类树 → antd TreeSelect treeData + 路径索引（多级：选任意节点即以其完整路径保存）。
+  const treeData = useMemo(() => buildTreeData(categories), [categories]);
+  const pathById = useMemo(() => {
+    const m = new Map<number, string>();
+    const walk = (nodes: CostCategory[], prefix: string) => {
+      for (const n of nodes ?? []) {
+        const p = prefix ? `${prefix}/${n.name}` : n.name;
+        m.set(n.id, p);
+        walk(n.children ?? [], p);
+      }
+    };
+    walk(categories, "");
+    return m;
+  }, [categories]);
 
   useEffect(() => {
     if (!open) return;
     form.resetFields();
+    app.CostCategories().then((tree) => setCategories(tree ?? [])).catch(() => {});
     if (editing) {
       app.CostGet(editing.name).then((e) => {
-        if (e) form.setFieldsValue({ ...e, tags: (e.tags ?? []).join(", ") });
+        if (e) {
+          const id = [...pathById.entries()].find(([, p]) => p === e.categoryPath)?.[0];
+          form.setFieldsValue({ ...e, categoryId: id, tags: (e.tags ?? []).join(", ") });
+        }
       });
     } else {
-      form.setFieldsValue({ category: "其他", status: "现行" });
+      form.setFieldsValue({ categoryId: undefined, status: "现行" });
     }
-  }, [open, editing, form]);
+  }, [open, editing, form, pathById]);
 
   const handleSubmit = async () => {
     const v = await form.validateFields();
+    const categoryPath = v.categoryId ? pathById.get(v.categoryId) ?? "" : "";
     const entry: CostEntry = {
       name: editing?.name ?? v.name,
       title: v.title,
-      category: v.category ?? "其他",
+      category: leafOf(categoryPath) || "其他",
+      categoryPath,
       unit: v.unit ?? "",
       price: v.price ?? 0,
       spec: v.spec ?? "",
@@ -45,8 +65,6 @@ export function CostEntryModal({
       tags: (v.tags ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
       status: v.status ?? "现行",
       body: v.body ?? "",
-      updatedAt: "",
-      createdAt: "",
     };
     await app.CostSave(entry);
     onSaved();
@@ -59,6 +77,9 @@ export function CostEntryModal({
       onCancel={onClose}
       onOk={handleSubmit}
       okText="保存"
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
       cancelText="取消"
       width={560}
     >
@@ -72,8 +93,16 @@ export function CostEntryModal({
           <Input placeholder="如：HP300 高频液压振动锤" />
         </Form.Item>
         <div className="grid grid-cols-3 gap-3">
-          <Form.Item label="分类" name="category">
-            <Select options={CATEGORIES.map((c) => ({ value: c, label: c }))} />
+          <Form.Item label="分类（多级）" name="categoryId">
+            <TreeSelect
+              treeData={treeData}
+              treeDefaultExpandAll
+              placeholder="选择分类（支持二级/三级）"
+              showSearch
+              treeNodeFilterProp="title"
+              allowClear
+              style={{ width: "100%" }}
+            />
           </Form.Item>
           <Form.Item label="单价（元）" name="price">
             <InputNumber min={0} style={{ width: "100%" }} placeholder="3200" />
@@ -104,4 +133,17 @@ export function CostEntryModal({
       </Form>
     </Modal>
   );
+}
+
+function buildTreeData(nodes: CostCategory[]): { title: string; value: number; children?: any[] }[] {
+  return (nodes ?? []).map((n) => ({
+    title: n.name,
+    value: n.id,
+    children: n.children?.length ? buildTreeData(n.children) : undefined,
+  }));
+}
+
+function leafOf(path: string): string {
+  const parts = path.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? "";
 }

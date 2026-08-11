@@ -36,6 +36,10 @@ const CreateNovelModal: React.FC<CreateNovelModalProps> = ({
     okText="创建"
     cancelText="取消"
     width={520}
+    // WebView2 冻结 rAF 时退出动画不结束会残留遮罩卡死界面：关闭即卸载。
+    destroyOnHidden
+    transitionName=""
+    maskTransitionName=""
     styles={{
       body: { background: 'transparent' },
       header: { background: 'transparent' },

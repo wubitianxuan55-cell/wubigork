@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -90,6 +91,15 @@ func (a *App) hubOfficeStore() memory.Store {
 	userDir := config.MemoryUserDir()
 	cwd := gaeaCwd()
 	return memory.SQLiteStoreFor(db.GetDatabase(userDir), userDir, cwd)
+}
+
+// whisperDataRootSafe 返回轻语数据根目录；whisperState 未初始化（测试/异常
+// 状态）时返回空串，调用方按“无轻语数据”处理，避免 nil 提升字段崩溃。
+func (a *App) whisperDataRootSafe() string {
+	if a.whisperState == nil {
+		return ""
+	}
+	return a.whisperDataRoot
 }
 
 // officeStoreOverride 测试注入的隔离办公记忆存储（避免触碰真实用户库）。
@@ -261,8 +271,8 @@ type MemoryGraphView struct {
 const (
 	maxGraphNodes       = 400
 	maxGraphLinks       = 800
-	whisperGraphN       = 40 // 轻语节点上限（按权重取前 N）
-	whisperTripleGraphN = 60 // 轻语三元组入图上限（按置信度取前 N）
+	whisperGraphN       = 80 // 轻语节点上限（按权重取前 N）
+	whisperTripleGraphN = 80 // 轻语三元组入图上限（按置信度取前 N）
 )
 
 // GaeaMemoryGraph 构建记忆图谱：知识/画像/办公/轻语为节点，
@@ -336,8 +346,25 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 		}
 	}
 
-	// 轻语事实（按权重取前 N，控制规模）
-	whisperFacts := whisperdb.LoadFactsFromDB(a.whisperDataRoot)
+	// 成本条目：分类/标签与知识、办公记忆共享边索引（同分类/同标签可互连）
+	for _, s := range a.hubCostStore().List() {
+		id := "c:" + s.Name
+		desc := strings.TrimSpace(s.Category + " · " + s.Unit + " · ¥" + strconv.FormatFloat(s.Price, 'f', -1, 64))
+		addNode(id, displayName(s.Title, s.Name), "cost", desc, 1)
+		nameID[s.Name] = id
+		if s.Category != "" {
+			catIndex[s.Category] = append(catIndex[s.Category], id)
+		}
+		for _, t := range s.Tags {
+			tagIndex[t] = append(tagIndex[t], id)
+		}
+	}
+
+	// 轻语事实（按权重取前 N，控制规模）；数据根目录未配置时跳过
+	var whisperFacts []whisper.MemoryFact
+	if a.whisperDataRootSafe() != "" {
+		whisperFacts = whisperdb.LoadFactsFromDB(a.whisperDataRootSafe())
+	}
 	sort.Slice(whisperFacts, func(i, j int) bool { return whisperFacts[i].Weight > whisperFacts[j].Weight })
 	for i, f := range whisperFacts {
 		if i >= whisperGraphN {
@@ -347,7 +374,10 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 	}
 
 	// 轻语知识图谱三元组：实体节点 + 关系边（按置信度取前 N，实体名去重合并）
-	triples, _ := whisperdb.LoadTriplesFromDB(a.whisperDataRoot)
+	var triples []whisper.Triple
+	if a.whisperDataRootSafe() != "" {
+		triples, _ = whisperdb.LoadTriplesFromDB(a.whisperDataRootSafe())
+	}
 	sort.Slice(triples, func(i, j int) bool { return triples[i].Confidence > triples[j].Confidence })
 	for i, t := range triples {
 		if i >= whisperTripleGraphN {
@@ -420,16 +450,17 @@ func displayName(title, name string) string {
 
 // CostSummary 成本条目轻量视图。
 type CostSummary struct {
-	Name      string    `json:"name"`
-	Title     string    `json:"title"`
-	Category  string    `json:"category"`
-	Unit      string    `json:"unit"`
-	Price     float64   `json:"price"`
-	Spec      string    `json:"spec"`
-	Source    string    `json:"source"`
-	Tags      []string  `json:"tags"`
-	Status    string    `json:"status"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Name         string    `json:"name"`
+	Title        string    `json:"title"`
+	Category     string    `json:"category"`
+	CategoryPath string    `json:"categoryPath"`
+	Unit         string    `json:"unit"`
+	Price        float64   `json:"price"`
+	Spec         string    `json:"spec"`
+	Source       string    `json:"source"`
+	Tags         []string  `json:"tags"`
+	Status       string    `json:"status"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // CostEntry 完整成本条目。
@@ -439,8 +470,36 @@ type CostEntry struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// CostCategoryView 成本分类树节点视图。
+type CostCategoryView struct {
+	ID       int                 `json:"id"`
+	ParentID int                 `json:"parentId"`
+	Name     string              `json:"name"`
+	Sort     int                 `json:"sort"`
+	Count    int                 `json:"count"`
+	Children []*CostCategoryView `json:"children,omitempty"`
+}
+
+// costStoreOverride 测试注入的隔离成本库（避免触碰真实用户库）。
+var (
+	costStoreOverride    *cost.Store
+	costStoreOverrideSet bool
+)
+
+// SetCostStoreForTest 注入隔离的成本库存储（测试用）。
+func SetCostStoreForTest(s *cost.Store) {
+	costStoreOverride = s
+	costStoreOverrideSet = true
+}
+
+// ResetCostStoreForTest 清除测试注入，恢复真实成本库存储。
+func ResetCostStoreForTest() { costStoreOverrideSet = false }
+
 // hubCostStore 构造成本库存储。
 func (a *App) hubCostStore() *cost.Store {
+	if costStoreOverrideSet {
+		return costStoreOverride
+	}
 	return cost.Open(db.GetDatabase(config.MemoryUserDir()))
 }
 
@@ -483,9 +542,9 @@ func (a *App) GaeaCostGet(name string) *CostEntry {
 	}
 	return &CostEntry{
 		CostSummary: toCostSummary(cost.Summary{
-			Name: e.Name, Title: e.Title, Category: e.Category, Unit: e.Unit,
-			Price: e.Price, Spec: e.Spec, Source: e.Source, Tags: e.Tags,
-			Status: e.Status, UpdatedAt: e.UpdatedAt,
+			Name: e.Name, Title: e.Title, Category: e.Category, CategoryPath: e.CategoryPath,
+			Unit: e.Unit, Price: e.Price, Spec: e.Spec, Source: e.Source,
+			Tags: e.Tags, Status: e.Status, UpdatedAt: e.UpdatedAt,
 		}),
 		Body: e.Body, CreatedAt: e.CreatedAt,
 	}
@@ -494,9 +553,9 @@ func (a *App) GaeaCostGet(name string) *CostEntry {
 // GaeaCostSave 保存成本条目。
 func (a *App) GaeaCostSave(e CostEntry) error {
 	return a.hubCostStore().Save(cost.Entry{
-		Name: e.Name, Title: e.Title, Category: e.Category, Unit: e.Unit,
-		Price: e.Price, Spec: e.Spec, Source: e.Source, Tags: e.Tags,
-		Status: e.Status, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
+		Name: e.Name, Title: e.Title, Category: e.Category, CategoryPath: e.CategoryPath,
+		Unit: e.Unit, Price: e.Price, Spec: e.Spec, Source: e.Source,
+		Tags: e.Tags, Status: e.Status, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
 	})
 }
 
@@ -505,12 +564,46 @@ func (a *App) GaeaCostDelete(name string) error {
 	return a.hubCostStore().Delete(name)
 }
 
+// GaeaCostCategories 返回成本分类树（含每节点直接条目数）。
+func (a *App) GaeaCostCategories() []CostCategoryView {
+	list := a.hubCostStore().Categories()
+	out := make([]CostCategoryView, 0, len(list))
+	for _, c := range list {
+		out = append(out, toCostCategoryView(&c))
+	}
+	return out
+}
+
+// GaeaCostCategorySave 新建/更新分类节点（id<=0 新建，id>0 改名/排序）。
+func (a *App) GaeaCostCategorySave(parentID int, name string, sort int, id int) (int, error) {
+	return a.hubCostStore().SaveCategory(parentID, name, sort, id)
+}
+
+// GaeaCostCategoryDelete 删除分类节点（有子节点或条目时返回错误）。
+func (a *App) GaeaCostCategoryDelete(id int) error {
+	return a.hubCostStore().DeleteCategory(id)
+}
+
 func toCostSummary(s cost.Summary) CostSummary {
 	return CostSummary{
-		Name: s.Name, Title: s.Title, Category: s.Category, Unit: s.Unit,
-		Price: s.Price, Spec: s.Spec, Source: s.Source, Tags: s.Tags,
-		Status: s.Status, UpdatedAt: s.UpdatedAt,
+		Name: s.Name, Title: s.Title, Category: s.Category, CategoryPath: s.CategoryPath,
+		Unit: s.Unit, Price: s.Price, Spec: s.Spec, Source: s.Source,
+		Tags: s.Tags, Status: s.Status, UpdatedAt: s.UpdatedAt,
 	}
+}
+
+func toCostCategoryView(c *cost.CategoryView) CostCategoryView {
+	if c == nil {
+		return CostCategoryView{}
+	}
+	v := CostCategoryView{
+		ID: c.ID, ParentID: c.ParentID, Name: c.Name, Sort: c.Sort, Count: c.Count,
+	}
+	for _, ch := range c.Children {
+		child := toCostCategoryView(ch)
+		v.Children = append(v.Children, &child)
+	}
+	return v
 }
 
 // ── 画像冲突一键裁决 ───────────────────────────────────────────────

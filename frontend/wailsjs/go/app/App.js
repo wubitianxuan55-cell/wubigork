@@ -334,6 +334,18 @@ export function GaeaContext() {
   return window['go']['app']['App']['GaeaContext']();
 }
 
+export function GaeaCostCategories() {
+  return window['go']['app']['App']['GaeaCostCategories']();
+}
+
+export function GaeaCostCategoryDelete(arg1) {
+  return window['go']['app']['App']['GaeaCostCategoryDelete'](arg1);
+}
+
+export function GaeaCostCategorySave(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['GaeaCostCategorySave'](arg1, arg2, arg3, arg4);
+}
+
 export function GaeaCostDelete(arg1) {
   return window['go']['app']['App']['GaeaCostDelete'](arg1);
 }
@@ -502,6 +514,10 @@ export function GaeaListWorkspaces() {
   return window['go']['app']['App']['GaeaListWorkspaces']();
 }
 
+export function GaeaLogFrontendError(arg1) {
+  return window['go']['app']['App']['GaeaLogFrontendError'](arg1);
+}
+
 export function GaeaLoginProvider(arg1) {
   return window['go']['app']['App']['GaeaLoginProvider'](arg1);
 }
@@ -600,6 +616,10 @@ export function GaeaPreview(arg1) {
 
 export function GaeaPriceFetch(arg1) {
   return window['go']['app']['App']['GaeaPriceFetch'](arg1);
+}
+
+export function GaeaPriceFetchAll() {
+  return window['go']['app']['App']['GaeaPriceFetchAll']();
 }
 
 export function GaeaPriceFetchApply(arg1, arg2) {

@@ -168,3 +168,23 @@ CREATE TABLE IF NOT EXISTS knowledge_history (
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_history_name ON knowledge_history(name);
 `
+
+// SchemaV7 成本库多级分类（分类树 + 条目分类路径）：
+// cost_categories 保存分类树节点（parent_id 自引用，0=根，可任意层级）；
+// cost_entries 增加 category_path（"一级/二级/…/叶子"）用于树形过滤与分组，
+// 旧 category 字段保留（叶子名 + 兼容 cost_search/cost_save 工具）。
+// 已有条目按旧分类归入对应一级节点，后续由 Store.EnsureDefaultCategories 播种默认树。
+const SchemaV7 = `
+CREATE TABLE IF NOT EXISTS cost_categories (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  parent_id  INTEGER NOT NULL DEFAULT 0,
+  name       TEXT NOT NULL DEFAULT '',
+  sort       INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cost_cat_parent_name ON cost_categories(parent_id, name);
+ALTER TABLE cost_entries ADD COLUMN category_path TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_cost_category_path ON cost_entries(category_path);
+UPDATE cost_entries SET category_path = category WHERE category_path = '' AND category != '';
+`

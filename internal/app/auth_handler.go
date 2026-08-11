@@ -9,6 +9,7 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/auth"
+	"github.com/gaea/gaea/internal/gaea/provider/bridge"
 )
 
 // ── 登录 ──────────────────────────────────────────────────────
@@ -19,6 +20,11 @@ func (a *App) configureClient() {
 		data["type"] = eventType
 		a.emit("xai-output", data)
 	}
+	// 办公 AI 桥接 provider 始终可用：成本/知识导入 AI 解析、文件摘要等
+	// 依赖 bridge 注入的 ai.LLMClient。此前只在 GaeaInit（办公引擎懒初始化）
+	// 注入，用户未进过办公板块直接导入 PDF 点 AI 解析会报
+	// "bridge: ai.LLMClient 未注入"。这里在每次 client 创建/重建后统一注入。
+	bridge.SetClient(a.client)
 	if a.engineMgr != nil {
 		a.client.SetEngineManager(a.engineMgr)
 		// 恢复活跃引擎设置

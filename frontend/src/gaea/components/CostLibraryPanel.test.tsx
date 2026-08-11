@@ -14,7 +14,7 @@ describe("CostLibraryPanel 办公侧成本库", () => {
     expect(await screen.findByText("HP300 高频液压振动锤")).toBeTruthy();
     expect(screen.getByText("P.O 42.5 水泥")).toBeTruthy();
 
-    fireEvent.click(screen.getAllByTitle("把该成本条目作为结构化上下文插入输入框")[0]);
+    fireEvent.click(screen.getAllByTitle("插入输入框")[0]);
     await waitFor(() => expect(useComposerInsertStore.getState().pendingText).toBeTruthy());
     const text = useComposerInsertStore.getState().pendingText ?? "";
     expect(text).toContain("【成本库】HP300 高频液压振动锤");
@@ -27,7 +27,7 @@ describe("CostLibraryPanel 办公侧成本库", () => {
     render(wrap(<CostLibraryPanel />));
     await screen.findByText("HP300 高频液压振动锤");
 
-    fireEvent.click(screen.getByText("材料", { selector: "button" }));
+    fireEvent.change(screen.getByTitle("分类路径（含子分类）"), { target: { value: "材料" } });
     await waitFor(() => expect(screen.queryByText("HP300 高频液压振动锤")).toBeNull());
     expect(screen.getByText("P.O 42.5 水泥")).toBeTruthy();
   });
@@ -36,7 +36,7 @@ describe("CostLibraryPanel 办公侧成本库", () => {
     render(wrap(<CostLibraryPanel />));
     await screen.findByText("HP300 高频液压振动锤");
 
-    const boxes = screen.getAllByTitle("多选（批量删除/改状态）");
+    const boxes = screen.getAllByTitle("多选");
     fireEvent.click(boxes[0]);
     fireEvent.click(boxes[1]);
     expect(screen.getByText("已选 2")).toBeTruthy();

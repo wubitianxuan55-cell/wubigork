@@ -50,6 +50,6 @@ describe("KnowledgeImportModal 知识导入", () => {
     await screen.findByDisplayValue("GB 36600 风险管控");
 
     fireEvent.click(screen.getByText("AI 智能解析"));
-    await waitFor(() => expect(screen.getByText(/AI 智能解析完成/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/AI 智能解析完成，请核对后确认导入。/)).toBeTruthy());
   });
 });

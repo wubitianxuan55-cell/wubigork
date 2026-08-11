@@ -8,6 +8,7 @@ import {
 import TisorRadar from '../TisorRadar'
 import type { LibraryCharacter } from '../../api/characterlib'
 import { C } from '../../utils/theme'
+import { PortraitImg } from './PortraitImg'
 import './character-card.css'
 
 const KIND_META: Record<string, string> = {
@@ -94,7 +95,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       <div className="ccard-portrait ccard-sheen">
         {isCurrentPersona && <span className="ccard-current">当前人格</span>}
         {c.portraitUrl ? (
-          <img className="ccard-portrait-img" src={c.portraitUrl} alt={c.name} />
+          <PortraitImg className="ccard-portrait-img" src={c.portraitUrl} alt={c.name} />
         ) : (
           <div className="ccard-placeholder"><span>{c.name.slice(0, 1) || '?'}</span></div>
         )}

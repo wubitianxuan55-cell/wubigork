@@ -180,6 +180,48 @@ func TestChatStream_SendsIncludeUsage(t *testing.T) {
 	}
 }
 
+// TestChatUsage_CacheSplit 验证两种缓存拆分形状都能被解析：
+// DeepSeek 顶层 prompt_cache_{hit,miss}_tokens 与
+// OpenAI/MiMo prompt_tokens_details.cached_tokens。
+func TestChatUsage_CacheSplit(t *testing.T) {
+	t.Run("deepseek-style", func(t *testing.T) {
+		var u ChatUsage
+		if err := json.Unmarshal([]byte(`{
+			"prompt_tokens": 1200, "completion_tokens": 200, "total_tokens": 1400,
+			"prompt_cache_hit_tokens": 800, "prompt_cache_miss_tokens": 400
+		}`), &u); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if u.CacheHitTokens() != 800 || u.CacheMissTokens() != 400 {
+			t.Errorf("deepseek cache = hit %d miss %d, want 800/400", u.CacheHitTokens(), u.CacheMissTokens())
+		}
+	})
+	t.Run("openai-style", func(t *testing.T) {
+		var u ChatUsage
+		if err := json.Unmarshal([]byte(`{
+			"prompt_tokens": 1000, "completion_tokens": 50, "total_tokens": 1050,
+			"prompt_tokens_details": {"cached_tokens": 700}
+		}`), &u); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if u.CacheHitTokens() != 700 || u.CacheMissTokens() != 300 {
+			t.Errorf("openai cache = hit %d miss %d, want 700/300", u.CacheHitTokens(), u.CacheMissTokens())
+		}
+	})
+	t.Run("no-cache-fields", func(t *testing.T) {
+		var u ChatUsage
+		if err := json.Unmarshal([]byte(`{
+			"prompt_tokens": 500, "completion_tokens": 30, "total_tokens": 530
+		}`), &u); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		// 无缓存信息：命中 0，未命中按 prompt 推算（不出现负数）。
+		if u.CacheHitTokens() != 0 || u.CacheMissTokens() != 500 {
+			t.Errorf("no-cache = hit %d miss %d, want 0/500", u.CacheHitTokens(), u.CacheMissTokens())
+		}
+	})
+}
+
 // TestChatStream_FallbackWithoutStreamOptions 服务端不支持 stream_options 时，
 // 应去掉该字段重试一次，且只统计成功的调用。
 func TestChatStream_FallbackWithoutStreamOptions(t *testing.T) {

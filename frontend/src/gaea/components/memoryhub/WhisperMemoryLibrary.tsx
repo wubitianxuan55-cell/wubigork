@@ -251,6 +251,9 @@ export function WhisperMemoryLibrary() {
         onCancel={() => setSelected(null)}
         footer={null}
         width={520}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
         title={
           <span>
             <span className="text-pink-400">聊天记忆</span>
@@ -283,6 +286,9 @@ export function WhisperMemoryLibrary() {
         onCancel={() => setSelectedEp(null)}
         footer={null}
         width={520}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
         title={
           <span>
             <ReadOutlined style={{ color: "#f472b6" }} />

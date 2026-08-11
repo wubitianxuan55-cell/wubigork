@@ -196,6 +196,9 @@ const TemplatePickerModal: React.FC<Props> = ({
       onCancel={onClose}
       footer={null}
       width={680}
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
       styles={{
         body: { background: 'transparent', padding: '12px 20px 20px' },
         header: { background: 'transparent' },

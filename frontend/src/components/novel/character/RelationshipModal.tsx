@@ -24,6 +24,7 @@ const RelationshipModal: React.FC<RelationshipModalProps> = ({
 }) => (
   <Modal title="添加关系" open={open} onCancel={onClose} footer={null}
     width={400}
+    destroyOnHidden transitionName="" maskTransitionName=""
     styles={{ body: { background: 'var(--bg-glass)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', padding: 24 } }}
   >
     <Space direction="vertical" size={12} style={{ width: '100%' }}>

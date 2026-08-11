@@ -65,6 +65,12 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 				}
 				return
 			}
+			// 透传用量（统计面板依赖 ChunkUsage；此前丢弃导致 Token/成本全为 0）。
+			if c.Usage != nil {
+				if !send(provider.Chunk{Type: provider.ChunkUsage, Usage: usageFromChat(c.Usage)}) {
+					return
+				}
+			}
 			for _, tc := range c.ToolCalls {
 				if !send(provider.Chunk{
 					Type: provider.ChunkToolCall,
@@ -96,6 +102,23 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 	return out, nil
 }
 
+// usageFromChat 把 ai 客户端的用量转换为 provider.Usage（缓存拆分兼容
+// DeepSeek 顶层字段与 OpenAI prompt_tokens_details.cached_tokens）。
+func usageFromChat(u *ai.ChatUsage) *provider.Usage {
+	if u == nil {
+		return nil
+	}
+	hit := u.CacheHitTokens()
+	miss := u.CacheMissTokens()
+	return &provider.Usage{
+		PromptTokens:     int(u.PromptTokens),
+		CompletionTokens: int(u.CompletionTokens),
+		TotalTokens:      int(u.TotalTokens),
+		CacheHitTokens:   int(hit),
+		CacheMissTokens:  int(miss),
+	}
+}
+
 // client 持有注入的 gaea AI 客户端（模型引擎中心入口）。
 var client ai.LLMClient
 
@@ -122,7 +145,11 @@ func init() {
 		if model == "" {
 			model = featureModel // 功能级模型（未绑定则为空，由 ai.Client 动态解析）
 		}
-		return &Provider{name: cfg.Name, model: model, engine: featureEngine, client: client}, nil
+		engine := cfg.Engine
+		if engine == "" {
+			engine = featureEngine // 功能级引擎（未绑定则为空，由 ai.Client 按活跃引擎解析）
+		}
+		return &Provider{name: cfg.Name, model: model, engine: engine, client: client}, nil
 	})
 }
 

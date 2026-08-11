@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "antd";
-import { BookOpen, CloudUpload, Sparkles } from "../../icons";
+import { BookOpen, CloudUpload, Loader, Sparkles } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { KnowledgeEntry, KnowledgeImportPreview, KnowledgeImportRow } from "../../lib/types";
 import { useToast } from "../Toast";
@@ -29,12 +29,14 @@ export function KnowledgeImportModal({
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
   useEffect(() => {
     if (!open || !path) return;
     setPreview(null);
     setRows([]);
+    setError(null);
     setLoading(true);
     app
       .KnowledgeImportPreview(path)
@@ -42,7 +44,10 @@ export function KnowledgeImportModal({
         setPreview(pv);
         setRows(pv.rows);
       })
-      .catch((e) => toast.show(`解析失败：${String(e)}`, "warn"))
+      .catch((e) => {
+        setError(String(e));
+        toast.show(`解析失败：${String(e)}`, "warn");
+      })
       .finally(() => setLoading(false));
   }, [open, path, toast]);
 
@@ -53,8 +58,10 @@ export function KnowledgeImportModal({
       const pv = await app.KnowledgeImportAIParse(path);
       setPreview(pv);
       setRows(pv.rows);
+      setError(null);
       toast.show("AI 智能解析完成，请核对后确认导入", "info");
     } catch (e) {
+      setError(`AI 解析失败：${String(e)}`);
       toast.show(`AI 解析失败：${String(e)}`, "warn");
     } finally {
       setAiLoading(false);
@@ -87,8 +94,6 @@ export function KnowledgeImportModal({
         reviewer: "",
         source: r.source,
         body: r.body,
-        createdAt: "",
-        updatedAt: "",
       }));
       const n = await app.KnowledgeImportApply(entries);
       toast.show(`已导入 ${n} 条知识条目`, "info");
@@ -112,10 +117,17 @@ export function KnowledgeImportModal({
       open={open}
       onCancel={onClose}
       width={900}
+      // WebView2 在特定状态下会冻结 rAF/CSS 动画：退出动画永远不结束，
+      // 遮罩残留在窗口上导致整个软件点不了。这里禁用弹层动画，关闭即卸载。
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
       footer={
         <div className="flex items-center gap-2">
           <span className="mr-auto text-[11px] text-fg-faint">
             已选 {confirmRows.length} / {rows.length} 条{preview?.unmapped?.length ? ` · 未映射列：${preview.unmapped.join("、")}` : ""}
+            {rows.length > 0 && confirmRows.length === 0 ? " · 行均缺少标题或正文，请修正后导入" : ""}
+            {rows.length === 0 && error ? " · 解析失败，暂无可导入条目" : ""}
           </span>
           <button
             className="inline-flex items-center gap-1 px-3 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px] disabled:opacity-50"
@@ -143,6 +155,23 @@ export function KnowledgeImportModal({
         </div>
       }
     >
+      {error ? (
+        <div className="mb-2 px-3 py-2 rounded-lg border border-err/40 bg-err/10 text-fg-dim text-[11.5px]" role="alert">
+          <span className="text-err font-medium">解析失败：{error}</span>
+          <div className="mt-0.5">
+            可点击「AI 智能解析」重试；若仍失败，请检查办公功能模型配置，或更换为
+            md/txt/docx/pdf/xlsx/csv 文件后重新导入。
+          </div>
+        </div>
+      ) : null}
+      {aiLoading ? (
+        <div className="mb-2 px-3 py-2 rounded-lg bg-bg-elev text-fg-dim text-[11.5px] flex items-center gap-2" role="status">
+          <Loader size={13} className="animate-spin text-accent shrink-0" />
+          <span>
+            AI 智能解析中… 正在读取文档并调用模型（通常 30 秒~2 分钟），请稍候。期间可随时点「取消」关闭。
+          </span>
+        </div>
+      ) : null}
       {preview?.message ? (
         <div className="mb-2 px-3 py-2 rounded-lg bg-bg-elev text-fg-dim text-[11.5px]">{preview.message}</div>
       ) : null}

@@ -572,6 +572,9 @@ const CreatePage: React.FC = () => {
       <Modal
         title={<>🔍 第{newCharsChapter}章发现了 {newCharsList.length + libMatches.length} 个新角色</>}
         open={newCharsModal}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
         confirmLoading={adding}
         onOk={async () => {
           const selected = newCharsList.filter(c => c.selected).map(c => c.name)
@@ -692,7 +695,8 @@ const CreatePage: React.FC = () => {
 
       {/* 向导 */}
       <Modal title={<><BulbOutlined style={{ marginRight: 8 }} />剧情方向</>}
-        open={wizOpen} onCancel={() => setWizOpen(false)} footer={null} width={620} destroyOnClose>
+        open={wizOpen} onCancel={() => setWizOpen(false)} footer={null} width={620}
+        destroyOnHidden transitionName="" maskTransitionName="">
         {wizStep === 'loading' && <div style={{ textAlign: 'center', padding: 24 }}><Spin size="large" /><div style={{ marginTop: 8, color: C('color-text-secondary'), fontSize: 12 }}>AI 正在分析设定，构思剧情分支…</div></div>}
         {wizStep === 'branches' && (<>
           {branches.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>

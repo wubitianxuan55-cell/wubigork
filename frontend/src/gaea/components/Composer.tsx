@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ClipboardEvent, DragEvent, KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import { Modal } from "antd";
 import { ArrowUp, Camera, Check, ChevronDown, Eye, FileText, FolderGit2, FolderPlus, Loader, Paperclip, Search, Square, Table, X, Zap } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
@@ -263,7 +264,18 @@ export function Composer({
     const bigFiles = files.filter((f) => f.size > 10 * 1024 * 1024);
     if (bigFiles.length > 0) {
       const names = bigFiles.map((f) => f.name).join(", ");
-      if (!confirm(`以下文件超过 10MB，可能上传较慢：\n${names}\n\n确定要继续吗？`)) return;
+      // 原生 confirm 会同步阻塞 WebView2 主线程导致界面卡死，改用异步弹窗。
+      const ok = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: "大文件提示",
+          content: `以下文件超过 10MB，可能上传较慢：\n${names}\n\n确定要继续吗？`,
+          okText: "继续上传",
+          cancelText: "取消",
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+      if (!ok) return;
     }
     // 处理图片
     for (const file of images) {

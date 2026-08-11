@@ -8,7 +8,7 @@ import {
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
 import { sessionTitle, sessionTime } from "./lib/session";
-import { useController } from "./lib/store";
+import { useController, usePreviewStore } from "./lib/store";
 import type { JobView } from "./lib/types";
 import { app } from "./lib/bridge";
 import { Transcript } from "./components/Transcript";
@@ -27,7 +27,6 @@ const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").th
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
 import { WorkspacePanel } from "./components/WorkspacePanel";
 import { FilePreview } from "./components/FilePreview";
-import { FilePreviewModal } from "./components/FilePreviewModal";
 import { DeliverablesPanel, type SessionDeliverable } from "./components/DeliverablesPanel";
 import { MaterialsPanel } from "./components/MaterialsPanel";
 import { CostLibraryPanel } from "./components/CostLibraryPanel";
@@ -172,6 +171,21 @@ export default function App() {
     setRightTab("files");
     setWorkspacePanel(false);
     setPreviewFile(rel);
+  }, []);
+
+  // 对话内「交付文件」卡片与正文文件链接走 usePreviewStore（弹窗通道）。
+  // 本页有嵌入式预览容器，把这类请求重定向为嵌入预览（弹窗仅保留给
+  // 记忆中枢等没有嵌入容器的页面）。
+  useEffect(() => {
+    return usePreviewStore.subscribe((s, prev) => {
+      if (s.previewFile && s.previewFile !== prev.previewFile) {
+        const rel = s.previewFile;
+        usePreviewStore.getState().closeFilePreview();
+        setRightTab("files");
+        setWorkspacePanel(false);
+        setPreviewFile(rel);
+      }
+    });
   }, []);
 
   // 预览头部“文件”按钮 → 回到文件树
@@ -804,7 +818,6 @@ export default function App() {
         onClose={() => setPaletteOpen(false)}
       />
 
-      <FilePreviewModal />
     </ToastProvider>
   );
 }

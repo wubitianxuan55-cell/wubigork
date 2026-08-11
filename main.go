@@ -9,6 +9,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 
 	"github.com/gaea/gaea/internal/app"
 	"github.com/gaea/gaea/internal/httpbridge"
@@ -46,6 +47,11 @@ func main() {
 		Height:    800,
 		MinWidth:  900,
 		MinHeight: 600,
+		// 启用 WebView2 渲染进程远程调试（Wails 会开 127.0.0.1:9333）：
+		// 卡死时可抓取渲染现场（截图/控制台）。本地桌面应用，可接受。
+		Windows: &windows.Options{
+			WebviewDisableRendererCodeIntegrity: true,
+		},
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

@@ -91,6 +91,169 @@ func TestCostSearchBM25Order(t *testing.T) {
 	}
 }
 
+// TestCostCategoriesTree 验证多级分类：默认树播种、路径过滤、子树计数。
+func TestCostCategoriesTree(t *testing.T) {
+	dir := t.TempDir()
+	gdb := db.GetDatabase(dir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	defer db.CloseDatabase(dir)
+	s := Open(gdb)
+
+	// 默认树已播种：一级 7 类 + 二级子类。
+	tree := s.Categories()
+	if len(tree) != 7 {
+		t.Fatalf("root categories = %d, want 7", len(tree))
+	}
+	byName := map[string]*CategoryView{}
+	for i := range tree {
+		byName[tree[i].Name] = &tree[i]
+	}
+	if mat := byName["材料"]; mat == nil || len(mat.Children) == 0 {
+		t.Fatalf("材料 should have children, got %+v", mat)
+	}
+
+	// 默认树已按信息价体系细分：材料 → 土建材料 → 钢材（三级）。
+	var matID, tuID, steelID int
+	for i := range tree {
+		if tree[i].Name != "材料" {
+			continue
+		}
+		matID = tree[i].ID
+		for _, c := range tree[i].Children {
+			if c.Name == "土建材料" {
+				tuID = c.ID
+				for _, g := range c.Children {
+					if g.Name == "钢材" {
+						steelID = g.ID
+					}
+				}
+			}
+		}
+	}
+	if matID == 0 || tuID == 0 || steelID == 0 {
+		t.Fatalf("seeded tree missing 材料/土建材料/钢材: mat=%d tu=%d steel=%d", matID, tuID, steelID)
+	}
+
+	// 保存带完整路径（三级）的条目。
+	if err := s.Save(Entry{Name: "steel-h", Title: "H 型钢", Category: "钢材", CategoryPath: "材料/土建材料/钢材", Unit: "吨", Price: 5200, Source: "市场询价"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Save(Entry{Name: "steel-r", Title: "螺纹钢", Category: "钢材", CategoryPath: "材料/土建材料/钢材", Unit: "吨", Price: 4600, Source: "定额"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Save(Entry{Name: "labor-p", Title: "普工", Category: "普工", CategoryPath: "人工/普工", Unit: "工日", Price: 320, Source: "定额"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// 子树过滤：选「材料」应命中钢材（含后代），不命中人工。
+	res := s.Search("", "材料", "")
+	if len(res) != 2 {
+		t.Fatalf("path subtree search = %d, want 2: %+v", len(res), res)
+	}
+	// 三级路径精确过滤。
+	res = s.Search("", "材料/土建材料/钢材", "")
+	if len(res) != 2 {
+		t.Fatalf("leaf path search = %d, want 2", len(res))
+	}
+	res = s.Search("", "材料/土建材料", "")
+	if len(res) != 2 {
+		t.Fatalf("二级 path search = %d, want 2", len(res))
+	}
+	res = s.Search("", "人工", "")
+	if len(res) != 1 || res[0].Name != "labor-p" {
+		t.Fatalf("labor path search = %+v", res)
+	}
+
+	// 树节点计数（直接归属）。
+	tree = s.Categories()
+	matID = 0
+	for i := range tree {
+		if tree[i].Name == "材料" {
+			matID = tree[i].ID
+			if tree[i].Count != 0 {
+				t.Errorf("材料 direct count = %d, want 0（条目在子分类）", tree[i].Count)
+			}
+		}
+		if tree[i].Name == "人工" && tree[i].Count != 0 {
+			t.Errorf("人工 direct count = %d, want 0（条目在子分类）", tree[i].Count)
+		}
+		for _, ch := range tree[i].Children {
+			if ch.Name == "土建材料" {
+				for _, g := range ch.Children {
+					if g.Name == "钢材" && g.Count != 2 {
+						t.Errorf("材料/土建材料/钢材 count = %d, want 2", g.Count)
+					}
+					if g.Name == "钢材" {
+						steelID = g.ID
+					}
+				}
+			}
+		}
+	}
+
+	// 改名重写条目路径：材料/土建材料/钢材 → 型钢。
+	if _, err := s.SaveCategory(tuID, "型钢", 0, steelID); err != nil {
+		t.Fatal(err)
+	}
+	res = s.Search("", "材料/土建材料/型钢", "")
+	if len(res) != 2 {
+		t.Fatalf("after rename path search = %d, want 2", len(res))
+	}
+	if got, _ := s.Get("steel-h"); got.CategoryPath != "材料/土建材料/型钢" {
+		t.Errorf("steel-h category_path = %q, want 材料/土建材料/型钢", got.CategoryPath)
+	}
+
+	// 删除保护：有条目/子节点时拒绝。
+	if err := s.DeleteCategory(steelID); err == nil {
+		t.Error("delete category with entries should fail")
+	}
+	if err := s.DeleteCategory(matID); err == nil {
+		t.Error("delete category with children should fail")
+	}
+	// 空叶子可删：人工/普工 下条目移走后再删。
+	laborRoot := byName["人工"]
+	var laborChildID int
+	for _, ch := range laborRoot.Children {
+		if ch.Name == "普工" {
+			laborChildID = ch.ID
+		}
+	}
+	if err := s.Delete("labor-p"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteCategory(laborChildID); err != nil {
+		t.Fatalf("delete empty leaf failed: %v", err)
+	}
+}
+
+// TestCostSaveCategoryIdempotent 验证同父同名新建幂等返回既有 id。
+func TestCostSaveCategoryIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	gdb := db.GetDatabase(dir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	defer db.CloseDatabase(dir)
+	s := Open(gdb)
+
+	id1, err := s.SaveCategory(0, "临时分类", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2, err := s.SaveCategory(0, "临时分类", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id1 != id2 || id1 <= 0 {
+		t.Fatalf("idempotent create ids = %d/%d", id1, id2)
+	}
+	if got := s.CategoryPath(id1); got != "临时分类" {
+		t.Errorf("path = %q", got)
+	}
+}
+
 func TestCostStoreUnavailable(t *testing.T) {
 	s := Open(nil)
 	if s.Available() {

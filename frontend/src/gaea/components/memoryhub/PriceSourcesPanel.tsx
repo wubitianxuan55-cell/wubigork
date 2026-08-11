@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Form, Input, Modal, Select, Switch } from "antd";
-import { CloudUpload, Coins, Pencil, Plus, RefreshCw, Trash2 } from "../../icons";
-import { app } from "../../lib/bridge";
+import { Modal } from "antd";
+import { CloudUpload, Coins, Copy, ExternalLink, Pencil, Plus, RefreshCw, Trash2 } from "../../icons";
+import { app, openExternal } from "../../lib/bridge";
 import type { PriceCandidate, PriceFetchRecord, PriceSource } from "../../lib/types";
 import { useToast } from "../Toast";
+import { PriceSourceFormModal } from "./PriceSourceFormModal";
 
 const FREQ_OPTIONS = [
   { value: 0, label: "仅手动" },
@@ -26,23 +27,31 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
   const [fetches, setFetches] = useState<PriceFetchRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchingId, setFetchingId] = useState<string | null>(null);
+  const [fetchingAll, setFetchingAll] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<PriceSource | null>(null);
   const [deleting, setDeleting] = useState<PriceSource | null>(null);
   const [checked, setChecked] = useState<Record<string, Set<string>>>({});
-  const [form] = Form.useForm();
   const toast = useToast();
+
+  // 后端调用偶发卡住时兜底：最多等 8 秒，避免「加载中…」永久转圈。
+  const withTimeout = useCallback(<T,>(p: Promise<T>, fallback: T): Promise<T> => {
+    return Promise.race([p, new Promise<T>((res) => setTimeout(() => res(fallback), 8000))]);
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
-    Promise.all([app.PriceSources(), app.PriceFetches()])
+    Promise.all([
+      withTimeout(app.PriceSources(), []),
+      withTimeout(app.PriceFetches(), []),
+    ])
       .then(([s, f]) => {
         setSources(s ?? []);
         setFetches(f ?? []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [withTimeout]);
 
   useEffect(() => {
     load();
@@ -72,34 +81,11 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
 
   const openCreate = () => {
     setEditing(null);
-    form.resetFields();
-    form.setFieldsValue({ parser: "sc_table", frequencyHours: 24, enabled: true });
     setEditOpen(true);
   };
   const openEdit = (src: PriceSource) => {
     setEditing(src);
-    form.setFieldsValue({ ...src, cookie: src.headers?.Cookie ?? "" });
     setEditOpen(true);
-  };
-  const saveSource = async () => {
-    const v = await form.validateFields();
-    const headers: Record<string, string> = {};
-    if (v.cookie) headers.Cookie = v.cookie;
-    const src: PriceSource = {
-      id: editing?.id ?? "",
-      name: v.name,
-      url: v.url,
-      parser: v.parser ?? "sc_table",
-      frequencyHours: v.frequencyHours ?? 0,
-      area: v.area ?? "",
-      headers,
-      enabled: v.enabled ?? true,
-      lastFetchAt: editing?.lastFetchAt ?? "",
-      createdAt: editing?.createdAt ?? "",
-    };
-    await app.PriceSourceSave(src);
-    setEditOpen(false);
-    load();
   };
 
   const fetchNow = useCallback(
@@ -117,6 +103,35 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
       }
     },
     [defaultChecked, load, toast],
+  );
+
+  const fetchAll = useCallback(async () => {
+    setFetchingAll(true);
+    try {
+      const [n, errs] = await app.PriceFetchAll();
+      if (n > 0) {
+        toast.show(`一键抓取完成：${n} 个价格源已抓取${errs ? `，${errs}` : ""}`, errs ? "warn" : "info");
+      } else {
+        toast.show(`抓取失败：${errs || "没有启用的价格源"}`, "warn");
+      }
+      load();
+    } catch (e) {
+      toast.show(`一键抓取失败：${String(e)}`, "warn");
+    } finally {
+      setFetchingAll(false);
+    }
+  }, [load, toast]);
+
+  const copyUrl = useCallback(
+    async (url: string) => {
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.show("已复制抓取地址", "info");
+      } catch {
+        toast.show("复制失败：剪贴板不可用", "warn");
+      }
+    },
+    [toast],
   );
 
   const applyFetch = useCallback(
@@ -162,8 +177,18 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
             className="flex items-center justify-center w-6 h-6 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft rounded"
             onClick={load}
             title="刷新价格源"
+            disabled={loading || fetchingAll}
           >
             <RefreshCw size={12} />
+          </button>
+          <button
+            className="flex items-center gap-1 px-2 h-6 rounded-md bg-sky-400/15 text-sky-300 text-[11px] cursor-pointer hover:bg-sky-400/25 transition-colors disabled:opacity-50"
+            onClick={() => void fetchAll()}
+            disabled={loading || fetchingAll || sources.length === 0}
+            title="一键抓取全部启用的价格源"
+          >
+            <RefreshCw size={11} className={fetchingAll ? "animate-spin" : ""} />
+            {fetchingAll ? "抓取中…" : "一键抓取"}
           </button>
           <button
             className="flex items-center justify-center w-6 h-6 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft rounded"
@@ -202,11 +227,11 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
                   <span className="ml-auto shrink-0 text-fg-faint text-[10px]">{timeText(src.lastFetchAt)}</span>
                   <button
                     className="shrink-0 px-2 h-6 rounded-md bg-sky-400/15 text-sky-300 text-[11px] cursor-pointer hover:bg-sky-400/25 transition-colors disabled:opacity-50"
-                    disabled={fetchingId === src.id}
+                    disabled={fetchingId === src.id || fetchingAll}
                     onClick={() => void fetchNow(src)}
                     title="立即抓取该价格源"
                   >
-                    {fetchingId === src.id ? "抓取中…" : "抓取"}
+                    {fetchingId === src.id || fetchingAll ? "抓取中…" : "抓取"}
                   </button>
                   <button
                     className="shrink-0 w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev"
@@ -223,7 +248,32 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
                     <Trash2 size={11} />
                   </button>
                 </div>
-                <div className="mt-1 truncate text-fg-faint text-[9.5px] font-mono">{src.url}</div>
+                <div className="mt-1 flex items-start gap-1">
+                  <span
+                    className="min-w-0 flex-1 break-all text-fg-faint text-[9.5px] font-mono leading-snug"
+                    title={src.url}
+                  >
+                    抓取地址：{src.url}
+                  </span>
+                  <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      className="flex items-center justify-center w-5 h-5 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft"
+                      onClick={() => void copyUrl(src.url)}
+                      title="复制抓取地址"
+                    >
+                      <Copy size={10} />
+                    </button>
+                    <button
+                      type="button"
+                      className="flex items-center justify-center w-5 h-5 rounded border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft"
+                      onClick={() => openExternal(src.url)}
+                      title="在浏览器打开抓取地址"
+                    >
+                      <ExternalLink size={10} />
+                    </button>
+                  </span>
+                </div>
               </div>
             ))}
 
@@ -320,47 +370,24 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
         )}
       </div>
 
-      {/* 新建/编辑价格源 */}
-      <Modal
-        title={editing ? "编辑价格源" : "新建价格源"}
+      {/* 新建/编辑价格源（与阅览仓库共用） */}
+      <PriceSourceFormModal
         open={editOpen}
-        onCancel={() => setEditOpen(false)}
-        onOk={() => void saveSource()}
-        okText="保存"
-        cancelText="取消"
-        width={560}
-      >
-        <Form form={form} layout="vertical" size="small">
-          <Form.Item label="名称" name="name" rules={[{ required: true, message: "请输入名称" }]}>
-            <Input placeholder="如：四川造价信息网（期 758）" />
-          </Form.Item>
-          <Form.Item label="网址" name="url" rules={[{ required: true, message: "请输入网址" }]}>
-            <Input placeholder="http://…/pricelist.aspx?period=758" />
-          </Form.Item>
-          <div className="grid grid-cols-2 gap-3">
-            <Form.Item label="抓取频率" name="frequencyHours">
-              <Select options={FREQ_OPTIONS} />
-            </Form.Item>
-            <Form.Item label="地区过滤" name="area">
-              <Input placeholder="如：成都市区（留空取首个报价列）" />
-            </Form.Item>
-          </div>
-          <Form.Item label="Cookie / 自定义请求头（选填）" name="cookie">
-            <Input.TextArea
-              rows={2}
-              placeholder="部分站点（如重庆造价信息网）需要浏览器验证，登录后复制 Cookie 粘贴到这里"
-            />
-          </Form.Item>
-          <Form.Item label="启用" name="enabled" valuePropName="checked">
-            <Switch size="small" />
-          </Form.Item>
-        </Form>
-      </Modal>
+        editing={editing}
+        onClose={() => setEditOpen(false)}
+        onSaved={() => {
+          setEditOpen(false);
+          load();
+        }}
+      />
 
       {/* 删除确认 */}
       <Modal
         title="删除价格源"
         open={!!deleting}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
         onCancel={() => setDeleting(null)}
         onOk={async () => {
           if (deleting) await app.PriceSourceDelete(deleting.id).catch(() => {});

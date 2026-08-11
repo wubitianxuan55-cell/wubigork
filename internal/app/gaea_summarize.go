@@ -33,8 +33,8 @@ func (a *App) GaeaSummarizeFile(rel string, focus string) (GaeaSummaryResult, er
 	if a.client == nil {
 		return GaeaSummaryResult{}, fmt.Errorf("模型服务不可用")
 	}
-	_, featModel, _ := a.routeModel("office")
-	prov, err := provider.New("wubigrok", provider.Config{Name: "office-summary", Model: featModel})
+	featEng, featModel, _ := a.routeModel("office")
+	prov, err := provider.New("wubigrok", provider.Config{Name: "office-summary", Model: featModel, Engine: featEng})
 	if err != nil {
 		return GaeaSummaryResult{}, fmt.Errorf("摘要模型初始化失败: %w", err)
 	}

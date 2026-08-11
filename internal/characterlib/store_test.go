@@ -282,3 +282,79 @@ func TestDrawRandom_FiltersAndLimit(t *testing.T) {
 		t.Fatalf("抽卡数量不应超过库内总数: %d", len(items))
 	}
 }
+
+// TestCapPortraitURL 超大内联头像不随响应返回（防止撑爆 Wails IPC 卡死）。
+func TestCapPortraitURL(t *testing.T) {
+	if got := capPortraitURL("https://imgen.x.ai/xai-image/abc"); got == "" {
+		t.Fatal("远程 URL 不应被截断")
+	}
+	small := "data:image/png;base64," + strings.Repeat("a", 100)
+	if got := capPortraitURL(small); got != small {
+		t.Fatal("小内联头像不应被截断")
+	}
+	huge := "data:image/png;base64," + strings.Repeat("b", maxPortraitDataURL)
+	if got := capPortraitURL(huge); got != "" {
+		t.Fatalf("超大内联头像应置空, got len=%d", len(got))
+	}
+}
+
+// TestUpsertSavesPortraitToFile data URL 剧照保存时单独落盘为文件，
+// 库里只存文件路径（防巨型 base64 撑爆 IPC）。
+func TestUpsertSavesPortraitToFile(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	if s == nil || s.db == nil {
+		t.Fatal("store 不可用")
+	}
+	defer s.Close()
+
+	// 1x1 红色 PNG
+	portrait := "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+	c := &Character{ID: "c1", Name: "测试", Kind: KindCustom, PortraitURL: portrait}
+	if err := s.Upsert(c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Get("c1")
+	if err != nil || got == nil {
+		t.Fatalf("Get: %v %v", err, got)
+	}
+	if got.PortraitURL == portrait {
+		t.Fatal("data URL 应被落盘为文件路径")
+	}
+	if !strings.HasPrefix(got.PortraitURL, dir) {
+		t.Fatalf("应返回文件路径, got %q", got.PortraitURL)
+	}
+	if _, err := os.Stat(got.PortraitURL); err != nil {
+		t.Fatalf("剧照文件不存在: %v", err)
+	}
+}
+
+// TestMigratePortraitsToFiles 既有巨型 base64 剧照启动迁移为文件。
+func TestMigratePortraitsToFiles(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	if s == nil || s.db == nil {
+		t.Fatal("store 不可用")
+	}
+	defer s.Close()
+
+	huge := "data:image/png;base64," + strings.Repeat("A", 400*1024)
+	if err := s.Upsert(&Character{ID: "h1", Name: "巨图", Kind: KindCustom, PortraitURL: huge}); err != nil {
+		t.Fatal(err)
+	}
+	// Upsert 已落盘 → 直接回写一个 data URL 模拟历史遗留行
+	if _, err := s.db.Exec(`UPDATE characters SET portrait_url=? WHERE id='h1'`, huge); err != nil {
+		t.Fatal(err)
+	}
+	n := s.MigratePortraitsToFiles()
+	if n != 1 {
+		t.Fatalf("迁移数 = %d, want 1", n)
+	}
+	got, _ := s.Get("h1")
+	if got == nil || got.PortraitURL == huge {
+		t.Fatalf("迁移后应指向文件: %+v", got)
+	}
+	if _, err := os.Stat(got.PortraitURL); err != nil {
+		t.Fatalf("迁移文件不存在: %v", err)
+	}
+}

@@ -21,6 +21,7 @@ import OrganizationCard from '../components/novel/character/OrganizationCard'
 import RelationshipModal from '../components/novel/character/RelationshipModal'
 import OrganizationEditModal from '../components/novel/character/OrganizationEditModal'
 import PortraitLightbox from '../components/novel/character/PortraitLightbox'
+import { PortraitImg } from '../components/characterlib/PortraitImg'
 import {
   getCharacters, saveOrganization, deleteOrganization, toggleOrgMember,
   saveRelationship, deleteRelationship,
@@ -373,7 +374,7 @@ const CharacterPage: React.FC = () => {
           {/* 头部：剧照 + 名称 + 元信息 + 跳转角色库 */}
           <div className="char-detail-head">
             {ch.portrait_url
-              ? <img className="char-detail-avatar" src={ch.portrait_url} alt={ch.name} />
+              ? <PortraitImg className="char-detail-avatar" src={ch.portrait_url} alt={ch.name} />
               : <div className="char-detail-avatar char-detail-avatar--empty"><UserOutlined /></div>}
             <div className="char-detail-head-main">
               <div className="char-detail-name">{ch.name}</div>
@@ -457,7 +458,9 @@ const CharacterPage: React.FC = () => {
   // ── 抽卡弹窗 ──
   const renderDrawModal = () => (
     <Modal open={drawOpen} title="从角色库抽卡" onCancel={() => setDrawOpen(false)}
-      footer={null} width={680}>
+      footer={null} width={680}
+      // WebView2 冻结 rAF 时关闭动画不结束会残留全屏 wrap 拦截点击：关闭即卸载。
+      destroyOnHidden transitionName="" maskTransitionName="">
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
         <Typography.Text style={{ fontSize: 11, color: C('color-text-secondary') }}>数量</Typography.Text>
         <InputNumber size="small" min={1} max={10} value={drawCount} onChange={v => setDrawCount(v || 5)} />
@@ -490,7 +493,7 @@ const CharacterPage: React.FC = () => {
             return (
               <div key={c.id} className="char-draw-card">
                 {c.portraitUrl
-                  ? <img className="char-draw-avatar" src={c.portraitUrl} alt={c.name} />
+                  ? <PortraitImg className="char-draw-avatar" src={c.portraitUrl} alt={c.name} />
                   : <div className="char-draw-fallback"><UserOutlined /></div>}
                 <div className="char-draw-info">
                   <div className="char-draw-name">{c.name}</div>
@@ -515,7 +518,8 @@ const CharacterPage: React.FC = () => {
     <Modal open={mergeOpen} title={`合并「${projectEdit?.name || ''}」到其他角色`}
       onCancel={() => { setMergeOpen(false); setMergeTargetId('') }}
       onOk={handleMergeConfirm} okText="合并" okButtonProps={{ disabled: !mergeTargetId }}
-      width={460}>
+      width={460}
+      destroyOnHidden transitionName="" maskTransitionName="">
       <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 0 }}>
         用于同一人不同称呼的角色卡（如只是换了名字）。合并后保留目标角色，当前角色的空缺信息会被补充，关系与组织引用自动重定向。
       </Typography.Paragraph>

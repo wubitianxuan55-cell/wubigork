@@ -110,10 +110,47 @@ type ChatResponse struct {
 }
 
 // ChatUsage OpenAI 兼容 usage 字段（流式最后一块通常也携带）。
+// 缓存拆分兼容两种形状：DeepSeek 顶层 prompt_cache_{hit,miss}_tokens，
+// 以及 OpenAI/MiMo 标准 prompt_tokens_details.cached_tokens。
 type ChatUsage struct {
-	PromptTokens     int64 `json:"prompt_tokens,omitempty"`
-	CompletionTokens int64 `json:"completion_tokens,omitempty"`
-	TotalTokens      int64 `json:"total_tokens,omitempty"`
+	PromptTokens            int64  `json:"prompt_tokens,omitempty"`
+	CompletionTokens        int64  `json:"completion_tokens,omitempty"`
+	TotalTokens             int64  `json:"total_tokens,omitempty"`
+	PromptCacheHitTokens    int64  `json:"prompt_cache_hit_tokens,omitempty"`  // DeepSeek 风格
+	PromptCacheMissTokens   int64  `json:"prompt_cache_miss_tokens,omitempty"` // DeepSeek 风格
+	PromptTokensDetails     *struct {
+		CachedTokens int64 `json:"cached_tokens,omitempty"` // OpenAI/MiMo 风格
+	} `json:"prompt_tokens_details,omitempty"`
+}
+
+// CacheHitTokens 返回缓存的 prompt token 数（兼容两种形状）。
+func (u *ChatUsage) CacheHitTokens() int64 {
+	if u == nil {
+		return 0
+	}
+	if u.PromptCacheHitTokens > 0 {
+		return u.PromptCacheHitTokens
+	}
+	if u.PromptTokensDetails != nil {
+		return u.PromptTokensDetails.CachedTokens
+	}
+	return 0
+}
+
+// CacheMissTokens 返回未命中的 prompt token 数；服务端未拆分时按
+// prompt - cache_hit 推算（下限 0），保证统计面板不出现负数。
+func (u *ChatUsage) CacheMissTokens() int64 {
+	if u == nil {
+		return 0
+	}
+	if u.PromptCacheMissTokens > 0 {
+		return u.PromptCacheMissTokens
+	}
+	miss := u.PromptTokens - u.CacheHitTokens()
+	if miss < 0 {
+		return 0
+	}
+	return miss
 }
 
 // SSEChunk 流式响应的一帧

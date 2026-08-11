@@ -104,6 +104,174 @@ func TestParseXLSX(t *testing.T) {
 	}
 }
 
+func TestParseSkipsTitleRowBeforeHeader(t *testing.T) {
+	dir := t.TempDir()
+	csvPath := filepath.Join(dir, "报价单-带标题行.csv")
+	csv := "XX 项目报价单\n" +
+		"序号,材料名称,规格型号,单位,单价(元),备注\n" +
+		"1,HP300 高频液压振动锤,300kW,台班,3200,\n"
+	if err := os.WriteFile(csvPath, []byte(csv), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	pv, err := Parse(csvPath, nil)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if len(pv.Rows) != 1 {
+		t.Fatalf("expected 1 row, got %d: %+v", len(pv.Rows), pv.Rows)
+	}
+	r := pv.Rows[0]
+	if r.Title != "HP300 高频液压振动锤" || r.Unit != "台班" || r.Price != 3200 {
+		t.Errorf("row wrong: %+v", r)
+	}
+	if !strings.Contains(pv.Message, "已跳过前 1 行") {
+		t.Errorf("expected skip-title message, got %q", pv.Message)
+	}
+}
+
+func TestParseSingleCellTitleRowNotMistakenForHeader(t *testing.T) {
+	dir := t.TempDir()
+	csvPath := filepath.Join(dir, "报价单-单格标题.csv")
+	csv := "材料报价清单\n" +
+		"材料名称,规格型号,单位,单价(元),备注\n" +
+		"P.O 42.5 水泥,,吨,480,\n"
+	if err := os.WriteFile(csvPath, []byte(csv), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	pv, err := Parse(csvPath, nil)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if len(pv.Rows) != 1 {
+		t.Fatalf("expected 1 row, got %d: %+v", len(pv.Rows), pv.Rows)
+	}
+	r := pv.Rows[0]
+	if r.Title != "P.O 42.5 水泥" || r.Price != 480 {
+		t.Errorf("row wrong: %+v", r)
+	}
+}
+
+func TestParseVerticalParamTable(t *testing.T) {
+	// 复刻真实「三轴搅拌桩成本测算表」结构：标题行 + 说明行后是
+	// 竖排参数表（参数名|数值|说明|单位），无横向表头。
+	dir := t.TempDir()
+	xlsxPath := filepath.Join(dir, "三轴搅拌桩成本测算表.xlsx")
+	f := excelize.NewFile()
+	defer f.Close()
+	sheet := f.GetSheetName(0)
+	rows := [][]string{
+		{"三轴搅拌桩（SMW工法）成本测算表 —— 测算说明与参数假设"},
+		{"适用桩型：Φ850@600（三轴，中心距600mm，套打一孔）｜水泥掺量20%"},
+		{"一、桩型几何参数"},
+		{"桩径 D (mm)", "850", "设计桩径", "mm"},
+		{"水泥掺量 (%)", "0.2", "水泥质量 / 土体质量", "—"},
+		{"土体密度 (t/m³)", "1.8", "天然土体密度", "t/m³"},
+		{"二、材料参数（单价均为到现场价）"},
+		{"水泥单价 P.O42.5 散装 (元/t)", "450", "华东市场参考 420~480", "元/t"},
+		{"膨润土单价 (元/t)", "900", "市场参考 800~1000", "元/t"},
+		{"外加剂单价 (元/t)", "3500", "市场参考", "元/t"},
+		{"水费（每幅·米） (元)", "1", "制浆用水分摊", "元"},
+		{"三、机械、人工及其他参数"},
+		{"桩机台班费（含制浆站/泵/空压机/吊车配套） (元/台班)", "6500", "三轴搅拌桩机租赁+折旧+动力", "元/台班"},
+		{"班组人工费 (元/台班)", "1200", "机长+操作手+电工+辅助工约6人", "元/台班"},
+		{"置换土外运单价 (元/m³)", "67", "装车+运输+消纳", "元/m³"},
+		{"检测费（每幅·米） (元)", "10", "试块强度、28d无侧限抗压等分摊", "元"},
+		{"四、综合费率"},
+		{"管理费率 (%)", "0.04", "按直接费计", "—"},
+		{"五、主要测算结果（自动）"},
+		{"综合单价（每幅·米，含税） (元)", "856.73", "", ""},
+		{"折合每立方米综合单价 (元/m³)", "573.11", "", ""},
+	}
+	for i, r := range rows {
+		for j, v := range r {
+			cell, err := excelize.CoordinatesToCellName(j+1, i+1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.SetCellValue(sheet, cell, v); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := f.SaveAs(xlsxPath); err != nil {
+		t.Fatal(err)
+	}
+
+	pv, err := Parse(xlsxPath, nil)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if len(pv.Rows) != 10 {
+		t.Fatalf("expected 10 price rows, got %d: %+v", len(pv.Rows), pv.Rows)
+	}
+	byTitle := map[string]Row{}
+	for _, r := range pv.Rows {
+		byTitle[r.Title] = r
+	}
+	for title, wantPrice := range map[string]float64{
+		"水泥单价 P.O42.5 散装 (元/t)":                450,
+		"膨润土单价 (元/t)":                      900,
+		"外加剂单价 (元/t)":                      3500,
+		"水费（每幅·米） (元)":                     1,
+		"桩机台班费（含制浆站/泵/空压机/吊车配套） (元/台班)": 6500,
+		"班组人工费 (元/台班)":                     1200,
+		"置换土外运单价 (元/m³)":                   67,
+		"检测费（每幅·米） (元)":                    10,
+		"综合单价（每幅·米，含税） (元)":               856.73,
+		"折合每立方米综合单价 (元/m³)":               573.11,
+	} {
+		r, ok := byTitle[title]
+		if !ok {
+			t.Errorf("缺少条目 %q", title)
+			continue
+		}
+		if r.Price != wantPrice {
+			t.Errorf("%s price = %v, want %v", title, r.Price, wantPrice)
+		}
+		if r.Skip {
+			t.Errorf("%s should not be skipped: %s", title, r.SkipReason)
+		}
+	}
+	// 自动归类：综合单价/材料/机械/人工/运输/检测。
+	for title, wantCat := range map[string]string{
+		"水泥单价 P.O42.5 散装 (元/t)":                "材料",
+		"桩机台班费（含制浆站/泵/空压机/吊车配套） (元/台班)": "机械",
+		"班组人工费 (元/台班)":                        "人工",
+		"置换土外运单价 (元/m³)":                      "运输",
+		"检测费（每幅·米） (元)":                       "检测",
+		"综合单价（每幅·米，含税） (元)":                 "综合单价",
+	} {
+		if r, ok := byTitle[title]; !ok || r.Category != wantCat {
+			t.Errorf("%s category = %q, want %q", title, byTitle[title].Category, wantCat)
+		}
+	}
+	if !strings.Contains(pv.Message, "纵向参数表") {
+		t.Errorf("expected vertical-table message, got %q", pv.Message)
+	}
+}
+
+// TestSmokeParseRealCostXlsx 用真实工作区测算表验证解析（默认跳过）：
+//   GAEA_SMOKE_COST_XLSX=<xlsx 路径> go test ./internal/gaea/costimport -run TestSmokeParseRealCostXlsx -v
+func TestSmokeParseRealCostXlsx(t *testing.T) {
+	src := os.Getenv("GAEA_SMOKE_COST_XLSX")
+	if src == "" {
+		t.Skip("未设置 GAEA_SMOKE_COST_XLSX")
+	}
+	pv, err := Parse(src, nil)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if len(pv.Rows) == 0 {
+		t.Fatalf("真实文件没有解析出任何条目: %+v", pv)
+	}
+	t.Logf("rows=%d message=%q", len(pv.Rows), pv.Message)
+	for _, r := range pv.Rows {
+		t.Logf("  %q | ¥%v/%s | %s", r.Title, r.Price, r.Unit, r.Source)
+	}
+}
+
 func TestRawTableAndSlugConsistency(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "a.tsv")

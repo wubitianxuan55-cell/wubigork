@@ -72,6 +72,9 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose }) => {
       open={open}
       onCancel={() => { onClose(); setQuery(''); setResults({}); setSearched(false) }}
       footer={null}
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
       width={680}
       styles={{
         body: { maxHeight: '70vh', overflow: 'auto' },

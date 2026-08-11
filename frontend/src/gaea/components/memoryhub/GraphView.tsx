@@ -6,15 +6,16 @@ import type { GraphNode, MemoryGraphView } from "../../lib/types";
 
 const TYPE_COLORS: Record<string, string> = {
   knowledge: "#818cf8", // indigo
-  profile: "#fbbf24", // amber
+  profile: "#a78bfa", // violet
   office: "#34d399", // emerald
   whisper: "#f472b6", // pink
   material: "#38bdf8", // sky：项目资料（固定常用文件）
+  cost: "#fbbf24", // amber：成本条目
 };
 const TYPE_LABELS: Record<string, string> = {
-  knowledge: "知识", profile: "画像", office: "办公记忆", whisper: "聊天记忆", material: "项目资料",
+  knowledge: "知识", profile: "画像", office: "办公记忆", whisper: "聊天记忆", material: "项目资料", cost: "成本",
 };
-const TYPE_KEYS = ["knowledge", "profile", "office", "whisper", "material"] as const;
+const TYPE_KEYS = ["knowledge", "profile", "office", "whisper", "material", "cost"] as const;
 const LINK_COLORS: Record<string, string> = {
   "same-tag": "rgba(129,140,248,0.30)",
   "same-category": "rgba(52,211,153,0.30)",
@@ -77,9 +78,34 @@ export function GraphView(p: { variant?: "page" | "home" }) {
       .onNodeClick((d: any) => setSelected(d));
     graphRef.current = fg;
 
+    // 3d-force-graph 默认画布取 window 尺寸，不会自动适配容器：
+    // 不显式设置的话球体会以整个窗口中心为圆心，在容器里偏移/被裁切。
+    // 这里按容器实际尺寸设置画布，并跟随窗口缩放。
+    const resizeGraph = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 0 && h > 0) {
+        fg.width(w).height(h);
+      }
+    };
+    resizeGraph();
+    window.addEventListener("resize", resizeGraph);
+    // 容器尺寸变化（如侧栏/窗口布局调整）时同步画布。
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(resizeGraph);
+      ro.observe(containerRef.current);
+    }
+
     // 数据就绪后首次渲染
     if (dataRef.current) applyFilter(fg, dataRef.current, typeFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      window.removeEventListener("resize", resizeGraph);
+      ro?.disconnect();
+    };
   }, []);
 
   // 类型过滤变化 → 重新构图
@@ -155,6 +181,9 @@ export function GraphView(p: { variant?: "page" | "home" }) {
         onCancel={() => setSelected(null)}
         footer={null}
         width={480}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
         title={
           <span>
             <span style={{ color: selected ? TYPE_COLORS[selected.type] : undefined }}>

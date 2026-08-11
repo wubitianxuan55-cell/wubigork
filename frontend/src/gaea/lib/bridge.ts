@@ -59,6 +59,7 @@ import type {
   WorkspaceSearchHit,
   CostSummary,
   CostEntry,
+  CostCategory,
   CostImportPreview,
   PriceSource,
   PriceFetchRecord,
@@ -208,6 +209,8 @@ export interface AppBindings {
   // 持久化并重建办公引擎立即生效。
   SetMemoryEnabled(enabled: boolean): Promise<void>;
   MemorySuggestions(): Promise<MemorySuggestionsView>;
+  // LogFrontendError 记录前端错误/主线程卡死诊断到 gaea.log。
+  LogFrontendError(message: string): Promise<void>;
   AcceptMemorySuggestion(candidate: MemorySuggestion): Promise<string>;
   AcceptSkillSuggestion(candidate: SkillSuggestion): Promise<string>;
   SelectTab(tabID: string): Promise<void>;
@@ -281,12 +284,18 @@ export interface AppBindings {
   CostImportAIParse(path: string): Promise<CostImportPreview>;
   // CostImportApply 批量写入确认后的成本条目，返回成功条数。
   CostImportApply(rows: CostEntry[]): Promise<number>;
+  // 多级分类：分类树（含计数）、新建/改名、删除（有子节点或条目时拒绝）。
+  CostCategories(): Promise<CostCategory[]>;
+  CostCategorySave(parentId: number, name: string, sort: number, id: number): Promise<number>;
+  CostCategoryDelete(id: number): Promise<void>;
   // ── 价格源（定时抓取价格更新）──
   PriceSources(): Promise<PriceSource[]>;
   PriceSourceSave(src: PriceSource): Promise<void>;
   PriceSourceDelete(id: string): Promise<void>;
   // PriceFetch 立即抓取价格源，返回待确认候选（存 pending 记录）。
   PriceFetch(id: string): Promise<PriceFetchRecord>;
+  // PriceFetchAll 一键抓取全部启用的价格源（并发），返回成功数 + 失败汇总。
+  PriceFetchAll(): Promise<[number, string]>;
   PriceFetches(): Promise<PriceFetchRecord[]>;
   // PriceFetchApply 确认发布抓取结果（按标题选择），返回写入条数。
   PriceFetchApply(fetchId: string, titles: string[]): Promise<number>;
@@ -456,6 +465,7 @@ const gaeaToGaea: Record<string, string> = {
   ChangeFactType: "GaeaChangeFactType",
   SetMemoryEnabled: "GaeaSetMemoryEnabled",
   MemorySuggestions: "GaeaMemorySuggestions",
+  LogFrontendError: "GaeaLogFrontendError",
   AcceptMemorySuggestion: "GaeaAcceptMemorySuggestion",
   AcceptSkillSuggestion: "GaeaAcceptSkillSuggestion",
   SelectTab: "GaeaSelectTab",
@@ -503,10 +513,14 @@ const gaeaToGaea: Record<string, string> = {
   CostImportPreview: "GaeaCostImportPreview",
   CostImportAIParse: "GaeaCostImportAIParse",
   CostImportApply: "GaeaCostImportApply",
+  CostCategories: "GaeaCostCategories",
+  CostCategorySave: "GaeaCostCategorySave",
+  CostCategoryDelete: "GaeaCostCategoryDelete",
   PriceSources: "GaeaPriceSources",
   PriceSourceSave: "GaeaPriceSourceSave",
   PriceSourceDelete: "GaeaPriceSourceDelete",
   PriceFetch: "GaeaPriceFetch",
+  PriceFetchAll: "GaeaPriceFetchAll",
   PriceFetches: "GaeaPriceFetches",
   PriceFetchApply: "GaeaPriceFetchApply",
   PriceFetchIgnore: "GaeaPriceFetchIgnore",

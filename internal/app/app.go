@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"sync"
 
@@ -203,6 +205,10 @@ func New() *App {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
+	// 卡死诊断端口（仅本机）：即使 Wails 调用队列死锁，这个独立 HTTP
+	// 服务仍可访问，用于抓取 Go 协程栈定位进程级死锁。
+	startDebugServer()
+
 	// 将 slog 输出到文件（GUI 应用无控制台）
 	logFile, err := os.OpenFile(filepath.Join(a.whisperDataRoot, "gaea.log"),
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -254,6 +260,9 @@ func (a *App) Startup(ctx context.Context) {
 
 	// 全局角色库：内置人格 + 助手全部种子化为统一角色
 	a.charLib = characterlib.NewStore(filepath.Join(a.whisperDataRoot, "characterlib"))
+	if n := a.charLib.MigratePortraitsToFiles(); n > 0 {
+		slog.Info("角色库剧照已迁移为文件", "count", n)
+	}
 	if a.charLib != nil {
 		if err := a.charLib.EnsureBuiltins(whisper.PersonalityPresets); err != nil {
 			slog.Error("角色库种子化内置角色失败", "error", err)
@@ -298,6 +307,37 @@ func (a *App) Startup(ctx context.Context) {
 			}
 		}(eid)
 	}
+}
+
+// debugServerPort 诊断端口（仅本机回环）。
+const debugServerPort = "127.0.0.1:18123"
+
+// startDebugServer 启动独立诊断 HTTP 服务：
+//   GET /healthz → "ok"（进程存活探针）
+//   GET /stack   → 全部 goroutine 栈（死锁定位）
+// 独立 goroutine + 独立端口，不经过 Wails IPC，卡死时仍可响应。
+func startDebugServer() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/stack", func(w http.ResponseWriter, _ *http.Request) {
+		buf := make([]byte, 1<<20)
+		n := goruntime.Stack(buf, true)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write(buf[:n])
+	})
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("debug server panic recovered", "panic", r)
+			}
+		}()
+		srv := &http.Server{Addr: debugServerPort, Handler: mux}
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Warn("诊断端口启动失败（不影响主程序）", "error", err)
+		}
+	}()
 }
 
 // initImageBackend 根据配置初始化图片生成后端

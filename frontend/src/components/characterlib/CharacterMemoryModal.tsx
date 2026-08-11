@@ -55,7 +55,8 @@ const CharacterMemoryModal: React.FC<Props> = ({ open, character, onClose }) => 
 
   return (
     <>
-      <Modal open={open} onCancel={onClose} footer={null} width={680} destroyOnClose
+      <Modal open={open} onCancel={onClose} footer={null} width={680}
+        destroyOnHidden transitionName="" maskTransitionName=""
         title={
           <span style={{ color: C('color-text') }}>
             <HeartOutlined style={{ color: 'var(--gaea-glow)', marginRight: 8 }} />

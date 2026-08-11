@@ -33,6 +33,9 @@ const PlotBranchModal: React.FC<PlotBranchModalProps> = ({ open, onClose, nodeID
       open={open}
       onCancel={onClose}
       footer={null}
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
       width={640}
       styles={{ body: { background: 'transparent', maxHeight: '70vh', overflow: 'auto' }, header: { background: 'transparent' } }}
     >

@@ -186,6 +186,94 @@ func TestBridge_Stream_EmptyModel(t *testing.T) {
 	}
 }
 
+// TestBridge_Stream_RelaysUsage 验证用量透传：ai.SSEChunk 携带 usage 时，
+// bridge 必须产出 ChunkUsage（统计面板依赖它；此前丢弃导致 Token/成本全为 0）。
+func TestBridge_Stream_RelaysUsage(t *testing.T) {
+	mc := &mockClient{chunks: []ai.SSEChunk{{
+		Done: true,
+		Usage: &ai.ChatUsage{
+			PromptTokens:          1200,
+			CompletionTokens:      200,
+			TotalTokens:           1400,
+			PromptCacheHitTokens:  800,
+			PromptCacheMissTokens: 400,
+		},
+	}}}
+	SetClient(mc)
+	p := &Provider{name: "gaea", model: "deepseek-v4-flash", client: mc}
+
+	ch, err := p.Stream(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	var got []provider.Chunk
+	for c := range ch {
+		got = append(got, c)
+	}
+
+	var usage *provider.Usage
+	sawDone := false
+	for _, c := range got {
+		if c.Type == provider.ChunkUsage && c.Usage != nil {
+			usage = c.Usage
+		}
+		if c.Type == provider.ChunkDone {
+			sawDone = true
+		}
+	}
+	if usage == nil {
+		t.Fatalf("未收到 ChunkUsage: %+v", got)
+	}
+	if usage.PromptTokens != 1200 || usage.CompletionTokens != 200 || usage.TotalTokens != 1400 {
+		t.Errorf("usage tokens 转换错误: %+v", usage)
+	}
+	if usage.CacheHitTokens != 800 || usage.CacheMissTokens != 400 {
+		t.Errorf("usage cache 拆分错误: %+v", usage)
+	}
+	if !sawDone {
+		t.Error("缺少 ChunkDone")
+	}
+}
+
+// TestBridge_Stream_UsageOpenAIStyle 验证 OpenAI 风格 prompt_tokens_details
+// 也能被转换为缓存拆分（cache 命中数不丢）。
+func TestBridge_Stream_UsageOpenAIStyle(t *testing.T) {
+	mc := &mockClient{chunks: []ai.SSEChunk{{
+		Done: true,
+		Usage: &ai.ChatUsage{
+			PromptTokens:     1000,
+			CompletionTokens: 50,
+			TotalTokens:      1050,
+			PromptTokensDetails: &struct {
+				CachedTokens int64 `json:"cached_tokens,omitempty"`
+			}{CachedTokens: 700},
+		},
+	}}}
+	SetClient(mc)
+	p := &Provider{name: "gaea", model: "deepseek-v4-flash", client: mc}
+
+	ch, err := p.Stream(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	var usage *provider.Usage
+	for c := range ch {
+		if c.Type == provider.ChunkUsage && c.Usage != nil {
+			usage = c.Usage
+		}
+	}
+	if usage == nil {
+		t.Fatal("未收到 ChunkUsage")
+	}
+	if usage.CacheHitTokens != 700 || usage.CacheMissTokens != 300 {
+		t.Errorf("OpenAI 风格缓存拆分错误: %+v", usage)
+	}
+}
+
 // TestBridge_FeatureEngine 验证办公功能级绑定（SetFeature）注入：
 // Provider 构造时 model 取功能模型（provider model 为空时），
 // Stream 请求携带功能引擎，使办公 agent 走指定引擎而非全局活跃引擎。
@@ -211,6 +299,38 @@ func TestBridge_FeatureEngine(t *testing.T) {
 	}
 	if mc.gotReq.Model != "deepseek-v4-flash" {
 		t.Errorf("Model = %q, want %q（办公功能绑定模型）", mc.gotReq.Model, "deepseek-v4-flash")
+	}
+}
+
+// TestBridge_PerCallEngine 验证 provider.Config.Engine 优先于功能绑定全局：
+// 成本/知识 AI 解析等办公调用把 routeModel("office") 解析出的引擎显式传入，
+// 避免与 GaeaInit 注入的全局（func_gaea_*）不一致时，把云端模型名发到
+// 本地引擎导致 "Model not found"。
+func TestBridge_PerCallEngine(t *testing.T) {
+	mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+	SetClient(mc)
+	SetFeature("herdsman", "Qwen3.5-35B-A3B-MTP") // 全局注入的是另一个引擎
+	defer SetFeature("", "")
+
+	p, err := provider.New("wubigrok", provider.Config{
+		Name: "cost-import-ai", Model: "deepseek-v4-flash", Engine: "deepseek",
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := p.Stream(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	}); err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	if mc.gotReq == nil {
+		t.Fatal("client 未收到请求")
+	}
+	if mc.gotReq.EngineID != "deepseek" {
+		t.Errorf("EngineID = %q, want %q（按调用显式引擎）", mc.gotReq.EngineID, "deepseek")
+	}
+	if mc.gotReq.Model != "deepseek-v4-flash" {
+		t.Errorf("Model = %q, want %q", mc.gotReq.Model, "deepseek-v4-flash")
 	}
 }
 

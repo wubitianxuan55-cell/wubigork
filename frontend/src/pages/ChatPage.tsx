@@ -777,7 +777,8 @@ const ChatPage: React.FC = () => {
         <FeatureModelBar feature="chat" label="聊天" />
       </div>
 
-      <Modal title="语音设置" open={showVoiceSettings} onCancel={() => setShowVoiceSettings(false)} footer={null} width={480} centered destroyOnClose>
+      <Modal title="语音设置" open={showVoiceSettings} onCancel={() => setShowVoiceSettings(false)} footer={null} width={480} centered
+        destroyOnHidden transitionName="" maskTransitionName="">
         <VoiceSettingsPanel />
       </Modal>
 

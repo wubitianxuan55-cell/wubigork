@@ -1,5 +1,6 @@
 import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useState, useEffect } from "react";
+import { Modal } from "antd";
 import {
   SquarePen, Brain, Blocks, BookOpen, MessageSquare,
   PanelLeftClose, PanelLeftOpen, Loader2, FileText,
@@ -444,7 +445,15 @@ export function Sidebar({
                   <button
                     className="flex-1 h-6 rounded-md text-[11px] text-fg-faint bg-transparent border border-border-soft cursor-pointer transition-[background,color] hover:text-warning hover:border-warning/50"
                     onClick={() => {
-                      if (window.confirm("确定清空当前会话的事实底座？")) onClearFactBase();
+                      // 原生 confirm 会同步阻塞 WebView2 主线程，改用异步弹窗。
+                      Modal.confirm({
+                        title: "清空事实底座",
+                        content: "确定清空当前会话的事实底座？",
+                        okText: "清空",
+                        okButtonProps: { danger: true },
+                        cancelText: "取消",
+                        onOk: () => onClearFactBase(),
+                      });
                     }}
                   >
                     清空

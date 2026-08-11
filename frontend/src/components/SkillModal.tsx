@@ -63,6 +63,9 @@ const SkillModal: React.FC<SkillModalProps> = ({ open, onClose }) => {
       open={open}
       onCancel={onClose}
       footer={null}
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
       width={640}
       styles={{
         body: { maxHeight: '65vh', overflow: 'auto' },

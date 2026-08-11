@@ -11,6 +11,7 @@
 // 缓存安全: 纯前端 mock，不触及 Go 内核。
 
 import type {
+  CostCategory,
   CostSummary,
   PriceFetchRecord,
   PriceSource,
@@ -40,13 +41,40 @@ let pinnedMock: string[] = [];
 // Tab 浏览/引用与产物「沉淀到成本库」流程联调。
 let costMock: CostSummary[] = [
   {
-    name: "hp300", title: "HP300 高频液压振动锤", category: "机械", unit: "台班",
+    name: "hp300", title: "HP300 高频液压振动锤", category: "机械", categoryPath: "机械/桩基机械", unit: "台班",
     price: 3200, spec: "300kW", source: "市场询价", tags: ["振动锤", "桩基"], status: "现行", updatedAt: "",
   },
   {
-    name: "cement", title: "P.O 42.5 水泥", category: "材料", unit: "吨",
+    name: "cement", title: "P.O 42.5 水泥", category: "水泥", categoryPath: "材料/土建材料/水泥及水泥制品", unit: "吨",
     price: 480, spec: "", source: "定额", tags: [], status: "现行", updatedAt: "",
   },
+];
+
+// 多级分类树 mock（与后端默认树一致，供浏览器联调）。
+let costCategoriesMock: CostCategory[] = [
+  { id: 1, parentId: 0, name: "人工", sort: 0, count: 0, children: [
+    { id: 11, parentId: 1, name: "普工", sort: 0, count: 0 },
+    { id: 12, parentId: 1, name: "技工", sort: 0, count: 0 },
+  ] },
+  { id: 2, parentId: 0, name: "材料", sort: 0, count: 0, children: [
+    { id: 21, parentId: 2, name: "土建材料", sort: 0, count: 0, children: [
+      { id: 211, parentId: 21, name: "水泥及水泥制品", sort: 0, count: 1 },
+      { id: 212, parentId: 21, name: "砂石", sort: 0, count: 0 },
+      { id: 213, parentId: 21, name: "钢材", sort: 0, count: 0 },
+    ] },
+    { id: 22, parentId: 2, name: "安装材料", sort: 0, count: 0, children: [
+      { id: 221, parentId: 22, name: "电线电缆", sort: 0, count: 0 },
+      { id: 222, parentId: 22, name: "管材管件", sort: 0, count: 0 },
+    ] },
+    { id: 23, parentId: 2, name: "周转材料", sort: 0, count: 0 },
+  ] },
+  { id: 3, parentId: 0, name: "机械", sort: 0, count: 0, children: [
+    { id: 31, parentId: 3, name: "桩基机械", sort: 0, count: 1 },
+  ] },
+  { id: 4, parentId: 0, name: "运输", sort: 0, count: 0 },
+  { id: 5, parentId: 0, name: "检测", sort: 0, count: 0 },
+  { id: 6, parentId: 0, name: "综合单价", sort: 0, count: 0 },
+  { id: 7, parentId: 0, name: "其他", sort: 0, count: 0 },
 ];
 
 // 价格源 mock：内置重庆/四川两个造价信息源，抓取返回样例候选（更新/新增）。
@@ -786,6 +814,9 @@ export function makeMockApp(): AppBindings {
     async MemorySuggestions() {
       return { memories: [], skills: [], generatedAt: new Date().toISOString(), available: false, source: "mock" };
     },
+    async LogFrontendError(message: string) {
+      console.error("[frontend]", message);
+    },
     async AcceptMemorySuggestion(_candidate: MemorySuggestion) {
       return "mock-memory-path";
     },
@@ -980,11 +1011,60 @@ export function makeMockApp(): AppBindings {
     async CostSearch(query: string, category: string, status: string) {
       const q = (query ?? "").toLowerCase();
       return costMock.filter((e) => {
-        if (category && category !== "all" && e.category !== category) return false;
+        const path = e.categoryPath || e.category || "";
+        if (category && category !== "all" && path !== category && !path.startsWith(category + "/")) return false;
         if (status && status !== "all" && e.status !== status) return false;
         if (!q) return true;
         return [e.name, e.title, e.spec, e.source].some((s) => (s ?? "").toLowerCase().includes(q));
       });
+    },
+    async CostCategories() {
+      return costCategoriesMock;
+    },
+    async CostCategorySave(parentId: number, name: string, sort: number, id: number) {
+      if (id > 0) {
+        const walk = (nodes: CostCategory[]): CostCategory | null => {
+          for (const n of nodes) {
+            if (n.id === id) {
+              n.name = name;
+              n.sort = sort;
+              return n;
+            }
+            const hit = walk(n.children ?? []);
+            if (hit) return hit;
+          }
+          return null;
+        };
+        walk(costCategoriesMock);
+        return id;
+      }
+      const nextId = Math.max(0, ...costCategoriesMock.flatMap((n) => [n.id, ...(n.children ?? []).map((c) => c.id)])) + 1;
+      const node: CostCategory = { id: nextId, parentId, name, sort, count: 0, children: [] };
+      if (parentId === 0) {
+        costCategoriesMock.push(node);
+      } else {
+        const walk = (nodes: CostCategory[]): boolean => {
+          for (const n of nodes) {
+            if (n.id === parentId) {
+              n.children = [...(n.children ?? []), node];
+              return true;
+            }
+            if (walk(n.children ?? [])) return true;
+          }
+          return false;
+        };
+        walk(costCategoriesMock);
+      }
+      return nextId;
+    },
+    async CostCategoryDelete(id: number) {
+      const walk = (nodes: CostCategory[]): CostCategory[] =>
+        nodes.filter((n) => {
+          if (n.id === id) return false;
+          n.children = walk(n.children ?? []);
+          return true;
+        });
+      costCategoriesMock = walk(costCategoriesMock);
     },
     async CostGet(name: string) {
       const e = costMock.find((c) => c.name === name);
@@ -1052,6 +1132,13 @@ export function makeMockApp(): AppBindings {
       priceFetchMock = [rec, ...priceFetchMock.filter((f) => f.id !== rec.id)];
       if (src) src.lastFetchAt = rec.fetchedAt;
       return rec;
+    },
+    async PriceFetchAll() {
+      const enabled = priceSourcesMock.filter((s) => s.enabled);
+      for (const src of enabled) {
+        await this.PriceFetch(src.id);
+      }
+      return [enabled.length, ""];
     },
     async PriceFetches() {
       return priceFetchMock;

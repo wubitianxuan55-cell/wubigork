@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/cost"
@@ -122,6 +123,67 @@ func (a *App) GaeaPriceFetch(id string) (pricefeed.FetchRecord, error) {
 	}
 	_ = store.TouchSource(src.ID, res.FetchedAt)
 	return rec, nil
+}
+
+// GaeaPriceFetchAll 一键抓取全部启用的价格源（并发）。单个源失败不阻断
+// 其他源；返回成功抓取数与失败汇总（无失败时汇总为空串）。
+func (a *App) GaeaPriceFetchAll() (int, string) {
+	store := a.hubPriceStore()
+	sources := store.ListSources()
+	var enabled []pricefeed.Source
+	for _, src := range sources {
+		if src.Enabled {
+			enabled = append(enabled, src)
+		}
+	}
+	if len(enabled) == 0 {
+		return 0, "没有启用的价格源，请先添加并启用"
+	}
+
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+
+	var (
+		mu   sync.Mutex
+		ok   int
+		errs []string
+		wg   sync.WaitGroup
+	)
+	for _, src := range enabled {
+		wg.Add(1)
+		go func(src pricefeed.Source) {
+			defer wg.Done()
+			res, err := pricefeed.Fetch(ctx, src, a.hubCostStore())
+			if err != nil {
+				mu.Lock()
+				errs = append(errs, src.Name+": "+err.Error())
+				mu.Unlock()
+				return
+			}
+			res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
+			rec := pricefeed.FetchRecord{
+				SourceID: src.ID, SourceName: src.Name, URL: src.URL,
+				Period: res.Period, FetchedAt: res.FetchedAt, Status: "pending",
+				Candidates: res.Candidates,
+			}
+			if err := store.SaveFetch(rec); err != nil {
+				mu.Lock()
+				errs = append(errs, src.Name+": "+err.Error())
+				mu.Unlock()
+				return
+			}
+			_ = store.TouchSource(src.ID, res.FetchedAt)
+			mu.Lock()
+			ok++
+			mu.Unlock()
+		}(src)
+	}
+	wg.Wait()
+	return ok, strings.Join(errs, "；")
 }
 
 // GaeaPriceFetches 返回最近抓取记录（含 pending 待确认）。

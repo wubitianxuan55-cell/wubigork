@@ -78,7 +78,9 @@ export function SkillCaptureModal({
       cancelText="取消"
       confirmLoading={saving}
       width={640}
-      destroyOnClose
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
         <div>

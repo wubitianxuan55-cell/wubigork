@@ -52,6 +52,6 @@ describe("CostImportModal 成本导入", () => {
     await screen.findByDisplayValue("HP300 高频液压振动锤");
 
     fireEvent.click(screen.getByText("AI 智能解析"));
-    await waitFor(() => expect(screen.getByText(/AI 智能解析完成/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/AI 智能解析完成，请核对后确认导入。/)).toBeTruthy());
   });
 });

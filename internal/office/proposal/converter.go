@@ -20,14 +20,31 @@ func ConvertToMarkdown(filePath string) (string, error) {
 	// 尝试 MarkItDown
 	if markitdownAvailable() {
 		result, err := convertWithMarkItDown(filePath)
-		if err == nil && result != "" {
+		if err == nil && result != "" && !looksBinary(result) {
 			return result, nil
 		}
 		// MarkItDown 失败，回退到内置
 	}
 
 	// 内置转换器
-	return builtinConvert(filePath)
+	md, err := builtinConvert(filePath)
+	if err != nil {
+		return "", err
+	}
+	if looksBinary(md) {
+		return "", fmt.Errorf("转换结果异常：输出仍是原始文件字节（可能是编码异常的扫描件），请重试或更换文件")
+	}
+	return md, nil
+}
+
+// looksBinary 判断转换结果是否仍是原始文件字节（历史版本曾把 PDF 原始
+// 字节当 markdown 存进方案 JSON，导致文件膨胀且 AI 无法使用）。
+// 命中 PDF 魔数或含 NUL 字节即视为未真正转换。
+func looksBinary(s string) bool {
+	if strings.HasPrefix(s, "%PDF-") {
+		return true
+	}
+	return strings.IndexByte(s, 0) >= 0
 }
 
 // convertFile 转换文件：文本提取优先，扫描件/文字过少时回退 OCR。

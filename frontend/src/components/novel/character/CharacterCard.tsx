@@ -3,6 +3,7 @@ import { Typography, Tag } from 'antd'
 import { EditOutlined, UserOutlined } from '@ant-design/icons'
 import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../../../utils/theme'
 import type { CharacterData } from '../../../types'
+import { PortraitImg } from '../../characterlib/PortraitImg'
 
 export interface CharacterCardProps {
   character: CharacterData
@@ -47,7 +48,7 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ character, relationCount,
       <div className="char-card-portrait">
         {ch.portrait_url ? (
           <>
-            <img src={ch.portrait_url} alt={ch.name} />
+            <PortraitImg src={ch.portrait_url} alt={ch.name} />
             <div
               className="char-card-portrait-overlay"
               onClick={(e) => { e.stopPropagation(); onPortraitFullscreen(ch.portrait_url!) }}

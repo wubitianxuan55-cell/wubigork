@@ -53,14 +53,14 @@ type costSearch struct{}
 
 func (costSearch) Name() string { return "cost_search" }
 func (costSearch) Description() string {
-	return "搜索成本库：按关键词/分类/状态查询历史单价（机械/材料/人工/运输/检测等），供成本测算引用；不填参数返回成本库概览。"
+	return "搜索成本库：按关键词/分类路径/状态查询历史单价，供成本测算引用；分类支持完整路径（如「材料/钢材」，含子分类）或一级分类名；不填参数返回成本库概览。"
 }
 func (costSearch) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
   "query":{"type":"string","description":"搜索关键词（标题/规格/来源/正文，可选）"},
-  "category":{"type":"string","description":"分类过滤（可选）：机械/材料/人工/运输/检测/其他"},
+  "category":{"type":"string","description":"分类过滤（可选）：完整路径如「材料/钢材」（含子分类），或一级分类名 机械/材料/人工/运输/检测/综合单价/其他"},
   "status":{"type":"string","description":"状态过滤（可选）：现行/草稿/已归档"},
   "limit":{"type":"integer","description":"返回条数上限（默认20，最大50）"}
 }
@@ -289,7 +289,7 @@ func costOverview(store *cost.Store) string {
 	b.WriteString("## 成本库概览\n\n")
 	b.WriteString("| 分类 | 条目数 |\n|------|--------|\n")
 	total := 0
-	for _, cat := range []string{"机械", "材料", "人工", "运输", "检测", "其他"} {
+	for _, cat := range []string{"机械", "材料", "人工", "运输", "检测", "综合单价", "其他"} {
 		if count, ok := catCount[cat]; ok {
 			fmt.Fprintf(&b, "| %s | %d |\n", cat, count)
 			total += count
@@ -318,7 +318,8 @@ func (costSave) Schema() json.RawMessage {
 "properties":{
   "name":{"type":"string","description":"条目名称（唯一键，可选；不填自动从标题生成）"},
   "title":{"type":"string","description":"标题，如 HP300 高频液压振动锤"},
-  "category":{"type":"string","description":"分类：机械/材料/人工/运输/检测/其他（默认其他）"},
+  "category":{"type":"string","description":"分类（叶子名）：机械/材料/人工/运输/检测/综合单价/其他（默认其他）"},
+  "categoryPath":{"type":"string","description":"完整分类路径，如 材料/钢材（可选；不填则取 category）"},
   "unit":{"type":"string","description":"单位：台班/吨/m³/工日等"},
   "price":{"type":"number","description":"单价（元）"},
   "spec":{"type":"string","description":"规格型号，如 300kW"},
@@ -336,16 +337,17 @@ func (costSave) CompactSchema() json.RawMessage { return compactSchema["cost_sav
 
 func (costSave) Execute(_ context.Context, args json.RawMessage) (string, error) {
 	var p struct {
-		Name     string  `json:"name,omitempty"`
-		Title    string  `json:"title"`
-		Category string  `json:"category,omitempty"`
-		Unit     string  `json:"unit,omitempty"`
-		Price    float64 `json:"price"`
-		Spec     string  `json:"spec,omitempty"`
-		Source   string  `json:"source,omitempty"`
-		Tags     string  `json:"tags,omitempty"`
-		Status   string  `json:"status,omitempty"`
-		Body     string  `json:"body,omitempty"`
+		Name         string  `json:"name,omitempty"`
+		Title        string  `json:"title"`
+		Category     string  `json:"category,omitempty"`
+		CategoryPath string  `json:"categoryPath,omitempty"`
+		Unit         string  `json:"unit,omitempty"`
+		Price        float64 `json:"price"`
+		Spec         string  `json:"spec,omitempty"`
+		Source       string  `json:"source,omitempty"`
+		Tags         string  `json:"tags,omitempty"`
+		Status       string  `json:"status,omitempty"`
+		Body         string  `json:"body,omitempty"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", fmt.Errorf("参数无效: %w", err)
@@ -394,9 +396,9 @@ func (costSave) Execute(_ context.Context, args json.RawMessage) (string, error)
 	}
 	e := cost.Entry{
 		Name: name, Title: strings.TrimSpace(p.Title), Category: category,
-		Unit: strings.TrimSpace(p.Unit), Price: p.Price, Spec: strings.TrimSpace(p.Spec),
-		Source: strings.TrimSpace(p.Source), Tags: tags, Status: status,
-		Body: strings.TrimSpace(p.Body),
+		CategoryPath: strings.TrimSpace(p.CategoryPath), Unit: strings.TrimSpace(p.Unit),
+		Price: p.Price, Spec: strings.TrimSpace(p.Spec), Source: strings.TrimSpace(p.Source),
+		Tags: tags, Status: status, Body: strings.TrimSpace(p.Body),
 	}
 	if err := store.Save(e); err != nil {
 		return "", fmt.Errorf("保存失败: %w", err)

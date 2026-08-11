@@ -29,7 +29,7 @@ func (a *writingState) ChatCharacter(userMsg string) (map[string]interface{}, er
 	}
 	return map[string]interface{}{
 		"reply":         reply,
-		"characters":    cf.Characters,
+		"characters":    capCharacters(cf.Characters),
 		"organizations": cf.Organizations,
 		"relationships": cf.Relationships,
 	}, nil
@@ -49,7 +49,7 @@ func (a *writingState) GenerateCharacters(count int) (map[string]interface{}, er
 		return nil, err
 	}
 	return map[string]interface{}{
-		"characters":    cf.Characters,
+		"characters":    capCharacters(cf.Characters),
 		"organizations": cf.Organizations,
 		"relationships": cf.Relationships,
 	}, nil
@@ -124,7 +124,7 @@ func (a *writingState) ChatCharacterDetail(charID, userMsg string) (map[string]i
 	}
 	return map[string]interface{}{
 		"reply":         reply,
-		"characters":    cf.Characters,
+		"characters":    capCharacters(cf.Characters),
 		"organizations": cf.Organizations,
 		"relationships": cf.Relationships,
 	}, nil
@@ -199,11 +199,32 @@ func (a *writingState) GetCharacters() map[string]interface{} {
 	if cf == nil {
 		return nil
 	}
+	// 项目 characters.json 里可能存着 1MB+ 的 base64 剧照（抽卡/入库时带入）。
+	// 全量返回会撑爆 Wails IPC 导致界面卡死：超大内联头像不随列表响应返回。
 	return map[string]interface{}{
-		"characters":    cf.Characters,
+		"characters":    capCharacters(cf.Characters),
 		"organizations": cf.Organizations,
 		"relationships": cf.Relationships,
 	}
+}
+
+// capCharacters 批量截断超大内联头像（复制一份，避免改动 agent 缓存）。
+func capCharacters(chars []types.Character) []types.Character {
+	out := make([]types.Character, len(chars))
+	for i, c := range chars {
+		c.PortraitURL = capPortraitURL(c.PortraitURL)
+		out[i] = c
+	}
+	return out
+}
+
+// capPortraitURL 超大内联头像置空（远程 URL 不受影响），防止巨型 base64
+// 载荷进入 Wails IPC / WebView2 渲染导致界面卡死。
+func capPortraitURL(s string) string {
+	if strings.HasPrefix(s, "data:") && len(s) > 300*1024 {
+		return ""
+	}
+	return s
 }
 
 // GenerateCharacterPortrait 生成角色剧照
@@ -446,7 +467,7 @@ func (a *writingState) MergeCharacters(keepID, mergeID string) (map[string]inter
 		return nil, fmt.Errorf("保存角色失败: %w", err)
 	}
 	return map[string]interface{}{
-		"characters":    cf.Characters,
+		"characters":    capCharacters(cf.Characters),
 		"organizations": cf.Organizations,
 		"relationships": cf.Relationships,
 	}, nil

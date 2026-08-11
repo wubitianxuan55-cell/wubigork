@@ -106,6 +106,9 @@ const CommandBar: React.FC<CommandBarProps> = ({ selectedText, onAccept, onClose
       open
       onCancel={onClose}
       width={700}
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
       footer={
         editedText
           ? [

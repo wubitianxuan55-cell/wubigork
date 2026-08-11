@@ -21,6 +21,8 @@ const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
 }) => (
   <Modal title={null} open={open} onCancel={onClose} footer={null}
     width={480}
+    // WebView2 冻结 rAF 时关闭动画不结束会残留全屏 wrap 拦截点击：关闭即卸载。
+    destroyOnHidden transitionName="" maskTransitionName=""
     styles={{ body: { background: 'var(--bg-glass)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', padding: 24 } }}
   >
     {org && (

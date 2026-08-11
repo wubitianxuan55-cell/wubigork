@@ -8,7 +8,7 @@ interface Point { x: number; y: number; label: string; }
 
 function storageKey(sessionKey: string) { return `gaea.stats.${sessionKey}`; }
 
-interface StoredData { turns: TurnRecord[]; steps: StepRecord[]; }
+export interface StoredData { turns: TurnRecord[]; steps: StepRecord[]; }
 
 function loadData(sessionKey: string): StoredData {
   try {

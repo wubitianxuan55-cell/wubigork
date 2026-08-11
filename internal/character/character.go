@@ -215,7 +215,9 @@ func (a *Agent) GeneratePortrait(ctx context.Context, charID string, model strin
 	}
 
 	// 保存剧照到项目 portraits/ 子目录
-	a.savePortraitToProject(portraitURL, charID)
+	if saved := a.savePortraitToProject(portraitURL, charID); saved != "" {
+		portraitURL = saved // 落盘成功则引用文件路径，避免巨型 base64 进 characters.json
+	}
 
 	// 写入角色
 	for i := range cf.Characters {
@@ -266,6 +268,16 @@ func (a *Agent) savePortraitToProject(imageData string, charID string) string {
 	if commaIdx < 0 {
 		return ""
 	}
+	ext := ".png"
+	meta := imageData[5:commaIdx]
+	switch {
+	case strings.Contains(meta, "jpeg") || strings.Contains(meta, "jpg"):
+		ext = ".jpg"
+	case strings.Contains(meta, "webp"):
+		ext = ".webp"
+	case strings.Contains(meta, "gif"):
+		ext = ".gif"
+	}
 	data, err := base64.StdEncoding.DecodeString(imageData[commaIdx+1:])
 	if err != nil {
 		return ""
@@ -276,7 +288,7 @@ func (a *Agent) savePortraitToProject(imageData string, charID string) string {
 		return ""
 	}
 
-	filename := charID + ".png"
+	filename := charID + ext
 	fullPath := filepath.Join(portraitDir, filename)
 	if err := os.WriteFile(fullPath, data, 0644); err != nil {
 		return ""
@@ -294,9 +306,11 @@ func (a *Agent) SetPortrait(charID string, imageData string) error {
 	found := false
 	for i := range cf.Characters {
 		if cf.Characters[i].ID == charID {
-			a.savePortraitToProject(imageData, charID)
-			// 保持原始 URL（data URL 或远程 URL），前端 WebView 才能显示
-			cf.Characters[i].PortraitURL = imageData
+			if saved := a.savePortraitToProject(imageData, charID); saved != "" {
+				cf.Characters[i].PortraitURL = saved // 文件路径
+			} else {
+				cf.Characters[i].PortraitURL = imageData // 远程 URL 原样保留
+			}
 			found = true
 			break
 		}

@@ -116,7 +116,8 @@ export default function WhisperMemoryModal({ facts, personalityID, onFactsChange
           </div>
         ))}
       </div>
-      <Modal title={detailFact?.subject||'Detail'} open={!!detailFact} onCancel={()=>setDetailFact(null)} footer={null} width={520}>
+      <Modal title={detailFact?.subject||'Detail'} open={!!detailFact} onCancel={()=>setDetailFact(null)} footer={null} width={520}
+        destroyOnHidden transitionName="" maskTransitionName="">
         {detailFact && (
           <div style={{fontSize:13,lineHeight:1.9,color:'var(--whisper-ink)'}}>
             <p style={{fontSize:14,whiteSpace:'pre-wrap'}}>{detailFact.summary}</p>

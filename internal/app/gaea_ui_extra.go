@@ -654,6 +654,12 @@ func (a *App) GaeaPickFiles() []FilePickResult {
 	return out
 }
 
+// GaeaLogFrontendError 记录前端错误/卡死诊断到 gaea.log（前端全局
+// error handler、ErrorBoundary 与主线程冻结检测器调用）。
+func (a *App) GaeaLogFrontendError(message string) {
+	slog.Error("[frontend] " + message)
+}
+
 // FilePickResult 是文件选择结果。
 type FilePickResult struct {
 	Path string `json:"path"`

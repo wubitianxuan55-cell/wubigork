@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 // ═══ WebView2 rAF 节流降级 ═══════════════════════════════════════════
 // 背景（2026-08-06 根因定位）：Wails WebView2 在特定状态下把 requestAnimationFrame
@@ -16,16 +17,13 @@ import App from './App.tsx'
 // 正常浏览器（60fps）不触发降级，不影响性能敏感组件（3D 图谱等）。
 ;(function ensureRAF() {
   if (typeof window === 'undefined' || !window.requestAnimationFrame) return
-  let frames = 0
-  let last = performance.now()
   let degraded = false
-  let healthy = false
 
   const degrade = (fps: number) => {
     if (degraded) return
     degraded = true
     document.documentElement.classList.add('gaea-raf-degraded')
-    console.warn(`[gaea-rAF] requestAnimationFrame 帧率过低(${fps}fps)，降级为 setTimeout(16ms) 并关闭 antd 弹层动画`)
+    console.warn(`[gaea-rAF] requestAnimationFrame 帧率过低(${fps}fps)，降级为 setTimeout(16ms) 并关闭入场动画`)
     const nativeCancel = window.cancelAnimationFrame.bind(window)
     window.requestAnimationFrame = (cb) => {
       const start = performance.now()
@@ -37,23 +35,102 @@ import App from './App.tsx'
     }
   }
 
+  // 持续探测（而非只在启动时测一次）：WebView2 可能在运行中才把 rAF
+  // 节流到 ~1fps（失焦/后台误判等），晚发节流同样会让卡片/弹层动画卡首帧。
+  let frames = 0
+  let last = performance.now()
+  let lastBeat = performance.now()
+  let sawFrame = false
+
   const probe = (now: number) => {
+    if (degraded) return
+    sawFrame = true
+    lastBeat = now
     frames++
     if (now - last >= 1000) {
       const fps = Math.round((frames * 1000) / (now - last))
-      if (fps < 30) degrade(fps)
-      else healthy = true
+      if (fps < 30) {
+        degrade(fps)
+        return
+      }
       frames = 0
       last = now
     }
-    if (!degraded) window.requestAnimationFrame(probe)
+    window.requestAnimationFrame(probe)
   }
   window.requestAnimationFrame(probe)
 
-  // 安全网：3s 内未确认健康 rAF（可能被完全冻结）也降级，避免探测永远不触发
+  // 安全网 1：3s 内 rAF 一次都没跑（启动即被冻结）也降级。
   window.setTimeout(() => {
-    if (!degraded && !healthy) degrade(0)
+    if (!degraded && !sawFrame) degrade(0)
   }, 3000)
+  // 安全网 2：看门狗——运行中 rAF 被彻底冻结（probe 停止推进）也降级。
+  window.setInterval(() => {
+    if (!degraded && performance.now() - lastBeat > 8000) degrade(0)
+  }, 5000)
+})()
+
+// ═══ 前端错误与主线程卡死诊断（写入 gaea.log）══════════════════
+// 反复出现「界面卡死、什么都点不了」：把 window error / 未处理 rejection /
+// 主线程长任务 / 心跳中断全部上报到 gaea.log，下次卡死可直接定位根因。
+;(function installFrontendDiagnostics() {
+  const log = (tag: string, msg: string) => {
+    import('./gaea/lib/bridge')
+      .then(({ app }) => app.LogFrontendError(`[${tag}] ${msg}`).catch(() => {}))
+      .catch(() => {})
+  }
+
+  window.addEventListener('error', (e) => {
+    log('window.onerror', `${e.message} @ ${e.filename}:${e.lineno}\n${e.error?.stack || ''}`)
+  })
+  window.addEventListener('unhandledrejection', (e) => {
+    const r = e.reason
+    log('unhandledrejection', r instanceof Error ? `${r.message}\n${r.stack}` : String(r))
+  })
+
+  // WebView2 的原生 confirm/alert/prompt 会同步阻塞主线程且可能不显示，
+  // 一旦被触发整个界面“卡死”（零 CPU、无错误、定时器全停）。全局替换为
+  // 非阻塞实现：记录日志并按“取消/空值”返回，杜绝卡死；需要确认的交互
+  // 必须改用 antd 的异步 Modal.confirm。
+  const freezeGuard = (kind: string) => (msg?: string) => {
+    log('blocked-sync-dialog', `${kind}: ${String(msg ?? '').slice(0, 200)}`)
+    return false
+  }
+  try {
+    window.confirm = freezeGuard('confirm') as typeof window.confirm
+    window.alert = freezeGuard('alert') as typeof window.alert
+    window.prompt = (() => null) as typeof window.prompt
+  } catch { /* 某些环境只读，忽略 */ }
+
+  // 主线程心跳：若被长时间占用（死循环/巨量渲染），恢复后上报卡死时长。
+  let lastBeat = Date.now()
+  setInterval(() => { lastBeat = Date.now() }, 500)
+  setInterval(() => {
+    const stall = Date.now() - lastBeat
+    if (stall > 2000) {
+      log('main-thread-stall', `主线程被阻塞约 ${Math.round(stall / 1000)}s`)
+      lastBeat = Date.now()
+    }
+  }, 8000)
+
+  // longtask：单次 >50ms 的主线程长任务（死循环/巨量渲染的元凶）。
+  let longLogAt = 0
+  try {
+    const obs = new PerformanceObserver((list) => {
+      const now = Date.now()
+      if (now - longLogAt < 10000) return
+      for (const entry of list.getEntries()) {
+        const e = entry as unknown as { duration: number; attribution?: { name?: string; containerType?: string }[] }
+        const culprit = e.attribution?.length
+          ? e.attribution.map((a) => a.name || a.containerType || '').filter(Boolean).join(';')
+          : ''
+        log('longtask', `duration=${Math.round(e.duration)}ms culprit=${culprit || 'unknown'}`)
+        longLogAt = now
+        break
+      }
+    })
+    obs.observe({ entryTypes: ['longtask'] })
+  } catch { /* 不支持时忽略 */ }
 })()
 
 // ═══ 固定窗口缩放 ═══════════════════════════════════════════════════
@@ -78,6 +155,10 @@ import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {/* 根级兜底：antd 弹层等 portal 内渲染异常也会被捕获并记录，
+        避免整个窗口变成“什么都点不了”的死图。 */}
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )

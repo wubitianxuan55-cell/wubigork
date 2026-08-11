@@ -18,6 +18,21 @@ type Store struct {
 	dataDir string
 }
 
+// maxPortraitDataURL 内联头像 data URL 的响应上限。角色库里出现过
+// 1.5MB 的 base64 头像，抽卡/列表一次性返回多条会撑爆 Wails IPC
+// 消息队列，导致整个界面“卡死”（渲染正常但所有调用石沉大海）。
+// 超限的内联头像不随列表/抽卡响应返回，详情页也做同样限制。
+const maxPortraitDataURL = 300 * 1024
+
+// capPortraitURL 超大内联头像置空（远程 URL 不受影响），避免巨型
+// base64 载荷进入 Wails IPC / WebView2 渲染。
+func capPortraitURL(s string) string {
+	if strings.HasPrefix(s, "data:") && len(s) > maxPortraitDataURL {
+		return ""
+	}
+	return s
+}
+
 // NewStore 创建存储（dataDir 下 characterlib.db）。
 func NewStore(dataDir string) *Store {
 	return &Store{db: GetDatabase(dataDir), dataDir: dataDir}
@@ -131,6 +146,8 @@ func (s *Store) Upsert(c *Character) error {
 		c.CreatedAt = ts
 	}
 	c.UpdatedAt = ts
+	// 剧照单独落盘为文件，角色 JSON/响应只存路径（防巨型 base64 撑爆 IPC）。
+	c.PortraitURL = savePortraitFile(s.dataDir, c.ID, c.PortraitURL)
 
 	tags, _ := json.Marshal(c.Tags)
 	samples, _ := json.Marshal(c.DialogueSamples)
@@ -504,6 +521,7 @@ func scanCharacter(row interface{ Scan(...any) error }) (*Character, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.PortraitURL = capPortraitURL(c.PortraitURL)
 	_ = json.Unmarshal([]byte(tags), &c.Tags)
 	_ = json.Unmarshal([]byte(samples), &c.DialogueSamples)
 	_ = json.Unmarshal([]byte(dims), &c.Dims)

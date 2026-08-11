@@ -294,6 +294,7 @@ type Config struct {
 	BaseURL string         // OpenAI-compatible endpoint
 	Model   string         // model id
 	APIKey  string         // resolved from api_key_env
+	Engine  string         // 模型中心引擎 id（bridge 类 provider 用；空 = 功能绑定/全局活跃）
 	Extra   map[string]any // kind-specific options
 }
 

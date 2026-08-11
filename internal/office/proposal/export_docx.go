@@ -160,7 +160,15 @@ func renderTOCSections(doc *document.Document, ss []ProposalSection, prefix stri
 }
 
 func numbering(sec ProposalSection, prefix string, chapter, idx int) (string, int) {
-	switch sec.Level {
+	level := sec.Level
+	if level <= 0 {
+		if prefix == "" {
+			level = 1
+		} else {
+			level = 2
+		}
+	}
+	switch level {
 	case 1:
 		return fmt.Sprintf("第%d章", idx), 1
 	case 2:

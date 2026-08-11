@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/costimport"
+	"github.com/gaea/gaea/internal/gaea/knowledgeimport"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
@@ -66,36 +68,52 @@ func (a *App) GaeaCostImportAIParse(path string) (CostImportPreview, error) {
 		return CostImportPreview{}, fmt.Errorf("模型服务不可用，请先配置办公功能模型")
 	}
 	columns, rows, err := costimport.RawTable(abs)
+	textFallback := ""
 	if err != nil {
-		return CostImportPreview{}, err
+		// PDF 等无法直接读表的文件：先做格式转换（文本提取，扫描件自动 OCR），
+		// 把转换后的文本交给 AI 归一化——绝不把原始 PDF 字节直接发给模型。
+		textFallback, err = knowledgeimport.ExtractText(abs)
+		if err != nil {
+			return CostImportPreview{}, fmt.Errorf("解析文件失败: %w", err)
+		}
+		if !pdfTextUsable(textFallback) {
+			return CostImportPreview{}, fmt.Errorf("PDF 转换/OCR 结果异常（提取内容过短或为乱码），请确认文件为可读文本或清晰扫描件后重试")
+		}
 	}
-	if len(rows) == 0 {
+	if textFallback == "" && len(rows) == 0 {
 		return CostImportPreview{}, fmt.Errorf("文件没有数据行")
 	}
-	if len(rows) > 50 {
-		rows = rows[:50]
-	}
 
-	_, featModel, _ := a.routeModel("office")
-	prov, err := provider.New("wubigrok", provider.Config{Name: "cost-import-ai", Model: featModel})
+	featEng, featModel, _ := a.routeModel("office")
+	prov, err := provider.New("wubigrok", provider.Config{Name: "cost-import-ai", Model: featModel, Engine: featEng})
 	if err != nil {
 		return CostImportPreview{}, fmt.Errorf("AI 解析模型初始化失败: %w", err)
 	}
 
 	var table strings.Builder
-	table.WriteString(strings.Join(columns, " | "))
-	table.WriteString("\n")
-	for _, r := range rows {
-		table.WriteString(strings.Join(r, " | "))
+	if textFallback != "" {
+		table.WriteString(textFallback)
+	} else {
+		if len(rows) > 50 {
+			rows = rows[:50]
+		}
+		table.WriteString(strings.Join(columns, " | "))
 		table.WriteString("\n")
+		for _, r := range rows {
+			table.WriteString(strings.Join(r, " | "))
+			table.WriteString("\n")
+		}
 	}
 
 	const sysPrompt = "你是成本数据提取助手。把报价/成本表格的每一行归一化为成本条目 JSON 数组，规则：\n" +
 		"title=材料/设备/项目名称（去掉序号前缀）；spec=规格型号（无则空串）；unit=单位（台班/吨/m³/工日等，无则空串）；\n" +
 		"price=数字单价（元，去掉货币符号与千分位，无法识别填 0）；source=来源（取文件中的供应商/产地/备注，无则\"导入文件\"）；\n" +
-		"category 只能是 机械/材料/人工/运输/检测/其他 之一。\n" +
+		"category 只能是 机械/材料/人工/运输/检测/综合单价/其他 之一。\n" +
 		"只输出 JSON 数组，不要代码块标记，不要任何解释。"
 	user := "请提取以下表格（表头 + 样本行）：\n\n" + table.String()
+	if textFallback != "" {
+		user = "请从以下文件文本中提取成本条目（若为 Markdown 表格，按表头与行提取）：\n\n" + table.String()
+	}
 
 	ctx := a.ctx
 	if ctx == nil {
@@ -229,11 +247,43 @@ func toCostImportPreview(pv *costimport.Preview, aiUsed bool) CostImportPreview 
 
 func normalizeAICategory(s string) string {
 	switch strings.TrimSpace(s) {
-	case "机械", "材料", "人工", "运输", "检测", "其他":
+	case "机械", "材料", "人工", "运输", "检测", "综合单价", "其他":
 		return strings.TrimSpace(s)
 	default:
 		return "其他"
 	}
+}
+
+// pdfTextUsable 判断 PDF 转换/OCR 出的文本是否可读：长度过短、乱码占比
+// 过高（问号/替换符）或有效字符过少时判定不可用，避免把乱码喂给模型。
+func pdfTextUsable(s string) bool {
+	s = strings.TrimSpace(s)
+	if len([]rune(s)) < 20 {
+		return false
+	}
+	total := 0
+	bad := 0
+	meaningful := 0
+	for _, r := range s {
+		if unicode.IsSpace(r) {
+			continue
+		}
+		total++
+		if r == '?' || r == '\ufffd' {
+			bad++
+			continue
+		}
+		if unicode.Is(unicode.Han, r) || unicode.IsLetter(r) || unicode.IsDigit(r) {
+			meaningful++
+		}
+	}
+	if total == 0 {
+		return false
+	}
+	if bad*100/total > 40 {
+		return false
+	}
+	return meaningful >= 10
 }
 
 func filepathBase(p string) string {

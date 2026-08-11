@@ -45,7 +45,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
   const [form, setForm] = useState<KnowledgeSaveRequest>({
     name: "", title: "", category: "", phase: "", discipline: "",
     tags: [], status: "现行", version: 1, author: "", reviewer: "",
-    source: "", body: "", updatedAt: "", createdAt: "",
+    source: "", body: "",
   });
 
   const loadList = useCallback(() => {
@@ -217,7 +217,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
   const startAdd = () => {
     setIsAdding(true); setIsEditing(false);
     setExpanded(null); setExpandedEntry(null);
-    setForm({ name: "", title: "", category: "", phase: "", discipline: "", tags: [], status: "现行", version: 1, author: "", reviewer: "", source: "", body: "", updatedAt: "", createdAt: "" });
+    setForm({ name: "", title: "", category: "", phase: "", discipline: "", tags: [], status: "现行", version: 1, author: "", reviewer: "", source: "", body: "" });
   };
 
   const startEdit = (entry: KnowledgeEntry) => {
@@ -446,6 +446,9 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
         onCancel={() => setHistoryOpen(false)}
         footer={null}
         width={560}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
       >
         <div className="space-y-2 max-h-[46vh] overflow-auto">
           {historyRows.length === 0 ? (
@@ -468,6 +471,9 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
         title={`合并相似条目到「${mergeTarget}」`}
         open={mergeOpen}
         onCancel={() => setMergeOpen(false)}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
         footer={
           <div className="flex items-center justify-end gap-2">
             <button className="px-3 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft text-[12px]" onClick={() => setMergeOpen(false)} type="button">取消</button>

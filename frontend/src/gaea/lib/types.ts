@@ -422,7 +422,8 @@ export interface KnowledgeSummary {
   category: string;
   tags: string[];
   status: string;
-  updatedAt: string;
+  // 新建/导入时前端不发送时间戳（Go 端 time.Time 不接受空串），留空由后端置零。
+  updatedAt?: string;
 }
 
 // KnowledgeEntry is the full knowledge entry including body.
@@ -434,7 +435,8 @@ export interface KnowledgeEntry extends KnowledgeSummary {
   version: number;
   author: string;
   reviewer: string;
-  createdAt: string;
+  // 新建/导入时前端不发送时间戳（Go 端 time.Time 不接受空串），留空由后端置零。
+  createdAt?: string;
 }
 
 /** Alias for clarity when saving. */
@@ -731,17 +733,30 @@ export interface CostSummary {
   name: string;
   title: string;
   category: string;
+  // 完整分类路径：一级/二级/…/叶子（多级分类保存与树形过滤依据）。
+  categoryPath: string;
   unit: string;
   price: number;
   spec: string;
   source: string;
   tags: string[];
   status: string;
-  updatedAt: string;
+  // 新建/导入时前端不发送时间戳（Go 端 time.Time 不接受空串），留空由后端置零。
+  updatedAt?: string;
 }
 export interface CostEntry extends CostSummary {
   body: string;
-  createdAt: string;
+  createdAt?: string;
+}
+
+// 成本分类树节点（多级：parentId 自引用，children 为子树）。
+export interface CostCategory {
+  id: number;
+  parentId: number;
+  name: string;
+  sort: number;
+  count: number;
+  children?: CostCategory[];
 }
 
 // 导入预览中的一条候选成本条目（前端可编辑后确认导入）。

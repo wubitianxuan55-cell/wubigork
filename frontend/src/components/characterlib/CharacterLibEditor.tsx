@@ -14,6 +14,7 @@ import {
   saveCharacter, generateFill, generateRandom, generatePortrait,
   type LibraryCharacter,
 } from '../../api/characterlib'
+import { PortraitImg } from './PortraitImg'
 import './character-detail.css'
 
 const { Text } = Typography
@@ -318,6 +319,9 @@ const CharacterLibEditor: React.FC<Props> = ({
       closable={false}
       width={900}
       className="cd-modal"
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
       styles={{
         content: { padding: 0, borderRadius: 16, overflow: 'hidden', background: 'var(--md-sys-color-surface-container)' },
         body: { padding: 0 },
@@ -346,7 +350,7 @@ const CharacterLibEditor: React.FC<Props> = ({
               {/* 立绘档案卡（竖向 3:4，剧照完整可见） */}
               <div className="cd-hero cd-sheen">
                 {form.portraitUrl ? (
-                  <img className="cd-hero-img" src={form.portraitUrl} alt={form.name || '角色立绘'} />
+                  <PortraitImg className="cd-hero-img" src={form.portraitUrl} alt={form.name || '角色立绘'} />
                 ) : (
                   <div className="cd-hero-ph">{form.name?.slice(0, 1) || '?'}</div>
                 )}
@@ -379,7 +383,7 @@ const CharacterLibEditor: React.FC<Props> = ({
                   onChange={e => patch({ portraitUrl: e.target.value })}
                   placeholder="https://... 或 data:image/..." />
                 {form.portraitUrl && (
-                  <img className="cd-thumb" src={form.portraitUrl} alt="立绘预览" />
+                  <PortraitImg className="cd-thumb" src={form.portraitUrl} alt="立绘预览" />
                 )}
               </div>
               <div className="cd-grid2">

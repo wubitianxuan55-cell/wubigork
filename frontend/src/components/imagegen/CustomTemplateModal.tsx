@@ -43,6 +43,9 @@ const CustomTemplateModal: React.FC<CustomTemplateModalProps> = ({
     open={open}
     onOk={onSave}
     onCancel={onCancel}
+    destroyOnHidden
+    transitionName=""
+    maskTransitionName=""
     okText="保存"
     cancelText="取消"
     width={440}

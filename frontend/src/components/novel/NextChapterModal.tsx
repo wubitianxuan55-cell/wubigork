@@ -51,6 +51,9 @@ const NextChapterModal: React.FC<NextChapterModalProps> = ({
       open={open}
       onCancel={onClose}
       footer={null}
+      destroyOnHidden
+      transitionName=""
+      maskTransitionName=""
       width={600}
       styles={{ body: { background: 'transparent', maxHeight: '70vh', overflow: 'auto' }, header: { background: 'transparent' } }}
     >

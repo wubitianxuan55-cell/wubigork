@@ -254,6 +254,9 @@ export function OfficeMemoryLibrary() {
         title="查重合并：疑似重复记忆"
         open={dupOpen}
         onCancel={() => setDupOpen(false)}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
         footer={
           <div className="flex items-center gap-2">
             <span className="mr-auto text-[11px] text-fg-faint">{dups.length} 对疑似重复</span>

@@ -78,3 +78,24 @@ func TestAssemble_Numbering(t *testing.T) {
 		}
 	}
 }
+
+// TestAssemble_LevelZeroSections 回归：真实历史数据章节不带层级（Level 0），
+// 顶层必须编号为「第N章」而不是 ".N"，标题层级为 # 而不是 ###。
+func TestAssemble_LevelZeroSections(t *testing.T) {
+	p := &Proposal{
+		Title: "双流黄甲土壤修复技术方案",
+		Sections: []ProposalSection{
+			{Title: "项目概述与背景"},
+			{Title: "编制依据"},
+		},
+	}
+	md := Assemble(p)
+	for _, want := range []string{"# 第1章 项目概述与背景", "# 第2章 编制依据"} {
+		if !containsAny(md, want) {
+			t.Errorf("装配结果缺少 %q:\n%s", want, md)
+		}
+	}
+	if containsAny(md, "### .1") || containsAny(md, ".1 项目概述") {
+		t.Errorf("Level 0 顶层章节不应出现 .N 编号:\n%s", md)
+	}
+}

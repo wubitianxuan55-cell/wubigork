@@ -777,6 +777,62 @@ html.gaea-raf-degraded [class*='ant-fade-leave'] {
   display: none !important;
 }
 
+/* ── antd Modal 动画永久禁用（WebView2 冻结 rAF → 关闭动画永不结束、
+   遮罩残留挡住所有点击，表现为界面卡死）。弹窗始终即时显示/即时隐藏：
+   leave 阶段 display:none 立即消失且不拦截点击，rc-motion 随后卸载。 */
+.ant-modal-mask,
+.ant-modal-wrap,
+.ant-modal {
+  animation: none !important;
+  transition: none !important;
+}
+.ant-modal-mask {
+  opacity: 1 !important;
+}
+.ant-modal-mask[class*='-enter'],
+.ant-modal-mask[class*='-appear'],
+.ant-modal-wrap[class*='-enter'],
+.ant-modal-wrap[class*='-appear'],
+.ant-modal[class*='-enter'],
+.ant-modal[class*='-appear'] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+.ant-modal-mask[class*='-leave'],
+.ant-modal-wrap[class*='-leave'],
+.ant-modal[class*='-leave'] {
+  display: none !important;
+}
+/* antd v5 的 .ant-modal-wrap 本身不参与 motion 类：关闭时它只靠内容 zoom
+   动画结束的回调才置 display:none，rAF 冻结时该回调永不触发 → 全屏 wrap
+   残留拦截所有点击（界面看似正常、实际点不了）。兜底：mask 进入 leave 的
+   瞬间把同根 wrap/mask 一并隐藏，等 rc-motion 完成卸载。 */
+.ant-modal-root:has(.ant-modal-mask.ant-fade-leave) .ant-modal-wrap,
+.ant-modal-root:has(.ant-modal-mask.ant-fade-leave) .ant-modal-mask {
+  display: none !important;
+}
+
+/* Drawer（含侧滑面板）同样禁用动画，避免关闭动画卡死残留。 */
+.ant-drawer-mask,
+.ant-drawer {
+  animation: none !important;
+  transition: none !important;
+}
+.ant-drawer-mask {
+  opacity: 1 !important;
+}
+.ant-drawer-mask[class*='-leave'],
+.ant-drawer[class*='-leave'] {
+  display: none !important;
+}
+.ant-drawer-mask[class*='-enter'],
+.ant-drawer-mask[class*='-appear'],
+.ant-drawer[class*='-enter'],
+.ant-drawer[class*='-appear'] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 /* WebView2 compat: Popover/Tooltip zoom-big animation breaks rc-align positioning
    (popup lands ~10x viewport height off-screen; click shows feedback but no popup).
    Disable popup zoom animations globally: open shows instantly, positioning correct. */
@@ -797,7 +853,10 @@ html.gaea-raf-degraded [class*='ant-fade-leave'] {
 html.gaea-raf-degraded .ai-console-panel,
 html.gaea-raf-degraded .page-enter,
 html.gaea-raf-degraded .launcher-card,
-html.gaea-raf-degraded .chat-message-item {
+html.gaea-raf-degraded .chat-message-item,
+html.gaea-raf-degraded .chat-row,
+html.gaea-raf-degraded .ml-card,
+html.gaea-raf-degraded .ccard {
   animation: none !important;
 }
 

@@ -178,6 +178,12 @@ export function GaeaCommands():Promise<Array<app.CommandInfo>>;
 
 export function GaeaContext():Promise<app.ContextInfo>;
 
+export function GaeaCostCategories():Promise<Array<app.CostCategoryView>>;
+
+export function GaeaCostCategoryDelete(arg1:number):Promise<void>;
+
+export function GaeaCostCategorySave(arg1:number,arg2:string,arg3:number,arg4:number):Promise<number>;
+
 export function GaeaCostDelete(arg1:string):Promise<void>;
 
 export function GaeaCostGet(arg1:string):Promise<app.CostEntry>;
@@ -262,6 +268,8 @@ export function GaeaListSessions():Promise<Array<app.SessionMeta>>;
 
 export function GaeaListWorkspaces():Promise<Array<app.WorkspaceView>>;
 
+export function GaeaLogFrontendError(arg1:string):Promise<void>;
+
 export function GaeaLoginProvider(arg1:string):Promise<void>;
 
 export function GaeaLogoutProvider(arg1:string):Promise<void>;
@@ -311,6 +319,8 @@ export function GaeaPinnedMaterials():Promise<Array<app.FileSearchHit>>;
 export function GaeaPreview(arg1:string):Promise<app.PreviewResult>;
 
 export function GaeaPriceFetch(arg1:string):Promise<pricefeed.FetchRecord>;
+
+export function GaeaPriceFetchAll():Promise<number|string>;
 
 export function GaeaPriceFetchApply(arg1:string,arg2:Array<string>):Promise<number>;
 

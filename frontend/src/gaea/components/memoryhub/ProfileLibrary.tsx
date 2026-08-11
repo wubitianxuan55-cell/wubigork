@@ -181,6 +181,9 @@ export function ProfileLibrary() {
         onCancel={() => setModalOpen(false)}
         onOk={handleSubmit}
         okText="保存"
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
         cancelText="取消"
         width={560}
       >
@@ -217,6 +220,9 @@ export function ProfileLibrary() {
         onCancel={() => setDeleteName(null)}
         onOk={handleDelete}
         okText="删除"
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
         okButtonProps={{ danger: true }}
         cancelText="取消"
       >

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react";
 
 type ToastKind = "info" | "warn";
 
@@ -25,8 +25,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 2000);
   }, []);
 
+  // 上下文值稳定化：消费方把 toast 放进 useEffect 依赖时，
+  // 弹出一条 toast 不应导致其 effect 反复重跑（否则解析失败会触发
+  // 无限重解析循环，UI 卡死、确认按钮始终无反应）。
+  const ctx = useMemo(() => ({ show }), [show]);
+
   return (
-    <ToastContext.Provider value={{ show }}>
+    <ToastContext.Provider value={ctx}>
       {children}
       <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-1.5 pointer-events-none">
         {toasts.map((t) => (

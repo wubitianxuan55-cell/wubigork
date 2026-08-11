@@ -94,7 +94,7 @@ func Parse(path string, store *cost.Store) (*Preview, error) {
 	case ".csv", ".tsv":
 		columns, rows, err = readCSV(abs, ext == ".tsv")
 	default:
-		return nil, fmt.Errorf("暂不支持 %s 格式导入，请使用 xlsx/csv（PDF/图片可用 AI 解析）", ext)
+		return nil, fmt.Errorf("暂不支持 %s 格式导入，请使用 xlsx/csv（PDF 可用 AI 解析）", ext)
 	}
 	if err != nil {
 		return nil, err
@@ -110,10 +110,22 @@ func Parse(path string, store *cost.Store) (*Preview, error) {
 		return pv, nil
 	}
 
-	// 表头识别：columns 首行包含单价/名称等关键词视为表头。
+	// 表头识别：首行包含单价/名称等关键词且多列非空视为表头；否则在后续
+	// 前几行里找真正的表头（报价单/测算表常在表头前带标题行、说明行）。
 	colMap := map[int]columnField{}
-	if isHeader(columns) {
+	dataRows := rows
+	if likelyHeader(columns) {
 		colMap = mapColumns(columns)
+	} else if header := findHeaderRow(rows); header >= 0 {
+		columns = rows[header]
+		dataRows = rows[header+1:]
+		pv.Columns = append([]string(nil), columns...)
+		pv.Message = fmt.Sprintf("已跳过前 %d 行标题/说明，识别到表头。", header+1)
+		colMap = mapColumns(columns)
+	} else if vertical := buildVerticalRows(rows); len(vertical) > 0 {
+		pv.Message = fmt.Sprintf("未识别到横向表头，已按纵向参数表提取 %d 条单价类条目（其余参数行已跳过）。", len(vertical))
+		pv.Rows = MatchRows(vertical, store)
+		return pv, nil
 	} else {
 		pv.Message = "未识别到表头（缺少名称/单价等列），可尝试 AI 智能解析。"
 	}
@@ -124,13 +136,103 @@ func Parse(path string, store *cost.Store) (*Preview, error) {
 		}
 	}
 
-	dataRows := rows
 	if len(dataRows) > MaxRows {
 		dataRows = dataRows[:MaxRows]
 		pv.Message = strings.TrimSpace(pv.Message + " ") + fmt.Sprintf("仅展示前 %d 行，其余请分批导入。", MaxRows)
 	}
 	pv.Rows = MatchRows(buildRows(dataRows, colMap), store)
 	return pv, nil
+}
+
+// findHeaderRow 在前几行数据中查找真正的表头行（报价单常在表头前带
+// 项目标题/说明行），找不到返回 -1。
+func findHeaderRow(rows [][]string) int {
+	limit := 5
+	if len(rows) < limit {
+		limit = len(rows)
+	}
+	for i := 0; i < limit; i++ {
+		if likelyHeader(rows[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
+// buildVerticalRows 纵向参数表兜底：无横向表头时，若行结构为
+// 「参数名 | 数值 | 说明 | 单位」的竖排参数表（成本测算表/报价参数表常见），
+// 提取名称/单位含“元”的单价类条目，其余几何/费率等参数行跳过。
+// 识别失败返回空（调用方回退到 AI 智能解析提示）。
+func buildVerticalRows(rows [][]string) []Row {
+	matches := 0
+	for i, r := range rows {
+		if i >= 8 {
+			break
+		}
+		if isVerticalParamRow(r) {
+			matches++
+		}
+	}
+	if matches < 4 {
+		return nil
+	}
+
+	out := make([]Row, 0, len(rows))
+	for _, r := range rows {
+		if len(r) < 2 || strings.TrimSpace(r[0]) == "" {
+			continue
+		}
+		price, ok := parsePrice(r[1])
+		if !ok {
+			continue
+		}
+		title := strings.TrimSpace(r[0])
+		unit := ""
+		if len(r) >= 4 {
+			unit = strings.TrimSpace(r[3])
+		} else if len(r) == 3 {
+			unit = strings.TrimSpace(r[2])
+		}
+		if !strings.Contains(title, "元") && !strings.Contains(unit, "元") {
+			continue
+		}
+		row := Row{Title: title, Price: price, Unit: unit, Category: normalizeCategory(title)}
+		if len(r) >= 3 {
+			row.Source = strings.TrimSpace(r[2])
+		}
+		row.Raw = strings.Join(r, " | ")
+		out = append(out, row)
+	}
+	return out
+}
+
+// isVerticalParamRow 判断一行是否符合「名称 | 数值 | 说明 | 单位」竖排结构，
+// 避免把横向数据表（首列为序号）误判成参数表。
+func isVerticalParamRow(r []string) bool {
+	if len(r) < 4 {
+		return false
+	}
+	name := strings.TrimSpace(r[0])
+	if name == "" || isNumeric(name) {
+		return false
+	}
+	if _, ok := parsePrice(r[1]); !ok {
+		return false
+	}
+	if strings.TrimSpace(r[2]) == "" {
+		return false
+	}
+	unit := strings.TrimSpace(r[3])
+	return unit != "" && !isNumeric(unit)
+}
+
+func isNumeric(s string) bool {
+	clean := strings.NewReplacer(",", "", "，", "", " ", "").Replace(strings.TrimSpace(s))
+	if clean == "" {
+		return false
+	}
+	_, err := strconv.ParseFloat(clean, 64)
+	return err == nil
 }
 
 // MatchRows 对候选行做既有条目匹配（按标题/名称精确匹配），补全
@@ -307,6 +409,22 @@ func isHeader(row []string) bool {
 	return false
 }
 
+// likelyHeader 判断一行是否更像真正的表头：含成本字段关键词且至少两列
+// 非空，避免把单格标题行（如「材料报价清单」「XX 项目测算表」）误当表头，
+// 导致后续把真实表头当数据行解析。
+func likelyHeader(row []string) bool {
+	if !isHeader(row) {
+		return false
+	}
+	nonEmpty := 0
+	for _, c := range row {
+		if strings.TrimSpace(c) != "" {
+			nonEmpty++
+		}
+	}
+	return nonEmpty >= 2
+}
+
 func mapColumns(header []string) map[int]columnField {
 	out := map[int]columnField{}
 	for c, h := range header {
@@ -395,13 +513,11 @@ func parsePrice(s string) (float64, bool) {
 func normalizeCategory(s string) string {
 	s = strings.TrimSpace(s)
 	switch s {
-	case "机械", "材料", "人工", "运输", "检测", "其他":
+	case "机械", "材料", "人工", "运输", "检测", "综合单价", "其他":
 		return s
 	}
-	for _, kw := range []string{"机械", "设备", "台班", "租赁"} {
-		if strings.Contains(s, kw) {
-			return "机械"
-		}
+	if strings.Contains(s, "综合单价") {
+		return "综合单价"
 	}
 	for _, kw := range []string{"材料", "水泥", "钢筋", "砂石", "钢材"} {
 		if strings.Contains(s, kw) {
@@ -411,7 +527,12 @@ func normalizeCategory(s string) string {
 	if strings.Contains(s, "人工") || strings.Contains(s, "工日") || strings.Contains(s, "工资") {
 		return "人工"
 	}
-	if strings.Contains(s, "运输") || strings.Contains(s, "运费") {
+	for _, kw := range []string{"机械", "设备", "台班", "租赁"} {
+		if strings.Contains(s, kw) {
+			return "机械"
+		}
+	}
+	if strings.Contains(s, "运输") || strings.Contains(s, "运费") || strings.Contains(s, "外运") {
 		return "运输"
 	}
 	if strings.Contains(s, "检测") || strings.Contains(s, "试验") {
