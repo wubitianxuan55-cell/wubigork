@@ -1,7 +1,6 @@
 import React from 'react'
 import GaeaApp from '../gaea/App'
 import { LocaleProvider } from '../gaea/lib/i18n'
-import FeatureModelBar from '../components/FeatureModelBar'
 import '../gaea/styles.css'
 import '../gaea/tailwind.css'
 import '../gaea/redesign.css'
@@ -18,10 +17,6 @@ function GaeaPage() {
         <LocaleProvider>
           <GaeaApp />
         </LocaleProvider>
-      </div>
-      {/* 绑定模型卡（左下角浮动） */}
-      <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
-        <FeatureModelBar feature="gaea" label="办公" />
       </div>
     </div>
   )

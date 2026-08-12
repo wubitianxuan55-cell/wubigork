@@ -12,6 +12,7 @@ import { sessionTitle } from "../lib/session";
 import type { FactBaseView, JobView, SessionMeta } from "../lib/types";
 import { app } from "../lib/bridge";
 import { useToast } from "./Toast";
+import FeatureModelBar from "../../components/FeatureModelBar";
 
 export interface SidebarProps {
   collapsed: boolean;
@@ -462,6 +463,13 @@ export function Sidebar({
                 </div>
               </>
             )}
+          </section>
+        )}
+
+        {/* 绑定模型卡（左下角）：随左侧面板折叠，折叠时隐藏 */}
+        {!collapsed && (
+          <section className="shrink-0 px-1 pt-2 pb-2 border-t border-border-soft">
+            <FeatureModelBar feature="gaea" label="办公" />
           </section>
         )}
 

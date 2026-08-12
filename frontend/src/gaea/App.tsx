@@ -2,8 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
-  BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, Coins, Cpu, FileText, FolderGit2, FolderTree, Paperclip,
-  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Search,
+  BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, Cpu, FileText, FolderGit2, FolderTree, Paperclip,
+  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -29,8 +29,6 @@ import { WorkspacePanel } from "./components/WorkspacePanel";
 import { FilePreview } from "./components/FilePreview";
 import { DeliverablesPanel, type SessionDeliverable } from "./components/DeliverablesPanel";
 import { MaterialsPanel } from "./components/MaterialsPanel";
-import { CostLibraryPanel } from "./components/CostLibraryPanel";
-import { WorkspaceSearchPanel } from "./components/WorkspaceSearchPanel";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { StatsPanel, useStatsPersistence } from "./components/StatsPanel";
 import { Skeleton } from "./components/Skeleton";
@@ -155,7 +153,7 @@ export default function App() {
   const [statsReset, setStatsReset] = useState(0);
   const [capsOpen, setCapsOpen] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
-  const [rightTab, setRightTab] = useState<"files" | "materials" | "costs" | "search" | "deliverables" | "stats">("files");
+  const [rightTab, setRightTab] = useState<"files" | "materials" | "deliverables" | "stats">("files");
   const [compactMode, setCompactMode] = useState(() => { try { return localStorage.getItem("gaea.compactMode") === "1"; } catch { return false; } });
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -481,7 +479,6 @@ export default function App() {
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
       { id: "cmd-files", group: t("palette.group.commands") ?? "命令", title: "文件面板", icon: <FolderGit2 size={15} />, compact: true, keywords: ["files", "文件"], run: () => { setPreviewFile(null); setWorkspacePanel(true); setRightTab("files"); } },
-      { id: "cmd-search", group: t("palette.group.commands") ?? "命令", title: "工作区全文搜索", icon: <Search size={15} />, compact: true, keywords: ["search", "搜索", "全文"], run: () => { setPreviewFile(null); setWorkspacePanel(true); setRightTab("search"); } },
       { id: "cmd-stats", group: t("palette.group.commands") ?? "命令", title: "统计面板", icon: <BarChart3 size={15} />, compact: true, keywords: ["stats", "统计"], run: () => { setWorkspacePanel(true); setRightTab("stats"); } },
     ];
     const sessionItems: PaletteItem[] = sidebarSessions.slice(0, 10).map((s) => ({
@@ -690,20 +687,6 @@ export default function App() {
               <span>资料</span>
             </button>
             <button
-              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "costs" ? "text-accent border-accent" : ""}`}
-              onClick={() => setRightTab("costs")}
-            >
-              <Coins size={13} />
-              <span>成本库</span>
-            </button>
-            <button
-              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "search" ? "text-accent border-accent" : ""}`}
-              onClick={() => setRightTab("search")}
-            >
-              <Search size={13} />
-              <span>搜索</span>
-            </button>
-            <button
               className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "deliverables" ? "text-accent border-accent" : ""}`}
               onClick={() => setRightTab("deliverables")}
             >
@@ -731,12 +714,6 @@ export default function App() {
             ) : null}
             {rightTab === "materials" && (
               <MaterialsPanel onOpenFile={openFilePreview} />
-            )}
-            {rightTab === "costs" && (
-              <CostLibraryPanel />
-            )}
-            {rightTab === "search" && (
-              <WorkspaceSearchPanel onOpenFile={openFilePreview} />
             )}
             {rightTab === "stats" && (
               <StatsPanel
