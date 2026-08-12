@@ -218,14 +218,17 @@ function ProcessCard({
   thoughtCount,
   running = false,
   subcallsByParent,
+  isLatest = true,
 }: {
   items: Item[];
   toolCount: number;
   thoughtCount: number;
   running?: boolean;
   subcallsByParent: Map<string, ToolItem[]>;
+  isLatest?: boolean;
 }) {
-  const [open, setOpen] = useState(running);
+  // 只有最新回合的大过程卡默认展开；旧回合折叠，避免“所有过程卡全摊开”。
+  const [open, setOpen] = useState(!!isLatest);
   const userOverridden = useRef(false);
   const prevRunningRef = useRef(running);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -241,11 +244,15 @@ function ProcessCard({
       if (!wasRunning) userOverridden.current = false;
       if (!userOverridden.current) setOpen(true);
     } else if (wasRunning && !userOverridden.current) {
-      // 输出完成后外层大过程卡默认保持展开（过程文本与过程卡都在里面，
-      // 方便直接查看）；用户手动折叠过则不干预。
+      // 输出完成后：仅最新回合的大过程卡保持展开，旧回合折叠收起；
+      // 用户手动折叠/展开过则不干预。
+      setOpen(!!isLatest);
       finalElapsedRef.current = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
+    } else if (!userOverridden.current && isLatest === false) {
+      // 已有更新的回合：旧过程卡默认折叠（手动展开过则保留）。
+      setOpen(false);
     }
-  }, [running, turnStartAt, now]);
+  }, [running, turnStartAt, now, isLatest]);
 
   const elapsed = running
     ? (turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0)
@@ -594,6 +601,7 @@ export function Transcript({
                   toolCount={toolCount}
                   thoughtCount={thoughtCount}
                   running={running && isLast}
+                  isLatest={isLast}
                   subcallsByParent={subcallsByParent}
                 />
               )}
