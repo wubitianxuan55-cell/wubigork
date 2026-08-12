@@ -4,6 +4,8 @@ import {
   PlusOutlined,
   DeleteOutlined,
   MessageOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
 
@@ -26,10 +28,14 @@ interface ChatTopicSidebarProps {
   onCreate: () => void
   onDelete: (id: string) => void
   onRename: (id: string, title: string) => void
+  /** 折叠态：窄栏只保留切换/新建按钮，随左侧面板一起折叠 */
+  collapsed?: boolean
+  onToggle?: () => void
 }
 
 const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
   topics, activeId, onSelect, onCreate, onDelete, onRename,
+  collapsed = false, onToggle,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
@@ -58,7 +64,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
   return (
     <div
       style={{
-        width: 264,
+        width: collapsed ? 52 : 264,
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
@@ -71,52 +77,91 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
         boxShadow: '2px 0 14px rgba(0,0,0,0.05)',
       }}
     >
-      {/* header: title + new topic button */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '12px 14px 10px',
-        }}
-      >
-        <Typography.Text strong style={{ color: C('color-text'), fontSize: 13.5 }}>
-          <MessageOutlined style={{ marginRight: 8, color: C('color-primary') }} />
-          会话
-        </Typography.Text>
-        <Tooltip title="新建会话" placement="bottom">
-          <Button
-            type="text"
-            size="small"
-            icon={<PlusOutlined />}
-            onClick={onCreate}
-            style={{ color: C('color-primary'), borderRadius: 8 }}
-          />
-        </Tooltip>
-      </div>
-
-      {/* topic list */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '2px 8px 88px' }}>
-        {topics.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 16px', textAlign: 'center' }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: 14,
-              background: `${C('color-primary')}10`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              marginBottom: 14,
-            }}>
-              <MessageOutlined style={{ fontSize: 24, color: C('color-primary') }} />
+      {collapsed ? (
+        /* 折叠窄栏：切换按钮 + 新建会话 */
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingTop: 10 }}>
+          {onToggle && (
+            <Tooltip title="展开会话列表" placement="right">
+              <Button
+                type="text"
+                size="small"
+                icon={<MenuUnfoldOutlined />}
+                onClick={onToggle}
+                style={{ color: C('color-text-secondary'), borderRadius: 8 }}
+              />
+            </Tooltip>
+          )}
+          <Tooltip title="新建会话" placement="right">
+            <Button
+              type="text"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={onCreate}
+              style={{ color: C('color-primary'), borderRadius: 8 }}
+            />
+          </Tooltip>
+        </div>
+      ) : (
+        <>
+          {/* header: title + new topic button + collapse */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 14px 10px',
+            }}
+          >
+            <Typography.Text strong style={{ color: C('color-text'), fontSize: 13.5 }}>
+              <MessageOutlined style={{ marginRight: 8, color: C('color-primary') }} />
+              会话
+            </Typography.Text>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              {onToggle && (
+                <Tooltip title="折叠会话列表" placement="bottom">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<MenuFoldOutlined />}
+                    onClick={onToggle}
+                    style={{ color: C('color-text-secondary'), borderRadius: 8 }}
+                  />
+                </Tooltip>
+              )}
+              <Tooltip title="新建会话" placement="bottom">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={onCreate}
+                  style={{ color: C('color-primary'), borderRadius: 8 }}
+                />
+              </Tooltip>
             </div>
-            <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13, marginBottom: 4 }}>
-              暂无会话
-            </Typography.Text>
-            <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, opacity: 0.7 }}>
-              点击 + 创建新对话
-            </Typography.Text>
           </div>
-        ) : (
-          <div>
-            {topics.map((topic) => {
+
+          {/* topic list */}
+          <div style={{ flex: 1, overflow: 'auto', padding: '2px 8px 88px' }}>
+            {topics.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 16px', textAlign: 'center' }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 14,
+                  background: `${C('color-primary')}10`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: 14,
+                }}>
+                  <MessageOutlined style={{ fontSize: 24, color: C('color-primary') }} />
+                </div>
+                <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13, marginBottom: 4 }}>
+                  暂无会话
+                </Typography.Text>
+                <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, opacity: 0.7 }}>
+                  点击 + 创建新对话
+                </Typography.Text>
+              </div>
+            ) : (
+              <div>
+                {topics.map((topic) => {
               const active = topic.id === activeId
               const hovered = hoveredId === topic.id
               return (
@@ -213,10 +258,12 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                   </div>
                 </div>
               )
-            })}
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   )
 }

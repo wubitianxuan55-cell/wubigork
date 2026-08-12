@@ -54,6 +54,7 @@ const LEGACY_PERSONALITY_KEY = 'wubigrok_whisper_personality'
 const COMPANION_SETTINGS_KEY = 'gaea_whisper_companion_settings'
 const LEGACY_COMPANION_SETTINGS_KEY = 'wubigrok_whisper_companion_settings'
 const ACTIVE_TOPIC_KEY = 'gaea_chat_active_topic'
+const CHAT_SIDEBAR_KEY = 'gaea.chatSidebarCollapsed'
 
 // ── 快捷情绪回复（人格模式输入区 chips） ──
 const QUICK_REPLIES = [
@@ -183,6 +184,17 @@ const ChatPage: React.FC = () => {
   const [voiceOn, setVoiceOn] = useState(false)
   const [thinking, setThinking] = useState(false)
   const [forceSearch, setForceSearch] = useState(false)
+  // 左侧会话栏折叠态（本地持久化，随面板一起折叠悬浮绑定模型卡）
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(CHAT_SIDEBAR_KEY) === '1' } catch { return false }
+  })
+  const toggleChatSidebar = useCallback(() => {
+    setSidebarCollapsed((c) => {
+      const next = !c
+      try { localStorage.setItem(CHAT_SIDEBAR_KEY, next ? '1' : '0') } catch { /* ignore */ }
+      return next
+    })
+  }, [])
 
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<any>(null)
@@ -486,6 +498,8 @@ const ChatPage: React.FC = () => {
         onCreate={handleCreate}
         onDelete={handleDelete}
         onRename={handleRename}
+        collapsed={sidebarCollapsed}
+        onToggle={toggleChatSidebar}
       />
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden', position: 'relative', background: 'transparent' }}>
@@ -800,9 +814,11 @@ const ChatPage: React.FC = () => {
       </main>
 
       {/* 绑定模型条（聊天板块统一入口；whisper 为 chat 别名） */}
-      <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
-        <FeatureModelBar feature="chat" label="聊天" />
-      </div>
+      {!sidebarCollapsed && (
+        <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
+          <FeatureModelBar feature="chat" label="聊天" />
+        </div>
+      )}
 
       <Modal title="语音设置" open={showVoiceSettings} onCancel={() => setShowVoiceSettings(false)} footer={null} width={480} centered
         destroyOnHidden transitionName="" maskTransitionName="">
