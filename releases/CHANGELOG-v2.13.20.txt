@@ -1,0 +1,15 @@
+gaea v2.13.20 · 记忆/知识库写入强制确认 + 记忆索引注入预算（2026-08-12）
+=========================================================================
+
+问题：remember / knowledge_add / promote_session_facts 由 AI 直接落盘、无确认，
+杂乱记忆整体注入系统提示词占用上下文。
+
+修复：
+  - 三个记忆/知识写入工具纳入硬性逐条审批（与 cost_save 同规则）：
+    任何权限级别含 yolo 都弹卡，批准仅本次生效，不提供会话放行
+  - 审批摘要展示条目名/描述/分类/来源等
+  - Saved memories 索引注入限 3000 runes，其余用 memory_search 查询
+
+验证：go build 通过，control/memory 测试通过，前端 tsc + 128 例全过，
+wails build 通过。
+产物：releases/gaea-v2.13.20.exe（Windows x64，约 31.6MB）。

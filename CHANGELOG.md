@@ -1,5 +1,18 @@
 # gaea · 多功能 AI 助手
 
+## v2.13.20「记忆/知识库写入强制确认 + 记忆索引注入预算」（2026-08-12）
+> 与成本库同源问题：remember / knowledge_add / promote_session_facts 由 AI 直接
+> 落盘、无确认，写入一堆杂乱记忆并整体注入系统提示词占用上下文。现在这三个
+> 工具与 cost_save 一样进入硬性逐条审批（任何权限级别含 yolo 都弹卡、批准仅
+> 本次生效）；「Saved memories」索引注入增加预算（3000 runes 截断，其余用
+> memory_search 按需查询），控制上下文占用。
+> 详见 releases/v2.13.20.md。
+- control：hardAskTools 扩展 remember / knowledge_add / promote_session_facts，审批摘要含条目名/描述/分类/来源等
+- memory：capMemoryIndex 限制注入系统提示词的记忆索引长度（3000 runes）
+- ApprovalModal：硬性审批工具统一隐藏「本会话允许」
+- 回归测试：yolo 下记忆/知识写入仍审批、会话放行不记忆、审批摘要格式
+- 验证：go build/control/memory 测试通过；前端 tsc + 128 例全过；wails build 通过
+
 ## v2.13.19「成本库写入强制逐条确认，AI 不再直接入库」（2026-08-12）
 > 修复成本库被 AI 生成的虚高价格污染：此前权限级别为 auto/yolo 时所有工具
 > 自动放行，cost_save 直接把数据写进成本库。现在 cost_save 成为硬性审批项——

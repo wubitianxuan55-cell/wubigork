@@ -8,9 +8,19 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/permission"
 )
 
 // --- approval bridge (agent gate → events) ---
+
+// hardAskTools 是必须逐条经用户确认的工具：写入成本库 / 记忆 / 知识库等
+// 持久化数据，任何权限级别（含 yolo）都不自动放行，且不记忆会话放行。
+var hardAskTools = map[string]bool{
+	"cost_save":             true,
+	"remember":              true,
+	"knowledge_add":         true,
+	"promote_session_facts": true,
+}
 
 // gateApprover adapts the Controller to permission.Approver. It is distinct
 // from the public Approve command (different signature, different direction).
@@ -23,15 +33,30 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 	g.c.mu.Lock()
 	auto := g.c.autoApprove || g.c.permLevel != "ask"
 	g.c.mu.Unlock()
-	// 成本库写入必须逐条经用户确认：auto/yolo 权限级别也强制询问，
-	// 且不记忆会话放行（避免后续 cost_save 静默入库）。
-	if tool == "cost_save" {
-		return g.c.requestApproval(ctx, tool, costSaveApprovalSubject(args), true)
+	// 持久化写入（成本库/记忆/知识库）必须逐条经用户确认：
+	// auto/yolo 权限级别也强制询问，且不记忆会话放行。
+	if hardAskTools[tool] {
+		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true)
 	}
 	if auto {
 		return true, false, nil
 	}
 	return g.c.requestApproval(ctx, tool, subject, false)
+}
+
+// approvalSubjectFor 为硬性审批工具生成可读的确认摘要。
+func approvalSubjectFor(tool string, args json.RawMessage) string {
+	switch tool {
+	case "cost_save":
+		return costSaveApprovalSubject(args)
+	case "remember":
+		return rememberApprovalSubject(args)
+	case "knowledge_add":
+		return knowledgeAddApprovalSubject(args)
+	case "promote_session_facts":
+		return "把本次会话沉淀的临时事实提升为永久记忆（跨会话自动加载）"
+	}
+	return permission.Subject(args)
 }
 
 // requestApproval emits an ApprovalRequest and blocks until Approve(ID, …)
@@ -131,6 +156,83 @@ func costSaveApprovalSubject(args json.RawMessage) string {
 	}
 	if s := strings.TrimSpace(p.Status); s != "" {
 		parts = append(parts, "状态 "+s)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// rememberApprovalSubject 展示将要写入记忆的条目（名称/描述/类型/是否仅会话）。
+func rememberApprovalSubject(args json.RawMessage) string {
+	if len(args) == 0 {
+		return ""
+	}
+	var p struct {
+		Name        string `json:"name"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		Type        string `json:"type"`
+		Session     bool   `json:"session"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return ""
+	}
+	label := strings.TrimSpace(p.Title)
+	if label == "" {
+		label = strings.TrimSpace(p.Name)
+	}
+	if label == "" {
+		label = strings.TrimSpace(p.Description)
+	}
+	if label == "" {
+		return ""
+	}
+	scope := "永久记忆"
+	if p.Session {
+		scope = "仅本次会话"
+	}
+	parts := []string{"写入" + scope + "：" + label}
+	if s := strings.TrimSpace(p.Description); s != "" && s != label {
+		parts = append(parts, s)
+	}
+	if s := strings.TrimSpace(p.Type); s != "" {
+		parts = append(parts, "类型 "+s)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// knowledgeAddApprovalSubject 展示将要写入知识库的条目。
+func knowledgeAddApprovalSubject(args json.RawMessage) string {
+	if len(args) == 0 {
+		return ""
+	}
+	var p struct {
+		Title    string `json:"title"`
+		Category string `json:"category"`
+		Body     string `json:"body"`
+		Tags     string `json:"tags"`
+		Source   string `json:"source"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return ""
+	}
+	if strings.TrimSpace(p.Title) == "" {
+		return ""
+	}
+	parts := []string{"写入知识库：" + strings.TrimSpace(p.Title)}
+	if s := strings.TrimSpace(p.Category); s != "" {
+		parts = append(parts, "分类 "+s)
+	}
+	if s := strings.TrimSpace(p.Source); s != "" {
+		parts = append(parts, "来源 "+s)
+	}
+	if s := strings.TrimSpace(p.Tags); s != "" {
+		parts = append(parts, "标签 "+s)
+	}
+	if body := strings.TrimSpace(p.Body); body != "" {
+		one := strings.SplitN(body, "\n", 2)[0]
+		if r := []rune(one); len(r) > 80 {
+			one = string(r[:80]) + "…"
+		}
+		parts = append(parts, one)
 	}
 	return strings.Join(parts, " · ")
 }

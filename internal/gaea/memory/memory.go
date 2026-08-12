@@ -184,10 +184,22 @@ func (s *Set) buildFullBlock() string {
 	if idx := strings.TrimSpace(s.Index); idx != "" {
 		b.WriteString("\n## Saved memories\n\n")
 		b.WriteString("Facts you saved in earlier sessions — use read_file to see details.\n\n")
-		b.WriteString(idx)
+		b.WriteString(capMemoryIndex(idx))
 		fmt.Fprintf(&b, "\n\n(stored under %s)\n", s.Store.Dir)
 	}
 	return b.String()
+}
+
+// memoryIndexBudget 控制注入系统提示词的「Saved memories」索引预算（runes）。
+// 记忆再多也只注入前段摘要，避免挤爆上下文；其余条目用 memory_search 按需查询。
+const memoryIndexBudget = 3000
+
+func capMemoryIndex(idx string) string {
+	r := []rune(idx)
+	if len(r) <= memoryIndexBudget {
+		return idx
+	}
+	return string(r[:memoryIndexBudget]) + "\n…（记忆索引已截断，其余条目可用 memory_search 查询）"
 }
 
 // buildCompactBlock returns an abbreviated memory block for the cache prefix.
@@ -216,7 +228,7 @@ func (s *Set) buildCompactBlock() string {
 
 	if idx := strings.TrimSpace(s.Index); idx != "" {
 		b.WriteString("\n## Saved memories\n\n")
-		b.WriteString(idx)
+		b.WriteString(capMemoryIndex(idx))
 		fmt.Fprintf(&b, "\n\n(stored under %s)\n", s.Store.Dir)
 	}
 	return b.String()
