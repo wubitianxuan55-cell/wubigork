@@ -10,6 +10,33 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
+// TestFilterRegistryStripsPersistentWrites 回归：子代理注册表必须剔除
+// 持久化写入工具（cost_save/remember/forget/knowledge_add/promote_session_facts/
+// install_skill），防止子代理在 headless 审批通道上静默写入成本库/记忆/知识库/技能。
+func TestFilterRegistryStripsPersistentWrites(t *testing.T) {
+	reg := tool.NewRegistry()
+	for _, name := range []string{
+		"bash", "read_file", "memory_search",
+		"cost_save", "remember", "forget", "knowledge_add", "promote_session_facts", "install_skill",
+	} {
+		reg.Add(fakeTool{name: name})
+	}
+	sub := FilterRegistry(reg, nil, SubagentMetaTools()...)
+	names := sub.Names()
+	for _, forbidden := range []string{
+		"cost_save", "remember", "forget", "knowledge_add", "promote_session_facts", "install_skill",
+	} {
+		if _, ok := sub.Get(forbidden); ok {
+			t.Fatalf("子代理注册表不应包含持久化写入工具 %q（names=%v）", forbidden, names)
+		}
+	}
+	for _, kept := range []string{"bash", "read_file", "memory_search"} {
+		if _, ok := sub.Get(kept); !ok {
+			t.Fatalf("子代理注册表应保留研究/只读工具 %q", kept)
+		}
+	}
+}
+
 // TestTaskToolReturnsSubAgentFinalAnswer runs a task against a mock provider
 // that emits a single text turn, and verifies the tool returns exactly that
 // text — sub-agent intermediate state isn't supposed to leak.
@@ -98,15 +125,18 @@ func TestTaskToolDefaultsToParentToolsWithoutMetaTools(t *testing.T) {
 	if _, err := task.Execute(context.Background(), []byte(`{"prompt":"x"}`)); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	// V6.0: 子代理默认继承父工具但排除 meta-tools。
+	// 子代理默认继承父工具但排除 meta-tools 与持久化写入工具。
 	// 父工具: [read_file, grep, task, run_skill, explore, research, review, security_review, remember]
-	// 排除 meta-tools 后 → [read_file, grep, remember]
+	// 排除 meta-tools + 持久化写入后 → [read_file, grep]
 	got := map[string]bool{}
 	for _, s := range sub.lastReq.Tools {
 		got[s.Name] = true
 	}
-	if !got["read_file"] || !got["grep"] || !got["remember"] {
-		t.Errorf("V6.0: default sub-agent API request tools = %v, want [read_file, grep, remember]", got)
+	if !got["read_file"] || !got["grep"] {
+		t.Errorf("default sub-agent API request tools = %v, want [read_file, grep]", got)
+	}
+	if got["remember"] {
+		t.Errorf("persistent-write tool remember should be stripped from sub-agent, got %v", got)
 	}
 	if got["task"] || got["run_skill"] || got["explore"] || got["research"] || got["review"] || got["security_review"] {
 		t.Errorf("V6.0: meta-tools should be excluded, got %v", got)

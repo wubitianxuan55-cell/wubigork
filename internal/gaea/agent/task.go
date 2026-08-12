@@ -264,7 +264,7 @@ func FilterRegistry(parent *tool.Registry, names []string, exclude ...string) *t
 		src = parent.Names()
 	}
 	for _, name := range src {
-		if ex[name] {
+		if ex[name] || subagentForbiddenWrites[name] {
 			continue
 		}
 		if tl, ok := parent.Get(name); ok {
@@ -272,6 +272,19 @@ func FilterRegistry(parent *tool.Registry, names []string, exclude ...string) *t
 		}
 	}
 	return sub
+}
+
+// subagentForbiddenWrites 是子代理禁止执行的持久化写入工具。
+// 子代理运行在 headless 审批通道（Approver 为空 → 自动放行），若继承这些
+// 工具可绕过主代理的逐条确认，静默写入成本库 / 记忆 / 知识库 / 技能文件。
+// 这些写入必须由主代理执行并逐条经用户确认。
+var subagentForbiddenWrites = map[string]bool{
+	"cost_save":             true,
+	"remember":              true,
+	"forget":                true,
+	"knowledge_add":         true,
+	"promote_session_facts": true,
+	"install_skill":         true,
 }
 
 func (t *TaskTool) SetCompiler(c TaskCompiler)                     { t.compiler = c }

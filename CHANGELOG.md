@@ -1,5 +1,17 @@
 # gaea · 多功能 AI 助手
 
+## v2.13.21「办公板块安全审计：封堵子代理绕过持久化写入审批」（2026-08-12）
+> 审计发现最严重漏洞：默认 task 子代理继承全部工具（cost_save/remember/
+> knowledge_add/promote_session_facts/install_skill）但运行在 headless 审批
+> 通道上，可绕过主代理的逐条确认静默写入成本库/记忆/知识库/技能。
+> 修复：子代理注册表剔除全部持久化写入工具；主代理的 forget/install_skill
+> 一并纳入硬性逐条审批。其余复查（弹窗、上下文注入）无新问题。
+> 详见 releases/v2.13.21.md。
+- agent/task.go：FilterRegistry 剔除 cost_save/remember/forget/knowledge_add/promote_session_facts/install_skill
+- control：hardAskTools 补 forget / install_skill
+- 回归测试：子代理注册表不含持久化写入工具；默认子代理工具集更新
+- 验证：go build/agent/control/permission 测试通过；wails build 通过；产物 gaea-v2.13.21.exe
+
 ## v2.13.20「记忆/知识库写入强制确认 + 记忆索引注入预算」（2026-08-12）
 > 与成本库同源问题：remember / knowledge_add / promote_session_facts 由 AI 直接
 > 落盘、无确认，写入一堆杂乱记忆并整体注入系统提示词占用上下文。现在这三个

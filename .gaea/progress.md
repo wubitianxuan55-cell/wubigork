@@ -1,6 +1,17 @@
 # 任务进度
 
-> 最后更新 2026-08-12（v2.13.20 发布）
+> 最后更新 2026-08-12（v2.13.21 发布）
+
+## 已发布：v2.13.21「办公板块安全审计：封堵子代理绕过持久化写入审批」（2026-08-12）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | 审计定位：默认 task 子代理继承全部工具但运行在 headless 审批通道，可静默写入成本库/记忆/知识库/技能 |
+| ✅ | 修复：FilterRegistry 剔除持久化写入工具（cost_save/remember/forget/knowledge_add/promote_session_facts/install_skill） |
+| ✅ | 主代理 hardAskTools 补 forget / install_skill |
+| ✅ | 复查：Windows 控制台子进程全部隐藏窗口（含 MCP stdio）；知识库不注入上下文、技能索引 4000 上限、记忆索引 3000 上限 |
+| ✅ | 验证：go build/agent/control/permission 测试通过；wails build 通过 |
+| ✅ | 发布：v2.13.21 版本号、releases/v2.13.21.md、CHANGELOG、gaea-v2.13.21.exe、git tag v2.13.21 |
 
 ## 已发布：v2.13.20「记忆/知识库写入强制确认 + 记忆索引注入预算」（2026-08-12）
 

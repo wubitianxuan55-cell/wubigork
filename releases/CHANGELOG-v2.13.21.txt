@@ -1,0 +1,17 @@
+gaea v2.13.21 · 办公板块安全审计：封堵子代理绕过持久化写入审批（2026-08-12）
+============================================================================
+
+审计发现：默认 task 子代理继承全部工具但运行在 headless 审批通道，
+可绕过主代理逐条确认，静默写入成本库/记忆/知识库/技能。
+
+修复：
+  - 子代理注册表剔除 cost_save / remember / forget / knowledge_add /
+    promote_session_facts / install_skill（持久化写入只能由主代理执行并确认）
+  - 主代理 hardAskTools 补 forget / install_skill
+  - 复查：控制台子进程全部隐藏窗口、知识库不注入上下文、技能/记忆索引均有上限
+
+已知边界：子代理 bash/write_file 在 ask 模式仍自动放行（研究需要 shell）；
+yolo 对普通工具跳过确认为用户主动选择；历史杂乱数据需手动清理。
+
+验证：go build 通过，agent/control/permission 测试通过，wails build 通过。
+产物：releases/gaea-v2.13.21.exe（Windows x64，约 31.6MB）。

@@ -18,8 +18,10 @@ import (
 var hardAskTools = map[string]bool{
 	"cost_save":             true,
 	"remember":              true,
+	"forget":                true,
 	"knowledge_add":         true,
 	"promote_session_facts": true,
+	"install_skill":         true,
 }
 
 // gateApprover adapts the Controller to permission.Approver. It is distinct
