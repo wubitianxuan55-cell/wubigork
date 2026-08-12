@@ -241,7 +241,8 @@ function ProcessCard({
       if (!wasRunning) userOverridden.current = false;
       if (!userOverridden.current) setOpen(true);
     } else if (wasRunning && !userOverridden.current) {
-      setOpen(false);
+      // 输出完成后外层大过程卡默认保持展开（过程文本与过程卡都在里面，
+      // 方便直接查看）；用户手动折叠过则不干预。
       finalElapsedRef.current = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
     }
   }, [running, turnStartAt, now]);
