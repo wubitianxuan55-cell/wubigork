@@ -183,7 +183,8 @@ export function buildSegments(items: Item[], running = false): Segment[] {
 
 // 过程卡内的思考块（复用 .reasoning 样式）
 function InlineReasoning({ item }: { item: AssistantItem }) {
-  const [open, setOpen] = useState(true);
+  // 思考卡默认折叠：展开大过程卡时只看到标题，点开才看推理内容。
+  const [open, setOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   useGSAPCollapse(bodyRef, open);
   const running = item.streaming && !item.text;
@@ -218,17 +219,16 @@ function ProcessCard({
   thoughtCount,
   running = false,
   subcallsByParent,
-  isLatest = true,
 }: {
   items: Item[];
   toolCount: number;
   thoughtCount: number;
   running?: boolean;
   subcallsByParent: Map<string, ToolItem[]>;
-  isLatest?: boolean;
 }) {
-  // 只有最新回合的大过程卡默认展开；旧回合折叠，避免“所有过程卡全摊开”。
-  const [open, setOpen] = useState(!!isLatest);
+  // 每一轮的大过程卡都默认展开（含输出完成后），过程文本与过程卡直接可见；
+  // 用户手动折叠/展开过则不干预。
+  const [open, setOpen] = useState(true);
   const userOverridden = useRef(false);
   const prevRunningRef = useRef(running);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -244,15 +244,12 @@ function ProcessCard({
       if (!wasRunning) userOverridden.current = false;
       if (!userOverridden.current) setOpen(true);
     } else if (wasRunning && !userOverridden.current) {
-      // 输出完成后：仅最新回合的大过程卡保持展开，旧回合折叠收起；
-      // 用户手动折叠/展开过则不干预。
-      setOpen(!!isLatest);
+      // 输出完成后：每一轮的大过程卡都保持展开；
+      // 用户手动折叠过则不干预。
+      setOpen(true);
       finalElapsedRef.current = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
-    } else if (!userOverridden.current && isLatest === false) {
-      // 已有更新的回合：旧过程卡默认折叠（手动展开过则保留）。
-      setOpen(false);
     }
-  }, [running, turnStartAt, now, isLatest]);
+  }, [running, turnStartAt, now]);
 
   const elapsed = running
     ? (turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0)
@@ -601,7 +598,6 @@ export function Transcript({
                   toolCount={toolCount}
                   thoughtCount={thoughtCount}
                   running={running && isLast}
-                  isLatest={isLast}
                   subcallsByParent={subcallsByParent}
                 />
               )}
