@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
 // markItDownTimeout caps a single markitdown conversion. Office files are
@@ -66,10 +68,14 @@ func convertViaMarkItDown(path string) (string, error) {
 }
 
 func markItDownCmd(ctx context.Context, arg string) *exec.Cmd {
+	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		return exec.CommandContext(ctx, "python", "-m", "markitdown", arg)
+		cmd = exec.CommandContext(ctx, "python", "-m", "markitdown", arg)
+	} else {
+		cmd = exec.CommandContext(ctx, "python3", "-m", "markitdown", arg)
 	}
-	return exec.CommandContext(ctx, "python3", "-m", "markitdown", arg)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
+	return cmd
 }
 
 type markItDownError string

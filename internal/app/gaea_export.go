@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -290,6 +291,7 @@ func exportXlsx(in ExportDeliverableInput, outPath string) error {
 
 func runPython(args []string, timeoutSec int) error {
 	cmd := exec.Command("python", args...)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	done := make(chan error, 1)

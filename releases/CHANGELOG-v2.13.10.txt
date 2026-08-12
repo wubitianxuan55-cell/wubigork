@@ -1,0 +1,15 @@
+gaea v2.13.10 · 修复办公文档处理反复弹 cmd 黑窗（2026-08-12）
+==============================================================
+
+问题：通用办公后台批量转换 docx 时，python -m markitdown 未隐藏窗口，
+每转换一个文件闪一次 cmd/conhost 黑窗；批量处理表现为不停弹窗。
+
+修复（统一 CREATE_NO_WINDOW，静默执行）：
+  - docmd.markitdown：python -m markitdown（弹窗主因）
+  - xlsxedit.Recalc：Excel 公式重算
+  - gaea_export.runPython：报告/表格导出
+  - diagram_gen：绘图
+  - whisper 桌面操作（开/关应用、移入回收站）：powershell
+
+验证：go build 通过；前端 127 例全过；wails build 通过。
+产物：releases/gaea-v2.13.10.exe（Windows x64，约 39.6MB）。

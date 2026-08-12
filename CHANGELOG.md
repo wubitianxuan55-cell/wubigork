@@ -1,5 +1,14 @@
 # gaea · 多功能 AI 助手
 
+## v2.13.10「修复办公文档处理反复弹 cmd 黑窗」（2026-08-12）
+> 通用办公后台做 docx/xlsx 转换、公式重算、报告导出、绘图、桌面自动化时，
+> 子进程没加隐藏窗口参数，每执行一次就闪一个 cmd/conhost 黑窗；批量转换时
+> 会"不停弹窗"。统一补上 CREATE_NO_WINDOW，全部静默执行。
+> 详见 releases/v2.13.10.md。
+- docmd.markitdown：`python -m markitdown` 补 HideWindow（弹窗主因，已实测抓到）
+- xlsxedit.Recalc、gaea_export.runPython、diagram_gen、whisper 桌面操作（powershell）一并补上
+- 验证：go build 通过；前端 127 例全过；wails build 通过；产物 gaea-v2.13.10.exe
+
 ## v2.13.9「每一轮的大过程卡默认展开 · 内部卡默认折叠」（2026-08-12）
 > 调整通用办公输出显示：输出完成后每一轮的外层大过程卡都默认保持展开，
 > 不再只保留最新回合；大过程卡内部的思考卡改为默认折叠，工具卡/工具组

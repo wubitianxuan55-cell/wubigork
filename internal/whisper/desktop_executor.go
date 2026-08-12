@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/proc"
 )
 
 const (
@@ -315,6 +317,7 @@ func shellOpen(path string) ExecuteResult {
 func openAppTarget(target string) ExecuteResult {
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
 		fmt.Sprintf("Start-Process '%s'", strings.ReplaceAll(target, "'", "''")))
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return ExecuteResult{OK: false, Content: string(out), Summary: "未能打开 " + target}
@@ -329,6 +332,7 @@ func closeAppTarget(target string) ExecuteResult {
 		strings.ReplaceAll(name, "'", "''"),
 	)
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return ExecuteResult{OK: false, Content: strings.TrimSpace(string(out)), Summary: "未能关闭 " + target}
@@ -343,6 +347,7 @@ func trashItem(path string) ExecuteResult {
 		strings.ReplaceAll(path, "'", "''"),
 	)
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return ExecuteResult{OK: false, Content: strings.TrimSpace(string(out)), Summary: "删除失败"}

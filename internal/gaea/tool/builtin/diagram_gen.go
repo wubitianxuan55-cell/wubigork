@@ -249,6 +249,7 @@ func (diagramGen) Execute(ctx context.Context, args json.RawMessage) (string, er
 
 	payload, _ := json.Marshal(p)
 	cmd := exec.CommandContext(ctx, py, "-c", diagramScript)
+	hideBashWindow(cmd) // Windows: 防止弹出 cmd 黑框
 	cmd.Stdin = strings.NewReader(string(payload))
 	out, err := cmd.CombinedOutput()
 	if err != nil {

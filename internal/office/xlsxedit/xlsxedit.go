@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -370,7 +371,9 @@ func Recalc(path, workspaceRoot string) (RecalcReport, error) {
 	if script == "" {
 		return RecalcReport{}, fmt.Errorf("未找到 recalc.py（.gaea/skills/xlsx/scripts）")
 	}
-	out, err := exec.Command("python", script, path, "60").CombinedOutput()
+	cmd := exec.Command("python", script, path, "60")
+	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return RecalcReport{}, fmt.Errorf("重算失败: %v（%s）", err, truncate(string(out), 300))
 	}
