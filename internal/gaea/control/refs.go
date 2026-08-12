@@ -260,9 +260,10 @@ func readFileRef(path string) (content string, isDir bool, err error) {
 		if md, total, truncated, convErr := docmd.ConvertLimit(path, "", refOfficeMaxPages); convErr == nil && strings.TrimSpace(md) != "" {
 			return officeRefBlock(md, path, info.Size(), total, truncated), false, nil
 		}
+		return fmt.Sprintf("[office document %s, %d bytes - text extraction failed (scanned or compressed PDF); use format_convert or summarize_file]", path, info.Size()), false, nil
 		// 转换失败（缺依赖等）时退回通用二进制提示，保证引用不失效
 	}
-	if bytes.IndexByte(data[:min(n, 8192)], 0) >= 0 {
+	if bytes.IndexByte(data, 0) >= 0 {
 		return fmt.Sprintf("[binary file %s, %d bytes — not shown]", path, info.Size()), false, nil
 	}
 	if n > maxFileRefBytes {
