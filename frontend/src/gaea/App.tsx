@@ -81,21 +81,28 @@ function JobDoneNotifier({ jobs }: { jobs: JobView[] }) {
 
 // ── RunStatus — 输入框上方的运行时状态行 ─────────────────────
 
-function RunStatus({ running, turnStartAt, turnTokens }: {
+function RunStatus({ running, turnStartAt, turnTokens, used }: {
   running: boolean;
   turnStartAt: number;
   turnTokens: number;
+  used: number;
 }) {
   const now = useNow();
   if (!running) return null;
   const elapsed = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
   const elapsedStr = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m${elapsed % 60}s`;
   const tokStr = turnTokens > 0 ? `↓${fmtTokens(turnTokens)}` : "";
+  // 大上下文 + 长时间无输出：明确提示“正在处理大上下文”，避免误判卡死。
+  const slowHint =
+    elapsed >= 20 && used >= 40000
+      ? `处理大上下文中 · ${fmtTokens(used)}`
+      : "";
   return (
     <div className="flex items-center justify-between px-4 py-1.5 text-[11px] select-none border-b border-border-soft/50 bg-bg-soft/30">
       <div className="flex items-center gap-2 text-fg-dim tabular-nums font-mono">
         <span className="font-medium">{elapsedStr}</span>
         {tokStr && <span className="text-fg-faint">{tokStr}</span>}
+        {slowHint && <span className="text-amber-500/90">{slowHint}</span>}
       </div>
       <div className="flex items-center gap-3">
         <span className="flex items-center gap-1.5 text-fg">
@@ -627,6 +634,7 @@ export default function App() {
               running={state.running}
               turnStartAt={state.turnStartAt}
               turnTokens={state.turnTokens}
+              used={state.context.used}
             />
             <div className="composer-glow">
             <Composer

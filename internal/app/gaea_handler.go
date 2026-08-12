@@ -56,7 +56,10 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 		Name:          "gaea",
 		Kind:          "wubigrok", // 内部 provider 注册名（bridge provider）
 		Model:         "",
-		ContextWindow: 1_000_000,
+		// 上下文窗口按实际绑定模型的能力取保守值（此前写 1M 导致自动压缩
+		// 阈值高达 80 万 token，办公会话膨胀到十几万也从不压缩，模型首字
+		// 极慢、看起来像“没流式输出”）。256k 下 80% 阈值≈204k，超限自动压缩。
+		ContextWindow: 256_000,
 	}}
 	// 全部 47 个工程工具注册（Enabled 为空 = 全部）
 	cfg.Tools.Enabled = nil

@@ -317,6 +317,31 @@ export function useController() {
     } catch {}
   }, [dispatch]);
 
+  // 最终回答兜底：turn_done（或看门狗检测到后端已停）时拉一次 History，
+  // 如果最后一条 assistant 正文没有渲染过，就补发一条 message 事件。
+  // 修复末端事件（message/turn_done 密集到达时被 Wails 事件流吞掉）
+  // 导致的“最终回答只有重启才可见”。
+  const reconcileFinalAnswer = useCallback(() => {
+    app.History().then((ms) => {
+      const last = [...ms].reverse().find(
+        (m) => m.role === "assistant" && typeof m.content === "string" && m.content.trim() !== "",
+      );
+      if (!last) return;
+      const st = store.getState();
+      const rendered = st.items
+        .filter((i) => i.kind === "assistant" && i.text)
+        .map((i) => (i as Extract<Item, { kind: "assistant" }>).text)
+        .join("\n");
+      const probe = last.content.trim().slice(0, 120);
+      if (!rendered.includes(probe)) {
+        dispatch({
+          type: "event",
+          e: { kind: "message", text: last.content, reasoning: (last as { reasoning?: string }).reasoning ?? "" },
+        });
+      }
+    }).catch(() => {});
+  }, [store, dispatch]);
+
   const refreshFactBase = useCallback(() => {
     app.FactBase().then(factBase => dispatch({ type: "factbase", factBase })).catch(() => {});
   }, [dispatch]);
@@ -337,6 +362,7 @@ export function useController() {
         app.TCCAReport().then(raw => {
           try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); } catch {}
         }).catch(() => {});
+        reconcileFinalAnswer();
       }
       if (e.kind === "turn_done" || e.kind === "notice") {
         app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch(() => {});
@@ -361,7 +387,10 @@ export function useController() {
       const st = store.getState();
       if (!st.running) return;
       app.GaeaRunning().then((running) => {
-        if (!running && store.getState().running) dispatch({ type: "localCancel" });
+        if (!running && store.getState().running) {
+          dispatch({ type: "localCancel" });
+          reconcileFinalAnswer();
+        }
       }).catch(() => {});
     }, 30000);
     void loadSessionData();
@@ -369,7 +398,7 @@ export function useController() {
     app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch(() => {});
     refreshFactBase();
     return () => { off(); offReady(); window.clearInterval(watchdog); };
-  }, [loadSessionData, refreshFactBase]);
+  }, [loadSessionData, refreshFactBase, reconcileFinalAnswer]);
 
   const send = useCallback((displayText: string, submitText = displayText) => {
     dispatch({ type: "user", text: displayText });
