@@ -213,7 +213,7 @@ function InlineReasoning({ item }: { item: AssistantItem }) {
   );
 }
 
-function ProcessCard({
+export function ProcessCard({
   items,
   toolCount,
   thoughtCount,
@@ -596,8 +596,11 @@ export function Transcript({
           const hasProcess = seg.processItems.length > 0;
           const isLast = segIdx === arr.length - 1;
           const segKey = seg.processItems[0]?.id ?? seg.outsideItems[0]?.id ?? `seg${segIdx}`;
+          // 大过程卡（整轮结束后的合并卡）用独立 key 全新挂载：
+          // 默认展开，且不复用运行中小过程卡的折叠实例（小卡始终折叠）。
+          const segKeyFinal = running ? segKey : `done-${segKey}`;
           return (
-            <div key={segKey}>
+            <div key={segKeyFinal}>
               {hasProcess && (
                 <ProcessCard
                   items={seg.processItems}
