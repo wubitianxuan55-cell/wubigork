@@ -19,7 +19,7 @@ const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'))
 const ModelCenterPage = React.lazy(() => import('../pages/ModelCenterPage'))
 const CharacterLibraryPage = React.lazy(() => import('../pages/CharacterLibraryPage'))
 const ChatPage = React.lazy(() => import('../pages/ChatPage'))
-const OfficeHubPage = React.lazy(() => import('../pages/OfficeHubPage'))
+const GaeaPage = React.lazy(() => import('../pages/GaeaPage'))
 const MemoryHubPage = React.lazy(() => import('../pages/MemoryHubPage'))
 const { Header, Footer, Content } = Layout
 
@@ -46,7 +46,7 @@ const pageComponents: Record<Exclude<Page, 'home'>, React.ReactNode> = {
   settings: <SettingsPage />,
   modelcenter: <ModelCenterPage />,
   chat: <ChatPage />,
-  gaea: <OfficeHubPage />,
+  gaea: <GaeaPage />,
   memoryhub: <MemoryHubPage />,
   characterlib: <CharacterLibraryPage />,
 }
@@ -122,7 +122,10 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
   const ms = monitor?.stats
   const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
   const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
-  const engLabel = (monitor?.engines || []).map(e => `${e.engine}${e.model ? '·' + String(e.model).split('/').pop() : ''}`)
+  // 底栏只展示本地已启动模型（云端引擎走 API，不占本机资源，不列出来）
+  const engLabel = (monitor?.engines || [])
+    .filter((e: any) => e.isLocal)
+    .map(e => `${e.engine}${e.model ? '·' + String(e.model).split('/').pop() : ''}`)
   // 计算写作进度：已写章节/总大纲叶子节点（stats.chapterCount 为已有章节，保守取该值）
   const plannedChapters = stats?.chapterCount ? Math.max(stats.chapterCount, (stats as any).plannedChapters || 0) : 0
   const writtenChapters = stats?.chapterCount || 0
@@ -396,10 +399,10 @@ const MainLayout: React.FC = () => {
             </div>
           )}
           <Content style={{
-            padding: page === 'chat' ? 0 : (page === 'home' ? '16px' : '8px 16px 16px'),
-            paddingBottom: page === 'chat' || page === 'home' ? 0 : '16px',
-            background: page === 'chat' ? 'var(--gaea-glass-bg, var(--md-sys-color-surface))' : 'transparent',
-            overflow: page === 'chat' ? 'hidden' : 'auto',
+            padding: page === 'chat' || page === 'gaea' ? 0 : (page === 'home' ? '16px' : '8px 16px 16px'),
+            paddingBottom: page === 'chat' || page === 'home' || page === 'gaea' ? 0 : '16px',
+            background: page === 'chat' || page === 'gaea' ? 'var(--gaea-glass-bg, var(--md-sys-color-surface))' : 'transparent',
+            overflow: page === 'chat' || page === 'gaea' ? 'hidden' : 'auto',
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
