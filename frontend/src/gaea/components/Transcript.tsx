@@ -218,17 +218,20 @@ function ProcessCard({
   toolCount,
   thoughtCount,
   running = false,
+  small = false,
   subcallsByParent,
 }: {
   items: Item[];
   toolCount: number;
   thoughtCount: number;
   running?: boolean;
+  /** 运行中轮次的分段小过程卡（完成后应折叠；整轮合并的大过程卡为 false） */
+  small?: boolean;
   subcallsByParent: Map<string, ToolItem[]>;
 }) {
-  // 每一轮的大过程卡都默认展开（含输出完成后），过程文本与过程卡直接可见；
+  // 大过程卡（整轮合并）默认展开；运行中的分段小过程卡默认折叠。
   // 用户手动折叠/展开过则不干预。
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(!small);
   const userOverridden = useRef(false);
   const prevRunningRef = useRef(running);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -244,12 +247,15 @@ function ProcessCard({
       if (!wasRunning) userOverridden.current = false;
       if (!userOverridden.current) setOpen(true);
     } else if (wasRunning && !userOverridden.current) {
-      // 输出完成后：每一轮的大过程卡都保持展开；
+      // 本段刚完成：分段小过程卡折叠收起，整轮合并的大过程卡保持展开；
       // 用户手动折叠过则不干预。
-      setOpen(true);
+      setOpen(!small);
       finalElapsedRef.current = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
+    } else if (!userOverridden.current && small) {
+      // 运行中已完成的历史分段小过程卡：默认折叠（手动展开过则保留）。
+      setOpen(false);
     }
-  }, [running, turnStartAt, now]);
+  }, [running, turnStartAt, now, small]);
 
   const elapsed = running
     ? (turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0)
@@ -598,6 +604,7 @@ export function Transcript({
                   toolCount={toolCount}
                   thoughtCount={thoughtCount}
                   running={running && isLast}
+                  small={running && !isLast}
                   subcallsByParent={subcallsByParent}
                 />
               )}
