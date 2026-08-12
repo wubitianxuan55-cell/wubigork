@@ -138,8 +138,8 @@ export function ChatOutlineNode(arg1, arg2) {
   return window['go']['app']['App']['ChatOutlineNode'](arg1, arg2);
 }
 
-export function ChatSend(arg1, arg2, arg3, arg4) {
-  return window['go']['app']['App']['ChatSend'](arg1, arg2, arg3, arg4);
+export function ChatSend(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['app']['App']['ChatSend'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function ChatTopicClear(arg1) {
@@ -1686,12 +1686,12 @@ export function WhisperAssistantSave(arg1) {
   return window['go']['app']['App']['WhisperAssistantSave'](arg1);
 }
 
-export function WhisperChat(arg1, arg2) {
-  return window['go']['app']['App']['WhisperChat'](arg1, arg2);
+export function WhisperChat(arg1, arg2, arg3) {
+  return window['go']['app']['App']['WhisperChat'](arg1, arg2, arg3);
 }
 
-export function WhisperChatWithSearch(arg1, arg2) {
-  return window['go']['app']['App']['WhisperChatWithSearch'](arg1, arg2);
+export function WhisperChatWithSearch(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['WhisperChatWithSearch'](arg1, arg2, arg3, arg4);
 }
 
 export function WhisperClearSession(arg1) {

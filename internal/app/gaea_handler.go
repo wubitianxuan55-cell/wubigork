@@ -47,7 +47,10 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 	}
 	cfg.DefaultModel = "gaea"
 	// 开工前计划确认：非简单任务先出计划卡片，用户确认再执行（可配置关闭）
-	cfg.Agent.AutoPlan = "ask"
+	// 仅在用户未显式配置时默认开启；配置里写 auto_plan = "off" 可关闭。
+	if cfg.Agent.AutoPlan == "" {
+		cfg.Agent.AutoPlan = "ask"
+	}
 	cfg.Providers = []gaeaConfig.ProviderEntry{{
 		Name:          "gaea",
 		Kind:          "wubigrok", // 内部 provider 注册名（bridge provider）
@@ -93,6 +96,7 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		ExtraTools: []tool.Tool{
 			imageGenTool{a: a},
 			diagramTool{a: a},
+			routineLLMTool{a: a},
 			factAddTool{},
 			factListTool{},
 			factClearTool{},

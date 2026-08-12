@@ -15,7 +15,7 @@ func TestEmbeddingPromotion(t *testing.T) {
 		// mediaState
 		GenerateFreeImage(prompt, negative, size, style, model string, seed, n int, lora string) (map[string]interface{}, error)
 		// whisperState
-		WhisperChat(userMsg string, personalityID string) (map[string]interface{}, error)
+		WhisperChat(userMsg string, personalityID string, thinking bool) (map[string]interface{}, error)
 		// officeState
 		OfficeExecute(act, path, tgt, q, url, content string) office.ExecResult
 		// core

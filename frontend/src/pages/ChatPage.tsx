@@ -34,6 +34,7 @@ interface ChatMsg {
   key: string
   role: 'user' | 'assistant'
   content: string
+  reasoning?: string
   createdAt: string
   streaming?: boolean
   error?: boolean
@@ -180,6 +181,8 @@ const ChatPage: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [speakingId, setSpeakingId] = useState<string | null>(null)
   const [voiceOn, setVoiceOn] = useState(false)
+  const [thinking, setThinking] = useState(false)
+  const [forceSearch, setForceSearch] = useState(false)
 
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<any>(null)
@@ -188,6 +191,12 @@ const ChatPage: React.FC = () => {
   topicsRef.current = topics
   const modeRef = useRef(mode)
   modeRef.current = mode
+  const thinkingRef = useRef(thinking)
+  thinkingRef.current = thinking
+  const searchEnabledRef = useRef(searchEnabled)
+  searchEnabledRef.current = searchEnabled
+  const forceSearchRef = useRef(forceSearch)
+  forceSearchRef.current = forceSearch
 
   const activeIdRef = useRef(activeId)
   activeIdRef.current = activeId
@@ -378,8 +387,9 @@ const ChatPage: React.FC = () => {
     const active = activeIdRef.current
     const curMode = modeRef.current
     try {
-      const res: any = await App.ChatSend(active, trimmed, curMode, searchEnabled)
+      const res: any = await App.ChatSend(active, trimmed, curMode, searchEnabledRef.current, thinkingRef.current, forceSearchRef.current)
       const reply = typeof res?.reply === 'string' ? res.reply : ''
+      const reasoning = typeof res?.reasoning === 'string' ? res.reasoning : ''
       const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
       if (!reduced && reply.length > 40) {
         const step = Math.max(2, Math.round(reply.length / 180))
@@ -391,7 +401,8 @@ const ChatPage: React.FC = () => {
       setStreamText(''); setStreamKey(null)
       const extra: Record<string, any> = {}
       if (res.emotion) extra.emotion = res.emotion
-      updateMessage(am.key, { content: reply, streaming: false, extra })
+      if (reasoning) extra.reasoning = reasoning
+      updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
       if (res.emotion) setEmotion(res.emotion)
       if (typeof res.aff === 'number') setAff(Math.round(res.aff))
       if (typeof res.aro === 'number') setAro(Math.round(res.aro))
@@ -691,6 +702,12 @@ const ChatPage: React.FC = () => {
                         {mode === 'plain' ? 'gaea AI 助手' : `${companionName} · AI`}
                       </div>
                     )}
+                    {!msg.error && msg.reasoning && (
+                      <details className="chat-reasoning">
+                        <summary><BulbOutlined style={{ marginRight: 4 }} />思考过程</summary>
+                        <div className="chat-reasoning-body">{msg.reasoning}</div>
+                      </details>
+                    )}
                     {msg.error ? (
                       <div className="chat-error-block">
                         <CloseCircleOutlined style={{ marginTop: 2, flexShrink: 0 }} />
@@ -748,6 +765,16 @@ const ChatPage: React.FC = () => {
             </div>
           )}
           <div className="gaea-glass-shell chat-composer">
+            <Tooltip title={forceSearch ? '联网搜索已开启：回答前先搜索网页' : '联网搜索：开启后回答前先搜索网页'}>
+              <Button type="text" icon={<GlobalOutlined />}
+                onClick={() => setForceSearch(v => !v)}
+                style={{ color: forceSearch ? '#52c41a' : C('color-text-secondary'), borderRadius: 10, width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: forceSearch ? 'color-mix(in srgb, #52c41a 12%, transparent)' : 'transparent', flexShrink: 0, fontSize: 15 }} />
+            </Tooltip>
+            <Tooltip title={thinking ? '深度思考已开启（本地模型先思考再回答）' : '深度思考（本地模型先思考再回答）'}>
+              <Button type="text" icon={<BulbOutlined />}
+                onClick={() => setThinking(v => !v)}
+                style={{ color: thinking ? 'var(--gaea-glow)' : C('color-text-secondary'), borderRadius: 10, width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: thinking ? 'color-mix(in srgb, var(--gaea-glow) 12%, transparent)' : 'transparent', flexShrink: 0, fontSize: 15 }} />
+            </Tooltip>
             <Tooltip title={voiceOn ? '结束聆听' : '语音输入（说话识别为文本对话）'}>
               <Button type="text" icon={voiceOn ? <StopOutlined /> : <AudioOutlined />}
                 onClick={toggleVoice}

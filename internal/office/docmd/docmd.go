@@ -49,15 +49,24 @@ func ConvertLimit(path, pages string, maxPages int) (md string, total int, trunc
 func ConvertLimitProgress(path, pages string, maxPages int, progress func(done, total int)) (md string, total int, truncated bool, err error) {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".docx", ".doc":
+		if converted, convErr := convertViaMarkItDown(path); convErr == nil {
+			return converted, 0, false, nil
+		}
 		md, err := docxToMarkdown(path)
 		return md, 0, false, err
 	case ".xlsx", ".xls":
 		md, err := xlsxToMarkdown(path)
 		return md, 0, false, err
+	case ".pptx", ".ppt":
+		converted, convErr := convertViaMarkItDown(path)
+		if convErr != nil {
+			return "", 0, false, fmt.Errorf("不支持的文件格式: %s（pptx 转换需要 markitdown: pip install markitdown）", filepath.Ext(path))
+		}
+		return converted, 0, false, nil
 	case ".pdf":
 		return pdfToMarkdownLimit(path, pages, maxPages, progress)
 	default:
-		return "", 0, false, fmt.Errorf("不支持的文件格式: %s（支持 .docx/.xlsx/.pdf）", filepath.Ext(path))
+		return "", 0, false, fmt.Errorf("不支持的文件格式: %s（支持 .docx/.xlsx/.pptx/.pdf）", filepath.Ext(path))
 	}
 }
 

@@ -36,12 +36,18 @@ export function BindSection() {
                           )}
                           {f.key === 'office' && <Tag color="cyan" style={{ fontSize: 9, margin: 0 }}>通用 + 方案 + 知识库</Tag>}
                           {f.key === 'characterlib' && <Tag color="geekblue" style={{ fontSize: 9, margin: 0 }}>生成 / 补全</Tag>}
+                          {f.key === 'routine' && <Tag color="green" style={{ fontSize: 9, margin: 0 }}>通用文本兜底 · 本地/免费优先</Tag>}
                         </Space>
                         <Tag color={bound ? 'green' : 'default'} style={{ fontSize: 10, margin: 0 }}>{bound ? '已绑定' : '未绑定'}</Tag>
                       </div>
                       <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {bound ? `当前：${cur!.engine} / ${cur!.model}` : '尚未绑定，选择引擎和模型后点绑定'}
+                      {bound ? `当前：${cur!.engine} / ${cur!.model}` : '尚未绑定，选择引擎和模型后点绑定'}
                       </Typography.Text>
+                      {f.key === 'routine' && (
+                        <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 6, lineHeight: 1.6 }}>
+                          纯文本摘要/归一化/抽取/改写等无专业工具覆盖的活，由云端 agent 通过 routine_llm 兜底调用（识图/OCR/检索/转换走各自专业工具）；未绑定默认本地 herdsman
+                        </Typography.Text>
+                      )}
                       {modelRoutes[f.key] && (
                         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block' }}>
                           当前生效：{modelRoutes[f.key].engine || '-'} / {modelRoutes[f.key].model || '-'}（{modelRoutes[f.key].source || '-'}）

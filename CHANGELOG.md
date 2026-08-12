@@ -1,5 +1,25 @@
 # gaea · 多功能 AI 助手
 
+## v2.13.0「通用办公打磨 + 模型中心优化 + 本地模型实测」（2026-08-12）
+> 承接 v2.12.0，本轮聚焦通用办公稳定性与方案写作质量：修复方案分节 100 字
+> 截断（流式与批量两处）、docx 读取乱码、前端“运行中”假卡死；配套模型中心
+> 优化与 Herdsman/Ollama 本地模型双模式实测。
+> 详见 releases/v2.13.0.md。
+- 通用办公：方案「生成该节」与批量生成按章节字数目标续写（WordTarget，缺省 800），
+  修复原硬编码 100 字截断；docx 读取统一走 ConvertToMarkdown（MarkItDown / 内置
+  转换 / 扫描件提示），修复直接读 zip 字节乱码；前端 turn 结束事件丢失兜底
+  （停止按钮无条件复位 + 30s GaeaRunning 看门狗），任务完成不再卡「执行中」；
+  待办从未推进时 turn_done 自动收尾，不再残留 0/N
+- 工具：format_convert 输出父目录自动创建（与 write_file 对齐）+ 回归测试；
+  docmd 新增 MarkItDown 通道（docx/pptx），PDF 页数上限与扫描件 OCR 回退保持
+- 模型中心：功能绑定/板块细节优化；本地引擎思考参数（enable_thinking /
+  chat_template_kwargs）与路由增强
+- 语音/角色库：whisper web_search、角色画像文件化等累积修复
+- 实测：Herdsman 三模型 20 任务 × 思考/非思考双模式 + Ollama GLM 实测，
+  脚本 scripts/test_herdsman_models.go 可复现；详见
+  docs/2026-08-12-herdsman-models-evaluation-report.md
+- 验证：go build/vet 干净，方案包等测试全绿；前端 127 例全过，tsc + vite build 通过
+
 ## v2.12.0「稳定工程 + 成本库多级分类重设计」（2026-08-11）
 > 系统根治 WebView2 rAF 冻结引发的「界面卡死 / 点不了 / 角色卡看不见」，
 > 成本库升级为按分类分级保存 + 列表/表格双视图，剧照文件化防 IPC 撑爆。

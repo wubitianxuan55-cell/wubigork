@@ -196,7 +196,7 @@ func New() *App {
 	a.whisperState = &whisperState{
 		core:            c,
 		app:             a,
-		whisperDataRoot: filepath.Join(cfg.ResourceDir, "whisper_data"),
+		whisperDataRoot: filepath.Join(config.DataRoot(), "whisper_data"),
 		weixinServers:   map[string]*weixin.Server{},
 	}
 	a.officeState = &officeState{core: c, app: a}
@@ -208,6 +208,11 @@ func (a *App) Startup(ctx context.Context) {
 	// 卡死诊断端口（仅本机）：即使 Wails 调用队列死锁，这个独立 HTTP
 	// 服务仍可访问，用于抓取 Go 协程栈定位进程级死锁。
 	startDebugServer()
+
+	// 数据根迁移：旧版本把 whisper_data 放在 ResourceDir（exe 相对路径），
+	// 桌面副本会因找不到 prompts 而分裂数据目录。新版本统一到用户级
+	// DataRoot，首次启动时把旧目录内容搬过去（目标已存在则跳过）。
+	a.migrateLegacyDataRoot()
 
 	// 将 slog 输出到文件（GUI 应用无控制台）
 	logFile, err := os.OpenFile(filepath.Join(a.whisperDataRoot, "gaea.log"),
@@ -459,4 +464,74 @@ func encryptSecretIfLegacy(key string, v *string) {
 		return
 	}
 	*v = enc
+}
+
+// migrateLegacyDataRoot 把旧版 ResourceDir/whisper_data 中的数据迁移到
+// 用户级 DataRoot/whisper_data（仅当目标不存在或为空时执行，幂等）。
+func (a *App) migrateLegacyDataRoot() {
+	newRoot := a.whisperDataRoot
+	if newRoot == "" {
+		return
+	}
+	// 目标已存在且有内容：不迁移（可能是新版本已在写入，避免覆盖）。
+	if entries, err := os.ReadDir(newRoot); err == nil && len(entries) > 0 {
+		return
+	}
+	legacy := filepath.Join(a.cfg.ResourceDir, "whisper_data")
+	if legacy == newRoot || legacy == "" {
+		return
+	}
+	if _, err := os.Stat(legacy); err != nil {
+		return // 旧目录不存在，无需迁移
+	}
+	if err := os.MkdirAll(newRoot, 0o755); err != nil {
+		slog.Warn("迁移旧数据目录失败：无法创建目标", "path", newRoot, "error", err)
+		return
+	}
+	entries, err := os.ReadDir(legacy)
+	if err != nil {
+		slog.Warn("迁移旧数据目录失败：无法读取旧目录", "path", legacy, "error", err)
+		return
+	}
+	moved := 0
+	for _, e := range entries {
+		src := filepath.Join(legacy, e.Name())
+		dst := filepath.Join(newRoot, e.Name())
+		if err := copyPath(src, dst); err != nil {
+			slog.Warn("迁移旧数据失败", "src", src, "error", err)
+			continue
+		}
+		moved++
+	}
+	if moved > 0 {
+		slog.Info("旧数据目录已迁移", "from", legacy, "to", newRoot, "items", moved)
+	}
+}
+
+// copyPath 复制文件或整个目录（用于数据根迁移）。
+func copyPath(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		if err := os.MkdirAll(dst, 0o755); err != nil {
+			return err
+		}
+		entries, err := os.ReadDir(src)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if err := copyPath(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, info.Mode().Perm())
 }

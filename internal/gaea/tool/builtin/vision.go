@@ -17,7 +17,7 @@ type visionTool struct{}
 func (visionTool) Name() string { return "vision" }
 
 func (visionTool) Description() string {
-	return "识别图片内容（识图）：读取本地图片文件，用本地视觉模型描述图片中的内容、文字、布局和关键细节。支持自定义提示词。配合 screen_capture 使用可以理解截图。"
+	return "识别图片内容（识图）：读取本地图片文件，用本地视觉模型描述图片中的内容、文字、布局和关键细节。支持自定义提示词。通常几秒，冷启动（模型未加载）约 20 秒+；不消耗主模型 token。"
 }
 
 func (visionTool) Schema() json.RawMessage {

@@ -80,7 +80,7 @@ export function ChatOutline(arg1:string):Promise<Record<string, any>>;
 
 export function ChatOutlineNode(arg1:string,arg2:string):Promise<Record<string, any>>;
 
-export function ChatSend(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<Record<string, any>>;
+export function ChatSend(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:boolean,arg6:boolean):Promise<Record<string, any>>;
 
 export function ChatTopicClear(arg1:string):Promise<void>;
 
@@ -854,9 +854,9 @@ export function WhisperAssistantList():Promise<Array<assistant.Assistant>>;
 
 export function WhisperAssistantSave(arg1:assistant.Assistant):Promise<void>;
 
-export function WhisperChat(arg1:string,arg2:string):Promise<Record<string, any>>;
+export function WhisperChat(arg1:string,arg2:string,arg3:boolean):Promise<Record<string, any>>;
 
-export function WhisperChatWithSearch(arg1:string,arg2:string):Promise<Record<string, any>>;
+export function WhisperChatWithSearch(arg1:string,arg2:string,arg3:boolean,arg4:boolean):Promise<Record<string, any>>;
 
 export function WhisperClearSession(arg1:string):Promise<void>;
 

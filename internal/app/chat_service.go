@@ -14,43 +14,50 @@ import (
 // ChatSend 统一聊天入口（聊天/轻语板块合并，后端）。
 // mode 为空或 "plain" → 普通对话；否则按人格 ID 走轻语 Orchestrator（记忆/情绪）。
 // searchEnabled 打开时自动检测搜索意图并注入实时搜索结果（普通对话同样生效）。
-func (a *App) ChatSend(topicID, message, mode string, searchEnabled bool) (map[string]interface{}, error) {
+// thinking 打开时对本地 Qwen3 系模型开启思考模式，回复附带思考链。
+func (a *App) ChatSend(topicID, message, mode string, searchEnabled, thinking, forceSearch bool) (map[string]interface{}, error) {
 	if topicID == "" {
 		return nil, fmt.Errorf("话题 ID 不能为空")
 	}
 	if mode == "" || mode == "plain" {
-		return a.chatSendPlain(topicID, message, searchEnabled)
+		return a.chatSendPlain(topicID, message, searchEnabled, thinking, forceSearch)
 	}
-	return a.chatSendPersona(topicID, message, mode, searchEnabled)
+	return a.chatSendPersona(topicID, message, mode, searchEnabled, thinking, forceSearch)
 }
 
-func (a *App) chatSendPlain(topicID, message string, searchEnabled bool) (map[string]interface{}, error) {
+func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, forceSearch bool) (map[string]interface{}, error) {
 	if a.client == nil {
 		return nil, fmt.Errorf("AI 客户端未初始化")
 	}
 	// 联网搜索增强：命中搜索意图时先查实时网页，注入为上下文再回答。
-	if searchEnabled && shouldSearchWeb(message) {
+	if forceSearch || (searchEnabled && shouldSearchWeb(message)) {
 		if result, err := whisper.WebSearch(message); err == nil && result != "" {
 			message = fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", message, result)
 		}
 	}
 	eng, model := a.featureModel("chat")
-	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model,
-		"你是一个热心、博学的AI助手，用中文与用户进行日常对话。", message, ai.ChatSimpleOptions{EngineID: eng})
+	reply, reasoning, err := a.client.ChatSimpleStreamDetailed(a.ctx, model,
+		"你是一个热心、博学的AI助手，用中文与用户进行日常对话。你具备联网搜索能力：用户询问需要实时/最新信息的问题时，系统会把搜索结果以「以下是关于此问题的实时搜索结果」注入到消息中，请优先依据这些搜索结果作答，并如实告诉用户信息来源；不要说自己无法联网搜索。", message, ai.ChatSimpleOptions{EngineID: eng, EnableThinking: thinking})
 	if err != nil {
 		return nil, err
 	}
-	a.appendChatExchange(topicID, message, reply, "")
-	return map[string]interface{}{"reply": reply, "mode": "plain", "topicID": topicID}, nil
+	extra := ""
+	if reasoning != "" {
+		if b, err := json.Marshal(map[string]interface{}{"reasoning": reasoning}); err == nil {
+			extra = string(b)
+		}
+	}
+	a.appendChatExchange(topicID, message, reply, extra)
+	return map[string]interface{}{"reply": reply, "reasoning": reasoning, "mode": "plain", "topicID": topicID}, nil
 }
 
-func (a *App) chatSendPersona(topicID, message, mode string, searchEnabled bool) (map[string]interface{}, error) {
+func (a *App) chatSendPersona(topicID, message, mode string, searchEnabled, thinking, forceSearch bool) (map[string]interface{}, error) {
 	var out map[string]interface{}
 	var err error
-	if searchEnabled {
-		out, err = a.WhisperChatWithSearch(message, mode)
+	if forceSearch || searchEnabled {
+		out, err = a.WhisperChatWithSearch(message, mode, thinking, forceSearch)
 	} else {
-		out, err = a.WhisperChat(message, mode)
+		out, err = a.WhisperChat(message, mode, thinking)
 	}
 	if err != nil {
 		return nil, err
@@ -58,6 +65,7 @@ func (a *App) chatSendPersona(topicID, message, mode string, searchEnabled bool)
 	extra := ""
 	if b, err := json.Marshal(map[string]interface{}{
 		"emotion": out["emotion"], "trust": out["trust"], "stage": out["stage"], "totalTurns": out["totalTurns"],
+		"reasoning": out["reasoning"],
 	}); err == nil {
 		extra = string(b)
 	}

@@ -168,9 +168,27 @@ func (s *Service) GenerateSection(ctx context.Context, proposalID, sectionID, in
 	if instruction != "" {
 		userMsg += "\n\n【额外要求】" + instruction
 	}
-	reply, err := s.ai.ChatSimpleStream(ctx, "", sc.SystemPrompt, userMsg)
-	if err != nil {
-		return nil, fmt.Errorf("AI 生成失败: %w", err)
+	// 目标字数：优先章节预算（大纲按总字数分配），缺省 800。单次调用
+	// 不足时用续写指令补齐，与流式入口 ProposalGenerateSectionStream
+	// 行为一致，避免批量生成产出过短章节。
+	target := sc.WordTarget
+	if target <= 0 {
+		target = 800
+	}
+	var reply string
+	for attempt := 0; attempt <= 3; attempt++ {
+		cp := userMsg
+		if reply != "" {
+			cp = fmt.Sprintf("%s\n\n【已生成内容，请自然续写，不要重复前面内容】\n%s", userMsg, reply)
+		}
+		part, err := s.ai.ChatSimpleStream(ctx, "", sc.SystemPrompt, cp)
+		if err != nil {
+			return nil, fmt.Errorf("AI 生成失败: %w", err)
+		}
+		reply += part
+		if countRunes(reply) >= target {
+			break
+		}
 	}
 	sc.Target.Content = reply
 	sc.Target.Status = "completed"

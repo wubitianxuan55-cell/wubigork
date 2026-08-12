@@ -20,7 +20,7 @@ type chartGen struct{}
 func (chartGen) Name() string { return "chart_gen" }
 
 func (chartGen) Description() string {
-	return "生成统计图表：支持柱状图、折线图、饼图、散点图。使用 Python matplotlib 生成 PNG/SVG 图片。需要系统中安装 Python 和 matplotlib。"
+	return "生成统计图表：支持柱状图、折线图、饼图、散点图。使用 Python matplotlib 生成 PNG/SVG 图片，通常几秒。需要系统中安装 Python 和 matplotlib。"
 }
 
 func (chartGen) Schema() json.RawMessage {

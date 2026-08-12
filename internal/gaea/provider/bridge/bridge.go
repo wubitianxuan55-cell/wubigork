@@ -35,6 +35,14 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 		Temperature: req.Temperature,
 		EngineID:    p.engine,
 	}
+	// Qwen3 等本地模型默认不输出推理；开启思考模式（enable_thinking +
+	// chat_template_kwargs）后服务端才会流式下发 reasoning_content，
+	// 前端据此显示思考链。
+	if p.engine == "herdsman" || p.engine == "ollama" {
+		t := true
+		creq.EnableThinking = &t
+		creq.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
+	}
 	raw, err := p.client.ChatStream(ctx, creq)
 	if err != nil {
 		return nil, fmt.Errorf("bridge: chat stream: %w", err)
@@ -85,6 +93,11 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 			}
 			if c.Content != "" {
 				if !send(provider.Chunk{Type: provider.ChunkText, Text: c.Content}) {
+					return
+				}
+			}
+			if c.Reasoning != "" {
+				if !send(provider.Chunk{Type: provider.ChunkReasoning, Text: c.Reasoning}) {
 					return
 				}
 			}

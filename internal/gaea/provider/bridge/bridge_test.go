@@ -134,6 +134,65 @@ func TestBridge_Stream_TextDone(t *testing.T) {
 	}
 }
 
+// TestBridge_Stream_Reasoning 验证思考链透传：ai.SSEChunk.Reasoning → ChunkReasoning；
+// herdsman/ollama 本地引擎自动开启 enable_thinking + chat_template_kwargs。
+func TestBridge_Stream_Reasoning(t *testing.T) {
+	mc := &mockClient{chunks: []ai.SSEChunk{
+		{Reasoning: "先计算：9*7"},
+		{Content: "等于 63"},
+		{Done: true},
+	}}
+	SetClient(mc)
+	p := &Provider{name: "gaea", model: "m", engine: "herdsman", client: mc}
+
+	ch, err := p.Stream(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	var got []provider.Chunk
+	for c := range ch {
+		got = append(got, c)
+	}
+	if mc.gotReq == nil {
+		t.Fatal("client 未收到请求")
+	}
+	if mc.gotReq.EnableThinking == nil || !*mc.gotReq.EnableThinking {
+		t.Errorf("herdsman 应开启 enable_thinking: %+v", mc.gotReq.EnableThinking)
+	}
+	if v, _ := mc.gotReq.ChatTemplateKwargs["enable_thinking"].(bool); !v {
+		t.Errorf("herdsman 应携带 chat_template_kwargs.enable_thinking: %+v", mc.gotReq.ChatTemplateKwargs)
+	}
+	if len(got) != 3 {
+		t.Fatalf("chunks = %d, want 3 (Reasoning + Text + Done)", len(got))
+	}
+	if got[0].Type != provider.ChunkReasoning || got[0].Text != "先计算：9*7" {
+		t.Errorf("chunk0 = %+v, want ChunkReasoning(先计算：9*7)", got[0])
+	}
+	if got[1].Type != provider.ChunkText || got[1].Text != "等于 63" {
+		t.Errorf("chunk1 = %+v, want ChunkText(等于 63)", got[1])
+	}
+	if got[2].Type != provider.ChunkDone {
+		t.Errorf("chunk2 = %+v, want ChunkDone", got[2])
+	}
+}
+
+// TestBridge_Stream_CloudNoThinking 验证非本地引擎不强制开启思考模式。
+func TestBridge_Stream_CloudNoThinking(t *testing.T) {
+	mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+	SetClient(mc)
+	p := &Provider{name: "gaea", model: "deepseek-v4-flash", engine: "deepseek", client: mc}
+	if _, err := p.Stream(context.Background(), provider.Request{
+		Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+	}); err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+	if mc.gotReq == nil || mc.gotReq.EnableThinking != nil {
+		t.Errorf("deepseek 不应强制 enable_thinking: %+v", mc.gotReq)
+	}
+}
+
 // TestBridge_Stream_Error 验证错误透传为 ChunkError。
 func TestBridge_Stream_Error(t *testing.T) {
 	mc := &mockClient{chunks: []ai.SSEChunk{{Error: "boom"}}}

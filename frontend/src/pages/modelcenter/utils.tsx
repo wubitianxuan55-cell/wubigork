@@ -43,6 +43,7 @@ export const FEATURES: { key: string; label: string; icon: string; mergeKeys?: s
   { key: 'novel', label: '小说', icon: '📖' },
   { key: 'office', label: '办公', icon: '🛠️', mergeKeys: ['gaea'] },
   { key: 'characterlib', label: '角色库', icon: '🎭' },
+  { key: 'routine', label: '常规办公', icon: '⚙️' },
 ]
 
 // xAI Grok TTS 音色（与设置面板一致，模型中心绑定卡内可直接选择）

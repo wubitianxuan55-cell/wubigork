@@ -1,30 +1,33 @@
 # 任务进度
 
-> 最后更新: 2026-08-11 09:10:00（v2.12.0 发布）
+> 最后更新 2026-08-12（v2.13.0 发布）
 
-## 已发布：v2.12.0「稳定工程 + 成本库多级分类重设计」（2026-08-11）
+## 已发布：v2.13.0「通用办公打磨 + 模型中心优化 + 本地模型实测」（2026-08-12）
 
 | 状态 | 任务 |
 |------|------|
-| ✅ | 弹窗卡死根治：全应用 30+ Modal 关闭即卸载 + 禁用过渡动画（WebView2 rAF 冻结不再残留遮罩拦截点击） |
-| ✅ | rAF 持续探测 + 看门狗：运行中晚发节流（失焦/后台误判）也能触发降级，8s 冻结兜底 |
-| ✅ | 角色库卡片全看不见修复：角色卡/首页启动器/聊天气泡入场动画纳入降级名单 |
-| ✅ | 前端诊断进 gaea.log：ErrorBoundary / window.onerror / longtask / 主线程心跳 |
-| ✅ | 成本库多级分类：cost_categories 分类树 + category_path，默认按信息价体系分类（材料三级细分） |
-| ✅ | 成本库面板重设计：分类树 + 列表/表格双视图，排序/批量/价格历史/多级 TreeSelect 编辑 |
-| ✅ | 分类管理：增删改、改名自动重写子树路径、删除保护、按路径含子树过滤；cost_search/cost_save 支持分类路径 |
-| ✅ | 剧照文件化：base64 落盘存路径 + >300KB 截断，防巨型 base64 撑爆 IPC |
-| ✅ | 记忆中枢/办公深化：成本导入（预览确认+AI 归一化）、价格源仓库、价格历史、知识导入/版本历史/查重合并、画像库、办公记忆合并、记忆图谱增强 |
-| ✅ | 发布：v2.12.0 版本号、releases/v2.12.0.md、CHANGELOG、gaea-v2.12.0.exe、git tag v2.12.0 |
+| ✅ | 方案分节字数修复：流式「生成该节」+ 批量生成按 WordTarget 续写（原硬编码 100 字截断） |
+| ✅ | docx 读取乱码修复：ReadTextFile 统一走 ConvertToMarkdown |
+| ✅ | 前端运行态兜底：停止按钮无条件复位 + 30s GaeaRunning 看门狗（turn_done 丢失不再卡「执行中」） |
+| ✅ | 待办自动收尾：从未推进的列表 turn_done 后显示已完成 |
+| ✅ | format_convert 输出父目录自动创建 + 回归测试 |
+| ✅ | docmd MarkItDown 通道（docx/pptx）+ PDF 页数上限保持 |
+| ✅ | 模型中心功能绑定/板块细节优化；本地引擎思考参数透传（enable_thinking / chat_template_kwargs） |
+| ✅ | whisper web_search、角色画像文件化等累积修复 |
+| ✅ | 本地模型实测：Herdsman 三模型 20 任务×思考/非思考双模式 + Ollama GLM；脚本 scripts/test_herdsman_models.go 可复现 |
+| ✅ | 发布：v2.13.0 版本号、releases/v2.13.0.md、CHANGELOG、gaea-v2.13.0.exe、git tag v2.13.0 |
 
 ## 验证
 
-- go build / go vet 干净；go test（cost/db/app/tool）全绿
-- 前端 127 例全过（新增分类树/表格/Modal 关闭残留回归测试），tsc + vite build 通过
+- go build / go vet 干净；方案包（proposal）测试全绿
+- 前端 127 例全过，tsc + vite build 通过
+- 产物 gaea-v2.13.0.exe（约 39.6MB），桌面端同步
 
 ## 后续候选
 
 - 成本库导入行分类映射到多级路径（当前导入落到一级节点，可在编辑时细分）
-- 成本条目补充「地区/期数」字段（信息价三要素：规格 + 地区 + 时间）
+- 成本条目补充「地区 + 期数」字段（信息价三要素：规格 + 地区 + 时间）
 - 发布版移除 WebView2 渲染调试端口（main.go 诊断配置，本地保留即可）
-- exe 瘦身：wails 构建压缩 / 前端大 chunk 按需加载
+- exe 瘦身：Wails 构建压缩 / 前端大 chunk 按需加载
+- 待办工具：任务完成时自动置 completed（当前靠模型回写状态，前端 turn_done 已兜底）
+- tesseract 缺失时 OCR 错误提示更友好（当前靠本地视觉模型兜底）

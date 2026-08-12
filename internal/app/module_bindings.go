@@ -29,7 +29,7 @@ func (a *App) initModules() {
 			if pid == "" {
 				pid = "轻语"
 			}
-			return a.WhisperChat(msg, pid)
+			return a.WhisperChat(msg, pid, false)
 		},
 	})
 	_ = a.modules.Register(Module{

@@ -19,14 +19,14 @@ type formatConvert struct{}
 func (formatConvert) Name() string { return "format_convert" }
 
 func (formatConvert) Description() string {
-	return "文档格式转换：将 docx/xlsx/pdf 文件转换为 Markdown。docx→md 保留标题层级和表格；xlsx→md 生成表格；pdf→md 提取文本（含 OCR 扫描件回退）。"
+	return "文档格式转换：将 docx/xlsx/pptx/pdf 文件转换为 Markdown。docx→md 保留标题层级和表格；xlsx→md 生成表格；pptx→md 提取每页文本与备注；pdf→md 提取文本（含 OCR 扫描件回退）。按文档大小数秒到数十秒；不消耗主模型 token。"
 }
 
 func (formatConvert) Schema() json.RawMessage {
 	return json.RawMessage(`{
 "type":"object",
 "properties":{
-  "path":{"type":"string","description":"源文件路径（支持 .docx/.xlsx/.pdf）"},
+  "path":{"type":"string","description":"源文件路径（支持 .docx/.xlsx/.pptx/.pdf）"},
   "output":{"type":"string","description":"输出 Markdown 文件路径（可选，不指定则返回文本）"},
   "pages":{"type":"string","description":"PDF页码范围，如\"1-5\"或\"1,3,5\"（仅PDF有效）"}
 },
@@ -65,6 +65,13 @@ func (formatConvert) Execute(ctx context.Context, args json.RawMessage) (string,
 	md = fmt.Sprintf("# 文档转换: %s\n\n%s\n\n---\n*由 gaea format_convert 转换*", filepath.Base(p.Path), md)
 
 	if p.Output != "" {
+		// 自动创建输出文件的父目录，与 write_file 行为一致；否则输出路径
+		// 指向不存在的目录时 os.WriteFile 会失败，导致“没有生成文件”。
+		if dir := filepath.Dir(p.Output); dir != "" && dir != "." {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return "", fmt.Errorf("创建输出目录失败: %w", err)
+			}
+		}
 		if err := os.WriteFile(p.Output, []byte(md), 0o644); err != nil {
 			return "", fmt.Errorf("写入输出文件失败: %w", err)
 		}

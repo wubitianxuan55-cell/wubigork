@@ -190,6 +190,48 @@ func TestSave_FuncEnabledRoundTrip(t *testing.T) {
 	}
 }
 
+// TestSave_RoutineBindingRoundTrip 常规办公（routine）绑定持久化：
+// routine_llm 工具的目标模型配置，保存后重启不丢。
+func TestSave_RoutineBindingRoundTrip(t *testing.T) {
+	origHome := os.Getenv("HOME")
+	origUP := os.Getenv("USERPROFILE")
+	tmpHome := t.TempDir()
+	os.Setenv("HOME", tmpHome)
+	os.Setenv("USERPROFILE", tmpHome)
+	t.Cleanup(func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("USERPROFILE", origUP)
+	})
+
+	// 单 HOME 下连续保存多键：模拟模型中心一次性写入引擎/模型/开关
+	if err := Save(KeyFuncRoutineEngine, "herdsman"); err != nil {
+		t.Fatalf("Save routine engine 失败: %s", err)
+	}
+	if err := Save(KeyFuncRoutineModel, "qwen3-8b"); err != nil {
+		t.Fatalf("Save routine model 失败: %s", err)
+	}
+	if err := Save(KeyFuncRoutineEnabled, "1"); err != nil {
+		t.Fatalf("Save routine enabled 失败: %s", err)
+	}
+	cfg := Load()
+	eng, model := cfg.GetFeatureModel("routine")
+	if eng != "herdsman" || model != "qwen3-8b" {
+		t.Errorf("GetFeatureModel(routine) = (%q,%q), want (herdsman,qwen3-8b)", eng, model)
+	}
+	if !cfg.GetFeatureModelEnabled("routine") {
+		t.Error("routine 保存为启用后应保持启用")
+	}
+
+	// 同一 HOME 下停用持久化
+	if err := Save(KeyFuncRoutineEnabled, "0"); err != nil {
+		t.Fatalf("Save routine disabled 失败: %s", err)
+	}
+	cfg = Load()
+	if cfg.GetFeatureModelEnabled("routine") {
+		t.Error("保存 0 后 routine 应为停用")
+	}
+}
+
 // TestLoad_MigratesWhisperBindingToChat 旧版 func_whisper_* 绑定合并到 func_chat：
 // 老配置文件（只有 func_whisper_*）加载后 chat 绑定接管，whisper 查询别名到 chat。
 func TestLoad_MigratesWhisperBindingToChat(t *testing.T) {

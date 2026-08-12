@@ -89,18 +89,10 @@ func ReadPdfFile(filePath string) (string, error) {
 func ReadTextFile(filePath string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	switch ext {
-	case ".pdf":
-		return ReadPdfFile(filePath)
-	case ".docx", ".doc":
-		data, err := os.ReadFile(filePath)
-		if err != nil {
-			return "", err
-		}
-		text := string(data)
-		if len(text) > 50000 {
-			return "", fmt.Errorf("Word 文件较大，建议先转换为文本再粘贴")
-		}
-		return text, nil
+	case ".pdf", ".docx", ".doc":
+		// docx 是 zip 容器，直接读字节会得到乱码；统一走格式转换
+		// （MarkItDown 优先，内置转换回退，含扫描件 OCR 提示）。
+		return ConvertToMarkdown(filePath)
 	default:
 		data, err := os.ReadFile(filePath)
 		if err != nil {

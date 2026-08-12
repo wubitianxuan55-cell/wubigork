@@ -56,12 +56,15 @@ const (
 	KeyFuncGaeaModel       = "func_gaea_model"
 	KeyFuncCharLibEngine   = "func_characterlib_engine"
 	KeyFuncCharLibModel    = "func_characterlib_model"
+	KeyFuncRoutineEngine   = "func_routine_engine"
+	KeyFuncRoutineModel    = "func_routine_model"
 	// 功能级启停（FeatureModelBar 启停语义：只影响该功能的路由，不影响整个引擎）
 	KeyFuncChatEnabled      = "func_chat_enabled"
 	KeyFuncNovelEnabled     = "func_novel_enabled"
 	KeyFuncOfficeEnabled    = "func_office_enabled"
 	KeyFuncGaeaEnabled      = "func_gaea_enabled"
 	KeyFuncCharLibEnabled   = "func_characterlib_enabled"
+	KeyFuncRoutineEnabled   = "func_routine_enabled"
 	KeyDeepseekAPIKey      = "deepseek_api_key"
 	KeyOpencodeGoAPIKey    = "opencode_go_api_key"
 	KeyOpencodeZenAPIKey   = "opencode_zen_api_key"
@@ -122,6 +125,9 @@ type configFile struct {
 	FuncOfficeEnabled   *bool   `json:"func_office_enabled,omitempty"`
 	FuncGaeaEnabled     *bool   `json:"func_gaea_enabled,omitempty"`
 	FuncCharLibEnabled  *bool   `json:"func_characterlib_enabled,omitempty"`
+	FuncRoutineEngine   string  `json:"func_routine_engine,omitempty"`  // 常规任务模型目标（routine_llm 工具）
+	FuncRoutineModel    string  `json:"func_routine_model,omitempty"`
+	FuncRoutineEnabled  *bool   `json:"func_routine_enabled,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -211,12 +217,18 @@ type Config struct {
 	FuncGaeaModel     string
 	FuncCharLibEngine string
 	FuncCharLibModel  string
+	// 常规任务模型目标（routine）：routine_llm 工具默认调用的引擎/模型，
+	// 供云端 agent 按需把摘要/归一化/抽取等简单活卸给本地或免费云端模型。
+	// 不参与强制路由——是否调用由云端 agent 自行决定。
+	FuncRoutineEngine string
+	FuncRoutineModel  string
 	// 功能级启停（默认启用；停用后该功能路由回退全局）
 	FuncChatEnabled   bool
 	FuncNovelEnabled  bool
 	FuncOfficeEnabled bool
 	FuncGaeaEnabled   bool
 	FuncCharLibEnabled bool
+	FuncRoutineEnabled bool
 }
 
 // funcMu 保护功能级模型绑定字段（GetFeatureModel/SetFeatureModel 并发读写）
@@ -240,6 +252,8 @@ func (c *Config) GetFeatureModel(feature string) (engine, model string) {
 		return c.FuncGaeaEngine, c.FuncGaeaModel
 	case "characterlib":
 		return c.FuncCharLibEngine, c.FuncCharLibModel
+	case "routine":
+		return c.FuncRoutineEngine, c.FuncRoutineModel
 	}
 	return "", ""
 }
@@ -262,6 +276,8 @@ func (c *Config) SetFeatureModel(feature, engine, model string) {
 		c.FuncGaeaEngine, c.FuncGaeaModel = engine, model
 	case "characterlib":
 		c.FuncCharLibEngine, c.FuncCharLibModel = engine, model
+	case "routine":
+		c.FuncRoutineEngine, c.FuncRoutineModel = engine, model
 	}
 }
 
@@ -282,6 +298,8 @@ func (c *Config) GetFeatureModelEnabled(feature string) bool {
 		return c.FuncGaeaEnabled
 	case "characterlib":
 		return c.FuncCharLibEnabled
+	case "routine":
+		return c.FuncRoutineEnabled
 	}
 	return true
 }
@@ -303,6 +321,8 @@ func (c *Config) SetFeatureModelEnabled(feature string, enabled bool) {
 		c.FuncGaeaEnabled = enabled
 	case "characterlib":
 		c.FuncCharLibEnabled = enabled
+	case "routine":
+		c.FuncRoutineEnabled = enabled
 	}
 }
 
@@ -338,6 +358,7 @@ func Load() *Config {
 		FuncOfficeEnabled: true,
 		FuncGaeaEnabled:   true,
 		FuncCharLibEnabled: true,
+		FuncRoutineEnabled: true, // 常规办公默认启用：routine_llm 工具按绑定目标执行
 
 		// TTS 默认值
 		TTSBinaryPath: filepath.Join(home, "legacy-tts", "legacy_tts.exe"),
@@ -591,6 +612,15 @@ func Load() *Config {
 			if cf.FuncCharLibEnabled != nil {
 				cfg.FuncCharLibEnabled = *cf.FuncCharLibEnabled
 			}
+			if cf.FuncRoutineEngine != "" {
+				cfg.FuncRoutineEngine = cf.FuncRoutineEngine
+			}
+			if cf.FuncRoutineModel != "" {
+				cfg.FuncRoutineModel = cf.FuncRoutineModel
+			}
+			if cf.FuncRoutineEnabled != nil {
+				cfg.FuncRoutineEnabled = *cf.FuncRoutineEnabled
+			}
 			// 2.x 聊天/轻语合并：旧配置只写 func_whisper_* 时迁移到 func_chat；
 			// chat 显式配置优先，不覆盖；func_whisper_enabled=false 同步为 chat 停用。
 			if cfg.FuncChatEngine == "" && cf.FuncWhisperEngine != "" {
@@ -612,6 +642,13 @@ func Load() *Config {
 // resolveResourceDir 找到 prompts/ 和 skills/ 所在的资源根目录。
 // 优先基于 os.Executable() 向上查找，回退到 CWD。
 func resolveResourceDir() string {
+	// 环境变量优先：部署/开发可显式指定资源根，避免桌面副本找不到 prompts
+	// 导致数据目录分裂（统计/引擎状态落在 exe 所在目录）。
+	if v := os.Getenv("GAEA_RESOURCE_DIR"); v != "" {
+		if dirExists(filepath.Join(v, "prompts")) {
+			return v
+		}
+	}
 	// 尝试从可执行文件路径向上查找
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)
@@ -626,6 +663,13 @@ func resolveResourceDir() string {
 			dir = parent
 		}
 	}
+	// 用户级数据根（%APPDATA%/gaea）：exe 放在任意位置（如桌面）也能找到资源与数据。
+	if ud, err := os.UserConfigDir(); err == nil {
+		userRoot := filepath.Join(ud, "gaea")
+		if dirExists(filepath.Join(userRoot, "prompts")) {
+			return userRoot
+		}
+	}
 	// 回退：当前工作目录
 	if cwd, err := os.Getwd(); err == nil {
 		if dirExists(filepath.Join(cwd, "prompts")) {
@@ -633,6 +677,25 @@ func resolveResourceDir() string {
 		}
 	}
 	return "."
+}
+
+// ResolveResourceDirForTest 暴露资源目录解析结果（仅测试/诊断用）。
+func ResolveResourceDirForTest() string {
+	return resolveResourceDir()
+}
+
+// DataRoot 返回用户级数据根目录（引擎状态/模型统计/轻语/聊天/角色库等）。
+// 与 exe 位置无关：桌面副本或任意路径启动都读写同一份数据，避免统计/状态
+// 因 ResourceDir 解析差异而分裂。优先级：GAEA_DATA_ROOT > 用户配置目录/gaea
+// > 回退 ResourceDir（历史行为，防止取不到用户目录时数据丢失）。
+func DataRoot() string {
+	if v := os.Getenv("GAEA_DATA_ROOT"); v != "" {
+		return v
+	}
+	if ud, err := os.UserConfigDir(); err == nil && ud != "" {
+		return filepath.Join(ud, "gaea")
+	}
+	return resolveResourceDir()
 }
 
 func dirExists(path string) bool {
@@ -725,6 +788,9 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyFuncOfficeEnabled:  func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncOfficeEnabled = b; return nil },
 	KeyFuncGaeaEnabled:    func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncGaeaEnabled = b; return nil },
 	KeyFuncCharLibEnabled: func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncCharLibEnabled = b; return nil },
+	KeyFuncRoutineEngine:  func(cf *configFile, v string) error { cf.FuncRoutineEngine = v; return nil },
+	KeyFuncRoutineModel:   func(cf *configFile, v string) error { cf.FuncRoutineModel = v; return nil },
+	KeyFuncRoutineEnabled: func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncRoutineEnabled = b; return nil },
 }
 
 // parseBoolPtr 解析 "true"/"1"/"0" 等布尔值并返回指针（用于 *bool 配置项）。

@@ -408,7 +408,7 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 	toolPending := make(map[int]*ChatToolCall)
 	var toolOrder []int
 	var streamUsage *ChatUsage // 流结束块携带的用量（OpenAI 兼容 API 在最后一块带 usage）
-	var streamOK bool // 是否正常收到结束帧
+	var streamOK bool          // 是否正常收到结束帧
 
 	defer func() {
 		if c.engineMgr == nil {
@@ -476,6 +476,9 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 			delta := choice.Choices[0].Delta
 			if delta.Content != "" {
 				send(SSEChunk{Content: delta.Content})
+			}
+			if delta.ReasoningContent != "" {
+				send(SSEChunk{Reasoning: delta.ReasoningContent})
 			}
 			for _, tc := range delta.ToolCalls {
 				p, ok := toolPending[tc.Index]
@@ -561,6 +564,14 @@ func (c *Client) ChatSimpleStream(ctx context.Context, model, systemPrompt, user
 
 // ChatSimpleStreamWithOptions 简化流式对话，支持参数覆盖。
 func (c *Client) ChatSimpleStreamWithOptions(ctx context.Context, model, systemPrompt, userMsg string, opts ChatSimpleOptions) (string, error) {
+	content, _, err := c.ChatSimpleStreamDetailed(ctx, model, systemPrompt, userMsg, opts)
+	return content, err
+}
+
+// ChatSimpleStreamDetailed 与 ChatSimpleStreamWithOptions 相同，但额外返回思考链。
+// opts.EnableThinking 对本地 Qwen3 系模型（herdsman/ollama）开启思考模式，
+// 服务端会流式下发 reasoning_content，函数累计后随正文一起返回。
+func (c *Client) ChatSimpleStreamDetailed(ctx context.Context, model, systemPrompt, userMsg string, opts ChatSimpleOptions) (string, string, error) {
 	timeoutMinutes := opts.TimeoutMinutes
 	if timeoutMinutes <= 0 {
 		timeoutMinutes = 5
@@ -605,37 +616,52 @@ func (c *Client) ChatSimpleStreamWithOptions(ctx context.Context, model, systemP
 	if opts.TopP > 0 {
 		req.TopP = opts.TopP
 	}
+	if opts.EnableThinking {
+		reqEngine := opts.EngineID
+		if reqEngine == "" {
+			reqEngine = c.ActiveEngineID()
+		}
+		if reqEngine == "herdsman" || reqEngine == "ollama" {
+			t := true
+			req.EnableThinking = &t
+			req.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
+		}
+	}
 
 	chunks, err := c.ChatStream(ctx, req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	var sb strings.Builder
+	var rb strings.Builder
 loop:
 	for {
 		select {
 		case <-ctx.Done():
-			return sb.String(), fmt.Errorf("请求超时或已取消")
+			return sb.String(), rb.String(), fmt.Errorf("请求超时或已取消")
 		case chunk, ok := <-chunks:
 			if !ok {
 				break loop
 			}
 			if chunk.Error != "" {
-				return sb.String(), fmt.Errorf("%s", chunk.Error)
+				return sb.String(), rb.String(), fmt.Errorf("%s", chunk.Error)
 			}
 			if chunk.Done {
 				break loop
 			}
 			sb.WriteString(chunk.Content)
+			rb.WriteString(chunk.Reasoning)
 		}
 	}
 	result := sb.String()
+	reasoning := rb.String()
 	c.emit("response", map[string]interface{}{
-		"length":  len([]rune(result)),
-		"content": result,
+		"length":    len([]rune(result)),
+		"content":   result,
+		"reasoning": reasoning,
 	})
-	return result, nil
+	return result, reasoning, nil
 }
 
 // SetImageBackend 设置图片生成后端（nil + backendType 回退到 xAI）

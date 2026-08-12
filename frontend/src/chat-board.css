@@ -231,6 +231,52 @@
   word-break: break-word;
 }
 
+/* 深度思考：可折叠的思考链 */
+.chat-reasoning {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 0 8px;
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 22%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--gaea-glow) 5%, transparent);
+  padding: 4px 10px;
+}
+
+.chat-reasoning summary {
+  cursor: pointer;
+  user-select: none;
+  color: var(--gaea-glow);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 0;
+  list-style: none;
+}
+
+.chat-reasoning summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-reasoning summary::before {
+  content: '▸ ';
+  display: inline-block;
+  transition: transform 160ms;
+}
+
+.chat-reasoning[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.chat-reasoning-body {
+  color: color-mix(in srgb, var(--md-sys-color-text) 78%, transparent);
+  font-size: 12.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 4px 2px 6px;
+  border-top: 1px dashed color-mix(in srgb, var(--gaea-glow) 18%, transparent);
+  margin-top: 2px;
+}
+
 .chat-error-block {
   display: flex;
   align-items: flex-start;

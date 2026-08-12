@@ -24,7 +24,7 @@ type imageGenTool struct {
 func (t imageGenTool) Name() string { return "image_gen" }
 
 func (t imageGenTool) Description() string {
-	return "生成图片：根据文字描述生成一张或多张图片，保存为 PNG/JPG 到工作区 .gaea/uploads/ 并返回文件路径。支持指定尺寸、数量、随机种子和 LoRA。"
+	return "生成图片：根据文字描述生成一张或多张图片，保存为 PNG/JPG 到工作区 .gaea/uploads/ 并返回文件路径。支持指定尺寸、数量、随机种子和 LoRA。云端生成通常几十秒到数分钟。"
 }
 
 func (t imageGenTool) Schema() json.RawMessage {

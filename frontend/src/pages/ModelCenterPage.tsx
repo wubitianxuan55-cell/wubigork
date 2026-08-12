@@ -184,7 +184,7 @@ const ModelCenterPage: React.FC = () => {
     const bind = (window as any).go?.app?.App
     if (!bind?.GetModelRoute) return
     const next: Record<string, { engine: string; model: string; source: string }> = {}
-    for (const key of ['chat', 'novel', 'office', 'gaea', 'characterlib']) {
+    for (const key of ['chat', 'novel', 'office', 'gaea', 'characterlib', 'routine']) {
       try {
         next[key] = JSON.parse(await bind.GetModelRoute(key))
       } catch { /* 单功能失败忽略 */ }

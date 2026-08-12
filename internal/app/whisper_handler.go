@@ -57,10 +57,10 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 	if personalityID == "" || personalityID == "plain" {
 		// 普通对话：聊天板块 plain 模式的语音回复使用中性助手，不套用任何角色
 		preset = &whisper.PersonalityPreset{
-			ID:     "plain",
-			Label:  "普通对话",
-			Gender: "neutral",
-			Dims:   whisper.PersonalityDims{T: 60, I: 50, S: 50, O: 60, R: 50},
+			ID:         "plain",
+			Label:      "普通对话",
+			Gender:     "neutral",
+			Dims:       whisper.PersonalityDims{T: 60, I: 50, S: 50, O: 60, R: 50},
 			VoiceGuide: "普通对话：你是自然、直接、务实的 AI 助手，不扮演任何角色。语气平和清晰，先准确理解问题，再给出简洁有用的回答。",
 		}
 	} else {
@@ -130,7 +130,7 @@ func (a *whisperState) WhisperGetPersonalities() []whisper.PersonalityPreset {
 	return whisper.PersonalityPresets
 }
 
-func (a *whisperState) WhisperChat(userMsg string, personalityID string) (result map[string]interface{}, err error) {
+func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinking bool) (result map[string]interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("[whisper] PANIC", "panic", fmt.Sprintf("%v", r))
@@ -174,7 +174,7 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string) (result
 		return nil, fmt.Errorf("model client not initialized")
 	}
 	slog.Info("[whisper] calling LLM", "engine", engine, "model", model)
-	reply, callErr := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userMsg, ai.ChatSimpleOptions{EngineID: engine})
+	reply, reasoning, callErr := a.client.ChatSimpleStreamDetailed(a.ctx, model, systemPrompt, userMsg, ai.ChatSimpleOptions{EngineID: engine, EnableThinking: thinking})
 	if callErr != nil {
 		slog.Error("[whisper] LLM call failed", "error", callErr)
 		return nil, callErr
@@ -231,6 +231,7 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string) (result
 	slog.Info("[whisper] WhisperChat done", "replyLen", len(reply), "emotion", orch.State.Emotion.PrimaryLabel)
 	return map[string]interface{}{
 		"reply":        reply,
+		"reasoning":    reasoning,
 		"sentences":    sentences,
 		"turnPlan":     turnPlan,
 		"stage":        string(orch.State.Relationship.Stage),
@@ -360,7 +361,7 @@ func (a *whisperState) WhisperGetState(personalityID string) map[string]interfac
 			"aff": state.Emotion.Aff, "sec": state.Emotion.Sec, "aro": state.Emotion.Aro,
 			"dom": state.Emotion.Dom, "label": state.Emotion.PrimaryLabel, "locked": state.Emotion.IsLocked,
 		},
-		"totalTurns": state.Counters.TotalTurns,
+		"totalTurns":  state.Counters.TotalTurns,
 		"desireStack": state.DesireStack,
 		"personality": map[string]interface{}{
 			"id": state.Personality.PresetID, "T": state.Personality.T,
@@ -488,24 +489,24 @@ func (a *whisperState) WhisperWebSearch(query string) (map[string]interface{}, e
 }
 
 // WhisperChatWithSearch 带搜索增强的对话：自动检测是否需要上网查询
-func (a *whisperState) WhisperChatWithSearch(userMsg string, personalityID string) (map[string]interface{}, error) {
+func (a *whisperState) WhisperChatWithSearch(userMsg string, personalityID string, thinking, forceSearch bool) (map[string]interface{}, error) {
 	// 检测搜索意图
-	if shouldSearchWeb(userMsg) {
+	if forceSearch || shouldSearchWeb(userMsg) {
 		slog.Info("[whisper] auto-search triggered", "msg", userMsg[:min(60, len(userMsg))])
 		searchResult, err := whisper.WebSearch(userMsg)
 		if err == nil && searchResult != "" {
 			// 将搜索结果注入为增强的 userMsg
 			enhancedMsg := fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", userMsg, searchResult)
-			return a.WhisperChat(enhancedMsg, personalityID)
+			return a.WhisperChat(enhancedMsg, personalityID, thinking)
 		}
 	}
-	return a.WhisperChat(userMsg, personalityID)
+	return a.WhisperChat(userMsg, personalityID, thinking)
 }
 
 // searchTriggers 搜索意图触发词（精简版 — 去掉宽泛词，添加精确模式）
 var searchTriggers = []string{
 	// 显式命令
-	"搜索", "查一下", "查查", "帮我查", "帮我搜", "搜一下", "上网查",
+	"帮我搜索", "帮我搜", "帮我查", "搜一下", "查一下", "查查", "上网查",
 	// 实时/时效信息
 	"最新", "最近", "新闻", "天气", "股价", "汇率", "比赛", "实时", "今天天气",
 	// 知识查询

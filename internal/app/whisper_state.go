@@ -59,7 +59,7 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 		if orch := w.getOrCreateOrch(ast.PersonalityID); orch != nil && ast.Name != "" {
 			orch.AssistantName = ast.Name
 		}
-		result, err := w.WhisperChatWithSearch(userMsg, ast.PersonalityID)
+		result, err := w.WhisperChatWithSearch(userMsg, ast.PersonalityID, false, false)
 		if err != nil {
 			return "", err
 		}

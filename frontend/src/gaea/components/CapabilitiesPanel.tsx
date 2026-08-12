@@ -552,11 +552,14 @@ const TOOL_DESC: Record<string, string> = {
   run_skill: "调用Skills索引中的playbook",
   install_skill: "编写并保存新技能",
   slash_command: "按名称调用项目斜杠命令与技能",
-  format_convert: "文档格式转换(docx/xlsx/pdf→Markdown,含OCR回退)",
+  format_convert: "文档格式转换(docx/xlsx/pptx/pdf→Markdown,含OCR回退)",
   chart_gen: "matplotlib图表生成(bar/line/pie/scatter)",
   "format-convert": "子代理——格式转换(统一为可编辑Markdown)",
   "chart-builder": "子代理——图表生成(数据可视化)",
   "doc-assemble": "子代理——文档拼装(多份素材→完整报告)",
+  ocr: "本地 OCR 模型——提取图片/扫描件中的精确文字",
+  semantic_search: "本地 bge-m3——跨库语义检索(成本/知识/办公记忆)",
+  routine_llm: "通用文本兜底——纯文本摘要/归一化/抽取/改写，本地/免费优先",
 };
 
 interface Section {
@@ -571,7 +574,8 @@ const SECTIONS: Section[] = [
   { title: "记忆", items: ["remember", "forget", "memory_search", "memory_get", "promote_session_facts"] },
   { title: "知识库", items: ["knowledge_search", "knowledge_add"] },
   { title: "技能", items: ["read_skill", "run_skill", "install_skill", "slash_command"] },
-  { title: "通用办公", items: ["format_convert", "chart_gen", "format-convert", "chart-builder", "doc-assemble"] },
+  { title: "本地专业模型", items: ["vision", "ocr", "semantic_search"] },
+  { title: "通用办公", items: ["format_convert", "chart_gen", "routine_llm", "format-convert", "chart-builder", "doc-assemble"] },
 ];
 
 function ToolCard({ name, count }: { name: string; count: number }) {

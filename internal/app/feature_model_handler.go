@@ -29,6 +29,10 @@ func featureModelKeys(feature string) (engineKey, modelKey string, ok bool) {
 		return config.KeyFuncGaeaEngine, config.KeyFuncGaeaModel, true
 	case "characterlib":
 		return config.KeyFuncCharLibEngine, config.KeyFuncCharLibModel, true
+	case "routine":
+		// 常规任务模型目标：routine_llm 工具默认引擎/模型（不做强制路由，
+		// 是否调用由云端 agent 决定；此处只是"入口"的目标配置）
+		return config.KeyFuncRoutineEngine, config.KeyFuncRoutineModel, true
 	}
 	return "", "", false
 }
@@ -48,6 +52,8 @@ func featureModelEnabledKey(feature string) (key string, ok bool) {
 		return config.KeyFuncGaeaEnabled, true
 	case "characterlib":
 		return config.KeyFuncCharLibEnabled, true
+	case "routine":
+		return config.KeyFuncRoutineEnabled, true
 	}
 	return "", false
 }

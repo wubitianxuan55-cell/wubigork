@@ -302,6 +302,7 @@ export function makeMockApp(): AppBindings {
     },
     async Approve() {},
     async AnswerQuestion() {},
+    async GaeaRunning() { return false; },
     async SetAgentMode(_mode: string) {},
     async AgentMode() { return "develop"; },
     async Compact() {},

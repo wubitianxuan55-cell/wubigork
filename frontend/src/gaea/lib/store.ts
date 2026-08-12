@@ -4,6 +4,7 @@ import { useCallback, useEffect } from "react";
 import { create } from "zustand";
 import { useShallow } from "zustand/shallow";
 import { app, onEvent, onReady } from "./bridge";
+import { parseTodos } from "./tools";
 import type {
   BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView, MemoryView,
   Meta, QuestionAnswer, SessionMeta, TCCAReport, WireApproval, WireAsk,
@@ -38,6 +39,7 @@ export interface ControllerState {
 
 type Action =
   | { type: "event"; e: WireEvent } | { type: "user"; text: string } | { type: "unsend" }
+  | { type: "localCancel" }
   | { type: "meta"; meta: Meta } | { type: "context"; context: ContextInfo }
   | { type: "balance"; balance: BalanceInfo } | { type: "jobs"; jobs: JobView[] } | { type: "factbase"; factBase: FactBaseView }
   | { type: "tcca"; report: TCCAReport }
@@ -52,6 +54,33 @@ export function flushPendingUser(s: ControllerState): ControllerState {
     return { ...s, pendingUser: undefined };
   }
   return { ...s, seq: s.seq + 1, items: [...s.items, { kind: "user", id: `u${s.seq}`, text: s.pendingUser }], pendingUser: undefined };
+}
+
+// 待办收尾：turn 正常结束但 todo 列表从未推进（没有 completed、也没有
+// in_progress）时，说明 agent 干完活忘了回写状态；把展示状态置为
+// completed，避免“任务已完成却一直显示 0/N 待办”。已被 agent 推进过的
+// 列表保持原样（可能是跨轮计划，不能擅自收尾）。
+function finalizeStaleTodos(items: Item[]): Item[] {
+  let idx = -1;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (it.kind === "tool" && it.name === "todo_write" && !it.parentId) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) return items;
+  const it = items[idx];
+  if (it.kind !== "tool") return items;
+  const todos = parseTodos(it.args);
+  if (todos.length === 0) return items;
+  if (todos.some((t) => t.status === "completed" || t.status === "in_progress")) return items;
+  const next = [...items];
+  next[idx] = {
+    ...it,
+    args: JSON.stringify({ todos: todos.map((t) => ({ ...t, status: "completed" })) }),
+  };
+  return next;
 }
 
 
@@ -172,7 +201,7 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
     case "turn_done": {
       if (s.pendingUser !== undefined) s = flushPendingUser(s);
       const finalized = s.items.map(it => { if (it.kind === "assistant" && it.streaming) return { ...it, streaming: false }; if (it.kind === "tool" && it.status === "running") return { ...it, status: "stopped" as const }; return it; });
-      const finalItems: Item[] = e.err ? [...finalized, { kind: "notice", id: `e${s.seq}`, level: "warn", text: e.err }] : finalized;
+      const finalItems: Item[] = e.err ? [...finalized, { kind: "notice", id: `e${s.seq}`, level: "warn", text: e.err }] : finalizeStaleTodos(finalized);
       const st = (s.usage?.totalTokens != null && s.usage.totalTokens > 0) ? s.sessionTotal + s.usage.totalTokens : s.sessionTotal;
       // V5.30: 设 perTurnUsage=null 触发 StatsPanel 创建末轮 TurnRecord
       return { ...s, items: finalItems, running: false, turnActive: false, currentAssistant: undefined, lastAssistantIdx: -1, approval: undefined, ask: undefined, perTurnUsage: null, seq: s.seq + 1, sessionTotal: st };
@@ -186,6 +215,16 @@ function reducer(s: ControllerState, a: Action): ControllerState {
   switch (a.type) {
     case "user": return { ...s, running: true, turnStartAt: Date.now(), turnTokens: 0, pendingUser: a.text, discardTurn: false, seq: s.seq + 1, items: [...s.items, { kind: "user", id: `u${s.seq}`, text: a.text }] };
     case "unsend": return { ...s, pendingUser: undefined, discardTurn: true, running: false };
+    // 本地复位：turn_done 事件丢失/后端无实际任务可取消时，停止按钮必须能
+    // 把界面从“执行中”拉回来。逻辑与 turn_done 一致但不触发任何后端调用。
+    case "localCancel": {
+      const finalized = s.items.map(it => {
+        if (it.kind === "assistant" && it.streaming) return { ...it, streaming: false };
+        if (it.kind === "tool" && it.status === "running") return { ...it, status: "stopped" as const };
+        return it;
+      });
+      return { ...s, items: finalized, running: false, turnActive: false, currentAssistant: undefined, lastAssistantIdx: -1, approval: undefined, ask: undefined, perTurnUsage: null, seq: s.seq + 1 };
+    }
     case "meta": return { ...s, meta: a.meta }; case "context": return { ...s, context: a.context };
     case "balance": return { ...s, balance: a.balance }; case "jobs": return { ...s, jobs: a.jobs }; case "factbase": return { ...s, factBase: a.factBase };
     case "tcca": return { ...s, tcca: a.report };
@@ -316,11 +355,20 @@ export function useController() {
         try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); } catch {}
       }).catch(() => {});
     });
+    // 看门狗：running=true 时每 30s 用后端真实状态校准一次，防止
+    // turn_done 事件丢失导致界面永久卡在“执行中”。
+    const watchdog = window.setInterval(() => {
+      const st = store.getState();
+      if (!st.running) return;
+      app.GaeaRunning().then((running) => {
+        if (!running && store.getState().running) dispatch({ type: "localCancel" });
+      }).catch(() => {});
+    }, 30000);
     void loadSessionData();
     app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch(() => {});
     app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch(() => {});
     refreshFactBase();
-    return () => { off(); offReady(); };
+    return () => { off(); offReady(); window.clearInterval(watchdog); };
   }, [loadSessionData, refreshFactBase]);
 
   const send = useCallback((displayText: string, submitText = displayText) => {
@@ -332,6 +380,7 @@ export function useController() {
   const cancel = useCallback((): string | undefined => {
     const cur = store.getState();
     if (cur.running && cur.pendingUser !== undefined) { const text = cur.pendingUser; dispatch({ type: "unsend" }); app.Cancel().catch(() => {}); return text; }
+    if (cur.running) dispatch({ type: "localCancel" }); // 事件丢失时仍能复位本地运行态
     app.Cancel().catch(() => {}); return undefined;
   }, [store, dispatch]);
 

@@ -15,8 +15,8 @@ import (
 	"log/slog"
 	"strings"
 
-	appconfig "github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/asr"
+	appconfig "github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/tts"
 	"github.com/gaea/gaea/internal/voice"
 )
@@ -107,7 +107,7 @@ func (a *mediaState) initVoice() {
 // setWhisperChatFn 设置默认对话回调（轻语人格化对话，搜索增强）
 func (a *mediaState) setWhisperChatFn() {
 	a.voiceManager.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
-		result, err := a.app.WhisperChatWithSearch(userMsg, personalityID)
+		result, err := a.app.WhisperChatWithSearch(userMsg, personalityID, false, false)
 		if err != nil {
 			return "", "", err
 		}

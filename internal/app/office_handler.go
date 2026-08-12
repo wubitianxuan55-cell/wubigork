@@ -440,6 +440,12 @@ func (a *officeState) ProposalGenerateSectionStream(pid, sid, inst string) {
 		}
 		sp := sc.SystemPrompt
 		var body string
+		// 目标字数：优先使用章节预算（大纲按总字数分配），缺省 800。
+		// 之前硬编码 100 会把每个 AI 生成的章节截断成不到一百字。
+		target := sc.WordTarget
+		if target <= 0 {
+			target = 800
+		}
 		for attempt := 0; attempt <= 3; attempt++ {
 			cp := strings.Join(ctx, "\n")
 			if body != "" {
@@ -458,7 +464,7 @@ func (a *officeState) ProposalGenerateSectionStream(pid, sid, inst string) {
 				}
 				break
 			}
-			a.emit("xai-output", map[string]interface{}{"type": "request", "model": a.cfg.Model, "system": sp, "user": cp})
+			a.emit("xai-output", map[string]interface{}{"type": "request", "model": model, "system": sp, "user": cp})
 			for c := range chunks {
 				if c.Error != "" || c.Done {
 					break
@@ -466,11 +472,12 @@ func (a *officeState) ProposalGenerateSectionStream(pid, sid, inst string) {
 				body += c.Content
 				a.emit("proposal-stream", map[string]interface{}{"type": "chunk", "content": c.Content, "total": len([]rune(body))})
 			}
-			if len([]rune(body)) >= 100 {
+			if len([]rune(body)) >= target {
 				break
 			}
 		}
 		ts.Content = strings.TrimSpace(body)
+		ts.Words = len([]rune(ts.Content))
 		ts.Status = "completed"
 		p.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
 		if err := a.proposalSvc.Update(p); err != nil {

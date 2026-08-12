@@ -57,22 +57,33 @@ func (s *Store) MigratePortraitsToFiles() int {
 	if err != nil {
 		return 0
 	}
-	defer rows.Close()
-
-	migrated := 0
+	// 注意：连接池 SetMaxOpenConns(1)。不能在 rows 未关闭时于循环内执行
+	// UPDATE，否则唯一连接被 rows 占用，Exec 会永久等待，启动卡死
+	// （chatStore 等后续初始化永远不执行）。先收集再写回。
+	type pending struct {
+		id       string
+		portrait string
+	}
+	var todo []pending
 	for rows.Next() {
 		var id, portrait string
 		if err := rows.Scan(&id, &portrait); err != nil {
 			continue
 		}
-		if len(portrait) <= maxPortraitDataURL {
+		todo = append(todo, pending{id: id, portrait: portrait})
+	}
+	rows.Close()
+
+	migrated := 0
+	for _, p := range todo {
+		if len(p.portrait) <= maxPortraitDataURL {
 			continue
 		}
-		path := savePortraitFile(s.dataDir, id, portrait)
-		if path == portrait {
+		path := savePortraitFile(s.dataDir, p.id, p.portrait)
+		if path == p.portrait {
 			continue // 落盘失败
 		}
-		if _, err := s.db.Exec(`UPDATE characters SET portrait_url=? WHERE id=?`, path, id); err != nil {
+		if _, err := s.db.Exec(`UPDATE characters SET portrait_url=? WHERE id=?`, path, p.id); err != nil {
 			continue
 		}
 		migrated++

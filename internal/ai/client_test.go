@@ -55,7 +55,7 @@ func TestChat_Success(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{
 			"id": "chat-1", "model": "grok-4.20",
 			"choices": []map[string]any{{
-				"index": 0,
+				"index":   0,
 				"message": map[string]any{"role": "assistant", "content": "回复内容"},
 			}},
 		})
@@ -131,6 +131,42 @@ func TestChatStream_SSEText(t *testing.T) {
 	}
 	if sb.String() != "你好世界" {
 		t.Errorf("拼接内容 = %q, want 你好世界", sb.String())
+	}
+	if !done {
+		t.Error("未收到 Done 标记")
+	}
+}
+
+// TestChatStream_SSEReasoning 验证思考模式：delta.reasoning_content 被保留并透传。
+func TestChatStream_SSEReasoning(t *testing.T) {
+	c, _ := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte(`data: {"choices":[{"index":0,"delta":{"reasoning_content":"先思考"}}]}` + "\n\n"))
+		w.Write([]byte(`data: {"choices":[{"index":0,"delta":{"reasoning_content":"再回答"}}]}` + "\n\n"))
+		w.Write([]byte(`data: {"choices":[{"index":0,"delta":{"content":"结果"}}]}` + "\n\n"))
+		w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	chunks, err := c.ChatStream(context.Background(), reqForTest())
+	if err != nil {
+		t.Fatalf("ChatStream: %v", err)
+	}
+	var reasoning, content strings.Builder
+	done := false
+	for ch := range chunks {
+		if ch.Error != "" {
+			t.Fatalf("stream error: %s", ch.Error)
+		}
+		if ch.Done {
+			done = true
+		}
+		reasoning.WriteString(ch.Reasoning)
+		content.WriteString(ch.Content)
+	}
+	if reasoning.String() != "先思考再回答" {
+		t.Errorf("推理内容 = %q, want 先思考再回答", reasoning.String())
+	}
+	if content.String() != "结果" {
+		t.Errorf("正文 = %q, want 结果", content.String())
 	}
 	if !done {
 		t.Error("未收到 Done 标记")

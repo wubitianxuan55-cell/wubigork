@@ -36,6 +36,9 @@ const maxResults = 5
 
 // WebSearch 执行 Web 搜索：Bing 优先（国内直连可用），失败降级到 DuckDuckGo Lite。
 func WebSearch(query string) (string, error) {
+	// 口语化提问先清洗成关键词查询，避免 Bing 按整句话检索命中无关词条
+	// （例如「最近几天天气怎样」原样搜索会返回“最近”的百科/歌曲）。
+	query = cleanSearchQuery(query)
 	if result, err := searchBing(query); err == nil && result != "" && !strings.Contains(result, "暂无结果") {
 		return result, nil
 	}
@@ -43,6 +46,58 @@ func WebSearch(query string) (string, error) {
 		return result, nil
 	}
 	return fmt.Sprintf("搜索「%s」暂无结果", query), nil
+}
+
+// cleanSearchQuery 从口语化提问中提取适合搜索引擎的关键词：
+// 去掉触发前缀（帮我搜索/查一下…）、疑问词（什么是/如何/为什么…）、
+// 结尾语气词（怎样/怎么样/吗/呢…）与礼貌用语（请/麻烦/帮我），
+// 再归一化空白与标点。清洗后为空时回退原文。
+func cleanSearchQuery(msg string) string {
+	s := strings.TrimSpace(msg)
+
+	// 去掉开头的“帮/请/查”类触发前缀
+	for _, p := range []string{
+		"帮我搜索一下", "帮我搜一下", "帮我查一下", "请帮我查一下", "搜索一下",
+		"帮我搜索", "帮我查", "帮我搜", "上网查一下", "上网查",
+		"搜一下", "查一下", "查一查", "查查", "搜索", "查询",
+	} {
+		if strings.HasPrefix(s, p) {
+			s = strings.TrimSpace(s[len(p):])
+			break
+		}
+	}
+
+	// 去掉开头的疑问词（什么是X → X）
+	for _, p := range []string{"什么是", "啥是", "怎么样", "怎样", "如何", "为什么", "怎么"} {
+		if strings.HasPrefix(s, p) {
+			s = strings.TrimSpace(s[len(p):])
+			break
+		}
+	}
+
+	// 去掉结尾的疑问/口语后缀（X怎么样 → X）
+	for _, suf := range []string{
+		"怎么样了", "怎么样呢", "怎么样", "怎样", "怎么办", "怎么弄",
+		"是什么", "是啥", "在哪里", "在哪儿", "什么时候", "多少钱",
+		"有没有", "有哪些", "多少", "吗", "呢", "啊", "呀", "吧",
+	} {
+		for strings.HasSuffix(s, suf) {
+			s = strings.TrimSpace(strings.TrimSuffix(s, suf))
+		}
+	}
+
+	// 去掉常见礼貌词/冗余词（注意不能用单字“请”，会误删“申请/请假”等）
+	for _, w := range []string{"麻烦", "帮我", "我想知道", "告诉我", "介绍一下"} {
+		s = strings.ReplaceAll(s, w, "")
+	}
+
+	// 归一化空白并去掉首尾标点
+	s = strings.Join(strings.Fields(s), " ")
+	s = strings.Trim(s, " ，。？！、,.?!:：;；\"'“”‘’()（）")
+	if s == "" {
+		return msg
+	}
+	return s
 }
 
 // ─── 引擎 1：Bing ───

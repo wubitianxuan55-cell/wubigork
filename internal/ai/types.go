@@ -52,19 +52,21 @@ type ChatToolCallDelta struct {
 
 // ChatRequest Chat Completions 请求
 type ChatRequest struct {
-	Model            string           `json:"model"`
-	EngineID         string           `json:"-"` // 功能级引擎覆盖（空=全局激活引擎），不序列化
-	Messages         []ChatMessage    `json:"messages"`
-	MaxTokens        int              `json:"max_tokens,omitempty"`
-	Temperature      float64          `json:"temperature,omitempty"`
-	Stream           bool             `json:"stream"`
-	Tools            []ChatToolSchema `json:"tools,omitempty"`             // 工具定义（agent 工具循环用）
-	ReasoningEffort  string           `json:"reasoning_effort,omitempty"`  // Grok: "low" / "high" — 控制推理深度
-	TopP             float64          `json:"top_p,omitempty"`             // nucleus sampling
-	FrequencyPenalty float64          `json:"frequency_penalty,omitempty"` // -2.0..2.0，抑制重复
-	PresencePenalty  float64          `json:"presence_penalty,omitempty"`  // -2.0..2.0，鼓励新话题
-	StreamOptions    *ChatStreamOptions `json:"stream_options,omitempty"`    // 流式用量上报（include_usage）
-	skipIncludeUsage bool               `json:"-"`                           // 内部：重试时不再请求 include_usage
+	Model              string             `json:"model"`
+	EngineID           string             `json:"-"` // 功能级引擎覆盖（空=全局激活引擎），不序列化
+	Messages           []ChatMessage      `json:"messages"`
+	MaxTokens          int                `json:"max_tokens,omitempty"`
+	Temperature        float64            `json:"temperature,omitempty"`
+	Stream             bool               `json:"stream"`
+	Tools              []ChatToolSchema   `json:"tools,omitempty"`                // 工具定义（agent 工具循环用）
+	ReasoningEffort    string             `json:"reasoning_effort,omitempty"`     // Grok: "low" / "high" — 控制推理深度
+	EnableThinking     *bool              `json:"enable_thinking,omitempty"`      // Qwen3 等本地模型：开启思考模式（输出 reasoning_content）
+	ChatTemplateKwargs map[string]any     `json:"chat_template_kwargs,omitempty"` // llama.cpp 系服务端模板参数（如 enable_thinking）
+	TopP               float64            `json:"top_p,omitempty"`                // nucleus sampling
+	FrequencyPenalty   float64            `json:"frequency_penalty,omitempty"`    // -2.0..2.0，抑制重复
+	PresencePenalty    float64            `json:"presence_penalty,omitempty"`     // -2.0..2.0，鼓励新话题
+	StreamOptions      *ChatStreamOptions `json:"stream_options,omitempty"`       // 流式用量上报（include_usage）
+	skipIncludeUsage   bool               `json:"-"`                              // 内部：重试时不再请求 include_usage
 }
 
 // ChatStreamOptions OpenAI 兼容流式附加选项。
@@ -78,6 +80,7 @@ type ChatSimpleOptions struct {
 	Temperature     float64 // 覆盖默认 temperature（0 表示使用默认值）
 	MaxTokens       int     // 覆盖默认 max_tokens（0 表示使用默认值）
 	ReasoningEffort string  // 推理深度（"" 表示不开启推理）
+	EnableThinking  bool    // 本地 Qwen3 系模型：开启思考模式（输出 reasoning_content）
 	TopP            float64 // nucleus sampling（0 表示不发送）
 	TimeoutMinutes  int     // 超时分钟数（0 表示使用默认 5 分钟）
 }
@@ -91,10 +94,11 @@ type ChatChoice struct {
 
 // ChatDelta SSE 流式 delta
 type ChatDelta struct {
-	Role         string              `json:"role,omitempty"`
-	Content      string              `json:"content,omitempty"`
-	ToolCalls    []ChatToolCallDelta `json:"tool_calls,omitempty"` // 工具调用分片（按 Index 拼装）
-	FinishReason string              `json:"finish_reason,omitempty"`
+	Role             string              `json:"role,omitempty"`
+	Content          string              `json:"content,omitempty"`
+	ReasoningContent string              `json:"reasoning_content,omitempty"` // 思考模式下的推理分片（Qwen3/DeepSeek 系）
+	ToolCalls        []ChatToolCallDelta `json:"tool_calls,omitempty"`        // 工具调用分片（按 Index 拼装）
+	FinishReason     string              `json:"finish_reason,omitempty"`
 }
 
 // ChatResponse Chat Completions 响应（非流式）
@@ -113,12 +117,12 @@ type ChatResponse struct {
 // 缓存拆分兼容两种形状：DeepSeek 顶层 prompt_cache_{hit,miss}_tokens，
 // 以及 OpenAI/MiMo 标准 prompt_tokens_details.cached_tokens。
 type ChatUsage struct {
-	PromptTokens            int64  `json:"prompt_tokens,omitempty"`
-	CompletionTokens        int64  `json:"completion_tokens,omitempty"`
-	TotalTokens             int64  `json:"total_tokens,omitempty"`
-	PromptCacheHitTokens    int64  `json:"prompt_cache_hit_tokens,omitempty"`  // DeepSeek 风格
-	PromptCacheMissTokens   int64  `json:"prompt_cache_miss_tokens,omitempty"` // DeepSeek 风格
-	PromptTokensDetails     *struct {
+	PromptTokens          int64 `json:"prompt_tokens,omitempty"`
+	CompletionTokens      int64 `json:"completion_tokens,omitempty"`
+	TotalTokens           int64 `json:"total_tokens,omitempty"`
+	PromptCacheHitTokens  int64 `json:"prompt_cache_hit_tokens,omitempty"`  // DeepSeek 风格
+	PromptCacheMissTokens int64 `json:"prompt_cache_miss_tokens,omitempty"` // DeepSeek 风格
+	PromptTokensDetails   *struct {
 		CachedTokens int64 `json:"cached_tokens,omitempty"` // OpenAI/MiMo 风格
 	} `json:"prompt_tokens_details,omitempty"`
 }
@@ -155,8 +159,9 @@ func (u *ChatUsage) CacheMissTokens() int64 {
 
 // SSEChunk 流式响应的一帧
 type SSEChunk struct {
-	Content   string         `json:"content"` // delta 文本
-	Done      bool           `json:"done"`    // 是否结束
+	Content   string         `json:"content"`             // delta 文本
+	Reasoning string         `json:"reasoning,omitempty"` // 思考模式下的推理 delta
+	Done      bool           `json:"done"`                // 是否结束
 	Error     string         `json:"error,omitempty"`
 	ToolCalls []ChatToolCall `json:"tool_calls,omitempty"` // 完整工具调用（finish_reason=tool_calls 时携带）
 	Usage     *ChatUsage     `json:"usage,omitempty"`      // 流结束块携带的用量（若有）
@@ -174,19 +179,19 @@ type ModelsResponse struct {
 
 // ImageGenerationRequest POST /v1/images/generations
 type ImageGenerationRequest struct {
-	Model          string `json:"model"`
-	Prompt         string `json:"prompt"`
-	Negative       string `json:"negative,omitempty"`
-	N              int    `json:"n,omitempty"`
-	Size           string `json:"size,omitempty"`
-	ResponseFormat string `json:"response_format,omitempty"` // "url" 或 "b64_json"
-	Seed           int    `json:"seed,omitempty"`
-	Lora           string `json:"lora,omitempty"` // LoRA 文件名（逗号分隔多个）
-	Mode           string `json:"mode,omitempty"` // txt2img | img2img | t2v
-	InitImage      string `json:"init_image,omitempty"` // img2img 参考图（base64 data URL）
-	Denoise        float64 `json:"denoise,omitempty"`   // img2img 重绘幅度 0-1
-	Frames         int    `json:"frames,omitempty"`     // t2v 帧数
-	FPS            int    `json:"fps,omitempty"`        // t2v 帧率
+	Model          string  `json:"model"`
+	Prompt         string  `json:"prompt"`
+	Negative       string  `json:"negative,omitempty"`
+	N              int     `json:"n,omitempty"`
+	Size           string  `json:"size,omitempty"`
+	ResponseFormat string  `json:"response_format,omitempty"` // "url" 或 "b64_json"
+	Seed           int     `json:"seed,omitempty"`
+	Lora           string  `json:"lora,omitempty"`       // LoRA 文件名（逗号分隔多个）
+	Mode           string  `json:"mode,omitempty"`       // txt2img | img2img | t2v
+	InitImage      string  `json:"init_image,omitempty"` // img2img 参考图（base64 data URL）
+	Denoise        float64 `json:"denoise,omitempty"`    // img2img 重绘幅度 0-1
+	Frames         int     `json:"frames,omitempty"`     // t2v 帧数
+	FPS            int     `json:"fps,omitempty"`        // t2v 帧率
 }
 
 // PortraitStylePrefix 角色剧照统一前置风格提示词（写实摄影风）。
