@@ -81,6 +81,17 @@ type Info struct {
 // A missing directory is not an error — it just means there's nothing to
 // resume yet.
 func List(dir string) ([]Info, error) {
+	return listDir(dir)
+}
+
+// ListArchived returns archived sessions (dir/archive) newest first, with the
+// same Info shape so the sidebar can render a restorable "已归档" group.
+func ListArchived(dir string) ([]Info, error) {
+	return listDir(filepath.Join(dir, "archive"))
+}
+
+// listDir is the shared implementation behind List / ListArchived.
+func listDir(dir string) ([]Info, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {

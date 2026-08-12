@@ -42,7 +42,9 @@ import type {
   ModelInfo,
   ProviderView,
   QuestionAnswer,
+  Requirement,
   SessionMeta,
+  ProjectGroup,
   SettingsView,
   SkillCaptureInput,
   SkillCaptureResult,
@@ -105,9 +107,22 @@ export interface AppBindings {
   // Session history: list saved sessions, resume one (returns its transcript),
   // delete one, or give one a custom display name ("" clears it).
   ListSessions(): Promise<SessionMeta[]>;
+  // ListProjectSessions returns saved sessions grouped by workspace
+  // (current first, then recently opened workspaces with sessions).
+  ListProjectSessions(): Promise<ProjectGroup[]>;
   ResumeSession(path: string): Promise<HistoryMessage[]>;
+  // ArchiveSession moves a saved session to <sessions>/archive/ (restorable);
+  // UnarchiveSession moves it back and returns the active path;
+  // PinSession toggles the pinned flag (pinned sessions sort first).
+  ArchiveSession(path: string): Promise<void>;
+  UnarchiveSession(path: string): Promise<string>;
+  PinSession(path: string, pinned: boolean): Promise<void>;
   DeleteSession(path: string): Promise<void>;
   RenameSession(path: string, title: string): Promise<void>;
+  // Requirement 是会话「任务目标」：读取 / 设置（空文本清除）/ 标记验收。
+  Requirement(path: string): Promise<Requirement>;
+  SetRequirement(path: string, text: string): Promise<void>;
+  SetRequirementDone(path: string, done: boolean): Promise<void>;
   // Workspace: open a folder chooser and switch to that project (fresh session);
   // returns the chosen path, or "" if cancelled.
   ListWorkspaces(): Promise<WorkspaceView[]>;
@@ -407,9 +422,16 @@ const gaeaToGaea: Record<string, string> = {
   SummarizeFrom: "GaeaSummarizeFrom",
   SummarizeUpTo: "GaeaSummarizeUpTo",
   ListSessions: "GaeaListSessions",
+  ListProjectSessions: "GaeaListProjectSessions",
   ResumeSession: "GaeaResumeSession",
+  ArchiveSession: "GaeaArchiveSession",
+  UnarchiveSession: "GaeaUnarchiveSession",
+  PinSession: "GaeaPinSession",
   DeleteSession: "GaeaDeleteSession",
   RenameSession: "GaeaRenameSession",
+  Requirement: "GaeaRequirement",
+  SetRequirement: "GaeaSetRequirement",
+  SetRequirementDone: "GaeaSetRequirementDone",
   ListWorkspaces: "GaeaListWorkspaces",
   PickWorkspace: "GaeaPickWorkspace",
   SwitchWorkspace: "GaeaSwitchWorkspace",

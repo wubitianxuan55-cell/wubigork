@@ -1,12 +1,13 @@
 // 会话管理 hook — 列表刷新 + CRUD + 分页 + 侧边栏状态
 import { useState, useCallback, useRef } from "react";
-import type { SessionMeta } from "../lib/types";
+import type { ProjectGroup, SessionMeta } from "../lib/types";
 
 const PAGE_SIZE = 10;
 
 export function useSessionManager(
   newSession: () => Promise<void>,
   listSessions: () => Promise<SessionMeta[]>,
+  listProjectSessions: () => Promise<ProjectGroup[]>,
   resumeSession: (path: string) => Promise<void>,
   deleteSession: (path: string) => Promise<void>,
   renameSession: (path: string, title: string) => Promise<void>,
@@ -15,16 +16,25 @@ export function useSessionManager(
   const [sidebarQuery, setSidebarQuery] = useState("");
   const [newSessionDone, setNewSessionDone] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [projectGroups, setProjectGroups] = useState<ProjectGroup[]>([]);
   // 缓存全量列表，loadMore 不再重复请求
   const allSessionsRef = useRef<SessionMeta[]>([]);
+
+  const refreshProjectGroups = useCallback(async () => {
+    const groups = await listProjectSessions();
+    setProjectGroups(groups);
+    return groups;
+  }, [listProjectSessions]);
 
   const refreshSessions = useCallback(async () => {
     const sessions = await listSessions();
     allSessionsRef.current = sessions;
     setHasMore(sessions.length > PAGE_SIZE);
     setSidebarSessions(sessions.slice(0, PAGE_SIZE));
+    // 项目分组与平铺列表同源刷新，保证侧边栏「项目」视图与旧入口一致
+    await refreshProjectGroups();
     return sessions;
-  }, [listSessions]);
+  }, [listSessions, refreshProjectGroups]);
 
   const loadMore = useCallback(() => {
     const all = allSessionsRef.current;
@@ -63,8 +73,9 @@ export function useSessionManager(
       const visible = allSessionsRef.current.slice(0, sidebarSessions.length);
       setHasMore(visible.length < allSessionsRef.current.length);
       setSidebarSessions(visible);
+      void refreshProjectGroups();
     },
-    [deleteSession, refreshSessions, sidebarSessions.length],
+    [deleteSession, refreshSessions, sidebarSessions.length, refreshProjectGroups],
   );
 
   const handleRenameSession = useCallback(
@@ -79,6 +90,7 @@ export function useSessionManager(
     sidebarSessions, sidebarQuery, setSidebarQuery,
     newSessionDone, refreshSessions, startNewSession, loadMore,
     hasMore,
+    projectGroups, refreshProjectGroups,
     handleResumeSession, handleDeleteSession, handleRenameSession,
   };
 }

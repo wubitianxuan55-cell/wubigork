@@ -813,6 +813,8 @@ func (a *App) switchWorkspace(abs string) string {
 		slog.Error("保存工作空间失败", "error", err)
 		return gaeaCwd()
 	}
+	// 记录最近工作区，供侧边栏「项目」分组聚合会话。
+	gaeaConfig.TouchRecentWorkspace(abs)
 	// 任务模板库安装到新工作区（幂等；失败只记日志，不阻塞切换）。
 	if err := ensureTaskTemplateCommands(abs); err != nil {
 		slog.Warn("新工作区任务模板安装失败", "error", err)

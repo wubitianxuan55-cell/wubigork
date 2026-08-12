@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { ToastProvider } from './gaea/components/Toast'
 
 // ═══ WebView2 rAF 节流降级 ═══════════════════════════════════════════
 // 背景（2026-08-06 根因定位）：Wails WebView2 在特定状态下把 requestAnimationFrame
@@ -158,7 +159,9 @@ createRoot(document.getElementById('root')!).render(
     {/* 根级兜底：antd 弹层等 portal 内渲染异常也会被捕获并记录，
         避免整个窗口变成“什么都点不了”的死图。 */}
     <ErrorBoundary>
-      <App />
+      <ToastProvider>
+        <App />
+      </ToastProvider>
     </ErrorBoundary>
   </StrictMode>,
 )

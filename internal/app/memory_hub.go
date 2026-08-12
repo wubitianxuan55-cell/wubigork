@@ -355,20 +355,6 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 		}
 	}
 
-	// 成本条目：分类/标签与知识、办公记忆共享边索引（同分类/同标签可互连）
-	for _, s := range a.hubCostStore().List() {
-		id := "c:" + s.Name
-		desc := strings.TrimSpace(s.Category + " · " + s.Unit + " · ¥" + strconv.FormatFloat(s.Price, 'f', -1, 64))
-		addNode(id, displayName(s.Title, s.Name), "cost", desc, 1)
-		nameID[s.Name] = id
-		if s.Category != "" {
-			catIndex[s.Category] = append(catIndex[s.Category], id)
-		}
-		for _, t := range s.Tags {
-			tagIndex[t] = append(tagIndex[t], id)
-		}
-	}
-
 	// 轻语事实（按权重取前 N，控制规模）；数据根目录未配置时跳过
 	var whisperFacts []whisper.MemoryFact
 	if a.whisperDataRootSafe() != "" {
@@ -397,6 +383,20 @@ func (a *App) GaeaMemoryGraph() MemoryGraphView {
 		addNode(subjID, t.Subject, "whisper", "轻语图谱实体", 1)
 		addNode(objID, t.Object, "whisper", "轻语图谱实体", 1)
 		addLink(subjID, objID, t.Predicate)
+	}
+
+	// 成本条目：分类/标签与知识、办公记忆共享边索引（同分类/同标签可互连）
+	for _, s := range a.hubCostStore().List() {
+		id := "c:" + s.Name
+		desc := strings.TrimSpace(s.Category + " · " + s.Unit + " · ¥" + strconv.FormatFloat(s.Price, 'f', -1, 64))
+		addNode(id, displayName(s.Title, s.Name), "cost", desc, 1)
+		nameID[s.Name] = id
+		if s.Category != "" {
+			catIndex[s.Category] = append(catIndex[s.Category], id)
+		}
+		for _, t := range s.Tags {
+			tagIndex[t] = append(tagIndex[t], id)
+		}
 	}
 
 	// 边：同标签（每 tag 限 15 对）

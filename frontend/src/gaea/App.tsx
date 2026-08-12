@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
   BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, Cpu, FileText, FolderGit2, FolderTree, Paperclip,
-  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X,
+  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, Diff,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -13,7 +13,7 @@ import type { JobView } from "./lib/types";
 import { app } from "./lib/bridge";
 import { Transcript } from "./components/Transcript";
 import { JumpBar } from "./components/JumpBar";
-import { ToastProvider, useToast } from "./components/Toast";
+import { useToast } from "./components/Toast";
 import { Composer } from "./components/Composer";
 import { TodoPanel } from "./components/TodoPanel";
 import { ApprovalModal } from "./components/ApprovalModal";
@@ -31,11 +31,12 @@ import { DeliverablesPanel, type SessionDeliverable } from "./components/Deliver
 import { MaterialsPanel } from "./components/MaterialsPanel";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { StatsPanel, useStatsPersistence } from "./components/StatsPanel";
+import { ChangesPanel, type SessionChange } from "./components/ChangesPanel";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
 
 import { downloadMarkdown, exportAsMarkdown } from "./lib/export";
-import type { MemorySuggestion, MemorySuggestionsView, MemoryView, SessionMeta, SkillSuggestion } from "./lib/types";
+import type { MemorySuggestion, MemorySuggestionsView, MemoryView, Requirement, SessionMeta, SkillSuggestion } from "./lib/types";
 import { useTodoExtractor } from "./hooks/useTodoExtractor";
 import { useModeManager } from "./hooks/useModeManager";
 import { useSessionManager } from "./hooks/useSessionManager";
@@ -55,6 +56,7 @@ import { fmtTokens } from "./lib/stats";
 import { useNow } from "./lib/useNow";
 import { deliverableMentions } from "./lib/fileLinks";
 import { useUpdatedFilesStore } from "./lib/store";
+import { extractChangedPaths, WRITE_TOOL_NAMES } from "./lib/changes";
 
 function NewSessionToast({ done }: { done: boolean }) {
   const toast = useToast();
@@ -127,7 +129,14 @@ export default function App() {
     setPermLevel: ctrlSetPermLevel,
     newSession,
     listSessions,
+    listProjectSessions,
     resumeSession,
+    archiveSession,
+    unarchiveSession,
+    pinSession,
+    fetchRequirement,
+    setRequirement,
+    setRequirementDone,
     deleteSession,
     renameSession,
     refreshMeta,
@@ -148,12 +157,12 @@ export default function App() {
   const { permLevel, setPermLevel, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
   const [memView, setMemView] = useState<MemoryView | null>(null);
   const [histView, setHistView] = useState<SessionMeta[] | null>(null);
-  const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, loadMore, hasMore, handleResumeSession, handleDeleteSession, handleRenameSession } = useSessionManager(newSession, listSessions, resumeSession, deleteSession, renameSession);
+  const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession);
   const newSessionAndReset = useCallback(async () => { setStatsReset(n => n + 1); await startNewSession(); }, [startNewSession]);
   const [statsReset, setStatsReset] = useState(0);
   const [capsOpen, setCapsOpen] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
-  const [rightTab, setRightTab] = useState<"files" | "materials" | "deliverables" | "stats">("files");
+  const [rightTab, setRightTab] = useState<"files" | "materials" | "deliverables" | "changes" | "stats">("files");
   const [compactMode, setCompactMode] = useState(() => { try { return localStorage.getItem("gaea.compactMode") === "1"; } catch { return false; } });
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -162,7 +171,7 @@ export default function App() {
   const {
     sidebarCollapsed, sidebarWidth, sidebarResizing, effectiveSidebarWidth,
     toggleSidebar, setExpandedSidebarWidth, startSidebarResize,
-    resizeSidebarWithKeyboard,
+    resizeSidebarWithKeyboard, handleWorkspacePreviewModeChange,
   } = useSidebar();
 
   const [workspacePanelOpen, setWorkspacePanel] = useState(false);
@@ -170,6 +179,31 @@ export default function App() {
   const [previewWidth, setPreviewWidth] = useState(loadPreviewWidth);
   const [previewResizing, setPreviewResizing] = useState(false);
   const [workspaceRefreshKey, setWorkspaceRefreshKey] = useState(0);
+
+  // ── 专注模式（Kun 精华）：一键收起侧栏与右侧面板，只留对话和输入区 ──
+  const [focusMode, setFocusMode] = useState(() => {
+    try { return localStorage.getItem("gaea.focusMode") === "1"; } catch { return false; }
+  });
+  const applyFocus = useCallback((active: boolean) => {
+    handleWorkspacePreviewModeChange(active);
+    if (active) {
+      setWorkspacePanel(false);
+      setPreviewFile(null);
+    }
+  }, [handleWorkspacePreviewModeChange]);
+  const toggleFocus = useCallback(() => {
+    const next = !focusMode;
+    setFocusMode(next);
+    try { localStorage.setItem("gaea.focusMode", next ? "1" : "0"); } catch { /* ignore */ }
+    applyFocus(next);
+  }, [focusMode, applyFocus]);
+  useEffect(() => {
+    if (focusMode) {
+      handleWorkspacePreviewModeChange(true);
+      setWorkspacePanel(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅启动时收敛一次
+  }, []);
 
   // 点文件 → 收起右侧树，在主区域展开可拖宽的预览（Codex 式）
   const openFilePreview = useCallback((rel: string) => {
@@ -346,6 +380,49 @@ export default function App() {
     return picked;
   }, [pickWorkspace, switchWorkspace, refreshSessions]);
 
+  // 从侧边栏点其他项目的会话：先切换到该项目工作区，再恢复该会话。
+  const currentProjectPath = projectGroups.find((g) => g.current)?.path;
+  const resumeSessionInProject = useCallback(
+    async (path: string, projectPath: string) => {
+      if (currentProjectPath && projectPath && currentProjectPath !== projectPath) {
+        await switchFolder(projectPath);
+      }
+      await handleResumeSession(path);
+    },
+    [currentProjectPath, switchFolder, handleResumeSession],
+  );
+
+  // 会话管理（Kun/Codex 优点蒸馏）：置顶、归档、恢复
+  const onArchiveSession = useCallback(async (path: string) => {
+    try {
+      await archiveSession(path);
+      await refreshSessions();
+    } catch (e) {
+      toast.show(`归档失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+    }
+  }, [archiveSession, refreshSessions, toast]);
+
+  const onPinSession = useCallback(async (path: string, pinned: boolean) => {
+    try {
+      await pinSession(path, pinned);
+      await refreshSessions();
+    } catch (e) {
+      toast.show(`置顶操作失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+    }
+  }, [pinSession, refreshSessions, toast]);
+
+  const onRestoreSession = useCallback(
+    async (path: string, projectPath: string) => {
+      try {
+        const restored = await unarchiveSession(path);
+        if (restored) await resumeSessionInProject(restored, projectPath);
+      } catch (e) {
+        toast.show(`恢复失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+      }
+    },
+    [unarchiveSession, resumeSessionInProject, toast],
+  );
+
   const onRemember = useCallback(
     async (scope: string, note: string) => {
       await remember(scope, note);
@@ -421,13 +498,13 @@ export default function App() {
       if (ke.key === "k") { ke.preventDefault(); setPaletteOpen(true); return; }
       if (ke.key === "H" && ke.shiftKey) { ke.preventDefault(); void openHistory(); return; }
       if (ke.key === "K" && ke.shiftKey) { ke.preventDefault(); void openKnowledge(); return; }
-      if (ke.key === "H" && ke.shiftKey) { ke.preventDefault(); void openHistory(); return; }
       if (ke.key === "b") { ke.preventDefault(); toggleSidebar(); return; }
       if (ke.key === "j") { ke.preventDefault(); toggleWorkspacePanel(); return; }
+      if (ke.key === "F" && ke.shiftKey) { ke.preventDefault(); toggleFocus(); return; }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [state.running, capsOpen, memView, histView, knowledgeOpen, workspacePanelOpen, previewFile]);
+  }, [state.running, capsOpen, memView, histView, knowledgeOpen, workspacePanelOpen, previewFile, toggleFocus]);
 
   const { toolCounts, skillCounts } = useToolStats(state.items);
   // 会话产物：从会话消息文本中提取交付文件（去重、按消息顺序），
@@ -450,6 +527,18 @@ export default function App() {
     }
     return out;
   }, [state.items]);
+
+  // 文件变更（Kun 可观察性精华）：汇总本会话写/改过的文件及次数
+  const sessionChanges = useMemo<SessionChange[]>(() => {
+    const map = new Map<string, number>();
+    for (const it of state.items) {
+      if (it.kind !== "tool" || !WRITE_TOOL_NAMES.has(it.name)) continue;
+      for (const p of extractChangedPaths(it.args || "")) {
+        map.set(p, (map.get(p) ?? 0) + 1);
+      }
+    }
+    return [...map.entries()].map(([path, count]) => ({ path, count }));
+  }, [state.items]);
   // 编辑后自动回写刷新：docx/xlsx 预览内编辑成功 → 文件树自动刷新（替代手动刷新）
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   useEffect(() => {
@@ -469,6 +558,39 @@ export default function App() {
       ? currentSessionPath.replace(/[\\/:*?"<>|]/g, "_")
       : cwd ? `unsaved_${cwd.replace(/[\\/:*?"<>|]/g, "_")}` : "unsaved";
   }, [currentSessionPath, cwd]);
+
+  // ── 任务目标（Kun「从需求到验收」）：会话首条消息自动成为目标，随会话持久化 ──
+  const [requirement, setRequirementState] = useState<Requirement | null>(null);
+  const capturedReqPathRef = useRef<string | null>(null);
+
+  const refreshRequirement = useCallback(async () => {
+    const p = currentSessionPath;
+    if (!p) { setRequirementState(null); return; }
+    const r = await fetchRequirement(p);
+    if (r?.text) {
+      capturedReqPathRef.current = p;
+      setRequirementState(r);
+    } else if (capturedReqPathRef.current !== p) {
+      setRequirementState(null);
+    }
+  }, [currentSessionPath, fetchRequirement]);
+
+  useEffect(() => { void refreshRequirement(); }, [refreshRequirement]);
+
+  // 首条用户消息自动捕获为任务目标（每个会话只捕获一次）
+  const firstUserItem = state.items.find((it) => it.kind === "user");
+  useEffect(() => {
+    if (!currentSessionPath || !firstUserItem) return;
+    if (capturedReqPathRef.current === currentSessionPath) return;
+    capturedReqPathRef.current = currentSessionPath;
+    void setRequirement(currentSessionPath, firstUserItem.text).then(() => refreshRequirement());
+  }, [currentSessionPath, firstUserItem, setRequirement, refreshRequirement]);
+
+  const toggleRequirementDone = useCallback(async () => {
+    if (!currentSessionPath || !requirement) return;
+    await setRequirementDone(currentSessionPath, !requirement.done);
+    await refreshRequirement();
+  }, [currentSessionPath, requirement, setRequirementDone, refreshRequirement]);
 
   const statsPersistence = useStatsPersistence(currentSessionKey, statsReset, state.turnSteps, state.perTurnUsage);
 
@@ -505,7 +627,7 @@ export default function App() {
   );
 
   return (
-    <ToastProvider>
+    <>
     <JobDoneNotifier jobs={state.jobs} />
     <Layout className="gaea-app-layout">
       <div
@@ -530,12 +652,13 @@ export default function App() {
           onClearFactBase={() => void clearFactBase()}
           onPromoteFactBase={promoteFactBase}
           newSessionAndReset={newSessionAndReset}
-          sessions={sidebarSessions}
+          projectGroups={projectGroups}
+          onResumeSessionInProject={resumeSessionInProject}
+          onArchiveSession={onArchiveSession}
+          onRestoreSession={onRestoreSession}
+          onPinSession={onPinSession}
           searchQuery={sidebarQuery}
           onSearchChange={setSidebarQuery}
-          hasMore={hasMore}
-          onLoadMore={loadMore}
-          onResumeSession={onResumeSession}
           onDeleteSession={onDeleteSession}
           onRenameSession={handleRenameSession}
           onOpenHistory={openHistory}
@@ -577,6 +700,9 @@ export default function App() {
                 {workspacePanelOpen || previewFile ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
               </ToolbarButton>
               <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); try { localStorage.setItem("gaea.compactMode", v ? "1" : "0"); } catch {} }} title={compactMode ? "展开模式" : "紧凑模式"}>{compactMode ? "⊞" : "⊟"}</ToolbarButton>
+              <ToolbarButton onClick={toggleFocus} title={focusMode ? "退出专注模式 (Ctrl+Shift+F)" : "专注模式 (Ctrl+Shift+F)"}>
+                <Aim size={13} className={focusMode ? "text-accent" : ""} />
+              </ToolbarButton>
               <ToolbarButton onClick={() => downloadMarkdown(exportAsMarkdown(state.items))} disabled={state.items.length===0} title="导出 Markdown">导出</ToolbarButton>
               <ToolbarButton onClick={() => void exportConversation("docx")} disabled={state.items.length===0} title="导出 Word（统一交付出口）">导出 Word</ToolbarButton>
               {deleteConfirm ? (
@@ -626,7 +752,14 @@ export default function App() {
 
           <footer className={`shrink-0 border-t border-border-soft bg-bg px-8 ${compactMode ? "pt-2 pb-0.5" : "pt-3 pb-1"}`}>
             <CompactContext.Provider value={compactMode}>
-            {showTodos && <TodoPanel todos={todos} onDismiss={() => setDismissedTodo(todoItem!.id)} />}
+            {(showTodos || !!requirement?.text) && (
+              <TodoPanel
+                todos={todos}
+                onDismiss={() => { if (todoItem) setDismissedTodo(todoItem.id); }}
+                requirement={requirement}
+                onToggleRequirementDone={toggleRequirementDone}
+              />
+            )}
             <RunStatus
               running={state.running}
               turnStartAt={state.turnStartAt}
@@ -694,6 +827,13 @@ export default function App() {
               <span>产物</span>
             </button>
             <button
+              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "changes" ? "text-accent border-accent" : ""}`}
+              onClick={() => setRightTab("changes")}
+            >
+              <Diff size={13} />
+              <span>变更</span>
+            </button>
+            <button
               className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "stats" ? "text-accent border-accent" : ""}`}
               onClick={() => setRightTab("stats")}
             >
@@ -735,6 +875,13 @@ export default function App() {
                   setWorkspacePanel(false);
                   scrollToTurn?.(turn);
                 }}
+              />
+            )}
+            {rightTab === "changes" && (
+              <ChangesPanel
+                changes={sessionChanges}
+                cwd={state.meta?.cwd}
+                onOpenFile={openFilePreview}
               />
             )}
           </div>
@@ -803,6 +950,6 @@ export default function App() {
         onClose={() => setPaletteOpen(false)}
       />
 
-    </ToastProvider>
+    </>
   );
 }

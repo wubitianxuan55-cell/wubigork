@@ -5,6 +5,7 @@
 // 用法：`import { X, Check, ... } from "../icons"`（原 lucide 图标名保持可用）。
 import {
   AlertOutlined,
+  AimOutlined,
   ApartmentOutlined,
   ApiOutlined,
   AppstoreOutlined,
@@ -25,6 +26,7 @@ import {
   CodeOutlined,
   CopyOutlined,
   DeleteOutlined,
+  DiffOutlined,
   DownOutlined,
   EditOutlined,
   EyeOutlined,
@@ -39,6 +41,7 @@ import {
   GlobalOutlined,
   HolderOutlined,
   HomeOutlined,
+  InboxOutlined,
   LineChartOutlined,
   LinkOutlined,
   LoadingOutlined,
@@ -57,6 +60,7 @@ import {
   QrcodeOutlined,
   ReloadOutlined,
   RightOutlined,
+  RollbackOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
   SaveOutlined,
@@ -89,6 +93,7 @@ function wrap(Comp: ComponentType<any>): Icon {
 
 // lucide 名 → antd 图标
 export const AlertCircle: Icon = wrap(AlertOutlined);
+export const Aim: Icon = wrap(AimOutlined);
 export const ArrowDown: Icon = wrap(ArrowDownOutlined);
 export const ArrowUp: Icon = wrap(ArrowUpOutlined);
 export const ArrowUpRight: Icon = wrap(ArrowUpOutlined);
@@ -112,6 +117,7 @@ export const Coins: Icon = wrap(MoneyCollectOutlined);
 export const Command: Icon = wrap(CodeOutlined);
 export const Copy: Icon = wrap(CopyOutlined);
 export const Cpu: Icon = wrap(ApiOutlined);
+export const Diff: Icon = wrap(DiffOutlined);
 export const ExternalLink: Icon = wrap(LinkOutlined);
 export const Eye: Icon = wrap(EyeOutlined);
 export const File: Icon = wrap(FileOutlined);
@@ -126,6 +132,7 @@ export const FolderPlus: Icon = wrap(FolderAddOutlined);
 export const GitBranch: Icon = wrap(PullRequestOutlined);
 export const Globe: Icon = wrap(GlobalOutlined);
 export const Home: Icon = wrap(HomeOutlined);
+export const Inbox: Icon = wrap(InboxOutlined);
 export const Image: Icon = wrap(PictureOutlined);
 export const Loader: Icon = wrap(LoadingOutlined);
 export const MessageSquare: Icon = wrap(MessageOutlined);
@@ -138,6 +145,7 @@ export const Plug: Icon = wrap(ThunderboltOutlined);
 export const Plus: Icon = wrap(PlusOutlined);
 export const Puzzle: Icon = wrap(ApartmentOutlined);
 export const QrCode: Icon = wrap(QrcodeOutlined);
+export const Rollback: Icon = wrap(RollbackOutlined);
 export const RefreshCw: Icon = wrap(ReloadOutlined);
 export const Save: Icon = wrap(SaveOutlined);
 export const ScrollText: Icon = wrap(FileTextOutlined);

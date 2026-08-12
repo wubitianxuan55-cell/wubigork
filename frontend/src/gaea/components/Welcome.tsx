@@ -140,17 +140,11 @@ export function Welcome({
             <Sparkles size={10} />
           </span>
         </div>
-        <div
-          className="text-fg-faint uppercase tracking-[0.18em] text-[10.5px] mb-2 flex items-center gap-1.5"
-        >
-          <Wand2 size={11} />
-          GAEA OFFICE
-        </div>
         <h1
           className={`text-fg font-semibold leading-tight ${compact ? "text-[24px]" : "text-[30px]"}`}
           style={{ fontFamily: "var(--ds-font-display)", letterSpacing: "-0.02em" }}
         >
-          今天想做什么？
+          今天想和 gaea 一起做什么？
         </h1>
         <p className={`text-fg-dim mt-2.5 ${compact ? "text-[12.5px]" : "text-[13.5px]"}`}>
           {t("welcome.tagline")}

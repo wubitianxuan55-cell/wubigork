@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/factbase"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 // ── gaeaW 原生 UI 绑定（前端 gaea/lib/bridge.ts 适配层映射短名 → Gaea*）──
@@ -25,6 +27,13 @@ import (
 type HistoryMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	// 工具事件还原（Kun 可观察性）：恢复会话后过程卡与「变更」面板仍可见。
+	// dispatch 条目 Role="tool"（携带 name/args/id），结果条目 Role="tool_result"
+	// 携带同 id 的 output，前端按 id 合并为完成态工具卡片。
+	ToolName   string `json:"toolName,omitempty"`
+	ToolArgs   string `json:"toolArgs,omitempty"`
+	ToolID     string `json:"toolId,omitempty"`
+	ToolOutput string `json:"toolOutput,omitempty"`
 }
 
 // SessionMeta 是一个已保存会话（历史面板列表项）。
@@ -35,6 +44,12 @@ type SessionMeta struct {
 	Turns   int    `json:"turns"`
 	ModTime int64  `json:"modTime"`
 	Current bool   `json:"current"`
+	Pinned  bool   `json:"pinned"`
+	// 任务目标状态（Kun 从需求到验收）：会话是否锚定了任务目标、是否已验收。
+	HasRequirement  bool `json:"hasRequirement"`
+	RequirementDone bool `json:"requirementDone"`
+	// Archived 为 true 表示会话在 <sessions>/archive/ 下（可恢复，不参与列表排序）。
+	Archived bool `json:"archived"`
 }
 
 // CheckpointMeta 是一个可回退点（用户回合）。
@@ -78,44 +93,301 @@ func (a *App) GaeaHistory() []HistoryMessage {
 		return out
 	}
 	for _, m := range c.History() {
-		out = append(out, HistoryMessage{Role: string(m.Role), Content: m.Content})
+		switch m.Role {
+		case provider.RoleTool:
+			out = append(out, HistoryMessage{
+				Role:       "tool_result",
+				Content:    m.Content,
+				ToolName:   m.Name,
+				ToolID:     m.ToolCallID,
+				ToolOutput: m.Content,
+			})
+		default:
+			out = append(out, HistoryMessage{Role: string(m.Role), Content: m.Content})
+			// assistant 消息携带的工具调用：逐个还原为 dispatch 条目，
+			// 让恢复后的过程卡与变更面板和实时会话一致。
+			if m.Role == provider.RoleAssistant {
+				for _, tc := range m.ToolCalls {
+					out = append(out, HistoryMessage{
+						Role:     "tool",
+						ToolName: tc.Name,
+						ToolArgs: tc.Arguments,
+						ToolID:   tc.ID,
+					})
+				}
+			}
+		}
 	}
 	return out
 }
 
-// GaeaListSessions 返回已保存会话（新→旧），标记当前会话。
-func (a *App) GaeaListSessions() []SessionMeta {
-	// 会话写入统一在 gaeaCwd()/.gaea/sessions（见 gaeaBuildController），
-	// 这里必须用同一路径读取，否则从不同目录启动时历史会"消失"。
-	dir := gaeaConfig.WorkspaceSessionDir(gaeaCwd())
+const pinnedFileName = ".pinned.json"
+const requirementsFileName = ".requirements.json"
+
+func pinnedPath(dir string) string { return filepath.Join(dir, pinnedFileName) }
+
+// loadPinned 读取工作区会话目录的置顶注册表（base name → true）。
+func loadPinned(dir string) map[string]bool {
+	m := map[string]bool{}
+	b, err := os.ReadFile(pinnedPath(dir))
+	if err != nil {
+		return m
+	}
+	_ = json.Unmarshal(b, &m)
+	return m
+}
+
+func savePinned(dir string, m map[string]bool) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return saveAtomically(dir, ".pinned.*.tmp", pinnedPath(dir), m)
+}
+
+// RequirementView 是会话的「任务目标」（Kun 的从需求到验收工作流）：
+// 记录目标文本与验收状态，随会话持久化（归档/恢复不丢失）。
+type RequirementView struct {
+	Text      string `json:"text"`
+	Done      bool   `json:"done"`
+	UpdatedAt int64  `json:"updatedAt"`
+}
+
+func requirementsPath(dir string) string { return filepath.Join(dir, requirementsFileName) }
+
+func loadRequirements(dir string) map[string]RequirementView {
+	m := map[string]RequirementView{}
+	b, err := os.ReadFile(requirementsPath(dir))
+	if err != nil {
+		return m
+	}
+	_ = json.Unmarshal(b, &m)
+	return m
+}
+
+func saveRequirements(dir string, m map[string]RequirementView) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return saveAtomically(dir, ".requirements.*.tmp", requirementsPath(dir), m)
+}
+
+// requirementsRegistryDir 归一化需求注册表所在目录：归档子目录的注册表
+// 也在会话目录（.requirements.json），避免归档后读不到任务目标。
+func requirementsRegistryDir(dir string) string {
+	if filepath.Base(dir) == "archive" {
+		return filepath.Dir(dir)
+	}
+	return dir
+}
+
+// GaeaRequirement 返回会话的任务目标；未设置时返回零值。
+func (a *App) GaeaRequirement(path string) RequirementView {
+	dir := sessionDirForPath(path)
+	if dir == "" {
+		return RequirementView{}
+	}
+	return loadRequirements(requirementsRegistryDir(dir))[filepath.Base(path)]
+}
+
+// GaeaSetRequirement 设置会话任务目标文本（空文本清除）。验收状态保留。
+func (a *App) GaeaSetRequirement(path, text string) error {
+	dir := sessionDirForPath(path)
+	if dir == "" {
+		return fmt.Errorf("非法会话路径: %s", path)
+	}
+	registryDir := requirementsRegistryDir(dir)
+	m := loadRequirements(registryDir)
+	base := filepath.Base(path)
+	text = strings.TrimSpace(text)
+	prev := m[base]
+	if text == "" {
+		delete(m, base)
+	} else {
+		m[base] = RequirementView{Text: text, Done: prev.Done, UpdatedAt: time.Now().UnixMilli()}
+	}
+	return saveRequirements(registryDir, m)
+}
+
+// GaeaSetRequirementDone 标记任务验收完成 / 重新打开。
+func (a *App) GaeaSetRequirementDone(path string, done bool) error {
+	dir := sessionDirForPath(path)
+	if dir == "" {
+		return fmt.Errorf("非法会话路径: %s", path)
+	}
+	registryDir := requirementsRegistryDir(dir)
+	m := loadRequirements(registryDir)
+	base := filepath.Base(path)
+	r := m[base]
+	if r.Text == "" {
+		return nil
+	}
+	r.Done = done
+	r.UpdatedAt = time.Now().UnixMilli()
+	m[base] = r
+	return saveRequirements(registryDir, m)
+}
+
+// listSessionsForDir 构建一个工作区会话目录的 SessionMeta 列表。
+// includeNewFallback 为 true 时，把当前未落盘的会话补为「(新会话)」条目；
+// 仅当前工作区需要该回退，历史项目目录不需要。排序：当前会话 → 置顶 → 最近使用。
+func (a *App) listSessionsForDir(dir string, cur string, includeNewFallback bool) []SessionMeta {
 	infos, err := agent.ListSessions(dir)
 	if err != nil {
 		return []SessionMeta{}
 	}
 	titles := loadSessionTitles(dir)
-	cur := ""
-	if c := gaeaCtrl(); c != nil {
-		cur = c.SessionPath()
-	}
+	pinned := loadPinned(dir)
+	reqs := loadRequirements(dir)
 	out := make([]SessionMeta, 0, len(infos)+1)
 	curFound := false
 	for _, s := range infos {
 		if s.Path == cur {
 			curFound = true
 		}
+		base := filepath.Base(s.Path)
+		req := reqs[base]
 		out = append(out, SessionMeta{
-			Path:    s.Path,
-			Preview: s.Preview,
-			Title:   titles[filepath.Base(s.Path)],
-			Turns:   s.Turns,
-			ModTime: s.ModTime.UnixMilli(),
-			Current: s.Path == cur,
+			Path:            s.Path,
+			Preview:         s.Preview,
+			Title:           titles[base],
+			Turns:           s.Turns,
+			ModTime:         s.ModTime.UnixMilli(),
+			Current:         s.Path == cur,
+			Pinned:          pinned[base],
+			HasRequirement:  req.Text != "",
+			RequirementDone: req.Done,
 		})
 	}
-	if cur != "" && !curFound {
-		out = append(out, SessionMeta{Path: cur, Preview: "(新会话)", ModTime: time.Now().UnixMilli(), Current: true})
+	if cur != "" && !curFound && includeNewFallback {
+		out = append(out, SessionMeta{Path: cur, Preview: "(新会话)", ModTime: time.Now().UnixMilli(), Current: true, Pinned: true})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Current != out[j].Current {
+			return out[i].Current
+		}
+		if out[i].Pinned != out[j].Pinned {
+			return out[i].Pinned
+		}
+		return out[i].ModTime > out[j].ModTime
+	})
+	return out
+}
+
+// archivedSessionsForDir 列出 <dir>/archive 下的已归档会话（新→旧），
+// 供侧边栏「已归档」分组展示与恢复。
+func (a *App) archivedSessionsForDir(dir string) []SessionMeta {
+	infos, err := agent.ListArchivedSessions(dir)
+	if err != nil {
+		return []SessionMeta{}
+	}
+	titles := loadSessionTitles(dir)
+	reqs := loadRequirements(dir)
+	out := make([]SessionMeta, 0, len(infos))
+	for _, s := range infos {
+		req := reqs[filepath.Base(s.Path)]
+		out = append(out, SessionMeta{
+			Path:            s.Path,
+			Preview:         s.Preview,
+			Title:           titles[filepath.Base(s.Path)],
+			Turns:           s.Turns,
+			ModTime:         s.ModTime.UnixMilli(),
+			Archived:        true,
+			HasRequirement:  req.Text != "",
+			RequirementDone: req.Done,
+		})
 	}
 	return out
+}
+
+// GaeaListSessions 返回当前工作区的已保存会话（新→旧），标记当前会话。
+// 会话写入统一在 gaeaCwd()/.gaea/sessions（见 gaeaBuildController），
+// 这里必须用同一路径读取，否则从不同目录启动时历史会"消失"。
+func (a *App) GaeaListSessions() []SessionMeta {
+	cur := ""
+	if c := gaeaCtrl(); c != nil {
+		cur = c.SessionPath()
+	}
+	return a.listSessionsForDir(gaeaConfig.WorkspaceSessionDir(gaeaCwd()), cur, true)
+}
+
+// ProjectGroup 是侧边栏「项目」分组：一个工作区 + 它的会话列表。
+type ProjectGroup struct {
+	Path     string        `json:"path"`
+	Name     string        `json:"name"`
+	Current  bool          `json:"current"`
+	Sessions []SessionMeta `json:"sessions"`
+	Archived []SessionMeta `json:"archived"`
+	ModTime  int64         `json:"modTime"`
+}
+
+// maxProjectSessionsPerGroup 防止超大项目把侧边栏请求撑爆；
+// 前端在分组内提供「显示更多」展开剩余会话（不重复请求）。
+const maxProjectSessionsPerGroup = 50
+
+// GaeaListProjectSessions 按项目聚合会话（Codex/Kun 风）：当前工作区在前，
+// 其余为最近打开过的工作区（仅包含仍存在且有会话的）。供侧边栏「项目」视图。
+func (a *App) GaeaListProjectSessions() []ProjectGroup {
+	cur := gaeaCwd()
+	roots := []string{cur}
+	seen := map[string]bool{cur: true}
+	for _, p := range gaeaConfig.LoadRecentWorkspaces() {
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		roots = append(roots, p)
+	}
+	curSession := ""
+	if c := gaeaCtrl(); c != nil {
+		curSession = c.SessionPath()
+	}
+	groups := make([]ProjectGroup, 0, len(roots))
+	for _, root := range roots {
+		info, err := os.Stat(root)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		sessions := a.listSessionsForDir(gaeaConfig.WorkspaceSessionDir(root), curSession, root == cur)
+		archived := a.archivedSessionsForDir(gaeaConfig.WorkspaceSessionDir(root))
+		if root != cur && len(sessions) == 0 && len(archived) == 0 {
+			continue
+		}
+		if len(sessions) > maxProjectSessionsPerGroup {
+			sessions = sessions[:maxProjectSessionsPerGroup]
+		}
+		if len(archived) > maxProjectSessionsPerGroup {
+			archived = archived[:maxProjectSessionsPerGroup]
+		}
+		mod := int64(0)
+		for _, s := range sessions {
+			if s.ModTime > mod {
+				mod = s.ModTime
+			}
+		}
+		for _, s := range archived {
+			if s.ModTime > mod {
+				mod = s.ModTime
+			}
+		}
+		if root == cur && mod == 0 {
+			mod = time.Now().UnixMilli()
+		}
+		groups = append(groups, ProjectGroup{
+			Path:     root,
+			Name:     filepath.Base(root),
+			Current:  root == cur,
+			Sessions: sessions,
+			Archived: archived,
+			ModTime:  mod,
+		})
+	}
+	sort.SliceStable(groups, func(i, j int) bool {
+		if groups[i].Current != groups[j].Current {
+			return groups[i].Current
+		}
+		return groups[i].ModTime > groups[j].ModTime
+	})
+	return groups
 }
 
 // GaeaDeleteSession 删除已保存会话（拒绝删除当前会话）。
@@ -123,12 +395,90 @@ func (a *App) GaeaDeleteSession(path string) error {
 	if c := gaeaCtrl(); c != nil && c.SessionPath() == path {
 		return errActiveSession
 	}
-	return deleteSessionFile(gaeaConfig.WorkspaceSessionDir(gaeaCwd()), path)
+	dir := sessionDirForPath(path)
+	if dir == "" {
+		return fmt.Errorf("非法会话路径: %s", path)
+	}
+	return deleteSessionFile(dir, path)
+}
+
+// GaeaArchiveSession 归档已保存会话（移动至 <sessions>/archive/，可恢复）。
+// 拒绝归档当前会话——当前会话由「新建会话」管理生命周期。
+func (a *App) GaeaArchiveSession(path string) error {
+	if c := gaeaCtrl(); c != nil && c.SessionPath() == path {
+		return errActiveSession
+	}
+	dir := sessionDirForPath(path)
+	if dir == "" || filepath.Base(dir) != "sessions" {
+		return fmt.Errorf("非法会话路径: %s", path)
+	}
+	if err := agent.ArchiveSession(path); err != nil {
+		return err
+	}
+	// 归档后清除置顶标记，恢复时重新置顶由用户决定
+	pinned := loadPinned(dir)
+	base := filepath.Base(path)
+	if pinned[base] {
+		delete(pinned, base)
+		_ = savePinned(dir, pinned)
+	}
+	return nil
+}
+
+// GaeaUnarchiveSession 把归档会话移回会话目录，返回恢复后的活动路径。
+func (a *App) GaeaUnarchiveSession(path string) (string, error) {
+	dir := sessionDirForPath(path)
+	if dir == "" || filepath.Base(dir) != "archive" {
+		return "", fmt.Errorf("非法归档路径: %s", path)
+	}
+	if err := agent.UnarchiveSession(path); err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(dir), filepath.Base(path)), nil
+}
+
+// GaeaPinSession 置顶/取消置顶一个活动会话（持久化到 .pinned.json）。
+func (a *App) GaeaPinSession(path string, pinned bool) error {
+	dir := sessionDirForPath(path)
+	if dir == "" || filepath.Base(dir) != "sessions" {
+		return fmt.Errorf("仅活动会话可置顶: %s", path)
+	}
+	m := loadPinned(dir)
+	base := filepath.Base(path)
+	if pinned {
+		m[base] = true
+	} else {
+		delete(m, base)
+	}
+	return savePinned(dir, m)
 }
 
 // GaeaRenameSession 设置会话自定义名称（空清除）。
 func (a *App) GaeaRenameSession(path, title string) error {
-	return setSessionTitle(gaeaConfig.WorkspaceSessionDir(gaeaCwd()), path, title)
+	dir := sessionDirForPath(path)
+	if dir == "" {
+		return fmt.Errorf("非法会话路径: %s", path)
+	}
+	return setSessionTitle(dir, path, title)
+}
+
+// sessionDirForPath 从绝对会话路径反推其所属会话目录，仅接受
+// <root>/.gaea/sessions/<file> 或 <root>/.gaea/sessions/archive/<file>
+// 形态，防止删除/重命名/归档逃出会话目录。
+func sessionDirForPath(sessionPath string) string {
+	dir := filepath.Dir(filepath.Clean(sessionPath))
+	if filepath.Base(dir) == "archive" {
+		// <root>/.gaea/sessions/archive/<file>
+		if filepath.Base(filepath.Dir(dir)) != "sessions" ||
+			filepath.Base(filepath.Dir(filepath.Dir(dir))) != ".gaea" {
+			return ""
+		}
+		return dir
+	}
+	if filepath.Base(dir) != "sessions" || filepath.Base(filepath.Dir(dir)) != ".gaea" {
+		return ""
+	}
+	return dir
 }
 
 // GaeaResumeSession 快照当前会话并加载目标会话继续，返回其消息。
@@ -230,10 +580,31 @@ func deleteSessionFile(dir, sessionPath string) error {
 	if factsPath := factbase.PathFor(sessionPath); factsPath != "" {
 		_ = os.Remove(factsPath)
 	}
-	m := loadSessionTitles(dir)
-	if _, ok := m[key]; ok {
-		delete(m, key)
-		return saveAtomically(dir, ".titles.*.tmp", sessionTitlesPath(dir), m)
+	// 注册表（标题 / 任务目标）统一放在会话目录；归档子目录删除时向上取父目录。
+	registryDir := dir
+	if filepath.Base(registryDir) == "archive" {
+		registryDir = filepath.Dir(registryDir)
+	}
+	titles := loadSessionTitles(registryDir)
+	if _, ok := titles[key]; ok {
+		delete(titles, key)
+		if err := saveAtomically(registryDir, ".titles.*.tmp", sessionTitlesPath(registryDir), titles); err != nil {
+			return err
+		}
+	}
+	reqs := loadRequirements(registryDir)
+	if _, ok := reqs[key]; ok {
+		delete(reqs, key)
+		if err := saveRequirements(registryDir, reqs); err != nil {
+			return err
+		}
+	}
+	pinned := loadPinned(registryDir)
+	if pinned[key] {
+		delete(pinned, key)
+		if err := savePinned(registryDir, pinned); err != nil {
+			return err
+		}
 	}
 	return nil
 }

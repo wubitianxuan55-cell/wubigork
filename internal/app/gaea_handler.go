@@ -154,6 +154,9 @@ func (a *App) GaeaInit() error {
 		return err
 	}
 	ga.cfg = cfg
+	// 把启动时的工作区记入最近列表（幂等），确保「项目」分组在首次启动
+	// 也包含当前项目，而不仅仅在用户显式切换工作区之后才出现。
+	gaeaConfig.TouchRecentWorkspace(gaeaCwd())
 	// 任务模板库：把内置模板落盘为 .gaea/commands/*.md（幂等，不覆盖用户文件），
 	// 使 / 菜单与 Submit 通过既有自定义命令管线直接解析模板。
 	if err := ensureTaskTemplateCommands(gaeaCwd()); err != nil {

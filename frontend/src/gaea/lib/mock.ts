@@ -22,8 +22,10 @@ import type {
   MemorySuggestion,
   Meta,
   ProviderView,
+  Requirement,
   ServerView,
   SessionMeta,
+  ProjectGroup,
   SettingsView,
   SkillSuggestion,
   SkillView,
@@ -233,10 +235,55 @@ export function makeMockApp(): AppBindings {
   };
   // Mutable so delete/rename are observable in browser dev.
   const sessions: SessionMeta[] = freshMock ? [] : [
-    { path: "/mock/sessions/a.jsonl", preview: "compile quarterly report", turns: 12, modTime: t0 - 3_600_000, current: true },
-    { path: "/mock/sessions/b.jsonl", preview: "convert docx to markdown", turns: 5, modTime: t0 - 6 * 3_600_000, current: false },
-    { path: "/mock/sessions/c.jsonl", preview: "build chart from data", turns: 8, modTime: t0 - day - 3_600_000, current: false },
+    { path: "/mock/sessions/a.jsonl", preview: "compile quarterly report", turns: 12, modTime: t0 - 3_600_000, current: true, hasRequirement: true },
+    { path: "/mock/sessions/b.jsonl", preview: "convert docx to markdown", turns: 5, modTime: t0 - 6 * 3_600_000, current: false, pinned: true },
+    { path: "/mock/sessions/c.jsonl", preview: "build chart from data", turns: 8, modTime: t0 - day - 3_600_000, current: false, hasRequirement: true, requirementDone: true },
     { path: "/mock/sessions/d.jsonl", preview: "explain the plugin host design", turns: 3, modTime: t0 - 4 * day, current: false },
+  ];
+  // 已归档会话（可恢复；浏览器 mock 内存态）
+  const archivedMock: SessionMeta[] = freshMock ? [] : [
+    { path: "/mock/sessions/arch1.jsonl", preview: "上季度费用报销整理", turns: 7, modTime: t0 - 20 * day, current: false, archived: true, hasRequirement: true, requirementDone: true },
+  ];
+  // 会话任务目标（从需求到验收；浏览器 mock 内存态）
+  const requirementsMock = new Map<string, Requirement>();
+  if (!freshMock) {
+    requirementsMock.set("/mock/sessions/a.jsonl", {
+      text: "整理季度经营数据，输出一份带图表的总结报告（docx）",
+      done: false,
+      updatedAt: t0 - 3_600_000,
+    });
+  }
+  // 侧边栏「项目」分组 mock：当前工作区 + 两个历史项目。
+  const projectGroupsMock: ProjectGroup[] = freshMock ? [] : [
+    {
+      path: cwd,
+      name: cwd.split("/").filter(Boolean).pop() ?? cwd,
+      current: true,
+      sessions,
+      archived: archivedMock,
+      modTime: t0 - 3_600_000,
+    },
+    {
+      path: "~/projects/annual-report",
+      name: "annual-report",
+      current: false,
+      sessions: [
+        { path: "/mock/sessions/annual/r1.jsonl", preview: "整理年度经营数据", turns: 9, modTime: t0 - 2 * day, current: false },
+        { path: "/mock/sessions/annual/r2.jsonl", preview: "起草董事会报告框架", turns: 6, modTime: t0 - 9 * day, current: false },
+      ],
+      archived: [],
+      modTime: t0 - 2 * day,
+    },
+    {
+      path: "~/projects/market-research",
+      name: "market-research",
+      current: false,
+      sessions: [
+        { path: "/mock/sessions/mkt/m1.jsonl", preview: "竞品价格对比表", turns: 4, modTime: t0 - 12 * day, current: false },
+      ],
+      archived: [],
+      modTime: t0 - 12 * day,
+    },
   ];
   // Mutable settings so the Settings panel's edits are observable in browser dev.
   const settings: SettingsView = {
@@ -272,6 +319,12 @@ export function makeMockApp(): AppBindings {
       emit({ kind: "tool_dispatch", tool: { id: "t1", name: "ls", args: '{"path":"."}', readOnly: true } });
       await delay(400);
       emit({ kind: "tool_result", tool: { id: "t1", name: "ls", output: "方案.md\n成本测算.md\n表格.xlsx", readOnly: true } });
+      emit({ kind: "tool_dispatch", tool: { id: "t2", name: "write_file", args: '{"path":"季度总结.md","content":"# 季度总结\\n\\n经营数据平稳增长。"}', readOnly: false } });
+      await delay(350);
+      emit({ kind: "tool_result", tool: { id: "t2", name: "write_file", output: "已写入 季度总结.md", readOnly: false } });
+      emit({ kind: "tool_dispatch", tool: { id: "t3", name: "edit_file", args: '{"path":"方案.md","edits":[{"old":"初稿","new":"终稿"}]}', readOnly: false } });
+      await delay(300);
+      emit({ kind: "tool_result", tool: { id: "t3", name: "edit_file", output: "已更新 方案.md", readOnly: false } });
       await delay(200);
       let reply: string;
       if (isPoetry) reply = "**《山居秋暝》**\n\n> 空山新雨后，天气晚来秋。\n> 明月松间照，清泉石上流。";
@@ -328,10 +381,40 @@ export function makeMockApp(): AppBindings {
     async ListSessions() {
       return sessions.map((s) => ({ ...s }));
     },
+    async ListProjectSessions() {
+      return projectGroupsMock.map((g) => ({
+        ...g,
+        sessions: g.current ? sessions.map((s) => ({ ...s })) : g.sessions.map((s) => ({ ...s })),
+        archived: g.current ? archivedMock.map((s) => ({ ...s })) : g.archived.map((s) => ({ ...s })),
+      }));
+    },
+    async ArchiveSession(path: string) {
+      const i = sessions.findIndex((s) => s.path === path);
+      if (i >= 0) {
+        const [s] = sessions.splice(i, 1);
+        archivedMock.push({ ...s, archived: true, pinned: false });
+      }
+    },
+    async UnarchiveSession(path: string) {
+      const i = archivedMock.findIndex((s) => s.path === path);
+      if (i >= 0) {
+        const [s] = archivedMock.splice(i, 1);
+        sessions.push({ ...s, archived: false });
+        return path;
+      }
+      return "";
+    },
+    async PinSession(path: string, pinned: boolean) {
+      const s = sessions.find((x) => x.path === path);
+      if (s) s.pinned = pinned;
+    },
     async ResumeSession(path: string) {
       return [
         { role: "user", content: `(mock) resumed ${path}` },
-        { role: "assistant", content: "This is a mock resumed transcript — the real one comes from the kernel." },
+        { role: "assistant", content: "让我看看之前改到哪里了。" },
+        { role: "tool", content: "", toolId: "mock-call-1", toolName: "edit_file", toolArgs: '{"path":"方案.md","edits":[]}' },
+        { role: "tool_result", toolId: "mock-call-1", toolName: "edit_file", content: "已更新 方案.md" },
+        { role: "assistant", content: "方案已按上次进度继续完善。" },
       ];
     },
     async DeleteSession(path: string) {
@@ -341,6 +424,21 @@ export function makeMockApp(): AppBindings {
     async RenameSession(path: string, title: string) {
       const s = sessions.find((x) => x.path === path);
       if (s) s.title = title.trim() || undefined;
+    },
+    async Requirement(path: string) {
+      return requirementsMock.get(path) ?? { text: "", done: false, updatedAt: 0 };
+    },
+    async SetRequirement(path: string, text: string) {
+      const prev = requirementsMock.get(path) ?? { text: "", done: false, updatedAt: 0 };
+      if (!text.trim()) {
+        requirementsMock.delete(path);
+        return;
+      }
+      requirementsMock.set(path, { text: text.trim(), done: prev.done, updatedAt: Date.now() });
+    },
+    async SetRequirementDone(path: string, done: boolean) {
+      const r = requirementsMock.get(path);
+      if (r && r.text) requirementsMock.set(path, { ...r, done, updatedAt: Date.now() });
     },
     async ListWorkspaces() {
       return workspaces.map((path) => ({

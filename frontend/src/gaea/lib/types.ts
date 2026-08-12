@@ -117,6 +117,11 @@ export interface WireEvent {
 export interface HistoryMessage {
   role: string;
   content: string;
+  // 工具事件还原（恢复会话后过程卡/变更面板仍可见）
+  toolName?: string;
+  toolArgs?: string;
+  toolId?: string;
+  toolOutput?: string;
 }
 
 // CheckpointMeta is one rewind point (a user turn) for the rewind UI.
@@ -135,6 +140,29 @@ export interface SessionMeta {
   turns: number;
   modTime: number; // unix milliseconds
   current: boolean;
+  pinned?: boolean; // 置顶会话排在同项目会话最前
+  hasRequirement?: boolean; // 会话锚定了任务目标（从需求到验收）
+  requirementDone?: boolean; // 任务目标已标记验收
+  archived?: boolean; // 已归档（在 <sessions>/archive/ 下，可恢复）
+}
+
+// ProjectGroup 是侧边栏「项目」分组：一个工作区 + 它的会话列表。
+// 由后端 GaeaListProjectSessions 聚合（当前工作区在前，其余为最近打开过的）。
+export interface ProjectGroup {
+  path: string;
+  name: string;
+  current: boolean;
+  sessions: SessionMeta[];
+  archived: SessionMeta[]; // 已归档会话（项目内「已归档」分组）
+  modTime: number; // 分组内最近会话时间（unix milliseconds）
+}
+
+// Requirement 是会话的「任务目标」（从需求到验收工作流）：
+// 记录目标文本与验收状态，随会话持久化。
+export interface Requirement {
+  text: string;
+  done: boolean;
+  updatedAt: number;
 }
 
 export interface WorkspaceChangeView {

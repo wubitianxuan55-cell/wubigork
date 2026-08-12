@@ -21,6 +21,7 @@ var (
 	NewSession       = session.New
 	LoadSession      = session.Load
 	ListSessions     = session.List
+	ListArchivedSessions = session.ListArchived
 	ArchiveSession   = session.Archive
 	UnarchiveSession = session.Unarchive
 	NewSessionPath   = session.NewPath
