@@ -39,6 +39,8 @@ export function ApprovalModal({
 }) {
   const t = useT();
   const cardRef = useRef<HTMLDivElement | null>(null);
+  // 成本库写入必须逐条确认：不提供「本会话允许」，批准仅本次生效。
+  const isCostSave = approval.tool === "cost_save";
 
   useEffect(() => { cardRef.current?.focus(); }, [approval.id]);
 
@@ -50,11 +52,11 @@ export function ApprovalModal({
       event.preventDefault();
       if (event.key === "1" || event.key === "Escape") onAnswer(false, false);
       else if (event.key === "2") onAnswer(true, false);
-      else if (event.key === "3") onAnswer(true, true);
+      else if (event.key === "3") onAnswer(isCostSave ? false : true, isCostSave ? false : true);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onAnswer]);
+  }, [onAnswer, isCostSave]);
 
   return (
     <div className="plan-approval-dock" aria-live="polite">
@@ -90,8 +92,15 @@ export function ApprovalModal({
         <div className="flex flex-col gap-1.5">
           <PlanBtn num={1} title={t("approval.deny")} hint={t("approval.denyHint")} onClick={() => onAnswer(false, false)} />
           <PlanBtn num={2} active title={t("approval.allowOnce")} hint={t("approval.allowOnceHint")} onClick={() => onAnswer(true, false)} />
-          <PlanBtn num={3} title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => onAnswer(true, true)} />
+          {!isCostSave && (
+            <PlanBtn num={3} title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => onAnswer(true, true)} />
+          )}
         </div>
+        {isCostSave && (
+          <div className="mt-2 text-[11px] text-fg-faint leading-snug">
+            成本库写入需逐条确认：批准仅本次生效，不会自动放行后续写入。
+          </div>
+        )}
       </div>
     </div>
   );

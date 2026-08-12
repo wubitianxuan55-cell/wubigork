@@ -221,6 +221,11 @@ type Gate struct {
 	// OnRemember, when set, is invoked with a new allow rule the user chose to
 	// remember (e.g. "bash(go build*)"), so the front-end can persist it.
 	OnRemember func(rule string)
+
+	// AlwaysAsk 列出的工具无视权限级别 / 放行规则 / 会话记忆，每次调用都必须
+	// 经用户确认（如 cost_save 写入成本库）。非交互运行（Approver 为 nil）
+	// 仍保持自治放行，与既有无界面语义一致。
+	AlwaysAsk map[string]bool
 }
 
 // NewGate wires a Policy to an Approver (nil for non-interactive use).
@@ -230,6 +235,19 @@ func NewGate(p Policy, a Approver) *Gate { return &Gate{Policy: p, Approver: a} 
 // interface expects. A denied or refused call returns allow=false with a short
 // reason the agent feeds back to the model.
 func (g *Gate) Check(ctx context.Context, toolName string, args json.RawMessage, readOnly bool) (bool, string, error) {
+	if g.AlwaysAsk[toolName] {
+		if g.Approver == nil {
+			return true, "", nil // 非交互：保持自治
+		}
+		allow, _, err := g.Approver.Approve(ctx, toolName, Subject(args), args)
+		if err != nil {
+			return false, "approval aborted", err
+		}
+		if !allow {
+			return false, "the user declined this tool call — do not retry it; ask how they would like to proceed or choose another approach.", nil
+		}
+		return true, "", nil
+	}
 	if toolName == "bash" && !readOnly {
 		subject := Subject(args)
 		if isReadOnlyBashSubject(subject) {

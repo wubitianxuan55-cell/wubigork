@@ -2,7 +2,10 @@ package control
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/event"
 )
@@ -73,6 +76,54 @@ func TestApprovalSessionGrant(t *testing.T) {
 	}
 	if *prompts != 1 {
 		t.Errorf("prompted %d times, want 1 (session grant should short-circuit)", *prompts)
+	}
+}
+
+// TestCostSaveAlwaysRequiresApproval 回归：成本库写入必须逐条确认——
+// yolo 权限级别不自动放行，且「本会话允许」不会被记忆（每次仍弹审批）。
+func TestCostSaveAlwaysRequiresApproval(t *testing.T) {
+	c, ids, prompts := approvalIDs()
+	c.SetPermLevel("yolo")
+	g := gateApprover{c}
+
+	// 第一次：yolo 下也触发审批，批准后放行
+	done := make(chan bool, 1)
+	go func() {
+		allow, _, err := g.Approve(context.Background(), "cost_save", "", json.RawMessage(`{"title":"测试条目","price":123.45,"unit":"台班","source":"本次测算"}`))
+		done <- allow && err == nil
+	}()
+	select {
+	case id := <-ids:
+		c.Approve(id, true, true) // 用户选「本会话允许」
+	case <-time.After(2 * time.Second):
+		t.Fatal("yolo 下 cost_save 未触发审批，被自动放行")
+	}
+	if !<-done {
+		t.Fatal("批准后 cost_save 应放行")
+	}
+
+	// 第二次：会话放行不应被记忆，必须再次审批
+	go func() {
+		_, _, _ = g.Approve(context.Background(), "cost_save", "", json.RawMessage(`{"title":"测试条目","price":123.45,"unit":"台班","source":"本次测算"}`))
+	}()
+	select {
+	case id := <-ids:
+		c.Approve(id, true, false)
+	case <-time.After(2 * time.Second):
+		t.Fatal("cost_save 被会话放行记忆跳过，未再次审批")
+	}
+	if *prompts != 2 {
+		t.Fatalf("cost_save 触发审批 %d 次，want 2（每次都必须确认）", *prompts)
+	}
+}
+
+// TestCostSaveApprovalSubject 验证审批摘要包含条目名称/单价/单位/来源。
+func TestCostSaveApprovalSubject(t *testing.T) {
+	s := costSaveApprovalSubject(json.RawMessage(`{"title":"HP300 高频液压振动锤","price":4500,"unit":"台班","spec":"300kW","source":"本次测算","category":"机械"}`))
+	for _, want := range []string{"写入成本库：HP300 高频液压振动锤", "单价 ¥4500.00", "单位 台班", "规格 300kW", "来源 本次测算"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("subject %q 缺少 %q", s, want)
+		}
 	}
 }
 

@@ -3,7 +3,9 @@ package control
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/event"
 )
@@ -21,24 +23,32 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 	g.c.mu.Lock()
 	auto := g.c.autoApprove || g.c.permLevel != "ask"
 	g.c.mu.Unlock()
+	// 成本库写入必须逐条经用户确认：auto/yolo 权限级别也强制询问，
+	// 且不记忆会话放行（避免后续 cost_save 静默入库）。
+	if tool == "cost_save" {
+		return g.c.requestApproval(ctx, tool, costSaveApprovalSubject(args), true)
+	}
 	if auto {
 		return true, false, nil
 	}
-	return g.c.requestApproval(ctx, tool, subject)
+	return g.c.requestApproval(ctx, tool, subject, false)
 }
 
 // requestApproval emits an ApprovalRequest and blocks until Approve(ID, …)
 // answers or ctx is cancelled. A prior session grant for the same tool+subject
-// short-circuits. promptMu serialises outstanding prompts.
-func (c *Controller) requestApproval(ctx context.Context, tool, subject string) (bool, bool, error) {
+// short-circuits, unless alwaysPrompt is set (敏感写入必须逐条确认）。
+// promptMu serialises outstanding prompts.
+func (c *Controller) requestApproval(ctx context.Context, tool, subject string, alwaysPrompt bool) (bool, bool, error) {
 	key := tool + "\x00" + subject
 
-	c.mu.Lock()
-	if c.granted[key] {
+	if !alwaysPrompt {
+		c.mu.Lock()
+		if c.granted[key] {
+			c.mu.Unlock()
+			return true, true, nil // session grant was previously stored
+		}
 		c.mu.Unlock()
-		return true, true, nil // session grant was previously stored
 	}
-	c.mu.Unlock()
 
 	c.promptMu.Lock()
 	defer c.promptMu.Unlock()
@@ -46,9 +56,11 @@ func (c *Controller) requestApproval(ctx context.Context, tool, subject string) 
 	// Re-check the grant: a session grant may have landed while we queued behind
 	// another prompt for the same subject.
 	c.mu.Lock()
-	if c.granted[key] {
-		c.mu.Unlock()
-		return true, true, nil // session grant stored while waiting
+	if !alwaysPrompt {
+		if c.granted[key] {
+			c.mu.Unlock()
+			return true, true, nil // session grant stored while waiting
+		}
 	}
 	c.nextID++
 	id := strconv.Itoa(c.nextID)
@@ -67,7 +79,7 @@ func (c *Controller) requestApproval(ctx context.Context, tool, subject string) 
 
 	select {
 	case r := <-reply:
-		if r.allow && r.session {
+		if r.allow && r.session && !alwaysPrompt {
 			c.mu.Lock()
 			c.granted[key] = true
 			c.mu.Unlock()
@@ -80,4 +92,45 @@ func (c *Controller) requestApproval(ctx context.Context, tool, subject string) 
 		c.mu.Unlock()
 		return false, false, ctx.Err()
 	}
+}
+
+// costSaveApprovalSubject 把 cost_save 的参数整理成可读的确认摘要，
+// 让审批卡显示要写入成本库的条目名称、单价、单位、规格与来源。
+func costSaveApprovalSubject(args json.RawMessage) string {
+	if len(args) == 0 {
+		return ""
+	}
+	var p struct {
+		Title    string  `json:"title"`
+		Price    float64 `json:"price"`
+		Unit     string  `json:"unit"`
+		Spec     string  `json:"spec"`
+		Source   string  `json:"source"`
+		Category string  `json:"category"`
+		Status   string  `json:"status"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return ""
+	}
+	if strings.TrimSpace(p.Title) == "" {
+		return ""
+	}
+	parts := []string{"写入成本库：" + strings.TrimSpace(p.Title)}
+	parts = append(parts, fmt.Sprintf("单价 ¥%.2f", p.Price))
+	if s := strings.TrimSpace(p.Unit); s != "" {
+		parts = append(parts, "单位 "+s)
+	}
+	if s := strings.TrimSpace(p.Spec); s != "" {
+		parts = append(parts, "规格 "+s)
+	}
+	if s := strings.TrimSpace(p.Category); s != "" {
+		parts = append(parts, "分类 "+s)
+	}
+	if s := strings.TrimSpace(p.Source); s != "" {
+		parts = append(parts, "来源 "+s)
+	}
+	if s := strings.TrimSpace(p.Status); s != "" {
+		parts = append(parts, "状态 "+s)
+	}
+	return strings.Join(parts, " · ")
 }

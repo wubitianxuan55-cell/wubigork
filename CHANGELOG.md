@@ -1,5 +1,18 @@
 # gaea · 多功能 AI 助手
 
+## v2.13.19「成本库写入强制逐条确认，AI 不再直接入库」（2026-08-12）
+> 修复成本库被 AI 生成的虚高价格污染：此前权限级别为 auto/yolo 时所有工具
+> 自动放行，cost_save 直接把数据写进成本库。现在 cost_save 成为硬性审批项——
+> 任何权限级别（含 yolo）都必须弹审批卡，逐条确认条目名称/单价/单位/规格/
+> 来源后才写入；不提供「本会话允许」，批准仅本次生效。
+> 详见 releases/v2.13.19.md。
+- permission.Gate：新增 AlwaysAsk 硬门，cost_save 无视权限级别/放行规则/会话记忆
+- control：gateApprover 对 cost_save 强制 requestApproval（alwaysPrompt），审批摘要含条目名称/单价/单位/规格/来源
+- SetPermLevel：auto/yolo 均保留 cost_save 硬门（yolo 改用空策略 gate 替代 nil gate）
+- ApprovalModal：cost_save 隐藏「本会话允许」，显示逐条确认提示
+- 回归测试：yolo 下仍触发审批、会话放行不被记忆、审批摘要格式
+- 验证：go build/control/permission 测试通过；前端 tsc + 128 例全过；wails build 通过
+
 ## v2.13.18「通用办公左侧面板重设计（参考 Codex）」（2026-08-12）
 > 左侧面板按 Codex 会话栏风格重排：紧凑头部（logo + 名称 + 新建/折叠图标按钮）、
 > 搜索框前置放大镜、会话行改为「标题 + 时间 + 预览」结构（悬停操作、左色条选中态）、

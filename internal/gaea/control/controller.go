@@ -409,7 +409,9 @@ func (c *Controller) Approve(id string, allow, session bool) {
 // a nil asker from setup.
 func (c *Controller) EnableInteractiveApproval() {
 	if c.executor != nil {
-		c.executor.SetGate(permission.NewGate(c.policy, gateApprover{c}))
+		g := permission.NewGate(c.policy, gateApprover{c})
+		g.AlwaysAsk = map[string]bool{"cost_save": true}
+		c.executor.SetGate(g)
 		c.executor.SetAsker(c)
 	}
 }
@@ -461,20 +463,30 @@ func (c *Controller) AnswerQuestion(id string, answers []event.AskAnswer) {
 func (c *Controller) SetPermLevel(level string) {
 	c.mu.Lock()
 	c.permLevel = level
+	// cost_save 写入成本库必须逐条确认：任何权限级别都保留 AlwaysAsk 硬门。
+	hardAsk := map[string]bool{"cost_save": true}
 	switch level {
 	case "auto":
 		c.policy.Mode = permission.Allow
 		if c.executor != nil {
-			c.executor.SetGate(permission.NewGate(c.policy, gateApprover{c}))
+			g := permission.NewGate(c.policy, gateApprover{c})
+			g.AlwaysAsk = hardAsk
+			c.executor.SetGate(g)
 		}
 	case "yolo":
 		if c.executor != nil {
-			c.executor.SetGate(nil)
+			// yolo 保持"跳过一切门禁"，但 cost_save 例外仍必须确认：
+			// 用空策略 + AlwaysAsk 的 gate 替代 nil gate。
+			g := permission.NewGate(permission.New("allow", nil, nil, nil), gateApprover{c})
+			g.AlwaysAsk = hardAsk
+			c.executor.SetGate(g)
 		}
 	default: // "ask"
 		c.policy.Mode = permission.Ask
 		if c.executor != nil {
-			c.executor.SetGate(permission.NewGate(c.policy, gateApprover{c}))
+			g := permission.NewGate(c.policy, gateApprover{c})
+			g.AlwaysAsk = hardAsk
+			c.executor.SetGate(g)
 		}
 	}
 	c.mu.Unlock()
