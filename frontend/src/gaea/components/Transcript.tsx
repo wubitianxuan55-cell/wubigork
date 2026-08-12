@@ -366,15 +366,18 @@ export function Transcript({
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (!stick.current) return;
+    // 运行中强制跟随底部（过程卡/工具卡持续产出时，视图必须实时跟进，
+    // 否则一旦 stick 被布局变化置 false，界面会“冻住”像卡死）；
+    // 运行结束后恢复智能滚动：用户上翻浏览时不再强拉。
+    if (!stick.current && !running) return;
 
     if (rAF.current !== null) cancelAnimationFrame(rAF.current);
     rAF.current = requestAnimationFrame(() => {
       rAF.current = null;
-      if (!stick.current) return;
+      if (!stick.current && !running) return;
       el.scrollTop = el.scrollHeight;
     });
-  }, []);
+  }, [running]);
 
   const onNewQuestion = useCallback(() => {
     stick.current = true;
