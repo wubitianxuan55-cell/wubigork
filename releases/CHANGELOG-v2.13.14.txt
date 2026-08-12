@@ -1,0 +1,12 @@
+gaea v2.13.14 · 通用办公工具/技能面板显示 Word·Excel·PDF 技能（2026-08-12）
+==========================================================================
+
+问题：通用办公技能面板看不到 docx/xlsx/pdf/pptx——技能只装在仓库 .gaea/skills，
+而技能索引只扫当前工作区 .gaea/skills + 用户级 ~/.gaea/skills，其它工作区为空。
+
+修复：
+  - docx / xlsx / pdf / pptx 安装到 ~/.gaea/skills（用户级全局，任意工作区可见）
+  - 工具面板新增「文档技能」分组（docx/xlsx/pdf/pptx）
+
+验证：全局技能在非仓库工作区实测可见；tsc 通过，前端 128 例全过，wails build 通过。
+产物：releases/gaea-v2.13.14.exe（Windows x64，约 39.6MB）。

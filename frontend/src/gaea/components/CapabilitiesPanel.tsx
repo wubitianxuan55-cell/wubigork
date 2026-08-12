@@ -557,6 +557,10 @@ const TOOL_DESC: Record<string, string> = {
   "format-convert": "子代理——格式转换(统一为可编辑Markdown)",
   "chart-builder": "子代理——图表生成(数据可视化)",
   "doc-assemble": "子代理——文档拼装(多份素材→完整报告)",
+  docx: "Word 文档技能——创建/读取/编辑 .docx(模板、目录、修订、排版)",
+  xlsx: "Excel 表格技能——创建/处理 .xlsx/.csv(公式、格式、清洗、图表)",
+  pdf: "PDF 文档技能——读取/合并/拆分/水印/表单/OCR",
+  pptx: "演示文稿技能——把内容做成 .pptx 幻灯片",
   ocr: "本地 OCR 模型——提取图片/扫描件中的精确文字",
   semantic_search: "本地 bge-m3——跨库语义检索(成本/知识/办公记忆)",
   routine_llm: "通用文本兜底——纯文本摘要/归一化/抽取/改写，本地/免费优先",
@@ -574,6 +578,7 @@ const SECTIONS: Section[] = [
   { title: "记忆", items: ["remember", "forget", "memory_search", "memory_get", "promote_session_facts"] },
   { title: "知识库", items: ["knowledge_search", "knowledge_add"] },
   { title: "技能", items: ["read_skill", "run_skill", "install_skill", "slash_command"] },
+  { title: "文档技能", items: ["docx", "xlsx", "pdf", "pptx"] },
   { title: "本地专业模型", items: ["vision", "ocr", "semantic_search"] },
   { title: "通用办公", items: ["format_convert", "chart_gen", "routine_llm", "format-convert", "chart-builder", "doc-assemble"] },
 ];
