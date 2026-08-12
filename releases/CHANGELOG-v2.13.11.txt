@@ -1,0 +1,16 @@
+gaea v2.13.11 · 修复记忆中枢·用户画像打不开（2026-08-12）
+============================================================
+
+问题：记忆中枢「用户画像」打开即白屏。
+原因：GaeaProfileConflicts 无冲突时返回 nil 切片 → JSON null，
+前端 conflicts.length 直接读 null 抛 TypeError（ErrorBoundary 实证）。
+
+修复：
+  - 后端：DetectConflicts 返回 []（非 nil）；WhisperEpisodes 错误路径、
+    记忆图谱空图同样保证非 null
+  - 前端：ProfileLibrary conflicts/tags 加 ?? [] 兜底；GraphView、
+    WhisperMemoryLibrary 同步加固
+  - 回归测试：Go 非 nil 空切片 + 前端 null 渲染用例
+
+验证：go build 通过；前端 tsc + 128 例全过；wails build 通过。
+产物：releases/gaea-v2.13.11.exe（Windows x64，约 39.6MB）。

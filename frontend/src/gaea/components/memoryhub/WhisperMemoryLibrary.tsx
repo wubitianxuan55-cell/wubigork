@@ -122,8 +122,8 @@ export function WhisperMemoryLibrary() {
               onClick={() => setTab("episodes")}
             >
               情节
-              {episodes.length > 0 && (
-                <span className="ml-1 text-fg-faint text-[10px]">{episodes.length}</span>
+              {(episodes ?? []).length > 0 && (
+                <span className="ml-1 text-fg-faint text-[10px]">{(episodes ?? []).length}</span>
               )}
             </button>
           </div>

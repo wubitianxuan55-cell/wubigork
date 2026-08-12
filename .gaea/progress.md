@@ -1,6 +1,15 @@
 # 任务进度
 
-> 最后更新 2026-08-12（v2.13.10 发布）
+> 最后更新 2026-08-12（v2.13.11 发布）
+
+## 已发布：v2.13.11「修复记忆中枢·用户画像打不开」（2026-08-12）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | 定位：GaeaProfileConflicts 无冲突时返回 nil → JSON null，前端 conflicts.length 抛 TypeError（ErrorBoundary 日志实证） |
+| ✅ | 修复：DetectConflicts 返回 []；ProfileLibrary conflicts/tags null 兜底；图谱/聊天记忆页同步加固 |
+| ✅ | 回归测试：Go DetectConflicts 非 nil + 前端 ProfileLibrary null 用例（128 例全过） |
+| ✅ | 发布：v2.13.11 版本号、releases/v2.13.11.md、CHANGELOG、gaea-v2.13.11.exe、git tag v2.13.11 |
 
 ## 已发布：v2.13.10「修复办公文档处理反复弹 cmd 黑窗」（2026-08-12）
 

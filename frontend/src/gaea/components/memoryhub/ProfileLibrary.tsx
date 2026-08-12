@@ -77,15 +77,18 @@ export function ProfileLibrary() {
     load();
   };
 
+  // 后端空结果可能序列化为 null（nil 切片），统一兜底为空数组。
+  const conflictItems = conflicts ?? [];
+
   return (
     <div className="h-full flex flex-col">
       {/* 冲突提示横幅 */}
-      {conflicts.length > 0 && (
+      {conflictItems.length > 0 && (
         <div className="shrink-0 mx-4 mt-3 px-3 py-2 rounded-lg border border-yellow-300/40 bg-yellow-300/10 text-[12px] text-fg-dim flex items-start gap-2">
           <AlertCircle size={14} className="text-yellow-300 mt-0.5 shrink-0" />
           <div>
-            <div className="font-medium text-yellow-200">画像与遗留 facts 冲突（{conflicts.length}）</div>
-            {conflicts.map((c, i) => {
+            <div className="font-medium text-yellow-200">画像与遗留 facts 冲突（{conflictItems.length}）</div>
+            {conflictItems.map((c, i) => {
               const name = c.split(":")[0].trim();
               return (
                 <div key={i} className="flex items-start gap-2 text-fg-faint">
@@ -162,9 +165,9 @@ export function ProfileLibrary() {
                 </div>
               </div>
               <div className="mt-1.5 text-fg-dim text-[12.5px] leading-relaxed whitespace-pre-wrap">{f.description}</div>
-              {f.tags.length > 0 && (
+              {(f.tags ?? []).length > 0 && (
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {f.tags.map((t) => (
+                  {(f.tags ?? []).map((t) => (
                     <span key={t} className="px-1.5 py-0.5 rounded bg-bg-elev text-fg-faint text-[10.5px]">{t}</span>
                   ))}
                 </div>

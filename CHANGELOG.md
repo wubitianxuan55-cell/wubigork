@@ -1,5 +1,17 @@
 # gaea · 多功能 AI 助手
 
+## v2.13.11「修复记忆中枢·用户画像打不开」（2026-08-12）
+> 记忆中枢「用户画像」页打开即白屏：后端无冲突时返回 nil 切片，序列化成
+> JSON null，前端直接读 `conflicts.length` 抛 TypeError，被 ErrorBoundary
+> 拦截。后端统一保证空数组，前端对 conflicts/tags 做 null 兜底，并加固
+> 图谱与聊天记忆页同型风险。
+> 详见 releases/v2.13.11.md。
+- GaeaProfileConflicts：无冲突时返回 [] 而非 null（DetectConflicts 改 []string{}）
+- ProfileLibrary：conflicts/tags 加 ?? [] 兜底（崩溃根因）
+- 顺带加固：GaeaWhisperEpisodes 错误路径、GaeaMemoryGraph 空图、GraphView/WhisperMemoryLibrary null 防护
+- 回归测试：Go DetectConflicts 非 nil 空切片 + 前端 ProfileLibrary null 用例
+- 验证：go build/测试通过；前端 128 例全过；wails build 通过；产物 gaea-v2.13.11.exe
+
 ## v2.13.10「修复办公文档处理反复弹 cmd 黑窗」（2026-08-12）
 > 通用办公后台做 docx/xlsx 转换、公式重算、报告导出、绘图、桌面自动化时，
 > 子进程没加隐藏窗口参数，每执行一次就闪一个 cmd/conhost 黑窗；批量转换时

@@ -45,6 +45,22 @@ func TestProfileStoreCRUD(t *testing.T) {
 	}
 }
 
+// TestDetectConflictsEmptyNonNil 回归：无冲突时必须返回非 nil 空切片，
+// 否则序列化成 JSON null 会让前端 conflicts.length 崩溃（记忆中枢用户画像打不开）。
+func TestDetectConflictsEmptyNonNil(t *testing.T) {
+	dir := t.TempDir()
+	gdb := db.GetDatabase(dir)
+	defer db.CloseDatabase(dir)
+	ps := NewProfileStore(gdb)
+	c := ps.DetectConflicts(nil)
+	if c == nil {
+		t.Fatal("DetectConflicts should return a non-nil empty slice when there are no conflicts")
+	}
+	if len(c) != 0 {
+		t.Fatalf("expected 0 conflicts, got %v", c)
+	}
+}
+
 func TestRememberRoutesUserTypeToProfile(t *testing.T) {
 	dir := t.TempDir()
 	gdb := db.GetDatabase(dir)

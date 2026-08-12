@@ -109,7 +109,7 @@ func (p *ProfileStore) DetectConflicts(facts []Memory) []string {
 	if p.db == nil {
 		return nil
 	}
-	var conflicts []string
+	conflicts := []string{}
 	for _, f := range facts {
 		if f.Type != TypeUser {
 			continue

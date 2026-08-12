@@ -125,10 +125,19 @@ func (a *App) GaeaProfileList() []ProfileFactView {
 	for _, m := range all {
 		out = append(out, ProfileFactView{
 			Name: m.Name, Title: m.Title, Description: m.Description,
-			Type: string(m.Type), Kind: string(m.Kind), Tags: m.Tags, Body: m.Body,
+			Type: string(m.Type), Kind: string(m.Kind), Tags: nonNilStrings(m.Tags), Body: m.Body,
 		})
 	}
 	return out
+}
+
+// nonNilStrings 把 nil 切片归一化为空切片，避免序列化成 JSON null
+// 导致前端 `arr.length` 崩溃（如记忆中枢画像 tags）。
+func nonNilStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 // GaeaProfileSave 保存一条主脑画像事实（同名覆盖）。
@@ -173,7 +182,7 @@ func (a *App) GaeaWhisperMemories() []WhisperMemoryView {
 func (a *App) GaeaWhisperEpisodes() []WhisperEpisodeView {
 	eps, err := whisperdb.LoadEpisodesFromDB(a.whisperDataRoot)
 	if err != nil {
-		return nil
+		return []WhisperEpisodeView{}
 	}
 	out := make([]WhisperEpisodeView, 0, len(eps))
 	for _, ep := range eps {
@@ -278,7 +287,7 @@ const (
 // GaeaMemoryGraph 构建记忆图谱：知识/画像/办公/轻语为节点，
 // 同标签/同分类/[[引用]]为边。前端 three-forcegraph 渲染。
 func (a *App) GaeaMemoryGraph() MemoryGraphView {
-	var g MemoryGraphView
+	g := MemoryGraphView{Nodes: []GraphNode{}, Links: []GraphLink{}}
 	idSet := make(map[string]bool, maxGraphNodes)
 	tagIndex := make(map[string][]string)
 	catIndex := make(map[string][]string)

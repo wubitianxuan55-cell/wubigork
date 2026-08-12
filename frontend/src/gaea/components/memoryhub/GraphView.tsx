@@ -41,8 +41,8 @@ export function GraphView(p: { variant?: "page" | "home" }) {
       .MemoryGraph()
       .then((g) => {
         dataRef.current = g;
-        setNodeCount(g.nodes.length);
-        setLinkCount(g.links.length);
+        setNodeCount((g.nodes ?? []).length);
+        setLinkCount((g.links ?? []).length);
         setLoading(false);
         // 数据到达 → 若图已初始化立即构图（修复：此前数据返回后无任何触发，图谱空白）
         if (graphRef.current) {
@@ -116,9 +116,9 @@ export function GraphView(p: { variant?: "page" | "home" }) {
   }, [typeFilter]);
 
   function applyFilter(fg: any, data: MemoryGraphView, filter: Set<string>) {
-    const nodes = data.nodes.filter((n) => filter.has(n.type));
+    const nodes = (data.nodes ?? []).filter((n) => filter.has(n.type));
     const ids = new Set(nodes.map((n) => n.id));
-    const links = data.links.filter((l) => ids.has(l.source) && ids.has(l.target));
+    const links = (data.links ?? []).filter((l) => ids.has(l.source) && ids.has(l.target));
     fg.graphData({ nodes, links });
     setNodeCount(nodes.length);
     setLinkCount(links.length);
