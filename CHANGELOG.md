@@ -1,5 +1,14 @@
 # gaea · 多功能 AI 助手
 
+## v2.13.2「办公过程文件落盘规范：统一 .gaea/work/」（2026-08-12）
+> 办公 agent 执行纪律新增「文件落盘规范」：过程/中间文件（提取文本、OCR 页图、
+> 脚本、临时图表等）统一写入 .gaea/work/<任务名>/，交付物进 .gaea/exports/，
+> 不再与源文件混在工作空间根目录；启动时自动创建这两个目录。
+> 详见 releases/v2.13.2.md。
+- 办公 agent 提示词新增「文件落盘规范」章节（single_prompt.go）
+- GaeaInit 自动创建 .gaea/work/ 与 .gaea/exports/；.gitignore 增加 .gaea/work/
+- 验证：go build/vet 干净；wails build 通过；产物 gaea-v2.13.2.exe
+
 ## v2.13.1「修复 @PDF 引用注入二进制导致办公输出不可见」（2026-08-12）
 > 补丁版：修复通用办公里 @引用 PDF 时，文本提取失败会把 %PDF-1.4 原始二进制
 > 塞进模型上下文，导致任务只剩读秒、看不到任何输出。

@@ -7,6 +7,7 @@ gaea.exe
 cpu.out
 xlsx.out
 .gaea/exports/
+.gaea/work/
 .gaea/sessions/
 
 # 前端

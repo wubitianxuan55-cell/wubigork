@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/BurntSushi/toml"
@@ -154,6 +155,13 @@ func (a *App) GaeaInit() error {
 	// 使 / 菜单与 Submit 通过既有自定义命令管线直接解析模板。
 	if err := ensureTaskTemplateCommands(gaeaCwd()); err != nil {
 		slog.Warn("任务模板安装失败（不影响引擎启动）", "error", err)
+	}
+	// 文件落盘规范配套：过程/中间文件统一目录 .gaea/work/（脚本、OCR 页图、
+	// 中间文本等），交付物 .gaea/exports/，避免与源文件混在工作空间根目录。
+	for _, sub := range []string{"work", "exports"} {
+		if err := os.MkdirAll(filepath.Join(gaeaCwd(), ".gaea", sub), 0o755); err != nil {
+			slog.Warn("创建工作区 .gaea 子目录失败", "dir", sub, "error", err)
+		}
 	}
 	// loader 无锁读 ga.cfg：ga.cfg 指针的替换在持锁下进行，读取方只会拿到
 	// 一个完整可用的配置（旧指针在替换后不再被修改），不会与重建死锁。

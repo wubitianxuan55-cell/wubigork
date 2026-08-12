@@ -1,0 +1,11 @@
+gaea v2.13.2 · 办公过程文件落盘规范（2026-08-12）
+==================================================
+
+新增「文件落盘规范」：
+  - 过程/中间文件统一写入 .gaea/work/<任务名>/（提取文本、OCR 页图、脚本等）
+  - 交付物写入 .gaea/exports/ 或用户指定位置
+  - 源文件保持原位，不与过程文件混放
+配套：启动自动创建 .gaea/work/ 与 .gaea/exports/；.gitignore 忽略 .gaea/work/
+
+验证：go build/vet 干净，wails build 通过。
+产物：releases/gaea-v2.13.2.exe（Windows x64，约 39.6MB）。
