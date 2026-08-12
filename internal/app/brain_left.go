@@ -1,10 +1,14 @@
 package app
 
-import "github.com/gaea/gaea/internal/office/proposal"
+import (
+	"strings"
 
-// leftSource 左脑数据源（测试可注入 fake；App 装配时用真实实现）。
+	"github.com/gaea/gaea/internal/gaea/memory"
+)
+
+// leftSource 左脑数据源（办公记忆 facts；测试可注入 fake）。
 type leftSource interface {
-	ListProposals() ([]proposal.Proposal, error)
+	ListFacts() []memory.Memory
 }
 
 type leftBrain struct {
@@ -12,14 +16,11 @@ type leftBrain struct {
 }
 
 func (l *leftBrain) Read(entity string) ([]Fact, error) {
-	ps, err := l.src.ListProposals()
-	if err != nil {
-		return nil, err
-	}
 	var out []Fact
-	for _, p := range ps {
-		if p.Title == entity || p.ID == entity {
-			out = append(out, Fact{Brain: BrainLeft, Entity: p.Title, Attribute: "proposal", Value: p.Requirements})
+	for _, m := range l.facts() {
+		name := displayName(m.Title, m.Name)
+		if name == entity || m.Name == entity {
+			out = append(out, Fact{Brain: BrainLeft, Entity: name, Attribute: "fact", Value: factValue(m)})
 		}
 	}
 	return out, nil
@@ -30,16 +31,14 @@ func (l *leftBrain) Write(entity, attribute, value string) error {
 }
 
 func (l *leftBrain) Search(query string) ([]Hit, error) {
-	ps, err := l.src.ListProposals()
-	if err != nil {
-		return nil, err
-	}
 	terms := splitQueryTerms(query)
 	var out []Hit
-	for _, p := range ps {
+	for _, m := range l.facts() {
+		name := displayName(m.Title, m.Name)
+		text := factValue(m)
 		for _, term := range terms {
-			if matchAny(term, p.Title, p.Category, p.Requirements) {
-				out = append(out, Hit{Brain: BrainLeft, Entity: p.Title, Text: p.Requirements})
+			if matchAny(term, name, m.Name, text) {
+				out = append(out, Hit{Brain: BrainLeft, Entity: name, Text: text})
 				break
 			}
 		}
@@ -47,14 +46,26 @@ func (l *leftBrain) Search(query string) ([]Hit, error) {
 	return out, nil
 }
 
-// proposalLeftSource 用 office 方案 Service 实现 leftSource。
-type proposalLeftSource struct {
-	svc *proposal.Service
+func (l *leftBrain) facts() []memory.Memory {
+	if l.src == nil {
+		return nil
+	}
+	return l.src.ListFacts()
 }
 
-func (p *proposalLeftSource) ListProposals() ([]proposal.Proposal, error) {
-	if p.svc == nil {
-		return nil, nil
+// factValue 描述优先、正文兜底（与主脑画像展示一致）。
+func factValue(m memory.Memory) string {
+	if strings.TrimSpace(m.Description) != "" {
+		return m.Description
 	}
-	return p.svc.List()
+	return m.Body
+}
+
+// officeFactLeftSource 用办公记忆（Hephaestus facts）实现 leftSource。
+type officeFactLeftSource struct {
+	store memory.Store
+}
+
+func (s *officeFactLeftSource) ListFacts() []memory.Memory {
+	return s.store.List() // 零值 Store 为禁用 no-op，返回空
 }

@@ -3,14 +3,14 @@ package app
 import (
 	"testing"
 
-	"github.com/gaea/gaea/internal/office/proposal"
+	"github.com/gaea/gaea/internal/gaea/memory"
 )
 
-// 验收场景：轻语（右脑）记住甲方偏好 → 跨脑检索在方案（左脑）写作时可命中。
+// 验收场景：轻语（右脑）记住甲方偏好 → 跨脑检索在办公记忆（左脑）可同时命中。
 func TestBrainAcceptanceRightToLeftScenario(t *testing.T) {
 	rightFake := &fakeRightBrain{rows: map[string]string{}}
-	leftBrain := &leftBrain{src: &fakeLeftSource{ps: []proposal.Proposal{
-		{ID: "p1", Title: "土壤修复标书", Category: "环保工程", Requirements: "报价策略见甲方偏好"},
+	leftBrain := &leftBrain{src: &fakeLeftSource{facts: []memory.Memory{
+		{Name: "soil-bid", Title: "土壤修复标书", Description: "报价策略见甲方偏好"},
 	}}}
 	bs := &BrainStore{main: &fakeMainBrain{rows: map[string]string{}}, left: leftBrain, right: rightFake}
 

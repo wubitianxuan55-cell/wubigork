@@ -32,7 +32,7 @@ const modules: LauncherModule[] = [
   { key: 'chat', name: '聊天', desc: '与 AI 对话，激发灵感', icon: <MessageOutlined /> },
   { key: 'novel', name: '小说', desc: '世界观、角色与大纲创作', icon: <ReadOutlined /> },
   { key: 'imagegen', name: '绘梦', desc: 'AI 图像生成工作台', icon: <PictureOutlined /> },
-  { key: 'gaea', name: '办公', desc: '通用办公工作台与方案编写', icon: <ToolOutlined /> },
+  { key: 'gaea', name: '办公', desc: '通用办公工作台', icon: <ToolOutlined /> },
   { key: 'modelcenter', name: '模型中心', desc: '模型引擎管理与配置', icon: <ApiOutlined /> },
   { key: 'settings', name: '设置', desc: '应用偏好与主题外观', icon: <SettingOutlined /> },
 ]

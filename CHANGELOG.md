@@ -1,5 +1,16 @@
 # gaea · 多功能 AI 助手
 
+## v2.13.15「删除方案编写，办公板块收敛为单一入口」（2026-08-12）
+> 办公板块下线「方案编写」二级分支：删除整个方案编写模块（前端页面、
+> proposal/db 后端包、Proposal* 绑定、模块注册、方案库），去除办公二级导航，
+> 办公板块直接承载通用办公工作台。左脑记忆源从方案库改为办公记忆 facts，
+> 三脑检索与记忆中枢不受影响。
+> 详见 releases/v2.13.15.md。
+- 前端：删除 OfficePage，OfficeHubPage 去除二级导航（单一通用办公入口）；模块启动器与设置面板清理「方案编写」文案
+- 后端：删除 internal/office/proposal 与 internal/office/db，移除全部 Proposal* 绑定与 office 模块注册
+- 左脑：办公记忆源改为 Hephaestus facts（三脑检索/记忆图谱继续可用）
+- 验证：go build/定向测试通过；前端 tsc + 128 例全过；wails build 通过；产物 gaea-v2.13.15.exe
+
 ## v2.13.14「通用办公工具/技能面板显示 Word·Excel·PDF 技能」（2026-08-12）
 > 通用办公的「技能面板」看不到 docx/xlsx/pdf/pptx：技能只装在仓库 .gaea/skills，
 > 而技能索引只扫「当前工作区 .gaea/skills + 用户级 ~/.gaea/skills」，其它工作区

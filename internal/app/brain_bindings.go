@@ -16,7 +16,7 @@ func (a *App) initBrain() {
 	kbStore, _ := gaekb.Global().Store()
 	a.brain = &BrainStore{
 		main:  &mainBrain{profile: gaemem.NewProfileStore(gdb), kb: kbStore},
-		left:  &leftBrain{src: &proposalLeftSource{svc: a.proposalSvc}},
+		left:  &leftBrain{src: &officeFactLeftSource{store: a.hubOfficeStore()}},
 		right: &rightBrain{dataRoot: a.whisperDataRoot},
 		links: NewLinkStore(gdb),
 	}

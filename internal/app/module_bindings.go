@@ -43,18 +43,6 @@ func (a *App) initModules() {
 		},
 	})
 	_ = a.modules.Register(Module{
-		ID: "office", Name: "方案",
-		Intents: []string{"create"},
-		Handle: func(input map[string]any) (map[string]any, error) {
-			title, _ := input["title"].(string)
-			tmpl, _ := input["template"].(string)
-			req, _ := input["requirements"].(string)
-			cat, _ := input["category"].(string)
-			pid, _ := input["project_id"].(string)
-			return a.ProposalCreate(title, tmpl, req, cat, pid)
-		},
-	})
-	_ = a.modules.Register(Module{
 		ID: "imagegen", Name: "绘梦",
 		Intents: []string{"generate"},
 		Handle: func(input map[string]any) (map[string]any, error) {

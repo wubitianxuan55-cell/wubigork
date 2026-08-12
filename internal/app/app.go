@@ -28,8 +28,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/httpbridge"
 	"github.com/gaea/gaea/internal/modelengine"
-	officedb "github.com/gaea/gaea/internal/office/db"
-	"github.com/gaea/gaea/internal/office/proposal"
 	"github.com/gaea/gaea/internal/outline"
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/prompt"
@@ -129,15 +127,12 @@ type whisperState struct {
 	weixinMu      sync.Mutex
 }
 
-// officeState 是办公域状态（方案编写模块）。
+// officeState 是办公域状态（桌面动作执行 + 价格源定时抓取 + 文件语义索引）。
 type officeState struct {
 	*core
 
 	// app 反向引用：跨域调用经 App 协调。
 	app *App
-
-	proposalSvc *proposal.Service
-	batchCancel context.CancelFunc
 
 	// 价格源定时抓取调度（P1-⑥）：app 启动后按订阅频率检查到期源。
 	priceMu       sync.Mutex
@@ -277,8 +272,6 @@ func (a *App) Startup(ctx context.Context) {
 		}
 	}
 
-	// 初始化方案编写模块
-	a.proposalSvc = proposal.NewService(a.whisperDataRoot, a.client)
 	// 统一聊天会话存储（chat.db）
 	a.chatStore = chat.NewStore(filepath.Join(a.whisperDataRoot, "chat"))
 	a.initBrain()
@@ -389,9 +382,6 @@ func (a *App) Shutdown(ctx context.Context) {
 	}
 	if err := a.closePM(); err != nil {
 		slog.Error("关闭项目失败", "error", err)
-	}
-	if err := officedb.CloseDatabase(filepath.Join(a.whisperDataRoot, "office")); err != nil {
-		slog.Error("关闭 office.db 失败", "error", err)
 	}
 	if err := chat.CloseDatabase(filepath.Join(a.whisperDataRoot, "chat")); err != nil {
 		slog.Error("关闭 chat.db 失败", "error", err)

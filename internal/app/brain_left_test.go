@@ -3,16 +3,16 @@ package app
 import (
 	"testing"
 
-	"github.com/gaea/gaea/internal/office/proposal"
+	"github.com/gaea/gaea/internal/gaea/memory"
 )
 
-type fakeLeftSource struct{ ps []proposal.Proposal }
+type fakeLeftSource struct{ facts []memory.Memory }
 
-func (f *fakeLeftSource) ListProposals() ([]proposal.Proposal, error) { return f.ps, nil }
+func (f *fakeLeftSource) ListFacts() []memory.Memory { return f.facts }
 
-func TestLeftBrainSearchProposals(t *testing.T) {
-	lb := &leftBrain{src: &fakeLeftSource{ps: []proposal.Proposal{
-		{ID: "p1", Title: "土壤修复标书", Category: "环保工程", Requirements: "按保守报价原则编制"},
+func TestLeftBrainSearchOfficeFacts(t *testing.T) {
+	lb := &leftBrain{src: &fakeLeftSource{facts: []memory.Memory{
+		{Name: "soil-bid", Title: "土壤修复标书", Description: "按保守报价原则编制"},
 	}}}
 	hits, err := lb.Search("保守报价")
 	if err != nil || len(hits) == 0 {
