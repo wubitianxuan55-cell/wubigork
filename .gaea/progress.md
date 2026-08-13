@@ -33,8 +33,9 @@
 
 ### P1 — 关键交互测试补强（1–2 轮）
 
-- [ ] 为核心办公交互补 Vitest + Testing Library 用例：App 主流程（新建/恢复/发送）、
-      Sidebar（项目分组/搜索/置顶/归档）、Composer（slash 命令/权限切换）、Transcript（过程卡折叠/滚动跟随）。
+- [x] Sidebar 交互测试（项目分组渲染/置顶回调/已归档恢复）。
+- [ ] 核心交互测试剩余：App 主流程（新建/恢复/发送）、Composer（slash 命令/权限切换）、
+      Transcript（过程卡折叠已覆盖 / 滚动跟随）。
 - [ ] 目标：前端用例从 138 提升到 ~200+，并覆盖“恢复历史后工具卡/待办收尾”等易回归路径。
       （当前进度：164，新增 store.test.ts 8 + ChangesPanel.test.tsx 2 + useSessionManager.test.ts 4 + Sidebar.test.tsx 3 +
         command.test.ts 3 + time.test.ts 6；同步把 App 斜杠命令分类与 Sidebar 相对时间抽成纯函数）
