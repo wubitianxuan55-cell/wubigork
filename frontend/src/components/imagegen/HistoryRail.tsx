@@ -31,13 +31,15 @@ export const HistoryRail: React.FC<Props> = ({ history, selectedIndex, onSelect,
           style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 2px' }}
         />
       )}
-      <Button
-        type="text" size="small"
-        icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-        onClick={onToggleCollapse}
-        title={collapsed ? '展开历史' : '收起历史'}
-        style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 2px', marginLeft: collapsed ? 0 : 4 }}
-      />
+      {onToggleCollapse && (
+        <Button
+          type="text" size="small"
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onClick={onToggleCollapse}
+          title={collapsed ? '展开历史' : '收起历史'}
+          style={{ color: C('color-text-secondary'), fontSize: 11, padding: '0 2px', marginLeft: collapsed ? 0 : 4 }}
+        />
+      )}
     </div>
 
     {collapsed ? (

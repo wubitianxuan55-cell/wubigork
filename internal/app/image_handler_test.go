@@ -17,7 +17,7 @@ func TestGenerateFreeImage_sizeCleanup(t *testing.T) {
 	}{
 		{"comfyui", true},
 		{"xai", false},
-		{"herdsman", false},
+		{"herdsman", true},
 		{"ollama", false},
 	}
 
@@ -33,7 +33,7 @@ func TestGenerateFreeImage_sizeCleanup(t *testing.T) {
 			}
 
 			// 模拟 image_handler.go 中的清理逻辑
-			if tt.backendType != "comfyui" {
+			if tt.backendType != "comfyui" && tt.backendType != "herdsman" {
 				req.Size = ""
 			}
 

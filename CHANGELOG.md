@@ -1,5 +1,14 @@
 # gaea · 多功能 AI 助手
 
+## v2.14.12「绘梦 UI 重构落地 + herdsman 生图能力修复」（2026-08-13）
+> 完成绘梦板块 UI 全量重构（设计文档 Phase 1-2 + 视觉统一），选项改下拉并修复
+> WebView2 弹层卡首帧；herdsman 生图链路修复与图生图接入。详见 releases/v2.14.12.md。
+- 绘梦：左栏可折叠分区（基础设置/模型与引擎/画幅与输出/高级参数）、底部常驻生成栏、右侧任务中心三 Tab、玻璃 HUD 视觉统一
+- 绘梦：引擎/模型（可搜索）/画幅/时长帧率改下拉；WebView2 下拉弹层兜底（popupClassName 禁用弹层动画 + getPopupContainer=body）
+- herdsman：size 契约对齐（文档支持 size）、URL 响应转 data URL、图生图接入 `/v1/images/img2img`（JSON + image 字段）
+- 测试：前端 Vitest 204/204；tsc -b、vite build 通过；Playwright 无头断言 32 项通过；go build/vet、go test ./... 全绿
+- 构建：wails build 成功，gaea-v2.14.12.exe 同步桌面与 releases/
+
 ## v2.14.11「小说板块后端 + 绘梦生成链路闭环」（2026-08-13）
 > 小说创作补齐章节流式/状态/书架/世界观/统计/导出后端；绘梦补齐生成队列/取消、历史元数据持久化、
 > ComfyUI 任务进度实时反馈、模板与绘照分配、LoRA 动态加载/重试；绘梦 UI 重构已立项，下个会话执行。

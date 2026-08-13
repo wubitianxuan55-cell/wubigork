@@ -3,12 +3,14 @@ package ai
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -34,9 +36,17 @@ func NewOpenAIImageBackend(baseURL string, apiKey string) *OpenAIImageBackend {
 
 // GenerateImage 通过 OpenAI 兼容 API 生成图片
 func (b *OpenAIImageBackend) GenerateImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
-	endpoint := b.baseURL + "/images/generations"
-
-	body, err := json.Marshal(req)
+	var endpoint string
+	var body []byte
+	var err error
+	if req.Mode == "img2img" {
+		// Herdsman 图生图：JSON 请求，image 字段为参考图 base64 data URL
+		endpoint = b.baseURL + "/images/img2img"
+		body, err = b.buildImg2ImgBody(req)
+	} else {
+		endpoint = b.baseURL + "/images/generations"
+		body, err = json.Marshal(req)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("marshal image request: %w", err)
 	}
@@ -72,5 +82,82 @@ func (b *OpenAIImageBackend) GenerateImage(ctx context.Context, req *ImageGenera
 		return nil, fmt.Errorf("解析图片响应失败: %w", err)
 	}
 
+	// 服务端可能返回 url（含相对路径，如 /v1/images/cache/xxx.png）而不是 b64_json：
+	// 统一下载并转成 data URL，保证前端可显示、可落盘、历史可复用。
+	for i := range imgResp.Data {
+		if imgResp.Data[i].B64JSON != "" || strings.HasPrefix(imgResp.Data[i].URL, "data:") {
+			continue
+		}
+		rawURL := strings.TrimSpace(imgResp.Data[i].URL)
+		if rawURL == "" {
+			continue
+		}
+		if strings.HasPrefix(rawURL, "/") {
+			if base, err := url.Parse(b.baseURL); err == nil {
+				if rel, err := url.Parse(rawURL); err == nil {
+					rawURL = base.ResolveReference(rel).String()
+				}
+			}
+		}
+		dataURL, err := b.fetchToDataURL(ctx, rawURL)
+		if err != nil {
+			slog.Warn("图片 URL 下载失败，保留原始 URL", "backend", b.baseURL, "url", rawURL, "error", err)
+			continue
+		}
+		imgResp.Data[i].B64JSON = dataURL
+		imgResp.Data[i].URL = ""
+	}
+
 	return &imgResp, nil
+}
+
+// img2imgRequest Herdsman /v1/images/img2img 请求体（JSON，image 为参考图 base64）
+type img2imgRequest struct {
+	Model  string `json:"model,omitempty"`
+	Prompt string `json:"prompt"`
+	Image  string `json:"image"`
+	N      int    `json:"n,omitempty"`
+	Size   string `json:"size,omitempty"`
+}
+
+// buildImg2ImgBody 构造图生图 JSON 请求体
+func (b *OpenAIImageBackend) buildImg2ImgBody(req *ImageGenerationRequest) ([]byte, error) {
+	if strings.TrimSpace(req.InitImage) == "" {
+		return nil, fmt.Errorf("图生图需要提供参考图")
+	}
+	return json.Marshal(img2imgRequest{
+		Model:  req.Model,
+		Prompt: req.Prompt,
+		Image:  req.InitImage,
+		N:      req.N,
+		Size:   req.Size,
+	})
+}
+
+// fetchToDataURL 下载图片/视频并转为 data URL
+func (b *OpenAIImageBackend) fetchToDataURL(ctx context.Context, rawURL string) (string, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("构造下载请求失败: %w", err)
+	}
+	if b.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+b.apiKey)
+	}
+	resp, err := b.httpClient.Do(httpReq)
+	if err != nil {
+		return "", fmt.Errorf("下载图片失败 (%s): %w", rawURL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("下载图片 HTTP %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("读取图片数据失败: %w", err)
+	}
+	mimeType := resp.Header.Get("Content-Type")
+	if mimeType == "" || strings.HasPrefix(mimeType, "text/") {
+		mimeType = http.DetectContentType(data)
+	}
+	return "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
 }

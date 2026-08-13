@@ -1,36 +1,56 @@
 import React from 'react'
-import { LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { RightOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 
-/** 分区容器：标题 + 细分隔线 + 内容 */
-export const SectionBlock: React.FC<{
-  title?: string
+/** 预估单次生成耗时（秒），用于底部生成栏反馈 */
+export const estimateImageTime = (
+  backend: string,
+  model: string,
+  count: number,
+  mode: string,
+  frames: number,
+  fps: number,
+): number => {
+  if (mode === 't2v') return Math.round((frames / Math.max(fps, 1)) * 4)
+  if (mode === 'img2img') return count * 12
+  if (backend === 'xai') return count * 5
+  if (model === 'z-image-turbo') return count * 20
+  if (model.startsWith('krea2')) return count * 300
+  return count * 60
+}
+
+/** 可折叠分区：左栏渐进式披露的基础容器 */
+export const CollapsibleSection: React.FC<{
+  title: string
   icon?: React.ReactNode
+  defaultOpen?: boolean
+  right?: React.ReactNode
   children: React.ReactNode
   style?: React.CSSProperties
-}> = ({ title, icon, children, style }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0, ...style }}>
-    {title && (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+}> = ({ title, icon, defaultOpen = true, right, children, style }) => {
+  const [open, setOpen] = React.useState(defaultOpen)
+  return (
+    <div className="ig-collapse" style={style}>
+      <button
+        type="button"
+        className="ig-collapse-header"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <RightOutlined className="ig-collapse-chevron" style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }} />
         {icon && (
-          <span style={{ color: 'var(--color-primary)', fontSize: 13, display: 'inline-flex' }}>{icon}</span>
+          <span className="ig-collapse-icon">{icon}</span>
         )}
-        <span style={{
-          fontSize: 11, fontWeight: 500, letterSpacing: '0.08em',
-          color: 'var(--md-sys-color-on-surface-variant, var(--color-text-secondary))',
-        }}>
-          {title}
-        </span>
-      </div>
-    )}
-    {children}
-  </div>
-)
-
-/** 分隔线 */
-export const SectionDivider: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
-  <div style={{ height: 1, background: 'var(--border-subtle)', margin: '2px 0', ...style }} />
-)
+        <span className="ig-collapse-title">{title}</span>
+        <span className="ig-collapse-spacer" />
+        {right}
+      </button>
+      {open && (
+        <div className="ig-collapse-body">{children}</div>
+      )}
+    </div>
+  )
+}
 
 /** 状态圆点（CSS，非 emoji） */
 export const StatusDot: React.FC<{ tone: 'ok' | 'warn' | 'danger' | 'idle' }> = ({ tone }) => {
@@ -92,35 +112,3 @@ export const PickerGroup: React.FC<{
   </div>
 )
 
-/** 大号胶囊主按钮（生成） */
-export const ActionButton: React.FC<{
-  loading?: boolean
-  disabled?: boolean
-  label: string
-  hint: string
-  onClick: () => void
-}> = ({ loading, disabled, label, hint, onClick }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-    <button
-      type="button"
-      disabled={disabled || loading}
-      onClick={onClick}
-      className="img-picker-btn"
-      style={{
-        width: '100%', height: 46, borderRadius: 999, border: 'none', cursor: loading ? 'wait' : 'pointer',
-        background: 'linear-gradient(135deg, var(--color-primary), rgba(var(--accent-rgb), 0.72))',
-        color: 'var(--md-sys-color-on-primary, #fff)',
-        fontSize: 14, fontWeight: 600, letterSpacing: '0.02em',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        boxShadow: 'var(--shadow-glow)', opacity: disabled ? 0.5 : 1,
-        fontFamily: 'inherit',
-      }}
-    >
-      {loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
-      {label}
-    </button>
-    <div style={{ textAlign: 'center' }}>
-      <span style={{ color: C('color-text-secondary'), fontSize: 11 }}>{hint}</span>
-    </div>
-  </div>
-)

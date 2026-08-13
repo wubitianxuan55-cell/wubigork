@@ -1,5 +1,5 @@
 import React from 'react'
-import { Input, InputNumber, Button, Typography, Slider } from 'antd'
+import { Input, InputNumber, Button, Typography, Slider, Select } from 'antd'
 import {
   CloudOutlined, DesktopOutlined, RocketOutlined, KeyOutlined,
   EditOutlined, SlidersOutlined, CloudServerOutlined, DashboardOutlined,
@@ -10,7 +10,8 @@ import {
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import type { SystemStats } from '../../api/image'
-import { SectionBlock, SectionDivider, PickerGroup, StatusDot, ActionButton } from './ui'
+import { CollapsibleSection, PickerGroup, StatusDot } from './ui'
+import type { ImageMode } from './types'
 
 const { TextArea } = Input
 
@@ -54,15 +55,6 @@ const BACKEND_OPTIONS = [
   { label: 'Ollama', value: 'ollama', icon: <KeyOutlined /> },
 ]
 
-const estimateTime = (backend: string, model: string, count: number, mode: string, frames: number, fps: number) => {
-  if (mode === 't2v') return Math.round((frames / Math.max(fps, 1)) * 4)
-  if (mode === 'img2img') return count * 12
-  if (backend === 'xai') return count * 5
-  if (model === 'z-image-turbo') return count * 20
-  if (model.startsWith('krea2')) return count * 300
-  return count * 60
-}
-
 const labelStyle: React.CSSProperties = {
   color: C('color-text-secondary'), fontSize: 12, display: 'flex', alignItems: 'center', gap: 5,
   marginBottom: 6, fontWeight: 500,
@@ -79,8 +71,16 @@ const loraHintStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.02)',
 }
 
+// WebView2 老问题：CSS 动画 tick 被挂起时 antd 下拉弹层卡在 opacity:0 首帧，
+// 表现为“下拉弹不出来”。绘梦下拉统一挂到 body + 禁用弹层动画（imagegen.css
+// 中 .ig-select-dropdown 规则），打开立即显示，不依赖 rAF 降级检测。
+const selectPopupProps = {
+  getPopupContainer: () => document.body,
+  popupClassName: 'ig-select-dropdown',
+}
+
 export interface ControlPanelProps {
-  mode: 'txt2img' | 'img2img' | 't2v'
+  mode: ImageMode
   prompt: string
   negative: string
   onPromptChange: (v: string) => void
@@ -122,13 +122,6 @@ export interface ControlPanelProps {
   onStartEngine: () => void
   onStopEngine: () => void
   sysStats: SystemStats | null
-  generating: boolean
-  elapsed: number
-  lastTime: number
-  comfyProgress?: { status: string; elapsed: number }
-  pendingCount?: number
-  onCancel?: () => void
-  onGenerate: () => void
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -142,21 +135,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   selectedLoras, loraOptions, loraLoading, loraError, onRefreshLoras, onLorasChange,
   backend, backendSwitching, engineRunning, engineStarting, engineModelCount,
   onSwitchBackend, onStartEngine, onStopEngine,
-  sysStats, generating, elapsed, lastTime, comfyProgress, pendingCount = 0, onCancel, onGenerate,
+  sysStats,
 }) => {
   const [showNegative, setShowNegative] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
   const isLocal = ['comfyui', 'herdsman', 'ollama'].includes(backend)
-  const est = estimateTime(backend, model, count, mode, frames, fps)
-  const hint = generating
-    ? `已用时 ${elapsed}s`
-    : lastTime > 0 ? `上次 ${lastTime}s · 预计约 ${est}s` : `预计约 ${est}s`
-  const displayHint = backend === 'comfyui' && comfyProgress?.status
-    ? comfyProgress.status === 'running'
-      ? `ComfyUI 执行中 · ${comfyProgress.elapsed}s`
-      : 'ComfyUI 排队中'
-    : hint
-  const needsComfy = mode !== 'txt2img' && backend !== 'comfyui'
+  const needsComfy = (mode === 't2v' && backend !== 'comfyui')
+    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman')
 
   const readFile = (file?: File | null) => {
     if (!file) return
@@ -166,15 +151,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   }
 
   return (
-    <div className="ig-control-panel" style={{
-      background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
-      WebkitBackdropFilter: 'blur(18px) saturate(140%)',
-      backdropFilter: 'blur(18px) saturate(140%)',
-      borderRadius: 'var(--radius-lg)', border: '1px solid var(--md-sys-color-outline-variant)',
-      padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 16,
-    }}>
-      {/* ── ① 提示词（最先：据此选择引擎/模型/LoRA） ── */}
-      <SectionBlock title="提示词" icon={<EditOutlined />}>
+    <div className="ig-control-panel" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* ── ① 基础设置：提示词 / 负向 / 模板 / 参考图 ── */}
+      <CollapsibleSection title="基础设置" icon={<EditOutlined />} defaultOpen>
         <TextArea
           placeholder="描述你想要的画面，例如：一座悬浮在云端的东方仙侠城市，琉璃瓦宫殿，瀑布倾泻，落日余晖..."
           value={prompt}
@@ -217,13 +196,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             模板库
           </Button>
         </div>
-      </SectionBlock>
 
-      {/* ── 图生图：参考图 ── */}
-      {mode === 'img2img' && (
-        <>
-          <SectionDivider />
-          <SectionBlock title="参考图" icon={<PictureOutlined />}>
+        {mode === 'img2img' && (
+          <>
             <input
               ref={fileRef}
               type="file"
@@ -240,7 +215,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 />
                 <button
                   type="button"
-                  onClick={() => { onInitImageChange(''); }}
+                  onClick={() => { onInitImageChange('') }}
                   title="移除参考图"
                   className="img-picker-btn"
                   style={{
@@ -267,101 +242,201 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 <div style={{ fontSize: 11, color: C('color-text-secondary') }}>PNG / JPG / WebP，将作为构图基础</div>
               </div>
             )}
-            <div>
-              <div style={{ ...labelStyle, justifyContent: 'space-between' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <SlidersOutlined />重绘幅度
-                </span>
-                <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>
-                  {Math.round(denoise * 100)}%
-                </span>
+            {backend === 'comfyui' ? (
+              <div>
+                <div style={{ ...labelStyle, justifyContent: 'space-between' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <SlidersOutlined />重绘幅度
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>
+                    {Math.round(denoise * 100)}%
+                  </span>
+                </div>
+                <Slider
+                  min={0.2}
+                  max={1}
+                  step={0.05}
+                  value={denoise}
+                  onChange={onDenoiseChange}
+                  tooltip={{ formatter: (v) => `${Math.round((v || 0) * 100)}%` }}
+                />
+                <div style={{ fontSize: 10.5, color: C('color-text-secondary'), lineHeight: 1.5 }}>
+                  低幅度保留构图微调风格，高幅度更接近全新创作
+                </div>
               </div>
-              <Slider
-                min={0.2}
-                max={1}
-                step={0.05}
-                value={denoise}
-                onChange={onDenoiseChange}
-                tooltip={{ formatter: (v) => `${Math.round((v || 0) * 100)}%` }}
-              />
-              <div style={{ fontSize: 10.5, color: C('color-text-secondary'), lineHeight: 1.5 }}>
-                低幅度保留构图微调风格，高幅度更接近全新创作
-              </div>
-            </div>
-          </SectionBlock>
-        </>
-      )}
-
-      <SectionDivider />
-
-      {/* ── 非 ComfyUI 后端提示 ── */}
-      {needsComfy && (
-        <div style={{
-          padding: '9px 11px', borderRadius: 10, fontSize: 11.5, lineHeight: 1.6,
-          border: '1px solid rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.08)',
-          color: '#f59e0b',
-        }}>
-          <VideoCameraOutlined style={{ marginRight: 5 }} />
-          图生图 / 文生视频需使用 ComfyUI 本地后端，请在上方引擎切换
-        </div>
-      )}
-
-      {/* ── ① 引擎 ── */}
-      <SectionBlock title="引擎" icon={<CloudServerOutlined />}>
-        <PickerGroup
-          options={BACKEND_OPTIONS}
-          value={backend}
-          onChange={onSwitchBackend}
-          columns={4}
-        />
-        {isLocal && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: 'var(--bg-elevated)', borderRadius: 10,
-            border: '1px solid var(--border-subtle)', padding: '8px 10px',
-          }}>
-            <StatusDot tone={engineStarting ? 'warn' : engineRunning ? 'ok' : 'idle'} />
-            <span style={{ fontSize: 12, color: C('color-text-secondary'), flex: 1 }}>
-              {engineStarting
-                ? '启动中，等待就绪...'
-                : engineRunning
-                  ? `运行中${engineModelCount > 0 ? ` · ${engineModelCount} 个模型` : ''}`
-                  : '未启动'}
-            </span>
-            {engineRunning && !engineStarting ? (
-              <Button size="small" danger icon={<PoweroffOutlined />} onClick={onStopEngine}
-                style={{ borderRadius: 999, fontSize: 12, flexShrink: 0 }}>停止</Button>
             ) : (
-              <Button size="small" type="primary" icon={<PlayCircleOutlined />}
-                loading={engineStarting || backendSwitching} onClick={onStartEngine}
-                style={{ borderRadius: 999, fontSize: 12, flexShrink: 0 }}>启动</Button>
+              <div style={{ fontSize: 10.5, color: C('color-text-secondary'), lineHeight: 1.5 }}>
+                Herdsman 图生图直接按参考图重绘，不支持重绘幅度调节
+              </div>
             )}
+          </>
+        )}
+      </CollapsibleSection>
+
+      {/* ── ② 模型与引擎 ── */}
+      <CollapsibleSection title="模型与引擎" icon={<RobotOutlined />} defaultOpen>
+        {needsComfy && (
+          <div style={{
+            padding: '9px 11px', borderRadius: 10, fontSize: 11.5, lineHeight: 1.6,
+            border: '1px solid rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.08)',
+            color: '#f59e0b',
+          }}>
+            <VideoCameraOutlined style={{ marginRight: 5 }} />
+            {mode === 't2v' ? '文生视频需使用 ComfyUI 本地后端' : '图生图需使用 ComfyUI / Herdsman 本地后端'}，请切换引擎
           </div>
         )}
-      </SectionBlock>
 
-      <SectionDivider />
-
-      {/* ── ② 模型（含 LoRA） ── */}
-      <SectionBlock title="模型" icon={<RobotOutlined />}>
         <div>
+          <Typography.Text style={labelStyle}><CloudServerOutlined />引擎</Typography.Text>
+          <Select
+            value={backend}
+            onChange={onSwitchBackend}
+            options={BACKEND_OPTIONS.map((o) => ({
+              value: o.value,
+              label: (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {o.icon}{o.label}
+                </span>
+              ),
+            }))}
+            {...selectPopupProps}
+            style={{ width: '100%' }}
+          />
+          {isLocal && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'var(--bg-elevated)', borderRadius: 10,
+              border: '1px solid var(--border-subtle)', padding: '8px 10px', marginTop: 8,
+            }}>
+              <StatusDot tone={engineStarting ? 'warn' : engineRunning ? 'ok' : 'idle'} />
+              <span style={{ fontSize: 12, color: C('color-text-secondary'), flex: 1 }}>
+                {engineStarting
+                  ? '启动中，等待就绪...'
+                  : engineRunning
+                    ? `运行中${engineModelCount > 0 ? ` · ${engineModelCount} 个模型` : ''}`
+                    : '未启动'}
+              </span>
+              {engineRunning && !engineStarting ? (
+                <Button size="small" danger icon={<PoweroffOutlined />} onClick={onStopEngine}
+                  style={{ borderRadius: 999, fontSize: 12, flexShrink: 0 }}>停止</Button>
+              ) : (
+                <Button size="small" type="primary" icon={<PlayCircleOutlined />}
+                  loading={engineStarting || backendSwitching} onClick={onStartEngine}
+                  style={{ borderRadius: 999, fontSize: 12, flexShrink: 0 }}>启动</Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <Typography.Text style={labelStyle}><PictureOutlined />模型</Typography.Text>
           {modelOptions.length > 0 ? (
-            <PickerGroup options={modelOptions} value={model} onChange={onModelChange} />
+            <Select
+              showSearch
+              value={model}
+              onChange={onModelChange}
+              options={modelOptions.map((m) => ({ value: m.value, label: m.label }))}
+              optionFilterProp="label"
+              {...selectPopupProps}
+              style={{ width: '100%' }}
+            />
           ) : (
             <Input size="small" value={model} onChange={(e) => onModelChange(e.target.value)}
               placeholder="输入模型名称" style={{ ...inputStyle, height: 32 }} />
           )}
+          {model === 'diagram' && (
+            <div style={{ marginTop: 6, fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.6 }}>
+              ✨ 输入图表描述（如“订单处理流程图，含下单、支付、发货、售后”），
+              AI 生成图表代码并渲染为图片，中文清晰，适合流程图 / 框架图 / 架构图。
+            </div>
+          )}
+        </div>
+      </CollapsibleSection>
+
+      {/* ── ③ 画幅与输出 ── */}
+      <CollapsibleSection title="画幅与输出" icon={<PictureOutlined />} defaultOpen>
+        <div>
+          <Select
+            value={size}
+            onChange={onSizeChange}
+            options={(mode === 't2v' ? VIDEO_SIZE_OPTIONS : SIZE_OPTIONS).map((o) => ({
+              value: String(o.value),
+              label: o.label,
+            }))}
+            {...selectPopupProps}
+            style={{ width: '100%' }}
+          />
+          {size === 'custom' && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <InputNumber value={customWidth} onChange={(v) => onCustomWidthChange(v || 1024)}
+                size="small" min={256} max={2048} step={64} addonBefore="宽" style={{ flex: 1 }} />
+              <InputNumber value={customHeight} onChange={(v) => onCustomHeightChange(v || 1024)}
+                size="small" min={256} max={2048} step={64} addonBefore="高" style={{ flex: 1 }} />
+            </div>
+          )}
         </div>
 
-        {model === 'diagram' && (
-          <div style={{ marginTop: 6, fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.6 }}>
-            ✨ 输入图表描述（如“订单处理流程图，含下单、支付、发货、售后”），
-            AI 生成图表代码并渲染为图片，中文清晰，适合流程图 / 框架图 / 架构图。
+        {mode === 't2v' && (
+          <div>
+            <Typography.Text style={labelStyle}><VideoCameraOutlined />时长 / 帧率</Typography.Text>
+            <Select
+              value={`${frames}-${fps}`}
+              onChange={(v) => {
+                const [f, p] = String(v).split('-').map(Number)
+                onFramesChange(f)
+                onFpsChange(p)
+              }}
+              options={VIDEO_DURATION_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+              {...selectPopupProps}
+              style={{ width: '100%' }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <InputNumber value={frames} onChange={(v) => onFramesChange(v || 49)}
+                size="small" min={16} max={600} step={8} addonBefore="帧" style={{ flex: 1 }} />
+              <InputNumber value={fps} onChange={(v) => onFpsChange(v || 8)}
+                size="small" min={4} max={30} step={1} addonBefore="fps" style={{ flex: 1 }} />
+            </div>
+            <div style={{ fontSize: 10.5, color: C('color-text-secondary'), marginTop: 6 }}>
+              输出为动画 WebP，时长约 {(frames / Math.max(fps, 1)).toFixed(1)} 秒（LTX-Video）
+            </div>
           </div>
         )}
+      </CollapsibleSection>
+
+      {/* ── ④ 高级参数：种子 / 数量 / LoRA / 系统 ── */}
+      <CollapsibleSection
+        title="高级参数"
+        icon={<SlidersOutlined />}
+        defaultOpen={false}
+        right={selectedLoras.length > 0 ? (
+          <span className="ig-collapse-count">LoRA ×{selectedLoras.length}</span>
+        ) : undefined}
+      >
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <Typography.Text style={labelStyle}><ShakeOutlined />种子</Typography.Text>
+            <InputNumber
+              value={seed || undefined}
+              onChange={(v) => onSeedChange(v || 0)}
+              placeholder="随机"
+              min={1} max={2147483647}
+              style={{ width: '100%' }}
+              addonAfter={
+                <Button type="text" size="small" icon={<ShakeOutlined />}
+                  onClick={() => onSeedChange(0)} style={{ padding: 0, height: 18 }} />
+              }
+            />
+          </div>
+          {mode !== 't2v' && (
+            <div>
+              <Typography.Text style={labelStyle}><NumberOutlined />数量</Typography.Text>
+              <PickerGroup options={COUNT_OPTIONS} value={count} onChange={onCountChange} columns={4} />
+            </div>
+          )}
+        </div>
 
         {backend === 'comfyui' && model !== 'diagram' && (
-          <div style={{ marginTop: 2 }}>
+          <div>
             <div style={{ ...labelStyle, justifyContent: 'space-between' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                 <ExperimentOutlined />LoRA
@@ -420,84 +495,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             )}
           </div>
         )}
-      </SectionBlock>
 
-      <SectionDivider />
-
-      {/* ── ③ 参数 ── */}
-      <SectionBlock title="参数" icon={<SlidersOutlined />}>
-
-        <div>
-          <Typography.Text style={labelStyle}><PictureOutlined />尺寸</Typography.Text>
-          <PickerGroup
-            options={mode === 't2v' ? VIDEO_SIZE_OPTIONS : SIZE_OPTIONS}
-            value={size}
-            onChange={onSizeChange}
-            columns={mode === 't2v' ? 3 : 4}
-          />
-          {size === 'custom' && (
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <InputNumber value={customWidth} onChange={(v) => onCustomWidthChange(v || 1024)}
-                size="small" min={256} max={2048} step={64} addonBefore="宽" style={{ flex: 1 }} />
-              <InputNumber value={customHeight} onChange={(v) => onCustomHeightChange(v || 1024)}
-                size="small" min={256} max={2048} step={64} addonBefore="高" style={{ flex: 1 }} />
-            </div>
-          )}
-        </div>
-
-        {mode === 't2v' && (
-          <div>
-            <Typography.Text style={labelStyle}><VideoCameraOutlined />时长 / 帧率</Typography.Text>
-            <PickerGroup
-              options={VIDEO_DURATION_OPTIONS}
-              value={`${frames}-${fps}`}
-              onChange={(v) => {
-                const [f, p] = String(v).split('-').map(Number)
-                onFramesChange(f)
-                onFpsChange(p)
-              }}
-              columns={2}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <InputNumber value={frames} onChange={(v) => onFramesChange(v || 49)}
-                size="small" min={16} max={600} step={8} addonBefore="帧" style={{ flex: 1 }} />
-              <InputNumber value={fps} onChange={(v) => onFpsChange(v || 8)}
-                size="small" min={4} max={30} step={1} addonBefore="fps" style={{ flex: 1 }} />
-            </div>
-            <div style={{ fontSize: 10.5, color: C('color-text-secondary'), marginTop: 6 }}>
-              输出为动画 WebP，时长约 {(frames / Math.max(fps, 1)).toFixed(1)} 秒（LTX-Video）
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <Typography.Text style={labelStyle}><ShakeOutlined />种子</Typography.Text>
-            <InputNumber
-              value={seed || undefined}
-              onChange={(v) => onSeedChange(v || 0)}
-              placeholder="随机"
-              min={1} max={2147483647}
-              style={{ width: '100%' }}
-              addonAfter={
-                <Button type="text" size="small" icon={<ShakeOutlined />}
-                  onClick={() => onSeedChange(0)} style={{ padding: 0, height: 18 }} />
-              }
-            />
-          </div>
-          {mode !== 't2v' && (
-            <div>
-              <Typography.Text style={labelStyle}><NumberOutlined />数量</Typography.Text>
-              <PickerGroup options={COUNT_OPTIONS} value={count} onChange={onCountChange} columns={4} />
-            </div>
-          )}
-        </div>
-      </SectionBlock>
-
-      {sysStats && (
-        <>
-          <SectionDivider />
-          <SectionBlock title="系统" icon={<DashboardOutlined />}>
+        {sysStats && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Typography.Text style={labelStyle}><DashboardOutlined />系统</Typography.Text>
             <MetricBar label="CPU" value={sysStats.cpu} detail={`${sysStats.cpu}%`} />
             <MetricBar
               label="内存"
@@ -511,25 +512,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 detail={`${sysStats.vramUsed.toFixed(0)}/${sysStats.vramTotal.toFixed(0)}GB`}
               />
             )}
-          </SectionBlock>
-        </>
-      )}
-
-      {/* ── ⑤ 生成（常驻底部） ── */}
-      <ActionButton
-        loading={generating}
-        disabled={needsComfy}
-        label={generating
-          ? pendingCount > 0 ? `生成中 · 队列 ${pendingCount}` : '生成中'
-          : mode === 't2v' ? '生成视频' : `生成 ${count} 张`}
-        hint={displayHint}
-        onClick={onGenerate}
-      />
-      {onCancel && (generating || pendingCount > 0) && (
-        <Button size="small" block onClick={onCancel} style={{ marginTop: 6 }}>
-          取消当前任务并清空队列
-        </Button>
-      )}
+          </div>
+        )}
+      </CollapsibleSection>
     </div>
   )
 }

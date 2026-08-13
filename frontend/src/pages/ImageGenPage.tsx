@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
-import { Typography, Button, Space, Tag, message } from 'antd'
+import { Typography, Button, Space, message } from 'antd'
 import {
   PictureOutlined, FolderOpenOutlined,
   SwapOutlined, VideoCameraOutlined,
@@ -10,7 +10,8 @@ import CustomTemplateModal from '../components/imagegen/CustomTemplateModal'
 import TemplatePickerModal from '../components/imagegen/TemplatePickerModal'
 import { ControlPanel } from '../components/imagegen/ControlPanel'
 import { ResultStage } from '../components/imagegen/ResultStage'
-import { HistoryRail } from '../components/imagegen/HistoryRail'
+import { GenerationBar } from '../components/imagegen/GenerationBar'
+import { TaskCenter } from '../components/imagegen/TaskCenter'
 import { StatusDot } from '../components/imagegen/ui'
 import {
   TEMPLATES,
@@ -31,7 +32,7 @@ import {
 } from '../api/image'
 import { getEngines, testEngineConnection, setActiveEngine, setEngineDefaultModel, type EngineConfig } from '../api/engines'
 import { setImageBackend as setImageBackendAPI } from '../api/settings'
-import type { GenResult } from '../components/imagegen/types'
+import type { GenResult, GenTask, QueueEntry } from '../components/imagegen/types'
 import { filterLorasByModel, loraFamily, loraFamiliesForModel } from '../utils/loraFilter'
 import { renderMermaidToPng } from '../utils/mermaidPng'
 import '../components/imagegen/imagegen.css'
@@ -83,31 +84,6 @@ function loraLabel(name: string): string {
   return file.replace(/_/g, ' ')
 }
 
-interface GenTask {
-  prompt: string
-  negative: string
-  size: string
-  customWidth: number
-  customHeight: number
-  model: string
-  seed: number
-  count: number
-  selectedLoras: string[]
-  mode: 'txt2img' | 'img2img' | 't2v'
-  initImage: string
-  denoise: number
-  frames: number
-  fps: number
-}
-
-type QueueStatus = 'pending' | 'running' | 'done' | 'canceled'
-
-interface QueueEntry {
-  id: number
-  task: GenTask
-  status: QueueStatus
-}
-
 // ── 主组件 ──
 
 const ImageGenPage: React.FC = () => {
@@ -147,7 +123,6 @@ const ImageGenPage: React.FC = () => {
   // ── 结果 & 历史 ──
   const [results, setResults] = useState<GenResult[]>([])
   const [history, setHistory] = useState<GenResult[]>(() => loadHistoryMeta())
-  const [historyCollapsed, setHistoryCollapsed] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(-1)
   const [characters, setCharacters] = useState<{ id: string; name: string }[]>([])
 
@@ -166,6 +141,7 @@ const ImageGenPage: React.FC = () => {
   const queueSeq = useRef(0)
   const [pendingCount, setPendingCount] = useState(0)
   const [queueItems, setQueueItems] = useState<QueueEntry[]>([])
+  const canvasRef = useRef<HTMLDivElement>(null)
 
   const comfyModels = useMemo(() => [
     { label: 'Krea2 Turbo', value: 'krea2' },
@@ -305,6 +281,11 @@ const ImageGenPage: React.FC = () => {
     return () => clearInterval(timer)
   }, [generating])
 
+  // 生成开始时画布回到顶部，避免新一轮结果被旧滚动位置遮挡
+  useEffect(() => {
+    if (generating) canvasRef.current?.scrollTo({ top: 0 })
+  }, [generating])
+
   // ComfyUI 任务状态轮询
   useEffect(() => {
     if (!generating || backend !== 'comfyui') {
@@ -329,24 +310,25 @@ const ImageGenPage: React.FC = () => {
     setResults([])
     setLightboxIndex(-1)
     const genStart = Date.now()
+    let ok = true
     try {
       if (task.model === 'diagram') {
         const res = await generateDiagram(task.prompt)
         if (res?.error) {
           setGenError(res.error)
           message.error(res.error)
-          return
+          return false
         }
         if (!res.code) {
           setGenError('AI 未返回有效的图表代码，请调整描述后重试')
           message.error('AI 未返回有效的图表代码，请调整描述后重试')
-          return
+          return false
         }
         const png = await renderMermaidToPng(res.code)
         if (!png) {
           setGenError('图表渲染失败，请调整描述后重试')
           message.error('图表渲染失败，请调整描述后重试')
-          return
+          return false
         }
         const diagramResult: GenResult = {
           image: png.dataUrl,
@@ -372,7 +354,7 @@ const ImageGenPage: React.FC = () => {
         setLightboxIndex(0)
         setLastTime(Math.round((Date.now() - genStart) / 1000))
         message.success('✔ 图表已生成')
-        return
+        return true
       }
       const finalSize = task.size === 'custom' ? `${task.customWidth}x${task.customHeight}` : task.size
       const loraStr = task.selectedLoras.join(',')
@@ -388,6 +370,7 @@ const ImageGenPage: React.FC = () => {
         ? await generateImage(task.prompt, task.negative, finalSize, task.model, task.seed, task.count, loraStr)
         : await generateMedia(mediaParams)
       if (res?.error) {
+        ok = false
         setGenError(res.error)
         message.error(res.error)
       } else if (res?.images?.length) {
@@ -430,12 +413,14 @@ const ImageGenPage: React.FC = () => {
         message.success(task.mode === 't2v' ? '✨ 视频已生成' : `✨ 已生成 ${genResults.length} 张图片`)
       }
     } catch (err: any) {
+      ok = false
       setGenError(err?.message || '生成失败')
       message.error(err?.message || '生成失败')
     } finally {
       generatingRef.current = false
       setGenerating(false)
     }
+    return ok
   }, [])
 
   const processQueue = useCallback(async () => {
@@ -444,8 +429,8 @@ const ImageGenPage: React.FC = () => {
       pendingRef.current = pendingRef.current.slice(1)
       setPendingCount(pendingRef.current.length)
       setQueueItems((prev) => prev.map((item) => item.id === entry.id ? { ...item, status: 'running' as const } : item))
-      await executeTask(entry.task)
-      setQueueItems((prev) => prev.map((item) => item.id === entry.id ? { ...item, status: 'done' as const } : item))
+      const ok = await executeTask(entry.task)
+      setQueueItems((prev) => prev.map((item) => item.id === entry.id ? { ...item, status: ok ? 'done' as const : 'failed' as const } : item))
     }
   }, [executeTask])
 
@@ -460,8 +445,12 @@ const ImageGenPage: React.FC = () => {
   const handleGenerate = useCallback(() => {
     if (!prompt.trim()) { message.warning(mode === 't2v' ? '请输入视频画面描述' : '请输入图片描述'); return }
     if (mode === 'img2img' && !initImage) { message.warning('请先上传参考图'); return }
-    if (mode !== 'txt2img' && backend !== 'comfyui') {
-      message.warning('图生图 / 文生视频仅支持 ComfyUI 本地后端，请先在左侧切换引擎')
+    if (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman') {
+      message.warning('图生图目前支持 ComfyUI / Herdsman 本地后端，请先在左侧切换引擎')
+      return
+    }
+    if (mode === 't2v' && backend !== 'comfyui') {
+      message.warning('文生视频仅支持 ComfyUI 本地后端，请先在左侧切换引擎')
       return
     }
     const task: GenTask = {
@@ -553,6 +542,8 @@ const ImageGenPage: React.FC = () => {
 
   // ── 引擎启停 ──
   const isLocalEngine = ['comfyui', 'herdsman', 'ollama'].includes(backend)
+  const needsComfy = (mode === 't2v' && backend !== 'comfyui')
+    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman')
 
   const handleStartEngine = useCallback(async () => {
     setEngineStarting(true)
@@ -661,6 +652,7 @@ const ImageGenPage: React.FC = () => {
     setPrompt((p) => p ? p + '，' + t.prompt : t.prompt)
     const neg = t.negative
     if (neg) setNegative((n) => n ? n + ', ' + neg : neg)
+    message.success(`已套用模板「${t.label}」`)
   }, [])
 
   const openCustomAdd = useCallback(() => {
@@ -739,22 +731,23 @@ const ImageGenPage: React.FC = () => {
             </Typography.Title>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
               <StatusDot tone={engineStarting ? 'warn' : isLocalEngine ? (engineRunning ? 'ok' : 'idle') : 'ok'} />
-              <span style={{ fontSize: 11, color: C('color-text-secondary') }}>
+              <span style={{ fontSize: 11, color: C('color-text-secondary'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280 }}>
                 {engineStarting
                   ? '引擎启动中...'
                   : isLocalEngine
                     ? (engineRunning ? `${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 运行中` : '引擎未连接')
                     : `${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 云端`}
+                {!engineStarting && model ? ` · ${model}` : ''}
               </span>
             </div>
           </div>
         </div>
         <Space size={6}>
           <Button type="text" size="small" icon={<FolderOpenOutlined />}
-            onClick={handleOpenNovelDir} title="小说图片目录"
+            onClick={handleOpenNovelDir} title="小说图片目录" aria-label="打开小说图片目录"
             style={{ color: C('color-text-secondary'), fontSize: 13, padding: '0 6px' }} />
           <Button type="text" size="small" icon={<FolderOpenOutlined />}
-            onClick={handleOpenDir} title="生成图片目录"
+            onClick={handleOpenDir} title="生成图片目录" aria-label="打开生成图片目录"
             style={{ color: C('color-text-secondary'), fontSize: 13, padding: '0 6px' }} />
         </Space>
       </div>
@@ -790,33 +783,10 @@ const ImageGenPage: React.FC = () => {
         </button>
       </div>
 
-      {/* 生成队列状态列表（最近 6 条） */}
-      {queueItems.length > 0 && (
-        <div className="ig-queue-strip" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 8, minHeight: 24 }}>
-          <Typography.Text style={{ fontSize: 11, color: C('color-text-secondary') }}>
-            队列
-          </Typography.Text>
-          {queueItems.slice(-6).map((item) => (
-            <Tag
-              key={item.id}
-              color={item.status === 'running' ? 'processing' : item.status === 'done' ? 'success' : item.status === 'canceled' ? 'default' : 'default'}
-              style={{ marginInlineEnd: 0, fontSize: 11, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}
-            >
-              {item.status === 'running' ? '执行中' : item.status === 'done' ? '完成' : item.status === 'canceled' ? '已取消' : '待执行'} · {item.task.prompt.slice(0, 18)}
-            </Tag>
-          ))}
-          <Button size="small" type="text"
-            onClick={() => { setQueueItems([]) }}
-            style={{ fontSize: 10, padding: '0 4px', color: C('color-text-secondary') }}>
-            清除
-          </Button>
-        </div>
-      )}
-
       {/* 主工作区：左控制面板 + 中结果舞台 + 右历史胶片 */}
       <div className="ig-workspace" style={{ flex: 1, display: 'flex', gap: 12, minHeight: 0 }}>
         {/* 左栏 — 控制面板 */}
-        <div className="ig-control-rail" style={{ width: 350, flexShrink: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+        <div className="ig-control-rail" style={{ width: 300, flexShrink: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
           <ControlPanel
             mode={mode}
             prompt={prompt} negative={negative}
@@ -844,16 +814,11 @@ const ImageGenPage: React.FC = () => {
             onSwitchBackend={handleSwitchBackend}
             onStartEngine={handleStartEngine} onStopEngine={handleStopEngine}
             sysStats={sysStats}
-            generating={generating} elapsed={elapsed} lastTime={lastTime}
-            comfyProgress={comfyProgress}
-            pendingCount={pendingCount}
-            onCancel={handleCancel}
-            onGenerate={handleGenerate}
           />
         </div>
 
         {/* 中间 — 结果舞台 */}
-        <div className="ig-result-canvas" style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+        <div ref={canvasRef} className="ig-result-canvas" style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
           <ResultStage
             results={results} generating={generating} error={genError} mode={mode}
             initImage={initImage}
@@ -866,21 +831,41 @@ const ImageGenPage: React.FC = () => {
           />
         </div>
 
-        {/* 右侧 — 历史胶片 */}
-        <div className="ig-history-rail" style={{ width: historyCollapsed ? 44 : 200, flexShrink: 0, overflowY: 'auto', overflowX: 'hidden',
-          background: 'var(--gaea-glass-bg, var(--bg-elevated))', borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--md-sys-color-outline-variant)', padding: 10 }}>
-          <HistoryRail
-            history={history}
-            selectedIndex={lightboxIndex}
-            onSelect={(i) => setLightboxIndex(i)}
-            onClear={() => { setHistory([]); setResults([]); setLightboxIndex(-1) }}
-            onRegenerateMeta={handleRegenerateMeta}
-            collapsed={historyCollapsed}
-            onToggleCollapse={() => setHistoryCollapsed((p) => !p)}
-          />
-        </div>
+        {/* 右侧 — 任务中心：队列 / 最近结果 / 模板 */}
+        <TaskCenter
+          queueItems={queueItems}
+          onClearQueue={() => setQueueItems([])}
+          onCancelQueue={handleCancel}
+          history={history}
+          selectedIndex={lightboxIndex}
+          onSelectHistory={setLightboxIndex}
+          onClearHistory={() => { setHistory([]); setResults([]); setLightboxIndex(-1) }}
+          onRegenerateMeta={handleRegenerateMeta}
+          templates={TEMPLATES}
+          customTemplates={customTemplates}
+          onApplyTemplate={applyTemplate}
+          onManageTemplates={() => setTemplatePickerOpen(true)}
+        />
       </div>
+
+      {/* 底部常驻生成栏 */}
+      <GenerationBar
+        mode={mode}
+        backend={backend}
+        model={model}
+        count={count}
+        frames={frames}
+        fps={fps}
+        generating={generating}
+        elapsed={elapsed}
+        lastTime={lastTime}
+        pendingCount={pendingCount}
+        queueTotal={queueItems.filter((q) => q.status === 'pending' || q.status === 'running').length}
+        comfyProgress={comfyProgress}
+        needsComfy={needsComfy}
+        onGenerate={handleGenerate}
+        onCancel={handleCancel}
+      />
 
       {/* 灯箱 */}
       {lightboxIndex >= 0 && (

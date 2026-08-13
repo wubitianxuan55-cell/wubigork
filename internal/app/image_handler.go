@@ -152,8 +152,8 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 			imgReq.ProgressCallback = a.updateComfyTaskProgress
 		}
 
-		// 非 ComfyUI 后端不接受 size 参数（xAI 返回 400）
-		if a.cfg.ImageBackend != "comfyui" {
+		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持 size
+		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" {
 			imgReq.Size = ""
 		}
 		start := time.Now()
@@ -247,8 +247,11 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	if mode == "" {
 		mode = "txt2img"
 	}
-	if mode != "txt2img" && a.cfg.ImageBackend != "comfyui" {
-		return map[string]interface{}{"error": "图生图 / 文生视频目前仅支持 ComfyUI 本地后端，请先在左侧切换引擎"}, nil
+	if mode == "t2v" && a.cfg.ImageBackend != "comfyui" {
+		return map[string]interface{}{"error": "文生视频目前仅支持 ComfyUI 本地后端，请先在左侧切换引擎"}, nil
+	}
+	if mode == "img2img" && a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" {
+		return map[string]interface{}{"error": "图生图目前支持 ComfyUI / Herdsman 本地后端，请先在左侧切换引擎"}, nil
 	}
 	if mode == "img2img" && strings.TrimSpace(p.InitImage) == "" {
 		return map[string]interface{}{"error": "图生图需要先上传参考图"}, nil
@@ -303,7 +306,8 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		if a.cfg.ImageBackend == "comfyui" {
 			imgReq.ProgressCallback = a.updateComfyTaskProgress
 		}
-		if a.cfg.ImageBackend != "comfyui" {
+		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持 size
+		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" {
 			imgReq.Size = ""
 		}
 		start := time.Now()
