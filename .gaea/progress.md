@@ -19,5 +19,6 @@
 | ✅ | v2.16.0 提交 692c959；v2.16.1 提交 660b5aa |
 | ✅ | 环境问题解决：go telemetry off（持久）；danger-full-access 后构建缓存/遥测写入解禁；vite 构建 24s 成功（独立）；wails build -s 8.9s 产出 32MB exe |
 | ✅ | 发布产物完成：releases/gaea-v2.16.1.exe + SHA256SUMS-v2.16.1.txt + smoke.ps1 冒烟通过（/api/health 200） |
-| ✅ | 全量 go test ./... 81 ok；4 个 exec 拒绝包经手动编译二进制全部 PASS（纯环境因素，非代码）；全量 vitest 243/243；tsc/eslint 干净 |
+| ✅ | 发布收尾：versioninfo.rc 2.15.0→2.16.1；build/windows/info.json 补 product_version（ProductVersion 0.0.0.0 修正为 2.16.1.0）；重打包 + 冒烟通过；SHA256=BD208094... |
+| ✅ | 记忆更新：AGENTS.md 清理混合编码→干净 UTF-8（版本状态→v2.16.1、发布流程补版本资源步骤、新增沙箱环境备忘）；环境备忘 docs/2026-08-14-sandbox-environment-notes.md |
 | ⏳ | 长期规划阶段 2：安全收敛（LAN 告警前端展示/WebView2 调试开关化/绑定面拆分/敏感数据本地通道） |

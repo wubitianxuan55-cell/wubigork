@@ -1,172 +1,124 @@
-## 版本状态（v2.15.0）
-
-- 最新发布：v2.15.0（2026-08-13）「模型中心 P0/P1/P2 + UI 重设计」：
-  引擎状态→模型可见性联动、测试连接诊断、功能绑定回退态；搜索/收藏置顶、资源占用可视化、选择器统一；
-  引擎批量启停、调用统计收进抽屉；UI 重设计适配浅色/深色主题。详见 releases/v2.15.0.md。
-
----
 # gaea 项目记忆
+
+> 本文件为项目长期记忆（文档记忆层级）。编码规范：**UTF-8 无 BOM**（历史遗留的 GBK/UTF-8 混合编码已清理）。
+> 修改后请保持 UTF-8；.ps1 脚本需 UTF-8 带 BOM（见「沙箱环境备忘」）。
+
+## 版本状态
+
+- 最新发布：**v2.16.1（2026-08-14）「E1-4 模型中心资源协同 + 磁盘治理」**：
+  生命周期操作串行化（herdsmanOpMu，对齐 herdsman local_concurrency=1）+ 模型库磁盘 KPI
+  （installed_bytes/disk_total/disk_free，GetDiskFreeSpaceEx）+ fmtSize TB 档。
+  全量 vitest 243/243；发布产物 gaea-v2.16.1.exe（32MB）冒烟通过。详见 releases/v2.16.1.md。
+- v2.16.0（2026-08-14）「长期规划首轮：Herdsman 底座加固 + 工程门禁」：
+  H0-1 环境探测（internal/herdsman/probe.go + App.HerdsmanProbe）、H0-2 健康检查（health.go + App.HerdsmanHealth）、
+  H0-3 TTS 默认动态解析（voice.ResolveHerdsmanTTSModel，voxcpm2 优先）、H0-4 LAN 暴露告警（lancheck.go +
+  App.HerdsmanSecurityCheck）、H0-5 模型用途提示上卡片 + 思考模式 max_tokens≥4096 守护；
+  E1-1 前端 CI 修复（eslint 配置/插件、28 硬错误清零含 Lightbox 条件 Hook 隐患、CI 加 vitest）、
+  E1-2 发布冒烟脚本 scripts/smoke.ps1、E1-3 周版本节奏。详见 releases/v2.16.0.md 与
+  docs/superpowers/plans/2026-08-14-gaea长期规划-herdsman底座加固与工程门禁.md。
+- 更早版本历史见 CHANGELOG.md / releases/README.md（版本表）。
 
 ## 项目定位
 
-gaea �? Windows 桌面端�?��?�用办公」AI 助手（Wails v2：Go 1.26 后端 + React/TypeScript/Vite 前端）�??
-核心能力：文档撰写�?�表格处理�?�格式转换（docx/xlsx/pdf �? Markdown）�?�图表生成�?�报告拼装�??
-知识库与记忆中枢、方案编写�?�品牌定位已从�?�土壤修复工程办公�?�全面转为�?��?�用办公」�??
+gaea 是 Windows 桌面端「通用办公」AI 助手（Wails v2：Go 1.26 后端 + React/TypeScript/Vite 前端）。
+核心能力：文档撰写、表格处理、格式转换（docx/xlsx/pdf → Markdown）、图表生成、报告拼装、
+知识库与记忆中枢、方案编写。品牌定位已从「土壤修复工程办公」全面转为「通用办公」。
 
-## �?术栈与关键约�?
+## 技术栈与关键约定
 
-- 桌面框架 Wails v2.13（Go + WebView2）；后端事件总线 + 前端 zustand 桥接（bridge.ts �? window.go.app.App�?
-- 单模型架构：�?�? executor 完成规划与执行，无独立规划�?�；任务/�?能子代理�? `task` / `run_skill`
-- 内置工具精简�? 17 个核心工具（v2.4.3 起）：文�?/命令、网络�?�任务�?�记�?/知识、技能�?�format_convert、chart_gen
-- 文档能力交给 ModelScope �?能：docx / pdf / xlsx（安装在 `~/.codex/skills` �? `.gaea/skills`），
-  转换引擎共用 `internal/office/docmd`（format_convert 工具与预览面板同�?实现�?
+- 桌面框架 Wails v2.13（Go + WebView2）；后端事件总线 + 前端 zustand 桥接（bridge.ts → window.go.app.App）
+- 单模型架构：一个 executor 完成规划与执行，无独立规划器；任务/技能子代理走 `task` / `run_skill`
+- 内置工具精简为 17 个核心工具（v2.4.3 起）：文件/命令、网络、任务、记忆/知识、技能、format_convert、chart_gen
+- 文档能力交给 ModelScope 技能：docx / pdf / xlsx（安装在 `~/.codex/skills` 与 `.gaea/skills`），
+  转换引擎共用 `internal/office/docmd`（format_convert 工具与预览面板同一实现）
 - 内置子代理技能：format-convert / chart-builder / doc-assemble
-- 记忆系统：SQLite（`%APPDATA%\gaea\Hephaestus.db` facts 表，按项�? slug 隔离�?+ 文档记忆（AGENTS.md 层级�?
-- 环境依赖：LibreOffice（soffice）�?�node 全局 docx、Python 3.13（lxml/openpyxl/pypdf/pdfplumber/reportlab/pandas/matplotlib 等）
+- 记忆系统：SQLite（`%APPDATA%\gaea\Hephaestus.db` facts 表，按项目 slug 隔离）+ 文档记忆（AGENTS.md 层级）
+- 环境依赖：LibreOffice（soffice）、node 全局 docx、Python 3.13（lxml/openpyxl/pypdf/pdfplumber/reportlab/pandas/matplotlib 等）
+- 本地 AI 底座：**Herdsman**（localhost:8080/v1，~110GB 模型：35B 对话 ×2、zimage-turbo、voxcpm2、
+  mineru、embedding/reranker、paddleocr、sherpa-onnx 等）；gaea 的聊天/视觉/检索/OCR/解析/ASR/TTS/生图/翻译
+  全部依赖它，herdsman 升级可能破坏契约——用 App.HerdsmanProbe 启动探测
 
-## 发布流程
+## 发布流程（2026-08-14 修订：补版本资源步骤）
 
-1. 更新 CHANGELOG.md / README.md / wails.json（productVersion�?
-2. `cmd /c build.bat`（wails build，产�? build/bin/gaea.exe，同时复制到桌面�?
-3. 复制 exe �? `releases/gaea-v<版本>.exe`，生�? `releases/SHA256SUMS-v<版本>.txt`
-4. �? `releases/v<版本>.md` 发布说明，更�? `releases/README.md` 版本�?
-5. 更新 `.gaea/progress.md` 进度记忆与本文件
+1. 更新 CHANGELOG.md / README.md（版本表）/ wails.json（productVersion）/ releases/README.md（版本表）
+2. **同步版本资源**：`build/windows/info.json` 是 Wails 生成版本信息的模板（fixed 段必须含
+   `product_version`，否则 exe 的 ProductVersion 为 0.0.0.0）；根目录 `versioninfo.rc` 是遗留物，一并更新以免误导
+3. 构建（本沙箱：`cd frontend; npm run build` → `wails build -s`；本机：`cmd /c build.bat`），
+   产物 build/bin/gaea.exe（同时复制到桌面）
+4. 复制 exe 到 `releases/gaea-v<版本>.exe`，生成 `releases/SHA256SUMS-v<版本>.txt`
+5. 写 `releases/v<版本>.md` 发布说明（含 SHA256 与冒烟结果），更新 releases/README.md 版本表
+6. 冒烟：`scripts/smoke.ps1 -ExePath releases\gaea-v<版本>.exe`（/api/health 200 即通过）
+7. 更新 `.gaea/progress.md` 进度记忆与本文件（版本状态）
 
-## 版本状�??
+## 沙箱环境备忘（2026-08-14 整理，详细版见 docs/2026-08-14-sandbox-environment-notes.md）
 
-  - ���·�����v2.14.12��2026-08-13�������� UI �ع���� + herdsman ��ͼ�����޸�����
-    �����ع����������۵�����/�ײ�������/���������� Tab/���� HUD �Ӿ�ͳһ��ѡ������� + WebView2 ���㶵�ף���
-    herdsman ��ͼ�޸���size ��Լ��URL ��Ӧת data URL��ͼ��ͼ /v1/images/img2img JSON ���룩��
-    ǰ�˲��� 200��204��go test ./... ȫ�̡���� releases/v2.14.12.md��
-  - v2.14.11��2026-08-13����С˵����� + ����������·�ջ�����С˵�½���ʽ/״̬/���/�����/ͳ��/������ˣ�
-    �������ɶ���/ȡ������ʷԪ���ݳ־û���ComfyUI ���ȡ�ģ��/���ա�LoRA ��̬����/���ԣ����� UI �ع����
-    ��� releases/v2.14.11.md��
-  - v2.14.10�?2026-08-13）�?�修复办公模型改绑不生效」：办公�? agent 模型
-    �? bridge �? GaeaInit 注入并缓存；改绑「办公�?�后�?重注�? bridge + 重建 controller�?
-    详见 releases/v2.14.10.md�?
-  - v2.14.9�?2026-08-13）�?�聊天板块后端：原子落库 + AppendMessage 收敛」：
-    AppendMessage �? RETURNING 收敛 seq 分配，AppendExchange 单事务原子写入，落库失败记日志�??
-    详见 releases/v2.14.9.md�?
-  - v2.14.8�?2026-08-13）�?�聊天板块后端：会话列表查询收敛 + GetTopic」：
-    ListTopics 预览 N+1 收敛为单条相关子查询，新�? GetTopic，创�?/导入/导出�? ID 读取�?
-    详见 releases/v2.14.8.md�?
-  - v2.14.7�?2026-08-13）�?�聊天板块交互收尾：清空确认 + 切换聚焦 +
-    标题生成收敛」：清空二次确认、切换自动聚焦�?�autoTopicTitle 纯函数；前端测试 194�?196�?
-    详见 releases/v2.14.7.md�?
-  - v2.14.6�?2026-08-13）�?�聊天板块会话导出为 Markdown」：
-    ChatTopicExportMarkdown 导出话题�? .md 到用户数据目�? exports/chat，前端一键导出�??
-    详见 releases/v2.14.6.md�?
-  - v2.14.5�?2026-08-13）�?�聊天板块真实流式输出（普�?�对话）」：
-    普�?�对话改为后端�?�块流式（ChatStreamPlain + chat-stream:<runID> 事件），
-    角色模式保持整段返回；AI 客户端新�? ChatStreamChunks。详�? releases/v2.14.5.md�?
-  - v2.14.4�?2026-08-13）�?�聊天板块收口：联网搜索污染修复 + 回到底部 +
-    侧栏预览同步」：搜索注入不再写入用户历史、上翻�?�回到底部�?��?�侧栏预览随发�??/清空同步�?
-    详见 releases/v2.14.4.md�?
-  - v2.14.3�?2026-08-13）�?�聊天板块补强：输入法防误发 + 快�?�切话题竞�?�修�? +
-    模式栏收敛�?�：IME 组合�? Enter 不再误发、话题载入竞态令牌�?�模式栏合并�?
-    前端用例 190�?194。详�? releases/v2.14.3.md�?
-  - v2.14.2�?2026-08-13）�?�聊天板块优化：会话搜索 + �?近活跃排�? +
-    智能滚动 + 重开加载修复」：会话�?近活跃排�? + 相对时间、侧栏会话搜索�??
-    生成中智能滚动（上翻不吸底）、重进聊天正确载入历史消息�?�重命名失败提示�?
-    前端用例 182�?190。详�? releases/v2.14.2.md�?
-  - v2.14.1�?2026-08-13）�?�办公板块缺陷收�? + 测试补强 + 结构收敛」：
-  收口会话恢复/重命名失败提示�?�归档删除二次确认�?�欢迎页跨项目最近会话�?�变更面�?
-  汇�?�排序�?�归档会话搜索；前端用例 138�?179，办公前端首轮结构收敛，收敛 bridge
-  动�??/静�?? import 混用告警。产�? gaea-v2.14.1.exe�?31.7MB）�?�详�? releases/v2.14.1.md�?
-  - v2.14.0�?2026-08-13）：办公板块会话化升级（项目分组 + 会话生命周期 +
-    任务目标 + 变更面板 + 专注模式�?
-  - v2.13.22�?2026-08-12）：修复整轮结束后大过程卡折�? / 小过程卡合并误展�?
-  - v2.13.21�?2026-08-12）：办公板块安全审计—�?�子代理不再继承持久化写入工�?
-    （cost_save/remember/forget/knowledge_add/promote_session_facts/install_skill），
-    封堵 headless 通道绕过审批；主代理 forget/install_skill 补入硬�?��?�条确认
-  - v2.13.20�?2026-08-12）：记忆/知识库写入强制确认（�? cost_save 同规则）�?
-    记忆索引注入�? 3000 runes 控制上下�?
-  - v2.13.19�?2026-08-12）：成本库写入强制�?�条确认（cost_save 任何权限级别
-    �? yolo 都弹卡，批准仅本次生效）
-  - v2.13.18�?2026-08-12）：通用办公左侧面板重设计（参�?? Codex 会话栏）
-  - v2.13.17�?2026-08-12）：运行中已完成的小过程卡默认折叠�?�段完成收起
-  - v2.13.16�?2026-08-12）：办公板块铺满窗口；删除顶部办公标签；底栏只显示本地模�?
-  - v2.13.15�?2026-08-12）：删除方案编写模块与办公二级导航，收敛为单�?入口
-  - v2.13.14�?2026-08-12）：docx/xlsx/pdf/pptx 安装到用户级全局�?能目录，
-    工具/�?能面板显�? Word/Excel/PDF
-  - v2.13.13�?2026-08-12）：聊天面板左侧栏可折叠（状态持久化�?
-  - v2.13.12�?2026-08-12）：通用办公布局优化（右侧边栏精�? + 绑定模型卡随面板折叠�?
-  - v2.13.11�?2026-08-12）：修复记忆中枢·用户画像打不�?（后端空结果 null 崩溃�?
-  - v2.13.10�?2026-08-12）：修复办公文档处理反复�? cmd 黑窗（子进程统一隐藏窗口�?
-  - v2.13.9�?2026-08-12）：大过程卡默认展开、内部�?��??/工具卡默认折�?
-  - v2.13.8�?2026-08-12）：仅最新回合大过程卡默认展�?（v2.13.9 起改为所有回合展�?�?
-  - v2.13.7�?2026-08-12）：办公上下文窗�? 1M�?256k、大上下文处理提示�?�最终回答兜�?
-  - v2.13.5�?2026-08-12）：运行中强制跟随底部，修复「卡住没输出」假�?
-  - v2.13.4�?2026-08-12）：外层大过程卡完成后默认展�?（撤�? v2.13.3�?
-  - v2.13.2�?2026-08-12）：办公过程文件落盘规范�?.gaea/work 统一中间产物�?
-  - v2.13.1�?2026-08-12）：修复 @PDF 引用注入二进制导致办公输出不可见
-  - v2.13.0�?2026-08-12）：通用办公打磨（方案分节字数续写�?�docx 乱码修复、看门狗、模型中心）
-  - v2.12.0�?2026-08-12）：稳定工程 + 成本库多级分类重设计
-  - v2.11.0�?2026-08-10）：四大库能力闭�? + 本地语义�?索栈（bge-m3+BM25+bge-reranker�?
-  - v2.10.1�?2026-08-10）：�?工前计划卡片 + @ 引用增强 + 交付物卡�? + 自动做梦记忆整理
-  - v2.10.0�?2026-08-09）：通用办公三阶段闭环（解析/编辑/输出�?+ Codex 式预览布�?
-- 里程碑：2026-08-12 完成通用办公全面打磨（显�?/布局/安全三线）：
-  - 显示：大/小过程卡展开折叠语义、左侧面�? Codex 化�?�办公板块铺满窗�?
-  - 布局：删除方案编写二级导航�?�右侧边栏精�?、聊天侧栏可折叠
-  - 安全：成本库/记忆/知识�?/�?能写入全部硬性�?�条确认（含 yolo、子代理路径），
-    子代理不再继承持久化写入工具；弹窗类与上下文膨胀已全部封�?
-  并修�? PS 5.1 UTF-8 编码（BOM + .NET HttpClient�?
-- 已知注意：角色库剧照默认跟随绘梦（ImageBackend/ImageModel），可在模型中心单独绑定�?
-  文生视频依赖本地 ComfyUI 安装 LTX-Video 模型
+**防止重蹈覆辙的四条铁律**：
+1. `go telemetry off` 已持久生效；构建缓存写入问题随 danger-full-access 策略解除，无需再覆盖 GOCACHE
+2. **wails build 前端编译会挂起**（wails 捕获前端输出走管道）——必须 `cd frontend && npm run build`
+   再 `wails build -s`（-s = 跳过前端编译，9s 完成）
+3. `go test ./...` 单进程树会被 harness 终止、个别测试二进制偶发 `fork/exec Access is denied`——
+   逐包验证 + `scripts/test-all.ps1`（逐包/重试/状态续跑）；exec 拒绝用 `go test -c` 手动运行证明代码无恙
+4. .ps1 脚本必须 UTF-8 带 BOM（否则 powershell.exe 按 GBK 解析报错）；npx 用 `& 'C:\Program Files\nodejs\npx.cmd'`
 
-## 本地 TTS 引擎（重要记忆，勿遗忘；2026-08-09 整理�?
+## 本地 TTS 引擎（重要记忆，勿遗忘；2026-08-09 整理）
 
-> ⚠️ **VoxCPM2 已于 v2.6.9 移除**：实测�?�时长（单句 2�?3s+）�?�音色男女混乱�?�克隆不稳定�?
-> 下方 VoxCPM/Vulkan 相关方法保留为�?�已废弃教训”，勿重新安装；当前本地 TTS �? CosyVoice2�?
+> ⚠️ **VoxCPM2 已于 v2.6.9 移除**：实测不达标（耗时长、音色男女混乱、克隆不稳定）。
+> 下方 VoxCPM/Vulkan 相关方法保留为「已废弃教训」，勿重新安装；当前本地 TTS 为 CosyVoice2。
+> 注：herdsman 侧实测 voxcpm2 可用（冷启动约 50s，不支持预设音色），qwen3-tts-* 未安装。
 
-本机（Radeon 8060S 核显 / 128GB 统一内存 / Windows）本�? TTS 有两条引擎线，gaea 只连 OpenAI 兼容 8020/8010�?
+本机（Radeon 8060S 核显 / 64GB 统一内存 / Windows）本地 TTS 有两条引擎线，gaea 只连 OpenAI 兼容 8020/8010。
 
-### ~~VoxCPM2~~（已移除 v2.6.9，以下为废弃记录�?
-- `8030`�?**主后�?** `C:\AI\llama-omni\build\bin\llama-tts-server.exe`
-  （llama.cpp-omni `tools/server/server-voxcpm2.cpp`，C++/ggml + **Vulkan**�?
-  - 模型：`C:\AI\llama-omni\models\VoxCPM2-BaseLM-Q8_0.gguf`�?1.65GB�?+ `VoxCPM2-Acoustic-F16.gguf`�?1.74GB�?
-  - 来源：DennisHuang648/VoxCPM2-GGUF（ModelScope 镜像 `modelscope.cn/models/DennisHuang/VoxCPM2-GGUF` 更快�?
-  - 8060S 识别 `KHR_coopmat + bf16`，全�? 29 �? offload Vulkan0，加载约 2s
-- `8021`�?**备胎** ROCm PyTorch（`C:\AI\voxcpm\server.py` + `VOXCPM_PORT=8021`�?
-  torch 2.9.1+rocm7.2.1 + TunableOp，CFG=1.5�?
-- `8020`�?**适配�?** `C:\AI\voxcpm\adapter.py`（FastAPI，gaea 的入口，契约不变）：
-  内置音色/声音设计优先�? Vulkan，后端不可用自动回�?? ROCm；默�? 6 �? / CFG 1.5 / max_steps=100�?
-  峰�?? <0.85 自动增益归一（中文克隆偏轻）
-- �?键启动：`C:\AI\voxcpm\start_voxcpm_stack.ps1`�?8030�?8021�?8020，按端口安全清理�?
-  C++ 后端依赖 `C:\msys64\ucrt64\bin`，脚本已处理 PATH�?
+### ~~VoxCPM2~~（已移除 v2.6.9，以下为废弃记录）
 
-### CosyVoice2（端�? 8010�?
-- `C:\AI\cosyvoice\server.py`：LLM �? GGUF + Vulkan（`gguf\cosyvoice_f16.gguf`），flow �? ONNX + DirectML�?5 步）
-- 启动：`C:\AI\cosyvoice\start_cosyvoice.bat`；约 14s 加载+预热，短�? ~1.5s
+- `8030`：主后端 `C:\AI\llama-omni\build\bin\llama-tts-server.exe`（llama.cpp-omni，C++/ggml + Vulkan）
+  - 模型：`C:\AI\llama-omni\models\VoxCPM2-BaseLM-Q8_0.gguf`（1.65GB）+ `VoxCPM2-Acoustic-F16.gguf`（1.74GB）
+  - 8060S 识别 `KHR_coopmat + bf16`，全量 29 层 offload Vulkan0，加载约 2s
+- `8021`：备胎 ROCm PyTorch（`C:\AI\voxcpm\server.py` + `VOXCPM_PORT=8021`）
+- `8020`：适配层 `C:\AI\voxcpm\adapter.py`（FastAPI，gaea 入口，契约不变）
+- 一键启动：`C:\AI\voxcpm\start_voxcpm_stack.ps1`（8030/8021/8020）
+
+### CosyVoice2（端口 8010）
+
+- `C:\AI\cosyvoice\server.py`：LLM 段 GGUF + Vulkan（`gguf\cosyvoice_f16.gguf`），flow 段 ONNX + DirectML（5 步）
+- 启动：`C:\AI\cosyvoice\start_cosyvoice.bat`；约 14s 加载+预热，短句 ~1.5s
 
 ### 音色（两引擎统一 4 个，火山引擎 Speech-AI-Forge-spks 录音室样本）
-- 中文�? `zh_female.wav`（volc 知�?�温婉，f0�?221Hz）�?�中文男 `zh_male.wav`（volc 儒雅青年，f0�?133Hz�?
-- 英文�? `en_female.wav`（volc Sarah，f0�?191Hz）�?�英文男 `en_male.wav`（volc Daniel，f0�?109Hz�?
-- 参�?�音�? �?7s / 16kHz；转写在 `C:\AI\voxcpm\voices\_meta.json`
 
-### 本次优化方法（AMD 核显提�?�，勿重蹈覆辙）
-1. **不要再用�? ROCm PyTorch 追�?�度**：iGPU 共享内存架构�? ROCm �? CPU 基本同�??
-   �?5 �? RTF �?1.06�?1.12）；Vulkan + ggml �? GEMM/coopmat 才是突破口（克隆 RTF 0.65�?0.84�?
-2. **构建**：MSYS2 UCRT64（`C:\msys64\msys2_shell.cmd -defterm -no-start -ucrt64 -c`），
-   �? `mingw-w64-ucrt-x86_64-{toolchain,cmake,ninja,vulkan-headers,vulkan-loader,shaderc,spirv-headers}`�?
-   `cmake -B build -DGGML_VULKAN=ON -DGGML_NATIVE=ON`，目�? `llama-tts-server voxcpm2-cli`
-3. **�? 1（端口绑不上�?**：检�? OpenSSL �? server-voxcpm2 会构�? `SSLServer`，空证书导致
-   `is_valid_=false`、任何端�? bind 都失败；本地回环不需�? TLS，改普�?? `httplib::Server`
-4. **�? 2（克隆近静音�?**：AudioVAE 参�?�特征必�? frame-major（`ggml_cont(latent)`），
-   不能 `cont(transpose(latent))`（dim-major），否则�? Python `[patches, patch_size, feat_dim]` 不一�?
-5. **�? 3**：llama.cpp-omni �? CLI `-r` 克隆偶发偏静音，HTTP server 路径正常；生产走 server
-6. **�? 4**：VoxCPM Python 长文�? CFG 2.0 会�?�跑�?+整段重试」（RTF 4.8�?7.8），CFG 1.5 稳定�?
+- 中文女 `zh_female.wav`（f0≈221Hz）、中文男 `zh_male.wav`（f0≈133Hz）
+- 英文女 `en_female.wav`（f0≈191Hz）、英文男 `en_male.wav`（f0≈109Hz）
+- 参考音频 ~7s / 16kHz；转写在 `C:\AI\voxcpm\voices\_meta.json`
+
+### 本次优化方法（AMD 核显提速教训，勿重蹈覆辙）
+
+1. 不要再用纯 ROCm PyTorch 追赶速度：iGPU 共享内存架构下 ROCm 与 CPU 基本相同（RTF ≈1.06~1.12）；
+   Vulkan + ggml 的 GEMM/coopmat 才是突破口（克隆 RTF 0.65~0.84）
+2. 构建：MSYS2 UCRT64，`cmake -B build -DGGML_VULKAN=ON -DGGML_NATIVE=ON`
+3. 坑 1（端口绑不上）：server-voxcpm2 会构造 SSLServer，空证书导致 is_valid_=false 任何端口 bind 失败；
+   本地回环不需 TLS，改普通 httplib::Server
+4. 坑 2（克隆近静音）：AudioVAE 参数特征必须 frame-major（`ggml_cont(latent)`），
+   不能 `cont(transpose(latent))`（dim-major）
+5. 坑 3：llama.cpp-omni 的 CLI `-r` 克隆偶发偏静音，HTTP server 路径正常；生产走 server
+6. 坑 4：VoxCPM Python 长文本 CFG 2.0 会「静音+整段重试」（RTF 4.8~7.8），CFG 1.5 稳定；
    C++ server 端用 max_steps 限制解码上限
-7. **网络**：HuggingFace LFS 直连/hf-mirror 都不通，ModelScope 直链快（8.6MB/s�?
-8. 实测：短句克�? RTF 0.65�?0.84�?6 步）、语音设�? 0.57�?0.60；同 seed 输出确定
+7. 网络：HuggingFace LFS 直连/hf-mirror 都不通，ModelScope 直链快（8.6MB/s）
+8. 实测：短句克隆 RTF 0.65~0.84（6 步）、语音设计 0.57~0.60；同 seed 输出确定
 
 ### 详细记录
-- `docs/2026-08-09-voxcpm2-integration.md`（VoxCPM2 全部历程：接入�?�ROCm、Vulkan 加�?��?�音色替换）
-- `docs/2026-08-09-cosyvoice2-llm-gguf-speed-optimization.md`（CosyVoice GGUF 提�?�）
 
-### 自动启动（当前仅 CosyVoice2�?
-- gaea 启动时后�? ensure cosyvoice；模型中�? TTS 模型卡片「启动�?�按�? �?
-  `App.StartLocalTTSService(engineId)`；引擎�?�测试连接�?�先 ensure（等 �?8s）；TTS 合成前兜�? ensure
-- 实现�? `internal/app/tts_service.go`（`core.ensureLocalTTSService` 幂等 + 异步轮询�?
-  emit `tts-service-status`；CosyVoice 直接 python server.py，隐藏窗�? CREATE_NO_WINDOW�?
+- `docs/2026-08-09-voxcpm2-integration.md`（VoxCPM2 全部历程）
+- `docs/2026-08-09-cosyvoice2-llm-gguf-speed-optimization.md`（CosyVoice GGUF 提速）
+
+### 自动启动（当前仅 CosyVoice2）
+
+- gaea 启动时后端 ensure cosyvoice；模型中心 TTS 模型卡片「启动」按钮 → `App.StartLocalTTSService(engineId)`；
+  引擎连接测试兜底 ensure（等约 8s）；TTS 合成前兜底 ensure
+- 实现：`internal/app/tts_service.go`（core.ensureLocalTTSService 幂等 + 异步轮询，emit `tts-service-status`；
+  CosyVoice 直接 python server.py，隐藏窗口 CREATE_NO_WINDOW）
 - 端口探测：CosyVoice2 `8010/v1/models`
+
+## 已知注意
+
+- 角色库剧照默认跟随绘梦（ImageBackend/ImageModel），可在模型中心单独绑定
+- 文生视频依赖本地 ComfyUI 安装 LTX-Video 模型
+- 里程碑：2026-08-12 完成通用办公全面打磨（显示/布局/安全三线：成本库/记忆/知识库/技能写入全部硬性确认
+  含 yolo、子代理路径；子代理不再继承持久化写入工具）
