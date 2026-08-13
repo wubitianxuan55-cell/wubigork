@@ -14,6 +14,7 @@
 | ✅ | 文档：herdsman API 文档更新（08-08 → 08-13） |
 | ✅ | 验证：tsc+vite build、vitest 179、go build/vet、go test（app/config）全绿 |
 | ✅ | 版本：v2.14.1（versioninfo.rc / wails.json）、releases/v2.14.1.md、CHANGELOG、README、releases/README |
+| ✅ | 构建：wails build 产出 gaea-v2.14.1.exe（31.7MB）+ SHA256SUMS-v2.14.1.txt，复制到 releases/ 与桌面 |
 
 ## 已发布：v2.14.0「办公板块会话化升级：项目分组 + 会话生命周期 + 任务目标 + 变更面板」（2026-08-13）
 

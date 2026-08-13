@@ -154,6 +154,8 @@ export function GaeaApplyUpdate():Promise<void>;
 
 export function GaeaApprove(arg1:string,arg2:boolean,arg3:boolean):Promise<void>;
 
+export function GaeaArchiveSession(arg1:string):Promise<void>;
+
 export function GaeaAttachmentDataURL(arg1:string):Promise<string>;
 
 export function GaeaBalance():Promise<app.BalanceInfo>;
@@ -264,6 +266,8 @@ export function GaeaKnowledgeSearch(arg1:string,arg2:string,arg3:string,arg4:str
 
 export function GaeaListDir(arg1:string):Promise<Array<app.DirEntry>>;
 
+export function GaeaListProjectSessions():Promise<Array<app.ProjectGroup>>;
+
 export function GaeaListSessions():Promise<Array<app.SessionMeta>>;
 
 export function GaeaListWorkspaces():Promise<Array<app.WorkspaceView>>;
@@ -314,6 +318,8 @@ export function GaeaPickWorkspace():Promise<string>;
 
 export function GaeaPinMaterial(arg1:string):Promise<Array<app.FileSearchHit>>;
 
+export function GaeaPinSession(arg1:string,arg2:boolean):Promise<void>;
+
 export function GaeaPinnedMaterials():Promise<Array<app.FileSearchHit>>;
 
 export function GaeaPreview(arg1:string):Promise<app.PreviewResult>;
@@ -359,6 +365,8 @@ export function GaeaRemoveMCPServer(arg1:string):Promise<void>;
 export function GaeaRemovePermissionRule(arg1:string,arg2:string):Promise<void>;
 
 export function GaeaRenameSession(arg1:string,arg2:string):Promise<void>;
+
+export function GaeaRequirement(arg1:string):Promise<app.RequirementView>;
 
 export function GaeaResumeSession(arg1:string):Promise<Array<app.HistoryMessage>>;
 
@@ -406,6 +414,10 @@ export function GaeaSetPermissionMode(arg1:string):Promise<void>;
 
 export function GaeaSetProviderKey(arg1:string,arg2:string):Promise<void>;
 
+export function GaeaSetRequirement(arg1:string,arg2:string):Promise<void>;
+
+export function GaeaSetRequirementDone(arg1:string,arg2:boolean):Promise<void>;
+
 export function GaeaSetSandbox(arg1:string,arg2:boolean,arg3:string,arg4:Array<string>):Promise<void>;
 
 export function GaeaSetSubagentEffort(arg1:string):Promise<void>;
@@ -433,6 +445,8 @@ export function GaeaTabMeta():Promise<Array<app.TabMeta>>;
 export function GaeaTaskTemplates():Promise<Array<app.TaskTemplate>>;
 
 export function GaeaTools():Promise<Array<Record<string, any>>>;
+
+export function GaeaUnarchiveSession(arg1:string):Promise<string>;
 
 export function GaeaUnpinMaterial(arg1:string):Promise<Array<app.FileSearchHit>>;
 

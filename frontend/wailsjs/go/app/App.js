@@ -286,6 +286,10 @@ export function GaeaApprove(arg1, arg2, arg3) {
   return window['go']['app']['App']['GaeaApprove'](arg1, arg2, arg3);
 }
 
+export function GaeaArchiveSession(arg1) {
+  return window['go']['app']['App']['GaeaArchiveSession'](arg1);
+}
+
 export function GaeaAttachmentDataURL(arg1) {
   return window['go']['app']['App']['GaeaAttachmentDataURL'](arg1);
 }
@@ -506,6 +510,10 @@ export function GaeaListDir(arg1) {
   return window['go']['app']['App']['GaeaListDir'](arg1);
 }
 
+export function GaeaListProjectSessions() {
+  return window['go']['app']['App']['GaeaListProjectSessions']();
+}
+
 export function GaeaListSessions() {
   return window['go']['app']['App']['GaeaListSessions']();
 }
@@ -606,6 +614,10 @@ export function GaeaPinMaterial(arg1) {
   return window['go']['app']['App']['GaeaPinMaterial'](arg1);
 }
 
+export function GaeaPinSession(arg1, arg2) {
+  return window['go']['app']['App']['GaeaPinSession'](arg1, arg2);
+}
+
 export function GaeaPinnedMaterials() {
   return window['go']['app']['App']['GaeaPinnedMaterials']();
 }
@@ -696,6 +708,10 @@ export function GaeaRemovePermissionRule(arg1, arg2) {
 
 export function GaeaRenameSession(arg1, arg2) {
   return window['go']['app']['App']['GaeaRenameSession'](arg1, arg2);
+}
+
+export function GaeaRequirement(arg1) {
+  return window['go']['app']['App']['GaeaRequirement'](arg1);
 }
 
 export function GaeaResumeSession(arg1) {
@@ -790,6 +806,14 @@ export function GaeaSetProviderKey(arg1, arg2) {
   return window['go']['app']['App']['GaeaSetProviderKey'](arg1, arg2);
 }
 
+export function GaeaSetRequirement(arg1, arg2) {
+  return window['go']['app']['App']['GaeaSetRequirement'](arg1, arg2);
+}
+
+export function GaeaSetRequirementDone(arg1, arg2) {
+  return window['go']['app']['App']['GaeaSetRequirementDone'](arg1, arg2);
+}
+
 export function GaeaSetSandbox(arg1, arg2, arg3, arg4) {
   return window['go']['app']['App']['GaeaSetSandbox'](arg1, arg2, arg3, arg4);
 }
@@ -844,6 +868,10 @@ export function GaeaTaskTemplates() {
 
 export function GaeaTools() {
   return window['go']['app']['App']['GaeaTools']();
+}
+
+export function GaeaUnarchiveSession(arg1) {
+  return window['go']['app']['App']['GaeaUnarchiveSession'](arg1);
 }
 
 export function GaeaUnpinMaterial(arg1) {
