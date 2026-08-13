@@ -31,6 +31,7 @@ import { VoiceSection } from './modelcenter/VoiceSection'
 import { EngineSection } from './modelcenter/EngineSection'
 import { SpecialtySection } from './modelcenter/SpecialtySection'
 import { OverviewSection } from './modelcenter/OverviewSection'
+import { ResourceMonitor } from './modelcenter/ResourceMonitor'
 import './modelcenter/modelcenter.css'
 import {
   FEATURES, XAI_VOICES, classifyModel, kindOf, localTTSDefaultVoice, localTTSFallbackVoices, engineLabel,
@@ -670,6 +671,8 @@ const ModelCenterPage: React.FC = () => {
           <Button icon={<ReloadOutlined />} onClick={loadAll} style={{ borderRadius: 10 }}>刷新状态</Button>
         </div>
       </header>
+
+      <ResourceMonitor />
 
       <section className="mc-overview-grid" aria-label="模型中心概览">
         <div className="mc-kpi">

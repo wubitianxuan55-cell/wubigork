@@ -27,6 +27,7 @@ export function EngineSection() {
                           <Typography.Text strong style={{ color: C('color-text'), fontSize: 14 }}>{engine.name}</Typography.Text>
                           <div style={{ marginTop: 2 }}>
                             <Tag color={color} style={{ fontSize: 10 }}>{engineLabel(engine)}</Tag>
+                            {engine.is_local && <Tag color="orange" style={{ fontSize: 10 }}>本地</Tag>}
                             <Switch size="small" checked={engine.enabled} onChange={(v) => handleToggleEngine(engine, v)} />
                             {activeEngine === engine.id && (
                               <Tag color="green" style={{ fontSize: 10 }}>当前活跃</Tag>
