@@ -416,3 +416,51 @@ func TestGaeaHistoryToolEvents(t *testing.T) {
 		t.Fatalf("缺少工具结果条目: %+v", hist)
 	}
 }
+
+// TestGaeaDeleteSessionClearsRegistries 验证删除会话时，标题、任务目标、置顶
+// 三处注册表都会清理干净，不会出现“删掉文件但留下孤儿条目”的回归。
+func TestGaeaDeleteSessionClearsRegistries(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
+
+	oldCfg := ga.cfg
+	oldCtrl := ga.ctrl
+	ga.cfg = nil
+	ga.ctrl = nil
+	defer func() { ga.cfg = oldCfg; ga.ctrl = oldCtrl }()
+
+	ws := t.TempDir()
+	ga.cfg = &gaeaConfig.Config{Workspace: ws}
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	writeProjectSession(t, sessionDir, "s1", "年度总结", time.Now().Add(-time.Hour))
+
+	a := &App{}
+	path := a.GaeaListSessions()[0].Path
+	base := filepath.Base(path)
+
+	if err := a.GaeaRenameSession(path, "自定义标题"); err != nil {
+		t.Fatalf("GaeaRenameSession: %v", err)
+	}
+	if err := a.GaeaSetRequirement(path, "年度总结并输出 docx"); err != nil {
+		t.Fatalf("GaeaSetRequirement: %v", err)
+	}
+	if err := a.GaeaPinSession(path, true); err != nil {
+		t.Fatalf("GaeaPinSession: %v", err)
+	}
+
+	if err := a.GaeaDeleteSession(path); err != nil {
+		t.Fatalf("GaeaDeleteSession: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("会话文件应被删除, stat err=%v", err)
+	}
+	if titles := loadSessionTitles(sessionDir); titles[base] != "" {
+		t.Errorf("标题注册表残留: %q", titles[base])
+	}
+	if reqs := loadRequirements(sessionDir); reqs[base].Text != "" {
+		t.Errorf("任务目标注册表残留: %q", reqs[base].Text)
+	}
+	if pinned := loadPinned(sessionDir); pinned[base] {
+		t.Errorf("置顶注册表残留: %v", base)
+	}
+}

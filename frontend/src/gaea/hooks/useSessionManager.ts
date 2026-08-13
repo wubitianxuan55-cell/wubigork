@@ -11,6 +11,7 @@ export function useSessionManager(
   resumeSession: (path: string) => Promise<void>,
   deleteSession: (path: string) => Promise<void>,
   renameSession: (path: string, title: string) => Promise<void>,
+  onError?: (message: string) => void,
 ) {
   const [sidebarSessions, setSidebarSessions] = useState<SessionMeta[]>([]);
   const [sidebarQuery, setSidebarQuery] = useState("");
@@ -25,6 +26,8 @@ export function useSessionManager(
     setProjectGroups(groups);
     return groups;
   }, [listProjectSessions]);
+
+  const errText = useCallback((e: unknown) => (e instanceof Error ? e.message : String(e)), []);
 
   const refreshSessions = useCallback(async () => {
     const sessions = await listSessions();
@@ -53,19 +56,24 @@ export function useSessionManager(
 
   const handleResumeSession = useCallback(
     async (path: string) => {
-      await resumeSession(path);
-      await refreshSessions();
+      try {
+        await resumeSession(path);
+        await refreshSessions();
+      } catch (e) {
+        onError?.(`恢复会话失败：${errText(e)}`);
+      }
     },
-    [resumeSession, refreshSessions],
+    [resumeSession, refreshSessions, onError, errText],
   );
 
   const handleDeleteSession = useCallback(
     async (path: string) => {
       try {
         await deleteSession(path);
-      } catch {
+      } catch (e) {
         // 删除失败→重新拉取列表恢复正确状态
         await refreshSessions();
+        onError?.(`删除会话失败：${errText(e)}`);
         return;
       }
       // 乐观更新缓存，避免删除后列表闪烁
@@ -75,15 +83,19 @@ export function useSessionManager(
       setSidebarSessions(visible);
       void refreshProjectGroups();
     },
-    [deleteSession, refreshSessions, sidebarSessions.length, refreshProjectGroups],
+    [deleteSession, refreshSessions, sidebarSessions.length, refreshProjectGroups, onError, errText],
   );
 
   const handleRenameSession = useCallback(
     async (path: string, title: string) => {
-      await renameSession(path, title);
-      await refreshSessions();
+      try {
+        await renameSession(path, title);
+        await refreshSessions();
+      } catch (e) {
+        onError?.(`重命名会话失败：${errText(e)}`);
+      }
     },
-    [renameSession, refreshSessions],
+    [renameSession, refreshSessions, onError, errText],
   );
 
   return {

@@ -362,22 +362,39 @@ export function Sidebar({
                           )}
                           <span className="shrink-0 text-fg-faint/50 font-mono text-[10px]">{relativeTime(s.modTime)}</span>
                         </button>
-                        <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-                          <button
-                            className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
-                            title="恢复"
-                            onClick={() => onRestoreSession(s.path, g.path)}
-                          >
-                            <Rollback size={12} />
-                          </button>
-                          <button
-                            className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
-                            title="永久删除"
-                            onClick={e => { e.stopPropagation(); onDeleteSession(s.path); }}
-                          >
-                            ×
-                          </button>
-                        </span>
+                        {deleteConfirm === s.path ? (
+                          <span className="flex items-center gap-1 shrink-0">
+                            <button
+                              className="bg-transparent border-0 text-[10px] text-err cursor-pointer px-1 py-0.5 rounded hover:bg-err/10"
+                              onClick={e => { e.stopPropagation(); void onDeleteSession(s.path); setDeleteConfirm(null); }}
+                            >
+                              确认
+                            </button>
+                            <button
+                              className="bg-transparent border-0 text-[10px] text-fg-faint cursor-pointer px-1 py-0.5 rounded hover:bg-bg-soft"
+                              onClick={e => { e.stopPropagation(); setDeleteConfirm(null); }}
+                            >
+                              取消
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+                            <button
+                              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+                              title="恢复"
+                              onClick={() => onRestoreSession(s.path, g.path)}
+                            >
+                              <Rollback size={12} />
+                            </button>
+                            <button
+                              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
+                              title="永久删除"
+                              onClick={e => { e.stopPropagation(); setDeleteConfirm(s.path); }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

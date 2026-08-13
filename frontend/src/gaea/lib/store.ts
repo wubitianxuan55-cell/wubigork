@@ -237,7 +237,7 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
   return s;
 }
 
-function reducer(s: ControllerState, a: Action): ControllerState {
+export function reducer(s: ControllerState, a: Action): ControllerState {
   switch (a.type) {
     case "user": return { ...s, running: true, turnStartAt: Date.now(), turnTokens: 0, pendingUser: a.text, discardTurn: false, seq: s.seq + 1, items: [...s.items, { kind: "user", id: `u${s.seq}`, text: a.text }] };
     case "unsend": return { ...s, pendingUser: undefined, discardTurn: true, running: false };
@@ -267,7 +267,7 @@ function reducer(s: ControllerState, a: Action): ControllerState {
   return s;
 }
 
-const initialState: ControllerState = {
+export const initialState: ControllerState = {
   items: [], running: false, turnActive: false,
   approval: undefined, ask: undefined, usage: undefined,
   context: { used: 0, window: 0 }, meta: undefined, balance: undefined,

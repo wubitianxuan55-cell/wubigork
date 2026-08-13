@@ -4,6 +4,7 @@ import { useCompact } from "../hooks/useCompact";
 export interface SessionChange {
   path: string;
   count: number;
+  lastTouched?: number;
 }
 
 // ── 文件变更面板（Kun 可观察性精华）─────────────────────────────────
@@ -27,6 +28,8 @@ export function ChangesPanel({
   onOpenFile: (path: string) => void;
 }) {
   const compact = useCompact();
+  const totalChanges = changes.reduce((sum, c) => sum + c.count, 0);
+  const sorted = [...changes].sort((a, b) => (b.lastTouched ?? 0) - (a.lastTouched ?? 0));
   if (changes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
@@ -45,10 +48,12 @@ export function ChangesPanel({
       <div className="flex items-center gap-1.5 px-3 pt-1.5 pb-2 text-fg-faint text-[11px] font-medium tracking-[0.02em]">
         <Diff size={12} className="text-accent" />
         文件变更
-        <span className="ml-auto font-mono text-[10px] text-fg-faint/60">{changes.length}</span>
+        <span className="ml-auto font-mono text-[10px] text-fg-faint/60">
+          {changes.length} 个文件 · {totalChanges} 次
+        </span>
       </div>
       <div className="flex flex-col gap-px">
-        {changes.map((c) => {
+        {sorted.map((c) => {
           const name = c.path.split(/[\\/]/).filter(Boolean).pop() || c.path;
           const rel = relPath(c.path, cwd);
           return (

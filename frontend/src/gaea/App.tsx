@@ -157,7 +157,7 @@ export default function App() {
   const { permLevel, setPermLevel, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
   const [memView, setMemView] = useState<MemoryView | null>(null);
   const [histView, setHistView] = useState<SessionMeta[] | null>(null);
-  const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession);
+  const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
   const newSessionAndReset = useCallback(async () => { setStatsReset(n => n + 1); await startNewSession(); }, [startNewSession]);
   const [statsReset, setStatsReset] = useState(0);
   const [capsOpen, setCapsOpen] = useState(false);
@@ -392,6 +392,30 @@ export default function App() {
     [currentProjectPath, switchFolder, handleResumeSession],
   );
 
+  // 欢迎页「最近会话」：从项目分组派生跨项目最近会话（去重、按最近排序），
+  // 不再沿用旧扁平列表（旧列表仅当前工作区且被分页截断）。
+  const recentSessions = useMemo(() => {
+    const out: SessionMeta[] = [];
+    const seen = new Set<string>();
+    for (const g of projectGroups) {
+      for (const s of g.sessions) {
+        if (s.current || seen.has(s.path)) continue;
+        seen.add(s.path);
+        out.push(s);
+      }
+    }
+    out.sort((a, b) => b.modTime - a.modTime);
+    return out.slice(0, 6);
+  }, [projectGroups]);
+
+  const resumeRecentSession = useCallback(
+    async (path: string) => {
+      const group = projectGroups.find((g) => g.sessions.some((s) => s.path === path));
+      await resumeSessionInProject(path, group?.path ?? currentProjectPath ?? "");
+    },
+    [projectGroups, currentProjectPath, resumeSessionInProject],
+  );
+
   // 会话管理（Kun/Codex 优点蒸馏）：置顶、归档、恢复
   const onArchiveSession = useCallback(async (path: string) => {
     try {
@@ -530,14 +554,17 @@ export default function App() {
 
   // 文件变更（Kun 可观察性精华）：汇总本会话写/改过的文件及次数
   const sessionChanges = useMemo<SessionChange[]>(() => {
-    const map = new Map<string, number>();
-    for (const it of state.items) {
-      if (it.kind !== "tool" || !WRITE_TOOL_NAMES.has(it.name)) continue;
+    const map = new Map<string, { count: number; lastTouched: number }>();
+    state.items.forEach((it, idx) => {
+      if (it.kind !== "tool" || !WRITE_TOOL_NAMES.has(it.name)) return;
       for (const p of extractChangedPaths(it.args || "")) {
-        map.set(p, (map.get(p) ?? 0) + 1);
+        const cur = map.get(p) ?? { count: 0, lastTouched: idx };
+        map.set(p, { count: cur.count + 1, lastTouched: idx });
       }
-    }
-    return [...map.entries()].map(([path, count]) => ({ path, count }));
+    });
+    return [...map.entries()]
+      .map(([path, v]) => ({ path, count: v.count, lastTouched: v.lastTouched }))
+      .sort((a, b) => b.lastTouched - a.lastTouched);
   }, [state.items]);
   // 编辑后自动回写刷新：docx/xlsx 预览内编辑成功 → 文件树自动刷新（替代手动刷新）
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
@@ -743,7 +770,7 @@ export default function App() {
               <Skeleton />
             ) : (
               <>
-                <Transcript onPrompt={send} running={state.running} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={sidebarSessions} onResumeSession={handleResumeSession} meta={state.meta} />
+                <Transcript onPrompt={send} running={state.running} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
                 {state.items.length > 1 && <JumpBar items={state.items} scrollToTurn={scrollToTurn ?? undefined} />}
               </>
             )}
