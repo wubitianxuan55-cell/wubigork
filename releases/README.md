@@ -6,6 +6,7 @@
 
 | 版本 | 日期 | 安装包 | 核心变更 |
 |------|------|------|------|
+| v2.15.0 | 08-13 | [gaea-v2.15.0.exe](gaea-v2.15.0.exe) | 模型中心 P0/P1/P2 + UI 重设计：引擎状态联动/连接诊断/功能绑定回退态；搜索置顶/资源占用/选择器统一；批量启停/统计抽屉；浅色/深色主题适配 |
 | v2.14.12 | 08-13 | [gaea-v2.14.12.exe](gaea-v2.14.12.exe) | 绘梦 UI 重构落地（可折叠分区/底部生成栏/任务中心三 Tab/玻璃 HUD）+ 选项改下拉；herdsman 生图修复（size 契约/URL 转 data/图生图） |
 | v2.14.11 | 08-13 | [gaea-v2.14.11.exe](gaea-v2.14.11.exe) | 小说板块后端 + 绘梦生成链路闭环（队列/取消、历史元数据、ComfyUI 进度、模板/绘照） |
 | v2.14.10 | 08-13 | [gaea-v2.14.10.exe](gaea-v2.14.10.exe) | 修复办公模型改绑不生效（重注入 bridge + 重建引擎） |
@@ -66,7 +67,7 @@
 
 ## 产物
 
-`C:\AI\wubigrok\build\bin\gaea.exe` — 约 37.5MB (Wails v2.13.0 + Go, windows/amd64)
+`C:\AI\wubigrok\build\bin\gaea.exe` — 约 33.4MB (Wails v2.13.0 + Go, windows/amd64)
 
 ## 版本历史
 

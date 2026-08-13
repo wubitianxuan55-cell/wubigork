@@ -1,5 +1,15 @@
 # gaea · 多功能 AI 助手
 
+## v2.15.0「模型中心 P0/P1/P2 + UI 重设计」（2026-08-13）
+> 按市场调研（Open WebUI / Cherry Studio / Dify / Jan / Ollama 生态）系统优化模型中心，
+> 并做浅色/深色双主题重设计。详见 releases/v2.15.0.md。
+- 模型中心 P0：引擎状态→模型可见性联动（未连接模型置灰/禁用动作）；测试连接诊断（延迟+失败原因）；功能绑定回退态 + 一键重置
+- 模型中心 P1：模型网格搜索 + 收藏置顶（localStorage 持久化）；本地资源占用可视化（CPU/内存/GPU/显存 + 本地引擎状态）；模型选择器统一按后端过滤 + 兜底
+- 模型中心 P2：引擎批量启停 + 隐藏已停用引擎；调用统计收进抽屉
+- UI 重设计（redesign-existing-projects / ui-ux-pro-max 审计）：模型卡片/空状态/面板背景与阴影改用 gaea 主题 token，适配浅色/深色
+- 测试：前端 Vitest 229/229；tsc -b、vite build 通过；go build/vet、go test ./... 全绿
+- 构建：wails build 成功，gaea-v2.15.0.exe 同步桌面与 releases/
+
 ## v2.14.12「绘梦 UI 重构落地 + herdsman 生图能力修复」（2026-08-13）
 > 完成绘梦板块 UI 全量重构（设计文档 Phase 1-2 + 视觉统一），选项改下拉并修复
 > WebView2 弹层卡首帧；herdsman 生图链路修复与图生图接入。详见 releases/v2.14.12.md。
