@@ -32,6 +32,7 @@ export interface EngineStatus {
   model_count: number
   error: string
   last_checked: string
+  latency_ms?: number
 }
 
 export interface ModelUsageStats {

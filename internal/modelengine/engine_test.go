@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // ─── NewManager 与预置引擎 ───────────────────────────────────
@@ -517,6 +518,7 @@ func TestRefreshModels_MissingEngine(t *testing.T) {
 
 func TestTestConnection_Success(t *testing.T) {
 	m := newTestManager(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(5 * time.Millisecond)
 		json.NewEncoder(w).Encode(map[string]any{
 			"data": []map[string]any{{"id": "m1"}, {"id": "m2"}, {"id": "m3"}},
 		})
@@ -533,6 +535,9 @@ func TestTestConnection_Success(t *testing.T) {
 	}
 	if status.Error != "" {
 		t.Errorf("Error = %q, want 空", status.Error)
+	}
+	if status.LatencyMs <= 0 {
+		t.Errorf("LatencyMs = %d, want > 0", status.LatencyMs)
 	}
 }
 

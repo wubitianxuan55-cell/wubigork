@@ -468,7 +468,15 @@ const ModelCenterPage: React.FC = () => {
     setTestingEngine(id)
     try {
       const st = await testEngineConnection(id)
-      if (st) setEngineStatuses(prev => ({ ...prev, [id]: st }))
+      if (st) {
+        setEngineStatuses(prev => ({ ...prev, [id]: st }))
+        const ms = typeof st.latency_ms === 'number' ? st.latency_ms : 0
+        if (st.connected) {
+          message.success(`${engineLabel({ id })} 连接成功（${st.model_count} 个模型${ms ? `，${ms}ms` : ''}）`)
+        } else {
+          message.error(`${engineLabel({ id })} 连接失败：${st.error || '未知错误'}`)
+        }
+      }
       await loadAll()
     } catch (err: any) { message.error(err.message) }
     finally { setTestingEngine(null) }

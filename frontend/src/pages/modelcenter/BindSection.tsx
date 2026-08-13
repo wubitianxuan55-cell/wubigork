@@ -3,7 +3,7 @@ import { Button, Card, message, Select, Space, Switch, Tag, Typography } from 'a
 import { CommentOutlined, EditOutlined, LinkOutlined, PictureOutlined, RobotOutlined, SoundOutlined, ToolOutlined, UserOutlined } from '@ant-design/icons'
 import * as App from '../../../wailsjs/go/app/App'
 import { C } from '../../utils/theme'
-import { engineLabel, FEATURES } from './utils'
+import { engineLabel, FEATURES, featureState, featureStateMeta, routeSourceLabel } from './utils'
 import { useModelCenter } from './context'
 
 const FEATURE_ICONS: Record<string, ReactNode> = {
@@ -32,6 +32,9 @@ export function BindSection() {
                   const draft = featureDraft[f.key] || { engine: '', model: '' }
                   const engineModels = draft.engine ? llmModels.filter(m => m.engineId === draft.engine) : []
                   const bound = !!cur?.engine && !!cur?.model
+                  const enabled = featureEnabled[f.key] !== false
+                  const state = featureState(bound, enabled)
+                  const stateMeta = featureStateMeta[state]
                   return (
                     <Card key={f.key} size="small" style={{ background: 'var(--bg-glass)', border: bound ? '1px solid rgba(34,197,94,0.35)' : '1px solid var(--border-subtle)', borderRadius: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
@@ -48,10 +51,10 @@ export function BindSection() {
                           {f.key === 'characterlib' && <Tag color="geekblue" style={{ fontSize: 9, margin: 0 }}>生成 / 补全</Tag>}
                           {f.key === 'routine' && <Tag color="green" style={{ fontSize: 9, margin: 0 }}>通用文本兜底 · 本地/免费优先</Tag>}
                         </Space>
-                        <Tag color={bound ? 'green' : 'default'} style={{ fontSize: 10, margin: 0 }}>{bound ? '已绑定' : '未绑定'}</Tag>
+                        <Tag color={stateMeta.color} style={{ fontSize: 10, margin: 0 }}>{stateMeta.label}</Tag>
                       </div>
                       <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {bound ? `当前：${cur!.engine} / ${cur!.model}` : '尚未绑定，选择引擎和模型后点绑定'}
+                      {state === 'fallback' ? '未绑定，跟随全局默认' : state === 'bound-disabled' ? `已停用，跟随全局默认（绑定保留：${cur!.engine} / ${cur!.model}）` : `当前：${cur!.engine} / ${cur!.model}`}
                       </Typography.Text>
                       {f.key === 'routine' && (
                         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginBottom: 6, lineHeight: 1.6 }}>
@@ -60,12 +63,12 @@ export function BindSection() {
                       )}
                       {modelRoutes[f.key] && (
                         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block' }}>
-                          当前生效：{modelRoutes[f.key].engine || '-'} / {modelRoutes[f.key].model || '-'}（{modelRoutes[f.key].source || '-'}）
+                          当前生效：{modelRoutes[f.key].engine || '-'} / {modelRoutes[f.key].model || '-'}（{routeSourceLabel(modelRoutes[f.key].source)}）
                         </Typography.Text>
                       )}
                       {f.key === 'office' && modelRoutes['gaea'] && (
                         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginTop: 2 }}>
-                          通用办公 / 知识库路由：{modelRoutes['gaea'].engine || '-'} / {modelRoutes['gaea'].model || '-'}（{modelRoutes['gaea'].source || '-'}）
+                          通用办公 / 知识库路由：{modelRoutes['gaea'].engine || '-'} / {modelRoutes['gaea'].model || '-'}（{routeSourceLabel(modelRoutes['gaea'].source)}）
                         </Typography.Text>
                       )}
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -85,6 +88,11 @@ export function BindSection() {
                       <Button size="small" type={bound ? 'primary' : 'default'} block onClick={() => handleSaveFeature(f.key)} style={{ marginTop: 8, fontSize: 11 }}>
                         {bound ? '更新绑定' : '绑定'}
                       </Button>
+                      {state === 'bound-active' && (
+                        <Button size="small" type="text" danger block onClick={() => handleToggleFeatureEnabled(f.key, false)} style={{ marginTop: 4, fontSize: 11 }}>
+                          重置为跟随全局
+                        </Button>
+                      )}
                     </Card>
                   )
                 })}

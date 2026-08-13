@@ -41,6 +41,19 @@ export const engineColor = (e: { id?: string; engineId?: string; color?: string 
 // 模型分类：优先使用后端 kind，缺失时回退旧名称启发式。
 export const kindOf = (m: ModelCardData): ModelKind => (m.kind as ModelKind) || classifyModel(m.modelId)
 
+// ── 模型可用性（引擎状态 → 模型可见性联动） ──────────────────
+
+export type ModelAvailability = 'ready' | 'stopped' | 'disconnected' | 'disabled'
+
+// 引擎禁用/未连接/模型已停止时，前端据此置灰卡片或禁用动作，避免误选不可用模型。
+// connected === undefined 视为「尚未检测」，保持可用（乐观），不误伤首次进入的用户。
+export function modelAvailability(card: ModelCardData, enabled: boolean, connected?: boolean): ModelAvailability {
+  if (!enabled) return 'disabled'
+  if (connected === false) return 'disconnected'
+  if (card.status === 'stopped') return 'stopped'
+  return 'ready'
+}
+
 // 引擎模型是否图片类（优先后端 kind，缺失时回退名称启发式）
 export const isImageModel = (m: { id: string; kind?: string }): boolean =>
   ((m.kind as ModelKind) || classifyModel(m.id)) === 'image'
@@ -94,6 +107,26 @@ export const FEATURES: { key: string; label: string; icon: string; mergeKeys?: s
   { key: 'characterlib', label: '角色库', icon: '🎭' },
   { key: 'routine', label: '常规办公', icon: '⚙️' },
 ]
+
+// ── 功能绑定状态（绑定 + 启停 → 明确回退态） ─────────────────
+
+export type FeatureState = 'bound-active' | 'bound-disabled' | 'fallback'
+
+export function featureState(bound: boolean, enabled: boolean): FeatureState {
+  if (bound && enabled) return 'bound-active'
+  if (bound && !enabled) return 'bound-disabled'
+  return 'fallback'
+}
+
+export const featureStateMeta: Record<FeatureState, { label: string; color: string }> = {
+  'bound-active': { label: '已绑定生效', color: 'green' },
+  'bound-disabled': { label: '已绑定·停用（回退全局）', color: 'orange' },
+  'fallback': { label: '跟随全局默认', color: 'default' },
+}
+
+// model.route 的 source → 友好文案
+export const routeSourceLabel = (source?: string): string =>
+  source === 'feature' ? '功能绑定' : source === 'global' ? '全局默认' : source === 'fallback' ? '兜底' : (source || '-')
 
 // xAI Grok TTS 音色（与设置面板一致，模型中心绑定卡内可直接选择）
 export const XAI_VOICES = [

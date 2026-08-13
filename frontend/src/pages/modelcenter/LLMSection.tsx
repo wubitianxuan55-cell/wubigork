@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button, Card, Input, Space, Tag, Typography } from 'antd'
 import { CaretRightOutlined, CheckCircleOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import { engineColor, engineIcons, engineLabel } from './utils'
+import { engineColor, engineIcons, engineLabel, modelAvailability } from './utils'
 import { useModelCenter } from './context'
 
 export function LLMSection() {
@@ -63,22 +63,30 @@ export function LLMSection() {
                     <div className="mc-grid">
                       {engineModels.map(card => {
                         const active = isModelActive(card)
+                        const avail = modelAvailability(card, engine.enabled, engineStatuses[engine.id]?.connected)
+                        const blocked = avail === 'disconnected' || avail === 'disabled'
                         return (
-                          <Card key={card.modelId} size="small" className={`mc-model-card${active ? ' is-active' : ''}`} style={{ borderColor: active ? color : undefined }}>
+                          <Card key={card.modelId} size="small" className={`mc-model-card${active ? ' is-active' : ''}`} style={{ borderColor: active ? color : undefined, opacity: blocked ? 0.55 : 1 }}>
                             <div className="mc-model-name" style={{ color: active ? color : C('color-text') }}>{card.modelName}</div>
                             <div className="mc-model-meta">
                               <Tag color={color} style={{ fontSize: 10, margin: 0 }}>{engineLabel(card)}</Tag>
                               {card.modelId === engine.default_model && (
                                 <Tag color="cyan" style={{ fontSize: 10, margin: 0 }}>默认</Tag>
                               )}
-                              <Tag color={card.status === 'stopped' ? 'default' : active ? 'green' : 'blue'} style={{ fontSize: 10, margin: 0 }}>{card.status === 'stopped' ? '已停止' : active ? '运行中' : '就绪'}</Tag>
+                              {avail === 'disconnected' ? (
+                                <Tag color="red" style={{ fontSize: 10, margin: 0 }}>未连接</Tag>
+                              ) : avail === 'stopped' ? (
+                                <Tag color="default" style={{ fontSize: 10, margin: 0 }}>未启动</Tag>
+                              ) : (
+                                <Tag color={active ? 'green' : 'blue'} style={{ fontSize: 10, margin: 0 }}>{active ? '运行中' : '就绪'}</Tag>
+                              )}
                             </div>
                             <div className="mc-model-foot">
                               <span className="mc-status">
                                 <i className={`mc-status-dot ${card.status === 'running' ? 'is-running' : ''}`} />
-                                {card.status === 'running' ? '运行中' : card.status === 'stopped' ? '已停止' : '就绪'}
+                                {avail === 'disconnected' ? '未连接' : card.status === 'running' ? '运行中' : card.status === 'stopped' ? '未启动' : '就绪'}
                               </span>
-                              <Button type={active ? 'default' : 'primary'} size="small" icon={active ? <CheckCircleOutlined /> : <CaretRightOutlined />} onClick={() => handleStartModel(card)} disabled={active} style={{ borderRadius: 8, fontSize: 11, marginLeft: 'auto' }}>{active ? '已启动' : '启动'}</Button>
+                              <Button type={active ? 'default' : 'primary'} size="small" icon={active ? <CheckCircleOutlined /> : <CaretRightOutlined />} onClick={() => handleStartModel(card)} disabled={active || blocked} style={{ borderRadius: 8, fontSize: 11, marginLeft: 'auto' }}>{active ? '已启动' : '启动'}</Button>
                             </div>
                           </Card>
                         )

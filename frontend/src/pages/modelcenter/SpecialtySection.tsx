@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Button, Card, Tag, Typography } from 'antd'
 import { CheckCircleOutlined, FileTextOutlined, NumberOutlined, SearchOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import { engineColor, engineLabel, kindOf } from './utils'
+import { engineColor, engineLabel, kindOf, modelAvailability } from './utils'
 import { useModelCenter } from './context'
 
 const KIND_META: Record<string, { label: string; icon: ReactNode }> = {
@@ -12,7 +12,7 @@ const KIND_META: Record<string, { label: string; icon: ReactNode }> = {
 }
 
 export function SpecialtySection() {
-  const { specialtyModels, ocrCfg, handleSetOCRModel } = useModelCenter()
+  const { specialtyModels, ocrCfg, handleSetOCRModel, engines, engineStatuses } = useModelCenter()
 
   if (specialtyModels.length === 0) {
     return (
@@ -44,19 +44,24 @@ export function SpecialtySection() {
           const color = engineColor(m)
           const isOCR = kind === 'ocr'
           const activeOCR = isOCR && ocrCfg.engine === m.engineId && ocrCfg.model === m.modelId
+          const eng = engines.find(e => e.id === m.engineId)
+          const avail = modelAvailability(m, eng?.enabled ?? true, engineStatuses[m.engineId]?.connected)
+          const blocked = avail === 'disconnected' || avail === 'disabled'
           return (
-            <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${activeOCR ? ' is-active' : ''}`}>
+            <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${activeOCR ? ' is-active' : ''}`} style={{ opacity: blocked ? 0.55 : 1 }}>
               <div className="mc-model-name">{m.modelName}</div>
               <div className="mc-model-meta">
                 <Tag color={color} style={{ fontSize: 10, margin: 0 }}>{engineLabel(m)}</Tag>
                 <Tag color={kind === 'ocr' ? 'gold' : kind === 'rerank' ? 'geekblue' : 'cyan'} style={{ fontSize: 10, margin: 0 }}>
                   {meta.icon} {meta.label}
                 </Tag>
+                {avail === 'disconnected' && <Tag color="red" style={{ fontSize: 10, margin: 0 }}>未连接</Tag>}
+                {avail === 'stopped' && <Tag color="default" style={{ fontSize: 10, margin: 0 }}>未启动</Tag>}
               </div>
               <div className="mc-model-foot">
                 <span className="mc-status">
                   <i className={`mc-status-dot ${m.status === 'running' ? 'is-running' : ''}`} />
-                  {m.status === 'running' ? '运行中' : m.status === 'stopped' ? '已停止' : '就绪'}
+                  {avail === 'disconnected' ? '未连接' : m.status === 'running' ? '运行中' : m.status === 'stopped' ? '未启动' : '就绪'}
                 </span>
                 {isOCR && (
                   <Button
@@ -64,6 +69,7 @@ export function SpecialtySection() {
                     type={activeOCR ? 'primary' : 'default'}
                     icon={activeOCR ? <CheckCircleOutlined /> : <FileTextOutlined />}
                     onClick={() => handleSetOCRModel(activeOCR ? '' : m.engineId, activeOCR ? '' : m.modelId)}
+                    disabled={blocked && !activeOCR}
                     style={{ fontSize: 11, marginLeft: 'auto' }}
                   >
                     {activeOCR ? '当前 OCR' : '设为 OCR'}

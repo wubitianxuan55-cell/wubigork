@@ -79,7 +79,7 @@ export function EngineSection() {
                     {engineStatuses[engine.id] && (
                       <div style={{ marginTop: 6, fontSize: 11 }}>
                         {engineStatuses[engine.id].connected
-                          ? <span style={{ color: '#34d399' }}>✓ 已连接（{engineStatuses[engine.id].model_count} 个模型）</span>
+                          ? <span style={{ color: '#34d399' }}>✓ 已连接（{engineStatuses[engine.id].model_count} 个模型{engineStatuses[engine.id].latency_ms ? `，${engineStatuses[engine.id].latency_ms}ms` : ''}）</span>
                           : <span style={{ color: '#fb7185' }}>✗ {engineStatuses[engine.id].error}</span>}
                         {engineStatuses[engine.id].last_checked && (
                           <span style={{ color: 'var(--md-sys-color-text-secondary)', marginLeft: 8 }}>上次检查 {engineStatuses[engine.id].last_checked}</span>

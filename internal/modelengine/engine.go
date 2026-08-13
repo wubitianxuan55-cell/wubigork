@@ -66,6 +66,7 @@ type EngineStatus struct {
 	ModelCount  int    `json:"model_count"`
 	Error       string `json:"error,omitempty"`
 	LastChecked string `json:"last_checked,omitempty"`
+	LatencyMs   int64  `json:"latency_ms,omitempty"`
 }
 
 // ── OpenAI 兼容响应结构 ────────────────────────────────────
@@ -315,7 +316,9 @@ func (m *Manager) TestConnection(ctx context.Context, engineID string) (*EngineS
 		LastChecked: time.Now().Format("2006-01-02 15:04:05"),
 	}
 
+	start := time.Now()
 	models, err := m.fetchModels(ctx, engine)
+	status.LatencyMs = time.Since(start).Milliseconds()
 	if err != nil {
 		status.Connected = false
 		status.Error = err.Error()
@@ -353,7 +356,9 @@ func (m *Manager) RefreshModels(ctx context.Context, engineID string) ([]ModelIn
 		return nil, fmt.Errorf("引擎 %s 不存在", engineID)
 	}
 
+	start := time.Now()
 	models, err := m.fetchModels(ctx, engine)
+	latencyMs := time.Since(start).Milliseconds()
 	if err != nil {
 		return nil, err
 	}
@@ -365,6 +370,7 @@ func (m *Manager) RefreshModels(ctx context.Context, engineID string) ([]ModelIn
 		Connected:   true,
 		ModelCount:  len(models),
 		LastChecked: time.Now().Format("2006-01-02 15:04:05"),
+		LatencyMs:   latencyMs,
 	}
 	m.mu.Unlock()
 	m.saveState()

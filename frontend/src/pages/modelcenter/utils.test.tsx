@@ -4,7 +4,11 @@ import {
   imageModelDefaultFor,
   imageModelOptionsFor,
   isImageModel,
+  modelAvailability,
+  featureState,
+  routeSourceLabel,
 } from './utils'
+import type { ModelCardData } from './utils'
 import type { EngineConfig } from '../../api/engines'
 
 const engines: EngineConfig[] = [
@@ -61,5 +65,50 @@ describe('模型中心 utils', () => {
     expect(isImageModel({ id: 'krea2' })).toBe(true)
     expect(isImageModel({ id: 'grok-imagine-image-quality' })).toBe(true)
     expect(isImageModel({ id: 'grok-4.20' })).toBe(false)
+  })
+})
+
+describe('模型中心 modelAvailability', () => {
+  const card = (status: string): ModelCardData => ({
+    modelId: 'm', modelName: 'M', engineId: 'e', engineName: 'E', engineType: 'xai', engineEnabled: true, status,
+  })
+
+  it('引擎禁用 → disabled', () => {
+    expect(modelAvailability(card('running'), false, true)).toBe('disabled')
+  })
+
+  it('连接失败 → disconnected', () => {
+    expect(modelAvailability(card('running'), true, false)).toBe('disconnected')
+  })
+
+  it('模型停止 → stopped', () => {
+    expect(modelAvailability(card('stopped'), true, true)).toBe('stopped')
+  })
+
+  it('连接未知/正常 → ready', () => {
+    expect(modelAvailability(card('running'), true, undefined)).toBe('ready')
+    expect(modelAvailability(card('running'), true, true)).toBe('ready')
+  })
+})
+
+describe('模型中心 featureState / routeSourceLabel', () => {
+  it('绑定 + 启用 → bound-active', () => {
+    expect(featureState(true, true)).toBe('bound-active')
+  })
+
+  it('绑定 + 停用 → bound-disabled', () => {
+    expect(featureState(true, false)).toBe('bound-disabled')
+  })
+
+  it('未绑定 → fallback（无论启停）', () => {
+    expect(featureState(false, true)).toBe('fallback')
+    expect(featureState(false, false)).toBe('fallback')
+  })
+
+  it('路由来源文案映射', () => {
+    expect(routeSourceLabel('feature')).toBe('功能绑定')
+    expect(routeSourceLabel('global')).toBe('全局默认')
+    expect(routeSourceLabel('fallback')).toBe('兜底')
+    expect(routeSourceLabel(undefined)).toBe('-')
   })
 })

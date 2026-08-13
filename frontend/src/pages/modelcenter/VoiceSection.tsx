@@ -1,11 +1,11 @@
 import { Button, Card, Tag, Typography } from 'antd'
 import { AudioOutlined, CaretRightOutlined, SoundOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import { engineColor, engineLabel, isLocalEngine } from './utils'
+import { engineColor, engineLabel, isLocalEngine, modelAvailability } from './utils'
 import { useModelCenter } from './context'
 
 export function VoiceSection() {
-  const { voiceCfg, ttsModels, sttModels, handleSetVoiceModel, handleStartModel } = useModelCenter()
+  const { voiceCfg, ttsModels, sttModels, handleSetVoiceModel, handleStartModel, engines, engineStatuses } = useModelCenter()
   return (
             <section className="mc-section">
               {/* 三段激活模型汇总（模型中心 → 语音管道） */}
@@ -45,14 +45,21 @@ export function VoiceSection() {
                       <div className="mc-grid">
                         {ttsModels.map(m => {
                           const active = voiceCfg.tts.engine === m.engineId && voiceCfg.tts.model === m.modelId
-                          const canStartLocal = isLocalEngine(m.engineId) && m.status === 'stopped'
+                          const eng = engines.find(e => e.id === m.engineId)
+                          const avail = modelAvailability(m, eng?.enabled ?? true, engineStatuses[m.engineId]?.connected)
+                          const blocked = avail === 'disconnected' || avail === 'disabled'
+                          const canStartLocal = isLocalEngine(m.engineId) && (m.status === 'stopped' || avail === 'disconnected')
                           return (
-                            <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${active ? ' is-active' : ''}`}>
+                            <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${active ? ' is-active' : ''}`} style={{ opacity: blocked ? 0.55 : 1 }}>
                               <div className="mc-model-name">{m.modelName}</div>
                               <div className="mc-model-meta">
                                 <Tag color={engineColor(m)} style={{ fontSize: 10 }}>{engineLabel(m)}</Tag>
                                 <Tag color="purple" style={{ fontSize: 10 }}>TTS</Tag>
-                                <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10 }}>{m.status === 'running' ? '● 运行中' : '○ 已停止'}</Tag>
+                                {avail === 'disconnected' ? (
+                                  <Tag color="red" style={{ fontSize: 10 }}>未连接</Tag>
+                                ) : (
+                                  <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10 }}>{m.status === 'running' ? '● 运行中' : '○ 未启动'}</Tag>
+                                )}
                               </div>
                               <div className="mc-model-foot">
                                 {active && <Tag color="purple" style={{ fontSize: 10 }}>语音合成中</Tag>}
@@ -63,6 +70,7 @@ export function VoiceSection() {
                                 )}
                                 <Button size="small" type={active ? 'primary' : 'default'} icon={<SoundOutlined />}
                                   onClick={() => handleSetVoiceModel('tts', m.engineId, m.modelId)}
+                                  disabled={blocked && !active}
                                   style={{ fontSize: 11, marginLeft: canStartLocal ? 0 : 'auto' }}>{active ? '已设为语音合成' : '设为语音合成'}</Button>
                               </div>
                             </Card>
@@ -77,18 +85,26 @@ export function VoiceSection() {
                       <div className="mc-grid">
                         {sttModels.map(m => {
                           const active = voiceCfg.stt.engine === m.engineId && voiceCfg.stt.model === m.modelId
+                          const eng = engines.find(e => e.id === m.engineId)
+                          const avail = modelAvailability(m, eng?.enabled ?? true, engineStatuses[m.engineId]?.connected)
+                          const blocked = avail === 'disconnected' || avail === 'disabled'
                           return (
-                            <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${active ? ' is-active' : ''}`}>
+                            <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${active ? ' is-active' : ''}`} style={{ opacity: blocked ? 0.55 : 1 }}>
                               <div className="mc-model-name">{m.modelName}</div>
                               <div className="mc-model-meta">
                                 <Tag color={engineColor(m)} style={{ fontSize: 10 }}>{engineLabel(m)}</Tag>
                                 <Tag color="blue" style={{ fontSize: 10 }}>STT</Tag>
-                                <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10 }}>{m.status === 'running' ? '● 运行中' : '○ 已停止'}</Tag>
+                                {avail === 'disconnected' ? (
+                                  <Tag color="red" style={{ fontSize: 10 }}>未连接</Tag>
+                                ) : (
+                                  <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10 }}>{m.status === 'running' ? '● 运行中' : '○ 未启动'}</Tag>
+                                )}
                               </div>
                               <div className="mc-model-foot">
                                 {active && <Tag color="blue" style={{ fontSize: 10 }}>语音识别中</Tag>}
                                 <Button size="small" type={active ? 'primary' : 'default'} icon={<AudioOutlined />}
                                   onClick={() => handleSetVoiceModel('asr', m.engineId, m.modelId)}
+                                  disabled={blocked && !active}
                                   style={{ fontSize: 11, marginLeft: 'auto' }}>{active ? '已设为语音识别' : '设为语音识别'}</Button>
                               </div>
                             </Card>
