@@ -5,7 +5,7 @@ import { engineColor, engineIcons, engineLabel, kindOf } from './utils'
 import { useModelCenter } from './context'
 
 export function EngineSection() {
-  const { engines, engineStatuses, testingEngine, savingEngine, editingURLs, setEditingURLs, deepseekKey, setDeepseekKeyState, deepseekKeyMasked, opencodeGoKey, setOpencodeGoKeyState, opencodeGoKeyMasked, opencodeZenKey, setOpencodeZenKeyState, opencodeZenKeyMasked, handleTestConnection, handleRefreshModels, handleSaveURL, handleToggleEngine, handleSaveDeepseekKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey, makeModels } = useModelCenter()
+  const { engines, engineStatuses, activeEngine, testingEngine, savingEngine, editingURLs, setEditingURLs, deepseekKey, setDeepseekKeyState, deepseekKeyMasked, opencodeGoKey, setOpencodeGoKeyState, opencodeGoKeyMasked, opencodeZenKey, setOpencodeZenKeyState, opencodeZenKeyMasked, handleTestConnection, handleRefreshModels, handleSaveURL, handleToggleEngine, handleSaveDeepseekKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey, makeModels } = useModelCenter()
   return (
             <section className="mc-section" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="mc-section-head">
@@ -28,6 +28,12 @@ export function EngineSection() {
                           <div style={{ marginTop: 2 }}>
                             <Tag color={color} style={{ fontSize: 10 }}>{engineLabel(engine)}</Tag>
                             <Switch size="small" checked={engine.enabled} onChange={(v) => handleToggleEngine(engine, v)} />
+                            {activeEngine === engine.id && (
+                              <Tag color="green" style={{ fontSize: 10 }}>当前活跃</Tag>
+                            )}
+                          </div>
+                          <div style={{ marginTop: 4, fontSize: 11, color: C('color-text-secondary') }}>
+                            默认模型：{engine.default_model || '未设置'}
                           </div>
                         </div>
                       </Space>

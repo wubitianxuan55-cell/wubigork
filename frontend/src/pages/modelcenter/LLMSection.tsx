@@ -68,6 +68,9 @@ export function LLMSection() {
                             <div className="mc-model-name" style={{ color: active ? color : C('color-text') }}>{card.modelName}</div>
                             <div className="mc-model-meta">
                               <Tag color={color} style={{ fontSize: 10, margin: 0 }}>{engineLabel(card)}</Tag>
+                              {card.modelId === engine.default_model && (
+                                <Tag color="cyan" style={{ fontSize: 10, margin: 0 }}>默认</Tag>
+                              )}
                               <Tag color={card.status === 'stopped' ? 'default' : active ? 'green' : 'blue'} style={{ fontSize: 10, margin: 0 }}>{card.status === 'stopped' ? '已停止' : active ? '运行中' : '就绪'}</Tag>
                             </div>
                             <div className="mc-model-foot">

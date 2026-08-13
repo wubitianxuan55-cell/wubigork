@@ -1,19 +1,24 @@
-import { Button, Card, Collapse, Segmented, Select, Space, Tag, Typography } from 'antd'
-import { PictureOutlined, SettingOutlined } from '@ant-design/icons'
+import { Button, Card, Collapse, Segmented, Select, Space, Tag, Typography, message } from 'antd'
+import { FolderOpenOutlined, PictureOutlined, SettingOutlined } from '@ant-design/icons'
 import SettingField from '../../components/SettingField'
 import { C } from '../../utils/theme'
-import { engineColor, engineLabel } from './utils'
+import { COMFY_IMAGE_MODELS, engineColor, engineLabel, imageModelDefaultFor, imageModelOptionsFor } from './utils'
 import { useModelCenter } from './context'
-
-const COMFY_IMAGES = [
-  { modelId: 'krea2', modelName: 'Krea2 Turbo', engineId: 'comfyui', engineName: 'ComfyUI', status: 'running' },
-  { modelId: 'z-image-turbo', modelName: 'Z-Image-Turbo', engineId: 'comfyui', engineName: 'ComfyUI', status: 'running' },
-]
+import { openImageSaveDir } from '../../api/image'
 
 const popupContainer = () => document.body
 
 export function ImageSection() {
-  const { imageBackend, setImageBackend, comfyStatus, comfyBusy, handleToggleComfy, comfyUIURL, comfyUIPath, comfyUIPythonPath, imageModel, setImageModel, imageModels, imageBackendSaving, handleSaveImageBackend, imageSaveDir, setImageSaveDir } = useModelCenter()
+  const { engines, imageBackend, setImageBackend, comfyStatus, comfyBusy, handleToggleComfy, comfyUIURL, comfyUIPath, comfyUIPythonPath, imageModel, setImageModel, imageModels, imageBackendSaving, handleSaveImageBackend, imageSaveDir, setImageSaveDir } = useModelCenter()
+
+  // 后端切换时同步校正图片模型，避免「xAI 后端 + krea2 模型」的错配
+  const handleBackendChange = (v: string) => {
+    setImageBackend(v)
+    const next = imageModelDefaultFor(v, engines)
+    if (next) setImageModel(next)
+  }
+
+  const imageModelOptions = imageModelOptionsFor(imageBackend, engines, imageModel)
   return (
             <section className="mc-section">
               <div className="mc-section-head">
@@ -30,7 +35,7 @@ export function ImageSection() {
                     <Typography.Text strong style={{ color: C('color-text'), fontSize: 14, display: 'block', marginBottom: 8 }}>图片生成后端</Typography.Text>
                     <Segmented
                       value={imageBackend}
-                      onChange={(v) => setImageBackend(v as string)}
+                      onChange={(v) => handleBackendChange(v as string)}
                       options={[
                         { value: 'xai', label: 'xAI 云端' },
                         { value: 'comfyui', label: 'ComfyUI 本地' },
@@ -72,12 +77,7 @@ export function ImageSection() {
                       size="middle" style={{ width: 320 }} value={imageModel}
                       onChange={setImageModel}
                       getPopupContainer={popupContainer}
-                      options={[
-                        ...(imageBackend === 'comfyui' ? COMFY_IMAGES : []).map(m => ({ value: m.modelId, label: `${m.modelName}（ComfyUI 本地）` })),
-                        ...imageModels.map(m => ({ value: m.modelId, label: m.modelName })),
-                        ...(imageBackend !== 'comfyui' ? COMFY_IMAGES.map(m => ({ value: m.modelId, label: `${m.modelName}（ComfyUI 本地）` })) : []),
-                        { value: 'grok-imagine-image-quality', label: 'Grok Imagine（xAI）' },
-                      ]}
+                      options={imageModelOptions}
                     />
                   </div>
 
@@ -90,21 +90,32 @@ export function ImageSection() {
                 </div>
               </Card>
 
-              {/* 发现的图片模型（含 ComfyUI 本地模型 krea2 / z-image-turbo） */}
+              {/* 发现的图片模型（含 ComfyUI 本地模型 krea2 / z-image-turbo，状态跟随实际运行情况） */}
               {(imageModels.length > 0 || imageBackend === 'comfyui') && (
                 <div style={{ marginBottom: 24 }}>
                   <div className="mc-section-title" style={{ marginBottom: 10 }}><PictureOutlined /> 发现的图片模型</div>
                   <div className="mc-grid">
-                    {[...COMFY_IMAGES, ...imageModels.filter(m => m.engineId !== 'comfyui')].map(m => (
-                      <Card key={`${m.engineId}:${m.modelId}`} size="small" className="mc-model-card">
-                        <div className="mc-model-name">{m.modelName}</div>
-                        <div className="mc-model-meta">
-                          <Tag color={engineColor(m)} style={{ fontSize: 10, margin: 0 }}>{engineLabel(m)}</Tag>
-                          <Tag color="orange" style={{ fontSize: 10, margin: 0 }}>图片</Tag>
-                          <Tag color={m.status === 'running' ? 'green' : 'default'} style={{ fontSize: 10, margin: 0 }}>{m.status === 'running' ? '运行中' : '已停止'}</Tag>
-                        </div>
-                      </Card>
-                    ))}
+                    {[...COMFY_IMAGE_MODELS, ...imageModels.filter(m => m.engineId !== 'comfyui')].map(m => {
+                      const isComfy = m.engineId === 'comfyui'
+                      const running = isComfy ? comfyStatus.running : m.status === 'running'
+                      return (
+                        <Card key={`${m.engineId}:${m.modelId}`} size="small" className="mc-model-card">
+                          <div className="mc-model-name">{m.modelName}</div>
+                          <div className="mc-model-meta">
+                            <Tag color={engineColor(m)} style={{ fontSize: 10, margin: 0 }}>{engineLabel(m)}</Tag>
+                            <Tag color="orange" style={{ fontSize: 10, margin: 0 }}>图片</Tag>
+                            <Tag color={running ? 'green' : 'default'} style={{ fontSize: 10, margin: 0 }}>{running ? '运行中' : isComfy ? '未启动' : '已停止'}</Tag>
+                          </div>
+                          {isComfy && !running && (
+                            <div className="mc-model-foot">
+                              <Button size="small" type="primary" loading={comfyBusy} onClick={handleToggleComfy} style={{ fontSize: 11, marginLeft: 'auto' }}>
+                                ▶ 启动 ComfyUI
+                              </Button>
+                            </div>
+                          )}
+                        </Card>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -114,7 +125,16 @@ export function ImageSection() {
                   <Card style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
                     <Space direction="vertical" size={12} style={{ width: '100%' }}>
                       <SettingField label="图片保存目录" value={imageSaveDir} onChange={v => setImageSaveDir(v)} placeholder="默认: Pictures/gaea" />
-                      <Button type="primary" onClick={handleSaveImageBackend} loading={imageBackendSaving} style={{ borderRadius: 8 }}>保存</Button>
+                      <Space>
+                        <Button type="primary" onClick={handleSaveImageBackend} loading={imageBackendSaving} style={{ borderRadius: 8 }}>保存</Button>
+                        <Button icon={<FolderOpenOutlined />} onClick={async () => {
+                          try {
+                            await openImageSaveDir()
+                          } catch (err: any) {
+                            message.error(err?.message || '打开目录失败')
+                          }
+                        }} style={{ borderRadius: 8 }}>打开目录</Button>
+                      </Space>
                     </Space>
                   </Card>
                 ),

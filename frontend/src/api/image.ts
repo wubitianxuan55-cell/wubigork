@@ -9,6 +9,11 @@ import * as App from '../../wailsjs/go/app/App'
 export interface BackendInfo {
   backend: string
   model?: string
+  image_model?: string
+  comfyui_url?: string
+  image_save_dir?: string
+  comfyui_path?: string
+  comfyui_python_path?: string
 }
 
 export interface SystemStats {
@@ -23,6 +28,8 @@ export interface SystemStats {
 
 export interface ComfyUIStatus {
   running: boolean
+  port?: number
+  url?: string
 }
 
 /** 获取后端信息 */

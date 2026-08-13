@@ -113,7 +113,15 @@ interface AppAPI {
   CancelImageGeneration(): Promise<boolean>
   GetComfyUITaskProgress(): Promise<{ status?: string; elapsed?: number }>
   GetImageBackend(): string
-  GetImageBackendInfo(): { backend?: string; model?: string }
+  GetImageBackendInfo(): {
+    backend?: string
+    model?: string
+    image_model?: string
+    comfyui_url?: string
+    image_save_dir?: string
+    comfyui_path?: string
+    comfyui_python_path?: string
+  }
   SetImageBackend(backend: string, comfyUIURL: string, imageModel: string): Promise<void>
 
   // ── 分析/审稿 ──

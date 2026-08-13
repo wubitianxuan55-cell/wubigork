@@ -9,6 +9,11 @@ import * as App from '../../wailsjs/go/app/App'
 export interface BackendInfo {
   backend: string
   model?: string
+  image_model?: string
+  comfyui_url?: string
+  image_save_dir?: string
+  comfyui_path?: string
+  comfyui_python_path?: string
 }
 
 

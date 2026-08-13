@@ -461,11 +461,30 @@ func (a *mediaState) GetImageBackend() string {
 	return "xai"
 }
 
-// GetImageBackendInfo 获取当前图片后端类型和模型（供前端显示）
+// GetImageBackendInfo 获取当前图片后端类型和模型（供前端显示）。
+// 兼容旧字段 backend/model，同时下发完整配置（image_model/comfyui_url/
+// image_save_dir/comfyui_path/comfyui_python_path），模型中心据此恢复表单。
 func (a *mediaState) GetImageBackendInfo() map[string]string {
+	imageModel := a.cfg.ImageModel
+	if imageModel == "" {
+		if a.cfg.ImageBackend == "comfyui" {
+			imageModel = "krea2"
+		} else {
+			imageModel = "grok-imagine-image-quality"
+		}
+	}
+	saveDir := a.cfg.ImageSaveDir
+	if saveDir == "" {
+		saveDir = filepath.Join(os.Getenv("USERPROFILE"), "Pictures", "gaea")
+	}
 	return map[string]string{
-		"backend": a.GetImageBackend(),
-		"model":   a.cfg.ImageModel,
+		"backend":             a.GetImageBackend(),
+		"model":               imageModel,
+		"image_model":         imageModel,
+		"comfyui_url":         a.cfg.ComfyUIURL,
+		"image_save_dir":      saveDir,
+		"comfyui_path":        a.cfg.ComfyUIPath,
+		"comfyui_python_path": a.cfg.ComfyUIPythonPath,
 	}
 }
 
@@ -872,9 +891,11 @@ func (a *mediaState) GetComfyUIStatus() map[string]interface{} {
 		a.comfyUICancel = nil
 		a.comfyUICmd = nil
 	}
+	p, _ := strconv.Atoi(extractPort(a.cfg.ComfyUIURL))
 	return map[string]interface{}{
 		"running": running,
 		"url":     a.cfg.ComfyUIURL,
+		"port":    p,
 	}
 }
 

@@ -1,11 +1,11 @@
 import { Button, Card, Tag, Typography } from 'antd'
-import { AudioOutlined, SoundOutlined } from '@ant-design/icons'
+import { AudioOutlined, CaretRightOutlined, SoundOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import { engineColor, engineLabel } from './utils'
+import { engineColor, engineLabel, isLocalEngine } from './utils'
 import { useModelCenter } from './context'
 
 export function VoiceSection() {
-  const { voiceCfg, ttsModels, sttModels, handleSetVoiceModel } = useModelCenter()
+  const { voiceCfg, ttsModels, sttModels, handleSetVoiceModel, handleStartModel } = useModelCenter()
   return (
             <section className="mc-section">
               {/* 三段激活模型汇总（模型中心 → 语音管道） */}
@@ -45,6 +45,7 @@ export function VoiceSection() {
                       <div className="mc-grid">
                         {ttsModels.map(m => {
                           const active = voiceCfg.tts.engine === m.engineId && voiceCfg.tts.model === m.modelId
+                          const canStartLocal = isLocalEngine(m.engineId) && m.status === 'stopped'
                           return (
                             <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${active ? ' is-active' : ''}`}>
                               <div className="mc-model-name">{m.modelName}</div>
@@ -55,9 +56,14 @@ export function VoiceSection() {
                               </div>
                               <div className="mc-model-foot">
                                 {active && <Tag color="purple" style={{ fontSize: 10 }}>语音合成中</Tag>}
+                                {canStartLocal && (
+                                  <Button size="small" icon={<CaretRightOutlined />} onClick={() => handleStartModel(m)} style={{ fontSize: 11 }}>
+                                    启动服务
+                                  </Button>
+                                )}
                                 <Button size="small" type={active ? 'primary' : 'default'} icon={<SoundOutlined />}
                                   onClick={() => handleSetVoiceModel('tts', m.engineId, m.modelId)}
-                                  style={{ fontSize: 11, marginLeft: 'auto' }}>{active ? '已设为语音合成' : '设为语音合成'}</Button>
+                                  style={{ fontSize: 11, marginLeft: canStartLocal ? 0 : 'auto' }}>{active ? '已设为语音合成' : '设为语音合成'}</Button>
                               </div>
                             </Card>
                           )

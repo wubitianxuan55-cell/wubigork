@@ -162,7 +162,7 @@ const ModelCenterPage: React.FC = () => {
     try {
       const cfg: any = await getImageBackendInfo()
       if (cfg?.backend) setImageBackend(cfg.backend)
-      if (cfg?.image_model) setImageModel(cfg.image_model)
+      if (cfg?.image_model || cfg?.model) setImageModel(cfg.image_model || cfg.model)
       if (cfg?.comfyui_url) setComfyUIURL(cfg.comfyui_url)
       if (cfg?.image_save_dir) setImageSaveDir(cfg.image_save_dir)
       if (cfg?.comfyui_path) setComfyUIPath(cfg.comfyui_path)
@@ -170,7 +170,13 @@ const ModelCenterPage: React.FC = () => {
     } catch (_) {}
     try {
       const st: any = await getComfyUIStatus()
-      if (st) setComfyStatus({ running: !!st.running, port: st.port || 0 })
+      if (st) {
+        const port = typeof st.port === 'number'
+          ? st.port
+          : st.url ? Number(String(st.url).split(':').pop()) || 8188 : 0
+        setComfyStatus({ running: !!st.running, port })
+        if (st.url) setComfyUIURL(st.url)
+      }
     } catch (_) {}
   }, [])
 
@@ -179,7 +185,14 @@ const ModelCenterPage: React.FC = () => {
     try {
       if (comfyStatus.running) { await stopComfyUI(); setComfyStatus({ running: false, port: 0 }) }
       else { await startComfyUI(); setComfyStatus({ running: true, port: 8188 }) }
-      message.success(comfyStatus.running ? 'ComfyUI 已停止' : 'ComfyUI 已启动')
+      const st: any = await getComfyUIStatus()
+      if (st) {
+        const port = typeof st.port === 'number' ? st.port : 8188
+        setComfyStatus({ running: !!st.running, port })
+        message.success(st.running ? 'ComfyUI 已启动' : 'ComfyUI 已停止')
+      } else {
+        message.success(comfyStatus.running ? 'ComfyUI 已停止' : 'ComfyUI 已启动')
+      }
     } catch (err: any) { message.error(err?.message || '操作失败') }
     finally { setComfyBusy(false) }
   }
@@ -265,9 +278,13 @@ const ModelCenterPage: React.FC = () => {
     let unsub1: any, unsub2: any
     try { unsub1 = (window as any).runtime?.EventsOn?.('model-changed', reload) } catch (_) {}
     try { unsub2 = (window as any).runtime?.EventsOn?.('voice-model-changed', reloadVoice) } catch (_) {}
+    // 本地 TTS 服务就绪/失败后同步刷新（CosyVoice2 异步启动约 1–2 分钟）
+    let unsub3: any
+    try { unsub3 = (window as any).runtime?.EventsOn?.('tts-service-status', reload) } catch (_) {}
     return () => {
       try { if (typeof unsub1 === 'function') unsub1() } catch (_) {}
       try { if (typeof unsub2 === 'function') unsub2() } catch (_) {}
+      try { if (typeof unsub3 === 'function') unsub3() } catch (_) {}
     }
   }, [loadAll, loadVoiceCfg, refreshRoutes])
 
@@ -431,6 +448,7 @@ const ModelCenterPage: React.FC = () => {
         const res = await App.StartLocalTTSService(card.engineId)
         if (res?.ready) message.success(`本地 TTS 服务已就绪：${card.engineName}`)
         else message.success(`正在启动本地 TTS 服务：${card.engineName}（首次约 1–2 分钟）`)
+        loadAll()
       } catch (err: any) { message.error(`启动失败：${err.message || err}`) }
       return
     }

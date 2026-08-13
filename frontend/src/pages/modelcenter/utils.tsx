@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { CloudOutlined, DesktopOutlined, GlobalOutlined, KeyOutlined, RocketOutlined } from '@ant-design/icons'
+import type { EngineConfig } from '../../api/engines'
 
 export type Category = 'overview' | 'llm' | 'image' | 'tts' | 'specialty' | 'engine' | 'bind' | 'stats'
 
@@ -39,6 +40,51 @@ export const engineLabel = (e: { id?: string; engineId?: string; label?: string 
 export const engineColor = (e: { id?: string; engineId?: string; color?: string }) => e.color || engineColors[e.id || e.engineId || ''] || '#888'
 // 模型分类：优先使用后端 kind，缺失时回退旧名称启发式。
 export const kindOf = (m: ModelCardData): ModelKind => (m.kind as ModelKind) || classifyModel(m.modelId)
+
+// 引擎模型是否图片类（优先后端 kind，缺失时回退名称启发式）
+export const isImageModel = (m: { id: string; kind?: string }): boolean =>
+  ((m.kind as ModelKind) || classifyModel(m.id)) === 'image'
+
+// ComfyUI 本地出图模型（无需依赖引擎模型列表，恒可用）
+export const COMFY_IMAGE_MODELS: ModelCardData[] = [
+  { modelId: 'krea2', modelName: 'Krea2 Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running', kind: 'image' },
+  { modelId: 'z-image-turbo', modelName: 'Z-Image-Turbo', engineId: 'comfyui', engineName: 'ComfyUI', engineType: 'comfyui', engineEnabled: true, status: 'running', kind: 'image' },
+]
+
+// 图片模型下拉选项：严格按后端过滤，避免「选了 xAI 却列出 krea2」的错配。
+// currentModel 不在候选中时兜底补一条，防止切换后端后表单值悬空。
+export function imageModelOptionsFor(backend: string, engines: EngineConfig[], currentModel = ''): { value: string; label: string }[] {
+  if (backend === 'comfyui') {
+    const base = COMFY_IMAGE_MODELS.map(m => ({ value: m.modelId, label: `${m.modelName}（ComfyUI 本地）` }))
+    if (currentModel && !base.some(o => o.value === currentModel)) {
+      base.push({ value: currentModel, label: `${currentModel}（ComfyUI 本地）` })
+    }
+    return base
+  }
+  if (backend === 'xai') {
+    const base = [
+      { value: 'grok-imagine-image-quality', label: 'Grok Imagine 高质量（xAI）' },
+      { value: 'grok-imagine-image', label: 'Grok Imagine（xAI）' },
+    ]
+    return base
+  }
+  const eng = engines.find(e => e.id === backend)
+  const imgs = (eng?.models || []).filter(isImageModel)
+  const base = imgs.map(m => ({ value: m.id, label: m.id }))
+  if (base.length === 0 && currentModel) {
+    base.push({ value: currentModel, label: currentModel })
+  }
+  return base
+}
+
+// 切换后端时建议的默认图片模型：xAI/ComfyUI 恒有内置；引擎取第一个图片模型。
+export function imageModelDefaultFor(backend: string, engines: EngineConfig[]): string {
+  if (backend === 'xai') return 'grok-imagine-image-quality'
+  if (backend === 'comfyui') return 'krea2'
+  const eng = engines.find(e => e.id === backend)
+  const first = (eng?.models || []).find(isImageModel)
+  return first?.id || ''
+}
 
 // 功能模型绑定（聊天/小说/办公/角色库，各自独立 LLM，持久化重启不丢）
 export const FEATURES: { key: string; label: string; icon: string; mergeKeys?: string[] }[] = [
