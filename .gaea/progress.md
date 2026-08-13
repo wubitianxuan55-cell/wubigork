@@ -16,5 +16,8 @@
 | ✅ | 发布文档：CHANGELOG / README / releases/v2.16.0.md / wails.json productVersion=2.16.0 |
 | ✅ | 变更面逐包验证全绿（herdsman/app/bridge/ai/voice/tts；tsc；eslint 0 errors；模型库卡片 vitest 5/5） |
 | ✅ | E1-4 模型中心资源协同 + 磁盘治理：生命周期操作串行化（herdsmanOpMu）+ 模型库磁盘 KPI（installed_bytes/disk_total/disk_free）+ fmtSize TB 档；全量 vitest 243/243 通过 |
-| ✅ | v2.16.0 提交 692c959；v2.16.1 文档就绪待提交 |
-| ⏳ | wails build → gaea-v2.16.1.exe + SHA256SUMS + smoke.ps1 冒烟（本会话沙箱 vite 编译挂起，移交本机执行：`cmd /c build.bat`） |
+| ✅ | v2.16.0 提交 692c959；v2.16.1 提交 660b5aa |
+| ✅ | 环境问题解决：go telemetry off（持久）；danger-full-access 后构建缓存/遥测写入解禁；vite 构建 24s 成功（独立）；wails build -s 8.9s 产出 32MB exe |
+| ✅ | 发布产物完成：releases/gaea-v2.16.1.exe + SHA256SUMS-v2.16.1.txt + smoke.ps1 冒烟通过（/api/health 200） |
+| ✅ | 全量 go test ./... 81 ok；4 个 exec 拒绝包经手动编译二进制全部 PASS（纯环境因素，非代码）；全量 vitest 243/243；tsc/eslint 干净 |
+| ⏳ | 长期规划阶段 2：安全收敛（LAN 告警前端展示/WebView2 调试开关化/绑定面拆分/敏感数据本地通道） |

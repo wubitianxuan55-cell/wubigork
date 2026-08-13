@@ -106,4 +106,13 @@
   - ✅ 磁盘治理：`herdsmanDiskInfo`（GetDiskFreeSpaceEx，可注入替身）+ HerdsmanCatalog
     installed_bytes/disk_total/disk_free/disk_error + 模型库「已装空间/磁盘余量」KPI + fmtSize TB 档；
   - ✅ 全量前端 vitest 243/243（59 文件）在本会话首次完整跑通；v2.16.1 文档就绪。
-  - ⏳ v2.16.1 构建产物（`cmd /c build.bat`）与冒烟（`scripts\smoke.ps1`）移交本机。
+  - ✅ 环境问题解决（2026-08-14）：
+    1. Go 遥测噪音 → `go telemetry off`（持久生效，不再报 upload.token 错误）；
+    2. 构建缓存/遥测写入拒绝 → 随 danger-full-access 策略解除（默认 GOCACHE 可用，无需覆盖）；
+    3. wails build 前端编译挂起 → 根因是 wails 捕获前端输出的管道边界；独立 `npm run build`
+       （24s）+ `wails build -s`（8.9s）可完整构建；
+    4. `go test ./...` 全量 81 ok；个别包测试二进制偶发 fork/exec Access is denied——
+       经 `go test -c` 手动编译运行全部 PASS，确认纯环境因素非代码问题；
+       `scripts/test-all.ps1`（逐包 + 重试 + 状态续跑）作为沙箱内全量验证工具。
+  - ✅ v2.16.1 发布产物：releases/gaea-v2.16.1.exe（32MB）+ SHA256SUMS-v2.16.1.txt +
+    `scripts/smoke.ps1` 冒烟通过（/api/health 200 {"status":"ok"}）。

@@ -1,4 +1,4 @@
-# gaea 发布冒烟测试：产物构建后启动 exe → 探活 HTTP 桥接 → 确认进程存活 → 回收。
+﻿# gaea 发布冒烟测试：产物构建后启动 exe → 探活 HTTP 桥接 → 确认进程存活 → 回收。
 # 用途：wails build 之后、发布之前执行，把「启动即白屏/崩溃」挡在发布前。
 # 用法：pwsh -File scripts\smoke.ps1 [-ExePath build\bin\gaea.exe] [-Port 18999] [-TimeoutSec 90]
 param(
