@@ -50,8 +50,9 @@
       `CapabilitiesPanel` 错误/技能描述摘要 → `lib/capabilities.ts`。
 - [ ] 继续拆分 `CostLibraryView.tsx`（840）、`Composer.tsx`（775）、`Sidebar.tsx`（720）剩余子组件/hook。
 - [ ] `lib/mock.ts`（1344）按模块拆分，web 调试 mock 与生产代码隔离。
-- [ ] 收敛 `bridge.ts` 动态/静态 import 混用产生的 chunk 告警。
+- [x] 收敛 `bridge.ts` 动态/静态 import 混用产生的 chunk 告警：`main.tsx` 前端诊断改静态 import。
 - [ ] `WRITE_TOOL_NAMES` / 会话注册表等易漂移常量补单一来源 + 编译期校验。
+      （`WRITE_TOOL_NAMES` 已收敛到 `lib/changes.ts` 单处）
 
 ### P3 — 办公能力增强（按需 1–2 轮）
 

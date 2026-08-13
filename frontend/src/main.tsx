@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './gaea/components/Toast'
+import { app } from './gaea/lib/bridge'
 
 // ═══ WebView2 rAF 节流降级 ═══════════════════════════════════════════
 // 背景（2026-08-06 根因定位）：Wails WebView2 在特定状态下把 requestAnimationFrame
@@ -76,9 +77,7 @@ import { ToastProvider } from './gaea/components/Toast'
 // 主线程长任务 / 心跳中断全部上报到 gaea.log，下次卡死可直接定位根因。
 ;(function installFrontendDiagnostics() {
   const log = (tag: string, msg: string) => {
-    import('./gaea/lib/bridge')
-      .then(({ app }) => app.LogFrontendError(`[${tag}] ${msg}`).catch(() => {}))
-      .catch(() => {})
+    app.LogFrontendError(`[${tag}] ${msg}`).catch(() => {})
   }
 
   window.addEventListener('error', (e) => {
