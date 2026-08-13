@@ -47,8 +47,9 @@
       `sessionChanges` 汇总逻辑 → `lib/changes.ts::buildSessionChanges`；斜杠命令分类 → `lib/command.ts`；
       `Sidebar` 相对时间 → `lib/time.ts`。
 - [x] 继续抽纯函数：`Sidebar` 搜索过滤 → `lib/projectGroups.ts::filterProjectGroups`；
-      `CapabilitiesPanel` 错误/技能描述摘要 → `lib/capabilities.ts`。
-- [ ] 继续拆分 `CostLibraryView.tsx`（840）、`Composer.tsx`（775）、`Sidebar.tsx`（720）剩余子组件/hook。
+      `CapabilitiesPanel` 错误/技能描述摘要 → `lib/capabilities.ts`；
+      `Composer` 斜杠命令解析 → `lib/composer.ts::slashQueryOf`。
+- [ ] 继续拆分 `CostLibraryView.tsx`（840）、`Composer.tsx`（775）的 @ 引用解析、`Sidebar.tsx`（720）剩余子组件/hook。
 - [ ] `lib/mock.ts`（1344）按模块拆分，web 调试 mock 与生产代码隔离。
 - [x] 收敛 `bridge.ts` 动态/静态 import 混用产生的 chunk 告警：`main.tsx` 前端诊断改静态 import。
 - [ ] `WRITE_TOOL_NAMES` / 会话注册表等易漂移常量补单一来源 + 编译期校验。

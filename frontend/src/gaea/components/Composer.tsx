@@ -6,6 +6,7 @@ import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import { clearLayoutSize, loadOptionalLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
 import { applyTableConversion, detectTableBlock } from "../lib/tableData";
+import { slashQueryOf } from "../lib/composer";
 import type { CommandInfo, DirEntry, FileSearchHit, SlashArgItem, SlashArgsResult, WorkspaceView } from "../lib/types";
 import { useToast } from "./Toast";
 import { useComposerInsertStore } from "../lib/store";
@@ -123,7 +124,7 @@ export function Composer({
   // ── / 命令 ──
   const [commands, setCommands] = useState<CommandInfo[]>([]);
   useEffect(() => { app.Commands().then(setCommands).catch(() => {}); }, []);
-  const slashQuery = useMemo(() => (!text.startsWith("/") || /\s/.test(text) ? null : text.slice(1).toLowerCase()), [text]);
+  const slashQuery = useMemo(() => slashQueryOf(text), [text]);
   const slashMatches = useMemo(() => (slashQuery === null ? [] : commands.filter((c) => c.name.toLowerCase().includes(slashQuery)).slice(0, 8)), [slashQuery, commands]);
 
   // ── 命令参数 ──
