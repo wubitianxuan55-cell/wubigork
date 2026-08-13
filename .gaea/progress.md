@@ -43,8 +43,10 @@
 
 ### P2 — 结构收敛与可维护性（1–2 轮）
 
-- [ ] 拆分 800+ 行单文件：`App.tsx`（877）、`CostLibraryView.tsx`（840）、`CapabilitiesPanel.tsx`（818）、
-      `Composer.tsx`（775）、`Sidebar.tsx`（720）按职责切为子组件/hook。
+- [x] 拆分首轮：`App.tsx` 抽出 `NewSessionToast/JobDoneNotifier/RunStatus` → `components/AppStatus.tsx`；
+      `sessionChanges` 汇总逻辑 → `lib/changes.ts::buildSessionChanges`；斜杠命令分类 → `lib/command.ts`；
+      `Sidebar` 相对时间 → `lib/time.ts`。
+- [ ] 继续拆分 `CostLibraryView.tsx`（840）、`CapabilitiesPanel.tsx`（818）、`Composer.tsx`（775）、`Sidebar.tsx`（720）。
 - [ ] `lib/mock.ts`（1344）按模块拆分，web 调试 mock 与生产代码隔离。
 - [ ] 收敛 `bridge.ts` 动态/静态 import 混用产生的 chunk 告警。
 - [ ] `WRITE_TOOL_NAMES` / 会话注册表等易漂移常量补单一来源 + 编译期校验。

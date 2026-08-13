@@ -2,14 +2,13 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
-  BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, Cpu, FileText, FolderGit2, FolderTree, Paperclip,
+  BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, FileText, FolderGit2, FolderTree, Paperclip,
   PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, Diff,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
 import { sessionTitle, sessionTime } from "./lib/session";
 import { useController, usePreviewStore } from "./lib/store";
-import type { JobView } from "./lib/types";
 import { app } from "./lib/bridge";
 import { Transcript } from "./components/Transcript";
 import { JumpBar } from "./components/JumpBar";
@@ -31,9 +30,10 @@ import { DeliverablesPanel, type SessionDeliverable } from "./components/Deliver
 import { MaterialsPanel } from "./components/MaterialsPanel";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { StatsPanel, useStatsPersistence } from "./components/StatsPanel";
-import { ChangesPanel, type SessionChange } from "./components/ChangesPanel";
+import { ChangesPanel } from "./components/ChangesPanel";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
 
 import { downloadMarkdown, exportAsMarkdown } from "./lib/export";
 import type { MemorySuggestion, MemorySuggestionsView, MemoryView, Requirement, SessionMeta, SkillSuggestion } from "./lib/types";
@@ -52,72 +52,10 @@ import {
   loadPreviewWidth, savePreviewWidth,
 } from "./lib/layoutPreferences";
 import CompactContext from "./hooks/useCompact";
-import { fmtTokens } from "./lib/stats";
-import { useNow } from "./lib/useNow";
 import { deliverableMentions } from "./lib/fileLinks";
 import { useUpdatedFilesStore } from "./lib/store";
-import { extractChangedPaths, WRITE_TOOL_NAMES } from "./lib/changes";
+import { buildSessionChanges, type SessionChange } from "./lib/changes";
 import { classifyComposerCommand } from "./lib/command";
-
-function NewSessionToast({ done }: { done: boolean }) {
-  const toast = useToast();
-  useEffect(() => { if (done) toast.show("新会话已创建", "info"); }, [done]);
-  return null;
-}
-
-// ── JobDoneNotifier — 后台任务从运行列表消失即视为结束，弹 toast 提示 ──
-function JobDoneNotifier({ jobs }: { jobs: JobView[] }) {
-  const toast = useToast();
-  const prevRef = useRef<Map<string, string>>(new Map()); // id -> label
-  useEffect(() => {
-    const prev = prevRef.current;
-    const current = new Map(jobs.map((j) => [j.id, j.label] as const));
-    for (const [id, label] of prev) {
-      if (!current.has(id)) toast.show(`后台任务已完成：${label}`, "info");
-    }
-    prevRef.current = current;
-  }, [jobs, toast]);
-  return null;
-}
-
-// ── RunStatus — 输入框上方的运行时状态行 ─────────────────────
-
-function RunStatus({ running, turnStartAt, turnTokens, used }: {
-  running: boolean;
-  turnStartAt: number;
-  turnTokens: number;
-  used: number;
-}) {
-  const now = useNow();
-  if (!running) return null;
-  const elapsed = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
-  const elapsedStr = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m${elapsed % 60}s`;
-  const tokStr = turnTokens > 0 ? `↓${fmtTokens(turnTokens)}` : "";
-  // 大上下文 + 长时间无输出：明确提示“正在处理大上下文”，避免误判卡死。
-  const slowHint =
-    elapsed >= 20 && used >= 40000
-      ? `处理大上下文中 · ${fmtTokens(used)}`
-      : "";
-  return (
-    <div className="flex items-center justify-between px-4 py-1.5 text-[11px] select-none border-b border-border-soft/50 bg-bg-soft/30">
-      <div className="flex items-center gap-2 text-fg-dim tabular-nums font-mono">
-        <span className="font-medium">{elapsedStr}</span>
-        {tokStr && <span className="text-fg-faint">{tokStr}</span>}
-        {slowHint && <span className="text-amber-500/90">{slowHint}</span>}
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="flex items-center gap-1.5 text-fg">
-          <Cpu size={12} className="text-cyan-400" />
-          <span className="font-medium">执行中</span>
-          <span className="inline-flex items-center gap-1 ml-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="text-[10px] text-cyan-400/70">中</span>
-          </span>
-        </span>
-      </div>
-    </div>
-  );
-}
 
 export default function App() {
   const toast = useToast();
@@ -553,19 +491,7 @@ export default function App() {
   }, [state.items]);
 
   // 文件变更（Kun 可观察性精华）：汇总本会话写/改过的文件及次数
-  const sessionChanges = useMemo<SessionChange[]>(() => {
-    const map = new Map<string, { count: number; lastTouched: number }>();
-    state.items.forEach((it, idx) => {
-      if (it.kind !== "tool" || !WRITE_TOOL_NAMES.has(it.name)) return;
-      for (const p of extractChangedPaths(it.args || "")) {
-        const cur = map.get(p) ?? { count: 0, lastTouched: idx };
-        map.set(p, { count: cur.count + 1, lastTouched: idx });
-      }
-    });
-    return [...map.entries()]
-      .map(([path, v]) => ({ path, count: v.count, lastTouched: v.lastTouched }))
-      .sort((a, b) => b.lastTouched - a.lastTouched);
-  }, [state.items]);
+  const sessionChanges = useMemo<SessionChange[]>(() => buildSessionChanges(state.items), [state.items]);
   // 编辑后自动回写刷新：docx/xlsx 预览内编辑成功 → 文件树自动刷新（替代手动刷新）
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   useEffect(() => {

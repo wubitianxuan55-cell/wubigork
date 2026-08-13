@@ -1,3 +1,11 @@
+import type { Item } from "./store";
+
+export interface SessionChange {
+  path: string;
+  count: number;
+  lastTouched?: number;
+}
+
 // 会修改工作区文件的工具（用于「变更」面板汇总）。
 export const WRITE_TOOL_NAMES = new Set([
   "write_file", "edit_file", "edit_lines", "multi_edit",
@@ -36,4 +44,22 @@ export function extractChangedPaths(args: string): string[] {
     }
   }
   return out;
+}
+
+// 从会话消息里汇总“写/改过的工作区文件及次数”，按最近改动倒序返回。
+export function buildSessionChanges(
+  items: Item[],
+  writeTools: ReadonlySet<string> = WRITE_TOOL_NAMES,
+): SessionChange[] {
+  const map = new Map<string, { count: number; lastTouched: number }>();
+  items.forEach((it, idx) => {
+    if (it.kind !== "tool" || !writeTools.has(it.name)) return;
+    for (const p of extractChangedPaths(it.args || "")) {
+      const cur = map.get(p) ?? { count: 0, lastTouched: idx };
+      map.set(p, { count: cur.count + 1, lastTouched: idx });
+    }
+  });
+  return [...map.entries()]
+    .map(([path, v]) => ({ path, count: v.count, lastTouched: v.lastTouched }))
+    .sort((a, b) => b.lastTouched - a.lastTouched);
 }

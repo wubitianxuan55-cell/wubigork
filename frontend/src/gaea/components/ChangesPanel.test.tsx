@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ChangesPanel } from "./ChangesPanel";
-import type { SessionChange } from "./ChangesPanel";
+import type { SessionChange } from "../lib/changes";
 
 const changes: SessionChange[] = [
   { path: "/ws/a.md", count: 1, lastTouched: 2 },

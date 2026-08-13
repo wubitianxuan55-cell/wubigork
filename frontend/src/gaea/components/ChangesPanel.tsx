@@ -1,11 +1,6 @@
 import { Diff, FileText } from "../icons";
 import { useCompact } from "../hooks/useCompact";
-
-export interface SessionChange {
-  path: string;
-  count: number;
-  lastTouched?: number;
-}
+import type { SessionChange } from "../lib/changes";
 
 // ── 文件变更面板（Kun 可观察性精华）─────────────────────────────────
 // 汇总本会话中 Agent 写/改过的文件（write_file / edit_file / move_file 等），

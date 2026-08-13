@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { extractChangedPaths, WRITE_TOOL_NAMES } from "./changes";
+import { extractChangedPaths, buildSessionChanges, WRITE_TOOL_NAMES } from "./changes";
+import type { Item } from "./store";
 
 describe("extractChangedPaths", () => {
   it("提取顶层单路径字段", () => {
@@ -25,5 +26,20 @@ describe("extractChangedPaths", () => {
     for (const name of ["write_file", "edit_file", "edit_lines", "multi_edit", "move_file", "notebook_edit", "delete_range", "delete_symbol"]) {
       expect(WRITE_TOOL_NAMES.has(name)).toBe(true);
     }
+  });
+});
+
+describe("buildSessionChanges", () => {
+  it("按最近改动倒序汇总文件与次数，忽略非写工具", () => {
+    const items: Item[] = [
+      { kind: "tool", id: "t1", name: "write_file", args: '{"path":"a.md"}', readOnly: false, status: "done" },
+      { kind: "tool", id: "t2", name: "edit_file", args: '{"path":"b.md"}', readOnly: false, status: "done" },
+      { kind: "tool", id: "t3", name: "read_file", args: '{"path":"c.md"}', readOnly: true, status: "done" },
+      { kind: "tool", id: "t4", name: "write_file", args: '{"path":"a.md"}', readOnly: false, status: "done" },
+    ];
+    expect(buildSessionChanges(items)).toEqual([
+      { path: "a.md", count: 2, lastTouched: 3 },
+      { path: "b.md", count: 1, lastTouched: 1 },
+    ]);
   });
 });
