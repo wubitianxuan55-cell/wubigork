@@ -1,11 +1,17 @@
-import { Button, Card, Tag, Typography } from 'antd'
-import { AudioOutlined, CaretRightOutlined, SoundOutlined } from '@ant-design/icons'
+import { useState } from 'react'
+import { Button, Card, Input, Tag, Typography } from 'antd'
+import { AudioOutlined, CaretRightOutlined, PushpinFilled, PushpinOutlined, SoundOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import { engineColor, engineLabel, isLocalEngine, modelAvailability } from './utils'
+import { engineColor, engineLabel, filterModelsBySearch, isLocalEngine, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenter } from './context'
+import { usePinnedModels } from './modelPrefs'
 
 export function VoiceSection() {
   const { voiceCfg, ttsModels, sttModels, handleSetVoiceModel, handleStartModel, engines, engineStatuses } = useModelCenter()
+  const [voiceSearch, setVoiceSearch] = useState('')
+  const [pinned, togglePin] = usePinnedModels()
+  const tts = sortModelsPinnedFirst(filterModelsBySearch(ttsModels, voiceSearch), pinned)
+  const stt = sortModelsPinnedFirst(filterModelsBySearch(sttModels, voiceSearch), pinned)
   return (
             <section className="mc-section">
               {/* 三段激活模型汇总（模型中心 → 语音管道） */}
@@ -29,6 +35,10 @@ export function VoiceSection() {
                 </div>
               </Card>
 
+              <div style={{ marginBottom: 14 }}>
+                <Input.Search allowClear placeholder="搜索语音模型" value={voiceSearch} onChange={e => setVoiceSearch(e.target.value)} style={{ maxWidth: 320 }} />
+              </div>
+
               {ttsModels.length === 0 && sttModels.length === 0 ? (
                 <div className="mc-empty">
                   <SoundOutlined className="mc-empty-icon" />
@@ -43,7 +53,7 @@ export function VoiceSection() {
                     <div style={{ marginBottom: 22 }}>
                       <div className="mc-section-title" style={{ marginBottom: 10 }}><SoundOutlined /> TTS 语音合成</div>
                       <div className="mc-grid">
-                        {ttsModels.map(m => {
+                        {tts.map(m => {
                           const active = voiceCfg.tts.engine === m.engineId && voiceCfg.tts.model === m.modelId
                           const eng = engines.find(e => e.id === m.engineId)
                           const avail = modelAvailability(m, eng?.enabled ?? true, engineStatuses[m.engineId]?.connected)
@@ -51,10 +61,21 @@ export function VoiceSection() {
                           const canStartLocal = isLocalEngine(m.engineId) && (m.status === 'stopped' || avail === 'disconnected')
                           return (
                             <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${active ? ' is-active' : ''}`} style={{ opacity: blocked ? 0.55 : 1 }}>
-                              <div className="mc-model-name">{m.modelName}</div>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                                <div className="mc-model-name" style={{ marginBottom: 0 }}>{m.modelName}</div>
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  aria-label={pinned.includes(m.modelId) ? '取消置顶' : '置顶'}
+                                  icon={pinned.includes(m.modelId) ? <PushpinFilled /> : <PushpinOutlined />}
+                                  onClick={(e) => { e.stopPropagation(); togglePin(m.modelId) }}
+                                  style={{ padding: 0, height: 20, flex: '0 0 auto', color: pinned.includes(m.modelId) ? '#fbbf24' : C('color-text-secondary') }}
+                                />
+                              </div>
                               <div className="mc-model-meta">
                                 <Tag color={engineColor(m)} style={{ fontSize: 10 }}>{engineLabel(m)}</Tag>
                                 <Tag color="purple" style={{ fontSize: 10 }}>TTS</Tag>
+                                {pinned.includes(m.modelId) && <Tag color="gold" style={{ fontSize: 10 }}>置顶</Tag>}
                                 {avail === 'disconnected' ? (
                                   <Tag color="red" style={{ fontSize: 10 }}>未连接</Tag>
                                 ) : (
@@ -83,17 +104,28 @@ export function VoiceSection() {
                     <div>
                       <div className="mc-section-title" style={{ marginBottom: 10 }}><AudioOutlined /> STT 语音识别</div>
                       <div className="mc-grid">
-                        {sttModels.map(m => {
+                        {stt.map(m => {
                           const active = voiceCfg.stt.engine === m.engineId && voiceCfg.stt.model === m.modelId
                           const eng = engines.find(e => e.id === m.engineId)
                           const avail = modelAvailability(m, eng?.enabled ?? true, engineStatuses[m.engineId]?.connected)
                           const blocked = avail === 'disconnected' || avail === 'disabled'
                           return (
                             <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${active ? ' is-active' : ''}`} style={{ opacity: blocked ? 0.55 : 1 }}>
-                              <div className="mc-model-name">{m.modelName}</div>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                                <div className="mc-model-name" style={{ marginBottom: 0 }}>{m.modelName}</div>
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  aria-label={pinned.includes(m.modelId) ? '取消置顶' : '置顶'}
+                                  icon={pinned.includes(m.modelId) ? <PushpinFilled /> : <PushpinOutlined />}
+                                  onClick={(e) => { e.stopPropagation(); togglePin(m.modelId) }}
+                                  style={{ padding: 0, height: 20, flex: '0 0 auto', color: pinned.includes(m.modelId) ? '#fbbf24' : C('color-text-secondary') }}
+                                />
+                              </div>
                               <div className="mc-model-meta">
                                 <Tag color={engineColor(m)} style={{ fontSize: 10 }}>{engineLabel(m)}</Tag>
                                 <Tag color="blue" style={{ fontSize: 10 }}>STT</Tag>
+                                {pinned.includes(m.modelId) && <Tag color="gold" style={{ fontSize: 10 }}>置顶</Tag>}
                                 {avail === 'disconnected' ? (
                                   <Tag color="red" style={{ fontSize: 10 }}>未连接</Tag>
                                 ) : (

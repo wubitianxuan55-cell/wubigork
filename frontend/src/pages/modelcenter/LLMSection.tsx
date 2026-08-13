@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { Button, Card, Input, Space, Tag, Typography } from 'antd'
-import { CaretRightOutlined, CheckCircleOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CaretRightOutlined, CheckCircleOutlined, PushpinFilled, PushpinOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import { engineColor, engineIcons, engineLabel, modelAvailability } from './utils'
+import { engineColor, engineIcons, engineLabel, filterModelsBySearch, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenter } from './context'
+import { usePinnedModels } from './modelPrefs'
 
 export function LLMSection() {
   const { engines, llmModels, engineStatuses, testingEngine, handleTestConnection, handleRefreshModels, handleStartModel, isModelActive } = useModelCenter()
   const [llmSearch, setLlmSearch] = useState('')
+  const [pinned, togglePin] = usePinnedModels()
   return (
             <section className="mc-section">
               <div className="mc-section-head">
@@ -36,7 +38,10 @@ export function LLMSection() {
                 </div>
               )}
               {engines.filter(e => e.enabled).map(engine => {
-                const engineModels = llmModels.filter(m => m.engineId === engine.id && (!llmSearch || m.modelName.toLowerCase().includes(llmSearch.toLowerCase())))
+                const engineModels = sortModelsPinnedFirst(
+                  filterModelsBySearch(llmModels.filter(m => m.engineId === engine.id), llmSearch),
+                  pinned,
+                )
                 if (engineModels.length === 0) return null
                 const color = engineColor(engine)
                 return (
@@ -67,11 +72,24 @@ export function LLMSection() {
                         const blocked = avail === 'disconnected' || avail === 'disabled'
                         return (
                           <Card key={card.modelId} size="small" className={`mc-model-card${active ? ' is-active' : ''}`} style={{ borderColor: active ? color : undefined, opacity: blocked ? 0.55 : 1 }}>
-                            <div className="mc-model-name" style={{ color: active ? color : C('color-text') }}>{card.modelName}</div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                              <div className="mc-model-name" style={{ marginBottom: 0, color: active ? color : C('color-text') }}>{card.modelName}</div>
+                              <Button
+                                type="text"
+                                size="small"
+                                aria-label={pinned.includes(card.modelId) ? '取消置顶' : '置顶'}
+                                icon={pinned.includes(card.modelId) ? <PushpinFilled /> : <PushpinOutlined />}
+                                onClick={(e) => { e.stopPropagation(); togglePin(card.modelId) }}
+                                style={{ padding: 0, height: 20, flex: '0 0 auto', color: pinned.includes(card.modelId) ? '#fbbf24' : C('color-text-secondary') }}
+                              />
+                            </div>
                             <div className="mc-model-meta">
                               <Tag color={color} style={{ fontSize: 10, margin: 0 }}>{engineLabel(card)}</Tag>
                               {card.modelId === engine.default_model && (
                                 <Tag color="cyan" style={{ fontSize: 10, margin: 0 }}>默认</Tag>
+                              )}
+                              {pinned.includes(card.modelId) && (
+                                <Tag color="gold" style={{ fontSize: 10, margin: 0 }}>置顶</Tag>
                               )}
                               {avail === 'disconnected' ? (
                                 <Tag color="red" style={{ fontSize: 10, margin: 0 }}>未连接</Tag>

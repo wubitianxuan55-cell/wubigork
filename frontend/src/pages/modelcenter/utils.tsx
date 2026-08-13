@@ -54,6 +54,19 @@ export function modelAvailability(card: ModelCardData, enabled: boolean, connect
   return 'ready'
 }
 
+// 模型网格搜索（按名称或模型 ID 匹配，大小写不敏感）
+export function filterModelsBySearch<T extends ModelCardData>(models: T[], query: string): T[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return models
+  return models.filter(m => m.modelName.toLowerCase().includes(q) || m.modelId.toLowerCase().includes(q))
+}
+
+// 收藏/置顶模型排到最前（其余保持原顺序）
+export function sortModelsPinnedFirst<T extends ModelCardData>(models: T[], pinnedIds: string[]): T[] {
+  const pinned = new Set(pinnedIds)
+  return [...models].sort((a, b) => (pinned.has(b.modelId) ? 1 : 0) - (pinned.has(a.modelId) ? 1 : 0))
+}
+
 // 引擎模型是否图片类（优先后端 kind，缺失时回退名称启发式）
 export const isImageModel = (m: { id: string; kind?: string }): boolean =>
   ((m.kind as ModelKind) || classifyModel(m.id)) === 'image'

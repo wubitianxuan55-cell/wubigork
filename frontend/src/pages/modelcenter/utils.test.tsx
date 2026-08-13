@@ -7,6 +7,8 @@ import {
   modelAvailability,
   featureState,
   routeSourceLabel,
+  filterModelsBySearch,
+  sortModelsPinnedFirst,
 } from './utils'
 import type { ModelCardData } from './utils'
 import type { EngineConfig } from '../../api/engines'
@@ -110,5 +112,25 @@ describe('模型中心 featureState / routeSourceLabel', () => {
     expect(routeSourceLabel('global')).toBe('全局默认')
     expect(routeSourceLabel('fallback')).toBe('兜底')
     expect(routeSourceLabel(undefined)).toBe('-')
+  })
+})
+
+describe('模型中心 搜索 / 置顶排序', () => {
+  const models: ModelCardData[] = [
+    { modelId: 'grok-4.20', modelName: 'Grok 4.20', engineId: 'xai', engineName: 'xAI', engineType: 'xai', engineEnabled: true, status: 'running' },
+    { modelId: 'qwen3-8b', modelName: 'Qwen3 8B', engineId: 'herdsman', engineName: 'Herdsman', engineType: 'herdsman', engineEnabled: true, status: 'running' },
+    { modelId: 'flux-dev', modelName: 'Flux Dev', engineId: 'herdsman', engineName: 'Herdsman', engineType: 'herdsman', engineEnabled: true, status: 'running' },
+  ]
+
+  it('filterModelsBySearch 按名称或 ID 匹配', () => {
+    expect(filterModelsBySearch(models, 'qwen').map(m => m.modelId)).toEqual(['qwen3-8b'])
+    expect(filterModelsBySearch(models, 'flux').map(m => m.modelId)).toEqual(['flux-dev'])
+    expect(filterModelsBySearch(models, '')).toHaveLength(3)
+  })
+
+  it('sortModelsPinnedFirst 把置顶模型排前且不丢失其余', () => {
+    const sorted = sortModelsPinnedFirst(models, ['flux-dev'])
+    expect(sorted[0].modelId).toBe('flux-dev')
+    expect(sorted.map(m => m.modelId).sort()).toEqual(['flux-dev', 'grok-4.20', 'qwen3-8b'])
   })
 })

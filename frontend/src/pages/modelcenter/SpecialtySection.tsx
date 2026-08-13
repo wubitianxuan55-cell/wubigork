@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
-import { Button, Card, Tag, Typography } from 'antd'
-import { CheckCircleOutlined, FileTextOutlined, NumberOutlined, SearchOutlined } from '@ant-design/icons'
+import { useState } from 'react'
+import { Button, Card, Input, Tag, Typography } from 'antd'
+import { CheckCircleOutlined, FileTextOutlined, NumberOutlined, PushpinFilled, PushpinOutlined, SearchOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import { engineColor, engineLabel, kindOf, modelAvailability } from './utils'
+import { engineColor, engineLabel, filterModelsBySearch, kindOf, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenter } from './context'
+import { usePinnedModels } from './modelPrefs'
 
 const KIND_META: Record<string, { label: string; icon: ReactNode }> = {
   embedding: { label: 'Embedding', icon: <NumberOutlined /> },
@@ -13,6 +15,9 @@ const KIND_META: Record<string, { label: string; icon: ReactNode }> = {
 
 export function SpecialtySection() {
   const { specialtyModels, ocrCfg, handleSetOCRModel, engines, engineStatuses } = useModelCenter()
+  const [search, setSearch] = useState('')
+  const [pinned, togglePin] = usePinnedModels()
+  const models = sortModelsPinnedFirst(filterModelsBySearch(specialtyModels, search), pinned)
 
   if (specialtyModels.length === 0) {
     return (
@@ -37,8 +42,11 @@ export function SpecialtySection() {
           <Button size="small" onClick={() => handleSetOCRModel('', '')}>恢复自动选择</Button>
         )}
       </div>
+      <div style={{ marginBottom: 12 }}>
+        <Input.Search allowClear placeholder="搜索专业模型" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 320 }} />
+      </div>
       <div className="mc-grid">
-        {specialtyModels.map(m => {
+        {models.map(m => {
           const kind = kindOf(m)
           const meta = KIND_META[kind] || { label: kind, icon: <FileTextOutlined /> }
           const color = engineColor(m)
@@ -49,12 +57,23 @@ export function SpecialtySection() {
           const blocked = avail === 'disconnected' || avail === 'disabled'
           return (
             <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${activeOCR ? ' is-active' : ''}`} style={{ opacity: blocked ? 0.55 : 1 }}>
-              <div className="mc-model-name">{m.modelName}</div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                <div className="mc-model-name" style={{ marginBottom: 0 }}>{m.modelName}</div>
+                <Button
+                  type="text"
+                  size="small"
+                  aria-label={pinned.includes(m.modelId) ? '取消置顶' : '置顶'}
+                  icon={pinned.includes(m.modelId) ? <PushpinFilled /> : <PushpinOutlined />}
+                  onClick={(e) => { e.stopPropagation(); togglePin(m.modelId) }}
+                  style={{ padding: 0, height: 20, flex: '0 0 auto', color: pinned.includes(m.modelId) ? '#fbbf24' : C('color-text-secondary') }}
+                />
+              </div>
               <div className="mc-model-meta">
                 <Tag color={color} style={{ fontSize: 10, margin: 0 }}>{engineLabel(m)}</Tag>
                 <Tag color={kind === 'ocr' ? 'gold' : kind === 'rerank' ? 'geekblue' : 'cyan'} style={{ fontSize: 10, margin: 0 }}>
                   {meta.icon} {meta.label}
                 </Tag>
+                {pinned.includes(m.modelId) && <Tag color="gold" style={{ fontSize: 10, margin: 0 }}>置顶</Tag>}
                 {avail === 'disconnected' && <Tag color="red" style={{ fontSize: 10, margin: 0 }}>未连接</Tag>}
                 {avail === 'stopped' && <Tag color="default" style={{ fontSize: 10, margin: 0 }}>未启动</Tag>}
               </div>
