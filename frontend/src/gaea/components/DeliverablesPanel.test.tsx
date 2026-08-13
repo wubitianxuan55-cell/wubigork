@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DeliverablesPanel } from "./DeliverablesPanel";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 
@@ -74,5 +74,40 @@ describe("DeliverablesPanel 会话产物面板", () => {
       />,
     );
     expect(screen.queryByTitle("沉淀到成本库：把单价明细用 cost_save 写回成本库")).toBeNull();
+  });
+
+  it("图片产物渲染缩略图，非图片保留类型图标", async () => {
+    const { container } = render(
+      <DeliverablesPanel
+        items={[
+          { path: "exports/趋势.png", sourceId: "a1" },
+          { path: ".gaea/exports/方案.docx", sourceId: "a2" },
+        ]}
+        onOpenFile={() => {}}
+      />,
+    );
+    await waitFor(() => expect(container.querySelector("img")).toBeTruthy());
+    const img = container.querySelector("img");
+    expect(img?.getAttribute("src")).toContain("data:image/png");
+    // 非图片产物不渲染 <img> 缩略图（仅一张图片，共两个产物）
+    expect(container.querySelectorAll("img")).toHaveLength(1);
+  });
+
+  it("一键复制全部文件路径（最新在前）", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(
+      <DeliverablesPanel
+        items={[
+          { path: "exports/成本测算.xlsx", sourceId: "a1" },
+          { path: ".gaea/exports/方案.docx", sourceId: "a2" },
+        ]}
+        onOpenFile={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTitle("复制全部文件路径"));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(".gaea/exports/方案.docx\nexports/成本测算.xlsx"),
+    );
   });
 });

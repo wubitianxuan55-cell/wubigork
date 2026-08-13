@@ -553,6 +553,7 @@ const TOOL_DESC: Record<string, string> = {
   ocr: "本地 OCR 模型——提取图片/扫描件中的精确文字",
   semantic_search: "本地 bge-m3——跨库语义检索(成本/知识/办公记忆)",
   routine_llm: "通用文本兜底——纯文本摘要/归一化/抽取/改写，本地/免费优先",
+  translate_text: "本地翻译——优先 Hunyuan-MT / Hy-MT 翻译模型，未安装时回退办公模型",
 };
 
 interface Section {
@@ -568,7 +569,7 @@ const SECTIONS: Section[] = [
   { title: "知识库", items: ["knowledge_search", "knowledge_add"] },
   { title: "技能", items: ["read_skill", "run_skill", "install_skill", "slash_command"] },
   { title: "文档技能", items: ["docx", "xlsx", "pdf", "pptx"] },
-  { title: "本地专业模型", items: ["vision", "ocr", "semantic_search"] },
+  { title: "本地专业模型", items: ["vision", "ocr", "semantic_search", "translate_text"] },
   { title: "通用办公", items: ["format_convert", "chart_gen", "routine_llm", "format-convert", "chart-builder", "doc-assemble"] },
 ];
 

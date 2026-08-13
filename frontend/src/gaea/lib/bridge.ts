@@ -341,6 +341,9 @@ export interface AppBindings {
   // ── 工作区文件语义索引 ──
   FileIndexRebuild(): Promise<FileIndexStatus>;
   FileSemanticSearch(query: string, topN: number): Promise<FileSemanticHit[]>;
+  // Herdsman 深挖：数字生命记忆总览（只读）与最近异步操作。
+  HerdsmanDigitalLife(): Promise<unknown>;
+  HerdsmanOperations(): Promise<unknown>;
   // 画像冲突裁决
   ProfileResolveConflict(name: string, prefer: string): Promise<void>;
   KnowledgeGet(name: string): Promise<KnowledgeEntry | null>;

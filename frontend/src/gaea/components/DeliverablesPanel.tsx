@@ -1,8 +1,9 @@
 import { memo, useCallback } from "react";
-import { Coins, Copy, ExternalLink, File, FileImage, FilePpt, FileSpreadsheet, FileText, FolderTree, MessageSquare, Paperclip } from "../icons";
+import { ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, MessageSquare, Paperclip } from "../icons";
 import { app } from "../lib/bridge";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import { useToast } from "./Toast";
+import { FileThumb, FileTypeIcon, IMAGE_EXT_RE } from "./FileThumb";
 
 export interface SessionDeliverable {
   path: string;
@@ -10,7 +11,6 @@ export interface SessionDeliverable {
   turn?: number;
 }
 
-const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
 const SPREADSHEET_EXT_RE = /\.(xlsx?|csv|et|ods)$/i;
 
 function extOf(path: string): string {
@@ -20,14 +20,6 @@ function extOf(path: string): string {
 
 function baseName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
-}
-
-function FileTypeIcon({ ext, size }: { ext: string; size: number }) {
-  if (/\.(xlsx?|csv|et|ods)$/i.test(ext)) return <FileSpreadsheet size={size} />;
-  if (/\.(pptx?|dps|odp)$/i.test(ext)) return <FilePpt size={size} />;
-  if (IMAGE_EXT_RE.test(ext)) return <FileImage size={size} />;
-  if (/\.(docx?|pdf|md|markdown|txt|odt|rtf|wps|ofd|html?)$/i.test(ext)) return <FileText size={size} />;
-  return <File size={size} />;
 }
 
 // DeliverablesPanel — 右侧「会话产物」视图（对标 Kimi 工作空间 / 千问办公产物面板）：
@@ -68,6 +60,17 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   // 最新在前
   const list = [...items].reverse();
 
+  // 复制全部路径：一次拿到本次会话全部交付物清单，便于归档或继续引用。
+  const copyAllPaths = useCallback(async () => {
+    const paths = list.map((d) => d.path);
+    try {
+      await navigator.clipboard.writeText(paths.join("\n"));
+      toast.show(`已复制 ${paths.length} 个文件路径`, "info");
+    } catch {
+      toast.show("复制失败：剪贴板不可用", "warn");
+    }
+  }, [list, toast]);
+
   return (
     <div className="flex flex-col h-full text-fg-dim text-xs">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border-soft">
@@ -76,9 +79,19 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
           会话产物
         </span>
         {items.length > 0 && (
-          <span className="text-[10px] text-fg-faint border border-border-soft/60 rounded-full px-1.5 py-px">
-            {items.length}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-fg-faint border border-border-soft/60 rounded-full px-1.5 py-px">
+              {items.length}
+            </span>
+            <button
+              type="button"
+              className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+              onClick={() => void copyAllPaths()}
+              title="复制全部文件路径"
+            >
+              <ClipboardList size={12} />
+            </button>
+          </div>
         )}
       </div>
 
@@ -101,8 +114,10 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                 key={path}
                 className="group flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border-soft/70 bg-bg-soft/30 hover:border-accent/30 hover:bg-bg-soft/60 transition-colors"
               >
-                <span className="shrink-0 w-7 h-7 rounded-md bg-accent/10 text-accent flex items-center justify-center">
-                  <FileTypeIcon ext={ext} size={14} />
+                <span className="shrink-0 w-7 h-7 rounded-md bg-accent/10 text-accent flex items-center justify-center overflow-hidden">
+                  {IMAGE_EXT_RE.test(ext)
+                    ? <FileThumb path={path} ext={ext} imgClassName="w-7 h-7 object-cover rounded-md" />
+                    : <FileTypeIcon ext={ext} size={14} />}
                 </span>
                 <button
                   type="button"

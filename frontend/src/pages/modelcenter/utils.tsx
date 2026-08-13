@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { CloudOutlined, DesktopOutlined, GlobalOutlined, KeyOutlined, RocketOutlined } from '@ant-design/icons'
 import type { EngineConfig } from '../../api/engines'
 
-export type Category = 'overview' | 'llm' | 'image' | 'tts' | 'specialty' | 'engine' | 'bind' | 'stats'
+export type Category = 'overview' | 'llm' | 'image' | 'tts' | 'specialty' | 'catalog' | 'engine' | 'bind' | 'stats'
 
 export interface ModelCardData {
   modelId: string; modelName: string

@@ -1182,6 +1182,42 @@ export function GetWorldviewSections() {
   return window['go']['app']['App']['GetWorldviewSections']();
 }
 
+export function HerdsmanDigitalLife() {
+  return window['go']['app']['App']['HerdsmanDigitalLife']();
+}
+
+export function HerdsmanLaunchPresets() {
+  return window['go']['app']['App']['HerdsmanLaunchPresets']();
+}
+
+export function HerdsmanModelCatalog() {
+  return window['go']['app']['App']['HerdsmanModelCatalog']();
+}
+
+export function HerdsmanModelDownload(arg1) {
+  return window['go']['app']['App']['HerdsmanModelDownload'](arg1);
+}
+
+export function HerdsmanModelStart(arg1) {
+  return window['go']['app']['App']['HerdsmanModelStart'](arg1);
+}
+
+export function HerdsmanModelStats() {
+  return window['go']['app']['App']['HerdsmanModelStats']();
+}
+
+export function HerdsmanModelStop(arg1) {
+  return window['go']['app']['App']['HerdsmanModelStop'](arg1);
+}
+
+export function HerdsmanModelUninstall(arg1) {
+  return window['go']['app']['App']['HerdsmanModelUninstall'](arg1);
+}
+
+export function HerdsmanOperations() {
+  return window['go']['app']['App']['HerdsmanOperations']();
+}
+
 export function ImportStyleProfile(arg1, arg2) {
   return window['go']['app']['App']['ImportStyleProfile'](arg1, arg2);
 }
@@ -1204,6 +1240,10 @@ export function ListSkills() {
 
 export function ListSnapshots(arg1, arg2) {
   return window['go']['app']['App']['ListSnapshots'](arg1, arg2);
+}
+
+export function LocalTranslate(arg1) {
+  return window['go']['app']['App']['LocalTranslate'](arg1);
 }
 
 export function Login() {

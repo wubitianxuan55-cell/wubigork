@@ -101,6 +101,7 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 			imageGenTool{a: a},
 			diagramTool{a: a},
 			routineLLMTool{a: a},
+			translateTextTool{a: a},
 			factAddTool{},
 			factListTool{},
 			factClearTool{},

@@ -989,3 +989,132 @@
     transition: none !important;
   }
 }
+
+/* ── Herdsman 模型库 ───────────────────────────────────── */
+.mc-catalog-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.mc-catalog-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.mc-catalog-filters-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mc-catalog-type {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border-soft, rgba(128, 128, 128, 0.25));
+  border-radius: 6px;
+  background: var(--bg-elev, rgba(128, 128, 128, 0.08));
+  color: var(--fg, #ddd);
+  font-size: 12px;
+  outline: none;
+}
+
+.mc-catalog-status {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-soft, rgba(128, 128, 128, 0.25));
+  border-radius: 8px;
+}
+
+.mc-catalog-status-btn {
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-dim, #aaa);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mc-catalog-status-btn:hover {
+  color: var(--fg, #ddd);
+  background: var(--bg-soft, rgba(128, 128, 128, 0.1));
+}
+
+.mc-catalog-status-btn.is-active {
+  color: var(--mc-accent, #84cc16);
+  background: var(--mc-accent-soft, rgba(132, 204, 22, 0.14));
+  font-weight: 600;
+}
+
+.mc-catalog-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mc-catalog-stats {
+  margin-top: 14px;
+}
+
+.mc-catalog-stats-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.mc-catalog-stats-meta {
+  color: var(--fg-faint, #999);
+  font-size: 11px;
+}
+
+.mc-catalog-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.mc-catalog-stats-table th,
+.mc-catalog-stats-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-soft, rgba(128, 128, 128, 0.2));
+  text-align: left;
+  white-space: nowrap;
+}
+
+.mc-catalog-stats-table th {
+  color: var(--fg-faint, #999);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.mc-catalog-stats-table td {
+  color: var(--fg-dim, #bbb);
+  font-variant-numeric: tabular-nums;
+}
+
+.mc-catalog-stats-table tbody tr:hover td {
+  background: var(--bg-soft, rgba(128, 128, 128, 0.08));
+}
+
+.mc-catalog-stats-model {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fg, #ddd);
+  font-weight: 500;
+}

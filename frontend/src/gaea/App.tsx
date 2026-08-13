@@ -554,6 +554,9 @@ export default function App() {
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
       { id: "cmd-files", group: t("palette.group.commands") ?? "命令", title: "文件面板", icon: <FolderGit2 size={15} />, compact: true, keywords: ["files", "文件"], run: () => { setPreviewFile(null); setWorkspacePanel(true); setRightTab("files"); } },
+      { id: "cmd-materials", group: t("palette.group.commands") ?? "命令", title: "资料面板", icon: <Paperclip size={15} />, compact: true, keywords: ["materials", "资料"], run: () => { setPreviewFile(null); setWorkspacePanel(true); setRightTab("materials"); } },
+      { id: "cmd-deliverables", group: t("palette.group.commands") ?? "命令", title: "产物面板", icon: <FileText size={15} />, compact: true, keywords: ["deliverables", "产物"], run: () => { setPreviewFile(null); setWorkspacePanel(true); setRightTab("deliverables"); } },
+      { id: "cmd-changes", group: t("palette.group.commands") ?? "命令", title: "变更面板", icon: <Diff size={15} />, compact: true, keywords: ["changes", "变更"], run: () => { setPreviewFile(null); setWorkspacePanel(true); setRightTab("changes"); } },
       { id: "cmd-stats", group: t("palette.group.commands") ?? "命令", title: "统计面板", icon: <BarChart3 size={15} />, compact: true, keywords: ["stats", "统计"], run: () => { setWorkspacePanel(true); setRightTab("stats"); } },
     ];
     const sessionItems: PaletteItem[] = sidebarSessions.slice(0, 10).map((s) => ({
@@ -568,7 +571,7 @@ export default function App() {
       run: () => { if (!s.current) void onResumeSession(s.path); },
     }));
     return [...cmds, ...sessionItems];
-  }, [t, sidebarSessions, startNewSession, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, setPreviewFile]);
+  }, [t, sidebarSessions, startNewSession, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, setPreviewFile, setRightTab]);
 
   const layoutStyle = useMemo(
     () =>

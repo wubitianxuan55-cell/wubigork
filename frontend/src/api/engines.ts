@@ -78,6 +78,77 @@ export interface ModelStatsSummary {
   usd_to_cny?: number
 }
 
+/** Herdsman 模型库条目（来自 herdsman skill models list） */
+export interface HerdsmanCatalogModel {
+  name: string
+  display_name: string
+  type: string
+  runtime: string
+  inference_engines?: string[]
+  capabilities?: string[]
+  installed: boolean
+  running: boolean
+  status: string
+  run_status?: string
+  quantization?: string
+  parameter_count?: number
+  active_parameters?: number
+  is_moe?: boolean
+  file_size?: number
+  llama_cpp_variants?: string[]
+}
+
+export interface HerdsmanCatalog {
+  models: HerdsmanCatalogModel[]
+  total: number
+  installed: number
+  running: number
+  source: string
+  error?: string
+}
+
+/** Herdsman 生命周期操作结果 */
+export interface HerdsmanOpResult {
+  ok: boolean
+  status: string
+  message: string
+}
+
+/** 某模型在本机的实测启动参数（launch_records） */
+export interface HerdsmanLaunchPreset {
+  model: string
+  engine: string
+  port: number
+  started_at: string
+  options: Record<string, unknown>
+}
+
+/** Herdsman 单模型调用聚合（来自 model_stats/events.jsonl） */
+export interface HerdsmanModelStat {
+  model: string
+  type: string
+  runtime: string
+  calls: number
+  succeeded: number
+  failed: number
+  input_tokens: number
+  output_tokens: number
+  total_duration_ms: number
+  avg_duration_ms: number
+  avg_ttft_ms: number
+  avg_prompt_tps: number
+  avg_predicted_tps: number
+  last_called_at: string
+}
+
+export interface HerdsmanModelStats {
+  total: number
+  since: string
+  per_model: HerdsmanModelStat[]
+  source: string
+  error?: string
+}
+
 // ── API 函数 ─────────────────────────────────────────────────
 
 const App = (): any => (window as any).go?.app?.App
@@ -169,6 +240,48 @@ export async function getOpencodeZenKeyStatus(): Promise<{ configured: boolean; 
 export async function getModelCallStats(): Promise<ModelStatsSummary> {
   const result = await App().GetModelCallStats()
   return result as ModelStatsSummary
+}
+
+/** 获取 Herdsman 完整模型目录（模型中心「模型库」） */
+export async function getHerdsmanCatalog(): Promise<HerdsmanCatalog> {
+  const result = await App().HerdsmanModelCatalog()
+  return result as HerdsmanCatalog
+}
+
+/** 获取 Herdsman 完整模型目录（模型中心「模型库」） */
+export async function getHerdsmanLaunchPresets(): Promise<HerdsmanLaunchPreset[]> {
+  const result = await App().HerdsmanLaunchPresets()
+  return result as HerdsmanLaunchPreset[]
+}
+
+/** 获取 Herdsman 本地调用统计（model_stats/events.jsonl 聚合） */
+export async function getHerdsmanModelStats(): Promise<HerdsmanModelStats> {
+  const result = await App().HerdsmanModelStats()
+  return result as HerdsmanModelStats
+}
+
+/** 启动 Herdsman 模型（等冷启动完成） */
+export async function startHerdsmanModel(model: string): Promise<HerdsmanOpResult> {
+  const result = await App().HerdsmanModelStart(model)
+  return result as HerdsmanOpResult
+}
+
+/** 停止 Herdsman 模型 */
+export async function stopHerdsmanModel(model: string): Promise<HerdsmanOpResult> {
+  const result = await App().HerdsmanModelStop(model)
+  return result as HerdsmanOpResult
+}
+
+/** 下载 Herdsman 模型（等安装完成） */
+export async function downloadHerdsmanModel(model: string): Promise<HerdsmanOpResult> {
+  const result = await App().HerdsmanModelDownload(model)
+  return result as HerdsmanOpResult
+}
+
+/** 卸载 Herdsman 模型 */
+export async function uninstallHerdsmanModel(model: string): Promise<HerdsmanOpResult> {
+  const result = await App().HerdsmanModelUninstall(model)
+  return result as HerdsmanOpResult
 }
 
 /** 重置模型调用统计 */

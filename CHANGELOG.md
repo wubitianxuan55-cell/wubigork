@@ -1,5 +1,55 @@
 # gaea · 多功能 AI 助手
 
+## v2.15.6「Herdsman 深挖 P5 · 数字生命记忆联动 + 最近操作」（2026-08-13）
+> 完成 Herdsman 深挖路线图收尾：把 digital-life 虚拟人格记忆（角色/关系/记忆摘要/
+> 时间线/世界事件）只读接进记忆中枢，并展示 Herdsman 最近异步操作。
+> 详见 releases/v2.15.6.md。
+- 后端：App.HerdsmanDigitalLife（只读 life.sqlite3：角色×关系×记忆摘要合并、计数、最近时间线/世界事件）+ App.HerdsmanOperations（skill-operations.json 最近 20 条）
+- 前端：记忆中枢新增「数字生命」库（角色卡片：亲密度/信任/安全条 + 摘要/高亮/强化值；最近时间线/世界事件；最近 Herdsman 操作列表）
+- 测试：Go 新增数字生命/操作解析用例；前端 DigitalLifeLibrary 2 例，Vitest 239→241 全绿
+
+## v2.15.5「Herdsman 深挖 P4 · 检索升级 + 调用统计」（2026-08-13）
+> 承接 v2.15.4，落地 P4：语义检索动态升级到 qwen3-embedding-4b / qwen3-reranker-4b
+> （装了自动用，没装回退 bge），并把 Herdsman 逐请求遥测接进模型中心。
+> 详见 releases/v2.15.5.md。
+- 检索升级：resolveHerdsmanSearchModel 动态选模型（env > qwen3 系已装 > bge 回退），覆盖成本库/知识库/办公记忆/工作区文件语义索引
+- 调用统计：App.HerdsmanModelStats 聚合 model_stats/events.jsonl（调用/成功失败/token/耗时/TTFT/TPS），模型中心「模型库」新增本地统计面板（KPI + 明细表）
+- 本机：qwen3-embedding-4b（2.5GB）与 qwen3-reranker-4b（2.7GB）已下载并启动；发现 Hy-MT1.5:1.8B 翻译模型已装，translate_text 自动切专用模型
+- 测试：Go 新增 stats 解析/动态选型用例；前端统计面板断言；go vet + go test + tsc + Vitest 239 全绿
+
+## v2.15.4「Herdsman 深挖 P3 · 本地翻译」（2026-08-13）
+> 承接 v2.15.3，落地 P3：本地翻译能力——优先 Hunyuan-MT / Hy-MT 翻译模型
+> （capability=translation），未安装时回退「常规办公」模型，本地/免费优先。
+> 详见 releases/v2.15.4.md。
+- 后端 `App.LocalTranslate`：翻译模型发现（hunyuan-mt/hy-mt）+ 显式 model + 回退常规办公模型（used_fallback 标注）+ 可读错误引导；文本翻译走 /v1/chat/completions（/v1/translations 是语音翻译）
+- 办公专业工具 `translate_text` 注入 ExtraTools，能力面板「本地专业模型」新增入口
+- 测试：Go 新增 6 例（模型命中/显式/回退/空文本/发现/工具执行），go vet + go test 全绿；tsc + Vitest 239 全绿
+
+## v2.15.3「Herdsman 深挖 P2 · 模型生命周期管理」（2026-08-13）
+> 承接 v2.15.2 模型库，本轮把「看」升级为「管」：模型卡片直接启动/停止/下载/卸载
+> Herdsman 模型，并读取 launch_records 生成这台机器的启动参数预设。
+> 详见 releases/v2.15.3.md。
+- 后端：HerdsmanModelStart/Stop/Download/Uninstall（skill models 子命令，--wait 长超时）+ HerdsmanLaunchPresets（读 launch_records 取最近成功启动参数）+ HerdsmanOpResult 统一结果
+- 前端：模型库卡片操作（运行中→停止；已安装→启动+卸载二次确认；未安装→下载），操作中 loading + 完成后自动刷新；有 launch_records 的模型显示「启动预设」徽标（悬停见参数明细）
+- 测试：Go 新增操作结果/预设解析与生命周期 handler 用例；前端新增生命周期 1 例，Vitest 238→239 全绿
+
+## v2.15.2「Herdsman 深挖 P1 · 模型库」（2026-08-13）
+> 启动 Herdsman 深挖路线图（docs/superpowers/plans/2026-08-13-herdsman-deep-dive.md），
+> 本轮把 Herdsman 完整本地模型目录（90 个已知模型）接进模型中心：从「只能连已存在
+> 的模型」升级为「可浏览全部可安装模型与能力」。详见 releases/v2.15.2.md。
+- 后端 `App.HerdsmanModelCatalog()`：调 `herdsman.exe skill models list --json`（RPC），解析 90 模型目录（能力/安装/运行/量化/变体/大小/MoE），汇总计数；HERDSMAN_EXE 环境变量优先，回退默认安装路径；CLI 缺失或 Herdsman 未运行返回可读错误，不阻塞模型中心
+- 前端模型中心新增「模型库」分类：KPI（已知/已安装/运行中）+ 搜索（名称/能力）+ 状态过滤 + 类型下拉 + 模型卡片（中文名/能力/量化/大小/参数/MoE/状态），复用统一卡片与视觉 token
+- 测试：Go 新增解析/排序/汇总/错误/CLI 定位用例 + 真实 90 模型回归校验；前端新增模型库 4 例，Vitest 234→238 全绿，tsc 通过
+
+## v2.15.1「通用办公 · 产物与资料体验收口」（2026-08-13）
+> 承接 v2.15.0 模型中心，回头收口通用办公的产物展示一致性与入口兜底：
+> 右侧「会话产物」面板补齐图片缩略图与一键复制全部路径，Ctrl+K 命令面板补齐
+> 资料/产物/变更跳转，欢迎页任务模板在命令库为空或加载失败时回退内置模板。
+- 会话产物面板：图片类交付物渲染缩略图（与对话内交付卡共用 FileThumb，加载失败回退图标）；头部新增「复制全部文件路径」，一次拿到本次会话全部交付物清单
+- 命令面板：新增「资料面板」「产物面板」「变更面板」跳转（与已有 文件/统计 面板项对齐）
+- 欢迎页：任务模板新增内置兜底（周报/会议纪要/成本测算/方案大纲/数据分析/文档转换/报告拼装/演示文稿），首启或离线不再空白
+- 测试：前端新增 5 例（产物缩略图/复制全部/模板兜底），Vitest 229→234 全绿，tsc -b 通过
+
 ## v2.15.0「模型中心 P0/P1/P2 + UI 重设计」（2026-08-13）
 > 按市场调研（Open WebUI / Cherry Studio / Dify / Jan / Ollama 生态）系统优化模型中心，
 > 并做浅色/深色双主题重设计。详见 releases/v2.15.0.md。

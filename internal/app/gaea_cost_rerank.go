@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/config"
+	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
@@ -29,14 +29,9 @@ func SetAppSemanticStoreForTest(s *semantic.Store) { appSemanticStoreOverride = 
 // localSearchReranker 构造本地语义精排客户端：优先用 Herdsman 引擎配置的
 // BaseURL（与模型中心一致），模型名默认 bge-reranker-v2-m3，可用环境变量覆盖。
 func (a *App) localSearchReranker() *retrieval.Reranker {
-	if a.engineMgr != nil {
-		if eng, ok := a.engineMgr.GetEngine("herdsman"); ok && eng.Enabled && eng.BaseURL != "" {
-			model := strings.TrimSpace(os.Getenv("HERDSMAN_RERANK_MODEL"))
-			if model == "" {
-				model = "bge-reranker-v2-m3"
-			}
-			return retrieval.New(eng.BaseURL, model)
-		}
+	base, model := a.resolveHerdsmanSearchModel("HERDSMAN_RERANK_MODEL", []string{"qwen3-reranker"}, "bge-reranker-v2-m3")
+	if base != "" {
+		return retrieval.New(base, model)
 	}
 	return nil
 }
@@ -46,16 +41,35 @@ func (a *App) localSearchEmbedder() *retrieval.Embedder {
 	if appEmbedderOverride != nil {
 		return appEmbedderOverride
 	}
-	if a.engineMgr != nil {
-		if eng, ok := a.engineMgr.GetEngine("herdsman"); ok && eng.Enabled && eng.BaseURL != "" {
-			model := strings.TrimSpace(os.Getenv("HERDSMAN_EMBED_MODEL"))
-			if model == "" {
-				model = "bge-m3"
-			}
-			return retrieval.NewEmbedder(eng.BaseURL, model)
-		}
+	base, model := a.resolveHerdsmanSearchModel("HERDSMAN_EMBED_MODEL", []string{"qwen3-embedding"}, "bge-m3")
+	if base != "" {
+		return retrieval.NewEmbedder(base, model)
 	}
 	return nil
+}
+
+// resolveHerdsmanSearchModel 动态选择检索模型（P4 检索升级）：
+// 环境变量显式指定 > 引擎已装模型按优先级匹配（qwen3 系优先，回退 bge 系）> 默认名。
+// 用户下载并启动 qwen3-embedding-4b / qwen3-reranker-4b 后自动升级，无需改代码。
+func (a *App) resolveHerdsmanSearchModel(envKey string, preferred []string, fallback string) (baseURL, model string) {
+	if a.engineMgr == nil {
+		return "", ""
+	}
+	eng, ok := a.engineMgr.GetEngine("herdsman")
+	if !ok || !eng.Enabled || eng.BaseURL == "" {
+		return "", ""
+	}
+	if explicit := strings.TrimSpace(os.Getenv(envKey)); explicit != "" {
+		return eng.BaseURL, explicit
+	}
+	for _, prefix := range preferred {
+		for _, m := range eng.Models {
+			if strings.Contains(strings.ToLower(m.ID), prefix) {
+				return eng.BaseURL, m.ID
+			}
+		}
+	}
+	return eng.BaseURL, fallback
 }
 
 // semanticCostRecall 语义召回：持久化向量索引（增量向量化 + 查询只嵌 query）。

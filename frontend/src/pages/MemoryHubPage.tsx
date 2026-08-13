@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { HeartOutlined, NodeIndexOutlined, ArrowLeftOutlined } from "@ant-design/icons";
+import { HeartOutlined, NodeIndexOutlined, ArrowLeftOutlined, RobotOutlined } from "@ant-design/icons";
 import { BookOpen, Brain, Coins, FileText, Pin } from "../gaea/icons";
 import { LocaleProvider } from "../gaea/lib/i18n";
 import { app } from "../gaea/lib/bridge";
@@ -12,13 +12,14 @@ import { WhisperMemoryLibrary } from "../gaea/components/memoryhub/WhisperMemory
 import { GraphView } from "../gaea/components/memoryhub/GraphView";
 import { CostLibrary } from "../gaea/components/memoryhub/CostLibrary";
 import { MaterialsLibrary } from "../gaea/components/memoryhub/MaterialsLibrary";
+import { DigitalLifeLibrary } from "../gaea/components/memoryhub/DigitalLifeLibrary";
 import { ModuleCard } from "../gaea/components/memoryhub/ModuleCard";
 import { FilePreviewModal } from "../gaea/components/FilePreviewModal";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
 
-type LibraryKey = "knowledge" | "cost" | "profile" | "office" | "materials" | "whisper" | "graph";
+type LibraryKey = "knowledge" | "cost" | "profile" | "office" | "materials" | "whisper" | "graph" | "digitallife";
 
 // 各库霓虹色（与 3D 图谱着色一致：indigo 知识 / amber 成本 / emerald 办公 / pink 聊天记忆）
 const LIB_COLORS: Record<LibraryKey, string> = {
@@ -29,6 +30,7 @@ const LIB_COLORS: Record<LibraryKey, string> = {
   materials: "#38bdf8",
   whisper: "#f472b6",
   graph: "#22d3ee",
+  digitallife: "#fb7185",
 };
 
 interface LibraryDef {
@@ -46,11 +48,12 @@ const LIBRARIES: LibraryDef[] = [
   { key: "materials", label: "项目资料", icon: <Pin size={17} />, hint: "固定常用文件 · 新会话带入" },
   { key: "whisper", label: "聊天记忆", icon: <HeartOutlined style={{ fontSize: 16 }} />, hint: "轻语人格记忆 · 只读" },
   { key: "graph", label: "记忆图谱", icon: <NodeIndexOutlined style={{ fontSize: 16 }} />, hint: "3D 关系图谱" },
+  { key: "digitallife", label: "数字生命", icon: <RobotOutlined style={{ fontSize: 16 }} />, hint: "Herdsman 虚拟人格记忆" },
 ];
 
 // 首页卡片排布：左列 3 + 右列 3
 const LEFT_CARDS: LibraryKey[] = ["knowledge", "cost", "profile", "materials"];
-const RIGHT_CARDS: LibraryKey[] = ["office", "whisper", "graph"];
+const RIGHT_CARDS: LibraryKey[] = ["office", "whisper", "digitallife", "graph"];
 
 // 三脑检索 + 工作区全文搜索的合并命中。
 interface HubSearchHit {
@@ -308,6 +311,7 @@ function MemoryHubPage() {
           {active === "materials" && <MaterialsLibrary />}
           {active === "whisper" && <WhisperMemoryLibrary />}
           {active === "graph" && <GraphView variant="page" />}
+          {active === "digitallife" && <DigitalLifeLibrary />}
         </LocaleProvider>
       </div>
 

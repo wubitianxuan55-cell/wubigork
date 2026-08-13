@@ -1,20 +1,14 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import {
   Copy,
   ExternalLink,
-  File,
-  FileImage,
-  FilePpt,
-  FileSpreadsheet,
-  FileText,
   FolderTree,
 } from "../icons";
 import { app } from "../lib/bridge";
 import { deliverableMentions } from "../lib/fileLinks";
 import { usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import { useToast } from "./Toast";
-
-const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
+import { FileThumb, FileTypeIcon, IMAGE_EXT_RE } from "./FileThumb";
 
 function extOf(path: string): string {
   const m = /\.[^.\\/]+$/.exec(path);
@@ -23,35 +17,6 @@ function extOf(path: string): string {
 
 function baseName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
-}
-
-function FileTypeIcon({ ext, size }: { ext: string; size: number }) {
-  if (/\.(xlsx?|csv|et|ods)$/i.test(ext)) return <FileSpreadsheet size={size} />;
-  if (/\.(pptx?|dps|odp)$/i.test(ext)) return <FilePpt size={size} />;
-  if (IMAGE_EXT_RE.test(ext)) return <FileImage size={size} />;
-  if (/\.(docx?|pdf|md|markdown|txt|odt|rtf|wps|ofd|html?)$/i.test(ext)) return <FileText size={size} />;
-  return <File size={size} />;
-}
-
-// 图片缩略图：加载本地图片 data URL，失败回退文件图标。
-function FileThumb({ path, ext }: { path: string; ext: string }) {
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    setDataUrl(null);
-    app.AttachmentDataURL(path).then((url) => { if (live) setDataUrl(url); }).catch(() => {});
-    return () => { live = false; };
-  }, [path]);
-  if (dataUrl) {
-    return (
-      <img
-        src={dataUrl}
-        alt=""
-        className="w-10 h-8 object-cover rounded-[5px] border border-border-soft bg-bg"
-      />
-    );
-  }
-  return <FileTypeIcon ext={ext} size={14} />;
 }
 
 // DeliverableCards — 回复尾部的交付物附件卡片（对齐千问办公 / Kimi 形态）：

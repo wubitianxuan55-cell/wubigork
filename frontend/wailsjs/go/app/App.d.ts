@@ -602,6 +602,24 @@ export function GetWorldview():Promise<string>;
 
 export function GetWorldviewSections():Promise<Record<string, any>>;
 
+export function HerdsmanDigitalLife():Promise<app.HerdsmanDigitalLife>;
+
+export function HerdsmanLaunchPresets():Promise<Array<app.HerdsmanLaunchPreset>>;
+
+export function HerdsmanModelCatalog():Promise<app.HerdsmanCatalog>;
+
+export function HerdsmanModelDownload(arg1:string):Promise<app.HerdsmanOpResult>;
+
+export function HerdsmanModelStart(arg1:string):Promise<app.HerdsmanOpResult>;
+
+export function HerdsmanModelStats():Promise<app.HerdsmanModelStats>;
+
+export function HerdsmanModelStop(arg1:string):Promise<app.HerdsmanOpResult>;
+
+export function HerdsmanModelUninstall(arg1:string):Promise<app.HerdsmanOpResult>;
+
+export function HerdsmanOperations():Promise<app.HerdsmanOperations>;
+
 export function ImportStyleProfile(arg1:string,arg2:string):Promise<Record<string, any>>;
 
 export function InjectMemories(arg1:string,arg2:number,arg3:number):Promise<Record<string, any>>;
@@ -613,6 +631,8 @@ export function ListProjects():Promise<Array<app.ProjectCard>>;
 export function ListSkills():Promise<Array<Record<string, any>>>;
 
 export function ListSnapshots(arg1:string,arg2:number):Promise<Array<Record<string, any>>>;
+
+export function LocalTranslate(arg1:app.LocalTranslateRequest):Promise<app.LocalTranslateResult>;
 
 export function Login():Promise<void>;
 

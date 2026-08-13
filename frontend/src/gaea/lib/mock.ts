@@ -668,6 +668,19 @@ export function makeMockApp(): AppBindings {
         { name: "ppt-deck", title: "演示文稿", description: "大纲 → PPT 成稿（.pptx）", prompt: "帮我生成一份演示文稿（.pptx）：先列 8-12 页大纲再成稿。" },
       ];
     },
+    async HerdsmanDigitalLife() {
+      return {
+        available: false,
+        source: "herdsman-digital-life",
+        error: "浏览器开发环境无 Herdsman 数字生命库",
+        character_count: 0, timeline_events: 0, state_commits: 0, world_events: 0,
+        memory_events: 0, memory_summaries: 0, relationships: 0, turn_traces: 0,
+        characters: [], recent_timeline: [], recent_world: [],
+      };
+    },
+    async HerdsmanOperations() {
+      return { total: 0, items: [], source: "herdsman-operations" };
+    },
     async ReadFile(rel: string) {
       const samples: Record<string, string> = {
         "README.md": "# gaea\n\nBrowser-dev workspace preview.\n\n- Chat in the center\n- Browse files on the right\n- Keep sessions on the left\n",
