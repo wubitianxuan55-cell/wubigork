@@ -1,6 +1,19 @@
 # 任务进度
 
-> 最后更新 2026-08-13（v2.14.0 发布）
+> 最后更新 2026-08-13（v2.14.1 发布）
+
+## 已发布：v2.14.1「办公板块缺陷收口 + 测试补强 + 结构收敛」（2026-08-13）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | 会话恢复/重命名失败提示、归档会话永久删除二次确认、欢迎页跨项目最近会话 |
+| ✅ | 变更面板「N 个文件 · M 次」汇总与最近排序；侧栏搜索覆盖最近工作区归档会话 |
+| ✅ | 会话删除三处注册表（标题/任务目标/置顶）全量清理 + Go 回归测试 |
+| ✅ | 前端测试 138→179（store/ChangesPanel/useSessionManager/Sidebar/命令与 @ 解析/相对时间/变更汇总/项目分组搜索/能力面板摘要） |
+| ✅ | 结构收敛：App 状态组件、buildSessionChanges、Composer 斜杠与 @ 解析、Sidebar 相对时间与搜索过滤、CapabilitiesPanel 摘要、bridge 静态 import |
+| ✅ | 文档：herdsman API 文档更新（08-08 → 08-13） |
+| ✅ | 验证：tsc+vite build、vitest 179、go build/vet、go test（app/config）全绿 |
+| ✅ | 版本：v2.14.1（versioninfo.rc / wails.json）、releases/v2.14.1.md、CHANGELOG、README、releases/README |
 
 ## 已发布：v2.14.0「办公板块会话化升级：项目分组 + 会话生命周期 + 任务目标 + 变更面板」（2026-08-13）
 
