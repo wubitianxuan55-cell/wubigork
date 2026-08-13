@@ -57,6 +57,7 @@ import { useNow } from "./lib/useNow";
 import { deliverableMentions } from "./lib/fileLinks";
 import { useUpdatedFilesStore } from "./lib/store";
 import { extractChangedPaths, WRITE_TOOL_NAMES } from "./lib/changes";
+import { classifyComposerCommand } from "./lib/command";
 
 function NewSessionToast({ done }: { done: boolean }) {
   const toast = useToast();
@@ -320,17 +321,16 @@ export default function App() {
 
   const handleSend = useCallback(
     (displayText: string, submitText = displayText) => {
-      const t = displayText.trim();
-      const model = /^\/model\s+(\S+)$/.exec(t);
-      if (model) {
-        void switchModel(model[1]);
+      const command = classifyComposerCommand(displayText);
+      if (command.type === "model") {
+        void switchModel(command.ref);
         return;
       }
-      if (t === "/memory") {
+      if (command.type === "memory") {
         void openMemory();
         return;
       }
-      send(t, submitText.trim());
+      send(displayText.trim(), submitText.trim());
     },
     [switchModel, openMemory, send],
   );

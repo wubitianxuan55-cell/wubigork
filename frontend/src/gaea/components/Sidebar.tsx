@@ -10,6 +10,7 @@ import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
 import { useT } from "../lib/i18n";
 import { sessionTitle } from "../lib/session";
+import { relativeTime } from "../lib/time";
 import type { FactBaseView, JobView, ProjectGroup, SessionMeta } from "../lib/types";
 import { app } from "../lib/bridge";
 import { useToast } from "./Toast";
@@ -44,34 +45,6 @@ export interface SidebarProps {
   sidebarWidth: number;
   SIDEBAR_MIN_WIDTH: number;
   SIDEBAR_MAX_WIDTH: number;
-}
-
-// Codex 风格：按时间分桶（今天 / 昨天 / 前 7 天 / 前 30 天 / 更早）
-function sessionBucket(ms: number): string {
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((startOfDay(new Date()) - startOfDay(new Date(ms))) / 86_400_000);
-  if (days <= 0) return "今天";
-  if (days === 1) return "昨天";
-  if (days <= 7) return "前 7 天";
-  if (days <= 30) return "前 30 天";
-  return "更早";
-}
-
-// Codex 风格：相对时间（刚刚 / X 分钟前 / X 小时前 / 昨天 / M-D）
-function relativeTime(ms: number): string {
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const diff = Date.now() - ms;
-  const min = Math.floor(diff / 60_000);
-  if (min < 1) return "刚刚";
-  if (min < 60) return `${min} 分钟前`;
-  const days = Math.round((startOfDay(new Date()) - startOfDay(new Date(ms))) / 86_400_000);
-  if (days <= 0) {
-    const h = Math.floor(min / 60);
-    return h < 24 ? `${h} 小时前` : new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-  if (days === 1) return "昨天";
-  const d = new Date(ms);
-  return `${d.getMonth() + 1}-${d.getDate()}`;
 }
 
 const FACT_OPEN_KEY = "gaea.sidebar.factBaseOpen";
