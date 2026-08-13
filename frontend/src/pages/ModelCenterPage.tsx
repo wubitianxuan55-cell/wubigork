@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Typography, Button, Space, message } from 'antd'
+import { Typography, Button, Space, Drawer, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
-  CloudOutlined, CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined,
+  CloudOutlined, CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import { C } from '../utils/theme'
@@ -42,6 +42,7 @@ import { type StatsSort, type TrendDatum, type TrendRange } from './modelcenter/
 const ModelCenterPage: React.FC = () => {
   const { loggedIn, login, logout } = useAppStore()
   const [category, setCategory] = useState<Category>('overview')
+  const [statsOpen, setStatsOpen] = useState(false)
   const [engines, setEngines] = useState<EngineConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [activeEngine, setActiveEngineState] = useState('xai')
@@ -140,13 +141,13 @@ const ModelCenterPage: React.FC = () => {
     } catch (_) {}
   }, [])
 
-  // 调用统计页定时刷新
+  // 调用统计抽屉打开时定时刷新
   useEffect(() => {
-    if (category !== 'stats') return
+    if (!statsOpen) return
     loadCallStats()
     const timer = window.setInterval(loadCallStats, 15000)
     return () => window.clearInterval(timer)
-  }, [category, loadCallStats])
+  }, [statsOpen, loadCallStats])
 
   const handleResetCallStats = async () => {
     try {
@@ -667,6 +668,7 @@ const ModelCenterPage: React.FC = () => {
           <p className="mc-subtitle">统一管理云端与本地引擎、模型路由、语音/图片/专业模型与调用统计。</p>
         </div>
         <div className="mc-header-actions">
+          <Button icon={<BarChartOutlined />} onClick={() => setStatsOpen(true)} style={{ borderRadius: 10 }}>调用统计</Button>
           <Button icon={<ReloadOutlined />} onClick={loadAll} style={{ borderRadius: 10 }}>刷新状态</Button>
         </div>
       </header>
@@ -705,7 +707,6 @@ const ModelCenterPage: React.FC = () => {
           {navButton('specialty', <DatabaseOutlined />, '专业模型')}
           {navButton('engine', <SettingOutlined />, '引擎管理')}
           {navButton('bind', <LinkOutlined />, '功能绑定')}
-          {navButton('stats', <ThunderboltOutlined />, '调用统计')}
         </nav>
 
         <main className="mc-main">
@@ -747,7 +748,15 @@ const ModelCenterPage: React.FC = () => {
             {category === 'specialty' && <SpecialtySection />}
             {category === 'engine' && <EngineSection />}
             {category === 'bind' && <BindSection />}
-            {category === 'stats' && <StatsSection />}
+            <Drawer
+              title="模型调用统计"
+              open={statsOpen}
+              onClose={() => setStatsOpen(false)}
+              width={760}
+              styles={{ body: { padding: 16 } }}
+            >
+              <StatsSection />
+            </Drawer>
           </ModelCenterContext.Provider>
         </main>
       </div>
