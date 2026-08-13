@@ -68,6 +68,9 @@ const FIXTURE = {
   installed: 2,
   running: 1,
   source: 'herdsman-cli',
+  installed_bytes: 437778496 + 20027974026,
+  disk_total: 2 ** 40,
+  disk_free: 200 * 2 ** 30,
 }
 
 describe('HerdsmanCatalogSection 模型库', () => {
@@ -108,6 +111,12 @@ describe('HerdsmanCatalogSection 模型库', () => {
     expect(screen.getAllByText('未安装').length).toBeGreaterThan(0)
     // 用途建议（H0-5：受控测评结论上卡片）
     expect(screen.getByText('本地语义向量（embedding），驱动语义召回与文件索引')).toBeTruthy()
+    // 磁盘治理 KPI（E1-4）：已装空间 = bge-m3 + zimage 之和 ≈ 19.1GB（唯一文案；
+    // zimage 单独为 18.7 GB 徽标）、磁盘余量 200GB/1TB
+    expect(screen.getByText('19.1 GB')).toBeTruthy()
+    const vals = Array.from(document.querySelectorAll('.mc-kpi-value')).map(n => n.textContent)
+    expect(vals.join(' | ')).toContain('200.0 GB / 1.0 TB')
+    expect(screen.getByText('200.0 GB / 1.0 TB')).toBeTruthy()
   })
 
   it('按运行状态过滤', async () => {

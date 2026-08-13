@@ -1,5 +1,17 @@
 # gaea · 多功能 AI 助手
 
+## v2.16.1「模型中心资源协同 + 磁盘治理」（2026-08-14）
+> 长期规划 E1-4：对齐 herdsman `model_scheduling.local_concurrency=1` 的调度现实，
+> 生命周期操作串行化（批量启停天然变有序队列）；模型库新增磁盘 KPI
+> （已装占用 + 数据目录所在卷余量）。详见 releases/v2.16.1.md。
+- 后端：`herdsmanOpMu` 串行化 Start/Stop/Download/Uninstall（下载最长 60 分钟、冷启动 20 分钟，
+  并发发起会互相冲突）；`herdsmanDiskInfo`（x/sys/windows GetDiskFreeSpaceEx，可注入替身测试）+
+  HerdsmanCatalog 新增 installed_bytes/disk_total/disk_free/disk_error，探测失败不阻塞目录
+- 前端：模型库 KPI 新增「已装空间」「磁盘余量」（余量/总量，含探测失败提示）；fmtSize 补 TB 档
+  （此前 1TB 显示为 1024.0 GB）
+- 测试：磁盘解析/汇总/降级 3 组 + 操作串行化并发验证（8 goroutine × 4 操作，最大在飞必须为 1）；
+  模型库 vitest 5/5；Go 变更面全绿
+
 ## v2.16.0「Herdsman 底座加固 + 工程门禁」（2026-08-14）
 > 长期规划首轮（docs/superpowers/plans/2026-08-14-gaea长期规划-herdsman底座加固与工程门禁.md）：
 > gaea 的本地能力链（聊天/视觉/embedding/rerank/OCR/文档解析/ASR/TTS/生图/翻译）

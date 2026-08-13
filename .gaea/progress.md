@@ -15,4 +15,6 @@
 | ✅ | E1-3 版本节奏转周更：v2.16.0 |
 | ✅ | 发布文档：CHANGELOG / README / releases/v2.16.0.md / wails.json productVersion=2.16.0 |
 | ✅ | 变更面逐包验证全绿（herdsman/app/bridge/ai/voice/tts；tsc；eslint 0 errors；模型库卡片 vitest 5/5） |
-| ⏳ | wails build → gaea-v2.16.0.exe + SHA256SUMS + smoke.ps1 冒烟（本会话沙箱 vite 编译挂起，移交本机执行：`cmd /c build.bat`） |
+| ✅ | E1-4 模型中心资源协同 + 磁盘治理：生命周期操作串行化（herdsmanOpMu）+ 模型库磁盘 KPI（installed_bytes/disk_total/disk_free）+ fmtSize TB 档；全量 vitest 243/243 通过 |
+| ✅ | v2.16.0 提交 692c959；v2.16.1 文档就绪待提交 |
+| ⏳ | wails build → gaea-v2.16.1.exe + SHA256SUMS + smoke.ps1 冒烟（本会话沙箱 vite 编译挂起，移交本机执行：`cmd /c build.bat`） |

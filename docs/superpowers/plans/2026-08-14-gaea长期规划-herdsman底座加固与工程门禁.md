@@ -99,4 +99,11 @@
     （原来首条统计记录会被静默跳过）。各附回归测试：internal/herdsman 30 测试 PASS（手动二进制验证）、
     internal/app 全量 ok、vet/gofmt 干净。
   - 📋 留待后续（记录在案）：HerdsmanModelStats/Operations 双通道报错收敛为单通道；
-    health.go DefaultPort 与 lancheck.go defaultPort 常量语义合并；GetAppInfo 接收者风格统一。 
+    health.go DefaultPort 与 lancheck.go defaultPort 常量语义合并；GetAppInfo 接收者风格统一。
+- 2026-08-14（阶段 1 E1-4）：
+  - ✅ 生命周期操作串行化：`herdsmanOpMu` 串行 Start/Stop/Download/Uninstall
+    （对齐 herdsman local_concurrency=1；并发验证最大在飞=1）；
+  - ✅ 磁盘治理：`herdsmanDiskInfo`（GetDiskFreeSpaceEx，可注入替身）+ HerdsmanCatalog
+    installed_bytes/disk_total/disk_free/disk_error + 模型库「已装空间/磁盘余量」KPI + fmtSize TB 档；
+  - ✅ 全量前端 vitest 243/243（59 文件）在本会话首次完整跑通；v2.16.1 文档就绪。
+  - ⏳ v2.16.1 构建产物（`cmd /c build.bat`）与冒烟（`scripts\smoke.ps1`）移交本机。

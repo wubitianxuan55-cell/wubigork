@@ -6,6 +6,7 @@
 
 | 版本 | 日期 | 安装包 | 核心变更 |
 |------|------|------|------|
+| v2.16.1 | 08-14 | [gaea-v2.16.1.exe](gaea-v2.16.1.exe) | E1-4 模型中心资源协同：生命周期操作串行化（对齐 herdsman local_concurrency=1）+ 模型库磁盘 KPI（已装占用/卷余量）+ fmtSize TB 档 |
 | v2.16.0 | 08-14 | [gaea-v2.16.0.exe](gaea-v2.16.0.exe) | 长期规划首轮：Herdsman 底座加固（环境探测/健康检查/TTS 默认动态解析/LAN 暴露告警/模型用途提示/思考模式 token 守护）+ 工程门禁（前端 CI 修复/发布冒烟/周版本） |
 | v2.15.6 | 08-13 | [gaea-v2.15.6.exe](gaea-v2.15.6.exe) | Herdsman 深挖 P5·数字生命联动：记忆中枢「数字生命」库（角色/关系/记忆摘要/时间线/世界事件，只读）+ 最近 Herdsman 操作；路线图收官 |
 | v2.15.5 | 08-13 | [gaea-v2.15.5.exe](gaea-v2.15.5.exe) | Herdsman 深挖 P4：语义检索动态升级 qwen3-embedding/reranker-4b（未装回退 bge）；模型中心 Herdsman 本地调用统计面板；两模型已下载启动 |

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Input, Popconfirm, message } from 'antd'
-import { AppstoreOutlined, BarChartOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, BarChartOutlined, DatabaseOutlined, HddOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import {
   downloadHerdsmanModel,
   getHerdsmanCatalog,
@@ -42,7 +42,9 @@ function fmtSize(n?: number): string {
   if (!n || n <= 0) return ''
   const mb = n / 1024 / 1024
   if (mb < 1024) return `${mb.toFixed(1)} MB`
-  return `${(mb / 1024).toFixed(1)} GB`
+  const gb = mb / 1024
+  if (gb < 1024) return `${gb.toFixed(1)} GB`
+  return `${(gb / 1024).toFixed(1)} TB`
 }
 
 function fmtParams(m: HerdsmanCatalogModel): string {
@@ -69,6 +71,7 @@ export function HerdsmanCatalogSection() {
   const [total, setTotal] = useState(0)
   const [installed, setInstalled] = useState(0)
   const [running, setRunning] = useState(0)
+  const [disk, setDisk] = useState<{ installedBytes: number; total: number; free: number; error?: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState<Set<string>>(new Set())
@@ -107,6 +110,12 @@ export function HerdsmanCatalogSection() {
       setTotal(c.total ?? c.models?.length ?? 0)
       setInstalled(c.installed ?? 0)
       setRunning(c.running ?? 0)
+      setDisk({
+        installedBytes: c.installed_bytes ?? 0,
+        total: c.disk_total ?? 0,
+        free: c.disk_free ?? 0,
+        error: c.disk_error,
+      })
       if (c.error) setError(c.error)
     } catch (e: any) {
       setError(e?.message || String(e))
@@ -224,6 +233,18 @@ export function HerdsmanCatalogSection() {
         <KpiTile icon={<AppstoreOutlined />} label="已知模型" value={error ? '—' : total} hint="可安装/已安装合计" />
         <KpiTile icon={<SearchOutlined />} label="已安装" value={installed} hint="本机已下载" />
         <KpiTile icon={<ReloadOutlined />} label="运行中" value={running} hint="当前加载服务" />
+        <KpiTile
+          icon={<DatabaseOutlined />}
+          label="已装空间"
+          value={error ? '—' : disk && disk.installedBytes > 0 ? fmtSize(disk.installedBytes) : '—'}
+          hint="已下载模型文件占用（不含未装）"
+        />
+        <KpiTile
+          icon={<HddOutlined />}
+          label="磁盘余量"
+          value={error || !disk || disk.total <= 0 ? '—' : `${fmtSize(disk.free)} / ${fmtSize(disk.total)}`}
+          hint={disk?.error ? `探测失败：${disk.error}` : '模型数据目录所在卷'}
+        />
       </div>
 
       {error && (

@@ -14,8 +14,15 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
+
+// herdsmanOpMu 串行化 Herdsman 模型生命周期操作（E1-4）：
+// herdsman 自身 model_scheduling.local_concurrency=1（同一时间只服务一个模型），
+// 且 CLI 调用昂贵（下载最长 60 分钟、冷启动 20 分钟），并发发起会互相排队/冲突。
+// 统一串行后，前端批量启停天然变为有序队列（配合前端 busy 状态展示）。
+var herdsmanOpMu sync.Mutex
 
 // HerdsmanOpResult 是一次生命周期操作的结果（对齐 CLI JSON）。
 type HerdsmanOpResult struct {
@@ -174,6 +181,8 @@ func (a *App) HerdsmanModelStart(model string) (HerdsmanOpResult, error) {
 	if strings.TrimSpace(model) == "" {
 		return HerdsmanOpResult{}, errors.New("模型名不能为空")
 	}
+	herdsmanOpMu.Lock()
+	defer herdsmanOpMu.Unlock()
 	out, err := herdsmanCLIWithTimeout(20*time.Minute, "skill", "models", "start", "--model", model, "--wait")
 	if err != nil {
 		return HerdsmanOpResult{Message: err.Error()}, err
@@ -186,6 +195,8 @@ func (a *App) HerdsmanModelStop(model string) (HerdsmanOpResult, error) {
 	if strings.TrimSpace(model) == "" {
 		return HerdsmanOpResult{}, errors.New("模型名不能为空")
 	}
+	herdsmanOpMu.Lock()
+	defer herdsmanOpMu.Unlock()
 	out, err := herdsmanCLIWithTimeout(3*time.Minute, "skill", "models", "stop", "--model", model, "--force")
 	if err != nil {
 		return HerdsmanOpResult{Message: err.Error()}, err
@@ -198,6 +209,8 @@ func (a *App) HerdsmanModelDownload(model string) (HerdsmanOpResult, error) {
 	if strings.TrimSpace(model) == "" {
 		return HerdsmanOpResult{}, errors.New("模型名不能为空")
 	}
+	herdsmanOpMu.Lock()
+	defer herdsmanOpMu.Unlock()
 	out, err := herdsmanCLIWithTimeout(60*time.Minute, "skill", "models", "download", "--model", model, "--wait")
 	if err != nil {
 		return HerdsmanOpResult{Message: err.Error()}, err
@@ -210,6 +223,8 @@ func (a *App) HerdsmanModelUninstall(model string) (HerdsmanOpResult, error) {
 	if strings.TrimSpace(model) == "" {
 		return HerdsmanOpResult{}, errors.New("模型名不能为空")
 	}
+	herdsmanOpMu.Lock()
+	defer herdsmanOpMu.Unlock()
 	out, err := herdsmanCLIWithTimeout(5*time.Minute, "skill", "models", "uninstall", "--model", model, "--force")
 	if err != nil {
 		return HerdsmanOpResult{Message: err.Error()}, err

@@ -49,6 +49,12 @@ type HerdsmanCatalog struct {
 	Running   int                    `json:"running"`
 	Source    string                 `json:"source"`
 	Error     string                 `json:"error,omitempty"`
+
+	// E1-4 磁盘治理：已装模型占用（字节）与数据目录所在卷容量/余量。
+	InstalledBytes int64  `json:"installed_bytes,omitempty"`
+	DiskTotal      int64  `json:"disk_total,omitempty"`
+	DiskFree       int64  `json:"disk_free,omitempty"`
+	DiskError      string `json:"disk_error,omitempty"`
 }
 
 // herdsmanRawModel 对齐 CLI 原始 JSON 结构。
@@ -187,13 +193,23 @@ func (a *App) HerdsmanModelCatalog() (HerdsmanCatalog, error) {
 	}
 	catalog.Models = models
 	catalog.Total = len(models)
+	var installedBytes int64
 	for _, m := range models {
 		if m.Installed {
 			catalog.Installed++
+			installedBytes += m.FileSize
 		}
 		if m.Running {
 			catalog.Running++
 		}
+	}
+	catalog.InstalledBytes = installedBytes
+	// 磁盘信息探测失败不阻塞目录（KPI 显示降级）。
+	if total, free, err := herdsmanDiskInfo(); err != nil {
+		catalog.DiskError = err.Error()
+	} else {
+		catalog.DiskTotal = total
+		catalog.DiskFree = free
 	}
 	return catalog, nil
 }

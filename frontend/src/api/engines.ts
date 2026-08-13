@@ -107,6 +107,13 @@ export interface HerdsmanCatalog {
   running: number
   source: string
   error?: string
+  /** 已装模型占用（字节，E1-4 磁盘治理） */
+  installed_bytes?: number
+  /** 数据目录所在卷总量（字节） */
+  disk_total?: number
+  /** 数据目录所在卷余量（字节） */
+  disk_free?: number
+  disk_error?: string
 }
 
 /** Herdsman 生命周期操作结果 */
