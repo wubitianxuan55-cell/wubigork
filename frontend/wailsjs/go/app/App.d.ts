@@ -6,6 +6,7 @@ import {chat} from '../models';
 import {event} from '../models';
 import {modelengine} from '../models';
 import {pricefeed} from '../models';
+import {herdsman} from '../models';
 import {office} from '../models';
 import {search} from '../models';
 import {fs} from '../models';
@@ -604,6 +605,8 @@ export function GetWorldviewSections():Promise<Record<string, any>>;
 
 export function HerdsmanDigitalLife():Promise<app.HerdsmanDigitalLife>;
 
+export function HerdsmanHealth():Promise<herdsman.HealthResult>;
+
 export function HerdsmanLaunchPresets():Promise<Array<app.HerdsmanLaunchPreset>>;
 
 export function HerdsmanModelCatalog():Promise<app.HerdsmanCatalog>;
@@ -619,6 +622,10 @@ export function HerdsmanModelStop(arg1:string):Promise<app.HerdsmanOpResult>;
 export function HerdsmanModelUninstall(arg1:string):Promise<app.HerdsmanOpResult>;
 
 export function HerdsmanOperations():Promise<app.HerdsmanOperations>;
+
+export function HerdsmanProbe():Promise<herdsman.Probe>;
+
+export function HerdsmanSecurityCheck():Promise<herdsman.LanExposure>;
 
 export function ImportStyleProfile(arg1:string,arg2:string):Promise<Record<string, any>>;
 

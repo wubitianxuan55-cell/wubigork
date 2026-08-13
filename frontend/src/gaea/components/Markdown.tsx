@@ -452,7 +452,8 @@ function normalizeMath(s: string): string {
     .replace(/\\\]/g, () => "$$")
     .replace(/\\\(/g, () => "$")
     .replace(/\\\)/g, () => "$");
-  r = r.replace(/\x00LB\x00/g, "\\\\[");
+  // 用字面量字符串恢复哨兵（等价于全局替换，避免在正则中书写 \x00 控制字符）
+  r = r.split(lb).join("\\\\[");
   const vert = (m: string) => m.replace(/\|/g, "\\vert ");
   r = r.replace(/\$\$([\s\S]*?)\$\$/g, (_m, m) => `$$${vert(m)}$$`);
   r = r.replace(/\$([^$\n]+)\$/g, (_m, m) => `$${vert(m)}$`);

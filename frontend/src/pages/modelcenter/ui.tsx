@@ -116,6 +116,8 @@ export interface ModelCardProps {
   engineName?: string
   kindChip?: ReactNode
   chips?: ReactNode[]
+  /** 用途建议等说明文字，显示在芯片行下方 */
+  desc?: string
   active?: boolean
   dimmed?: boolean
   pinned?: boolean
@@ -131,6 +133,7 @@ export function ModelCard({
   engineName,
   kindChip,
   chips = [],
+  desc,
   active,
   dimmed,
   pinned,
@@ -171,6 +174,7 @@ export function ModelCard({
         {kindChip}
         {chips}
       </div>
+      {desc && <div className="mc-model-hint" title={desc}>{desc}</div>}
       <div className="mc-model-foot">
         {status && <StatusText tone={status.tone}>{status.text}</StatusText>}
         {action}

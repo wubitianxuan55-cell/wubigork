@@ -298,6 +298,7 @@ export function HerdsmanCatalogSection() {
                     name={m.display_name || m.name}
                     engineId="herdsman"
                     engineName="Herdsman 本地"
+                    desc={m.hint}
                     kindChip={
                       <StatusChip tone={TYPE_TONE[m.type] ?? 'neutral'}>
                         {m.type}

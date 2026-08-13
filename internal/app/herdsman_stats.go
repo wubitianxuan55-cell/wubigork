@@ -59,6 +59,8 @@ type herdsmanStatEvent struct {
 
 // parseHerdsmanModelStats 解析 events.jsonl 并按模型聚合（按调用次数降序）。
 func parseHerdsmanModelStats(data []byte) (HerdsmanModelStats, error) {
+	// 兼容 UTF-8 BOM（与 parseHerdsmanModelList 等口径一致；否则首条记录被静默跳过）。
+	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
 	out := HerdsmanModelStats{Source: "herdsman-model-stats"}
 	agg := map[string]*aggregatedStat{}
 	sc := bufio.NewScanner(bytes.NewReader(data))

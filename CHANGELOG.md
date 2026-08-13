@@ -1,5 +1,36 @@
 # gaea · 多功能 AI 助手
 
+## v2.16.0「Herdsman 底座加固 + 工程门禁」（2026-08-14）
+> 长期规划首轮（docs/superpowers/plans/2026-08-14-gaea长期规划-herdsman底座加固与工程门禁.md）：
+> gaea 的本地能力链（聊天/视觉/embedding/rerank/OCR/文档解析/ASR/TTS/生图/翻译）
+> 全部挂在 Herdsman 服务上，本轮把它变成「可探测、可探活、可告警」的受管底座，
+> 同时修复前端 CI 门禁（此前 lint 因插件缺失直接崩溃、continue-on-error 形同虚设）。
+> 详见 releases/v2.16.0.md。
+- H0-1 环境探测与兼容契约：`internal/herdsman/probe.go` + `App.HerdsmanProbe`——一次探测
+  config.yaml（api 段）、herdsman.exe CLI 可找到性、/v1/models 可达性（HERDSMAN_PROBE_LIVE=1 时真实探测）、
+  四个数据契约（launch_records/model_stats events.jsonl/skill-operations.json/models），
+  输出结构化 Probe + 中文告警清单（含 LAN 暴露、端口漂移、契约缺失）
+- H0-2 服务健康检查：`internal/herdsman/health.go` + `App.HerdsmanHealth`——端口拨测（1s）+ API 存活（3s）+
+  按能力归类已装模型（chat/vision/embedding/rerank/ocr/parse/asr/tts/imagegen/translation），
+  Healthy=端口+API+聊天模型齐备，Summary 中文问题清单
+- H0-3 TTS 默认模型动态解析：`voice.ResolveHerdsmanTTSModel`——配置值已装则用配置值，
+  否则按优先级（voxcpm2 第一，本机实测唯一可用本地 TTS）从已装列表解析，
+  VoiceGetSettings 返回回退标记供前端提示；修复「默认 qwen3-tts-customvoice 未安装必然先失败」
+- H0-4 LAN 暴露检测与告警：`internal/herdsman/lancheck.go` + `App.HerdsmanSecurityCheck`——解析
+  herdsman config.yaml 的 api.lan_accessible/port（逐行 YAML 解析，零依赖），暴露时返回中文处置指引；只提示不改配置
+- H0-5 模型用途建议 + 思考模式守护：模型库卡片新增「用途建议」（`herdsmanModelHint`，依据 120 组受控测评：
+  HauhauCS 日常/识图首选、LynnStyle 可审计推理、Hermes 勿开思考、voxcpm2 冷启动 50s 等）；
+  本地引擎思考模式 max_tokens <4096 自动抬到 4096（bridge 与聊天流式两路径），杜绝「只有推理、无正文」
+- E1-1 前端 CI 门禁修复：eslint 配置修复（react-hooks v5 flat 配置失效 + 缺 eslint-plugin-react-hooks/refresh、
+  新增 lint script、globalIgnores 生成目录）；28 个硬错误清零——含 Lightbox 12 处条件调用 Hook 的真实隐患
+  （顺带修复该场景下 React 运行时崩溃风险）、CreatePage case 声明、Markdown 控制字符正则等；
+  存量高频风格规则（no-explicit-any 等 6 项）降为 warn 随迭代清理；CI 移除 continue-on-error、
+  npm ci→npm install（仓库不提交 lockfile）、新增 vitest 步骤；修复 ComfyUI 路径文案反斜杠丢失（用户可见）
+- E1-2 发布冒烟脚本：`scripts/smoke.ps1`——产物启动 + HTTP 桥接 /api/health 探活 + 进程存活 + 自动回收
+- E1-3 版本节奏：本轮起转周版本，v2.15.7 后直接 v2.16.0
+- 测试：internal/herdsman 全包单测（probe/lancheck/health/归类函数）；Go 相关包全绿（internal/app 22s 全量、
+  bridge/ai/voice/tts）；tsc -b 通过、eslint 0 errors（725 warnings 为存量风格项）、模型库卡片 vitest 5/5
+
 ## v2.15.7「通用办公 P0 · 开工前计划卡片结构化」（2026-08-13）
 > 接回通用办公优化路线图，把 v2.10 的「开工前计划确认」升级为结构化计划卡片：
 > 计划生成改走严格 JSON，后端解析为「任务理解 / 步骤（资料·工具·产出物）/ 待确认」，

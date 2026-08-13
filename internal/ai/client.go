@@ -665,6 +665,12 @@ func (c *Client) ChatStreamChunks(ctx context.Context, model, systemPrompt, user
 			t := true
 			req.EnableThinking = &t
 			req.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
+			// 测评结论：思考模式与正文共享 max_tokens，<4096 会出现
+			// 「只有推理、无正文」（herdsman 模型测评报告 §8.1/§9）。
+			// 守护：显式小预算抬到 4096。
+			if req.MaxTokens > 0 && req.MaxTokens < 4096 {
+				req.MaxTokens = 4096
+			}
 		}
 	}
 

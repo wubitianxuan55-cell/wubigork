@@ -71,8 +71,8 @@ export function ImageSection() {
               </div>
               <div className="mc-field-line">
                 URL：<span style={{ color: 'var(--mc-text)' }}>{comfyUIURL}</span><br />
-                启动位置：<span style={{ color: 'var(--mc-text)' }}>{comfyUIPath || 'C:\AI\ComfyUI\ComfyUI（默认）'}</span><br />
-                Python：<span style={{ color: 'var(--mc-text)' }}>{comfyUIPythonPath || 'C:\AI\ComfyUI\standalone-env\python.exe（默认）'}</span>
+                启动位置：<span style={{ color: 'var(--mc-text)' }}>{comfyUIPath || 'C:\\AI\\ComfyUI\\ComfyUI（默认）'}</span><br />
+                Python：<span style={{ color: 'var(--mc-text)' }}>{comfyUIPythonPath || 'C:\\AI\\ComfyUI\\standalone-env\\python.exe（默认）'}</span>
               </div>
             </div>
           )}

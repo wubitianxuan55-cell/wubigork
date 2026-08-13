@@ -126,7 +126,11 @@ export function MemoryPanel(p: {
   const toggleFact = useCallback((name: string) => {
     setExpandedFacts((prev) => {
       const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
       return next;
     });
   }, []);

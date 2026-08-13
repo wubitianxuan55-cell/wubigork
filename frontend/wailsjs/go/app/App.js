@@ -1186,6 +1186,10 @@ export function HerdsmanDigitalLife() {
   return window['go']['app']['App']['HerdsmanDigitalLife']();
 }
 
+export function HerdsmanHealth() {
+  return window['go']['app']['App']['HerdsmanHealth']();
+}
+
 export function HerdsmanLaunchPresets() {
   return window['go']['app']['App']['HerdsmanLaunchPresets']();
 }
@@ -1216,6 +1220,14 @@ export function HerdsmanModelUninstall(arg1) {
 
 export function HerdsmanOperations() {
   return window['go']['app']['App']['HerdsmanOperations']();
+}
+
+export function HerdsmanProbe() {
+  return window['go']['app']['App']['HerdsmanProbe']();
+}
+
+export function HerdsmanSecurityCheck() {
+  return window['go']['app']['App']['HerdsmanSecurityCheck']();
 }
 
 export function ImportStyleProfile(arg1, arg2) {

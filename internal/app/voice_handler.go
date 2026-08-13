@@ -430,14 +430,59 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 	return nil
 }
 
-// VoiceGetSettings 获取当前语音设置
+// VoiceGetSettings 获取当前语音设置（H0-3：TTSHerdsmanModel 动态解析为已装模型）
 func (a *mediaState) VoiceGetSettings() map[string]interface{} {
 	if a.voiceManager == nil {
 		config := voice.DefaultVoiceConfig()
-		return configToMap(&config)
+		return a.voiceSettingsMap(&config)
 	}
 	config := a.voiceManager.GetConfig()
-	return configToMap(&config)
+	return a.voiceSettingsMap(&config)
+}
+
+// voiceSettingsMap 构建语音设置映射；TTSHerdsmanModel 经 ResolveHerdsmanTTSModel
+// 动态解析（配置值优先，未安装则按优先级选已装模型；拿不到已装列表时等价于原逻辑）。
+func (a *mediaState) voiceSettingsMap(c *voice.VoiceRuntimeConfig) map[string]interface{} {
+	resolved, usedFallback, resolvedFromInstalled := voice.ResolveHerdsmanTTSModel(c.TTSHerdsmanModel, a.herdsmanInstalledModelIDs())
+	if usedFallback || resolvedFromInstalled {
+		slog.Info("TTS 默认模型动态解析",
+			"configured", c.TTSHerdsmanModel,
+			"resolved", resolved,
+			"usedFallback", usedFallback,
+			"resolvedFromInstalled", resolvedFromInstalled,
+		)
+	}
+	c.TTSHerdsmanModel = resolved
+	m := configToMap(c)
+	// 前端提示：解析是否走了回退 / 结果是否来自已装列表
+	m["ttsHerdsmanModelFallback"] = usedFallback
+	m["ttsHerdsmanModelFromInstalled"] = resolvedFromInstalled
+	return m
+}
+
+// herdsmanInstalledModelIDs 返回 Herdsman 引擎当前已安装（可用）模型 ID 列表。
+// 引擎未初始化/未启用/无模型列表时返回 nil（调用方按「无已装信息」处理，行为等价于原逻辑）。
+func (a *mediaState) herdsmanInstalledModelIDs() []string {
+	if a.engineMgr == nil {
+		return nil
+	}
+	eng, ok := a.engineMgr.GetEngine("herdsman")
+	if !ok || !eng.Enabled {
+		return nil
+	}
+	if len(eng.Models) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(eng.Models))
+	for _, m := range eng.Models {
+		if strings.TrimSpace(m.ID) != "" {
+			ids = append(ids, m.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	return ids
 }
 
 // VoiceCancelTTS 打断当前 TTS 播放（对齐 Ackem voice:cancel-tts）

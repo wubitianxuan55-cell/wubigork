@@ -39,7 +39,11 @@ const WhisperMemoryList: React.FC<Props> = ({ facts, onOpenManage }) => {
 
   const toggle = (d: string) => setCollapsed(prev => {
     const next = new Set(prev)
-    next.has(d) ? next.delete(d) : next.add(d)
+    if (next.has(d)) {
+      next.delete(d)
+    } else {
+      next.add(d)
+    }
     return next
   })
 

@@ -41,7 +41,7 @@ let pinnedMock: string[] = [];
 
 // 成本库 mock：与记忆中枢 CostLibrary 同库的单价条目，供办公侧「成本库」
 // Tab 浏览/引用与产物「沉淀到成本库」流程联调。
-let costMock: CostSummary[] = [
+const costMock: CostSummary[] = [
   {
     name: "hp300", title: "HP300 高频液压振动锤", category: "机械", categoryPath: "机械/桩基机械", unit: "台班",
     price: 3200, spec: "300kW", source: "市场询价", tags: ["振动锤", "桩基"], status: "现行", updatedAt: "",

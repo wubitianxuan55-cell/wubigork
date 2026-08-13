@@ -28,8 +28,6 @@ jobs:
           version: latest
 
   frontend:
-    # 前端有预存 TS 编译错误（feature/mobile-remote 分支开发中间状态），修复前不阻塞整体
-    continue-on-error: true
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -41,8 +39,12 @@ jobs:
         with:
           node-version: '22'
 
-      - run: npm ci
+      # 仓库按约定不提交 package-lock.json（.gitignore），用 npm install 而非 npm ci
+      - run: npm install
 
       - run: npm run lint
 
       - run: npm run build
+
+      # vitest 全量用例（此前未进 CI；E1-1 补齐）
+      - run: npm run test

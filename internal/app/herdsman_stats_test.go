@@ -47,6 +47,14 @@ func TestParseHerdsmanModelStats(t *testing.T) {
 	if err != nil || stats.Total != 0 {
 		t.Fatalf("非法行应跳过: stats=%+v err=%v", stats, err)
 	}
+	// UTF-8 BOM 前缀：首条记录不得被静默跳过。
+	stats, err = parseHerdsmanModelStats(append([]byte("\xef\xbb\xbf"), []byte(statsFixture)...))
+	if err != nil {
+		t.Fatalf("BOM 前缀解析失败: %v", err)
+	}
+	if stats.Total != 2 || len(stats.PerModel) != 2 {
+		t.Fatalf("BOM 前缀下 Total = %d, PerModel = %d, want 2/2", stats.Total, len(stats.PerModel))
+	}
 }
 
 func TestHerdsmanModelStats_FromDisk(t *testing.T) {

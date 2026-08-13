@@ -464,7 +464,7 @@ const ChatPage: React.FC = () => {
       if (!retryKey) return [...prev, um, am]
       // 重试：失败消息未落库，其前置用户消息同样未落库，一并移除保持与 DB 一致
       const errIdx = prev.findIndex(m => m.key === retryKey)
-      let drop = new Set<string>([retryKey])
+      const drop = new Set<string>([retryKey])
       if (errIdx >= 0) {
         const userMsg = prev.slice(0, errIdx).reverse().find(m => m.role === 'user')
         if (userMsg) drop.add(userMsg.key)

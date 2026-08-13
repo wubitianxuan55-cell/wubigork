@@ -333,6 +333,52 @@ func TestBridge_Stream_UsageOpenAIStyle(t *testing.T) {
 	}
 }
 
+// TestBridge_Stream_ThinkingMaxTokensGuard 验证本地引擎思考模式的 max_tokens 守护：
+// 显式小预算（<4096）会抬到 4096，避免「只有推理、无正文」（herdsman 模型测评报告 §8.1）。
+func TestBridge_Stream_ThinkingMaxTokensGuard(t *testing.T) {
+	t.Run("小预算抬到4096", func(t *testing.T) {
+		mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+		SetClient(mc)
+		p := &Provider{name: "gaea", model: "m", engine: "herdsman", client: mc}
+		if _, err := p.Stream(context.Background(), provider.Request{
+			Messages:  []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+			MaxTokens: 1024,
+		}); err != nil {
+			t.Fatalf("Stream: %v", err)
+		}
+		if mc.gotReq.MaxTokens != 4096 {
+			t.Errorf("MaxTokens = %d, want 4096（思考模式守护）", mc.gotReq.MaxTokens)
+		}
+	})
+	t.Run("云端引擎不抬", func(t *testing.T) {
+		mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+		SetClient(mc)
+		p := &Provider{name: "gaea", model: "deepseek-v4-flash", engine: "deepseek", client: mc}
+		if _, err := p.Stream(context.Background(), provider.Request{
+			Messages:  []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+			MaxTokens: 1024,
+		}); err != nil {
+			t.Fatalf("Stream: %v", err)
+		}
+		if mc.gotReq.MaxTokens != 1024 {
+			t.Errorf("MaxTokens = %d, want 1024（云端不守护）", mc.gotReq.MaxTokens)
+		}
+	})
+	t.Run("未指定不抬", func(t *testing.T) {
+		mc := &mockClient{chunks: []ai.SSEChunk{{Done: true}}}
+		SetClient(mc)
+		p := &Provider{name: "gaea", model: "m", engine: "herdsman", client: mc}
+		if _, err := p.Stream(context.Background(), provider.Request{
+			Messages: []provider.Message{{Role: provider.RoleUser, Content: "hi"}},
+		}); err != nil {
+			t.Fatalf("Stream: %v", err)
+		}
+		if mc.gotReq.MaxTokens != 0 {
+			t.Errorf("MaxTokens = %d, want 0（未显式指定时透传默认）", mc.gotReq.MaxTokens)
+		}
+	})
+}
+
 // TestBridge_FeatureEngine 验证办公功能级绑定（SetFeature）注入：
 // Provider 构造时 model 取功能模型（provider model 为空时），
 // Stream 请求携带功能引擎，使办公 agent 走指定引擎而非全局活跃引擎。

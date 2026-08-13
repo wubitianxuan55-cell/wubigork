@@ -254,7 +254,7 @@ const CreatePage: React.FC = () => {
           setGenPercent(Math.min(100, Math.round(((data.total || 0) / Math.max(minWords, 1)) * 100)))
           setGenPhase(`正在生成… ${(data.total || 0).toLocaleString()}/${minWords.toLocaleString()} 字`)
           break
-        case 'done':
+        case 'done': {
           setGenPhase('')
           setGenPercent(0)
           setGenerating(false)
@@ -271,6 +271,7 @@ const CreatePage: React.FC = () => {
           })
           try { window.runtime?.EventsOff?.('create-chapter-stream') } catch (_) {}
           break
+        }
         case 'error':
           setGenPhase('')
           setGenPercent(0)

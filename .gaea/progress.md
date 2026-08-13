@@ -1,16 +1,18 @@
 # 任务进度
 
-> 最后更新: 2026-08-13 23:30:00
+> 最后更新: 2026-08-14
 
 | 状态 | 任务 |
 |------|------|
-| ✅ | Herdsman 深挖 P0：资产盘点（目录/CLI/模型/统计/记忆/环境） |
-| ✅ | Herdsman 深挖 P1：模型中心「模型库」（90 模型目录 + 能力/状态/过滤） |
-| ✅ | Herdsman 深挖 P2：模型生命周期（下载/启动/停止/卸载 + launch_records 启动预设） |
-| ✅ | Herdsman 深挖 P3：本地翻译（translate_text 工具 + 翻译模型优先/办公模型回退） |
-| ✅ | Herdsman 深挖 P4：检索升级（qwen3 系动态优先/bge 回退）+ model_stats 调用统计面板 |
-| ✅ | Herdsman 深挖 P5：数字生命记忆联动（角色/关系/摘要/时间线/世界事件只读）+ 最近操作 |
-| ✅ | 验证与发布：go test / tsc / vitest 241 / wails build → gaea-v2.15.6.exe |
-| ✅ | Herdsman 深挖路线图 P0–P5 全部收官 |
-| ✅ | 通用办公 P0：开工前计划卡片结构化（严格 JSON 计划 → 计划卡片渲染 + 纯文本回退） |
-| ⏳ | 验证与发布：go test / tsc / vitest 243 / wails build → gaea-v2.15.7.exe |
+| ✅ | 长期规划定稿（docs/superpowers/plans/2026-08-14-gaea长期规划-herdsman底座加固与工程门禁.md） |
+| ✅ | H0-1 环境探测与兼容契约（internal/herdsman/probe.go + App.HerdsmanProbe） |
+| ✅ | H0-2 服务健康检查（internal/herdsman/health.go + App.HerdsmanHealth） |
+| ✅ | H0-3 TTS 默认模型动态解析（voice.ResolveHerdsmanTTSModel + voice_handler 接入） |
+| ✅ | H0-4 LAN 暴露检测与告警（internal/herdsman/lancheck.go + App.HerdsmanSecurityCheck） |
+| ✅ | H0-5 模型用途建议（模型库卡片 Hint）+ 思考模式 max_tokens 守护（bridge/ai 两路径） |
+| ✅ | E1-1 前端 CI 修复（eslint 配置/插件、28 硬错误清零、CI 加 vitest、ComfyUI 路径文案） |
+| ✅ | E1-2 发布冒烟脚本 scripts/smoke.ps1 |
+| ✅ | E1-3 版本节奏转周更：v2.16.0 |
+| ✅ | 发布文档：CHANGELOG / README / releases/v2.16.0.md / wails.json productVersion=2.16.0 |
+| ✅ | 变更面逐包验证全绿（herdsman/app/bridge/ai/voice/tts；tsc；eslint 0 errors；模型库卡片 vitest 5/5） |
+| ⏳ | wails build → gaea-v2.16.0.exe + SHA256SUMS + smoke.ps1 冒烟（本会话沙箱 vite 编译挂起，移交本机执行：`cmd /c build.bat`） |

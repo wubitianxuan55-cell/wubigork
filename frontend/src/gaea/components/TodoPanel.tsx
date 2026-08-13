@@ -35,13 +35,6 @@ export function TodoPanel({
   const listRef = useRef<HTMLUListElement>(null);
   const currentRef = useRef<HTMLLIElement | null>(null);
   useGSAPCollapse(listRef, open);
-  if (todos.length === 0 && !requirement?.text) return null;
-
-  const done = todos.filter((td) => td.status === "completed").length;
-  const current = todos.find((td) => td.status === "in_progress");
-  const summary = current?.activeForm || current?.content || todos[todos.length - 1]?.content || "";
-  const pct = todos.length > 0 ? Math.round((done / todos.length) * 100) : 0;
-  const reqDone = !!requirement?.done;
 
   // 自动滚动到进行中任务
   useEffect(() => {
@@ -49,6 +42,14 @@ export function TodoPanel({
       currentRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
   }, [open]);
+
+  if (todos.length === 0 && !requirement?.text) return null;
+
+  const done = todos.filter((td) => td.status === "completed").length;
+  const current = todos.find((td) => td.status === "in_progress");
+  const summary = current?.activeForm || current?.content || todos[todos.length - 1]?.content || "";
+  const pct = todos.length > 0 ? Math.round((done / todos.length) * 100) : 0;
+  const reqDone = !!requirement?.done;
 
   const itemPy = compact ? "py-[5px]" : "py-[7px]";
   const itemPx = compact ? "px-[7px] pl-[9px]" : "px-[7px] pl-[11px]";

@@ -42,6 +42,12 @@ func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan pro
 		t := true
 		creq.EnableThinking = &t
 		creq.ChatTemplateKwargs = map[string]any{"enable_thinking": true}
+		// 测评（docs/2026-08-12-herdsman-models-evaluation-report.md §8.1/§9）：
+		// 思考模式与正文共享 max_tokens，预算 <4096 时会出现「只有推理、无正文」。
+		// 守护：显式指定过小预算时抬到 4096。
+		if creq.MaxTokens > 0 && creq.MaxTokens < 4096 {
+			creq.MaxTokens = 4096
+		}
 	}
 	raw, err := p.client.ChatStream(ctx, creq)
 	if err != nil {

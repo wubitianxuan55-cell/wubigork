@@ -36,6 +36,7 @@ const FIXTURE = {
       parameter_count: 0.568,
       file_size: 437778496,
       llama_cpp_variants: ['standard'],
+      hint: '本地语义向量（embedding），驱动语义召回与文件索引',
     },
     {
       name: 'Hunyuan-MT:7B',
@@ -105,6 +106,8 @@ describe('HerdsmanCatalogSection 模型库', () => {
     expect(screen.getByText('已安装 · 未运行')).toBeTruthy()
     expect(screen.getAllByText('运行中').length).toBeGreaterThan(0)
     expect(screen.getAllByText('未安装').length).toBeGreaterThan(0)
+    // 用途建议（H0-5：受控测评结论上卡片）
+    expect(screen.getByText('本地语义向量（embedding），驱动语义召回与文件索引')).toBeTruthy()
   })
 
   it('按运行状态过滤', async () => {

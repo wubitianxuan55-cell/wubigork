@@ -114,6 +114,57 @@ func TestParseHerdsmanModelList(t *testing.T) {
 	if byName["zimage-turbo"].FileSize != 20027974026 {
 		t.Errorf("zimage-turbo FileSize = %d", byName["zimage-turbo"].FileSize)
 	}
+	// 用途提示（H0-5：模型默认值/用途对齐测评结论）。
+	if got := byName["Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-2"].Hint; !strings.Contains(got, "识图") {
+		t.Errorf("HauhauCS Hint = %q, want 含「识图」的日常首选提示", got)
+	}
+	if got := byName["Hunyuan-MT:7B"].Hint; !strings.Contains(got, "翻译") {
+		t.Errorf("Hunyuan-MT Hint = %q, want 翻译提示", got)
+	}
+	if got := byName["zimage-turbo"].Hint; !strings.Contains(got, "文生图") {
+		t.Errorf("zimage-turbo Hint = %q, want 文生图提示", got)
+	}
+	if got := byName["bge-m3"].Hint; !strings.Contains(got, "向量") {
+		t.Errorf("bge-m3 Hint = %q, want embedding 提示", got)
+	}
+}
+
+// TestHerdsmanModelHint 覆盖各关键词分支与未命中回退。
+func TestHerdsmanModelHint(t *testing.T) {
+	cases := []struct {
+		name string
+		caps []string
+		want string // 空 = 期望无提示
+	}{
+		{"Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-2", nil, "识图"},
+		{"Qwen3.6-35B-A3B-DSV4Pro-SFT-GPT56Sol-RL-Agent-LynnStyle-Q5-imatrix", nil, "推理"},
+		{"Hermes3.6-35B-A3B-Uncensored-Genesis-V7-MTP-APEX", nil, "思考模式"},
+		{"qwen3-embedding-4b", nil, "向量"},
+		{"bge-reranker-v2-m3", nil, "精排"},
+		{"paddleocr-ppocrv5-server", nil, "OCR"},
+		{"mineru-pipeline-hybrid", nil, "解析"},
+		{"voxcpm2", nil, "TTS"},
+		{"qwen3-tts-customvoice", nil, "需先安装"},
+		{"edge-tts", nil, "空音频"},
+		{"zimage-turbo", nil, "文生图"},
+		{"Hy-MT1.5_1.8B", nil, "翻译"},
+		{"sherpa-onnx-streaming-zipformer-zh-14m", nil, "语音识别"},
+		{"some-unknown-model", nil, ""},
+		// 能力标签兜底：名称不含关键词时按 capabilities 命中。
+		{"Qwen3.6-X", []string{"rerank"}, "精排"},
+	}
+	for _, c := range cases {
+		got := herdsmanModelHint(c.name, c.caps)
+		if c.want == "" {
+			if got != "" {
+				t.Errorf("herdsmanModelHint(%q) = %q, want 空", c.name, got)
+			}
+			continue
+		}
+		if !strings.Contains(got, c.want) {
+			t.Errorf("herdsmanModelHint(%q) = %q, want 含 %q", c.name, got, c.want)
+		}
+	}
 }
 
 func TestParseHerdsmanModelList_ErrorAndInvalid(t *testing.T) {
@@ -140,6 +191,26 @@ func TestHerdsmanExePath(t *testing.T) {
 	t.Setenv("HERDSMAN_EXE", missing)
 	if got := herdsmanExePath(); got != missing {
 		t.Fatalf("环境变量应优先，got %q", got)
+	}
+}
+
+// TestHerdsmanExeInPath 验证 PATH 回退查找（独立函数，确定性测试；
+// herdsmanExePath 的默认安装路径候选在开发机上可能真实存在，无法在测试中消除）。
+func TestHerdsmanExeInPath(t *testing.T) {
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "herdsman.exe")
+	if err := os.WriteFile(fake, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if got := herdsmanExeInPath(); got != fake {
+		t.Fatalf("PATH 回退失败: got %q, want %q", got, fake)
+	}
+	// PATH 无 herdsman.exe 时返回空。
+	empty := t.TempDir()
+	t.Setenv("PATH", empty)
+	if got := herdsmanExeInPath(); got != "" {
+		t.Fatalf("PATH 未命中应返回空，got %q", got)
 	}
 }
 

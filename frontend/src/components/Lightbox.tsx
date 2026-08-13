@@ -26,7 +26,6 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
   const r = singleImage ? null : results[index]
   const imageSrc = singleImage || r?.image
   const isSingle = !!singleImage
-  if (!imageSrc) return null
 
   // 缩放状态
   const [scale, setScale] = useState(1)
@@ -40,6 +39,7 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
 
   // 键盘
   useEffect(() => {
+    if (!imageSrc) return
     if (isSingle) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -48,7 +48,7 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [index, results.length, onClose, onIndexChange, isSingle])
+  }, [imageSrc, index, results.length, onClose, onIndexChange, isSingle])
 
   // 滚轮缩放
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -80,6 +80,9 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
     setScale(1)
     setPosition({ x: 0, y: 0 })
   }, [])
+
+  // 无可用图片时直接不渲染（hooks 已全部无条件声明，此处仅保留原早退语义）
+  if (!imageSrc) return null
 
   return (
     <div

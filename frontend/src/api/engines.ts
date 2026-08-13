@@ -96,6 +96,8 @@ export interface HerdsmanCatalogModel {
   is_moe?: boolean
   file_size?: number
   llama_cpp_variants?: string[]
+  /** 用途建议（后端按受控测评结论生成，如「日常对话/识图首选」） */
+  hint?: string
 }
 
 export interface HerdsmanCatalog {
