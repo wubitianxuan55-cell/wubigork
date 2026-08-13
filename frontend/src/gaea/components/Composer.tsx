@@ -6,7 +6,7 @@ import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
 import { clearLayoutSize, loadOptionalLayoutSize, saveLayoutSize } from "../lib/layoutPreferences";
 import { applyTableConversion, detectTableBlock } from "../lib/tableData";
-import { slashQueryOf } from "../lib/composer";
+import { slashQueryOf, atMentionOf } from "../lib/composer";
 import type { CommandInfo, DirEntry, FileSearchHit, SlashArgItem, SlashArgsResult, WorkspaceView } from "../lib/types";
 import { useToast } from "./Toast";
 import { useComposerInsertStore } from "../lib/store";
@@ -141,9 +141,10 @@ export function Composer({
   }, [text]);
 
   // ── @ 文件引用 ──
-  const atRaw = useMemo(() => { const m = /(?:^|\s)@([^\s]*)$/.exec(debouncedText); return m ? m[1] : null; }, [debouncedText]);
-  const atDir = useMemo(() => { if (atRaw === null) return ""; const s = atRaw.lastIndexOf("/"); return s >= 0 ? atRaw.slice(0, s + 1) : ""; }, [atRaw]);
-  const atFrag = useMemo(() => { if (atRaw === null) return ""; const s = atRaw.lastIndexOf("/"); return (s >= 0 ? atRaw.slice(s + 1) : atRaw).toLowerCase(); }, [atRaw]);
+  const atMention = useMemo(() => atMentionOf(debouncedText), [debouncedText]);
+  const atRaw = atMention?.raw ?? null;
+  const atDir = atMention?.dir ?? "";
+  const atFrag = atMention?.frag ?? "";
   const [entries, setEntries] = useState<DirEntry[]>([]);
   const dirCache = useRef<Record<string, DirEntry[]>>({});
   useEffect(() => {

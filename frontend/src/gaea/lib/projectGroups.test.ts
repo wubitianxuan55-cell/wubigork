@@ -37,4 +37,19 @@ describe("filterProjectGroups", () => {
   it("无命中分组被移除", () => {
     expect(filterProjectGroups(groups, "不存在的关键词")).toEqual([]);
   });
+
+  it("也匹配已归档会话", () => {
+    const withArchived: ProjectGroup[] = [
+      {
+        path: "/ws/a", name: "a", current: false, modTime: 1, sessions: [],
+        archived: [
+          { path: "/ws/a/archive/old.jsonl", preview: "旧版方案", turns: 1, modTime: 1, current: false, archived: true },
+        ],
+      },
+    ];
+    const result = filterProjectGroups(withArchived, "旧版");
+    expect(result).toHaveLength(1);
+    expect(result[0].archived.map((s) => s.path)).toEqual(["/ws/a/archive/old.jsonl"]);
+    expect(result[0].sessions).toHaveLength(0);
+  });
 });

@@ -48,8 +48,9 @@
       `Sidebar` 相对时间 → `lib/time.ts`。
 - [x] 继续抽纯函数：`Sidebar` 搜索过滤 → `lib/projectGroups.ts::filterProjectGroups`；
       `CapabilitiesPanel` 错误/技能描述摘要 → `lib/capabilities.ts`；
-      `Composer` 斜杠命令解析 → `lib/composer.ts::slashQueryOf`。
-- [ ] 继续拆分 `CostLibraryView.tsx`（840）、`Composer.tsx`（775）的 @ 引用解析、`Sidebar.tsx`（720）剩余子组件/hook。
+      `Composer` 斜杠命令解析 → `lib/composer.ts::slashQueryOf`；
+      `Composer` 的 @ 引用解析 → `lib/composer.ts::atMentionOf`。
+- [ ] 继续拆分 `CostLibraryView.tsx`（840）、`Sidebar.tsx`（720）剩余子组件/hook。
 - [ ] `lib/mock.ts`（1344）按模块拆分，web 调试 mock 与生产代码隔离。
 - [x] 收敛 `bridge.ts` 动态/静态 import 混用产生的 chunk 告警：`main.tsx` 前端诊断改静态 import。
 - [ ] `WRITE_TOOL_NAMES` / 会话注册表等易漂移常量补单一来源 + 编译期校验。
@@ -60,7 +61,8 @@
 - [ ] 变更面板接入 diff 预览（复用 `lib/diff.ts`），点文件直接看本次改动差异，而不只是路径列表。
 - [ ] 成本条目补「地区 + 期数」字段（信息价三要素：规格 + 地区 + 时间），导入时映射到多级分类。
 - [ ] 待办工具任务完成时自动置 completed（减少依赖模型回写状态，前端已有 turn_done 兜底）。
-- [ ] 跨工作区会话全文搜索（当前侧栏搜索只覆盖当前分组内活跃会话）。
+- [x] 跨工作区会话搜索：侧栏搜索覆盖最近工作区的活跃会话与已归档会话
+      （`filterProjectGroups` 同时匹配 `sessions` 与 `archived`）。
 
 ### 发布与产物（每次发布前执行）
 

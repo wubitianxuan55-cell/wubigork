@@ -7,11 +7,12 @@ export function filterProjectGroups(groups: ProjectGroup[], query: string): Proj
   if (!q) return groups;
   const out: ProjectGroup[] = [];
   for (const g of groups) {
-    const hits = g.sessions.filter((s) =>
+    const match = (s: ProjectGroup["sessions"][number]) =>
       (s.title || s.preview || "").toLowerCase().includes(q) ||
-      s.path.toLowerCase().includes(q),
-    );
-    if (hits.length) out.push({ ...g, sessions: hits });
+      s.path.toLowerCase().includes(q);
+    const sessions = g.sessions.filter(match);
+    const archived = g.archived.filter(match);
+    if (sessions.length || archived.length) out.push({ ...g, sessions, archived });
   }
   return out;
 }
