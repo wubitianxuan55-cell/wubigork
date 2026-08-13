@@ -11,6 +11,7 @@ import logoLightSvg from "../assets/logo-light.svg";
 import { useT } from "../lib/i18n";
 import { sessionTitle } from "../lib/session";
 import { relativeTime } from "../lib/time";
+import { filterProjectGroups } from "../lib/projectGroups";
 import type { FactBaseView, JobView, ProjectGroup, SessionMeta } from "../lib/types";
 import { app } from "../lib/bridge";
 import { useToast } from "./Toast";
@@ -380,21 +381,11 @@ export function Sidebar({
     );
   };
 
-  const q = localQuery.trim().toLowerCase();
-  const searching = q.length > 0;
-  const filteredGroups = useMemo(() => {
-    if (!searching) return projectGroups;
-    const out: ProjectGroup[] = [];
-    for (const g of projectGroups) {
-      const hits = g.sessions.filter(
-        (s) =>
-          (s.title || s.preview || "").toLowerCase().includes(q) ||
-          s.path.toLowerCase().includes(q),
-      );
-      if (hits.length) out.push({ ...g, sessions: hits });
-    }
-    return out;
-  }, [projectGroups, q, searching]);
+  const searching = localQuery.trim().length > 0;
+  const filteredGroups = useMemo(
+    () => filterProjectGroups(projectGroups, localQuery),
+    [projectGroups, localQuery],
+  );
 
   return (
     <>
