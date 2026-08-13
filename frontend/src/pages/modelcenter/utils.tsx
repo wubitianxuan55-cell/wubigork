@@ -80,6 +80,11 @@ export function modelOptionsForEngine(
   return base
 }
 
+// 引擎列表过滤：隐藏不常用的已停用引擎，减少管理页视觉噪音。
+export function filterEnginesByEnabled(engines: EngineConfig[], onlyEnabled: boolean): EngineConfig[] {
+  return onlyEnabled ? engines.filter(e => e.enabled) : engines
+}
+
 // 引擎模型是否图片类（优先后端 kind，缺失时回退名称启发式）
 export const isImageModel = (m: { id: string; kind?: string }): boolean =>
   ((m.kind as ModelKind) || classifyModel(m.id)) === 'image'

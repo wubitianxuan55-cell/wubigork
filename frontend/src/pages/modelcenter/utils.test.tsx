@@ -10,6 +10,7 @@ import {
   filterModelsBySearch,
   sortModelsPinnedFirst,
   modelOptionsForEngine,
+  filterEnginesByEnabled,
 } from './utils'
 import type { ModelCardData } from './utils'
 import type { EngineConfig } from '../../api/engines'
@@ -154,5 +155,20 @@ describe('模型中心 modelOptionsForEngine', () => {
 
   it('空引擎返回空列表', () => {
     expect(modelOptionsForEngine('', models)).toEqual([])
+  })
+})
+
+describe('模型中心 filterEnginesByEnabled', () => {
+  const engines: EngineConfig[] = [
+    { id: 'xai', name: 'xAI', type: 'xai', base_url: '', enabled: true, default_model: '', models: [] },
+    { id: 'ollama', name: 'Ollama', type: 'ollama', base_url: '', enabled: false, default_model: '', models: [] },
+  ]
+
+  it('onlyEnabled=true 只保留已启用引擎', () => {
+    expect(filterEnginesByEnabled(engines, true).map(e => e.id)).toEqual(['xai'])
+  })
+
+  it('onlyEnabled=false 保留全部引擎', () => {
+    expect(filterEnginesByEnabled(engines, false).map(e => e.id)).toEqual(['xai', 'ollama'])
   })
 })

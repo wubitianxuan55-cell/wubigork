@@ -1,11 +1,19 @@
-import { Button, Card, Input, Space, Switch, Tag, Typography } from 'antd'
+import { useState } from 'react'
+import { Button, Card, Input, Popconfirm, Segmented, Space, Switch, Tag, Typography } from 'antd'
 import { SettingOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
-import { engineColor, engineIcons, engineLabel, kindOf } from './utils'
+import { engineColor, engineIcons, engineLabel, filterEnginesByEnabled, kindOf } from './utils'
 import { useModelCenter } from './context'
 
 export function EngineSection() {
-  const { engines, engineStatuses, activeEngine, testingEngine, savingEngine, editingURLs, setEditingURLs, deepseekKey, setDeepseekKeyState, deepseekKeyMasked, opencodeGoKey, setOpencodeGoKeyState, opencodeGoKeyMasked, opencodeZenKey, setOpencodeZenKeyState, opencodeZenKeyMasked, handleTestConnection, handleRefreshModels, handleSaveURL, handleToggleEngine, handleSaveDeepseekKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey, makeModels } = useModelCenter()
+  const { engines, engineStatuses, activeEngine, testingEngine, savingEngine, editingURLs, setEditingURLs, deepseekKey, setDeepseekKeyState, deepseekKeyMasked, opencodeGoKey, setOpencodeGoKeyState, opencodeGoKeyMasked, opencodeZenKey, setOpencodeZenKeyState, opencodeZenKeyMasked, handleTestConnection, handleRefreshModels, handleSaveURL, handleToggleEngine, handleBulkToggleEngines, handleSaveDeepseekKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey, makeModels } = useModelCenter()
+  const [showEnabledOnly, setShowEnabledOnly] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const visibleEngines = filterEnginesByEnabled(engines, showEnabledOnly)
+  const bulk = (enabled: boolean) => {
+    setBulkBusy(true)
+    handleBulkToggleEngines(enabled).finally(() => setBulkBusy(false))
+  }
   return (
             <section className="mc-section" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="mc-section-head">
@@ -14,7 +22,16 @@ export function EngineSection() {
                   <div className="mc-section-desc">配置云端与本地引擎地址、连接状态、API Key 和模型分类</div>
                 </div>
               </div>
-              {engines.map(engine => {
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                <Space size={8}>
+                  <Button size="small" loading={bulkBusy} onClick={() => bulk(true)}>全部启用</Button>
+                  <Popconfirm title="禁用全部引擎？" description="各功能将回退到无可用模型，建议谨慎操作。" onConfirm={() => bulk(false)}>
+                    <Button size="small" danger loading={bulkBusy}>全部禁用</Button>
+                  </Popconfirm>
+                </Space>
+                <Segmented size="small" value={showEnabledOnly ? 'enabled' : 'all'} onChange={(v) => setShowEnabledOnly(v === 'enabled')} options={[{ label: '全部', value: 'all' }, { label: '仅已启用', value: 'enabled' }]} />
+              </div>
+              {visibleEngines.map(engine => {
                 const color = engineColor(engine)
                 const em = makeModels(engine)
                 const mc = { llm: em.filter(m => kindOf(m) === 'llm').length, tts: em.filter(m => kindOf(m) === 'tts').length, stt: em.filter(m => kindOf(m) === 'stt').length, image: em.filter(m => kindOf(m) === 'image').length, embedding: em.filter(m => kindOf(m) === 'embedding').length, rerank: em.filter(m => kindOf(m) === 'rerank').length, ocr: em.filter(m => kindOf(m) === 'ocr').length }

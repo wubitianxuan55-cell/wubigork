@@ -501,6 +501,14 @@ const ModelCenterPage: React.FC = () => {
     catch (err: any) { message.error(err.message) }
   }
 
+  const handleBulkToggleEngines = async (enabled: boolean) => {
+    try {
+      await Promise.all(engines.map(e => saveEngine({ id: e.id, base_url: e.base_url || '', enabled } as any)))
+      message.success(enabled ? '已全部启用' : '已全部禁用')
+      await loadAll()
+    } catch (err: any) { message.error(err.message) }
+  }
+
   const handleSaveImageBackend = async () => {
     setImageBackendSaving(true)
     try { await setImageBackendAPI(imageBackend, comfyUIURL, imageModel, imageSaveDir); message.success('已保存') }
@@ -619,7 +627,7 @@ const ModelCenterPage: React.FC = () => {
     featureCfg, featureDraft, setFeatureDraft, featureEnabled, modelRoutes,
     portraitCfg, portraitDraft, setPortraitDraft, portraitModelOptions, portraitSaving,
     llmModels, ttsModels, sttModels, imageModels, specialtyModels, makeModels, isModelActive,
-    handleTestConnection, handleRefreshModels, handleStartModel, handleSaveURL, handleToggleEngine,
+    handleTestConnection, handleRefreshModels, handleStartModel, handleSaveURL, handleToggleEngine, handleBulkToggleEngines,
     handleSaveDeepseekKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey,
     handleResetCallStats, loadCallStats, handleToggleComfy, handleSaveImageBackend, handleSetVoiceModel, handleSetOCRModel,
     handleSaveFeature, handleToggleFeatureEnabled, handleSavePortrait, handleSaveChatVoice, handleClearChatVoice,

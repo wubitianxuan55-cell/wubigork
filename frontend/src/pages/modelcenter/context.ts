@@ -81,6 +81,7 @@ export interface ModelCenterContextValue {
   handleStartModel: (card: ModelCardData) => Promise<void>
   handleSaveURL: (engine: EngineConfig) => Promise<void>
   handleToggleEngine: (engine: EngineConfig, enabled: boolean) => Promise<void>
+  handleBulkToggleEngines: (enabled: boolean) => Promise<void>
   handleSaveDeepseekKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
   handleSaveOpencodeZenKey: () => Promise<void>
