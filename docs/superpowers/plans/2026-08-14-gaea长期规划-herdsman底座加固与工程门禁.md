@@ -116,3 +116,28 @@
        `scripts/test-all.ps1`（逐包 + 重试 + 状态续跑）作为沙箱内全量验证工具。
   - ✅ v2.16.1 发布产物：releases/gaea-v2.16.1.exe（32MB）+ SHA256SUMS-v2.16.1.txt +
     `scripts/smoke.ps1` 冒烟通过（/api/health 200 {"status":"ok"}）。
+- 2026-08-14（阶段 2 安全与架构收敛 v2.17.0）：
+  - ✅ S2-1 herdsman LAN 风险处置前端联动：全局安全横幅 `components/SecurityBanner.tsx`
+    （启动调 App.HerdsmanSecurityCheck，暴露时醒目告警 + 指引 + 重新检测/本次忽略）；
+    设置页新增「安全」分类 `components/settings/SecurityPanel.tsx`（LAN 检测 + 敏感域开关 + 调试说明）；
+  - ✅ S2-2 gaea 自身安全开关：main.go WebView2 远程调试改 `GAEA_WEBVIEW_DEBUG=1` 才开启
+    （此前 WebviewDisableRendererCodeIntegrity=true 连带开 9333，Wails v2.13 源码行为）；
+    HTTP 桥接一次性 token（httpbridge.SessionToken/ServeWithToken：GAEA_HTTP_TOKEN 或自动生成
+    32 位 hex；/api/rpc、/api/stream 须 Bearer/X-Gaea-Token/?token=，/api/health 开放；CORS 放行
+    Authorization；前端 httpToken.ts + bridge.ts/runtimePolyfill.ts 透传）；单测 5 场景 + 端到端验证；
+  - ✅ S2-3 App 绑定面拆分：429 个导出方法（App + core/writingState/mediaState/whisperState/
+    officeState）→ 10 个板块门面（CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/NovelB/ImageB/
+    CharlibB，internal/app/bindings_*.go），方法体零改动纯委托；`scripts/gen_bindings`（go/ast）
+    生成 + `TestBindingsCompleteness` 反射完备性测试兜底（App 方法集与门面并集全等）；
+    main.go 绑定 `app.NewBindings(application)`；前端单点适配（gaea/lib/bridge.ts realApp 按方法名
+    路由门面、api/bridge.ts 补 window.go.app.App 兼容代理、27 处旧 wailsjs 导入改指
+    src/wailsjsCompat 重导出）；wailsjs 重新生成；
+  - ✅ S2-4 敏感数据本地通道：config `sensitive_local`（默认开，~/.gaea_config.json 持久化）+
+    `routeSensitiveLocal`（成本/报价 AI 强制本地 Herdsman，不可用回退常规）+ GaeaCostImportAIParse
+    接入 + App.GetSensitiveLocal/SetSensitiveLocal + 设置页开关；单测 4 组（强制/停用回退/关闭/默认）；
+  - ✅ 验证：go build/vet 全绿；internal/app 全量 19.8s ok（含绑定完备性）；config/httpbridge
+    新增用例 ok；tsc -b、eslint 0 errors、vitest 243/243、vite build；冒烟通过 +
+    HTTP 桥接 token 端到端（无 token 401 / Bearer 200）；
+  - ✅ v2.17.0 发布产物：releases/gaea-v2.17.0.exe（33,725,952 字节，SHA256=ADBFD953904C359EFFB125585B4B4C2D8E52B3D33C4DBC39E4F64AD8CD4DD2A9）
+    + SHA256SUMS-v2.17.0.txt；发布文档（CHANGELOG/README/releases/v2.17.0.md/releases/README.md/
+    wails.json/versioninfo.rc）已更新。

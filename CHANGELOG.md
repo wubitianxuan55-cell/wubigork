@@ -1,5 +1,25 @@
 # gaea · 多功能 AI 助手
 
+## v2.17.0「安全与架构收敛」（2026-08-14）
+> 长期规划阶段 2（S2-1 ~ S2-4）：安全收敛与绑定面架构拆分——
+> LAN 暴露告警上墙、WebView2 远程调试默认关闭、HTTP 桥接一次性 token、
+> 敏感数据本地通道、429 个导出方法按板块拆 10 个绑定门面。
+> 详见 releases/v2.17.0.md。
+- S2-1 LAN 风险处置：全局安全横幅（启动即检测 herdsman api.lan_accessible，暴露时醒目告警 +
+  中文处置指引 + 重新检测/本次忽略）；设置页新增「安全」分类（同面板可复核）
+- S2-2 gaea 自身安全开关：WebView2 远程调试（9333）改 `GAEA_WEBVIEW_DEBUG=1` 才开启，默认关闭；
+  HTTP 调试桥接加一次性 token（`GAEA_HTTP_TOKEN` 或每进程自动生成并打日志，/api/rpc 与
+  /api/stream 须携带 Bearer/X-Gaea-Token/?token=，/api/health 保持开放），前端桥接自动透传
+- S2-3 App 绑定面拆分：429 个导出方法按板块拆 10 个绑定门面（CoreB/OfficeB/MemoryB/CostB/
+  ModelB/VoiceB/ChatB/NovelB/ImageB/CharlibB），方法体零改动纯委托，脚本生成
+  （scripts/gen_bindings）+ 反射完备性测试兜底（App 方法集与门面并集全等）；
+  前端 gaea/lib/bridge.ts 与 api/bridge.ts 单点路由，旧调用路径经 wailsjsCompat 兼容层零改动
+- S2-4 敏感数据本地通道：新增「敏感域本地化」开关（默认开启，~/.gaea_config.json
+  sensitive_local 持久化）——成本/报价类 AI 操作（GaeaCostImportAIParse）默认强制路由本地
+  Herdsman（数据不出本机），引擎不可用自动回退常规路由；设置页「安全」分类可切换回云端
+- 测试：internal/app 全量 19.8s ok（含绑定完备性）；config/httpbridge 新增 token 鉴权、
+  sensitive_local 往返用例；tsc -b 通过、eslint 0 errors、vitest 243/243、vite build 通过
+
 ## v2.16.1「模型中心资源协同 + 磁盘治理」（2026-08-14）
 > 长期规划 E1-4：对齐 herdsman `model_scheduling.local_concurrency=1` 的调度现实，
 > 生命周期操作串行化（批量启停天然变有序队列）；模型库新增磁盘 KPI

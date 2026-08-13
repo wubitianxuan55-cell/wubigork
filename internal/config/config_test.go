@@ -280,3 +280,32 @@ func TestLoad_FuncChatWinsWhenBothSet(t *testing.T) {
 		t.Errorf("FuncChat = (%q,%q), want 保留已有 chat 绑定", cfg.FuncChatEngine, cfg.FuncChatModel)
 	}
 }
+
+// TestSave_SensitiveLocalRoundTrip 敏感域本地化开关（S2-4/D8）持久化：
+// 默认开启；显式关闭 → 保存 → 重新加载为 false；再开启恢复。
+func TestSave_SensitiveLocalRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	// 未配置时默认开启（D8：敏感域默认本地优先）
+	if cfg := Load(); !cfg.GetSensitiveLocal() {
+		t.Error("未配置时敏感域本地化默认应为开启")
+	}
+
+	// 显式关闭 → 持久化 → 读取为 false
+	if err := Save(KeySensitiveLocal, "0"); err != nil {
+		t.Fatalf("Save sensitive_local=0 失败: %s", err)
+	}
+	if cfg := Load(); cfg.GetSensitiveLocal() {
+		t.Error("保存 0 后敏感域本地化应为关闭")
+	}
+
+	// 重新开启
+	if err := Save(KeySensitiveLocal, "1"); err != nil {
+		t.Fatalf("Save sensitive_local=1 失败: %s", err)
+	}
+	if cfg := Load(); !cfg.GetSensitiveLocal() {
+		t.Error("保存 1 后敏感域本地化应为开启")
+	}
+}

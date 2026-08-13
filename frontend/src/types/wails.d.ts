@@ -175,6 +175,20 @@ interface AppAPI {
   SaveLorebookEntry(entryJSON: string): Promise<void>
   DeleteLorebookEntry(key: string): Promise<void>
 
+  // ── Herdsman 安全检测（S2-1）──
+  // 解析 herdsman config.yaml 的 api 段，返回 LAN 暴露检测结果（H0-4）。
+  HerdsmanSecurityCheck(): Promise<LanExposure>
+
+}
+
+/** Herdsman LAN 暴露检测结果（对齐 internal/herdsman.LanExposure） */
+interface LanExposure {
+  config_path: string
+  exposed: boolean
+  port: number
+  config_missing: boolean
+  parse_error?: string
+  guidance?: string
 }
 
 interface ProjectCard {

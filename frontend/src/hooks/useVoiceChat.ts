@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
 
 // ── 状态类型（兼容现有 VoiceChatOrb） ──

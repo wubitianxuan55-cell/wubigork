@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go
-vi.mock('../../wailsjs/go/app/App', () => ({
+vi.mock('../../src/wailsjsCompat', () => ({
   GetWorldview: vi.fn().mockResolvedValue('# 世界观\n\n架空中世纪'),
   SaveWorldview: vi.fn().mockResolvedValue(undefined),
   ChatWorldview: vi.fn().mockResolvedValue({ reply: 'ok', worldview: '# 新设定' }),
@@ -10,7 +10,7 @@ vi.mock('../../wailsjs/go/app/App', () => ({
 
 import NovelSettingPage from './NovelSettingPage'
 import { useAppStore } from '../stores/appStore'
-import { GetWorldview, SaveWorldview } from '../../wailsjs/go/app/App'
+import { GetWorldview, SaveWorldview } from '../../src/wailsjsCompat'
 
 describe('NovelSettingPage 纯文本设定编辑', () => {
   beforeEach(() => {

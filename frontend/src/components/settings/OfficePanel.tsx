@@ -3,7 +3,7 @@ import { Button, Input, InputNumber, Select, Space, Switch, Tag, Typography, mes
 import { SaveOutlined, RobotOutlined, ApiOutlined, CheckCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { gaeaSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
-import * as App from '../../../wailsjs/go/app/App'
+import * as App from '../../../src/wailsjsCompat'
 
 interface DraftView {
   defaultModel: string

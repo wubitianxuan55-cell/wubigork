@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
 // 屏蔽 Wails 绑定：jsdom 中没有 window.go，面板里的数据请求全部 mock 为空。
-vi.mock('../../wailsjs/go/app/App', () => ({
+vi.mock('../../src/wailsjsCompat', () => ({
   GetAppInfo: vi.fn().mockResolvedValue({ name: 'gaea', version: '2.4.0', tagline: '测试', releases: [] }),
   GetConfig: vi.fn().mockResolvedValue({}),
   WhisperGetPersonalities: vi.fn().mockResolvedValue([]),

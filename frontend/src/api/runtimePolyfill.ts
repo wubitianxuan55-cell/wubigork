@@ -6,6 +6,8 @@
  * 普通事件通过内存事件总线实现。
  */
 
+import { getHttpToken } from './httpToken'
+
 type EventCallback = (...args: unknown[]) => void
 
 // 活跃的 EventSource 连接
@@ -155,7 +157,11 @@ function ensureBridgeSSE(eventName: string): void {
  * 连接 SSE 流
  */
 function connectSSE(eventName: string): void {
-  const url = `/api/stream?id=${eventName}`
+  // S2-2：桥接鉴权启用时，EventSource 无法自定义请求头，token 走 ?token=。
+  const token = getHttpToken()
+  const url = token
+    ? `/api/stream?id=${encodeURIComponent(eventName)}&token=${encodeURIComponent(token)}`
+    : `/api/stream?id=${encodeURIComponent(eventName)}`
   console.log(`[runtime] 连接 SSE: ${url}`)
 
   const es = new EventSource(url)

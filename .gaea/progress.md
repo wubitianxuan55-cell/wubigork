@@ -21,4 +21,4 @@
 | ✅ | 发布产物完成：releases/gaea-v2.16.1.exe + SHA256SUMS-v2.16.1.txt + smoke.ps1 冒烟通过（/api/health 200） |
 | ✅ | 发布收尾：versioninfo.rc 2.15.0→2.16.1；build/windows/info.json 补 product_version（ProductVersion 0.0.0.0 修正为 2.16.1.0）；重打包 + 冒烟通过；SHA256=BD208094... |
 | ✅ | 记忆更新：AGENTS.md 清理混合编码→干净 UTF-8（版本状态→v2.16.1、发布流程补版本资源步骤、新增沙箱环境备忘）；环境备忘 docs/2026-08-14-sandbox-environment-notes.md |
-| ⏳ | 长期规划阶段 2：安全收敛（LAN 告警前端展示/WebView2 调试开关化/绑定面拆分/敏感数据本地通道） |
+| ✅ | 阶段 2 安全收敛 v2.17.0（2026-08-14）：S2-1 LAN 暴露全局告警横幅 + 设置「安全」面板；S2-2 WebView2 远程调试 GAEA_WEBVIEW_DEBUG 开关默认关 + HTTP 桥接一次性 token（GAEA_HTTP_TOKEN/自动生成，Bearer/X-Gaea-Token/?token=）；S2-3 绑定面拆分（429 方法 → CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/NovelB/ImageB/CharlibB，scripts/gen_bindings 生成 + TestBindingsCompleteness 兜底；前端 bridge.ts 单点路由 + wailsjsCompat 兼容层）；S2-4 敏感域本地化开关（sensitive_local 默认开，GaeaCostImportAIParse 走 routeSensitiveLocal 强制本地 Herdsman）。验证：go build/vet 全绿、internal/app 全量 19.8s ok、tsc/eslint 0 errors、vitest 243/243、vite build、冒烟 + token 端到端（401/200）。发布产物 gaea-v2.17.0.exe（SHA256=ADBFD953...） |

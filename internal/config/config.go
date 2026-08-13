@@ -67,6 +67,9 @@ const (
 	KeyFuncGaeaEnabled    = "func_gaea_enabled"
 	KeyFuncCharLibEnabled = "func_characterlib_enabled"
 	KeyFuncRoutineEnabled = "func_routine_enabled"
+	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman，
+	// 可配置回云端。默认开启。
+	KeySensitiveLocal = "sensitive_local"
 	KeyDeepseekAPIKey     = "deepseek_api_key"
 	KeyOpencodeGoAPIKey   = "opencode_go_api_key"
 	KeyOpencodeZenAPIKey  = "opencode_zen_api_key"
@@ -132,6 +135,8 @@ type configFile struct {
 	FuncRoutineEngine  string `json:"func_routine_engine,omitempty"` // 常规任务模型目标（routine_llm 工具）
 	FuncRoutineModel   string `json:"func_routine_model,omitempty"`
 	FuncRoutineEnabled *bool  `json:"func_routine_enabled,omitempty"`
+	// 敏感域本地化开关（nil=默认开启，true=成本/报价 AI 走本地 Herdsman）
+	SensitiveLocal *bool `json:"sensitive_local,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -235,6 +240,10 @@ type Config struct {
 	FuncGaeaEnabled    bool
 	FuncCharLibEnabled bool
 	FuncRoutineEnabled bool
+
+	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman。
+	// true=本地优先（默认）；false=按常规路由（可回云端）。
+	SensitiveLocal bool
 }
 
 // funcMu 保护功能级模型绑定字段（GetFeatureModel/SetFeatureModel 并发读写）
@@ -332,6 +341,20 @@ func (c *Config) SetFeatureModelEnabled(feature string, enabled bool) {
 	}
 }
 
+// GetSensitiveLocal 读取敏感域本地化开关（未显式配置时默认开启）。
+func (c *Config) GetSensitiveLocal() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.SensitiveLocal
+}
+
+// SetSensitiveLocal 写入敏感域本地化开关（true=成本/报价 AI 走本地 Herdsman）。
+func (c *Config) SetSensitiveLocal(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.SensitiveLocal = enabled
+}
+
 // Load 加载配置（只应调用一次）。
 // 优先级：config 文件 > 环境变量 > 默认值。
 func Load() *Config {
@@ -365,6 +388,8 @@ func Load() *Config {
 		FuncGaeaEnabled:    true,
 		FuncCharLibEnabled: true,
 		FuncRoutineEnabled: true, // 常规办公默认启用：routine_llm 工具按绑定目标执行
+		// S2-4/D8：敏感域（成本/报价）AI 默认本地优先。
+		SensitiveLocal: true,
 
 		// TTS 默认值
 		TTSBinaryPath: filepath.Join(home, "legacy-tts", "legacy_tts.exe"),
@@ -633,6 +658,9 @@ func Load() *Config {
 			if cf.FuncRoutineEnabled != nil {
 				cfg.FuncRoutineEnabled = *cf.FuncRoutineEnabled
 			}
+			if cf.SensitiveLocal != nil {
+				cfg.SensitiveLocal = *cf.SensitiveLocal
+			}
 			// 2.x 聊天/轻语合并：旧配置只写 func_whisper_* 时迁移到 func_chat；
 			// chat 显式配置优先，不覆盖；func_whisper_enabled=false 同步为 chat 停用。
 			if cfg.FuncChatEngine == "" && cf.FuncWhisperEngine != "" {
@@ -887,6 +915,14 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.FuncRoutineEnabled = b
+		return nil
+	},
+	KeySensitiveLocal: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.SensitiveLocal = b
 		return nil
 	},
 }

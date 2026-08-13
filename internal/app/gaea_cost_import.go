@@ -84,7 +84,9 @@ func (a *App) GaeaCostImportAIParse(path string) (CostImportPreview, error) {
 		return CostImportPreview{}, fmt.Errorf("文件没有数据行")
 	}
 
-	featEng, featModel, _ := a.routeModel("office")
+	// S2-4/D8：成本/报价属敏感数据，走 routeSensitiveLocal——
+	// 「敏感域本地化」开关开启时强制本地 Herdsman，关闭时按常规路由（可回云端）。
+	featEng, featModel, _ := a.routeSensitiveLocal("office")
 	prov, err := provider.New("wubigrok", provider.Config{Name: "cost-import-ai", Model: featModel, Engine: featEng})
 	if err != nil {
 		return CostImportPreview{}, fmt.Errorf("AI 解析模型初始化失败: %w", err)

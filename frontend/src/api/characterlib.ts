@@ -1,7 +1,7 @@
 /**
  * 全局角色库 API（统一角色资产：小说 × 聊天）
  */
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 import type { characterlib } from '../../wailsjs/go/models'
 
 export type LibraryCharacter = characterlib.Character

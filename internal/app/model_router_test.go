@@ -123,3 +123,71 @@ func TestRouteModelUnknownFeatureFallsBack(t *testing.T) {
 		t.Fatalf("source = %q", source)
 	}
 }
+
+// ── S2-4 敏感域本地化路由 ──────────────────────────────────
+
+// enableHerdsmanBaseURL 给测试夹具的 herdsman 引擎补 BaseURL（routeSensitiveLocal 要求）。
+func enableHerdsmanBaseURL(t *testing.T, c *core, enabled bool) {
+	t.Helper()
+	herd, ok := c.engineMgr.GetEngine("herdsman")
+	if !ok {
+		t.Fatal("herdsman engine missing")
+	}
+	herd.BaseURL = "http://127.0.0.1:8080"
+	herd.Enabled = enabled
+	if err := c.engineMgr.SaveEngine(*herd); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// 开关开启 + herdsman 可用 → 强制本地（sensitive-local），无视常规功能绑定。
+func TestRouteSensitiveLocalForcesHerdsman(t *testing.T) {
+	c := newRouterTestCore(t)
+	enableHerdsmanBaseURL(t, c, true)
+	c.cfg.SensitiveLocal = true
+	// 常规路由先绑定 novel → herdsman/qwen3-8b（feature），敏感路由仍应覆盖。
+	if err := c.SetFeatureModel("office", "xai", "grok-4.20"); err != nil {
+		t.Fatal(err)
+	}
+	eng, model, source := c.routeSensitiveLocal("office")
+	if eng != "herdsman" || model != "qwen3-8b" || source != "sensitive-local" {
+		t.Fatalf("route = (%q,%q,%q)，期望 (herdsman,qwen3-8b,sensitive-local)", eng, model, source)
+	}
+}
+
+// 开关开启但 herdsman 停用 → 回退常规路由（全局 xai）。
+func TestRouteSensitiveLocalHerdsmanDisabledFallsBack(t *testing.T) {
+	c := newRouterTestCore(t)
+	enableHerdsmanBaseURL(t, c, false)
+	c.cfg.SensitiveLocal = true
+	eng, model, source := c.routeSensitiveLocal("office")
+	if eng != "xai" || model != "grok-4.20" || source != "global" {
+		t.Fatalf("route = (%q,%q,%q)，期望回退全局 (xai,grok-4.20,global)", eng, model, source)
+	}
+}
+
+// 开关关闭 → 走常规路由（可回云端），source 非 sensitive-local。
+func TestRouteSensitiveLocalOffUsesNormalRoute(t *testing.T) {
+	c := newRouterTestCore(t)
+	enableHerdsmanBaseURL(t, c, true)
+	c.cfg.SensitiveLocal = false
+	eng, model, source := c.routeSensitiveLocal("office")
+	if source == "sensitive-local" {
+		t.Fatalf("开关关闭仍走了 sensitive-local: (%q,%q,%q)", eng, model, source)
+	}
+	if eng != "xai" || model != "grok-4.20" || source != "global" {
+		t.Fatalf("route = (%q,%q,%q)，期望常规全局", eng, model, source)
+	}
+}
+
+// 默认值：未显式配置时 GetSensitiveLocal() 返回 true（D8 默认本地优先）。
+// 完整持久化往返见 internal/config/config_test.go TestSave_SensitiveLocalRoundTrip。
+func TestSensitiveLocalDefaultOn(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("HOME", home)
+	cfg := config.Load()
+	if !cfg.GetSensitiveLocal() {
+		t.Fatal("SensitiveLocal 默认应为 true")
+	}
+}

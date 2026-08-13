@@ -4,7 +4,7 @@
  */
 
 import type { GenResult } from '../components/imagegen/types'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 
 export interface BackendInfo {
   backend: string

@@ -4,7 +4,7 @@ import {
   CommentOutlined, EditOutlined, LinkOutlined, PictureOutlined,
   RobotOutlined, SoundOutlined, ToolOutlined, UserOutlined,
 } from '@ant-design/icons'
-import * as App from '../../../wailsjs/go/app/App'
+import * as App from '../../../src/wailsjsCompat'
 import { SectionHead, StatusChip, type StatusTone } from './ui'
 import {
   engineLabel, FEATURES, featureState, featureStateMeta,

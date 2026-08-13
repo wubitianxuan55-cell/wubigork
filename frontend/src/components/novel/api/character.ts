@@ -4,7 +4,7 @@
  */
 
 import type { CharacterData, OrganizationData, RelationshipData } from '../../../types'
-import * as App from '../../../../wailsjs/go/app/App'
+import * as App from '../../../../src/wailsjsCompat'
 
 export interface CharacterPageData {
   characters: CharacterData[]

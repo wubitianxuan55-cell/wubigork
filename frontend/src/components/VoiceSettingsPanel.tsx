@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Card, Switch, Select, Slider, Button, Typography, Tag } from 'antd'
 import { AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 
 const { Text } = Typography
 

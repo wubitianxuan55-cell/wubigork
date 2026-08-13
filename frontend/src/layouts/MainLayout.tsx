@@ -8,11 +8,12 @@ import {
   BarChartOutlined, DownOutlined,
 } from '@ant-design/icons'
 import SearchModal from '../components/SearchModal'
+import SecurityBanner from '../components/SecurityBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Z_INDEX } from '../utils/zIndex'
 import { useAppStore, type ThemePreset, type StatsData, type ProjectInfo } from '../stores/appStore'
 import ModuleLauncher, { type LauncherTarget } from '../components/ModuleLauncher'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 const NovelPage = React.lazy(() => import('../pages/NovelPage'))
 const SettingsPage = React.lazy(() => import('../pages/SettingsPage'))
 const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'))
@@ -378,6 +379,8 @@ const MainLayout: React.FC = () => {
             )}
           </Space>
         </Header>
+      {/* ═══ Herdsman LAN 暴露安全告警（S2-1，暴露时全局展示）═══ */}
+      <SecurityBanner />
       {/* ═══ 主体：面包屑 + 内容 + 右侧 XAI ═══ */}
       {/* ═══ 主体：面包屑 + 内容 + 右侧 XAI ═══ */}
       <Layout style={{ flex: 1, flexDirection: 'row', background: 'transparent' }}>

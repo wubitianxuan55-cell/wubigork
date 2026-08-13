@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Button, Tooltip, message } from 'antd'
 import { PoweroffOutlined } from '@ant-design/icons'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 import { getEngines } from '../api/engines'
 import { useFeatureModel } from '../hooks/useFeatureModel'
 

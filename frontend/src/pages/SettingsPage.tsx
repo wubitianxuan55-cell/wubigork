@@ -3,6 +3,7 @@ import { Input } from 'antd'
 import {
   AppstoreOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   SettingOutlined, ApiOutlined, InfoCircleOutlined, SearchOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
 import './settings-page.css'
@@ -12,6 +13,7 @@ import WorkspacePanel from '../components/settings/WorkspacePanel'
 import ImageGenPanel from '../components/settings/ImageGenPanel'
 import OfficePanel from '../components/settings/OfficePanel'
 import ModelPanel from '../components/settings/ModelPanel'
+import SecurityPanel from '../components/settings/SecurityPanel'
 import AboutPanel from '../components/settings/AboutPanel'
 
 interface Category {
@@ -72,6 +74,14 @@ const CATEGORIES: Category[] = [
     desc: '全局模型',
     keywords: ['模型', '推理', '强度', '引擎', 'grok', 'deepseek', 'ollama', 'herdsman', 'xai', 'api', 'key'],
     panel: <ModelPanel />,
+  },
+  {
+    key: 'security',
+    icon: <SafetyCertificateOutlined />,
+    label: '安全',
+    desc: '隐私 · 调试',
+    keywords: ['安全', '隐私', '敏感', '本地化', '本地', '局域网', '暴露', 'lan', '调试', 'webview', '远程', 'token', '报价', '成本'],
+    panel: <SecurityPanel />,
   },
   {
     key: 'about',

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { DashboardOutlined } from '@ant-design/icons'
-import * as App from '../../../wailsjs/go/app/App'
+import * as App from '../../../src/wailsjsCompat'
 import { StatusChip } from './ui'
 import {
   computeResourceSnapshot,

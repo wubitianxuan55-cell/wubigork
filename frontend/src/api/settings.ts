@@ -4,7 +4,7 @@
  */
 
 import type { TTSConfig, TTSStatus } from '../types'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 
 export interface BackendInfo {
   backend: string

@@ -10,7 +10,7 @@ import {
 import { Tooltip } from 'antd'
 import VoiceChatOrb from './VoiceChatOrb'
 import { useVoiceChat } from '../hooks/useVoiceChat'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 import './module-launcher.css'
 
 /** 启动器可跳转的目标页（与 MainLayout 的 Page 类型保持一致的子集） */

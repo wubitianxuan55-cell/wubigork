@@ -14,7 +14,7 @@ import type { Message } from '../components/ChatPanel'
 import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
 import { useAppStore } from '../stores/appStore'
 import { countTextChars } from '../utils/text'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 
 type EditorMode = 'edit' | 'split' | 'preview'
 

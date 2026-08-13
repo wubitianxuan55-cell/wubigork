@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Typography, Button, Space, Tag, Empty, message } from 'antd'
 import { FileTextOutlined, FileMarkdownOutlined, BookOutlined } from '@ant-design/icons'
 import { C } from '../utils/theme'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 
 const ExportPage: React.FC = () => {
   const [exporting, setExporting] = useState(false)

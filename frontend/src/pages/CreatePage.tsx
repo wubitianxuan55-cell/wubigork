@@ -13,7 +13,7 @@ import { useAppStore } from '../stores/appStore'
 import { countTextChars } from '../utils/text'
 import type { OutlineNode } from '../types'
 import { associateToProject, syncProjectCharacters } from '../api/characterlib'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 
 const { TextArea } = Input
 

@@ -8,7 +8,7 @@ import {
   EditOutlined, BulbOutlined, BookOutlined, TranslationOutlined, StarFilled,
   ThunderboltOutlined, SwapOutlined, DownOutlined, DownloadOutlined,
 } from '@ant-design/icons'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { C } from '../utils/theme'
 import { sortByUpdatedAtDesc, autoTopicTitle } from '../utils/chatTopics'

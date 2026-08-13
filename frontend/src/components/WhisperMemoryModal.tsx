@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useCallback } from 'react'
 import { Input, Button, Modal, Tag, Select, Tooltip, message, Popconfirm } from 'antd'
 import { SearchOutlined, DeleteOutlined, EditOutlined, CloseOutlined, CheckOutlined, StarFilled } from '@ant-design/icons'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 
 interface EmotionalCtx { valence?: number; intensity?: number; trust?: number; relStage?: string }
 interface MemoryFact {

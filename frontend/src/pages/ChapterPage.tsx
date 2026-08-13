@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons'
 import {
   GetChapter, GetChapterBranch, SaveChapterContent, SaveChapterBranchContent,
-} from '../../wailsjs/go/app/App'
+} from '../../src/wailsjsCompat'
 import { useAppStore } from '../stores/appStore'
 import TTSPlayer from '../components/TTSPlayer'
 import ChapterEditor from '../components/novel/ChapterEditor'

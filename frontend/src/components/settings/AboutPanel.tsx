@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Collapse, Tag, Typography } from 'antd'
 import { getConfig } from '../../api/settings'
 import SettingsSection from './SettingsSection'
-import * as App from '../../../wailsjs/go/app/App'
+import * as App from '../../../src/wailsjsCompat'
 
 interface ReleaseInfo {
   version: string

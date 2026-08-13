@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Popover, Input, Tag, Typography, Button, Empty } from 'antd'
 import { SearchOutlined, SwapOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 import type { characterlib } from '../../wailsjs/go/models'
 import { C } from '../utils/theme'
 

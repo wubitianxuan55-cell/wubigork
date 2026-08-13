@@ -9,9 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-)
-
-// fakeApp mirrors the Wails binding surface shape: plain args, (T, error)
+)// fakeApp mirrors the Wails binding surface shape: plain args, (T, error)
 // returns, error-only returns, and no-arg methods.
 type fakeApp struct{}
 
@@ -109,3 +107,97 @@ func TestSSEPublish(t *testing.T) {
 		t.Fatalf("payload missing text: %q", line)
 	}
 }
+
+// rpcWithAuth 携带指定 token 调用 /api/rpc；token 为空则不携带任何凭证。
+func rpcWithAuth(t *testing.T, srv *httptest.Server, method string, args any, token string) (int, rpcResponse) {
+	t.Helper()
+	body, _ := json.Marshal(map[string]any{"method": method, "args": args})
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/rpc", strings.NewReader(string(body)))
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST /api/rpc: %v", err)
+	}
+	defer resp.Body.Close()
+	var out rpcResponse
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	return resp.StatusCode, out
+}
+
+// statusOf 返回一次 GET 请求的状态码（SSE 场景只关心鉴权结果）。
+func statusOf(t *testing.T, srv *httptest.Server, path string) int {
+	t.Helper()
+	resp, err := http.Get(srv.URL + path)
+	if err != nil {
+		t.Fatalf("GET %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
+}
+
+func TestTokenAuth(t *testing.T) {
+	const tok = "s3cr3t-token"
+	srv := httptest.NewServer(NewWithToken(&fakeApp{}, tok).Handler())
+	defer srv.Close()
+
+	// 无 token → 401，且不泄露结果。
+	if code, _ := rpcWithAuth(t, srv, "Greet", []any{"world"}, ""); code != http.StatusUnauthorized {
+		t.Fatalf("no-token rpc status = %d, want 401", code)
+	}
+	// 错误 token → 401。
+	if code, _ := rpcWithAuth(t, srv, "Greet", []any{"world"}, "wrong"); code != http.StatusUnauthorized {
+		t.Fatalf("bad-token rpc status = %d, want 401", code)
+	}
+	// 正确 token（Authorization: Bearer）→ 200 且结果正常。
+	if code, got := rpcWithAuth(t, srv, "Greet", []any{"world"}, tok); code != http.StatusOK || got.Result != "hi world" {
+		t.Fatalf("bearer rpc = %d %+v, want 200 hi world", code, got)
+	}
+	// X-Gaea-Token 头同样可用。
+	body, _ := json.Marshal(map[string]any{"method": "Add", "args": []any{2, 3}})
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/rpc", strings.NewReader(string(body)))
+	req.Header.Set("X-Gaea-Token", tok)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("x-token rpc: %v", err)
+	}
+	defer resp.Body.Close()
+	var out rpcResponse
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	if resp.StatusCode != http.StatusOK || out.Result != float64(5) {
+		t.Fatalf("x-token rpc = %d %+v, want 200 5", resp.StatusCode, out)
+	}
+	// SSE：无 token 401；?token= 查询参数可用（EventSource 无法带请求头）。
+	if code := statusOf(t, srv, "/api/stream?id=chat"); code != http.StatusUnauthorized {
+		t.Fatalf("sse no-token status = %d, want 401", code)
+	}
+	if code := statusOf(t, srv, "/api/stream?id=chat&token="+tok); code != http.StatusOK {
+		t.Fatalf("sse token status = %d, want 200", code)
+	}
+	// /api/health 保持开放（存活探针）。
+	if code := statusOf(t, srv, "/api/health"); code != http.StatusOK {
+		t.Fatalf("health status = %d, want 200", code)
+	}
+}
+
+func TestSessionToken(t *testing.T) {
+	// 显式 token 原样返回。
+	if got := SessionToken("abc"); got != "abc" {
+		t.Fatalf("SessionToken(abc) = %q", got)
+	}
+	// 自动生成：两次不同且为 32 位十六进制。
+	a, b := SessionToken(""), SessionToken("")
+	if a == b {
+		t.Fatalf("auto tokens must differ: %q", a)
+	}
+	if len(a) != 32 {
+		t.Fatalf("auto token length = %d, want 32", len(a))
+	}
+	for _, r := range a {
+		if !strings.ContainsRune("0123456789abcdef", r) {
+			t.Fatalf("auto token not hex: %q", a)
+		}
+	}
+}
+

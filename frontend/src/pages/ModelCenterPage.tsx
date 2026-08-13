@@ -6,7 +6,7 @@ import {
   AppstoreOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 import {
   getEngines, saveEngine, testEngineConnection,
   refreshEngineModels, setEngineDefaultModel,

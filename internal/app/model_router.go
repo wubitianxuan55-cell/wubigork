@@ -1,6 +1,12 @@
 package app
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"log/slog"
+	"strconv"
+
+	"github.com/gaea/gaea/internal/config"
+)
 
 // routeModel 解析功能域生效的 (engine, model, source)。
 // 降级链：功能绑定 → 全局活跃 → 首个可用引擎。
@@ -59,4 +65,48 @@ func (a *App) GetModelRoute(feature string) (string, error) {
 		"feature": feature, "engine": eng, "model": model, "source": source,
 	})
 	return string(b), nil
+}
+
+// routeSensitiveLocal 敏感域（成本/报价）AI 路由（S2-4/D8）：
+// 敏感域本地化开关开启时，成本/报价类 AI 操作强制路由本地 Herdsman
+// （商务数据不出本机）；herdsman 引擎不可用/停用时回退常规路由
+// （功能绑定 → 全局 → 兜底），保证功能可用性。source 标记
+// "sensitive-local" 供前端与诊断展示。
+func (c *core) routeSensitiveLocal(feature string) (engine, model, source string) {
+	if !c.cfg.GetSensitiveLocal() {
+		return c.routeModel(feature)
+	}
+	if c.engineMgr != nil {
+		if eng, ok := c.engineMgr.GetEngine("herdsman"); ok && eng.Enabled && eng.BaseURL != "" {
+			m := eng.DefaultModel
+			if m == "" {
+				if dm, err := c.engineMgr.GetDefaultModel("herdsman"); err == nil {
+					m = dm
+				}
+			}
+			if m == "" && len(eng.Models) > 0 {
+				m = eng.Models[0].ID
+			}
+			c.emitModelRoute(feature, "herdsman", m, "sensitive-local")
+			return "herdsman", m, "sensitive-local"
+		}
+	}
+	return c.routeModel(feature)
+}
+
+// GetSensitiveLocal 读取敏感域本地化开关（Wails 绑定，默认开启）。
+func (a *App) GetSensitiveLocal() bool {
+	return a.cfg.GetSensitiveLocal()
+}
+
+// SetSensitiveLocal 设置敏感域本地化开关并持久化（true=成本/报价 AI 走本地
+// Herdsman；false=按常规路由可回云端）。
+func (a *App) SetSensitiveLocal(enabled bool) error {
+	a.cfg.SetSensitiveLocal(enabled)
+	if err := config.Save(config.KeySensitiveLocal, strconv.FormatBool(enabled)); err != nil {
+		slog.Warn("保存敏感域本地化开关失败", "error", err)
+		return err
+	}
+	slog.Info("敏感域本地化开关已更新", "enabled", enabled)
+	return nil
 }

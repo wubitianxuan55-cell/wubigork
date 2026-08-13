@@ -13,12 +13,17 @@
 package httpbridge
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"reflect"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -37,34 +42,98 @@ type rpcResponse struct {
 // Bridge dispatches RPC calls to a single App instance and fans its events
 // out to SSE subscribers.
 type Bridge struct {
-	app any
-	hub *eventHub
+	app   any
+	hub   *eventHub
+	token string // 非空时 /api/rpc 与 /api/stream 需要携带该 token（S2-2）。
 }
 
 // New wraps an App instance (any object whose exported methods match the
-// Wails binding surface, e.g. *app.App).
+// Wails binding surface, e.g. *app.App). The bridge is unauthenticated.
 func New(app any) *Bridge {
-	// Share the package-level hub so core.emit → Publish reaches the streams
-	// served by whichever Bridge instance is listening.
-	return &Bridge{app: app, hub: globalHub}
+	return NewWithToken(app, "")
 }
 
+// NewWithToken wraps an App instance and requires the given token on all
+// data endpoints (/api/rpc, /api/stream). An empty token disables auth.
+func NewWithToken(app any, token string) *Bridge {
+	// Share the package-level hub so core.emit → Publish reaches the streams
+	// served by whichever Bridge instance is listening.
+	return &Bridge{app: app, hub: globalHub, token: token}
+}
+
+// SessionToken 返回桥接会话 token：显式传入非空时原样使用（自动化场景），
+// 否则每次调用生成 32 位十六进制随机 token（一次性：随进程生命周期）。
+func SessionToken(explicit string) string {
+	if strings.TrimSpace(explicit) != "" {
+		return strings.TrimSpace(explicit)
+	}
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// crypto/rand 失败几乎不可能；回退时间戳+序号组合仍可鉴权。
+		return fmt.Sprintf("%x%x", time.Now().UnixNano(), atomic.AddUint64(&fallbackSeq, 1))
+	}
+	return hex.EncodeToString(b)
+}
+
+// fallbackSeq 是 crypto/rand 不可用时的回退序号源。
+var fallbackSeq uint64
+
 // Handler returns the HTTP routes with CORS enabled for browser clients.
+// /api/health 保持开放（存活探针，不含数据）；/api/rpc 与 /api/stream
+// 在配置了 token 时校验请求携带的 token（S2-2）。
 func (b *Bridge) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
-	mux.HandleFunc("/api/rpc", b.handleRPC)
-	mux.HandleFunc("/api/stream", b.handleStream)
+	mux.Handle("/api/rpc", b.requireAuth(http.HandlerFunc(b.handleRPC)))
+	mux.Handle("/api/stream", b.requireAuth(http.HandlerFunc(b.handleStream)))
 	return cors(mux)
 }
 
-// Serve starts the bridge on addr (e.g. "127.0.0.1:8080"). Call in a
-// goroutine; it blocks until the server is closed.
+// requireAuth 在 b.token 非空时校验请求 token，不匹配返回 401。
+// token 可来自 Authorization: Bearer <t>、X-Gaea-Token: <t> 或 ?token=<t>
+// （SSE 的 EventSource 无法自定义请求头，必须支持查询参数）。
+func (b *Bridge) requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if b.token != "" && !b.tokenOK(r) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"unauthorized: missing or invalid bridge token"}`))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (b *Bridge) tokenOK(r *http.Request) bool {
+	got := ""
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		got = strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
+	}
+	if got == "" {
+		got = strings.TrimSpace(r.Header.Get("X-Gaea-Token"))
+	}
+	if got == "" {
+		got = strings.TrimSpace(r.URL.Query().Get("token"))
+	}
+	if got == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(b.token)) == 1
+}
+
+// Serve starts the bridge on addr (e.g. "127.0.0.1:8080") without token
+// authentication. Call in a goroutine; it blocks until the server is closed.
 func Serve(addr string, app any) error {
-	return http.ListenAndServe(addr, New(app).Handler())
+	return ServeWithToken(addr, app, "")
+}
+
+// ServeWithToken starts the bridge on addr and requires token on data
+// endpoints. Call in a goroutine; it blocks until the server is closed.
+func ServeWithToken(addr string, app any, token string) error {
+	return http.ListenAndServe(addr, NewWithToken(app, token).Handler())
 }
 
 // Publish routes a runtime event to every SSE subscriber of that name. Safe to
@@ -185,7 +254,7 @@ func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Gaea-Token")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

@@ -373,8 +373,27 @@ const EVENT_CHANNEL = "gaea-event";
 // runtime can inject window.go AFTER this module first evaluates, so snapshotting
 // once would pin the browser mock for the whole session (and show fake data — the
 // dev mock's model list leaking into the real app was exactly this bug).
+//
+// S2-3「App 绑定面拆分」：后端绑定面已从单一 window.go.app.App 拆为多个板块
+// 门面（go.app.CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/NovelB/
+// ImageB/CharLibB）。这里返回一个按方法名路由到对应门面的代理，前端调用点
+// （app.Submit 等）零改动。
 function realApp(): AppBindings | undefined {
-  return typeof window !== "undefined" ? (window.go?.app?.App as unknown as AppBindings) : undefined;
+  if (typeof window === "undefined") return undefined;
+  const goApp = (window as unknown as { go?: { app?: Record<string, unknown> } }).go?.app;
+  if (!goApp || typeof goApp !== "object") return undefined;
+  return new Proxy({} as AppBindings, {
+    get(_t, prop) {
+      const key = gaeaToGaea[String(prop)] ?? String(prop);
+      for (const ns of Object.values(goApp)) {
+        if (ns === null || typeof ns !== "object") continue;
+        const rec = ns as Record<string, unknown>;
+        const v = rec[key];
+        if (typeof v === "function") return (v as (...a: unknown[]) => unknown).bind(rec);
+      }
+      return undefined;
+    },
+  });
 }
 
 let mockSingleton: AppBindings | null = null;

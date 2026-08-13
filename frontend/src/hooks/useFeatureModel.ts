@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import * as App from '../../wailsjs/go/app/App'
+import * as App from '../../src/wailsjsCompat'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 
 /**

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Input, Radio, Select, Switch, Typography, message } from 'antd'
-import * as App from '../../../wailsjs/go/app/App'
+import * as App from '../../../src/wailsjsCompat'
 import { applyVoiceSettings, getVoiceSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
 
