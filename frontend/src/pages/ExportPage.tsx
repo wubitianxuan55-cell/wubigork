@@ -1,20 +1,29 @@
 import React, { useState } from 'react'
-import { Typography, Button, Space, Tag } from 'antd'
+import { Typography, Button, Space, Tag, Empty, message } from 'antd'
 import { FileTextOutlined, FileMarkdownOutlined, BookOutlined } from '@ant-design/icons'
 import { C } from '../utils/theme'
+import * as App from '../../wailsjs/go/app/App'
 
 const ExportPage: React.FC = () => {
   const [exporting, setExporting] = useState(false)
   const [results, setResults] = useState<Record<string, string>>({})
+  const [exported, setExported] = useState(false)
 
   const handleExport = async () => {
     setExporting(true)
+    setExported(false)
     try {
-      // @ts-ignore
-      const res = await window.go.app.App.ExportAll()
-      setResults(res || {})
+      const res = await App.ExportAll()
+      const next = res || {}
+      setResults(next)
+      setExported(true)
+      if (Object.keys(next).length === 0) {
+        message.warning('导出完成，但没有生成文件。请先确认项目中有已写章节。')
+      } else {
+        message.success('导出完成')
+      }
     } catch (err: any) {
-      console.error(err)
+      message.error(err?.message || '导出失败')
     } finally {
       setExporting(false)
     }
@@ -39,6 +48,12 @@ const ExportPage: React.FC = () => {
           导出全部格式 (TXT + Markdown + EPUB)
         </Button>
       </div>
+
+      {exported && Object.keys(results).length === 0 && (
+        <div className="novel-panel" style={{ padding: 32, textAlign: 'center' }}>
+          <Empty description="没有可导出的章节内容" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        </div>
+      )}
 
       {Object.keys(results).length > 0 && (
         <div className="novel-panel" style={{ overflow: 'hidden' }}>

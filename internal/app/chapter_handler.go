@@ -43,7 +43,12 @@ func (a *writingState) GetChapterBranch(num int, branch string) (map[string]inte
 	if err != nil {
 		return nil, err
 	}
-	summary, err := pm.ReadChapterSummary(num)
+	var summary *types.ChapterSummary
+	if branch != "" {
+		summary, err = pm.ReadChapterBranchSummary(num, branch)
+	} else {
+		summary, err = pm.ReadChapterSummary(num)
+	}
 	if err != nil {
 		slog.Warn("读取章节摘要失败", "chapter", num, "error", err)
 	}
@@ -59,7 +64,11 @@ func (a *writingState) SaveChapterContent(num int, content string) error {
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
 	}
-	return pm.WriteChapter(num, content)
+	if err := pm.WriteChapter(num, content); err != nil {
+		return err
+	}
+	a.markChapterWritten(num, "")
+	return nil
 }
 
 // SaveChapterBranchContent 手动保存分支章节内容
@@ -68,7 +77,50 @@ func (a *writingState) SaveChapterBranchContent(num int, branch string, content 
 	if pm == nil {
 		return fmt.Errorf("请先打开项目")
 	}
-	return pm.WriteChapterBranch(num, branch, content)
+	if err := pm.WriteChapterBranch(num, branch, content); err != nil {
+		return err
+	}
+	a.markChapterWritten(num, branch)
+	return nil
+}
+
+// markChapterWritten 手动保存章节后同步大纲状态，避免阅读页保存了正文但大纲仍显示未写/生成中。
+func (a *writingState) markChapterWritten(num int, branch string) {
+	pm := a.getPM()
+	if pm == nil {
+		return
+	}
+	of, err := pm.ReadOutlines()
+	if err != nil {
+		slog.Warn("手动保存章节后读取大纲失败", "chapter", num, "error", err)
+		return
+	}
+	changed := false
+	for i := range of.Nodes {
+		if markNodeWritten(&of.Nodes[i], num, branch) {
+			changed = true
+			break
+		}
+	}
+	if !changed {
+		return
+	}
+	if err := pm.WriteOutlines(of); err != nil {
+		slog.Warn("手动保存章节后更新大纲状态失败", "chapter", num, "error", err)
+	}
+}
+
+func markNodeWritten(node *types.OutlineNode, num int, branch string) bool {
+	if node.OrderIndex == num && node.Branch == branch {
+		node.Status = types.OutlineDone
+		return true
+	}
+	for i := range node.Children {
+		if markNodeWritten(&node.Children[i], num, branch) {
+			return true
+		}
+	}
+	return false
 }
 
 // GenerateSceneIllustration 为指定章节生成场景插图（Aurora）

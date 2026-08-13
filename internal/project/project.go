@@ -277,6 +277,20 @@ func (m *Manager) ChapterSummaryPath(num int) string {
 	return filepath.Join(m.Dir, "chapters", fmt.Sprintf("%03d-summary.json", num))
 }
 
+// WriteChapterBranchSummary 写分支章节摘要 chapters/NNN{a,b,c}-summary.json
+func (m *Manager) WriteChapterBranchSummary(num int, branch string, summary *types.ChapterSummary) error {
+	return writeJSON(m.ChapterBranchSummaryPath(num, branch), summary)
+}
+
+// ReadChapterBranchSummary 读分支章节摘要
+func (m *Manager) ReadChapterBranchSummary(num int, branch string) (*types.ChapterSummary, error) {
+	return loadJSON[types.ChapterSummary](m.ChapterBranchSummaryPath(num, branch))
+}
+
+func (m *Manager) ChapterBranchSummaryPath(num int, branch string) string {
+	return filepath.Join(m.Dir, "chapters", fmt.Sprintf("%03d%s-summary.json", num, branch))
+}
+
 // ReadAllChapterSummaries 一次扫描读取所有章节摘要（替代逐个文件探测）
 func (m *Manager) ReadAllChapterSummaries() ([]types.ChapterSummary, error) {
 	entries, err := os.ReadDir(filepath.Join(m.Dir, "chapters"))

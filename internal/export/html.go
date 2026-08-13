@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"html"
 	"strings"
+
+	"github.com/gaea/gaea/internal/types"
 )
 
 // ── HTML 导出 ────────────────────────────────────────────────
@@ -89,14 +91,22 @@ func (m *Manager) ExportHTML(outPath string, tmpl CompileTemplate) (string, erro
 
 	// 章节
 	body.WriteString(`<main class="chapters">`)
-	for chapterNum := 1; ; chapterNum++ {
-		content, err := m.pm.ReadChapter(chapterNum)
+	for _, ch := range m.listChapters() {
+		content, err := m.pm.ReadChapterBranch(ch.num, ch.branch)
 		if err != nil {
-			break
+			continue
 		}
-		summary, _ := m.pm.ReadChapterSummary(chapterNum)
+		var summary *types.ChapterSummary
+		if ch.branch != "" {
+			summary, _ = m.pm.ReadChapterBranchSummary(ch.num, ch.branch)
+		} else {
+			summary, _ = m.pm.ReadChapterSummary(ch.num)
+		}
 
-		chapterTitle := fmt.Sprintf("第 %d 章", chapterNum)
+		chapterTitle := fmt.Sprintf("第 %d 章", ch.num)
+		if ch.branch != "" {
+			chapterTitle += " " + ch.branch
+		}
 		if summary != nil && summary.Title != "" {
 			chapterTitle = summary.Title
 		}
@@ -164,18 +174,33 @@ func markdownToHTML(md string) string {
 
 		switch {
 		case strings.HasPrefix(trimmed, "### "):
-			if inParagraph { result = append(result, "</p>"); inParagraph = false }
+			if inParagraph {
+				result = append(result, "</p>")
+				inParagraph = false
+			}
 			result = append(result, "<h3>"+html.EscapeString(strings.TrimPrefix(trimmed, "### "))+"</h3>")
 		case strings.HasPrefix(trimmed, "## "):
-			if inParagraph { result = append(result, "</p>"); inParagraph = false }
+			if inParagraph {
+				result = append(result, "</p>")
+				inParagraph = false
+			}
 			result = append(result, "<h2>"+html.EscapeString(strings.TrimPrefix(trimmed, "## "))+"</h2>")
 		case strings.HasPrefix(trimmed, "# "):
-			if inParagraph { result = append(result, "</p>"); inParagraph = false }
+			if inParagraph {
+				result = append(result, "</p>")
+				inParagraph = false
+			}
 			result = append(result, "<h1>"+html.EscapeString(strings.TrimPrefix(trimmed, "# "))+"</h1>")
 		case trimmed == "":
-			if inParagraph { result = append(result, "</p>"); inParagraph = false }
+			if inParagraph {
+				result = append(result, "</p>")
+				inParagraph = false
+			}
 		case strings.HasPrefix(trimmed, "- "):
-			if inParagraph { result = append(result, "</p>"); inParagraph = false }
+			if inParagraph {
+				result = append(result, "</p>")
+				inParagraph = false
+			}
 			result = append(result, "<li>"+html.EscapeString(strings.TrimPrefix(trimmed, "- "))+"</li>")
 		default:
 			if !inParagraph {

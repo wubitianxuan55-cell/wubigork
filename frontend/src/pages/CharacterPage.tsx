@@ -1,7 +1,7 @@
 // CharacterPage.tsx — 小说角色面板（单向使用角色库）
 // 约束：小说只引用角色库的角色，不自行生成、不回写全局角色；
 // 面板内可改的只有项目内覆盖（定位 / 弧线状态 / 状态），全局设定一律去角色库。
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Typography, Empty, Button, Input, Modal, InputNumber, Drawer,
   Select, message, Tabs, Tag, Switch, Popconfirm,
@@ -42,6 +42,32 @@ const roleOptions = [
   { value: 'protagonist', label: '主角' }, { value: 'antagonist', label: '反派' },
   { value: 'supporting', label: '配角' }, { value: 'minor', label: '龙套' },
 ]
+
+const CHAR_FILTER_KEY = 'gaea.novel.charFilters.'
+
+interface CharFilterState {
+  gender: string
+  role: string
+  status: string
+  org: string
+}
+
+function readCharFilters(projectPath: string): CharFilterState {
+  try {
+    const raw = localStorage.getItem(CHAR_FILTER_KEY + projectPath)
+    if (!raw) return { gender: '', role: '', status: '', org: '' }
+    const value = JSON.parse(raw) as CharFilterState
+    return value || { gender: '', role: '', status: '', org: '' }
+  } catch {
+    return { gender: '', role: '', status: '', org: '' }
+  }
+}
+
+function writeCharFilters(projectPath: string, state: CharFilterState) {
+  try {
+    if (projectPath) localStorage.setItem(CHAR_FILTER_KEY + projectPath, JSON.stringify(state))
+  } catch { /* ignore */ }
+}
 
 function navigateToCharacterLib() {
   window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'characterlib' } }))
@@ -87,24 +113,55 @@ const CharacterPage: React.FC = () => {
   const [peStatus, setPeStatus] = useState('')
 
   const projectPath = useAppStore(s => s.projectPath)
+  const dataLoadToken = useRef(0)
+  const refsLoadToken = useRef(0)
+
+  // 项目切换时恢复/重置筛选条件
+  useEffect(() => {
+    const saved = readCharFilters(projectPath)
+    setFilterGender(saved.gender || '')
+    setFilterRole(saved.role || '')
+    setFilterStatus(saved.status || '')
+    setFilterOrg(saved.org || '')
+  }, [projectPath])
+
+  // 筛选变化按项目记忆
+  useEffect(() => {
+    if (!projectPath) return
+    writeCharFilters(projectPath, {
+      gender: filterGender,
+      role: filterRole,
+      status: filterStatus,
+      org: filterOrg,
+    })
+  }, [projectPath, filterGender, filterRole, filterStatus, filterOrg])
 
   const loadData = useCallback(async () => {
+    const token = ++dataLoadToken.current
+    const requestedPath = useAppStore.getState().projectPath
     setLoading(true)
     try {
       const data = await getCharacters()
+      if (token !== dataLoadToken.current || requestedPath !== useAppStore.getState().projectPath) return
       setCharacters(data.characters || [])
       setOrganizations(data.organizations || [])
       setRelationships(data.relationships || [])
     } catch (err) { console.error('[CharacterPage] loadData:', err) }
-    finally { setLoading(false) }
+    finally {
+      if (token === dataLoadToken.current) setLoading(false)
+    }
   }, [])
 
   const loadRefs = useCallback(async () => {
+    const token = ++refsLoadToken.current
     if (!projectPath) { setProjectRefs(new Set()); return }
     try {
       const refs = await listProjectCharacters()
+      if (token !== refsLoadToken.current || projectPath !== useAppStore.getState().projectPath) return
       setProjectRefs(new Set(refs.map(r => r.characterId)))
-    } catch (_) { setProjectRefs(new Set()) }
+    } catch (_) {
+      if (token === refsLoadToken.current && projectPath === useAppStore.getState().projectPath) setProjectRefs(new Set())
+    }
   }, [projectPath])
 
   useEffect(() => {
@@ -620,7 +677,7 @@ const CharacterPage: React.FC = () => {
             <Select size="small" value={relFromId || undefined} onChange={setRelFromId} style={{ width: 130 }} placeholder="选择角色"
               options={characters.map(c => ({ value: c.id, label: c.name }))} />
             <Button size="small" icon={<LinkOutlined />} disabled={!relFromId}
-              onClick={() => setRelModalOpen(true)}>添加关系</Button>
+              onClick={() => { setRelTargetId(''); setRelType('friend'); setRelModalOpen(true) }}>添加关系</Button>
           </div>
           {relationships.length === 0 ? (
             <Empty description="暂无关系" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 60 }} />

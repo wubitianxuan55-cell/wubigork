@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Space, Tag, Typography } from "antd";
 import { ConsoleSqlOutlined } from "@ant-design/icons";
+import { useAppStore } from "../../stores/appStore";
 
 // ── 小说板块专属：AI 控制台 ──────────────────────────────────────
 // 展示小说 AI 调用的实时输出（xai-output 事件）。从 MainLayout 抽出，
@@ -16,11 +17,18 @@ let logId = 0
 
 /** AIConsole 小说 AI 调用监控面板（右上角悬浮，可展开/关闭）。 */
 export function AIConsole() {
+  const projectPath = useAppStore((s) => s.projectPath)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [expandedLog, setExpandedLog] = useState<number | null>(null)
   const logEnd = useRef<HTMLDivElement>(null)
   const logContainerRef = useRef<HTMLDivElement>(null)
+
+  // 切换小说时清空旧项目的调用日志，避免把上一本书的请求混进来
+  useEffect(() => {
+    setLogs([])
+    setExpandedLog(null)
+  }, [projectPath])
 
   // 监听 XAI 实时输出事件
   useEffect(() => {

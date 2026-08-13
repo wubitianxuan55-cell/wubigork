@@ -179,19 +179,20 @@ type ModelsResponse struct {
 
 // ImageGenerationRequest POST /v1/images/generations
 type ImageGenerationRequest struct {
-	Model          string  `json:"model"`
-	Prompt         string  `json:"prompt"`
-	Negative       string  `json:"negative,omitempty"`
-	N              int     `json:"n,omitempty"`
-	Size           string  `json:"size,omitempty"`
-	ResponseFormat string  `json:"response_format,omitempty"` // "url" 或 "b64_json"
-	Seed           int     `json:"seed,omitempty"`
-	Lora           string  `json:"lora,omitempty"`       // LoRA 文件名（逗号分隔多个）
-	Mode           string  `json:"mode,omitempty"`       // txt2img | img2img | t2v
-	InitImage      string  `json:"init_image,omitempty"` // img2img 参考图（base64 data URL）
-	Denoise        float64 `json:"denoise,omitempty"`    // img2img 重绘幅度 0-1
-	Frames         int     `json:"frames,omitempty"`     // t2v 帧数
-	FPS            int     `json:"fps,omitempty"`        // t2v 帧率
+	Model            string                                  `json:"model"`
+	Prompt           string                                  `json:"prompt"`
+	Negative         string                                  `json:"negative,omitempty"`
+	N                int                                     `json:"n,omitempty"`
+	Size             string                                  `json:"size,omitempty"`
+	ResponseFormat   string                                  `json:"response_format,omitempty"` // "url" 或 "b64_json"
+	Seed             int                                     `json:"seed,omitempty"`
+	Lora             string                                  `json:"lora,omitempty"`       // LoRA 文件名（逗号分隔多个）
+	Mode             string                                  `json:"mode,omitempty"`       // txt2img | img2img | t2v
+	InitImage        string                                  `json:"init_image,omitempty"` // img2img 参考图（base64 data URL）
+	Denoise          float64                                 `json:"denoise,omitempty"`    // img2img 重绘幅度 0-1
+	Frames           int                                     `json:"frames,omitempty"`     // t2v 帧数
+	FPS              int                                     `json:"fps,omitempty"`        // t2v 帧率
+	ProgressCallback func(status string, elapsedSeconds int) `json:"-"`
 }
 
 // PortraitStylePrefix 角色剧照统一前置风格提示词（写实摄影风）。

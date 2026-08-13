@@ -94,9 +94,10 @@ func (b *ComfyUIBackend) listLorasForNode(ctx context.Context, nodeType string) 
 }
 
 // parseLoraNames 解析 object_info 中 lora_name 可选值，兼容多种版本结构：
-//   A. [["file1.safetensors", ...]]                      （仅一层包装）
-//   B. ["LORAS", ["file1.safetensors", ...]]             （标准 ComfyUI）
-//   C. ["LORAS", {"file1.safetensors": {...}}]           （对象映射）
+//
+//	A. [["file1.safetensors", ...]]                      （仅一层包装）
+//	B. ["LORAS", ["file1.safetensors", ...]]             （标准 ComfyUI）
+//	C. ["LORAS", {"file1.safetensors": {...}}]           （对象映射）
 func parseLoraNames(raw json.RawMessage) ([]string, error) {
 	var pair []json.RawMessage
 	if err := json.Unmarshal(raw, &pair); err != nil {
@@ -221,7 +222,7 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	slog.Info("ComfyUI 任务已提交", "promptID", promptID, "size", fmt.Sprintf("%dx%d", width, height))
 
 	// 2. 轮询等待完成
-	imageData, outKind, err := b.waitForResult(ctx, promptID)
+	imageData, outKind, err := b.waitForResult(ctx, promptID, req)
 	if err != nil {
 		return nil, fmt.Errorf("ComfyUI 生成失败: %w", err)
 	}
@@ -502,19 +503,20 @@ func (b *ComfyUIBackend) queuePrompt(ctx context.Context, workflow map[string]in
 
 // comfyOutputFile ComfyUI 输出文件（图片或视频）
 type comfyOutputFile struct {
-	filename  string
-	subfolder string
+	filename   string
+	subfolder  string
 	outputType string
-	kind      string // image | video
-	format    string
+	kind       string // image | video
+	format     string
 }
 
 // waitForResult 轮询等待 ComfyUI 生成完成，返回 base64 data URL 与输出类型
-func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string) (string, string, error) {
+func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req *ImageGenerationRequest) (string, string, error) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	timeout := time.After(15 * time.Minute)
+	start := time.Now()
 
 	for {
 		select {
@@ -523,6 +525,9 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string) (st
 		case <-timeout:
 			return "", "", fmt.Errorf("ComfyUI 生成超时 (15分钟)")
 		case <-ticker.C:
+			if req.ProgressCallback != nil {
+				req.ProgressCallback("running", int(time.Since(start).Seconds()))
+			}
 			files, done, err := b.checkHistory(promptID)
 			if err != nil {
 				if done {

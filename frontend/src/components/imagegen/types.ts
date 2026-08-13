@@ -9,4 +9,12 @@ export interface GenResult {
   style?: string
   /** image | video（视频为 mp4/webm，动画 webp/gif 也标为 image） */
   kind?: 'image' | 'video'
+  mode?: 'txt2img' | 'img2img' | 't2v'
+  count?: number
+  selectedLoras?: string[]
+  denoise?: number
+  frames?: number
+  fps?: number
+  customWidth?: number
+  customHeight?: number
 }

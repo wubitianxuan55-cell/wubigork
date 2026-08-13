@@ -13,6 +13,7 @@ import ChatPanel from '../components/ChatPanel'
 import type { Message } from '../components/ChatPanel'
 import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
 import { useAppStore } from '../stores/appStore'
+import { countTextChars } from '../utils/text'
 import * as App from '../../wailsjs/go/app/App'
 
 type EditorMode = 'edit' | 'split' | 'preview'
@@ -29,8 +30,10 @@ const NovelSettingPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([])
   const [lastSavedAt, setLastSavedAt] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const loadToken = useRef(0)
 
   const loadContent = useCallback(async () => {
+    const token = ++loadToken.current
     if (!projectPath) {
       setContent('')
       setSavedSnapshot('')
@@ -40,24 +43,27 @@ const NovelSettingPage: React.FC = () => {
     setLoading(true)
     try {
       const text = await App.GetWorldview()
+      if (token !== loadToken.current) return
       setContent(text || '')
       setSavedSnapshot(text || '')
     } catch {
+      if (token !== loadToken.current) return
       setContent('')
       setSavedSnapshot('')
     } finally {
-      setLoading(false)
+      if (token === loadToken.current) setLoading(false)
     }
   }, [projectPath])
 
   useEffect(() => { loadContent() }, [loadContent])
+  useEffect(() => { setMessages([]) }, [projectPath])
 
   const needsProject = !projectOpen && !projectPath
   const dirty = useMemo(
     () => !needsProject && content !== savedSnapshot,
     [content, savedSnapshot, needsProject],
   )
-  const wordCount = useMemo(() => content.trim().length, [content])
+  const wordCount = useMemo(() => countTextChars(content.trim()), [content])
 
   const handleSave = useCallback(async () => {
     setSaving(true)

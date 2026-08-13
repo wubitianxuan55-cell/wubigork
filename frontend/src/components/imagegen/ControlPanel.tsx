@@ -111,6 +111,7 @@ export interface ControlPanelProps {
   loraOptions: { label: string; value: string }[]
   loraLoading?: boolean
   loraError?: string
+  onRefreshLoras?: () => void
   onLorasChange: (v: string[]) => void
   backend: string
   backendSwitching: boolean
@@ -124,6 +125,9 @@ export interface ControlPanelProps {
   generating: boolean
   elapsed: number
   lastTime: number
+  comfyProgress?: { status: string; elapsed: number }
+  pendingCount?: number
+  onCancel?: () => void
   onGenerate: () => void
 }
 
@@ -135,10 +139,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   seed, onSeedChange, count, onCountChange,
   initImage, onInitImageChange, denoise, onDenoiseChange,
   frames, onFramesChange, fps, onFpsChange,
-  selectedLoras, loraOptions, loraLoading, loraError, onLorasChange,
+  selectedLoras, loraOptions, loraLoading, loraError, onRefreshLoras, onLorasChange,
   backend, backendSwitching, engineRunning, engineStarting, engineModelCount,
   onSwitchBackend, onStartEngine, onStopEngine,
-  sysStats, generating, elapsed, lastTime, onGenerate,
+  sysStats, generating, elapsed, lastTime, comfyProgress, pendingCount = 0, onCancel, onGenerate,
 }) => {
   const [showNegative, setShowNegative] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
@@ -147,6 +151,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const hint = generating
     ? `已用时 ${elapsed}s`
     : lastTime > 0 ? `上次 ${lastTime}s · 预计约 ${est}s` : `预计约 ${est}s`
+  const displayHint = backend === 'comfyui' && comfyProgress?.status
+    ? comfyProgress.status === 'running'
+      ? `ComfyUI 执行中 · ${comfyProgress.elapsed}s`
+      : 'ComfyUI 排队中'
+    : hint
   const needsComfy = mode !== 'txt2img' && backend !== 'comfyui'
 
   const readFile = (file?: File | null) => {
@@ -157,7 +166,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   }
 
   return (
-    <div style={{
+    <div className="ig-control-panel" style={{
       background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
       WebkitBackdropFilter: 'blur(18px) saturate(140%)',
       backdropFilter: 'blur(18px) saturate(140%)',
@@ -370,7 +379,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             ) : loraLoading ? (
               <div style={loraHintStyle}>正在加载 LoRA…</div>
             ) : loraError ? (
-              <div style={{ ...loraHintStyle, color: '#f87171' }}>LoRA 加载失败：{loraError}</div>
+              <div style={{ ...loraHintStyle, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ flex: 1 }}>LoRA 加载失败：{loraError}</span>
+                {onRefreshLoras && (
+                  <Button size="small" type="text" onClick={onRefreshLoras}
+                    style={{ color: '#f87171', fontSize: 11, padding: '0 4px' }}>
+                    重试
+                  </Button>
+                )}
+              </div>
             ) : loraOptions.length === 0 ? (
               <div style={loraHintStyle}>当前模型 {model} 暂无匹配的 LoRA</div>
             ) : (
@@ -502,10 +519,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       <ActionButton
         loading={generating}
         disabled={needsComfy}
-        label={generating ? '生成中' : mode === 't2v' ? '生成视频' : `生成 ${count} 张`}
-        hint={hint}
+        label={generating
+          ? pendingCount > 0 ? `生成中 · 队列 ${pendingCount}` : '生成中'
+          : mode === 't2v' ? '生成视频' : `生成 ${count} 张`}
+        hint={displayHint}
         onClick={onGenerate}
       />
+      {onCancel && (generating || pendingCount > 0) && (
+        <Button size="small" block onClick={onCancel} style={{ marginTop: 6 }}>
+          取消当前任务并清空队列
+        </Button>
+      )}
     </div>
   )
 }

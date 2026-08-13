@@ -46,6 +46,10 @@ export function BuildRichContext(arg1, arg2) {
   return window['go']['app']['App']['BuildRichContext'](arg1, arg2);
 }
 
+export function CancelImageGeneration() {
+  return window['go']['app']['App']['CancelImageGeneration']();
+}
+
 export function CharacterAssociate(arg1, arg2) {
   return window['go']['app']['App']['CharacterAssociate'](arg1, arg2);
 }
@@ -1036,6 +1040,10 @@ export function GetComfyUILoras() {
 
 export function GetComfyUIStatus() {
   return window['go']['app']['App']['GetComfyUIStatus']();
+}
+
+export function GetComfyUITaskProgress() {
+  return window['go']['app']['App']['GetComfyUITaskProgress']();
 }
 
 export function GetCompileTemplates() {

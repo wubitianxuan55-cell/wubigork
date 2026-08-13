@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/bmaupin/go-epub"
@@ -16,9 +18,46 @@ type Manager struct {
 	pm *project.Manager
 }
 
+type chapterEntry struct {
+	num    int
+	branch string
+}
+
 // New 创建导出管理器
 func New(pm *project.Manager) *Manager {
 	return &Manager{pm: pm}
+}
+
+// listChapters 扫描 chapters/ 下的主线和分支章节，主线在前，分支按 a/b/c 顺序。
+func (m *Manager) listChapters() []chapterEntry {
+	dir := filepath.Join(m.pm.Dir, "chapters")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	re := regexp.MustCompile(`^(\d{3})([a-z]?)\.md$`)
+	var out []chapterEntry
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		match := re.FindStringSubmatch(e.Name())
+		if len(match) != 3 {
+			continue
+		}
+		var num int
+		if _, err := fmt.Sscanf(match[1], "%d", &num); err != nil {
+			continue
+		}
+		out = append(out, chapterEntry{num: num, branch: match[2]})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].num != out[j].num {
+			return out[i].num < out[j].num
+		}
+		return out[i].branch < out[j].branch
+	})
+	return out
 }
 
 // ExportTXT 导出为纯文本
@@ -39,12 +78,16 @@ func (m *Manager) ExportTXT(outPath string) (string, error) {
 		sb.WriteString("\n\n" + strings.Repeat("=", 50) + "\n\n")
 	}
 
-	for i := 1; ; i++ {
-		content, err := m.pm.ReadChapter(i)
+	for _, ch := range m.listChapters() {
+		content, err := m.pm.ReadChapterBranch(ch.num, ch.branch)
 		if err != nil {
-			break
+			continue
 		}
-		sb.WriteString(fmt.Sprintf("第 %d 章\n\n", i))
+		label := fmt.Sprintf("第 %d 章", ch.num)
+		if ch.branch != "" {
+			label += " " + ch.branch
+		}
+		sb.WriteString(label + "\n\n")
 		sb.WriteString(content)
 		sb.WriteString("\n\n" + strings.Repeat("-", 30) + "\n\n")
 	}
@@ -62,12 +105,16 @@ func (m *Manager) ExportMarkdown(outPath string) (string, error) {
 	sb.WriteString(fmt.Sprintf("# %s\n\n", m.pm.Meta.Title))
 	sb.WriteString(fmt.Sprintf("> 题材: %s | 文风: %s\n\n", m.pm.Meta.Genre, m.pm.Meta.Style))
 
-	for i := 1; ; i++ {
-		content, err := m.pm.ReadChapter(i)
+	for _, ch := range m.listChapters() {
+		content, err := m.pm.ReadChapterBranch(ch.num, ch.branch)
 		if err != nil {
-			break
+			continue
 		}
-		sb.WriteString(fmt.Sprintf("## 第 %d 章\n\n", i))
+		label := fmt.Sprintf("第 %d 章", ch.num)
+		if ch.branch != "" {
+			label += " " + ch.branch
+		}
+		sb.WriteString(fmt.Sprintf("## %s\n\n", label))
 		sb.WriteString(content)
 		sb.WriteString("\n\n")
 	}
@@ -103,15 +150,20 @@ func (m *Manager) ExportEPUB(outPath string) (string, error) {
 	}
 
 	// 各章节
-	for i := 1; ; i++ {
-		content, err := m.pm.ReadChapter(i)
+	for _, ch := range m.listChapters() {
+		content, err := m.pm.ReadChapterBranch(ch.num, ch.branch)
 		if err != nil {
-			break
+			continue
 		}
-		chHTML := fmt.Sprintf("<html><body><h2>第 %d 章</h2>%s</body></html>",
-			i, chapterToHTML(content))
-		e.AddSection(chHTML, fmt.Sprintf("第 %d 章", i),
-			fmt.Sprintf("chapter_%03d.xhtml", i), "")
+		label := fmt.Sprintf("第 %d 章", ch.num)
+		filename := fmt.Sprintf("chapter_%03d", ch.num)
+		if ch.branch != "" {
+			label += " " + ch.branch
+			filename += ch.branch
+		}
+		chHTML := fmt.Sprintf("<html><body><h2>%s</h2>%s</body></html>",
+			label, chapterToHTML(content))
+		e.AddSection(chHTML, label, filename+".xhtml", "")
 	}
 
 	if err := e.Write(outPath); err != nil {

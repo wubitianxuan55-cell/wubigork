@@ -34,6 +34,8 @@ export function BuildContextBudget(arg1:string,arg2:string,arg3:string,arg4:stri
 
 export function BuildRichContext(arg1:string,arg2:string):Promise<Record<string, any>>;
 
+export function CancelImageGeneration():Promise<boolean>;
+
 export function CharacterAssociate(arg1:string,arg2:string):Promise<void>;
 
 export function CharacterDelete(arg1:string):Promise<void>;
@@ -529,6 +531,8 @@ export function GetChatVoiceModel():Promise<Record<string, string>>;
 export function GetComfyUILoras():Promise<Array<string>>;
 
 export function GetComfyUIStatus():Promise<Record<string, any>>;
+
+export function GetComfyUITaskProgress():Promise<Record<string, any>>;
 
 export function GetCompileTemplates():Promise<Array<Record<string, any>>>;
 

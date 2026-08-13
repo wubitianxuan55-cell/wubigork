@@ -2,6 +2,9 @@ package stats
 
 import (
 	"log/slog"
+	"os"
+	"path/filepath"
+	"regexp"
 	"unicode/utf8"
 
 	"github.com/gaea/gaea/internal/project"
@@ -24,13 +27,20 @@ func Collect(pm *project.Manager) *Summary {
 
 	// 章节统计
 	var totalWords int
-	for i := 1; ; i++ {
-		content, err := pm.ReadChapter(i)
-		if err != nil {
-			break
+	entries, err := os.ReadDir(filepath.Join(pm.Dir, "chapters"))
+	if err == nil {
+		re := regexp.MustCompile(`^(\d{3})([a-z]?)\.md$`)
+		for _, e := range entries {
+			if e.IsDir() || !re.MatchString(e.Name()) {
+				continue
+			}
+			content, readErr := os.ReadFile(filepath.Join(pm.Dir, "chapters", e.Name()))
+			if readErr != nil {
+				continue
+			}
+			s.ChapterCount++
+			totalWords += utf8.RuneCountInString(string(content))
 		}
-		s.ChapterCount++
-		totalWords += utf8.RuneCountInString(content)
 	}
 	s.TotalWords = totalWords
 	if s.ChapterCount > 0 {

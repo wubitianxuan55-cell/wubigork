@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
-  Typography, Button, Space, Tag, message, Tabs, Tooltip,
+  Typography, Button, Space, Tag, message, Modal, Tabs, Tooltip,
 } from 'antd'
 import type { TabsProps } from 'antd'
 import {
@@ -8,7 +8,7 @@ import {
   BookOutlined,
 } from '@ant-design/icons'
 import {
-  GetChapter, SaveChapterContent,
+  GetChapter, GetChapterBranch, SaveChapterContent, SaveChapterBranchContent,
 } from '../../wailsjs/go/app/App'
 import { useAppStore } from '../stores/appStore'
 import TTSPlayer from '../components/TTSPlayer'
@@ -16,6 +16,8 @@ import ChapterEditor from '../components/novel/ChapterEditor'
 import OutlinePanel from '../components/novel/OutlinePanel'
 import { findAllLeaves, sortNodes } from '../utils/outline'
 import { useOutlineStore } from '../stores/outlineStore'
+import { countTextChars } from '../utils/text'
+import { readReadingProgress, writeReadingProgress } from '../utils/readingProgress'
 import type { OutlineNode, ChapterTabData } from '../types'
 import { C } from '../utils/theme'
 
@@ -57,9 +59,40 @@ const ChapterPage: React.FC = () => {
   useEffect(() => {
     setTabs([]); setActiveKey('')
     if (projectPath) {
-      loadOutlines()
+      void loadOutlines()
+        .then(() => {
+          const progress = readReadingProgress(projectPath)
+          if (!progress) return
+          const node = findAllLeaves(sortNodes(useOutlineStore.getState().outlines))
+            .find((n) => n.id === progress.nodeId)
+          if (!node) return
+          setActiveKey(node.id)
+          setTabs([createTabData(node)])
+          const chNum = node.order_index || 0
+          if (chNum > 0) {
+            const load = node.branch ? GetChapterBranch(chNum, node.branch) : GetChapter(chNum)
+            load.then((result) => {
+              if (useAppStore.getState().projectPath !== projectPath || !result?.content) return
+              updateTabByKey(node.id, 'scenes', [result.content])
+              updateTabByKey(node.id, 'saved', true)
+            }).catch((e) => console.error('GetChapter failed:', e))
+          }
+        })
+        .catch((e) => console.error('loadOutlines failed:', e))
     }
-  }, [projectPath])
+  }, [projectPath, loadOutlines])
+
+  // 记住当前项目最后阅读的章节，下一次切回该书时自动恢复
+  useEffect(() => {
+    if (!projectPath || !activeKey) return
+    const node = findAllLeaves(sortNodes(outlines)).find((n) => n.id === activeKey)
+    if (!node) return
+    writeReadingProgress(projectPath, {
+      nodeId: node.id,
+      chapterNum: node.order_index || 0,
+      title: node.title || `第${node.order_index || '?'}章`,
+    })
+  }, [projectPath, activeKey, outlines])
 
   const sortedOutlines = useMemo(() => sortNodes(outlines), [outlines])
   const outlineLeaves = useMemo(() => findAllLeaves(sortedOutlines) as OutlineNode[], [sortedOutlines])
@@ -72,8 +105,10 @@ const ChapterPage: React.FC = () => {
     const newTab = createTabData(node)
     setTabs((prev) => [...prev, newTab])
     if (chNum > 0) {
+      const requestedPath = projectPath
       try {
-        const result = await GetChapter(chNum)
+        const result = node.branch ? await GetChapterBranch(chNum, node.branch) : await GetChapter(chNum)
+        if (requestedPath !== useAppStore.getState().projectPath) return
         if (result?.content) {
           updateTabByKey(key, 'scenes', [result.content])
           updateTabByKey(key, 'saved', true)
@@ -93,11 +128,25 @@ const ChapterPage: React.FC = () => {
   }
 
   const closeTab = (key: string) => {
-    setTabs((prev) => {
-      const n = prev.filter((t) => t.node.id !== key)
-      if (key === activeKey && n.length > 0) setActiveKey(n[n.length - 1].node.id)
-      return n
-    })
+    const n = tabs.filter((t) => t.node.id !== key)
+    setTabs(n)
+    if (key === activeKey) setActiveKey(n.length > 0 ? n[n.length - 1].node.id : '')
+  }
+
+  const requestCloseTab = (key: string) => {
+    const target = tabs.find((t) => t.node.id === key)
+    if (target && !target.saved && target.scenes.some((s) => s.trim())) {
+      Modal.confirm({
+        title: '章节尚未保存',
+        content: `确定关闭「${target.node.title || key}」吗？未保存的修改会丢失。`,
+        okText: '关闭',
+        okButtonProps: { danger: true },
+        cancelText: '取消',
+        onOk: () => closeTab(key),
+      })
+      return
+    }
+    closeTab(key)
   }
 
   const activeTab = tabs.find((t) => t.node.id === activeKey) ?? null
@@ -117,7 +166,11 @@ const ChapterPage: React.FC = () => {
     const c = activeTab.scenes.join('\n\n')
     if (!c) return
     try {
-      await SaveChapterContent(activeTab.chapterNum, c)
+      if (activeTab.node.branch) {
+        await SaveChapterBranchContent(activeTab.chapterNum, activeTab.node.branch, c)
+      } else {
+        await SaveChapterContent(activeTab.chapterNum, c)
+      }
       updateTab('saved', true)
       message.success('已保存')
     } catch (e) { message.error('保存失败') }
@@ -136,7 +189,7 @@ const ChapterPage: React.FC = () => {
     if (idx < outlineLeaves.length - 1) handleSelectNode(outlineLeaves[idx + 1])
   }
 
-  const totalWords = activeTab?.scenes?.join('\n').length || 0
+  const totalWords = countTextChars(activeTab?.scenes?.join('\n') || '')
 
   const tabItems: TabsProps['items'] = tabs.map((t) => ({
     key: t.node.id, label: t.node.title,
@@ -173,7 +226,7 @@ const ChapterPage: React.FC = () => {
               {!focusMode && (
                 <div style={{ borderBottom: '1px solid ' + C('color-border'), display: 'flex', alignItems: 'center', paddingRight: 8 }}>
                   <Tabs className="novel-editor-tabs" activeKey={activeKey} onChange={setActiveKey}
-                    onEdit={(key, action) => { if (action === 'remove' && typeof key === 'string') closeTab(key) }}
+                    onEdit={(key, action) => { if (action === 'remove' && typeof key === 'string') requestCloseTab(key) }}
                     items={tabItems} type="editable-card" size="small"
                     style={{ flex: 1, marginBottom: 0 }} tabBarStyle={{ marginBottom: 0 }}
                   />

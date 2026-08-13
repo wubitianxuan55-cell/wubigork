@@ -5,6 +5,7 @@ import type { ChapterTabData } from '../../types'
 import GhostText from './editor/GhostText'
 import CommandBar from './editor/CommandBar'
 import { C } from '../../utils/theme'
+import { countTextChars } from '../../utils/text'
 import { Z_INDEX } from '../../utils/zIndex'
 
 interface ChapterEditorProps {
@@ -169,7 +170,7 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
         >
           <div style={{ padding: '4px 12px 6px', borderBottom: '1px solid ' + C('color-border') }}>
             <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 10 }}>
-              已选 {ctxMenu.text.length} 字
+              已选 {countTextChars(ctxMenu.text)} 字
             </Typography.Text>
           </div>
           <div onClick={() => triggerAI('describe')}

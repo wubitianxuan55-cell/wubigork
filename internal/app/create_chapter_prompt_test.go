@@ -89,7 +89,7 @@ data: [DONE]
 	defer cancel()
 	a.ctx = ctx
 
-	if _, err := a.CreateChapter(got, "", "主角踏上旅途", 1, "", "", 0, 0); err != nil {
+	if _, err := a.CreateChapter(got, "", "主角踏上旅途", 1, "", "", 1200, 0); err != nil {
 		t.Fatalf("CreateChapter: %v", err)
 	}
 
@@ -105,9 +105,13 @@ data: [DONE]
 			t.Fatalf("解析请求体失败: %v", err)
 		}
 		var userPrompt string
+		var systemPrompt string
 		for _, m := range req.Messages {
 			if m.Role == "user" {
 				userPrompt = m.Content
+			}
+			if m.Role == "system" {
+				systemPrompt = m.Content
 			}
 		}
 		if userPrompt == "" {
@@ -118,6 +122,12 @@ data: [DONE]
 		}
 		if !strings.Contains(userPrompt, "林晚") {
 			t.Errorf("user prompt 未包含设定内容:\n%s", userPrompt)
+		}
+		if !strings.Contains(systemPrompt, "1200") {
+			t.Errorf("system prompt 未注入实际目标字数 1200:\n%s", systemPrompt)
+		}
+		if strings.Contains(systemPrompt, "5000") {
+			t.Errorf("system prompt 仍保留模板静态字数 5000:\n%s", systemPrompt)
 		}
 	case <-ctx.Done():
 		t.Fatalf("未捕获到 AI 请求: %v", ctx.Err())

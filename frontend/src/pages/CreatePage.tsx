@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Typography, Button, Input, InputNumber, Card, Space, message, Spin, Modal, Popconfirm, Select, Checkbox, Tag } from 'antd'
 import {
   BookOutlined,
@@ -10,6 +10,7 @@ import {
 import { C } from '../utils/theme'
 import { useOutlineStore } from '../stores/outlineStore'
 import { useAppStore } from '../stores/appStore'
+import { countTextChars } from '../utils/text'
 import type { OutlineNode } from '../types'
 import { associateToProject, syncProjectCharacters } from '../api/characterlib'
 import * as App from '../../wailsjs/go/app/App'
@@ -86,6 +87,7 @@ const CreatePage: React.FC = () => {
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [genPhase, setGenPhase] = useState('')
+  const [genPercent, setGenPercent] = useState(0)
 
   const [wizOpen, setWizOpen] = useState(false)
   const [wizStep, setWizStep] = useState<'loading' | 'branches'>('loading')
@@ -109,12 +111,18 @@ const CreatePage: React.FC = () => {
   const [newCharsChapter, setNewCharsChapter] = useState(0)
   const [libMatches, setLibMatches] = useState<LibMatchEntry[]>([])
   const [adding, setAdding] = useState(false)
+  const settingLoadToken = useRef(0)
+  const chapterLoadToken = useRef(0)
+  const generatingRef = useRef(false)
 
   // 拉取最新小说设定；projectPath 变化（切换小说）时也会重新拉取，
   // 避免页面常驻导致创作提示词使用陈旧/空设定
   const refreshSetting = useCallback(async () => {
+    const token = ++settingLoadToken.current
+    const requestedPath = useAppStore.getState().projectPath
     let fresh = ''
     try { fresh = await App.GetWorldview() || '' } catch (_) { }
+    if (token !== settingLoadToken.current || requestedPath !== useAppStore.getState().projectPath) return ''
     setSetting(fresh)
     return fresh
   }, [])
@@ -170,17 +178,25 @@ const CreatePage: React.FC = () => {
     return () => { try { window.runtime?.EventsOff?.('new-characters-discovered') } catch (_) {} }
   }, [])
   const selectChapter = async (node: OutlineNode) => {
+    const token = ++chapterLoadToken.current
+    const requestedPath = useAppStore.getState().projectPath
     setActiveId(node.id); setChapterLoading(true)
     try {
       const branch = (node as any).branch || ''
-      setContent((await App.GetChapterBranch(node.order_index || 1, branch) as any)?.content || '')
-    } catch (_) { setContent('') }
-    finally { setChapterLoading(false) }
+      const result = await App.GetChapterBranch(node.order_index || 1, branch) as any
+      if (token !== chapterLoadToken.current || requestedPath !== useAppStore.getState().projectPath) return
+      setContent(result?.content || '')
+    } catch (_) {
+      if (token !== chapterLoadToken.current || requestedPath !== useAppStore.getState().projectPath) return
+      setContent('')
+    } finally {
+      if (token === chapterLoadToken.current) setChapterLoading(false)
+    }
   }
 
   const getPrevSummary = (upToChapter: number): string => {
     const parts: string[] = []
-    for (const n of outlines) {
+    for (const n of [...outlines].sort((a, b) => (a.order_index || 0) - (b.order_index || 0))) {
       const cn = n.order_index || 0
       if (cn > 0 && cn <= upToChapter && n.summary) {
         parts.push(`第${cn}章：${n.summary.slice(0, 100)}`)
@@ -200,30 +216,49 @@ const CreatePage: React.FC = () => {
 
   const fetchBranchesFor = async (prevChapter: number) => {
     // 每次打开向导都重新读取设定，确保分支构思基于最新设定
-    const freshSetting = await refreshSetting()
-    const prevSummary = prevChapter > 0 ? getPrevSummary(prevChapter) : ''
-    const res = await App.QuickBrainstormBranches(freshSetting, prevSummary || '')
-    const list = (res as any)?.branches || []
-    setBranches(list.map((b: any) => ({ title: b.title, pitch: b.summary })))
-    setWizStep('branches')
+    try {
+      const freshSetting = await refreshSetting()
+      const prevSummary = prevChapter > 0 ? getPrevSummary(prevChapter) : ''
+      const res = await App.QuickBrainstormBranches(freshSetting, prevSummary || '')
+      const list = (res as any)?.branches || []
+      setBranches(list.map((b: any) => ({ title: b.title, pitch: b.summary })))
+    } catch (err: any) {
+      setBranches([])
+      message.error(err?.message || '剧情构思失败，可手动输入剧情要求')
+    } finally {
+      setWizStep('branches')
+    }
   }
 
   // 直接开始生成：注册流式监听并调用后端（带目标字数/温度/技能设置）
   const startGeneration = async (plotReq: string, overwriteChapter: number = 0, branchFromID: string = '') => {
+    if (generatingRef.current) return
     if (!plotReq.trim()) { message.warning('请选择分支或输入剧情要求'); return }
+    generatingRef.current = true
     setWizOpen(false); setGenerating(true); setGenPhase('正在生成…')
+    setGenPercent(0)
     setContent('')
 
     const handler = (event: any) => {
       const data = event.detail || event
       switch (data.type) {
+        case 'phase':
+          if (data.phase === 'continuing') {
+            setGenPhase(`字数不足，正在续写… 第${data.attempt || 1}次 · ${(data.current || 0).toLocaleString()}/${(data.target || minWords).toLocaleString()} 字`)
+          } else {
+            setGenPhase(`正在生成… 目标 ${(data.target || minWords).toLocaleString()} 字`)
+          }
+          break
         case 'chunk':
           setContent((prev) => prev + (data.content || ''))
-          setGenPhase(`正在生成… ${(data.total || 0).toLocaleString()} 字`)
+          setGenPercent(Math.min(100, Math.round(((data.total || 0) / Math.max(minWords, 1)) * 100)))
+          setGenPhase(`正在生成… ${(data.total || 0).toLocaleString()}/${minWords.toLocaleString()} 字`)
           break
         case 'done':
           setGenPhase('')
+          setGenPercent(0)
           setGenerating(false)
+          generatingRef.current = false
           const chNum = data.chapterNum || 0
           const branch = data.branch || ''
           const label = branch ? `第${chNum}${branch}章` : `第${chNum}章`
@@ -238,7 +273,9 @@ const CreatePage: React.FC = () => {
           break
         case 'error':
           setGenPhase('')
+          setGenPercent(0)
           setGenerating(false)
+          generatingRef.current = false
           message.error(data.error || '生成失败')
           try { window.runtime?.EventsOff?.('create-chapter-stream') } catch (_) {}
           break
@@ -250,6 +287,9 @@ const CreatePage: React.FC = () => {
       try { window.runtime?.EventsOn?.('create-chapter-stream', handler) } catch (_) {}
       // 生成前再读一次最新设定，确保正文提示词注入当前小说设定
       const freshSetting = await refreshSetting()
+      if (!freshSetting.trim()) {
+        throw new Error('小说设定为空，请先在「设定」页填写世界观')
+      }
       const result = await App.CreateChapter(freshSetting, '', plotReq, overwriteChapter, branchFromID, selectedSkill || '', minWords, temperature)
       // 预创建节点已由后端同步完成，立即激活
       const nodeId = (result as any)?.nodeId
@@ -259,7 +299,7 @@ const CreatePage: React.FC = () => {
         if (!store.outlines.find(n => n.id === nodeId)) {
           store.setOutlines([...store.outlines, {
             id: nodeId, order_index: chapNum,
-            title: `第${chapNum}章`, status: 'generating',
+            title: `第${chapNum}章`, status: 'writing',
             parent_id: '', summary: '',
           } as any])
         }
@@ -269,6 +309,8 @@ const CreatePage: React.FC = () => {
     } catch (err: any) {
       setGenerating(false)
       setGenPhase('')
+      setGenPercent(0)
+      generatingRef.current = false
       message.error(err?.message || '生成失败')
       try { window.runtime?.EventsOff?.('create-chapter-stream') } catch (_) {}
     }
@@ -327,6 +369,10 @@ const CreatePage: React.FC = () => {
   }
 
   const activeNode = outlines.find(n => n.id === activeId)
+  const nextMainChapterNum = Math.max(0, ...outlines
+    .filter(n => !n.parent_id)
+    .map(n => n.order_index || 0)) + 1
+  const lastMainChapter = nextMainChapterNum - 1
   const selectedSkillDesc = skills.find(s => s.name === selectedSkill)?.description
   const selectedSkillApplies = skills.find(s => s.name === selectedSkill)?.appliesTo || []
 
@@ -351,7 +397,7 @@ const CreatePage: React.FC = () => {
             const isActive = activeId === n.id
             const chapNum = n.order_index || 1
             const isBranch = !!n.parent_id
-            const statusClass = n.status === 'generating' ? 'is-writing' : n.status === 'written' ? 'is-done' : 'is-todo'
+            const statusClass = n.status === 'writing' ? 'is-writing' : n.status === 'done' ? 'is-done' : 'is-todo'
             return (
               <div
                 key={n.id}
@@ -397,8 +443,8 @@ const CreatePage: React.FC = () => {
           })}
         </div>
         <div className="novel-tree-footer">
-          <Button block type="dashed" icon={<PlusOutlined />} onClick={() => openWizard(outlines.length)}>
-            生成第{outlines.length + 1}章
+          <Button block type="dashed" icon={<PlusOutlined />} onClick={() => openWizard(lastMainChapter)}>
+            生成第{nextMainChapterNum}章
           </Button>
         </div>
       </aside>
@@ -409,10 +455,10 @@ const CreatePage: React.FC = () => {
           <span className="novel-panel-title">
             {activeNode ? (activeNode.title || `第${activeNode.order_index}章`) : '正文编辑'}
           </span>
-          {activeNode?.status === 'generating' && <Tag color="warning" style={{ marginInlineEnd: 0, fontSize: 11 }}>生成中</Tag>}
-          {activeNode?.status === 'written' && <Tag color="success" style={{ marginInlineEnd: 0, fontSize: 11 }}>已写入</Tag>}
+          {activeNode?.status === 'writing' && <Tag color="warning" style={{ marginInlineEnd: 0, fontSize: 11 }}>生成中</Tag>}
+          {activeNode?.status === 'done' && <Tag color="success" style={{ marginInlineEnd: 0, fontSize: 11 }}>已写入</Tag>}
           <div style={{ flex: 1 }} />
-          <span className="novel-setting-meta">{content.length.toLocaleString()} 字</span>
+          <span className="novel-setting-meta">{countTextChars(content).toLocaleString()} 字</span>
           {activeNode && (
             <Button size="small" icon={<ReloadOutlined />} onClick={() => handleRegenerate(activeNode)}>重写</Button>
           )}
@@ -448,8 +494,8 @@ const CreatePage: React.FC = () => {
                   <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 14 }}>
                     选择左侧章节查看，或生成下一章
                   </Typography.Text>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={() => openWizard(outlines.length)}>
-                    生成第 {outlines.length + 1} 章
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => openWizard(lastMainChapter)}>
+                    生成第 {nextMainChapterNum} 章
                   </Button>
                 </>
               )}
@@ -459,8 +505,22 @@ const CreatePage: React.FC = () => {
 
         {generating && (
           <div className="novel-gen-status">
-            <LoadingOutlined />
-            {genPhase}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <LoadingOutlined />
+              <span>{genPhase}</span>
+            </div>
+            <div style={{
+              height: 4, marginTop: 7, borderRadius: 999,
+              background: 'color-mix(in srgb, var(--gaea-glow) 12%, transparent)',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                width: `${genPercent}%`, height: '100%',
+                background: 'var(--gaea-glow)',
+                borderRadius: 999,
+                transition: 'width 200ms ease',
+              }} />
+            </div>
           </div>
         )}
       </section>
@@ -545,7 +605,7 @@ const CreatePage: React.FC = () => {
 
           <section className="novel-inspector-section">
             <div className="novel-inspector-section-title"><BulbOutlined />剧情方向</div>
-            <Button block icon={<BulbOutlined />} onClick={() => openWizard(activeNode?.order_index || outlines.length)}>
+            <Button block icon={<BulbOutlined />} onClick={() => openWizard(activeNode?.order_index || lastMainChapter)}>
               构思剧情方向
             </Button>
             <TextArea

@@ -1,18 +1,153 @@
 /* imagegen.css — 绘梦多模式工作台（模式导航 + 参考图上传区） */
 
+:root {
+  --ig-bg: #08070d;
+  --ig-panel: rgba(20, 17, 34, 0.76);
+  --ig-panel-strong: rgba(30, 25, 48, 0.9);
+  --ig-border: rgba(167, 139, 250, 0.2);
+  --ig-border-strong: rgba(167, 139, 250, 0.38);
+  --ig-accent: #a78bfa;
+  --ig-accent-2: #ec4899;
+  --ig-text: #f2eefd;
+  --ig-muted: #9f97b8;
+  --ig-radius: 20px;
+}
+
+.ig-studio {
+  background:
+    radial-gradient(1200px 600px at 12% -8%, rgba(124, 58, 237, 0.18), transparent 60%),
+    radial-gradient(900px 520px at 92% 4%, rgba(236, 72, 153, 0.12), transparent 56%),
+    linear-gradient(160deg, #08070d 0%, #0e0b18 52%, #09070f 100%);
+  color: var(--ig-text);
+}
+
+.ig-studio-header {
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.08), transparent);
+  border-bottom: 1px solid var(--ig-border);
+  padding: 14px 16px 12px;
+  border-radius: 0 0 var(--ig-radius) var(--ig-radius);
+}
+
+.ig-workspace {
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.ig-control-rail,
+.ig-result-canvas,
+.ig-history-rail {
+  background: var(--ig-panel);
+  border: 1px solid var(--ig-border);
+  border-radius: var(--ig-radius);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+}
+
+.ig-control-rail,
+.ig-history-rail {
+  padding: 12px;
+}
+
+.ig-result-canvas {
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(167, 139, 250, 0.1), transparent 46%),
+    var(--ig-panel);
+}
+
+.ig-control-panel {
+  border-radius: 18px !important;
+}
+
+.ig-queue-strip {
+  margin: 0 14px 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--ig-border);
+  border-radius: 14px;
+  background: rgba(15, 12, 26, 0.66);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+}
+
+.ig-queue-strip .ant-tag {
+  border-radius: 999px;
+  border-color: var(--ig-border-strong);
+}
+
+.ig-history-rail {
+  width: 200px !important;
+}
+
+.ig-result-canvas .img-card {
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.ig-result-canvas .img-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--ig-border-strong);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.3);
+}
+
+.ig-history-rail .img-card {
+  border-radius: 14px;
+}
+
+@media (max-width: 1180px) {
+  .ig-control-rail {
+    width: 300px !important;
+  }
+  .ig-history-rail {
+    width: 52px !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .ig-workspace {
+    flex-direction: column;
+    padding: 10px;
+    overflow-y: auto;
+  }
+  .ig-control-rail,
+  .ig-result-canvas,
+  .ig-history-rail {
+    width: 100% !important;
+    min-height: 0;
+  }
+  .ig-control-rail {
+    max-height: 46vh;
+  }
+  .ig-result-canvas {
+    min-height: 320px;
+  }
+  .ig-history-rail {
+    min-height: 150px;
+  }
+  .ig-mode-nav {
+    margin-left: 10px;
+    margin-right: 10px;
+  }
+  .ig-queue-strip {
+    margin-left: 10px;
+    margin-right: 10px;
+  }
+}
+
 /* ── 模式导航：文生图 / 图生图 / 文生视频 ── */
 .ig-mode-nav {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  margin-bottom: 12px;
+  margin: 0 14px 12px;
   flex-shrink: 0;
-  border-radius: var(--md-sys-radius-lg);
-  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
-  border: 1px solid var(--md-sys-color-outline-variant);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
+  border-radius: 999px;
+  background: rgba(20, 17, 34, 0.68);
+  border: 1px solid var(--ig-border);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -58,10 +193,10 @@
 }
 
 .ig-mode-item.is-active {
-  color: var(--gaea-glow);
-  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
-  border-color: color-mix(in srgb, var(--gaea-glow) 30%, transparent);
-  box-shadow: 0 2px 14px color-mix(in srgb, var(--gaea-glow) 20%, transparent);
+  color: #fff;
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.3), rgba(236, 72, 153, 0.22));
+  border-color: var(--ig-border-strong);
+  box-shadow: 0 0 24px rgba(167, 139, 250, 0.22);
 }
 
 .ig-mode-item .anticon {

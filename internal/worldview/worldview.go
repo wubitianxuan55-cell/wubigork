@@ -198,11 +198,14 @@ func extractSectionUpdates(reply string) map[string]string {
 		if start == -1 {
 			break
 		}
-		end := strings.Index(reply[start:], endMarker)
-		if end == -1 {
+		payload := reply[start+len(marker):]
+		endRel := strings.Index(payload, endMarker)
+		if endRel == -1 {
+			// 缺结束标记时丢弃这段残块，避免越界并停止继续解析
+			break
 		}
-		jsonStr := reply[start+len(marker) : start+end]
-		reply = reply[start+end+len(endMarker):]
+		jsonStr := payload[:endRel]
+		reply = payload[endRel+len(endMarker):]
 
 		var update struct {
 			ID      string `json:"id"`

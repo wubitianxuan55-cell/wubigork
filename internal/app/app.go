@@ -112,6 +112,17 @@ type mediaState struct {
 	// ComfyUI 进程管理
 	comfyUICancel context.CancelFunc
 	comfyUICmd    *exec.Cmd
+
+	// 当前图片/视频生成任务（前端生成队列逐条提交，这里只保留取消句柄）
+	imageGenMu      sync.Mutex
+	imageGenCancel  context.CancelFunc
+	imageGenRunning bool
+	imageGenID      uint64
+
+	// ComfyUI 任务实时状态（前端轮询 GetComfyUITaskProgress）
+	comfyTaskMu      sync.RWMutex
+	comfyTaskStatus  string
+	comfyTaskElapsed int
 }
 
 // whisperState 是轻语域状态（AI 人格/虚拟助手/微信通道）。

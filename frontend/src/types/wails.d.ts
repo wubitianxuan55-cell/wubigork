@@ -110,6 +110,8 @@ interface AppAPI {
 
   // ── 图片生成 ──
   GenerateFreeImage(prompt: string, negative: string, size: string, style: string, model: string, seed: number, n: number): Promise<any>
+  CancelImageGeneration(): Promise<boolean>
+  GetComfyUITaskProgress(): Promise<{ status?: string; elapsed?: number }>
   GetImageBackend(): string
   GetImageBackendInfo(): { backend?: string; model?: string }
   SetImageBackend(backend: string, comfyUIURL: string, imageModel: string): Promise<void>

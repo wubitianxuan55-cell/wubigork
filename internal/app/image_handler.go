@@ -32,12 +32,82 @@ type imageItem struct {
 	Kind   string  `json:"kind,omitempty"` // image | video
 }
 
+func (a *mediaState) beginImageGen(parent context.Context) (context.Context, context.CancelFunc, uint64) {
+	a.imageGenMu.Lock()
+	defer a.imageGenMu.Unlock()
+	if parent == nil {
+		parent = context.Background()
+	}
+	a.imageGenID++
+	ctx, cancel := context.WithCancel(parent)
+	a.imageGenCancel = cancel
+	a.imageGenRunning = true
+	return ctx, cancel, a.imageGenID
+}
+
+func (a *mediaState) endImageGen(id uint64, cancel context.CancelFunc) {
+	a.imageGenMu.Lock()
+	defer a.imageGenMu.Unlock()
+	if a.imageGenID == id {
+		a.imageGenCancel = nil
+		a.imageGenRunning = false
+		a.clearComfyTaskProgress()
+	}
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// CancelImageGeneration 取消当前正在执行的图片/视频生成任务。
+// 返回 true 表示存在可取消任务；前端生成队列会在任务报错后继续下一条。
+func (a *mediaState) CancelImageGeneration() bool {
+	a.imageGenMu.Lock()
+	defer a.imageGenMu.Unlock()
+	if !a.imageGenRunning || a.imageGenCancel == nil {
+		return false
+	}
+	a.imageGenID++
+	a.imageGenCancel()
+	a.imageGenCancel = nil
+	a.imageGenRunning = false
+	return true
+}
+
+func (a *mediaState) updateComfyTaskProgress(status string, elapsedSeconds int) {
+	a.comfyTaskMu.Lock()
+	defer a.comfyTaskMu.Unlock()
+	a.comfyTaskStatus = status
+	a.comfyTaskElapsed = elapsedSeconds
+}
+
+func (a *mediaState) clearComfyTaskProgress() {
+	a.comfyTaskMu.Lock()
+	defer a.comfyTaskMu.Unlock()
+	a.comfyTaskStatus = ""
+	a.comfyTaskElapsed = 0
+}
+
+// GetComfyUITaskProgress 返回当前 ComfyUI 任务状态（前端轮询显示）。
+func (a *mediaState) GetComfyUITaskProgress() map[string]interface{} {
+	a.comfyTaskMu.RLock()
+	defer a.comfyTaskMu.RUnlock()
+	return map[string]interface{}{
+		"status":  a.comfyTaskStatus,
+		"elapsed": a.comfyTaskElapsed,
+	}
+}
+
 // GenerateFreeImage 自由图片生成 — 供 AI 绘梦 Tab 使用
 // GenerateFreeImage 自由图片生成 — 供 AI 绘梦 Tab 使用
 // 参数: prompt, negative, size, style, model, seed (0=随机), n (1-4)
 func (a *mediaState) GenerateFreeImage(prompt string, negative string, size string, style string, model string, seed int, n int, lora string) (map[string]interface{}, error) {
 	if a.client == nil {
 		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
+	}
+	genCtx, cancel, genID := a.beginImageGen(a.ctx)
+	defer a.endImageGen(genID, cancel)
+	if a.cfg.ImageBackend == "comfyui" {
+		a.updateComfyTaskProgress("queued", 0)
 	}
 
 	fullPrompt := prompt
@@ -78,20 +148,23 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 			Seed:     genSeed,
 			Lora:     lora,
 		}
+		if a.cfg.ImageBackend == "comfyui" {
+			imgReq.ProgressCallback = a.updateComfyTaskProgress
+		}
 
 		// 非 ComfyUI 后端不接受 size 参数（xAI 返回 400）
 		if a.cfg.ImageBackend != "comfyui" {
 			imgReq.Size = ""
 		}
 		start := time.Now()
-		resp, err := a.client.GenerateImage(a.ctx, imgReq)
+		resp, err := a.client.GenerateImage(genCtx, imgReq)
 		// 孤儿 ComfyUI 实例（stderr 失效）会在执行时报 [Errno 22]：
 		// 自动重启一次后重试，避免用户手动处理
 		if err != nil && !comfyRecovered && a.cfg.ImageBackend == "comfyui" && strings.Contains(err.Error(), "[Errno 22]") {
 			slog.Warn("ComfyUI stderr 失效（疑似孤儿实例），自动重启后重试", "error", err)
 			a.recoverComfyUI()
 			comfyRecovered = true
-			resp, err = a.client.GenerateImage(a.ctx, imgReq)
+			resp, err = a.client.GenerateImage(genCtx, imgReq)
 		}
 		elapsed := time.Since(start).Seconds()
 
@@ -161,6 +234,11 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	if a.client == nil {
 		return map[string]interface{}{"error": "AI 客户端未初始化，请先登录"}, nil
 	}
+	genCtx, cancel, genID := a.beginImageGen(a.ctx)
+	defer a.endImageGen(genID, cancel)
+	if a.cfg.ImageBackend == "comfyui" {
+		a.updateComfyTaskProgress("queued", 0)
+	}
 	var p mediaGenParams
 	if err := json.Unmarshal([]byte(paramsJSON), &p); err != nil {
 		return map[string]interface{}{"error": "参数解析失败: " + err.Error()}, nil
@@ -222,11 +300,14 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			Frames:    p.Frames,
 			FPS:       p.FPS,
 		}
+		if a.cfg.ImageBackend == "comfyui" {
+			imgReq.ProgressCallback = a.updateComfyTaskProgress
+		}
 		if a.cfg.ImageBackend != "comfyui" {
 			imgReq.Size = ""
 		}
 		start := time.Now()
-		resp, err := a.client.GenerateImage(a.ctx, imgReq)
+		resp, err := a.client.GenerateImage(genCtx, imgReq)
 		elapsed := time.Since(start).Seconds()
 		if err != nil {
 			slog.Warn("媒体生成失败", "mode", mode, "attempt", i+1, "error", err)
@@ -323,7 +404,7 @@ func mediaExt(imageData string) string {
 
 // mediaFilename 生成媒体文件名（时间戳 + 前 20 字提示词）
 func mediaFilename(prompt string, ext string) string {
-	ts := time.Now().Format("20060102-150405")
+	ts := strconv.FormatInt(time.Now().UnixNano(), 10)
 	safePrompt := strings.TrimSpace(prompt)
 	if r := []rune(safePrompt); len(r) > 20 {
 		safePrompt = string(r[:20])
@@ -355,41 +436,7 @@ func decodeDataURL(imageData string) ([]byte, bool) {
 
 // saveImageToDisk 将图片数据保存到 ImageSaveDir，返回保存路径
 func (a *mediaState) saveImageToDisk(imageData string, prompt string) string {
-	dir := a.cfg.ImageSaveDir
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return ""
-	}
-
-	ts := time.Now().Format("20060102-150405")
-	safePrompt := strings.TrimSpace(prompt)
-	if r := []rune(safePrompt); len(r) > 20 {
-		safePrompt = string(r[:20])
-	}
-	safePrompt = strings.Map(func(r rune) rune {
-		if strings.ContainsRune(`\/:*?"<>|`, r) {
-			return '_'
-		}
-		return r
-	}, safePrompt)
-	filename := fmt.Sprintf("%s_%s.png", ts, safePrompt)
-	fullPath := filepath.Join(dir, filename)
-
-	if strings.HasPrefix(imageData, "data:") {
-		commaIdx := strings.Index(imageData, ",")
-		if commaIdx < 0 {
-			return ""
-		}
-		data, err := base64.StdEncoding.DecodeString(imageData[commaIdx+1:])
-		if err != nil {
-			return ""
-		}
-		if err := os.WriteFile(fullPath, data, 0644); err != nil {
-			return ""
-		}
-		return fullPath
-	}
-
-	return "" // 远程 URL 不下载
+	return a.saveMediaToDisk(imageData, prompt, a.cfg.ImageSaveDir)
 }
 
 // saveToNovelImages 将图片保存到当前小说的 images/ 目录
@@ -399,35 +446,7 @@ func (a *mediaState) saveToNovelImages(imageData string, prompt string) {
 		return
 	}
 	dir := filepath.Join(pm.Dir, "images")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return
-	}
-
-	ts := time.Now().Format("20060102-150405")
-	safePrompt := strings.TrimSpace(prompt)
-	if r := []rune(safePrompt); len(r) > 20 {
-		safePrompt = string(r[:20])
-	}
-	safePrompt = strings.Map(func(r rune) rune {
-		if strings.ContainsRune(`\/:*?"<>|`, r) {
-			return '_'
-		}
-		return r
-	}, safePrompt)
-	filename := fmt.Sprintf("%s_%s.png", ts, safePrompt)
-	fullPath := filepath.Join(dir, filename)
-
-	if strings.HasPrefix(imageData, "data:") {
-		commaIdx := strings.Index(imageData, ",")
-		if commaIdx < 0 {
-			return
-		}
-		data, err := base64.StdEncoding.DecodeString(imageData[commaIdx+1:])
-		if err != nil {
-			return
-		}
-		os.WriteFile(fullPath, data, 0644)
-	}
+	a.saveMediaToDisk(imageData, prompt, dir)
 }
 
 // GetImageBackend 获取当前图片后端类型（供前端显示）
@@ -518,6 +537,26 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 		a.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "ollama")
 	default:
 		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / ollama）", backend)
+	}
+
+	// 持久化绘梦配置，避免应用重启后回退到默认后端/模型/保存目录
+	if err := config.Save(config.KeyImageBackend, backend); err != nil {
+		slog.Warn("保存图片后端失败", "error", err)
+	}
+	if comfyUIURL != "" {
+		if err := config.Save(config.KeyComfyUIURL, comfyUIURL); err != nil {
+			slog.Warn("保存 ComfyUI 地址失败", "error", err)
+		}
+	}
+	if a.cfg.ImageModel != "" {
+		if err := config.Save(config.KeyImageModel, a.cfg.ImageModel); err != nil {
+			slog.Warn("保存图片模型失败", "error", err)
+		}
+	}
+	if a.cfg.ImageSaveDir != "" {
+		if err := config.Save(config.KeyImageSaveDir, a.cfg.ImageSaveDir); err != nil {
+			slog.Warn("保存图片存放目录失败", "error", err)
+		}
 	}
 	return nil
 }

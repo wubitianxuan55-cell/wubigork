@@ -12,13 +12,14 @@ interface ProjectCardItemProps {
   isActive: boolean
   isHero: boolean
   isMobile?: boolean
+  readingChapter?: string
   onOpen: (card: ProjectCard) => void
   onDelete: (card: ProjectCard) => void
 }
 
 /** ProjectCardItem — Bento grid 项目卡片 */
 const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
-  card, isActive, isHero, onOpen, onDelete,
+  card, isActive, isHero, readingChapter, onOpen, onDelete,
 }) => (
   <div
     key={card.path}
@@ -95,6 +96,11 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
 
       {/* 统计信息 */}
       <Space direction="vertical" size={4} style={{ width: '100%' }}>
+        {readingChapter && (
+          <Typography.Text style={{ color: C('color-primary'), fontSize: 12 }}>
+            继续阅读：{readingChapter}
+          </Typography.Text>
+        )}
         <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12 }}>
           <FileTextOutlined style={{ marginRight: 6 }} />
           {card.chapter_count > 0

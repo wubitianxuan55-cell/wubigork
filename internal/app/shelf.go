@@ -176,7 +176,7 @@ func scanChapterStats(projectDir string) (chapterCount int, totalWords int) {
 	if err != nil {
 		return 0, 0
 	}
-	re := regexp.MustCompile(`^\d+\.md$`)
+	re := regexp.MustCompile(`^\d+[a-z]?\.md$`)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue

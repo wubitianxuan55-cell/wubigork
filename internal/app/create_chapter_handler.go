@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,10 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	}
 	prevSummary = strings.Join(prevParts, "\n\n")
 
+	if minWords <= 0 {
+		minWords = 5000
+	}
+
 	// 4. 构建 prompt（通过模板 + Skill 注入）
 	tmpl := a.eng.Get("create-chapter")
 	if tmpl == nil {
@@ -69,6 +74,9 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	})
 
 	systemPrompt := tmpl.BuildSystemPrompt("")
+	// create-chapter 模板静态声明 5000 字，用户可在创作页调整目标字数；
+	// 用实际 minWords 同步改写 system prompt，避免模型仍按固定字数生成。
+	systemPrompt = strings.ReplaceAll(systemPrompt, "5000", strconv.Itoa(minWords))
 	if skillMD != "" && a.skillLoader != nil {
 		if s := a.skillLoader.Get(skillMD); s != nil {
 			systemPrompt = a.skillLoader.InjectSkill(systemPrompt, skillMD)
@@ -76,9 +84,6 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 		} else {
 			slog.Warn("CreateChapter Skill 未找到", "skill", skillMD)
 		}
-	}
-	if minWords <= 0 {
-		minWords = 5000
 	}
 	const maxContinues = 20
 	// 5. 确定/创建节点（同步，前端立即可用）
@@ -113,6 +118,13 @@ func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.Outlin
 
 	for attempt := 0; attempt <= maxContinues; attempt++ {
 		if attempt > 0 {
+			a.emit("create-chapter-stream", map[string]interface{}{
+				"type":    "phase",
+				"phase":   "continuing",
+				"attempt": attempt,
+				"current": len([]rune(bodyText)),
+				"target":  minWords,
+			})
 			// 续写模式：基于已有内容继续
 			bodyLen := len([]rune(bodyText))
 			need := minWords - bodyLen
@@ -130,6 +142,12 @@ func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.Outlin
 			currentPrompt = fmt.Sprintf("【续写指令】当前已写%d字，请从断点处直接继续写至少%d字。不要重复已写内容，不要加章节标题或前言，直接接着写正文。\n\n已有内容末尾：\n%s\n\n请继续：",
 				bodyLen, need, tailText)
 			slog.Info("章节字数不足，启动续写", "current", bodyLen, "need", need, "attempt", attempt)
+		} else {
+			a.emit("create-chapter-stream", map[string]interface{}{
+				"type":   "phase",
+				"phase":  "writing",
+				"target": minWords,
+			})
 		}
 
 		// 向 AI 控制台发送请求日志
@@ -180,9 +198,11 @@ func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.Outlin
 						if idx := strings.Index(fullText, "---CHAPTER_SUMMARY---"); idx >= 0 {
 							summaryStarted = true
 							bodyText = fullText[:idx] // 锁定纯正文（标记之前）
-							bodyLen := idx - (len(fullText) - len(chunk.Content))
-							if bodyLen > 0 {
-								bodyPart := string([]rune(chunk.Content)[:bodyLen])
+							// 计算当前 chunk 中位于标记之前的字节数，用字节切片；
+							// 原实现按 rune 下标切片，遇到中文等多字节字符会越界。
+							prefixLen := idx - (len(fullText) - len(chunk.Content))
+							if prefixLen > 0 && prefixLen <= len(chunk.Content) {
+								bodyPart := chunk.Content[:prefixLen]
 								a.emit("create-chapter-stream", map[string]interface{}{
 									"type": "chunk", "content": bodyPart, "total": len([]rune(bodyText)),
 								})
@@ -222,11 +242,29 @@ func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.Outlin
 		summary = util.Truncate(summary, 100)
 	}
 
+	// 将摘要落盘，分支章节使用独立摘要文件，避免分支复用主线摘要
+	if summary != "" {
+		label := fmt.Sprintf("第%d章", targetNum)
+		if branch != "" {
+			label = fmt.Sprintf("第%d%s章", targetNum, branch)
+		}
+		chapterSummary := &types.ChapterSummary{Title: label, Summary: summary}
+		var summaryErr error
+		if branch != "" {
+			summaryErr = pm.WriteChapterBranchSummary(targetNum, branch, chapterSummary)
+		} else {
+			summaryErr = pm.WriteChapterSummary(targetNum, chapterSummary)
+		}
+		if summaryErr != nil {
+			slog.Warn("章节摘要落盘失败", "chapter", targetNum, "branch", branch, "error", summaryErr)
+		}
+	}
+
 	// 更新节点摘要并保存
 	for i := range of.Nodes {
 		if of.Nodes[i].ID == nodeID {
 			of.Nodes[i].Summary = summary
-			of.Nodes[i].Status = "written"
+			of.Nodes[i].Status = types.OutlineDone
 			break
 		}
 	}
@@ -281,7 +319,7 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 		nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
 		of.Nodes = append(of.Nodes, types.OutlineNode{
 			ID: nodeID, Title: fmt.Sprintf("第%d章", targetNum),
-			OrderIndex: targetNum, Status: "generating",
+			OrderIndex: targetNum, Status: types.OutlineWriting,
 		})
 		pm.WriteOutlines(of)
 		return
@@ -318,7 +356,7 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 			ID: nodeID, ParentID: branchFromNodeID,
 			Title:      fmt.Sprintf("第%d%s章", targetNum, branch),
 			OrderIndex: targetNum, Branch: branch,
-			Status: "generating", ChapterFile: fmt.Sprintf("%03d%s.md", targetNum, branch),
+			Status: types.OutlineWriting, ChapterFile: fmt.Sprintf("%03d%s.md", targetNum, branch),
 		})
 		pm.WriteOutlines(of)
 		return
@@ -327,7 +365,7 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 	nodeID = fmt.Sprintf("n_%d", time.Now().UnixMilli())
 	of.Nodes = append(of.Nodes, types.OutlineNode{
 		ID: nodeID, Title: fmt.Sprintf("第%d章", targetNum),
-		OrderIndex: targetNum, Status: "generating",
+		OrderIndex: targetNum, Status: types.OutlineWriting,
 	})
 	pm.WriteOutlines(of)
 	return
@@ -361,8 +399,9 @@ func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
 
 // extractNewCharacters 从章节摘要中提取新角色，与项目角色 + 全局角色库对照去重。
 // 返回两部分：
-//   newChars       项目与角色库都没有的全新角色名
-//   libraryMatches 角色库中已有同名角色（前端提示直接关联，不新建）
+//
+//	newChars       项目与角色库都没有的全新角色名
+//	libraryMatches 角色库中已有同名角色（前端提示直接关联，不新建）
 func (a *writingState) extractNewCharacters(pm *project.Manager, summary *types.ChapterSummary) (newChars []string, libraryMatches []characterlib.Character) {
 	if summary == nil || len(summary.CharactersAppeared) == 0 {
 		return nil, nil

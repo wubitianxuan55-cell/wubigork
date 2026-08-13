@@ -15,6 +15,17 @@ const ChapterPage = React.lazy(() => import('./ChapterPage'))
 const ExportPage = React.lazy(() => import('./ExportPage'))
 
 type NovelTab = 'home' | 'novelsetting' | 'character' | 'create' | 'chapter' | 'export'
+const NOVEL_TAB_KEY = 'gaea.novel.activeTab'
+
+function loadActiveTab(): NovelTab {
+  try {
+    const v = localStorage.getItem(NOVEL_TAB_KEY)
+    if (v === 'home' || v === 'novelsetting' || v === 'character' || v === 'create' || v === 'chapter' || v === 'export') {
+      return v
+    }
+  } catch { /* ignore */ }
+  return 'home'
+}
 
 const tabItems = [
   { key: 'home', icon: <HomeOutlined />, label: '书架', component: HomePage },
@@ -26,7 +37,12 @@ const tabItems = [
 ] as const
 
 const NovelPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<NovelTab>('home')
+  const [activeTab, setActiveTab] = useState<NovelTab>(loadActiveTab)
+
+  const changeTab = (key: NovelTab) => {
+    setActiveTab(key)
+    try { localStorage.setItem(NOVEL_TAB_KEY, key) } catch { /* ignore */ }
+  }
 
   return (
     <div className="novel-hub">
@@ -37,7 +53,7 @@ const NovelPage: React.FC = () => {
             key={t.key}
             type="button"
             className={`novel-subnav-item${activeTab === t.key ? ' is-active' : ''}`}
-            onClick={() => setActiveTab(t.key)}
+            onClick={() => changeTab(t.key)}
             aria-current={activeTab === t.key ? 'page' : undefined}
           >
             {t.icon}

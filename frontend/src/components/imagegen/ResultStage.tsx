@@ -116,12 +116,12 @@ export const ResultStage: React.FC<Props> = ({
           {mode === 't2v' ? <VideoCameraOutlined /> : <PictureOutlined />}
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ color: 'var(--color-text)', fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{emptyTitle}</div>
+          <div style={{ color: 'var(--color-text)', fontSize: 20, fontWeight: 650, marginBottom: 8 }}>{emptyTitle}</div>
           <div style={{ color: C('color-text-secondary'), fontSize: 12, maxWidth: 300, lineHeight: 1.6 }}>{emptyDesc}</div>
         </div>
         {onOpenTemplatePicker && (
-          <Button icon={<AppstoreOutlined />} onClick={onOpenTemplatePicker}
-            style={{ borderRadius: 999, fontSize: 12 }}>浏览模板</Button>
+          <Button type="primary" icon={<AppstoreOutlined />} onClick={onOpenTemplatePicker}
+            style={{ borderRadius: 999, fontSize: 13, height: 36, paddingInline: 18 }}>浏览模板</Button>
         )}
       </div>
     )

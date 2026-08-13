@@ -9,6 +9,7 @@ import { C } from '../utils/theme'
 import WelcomePage from '../components/WelcomePage'
 import CreateNovelModal from '../components/novel/CreateNovelModal'
 import ProjectCardItem from '../components/ProjectCardItem'
+import { readReadingProgress } from '../utils/readingProgress'
 
 const HomePage: React.FC = () => {
   const {
@@ -165,17 +166,24 @@ const HomePage: React.FC = () => {
           gridAutoRows: 'minmax(160px, auto)',
           gap: 16,
         }}>
-          {projects.filter(Boolean).map((card, idx) => (
-            <ProjectCardItem
-              key={card.path}
-              card={card}
-              isActive={projectOpen && card.path === projectPath}
-              isHero={idx === 0 && projects.length > 1}
-              isMobile={false}
-              onOpen={handleOpen}
-              onDelete={handleDelete}
-            />
-          ))}
+          {projects.filter(Boolean).map((card, idx) => {
+            const progress = readReadingProgress(card.path)
+            const readingChapter = progress
+              ? `第${progress.chapterNum}章 · ${progress.title}`
+              : undefined
+            return (
+              <ProjectCardItem
+                key={card.path}
+                card={card}
+                isActive={projectOpen && card.path === projectPath}
+                isHero={idx === 0 && projects.length > 1}
+                isMobile={false}
+                readingChapter={readingChapter}
+                onOpen={handleOpen}
+                onDelete={handleDelete}
+              />
+            )
+          })}
         </div>
       )}
 

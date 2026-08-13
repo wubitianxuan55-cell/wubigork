@@ -107,6 +107,22 @@ export async function generateImage(
   return {}
 }
 
+/** 取消当前正在执行的图片/视频生成任务 */
+export async function cancelImageGeneration(): Promise<boolean> {
+  return App.CancelImageGeneration()
+}
+
+export interface ComfyTaskProgress {
+  status: string
+  elapsed: number
+}
+
+/** 获取当前 ComfyUI 任务状态（前端轮询显示） */
+export async function getComfyUITaskProgress(): Promise<ComfyTaskProgress> {
+  const p = await App.GetComfyUITaskProgress()
+  return (p || { status: '', elapsed: 0 }) as ComfyTaskProgress
+}
+
 /** 生成流程图/框架图：LLM 返回 Mermaid 代码，前端渲染为 PNG */
 export async function generateDiagram(
   prompt: string,
