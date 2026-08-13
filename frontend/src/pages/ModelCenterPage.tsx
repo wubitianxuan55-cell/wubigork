@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Typography, Button, Space, Drawer, message } from 'antd'
+import { Button, Drawer, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
-  CloudOutlined, CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
+  CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
-import { C } from '../utils/theme'
 import * as App from '../../wailsjs/go/app/App'
 import {
   getEngines, saveEngine, testEngineConnection,
@@ -604,15 +603,27 @@ const ModelCenterPage: React.FC = () => {
     return list.slice(-limit)
   }, [callStats, trendRange])
 
-  const navButton = (key: Category, icon: React.ReactNode, label: string) => (
-    <Button
-      type={category === key ? 'primary' : 'text'}
-      className={`mc-nav-btn${category === key ? ' is-active' : ''}`}
-      icon={icon as any}
-      onClick={() => setCategory(key)}
+  const TABS: { key: Category; icon: React.ReactNode; label: string }[] = [
+    { key: 'overview', icon: <DashboardOutlined />, label: '总览' },
+    { key: 'llm', icon: <ThunderboltOutlined />, label: '语言模型' },
+    { key: 'image', icon: <PictureOutlined />, label: '图片生成' },
+    { key: 'tts', icon: <SoundOutlined />, label: '语音模型' },
+    { key: 'specialty', icon: <DatabaseOutlined />, label: '专业模型' },
+    { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
+    { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
+  ]
+
+  const navTab = (tab: { key: Category; icon: React.ReactNode; label: string }) => (
+    <button
+      type="button"
+      key={tab.key}
+      className={`mc-tab${category === tab.key ? ' is-active' : ''}`}
+      aria-selected={category === tab.key}
+      onClick={() => setCategory(tab.key)}
     >
-      <span>{label}</span>
-    </Button>
+      {tab.icon}
+      <span>{tab.label}</span>
+    </button>
   )
 
   const ctx: ModelCenterContextValue = {
@@ -644,17 +655,9 @@ const ModelCenterPage: React.FC = () => {
             <p className="mc-subtitle">正在读取引擎、模型和调用统计</p>
           </div>
         </div>
-        <div className="mc-overview-grid">
-          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="mc-skeleton" style={{ height: 96 }} />)}
-        </div>
-        <div className="mc-shell">
-          <div className="mc-nav">
-            {Array.from({ length: 8 }).map((_, i) => <div key={i} className="mc-skeleton" style={{ height: 38, borderRadius: 10 }} />)}
-          </div>
-          <div className="mc-main">
-            <div className="mc-panel"><div className="mc-panel-body"><div className="mc-skeleton" style={{ height: 220 }} /></div></div>
-          </div>
-        </div>
+        <div className="mc-skeleton" style={{ height: 56 }} />
+        <div className="mc-skeleton" style={{ height: 46 }} />
+        <div className="mc-skeleton" style={{ height: 260 }} />
       </div>
     )
   }
@@ -668,98 +671,62 @@ const ModelCenterPage: React.FC = () => {
           <p className="mc-subtitle">统一管理云端与本地引擎、模型路由、语音/图片/专业模型与调用统计。</p>
         </div>
         <div className="mc-header-actions">
-          <Button icon={<BarChartOutlined />} onClick={() => setStatsOpen(true)} style={{ borderRadius: 10 }}>调用统计</Button>
-          <Button icon={<ReloadOutlined />} onClick={loadAll} style={{ borderRadius: 10 }}>刷新状态</Button>
+          {loggedIn ? (
+            <>
+              <span className="mc-account is-online"><CheckCircleOutlined /> xAI 已连接</span>
+              <Button size="small" icon={<LogoutOutlined />} onClick={() => logout()}>退出</Button>
+            </>
+          ) : (
+            <Button
+              size="small"
+              type="primary"
+              icon={<LoginOutlined />}
+              loading={loggingIn}
+              onClick={async () => {
+                setLoggingIn(true)
+                try {
+                  await login()
+                  message.success('xAI 登录成功')
+                  await loadAll()
+                } catch (err: any) {
+                  message.error('登录失败：' + (err?.message || err || '未知错误，请检查浏览器是否完成了 xAI 授权'))
+                } finally {
+                  setLoggingIn(false)
+                }
+              }}
+            >
+              登录 xAI
+            </Button>
+          )}
+          <Button icon={<BarChartOutlined />} onClick={() => setStatsOpen(true)}>调用统计</Button>
+          <Button icon={<ReloadOutlined />} onClick={loadAll}>刷新状态</Button>
         </div>
       </header>
 
       <ResourceMonitor />
 
-      <section className="mc-overview-grid" aria-label="模型中心概览">
-        <div className="mc-kpi">
-          <div className="mc-kpi-label"><ThunderboltOutlined /> 已启用引擎</div>
-          <div className="mc-kpi-value">{engines.filter(e => e.enabled).length}</div>
-          <div className="mc-kpi-hint">共 {engines.length} 个引擎</div>
-        </div>
-        <div className="mc-kpi">
-          <div className="mc-kpi-label"><CheckCircleOutlined /> 运行中模型</div>
-          <div className="mc-kpi-value">{allModels.filter(m => m.status === 'running').length}</div>
-          <div className="mc-kpi-hint">共 {allModels.length} 个模型</div>
-        </div>
-        <div className="mc-kpi">
-          <div className="mc-kpi-label"><CloudOutlined /> 当前活跃引擎</div>
-          <div className="mc-kpi-value">{engineLabel({ id: activeEngine })}</div>
-          <div className="mc-kpi-hint">{activeModel || '默认模型'}</div>
-        </div>
-        <div className="mc-kpi">
-          <div className="mc-kpi-label"><DatabaseOutlined /> 专业模型</div>
-          <div className="mc-kpi-value">{specialtyModels.length}</div>
-          <div className="mc-kpi-hint">Embedding / Rerank / OCR</div>
-        </div>
-      </section>
+      <nav className="mc-tabs" aria-label="模型中心导航">
+        {TABS.map(navTab)}
+      </nav>
 
-      <div className="mc-shell">
-        <nav className="mc-nav" aria-label="模型中心导航">
-          {navButton('overview', <DashboardOutlined />, '总览')}
-          {navButton('llm', <ThunderboltOutlined />, '语言模型')}
-          {navButton('image', <PictureOutlined />, '图片生成')}
-          {navButton('tts', <SoundOutlined />, '语音模型')}
-          {navButton('specialty', <DatabaseOutlined />, '专业模型')}
-          {navButton('engine', <SettingOutlined />, '引擎管理')}
-          {navButton('bind', <LinkOutlined />, '功能绑定')}
-        </nav>
-
-        <main className="mc-main">
-          <ModelCenterContext.Provider value={ctx}>
-            {category !== 'engine' && (
-              <div className="mc-panel" style={{ marginBottom: 16, padding: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                  <Space size={12}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: loggedIn ? 'rgba(34,197,94,0.14)' : 'rgba(148,163,184,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {loggedIn ? <CheckCircleOutlined style={{ fontSize: 18, color: '#34d399' }} /> : <CloudOutlined style={{ fontSize: 18, color: C('color-text-secondary') }} />}
-                    </div>
-                    <div>
-                      <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>{loggedIn ? 'xAI 已连接' : 'xAI 账号'}</Typography.Text><br />
-                      <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>{loggedIn ? 'Grok 模型已就绪' : '登录以使用云端模型'}</Typography.Text>
-                    </div>
-                  </Space>
-                  {loggedIn ? <Button icon={<LogoutOutlined />} onClick={() => logout()} style={{ color: C('color-text-secondary'), fontSize: 12 }}>退出登录</Button>
-                    : <Button type="primary" icon={<LoginOutlined />} loading={loggingIn}
-                      onClick={async () => {
-                        setLoggingIn(true)
-                        try {
-                          await login()
-                          message.success('xAI 登录成功')
-                          await loadAll()
-                        } catch (err: any) {
-                          message.error('登录失败：' + (err?.message || err || '未知错误，请检查浏览器是否完成了 xAI 授权'))
-                        } finally {
-                          setLoggingIn(false)
-                        }
-                      }}
-                      style={{ borderRadius: 8, fontWeight: 500 }}>登录 xAI</Button>}
-                </div>
-              </div>
-            )}
-            {category === 'overview' && <OverviewSection />}
-            {category === 'llm' && <LLMSection />}
-            {category === 'image' && <ImageSection />}
-            {category === 'tts' && <VoiceSection />}
-            {category === 'specialty' && <SpecialtySection />}
-            {category === 'engine' && <EngineSection />}
-            {category === 'bind' && <BindSection />}
-            <Drawer
-              title="模型调用统计"
-              open={statsOpen}
-              onClose={() => setStatsOpen(false)}
-              width={760}
-              styles={{ body: { padding: 16 } }}
-            >
-              <StatsSection />
-            </Drawer>
-          </ModelCenterContext.Provider>
-        </main>
-      </div>
+      <ModelCenterContext.Provider value={ctx}>
+        {category === 'overview' && <OverviewSection />}
+        {category === 'llm' && <LLMSection />}
+        {category === 'image' && <ImageSection />}
+        {category === 'tts' && <VoiceSection />}
+        {category === 'specialty' && <SpecialtySection />}
+        {category === 'engine' && <EngineSection />}
+        {category === 'bind' && <BindSection />}
+        <Drawer
+          title="模型调用统计"
+          open={statsOpen}
+          onClose={() => setStatsOpen(false)}
+          width={860}
+          styles={{ body: { padding: 0 } }}
+        >
+          <StatsSection />
+        </Drawer>
+      </ModelCenterContext.Provider>
     </div>
   )
 }

@@ -1,16 +1,16 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { Button, Card, Input, Tag, Typography } from 'antd'
-import { CheckCircleOutlined, FileTextOutlined, NumberOutlined, PushpinFilled, PushpinOutlined, SearchOutlined } from '@ant-design/icons'
-import { C } from '../../utils/theme'
-import { engineColor, engineLabel, filterModelsBySearch, kindOf, modelAvailability, sortModelsPinnedFirst } from './utils'
+import { Button, Input } from 'antd'
+import { CheckCircleOutlined, FileTextOutlined, NumberOutlined, SearchOutlined } from '@ant-design/icons'
+import { EmptyState, ModelCard, SectionHead, StatusChip, type StatusTone } from './ui'
+import { engineLabel, filterModelsBySearch, kindOf, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenter } from './context'
 import { usePinnedModels } from './modelPrefs'
 
-const KIND_META: Record<string, { label: string; icon: ReactNode }> = {
-  embedding: { label: 'Embedding', icon: <NumberOutlined /> },
-  rerank: { label: 'Rerank', icon: <SearchOutlined /> },
-  ocr: { label: 'OCR', icon: <FileTextOutlined /> },
+const KIND_META: Record<string, { label: string; icon: ReactNode; tone: StatusTone }> = {
+  embedding: { label: 'Embedding', icon: <NumberOutlined />, tone: 'accent' },
+  rerank: { label: 'Rerank', icon: <SearchOutlined />, tone: 'warn' },
+  ocr: { label: 'OCR', icon: <FileTextOutlined />, tone: 'ok' },
 }
 
 export function SpecialtySection() {
@@ -19,86 +19,106 @@ export function SpecialtySection() {
   const [pinned, togglePin] = usePinnedModels()
   const models = sortModelsPinnedFirst(filterModelsBySearch(specialtyModels, search), pinned)
 
-  if (specialtyModels.length === 0) {
-    return (
-      <div className="mc-empty">
-        <SearchOutlined className="mc-empty-icon" />
-        <Typography.Text style={{ color: C('color-text'), fontSize: 13 }}>暂无 Embedding / Rerank / OCR 模型</Typography.Text>
-        <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, marginTop: 6 }}>
-          在「引擎管理」中刷新本地 Herdsman 模型后，这里会显示 bge-m3、bge-reranker-v2-m3、PaddleOCR 与 MinerU
-        </Typography.Text>
-      </div>
-    )
-  }
-
   return (
     <section className="mc-section">
-      <div className="mc-section-head">
-        <div>
-          <div className="mc-section-title"><FileTextOutlined /> 专业模型</div>
-          <div className="mc-section-desc">Embedding / Rerank 用于本地检索，OCR 模型可设为办公「提取文字」的默认通道</div>
-        </div>
-        {ocrCfg.model && (
+      <SectionHead
+        icon={<FileTextOutlined />}
+        title="专业模型"
+        desc="Embedding / Rerank 用于本地检索，OCR 模型可设为办公「提取文字」的默认通道"
+        extra={ocrCfg.model && (
           <Button size="small" onClick={() => handleSetOCRModel('', '')}>恢复自动选择</Button>
         )}
-      </div>
-      <div style={{ marginBottom: 12 }}>
-        <Input.Search allowClear placeholder="搜索专业模型" value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 320 }} />
-      </div>
-      <div className="mc-grid">
-        {models.map(m => {
-          const kind = kindOf(m)
-          const meta = KIND_META[kind] || { label: kind, icon: <FileTextOutlined /> }
-          const color = engineColor(m)
-          const isOCR = kind === 'ocr'
-          const activeOCR = isOCR && ocrCfg.engine === m.engineId && ocrCfg.model === m.modelId
-          const eng = engines.find(e => e.id === m.engineId)
-          const avail = modelAvailability(m, eng?.enabled ?? true, engineStatuses[m.engineId]?.connected)
-          const blocked = avail === 'disconnected' || avail === 'disabled'
-          return (
-            <Card key={`${m.engineId}:${m.modelId}`} size="small" className={`mc-model-card${activeOCR ? ' is-active' : ''}`} style={{ opacity: blocked ? 0.55 : 1 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
-                <div className="mc-model-name" style={{ marginBottom: 0 }}>{m.modelName}</div>
-                <Button
-                  type="text"
-                  size="small"
-                  aria-label={pinned.includes(m.modelId) ? '取消置顶' : '置顶'}
-                  icon={pinned.includes(m.modelId) ? <PushpinFilled /> : <PushpinOutlined />}
-                  onClick={(e) => { e.stopPropagation(); togglePin(m.modelId) }}
-                  style={{ padding: 0, height: 20, flex: '0 0 auto', color: pinned.includes(m.modelId) ? '#fbbf24' : C('color-text-secondary') }}
-                />
-              </div>
-              <div className="mc-model-meta">
-                <Tag color={color} style={{ fontSize: 10, margin: 0 }}>{engineLabel(m)}</Tag>
-                <Tag color={kind === 'ocr' ? 'gold' : kind === 'rerank' ? 'geekblue' : 'cyan'} style={{ fontSize: 10, margin: 0 }}>
-                  {meta.icon} {meta.label}
-                </Tag>
-                {pinned.includes(m.modelId) && <Tag color="gold" style={{ fontSize: 10, margin: 0 }}>置顶</Tag>}
-                {avail === 'disconnected' && <Tag color="red" style={{ fontSize: 10, margin: 0 }}>未连接</Tag>}
-                {avail === 'stopped' && <Tag color="default" style={{ fontSize: 10, margin: 0 }}>未启动</Tag>}
-              </div>
-              <div className="mc-model-foot">
-                <span className="mc-status">
-                  <i className={`mc-status-dot ${m.status === 'running' ? 'is-running' : ''}`} />
-                  {avail === 'disconnected' ? '未连接' : m.status === 'running' ? '运行中' : m.status === 'stopped' ? '未启动' : '就绪'}
-                </span>
-                {isOCR && (
-                  <Button
-                    size="small"
-                    type={activeOCR ? 'primary' : 'default'}
-                    icon={activeOCR ? <CheckCircleOutlined /> : <FileTextOutlined />}
-                    onClick={() => handleSetOCRModel(activeOCR ? '' : m.engineId, activeOCR ? '' : m.modelId)}
-                    disabled={blocked && !activeOCR}
-                    style={{ fontSize: 11, marginLeft: 'auto' }}
-                  >
-                    {activeOCR ? '当前 OCR' : '设为 OCR'}
-                  </Button>
-                )}
-              </div>
-            </Card>
-          )
-        })}
-      </div>
+      />
+
+      {specialtyModels.length === 0 ? (
+        <EmptyState
+          icon={<SearchOutlined />}
+          title="暂无 Embedding / Rerank / OCR 模型"
+          hint="在「引擎管理」中刷新本地 Herdsman 模型后，这里会显示 bge-m3、bge-reranker-v2-m3、PaddleOCR 与 MinerU"
+        />
+      ) : (
+        <>
+          <Input.Search
+            allowClear
+            placeholder="搜索专业模型"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ maxWidth: 320 }}
+          />
+          {models.length === 0 ? (
+            <EmptyState compact title={`没有匹配「${search}」的模型`} hint="换个关键词试试" />
+          ) : (
+            <div className="mc-grid">
+              {models.map(m => {
+                const kind = kindOf(m)
+                const meta = KIND_META[kind] || { label: kind, icon: <FileTextOutlined />, tone: 'neutral' as StatusTone }
+                const isOCR = kind === 'ocr'
+                const activeOCR = isOCR && ocrCfg.engine === m.engineId && ocrCfg.model === m.modelId
+                const eng = engines.find(e => e.id === m.engineId)
+                const avail = modelAvailability(m, eng?.enabled ?? true, engineStatuses[m.engineId]?.connected)
+                const blocked = avail === 'disconnected' || avail === 'disabled'
+                const statusText = activeOCR
+                  ? '当前 OCR'
+                  : avail === 'disconnected'
+                    ? '未连接'
+                    : m.status === 'running'
+                      ? '运行中'
+                      : m.status === 'stopped'
+                        ? '未启动'
+                        : '就绪'
+                return (
+                  <ModelCard
+                    key={`${m.engineId}:${m.modelId}`}
+                    name={m.modelName}
+                    engineId={m.engineId}
+                    engineName={engineLabel(m)}
+                    kindChip={(
+                      <StatusChip tone={meta.tone}>
+                        {meta.icon} {meta.label}
+                      </StatusChip>
+                    )}
+                    chips={[
+                      pinned.includes(m.modelId)
+                        ? <StatusChip key="pin" tone="warn">置顶</StatusChip>
+                        : null,
+                      avail === 'disconnected'
+                        ? <StatusChip key="off" tone="danger">未连接</StatusChip>
+                        : avail === 'stopped'
+                          ? <StatusChip key="stop" tone="warn">未启动</StatusChip>
+                          : null,
+                    ].filter(Boolean)}
+                    active={activeOCR}
+                    dimmed={blocked}
+                    pinned={pinned.includes(m.modelId)}
+                    onTogglePin={() => togglePin(m.modelId)}
+                    status={{
+                      tone: activeOCR || m.status === 'running'
+                        ? 'ok'
+                        : avail === 'disconnected'
+                          ? 'danger'
+                          : m.status === 'stopped'
+                            ? 'warn'
+                            : 'neutral',
+                      text: statusText,
+                    }}
+                    action={isOCR && (
+                      <Button
+                        size="small"
+                        type={activeOCR ? 'primary' : 'default'}
+                        icon={activeOCR ? <CheckCircleOutlined /> : <FileTextOutlined />}
+                        onClick={() => handleSetOCRModel(activeOCR ? '' : m.engineId, activeOCR ? '' : m.modelId)}
+                        disabled={blocked && !activeOCR}
+                      >
+                        {activeOCR ? '当前 OCR' : '设为 OCR'}
+                      </Button>
+                    )}
+                  />
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
     </section>
   )
 }
