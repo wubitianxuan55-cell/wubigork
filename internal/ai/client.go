@@ -572,12 +572,52 @@ func (c *Client) ChatSimpleStreamWithOptions(ctx context.Context, model, systemP
 // opts.EnableThinking 对本地 Qwen3 系模型（herdsman/ollama）开启思考模式，
 // 服务端会流式下发 reasoning_content，函数累计后随正文一起返回。
 func (c *Client) ChatSimpleStreamDetailed(ctx context.Context, model, systemPrompt, userMsg string, opts ChatSimpleOptions) (string, string, error) {
+	chunks, cancel, err := c.ChatStreamChunks(ctx, model, systemPrompt, userMsg, opts)
+	if err != nil {
+		return "", "", err
+	}
+	defer cancel()
+
+	var sb strings.Builder
+	var rb strings.Builder
+loop:
+	for {
+		select {
+		case <-ctx.Done():
+			return sb.String(), rb.String(), fmt.Errorf("请求超时或已取消")
+		case chunk, ok := <-chunks:
+			if !ok {
+				break loop
+			}
+			if chunk.Error != "" {
+				return sb.String(), rb.String(), fmt.Errorf("%s", chunk.Error)
+			}
+			if chunk.Done {
+				break loop
+			}
+			sb.WriteString(chunk.Content)
+			rb.WriteString(chunk.Reasoning)
+		}
+	}
+	result := sb.String()
+	reasoning := rb.String()
+	c.emit("response", map[string]interface{}{
+		"length":    len([]rune(result)),
+		"content":   result,
+		"reasoning": reasoning,
+	})
+	return result, reasoning, nil
+}
+
+// ChatStreamChunks 与 ChatSimpleStreamDetailed 相同的请求准备，但不消费底层 SSE
+// 通道，而是把它原样返回给调用方逐块消费（用于聊天板块真实流式下发）。
+// 调用方负责在消费完成后调用返回的 cancel（同时关闭超时定时器）。
+func (c *Client) ChatStreamChunks(ctx context.Context, model, systemPrompt, userMsg string, opts ChatSimpleOptions) (<-chan SSEChunk, context.CancelFunc, error) {
 	timeoutMinutes := opts.TimeoutMinutes
 	if timeoutMinutes <= 0 {
 		timeoutMinutes = 5
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMinutes)*time.Minute)
-	defer cancel()
 
 	// 如果 model 为空，用引擎默认模型（功能级引擎优先）
 	if model == "" {
@@ -630,38 +670,10 @@ func (c *Client) ChatSimpleStreamDetailed(ctx context.Context, model, systemProm
 
 	chunks, err := c.ChatStream(ctx, req)
 	if err != nil {
-		return "", "", err
+		cancel()
+		return nil, nil, err
 	}
-
-	var sb strings.Builder
-	var rb strings.Builder
-loop:
-	for {
-		select {
-		case <-ctx.Done():
-			return sb.String(), rb.String(), fmt.Errorf("请求超时或已取消")
-		case chunk, ok := <-chunks:
-			if !ok {
-				break loop
-			}
-			if chunk.Error != "" {
-				return sb.String(), rb.String(), fmt.Errorf("%s", chunk.Error)
-			}
-			if chunk.Done {
-				break loop
-			}
-			sb.WriteString(chunk.Content)
-			rb.WriteString(chunk.Reasoning)
-		}
-	}
-	result := sb.String()
-	reasoning := rb.String()
-	c.emit("response", map[string]interface{}{
-		"length":    len([]rune(result)),
-		"content":   result,
-		"reasoning": reasoning,
-	})
-	return result, reasoning, nil
+	return chunks, cancel, nil
 }
 
 // SetImageBackend 设置图片生成后端（nil + backendType 回退到 xAI）

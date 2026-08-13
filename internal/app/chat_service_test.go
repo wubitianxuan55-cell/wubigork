@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -90,6 +92,70 @@ func TestChatSend_Plain(t *testing.T) {
 	msgs := a.ChatMessagesList(topics[0].ID)
 	if len(msgs) != 2 || msgs[0].Role != "user" || msgs[1].Role != "assistant" {
 		t.Errorf("消息落库异常: %+v", msgs)
+	}
+}
+
+// TestChatSend_Plain_SearchKeepsOriginalUserMessage 联网搜索注入只应进入模型上下文，
+// 落库的用户消息必须保留原文（避免搜索结果污染历史与话题预览）。
+func TestChatSend_Plain_SearchKeepsOriginalUserMessage(t *testing.T) {
+	a := newChatServiceTestApp(t)
+	topic, err := a.ChatTopicCreate("搜索", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+
+	orig := chatWebSearch
+	chatWebSearch = func(query string) (string, error) { return "【模拟搜索结果】", nil }
+	t.Cleanup(func() { chatWebSearch = orig })
+
+	if _, err := a.ChatSend(topic.ID, "今天有什么新闻", "plain", false, false, true); err != nil {
+		t.Fatalf("ChatSend(forceSearch): %v", err)
+	}
+	msgs := a.ChatMessagesList(topic.ID)
+	if len(msgs) != 2 {
+		t.Fatalf("消息数 = %d, want 2", len(msgs))
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "今天有什么新闻" {
+		t.Errorf("落库用户消息应保留原文，实际 role=%q content=%q", msgs[0].Role, msgs[0].Content)
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != "你好呀" {
+		t.Errorf("assistant 消息异常: %+v", msgs[1])
+	}
+}
+
+// TestChatStreamPlain_StreamsAndPersists 普通对话真实流式：返回 runID，异步下发分块并落库。
+func TestChatStreamPlain_StreamsAndPersists(t *testing.T) {
+	a := newChatServiceTestApp(t)
+	topic, err := a.ChatTopicCreate("流式", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+
+	runID, err := a.ChatStreamPlain(topic.ID, "你好", false, false, false)
+	if err != nil {
+		t.Fatalf("ChatStreamPlain: %v", err)
+	}
+	if runID == "" {
+		t.Fatal("runID 不应为空")
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	var msgs []chat.Message
+	for time.Now().Before(deadline) {
+		msgs = a.ChatMessagesList(topic.ID)
+		if len(msgs) == 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("消息数 = %d, want 2", len(msgs))
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "你好" {
+		t.Errorf("user 消息 = %+v, want 你好", msgs[0])
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != "你好呀" {
+		t.Errorf("assistant 消息 = %+v, want 你好呀", msgs[1])
 	}
 }
 
@@ -219,5 +285,34 @@ func TestChatTopicClear(t *testing.T) {
 	topics := a.ChatTopicsList()
 	if len(topics) != 1 || topics[0].ID != topic.ID {
 		t.Fatalf("话题应保留: %+v", topics)
+	}
+}
+
+// TestChatTopicExportMarkdown 导出为 Markdown：含标题、用户/AI 分段与消息原文。
+func TestChatTopicExportMarkdown(t *testing.T) {
+	a := newChatServiceTestApp(t)
+	topic, err := a.ChatImportTopic("导出:测试/会话", "plain", []ChatMessageInput{
+		{Role: "user", Content: "你好"},
+		{Role: "assistant", Content: "你好呀"},
+	})
+	if err != nil {
+		t.Fatalf("ChatImportTopic: %v", err)
+	}
+	path, err := a.ChatTopicExportMarkdown(topic.ID)
+	if err != nil {
+		t.Fatalf("ChatTopicExportMarkdown: %v", err)
+	}
+	if !strings.HasSuffix(path, ".md") {
+		t.Fatalf("导出文件应为 .md: %s", path)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("读取导出文件: %v", err)
+	}
+	s := string(b)
+	for _, want := range []string{"# 导出:测试/会话", "## 用户", "## AI", "你好", "你好呀"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("导出内容缺少 %q:\n%s", want, s)
+		}
 	}
 }

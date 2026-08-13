@@ -1,5 +1,90 @@
 # gaea · 多功能 AI 助手
 
+## v2.14.10「修复办公模型改绑不生效（仍沿用旧模型）」（2026-08-13）
+> 定位：办公主 agent 的模型由 bridge provider 在 GaeaInit 时注入并缓存，运行时
+> 在模型中心改绑「办公」后，配置已更新、前端也显示新模型，但没触发重新注入 +
+> 重建 controller，因此继续用旧的 deepseek。详见 releases/v2.14.10.md。
+- `App.SetFeatureModel` / `App.SetFeatureModelEnabled` 覆盖：feature=="gaea" 时重新注入 bridge 模型
+- 办公引擎已初始化时同步重建 controller；未初始化则仅更新注入，下次 GaeaInit 生效
+- 测试：新增 `TestAppSetFeatureModel_GaeaBindingApplies`
+- 验证：go build/vet、go test（chat/app）全绿；wails build 通过（前端未改动）
+
+## v2.14.9「聊天板块后端：原子落库 + AppendMessage 收敛」（2026-08-13）
+> 继续收敛聊天后端写入路径：用户/助手消息改为单事务原子落库，AppendMessage 用
+> RETURNING 一次拿回 id+seq，失败不再静默忽略。详见 releases/v2.14.9.md。
+- `AppendMessage`：用 `INSERT ... RETURNING id, seq` 替代「先查 MAX(seq)+1 再插入」，消除竞态窗口
+- 新增 `chat.Store.AppendExchange`：单事务原子写入用户 + 助手消息并刷新 updated_at
+- `appendChatExchange` 改走事务，落库失败记录错误日志（不再静默丢弃）
+- 测试：新增 `TestStore_AppendExchange`（含不存在话题回滚校验）
+- 验证：go build/vet、go test（chat/app）全绿；前端未改动
+
+## v2.14.8「聊天板块后端：会话列表查询收敛 + GetTopic」（2026-08-13）
+> 收敛聊天板块后端存储的查询路径：会话列表预览从 N+1 改为单条相关子查询，
+> 新增 `GetTopic` 供创建/导入/导出直接按 ID 读取，不再全表列举。详见 releases/v2.14.8.md。
+- `chat.Store.ListTopics` 用相关子查询一次取回所有话题的预览，消除 N+1
+- 新增 `chat.Store.GetTopic(id)`；`ChatTopicCreate` / `ChatImportTopic` / `ChatTopicExportMarkdown` 改走按 ID 读取
+- 测试：新增 `TestStore_GetTopic`
+- 验证：go build/vet、go test（chat/app）全绿；前端未改动
+
+## v2.14.7「聊天板块交互收尾：清空确认 + 切换聚焦 + 标题生成收敛」（2026-08-13）
+> 收尾几处日常交互细节：清空对话加二次确认防误触，切换话题后自动聚焦输入框，
+> 会话标题生成抽成纯函数并补测试。详见 releases/v2.14.7.md。
+- 清空当前对话加 Popconfirm 二次确认（避免误清空不可恢复）
+- 选中话题后自动聚焦输入框，切过去即可输入
+- 会话标题生成抽纯函数 `autoTopicTitle`，前端测试 194→196
+- 验证：wails build（含 tsc + vite）通过；vitest 196；go build/vet、go test 全绿
+
+## v2.14.6「聊天板块会话导出为 Markdown」（2026-08-13）
+> 补上聊天板块的内容出口：把当前会话导出为 Markdown 文件，落盘到用户数据目录，
+> 前端一键导出并复制文件路径。详见 releases/v2.14.6.md。
+- 后端 `ChatTopicExportMarkdown`：按话题标题 + 用户/AI 分段导出全部消息为 .md
+- 文件名安全规整（`sanitizeChatFilename`），写到用户数据目录 exports/chat 下
+- 前端模式栏新增「导出」按钮，成功后提示路径并复制到剪贴板
+- 测试：新增 `TestChatTopicExportMarkdown`
+- 验证：wails build（含 tsc + vite）；vitest 194；go build/vet、go test（app）全绿
+
+## v2.14.5「聊天板块真实流式输出（普通对话）」（2026-08-13）
+> 把普通对话从「整段返回 + 前端模拟打字流」升级为后端逐块流式下发，首字更快、
+> 停顿更自然；思考链也随流式下发。角色模式保持整段返回。详见 releases/v2.14.5.md。
+- 普通对话真实流式：`ChatStreamPlain` 立即返回 runID，经 `chat-stream:<runID>` 下发 delta/reasoning/done/error
+- 角色模式保持整段返回（沿用原有模拟打字流），两种模式统一走发送收尾（自动命名/置顶/预览同步）
+- AI 客户端新增 `ChatStreamChunks`：复用同一套请求准备，但暴露底层 SSE 分块供逐块消费
+- 测试：新增 `TestChatStreamChunks_EmitsDeltas`、`TestChatStreamPlain_StreamsAndPersists`
+- 验证：wails build（含 tsc + vite）通过；vitest 194 例全过；go build/vet、go test（ai/app）全绿
+
+## v2.14.4「聊天板块收口：联网搜索污染修复 + 回到底部 + 侧栏预览同步」（2026-08-13）
+> 收口聊天板块最后一处数据正确性问题与一个滚动体验缺口：联网搜索注入只进模型
+> 上下文、不再污染用户历史；上翻阅读时提供「回到底部」悬浮入口；侧栏预览随发送/
+> 清空即时同步。详见 releases/v2.14.4.md。
+- 修复：联网搜索注入不再写入用户消息历史（原实现会把搜索结果一起落库，污染话题预览与历史）
+- 回到底部：上翻阅读时出现悬浮按钮，一键回底并恢复自动跟随
+- 侧栏预览同步：发送首条消息 / 清空对话后即时更新会话预览，不再等重新进入
+- 测试：新增 Go 用例 `TestChatSend_Plain_SearchKeepsOriginalUserMessage`
+- 验证：tsc + vite build 通过；vitest 194 例全过；go build/vet、go test（含新用例）全绿
+
+## v2.14.3「聊天板块补强：输入法防误发 + 快速切话题竞态修复 + 模式栏收敛」（2026-08-13）
+> 延续聊天板块优化：修掉中文输入法候选确认时 Enter 误发消息、快速切换话题时
+> 旧话题响应覆盖当前视图两个高频隐患，并收敛模式栏重复 JSX。前端用例 190→194。
+> 详见 releases/v2.14.3.md。
+- 输入法防误发：中文/日文 IME 组合态下的 Enter 不再触发发送（纯函数 `shouldSubmitOnEnter`）
+- 快速切话题竞态修复：话题消息载入用序号令牌，过期响应直接丢弃，避免旧消息覆盖当前视图
+- 模式栏收敛：普通/角色两分支合并为单一操作区，去除重复 JSX
+- 测试补强：新增 `shouldSubmitOnEnter` 用例
+- 验证：tsc + vite build 通过；vitest 190→194；go build/vet、go test 保持全绿
+
+## v2.14.2「聊天板块优化：会话搜索 + 最近活跃排序 + 智能滚动 + 重开加载修复」（2026-08-13）
+> 在通用办公会话化升级之后，回头把「聊天板块」的日常交互体验补到同一档：会话按
+> 最近活跃排序并显示相对时间、侧栏新增会话搜索、流式/生成时不再强制吸底、重进聊天
+> 板块正确载入历史消息。前端用例 182→190。
+> 详见 releases/v2.14.2.md。
+- 会话列表：最近活跃优先（新会话/回复会话自动置顶），会话行显示相对时间
+- 会话搜索：侧栏新增搜索框，按标题/预览/模式标签过滤（纯函数 `filterChatTopics`）
+- 智能滚动：生成/流式输出时用户上翻阅读不再被强制吸底，贴近底部才恢复跟随（`isNearBottom`）
+- 修复：重新进入聊天板块时，已选中话题的历史消息未载入（此前显示欢迎屏而非对话）
+- 缺陷收口：会话重命名失败提示（不再静默失败）
+- 测试补强：新增 `filterChatTopics` / `sortByUpdatedAtDesc` / `isNearBottom` 纯函数用例
+- 验证：tsc + vite build 通过；vitest 182→190；go build/vet、go test（chat/app）全绿
+
 ## v2.14.1「办公板块缺陷收口 + 测试补强 + 结构收敛」（2026-08-13）
 > 承接 v2.14.0：收口会话恢复/重命名失败提示、归档删除二次确认、欢迎页跨项目
 > 最近会话、变更面板汇总排序、归档会话搜索；前端用例 138→179，办公前端做

@@ -192,6 +192,49 @@ func (a *App) GaeaInit() error {
 	return nil
 }
 
+// SetFeatureModel 是 core.SetFeatureModel 的 App 层覆盖：办公主 agent 的模型
+// 由 bridge provider 在 GaeaInit 时注入并缓存，运行时改绑必须重新注入并重建
+// controller，否则仍沿用旧模型（例如先前注入 deepseek，改绑 grok 后办公仍走 deepseek）。
+func (a *App) SetFeatureModel(feature, engineID, modelName string) error {
+	if err := a.core.SetFeatureModel(feature, engineID, modelName); err != nil {
+		return err
+	}
+	if feature == "gaea" {
+		a.applyOfficeFeatureModel(engineID, modelName)
+	}
+	return nil
+}
+
+// SetFeatureModelEnabled 同理：办公功能级启停需即时反映到 bridge provider；
+// 停用清空注入回退全局，启用恢复功能绑定。
+func (a *App) SetFeatureModelEnabled(feature string, enabled bool) error {
+	if err := a.core.SetFeatureModelEnabled(feature, enabled); err != nil {
+		return err
+	}
+	if feature == "gaea" {
+		if enabled {
+			eng, model := a.cfg.GetFeatureModel("gaea")
+			a.applyOfficeFeatureModel(eng, model)
+		} else {
+			a.applyOfficeFeatureModel("", "")
+		}
+	}
+	return nil
+}
+
+// applyOfficeFeatureModel 注入办公 bridge 的 feature 模型，并在办公引擎已初始化时重建
+// controller。办公尚未打开（ga.ctrl == nil）时仅更新注入，后续 GaeaInit 会再按最新配置注入。
+func (a *App) applyOfficeFeatureModel(engine, model string) {
+	bridge.SetFeature(engine, model)
+	ga.mu.Lock()
+	defer ga.mu.Unlock()
+	if ga.ctrl != nil && ga.cfg != nil {
+		if err := a.gaeaRebuildLocked(); err != nil {
+			slog.Warn("办公模型绑定变更后重建引擎失败", "error", err)
+		}
+	}
+}
+
 // GaeaReloadResult 热加载结果摘要：重建后生效的工具/技能数量，前端可据此提示。
 type GaeaReloadResult struct {
 	Tools  int `json:"tools"`

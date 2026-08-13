@@ -21,6 +21,8 @@ type HerdsmanTTS struct {
 	model            string
 	voice            string
 	voiceDescription string // voicedesign 模式的音色描述
+	refAudio         string // voiceclone 模式的参考音频（路径、URL 或 data URI）
+	refText          string // voiceclone 模式的参考音频文本（可选）
 	client           *http.Client
 }
 
@@ -30,7 +32,7 @@ func NewHerdsmanTTS(baseURL, model, voice string) *HerdsmanTTS {
 		baseURL: baseURL,
 		model:   model,
 		voice:   voice,
-		client:  netclient.NewSimpleClient(30 * time.Second),
+		client:  netclient.NewSimpleClient(ttsTimeoutForModel(model)),
 	}
 }
 
@@ -40,8 +42,30 @@ func NewHerdsmanTTSWithDesc(baseURL, model, voiceDescription string) *HerdsmanTT
 		baseURL:          baseURL,
 		model:            model,
 		voiceDescription: voiceDescription,
-		client:           netclient.NewSimpleClient(30 * time.Second),
+		client:           netclient.NewSimpleClient(ttsTimeoutForModel(model)),
 	}
+}
+
+// NewHerdsmanTTSWithClone 创建 Herdsman TTS 客户端（voiceclone 模式）。
+// refAudio 支持本地路径、URL 或 data URI，refText 为可选参考文本。
+func NewHerdsmanTTSWithClone(baseURL, model, refAudio, refText string) *HerdsmanTTS {
+	return &HerdsmanTTS{
+		baseURL:  baseURL,
+		model:    model,
+		refAudio: refAudio,
+		refText:  refText,
+		client:   netclient.NewSimpleClient(ttsTimeoutForModel(model)),
+	}
+}
+
+// ttsTimeoutForModel 为本地重模型（Qwen3-TTS / VoxCPM2）放宽 HTTP 超时，
+// 避免冷启动或较长音频在 30 秒内被误判失败。
+func ttsTimeoutForModel(model string) time.Duration {
+	l := strings.ToLower(model)
+	if strings.Contains(l, "qwen3-tts") || strings.Contains(l, "voxcpm") {
+		return 180 * time.Second
+	}
+	return 30 * time.Second
 }
 
 // ttsResponse /v1/audio/speech 非流式响应
@@ -81,15 +105,7 @@ func (h *HerdsmanTTS) Synthesize(text string) ([]byte, error) {
 // SynthesizeWithMime 合成并返回音频和实际 MIME 类型
 func (h *HerdsmanTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
 	voice := h.resolveVoice()
-	body := map[string]interface{}{
-		"model": h.model,
-		"input": text,
-	}
-	if h.voiceDescription != "" {
-		body["voice_description"] = h.voiceDescription
-	} else if voice != "" {
-		body["voice"] = voice
-	}
+	body := h.buildBody(text, voice)
 	jsonBody, _ := json.Marshal(body)
 
 	audio, mime, err := h.requestAudio(jsonBody, voice)
@@ -100,15 +116,7 @@ func (h *HerdsmanTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
 	// 首选音色失败时（如配置了 Cherry 但服务端已不支持），用默认音色重试一次
 	dv := defaultVoiceForModel(h.model)
 	if voice != dv && dv != "" {
-		defaultBody := map[string]interface{}{
-			"model": h.model,
-			"input": text,
-		}
-		if h.voiceDescription != "" {
-			defaultBody["voice_description"] = h.voiceDescription
-		} else {
-			defaultBody["voice"] = dv
-		}
+		defaultBody := h.buildBody(text, dv)
 		if db, mErr := json.Marshal(defaultBody); mErr == nil {
 			if audio2, mime2, err2 := h.requestAudio(db, dv); err2 == nil {
 				return audio2, mime2, nil
@@ -116,6 +124,27 @@ func (h *HerdsmanTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
 		}
 	}
 	return nil, "", err
+}
+
+// buildBody 构造 /v1/audio/speech 请求体。
+// voiceclone 优先，其次 voicedesign，最后 customvoice/edge-tts 的 voice。
+func (h *HerdsmanTTS) buildBody(text, voice string) map[string]interface{} {
+	body := map[string]interface{}{
+		"model": h.model,
+		"input": text,
+	}
+	switch {
+	case h.refAudio != "":
+		body["ref_audio"] = h.refAudio
+		if h.refText != "" {
+			body["ref_text"] = h.refText
+		}
+	case h.voiceDescription != "":
+		body["voice_description"] = h.voiceDescription
+	case voice != "":
+		body["voice"] = voice
+	}
+	return body
 }
 
 // requestAudio 发送 POST 并将响应解析为音频字节
@@ -242,7 +271,7 @@ func (h *HerdsmanTTS) infoEndpoint() string {
 //   - 配置音色不在列表时回退到首选默认音色
 //   - 查询失败时回退 defaultVoiceForModel
 func (h *HerdsmanTTS) resolveVoice() string {
-	if h.voiceDescription != "" {
+	if h.voiceDescription != "" || h.refAudio != "" || isVoiceCloneModel(h.model) {
 		return ""
 	}
 	voice := strings.TrimSpace(h.voice)
@@ -252,7 +281,7 @@ func (h *HerdsmanTTS) resolveVoice() string {
 
 	// 仅对 qwen3-tts 系列模型动态查询支持音色（其他模型如 edge-tts 直接使用配置音色）
 	l := strings.ToLower(h.model)
-	if !strings.Contains(l, "qwen3-tts") && !strings.Contains(l, "customvoice") {
+	if !isPresetVoiceModel(l) {
 		return voice
 	}
 
@@ -277,6 +306,9 @@ func (h *HerdsmanTTS) resolveVoice() string {
 
 // SupportedSpeakers 获取模型支持音色列表（带 10 分钟缓存）
 func (h *HerdsmanTTS) SupportedSpeakers() []string {
+	if isVoiceCloneModel(h.model) || strings.TrimSpace(h.voiceDescription) != "" {
+		return nil
+	}
 	speakerCacheMu.Lock()
 	defer speakerCacheMu.Unlock()
 	if e, ok := speakerCache[h.model]; ok && time.Since(e.fetched) < speakerCacheTTL {
@@ -306,6 +338,10 @@ func (h *HerdsmanTTS) SupportedSpeakers() []string {
 func defaultVoiceForModel(model string) string {
 	l := strings.ToLower(model)
 	switch {
+	case strings.Contains(l, "voiceclone"):
+		return ""
+	case strings.Contains(l, "voxcpm"):
+		return ""
 	case strings.Contains(l, "edge"):
 		return "zh-CN-YunxiNeural"
 	case strings.Contains(l, "voicedesign"):
@@ -315,6 +351,17 @@ func defaultVoiceForModel(model string) string {
 	default:
 		return "serena"
 	}
+}
+
+// isPresetVoiceModel 判断模型是否使用服务端 supported_speakers 音色列表。
+func isPresetVoiceModel(model string) bool {
+	l := strings.ToLower(model)
+	return strings.Contains(l, "qwen3-tts") || strings.Contains(l, "customvoice")
+}
+
+// isVoiceCloneModel 判断是否为 qwen3-tts-voiceclone 克隆模式。
+func isVoiceCloneModel(model string) bool {
+	return strings.Contains(strings.ToLower(model), "voiceclone")
 }
 
 // openAIEndpoint 将 OpenAI 兼容 base URL 与 API 路径拼接：

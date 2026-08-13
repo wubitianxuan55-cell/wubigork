@@ -356,9 +356,9 @@ func TestOpencodeGo_RefreshModels_FiltersIncompatible(t *testing.T) {
 			"data": []map[string]any{
 				{"id": "kimi-k2.7-code", "owned_by": "opencode-go"},
 				{"id": "deepseek-v4-pro", "owned_by": "opencode-go"},
-				{"id": "qwen3.7-max", "owned_by": "opencode-go"},      // Anthropic /messages，应过滤
-				{"id": "minimax-m3", "owned_by": "opencode-go"},        // Anthropic /messages，应过滤
-				{"id": "gpt-5.6-luna", "owned_by": "opencode-go"},      // /responses，应过滤
+				{"id": "qwen3.7-max", "owned_by": "opencode-go"},  // Anthropic /messages，应过滤
+				{"id": "minimax-m3", "owned_by": "opencode-go"},   // Anthropic /messages，应过滤
+				{"id": "gpt-5.6-luna", "owned_by": "opencode-go"}, // /responses，应过滤
 				{"id": "glm-5.2", "owned_by": "opencode-go"},
 			},
 		})
@@ -442,7 +442,7 @@ func TestOpencodeZen_RefreshModels_FiltersIncompatible(t *testing.T) {
 			"data": []map[string]any{
 				{"id": "deepseek-v4-pro", "owned_by": "opencode"},
 				{"id": "glm-5.2", "owned_by": "opencode"},
-				{"id": "minimax-m3", "owned_by": "opencode"},      // Zen 走 chat/completions，应保留
+				{"id": "minimax-m3", "owned_by": "opencode"},       // Zen 走 chat/completions，应保留
 				{"id": "gpt-5.5", "owned_by": "opencode"},          // /responses，应过滤
 				{"id": "claude-opus-4-5", "owned_by": "opencode"},  // /messages，应过滤
 				{"id": "gemini-3.5-flash", "owned_by": "opencode"}, // 专用端点，应过滤
@@ -557,5 +557,27 @@ func TestTestConnection_MissingEngine(t *testing.T) {
 	m := NewManager("", "")
 	if _, err := m.TestConnection(context.Background(), "nope"); err == nil {
 		t.Error("不存在的引擎应报错")
+	}
+}
+
+func TestClassifyModelKind_HerdsmanSpecialized(t *testing.T) {
+	cases := []struct {
+		model string
+		want  string
+	}{
+		{"qwen3-tts-voiceclone", "tts"},
+		{"edge-tts", "tts"},
+		{"voxcpm2", "tts"},
+		{"sherpa-onnx-streaming-zipformer-zh-14m", "stt"},
+		{"funasr", "stt"},
+		{"paddleocr-ppocrv5-server", "ocr"},
+		{"minerU", "ocr"},
+		{"bge-reranker-v2-m3", "rerank"},
+		{"bge-m3", "embedding"},
+	}
+	for _, c := range cases {
+		if got := classifyModelKind(EngineHerdsman, c.model); got != c.want {
+			t.Errorf("classifyModelKind(herdsman, %q) = %q, want %q", c.model, got, c.want)
+		}
 	}
 }

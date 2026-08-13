@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { CloudOutlined, DesktopOutlined, GlobalOutlined, KeyOutlined, RocketOutlined } from '@ant-design/icons'
 
-export type Category = 'llm' | 'image' | 'tts' | 'engine' | 'bind' | 'stats'
+export type Category = 'overview' | 'llm' | 'image' | 'tts' | 'specialty' | 'engine' | 'bind' | 'stats'
 
 export interface ModelCardData {
   modelId: string; modelName: string
@@ -11,12 +11,15 @@ export interface ModelCardData {
   kind?: string
 }
 
-export type ModelKind = 'llm' | 'tts' | 'stt' | 'image'
+export type ModelKind = 'llm' | 'tts' | 'stt' | 'image' | 'embedding' | 'rerank' | 'ocr'
 
 export function classifyModel(id: string): ModelKind {
   const lid = id.toLowerCase()
   if (lid.includes('tts') || lid.includes('voice') || lid.includes('edge')) return 'tts'
-  if (lid.includes('sherpa') || lid.includes('whisper') || lid.includes('zipformer') || lid.includes('asr')) return 'stt'
+  if (lid.includes('sherpa') || lid.includes('whisper') || lid.includes('zipformer') || lid.includes('asr') || lid.includes('funasr')) return 'stt'
+  if (lid.includes('paddleocr') || lid.includes('ocr') || lid.includes('mineru')) return 'ocr'
+  if (lid.includes('rerank')) return 'rerank'
+  if (lid.includes('embedding') || lid.includes('bge-m3') || lid.includes('bge')) return 'embedding'
   if (lid.includes('image') || lid.includes('zimage') || lid.includes('flux') || lid.includes('turbo') || lid.includes('sd') || lid.includes('dalle') || lid.includes('krea')) return 'image'
   return 'llm'
 }

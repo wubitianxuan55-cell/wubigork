@@ -1,22 +1,32 @@
+import type { ReactNode } from 'react'
 import { Button, Card, message, Select, Space, Switch, Tag, Typography } from 'antd'
-import { LinkOutlined } from '@ant-design/icons'
+import { CommentOutlined, EditOutlined, LinkOutlined, PictureOutlined, RobotOutlined, SoundOutlined, ToolOutlined, UserOutlined } from '@ant-design/icons'
 import * as App from '../../../wailsjs/go/app/App'
 import { C } from '../../utils/theme'
 import { engineLabel, FEATURES } from './utils'
 import { useModelCenter } from './context'
 
+const FEATURE_ICONS: Record<string, ReactNode> = {
+  chat: <CommentOutlined />,
+  novel: <EditOutlined />,
+  office: <ToolOutlined />,
+  characterlib: <UserOutlined />,
+  routine: <RobotOutlined />,
+}
+
+const popupContainer = () => document.body
+
 export function BindSection() {
   const { engines, featureCfg, featureDraft, featureEnabled, modelRoutes, chatVoiceCfg, chatVoiceDraft, chatVoiceSaving, chatVoiceOptions, chatVoiceValue, voiceCfg, setVoiceCfg, portraitCfg, portraitDraft, portraitModelOptions, portraitSaving, llmModels, ttsModels, setFeatureDraft, setChatVoiceDraft, setPortraitDraft, handleSaveFeature, handleToggleFeatureEnabled, handleSaveChatVoice, handleClearChatVoice, handleSavePortrait } = useModelCenter()
   return (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                <LinkOutlined style={{ color: C('color-text-secondary') }} />
-                <Typography.Text strong style={{ color: C('color-text'), fontSize: 15 }}>功能模型绑定</Typography.Text>
-                <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>
-                  各功能板块独立模型，设置后持久化（重启不丢）
-                </Typography.Text>
+            <section className="mc-section">
+              <div className="mc-section-head">
+                <div>
+                  <div className="mc-section-title"><LinkOutlined /> 功能模型绑定</div>
+                  <div className="mc-section-desc">各功能板块独立模型，设置后持久化（重启不丢）</div>
+                </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+              <div className="mc-grid two-col">
                 {FEATURES.map(f => {
                   const cur = featureCfg[f.key]
                   const draft = featureDraft[f.key] || { engine: '', model: '' }
@@ -26,7 +36,7 @@ export function BindSection() {
                     <Card key={f.key} size="small" style={{ background: 'var(--bg-glass)', border: bound ? '1px solid rgba(34,197,94,0.35)' : '1px solid var(--border-subtle)', borderRadius: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
                         <Space size={6}>
-                          <span style={{ fontSize: 16 }}>{f.icon}</span>
+                          <span style={{ fontSize: 16 }}>{FEATURE_ICONS[f.key] || <LinkOutlined />}</span>
                           <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>{f.label}</Typography.Text>
                           {f.key === 'chat' && (
                             <>
@@ -59,11 +69,11 @@ export function BindSection() {
                         </Typography.Text>
                       )}
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <Select size="small" placeholder="引擎" value={draft.engine || undefined}
+                        <Select size="small" placeholder="引擎" value={draft.engine || undefined} getPopupContainer={popupContainer}
                           onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: v, model: '' } }))}
                           style={{ flex: 1, minWidth: 0 }}
                           options={engines.filter(e => e.enabled).map(e => ({ value: e.id, label: engineLabel(e) }))} />
-                        <Select size="small" placeholder="模型" value={draft.model || undefined}
+                        <Select size="small" placeholder="模型" value={draft.model || undefined} getPopupContainer={popupContainer}
                           onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: p[f.key]?.engine || '', model: v } }))}
                           style={{ flex: 1, minWidth: 0 }}
                           options={engineModels.map(m => ({ value: m.modelId, label: m.modelName }))} />
@@ -82,7 +92,7 @@ export function BindSection() {
                 <Card size="small" style={{ background: 'var(--bg-glass)', border: chatVoiceCfg.model ? '1px solid rgba(168,85,247,0.35)' : '1px dashed var(--border-subtle)', borderRadius: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
                     <Space size={6}>
-                      <span style={{ fontSize: 16 }}>🗣️</span>
+                      <span style={{ fontSize: 16 }}><SoundOutlined /></span>
                       <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>聊天语音</Typography.Text>
                       <Tag color="purple" style={{ fontSize: 9, margin: 0 }}>TTS</Tag>
                       {chatVoiceCfg.model && <Tag color="geekblue" style={{ fontSize: 9, margin: 0 }}>功能绑定</Tag>}
@@ -98,11 +108,11 @@ export function BindSection() {
                     优先于全局 TTS；列表随引擎模型自动刷新，后续新增语音模型无需改代码
                   </Typography.Text>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <Select size="small" placeholder="引擎" value={chatVoiceDraft.engine || undefined}
+                    <Select size="small" placeholder="引擎" value={chatVoiceDraft.engine || undefined} getPopupContainer={popupContainer}
                       onChange={(v: string) => setChatVoiceDraft({ engine: v, model: '' })}
                       style={{ flex: 1, minWidth: 0 }}
                       options={engines.filter(e => e.enabled && ttsModels.some(m => m.engineId === e.id)).map(e => ({ value: e.id, label: engineLabel(e) }))} />
-                    <Select size="small" placeholder="语音模型" value={chatVoiceDraft.model || undefined}
+                    <Select size="small" placeholder="语音模型" value={chatVoiceDraft.model || undefined} getPopupContainer={popupContainer}
                       onChange={(v: string) => setChatVoiceDraft(p => ({ ...p, model: v }))}
                       style={{ flex: 1, minWidth: 0 }}
                       options={ttsModels.filter(m => m.engineId === chatVoiceDraft.engine).map(m => ({ value: m.modelId, label: m.modelName }))} />
@@ -110,7 +120,7 @@ export function BindSection() {
                   {chatVoiceDraft.engine && chatVoiceDraft.model && chatVoiceOptions.length > 0 && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
                       <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, whiteSpace: 'nowrap' }}>音色</Typography.Text>
-                      <Select size="small" value={chatVoiceValue} placeholder="选择音色"
+                      <Select size="small" value={chatVoiceValue} placeholder="选择音色" getPopupContainer={popupContainer}
                         onChange={async (v: string) => {
                           try {
                             await (App as any).VoiceApplySettings?.({ ttsVoice: v })
@@ -136,7 +146,7 @@ export function BindSection() {
                 {/* 绘梦：自身界面选择 */}
                 <Card size="small" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-subtle)', borderRadius: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 16 }}>🎨</span>
+                    <span style={{ fontSize: 16 }}><PictureOutlined /></span>
                     <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>绘梦</Typography.Text>
                   </div>
                   <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11, display: 'block', marginTop: 8, lineHeight: 1.6 }}>
@@ -148,7 +158,7 @@ export function BindSection() {
                 <Card size="small" style={{ background: portraitCfg.backend ? 'var(--bg-glass)' : 'rgba(255,255,255,0.02)', border: portraitCfg.backend ? '1px solid rgba(96,165,250,0.35)' : '1px dashed var(--border-subtle)', borderRadius: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
                     <Space size={6}>
-                      <span style={{ fontSize: 16 }}>🖼️</span>
+                      <span style={{ fontSize: 16 }}><PictureOutlined /></span>
                       <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>角色库剧照</Typography.Text>
                       <Tag color="blue" style={{ fontSize: 9, margin: 0 }}>图片</Tag>
                     </Space>
@@ -164,6 +174,7 @@ export function BindSection() {
                       size="small"
                       placeholder="后端"
                       value={portraitDraft.backend || undefined}
+                      getPopupContainer={popupContainer}
                       onChange={(v: string) => setPortraitDraft({ backend: v, model: '' })}
                       style={{ flex: 1, minWidth: 0 }}
                       options={[
@@ -178,6 +189,7 @@ export function BindSection() {
                       size="small"
                       placeholder="模型"
                       value={portraitDraft.model || undefined}
+                      getPopupContainer={popupContainer}
                       onChange={(v: string) => setPortraitDraft(p => ({ ...p, model: v }))}
                       style={{ flex: 1, minWidth: 0 }}
                       options={portraitModelOptions}
@@ -190,6 +202,6 @@ export function BindSection() {
                   </Button>
                 </Card>
               </div>
-            </div>
+            </section>
   )
 }

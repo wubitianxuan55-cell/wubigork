@@ -117,9 +117,9 @@ func (a *mediaState) GetVoicePipelineConfig() map[string]interface{} {
 	asr := a.GetActiveASRModel()
 	tts := a.GetActiveTTSModel()
 	return map[string]interface{}{
-		"stt": map[string]string{"engine": asr["engine"], "model": asr["model"]},
-		"llm": map[string]string{"engine": a.GetActiveEngine(), "model": a.GetActiveModel()},
-		"tts": map[string]string{"engine": tts["engine"], "model": tts["model"], "voice": a.activeTTSVoice},
+		"stt":     map[string]string{"engine": asr["engine"], "model": asr["model"]},
+		"llm":     map[string]string{"engine": a.GetActiveEngine(), "model": a.GetActiveModel()},
+		"tts":     map[string]string{"engine": tts["engine"], "model": tts["model"], "voice": a.activeTTSVoice},
 		"chatTts": map[string]string{"engine": a.chatVoiceEngine, "model": a.chatVoiceModel},
 	}
 }
@@ -156,7 +156,7 @@ func (a *mediaState) SetChatVoiceModel(engineID, modelID string) error {
 	found := false
 	for _, m := range eng.Models {
 		l := strings.ToLower(m.ID)
-		if m.ID == modelID && (strings.Contains(l, "tts") || strings.Contains(l, "voice") || strings.Contains(l, "speech") || strings.Contains(l, "edge") || strings.Contains(l, "cosyvoice")) {
+		if m.ID == modelID && (strings.Contains(l, "tts") || strings.Contains(l, "voice") || strings.Contains(l, "speech") || strings.Contains(l, "edge") || strings.Contains(l, "cosyvoice") || strings.Contains(l, "voxcpm")) {
 			found = true
 			break
 		}
@@ -195,7 +195,7 @@ func (a *mediaState) ttsVoiceForModel(model string) string {
 	switch {
 	case strings.Contains(l, "edge"):
 		return "zh-CN-YunxiNeural"
-	case strings.Contains(l, "voicedesign"):
+	case strings.Contains(l, "voicedesign"), strings.Contains(l, "voiceclone"), strings.Contains(l, "voxcpm"):
 		return ""
 	case strings.Contains(l, "grok-tts"):
 		return "eve"

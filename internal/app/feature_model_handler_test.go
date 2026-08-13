@@ -28,6 +28,27 @@ func newTestCore(t *testing.T) *core {
 	return c
 }
 
+// TestAppSetFeatureModel_GaeaBindingApplies 验证办公功能绑定经 App 层写入后，
+// 配置正确更新；办公引擎未初始化时只注入 bridge、不重建、不 panic。
+func TestAppSetFeatureModel_GaeaBindingApplies(t *testing.T) {
+	c := newTestCore(t)
+	a := &App{core: c}
+	if err := c.engineMgr.SaveEngine(modelengine.EngineConfig{
+		ID:      "xai",
+		Enabled: true,
+		Models:  []modelengine.ModelInfo{{ID: "grok-4.6"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SetFeatureModel("gaea", "xai", "grok-4.6"); err != nil {
+		t.Fatalf("App.SetFeatureModel: %v", err)
+	}
+	eng, model := c.cfg.GetFeatureModel("gaea")
+	if eng != "xai" || model != "grok-4.6" {
+		t.Errorf("gaea 绑定 = (%q,%q), want (xai,grok-4.6)", eng, model)
+	}
+}
+
 // TestSetFeatureModel_ValidationErrors 覆盖 SetFeatureModel 的校验分支
 func TestSetFeatureModel_ValidationErrors(t *testing.T) {
 	c := newTestCore(t)

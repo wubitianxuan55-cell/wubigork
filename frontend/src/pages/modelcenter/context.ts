@@ -50,6 +50,8 @@ export interface ModelCenterContextValue {
   comfyBusy: boolean
   voiceCfg: VoiceCfg
   setVoiceCfg: Dispatch<SetStateAction<VoiceCfg>>
+  ocrCfg: { engine: string; model: string }
+  setOcrCfg: Dispatch<SetStateAction<{ engine: string; model: string }>>
   chatVoiceCfg: { engine: string; model: string }
   chatVoiceDraft: { engine: string; model: string }
   setChatVoiceDraft: Dispatch<SetStateAction<{ engine: string; model: string }>>
@@ -71,6 +73,7 @@ export interface ModelCenterContextValue {
   ttsModels: ModelCardData[]
   sttModels: ModelCardData[]
   imageModels: ModelCardData[]
+  specialtyModels: ModelCardData[]
   makeModels: (engine: EngineConfig) => ModelCardData[]
   isModelActive: (card: ModelCardData) => boolean
   handleTestConnection: (id: string) => Promise<void>
@@ -86,6 +89,7 @@ export interface ModelCenterContextValue {
   handleToggleComfy: () => Promise<void>
   handleSaveImageBackend: () => Promise<void>
   handleSetVoiceModel: (kind: 'asr' | 'tts', engineId: string, modelId: string) => Promise<void>
+  handleSetOCRModel: (engineId: string, modelId: string) => Promise<void>
   handleSaveFeature: (key: string) => Promise<void>
   handleToggleFeatureEnabled: (key: string, enabled: boolean) => Promise<void>
   handleSavePortrait: () => Promise<void>

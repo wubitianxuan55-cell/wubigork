@@ -473,12 +473,25 @@ func classifyModelKind(engineType EngineType, modelID string) string {
 	l := strings.ToLower(modelID)
 	if engineType == EngineCosyVoice ||
 		strings.Contains(l, "tts") || strings.Contains(l, "voice") ||
-		strings.Contains(l, "edge") || strings.Contains(l, "speech") {
+		strings.Contains(l, "edge") || strings.Contains(l, "speech") ||
+		strings.Contains(l, "voxcpm") {
 		return "tts"
 	}
 	if strings.Contains(l, "sherpa") || strings.Contains(l, "whisper") ||
-		strings.Contains(l, "zipformer") || strings.Contains(l, "asr") {
+		strings.Contains(l, "zipformer") || strings.Contains(l, "asr") ||
+		strings.Contains(l, "funasr") {
 		return "stt"
+	}
+	if strings.Contains(l, "paddleocr") || strings.Contains(l, "ocr") ||
+		strings.Contains(l, "mineru") {
+		return "ocr"
+	}
+	if strings.Contains(l, "rerank") {
+		return "rerank"
+	}
+	if strings.Contains(l, "embedding") || strings.Contains(l, "bge-m3") ||
+		strings.Contains(l, "bge") {
+		return "embedding"
 	}
 	if strings.Contains(l, "image") || strings.Contains(l, "zimage") ||
 		strings.Contains(l, "flux") || strings.Contains(l, "turbo") ||

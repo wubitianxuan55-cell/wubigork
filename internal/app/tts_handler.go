@@ -78,7 +78,7 @@ func (a *mediaState) TTSSpeakBase64(text string) (map[string]interface{}, error)
 				if m.Status != "" && m.Status != "running" {
 					continue
 				}
-				if strings.Contains(id, "tts") || strings.Contains(id, "voice") || strings.Contains(id, "speech") {
+				if strings.Contains(id, "tts") || strings.Contains(id, "voice") || strings.Contains(id, "speech") || strings.Contains(id, "voxcpm") {
 					if audio, mime, ok := a.tryEngineTTS(eid, m.ID, text, ""); ok {
 						slog.Info("TTS 自动选择模型", "engine", eid, "model", m.ID)
 						if mime == "" {
@@ -126,12 +126,12 @@ func (a *mediaState) TTSSpeakStreaming(text string) error {
 	if a.engineMgr != nil {
 		herdEngine, ok := a.engineMgr.GetEngine("herdsman")
 		if ok && herdEngine.Enabled {
-			for _, model := range []string{"edge-tts", "qwen3-tts-customvoice", "qwen3-tts-voicedesign"} {
+			for _, model := range []string{"edge-tts", "qwen3-tts-customvoice", "qwen3-tts-voicedesign", "voxcpm2"} {
 				voice := a.ttsVoiceForModel(model)
 				htts := tts.NewHerdsmanTTS(herdEngine.BaseURL, model, voice)
 				engines = append(engines, htts)
 				format := "mp3"
-				if strings.Contains(strings.ToLower(model), "qwen3") {
+				if strings.Contains(strings.ToLower(model), "qwen3") || strings.Contains(strings.ToLower(model), "voxcpm") {
 					format = "wav"
 				}
 				metas = append(metas, struct {

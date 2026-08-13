@@ -46,6 +46,60 @@ func TestStore_TopicCRUD(t *testing.T) {
 	}
 }
 
+func TestStore_GetTopic(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.CreateTopic("t1", "预览", "plain"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AppendMessage("t1", "user", "首条消息", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	topic, err := s.GetTopic("t1")
+	if err != nil {
+		t.Fatalf("GetTopic: %v", err)
+	}
+	if topic.Title != "预览" || topic.Preview != "首条消息" {
+		t.Errorf("GetTopic = %+v", topic)
+	}
+
+	if _, err := s.GetTopic("nope"); err == nil {
+		t.Fatal("不存在的 topic 应报错")
+	}
+}
+
+func TestStore_AppendExchange(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.CreateTopic("t1", "交换", "plain"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendExchange("t1", "你好", "你好呀", `{"emotion":"calm"}`); err != nil {
+		t.Fatalf("AppendExchange: %v", err)
+	}
+
+	msgs, err := s.ListMessages("t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("消息数 = %d, want 2", len(msgs))
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "你好" || msgs[0].Seq != 1 {
+		t.Errorf("user 消息异常: %+v", msgs[0])
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != "你好呀" || msgs[1].Extra != `{"emotion":"calm"}` || msgs[1].Seq != 2 {
+		t.Errorf("assistant 消息异常: %+v", msgs[1])
+	}
+
+	// 不存在的话题应整体回滚，不残留任何消息。
+	if err := s.AppendExchange("nope", "a", "b", ""); err == nil {
+		t.Fatal("不存在话题应报错")
+	}
+	if msgs, _ := s.ListMessages("nope"); len(msgs) != 0 {
+		t.Errorf("失败事务不应残留消息: %+v", msgs)
+	}
+}
+
 func TestStore_MessagesAndCascadeDelete(t *testing.T) {
 	s := newTestStore(t)
 	if err := s.CreateTopic("t1", "话题", "plain"); err != nil {

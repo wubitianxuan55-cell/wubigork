@@ -142,6 +142,10 @@ export function ChatSend(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['app']['App']['ChatSend'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
+export function ChatStreamPlain(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['app']['App']['ChatStreamPlain'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function ChatTopicClear(arg1) {
   return window['go']['app']['App']['ChatTopicClear'](arg1);
 }
@@ -152,6 +156,10 @@ export function ChatTopicCreate(arg1, arg2) {
 
 export function ChatTopicDelete(arg1) {
   return window['go']['app']['App']['ChatTopicDelete'](arg1);
+}
+
+export function ChatTopicExportMarkdown(arg1) {
+  return window['go']['app']['App']['ChatTopicExportMarkdown'](arg1);
 }
 
 export function ChatTopicRename(arg1, arg2) {
@@ -978,6 +986,10 @@ export function GetActiveModel() {
   return window['go']['app']['App']['GetActiveModel']();
 }
 
+export function GetActiveOCRModel() {
+  return window['go']['app']['App']['GetActiveOCRModel']();
+}
+
 export function GetActiveTTSModel() {
   return window['go']['app']['App']['GetActiveTTSModel']();
 }
@@ -1372,6 +1384,10 @@ export function SetActiveASRModel(arg1, arg2) {
 
 export function SetActiveEngine(arg1) {
   return window['go']['app']['App']['SetActiveEngine'](arg1);
+}
+
+export function SetActiveOCRModel(arg1, arg2) {
+  return window['go']['app']['App']['SetActiveOCRModel'](arg1, arg2);
 }
 
 export function SetActiveTTSModel(arg1, arg2) {

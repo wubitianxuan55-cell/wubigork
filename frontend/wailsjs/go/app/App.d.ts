@@ -82,11 +82,15 @@ export function ChatOutlineNode(arg1:string,arg2:string):Promise<Record<string, 
 
 export function ChatSend(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:boolean,arg6:boolean):Promise<Record<string, any>>;
 
+export function ChatStreamPlain(arg1:string,arg2:string,arg3:boolean,arg4:boolean,arg5:boolean):Promise<string>;
+
 export function ChatTopicClear(arg1:string):Promise<void>;
 
 export function ChatTopicCreate(arg1:string,arg2:string):Promise<chat.Topic>;
 
 export function ChatTopicDelete(arg1:string):Promise<void>;
+
+export function ChatTopicExportMarkdown(arg1:string):Promise<string>;
 
 export function ChatTopicRename(arg1:string,arg2:string):Promise<void>;
 
@@ -500,6 +504,8 @@ export function GetActiveEngine():Promise<string>;
 
 export function GetActiveModel():Promise<string>;
 
+export function GetActiveOCRModel():Promise<Record<string, string>>;
+
 export function GetActiveTTSModel():Promise<Record<string, string>>;
 
 export function GetAllEntityNames():Promise<Array<Record<string, any>>>;
@@ -697,6 +703,8 @@ export function SearchMemories(arg1:string,arg2:number):Promise<Array<Record<str
 export function SetActiveASRModel(arg1:string,arg2:string):Promise<void>;
 
 export function SetActiveEngine(arg1:string):Promise<void>;
+
+export function SetActiveOCRModel(arg1:string,arg2:string):Promise<void>;
 
 export function SetActiveTTSModel(arg1:string,arg2:string):Promise<void>;
 

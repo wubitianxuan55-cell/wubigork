@@ -37,37 +37,39 @@ const (
 	KeyComfyUIPythonPath   = "comfyui_python_path"
 	KeyActiveEngineID      = "active_engine_id"
 	KeyModel               = "model"
-	KeyActiveASREngine     = "active_asr_engine" // 语音识别激活引擎
-	KeyActiveASRModel      = "active_asr_model"  // 语音识别激活模型
-	KeyActiveTTSEngine     = "active_tts_engine" // 语音合成激活引擎
-	KeyActiveTTSModel      = "active_tts_model"  // 语音合成激活模型
-	KeyTTSVoice            = "tts_voice"         // 语音合成音色（Herdsman / Edge）
-	KeyVoicePersonality    = "voice_personality" // 语音对话角色（首页语音固定 gaea；聊天板块内语音跟随所选人格）
+	KeyActiveASREngine     = "active_asr_engine"      // 语音识别激活引擎
+	KeyActiveASRModel      = "active_asr_model"       // 语音识别激活模型
+	KeyActiveTTSEngine     = "active_tts_engine"      // 语音合成激活引擎
+	KeyActiveTTSModel      = "active_tts_model"       // 语音合成激活模型
+	KeyTTSVoice            = "tts_voice"              // 语音合成音色（Herdsman / Edge）
+	KeyActiveOCREngine     = "active_ocr_engine"      // OCR 激活引擎
+	KeyActiveOCRModel      = "active_ocr_model"       // OCR 激活模型
+	KeyVoicePersonality    = "voice_personality"      // 语音对话角色（首页语音固定 gaea；聊天板块内语音跟随所选人格）
 	KeyFuncChatVoiceEngine = "func_chat_voice_engine" // 聊天语音合成引擎（功能绑定，空=全局 TTS）
 	KeyFuncChatVoiceModel  = "func_chat_voice_model"  // 聊天语音合成模型
 	// 功能级模型绑定（聊天/轻语/小说/办公 各自独立 LLM，持久化重启不丢）
-	KeyFuncChatEngine      = "func_chat_engine"
-	KeyFuncChatModel       = "func_chat_model"
-	KeyFuncNovelEngine     = "func_novel_engine"
-	KeyFuncNovelModel      = "func_novel_model"
-	KeyFuncOfficeEngine    = "func_office_engine"
-	KeyFuncOfficeModel     = "func_office_model"
-	KeyFuncGaeaEngine      = "func_gaea_engine"
-	KeyFuncGaeaModel       = "func_gaea_model"
-	KeyFuncCharLibEngine   = "func_characterlib_engine"
-	KeyFuncCharLibModel    = "func_characterlib_model"
-	KeyFuncRoutineEngine   = "func_routine_engine"
-	KeyFuncRoutineModel    = "func_routine_model"
+	KeyFuncChatEngine    = "func_chat_engine"
+	KeyFuncChatModel     = "func_chat_model"
+	KeyFuncNovelEngine   = "func_novel_engine"
+	KeyFuncNovelModel    = "func_novel_model"
+	KeyFuncOfficeEngine  = "func_office_engine"
+	KeyFuncOfficeModel   = "func_office_model"
+	KeyFuncGaeaEngine    = "func_gaea_engine"
+	KeyFuncGaeaModel     = "func_gaea_model"
+	KeyFuncCharLibEngine = "func_characterlib_engine"
+	KeyFuncCharLibModel  = "func_characterlib_model"
+	KeyFuncRoutineEngine = "func_routine_engine"
+	KeyFuncRoutineModel  = "func_routine_model"
 	// 功能级启停（FeatureModelBar 启停语义：只影响该功能的路由，不影响整个引擎）
-	KeyFuncChatEnabled      = "func_chat_enabled"
-	KeyFuncNovelEnabled     = "func_novel_enabled"
-	KeyFuncOfficeEnabled    = "func_office_enabled"
-	KeyFuncGaeaEnabled      = "func_gaea_enabled"
-	KeyFuncCharLibEnabled   = "func_characterlib_enabled"
-	KeyFuncRoutineEnabled   = "func_routine_enabled"
-	KeyDeepseekAPIKey      = "deepseek_api_key"
-	KeyOpencodeGoAPIKey    = "opencode_go_api_key"
-	KeyOpencodeZenAPIKey   = "opencode_zen_api_key"
+	KeyFuncChatEnabled    = "func_chat_enabled"
+	KeyFuncNovelEnabled   = "func_novel_enabled"
+	KeyFuncOfficeEnabled  = "func_office_enabled"
+	KeyFuncGaeaEnabled    = "func_gaea_enabled"
+	KeyFuncCharLibEnabled = "func_characterlib_enabled"
+	KeyFuncRoutineEnabled = "func_routine_enabled"
+	KeyDeepseekAPIKey     = "deepseek_api_key"
+	KeyOpencodeGoAPIKey   = "opencode_go_api_key"
+	KeyOpencodeZenAPIKey  = "opencode_zen_api_key"
 )
 
 // configFile 表示 ~/.gaea_config.json 的结构
@@ -77,57 +79,59 @@ type configFile struct {
 	HTTPTimeoutSeconds  int     `json:"http_timeout_seconds"`
 	DefaultTemperature  float64 `json:"default_temperature"`
 	AnalysisTemperature float64 `json:"analysis_temperature"`
-	ReasoningEffort     string  `json:"reasoning_effort"` // Grok 推理深度: "low" / "high"
-	QualityThreshold    int     `json:"quality_threshold"` // 章节质量阈值 1-10，低于此触发自动重试
+	ReasoningEffort     string  `json:"reasoning_effort"`    // Grok 推理深度: "low" / "high"
+	QualityThreshold    int     `json:"quality_threshold"`   // 章节质量阈值 1-10，低于此触发自动重试
 	QualityMaxRetries   int     `json:"quality_max_retries"` // 最大自动重试次数
 	TTSBinaryPath       string  `json:"tts_binary_path,omitempty"`
 	TTSModelPath        string  `json:"tts_model_path,omitempty"`
-	ImageBackend        string  `json:"image_backend,omitempty"`  // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
+	ImageBackend        string  `json:"image_backend,omitempty"` // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
 	ComfyUIURL          string  `json:"comfyui_url,omitempty"`
-	ImageSaveDir        string  `json:"image_save_dir,omitempty"`   // 图片生成存放目录
-	ImageModel          string  `json:"image_model,omitempty"`    // 图片模型
-	PortraitBackend     string  `json:"portrait_backend,omitempty"` // 角色库剧照后端（空=跟随绘梦）
-	PortraitModel       string  `json:"portrait_model,omitempty"`   // 角色库剧照模型（空=跟随绘梦）
-	ComfyUIPath         string  `json:"comfyui_path,omitempty"`  // ComfyUI 安装目录
-	ComfyUIPythonPath   string  `json:"comfyui_python_path,omitempty"` // Python 解释器路径
-	TTSPort             int     `json:"tts_port,omitempty"`       // TTS 服务端口
-	TTSBackend          string  `json:"tts_backend,omitempty"`    // TTS 后端: "cpu" | "cuda"
-	TTSSpeed            float64 `json:"tts_speed,omitempty"`      // TTS 语速
-	ActiveEngineID      string  `json:"active_engine_id,omitempty"` // 活跃模型引擎 ID
-	Model               string  `json:"model,omitempty"`             // 默认 LLM 模型名
-	DeepseekAPIKey      string  `json:"deepseek_api_key,omitempty"`  // DeepSeek API Key
-	OpenCodeGoAPIKey    string  `json:"opencode_go_api_key,omitempty"` // OpenCode Go API Key
-	OpenCodeZenAPIKey   string  `json:"opencode_zen_api_key,omitempty"` // OpenCode Zen API Key
-	ActiveASREngine     string  `json:"active_asr_engine,omitempty"` // 语音识别激活引擎
-	ActiveASRModel      string  `json:"active_asr_model,omitempty"`  // 语音识别激活模型
-	ActiveTTSEngine     string  `json:"active_tts_engine,omitempty"` // 语音合成激活引擎
-	ActiveTTSModel      string  `json:"active_tts_model,omitempty"`  // 语音合成激活模型
-	TTSVoice            string  `json:"tts_voice,omitempty"`         // 语音合成音色
-	VoicePersonality    string  `json:"voice_personality,omitempty"` // 语音对话角色
+	ImageSaveDir        string  `json:"image_save_dir,omitempty"`         // 图片生成存放目录
+	ImageModel          string  `json:"image_model,omitempty"`            // 图片模型
+	PortraitBackend     string  `json:"portrait_backend,omitempty"`       // 角色库剧照后端（空=跟随绘梦）
+	PortraitModel       string  `json:"portrait_model,omitempty"`         // 角色库剧照模型（空=跟随绘梦）
+	ComfyUIPath         string  `json:"comfyui_path,omitempty"`           // ComfyUI 安装目录
+	ComfyUIPythonPath   string  `json:"comfyui_python_path,omitempty"`    // Python 解释器路径
+	TTSPort             int     `json:"tts_port,omitempty"`               // TTS 服务端口
+	TTSBackend          string  `json:"tts_backend,omitempty"`            // TTS 后端: "cpu" | "cuda"
+	TTSSpeed            float64 `json:"tts_speed,omitempty"`              // TTS 语速
+	ActiveEngineID      string  `json:"active_engine_id,omitempty"`       // 活跃模型引擎 ID
+	Model               string  `json:"model,omitempty"`                  // 默认 LLM 模型名
+	DeepseekAPIKey      string  `json:"deepseek_api_key,omitempty"`       // DeepSeek API Key
+	OpenCodeGoAPIKey    string  `json:"opencode_go_api_key,omitempty"`    // OpenCode Go API Key
+	OpenCodeZenAPIKey   string  `json:"opencode_zen_api_key,omitempty"`   // OpenCode Zen API Key
+	ActiveASREngine     string  `json:"active_asr_engine,omitempty"`      // 语音识别激活引擎
+	ActiveASRModel      string  `json:"active_asr_model,omitempty"`       // 语音识别激活模型
+	ActiveTTSEngine     string  `json:"active_tts_engine,omitempty"`      // 语音合成激活引擎
+	ActiveTTSModel      string  `json:"active_tts_model,omitempty"`       // 语音合成激活模型
+	TTSVoice            string  `json:"tts_voice,omitempty"`              // 语音合成音色
+	ActiveOCREngine     string  `json:"active_ocr_engine,omitempty"`      // OCR 激活引擎
+	ActiveOCRModel      string  `json:"active_ocr_model,omitempty"`       // OCR 激活模型
+	VoicePersonality    string  `json:"voice_personality,omitempty"`      // 语音对话角色
 	FuncChatVoiceEngine string  `json:"func_chat_voice_engine,omitempty"` // 聊天语音合成引擎
 	FuncChatVoiceModel  string  `json:"func_chat_voice_model,omitempty"`  // 聊天语音合成模型
 	FuncChatEngine      string  `json:"func_chat_engine,omitempty"`
 	FuncChatModel       string  `json:"func_chat_model,omitempty"`
 	// ── 旧品牌遗留（聊天/轻语合并前）：仅用于读取迁移，不再写入 ──
-	FuncWhisperEngine   string  `json:"func_whisper_engine,omitempty"`
-	FuncWhisperModel    string  `json:"func_whisper_model,omitempty"`
-	FuncWhisperEnabled  *bool   `json:"func_whisper_enabled,omitempty"`
-	FuncNovelEngine     string  `json:"func_novel_engine,omitempty"`
-	FuncNovelModel      string  `json:"func_novel_model,omitempty"`
-	FuncOfficeEngine    string  `json:"func_office_engine,omitempty"`
-	FuncOfficeModel     string  `json:"func_office_model,omitempty"`
-	FuncGaeaEngine      string  `json:"func_gaea_engine,omitempty"`
-	FuncGaeaModel       string  `json:"func_gaea_model,omitempty"`
-	FuncCharLibEngine   string  `json:"func_characterlib_engine,omitempty"`
-	FuncCharLibModel    string  `json:"func_characterlib_model,omitempty"`
-	FuncChatEnabled     *bool   `json:"func_chat_enabled,omitempty"`    // nil=默认启用
-	FuncNovelEnabled    *bool   `json:"func_novel_enabled,omitempty"`
-	FuncOfficeEnabled   *bool   `json:"func_office_enabled,omitempty"`
-	FuncGaeaEnabled     *bool   `json:"func_gaea_enabled,omitempty"`
-	FuncCharLibEnabled  *bool   `json:"func_characterlib_enabled,omitempty"`
-	FuncRoutineEngine   string  `json:"func_routine_engine,omitempty"`  // 常规任务模型目标（routine_llm 工具）
-	FuncRoutineModel    string  `json:"func_routine_model,omitempty"`
-	FuncRoutineEnabled  *bool   `json:"func_routine_enabled,omitempty"`
+	FuncWhisperEngine  string `json:"func_whisper_engine,omitempty"`
+	FuncWhisperModel   string `json:"func_whisper_model,omitempty"`
+	FuncWhisperEnabled *bool  `json:"func_whisper_enabled,omitempty"`
+	FuncNovelEngine    string `json:"func_novel_engine,omitempty"`
+	FuncNovelModel     string `json:"func_novel_model,omitempty"`
+	FuncOfficeEngine   string `json:"func_office_engine,omitempty"`
+	FuncOfficeModel    string `json:"func_office_model,omitempty"`
+	FuncGaeaEngine     string `json:"func_gaea_engine,omitempty"`
+	FuncGaeaModel      string `json:"func_gaea_model,omitempty"`
+	FuncCharLibEngine  string `json:"func_characterlib_engine,omitempty"`
+	FuncCharLibModel   string `json:"func_characterlib_model,omitempty"`
+	FuncChatEnabled    *bool  `json:"func_chat_enabled,omitempty"` // nil=默认启用
+	FuncNovelEnabled   *bool  `json:"func_novel_enabled,omitempty"`
+	FuncOfficeEnabled  *bool  `json:"func_office_enabled,omitempty"`
+	FuncGaeaEnabled    *bool  `json:"func_gaea_enabled,omitempty"`
+	FuncCharLibEnabled *bool  `json:"func_characterlib_enabled,omitempty"`
+	FuncRoutineEngine  string `json:"func_routine_engine,omitempty"` // 常规任务模型目标（routine_llm 工具）
+	FuncRoutineModel   string `json:"func_routine_model,omitempty"`
+	FuncRoutineEnabled *bool  `json:"func_routine_enabled,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -173,13 +177,13 @@ type Config struct {
 	TTSBackend    string  // 推理后端: cpu / cuda / vulkan（默认 cuda）
 	TTSSpeed      float64 // 默认朗读语速（0.25-4.0，默认 1.0）
 	// 图片生成后端
-	ImageBackend string // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
-	ComfyUIURL   string // ComfyUI 服务地址，默认 http://127.0.0.1:8188
-	ImageSaveDir string // 生成图片存放目录，空字符串=不存盘
-	ImageModel   string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "flux" | "z-image-turbo"
-	PortraitBackend string // 角色库剧照后端（空=跟随绘梦）
-	PortraitModel   string // 角色库剧照模型（空=跟随绘梦）
-	ComfyUIPath string // ComfyUI 安装目录（main.py 所在路径），空=需手动启动
+	ImageBackend      string // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
+	ComfyUIURL        string // ComfyUI 服务地址，默认 http://127.0.0.1:8188
+	ImageSaveDir      string // 生成图片存放目录，空字符串=不存盘
+	ImageModel        string // 图片模型: "grok-imagine-image-quality" (xAI默认) | "flux" | "z-image-turbo"
+	PortraitBackend   string // 角色库剧照后端（空=跟随绘梦）
+	PortraitModel     string // 角色库剧照模型（空=跟随绘梦）
+	ComfyUIPath       string // ComfyUI 安装目录（main.py 所在路径），空=需手动启动
 	ComfyUIPythonPath string // Python 解释器路径（留空则自动查找）
 
 	// 活跃模型引擎 ID（"xai" | "ollama" | "herdsman" | "deepseek"）
@@ -199,10 +203,12 @@ type Config struct {
 	ActiveASRModel  string
 
 	// 语音合成激活引擎 + 模型（来自模型中心选择，空=自动）
-	ActiveTTSEngine string
-	ActiveTTSModel  string
-	TTSVoice        string // 语音合成音色（来自设置面板，空=按模型默认）
-	VoicePersonality string // 语音对话角色（与聊天板块一致，空=gaea）
+	ActiveTTSEngine     string
+	ActiveTTSModel      string
+	TTSVoice            string // 语音合成音色（来自设置面板，空=按模型默认）
+	ActiveOCREngine     string // OCR 激活引擎（空=自动）
+	ActiveOCRModel      string // OCR 激活模型（空=自动）
+	VoicePersonality    string // 语音对话角色（与聊天板块一致，空=gaea）
 	FuncChatVoiceEngine string // 聊天语音合成引擎（功能绑定，空=全局 TTS）
 	FuncChatVoiceModel  string // 聊天语音合成模型
 
@@ -223,10 +229,10 @@ type Config struct {
 	FuncRoutineEngine string
 	FuncRoutineModel  string
 	// 功能级启停（默认启用；停用后该功能路由回退全局）
-	FuncChatEnabled   bool
-	FuncNovelEnabled  bool
-	FuncOfficeEnabled bool
-	FuncGaeaEnabled   bool
+	FuncChatEnabled    bool
+	FuncNovelEnabled   bool
+	FuncOfficeEnabled  bool
+	FuncGaeaEnabled    bool
 	FuncCharLibEnabled bool
 	FuncRoutineEnabled bool
 }
@@ -337,15 +343,15 @@ func Load() *Config {
 
 	// 1. 硬编码默认值（最低优先级）
 	cfg := &Config{
-		XaiClientID:        "b1a00492-073a-47ea-816f-4c329264a828",
-		XaiAPIBaseURL:      "https://api.x.ai/v1",
-		RedirectHost:       "127.0.0.1",
-		RedirectPort:       "56121",
-		OIDCDiscoveryURL:   "https://auth.x.ai/.well-known/openid-configuration",
-		Model:              "grok-4.20",
-		TokenStorePath:     tokenPath,
+		XaiClientID:      "b1a00492-073a-47ea-816f-4c329264a828",
+		XaiAPIBaseURL:    "https://api.x.ai/v1",
+		RedirectHost:     "127.0.0.1",
+		RedirectPort:     "56121",
+		OIDCDiscoveryURL: "https://auth.x.ai/.well-known/openid-configuration",
+		Model:            "grok-4.20",
+		TokenStorePath:   tokenPath,
 		// 本机单用户定位：小说目录固定为 C:\AI\xiaoshuo（记忆：novels-directory）
-		NovelsDir:          `C:\AI\xiaoshuo`,
+		NovelsDir:           `C:\AI\xiaoshuo`,
 		HTTPTimeoutSeconds:  180,
 		DefaultTemperature:  0.7,
 		AnalysisTemperature: 0.15,   // 分析任务低温度以确保精确
@@ -353,10 +359,10 @@ func Load() *Config {
 		QualityThreshold:    6,      // 章节质量低于 6 分自动重试
 		QualityMaxRetries:   2,      // 最多重试 2 次
 		// 功能级模型默认启用（未显式停用时，绑定立即生效）
-		FuncChatEnabled:   true,
-		FuncNovelEnabled:  true,
-		FuncOfficeEnabled: true,
-		FuncGaeaEnabled:   true,
+		FuncChatEnabled:    true,
+		FuncNovelEnabled:   true,
+		FuncOfficeEnabled:  true,
+		FuncGaeaEnabled:    true,
 		FuncCharLibEnabled: true,
 		FuncRoutineEnabled: true, // 常规办公默认启用：routine_llm 工具按绑定目标执行
 
@@ -374,7 +380,7 @@ func Load() *Config {
 		ImageSaveDir: "", // 默认不存盘
 		ImageModel:   "grok-imagine-image-quality",
 		// 本机单用户定位：ComfyUI 启动位置直接写死（gaea 仅此电脑使用）
-		ComfyUIPath:      `C:\AI\ComfyUI\ComfyUI`,
+		ComfyUIPath:       `C:\AI\ComfyUI\ComfyUI`,
 		ComfyUIPythonPath: `C:\AI\ComfyUI\standalone-env\python.exe`,
 	}
 
@@ -558,6 +564,12 @@ func Load() *Config {
 			if cf.TTSVoice != "" {
 				cfg.TTSVoice = cf.TTSVoice
 			}
+			if cf.ActiveOCREngine != "" {
+				cfg.ActiveOCREngine = cf.ActiveOCREngine
+			}
+			if cf.ActiveOCRModel != "" {
+				cfg.ActiveOCRModel = cf.ActiveOCRModel
+			}
 			if cf.VoicePersonality != "" {
 				cfg.VoicePersonality = cf.VoicePersonality
 			}
@@ -740,57 +752,143 @@ func Save(key, value string) error {
 
 // saveSetters 配置项 → setter 函数注册表
 var saveSetters = map[string]func(cf *configFile, value string) error{
-	KeyNovelsDir:          func(cf *configFile, v string) error { cf.NovelsDir = v; return nil },
-	KeyXaiClientID:        func(cf *configFile, v string) error { cf.XaiClientID = v; return nil },
-	KeyHTTPTimeoutSeconds: func(cf *configFile, v string) error { n, err := strconv.Atoi(v); if err != nil { return err }; cf.HTTPTimeoutSeconds = n; return nil },
-	KeyDefaultTemperature: func(cf *configFile, v string) error { f, err := strconv.ParseFloat(v, 64); if err != nil { return err }; cf.DefaultTemperature = f; return nil },
-	KeyAnalysisTemperature: func(cf *configFile, v string) error { f, err := strconv.ParseFloat(v, 64); if err != nil { return err }; cf.AnalysisTemperature = f; return nil },
-	KeyReasoningEffort:    func(cf *configFile, v string) error { cf.ReasoningEffort = v; return nil },
-	KeyQualityThreshold:   func(cf *configFile, v string) error { n, err := strconv.Atoi(v); if err != nil { return err }; cf.QualityThreshold = n; return nil },
-	KeyQualityMaxRetries:  func(cf *configFile, v string) error { n, err := strconv.Atoi(v); if err != nil { return err }; cf.QualityMaxRetries = n; return nil },
-	KeyTTSBinaryPath:      func(cf *configFile, v string) error { cf.TTSBinaryPath = v; return nil },
-	KeyTTSModelPath:       func(cf *configFile, v string) error { cf.TTSModelPath = v; return nil },
-	KeyImageBackend:       func(cf *configFile, v string) error { cf.ImageBackend = v; return nil },
-	KeyComfyUIURL:         func(cf *configFile, v string) error { cf.ComfyUIURL = v; return nil },
-	KeyImageSaveDir:       func(cf *configFile, v string) error { cf.ImageSaveDir = v; return nil },
-	KeyImageModel:         func(cf *configFile, v string) error { cf.ImageModel = v; return nil },
-	KeyPortraitBackend:    func(cf *configFile, v string) error { cf.PortraitBackend = v; return nil },
-	KeyPortraitModel:      func(cf *configFile, v string) error { cf.PortraitModel = v; return nil },
-	KeyComfyUIPath:        func(cf *configFile, v string) error { cf.ComfyUIPath = v; return nil },
-	KeyComfyUIPythonPath:  func(cf *configFile, v string) error { cf.ComfyUIPythonPath = v; return nil },
-	KeyTTSPort:           func(cf *configFile, v string) error { n, err := strconv.Atoi(v); if err != nil { return err }; cf.TTSPort = n; return nil },
-	KeyTTSBackend:         func(cf *configFile, v string) error { cf.TTSBackend = v; return nil },
-	KeyActiveEngineID:    func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
-	KeyModel:             func(cf *configFile, v string) error { cf.Model = v; return nil },
-	KeyDeepseekAPIKey:    func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
-	KeyOpencodeGoAPIKey:  func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
-	KeyOpencodeZenAPIKey: func(cf *configFile, v string) error { cf.OpenCodeZenAPIKey = v; return nil },
-	KeyActiveASREngine:   func(cf *configFile, v string) error { cf.ActiveASREngine = v; return nil },
-	KeyActiveASRModel:    func(cf *configFile, v string) error { cf.ActiveASRModel = v; return nil },
-	KeyActiveTTSEngine:   func(cf *configFile, v string) error { cf.ActiveTTSEngine = v; return nil },
-	KeyActiveTTSModel:    func(cf *configFile, v string) error { cf.ActiveTTSModel = v; return nil },
-	KeyTTSVoice:          func(cf *configFile, v string) error { cf.TTSVoice = v; return nil },
-	KeyVoicePersonality:  func(cf *configFile, v string) error { cf.VoicePersonality = v; return nil },
+	KeyNovelsDir:   func(cf *configFile, v string) error { cf.NovelsDir = v; return nil },
+	KeyXaiClientID: func(cf *configFile, v string) error { cf.XaiClientID = v; return nil },
+	KeyHTTPTimeoutSeconds: func(cf *configFile, v string) error {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		cf.HTTPTimeoutSeconds = n
+		return nil
+	},
+	KeyDefaultTemperature: func(cf *configFile, v string) error {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return err
+		}
+		cf.DefaultTemperature = f
+		return nil
+	},
+	KeyAnalysisTemperature: func(cf *configFile, v string) error {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return err
+		}
+		cf.AnalysisTemperature = f
+		return nil
+	},
+	KeyReasoningEffort: func(cf *configFile, v string) error { cf.ReasoningEffort = v; return nil },
+	KeyQualityThreshold: func(cf *configFile, v string) error {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		cf.QualityThreshold = n
+		return nil
+	},
+	KeyQualityMaxRetries: func(cf *configFile, v string) error {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		cf.QualityMaxRetries = n
+		return nil
+	},
+	KeyTTSBinaryPath:     func(cf *configFile, v string) error { cf.TTSBinaryPath = v; return nil },
+	KeyTTSModelPath:      func(cf *configFile, v string) error { cf.TTSModelPath = v; return nil },
+	KeyImageBackend:      func(cf *configFile, v string) error { cf.ImageBackend = v; return nil },
+	KeyComfyUIURL:        func(cf *configFile, v string) error { cf.ComfyUIURL = v; return nil },
+	KeyImageSaveDir:      func(cf *configFile, v string) error { cf.ImageSaveDir = v; return nil },
+	KeyImageModel:        func(cf *configFile, v string) error { cf.ImageModel = v; return nil },
+	KeyPortraitBackend:   func(cf *configFile, v string) error { cf.PortraitBackend = v; return nil },
+	KeyPortraitModel:     func(cf *configFile, v string) error { cf.PortraitModel = v; return nil },
+	KeyComfyUIPath:       func(cf *configFile, v string) error { cf.ComfyUIPath = v; return nil },
+	KeyComfyUIPythonPath: func(cf *configFile, v string) error { cf.ComfyUIPythonPath = v; return nil },
+	KeyTTSPort: func(cf *configFile, v string) error {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		cf.TTSPort = n
+		return nil
+	},
+	KeyTTSBackend:          func(cf *configFile, v string) error { cf.TTSBackend = v; return nil },
+	KeyActiveEngineID:      func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
+	KeyModel:               func(cf *configFile, v string) error { cf.Model = v; return nil },
+	KeyDeepseekAPIKey:      func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
+	KeyOpencodeGoAPIKey:    func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
+	KeyOpencodeZenAPIKey:   func(cf *configFile, v string) error { cf.OpenCodeZenAPIKey = v; return nil },
+	KeyActiveASREngine:     func(cf *configFile, v string) error { cf.ActiveASREngine = v; return nil },
+	KeyActiveASRModel:      func(cf *configFile, v string) error { cf.ActiveASRModel = v; return nil },
+	KeyActiveTTSEngine:     func(cf *configFile, v string) error { cf.ActiveTTSEngine = v; return nil },
+	KeyActiveTTSModel:      func(cf *configFile, v string) error { cf.ActiveTTSModel = v; return nil },
+	KeyTTSVoice:            func(cf *configFile, v string) error { cf.TTSVoice = v; return nil },
+	KeyActiveOCREngine:     func(cf *configFile, v string) error { cf.ActiveOCREngine = v; return nil },
+	KeyActiveOCRModel:      func(cf *configFile, v string) error { cf.ActiveOCRModel = v; return nil },
+	KeyVoicePersonality:    func(cf *configFile, v string) error { cf.VoicePersonality = v; return nil },
 	KeyFuncChatVoiceEngine: func(cf *configFile, v string) error { cf.FuncChatVoiceEngine = v; return nil },
 	KeyFuncChatVoiceModel:  func(cf *configFile, v string) error { cf.FuncChatVoiceModel = v; return nil },
-	KeyFuncChatEngine:    func(cf *configFile, v string) error { cf.FuncChatEngine = v; return nil },
-	KeyFuncChatModel:     func(cf *configFile, v string) error { cf.FuncChatModel = v; return nil },
-	KeyFuncNovelEngine:   func(cf *configFile, v string) error { cf.FuncNovelEngine = v; return nil },
-	KeyFuncNovelModel:    func(cf *configFile, v string) error { cf.FuncNovelModel = v; return nil },
-	KeyFuncOfficeEngine:  func(cf *configFile, v string) error { cf.FuncOfficeEngine = v; return nil },
-	KeyFuncOfficeModel:   func(cf *configFile, v string) error { cf.FuncOfficeModel = v; return nil },
-	KeyFuncGaeaEngine:    func(cf *configFile, v string) error { cf.FuncGaeaEngine = v; return nil },
-	KeyFuncGaeaModel:     func(cf *configFile, v string) error { cf.FuncGaeaModel = v; return nil },
-	KeyFuncCharLibEngine: func(cf *configFile, v string) error { cf.FuncCharLibEngine = v; return nil },
-	KeyFuncCharLibModel:  func(cf *configFile, v string) error { cf.FuncCharLibModel = v; return nil },
-	KeyFuncChatEnabled:   func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncChatEnabled = b; return nil },
-	KeyFuncNovelEnabled:   func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncNovelEnabled = b; return nil },
-	KeyFuncOfficeEnabled:  func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncOfficeEnabled = b; return nil },
-	KeyFuncGaeaEnabled:    func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncGaeaEnabled = b; return nil },
-	KeyFuncCharLibEnabled: func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncCharLibEnabled = b; return nil },
-	KeyFuncRoutineEngine:  func(cf *configFile, v string) error { cf.FuncRoutineEngine = v; return nil },
-	KeyFuncRoutineModel:   func(cf *configFile, v string) error { cf.FuncRoutineModel = v; return nil },
-	KeyFuncRoutineEnabled: func(cf *configFile, v string) error { b, err := parseBoolPtr(v); if err != nil { return err }; cf.FuncRoutineEnabled = b; return nil },
+	KeyFuncChatEngine:      func(cf *configFile, v string) error { cf.FuncChatEngine = v; return nil },
+	KeyFuncChatModel:       func(cf *configFile, v string) error { cf.FuncChatModel = v; return nil },
+	KeyFuncNovelEngine:     func(cf *configFile, v string) error { cf.FuncNovelEngine = v; return nil },
+	KeyFuncNovelModel:      func(cf *configFile, v string) error { cf.FuncNovelModel = v; return nil },
+	KeyFuncOfficeEngine:    func(cf *configFile, v string) error { cf.FuncOfficeEngine = v; return nil },
+	KeyFuncOfficeModel:     func(cf *configFile, v string) error { cf.FuncOfficeModel = v; return nil },
+	KeyFuncGaeaEngine:      func(cf *configFile, v string) error { cf.FuncGaeaEngine = v; return nil },
+	KeyFuncGaeaModel:       func(cf *configFile, v string) error { cf.FuncGaeaModel = v; return nil },
+	KeyFuncCharLibEngine:   func(cf *configFile, v string) error { cf.FuncCharLibEngine = v; return nil },
+	KeyFuncCharLibModel:    func(cf *configFile, v string) error { cf.FuncCharLibModel = v; return nil },
+	KeyFuncChatEnabled: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.FuncChatEnabled = b
+		return nil
+	},
+	KeyFuncNovelEnabled: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.FuncNovelEnabled = b
+		return nil
+	},
+	KeyFuncOfficeEnabled: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.FuncOfficeEnabled = b
+		return nil
+	},
+	KeyFuncGaeaEnabled: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.FuncGaeaEnabled = b
+		return nil
+	},
+	KeyFuncCharLibEnabled: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.FuncCharLibEnabled = b
+		return nil
+	},
+	KeyFuncRoutineEngine: func(cf *configFile, v string) error { cf.FuncRoutineEngine = v; return nil },
+	KeyFuncRoutineModel:  func(cf *configFile, v string) error { cf.FuncRoutineModel = v; return nil },
+	KeyFuncRoutineEnabled: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.FuncRoutineEnabled = b
+		return nil
+	},
 }
 
 // parseBoolPtr 解析 "true"/"1"/"0" 等布尔值并返回指针（用于 *bool 配置项）。

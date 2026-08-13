@@ -47,6 +47,10 @@ type core struct {
 	// 模型引擎管理器
 	engineMgr *modelengine.Manager
 
+	// OCR 激活引擎 + 模型（空=自动选择 Herdsman PaddleOCR/MinerU）
+	activeOCREngine string
+	activeOCRModel  string
+
 	// 统一聊天会话存储（聊天/轻语合并：话题 + 消息）
 	chatStore *chat.Store
 
@@ -251,6 +255,8 @@ func (a *App) Startup(ctx context.Context) {
 	a.activeTTSEngine = a.cfg.ActiveTTSEngine
 	a.activeTTSModel = a.cfg.ActiveTTSModel
 	a.activeTTSVoice = a.cfg.TTSVoice
+	a.activeOCREngine = a.cfg.ActiveOCREngine
+	a.activeOCRModel = a.cfg.ActiveOCRModel
 	a.activePersonalityID = a.cfg.VoicePersonality
 	a.chatVoiceEngine = a.cfg.FuncChatVoiceEngine
 	a.chatVoiceModel = a.cfg.FuncChatVoiceModel
@@ -311,8 +317,10 @@ func (a *App) Startup(ctx context.Context) {
 const debugServerPort = "127.0.0.1:18123"
 
 // startDebugServer 启动独立诊断 HTTP 服务：
-//   GET /healthz → "ok"（进程存活探针）
-//   GET /stack   → 全部 goroutine 栈（死锁定位）
+//
+//	GET /healthz → "ok"（进程存活探针）
+//	GET /stack   → 全部 goroutine 栈（死锁定位）
+//
 // 独立 goroutine + 独立端口，不经过 Wails IPC，卡死时仍可响应。
 func startDebugServer() {
 	mux := http.NewServeMux()

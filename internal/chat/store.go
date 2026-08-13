@@ -63,12 +63,18 @@ func (s *Store) CreateTopic(id, title, mode string) error {
 	return err
 }
 
-// ListTopics 按创建时间列出话题。
+// ListTopics 按创建时间列出话题，并用一条相关子查询取出每条话题的首条消息预览
+// （避免逐话题 N+1 查询）。
 func (s *Store) ListTopics() ([]Topic, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("chat store 未初始化")
 	}
-	rows, err := s.db.Query("SELECT id, title, mode, created_at, updated_at FROM chat_topics ORDER BY created_at")
+	rows, err := s.db.Query(`
+		SELECT t.id, t.title, t.mode, t.created_at, t.updated_at,
+		       COALESCE((SELECT m.content FROM chat_messages m
+		                 WHERE m.topic_id = t.id ORDER BY m.seq LIMIT 1), '') AS preview
+		FROM chat_topics t
+		ORDER BY t.created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -76,20 +82,33 @@ func (s *Store) ListTopics() ([]Topic, error) {
 	var out []Topic
 	for rows.Next() {
 		var t Topic
-		if err := rows.Scan(&t.ID, &t.Title, &t.Mode, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Title, &t.Mode, &t.CreatedAt, &t.UpdatedAt, &t.Preview); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
 	}
-	// 侧边栏预览：取每个话题首条消息内容（子查询，避免 N+1）。
-	for i := range out {
-		var preview string
-		if err := s.db.QueryRow(
-			"SELECT content FROM chat_messages WHERE topic_id = ? ORDER BY seq LIMIT 1", out[i].ID).Scan(&preview); err == nil {
-			out[i].Preview = preview
-		}
-	}
 	return out, rows.Err()
+}
+
+// GetTopic 按 ID 读取单个话题（含首条消息预览；不存在时返回错误）。
+func (s *Store) GetTopic(id string) (Topic, error) {
+	if s == nil || s.db == nil {
+		return Topic{}, fmt.Errorf("chat store 未初始化")
+	}
+	var t Topic
+	err := s.db.QueryRow(`
+		SELECT id, title, mode, created_at, updated_at,
+		       COALESCE((SELECT m.content FROM chat_messages m
+		                 WHERE m.topic_id = chat_topics.id ORDER BY m.seq LIMIT 1), '')
+		FROM chat_topics WHERE id = ?`, id).
+		Scan(&t.ID, &t.Title, &t.Mode, &t.CreatedAt, &t.UpdatedAt, &t.Preview)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Topic{}, fmt.Errorf("话题不存在: %s", id)
+		}
+		return Topic{}, err
+	}
+	return t, nil
 }
 
 // RenameTopic 重命名话题。
@@ -148,25 +167,76 @@ func (s *Store) DeleteTopic(id string) error {
 }
 
 // AppendMessage 追加消息（seq 自动递增；话题不存在时报错）。
+// 用 RETURNING 一次性拿回自增 id 与 seq，避免「先查 MAX(seq)+1 再插入」的竞态窗口。
 func (s *Store) AppendMessage(topicID, role, content, extra string) (*Message, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("chat store 未初始化")
 	}
-	var seq int
-	if err := s.db.QueryRow(
-		"SELECT COALESCE(MAX(seq), 0) + 1 FROM chat_messages WHERE topic_id = ?", topicID).Scan(&seq); err != nil {
-		return nil, err
-	}
 	ts := now()
-	res, err := s.db.Exec(
-		"INSERT INTO chat_messages(topic_id, role, content, extra, seq, created_at) VALUES(?,?,?,?,?,?)",
-		topicID, role, content, extra, seq, ts)
+	var m Message
+	m.TopicID = topicID
+	m.Role = role
+	m.Content = content
+	m.Extra = extra
+	m.CreatedAt = ts
+	err := s.db.QueryRow(`
+		INSERT INTO chat_messages(topic_id, role, content, extra, seq, created_at)
+		VALUES (?, ?, ?, ?,
+		        COALESCE((SELECT MAX(seq) + 1 FROM chat_messages WHERE topic_id = ?), 1),
+		        ?)
+		RETURNING id, seq`,
+		topicID, role, content, extra, topicID, ts).Scan(&m.ID, &m.Seq)
 	if err != nil {
 		return nil, err
 	}
 	_, _ = s.db.Exec("UPDATE chat_topics SET updated_at = ? WHERE id = ?", ts, topicID)
-	id, _ := res.LastInsertId()
-	return &Message{ID: id, TopicID: topicID, Role: role, Content: content, Extra: extra, Seq: seq, CreatedAt: ts}, nil
+	return &m, nil
+}
+
+// AppendExchange 以单事务原子写入「用户消息 + 助手消息」，并刷新话题 updated_at。
+// 任一写入失败则整体回滚，避免出现只落库半条交换的情况。
+func (s *Store) AppendExchange(topicID, userContent, assistantContent, assistantExtra string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	ts := now()
+	nextSeq := func() (int, error) {
+		var seq int
+		if err := tx.QueryRow(
+			"SELECT COALESCE(MAX(seq), 0) + 1 FROM chat_messages WHERE topic_id = ?", topicID).Scan(&seq); err != nil {
+			return 0, err
+		}
+		return seq, nil
+	}
+
+	seq1, err := nextSeq()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(
+		"INSERT INTO chat_messages(topic_id, role, content, extra, seq, created_at) VALUES(?,?,?,?,?,?)",
+		topicID, "user", userContent, "", seq1, ts); err != nil {
+		return err
+	}
+	seq2, err := nextSeq()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(
+		"INSERT INTO chat_messages(topic_id, role, content, extra, seq, created_at) VALUES(?,?,?,?,?,?)",
+		topicID, "assistant", assistantContent, assistantExtra, seq2, ts); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("UPDATE chat_topics SET updated_at = ? WHERE id = ?", ts, topicID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ListMessages 列出话题全部消息（按 seq）。

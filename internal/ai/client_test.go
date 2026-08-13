@@ -238,6 +238,45 @@ func TestChatSimpleStream_CollectsFullText(t *testing.T) {
 	}
 }
 
+// TestChatStreamChunks_EmitsDeltas ChatStreamChunks 应原样暴露底层 SSE 分块，
+// 供调用方逐块下发（真实流式）。
+func TestChatStreamChunks_EmitsDeltas(t *testing.T) {
+	c, _ := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好\"}}]}\n\n"))
+		w.Write([]byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"呀\"}}]}\n\n"))
+		w.Write([]byte("data: [DONE]\n\n"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}))
+
+	chunks, cancel, err := c.ChatStreamChunks(context.Background(), "grok-4.20", "sys", "user", ChatSimpleOptions{})
+	if err != nil {
+		t.Fatalf("ChatStreamChunks: %v", err)
+	}
+	defer cancel()
+
+	var sb strings.Builder
+	sawDone := false
+	for chunk := range chunks {
+		if chunk.Error != "" {
+			t.Fatalf("chunk error: %s", chunk.Error)
+		}
+		if chunk.Done {
+			sawDone = true
+			continue
+		}
+		sb.WriteString(chunk.Content)
+	}
+	if sb.String() != "你好呀" {
+		t.Errorf("拼接内容 = %q, want 你好呀", sb.String())
+	}
+	if !sawDone {
+		t.Error("应收到 Done 分块")
+	}
+}
+
 // ─── 模型解析 ────────────────────────────────────────────────
 
 func TestResolveModelName_ReqModelWins(t *testing.T) {

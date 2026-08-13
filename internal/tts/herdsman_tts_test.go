@@ -32,6 +32,29 @@ func TestDefaultVoiceForModel(t *testing.T) {
 	if got := defaultVoiceForModel("qwen3-tts-voicedesign"); got != "" {
 		t.Errorf("voicedesign 不应传音色, got %q", got)
 	}
+	if got := defaultVoiceForModel("qwen3-tts-voiceclone"); got != "" {
+		t.Errorf("voiceclone 不应传音色, got %q", got)
+	}
+	if got := defaultVoiceForModel("voxcpm2"); got != "" {
+		t.Errorf("voxcpm2 不应传音色, got %q", got)
+	}
+}
+
+func TestNewHerdsmanTTSWithClone_BuildBody(t *testing.T) {
+	h := NewHerdsmanTTSWithClone("http://localhost:8080/v1", "qwen3-tts-voiceclone", "data:audio/wav;base64,AAAA", "参考文本")
+	body := h.buildBody("要合成的文本", "")
+	if body["model"] != "qwen3-tts-voiceclone" || body["input"] != "要合成的文本" {
+		t.Errorf("model/input 不符: %+v", body)
+	}
+	if body["ref_audio"] != "data:audio/wav;base64,AAAA" || body["ref_text"] != "参考文本" {
+		t.Errorf("ref_audio/ref_text 不符: %+v", body)
+	}
+	if _, ok := body["voice"]; ok {
+		t.Errorf("voiceclone 不应携带 voice: %+v", body)
+	}
+	if got := h.resolveVoice(); got != "" {
+		t.Errorf("voiceclone resolveVoice 应为空, got %q", got)
+	}
 }
 
 func TestFetchAudio_DataURI(t *testing.T) {

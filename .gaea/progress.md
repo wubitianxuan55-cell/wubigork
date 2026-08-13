@@ -1,6 +1,106 @@
 # 任务进度
 
-> 最后更新 2026-08-13（v2.14.1 发布）
+> 最后更新 2026-08-13（v2.14.10 发布）
+
+## 已发布：v2.14.10「修复办公模型改绑不生效（仍沿用旧模型）」（2026-08-13）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | 定位：办公主 agent 模型由 bridge 在 GaeaInit 注入并缓存，改绑未重注入/重建 |
+| ✅ | `App.SetFeatureModel` / `App.SetFeatureModelEnabled` 覆盖，feature=="gaea" 时重注入 bridge |
+| ✅ | 办公引擎已初始化时重建 controller，未初始化则下次 GaeaInit 生效 |
+| ✅ | 测试：新增 `TestAppSetFeatureModel_GaeaBindingApplies` |
+| ✅ | 验证：go build/vet、go test（chat/app）全绿；wails build 通过（前端未改动） |
+| ✅ | 版本：v2.14.10（versioninfo.rc / wails.json）、releases/v2.14.10.md、CHANGELOG、README、releases/README |
+
+## 已发布：v2.14.9「聊天板块后端：原子落库 + AppendMessage 收敛」（2026-08-13）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | `AppendMessage` 改用 `INSERT ... RETURNING id, seq`，消除 seq 分配竞态窗口 |
+| ✅ | 新增 `chat.Store.AppendExchange`：单事务原子写入 user+assistant 并刷新 updated_at |
+| ✅ | `appendChatExchange` 改走事务，落库失败记录错误日志 |
+| ✅ | 测试：新增 `TestStore_AppendExchange`（含不存在话题回滚校验） |
+| ✅ | 验证：go build/vet、go test（chat/app）全绿；wails build 通过（前端未改动） |
+| ✅ | 版本：v2.14.9（versioninfo.rc / wails.json）、releases/v2.14.9.md、CHANGELOG、README、releases/README |
+
+## 已发布：v2.14.8「聊天板块后端：会话列表查询收敛 + GetTopic」（2026-08-13）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | `chat.Store.ListTopics` 预览改为单条相关子查询，消除 N+1 |
+| ✅ | 新增 `chat.Store.GetTopic(id)`，创建/导入/导出改按 ID 读取，不再全表列举 |
+| ✅ | 测试：新增 `TestStore_GetTopic` |
+| ✅ | 验证：go build/vet、go test（chat/app）全绿；wails build 通过（前端未改动） |
+| ✅ | 版本：v2.14.8（versioninfo.rc / wails.json）、releases/v2.14.8.md、CHANGELOG、README、releases/README |
+
+## 已发布：v2.14.7「聊天板块交互收尾：清空确认 + 切换聚焦 + 标题生成收敛」（2026-08-13）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | 清空当前对话加 Popconfirm 二次确认，避免误清空 |
+| ✅ | 选中话题后自动聚焦输入框 |
+| ✅ | 会话标题生成抽纯函数 `autoTopicTitle` + 表驱动测试 |
+| ✅ | 测试：前端 194→196；vitest 全过 |
+| ✅ | 验证：wails build（含 tsc + vite）通过；go build/vet、go test 全绿 |
+| ✅ | 版本：v2.14.7（versioninfo.rc / wails.json）、releases/v2.14.7.md、CHANGELOG、README、releases/README |
+
+## 已发布：v2.14.6「聊天板块会话导出为 Markdown」（2026-08-13）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | 后端 `ChatTopicExportMarkdown`：导出话题为 .md，含标题 + 用户/AI 分段 |
+| ✅ | 文件名安全规整 `sanitizeChatFilename`，写到用户数据目录 exports/chat |
+| ✅ | 前端模式栏新增「导出」按钮，成功后提示路径并复制剪贴板 |
+| ✅ | 测试：新增 `TestChatTopicExportMarkdown` |
+| ✅ | 验证：wails build（含 tsc + vite）通过；vitest 194 例全过；go build/vet、go test（app）全绿 |
+| ✅ | 版本：v2.14.6（versioninfo.rc / wails.json）、releases/v2.14.6.md、CHANGELOG、README、releases/README |
+
+## 已发布：v2.14.5「聊天板块真实流式输出（普通对话）」（2026-08-13）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | 普通对话真实流式：`ChatStreamPlain` 返回 runID，经 `chat-stream:<runID>` 下发 delta/reasoning/done/error |
+| ✅ | 角色模式保持整段返回，两种模式统一走发送收尾（自动命名/置顶/预览同步） |
+| ✅ | AI 客户端新增 `ChatStreamChunks`（复用请求准备，暴露底层 SSE 分块） |
+| ✅ | 测试：新增 `TestChatStreamChunks_EmitsDeltas`、`TestChatStreamPlain_StreamsAndPersists` |
+| ✅ | 验证：wails build（含 tsc + vite）通过；vitest 194 例全过；go build/vet、go test（ai/app）全绿 |
+| ✅ | 版本：v2.14.5（versioninfo.rc / wails.json）、releases/v2.14.5.md、CHANGELOG、README、releases/README |
+
+## 已发布：v2.14.4「聊天板块收口：联网搜索污染修复 + 回到底部 + 侧栏预览同步」（2026-08-13）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | 修复联网搜索污染历史：注入只进模型上下文，落库保留用户原文（`preparePlainChatMessage`） |
+| ✅ | 回到底部悬浮按钮：上翻阅读时出现，一键回底并恢复自动跟随 |
+| ✅ | 侧栏预览同步：发送首条消息 / 清空对话后即时更新预览，不再等重进 |
+| ✅ | 测试：新增 Go 用例 `TestChatSend_Plain_SearchKeepsOriginalUserMessage` |
+| ✅ | 验证：tsc + vite build 通过；vitest 194 例全过；go build/vet、go test（含新用例）全绿 |
+| ✅ | 版本：v2.14.4（versioninfo.rc / wails.json）、releases/v2.14.4.md、CHANGELOG、README、releases/README |
+
+## 已发布：v2.14.3「聊天板块补强：输入法防误发 + 快速切话题竞态修复 + 模式栏收敛」（2026-08-13）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | 输入法防误发：中文/日文 IME 组合态下的 Enter 不再触发发送（纯函数 `shouldSubmitOnEnter`） |
+| ✅ | 快速切话题竞态修复：话题消息载入用序号令牌，过期响应丢弃，避免旧话题消息覆盖当前视图 |
+| ✅ | 模式栏收敛：普通/角色两分支合并为单一操作区，去掉重复 JSX |
+| ✅ | 测试补强：新增 `shouldSubmitOnEnter` 用例，前端 190→194 |
+| ✅ | 验证：tsc + vite build 通过；vitest 194 例全过；go build/vet、go test（chat/app）保持全绿 |
+| ✅ | 版本：v2.14.3（versioninfo.rc / wails.json）、releases/v2.14.3.md、CHANGELOG、README、releases/README |
+
+## 已发布：v2.14.2「聊天板块优化：会话搜索 + 最近活跃排序 + 智能滚动 + 重开加载修复」（2026-08-13）
+
+| 状态 | 任务 |
+|------|------|
+| ✅ | 会话最近活跃排序：新会话/回复会话自动置顶，会话行显示相对时间（刚刚/N 分钟前/昨天/M-D） |
+| ✅ | 会话搜索：侧栏新增搜索框，按标题/预览/模式标签过滤（纯函数 `filterChatTopics`） |
+| ✅ | 智能滚动：生成/流式输出时用户上翻不再被强制吸底，贴近底部恢复跟随（`isNearBottom`） |
+| ✅ | 修复：重新进入聊天板块时已选中话题历史消息不载入（此前显示欢迎屏） |
+| ✅ | 缺陷收口：会话重命名失败 toast 提示（不再静默失败） |
+| ✅ | 测试补强：新增 `filterChatTopics` / `sortByUpdatedAtDesc` / `isNearBottom` 纯函数用例，前端 182→190 |
+| ✅ | 验证：tsc + vite build 通过；vitest 190 例全过；go build/vet、go test（chat/app）全绿 |
+| ✅ | 版本：v2.14.2（versioninfo.rc / wails.json）、releases/v2.14.2.md、CHANGELOG、README、releases/README |
 
 ## 已发布：v2.14.1「办公板块缺陷收口 + 测试补强 + 结构收敛」（2026-08-13）
 

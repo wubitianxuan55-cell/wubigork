@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Typography, Card, Button, Space, Tag, message, Spin } from 'antd'
+import { Typography, Button, Space, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
-  CloudOutlined, CheckCircleOutlined, LoginOutlined, LogoutOutlined,
+  CloudOutlined, CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import { C } from '../utils/theme'
@@ -11,6 +11,7 @@ import {
   getEngines, saveEngine, testEngineConnection,
   refreshEngineModels, setEngineDefaultModel,
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
+  getActiveOCRModel, setActiveOCRModel,
   setOpencodeGoKey, getOpencodeGoKeyStatus,
   setOpencodeZenKey, getOpencodeZenKeyStatus,
   getModelCallStats, resetModelCallStats,
@@ -28,15 +29,18 @@ import { StatsSection } from './modelcenter/StatsSection'
 import { ImageSection } from './modelcenter/ImageSection'
 import { VoiceSection } from './modelcenter/VoiceSection'
 import { EngineSection } from './modelcenter/EngineSection'
+import { SpecialtySection } from './modelcenter/SpecialtySection'
+import { OverviewSection } from './modelcenter/OverviewSection'
+import './modelcenter/modelcenter.css'
 import {
-  FEATURES, XAI_VOICES, classifyModel, kindOf, localTTSDefaultVoice, localTTSFallbackVoices,
+  FEATURES, XAI_VOICES, classifyModel, kindOf, localTTSDefaultVoice, localTTSFallbackVoices, engineLabel,
   type Category, type ModelCardData, type ModelKind,
 } from './modelcenter/utils'
 import { type StatsSort, type TrendDatum, type TrendRange } from './modelcenter/charts'
 
 const ModelCenterPage: React.FC = () => {
   const { loggedIn, login, logout } = useAppStore()
-  const [category, setCategory] = useState<Category>('llm')
+  const [category, setCategory] = useState<Category>('overview')
   const [engines, setEngines] = useState<EngineConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [activeEngine, setActiveEngineState] = useState('xai')
@@ -66,6 +70,7 @@ const ModelCenterPage: React.FC = () => {
   const [comfyBusy, setComfyBusy] = useState(false)
   // 语音管道三段激活模型（STT/LLM/TTS，来自模型中心选择）
   const [voiceCfg, setVoiceCfg] = useState<VoiceCfg>({ stt: { engine: '', model: '' }, llm: { engine: '', model: '' }, tts: { engine: '', model: '', voice: '' } })
+  const [ocrCfg, setOcrCfg] = useState<{ engine: string; model: string }>({ engine: '', model: '' })
   // 功能绑定：聊天语音合成（优先于全局 TTS，便于后续扩展更多语音绑定）
   const [chatVoiceCfg, setChatVoiceCfg] = useState<{ engine: string; model: string }>({ engine: '', model: '' })
   const [chatVoiceDraft, setChatVoiceDraft] = useState<{ engine: string; model: string }>({ engine: '', model: '' })
@@ -110,6 +115,22 @@ const ModelCenterPage: React.FC = () => {
     }
     finally { setLoading(false) }
   }, [])
+
+  // 模型中心首次进入时先只读取已保存的引擎状态，避免启动阶段刷新请求和用户首次点击抢线程。
+  // 本地引擎模型列表延后 5 秒刷新，且仅在用户尚未切换分类时执行。
+  const refreshLocalModels = useCallback(async () => {
+    await Promise.allSettled(['herdsman', 'ollama', 'cosyvoice'].map(id => refreshEngineModels(id)))
+    await loadAll()
+  }, [loadAll])
+
+  // 模型中心左侧分类切换后，把外层滚动容器回到顶部，避免上一分类的滚动位置
+  // 残留，导致功能绑定等页面顶部的控件落在可视区域外、看起来像下拉框点不开。
+  useEffect(() => {
+    const scroller = document.querySelector('.ant-layout-content')
+    if (scroller && typeof scroller.scrollTo === 'function') {
+      scroller.scrollTo({ top: 0, behavior: 'auto' })
+    }
+  }, [category])
 
   const loadCallStats = useCallback(async () => {
     try {
@@ -176,6 +197,13 @@ const ModelCenterPage: React.FC = () => {
         setChatVoiceCfg({ engine: cfg.chatTts?.engine || '', model: cfg.chatTts?.model || '' })
         setChatVoiceDraft({ engine: cfg.chatTts?.engine || '', model: cfg.chatTts?.model || '' })
       }
+    } catch (_) {}
+  }, [])
+
+  const loadOCRCfg = useCallback(async () => {
+    try {
+      const cfg = await getActiveOCRModel()
+      if (cfg) setOcrCfg({ engine: cfg.engine || '', model: cfg.model || '' })
     } catch (_) {}
   }, [])
 
@@ -292,7 +320,12 @@ const ModelCenterPage: React.FC = () => {
     }
   }
 
-  useEffect(() => { loadAll(); loadImageBackend(); loadVoiceCfg(); loadFeatureCfg() }, [loadVoiceCfg, loadFeatureCfg])
+  useEffect(() => {
+    const timer = window.setTimeout(() => { refreshLocalModels() }, 5000)
+    return () => window.clearTimeout(timer)
+  }, [refreshLocalModels])
+
+  useEffect(() => { loadAll(); loadImageBackend(); loadVoiceCfg(); loadOCRCfg(); loadFeatureCfg() }, [loadAll, loadVoiceCfg, loadOCRCfg, loadFeatureCfg])
   useEffect(() => {
     (async () => {
       const p = await getPortraitConfig()
@@ -310,6 +343,16 @@ const ModelCenterPage: React.FC = () => {
       loadVoiceCfg()
     } catch (err: any) {
       message.error(err?.message || '设置失败')
+    }
+  }
+
+  const handleSetOCRModel = async (engineId: string, modelId: string) => {
+    try {
+      await setActiveOCRModel(engineId, modelId)
+      message.success(engineId && modelId ? `已设为 OCR：${modelId}` : 'OCR 已恢复自动选择')
+      loadOCRCfg()
+    } catch (err: any) {
+      message.error(err?.message || '设置 OCR 失败')
     }
   }
 
@@ -479,6 +522,7 @@ const ModelCenterPage: React.FC = () => {
   const ttsModels = allModels.filter(m => kindOf(m) === 'tts')
   const sttModels = allModels.filter(m => kindOf(m) === 'stt')
   const imageModels = allModels.filter(m => kindOf(m) === 'image')
+  const specialtyModels = allModels.filter(m => ['embedding', 'rerank', 'ocr'].includes(kindOf(m)))
 
   // 角色库剧照独立后端/模型选项（空 = 跟随绘梦）
   const portraitModelOptions = useMemo(() => {
@@ -533,11 +577,14 @@ const ModelCenterPage: React.FC = () => {
     return list.slice(-limit)
   }, [callStats, trendRange])
 
-  const sidebarBtn = (key: Category, icon: React.ReactNode, label: string) => (
-    <Button type={category === key ? 'primary' : 'text'} icon={icon as any}
+  const navButton = (key: Category, icon: React.ReactNode, label: string) => (
+    <Button
+      type={category === key ? 'primary' : 'text'}
+      className={`mc-nav-btn${category === key ? ' is-active' : ''}`}
+      icon={icon as any}
       onClick={() => setCategory(key)}
-      style={{ justifyContent: 'flex-start', textAlign: 'left', borderRadius: 8, color: category === key ? '#fff' : C('color-text-secondary'), background: category === key ? C('color-primary') : 'transparent', fontWeight: category === key ? 500 : 400, padding: '8px 14px', height: 38 }}>
-      {label}
+    >
+      <span>{label}</span>
     </Button>
   )
 
@@ -550,42 +597,97 @@ const ModelCenterPage: React.FC = () => {
     callStats, statsSort, setStatsSort, trendRange, setTrendRange, trendData,
     imageBackend, setImageBackend, comfyUIURL, comfyUIPath, comfyUIPythonPath, imageModel, setImageModel,
     imageSaveDir, setImageSaveDir, imageBackendSaving, comfyStatus, comfyBusy,
-    voiceCfg, setVoiceCfg, chatVoiceCfg, chatVoiceDraft, setChatVoiceDraft, chatVoiceSaving, chatVoiceSpeakers, chatVoiceOptions, chatVoiceValue,
+    voiceCfg, setVoiceCfg, ocrCfg, setOcrCfg, chatVoiceCfg, chatVoiceDraft, setChatVoiceDraft, chatVoiceSaving, chatVoiceSpeakers, chatVoiceOptions, chatVoiceValue,
     featureCfg, featureDraft, setFeatureDraft, featureEnabled, modelRoutes,
     portraitCfg, portraitDraft, setPortraitDraft, portraitModelOptions, portraitSaving,
-    llmModels, ttsModels, sttModels, imageModels, makeModels, isModelActive,
+    llmModels, ttsModels, sttModels, imageModels, specialtyModels, makeModels, isModelActive,
     handleTestConnection, handleRefreshModels, handleStartModel, handleSaveURL, handleToggleEngine,
     handleSaveDeepseekKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey,
-    handleResetCallStats, loadCallStats, handleToggleComfy, handleSaveImageBackend, handleSetVoiceModel,
+    handleResetCallStats, loadCallStats, handleToggleComfy, handleSaveImageBackend, handleSetVoiceModel, handleSetOCRModel,
     handleSaveFeature, handleToggleFeatureEnabled, handleSavePortrait, handleSaveChatVoice, handleClearChatVoice,
   }
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Spin size="large" /></div>
+  if (loading) {
+    return (
+      <div className="mc-page">
+        <div className="mc-header">
+          <div className="mc-title-row">
+            <div className="mc-eyebrow"><ThunderboltOutlined /> Model Center</div>
+            <h1 className="mc-title">模型引擎中心</h1>
+            <p className="mc-subtitle">正在读取引擎、模型和调用统计</p>
+          </div>
+        </div>
+        <div className="mc-overview-grid">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="mc-skeleton" style={{ height: 96 }} />)}
+        </div>
+        <div className="mc-shell">
+          <div className="mc-nav">
+            {Array.from({ length: 8 }).map((_, i) => <div key={i} className="mc-skeleton" style={{ height: 38, borderRadius: 10 }} />)}
+          </div>
+          <div className="mc-main">
+            <div className="mc-panel"><div className="mc-panel-body"><div className="mc-skeleton" style={{ height: 220 }} /></div></div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Typography.Title level={4} style={{ color: C('color-text'), marginBottom: 16 }}>
-        <ThunderboltOutlined style={{ marginRight: 8 }} />模型引擎中心
-      </Typography.Title>
-      <div style={{ flex: 1, display: 'flex', gap: 20, minHeight: 0 }}>
-        <div style={{ width: 140, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {sidebarBtn('llm', <ThunderboltOutlined />, '语言模型')}
-          {sidebarBtn('image', <PictureOutlined />, '图片生成')}
-          {sidebarBtn('tts', <SoundOutlined />, '语音模型')}
-          {sidebarBtn('engine', <SettingOutlined />, '引擎管理')}
-          {sidebarBtn('bind', <LinkOutlined />, '功能绑定')}
-          {sidebarBtn('stats', <ThunderboltOutlined />, '调用统计')}
+    <div className="mc-page">
+      <header className="mc-header">
+        <div className="mc-title-row">
+          <div className="mc-eyebrow"><ThunderboltOutlined /> Model Center</div>
+          <h1 className="mc-title">模型引擎中心</h1>
+          <p className="mc-subtitle">统一管理云端与本地引擎、模型路由、语音/图片/专业模型与调用统计。</p>
         </div>
+        <div className="mc-header-actions">
+          <Button icon={<ReloadOutlined />} onClick={loadAll} style={{ borderRadius: 10 }}>刷新状态</Button>
+        </div>
+      </header>
 
-        <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+      <section className="mc-overview-grid" aria-label="模型中心概览">
+        <div className="mc-kpi">
+          <div className="mc-kpi-label"><ThunderboltOutlined /> 已启用引擎</div>
+          <div className="mc-kpi-value">{engines.filter(e => e.enabled).length}</div>
+          <div className="mc-kpi-hint">共 {engines.length} 个引擎</div>
+        </div>
+        <div className="mc-kpi">
+          <div className="mc-kpi-label"><CheckCircleOutlined /> 运行中模型</div>
+          <div className="mc-kpi-value">{allModels.filter(m => m.status === 'running').length}</div>
+          <div className="mc-kpi-hint">共 {allModels.length} 个模型</div>
+        </div>
+        <div className="mc-kpi">
+          <div className="mc-kpi-label"><CloudOutlined /> 当前活跃引擎</div>
+          <div className="mc-kpi-value">{engineLabel({ id: activeEngine })}</div>
+          <div className="mc-kpi-hint">{activeModel || '默认模型'}</div>
+        </div>
+        <div className="mc-kpi">
+          <div className="mc-kpi-label"><DatabaseOutlined /> 专业模型</div>
+          <div className="mc-kpi-value">{specialtyModels.length}</div>
+          <div className="mc-kpi-hint">Embedding / Rerank / OCR</div>
+        </div>
+      </section>
+
+      <div className="mc-shell">
+        <nav className="mc-nav" aria-label="模型中心导航">
+          {navButton('overview', <DashboardOutlined />, '总览')}
+          {navButton('llm', <ThunderboltOutlined />, '语言模型')}
+          {navButton('image', <PictureOutlined />, '图片生成')}
+          {navButton('tts', <SoundOutlined />, '语音模型')}
+          {navButton('specialty', <DatabaseOutlined />, '专业模型')}
+          {navButton('engine', <SettingOutlined />, '引擎管理')}
+          {navButton('bind', <LinkOutlined />, '功能绑定')}
+          {navButton('stats', <ThunderboltOutlined />, '调用统计')}
+        </nav>
+
+        <main className="mc-main">
           <ModelCenterContext.Provider value={ctx}>
-            {/* XAI 账号卡片 */}
             {category !== 'engine' && (
-              <Card style={{ marginBottom: 20, background: loggedIn ? 'linear-gradient(135deg, rgba(52,211,153,0.06), rgba(16,185,129,0.03))' : 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(37,99,235,0.04))', border: loggedIn ? '1px solid rgba(52,211,153,0.25)' : '1px solid rgba(99,102,241,0.2)', borderRadius: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div className="mc-panel" style={{ marginBottom: 16, padding: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <Space size={12}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: loggedIn ? 'linear-gradient(135deg, #34d399, #10b981)' : 'linear-gradient(135deg, #6366f1, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {loggedIn ? <CheckCircleOutlined style={{ fontSize: 18, color: '#fff' }} /> : <CloudOutlined style={{ fontSize: 18, color: '#fff' }} />}
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: loggedIn ? 'rgba(34,197,94,0.14)' : 'rgba(148,163,184,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {loggedIn ? <CheckCircleOutlined style={{ fontSize: 18, color: '#34d399' }} /> : <CloudOutlined style={{ fontSize: 18, color: C('color-text-secondary') }} />}
                     </div>
                     <div>
                       <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>{loggedIn ? 'xAI 已连接' : 'xAI 账号'}</Typography.Text><br />
@@ -598,7 +700,7 @@ const ModelCenterPage: React.FC = () => {
                         setLoggingIn(true)
                         try {
                           await login()
-                          message.success('xAI 登录成功！')
+                          message.success('xAI 登录成功')
                           await loadAll()
                         } catch (err: any) {
                           message.error('登录失败：' + (err?.message || err || '未知错误，请检查浏览器是否完成了 xAI 授权'))
@@ -606,19 +708,20 @@ const ModelCenterPage: React.FC = () => {
                           setLoggingIn(false)
                         }
                       }}
-                      style={{ background: 'linear-gradient(135deg, #6366f1, #2563eb)', border: 'none', borderRadius: 8, fontWeight: 500 }}>登录 xAI</Button>}
+                      style={{ borderRadius: 8, fontWeight: 500 }}>登录 xAI</Button>}
                 </div>
-              </Card>
+              </div>
             )}
-
+            {category === 'overview' && <OverviewSection />}
             {category === 'llm' && <LLMSection />}
-            {category === 'bind' && <BindSection />}
-            {category === 'stats' && <StatsSection />}
             {category === 'image' && <ImageSection />}
             {category === 'tts' && <VoiceSection />}
+            {category === 'specialty' && <SpecialtySection />}
             {category === 'engine' && <EngineSection />}
+            {category === 'bind' && <BindSection />}
+            {category === 'stats' && <StatsSection />}
           </ModelCenterContext.Provider>
-        </div>
+        </main>
       </div>
     </div>
   )

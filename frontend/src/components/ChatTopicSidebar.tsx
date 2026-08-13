@@ -6,8 +6,11 @@ import {
   MessageOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  SearchOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
+import { filterChatTopics } from '../utils/chatTopics'
+import { relativeTime } from '../gaea/lib/time'
 
 export interface Topic {
   id: string
@@ -19,6 +22,8 @@ export interface Topic {
   modeLabel?: string
   /** first message preview */
   preview?: string
+  /** 最近活跃时间（ms），用于列表排序展示 */
+  updatedAt?: number
 }
 
 interface ChatTopicSidebarProps {
@@ -40,6 +45,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
   const editRef = useRef<any>(null)
 
   useEffect(() => {
@@ -60,6 +66,8 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
     setEditingId(null)
     setEditText('')
   }
+
+  const visibleTopics = filterChatTopics(topics, query)
 
   return (
     <div
@@ -140,9 +148,27 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
             </div>
           </div>
 
+          {/* session search */}
+          <div style={{ padding: '0 12px 8px' }}>
+            <Input
+              size="small"
+              allowClear
+              prefix={<SearchOutlined style={{ color: C('color-text-secondary'), fontSize: 12 }} />}
+              placeholder="搜索会话"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{
+                background: C('color-bg-container'),
+                borderColor: C('color-border'),
+                color: C('color-text'),
+                borderRadius: 8,
+              }}
+            />
+          </div>
+
           {/* topic list */}
           <div style={{ flex: 1, overflow: 'auto', padding: '2px 8px 88px' }}>
-            {topics.length === 0 ? (
+            {visibleTopics.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 16px', textAlign: 'center' }}>
                 <div style={{
                   width: 48, height: 48, borderRadius: 14,
@@ -153,15 +179,15 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                   <MessageOutlined style={{ fontSize: 24, color: C('color-primary') }} />
                 </div>
                 <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 13, marginBottom: 4 }}>
-                  暂无会话
+                  {query ? '无匹配会话' : '暂无会话'}
                 </Typography.Text>
                 <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, opacity: 0.7 }}>
-                  点击 + 创建新对话
+                  {query ? '换个关键词试试' : '点击 + 创建新对话'}
                 </Typography.Text>
               </div>
             ) : (
               <div>
-                {topics.map((topic) => {
+                {visibleTopics.map((topic) => {
               const active = topic.id === activeId
               const hovered = hoveredId === topic.id
               return (
@@ -202,7 +228,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                               color: active ? C('color-primary') : C('color-text'),
                               fontSize: 12.5,
                               fontWeight: active ? 600 : 500,
-                              display: 'block',
+                              flex: 1,
                               lineHeight: '18px',
                               minWidth: 0,
                             }}
@@ -214,6 +240,12 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                               {topic.modeLabel}
                             </span>
                           )}
+                          <span
+                            className="chat-topic-time"
+                            title={new Date(topic.updatedAt || topic.createdAt).toLocaleString()}
+                          >
+                            {relativeTime(topic.updatedAt || topic.createdAt)}
+                          </span>
                         </div>
                         {topic.preview && (
                           <div className="chat-topic-preview" title={topic.preview}>

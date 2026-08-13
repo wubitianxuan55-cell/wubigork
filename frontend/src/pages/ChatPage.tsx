@@ -1,15 +1,19 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
-import { Input, Button, Typography, Tooltip, Modal, message, Space } from 'antd'
+import { Input, Button, Typography, Tooltip, Modal, message, Space, Popconfirm } from 'antd'
 import {
   SendOutlined, RobotOutlined, CopyOutlined, CheckOutlined,
   SoundOutlined, ReloadOutlined, CloseCircleOutlined,
   GlobalOutlined, SettingOutlined, ClearOutlined,
   AudioOutlined, StopOutlined, HeartOutlined, MessageOutlined, SearchOutlined,
   EditOutlined, BulbOutlined, BookOutlined, TranslationOutlined, StarFilled,
-  ThunderboltOutlined, SwapOutlined,
+  ThunderboltOutlined, SwapOutlined, DownOutlined, DownloadOutlined,
 } from '@ant-design/icons'
 import * as App from '../../wailsjs/go/app/App'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { C } from '../utils/theme'
+import { sortByUpdatedAtDesc, autoTopicTitle } from '../utils/chatTopics'
+import { isNearBottom } from '../utils/scroll'
+import { shouldSubmitOnEnter } from '../utils/chatComposer'
 import FeatureModelBar from '../components/FeatureModelBar'
 import ChatTopicSidebar, { type Topic as SidebarTopic } from '../components/ChatTopicSidebar'
 import ChatMarkdown from '../components/ChatMarkdown'
@@ -113,6 +117,13 @@ function parseExtra(raw?: string): Record<string, any> | undefined {
   try { const o = JSON.parse(raw); return typeof o === 'object' && o ? o : undefined } catch (_) { return undefined }
 }
 
+/** 话题最近活跃时间（优先 updated_at，缺失回退 created_at）。 */
+function toUpdatedAt(t: any): number {
+  const raw = t?.updated_at || t?.created_at
+  const ms = raw ? new Date(String(raw)).getTime() : 0
+  return Number.isFinite(ms) && ms > 0 ? ms : Date.now()
+}
+
 function loadPersonality(): string {
   try {
     return (localStorage.getItem(PERSONALITY_KEY) ?? localStorage.getItem(LEGACY_PERSONALITY_KEY)) || 'gaea'
@@ -199,6 +210,25 @@ const ChatPage: React.FC = () => {
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<any>(null)
   const initRef = useRef(false)
+  // 智能滚动：用户上翻阅读时不强制吸底，靠近底部/新消息/切换话题才跟随。
+  const [atBottom, setAtBottom] = useState(true)
+  const stickToBottomRef = useRef(true)
+  const onListScroll = useCallback(() => {
+    const el = listRef.current
+    if (!el) return
+    const near = isNearBottom(el.scrollHeight - el.scrollTop - el.clientHeight)
+    stickToBottomRef.current = near
+    setAtBottom(near)
+  }, [])
+  const scrollToBottom = useCallback(() => {
+    stickToBottomRef.current = true
+    setAtBottom(true)
+    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
+  }, [])
+  // 话题载入序号：快速切换话题时丢弃过期响应，避免旧话题消息覆盖当前视图。
+  const topicLoadSeqRef = useRef(0)
+  // 真实流式订阅的清理函数：卸载时取消监听，避免泄漏。
+  const streamCleanupRef = useRef<(() => void) | null>(null)
   const topicsRef = useRef<any[]>([])
   topicsRef.current = topics
   const modeRef = useRef(mode)
@@ -252,6 +282,28 @@ const ChatPage: React.FC = () => {
     setEmotion(''); setAff(0); setAro(0)
   }, [])
 
+  // 载入话题消息并恢复模式/情绪元数据（初始进入与切换话题共用）。
+  const loadTopic = useCallback(async (id: string, list: any[]) => {
+    const seq = ++topicLoadSeqRef.current
+    try {
+      const ms = (await App.ChatMessagesList(id)) || []
+      if (seq !== topicLoadSeqRef.current) return
+      const loaded: ChatMsg[] = ms.map((m: any) => ({
+        key: `db_${m.id}`, role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.content || '', createdAt: m.created_at || '', extra: parseExtra(m.extra),
+      }))
+      setMessages(loaded)
+      const topic = list.find(t => t.id === id)
+      const topicMode = topic?.mode || 'plain'
+      if (topicMode !== modeRef.current) setMode(topicMode)
+      resetPersonaMeta()
+      if (topicMode !== 'plain') {
+        const last = [...loaded].reverse().find(m => m.role === 'assistant' && m.extra)
+        if (last?.extra?.emotion) setEmotion(last.extra.emotion)
+      }
+    } catch (_) { if (seq === topicLoadSeqRef.current) setMessages([]) }
+  }, [resetPersonaMeta])
+
   // ── 初始化：话题列表 + 旧数据迁移 + 人格列表 + 首页角色入口 ──
   useEffect(() => {
     if (initRef.current) return
@@ -267,51 +319,52 @@ const ChatPage: React.FC = () => {
           try { list = (await App.ChatTopicsList()) || [] } catch (_) {}
         }
       }
+      // 最近活跃优先：默认把最新会话排到顶部。
+      list = sortByUpdatedAtDesc(list, toUpdatedAt)
       setTopics(list)
       let first: any = list[0]
       try {
         const last = localStorage.getItem(ACTIVE_TOPIC_KEY)
         if (last) first = list.find(t => t.id === last) || first
       } catch (_) {}
-      if (first) setActiveId(first.id)
+      if (first) {
+        setActiveId(first.id)
+        await loadTopic(first.id, list)
+      }
       setInitializing(false)
     })()
     try { App.WhisperGetPersonalities().then((ps: any) => setPersonalities(ps || [])).catch(() => {}) } catch (_) {}
-  }, [])
+  }, [loadTopic])
 
   // 选择话题 → 加载消息 + 恢复人格元数据
   const selectTopic = useCallback(async (id: string) => {
     if (!id || id === activeIdRef.current) return
+    stickToBottomRef.current = true
+    setAtBottom(true)
     setActiveId(id)
     try { localStorage.setItem(ACTIVE_TOPIC_KEY, id) } catch (_) {}
-    try {
-      const ms = (await App.ChatMessagesList(id)) || []
-      const list: ChatMsg[] = ms.map((m: any) => ({
-        key: `db_${m.id}`, role: m.role === 'user' ? 'user' : 'assistant',
-        content: m.content || '', createdAt: m.created_at || '', extra: parseExtra(m.extra),
-      }))
-      setMessages(list)
-      const topic = topicsRef.current.find(t => t.id === id)
-      const topicMode = topic?.mode || 'plain'
-      if (topicMode !== modeRef.current) setMode(topicMode)
-      resetPersonaMeta()
-      if (topicMode !== 'plain') {
-        const last = [...list].reverse().find(m => m.role === 'assistant' && m.extra)
-        if (last?.extra) {
-          if (last.extra.emotion) setEmotion(last.extra.emotion)
-        }
-      }
-    } catch (_) { setMessages([]) }
-  }, [resetPersonaMeta])
+    await loadTopic(id, topicsRef.current)
+    inputRef.current?.focus?.()
+  }, [loadTopic])
 
   useEffect(() => {
-    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
+    if (stickToBottomRef.current && listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight
+    }
   }, [messages, streamText])
+
+  // 卸载时取消真实流式订阅。
+  useEffect(() => () => {
+    streamCleanupRef.current?.()
+    streamCleanupRef.current = null
+  }, [])
 
   const handleCreate = useCallback(async () => {
     try {
       const t = await App.ChatTopicCreate('新对话', modeRef.current)
-      setTopics(prev => [...prev, t])
+      stickToBottomRef.current = true
+      setAtBottom(true)
+      setTopics(prev => [t, ...prev])
       setActiveId(t.id)
       try { localStorage.setItem(ACTIVE_TOPIC_KEY, t.id) } catch (_) {}
       setMessages([])
@@ -338,7 +391,10 @@ const ChatPage: React.FC = () => {
   }, [handleCreate, selectTopic])
 
   const handleRename = useCallback(async (id: string, title: string) => {
-    try { await App.ChatTopicRename(id, title) } catch (_) {}
+    try { await App.ChatTopicRename(id, title) } catch (err: any) {
+      message.error(`重命名失败：${err?.message || err}`)
+      return
+    }
     setTopics(prev => prev.map(t => t.id === id ? { ...t, title } : t))
   }, [])
 
@@ -378,10 +434,30 @@ const ChatPage: React.FC = () => {
     setMessages(prev => prev.map(m => m.key === key ? { ...m, ...patch } : m))
   }, [])
 
+  // 自动命名 + 最近活跃置顶 + 侧栏预览同步（发送成功后的统一收尾）。
+  const finalizeTopicAfterSend = useCallback(async (topicId: string, firstUserText: string) => {
+    const topic = topicsRef.current.find(t => t.id === topicId)
+    const title = topic?.title === '新对话'
+      ? autoTopicTitle(firstUserText)
+      : undefined
+    if (title) {
+      try { await App.ChatTopicRename(topicId, title) } catch (_) {}
+    }
+    setTopics(prev => {
+      const item = prev.find(t => t.id === topicId)
+      if (!item) return prev
+      const updated = { ...item, updated_at: new Date().toISOString(), preview: item.preview || firstUserText }
+      if (title) updated.title = title
+      return [updated, ...prev.filter(t => t.id !== topicId)]
+    })
+  }, [])
+
   const doSend = useCallback(async (text: string, retryKey?: string) => {
     const trimmed = text.trim()
     if (!trimmed || sending || !activeIdRef.current) return
     setInput(''); setSending(true)
+    stickToBottomRef.current = true
+    setAtBottom(true)
     const um: ChatMsg = { key: nextMsgKey(), role: 'user', content: trimmed, createdAt: nowStr() }
     const am: ChatMsg = { key: nextMsgKey(), role: 'assistant', content: '', streaming: true, createdAt: nowStr() }
     setMessages(prev => {
@@ -398,6 +474,48 @@ const ChatPage: React.FC = () => {
     setStreamKey(am.key); setStreamText('')
     const active = activeIdRef.current
     const curMode = modeRef.current
+
+    // 普通对话：后端逐块流式下发；角色模式继续走整段返回（保留原有模拟打字流）。
+    if (curMode === 'plain') {
+      let unsub: (() => void) | null = null
+      let reasoningAcc = ''
+      const cleanup = () => { if (unsub) { const f = unsub; unsub = null; f() } }
+      streamCleanupRef.current = cleanup
+      try {
+        const runID: string = await App.ChatStreamPlain(active, trimmed, searchEnabledRef.current, thinkingRef.current, forceSearchRef.current)
+        const ok = await new Promise<boolean>((resolve) => {
+          unsub = EventsOn(`chat-stream:${runID}`, (payload: any) => {
+            const p = payload || {}
+            if (p.type === 'delta') {
+              setStreamText(prev => prev + (p.content || ''))
+            } else if (p.type === 'reasoning') {
+              reasoningAcc += p.content || ''
+            } else if (p.type === 'done') {
+              const reply = typeof p.reply === 'string' ? p.reply : ''
+              const reasoning = typeof p.reasoning === 'string' ? p.reasoning : reasoningAcc
+              setStreamText(''); setStreamKey(null)
+              updateMessage(am.key, { content: reply, streaming: false, reasoning, extra: {} })
+              resolve(true)
+            } else if (p.type === 'error') {
+              setStreamText(''); setStreamKey(null)
+              updateMessage(am.key, { content: `请求失败：${p.error || '未知错误'}`, streaming: false, error: true })
+              resolve(false)
+            }
+          })
+        })
+        if (ok) await finalizeTopicAfterSend(active, trimmed)
+      } catch (err: any) {
+        setStreamText(''); setStreamKey(null)
+        updateMessage(am.key, { content: `请求失败：${err?.message || String(err)}`, streaming: false, error: true })
+      } finally {
+        cleanup()
+        if (streamCleanupRef.current === cleanup) streamCleanupRef.current = null
+        setSending(false)
+      }
+      return
+    }
+
+    // 角色模式：整段返回 + 前端模拟打字流。
     try {
       const res: any = await App.ChatSend(active, trimmed, curMode, searchEnabledRef.current, thinkingRef.current, forceSearchRef.current)
       const reply = typeof res?.reply === 'string' ? res.reply : ''
@@ -418,18 +536,12 @@ const ChatPage: React.FC = () => {
       if (res.emotion) setEmotion(res.emotion)
       if (typeof res.aff === 'number') setAff(Math.round(res.aff))
       if (typeof res.aro === 'number') setAro(Math.round(res.aro))
-      // 自动命名
-      const topic = topicsRef.current.find(t => t.id === active)
-      if (topic?.title === '新对话') {
-        const title = trimmed.slice(0, 20) + (trimmed.length > 20 ? '…' : '')
-        try { await App.ChatTopicRename(active, title) } catch (_) {}
-        setTopics(prev => prev.map(t => t.id === active ? { ...t, title } : t))
-      }
+      await finalizeTopicAfterSend(active, trimmed)
     } catch (err: any) {
       setStreamText(''); setStreamKey(null)
       updateMessage(am.key, { content: `请求失败：${err?.message || String(err)}`, streaming: false, error: true })
     } finally { setSending(false) }
-  }, [sending, updateMessage])
+  }, [sending, updateMessage, finalizeTopicAfterSend])
 
   const handleSend = useCallback(() => { doSend(input) }, [input, doSend])
   const handleSuggestion = useCallback((label: string) => { doSend(label) }, [doSend])
@@ -442,7 +554,7 @@ const ChatPage: React.FC = () => {
   }, [messages, doSend])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+    if (shouldSubmitOnEnter(e.key, e.shiftKey, e.nativeEvent.isComposing)) { e.preventDefault(); handleSend() }
   }
 
   const handleCopy = async (content: string, id: string) => {
@@ -472,19 +584,34 @@ const ChatPage: React.FC = () => {
   }
 
   const handleClearMessages = useCallback(async () => {
+    stickToBottomRef.current = true
+    setAtBottom(true)
     setMessages([]); resetPersonaMeta()
     if (activeIdRef.current) {
       try { await App.ChatTopicClear(activeIdRef.current) } catch (_) {}
     }
+    setTopics(prev => prev.map(t => t.id === activeIdRef.current ? { ...t, preview: '' } : t))
     if (modeRef.current !== 'plain') {
       try { await (App as any).WhisperClearSession(modeRef.current) } catch (_) {}
     }
   }, [resetPersonaMeta])
 
+  const handleExport = useCallback(async () => {
+    if (!activeIdRef.current) return
+    try {
+      const path: string = await App.ChatTopicExportMarkdown(activeIdRef.current)
+      message.success(`已导出会话：${path}`)
+      try { await navigator.clipboard.writeText(path) } catch (_) {}
+    } catch (err: any) {
+      message.error(`导出失败：${err?.message || err}`)
+    }
+  }, [])
+
   const hasMessages = messages.length > 0
 
   const topicList: SidebarTopic[] = topics.map(t => ({
     id: t.id, title: t.title, createdAt: new Date(t.created_at || 0).getTime() || Date.now(),
+    updatedAt: toUpdatedAt(t),
     mode: t.mode, modeLabel: t.mode === 'plain' ? '' : (personalities.find(p => p.id === t.mode)?.label || '角色'),
     preview: t.preview || '',
   }))
@@ -520,46 +647,43 @@ const ChatPage: React.FC = () => {
             </button>
           </div>
           <div style={{ flex: 1 }} />
-          {mode !== 'plain' ? (
-            <Space size={2}>
-              <Tooltip title={searchEnabled ? '联网搜索已开启（自动检测搜索意图）' : '联网搜索已关闭'}>
-                <Button type="text" size="small" icon={<GlobalOutlined style={{ color: searchEnabled ? '#52c41a' : C('color-text-secondary') }} />}
-                  onClick={() => setSearchEnabled(!searchEnabled)} style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
-              </Tooltip>
-              <Tooltip title="角色库管理">
-                <Button type="text" size="small" icon={<SettingOutlined />} onClick={navigateToCharacterLib}
-                  style={{ color: C('color-text-secondary'), height: 24 }} />
-              </Tooltip>
-              <PersonaPicker activeId={mode !== 'plain' ? mode : activePersonality}
-                onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
-                <Tooltip title="切换角色">
-                  <Button type="text" size="small" icon={<SwapOutlined />}
+          <Space size={2}>
+            <Tooltip title={searchEnabled ? '联网搜索已开启（自动检测搜索意图）' : '联网搜索已关闭'}>
+              <Button type="text" size="small" icon={<GlobalOutlined style={{ color: searchEnabled ? '#52c41a' : C('color-text-secondary') }} />}
+                onClick={() => setSearchEnabled(!searchEnabled)} style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
+            </Tooltip>
+            {mode !== 'plain' && (
+              <>
+                <Tooltip title="角色库管理">
+                  <Button type="text" size="small" icon={<SettingOutlined />} onClick={navigateToCharacterLib}
                     style={{ color: C('color-text-secondary'), height: 24 }} />
                 </Tooltip>
-              </PersonaPicker>
-              <Tooltip title="语音设置">
-                <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
-                  style={{ color: C('color-text-secondary'), height: 24 }} />
-              </Tooltip>
-              {hasMessages && (
-                <Tooltip title="清空当前对话">
-                  <Button type="text" size="small" icon={<ClearOutlined />} onClick={handleClearMessages}
+                <PersonaPicker activeId={mode !== 'plain' ? mode : activePersonality}
+                  onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
+                  <Tooltip title="切换角色">
+                    <Button type="text" size="small" icon={<SwapOutlined />}
+                      style={{ color: C('color-text-secondary'), height: 24 }} />
+                  </Tooltip>
+                </PersonaPicker>
+                <Tooltip title="语音设置">
+                  <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
                     style={{ color: C('color-text-secondary'), height: 24 }} />
                 </Tooltip>
-              )}
-            </Space>
-          ) : (
-            <Space size={2}>
-              <Tooltip title={searchEnabled ? '联网搜索已开启（自动检测搜索意图）' : '联网搜索已关闭'}>
-                <Button type="text" size="small" icon={<GlobalOutlined style={{ color: searchEnabled ? '#52c41a' : C('color-text-secondary') }} />}
-                  onClick={() => setSearchEnabled(!searchEnabled)} style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
+              </>
+            )}
+            {hasMessages && (
+              <Tooltip title="导出为 Markdown">
+                <Button type="text" size="small" icon={<DownloadOutlined />} onClick={handleExport}
+                  style={{ color: C('color-text-secondary'), height: 24 }} />
               </Tooltip>
-              <Tooltip title="清空当前对话">
-                <Button type="text" size="small" icon={<ClearOutlined />} onClick={handleClearMessages}
+            )}
+            <Tooltip title="清空当前对话">
+              <Popconfirm title="确定清空当前对话？此操作不可恢复" onConfirm={handleClearMessages} okText="清空" cancelText="取消">
+                <Button type="text" size="small" icon={<ClearOutlined />} disabled={!hasMessages}
                   style={{ color: C('color-text-secondary'), height: 24, opacity: hasMessages ? 1 : 0.35 }} />
-              </Tooltip>
-            </Space>
-          )}
+              </Popconfirm>
+            </Tooltip>
+          </Space>
         </div>
 
         {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}
@@ -587,6 +711,7 @@ const ChatPage: React.FC = () => {
 
         {/* 消息区 */}
         <div ref={listRef} role="log" aria-live="polite" aria-label="对话消息"
+          onScroll={onListScroll}
           style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 0, position: 'relative' }}>
           {initializing ? (
             <div className="chat-empty">
@@ -768,6 +893,12 @@ const ChatPage: React.FC = () => {
             </div>
           )}
         </div>
+
+        {!atBottom && hasMessages && (
+          <button className="chat-scroll-bottom" onClick={scrollToBottom} aria-label="回到底部">
+            <DownOutlined /> 回到底部
+          </button>
+        )}
 
         {/* 输入岛 */}
         <div className="chat-composer-wrap">

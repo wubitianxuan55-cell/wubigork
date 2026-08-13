@@ -712,6 +712,42 @@
   background: color-mix(in srgb, var(--gaea-glow) 8%, transparent);
 }
 
+.chat-topic-time {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--md-sys-color-text-secondary);
+  opacity: 0.72;
+  white-space: nowrap;
+}
+
+/* ── 回到底部浮动按钮（上翻阅读时出现） ── */
+.chat-scroll-bottom {
+  position: absolute;
+  bottom: 122px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 28%, transparent);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 88%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+  color: var(--md-sys-color-text);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  transition: transform 160ms, box-shadow 160ms;
+}
+
+.chat-scroll-bottom:hover {
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--gaea-glow) 18%, rgba(0, 0, 0, 0.2));
+  transform: translateX(-50%) translateY(-1px);
+}
+
 /* ── 打字与流光 ── */
 .chat-streaming {
   min-height: 22px;

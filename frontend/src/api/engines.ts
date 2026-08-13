@@ -9,7 +9,7 @@ export interface ModelInfo {
   id: string
   owned_by: string
   status: string
-  kind?: string // 后端分类：llm / tts / stt / image
+  kind?: string // 后端分类：llm / tts / stt / image / embedding / rerank / ocr
 }
 
 export interface EngineConfig {
@@ -112,6 +112,17 @@ export async function setEngineDefaultModel(engineID: string, modelName: string)
 /** 切换活跃引擎 */
 export async function setActiveEngine(engineID: string): Promise<void> {
   await App().SetActiveEngine(engineID)
+}
+
+/** 设置办公「提取文字」使用的 OCR 引擎与模型 */
+export async function setActiveOCRModel(engineID: string, modelID: string): Promise<void> {
+  await App().SetActiveOCRModel(engineID, modelID)
+}
+
+/** 获取当前 OCR 激活模型（空=自动选择） */
+export async function getActiveOCRModel(): Promise<{ engine: string; model: string }> {
+  const result = await App().GetActiveOCRModel()
+  return result as { engine: string; model: string }
 }
 
 /** 获取当前活跃引擎 */

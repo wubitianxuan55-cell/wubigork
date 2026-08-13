@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/gaea/gaea/internal/asr"
@@ -209,8 +210,17 @@ func (a *mediaState) tryEngineTTS(engineID, model, text, voiceDescription string
 		return a.tryXaiTTS(eng.BaseURL, text)
 	}
 	var htts *tts.HerdsmanTTS
-	if strings.Contains(strings.ToLower(model), "voicedesign") {
-		htts = tts.NewHerdsmanTTSWithDesc(eng.BaseURL, model, voiceDescription)
+	if strings.Contains(strings.ToLower(model), "voicedesign") ||
+		strings.Contains(strings.ToLower(model), "voxcpm") {
+		if voiceDescription != "" {
+			htts = tts.NewHerdsmanTTSWithDesc(eng.BaseURL, model, voiceDescription)
+		} else {
+			htts = tts.NewHerdsmanTTS(eng.BaseURL, model, "")
+		}
+	} else if strings.Contains(strings.ToLower(model), "voiceclone") {
+		refAudio := strings.TrimSpace(os.Getenv("HERDSMAN_TTS_REF_AUDIO"))
+		refText := strings.TrimSpace(os.Getenv("HERDSMAN_TTS_REF_TEXT"))
+		htts = tts.NewHerdsmanTTSWithClone(eng.BaseURL, model, refAudio, refText)
 	} else {
 		htts = tts.NewHerdsmanTTS(eng.BaseURL, model, a.ttsVoiceForModel(model))
 	}
