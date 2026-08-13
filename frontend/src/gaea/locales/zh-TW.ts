@@ -229,6 +229,12 @@ export const zhTW: Record<DictKey, string> = {
   "ask.customPlaceholder": "輸入你自己的答案…",
   "ask.justChat": "直接對話",
   "ask.dragHint": "拖曳移動",
+  "ask.planGoal": "任務理解",
+  "ask.planSteps": "步驟",
+  "ask.planResources": "將讀資料",
+  "ask.planTools": "將用工具",
+  "ask.planDeliverable": "產出物",
+  "ask.planQuestions": "待確認",
 
   // history drawer
   "history.title": "歷史",

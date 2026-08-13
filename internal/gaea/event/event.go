@@ -138,6 +138,29 @@ type AskQuestion struct {
 type Ask struct {
 	ID        string
 	Questions []AskQuestion
+	// Plan is an optional structured pre-work plan (开工前计划卡片). When set,
+	// the frontend renders a PlanCard instead of a plain text question; the
+	// answer protocol (AnswerQuestion by Ask.ID) is unchanged.
+	Plan *Plan
+}
+
+// PlanStep is one executable step of a structured pre-work plan.
+type PlanStep struct {
+	Title       string   `json:"title"`
+	Detail      string   `json:"detail,omitempty"`       // 该步骤做什么
+	Resources   []string `json:"resources,omitempty"`    // 将读资料
+	Tools       []string `json:"tools,omitempty"`        // 将用工具
+	Deliverable string   `json:"deliverable,omitempty"`  // 产出物
+}
+
+// Plan carries a structured pre-work plan (PlanCard) emitted with an
+// AskRequest via Ask.Plan. The model emits strict JSON; ParsePlan in the
+// agent package turns it into this shape and RenderPlanMarkdown renders a
+// readable fallback prompt.
+type Plan struct {
+	Goal      string      `json:"goal"` // 任务理解（一句话）
+	Steps     []PlanStep  `json:"steps"`
+	Questions []string    `json:"questions,omitempty"` // 待确认问题
 }
 
 // Compaction carries a context-compaction pass for the CompactionStarted /

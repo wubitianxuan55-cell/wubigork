@@ -226,6 +226,12 @@ export const en = {
   "ask.customPlaceholder": "Type your own answer…",
   "ask.justChat": "Just chat",
   "ask.dragHint": "Drag to move",
+  "ask.planGoal": "Goal",
+  "ask.planSteps": "Steps",
+  "ask.planResources": "Read",
+  "ask.planTools": "Tools",
+  "ask.planDeliverable": "Deliverable",
+  "ask.planQuestions": "To confirm",
 
   // history drawer
   "history.title": "History",

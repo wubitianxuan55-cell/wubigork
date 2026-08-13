@@ -1,5 +1,14 @@
 # gaea · 多功能 AI 助手
 
+## v2.15.7「通用办公 P0 · 开工前计划卡片结构化」（2026-08-13）
+> 接回通用办公优化路线图，把 v2.10 的「开工前计划确认」升级为结构化计划卡片：
+> 计划生成改走严格 JSON，后端解析为「任务理解 / 步骤（资料·工具·产出物）/ 待确认」，
+> 前端渲染专属计划卡片，解析失败自动回退纯文本。详见 releases/v2.15.7.md。
+- 后端：planSystemPrompt 改为严格 JSON；新增 agent.ParsePlan / RenderPlanMarkdown（容错代码围栏、清洗空字段）；
+  Ask 事件新增可选 Plan 结构化载荷（controller_plan 下发、gaeaEventMap 序列化），答案协议不变
+- 前端：WireAsk 新增 plan 载荷；AskCard 渲染 PlanBody（目标高亮卡 + 步骤编号卡 + 资料/工具/产出物芯片 + 待确认琥珀提示），无 plan 回退 Markdown
+- 测试：Go 新增 ParsePlan 4 例 + Ask.Plan 随事件下发 1 例；前端 AskCard 2 例（结构化/回退）；go vet + go test 全绿，Vitest 241→243，tsc/vite build 通过
+
 ## v2.15.6「Herdsman 深挖 P5 · 数字生命记忆联动 + 最近操作」（2026-08-13）
 > 完成 Herdsman 深挖路线图收尾：把 digital-life 虚拟人格记忆（角色/关系/记忆摘要/
 > 时间线/世界事件）只读接进记忆中枢，并展示 Herdsman 最近异步操作。

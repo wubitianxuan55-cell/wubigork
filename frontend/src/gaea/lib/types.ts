@@ -90,6 +90,22 @@ export interface WireAskQuestion {
 export interface WireAsk {
   id: string;
   questions: WireAskQuestion[];
+  // plan 存在时，前端渲染结构化「开工计划卡片」而非纯文本问题。
+  plan?: WirePlan;
+}
+
+export interface WirePlanStep {
+  title: string;
+  detail?: string;
+  resources?: string[];
+  tools?: string[];
+  deliverable?: string;
+}
+
+export interface WirePlan {
+  goal: string;
+  steps: WirePlanStep[];
+  questions?: string[];
 }
 
 // QuestionAnswer is the reply for one question, sent back via AnswerQuestion.

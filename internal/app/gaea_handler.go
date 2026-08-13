@@ -457,7 +457,25 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 			}
 			qs = append(qs, qq)
 		}
-		m["ask"] = map[string]interface{}{"id": e.Ask.ID, "questions": qs}
+		askMap := map[string]interface{}{"id": e.Ask.ID, "questions": qs}
+		if e.Ask.Plan != nil {
+			steps := make([]map[string]interface{}, 0, len(e.Ask.Plan.Steps))
+			for _, s := range e.Ask.Plan.Steps {
+				steps = append(steps, map[string]interface{}{
+					"title":       s.Title,
+					"detail":      s.Detail,
+					"resources":   s.Resources,
+					"tools":       s.Tools,
+					"deliverable": s.Deliverable,
+				})
+			}
+			planMap := map[string]interface{}{"goal": e.Ask.Plan.Goal, "steps": steps}
+			if len(e.Ask.Plan.Questions) > 0 {
+				planMap["questions"] = e.Ask.Plan.Questions
+			}
+			askMap["plan"] = planMap
+		}
+		m["ask"] = askMap
 	case event.CompactionStarted:
 		m["compaction"] = map[string]interface{}{"trigger": e.Compaction.Trigger}
 	case event.CompactionDone:

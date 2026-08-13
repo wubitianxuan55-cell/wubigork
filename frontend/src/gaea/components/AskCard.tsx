@@ -1,7 +1,81 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { AlertCircle, CheckCircle, File, FileText, List, Wrench } from "../icons";
 import { useT } from "../lib/i18n";
-import type { QuestionAnswer, WireAsk, WireAskQuestion } from "../lib/types";
+import type { QuestionAnswer, WireAsk, WireAskQuestion, WirePlan } from "../lib/types";
 import { Markdown } from "./Markdown";
+
+/** 结构化「开工计划卡片」正文：任务理解 + 步骤（资料/工具/产出物）+ 待确认。 */
+function PlanBody({ plan }: { plan: WirePlan }) {
+  const t = useT();
+  const chips = "inline-flex items-center gap-1 max-w-full text-[11px] text-fg-dim border border-border-soft rounded px-1.5 py-0.5 min-w-0";
+  return (
+    <div className="flex flex-col gap-3">
+      {plan.goal && (
+        <div className="flex items-start gap-2 rounded-lg bg-accent-soft/70 border border-accent/25 px-3 py-2.5">
+          <CheckCircle size={14} className="text-accent shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider text-fg-faint">{t("ask.planGoal")}</div>
+            <div className="text-[13px] text-fg leading-snug">{plan.goal}</div>
+          </div>
+        </div>
+      )}
+      {(plan.steps?.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-1.5 text-[11px] text-fg-faint">
+            <List size={12} className="shrink-0" />
+            <span>{t("ask.planSteps")} · {plan.steps.length}</span>
+          </div>
+          {plan.steps.map((s, i) => (
+            <div key={`${i}-${s.title}`} className="rounded-lg border border-border-soft bg-bg-soft/60 px-3 py-2.5">
+              <div className="flex items-baseline gap-2 min-w-0">
+                <span className="flex items-center justify-center w-[18px] h-[18px] rounded-full bg-accent/15 text-accent text-[11px] font-semibold shrink-0">
+                  {i + 1}
+                </span>
+                <span className="text-[13px] text-fg font-medium leading-snug">{s.title}</span>
+              </div>
+              {s.detail && (
+                <div className="mt-1 text-[12px] text-fg-dim leading-relaxed whitespace-pre-wrap">{s.detail}</div>
+              )}
+              {(s.resources?.length || s.tools?.length || s.deliverable) && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {s.resources?.map((r) => (
+                    <span key={"r" + r} className={chips} title={`${t("ask.planResources")}: ${r}`}>
+                      <FileText size={11} className="text-accent shrink-0" />
+                      <span className="truncate">{r}</span>
+                    </span>
+                  ))}
+                  {s.tools?.map((x) => (
+                    <span key={"t" + x} className={chips} title={`${t("ask.planTools")}: ${x}`}>
+                      <Wrench size={11} className="text-accent shrink-0" />
+                      <span className="truncate">{x}</span>
+                    </span>
+                  ))}
+                  {s.deliverable && (
+                    <span className={chips} title={`${t("ask.planDeliverable")}: ${s.deliverable}`}>
+                      <File size={11} className="text-accent shrink-0" />
+                      <span className="truncate">{t("ask.planDeliverable")}: {s.deliverable}</span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {(plan.questions?.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2.5">
+          <div className="flex items-center gap-1.5 text-[11px] text-amber-400">
+            <AlertCircle size={12} className="shrink-0" />
+            <span>{t("ask.planQuestions")}</span>
+          </div>
+          {plan.questions.map((q, i) => (
+            <div key={i} className="text-[12px] text-fg-dim leading-relaxed">• {q}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** 卡片至少保留在屏幕内的边距 (px) */
 const DRAG_MARGIN = 40;
@@ -182,9 +256,13 @@ export function AskCard({
                 <span className="text-fg text-[14px] font-semibold leading-tight">{q.header}</span>
               </div>
             )}
-            <div className="text-fg-dim text-[13px] leading-relaxed">
-              <Markdown text={q.prompt} autoExportMermaid={false} />
-            </div>
+            {q.id === "plan" && ask.plan ? (
+              <PlanBody plan={ask.plan} />
+            ) : (
+              <div className="text-fg-dim text-[13px] leading-relaxed">
+                <Markdown text={q.prompt} autoExportMermaid={false} />
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               {q.options.map((o) => {
                 const on = (sel[q.id] ?? []).includes(o.label);

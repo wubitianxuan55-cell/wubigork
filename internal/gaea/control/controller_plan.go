@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/event"
 )
 
@@ -27,7 +28,14 @@ func (c *Controller) planGate(ctx context.Context, input string) (bool, error) {
 	if strings.TrimSpace(plan) == "" {
 		return true, nil
 	}
-	ok, err := c.askPlanApproval(ctx, plan)
+	// 尽力把模型计划解析为结构化 PlanCard；失败则回退纯文本计划卡。
+	prompt := plan
+	var structured *event.Plan
+	if p := agent.ParsePlan(plan); p != nil {
+		structured = p
+		prompt = agent.RenderPlanMarkdown(p)
+	}
+	ok, err := c.askPlanApproval(ctx, prompt, structured)
 	if err != nil {
 		return false, err
 	}
@@ -37,8 +45,9 @@ func (c *Controller) planGate(ctx context.Context, input string) (bool, error) {
 	return ok, nil
 }
 
-// askPlanApproval 复用 ask 机制：发 AskRequest 并阻塞到 AnswerQuestion。
-func (c *Controller) askPlanApproval(ctx context.Context, plan string) (bool, error) {
+// askPlanApproval 复用 ask 机制：发 AskRequest（可选携带结构化 Plan）并阻塞到
+// AnswerQuestion。
+func (c *Controller) askPlanApproval(ctx context.Context, prompt string, plan *event.Plan) (bool, error) {
 	id := fmt.Sprintf("plan-%d", planAskSeq.Add(1))
 	reply := make(chan []event.AskAnswer, 1)
 	c.mu.Lock()
@@ -51,11 +60,12 @@ func (c *Controller) askPlanApproval(ctx context.Context, plan string) (bool, er
 	}()
 
 	c.sink.Emit(event.Event{Kind: event.AskRequest, Ask: event.Ask{
-		ID: id,
+		ID:   id,
+		Plan: plan,
 		Questions: []event.AskQuestion{{
 			ID:     "plan",
 			Header: "开工计划",
-			Prompt: plan,
+			Prompt: prompt,
 			Options: []event.AskOption{
 				{Label: "确认执行", Description: "按此计划开始干活"},
 				{Label: "先调整", Description: "取消本轮，补充说明后重发"},

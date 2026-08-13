@@ -229,6 +229,12 @@ export const zh: Record<DictKey, string> = {
   "ask.customPlaceholder": "输入你自己的答案…",
   "ask.justChat": "只是聊聊",
   "ask.dragHint": "拖拽移动",
+  "ask.planGoal": "任务理解",
+  "ask.planSteps": "步骤",
+  "ask.planResources": "将读资料",
+  "ask.planTools": "将用工具",
+  "ask.planDeliverable": "产出物",
+  "ask.planQuestions": "待确认",
 
   // 历史抽屉
   "history.title": "历史",
