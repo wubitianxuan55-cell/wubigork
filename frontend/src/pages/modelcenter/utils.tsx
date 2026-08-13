@@ -67,6 +67,19 @@ export function sortModelsPinnedFirst<T extends ModelCardData>(models: T[], pinn
   return [...models].sort((a, b) => (pinned.has(b.modelId) ? 1 : 0) - (pinned.has(a.modelId) ? 1 : 0))
 }
 
+// 指定引擎的模型下拉选项；当前模型不在候选中时兜底补一条，避免表单值悬空。
+export function modelOptionsForEngine(
+  engineId: string,
+  models: ModelCardData[],
+  currentModel = '',
+): { value: string; label: string }[] {
+  const base = models.filter(m => m.engineId === engineId).map(m => ({ value: m.modelId, label: m.modelName }))
+  if (currentModel && !base.some(o => o.value === currentModel)) {
+    base.push({ value: currentModel, label: currentModel })
+  }
+  return base
+}
+
 // 引擎模型是否图片类（优先后端 kind，缺失时回退名称启发式）
 export const isImageModel = (m: { id: string; kind?: string }): boolean =>
   ((m.kind as ModelKind) || classifyModel(m.id)) === 'image'

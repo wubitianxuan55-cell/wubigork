@@ -9,6 +9,7 @@ import {
   routeSourceLabel,
   filterModelsBySearch,
   sortModelsPinnedFirst,
+  modelOptionsForEngine,
 } from './utils'
 import type { ModelCardData } from './utils'
 import type { EngineConfig } from '../../api/engines'
@@ -132,5 +133,26 @@ describe('模型中心 搜索 / 置顶排序', () => {
     const sorted = sortModelsPinnedFirst(models, ['flux-dev'])
     expect(sorted[0].modelId).toBe('flux-dev')
     expect(sorted.map(m => m.modelId).sort()).toEqual(['flux-dev', 'grok-4.20', 'qwen3-8b'])
+  })
+})
+
+describe('模型中心 modelOptionsForEngine', () => {
+  const models: ModelCardData[] = [
+    { modelId: 'grok-4.20', modelName: 'Grok 4.20', engineId: 'xai', engineName: 'xAI', engineType: 'xai', engineEnabled: true, status: 'running' },
+    { modelId: 'qwen3-8b', modelName: 'Qwen3 8B', engineId: 'herdsman', engineName: 'Herdsman', engineType: 'herdsman', engineEnabled: true, status: 'running' },
+  ]
+
+  it('只列出指定引擎的模型', () => {
+    expect(modelOptionsForEngine('xai', models).map(o => o.value)).toEqual(['grok-4.20'])
+  })
+
+  it('当前模型不在候选时兜底补一条', () => {
+    const opts = modelOptionsForEngine('xai', models, 'grok-4.6')
+    expect(opts.some(o => o.value === 'grok-4.6')).toBe(true)
+    expect(opts.length).toBe(2)
+  })
+
+  it('空引擎返回空列表', () => {
+    expect(modelOptionsForEngine('', models)).toEqual([])
   })
 })

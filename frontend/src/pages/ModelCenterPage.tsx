@@ -34,8 +34,8 @@ import { OverviewSection } from './modelcenter/OverviewSection'
 import { ResourceMonitor } from './modelcenter/ResourceMonitor'
 import './modelcenter/modelcenter.css'
 import {
-  FEATURES, XAI_VOICES, classifyModel, kindOf, localTTSDefaultVoice, localTTSFallbackVoices, engineLabel,
-  type Category, type ModelCardData, type ModelKind,
+  FEATURES, XAI_VOICES, imageModelOptionsFor, kindOf, localTTSDefaultVoice, localTTSFallbackVoices, engineLabel,
+  type Category, type ModelCardData,
 } from './modelcenter/utils'
 import { type StatsSort, type TrendDatum, type TrendRange } from './modelcenter/charts'
 
@@ -555,20 +555,11 @@ const ModelCenterPage: React.FC = () => {
   const portraitModelOptions = useMemo(() => {
     const b = portraitDraft.backend
     if (!b) return [{ label: '跟随绘梦', value: '' }]
-    if (b === 'comfyui') {
-      return [
-        { label: '跟随绘梦', value: '' },
-        { label: 'Krea2 Turbo', value: 'krea2' },
-        { label: 'Z-Image-Turbo', value: 'z-image-turbo' },
-      ]
-    }
-    const eng = engines.find(e => e.id === b)
-    const imgs = (eng?.models || []).filter(m => ((m.kind as ModelKind) || classifyModel(m.id)) === 'image')
     return [
       { label: '跟随绘梦', value: '' },
-      ...imgs.map(m => ({ label: m.id, value: m.id })),
+      ...imageModelOptionsFor(b, engines, portraitDraft.model),
     ]
-  }, [portraitDraft.backend, engines])
+  }, [portraitDraft.backend, portraitDraft.model, engines])
 
   // 趋势数据：后端按小时返回，按当前范围聚合为小时或天粒度。
   const trendData = useMemo<TrendDatum[]>(() => {

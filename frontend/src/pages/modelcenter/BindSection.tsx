@@ -3,7 +3,7 @@ import { Button, Card, message, Select, Space, Switch, Tag, Typography } from 'a
 import { CommentOutlined, EditOutlined, LinkOutlined, PictureOutlined, RobotOutlined, SoundOutlined, ToolOutlined, UserOutlined } from '@ant-design/icons'
 import * as App from '../../../wailsjs/go/app/App'
 import { C } from '../../utils/theme'
-import { engineLabel, FEATURES, featureState, featureStateMeta, routeSourceLabel } from './utils'
+import { engineLabel, FEATURES, featureState, featureStateMeta, modelOptionsForEngine, routeSourceLabel } from './utils'
 import { useModelCenter } from './context'
 
 const FEATURE_ICONS: Record<string, ReactNode> = {
@@ -30,7 +30,7 @@ export function BindSection() {
                 {FEATURES.map(f => {
                   const cur = featureCfg[f.key]
                   const draft = featureDraft[f.key] || { engine: '', model: '' }
-                  const engineModels = draft.engine ? llmModels.filter(m => m.engineId === draft.engine) : []
+                  const engineModelOptions = modelOptionsForEngine(draft.engine || '', llmModels, draft.model)
                   const bound = !!cur?.engine && !!cur?.model
                   const enabled = featureEnabled[f.key] !== false
                   const state = featureState(bound, enabled)
@@ -79,7 +79,7 @@ export function BindSection() {
                         <Select size="small" placeholder="模型" value={draft.model || undefined} getPopupContainer={popupContainer}
                           onChange={(v: string) => setFeatureDraft(p => ({ ...p, [f.key]: { engine: p[f.key]?.engine || '', model: v } }))}
                           style={{ flex: 1, minWidth: 0 }}
-                          options={engineModels.map(m => ({ value: m.modelId, label: m.modelName }))} />
+                          options={engineModelOptions} />
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, gap: 8 }}>
                         <span style={{ fontSize: 11, color: C('color-text-secondary') }}>功能启用（停用后回退全局模型）</span>
@@ -123,7 +123,7 @@ export function BindSection() {
                     <Select size="small" placeholder="语音模型" value={chatVoiceDraft.model || undefined} getPopupContainer={popupContainer}
                       onChange={(v: string) => setChatVoiceDraft(p => ({ ...p, model: v }))}
                       style={{ flex: 1, minWidth: 0 }}
-                      options={ttsModels.filter(m => m.engineId === chatVoiceDraft.engine).map(m => ({ value: m.modelId, label: m.modelName }))} />
+                      options={modelOptionsForEngine(chatVoiceDraft.engine, ttsModels, chatVoiceDraft.model)} />
                   </div>
                   {chatVoiceDraft.engine && chatVoiceDraft.model && chatVoiceOptions.length > 0 && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
