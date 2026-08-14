@@ -86,7 +86,18 @@ type BenchmarkCase struct {
 	CachedTokens  int64   `json:"cached_tokens"`
 	SecondDurationMS int64 `json:"second_duration_ms"`
 	SecondTTFTMSAvg  float64 `json:"second_ttft_ms_avg"`
-	Error          string  `json:"error,omitempty"`
+	// D3-4 富字段：缓存复用与显存参数
+	PromptTokensTPS     float64 `json:"prompt_tokens_tps"`
+	OutputTokensTPS     float64 `json:"output_tokens_tps"`
+	PrefillSpeedupRatio float64 `json:"prefill_speedup_ratio"`
+	PrefillMSSaved      float64 `json:"prefill_ms_saved"`
+	PromptMS            float64 `json:"prompt_ms"`
+	PredictedMS         float64 `json:"predicted_ms"`
+	ResponseExcerpt     string  `json:"response_excerpt,omitempty"`
+	// EffectiveLaunchParams 启动参数（含显存相关：gpu_layers/no_kv_offload/
+	// context_size/batch_size/ubatch_size/cache_type 等）
+	EffectiveLaunchParams map[string]any `json:"effective_launch_params,omitempty"`
+	Error                 string         `json:"error,omitempty"`
 }
 
 // BenchmarkRunDetail 运行完整明细（含 config 与逐 case）。
@@ -310,7 +321,166 @@ func renderBenchmarkReport(run BenchmarkRunDetail) string {
 	if len(run.Cases) == 0 {
 		b.WriteString("（无逐用例数据；运行可能尚未完成或已清理）\n")
 	}
+	renderBenchmarkAnalysis(&b, run)
 	b.WriteString("\n---\n")
 	b.WriteString("*由 gaea 模型中心「受控测评」导出。*\n")
 	return b.String()
+}
+
+// renderBenchmarkAnalysis 追加 D3-4 专项分析：
+// 每模型对比 / 长上下文专项 / 缓存复用专项 / 显存相关启动参数 / 并发专项说明。
+func renderBenchmarkAnalysis(b *strings.Builder, run BenchmarkRunDetail) {
+	cases := make([]BenchmarkCase, 0, len(run.Cases))
+	for _, c := range run.Cases {
+		if c.Status == "succeeded" {
+			cases = append(cases, c)
+		}
+	}
+	if len(cases) == 0 {
+		return
+	}
+
+	// 1. 每模型对比（受控测评核心：同任务不同模型横向可比）
+	b.WriteString("\n## 每模型对比\n\n")
+	b.WriteString("| 模型 | 用例 | 平均 TTFT(ms) | 平均 TPS | 平均出 token | 平均入 token | 缓存命中 avg |\n")
+	b.WriteString("|---|---|--:|--:|--:|--:|--:|\n")
+	for _, model := range uniqueModels(cases) {
+		var n int
+		var ttft, tps, out, in, cache float64
+		for _, c := range cases {
+			if c.ModelName != model {
+				continue
+			}
+			n++
+			ttft += c.TTFTMSAvg
+			tps += c.OutputTokensTPS
+			out += float64(c.OutputTokens)
+			in += float64(c.InputTokens)
+			cache += float64(c.CachedTokens)
+		}
+		fmt.Fprintf(b, "| %s | %d | %.0f | %.1f | %.0f | %.0f | %.0f |\n",
+			model, n, ttft/float64(n), tps/float64(n), out/float64(n), in/float64(n), cache/float64(n))
+	}
+
+	// 2. 长上下文专项（TTFT 随上下文长度的变化，D3-4）
+	sizes := uniqueCtxSizes(cases)
+	if len(sizes) > 1 {
+		b.WriteString("\n## 长上下文专项（TTFT vs 上下文长度）\n\n")
+		b.WriteString("| 上下文长度 | 用例 | 平均 TTFT(ms) | 平均 prompt TPS | 平均出 token |\n")
+		b.WriteString("|---|--:|--:|--:|--:|\n")
+		for _, sz := range sizes {
+			var n int
+			var ttft, ptps, out float64
+			for _, c := range cases {
+				if c.ContextSize != sz {
+					continue
+				}
+				n++
+				ttft += c.TTFTMSAvg
+				ptps += c.PromptTokensTPS
+				out += float64(c.OutputTokens)
+			}
+			fmt.Fprintf(b, "| %d | %d | %.0f | %.1f | %.0f |\n", sz, n, ttft/float64(n), ptps/float64(n), out/float64(n))
+		}
+		b.WriteString("\n> 解读：TTFT 随上下文增长而上升属预期（prompt 处理变长）；若 8K 以上 TTFT 大幅恶化，\n")
+		b.WriteString("> 说明显存/批处理压力偏大，可考虑减小 batch_size 或降低并发。\n")
+	}
+
+	// 3. 缓存复用专项（first vs second，prefill_speedup）
+	if hasSecondMetrics(cases) {
+		b.WriteString("\n## 缓存复用专项（同提示词二次请求）\n\n")
+		b.WriteString("| 模型 | 首请求 TTFT(ms) | 二次 TTFT(ms) | prefill 加速比 | prefill 省时(ms) |\n")
+		b.WriteString("|---|---|--:|--:|--:|\n")
+		for _, model := range uniqueModels(cases) {
+			var n int
+			var t1, t2, speedup, saved float64
+			for _, c := range cases {
+				if c.ModelName != model {
+					continue
+				}
+				n++
+				t1 += c.TTFTMSAvg
+				t2 += c.SecondTTFTMSAvg
+				speedup += c.PrefillSpeedupRatio
+				saved += c.PrefillMSSaved
+			}
+			fmt.Fprintf(b, "| %s | %.0f | %.0f | %.2f | %.1f |\n",
+				model, t1/float64(n), t2/float64(n), speedup/float64(n), saved/float64(n))
+		}
+	}
+
+	// 4. 显存相关启动参数（effective_launch_params 关键字段）
+	params := map[string]map[string]any{}
+	for _, c := range cases {
+		if len(c.EffectiveLaunchParams) == 0 {
+			continue
+		}
+		if _, ok := params[c.ModelName]; !ok {
+			params[c.ModelName] = c.EffectiveLaunchParams
+		}
+	}
+	if len(params) > 0 {
+		b.WriteString("\n## 显存相关启动参数（effective_launch_params）\n\n")
+		keys := []string{"gpu_layers", "no_kv_offload", "no_mmap", "context_size", "batch_size", "ubatch_size", "cache_type_k", "cache_type_v", "parallel", "type"}
+		for model := range params {
+			p := params[model]
+			b.WriteString(fmt.Sprintf("- **%s**：", model))
+			var parts []string
+			for _, k := range keys {
+				if v, ok := p[k]; ok {
+					parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+				}
+			}
+			if len(parts) == 0 {
+				parts = append(parts, "（无参数信息）")
+			}
+			b.WriteString(strings.Join(parts, " · "))
+			b.WriteString("\n")
+		}
+		b.WriteString("\n> 解读：`gpu_layers` 越大显存占用越高；`no_kv_offload=true` 时 KV 缓存占显存；\n")
+		b.WriteString("> 并发压测下 TTFT/TPS 回落幅度反映显存与算力余量。\n")
+	}
+
+	// 5. 并发专项说明
+	if run.Config.Concurrency > 1 {
+		b.WriteString("\n## 并发专项\n\n")
+		fmt.Fprintf(b, "本次运行并发 = **%d**（repeat=%d）。上述每模型对比即并发下的实测吞吐；\n",
+			run.Config.Concurrency, run.Config.RepeatCount)
+		b.WriteString("若并发升高后 TTFT 回落明显，说明算力/显存已接近饱和。\n")
+	}
+}
+
+func uniqueModels(cases []BenchmarkCase) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, c := range cases {
+		if !seen[c.ModelName] {
+			seen[c.ModelName] = true
+			out = append(out, c.ModelName)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func uniqueCtxSizes(cases []BenchmarkCase) []int {
+	seen := map[int]bool{}
+	var out []int
+	for _, c := range cases {
+		if !seen[c.ContextSize] {
+			seen[c.ContextSize] = true
+			out = append(out, c.ContextSize)
+		}
+	}
+	sort.Ints(out)
+	return out
+}
+
+func hasSecondMetrics(cases []BenchmarkCase) bool {
+	for _, c := range cases {
+		if c.SecondTTFTMSAvg > 0 {
+			return true
+		}
+	}
+	return false
 }

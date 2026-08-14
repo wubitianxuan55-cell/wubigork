@@ -159,3 +159,20 @@
   - ✅ v2.18.0 发布产物：releases/gaea-v2.18.0.exe（33,776,640 字节，SHA256=5AB1DC3578A4C868758D7D7992C1027BB052242AB0F450A2D02AB09175E9C4FC）
     + SHA256SUMS-v2.18.0.txt；发布文档已更新。
   - 📋 留待后续：D3-3 显存压力/流式中断专项报告模板（上下文与并发入口已就绪）；D3-4 专项测评。
+- 2026-08-14（阶段 3 第二刀 v2.19.0，D3-4 补测评缺口）：
+  - ✅ D3-4 报告模板化：renderBenchmarkReport 新增 5 个专项段落——每模型对比（同任务横向
+    可比）、长上下文专项（TTFT vs context_size）、缓存复用专项（first vs second TTFT +
+    prefill 加速比/省时）、显存相关启动参数（effective_launch_params 关键字段：
+    gpu_layers/no_kv_offload/batch/ubatch/cache_type）、并发专项说明；
+  - ✅ D3-4 压力预设：受控测评任务集新增 压力·长上下文 / 压力·长输出 / 压力·显存（长上下文
+    +长输出）3 项，配合上下文 4K~32K、并发 1/2/4、max_tokens 组合成压力矩阵；
+  - ✅ D3-4 流式探针：`GaeaBenchmarkStreamProbe(model)` 直连 herdsman /v1/chat/completions
+    SSE，观测 TTFT/分块数/max_gap（卡顿指示）/是否 [DONE] 收尾（断流检测）；模型中心
+    「受控测评」新增「快速流式探针」区（每已安装模型一键探测，结果内联）；
+  - ✅ 验证：go 全量 ok（26.5s，新增探针 3 组 + 报告分析 1 组）、vet 干净、tsc/eslint
+    0 errors、vitest 247/247（BenchmarkSection 4/4）、真实端到端探测成功（冷启动
+    TTFT 15.2s、60 块、max_gap 83ms、completed）；
+  - ✅ v2.19.0 发布产物：releases/gaea-v2.19.0.exe（33,808,384 字节，SHA256=CB338574993322F6C74A8916ABA46ED0990B65A7D43047E69D38DF3B0D4E9EE1）
+    + SHA256SUMS-v2.19.0.txt；发布文档已更新。
+  - 📋 留待后续：D3-4 显存压力专项报告的实测模板校验（工具已齐）；阶段 4 产品化收口
+    （P4-1 模块收口 / P4-2 安装器与自动更新 / P4-3 数据可迁移 / P4-4 磁盘治理）。

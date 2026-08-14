@@ -22,6 +22,7 @@ func (b *OfficeB) GaeaApprove(id string, allow bool, session bool) { b.a.GaeaApp
 func (b *OfficeB) GaeaArchiveSession(path string) error { return b.a.GaeaArchiveSession(path) }
 func (b *OfficeB) GaeaAttachmentDataURL(path string) (string, error) { return b.a.GaeaAttachmentDataURL(path) }
 func (b *OfficeB) GaeaBalance() BalanceInfo { return b.a.GaeaBalance() }
+func (b *OfficeB) GaeaBenchmarkStreamProbe(model string) (StreamProbeResult, error) { return b.a.GaeaBenchmarkStreamProbe(model) }
 func (b *OfficeB) GaeaCallTool(name string, argsJSON string) (string, error) { return b.a.GaeaCallTool(name, argsJSON) }
 func (b *OfficeB) GaeaCancel() { b.a.GaeaCancel() }
 func (b *OfficeB) GaeaCapabilities() CapabilitiesView { return b.a.GaeaCapabilities() }

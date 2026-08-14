@@ -254,7 +254,32 @@ export interface BenchmarkCase {
   cached_tokens: number
   second_duration_ms: number
   second_ttft_ms_avg: number
+  // D3-4 富字段：缓存复用与显存参数
+  prompt_tokens_tps?: number
+  output_tokens_tps?: number
+  prefill_speedup_ratio?: number
+  prefill_ms_saved?: number
+  prompt_ms?: number
+  predicted_ms?: number
+  response_excerpt?: string
+  effective_launch_params?: Record<string, unknown>
   error?: string
+}
+
+/** 流式探针结果（D3-4 断流/卡顿观察） */
+export interface StreamProbeResult {
+  model: string
+  ok: boolean
+  ttft_ms: number
+  chunks: number
+  tokens: number
+  duration_ms: number
+  max_gap_ms: number
+  avg_gap_ms: number
+  completed: boolean
+  interrupted: boolean
+  error?: string
+  response_start?: string
 }
 
 export interface BenchmarkRunDetail {
@@ -441,4 +466,10 @@ export async function getBenchmarkDetail(id: string): Promise<BenchmarkRunDetail
 export async function exportBenchmark(id: string, dir: string): Promise<string> {
   const result = await App().GaeaBenchmarkExport(id, dir)
   return result as string
+}
+
+/** 流式探针：对模型发起一次 SSE 流式请求，观察 TTFT/分块间隔/断流（D3-4） */
+export async function streamProbe(model: string): Promise<StreamProbeResult> {
+  const result = await App().GaeaBenchmarkStreamProbe(model)
+  return result as StreamProbeResult
 }

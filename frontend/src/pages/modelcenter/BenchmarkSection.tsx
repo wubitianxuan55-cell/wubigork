@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Input, InputNumber, message, Select, Space } from 'antd'
-import { ExperimentOutlined, ExportOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Input, InputNumber, message, Select, Space, Tag } from 'antd'
+import { ExperimentOutlined, ExportOutlined, PlayCircleOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, KpiTile, SectionHead, StatusChip } from './ui'
 import {
-  exportBenchmark, getBenchmarkList, getHerdsmanCatalog, startBenchmark,
-  type BenchmarkPromptRequest, type BenchmarkRequest, type BenchmarkRunSummary,
+  exportBenchmark, getBenchmarkList, getHerdsmanCatalog, startBenchmark, streamProbe,
+  type BenchmarkPromptRequest, type BenchmarkRequest, type BenchmarkRunSummary, type StreamProbeResult,
 } from '../../api/engines'
 
 /**
@@ -27,6 +27,10 @@ const TASK_PRESETS: { key: string; label: string; prompt: string }[] = [
   { key: 'json', label: 'T8 JSON 抽取', prompt: '从以下文本中提取所有成本条目，输出 JSON 数组（字段：name/unit/price/source）：「台班费：挖掘机 3200 元/台班（来源：市场询价）；柴油 7.8 元/升（来源：当地加油站）；钢筋 4100 元/吨（来源：供应商报价单）。」只输出 JSON。' },
   { key: 'creative', label: 'T11 创意写作', prompt: '写一篇 200 字以上的微小说，必须包含「雨」和「电话亭」两个元素，结尾要有反转。' },
   { key: 'long', label: 'T14 长文输出', prompt: '请撰写一份「冬季施工方案」的技术说明，不少于 600 字，结构完整（背景、措施、安全、附录）。' },
+  // ── D3-4 压力专项（配合上下文长度/并发/max_tokens 参数使用）──
+  { key: 'p-ctx', label: '压力·长上下文', prompt: '请把下面这段文字完整复述一遍并总结要点（不要省略）：城市地下综合管廊是指在城市地下建造一个隧道空间，将电力、通信、燃气、供热、给排水等各种工程管线集于一体，设有专门的检修口、吊装口和监测系统，实施统一规划、统一设计、统一建设和管理，是保障城市运行的重要基础设施和「生命线」。管廊内部通常划分为燃气舱、电力舱、综合舱等独立舱室，各舱室之间设置防火墙与防火门，并配备气体检测、消防报警、通风、排水、照明等附属设施。' },
+  { key: 'p-long', label: '压力·长输出', prompt: '请撰写一份不少于 1500 字的「深基坑支护专项施工方案」，包含工程概况、地质条件、支护选型、降水措施、监测方案、应急预案六个章节，每章不少于 200 字。' },
+  { key: 'p-vram', label: '压力·显存（长上下文+长输出）', prompt: '请根据以下工程背景撰写一份完整的「雨季施工保障措施」技术方案（不少于 1200 字），并逐条列出 10 项以上具体措施：某市政道路改造工程位于南方多雨地区，工期跨越整个雨季，涉及路基填筑、水稳基层、沥青面层施工。' },
 ]
 
 const CONTEXT_OPTIONS = [
@@ -56,6 +60,8 @@ export function BenchmarkSection() {
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState(false)
   const [installed, setInstalled] = useState<{ name: string; displayName: string }[]>([])
+  // D3-4 流式探针：model → 结果（'pending' = 进行中）
+  const [probes, setProbes] = useState<Record<string, StreamProbeResult | 'pending'>>({})
   const [form, setForm] = useState<{
     models: string[]
     preset: string
@@ -153,6 +159,34 @@ export function BenchmarkSection() {
     }
   }
 
+  // D3-4 流式探针：一次 SSE 请求观察 TTFT/分块间隔/断流。
+  const handleProbe = async (model: string) => {
+    setProbes((p) => ({ ...p, [model]: 'pending' }))
+    try {
+      const res = await streamProbe(model)
+      setProbes((p) => ({ ...p, [model]: res }))
+    } catch (err: any) {
+      setProbes((p) => ({
+        ...p,
+        [model]: { model, ok: false, ttft_ms: 0, chunks: 0, tokens: 0, duration_ms: 0, max_gap_ms: 0, avg_gap_ms: 0, completed: false, interrupted: false, error: err?.message || '探针失败' },
+      }))
+    }
+  }
+
+  const probeBadge = (m: string) => {
+    const r = probes[m]
+    if (!r) return null
+    if (r === 'pending') return <Tag color="processing">探测中…</Tag>
+    if (r.ok) {
+      return (
+        <Tag color="success" style={{ whiteSpace: 'normal', maxWidth: 320 }}>
+          ✓ TTFT {r.ttft_ms}ms · {r.chunks} 块 · 最长间隔 {r.max_gap_ms}ms · {r.duration_ms}ms
+        </Tag>
+      )
+    }
+    return <Tag color="error" style={{ whiteSpace: 'normal', maxWidth: 320 }}>✗ {r.error || '流式中断'}</Tag>
+  }
+
   const modelOptions = useMemo(
     () => installed.map((m) => ({ value: m.name, label: m.displayName || m.name })),
     [installed],
@@ -237,6 +271,33 @@ export function BenchmarkSection() {
           </Button>
         </div>
       </div>
+
+      {/* D3-4 流式探针：快速连通性/断流观察（不跑完整 benchmark） */}
+      {installed.length > 0 && (
+        <div className="mc-panel" style={{ marginTop: 12 }}>
+          <div className="mc-panel-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ThunderboltOutlined /> 快速流式探针（断流/卡顿观察）
+            <span style={{ color: 'var(--mc-muted)', fontSize: 11, fontWeight: 400 }}>
+              对模型发起一次 SSE 请求，观察首 token 延迟与分块间隔
+            </span>
+          </div>
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {installed.slice(0, 12).map((m) => (
+              <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={m.name}>
+                  {m.displayName || m.name}
+                </span>
+                {probeBadge(m.name)}
+                <Button size="small" icon={<ReloadOutlined />}
+                  disabled={probes[m.name] === 'pending'}
+                  onClick={() => void handleProbe(m.name)}>
+                  {probes[m.name] === 'pending' ? '探测中' : '流式探针'}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 运行列表 */}
       <div className="mc-panel" style={{ marginTop: 12 }}>

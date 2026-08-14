@@ -5,7 +5,21 @@
 
 ## 版本状态
 
-- 最新发布：**v2.18.0（2026-08-14）「数据与成本纵深·首轮」**（长期规划阶段 3，D3-1 ~ D3-3）：
+- 最新发布：**v2.19.0（2026-08-14）「数据与成本纵深·补测评缺口」**（长期规划阶段 3，D3-4）：
+  - D3-4 报告专项分析：renderBenchmarkReport 新增每模型对比/长上下文专项（TTFT vs
+    context_size）/缓存复用专项（first vs second TTFT + prefill 加速比）/显存相关启动参数
+    （effective_launch_params：gpu_layers/no_kv_offload/batch/ubatch/cache_type 等）/
+    并发专项说明；
+  - D3-4 压力预设：受控测评任务集新增 压力·长上下文 / 压力·长输出 / 压力·显存 3 项
+    （配合上下文 4K~32K、并发 1/2/4、max_tokens 组合成压力矩阵）；
+  - D3-4 流式探针：`GaeaBenchmarkStreamProbe(model)` 直连 herdsman /v1/chat/completions
+    SSE，观测 TTFT/分块数/max_gap（卡顿）/是否 [DONE] 收尾（断流）；模型中心「受控测评」
+    新增「快速流式探针」区。真实端到端验证过（冷启动 TTFT 15.2s、60 块、max_gap 83ms）。
+  验证：go 全量 ok（26.5s）、vet 干净、tsc/eslint 0 errors、vitest 247/247、冒烟通过。
+  发布产物 gaea-v2.19.0.exe（SHA256=CB338574...）。详见 releases/v2.19.0.md。
+  **沙箱教训**：同一 exe 路径的第二个实例会因 WebView2 用户数据目录占用启动失败
+  （8007139f）——本机常驻 gaea 时，E2E/冒烟请用 releases 副本路径或临时副本。
+- v2.18.0（2026-08-14）「数据与成本纵深·首轮」（长期规划阶段 3，D3-1 ~ D3-3）：
   - D3-1 持久化向量索引：GaeaSemanticSearch 跨库统一检索并入工作区资料（kind=file，复用
     文件索引 cron 维护的持久化向量，检索不扫描）；GaeaSemanticIndexStatus（各 kind 向量条数，
     semantic.Store.Counts()）；

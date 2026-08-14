@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { BenchmarkSection } from './BenchmarkSection'
 
-const { getListMock, getCatalogMock, startMock, exportMock } = vi.hoisted(() => ({
+const { getListMock, getCatalogMock, startMock, exportMock, streamProbeMock } = vi.hoisted(() => ({
   getListMock: vi.fn(),
   getCatalogMock: vi.fn(),
   startMock: vi.fn(),
   exportMock: vi.fn(),
+  streamProbeMock: vi.fn(),
 }))
 
 vi.mock('../../api/engines', () => ({
@@ -14,6 +15,7 @@ vi.mock('../../api/engines', () => ({
   getHerdsmanCatalog: getCatalogMock,
   startBenchmark: startMock,
   exportBenchmark: exportMock,
+  streamProbe: streamProbeMock,
 }))
 
 const RUN = {
@@ -67,5 +69,22 @@ describe('BenchmarkSection', () => {
     await waitFor(() => expect(document.querySelector('.ant-select-dropdown')).toBeTruthy())
     const dropdown = document.querySelector('.ant-select-dropdown') as HTMLElement
     expect(within(dropdown).getAllByText('qwen3-8b').length).toBeGreaterThan(0)
+  })
+
+  it('渲染快速流式探针区并可触发（D3-4）', async () => {
+    render(<BenchmarkSection />)
+    await waitFor(() => expect(screen.getByText(/Qwen3\.6-35B-A3B-HauhauCS-Q4_K_P-2/)).toBeTruthy())
+    // 流式探针区渲染 + 按钮触发
+    expect(screen.getByText('快速流式探针（断流/卡顿观察）')).toBeTruthy()
+    const btns = screen.getAllByText('流式探针')
+    expect(btns.length).toBeGreaterThan(0)
+    streamProbeMock.mockResolvedValue({
+      model: 'qwen3-8b', ok: true, ttft_ms: 42, chunks: 3, tokens: 30,
+      duration_ms: 500, max_gap_ms: 10, avg_gap_ms: 5, completed: true, interrupted: false,
+    })
+    fireEvent.click(btns[0])
+    await waitFor(() => expect(streamProbeMock).toHaveBeenCalled())
+    expect(streamProbeMock.mock.calls[0][0]).toBe('qwen3-8b')
+    await waitFor(() => expect(screen.getByText(/TTFT 42ms/)).toBeTruthy())
   })
 })

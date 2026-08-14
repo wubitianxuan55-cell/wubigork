@@ -153,3 +153,51 @@ func TestGaeaBenchmarkDetail_NotFound(t *testing.T) {
 		t.Fatal("应报未找到")
 	}
 }
+
+// richCase 构造带 D3-4 富字段的用例。
+func richCase(model string, ctx int, ttft, tps, secondTTFT, speedup float64) BenchmarkCase {
+	return BenchmarkCase{
+		ModelName: model, VariantID: "standard", ContextSize: ctx, Status: "succeeded",
+		DurationMS: 800, TTFTMSAvg: ttft, TTFTMSP95: ttft + 10,
+		InputTokens: 100, OutputTokens: 80, TotalTokens: 180, CachedTokens: 40,
+		SecondDurationMS: 700, SecondTTFTMSAvg: secondTTFT,
+		PromptTokensTPS: 100, OutputTokensTPS: tps,
+		PrefillSpeedupRatio: speedup, PrefillMSSaved: 5.5,
+		EffectiveLaunchParams: map[string]any{
+			"gpu_layers": float64(99), "no_kv_offload": false, "context_size": float64(ctx),
+			"batch_size": float64(2048), "ubatch_size": float64(512), "cache_type_k": "f16",
+		},
+	}
+}
+
+// TestRenderBenchmarkAnalysis D3-4 专项段落：每模型对比/长上下文/缓存复用/显存参数。
+func TestRenderBenchmarkAnalysis(t *testing.T) {
+	run := BenchmarkRunDetail{
+		ID: "run-a", Status: "succeeded",
+		Config: BenchmarkRequest{
+			ModelNames: []string{"A", "B"}, ContextSizes: []int{4096, 8192},
+			Concurrency: 2, RepeatCount: 1, WarmupCount: 1, CacheReuseMode: "same_prompt_second",
+			Request: BenchmarkPromptRequest{UserPrompt: "p"},
+		},
+		Cases: []BenchmarkCase{
+			richCase("A", 4096, 30, 60, 20, 1.5),
+			richCase("A", 8192, 55, 55, 35, 1.6),
+			richCase("B", 4096, 25, 70, 18, 1.4),
+		},
+	}
+	md := renderBenchmarkReport(run)
+	for _, want := range []string{
+		"## 每模型对比",
+		"## 长上下文专项（TTFT vs 上下文长度）",
+		"## 缓存复用专项（同提示词二次请求）",
+		"## 显存相关启动参数（effective_launch_params）",
+		"## 并发专项",
+		"gpu_layers=99",
+		"| A | 2 | 42 | 57.5 |", // (30+55)/2=42.5→42（%.0f 四舍五入为 42? 42.5 → "42"? 实际 %.0f 42.5 → 42? Go 四舍六入五成双 → 42）；TPS (60+55)/2=57.5
+		"| B | 1 | 25 | 70.0 |",
+	} {
+		if !strings.Contains(md, want) {
+			t.Errorf("报告缺少 %q\n---\n%s", want, md)
+		}
+	}
+}
