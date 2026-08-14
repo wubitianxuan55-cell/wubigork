@@ -12,7 +12,7 @@ import {
 } from "../icons";
 import { app, onTaskEvent } from "../lib/bridge";
 import { useComposerInsertStore } from "../lib/store";
-import type { FileSemanticHit, TaskView, WorkspaceSearchHit } from "../lib/types";
+import type { FileSemanticHit, SemanticHitView, TaskView, WorkspaceSearchHit } from "../lib/types";
 import { useToast } from "./Toast";
 
 function fileIcon(name: string) {
@@ -21,6 +21,20 @@ function fileIcon(name: string) {
   if (/\.pptx?$/i.test(name)) return <FilePpt size={12} />;
   if (/\.pdf$/i.test(name)) return <File size={12} />;
   return <FileText size={12} />;
+}
+
+// 跨库语义命中的库徽标（cost/knowledge/office）。
+function kindChip(kind: SemanticHitView["kind"]) {
+  const map: Record<SemanticHitView["kind"], string> = {
+    cost: "成本",
+    knowledge: "知识",
+    office: "办公",
+  };
+  return (
+    <span className="shrink-0 px-1.5 h-4 rounded-full bg-accent/15 text-accent text-[9px] font-mono flex items-center leading-none">
+      {map[kind] ?? kind}
+    </span>
+  );
 }
 
 // 解析索引任务 result（JSON 字符串 {total, skipped}）为完成提示文案。
@@ -37,6 +51,8 @@ function indexResultText(task: TaskView): string {
 // WorkspaceSearchPanel — 右侧「搜索」视图：工作区全文检索（轻量 RAG）。
 // 在 docx/xlsx/pdf/md/txt/csv 正文里定位关键词，命中片段可预览或一键 @ 引用
 // （对标 Cursor 本地索引 / Cherry Studio 知识库检索）。
+// 「跨库」开关：一次 UnifiedSearch 调用同时返回关键词命中 + 语义跨库命中
+// （成本/知识/办公），未开启时保留原有的关键词 + 工作区文件语义子集行为。
 export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
   onOpenFile,
 }: {
@@ -49,6 +65,9 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
   const [semantic, setSemantic] = useState(false);
   const [semHits, setSemHits] = useState<FileSemanticHit[]>([]);
   const [semSearching, setSemSearching] = useState(false);
+  // 跨库模式：一次 UnifiedSearch 返回的语义命中（成本/知识/办公）。
+  const [cross, setCross] = useState(false);
+  const [crossSem, setCrossSem] = useState<SemanticHitView[]>([]);
   const [indexMsg, setIndexMsg] = useState<string | null>(null);
   const seq = useRef(0);
   // 索引任务事件订阅的注销函数（重复点击/卸载时断开，避免监听泄漏）
@@ -63,9 +82,34 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
       setHits([]);
       setSearching(false);
       setSearched(false);
+      setSemHits([]);
+      setCrossSem([]);
       return;
     }
     setSearching(true);
+
+    if (cross) {
+      // 跨库模式：一次 UnifiedSearch 调用，关键词 + 语义两组一次拿齐。
+      app.UnifiedSearch(trimmed, 20)
+        .then((v) => {
+          if (id !== seq.current) return;
+          setHits(v?.keyword ?? []);
+          setCrossSem(v?.semantic ?? []);
+          setSemHits([]);
+          setSearched(true);
+        })
+        .catch(() => {
+          if (id !== seq.current) return;
+          setHits([]);
+          setCrossSem([]);
+          setSearched(true);
+        })
+        .finally(() => {
+          if (id === seq.current) setSearching(false);
+        });
+      return;
+    }
+
     app.WorkspaceSearch(trimmed, 30)
       .then((h) => {
         if (id !== seq.current) return;
@@ -97,7 +141,7 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
     } else {
       setSemHits([]);
     }
-  }, [semantic]);
+  }, [semantic, cross]);
 
   const rebuildIndex = useCallback(async () => {
     // 重复点击时断开上一次未完成的订阅
@@ -152,20 +196,34 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
     toast.show(`已引用 @${path}`, "info");
   }, [requestAt, toast]);
 
+  // 跨库模式：关键词 + 语义都为空才算「无结果」。
+  const crossEmpty = cross && hits.length === 0 && crossSem.length === 0;
+
   return (
     <div className="flex flex-col h-full text-fg-dim text-xs">
       <div className="px-3 py-2 border-b border-border-soft">
         <div className="flex items-center gap-1.5 font-semibold text-fg text-sm mb-2">
           <Search size={13} className="text-accent" />
           搜索
-          <span className="ml-1.5 text-[10px] text-fg-faint font-normal">工作区全文</span>
+          <span className="ml-1.5 text-[10px] text-fg-faint font-normal">
+            {cross ? "跨库检索" : "工作区全文"}
+          </span>
           <button
             type="button"
-            className={`ml-auto px-2 h-6 rounded-full text-[10.5px] transition-colors ${semantic ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"}`}
+            className={`px-2 h-6 rounded-full text-[10.5px] transition-colors ${semantic ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"}`}
             onClick={() => setSemantic((s) => !s)}
+            disabled={cross}
             title="语义检索（本地 bge-m3，需先重建索引）"
           >
             语义
+          </button>
+          <button
+            type="button"
+            className={`px-2 h-6 rounded-full text-[10.5px] transition-colors ${cross ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"}`}
+            onClick={() => setCross((c) => !c)}
+            title="跨库统一检索：关键词命中 + 语义跨库命中（成本/知识/办公）一次调用"
+          >
+            跨库
           </button>
           <button
             type="button"
@@ -204,7 +262,7 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
             <Loader size={18} className="animate-spin text-accent" />
             <span className="text-[11px]">正在索引工作区…</span>
           </div>
-        ) : hits.length === 0 ? (
+        ) : hits.length === 0 && !cross ? (
           <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center text-fg-faint/60">
             <Search size={24} className="opacity-40" />
             <span className="text-[11px] leading-relaxed">
@@ -213,10 +271,20 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
                 : "输入关键词搜索资料正文\n（docx / xlsx / pdf / md / csv）"}
             </span>
           </div>
+        ) : crossEmpty ? (
+          <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center text-fg-faint/60">
+            <Search size={24} className="opacity-40" />
+            <span className="text-[11px] leading-relaxed">
+              {searched
+                ? "没有找到匹配的资料或记忆\n换个关键词试试"
+                : "输入关键词跨库检索\n（工作区资料 + 成本 / 知识 / 办公记忆）"}
+            </span>
+          </div>
         ) : (
           <div className="flex flex-col gap-1">
+            {/* 关键词命中组（跨库模式与全文模式共用） */}
             <div className="px-1 pb-1 text-[10px] text-fg-faint/60">
-              找到 {hits.length} 条 · 点击预览，悬停可引用
+              {cross ? `关键词命中 · ${hits.length} 条` : `找到 ${hits.length} 条 · 点击预览，悬停可引用`}
             </div>
             {hits.map((h) => (
               <div
@@ -279,7 +347,49 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
           </div>
         )}
 
-        {semantic && (semSearching || semHits.length > 0) && (
+        {/* 跨库模式：语义跨库命中组（成本/知识/办公） */}
+        {cross && (crossSem.length > 0 || searching) && (
+          <div className="mt-2">
+            <div className="px-1 pb-1 text-[10px] text-fg-faint/60">
+              语义跨库命中（成本/知识/办公）{searching ? "检索中…" : ` · ${crossSem.length} 条`}
+            </div>
+            {searching ? (
+              <div className="flex items-center gap-2 py-4 px-1 text-fg-faint/70">
+                <Loader size={14} className="animate-spin text-accent" />
+                <span className="text-[11px]">语义检索中…</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {crossSem.map((h) => (
+                  <div
+                    key={`${h.kind}:${h.name}`}
+                    className="flex items-start gap-2 px-2 py-1.5 rounded-md border border-accent/20 bg-accent/5 hover:border-accent/40 hover:bg-accent/10 transition-colors"
+                  >
+                    <span className="shrink-0 mt-0.5 w-6 h-6 rounded-md bg-accent/15 text-accent flex items-center justify-center">
+                      {kindChip(h.kind)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px] text-fg font-medium leading-tight">
+                        {h.name}
+                        <span className="ml-1.5 text-[9px] text-accent font-mono align-middle">
+                          {(h.score * 100).toFixed(0)}%
+                        </span>
+                      </span>
+                      {h.text && (
+                        <span className="block text-[11px] text-fg-dim leading-snug mt-1 line-clamp-2">
+                          {h.text}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 非跨库模式：工作区文件语义命中组（保留原行为） */}
+        {!cross && semantic && (semSearching || semHits.length > 0) && (
           <div className="mt-2">
             <div className="px-1 pb-1 text-[10px] text-fg-faint/60">
               语义命中（本地 bge-m3）{semSearching ? "检索中…" : ` · ${semHits.length} 条`}

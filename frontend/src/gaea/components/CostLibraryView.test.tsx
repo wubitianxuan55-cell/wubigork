@@ -33,6 +33,12 @@ const ENTRIES = [
 
 const { searchSpy } = vi.hoisted(() => ({ searchSpy: vi.fn() }));
 
+// 比价弹层 mock 数据（CostCompareRow 契约样例）。
+const COMPARE_ROWS = [
+  { source: "重庆造价信息网", period: "2026-08", price: 4000, diffPct: 25, fetchedAt: "2026-08-10T00:00:00Z", kind: "fetch" },
+  { source: "市场询价", period: "2026-06", price: 3300, diffPct: 3.1, fetchedAt: "2026-06-15T00:00:00Z", kind: "history" },
+];
+
 vi.mock("../lib/bridge", () => ({
   app: {
     CostSearch: (...args: unknown[]) => searchSpy(...args),
@@ -46,6 +52,7 @@ vi.mock("../lib/bridge", () => ({
     CostImportPreview: async () => ({ rows: [] }),
     CostImportAIParse: async () => ({ rows: [] }),
     CostImportApply: async () => 0,
+    CostCompare: async () => COMPARE_ROWS,
     PriceHistory: async () => [],
   },
 }));
@@ -72,6 +79,17 @@ describe("CostLibraryView 多级分类 + 列表/表格", () => {
     fireEvent.click(screen.getByTitle("材料"));
     fireEvent.click(screen.getByText("钢材"));
     await waitFor(() => expect(searchSpy).toHaveBeenCalledWith("", "材料/土建材料/钢材", "all"));
+  });
+
+  it("条目行比价按钮打开供应商比价弹层", async () => {
+    render(<CostLibraryView />);
+    await screen.findByText("H 型钢");
+
+    // 列表条目行含「比价」入口（标题处 + 操作区），点击打开弹层。
+    fireEvent.click(screen.getAllByTitle("比价")[0]);
+    expect(await screen.findByText(/供应商比价：H 型钢/)).toBeTruthy();
+    expect(screen.getByText("重庆造价信息网")).toBeTruthy();
+    expect(screen.getByText("¥4,000")).toBeTruthy();
   });
 
   it("切换表格视图显示排序表头与条目行", async () => {

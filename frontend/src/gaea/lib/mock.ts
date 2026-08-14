@@ -1284,6 +1284,32 @@ export function makeMockApp(): AppBindings {
       pv.message = "AI 智能解析完成，请核对后确认导入。";
       return pv;
     },
+    // ── PDF/图片报价单导入（mock：source=pdf_text 的样例候选）──
+    async CostImportVisionPreview(path: string) {
+      return {
+        path,
+        fileName: path.split(/[/]/).pop() ?? path,
+        columns: ["材料名称", "规格型号", "单位", "单价(元)", "备注"],
+        unmapped: [],
+        rows: [
+          {
+            name: "rebar", title: "热轧光圆钢筋", category: "材料", unit: "t",
+            price: 3750, spec: "HPB300 Φ12", source: "供应商报价单.pdf", status: "现行",
+            existingName: "rebar", existingPrice: 3000, matchNote: "将覆盖更新（现价 ¥3,000）",
+            raw: "热轧光圆钢筋 HPB300 Φ12 | t | 3750", skip: false, skipReason: "",
+          },
+          {
+            name: "", title: "螺纹钢", category: "材料", unit: "t",
+            price: 3420, spec: "HRB400 Φ20", source: "供应商报价单.pdf", status: "现行",
+            existingName: "", existingPrice: 0, matchNote: "新增",
+            raw: "螺纹钢 HRB400 Φ20 | t | 3420", skip: false, skipReason: "",
+          },
+        ],
+        message: "PDF 文字提取解析完成，请核对后确认导入。",
+        aiUsed: true,
+        source: "pdf_text",
+      };
+    },
     async CostImportApply() {
       return 0;
     },
@@ -1341,6 +1367,25 @@ export function makeMockApp(): AppBindings {
         },
       ];
     },
+    // ── 比价（mock：现价/历史/价格源抓取 3 行多源对比）──
+    async CostCompare(name: string) {
+      if (!name.trim()) return [];
+      const now = new Date().toISOString();
+      return [
+        {
+          source: "成本库", period: "", price: 3000, diffPct: 0,
+          fetchedAt: "", kind: "current",
+        },
+        {
+          source: "四川造价信息网", period: "757", price: 2980, diffPct: -0.7,
+          fetchedAt: now, kind: "history",
+        },
+        {
+          source: "供应商报价单", period: "758", price: 3750, diffPct: 25,
+          fetchedAt: now, kind: "fetch",
+        },
+      ];
+    },
     async SemanticSearch(query: string) {
       if (!query.trim()) return [];
       return [
@@ -1353,6 +1398,48 @@ export function makeMockApp(): AppBindings {
           text: "桩基施工要点 工程案例 振动锤选型需匹配地质条件…",
         },
       ];
+    },
+    // ── 跨库统一检索（mock：关键词 + 语义各 1-2 条，与后端 topN 参数一致）──
+    async UnifiedSearch(query: string, topN = 10) {
+      if (!query.trim()) return { keyword: [], semantic: [] };
+      const kw = await this.WorkspaceSearch(query, topN);
+      const sem = await this.SemanticSearch(query);
+      return {
+        keyword: kw.length ? kw.slice(0, 2) : [],
+        semantic: sem.length ? sem.slice(0, 2) : [],
+      };
+    },
+    // ── 检索质量测评（mock：recall@10 = 0.85，门槛固定 0.8 → 通过）──
+    async RetrievalEvalRun() {
+      const threshold = 0.8;
+      const queries = [
+        {
+          query: "振动锤选型", expected: ["cost:hp300", "knowledge:桩基-施工要点"],
+          topHits: ["cost:hp300", "knowledge:桩基-施工要点", "file:docs/桩基施工方案.md"], recall: 1,
+        },
+        {
+          query: "水泥单价", expected: ["cost:cement"],
+          topHits: ["cost:cement", "file:docs/成本测算.xlsx"], recall: 1,
+        },
+        {
+          query: "钢筋市场价", expected: ["cost:rebar"],
+          topHits: ["cost:rebar", "cost:钢筋", "knowledge:四川造价信息网"], recall: 0.8,
+        },
+        {
+          query: "预算编制依据", expected: ["file:docs/成本测算.xlsx"],
+          topHits: ["file:docs/方案.docx", "file:docs/说明.md", "file:docs/成本测算.xlsx"], recall: 0.6,
+        },
+      ];
+      // 平均 recall@10 = (1 + 1 + 0.8 + 0.6) / 4 = 0.85
+      const recallAt10 = queries.reduce((s, q) => s + q.recall, 0) / queries.length;
+      return {
+        total: queries.length,
+        threshold,
+        recallAt10: Number(recallAt10.toFixed(2)),
+        passed: recallAt10 >= threshold,
+        perQuery: queries,
+        note: "匹配规则：expected 与 topHits 均为 kind:name；同 kind 且 name 精确相等或互为子串记命中",
+      };
     },
     // ── 知识库导入（mock）──
     async KnowledgeImportPreview(path: string) {

@@ -34,13 +34,16 @@ type CostImportRowView struct {
 
 // CostImportPreview 是导入解析结果视图（无确认不落库，写库走 ImportApply）。
 type CostImportPreview struct {
-	Path     string             `json:"path"`
-	FileName string             `json:"fileName"`
-	Columns  []string           `json:"columns"`
-	Unmapped []string           `json:"unmapped"`
+	Path     string              `json:"path"`
+	FileName string              `json:"fileName"`
+	Columns  []string            `json:"columns"`
+	Unmapped []string            `json:"unmapped"`
 	Rows     []CostImportRowView `json:"rows"`
-	Message  string             `json:"message"`
-	AIUsed   bool               `json:"aiUsed"`
+	Message  string              `json:"message"`
+	AIUsed   bool                `json:"aiUsed"`
+	// Source 标记识别来源（T5-5a 视觉识别入表）：pdf_text=文本 PDF /
+	// pdf_scan=扫描件 PDF（OCR）/ image=图片（OCR）；xlsx/csv 导入为空。
+	Source string `json:"source"`
 }
 
 // GaeaCostImportPreview 解析 xlsx/csv 报价单/测算表，返回可确认的候选成本条目。

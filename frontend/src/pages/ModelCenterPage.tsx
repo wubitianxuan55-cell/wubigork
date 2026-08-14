@@ -3,7 +3,7 @@ import { Button, Drawer, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
   CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
-  AppstoreOutlined, ExperimentOutlined,
+  AppstoreOutlined, ExperimentOutlined, SearchOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import * as App from '../../src/wailsjsCompat'
@@ -34,6 +34,7 @@ import { OverviewSection } from './modelcenter/OverviewSection'
 import { ResourceMonitor } from './modelcenter/ResourceMonitor'
 import { HerdsmanCatalogSection } from './modelcenter/HerdsmanCatalogSection'
 import { BenchmarkSection } from './modelcenter/BenchmarkSection'
+import { RetrievalEvalSection } from './modelcenter/RetrievalEvalSection'
 import { SchedulingSection } from './modelcenter/SchedulingSection'
 import './modelcenter/modelcenter.css'
 import {
@@ -615,6 +616,7 @@ const ModelCenterPage: React.FC = () => {
     { key: 'specialty', icon: <DatabaseOutlined />, label: '专业模型' },
     { key: 'catalog', icon: <AppstoreOutlined />, label: '模型库' },
     { key: 'benchmark', icon: <ExperimentOutlined />, label: '受控测评' },
+    { key: 'retrieval', icon: <SearchOutlined />, label: '检索质量' },
     { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
     { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
   ]
@@ -723,6 +725,7 @@ const ModelCenterPage: React.FC = () => {
         {category === 'specialty' && <SpecialtySection />}
         {category === 'catalog' && <HerdsmanCatalogSection />}
         {category === 'benchmark' && <BenchmarkSection />}
+        {category === 'retrieval' && <RetrievalEvalSection />}
         {category === 'engine' && (
           <>
             <SchedulingSection />

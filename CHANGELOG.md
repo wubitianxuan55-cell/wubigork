@@ -1,5 +1,26 @@
 # gaea · 多功能 AI 助手
 
+## v2.23.0「运行纵深 · 进料与质量」（2026-08-14）
+> 阶段 5 第三刀（T5-5 + T5-6）：成本库进料闭环、检索统一与质量回归。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段5-运行纵深.md；详见 releases/v2.23.0.md。
+- T5-5 成本库进料闭环（唯一能力补全项，属既有成本库模块内）：
+  - **PDF/图片报价单本地识别入表**（GaeaCostImportVisionPreview）：PDF 文本提取（docmd）→
+    扫描件本地 OCR（OvisOCR2→Windows OCR 兜底）→ 表格线启发式解析（名称/规格/单位/价格表头，
+    回退整行解析）；AI 字段归一化走本地通道（sensitive_local 强制本地，不可用降级规则解析并注明）；
+    复用候选预览确认流程（无确认不落库不变），Preview.source 标记识别来源（pdf_text/pdf_scan/image）；
+  - **供应商比价**（GaeaCostCompare）：库内现价/价格源抓取候选/历史快照三源聚合 + 相对现价
+    跳幅 diffPct（复用 DetectAnomalies 算法）；前端比价弹层（CostCompareModal：来源/期数/价格/
+    跳幅着色 ≥20% 红 / >5% 琥珀，空态提示）；
+- T5-6 检索统一与质量回归：
+  - **统一检索入口**（GaeaUnifiedSearch）：一次调用同时出关键词全文 + 跨库语义（已跨
+    cost/knowledge/office/file）两组结果；办公搜索面板「跨库」模式单框两段展示；
+    原绑定收敛为共享实现委托（单一来源）；
+  - **检索质量受控测评**（GaeaRetrievalEvalRun）：真实业务查询集（docs/retrieval-eval-set.md，
+    12 条造价/工程域查询 + 19 个预期命中标注）→ 逐条 Recall@10 → 汇总平均，门槛 0.8；
+    模型中心「检索质量」区一键运行 + 逐查询明细表；补上「受控测评只测速度不测召回」缺口；
+- 测试：检索测评 4 + 统一检索 3 + 识别/比价多组 + 既有检索回归 8/8；Go 全量 90/90 包 ok、
+  vet 干净、gen_bindings 457 方法 → 10 门面；前端 tsc/eslint 0 errors、vitest 265/265；冒烟通过
+
 ## v2.22.0「运行纵深 · 速度与韧性」（2026-08-14）
 > 阶段 5 第二刀（T5-3 + T5-4）：本地模型调度纵深、中断续跑。
 > 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段5-运行纵深.md；详见 releases/v2.22.0.md。

@@ -7,6 +7,18 @@ import { useToast } from "../Toast";
 
 const CATEGORIES = ["机械", "材料", "人工", "运输", "检测", "综合单价", "其他"];
 
+// 识别来源 → 中文标注（source 契约：xlsx/csv/pdf_text/pdf_scan/image）。
+const SOURCE_LABELS: Record<string, string> = {
+  xlsx: "Excel 表格",
+  csv: "CSV 表格",
+  pdf_text: "PDF 文本",
+  pdf_scan: "PDF 扫描件 OCR",
+  image: "图片 OCR",
+};
+
+// 扩展名路由：xlsx/csv 走表格解析，PDF/图片走视觉识别管线（扫描件自动 OCR）。
+const isVisionFile = (p: string) => /\.(pdf|png|jpe?g|webp)$/i.test(p);
+
 // CostImportModal 成本库「导入文件」：解析 xlsx/csv 报价单/测算表 →
 // 候选条目预览（可勾选/修正）→ 确认后批量入库。遵循「无确认不落库」；
 // 表头识别不理想时可一键切到 AI 智能解析（办公功能模型归一化）。
@@ -37,8 +49,9 @@ export function CostImportModal({
     setRows([]);
     setError(null);
     setLoading(true);
-    app
-      .CostImportPreview(path)
+    // xlsx/csv 走表格解析；PDF/图片走视觉识别管线（识别报价单/扫描件 OCR）。
+    const loader = isVisionFile(path) ? app.CostImportVisionPreview(path) : app.CostImportPreview(path);
+    loader
       .then((pv) => {
         setPreview(pv);
         setRows(pv.rows);
@@ -158,7 +171,7 @@ export function CostImportModal({
           <span className="text-err font-medium">解析失败：{error}</span>
           <div className="mt-0.5">
             可点击「AI 智能解析」重试；若仍失败，请检查办公功能模型配置，或更换为
-            表头含名称/单价/单位等列的 xlsx/csv 报价单后重新导入。
+            表头含名称/单价/单位等列的 xlsx/csv 报价单，或内容清晰的 PDF/图片报价单后重新导入。
           </div>
         </div>
       ) : null}
@@ -172,6 +185,15 @@ export function CostImportModal({
       ) : null}
       {preview?.message ? (
         <div className="mb-2 px-3 py-2 rounded-lg bg-bg-elev text-fg-dim text-[11.5px]">{preview.message}</div>
+      ) : null}
+      {preview?.source ? (
+        <div className="mb-2 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-elev text-fg-dim text-[11px]">
+          <span className="text-fg-faint">识别来源</span>
+          <span className="px-1.5 py-0.5 rounded bg-accent/15 text-accent text-[10.5px]">
+            {SOURCE_LABELS[preview.source] ?? preview.source}
+          </span>
+          {preview.aiUsed && <span className="text-fg-faint">AI 智能解析</span>}
+        </div>
       ) : null}
       <div className="max-h-[46vh] overflow-auto rounded-lg border border-border-soft">
         <table className="w-full text-[11.5px]">
@@ -190,7 +212,9 @@ export function CostImportModal({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-fg-faint">解析中…</td>
+                <td colSpan={8} className="px-3 py-8 text-center text-fg-faint">
+                  {isVisionFile(path) ? "正在识别报价单…" : "解析中…"}
+                </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>

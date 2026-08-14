@@ -1,8 +1,6 @@
 package app
 
-import (
-	"github.com/gaea/gaea/internal/gaea/wssearch"
-)
+import ()
 
 // WorkspaceSearchHit 是工作区全文搜索的一条命中（轻量 RAG）。
 type WorkspaceSearchHit struct {
@@ -21,23 +19,7 @@ type WorkspaceSearchHit struct {
 // GaeaWorkspaceSearch 工作区全文搜索（P1-① 轻量 RAG）：在 docx/xlsx/pdf/md/txt/csv
 // 等文件正文里定位关键词，返回命中片段供预览/一键 @ 引用。
 // 对标 Cursor 本地索引 / Cherry Studio 知识库检索的「关键词先行」版本。
+// T5-6：实现收敛到 gaea_unified_search.go 的 workspaceSearchHits（统一入口复用）。
 func (a *App) GaeaWorkspaceSearch(query string, limit int) []WorkspaceSearchHit {
-	hits := wssearch.Search(gaeaCwd(), query, limit)
-	if len(hits) == 0 {
-		return []WorkspaceSearchHit{}
-	}
-	out := make([]WorkspaceSearchHit, 0, len(hits))
-	for _, h := range hits {
-		out = append(out, WorkspaceSearchHit{
-			Path:      h.Path,
-			Name:      h.Name,
-			Size:      h.Size,
-			ModTime:   h.ModTime,
-			Score:     h.Score,
-			Snippet:   h.Snippet,
-			Truncated: h.Truncated,
-			Skipped:   h.Skipped,
-		})
-	}
-	return out
+	return a.workspaceSearchHits(query, limit)
 }

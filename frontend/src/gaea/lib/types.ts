@@ -833,6 +833,9 @@ export interface CostImportPreview {
   rows: CostImportRow[];
   message: string;
   aiUsed: boolean;
+  // 导入文件来源类型：xlsx/csv 表格解析；pdf_text 文字型 PDF；
+  // pdf_scan 扫描件（OCR）；image 图片报价单（OCR）。
+  source?: "xlsx" | "csv" | "pdf_text" | "pdf_scan" | "image";
 }
 
 // ── 价格源（定时抓取价格更新）──────────────────────────────────
@@ -892,6 +895,44 @@ export interface SemanticHitView {
   name: string;
   score: number;
   text: string;
+}
+
+// CostCompareRow 是一条比价明细：同一成本条目在多个来源/时段的报价对比。
+// kind: current=成本库现价 / history=历史快照 / fetch=价格源抓取候选。
+export interface CostCompareRow {
+  source: string; // 来源（如「成本库」「四川造价信息网」「XX租赁」）
+  period: string; // 期号/时段（如 "758"；成本库现价可为空）
+  price: number; // 该来源报价
+  diffPct: number; // 与基准价（通常为成本库现价）的偏差百分比，基准行为 0
+  fetchedAt: string; // 获取时间（ISO 字符串，可为空）
+  kind: "current" | "history" | "fetch";
+}
+
+// UnifiedSearchView 是一次「跨库统一检索」调用的完整结果：
+// keyword = 工作区全文关键词命中（轻量 RAG），semantic = 跨库语义命中。
+export interface UnifiedSearchView {
+  keyword: WorkspaceSearchHit[];
+  semantic: SemanticHitView[];
+}
+
+// RetrievalEvalQuery 是检索质量测评中单条查询的明细：期望命中 vs 实际前 10 命中。
+// expected/topHits 均为 "kind:name" 形式（如 "cost:hp300"），便于前端直接对比。
+export interface RetrievalEvalQuery {
+  query: string; // 测评查询文本
+  expected: string[]; // 期望命中（kind:name）
+  topHits: string[]; // 实际返回的前 10 条命中（kind:name）
+  recall: number; // 该查询的 recall@10（0-1）
+}
+
+// RetrievalEvalReport 是检索质量测评结果：内置查询集跑一遍统一检索，
+// 统计平均 recall@10，并与达标门槛比较给出通过状态。
+export interface RetrievalEvalReport {
+  total: number; // 测评查询总数
+  threshold: number; // 达标门槛（recall@10 需 ≥ 该值，后端固定 0.8）
+  recallAt10: number; // 平均 recall@10（0-1）
+  passed: boolean; // recallAt10 ≥ threshold
+  perQuery: RetrievalEvalQuery[];
+  note?: string; // 命中判定规则等说明（后端 omitempty）
 }
 
 // ── 知识库导入（无确认不落库）────────────────────────────────

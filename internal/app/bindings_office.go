@@ -89,6 +89,7 @@ func (b *OfficeB) GaeaRemovePermissionRule(list string, rule string) error { ret
 func (b *OfficeB) GaeaRenameSession(path string, title string) error { return b.a.GaeaRenameSession(path, title) }
 func (b *OfficeB) GaeaRequirement(path string) RequirementView { return b.a.GaeaRequirement(path) }
 func (b *OfficeB) GaeaResumeSession(path string) ([]HistoryMessage, error) { return b.a.GaeaResumeSession(path) }
+func (b *OfficeB) GaeaRetrievalEvalRun() (RetrievalEvalReport, error) { return b.a.GaeaRetrievalEvalRun() }
 func (b *OfficeB) GaeaRetryMCPServer(name string) error { return b.a.GaeaRetryMCPServer(name) }
 func (b *OfficeB) GaeaRevealWorkspacePath(rel string) error { return b.a.GaeaRevealWorkspacePath(rel) }
 func (b *OfficeB) GaeaRewind(turn int, scope string) error { return b.a.GaeaRewind(turn, scope) }
@@ -128,6 +129,7 @@ func (b *OfficeB) GaeaTaskRetry(id string) error { return b.a.GaeaTaskRetry(id) 
 func (b *OfficeB) GaeaTaskTemplates() []TaskTemplate { return b.a.GaeaTaskTemplates() }
 func (b *OfficeB) GaeaTools() []map[string]interface{} { return b.a.GaeaTools() }
 func (b *OfficeB) GaeaUnarchiveSession(path string) (string, error) { return b.a.GaeaUnarchiveSession(path) }
+func (b *OfficeB) GaeaUnifiedSearch(query string, topN int) (UnifiedSearchView, error) { return b.a.GaeaUnifiedSearch(query, topN) }
 func (b *OfficeB) GaeaUnpinMaterial(rel string) []FileSearchHit { return b.a.GaeaUnpinMaterial(rel) }
 func (b *OfficeB) GaeaUpdateFact(name string, body string) (string, error) { return b.a.GaeaUpdateFact(name, body) }
 func (b *OfficeB) GaeaVersion() string { return b.a.GaeaVersion() }

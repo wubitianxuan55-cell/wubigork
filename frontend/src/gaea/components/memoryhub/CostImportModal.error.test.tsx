@@ -3,15 +3,17 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { CostImportModal } from "./CostImportModal";
 import { ToastProvider } from "../Toast";
 
-const { previewSpy, aiSpy, applySpy } = vi.hoisted(() => ({
-  previewSpy: vi.fn(),
+// PDF/图片导入走视觉识别管线（CostImportVisionPreview）；错误场景统一 mock 识别失败。
+const { visionSpy, aiSpy, applySpy } = vi.hoisted(() => ({
+  visionSpy: vi.fn(),
   aiSpy: vi.fn(),
   applySpy: vi.fn(),
 }));
 
 vi.mock("../../lib/bridge", () => ({
   app: {
-    CostImportPreview: (...args: unknown[]) => previewSpy(...args),
+    CostImportPreview: async () => ({ rows: [] }),
+    CostImportVisionPreview: (...args: unknown[]) => visionSpy(...args),
     CostImportAIParse: (...args: unknown[]) => aiSpy(...args),
     CostImportApply: (...args: unknown[]) => applySpy(...args),
   },
@@ -19,15 +21,15 @@ vi.mock("../../lib/bridge", () => ({
 
 const wrap = (node: React.ReactNode) => <ToastProvider>{node}</ToastProvider>;
 
-describe("CostImportModal 解析失败场景", () => {
+describe("CostImportModal 视觉识别失败场景", () => {
   beforeEach(() => {
-    previewSpy.mockReset();
+    visionSpy.mockReset();
     aiSpy.mockReset();
     applySpy.mockReset();
-    previewSpy.mockRejectedValue(new Error("暂不支持 .pdf 格式导入"));
+    visionSpy.mockRejectedValue(new Error("无法从 PDF 中识别报价单内容"));
   });
 
-  it("解析失败时展示持久错误提示，确认导入保持禁用且不会反复重解析", async () => {
+  it("识别失败时展示持久错误提示，确认导入保持禁用且不会反复重试", async () => {
     render(
       wrap(
         <CostImportModal
@@ -42,17 +44,17 @@ describe("CostImportModal 解析失败场景", () => {
 
     // 错误信息持久展示在弹窗内（不只是瞬时 toast）。
     expect(await screen.findByText(/可点击「AI 智能解析」重试/)).toBeTruthy();
-    expect(screen.getAllByText(/暂不支持 .pdf 格式导入/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/无法从 PDF 中识别报价单内容/).length).toBeGreaterThan(0);
     expect(screen.getByText(/确认导入 0 条/)).toBeTruthy();
     const confirm = screen.getByText(/确认导入/) as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);
 
-    // 等待 toast 生命周期结束：解析失败不应触发无限重试循环。
+    // 等待 toast 生命周期结束：识别失败不应触发无限重试循环。
     await new Promise((r) => setTimeout(r, 500));
-    expect(previewSpy).toHaveBeenCalledTimes(1);
+    expect(visionSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("解析失败后点击 AI 智能解析成功，错误清除且确认导入可用", async () => {
+  it("识别失败后点击 AI 智能解析成功，错误清除且确认导入可用", async () => {
     aiSpy.mockResolvedValue({
       path: "C:/tmp/报价单.pdf",
       fileName: "报价单.pdf",

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input, Modal, message } from "antd";
 import {
-  ChevronDown, ChevronRight, Clock, CloudUpload, Coins, FolderPlus, List,
+  BarChart3, ChevronDown, ChevronRight, Clock, CloudUpload, Coins, FolderPlus, List,
   Pencil, Plus, RefreshCw, Table, Trash2,
 } from "../icons";
 import { app } from "../lib/bridge";
@@ -9,6 +9,7 @@ import type { CostCategory, CostSummary, FilePickResult, PriceHistory } from "..
 import { EmptyState } from "./EmptyState";
 import { CostEntryModal } from "./memoryhub/CostEntryModal";
 import { CostImportModal } from "./memoryhub/CostImportModal";
+import { CostCompareModal } from "./memoryhub/CostCompareModal";
 
 const STATUSES = ["现行", "草稿", "已归档"];
 
@@ -46,6 +47,7 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyName, setHistoryName] = useState("");
   const [historyRows, setHistoryRows] = useState<PriceHistory[]>([]);
+  const [compare, setCompare] = useState<{ name: string; title: string; price: number } | null>(null);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const treeInited = useRef(false);
@@ -202,6 +204,7 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
     const rows = await app.PriceHistory(name).catch(() => [] as PriceHistory[]);
     setHistoryRows(rows ?? []);
   };
+  const openCompare = (e: CostSummary) => setCompare({ name: e.name, title: e.title, price: e.price });
 
   // ── 分类管理 ──
   const openCatModal = (mode: "create" | "rename", parentId: number, node: CostCategory | null) => {
@@ -459,6 +462,7 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
               onEdit={openEdit}
               onDelete={setDeleteName}
               onHistory={openHistory}
+              onCompare={openCompare}
               onInsert={onInsert}
             />
           ) : (
@@ -470,6 +474,7 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
               onEdit={openEdit}
               onDelete={setDeleteName}
               onHistory={openHistory}
+              onCompare={openCompare}
               onInsert={onInsert}
               compact={compact}
             />
@@ -499,6 +504,15 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
           load();
           loadCategories();
         }}
+      />
+
+      {/* 供应商比价：跨来源对比现价跳幅 */}
+      <CostCompareModal
+        open={!!compare}
+        name={compare?.name ?? ""}
+        title={compare?.title ?? ""}
+        currentPrice={compare?.price}
+        onClose={() => setCompare(null)}
       />
 
       {/* 删除条目确认 */}
@@ -679,6 +693,7 @@ function ListView({
   onEdit,
   onDelete,
   onHistory,
+  onCompare,
   onInsert,
   compact,
 }: {
@@ -689,6 +704,7 @@ function ListView({
   onEdit: (e: CostSummary) => void;
   onDelete: (name: string) => void;
   onHistory: (name: string) => void;
+  onCompare: (e: CostSummary) => void;
   onInsert?: (e: CostSummary) => void;
   compact: boolean;
 }) {
@@ -697,7 +713,7 @@ function ListView({
       {rows.map((e) => (
         <div
           key={e.name}
-          className={`rounded-lg border transition-colors ${
+          className={`group rounded-lg border transition-colors ${
             selected.has(e.name)
               ? "border-accent/50 bg-accent/10"
               : "border-border/70 bg-bg-soft/40 hover:border-accent/30 hover:bg-bg-soft/70"
@@ -713,6 +729,13 @@ function ListView({
             />
             <Coins size={14} className="text-amber-400 shrink-0" />
             <span className={`text-fg font-medium truncate ${compact ? "text-[12px]" : "text-[13px]"}`}>{e.title}</span>
+            <button
+              className="w-5 h-5 shrink-0 inline-flex items-center justify-center rounded text-fg-faint opacity-0 group-hover:opacity-100 hover:text-sky-400 hover:bg-bg-elev transition-opacity"
+              onClick={() => onCompare(e)}
+              title="比价"
+            >
+              <BarChart3 size={11} />
+            </button>
             {e.spec && <span className="text-fg-faint text-[11px] shrink-0 truncate max-w-[140px]">{e.spec}</span>}
             {e.categoryPath && (
               <span className="px-1.5 py-0.5 rounded bg-bg-elev text-fg-faint text-[10px] shrink-0 truncate max-w-[160px]" title={e.categoryPath}>
@@ -732,6 +755,9 @@ function ListView({
                   <Plus size={12} />
                 </button>
               )}
+              <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-sky-400 hover:bg-bg-elev" onClick={() => onCompare(e)} title="比价">
+                <BarChart3 size={12} />
+              </button>
               <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev" onClick={() => onHistory(e.name)} title="价格历史">
                 <Clock size={12} />
               </button>
@@ -763,6 +789,7 @@ function TableView({
   onEdit,
   onDelete,
   onHistory,
+  onCompare,
   onInsert,
 }: {
   rows: CostSummary[];
@@ -776,6 +803,7 @@ function TableView({
   onEdit: (e: CostSummary) => void;
   onDelete: (name: string) => void;
   onHistory: (name: string) => void;
+  onCompare: (e: CostSummary) => void;
   onInsert?: (e: CostSummary) => void;
 }) {
   const sortArrow = (k: SortKey) => (sortKey === k ? (sortDir === 1 ? " ↑" : " ↓") : "");
@@ -849,6 +877,9 @@ function TableView({
                       <Plus size={12} />
                     </button>
                   )}
+                  <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-sky-400 hover:bg-bg-elev" onClick={() => onCompare(e)} title="比价">
+                    <BarChart3 size={12} />
+                  </button>
                   <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev" onClick={() => onHistory(e.name)} title="价格历史">
                     <Clock size={12} />
                   </button>

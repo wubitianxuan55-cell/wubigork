@@ -63,10 +63,13 @@ import type {
   CostEntry,
   CostCategory,
   CostImportPreview,
+  CostCompareRow,
   PriceSource,
   PriceFetchRecord,
   PriceHistory,
   SemanticHitView,
+  UnifiedSearchView,
+  RetrievalEvalReport,
   KnowledgeImportPreview,
   KnowledgeHistoryView,
   SimilarView,
@@ -303,6 +306,9 @@ export interface AppBindings {
   CostImportAIParse(path: string): Promise<CostImportPreview>;
   // CostImportApply 批量写入确认后的成本条目，返回成功条数。
   CostImportApply(rows: CostEntry[]): Promise<number>;
+  // CostImportVisionPreview 解析 PDF（文字型/扫描件 OCR）/图片报价单为可确认的
+  // 成本条目；preview.source 标注识别来源（pdf_text / pdf_scan / image）。
+  CostImportVisionPreview(path: string): Promise<CostImportPreview>;
   // 多级分类：分类树（含计数）、新建/改名、删除（有子节点或条目时拒绝）。
   CostCategories(): Promise<CostCategory[]>;
   CostCategorySave(parentId: number, name: string, sort: number, id: number): Promise<number>;
@@ -325,6 +331,13 @@ export interface AppBindings {
   PriceHistory(name: string): Promise<PriceHistory[]>;
   // SemanticSearch 跨库统一语义检索（成本/知识/办公记忆，本地 bge-m3）。
   SemanticSearch(query: string): Promise<SemanticHitView[]>;
+  // CostCompare 返回某成本条目的多来源比价明细（现价/历史/价格源抓取候选）。
+  CostCompare(name: string): Promise<CostCompareRow[]>;
+  // UnifiedSearch 跨库统一检索一次调用：工作区关键词命中（topN 条）+ 语义跨库命中。
+  UnifiedSearch(query: string, topN?: number): Promise<UnifiedSearchView>;
+  // RetrievalEvalRun 运行检索质量测评：内置查询集统计平均 recall@10，
+  // 达标门槛后端固定 0.8，返回指标 + 逐查询命中明细。
+  RetrievalEvalRun(): Promise<RetrievalEvalReport>;
   // ── 知识库导入 ──
   KnowledgeImportPreview(path: string): Promise<KnowledgeImportPreview>;
   KnowledgeImportAIParse(path: string): Promise<KnowledgeImportPreview>;
@@ -594,6 +607,7 @@ const gaeaToGaea: Record<string, string> = {
   CostImportPreview: "GaeaCostImportPreview",
   CostImportAIParse: "GaeaCostImportAIParse",
   CostImportApply: "GaeaCostImportApply",
+  CostImportVisionPreview: "GaeaCostImportVisionPreview",
   CostCategories: "GaeaCostCategories",
   CostCategorySave: "GaeaCostCategorySave",
   CostCategoryDelete: "GaeaCostCategoryDelete",
@@ -610,6 +624,9 @@ const gaeaToGaea: Record<string, string> = {
   PriceFetchIgnore: "GaeaPriceFetchIgnore",
   PriceHistory: "GaeaPriceHistory",
   SemanticSearch: "GaeaSemanticSearch",
+  CostCompare: "GaeaCostCompare",
+  UnifiedSearch: "GaeaUnifiedSearch",
+  RetrievalEvalRun: "GaeaRetrievalEvalRun",
   KnowledgeImportPreview: "GaeaKnowledgeImportPreview",
   KnowledgeImportAIParse: "GaeaKnowledgeImportAIParse",
   KnowledgeImportApply: "GaeaKnowledgeImportApply",
