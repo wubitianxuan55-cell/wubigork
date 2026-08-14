@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "antd";
 import { CloudUpload, Coins, Copy, ExternalLink, Pencil, Plus, RefreshCw, Trash2 } from "../../icons";
-import { app, openExternal } from "../../lib/bridge";
-import type { PriceCandidate, PriceFetchRecord, PriceSource } from "../../lib/types";
+import { app, onTaskEvent, openExternal } from "../../lib/bridge";
+import type { PriceCandidate, PriceFetchRecord, PriceSource, TaskStatus, TaskView } from "../../lib/types";
 import { useToast } from "../Toast";
 import { PriceSourceFormModal } from "./PriceSourceFormModal";
 
@@ -16,6 +16,20 @@ const DISPLAY_LIMIT = 60;
 
 function freqLabel(h: number): string {
   return FREQ_OPTIONS.find((o) => o.value === h)?.label ?? `每 ${h} 小时`;
+}
+
+// 任务终态：succeeded / failed / cancelled（queued / running 仍进行中）。
+function isTerminal(status: TaskStatus): boolean {
+  return status === "succeeded" || status === "failed" || status === "cancelled";
+}
+
+// 解析任务 result（不透明 JSON 字符串）为对象，解析失败返回空对象。
+function parseTaskResult(result: string): Record<string, unknown> {
+  try {
+    return JSON.parse(result || "{}") as Record<string, unknown>;
+  } catch {
+    return {};
+  }
 }
 
 // PriceSourcesPanel 价格源订阅与抓取结果管理（记忆中枢/办公侧共用）：
@@ -32,6 +46,9 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
   const [editing, setEditing] = useState<PriceSource | null>(null);
   const [deleting, setDeleting] = useState<PriceSource | null>(null);
   const [checked, setChecked] = useState<Record<string, Set<string>>>({});
+  // 进行中的抓取任务（taskId → 元信息：单源抓取记 sourceId，一键抓取记 all）。
+  // 用 ref 保存，避免 onTaskEvent 闭包拿不到最新的任务集合。
+  const pendingTasksRef = useRef<Map<string, { all?: boolean; sourceId?: string }>>(new Map());
   const toast = useToast();
 
   // 后端调用偶发卡住时兜底：最多等 8 秒，避免「加载中…」永久转圈。
@@ -70,6 +87,85 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
     return new Set(cands.filter((c) => c.status !== "无变化").map((c) => c.title));
   }, []);
 
+  // 抓取完成：把该源最新一条 pending 记录设为默认勾选（沿用现有 defaultChecked 逻辑）。
+  const checkLatestPending = useCallback(
+    async (sourceId: string) => {
+      try {
+        const recs = await app.PriceFetches();
+        const latest = recs
+          .filter((f) => f.sourceId === sourceId && f.status === "pending")
+          .sort((a, b) => b.fetchedAt.localeCompare(a.fetchedAt))[0];
+        if (latest) {
+          setChecked((prev) => ({ ...prev, [latest.id]: defaultChecked(latest.candidates) }));
+        }
+      } catch {
+        // 列表刷新失败不阻断主流程
+      }
+    },
+    [defaultChecked],
+  );
+
+  // 任务终态处理（gaea-task 事件或提交返回即终态时调用）：按任务类型提示、
+  // 刷新抓取记录并清除进行中状态。
+  const handleTaskTerminal = useCallback(
+    (t: TaskView) => {
+      const meta = pendingTasksRef.current.get(t.id);
+      if (!meta) return;
+      pendingTasksRef.current.delete(t.id);
+      const isAll = meta.all || t.kind === "price_fetch_all";
+
+      if (t.status === "succeeded") {
+        if (isAll) {
+          const result = parseTaskResult(t.result);
+          const fetched = typeof result.fetched === "number" ? result.fetched : 0;
+          const failed = typeof result.failed === "number" ? result.failed : 0;
+          if (fetched > 0) {
+            toast.show(
+              failed > 0
+                ? `一键抓取完成：${fetched} 个价格源已抓取，${failed} 个失败`
+                : `一键抓取完成：${fetched} 个价格源已抓取`,
+              failed > 0 ? "warn" : "info",
+            );
+          } else {
+            toast.show(t.error || t.message || "没有启用的价格源", "warn");
+          }
+          setFetchingAll(false);
+          load();
+        } else {
+          const result = parseTaskResult(t.result);
+          const count = typeof result.count === "number" ? result.count : "";
+          toast.show(`抓取完成：${count} 条价格，请确认后发布`, "info");
+          setFetchingId((prev) => (prev === meta.sourceId ? null : prev));
+          load();
+          void checkLatestPending(meta.sourceId ?? "");
+        }
+        return;
+      }
+
+      // failed / cancelled
+      if (isAll) {
+        toast.show(t.error || (t.status === "cancelled" ? "一键抓取已取消" : "一键抓取失败"), "warn");
+        setFetchingAll(false);
+        load();
+      } else {
+        toast.show(t.error || (t.status === "cancelled" ? "已取消" : "抓取失败"), "warn");
+        setFetchingId((prev) => (prev === meta.sourceId ? null : prev));
+      }
+    },
+    [checkLatestPending, load, toast],
+  );
+
+  // 订阅 gaea-task 事件：只关心本面板提交的任务（pendingTasksRef 里的 id），
+  // 终态到达时提示/刷新列表/清除进行中状态。
+  useEffect(() => {
+    const off = onTaskEvent((t: TaskView) => {
+      if (!isTerminal(t.status)) return;
+      if (!pendingTasksRef.current.has(t.id)) return;
+      handleTaskTerminal(t);
+    });
+    return off;
+  }, [handleTaskTerminal]);
+
   const toggle = useCallback((fetchId: string, title: string) => {
     setChecked((prev) => {
       const next = new Set(prev[fetchId] ?? []);
@@ -92,35 +188,31 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
     async (src: PriceSource) => {
       setFetchingId(src.id);
       try {
-        const rec = await app.PriceFetch(src.id);
-        setChecked((prev) => ({ ...prev, [rec.id]: defaultChecked(rec.candidates) }));
-        toast.show(`抓取完成：${rec.candidates.length} 条价格，请确认后发布`, "info");
-        load();
+        // 异步任务：提交后立即返回 TaskView，不阻塞等待完成；进度/终态经 gaea-task 事件推送。
+        const t = await app.PriceFetch(src.id);
+        pendingTasksRef.current.set(t.id, { sourceId: src.id });
+        toast.show("已加入队列", "info");
+        if (isTerminal(t.status)) handleTaskTerminal(t);
       } catch (e) {
+        setFetchingId((prev) => (prev === src.id ? null : prev));
         toast.show(`抓取失败：${String(e)}`, "warn");
-      } finally {
-        setFetchingId(null);
       }
     },
-    [defaultChecked, load, toast],
+    [handleTaskTerminal, toast],
   );
 
   const fetchAll = useCallback(async () => {
     setFetchingAll(true);
     try {
-      const [n, errs] = await app.PriceFetchAll();
-      if (n > 0) {
-        toast.show(`一键抓取完成：${n} 个价格源已抓取${errs ? `，${errs}` : ""}`, errs ? "warn" : "info");
-      } else {
-        toast.show(`抓取失败：${errs || "没有启用的价格源"}`, "warn");
-      }
-      load();
+      // 异步任务：提交后立即返回 TaskView，逐源进度/终态经 gaea-task 事件推送。
+      const t = await app.PriceFetchAll();
+      pendingTasksRef.current.set(t.id, { all: true });
+      if (isTerminal(t.status)) handleTaskTerminal(t);
     } catch (e) {
-      toast.show(`一键抓取失败：${String(e)}`, "warn");
-    } finally {
       setFetchingAll(false);
+      toast.show(`一键抓取失败：${String(e)}`, "warn");
     }
-  }, [load, toast]);
+  }, [handleTaskTerminal, toast]);
 
   const copyUrl = useCallback(
     async (url: string) => {

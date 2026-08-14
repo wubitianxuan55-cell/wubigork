@@ -47,6 +47,20 @@ describe("PriceSourcesPanel 价格源", () => {
     await waitFor(() => expect(screen.getByText(/一键抓取完成：2 个价格源已抓取/)).toBeTruthy());
   });
 
+  it("立即抓取进入队列，终态提示完成并自动勾选最新记录", async () => {
+    render(wrap(<PriceSourcesPanel />));
+    await screen.findByText("重庆施工造价信息网");
+
+    // 点击某价格源的「抓取」：异步任务提交后立即提示「已加入队列」，不阻塞等待完成。
+    fireEvent.click(screen.getAllByText("抓取")[0]);
+    expect(await screen.findByText("已加入队列")).toBeTruthy();
+
+    // mock 任务立即完成 → 终态提示；最新 pending 记录按 defaultChecked 自动勾选
+    // （原四川源已有 1 条「发布 2 条」，新重庆源记录再出现 1 条）。
+    expect(await screen.findByText(/抓取完成：2 条价格，请确认后发布/)).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByText("发布 2 条").length).toBe(2));
+  });
+
   it("抓取地址可复制到剪贴板", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

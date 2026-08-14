@@ -5,6 +5,7 @@ package app
 import (
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/office"
+	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
 // OfficeB 办公引擎与工作区绑定门面（S2-3「App 绑定面拆分」）：仅暴露办公引擎与工作区的方法，
@@ -49,7 +50,7 @@ func (b *OfficeB) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDelive
 func (b *OfficeB) GaeaFactBase() FactBaseView { return b.a.GaeaFactBase() }
 func (b *OfficeB) GaeaFactBaseClear() error { return b.a.GaeaFactBaseClear() }
 func (b *OfficeB) GaeaFactBasePromote() (int, error) { return b.a.GaeaFactBasePromote() }
-func (b *OfficeB) GaeaFileIndexRebuild() (FileIndexStatus, error) { return b.a.GaeaFileIndexRebuild() }
+func (b *OfficeB) GaeaFileIndexRebuild() (*tasks.Task, error) { return b.a.GaeaFileIndexRebuild() }
 func (b *OfficeB) GaeaFileSearch(query string, limit int) []FileSearchHit { return b.a.GaeaFileSearch(query, limit) }
 func (b *OfficeB) GaeaFileSemanticSearch(query string, topN int) ([]FileSemanticHit, error) { return b.a.GaeaFileSemanticSearch(query, topN) }
 func (b *OfficeB) GaeaForget(name string) error { return b.a.GaeaForget(name) }
@@ -121,6 +122,9 @@ func (b *OfficeB) GaeaSummarizeUpTo(turn int) error { return b.a.GaeaSummarizeUp
 func (b *OfficeB) GaeaSwitchWorkspace(path string) string { return b.a.GaeaSwitchWorkspace(path) }
 func (b *OfficeB) GaeaTCCAReport() string { return b.a.GaeaTCCAReport() }
 func (b *OfficeB) GaeaTabMeta() []TabMeta { return b.a.GaeaTabMeta() }
+func (b *OfficeB) GaeaTaskCancel(id string) error { return b.a.GaeaTaskCancel(id) }
+func (b *OfficeB) GaeaTaskList() []tasks.Task { return b.a.GaeaTaskList() }
+func (b *OfficeB) GaeaTaskRetry(id string) error { return b.a.GaeaTaskRetry(id) }
 func (b *OfficeB) GaeaTaskTemplates() []TaskTemplate { return b.a.GaeaTaskTemplates() }
 func (b *OfficeB) GaeaTools() []map[string]interface{} { return b.a.GaeaTools() }
 func (b *OfficeB) GaeaUnarchiveSession(path string) (string, error) { return b.a.GaeaUnarchiveSession(path) }

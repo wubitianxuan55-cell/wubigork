@@ -21,6 +21,7 @@ import {
   CheckCircleOutlined,
   CheckOutlined,
   ClockCircleOutlined,
+  CloseCircleOutlined,
   CloseOutlined,
   CloudUploadOutlined,
   CodeOutlined,
@@ -163,6 +164,7 @@ export const Wand2: Icon = wrap(BulbOutlined);
 export const Wrench: Icon = wrap(ToolOutlined);
 export const X: Icon = wrap(CloseOutlined);
 export const XasXIcon: Icon = wrap(CloseOutlined);
+export const XCircle: Icon = wrap(CloseCircleOutlined);
 
 export const SquarePen: Icon = wrap(EditOutlined);
 export const FolderTree: Icon = wrap(FolderOpenOutlined);

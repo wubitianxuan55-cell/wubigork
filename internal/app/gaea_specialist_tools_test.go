@@ -9,10 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
+	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
 // TestSemanticSearchTool_EndToEnd 本地 bge-m3 mock + 临时向量库：
@@ -122,9 +124,21 @@ func TestSemanticSearchTool_FileScope(t *testing.T) {
 	SetAppSemanticStoreForTest(semantic.Open(gdb))
 	SetAppEmbedderForTest(retrieval.NewEmbedder(srv.URL, "bge-m3"))
 
-	a := &App{}
-	if _, err := a.GaeaFileIndexRebuild(); err != nil {
-		t.Fatalf("索引重建失败: %v", err)
+	a := &App{officeState: &officeState{core: &core{}}}
+	m := tasks.New(gdb, nil, tasks.Options{})
+	m.Register(tasks.KindFileIndex, a.fileIndexTaskHandler)
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("task manager start: %v", err)
+	}
+	t.Cleanup(m.Close)
+	a.officeState.tasks = m
+	tk, err := a.GaeaFileIndexRebuild()
+	if err != nil {
+		t.Fatalf("索引重建提交失败: %v", err)
+	}
+	done, err := m.Wait(context.Background(), tk.ID, 30*time.Second)
+	if err != nil || done.Status != "succeeded" {
+		t.Fatalf("索引重建失败: %v status=%s err=%s", err, done.Status, done.Error)
 	}
 	tool := semanticSearchTool{a: a}
 	reply, err := tool.Execute(context.Background(), json.RawMessage(`{"query":"打桩锤","scope":"file"}`))

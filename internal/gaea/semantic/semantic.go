@@ -218,6 +218,15 @@ ON CONFLICT(kind,id) DO UPDATE SET vec=excluded.vec, doc=excluded.doc, updated_a
 	return err
 }
 
+// Remove 删除单个 (kind,id) 向量（文件删除事件实时清理用，阶段 5 T5-2）。
+func (s *Store) Remove(kind, id string) error {
+	if s.db == nil {
+		return nil
+	}
+	_, err := s.db.Exec(`DELETE FROM semantic_vectors WHERE kind=? AND id=?`, kind, id)
+	return err
+}
+
 // Stale 删除已不存在的条目向量（文档集合变化后清理，返回删除数）。
 func (s *Store) Stale(kind string, keep map[string]bool) (int, error) {
 	if s.db == nil {

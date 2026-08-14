@@ -6,6 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/bmaupin/go-epub v1.1.0
 	github.com/carmel/gooxml v0.0.0-20220216072414-40ff56130850
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/mattn/go-runewidth v0.0.23
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e

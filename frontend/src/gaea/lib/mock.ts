@@ -153,6 +153,33 @@ const MOCK_XLSX_BODY = JSON.stringify({
 
 export const mockListeners = new Set<(e: WireEvent) => void>();
 
+// 任务中心 mock：内存任务表（TaskList/TaskCancel/TaskRetry + gaea-task 事件）。
+const taskMock: import("./types").TaskView[] = [];
+let taskSeq = 0;
+
+export function taskView(kind: string, label: string, result: Record<string, unknown> = {}): import("./types").TaskView {
+  const t: import("./types").TaskView = {
+    id: "tsk_" + ++taskSeq, kind, label,
+    status: "succeeded", progress: 100, message: "完成",
+    error: "", retryCount: 0, maxRetries: 2,
+    payload: "{}", result: JSON.stringify(result),
+    createdAt: Date.now(), startedAt: Date.now(), finishedAt: Date.now(),
+  };
+  taskMock.unshift(t);
+  if (taskMock.length > 20) taskMock.pop();
+  mockTaskListeners.forEach((l) => l(t));
+  return t;
+}
+
+export const mockTaskListeners = new Set<(t: import("./types").TaskView) => void>();
+
+export function mockTaskSubscribe(cb: (t: import("./types").TaskView) => void): () => void {
+  mockTaskListeners.add(cb);
+  return () => {
+    mockTaskListeners.delete(cb);
+  };
+}
+
 export function mockSubscribe(cb: (e: WireEvent) => void): () => void {
   mockListeners.add(cb);
   return () => {
@@ -1243,14 +1270,14 @@ export function makeMockApp(): AppBindings {
       };
       priceFetchMock = [rec, ...priceFetchMock.filter((f) => f.id !== rec.id)];
       if (src) src.lastFetchAt = rec.fetchedAt;
-      return rec;
+      return taskView("price_fetch", "抓取 " + (src?.name ?? id), { count: rec.candidates.length, fetchId: rec.id });
     },
     async PriceFetchAll() {
       const enabled = priceSourcesMock.filter((s) => s.enabled);
       for (const src of enabled) {
         await this.PriceFetch(src.id);
       }
-      return [enabled.length, ""];
+      return taskView("price_fetch_all", "一键抓取全部价格源", { fetched: enabled.length, failed: 0 });
     },
     async PriceFetches() {
       return priceFetchMock;
@@ -1362,7 +1389,7 @@ export function makeMockApp(): AppBindings {
       return target;
     },
     async FileIndexRebuild() {
-      return { total: 3, skipped: 0, error: "" };
+      return taskView("file_index", "工作区语义索引", { total: 3, skipped: 0 });
     },
     async FileSemanticSearch(query: string) {
       if (!query.trim()) return [];
@@ -1388,6 +1415,27 @@ export function makeMockApp(): AppBindings {
     async PickDirectory(): Promise<string> {
       // mock: no native dialog
       return "";
+    },
+    async TaskList() {
+      return [...taskMock];
+    },
+    async TaskCancel(id: string) {
+      const t = taskMock.find((x) => x.id === id);
+      if (t && (t.status === "queued" || t.status === "running")) {
+        t.status = "cancelled";
+        t.finishedAt = Date.now();
+        mockTaskListeners.forEach((l) => l(t));
+      }
+    },
+    async TaskRetry(id: string) {
+      const t = taskMock.find((x) => x.id === id);
+      if (t && (t.status === "failed" || t.status === "cancelled")) {
+        t.status = "succeeded";
+        t.progress = 100;
+        t.error = "";
+        t.finishedAt = Date.now();
+        mockTaskListeners.forEach((l) => l(t));
+      }
     },
   };
 }

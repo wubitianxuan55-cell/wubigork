@@ -4,6 +4,7 @@ package app
 
 import (
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
+	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
 // CostB 成本库与价格源绑定门面（S2-3「App 绑定面拆分」）：仅暴露成本库与价格源的方法，
@@ -21,8 +22,8 @@ func (b *CostB) GaeaCostImportPreview(path string) (CostImportPreview, error) { 
 func (b *CostB) GaeaCostList() []CostSummary { return b.a.GaeaCostList() }
 func (b *CostB) GaeaCostSave(e CostEntry) error { return b.a.GaeaCostSave(e) }
 func (b *CostB) GaeaCostSearch(query string, category string, status string) []CostSummary { return b.a.GaeaCostSearch(query, category, status) }
-func (b *CostB) GaeaPriceFetch(id string) (pricefeed.FetchRecord, error) { return b.a.GaeaPriceFetch(id) }
-func (b *CostB) GaeaPriceFetchAll() (int, string) { return b.a.GaeaPriceFetchAll() }
+func (b *CostB) GaeaPriceFetch(id string) (*tasks.Task, error) { return b.a.GaeaPriceFetch(id) }
+func (b *CostB) GaeaPriceFetchAll() (*tasks.Task, error) { return b.a.GaeaPriceFetchAll() }
 func (b *CostB) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) { return b.a.GaeaPriceFetchApply(fetchID, titles) }
 func (b *CostB) GaeaPriceFetchIgnore(fetchID string) error { return b.a.GaeaPriceFetchIgnore(fetchID) }
 func (b *CostB) GaeaPriceFetches() []pricefeed.FetchRecord { return b.a.GaeaPriceFetches() }

@@ -25,7 +25,9 @@ import (
 	"github.com/gaea/gaea/internal/characterlib"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/gaea/filewatch"
 	"github.com/gaea/gaea/internal/gaea/secure"
+	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/httpbridge"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/outline"
@@ -159,6 +161,13 @@ type officeState struct {
 	fileIndexStop     chan struct{}
 	fileIndexOnce     sync.Once
 	fileIndexStopOnce sync.Once
+
+	// 阶段 5 T5-1：通用任务调度器（持久任务表 + 进度事件 + 取消/重试/重启续跑）。
+	tasks    *tasks.Manager
+	taskOnce sync.Once
+
+	// 阶段 5 T5-2：工作区实时文件监听（fsnotify 增量索引，失败回退轮询）。
+	fileWatch *filewatch.Watcher
 }
 
 // App Wails 应用实例 — 聚合各域子服务，方法经嵌入提升到 App 供前端绑定。
@@ -300,10 +309,15 @@ func (a *App) Startup(ctx context.Context) {
 	// 本地 TTS 服务保活：模型中心内置 CosyVoice2，gaea 启动即自动拉起（幂等，已就绪零开销）
 	a.ensureLocalTTSService("cosyvoice")
 
+	// 阶段 5 T5-1：通用任务调度器（价格抓取/文件索引等长任务统一异步化）。
+	a.startTaskScheduler()
 	// 价格源定时抓取调度：启动后立即检查一次，之后每 30 分钟按订阅频率轮询。
 	a.startPriceCron()
-	// 文件语义索引自动维护：启动后立即增量重建一次，之后每 10 分钟。
+	// 文件语义索引自动维护：启动后立即增量重建一次，之后每 10 分钟（实时监听
+	// 可用时轮询仅作兜底，见 startFileWatch）。
 	a.startFileIndexCron()
+	// 阶段 5 T5-2：工作区实时文件监听（fsnotify 增量索引，秒级可搜）。
+	a.startFileWatch()
 
 	// 后台刷新所有引擎模型列表
 	for _, eid := range []string{"xai", "herdsman", "ollama", "deepseek"} {
@@ -422,6 +436,14 @@ func (a *App) Shutdown(ctx context.Context) {
 			close(a.officeState.fileIndexStop)
 		}
 	})
+	// 停止任务调度器（running 任务留待下次启动续跑）与文件监听。
+	if a.officeState.tasks != nil {
+		a.officeState.tasks.Close()
+	}
+	if w := a.officeState.fileWatch; w != nil {
+		_ = w.Close()
+		a.officeState.fileWatch = nil
+	}
 }
 
 // getPM/setPM/closePM/initAgents/restoreImageBackend 已迁移到

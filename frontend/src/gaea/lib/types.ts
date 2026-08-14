@@ -966,3 +966,25 @@ export interface FileSemanticHit {
   score: number;
   snippet: string;
 }
+
+// ── 阶段 5 T5-1：通用任务调度器视图 ──
+// 长任务（价格抓取/文件索引重建等）统一走持久化任务队列；gaea-task 事件
+// 实时推送任务视图（状态/进度/消息），任务中心据此渲染并支持取消/重试。
+export type TaskStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+
+export interface TaskView {
+  id: string;
+  kind: string; // price_fetch / price_fetch_all / file_index / …
+  label: string;
+  status: TaskStatus;
+  progress: number; // 0-100
+  message: string;
+  error: string;
+  retryCount: number;
+  maxRetries: number;
+  payload: string; // 不透明 JSON
+  result: string; // 不透明 JSON（完成时按 kind 解析）
+  createdAt: number; // unix 毫秒
+  startedAt: number;
+  finishedAt: number;
+}

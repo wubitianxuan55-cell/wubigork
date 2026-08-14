@@ -10,9 +10,9 @@ import {
   Search,
   X,
 } from "../icons";
-import { app } from "../lib/bridge";
+import { app, onTaskEvent } from "../lib/bridge";
 import { useComposerInsertStore } from "../lib/store";
-import type { FileSemanticHit, WorkspaceSearchHit } from "../lib/types";
+import type { FileSemanticHit, TaskView, WorkspaceSearchHit } from "../lib/types";
 import { useToast } from "./Toast";
 
 function fileIcon(name: string) {
@@ -21,6 +21,17 @@ function fileIcon(name: string) {
   if (/\.pptx?$/i.test(name)) return <FilePpt size={12} />;
   if (/\.pdf$/i.test(name)) return <File size={12} />;
   return <FileText size={12} />;
+}
+
+// 解析索引任务 result（JSON 字符串 {total, skipped}）为完成提示文案。
+function indexResultText(task: TaskView): string {
+  try {
+    const r = JSON.parse(task.result || "{}") as { total?: number; skipped?: number };
+    const skipped = r.skipped ?? 0;
+    return `已索引 ${r.total ?? 0} 个文件${skipped ? `（跳过 ${skipped}）` : ""}`;
+  } catch {
+    return "索引完成";
+  }
 }
 
 // WorkspaceSearchPanel — 右侧「搜索」视图：工作区全文检索（轻量 RAG）。
@@ -40,6 +51,8 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
   const [semSearching, setSemSearching] = useState(false);
   const [indexMsg, setIndexMsg] = useState<string | null>(null);
   const seq = useRef(0);
+  // 索引任务事件订阅的注销函数（重复点击/卸载时断开，避免监听泄漏）
+  const taskOff = useRef<(() => void) | null>(null);
   const requestAt = useComposerInsertStore((s) => s.requestAt);
   const toast = useToast();
 
@@ -87,12 +100,35 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
   }, [semantic]);
 
   const rebuildIndex = useCallback(async () => {
+    // 重复点击时断开上一次未完成的订阅
+    taskOff.current?.();
+    taskOff.current = null;
     setIndexMsg("正在索引工作区…");
     try {
-      const st = await app.FileIndexRebuild();
-      setIndexMsg(st.error ? `索引失败：${st.error}` : `已索引 ${st.total} 个文件${st.skipped ? `（跳过 ${st.skipped}）` : ""}`);
-      setTimeout(() => setIndexMsg(null), 3000);
+      const task = await app.FileIndexRebuild();
+      // 终态结算：succeeded → 解析 result；failed → 错误信息；cancelled → 取消提示。
+      const settle = (t: TaskView) => {
+        if (t.status === "succeeded") setIndexMsg(indexResultText(t));
+        else if (t.status === "failed") setIndexMsg(`索引失败：${t.error || "未知错误"}`);
+        else setIndexMsg("索引已取消");
+      };
+      if (task.status === "queued" || task.status === "running") {
+        // 任务异步执行中：订阅 gaea-task 事件，等该任务终态再结算。
+        taskOff.current = onTaskEvent((t) => {
+          if (t.id !== task.id) return;
+          if (t.status === "queued" || t.status === "running") return; // 仍在进行
+          settle(t);
+          taskOff.current?.();
+          taskOff.current = null;
+          setTimeout(() => setIndexMsg(null), 3000);
+        });
+      } else {
+        // 提交即终态（mock/快速完成）：直接结算
+        settle(task);
+        setTimeout(() => setIndexMsg(null), 3000);
+      }
     } catch (e) {
+      // 已有活动索引任务等后端错误（如"索引任务已在队列中"）：直接提示
       setIndexMsg(`索引失败：${String(e)}`);
       setTimeout(() => setIndexMsg(null), 3000);
     }
@@ -103,6 +139,13 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
     const t = setTimeout(() => run(query), 300);
     return () => clearTimeout(t);
   }, [query, run]);
+
+  // 卸载时断开索引任务订阅，避免事件监听泄漏
+  useEffect(() => {
+    return () => {
+      taskOff.current?.();
+    };
+  }, []);
 
   const reference = useCallback((path: string) => {
     requestAt(path);

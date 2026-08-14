@@ -1,17 +1,17 @@
 package app
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
+	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
 // hubPriceStore 构造价格源存储（Hephaestus.db SchemaV4，与成本库同库）。
@@ -47,38 +47,18 @@ func (a *App) startPriceCron() {
 	})
 }
 
-// tickPriceCron 检查并抓取所有到期的启用价格源。
+// tickPriceCron 检查并提交「定时价格抓取」任务（T5-1）：到期源过滤在任务
+// handler 内按 cron 语义执行；已有排队/运行中的抓取任务则跳过（去重）。
 func (a *App) tickPriceCron() {
-	store := a.hubPriceStore()
-	if !store.Available() {
+	m := a.taskMgr()
+	if m == nil || !m.Available() {
 		return
 	}
-	now := time.Now()
-	for _, src := range store.ListSources() {
-		if !src.Enabled || src.FrequencyHours <= 0 {
-			continue
-		}
-		if src.LastFetchAt != "" {
-			if t, err := time.Parse(time.RFC3339, src.LastFetchAt); err == nil && now.Sub(t) < time.Duration(src.FrequencyHours)*time.Hour {
-				continue
-			}
-		}
-		ctx := a.ctx
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		res, err := pricefeed.Fetch(ctx, src, a.hubCostStore())
-		if err != nil {
-			slog.Warn("价格源定时抓取失败", "source", src.Name, "error", err)
-			continue
-		}
-		res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
-		_ = store.SaveFetch(pricefeed.FetchRecord{
-			SourceID: src.ID, SourceName: src.Name, URL: src.URL,
-			Period: res.Period, FetchedAt: res.FetchedAt, Status: "pending",
-			Candidates: res.Candidates,
-		})
-		_ = store.TouchSource(src.ID, res.FetchedAt)
+	if m.HasActive(tasks.KindPriceFetchAll) || m.HasActive(tasks.KindPriceFetch) {
+		return
+	}
+	if _, err := m.Submit(tasks.KindPriceFetchAll, "定时价格抓取", map[string]any{"cron": true}); err != nil {
+		slog.Warn("tasks: 定时价格抓取提交失败", "error", err)
 	}
 }
 
@@ -97,93 +77,40 @@ func (a *App) GaeaPriceSourceDelete(id string) error {
 	return a.hubPriceStore().DeleteSource(id)
 }
 
-// GaeaPriceFetch 立即抓取指定价格源：解析 → 匹配成本库 → 存 pending 记录。
-func (a *App) GaeaPriceFetch(id string) (pricefeed.FetchRecord, error) {
+// GaeaPriceFetch 立即抓取指定价格源（异步任务，T5-1）：提交任务入队并立即
+// 返回任务视图，前端经 gaea-task 事件观察进度/完成，完成后读 GaeaPriceFetches
+// 取 pending 记录。同一价格源已有排队/运行中的抓取任务时不重复提交。
+func (a *App) GaeaPriceFetch(id string) (*tasks.Task, error) {
+	m := a.taskMgr()
+	if m == nil || !m.Available() {
+		return nil, fmt.Errorf("任务调度器未启动")
+	}
 	store := a.hubPriceStore()
 	src, ok := store.GetSource(id)
 	if !ok {
-		return pricefeed.FetchRecord{}, fmt.Errorf("价格源不存在: %s", id)
+		return nil, fmt.Errorf("价格源不存在: %s", id)
 	}
-	ctx := a.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	res, err := pricefeed.Fetch(ctx, src, a.hubCostStore())
-	if err != nil {
-		return pricefeed.FetchRecord{}, err
-	}
-	res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
-	rec := pricefeed.FetchRecord{
-		SourceID: src.ID, SourceName: src.Name, URL: src.URL,
-		Period: res.Period, FetchedAt: res.FetchedAt, Status: "pending",
-		Candidates: res.Candidates,
-	}
-	if err := store.SaveFetch(rec); err != nil {
-		return pricefeed.FetchRecord{}, err
-	}
-	_ = store.TouchSource(src.ID, res.FetchedAt)
-	return rec, nil
-}
-
-// GaeaPriceFetchAll 一键抓取全部启用的价格源（并发）。单个源失败不阻断
-// 其他源；返回成功抓取数与失败汇总（无失败时汇总为空串）。
-func (a *App) GaeaPriceFetchAll() (int, string) {
-	store := a.hubPriceStore()
-	sources := store.ListSources()
-	var enabled []pricefeed.Source
-	for _, src := range sources {
-		if src.Enabled {
-			enabled = append(enabled, src)
+	// 去重：同一价格源已有活动抓取任务则直接返回
+	for _, t := range a.GaeaTaskList() {
+		if t.Kind == string(tasks.KindPriceFetch) && (t.Status == "queued" || t.Status == "running") {
+			var req priceFetchPayload
+			if json.Unmarshal([]byte(t.Payload), &req) == nil && req.SourceID == id {
+				return &t, nil
+			}
 		}
 	}
-	if len(enabled) == 0 {
-		return 0, "没有启用的价格源，请先添加并启用"
-	}
+	return m.Submit(tasks.KindPriceFetch, "抓取 "+src.Name, map[string]any{"sourceId": id})
+}
 
-	ctx := a.ctx
-	if ctx == nil {
-		ctx = context.Background()
+// GaeaPriceFetchAll 一键抓取全部启用的价格源（异步任务，T5-1）：提交任务
+// 入队并立即返回任务视图，逐源进度经 gaea-task 事件推送，失败明细在任务
+// 结果/消息里（前端任务中心可见）。
+func (a *App) GaeaPriceFetchAll() (*tasks.Task, error) {
+	m := a.taskMgr()
+	if m == nil || !m.Available() {
+		return nil, fmt.Errorf("任务调度器未启动")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
-	defer cancel()
-
-	var (
-		mu   sync.Mutex
-		ok   int
-		errs []string
-		wg   sync.WaitGroup
-	)
-	for _, src := range enabled {
-		wg.Add(1)
-		go func(src pricefeed.Source) {
-			defer wg.Done()
-			res, err := pricefeed.Fetch(ctx, src, a.hubCostStore())
-			if err != nil {
-				mu.Lock()
-				errs = append(errs, src.Name+": "+err.Error())
-				mu.Unlock()
-				return
-			}
-			res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
-			rec := pricefeed.FetchRecord{
-				SourceID: src.ID, SourceName: src.Name, URL: src.URL,
-				Period: res.Period, FetchedAt: res.FetchedAt, Status: "pending",
-				Candidates: res.Candidates,
-			}
-			if err := store.SaveFetch(rec); err != nil {
-				mu.Lock()
-				errs = append(errs, src.Name+": "+err.Error())
-				mu.Unlock()
-				return
-			}
-			_ = store.TouchSource(src.ID, res.FetchedAt)
-			mu.Lock()
-			ok++
-			mu.Unlock()
-		}(src)
-	}
-	wg.Wait()
-	return ok, strings.Join(errs, "；")
+	return m.Submit(tasks.KindPriceFetchAll, "一键抓取全部价格源", map[string]any{"cron": false})
 }
 
 // GaeaPriceFetches 返回最近抓取记录（含 pending 待确认）。

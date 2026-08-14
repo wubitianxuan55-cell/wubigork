@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,10 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/retrieval"
 	"github.com/gaea/gaea/internal/gaea/semantic"
+	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
 func TestGaeaFileIndexRebuildAndSearch(t *testing.T) {
@@ -62,13 +65,33 @@ func TestGaeaFileIndexRebuildAndSearch(t *testing.T) {
 	SetAppSemanticStoreForTest(semantic.Open(gdb))
 	SetAppEmbedderForTest(retrieval.NewEmbedder(srv.URL, "bge-m3"))
 
-	a := &App{}
-	st, err := a.GaeaFileIndexRebuild()
-	if err != nil {
-		t.Fatalf("rebuild failed: %v", err)
+	a := &App{officeState: &officeState{core: &core{}}}
+	m := tasks.New(gdb, nil, tasks.Options{})
+	m.Register(tasks.KindFileIndex, a.fileIndexTaskHandler)
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("task manager start: %v", err)
 	}
-	if st.Total != 2 {
-		t.Fatalf("indexed %d, want 2", st.Total)
+	t.Cleanup(m.Close)
+	a.officeState.tasks = m
+
+	tk, err := a.GaeaFileIndexRebuild()
+	if err != nil {
+		t.Fatalf("rebuild submit failed: %v", err)
+	}
+	done, err := m.Wait(context.Background(), tk.ID, 30*time.Second)
+	if err != nil {
+		t.Fatalf("rebuild wait: %v", err)
+	}
+	if done.Status != "succeeded" {
+		t.Fatalf("rebuild failed: %s (%s)", done.Status, done.Error)
+	}
+	var res struct {
+		Total   int `json:"total"`
+		Skipped int `json:"skipped"`
+	}
+	_ = json.Unmarshal([]byte(done.Result), &res)
+	if res.Total != 2 {
+		t.Fatalf("indexed %d, want 2", res.Total)
 	}
 
 	hits, err := a.GaeaFileSemanticSearch("打桩锤", 5)

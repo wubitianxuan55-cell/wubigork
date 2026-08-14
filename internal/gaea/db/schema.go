@@ -188,3 +188,27 @@ ALTER TABLE cost_entries ADD COLUMN category_path TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_cost_category_path ON cost_entries(category_path);
 UPDATE cost_entries SET category_path = category WHERE category_path = '' AND category != '';
 `
+
+// SchemaV8 通用任务调度器（阶段 5 T5-1）：tasks 持久化任务表。
+// 长任务（价格抓取/文件索引重建/批量导入等）统一走任务队列：状态机
+// queued → running → succeeded|failed|cancelled，进度事件经 SSE/Wails 推前端；
+// 取消（cancel）、重试（retry）、重启续跑（Startup 把 running 恢复 queued）。
+const SchemaV8 = `
+CREATE TABLE IF NOT EXISTS tasks (
+  id           TEXT PRIMARY KEY,
+  kind         TEXT NOT NULL DEFAULT '',
+  label        TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT 'queued',
+  progress     INTEGER NOT NULL DEFAULT 0,
+  message      TEXT NOT NULL DEFAULT '',
+  error        TEXT NOT NULL DEFAULT '',
+  retry_count  INTEGER NOT NULL DEFAULT 0,
+  max_retries  INTEGER NOT NULL DEFAULT 2,
+  payload      TEXT NOT NULL DEFAULT '{}',
+  result       TEXT NOT NULL DEFAULT '',
+  created_at   INTEGER NOT NULL DEFAULT 0,
+  started_at   INTEGER NOT NULL DEFAULT 0,
+  finished_at  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, created_at);
+`

@@ -1,5 +1,25 @@
 # gaea · 多功能 AI 助手
 
+## v2.21.0「运行纵深 · 调度与异步化」（2026-08-14）
+> 阶段 5 第一刀（T5-1 + T5-2）：通用任务调度器 + 批处理队列、实时文件监听。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段5-运行纵深.md；详见 releases/v2.21.0.md。
+- T5-1 通用任务调度器 + 批处理队列：新包 internal/gaea/tasks（Hephaestus.db SchemaV8 tasks 表）——
+  状态机 queued→running→succeeded|failed|cancelled、进度 0-100 + 消息、取消（context 传播）、
+  自动重试（指数退避）、手动重试、**重启续跑**（Startup 恢复 running→queued 重新排队）；
+  进度事件经 gaea-task 通道实时推送（节流 400ms，终态必达）；
+  App 绑定 GaeaTaskList/Cancel/Retry（446 方法 → 10 门面，gen_bindings 重新生成 + 完备性测试）；
+  **价格抓取全异步化**（单源/一键全部/30 分钟定时 cron 全部走任务队列，同源去重、逐源进度、
+  失败明细在任务结果；顺带修复 SaveFetch 按值拷贝致返回记录 ID 恒为空的历史缺陷）；
+  **文件索引重建异步化**（分批 Ensure 进度、末批 Stale 清理、手动/轮询/监听共用队列去重）；
+  办公右栏新增「任务」Tab（任务中心：活动/历史分组、进度条、取消/重试、失败原因）；
+- T5-2 实时文件监听：新包 internal/gaea/filewatch（fsnotify 监听工作区目录树，2s 去抖合并输出
+  变更/删除批次；目录级变更与事件风暴>50 标记全量重建；监听异常记录 WatchErr 回退轮询）；
+  增量索引（删除直接清向量 semantic.Remove、变更内容感知重嵌、失败自愈全量重建）；
+  10 分钟轮询降级兜底（监听健康时跳过）——**新文件秒级可搜**；
+- 测试：tasks 包 13 组 + filewatch 包 5 组 + App 层 6 组（单源任务流/同源去重/一键抓取/
+  List-Cancel-Retry 链路/定时到期跳过/cron 去重）；Go 全量 90/90 包 ok、vet 干净；
+  前端 TaskCenter/价格面板/搜索面板用例 + tsc/eslint/vitest 全绿
+
 ## v2.20.1「数据可迁移·独立审查修复」（2026-08-14）
 > 对 v2.20.0 变更面做独立子代理代码审查，修复 3 高危 + 4 中危 + 多项低危缺陷。
 > 详见 releases/v2.20.1.md。

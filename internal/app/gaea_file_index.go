@@ -7,8 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/fileindex"
-	"github.com/gaea/gaea/internal/gaea/semantic"
+	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
 // FileIndexStatus 是工作区文件语义索引状态。
@@ -25,40 +24,18 @@ type FileSemanticHit struct {
 	Snippet string  `json:"snippet"`
 }
 
-// GaeaFileIndexRebuild 扫描工作区并增量建立文件语义索引（复用 semantic_vectors
-// kind=file）；已索引文件跳过、删除的清理、新增的向量化。返回索引状态。
-func (a *App) GaeaFileIndexRebuild() (FileIndexStatus, error) {
-	return a.rebuildFileIndex()
-}
-
-// rebuildFileIndex 扫描工作区并增量建立/刷新文件语义索引（复用 semantic_vectors
-// kind=file）；Ensure 内容感知（变更自动重嵌），Stale 清理已删除文件。
-func (a *App) rebuildFileIndex() (FileIndexStatus, error) {
-	docs, skipped, err := fileindex.Scan(gaeaCwd())
-	if err != nil {
-		return FileIndexStatus{Error: err.Error()}, err
+// GaeaFileIndexRebuild 扫描工作区并增量建立文件语义索引（异步任务，T5-1）：
+// 提交索引任务入队并立即返回任务视图，进度经 gaea-task 事件推送；结果
+// （total/skipped）在任务 result 里，失败原因在任务 error 里。
+func (a *App) GaeaFileIndexRebuild() (*tasks.Task, error) {
+	m := a.taskMgr()
+	if m == nil || !m.Available() {
+		return nil, fmt.Errorf("任务调度器未启动")
 	}
-	e := a.localSearchEmbedder()
-	if e == nil {
-		return FileIndexStatus{Error: "本地 embedding 未配置（Herdsman bge-m3）"}, fmt.Errorf("本地 embedding 未配置")
+	if m.HasActive(tasks.KindFileIndex) {
+		return nil, fmt.Errorf("索引任务已在队列中，请稍候")
 	}
-	st := a.hubSemanticStore()
-	if st == nil || !st.Available() {
-		return FileIndexStatus{Error: "向量索引不可用"}, fmt.Errorf("向量索引不可用")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
-	defer cancel()
-	semDocs := make([]semantic.Doc, 0, len(docs))
-	keep := make(map[string]bool, len(docs))
-	for _, d := range docs {
-		semDocs = append(semDocs, fileindex.Doc(d))
-		keep[d.Path] = true
-	}
-	if _, err := st.Ensure(ctx, e, "file", semDocs); err != nil {
-		return FileIndexStatus{Total: len(docs), Skipped: skipped, Error: err.Error()}, err
-	}
-	_, _ = st.Stale("file", keep)
-	return FileIndexStatus{Total: len(docs), Skipped: skipped}, nil
+	return m.Submit(tasks.KindFileIndex, "工作区语义索引", map[string]any{"reason": "manual"})
 }
 
 // startFileIndexCron 文件语义索引自动维护：启动即查 + 每 10 分钟增量重建
@@ -88,9 +65,23 @@ func (a *App) startFileIndexCron() {
 	})
 }
 
+// tickFileIndex 轮询兜底：实时监听健康时跳过（增量由 watch 负责），否则
+// 提交全量索引任务（T5-1 队列去重）。
 func (a *App) tickFileIndex() {
-	if _, err := a.rebuildFileIndex(); err != nil {
-		slog.Warn("文件语义索引自动重建失败", "error", err)
+	if a.officeState != nil {
+		if w := a.officeState.fileWatch; w != nil && w.Healthy() {
+			return
+		}
+	}
+	m := a.taskMgr()
+	if m == nil || !m.Available() {
+		return
+	}
+	if m.HasActive(tasks.KindFileIndex) {
+		return
+	}
+	if _, err := m.Submit(tasks.KindFileIndex, "工作区语义索引（轮询兜底）", map[string]any{"reason": "cron"}); err != nil {
+		slog.Warn("tasks: 索引任务提交失败", "error", err)
 	}
 }
 

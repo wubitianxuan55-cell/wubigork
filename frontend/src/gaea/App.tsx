@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
   BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, FileText, FolderGit2, FolderTree, Paperclip,
-  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, Diff,
+  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, Diff, ClipboardList,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -31,6 +31,7 @@ import { MaterialsPanel } from "./components/MaterialsPanel";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { StatsPanel, useStatsPersistence } from "./components/StatsPanel";
 import { ChangesPanel } from "./components/ChangesPanel";
+import { TaskCenter } from "./components/TaskCenter";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
@@ -101,7 +102,7 @@ export default function App() {
   const [statsReset, setStatsReset] = useState(0);
   const [capsOpen, setCapsOpen] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
-  const [rightTab, setRightTab] = useState<"files" | "materials" | "deliverables" | "changes" | "stats">("files");
+  const [rightTab, setRightTab] = useState<"files" | "materials" | "deliverables" | "changes" | "stats" | "tasks">("files");
   const [compactMode, setCompactMode] = useState(() => { try { return localStorage.getItem("gaea.compactMode") === "1"; } catch { return false; } });
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -796,6 +797,13 @@ export default function App() {
               <BarChart3 size={13} />
               <span>统计</span>
             </button>
+            <button
+              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "tasks" ? "text-accent border-accent" : ""}`}
+              onClick={() => setRightTab("tasks")}
+            >
+              <ClipboardList size={13} />
+              <span>任务</span>
+            </button>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
             {rightTab === "files" ? (
@@ -840,6 +848,7 @@ export default function App() {
                 onOpenFile={openFilePreview}
               />
             )}
+            {rightTab === "tasks" && <TaskCenter />}
           </div>
         </div>
         )}

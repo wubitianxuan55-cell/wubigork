@@ -19,6 +19,14 @@ const { searchSpy, pickSpy, previewSpy, applySpy } = vi.hoisted(() => ({
   applySpy: vi.fn(),
 }));
 
+// 与 lib/types 的 TaskView 一致的 mock 任务视图（价格抓取已改为异步任务）。
+const TASK_DONE = {
+  id: "mock-fetch-task", kind: "price_fetch", label: "抓取",
+  status: "succeeded", progress: 100, message: "完成", error: "",
+  retryCount: 0, maxRetries: 0, payload: "{}", result: JSON.stringify({ count: 0 }),
+  createdAt: 0, startedAt: 0, finishedAt: 0,
+} as const;
+
 vi.mock("../../lib/bridge", () => ({
   app: {
     CostSearch: (...args: unknown[]) => searchSpy(...args),
@@ -36,12 +44,15 @@ vi.mock("../../lib/bridge", () => ({
     PriceSources: async () => [],
     PriceSourceSave: async () => {},
     PriceSourceDelete: async () => {},
-    PriceFetch: async () => ({}),
+    PriceFetch: async () => ({ ...TASK_DONE }),
+    PriceFetchAll: async () => ({ ...TASK_DONE, kind: "price_fetch_all", result: JSON.stringify({ fetched: 0, failed: 0 }) }),
     PriceFetches: async () => [],
     PriceFetchApply: async () => 0,
     PriceFetchIgnore: async () => {},
     PriceHistory: async () => [],
   },
+  // PriceSourcesPanel 挂载时订阅任务事件；测试里不触发，仅提供无操作订阅/退订。
+  onTaskEvent: () => () => {},
 }));
 
 const wrap = (node: React.ReactNode) => <ToastProvider>{node}</ToastProvider>;

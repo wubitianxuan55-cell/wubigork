@@ -73,6 +73,7 @@ import type {
   MemoryDuplicateView,
   FileIndexStatus,
   FileSemanticHit,
+  TaskView,
 } from "./types";
 
 // AppBindings mirrors desktop/app.go's exported method set. Keep in sync by hand
@@ -309,10 +310,12 @@ export interface AppBindings {
   PriceSources(): Promise<PriceSource[]>;
   PriceSourceSave(src: PriceSource): Promise<void>;
   PriceSourceDelete(id: string): Promise<void>;
-  // PriceFetch 立即抓取价格源，返回待确认候选（存 pending 记录）。
-  PriceFetch(id: string): Promise<PriceFetchRecord>;
-  // PriceFetchAll 一键抓取全部启用的价格源（并发），返回成功数 + 失败汇总。
-  PriceFetchAll(): Promise<[number, string]>;
+  // PriceFetch 立即抓取价格源（异步任务，T5-1）：提交任务入队立即返回任务
+  // 视图，进度/完成经 gaea-task 事件推送；完成后读 PriceFetches 取 pending 记录。
+  PriceFetch(id: string): Promise<TaskView>;
+  // PriceFetchAll 一键抓取全部启用的价格源（异步任务），逐源进度事件推送，
+  // 失败明细在任务结果/消息里。
+  PriceFetchAll(): Promise<TaskView>;
   PriceFetches(): Promise<PriceFetchRecord[]>;
   // PriceFetchApply 确认发布抓取结果（按标题选择），返回写入条数。
   PriceFetchApply(fetchId: string, titles: string[]): Promise<number>;
@@ -339,7 +342,9 @@ export interface AppBindings {
   MemoryDuplicates(min: number): Promise<MemoryDuplicateView[]>;
   MemoryMerge(targetName: string, sourceNames: string[]): Promise<string>;
   // ── 工作区文件语义索引 ──
-  FileIndexRebuild(): Promise<FileIndexStatus>;
+  // FileIndexRebuild 重建索引（异步任务，T5-1）：进度经 gaea-task 事件推送，
+  // 结果（total/skipped）在任务 result 里。
+  FileIndexRebuild(): Promise<TaskView>;
   FileSemanticSearch(query: string, topN: number): Promise<FileSemanticHit[]>;
   // Herdsman 深挖：数字生命记忆总览（只读）与最近异步操作。
   HerdsmanDigitalLife(): Promise<unknown>;
@@ -352,6 +357,12 @@ export interface AppBindings {
   // Cost database panel.
   // PickFiles opens a native file dialog and imports selected files.
   PickFiles(): Promise<FilePickResult[]>;
+  // ── 阶段 5 T5-1 任务中心 ──
+  // TaskList 返回最近任务（新→旧）；TaskCancel 取消（running 中断/queued 取消）；
+  // TaskRetry 重试失败/已取消的任务。任务实时进度经 onTaskEvent 推送。
+  TaskList(): Promise<TaskView[]>;
+  TaskCancel(id: string): Promise<void>;
+  TaskRetry(id: string): Promise<void>;
 }
 
 // Window 类型由 gaea 的 src/types/wails.d.ts 统一声明（go.app.App + runtime）。
@@ -411,6 +422,17 @@ export function onUpdaterProgress(cb: (p: UpdateProgress) => void): () => void {
   return () => {
     updaterListeners.delete(cb);
   };
+}
+
+// onTaskEvent subscribes to the task scheduler's event stream (gaea-task):
+// every task status/progress change pushes the latest TaskView. Returns an
+// unsubscribe. Falls back to the mock stream outside the Wails shell.
+export function onTaskEvent(cb: (t: TaskView) => void): () => void {
+  if (realApp() && typeof window !== "undefined" && window.runtime) {
+    window.runtime.EventsOn("gaea-task", (payload) => cb(payload as TaskView));
+    return () => window.runtime?.EventsOff?.("gaea-task");
+  }
+  return mockTaskSubscribe(cb);
 }
 
 // onReady subscribes to the agent:ready event fired when boot.Build completes.
@@ -567,6 +589,9 @@ const gaeaToGaea: Record<string, string> = {
   PriceSourceDelete: "GaeaPriceSourceDelete",
   PriceFetch: "GaeaPriceFetch",
   PriceFetchAll: "GaeaPriceFetchAll",
+  TaskList: "GaeaTaskList",
+  TaskCancel: "GaeaTaskCancel",
+  TaskRetry: "GaeaTaskRetry",
   PriceFetches: "GaeaPriceFetches",
   PriceFetchApply: "GaeaPriceFetchApply",
   PriceFetchIgnore: "GaeaPriceFetchIgnore",
@@ -618,6 +643,7 @@ export function openExternal(url: string): void {
 import {
   makeMockApp,
   mockSubscribe,
+  mockTaskSubscribe,
   updaterListeners,
 } from "./mock";
 
