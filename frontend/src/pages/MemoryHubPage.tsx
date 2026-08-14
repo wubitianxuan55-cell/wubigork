@@ -92,7 +92,7 @@ function MemoryHubPage() {
       ]);
       let brain: Array<{ brain: string; entity: string; text: string }> = [];
       try { brain = JSON.parse(brainRaw ?? "[]"); } catch { brain = []; }
-      const kindLabel: Record<string, string> = { cost: "语义·成本", knowledge: "语义·知识", office: "语义·办公" };
+      const kindLabel: Record<string, string> = { cost: "语义·成本", knowledge: "语义·知识", office: "语义·办公", file: "语义·资料" };
       setHits([
         ...brain.map((h) => ({ kind: "brain" as const, brain: h.brain, entity: h.entity, text: h.text })),
         ...(files ?? []).map((f) => ({

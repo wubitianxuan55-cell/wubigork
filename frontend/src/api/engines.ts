@@ -158,6 +158,115 @@ export interface HerdsmanModelStats {
   error?: string
 }
 
+// ── 阶段 3 D3-2 分流统计（本地 vs 云端） ───────────────────
+
+export interface UsageSide {
+  calls: number
+  success_calls: number
+  fail_calls: number
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  total_duration_ms: number
+  cost: number
+  engines: string[]
+}
+
+export interface SavingsView {
+  ref_price_per_mtok: number
+  would_cost_cloud: number
+  saved: number
+  note: string
+}
+
+export interface UsageOverview {
+  cloud: UsageSide
+  local: UsageSide
+  savings: SavingsView
+}
+
+// ── 阶段 3 D3-1 语义索引状态 ───────────────────────────────
+
+export interface SemanticIndexStatus {
+  available: boolean
+  counts: Record<string, number>
+  error?: string
+}
+
+// ── 阶段 3 D3-3 Herdsman 受控测评 ──────────────────────────
+
+export interface BenchmarkSummary {
+  total_cases: number
+  succeeded: number
+  failed: number
+  canceled: number
+  avg_duration_ms: number
+  avg_ttft_ms: number
+  avg_tps: number
+}
+
+export interface BenchmarkRunSummary {
+  id: string
+  created_at: string
+  finished_at?: string
+  status: string
+  model_names: string[]
+  variants: string[]
+  context_sizes: number[]
+  summary?: BenchmarkSummary
+}
+
+export interface BenchmarkPromptRequest {
+  user_prompt: string
+  temperature: number
+  top_p: number
+  top_k: number
+  repeat_penalty: number
+  max_tokens: number
+  stream: boolean
+  timeout_seconds: number
+}
+
+export interface BenchmarkRequest {
+  model_names: string[]
+  variants: string[]
+  context_sizes: number[]
+  cache_reuse_mode: string
+  warmup_count: number
+  repeat_count: number
+  concurrency: number
+  request: BenchmarkPromptRequest
+}
+
+export interface BenchmarkCase {
+  model_name: string
+  variant_id: string
+  context_size: number
+  status: string
+  started_at?: string
+  ended_at?: string
+  duration_ms: number
+  ttft_ms_avg: number
+  ttft_ms_p95: number
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  cached_tokens: number
+  second_duration_ms: number
+  second_ttft_ms_avg: number
+  error?: string
+}
+
+export interface BenchmarkRunDetail {
+  id: string
+  created_at: string
+  finished_at?: string
+  status: string
+  config: BenchmarkRequest
+  summary: BenchmarkSummary
+  cases: BenchmarkCase[]
+}
+
 // ── API 函数 ─────────────────────────────────────────────────
 
 const App = (): any => (window as any).go?.app?.App
@@ -296,4 +405,40 @@ export async function uninstallHerdsmanModel(model: string): Promise<HerdsmanOpR
 /** 重置模型调用统计 */
 export async function resetModelCallStats(): Promise<void> {
   await App().ResetModelCallStats()
+}
+
+/** 分流统计总览（本地 vs 云端 + 节省对比，D3-2） */
+export async function getUsageOverview(): Promise<UsageOverview> {
+  const result = await App().GaeaUsageOverview()
+  return result as UsageOverview
+}
+
+/** 语义向量索引状态（各 kind 条数，D3-1） */
+export async function getSemanticIndexStatus(): Promise<SemanticIndexStatus> {
+  const result = await App().GaeaSemanticIndexStatus()
+  return result as SemanticIndexStatus
+}
+
+/** Herdsman 受控测评运行列表（D3-3） */
+export async function getBenchmarkList(): Promise<BenchmarkRunSummary[]> {
+  const result = await App().GaeaBenchmarkList()
+  return result as BenchmarkRunSummary[]
+}
+
+/** 发起一次受控测评（返回运行 ID） */
+export async function startBenchmark(req: BenchmarkRequest): Promise<string> {
+  const result = await App().GaeaBenchmarkStart(req)
+  return result as string
+}
+
+/** 测评运行完整明细（逐 case） */
+export async function getBenchmarkDetail(id: string): Promise<BenchmarkRunDetail> {
+  const result = await App().GaeaBenchmarkDetail(id)
+  return result as BenchmarkRunDetail
+}
+
+/** 导出测评报告（Markdown），返回文件路径 */
+export async function exportBenchmark(id: string, dir: string): Promise<string> {
+  const result = await App().GaeaBenchmarkExport(id, dir)
+  return result as string
 }

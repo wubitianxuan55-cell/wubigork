@@ -3,7 +3,7 @@ import { Button, Drawer, message } from 'antd'
 import {
   ThunderboltOutlined, PictureOutlined, SoundOutlined, SettingOutlined, LinkOutlined,
   CheckCircleOutlined, LoginOutlined, LogoutOutlined, DatabaseOutlined, DashboardOutlined, ReloadOutlined, BarChartOutlined,
-  AppstoreOutlined,
+  AppstoreOutlined, ExperimentOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import * as App from '../../src/wailsjsCompat'
@@ -33,6 +33,7 @@ import { SpecialtySection } from './modelcenter/SpecialtySection'
 import { OverviewSection } from './modelcenter/OverviewSection'
 import { ResourceMonitor } from './modelcenter/ResourceMonitor'
 import { HerdsmanCatalogSection } from './modelcenter/HerdsmanCatalogSection'
+import { BenchmarkSection } from './modelcenter/BenchmarkSection'
 import './modelcenter/modelcenter.css'
 import {
   FEATURES, XAI_VOICES, imageModelOptionsFor, kindOf, localTTSDefaultVoice, localTTSFallbackVoices, engineLabel,
@@ -612,6 +613,7 @@ const ModelCenterPage: React.FC = () => {
     { key: 'tts', icon: <SoundOutlined />, label: '语音模型' },
     { key: 'specialty', icon: <DatabaseOutlined />, label: '专业模型' },
     { key: 'catalog', icon: <AppstoreOutlined />, label: '模型库' },
+    { key: 'benchmark', icon: <ExperimentOutlined />, label: '受控测评' },
     { key: 'bind', icon: <LinkOutlined />, label: '功能绑定' },
     { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
   ]
@@ -719,6 +721,7 @@ const ModelCenterPage: React.FC = () => {
         {category === 'tts' && <VoiceSection />}
         {category === 'specialty' && <SpecialtySection />}
         {category === 'catalog' && <HerdsmanCatalogSection />}
+        {category === 'benchmark' && <BenchmarkSection />}
         {category === 'engine' && <EngineSection />}
         {category === 'bind' && <BindSection />}
         <Drawer

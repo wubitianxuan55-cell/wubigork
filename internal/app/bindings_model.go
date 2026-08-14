@@ -11,11 +11,16 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type ModelB struct{ a *App }
 
+func (b *ModelB) GaeaBenchmarkDetail(id string) (BenchmarkRunDetail, error) { return b.a.GaeaBenchmarkDetail(id) }
+func (b *ModelB) GaeaBenchmarkExport(id string, dir string) (string, error) { return b.a.GaeaBenchmarkExport(id, dir) }
+func (b *ModelB) GaeaBenchmarkList() ([]BenchmarkRunSummary, error) { return b.a.GaeaBenchmarkList() }
+func (b *ModelB) GaeaBenchmarkStart(req BenchmarkRequest) (string, error) { return b.a.GaeaBenchmarkStart(req) }
 func (b *ModelB) GaeaEngines() []modelengine.EngineConfig { return b.a.GaeaEngines() }
 func (b *ModelB) GaeaModel() string { return b.a.GaeaModel() }
 func (b *ModelB) GaeaModels() []ModelInfo { return b.a.GaeaModels() }
 func (b *ModelB) GaeaSetEngine(engineID string) error { return b.a.GaeaSetEngine(engineID) }
 func (b *ModelB) GaeaSetModel(name string) error { return b.a.GaeaSetModel(name) }
+func (b *ModelB) GaeaUsageOverview() UsageOverview { return b.a.GaeaUsageOverview() }
 func (b *ModelB) GetActiveEngine() string { return b.a.GetActiveEngine() }
 func (b *ModelB) GetActiveModel() string { return b.a.GetActiveModel() }
 func (b *ModelB) GetEngines() []modelengine.EngineConfig { return b.a.GetEngines() }

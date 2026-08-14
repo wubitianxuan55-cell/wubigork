@@ -1,5 +1,23 @@
 # gaea · 多功能 AI 助手
 
+## v2.18.0「数据与成本纵深·首轮」（2026-08-14）
+> 长期规划阶段 3（D3-1 ~ D3-3）：跨库统一语义检索补齐「资料」+ 索引状态、
+> 本地 vs 云端分流统计与节省对比、Herdsman 受控测评产品化（一键发起/明细/报告导出）。
+> 详见 releases/v2.18.0.md。
+- D3-1 持久化向量索引：跨库统一语义检索（GaeaSemanticSearch）并入工作区资料（kind=file，
+  复用文件索引定时维护的持久化向量，检索不扫描）；新增 GaeaSemanticIndexStatus（各库向量
+  条数，记忆中枢可见索引健康度）；semantic.Store 新增 Counts
+- D3-2 分流统计面板：GaeaUsageOverview 打通 gaea 侧调用记录（含费用估算）与 herdsman
+  events.jsonl 本地遥测——本地 token 口径 = events 全量 + 其他本地引擎（herdsman 不重复计）；
+  模型中心「调用统计」新增「本地 vs 云端·节省对比」卡（云端实际混合单价折算，无云端用量
+  回退 deepseek-v4-flash 官价）
+- D3-3 测评产品化：复用 herdsman /api/benchmarks（多模型 × 变体 × 上下文长度 × 并发，
+  逐 case TTFT/TPS/token）——GaeaBenchmarkList/Start/Detail/Export + 模型中心「受控测评」
+  分类（任务预设蒸馏自 120 组对照测评方法学、上下文 4K~32K 覆盖长上下文、并发 1/2/4、
+  Markdown 报告导出含逐用例明细）；真实 herdsman 端到端验证（发起 202 + 完成 succeeded）
+- 测试：Go 新增分流口径 3 组 + 测评 runs 解析/HTTP 列表发起/导出 4 组 + semantic Counts；
+  前端 BenchmarkSection vitest 3/3；internal/app 全量 ok、tsc/eslint 0 errors、vitest 246/246
+
 ## v2.17.0「安全与架构收敛」（2026-08-14）
 > 长期规划阶段 2（S2-1 ~ S2-4）：安全收敛与绑定面架构拆分——
 > LAN 暴露告警上墙、WebView2 远程调试默认关闭、HTTP 桥接一次性 token、

@@ -47,6 +47,27 @@ func Open(gdb *sql.DB) *Store { return &Store{db: gdb} }
 // Available 报告存储是否可用。
 func (s *Store) Available() bool { return s.db != nil }
 
+// Counts 返回各 kind 的向量条数（D3-1 索引状态可见性）。
+func (s *Store) Counts() (map[string]int, error) {
+	if s.db == nil {
+		return nil, nil
+	}
+	rows, err := s.db.Query(`SELECT kind, COUNT(*) FROM semantic_vectors GROUP BY kind`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var kind string
+		var n int
+		if rows.Scan(&kind, &n) == nil {
+			out[kind] = n
+		}
+	}
+	return out, rows.Err()
+}
+
 // Ensure 增量向量化：缺失向量或正文快照变化的文档重新向量化（分批），
 // 返回新增/更新条数。正文快照比对保证「内容变更自动重嵌」，编辑过的
 // 条目不会被陈旧向量命中。

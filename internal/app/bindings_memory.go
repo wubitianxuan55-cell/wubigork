@@ -30,6 +30,7 @@ func (b *MemoryB) GaeaProfileDelete(name string) error { return b.a.GaeaProfileD
 func (b *MemoryB) GaeaProfileList() []ProfileFactView { return b.a.GaeaProfileList() }
 func (b *MemoryB) GaeaProfileResolveConflict(name string, prefer string) error { return b.a.GaeaProfileResolveConflict(name, prefer) }
 func (b *MemoryB) GaeaProfileSave(f ProfileFactView) error { return b.a.GaeaProfileSave(f) }
+func (b *MemoryB) GaeaSemanticIndexStatus() SemanticIndexStatus { return b.a.GaeaSemanticIndexStatus() }
 func (b *MemoryB) GaeaSemanticSearch(query string) ([]SemanticHitView, error) { return b.a.GaeaSemanticSearch(query) }
 func (b *MemoryB) GaeaWhisperEpisodes() []WhisperEpisodeView { return b.a.GaeaWhisperEpisodes() }
 func (b *MemoryB) GaeaWhisperExportArchive(dir string) (int, error) { return b.a.GaeaWhisperExportArchive(dir) }

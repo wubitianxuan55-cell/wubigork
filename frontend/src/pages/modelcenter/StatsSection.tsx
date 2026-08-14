@@ -1,15 +1,31 @@
+import React from 'react'
 import { Button, Popconfirm, Segmented } from 'antd'
-import { ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CloudOutlined, DesktopOutlined, ReloadOutlined, SaveOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, KpiTile, StatusChip } from './ui'
 import { costToCNY, engineColor, engineIcons, engineLabel, fmtCost, isLocalEngine, USD_TO_CNY } from './utils'
 import { RequestsTrendChart, TokenTrendChart, type StatsSort, type TrendRange } from './charts'
 import { useModelCenter } from './context'
+import { getUsageOverview, type UsageOverview } from '../../api/engines'
 
 export function StatsSection() {
   const {
     callStats, statsSort, setStatsSort, trendRange, setTrendRange,
     loadCallStats, handleResetCallStats, trendData,
   } = useModelCenter()
+  const [overview, setOverview] = React.useState<UsageOverview | null>(null)
+  const [overviewLoading, setOverviewLoading] = React.useState(false)
+
+  const loadOverview = React.useCallback(async () => {
+    setOverviewLoading(true)
+    try {
+      setOverview(await getUsageOverview())
+    } catch {
+      setOverview(null)
+    } finally {
+      setOverviewLoading(false)
+    }
+  }, [])
+  React.useEffect(() => { void loadOverview() }, [loadOverview])
 
   return (
     <div className="mc-drawer-body">
@@ -28,7 +44,7 @@ export function StatsSection() {
               { value: 'cost', label: '费用最高' },
             ]}
           />
-          <Button size="small" icon={<ReloadOutlined />} onClick={loadCallStats}>刷新</Button>
+          <Button size="small" icon={<ReloadOutlined />} onClick={() => { loadCallStats(); void loadOverview() }}>刷新</Button>
           <Popconfirm
             title="确定清空全部模型调用统计？"
             description="此操作不可恢复，将清空次数、Token 与费用记录。"
@@ -44,6 +60,30 @@ export function StatsSection() {
       {callStats?.since && (
         <div style={{ color: 'var(--mc-muted)', fontSize: 11 }}>
           统计自 {callStats.since} · 按引擎 / 模型维度统计调用情况与估算费用
+        </div>
+      )}
+
+      {/* D3-2 本地 vs 云端分流对比 */}
+      {overview && (overview.cloud.total_tokens > 0 || overview.local.total_tokens > 0) && (
+        <div className="mc-panel" style={{ marginTop: 10 }}>
+          <div className="mc-panel-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <CloudOutlined /> 本地 vs 云端 · 节省对比
+            <span style={{ flex: 1 }} />
+            <Button size="small" type="text" icon={<ReloadOutlined spin={overviewLoading} />}
+              onClick={() => void loadOverview()} title="刷新分流统计" />
+          </div>
+          <div className="mc-overview-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))' }}>
+            <KpiTile icon={<CloudOutlined />} label="云端用量"
+              value={fmtCost(overview.cloud.cost, 'CNY')}
+              hint={`${overview.cloud.calls} 次 · ${overview.cloud.total_tokens.toLocaleString()} token · ${overview.cloud.engines.join(' / ') || '—'}`} />
+            <KpiTile icon={<DesktopOutlined />} label="本地用量"
+              value={overview.local.total_tokens.toLocaleString()}
+              hint={`${overview.local.calls} 次 · 免费（Herdsman 等本地引擎）`} />
+            <KpiTile icon={<SaveOutlined />} label="已节省"
+              value={fmtCost(overview.savings.saved, 'CNY')}
+              hint={`若走云端约需 ${fmtCost(overview.savings.would_cost_cloud, 'CNY')}（参考 ¥${overview.savings.ref_price_per_mtok.toFixed(2)}/百万 token）`} />
+          </div>
+          <div style={{ color: 'var(--mc-muted)', fontSize: 11, marginTop: 6 }}>{overview.savings.note}</div>
         </div>
       )}
 

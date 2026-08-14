@@ -141,3 +141,21 @@
   - ✅ v2.17.0 发布产物：releases/gaea-v2.17.0.exe（33,725,952 字节，SHA256=ADBFD953904C359EFFB125585B4B4C2D8E52B3D33C4DBC39E4F64AD8CD4DD2A9）
     + SHA256SUMS-v2.17.0.txt；发布文档（CHANGELOG/README/releases/v2.17.0.md/releases/README.md/
     wails.json/versioninfo.rc）已更新。
+- 2026-08-14（阶段 3 数据与成本纵深 v2.18.0，D3-1 ~ D3-3 首轮）：
+  - ✅ D3-1 持久化向量索引：GaeaSemanticSearch 跨库统一语义检索并入工作区资料（kind=file，
+    复用文件索引 cron 维护的持久化向量，检索不扫描）；新增 GaeaSemanticIndexStatus（各 kind
+    向量条数）+ semantic.Store.Counts()；
+  - ✅ D3-2 分流统计面板：GaeaUsageOverview 打通 gaea 侧调用记录（云端引擎费用估算）与
+    herdsman events.jsonl 本地遥测——本地口径 = events 全量 + 其他本地引擎（herdsman 不重复计）；
+    节省 = 本地 token × 云端实际混合单价（无云端回退 deepseek-v4-flash ¥1.5/MTok）；
+    模型中心「调用统计」新增「本地 vs 云端·节省对比」卡；
+  - ✅ D3-3 测评产品化：复用 herdsman /api/benchmarks——GaeaBenchmarkList/Start/Detail/Export
+    （POST 发起契约对齐 runs.json config；明细含逐 case TTFT avg/p95、token、cached_tokens）；
+    模型中心新增「受控测评」分类（10 项任务预设蒸馏自 120 组对照测评方法学、上下文 4K~32K
+    覆盖长上下文、并发 1/2/4、Markdown 报告导出）；真实 herdsman 端到端验证
+    （POST 202 → 40s 完成 succeeded，TTFT 119ms）；
+  - ✅ 验证：go 全量 ok（internal/app 29s，含分流/测评/semantic Counts 新用例）、vet 干净、
+    tsc/eslint 0 errors、vitest 246/246（新增 BenchmarkSection 3/3）、vite build、冒烟通过；
+  - ✅ v2.18.0 发布产物：releases/gaea-v2.18.0.exe（33,776,640 字节，SHA256=5AB1DC3578A4C868758D7D7992C1027BB052242AB0F450A2D02AB09175E9C4FC）
+    + SHA256SUMS-v2.18.0.txt；发布文档已更新。
+  - 📋 留待后续：D3-3 显存压力/流式中断专项报告模板（上下文与并发入口已就绪）；D3-4 专项测评。

@@ -55,8 +55,7 @@ func fakeEmbedServer(t *testing.T) *httptest.Server {
 	}))
 }
 
-func TestEnsureIncrementalAndSearch(t *testing.T) {
-	srv := fakeEmbedServer(t)
+func TestEnsureIncrementalAndSearch(t *testing.T) {	srv := fakeEmbedServer(t)
 	defer srv.Close()
 	e := retrieval.NewEmbedder(srv.URL, "bge-m3")
 	ctx := context.Background()
@@ -155,5 +154,28 @@ func TestEnsureRefreshesChangedDoc(t *testing.T) {
 	hits, err := st.SearchReady(ctx, e, "cost", "挖掘机", 5)
 	if err != nil || len(hits) != 1 || hits[0].ID != "a" {
 		t.Errorf("search after refresh = %+v, err=%v", hits, err)
+	}
+}
+
+// TestCounts 各 kind 向量条数统计（D3-1 索引状态可见性）。
+func TestCounts(t *testing.T) {
+	srv := fakeEmbedServer(t)
+	defer srv.Close()
+	e := retrieval.NewEmbedder(srv.URL, "bge-m3")
+	ctx := context.Background()
+	st := newTestStore(t)
+
+	if _, err := st.Ensure(ctx, e, "cost", []Doc{{ID: "a", Text: "液压振动锤"}, {ID: "b", Text: "水泥"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Ensure(ctx, e, "knowledge", []Doc{{ID: "k1", Text: "液压原理"}}); err != nil {
+		t.Fatal(err)
+	}
+	counts, err := st.Counts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if counts["cost"] != 2 || counts["knowledge"] != 1 {
+		t.Fatalf("Counts = %v, want cost=2 knowledge=1", counts)
 	}
 }
