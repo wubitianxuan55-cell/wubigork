@@ -23,10 +23,10 @@
     CacheHitTokens/CacheMissTokens；ai/client 两处 RecordCall 上报（cacheSplitForUsage 归一：
     DeepSeek prompt_cache_hit_tokens 优先、OpenAI prompt_tokens_details.cached_tokens 次之；
     miss 优先服务端显式值否则 prompt-hit 推算；服务端完全未上报时返回 0/0 不污染命中率）；
-    UsageOverview 增 cacheHitTokens/cacheMissTokens/cacheHitRate（**camelCase json tag**，
-    与 UsageOverview 既有风格一致；前端类型在 frontend/src/api/engines.ts 为 snake_case 接口
-    名——注意：引擎统计类型（ModelStatsSummary 等）在 engines.ts 全是 snake_case，与 gaea 侧
-    UsageOverview 内部 camelCase 是两套并存风格，改动前先确认所在文件惯例）；StatsSection
+    UsageOverview 增 cacheHitTokens/cacheMissTokens/cacheHitRate（**最终落地为 snake_case
+    json tag：cache_hit_tokens/cache_miss_tokens/cache_hit_rate**——与 engines.ts 统计类型
+    （ModelStatsSummary/UsageSide/UsageOverview）的 snake_case 风格一致；StatsSection 内联
+    断言也用 snake_case；曾误写 camelCase 已纠正，运行时三层命名必须一致）；StatsSection
     「本地 vs 云端」卡新增全局/云端/本地命中率（KpiTile）。
   - **T5-4 中断续跑**：session sidecar（internal/gaea/agent/session/state.go：
     <session>.state.json，SessionState{Running,Summary,UpdatedAt}，AtomicWrite；StatePath/
