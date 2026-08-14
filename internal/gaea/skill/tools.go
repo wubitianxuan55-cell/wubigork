@@ -260,8 +260,9 @@ func NewInstallSkillTool(store *Store, onInstalled InstalledHook) tool.Tool {
 	return &installSkillTool{store: store, onInstalled: onInstalled}
 }
 
-func (*installSkillTool) Name() string   { return "install_skill" }
-func (*installSkillTool) ReadOnly() bool { return false }
+func (*installSkillTool) Name() string        { return "install_skill" }
+func (*installSkillTool) ReadOnly() bool      { return false }
+func (*installSkillTool) PersistWrite() bool  { return true }
 
 func (t *installSkillTool) Description() string {
 	scope := "'global' (only option — no project workspace) writes to ~/.gaea/skills/."

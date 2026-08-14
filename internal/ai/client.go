@@ -5,15 +5,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/auth"
 	"github.com/gaea/gaea/internal/config"
+	gaeacfg "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/netclient"
 )
@@ -38,17 +41,93 @@ type Client struct {
 
 	// 并发控制信号量（限制同时进行的 API 调用数）
 	sem chan struct{}
+
+	// 流式请求重试退避序列（连接错误与 5xx；默认 2 次，1s/2s）。测试可覆盖为短间隔。
+	streamRetryBackoff []time.Duration
+	// 流空闲超时：连接/首字节后超过该时长无任何数据视为失败（默认 60s）。测试可覆盖为短时长。
+	streamIdleTimeout time.Duration
+	// proxySpecOverride 代理配置覆盖（测试注入）；nil 时读取 gaea 生效配置。
+	proxySpecOverride *netclient.ProxySpec
 }
+
+// 流式请求内部哨兵错误：需要整体重试（不记录 usage）。
+var (
+	errStreamRetry401     = errors.New("stream: retry after token refresh")
+	errStreamDegradeUsage = errors.New("stream: retry without include_usage")
+)
+
+// errStreamIdleTimeout 流空闲超时哨兵错误（由 idleTimeoutBody 产生）。
+var errStreamIdleTimeout = errors.New("stream idle timeout")
+
+// defaultStreamRetryBackoff 连接错误与 5xx 的指数退避：1s / 2s 共 2 次重试。
+var defaultStreamRetryBackoff = []time.Duration{time.Second, 2 * time.Second}
+
+// defaultStreamIdleTimeout 流空闲超时默认值。
+const defaultStreamIdleTimeout = 60 * time.Second
 
 // NewClient 创建 AI 客户端
 func NewClient(cfg *config.Config) *Client {
 	const maxConcurrency = 4 // SuperGrok 并发限制
-	return &Client{
-		cfg:        cfg,
-		httpClient: netclient.NewSimpleClient(0),
-		tokenStore: auth.NewTokenStore(cfg.TokenStorePath),
-		sem:        make(chan struct{}, maxConcurrency),
+	c := &Client{
+		cfg:                cfg,
+		tokenStore:         auth.NewTokenStore(cfg.TokenStorePath),
+		sem:                make(chan struct{}, maxConcurrency),
+		streamRetryBackoff: append([]time.Duration(nil), defaultStreamRetryBackoff...),
+		streamIdleTimeout:  defaultStreamIdleTimeout,
 	}
+	c.httpClient = c.buildHTTPClient()
+	return c
+}
+
+// currentProxySpec 返回当前生效的代理配置：优先测试注入的覆盖值，否则读取
+// gaea 生效配置（与办公工具链 web_fetch/web_search 同一来源，保持一致）。
+// 读取失败时回退空 spec（等效直连+环境代理），不阻断客户端构造。
+func (c *Client) currentProxySpec() netclient.ProxySpec {
+	if c.proxySpecOverride != nil {
+		return *c.proxySpecOverride
+	}
+	gcfg, err := gaeacfg.Load()
+	if err != nil {
+		slog.Warn("读取代理配置失败，回退默认", "error", err)
+		return netclient.ProxySpec{}
+	}
+	if gcfg == nil {
+		return netclient.ProxySpec{}
+	}
+	return gcfg.NetworkProxySpec()
+}
+
+// proxySpec 返回按应用代理配置解析的 ProxySpec，并强制本地引擎直连：
+// localhost / 127.0.0.1 / ::1（回环）一律不走代理（herdsman/ComfyUI/Ollama
+// 都是本机服务），云端引擎（xAI/DeepSeek/MiMo 等外部域名）按配置走代理。
+func (c *Client) proxySpec() netclient.ProxySpec {
+	spec := c.currentProxySpec()
+	spec.DirectHosts = append(spec.DirectHosts, "localhost", "127.0.0.1", "::1")
+	return spec
+}
+
+// buildHTTPClient 按应用代理配置构建 AI/引擎流量使用的 HTTP 客户端，
+// 保留默认传输的超时与连接池行为。代理配置无效时回退直连客户端。
+func (c *Client) buildHTTPClient() *http.Client {
+	spec := c.proxySpec()
+	// 响应头超时兜底「连接 + 首字节等待」：代理或远端黑洞时避免无限挂起
+	// （与流空闲超时同值；流开始后由 idleTimeoutBody 按空闲计）。
+	cli, err := netclient.NewHTTPClient(spec, netclient.TransportOptions{
+		ResponseHeaderTimeout: c.idleTimeout(),
+	})
+	if err != nil {
+		slog.Warn("代理配置无效，AI 客户端回退直连", "error", err)
+		return netclient.NewSimpleClient(0)
+	}
+	return cli
+}
+
+// idleTimeout 返回流空闲超时时长（测试可覆盖，默认 60s）。
+func (c *Client) idleTimeout() time.Duration {
+	if c.streamIdleTimeout > 0 {
+		return c.streamIdleTimeout
+	}
+	return defaultStreamIdleTimeout
 }
 
 // SetEngineManager 设置模型引擎管理器（用于多引擎路由）
@@ -334,59 +413,130 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 		return nil, fmt.Errorf("marshal stream request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
-	if err != nil {
-		c.releaseSem()
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
-		return nil, fmt.Errorf("构造流式请求失败: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-	}
-	httpReq.Header.Set("Accept", "text/event-stream")
+	// 流上下文：HTTP 请求与流空闲超时共用。空闲超时触发时取消该上下文以解除
+	// 阻塞中的响应体读取（若请求使用调用方 ctx，取消流上下文将无法中断读取）。
+	streamCtx, cancel := context.WithCancel(ctx)
 
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
+	resp, err := c.doStreamRequest(streamCtx, endpoint, apiKey, body, reqEngine, req)
+	switch {
+	case errors.Is(err, errStreamRetry401):
+		cancel()
 		c.releaseSem()
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
-		return nil, fmt.Errorf("流式请求失败: %w", err)
-	}
-
-	// 仅 xAI 做 401 重试
-	if resp.StatusCode == 401 && reqEngine == "xai" {
-		resp.Body.Close()
-		c.releaseSem()
-		if err := c.tryRefreshToken(); err != nil {
-			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
-			return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
-		}
 		return c.ChatStream(ctx, req)
-	}
-	if resp.StatusCode != 200 {
-		body, readErr := io.ReadAll(resp.Body)
-		resp.Body.Close()
+	case errors.Is(err, errStreamDegradeUsage):
+		cancel()
 		c.releaseSem()
-		// 服务端不支持 stream_options.include_usage 时去掉该字段重试一次。
-		if resp.StatusCode == 400 && req.StreamOptions != nil && readErr == nil &&
-			(bytes.Contains(body, []byte("stream_options")) || bytes.Contains(body, []byte("include_usage"))) {
-			req.skipIncludeUsage = true
-			req.StreamOptions = nil
-			return c.ChatStream(ctx, req)
-		}
-		errMsg := ""
-		if readErr != nil {
-			errMsg = fmt.Sprintf("API 错误 (HTTP %d): <无法读取响应体>", resp.StatusCode)
-		} else {
-			errMsg = fmt.Sprintf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(body), 500))
-		}
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
+		req.skipIncludeUsage = true
+		req.StreamOptions = nil
+		return c.ChatStream(ctx, req)
+	case err != nil:
+		cancel()
+		c.releaseSem()
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+		return nil, err
 	}
 
+	// 流空闲超时：连接/首字节后超过 idleTimeout 无任何数据视为失败并返回错误。
+	// 按空闲计而非总时长，慢速但持续输出的流不受影响。
+	resp.Body = newIdleTimeoutBody(resp.Body, c.idleTimeout(), cancel)
+
+	// 解析协程使用调用方 ctx（而非 streamCtx）：send 的取消守卫语义是
+	// 「调用方取消时退出」；空闲超时取消的是 streamCtx（解除阻塞读取），
+	// 若把 streamCtx 传入，超时后 send 的 ctx.Done 分支就绪会随机抢占，
+	// 导致超时错误分块被丢弃。
 	chunks := make(chan SSEChunk, 64)
 	go c.parseStreamEvents(ctx, resp, chunks, reqEngine, reqModel, start)
 	return chunks, nil
+}
+
+// doStreamRequest 发送流式请求并处理请求建立阶段的失败：
+//   - 连接错误与 5xx 响应按指数退避重试（默认 2 次，1s/2s）；
+//   - 401 刷新 token 后返回 errStreamRetry401，由调用方整体重试；
+//   - 400 且服务端不支持 include_usage 时返回 errStreamDegradeUsage，由调用方降级重试；
+//   - 收到 200 后直接返回响应（流已开始，不再重试，避免重复生成）。
+//
+// 重试期间保持信号量占用，不做 usage 统计（最终成功/失败由调用方统一记录）。
+func (c *Client) doStreamRequest(ctx context.Context, endpoint, apiKey string, body []byte, reqEngine string, req *ChatRequest) (*http.Response, error) {
+	backoff := c.streamRetryBackoff
+	if len(backoff) == 0 {
+		backoff = defaultStreamRetryBackoff
+	}
+	var lastErr error
+	for attempt := 0; attempt <= len(backoff); attempt++ {
+		if attempt > 0 {
+			select {
+			case <-time.After(backoff[attempt-1]):
+			case <-ctx.Done():
+				return nil, fmt.Errorf("流式请求已取消: %w", ctx.Err())
+			}
+		}
+
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("构造流式请求失败: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		if apiKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+		}
+		httpReq.Header.Set("Accept", "text/event-stream")
+
+		resp, err := c.httpClient.Do(httpReq)
+		if err != nil {
+			// 连接建立失败：ctx 取消不重试，其余退避重试
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("流式请求失败: %w", err)
+			}
+			lastErr = fmt.Errorf("流式请求失败: %w", err)
+			slog.Warn("流式请求失败，准备退避重试", "attempt", attempt+1, "error", lastErr)
+			continue
+		}
+
+		// 仅 xAI 引擎做 401 token 刷新重试
+		if resp.StatusCode == 401 && reqEngine == "xai" {
+			resp.Body.Close()
+			if err := c.tryRefreshToken(); err != nil {
+				return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
+			}
+			return nil, errStreamRetry401
+		}
+
+		// 5xx：服务端故障，流尚未开始，退避重试
+		if resp.StatusCode >= 500 {
+			respBody, readErr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			msg := fmt.Sprintf("API 错误 (HTTP %d)", resp.StatusCode)
+			if readErr == nil {
+				msg += ": " + trimStr(string(respBody), 500)
+			}
+			lastErr = fmt.Errorf("%s", msg)
+			slog.Warn("流式请求 5xx，准备退避重试", "attempt", attempt+1, "error", lastErr)
+			continue
+		}
+
+		if resp.StatusCode != 200 {
+			respBody, readErr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			// 服务端不支持 stream_options.include_usage 时去掉该字段重试一次。
+			if resp.StatusCode == 400 && req.StreamOptions != nil && readErr == nil &&
+				(bytes.Contains(respBody, []byte("stream_options")) || bytes.Contains(respBody, []byte("include_usage"))) {
+				return nil, errStreamDegradeUsage
+			}
+			errMsg := ""
+			if readErr != nil {
+				errMsg = fmt.Sprintf("API 错误 (HTTP %d): <无法读取响应体>", resp.StatusCode)
+			} else {
+				errMsg = fmt.Sprintf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
+			}
+			return nil, fmt.Errorf("%s", errMsg)
+		}
+
+		return resp, nil // 200：流已开始，不再重试
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("流式请求失败（重试耗尽）")
+	}
+	return nil, lastErr
 }
 
 // parseStreamEvents 解析 SSE 事件流并发送到 chunks channel
@@ -434,11 +584,20 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 		})
 	}()
 
-	scanner := bufio.NewScanner(resp.Body)
+	// 用 bufio.Reader 逐行读取：Scanner 默认 64KB 行上限，超长行（大工具参数/
+	// 长推理内容）会触发 ErrTooLong 断流；ReadString 对超长行自动拼接，不丢数据。
+	reader := bufio.NewReader(resp.Body)
 
-	for scanner.Scan() {
+	for {
 		select {
 		case <-ctx.Done():
+			// 区分空闲超时（读取阻塞中由定时器触发）与调用方主动取消
+			if tb, ok := resp.Body.(*idleTimeoutBody); ok && tb.isTimedOut() {
+				if !send(SSEChunk{Error: fmt.Sprintf("流空闲超时：超过 %s 无数据", c.idleTimeout())}) {
+					return
+				}
+				return
+			}
 			if !send(SSEChunk{Error: "请求已取消"}) {
 				return
 			}
@@ -446,7 +605,23 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 		default:
 		}
 
-		line := scanner.Text()
+		line, err := readSSELine(reader)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break // 服务端正常结束
+			}
+			if errors.Is(err, errStreamIdleTimeout) {
+				if !send(SSEChunk{Error: fmt.Sprintf("流空闲超时：超过 %s 无数据", c.idleTimeout())}) {
+					return
+				}
+				return
+			}
+			errMsg := fmt.Sprintf("流读取错误: %v", err)
+			if !send(SSEChunk{Error: errMsg}) {
+				return
+			}
+			return
+		}
 		if line == "" || strings.HasPrefix(line, ":") {
 			continue
 		}
@@ -515,20 +690,97 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		errMsg := fmt.Sprintf("流读取错误: %v", err)
-		if !send(SSEChunk{Error: errMsg}) {
-			return
-		}
-		return
-	}
-
 	if len(toolOrder) > 0 {
 		send(SSEChunk{Done: true, ToolCalls: flushToolCalls(toolPending, toolOrder), Usage: streamUsage})
 	} else {
 		send(SSEChunk{Done: true, Usage: streamUsage})
 	}
 	streamOK = true
+}
+
+// readSSELine 用 bufio.Reader 读取一行 SSE 数据：支持任意长度行（ReadString
+// 自动拼接超长行）、\n 与 \r\n 结尾，去掉行尾换行符。数据结束（EOF 且无剩余
+// 内容）返回 io.EOF。
+func readSSELine(r *bufio.Reader) (string, error) {
+	line, err := r.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	if errors.Is(err, io.EOF) && line == "" {
+		return "", io.EOF
+	}
+	return strings.TrimRight(line, "\r\n"), nil
+}
+
+// idleTimeoutBody 包装流式响应体：每次成功读取都会重置空闲计时器，超过 idle
+// 时长无任何数据时取消请求上下文（解除阻塞中的 Read）并返回 errStreamIdleTimeout。
+// 慢速但持续输出的流不受影响。Close 停止计时器并释放请求上下文。
+type idleTimeoutBody struct {
+	body     io.ReadCloser
+	idle     time.Duration
+	cancel   context.CancelFunc
+	mu       sync.Mutex
+	timer    *time.Timer
+	timedOut bool
+}
+
+func newIdleTimeoutBody(body io.ReadCloser, idle time.Duration, cancel context.CancelFunc) *idleTimeoutBody {
+	return &idleTimeoutBody{body: body, idle: idle, cancel: cancel}
+}
+
+func (b *idleTimeoutBody) Read(p []byte) (int, error) {
+	b.mu.Lock()
+	if !b.timedOut {
+		if b.timer == nil {
+			b.timer = time.AfterFunc(b.idle, b.onTimeout)
+		} else {
+			b.timer.Reset(b.idle)
+		}
+	}
+	b.mu.Unlock()
+
+	n, err := b.body.Read(p)
+
+	b.mu.Lock()
+	timedOut := b.timedOut
+	if !timedOut {
+		b.timer.Stop()
+	}
+	b.mu.Unlock()
+	if timedOut && err != nil {
+		return 0, errStreamIdleTimeout
+	}
+	return n, err
+}
+
+func (b *idleTimeoutBody) onTimeout() {
+	b.mu.Lock()
+	b.timedOut = true
+	cancel := b.cancel
+	b.mu.Unlock()
+	if cancel != nil {
+		cancel() // 解除阻塞中的 Read（请求上下文取消会中断响应体读取）
+	}
+}
+
+// isTimedOut 返回空闲超时是否已触发（供解析循环区分超时与调用方取消）。
+func (b *idleTimeoutBody) isTimedOut() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.timedOut
+}
+
+func (b *idleTimeoutBody) Close() error {
+	b.mu.Lock()
+	if b.timer != nil {
+		b.timer.Stop()
+	}
+	cancel := b.cancel
+	b.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	return b.body.Close()
 }
 
 // flushToolCalls 按出现顺序输出拼装完成的工具调用列表。
@@ -722,6 +974,15 @@ func (c *Client) GetImageBackendType() string {
 		return "xai"
 	}
 	return c.imageBackendType
+}
+
+// GetImageBackend 返回当前图片后端实例（可能为 nil）。
+// 供取消中断等场景类型断言使用（如 *ComfyUIBackend 的 Interrupt/ResetCancel）。
+func (c *Client) GetImageBackend() ImageBackend {
+	if c == nil {
+		return nil
+	}
+	return c.imageBackend
 }
 
 // ── Models ────────────────────────────────────────────────────

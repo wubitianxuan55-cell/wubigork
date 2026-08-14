@@ -56,7 +56,9 @@ func TestGaeaMemoryGraphPinnedNodes(t *testing.T) {
 	}
 
 	whisperRoot := t.TempDir()
-	wdb.GetDatabase(whisperRoot)
+	if _, err := wdb.GetDatabase(whisperRoot); err != nil {
+		t.Fatalf("GetDatabase: %v", err)
+	}
 	defer wdb.CloseDatabase(whisperRoot)
 
 	a := &App{whisperState: &whisperState{whisperDataRoot: whisperRoot}}

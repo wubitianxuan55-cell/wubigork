@@ -112,12 +112,32 @@ type Controller struct {
 	sessionFacts []memory.Memory
 	// goal is set via /goal — the stopping condition for the session.
 	goal string
+
+	// pendingSends 是回合进行中排队等待的用户消息（T6-2.5 Send 排队），
+	// turnLoop 在每个回合结束后按序排空。由 mu 保护。
+	pendingSends []sendRequest
+
+	// watchdog 是运行态看门狗（T6-2.4）：nil 表示配置禁用（两维度均 < 0）。
+	// 每个回合在 turnLoop 里 begin/end，触发时取消该回合上下文（与用户
+	// Cancel 同一条中断链路），由 runTurnGuarded 包装错误并 Emit TurnDone(Err)。
+	watchdog *watchdog
 }
 
 type approvalReply struct {
 	allow   bool
 	session bool
 }
+
+// sendRequest 是一条排队等待执行的消息：回合进行中收到 Send 时入队，
+// 当前回合结束后按序执行（T6-2.5 Send 排队）。
+type sendRequest struct {
+	input string
+	raw   string
+}
+
+// sendQueueLimit 是 Send 等待队列上限（条）：回合进行中最多排队
+// sendQueueLimit 条用户消息，队满时新消息被拒绝并发出明确错误 notice。
+const sendQueueLimit = 8
 
 // Options carries the already-built pieces setup assembles. Lifecycle metadata
 // lets the controller mint and rotate session files; Host/Commands are surfaced
@@ -155,6 +175,9 @@ type Options struct {
 	MemoryDisabled bool
 	// no confinement). Frontends pass the cwd they launched the session in.
 	WorkspaceRoot string
+	// Watchdog 配置单回合运行态看门狗阈值（T6-2.4）：零值 = 生产默认
+	// （墙钟 10 分钟 / 停滞 30 秒，默认开启）；字段 < 0 禁用对应维度。
+	Watchdog WatchdogConfig
 }
 
 // New builds a Controller. A nil Sink is replaced with event.Discard.
@@ -195,6 +218,21 @@ func New(opts Options) *Controller {
 		asks:          map[string]chan []event.AskAnswer{},
 		granted:       map[string]bool{},
 	}
+	// 运行态看门狗（T6-2.4，默认开启）：把控制器与执行器（生产装配中即
+	// runner）的 sink 重接线到包装器，让模型流式输出/工具调用等推进事件
+	// 都能被观察到。两维度均 < 0 时看门狗整体不装配（c.watchdog 保持 nil）。
+	if wdCfg := opts.Watchdog.withDefaults(); wdCfg.enabled() {
+		wd := newWatchdog(wdCfg)
+		c.watchdog = wd
+		wrapped := watchdogSink{inner: c.sink, wd: wd}
+		c.sink = wrapped
+		if c.executor != nil {
+			c.executor.SetSink(wrapped)
+		}
+		if setter, ok := c.runner.(interface{ SetSink(event.Sink) }); ok {
+			setter.SetSink(wrapped)
+		}
+	}
 	// Checkpoints: bind a store to the session and route writer pre-edits into it.
 	if c.executor != nil {
 		c.executor.SetSessionSaver(c)
@@ -203,40 +241,123 @@ func New(opts Options) *Controller {
 	return c
 }
 
-// context, guarding against concurrent turns and emitting a TurnDone event when
-// it finishes (Err set on failure; nil also for a user Cancel). A no-op if a
-// turn is already in flight.
+// runGuarded starts a turn unless one is already in flight, guarding against
+// concurrent turns and emitting a TurnDone event when the turn finishes (Err set
+// on failure; nil also for a user Cancel). While a turn is running the request
+// is ignored — the Send path uses its own bounded queue instead (see
+// SendWithRaw).
 func (c *Controller) runGuarded(body func(ctx context.Context) error) {
+	if !c.tryStartTurn(body) {
+		c.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
+			Text: "a turn is already running — this request was ignored"})
+	}
+}
+
+// tryStartTurn starts a turn goroutine when no turn is in flight and reports
+// whether it did. The running check and the state flip happen in the same
+// critical section, so a concurrent caller either starts its own turn or
+// observes the in-flight one.
+func (c *Controller) tryStartTurn(body func(ctx context.Context) error) bool {
 	c.mu.Lock()
 	if c.running {
 		c.mu.Unlock()
-		c.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
-			Text: "a turn is already running — this request was ignored"})
-		return
+		return false
 	}
+	c.launchTurnLocked(body)
+	return true
+}
+
+// launchTurnLocked marks the session running and starts the turn goroutine
+// (which also drains the Send queue, see turnLoop). The caller must already
+// hold c.mu and must have checked c.running under that lock; this method
+// releases the lock before returning.
+func (c *Controller) launchTurnLocked(body func(ctx context.Context) error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.cancel = cancel
 	c.running = true
 	c.mu.Unlock()
+	go c.turnLoop(ctx, body)
+}
 
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("controller: turn panic recovered", "panic", r)
-				c.mu.Lock()
-				c.running = false
-				c.cancel = nil
-				c.mu.Unlock()
-				c.sink.Emit(event.Event{Kind: event.TurnDone, Err: fmt.Errorf("turn panic: %v", r)})
-			}
-		}()
-		err := body(ctx)
+// turnLoop executes body and then every message queued via Send (T6-2.5) in
+// FIFO order, emitting a TurnDone after each turn. running stays true while the
+// queue is non-empty so new Sends keep queueing; it is cleared only when the
+// queue drains. A panicking turn is recovered into a failed TurnDone and the
+// queue still continues.
+func (c *Controller) turnLoop(ctx context.Context, body func(ctx context.Context) error) {
+	for {
+		// runTurnGuarded 包一层运行态看门狗（T6-2.4）：回合内墙钟超时或
+		// 推进停滞时取消本回合上下文（与用户 Cancel 同一链路），并把
+		// 返回错误包装为可识别的看门狗超时；下面照常 Emit TurnDone(Err)。
+		err := c.runTurnGuarded(ctx, body)
+
 		c.mu.Lock()
+		if len(c.pendingSends) > 0 {
+			next := c.pendingSends[0]
+			c.pendingSends = c.pendingSends[1:]
+			newCtx, cancel := context.WithCancel(context.Background())
+			c.cancel = cancel
+			c.mu.Unlock()
+			c.sink.Emit(event.Event{Kind: event.TurnDone, Err: err})
+			ctx = newCtx
+			body = func(ctx context.Context) error {
+				return c.runSendTurn(ctx, next.input, next.raw)
+			}
+			continue
+		}
 		c.running = false
 		c.cancel = nil
 		c.mu.Unlock()
 		c.sink.Emit(event.Event{Kind: event.TurnDone, Err: err})
+		return
+	}
+}
+
+// runOneTurn runs a single turn body, converting a panic into an error so the
+// queue drain above keeps going (behaviour matches the pre-queue runGuarded).
+func (c *Controller) runOneTurn(ctx context.Context, body func(ctx context.Context) error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("controller: turn panic recovered", "panic", r)
+			err = fmt.Errorf("turn panic: %v", r)
+		}
 	}()
+	return body(ctx)
+}
+
+// runTurnGuarded 运行一个回合；启用看门狗时，开始前启动、结束后按触发状态
+// 发 Notice、把错误包装为看门狗超时并停止（同步等待，不会跨回合误触发）。
+// 看门狗未装配（配置禁用）时与直接调用 runOneTurn 行为完全一致。
+func (c *Controller) runTurnGuarded(ctx context.Context, body func(ctx context.Context) error) error {
+	wd := c.beginWatchdog(ctx)
+	err := c.runOneTurn(ctx, body)
+	if wd == nil {
+		return err
+	}
+	if reason, fired := wd.firedReason(); fired {
+		c.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
+			Text: fmt.Sprintf("看门狗终止回合：%s", reason)})
+	}
+	err = wd.wrapErr(err)
+	wd.end()
+	return err
+}
+
+// beginWatchdog 在回合开始前启动看门狗（若启用），返回 nil 表示未启用。
+// cancel 取自当前回合的 c.cancel（与用户 Cancel 走同一条中断链路）。
+func (c *Controller) beginWatchdog(ctx context.Context) *watchdog {
+	wd := c.watchdog
+	if wd == nil {
+		return nil
+	}
+	c.mu.Lock()
+	cancel := c.cancel
+	c.mu.Unlock()
+	if cancel == nil {
+		return nil
+	}
+	wd.begin(ctx, cancel)
+	return wd
 }
 
 // Send starts a turn with an uncomposed message. The controller applies
@@ -250,20 +371,45 @@ func (c *Controller) Send(input string) {
 // raw prompt is used only for auto-plan scoring; it deliberately excludes
 // resolved @-reference payloads so referenced file contents cannot inflate the
 // complexity score.
+//
+// While a turn is running the message is queued (bounded, sendQueueLimit) and
+// executed in FIFO order after the current turn ends; a full queue rejects the
+// message with an explicit error Notice. With no turn in flight the message
+// starts a turn immediately (unchanged behaviour).
 func (c *Controller) SendWithRaw(input, raw string) {
-	c.runGuarded(func(ctx context.Context) error {
-		// 与 Submit 路径保持一致：先解析 @ 引用（文件内容 / MCP 资源 /
-		// 图片识图结果），再进入回合，保证桌面端和 HTTP 端行为一致。
-		block, errs := c.ResolveRefs(ctx, input)
-		for _, e := range errs {
-			c.notice(e)
+	c.mu.Lock()
+	if c.running {
+		if len(c.pendingSends) >= sendQueueLimit {
+			c.mu.Unlock()
+			c.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
+				Text: fmt.Sprintf("发送队列已满（最多 %d 条），这条消息未发送 — 请等待当前回合结束", sendQueueLimit)})
+			return
 		}
-		sent := input
-		if block != "" {
-			sent = "Referenced context:\n\n" + block + "\n\n" + input
-		}
-		return c.runTurnWithRaw(ctx, sent, raw)
+		c.pendingSends = append(c.pendingSends, sendRequest{input: input, raw: raw})
+		queued := len(c.pendingSends)
+		c.mu.Unlock()
+		c.notice(fmt.Sprintf("当前回合进行中，消息已加入发送队列（%d/%d），回合结束后自动发送", queued, sendQueueLimit))
+		return
+	}
+	c.launchTurnLocked(func(ctx context.Context) error {
+		return c.runSendTurn(ctx, input, raw)
 	})
+}
+
+// runSendTurn runs one Send turn: resolve @-references first (consistent with
+// the Submit path), then run the composed turn.
+func (c *Controller) runSendTurn(ctx context.Context, input, raw string) error {
+	// 与 Submit 路径保持一致：先解析 @ 引用（文件内容 / MCP 资源 /
+	// 图片识图结果），再进入回合，保证桌面端和 HTTP 端行为一致。
+	block, errs := c.ResolveRefs(ctx, input)
+	for _, e := range errs {
+		c.notice(e)
+	}
+	sent := input
+	if block != "" {
+		sent = "Referenced context:\n\n" + block + "\n\n" + input
+	}
+	return c.runTurnWithRaw(ctx, sent, raw)
 }
 
 func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) error {

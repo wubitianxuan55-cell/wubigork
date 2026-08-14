@@ -332,6 +332,7 @@ func (costSave) Schema() json.RawMessage {
 }`)
 }
 func (costSave) ReadOnly() bool                 { return false }
+func (costSave) PersistWrite() bool              { return true }
 func (costSave) CompactDescription() string     { return compactDesc["cost_save"] }
 func (costSave) CompactSchema() json.RawMessage { return compactSchema["cost_save"] }
 

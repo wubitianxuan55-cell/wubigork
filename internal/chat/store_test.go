@@ -144,3 +144,93 @@ func TestStore_AppendToMissingTopic(t *testing.T) {
 		t.Fatal("向不存在的话题追加消息应报错")
 	}
 }
+
+// ── T6-3 事务入口：AppendMessagesTx / ImportTopicTx ────────────────
+
+func TestStore_AppendMessagesTx(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.CreateTopic("t1", "语音", "plain"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendMessagesTx("t1", []MessageInput{
+		{Role: "user", Content: "你好"},
+		{Role: "assistant", Content: "你好呀", Extra: "{\"kind\":\"voice\"}"},
+	}); err != nil {
+		t.Fatalf("AppendMessagesTx: %v", err)
+	}
+	msgs, err := s.ListMessages("t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("消息数 = %d, want 2", len(msgs))
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "你好" || msgs[0].Seq != 1 {
+		t.Errorf("user 消息异常: %+v", msgs[0])
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Content != "你好呀" || msgs[1].Seq != 2 || msgs[1].Extra != "{\"kind\":\"voice\"}" {
+		t.Errorf("assistant 消息异常: %+v", msgs[1])
+	}
+}
+
+// TestStore_AppendMessagesTx_Rollback 目标话题不存在（外键失败）时整体回滚，
+// 不残留任何消息。
+func TestStore_AppendMessagesTx_Rollback(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.CreateTopic("t1", "话题", "plain"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendMessagesTx("nope", []MessageInput{
+		{Role: "user", Content: "a"},
+		{Role: "assistant", Content: "b"},
+	}); err == nil {
+		t.Fatal("向不存在的话题批量追加应报错")
+	}
+	if msgs, _ := s.ListMessages("nope"); len(msgs) != 0 {
+		t.Errorf("失败事务不应残留消息: %+v", msgs)
+	}
+}
+
+func TestStore_ImportTopicTx(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.ImportTopicTx("t1", "导入", "gaea", []MessageInput{
+		{Role: "user", Content: "一"},
+		{Role: "assistant", Content: "二"},
+	}); err != nil {
+		t.Fatalf("ImportTopicTx: %v", err)
+	}
+	topics, err := s.ListTopics()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(topics) != 1 || topics[0].Title != "导入" || topics[0].Mode != "gaea" {
+		t.Errorf("话题异常: %+v", topics)
+	}
+	if topics[0].Preview != "一" {
+		t.Errorf("preview = %q, want 一", topics[0].Preview)
+	}
+	msgs, err := s.ListMessages("t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 || msgs[0].Seq != 1 || msgs[1].Seq != 2 {
+		t.Errorf("导入消息异常: %+v", msgs)
+	}
+}
+
+// TestStore_ImportTopicTx_Rollback 建话题后任一步失败（重复 ID）整体回滚：
+// 不残留新消息，也不覆盖已有话题的消息。
+func TestStore_ImportTopicTx_Rollback(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.ImportTopicTx("dup", "a", "plain", []MessageInput{{Role: "user", Content: "x"}}); err != nil {
+		t.Fatalf("首次导入: %v", err)
+	}
+	// 同 ID 二次导入：话题 INSERT 主键冲突 → 事务整体回滚。
+	if err := s.ImportTopicTx("dup", "b", "plain", []MessageInput{{Role: "user", Content: "y"}}); err == nil {
+		t.Fatal("重复 ID 导入应报错")
+	}
+	msgs, _ := s.ListMessages("dup")
+	if len(msgs) != 1 || msgs[0].Content != "x" {
+		t.Errorf("失败导入不应残留消息: %+v", msgs)
+	}
+}

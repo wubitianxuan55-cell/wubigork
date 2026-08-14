@@ -10,6 +10,7 @@ type ProjectMeta struct {
 	Title         string    `json:"title"`
 	Genre         string    `json:"genre"`
 	Style         string    `json:"style"`
+	Author        string    `json:"author,omitempty"` // 作者名，导出（EPUB 等）使用；未配置时导出端回退品牌名
 	Description   string    `json:"description,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	LastOpenedAt  time.Time `json:"last_opened_at"`
@@ -153,13 +154,13 @@ type OutlineNode struct {
 	ChapterFile string            `json:"chapter_file,omitempty"` // 对应 chapters/NNN.md 或 NNN{a,b,c}.md
 	SceneRefs   []string          `json:"scene_refs,omitempty"`   // v4: 关联的场景 ID 列表
 	OrderIndex  int               `json:"order_index"`
-	Branch      string            `json:"branch,omitempty"`       // 分支字母: ""=主线, "a"/"b"/"c"=分支
+	Branch      string            `json:"branch,omitempty"` // 分支字母: ""=主线, "a"/"b"/"c"=分支
 	Children    []OutlineNode     `json:"children,omitempty"`
 }
 
 // OutlineFile outline.json 完整文件结构
 type OutlineFile struct {
-	StoryThread string         `json:"story_thread,omitempty"` // 故事主线：核心冲突、叙事方向
+	StoryThread string        `json:"story_thread,omitempty"` // 故事主线：核心冲突、叙事方向
 	Nodes       []OutlineNode `json:"nodes"`
 }
 
@@ -238,15 +239,15 @@ const (
 
 // SceneMeta 场景元数据，存储为 scenes/MMM-slug.meta.json
 type SceneMeta struct {
-	ID        string      `json:"id"`                  // 唯一标识，如 "001-opening"
-	Slug      string      `json:"slug"`                // URL 友好短名
-	Title     string      `json:"title"`               // 场景名
-	Summary   string      `json:"summary"`             // 一句话概要
+	ID        string      `json:"id"`                    // 唯一标识，如 "001-opening"
+	Slug      string      `json:"slug"`                  // URL 友好短名
+	Title     string      `json:"title"`                 // 场景名
+	Summary   string      `json:"summary"`               // 一句话概要
 	POVCharID string      `json:"pov_char_id,omitempty"` // POV 角色 ID
-	Location  string      `json:"location,omitempty"`  // 地点
+	Location  string      `json:"location,omitempty"`    // 地点
 	TimeOfDay string      `json:"time_of_day,omitempty"` // 时间（黎明/早晨/下午/黄昏/夜晚/深夜）
-	Emotion   string      `json:"emotion,omitempty"`   // 情感基调
-	Tags      []string    `json:"tags,omitempty"`      // 标签: climax/action/dialogue/...
+	Emotion   string      `json:"emotion,omitempty"`     // 情感基调
+	Tags      []string    `json:"tags,omitempty"`        // 标签: climax/action/dialogue/...
 	Status    SceneStatus `json:"status"`
 	WordCount int         `json:"word_count"`
 	Order     int         `json:"order"` // 在章节内的排序
@@ -308,6 +309,6 @@ type ProjectContext struct {
 	PrevSummary    *ChapterSummary  `json:"prev_summary,omitempty"`
 	AllSummaries   []ChapterSummary `json:"all_summaries,omitempty"` // 所有章节摘要
 	Foreshadows    []Foreshadow     `json:"foreshadows"`
-	StoryThread    string           `json:"story_thread,omitempty"`  // 故事主线
+	StoryThread    string           `json:"story_thread,omitempty"`   // 故事主线
 	VolumeContext  string           `json:"volume_context,omitempty"` // 当前章的父卷上下文
 }

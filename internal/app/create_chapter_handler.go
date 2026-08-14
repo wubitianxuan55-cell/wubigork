@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -74,9 +75,10 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	})
 
 	systemPrompt := tmpl.BuildSystemPrompt("")
-	// create-chapter 模板静态声明 5000 字，用户可在创作页调整目标字数；
-	// 用实际 minWords 同步改写 system prompt，避免模型仍按固定字数生成。
-	systemPrompt = strings.ReplaceAll(systemPrompt, "5000", strconv.Itoa(minWords))
+	// create-chapter 模板以 {word_count} 占位符声明目标字数（prompts/create-chapter.json），
+	// 用户可在创作页调整目标字数；用实际 minWords 精确替换占位符，避免模型仍按
+	// 固定字数生成，同时杜绝旧 ReplaceAll("5000") 误伤模板中其他 "5000" 字样。
+	systemPrompt = substituteWordCount(systemPrompt, minWords)
 	if skillMD != "" && a.skillLoader != nil {
 		if s := a.skillLoader.Get(skillMD); s != nil {
 			systemPrompt = a.skillLoader.InjectSkill(systemPrompt, skillMD)
@@ -92,8 +94,20 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 		return nil, fmt.Errorf("创建章节节点失败")
 	}
 
+	// 6. 按章节互斥（T6-7.2）：同一章节（同一 NNN.md 目标文件）并发生成直接拒绝，
+	//    不同章节可并行。登记时创建请求级 context，供前端 CancelCreateChapter 取消，
+	//    取消经该 context 传播到 ChatStream 与流读取循环。
+	genKey := chapterGenKey(targetNum, branch)
+	genCtx, genCancel, err := a.registerChapterGen(genKey, targetNum, branch)
+	if err != nil {
+		return nil, err
+	}
+
 	// 启动流式生成 + 字数守卫（续写模式）
-	go a.streamCreateChapter(pm, of, setting, prevSummary, plotReq, chapterNum, branchFromNodeID, systemPrompt, userPrompt, minWords, maxContinues, temperature, targetNum, nodeID, branch)
+	go func() {
+		defer a.unregisterChapterGen(genKey, genCancel)
+		a.streamCreateChapter(genCtx, pm, of, setting, prevSummary, plotReq, chapterNum, branchFromNodeID, systemPrompt, userPrompt, minWords, maxContinues, temperature, targetNum, nodeID, branch)
+	}()
 
 	return map[string]interface{}{
 		"streaming":  true,
@@ -103,8 +117,117 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	}, nil
 }
 
-// streamCreateChapter 在后台 goroutine 中流式生成章节，字数不足时续写
-func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.OutlineFile, setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID, systemPrompt, userPrompt string, minWords, maxContinues int, temperature float64, targetNum int, nodeID string, branch string) {
+// chapterGenKey 章节生成任务标识：目标章节文件（NNN.md / NNN{branch}.md）。
+func chapterGenKey(chapterNum int, branch string) string {
+	return fmt.Sprintf("%d|%s", chapterNum, branch)
+}
+
+// registerChapterGen 登记进行中的章节生成并创建请求级 context。
+// 同一章节已在生成时返回明确错误（拒绝并发写同一 NNN.md）。
+func (a *writingState) registerChapterGen(key string, chapterNum int, branch string) (context.Context, context.CancelFunc, error) {
+	a.chapterGenMu.Lock()
+	defer a.chapterGenMu.Unlock()
+	if a.chapterGenCancels == nil {
+		a.chapterGenCancels = make(map[string]context.CancelFunc)
+	}
+	if _, running := a.chapterGenCancels[key]; running {
+		label := fmt.Sprintf("第%d章", chapterNum)
+		if branch != "" {
+			label = fmt.Sprintf("第%d%s章", chapterNum, branch)
+		}
+		return nil, nil, fmt.Errorf("%s 正在生成中，请等待完成或先取消", label)
+	}
+	parent := a.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	a.chapterGenCancels[key] = cancel
+	return ctx, cancel, nil
+}
+
+// unregisterChapterGen 生成结束（成功/失败/取消）后移除登记并释放取消函数。
+// cancel 幂等：生成已结束，仅释放 context 资源。
+func (a *writingState) unregisterChapterGen(key string, cancel context.CancelFunc) {
+	a.chapterGenMu.Lock()
+	delete(a.chapterGenCancels, key)
+	a.chapterGenMu.Unlock()
+	cancel()
+}
+
+// CancelCreateChapter 取消指定章节的进行中生成（T6-7.2）。
+// 取消后 streamCreateChapter 会把已生成部分落盘并向前端发 cancelled 事件。
+// 幂等：目标章节没有进行中生成时返回 false。
+func (a *writingState) CancelCreateChapter(chapterNum int, branch string) bool {
+	key := chapterGenKey(chapterNum, branch)
+	a.chapterGenMu.Lock()
+	cancel, running := a.chapterGenCancels[key]
+	if running {
+		delete(a.chapterGenCancels, key)
+	}
+	a.chapterGenMu.Unlock()
+	if !running {
+		return false
+	}
+	cancel()
+	return true
+}
+
+// wordCountPlaceholder create-chapter 模板中目标字数的占位符
+// （prompts/create-chapter.json 的 task 与 output 两处字数声明均使用它）。
+const wordCountPlaceholder = "{word_count}"
+
+// substituteWordCount 将模板中的 {word_count} 占位符精确替换为实际目标字数。
+// 旧实现 strings.ReplaceAll("5000") 会误伤模板中其他 "5000" 字样；占位符替换
+// 只命中字数声明位，其余数字字样原样保留。
+func substituteWordCount(prompt string, minWords int) string {
+	return strings.ReplaceAll(prompt, wordCountPlaceholder, strconv.Itoa(minWords))
+}
+
+// chapterCurrentBody 计算当前已生成的纯正文（不含 ---CHAPTER_SUMMARY--- 摘要）。
+// 首次生成且未见摘要标记时正文在 fullText 中；出现标记或进入续写后正文在 bodyText 中。
+func chapterCurrentBody(fullText, bodyText string, attempt int, summaryStarted bool) string {
+	if attempt > 0 || summaryStarted {
+		return bodyText
+	}
+	if idx := strings.Index(fullText, "---CHAPTER_SUMMARY---"); idx >= 0 {
+		return fullText[:idx]
+	}
+	return fullText
+}
+
+// saveCancelledPartial 取消生成时把已生成部分原子落盘并通知前端（T6-7.2）。
+// 保持正常完成的落盘路径不变，仅补充取消场景的部分写入；未生成任何内容
+// （partial 为空）时只发 cancelled 事件、不写空文件，避免覆盖既有章节。
+func (a *writingState) saveCancelledPartial(pm *project.Manager, fullText, bodyText string, attempt int, summaryStarted bool, targetNum int, nodeID, branch string) {
+	partial := strings.TrimSpace(chapterCurrentBody(fullText, bodyText, attempt, summaryStarted))
+	payload := map[string]interface{}{
+		"type":       "cancelled",
+		"chapterNum": targetNum,
+		"branch":     branch,
+		"nodeId":     nodeID,
+		"total":      len([]rune(partial)),
+	}
+	if partial != "" {
+		var err error
+		if branch != "" {
+			err = pm.WriteChapterBranch(targetNum, branch, partial)
+		} else {
+			err = pm.WriteChapter(targetNum, partial)
+		}
+		if err != nil {
+			slog.Warn("取消生成：已生成部分落盘失败", "chapter", targetNum, "branch", branch, "error", err)
+		} else {
+			payload["content"] = partial
+		}
+	}
+	a.emit("create-chapter-stream", payload)
+}
+
+// streamCreateChapter 在后台 goroutine 中流式生成章节，字数不足时续写。
+// ctx 为请求级 context（T6-7.2）：由 CreateChapter 绑定入口创建，前端调用
+// CancelCreateChapter 时取消；取消传播到 ChatStream 与流读取循环。
+func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Manager, of *types.OutlineFile, setting, prevSummary, plotReq string, chapterNum int, branchFromNodeID, systemPrompt, userPrompt string, minWords, maxContinues int, temperature float64, targetNum int, nodeID string, branch string) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("CreateChapter stream panic", "panic", r)
@@ -167,7 +290,7 @@ func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.Outlin
 		if temperature > 0 {
 			req.Temperature = temperature
 		}
-		chunks, err := a.client.ChatStream(a.ctx, req)
+		chunks, err := a.client.ChatStream(ctx, req)
 		if err != nil {
 			a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": err.Error()})
 			return
@@ -177,13 +300,21 @@ func (a *writingState) streamCreateChapter(pm *project.Manager, of *types.Outlin
 	loop:
 		for {
 			select {
-			case <-a.ctx.Done():
+			case <-ctx.Done():
+				// T6-7.2 用户取消：把已生成部分落盘后退出（不再续写）
+				a.saveCancelledPartial(pm, fullText, bodyText, attempt, summaryStarted, targetNum, nodeID, branch)
 				return
 			case chunk, ok := <-chunks:
 				if !ok {
 					break loop
 				}
 				if chunk.Error != "" {
+					if ctx.Err() != nil {
+						// 取消导致的流中断（parseStreamEvents 在 ctx 取消时发 error 帧）：
+						// 与上方 ctx.Done 分支等价，同样落盘已生成部分。
+						a.saveCancelledPartial(pm, fullText, bodyText, attempt, summaryStarted, targetNum, nodeID, branch)
+						return
+					}
 					a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": chunk.Error})
 					return
 				}

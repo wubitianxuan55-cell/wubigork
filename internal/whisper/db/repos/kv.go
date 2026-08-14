@@ -12,9 +12,9 @@ import (
 
 // KVGet 读取键值
 func KVGet(dataRoot, namespace, key string) (string, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return "", fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return "", fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	var value string
@@ -30,9 +30,9 @@ func KVGet(dataRoot, namespace, key string) (string, error) {
 
 // KVSet 设置键值（UPSERT）
 func KVSet(dataRoot, namespace, key, value string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	updatedAt := time.Now().Format(time.RFC3339)
@@ -49,9 +49,9 @@ func KVSet(dataRoot, namespace, key, value string) error {
 
 // KVDeleteNamespace 删除整个命名空间
 func KVDeleteNamespace(dataRoot, namespace string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	_, err := sqlDB.Exec("DELETE FROM kv_store WHERE namespace = ?", namespace)

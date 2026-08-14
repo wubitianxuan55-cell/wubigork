@@ -16,9 +16,9 @@ type HabitLine struct {
 
 // AppendHabitToDB 追加一条习惯
 func AppendHabitToDB(dataRoot, text, ts string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	_, err := sqlDB.Exec(
@@ -30,9 +30,9 @@ func AppendHabitToDB(dataRoot, text, ts string) error {
 
 // LoadHabitsFromDB 加载所有习惯
 func LoadHabitsFromDB(dataRoot string) ([]HabitLine, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	rows, err := sqlDB.Query("SELECT ts, text FROM procedural_habits ORDER BY id ASC")
@@ -54,9 +54,9 @@ func LoadHabitsFromDB(dataRoot string) ([]HabitLine, error) {
 
 // ReplaceHabitsInDB 全量替换习惯
 func ReplaceHabitsInDB(dataRoot string, lines []HabitLine) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	tx, err := sqlDB.Begin()

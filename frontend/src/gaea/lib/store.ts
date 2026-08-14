@@ -333,6 +333,18 @@ export const useComposerInsertStore = create<ComposerInsertState>()((set, get) =
   },
 }));
 
+// logBridgeError 记录 bridge 调用失败（bridge 已把后端错误归一为
+// BridgeError）到 gaea.log；日志通道自身故障不向上抛（.catch 吞掉），
+// 避免掩盖业务错误。T6-1.2 去静默 catch：错误必须可见。
+function logBridgeError(where: string, err: unknown): void {
+  const e = (err ?? {}) as { code?: unknown; message?: unknown };
+  const code = typeof e.code === "string" ? e.code : "BridgeError";
+  const message = typeof e.message === "string" ? e.message : String(err);
+  const lfe = app.LogFrontendError;
+  if (typeof lfe !== "function") return;
+  void Promise.resolve(lfe(`[${code}] ${where}: ${message}`)).catch(() => {});
+}
+
 export function useController() {
   const store = useStore;
   const state = store(useShallow(s => s));
@@ -344,7 +356,11 @@ export function useController() {
       dispatch({ type: "context", context: await app.ContextUsage() });
       const history = await app.History();
       if (history && history.length) dispatch({ type: "history", messages: history });
-    } catch {}
+    } catch (err) {
+      // 启动期后端未就绪时 Meta/Context/History 可能失败：记录错误，
+      // 状态保持默认值，不再静默。
+      logBridgeError("loadSessionData", err);
+    }
   }, [dispatch]);
 
   // 最终回答兜底：turn_done（或看门狗检测到后端已停）时拉一次 History，
@@ -369,11 +385,11 @@ export function useController() {
           e: { kind: "message", text: last.content, reasoning: (last as { reasoning?: string }).reasoning ?? "" },
         });
       }
-    }).catch(() => {});
+    }).catch((err) => logBridgeError("reconcileFinalAnswer", err));
   }, [store, dispatch]);
 
   const refreshFactBase = useCallback(() => {
-    app.FactBase().then(factBase => dispatch({ type: "factbase", factBase })).catch(() => {});
+    app.FactBase().then(factBase => dispatch({ type: "factbase", factBase })).catch((err) => logBridgeError("refreshFactBase", err));
   }, [dispatch]);
 
   useEffect(() => {
@@ -387,15 +403,16 @@ export function useController() {
         dispatch({ type: "event", e });
       }
       if (e.kind === "turn_done") {
-        app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch(() => {});
-        app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch(() => {});
+        app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("turn_done ContextUsage", err));
+        app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("turn_done Balance", err));
         app.TCCAReport().then(raw => {
-          try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); } catch {}
-        }).catch(() => {});
+          try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); }
+          catch (err) { logBridgeError("TCCAReport JSON.parse", err); }
+        }).catch((err) => logBridgeError("TCCAReport", err));
         reconcileFinalAnswer();
       }
       if (e.kind === "turn_done" || e.kind === "notice") {
-        app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch(() => {});
+        app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("Jobs", err));
         refreshFactBase();
       }
       if (e.kind === "tool_result" && e.tool?.name?.startsWith("fact_")) {
@@ -404,12 +421,13 @@ export function useController() {
     });
     const offReady = onReady(() => {
       void loadSessionData();
-      app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch(() => {});
-      app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch(() => {});
+      app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("onReady Balance", err));
+      app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("onReady Jobs", err));
       refreshFactBase();
       app.TCCAReport().then(raw => {
-        try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); } catch {}
-      }).catch(() => {});
+        try { dispatch({ type: "tcca", report: JSON.parse(raw) as TCCAReport }); }
+        catch (err) { logBridgeError("TCCAReport JSON.parse", err); }
+      }).catch((err) => logBridgeError("TCCAReport", err));
     });
     // 看门狗：running=true 时每 30s 用后端真实状态校准一次，防止
     // turn_done 事件丢失导致界面永久卡在“执行中”。
@@ -421,11 +439,11 @@ export function useController() {
           dispatch({ type: "localCancel" });
           reconcileFinalAnswer();
         }
-      }).catch(() => {});
+      }).catch((err) => logBridgeError("watchdog GaeaRunning", err));
     }, 30000);
     void loadSessionData();
-    app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch(() => {});
-    app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch(() => {});
+    app.Balance().then(b => dispatch({ type: "balance", balance: b })).catch((err) => logBridgeError("init Balance", err));
+    app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("init Jobs", err));
     refreshFactBase();
     return () => { off(); offReady(); window.clearInterval(watchdog); };
   }, [loadSessionData, refreshFactBase, reconcileFinalAnswer]);

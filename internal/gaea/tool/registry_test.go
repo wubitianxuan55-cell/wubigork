@@ -143,3 +143,45 @@ func TestRegistrySchemasCanonicalizesEquivalentOrdering(t *testing.T) {
 		t.Fatalf("equivalent schemas canonicalized differently:\n  first:  %s\n  second: %s", got, want)
 	}
 }
+
+// persistWriterStub is a stubTool marked as a persistent-write tool.
+type persistWriterStub struct {
+	stubTool
+}
+
+func (persistWriterStub) PersistWrite() bool { return true }
+
+// TestPersistWriteNamesAndMarker 验证 T6-2.5 注册表化：带 PersistWrite 标记的
+// 工具被 IsPersistWrite 识别，并按注册顺序出现在 Registry.PersistWriteNames()
+// 中；未标记工具不出现。这是子代理禁写集合与审批硬门的数据来源。
+func TestPersistWriteNamesAndMarker(t *testing.T) {
+	r := NewRegistry()
+	r.Add(stubTool{name: "read_file"})
+	r.Add(persistWriterStub{stubTool: stubTool{name: "cost_save"}})
+	r.Add(stubTool{name: "bash"})
+	r.Add(persistWriterStub{stubTool: stubTool{name: "remember"}})
+
+	if IsPersistWrite(stubTool{name: "bash"}) {
+		t.Error("未标记工具不应被识别为持久化写工具")
+	}
+	if !IsPersistWrite(persistWriterStub{stubTool: stubTool{name: "remember"}}) {
+		t.Error("带标记工具应被识别为持久化写工具")
+	}
+
+	got := r.PersistWriteNames()
+	want := []string{"cost_save", "remember"}
+	if len(got) != len(want) {
+		t.Fatalf("PersistWriteNames = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("PersistWriteNames = %v, want %v（注册顺序）", got, want)
+		}
+	}
+
+	// 覆盖替换（Add 同名）后标记仍生效；PersistWriteNames 不含重复项。
+	r.Add(persistWriterStub{stubTool: stubTool{name: "cost_save"}})
+	if got := r.PersistWriteNames(); len(got) != 2 {
+		t.Fatalf("覆盖后 PersistWriteNames = %v, want 2 项", got)
+	}
+}

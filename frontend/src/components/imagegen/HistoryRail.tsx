@@ -2,6 +2,7 @@ import React from 'react'
 import { Button, Typography } from 'antd'
 import { DeleteOutlined, HistoryOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PictureOutlined, VideoCameraOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
+import { mediaIsVideo } from './media'
 import type { GenResult } from './types'
 
 interface Props {
@@ -83,7 +84,7 @@ export const HistoryRail: React.FC<Props> = ({ history, selectedIndex, onSelect,
                     </Button>
                   )}
                 </div>
-              ) : h.kind === 'video' ? (
+              ) : mediaIsVideo(h.image) ? (
                 <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000' }}>
                   <video src={h.image} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   <span style={{

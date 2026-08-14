@@ -1,5 +1,159 @@
 # gaea · 多功能 AI 助手
 
+## v2.30.0「质量收敛 · 小说·导出与原子性」（2026-08-14）
+> 阶段 6 第七刀（T6-7）：export 整改、生成中断与互斥、落盘原子化、模板占位符、CreatePage 拆分。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.30.0.md。
+- T6-7.1 **export 整改与测试**（internal/export，新增 13 测试）：
+  - 章节读取失败静默 continue → slog.Warn + FailedChapters 计数（四格式观测一致）；
+  - 作者取自项目元数据（ProjectMeta.Author，无配置回退 "gaea"）；EPUB 与 HTML 统一 markdownToHTML
+    单一分段器（删除 chapterToHTML）；TXT/MD 世界观对齐；TXT/MD/EPUB 写前 MkdirAll；
+  - sanitizeFilename 加固（Windows 保留名 CON/PRN/AUX/NUL/COM1-9/LPT1-9 含 CON.txt 形式 + 尾部点/空格）；
+  - EPUB AddSection 错误不再丢弃；失败分支测试因沙箱无 SeCreateSymbolicLinkPrivilege 以 Skip 降级（逻辑保留）；
+- T6-7.2 **生成中断与互斥**（internal/app/create_chapter_handler.go）：
+  - 请求级 context.WithCancel（取消传播到 ChatStream，双路径落盘已生成部分）；
+  - 新绑定 CancelCreateChapter(chapterNum, branch) bool（幂等；gen_bindings 460 方法 + 完备性 PASS）；
+  - 按章节互斥（同章节并发生成拒绝明确错误，不同章节并行）；取消未生成内容不写空文件；
+- T6-7.3 **落盘原子化**（internal/project）：writeFileAtomic（CreateTemp→fsync→Rename）覆盖
+  writeJSON 全部 JSON + WriteChapter/WriteChapterBranch/WriteWorldview；失败清理临时文件保留旧文件；5 测试；
+- T6-7.4 **模板替换精确化**：prompts/create-chapter.json "5000" 字面量 → {word_count} 占位符，
+  substituteWordCount 只替换占位符杜绝误伤；2 测试；
+- T6-7.5 **前端拆分与停止按钮**：CreatePage 791→288 行（拆 8 文件：chapterStreamTypes 判别联合 +
+  useChapterStream hook + ChapterTreePanel/EditorPanel/CreateInspector/NewCharactersModal/BranchWizardModal +
+  characterStatus 枚举单源）；「停止生成」按钮（CancelCreateChapter 接线，false 本地兜底不悬挂）；
+  cancelled 事件三路收尾保留部分正文；新增 18 vitest 用例；
+- 验证：export/project/types/app 包 ok（app 24.3s）、vet 干净、TestBindingsCompleteness PASS（460 方法）；
+  tsc 0 errors、vitest **334/334**（76 文件）、eslint 0 errors（存量 warnings）。
+
+## v2.29.0「质量收敛 · 模型中心·密钥与 UI」（2026-08-14）
+> 阶段 6 第六刀（T6-6）：refresh_token DPAPI 加密、汇率配置化、probe 告警修复、UI 拆分与竞态守卫。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.29.0.md。
+- T6-6.1 **refresh_token 密钥一致性**（internal/auth/token.go）：Save 敏感字段（access_token/refresh_token）
+  经 secure.EncryptString DPAPI 加密落盘（dpapi: 前缀，JSON 结构不变）；Load 有前缀解密、解密失败返回含字段名
+  的明确错误（绝不静默 nil）；无前缀旧明文自动一次性重写为加密（迁移幂等，同一把锁内完成）；非 Windows 降级
+  分支 round-trip 完整；新增 3 测试（落盘无明文/旧明文迁移/解密失败报错）；
+- T6-6.2 **汇率配置化**（internal/modelengine/stats.go + internal/config + 绑定）：
+  - usdToCny 写死 7.2 → 配置键 usd_cny_rate（默认 7.2，saveSetters 拒绝 <=0/NaN/Inf）；
+  - 新绑定 GaeaGetUsdCnyRate/GaeaSetUsdCnyRate（gen_bindings 459 方法，TestBindingsCompleteness PASS）；
+  - 注入式缓存（启动注入 statsRecorder 内存副本，修改双写即时生效，record/summary 零 IO）；
+  - 前端 ModelPanel 汇率输入（回填/保存/正数校验）+ engines.ts 包装；新增 4 测试；
+- T6-6.3 **probe 告警文案**（internal/herdsman/probe.go:221）：目录缺失告警改打印真实目录路径
+  （filepath.Join(rootDir, name) 与 checkDir 口径一致），不再误打印 config.yaml 路径；新增 1 测试；
+- T6-6.4 **UI 拆分与单源**：ModelCenterPage 顶层 useState 42→3（5 分类状态下沉到 5 个 hooks：
+  useEngineState/useStatsState/useImageState/useVoiceState/useBindState）；XAI_VOICES 全前端仅 utils.tsx
+  一处定义（VoiceSettingsPanel/ChatPanel 改 import 单源）；
+- T6-6.5 **竞态修复**：refreshLocalModels 请求序号守卫（refreshSeq，过期结果丢弃）+ 5s 定时器随 category
+  重置（effect 开头作废上一分类在途刷新）；新增 2 竞态测试；
+- 验证：auth/modelengine/config/herdsman/app 5 包 ok（24.4s app）、vet 干净；tsc 0 errors、
+  vitest **316/316**（72 文件）、eslint 0 errors（762 存量 warnings）。
+
+## v2.28.0「质量收敛 · 轻语·测试与可观测」（2026-08-14）
+> 阶段 6 第五刀（T6-5）：补测试 146 用例、错误可见化、异步写可观测、成人模式决策成文、db 收敛、占位清理。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.28.0.md。
+- T6-5.1 **补测试**（仅新增 9 个测试文件，零实现改动）：146 个用例（要求 45+）；emotion_fusion 18/18 函数
+  100% 语句覆盖；memory_consolidator 98.5% / memory_contradiction 99.3% / memory_self_editor 98.5% /
+  vector_store 96.5% / dispatch_router 96.3% / agent_loop_runner 92.3% / canon 全 100% / desktop 96.8%+；
+  测试暴露 3 个真实缺陷（记录未改）：normalizePath %ENV% 展开不生效（Go os.ExpandEnv 不支持 %VAR%）、
+  mergeProhibitions 道歉过滤漏带引号"对不起"、self_editor log 裁剪后可重新增长至 200；
+- T6-5.2 **错误可见化**（T6-1.3 已改 4 处 + 本刀补齐）：whisper_handler 记忆写协程错误全部经
+  recordMemoryWriteError 汇聚（slog.Error + 计数）；
+- T6-5.3 **异步写可观测**：whisperWriteErrors 计数器（count/最近错误摘要/时间）+ MemoryWriteErrorSink
+  透传（LLM 失败 llm_extract / JSON 解析 json_parse / panic / persist 落库失败四类 phase 全覆盖）；
+  persist 协程提取 persistStateAsync，persist 系列函数改返回 error（errors.Join 聚合，不再 _ = 吞错）；
+  新增 5 测试；
+- T6-5.4 **成人模式决策成文**：新增 docs/ADULT_MODE.md（六节：决策/理由/接口现状/前端实证/商用化恢复
+  5 步方案/代码位置）；orchestrator.go:91 注释引用文档；**删除 WhisperSetAdultMode 死接口**
+  （前端零引用、实现静默忽略参数；gen_bindings 457 方法重新生成 + TestBindingsCompleteness PASS）；
+- T6-5.5 **db 细节收敛**：GetDatabase 签名改 (*sql.DB, error)（12 个 repos 文件 58 处调用点适配）；
+  PRAGMA 单一来源（删除重复循环，DSN 唯一，grep 断言各恰 1 次）；V11 FTS 全量重建失败补 slog.Error；
+  新增 4 测试；
+- T6-5.6 **陈旧占位清理**：删除 4 个占位文件（plan_document_intent/paper_card_companion/
+  desktop_mode_policy/desktop_opening——目标文件已核实或不存在），grep 零引用；
+- 验证：internal/whisper 3 包 + internal/app 23.9s ok、vet 干净；tsc 0 errors、vitest 312/312、
+  eslint 0 errors（存量 warnings）。
+
+## v2.27.0「质量收敛 · 绘梦·链路真实生效」（2026-08-14）
+> 阶段 6 第四刀（T6-4）：取消真实生效、flux 名实相符、历史图片可恢复、格式/注入面修复、核心链路测试补全。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.27.0.md。
+- T6-4.1 **取消真实生效**（image_handler.go/image_comfyui.go）：
+  - CancelImageGeneration 在 cancel context 之外调用 POST /interrupt 中断 ComfyUI 当前任务；本地取消标记拒绝后续排队提交
+    （ComfyUI 无删除排队任务 API，/queue 仅查询——注释说明）；checkHistory 携带 ctx、取消后轮询即刻退出；取消幂等；
+- T6-4.2 **flux 名实相符**：文生图改显式映射表 txt2imgWorkflows（krea2/z-image-turbo/flux），未知模型返回中文错误
+  （静默降级已消除）；flux 实现真实工作流（UNETLoader flux1-schnell + DualCLIPLoader type=flux + ae VAE +
+  4 步 KSampler）；img2img 白名单化；
+- T6-4.3 **历史图片可恢复**：imageItem 增 file_path 字段，生成流程把落盘路径写入历史；前端历史分级存储
+  （>200k base64 只存 path）、挂载时经 GaeaAttachmentDataURL 回填恢复、下载/剧照优先 file_path；
+- T6-4.4 **尺寸解析校验**：parseSize 弃 Sscanf 改 strconv.Atoi 严格解析，非法输入中文报错，钳制 64–2048；
+- T6-4.5 **端口命令注入修复**：findProcessByPort 弃 cmd/findstr 拼接改 exec.Command("netstat","-ano") 参数数组
+  + 输出解析；端口白名单 1–65535；
+- T6-4.6 **核心链路测试补全**：ComfyUI 客户端 httpClient/pollInterval 可注入；httptest 五链路（提交 3/轮询 4/
+  取消 4/上传 3/下载 2）+ 全链路端到端；Go 新增 31 用例；前端 media/historyMeta/queue 纯逻辑模块 + 19 用例；
+- 验证：internal/ai 4.2s + internal/app 23s ok、vet 干净；tsc 0 errors、vitest **312/312**（70 文件）、
+  eslint 0 errors（761 存量 warnings）。
+
+## v2.26.0「质量收敛 · 对话·流可靠」（2026-08-14）
+> 阶段 6 第三刀（T6-3）：流订阅竞态与超时、落库错误透传、语音持久化、迁移一次性、导出转义。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.26.0.md。
+- T6-3.1 **流订阅竞态与超时**（ChatPage.tsx）：
+  - runID 一到即在同一微任务注册 EventsOn（零异步间隙，首帧不丢）；30s 无帧超时（STREAM_SILENCE_TIMEOUT_MS）→ sending 复位 + 错误展示 + finally 必执行；
+  - finish 幂等收尾覆盖 done/error/超时/启动拒绝/卸载五路；新增 12 个组件测试（fake timers）。
+- T6-3.2 **落库错误透传**（internal/app/chat_service.go）：
+  - appendChatExchange 返回 error；流式路径落库失败 emit error 终态而非 done（前端可见失败）；
+  - ChatTopicsList/ChatMessagesList 签名改返回 error（绑定签名变更，前端 try/catch + LogFrontendError 同步）。
+- T6-3.3 **语音持久化**：新增绑定 ChatAppendMessages（单事务批量落库）+ 前端语音识别/回复落库（不走 ChatSend 无重复）；朗读 URL revoke（onended/onerror/play 失败/卸载）；打字循环取消标志（切话题/卸载中止）。
+- T6-3.4 **迁移一次性**：migrateLegacyTopics 加持久化标记（gaea_chat_migration_v1），成功才写；失败记日志不静默、保留旧键、会话内不无限重试；ChatImportTopic 改单事务（ImportTopicTx 全成或全回滚）。
+- T6-3.5 **导出转义**：ChatTopicExportMarkdown 消息原文转义 Markdown 敏感字符（行首井号/反引号/尖括号/竖线）；sanitizeChatFilename 加固（Windows 保留名 CON/PRN/AUX/NUL/COM1-9/LPT1-9、尾部点号、截断 40、空→chat）；ChatGeneral 补主脑派发依赖注释（不删除）。
+- 验证：test-all.ps1 全量包 ok、vet 干净；tsc 0 errors、vitest **290/290**（67 文件）、eslint 0 errors（762 存量 warnings）。
+
+## v2.25.0「质量收敛 · 办公引擎·正确性」（2026-08-14）
+> 阶段 6 第二刀（T6-2）：docmd 分页修复、TurnResult 语义、后端看门狗、Send 排队、禁写注册表化、TCCA/evidence 补测。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.25.0.md。
+- T6-2.1 **PDF 页数统计与分页过滤修复**（internal/office/docmd/docmd.go）：
+  - 页数统计改 countPDFPages 精确匹配（排除 /Type /Pages 页树干扰，修复总页数恒多 ≥1）；
+  - BT..ET 文本按页对象归类（页码由页对象决定而非 BT 块自增），页范围过滤不再错位；
+  - OCR 循环改绝对页码（修复 pdftoppm 从 first>1 渲染时范围错位一页），OCR 范围与"已截断"提示同源；
+  - 新增 pdf_pages_test.go 7 测试（构造最小合法 PDF fixture，含 /Pages 干扰/无空格/页树边界/页内多 BT 块）。
+- T6-2.2 **运行链路结果语义修复**（internal/gaea/agent/agent_run.go、agent_stream.go）：
+  - TurnResult 的 blocked/precheck blocked/suppressed/tool panic 计入 Errors，Success 仅整轮无错误为 true；
+  - 终止流错误路径先写已收部分文本入会话再返回 err（不丢已生成内容）；
+  - step-- 加下限 0，杜绝负 step 与 grace 边界组合出额外模型轮；新增 10 测试（Success 语义收紧不影响上层：controller 丢弃 TurnResult、前端无引用）。
+- T6-2.3 **TCCA 与 evidence 补测**（internal/gaea/context、internal/gaea/evidence，仅新增测试零实现改动）：
+  - 新增 58 个测试：context 覆盖率 39.2%→**97.0%**、evidence 91.1%（要求 ≥60%）；
+  - 记录两处观察（不改实现）：MergeChild 的 ForkCount +1 语义存疑；CacheReport 不聚合子项 CacheHitTokens/CacheMissTokens/BreakCount（子代理全会话命中统计在父报告丢失）。
+- T6-2.4 **落地后端看门狗**（internal/gaea/control/watchdog.go 新增）：
+  - v2.13.0 声称的看门狗此前未落地（仅前端 30s 定时器）——本实现为进程内运行态看门狗；
+  - 墙钟 10min / 停滞 30s 默认阈值（Options.Watchdog 可配置，==0 默认、<0 禁用维度）；
+  - 触发走该回合 cancel（与用户 Cancel 同一中断链路）→ Emit TurnDone(Err) + 用户可见 Notice；
+  - watchdogSink 观察推进：工具执行在途（ToolDispatch→ToolResult）与审批/提问等待豁免停滞，不误杀长任务；
+  - 新增 8 测试 + 3 子测试；与 Send 队列共存回归通过（修复跨回合 channel 复用竞态）。
+- T6-2.5 **Send 排队 + 禁写清单注册表化**（internal/gaea/control/controller.go、internal/gaea/tool、internal/gaea/agent/task.go）：
+  - 运行中 Send 改限长队列（8 条），回合结束按 FIFO 排空（running 保持 true）；队满拒绝并发明确错误 notice；
+  - 子代理禁写清单由工具注册表 PersistWrite 标记自动推导（删除手写 6 项 map），新持久化写工具加标记即自动纳入；
+  - 禁写集合与 hardAskTools 完全一致（测试断言）；新增 8 测试 + 更新 2 测试。
+- T6-2.6 **docmd.go 拆分**（1521→56 行，拆为 office.go/pdf.go/ocr.go/pagespec.go）：
+  - 按职责纯搬迁、行为零变化（声明段重拼与原文逐字节一致验证）；23 测试全绿，覆盖率 39.2% 与拆分前一致（OCR/外部工具路径无环境跳过为既有状态）。
+- 验证：test-all.ps1 **109/109 包 ok**、go vet 干净；tsc 0 errors；eslint 0 errors；vitest 274/274。
+
+## v2.24.0「质量收敛 · 基础层·可靠性」（2026-08-14）
+> 阶段 6 第一刀（T6-1）：SSE 流式加固、前端错误可见性、后端吞错清理。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.24.0.md。
+- T6-1.1 **SSE 流式加固**（internal/ai/client.go）：
+  - 行上限 64KB → bufio.Reader 任意长行（1.2MB 单行实测不断流、逐字一致）；
+  - 连接错误/5xx 指数退避重试（默认 2 次 1s/2s；200 流开始后不重试防重复生成；401 走刷新、include_usage 400 降级整体重试）；
+  - 空闲超时 60s（每次读重置计时；取消作用于 streamCtx 解除阻塞读）；
+  - 代理接入：与 web_fetch/web_search 同源读取代理配置（netclient.NewHTTPClient），localhost/回环强制直连（herdsman/ComfyUI 不走代理）；
+  - 修复解析协程 send 守卫用调用方 ctx（防超时后丢失错误块）；新增 client_reliability_test.go 8 测试。
+- T6-1.2 **前端错误可见性**（bridge.ts/store.ts）：
+  - BridgeError/normalizeError/invoke 统一入口/logFrontendError；app proxy 全部方法包 invoke 层（LogFrontendError 防递归）；
+  - store.ts 8 集群 14 处静默 .catch(()=>{}) 改 logBridgeError（状态逻辑零改动）；
+  - 新增 bridge.test.ts 6 用例 + store.test.ts +3。
+- T6-1.3 **后端吞错清理 + 日志脱敏**：
+  - ChatTopicsList/ChatMessagesList 读错记日志（签名未改）；whisper_handler 两处 _= 记日志；
+  - memory_ingest/memory_consolidator LLM/解析失败 slog.Error；config.Load 坏 JSON slog.Error（签名未改）；
+  - main.go 桥接 token 日志脱敏 maskToken（尾 4 位）；
+  - 全库 _= 扫描补 task_plan_store/characterlib_handler/gaea_ui 三组；新增 13 测试。
+- 验证：test-all.ps1 109/109 包 ok、go vet 干净；tsc 0 errors、vitest 274/274、eslint 0 errors（749 存量 warnings）。
+- 明确不做（留后续刀）：绑定签名变更（T6-3）、emit done 语义（T6-3）、config 原子写（T6-9.4）、非流式重试/useController 降级 catch（T6-10）。
+
 ## v2.23.0「运行纵深 · 进料与质量」（2026-08-14）
 > 阶段 5 第三刀（T5-5 + T5-6）：成本库进料闭环、检索统一与质量回归。
 > 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段5-运行纵深.md；详见 releases/v2.23.0.md。

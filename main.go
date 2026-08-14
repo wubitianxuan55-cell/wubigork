@@ -40,7 +40,7 @@ func main() {
 		token := httpbridge.SessionToken(os.Getenv("GAEA_HTTP_TOKEN"))
 		go func() {
 			slog.Info("HTTP 调试桥接已启动（一次性 token 鉴权）",
-				"addr", addr, "token", token)
+				"addr", addr, "token", maskToken(token))
 			if err := httpbridge.ServeWithToken(addr, application, token); err != nil {
 				slog.Error("HTTP 调试桥接退出", "error", err)
 			}
@@ -79,4 +79,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "启动失败: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// maskToken 日志脱敏：只保留 token 尾 4 位（如 ***abcd），避免一次性鉴权 token 明文落日志。
+func maskToken(tok string) string {
+	if len(tok) <= 4 {
+		return "***"
+	}
+	return "***" + tok[len(tok)-4:]
 }

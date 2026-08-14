@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -76,7 +77,12 @@ const (
 	KeyDeepseekAPIKey     = "deepseek_api_key"
 	KeyOpencodeGoAPIKey   = "opencode_go_api_key"
 	KeyOpencodeZenAPIKey  = "opencode_zen_api_key"
+	// 美元→人民币汇率（费用估算折算用，默认 7.2，可在模型中心配置）
+	KeyUsdCnyRate = "usd_cny_rate"
 )
+
+// DefaultUsdCnyRate 美元→人民币汇率默认值（费用估算折算口径）。
+const DefaultUsdCnyRate = 7.2
 
 // configFile 表示 ~/.gaea_config.json 的结构
 type configFile struct {
@@ -143,6 +149,8 @@ type configFile struct {
 	// 本地模型调度开关（T5-3a/b，nil=默认开启）
 	KeepWarmEnabled *bool `json:"keep_warm_enabled,omitempty"` // 保活探针
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
+	// 美元→人民币汇率（费用估算折算用；0=未配置，加载时回退默认 7.2）
+	UsdCnyRate float64 `json:"usd_cny_rate,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -258,6 +266,9 @@ type Config struct {
 	//                 herdsman 模型，降低首次对话的冷启动等待。
 	KeepWarmEnabled bool
 	AutoPreload     bool
+
+	// 美元→人民币汇率（费用估算折算用，默认 7.2；模型中心可配置）
+	UsdCnyRate float64
 }
 
 // funcMu 保护功能级模型绑定字段（GetFeatureModel/SetFeatureModel 并发读写）
@@ -435,6 +446,8 @@ func Load() *Config {
 		// T5-3a/b：本地模型保活 + 启动自动预载默认开启。
 		KeepWarmEnabled: true,
 		AutoPreload:     true,
+		// 汇率默认 7.2（费用估算折算口径）。
+		UsdCnyRate: DefaultUsdCnyRate,
 
 		// TTS 默认值
 		TTSBinaryPath: filepath.Join(home, "legacy-tts", "legacy_tts.exe"),
@@ -540,10 +553,14 @@ func Load() *Config {
 		data = d
 	} else if legacy, lerr := os.ReadFile(filepath.Join(home, ".wubigork_config.json")); lerr == nil {
 		data = legacy
+		slog.Warn("主配置文件读取失败，回退旧品牌配置", "path", configPath, "error", err)
+	} else if !os.IsNotExist(err) {
+		// 两个配置文件都不存在是首次启动的正常情况；其余读取错误（权限/损坏路径）需可见
+		slog.Warn("配置文件读取失败（主/旧品牌均不可用）", "path", configPath, "error", err)
 	}
 	if data != nil {
 		var cf configFile
-		if json.Unmarshal(data, &cf) == nil {
+		if err := json.Unmarshal(data, &cf); err == nil {
 			if cf.XaiClientID != "" {
 				cfg.XaiClientID = cf.XaiClientID
 			}
@@ -712,6 +729,9 @@ func Load() *Config {
 			if cf.AutoPreload != nil {
 				cfg.AutoPreload = *cf.AutoPreload
 			}
+			if cf.UsdCnyRate != 0 {
+				cfg.UsdCnyRate = cf.UsdCnyRate
+			}
 			// 2.x 聊天/轻语合并：旧配置只写 func_whisper_* 时迁移到 func_chat；
 			// chat 显式配置优先，不覆盖；func_whisper_enabled=false 同步为 chat 停用。
 			if cfg.FuncChatEngine == "" && cf.FuncWhisperEngine != "" {
@@ -721,6 +741,8 @@ func Load() *Config {
 					cfg.FuncChatEnabled = *cf.FuncWhisperEnabled
 				}
 			}
+		} else {
+			slog.Error("配置文件解析失败，忽略文件覆盖", "path", configPath, "error", err)
 		}
 	}
 
@@ -990,6 +1012,17 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.AutoPreload = b
+		return nil
+	},
+	KeyUsdCnyRate: func(cf *configFile, v string) error {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return err
+		}
+		if f <= 0 || math.IsNaN(f) || math.IsInf(f, 0) {
+			return fmt.Errorf("汇率必须为正数（当前值: %s）", v)
+		}
+		cf.UsdCnyRate = f
 		return nil
 	},
 }

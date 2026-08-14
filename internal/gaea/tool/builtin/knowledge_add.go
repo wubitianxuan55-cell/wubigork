@@ -38,6 +38,7 @@ func (knowledgeAdd) Schema() json.RawMessage {
 }`)
 }
 func (knowledgeAdd) ReadOnly() bool                 { return false }
+func (knowledgeAdd) PersistWrite() bool              { return true }
 func (knowledgeAdd) CompactDescription() string     { return compactDesc["knowledge_add"] }
 func (knowledgeAdd) CompactSchema() json.RawMessage { return compactSchema["knowledge_add"] }
 

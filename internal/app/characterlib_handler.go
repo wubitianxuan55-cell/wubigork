@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -106,7 +107,9 @@ func (a *App) CharacterSave(cJSON string) (characterlib.Character, error) {
 		} else if c.AssistantID != "" {
 			if ast := a.assistantMgr.Get(c.AssistantID); ast != nil {
 				ast.Enabled = false
-				_ = a.assistantMgr.Update(ast.ID, *ast)
+				if err := a.assistantMgr.Update(ast.ID, *ast); err != nil {
+					slog.Error("角色停用聊天通道更新失败", "assistantID", ast.ID, "error", err)
+				}
 			}
 		}
 	}
@@ -130,7 +133,9 @@ func (a *App) CharacterDelete(id string) error {
 		return nil
 	}
 	if c.AssistantID != "" && a.assistantMgr != nil {
-		_ = a.assistantMgr.Delete(c.AssistantID)
+		if err := a.assistantMgr.Delete(c.AssistantID); err != nil {
+			slog.Error("角色删除时清理聊天通道失败", "assistantID", c.AssistantID, "error", err)
+		}
 	}
 	return a.charLib.Delete(id)
 }

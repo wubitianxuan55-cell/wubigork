@@ -33,9 +33,9 @@ func SaveWorkspaceIndexToDB(dataRoot string, index OpenForUWorkspaceIndex) error
 		return err
 	}
 
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	updatedAt := time.Now().Format(time.RFC3339)
@@ -52,9 +52,9 @@ func SaveWorkspaceIndexToDB(dataRoot string, index OpenForUWorkspaceIndex) error
 
 // LoadWorkspaceIndexFromDB 加载工作区索引
 func LoadWorkspaceIndexFromDB(dataRoot string) (*OpenForUWorkspaceIndex, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	var dataJSON string
@@ -92,9 +92,9 @@ func SavePlanSessionToDB(dataRoot string, session PlanSession) error {
 		return err
 	}
 
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	updatedAt := time.Now().Format(time.RFC3339)
@@ -112,9 +112,9 @@ func SavePlanSessionToDB(dataRoot string, session PlanSession) error {
 
 // LoadPlanSessionFromDB 加载规划会话
 func LoadPlanSessionFromDB(dataRoot, sessionID string) (*PlanSession, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	var dataJSON string
@@ -153,9 +153,9 @@ func SaveAgentRunToDB(dataRoot string, run AgentRunMeta) error {
 		return err
 	}
 
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	updatedAt := time.Now().Format(time.RFC3339)
@@ -173,8 +173,8 @@ func SaveAgentRunToDB(dataRoot string, run AgentRunMeta) error {
 
 // CountOpenForuSessionsInDB 返回 OpenForU 会话总数
 func CountOpenForuSessionsInDB(dataRoot string) int {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
 		return 0
 	}
 	var c int

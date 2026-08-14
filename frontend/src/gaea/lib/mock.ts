@@ -34,6 +34,8 @@ import type {
   ModelSwitchEstimate,
 } from "./types";
 import type { AppBindings } from "./bridge";
+// chat 板块契约类型（wails 生成物；AppBindings 契约同步 T6-3）。
+import type { app as AppModels, chat } from "../../../wailsjs/go/models";
 
 const EVENT_CHANNEL = "agent:event";
 
@@ -1540,6 +1542,17 @@ export function makeMockApp(): AppBindings {
     async PickDirectory(): Promise<string> {
       // mock: no native dialog
       return "";
+    },
+    // ── 对话 chat（T6-3 契约同步：ChatTopicsList/ChatMessagesList 返回
+    // [数据, 错误] 元组形态；ChatAppendMessages 语音消息持久化 no-op）──
+    async ChatTopicsList(): Promise<[chat.Topic[], unknown]> {
+      return [[], null];
+    },
+    async ChatMessagesList(_topicID: string): Promise<[chat.Message[], unknown]> {
+      return [[], null];
+    },
+    async ChatAppendMessages(_topicID: string, _messages: AppModels.ChatMessageInput[]) {
+      // mock: 浏览器开发环境不落库（no-op，记录调用即可）
     },
     async TaskList() {
       return [...taskMock];

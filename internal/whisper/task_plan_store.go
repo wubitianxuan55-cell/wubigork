@@ -123,7 +123,9 @@ func (s *TaskPlanStore) Save(sessionID string, plan DesktopTaskPlan, progress De
 		Status:           map[bool]string{true: "completed", false: "active"}[progress.AllPassed],
 	}
 	s.mu.Unlock()
-	_ = s.persist()
+	if err := s.persist(); err != nil {
+		slog.Error("轻语任务计划落盘失败", "sessionID", sessionID, "error", err)
+	}
 }
 
 // Clear 清除指定会话的任务计划（内存删除 + 磁盘同步清除）
@@ -131,7 +133,9 @@ func (s *TaskPlanStore) Clear(sessionID string) {
 	s.mu.Lock()
 	delete(s.plans, sessionID)
 	s.mu.Unlock()
-	_ = s.persist()
+	if err := s.persist(); err != nil {
+		slog.Error("轻语任务计划清除落盘失败", "sessionID", sessionID, "error", err)
+	}
 }
 
 // ActivePlan 返回当前活动任务计划（多个会话并存时取最近更新者）；无则 nil。
@@ -161,7 +165,9 @@ func (s *TaskPlanStore) Resume(sessionID string) bool {
 	}
 	p.UpdatedAt = time.Now().Format(time.RFC3339)
 	s.mu.Unlock()
-	_ = s.persist()
+	if err := s.persist(); err != nil {
+		slog.Error("轻语任务计划恢复落盘失败", "sessionID", sessionID, "error", err)
+	}
 	return true
 }
 

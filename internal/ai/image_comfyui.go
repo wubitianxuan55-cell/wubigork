@@ -14,22 +14,77 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 // ComfyUIBackend 通过 ComfyUI REST API 调用本地 Flux / Z-Image-Turbo 模型
 type ComfyUIBackend struct {
 	baseURL    string
-	httpClient *http.Client
+	httpClient *http.Client // 可注入（测试用 httptest.Server 客户端替换），默认 30 分钟超时
+
+	// 轮询间隔（测试可缩短；生产保持 2 秒）
+	pollInterval time.Duration
+
+	// 本地取消标记（T6-4.1）：ComfyUI 无删除排队任务的 API，取消后拒绝新提交
+	mu              sync.Mutex
+	cancelled       bool
+	currentPromptID string // 最近一次提交的任务 ID（诊断）
 }
 
 // NewComfyUIBackend 创建 ComfyUI 后端
 func NewComfyUIBackend(baseURL string) *ComfyUIBackend {
 	return &ComfyUIBackend{
-		baseURL:    strings.TrimSuffix(baseURL, "/"),
-		httpClient: netclient.NewSimpleClient(30 * time.Minute), // CPU 模式可能很慢
+		baseURL:      strings.TrimSuffix(baseURL, "/"),
+		httpClient:   netclient.NewSimpleClient(30 * time.Minute), // CPU 模式可能很慢
+		pollInterval: 2 * time.Second,
 	}
+}
+
+// Interrupt 中断 ComfyUI 当前正在执行的任务（POST /interrupt），并置位本地取消标记。
+//
+// ComfyUI 限制说明：ComfyUI 没有「删除排队任务」的 API——/queue 仅能查询
+// 排队/运行中的任务，无法删除。因此取消采用「本地取消标记 + /interrupt 当前任务」：
+//   - 置位 cancelled：GenerateImage 入口检测到后直接拒绝新提交（等价于删除排队项）；
+//   - POST /interrupt：中断当前正在执行的采样任务（/interrupt 不接收 prompt_id，
+//     中断的是当前执行中的任务）。
+//
+// 幂等：重复调用无害（ComfyUI 无任务时 /interrupt 返回 200），置位是幂等操作。
+func (b *ComfyUIBackend) Interrupt(ctx context.Context) error {
+	b.mu.Lock()
+	b.cancelled = true
+	b.mu.Unlock()
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, b.baseURL+"/interrupt", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := b.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("ComfyUI /interrupt 失败 (%s): %w", b.baseURL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("ComfyUI /interrupt HTTP %d: %s", resp.StatusCode, trimStr(string(body), 200))
+	}
+	return nil
+}
+
+// ResetCancel 清除本地取消标记（新一轮生成开始时由上层调用）。
+func (b *ComfyUIBackend) ResetCancel() {
+	b.mu.Lock()
+	b.cancelled = false
+	b.mu.Unlock()
+}
+
+// isCancelled 返回本地取消标记是否已置位。
+func (b *ComfyUIBackend) isCancelled() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.cancelled
 }
 
 // ListLoras 返回 ComfyUI 当前可用的 LoRA 名称列表（models/loras 下相对路径，含子目录）。
@@ -128,14 +183,20 @@ func parseLoraNames(raw json.RawMessage) ([]string, error) {
 
 // GenerateImage 通过 ComfyUI 生成图片 / 图生图 / 文生视频
 func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
-	// 解析尺寸
+	// T6-4.1 本地取消标记：取消后拒绝新提交（ComfyUI 无删除排队任务 API）
+	if b.isCancelled() {
+		return nil, fmt.Errorf("生成已取消，请重新发起生成")
+	}
+	defer b.clearCurrentPromptID()
+
+	// 解析尺寸（T6-4.4：Sscanf 改为严格解析 + 64–2048 钳制，非法输入返回中文错误）
 	width, height := 1024, 1024
 	if req.Size != "" {
-		parts := strings.Split(req.Size, "x")
-		if len(parts) == 2 {
-			fmt.Sscanf(parts[0], "%d", &width)
-			fmt.Sscanf(parts[1], "%d", &height)
+		w, h, err := parseSize(req.Size)
+		if err != nil {
+			return nil, err
 		}
+		width, height = w, h
 	}
 
 	seed := req.Seed
@@ -178,8 +239,11 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 		case req.Model == "z-image-turbo":
 			unetModel := "z_image_turbo_bf16_完整版_效果最好.safetensors"
 			workflow = b.buildZImageImg2ImgWorkflow(req.Prompt, req.Negative, width, height, seed, 8, unetModel, loras, imageName, denoise)
-		default:
+		case req.Model == "krea2" || strings.HasPrefix(req.Model, "krea2"):
 			workflow = b.buildKreaImg2ImgWorkflow(req.Prompt, req.Negative, width, height, seed, 8, loras, imageName, denoise)
+		default:
+			// T6-4.2：禁止静默降级——flux 等未实现图生图流程的模型直接报错
+			return nil, fmt.Errorf("模型 %s 暂不支持图生图（支持 krea2 / z-image-turbo）", req.Model)
 		}
 	case "t2v":
 		// 文生视频：LTX-Video 工作流（输出 SaveAnimatedWEBP 动画）
@@ -197,21 +261,12 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 		workflow = b.buildLTXVideoWorkflow(req.Prompt, req.Negative, width, height, seed, frames, fps, req.Model)
 		kind = "video"
 	default:
-		// 文生图（默认）
-		switch {
-		case strings.HasPrefix(req.Model, "krea2"):
-			steps := 8
-			workflow = b.buildKreaWorkflow(req.Prompt, width, height, seed, steps, loras)
-		case req.Model == "z-image-turbo":
-			steps := 8
-			unetModel := "z_image_turbo_bf16_完整版_效果最好.safetensors"
-			workflow = b.buildZImageWorkflow(req.Prompt, req.Negative, width, height, seed, steps, unetModel, loras)
-		default:
-			// 默认走 Krea2 Turbo
-			slog.Info("ComfyUI 默认使用 Krea2 Turbo", "model", req.Model)
-			steps := 8
-			workflow = b.buildKreaWorkflow(req.Prompt, width, height, seed, steps, loras)
+		// 文生图（默认）：模型 → 工作流显式映射表（T6-4.2），未知模型返回中文错误
+		builder, ok := lookupTxt2imgBuilder(req.Model)
+		if !ok {
+			return nil, fmt.Errorf("不支持的模型: %s（ComfyUI 支持 krea2 / z-image-turbo / flux）", req.Model)
 		}
+		workflow = builder(b, req.Prompt, req.Negative, width, height, seed, loras)
 	}
 
 	// 1. 提交任务
@@ -219,6 +274,9 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	if err != nil {
 		return nil, fmt.Errorf("ComfyUI 提交失败: %w", err)
 	}
+	b.mu.Lock()
+	b.currentPromptID = promptID
+	b.mu.Unlock()
 	slog.Info("ComfyUI 任务已提交", "promptID", promptID, "size", fmt.Sprintf("%dx%d", width, height))
 
 	// 2. 轮询等待完成
@@ -236,6 +294,96 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 			{B64JSON: imageData, Kind: kind},
 		},
 	}, nil
+}
+
+// parseSize 解析 "宽x高" 尺寸（T6-4.4）：
+//   - 格式非法 / 非数字 → 返回中文错误（不再静默回退 1024）
+//   - 数值钳制到 64–2048（超上限压缩、低于下限抬高）
+func parseSize(size string) (int, int, error) {
+	parts := strings.Split(size, "x")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("尺寸格式无效: %q（应为 宽x高，如 1024x1024）", size)
+	}
+	w, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return 0, 0, fmt.Errorf("尺寸格式无效: %q（宽度不是数字）", size)
+	}
+	h, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return 0, 0, fmt.Errorf("尺寸格式无效: %q（高度不是数字）", size)
+	}
+	clamp := func(v int) int {
+		if v < 64 {
+			return 64
+		}
+		if v > 2048 {
+			return 2048
+		}
+		return v
+	}
+	return clamp(w), clamp(h), nil
+}
+
+// txt2imgWorkflowBuilder 文生图工作流构建器（模型 → 工作流显式映射）。
+type txt2imgWorkflowBuilder func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]interface{}
+
+// txt2imgWorkflows 文生图模型 → 工作流映射表（T6-4.2 名实相符）。
+// 新增模型必须在此登记，未登记的模型在 GenerateImage 中直接返回中文错误，
+// 禁止静默降级到其他模型。
+var txt2imgWorkflows = map[string]txt2imgWorkflowBuilder{
+	"krea2": func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]interface{} {
+		return b.buildKreaWorkflow(prompt, width, height, seed, 8, loras)
+	},
+	"z-image-turbo": func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]interface{} {
+		return b.buildZImageWorkflow(prompt, negative, width, height, seed, 8, "z_image_turbo_bf16_完整版_效果最好.safetensors", loras)
+	},
+	"flux": func(b *ComfyUIBackend, prompt, negative string, width, height, seed int, loras []string) map[string]interface{} {
+		return b.buildFluxWorkflow(prompt, width, height, seed, loras)
+	},
+}
+
+// lookupTxt2imgBuilder 按模型名查找文生图工作流构建器。
+// krea2 系列（krea2-*）兼容历史前缀匹配；其余模型必须精确命中白名单。
+func lookupTxt2imgBuilder(model string) (txt2imgWorkflowBuilder, bool) {
+	if b, ok := txt2imgWorkflows[model]; ok {
+		return b, true
+	}
+	if strings.HasPrefix(model, "krea2") {
+		return txt2imgWorkflows["krea2"], true
+	}
+	return nil, false
+}
+
+// buildFluxWorkflow 构建 FLUX.1-schnell 工作流（官方 ComfyUI 模板）：
+// UNETLoader(flux1-schnell) + DualCLIPLoader(type=flux, T5+CLIP-L) + VAELoader(ae)
+// → EmptySD3LatentImage → KSampler(cfg=1.0, euler/simple, 4 步) → VAEDecode → SaveImage。
+//
+// 注意：Flux 官方模板不使用负面提示词（负面 CLIPTextEncode 用空文本）；
+// 模型文件 flux1-schnell.safetensors 需放在 ComfyUI models/unet 或 models/diffusion_models。
+func (b *ComfyUIBackend) buildFluxWorkflow(prompt string, width, height, seed int, loras []string) map[string]interface{} {
+	wf := map[string]interface{}{
+		"4": map[string]interface{}{"class_type": "UNETLoader", "inputs": map[string]interface{}{"unet_name": "flux1-schnell.safetensors", "weight_dtype": "default"}},
+		"5": map[string]interface{}{"class_type": "DualCLIPLoader", "inputs": map[string]interface{}{"clip_name1": "t5xxl_fp8_e4m3fn.safetensors", "clip_name2": "clip_l.safetensors", "type": "flux"}},
+		"6": map[string]interface{}{"class_type": "VAELoader", "inputs": map[string]interface{}{"vae_name": "ae.safetensors"}},
+		"7": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"5", 0}}},
+		"8": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": "", "clip": []interface{}{"5", 0}}},
+		"9": map[string]interface{}{"class_type": "EmptySD3LatentImage", "inputs": map[string]interface{}{"width": width, "height": height, "batch_size": 1}},
+	}
+	modelSourceID := injectLoraNodes(wf, "4", loras)
+	wf["10"] = map[string]interface{}{"class_type": "KSampler", "inputs": map[string]interface{}{
+		"seed": seed, "steps": 4, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
+		"model": []interface{}{modelSourceID, 0}, "positive": []interface{}{"7", 0}, "negative": []interface{}{"8", 0}, "latent_image": []interface{}{"9", 0},
+	}}
+	wf["11"] = map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"10", 0}, "vae": []interface{}{"6", 0}}}
+	wf["12"] = map[string]interface{}{"class_type": "SaveImage", "inputs": map[string]interface{}{"filename_prefix": "gaea", "images": []interface{}{"11", 0}}}
+	return wf
+}
+
+// clearCurrentPromptID 清空当前任务 ID（GenerateImage 结束时调用）。
+func (b *ComfyUIBackend) clearCurrentPromptID() {
+	b.mu.Lock()
+	b.currentPromptID = ""
+	b.mu.Unlock()
 }
 
 // injectLoraNodes 在工作流中注入 LoraLoaderModelOnly 节点链
@@ -512,7 +660,7 @@ type comfyOutputFile struct {
 
 // waitForResult 轮询等待 ComfyUI 生成完成，返回 base64 data URL 与输出类型
 func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req *ImageGenerationRequest) (string, string, error) {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(b.pollInterval)
 	defer ticker.Stop()
 
 	timeout := time.After(15 * time.Minute)
@@ -528,8 +676,12 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req
 			if req.ProgressCallback != nil {
 				req.ProgressCallback("running", int(time.Since(start).Seconds()))
 			}
-			files, done, err := b.checkHistory(promptID)
+			files, done, err := b.checkHistory(ctx, promptID)
 			if err != nil {
+				// T6-4.1：取消后轮询即刻退出（checkHistory 携带 ctx）
+				if ctx.Err() != nil {
+					return "", "", ctx.Err()
+				}
 				if done {
 					return "", "", err
 				}
@@ -547,9 +699,14 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req
 	}
 }
 
-// checkHistory 查询任务状态，返回 (输出文件列表, 是否完成, 错误)
-func (b *ComfyUIBackend) checkHistory(promptID string) ([]comfyOutputFile, bool, error) {
-	resp, err := b.httpClient.Get(b.baseURL + "/history/" + promptID)
+// checkHistory 查询任务状态，返回 (输出文件列表, 是否完成, 错误)。
+// 携带 ctx（T6-4.1）：取消后请求即刻失败，轮询立即退出。
+func (b *ComfyUIBackend) checkHistory(ctx context.Context, promptID string) ([]comfyOutputFile, bool, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, b.baseURL+"/history/"+promptID, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	resp, err := b.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, false, err
 	}
@@ -558,6 +715,9 @@ func (b *ComfyUIBackend) checkHistory(promptID string) ([]comfyOutputFile, bool,
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, false, fmt.Errorf("读取 ComfyUI history 失败: %w", err)
+	}
+	if resp.StatusCode != 200 {
+		return nil, false, fmt.Errorf("ComfyUI history HTTP %d: %s", resp.StatusCode, trimStr(string(body), 300))
 	}
 
 	var history map[string]interface{}
@@ -667,6 +827,9 @@ func (b *ComfyUIBackend) downloadFile(ctx context.Context, f comfyOutputFile) (s
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
+	}
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("下载输出文件失败 HTTP %d: %s", resp.StatusCode, trimStr(string(data), 300))
 	}
 
 	mimeType := "image/png"

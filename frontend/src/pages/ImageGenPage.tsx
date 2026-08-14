@@ -28,11 +28,15 @@ import {
   getComfyUITaskProgress,
   openImageSaveDir, openNovelImagesDir,
   setCharacterPortrait as setPortrait,
+  readFileAsDataURL,
   type SystemStats,
 } from '../api/image'
 import { getEngines, testEngineConnection, setActiveEngine, setEngineDefaultModel, type EngineConfig } from '../api/engines'
 import { setImageBackend as setImageBackendAPI } from '../api/settings'
 import type { GenResult, GenTask, QueueEntry } from '../components/imagegen/types'
+import { downloadFileName } from '../components/imagegen/media'
+import { HISTORY_META_KEY, serializeHistoryMeta, restoreHistoryImages } from '../components/imagegen/historyMeta'
+import { markQueueCanceled, shouldSubmitNext, afterTaskStatus } from '../components/imagegen/queue'
 import { filterLorasByModel, loraFamily, loraFamiliesForModel } from '../utils/loraFilter'
 import { renderMermaidToPng } from '../utils/mermaidPng'
 import '../components/imagegen/imagegen.css'
@@ -46,24 +50,25 @@ const BACKEND_OPTIONS = [
   { label: '🦙 Ollama 本地', value: 'ollama' },
 ]
 
-const HISTORY_META_KEY = 'gaea.imagegen.historyMeta'
-
 function loadHistoryMeta(): GenResult[] {
   try {
     const raw = localStorage.getItem(HISTORY_META_KEY)
     if (!raw) return []
     const items = JSON.parse(raw) as GenResult[]
-    return items.map((it) => ({ ...it, image: '' }))
+    // 保留已内联的小图与 file_path；无图无路径的旧记录降级为占位
+    return items.map((it) => ({ ...it, image: it.image || '' }))
   } catch {
     return []
   }
 }
 
+// 历史元数据保存：小 base64 内联、大图只存 file_path（localStorage 容量保护分级策略）
 function saveHistoryMeta(history: GenResult[]) {
   try {
-    const meta = history.map(({ image: _image, ...rest }) => rest)
-    localStorage.setItem(HISTORY_META_KEY, JSON.stringify(meta))
-  } catch { /* ignore */ }
+    localStorage.setItem(HISTORY_META_KEY, JSON.stringify(serializeHistoryMeta(history)))
+  } catch (err) {
+    console.warn('[imagegen] 历史元数据保存失败', err)
+  }
 }
 
 // ── 模型分类（与 ModelCenterPage 保持一致） ──
@@ -139,6 +144,8 @@ const ImageGenPage: React.FC = () => {
   const generatingRef = useRef(false)
   const pendingRef = useRef<QueueEntry[]>([])
   const queueSeq = useRef(0)
+  // 本地取消标记：收到取消后队列停止继续提交，直到用户手动发起新一轮生成
+  const cancelArmedRef = useRef(false)
   const [pendingCount, setPendingCount] = useState(0)
   const [queueItems, setQueueItems] = useState<QueueEntry[]>([])
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -146,6 +153,8 @@ const ImageGenPage: React.FC = () => {
   const comfyModels = useMemo(() => [
     { label: 'Krea2 Turbo', value: 'krea2' },
     { label: 'Z-Image-Turbo', value: 'z-image-turbo' },
+    // T6-4：flux 已有真实工作流；未装 flux1-schnell.safetensors 等模型时后端返回中文错误
+    { label: 'Flux Schnell', value: 'flux' },
     { label: '流程图 / 框架图（代码渲染）', value: 'diagram' },
   ], [])
 
@@ -268,10 +277,30 @@ const ImageGenPage: React.FC = () => {
     return () => clearInterval(timer)
   }, [backend])
 
-  // 历史元数据轻量持久化：不保存 base64 大图，避免 localStorage 膨胀
+  // 历史元数据轻量持久化：小 base64 内联、大图只存 file_path（分级策略）
   useEffect(() => {
     saveHistoryMeta(history)
   }, [history])
+
+  // 重启后历史图片恢复：无 base64 但有 file_path 的条目，经后端读取绑定回填 dataURL。
+  // 仅在挂载时执行一次（history 为初始加载值）；逐条失败由 restoreHistoryImages 记录，不影响页面。
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const restored = await restoreHistoryImages(history, readFileAsDataURL)
+        if (cancelled || restored.length === 0) return
+        setHistory((prev) => {
+          const byPath = new Map(restored.map((it) => [it.file_path, it]))
+          return prev.map((it) => (it.file_path && byPath.get(it.file_path)) || it)
+        })
+      } catch (err) {
+        console.warn('[imagegen] 历史图片恢复流程失败', err)
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── 生成计时器 ──
   useEffect(() => {
@@ -424,17 +453,24 @@ const ImageGenPage: React.FC = () => {
   }, [])
 
   const processQueue = useCallback(async () => {
-    while (pendingRef.current.length > 0) {
+    // 本地取消标记生效（cancelArmedRef）时循环立即停止：排队项不再启动
+    while (shouldSubmitNext(pendingRef.current.length, cancelArmedRef.current)) {
       const entry = pendingRef.current[0]
       pendingRef.current = pendingRef.current.slice(1)
       setPendingCount(pendingRef.current.length)
       setQueueItems((prev) => prev.map((item) => item.id === entry.id ? { ...item, status: 'running' as const } : item))
       const ok = await executeTask(entry.task)
-      setQueueItems((prev) => prev.map((item) => item.id === entry.id ? { ...item, status: ok ? 'done' as const : 'failed' as const } : item))
+      setQueueItems((prev) => prev.map((item) =>
+        item.id === entry.id && item.status !== 'canceled'
+          ? { ...item, status: afterTaskStatus(cancelArmedRef.current, ok) }
+          : item,
+      ))
     }
   }, [executeTask])
 
   const enqueueTask = useCallback((task: GenTask) => {
+    // 用户手动发起新一轮生成：清除本地取消标记（后端 ComfyUI 取消标记同步自动清除）
+    cancelArmedRef.current = false
     const entry: QueueEntry = { id: ++queueSeq.current, task, status: 'pending' }
     pendingRef.current = [...pendingRef.current, entry]
     setQueueItems((prev) => [...prev, entry])
@@ -483,16 +519,16 @@ const ImageGenPage: React.FC = () => {
   }, [model, enqueueTask])
 
   const handleCancel = useCallback(async () => {
-    if (pendingRef.current.length > 0) {
-      const canceledIDs = new Set(pendingRef.current.map((entry) => entry.id))
-      setQueueItems((prev) => prev.map((item) =>
-        canceledIDs.has(item.id) ? { ...item, status: 'canceled' as const } : item,
-      ))
-      pendingRef.current = []
-      setPendingCount(0)
-    }
+    // 本地队列立即停止提交：已有生成中的项 + 排队中的项全部标记为取消
+    setQueueItems((prev) => markQueueCanceled(prev))
+    pendingRef.current = []
+    setPendingCount(0)
+    cancelArmedRef.current = true
     try {
-      await cancelImageGeneration()
+      const confirmed = await cancelImageGeneration()
+      // 收到确认后保持本地阻断：不再自动提交，直到用户手动发起新一轮生成
+      //（enqueueTask 清除标记；后端新一轮生成会自动清除其取消标记）
+      void confirmed
     } catch (err: any) {
       message.error(err?.message || '取消失败')
     }
@@ -584,14 +620,33 @@ const ImageGenPage: React.FC = () => {
   }, [])
 
   // ── 结果操作 ──
-  const handleDownload = useCallback((i: number) => {
+  // 解析可展示/下载的图像数据：优先用 file_path（本地文件为权威来源），失败回退内存 base64
+  const resolveResultImage = useCallback(async (r: GenResult): Promise<string> => {
+    if (r.file_path) {
+      try {
+        const url = await readFileAsDataURL(r.file_path)
+        if (url) return url
+      } catch (err) {
+        console.warn(`[imagegen] 读取本地图片失败，回退内存数据: ${r.file_path}`, err)
+      }
+    }
+    return r.image || ''
+  }, [])
+
+  const handleDownload = useCallback(async (i: number) => {
     const r = history[i]
     if (!r) return
+    const href = await resolveResultImage(r)
+    if (!href) {
+      message.warning('图片数据不可用（本地文件缺失且无内存数据），请重新生成')
+      return
+    }
     const a = document.createElement('a')
-    a.href = r.image
-    a.download = `gaea-${Date.now()}-seed${r.seed}${r.kind === 'video' ? '.mp4' : '.png'}`
+    a.href = href
+    // T6-4.2：按实际媒体类型命名（t2v 输出 webp 则 .webp，不再固定 .mp4）
+    a.download = downloadFileName(r)
     a.click()
-  }, [history])
+  }, [history, resolveResultImage])
 
   const handleReuse = useCallback((i: number) => {
     const r = history[i]
@@ -606,14 +661,20 @@ const ImageGenPage: React.FC = () => {
     setHistory((prev) => prev.filter((_, idx) => idx !== i))
   }, [])
 
-  const handleDownloadResult = useCallback((i: number) => {
+  const handleDownloadResult = useCallback(async (i: number) => {
     const r = results[i]
     if (!r) return
+    const href = await resolveResultImage(r)
+    if (!href) {
+      message.warning('图片数据不可用，请重新生成')
+      return
+    }
     const a = document.createElement('a')
-    a.href = r.image
-    a.download = `gaea-${Date.now()}-seed${r.seed}${r.kind === 'video' ? '.mp4' : '.png'}`
+    a.href = href
+    // T6-4.2：按实际媒体类型命名（t2v 输出 webp 则 .webp，不再固定 .mp4）
+    a.download = downloadFileName(r)
     a.click()
-  }, [results])
+  }, [results, resolveResultImage])
 
   const handleReuseResult = useCallback((i: number) => {
     const r = results[i]
@@ -641,11 +702,16 @@ const ImageGenPage: React.FC = () => {
   const handleSetPortrait = useCallback(async (i: number, charID: string) => {
     const r = history[i]
     if (!r) return
+    const dataUrl = await resolveResultImage(r)
+    if (!dataUrl) {
+      message.warning('图片数据不可用（本地文件缺失且无内存数据），请重新生成')
+      return
+    }
     try {
-      await setPortrait(charID, r.image)
+      await setPortrait(charID, dataUrl)
       message.success('已设为角色剧照')
     } catch (err: any) { message.error(err?.message || '设置失败') }
-  }, [history])
+  }, [history, resolveResultImage])
 
   // ── 模板操作 ──
   const applyTemplate = useCallback((t: Template) => {

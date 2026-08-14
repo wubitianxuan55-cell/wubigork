@@ -3,6 +3,7 @@ package export
 import (
 	"fmt"
 	"html"
+	"log/slog"
 	"strings"
 
 	"github.com/gaea/gaea/internal/types"
@@ -91,9 +92,12 @@ func (m *Manager) ExportHTML(outPath string, tmpl CompileTemplate) (string, erro
 
 	// 章节
 	body.WriteString(`<main class="chapters">`)
+	failed := 0
 	for _, ch := range m.listChapters() {
 		content, err := m.pm.ReadChapterBranch(ch.num, ch.branch)
 		if err != nil {
+			failed++
+			slog.Warn("exportHTML: 读取章节失败，跳过", "num", ch.num, "branch", ch.branch, "error", err)
 			continue
 		}
 		var summary *types.ChapterSummary
@@ -118,6 +122,7 @@ func (m *Manager) ExportHTML(outPath string, tmpl CompileTemplate) (string, erro
 
 		body.WriteString(tmpl.ChapterSep)
 	}
+	m.FailedChapters = failed
 	body.WriteString(`</main>`)
 
 	// 组装完整 HTML

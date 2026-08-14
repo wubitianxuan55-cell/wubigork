@@ -7,6 +7,7 @@ package whisper
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/gaea/gaea/internal/util"
@@ -47,11 +48,25 @@ type IngestOptions struct {
 type MemoryIngestPipeline struct {
 	llm               LlmClient // gaea 模型中心注入
 	episodeEmotionMax float64
+	onError           MemoryWriteErrorSink // T6-5.3 错误回传（可观测性）
 }
 
 // NewMemoryIngestPipeline 创建摄入管线
 func NewMemoryIngestPipeline(llm LlmClient) *MemoryIngestPipeline {
 	return &MemoryIngestPipeline{llm: llm}
+}
+
+// SetErrorSink 注册异步记忆写入错误回传（T6-5.3）：任一错误路径（LLM 失败/
+// JSON 解析失败）在记录 slog 后同步调用 sink；nil 可解除。默认仅记录日志。
+func (p *MemoryIngestPipeline) SetErrorSink(fn MemoryWriteErrorSink) {
+	p.onError = fn
+}
+
+// reportError 错误路径统一出口：slog 由调用方记录，这里只负责回传。
+func (p *MemoryIngestPipeline) reportError(sessionID, phase string, err error) {
+	if p.onError != nil {
+		p.onError(sessionID, phase, err)
+	}
 }
 
 // ─── AfterTurn ───────────────────────────────────────────────
@@ -92,11 +107,16 @@ func (p *MemoryIngestPipeline) extractFactsViaLLM(args IngestTurnArgs, ec Emotio
 	userPrompt := fmt.Sprintf("用户消息：%s\n助手回复：%s", args.UserMsg, args.CompanionMsg)
 	reply, err := p.llm.Chat(factExtractionPrompt, userPrompt)
 	if err != nil {
+		// 记忆摄入为后台尽力而为任务（AfterTurn 无返回值）：LLM 失败仅记录日志，不中断主对话流程
+		slog.Error("whisper: LLM 事实抽取失败", "sessionID", args.SessionID, "turnIndex", args.TurnIndex, "error", err)
+		p.reportError(args.SessionID, "llm_extract", err) // T6-5.3 错误回传
 		return
 	}
 
 	var result FactExtractionResult
 	if err := json.Unmarshal([]byte(util.ExtractJSON(reply)), &result); err != nil {
+		slog.Error("whisper: LLM 事实抽取结果 JSON 解析失败", "sessionID", args.SessionID, "turnIndex", args.TurnIndex, "error", err)
+		p.reportError(args.SessionID, "json_parse", err) // T6-5.3 错误回传
 		return
 	}
 

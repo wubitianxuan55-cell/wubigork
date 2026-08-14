@@ -22,57 +22,45 @@ var (
 
 // ─── 公共 API ────────────────────────────────────────────────────
 
-// GetDatabase 获取或创建指定 dataRoot 的数据库连接（单例）
-// 返回 nil 表示初始化失败
-func GetDatabase(dataRoot string) *sql.DB {
+// GetDatabase 获取或创建指定 dataRoot 的数据库连接（单例）。
+// 初始化失败时返回 error（而非 nil 连接），调用方必须处理错误。
+func GetDatabase(dataRoot string) (*sql.DB, error) {
 	poolsMu.Lock()
 	defer poolsMu.Unlock()
 
 	if db, ok := pools[dataRoot]; ok {
-		return db
+		return db, nil
 	}
 
 	if err := EnsureDataRoot(dataRoot); err != nil {
 		log.Printf("[whisper-db] 创建 dataRoot 失败: %v", err)
-		return nil
+		return nil, fmt.Errorf("创建 dataRoot 失败: %w", err)
 	}
 
 	// 旧库迁移（whisper.db -> hermes.db，首次运行新文件名时执行一次）
 	migrateLegacyDB(dataRoot)
 
 	dbPath := DatabasePath(dataRoot)
+	// PRAGMA 唯一来源：五个连接参数全部在 DSN 查询串中声明（T6-5.5），
+	// sql.Open 时逐连接生效，不再重复执行 PRAGMA 循环，避免双来源漂移。
 	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_foreign_keys=ON&_busy_timeout=5000&_cache_size=-8000")
 	if err != nil {
 		log.Printf("[whisper-db] 打开数据库失败: %v", err)
-		return nil
+		return nil, fmt.Errorf("打开数据库失败: %w", err)
 	}
 
-	// 配置连接池
-	db.SetMaxOpenConns(1) // SQLite 串行写入最佳实践
-
-	// 应用 PRAGMA
-	pragmas := []string{
-		"PRAGMA journal_mode=WAL",
-		"PRAGMA synchronous=NORMAL",
-		"PRAGMA foreign_keys=ON",
-		"PRAGMA busy_timeout=5000",
-		"PRAGMA cache_size=-8000",
-	}
-	for _, p := range pragmas {
-		if _, err := db.Exec(p); err != nil {
-			log.Printf("[whisper-db] PRAGMA 失败 (%s): %v", p, err)
-		}
-	}
+	// 配置连接池：SQLite 串行写入最佳实践
+	db.SetMaxOpenConns(1)
 
 	// 执行迁移
 	if err := runMigrations(db); err != nil {
 		log.Printf("[whisper-db] 迁移失败: %v", err)
 		db.Close()
-		return nil
+		return nil, fmt.Errorf("迁移失败: %w", err)
 	}
 
 	pools[dataRoot] = db
-	return db
+	return db, nil
 }
 
 // CloseDatabase 关闭指定 dataRoot 的数据库连接
@@ -125,9 +113,9 @@ func CloseAllDatabases() {
 
 // WithTransaction 在事务中执行函数，自动 commit/rollback
 func WithTransaction(dataRoot string, fn func(tx *sql.Tx) error) error {
-	db := GetDatabase(dataRoot)
-	if db == nil {
-		return fmt.Errorf("数据库不可用: %s", dataRoot)
+	db, err := GetDatabase(dataRoot)
+	if err != nil {
+		return fmt.Errorf("数据库不可用 %s: %w", dataRoot, err)
 	}
 
 	tx, err := db.Begin()
@@ -205,9 +193,9 @@ func runMigrations(db *sql.DB) error {
 
 // clearStructuredData 清空所有结构化数据（保留 schema 结构）
 func ClearStructuredData(dataRoot string) error {
-	db := GetDatabase(dataRoot)
-	if db == nil {
-		return fmt.Errorf("数据库不可用")
+	// 校验数据库可用（WithTransaction 内部会再次取得连接）
+	if _, err := GetDatabase(dataRoot); err != nil {
+		return fmt.Errorf("数据库不可用: %w", err)
 	}
 
 	tables := []string{

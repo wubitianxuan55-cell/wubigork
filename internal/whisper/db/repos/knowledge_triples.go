@@ -45,8 +45,8 @@ func (r *tripleRow) toTriple() whisper.Triple {
 
 // CountTriplesInDB 返回三元组总数
 func CountTriplesInDB(dataRoot string) int {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
 		return 0
 	}
 	var c int
@@ -56,9 +56,9 @@ func CountTriplesInDB(dataRoot string) int {
 
 // LoadTriplesFromDB 加载全部三元组
 func LoadTriplesFromDB(dataRoot string) ([]whisper.Triple, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	rows, err := sqlDB.Query(
@@ -97,9 +97,9 @@ func ReplaceTriplesInDB(dataRoot string, triples []whisper.Triple) error {
 
 // InsertTriple 单条插入三元组
 func InsertTriple(dataRoot string, t whisper.Triple) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	return insertTripleStmt(sqlDB, t)
 }

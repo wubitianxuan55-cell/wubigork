@@ -27,6 +27,13 @@ type Message struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// MessageInput 批量追加的消息项（T6-3.3 语音持久化 / T6-3.4 导入事务共用）。
+type MessageInput struct {
+	Role    string // user | assistant
+	Content string
+	Extra   string
+}
+
 // Store 统一会话存储。
 type Store struct {
 	db      *sql.DB
@@ -234,6 +241,69 @@ func (s *Store) AppendExchange(topicID, userContent, assistantContent, assistant
 		return err
 	}
 	if _, err := tx.Exec("UPDATE chat_topics SET updated_at = ? WHERE id = ?", ts, topicID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// appendMessagesTx 在既有事务内按序追加消息（seq 连续递增），并刷新话题 updated_at。
+// 供 AppendMessagesTx / ImportTopicTx 复用；任一条失败则调用方整体回滚。
+func appendMessagesTx(tx *sql.Tx, topicID string, msgs []MessageInput, ts string) error {
+	var seq int
+	if err := tx.QueryRow(
+		"SELECT COALESCE(MAX(seq), 0) FROM chat_messages WHERE topic_id = ?", topicID).Scan(&seq); err != nil {
+		return err
+	}
+	for _, m := range msgs {
+		seq++
+		if _, err := tx.Exec(
+			"INSERT INTO chat_messages(topic_id, role, content, extra, seq, created_at) VALUES(?,?,?,?,?,?)",
+			topicID, m.Role, m.Content, m.Extra, seq, ts); err != nil {
+			return err
+		}
+	}
+	_, err := tx.Exec("UPDATE chat_topics SET updated_at = ? WHERE id = ?", ts, topicID)
+	return err
+}
+
+// AppendMessagesTx 在单事务内批量追加消息（T6-3.3 语音消息持久化）：
+// 全部成功或全部回滚；话题不存在（外键约束）时整体失败。
+func (s *Store) AppendMessagesTx(topicID string, msgs []MessageInput) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := appendMessagesTx(tx, topicID, msgs, now()); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// ImportTopicTx 在单事务内创建话题并导入历史消息（T6-3.4 导入事务）：
+// 建话题 + 全部消息要么一起成功，要么一起回滚，不残留半截数据。
+func (s *Store) ImportTopicTx(id, title, mode string, msgs []MessageInput) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	if mode == "" {
+		mode = "plain"
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	ts := now()
+	if _, err := tx.Exec(
+		"INSERT INTO chat_topics(id, title, mode, created_at, updated_at) VALUES(?,?,?,?,?)",
+		id, title, mode, ts, ts); err != nil {
+		return err
+	}
+	if err := appendMessagesTx(tx, id, msgs, ts); err != nil {
 		return err
 	}
 	return tx.Commit()

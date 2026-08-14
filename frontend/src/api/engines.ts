@@ -390,6 +390,17 @@ export async function getModelCallStats(): Promise<ModelStatsSummary> {
   return result as ModelStatsSummary
 }
 
+/** 获取美元→人民币汇率（费用估算折算用，默认 7.2；T6-6.2） */
+export async function getUsdCnyRate(): Promise<number> {
+  const result = await App().GaeaGetUsdCnyRate()
+  return result as number
+}
+
+/** 设置美元→人民币汇率（持久化到 usd_cny_rate 并即时生效；T6-6.2） */
+export async function setUsdCnyRate(rate: number): Promise<void> {
+  await App().GaeaSetUsdCnyRate(rate)
+}
+
 /** 获取 Herdsman 完整模型目录（模型中心「模型库」） */
 export async function getHerdsmanCatalog(): Promise<HerdsmanCatalog> {
   const result = await App().HerdsmanModelCatalog()

@@ -136,8 +136,8 @@ func valOr(ns sql.NullString, def string) string {
 
 // CountFactsInDB 返回记忆事实总数
 func CountFactsInDB(dataRoot string) int {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
 		return 0
 	}
 	var c int
@@ -156,8 +156,8 @@ func LoadFactsFromDBForSession(dataRoot, sessionID string) []whisper.MemoryFact 
 }
 
 func queryFacts(dataRoot, where string, args ...interface{}) []whisper.MemoryFact {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
 		return nil
 	}
 
@@ -208,9 +208,9 @@ func ReplaceFactsInDB(dataRoot string, facts []whisper.MemoryFact) error {
 
 // InsertFact 单条插入记忆事实
 func InsertFact(dataRoot string, f whisper.MemoryFact) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	if err := insertFactStmt(sqlDB, f); err != nil {
 		return err
@@ -220,9 +220,9 @@ func InsertFact(dataRoot string, f whisper.MemoryFact) error {
 
 // UpdateFactInDB 单条更新记忆事实
 func UpdateFactInDB(dataRoot string, f whisper.MemoryFact) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	if err := updateFactStmt(sqlDB, f); err != nil {
 		return err
@@ -232,9 +232,9 @@ func UpdateFactInDB(dataRoot string, f whisper.MemoryFact) error {
 
 // DeleteFactFromDB 单条删除记忆事实
 func DeleteFactFromDB(dataRoot string, id string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	if _, err := sqlDB.Exec("DELETE FROM memory_facts WHERE id = ?", id); err != nil {
 		return err

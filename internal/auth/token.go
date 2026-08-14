@@ -5,9 +5,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/secure"
 )
+
+// securePrefix 是 secure 包加密值的前缀（Windows DPAPI 密文 / 非 Windows 降级值均带此前缀）。
+// 与 internal/gaea/secure 的 prefix 保持一致，用于识别旧版明文（迁移兼容）。
+// 注：internal/app/encryptSecretIfLegacy 也直接使用该字面量，改动需同步。
+const securePrefix = "dpapi:"
 
 // Token 表示 OAuth token 对
 type Token struct {
@@ -66,25 +74,25 @@ func NewTokenStore(path string) *TokenStore {
 	return &TokenStore{path: path, legacyPath: legacy}
 }
 
-// Save 保存 token 到文件
+// Save 保存 token 到文件：敏感字段（access_token、refresh_token）经 secure 加密后落盘，
+// 非敏感字段（token_type/expires_in/scope/obtained_at）保持明文，JSON 结构不变。
+// 加密失败返回错误（不写入明文兜底，杜绝静默降级）。
 func (s *TokenStore) Save(token *Token) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	data, err := json.MarshalIndent(token, "", "  ")
-	if err != nil {
-		return fmt.Errorf("序列化 token 失败: %w", err)
+	if token == nil {
+		return fmt.Errorf("token 为空")
 	}
-	if err := os.WriteFile(s.path, data, 0600); err != nil {
-		return fmt.Errorf("写入 token 文件失败: %w", err)
-	}
-	return nil
+	return s.writeLocked(token)
 }
 
-// Load 从文件加载 token
+// Load 从文件加载 token：带 "dpapi:" 前缀的字段解密还原；无前缀的旧版明文
+// 读取成功并触发一次自动重写为加密（迁移）。解密失败返回明确错误，
+// 绝不静默返回 nil token（否则用户会被误判为未登录）。
 func (s *TokenStore) Load() (*Token, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	data, err := os.ReadFile(s.path)
 	if err != nil && os.IsNotExist(err) && s.legacyPath != "" {
@@ -97,11 +105,21 @@ func (s *TokenStore) Load() (*Token, error) {
 		}
 		return nil, fmt.Errorf("读取 token 文件失败: %w", err)
 	}
-	var token Token
-	if err := json.Unmarshal(data, &token); err != nil {
+	var disk Token
+	if err := json.Unmarshal(data, &disk); err != nil {
 		return nil, fmt.Errorf("解析 token 文件失败: %w", err)
 	}
-	return &token, nil
+	token, migrated, err := decryptToken(&disk)
+	if err != nil {
+		return nil, err
+	}
+	if migrated {
+		// 旧版明文 → 自动重写为加密存储（一次性迁移；从 legacyPath 读入时同时落到主路径）
+		if err := s.writeLocked(token); err != nil {
+			return nil, fmt.Errorf("迁移旧 token 为加密存储失败: %w", err)
+		}
+	}
+	return token, nil
 }
 
 // Delete 删除 token 文件
@@ -112,4 +130,65 @@ func (s *TokenStore) Delete() error {
 		return fmt.Errorf("删除 token 文件失败: %w", err)
 	}
 	return nil
+}
+
+// writeLocked 将 token（敏感字段加密）以 0600 权限写入 s.path。调用方须持有锁。
+func (s *TokenStore) writeLocked(token *Token) error {
+	enc, err := encryptToken(token)
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(enc, "", "  ")
+	if err != nil {
+		return fmt.Errorf("序列化 token 失败: %w", err)
+	}
+	if err := os.WriteFile(s.path, data, 0600); err != nil {
+		return fmt.Errorf("写入 token 文件失败: %w", err)
+	}
+	return nil
+}
+
+// encryptToken 返回敏感字段经 secure.EncryptString 加密后的副本；空字段保持为空。
+// 非 Windows 平台 secure 包降级为 "dpapi:" 前缀 + 原值，此处不感知平台差异。
+func encryptToken(token *Token) (*Token, error) {
+	enc := *token
+	var err error
+	if enc.AccessToken, err = secure.EncryptString(token.AccessToken); err != nil {
+		return nil, fmt.Errorf("加密 access_token 失败: %w", err)
+	}
+	if enc.RefreshToken, err = secure.EncryptString(token.RefreshToken); err != nil {
+		return nil, fmt.Errorf("加密 refresh_token 失败: %w", err)
+	}
+	return &enc, nil
+}
+
+// decryptToken 解密敏感字段并返回还原后的 token 与是否发现旧版明文（需迁移）。
+// 解密失败返回明确错误（含字段名），不静默吞错。
+func decryptToken(disk *Token) (*Token, bool, error) {
+	out := *disk
+	migrated := false
+	decryptField := func(v, name string, dst *string) error {
+		if v == "" {
+			return nil
+		}
+		if !strings.HasPrefix(v, securePrefix) {
+			// 旧版明文（无前缀）：读取成功，标记迁移
+			*dst = v
+			migrated = true
+			return nil
+		}
+		dec, err := secure.DecryptString(v)
+		if err != nil {
+			return fmt.Errorf("解密 %s 失败: %w", name, err)
+		}
+		*dst = dec
+		return nil
+	}
+	if err := decryptField(out.AccessToken, "access_token", &out.AccessToken); err != nil {
+		return nil, false, err
+	}
+	if err := decryptField(out.RefreshToken, "refresh_token", &out.RefreshToken); err != nil {
+		return nil, false, err
+	}
+	return &out, migrated, nil
 }

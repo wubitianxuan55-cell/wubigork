@@ -5,6 +5,7 @@
 package whisper
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -59,23 +60,36 @@ type MemoryWritePayload struct {
 	AdultMode       bool
 }
 
+// MemoryWriteErrorSink 异步记忆写入错误回传（T6-5.3 可观测性）：
+// sessionID 会话标识；phase 错误阶段（llm_extract/json_parse/panic 等）；
+// err 原始错误。由 App 层（whisperState.recordMemoryWriteError）汇聚为
+// WriteErrors 计数 + 最近错误摘要。
+type MemoryWriteErrorSink func(sessionID, phase string, err error)
+
 // EnqueueMemoryWrite 入队异步记忆写入（对齐 ackem enqueueMemoryWrite）
-// 每会话串行化执行，不阻塞聊天主流程
-func EnqueueMemoryWrite(llm LlmClient, payload MemoryWritePayload) {
+// 每会话串行化执行，不阻塞聊天主流程。
+// sinks 为可选错误回传：任一错误路径（LLM 失败/JSON 解析失败/panic）都会
+// 在记录 slog 后同步调用第一个非 nil sink，供上层计数/摘要。
+func EnqueueMemoryWrite(llm LlmClient, payload MemoryWritePayload, sinks ...MemoryWriteErrorSink) {
 	q := getSessionQueue(payload.SessionID)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("whisper: memory write goroutine panic recovered", "panic", r)
+				for _, s := range sinks {
+					if s != nil {
+						s(payload.SessionID, "panic", fmt.Errorf("memory write panic: %v", r))
+					}
+				}
 			}
 		}()
 		<-q.chain
 		defer func() { q.chain <- struct{}{} }()
-		runMemoryWriteJob(llm, payload)
+		runMemoryWriteJob(llm, payload, sinks...)
 	}()
 }
 
-func runMemoryWriteJob(llm LlmClient, payload MemoryWritePayload) {
+func runMemoryWriteJob(llm LlmClient, payload MemoryWritePayload, sinks ...MemoryWriteErrorSink) {
 	// 1. Tier B 摄入跳过检查
 	if payload.SkipIngest {
 		return
@@ -83,6 +97,12 @@ func runMemoryWriteJob(llm LlmClient, payload MemoryWritePayload) {
 
 	// 2. 运行记忆摄入管线
 	ingest := NewMemoryIngestPipeline(llm)
+	for _, s := range sinks { // T6-5.3：错误回传透传到摄入管线
+		if s != nil {
+			ingest.SetErrorSink(s)
+			break
+		}
+	}
 	privacyLevel := "normal"
 	if payload.AdultMode {
 		privacyLevel = resolveAdultPrivacy(payload)

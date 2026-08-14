@@ -2,6 +2,8 @@ package app
 
 import (
 	"log/slog"
+	"math"
+	"strconv"
 	"time"
 
 	"github.com/gaea/gaea/internal/config"
@@ -248,6 +250,41 @@ func (c *core) ResetModelCallStats() {
 	}
 	c.engineMgr.ResetModelCallStats()
 	slog.Info("模型调用统计已重置")
+}
+
+// ── 汇率配置（T6-6.2） ───────────────────────────────────────
+
+// GaeaGetUsdCnyRate 获取美元→人民币汇率（费用估算折算用，默认 7.2）。
+// 单一来源：模型中心 stats 的折算口径（engineMgr 持有的内存副本），
+// 与 GetModelCallStats().UsdToCny 严格一致。
+func (c *core) GaeaGetUsdCnyRate() float64 {
+	if c.engineMgr != nil {
+		return c.engineMgr.UsdCnyRate()
+	}
+	if c.cfg != nil && c.cfg.UsdCnyRate > 0 {
+		return c.cfg.UsdCnyRate
+	}
+	return config.DefaultUsdCnyRate
+}
+
+// GaeaSetUsdCnyRate 设置美元→人民币汇率：持久化到 ~/.gaea_config.json
+// （usd_cny_rate）并即时注入统计折算（summary 与后续 record 立即生效）。
+func (c *core) GaeaSetUsdCnyRate(rate float64) error {
+	if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+		return &appError{"汇率必须为正数"}
+	}
+	if err := config.Save(config.KeyUsdCnyRate, strconv.FormatFloat(rate, 'f', -1, 64)); err != nil {
+		slog.Warn("保存汇率配置失败", "rate", rate, "error", err)
+		return err
+	}
+	if c.cfg != nil {
+		c.cfg.UsdCnyRate = rate
+	}
+	if c.engineMgr != nil {
+		c.engineMgr.SetUsdCnyRate(rate)
+	}
+	slog.Info("美元→人民币汇率已更新", "rate", rate)
+	return nil
 }
 
 // ── 错误 ──────────────────────────────────────────────────────

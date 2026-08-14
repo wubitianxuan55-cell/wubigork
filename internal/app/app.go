@@ -72,6 +72,12 @@ type writingState struct {
 
 	mu sync.RWMutex // 保护 pm 的并发读写
 
+	// 章节生成互斥与取消（T6-7.2）：key = chapterGenKey(chapterNum, branch)，
+	// 记录进行中的章节生成任务。同一章节（同一 NNN.md 目标文件）并发生成被拒绝，
+	// 不同章节可并行；CancelCreateChapter 取出并调用取消函数中断流式生成。
+	chapterGenMu      sync.Mutex
+	chapterGenCancels map[string]context.CancelFunc
+
 	// 项目管理
 	pm *project.Manager
 
@@ -142,6 +148,10 @@ type whisperState struct {
 	// 微信通道（多实例：assistantID → Server）
 	weixinServers map[string]*weixin.Server
 	weixinMu      sync.Mutex
+
+	// T6-5.3 异步写可观测：记忆写入/持久化协程错误计数 + 最近错误摘要
+	// （内部方法读取，不新增 Wails 绑定）。
+	writeErrors whisperWriteErrors
 }
 
 // officeState 是办公域状态（桌面动作执行 + 价格源定时抓取 + 文件语义索引）。
@@ -277,6 +287,9 @@ func (a *App) Startup(ctx context.Context) {
 		slog.Warn("加载引擎状态失败（回退预置默认）", "error", err)
 	}
 	a.engineMgr.SetStatsPath(modelengine.StatsPathFor(filepath.Join(a.whisperDataRoot, "engines.json")))
+	// T6-6.2 汇率配置：把 ~/.gaea_config.json 的 usd_cny_rate 注入统计折算
+	// （config.Load 含磁盘 IO，只在启动/用户修改时注入一次，避免逐调用读取）。
+	a.engineMgr.SetUsdCnyRate(a.cfg.UsdCnyRate)
 	// 确保 xAI 引擎始终提供内置语音模型 grok-tts（TTS API 不返回在 /v1/models 列表）
 	a.engineMgr.EnsureModel("xai", "grok-tts")
 	// 确保本地 CosyVoice2 引擎提供语音模型（OpenAI 兼容 TTS 服务）

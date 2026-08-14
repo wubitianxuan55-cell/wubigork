@@ -253,6 +253,32 @@ func TestProbeDataFilesInvalid(t *testing.T) {
 	}
 }
 
+// TestProbeDataDirMissingWarning 覆盖目录缺失告警文案：应打印被检查的
+// 真实目录路径（rootDir/name），而非配置文件路径 config.yaml。
+func TestProbeDataDirMissingWarning(t *testing.T) {
+	root := t.TempDir()
+	// config.yaml 存在且无暴露/端口漂移配置，排除其他告警干扰。
+	writeFile(t, root, "config.yaml", "api:\n    lan_accessible: false\n    port: 8080\n")
+	// 不创建 launch_records/ 与 models/，触发目录缺失告警。
+	r := newIsolatedProbe(t, root).Run()
+
+	for _, name := range []string{"launch_records", "models"} {
+		if !hasWarning(r.Warnings, "数据目录缺失："+name) {
+			t.Errorf("应含 %s 目录缺失告警，实际 %v", name, r.Warnings)
+		}
+		want := filepath.Join(root, name)
+		if !hasWarning(r.Warnings, want) {
+			t.Errorf("目录缺失告警应含真实目录路径 %q，实际 %v", want, r.Warnings)
+		}
+	}
+	// 目录缺失告警不得把配置文件路径当目录路径打印。
+	for _, w := range r.Warnings {
+		if strings.Contains(w, "数据目录缺失") && strings.Contains(w, "config.yaml") {
+			t.Errorf("目录缺失告警不应含 config.yaml 字样：%q", w)
+		}
+	}
+}
+
 // TestProbeCLI 覆盖 herdsman.exe 探测的四个分支。
 func TestProbeCLI(t *testing.T) {
 	t.Run("HERDSMAN_EXE有效", func(t *testing.T) {

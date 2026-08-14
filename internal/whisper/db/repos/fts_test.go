@@ -139,9 +139,9 @@ func TestFTS_IndexHasData(t *testing.T) {
 		Weight: 2, Confidence: 0.9,
 	})
 
-	sqlDB := db.GetDatabase(root)
-	if sqlDB == nil {
-		t.Fatal("db.GetDatabase 返回 nil")
+	sqlDB, err := db.GetDatabase(root)
+	if err != nil {
+		t.Fatalf("db.GetDatabase: %v", err)
 	}
 	var n int
 	if err := sqlDB.QueryRow("SELECT COUNT(*) FROM memory_facts_fts").Scan(&n); err != nil {

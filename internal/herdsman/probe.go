@@ -215,10 +215,11 @@ func (p *Probe) probeDataFiles() {
 	p.DataFiles["model_stats/events.jsonl"] = p.checkJSONL(filepath.Join(p.rootDir, "model_stats", "events.jsonl"))
 	p.DataFiles["skill-operations.json"] = p.checkJSON(filepath.Join(p.rootDir, "skill-operations.json"))
 
-	// 目录缺失告警。
+	// 目录缺失告警：打印被检查的真实目录路径（checkDir 用的
+	// rootDir/name），而非配置文件路径 ConfigPath。
 	for _, name := range []string{"launch_records", "models"} {
 		if st := p.DataFiles[name]; !st.Exists {
-			p.Warnings = append(p.Warnings, fmt.Sprintf("数据目录缺失：%s（%s）", name, p.ConfigPath))
+			p.Warnings = append(p.Warnings, fmt.Sprintf("数据目录缺失：%s（%s）", name, filepath.Join(p.rootDir, name)))
 		}
 	}
 	// 文件缺失/不可解析告警。

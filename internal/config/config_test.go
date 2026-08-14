@@ -367,3 +367,40 @@ func TestSave_AutoPreloadRoundTrip(t *testing.T) {
 		t.Error("保存 1 后自动预载应为开启")
 	}
 }
+
+// TestSave_UsdCnyRateRoundTrip 美元→人民币汇率（T6-6.2）持久化：
+// 默认 7.2；保存 7.0 → 重新加载为 7.0；非法值（0/负数/非数字）拒绝写入。
+func TestSave_UsdCnyRateRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	// 未配置时默认 7.2
+	if cfg := Load(); cfg.UsdCnyRate != 7.2 {
+		t.Errorf("默认汇率 = %v, want 7.2", cfg.UsdCnyRate)
+	}
+
+	// 保存 7.0 → 重新加载为 7.0
+	if err := Save(KeyUsdCnyRate, "7.0"); err != nil {
+		t.Fatalf("Save usd_cny_rate=7.0 失败: %s", err)
+	}
+	if cfg := Load(); cfg.UsdCnyRate != 7.0 {
+		t.Errorf("保存 7.0 后汇率 = %v, want 7.0", cfg.UsdCnyRate)
+	}
+
+	// 非法值拒绝：非数字 / 0 / 负数
+	if err := Save(KeyUsdCnyRate, "abc"); err == nil {
+		t.Error("非数字汇率应返回 error")
+	}
+	if err := Save(KeyUsdCnyRate, "0"); err == nil {
+		t.Error("0 汇率应返回 error")
+	}
+	if err := Save(KeyUsdCnyRate, "-1"); err == nil {
+		t.Error("负数汇率应返回 error")
+	}
+
+	// 非法值被拒绝后，文件中的合法值保持不变
+	if cfg := Load(); cfg.UsdCnyRate != 7.0 {
+		t.Errorf("非法写入被拒后汇率 = %v, want 保持 7.0", cfg.UsdCnyRate)
+	}
+}

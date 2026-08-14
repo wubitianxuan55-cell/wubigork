@@ -15,9 +15,9 @@ const chatHistoryMaxRows = 2000
 
 // LoadChatHistoryFromDB 加载聊天历史
 func LoadChatHistoryFromDB(dataRoot, sessionID string) ([]map[string]interface{}, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	var rowsJSON string
@@ -40,9 +40,9 @@ func LoadChatHistoryFromDB(dataRoot, sessionID string) ([]map[string]interface{}
 
 // SaveChatHistoryToDB 保存聊天历史（自动裁剪至 2000 条）
 func SaveChatHistoryToDB(dataRoot, sessionID string, rows []map[string]interface{}) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	// 裁剪至最近 2000 条
@@ -69,9 +69,9 @@ func SaveChatHistoryToDB(dataRoot, sessionID string, rows []map[string]interface
 
 // DeleteChatHistoryFromDB 删除聊天历史
 func DeleteChatHistoryFromDB(dataRoot string, sessionID string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	if sessionID != "" {

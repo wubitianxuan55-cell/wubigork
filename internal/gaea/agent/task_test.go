@@ -2,24 +2,33 @@ package agent
 
 import (
 	"context"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
 // TestFilterRegistryStripsPersistentWrites 回归：子代理注册表必须剔除
 // 持久化写入工具（cost_save/remember/forget/knowledge_add/promote_session_facts/
 // install_skill），防止子代理在 headless 审批通道上静默写入成本库/记忆/知识库/技能。
+// T6-2.5：剔除依据是工具注册表的 PersistWrite 标记，不再是手写清单。
 func TestFilterRegistryStripsPersistentWrites(t *testing.T) {
 	reg := tool.NewRegistry()
+	forbidden := map[string]bool{
+		"cost_save": true, "remember": true, "forget": true,
+		"knowledge_add": true, "promote_session_facts": true, "install_skill": true,
+	}
 	for _, name := range []string{
 		"bash", "read_file", "memory_search",
 		"cost_save", "remember", "forget", "knowledge_add", "promote_session_facts", "install_skill",
 	} {
-		reg.Add(fakeTool{name: name})
+		reg.Add(fakeTool{name: name, persistWrite: forbidden[name]})
 	}
 	sub := FilterRegistry(reg, nil, SubagentMetaTools()...)
 	names := sub.Names()
@@ -120,7 +129,7 @@ func TestTaskToolDefaultsToParentToolsWithoutMetaTools(t *testing.T) {
 	parentReg.Add(fakeTool{name: "research", readOnly: false})
 	parentReg.Add(fakeTool{name: "review", readOnly: false})
 	parentReg.Add(fakeTool{name: "security_review", readOnly: false})
-	parentReg.Add(fakeTool{name: "remember", readOnly: false})
+	parentReg.Add(fakeTool{name: "remember", readOnly: false, persistWrite: true})
 
 	if _, err := task.Execute(context.Background(), []byte(`{"prompt":"x"}`)); err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -254,6 +263,69 @@ func TestTaskToolSubagentPricingFallsBackToParent(t *testing.T) {
 	}
 	t.Logf("fallback sub-agent cost = %v", cost)
 }
+
+// TestFilterRegistryAutoExcludesNewPersistWriteTool 验证：工具注册处新增带
+// PersistWrite 标记的工具后，无需改动 FilterRegistry 即自动纳入子代理禁写集合
+// （T6-2.5 注册表化：禁写清单由标记推导，不再手写）。
+func TestFilterRegistryAutoExcludesNewPersistWriteTool(t *testing.T) {
+	reg := tool.NewRegistry()
+	reg.Add(fakeTool{name: "read_file", readOnly: true})
+	reg.Add(fakeTool{name: "ordinary_writer", readOnly: false})
+	// 新增的持久化写工具：仅带标记，FilterRegistry 无需感知其名字。
+	reg.Add(fakeTool{name: "new_persist_writer", readOnly: false, persistWrite: true})
+
+	sub := FilterRegistry(reg, nil, SubagentMetaTools()...)
+	if _, ok := sub.Get("new_persist_writer"); ok {
+		t.Fatal("新标记的持久化写工具应自动纳入子代理禁写集合")
+	}
+	for _, kept := range []string{"read_file", "ordinary_writer"} {
+		if _, ok := sub.Get(kept); !ok {
+			t.Fatalf("非持久化写工具 %q 不应被剔除", kept)
+		}
+	}
+}
+
+// TestPersistWriteSetMatchesLegacySix 断言：现有 6 项持久化写入工具的标记
+// 与 v2.13.21 手写禁写清单完全一致（cost_save/remember/forget/knowledge_add/
+// promote_session_facts/install_skill），注册表推导出的集合一个不多一个不少。
+func TestPersistWriteSetMatchesLegacySix(t *testing.T) {
+	reg := tool.NewRegistry()
+	// cost_save / knowledge_add 是内置工具（init 注册）；其余四个由 boot 构造。
+	var nilStore memory.Store // Store 是接口，需要类型化 nil
+	reg.Add(memory.NewRememberTool(nilStore, nil))
+	reg.Add(memory.NewForgetTool(nilStore))
+	reg.Add(memory.NewPromoteSessionFactsTool())
+	reg.Add(skill.NewInstallSkillTool(nil, nil))
+	if ct, ok := tool.LookupBuiltin("cost_save"); ok {
+		reg.Add(ct)
+	} else {
+		t.Fatal("cost_save 未注册为内置工具")
+	}
+	if kt, ok := tool.LookupBuiltin("knowledge_add"); ok {
+		reg.Add(kt)
+	} else {
+		t.Fatal("knowledge_add 未注册为内置工具")
+	}
+
+	got := reg.PersistWriteNames()
+	want := []string{"cost_save", "remember", "forget", "knowledge_add", "promote_session_facts", "install_skill"}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("持久化写工具集合 = %v, want %v（现有 6 项集合必须保持不变）", got, want)
+	}
+}
+
+// TestNonPersistWritersNotMarked 反向断言：普通读写工具（bash/write_file 等）
+// 不应被误标为持久化写工具，避免子代理被过度剥夺能力。
+func TestNonPersistWritersNotMarked(t *testing.T) {
+	for _, name := range []string{"bash", "write_file", "read_file", "grep", "memory_search"} {
+		if tool.IsPersistWrite(fakeTool{name: name, readOnly: false}) {
+			t.Fatalf("%s 不应被标记为持久化写工具", name)
+		}
+	}
+}
+
 
 // testSink is a simple event sink for tests.
 type testSink struct {

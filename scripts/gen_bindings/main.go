@@ -146,6 +146,8 @@ var explicitOverrides = map[string]string{
 	"MainBrainChat":      "chat",
 	// 阶段 3（D3）：分流统计/索引状态/受控测评归属模型中心与记忆中枢
 	"GaeaUsageOverview":       "model",
+	"GaeaGetUsdCnyRate":       "model", // T6-6.2 汇率配置（模型中心）
+	"GaeaSetUsdCnyRate":       "model",
 	"GaeaSemanticIndexStatus": "memory",
 	"GaeaBenchmarkList":       "model",
 	"GaeaBenchmarkStart":      "model",

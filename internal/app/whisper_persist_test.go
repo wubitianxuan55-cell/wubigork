@@ -12,7 +12,9 @@ import (
 // 验证事实/情节/图谱按会话隔离：自己的记忆重启不丢，其他角色的记忆不串不覆盖
 func TestWhisperMemoryPersistRoundTrip(t *testing.T) {
 	dataRoot := t.TempDir()
-	db.GetDatabase(dataRoot) // 初始化 hermes.db schema
+	if _, err := db.GetDatabase(dataRoot); err != nil { // 初始化 hermes.db schema
+		t.Fatalf("GetDatabase: %v", err)
+	}
 	defer db.CloseDatabase(dataRoot)
 
 	// 会话 1：写入事实 + 情节 + 退役事实

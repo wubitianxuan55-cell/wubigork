@@ -108,6 +108,7 @@ export async function generateImage(
       image: img.image, seed: img.seed, time: img.time,
       prompt: img.prompt || prompt, model: img.model || model,
       size: img.size || size, negative: negative,
+      file_path: img.file_path || undefined,
     }))
     return { images }
   }
@@ -117,6 +118,14 @@ export async function generateImage(
 /** 取消当前正在执行的图片/视频生成任务 */
 export async function cancelImageGeneration(): Promise<boolean> {
   return App.CancelImageGeneration()
+}
+
+/**
+ * 通过后端文件读取绑定把本地路径转为 data URL（历史图片恢复 / 下载 / 剧照）。
+ * 复用现有 GaeaAttachmentDataURL（OfficeB 门面），不新增绑定。
+ */
+export async function readFileAsDataURL(path: string): Promise<string> {
+  return App.GaeaAttachmentDataURL(path)
 }
 
 export interface ComfyTaskProgress {
@@ -170,6 +179,7 @@ export async function generateMedia(
       size: img.size || params.size,
       negative: params.negative,
       kind: img.kind || 'image',
+      file_path: img.file_path || undefined,
     }))
     return { results, mode: res.mode }
   }

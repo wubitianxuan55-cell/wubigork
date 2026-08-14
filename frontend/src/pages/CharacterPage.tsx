@@ -16,6 +16,7 @@ import RelationGraph from '../components/RelationGraph'
 import type { CharacterData, OrganizationData, RelationshipData } from '../types'
 import { useAppStore } from '../stores/appStore'
 import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../utils/theme'
+import { CHARACTER_STATUS_OPTIONS, characterStatusLabel, normalizeCharacterStatus } from '../utils/characterStatus'
 import CharacterCard from '../components/novel/character/CharacterCard'
 import OrganizationCard from '../components/novel/character/OrganizationCard'
 import RelationshipModal from '../components/novel/character/RelationshipModal'
@@ -34,10 +35,8 @@ import {
 } from '../api/characterlib'
 import './character-page.css'
 
-const statusOptions = [
-  { value: 'Alive', label: '存活' }, { value: 'Dead', label: '已故' },
-  { value: 'Missing', label: '失踪' }, { value: 'Transformed', label: '变身' },
-]
+// 角色状态枚举统一来自 utils/characterStatus（T6-7.5 状态收敛：非法值回退默认）
+const statusOptions = CHARACTER_STATUS_OPTIONS
 const roleOptions = [
   { value: 'protagonist', label: '主角' }, { value: 'antagonist', label: '反派' },
   { value: 'supporting', label: '配角' }, { value: 'minor', label: '龙套' },
@@ -231,7 +230,7 @@ const CharacterPage: React.FC = () => {
     setProjectEdit(ch)
     setPeRole(ch.role_type || 'supporting')
     setPeArc(ch.arc || '')
-    setPeStatus(ch.status || 'Alive')
+    setPeStatus(normalizeCharacterStatus(ch.status))
   }
 
   const handleSaveProjectState = async () => {
@@ -394,7 +393,8 @@ const CharacterPage: React.FC = () => {
     const relCount = relationships.filter(r => r.from_id === ch.id || r.to_id === ch.id).length
     const roleLabel = roleLabels[ch.role_type] || ch.role_type
     const roleColor = roleColors[ch.role_type] || 'default'
-    const statusLabel = statusOptions.find(s => s.value === ch.status)?.label || ch.status || '未设'
+    // 非法状态回退默认（'Alive'），不泄露原始英文串
+    const statusLabel = characterStatusLabel(ch.status)
     const genderText = ch.gender === 'male' ? '♂ 男' : ch.gender === 'female' ? '♀ 女' : (ch.gender || '未设')
 
     const globalFields: Array<{ label: string; value: string }> = [

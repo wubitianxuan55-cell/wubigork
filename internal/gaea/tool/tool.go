@@ -61,6 +61,24 @@ type CompactDescriptor interface {
 	CompactSchema() json.RawMessage
 }
 
+// PersistWriteTool is an optional capability a Tool may implement to declare
+// that it performs persistent writes to shared stores (cost library / memory /
+// knowledge base / skill files). Sub-agents are never given such tools — they
+// run on a headless approval channel where inheriting them would bypass the
+// parent's per-item confirmation — and interactive gates may treat them as
+// always-ask. The set is derived from this marker (see IsPersistWrite and
+// Registry.PersistWriteNames), so registering a new persistent-write tool is a
+// one-line declaration; no call-site whitelists need updating.
+type PersistWriteTool interface {
+	PersistWrite() bool
+}
+
+// IsPersistWrite reports whether t is marked as a persistent-write tool.
+func IsPersistWrite(t Tool) bool {
+	pw, ok := t.(PersistWriteTool)
+	return ok && pw.PersistWrite()
+}
+
 // --- process-global built-in set (populated by builtin subpackage init) ---
 
 var builtins = map[string]Tool{}
@@ -230,6 +248,20 @@ func (r *Registry) Len() int { return len(r.order) }
 func (r *Registry) Names() []string {
 	out := make([]string, len(r.order))
 	copy(out, r.order)
+	return out
+}
+
+// PersistWriteNames returns the names of all registered tools marked as
+// persistent-write tools (PersistWriteTool), in registration order. Sub-agent
+// registry filtering and approval gates derive their forbidden/always-ask sets
+// from this so a newly marked tool takes effect automatically.
+func (r *Registry) PersistWriteNames() []string {
+	out := make([]string, 0, 2)
+	for _, name := range r.order {
+		if t, ok := r.tools[name]; ok && IsPersistWrite(t) {
+			out = append(out, name)
+		}
+	}
 	return out
 }
 

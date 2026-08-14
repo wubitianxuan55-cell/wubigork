@@ -15,6 +15,7 @@ import {
   type LibraryCharacter,
 } from '../../api/characterlib'
 import { PortraitImg } from './PortraitImg'
+import { CHARACTER_STATUS_OPTIONS, characterStatusLabel } from '../../utils/characterStatus'
 import './character-detail.css'
 
 const { Text } = Typography
@@ -33,12 +34,8 @@ const ROLE_OPTIONS = [
   { value: 'minor', label: '龙套' },
 ]
 
-const STATUS_OPTIONS = [
-  { value: 'Alive', label: '存活' },
-  { value: 'Dead', label: '已故' },
-  { value: 'Missing', label: '失踪' },
-  { value: 'Transformed', label: '变身' },
-]
+// 角色状态枚举统一来自 utils/characterStatus（T6-7.5 状态收敛：非法值回退默认）
+const STATUS_OPTIONS = CHARACTER_STATUS_OPTIONS
 
 const DIM_META: { key: keyof LibraryCharacter['dims']; label: string; desc: string }[] = [
   { key: 'T', label: 'T 温柔', desc: '体贴与温度' },
@@ -62,9 +59,7 @@ const GENDER_LABELS: Record<string, string> = {
   female: '女性', male: '男性', neutral: '中性',
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  Alive: '存活', Dead: '已故', Missing: '失踪', Transformed: '变身',
-}
+
 
 // AI 可单独随机的字段 → 中文名（用于按钮 title 与提示）
 const FIELD_LABELS: Record<string, string> = {
@@ -283,7 +278,8 @@ const CharacterLibEditor: React.FC<Props> = ({
     form.roleType ? ROLE_LABELS[form.roleType] || form.roleType : '',
     form.gender ? GENDER_LABELS[form.gender] || form.gender : '',
     form.age,
-    form.status ? STATUS_LABELS[form.status] || form.status : '',
+    // 非法状态回退默认（'Alive'），不泄露原始英文串
+    form.status ? characterStatusLabel(form.status) : '',
   ].filter(Boolean).join(' · ')
 
   const fieldLabel = (t: string, diceKey?: string) => (

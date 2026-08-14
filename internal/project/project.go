@@ -135,9 +135,9 @@ func (m *Manager) ReadWorldview() (string, error) {
 	return string(data), nil
 }
 
-// WriteWorldview 写世界观为 markdown（向后兼容）
+// WriteWorldview 写世界观为 markdown（向后兼容，原子写）
 func (m *Manager) WriteWorldview(content string) error {
-	return os.WriteFile(filepath.Join(m.Dir, "worldview.md"), []byte(content), 0644)
+	return writeFileAtomic(filepath.Join(m.Dir, "worldview.md"), []byte(content))
 }
 
 // ReadWorldviewFile 读 worldview.json（不存在时从 worldview.md 自动迁移）
@@ -225,9 +225,9 @@ func (m *Manager) WriteForeshadows(ff *types.ForeshadowFile) error {
 	return writeJSON(filepath.Join(m.Dir, "foreshadows.json"), ff)
 }
 
-// WriteChapter 写章节文件 chapters/NNN.md（自动补零）
+// WriteChapter 写章节文件 chapters/NNN.md（自动补零，原子写）
 func (m *Manager) WriteChapter(num int, content string) error {
-	return os.WriteFile(m.ChapterPath(num), []byte(content), 0644)
+	return writeFileAtomic(m.ChapterPath(num), []byte(content))
 }
 
 // ReadChapter 读章节文件
@@ -249,9 +249,9 @@ func (m *Manager) ChapterBranchPath(num int, branch string) string {
 	return filepath.Join(m.Dir, "chapters", fmt.Sprintf("%03d%s.md", num, branch))
 }
 
-// WriteChapterBranch 写分支章节
+// WriteChapterBranch 写分支章节（原子写）
 func (m *Manager) WriteChapterBranch(num int, branch string, content string) error {
-	return os.WriteFile(m.ChapterBranchPath(num, branch), []byte(content), 0644)
+	return writeFileAtomic(m.ChapterBranchPath(num, branch), []byte(content))
 }
 
 // ReadChapterBranch 读分支章节
@@ -425,12 +425,42 @@ func findParentVolume(node types.OutlineNode, targetID string) *types.OutlineNod
 
 // ── 内部辅助 ─────────────────────────────────────────────────
 
+// writeFileAtomic 原子写文件：先在目标同目录写临时文件 <name>.tmp-<随机>，
+// 写入并 fsync 后 os.Rename 覆盖目标。任何一步失败都清理临时文件、保留旧文件，
+// 避免崩溃或并发写把 characters.json/outline.json/章节等用户数据写坏。
+func writeFileAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("创建临时文件失败 (%s): %w", path, err)
+	}
+	tmpPath := tmp.Name()
+	// 无论成败都清理临时文件（rename 成功后该路径已不存在，Remove 报错可忽略）
+	defer os.Remove(tmpPath)
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("写入临时文件失败 (%s): %w", path, err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("同步临时文件失败 (%s): %w", path, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("关闭临时文件失败 (%s): %w", path, err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("替换文件失败 (%s): %w", path, err)
+	}
+	return nil
+}
+
 func writeJSON(path string, v interface{}) error {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return fmt.Errorf("序列化失败 (%s): %w", path, err)
 	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := writeFileAtomic(path, data); err != nil {
 		return fmt.Errorf("写入文件失败 (%s): %w", path, err)
 	}
 	return nil

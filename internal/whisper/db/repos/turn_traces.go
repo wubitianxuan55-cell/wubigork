@@ -13,9 +13,9 @@ import (
 
 // AppendTurnTraceToDB 追加一条轮次追踪（带会话归属，角色追踪隔离）
 func AppendTurnTraceToDB(dataRoot, sessionID string, trace whisper.TurnTrace) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	traceJSON, err := json.Marshal(trace)
@@ -35,9 +35,9 @@ func AppendTurnTraceToDB(dataRoot, sessionID string, trace whisper.TurnTrace) er
 
 // LoadTurnTracesFromDB 按日期加载轮次追踪
 func LoadTurnTracesFromDB(dataRoot, date string) ([]whisper.TurnTrace, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	rows, err := sqlDB.Query(
@@ -65,9 +65,9 @@ func LoadTurnTracesFromDB(dataRoot, date string) ([]whisper.TurnTrace, error) {
 
 // LoadTurnTracesFromDBSession 按会话加载最近 N 条轮次追踪（升序返回）
 func LoadTurnTracesFromDBSession(dataRoot, sessionID string, limit int) ([]whisper.TurnTrace, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	if limit <= 0 || limit > 500 {
 		limit = 80
@@ -101,8 +101,8 @@ func LoadTurnTracesFromDBSession(dataRoot, sessionID string, limit int) ([]whisp
 
 // CountTracesInDB 返回追踪总数
 func CountTracesInDB(dataRoot string) int {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
 		return 0
 	}
 	var c int

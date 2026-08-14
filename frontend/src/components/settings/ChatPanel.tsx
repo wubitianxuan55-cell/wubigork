@@ -30,35 +30,8 @@ const TTS_VOICES = [
 
 const HERDSMAN_VOICES = ['serena', 'vivian', 'sohee', 'aiden', 'dylan', 'eric', 'ono_anna', 'ryan', 'uncle_fu']
 
-// xAI Grok TTS 音色（云端；经典 5 个 + 旗舰 21 个，大小写不敏感）
-const XAI_VOICES = [
-  { value: 'eve', label: 'Eve（默认）' },
-  { value: 'ara', label: 'Ara（温暖友好）' },
-  { value: 'rex', label: 'Rex（自信清晰）' },
-  { value: 'sal', label: 'Sal（平滑均衡）' },
-  { value: 'leo', label: 'Leo（权威）' },
-  { value: 'lumen', label: 'Lumen' },
-  { value: 'castor', label: 'Castor' },
-  { value: 'naksh', label: 'Naksh' },
-  { value: 'atlas', label: 'Atlas' },
-  { value: 'carina', label: 'Carina' },
-  { value: 'zagan', label: 'Zagan' },
-  { value: 'helix', label: 'Helix' },
-  { value: 'orion', label: 'Orion' },
-  { value: 'luna', label: 'Luna' },
-  { value: 'celeste', label: 'Celeste' },
-  { value: 'cosmo', label: 'Cosmo' },
-  { value: 'helios', label: 'Helios' },
-  { value: 'iris', label: 'Iris' },
-  { value: 'kepler', label: 'Kepler' },
-  { value: 'lux', label: 'Lux' },
-  { value: 'perseus', label: 'Perseus' },
-  { value: 'rigel', label: 'Rigel' },
-  { value: 'sirius', label: 'Sirius' },
-  { value: 'ursa', label: 'Ursa' },
-  { value: 'zenith', label: 'Zenith' },
-  { value: 'altair', label: 'Altair' },
-]
+// xAI Grok TTS 音色单一来源（模型中心 modelcenter/utils.tsx，T6-6.4 单源收敛）
+import { XAI_VOICES } from '../../pages/modelcenter/utils'
 
 // CosyVoice2 内置音色（本地服务端 /v1/audio/info 返回，查询失败时兜底）
 const COSYVOICE_VOICES = ['中文女', '中文男', '英文女', '英文男']

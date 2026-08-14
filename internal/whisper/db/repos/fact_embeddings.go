@@ -50,9 +50,9 @@ func SetStoredCorpusHash(dataRoot, modelSig, hash string) error {
 
 // LoadFactEmbeddings 加载指定模型签名的所有向量
 func LoadFactEmbeddings(dataRoot, modelSig string) (map[string][]float64, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	rows, err := sqlDB.Query(
@@ -82,9 +82,9 @@ func LoadFactEmbeddings(dataRoot, modelSig string) (map[string][]float64, error)
 
 // UpsertFactEmbeddings 批量 upsert 向量嵌入
 func UpsertFactEmbeddings(dataRoot, modelSig string, entries map[string][]float64) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	updatedAt := time.Now().Format(time.RFC3339)
@@ -109,9 +109,9 @@ func UpsertFactEmbeddings(dataRoot, modelSig string, entries map[string][]float6
 
 // DeleteStaleFactEmbeddings 删除不在活跃事实集中的旧向量
 func DeleteStaleFactEmbeddings(dataRoot, modelSig string, activeFactIDs map[string]bool) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	rows, err := sqlDB.Query(
@@ -145,9 +145,9 @@ func DeleteStaleFactEmbeddings(dataRoot, modelSig string, activeFactIDs map[stri
 
 // DeleteFactEmbeddingsForModel 删除整个模型签名的所有向量
 func DeleteFactEmbeddingsForModel(dataRoot, modelSig string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	_, err := sqlDB.Exec("DELETE FROM fact_embeddings WHERE model_sig = ?", modelSig)
 	return err

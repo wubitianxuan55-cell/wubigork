@@ -9,6 +9,8 @@ export interface GenResult {
   style?: string
   /** image | video（视频为 mp4/webm，动画 webp/gif 也标为 image） */
   kind?: 'image' | 'video'
+  /** 本地保存路径（后端 T6-4.3 写入；历史图片经此恢复，下载/剧照优先取此） */
+  file_path?: string
   mode?: 'txt2img' | 'img2img' | 't2v'
   count?: number
   selectedLoras?: string[]

@@ -12,6 +12,7 @@ func (b *NovelB) ApplyBranch(nodeID string, branchIndex int, userInput string) (
 func (b *NovelB) BuildBacklinkIndex() (map[string]interface{}, error) { return b.a.BuildBacklinkIndex() }
 func (b *NovelB) BuildContextBudget(systemPrompt string, currentScene string, previousScene string, characterInfo string, memoryInfo string, modelCapacity int) (map[string]interface{}, error) { return b.a.BuildContextBudget(systemPrompt, currentScene, previousScene, characterInfo, memoryInfo, modelCapacity) }
 func (b *NovelB) BuildRichContext(systemPrompt string, userText string) (map[string]interface{}, error) { return b.a.BuildRichContext(systemPrompt, userText) }
+func (b *NovelB) CancelCreateChapter(chapterNum int, branch string) bool { return b.a.CancelCreateChapter(chapterNum, branch) }
 func (b *NovelB) CheckConsistency() (map[string]interface{}, error) { return b.a.CheckConsistency() }
 func (b *NovelB) CmdKEdit(selectedText string, instruction string, styleProfile string) (map[string]interface{}, error) { return b.a.CmdKEdit(selectedText, instruction, styleProfile) }
 func (b *NovelB) ContinueOutline(count int) (map[string]interface{}, error) { return b.a.ContinueOutline(count) }

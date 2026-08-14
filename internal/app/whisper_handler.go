@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -109,7 +110,9 @@ func (a *whisperState) getOrCreateOrch(personalityID string) *whisper.Orchestrat
 	whisperSessions[sessionID] = orch
 	whisperSessionsMu.Unlock()
 
-	_ = restoreWhisperState(orch)
+	if err := restoreWhisperState(orch); err != nil {
+		slog.Error("[whisper] 会话状态恢复失败（继续用全新状态）", "sessionID", orch.SessionID, "error", err)
+	}
 	return orch
 }
 
@@ -200,14 +203,18 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinkin
 		Event: preResult.Event, AdultMode: orch.AdultMode,
 	})
 	// 轮次追踪持久化（按会话归属，供角色库「追踪」页查看）
-	_ = repos.AppendTurnTraceToDB(orch.DataRoot, orch.SessionID, preResult.Trace)
+	if err := repos.AppendTurnTraceToDB(orch.DataRoot, orch.SessionID, preResult.Trace); err != nil {
+		slog.Error("[whisper] 轮次追踪落库失败", "sessionID", orch.SessionID, "error", err)
+	}
 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("whisper: memory write goroutine panic recovered", "panic", r)
+				a.recordMemoryWriteError(orch.SessionID, "panic", fmt.Errorf("memory write panic: %v", r))
 			}
 		}()
+		// T6-5.3：错误回传（LLM 失败/JSON 解析失败/panic）计入 WriteErrors 计数
 		whisper.EnqueueMemoryWrite(a, whisper.MemoryWritePayload{
 			SessionID: orch.SessionID, TurnIndex: turns,
 			UserMsg: userMsg, AssistantText: reply,
@@ -216,17 +223,10 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinkin
 			EpisodicStore:   orch.EpisodicStore,
 			RecentExchanges: buildRecentExchanges(orch),
 			AdultMode:       orch.AdultMode,
-		})
+		}, a.recordMemoryWriteError)
 	}()
 
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("whisper: persist state goroutine panic recovered", "panic", r)
-			}
-		}()
-		persistWhisperState(orch)
-	}()
+	go a.persistStateAsync(orch)
 
 	slog.Info("[whisper] WhisperChat done", "replyLen", len(reply), "emotion", orch.State.Emotion.PrimaryLabel)
 	return map[string]interface{}{
@@ -457,18 +457,6 @@ func (a *whisperState) WhisperClearSession(personalityID string) error {
 	return nil
 }
 
-func (a *whisperState) WhisperSetAdultMode(personalityID string, enabled bool) error {
-	whisperSessionsMu.RLock()
-	orch, ok := whisperSessions["whisper_"+personalityID]
-	whisperSessionsMu.RUnlock()
-	if !ok {
-		return nil
-	}
-	// 私人非商用：成人内容始终开启，忽略开关参数，保留方法以兼容旧调用
-	orch.AdultMode = true
-	return nil
-}
-
 // ─── 上网查询 ──────────────────────────────────────────────────
 
 // WhisperWebSearch 执行上网查询（只读）
@@ -661,7 +649,9 @@ func restoreWhisperState(orch *whisper.Orchestrator) error {
 	if orch.DataRoot == "" {
 		return nil
 	}
-	db.GetDatabase(orch.DataRoot)
+	if _, err := db.GetDatabase(orch.DataRoot); err != nil {
+		return fmt.Errorf("初始化 hermes.db 失败: %w", err)
+	}
 	state, err := repos.LoadCompanionStateFromDB(orch.DataRoot, orch.SessionID)
 	if err != nil {
 		return err
@@ -715,11 +705,31 @@ func restoreWhisperState(orch *whisper.Orchestrator) error {
 	}
 	return nil
 }
-func persistWhisperState(orch *whisper.Orchestrator) {
-	if orch.DataRoot == "" {
-		return
+// persistStateAsync 异步持久化会话状态（fire-and-forget，T6-5.3）：
+// 落库失败与 panic 统一计入 WriteErrors 计数并记录日志，不再静默丢弃。
+func (a *whisperState) persistStateAsync(orch *whisper.Orchestrator) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("whisper: persist state goroutine panic recovered", "panic", r)
+			a.recordMemoryWriteError(orch.SessionID, "persist_panic", fmt.Errorf("persist state panic: %v", r))
+		}
+	}()
+	if err := persistWhisperState(orch); err != nil {
+		a.recordMemoryWriteError(orch.SessionID, "persist", err)
 	}
-	_ = repos.SaveCompanionStateToDB(orch.DataRoot, orch.SessionID, orch.State)
+}
+
+// persistWhisperState 持久化会话状态（同伴状态/聊天历史/事实/情节/图谱）。
+// 任一落库失败返回合并错误（不中断后续写回），由调用方记录与计数。
+func persistWhisperState(orch *whisper.Orchestrator) error {
+	if orch.DataRoot == "" {
+		return nil
+	}
+	var errs []error
+	if err := repos.SaveCompanionStateToDB(orch.DataRoot, orch.SessionID, orch.State); err != nil {
+		slog.Error("[whisper] 同伴状态落库失败", "sessionID", orch.SessionID, "error", err)
+		errs = append(errs, err)
+	}
 	exchanges := orch.WM.GetAll(orch.SessionID)
 	if len(exchanges) > 0 {
 		rows := make([]map[string]interface{}, len(exchanges))
@@ -728,16 +738,30 @@ func persistWhisperState(orch *whisper.Orchestrator) {
 				"turnIndex": e.TurnIndex, "userText": e.UserText, "assistantText": e.AssistantText,
 			}
 		}
-		_ = repos.SaveChatHistoryToDB(orch.DataRoot, orch.SessionID, rows)
+		if err := repos.SaveChatHistoryToDB(orch.DataRoot, orch.SessionID, rows); err != nil {
+			slog.Error("[whisper] 聊天历史落库失败", "sessionID", orch.SessionID, "error", err)
+			errs = append(errs, err)
+		}
 	}
 	// 记忆贯通：事实/情节/图谱均按会话合并写回，其他角色的记忆不被覆盖
-	persistFactsToDB(orch)
-	persistEpisodesToDB(orch)
-	persistKGToDB(orch)
+	if err := persistFactsToDB(orch); err != nil {
+		errs = append(errs, err)
+	}
+	if err := persistEpisodesToDB(orch); err != nil {
+		errs = append(errs, err)
+	}
+	if err := persistKGToDB(orch); err != nil {
+		errs = append(errs, err)
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
-// persistFactsToDB 事实合并写回：本会话 ID 用内存版替换（含退役态），其他会话保留 DB 版
-func persistFactsToDB(orch *whisper.Orchestrator) {
+// persistFactsToDB 事实合并写回：本会话 ID 用内存版替换（含退役态），其他会话保留 DB 版。
+// 落库/FTS 重建失败均记录日志并返回错误（T6-5.3 不再吞错）。
+func persistFactsToDB(orch *whisper.Orchestrator) error {
 	all := orch.FactStore.ListAll()
 	mine := make(map[string]bool, len(all))
 	for _, f := range all {
@@ -754,13 +778,25 @@ func persistFactsToDB(orch *whisper.Orchestrator) {
 	for _, f := range all {
 		merged = append(merged, f.MemoryFact)
 	}
-	_ = repos.ReplaceFactsInDB(orch.DataRoot, merged)
+	var errs []error
+	if err := repos.ReplaceFactsInDB(orch.DataRoot, merged); err != nil {
+		slog.Error("[whisper] 事实落库失败", "sessionID", orch.SessionID, "error", err)
+		errs = append(errs, err)
+	}
 	// FTS 全文索引重建：事实写回后让 memory_facts_fts 与主表同步
-	_ = repos.RebuildFactsFTS(orch.DataRoot)
+	if err := repos.RebuildFactsFTS(orch.DataRoot); err != nil {
+		slog.Error("[whisper] FTS 事实索引重建失败", "sessionID", orch.SessionID, "error", err)
+		errs = append(errs, err)
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
-// persistEpisodesToDB 情节按会话合并写回：本会话以内存为准，其他会话保留 DB 版
-func persistEpisodesToDB(orch *whisper.Orchestrator) {
+// persistEpisodesToDB 情节按会话合并写回：本会话以内存为准，其他会话保留 DB 版。
+// 落库/FTS 重建失败均记录日志并返回错误（T6-5.3 不再吞错）。
+func persistEpisodesToDB(orch *whisper.Orchestrator) error {
 	eps := orch.EpisodicStore.ListAll()
 	dbEps, err := repos.LoadEpisodesFromDB(orch.DataRoot)
 	merged := make([]whisper.Episode, 0, len(dbEps)+len(eps))
@@ -773,16 +809,28 @@ func persistEpisodesToDB(orch *whisper.Orchestrator) {
 		}
 	}
 	merged = append(merged, eps...)
+	var errs []error
 	if len(merged) > 0 {
-		_ = repos.ReplaceEpisodesInDB(orch.DataRoot, merged)
+		if err := repos.ReplaceEpisodesInDB(orch.DataRoot, merged); err != nil {
+			slog.Error("[whisper] 情节落库失败", "sessionID", orch.SessionID, "error", err)
+			errs = append(errs, err)
+		}
 		// FTS 全文索引重建：情节写回后让 episodes_fts 与主表同步
-		_ = repos.RebuildEpisodesFTS(orch.DataRoot)
+		if err := repos.RebuildEpisodesFTS(orch.DataRoot); err != nil {
+			slog.Error("[whisper] FTS 情节索引重建失败", "sessionID", orch.SessionID, "error", err)
+			errs = append(errs, err)
+		}
 	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 // persistKGToDB 知识图谱按归属合并写回：三元组从 facts 派生，
-// 归属本会话（source_fact_ids 命中本会话事实）的以内存为准，其余保留 DB 版
-func persistKGToDB(orch *whisper.Orchestrator) {
+// 归属本会话（source_fact_ids 命中本会话事实）的以内存为准，其余保留 DB 版。
+// 落库失败记录日志并返回错误（T6-5.3 不再吞错）。
+func persistKGToDB(orch *whisper.Orchestrator) error {
 	tris := orch.KG.ListAll()
 	ownFactIDs := make(map[string]bool)
 	for _, f := range orch.FactStore.ListAll() {
@@ -800,8 +848,12 @@ func persistKGToDB(orch *whisper.Orchestrator) {
 	}
 	merged = append(merged, tris...)
 	if len(merged) > 0 {
-		_ = repos.ReplaceTriplesInDB(orch.DataRoot, merged)
+		if err := repos.ReplaceTriplesInDB(orch.DataRoot, merged); err != nil {
+			slog.Error("[whisper] 图谱落库失败", "sessionID", orch.SessionID, "error", err)
+			return err
+		}
 	}
+	return nil
 }
 
 // tripleOwnedBySession 判断三元组是否归属某会话（source_fact_ids 命中该会话任一事实）。

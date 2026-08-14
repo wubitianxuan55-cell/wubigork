@@ -9,6 +9,8 @@ import (
 // TestRecordCall_Aggregates 验证调用统计的聚合逻辑。
 func TestRecordCall_Aggregates(t *testing.T) {
 	m := NewManager("", "")
+	// T6-6.2 汇率注入：显式注入 7.2，折算断言与配置解耦（不再依赖默认常量）。
+	m.SetUsdCnyRate(7.2)
 	m.RecordCall(ModelCallUsage{
 		EngineID: "deepseek", Model: "deepseek-v4-pro",
 		InputTokens: 100, OutputTokens: 50, DurationMs: 1200, Success: true,
@@ -61,7 +63,7 @@ func TestRecordCall_Aggregates(t *testing.T) {
 	if grok.Currency != "USD" {
 		t.Errorf("grok Currency = %q, want USD", grok.Currency)
 	}
-	// 汇总折算人民币: 0.00672 + 0.00005*7.2 = 0.00708
+	// 汇总折算人民币（注入汇率 7.2）: 0.00672 + 0.00005*7.2 = 0.00708
 	if got := sum.TotalCost; got < 0.00707 || got > 0.00709 {
 		t.Errorf("TotalCost = %v, want ~0.00708", got)
 	}
@@ -315,4 +317,66 @@ func TestStats_NoPathNoPanic(t *testing.T) {
 		t.Errorf("TotalCalls = %d, want 1", sum.TotalCalls)
 	}
 	m.ResetModelCallStats()
+}
+
+// ── T6-6.2 汇率配置 ───────────────────────────────────────────
+
+// TestStats_UsdCnyRateDefault 未注入配置时汇率默认为 7.2
+// （Manager 访问与 summary.UsdToCny 透传一致）。
+func TestStats_UsdCnyRateDefault(t *testing.T) {
+	m := NewManager("", "")
+	if got := m.UsdCnyRate(); got != 7.2 {
+		t.Errorf("默认汇率 = %v, want 7.2", got)
+	}
+	// 未记录任何调用时 summary 也应透传默认汇率。
+	if got := m.GetModelCallStats().UsdToCny; got != 7.2 {
+		t.Errorf("summary.UsdToCny 默认 = %v, want 7.2", got)
+	}
+}
+
+// TestStats_UsdCnyRateChangeTakesEffect 修改汇率后折算立即生效：
+// grok-4.20 定价 2 USD/百万 input token，1e6 input = 2 USD；
+// 默认 7.2 → 14.4 CNY；改为 7.0 → 14.0 CNY（summary 实时重算）。
+func TestStats_UsdCnyRateChangeTakesEffect(t *testing.T) {
+	m := NewManager("", "")
+	m.RecordCall(ModelCallUsage{
+		EngineID: "xai", Model: "grok-4.20",
+		InputTokens: 1_000_000, OutputTokens: 0, DurationMs: 1, Success: true,
+	})
+
+	// 默认 7.2：2 USD × 7.2 = 14.4
+	sum := m.GetModelCallStats()
+	if got := sum.TotalCost; got < 14.39 || got > 14.41 {
+		t.Errorf("默认 7.2 折算 TotalCost = %v, want ~14.4", got)
+	}
+	if sum.UsdToCny != 7.2 {
+		t.Errorf("UsdToCny = %v, want 7.2", sum.UsdToCny)
+	}
+
+	// 改为 7.0：summary 折算与透传立即更新为 7.0 → 2 USD × 7.0 = 14.0
+	m.SetUsdCnyRate(7.0)
+	sum = m.GetModelCallStats()
+	if got := sum.TotalCost; got < 13.99 || got > 14.01 {
+		t.Errorf("7.0 折算 TotalCost = %v, want ~14.0", got)
+	}
+	if sum.UsdToCny != 7.0 {
+		t.Errorf("UsdToCny = %v, want 7.0", sum.UsdToCny)
+	}
+	if got := m.UsdCnyRate(); got != 7.0 {
+		t.Errorf("Manager.UsdCnyRate = %v, want 7.0", got)
+	}
+}
+
+// TestStats_UsdCnyRateInvalidFallsBack 非法汇率（0/负数）注入时回退默认
+// 7.2，不会用 0 汇率把 USD 费用抹成 0。
+func TestStats_UsdCnyRateInvalidFallsBack(t *testing.T) {
+	m := NewManager("", "")
+	m.SetUsdCnyRate(0)
+	if got := m.UsdCnyRate(); got != 7.2 {
+		t.Errorf("SetUsdCnyRate(0) 后汇率 = %v, want 回退 7.2", got)
+	}
+	m.SetUsdCnyRate(-1)
+	if got := m.UsdCnyRate(); got != 7.2 {
+		t.Errorf("SetUsdCnyRate(-1) 后汇率 = %v, want 回退 7.2", got)
+	}
 }

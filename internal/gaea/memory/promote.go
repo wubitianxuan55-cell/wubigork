@@ -66,4 +66,5 @@ func (promoteSessionFactsTool) Execute(ctx context.Context, args json.RawMessage
 	return fmt.Sprintf("Promoted %d session fact(s) to permanent memory.", n), nil
 }
 
-func (promoteSessionFactsTool) ReadOnly() bool { return false }
+func (promoteSessionFactsTool) ReadOnly() bool    { return false }
+func (promoteSessionFactsTool) PersistWrite() bool { return true }

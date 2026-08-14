@@ -13,7 +13,9 @@ import (
 // TestGaeaMemoryGraph_WhisperTriples 轻语三元组入图：实体节点（去重合并）+ 关系边。
 func TestGaeaMemoryGraph_WhisperTriples(t *testing.T) {
 	dir := t.TempDir()
-	db.GetDatabase(dir)
+	if _, err := db.GetDatabase(dir); err != nil {
+		t.Fatalf("GetDatabase: %v", err)
+	}
 	defer db.CloseDatabase(dir)
 
 	// 写入事实（供 whisper 节点）+ 三元组

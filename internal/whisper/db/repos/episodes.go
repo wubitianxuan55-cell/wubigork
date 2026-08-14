@@ -53,8 +53,8 @@ func (r *episodeRow) toEpisode() whisper.Episode {
 
 // CountEpisodesInDB 返回情节数
 func CountEpisodesInDB(dataRoot string) int {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
 		return 0
 	}
 	var c int
@@ -73,9 +73,9 @@ func LoadEpisodesFromDBForSession(dataRoot, sessionID string) ([]whisper.Episode
 }
 
 func queryEpisodes(dataRoot, where string, args ...interface{}) ([]whisper.Episode, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	rows, err := sqlDB.Query(`SELECT id, summary, emotional_intensity, dominant_emotion, keywords,
@@ -116,9 +116,9 @@ func ReplaceEpisodesInDB(dataRoot string, episodes []whisper.Episode) error {
 
 // InsertEpisode 单条插入情节
 func InsertEpisode(dataRoot string, ep whisper.Episode) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	if err := insertEpisodeStmt(sqlDB, ep); err != nil {
 		return err

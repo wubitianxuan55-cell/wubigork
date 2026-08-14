@@ -8,8 +8,8 @@ import (
 
 func TestRightBrainWriteSearch(t *testing.T) {
 	dir := t.TempDir()
-	if whisperdb.GetDatabase(dir) == nil {
-		t.Fatal("whisper db unavailable")
+	if _, err := whisperdb.GetDatabase(dir); err != nil {
+		t.Fatalf("whisper db unavailable: %v", err)
 	}
 	defer whisperdb.CloseDatabase(dir)
 

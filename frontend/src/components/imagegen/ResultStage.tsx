@@ -5,6 +5,7 @@ import {
   DeleteOutlined, ReloadOutlined, AppstoreOutlined, VideoCameraOutlined,
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
+import { mediaIsVideo } from './media'
 import type { GenResult } from './types'
 
 interface Props {
@@ -140,7 +141,8 @@ export const ResultStage: React.FC<Props> = ({
           }}
           onClick={() => onPreview(i)}
         >
-          {r.kind === 'video' ? (
+          {/* T6-4.2：按实际媒体类型选择元素（t2v 输出动画 webp 用 <img> 播，video/* 才用 <video>） */}
+          {mediaIsVideo(r.image) ? (
             <video
               src={r.image}
               controls

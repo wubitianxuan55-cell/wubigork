@@ -63,13 +63,24 @@ func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, fo
 			extra = string(b)
 		}
 	}
-	a.appendChatExchange(topicID, userMessage, reply, extra)
+	// T6-3.2：落库失败必须透传给调用方（前端可见），不再静默吞错。
+	if err := a.appendChatExchange(topicID, userMessage, reply, extra); err != nil {
+		return nil, err
+	}
 	return map[string]interface{}{"reply": reply, "reasoning": reasoning, "mode": "plain", "topicID": topicID}, nil
 }
+
+// newChatStreamRunID 生成流式 runID（测试可替换为固定值以订阅固定事件名）。
+var newChatStreamRunID = func() string { return fmt.Sprintf("cs_%d", time.Now().UnixMilli()) }
 
 // ChatStreamPlain 普通对话真实流式入口：立即返回 runID，前端订阅
 // "chat-stream:<runID>" 事件流（delta / reasoning / done / error），完成后落库。
 // 联网搜索注入只进入模型上下文，落库仍保留用户原文。
+//
+// T6-3.1 时序保障：delta 帧在 goroutine 内就绪即发，首帧可能早于前端订阅建立；
+// 「订阅先行 + 首帧可重放」由本刀前端（ChatPage 订阅竞态修复）负责，后端不做
+// emit 前等待。后端只保证终态纪律：任一失败路径（启动失败/流错误/落库失败/panic）
+// 必 emit error，正常完成必 emit done；无帧超时由前端兜底（等待超时按失败展示）。
 func (a *App) ChatStreamPlain(topicID, message string, searchEnabled, thinking, forceSearch bool) (string, error) {
 	if topicID == "" {
 		return "", fmt.Errorf("话题 ID 不能为空")
@@ -78,7 +89,7 @@ func (a *App) ChatStreamPlain(topicID, message string, searchEnabled, thinking, 
 		return "", fmt.Errorf("AI 客户端未初始化")
 	}
 	eng, model := a.featureModel("chat")
-	runID := fmt.Sprintf("cs_%d", time.Now().UnixMilli())
+	runID := newChatStreamRunID()
 	go a.runChatStreamPlain(runID, topicID, message, eng, model, searchEnabled, thinking, forceSearch)
 	return runID, nil
 }
@@ -128,7 +139,16 @@ func (a *App) runChatStreamPlain(runID, topicID, userMessage, eng, model string,
 			extra = string(b)
 		}
 	}
-	a.appendChatExchange(topicID, userMessage, replyStr, extra)
+	// T6-3.2 落库错误透传：delta 流不受影响，仅在最终落库失败时 emit error 终态
+	// 而非 done——前端可见失败（消息已生成但未持久化）。
+	if err := a.appendChatExchange(topicID, userMessage, replyStr, extra); err != nil {
+		slog.Error("chat stream plain 落库失败", "runID", runID, "topicID", topicID, "error", err)
+		a.emit("chat-stream:"+runID, map[string]interface{}{
+			"type":  "error",
+			"error": "回复生成完成但消息保存失败: " + err.Error(),
+		})
+		return
+	}
 	a.emit("chat-stream:"+runID, map[string]interface{}{
 		"type":      "done",
 		"reply":     replyStr,
@@ -155,29 +175,41 @@ func (a *App) chatSendPersona(topicID, message, mode string, searchEnabled, thin
 	}); err == nil {
 		extra = string(b)
 	}
-	a.appendChatExchange(topicID, message, fmt.Sprint(out["reply"]), extra)
+	// T6-3.2：persona 路径同样把落库失败透传给调用方。
+	if err := a.appendChatExchange(topicID, message, fmt.Sprint(out["reply"]), extra); err != nil {
+		return nil, err
+	}
 	out["mode"] = mode
 	out["topicID"] = topicID
 	return out, nil
 }
 
-func (a *App) appendChatExchange(topicID, userMsg, reply, extra string) {
+// appendChatExchange 把「用户消息 + 助手消息」原子落库；失败时返回 error
+// （调用方决定透传还是转 error 事件），不再静默吞错。
+func (a *App) appendChatExchange(topicID, userMsg, reply, extra string) error {
 	if a.chatStore == nil {
-		return
+		return fmt.Errorf("chat store 未初始化")
 	}
 	if err := a.chatStore.AppendExchange(topicID, userMsg, reply, extra); err != nil {
 		slog.Error("chat exchange 落库失败", "topicID", topicID, "error", err)
+		return err
 	}
+	return nil
 }
 
 // ── 话题 CRUD（统一会话存储）─────────────────────────────────
 
-func (a *App) ChatTopicsList() []chat.Topic {
+// ChatTopicsList 列出全部话题（T6-3.2：读错返回 error，前端可见失败而非空列表）。
+func (a *App) ChatTopicsList() ([]chat.Topic, error) {
 	if a.chatStore == nil {
-		return nil
+		return nil, fmt.Errorf("chat store 未初始化")
 	}
-	topics, _ := a.chatStore.ListTopics()
-	return topics
+	topics, err := a.chatStore.ListTopics()
+	if err != nil {
+		slog.Error("chat 话题列表读取失败", "error", err)
+		return nil, err
+	}
+	return topics, nil
 }
 
 func (a *App) ChatTopicCreate(title, mode string) (chat.Topic, error) {
@@ -221,12 +253,35 @@ func (a *App) ChatTopicDelete(id string) error {
 	return a.chatStore.DeleteTopic(id)
 }
 
-func (a *App) ChatMessagesList(topicID string) []chat.Message {
+// ChatMessagesList 列出话题全部消息（T6-3.2：读错返回 error，前端可见失败而非空列表）。
+func (a *App) ChatMessagesList(topicID string) ([]chat.Message, error) {
 	if a.chatStore == nil {
-		return nil
+		return nil, fmt.Errorf("chat store 未初始化")
 	}
-	msgs, _ := a.chatStore.ListMessages(topicID)
-	return msgs
+	msgs, err := a.chatStore.ListMessages(topicID)
+	if err != nil {
+		slog.Error("chat 消息列表读取失败", "topicID", topicID, "error", err)
+		return nil, err
+	}
+	return msgs, nil
+}
+
+// ChatAppendMessages 把一组消息追加到已有话题（T6-3.3 语音消息持久化）：
+// 单事务批量写入，全部成功或全部回滚；role 仅接受 user/assistant，其余跳过。
+// 语音消息目前只在前端内存——前端可在收到语音识别结果后调用本绑定落库。
+func (a *App) ChatAppendMessages(topicID string, messages []ChatMessageInput) error {
+	if a.chatStore == nil {
+		return fmt.Errorf("chat store 未初始化")
+	}
+	inputs := make([]chat.MessageInput, 0, len(messages))
+	for _, m := range messages {
+		role := strings.TrimSpace(m.Role)
+		if role != "user" && role != "assistant" {
+			continue
+		}
+		inputs = append(inputs, chat.MessageInput{Role: role, Content: m.Content, Extra: m.Extra})
+	}
+	return a.chatStore.AppendMessagesTx(topicID, inputs)
 }
 
 // ChatTopicExportMarkdown 把话题全部消息导出为 Markdown 文件，写到用户数据目录
@@ -254,7 +309,9 @@ func (a *App) ChatTopicExportMarkdown(topicID string) (string, error) {
 			role = "AI"
 		}
 		b.WriteString("## " + role + "\n\n")
-		b.WriteString(m.Content + "\n\n")
+		// T6-3.5：消息原文写前转义 Markdown 结构敏感字符，避免破坏导出文档
+		// （如行首井号生成新标题）；保留换行与加粗/斜体等基础格式。
+		b.WriteString(escapeMarkdownContent(m.Content) + "\n\n")
 	}
 
 	dir := filepath.Join(a.whisperDataRoot, "exports", "chat")
@@ -269,7 +326,54 @@ func (a *App) ChatTopicExportMarkdown(topicID string) (string, error) {
 	return path, nil
 }
 
-// sanitizeChatFilename 把话题标题规整为安全的文件名片段。
+// windowsReservedNames Windows 保留设备名（大小写不敏感，含扩展名同样保留）。
+var windowsReservedNames = map[string]bool{
+	"CON": true, "PRN": true, "AUX": true, "NUL": true,
+	"COM1": true, "COM2": true, "COM3": true, "COM4": true, "COM5": true,
+	"COM6": true, "COM7": true, "COM8": true, "COM9": true,
+	"LPT1": true, "LPT2": true, "LPT3": true, "LPT4": true, "LPT5": true,
+	"LPT6": true, "LPT7": true, "LPT8": true, "LPT9": true,
+}
+
+// escapeMarkdownContent 转义消息原文中会破坏 Markdown 文档结构的字符
+// （行首井号、反引号、尖括号、竖线），保留换行与基础格式（加粗/斜体/列表不受影响）。
+func escapeMarkdownContent(s string) string {
+	lines := strings.Split(s, "\n")
+	var b strings.Builder
+	for i, line := range lines {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(escapeMarkdownLine(line))
+	}
+	return b.String()
+}
+
+// escapeMarkdownLine 单行转义：行首（可带前导空格）的 # 转义为 \#（避免生成标题），
+// 反引号/尖括号/竖线全部转义为 \X（避免代码块/HTML/表格结构被破坏）。
+func escapeMarkdownLine(line string) string {
+	runes := []rune(line)
+	firstNonSpace := 0
+	for firstNonSpace < len(runes) && runes[firstNonSpace] == ' ' {
+		firstNonSpace++
+	}
+	var b strings.Builder
+	for i, r := range runes {
+		switch {
+		case i == firstNonSpace && r == '#':
+			b.WriteString("\\#")
+		case r == '`' || r == '<' || r == '>' || r == '|':
+			b.WriteString("\\")
+			b.WriteRune(r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// sanitizeChatFilename 把话题标题规整为安全的文件名片段：
+// 非法字符替换为 _、去首尾空白与尾部点号、截断 40 字符、规避 Windows 保留名。
 func sanitizeChatFilename(s string) string {
 	var b strings.Builder
 	for _, r := range s {
@@ -280,13 +384,20 @@ func sanitizeChatFilename(s string) string {
 			b.WriteRune(r)
 		}
 	}
-	out := strings.TrimSpace(b.String())
+	out := strings.Trim(b.String(), " .")
 	if out == "" {
 		out = "chat"
 	}
 	runes := []rune(out)
 	if len(runes) > 40 {
 		out = string(runes[:40])
+	}
+	base := out
+	if i := strings.LastIndexByte(out, '.'); i > 0 {
+		base = out[:i]
+	}
+	if windowsReservedNames[strings.ToUpper(base)] {
+		out = "_" + out
 	}
 	return out
 }
@@ -299,22 +410,23 @@ type ChatMessageInput struct {
 }
 
 // ChatImportTopic 创建话题并按序导入历史消息（迁移旧 localStorage 会话，不调用 AI）。
+// T6-3.4：建话题 + 全部消息改走单事务（ImportTopicTx），中途失败整体回滚，
+// 不再出现「话题已建但消息只落了一半」的脏状态。
 func (a *App) ChatImportTopic(title, mode string, messages []ChatMessageInput) (chat.Topic, error) {
 	if a.chatStore == nil {
 		return chat.Topic{}, fmt.Errorf("chat store 未初始化")
 	}
 	id := fmt.Sprintf("t_%d", time.Now().UnixMilli())
-	if err := a.chatStore.CreateTopic(id, title, mode); err != nil {
-		return chat.Topic{}, err
-	}
+	inputs := make([]chat.MessageInput, 0, len(messages))
 	for _, m := range messages {
 		role := strings.TrimSpace(m.Role)
 		if role != "user" && role != "assistant" {
 			continue
 		}
-		if _, err := a.chatStore.AppendMessage(id, role, m.Content, m.Extra); err != nil {
-			return chat.Topic{}, err
-		}
+		inputs = append(inputs, chat.MessageInput{Role: role, Content: m.Content, Extra: m.Extra})
+	}
+	if err := a.chatStore.ImportTopicTx(id, title, mode, inputs); err != nil {
+		return chat.Topic{}, err
 	}
 	return a.chatStore.GetTopic(id)
 }

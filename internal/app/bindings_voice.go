@@ -46,7 +46,6 @@ func (b *VoiceB) WhisperGetModel() string { return b.a.WhisperGetModel() }
 func (b *VoiceB) WhisperGetPersonalities() []whisper.PersonalityPreset { return b.a.WhisperGetPersonalities() }
 func (b *VoiceB) WhisperGetState(personalityID string) map[string]interface{} { return b.a.WhisperGetState(personalityID) }
 func (b *VoiceB) WhisperGetTraces(personalityID string) []whisper.TurnTrace { return b.a.WhisperGetTraces(personalityID) }
-func (b *VoiceB) WhisperSetAdultMode(personalityID string, enabled bool) error { return b.a.WhisperSetAdultMode(personalityID, enabled) }
 func (b *VoiceB) WhisperSetEngine(engineID string) error { return b.a.WhisperSetEngine(engineID) }
 func (b *VoiceB) WhisperSetImageModel(modelName string) error { return b.a.WhisperSetImageModel(modelName) }
 func (b *VoiceB) WhisperSetModel(engineID string, modelName string) error { return b.a.WhisperSetModel(engineID, modelName) }

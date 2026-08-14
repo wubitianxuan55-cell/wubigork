@@ -1,9 +1,9 @@
 package agent
 
 import (
-	"log/slog"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/event"
@@ -116,7 +116,9 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 			if provider.IsStreamInterrupted(chunk.Err) {
 				return text.String(), reasoning.String(), signature, calls, usage, true, chunk.Err
 			}
-			return "", "", "", nil, nil, false, chunk.Err
+			// keep whatever the model already produced — runDirect persists it
+			// to the session before returning the terminal error.
+			return text.String(), reasoning.String(), signature, calls, usage, false, chunk.Err
 		}
 	}
 	batcher.FlushAll()

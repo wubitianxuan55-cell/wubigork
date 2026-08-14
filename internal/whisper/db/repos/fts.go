@@ -12,9 +12,9 @@ import (
 
 // RebuildFactsFTS 重建 memory_facts 全文索引（独立表全量同步）
 func RebuildFactsFTS(dataRoot string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	// 清空 FTS 索引（V11 后为独立表，可安全 DELETE）
@@ -54,9 +54,9 @@ func RebuildFactsFTS(dataRoot string) error {
 }
 
 func RebuildEpisodesFTS(dataRoot string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	if _, err := sqlDB.Exec("DELETE FROM episodes_fts"); err != nil {
@@ -98,9 +98,9 @@ func RebuildEpisodesFTS(dataRoot string) error {
 
 // InsertFactFTS 插入单条事实到 FTS 索引
 func InsertFactFTS(dataRoot, factID, subject, summary, triggersText string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	_, err := sqlDB.Exec(
 		"INSERT INTO memory_facts_fts(fact_id, subject, summary, triggers_text) VALUES (?, ?, ?, ?)",
@@ -111,9 +111,9 @@ func InsertFactFTS(dataRoot, factID, subject, summary, triggersText string) erro
 
 // DeleteFactFTS 从 FTS 索引删除单条事实
 func DeleteFactFTS(dataRoot, factID string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	_, err := sqlDB.Exec(
 		"DELETE FROM memory_facts_fts WHERE fact_id = ?",
@@ -124,9 +124,9 @@ func DeleteFactFTS(dataRoot, factID string) error {
 
 // InsertEpisodeFTS 插入单条情节到 FTS 索引
 func InsertEpisodeFTS(dataRoot, episodeID, summary, keywordsText, dominantEmotion string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	_, err := sqlDB.Exec(
 		"INSERT INTO episodes_fts(episode_id, summary, keywords_text, dominant_emotion) VALUES (?, ?, ?, ?)",
@@ -137,9 +137,9 @@ func InsertEpisodeFTS(dataRoot, episodeID, summary, keywordsText, dominantEmotio
 
 // DeleteEpisodeFTS 从 FTS 索引删除单条情节
 func DeleteEpisodeFTS(dataRoot, episodeID string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 	_, err := sqlDB.Exec(
 		"DELETE FROM episodes_fts WHERE episode_id = ?",
@@ -152,9 +152,9 @@ func DeleteEpisodeFTS(dataRoot, episodeID string) error {
 
 // SearchFactIDsFTS 全文搜索记忆事实（返回 ID 列表）
 func SearchFactIDsFTS(dataRoot, query string, limit int) ([]string, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	if limit <= 0 {
@@ -194,9 +194,9 @@ func SearchFactIDsFTS(dataRoot, query string, limit int) ([]string, error) {
 
 // SearchEpisodeIDsFTS 全文搜索情节（返回 ID 列表）
 func SearchEpisodeIDsFTS(dataRoot, query string, limit int) ([]string, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	if limit <= 0 {

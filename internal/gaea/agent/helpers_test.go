@@ -12,17 +12,19 @@ import (
 // fakeTool is a no-op tool whose read-only flag, delay, error, and call counter
 // the test controls.  Used across most agent test files.
 type fakeTool struct {
-	name     string
-	readOnly bool
-	delay    time.Duration
-	err      error
-	calls    *int32 // shared counter to assert all dispatched
+	name         string
+	readOnly     bool
+	persistWrite bool // T6-2.5: 标记为持久化写入工具（子代理禁写集合据此推导）
+	delay        time.Duration
+	err          error
+	calls        *int32 // shared counter to assert all dispatched
 }
 
 func (f fakeTool) Name() string            { return f.name }
 func (f fakeTool) Description() string     { return "" }
 func (f fakeTool) Schema() json.RawMessage { return json.RawMessage(`{"type":"object"}`) }
 func (f fakeTool) ReadOnly() bool          { return f.readOnly }
+func (f fakeTool) PersistWrite() bool      { return f.persistWrite }
 func (f fakeTool) Execute(ctx context.Context, _ json.RawMessage) (string, error) {
 	if f.calls != nil {
 		atomic.AddInt32(f.calls, 1)

@@ -14,9 +14,9 @@ import (
 
 // LoadCompanionStateFromDB 从数据库加载同伴状态
 func LoadCompanionStateFromDB(dataRoot, sessionID string) (*whisper.FullState, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	var stateJSON string
@@ -55,9 +55,9 @@ func LoadCompanionStateFromDB(dataRoot, sessionID string) (*whisper.FullState, e
 
 // SaveCompanionStateToDB 保存同伴状态到数据库
 func SaveCompanionStateToDB(dataRoot, sessionID string, state whisper.FullState) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	stateJSON, err := json.Marshal(state)
@@ -92,9 +92,9 @@ func SaveCompanionStateToDB(dataRoot, sessionID string, state whisper.FullState)
 
 // DeleteCompanionStateFromDB 删除同伴状态
 func DeleteCompanionStateFromDB(dataRoot string, sessionID string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	if sessionID != "" {

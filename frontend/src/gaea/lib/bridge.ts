@@ -79,6 +79,11 @@ import type {
   TaskView,
   ModelSwitchEstimate,
 } from "./types";
+// chat 板块契约类型来自 wails 生成物（wails build 自动生成，勿手改生成物本身）。
+// AppBindings 只做类型标注：ChatTopicsList/ChatMessagesList Go 侧为
+// ([]chat.Topic, error) / ([]chat.Message, error)，Wails 绑定后失败呈现为
+// rejected promise，这里按「[数据, 错误]」元组形态标注。
+import type { app as AppModels, chat } from "../../../wailsjs/go/models";
 
 // AppBindings mirrors desktop/app.go's exported method set. Keep in sync by hand
 // (or regenerate with `wails generate module` and import wailsjs instead).
@@ -389,6 +394,15 @@ export interface AppBindings {
   // ModelSwitchEstimate 换模预估：目标本地模型 hot/cold/download/unknown，
   // 前端在非 hot 时提示预计等待秒数并让用户确认是否继续切换。
   ModelSwitchEstimate(engineID: string): Promise<ModelSwitchEstimate>;
+  // ── 对话 chat（T6-3 契约同步）────────────────────────────
+  // ChatTopicsList/ChatMessagesList Go 侧签名变为 ([]T, error)（T6-3.2 读错
+  // 返回 error），Wails 绑定后失败为 rejected promise；这里以 [T[], unknown]
+  // 元组形态标注「成功数据 + 失败错误」，调用点必须 try/catch，不能再 || [] 吞错。
+  ChatTopicsList(): Promise<[chat.Topic[], unknown]>;
+  ChatMessagesList(topicID: string): Promise<[chat.Message[], unknown]>;
+  // ChatAppendMessages 语音消息持久化（T6-3.3）：单事务批量追加，
+  // role 仅接受 user/assistant（其余后端跳过）。
+  ChatAppendMessages(topicID: string, messages: AppModels.ChatMessageInput[]): Promise<void>;
 }
 
 // Window 类型由 gaea 的 src/types/wails.d.ts 统一声明（go.app.App + runtime）。
@@ -476,6 +490,8 @@ export function onReady(cb: () => void): () => void {
 // gaeaToGaea maps gaeaW UI method names to the gaea App bindings.
 // gaea 的办公板块绑定统一以 Gaea 前缀命名；gaeaW 的 UI 调用短名
 // （Submit/Cancel/History/...），这里做名称映射，避免 gaea App 方法名冲突。
+// 对话 chat 方法（ChatTopicsList/ChatMessagesList/ChatAppendMessages 等）在
+// ChatB 门面上同名（无 Gaea 前缀），无需映射——代理按原名在门面上查找即可。
 const gaeaToGaea: Record<string, string> = {
   Submit: "GaeaSend",
   SubmitDisplay: "GaeaSend",
@@ -651,6 +667,62 @@ const gaeaToGaea: Record<string, string> = {
   ModelSwitchEstimate: "GaeaModelSwitchEstimate",
 };
 
+// ── 错误归一化层（T6-1.2 前端错误可见性）────────────────────────────
+// BridgeError 是所有绑定调用失败时归一出的结构化错误：code 机器可读
+// （后端已带 code 时透传，否则 "<方法名>Error"），message 为人类可读原因
+// （后端错误信息原文）。继承 Error 保证既有调用方的 e instanceof Error /
+// e.message 判定不受影响（message 保留后端原文）。
+export class BridgeError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "BridgeError";
+    this.code = code;
+    // Error.message 默认不可枚举（JSON 序列化/结构化断言拿不到），显式
+    // 重设为可枚举 own 属性，保证 { code, message } 结构对外稳定。
+    Object.defineProperty(this, "message", { value: message, enumerable: true, writable: true, configurable: true });
+  }
+}
+
+// normalizeError 把任意拒绝值归一为 BridgeError：已结构化（code/message）
+// 的错误透传，Error 取 message，其余兜底字符串化。
+function normalizeError(method: string, err: unknown): BridgeError {
+  if (err instanceof BridgeError) return err;
+  if (err && typeof err === "object") {
+    const cand = err as { code?: unknown; message?: unknown };
+    if (typeof cand.code === "string" && typeof cand.message === "string") {
+      return new BridgeError(cand.code, cand.message);
+    }
+  }
+  if (err instanceof Error) {
+    return new BridgeError(`${method}Error`, err.message || String(err));
+  }
+  return new BridgeError(`${method}Error`, String(err ?? "unknown error"));
+}
+
+// invoke 是所有绑定调用的统一入口：失败时把错误归一为 BridgeError 并记录
+// 到 gaea.log（LogFrontendError），再以同样的拒绝语义抛给调用方——调用方
+// 原有的 .catch 行为契约不变（仍拿到 rejected promise + 错误值）。
+function invoke(method: string, fn: (...args: unknown[]) => unknown, args: unknown[]): Promise<unknown> {
+  return Promise.resolve()
+    .then(() => fn(...args))
+    .catch((err: unknown) => {
+      const normalized = normalizeError(method, err);
+      // 记录到 gaea.log；日志通道自身故障不向上抛，避免掩盖原始错误。
+      // LogFrontendError 在 app proxy 里不套本层（见下），不会递归。
+      logFrontendError(`[${normalized.code}] ${method} 失败: ${normalized.message}`);
+      throw normalized;
+    });
+}
+
+// logFrontendError 上报错误到 gaea.log；日志通道不可用（dev mock 外未注入
+// 绑定）或自身失败时静默降级，绝不掩盖原始错误。
+function logFrontendError(message: string): void {
+  const lfe = app.LogFrontendError;
+  if (typeof lfe !== "function") return;
+  void Promise.resolve(lfe(message)).catch(() => {});
+}
+
 // app proxies each call to the live binding (or the dev mock only when truly
 // outside the shell), so a late-injected window.go is picked up transparently.
 export const app: AppBindings = new Proxy({} as AppBindings, {
@@ -660,7 +732,12 @@ export const app: AppBindings = new Proxy({} as AppBindings, {
     const rec = target as unknown as Record<string, unknown>;
     // 真实绑定按 Gaea 前缀查找；浏览器 mock 直接暴露同名字段，需回退。
     const v = rec[key] ?? rec[String(prop)];
-    return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+    if (typeof v !== "function") return v;
+    const bound = (v as (...a: unknown[]) => unknown).bind(target);
+    // LogFrontendError 是错误上报通道自身，不套 invoke 归一化层，避免日志
+    // 通道故障时无限递归；其余方法统一走 invoke。
+    if (String(prop) === "LogFrontendError") return bound;
+    return (...args: unknown[]) => invoke(String(prop), bound, args);
   },
 });
 

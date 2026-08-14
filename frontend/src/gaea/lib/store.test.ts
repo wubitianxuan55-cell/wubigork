@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { applyEvent, reducer, initialState, rebuildHistoryItems } from "./store";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { applyEvent, reducer, initialState, rebuildHistoryItems, useController } from "./store";
+import { emitMock } from "./mock";
 import type { ControllerState, Item } from "./store";
 
 function base(overrides: Partial<ControllerState> = {}): ControllerState {
@@ -102,5 +104,66 @@ describe("reducer history", () => {
     const { items, lastAssistantIdx } = rebuildHistoryItems(messages);
     expect(items.filter((it) => it.kind === "assistant")).toHaveLength(1);
     expect(lastAssistantIdx).toBe(1);
+  });
+});
+
+// T6-1.2：store 内静默 catch 已替换——bridge 调用失败经 LogFrontendError
+// 记录到 gaea.log（可观测），不再无声吞掉。jsdom 下 window.go 未注入时
+// onEvent 回退 mock 订阅、onReady 立即触发，正好驱动初始化与事件路径。
+describe("useController bridge 失败记录（T6-1.2）", () => {
+  // 假 Wails 门面：让 realApp() 命中 CoreB；LogFrontendError 用 vi.fn 断言。
+  function facadeOk(): Record<string, unknown> {
+    return {
+      GaeaLogFrontendError: vi.fn(async () => {}),
+      GaeaMeta: async () => ({ version: "test", app: "gaea" }),
+      GaeaContext: async () => ({ used: 0, window: 0 }),
+      GaeaHistory: async () => [],
+      GaeaBalance: async () => ({ available: true, display: "CNY 0.00" }),
+      GaeaJobs: async () => [],
+      GaeaFactBase: async () => ({ facts: [], markdown: "", count: 0, path: "" }),
+      GaeaTCCAReport: async () => '{"ok":true}',
+    };
+  }
+
+  afterEach(() => {
+    delete (window as unknown as { go?: { app?: Record<string, unknown> } }).go;
+  });
+
+  it("loadSessionData 失败不再静默：经 LogFrontendError 记录", async () => {
+    const f = facadeOk();
+    f.GaeaMeta = async () => { throw new Error("meta boom"); };
+    (window as unknown as { go?: { app?: Record<string, unknown> } }).go = { app: { CoreB: f } };
+    const lfe = f.GaeaLogFrontendError as ReturnType<typeof vi.fn>;
+    renderHook(() => useController());
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(lfe).toHaveBeenCalledWith(expect.stringContaining("loadSessionData"));
+    expect(lfe).toHaveBeenCalledWith(expect.stringContaining("[MetaError]"));
+  });
+
+  it("turn_done 后刷新失败不再静默：经 LogFrontendError 记录", async () => {
+    const f = facadeOk();
+    f.GaeaBalance = async () => { throw new Error("balance down"); };
+    (window as unknown as { go?: { app?: Record<string, unknown> } }).go = { app: { CoreB: f } };
+    const lfe = f.GaeaLogFrontendError as ReturnType<typeof vi.fn>;
+    renderHook(() => useController());
+    await act(async () => {
+      emitMock({ kind: "turn_done" });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(lfe).toHaveBeenCalledWith(expect.stringContaining("turn_done Balance"));
+    expect(lfe).toHaveBeenCalledWith(expect.stringContaining("[BalanceError]"));
+  });
+
+  it("TCCAReport JSON 解析失败经 LogFrontendError 记录（内层 catch 也不再静默）", async () => {
+    const f = facadeOk();
+    f.GaeaTCCAReport = async () => "{not json";
+    (window as unknown as { go?: { app?: Record<string, unknown> } }).go = { app: { CoreB: f } };
+    const lfe = f.GaeaLogFrontendError as ReturnType<typeof vi.fn>;
+    renderHook(() => useController());
+    await act(async () => {
+      emitMock({ kind: "turn_done" });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(lfe).toHaveBeenCalledWith(expect.stringContaining("TCCAReport JSON.parse"));
   });
 });

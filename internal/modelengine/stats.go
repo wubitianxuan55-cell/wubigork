@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -171,8 +172,12 @@ func estimatedCostFor(engineID, model string, inputTokens, outputTokens int64) (
 	return cost, p.Currency
 }
 
-// usdToCny 汇总口径统一折算为人民币（估算用固定汇率）。
-const usdToCny = 7.2
+// defaultUsdCnyRate 美元→人民币汇率默认值（未注入配置时使用，7.2）。
+// 该值经 config.KeyUsdCnyRate（~/.gaea_config.json）由 app 层注入：
+// 启动时 cfg.UsdCnyRate → Manager.SetUsdCnyRate，运行时由
+// GaeaSetUsdCnyRate 更新。statsRecorder 持有内存副本，避免每次
+// 计算都读配置文件（config.Load 含磁盘 IO，逐调用读取不划算）。
+const defaultUsdCnyRate = 7.2
 
 // statsFile 磁盘统计文件结构。
 type statsFile struct {
@@ -192,6 +197,10 @@ type statsRecorder struct {
 	loaded   bool
 	lastSave time.Time // 上次落盘时间（节流用）
 	pending  int       // 自上次落盘以来累计的调用数（节流用）
+
+	// usdCnyRate 美元→人民币汇率（费用估算折算用；默认 7.2，
+	// 由 app 层按 ~/.gaea_config.json 的 usd_cny_rate 注入/更新）。
+	usdCnyRate float64
 }
 
 // 统计落盘节流：高频调用时避免每条记录都全量写盘。
@@ -202,8 +211,31 @@ const (
 
 func newStatsRecorder() *statsRecorder {
 	return &statsRecorder{
-		models: make(map[string]*ModelUsageStats),
-		trends: make(map[string]*TrendPoint),
+		models:     make(map[string]*ModelUsageStats),
+		trends:     make(map[string]*TrendPoint),
+		usdCnyRate: defaultUsdCnyRate,
+	}
+}
+
+// usdToCNYRate 返回当前美元→人民币汇率；持有值非法（<=0 / NaN / Inf）时
+// 回退默认 7.2——防御性兜底：任何路径都不会用 0 汇率把 USD 费用抹成 0。
+// 需持 r.mu 调用（或调用方保证无并发写）。
+func (r *statsRecorder) usdToCNYRate() float64 {
+	if rate := r.usdCnyRate; rate > 0 && !math.IsNaN(rate) && !math.IsInf(rate, 0) {
+		return rate
+	}
+	return defaultUsdCnyRate
+}
+
+// setUsdCnyRate 更新汇率（由 app 层按配置注入；rate <= 0 / NaN / Inf 时
+// 回退默认，与 usdToCNYRate 的守卫一致）。
+func (r *statsRecorder) setUsdCnyRate(rate float64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if rate > 0 && !math.IsNaN(rate) && !math.IsInf(rate, 0) {
+		r.usdCnyRate = rate
+	} else {
+		r.usdCnyRate = defaultUsdCnyRate
 	}
 }
 
@@ -336,7 +368,7 @@ func (r *statsRecorder) record(u ModelCallUsage) {
 	cost, cur := estimatedCostFor(u.EngineID, u.Model, u.InputTokens, u.OutputTokens)
 	costCNY := cost
 	if cur == "USD" {
-		costCNY *= usdToCny
+		costCNY *= r.usdToCNYRate()
 	}
 	bucket := trendBucket(time.Now())
 	tp, ok := r.trends[bucket]
@@ -372,7 +404,7 @@ func (r *statsRecorder) summary() ModelStatsSummary {
 
 	var sum ModelStatsSummary
 	sum.Since = r.since
-	sum.UsdToCny = usdToCny
+	sum.UsdToCny = r.usdToCNYRate()
 	for _, st := range r.models {
 		sum.TotalCalls += st.CallCount
 		sum.SuccessCalls += st.SuccessCount
@@ -389,7 +421,7 @@ func (r *statsRecorder) summary() ModelStatsSummary {
 		cp.Currency = cur
 		if cost > 0 {
 			if cur == "USD" {
-				sum.TotalCost += cost * usdToCny
+				sum.TotalCost += cost * r.usdToCNYRate()
 			} else {
 				sum.TotalCost += cost
 			}
@@ -472,6 +504,19 @@ func (m *Manager) ResetModelCallStats() {
 // SetStatsPath 设置统计持久化路径（与引擎状态文件同目录，独立文件）。
 func (m *Manager) SetStatsPath(path string) {
 	m.stats().setStatsPath(path)
+}
+
+// UsdCnyRate 返回当前美元→人民币汇率（费用估算折算用，默认 7.2）。
+// 未记录过任何调用时也返回配置值（懒创建统计器时已注入）。
+func (m *Manager) UsdCnyRate() float64 {
+	return m.stats().usdToCNYRate()
+}
+
+// SetUsdCnyRate 设置美元→人民币汇率（由 app 层按 ~/.gaea_config.json
+// 的 usd_cny_rate 注入；非法值回退默认 7.2）。之后 record/summary 折算
+// 立即按新汇率生效。
+func (m *Manager) SetUsdCnyRate(rate float64) {
+	m.stats().setUsdCnyRate(rate)
 }
 
 // StatsPathFor 由引擎状态文件路径推导统计文件路径。

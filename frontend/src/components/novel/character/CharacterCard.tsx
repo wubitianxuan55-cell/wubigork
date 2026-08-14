@@ -4,6 +4,7 @@ import { EditOutlined, UserOutlined } from '@ant-design/icons'
 import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../../../utils/theme'
 import type { CharacterData } from '../../../types'
 import { PortraitImg } from '../../characterlib/PortraitImg'
+import { normalizeCharacterStatus } from '../../../utils/characterStatus'
 
 export interface CharacterCardProps {
   character: CharacterData
@@ -31,7 +32,8 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 const CharacterCard: React.FC<CharacterCardProps> = ({ character, relationCount, onClick, onPortraitFullscreen }) => {
   const ch = character
   const sideColor = SIDE_COLORS[ch.role_type] || '#6b7280'
-  const statusInfo = STATUS_MAP[ch.status]
+  // 非法状态回退默认（'Alive'）：始终展示合法状态标签，不泄露原始英文串
+  const statusInfo = STATUS_MAP[normalizeCharacterStatus(ch.status)]
   const preview = ch.personality || ch.motivation || ''
   const roleColor = roleColors[ch.role_type] || 'var(--color-text-secondary)'
 

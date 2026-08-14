@@ -1,11 +1,15 @@
 package auth
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/secure"
 )
 
 func newTestStore(t *testing.T) (*TokenStore, string) {
@@ -189,5 +193,155 @@ func TestTokenStoreConcurrentAccess(t *testing.T) {
 	}
 	if loaded == nil || loaded.AccessToken != "concurrent" {
 		t.Error("并发后 token 应完整")
+	}
+}
+
+// realEncryptionAvailable 探测 secure 包在当前环境的实际行为：
+// true = DPAPI 真实加密（密文不含明文）；false = 非 Windows 降级（"dpapi:" 前缀 + 原值）。
+func realEncryptionAvailable(t *testing.T) bool {
+	t.Helper()
+	probe, err := secure.EncryptString("probe-secret")
+	if err != nil {
+		return false
+	}
+	return probe != "dpapi:probe-secret"
+}
+
+// TestTokenSave_EncryptsSensitiveFields 落盘文件不得包含明文 refresh_token/access_token
+// （DPAPI 可用时真实加密断言；不可用时按 secure 包降级行为断言：带前缀且 Load 可还原）。
+func TestTokenSave_EncryptsSensitiveFields(t *testing.T) {
+	store, path := newTestStore(t)
+	token := &Token{
+		AccessToken:  "secret_access_token",
+		RefreshToken: "secret_refresh_token",
+		TokenType:    "Bearer",
+		ExpiresIn:    21600,
+		Scope:        "openid profile",
+		ObtainedAt:   time.Now(),
+	}
+	if err := store.Save(token); err != nil {
+		t.Fatalf("Save 失败: %s", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("读取落盘文件失败: %s", err)
+	}
+	raw := string(data)
+
+	// 敏感字段必须带加密前缀（secure.EncryptString 在所有平台都加 "dpapi:" 前缀）
+	if !strings.Contains(raw, securePrefix) {
+		t.Fatalf("落盘文件未包含加密前缀 %q, 内容: %s", securePrefix, raw)
+	}
+	if realEncryptionAvailable(t) {
+		// DPAPI 可用：密文中不得出现明文
+		if strings.Contains(raw, "secret_access_token") || strings.Contains(raw, "secret_refresh_token") {
+			t.Fatalf("落盘文件包含明文敏感字段: %s", raw)
+		}
+	} else {
+		// 降级路径：值为 "dpapi:" + 明文，Load 必须能完整还原（不静默失败）
+		loaded, err := store.Load()
+		if err != nil {
+			t.Fatalf("降级模式下 Load 失败: %s", err)
+		}
+		if loaded == nil || loaded.AccessToken != "secret_access_token" || loaded.RefreshToken != "secret_refresh_token" {
+			t.Fatalf("降级模式 round-trip 失败: %+v", loaded)
+		}
+	}
+
+	// 非敏感字段保持明文可读（JSON 结构不变）
+	if !strings.Contains(raw, `"token_type": "Bearer"`) || !strings.Contains(raw, `"scope": "openid profile"`) {
+		t.Fatalf("非敏感字段应保持明文 JSON: %s", raw)
+	}
+}
+
+// TestTokenLoad_MigratesLegacyPlaintext 旧版明文 token 文件读取成功，并自动重写为加密。
+func TestTokenLoad_MigratesLegacyPlaintext(t *testing.T) {
+	store, path := newTestStore(t)
+
+	// 构造旧版明文 token 文件（无 "dpapi:" 前缀）
+	legacy := &Token{
+		AccessToken:  "legacy_access",
+		RefreshToken: "legacy_refresh",
+		TokenType:    "Bearer",
+		ExpiresIn:    21600,
+		Scope:        "openid",
+		ObtainedAt:   time.Now(),
+	}
+	data, err := json.MarshalIndent(legacy, "", "  ")
+	if err != nil {
+		t.Fatalf("构造旧版明文文件失败: %s", err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatalf("写旧版明文文件失败: %s", err)
+	}
+
+	// 旧明文必须读取成功（兼容旧版，不静默返回 nil）
+	loaded, err := store.Load()
+	if err != nil {
+		t.Fatalf("旧明文 Load 应成功, 得到: %s", err)
+	}
+	if loaded == nil {
+		t.Fatal("旧明文 Load 返回 nil")
+	}
+	if loaded.AccessToken != "legacy_access" || loaded.RefreshToken != "legacy_refresh" {
+		t.Fatalf("旧明文值读取错误: access=%q refresh=%q", loaded.AccessToken, loaded.RefreshToken)
+	}
+
+	// 自动迁移：落盘文件已被重写为加密（敏感字段带 "dpapi:" 前缀）
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("读取迁移后文件失败: %s", err)
+	}
+	rawStr := string(raw)
+	if !strings.Contains(rawStr, securePrefix) {
+		t.Fatalf("迁移后文件未包含加密前缀 %q: %s", securePrefix, rawStr)
+	}
+	if realEncryptionAvailable(t) && strings.Contains(rawStr, "legacy_refresh") {
+		t.Fatalf("迁移后文件仍含明文 refresh_token: %s", rawStr)
+	}
+
+	// 迁移幂等：再次 Load 不再触发重写（文件内容稳定）
+	again, err := store.Load()
+	if err != nil {
+		t.Fatalf("迁移后再次 Load 失败: %s", err)
+	}
+	if again == nil || again.AccessToken != "legacy_access" || again.RefreshToken != "legacy_refresh" {
+		t.Fatalf("迁移后再次 Load 值错误: %+v", again)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("读取二次 Load 后文件失败: %s", err)
+	}
+	if string(after) != rawStr {
+		t.Fatal("二次 Load 不应再次重写文件")
+	}
+}
+
+// TestTokenLoad_DecryptFailureReturnsError 解密失败必须返回明确错误（含字段名），
+// 绝不静默返回 nil token。非 Windows 降级模式无法构造解密失败，跳过。
+func TestTokenLoad_DecryptFailureReturnsError(t *testing.T) {
+	if !realEncryptionAvailable(t) {
+		t.Skip("DPAPI 不可用（降级模式原样返回），无法构造解密失败场景")
+	}
+	store, path := newTestStore(t)
+	bad := &Token{AccessToken: "dpapi:!!!not-base64!!!", RefreshToken: "x", ObtainedAt: time.Now()}
+	data, err := json.MarshalIndent(bad, "", "  ")
+	if err != nil {
+		t.Fatalf("构造坏文件失败: %s", err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatalf("写坏文件失败: %s", err)
+	}
+
+	tok, err := store.Load()
+	if err == nil {
+		t.Fatalf("解密失败应返回错误, 得到 token: %+v", tok)
+	}
+	if tok != nil {
+		t.Fatal("解密失败不应返回 token")
+	}
+	if !strings.Contains(err.Error(), "access_token") {
+		t.Fatalf("错误信息应指明失败字段, 得到: %s", err)
 	}
 }

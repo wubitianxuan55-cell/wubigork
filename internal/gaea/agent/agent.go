@@ -66,8 +66,8 @@ type TurnResult struct {
 	FilesCreated  []string // paths of files newly created this turn (vs. modified)
 	FilesModified []string // paths of files written/edited/moved/deleted this turn
 	Summary       string   // agent's final conclusion (last assistant message)
-	Success       bool     // true = no tool errors encountered this turn
-	Errors        []string // tool error messages collected during execution (max 5)
+	Success       bool     // true = the whole turn ran without errors, blocks, or suppressions
+	Errors        []string // tool error/block/suppression messages collected during execution (max 5)
 }
 
 // Runner carries out one task turn. AgentRunner satisfies it.

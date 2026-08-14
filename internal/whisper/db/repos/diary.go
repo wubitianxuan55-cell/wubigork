@@ -12,9 +12,9 @@ import (
 
 // SaveDiaryToDB 保存日记（按日期 UPSERT）
 func SaveDiaryToDB(dataRoot, date, content, metaJSON string) error {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	updatedAt := time.Now().Format(time.RFC3339)
@@ -38,9 +38,9 @@ func SaveDiaryToDB(dataRoot, date, content, metaJSON string) error {
 
 // LoadDiaryFromDB 按日期加载日记
 func LoadDiaryFromDB(dataRoot, date string) (string, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return "", fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return "", fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	var content string
@@ -55,9 +55,9 @@ func LoadDiaryFromDB(dataRoot, date string) (string, error) {
 
 // ListDiaryDatesFromDB 列出所有日记日期
 func ListDiaryDatesFromDB(dataRoot string) ([]string, error) {
-	sqlDB := db.GetDatabase(dataRoot)
-	if sqlDB == nil {
-		return nil, fmt.Errorf("数据库不可用")
+	sqlDB, openErr := db.GetDatabase(dataRoot)
+	if openErr != nil {
+		return nil, fmt.Errorf("数据库不可用: %w", openErr)
 	}
 
 	rows, err := sqlDB.Query("SELECT date FROM diary ORDER BY date DESC")

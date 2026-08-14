@@ -128,4 +128,5 @@ func (t rememberTool) Execute(ctx context.Context, args json.RawMessage) (string
 	return fmt.Sprintf("Saved memory to %s (it applies now and loads automatically in future sessions).", path), nil
 }
 
-func (rememberTool) ReadOnly() bool { return false }
+func (rememberTool) ReadOnly() bool    { return false }
+func (rememberTool) PersistWrite() bool { return true }

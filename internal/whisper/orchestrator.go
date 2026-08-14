@@ -88,7 +88,7 @@ func NewOrchestrator(sessionID string, preset PersonalityPreset) *Orchestrator {
 		ProceduralHabits: NewProceduralHabitStore(),
 		ConfirmSvc:       NewConfirmService(),
 		DeliveryCoord:    NewDeliveryCoordinator(),
-		AdultMode:        true, // 私人非商用：成人内容默认开启，不再需要开关门禁
+		AdultMode:        true, // 产品决策：成人内容默认开启（个人非商用定位，见 docs/ADULT_MODE.md）
 		adultBudget:      intensityBudgetMax,
 	}
 }

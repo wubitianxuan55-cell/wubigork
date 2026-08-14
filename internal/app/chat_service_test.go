@@ -1,7 +1,9 @@
 package app
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +17,7 @@ import (
 	"github.com/gaea/gaea/internal/channels/weixin"
 	"github.com/gaea/gaea/internal/chat"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/httpbridge"
 	"github.com/gaea/gaea/internal/modelengine"
 	wdb "github.com/gaea/gaea/internal/whisper/db"
 )
@@ -74,7 +77,10 @@ func TestChatSend_Plain(t *testing.T) {
 	if _, err := a.ChatTopicCreate("闲聊", "plain"); err != nil {
 		t.Fatalf("ChatTopicCreate: %v", err)
 	}
-	topics := a.ChatTopicsList()
+	topics, err := a.ChatTopicsList()
+	if err != nil {
+		t.Fatalf("ChatTopicsList: %v", err)
+	}
 	if len(topics) != 1 {
 		t.Fatalf("话题数 = %d, want 1", len(topics))
 	}
@@ -89,7 +95,10 @@ func TestChatSend_Plain(t *testing.T) {
 	if out["mode"] != "plain" {
 		t.Errorf("mode = %v", out["mode"])
 	}
-	msgs := a.ChatMessagesList(topics[0].ID)
+	msgs, err := a.ChatMessagesList(topics[0].ID)
+	if err != nil {
+		t.Fatalf("ChatMessagesList: %v", err)
+	}
 	if len(msgs) != 2 || msgs[0].Role != "user" || msgs[1].Role != "assistant" {
 		t.Errorf("消息落库异常: %+v", msgs)
 	}
@@ -111,7 +120,10 @@ func TestChatSend_Plain_SearchKeepsOriginalUserMessage(t *testing.T) {
 	if _, err := a.ChatSend(topic.ID, "今天有什么新闻", "plain", false, false, true); err != nil {
 		t.Fatalf("ChatSend(forceSearch): %v", err)
 	}
-	msgs := a.ChatMessagesList(topic.ID)
+	msgs, err := a.ChatMessagesList(topic.ID)
+	if err != nil {
+		t.Fatalf("ChatMessagesList: %v", err)
+	}
 	if len(msgs) != 2 {
 		t.Fatalf("消息数 = %d, want 2", len(msgs))
 	}
@@ -142,8 +154,9 @@ func TestChatStreamPlain_StreamsAndPersists(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	var msgs []chat.Message
 	for time.Now().Before(deadline) {
-		msgs = a.ChatMessagesList(topic.ID)
-		if len(msgs) == 2 {
+		var err error
+		msgs, err = a.ChatMessagesList(topic.ID)
+		if err == nil && len(msgs) == 2 {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -165,7 +178,10 @@ func TestChatSend_Persona(t *testing.T) {
 	if _, err := a.ChatTopicCreate("轻语", "gaea"); err != nil {
 		t.Fatalf("ChatTopicCreate: %v", err)
 	}
-	topics := a.ChatTopicsList()
+	topics, err := a.ChatTopicsList()
+	if err != nil {
+		t.Fatalf("ChatTopicsList: %v", err)
+	}
 
 	out, err := a.ChatSend(topics[0].ID, "你好", "gaea", false, false, false)
 	if err != nil {
@@ -184,7 +200,10 @@ func TestChatSend_Persona(t *testing.T) {
 	if st := a.WhisperGetState("gaea"); st["error"] != nil {
 		t.Errorf("Orchestrator 未创建: %v", st["error"])
 	}
-	msgs := a.ChatMessagesList(topics[0].ID)
+	msgs, err := a.ChatMessagesList(topics[0].ID)
+	if err != nil {
+		t.Fatalf("ChatMessagesList: %v", err)
+	}
 	if len(msgs) != 2 {
 		t.Errorf("消息落库异常: %d 条", len(msgs))
 	}
@@ -207,7 +226,10 @@ func TestChatImportTopic(t *testing.T) {
 	if topic.Mode != "gaea" {
 		t.Errorf("mode = %q, want gaea", topic.Mode)
 	}
-	ms := a.ChatMessagesList(topic.ID)
+	ms, err := a.ChatMessagesList(topic.ID)
+	if err != nil {
+		t.Fatalf("ChatMessagesList: %v", err)
+	}
 	if len(ms) != 3 {
 		t.Fatalf("消息数 = %d, want 3", len(ms))
 	}
@@ -216,7 +238,10 @@ func TestChatImportTopic(t *testing.T) {
 			t.Errorf("消息[%d] = %+v, want role=%q content=%q", i, m, msgs[i].Role, msgs[i].Content)
 		}
 	}
-	topics := a.ChatTopicsList()
+	topics, err := a.ChatTopicsList()
+	if err != nil {
+		t.Fatalf("ChatTopicsList: %v", err)
+	}
 	if len(topics) != 1 {
 		t.Fatalf("话题数 = %d, want 1", len(topics))
 	}
@@ -237,7 +262,10 @@ func TestChatImportTopic_SkipsBadRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ChatImportTopic: %v", err)
 	}
-	ms := a.ChatMessagesList(topic.ID)
+	ms, err := a.ChatMessagesList(topic.ID)
+	if err != nil {
+		t.Fatalf("ChatMessagesList: %v", err)
+	}
 	if len(ms) != 2 {
 		t.Fatalf("消息数 = %d, want 2（system 应被跳过）", len(ms))
 	}
@@ -253,14 +281,20 @@ func TestChatTopicSetMode(t *testing.T) {
 	if err := a.ChatTopicSetMode(topic.ID, "gaea"); err != nil {
 		t.Fatalf("ChatTopicSetMode -> gaea: %v", err)
 	}
-	topics := a.ChatTopicsList()
+	topics, err := a.ChatTopicsList()
+	if err != nil {
+		t.Fatalf("ChatTopicsList: %v", err)
+	}
 	if topics[0].Mode != "gaea" {
 		t.Errorf("mode = %q, want gaea", topics[0].Mode)
 	}
 	if err := a.ChatTopicSetMode(topic.ID, "plain"); err != nil {
 		t.Fatalf("ChatTopicSetMode -> plain: %v", err)
 	}
-	topics = a.ChatTopicsList()
+	topics, err = a.ChatTopicsList()
+	if err != nil {
+		t.Fatalf("ChatTopicsList: %v", err)
+	}
 	if topics[0].Mode != "plain" {
 		t.Errorf("mode = %q, want plain", topics[0].Mode)
 	}
@@ -279,10 +313,17 @@ func TestChatTopicClear(t *testing.T) {
 	if err := a.ChatTopicClear(topic.ID); err != nil {
 		t.Fatalf("ChatTopicClear: %v", err)
 	}
-	if ms := a.ChatMessagesList(topic.ID); len(ms) != 0 {
+	ms, err := a.ChatMessagesList(topic.ID)
+	if err != nil {
+		t.Fatalf("ChatMessagesList: %v", err)
+	}
+	if len(ms) != 0 {
 		t.Fatalf("清空后消息数 = %d, want 0", len(ms))
 	}
-	topics := a.ChatTopicsList()
+	topics, err := a.ChatTopicsList()
+	if err != nil {
+		t.Fatalf("ChatTopicsList: %v", err)
+	}
 	if len(topics) != 1 || topics[0].ID != topic.ID {
 		t.Fatalf("话题应保留: %+v", topics)
 	}
@@ -313,6 +354,218 @@ func TestChatTopicExportMarkdown(t *testing.T) {
 	for _, want := range []string{"# 导出:测试/会话", "## 用户", "## AI", "你好", "你好呀"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("导出内容缺少 %q:\n%s", want, s)
+		}
+	}
+}
+
+// ── T6-3 新增用例：落库错误透传 / 语音落库 / 导出转义 / 文件名规整 ──
+
+// TestChatSend_Plain_PersistError 落库失败（存储已关闭）时 ChatSend 必须把错误
+// 透传给调用方（T6-3.2），前端可见失败而非假装成功。
+func TestChatSend_Plain_PersistError(t *testing.T) {
+	a := newChatServiceTestApp(t)
+	topic, err := a.ChatTopicCreate("落库失败", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	if err := a.chatStore.Close(); err != nil {
+		t.Fatalf("关闭 chatStore: %v", err)
+	}
+	if _, err := a.ChatSend(topic.ID, "你好", "plain", false, false, false); err == nil {
+		t.Fatal("落库失败时 ChatSend 应返回错误")
+	}
+}
+
+// TestChatStreamPlain_PersistFailureEmitsError 流式路径落库失败必须 emit error
+// 终态而非 done（T6-3.2）：消息已生成但未持久化，前端应看到失败。
+func TestChatStreamPlain_PersistFailureEmitsError(t *testing.T) {
+	a := newChatServiceTestApp(t)
+	topic, err := a.ChatTopicCreate("流式落库失败", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+
+	orig := newChatStreamRunID
+	newChatStreamRunID = func() string { return "cs_persist_fail" }
+	t.Cleanup(func() { newChatStreamRunID = orig })
+
+	// 通过 httpbridge SSE 订阅固定事件名，捕获 emit 内容。
+	srv := httptest.NewServer(httpbridge.New(a).Handler())
+	defer srv.Close()
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/stream?id=chat-stream:cs_persist_fail", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req = req.WithContext(ctx)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("打开 SSE: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("SSE status = %d", resp.StatusCode)
+	}
+
+	// 独立 goroutine 逐行读取，主流程用 select 超时兜底（SSE 有 15s keep-alive）。
+	lines := make(chan string, 64)
+	go func() {
+		br := bufio.NewReader(resp.Body)
+		for {
+			line, err := br.ReadString('\n')
+			if err != nil {
+				close(lines)
+				return
+			}
+			lines <- line
+		}
+	}()
+	// 消费连接帧（event/data/blank 三行）。
+	for i := 0; i < 3; i++ {
+		select {
+		case <-lines:
+		case <-time.After(3 * time.Second):
+			t.Fatal("等待 SSE 连接帧超时")
+		}
+	}
+
+	// 关闭存储 → 流式落库必然失败。
+	if err := a.chatStore.Close(); err != nil {
+		t.Fatalf("关闭 chatStore: %v", err)
+	}
+	if _, err := a.ChatStreamPlain(topic.ID, "你好", false, false, false); err != nil {
+		t.Fatalf("ChatStreamPlain: %v", err)
+	}
+
+	for {
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				t.Fatal("流在收到 error 终态前关闭")
+			}
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			var ev map[string]interface{}
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &ev); err != nil {
+				t.Fatalf("解析事件: %v", err)
+			}
+			switch ev["type"] {
+			case "error":
+				return // 期望的终态
+			case "done":
+				t.Fatal("落库失败不应 emit done")
+			default:
+				// delta / reasoning 帧继续等待 error
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("未在 3s 内收到 error 事件")
+		}
+	}
+}
+
+// TestChatAppendMessages 语音消息持久化：批量追加（user/assistant）落库，
+// 非法角色跳过（T6-3.3）。
+func TestChatAppendMessages(t *testing.T) {
+	a := newChatServiceTestApp(t)
+	topic, err := a.ChatTopicCreate("语音", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	if err := a.ChatAppendMessages(topic.ID, []ChatMessageInput{
+		{Role: "user", Content: "语音转写：今天天气如何"},
+		{Role: "assistant", Content: "今天晴，20 度。", Extra: "{\"kind\":\"voice\"}"},
+		{Role: "system", Content: "应跳过"},
+	}); err != nil {
+		t.Fatalf("ChatAppendMessages: %v", err)
+	}
+	msgs, err := a.ChatMessagesList(topic.ID)
+	if err != nil {
+		t.Fatalf("ChatMessagesList: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("消息数 = %d, want 2（system 应跳过）", len(msgs))
+	}
+	if msgs[0].Role != "user" || msgs[0].Content != "语音转写：今天天气如何" {
+		t.Errorf("user 消息异常: %+v", msgs[0])
+	}
+	if msgs[1].Role != "assistant" || msgs[1].Extra != "{\"kind\":\"voice\"}" {
+		t.Errorf("assistant 消息异常: %+v", msgs[1])
+	}
+}
+
+// TestChatAppendMessages_UnknownTopic 向不存在的话题追加应在单事务内整体失败。
+func TestChatAppendMessages_UnknownTopic(t *testing.T) {
+	a := newChatServiceTestApp(t)
+	if err := a.ChatAppendMessages("nope", []ChatMessageInput{
+		{Role: "user", Content: "a"},
+		{Role: "assistant", Content: "b"},
+	}); err == nil {
+		t.Fatal("向不存在的话题追加应报错")
+	}
+	msgs, err := a.ChatMessagesList("nope")
+	if err == nil && len(msgs) != 0 {
+		t.Errorf("失败事务不应残留消息: %+v", msgs)
+	}
+}
+
+// TestChatTopicExportMarkdown_EscapesMarkdown 导出转义（T6-3.5）：行首井号、
+// 反引号、尖括号、竖线在导出文件中必须被转义，且不产生新标题。
+func TestChatTopicExportMarkdown_EscapesMarkdown(t *testing.T) {
+	a := newChatServiceTestApp(t)
+	topic, err := a.ChatImportTopic("转义", "plain", []ChatMessageInput{
+		{Role: "user", Content: "# 这不是标题\n## 也不是\n`inline` <b> a|b"},
+	})
+	if err != nil {
+		t.Fatalf("ChatImportTopic: %v", err)
+	}
+	path, err := a.ChatTopicExportMarkdown(topic.ID)
+	if err != nil {
+		t.Fatalf("ChatTopicExportMarkdown: %v", err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("读取导出文件: %v", err)
+	}
+	s := string(b)
+	for _, want := range []string{
+		"\\# 这不是标题",
+		"\\## 也不是",
+		"\\`inline\\`",
+		"\\<b\\>",
+		"a\\|b",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("导出内容缺少转义片段 %q:\n%s", want, s)
+		}
+	}
+	// 行首井号被转义 → 导出文档中不应出现独立的 "# 这不是标题" 标题行。
+	if strings.Contains(s, "\\n# 这不是标题") || strings.Contains(s, "\\n## 也不是") {
+		t.Errorf("行首井号未转义，生成了新标题:\n%s", s)
+	}
+}
+
+// TestSanitizeChatFilename Windows 文件名规整：非法字符 / 保留名 / 长度 / 空值。
+func TestSanitizeChatFilename(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"普通标题", "普通标题"},
+		{"a/b\\c:d*e?f\"g<h>i|j", "a_b_c_d_e_f_g_h_i_j"},
+		{"CON", "_CON"},         // Windows 保留设备名
+		{"con.txt", "_con.txt"}, // 保留名带扩展名
+		{"NUL", "_NUL"},
+		{"nul.log", "_nul.log"},
+		{"COM1", "_COM1"},
+		{"lpt9", "_lpt9"},
+		{"  标题  ", "标题"},
+		{"标题.", "标题"}, // 尾部点号非法 → 去掉
+		{"", "chat"},   // 空 → 默认名
+		{"...", "chat"},
+		{strings.Repeat("长", 50), strings.Repeat("长", 40)}, // 截断 40 字符
+	}
+	for _, c := range cases {
+		if got := sanitizeChatFilename(c.in); got != c.want {
+			t.Errorf("sanitizeChatFilename(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
 }

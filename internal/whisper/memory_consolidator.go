@@ -6,6 +6,7 @@ package whisper
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 )
@@ -45,6 +46,8 @@ func (mc *MemoryConsolidator) Consolidate(
 	}
 	raw, err := llm.Chat(consolidationSystemZH, fmt.Sprintf("近期事实（共%d条）：\n%s", len(recent), strings.Join(factLines, "\n")))
 	if err != nil {
+		// 记忆整合为后台尽力而为任务（Consolidate 返回 int）：LLM 失败仅记录日志并返回 0（本轮未整合）
+		slog.Error("whisper: 记忆整合 LLM 调用失败", "sessionID", sessionID, "turnIndex", turnIndex, "error", err)
 		return 0
 	}
 
@@ -77,6 +80,12 @@ func (mc *MemoryConsolidator) Consolidate(
 		i := strings.Index(s, "{")
 		j := strings.LastIndex(s, "}")
 		if i < 0 || j <= i || json.Unmarshal([]byte(s[i:j+1]), &parsed) != nil {
+			// 兜底提取 JSON 也失败：记录日志避免静默丢弃（返回 0 = 本轮未整合）
+			rawPreview := raw
+			if len(rawPreview) > 200 {
+				rawPreview = rawPreview[:200]
+			}
+			slog.Error("whisper: 记忆整合结果解析失败", "sessionID", sessionID, "turnIndex", turnIndex, "rawPreview", rawPreview)
 			return 0
 		}
 	}

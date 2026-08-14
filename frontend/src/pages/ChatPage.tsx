@@ -59,6 +59,12 @@ const COMPANION_SETTINGS_KEY = 'gaea_whisper_companion_settings'
 const LEGACY_COMPANION_SETTINGS_KEY = 'wubigrok_whisper_companion_settings'
 const ACTIVE_TOPIC_KEY = 'gaea_chat_active_topic'
 const CHAT_SIDEBAR_KEY = 'gaea.chatSidebarCollapsed'
+// T6-3.4：旧 localStorage 话题迁移「已完成」持久化标记（版本化键）。
+// 迁移成功才写入；失败不写（下次启动可重试），本次会话内仅尝试一次（initRef 守卫）。
+const MIGRATION_KEY = 'gaea_chat_migration_v1'
+// T6-3.1：流式对话无帧超时（30s 无任何帧即视为失败）。导出为常量便于测试
+// （vitest fake timers 推进同一阈值）；后端正常完成必 emit done、失败必 emit error。
+export const STREAM_SILENCE_TIMEOUT_MS = 30_000
 
 // ── 快捷情绪回复（人格模式输入区 chips） ──
 const QUICK_REPLIES = [
@@ -141,8 +147,20 @@ function loadCompanionName(personalityLabel: string): string {
   return personalityLabel || 'gaea'
 }
 
-/** 旧 localStorage 话题 → chat.db（一次性；成功后清理本地键） */
+// T6-3：前端错误统一上报 gaea.log（GaeaLogFrontendError，T6-1.2 通道）。
+// 日志通道自身异常时静默降级，绝不掩盖原始错误。
+function logFrontendError(message: string): void {
+  try {
+    App.GaeaLogFrontendError?.(message)?.catch(() => {})
+  } catch (_) {
+    // 日志通道未注入（dev 等）时忽略
+  }
+}
+
+/** 旧 localStorage 话题 → chat.db（一次性；成功后清理本地键并写迁移标记）。 */
 async function migrateLegacyTopics(): Promise<boolean> {
+  // T6-3.4：已迁移过（持久化标记）→ 直接跳过，避免每次初始化都重复执行。
+  try { if (localStorage.getItem(MIGRATION_KEY) === '1') return false } catch (_) {}
   const buckets: Array<{ title: string; mode: string; messages: LegacyMsg[] }> = []
   const chatRaw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY)
   if (chatRaw) {
@@ -159,15 +177,26 @@ async function migrateLegacyTopics(): Promise<boolean> {
     } catch (_) {}
   }
   if (buckets.length === 0) return false
+  let failed = false
   for (const t of buckets) {
     const msgs = (t.messages || [])
       .filter(m => m.role === 'user' || m.role === 'assistant')
       .map(m => ({ Role: m.role, Content: typeof m.content === 'string' ? m.content : '', Extra: '' }))
-    try { await App.ChatImportTopic(t.title, t.mode, msgs as any) } catch (_) {}
+    try {
+      await App.ChatImportTopic(t.title, t.mode, msgs as any)
+    } catch (err: any) {
+      // T6-3.4：导入失败不再静默吞掉——记录日志；失败不写迁移标记
+      // （下次启动可重试）。本次会话内仅尝试一次（initRef 守卫），不无限重试。
+      failed = true
+      console.error('[Chat] 旧话题导入失败（' + t.title + '）:', err?.message || err)
+      logFrontendError('旧话题导入失败（' + t.title + '）: ' + (err?.message || String(err)))
+    }
   }
+  if (failed) return false // 有失败：不写标记、不清理本地键（保留数据供下次重试）
   try {
     localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(LEGACY_STORAGE_KEY)
     localStorage.removeItem(WHISPER_TOPICS_KEY); localStorage.removeItem(LEGACY_WHISPER_TOPICS_KEY)
+    localStorage.setItem(MIGRATION_KEY, '1')
   } catch (_) {}
   return true
 }
@@ -229,6 +258,20 @@ const ChatPage: React.FC = () => {
   const topicLoadSeqRef = useRef(0)
   // 真实流式订阅的清理函数：卸载时取消监听，避免泄漏。
   const streamCleanupRef = useRef<(() => void) | null>(null)
+  // T6-3.1：当前流式对话的终态回调（done/error/超时/卸载时调用一次，
+  // 保证挂起的流 Promise 必然收尾、finally 必执行、sending 四路径均可复位）。
+  const streamFinishRef = useRef<((ok: boolean) => void) | null>(null)
+  // T6-3.3：模拟打字循环取消标志（切话题/卸载即置 true 中止循环，新一轮发送复位）。
+  const typingCancelRef = useRef(false)
+  // T6-3.3：朗读 blob URL 登记（播放结束/失败/卸载时 revokeObjectURL）。
+  const speakUrlRef = useRef<string | null>(null)
+  // T6-3.3：释放朗读 blob URL（幂等；播放结束/失败/卸载均可调用）。
+  const revokeSpeakUrl = useCallback(() => {
+    if (speakUrlRef.current) {
+      URL.revokeObjectURL(speakUrlRef.current)
+      speakUrlRef.current = null
+    }
+  }, [])
   const topicsRef = useRef<any[]>([])
   topicsRef.current = topics
   const modeRef = useRef(mode)
@@ -251,14 +294,28 @@ const ChatPage: React.FC = () => {
   const personaLabel = currentPersonality?.label || '角色'
 
   // ── 语音对话（文本类：说话 → 识别文本进入聊天区） ──
+  // T6-3.3：语音消息持久化。识别文本/回复经 ChatAppendMessages 落库（单事务），
+  // 与正常 ChatSend 的落库互不重复（语音管道不走 ChatSend）；无活跃话题时仅内存展示。
+  const persistVoiceMessages = useCallback((msgs: Array<{ Role: string; Content: string; Extra: string }>) => {
+    const topicID = activeIdRef.current
+    if (!topicID) return
+    // ChatAppendMessages 为 T6-3 新绑定：wailsjs/go 生成物由 wails build 再生成，
+    // 此处沿用文件内既有 (App as any).X 逃生口（生成后自动获得类型）。
+    ;(App as any).ChatAppendMessages(topicID, msgs as any).catch((err: any) => {
+      // 落库失败不静默：记录到 gaea.log（界面不受影响，内存消息已展示）
+      logFrontendError('语音消息落库失败: ' + (err?.message || String(err)))
+    })
+  }, [])
   const onVoiceTranscript = useCallback((t: string) => {
     const text = (t || '').trim(); if (!text) return
     setMessages(prev => [...prev, { key: nextMsgKey(), role: 'user', content: text, createdAt: nowStr() }])
-  }, [])
+    persistVoiceMessages([{ Role: 'user', Content: text, Extra: '' }])
+  }, [persistVoiceMessages])
   const onVoiceReply = useCallback((t: string) => {
     const text = (t || '').trim(); if (!text) return
     setMessages(prev => [...prev, { key: nextMsgKey(), role: 'assistant', content: text, createdAt: nowStr() }])
-  }, [])
+    persistVoiceMessages([{ Role: 'assistant', Content: text, Extra: '' }])
+  }, [persistVoiceMessages])
   const { state: voice, start: startVoice, stop: stopVoice } = useVoiceChat({ onTranscript: onVoiceTranscript, onReply: onVoiceReply })
 
   const toggleVoice = useCallback(async () => {
@@ -285,23 +342,27 @@ const ChatPage: React.FC = () => {
   // 载入话题消息并恢复模式/情绪元数据（初始进入与切换话题共用）。
   const loadTopic = useCallback(async (id: string, list: any[]) => {
     const seq = ++topicLoadSeqRef.current
+    let ms: any[] = []
     try {
-      const ms = (await App.ChatMessagesList(id)) || []
-      if (seq !== topicLoadSeqRef.current) return
-      const loaded: ChatMsg[] = ms.map((m: any) => ({
-        key: `db_${m.id}`, role: m.role === 'user' ? 'user' : 'assistant',
-        content: m.content || '', createdAt: m.created_at || '', extra: parseExtra(m.extra),
-      }))
-      setMessages(loaded)
-      const topic = list.find(t => t.id === id)
-      const topicMode = topic?.mode || 'plain'
-      if (topicMode !== modeRef.current) setMode(topicMode)
-      resetPersonaMeta()
-      if (topicMode !== 'plain') {
-        const last = [...loaded].reverse().find(m => m.role === 'assistant' && m.extra)
-        if (last?.extra?.emotion) setEmotion(last.extra.emotion)
-      }
-    } catch (_) { if (seq === topicLoadSeqRef.current) setMessages([]) }
+      ms = (await App.ChatMessagesList(id)) || []
+    } catch (err: any) {
+      // T6-3.2：消息列表读取失败不再静默——记录后按空消息继续（不打断页面功能）
+      logFrontendError('话题消息读取失败: ' + (err?.message || String(err)))
+    }
+    if (seq !== topicLoadSeqRef.current) return
+    const loaded: ChatMsg[] = ms.map((m: any) => ({
+      key: `db_${m.id}`, role: m.role === 'user' ? 'user' : 'assistant',
+      content: m.content || '', createdAt: m.created_at || '', extra: parseExtra(m.extra),
+    }))
+    setMessages(loaded)
+    const topic = list.find(t => t.id === id)
+    const topicMode = topic?.mode || 'plain'
+    if (topicMode !== modeRef.current) setMode(topicMode)
+    resetPersonaMeta()
+    if (topicMode !== 'plain') {
+      const last = [...loaded].reverse().find(m => m.role === 'assistant' && m.extra)
+      if (last?.extra?.emotion) setEmotion(last.extra.emotion)
+    }
   }, [resetPersonaMeta])
 
   // ── 初始化：话题列表 + 旧数据迁移 + 人格列表 + 首页角色入口 ──
@@ -310,13 +371,22 @@ const ChatPage: React.FC = () => {
     initRef.current = true
     ;(async () => {
       let list: any[] = []
-      try { list = (await App.ChatTopicsList()) || [] } catch (_) {}
+      try { list = (await App.ChatTopicsList()) || [] } catch (err: any) {
+        // T6-3.2：话题列表读取失败不再静默——记录后按空列表继续初始化
+        logFrontendError('话题列表读取失败: ' + (err?.message || String(err)))
+      }
       if (list.length === 0) {
         const imported = await migrateLegacyTopics()
-        try { list = (await App.ChatTopicsList()) || [] } catch (_) {}
+        try { list = (await App.ChatTopicsList()) || [] } catch (err: any) {
+          logFrontendError('话题列表读取失败（迁移后）: ' + (err?.message || String(err)))
+        }
         if (!imported && list.length === 0) {
-          try { await App.ChatTopicCreate('新对话', 'plain') } catch (_) {}
-          try { list = (await App.ChatTopicsList()) || [] } catch (_) {}
+          try { await App.ChatTopicCreate('新对话', 'plain') } catch (err: any) {
+            logFrontendError('话题创建失败: ' + (err?.message || String(err)))
+          }
+          try { list = (await App.ChatTopicsList()) || [] } catch (err: any) {
+            logFrontendError('话题列表读取失败（创建后）: ' + (err?.message || String(err)))
+          }
         }
       }
       // 最近活跃优先：默认把最新会话排到顶部。
@@ -333,12 +403,18 @@ const ChatPage: React.FC = () => {
       }
       setInitializing(false)
     })()
-    try { App.WhisperGetPersonalities().then((ps: any) => setPersonalities(ps || [])).catch(() => {}) } catch (_) {}
+    try {
+      App.WhisperGetPersonalities().then((ps: any) => setPersonalities(ps || [])).catch((err: any) => {
+        logFrontendError('人格列表读取失败: ' + (err?.message || String(err)))
+      })
+    } catch (_) {}
   }, [loadTopic])
 
   // 选择话题 → 加载消息 + 恢复人格元数据
   const selectTopic = useCallback(async (id: string) => {
     if (!id || id === activeIdRef.current) return
+    // T6-3.3：切话题即中止上一话题的模拟打字流（避免过期 setStreamText 继续跑）
+    typingCancelRef.current = true
     stickToBottomRef.current = true
     setAtBottom(true)
     setActiveId(id)
@@ -353,11 +429,19 @@ const ChatPage: React.FC = () => {
     }
   }, [messages, streamText])
 
-  // 卸载时取消真实流式订阅。
+  // 卸载收尾：取消流式订阅 + 收尾挂起的流 Promise（sending 复位路径完整）、
+  // 中止模拟打字循环、释放朗读 blob URL。
   useEffect(() => () => {
+    // T6-3.1：卸载时触发流终态回调——挂起的流 Promise 得以 resolve，
+    // finally 必执行（组件已卸载，setState 无副作用），不留悬挂计时器/监听。
+    streamFinishRef.current?.(false)
+    streamFinishRef.current = null
     streamCleanupRef.current?.()
     streamCleanupRef.current = null
-  }, [])
+    // T6-3.3：卸载中止模拟打字循环 + 释放朗读 URL
+    typingCancelRef.current = true
+    revokeSpeakUrl()
+  }, [revokeSpeakUrl])
 
   const handleCreate = useCallback(async () => {
     try {
@@ -455,6 +539,8 @@ const ChatPage: React.FC = () => {
   const doSend = useCallback(async (text: string, retryKey?: string) => {
     const trimmed = text.trim()
     if (!trimmed || sending || !activeIdRef.current) return
+    // T6-3.3：新一轮发送复位模拟打字取消标志（旧循环已被切话题/卸载置 true）
+    typingCancelRef.current = false
     setInput(''); setSending(true)
     stickToBottomRef.current = true
     setAtBottom(true)
@@ -482,26 +568,56 @@ const ChatPage: React.FC = () => {
       const cleanup = () => { if (unsub) { const f = unsub; unsub = null; f() } }
       streamCleanupRef.current = cleanup
       try {
-        const runID: string = await App.ChatStreamPlain(active, trimmed, searchEnabledRef.current, thinkingRef.current, forceSearchRef.current)
+        // T6-3.1：流 Promise 自带「无帧超时 + 终态兜底」。runID 一到立即在
+        // 同一同步块注册精确频道监听（与 binding 解析零异步间隙，先订阅后收帧）；
+        // 首帧若在注册前发出（后端 goroutine 竞态——Wails JS 事件按事件名精确
+        // 匹配，runID 未知时无法提前订阅），由超时兜底：30s 无任何帧按失败展示，
+        // sending 必复位、finally 必执行。
         const ok = await new Promise<boolean>((resolve) => {
-          unsub = EventsOn(`chat-stream:${runID}`, (payload: any) => {
-            const p = payload || {}
-            if (p.type === 'delta') {
-              setStreamText(prev => prev + (p.content || ''))
-            } else if (p.type === 'reasoning') {
-              reasoningAcc += p.content || ''
-            } else if (p.type === 'done') {
-              const reply = typeof p.reply === 'string' ? p.reply : ''
-              const reasoning = typeof p.reasoning === 'string' ? p.reasoning : reasoningAcc
+          let settled = false
+          const finish = (okVal: boolean) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timer)
+            if (streamFinishRef.current === finish) streamFinishRef.current = null
+            resolve(okVal)
+          }
+          streamFinishRef.current = finish
+          // finish 仅在 timer 初始化之后被调用（事件/超时回调），闭包引用无 TDZ 问题
+          const timer = setTimeout(() => {
+            setStreamText(''); setStreamKey(null)
+            updateMessage(am.key, { content: `请求超时：${STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`, streaming: false, error: true })
+            finish(false)
+          }, STREAM_SILENCE_TIMEOUT_MS)
+          App.ChatStreamPlain(active, trimmed, searchEnabledRef.current, thinkingRef.current, forceSearchRef.current)
+            .then((runID: string) => {
+              // 订阅注册紧跟 runID 解析：同一微任务内完成，先订阅后收帧，首帧不丢
+              unsub = EventsOn(`chat-stream:${runID}`, (payload: any) => {
+                if (settled) return
+                const p = payload || {}
+                if (p.type === 'delta') {
+                  setStreamText(prev => prev + (p.content || ''))
+                } else if (p.type === 'reasoning') {
+                  reasoningAcc += p.content || ''
+                } else if (p.type === 'done') {
+                  const reply = typeof p.reply === 'string' ? p.reply : ''
+                  const reasoning = typeof p.reasoning === 'string' ? p.reasoning : reasoningAcc
+                  setStreamText(''); setStreamKey(null)
+                  updateMessage(am.key, { content: reply, streaming: false, reasoning, extra: {} })
+                  finish(true)
+                } else if (p.type === 'error') {
+                  setStreamText(''); setStreamKey(null)
+                  updateMessage(am.key, { content: `请求失败：${p.error || '未知错误'}`, streaming: false, error: true })
+                  finish(false)
+                }
+              })
+            })
+            .catch((err: any) => {
+              // 启动失败（binding 拒绝）：直接按失败收尾，与事件错误终态一致
               setStreamText(''); setStreamKey(null)
-              updateMessage(am.key, { content: reply, streaming: false, reasoning, extra: {} })
-              resolve(true)
-            } else if (p.type === 'error') {
-              setStreamText(''); setStreamKey(null)
-              updateMessage(am.key, { content: `请求失败：${p.error || '未知错误'}`, streaming: false, error: true })
-              resolve(false)
-            }
-          })
+              updateMessage(am.key, { content: `请求失败：${err?.message || String(err)}`, streaming: false, error: true })
+              finish(false)
+            })
         })
         if (ok) await finalizeTopicAfterSend(active, trimmed)
       } catch (err: any) {
@@ -524,10 +640,15 @@ const ChatPage: React.FC = () => {
       if (!reduced && reply.length > 40) {
         const step = Math.max(2, Math.round(reply.length / 180))
         for (let i = 0; i <= reply.length; i += step) {
+          // T6-3.3：切话题/卸载即中止模拟打字流（避免过期 setStreamText 持续写入）
+          if (typingCancelRef.current) break
           setStreamText(reply.slice(0, i))
           await new Promise(r => setTimeout(r, 14))
         }
       }
+      // T6-3.3：循环被取消（话题已切换/组件已卸载）→ 不再更新消息与最终态，
+      // 由 finally 复位 sending；旧消息 key 已随话题切换离开消息列表，更新无意义。
+      if (typingCancelRef.current) return
       setStreamText(''); setStreamKey(null)
       const extra: Record<string, any> = {}
       if (res.emotion) extra.emotion = res.emotion
@@ -572,15 +693,21 @@ const ChatPage: React.FC = () => {
       if (result?.base64) {
         const b = atob(result.base64); const bytes = new Uint8Array(b.length)
         for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i)
-        const audio = new Audio(URL.createObjectURL(new Blob([bytes], { type: result.mimeType || 'audio/mp3' })))
-        audio.onended = () => setSpeakingId(null)
-        audio.onerror = () => { setSpeakingId(null); message.error('播放失败') }
+        // T6-3.3：blob URL 登记到 ref，播放结束/失败/卸载时 revokeObjectURL
+        speakUrlRef.current = URL.createObjectURL(new Blob([bytes], { type: result.mimeType || 'audio/mp3' }))
+        const audio = new Audio(speakUrlRef.current)
+        audio.onended = () => { revokeSpeakUrl(); setSpeakingId(null) }
+        audio.onerror = () => { revokeSpeakUrl(); setSpeakingId(null); message.error('播放失败') }
         await audio.play()
         return
       }
       message.warning('TTS 未返回音频数据')
     } catch (err: any) { message.error(`朗读失败：${typeof err === 'string' ? err : err?.message || '未知错误'}`) }
-    setSpeakingId(null)
+    finally {
+      // 播放结束/失败后释放（play() 已开始加载资源，revoke 不影响播放）
+      revokeSpeakUrl()
+      setSpeakingId(null)
+    }
   }
 
   const handleClearMessages = useCallback(async () => {

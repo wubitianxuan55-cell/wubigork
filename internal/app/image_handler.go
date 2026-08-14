@@ -23,13 +23,14 @@ import (
 
 // imageItem 单张生成图片结果（包级共享，供移动端任务处理器提取）
 type imageItem struct {
-	Image  string  `json:"image"`
-	Seed   int     `json:"seed"`
-	Time   float64 `json:"time"`
-	Prompt string  `json:"prompt"`
-	Model  string  `json:"model"`
-	Size   string  `json:"size"`
-	Kind   string  `json:"kind,omitempty"` // image | video
+	Image    string  `json:"image"`
+	Seed     int     `json:"seed"`
+	Time     float64 `json:"time"`
+	Prompt   string  `json:"prompt"`
+	Model    string  `json:"model"`
+	Size     string  `json:"size"`
+	Kind     string  `json:"kind,omitempty"`      // image | video
+	FilePath string  `json:"file_path,omitempty"` // T6-4.3：本地保存路径（历史图片可恢复）
 }
 
 func (a *mediaState) beginImageGen(parent context.Context) (context.Context, context.CancelFunc, uint64) {
@@ -60,17 +61,57 @@ func (a *mediaState) endImageGen(id uint64, cancel context.CancelFunc) {
 
 // CancelImageGeneration 取消当前正在执行的图片/视频生成任务。
 // 返回 true 表示存在可取消任务；前端生成队列会在任务报错后继续下一条。
+//
+// T6-4.1 取消真实生效：除 cancel context（令 gaea 轮询即刻退出）外，还会调用
+// ComfyUI /interrupt 中断当前任务；本地取消标记会拒绝取消后的后续提交
+// （ComfyUI 无删除排队任务的 API，见 ComfyUIBackend.Interrupt 的说明）。
+// 幂等：首次取消后 imageGenCancel 置空，重复调用返回 false。
 func (a *mediaState) CancelImageGeneration() bool {
 	a.imageGenMu.Lock()
-	defer a.imageGenMu.Unlock()
 	if !a.imageGenRunning || a.imageGenCancel == nil {
+		a.imageGenMu.Unlock()
 		return false
 	}
 	a.imageGenID++
-	a.imageGenCancel()
+	cancel := a.imageGenCancel
 	a.imageGenCancel = nil
 	a.imageGenRunning = false
+	a.imageGenMu.Unlock()
+
+	cancel()
+	a.interruptComfyUI()
 	return true
+}
+
+// interruptComfyUI 调用 ComfyUI /interrupt 中断当前任务（T6-4.1）。
+// 通过 ai.Client.GetImageBackend 类型断言取回真实后端实例；
+// 失败仅记录日志，不掩盖（context 取消已令轮询退出，中断失败意味着
+// ComfyUI 端任务会继续跑完，日志便于排查）。
+func (a *mediaState) interruptComfyUI() {
+	if a.cfg == nil || a.cfg.ImageBackend != "comfyui" || a.client == nil {
+		return
+	}
+	ib, ok := a.client.GetImageBackend().(interface{ Interrupt(context.Context) error })
+	if !ok {
+		slog.Warn("取消生成：当前图片后端不支持中断", "backend", a.cfg.ImageBackend)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := ib.Interrupt(ctx); err != nil {
+		slog.Warn("取消生成：ComfyUI /interrupt 调用失败", "error", err)
+	}
+}
+
+// resetComfyCancel 新一轮生成开始时清除 ComfyUI 本地取消标记（T6-4.1），
+// 保证取消后用户可正常发起新任务。
+func (a *mediaState) resetComfyCancel() {
+	if a.cfg == nil || a.cfg.ImageBackend != "comfyui" || a.client == nil {
+		return
+	}
+	if ib, ok := a.client.GetImageBackend().(interface{ ResetCancel() }); ok {
+		ib.ResetCancel()
+	}
 }
 
 func (a *mediaState) updateComfyTaskProgress(status string, elapsedSeconds int) {
@@ -108,6 +149,7 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 	defer a.endImageGen(genID, cancel)
 	if a.cfg.ImageBackend == "comfyui" {
 		a.updateComfyTaskProgress("queued", 0)
+		a.resetComfyCancel()
 	}
 
 	fullPrompt := prompt
@@ -183,21 +225,22 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 			imageData = resp.Data[0].B64JSON
 		}
 
-		images = append(images, imageItem{
+		item := imageItem{
 			Image:  imageData,
 			Seed:   genSeed,
 			Time:   math.Round(elapsed*10) / 10,
 			Prompt: fullPrompt,
 			Model:  imgModel,
 			Size:   size,
-		})
-
+		}
+		// T6-4.3：保存路径写入历史元数据（前端历史图片据此恢复本地文件）
 		if a.cfg.ImageSaveDir != "" && imageData != "" {
-			a.saveImageToDisk(imageData, fullPrompt)
+			item.FilePath = a.saveImageToDisk(imageData, fullPrompt)
 		} else if imageData != "" {
 			// 未配置专用目录时，自动保存到小说 images/ 目录
-			a.saveToNovelImages(imageData, fullPrompt)
+			item.FilePath = a.saveToNovelImages(imageData, fullPrompt)
 		}
+		images = append(images, item)
 	}
 
 	if len(images) == 0 {
@@ -238,6 +281,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	defer a.endImageGen(genID, cancel)
 	if a.cfg.ImageBackend == "comfyui" {
 		a.updateComfyTaskProgress("queued", 0)
+		a.resetComfyCancel()
 	}
 	var p mediaGenParams
 	if err := json.Unmarshal([]byte(paramsJSON), &p); err != nil {
@@ -330,7 +374,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		if kind == "" {
 			kind = "image"
 		}
-		results = append(results, imageItem{
+		item := imageItem{
 			Image:  imageData,
 			Seed:   genSeed,
 			Time:   math.Round(elapsed*10) / 10,
@@ -338,15 +382,16 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 			Model:  imgModel,
 			Size:   size,
 			Kind:   kind,
-		})
-
+		}
+		// T6-4.3：保存路径写入历史元数据（前端历史图片据此恢复本地文件）
 		if imageData != "" {
 			if a.cfg.ImageSaveDir != "" {
-				a.saveMediaToDisk(imageData, p.Prompt, a.cfg.ImageSaveDir)
+				item.FilePath = a.saveMediaToDisk(imageData, p.Prompt, a.cfg.ImageSaveDir)
 			} else {
-				a.saveMediaToNovelImages(imageData, p.Prompt)
+				item.FilePath = a.saveMediaToNovelImages(imageData, p.Prompt)
 			}
 		}
+		results = append(results, item)
 	}
 
 	if len(results) == 0 {
@@ -376,14 +421,14 @@ func (a *mediaState) saveMediaToDisk(imageData string, prompt string, dir string
 	return ""
 }
 
-// saveMediaToNovelImages 保存图片/视频到当前小说 images/ 目录
-func (a *mediaState) saveMediaToNovelImages(imageData string, prompt string) {
+// saveMediaToNovelImages 保存图片/视频到当前小说 images/ 目录，返回保存路径（失败返回空串）
+func (a *mediaState) saveMediaToNovelImages(imageData string, prompt string) string {
 	pm := a.app.getPM()
 	if pm == nil {
-		return
+		return ""
 	}
 	dir := filepath.Join(pm.Dir, "images")
-	a.saveMediaToDisk(imageData, prompt, dir)
+	return a.saveMediaToDisk(imageData, prompt, dir)
 }
 
 // mediaExt 从 data URL 推断扩展名
@@ -443,14 +488,14 @@ func (a *mediaState) saveImageToDisk(imageData string, prompt string) string {
 	return a.saveMediaToDisk(imageData, prompt, a.cfg.ImageSaveDir)
 }
 
-// saveToNovelImages 将图片保存到当前小说的 images/ 目录
-func (a *mediaState) saveToNovelImages(imageData string, prompt string) {
+// saveToNovelImages 将图片保存到当前小说的 images/ 目录，返回保存路径（失败返回空串）
+func (a *mediaState) saveToNovelImages(imageData string, prompt string) string {
 	pm := a.app.getPM()
 	if pm == nil {
-		return
+		return ""
 	}
 	dir := filepath.Join(pm.Dir, "images")
-	a.saveMediaToDisk(imageData, prompt, dir)
+	return a.saveMediaToDisk(imageData, prompt, dir)
 }
 
 // GetImageBackend 获取当前图片后端类型（供前端显示）
@@ -864,23 +909,60 @@ func (a *mediaState) recoverComfyUI() {
 	slog.Warn("ComfyUI 自动恢复超时")
 }
 
-// findProcessByPort 查找监听指定端口的进程 PID（Windows netstat）
+// findProcessByPort 查找监听指定端口的进程 PID（Windows netstat -ano）。
+// T6-4.5：弃用 cmd/findstr 字符串拼接（可注入命令），改用参数数组 exec.Command
+// 并解析输出；port 入参先做白名单校验（纯数字 1–65535），杜绝注入。
 func findProcessByPort(port string) int {
-	cmd := exec.Command("cmd", "/c",
-		fmt.Sprintf("netstat -ano | findstr :%s | findstr LISTENING", port))
+	if !isValidPort(port) {
+		return 0
+	}
+	cmd := exec.Command("netstat", "-ano")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, err := cmd.Output()
 	if err != nil {
 		return 0
 	}
-	// 输出格式: TCP  0.0.0.0:8188  0.0.0.0:0  LISTENING  12345
-	fields := strings.Fields(string(out))
-	if len(fields) > 0 {
-		pidStr := fields[len(fields)-1]
-		pid, _ := strconv.Atoi(pidStr)
-		return pid
+	return parseNetstatPID(string(out), port)
+}
+
+// parseNetstatPID 解析 netstat -ano 输出，返回监听 port 的进程 PID（0 = 未找到）。
+// 输出格式: TCP  0.0.0.0:8188  0.0.0.0:0  LISTENING  12345
+// 仅匹配本地地址以 :port 结尾且状态为 LISTENING 的 TCP 行（避免 findstr 的子串误匹配）。
+func parseNetstatPID(out string, port string) int {
+	target := ":" + port
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 5 {
+			continue
+		}
+		if fields[0] != "TCP" {
+			continue
+		}
+		if !strings.HasSuffix(fields[1], target) {
+			continue
+		}
+		if fields[3] != "LISTENING" {
+			continue
+		}
+		if pid, err := strconv.Atoi(fields[4]); err == nil && pid > 0 {
+			return pid
+		}
 	}
 	return 0
+}
+
+// isValidPort 校验端口号：纯数字且在 1–65535 范围内（T6-4.5 注入防护）。
+func isValidPort(port string) bool {
+	if port == "" || len(port) > 5 {
+		return false
+	}
+	for _, r := range port {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	n, err := strconv.Atoi(port)
+	return err == nil && n >= 1 && n <= 65535
 }
 
 // GetComfyUIStatus 返回 ComfyUI 运行状态（含监控：检测到进程退出自动清理引用）

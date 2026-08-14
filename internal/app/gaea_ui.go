@@ -137,7 +137,10 @@ func loadPinned(dir string) map[string]bool {
 	if err != nil {
 		return m
 	}
-	_ = json.Unmarshal(b, &m)
+	if err := json.Unmarshal(b, &m); err != nil {
+		// 注册表文件损坏时按空处理并记录，避免静默丢失用户置顶
+		slog.Warn("置顶注册表解析失败（按空处理）", "path", pinnedPath(dir), "error", err)
+	}
 	return m
 }
 
@@ -164,7 +167,9 @@ func loadRequirements(dir string) map[string]RequirementView {
 	if err != nil {
 		return m
 	}
-	_ = json.Unmarshal(b, &m)
+	if err := json.Unmarshal(b, &m); err != nil {
+		slog.Warn("需求注册表解析失败（按空处理）", "path", requirementsPath(dir), "error", err)
+	}
 	return m
 }
 
@@ -606,7 +611,9 @@ func loadSessionTitles(dir string) map[string]string {
 	if err != nil {
 		return m
 	}
-	_ = json.Unmarshal(b, &m)
+	if err := json.Unmarshal(b, &m); err != nil {
+		slog.Warn("会话标题注册表解析失败（按空处理）", "path", sessionTitlesPath(dir), "error", err)
+	}
 	return m
 }
 

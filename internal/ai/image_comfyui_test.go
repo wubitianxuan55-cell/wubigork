@@ -2,6 +2,7 @@ package ai
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -167,6 +168,81 @@ func TestBuildKreaImg2ImgWorkflow(t *testing.T) {
 	}
 	if got := nodeInput(t, wf, "10", "denoise"); got.(float64) != 0.65 {
 		t.Errorf("KSampler denoise = %v, want 0.65", got)
+	}
+}
+
+func TestParseSize(t *testing.T) {
+	cases := []struct {
+		name      string
+		size      string
+		wantW     int
+		wantH     int
+		wantError bool
+	}{
+		{name: "正常尺寸", size: "1024x1024", wantW: 1024, wantH: 1024},
+		{name: "含空格", size: " 768 x 512 ", wantW: 768, wantH: 512},
+		{name: "低于下限钳制到 64", size: "32x32", wantW: 64, wantH: 64},
+		{name: "超上限钳制到 2048", size: "4096x100", wantW: 2048, wantH: 100},
+		{name: "单边钳制", size: "100x99999", wantW: 100, wantH: 2048},
+		{name: "非数字", size: "abc", wantError: true},
+		{name: "缺少高度", size: "1024", wantError: true},
+		{name: "宽度非数字", size: "ax512", wantError: true},
+		{name: "高度非数字", size: "512xb", wantError: true},
+		{name: "多余分段", size: "1024x1024x1024", wantError: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w, h, err := parseSize(tc.size)
+			if tc.wantError {
+				if err == nil {
+					t.Fatalf("parseSize(%q) 应报错, got %dx%d", tc.size, w, h)
+				}
+				if !strings.Contains(err.Error(), "尺寸格式无效") {
+					t.Errorf("错误应为中文尺寸提示: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseSize(%q): %v", tc.size, err)
+			}
+			if w != tc.wantW || h != tc.wantH {
+				t.Errorf("parseSize(%q) = %dx%d, want %dx%d", tc.size, w, h, tc.wantW, tc.wantH)
+			}
+		})
+	}
+}
+
+func TestBuildFluxWorkflow(t *testing.T) {
+	b := &ComfyUIBackend{}
+	wf := b.buildFluxWorkflow("测试 prompt", 1024, 1024, 42, nil)
+
+	// Flux 三要素：UNETLoader(flux1-schnell) + DualCLIPLoader(type=flux) + VAELoader(ae)
+	unet := nodeInput(t, wf, "4", "unet_name")
+	if unet != "flux1-schnell.safetensors" {
+		t.Errorf("UNET = %v, want flux1-schnell.safetensors", unet)
+	}
+	if wf["5"].(map[string]interface{})["class_type"] != "DualCLIPLoader" {
+		t.Errorf("节点5 = %v, want DualCLIPLoader", wf["5"].(map[string]interface{})["class_type"])
+	}
+	if clipType := nodeInput(t, wf, "5", "type"); clipType != "flux" {
+		t.Errorf("CLIP type = %v, want flux", clipType)
+	}
+	if vae := nodeInput(t, wf, "6", "vae_name"); vae != "ae.safetensors" {
+		t.Errorf("VAE = %v, want ae.safetensors", vae)
+	}
+	// Flux 潜空间与采样：EmptySD3LatentImage + KSampler(cfg=1.0, euler/simple, 4 步)
+	if wf["9"].(map[string]interface{})["class_type"] != "EmptySD3LatentImage" {
+		t.Errorf("节点9 = %v, want EmptySD3LatentImage", wf["9"].(map[string]interface{})["class_type"])
+	}
+	if steps := nodeInput(t, wf, "10", "steps"); steps != 4 {
+		t.Errorf("KSampler steps = %v, want 4（schnell 4 步）", steps)
+	}
+	if sampler := nodeInput(t, wf, "10", "sampler_name"); sampler != "euler" {
+		t.Errorf("sampler = %v, want euler", sampler)
+	}
+	// Flux 官方模板不用 ConditioningZeroOut（负面用空文本）
+	if _, exists := wf["13"]; exists {
+		t.Errorf("Flux 工作流不应有 ConditioningZeroOut 节点")
 	}
 }
 

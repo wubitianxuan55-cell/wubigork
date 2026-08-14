@@ -53,4 +53,5 @@ func (t forgetTool) Execute(ctx context.Context, args json.RawMessage) (string, 
 	return fmt.Sprintf("Forgot memory %q (it no longer applies and will not load in future sessions).", in.Name), nil
 }
 
-func (forgetTool) ReadOnly() bool { return false }
+func (forgetTool) ReadOnly() bool    { return false }
+func (forgetTool) PersistWrite() bool { return true }

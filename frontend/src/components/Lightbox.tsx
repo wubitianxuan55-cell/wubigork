@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Typography, Button, Space, Tag, Select } from 'antd'
 import { DownloadOutlined, SyncOutlined, CloseOutlined, LeftOutlined, RightOutlined, UserOutlined, ZoomInOutlined } from '@ant-design/icons'
 import type { GenResult } from './imagegen/types'
+import { mediaIsVideo } from './imagegen/media'
 import { Z_INDEX } from '../utils/zIndex'
 
 interface Character {
@@ -139,7 +140,8 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
           userSelect: 'none',
         }}
       >
-        {r?.kind === 'video' ? (
+        {/* T6-4.2：按实际媒体类型选择元素（t2v 动画 webp 用 <img>，video/* 才用 <video>） */}
+        {mediaIsVideo(imageSrc) ? (
           <video
             src={imageSrc}
             controls

@@ -99,10 +99,29 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 					Content: streamRecoveryMessage(strings.TrimSpace(text) != ""),
 				})
 				a.sink.Emit(event.Event{Kind: event.Retrying, RetryAttempt: streamRecoveries, RetryMax: maxStreamRecoveries})
-				step-- // recovery retries do not consume the tool-round budget
+				// recovery retries do not consume the tool-round budget. step--
+				// is clamped at 0: a negative step would keep the loop condition
+				// `step < a.maxSteps` vacuously true and, combined with the
+				// grace-round boundary below, could grant an extra model round.
+				if step > 0 {
+					step--
+				}
 				continue
 			}
 			a.preWG.Wait() // drain any in-flight pre-execution goroutines before returning
+			// terminal stream error (unrecoverable, or recovery exhausted) — do
+			// not drop already-received partial output. Persist it to the session
+			// and to the result summary so the user and the next turn still see
+			// the content the model produced before the failure.
+			if strings.TrimSpace(text) != "" {
+				a.session.Add(provider.Message{
+					Role:               provider.RoleAssistant,
+					Content:            text,
+					ReasoningContent:   reasoning,
+					ReasoningSignature: signature,
+				})
+				turnLastSummary = text
+			}
 			return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), err
 		}
 		streamRecoveries = 0
@@ -263,8 +282,17 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 					turnFilesModified = append(turnFilesModified, p)
 				}
 			}
-			// collect tool errors for TurnResult (max 5)
-			if strings.HasPrefix(results[i], "error:") && len(turnToolErrors) < 5 {
+			// collect tool errors, blocks, and suppressions for TurnResult (max 5):
+			// a blocked or suppressed call still fails the turn — Success is true
+			// only when the whole turn ran clean (no errors, no blocks, no
+			// suppressions). Blocks arrive as plain "blocked:" / "precheck blocked:"
+			// prefixed results, suppressions as "suppressed:", execution errors as
+			// legacy "error:" / "tool panic:" prefixes.
+			if len(turnToolErrors) < 5 && (strings.HasPrefix(results[i], "error:") ||
+				strings.HasPrefix(results[i], "blocked:") ||
+				strings.HasPrefix(results[i], "precheck blocked:") ||
+				strings.HasPrefix(results[i], "suppressed:") ||
+				strings.HasPrefix(results[i], "tool panic:")) {
 				turnToolErrors = append(turnToolErrors, results[i])
 			}
 			// Skip suppressed calls (already have placeholder result).
@@ -328,6 +356,9 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		}
 
 		// Grace Round — when maxSteps is reached, give one extra final turn.
+		// step is always >= 0 here (the recovery path clamps step-- at 0), so
+		// this boundary fires at most once per turn and never from a negative
+		// step — no extra round beyond maxSteps + 1 (one grace).
 		if a.maxSteps > 0 && step+1 >= a.maxSteps && !graceRound {
 			graceRound = true
 			nudge := "Do not call any more tools — your tool-call round limit (agent.max_steps) has been reached. Instead, synthesize a final answer from all the work already completed: summarize what was accomplished, what remains to be done, and any decisions the user should make."
