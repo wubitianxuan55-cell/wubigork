@@ -96,6 +96,9 @@ type backend interface {
 	Touch(name string) error
 	List() []Memory
 	ListArchived() []ArchivedMemory
+	// T6-8.2 生命周期：归档分页视图 + 超期硬删（返回被删行供审计）。
+	ListArchivedPaged(limit, offset int) ([]ArchivedMemory, int, error)
+	CleanupArchived(cutoff time.Time) ([]ArchivedMemory, error)
 	Get(name string) (Memory, bool)
 }
 
@@ -193,6 +196,23 @@ func (s Store) List() []Memory { return s.engine().List() }
 // out of List() and the prompt index, so stale facts remain inspectable without
 // being reused as active truth.
 func (s Store) ListArchived() []ArchivedMemory { return s.engine().ListArchived() }
+
+// ArchivedRetention 是归档事实的保留期：归档超过该时长的条目会被
+// CleanupArchived 硬删除（溯源行落审计侧，见 app.GaeaMemoryCleanupArchived）。
+const ArchivedRetention = 90 * 24 * time.Hour
+
+// ListArchivedPaged 返回归档事实的分页视图（倒序）：总量 + 当前页条目，
+// 防止全量返回。limit 钳制 [1,200]（默认 50），offset 下限 0。
+func (s Store) ListArchivedPaged(limit, offset int) ([]ArchivedMemory, int, error) {
+	return s.engine().ListArchivedPaged(limit, offset)
+}
+
+// CleanupArchived 硬删除归档超过 cutoff 的事实（生命周期清理，T6-8.2）。
+// 返回被删除的归档条目（含溯源字段），调用方负责落审计日志；未到期的
+// 归档不受影响，活跃 List 天然不涉及。
+func (s Store) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, error) {
+	return s.engine().CleanupArchived(cutoff)
+}
 
 // Get returns one active fact by name. Used by the memory_get tool (SQLite
 // backend has no readable file to open with read_file).

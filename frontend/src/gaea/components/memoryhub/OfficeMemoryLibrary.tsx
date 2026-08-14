@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Modal } from "antd";
-import { FileText, RefreshCw, Sparkles } from "../../icons";
+import { Modal, message } from "antd";
+import { FileText, RefreshCw, Sparkles, Trash2 } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { MemoryDuplicateView, MemoryFact, MemoryView } from "../../lib/types";
 import { FactCard } from "../FactCard";
@@ -126,6 +126,21 @@ export function OfficeMemoryLibrary() {
     }
   }, [dups, refresh]);
 
+  const handleCleanupArchived = useCallback(() => {
+    Modal.confirm({
+      title: "清理 90 天前归档？",
+      content: "归档超过 90 天的事实将被永久删除（溯源留档 purge-audit.jsonl），误归档可在 90 天内恢复，此操作不可撤销",
+      okText: "清理",
+      cancelText: "取消",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        const n = await app.MemoryCleanupArchived();
+        message.success(`已清理 ${n} 条超期归档`);
+        await refresh();
+      },
+    });
+  }, [refresh]);
+
   return (
     <div className="h-full flex flex-col">
       {/* 工具条 */}
@@ -149,6 +164,16 @@ export function OfficeMemoryLibrary() {
             >
               <Sparkles size={13} className="text-accent" />
               查重合并
+            </button>
+          )}
+          {tab === "archives" && (
+            <button
+              className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
+              onClick={() => void handleCleanupArchived()}
+              title="硬删除归档超过 90 天的事实"
+            >
+              <Trash2 size={13} />
+              清理超期归档
             </button>
           )}
           <button

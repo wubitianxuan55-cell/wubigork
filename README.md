@@ -83,6 +83,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v2.31.0** | 2026-08-14 | 阶段 6「质量收敛」第八刀·记忆生命周期与审计：dream 写入审计（决策成文 DREAM_WRITE_POLICY.md，SaveDreamFacts 带 source 落 dream-audit.jsonl）；facts 归档生命周期（90 天保留硬删 CleanupArchived + ListArchivedPaged 分页 + 新绑定 GaeaMemoryCleanupArchived/GaeaMemoryArchivedList + 前端清理按钮 + purge-audit 溯源审计）；索引截断按边界（4096 字节口径统一 + 行边界 + markdown 链接保护，6 测试）；GraphView/WhisperMemoryLibrary 补测 13 用例 |
 | **v2.30.0** | 2026-08-14 | 阶段 6「质量收敛」第七刀·小说导出与原子性：export 整改（失败计数/作者元数据/统一分段器/世界观对齐/保留名消毒，13 测试）；生成中断（CancelCreateChapter 绑定 + 章节互斥 + 取消保留部分正文）；writeFileAtomic 落盘原子化；模板 {word_count} 占位符；CreatePage 791→288 行 + 停止按钮 + 判别联合（18 vitest） |
 | **v2.29.0** | 2026-08-14 | 阶段 6「质量收敛」第六刀·模型中心密钥与 UI：refresh_token DPAPI 加密（旧明文自动迁移）；汇率配置化（usd_cny_rate 键 + 新绑定 + ModelPanel 输入）；probe 告警文案修复；ModelCenterPage 顶层 useState 42→3（5 hooks 下沉）+ XAI_VOICES 单源；refreshLocalModels 竞态守卫 + 定时器随分类重置 |
 | **v2.28.0** | 2026-08-14 | 阶段 6「质量收敛」第五刀·轻语测试与可观测：补测试 146 用例（emotion_fusion 100% 覆盖 + 记忆管线 ≥92%）；异步记忆写错误可观测（WriteErrors 计数 + 四类 phase）；成人模式决策成文（ADULT_MODE.md + 删除死接口 WhisperSetAdultMode）；GetDatabase 签名收敛 (db, err) + PRAGMA 单源 + FTS 失败日志；陈旧占位清理 4 文件 |

@@ -1,12 +1,87 @@
 package control
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 )
+
+// ── dream 写入审计（T6-8.1）────────────────────────────────────
+
+// DreamAuditEntry 是「自动做梦」写入审计日志的一行：每次 SaveDreamFacts
+// 实际写入后追加到 <userDir>/dream-audit.jsonl（JSONL，追加式，损坏行跳过）。
+type DreamAuditEntry struct {
+	TS     string   `json:"ts"`
+	Source string   `json:"source"` // auto_dream | explicit
+	Saved  int      `json:"saved"`
+	Names  []string `json:"names,omitempty"`
+}
+
+// dreamAuditPath 返回 dream 写入审计文件路径（与 gaea.db 同目录）。
+func dreamAuditPath(userDir string) string {
+	return filepath.Join(userDir, "dream-audit.jsonl")
+}
+
+// appendDreamAudit 追加一条 dream 写入审计（JSONL）。userDir 为空（记忆
+// 未配置）时跳过；文件/写失败返回错误（调用方仅记日志，不阻断写入）。
+func appendDreamAudit(userDir string, e DreamAuditEntry) error {
+	if userDir == "" {
+		return nil
+	}
+	b, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(userDir, 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(dreamAuditPath(userDir), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.Write(append(b, '\n'))
+	return err
+}
+
+// DreamAuditEntries 读取 dream 写入审计（最近 max 条，倒序）。用于面板
+// 展示/测试断言；文件不存在返回空列表。
+func DreamAuditEntries(userDir string, max int) []DreamAuditEntry {
+	if userDir == "" || max <= 0 {
+		return nil
+	}
+	data, err := os.ReadFile(dreamAuditPath(userDir))
+	if err != nil {
+		return nil
+	}
+	var out []DreamAuditEntry
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var e DreamAuditEntry
+		if json.Unmarshal([]byte(line), &e) != nil || e.TS == "" {
+			continue
+		}
+		out = append(out, e)
+		if len(out) >= max {
+			break
+		}
+	}
+	// 文件是追加序，倒序返回最近在前
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out
+}
 
 // --- memory ---
 //
@@ -196,13 +271,20 @@ func (c *Controller) PromoteSessionFacts() (int, error) {
 // SaveDreamFacts 把「自动做梦」提炼出的事实直接写入长期记忆（按 name 去重，
 // 与 PromoteSessionFacts 同一写入路径，但不经过会话事实）。空 name 或
 // 无内容的事实跳过；返回实际写入/更新条数。
-func (c *Controller) SaveDreamFacts(facts []memory.Memory) (int, error) {
+//
+// 审批决策（T6-8.1，详见 docs/DREAM_WRITE_POLICY.md）：dream 写入**不**纳入
+// hardAskTools 逐条审批——后台「自动做梦」在轮次结束后异步触发（90s 超时），
+// 无法等待人工确认；显式路径（GaeaAcceptMemorySuggestion / /dream extract）
+// 本身即用户主动触发。作为补偿，每次写入都落审计日志（source=auto_dream |
+// explicit，条数 + 名称），保证全程可追溯。
+func (c *Controller) SaveDreamFacts(source string, facts []memory.Memory) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.mem == nil || len(facts) == 0 {
 		return 0, nil
 	}
 	n := 0
+	names := make([]string, 0, len(facts))
 	for _, m := range facts {
 		if strings.TrimSpace(m.Name) == "" {
 			continue
@@ -216,8 +298,20 @@ func (c *Controller) SaveDreamFacts(facts []memory.Memory) (int, error) {
 			return n, fmt.Errorf("dream save %q: %w", m.Name, err)
 		}
 		n++
+		names = append(names, m.Name)
 	}
 	c.refreshMemoryLocked()
+	// 审计（尽力而为）：每次实际写入都记一行，失败不阻断主流程。
+	if n > 0 {
+		if err := appendDreamAudit(c.mem.UserDir, DreamAuditEntry{
+			TS:     time.Now().UTC().Format(time.RFC3339),
+			Source: source,
+			Saved:  n,
+			Names:  names,
+		}); err != nil {
+			slog.Warn("dream audit write failed", "error", err)
+		}
+	}
 	return n, nil
 }
 

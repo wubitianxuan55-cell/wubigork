@@ -1,5 +1,44 @@
 # gaea · 多功能 AI 助手
 
+## v2.31.0「质量收敛 · 记忆·生命周期与审计」（2026-08-14）
+> 阶段 6 第八刀（T6-8）：dream 写入审计、facts 归档生命周期清理、索引截断按边界、记忆组件补测。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.31.0.md。
+- T6-8.1 **dream 路径决策与审计**（internal/gaea/control/controller_memory.go + internal/app/gaea_dream.go）：
+  - 审批决策成文（docs/DREAM_WRITE_POLICY.md + 代码注释）：dream 写入不纳入 hardAskTools 逐条审批
+    （后台异步 90s 超时无法等人工确认；显式路径本身即用户触发），补偿 = 每次实际写入落审计日志；
+  - SaveDreamFacts 签名改 (source string, facts)（source=auto_dream|explicit），审计行
+    {ts, source, saved, names} 追加到 <userDir>/dream-audit.jsonl（JSONL，尽力而为不阻断写入）；
+  - DreamAuditEntries 读取入口（倒序最近 N 条）；新增 3 测试（自动/显式各断言 1 条审计行 + 记忆未配置跳过）；
+- T6-8.2 **facts 生命周期清理**（internal/gaea/memory + 新绑定 + 前端按钮）：
+  - 保留策略：归档超 90 天（ArchivedRetention）硬删；sqliteBackend/fileBackend 双后端实现
+    CleanupArchived（返回被删行含溯源字段：名称/描述/正文/归档时间/来源会话）；
+  - ListArchivedPaged(limit, offset) 总量+分页（limit 钳制 [1,200]/默认 50），防全量返回；
+  - 新绑定 GaeaMemoryCleanupArchived / GaeaMemoryArchivedList（gen_bindings 462 方法 + 完备性 PASS）；
+    清理逐条 slog 日志 + 溯源审计 purge-audit.jsonl（GAEA_DATA_ROOT 可隔离，测试不触真实用户库）；
+  - 前端「归档」tab「清理超期归档」按钮（Modal.confirm + message.success + 刷新）；
+  - 新增测试 7：memory 包 5（SQLite 清理/无超期不误删/分页/文件后端清理/文件后端分页）+ app 2
+    （清理幂等+审计落盘、分页绑定）；
+- T6-8.3 **索引截断按边界**（internal/gaea/memory/memory.go）：
+  - 预算口径统一：memoryIndexBudget（3000 runes）→ memoryIndexBudgetBytes = 4096，与 Block() 的
+    4096 字节全块阈值同口径（注释成文）；
+  - capMemoryIndex 改 truncateIndexByLines 纯函数：预算内最后一个 '\n' 处按行边界截断（不切半行），
+    markdown 链接保护（未闭合 "[" 或 "](url" 的 ")" 被截时回退到链接起始行之前整体舍弃），
+    只在 ASCII '\n' 处切 → UTF-8 安全不产生半个 rune；单行超预算宁丢整行不切半字；
+  - 截断提示文案与旧实现逐字一致；预算内原样返回不追加提示；
+  - 新增 6 个测试函数（行边界/字节预算/rune≠byte 中文 emoji/链接完整性 5 子测/单行超预算），
+    既有 recall 预算用例全绿；
+- T6-8.4 **前端组件补测**（memoryhub，新增 13 vitest 用例）：
+  - GraphView 5 用例：链式 stub 替身 3d-force-graph（vi.hoisted），断言工具条/节点边计数/类型过滤
+    重构图/节点点击详情 Modal/空数据/variant=home 隐藏工具条；
+  - WhisperMemoryLibrary 8 用例：domain 分组（含未知归「其他」）、三关键词搜索过滤、情节 tab
+    （emoji/强度条/关键词/轮次）、事实/情节详情 Modal、导出归档链路（PickDirectory +
+    WhisperExportArchive 调用）、事实/情节双空态；
+  - 组件实现 0 改动（纯测试）；桥接经 vi.mock("../../lib/bridge") 注入确定性数据；
+- 验证：改动面 Go 包（control/memory/app）全绿 + vet 干净、TestBindingsCompleteness PASS（462 方法）；
+  tsc 0 errors、vitest **348/348**（78 文件）、eslint 0 errors（存量 warnings）；
+  internal/app 全量存在 2 个与 v2.30.0 基线一致的既有环境失败（TestOfficeFullPipeline GBK 编码提取、
+  TestSemanticSearchTool_EndToEnd 需本地嵌入模型），已用基线 worktree 复现同失败，非本刀回归。
+
 ## v2.30.0「质量收敛 · 小说·导出与原子性」（2026-08-14）
 > 阶段 6 第七刀（T6-7）：export 整改、生成中断与互斥、落盘原子化、模板占位符、CreatePage 拆分。
 > 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.30.0.md。

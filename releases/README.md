@@ -6,6 +6,7 @@
 
 | 版本 | 日期 | 安装包 | 核心变更 |
 |------|------|------|------|
+| v2.31.0 | 08-14 | [gaea-v2.31.0.exe](gaea-v2.31.0.exe) | 阶段 6「质量收敛」第八刀·记忆生命周期与审计：dream 写入审计（决策成文+SaveDreamFacts 带 source 落 dream-audit.jsonl）；facts 归档 90 天保留硬删+分页+新绑定+前端清理按钮+purge-audit 溯源；索引截断按边界（4096 字节口径+行边界+链接保护）；GraphView/WhisperMemoryLibrary 补测 13 用例 |
 | v2.30.0 | 08-14 | [gaea-v2.30.0.exe](gaea-v2.30.0.exe) | 阶段 6「质量收敛」第七刀·小说导出与原子性：export 整改 13 测试；CancelCreateChapter 生成中断+章节互斥；writeFileAtomic 原子化；{word_count} 占位符；CreatePage 791→288 行+停止按钮 |
 | v2.29.0 | 08-14 | [gaea-v2.29.0.exe](gaea-v2.29.0.exe) | 阶段 6「质量收敛」第六刀·模型中心密钥与 UI：refresh_token DPAPI 加密+迁移；汇率配置化+新绑定；probe 告警修复；ModelCenterPage useState 42→3；XAI_VOICES 单源；竞态守卫 |
 | v2.28.0 | 08-14 | [gaea-v2.28.0.exe](gaea-v2.28.0.exe) | 阶段 6「质量收敛」第五刀·轻语测试与可观测：补测试 146 用例；异步记忆写错误可观测；成人模式决策成文+删除死接口；GetDatabase 签名收敛+PRAGMA 单源+FTS 日志；占位清理 4 文件 |

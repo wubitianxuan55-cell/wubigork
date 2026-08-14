@@ -179,7 +179,7 @@ func displayTitleLocal(title, name string) string {
 }
 
 // GaeaAcceptMemorySuggestion 接受一条记忆建议：写入长期记忆（按 name 去重，
-// 与自动做梦同一写入路径）。
+// 与自动做梦同一写入路径，source=explicit 落 dream 审计日志）。
 func (a *App) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) {
 	raw, err := json.Marshal(candidate)
 	if err != nil {
@@ -196,7 +196,7 @@ func (a *App) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) 
 	if ctrl == nil {
 		return "", fmt.Errorf("办公引擎未初始化")
 	}
-	n, err := ctrl.SaveDreamFacts([]memory.Memory{{
+	n, err := ctrl.SaveDreamFacts("explicit", []memory.Memory{{
 		Name:        c.Name,
 		Title:       c.Title,
 		Description: c.Description,

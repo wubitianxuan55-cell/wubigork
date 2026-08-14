@@ -148,6 +148,87 @@ func (b *fileBackend) List() []Memory {
 	return out
 }
 
+// ListArchivedPaged 返回归档文件的分页视图（按归档时间倒序）：总量 + 当前页。
+// 与 sqliteBackend 同语义；文件后端归档时间取文件名时间戳前缀，缺失时回退
+// 文件修改时间。
+func (b *fileBackend) ListArchivedPaged(limit, offset int) ([]ArchivedMemory, int, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	all := b.ListArchived()
+	total := len(all)
+	if offset >= total {
+		return []ArchivedMemory{}, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return all[offset:end], total, nil
+}
+
+// CleanupArchived 硬删除归档超过 cutoff 的 .archive 文件（生命周期清理，
+// T6-8.2）：返回被删除的归档条目供审计。归档时间取文件名时间戳前缀，
+// 解析失败按文件修改时间判断。
+func (b *fileBackend) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, error) {
+	if b.Dir == "" {
+		return nil, nil
+	}
+	archiveDir := filepath.Join(b.Dir, ".archive")
+	entries, err := os.ReadDir(archiveDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var doomed []ArchivedMemory
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		full := filepath.Join(archiveDir, e.Name())
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		at := parseArchiveTimestamp(e.Name(), info.ModTime())
+		if !at.Before(cutoff) {
+			continue
+		}
+		am := ArchivedMemory{
+			Memory:     Memory{Name: strings.TrimSuffix(e.Name(), ".md")},
+			Path:       full,
+			ArchivedAt: at,
+		}
+		// 尽量读回文件内容作溯源（解析失败保留文件名级信息）
+		if m, ok := loadMemory(full); ok {
+			am.Memory = m
+		}
+		if err := os.Remove(full); err != nil {
+			return doomed, err
+		}
+		doomed = append(doomed, am)
+	}
+	return doomed, nil
+}
+
+// parseArchiveTimestamp 解析归档文件名时间戳前缀（20060102-150405.000-<name>.md，
+// 前缀固定 19 字符）；失败回退 modTime。
+func parseArchiveTimestamp(name string, fallback time.Time) time.Time {
+	if len(name) >= 19 {
+		if t, err := time.ParseInLocation("20060102-150405.000", name[:19], time.UTC); err == nil {
+			return t
+		}
+	}
+	return fallback
+}
 // dirs returns the non-empty store directories to scan. Project-scoped Dir
 // takes priority; GlobalDir (when set) is also included for cross-project facts.
 func (b *fileBackend) dirs() []string {

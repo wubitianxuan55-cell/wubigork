@@ -968,6 +968,14 @@ export function makeMockApp(): AppBindings {
         ],
       };
     },
+    async MemoryArchivedList(limit: number, offset: number) {
+      // mock: 无真实归档，返回空分页（结构对齐 GaeaMemoryArchivedList）。
+      return { items: [], total: 0, limit, offset };
+    },
+    async MemoryCleanupArchived() {
+      // mock: no-op，返回删除条数 0。
+      return 0;
+    },
     async Remember(scope: string, note: string) {
       emit({ kind: "notice", level: "info", text: `remembered → ${scope}` });
       return `${scope} REASONIX.md (mock): ${note}`;

@@ -8,6 +8,12 @@ package app
 //   - 只提炼稳定事实与偏好，不做实时逐句记录（Kimi 二问思路：先过滤再入库）；
 //   - 同轮只跑一次、有实质内容才跑、单飞（并发安全）；
 //   - 归纳失败静默跳过，不打扰用户。
+//
+// 审批决策（T6-8.1）：后台自动做梦**不**走 hardAskTools 逐条审批——异步
+// goroutine 无法等待人工确认，且 /dream extract 与记忆建议接受本身就是用户
+// 显式触发。补偿机制：每次实际写入都经 SaveDreamFacts(source, …) 落审计
+// 日志（source=auto_dream|explicit，条数+名称），全程可追溯。详见
+// docs/DREAM_WRITE_POLICY.md。
 
 import (
 	"context"
@@ -120,7 +126,7 @@ func (a *App) runDream() error {
 		return err
 	}
 
-	saved, err := c.SaveDreamFacts(toDreamMemories(res.Facts))
+	saved, err := c.SaveDreamFacts("auto_dream", toDreamMemories(res.Facts))
 	if err != nil {
 		return err
 	}

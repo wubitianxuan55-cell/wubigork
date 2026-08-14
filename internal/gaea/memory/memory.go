@@ -190,16 +190,96 @@ func (s *Set) buildFullBlock() string {
 	return b.String()
 }
 
-// memoryIndexBudget 控制注入系统提示词的「Saved memories」索引预算（runes）。
-// 记忆再多也只注入前段摘要，避免挤爆上下文；其余条目用 memory_search 按需查询。
-const memoryIndexBudget = 3000
+// memoryIndexBudgetBytes 控制注入系统提示词的「Saved memories」索引预算（字节）。
+// 与 Block() 的全块 4096 字节阈值同口径：索引摘录与整块判定都用 len() 字节数，
+// 避免 rune/字节双口径导致注入量忽高忽低。记忆再多也只注入前段摘要，避免挤爆
+// 上下文；其余条目用 memory_search 按需查询。
+const memoryIndexBudgetBytes = 4096
 
+// memoryIndexHint 是索引被截断时追加的提示文案（与旧实现保持原文案）。它也要
+// 计入截断结果的字节预算容差（见 cap_memory_index_test.go 的字节预算用例）。
+const memoryIndexHint = "\n…（记忆索引已截断，其余条目可用 memory_search 查询）"
+
+// capMemoryIndex 把超预算的索引摘录按字节预算 + 行边界截断：不从中切开一行，
+// 不留下悬空的 markdown 链接（"[…](url" 半截），截断时追加提示后缀；预算内
+// （len(idx) <= memoryIndexBudgetBytes 字节）的索引原样返回，不追加提示。
 func capMemoryIndex(idx string) string {
-	r := []rune(idx)
-	if len(r) <= memoryIndexBudget {
+	if len(idx) <= memoryIndexBudgetBytes {
 		return idx
 	}
-	return string(r[:memoryIndexBudget]) + "\n…（记忆索引已截断，其余条目可用 memory_search 查询）"
+	return truncateIndexByLines(idx, memoryIndexBudgetBytes) + memoryIndexHint
+}
+
+// truncateIndexByLines 在 budgetBytes 字节预算内按行边界截断 s：保留完整行，
+// 切在预算内最后一个 '\n' 处（不含该 '\n'，避免结果以空行结尾，提示后缀另行
+// 起行）。若截断点之前存在未闭合的 markdown 链接（"[" 缺对应 "]" 或 "](url"
+// 的 ")" 被截掉），回退到该链接起始行之前的行边界，把链接行整体舍弃。只在
+// '\n'（ASCII）处切，不会产生半个 rune。
+func truncateIndexByLines(s string, budgetBytes int) string {
+	if len(s) <= budgetBytes {
+		return s
+	}
+	// cut 是预算内最后一个 '\n' 的下标；s[:cut] 即完整行前缀（不含该 '\n'）。
+	cut := strings.LastIndexByte(s[:budgetBytes], '\n')
+	if cut < 0 {
+		// 预算内没有换行（首行就超预算）：宁丢整行，不切半个字。
+		return ""
+	}
+	kept := s[:cut]
+	// markdown 链接保护：只要摘录内还有未闭合的链接，就回退到该链接起始行之
+	// 前（链接行整体舍弃）。每次回退都严格缩短 kept，循环必然终止。
+	for {
+		start := unclosedLinkLineStart(kept)
+		if start < 0 {
+			break
+		}
+		kept = kept[:start]
+		if kept == "" {
+			break
+		}
+	}
+	return strings.TrimSuffix(kept, "\n")
+}
+
+// unclosedLinkLineStart 返回 s 内第一个未闭合 markdown 链接的起始行偏移（该
+// 行第一个字节的下标），没有未闭合链接则返回 -1。未闭合指：存在 "[" 但 s 内
+// 没有对应的 "]"；或 "[...]" 之后有 "(" 但 s 内没有对应的 ")"。
+func unclosedLinkLineStart(s string) int {
+	i := 0
+	for i < len(s) {
+		rel := strings.IndexByte(s[i:], '[')
+		if rel < 0 {
+			return -1
+		}
+		open := i + rel
+		relClose := strings.IndexByte(s[open+1:], ']')
+		if relClose < 0 {
+			// "[" 没有对应 "]"：可能是被截断的链接前半截，回退到该行行首。
+			return lineStartByte(s, open)
+		}
+		close := open + 1 + relClose
+		relParen := strings.IndexByte(s[close+1:], '(')
+		if relParen < 0 {
+			i = close + 1 // 只是成对的方括号文本，不是链接
+			continue
+		}
+		paren := close + 1 + relParen
+		relEnd := strings.IndexByte(s[paren+1:], ')')
+		if relEnd < 0 {
+			// "](" 有开头没结尾：链接被截断，回退到链接起始行之前。
+			return lineStartByte(s, open)
+		}
+		i = paren + 1 + relEnd + 1 // 已闭合的链接，从 ')' 之后继续扫描
+	}
+	return -1
+}
+
+// lineStartByte 返回 s 中包含 pos 的那一行的起始字节偏移。
+func lineStartByte(s string, pos int) int {
+	if nl := strings.LastIndexByte(s[:pos], '\n'); nl >= 0 {
+		return nl + 1
+	}
+	return 0
 }
 
 // buildCompactBlock returns an abbreviated memory block for the cache prefix.

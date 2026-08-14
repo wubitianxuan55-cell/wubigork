@@ -185,6 +185,97 @@ func (b *sqliteBackend) ListArchived() []ArchivedMemory {
 	return out
 }
 
+// ListArchivedPaged 返回归档事实的分页视图（updated_at 倒序，最新在前）：
+// 总量 + 当前页条目，防止全量返回拖垮前端/接口。limit 钳制到 [1, 200]
+// （默认 50），offset < 0 按 0 处理。文件不存在/查询失败返回错误。
+func (b *sqliteBackend) ListArchivedPaged(limit, offset int) ([]ArchivedMemory, int, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	var total int
+	if err := b.db.QueryRow(
+		`SELECT COUNT(*) FROM facts WHERE project=? AND archived=1`, b.project).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := b.db.Query(
+		`SELECT name, title, description, type, kind, tags, body, updated_at FROM facts WHERE project=? AND archived=1 ORDER BY updated_at DESC, name LIMIT ? OFFSET ?`,
+		b.project, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var out []ArchivedMemory
+	for rows.Next() {
+		var m Memory
+		var typ, kind, tags, archivedAt string
+		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body, &archivedAt); err != nil {
+			return nil, 0, err
+		}
+		m.Type = NormalizeType(typ)
+		m.Kind = NormalizeKind(kind)
+		m.Tags = parseTags(tags)
+		out = append(out, ArchivedMemory{
+			Memory:     m,
+			Path:       b.Path(m.Name),
+			ArchivedAt: parseRFC3339(archivedAt),
+		})
+	}
+	return out, total, rows.Err()
+}
+
+// CleanupArchived 硬删除归档超过 cutoff 时间点的事实（生命周期清理，
+// T6-8.2）：返回被删除的归档行（含溯源字段），供调用方写审计/日志。
+// 已归档但 updated_at 为空（异常数据）不删，避免误伤。
+func (b *sqliteBackend) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, error) {
+	cut := cutoff.UTC().Format(time.RFC3339)
+	rows, err := b.db.Query(
+		`SELECT name, title, description, type, kind, tags, body, updated_at, source_session, source_message FROM facts WHERE project=? AND archived=1 AND updated_at != '' AND updated_at < ?`,
+		b.project, cut)
+	if err != nil {
+		return nil, err
+	}
+	var doomed []ArchivedMemory
+	for rows.Next() {
+		var m Memory
+		var typ, kind, tags, archivedAt, srcSession, srcMessage string
+		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body, &archivedAt, &srcSession, &srcMessage); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		m.Type = NormalizeType(typ)
+		m.Kind = NormalizeKind(kind)
+		m.Tags = parseTags(tags)
+		m.SourceSession = srcSession
+		m.SourceMessage = srcMessage
+		doomed = append(doomed, ArchivedMemory{
+			Memory:     m,
+			Path:       b.Path(m.Name),
+			ArchivedAt: parseRFC3339(archivedAt),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	if len(doomed) == 0 {
+		return nil, nil
+	}
+	for _, am := range doomed {
+		if _, err := b.db.Exec(
+			`DELETE FROM facts WHERE project=? AND name=? AND archived=1`, b.project, slug(am.Name)); err != nil {
+			return doomed, err
+		}
+	}
+	return doomed, nil
+}
+
 // Get returns one active fact by name (used by the memory_get tool and the
 // controller when the backend is SQLite).
 func (b *sqliteBackend) Get(name string) (Memory, bool) {

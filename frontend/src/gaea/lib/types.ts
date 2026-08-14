@@ -643,6 +643,26 @@ export interface MemoryArchive {
   archivedAt?: string;
 }
 
+// MemoryArchivedView 是办公记忆归档列表中的一条（GaeaMemoryArchivedList）：
+// 归档超过 90 天的事实为硬删除候选（GaeaMemoryCleanupArchived 清理）。
+export interface MemoryArchivedView {
+  name: string;
+  title?: string;
+  description: string;
+  type: string;
+  kind: string;
+  // RFC3339 字符串，可为空（后端 time.Time 序列化；空表示时间缺失）。
+  archivedAt: string;
+}
+
+// MemoryArchivedPage 是归档列表分页结果（GaeaMemoryArchivedList）。
+export interface MemoryArchivedPage {
+  items: MemoryArchivedView[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface MemorySuggestion {
   id: string;
   name: string;
