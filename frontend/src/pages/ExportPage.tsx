@@ -22,8 +22,8 @@ const ExportPage: React.FC = () => {
       } else {
         message.success('导出完成')
       }
-    } catch (err: any) {
-      message.error(err?.message || '导出失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '导出失败')
     } finally {
       setExporting(false)
     }

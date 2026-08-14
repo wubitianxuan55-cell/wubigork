@@ -299,7 +299,9 @@ export interface BenchmarkRunDetail {
 
 // ── API 函数 ─────────────────────────────────────────────────
 
-const App = (): any => (window as any).go?.app?.App
+import type { AppFacade } from '../types/wails'
+
+const App = (): AppFacade => window.go?.app?.App as AppFacade
 
 /** 获取所有引擎配置 */
 export async function getEngines(): Promise<EngineConfig[]> {

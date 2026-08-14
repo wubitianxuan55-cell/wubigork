@@ -1,4 +1,8 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+// ImageGenPage（T6-10.1 巨型组件拆分后的编排层，行为零变化）
+// 职责：状态编排 + 跨 hook 装配；配置/引擎（useImageGenConfig）、生成队列
+// （useImageGenQueue）、历史/灯箱（useImageGenHistory）、自定义模板
+// （useCustomTemplates）与纯工具（components/imagegen/meta）拆分见各产物文件。
+import React, { useState, useCallback } from 'react'
 import { Typography, Button, Space, message } from 'antd'
 import {
   PictureOutlined, FolderOpenOutlined,
@@ -13,653 +17,78 @@ import { ResultStage } from '../components/imagegen/ResultStage'
 import { GenerationBar } from '../components/imagegen/GenerationBar'
 import { TaskCenter } from '../components/imagegen/TaskCenter'
 import { StatusDot } from '../components/imagegen/ui'
-import {
-  TEMPLATES,
-  loadCustomTemplates, saveCustomTemplates, generateTemplateId,
-  type Template, type CustomTemplate,
-} from '../data/imageTemplates'
-import {
-  getImageBackendInfo, getCharacters,
-  getComfyUIStatus, getSystemStats,
-  getComfyUILoras,
-  generateImage, cancelImageGeneration, startComfyUI, stopComfyUI,
-  generateMedia, type MediaParams,
-  generateDiagram,
-  getComfyUITaskProgress,
-  openImageSaveDir, openNovelImagesDir,
-  setCharacterPortrait as setPortrait,
-  readFileAsDataURL,
-  type SystemStats,
-} from '../api/image'
-import { getEngines, testEngineConnection, setActiveEngine, setEngineDefaultModel, type EngineConfig } from '../api/engines'
-import { setImageBackend as setImageBackendAPI } from '../api/settings'
-import type { GenResult, GenTask, QueueEntry } from '../components/imagegen/types'
+import { TEMPLATES, type Template } from '../data/imageTemplates'
+import { useImageGenConfig } from '../hooks/useImageGenConfig'
+import { useImageGenQueue } from '../hooks/useImageGenQueue'
+import { useImageGenHistory } from '../hooks/useImageGenHistory'
+import { useCustomTemplates } from '../hooks/useCustomTemplates'
+import { BACKEND_OPTIONS, resolveResultImage } from '../components/imagegen/meta'
 import { downloadFileName } from '../components/imagegen/media'
-import { HISTORY_META_KEY, serializeHistoryMeta, restoreHistoryImages } from '../components/imagegen/historyMeta'
-import { markQueueCanceled, shouldSubmitNext, afterTaskStatus } from '../components/imagegen/queue'
-import { filterLorasByModel, loraFamily, loraFamiliesForModel } from '../utils/loraFilter'
-import { renderMermaidToPng } from '../utils/mermaidPng'
 import '../components/imagegen/imagegen.css'
 
-// ── 常量 ──
-
-const BACKEND_OPTIONS = [
-  { label: '☁️ xAI 云端', value: 'xai' },
-  { label: '🏠 ComfyUI 本地', value: 'comfyui' },
-  { label: '🐄 Herdsman 本地', value: 'herdsman' },
-  { label: '🦙 Ollama 本地', value: 'ollama' },
-]
-
-function loadHistoryMeta(): GenResult[] {
-  try {
-    const raw = localStorage.getItem(HISTORY_META_KEY)
-    if (!raw) return []
-    const items = JSON.parse(raw) as GenResult[]
-    // 保留已内联的小图与 file_path；无图无路径的旧记录降级为占位
-    return items.map((it) => ({ ...it, image: it.image || '' }))
-  } catch {
-    return []
-  }
-}
-
-// 历史元数据保存：小 base64 内联、大图只存 file_path（localStorage 容量保护分级策略）
-function saveHistoryMeta(history: GenResult[]) {
-  try {
-    localStorage.setItem(HISTORY_META_KEY, JSON.stringify(serializeHistoryMeta(history)))
-  } catch (err) {
-    console.warn('[imagegen] 历史元数据保存失败', err)
-  }
-}
-
-// ── 模型分类（与 ModelCenterPage 保持一致） ──
-
-function classifyModel(id: string): string {
-  const lid = id.toLowerCase()
-  if (lid.includes('tts') || lid.includes('voice') || lid.includes('edge')) return 'tts'
-  if (lid.includes('sherpa') || lid.includes('whisper') || lid.includes('zipformer') || lid.includes('asr')) return 'stt'
-  if (lid.includes('image') || lid.includes('zimage') || lid.includes('flux') || lid.includes('turbo') || lid.includes('sd') || lid.includes('dalle')) return 'image'
-  return 'llm'
-}
-
-/** LoRA 文件名 → 可读标签（去掉扩展名/路径，下划线转空格） */
-function loraLabel(name: string): string {
-  const base = name.replace(/\.(safetensors|pt|bin|ckpt|sft)$/i, '')
-  const rel = base.replace(/\\/g, '/')
-  const file = rel.split('/').pop() || rel
-  return file.replace(/_/g, ' ')
-}
-
-// ── 主组件 ──
-
 const ImageGenPage: React.FC = () => {
-  // ── 核心状态 ──
-  const [mode, setMode] = useState<'txt2img' | 'img2img' | 't2v'>('txt2img')
-  const [prompt, setPrompt] = useState('')
-  const [negative, setNegative] = useState('')
-  const [size, setSize] = useState('1024x1024')
-  const [initImage, setInitImage] = useState('')
-  const [denoise, setDenoise] = useState(0.65)
-  const [frames, setFrames] = useState(97)
-  const [fps, setFps] = useState(8)
-  const [model, setModel] = useState('krea2')
-  const [seed, setSeed] = useState(0)
-  const [count, setCount] = useState(1)
-  const [customWidth, setCustomWidth] = useState(1024)
-  const [customHeight, setCustomHeight] = useState(1024)
-  const [backend, setBackend] = useState('xai')
-  const [selectedLoras, setSelectedLoras] = useState<string[]>([])
-  const [comfyLoras, setComfyLoras] = useState<string[]>([])
-  const [loraLoading, setLoraLoading] = useState(false)
-  const [loraError, setLoraError] = useState('')
-  const [generating, setGenerating] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
-  const [lastTime, setLastTime] = useState(0)
-  const [genError, setGenError] = useState('')
-  const [comfyProgress, setComfyProgress] = useState({ status: '', elapsed: 0 })
+  const cfg = useImageGenConfig()
+  const {
+    mode, setMode, prompt, setPrompt, negative, setNegative, size, setSize,
+    initImage, setInitImage, denoise, setDenoise, frames, setFrames, fps, setFps,
+    model, setModel, seed, setSeed, count, setCount,
+    customWidth, setCustomWidth, customHeight, setCustomHeight,
+    backend, selectedLoras, setSelectedLoras,
+    loraOptions, loraLoading, loraError, refreshComfyLoras,
+    backendSwitching, engineRunning, engineStarting, engineModelCount, sysStats,
+    modelOptions, characters,
+    handleSwitchBackend, handleStartEngine, handleStopEngine,
+    handleOpenDir, handleOpenNovelDir,
+  } = cfg
 
-  // ── 引擎 & 后端状态 ──
-  const [engines, setEngines] = useState<EngineConfig[]>([])
-  const [backendSwitching, setBackendSwitching] = useState(false)
-  const [engineRunning, setEngineRunning] = useState(false)
-  const [engineStarting, setEngineStarting] = useState(false)
-  const [engineModelCount, setEngineModelCount] = useState(0)
-  const [sysStats, setSysStats] = useState<SystemStats | null>(null)
+  const historyApi = useImageGenHistory({ setPrompt, setNegative, setSeed, setSize })
+  const {
+    history, setHistory, lightboxIndex, setLightboxIndex,
+    handleDownload, handleReuse, handleDelete, handleSetPortrait,
+  } = historyApi
 
-  // ── 结果 & 历史 ──
-  const [results, setResults] = useState<GenResult[]>([])
-  const [history, setHistory] = useState<GenResult[]>(() => loadHistoryMeta())
-  const [lightboxIndex, setLightboxIndex] = useState(-1)
-  const [characters, setCharacters] = useState<{ id: string; name: string }[]>([])
+  const queueApi = useImageGenQueue({
+    setHistory,
+    setLightboxIndex,
+    config: {
+      prompt, mode, initImage, backend, negative, size,
+      customWidth, customHeight, model, seed, count, selectedLoras,
+      denoise, frames, fps,
+    },
+  })
+  const {
+    generating, elapsed, lastTime, genError, comfyProgress,
+    results, setResults, pendingCount, queueItems, setQueueItems, canvasRef,
+    handleGenerate, handleRegenerateMeta, handleCancel,
+  } = queueApi
+
+  const tmpl = useCustomTemplates()
+  const {
+    customTemplates, customModalOpen, setCustomModalOpen,
+    editingCustom, customLabel, setCustomLabel, customDescription, setCustomDescription,
+    customSize, setCustomSize, customPrompt, setCustomPrompt,
+    customNegative, setCustomNegative,
+    openCustomAdd, openCustomEdit, saveCustom, deleteCustom,
+  } = tmpl
 
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
-  const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>(() => loadCustomTemplates())
-  const [customModalOpen, setCustomModalOpen] = useState(false)
-  const [editingCustom, setEditingCustom] = useState<CustomTemplate | null>(null)
-  const [customLabel, setCustomLabel] = useState('')
-  const [customDescription, setCustomDescription] = useState('')
-  const [customSize, setCustomSize] = useState('')
-  const [customPrompt, setCustomPrompt] = useState('')
-  const [customNegative, setCustomNegative] = useState('')
 
-  const generatingRef = useRef(false)
-  const pendingRef = useRef<QueueEntry[]>([])
-  const queueSeq = useRef(0)
-  // 本地取消标记：收到取消后队列停止继续提交，直到用户手动发起新一轮生成
-  const cancelArmedRef = useRef(false)
-  const [pendingCount, setPendingCount] = useState(0)
-  const [queueItems, setQueueItems] = useState<QueueEntry[]>([])
-  const canvasRef = useRef<HTMLDivElement>(null)
-
-  const comfyModels = useMemo(() => [
-    { label: 'Krea2 Turbo', value: 'krea2' },
-    { label: 'Z-Image-Turbo', value: 'z-image-turbo' },
-    // T6-4：flux 已有真实工作流；未装 flux1-schnell.safetensors 等模型时后端返回中文错误
-    { label: 'Flux Schnell', value: 'flux' },
-    { label: '流程图 / 框架图（代码渲染）', value: 'diagram' },
-  ], [])
-
-  // LoRA 选项：动态读取 ComfyUI 实际 models/loras 列表，并按当前模型族过滤，
-  // 避免硬编码文件名与本地安装不一致导致提交 400，也避免跨模型误选
-  const loraOptions = useMemo(
-    () => (backend === 'comfyui'
-      ? filterLorasByModel(model, comfyLoras).map((name) => ({ label: loraLabel(name), value: name }))
-      : []),
-    [backend, comfyLoras, model],
-  )
-
-  const modelOptions = useMemo(() => {
-    if (backend === 'comfyui') return comfyModels
-    if (backend === 'xai') {
-      const xaiEngine = engines.find(e => e.id === 'xai')
-      const imgModels = (xaiEngine?.models || []).filter(m => classifyModel(m.id) === 'image')
-      if (imgModels.length > 0) return imgModels.map(m => ({ label: m.id, value: m.id }))
-      return [{ label: 'grok-imagine-image', value: 'grok-imagine-image' }]
-    }
-    const eng = engines.find(e => e.id === backend)
-    const imgModels = (eng?.models || []).filter(m => classifyModel(m.id) === 'image')
-    if (imgModels.length > 0) return imgModels.map(m => ({ label: m.id, value: m.id }))
-    return model ? [{ label: model, value: model }] : []
-  }, [backend, engines, model, comfyModels])
-
-  // ── 初始化 ──
-  useEffect(() => {
-    (async () => {
-      try {
-        const info = await getImageBackendInfo()
-        if (info?.backend) setBackend(info.backend)
-        if (info?.model) setModel(info.model)
-        const chars = await getCharacters()
-        setCharacters(chars || [])
-      } catch (_) { /* ignore */ }
-      try {
-        const list = await getEngines()
-        setEngines(list || [])
-      } catch (_) { /* ignore */ }
-    })()
-  }, [])
-
-  // ── 引擎状态轮询 ──
-  useEffect(() => {
-    const isLocal = ['comfyui', 'herdsman', 'ollama'].includes(backend)
-    if (!isLocal) { setEngineRunning(true); setEngineModelCount(0); return }
-
-    // ComfyUI 用专用状态 API，其他本地引擎用通用 testEngineConnection
-    if (backend === 'comfyui') {
-      const check = async () => {
-        try {
-          const s = await getComfyUIStatus()
-          const running = !!s?.running
-          setEngineRunning(running)
-          if (running) setEngineStarting(false)
-          setEngineModelCount(0)
-        } catch (_) { setEngineRunning(false); setEngineModelCount(0) }
-      }
-      check()
-      const timer = setInterval(check, 5000)
-      return () => clearInterval(timer)
-    }
-
-    const check = async () => {
-      try {
-        const status = await testEngineConnection(backend)
-        setEngineRunning(!!status?.connected)
-        setEngineModelCount(status?.model_count || 0)
-      } catch (_) { setEngineRunning(false); setEngineModelCount(0) }
-    }
-    check()
-    const timer = setInterval(check, 8000)
-    return () => clearInterval(timer)
-  }, [backend])
-
-  // ── ComfyUI LoRA 列表动态加载 ──
-  const refreshComfyLoras = useCallback(async () => {
-    if (backend !== 'comfyui') {
-      setComfyLoras([])
-      setLoraError('')
-      setLoraLoading(false)
-      return
-    }
-    setLoraLoading(true)
-    const { list, error } = await getComfyUILoras()
-    setComfyLoras(list)
-    setLoraError(error || '')
-    setLoraLoading(false)
-    // 已选 LoRA 若不在最新列表中则清除，避免提交无效名称
-    setSelectedLoras((prev) => (list.length ? prev.filter((v) => list.includes(v)) : prev))
-  }, [backend])
-
-  useEffect(() => {
-    if (backend === 'comfyui' && engineRunning) refreshComfyLoras()
-  }, [backend, engineRunning, refreshComfyLoras])
-
-  useEffect(() => {
-    refreshComfyLoras()
-    const timer = setInterval(refreshComfyLoras, 30000)
-    return () => clearInterval(timer)
-  }, [refreshComfyLoras])
-
-  // 切换模型时清掉不属于该模型族的已选 LoRA，避免提交无效 lora_name
-  useEffect(() => {
-    const allowed = loraFamiliesForModel(model)
-    setSelectedLoras((prev) => prev.filter((v) => allowed.includes(loraFamily(v))))
-  }, [model])
-
-  // ── 系统状态轮询（所有后端显示 CPU+内存，GPU 仅 ComfyUI） ──
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const s = await getSystemStats()
-        if (s) setSysStats(s)
-      } catch (_) { /* ignore */ }
-    }
-    fetchStats()
-    const timer = setInterval(fetchStats, 5000)
-    return () => clearInterval(timer)
-  }, [backend])
-
-  // 历史元数据轻量持久化：小 base64 内联、大图只存 file_path（分级策略）
-  useEffect(() => {
-    saveHistoryMeta(history)
-  }, [history])
-
-  // 重启后历史图片恢复：无 base64 但有 file_path 的条目，经后端读取绑定回填 dataURL。
-  // 仅在挂载时执行一次（history 为初始加载值）；逐条失败由 restoreHistoryImages 记录，不影响页面。
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const restored = await restoreHistoryImages(history, readFileAsDataURL)
-        if (cancelled || restored.length === 0) return
-        setHistory((prev) => {
-          const byPath = new Map(restored.map((it) => [it.file_path, it]))
-          return prev.map((it) => (it.file_path && byPath.get(it.file_path)) || it)
-        })
-      } catch (err) {
-        console.warn('[imagegen] 历史图片恢复流程失败', err)
-      }
-    })()
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // ── 生成计时器 ──
-  useEffect(() => {
-    if (!generating) { setElapsed(0); return }
-    const start = Date.now()
-    const timer = setInterval(() => setElapsed(Math.round((Date.now() - start) / 1000)), 1000)
-    return () => clearInterval(timer)
-  }, [generating])
-
-  // 生成开始时画布回到顶部，避免新一轮结果被旧滚动位置遮挡
-  useEffect(() => {
-    if (generating) canvasRef.current?.scrollTo({ top: 0 })
-  }, [generating])
-
-  // ComfyUI 任务状态轮询
-  useEffect(() => {
-    if (!generating || backend !== 'comfyui') {
-      setComfyProgress({ status: '', elapsed: 0 })
-      return
-    }
-    let cancelled = false
-    const tick = async () => {
-      const p = await getComfyUITaskProgress()
-      if (!cancelled) setComfyProgress(p)
-    }
-    tick()
-    const timer = setInterval(tick, 2000)
-    return () => { cancelled = true; clearInterval(timer) }
-  }, [generating, backend])
-
-  // ── 生成队列 ──
-  const executeTask = useCallback(async (task: GenTask) => {
-    generatingRef.current = true
-    setGenerating(true)
-    setGenError('')
-    setResults([])
-    setLightboxIndex(-1)
-    const genStart = Date.now()
-    let ok = true
-    try {
-      if (task.model === 'diagram') {
-        const res = await generateDiagram(task.prompt)
-        if (res?.error) {
-          setGenError(res.error)
-          message.error(res.error)
-          return false
-        }
-        if (!res.code) {
-          setGenError('AI 未返回有效的图表代码，请调整描述后重试')
-          message.error('AI 未返回有效的图表代码，请调整描述后重试')
-          return false
-        }
-        const png = await renderMermaidToPng(res.code)
-        if (!png) {
-          setGenError('图表渲染失败，请调整描述后重试')
-          message.error('图表渲染失败，请调整描述后重试')
-          return false
-        }
-        const diagramResult: GenResult = {
-          image: png.dataUrl,
-          seed: 0,
-          time: Math.round((Date.now() - genStart) / 1000),
-          prompt: task.prompt,
-          negative: task.negative,
-          model: '流程图 / 框架图',
-          size: `${png.width}x${png.height}`,
-          mode: task.mode,
-          count: task.count,
-          selectedLoras: task.selectedLoras,
-          denoise: task.denoise,
-          frames: task.frames,
-          fps: task.fps,
-          customWidth: task.customWidth,
-          customHeight: task.customHeight,
-        }
-        setResults([diagramResult])
-        setHistory((prev) => [diagramResult, ...prev.filter((h) =>
-          !(h.prompt === diagramResult.prompt && h.model === diagramResult.model),
-        )])
-        setLightboxIndex(0)
-        setLastTime(Math.round((Date.now() - genStart) / 1000))
-        message.success('✔ 图表已生成')
-        return true
-      }
-      const finalSize = task.size === 'custom' ? `${task.customWidth}x${task.customHeight}` : task.size
-      const loraStr = task.selectedLoras.join(',')
-      const mediaParams: MediaParams = {
-        prompt: task.prompt, negative: task.negative, size: finalSize, model: task.model,
-        seed: task.seed, lora: loraStr,
-        count: task.mode === 't2v' ? 1 : task.count,
-        mode: task.mode,
-      }
-      if (task.mode === 'img2img') { mediaParams.initImage = task.initImage; mediaParams.denoise = task.denoise }
-      if (task.mode === 't2v') { mediaParams.frames = task.frames; mediaParams.fps = task.fps }
-      const res: { error?: string; images?: GenResult[]; results?: GenResult[] } = task.mode === 'txt2img'
-        ? await generateImage(task.prompt, task.negative, finalSize, task.model, task.seed, task.count, loraStr)
-        : await generateMedia(mediaParams)
-      if (res?.error) {
-        ok = false
-        setGenError(res.error)
-        message.error(res.error)
-      } else if (res?.images?.length) {
-        const genResults = res.images.map((g) => ({
-          ...g,
-          mode: task.mode,
-          count: task.count,
-          selectedLoras: task.selectedLoras,
-          denoise: task.denoise,
-          frames: task.frames,
-          fps: task.fps,
-          customWidth: task.customWidth,
-          customHeight: task.customHeight,
-        }))
-        setResults(genResults)
-        setHistory((prev) => [...genResults, ...prev.filter((h) =>
-          !genResults.some((g) => g.seed === h.seed && g.prompt === h.prompt),
-        )])
-        setLightboxIndex(0)
-        setLastTime(Math.round((Date.now() - genStart) / 1000))
-        message.success(task.mode === 't2v' ? '✨ 视频已生成' : `✨ 已生成 ${genResults.length} 张图片`)
-      } else if (res?.results?.length) {
-        const genResults = res.results.map((g) => ({
-          ...g,
-          mode: task.mode,
-          count: task.count,
-          selectedLoras: task.selectedLoras,
-          denoise: task.denoise,
-          frames: task.frames,
-          fps: task.fps,
-          customWidth: task.customWidth,
-          customHeight: task.customHeight,
-        }))
-        setResults(genResults)
-        setHistory((prev) => [...genResults, ...prev.filter((h) =>
-          !genResults.some((g) => g.seed === h.seed && g.prompt === h.prompt),
-        )])
-        setLightboxIndex(0)
-        setLastTime(Math.round((Date.now() - genStart) / 1000))
-        message.success(task.mode === 't2v' ? '✨ 视频已生成' : `✨ 已生成 ${genResults.length} 张图片`)
-      }
-    } catch (err: any) {
-      ok = false
-      setGenError(err?.message || '生成失败')
-      message.error(err?.message || '生成失败')
-    } finally {
-      generatingRef.current = false
-      setGenerating(false)
-    }
-    return ok
-  }, [])
-
-  const processQueue = useCallback(async () => {
-    // 本地取消标记生效（cancelArmedRef）时循环立即停止：排队项不再启动
-    while (shouldSubmitNext(pendingRef.current.length, cancelArmedRef.current)) {
-      const entry = pendingRef.current[0]
-      pendingRef.current = pendingRef.current.slice(1)
-      setPendingCount(pendingRef.current.length)
-      setQueueItems((prev) => prev.map((item) => item.id === entry.id ? { ...item, status: 'running' as const } : item))
-      const ok = await executeTask(entry.task)
-      setQueueItems((prev) => prev.map((item) =>
-        item.id === entry.id && item.status !== 'canceled'
-          ? { ...item, status: afterTaskStatus(cancelArmedRef.current, ok) }
-          : item,
-      ))
-    }
-  }, [executeTask])
-
-  const enqueueTask = useCallback((task: GenTask) => {
-    // 用户手动发起新一轮生成：清除本地取消标记（后端 ComfyUI 取消标记同步自动清除）
-    cancelArmedRef.current = false
-    const entry: QueueEntry = { id: ++queueSeq.current, task, status: 'pending' }
-    pendingRef.current = [...pendingRef.current, entry]
-    setQueueItems((prev) => [...prev, entry])
-    setPendingCount(pendingRef.current.length)
-    if (!generatingRef.current) void processQueue()
-  }, [processQueue])
-
-  const handleGenerate = useCallback(() => {
-    if (!prompt.trim()) { message.warning(mode === 't2v' ? '请输入视频画面描述' : '请输入图片描述'); return }
-    if (mode === 'img2img' && !initImage) { message.warning('请先上传参考图'); return }
-    if (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman') {
-      message.warning('图生图目前支持 ComfyUI / Herdsman 本地后端，请先在左侧切换引擎')
-      return
-    }
-    if (mode === 't2v' && backend !== 'comfyui') {
-      message.warning('文生视频仅支持 ComfyUI 本地后端，请先在左侧切换引擎')
-      return
-    }
-    const task: GenTask = {
-      prompt, negative, size, customWidth, customHeight, model, seed, count,
-      selectedLoras, mode, initImage, denoise, frames, fps,
-    }
-    enqueueTask(task)
-  }, [prompt, negative, size, customWidth, customHeight, model, seed, count, selectedLoras,
-    mode, initImage, denoise, frames, fps, backend, enqueueTask])
-
-  const handleRegenerateMeta = useCallback((meta: GenResult) => {
-    if (!meta.prompt?.trim()) return
-    const task: GenTask = {
-      prompt: meta.prompt,
-      negative: meta.negative || '',
-      size: meta.size || '1024x1024',
-      customWidth: meta.customWidth || 1024,
-      customHeight: meta.customHeight || 1024,
-      model: meta.model || model,
-      seed: meta.seed || 0,
-      count: meta.count || 1,
-      selectedLoras: meta.selectedLoras || [],
-      mode: meta.mode || 'txt2img',
-      initImage: '',
-      denoise: meta.denoise || 0.65,
-      frames: meta.frames || 97,
-      fps: meta.fps || 8,
-    }
-    enqueueTask(task)
-  }, [model, enqueueTask])
-
-  const handleCancel = useCallback(async () => {
-    // 本地队列立即停止提交：已有生成中的项 + 排队中的项全部标记为取消
-    setQueueItems((prev) => markQueueCanceled(prev))
-    pendingRef.current = []
-    setPendingCount(0)
-    cancelArmedRef.current = true
-    try {
-      const confirmed = await cancelImageGeneration()
-      // 收到确认后保持本地阻断：不再自动提交，直到用户手动发起新一轮生成
-      //（enqueueTask 清除标记；后端新一轮生成会自动清除其取消标记）
-      void confirmed
-    } catch (err: any) {
-      message.error(err?.message || '取消失败')
-    }
-  }, [])
-
-  // ── 切换后端 ──
-  const handleSwitchBackend = useCallback(async (newBackend: string) => {
-    if (newBackend === backend) return
-    setBackendSwitching(true)
-    try {
-      let defaultModel = ''
-      if (newBackend === 'comfyui') defaultModel = 'krea2'
-      else if (newBackend === 'xai') defaultModel = 'grok-imagine-image'
-      else {
-        const eng = engines.find(e => e.id === newBackend)
-        const img = (eng?.models || []).filter(m => classifyModel(m.id) === 'image')
-        if (img.length > 0) defaultModel = img[0].id
-      }
-      await setImageBackendAPI(newBackend, '', defaultModel, '')
-      setBackend(newBackend)
-      if (defaultModel) setModel(defaultModel)
-      if (newBackend !== 'comfyui') setSelectedLoras([])
-      // 切换到 ComfyUI 而服务尚未启动时自动启动，避免面板 LoRA 空白、无法生图
-      if (newBackend === 'comfyui') {
-        try {
-          const st = await getComfyUIStatus()
-          if (!st?.running) {
-            setEngineStarting(true)
-            await startComfyUI()
-            message.success('ComfyUI 正在启动，就绪后自动加载 LoRA…')
-          }
-        } catch (err: any) {
-          setEngineStarting(false)
-          message.error(err?.message || 'ComfyUI 启动失败，请检查安装路径')
-        }
-      }
-    } catch (err: any) { message.error(err?.message || '切换失败') }
-    finally { setBackendSwitching(false) }
-  }, [backend, engines])
+  // ── 跨 hook 操作 ──
 
   // ── 切换模式：非 ComfyUI 后端仅保留文生图 ──
   const handleSwitchMode = useCallback((m: 'txt2img' | 'img2img' | 't2v') => {
     setMode(m)
     setResults([])
     setLightboxIndex(-1)
-  }, [])
-
-  // ── 引擎启停 ──
-  const isLocalEngine = ['comfyui', 'herdsman', 'ollama'].includes(backend)
-  const needsComfy = (mode === 't2v' && backend !== 'comfyui')
-    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman')
-
-  const handleStartEngine = useCallback(async () => {
-    setEngineStarting(true)
-    try {
-      if (backend === 'comfyui') {
-        await startComfyUI()
-        message.success('ComfyUI 启动中，等待连接...（约需 30-60 秒）')
-        // 不清除 engineStarting，让轮询检测到运行后再切换状态
-      } else {
-        await setActiveEngine(backend)
-        if (model) await setEngineDefaultModel(backend, model)
-        setEngineRunning(true)
-        message.success(`${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 已启动`)
-        setEngineStarting(false)
-      }
-    } catch (err: any) {
-      message.error(err?.message || '启动失败')
-      setEngineStarting(false)
-    }
-  }, [backend, model])
-
-  const handleStopEngine = useCallback(async () => {
-    try {
-      if (backend === 'comfyui') {
-        await stopComfyUI()
-        message.success('ComfyUI 已停止')
-      }
-      setEngineRunning(false)
-    } catch (err: any) { message.error(err?.message || '停止失败') }
-  }, [backend])
-
-  // ── 目录操作 ──
-  const handleOpenDir = useCallback(async () => {
-    try { await openImageSaveDir() } catch (err: any) { message.error(err?.message || '打开失败') }
-  }, [])
-  const handleOpenNovelDir = useCallback(async () => {
-    try { await openNovelImagesDir() } catch (err: any) { message.error(err?.message || '打开失败') }
-  }, [])
+  }, [setMode, setResults, setLightboxIndex])
 
   // ── 结果操作 ──
-  // 解析可展示/下载的图像数据：优先用 file_path（本地文件为权威来源），失败回退内存 base64
-  const resolveResultImage = useCallback(async (r: GenResult): Promise<string> => {
-    if (r.file_path) {
-      try {
-        const url = await readFileAsDataURL(r.file_path)
-        if (url) return url
-      } catch (err) {
-        console.warn(`[imagegen] 读取本地图片失败，回退内存数据: ${r.file_path}`, err)
-      }
-    }
-    return r.image || ''
-  }, [])
-
-  const handleDownload = useCallback(async (i: number) => {
-    const r = history[i]
+  const handlePreviewResult = useCallback((i: number) => {
+    const r = results[i]
     if (!r) return
-    const href = await resolveResultImage(r)
-    if (!href) {
-      message.warning('图片数据不可用（本地文件缺失且无内存数据），请重新生成')
-      return
-    }
-    const a = document.createElement('a')
-    a.href = href
-    // T6-4.2：按实际媒体类型命名（t2v 输出 webp 则 .webp，不再固定 .mp4）
-    a.download = downloadFileName(r)
-    a.click()
-  }, [history, resolveResultImage])
-
-  const handleReuse = useCallback((i: number) => {
-    const r = history[i]
-    if (!r) return
-    setPrompt(r.prompt)
-    if (r.negative) setNegative(r.negative)
-    if (r.seed) setSeed(r.seed)
-    if (r.size) setSize(r.size)
-  }, [history])
-
-  const handleDelete = useCallback((i: number) => {
-    setHistory((prev) => prev.filter((_, idx) => idx !== i))
-  }, [])
+    const historyIndex = history.findIndex((item) => item === r)
+    setLightboxIndex(historyIndex >= 0 ? historyIndex : -1)
+  }, [results, history, setLightboxIndex])
 
   const handleDownloadResult = useCallback(async (i: number) => {
     const r = results[i]
@@ -674,7 +103,7 @@ const ImageGenPage: React.FC = () => {
     // T6-4.2：按实际媒体类型命名（t2v 输出 webp 则 .webp，不再固定 .mp4）
     a.download = downloadFileName(r)
     a.click()
-  }, [results, resolveResultImage])
+  }, [results])
 
   const handleReuseResult = useCallback((i: number) => {
     const r = results[i]
@@ -683,35 +112,14 @@ const ImageGenPage: React.FC = () => {
     if (r.negative) setNegative(r.negative)
     if (r.seed) setSeed(r.seed)
     if (r.size) setSize(r.size)
-  }, [results])
+  }, [results, setPrompt, setNegative, setSeed, setSize])
 
   const handleDeleteResult = useCallback((i: number) => {
     const r = results[i]
     if (!r) return
     setResults((prev) => prev.filter((item) => item !== r))
     setHistory((prev) => prev.filter((item) => item !== r))
-  }, [results])
-
-  const handlePreviewResult = useCallback((i: number) => {
-    const r = results[i]
-    if (!r) return
-    const historyIndex = history.findIndex((item) => item === r)
-    setLightboxIndex(historyIndex >= 0 ? historyIndex : -1)
-  }, [results, history])
-
-  const handleSetPortrait = useCallback(async (i: number, charID: string) => {
-    const r = history[i]
-    if (!r) return
-    const dataUrl = await resolveResultImage(r)
-    if (!dataUrl) {
-      message.warning('图片数据不可用（本地文件缺失且无内存数据），请重新生成')
-      return
-    }
-    try {
-      await setPortrait(charID, dataUrl)
-      message.success('已设为角色剧照')
-    } catch (err: any) { message.error(err?.message || '设置失败') }
-  }, [history, resolveResultImage])
+  }, [results, setResults, setHistory])
 
   // ── 模板操作 ──
   const applyTemplate = useCallback((t: Template) => {
@@ -719,64 +127,12 @@ const ImageGenPage: React.FC = () => {
     const neg = t.negative
     if (neg) setNegative((n) => n ? n + ', ' + neg : neg)
     message.success(`已套用模板「${t.label}」`)
-  }, [])
+  }, [setPrompt, setNegative])
 
-  const openCustomAdd = useCallback(() => {
-    setEditingCustom(null)
-    setCustomLabel('')
-    setCustomDescription('')
-    setCustomSize('')
-    setCustomPrompt('')
-    setCustomNegative('')
-    setCustomModalOpen(true)
-  }, [])
-
-  const openCustomEdit = useCallback((t: CustomTemplate) => {
-    setEditingCustom(t)
-    setCustomLabel(t.label)
-    setCustomDescription(t.description || '')
-    setCustomSize(t.size || '')
-    setCustomPrompt(t.prompt)
-    setCustomNegative(t.negative || '')
-    setCustomModalOpen(true)
-  }, [])
-
-  const saveCustom = useCallback(() => {
-    if (!customLabel.trim() || !customPrompt.trim()) {
-      message.warning('标签和 Prompt 不能为空')
-      return
-    }
-    if (editingCustom) {
-      const updated = customTemplates.map((t) =>
-        t.id === editingCustom.id
-          ? {
-              ...t,
-              label: customLabel, description: customDescription, size: customSize,
-              prompt: customPrompt, negative: customNegative,
-            }
-          : t,
-      )
-      setCustomTemplates(updated)
-      saveCustomTemplates(updated)
-    } else {
-      const created: CustomTemplate = {
-        id: generateTemplateId(), label: customLabel, description: customDescription, size: customSize,
-        prompt: customPrompt, negative: customNegative,
-      }
-      const updated = [...customTemplates, created]
-      setCustomTemplates(updated)
-      saveCustomTemplates(updated)
-    }
-    setCustomModalOpen(false)
-    message.success(editingCustom ? '模板已更新' : '模板已添加')
-  }, [customTemplates, editingCustom, customLabel, customDescription, customSize, customPrompt, customNegative])
-
-  const deleteCustom = useCallback((id: string) => {
-    const updated = customTemplates.filter((t) => t.id !== id)
-    setCustomTemplates(updated)
-    saveCustomTemplates(updated)
-    message.success('已删除')
-  }, [customTemplates])
+  // ── 引擎启停派生 ──
+  const isLocalEngine = ['comfyui', 'herdsman', 'ollama'].includes(backend)
+  const needsComfy = (mode === 't2v' && backend !== 'comfyui')
+    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman')
 
   // ── 渲染 ──
   return (

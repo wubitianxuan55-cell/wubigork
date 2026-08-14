@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- antd 图标类型(AntdIconProps)与 SVGProps 不兼容，
-   wrap 桥接层需 any 类型放宽；图标组件运行时行为不受影响 */
 // gaea 图标兼容层 — lucide-react → @ant-design/icons 统一映射。
 // 目的：办公模块与主应用共享同一套图标体系（antd），消除两套图标来源。
 // 用法：`import { X, Check, ... } from "../icons"`（原 lucide 图标名保持可用）。
@@ -78,17 +76,20 @@ import {
   WalletOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { createElement, type ComponentType, type SVGProps } from "react";
+import { createElement, type ComponentType, type ElementType, type SVGProps } from "react";
 
 export type IconProps = SVGProps<SVGSVGElement> & { size?: number | string };
 export type Icon = ComponentType<IconProps>;
 
 // 包装 antd 图标，兼容 lucide 的 size prop（映射到 style.fontSize）。
-function wrap(Comp: ComponentType<any>): Icon {
+// antd 图标 props（AntdIconProps）与 lucide 的 SVGProps 并不完全兼容
+// （如 focusable 类型不同），因此 wrap 参数用 ElementType 接受任意组件，
+// 由 createElement 泛型收窄 props，无需放宽类型（T6-10.2）。
+function wrap(Comp: ElementType): Icon {
   return function GaeaIcon(props: IconProps) {
     const { size, style, ...rest } = props;
     const fontSize = size !== undefined ? size : undefined;
-    return createElement(Comp as ComponentType<any>, { ...(rest as object), style: fontSize !== undefined ? { ...style, fontSize } : style });
+    return createElement(Comp, { ...rest, style: fontSize !== undefined ? { ...style, fontSize } : style });
   };
 }
 

@@ -21,6 +21,11 @@ import {
 } from '../../../api/engines'
 import { kindOf, engineLabel, type Category, type ModelCardData } from '../utils'
 
+/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
+function errText(err: unknown, fallback: string): string {
+  return (err instanceof Error && err.message) || fallback
+}
+
 export interface EngineState {
   loading: boolean
   engines: EngineConfig[]
@@ -110,9 +115,9 @@ export function useEngineState(category: Category): EngineState {
         const ks = await getOpencodeZenKeyStatus()
         if (ks) { setOpencodeZenKeyMasked(ks.masked || '') }
       } catch (_) {}
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (seq === loadAllSeq.current) {
-        message.error(err?.message || '加载引擎列表失败，请重试')
+        message.error(errText(err, '加载引擎列表失败，请重试'))
       }
     } finally {
       if (seq === loadAllSeq.current) setLoading(false)
@@ -150,7 +155,7 @@ export function useEngineState(category: Category): EngineState {
         if (res?.ready) message.success(`本地 TTS 服务已就绪：${card.engineName}`)
         else message.success(`正在启动本地 TTS 服务：${card.engineName}（首次约 1–2 分钟）`)
         loadAll()
-      } catch (err: any) { message.error(`启动失败：${err.message || err}`) }
+      } catch (err: unknown) { message.error(`启动失败：${err instanceof Error ? err.message : String(err)}`) }
       return
     }
     if (kind !== 'llm') return
@@ -160,7 +165,7 @@ export function useEngineState(category: Category): EngineState {
       setEngines(prev => prev.map(e => e.id === card.engineId ? { ...e, default_model: card.modelId } : e))
       setActiveModel(card.modelId)
       message.success(`已启动${card.modelName}`)
-    } catch (err: any) { message.error(`启动失败：${err.message || err}`) }
+    } catch (err: unknown) { message.error(`启动失败：${err instanceof Error ? err.message : String(err)}`) }
   }
 
   const isModelActive = (card: ModelCardData) => activeEngine === card.engineId && activeModel === card.modelId
@@ -179,34 +184,34 @@ export function useEngineState(category: Category): EngineState {
         }
       }
       await loadAll()
-    } catch (err: any) { message.error(err.message) }
+    } catch (err: unknown) { message.error(errText(err, '操作失败')) }
     finally { setTestingEngine(null) }
   }
 
   const handleRefreshModels = async (id: string) => {
     setTestingEngine(id)
-    try { await refreshEngineModels(id); await loadAll() } catch (err: any) { message.error(err.message) }
+    try { await refreshEngineModels(id); await loadAll() } catch (err: unknown) { message.error(errText(err, '操作失败')) }
     finally { setTestingEngine(null) }
   }
 
   const handleSaveURL = async (engine: EngineConfig) => {
     setSavingEngine(engine.id)
-    try { await saveEngine({ id: engine.id, base_url: editingURLs[engine.id] || '', enabled: engine.enabled } as any); message.success('已保存') }
-    catch (err: any) { message.error(err.message) }
+    try { await saveEngine({ id: engine.id, base_url: editingURLs[engine.id] || '', enabled: engine.enabled } as EngineConfig); message.success('已保存') }
+    catch (err: unknown) { message.error(errText(err, '操作失败')) }
     finally { setSavingEngine(null) }
   }
 
   const handleToggleEngine = async (engine: EngineConfig, enabled: boolean) => {
-    try { await saveEngine({ id: engine.id, base_url: engine.base_url || '', enabled } as any); await loadAll() }
-    catch (err: any) { message.error(err.message) }
+    try { await saveEngine({ id: engine.id, base_url: engine.base_url || '', enabled } as EngineConfig); await loadAll() }
+    catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
   const handleBulkToggleEngines = async (enabled: boolean) => {
     try {
-      await Promise.all(engines.map(e => saveEngine({ id: e.id, base_url: e.base_url || '', enabled } as any)))
+      await Promise.all(engines.map(e => saveEngine({ id: e.id, base_url: e.base_url || '', enabled } as EngineConfig)))
       message.success(enabled ? '已全部启用' : '已全部禁用')
       await loadAll()
-    } catch (err: any) { message.error(err.message) }
+    } catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
   const handleSaveDeepseekKey = async () => {
@@ -217,7 +222,7 @@ export function useEngineState(category: Category): EngineState {
       const ks = await getDeepseekKeyStatus()
       if (ks) setDeepseekKeyMasked(ks.masked || '')
       setDeepseekKeyState('')
-    } catch (err: any) { message.error(err.message) }
+    } catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
   const handleSaveOpencodeGoKey = async () => {
@@ -228,7 +233,7 @@ export function useEngineState(category: Category): EngineState {
       const ks = await getOpencodeGoKeyStatus()
       if (ks) setOpencodeGoKeyMasked(ks.masked || '')
       setOpencodeGoKeyState('')
-    } catch (err: any) { message.error(err.message) }
+    } catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
   const handleSaveOpencodeZenKey = async () => {
@@ -239,7 +244,7 @@ export function useEngineState(category: Category): EngineState {
       const ks = await getOpencodeZenKeyStatus()
       if (ks) setOpencodeZenKeyMasked(ks.masked || '')
       setOpencodeZenKeyState('')
-    } catch (err: any) { message.error(err.message) }
+    } catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
   const makeModels = (engine: EngineConfig): ModelCardData[] =>

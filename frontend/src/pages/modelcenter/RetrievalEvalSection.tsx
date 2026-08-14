@@ -30,8 +30,8 @@ export function RetrievalEvalSection() {
       const r = await app.RetrievalEvalRun()
       setReport(r)
       message.success(`检索质量测评完成：recall@10 = ${fmtPct(r.recallAt10)}（${r.passed ? '通过' : '未达'}）`)
-    } catch (err: any) {
-      message.error(err?.message || '检索质量测评失败（需本地检索服务可用）')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '检索质量测评失败（需本地检索服务可用）')
     } finally {
       setRunning(false)
     }

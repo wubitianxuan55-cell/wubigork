@@ -12,6 +12,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -156,6 +157,9 @@ var explicitOverrides = map[string]string{
 }
 
 func main() {
+	namesOnly := flag.Bool("names", false, "只输出全部导出方法名（一行一个，稳定排序），不写任何生成文件")
+	flag.Parse()
+
 	dir := "internal/app"
 	methods, err := collectMethods(dir)
 	if err != nil {
@@ -165,6 +169,20 @@ func main() {
 	if len(methods) == 0 {
 		fmt.Fprintln(os.Stderr, "no methods collected")
 		os.Exit(1)
+	}
+
+	// -names：仅输出方法名清单（供前端 bindingNames.ts 与 CI 漂移检查对照），
+	// 不写任何生成文件。同一方法名按字典序稳定排序。
+	if *namesOnly {
+		names := make([]string, 0, len(methods))
+		for _, m := range methods {
+			names = append(names, m.Name)
+		}
+		sort.Strings(names)
+		for _, n := range names {
+			fmt.Println(n)
+		}
+		return
 	}
 
 	// 按板块分组

@@ -32,6 +32,18 @@ export interface ComfyUIStatus {
   url?: string
 }
 
+/** 后端返回的图片结果条目（动态载荷的最小消费面） */
+interface GenImageLike {
+  image?: string
+  seed?: number
+  time?: number
+  prompt?: string
+  model?: string
+  size?: string
+  kind?: string
+  file_path?: string
+}
+
 /** 获取后端信息 */
 export async function getImageBackendInfo(): Promise<BackendInfo> {
   const info = await App.GetImageBackendInfo()
@@ -43,7 +55,7 @@ export async function getCharacters(): Promise<{ id: string; name: string }[]> {
   try {
     const cf = await App.GetCharacters()
     if (cf?.characters) {
-      return cf.characters.map((c: any) => ({ id: c.id, name: c.name }))
+      return cf.characters.map((c: { id?: string; name?: string }) => ({ id: c.id ?? '', name: c.name ?? '' }))
     }
   } catch (_) {}
   return []
@@ -65,8 +77,8 @@ export async function getComfyUILoras(): Promise<ComfyLorasResult> {
   try {
     const list = await App.GetComfyUILoras()
     return { list: Array.isArray(list) ? list : [] }
-  } catch (e: any) {
-    return { list: [], error: e?.message || 'LoRA 列表加载失败' }
+  } catch (e: unknown) {
+    return { list: [], error: e instanceof Error ? e.message : 'LoRA 列表加载失败' }
   }
 }
 
@@ -104,8 +116,8 @@ export async function generateImage(
   const res = await App.GenerateFreeImage(prompt.trim(), negative.trim(), size, '', model, seed, count, lora || '')
   if (res?.error) return { error: res.error }
   if (res?.images?.length) {
-    const images: GenResult[] = res.images.map((img: any) => ({
-      image: img.image, seed: img.seed, time: img.time,
+    const images: GenResult[] = res.images.map((img: GenImageLike) => ({
+      image: img.image as string, seed: img.seed as number, time: img.time as number,
       prompt: img.prompt || prompt, model: img.model || model,
       size: img.size || size, negative: negative,
       file_path: img.file_path || undefined,
@@ -170,15 +182,15 @@ export async function generateMedia(
   const res = await App.GenerateMedia(JSON.stringify(params))
   if (res?.error) return { error: res.error }
   if (res?.results?.length) {
-    const results: GenResult[] = res.results.map((img: any) => ({
-      image: img.image,
-      seed: img.seed,
-      time: img.time,
+    const results: GenResult[] = res.results.map((img: GenImageLike) => ({
+      image: img.image as string,
+      seed: img.seed as number,
+      time: img.time as number,
       prompt: img.prompt || params.prompt,
       model: img.model || params.model,
       size: img.size || params.size,
       negative: params.negative,
-      kind: img.kind || 'image',
+      kind: (img.kind || 'image') as 'image' | 'video',
       file_path: img.file_path || undefined,
     }))
     return { results, mode: res.mode }

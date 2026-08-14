@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { Input, Modal, message } from "antd";
 import {
   BarChart3, ChevronDown, ChevronRight, Clock, CloudUpload, Coins, FolderPlus, List,
@@ -70,10 +71,13 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
     return { nodeById, pathById, allPaths };
   }, [categories]);
 
+  // 高频搜索防抖：输入框值即时更新（query），CostSearch 消费防抖后的值（250ms；清空即时生效）
+  const debouncedQuery = useDebouncedValue(query, 250);
+
   const load = useCallback(() => {
     setLoading(true);
     app
-      .CostSearch(query, selectedPath, status)
+      .CostSearch(debouncedQuery, selectedPath, status)
       .then((list) => {
         const items = list ?? [];
         setEntries(items);
@@ -81,7 +85,7 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
       })
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
-  }, [query, selectedPath, status]);
+  }, [debouncedQuery, selectedPath, status]);
 
   const loadCategories = useCallback(() => {
     app
@@ -105,9 +109,9 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
       .catch(() => {});
   }, []);
 
+  // 防抖已由 useDebouncedValue 承担（query 变化延迟 250ms 后触发 load；清空立即触发）
   useEffect(() => {
-    const t = setTimeout(load, 200);
-    return () => clearTimeout(t);
+    load();
   }, [load]);
 
   useEffect(() => {
@@ -149,10 +153,10 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
     setEditing(null);
     setModalOpen(true);
   };
-  const openEdit = (s: CostSummary) => {
+  const openEdit = useCallback((s: CostSummary) => {
     setEditing(s);
     setModalOpen(true);
-  };
+  }, []);
   const pickImport = useCallback(async () => {
     try {
       const files = await app.PickFiles();
@@ -168,8 +172,8 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
       await app.CostDelete(deleteName);
       setDeleteName(null);
       load();
-    } catch (e: any) {
-      message.error(e?.message ?? "删除失败");
+    } catch (e: unknown) {
+      message.error((e as Error)?.message ?? "删除失败");
     }
   };
   const toggleSelect = useCallback((name: string) => {
@@ -197,14 +201,14 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
     setSelected(new Set());
     load();
   };
-  const openHistory = async (name: string) => {
+  const openHistory = useCallback(async (name: string) => {
     setHistoryName(name);
     setHistoryRows([]);
     setHistoryOpen(true);
     const rows = await app.PriceHistory(name).catch(() => [] as PriceHistory[]);
     setHistoryRows(rows ?? []);
-  };
-  const openCompare = (e: CostSummary) => setCompare({ name: e.name, title: e.title, price: e.price });
+  }, []);
+  const openCompare = useCallback((e: CostSummary) => setCompare({ name: e.name, title: e.title, price: e.price }), []);
 
   // ── 分类管理 ──
   const openCatModal = (mode: "create" | "rename", parentId: number, node: CostCategory | null) => {
@@ -223,8 +227,8 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
       setCatModal(null);
       loadCategories();
       load();
-    } catch (e: any) {
-      message.error(e?.message ?? "保存分类失败");
+    } catch (e: unknown) {
+      message.error((e as Error)?.message ?? "保存分类失败");
     }
   };
   const deleteCategory = async (node: CostCategory) => {
@@ -232,8 +236,8 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
       await app.CostCategoryDelete(node.id);
       loadCategories();
       load();
-    } catch (e: any) {
-      message.error(e?.message ?? "删除分类失败");
+    } catch (e: unknown) {
+      message.error((e as Error)?.message ?? "删除分类失败");
     }
   };
 
@@ -684,19 +688,20 @@ function CategoryNode({
   );
 }
 
-// ── 列表视图 ──
-function ListView({
-  rows,
-  selected,
-  toggleSelect,
-  priceText,
-  onEdit,
-  onDelete,
-  onHistory,
-  onCompare,
-  onInsert,
-  compact,
-}: {
+interface CostRowProps {
+  row: CostSummary;
+  selected: boolean;
+  compact: boolean;
+  priceText: (p: number) => string;
+  onToggleSelect: (name: string) => void;
+  onEdit: (e: CostSummary) => void;
+  onDelete: (name: string) => void;
+  onHistory: (name: string) => void;
+  onCompare: (e: CostSummary) => void;
+  onInsert?: (e: CostSummary) => void;
+}
+
+interface ListViewProps {
   rows: CostSummary[];
   selected: Set<string>;
   toggleSelect: (name: string) => void;
@@ -707,91 +712,21 @@ function ListView({
   onCompare: (e: CostSummary) => void;
   onInsert?: (e: CostSummary) => void;
   compact: boolean;
-}) {
-  return (
-    <div className={compact ? "p-2 space-y-1" : "px-4 pb-4 space-y-1.5"}>
-      {rows.map((e) => (
-        <div
-          key={e.name}
-          className={`group rounded-lg border transition-colors ${
-            selected.has(e.name)
-              ? "border-accent/50 bg-accent/10"
-              : "border-border/70 bg-bg-soft/40 hover:border-accent/30 hover:bg-bg-soft/70"
-          } ${compact ? "p-2" : "p-2.5"}`}
-        >
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={selected.has(e.name)}
-              onChange={() => toggleSelect(e.name)}
-              className="accent-[var(--accent)] shrink-0"
-              title="多选"
-            />
-            <Coins size={14} className="text-amber-400 shrink-0" />
-            <span className={`text-fg font-medium truncate ${compact ? "text-[12px]" : "text-[13px]"}`}>{e.title}</span>
-            <button
-              className="w-5 h-5 shrink-0 inline-flex items-center justify-center rounded text-fg-faint opacity-0 group-hover:opacity-100 hover:text-sky-400 hover:bg-bg-elev transition-opacity"
-              onClick={() => onCompare(e)}
-              title="比价"
-            >
-              <BarChart3 size={11} />
-            </button>
-            {e.spec && <span className="text-fg-faint text-[11px] shrink-0 truncate max-w-[140px]">{e.spec}</span>}
-            {e.categoryPath && (
-              <span className="px-1.5 py-0.5 rounded bg-bg-elev text-fg-faint text-[10px] shrink-0 truncate max-w-[160px]" title={e.categoryPath}>
-                {e.categoryPath}
-              </span>
-            )}
-            {e.status !== "现行" && (
-              <span className="px-1.5 py-0.5 rounded bg-bg-elev text-fg-faint text-[10px] shrink-0">{e.status}</span>
-            )}
-            <span className="ml-auto shrink-0 text-fg font-semibold text-amber-300 tabular-nums">
-              {priceText(e.price)}
-              {e.unit && <span className="text-fg-faint font-normal"> /{e.unit}</span>}
-            </span>
-            <span className="flex items-center gap-0.5 shrink-0">
-              {onInsert && (
-                <button className="w-6 h-6 inline-flex items-center justify-center rounded text-sky-400 hover:text-sky-300 hover:bg-bg-elev" onClick={() => onInsert(e)} title="插入输入框">
-                  <Plus size={12} />
-                </button>
-              )}
-              <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-sky-400 hover:bg-bg-elev" onClick={() => onCompare(e)} title="比价">
-                <BarChart3 size={12} />
-              </button>
-              <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev" onClick={() => onHistory(e.name)} title="价格历史">
-                <Clock size={12} />
-              </button>
-              <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev" onClick={() => onEdit(e)} title="编辑">
-                <Pencil size={12} />
-              </button>
-              <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-red-400 hover:bg-bg-elev" onClick={() => onDelete(e.name)} title="删除">
-                <Trash2 size={12} />
-              </button>
-            </span>
-          </div>
-          {e.source && <div className="mt-0.5 pl-6 text-fg-faint text-[10.5px] truncate">来源：{e.source}</div>}
-        </div>
-      ))}
-    </div>
-  );
 }
 
-// ── 表格视图（记忆中枢完整面板使用）──
-function TableView({
-  rows,
-  selected,
-  toggleSelect,
-  sortKey,
-  sortDir,
-  toggleSort,
-  priceText,
-  onSelectAll,
-  onEdit,
-  onDelete,
-  onHistory,
-  onCompare,
-  onInsert,
-}: {
+interface TableRowProps {
+  row: CostSummary;
+  selected: boolean;
+  priceText: (p: number) => string;
+  onToggleSelect: (name: string) => void;
+  onEdit: (e: CostSummary) => void;
+  onDelete: (name: string) => void;
+  onHistory: (name: string) => void;
+  onCompare: (e: CostSummary) => void;
+  onInsert?: (e: CostSummary) => void;
+}
+
+interface TableViewProps {
   rows: CostSummary[];
   selected: Set<string>;
   toggleSelect: (name: string) => void;
@@ -805,7 +740,198 @@ function TableView({
   onHistory: (name: string) => void;
   onCompare: (e: CostSummary) => void;
   onInsert?: (e: CostSummary) => void;
-}) {
+}
+
+// ── 列表项（React.memo：props 稳定（useCallback 回调）时跳过重渲染）──
+export const CostRow = memo(function CostRow({
+  row: e,
+  selected,
+  compact,
+  priceText,
+  onToggleSelect,
+  onEdit,
+  onDelete,
+  onHistory,
+  onCompare,
+  onInsert,
+}: CostRowProps) {
+  return (
+    <div
+      key={e.name}
+      className={`group rounded-lg border transition-colors ${
+        selected
+          ? "border-accent/50 bg-accent/10"
+          : "border-border/70 bg-bg-soft/40 hover:border-accent/30 hover:bg-bg-soft/70"
+      } ${compact ? "p-2" : "p-2.5"}`}
+    >
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelect(e.name)}
+          className="accent-[var(--accent)] shrink-0"
+          title="多选"
+        />
+        <Coins size={14} className="text-amber-400 shrink-0" />
+        <span className={`text-fg font-medium truncate ${compact ? "text-[12px]" : "text-[13px]"}`}>{e.title}</span>
+        <button
+          className="w-5 h-5 shrink-0 inline-flex items-center justify-center rounded text-fg-faint opacity-0 group-hover:opacity-100 hover:text-sky-400 hover:bg-bg-elev transition-opacity"
+          onClick={() => onCompare(e)}
+          title="比价"
+        >
+          <BarChart3 size={11} />
+        </button>
+        {e.spec && <span className="text-fg-faint text-[11px] shrink-0 truncate max-w-[140px]">{e.spec}</span>}
+        {e.categoryPath && (
+          <span className="px-1.5 py-0.5 rounded bg-bg-elev text-fg-faint text-[10px] shrink-0 truncate max-w-[160px]" title={e.categoryPath}>
+            {e.categoryPath}
+          </span>
+        )}
+        {e.status !== "现行" && (
+          <span className="px-1.5 py-0.5 rounded bg-bg-elev text-fg-faint text-[10px] shrink-0">{e.status}</span>
+        )}
+        <span className="ml-auto shrink-0 text-fg font-semibold text-amber-300 tabular-nums">
+          {priceText(e.price)}
+          {e.unit && <span className="text-fg-faint font-normal"> /{e.unit}</span>}
+        </span>
+        <span className="flex items-center gap-0.5 shrink-0">
+          {onInsert && (
+            <button className="w-6 h-6 inline-flex items-center justify-center rounded text-sky-400 hover:text-sky-300 hover:bg-bg-elev" onClick={() => onInsert(e)} title="插入输入框">
+              <Plus size={12} />
+            </button>
+          )}
+          <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-sky-400 hover:bg-bg-elev" onClick={() => onCompare(e)} title="比价">
+            <BarChart3 size={12} />
+          </button>
+          <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev" onClick={() => onHistory(e.name)} title="价格历史">
+            <Clock size={12} />
+          </button>
+          <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev" onClick={() => onEdit(e)} title="编辑">
+            <Pencil size={12} />
+          </button>
+          <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-red-400 hover:bg-bg-elev" onClick={() => onDelete(e.name)} title="删除">
+            <Trash2 size={12} />
+          </button>
+        </span>
+      </div>
+      {e.source && <div className="mt-0.5 pl-6 text-fg-faint text-[10.5px] truncate">来源：{e.source}</div>}
+    </div>
+  );
+});
+
+// ── 列表视图 ──
+export const ListView = memo(function ListView({
+  rows,
+  selected,
+  toggleSelect,
+  priceText,
+  onEdit,
+  onDelete,
+  onHistory,
+  onCompare,
+  onInsert,
+  compact,
+}: ListViewProps) {
+  return (
+    <div className={compact ? "p-2 space-y-1" : "px-4 pb-4 space-y-1.5"}>
+      {rows.map((e) => (
+        <CostRow
+          key={e.name}
+          row={e}
+          selected={selected.has(e.name)}
+          compact={compact}
+          priceText={priceText}
+          onToggleSelect={toggleSelect}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onHistory={onHistory}
+          onCompare={onCompare}
+          onInsert={onInsert}
+        />
+      ))}
+    </div>
+  );
+});
+
+// ── 表格行（React.memo：props 稳定时跳过重渲染）──
+export const TableRow = memo(function TableRow({
+  row: e,
+  selected,
+  priceText,
+  onToggleSelect,
+  onEdit,
+  onDelete,
+  onHistory,
+  onCompare,
+  onInsert,
+}: TableRowProps) {
+  return (
+    <tr key={e.name} className={`border-b border-border-soft/50 hover:bg-bg-soft/50 transition-colors ${selected ? "bg-accent/10" : ""}`}>
+      <td className="px-3 py-1.5">
+        <input type="checkbox" checked={selected} onChange={() => onToggleSelect(e.name)} className="accent-[var(--accent)]" />
+      </td>
+      <td className="px-3 py-1.5">
+        <div className="text-fg font-medium truncate max-w-[220px]">{e.title}</div>
+        <div className="text-fg-faint text-[10px] font-mono truncate max-w-[220px]">{e.name}</div>
+      </td>
+      <td className="px-3 py-1.5 text-fg-dim whitespace-nowrap max-w-[180px] truncate" title={e.categoryPath}>
+        {e.categoryPath || e.category || "—"}
+      </td>
+      <td className="px-3 py-1.5 text-fg-dim">{e.spec || "—"}</td>
+      <td className="px-3 py-1.5 text-fg-dim">{e.unit || "—"}</td>
+      <td className="px-3 py-1.5 text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap">
+        {priceText(e.price)}
+      </td>
+      <td className="px-3 py-1.5 text-fg-faint text-[11px] max-w-[140px] truncate" title={e.source}>{e.source || "—"}</td>
+      <td className="px-3 py-1.5">
+        <span className={`px-1.5 py-0.5 rounded text-[10px] ${e.status === "现行" ? "bg-emerald-500/15 text-emerald-400" : e.status === "草稿" ? "bg-amber-500/15 text-amber-400" : "bg-bg-elev text-fg-faint"}`}>
+          {e.status || "现行"}
+        </span>
+      </td>
+      <td className="px-3 py-1.5 text-fg-faint text-[10.5px] tabular-nums whitespace-nowrap">
+        {e.updatedAt ? new Date(e.updatedAt).toLocaleDateString("zh-CN") : "—"}
+      </td>
+      <td className="px-3 py-1.5">
+        <div className="flex items-center justify-end gap-0.5">
+          {onInsert && (
+            <button className="w-6 h-6 inline-flex items-center justify-center rounded text-sky-400 hover:text-sky-300 hover:bg-bg-elev" onClick={() => onInsert(e)} title="插入输入框">
+              <Plus size={12} />
+            </button>
+          )}
+          <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-sky-400 hover:bg-bg-elev" onClick={() => onCompare(e)} title="比价">
+            <BarChart3 size={12} />
+          </button>
+          <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev" onClick={() => onHistory(e.name)} title="价格历史">
+            <Clock size={12} />
+          </button>
+          <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev" onClick={() => onEdit(e)} title="编辑">
+            <Pencil size={12} />
+          </button>
+          <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-red-400 hover:bg-bg-elev" onClick={() => onDelete(e.name)} title="删除">
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+// ── 表格视图（记忆中枢完整面板使用）──
+const TableView = memo(function TableView({
+  rows,
+  selected,
+  toggleSelect,
+  sortKey,
+  sortDir,
+  toggleSort,
+  priceText,
+  onSelectAll,
+  onEdit,
+  onDelete,
+  onHistory,
+  onCompare,
+  onInsert,
+}: TableViewProps) {
   const sortArrow = (k: SortKey) => (sortKey === k ? (sortDir === 1 ? " ↑" : " ↓") : "");
   const th = (label: string, k?: SortKey, align: "left" | "right" = "left") => (
     <th
@@ -845,53 +971,18 @@ function TableView({
         </thead>
         <tbody>
           {rows.map((e) => (
-            <tr key={e.name} className={`border-b border-border-soft/50 hover:bg-bg-soft/50 transition-colors ${selected.has(e.name) ? "bg-accent/10" : ""}`}>
-              <td className="px-3 py-1.5">
-                <input type="checkbox" checked={selected.has(e.name)} onChange={() => toggleSelect(e.name)} className="accent-[var(--accent)]" />
-              </td>
-              <td className="px-3 py-1.5">
-                <div className="text-fg font-medium truncate max-w-[220px]">{e.title}</div>
-                <div className="text-fg-faint text-[10px] font-mono truncate max-w-[220px]">{e.name}</div>
-              </td>
-              <td className="px-3 py-1.5 text-fg-dim whitespace-nowrap max-w-[180px] truncate" title={e.categoryPath}>
-                {e.categoryPath || e.category || "—"}
-              </td>
-              <td className="px-3 py-1.5 text-fg-dim">{e.spec || "—"}</td>
-              <td className="px-3 py-1.5 text-fg-dim">{e.unit || "—"}</td>
-              <td className="px-3 py-1.5 text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap">
-                {priceText(e.price)}
-              </td>
-              <td className="px-3 py-1.5 text-fg-faint text-[11px] max-w-[140px] truncate" title={e.source}>{e.source || "—"}</td>
-              <td className="px-3 py-1.5">
-                <span className={`px-1.5 py-0.5 rounded text-[10px] ${e.status === "现行" ? "bg-emerald-500/15 text-emerald-400" : e.status === "草稿" ? "bg-amber-500/15 text-amber-400" : "bg-bg-elev text-fg-faint"}`}>
-                  {e.status || "现行"}
-                </span>
-              </td>
-              <td className="px-3 py-1.5 text-fg-faint text-[10.5px] tabular-nums whitespace-nowrap">
-                {e.updatedAt ? new Date(e.updatedAt).toLocaleDateString("zh-CN") : "—"}
-              </td>
-              <td className="px-3 py-1.5">
-                <div className="flex items-center justify-end gap-0.5">
-                  {onInsert && (
-                    <button className="w-6 h-6 inline-flex items-center justify-center rounded text-sky-400 hover:text-sky-300 hover:bg-bg-elev" onClick={() => onInsert(e)} title="插入输入框">
-                      <Plus size={12} />
-                    </button>
-                  )}
-                  <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-sky-400 hover:bg-bg-elev" onClick={() => onCompare(e)} title="比价">
-                    <BarChart3 size={12} />
-                  </button>
-                  <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev" onClick={() => onHistory(e.name)} title="价格历史">
-                    <Clock size={12} />
-                  </button>
-                  <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-fg hover:bg-bg-elev" onClick={() => onEdit(e)} title="编辑">
-                    <Pencil size={12} />
-                  </button>
-                  <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-red-400 hover:bg-bg-elev" onClick={() => onDelete(e.name)} title="删除">
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              </td>
-            </tr>
+            <TableRow
+              key={e.name}
+              row={e}
+              selected={selected.has(e.name)}
+              priceText={priceText}
+              onToggleSelect={toggleSelect}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onHistory={onHistory}
+              onCompare={onCompare}
+              onInsert={onInsert}
+            />
           ))}
         </tbody>
       </table>
@@ -904,4 +995,4 @@ function TableView({
   function clearSelection() {
     onSelectAll(new Set());
   }
-}
+});

@@ -7,6 +7,12 @@ import type { OutlineNode } from '../types'
 import { sortNodes } from '../utils/outline'
 import { loadOutlines as fetchOutlines } from '../components/novel/api/outlines'
 
+/** 大纲刷新结果（后端 ApplyBranch/续写等返回的动态载荷最小消费面） */
+interface RefreshOutlinesResult {
+  outlines?: { nodes?: OutlineNode[] }
+  nodes?: OutlineNode[]
+}
+
 interface OutlineState {
   outlines: OutlineNode[]
   storyThread: string
@@ -15,7 +21,7 @@ interface OutlineState {
   /** 从后端加载大纲 + 故事主线 */
   loadOutlines: () => Promise<void>
   /** 用 API 返回结果刷新大纲（用于 ApplyBranch 等操作后） */
-  refreshOutlines: (result: any) => void
+  refreshOutlines: (result: RefreshOutlinesResult) => void
   /** 直接设置大纲数组 */
   setOutlines: (nodes: OutlineNode[]) => void
   /** 设置故事主线 */
@@ -35,7 +41,7 @@ export const useOutlineStore = create<OutlineState>((set) => ({
     set({ loading: false })
   },
 
-  refreshOutlines: (result: any) => {
+  refreshOutlines: (result: RefreshOutlinesResult) => {
     if (result?.outlines?.nodes) {
       set({ outlines: sortNodes(result.outlines.nodes) })
     } else if (result?.nodes) {

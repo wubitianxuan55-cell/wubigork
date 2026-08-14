@@ -498,12 +498,16 @@ export function onReady(cb: () => void): () => void {
 // （Submit/Cancel/History/...），这里做名称映射，避免 gaea App 方法名冲突。
 // 对话 chat 方法（ChatTopicsList/ChatMessagesList/ChatAppendMessages 等）在
 // ChatB 门面上同名（无 Gaea 前缀），无需映射——代理按原名在门面上查找即可。
-const gaeaToGaea: Record<string, string> = {
+// as const 保留字面量类型（AppBindingTarget 编译期核验需要）；satisfies 保持
+// Record<string, string> 约束。
+const gaeaToGaea = {
   Submit: "GaeaSend",
   SubmitDisplay: "GaeaSend",
   Cancel: "GaeaCancel",
   Approve: "GaeaApprove",
   AnswerQuestion: "GaeaAnswer",
+  // Go 侧为 GaeaAgentMode（T6-10.3 对齐）。
+  AgentMode: "GaeaAgentMode",
   NewSession: "GaeaNewSession",
   Reload: "GaeaReload",
   CaptureSkill: "GaeaCaptureSkill",
@@ -513,6 +517,8 @@ const gaeaToGaea: Record<string, string> = {
   Fork: "GaeaFork",
   SummarizeFrom: "GaeaSummarizeFrom",
   SummarizeUpTo: "GaeaSummarizeUpTo",
+  // Go 侧为 GaeaSummarizeFile（T6-10.3 对齐）。
+  SummarizeFile: "GaeaSummarizeFile",
   ListSessions: "GaeaListSessions",
   ListProjectSessions: "GaeaListProjectSessions",
   ResumeSession: "GaeaResumeSession",
@@ -598,10 +604,9 @@ const gaeaToGaea: Record<string, string> = {
   RemovePermissionRule: "GaeaRemovePermissionRule",
   SetSandbox: "GaeaSetSandbox",
   SetAgentParams: "GaeaSetAgentParams",
-  SetSubagentTemperature: "GaeaSetSubagentTemperature",
-  SetEffort: "GaeaSetEffort",
+  // SetSubagentTemperature/SetEffort/SetSubagentModel 无 Go 对应绑定（mock-only，
+  // 见文件末尾 MockOnlyNames），不映射，按原名查找。
   SetSubagentEffort: "GaeaSetSubagentEffort",
-  SetSubagentModel: "GaeaSetSubagentModel",
   SetSubagentModelForSkill: "GaeaSetSubagentModelForSkill",
   SetPermLevel: "GaeaSetPermLevel",
   Version: "GaeaVersion",
@@ -668,12 +673,13 @@ const gaeaToGaea: Record<string, string> = {
   KnowledgeSave: "GaeaKnowledgeSave",
   KnowledgeDelete: "GaeaKnowledgeDelete",
   PickFiles: "GaeaPickFiles",
-  KeepWarmGet: "GaeaKeepWarmGet",
-  KeepWarmSet: "GaeaKeepWarmSet",
-  PreloadPlanGet: "GaeaPreloadPlanGet",
-  PreloadPlanSet: "GaeaPreloadPlanSet",
+  // Go 侧方法名为 GetKeepWarm/SetKeepWarm/GetPreloadPlan/SetPreloadPlan（T6-10.3 对齐）。
+  KeepWarmGet: "GetKeepWarm",
+  KeepWarmSet: "SetKeepWarm",
+  PreloadPlanGet: "GetPreloadPlan",
+  PreloadPlanSet: "SetPreloadPlan",
   ModelSwitchEstimate: "GaeaModelSwitchEstimate",
-};
+} as const satisfies Record<string, string>;
 
 // ── 错误归一化层（T6-1.2 前端错误可见性）────────────────────────────
 // BridgeError 是所有绑定调用失败时归一出的结构化错误：code 机器可读
@@ -760,6 +766,110 @@ export function openExternal(url: string): void {
   }
 }
 
+// ── 桥接归一（T6-10.6）─────────────────────────────────────────────────
+// initBridge 原为 frontend/src/api/bridge.ts（S2-2 移动端 HTTP 桥接 + S2-3 旧
+// 形态兼容层），T6-10.6 并入本文件，由 App.tsx 在模块作用域最早时机调用：
+//   · Wails 原生环境：window.go.app 下是各板块门面（CoreB/OfficeB/...），补一个
+//     window.go.app.App 兼容代理，旧调用点（window.go.app.App.Xxx()）按方法名路由；
+//   · HTTP 环境（移动端/调试页，非 Wails）：把 window.go.app.App 挂为
+//     fetch('/api/rpc') 的 RPC 代理（Bearer token 鉴权，token 来源见 httpToken.ts）。
+// 本文件顶层的 app 代理在调用时经 realApp() 感知上述两种注入，无需额外适配。
+import { getHttpToken } from "../../api/httpToken";
+
+const API_BASE = "";
+
+interface RPCResponse {
+  result?: unknown;
+  error?: string;
+}
+
+/** 是否运行在 Wails 原生环境：window.go.app 下存在任一板块门面绑定对象。 */
+function isWailsNative(): boolean {
+  const goApp = (window as unknown as { go?: { app?: Record<string, unknown> } }).go?.app;
+  return !!goApp && typeof goApp === "object" && Object.keys(goApp).length > 0;
+}
+
+/** S2-3 兼容层：为旧调用点补 window.go.app.App 代理，按方法名路由到对应门面。 */
+function ensureLegacyAppProxy(): void {
+  const goApp = (window as unknown as { go?: { app?: Record<string, unknown> } }).go?.app;
+  if (!goApp || typeof goApp !== "object") return;
+  if (goApp.App) return;
+  goApp.App = new Proxy(
+    {},
+    {
+      get(_t, prop: string) {
+        if (prop === "then") return undefined; // 避免被误判为 Promise
+        for (const ns of Object.values(goApp)) {
+          if (ns === goApp.App || ns === null || typeof ns !== "object") continue;
+          const v = (ns as Record<string, unknown>)[prop];
+          if (typeof v === "function") return (v as (...a: unknown[]) => unknown).bind(ns);
+        }
+        return undefined;
+      },
+    },
+  );
+}
+
+/** 移动端 RPC 调用：POST /api/rpc，携带一次性 token（S2-2）。 */
+async function rpcCall(method: string, ...args: unknown[]): Promise<unknown> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = getHttpToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}/api/rpc`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ method, args }),
+  });
+  if (res.status === 401) {
+    throw new Error("桥接鉴权失败：请携带正确的 token（__GAEA_HTTP_TOKEN / localStorage gaea_http_token）");
+  }
+  if (!res.ok) {
+    throw new Error(`RPC 请求失败: ${res.status} ${res.statusText}`);
+  }
+  const data: RPCResponse = await res.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data.result;
+}
+
+/** HTTP 模式 App 代理：拦截所有方法调用并转发到 /api/rpc。 */
+function createAppProxy(): Record<string, (...args: unknown[]) => Promise<unknown>> {
+  return new Proxy(
+    {},
+    {
+      get(_target, prop: string) {
+        return (...args: unknown[]) => rpcCall(prop, ...args);
+      },
+    },
+  ) as Record<string, (...args: unknown[]) => Promise<unknown>>;
+}
+
+/**
+ * 初始化桥接层（App.tsx 模块作用域最早时机调用，幂等）：
+ *  - Wails 环境：补齐 window.go.app.App 旧形态兼容代理（板块门面路由）；
+ *  - HTTP 环境：创建 window.go.app.App 的 /api/rpc 代理。
+ */
+export function initBridge(): void {
+  // 避免重复初始化
+  if ((window as unknown as Record<string, unknown>).__bridge_initialized) return;
+  (window as unknown as Record<string, unknown>).__bridge_initialized = true;
+
+  if (isWailsNative()) {
+    ensureLegacyAppProxy();
+    console.log("[bridge] Wails 原生环境，已就绪板块门面路由");
+    return;
+  }
+
+  console.log("[bridge] 移动端 HTTP 模式，创建 RPC 代理");
+  const w = window as unknown as { go?: { app?: Record<string, unknown> } };
+  if (!w.go) w.go = {};
+  if (!w.go.app) w.go.app = {};
+  w.go.app.App = createAppProxy();
+}
+
 import {
   makeMockApp,
   mockSubscribe,
@@ -767,11 +877,345 @@ import {
   updaterListeners,
 } from "./mock";
 
-// ── compile-time drift check ──────────────────────────────────────────────
-// _CheckGenToApp errors when a generated Go method has no TS counterpart in
-// AppBindings. Fix: add the missing method to AppBindings, then `pnpm typecheck`.
-// Methods intentionally excluded from the frontend can be listed in the Exclude
-// union to silence the check.
-// Dev-time type checks (regenerate wails bindings after Go API changes):
-// type _CheckGenToApp = AssertNever<Exclude<keyof typeof GeneratedApp, keyof AppBindings | "QuitApp" | "ShowWindow" | "SetBypass" | "SetAgentMode" | "PermLevel" | "SearchSpecs">>;
-// export type _CheckGenToApp = AssertNever<Exclude<keyof typeof GeneratedApp, keyof AppBindings | "QuitApp" | "ShowWindow" | "SetBypass" | "SetAgentMode" | "PermLevel" | "SearchSpecs">>;
+// ── 编译期绑定面漂移检查（T6-10.3）──────────────────────────────────────
+// bindingNames 由 scripts/gen_bindings -names 生成（Go 侧全部导出绑定方法名），
+// CI（scripts/check-bindings-drift.ps1）保证它与 Go 侧同步。这里用类型级双向断言
+// 校验前端绑定面（AppBindings + gaeaToGaea）与 bindingNames 一致：
+//
+//   · 方向一 _CheckAppBindingsHasNoStray：AppBindings 声明并经 gaeaToGaea 映射后
+//     实际调用的每个 Go 方法名必须真实存在于 bindingNames。Go 侧改名/删除方法，
+//     或 gaeaToGaea 映射目标写错（历史上有 6 处：KeepWarm*/PreloadPlan*/AgentMode/
+//     SummarizeFile/Subagent*），都会在此报错。
+//   · 方向二 _CheckAppBindingsCoversAll：bindingNames 里每个方法名必须被
+//     AppBindings 消费（含 gaeaToGaea 映射）或显式排除。Go 侧新增绑定而前端
+//     未认领时在此报错（补 AppBindings/gaeaToGaea，或列入下方两个清单并注明理由）。
+//
+// S2-3「App 绑定面拆分」后 Go 侧方法分为两半：经 AppBindings 消费的 gaea UI
+// 绑定面，以及 wailsjsCompat / window.go.app.App.* 直接调用的 legacy 绑定面
+// （小说/聊天/语音/绘图/角色库/旧 store 等），后者全部列入 LegacySurfaceNames。
+// 修复提示：Go 方法新增/改名/删除 → 先重新生成 bindingNames.ts，再按报错调整。
+import { bindingNames } from "./bindingNames";
+
+/** 泛型工具：T 必须是 never（空联合），否则编译错误。 */
+type AssertNever<T extends never> = T;
+
+/** Go 侧全部绑定方法名（与 bindingNames.ts 同步）。 */
+type BindingName = (typeof bindingNames)[number];
+
+/** AppBindings 声明的方法经 gaeaToGaea 映射后在 Go 侧实际调用的方法名集合。 */
+type AppBindingTarget = {
+  [K in keyof AppBindings]: K extends keyof typeof gaeaToGaea
+    ? (typeof gaeaToGaea)[K]
+    : K;
+}[keyof AppBindings];
+
+/** AppBindings mock-only：Go 侧无对应绑定方法（仅 dev mock 提供）。 */
+type MockOnlyNames =
+  | "SetAgentMode" // 无 Go 绑定；mock 返回固定模式（develop），前端未调用
+  | "Compact" // 无 Go 绑定；上下文压缩由后端会话事件驱动，无独立绑定
+  | "SetSubagentTemperature" // 声明但 Go 侧从未实现（仅 GaeaSetSubagentEffort 存在）
+  | "SetEffort" // 同上：Go 侧无 SetEffort，推理强度实际走 GaeaSetSubagentEffort
+  | "SetSubagentModel"; // 同上：Go 侧无 SetSubagentModel，实际走 GaeaSetSubagentModelForSkill
+
+/** legacy 绑定面：Go 侧存在但不经 AppBindings 消费（wailsjsCompat 直接调用）。 */
+type LegacySurfaceNames =
+  | "AddOutlineNode"
+  | "AnalyzeChapter"
+  | "AnalyzeStyle"
+  | "ApplyBranch"
+  | "BrainCrossRefs"
+  | "BrainSearch"
+  | "BrainWrite"
+  | "BrainstormBranches"
+  | "BuildBacklinkIndex"
+  | "BuildContextBudget"
+  | "BuildRichContext"
+  | "CancelCreateChapter"
+  | "CancelImageGeneration"
+  | "CharacterAssociate"
+  | "CharacterDelete"
+  | "CharacterDissociate"
+  | "CharacterDrawRandom"
+  | "CharacterFillAll"
+  | "CharacterGenerateFill"
+  | "CharacterGeneratePortrait"
+  | "CharacterGenerateRandom"
+  | "CharacterGet"
+  | "CharacterImportProject"
+  | "CharacterList"
+  | "CharacterListByProject"
+  | "CharacterSave"
+  | "CharacterSetProjectState"
+  | "CharacterSyncProject"
+  | "Chat"
+  | "ChatCharacter"
+  | "ChatCharacterDetail"
+  | "ChatGeneral"
+  | "ChatImportTopic"
+  | "ChatOutline"
+  | "ChatOutlineNode"
+  | "ChatSend"
+  | "ChatStreamPlain"
+  | "ChatTopicClear"
+  | "ChatTopicCreate"
+  | "ChatTopicDelete"
+  | "ChatTopicExportMarkdown"
+  | "ChatTopicRename"
+  | "ChatTopicSetMode"
+  | "ChatWorldview"
+  | "CheckConsistency"
+  | "CloseProject"
+  | "CmdKEdit"
+  | "ContinueOutline"
+  | "CreateChapter"
+  | "CreateProject"
+  | "CreateSnapshot"
+  | "DeleteCharacter"
+  | "DeleteLorebookEntry"
+  | "DeleteOrganization"
+  | "DeleteOutlineNode"
+  | "DeleteProject"
+  | "DeleteRelationship"
+  | "ExpandOutlineNode"
+  | "ExportAll"
+  | "ExportHTML"
+  | "ExtractCharacterHeatmap"
+  | "ExtractEmotionCurve"
+  | "ExtractTimeline"
+  | "FindLorebookTriggers"
+  | "FindUnlinkedMentions"
+  | "GaeaBenchmarkDetail"
+  | "GaeaBenchmarkExport"
+  | "GaeaBenchmarkList"
+  | "GaeaBenchmarkStart"
+  | "GaeaBenchmarkStreamProbe"
+  | "GaeaCallTool"
+  | "GaeaDataBackupCancel"
+  | "GaeaDataBackupCreate"
+  | "GaeaDataBackupInfo"
+  | "GaeaDataBackupPending"
+  | "GaeaDataBackupRestore"
+  | "GaeaDataBackupRestoreResult"
+  | "GaeaDataBackupRollback"
+  | "GaeaEngines"
+  | "GaeaGetUsdCnyRate"
+  | "GaeaInit"
+  | "GaeaModel"
+  | "GaeaPermLevel"
+  | "GaeaSaveSettings"
+  | "GaeaSemanticIndexStatus"
+  | "GaeaSetEngine"
+  | "GaeaSetUsdCnyRate"
+  | "GaeaSkills"
+  | "GaeaTools"
+  | "GaeaUsageOverview"
+  | "GenerateCharacterPortrait"
+  | "GenerateCharacters"
+  | "GenerateDefaultCanvas"
+  | "GenerateDiagram"
+  | "GenerateFreeImage"
+  | "GenerateMedia"
+  | "GenerateOutlineWithDialogue"
+  | "GenerateProjectCharacterFill"
+  | "GenerateSceneIllustration"
+  | "GenerateSingleCharacter"
+  | "GetActiveASRModel"
+  | "GetActiveEngine"
+  | "GetActiveModel"
+  | "GetActiveOCRModel"
+  | "GetActiveTTSModel"
+  | "GetAllEntityNames"
+  | "GetAppInfo"
+  | "GetBacklinks"
+  | "GetBookData"
+  | "GetChapter"
+  | "GetChapterBranch"
+  | "GetChapterScenes"
+  | "GetCharacters"
+  | "GetChatVoiceModel"
+  | "GetComfyUILoras"
+  | "GetComfyUIStatus"
+  | "GetComfyUITaskProgress"
+  | "GetCompileTemplates"
+  | "GetConfig"
+  | "GetDashboard"
+  | "GetDeepseekKeyStatus"
+  | "GetEngineList"
+  | "GetEngines"
+  | "GetEntityRelations"
+  | "GetFeatureModel"
+  | "GetFeatureModelEnabled"
+  | "GetForeshadows"
+  | "GetImageBackend"
+  | "GetImageBackendConfig"
+  | "GetImageBackendInfo"
+  | "GetLoginStatus"
+  | "GetLorebookEntries"
+  | "GetModelCallStats"
+  | "GetModelMonitor"
+  | "GetModelRoute"
+  | "GetNovelsDir"
+  | "GetOpencodeGoKeyStatus"
+  | "GetOpencodeZenKeyStatus"
+  | "GetOutlines"
+  | "GetPortraitConfig"
+  | "GetProjectInfo"
+  | "GetSensitiveLocal"
+  | "GetStats"
+  | "GetStyleProfile"
+  | "GetSystemStats"
+  | "GetTTSConfig"
+  | "GetTTSSpeakers"
+  | "GetTTSStatus"
+  | "GetVoicePipelineConfig"
+  | "GetWorldMapImage"
+  | "GetWorldview"
+  | "GetWorldviewSections"
+  | "HerdsmanHealth"
+  | "HerdsmanLaunchPresets"
+  | "HerdsmanModelCatalog"
+  | "HerdsmanModelDownload"
+  | "HerdsmanModelStart"
+  | "HerdsmanModelStats"
+  | "HerdsmanModelStop"
+  | "HerdsmanModelUninstall"
+  | "HerdsmanProbe"
+  | "HerdsmanSecurityCheck"
+  | "ImportStyleProfile"
+  | "InjectMemories"
+  | "IsProjectV4"
+  | "ListProjects"
+  | "ListSkills"
+  | "ListSnapshots"
+  | "LocalTranslate"
+  | "Login"
+  | "Logout"
+  | "MainBrainChat"
+  | "MergeCharacters"
+  | "MigrateProjectToV4"
+  | "OfficeCancelJob"
+  | "OfficeExecute"
+  | "OfficeGetJobState"
+  | "OfficeGetMode"
+  | "OfficeIsTask"
+  | "OfficeListFolder"
+  | "OfficeReadFile"
+  | "OfficeSetMode"
+  | "OpenImageSaveDir"
+  | "OpenNovelImagesDir"
+  | "OpenProject"
+  | "ParseLinks"
+  | "QueryEntities"
+  | "QuickBrainstormBranches"
+  | "RefreshEngineModels"
+  | "ReorderScenes"
+  | "ResetModelCallStats"
+  | "RestoreSnapshot"
+  | "ReviewBook"
+  | "RunModule"
+  | "SaveAllWorldviewSections"
+  | "SaveChapterBranchContent"
+  | "SaveChapterContent"
+  | "SaveCharacter"
+  | "SaveCharacters"
+  | "SaveCharactersBatch"
+  | "SaveConfig"
+  | "SaveEngine"
+  | "SaveLorebookEntry"
+  | "SaveOrganization"
+  | "SaveOutlineNode"
+  | "SaveRelationship"
+  | "SaveScene"
+  | "SaveTTSConfig"
+  | "SaveToken"
+  | "SaveWorldMapImage"
+  | "SaveWorldview"
+  | "SaveWorldviewSection"
+  | "Search"
+  | "SearchMemories"
+  | "SetActiveASRModel"
+  | "SetActiveEngine"
+  | "SetActiveOCRModel"
+  | "SetActiveTTSModel"
+  | "SetCharacterPortrait"
+  | "SetChatVoiceModel"
+  | "SetDeepseekKey"
+  | "SetDistFS"
+  | "SetEngineDefaultModel"
+  | "SetFeatureModel"
+  | "SetFeatureModelEnabled"
+  | "SetImageBackend"
+  | "SetOpencodeGoKey"
+  | "SetOpencodeZenKey"
+  | "SetPortraitConfig"
+  | "SetSensitiveLocal"
+  | "Shutdown"
+  | "StartComfyUI"
+  | "StartLocalTTSService"
+  | "StartTTSServer"
+  | "Startup"
+  | "StopComfyUI"
+  | "StopTTSServer"
+  | "SyncEntityDB"
+  | "TTSSpeak"
+  | "TTSSpeakBase64"
+  | "TTSSpeakStreaming"
+  | "TestEngineConnection"
+  | "ToggleOrgMember"
+  | "VoiceApplySettings"
+  | "VoiceCancelTTS"
+  | "VoiceChatText"
+  | "VoiceGetSettings"
+  | "VoiceGetState"
+  | "VoiceHealth"
+  | "VoicePlaybackDone"
+  | "VoicePushAudio"
+  | "VoiceRestartService"
+  | "VoiceSetInputChannel"
+  | "VoiceSetMode"
+  | "VoiceSetPTTActive"
+  | "VoiceStart"
+  | "VoiceStop"
+  | "WhisperAssistantDelete"
+  | "WhisperAssistantList"
+  | "WhisperAssistantSave"
+  | "WhisperChat"
+  | "WhisperChatWithSearch"
+  | "WhisperClearSession"
+  | "WhisperDeleteFact"
+  | "WhisperGetConfig"
+  | "WhisperGetEngine"
+  | "WhisperGetEngines"
+  | "WhisperGetFacts"
+  | "WhisperGetImageModel"
+  | "WhisperGetModel"
+  | "WhisperGetPersonalities"
+  | "WhisperGetState"
+  | "WhisperGetTraces"
+  | "WhisperSetEngine"
+  | "WhisperSetImageModel"
+  | "WhisperSetModel"
+  | "WhisperTaskPlanResume"
+  | "WhisperTaskPlanStatus"
+  | "WhisperUpdateFact"
+  | "WhisperWebSearch"
+  | "WhisperWeixinGetQR"
+  | "WhisperWeixinQRStatus"
+  | "WhisperWeixinQRStatusWithCode"
+  | "WhisperWeixinStatus";
+
+/** 显式排除 = mock-only + legacy 绑定面。 */
+type ExcludeNames = MockOnlyNames | LegacySurfaceNames;
+
+// 方向一：AppBindings 声明的每个绑定（映射后）必须真实存在于 Go 绑定清单。
+// 报错 → Go 侧方法被改名/删除，或 gaeaToGaea 映射目标写错。
+export type _CheckAppBindingsHasNoStray = AssertNever<
+  Exclude<AppBindingTarget, BindingName | ExcludeNames>
+>;
+
+// 方向二：Go 绑定清单的每个方法名必须被 AppBindings 消费或显式排除。
+// 报错 → Go 侧新增绑定无人认领（补 AppBindings/gaeaToGaea 或 ExcludeNames）。
+export type _CheckAppBindingsCoversAll = AssertNever<
+  Exclude<BindingName, AppBindingTarget | ExcludeNames>
+>;
+

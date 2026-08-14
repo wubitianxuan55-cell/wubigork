@@ -109,7 +109,7 @@ describe('CharacterLibEditor（档案详情）', () => {
     fireEvent.click(document.body.querySelector('.cd-chat-toggle .ant-switch') as HTMLElement)
     fireEvent.click(screen.getByText('保存'))
     expect(mockedSave).toHaveBeenCalledTimes(1)
-    expect((mockedSave.mock.calls[0][0] as any).chatEnabled).toBe(true)
+    expect(mockedSave.mock.calls[0][0].chatEnabled).toBe(true)
   })
 
   it('保存成功后回调 onSaved 与 onClose', async () => {
@@ -142,7 +142,7 @@ describe('CharacterLibEditor（档案详情）', () => {
   })
 
   it('随机补齐调用 generateFill 并回填空缺字段', async () => {
-    mockedFill.mockResolvedValue(makeCharacter({ personality: '清冷剑修，寡言重诺' }) as any)
+    mockedFill.mockResolvedValue(makeCharacter({ personality: '清冷剑修，寡言重诺' }))
     renderEditor()
     fireEvent.click(screen.getByText('随机补齐'))
     await vi.waitFor(() => {
@@ -172,7 +172,7 @@ describe('CharacterLibEditor（档案详情）', () => {
   })
 
   it('全部随机调用 generateRandom(fields=all) 并回填性格', async () => {
-    mockedRandom.mockResolvedValue(makeCharacter({ personality: '冷冽刀客，言出必践' }) as any)
+    mockedRandom.mockResolvedValue(makeCharacter({ personality: '冷冽刀客，言出必践' }))
     renderEditor()
     fireEvent.click(screen.getByText('全部随机'))
     await vi.waitFor(() => {
@@ -184,7 +184,7 @@ describe('CharacterLibEditor（档案详情）', () => {
   })
 
   it('字段骰子单独随机：性格', async () => {
-    mockedRandom.mockResolvedValue(makeCharacter({ personality: '高冷寡言，外冷内热' }) as any)
+    mockedRandom.mockResolvedValue(makeCharacter({ personality: '高冷寡言，外冷内热' }))
     renderEditor()
     fireEvent.click(screen.getByTitle('随机生成性格'))
     await vi.waitFor(() => {

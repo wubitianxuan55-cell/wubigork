@@ -1,244 +1,77 @@
+// ChatPage（T6-10.1 巨型组件拆分后的编排层，行为零变化）
+// 职责：状态编排 + 跨 hook/组件装配；流订阅（useChatStream）、话题状态机
+// （useChatTopics）、语音集成（useChatVoice）与纯展示组件拆分见各产物文件。
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
-import { Input, Button, Typography, Tooltip, Modal, message, Space, Popconfirm } from 'antd'
-import {
-  SendOutlined, RobotOutlined, CopyOutlined, CheckOutlined,
-  SoundOutlined, ReloadOutlined, CloseCircleOutlined,
-  GlobalOutlined, SettingOutlined, ClearOutlined,
-  AudioOutlined, StopOutlined, HeartOutlined, MessageOutlined, SearchOutlined,
-  EditOutlined, BulbOutlined, BookOutlined, TranslationOutlined, StarFilled,
-  ThunderboltOutlined, SwapOutlined, DownOutlined, DownloadOutlined,
-} from '@ant-design/icons'
+import { Typography, Modal, message, Input } from 'antd'
+import { DownOutlined } from '@ant-design/icons'
 import * as App from '../../src/wailsjsCompat'
-import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { C } from '../utils/theme'
-import { sortByUpdatedAtDesc, autoTopicTitle } from '../utils/chatTopics'
-import { isNearBottom } from '../utils/scroll'
 import { shouldSubmitOnEnter } from '../utils/chatComposer'
+import { isNearBottom } from '../utils/scroll'
 import FeatureModelBar from '../components/FeatureModelBar'
 import ChatTopicSidebar, { type Topic as SidebarTopic } from '../components/ChatTopicSidebar'
-import ChatMarkdown from '../components/ChatMarkdown'
-import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
-import { CompanionAvatar } from '../components/CompanionAvatar'
-import VoiceChatOrb from '../components/VoiceChatOrb'
-import VoiceSettingsPanel from '../components/VoiceSettingsPanel'
-import PersonaPicker from '../components/PersonaPicker'
+import { mdStyles } from '../components/MarkdownContent'
 import { ParticleFlow } from '../components/ParticleFlow'
 import { SoundWaveOverlay } from '../components/SoundWaveOverlay'
-import { useVoiceChat } from '../hooks/useVoiceChat'
-import { VOICE_LAUNCH_FLAG } from '../components/ModuleLauncher'
+import VoiceSettingsPanel from '../components/VoiceSettingsPanel'
+import { useChatTopics } from '../hooks/useChatTopics'
+import { useChatStream } from '../hooks/useChatStream'
+import { useChatVoice } from '../hooks/useChatVoice'
+import { ChatModeBar } from '../components/chat/ChatModeBar'
+import { ChatPersonaBar } from '../components/chat/ChatPersonaBar'
+import { MessageList } from '../components/chat/MessageList'
+import { WelcomeScreen } from '../components/chat/WelcomeScreen'
+import { ChatComposer } from '../components/chat/ChatComposer'
+import { STREAM_SILENCE_TIMEOUT_MS, EMO_COLORS } from './chat/constants'
+import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
+import type { ChatMsg, Personality } from './chat/types'
 import '../chat-board.css'
 
-interface Personality {
-  id: string; label: string; gender: string; tags?: string[]
-  dims: { T: number; I: number; S: number; O: number; R: number }
-  voiceGuide?: string; requiresAdult18?: boolean
-}
-
-interface ChatMsg {
-  key: string
-  role: 'user' | 'assistant'
-  content: string
-  reasoning?: string
-  createdAt: string
-  streaming?: boolean
-  error?: boolean
-  extra?: Record<string, any>
-}
-
-interface LegacyMsg { id?: string; role: string; content: string; timestamp?: number }
-interface LegacyTopic { id?: string; title?: string; messages?: LegacyMsg[]; createdAt?: number }
-
-// ── 存储键（旧 localStorage 话题导入 chat.db 后清理） ──
-const STORAGE_KEY = 'gaea_chat_topics'
-const LEGACY_STORAGE_KEY = 'wubigrok_chat_topics'
-const WHISPER_TOPICS_KEY = 'gaea_whisper_topics'
-const LEGACY_WHISPER_TOPICS_KEY = 'wubigrok_whisper_topics'
-const PERSONALITY_KEY = 'gaea_whisper_personality'
-const LEGACY_PERSONALITY_KEY = 'wubigrok_whisper_personality'
-const COMPANION_SETTINGS_KEY = 'gaea_whisper_companion_settings'
-const LEGACY_COMPANION_SETTINGS_KEY = 'wubigrok_whisper_companion_settings'
-const ACTIVE_TOPIC_KEY = 'gaea_chat_active_topic'
-const CHAT_SIDEBAR_KEY = 'gaea.chatSidebarCollapsed'
-// T6-3.4：旧 localStorage 话题迁移「已完成」持久化标记（版本化键）。
-// 迁移成功才写入；失败不写（下次启动可重试），本次会话内仅尝试一次（initRef 守卫）。
-const MIGRATION_KEY = 'gaea_chat_migration_v1'
-// T6-3.1：流式对话无帧超时（30s 无任何帧即视为失败）。导出为常量便于测试
-// （vitest fake timers 推进同一阈值）；后端正常完成必 emit done、失败必 emit error。
-export const STREAM_SILENCE_TIMEOUT_MS = 30_000
-
-// ── 快捷情绪回复（人格模式输入区 chips） ──
-const QUICK_REPLIES = [
-  { label: '抱抱我', text: '能抱抱我吗，今天有点累' },
-  { label: '晚安', text: '晚安，做个好梦' },
-  { label: '有点低落', text: '今天心情不太好，陪我聊聊' },
-  { label: '分享开心事', text: '告诉你一件开心的事' },
-  { label: '深入聊聊', text: '我们来深入聊聊这个话题吧' },
-]
-
-const PLAIN_SUGGESTIONS = [
-  { icon: <MessageOutlined />, label: '随便聊聊', desc: '和 AI 畅聊任何话题' },
-  { icon: <SearchOutlined />, label: '帮我查资料', desc: '快速搜索和整理信息' },
-  { icon: <EditOutlined />, label: '写篇文章', desc: '博客、报告、文案随时生成' },
-  { icon: <BulbOutlined />, label: '头脑风暴', desc: '一起碰撞灵感火花' },
-  { icon: <TranslationOutlined />, label: '翻译内容', desc: '多语言互译，保持原意' },
-  { icon: <BookOutlined />, label: '解释概念', desc: '深入浅出地讲解知识点' },
-]
-
-const PERSONA_SUGGESTIONS = [
-  { icon: <HeartOutlined />, label: '聊聊天', desc: '分享你的日常' },
-  { icon: <SearchOutlined />, label: '倾诉心情', desc: '说说心里话' },
-  { icon: <GlobalOutlined />, label: '上网查问', desc: '搜最新资讯' },
-  { icon: <StarFilled />, label: '分享兴趣', desc: '聊聊你喜欢的东西' },
-  { icon: <ThunderboltOutlined />, label: '晚安问候', desc: '睡前聊一会儿' },
-]
-
-/** 欢迎屏建议卡：键盘可达 + 焦点可见 */
-const SuggestionCard: React.FC<{ s: { icon: React.ReactNode; label: string; desc: string }; onClick: () => void }> = ({ s, onClick }) => (
-  <div
-    role="button"
-    tabIndex={0}
-    className="chat-suggestion-card"
-    onClick={onClick}
-    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
-  >
-    <div className="chat-suggestion-icon">{s.icon}</div>
-    <div className="chat-suggestion-label">{s.label}</div>
-    <div className="chat-suggestion-desc">{s.desc}</div>
-  </div>
-)
-
-const EMO_COLORS: Record<string, string> = {
-  SWEET_ATTACHMENT: '#f472b6', SHY_HEARTBEAT: '#fb7185', TSUNDERE: '#f59e0b',
-  HURT_GRIEVANCE: '#a78bfa', ANGRY_ATTACK: '#ef4444', COLD_DETACHED: '#94a3b8',
-  FEARFUL_OBEDIENT: '#c084fc', QUIET_FOND: '#fbbf24', CALM_RATIONAL: '#60a5fa',
-}
-let msgSeq = 0
-function nextMsgKey(): string { msgSeq++; return `m_${msgSeq}_${Date.now()}` }
-function nowStr(): string { return new Date().toISOString() }
-function navigateToCharacterLib(): void {
-  window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'characterlib' } }))
-}
-function parseExtra(raw?: string): Record<string, any> | undefined {
-  if (!raw) return undefined
-  try { const o = JSON.parse(raw); return typeof o === 'object' && o ? o : undefined } catch (_) { return undefined }
-}
-
-/** 话题最近活跃时间（优先 updated_at，缺失回退 created_at）。 */
-function toUpdatedAt(t: any): number {
-  const raw = t?.updated_at || t?.created_at
-  const ms = raw ? new Date(String(raw)).getTime() : 0
-  return Number.isFinite(ms) && ms > 0 ? ms : Date.now()
-}
-
-function loadPersonality(): string {
-  try {
-    return (localStorage.getItem(PERSONALITY_KEY) ?? localStorage.getItem(LEGACY_PERSONALITY_KEY)) || 'gaea'
-  } catch (_) { return 'gaea' }
-}
-
-function loadCompanionName(personalityLabel: string): string {
-  try {
-    const raw = localStorage.getItem(COMPANION_SETTINGS_KEY) ?? localStorage.getItem(LEGACY_COMPANION_SETTINGS_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (parsed?.companionName) return parsed.companionName
-    }
-  } catch (_) {}
-  return personalityLabel || 'gaea'
-}
-
-// T6-3：前端错误统一上报 gaea.log（GaeaLogFrontendError，T6-1.2 通道）。
-// 日志通道自身异常时静默降级，绝不掩盖原始错误。
-function logFrontendError(message: string): void {
-  try {
-    App.GaeaLogFrontendError?.(message)?.catch(() => {})
-  } catch (_) {
-    // 日志通道未注入（dev 等）时忽略
-  }
-}
-
-/** 旧 localStorage 话题 → chat.db（一次性；成功后清理本地键并写迁移标记）。 */
-async function migrateLegacyTopics(): Promise<boolean> {
-  // T6-3.4：已迁移过（持久化标记）→ 直接跳过，避免每次初始化都重复执行。
-  try { if (localStorage.getItem(MIGRATION_KEY) === '1') return false } catch (_) {}
-  const buckets: Array<{ title: string; mode: string; messages: LegacyMsg[] }> = []
-  const chatRaw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY)
-  if (chatRaw) {
-    try {
-      const p = JSON.parse(chatRaw)
-      if (Array.isArray(p)) p.forEach((t: LegacyTopic) => buckets.push({ title: t.title || '新对话', mode: 'plain', messages: t.messages || [] }))
-    } catch (_) {}
-  }
-  const whisperRaw = localStorage.getItem(WHISPER_TOPICS_KEY) ?? localStorage.getItem(LEGACY_WHISPER_TOPICS_KEY)
-  if (whisperRaw) {
-    try {
-      const p = JSON.parse(whisperRaw)
-      if (Array.isArray(p)) p.forEach((t: LegacyTopic) => buckets.push({ title: t.title || '新对话', mode: loadPersonality(), messages: t.messages || [] }))
-    } catch (_) {}
-  }
-  if (buckets.length === 0) return false
-  let failed = false
-  for (const t of buckets) {
-    const msgs = (t.messages || [])
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({ Role: m.role, Content: typeof m.content === 'string' ? m.content : '', Extra: '' }))
-    try {
-      await App.ChatImportTopic(t.title, t.mode, msgs as any)
-    } catch (err: any) {
-      // T6-3.4：导入失败不再静默吞掉——记录日志；失败不写迁移标记
-      // （下次启动可重试）。本次会话内仅尝试一次（initRef 守卫），不无限重试。
-      failed = true
-      console.error('[Chat] 旧话题导入失败（' + t.title + '）:', err?.message || err)
-      logFrontendError('旧话题导入失败（' + t.title + '）: ' + (err?.message || String(err)))
-    }
-  }
-  if (failed) return false // 有失败：不写标记、不清理本地键（保留数据供下次重试）
-  try {
-    localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(LEGACY_STORAGE_KEY)
-    localStorage.removeItem(WHISPER_TOPICS_KEY); localStorage.removeItem(LEGACY_WHISPER_TOPICS_KEY)
-    localStorage.setItem(MIGRATION_KEY, '1')
-  } catch (_) {}
-  return true
-}
+// T6-3.1：流式对话无帧超时（30s 无任何帧即视为失败）。测试从 ChatPage 导入
+// （vitest fake timers 推进同一阈值），故在此再导出。
+export { STREAM_SILENCE_TIMEOUT_MS }
 
 const ChatPage: React.FC = () => {
-  const [topics, setTopics] = useState<any[]>([])
-  const [activeId, setActiveId] = useState<string>('')
+  // ── 消息区状态（页面持有；流/话题/语音三个 hook 注入更新） ──
   const [messages, setMessages] = useState<ChatMsg[]>([])
-  const [initializing, setInitializing] = useState(true)
-  const [sending, setSending] = useState(false)
-  const [streamKey, setStreamKey] = useState<string | null>(null)
-  const [streamText, setStreamText] = useState('')
-  const [input, setInput] = useState('')
-  const [mode, setMode] = useState<string>('plain') // 'plain' | personaID
+  const updateMessage = useCallback((key: string, patch: Partial<ChatMsg>) => {
+    setMessages(prev => prev.map(m => m.key === key ? { ...m, ...patch } : m))
+  }, [])
+
+  // ── 话题状态机（含模式/情绪元数据/初始化） ──
   const [personalities, setPersonalities] = useState<Personality[]>([])
+  const topicsApi = useChatTopics({ setMessages, setPersonalities })
+  const {
+    topics, setTopics, activeId, activeIdRef, mode, modeRef,
+    emotion, setEmotion, aff, setAff, aro, setAro,
+    initializing, resetPersonaMeta, selectTopic: selectTopicData,
+    createTopic, deleteTopic, renameTopic, switchMode, finalizeTopicAfterSend,
+  } = topicsApi
+
+  const [input, setInput] = useState('')
   const [activePersonality, setActivePersonality] = useState<string>(() => loadPersonality())
-  // 人格元数据（只读展示，不操纵）
-  const [emotion, setEmotion] = useState('')
-  const [aff, setAff] = useState(0); const [aro, setAro] = useState(0)
   const [searchEnabled, setSearchEnabled] = useState(true)
+  const [thinking, setThinking] = useState(false)
+  const [forceSearch, setForceSearch] = useState(false)
 
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [speakingId, setSpeakingId] = useState<string | null>(null)
-  const [voiceOn, setVoiceOn] = useState(false)
-  const [thinking, setThinking] = useState(false)
-  const [forceSearch, setForceSearch] = useState(false)
+
   // 左侧会话栏折叠态（本地持久化，随面板一起折叠悬浮绑定模型卡）
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem(CHAT_SIDEBAR_KEY) === '1' } catch { return false }
+    try { return localStorage.getItem('gaea.chatSidebarCollapsed') === '1' } catch { return false }
   })
   const toggleChatSidebar = useCallback(() => {
     setSidebarCollapsed((c) => {
       const next = !c
-      try { localStorage.setItem(CHAT_SIDEBAR_KEY, next ? '1' : '0') } catch { /* ignore */ }
+      try { localStorage.setItem('gaea.chatSidebarCollapsed', next ? '1' : '0') } catch { /* ignore */ }
       return next
     })
   }, [])
 
   const listRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<any>(null)
-  const initRef = useRef(false)
+  const inputRef = useRef<React.ComponentRef<typeof Input.TextArea>>(null)
   // 智能滚动：用户上翻阅读时不强制吸底，靠近底部/新消息/切换话题才跟随。
   const [atBottom, setAtBottom] = useState(true)
   const stickToBottomRef = useRef(true)
@@ -254,250 +87,88 @@ const ChatPage: React.FC = () => {
     setAtBottom(true)
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
   }, [])
-  // 话题载入序号：快速切换话题时丢弃过期响应，避免旧话题消息覆盖当前视图。
-  const topicLoadSeqRef = useRef(0)
-  // 真实流式订阅的清理函数：卸载时取消监听，避免泄漏。
-  const streamCleanupRef = useRef<(() => void) | null>(null)
-  // T6-3.1：当前流式对话的终态回调（done/error/超时/卸载时调用一次，
-  // 保证挂起的流 Promise 必然收尾、finally 必执行、sending 四路径均可复位）。
-  const streamFinishRef = useRef<((ok: boolean) => void) | null>(null)
-  // T6-3.3：模拟打字循环取消标志（切话题/卸载即置 true 中止循环，新一轮发送复位）。
-  const typingCancelRef = useRef(false)
-  // T6-3.3：朗读 blob URL 登记（播放结束/失败/卸载时 revokeObjectURL）。
-  const speakUrlRef = useRef<string | null>(null)
-  // T6-3.3：释放朗读 blob URL（幂等；播放结束/失败/卸载均可调用）。
-  const revokeSpeakUrl = useCallback(() => {
-    if (speakUrlRef.current) {
-      URL.revokeObjectURL(speakUrlRef.current)
-      speakUrlRef.current = null
-    }
-  }, [])
-  const topicsRef = useRef<any[]>([])
-  topicsRef.current = topics
-  const modeRef = useRef(mode)
-  modeRef.current = mode
-  const thinkingRef = useRef(thinking)
-  thinkingRef.current = thinking
+
+  // 发送参数快照（doSend 在异步流期间读取，避免闭包过期）
   const searchEnabledRef = useRef(searchEnabled)
   searchEnabledRef.current = searchEnabled
+  const thinkingRef = useRef(thinking)
+  thinkingRef.current = thinking
   const forceSearchRef = useRef(forceSearch)
   forceSearchRef.current = forceSearch
 
-  const activeIdRef = useRef(activeId)
-  activeIdRef.current = activeId
+  // ── 流式发送（plain 流订阅 + 角色模拟打字，T6-3.1/T6-3.3 逻辑在 hook 内） ──
+  const streamApi = useChatStream({
+    updateMessage,
+    setMessages,
+    setInput,
+    setEmotion,
+    setAff,
+    setAro,
+    finalizeTopicAfterSend,
+  })
+  const { sending, streamKey, streamText, send, cancelTyping } = streamApi
 
+  // ── 语音集成（T6-3.3 语音消息落库在 hook 内） ──
+  const voiceApi = useChatVoice({
+    setMessages,
+    getActiveId: useCallback(() => activeIdRef.current, [activeIdRef]),
+    getMode: useCallback(() => modeRef.current, [modeRef]),
+  })
+  const { voice, voiceOn, toggleVoice } = voiceApi
+
+  // ── 派生展示值 ──
   const currentPersonality = personalities.find(p => p.id === activePersonality)
   const companionName = useMemo(
     () => loadCompanionName(currentPersonality?.label || 'gaea'),
     [currentPersonality])
   const emoColor = EMO_COLORS[emotion] || 'var(--gaea-glow, #2dd4bf)'
   const personaLabel = currentPersonality?.label || '角色'
+  const hasMessages = messages.length > 0
 
-  // ── 语音对话（文本类：说话 → 识别文本进入聊天区） ──
-  // T6-3.3：语音消息持久化。识别文本/回复经 ChatAppendMessages 落库（单事务），
-  // 与正常 ChatSend 的落库互不重复（语音管道不走 ChatSend）；无活跃话题时仅内存展示。
-  const persistVoiceMessages = useCallback((msgs: Array<{ Role: string; Content: string; Extra: string }>) => {
-    const topicID = activeIdRef.current
-    if (!topicID) return
-    // ChatAppendMessages 为 T6-3 新绑定：wailsjs/go 生成物由 wails build 再生成，
-    // 此处沿用文件内既有 (App as any).X 逃生口（生成后自动获得类型）。
-    ;(App as any).ChatAppendMessages(topicID, msgs as any).catch((err: any) => {
-      // 落库失败不静默：记录到 gaea.log（界面不受影响，内存消息已展示）
-      logFrontendError('语音消息落库失败: ' + (err?.message || String(err)))
-    })
-  }, [])
-  const onVoiceTranscript = useCallback((t: string) => {
-    const text = (t || '').trim(); if (!text) return
-    setMessages(prev => [...prev, { key: nextMsgKey(), role: 'user', content: text, createdAt: nowStr() }])
-    persistVoiceMessages([{ Role: 'user', Content: text, Extra: '' }])
-  }, [persistVoiceMessages])
-  const onVoiceReply = useCallback((t: string) => {
-    const text = (t || '').trim(); if (!text) return
-    setMessages(prev => [...prev, { key: nextMsgKey(), role: 'assistant', content: text, createdAt: nowStr() }])
-    persistVoiceMessages([{ Role: 'assistant', Content: text, Extra: '' }])
-  }, [persistVoiceMessages])
-  const { state: voice, start: startVoice, stop: stopVoice } = useVoiceChat({ onTranscript: onVoiceTranscript, onReply: onVoiceReply })
-
-  const toggleVoice = useCallback(async () => {
-    if (voiceOn) { stopVoice(); setVoiceOn(false); return }
-    try { await (App as any).VoiceApplySettings?.({ personalityPresetId: modeRef.current }) } catch (_) {}
-    setVoiceOn(true)
-    await startVoice()
-  }, [voiceOn, activePersonality, startVoice, stopVoice])
-
-  // 首页语音入口兼容：进入聊天板块自动开启收听
-  useEffect(() => {
-    let flag = false
-    try { flag = sessionStorage.getItem(VOICE_LAUNCH_FLAG) === '1' } catch (_) {}
-    if (flag) {
-      try { sessionStorage.removeItem(VOICE_LAUNCH_FLAG) } catch (_) {}
-      toggleVoice()
-    }
-  }, [toggleVoice])
-
-  const resetPersonaMeta = useCallback(() => {
-    setEmotion(''); setAff(0); setAro(0)
-  }, [])
-
-  // 载入话题消息并恢复模式/情绪元数据（初始进入与切换话题共用）。
-  const loadTopic = useCallback(async (id: string, list: any[]) => {
-    const seq = ++topicLoadSeqRef.current
-    let ms: any[] = []
-    try {
-      ms = (await App.ChatMessagesList(id)) || []
-    } catch (err: any) {
-      // T6-3.2：消息列表读取失败不再静默——记录后按空消息继续（不打断页面功能）
-      logFrontendError('话题消息读取失败: ' + (err?.message || String(err)))
-    }
-    if (seq !== topicLoadSeqRef.current) return
-    const loaded: ChatMsg[] = ms.map((m: any) => ({
-      key: `db_${m.id}`, role: m.role === 'user' ? 'user' : 'assistant',
-      content: m.content || '', createdAt: m.created_at || '', extra: parseExtra(m.extra),
-    }))
-    setMessages(loaded)
-    const topic = list.find(t => t.id === id)
-    const topicMode = topic?.mode || 'plain'
-    if (topicMode !== modeRef.current) setMode(topicMode)
-    resetPersonaMeta()
-    if (topicMode !== 'plain') {
-      const last = [...loaded].reverse().find(m => m.role === 'assistant' && m.extra)
-      if (last?.extra?.emotion) setEmotion(last.extra.emotion)
-    }
-  }, [resetPersonaMeta])
-
-  // ── 初始化：话题列表 + 旧数据迁移 + 人格列表 + 首页角色入口 ──
-  useEffect(() => {
-    if (initRef.current) return
-    initRef.current = true
-    ;(async () => {
-      let list: any[] = []
-      try { list = (await App.ChatTopicsList()) || [] } catch (err: any) {
-        // T6-3.2：话题列表读取失败不再静默——记录后按空列表继续初始化
-        logFrontendError('话题列表读取失败: ' + (err?.message || String(err)))
-      }
-      if (list.length === 0) {
-        const imported = await migrateLegacyTopics()
-        try { list = (await App.ChatTopicsList()) || [] } catch (err: any) {
-          logFrontendError('话题列表读取失败（迁移后）: ' + (err?.message || String(err)))
-        }
-        if (!imported && list.length === 0) {
-          try { await App.ChatTopicCreate('新对话', 'plain') } catch (err: any) {
-            logFrontendError('话题创建失败: ' + (err?.message || String(err)))
-          }
-          try { list = (await App.ChatTopicsList()) || [] } catch (err: any) {
-            logFrontendError('话题列表读取失败（创建后）: ' + (err?.message || String(err)))
-          }
-        }
-      }
-      // 最近活跃优先：默认把最新会话排到顶部。
-      list = sortByUpdatedAtDesc(list, toUpdatedAt)
-      setTopics(list)
-      let first: any = list[0]
-      try {
-        const last = localStorage.getItem(ACTIVE_TOPIC_KEY)
-        if (last) first = list.find(t => t.id === last) || first
-      } catch (_) {}
-      if (first) {
-        setActiveId(first.id)
-        await loadTopic(first.id, list)
-      }
-      setInitializing(false)
-    })()
-    try {
-      App.WhisperGetPersonalities().then((ps: any) => setPersonalities(ps || [])).catch((err: any) => {
-        logFrontendError('人格列表读取失败: ' + (err?.message || String(err)))
-      })
-    } catch (_) {}
-  }, [loadTopic])
-
-  // 选择话题 → 加载消息 + 恢复人格元数据
-  const selectTopic = useCallback(async (id: string) => {
-    if (!id || id === activeIdRef.current) return
-    // T6-3.3：切话题即中止上一话题的模拟打字流（避免过期 setStreamText 继续跑）
-    typingCancelRef.current = true
-    stickToBottomRef.current = true
-    setAtBottom(true)
-    setActiveId(id)
-    try { localStorage.setItem(ACTIVE_TOPIC_KEY, id) } catch (_) {}
-    await loadTopic(id, topicsRef.current)
-    inputRef.current?.focus?.()
-  }, [loadTopic])
-
+  // ── 滚动跟随（新消息/流式文本变化时若用户贴底则保持吸底） ──
   useEffect(() => {
     if (stickToBottomRef.current && listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight
     }
   }, [messages, streamText])
 
-  // 卸载收尾：取消流式订阅 + 收尾挂起的流 Promise（sending 复位路径完整）、
-  // 中止模拟打字循环、释放朗读 blob URL。
-  useEffect(() => () => {
-    // T6-3.1：卸载时触发流终态回调——挂起的流 Promise 得以 resolve，
-    // finally 必执行（组件已卸载，setState 无副作用），不留悬挂计时器/监听。
-    streamFinishRef.current?.(false)
-    streamFinishRef.current = null
-    streamCleanupRef.current?.()
-    streamCleanupRef.current = null
-    // T6-3.3：卸载中止模拟打字循环 + 释放朗读 URL
-    typingCancelRef.current = true
-    revokeSpeakUrl()
-  }, [revokeSpeakUrl])
+  // ── 朗读资源释放（T6-3.3：卸载时 revokeObjectURL） ──
+  const speakUrlRef = useRef<string | null>(null)
+  const revokeSpeakUrl = useCallback(() => {
+    if (speakUrlRef.current) {
+      URL.revokeObjectURL(speakUrlRef.current)
+      speakUrlRef.current = null
+    }
+  }, [])
+  useEffect(() => () => { revokeSpeakUrl() }, [revokeSpeakUrl])
+
+  // ── 话题操作（滚动/聚焦包装；数据逻辑在 useChatTopics） ──
+  // 选择话题 → 中止上一话题的模拟打字流 + 加载消息 + 恢复人格元数据
+  const selectTopic = useCallback(async (id: string) => {
+    // T6-3.3：切话题即中止上一话题的模拟打字流（避免过期 setStreamText 继续跑）
+    cancelTyping()
+    stickToBottomRef.current = true
+    setAtBottom(true)
+    await selectTopicData(id)
+    inputRef.current?.focus?.()
+  }, [cancelTyping, selectTopicData])
 
   const handleCreate = useCallback(async () => {
-    try {
-      const t = await App.ChatTopicCreate('新对话', modeRef.current)
-      stickToBottomRef.current = true
-      setAtBottom(true)
-      setTopics(prev => [t, ...prev])
-      setActiveId(t.id)
-      try { localStorage.setItem(ACTIVE_TOPIC_KEY, t.id) } catch (_) {}
-      setMessages([])
-      resetPersonaMeta()
-      inputRef.current?.focus?.()
-    } catch (err: any) {
-      message.error(`创建话题失败：${err?.message || err}`)
-    }
-  }, [resetPersonaMeta])
+    stickToBottomRef.current = true
+    setAtBottom(true)
+    await createTopic()
+    inputRef.current?.focus?.()
+  }, [createTopic])
 
   const handleDelete = useCallback(async (id: string) => {
-    try { await App.ChatTopicDelete(id) } catch (err: any) { message.error(`删除失败：${err?.message || err}`); return }
-    const remaining = topicsRef.current.filter(t => t.id !== id)
-    if (remaining.length === 0) {
-      await handleCreate()
-      return
-    }
-    setTopics(remaining)
-    if (id === activeIdRef.current) {
-      const idx = topicsRef.current.findIndex(t => t.id === id)
-      const next = remaining[Math.min(idx, remaining.length - 1)]
-      selectTopic(next.id)
-    }
-  }, [handleCreate, selectTopic])
-
-  const handleRename = useCallback(async (id: string, title: string) => {
-    try { await App.ChatTopicRename(id, title) } catch (err: any) {
-      message.error(`重命名失败：${err?.message || err}`)
-      return
-    }
-    setTopics(prev => prev.map(t => t.id === id ? { ...t, title } : t))
-  }, [])
-
-  const switchMode = useCallback(async (next: string) => {
-    if (next === modeRef.current) return
-    setMode(next)
-    if (next === 'plain') {
-      resetPersonaMeta()
-    } else {
-      try { localStorage.setItem(PERSONALITY_KEY, next) } catch (_) {}
-    }
-    if (activeIdRef.current) {
-      try { await App.ChatTopicSetMode(activeIdRef.current, next) } catch (_) {}
-      setTopics(prev => prev.map(t => t.id === activeIdRef.current ? { ...t, mode: next } : t))
-    }
-  }, [resetPersonaMeta])
+    stickToBottomRef.current = true
+    setAtBottom(true)
+    await deleteTopic(id)
+    inputRef.current?.focus?.()
+  }, [deleteTopic])
 
   const handleSwitchPersonality = useCallback(async (id: string) => {
-    try { await (App as any).WhisperClearSession(activePersonality) } catch (_) {}
+    try { await App.WhisperClearSession(activePersonality) } catch (_) {}
     setActivePersonality(id)
     await switchMode(id)
   }, [activePersonality, switchMode])
@@ -514,155 +185,19 @@ const ChatPage: React.FC = () => {
     return () => window.removeEventListener('gaea-persona-changed', onPersona)
   }, [switchMode])
 
-  const updateMessage = useCallback((key: string, patch: Partial<ChatMsg>) => {
-    setMessages(prev => prev.map(m => m.key === key ? { ...m, ...patch } : m))
-  }, [])
-
-  // 自动命名 + 最近活跃置顶 + 侧栏预览同步（发送成功后的统一收尾）。
-  const finalizeTopicAfterSend = useCallback(async (topicId: string, firstUserText: string) => {
-    const topic = topicsRef.current.find(t => t.id === topicId)
-    const title = topic?.title === '新对话'
-      ? autoTopicTitle(firstUserText)
-      : undefined
-    if (title) {
-      try { await App.ChatTopicRename(topicId, title) } catch (_) {}
-    }
-    setTopics(prev => {
-      const item = prev.find(t => t.id === topicId)
-      if (!item) return prev
-      const updated = { ...item, updated_at: new Date().toISOString(), preview: item.preview || firstUserText }
-      if (title) updated.title = title
-      return [updated, ...prev.filter(t => t.id !== topicId)]
-    })
-  }, [])
-
-  const doSend = useCallback(async (text: string, retryKey?: string) => {
-    const trimmed = text.trim()
-    if (!trimmed || sending || !activeIdRef.current) return
-    // T6-3.3：新一轮发送复位模拟打字取消标志（旧循环已被切话题/卸载置 true）
-    typingCancelRef.current = false
-    setInput(''); setSending(true)
+  // ── 发送管道 ──
+  const doSend = useCallback((text: string, retryKey?: string) => {
     stickToBottomRef.current = true
     setAtBottom(true)
-    const um: ChatMsg = { key: nextMsgKey(), role: 'user', content: trimmed, createdAt: nowStr() }
-    const am: ChatMsg = { key: nextMsgKey(), role: 'assistant', content: '', streaming: true, createdAt: nowStr() }
-    setMessages(prev => {
-      if (!retryKey) return [...prev, um, am]
-      // 重试：失败消息未落库，其前置用户消息同样未落库，一并移除保持与 DB 一致
-      const errIdx = prev.findIndex(m => m.key === retryKey)
-      const drop = new Set<string>([retryKey])
-      if (errIdx >= 0) {
-        const userMsg = prev.slice(0, errIdx).reverse().find(m => m.role === 'user')
-        if (userMsg) drop.add(userMsg.key)
-      }
-      return [...prev.filter(m => !drop.has(m.key)), um, am]
+    return send({
+      text, retryKey,
+      mode: modeRef.current,
+      active: activeIdRef.current,
+      search: searchEnabledRef.current,
+      thinking: thinkingRef.current,
+      force: forceSearchRef.current,
     })
-    setStreamKey(am.key); setStreamText('')
-    const active = activeIdRef.current
-    const curMode = modeRef.current
-
-    // 普通对话：后端逐块流式下发；角色模式继续走整段返回（保留原有模拟打字流）。
-    if (curMode === 'plain') {
-      let unsub: (() => void) | null = null
-      let reasoningAcc = ''
-      const cleanup = () => { if (unsub) { const f = unsub; unsub = null; f() } }
-      streamCleanupRef.current = cleanup
-      try {
-        // T6-3.1：流 Promise 自带「无帧超时 + 终态兜底」。runID 一到立即在
-        // 同一同步块注册精确频道监听（与 binding 解析零异步间隙，先订阅后收帧）；
-        // 首帧若在注册前发出（后端 goroutine 竞态——Wails JS 事件按事件名精确
-        // 匹配，runID 未知时无法提前订阅），由超时兜底：30s 无任何帧按失败展示，
-        // sending 必复位、finally 必执行。
-        const ok = await new Promise<boolean>((resolve) => {
-          let settled = false
-          const finish = (okVal: boolean) => {
-            if (settled) return
-            settled = true
-            clearTimeout(timer)
-            if (streamFinishRef.current === finish) streamFinishRef.current = null
-            resolve(okVal)
-          }
-          streamFinishRef.current = finish
-          // finish 仅在 timer 初始化之后被调用（事件/超时回调），闭包引用无 TDZ 问题
-          const timer = setTimeout(() => {
-            setStreamText(''); setStreamKey(null)
-            updateMessage(am.key, { content: `请求超时：${STREAM_SILENCE_TIMEOUT_MS / 1000} 秒内未收到回复，请重试`, streaming: false, error: true })
-            finish(false)
-          }, STREAM_SILENCE_TIMEOUT_MS)
-          App.ChatStreamPlain(active, trimmed, searchEnabledRef.current, thinkingRef.current, forceSearchRef.current)
-            .then((runID: string) => {
-              // 订阅注册紧跟 runID 解析：同一微任务内完成，先订阅后收帧，首帧不丢
-              unsub = EventsOn(`chat-stream:${runID}`, (payload: any) => {
-                if (settled) return
-                const p = payload || {}
-                if (p.type === 'delta') {
-                  setStreamText(prev => prev + (p.content || ''))
-                } else if (p.type === 'reasoning') {
-                  reasoningAcc += p.content || ''
-                } else if (p.type === 'done') {
-                  const reply = typeof p.reply === 'string' ? p.reply : ''
-                  const reasoning = typeof p.reasoning === 'string' ? p.reasoning : reasoningAcc
-                  setStreamText(''); setStreamKey(null)
-                  updateMessage(am.key, { content: reply, streaming: false, reasoning, extra: {} })
-                  finish(true)
-                } else if (p.type === 'error') {
-                  setStreamText(''); setStreamKey(null)
-                  updateMessage(am.key, { content: `请求失败：${p.error || '未知错误'}`, streaming: false, error: true })
-                  finish(false)
-                }
-              })
-            })
-            .catch((err: any) => {
-              // 启动失败（binding 拒绝）：直接按失败收尾，与事件错误终态一致
-              setStreamText(''); setStreamKey(null)
-              updateMessage(am.key, { content: `请求失败：${err?.message || String(err)}`, streaming: false, error: true })
-              finish(false)
-            })
-        })
-        if (ok) await finalizeTopicAfterSend(active, trimmed)
-      } catch (err: any) {
-        setStreamText(''); setStreamKey(null)
-        updateMessage(am.key, { content: `请求失败：${err?.message || String(err)}`, streaming: false, error: true })
-      } finally {
-        cleanup()
-        if (streamCleanupRef.current === cleanup) streamCleanupRef.current = null
-        setSending(false)
-      }
-      return
-    }
-
-    // 角色模式：整段返回 + 前端模拟打字流。
-    try {
-      const res: any = await App.ChatSend(active, trimmed, curMode, searchEnabledRef.current, thinkingRef.current, forceSearchRef.current)
-      const reply = typeof res?.reply === 'string' ? res.reply : ''
-      const reasoning = typeof res?.reasoning === 'string' ? res.reasoning : ''
-      const reduced = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-      if (!reduced && reply.length > 40) {
-        const step = Math.max(2, Math.round(reply.length / 180))
-        for (let i = 0; i <= reply.length; i += step) {
-          // T6-3.3：切话题/卸载即中止模拟打字流（避免过期 setStreamText 持续写入）
-          if (typingCancelRef.current) break
-          setStreamText(reply.slice(0, i))
-          await new Promise(r => setTimeout(r, 14))
-        }
-      }
-      // T6-3.3：循环被取消（话题已切换/组件已卸载）→ 不再更新消息与最终态，
-      // 由 finally 复位 sending；旧消息 key 已随话题切换离开消息列表，更新无意义。
-      if (typingCancelRef.current) return
-      setStreamText(''); setStreamKey(null)
-      const extra: Record<string, any> = {}
-      if (res.emotion) extra.emotion = res.emotion
-      if (reasoning) extra.reasoning = reasoning
-      updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
-      if (res.emotion) setEmotion(res.emotion)
-      if (typeof res.aff === 'number') setAff(Math.round(res.aff))
-      if (typeof res.aro === 'number') setAro(Math.round(res.aro))
-      await finalizeTopicAfterSend(active, trimmed)
-    } catch (err: any) {
-      setStreamText(''); setStreamKey(null)
-      updateMessage(am.key, { content: `请求失败：${err?.message || String(err)}`, streaming: false, error: true })
-    } finally { setSending(false) }
-  }, [sending, updateMessage, finalizeTopicAfterSend])
+  }, [send, modeRef, activeIdRef, searchEnabledRef, thinkingRef, forceSearchRef])
 
   const handleSend = useCallback(() => { doSend(input) }, [input, doSend])
   const handleSuggestion = useCallback((label: string) => { doSend(label) }, [doSend])
@@ -689,7 +224,7 @@ const ChatPage: React.FC = () => {
   const handleSpeak = async (content: string, id: string) => {
     if (speakingId) return; setSpeakingId(id)
     try {
-      const result: any = await App.TTSSpeakBase64(content)
+      const result = await App.TTSSpeakBase64(content)
       if (result?.base64) {
         const b = atob(result.base64); const bytes = new Uint8Array(b.length)
         for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i)
@@ -702,7 +237,7 @@ const ChatPage: React.FC = () => {
         return
       }
       message.warning('TTS 未返回音频数据')
-    } catch (err: any) { message.error(`朗读失败：${typeof err === 'string' ? err : err?.message || '未知错误'}`) }
+    } catch (err: unknown) { message.error(`朗读失败：${typeof err === 'string' ? err : (err instanceof Error ? err.message : '未知错误')}`) }
     finally {
       // 播放结束/失败后释放（play() 已开始加载资源，revoke 不影响播放）
       revokeSpeakUrl()
@@ -719,9 +254,9 @@ const ChatPage: React.FC = () => {
     }
     setTopics(prev => prev.map(t => t.id === activeIdRef.current ? { ...t, preview: '' } : t))
     if (modeRef.current !== 'plain') {
-      try { await (App as any).WhisperClearSession(modeRef.current) } catch (_) {}
+      try { await App.WhisperClearSession(modeRef.current) } catch (_) {}
     }
-  }, [resetPersonaMeta])
+  }, [resetPersonaMeta, activeIdRef, modeRef, setTopics])
 
   const handleExport = useCallback(async () => {
     if (!activeIdRef.current) return
@@ -729,12 +264,10 @@ const ChatPage: React.FC = () => {
       const path: string = await App.ChatTopicExportMarkdown(activeIdRef.current)
       message.success(`已导出会话：${path}`)
       try { await navigator.clipboard.writeText(path) } catch (_) {}
-    } catch (err: any) {
-      message.error(`导出失败：${err?.message || err}`)
+    } catch (err: unknown) {
+      message.error(`导出失败：${err instanceof Error ? err.message : String(err)}`)
     }
-  }, [])
-
-  const hasMessages = messages.length > 0
+  }, [activeIdRef])
 
   const topicList: SidebarTopic[] = topics.map(t => ({
     id: t.id, title: t.title, createdAt: new Date(t.created_at || 0).getTime() || Date.now(),
@@ -751,7 +284,7 @@ const ChatPage: React.FC = () => {
         onSelect={selectTopic}
         onCreate={handleCreate}
         onDelete={handleDelete}
-        onRename={handleRename}
+        onRename={renameTopic}
         collapsed={sidebarCollapsed}
         onToggle={toggleChatSidebar}
       />
@@ -761,79 +294,34 @@ const ChatPage: React.FC = () => {
         {mode !== 'plain' && <ParticleFlow aro={aro} />}
         <SoundWaveOverlay active={speakingId !== null} aff={aff} aro={aro} />
 
-        {/* 模式切换条 */}
-        <div className="chat-mode-bar">
-          <div className="chat-mode-seg" role="tablist" aria-label="对话模式">
-            <button role="tab" aria-selected={mode === 'plain'} className={mode === 'plain' ? 'active' : ''}
-              onClick={() => switchMode('plain')}>
-              <MessageOutlined style={{ fontSize: 12 }} /> 普通对话
-            </button>
-            <button role="tab" aria-selected={mode !== 'plain'} className={mode !== 'plain' ? 'active' : ''}
-              onClick={() => { if (mode === 'plain') switchMode(activePersonality) }}>
-              <HeartOutlined style={{ fontSize: 12 }} /> 角色 · {mode !== 'plain' ? personaLabel : (currentPersonality?.label || '人格')}
-            </button>
-          </div>
-          <div style={{ flex: 1 }} />
-          <Space size={2}>
-            <Tooltip title={searchEnabled ? '联网搜索已开启（自动检测搜索意图）' : '联网搜索已关闭'}>
-              <Button type="text" size="small" icon={<GlobalOutlined style={{ color: searchEnabled ? '#52c41a' : C('color-text-secondary') }} />}
-                onClick={() => setSearchEnabled(!searchEnabled)} style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
-            </Tooltip>
-            {mode !== 'plain' && (
-              <>
-                <Tooltip title="角色库管理">
-                  <Button type="text" size="small" icon={<SettingOutlined />} onClick={navigateToCharacterLib}
-                    style={{ color: C('color-text-secondary'), height: 24 }} />
-                </Tooltip>
-                <PersonaPicker activeId={mode !== 'plain' ? mode : activePersonality}
-                  onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
-                  <Tooltip title="切换角色">
-                    <Button type="text" size="small" icon={<SwapOutlined />}
-                      style={{ color: C('color-text-secondary'), height: 24 }} />
-                  </Tooltip>
-                </PersonaPicker>
-                <Tooltip title="语音设置">
-                  <Button type="text" size="small" icon={<SoundOutlined />} onClick={() => setShowVoiceSettings(true)}
-                    style={{ color: C('color-text-secondary'), height: 24 }} />
-                </Tooltip>
-              </>
-            )}
-            {hasMessages && (
-              <Tooltip title="导出为 Markdown">
-                <Button type="text" size="small" icon={<DownloadOutlined />} onClick={handleExport}
-                  style={{ color: C('color-text-secondary'), height: 24 }} />
-              </Tooltip>
-            )}
-            <Tooltip title="清空当前对话">
-              <Popconfirm title="确定清空当前对话？此操作不可恢复" onConfirm={handleClearMessages} okText="清空" cancelText="取消">
-                <Button type="text" size="small" icon={<ClearOutlined />} disabled={!hasMessages}
-                  style={{ color: C('color-text-secondary'), height: 24, opacity: hasMessages ? 1 : 0.35 }} />
-              </Popconfirm>
-            </Tooltip>
-          </Space>
-        </div>
+        <ChatModeBar
+          mode={mode}
+          personaLabel={personaLabel}
+          currentPersonalityLabel={currentPersonality?.label}
+          personaPickerActiveId={mode !== 'plain' ? mode : activePersonality}
+          searchEnabled={searchEnabled}
+          onToggleSearch={() => setSearchEnabled(!searchEnabled)}
+          onNavigateLib={navigateToCharacterLib}
+          onSwitchPlain={() => switchMode('plain')}
+          onSwitchPersona={() => { if (mode === 'plain') switchMode(activePersonality) }}
+          onSwitchPersonality={handleSwitchPersonality}
+          onOpenVoiceSettings={() => setShowVoiceSettings(true)}
+          hasMessages={hasMessages}
+          onExport={handleExport}
+          onClear={handleClearMessages}
+        />
 
         {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}
         {mode !== 'plain' && hasMessages && (
-          <div className="chat-persona-bar">
-            <CompanionAvatar size={46} state={speakingId ? 'speaking' : sending ? 'thinking' : 'idle'} emotionColor={emoColor} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="chat-persona-meta">
-                <Typography.Text strong style={{ fontSize: 14, color: C('color-text') }}>{companionName}</Typography.Text>
-                <span className="chat-chip" style={{ color: 'var(--gaea-glow)', borderColor: 'color-mix(in srgb, var(--gaea-glow) 30%, transparent)' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--gaea-glow)' }} />
-                  AI 陪伴
-                </span>
-              </div>
-            </div>
-            <PersonaPicker activeId={mode !== 'plain' ? mode : activePersonality}
-              onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
-              <Button type="primary" size="small" icon={<SwapOutlined />}
-                style={{ borderRadius: 16, height: 30, fontSize: 12, flexShrink: 0 }}>
-                选择角色
-              </Button>
-            </PersonaPicker>
-          </div>
+          <ChatPersonaBar
+            companionName={companionName}
+            emoColor={emoColor}
+            speaking={speakingId !== null}
+            thinking={sending}
+            activeId={mode !== 'plain' ? mode : activePersonality}
+            onSelect={handleSwitchPersonality}
+            onManage={navigateToCharacterLib}
+          />
         )}
 
         {/* 消息区 */}
@@ -846,178 +334,31 @@ const ChatPage: React.FC = () => {
               <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, marginTop: 14 }}>正在载入会话…</Typography.Text>
             </div>
           ) : !hasMessages ? (
-            mode !== 'plain' ? (
-              <div className="chat-welcome">
-                <div className="chat-welcome-frame" aria-hidden="true">
-                  <span className="chat-wel-corner chat-wel-tl" />
-                  <span className="chat-wel-corner chat-wel-tr" />
-                  <span className="chat-wel-corner chat-wel-bl" />
-                  <span className="chat-wel-corner chat-wel-br" />
-                </div>
-
-                <span className="chat-wel-kicker">// COMPANION · {personaLabel}</span>
-
-                <div className="chat-wel-orb chat-wel-orb-sm">
-                  <span className="chat-wel-ring chat-wel-ring-1" aria-hidden="true" />
-                  <span className="chat-wel-ring chat-wel-ring-2" aria-hidden="true" />
-                  <CompanionAvatar
-                    size={146}
-                    state={voice.aiSpeaking ? 'speaking' : voice.listening ? 'listening' : 'idle'}
-                    emotionColor={emoColor}
-                  />
-                </div>
-
-                <h2>{companionName}</h2>
-                <p>我是{personaLabel}，今天想聊点什么？</p>
-
-                <div className="chat-wel-telemetry">
-                  <span className="chat-wel-dot" />
-                  BOND <b>ACTIVE</b>
-                  <span className="chat-wel-sep" />
-                  VOICE <b>{voice.listening ? 'LISTEN' : voice.aiSpeaking ? 'SPEAK' : 'STANDBY'}</b>
-                  <span className="chat-wel-sep" />
-                  INPUT <b>READY</b>
-                </div>
-
-                <PersonaPicker activeId={activePersonality}
-                  onSelect={handleSwitchPersonality} onManage={navigateToCharacterLib}>
-                  <Button type="primary" icon={<SwapOutlined />} style={{ marginTop: 14, marginBottom: 16, borderRadius: 20, padding: '4px 22px', height: 36, fontSize: 13 }}>
-                    选择角色
-                  </Button>
-                </PersonaPicker>
-                <div className="chat-suggestion-grid">
-                  {PERSONA_SUGGESTIONS.map(s => (
-                    <SuggestionCard key={s.label} s={s} onClick={() => handleFillInput(s.label)} />
-                  ))}
-                </div>
-                <div style={{ marginTop: 10 }}>
-                  <Button type="link" size="small" icon={<SettingOutlined />} onClick={navigateToCharacterLib}
-                    style={{ color: C('color-text-secondary'), fontSize: 11.5 }}>
-                    去角色库管理角色
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="chat-welcome">
-                <div className="chat-welcome-frame" aria-hidden="true">
-                  <span className="chat-wel-corner chat-wel-tl" />
-                  <span className="chat-wel-corner chat-wel-tr" />
-                  <span className="chat-wel-corner chat-wel-bl" />
-                  <span className="chat-wel-corner chat-wel-br" />
-                </div>
-
-                <span className="chat-wel-kicker">// GAEA CORE · 语音就绪</span>
-
-                <div className="chat-wel-orb">
-                  <span className="chat-wel-ring chat-wel-ring-1" aria-hidden="true" />
-                  <span className="chat-wel-ring chat-wel-ring-2" aria-hidden="true" />
-                  <VoiceChatOrb
-                    volume={voice.volume}
-                    listening={voice.listening}
-                    speaking={voice.speaking}
-                    aiSpeaking={voice.aiSpeaking}
-                    transcript={voice.transcript}
-                    size={188}
-                  />
-                </div>
-
-                <h2>gaea AI</h2>
-                <p>你的智能 AI 助手：聊天、写作、翻译、学习，随时待命 —— 说话即可开始对话</p>
-
-                <div className="chat-wel-telemetry">
-                  <span className="chat-wel-dot" />
-                  VOICE <b>{voice.listening ? 'LISTEN' : voice.aiSpeaking ? 'SPEAK' : 'STANDBY'}</b>
-                  <span className="chat-wel-sep" />
-                  CORE <b>ONLINE</b>
-                  <span className="chat-wel-sep" />
-                  INPUT <b>READY</b>
-                </div>
-
-                <div className="chat-suggestion-grid">
-                  {PLAIN_SUGGESTIONS.map(s => (
-                    <SuggestionCard key={s.label} s={s} onClick={() => handleSuggestion(s.label)} />
-                  ))}
-                </div>
-              </div>
-            )
+            <WelcomeScreen
+              mode={mode}
+              personaLabel={personaLabel}
+              companionName={companionName}
+              voice={voice}
+              emoColor={emoColor}
+              activePersonality={activePersonality}
+              onSwitchPersonality={handleSwitchPersonality}
+              onNavigateLib={navigateToCharacterLib}
+              onFillInput={handleFillInput}
+              onSuggestion={handleSuggestion}
+            />
           ) : (
-            <div className="chat-flow">
-              {messages.map((msg, idx) => {
-                const isUser = msg.role === 'user'
-                const isStreaming = msg.streaming && msg.key === streamKey
-                const display = isStreaming ? streamText : msg.content
-                const prev = messages[idx - 1]
-                const newGroup = !prev || prev.role !== msg.role
-                return isUser ? (
-                  <div key={msg.key} className="chat-row chat-row-user">
-                    <div className="chat-user-capsule">{display}</div>
-                    {msg.content && !msg.streaming && (
-                      <div className="chat-msg-actions">
-                        <Tooltip title={copiedId === msg.key ? '已复制' : '复制'}>
-                          <Button type="text" size="small" icon={copiedId === msg.key ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />}
-                            onClick={() => handleCopy(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
-                        </Tooltip>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div key={msg.key} className="chat-row chat-row-assistant">
-                    {newGroup && (
-                      <div className="chat-assistant-name">
-                        <span className="ai-dot" />
-                        {mode === 'plain' ? 'gaea AI 助手' : `${companionName} · AI`}
-                      </div>
-                    )}
-                    {!msg.error && msg.reasoning && (
-                      <details className="chat-reasoning">
-                        <summary><BulbOutlined style={{ marginRight: 4 }} />思考过程</summary>
-                        <div className="chat-reasoning-body">{msg.reasoning}</div>
-                      </details>
-                    )}
-                    {msg.error ? (
-                      <div className="chat-error-block">
-                        <CloseCircleOutlined style={{ marginTop: 2, flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          {display}
-                          <div style={{ marginTop: 8 }}>
-                            <Button size="small" icon={<ReloadOutlined />} onClick={() => handleRetry(msg.key)}
-                              style={{ fontSize: 12, height: 26, borderRadius: 8 }}>
-                              重试
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="chat-assistant-text">
-                        {isStreaming ? (
-                          <span className="chat-streaming">
-                            {display ? <><MarkdownContent source={display} className="md-content" /><span className="cursor-blink" /></> : <span className="typing-dots"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span>}
-                          </span>
-                        ) : (
-                          mode === 'plain'
-                            ? <ChatMarkdown text={display} />
-                            : <MarkdownContent source={display} className="md-content" />
-                        )}
-                      </div>
-                    )}
-                    {msg.content && !msg.streaming && (
-                      <div className="chat-msg-actions">
-                        <Tooltip title={copiedId === msg.key ? '已复制' : '复制'}>
-                          <Button type="text" size="small" icon={copiedId === msg.key ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />}
-                            onClick={() => handleCopy(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
-                        </Tooltip>
-                        {!msg.error && (
-                          <Tooltip title={speakingId === msg.key ? '朗读中…' : '朗读'}>
-                            <Button type="text" size="small" icon={<SoundOutlined />} loading={speakingId === msg.key}
-                              onClick={() => handleSpeak(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
-                          </Tooltip>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+            <MessageList
+              messages={messages}
+              streamKey={streamKey}
+              streamText={streamText}
+              mode={mode}
+              companionName={companionName}
+              copiedId={copiedId}
+              speakingId={speakingId}
+              onCopy={handleCopy}
+              onSpeak={handleSpeak}
+              onRetry={handleRetry}
+            />
           )}
         </div>
 
@@ -1028,47 +369,23 @@ const ChatPage: React.FC = () => {
         )}
 
         {/* 输入岛 */}
-        <div className="chat-composer-wrap">
-          {mode !== 'plain' && (
-            <div className="chat-quick-replies">
-              {QUICK_REPLIES.map(q => (
-                <button key={q.label} className="chat-quick-chip" onClick={() => handleFillInput(q.text)}>{q.label}</button>
-              ))}
-            </div>
-          )}
-          <div className="gaea-glass-shell chat-composer">
-            <Tooltip title={forceSearch ? '联网搜索已开启：回答前先搜索网页' : '联网搜索：开启后回答前先搜索网页'}>
-              <Button type="text" icon={<GlobalOutlined />}
-                onClick={() => setForceSearch(v => !v)}
-                style={{ color: forceSearch ? '#52c41a' : C('color-text-secondary'), borderRadius: 10, width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: forceSearch ? 'color-mix(in srgb, #52c41a 12%, transparent)' : 'transparent', flexShrink: 0, fontSize: 15 }} />
-            </Tooltip>
-            <Tooltip title={thinking ? '深度思考已开启（本地模型先思考再回答）' : '深度思考（本地模型先思考再回答）'}>
-              <Button type="text" icon={<BulbOutlined />}
-                onClick={() => setThinking(v => !v)}
-                style={{ color: thinking ? 'var(--gaea-glow)' : C('color-text-secondary'), borderRadius: 10, width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: thinking ? 'color-mix(in srgb, var(--gaea-glow) 12%, transparent)' : 'transparent', flexShrink: 0, fontSize: 15 }} />
-            </Tooltip>
-            <Tooltip title={voiceOn ? '结束聆听' : '语音输入（说话识别为文本对话）'}>
-              <Button type="text" icon={voiceOn ? <StopOutlined /> : <AudioOutlined />}
-                onClick={toggleVoice}
-                style={{ color: voiceOn ? 'var(--gaea-glow)' : C('color-text-secondary'), borderRadius: 10, width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: voiceOn ? 'color-mix(in srgb, var(--gaea-glow) 12%, transparent)' : 'transparent', flexShrink: 0, fontSize: 15 }} />
-            </Tooltip>
-            <Input.TextArea
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={voiceOn ? (voice.transcript || '正在聆听…请说话') : '输入消息，Enter 发送 / Shift+Enter 换行'}
-              disabled={sending || voiceOn}
-              autoSize={{ minRows: 1, maxRows: 6 }}
-              className="chat-input-textarea"
-              style={{ flex: 1, background: 'transparent', border: 'none', color: C('color-text'), borderRadius: 0, resize: 'none', fontSize: 14, lineHeight: 1.6, padding: '6px 2px', boxShadow: 'none' }}
-            />
-            <Tooltip title="发送 (Enter)">
-              <Button type="primary" icon={<SendOutlined />} onClick={handleSend} loading={sending} disabled={!input.trim() || voiceOn}
-                style={{ background: input.trim() ? 'var(--md-sys-color-primary)' : C('color-border'), borderColor: 'transparent', borderRadius: 14, width: 40, height: 40, minWidth: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: input.trim() ? '0 0 16px color-mix(in srgb, var(--gaea-glow) 40%, transparent)' : 'none', flexShrink: 0 }} />
-            </Tooltip>
-          </div>
-        </div>
+        <ChatComposer
+          mode={mode}
+          input={input}
+          onInputChange={setInput}
+          onKeyDown={handleKeyDown}
+          inputRef={inputRef}
+          voiceOn={voiceOn}
+          voiceTranscript={voice.transcript}
+          onToggleVoice={toggleVoice}
+          sending={sending}
+          forceSearch={forceSearch}
+          onToggleForceSearch={() => setForceSearch(v => !v)}
+          thinking={thinking}
+          onToggleThinking={() => setThinking(v => !v)}
+          onSend={handleSend}
+          onFillInput={handleFillInput}
+        />
       </main>
 
       {/* 绑定模型条（聊天板块统一入口；whisper 为 chat 别名） */}

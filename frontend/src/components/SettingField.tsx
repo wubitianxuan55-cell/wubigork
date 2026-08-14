@@ -5,7 +5,7 @@ import { C } from '../utils/theme'
 interface SettingFieldProps {
   label: string
   value: string | number
-  onChange: (v: any) => void
+  onChange: (v: unknown) => void
   type?: 'text' | 'number' | 'select'
   options?: { label: string; value: string }[]
   placeholder?: string

@@ -39,7 +39,7 @@ export function useImageState(): ImageState {
 
   const loadImageBackend = useCallback(async () => {
     try {
-      const cfg: any = await getImageBackendInfo()
+      const cfg = await getImageBackendInfo()
       if (cfg?.backend) setImageBackend(cfg.backend)
       if (cfg?.image_model || cfg?.model) setImageModel(cfg.image_model || cfg.model)
       if (cfg?.comfyui_url) setComfyUIURL(cfg.comfyui_url)
@@ -48,7 +48,7 @@ export function useImageState(): ImageState {
       if (cfg?.comfyui_python_path) setComfyUIPythonPath(cfg.comfyui_python_path)
     } catch (_) {}
     try {
-      const st: any = await getComfyUIStatus()
+      const st = await getComfyUIStatus()
       if (st) {
         const port = typeof st.port === 'number'
           ? st.port
@@ -66,7 +66,7 @@ export function useImageState(): ImageState {
     try {
       if (comfyStatus.running) { await stopComfyUI(); setComfyStatus({ running: false, port: 0 }) }
       else { await startComfyUI(); setComfyStatus({ running: true, port: 8188 }) }
-      const st: any = await getComfyUIStatus()
+      const st = await getComfyUIStatus()
       if (st) {
         const port = typeof st.port === 'number' ? st.port : 8188
         setComfyStatus({ running: !!st.running, port })
@@ -74,14 +74,14 @@ export function useImageState(): ImageState {
       } else {
         message.success(comfyStatus.running ? 'ComfyUI 已停止' : 'ComfyUI 已启动')
       }
-    } catch (err: any) { message.error(err?.message || '操作失败') }
+    } catch (err: unknown) { message.error(err instanceof Error ? err.message : '操作失败') }
     finally { setComfyBusy(false) }
   }
 
   const handleSaveImageBackend = async () => {
     setImageBackendSaving(true)
     try { await setImageBackendAPI(imageBackend, comfyUIURL, imageModel, imageSaveDir); message.success('已保存') }
-    catch (err: any) { message.error(err.message) }
+    catch (err: unknown) { message.error(err instanceof Error ? err.message : '保存失败') }
     finally { setImageBackendSaving(false) }
   }
 

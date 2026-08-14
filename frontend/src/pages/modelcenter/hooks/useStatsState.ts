@@ -46,8 +46,8 @@ export function useStatsState(statsOpen: boolean): StatsState {
       setCallStats(null)
       message.success('模型调用统计已清空')
       loadCallStats()
-    } catch (err: any) {
-      message.error(err?.message || '重置失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '重置失败')
     }
   }
 

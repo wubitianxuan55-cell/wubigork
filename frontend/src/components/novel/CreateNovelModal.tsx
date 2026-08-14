@@ -61,7 +61,7 @@ const CreateNovelModal: React.FC<CreateNovelModalProps> = ({
         <Checkbox.Group
           options={GENRE_OPTIONS}
           value={genre}
-          onChange={onGenreChange as any}
+          onChange={(v) => onGenreChange(v as string[])}
           style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}
         />
       </div>
@@ -74,7 +74,7 @@ const CreateNovelModal: React.FC<CreateNovelModalProps> = ({
         <Checkbox.Group
           options={STYLE_OPTIONS}
           value={style}
-          onChange={onStyleChange as any}
+          onChange={(v) => onStyleChange(v as string[])}
           style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}
         />
       </div>

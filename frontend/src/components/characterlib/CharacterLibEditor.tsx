@@ -150,8 +150,8 @@ const CharacterLibEditor: React.FC<Props> = ({
       message.success(isNew ? '角色已创建' : '角色已保存')
       onSaved(saved)
       onClose()
-    } catch (err: any) {
-      message.error(`保存失败：${err?.message || String(err)}`)
+    } catch (err: unknown) {
+      message.error(`保存失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setSaving(false)
     }
@@ -179,8 +179,8 @@ const CharacterLibEditor: React.FC<Props> = ({
       message.success(filledCount > 0
         ? `已补齐 ${filledCount} 处空缺，检查后保存`
         : '没有空缺字段需要补齐')
-    } catch (err: any) {
-      message.error(`补齐失败：${err?.message || String(err)}`)
+    } catch (err: unknown) {
+      message.error(`补齐失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setFilling(false)
     }
@@ -197,8 +197,8 @@ const CharacterLibEditor: React.FC<Props> = ({
       const next = await generateRandom(form, 'all')
       setForm(next as Partial<LibraryCharacter>)
       message.success('已重新随机全部设定（含性格，姓名不变），检查后保存')
-    } catch (err: any) {
-      message.error(`全部随机失败：${err?.message || String(err)}`)
+    } catch (err: unknown) {
+      message.error(`全部随机失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setGenAll(false)
     }
@@ -248,8 +248,8 @@ const CharacterLibEditor: React.FC<Props> = ({
       const next = await generateRandom(form, key)
       setForm(next as Partial<LibraryCharacter>)
       message.success(`已重新随机${label}，检查后保存`)
-    } catch (err: any) {
-      message.error(`随机${label}失败：${err?.message || String(err)}`)
+    } catch (err: unknown) {
+      message.error(`随机${label}失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setFieldGen(null)
     }
@@ -266,8 +266,8 @@ const CharacterLibEditor: React.FC<Props> = ({
       const img = await generatePortrait(form)
       patch({ portraitUrl: img })
       message.success('剧照已生成，检查后保存')
-    } catch (err: any) {
-      message.error(`剧照生成失败：${err?.message || String(err)}`)
+    } catch (err: unknown) {
+      message.error(`剧照生成失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setGenPortrait(false)
     }
@@ -468,7 +468,7 @@ const CharacterLibEditor: React.FC<Props> = ({
                     <div key={f.key} className="cd-field">
                       {fieldLabel(f.label, f.key)}
                       <TextArea className="cd-area" size="small" rows={f.rows} value={form[f.key] ?? ''}
-                        onChange={e => patch({ [f.key]: e.target.value } as any)} />
+                        onChange={e => patch({ [f.key]: e.target.value })} />
                     </div>
                   ))}
                 </div>
@@ -500,7 +500,7 @@ const CharacterLibEditor: React.FC<Props> = ({
                     <div key={f.key} className="cd-field">
                       {fieldLabel(f.label, f.key)}
                       <TextArea className="cd-area" size="small" rows={f.rows} value={form[f.key] ?? ''} placeholder={f.ph}
-                        onChange={e => patch({ [f.key]: e.target.value } as any)} />
+                        onChange={e => patch({ [f.key]: e.target.value })} />
                     </div>
                   ))}
                 </div>

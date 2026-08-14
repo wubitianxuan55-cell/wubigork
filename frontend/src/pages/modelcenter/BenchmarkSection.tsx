@@ -2,6 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Input, InputNumber, message, Select, Space, Tag } from 'antd'
 import { ExperimentOutlined, ExportOutlined, PlayCircleOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, KpiTile, SectionHead, StatusChip } from './ui'
+import type { AppFacade } from '../../types/wails'
+
+/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
+function errText(err: unknown, fallback: string): string {
+  return (err instanceof Error && err.message) || fallback
+}
 import {
   exportBenchmark, getBenchmarkList, getHerdsmanCatalog, startBenchmark, streamProbe,
   type BenchmarkPromptRequest, type BenchmarkRequest, type BenchmarkRunSummary, type StreamProbeResult,
@@ -83,8 +89,8 @@ export function BenchmarkSection() {
             .map((m) => ({ name: m.name, displayName: m.display_name || m.name })),
         )
       }
-    } catch (err: any) {
-      message.warning(err?.message || '无法连接 Herdsman 测评接口')
+    } catch (err: unknown) {
+      message.warning(errText(err, '无法连接 Herdsman 测评接口'))
     } finally {
       setLoading(false)
     }
@@ -136,8 +142,8 @@ export function BenchmarkSection() {
       message.success(`测评已发起（运行 ${id.slice(0, 8)}…），完成后将出现在下方列表`)
       setForm((f) => ({ ...f, models: [] }))
       void load()
-    } catch (err: any) {
-      message.error(err?.message || '发起测评失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '发起测评失败'))
     } finally {
       setStarting(false)
     }
@@ -145,17 +151,17 @@ export function BenchmarkSection() {
 
   const handleExport = async (id: string) => {
     try {
-      const go = (window as any).go?.app?.App
+      const go = window.go?.app?.App as AppFacade
       let dir = ''
-      if (typeof go?.PickDirectory === 'function') dir = (await go.PickDirectory()) || ''
+      if (typeof go?.PickDirectory === 'function') dir = (await go.PickDirectory() as string) || ''
       if (!dir) {
         message.info('已取消导出（未选择目录）')
         return
       }
       const path = await exportBenchmark(id, dir)
       message.success(`报告已导出：${path}`)
-    } catch (err: any) {
-      message.error(err?.message || '导出失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '导出失败'))
     }
   }
 
@@ -165,10 +171,10 @@ export function BenchmarkSection() {
     try {
       const res = await streamProbe(model)
       setProbes((p) => ({ ...p, [model]: res }))
-    } catch (err: any) {
+    } catch (err: unknown) {
       setProbes((p) => ({
         ...p,
-        [model]: { model, ok: false, ttft_ms: 0, chunks: 0, tokens: 0, duration_ms: 0, max_gap_ms: 0, avg_gap_ms: 0, completed: false, interrupted: false, error: err?.message || '探针失败' },
+        [model]: { model, ok: false, ttft_ms: 0, chunks: 0, tokens: 0, duration_ms: 0, max_gap_ms: 0, avg_gap_ms: 0, completed: false, interrupted: false, error: errText(err, '探针失败') },
       }))
     }
   }

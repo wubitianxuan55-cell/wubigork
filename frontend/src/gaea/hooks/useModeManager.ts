@@ -8,8 +8,7 @@ const THINK_TEMPS: Record<string, number> = { fast: 0.1, normal: 0.3, deep: 0.7 
 
 export function useModeManager(
   // 保留签名兼容旧调用；参数当前未使用（bypass 由权限系统接管）
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _setBypass: (...args: any[]) => any,
+  _setBypass: (level: string) => void,
   setModel: (name: string) => Promise<void>,
 ) {
   const [permLevel, setPermLevelState] = useState<PermLevel>("ask");

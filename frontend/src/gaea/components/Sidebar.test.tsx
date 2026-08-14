@@ -124,4 +124,44 @@ describe("Sidebar 项目分组与会话操作", () => {
     // 正常会话不出现徽标（全页只有一处）
     expect(screen.getAllByText("未完成")).toHaveLength(1);
   });
+  it("虚拟化：1000 条会话只渲染可见窗口（<50 行），滚动后窗口移动", () => {
+    const sessions: SessionMeta[] = Array.from({ length: 1000 }, (_, i) => ({
+      path: `/ws/s${i}.jsonl`,
+      preview: `预览 ${i}`,
+      title: `会话 ${i}`,
+      turns: 1,
+      modTime: 1000 - i,
+      current: false,
+      pinned: false,
+    }));
+    const bigGroup: ProjectGroup = {
+      path: "/big",
+      name: "big",
+      current: true,
+      modTime: 1000,
+      sessions,
+      archived: [],
+    };
+    const { view } = renderSidebar([bigGroup]);
+
+    // 默认每页折叠为 8 条 + 「显示更多」；点击后进入 1001 行虚拟列表
+    fireEvent.click(screen.getByText(/显示更多/));
+
+    // 渲染窗口化：DOM 中会话行远小于总条数（虚拟滚动生效）
+    const rendered = screen.getAllByText(/^会话 \d+$/);
+    expect(rendered.length).toBeGreaterThan(0);
+    expect(rendered.length).toBeLessThan(50);
+    expect(rendered.length).toBeLessThan(1000);
+    // 首行可见、末行（会话 999）不在 DOM
+    expect(screen.getByText("会话 0")).toBeTruthy();
+    expect(screen.queryByText("会话 999")).toBeNull();
+
+    // 滚动到中部：窗口移动，旧首行卸载、中部行出现
+    const listEl = view.container.querySelector(".sidebar-session-scroll") as HTMLElement;
+    expect(listEl).toBeTruthy();
+    Object.defineProperty(listEl, "scrollTop", { value: 44 * 20, configurable: true, writable: true });
+    fireEvent.scroll(listEl);
+    expect(screen.queryByText("会话 0")).toBeNull();
+    expect(screen.getByText("会话 20")).toBeTruthy();
+  });
 });

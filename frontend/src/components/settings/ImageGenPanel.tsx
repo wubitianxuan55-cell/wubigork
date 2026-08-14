@@ -36,7 +36,7 @@ const ImageGenPanel: React.FC = () => {
     try {
       await setImageBackend(backend, backend === 'comfyui' ? comfyURL : '', model, saveDir)
       message.success('绘梦后端已更新')
-    } catch (err: any) { message.error(err?.message || '保存失败') }
+    } catch (err: unknown) { message.error(err instanceof Error ? err.message : '保存失败') }
     finally { setSaving(false) }
   }
 

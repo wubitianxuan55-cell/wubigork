@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "antd";
 import type { FilePickResult, KnowledgeEntry, KnowledgeHistoryView, KnowledgeSaveRequest, KnowledgeSummary, SimilarView } from "../lib/types";
 import { app } from "../lib/bridge";
-import { useT } from "../lib/i18n";
+import { useT, type Translator } from "../lib/i18n";
 import { EmptyState } from "./EmptyState";
 import { KnowledgeImportModal } from "./memoryhub/KnowledgeImportModal";
 
@@ -527,8 +527,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
 function EditForm({ form, setForm, t, similar }: {
   form: KnowledgeSaveRequest;
   setForm: (f: KnowledgeSaveRequest) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  t: (...args: any[]) => string;
+  t: Translator;
   similar?: SimilarView[];
 }) {
   const update = (partial: Partial<KnowledgeSaveRequest>) => setForm({ ...form, ...partial });

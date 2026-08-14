@@ -42,14 +42,16 @@ function runSimulation(
   const linkDist = Math.min(200, 80 + 30 * Math.log10(N + 1))
   const repel = -Math.min(3000, 500 + 200 * Math.log10(N + 1))
   const jitter = () => (Math.random() - 0.5) * 2
-  const nodes: any[] = [
+  interface SimNode { id: string; x: number; y: number }
+  interface SimLink { source: string; target: string }
+  const nodes: SimNode[] = [
     ...charNodes.map((c) => ({ id: c.id, x: jitter(), y: jitter() })),
     ...orgNodes.map((o) => ({ id: o.id, x: jitter(), y: jitter() })),
   ]
-  const links: any[] = edges.map((e) => ({ source: e.from, target: e.to }))
+  const links: SimLink[] = edges.map((e) => ({ source: e.from, target: e.to }))
 
-  const sim = forceSimulation(nodes)
-    .force('link', forceLink(links).id((d: any) => d.id).distance(linkDist).strength(0.3))
+  const sim = forceSimulation<SimNode>(nodes)
+    .force('link', forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(linkDist).strength(0.3))
     .force('charge', forceManyBody().strength(repel).distanceMax(linkDist * 3))
     .force('center', forceCenter(0, 0))
     .force('collide', forceCollide(30))

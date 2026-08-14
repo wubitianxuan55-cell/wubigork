@@ -7,7 +7,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 
 // 前端 CI 门禁约定（2026-08-14 长期规划 E1-1）：
 // - 硬错误（rules-of-hooks 等会掩盖真实缺陷的规则）必须清零；
-// - 存量风格问题（no-explicit-any / no-empty / no-unused-vars / ban-ts-comment /
+// - 存量风格问题（no-empty / no-unused-vars / ban-ts-comment /
 //   react-refresh / no-namespace）降为 warn，随迭代逐步清理，不阻塞门禁。
 export default defineConfig([
   globalIgnores([
@@ -28,7 +28,9 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      '@typescript-eslint/no-explicit-any': 'warn',
+      // T6-10.2（v2.33.0）：any 已全仓清零，升为硬错误进 CI 门禁——
+      // 新增任何显式 any 都会让 lint 失败。
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': 'warn',
       'no-empty': 'warn',
       '@typescript-eslint/ban-ts-comment': 'warn',

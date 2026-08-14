@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from 'react'
 import { ConfigProvider, theme } from 'antd'
 import MainLayout from './layouts/MainLayout'
 import { useAppStore, getThemeTokens, FONT_OPTIONS } from './stores/appStore'
-import { initBridge } from './api/bridge'
+import { initBridge } from './gaea/lib/bridge'
 import { initRuntimePolyfill } from './api/runtimePolyfill'
 
 // 在模块作用域最早时机初始化桥接层

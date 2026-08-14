@@ -34,8 +34,8 @@ const ModelPanel: React.FC = () => {
     try {
       await saveConfig('reasoning_effort', v)
       message.success('推理强度已更新')
-    } catch (err: any) {
-      message.error(err?.message || '保存失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '保存失败')
     }
   }
 
@@ -50,8 +50,8 @@ const ModelPanel: React.FC = () => {
       await setUsdCnyRate(v)
       setRate(v)
       message.success('美元→人民币汇率已保存，费用折算即时生效')
-    } catch (err: any) {
-      message.error(err?.message || '汇率保存失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '汇率保存失败')
     }
   }
 

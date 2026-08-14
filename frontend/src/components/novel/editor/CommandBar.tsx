@@ -36,7 +36,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ selectedText, onAccept, onClose
   const [loading, setLoading] = useState(false)
   const [editedText, setEditedText] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const inputRef = useRef<any>(null)
+  const inputRef = useRef<React.ComponentRef<typeof Input.TextArea>>(null)
 
   // 自动聚焦
   useEffect(() => {
@@ -74,8 +74,8 @@ const CommandBar: React.FC<CommandBarProps> = ({ selectedText, onAccept, onClose
       } else {
         setEditedText(edited)
       }
-    } catch (err: any) {
-      setError(err?.message || '编辑失败')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '编辑失败')
     } finally {
       setLoading(false)
     }

@@ -135,7 +135,13 @@ export function CostEntryModal({
   );
 }
 
-function buildTreeData(nodes: CostCategory[]): { title: string; value: number; children?: any[] }[] {
+interface TreeDataItem {
+  title: string;
+  value: number;
+  children?: TreeDataItem[];
+}
+
+function buildTreeData(nodes: CostCategory[]): TreeDataItem[] {
   return (nodes ?? []).map((n) => ({
     title: n.name,
     value: n.id,

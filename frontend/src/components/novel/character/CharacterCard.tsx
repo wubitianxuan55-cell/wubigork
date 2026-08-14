@@ -44,7 +44,7 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ character, relationCount,
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
       className="char-card"
-      style={{ ['--char-side' as any]: sideColor }}
+      style={{ '--char-side': sideColor } as React.CSSProperties}
     >
       {/* 剧照区域 */}
       <div className="char-card-portrait">

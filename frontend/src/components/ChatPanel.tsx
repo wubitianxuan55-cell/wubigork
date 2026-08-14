@@ -62,7 +62,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const sendRef = useRef<(() => void) | undefined>(undefined)
-  const inputRef = useRef<any>(null)
+  const inputRef = useRef<React.ComponentRef<typeof Input.TextArea>>(null)
 
   // 当监听到外部 autoSend → 展开面板 → 设输入 → 自动发送
   useEffect(() => {
@@ -110,10 +110,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         setStreamText('')
         onMessagesChange?.([...withAi])
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const last = withAi[withAi.length - 1]
       if (last && last.role === 'assistant') {
-        last.content = `❌ 错误: ${err.message || err}`
+        last.content = `❌ 错误: ${err instanceof Error ? err.message : String(err)}`
         last.streaming = false
       }
       onMessagesChange?.([...withAi])

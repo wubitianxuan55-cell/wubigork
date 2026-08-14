@@ -20,7 +20,7 @@ const AboutPanel: React.FC = () => {
   useEffect(() => {
     getConfig().then(setConfig).catch(() => {})
     try {
-      App.GetAppInfo().then((r: any) => setAppInfo(r)).catch(() => {})
+      App.GetAppInfo().then((r) => setAppInfo(r as { name: string; version: string; tagline: string; releases: ReleaseInfo[] })).catch(() => {})
     } catch (_) { /* 忽略 */ }
   }, [])
 

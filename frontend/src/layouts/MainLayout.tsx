@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react'
-import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag, notification } from 'antd'
+import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag, notification, type MenuProps } from 'antd'
 import {
   HomeOutlined,
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
@@ -30,7 +30,7 @@ type Page = 'home' | 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'charac
 const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib']
 
 // 顶栏横向导航（含首页启动器），点击直接切换模块
-const menuItems: any[] = [
+const menuItems: MenuProps['items'] = [
   { key: 'home', icon: <HomeOutlined />, label: '首页' },
   { key: 'chat', icon: <MessageOutlined />, label: '聊天' },
   { key: 'novel', icon: <ReadOutlined />, label: '小说' },
@@ -79,14 +79,35 @@ const statusBarStyle = {
   color: 'var(--md-sys-color-text-secondary)',
 }
 
+interface MonitorStats {
+  cpu?: number
+  memUsed?: number
+  memTotal?: number
+  vramUsed?: number
+  vramTotal?: number
+  gpuUsage?: number
+  gpuName?: string
+}
+interface MonitorEngine {
+  engine: string
+  name: string
+  model: string
+  isLocal?: boolean
+}
+interface ModelMonitor {
+  engines?: MonitorEngine[]
+  stats?: MonitorStats
+  comfyRunning?: boolean
+}
+
 const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }> = ({ stats, info }) => {
   // 模型监控：已启动引擎 + 系统资源（轮询 3s，防止本地模型加载过多）
-  const [monitor, setMonitor] = useState<{ engines: { engine: string; name: string; model: string }[]; stats: any } | null>(null)
+  const [monitor, setMonitor] = useState<{ engines?: MonitorEngine[]; stats?: MonitorStats } | null>(null)
   const lastWarn = useRef<Record<string, number>>({})
   useEffect(() => {
     let alive = true
     // 超载警告：CPU/GPU/内存/模型过多，60s 内同类型只弹一次
-    const checkOverload = (m: any) => {
+    const checkOverload = (m: ModelMonitor) => {
       const now = Date.now()
       const ms = m?.stats
       const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
@@ -94,7 +115,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
       const gpuPct = ms?.gpuUsage || vramPct
       // 模型加载预警只统计本地模型（herdsman/ollama 已启用 + ComfyUI 运行中），
       // 云端引擎（xai/deepseek）走 API 不占本机资源，不计入
-      const localEngCount = (m?.engines || []).filter((e: any) => e.isLocal).length + (m?.comfyRunning ? 1 : 0)
+      const localEngCount = (m?.engines || []).filter((e: MonitorEngine) => e.isLocal).length + (m?.comfyRunning ? 1 : 0)
       const engCount = localEngCount
       const warns: { key: string; title: string; desc: string }[] = []
       if ((ms?.cpu ?? 0) > 85) warns.push({ key: 'cpu', title: '⚠ CPU 负载过高', desc: `当前 CPU 使用率 ${ms.cpu}%，模型占用过大，建议停用部分模型` })
@@ -110,7 +131,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
     }
     const load = async () => {
       try {
-        const m: any = await App.GetModelMonitor()
+        const m = (await App.GetModelMonitor()) as ModelMonitor
         if (!alive) return
         setMonitor(m)
         checkOverload(m)
@@ -125,10 +146,10 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
   const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
   // 底栏只展示本地已启动模型（云端引擎走 API，不占本机资源，不列出来）
   const engLabel = (monitor?.engines || [])
-    .filter((e: any) => e.isLocal)
+    .filter((e: MonitorEngine) => e.isLocal)
     .map(e => `${e.engine}${e.model ? '·' + String(e.model).split('/').pop() : ''}`)
   // 计算写作进度：已写章节/总大纲叶子节点（stats.chapterCount 为已有章节，保守取该值）
-  const plannedChapters = stats?.chapterCount ? Math.max(stats.chapterCount, (stats as any).plannedChapters || 0) : 0
+  const plannedChapters = stats?.chapterCount ? Math.max(stats.chapterCount, stats.plannedChapters || 0) : 0
   const writtenChapters = stats?.chapterCount || 0
   const progressPercent = plannedChapters > 0 ? Math.round((writtenChapters / Math.max(plannedChapters, writtenChapters + 5)) * 100) : 0
 
@@ -217,7 +238,6 @@ const MainLayout: React.FC = () => {
 
   const loadActiveModel = async () => {
     try {
-      // @ts-ignore
       const model = await window.go.app.App.GetActiveModel()
       setActiveModel(model || '')
     } catch (_) {}

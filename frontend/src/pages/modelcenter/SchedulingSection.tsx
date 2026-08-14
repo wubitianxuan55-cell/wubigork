@@ -25,9 +25,9 @@ export function SchedulingSection() {
       const c = await getHerdsmanCatalog()
       setRunning(typeof c.running === 'number' ? c.running : (c.models?.filter(m => m.running).length ?? null))
       setRunningErr(c.error || null)
-    } catch (e: any) {
+    } catch (e: unknown) {
       setRunning(null)
-      setRunningErr(e?.message || String(e))
+      setRunningErr(e instanceof Error ? e.message : String(e))
     }
   }, [])
 
@@ -41,8 +41,8 @@ export function SchedulingSection() {
       message.success(kind === 'keepwarm' ? (next ? '已开启保活' : '已关闭保活') : (next ? '已开启自动预载' : '已关闭自动预载'))
       if (kind === 'keepwarm') setKeepWarm(next)
       else setPreloadPlan(next)
-    } catch (e: any) {
-      message.error(e?.message || '保存失败')
+    } catch (e: unknown) {
+      message.error(e instanceof Error ? e.message : '保存失败')
     } finally {
       setSaving('')
     }

@@ -96,7 +96,7 @@ export function ImageSection() {
                 <SettingField
                   label="目录（默认 Pictures/gaea）"
                   value={imageSaveDir}
-                  onChange={v => setImageSaveDir(v)}
+                  onChange={v => setImageSaveDir(String(v))}
                   placeholder="默认: Pictures/gaea"
                 />
               </div>

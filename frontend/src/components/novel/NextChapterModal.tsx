@@ -3,7 +3,7 @@ import { Typography, Button, Modal, message } from 'antd'
 import { BranchesOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import type { OutlineNode } from '../../types'
-import { usePlotBranch } from './hooks/usePlotBranch'
+import { usePlotBranch, type Branch } from './hooks/usePlotBranch'
 import BranchSelectorPanel from './BranchSelectorPanel'
 
 interface NextChapterModalProps {
@@ -36,12 +36,12 @@ const NextChapterModal: React.FC<NextChapterModalProps> = ({
       await onGenerate(nextNode.id, input)
       message.success('正在生成下一章')
       onClose()
-    } catch (err: any) {
-      message.error(err.message || '生成失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '生成失败')
     } finally { setGenerating(false) }
   }
 
-  const handleBranchClick = (branch: any) => {
+  const handleBranchClick = (branch: Branch) => {
     setKeyInfo(branch.summary)
   }
 

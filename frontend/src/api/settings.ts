@@ -81,24 +81,24 @@ export async function getActiveModel(): Promise<string> {
 }
 
 /** 获取语音服务健康状态 */
-export async function voiceHealth(): Promise<Record<string, any>> {
-  const h = await (App as any).VoiceHealth?.()
-  return (h as Record<string, any>) || { asrReady: false, ttsReady: false }
+export async function voiceHealth(): Promise<Record<string, unknown>> {
+  const h = await App.VoiceHealth?.()
+  return h || { asrReady: false, ttsReady: false }
 }
 
 /** 获取语音设置 */
-export async function getVoiceSettings(): Promise<Record<string, any>> {
-  const v = await (App as any).VoiceGetSettings?.()
-  return (v as Record<string, any>) || {}
+export async function getVoiceSettings(): Promise<Record<string, unknown>> {
+  const v = await App.VoiceGetSettings?.()
+  return v || {}
 }
 
 /** 应用语音设置补丁 */
-export async function applyVoiceSettings(patch: Record<string, any>): Promise<void> {
-  await (App as any).VoiceApplySettings?.(patch)
+export async function applyVoiceSettings(patch: Record<string, unknown>): Promise<void> {
+  await App.VoiceApplySettings?.(patch)
 }
 
 /** 获取办公引擎设置摘要（GaeaSettings） */
-export async function gaeaSettings(): Promise<Record<string, any>> {
+export async function gaeaSettings(): Promise<Record<string, unknown>> {
   const v = await App.GaeaSettings()
-  return (v as Record<string, any>) || {}
+  return (v as unknown as Record<string, unknown>) || {}
 }

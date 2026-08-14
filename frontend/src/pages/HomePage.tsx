@@ -62,15 +62,14 @@ const HomePage: React.FC = () => {
       const genreStr = newGenre.join('、') || '未分类'
       const styleStr = newStyle.join('、') || '默认'
 
-      // @ts-ignore
       await window.go.app.App.CreateProject(dir, newTitle, genreStr, styleStr)
 
       openProject(dir, newTitle)
       await loadProjects()
       setNewModal(false)
       resetForm()
-    } catch (err: any) {
-      message.error(err.message || '创建失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '创建失败')
     }
   }
 
@@ -78,18 +77,16 @@ const HomePage: React.FC = () => {
   const handleOpen = async (card: ProjectCard) => {
     if (projectOpen && card.path === projectPath) {
       try {
-        // @ts-ignore
         await window.go.app.App.CloseProject()
         closeProject()
       } catch (err) { console.error('[HomePage] CloseProject:', err) }
       return
     }
     try {
-      // @ts-ignore
       await window.go.app.App.OpenProject(card.path)
       openProject(card.path, card.title)
-    } catch (err: any) {
-      message.error(err.message || '打开失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '打开失败')
     }
   }
 
@@ -98,8 +95,8 @@ const HomePage: React.FC = () => {
     try {
       await deleteProject(card.path)
       message.success(`已删除「${card.title}」`)
-    } catch (err: any) {
-      message.error(err.message || '删除失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '删除失败')
     }
   }
 

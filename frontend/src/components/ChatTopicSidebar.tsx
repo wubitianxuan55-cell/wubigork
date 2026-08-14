@@ -46,7 +46,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
   const [editText, setEditText] = useState('')
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const editRef = useRef<any>(null)
+  const editRef = useRef<React.ComponentRef<typeof Input>>(null)
 
   useEffect(() => {
     if (editingId && editRef.current) {

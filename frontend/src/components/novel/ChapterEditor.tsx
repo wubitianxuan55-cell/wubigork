@@ -110,11 +110,11 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
                     onContextMenu={onSceneContextMenu}
                     className="writing-textarea"
                     autoSize={{ minRows: 4, maxRows: 20 }}
-                    ref={(el) => {
-                      const ta = (el as any)?.resizableTextArea?.textArea as HTMLTextAreaElement
+                    ref={(el: React.ComponentRef<typeof Input.TextArea> | null) => {
+                      const ta = el?.resizableTextArea?.textArea
                       if (ta) sceneTextareaRefs.current.set(i, ta)
                     }}
-                    onKeyDown={(e: any) => {
+                    onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                         e.preventDefault()
                         const ta = e.target as HTMLTextAreaElement

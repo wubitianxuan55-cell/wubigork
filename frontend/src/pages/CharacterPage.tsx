@@ -14,6 +14,11 @@ import {
 } from '@ant-design/icons'
 import RelationGraph from '../components/RelationGraph'
 import type { CharacterData, OrganizationData, RelationshipData } from '../types'
+
+/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
+function errText(err: unknown, fallback: string): string {
+  return (err instanceof Error && err.message) || fallback
+}
 import { useAppStore } from '../stores/appStore'
 import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../utils/theme'
 import { CHARACTER_STATUS_OPTIONS, characterStatusLabel, normalizeCharacterStatus } from '../utils/characterStatus'
@@ -193,8 +198,8 @@ const CharacterPage: React.FC = () => {
       const items = await drawRandom(drawCount, drawGender, drawTags.trim(), drawChatOnly)
       setDrawResult(items || [])
       if (!items?.length) message.info('没有抽到符合条件的角色，换个条件试试')
-    } catch (err: any) {
-      message.error(err?.message || '抽卡失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '抽卡失败'))
     } finally {
       setDrawLoading(false)
     }
@@ -206,8 +211,8 @@ const CharacterPage: React.FC = () => {
       await syncProjectCharacters()
       await refreshAll()
       message.success(`「${c.name}」已加入本书`)
-    } catch (err: any) {
-      message.error(err?.message || '加入失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '加入失败'))
     }
   }
 
@@ -220,8 +225,8 @@ const CharacterPage: React.FC = () => {
       await refreshAll()
       message.success(`已加入 ${pending.length} 个角色`)
       setDrawResult([])
-    } catch (err: any) {
-      message.error(err?.message || '加入失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '加入失败'))
     }
   }
 
@@ -241,8 +246,8 @@ const CharacterPage: React.FC = () => {
       await loadData()
       message.success(`已更新「${projectEdit.name}」在本书的状态（全局角色未动）`)
       setProjectEdit(null)
-    } catch (err: any) {
-      message.error(err?.message || '保存失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '保存失败'))
     }
   }
 
@@ -253,8 +258,8 @@ const CharacterPage: React.FC = () => {
       await refreshAll()
       message.success(`「${ch.name}」已从本书移除（角色保留在角色库）`)
       setProjectEdit(null)
-    } catch (err: any) {
-      message.error(err?.message || '移除失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '移除失败'))
     }
   }
 
@@ -264,8 +269,8 @@ const CharacterPage: React.FC = () => {
       await syncProjectCharacters()
       await loadData()
       message.success('已把本书引用的角色同步到 characters.json')
-    } catch (err: any) {
-      message.error(err?.message || '同步失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '同步失败'))
     } finally {
       setSyncing(false)
     }
@@ -276,8 +281,8 @@ const CharacterPage: React.FC = () => {
       const n = await importProjectCharacters()
       await loadRefs()
       message.success(`已将 ${n} 个旧项目角色一次性迁入角色库（后续本书只引用角色库）`)
-    } catch (err: any) {
-      message.error(err?.message || '迁移失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '迁移失败'))
     }
   }
 
@@ -290,8 +295,8 @@ const CharacterPage: React.FC = () => {
       setProjectEdit(updated)
       await loadData()
       message.success('已补齐空缺字段（只写本书，未动角色库）')
-    } catch (err: any) {
-      message.error(err?.message || '补齐失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '补齐失败'))
     } finally {
       setFilling(false)
     }
@@ -304,8 +309,8 @@ const CharacterPage: React.FC = () => {
       await generateCharacterPortrait(ch.id)
       await loadData()
       message.success('剧照已生成')
-    } catch (err: any) {
-      message.error(err?.message || '剧照生成失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '剧照生成失败'))
     } finally {
       setGenPortrait(false)
     }
@@ -321,8 +326,8 @@ const CharacterPage: React.FC = () => {
       setProjectEdit(null)
       await refreshAll()
       message.success('已合并：空缺信息已补充，关系与组织引用已重定向')
-    } catch (err: any) {
-      message.error(err?.message || '合并失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '合并失败'))
     }
   }
 

@@ -28,6 +28,17 @@ import { useBindState } from './modelcenter/hooks/useBindState'
 import { type Category } from './modelcenter/utils'
 import './modelcenter/modelcenter.css'
 
+/** 订阅 runtime 事件并返回退订函数（原生 runtime 返回退订；HTTP polyfill 返回 void，安全兜底） */
+function runtimeOn(event: string, handler: (data: unknown) => void): (() => void) | undefined {
+  try {
+    const on = window.runtime?.EventsOn as ((e: string, h: (d: unknown) => void) => (() => void) | void) | undefined
+    const res = on?.(event, handler)
+    return typeof res === 'function' ? res : undefined
+  } catch {
+    return undefined
+  }
+}
+
 const ModelCenterPage: React.FC = () => {
   const { loggedIn, login, logout } = useAppStore()
   // T6-6.4：顶层仅保留全局状态（分类/统计抽屉/登录中），
@@ -56,12 +67,9 @@ const ModelCenterPage: React.FC = () => {
   const { loadFeatureCfg: loadFeatureCfgSync, refreshRoutes: refreshRoutesSync } = bind
   useEffect(() => {
     const reload = () => { loadFeatureCfgSync(); refreshRoutesSync() }
-    let unsub: any
-    try {
-      unsub = (window as any).runtime?.EventsOn?.('feature-model-changed', reload)
-    } catch (_) {}
+    const unsub = runtimeOn('feature-model-changed', reload)
     return () => {
-      try { if (typeof unsub === 'function') unsub() } catch (_) {}
+      try { unsub?.() } catch (_) {}
     }
   }, [loadFeatureCfgSync, refreshRoutesSync])
 
@@ -71,16 +79,14 @@ const ModelCenterPage: React.FC = () => {
   useEffect(() => {
     const reload = () => { loadAllSync(); refreshRoutesSync() }
     const reloadVoice = () => { loadVoiceCfgSync() }
-    let unsub1: any, unsub2: any
-    try { unsub1 = (window as any).runtime?.EventsOn?.('model-changed', reload) } catch (_) {}
-    try { unsub2 = (window as any).runtime?.EventsOn?.('voice-model-changed', reloadVoice) } catch (_) {}
+    const unsub1 = runtimeOn('model-changed', reload)
+    const unsub2 = runtimeOn('voice-model-changed', reloadVoice)
     // 本地 TTS 服务就绪/失败后同步刷新（CosyVoice2 异步启动约 1–2 分钟）
-    let unsub3: any
-    try { unsub3 = (window as any).runtime?.EventsOn?.('tts-service-status', reload) } catch (_) {}
+    const unsub3 = runtimeOn('tts-service-status', reload)
     return () => {
-      try { if (typeof unsub1 === 'function') unsub1() } catch (_) {}
-      try { if (typeof unsub2 === 'function') unsub2() } catch (_) {}
-      try { if (typeof unsub3 === 'function') unsub3() } catch (_) {}
+      try { unsub1?.() } catch (_) {}
+      try { unsub2?.() } catch (_) {}
+      try { unsub3?.() } catch (_) {}
     }
   }, [loadAllSync, loadVoiceCfgSync, refreshRoutesSync])
 
@@ -198,8 +204,8 @@ const ModelCenterPage: React.FC = () => {
                   await login()
                   message.success('xAI 登录成功')
                   await engine.loadAll()
-                } catch (err: any) {
-                  message.error('登录失败：' + (err?.message || err || '未知错误，请检查浏览器是否完成了 xAI 授权'))
+                } catch (err: unknown) {
+                  message.error('登录失败：' + (err instanceof Error ? err.message : (typeof err === 'string' ? err : '未知错误，请检查浏览器是否完成了 xAI 授权')))
                 } finally {
                   setLoggingIn(false)
                 }

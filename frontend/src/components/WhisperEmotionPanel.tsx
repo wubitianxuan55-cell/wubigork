@@ -195,12 +195,12 @@ export const WhisperEmotionPanel: React.FC<EmotionPanelProps> = (props) => {
                 <span style={{ width: 32, fontSize: 11, color: C('color-text-secondary') }}>{dimLabels[dim]}</span>
                 <div style={{ flex: 1, height: 6, borderRadius: 999, background: C('color-bg-elevated'), overflow: 'hidden' }}>
                   <div style={{
-                    height: '100%', width: `${Math.min(100, Math.max(0, (userSixDims as any)[dim]))}%`,
+                    height: '100%', width: `${Math.min(100, Math.max(0, (userSixDims as Record<string, number>)[dim]))}%`,
                     borderRadius: 999, background: '#60a5fa', opacity: 0.6,
                     transition: 'width 700ms cubic-bezier(0.4,0,0.2,1)',
                   }} />
                 </div>
-                <span style={{ width: 28, textAlign: 'right', fontSize: 11, color: C('color-text-secondary') }}>{(userSixDims as any)[dim]}</span>
+                <span style={{ width: 28, textAlign: 'right', fontSize: 11, color: C('color-text-secondary') }}>{(userSixDims as Record<string, number>)[dim]}</span>
               </div>
             ))}
           </div>

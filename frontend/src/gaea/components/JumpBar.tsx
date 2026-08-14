@@ -76,7 +76,7 @@ export function JumpBar({ items, scrollToTurn }: JumpBarProps) {
       <div
         ref={barRef}
         className={`flex flex-col gap-[3px] items-stretch ${turns.length > 15 ? "overflow-y-auto" : ""}`}
-        style={turns.length > 15 ? { maxHeight: "calc(100vh - 280px)", scrollbarWidth: "none" as any } : undefined}
+        style={turns.length > 15 ? { maxHeight: "calc(100vh - 280px)", scrollbarWidth: "none" } : undefined}
       >
         {turns.map((item) => {
           const isActive = active === item.turn;

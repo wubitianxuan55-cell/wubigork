@@ -35,8 +35,8 @@ export function usePlotBranch(nodeID: string, onApplied?: () => void) {
       // @ts-ignore
       const result = await window.go.app.App.BrainstormBranches(nodeID)
       if (result?.branches) setBranches(result.branches)
-    } catch (err: any) {
-      message.error(err.message || '推理失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '推理失败')
     } finally { setLoading(false) }
   }, [nodeID])
 
@@ -52,8 +52,8 @@ export function usePlotBranch(nodeID: string, onApplied?: () => void) {
       )
       message.success('分支已应用，大纲已更新')
       onApplied?.()
-    } catch (err: any) {
-      message.error(err.message || '应用分支失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '应用分支失败')
     } finally { setApplying(false) }
   }, [nodeID, selected, onApplied])
 

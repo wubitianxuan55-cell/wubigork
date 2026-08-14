@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import ForceGraph3D from "3d-force-graph";
+import type { ForceGraph3DInstance } from "3d-force-graph";
 import { Modal, Spin } from "antd";
 import { app } from "../../lib/bridge";
-import type { GraphNode, MemoryGraphView } from "../../lib/types";
+import type { GraphLink, GraphNode, MemoryGraphView } from "../../lib/types";
 
 const TYPE_COLORS: Record<string, string> = {
   knowledge: "#818cf8", // indigo
@@ -22,12 +23,18 @@ const LINK_COLORS: Record<string, string> = {
   reference: "rgba(244,114,182,0.40)",
 };
 
+// 3d-force-graph 运行时导出是可调用 kapsule 工厂：ForceGraph3D()(domEl) → 链式实例；
+// 包自带类型（1.76.0）却把默认导出声明成 `new` 构造器，与真实调用面不符。
+// 这里用包内导出的 ForceGraph3DInstance 泛型类型精确桥接工厂签名（T6-10.2 类型清零）。
+type ForceGraph = ForceGraph3DInstance<GraphNode, GraphLink>;
+const createGraph = ForceGraph3D as unknown as () => (element: HTMLElement) => ForceGraph;
+
 /** GraphView 记忆 3D 图谱：节点=记忆实体，边=同标签/同分类/[[引用]]。
  *  variant="page" 带工具条（库面板内）；variant="home" 纯净展示（首页中央）。 */
 export function GraphView(p: { variant?: "page" | "home" }) {
   const variant = p.variant ?? "page";
   const containerRef = useRef<HTMLDivElement>(null);
-  const graphRef = useRef<any>(null);
+  const graphRef = useRef<ForceGraph | null>(null);
   const dataRef = useRef<MemoryGraphView | null>(null);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set([...TYPE_KEYS]));
@@ -59,23 +66,23 @@ export function GraphView(p: { variant?: "page" | "home" }) {
     // 图谱背景跟随主题（读 gaea 令牌 --bg-soft，亮暗切换时首帧一致）
     const themeBg =
       getComputedStyle(document.documentElement).getPropertyValue("--bg-soft").trim() || "#1B2336";
-    const fg: any = (ForceGraph3D as any)()(containerRef.current)
+    const fg = createGraph()(containerRef.current)
       .backgroundColor(themeBg)
-      .nodeVal((d: any) => d.val ?? 1)
-      .nodeColor((d: any) => TYPE_COLORS[d.type] ?? "#64748b")
+      .nodeVal((d) => d.val ?? 1)
+      .nodeColor((d) => TYPE_COLORS[d.type] ?? "#64748b")
       .nodeLabel(
-        (d: any) =>
+        (d) =>
           `<div style="font:12px sans-serif;color:var(--fg);background:color-mix(in srgb, var(--bg-elev) 92%, transparent);border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:8px;padding:6px 10px;max-width:260px">` +
           `<div style="font-weight:600;font-size:13px">${d.name}</div>` +
           `<div style="color:${TYPE_COLORS[d.type] ?? "var(--fg-dim)"};margin:2px 0">${TYPE_LABELS[d.type] ?? d.type}</div>` +
           `<div style="color:var(--fg-faint);line-height:1.4">${d.desc ?? ""}</div>` +
           `</div>`,
       )
-      .linkColor((l: any) => LINK_COLORS[l.type] ?? "rgba(148,163,184,0.25)")
+      .linkColor((l) => LINK_COLORS[l.type] ?? "rgba(148,163,184,0.25)")
       .linkWidth(1.2)
       .d3AlphaDecay(0.022)
       .warmupTicks(80)
-      .onNodeClick((d: any) => setSelected(d));
+      .onNodeClick((d) => setSelected(d));
     graphRef.current = fg;
 
     // 3d-force-graph 默认画布取 window 尺寸，不会自动适配容器：
@@ -115,7 +122,7 @@ export function GraphView(p: { variant?: "page" | "home" }) {
     }
   }, [typeFilter]);
 
-  function applyFilter(fg: any, data: MemoryGraphView, filter: Set<string>) {
+  function applyFilter(fg: ForceGraph, data: MemoryGraphView, filter: Set<string>) {
     const nodes = (data.nodes ?? []).filter((n) => filter.has(n.type));
     const ids = new Set(nodes.map((n) => n.id));
     const links = (data.links ?? []).filter((l) => ids.has(l.source) && ids.has(l.target));

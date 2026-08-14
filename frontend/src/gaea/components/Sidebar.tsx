@@ -1,5 +1,6 @@
-import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { useMemo, useState, useEffect } from "react";
+import type { Dispatch, KeyboardEvent, PointerEvent as ReactPointerEvent, SetStateAction } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { List, type RowComponentProps } from "react-window";
 import { Modal } from "antd";
 import {
   Plus, Brain, Blocks, BookOpen, MessageSquare, Search,
@@ -15,6 +16,7 @@ import { filterProjectGroups } from "../lib/projectGroups";
 import type { FactBaseView, JobView, ProjectGroup, SessionMeta } from "../lib/types";
 import { app } from "../lib/bridge";
 import { useToast } from "./Toast";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import FeatureModelBar from "../../components/FeatureModelBar";
 
 export interface SidebarProps {
@@ -52,10 +54,320 @@ const FACT_OPEN_KEY = "gaea.sidebar.factBaseOpen";
 const PROJECTS_OPEN_KEY = "gaea.sidebar.projectsOpen";
 const PER_PROJECT_PAGE = 8;
 
+/** 虚拟滚动固定行高（px）：会话项含预览两行约 46px，组头/归档行更矮，取整行估算 44px。 */
+const SESSION_ROW_HEIGHT = 44;
+/** jsdom/无布局环境下容器的兜底高度；真实浏览器由 ResizeObserver 测得实际高度。 */
+const SIDEBAR_VIEWPORT_FALLBACK = 480;
+
 // 过渡期：SessionMeta.interrupted 由契约层子代理统一补充（后端列表接口新增字段），
 // 此处以内联类型断言读取；契约层补齐字段定义后可移除断言。
 const isInterruptedSession = (s: SessionMeta): boolean =>
   (s as SessionMeta & { interrupted?: boolean }).interrupted === true;
+
+// ── 虚拟滚动行模型：把「分组头 / 空态 / 会话 / 显示更多 / 归档头 / 归档项」拍平成等高的行 ──
+type SessionRowItem =
+  | { key: string; kind: "group"; g: ProjectGroup; open: boolean }
+  | { key: string; kind: "empty"; g: ProjectGroup }
+  | { key: string; kind: "session"; s: SessionMeta; g: ProjectGroup }
+  | { key: string; kind: "showMore"; g: ProjectGroup; hidden: number }
+  | { key: string; kind: "archHeader"; g: ProjectGroup; open: boolean }
+  | { key: string; kind: "archived"; s: SessionMeta; g: ProjectGroup };
+
+interface SessionRowUI {
+  running: boolean;
+  deleteConfirm: string | null;
+  setDeleteConfirm: Dispatch<SetStateAction<string | null>>;
+  renameTarget: string | null;
+  renameDraft: string;
+  setRenameDraft: Dispatch<SetStateAction<string>>;
+  setRenameTarget: Dispatch<SetStateAction<string | null>>;
+  revealed: Record<string, boolean>;
+  setRevealed: Dispatch<SetStateAction<Record<string, boolean>>>;
+  archivedOpen: Record<string, boolean>;
+  setArchivedOpen: Dispatch<SetStateAction<Record<string, boolean>>>;
+  toggleProject: (path: string, defaultOpen: boolean) => void;
+  isProjectOpen: (g: ProjectGroup) => boolean;
+  onResumeSessionInProject: (path: string, projectPath: string) => void;
+  onArchiveSession: (path: string) => void;
+  onRestoreSession: (path: string, projectPath: string) => void;
+  onPinSession: (path: string, pinned: boolean) => void;
+  onDeleteSession: (path: string) => void;
+  onRenameSession: (path: string, title: string) => void;
+}
+
+/**
+ * 单行渲染组件（react-window rowComponent）：
+ * 行内容与原有 renderSessionItem / renderProjectGroup 保持一一对应，
+ * 选中恢复、双击重命名、置顶/归档/删除、归档恢复等交互不变。
+ */
+function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProps<{ rows: SessionRowItem[]; ui: SessionRowUI }>) {
+  const t = useT();
+  const row = rows[index];
+
+  if (row.kind === "group") {
+    return (
+      <div style={style} {...ariaAttributes}>
+        <button
+          className="flex items-center gap-1.5 w-full h-8 pl-1 pr-1 rounded-md bg-transparent border-0 cursor-pointer transition-colors duration-[var(--dur-fast)] hover:bg-sidebar-hover no-drag"
+          onClick={() => ui.toggleProject(row.g.path, row.g.current)}
+          title={row.g.path}
+        >
+          <span
+            className="shrink-0 text-fg-faint/60 transition-transform duration-[var(--dur-fast)]"
+            style={{ transform: row.open ? "rotate(90deg)" : "none" }}
+          >
+            <ChevronDown size={12} />
+          </span>
+          <FolderGit2 size={14} className={`shrink-0 ${row.g.current ? "text-accent" : "text-fg-faint"}`} />
+          <span className={`flex-1 min-w-0 truncate text-left text-[12.5px] font-medium ${row.g.current ? "text-fg" : "text-fg-dim"}`}>
+            {row.g.name}
+          </span>
+          {row.g.current && (
+            <span className="shrink-0 text-accent text-[10px] font-medium">当前</span>
+          )}
+          <span className="shrink-0 text-fg-faint/55 font-mono text-[10px]">{row.g.sessions.length}</span>
+        </button>
+      </div>
+    );
+  }
+
+  if (row.kind === "empty") {
+    return (
+      <div style={style} {...ariaAttributes}>
+        <div className="py-2 px-2 text-fg-faint text-[11px] leading-snug">
+          {row.g.archived.length === 0 ? (row.g.current ? "还没有会话，点击上方「新建会话」开始" : "该项目暂无会话") : "没有活动会话"}
+        </div>
+      </div>
+    );
+  }
+
+  if (row.kind === "showMore") {
+    return (
+      <div style={style} {...ariaAttributes}>
+        <button
+          className="w-full mt-0.5 py-1 text-fg-faint text-[11.5px] rounded-md bg-transparent cursor-pointer hover:text-fg hover:bg-sidebar-hover transition-colors"
+          onClick={() => ui.setRevealed((prev) => ({ ...prev, [row.g.path]: true }))}
+          type="button"
+        >
+          显示更多（{row.hidden}）
+        </button>
+      </div>
+    );
+  }
+
+  if (row.kind === "archHeader") {
+    return (
+      <div style={style} {...ariaAttributes}>
+        <button
+          className="flex items-center gap-1.5 w-full h-7 pl-1 pr-1 rounded-md bg-transparent border-0 cursor-pointer text-fg-faint transition-colors duration-[var(--dur-fast)] hover:bg-sidebar-hover hover:text-fg no-drag"
+          onClick={() => ui.setArchivedOpen((prev) => ({ ...prev, [row.g.path]: !prev[row.g.path] }))}
+          title="已归档会话（可恢复）"
+        >
+          <span
+            className="shrink-0 text-fg-faint/60 transition-transform duration-[var(--dur-fast)]"
+            style={{ transform: row.open ? "rotate(90deg)" : "none" }}
+          >
+            <ChevronDown size={11} />
+          </span>
+          <Inbox size={12} className="shrink-0" />
+          <span className="text-[11.5px]">已归档</span>
+          <span className="ml-auto font-mono text-[10px] text-fg-faint/55">{row.g.archived.length}</span>
+        </button>
+      </div>
+    );
+  }
+
+  if (row.kind === "session") {
+    const s = row.s;
+    const projectPath = row.g.path;
+    return (
+      <div style={style} {...ariaAttributes}>
+        <div
+          className={`group flex items-start gap-1 rounded-md py-[6px] pl-2 pr-1.5 mb-[1px] transition-colors duration-150 hover:bg-sidebar-hover ${
+            s.current ? "bg-sidebar-active" : ""
+          }`}
+        >
+          <button
+            className="flex items-start gap-2 flex-1 min-w-0 bg-transparent border-0 text-inherit cursor-pointer py-0.5 text-left disabled:cursor-default"
+            onClick={() => void ui.onResumeSessionInProject(s.path, projectPath)}
+            disabled={ui.running || s.current}
+            title={s.path}
+          >
+            <MessageSquare
+              size={13}
+              className={`shrink-0 mt-[3px] ${s.current ? "text-accent" : "text-fg-faint/60"}`}
+            />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              {ui.renameTarget === s.path ? (
+                <input
+                  className="w-full bg-bg border border-accent rounded px-1 py-0 text-fg text-[12.5px] outline-none"
+                  value={ui.renameDraft}
+                  onChange={e => ui.setRenameDraft(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") { e.preventDefault(); void ui.onRenameSession(s.path, ui.renameDraft.trim() || sessionTitle(s, "")); ui.setRenameTarget(null); }
+                    if (e.key === "Escape") { e.preventDefault(); ui.setRenameTarget(null); }
+                  }}
+                  onBlur={() => { void ui.onRenameSession(s.path, ui.renameDraft.trim() || sessionTitle(s, "")); ui.setRenameTarget(null); }}
+                  autoFocus
+                  onClick={e => e.stopPropagation()}
+                />
+              ) : (
+                <>
+                  <span className="flex items-baseline gap-2 min-w-0">
+                    <span
+                      className={`overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] leading-[1.35] font-medium cursor-text ${
+                        s.current ? "text-accent" : "text-fg-dim"
+                      }`}
+                      onDoubleClick={e => {
+                        if (s.current) return;
+                        e.stopPropagation();
+                        ui.setRenameTarget(s.path);
+                        ui.setRenameDraft(sessionTitle(s, ""));
+                      }}
+                      title="双击重命名"
+                    >
+                      {sessionTitle(s, t("history.emptySession"))}
+                    </span>
+                    {isInterruptedSession(s) && (
+                      <span
+                        className="shrink-0 self-center rounded-full bg-warning/15 px-1.5 py-px text-[10px] leading-[1.5] font-medium text-warning"
+                        title="上次运行中断，恢复后会自动带上进度摘要"
+                      >
+                        未完成
+                      </span>
+                    )}
+                    {s.hasRequirement && (
+                      s.requirementDone ? (
+                        <Check size={10} className="shrink-0 text-ok" aria-label="任务已验收" />
+                      ) : (
+                        <span className="shrink-0 self-center w-1.5 h-1.5 rounded-full bg-accent" aria-label="任务进行中" />
+                      )
+                    )}
+                    {s.pinned && (
+                      <Pin size={10} className="shrink-0 text-accent/80" aria-label="已置顶" />
+                    )}
+                    <span className="shrink-0 ml-auto text-fg-faint/70 font-mono text-[10px] tabular-nums">
+                      {s.current ? t("history.current") : relativeTime(s.modTime)}
+                    </span>
+                  </span>
+                  {!s.current && s.preview && s.preview !== sessionTitle(s, "") && (
+                    <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-fg-faint/60 text-[11px] leading-snug">
+                      {s.preview}
+                    </span>
+                  )}
+                </>
+              )}
+            </span>
+          </button>
+          {!s.current && (
+            ui.deleteConfirm === s.path ? (
+              <span className="flex items-center gap-1 shrink-0 mt-1">
+                <button className="bg-transparent border-0 text-[10px] text-err cursor-pointer px-1 py-0.5 rounded hover:bg-err/10" onClick={e => { e.stopPropagation(); void ui.onDeleteSession(s.path); ui.setDeleteConfirm(null); }}>
+                  确认
+                </button>
+                <button className="bg-transparent border-0 text-[10px] text-fg-faint cursor-pointer px-1 py-0.5 rounded hover:bg-bg-soft" onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(null); }}>
+                  取消
+                </button>
+              </span>
+            ) : (
+              <span className="hidden group-hover:flex items-center gap-0.5 shrink-0 mt-0.5">
+                <button
+                  className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+                  title={s.pinned ? "取消置顶" : "置顶"}
+                  onClick={e => { e.stopPropagation(); ui.onPinSession(s.path, !s.pinned); }}
+                >
+                  <Pin size={12} className={s.pinned ? "text-accent" : ""} />
+                </button>
+                <button
+                  className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+                  title="归档（可恢复）"
+                  onClick={e => { e.stopPropagation(); ui.onArchiveSession(s.path); }}
+                >
+                  <Inbox size={12} />
+                </button>
+                <button
+                  className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
+                  title="删除"
+                  onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(s.path); }}
+                >
+                  ×
+                </button>
+              </span>
+            )
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // archived
+  const s = row.s;
+  return (
+    <div style={style} {...ariaAttributes}>
+      <div
+        className="group flex items-center gap-1 rounded-md py-[5px] pl-2 pr-1 hover:bg-sidebar-hover transition-colors"
+      >
+        <button
+          className="flex items-center gap-2 flex-1 min-w-0 bg-transparent border-0 text-left cursor-pointer"
+          onClick={() => ui.onRestoreSession(s.path, row.g.path)}
+          title="恢复并继续该会话"
+        >
+          <MessageSquare size={12} className="shrink-0 text-fg-faint/50" />
+          <span className="flex-1 min-w-0 truncate text-[12px] text-fg-faint">{sessionTitle(s, t("history.emptySession"))}</span>
+          {s.hasRequirement && (
+            s.requirementDone ? (
+              <Check size={10} className="shrink-0 text-ok" />
+            ) : (
+              <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent" />
+            )
+          )}
+          {isInterruptedSession(s) && (
+            <span
+              className="shrink-0 rounded-full bg-warning/15 px-1.5 py-px text-[10px] leading-[1.5] font-medium text-warning"
+              title="上次运行中断，恢复后会自动带上进度摘要"
+            >
+              未完成
+            </span>
+          )}
+          <span className="shrink-0 text-fg-faint/50 font-mono text-[10px]">{relativeTime(s.modTime)}</span>
+        </button>
+        {ui.deleteConfirm === s.path ? (
+          <span className="flex items-center gap-1 shrink-0">
+            <button
+              className="bg-transparent border-0 text-[10px] text-err cursor-pointer px-1 py-0.5 rounded hover:bg-err/10"
+              onClick={e => { e.stopPropagation(); void ui.onDeleteSession(s.path); ui.setDeleteConfirm(null); }}
+            >
+              确认
+            </button>
+            <button
+              className="bg-transparent border-0 text-[10px] text-fg-faint cursor-pointer px-1 py-0.5 rounded hover:bg-bg-soft"
+              onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(null); }}
+            >
+              取消
+            </button>
+          </span>
+        ) : (
+          <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+            <button
+              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+              title="恢复"
+              onClick={() => ui.onRestoreSession(s.path, row.g.path)}
+            >
+              <Rollback size={12} />
+            </button>
+            <button
+              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
+              title="永久删除"
+              onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(s.path); }}
+            >
+              ×
+            </button>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function Sidebar({
   collapsed,
@@ -115,6 +427,9 @@ export function Sidebar({
     return () => clearTimeout(timer);
   }, [localQuery]);
 
+  // 高频搜索防抖：输入框值即时更新（localQuery），过滤/搜索消费防抖后的值
+  const debouncedQuery = useDebouncedValue(localQuery, 250);
+
   const toggleFactOpen = () => {
     setFactOpen((o) => {
       try { localStorage.setItem(FACT_OPEN_KEY, o ? "0" : "1"); } catch { /* ignore */ }
@@ -140,273 +455,78 @@ export function Sidebar({
     return undefined;
   }, [projectGroups]);
 
-  const renderSessionItem = (session: SessionMeta, projectPath: string) => (
-    <div
-      className={`group flex items-start gap-1 rounded-md py-[6px] pl-2 pr-1.5 mb-[1px] transition-colors duration-150 hover:bg-sidebar-hover ${
-        session.current ? "bg-sidebar-active" : ""
-      }`}
-      key={session.path}
-    >
-      <button
-        className="flex items-start gap-2 flex-1 min-w-0 bg-transparent border-0 text-inherit cursor-pointer py-0.5 text-left disabled:cursor-default"
-        onClick={() => void onResumeSessionInProject(session.path, projectPath)}
-        disabled={running || session.current}
-        title={session.path}
-      >
-        <MessageSquare
-          size={13}
-          className={`shrink-0 mt-[3px] ${session.current ? "text-accent" : "text-fg-faint/60"}`}
-        />
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          {renameTarget === session.path ? (
-            <input
-              className="w-full bg-bg border border-accent rounded px-1 py-0 text-fg text-[12.5px] outline-none"
-              value={renameDraft}
-              onChange={e => setRenameDraft(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter") { e.preventDefault(); void onRenameSession(session.path, renameDraft.trim() || sessionTitle(session, "")); setRenameTarget(null); }
-                if (e.key === "Escape") { e.preventDefault(); setRenameTarget(null); }
-              }}
-              onBlur={() => { void onRenameSession(session.path, renameDraft.trim() || sessionTitle(session, "")); setRenameTarget(null); }}
-              autoFocus
-              onClick={e => e.stopPropagation()}
-            />
-          ) : (
-            <>
-              <span className="flex items-baseline gap-2 min-w-0">
-                <span
-                  className={`overflow-hidden text-ellipsis whitespace-nowrap text-[12.5px] leading-[1.35] font-medium cursor-text ${
-                    session.current ? "text-accent" : "text-fg-dim"
-                  }`}
-                  onDoubleClick={e => {
-                    if (session.current) return;
-                    e.stopPropagation();
-                    setRenameTarget(session.path);
-                    setRenameDraft(sessionTitle(session, ""));
-                  }}
-                  title="双击重命名"
-                >
-                  {sessionTitle(session, t("history.emptySession"))}
-                </span>
-                {isInterruptedSession(session) && (
-                  <span
-                    className="shrink-0 self-center rounded-full bg-warning/15 px-1.5 py-px text-[10px] leading-[1.5] font-medium text-warning"
-                    title="上次运行中断，恢复后会自动带上进度摘要"
-                  >
-                    未完成
-                  </span>
-                )}
-                {session.hasRequirement && (
-                  session.requirementDone ? (
-                    <Check size={10} className="shrink-0 text-ok" aria-label="任务已验收" />
-                  ) : (
-                    <span className="shrink-0 self-center w-1.5 h-1.5 rounded-full bg-accent" aria-label="任务进行中" />
-                  )
-                )}
-                {session.pinned && (
-                  <Pin size={10} className="shrink-0 text-accent/80" aria-label="已置顶" />
-                )}
-                <span className="shrink-0 ml-auto text-fg-faint/70 font-mono text-[10px] tabular-nums">
-                  {session.current ? t("history.current") : relativeTime(session.modTime)}
-                </span>
-              </span>
-              {!session.current && session.preview && session.preview !== sessionTitle(session, "") && (
-                <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-fg-faint/60 text-[11px] leading-snug">
-                  {session.preview}
-                </span>
-              )}
-            </>
-          )}
-        </span>
-      </button>
-      {!session.current && (
-        deleteConfirm === session.path ? (
-          <span className="flex items-center gap-1 shrink-0 mt-1">
-            <button className="bg-transparent border-0 text-[10px] text-err cursor-pointer px-1 py-0.5 rounded hover:bg-err/10" onClick={e => { e.stopPropagation(); void onDeleteSession(session.path); setDeleteConfirm(null); }}>
-              确认
-            </button>
-            <button className="bg-transparent border-0 text-[10px] text-fg-faint cursor-pointer px-1 py-0.5 rounded hover:bg-bg-soft" onClick={e => { e.stopPropagation(); setDeleteConfirm(null); }}>
-              取消
-            </button>
-          </span>
-        ) : (
-          <span className="hidden group-hover:flex items-center gap-0.5 shrink-0 mt-0.5">
-            <button
-              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
-              title={session.pinned ? "取消置顶" : "置顶"}
-              onClick={e => { e.stopPropagation(); onPinSession(session.path, !session.pinned); }}
-            >
-              <Pin size={12} className={session.pinned ? "text-accent" : ""} />
-            </button>
-            <button
-              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
-              title="归档（可恢复）"
-              onClick={e => { e.stopPropagation(); onArchiveSession(session.path); }}
-            >
-              <Inbox size={12} />
-            </button>
-            <button
-              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
-              title="删除"
-              onClick={e => { e.stopPropagation(); setDeleteConfirm(session.path); }}
-            >
-              ×
-            </button>
-          </span>
-        )
-      )}
-    </div>
-  );
-
-  // 项目分组渲染：搜索时展开所有命中的分组，否则按折叠状态渲染
-  const renderProjectGroup = (g: ProjectGroup, forceOpen: boolean) => {
-    const open = forceOpen || isProjectOpen(g);
-    const sessions = g.sessions;
-    const visible = sessions.slice(0, revealed[g.path] ? sessions.length : PER_PROJECT_PAGE);
-    return (
-      <div key={g.path} className="mb-0.5">
-        <button
-          className="flex items-center gap-1.5 w-full h-8 pl-1 pr-1 rounded-md bg-transparent border-0 cursor-pointer transition-colors duration-[var(--dur-fast)] hover:bg-sidebar-hover no-drag"
-          onClick={() => toggleProject(g.path, g.current)}
-          title={g.path}
-        >
-          <span
-            className="shrink-0 text-fg-faint/60 transition-transform duration-[var(--dur-fast)]"
-            style={{ transform: open ? "rotate(90deg)" : "none" }}
-          >
-            <ChevronDown size={12} />
-          </span>
-          <FolderGit2 size={14} className={`shrink-0 ${g.current ? "text-accent" : "text-fg-faint"}`} />
-          <span className={`flex-1 min-w-0 truncate text-left text-[12.5px] font-medium ${g.current ? "text-fg" : "text-fg-dim"}`}>
-            {g.name}
-          </span>
-          {g.current && (
-            <span className="shrink-0 text-accent text-[10px] font-medium">当前</span>
-          )}
-          <span className="shrink-0 text-fg-faint/55 font-mono text-[10px]">{g.sessions.length}</span>
-        </button>
-
-        {open && (
-          <div className="ml-[15px] border-l border-border-soft/70 pl-2">
-            {visible.length === 0 ? (
-              <div className="py-2 px-2 text-fg-faint text-[11px] leading-snug">
-                {g.archived.length === 0 ? (g.current ? "还没有会话，点击上方「新建会话」开始" : "该项目暂无会话") : "没有活动会话"}
-              </div>
-            ) : (
-              <>
-                {visible.map((s) => renderSessionItem(s, g.path))}
-                {sessions.length > visible.length && (
-                  <button
-                    className="w-full mt-0.5 py-1 text-fg-faint text-[11.5px] rounded-md bg-transparent cursor-pointer hover:text-fg hover:bg-sidebar-hover transition-colors"
-                    onClick={() => setRevealed((prev) => ({ ...prev, [g.path]: true }))}
-                    type="button"
-                  >
-                    显示更多（{sessions.length - visible.length}）
-                  </button>
-                )}
-              </>
-            )}
-
-            {/* 已归档分组（Kun/Codex：归档而非删除，随时可恢复） */}
-            {g.archived.length > 0 && (
-              <div className="mt-1">
-                <button
-                  className="flex items-center gap-1.5 w-full h-7 pl-1 pr-1 rounded-md bg-transparent border-0 cursor-pointer text-fg-faint transition-colors duration-[var(--dur-fast)] hover:bg-sidebar-hover hover:text-fg no-drag"
-                  onClick={() => setArchivedOpen((prev) => ({ ...prev, [g.path]: !prev[g.path] }))}
-                  title="已归档会话（可恢复）"
-                >
-                  <span
-                    className="shrink-0 text-fg-faint/60 transition-transform duration-[var(--dur-fast)]"
-                    style={{ transform: archivedOpen[g.path] ? "rotate(90deg)" : "none" }}
-                  >
-                    <ChevronDown size={11} />
-                  </span>
-                  <Inbox size={12} className="shrink-0" />
-                  <span className="text-[11.5px]">已归档</span>
-                  <span className="ml-auto font-mono text-[10px] text-fg-faint/55">{g.archived.length}</span>
-                </button>
-
-                {archivedOpen[g.path] && (
-                  <div className="flex flex-col gap-px pt-0.5">
-                    {g.archived.map((s) => (
-                      <div
-                        key={s.path}
-                        className="group flex items-center gap-1 rounded-md py-[5px] pl-2 pr-1 hover:bg-sidebar-hover transition-colors"
-                      >
-                        <button
-                          className="flex items-center gap-2 flex-1 min-w-0 bg-transparent border-0 text-left cursor-pointer"
-                          onClick={() => onRestoreSession(s.path, g.path)}
-                          title="恢复并继续该会话"
-                        >
-                          <MessageSquare size={12} className="shrink-0 text-fg-faint/50" />
-                          <span className="flex-1 min-w-0 truncate text-[12px] text-fg-faint">{sessionTitle(s, t("history.emptySession"))}</span>
-                          {s.hasRequirement && (
-                            s.requirementDone ? (
-                              <Check size={10} className="shrink-0 text-ok" />
-                            ) : (
-                              <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent" />
-                            )
-                          )}
-                          {isInterruptedSession(s) && (
-                            <span
-                              className="shrink-0 rounded-full bg-warning/15 px-1.5 py-px text-[10px] leading-[1.5] font-medium text-warning"
-                              title="上次运行中断，恢复后会自动带上进度摘要"
-                            >
-                              未完成
-                            </span>
-                          )}
-                          <span className="shrink-0 text-fg-faint/50 font-mono text-[10px]">{relativeTime(s.modTime)}</span>
-                        </button>
-                        {deleteConfirm === s.path ? (
-                          <span className="flex items-center gap-1 shrink-0">
-                            <button
-                              className="bg-transparent border-0 text-[10px] text-err cursor-pointer px-1 py-0.5 rounded hover:bg-err/10"
-                              onClick={e => { e.stopPropagation(); void onDeleteSession(s.path); setDeleteConfirm(null); }}
-                            >
-                              确认
-                            </button>
-                            <button
-                              className="bg-transparent border-0 text-[10px] text-fg-faint cursor-pointer px-1 py-0.5 rounded hover:bg-bg-soft"
-                              onClick={e => { e.stopPropagation(); setDeleteConfirm(null); }}
-                            >
-                              取消
-                            </button>
-                          </span>
-                        ) : (
-                          <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-                            <button
-                              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
-                              title="恢复"
-                              onClick={() => onRestoreSession(s.path, g.path)}
-                            >
-                              <Rollback size={12} />
-                            </button>
-                            <button
-                              className="flex items-center justify-center w-5 h-5 rounded-md bg-transparent border-0 text-fg-faint text-[13px] cursor-pointer hover:text-err hover:bg-bg-soft transition-colors"
-                              title="永久删除"
-                              onClick={e => { e.stopPropagation(); setDeleteConfirm(s.path); }}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const searching = localQuery.trim().length > 0;
+  const searching = debouncedQuery.trim().length > 0;
   const filteredGroups = useMemo(
-    () => filterProjectGroups(projectGroups, localQuery),
-    [projectGroups, localQuery],
+    () => filterProjectGroups(projectGroups, debouncedQuery),
+    [projectGroups, debouncedQuery],
   );
+
+  // 虚拟滚动：把当前可见的「分组头/空态/会话/显示更多/归档头/归档项」拍平成等高行
+  const rows = useMemo<SessionRowItem[]>(() => {
+    const out: SessionRowItem[] = [];
+    for (const g of filteredGroups) {
+      const open = searching || (g.path in projectsOpen ? projectsOpen[g.path] : g.current);
+      out.push({ key: `g:${g.path}`, kind: "group", g, open });
+      if (!open) continue;
+      const sessions = g.sessions;
+      const visible = sessions.slice(0, revealed[g.path] ? sessions.length : PER_PROJECT_PAGE);
+      if (visible.length === 0) {
+        out.push({ key: `empty:${g.path}`, kind: "empty", g });
+      } else {
+        for (const s of visible) out.push({ key: `s:${s.path}`, kind: "session", s, g });
+        if (sessions.length > visible.length) {
+          out.push({ key: `more:${g.path}`, kind: "showMore", g, hidden: sessions.length - visible.length });
+        }
+      }
+      if (g.archived.length > 0) {
+        out.push({ key: `ah:${g.path}`, kind: "archHeader", g, open: !!archivedOpen[g.path] });
+        if (archivedOpen[g.path]) {
+          for (const s of g.archived) out.push({ key: `a:${s.path}`, kind: "archived", s, g });
+        }
+      }
+    }
+    return out;
+  }, [filteredGroups, searching, projectsOpen, revealed, archivedOpen]);
+
+  // 会话列表容器高度：真实浏览器由 ResizeObserver 测量，jsdom 无布局时走兜底高度
+  const sessionListRef = useRef<HTMLDivElement | null>(null);
+  const [sessionViewH, setSessionViewH] = useState(0);
+  useLayoutEffect(() => {
+    const el = sessionListRef.current;
+    if (!el) return;
+    const update = () => {
+      const h = el.clientHeight;
+      if (h > 0) setSessionViewH((prev) => (prev === h ? prev : h));
+    };
+    update();
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(update);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+  }, []);
+
+  const ui: SessionRowUI = {
+    running,
+    deleteConfirm,
+    setDeleteConfirm,
+    renameTarget,
+    renameDraft,
+    setRenameDraft,
+    setRenameTarget,
+    revealed,
+    setRevealed,
+    archivedOpen,
+    setArchivedOpen,
+    toggleProject,
+    isProjectOpen,
+    onResumeSessionInProject,
+    onArchiveSession,
+    onRestoreSession,
+    onPinSession,
+    onDeleteSession,
+    onRenameSession,
+  };
 
   return (
     <>
@@ -527,7 +647,8 @@ export function Sidebar({
               </button>
             </div>
 
-            <div className="min-h-0 overflow-y-auto pr-0.5 sidebar-session-scroll">
+            {/* 会话列表：虚拟滚动（仅渲染可见窗口 + overscan） */}
+            <div className="min-h-0 flex-1 flex flex-col overflow-hidden" ref={sessionListRef}>
               {projectGroups.length === 0 ? (
                 <div className="py-3 px-2.5 text-fg-faint text-xs">
                   还没有最近会话
@@ -535,10 +656,17 @@ export function Sidebar({
                 </div>
               ) : filteredGroups.length === 0 ? (
                 <div className="py-3 px-2.5 text-fg-faint text-xs">无匹配</div>
-              ) : searching ? (
-                filteredGroups.map((g) => renderProjectGroup(g, true))
               ) : (
-                filteredGroups.map((g) => renderProjectGroup(g, false))
+                <List
+                  className="sidebar-session-scroll"
+                  style={{ height: sessionViewH || SIDEBAR_VIEWPORT_FALLBACK }}
+                  rowCount={rows.length}
+                  rowHeight={SESSION_ROW_HEIGHT}
+                  rowProps={{ rows, ui }}
+                  rowKey={(index) => rows[index].key}
+                  rowComponent={SessionRow}
+                  overscanCount={8}
+                />
               )}
             </div>
           </section>
@@ -729,7 +857,7 @@ export function Sidebar({
           </button>
           <button
             className="flex items-center justify-center w-8 h-8 rounded-lg text-fg-dim no-drag cursor-pointer transition-[color,background] duration-[var(--dur-fast)] hover:text-fg hover:bg-sidebar-hover active:scale-[0.98]"
-            onClick={() => onOpenCaps()}
+            onClick={() => void onOpenCaps()}
             title={t("caps.title")}
           >
             <Blocks size={15} />

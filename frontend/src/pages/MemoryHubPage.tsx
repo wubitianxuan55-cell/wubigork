@@ -5,6 +5,7 @@ import { LocaleProvider } from "../gaea/lib/i18n";
 import { app } from "../gaea/lib/bridge";
 import { useComposerInsertStore, usePreviewStore } from "../gaea/lib/store";
 import type { MemoryHubOverview, SemanticHitView, WorkspaceSearchHit } from "../gaea/lib/types";
+import type { AppFacade } from "../types/wails";
 import { KnowledgePanel } from "../gaea/components/KnowledgePanel";
 import { ProfileLibrary } from "../gaea/components/memoryhub/ProfileLibrary";
 import { OfficeMemoryLibrary } from "../gaea/components/memoryhub/OfficeMemoryLibrary";
@@ -82,7 +83,7 @@ function MemoryHubPage() {
       return;
     }
     setSearching(true);
-    const bind = (window as any).go?.app?.App;
+    const bind = window.go?.app?.App as AppFacade;
     try {
       const [brainRaw, files, sem, fileSem] = await Promise.all([
         bind?.BrainSearch ? bind.BrainSearch(q, "") : Promise.resolve("[]"),
@@ -91,7 +92,7 @@ function MemoryHubPage() {
         app.FileSemanticSearch(q, 6).catch(() => [] as import("../gaea/lib/types").FileSemanticHit[]),
       ]);
       let brain: Array<{ brain: string; entity: string; text: string }> = [];
-      try { brain = JSON.parse(brainRaw ?? "[]"); } catch { brain = []; }
+      try { brain = JSON.parse(typeof brainRaw === 'string' ? brainRaw : (brainRaw ? JSON.stringify(brainRaw) : '[]')); } catch { brain = []; }
       const kindLabel: Record<string, string> = { cost: "语义·成本", knowledge: "语义·知识", office: "语义·办公", file: "语义·资料" };
       setHits([
         ...brain.map((h) => ({ kind: "brain" as const, brain: h.brain, entity: h.entity, text: h.text })),

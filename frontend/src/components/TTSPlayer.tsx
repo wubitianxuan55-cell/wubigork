@@ -16,6 +16,18 @@ interface AudioChunk {
   mimeType: string
 }
 
+/** tts-stream 事件动态载荷（最小消费面） */
+interface TTSStreamEvent {
+  type?: string
+  index?: number
+  total?: number
+  engine?: string
+  audio?: string
+  mimeType?: string
+  done?: boolean
+  error?: string
+}
+
 const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange }) => {
   const [playing, setPlaying] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -94,7 +106,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange }) => {
     if (!window.runtime?.EventsOn) return
 
     // @ts-ignore
-    window.runtime.EventsOn('tts-stream', (ev: any) => {
+    window.runtime.EventsOn('tts-stream', (ev: TTSStreamEvent) => {
       if (!ev?.type) return
 
       if (ev.type === 'progress') {
@@ -151,8 +163,8 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange }) => {
     try {
       // @ts-ignore
       await window.go.app.App.TTSSpeakStreaming(text)
-    } catch (err: any) {
-      message.error(err?.message || '语音合成失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '语音合成失败')
       setLoading(false)
     }
   }

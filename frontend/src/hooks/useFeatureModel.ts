@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback } from 'react'
 import * as App from '../../src/wailsjsCompat'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 
+/** feature-model-changed 事件动态载荷（最小消费面） */
+interface FeatureModelEvent {
+  feature?: string
+  engine?: string
+  model?: string
+  enabled?: boolean
+}
+
 /**
  * 功能模型 hook — 读取并实时监听某功能的绑定模型（持久化，重启不丢）。
  * feature: 'chat' | 'whisper' | 'novel' | 'office' | 'gaea' | 'characterlib'
@@ -12,7 +20,7 @@ export function useFeatureModel(feature: string): { engine: string; model: strin
 
   const refresh = useCallback(async () => {
     try {
-      const r: any = await App.GetFeatureModel(feature)
+      const r = await App.GetFeatureModel(feature)
       let enabled = true
       try { enabled = !!(await App.GetFeatureModelEnabled(feature)) } catch (_) {}
       setM({ engine: r?.engine || '', model: r?.model || '', enabled })
@@ -21,9 +29,9 @@ export function useFeatureModel(feature: string): { engine: string; model: strin
 
   useEffect(() => {
     refresh()
-    let unsub: any
+    let unsub: (() => void) | undefined
     try {
-      unsub = EventsOn('feature-model-changed', (d: any) => {
+      unsub = EventsOn('feature-model-changed', (d: FeatureModelEvent) => {
         if (d?.feature !== feature) return
         setM(prev => ({
           engine: d.engine ?? prev.engine,

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Button, Tooltip, message } from 'antd'
 import { PoweroffOutlined } from '@ant-design/icons'
 import * as App from '../../src/wailsjsCompat'
-import { getEngines } from '../api/engines'
+import { getEngines, type EngineConfig } from '../api/engines'
 import { useFeatureModel } from '../hooks/useFeatureModel'
 
 /**
@@ -14,7 +14,7 @@ import { useFeatureModel } from '../hooks/useFeatureModel'
  */
 const FeatureModelBar: React.FC<{ feature: string; label: string }> = ({ feature, label }) => {
   const m = useFeatureModel(feature)
-  const [engines, setEngines] = useState<any[]>([])
+  const [engines, setEngines] = useState<EngineConfig[]>([])
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -23,15 +23,17 @@ const FeatureModelBar: React.FC<{ feature: string; label: string }> = ({ feature
 
   useEffect(() => { load() }, [load])
   useEffect(() => {
-    let unsub: any
+    let unsub: (() => void) | undefined
     try {
-      unsub = (window as any).runtime?.EventsOn?.('feature-model-changed', load) || unsub
+      const on = window.runtime?.EventsOn as ((e: string, h: (d: unknown) => void) => (() => void) | void) | undefined
+      const res = on?.('feature-model-changed', load)
+      if (typeof res === 'function') unsub = res
     } catch (_) {}
     const t = setInterval(load, 8000)
-    return () => { try { clearInterval(t); if (typeof unsub === 'function') unsub() } catch (_) {} }
+    return () => { try { clearInterval(t); unsub?.() } catch (_) {} }
   }, [load])
 
-  const boundEngine = m.engine ? engines.find((e: any) => e.id === m.engine) : undefined
+  const boundEngine = m.engine ? engines.find((e) => e.id === m.engine) : undefined
   const bound = !!m.engine && !!m.model && !!boundEngine
   // 运行中 = 功能启用 + 绑定引擎启用
   const running = bound && m.enabled && !!boundEngine?.enabled
@@ -55,10 +57,10 @@ const FeatureModelBar: React.FC<{ feature: string; label: string }> = ({ feature
       await App.SetFeatureModelEnabled(feature, !m.enabled)
       message.success(`「${label}」${m.enabled ? '已停用' : '已启动'}：${m.model}`)
       load()
-    } catch (err: any) {
+    } catch (err: unknown) {
       // 友好提示，不弹错误
       console.warn('[FeatureModelBar] 启停失败:', err)
-      message.warning(`「${label}」操作未生效：${err?.message || '请稍后再试'}`)
+      message.warning(`「${label}」操作未生效：${err instanceof Error ? err.message : '请稍后再试'}`)
     } finally {
       setBusy(false)
     }

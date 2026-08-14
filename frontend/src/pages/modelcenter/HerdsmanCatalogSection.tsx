@@ -117,8 +117,8 @@ export function HerdsmanCatalogSection() {
         error: c.disk_error,
       })
       if (c.error) setError(c.error)
-    } catch (e: any) {
-      setError(e?.message || String(e))
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
       setModels([])
       setTotal(0)
       setInstalled(0)
@@ -157,8 +157,8 @@ export function HerdsmanCatalogSection() {
       if (!r.ok) throw new Error(r.message || '操作失败')
       message.success(`${m.display_name || m.name} ${label}成功`)
       await load()
-    } catch (e: any) {
-      message.error(`${m.display_name || m.name} ${label}失败：${e?.message || e}`)
+    } catch (e: unknown) {
+      message.error(`${m.display_name || m.name} ${label}失败：${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy(prev => {
         const next = new Set(prev)

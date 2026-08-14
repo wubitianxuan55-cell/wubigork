@@ -1,6 +1,40 @@
 # gaea · 多功能 AI 助手
 
+## v2.33.0「质量收敛 · 前端收敛」（2026-08-14）
+> 阶段 6 第十刀（T6-10）贯穿收官：巨型文件拆分、any 清零、漂移检查恢复、mock 契约化、桥接归一、性能与补测。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.33.0.md。
+- T6-10.1 **巨型文件拆分**（8 个巨型文件全部收敛，拆分全程行为测试基线先行）：
+  - ChatPage.tsx 1022→370 行（pages/chat/{constants,types,utils}.ts + components/chat/{ChatComposer,
+    ChatModeBar,ChatPersonaBar,MessageList,SuggestionCard,WelcomeScreen}.tsx + hooks/useChatStream/
+    useChatTopics/useChatVoice/useCustomTemplates.ts）；
+  - ImageGenPage.tsx 911→310 行（hooks/useImageGenConfig/useImageGenHistory/useImageGenQueue +
+    components/imagegen/meta.ts）；
+  - CapabilitiesPanel.tsx 803→178 行（capabilities/{ServersSection,SkillsSection,ToolsSection}.tsx +
+    useCapabilitiesData.ts）；
+  - Composer.tsx 786→406 行（composer/ 7 组件 + useComposer{Attachments,Menus,Workspace}.ts）；
+  - mock.ts 1563→50 行（按域拆 mock/{chat,core,cost,memory,model,office,retrieval,settings,shared,state}.ts
+    10 文件，11 个 no-op 逐条落实并注释）；
+- T6-10.2 **any 清零**：eslint.config.js no-explicit-any warn→error 进 CI；315 处显式 any 消灭（→0），
+  新增 any 即 lint 失败；历史 as any 逃生口由类型化兼容层替代（wails.d.ts 注释成文）；
+- T6-10.3 **绑定漂移检查恢复（双向）**：gen_bindings 新增 -names 模式（只输出方法名稳定排序）；
+  bindingNames.ts（462 方法清单）；bridge.ts 类型级双向守卫 _CheckAppBindingsHasNoStray +
+  _CheckAppBindingsCoversAll（任一方向漂移 tsc 即红）；scripts/check-bindings-drift.ps1 + CI 步骤；
+- T6-10.4 **mock 契约对齐**：mock-contract-e5.test.ts RetrievalEvalRun 改契约校验（total=12 真实查询集、
+  threshold=0.8、passed 与 recallAt10 自洽、kind:name 形式、首条锚点「打桩设备 台班价」），不再锁定
+  虚构 0.85；CostImportVisionPreview/CostCompare/UnifiedSearch 补结构断言；
+- T6-10.5 **虚拟化与性能**：Sidebar 会话列表 react-window List 虚拟滚动 + 过滤防抖；CostLibraryView
+  memo/useCallback/useMemo 化；新增 useDebouncedValue（空串即时同步）+ 6 测试，Composer 外 2 处消费；
+- T6-10.6 **桥接归一**：删除 api/bridge.ts（123 行旧代理）；initBridge 并入 gaea/lib/bridge.ts（+478）；
+  wails.d.ts 同步收敛；新增绑定单处注册；
+- T6-10.7 **测试补强**：Sidebar.test +40 / CostLibraryView.test +56 / GraphView.test +47 / ChatPage.test +26 /
+  CharacterLibEditor.test +8 / BindSection.test +8 / useDebouncedValue.test 新 6 用例；vitest 354→361；
+- 验证：go build/vet 干净 + go test ./... **109/109 包 ok** + TestBindingsCompleteness PASS（462 方法，
+  无绑定变更）+ 漂移检查 OK；tsc 0 errors、eslint 0 errors（359 存量 warnings）、vitest **361/361**
+  （80 文件）、vite build 14.46s；冒烟通过（/api/health 200）。发布 gaea-v2.33.0.exe（32.8MB，
+  SHA256=8FADBB7385D794DB69842171D4F95E678849FA8481686F646A4BBA6E94F4E92F）。
+
 ## v2.32.0「质量收敛 · 辅助合集·名实相符」（2026-08-14）
+
 > 阶段 6 第九刀（T6-9）：微信生命周期与凭据、OCR 兜底名实相符、配置原子写、路径端口可配置、token 改 header。
 > 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.32.0.md。
 - T6-9.1 **微信生命周期与失效自愈**（internal/channels/weixin/clawbot.go + whisper_state.go）：

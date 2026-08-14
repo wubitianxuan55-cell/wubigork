@@ -76,7 +76,7 @@ export interface PickerOption {
 export const PickerGroup: React.FC<{
   options: PickerOption[]
   value: string | number
-  onChange: (v: any) => void
+  onChange: (v: unknown) => void
   columns?: number
 }> = ({ options, value, onChange, columns }) => (
   <div style={{

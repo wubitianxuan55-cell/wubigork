@@ -41,8 +41,8 @@ const SkillModal: React.FC<SkillModalProps> = ({ open, onClose }) => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.md'
-    input.onchange = async (e: any) => {
-      const file = e.target.files?.[0]
+    input.onchange = async (e: Event) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
       const name = file.name.replace(/\.md$/i, '')
       setImportName(name)

@@ -5,7 +5,7 @@ import { create } from 'zustand'
 // ═══════════════════════════════════════════════════════════
 
 export interface ProjectInfo { title: string; genre: string; style: string; path: string }
-export interface StatsData { totalWords: number; chapterCount: number; avgWordsPerChapter: number; characterCount: number; charAlive: number; foreshadowTotal: number; foreshadowRevealed: number; foreshadowRate: number }
+export interface StatsData { totalWords: number; chapterCount: number; avgWordsPerChapter: number; characterCount: number; charAlive: number; foreshadowTotal: number; foreshadowRevealed: number; foreshadowRate: number; plannedChapters?: number }
 export interface ProjectCard { title: string; genre: string; style: string; path: string; word_count: number; chapter_count: number; created_at: string; last_opened_at: string }
 
 // 暗夜系列 — 6套精心调色
@@ -263,14 +263,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   login: async () => {
     try {
-      // @ts-ignore — Wails Go binding
       // Login() 现在是异步的：立即返回，OAuth 在后台进行
       await window.go.app.App.Login()
       // 轮询等待登录完成（最多 5 分钟）
       for (let i = 0; i < 75; i++) {
         await new Promise((r) => setTimeout(r, 4000))
         try {
-          // @ts-ignore
           const status = await window.go.app.App.GetLoginStatus()
           if (status) {
             set({ loggedIn: true })
@@ -279,7 +277,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch (_) {}
       }
       throw new Error('登录超时：请检查浏览器是否完成了 xAI 授权')
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('login 失败:', err)
       throw err
     }
@@ -287,7 +285,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   checkLogin: async () => {
     try {
-      // @ts-ignore
       const status = await window.go.app.App.GetLoginStatus()
       set({ loggedIn: status })
     } catch (_) {
@@ -296,7 +293,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   logout: async () => {
     try {
-      // @ts-ignore
       await window.go.app.App.Logout()
     } catch (_) {}
     set({ loggedIn: false })
@@ -312,23 +308,20 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   loadProjectInfo: async () => {
     try {
-      // @ts-ignore
-      const info: any = await window.go.app.App.GetProjectInfo()
+      const info = await window.go.app.App.GetProjectInfo()
       if (info) set({ projectInfo: info as ProjectInfo })
     } catch (_) {}
   },
 
   loadStats: async () => {
     try {
-      // @ts-ignore
-      const s: any = await window.go.app.App.GetStats()
+      const s = await window.go.app.App.GetStats()
       if (s) set({ stats: s as StatsData })
     } catch (_) {}
   },
 
   loadNovelsDir: async () => {
     try {
-      // @ts-ignore
       const dir: string = await window.go.app.App.GetNovelsDir()
       set({ novelsDir: dir })
     } catch (_) {
@@ -338,7 +331,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   loadProjects: async () => {
     try {
-      // @ts-ignore
       const cards: ProjectCard[] = await window.go.app.App.ListProjects()
       set({ projects: cards || [] })
     } catch (err) {
@@ -348,23 +340,20 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   deleteProject: async (path: string) => {
     try {
-      // @ts-ignore
       await window.go.app.App.DeleteProject(path)
       const projects = get().projects.filter((p) => p.path !== path)
       set({ projects })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('deleteProject failed:', err)
       throw err
     }
   },
 
   setNovelsDir: async (dir: string) => {
-    // @ts-ignore
     await window.go.app.App.SaveConfig('novels_dir', dir)
     set({ novelsDir: dir, projectOpen: false, projectPath: '', projectTitle: '' })
     // 刷新书架
     try {
-      // @ts-ignore
       const cards: ProjectCard[] = await window.go.app.App.ListProjects()
       set({ projects: cards || [] })
     } catch (err) {

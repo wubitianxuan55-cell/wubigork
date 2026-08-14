@@ -61,8 +61,8 @@ export function SkillCaptureModal({
           : `技能已保存：/${res.name}`,
       );
       onClose();
-    } catch (e: any) {
-      toast.show(String(e?.message ?? e), "warn");
+    } catch (e: unknown) {
+      toast.show(String((e as Error)?.message ?? e), "warn");
     } finally {
       setSaving(false);
     }

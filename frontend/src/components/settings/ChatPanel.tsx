@@ -74,21 +74,21 @@ const ChatPanel: React.FC = () => {
   const [activePersonality, setActivePersonality] = useState<string>(() => {
     try { return (localStorage.getItem(PERSONALITY_KEY) ?? localStorage.getItem(LEGACY_PERSONALITY_KEY)) || 'gaea' } catch { return 'gaea' }
   })
-  const [voice, setVoice] = useState<Record<string, any>>({})
+  const [voice, setVoice] = useState<Record<string, unknown>>({})
   const [herdsmanVoices, setHerdsmanVoices] = useState<string[]>([])
   const [ttsModel, setTtsModel] = useState('')
 
   useEffect(() => {
     try {
-      App.WhisperGetPersonalities().then((p: any) => setPersonalities(p || [])).catch(() => {})
+      App.WhisperGetPersonalities().then((p) => setPersonalities(p || [])).catch(() => {})
     } catch (_) { /* 未初始化时静默 */ }
     getVoiceSettings().then((v) => setVoice(v || {})).catch(() => {})
-    ;(App as any).GetVoicePipelineConfig?.().then((p: any) => {
+    App.GetVoicePipelineConfig?.().then((p) => {
       const model = p?.chatTts?.model || p?.tts?.model || ''
       setTtsModel(model)
       const lower = model.toLowerCase()
       if (lower.includes('qwen3') || lower.includes('customvoice') || lower.includes('cosyvoice')) {
-        ;(App as any).GetTTSSpeakers?.(model).then((speakers: any) => {
+        App.GetTTSSpeakers?.(model).then((speakers: string[]) => {
           if (Array.isArray(speakers) && speakers.length > 0) setHerdsmanVoices(speakers)
         }).catch(() => {})
       }
@@ -105,15 +105,16 @@ const ChatPanel: React.FC = () => {
       : isCosyvoiceVoice
         ? (herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES).map(v => ({ value: v, label: v }))
         : TTS_VOICES
+  const ttsVoice = (voice.ttsVoice as string) || ''
   const effectiveVoice = isHerdsmanVoice
-    ? (herdsmanVoices.length > 0 ? herdsmanVoices : HERDSMAN_VOICES).includes(voice.ttsVoice)
-      ? voice.ttsVoice
+    ? (herdsmanVoices.length > 0 ? herdsmanVoices : HERDSMAN_VOICES).includes(ttsVoice)
+      ? ttsVoice
       : 'serena'
     : isXaiVoice
-      ? XAI_VOICES.some(v => v.value === voice.ttsVoice) ? voice.ttsVoice : 'eve'
+      ? XAI_VOICES.some(v => v.value === ttsVoice) ? ttsVoice : 'eve'
       : isCosyvoiceVoice
-        ? (herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES).includes(voice.ttsVoice) ? voice.ttsVoice : '中文女'
-        : voice.ttsVoice
+        ? (herdsmanVoices.length > 0 ? herdsmanVoices : COSYVOICE_VOICES).includes(ttsVoice) ? ttsVoice : '中文女'
+        : ttsVoice
 
   const updateSettings = (patch: Partial<CompanionSettings>) => {
     const next = { ...settings, ...patch }
@@ -122,13 +123,13 @@ const ChatPanel: React.FC = () => {
   }
 
   const handleSwitchPersonality = async (id: string) => {
-    try { await (App as any).WhisperClearSession(activePersonality) } catch (_) { /* 忽略 */ }
+    try { await App.WhisperClearSession(activePersonality) } catch (_) { /* 忽略 */ }
     setActivePersonality(id)
     try { localStorage.setItem(PERSONALITY_KEY, id) } catch (_) { /* 忽略 */ }
     message.success(`已切换为「${personalities.find((p) => p.id === id)?.label || id}」人格（聊天板块生效）`)
   }
 
-  const patchVoice = useCallback((key: string, value: any) => {
+  const patchVoice = useCallback((key: string, value: unknown) => {
     setVoice((prev) => ({ ...prev, [key]: value }))
     applyVoiceSettings({ [key]: value }).catch(() => message.warning('语音设置保存失败'))
   }, [])

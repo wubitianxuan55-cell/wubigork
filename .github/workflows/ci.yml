@@ -27,6 +27,12 @@ jobs:
         with:
           version: latest
 
+      # T6-10.3 绑定面漂移检查：frontend/src/gaea/lib/bindingNames.ts 必须与
+      # Go 侧全部导出绑定方法一致（gen_bindings -names 对照，不一致 exit 1）。
+      # AppBindings 与 bindingNames 的类型级双向断言由 frontend job 的 tsc 承担。
+      - name: Check bindings drift (bindingNames.ts vs Go surface)
+        run: pwsh -NoProfile -File scripts/check-bindings-drift.ps1
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

@@ -4,6 +4,7 @@ import { SaveOutlined, RobotOutlined, ApiOutlined, CheckCircleOutlined, ReloadOu
 import { gaeaSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
 import * as App from '../../../src/wailsjsCompat'
+import type { app as AppModels } from '../../../wailsjs/go/models'
 
 interface DraftView {
   defaultModel: string
@@ -32,7 +33,7 @@ const emptyDraft: DraftView = {
 
 /** OfficePanel — 办公引擎完整设置（模型 / Agent 参数 / 权限 / 沙箱，持久化到 ~/.config/gaea/config.toml） */
 const OfficePanel: React.FC = () => {
-  const [view, setView] = useState<Record<string, any>>({})
+  const [view, setView] = useState<Record<string, unknown>>({})
   const [draft, setDraft] = useState<DraftView>(emptyDraft)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -41,12 +42,15 @@ const OfficePanel: React.FC = () => {
   useEffect(() => {
     gaeaSettings().then((v) => {
       setView(v || {})
-      const agent = (v as any)?.agent || {}
-      const perms = (v as any)?.permissions || {}
-      const sandbox = (v as any)?.sandbox || {}
+      const agent = (v.agent || {}) as {
+        systemPrompt?: string; temperature?: number; subagentTemperature?: number;
+        maxSteps?: number; effort?: string; subagentEffort?: string
+      }
+      const perms = (v.permissions || {}) as { mode?: string; allow?: string[]; ask?: string[]; deny?: string[] }
+      const sandbox = (v.sandbox || {}) as { bash?: string; network?: boolean; workspaceRoot?: string; allowWrite?: string[] }
       setDraft({
-        defaultModel: (v as any)?.defaultModel || '',
-        subagentModel: (v as any)?.subagentModel || '',
+        defaultModel: (v.defaultModel as string) || '',
+        subagentModel: (v.subagentModel as string) || '',
         systemPrompt: agent.systemPrompt || '',
         temperature: agent.temperature || 0,
         subagentTemperature: agent.subagentTemperature || 0,
@@ -64,13 +68,13 @@ const OfficePanel: React.FC = () => {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
-  const providers: any[] = view.providers || []
-  const modelOptions = providers.flatMap((p: any) => (p.models || []).map((m: string) => ({ value: m, label: `${p.name} / ${m}` })))
+  const providers = (view.providers || []) as Array<{ name?: string; models?: string[] }>
+  const modelOptions = providers.flatMap((p) => (p.models || []).map((m: string) => ({ value: m, label: `${p.name} / ${m}` })))
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await (App as any).GaeaSaveSettings({
+      await App.GaeaSaveSettings({
         defaultModel: draft.defaultModel,
         subagentModel: draft.subagentModel,
         agent: {
@@ -91,12 +95,12 @@ const OfficePanel: React.FC = () => {
           bash: draft.sandboxBash,
           network: draft.sandboxNetwork,
           workspaceRoot: draft.workspaceRoot,
-          allowWrite: ((view as any)?.sandbox?.allowWrite) || [],
+          allowWrite: ((view.sandbox as { allowWrite?: string[] } | undefined)?.allowWrite) || [],
         },
-      })
+      } as AppModels.SettingsView)
       message.success('办公设置已保存并生效')
-    } catch (err: any) {
-      message.error(err?.message || '保存失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '保存失败')
     } finally {
       setSaving(false)
     }
@@ -107,10 +111,10 @@ const OfficePanel: React.FC = () => {
   const handleReload = async () => {
     setReloading(true)
     try {
-      const res = await (App as any).GaeaReload()
+      const res = await App.GaeaReload()
       message.success(`引擎已热加载：${res.tools} 个工具 · ${res.skills} 个技能`)
-    } catch (err: any) {
-      message.error(err?.message || '热加载失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '热加载失败')
     } finally {
       setReloading(false)
     }

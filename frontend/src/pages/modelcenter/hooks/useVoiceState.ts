@@ -13,6 +13,11 @@ import { setActiveOCRModel, getActiveOCRModel } from '../../../api/engines'
 import { XAI_VOICES, localTTSDefaultVoice, localTTSFallbackVoices } from '../utils'
 import { type VoiceCfg } from '../context'
 
+/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
+function errText(err: unknown, fallback: string): string {
+  return (err instanceof Error && err.message) || fallback
+}
+
 export interface VoiceState {
   voiceCfg: VoiceCfg
   setVoiceCfg: Dispatch<SetStateAction<VoiceCfg>>
@@ -74,8 +79,8 @@ export function useVoiceState(): VoiceState {
       else await App.SetActiveTTSModel(engineId, modelId)
       message.success(`已设为${kind === 'asr' ? '语音识别' : '语音合成'}：${modelId}`)
       loadVoiceCfg()
-    } catch (err: any) {
-      message.error(err?.message || '设置失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '设置失败'))
     }
   }
 
@@ -84,8 +89,8 @@ export function useVoiceState(): VoiceState {
       await setActiveOCRModel(engineId, modelId)
       message.success(engineId && modelId ? `已设为 OCR：${modelId}` : 'OCR 已恢复自动选择')
       loadOCRCfg()
-    } catch (err: any) {
-      message.error(err?.message || '设置 OCR 失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '设置 OCR 失败'))
     }
   }
 
@@ -101,8 +106,8 @@ export function useVoiceState(): VoiceState {
       await App.SetChatVoiceModel(d.engine, d.model)
       message.success(`聊天语音已绑定：${d.model}`)
       loadVoiceCfg()
-    } catch (err: any) {
-      message.error(err?.message || '绑定失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '绑定失败'))
     }
     setChatVoiceSaving(false)
   }
@@ -115,8 +120,8 @@ export function useVoiceState(): VoiceState {
       message.success('已清除聊天语音绑定（回退全局 TTS）')
       setChatVoiceDraft({ engine: '', model: '' })
       loadVoiceCfg()
-    } catch (err: any) {
-      message.error(err?.message || '清除失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '清除失败'))
     }
     setChatVoiceSaving(false)
   }
@@ -128,8 +133,8 @@ export function useVoiceState(): VoiceState {
       setChatVoiceSpeakers([])
       return
     }
-    ;(App as any).GetTTSSpeakers?.(model)
-      .then((sp: any) => setChatVoiceSpeakers(Array.isArray(sp) ? sp : []))
+    App.GetTTSSpeakers?.(model)
+      .then((sp: string[]) => setChatVoiceSpeakers(Array.isArray(sp) ? sp : []))
       .catch(() => setChatVoiceSpeakers([]))
   }, [chatVoiceDraft])
 

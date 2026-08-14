@@ -13,6 +13,17 @@ interface LogEntry {
   system?: string; user?: string
 }
 
+/** xai-output 事件动态载荷（最小消费面） */
+interface XAIOutputEvent {
+  type?: string
+  model?: string
+  content?: string
+  error?: string
+  length?: number
+  system?: string
+  user?: string
+}
+
 let logId = 0
 
 /** AIConsole 小说 AI 调用监控面板（右上角悬浮，可展开/关闭）。 */
@@ -32,9 +43,8 @@ export function AIConsole() {
 
   // 监听 XAI 实时输出事件
   useEffect(() => {
-    // @ts-ignore
     if (!window.runtime?.EventsOn) return
-    const handler = (ev: any) => {
+    const handler = (ev: XAIOutputEvent) => {
       if (!ev) return
       const entry: LogEntry = {
         id: ++logId,
@@ -49,11 +59,9 @@ export function AIConsole() {
       }
       setLogs((prev) => [...prev.slice(-99), entry])
     }
-    // @ts-ignore
     window.runtime.EventsOn('xai-output', handler)
     return () => {
       try {
-        // @ts-ignore
         window.runtime?.EventsOff?.('xai-output')
       } catch (_) { /* EventsOff 可能不可用 */ }
     }

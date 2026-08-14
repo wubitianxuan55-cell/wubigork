@@ -72,8 +72,8 @@ const NovelSettingPage: React.FC = () => {
       setSavedSnapshot(content)
       setLastSavedAt(new Date().toLocaleTimeString())
       message.success('设定已保存')
-    } catch (err: any) {
-      message.error('保存失败: ' + (err?.message || err))
+    } catch (err: unknown) {
+      message.error('保存失败: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setSaving(false)
     }
@@ -118,15 +118,15 @@ const NovelSettingPage: React.FC = () => {
 
   const handleChatSend = async (userMsg: string): Promise<string> => {
     try {
-      const result: any = await App.ChatWorldview(userMsg, content)
+      const result = await App.ChatWorldview(userMsg, content)
       const reply = result?.reply || ''
       // AI 返回更新后的设定文本，直接回填编辑器（不解析、不拆分）
       if (typeof result?.worldview === 'string' && result.worldview) {
         setContent(result.worldview)
       }
       return reply
-    } catch (err: any) {
-      const msg = typeof err === 'string' ? err : (err?.message || err?.toString?.() || '对话失败')
+    } catch (err: unknown) {
+      const msg = typeof err === 'string' ? err : (err instanceof Error ? (err.message || '对话失败') : '对话失败')
       throw new Error(msg)
     }
   }

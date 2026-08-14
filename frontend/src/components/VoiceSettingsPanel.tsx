@@ -7,6 +7,14 @@ import * as App from '../../src/wailsjsCompat'
 
 const { Text } = Typography
 
+/** 语音服务健康状态（后端 VoiceHealth 动态载荷的最小消费面） */
+interface VoiceHealthInfo {
+  asrReady?: boolean
+  ttsReady?: boolean
+  state?: string
+  error?: string
+}
+
 // Edge TTS 音色（在线免费，zh-CN）
 const EDGE_VOICES = [
   { value: 'zh-CN-YunxiNeural', label: '云希 (男)' },
@@ -38,7 +46,7 @@ const VOICE_LABELS: Record<string, string> = {
 }
 
 export default function VoiceSettingsPanel() {
-  const [health, setHealth] = useState<any>(null)
+  const [health, setHealth] = useState<VoiceHealthInfo | null>(null)
   const [checking, setChecking] = useState(false)
 
   // 语音设置
@@ -53,7 +61,7 @@ export default function VoiceSettingsPanel() {
   const checkHealth = async () => {
     setChecking(true)
     try {
-      const h = await (App as any).VoiceHealth?.()
+      const h = await App.VoiceHealth?.()
       setHealth(h || { asrReady: false, ttsReady: false })
     } catch (_) {
       setHealth({ asrReady: false, ttsReady: false, error: '无法获取语音服务状态' })
@@ -64,8 +72,8 @@ export default function VoiceSettingsPanel() {
   const loadSettings = async () => {
     try {
       const [v, pipeline] = await Promise.all([
-        (App as any).VoiceGetSettings?.(),
-        (App as any).GetVoicePipelineConfig?.(),
+        App.VoiceGetSettings?.(),
+        App.GetVoicePipelineConfig?.(),
       ])
       const settings = v || {}
       if (settings.ttsEnabled !== undefined) setTtsEnabled(!!settings.ttsEnabled)
@@ -79,14 +87,14 @@ export default function VoiceSettingsPanel() {
       const lower = model.toLowerCase()
       if (lower.includes('qwen3') || lower.includes('customvoice') || lower.includes('cosyvoice')) {
         try {
-          const speakers = (await (App as any).GetTTSSpeakers?.(model)) || []
+          const speakers = (await App.GetTTSSpeakers?.(model)) || []
           if (Array.isArray(speakers) && speakers.length > 0) {
             setHerdsmanVoices(speakers)
             // 当前音色不在支持列表时自动对齐到默认音色
             if (settings.ttsVoice && !speakers.includes(settings.ttsVoice)) {
               const fallback = speakers.includes('serena') ? 'serena' : speakers[0]
               setTtsVoice(fallback)
-              ;(App as any).VoiceApplySettings?.({ ttsVoice: fallback }).catch(() => {})
+              App.VoiceApplySettings?.({ ttsVoice: fallback }).catch(() => {})
             }
           }
         } catch (_) { /* 查询失败使用兜底列表 */ }
@@ -96,8 +104,8 @@ export default function VoiceSettingsPanel() {
 
   useEffect(() => { checkHealth(); loadSettings() }, [])
 
-  const applyVoiceSettings = (patch: Record<string, any>) => {
-    (App as any).VoiceApplySettings?.(patch).catch(() => {})
+  const applyVoiceSettings = (patch: Record<string, unknown>) => {
+    App.VoiceApplySettings?.(patch).catch(() => {})
   }
 
   // 根据当前 TTS 模型决定音色选项：qwen3/customvoice → Herdsman 音色，其余 → Edge 音色

@@ -183,7 +183,7 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
       if (idx < 0) {
         for (let i = next.length - 1; i >= 0; i--) {
           const cand = next[i];
-          if (cand.kind === "tool" && (cand as any).status === "running") { idx = i; break; }
+          if (cand.kind === "tool" && cand.status === "running") { idx = i; break; }
         }
       }
       if (idx >= 0) { const it = next[idx]; if (it.kind === "tool") next[idx] = { ...it, status: t.err ? "error" : "done", output: t.output, error: t.err, recoverable: t.recoverable, truncated: t.truncated }; }

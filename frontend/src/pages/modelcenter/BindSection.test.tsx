@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { ModelCenterContext } from './context'
+import { ModelCenterContext, type ModelCenterContextValue } from './context'
 import { BindSection } from './BindSection'
 
-function renderBind(overrides: Record<string, any> = {}) {
-  const value: any = {
+function renderBind(overrides: Partial<ModelCenterContextValue> = {}) {
+  const value = {
     engines: [
       { id: 'herdsman', name: 'Herdsman', enabled: true, label: 'Herdsman 本地', type: 'herdsman' },
       { id: 'xai', name: 'xAI', enabled: true, label: 'xAI 云端', type: 'xai' },
@@ -39,7 +39,7 @@ function renderBind(overrides: Record<string, any> = {}) {
     handleClearChatVoice: () => {},
     handleSavePortrait: () => {},
     ...overrides,
-  }
+  } as unknown as ModelCenterContextValue
   return render(
     <ModelCenterContext.Provider value={value}>
       <BindSection />

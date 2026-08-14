@@ -128,7 +128,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
   const toggleVoice = useCallback(async () => {
     if (voice.active) { stop(); return }
     // 首页语音始终使用 gaea
-    try { await (App as any).VoiceApplySettings?.({ personalityPresetId: 'gaea' }) } catch (_) {}
+    try { await App.VoiceApplySettings?.({ personalityPresetId: 'gaea' }) } catch (_) {}
     setUserText('')
     setAiReply('')
     await start()

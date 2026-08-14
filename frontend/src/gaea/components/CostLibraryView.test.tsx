@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { CostLibraryView } from "./CostLibraryView";
+import { CostLibraryView, CostRow, ListView } from "./CostLibraryView";
 
 const CAT_TREE = [
   {
@@ -107,5 +107,59 @@ describe("CostLibraryView 多级分类 + 列表/表格", () => {
     fireEvent.click(screen.getByText(/单价（元）/));
     const priceCells = screen.getAllByText(/^¥/);
     expect(priceCells[0].textContent).toBe("¥3,200");
+  });
+  it("CostRow memo：相同 props 不重渲染，selected 变化才重渲染", () => {
+    const priceSpy = vi.fn((p: number) => "¥" + p);
+    const callbacks = {
+      onToggleSelect: vi.fn(),
+      onEdit: vi.fn(),
+      onDelete: vi.fn(),
+      onHistory: vi.fn(),
+      onCompare: vi.fn(),
+    };
+    const props = {
+      row: ENTRIES[0],
+      selected: false,
+      compact: false,
+      priceText: priceSpy,
+      ...callbacks,
+    };
+    const { rerender } = render(<CostRow {...props} />);
+    const base = priceSpy.mock.calls.length;
+    expect(base).toBeGreaterThan(0);
+
+    // 相同 props 重渲染 → memo 跳过，行体不再执行（priceText 不再被调用）
+    rerender(<CostRow {...props} />);
+    expect(priceSpy.mock.calls.length).toBe(base);
+
+    // selected 变化 → 该行重渲染
+    rerender(<CostRow {...props} selected={true} />);
+    expect(priceSpy.mock.calls.length).toBeGreaterThan(base);
+  });
+
+  it("ListView memo：相同 props 重渲染时列表项不重渲染", () => {
+    const priceSpy = vi.fn((p: number) => "¥" + p);
+    const props = {
+      rows: ENTRIES,
+      selected: new Set<string>(),
+      toggleSelect: vi.fn(),
+      priceText: priceSpy,
+      onEdit: vi.fn(),
+      onDelete: vi.fn(),
+      onHistory: vi.fn(),
+      onCompare: vi.fn(),
+      compact: false,
+    };
+    const { rerender } = render(<ListView {...props} />);
+    const base = priceSpy.mock.calls.length;
+    expect(base).toBeGreaterThan(0);
+
+    // 相同 props → ListView memo 跳过，行不重渲染
+    rerender(<ListView {...props} />);
+    expect(priceSpy.mock.calls.length).toBe(base);
+
+    // 选中集变化 → 对应行重渲染
+    rerender(<ListView {...props} selected={new Set([ENTRIES[0].name])} />);
+    expect(priceSpy.mock.calls.length).toBeGreaterThan(base);
   });
 });

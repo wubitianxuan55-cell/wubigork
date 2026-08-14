@@ -25,6 +25,12 @@ interface GhostState {
   position: { top: number; left: number } | null
 }
 
+/** ghost-stream 事件动态载荷（最小消费面） */
+interface GhostStreamEvent {
+  type?: string
+  content?: string
+}
+
 const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleProfile: _styleProfile }) => {
   const [ghost, setGhost] = useState<GhostState>({ text: '', visible: false, loading: false, position: null })
   const currentRequestRef = useRef<string>('')
@@ -34,7 +40,7 @@ const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleP
   useEffect(() => {
     if (!enabled) return
 
-    const handleGhostStream = (ev: any) => {
+    const handleGhostStream = (ev: GhostStreamEvent) => {
       if (!ev?.type) return
 
       if (ev.type === 'chunk') {
@@ -56,13 +62,11 @@ const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleP
     }
 
     try {
-      // @ts-ignore
       window.runtime?.EventsOn?.('ghost-stream', handleGhostStream)
     } catch (_) {}
 
     return () => {
       try {
-        // @ts-ignore
         window.runtime?.EventsOff?.('ghost-stream', handleGhostStream)
       } catch (_) {}
     }

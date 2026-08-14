@@ -8,13 +8,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
 // ── 运行时事件 mock（先于 import 定义，供 vi.mock 工厂引用）─────────────────
+interface ChatTopicLike {
+  id: string
+  title: string
+  mode: string
+  created_at: string
+  updated_at: string
+}
+interface ChatMessageLike {
+  id: number
+  topic_id: string
+  role: string
+  content: string
+  extra?: string
+  seq: number
+  created_at: string
+}
 const runtimeMock = vi.hoisted(() => ({
-  handlers: {} as Record<string, (payload: any) => void>,
+  handlers: {} as Record<string, (payload: unknown) => void>,
   unsubs: [] as (() => void)[],
 }))
 
 vi.mock('../../wailsjs/runtime/runtime', () => ({
-  EventsOn: vi.fn((name: string, cb: (payload: any) => void) => {
+  EventsOn: vi.fn((name: string, cb: (payload: unknown) => void) => {
     runtimeMock.handlers[name] = cb
     const un = () => { delete runtimeMock.handlers[name] }
     runtimeMock.unsubs.push(un)
@@ -29,7 +45,7 @@ const voiceMock = vi.hoisted(() => ({
 }))
 
 vi.mock('../hooks/useVoiceChat', () => ({
-  useVoiceChat: (options?: any) => {
+  useVoiceChat: (options?: { onTranscript?: (t: string) => void; onReply?: (t: string) => void }) => {
     voiceMock.opts = options || {}
     return {
       state: { active: false, listening: false, speaking: false, aiSpeaking: false, transcript: '', finalTranscript: '', volume: 0, error: null, mode: 'vad' },
@@ -91,7 +107,7 @@ async function flushAsync() {
 }
 
 /** 完成初始化（话题列表 → 消息列表 → 状态落定）。 */
-async function renderChat(opts: { topics?: any[]; messages?: any[] } = {}) {
+async function renderChat(opts: { topics?: ChatTopicLike[]; messages?: ChatMessageLike[] } = {}) {
   const topics = opts.topics ?? [TOPIC_PLAIN]
   const messages = opts.messages ?? []
   vi.mocked(ChatTopicsList).mockResolvedValue(topics)
@@ -249,7 +265,7 @@ describe('T6-3.3 语音持久化与资源清理', () => {
   it('朗读：播放结束后 revokeObjectURL 被调用（finally 释放）', async () => {
     const urlCreate = vi.fn(() => 'blob:mock-audio')
     const urlRevoke = vi.fn()
-    vi.stubGlobal('URL', { ...(globalThis.URL as any), createObjectURL: urlCreate, revokeObjectURL: urlRevoke })
+    vi.stubGlobal('URL', { ...globalThis.URL, createObjectURL: urlCreate, revokeObjectURL: urlRevoke })
     vi.mocked(TTSSpeakBase64).mockResolvedValue({ base64: 'AAAA', mimeType: 'audio/mp3' })
     const { container } = await renderChat({ messages: [{ id: 1, topic_id: 't1', role: 'assistant', content: '可朗读内容', extra: '', seq: 1, created_at: '2026-01-01T00:00:00Z' }] })
 

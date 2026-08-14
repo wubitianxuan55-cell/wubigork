@@ -20,6 +20,11 @@ import {
 } from '../api/characterlib'
 import '../components/characterlib/character-library.css'
 
+/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
+function errText(err: unknown, fallback: string): string {
+  return (err instanceof Error && err.message) || fallback
+}
+
 const PAGE_SIZE = 24
 const PERSONALITY_KEY = 'gaea_whisper_personality'
 
@@ -58,8 +63,8 @@ const CharacterLibraryPage: React.FC = () => {
       setItems(res.items || [])
       setTotal(res.total || 0)
       if (res.error) message.warning(res.error)
-    } catch (err: any) {
-      message.error(`加载角色库失败：${err?.message || String(err)}`)
+    } catch (err: unknown) {
+      message.error(`加载角色库失败：${errText(err, String(err))}`)
     } finally {
       setLoading(false)
     }
@@ -98,8 +103,8 @@ const CharacterLibraryPage: React.FC = () => {
       setEditing(detail.character)
       setEditingProjects(detail.projects || [])
       setEditorOpen(true)
-    } catch (err: any) {
-      message.error(`读取角色失败：${err?.message || String(err)}`)
+    } catch (err: unknown) {
+      message.error(`读取角色失败：${errText(err, String(err))}`)
     }
   }
 
@@ -121,8 +126,8 @@ const CharacterLibraryPage: React.FC = () => {
       await associateToProject(c.id, c.roleType || 'supporting')
       message.success(`「${c.name}」已加入当前项目`)
       loadProjectRefs()
-    } catch (err: any) {
-      message.error(err?.message || '加入项目失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '加入项目失败'))
     }
   }
 
@@ -133,8 +138,8 @@ const CharacterLibraryPage: React.FC = () => {
       loadProjectRefs()
       // 通知已挂载的小说角色面板刷新（MainLayout 切换页面不销毁组件）
       window.dispatchEvent(new CustomEvent('gaea-project-chars-changed'))
-    } catch (err: any) {
-      message.error(err?.message || '移除失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '移除失败'))
     }
   }
 
@@ -144,8 +149,8 @@ const CharacterLibraryPage: React.FC = () => {
       message.success(c.kind === 'builtin' ? `「${c.name}」已隐藏` : `「${c.name}」已删除`)
       load()
       loadProjectRefs()
-    } catch (err: any) {
-      message.error(err?.message || '删除失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '删除失败'))
     }
   }
 
@@ -156,8 +161,8 @@ const CharacterLibraryPage: React.FC = () => {
       message.success(`已从项目导入 ${n} 个角色到全局库`)
       load()
       loadProjectRefs()
-    } catch (err: any) {
-      message.error(err?.message || '导入失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '导入失败'))
     }
   }
 
@@ -175,9 +180,10 @@ const CharacterLibraryPage: React.FC = () => {
   }
 
   const runFillAll = async () => {
-    const onProgress = (ev: any) => {
-      const d = ev?.detail || ev
-      if (d?.current && d?.total) setFillProgress(`正在补齐 ${d.current}/${d.total}：${d.name || ''}`)
+    const onProgress = (ev: unknown) => {
+      const raw = ev as { detail?: unknown } | null | undefined
+      const d = (raw && typeof raw === 'object' && 'detail' in raw && raw.detail ? raw.detail : raw) as { current?: number; total?: number; name?: string } | null | undefined
+      if (d && d.current && d.total) setFillProgress(`正在补齐 ${d.current}/${d.total}：${d.name || ''}`)
     }
     try {
       window.runtime?.EventsOn?.('character-fill-progress', onProgress)
@@ -195,8 +201,8 @@ const CharacterLibraryPage: React.FC = () => {
       }
       load()
       loadProjectRefs()
-    } catch (err: any) {
-      message.error(`补齐失败：${err?.message || String(err)}`)
+    } catch (err: unknown) {
+      message.error(`补齐失败：${errText(err, String(err))}`)
     } finally {
       window.runtime?.EventsOff?.('character-fill-progress')
       setFillingAll(false)
@@ -209,8 +215,8 @@ const CharacterLibraryPage: React.FC = () => {
     try {
       await syncProjectCharacters()
       message.success('已把项目引用物化到 characters.json（小说 Agent 生效）')
-    } catch (err: any) {
-      message.error(err?.message || '同步失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '同步失败'))
     }
   }
 

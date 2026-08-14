@@ -36,10 +36,10 @@ const BranchWizardModal: React.FC<BranchWizardModalProps> = ({
       setBranches(list)
       setSelectedBranch(null)
       setUserInput('')
-    } catch (err: any) {
+    } catch (err: unknown) {
       // 构思失败不静默：提示用户可手动输入剧情要求继续
       setBranches([])
-      message.error(err?.message || '剧情构思失败，可手动输入剧情要求')
+      message.error(err instanceof Error ? err.message : '剧情构思失败，可手动输入剧情要求')
     } finally {
       setWizStep('branches')
     }

@@ -12,6 +12,15 @@ import { getHttpToken } from './httpToken'
 
 type EventCallback = (...args: unknown[]) => void
 
+/** window.runtime 在 HTTP 环境补齐的最小事件面（与 types/wails.d.ts RuntimeAPI 对齐） */
+interface RuntimeNamespace {
+  EventsOn: (eventName: string, callback: EventCallback) => void
+  EventsOff: (eventName: string, callback?: EventCallback) => void
+  EventsOnce: (eventName: string, callback: EventCallback) => void
+  EventsOnMultiple: (eventName: string, callback: EventCallback, maxCallbacks: number) => (() => void) | void
+  EventsEmit: (eventName: string, ...args: unknown[]) => void
+}
+
 // 活跃的 SSE 连接（fetch 流式，AbortController 关闭）
 interface SSEConnection {
   close: () => void
@@ -112,94 +121,93 @@ export async function* parseSSEStream(chunks: AsyncIterable<string> | Iterable<s
  * 在 App.tsx 最早时机调用 — 确保所有 runtime.EventsOn 调用可用
  */
 export function initRuntimePolyfill(): void {
+  const win = window as unknown as { __runtime_polyfill_initialized?: boolean; runtime?: RuntimeNamespace }
   // 避免重复初始化
-  if ((window as any).__runtime_polyfill_initialized) return
-  ;(window as any).__runtime_polyfill_initialized = true
+  if (win.__runtime_polyfill_initialized) return
+  win.__runtime_polyfill_initialized = true
 
   // 检查是否已有原生 runtime
-  if ((window as any).runtime?.EventsOn) {
+  if (win.runtime?.EventsOn) {
     console.log('[runtime] 原生 runtime 已存在，跳过 polyfill')
     return
   }
 
   console.log('[runtime] 创建 runtime polyfill')
 
-  // 创建 runtime 命名空间
-  if (!(window as any).runtime) {
-    ;(window as any).runtime = {}
-  }
-
-  // EventsOn — 注册事件监听
-  ;(window as any).runtime.EventsOn = (eventName: string, callback: EventCallback) => {
-    if (!eventBus.has(eventName)) {
-      eventBus.set(eventName, new Set())
-    }
-    eventBus.get(eventName)!.add(callback)
-
-    // 所有事件都尝试走 Go 内核的 SSE 推送（网页版对齐桌面端）
-    ensureBridgeSSE(eventName)
-  }
-
-  // EventsOff — 注销事件监听
-  ;(window as any).runtime.EventsOff = (eventName: string, callback?: EventCallback) => {
-    if (callback) {
-      eventBus.get(eventName)?.delete(callback)
-    } else {
-      eventBus.delete(eventName)
-    }
-
-    // 清理 SSE 连接
-    const sse = activeSSE.get(eventName)
-    if (sse) {
-      sse.close()
-      activeSSE.delete(eventName)
-    }
-  }
-
-  // EventsOnce — 单次监听（部分代码可能使用）
-  ;(window as any).runtime.EventsOnce = (eventName: string, callback: EventCallback) => {
-    const onceWrapper = (...args: unknown[]) => {
-      callback(...args)
-      ;(window as any).runtime.EventsOff(eventName, onceWrapper)
-    }
-    ;(window as any).runtime.EventsOn(eventName, onceWrapper)
-  }
-
-  // EventsOnMultiple — 注册监听，最多触发 maxCallbacks 次。
-  // wailsjs/runtime/runtime.js 的 EventsOn(-1)/EventsOnce(1) 均通过它实现，
-  // HTTP 环境不补齐会导致 "window.runtime.EventsOnMultiple is not a function"。
-  ;(window as any).runtime.EventsOnMultiple = (eventName: string, callback: EventCallback, maxCallbacks: number) => {
-    if (maxCallbacks < 0) {
-      // -1 = 不限次数，等价 EventsOn
-      ;(window as any).runtime.EventsOn(eventName, callback)
-      return () => (window as any).runtime.EventsOff(eventName, callback)
-    }
-    // 正数 = 达到次数后自动注销（1 = 单次，等价 EventsOnce）
-    let count = 0
-    const wrapper = (...args: unknown[]) => {
-      count++
-      if (count > maxCallbacks) {
-        ;(window as any).runtime.EventsOff(eventName, wrapper)
-        return
+  const runtime: RuntimeNamespace = {
+    // EventsOn — 注册事件监听
+    EventsOn: (eventName: string, callback: EventCallback) => {
+      if (!eventBus.has(eventName)) {
+        eventBus.set(eventName, new Set())
       }
-      callback(...args)
-    }
-    ;(window as any).runtime.EventsOn(eventName, wrapper)
-    return () => (window as any).runtime.EventsOff(eventName, wrapper)
-  }
+      eventBus.get(eventName)!.add(callback)
 
-  // EventsEmit — 发射事件到本地总线（HTTP 环境无后端推送时使用）
-  ;(window as any).runtime.EventsEmit = (eventName: string, ...args: unknown[]) => {
-    const cbs = eventBus.get(eventName)
-    if (!cbs) return
-    for (const cb of cbs) {
-      try {
-        cb(...args)
-      } catch (e) {
-        console.error(`[runtime] EventsEmit ${eventName} 回调异常:`, e)
+      // 所有事件都尝试走 Go 内核的 SSE 推送（网页版对齐桌面端）
+      ensureBridgeSSE(eventName)
+    },
+
+    // EventsOff — 注销事件监听
+    EventsOff: (eventName: string, callback?: EventCallback) => {
+      if (callback) {
+        eventBus.get(eventName)?.delete(callback)
+      } else {
+        eventBus.delete(eventName)
       }
-    }
+
+      // 清理 SSE 连接
+      const sse = activeSSE.get(eventName)
+      if (sse) {
+        sse.close()
+        activeSSE.delete(eventName)
+      }
+    },
+
+    // EventsOnce — 单次监听（部分代码可能使用）
+    EventsOnce: (eventName: string, callback: EventCallback) => {
+      const onceWrapper = (...args: unknown[]) => {
+        callback(...args)
+        runtime.EventsOff(eventName, onceWrapper)
+      }
+      runtime.EventsOn(eventName, onceWrapper)
+    },
+
+    // EventsOnMultiple — 注册监听，最多触发 maxCallbacks 次。
+    // wailsjs/runtime/runtime.js 的 EventsOn(-1)/EventsOnce(1) 均通过它实现，
+    // HTTP 环境不补齐会导致 "window.runtime.EventsOnMultiple is not a function"。
+    EventsOnMultiple: (eventName: string, callback: EventCallback, maxCallbacks: number) => {
+      if (maxCallbacks < 0) {
+        // -1 = 不限次数，等价 EventsOn
+        runtime.EventsOn(eventName, callback)
+        return () => runtime.EventsOff(eventName, callback)
+      }
+      // 正数 = 达到次数后自动注销（1 = 单次，等价 EventsOnce）
+      let count = 0
+      const wrapper = (...args: unknown[]) => {
+        count++
+        if (count > maxCallbacks) {
+          runtime.EventsOff(eventName, wrapper)
+          return
+        }
+        callback(...args)
+      }
+      runtime.EventsOn(eventName, wrapper)
+      return () => runtime.EventsOff(eventName, wrapper)
+    },
+
+    // EventsEmit — 发射事件到本地总线（HTTP 环境无后端推送时使用）
+    EventsEmit: (eventName: string, ...args: unknown[]) => {
+      const cbs = eventBus.get(eventName)
+      if (!cbs) return
+      for (const cb of cbs) {
+        try {
+          cb(...args)
+        } catch (e) {
+          console.error(`[runtime] EventsEmit ${eventName} 回调异常:`, e)
+        }
+      }
+    },
   }
+  win.runtime = runtime
 }
 
 /**

@@ -40,8 +40,8 @@ export const SecurityBanner: React.FC = () => {
   const check = useCallback(async () => {
     setChecking(true)
     try {
-      // @ts-ignore — wails.d.ts 已声明 HerdsmanSecurityCheck；mock/HTTP 环境无此方法
-      const res: LanExposure | undefined = await (window as any).go?.app?.App?.HerdsmanSecurityCheck?.()
+      // wails.d.ts 已声明 HerdsmanSecurityCheck；mock/HTTP 环境无此方法
+      const res: LanExposure | undefined = await window.go?.app?.App?.HerdsmanSecurityCheck?.()
       if (!res) return
       setExposure(res)
     } catch {

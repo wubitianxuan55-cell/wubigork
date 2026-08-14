@@ -12,6 +12,12 @@ import * as App from '../../../wailsjsCompat'
 import { getPortraitConfig, setPortraitConfig } from '../../../api/image'
 import { FEATURES, imageModelOptionsFor } from '../utils'
 import type { EngineConfig } from '../../../api/engines'
+import type { AppFacade } from '../../../types/wails'
+
+/** 提取错误消息（unknown 收窄；无 message 用 fallback） */
+function errText(err: unknown, fallback: string): string {
+  return (err instanceof Error && err.message) || fallback
+}
 
 export interface BindState {
   featureCfg: Record<string, { engine: string; model: string }>
@@ -42,12 +48,12 @@ export function useBindState(engines: EngineConfig[]): BindState {
 
   // 当前生效路由（后端 routeModel 降级链结果：feature / global / fallback）
   const refreshRoutes = useCallback(async () => {
-    const bind = (window as any).go?.app?.App
+    const bind = window.go?.app?.App as AppFacade
     if (!bind?.GetModelRoute) return
     const next: Record<string, { engine: string; model: string; source: string }> = {}
     for (const key of ['chat', 'novel', 'office', 'gaea', 'characterlib', 'routine']) {
       try {
-        next[key] = JSON.parse(await bind.GetModelRoute(key))
+        next[key] = JSON.parse(await bind.GetModelRoute(key) as string)
       } catch { /* 单功能失败忽略 */ }
     }
     setModelRoutes(next)
@@ -63,7 +69,7 @@ export function useBindState(engines: EngineConfig[]): BindState {
         let model = ''
         let on = true
         for (const k of keys) {
-          const r: any = await App.GetFeatureModel(k)
+          const r = await App.GetFeatureModel(k)
           if (!engine && r?.engine) { engine = r.engine; model = r.model || '' }
           let e = true
           try { e = !!(await App.GetFeatureModelEnabled(k)) } catch (_) { e = true }
@@ -88,8 +94,8 @@ export function useBindState(engines: EngineConfig[]): BindState {
         const p = await getPortraitConfig()
         setPortraitCfg(p)
         setPortraitDraft(p)
-      } catch (err: any) {
-        message.error(err?.message || '读取剧照配置失败')
+      } catch (err: unknown) {
+        message.error(errText(err, '读取剧照配置失败'))
       }
     })()
   }, [])
@@ -106,8 +112,8 @@ export function useBindState(engines: EngineConfig[]): BindState {
       message.success(`${f?.label || key}模型已绑定并持久化`)
       loadFeatureCfg()
       refreshRoutes()
-    } catch (err: any) {
-      message.error(err?.message || '保存失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '保存失败'))
     }
   }
 
@@ -121,8 +127,8 @@ export function useBindState(engines: EngineConfig[]): BindState {
       message.success(`${f?.label || key}功能模型已${enabled ? '启用' : '停用'}`)
       setFeatureEnabled(prev => ({ ...prev, [key]: enabled }))
       loadFeatureCfg()
-    } catch (err: any) {
-      message.error(err?.message || '操作失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '操作失败'))
     }
   }
 
@@ -136,8 +142,8 @@ export function useBindState(engines: EngineConfig[]): BindState {
           ? `角色库剧照已绑定：${portraitDraft.backend} / ${portraitDraft.model || '跟随绘梦'}`
           : '角色库剧照已恢复为跟随绘梦',
       )
-    } catch (err: any) {
-      message.error(err?.message || '保存失败')
+    } catch (err: unknown) {
+      message.error(errText(err, '保存失败'))
     } finally {
       setPortraitSaving(false)
     }

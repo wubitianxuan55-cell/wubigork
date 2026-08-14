@@ -21,7 +21,7 @@ const WorkspacePanel: React.FC = () => {
     try {
       await setNovelsDir(dir)
       message.success('工作空间已更新')
-    } catch (err: any) { message.error(err?.message || '保存失败') }
+    } catch (err: unknown) { message.error(err instanceof Error ? err.message : '保存失败') }
     finally { setWsSaving(false) }
   }
 

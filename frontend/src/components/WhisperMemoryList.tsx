@@ -18,8 +18,12 @@ const SUB_LABELS: Record<string, string> = {
   NOW: '当下', COMMITMENTS: '承诺', PLANS: '计划', WORLD: '世界观',
 }
 
+import type { MemoryFact } from './WhisperMemoryModal'
+
+export type { MemoryFact }
+
 interface Props {
-  facts: any[]
+  facts: MemoryFact[]
   onOpenManage: () => void
 }
 
@@ -27,14 +31,14 @@ const WhisperMemoryList: React.FC<Props> = ({ facts, onOpenManage }) => {
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
-  const filtered = facts.filter((f: any) =>
+  const filtered = facts.filter((f: MemoryFact) =>
     !search ||
     String(f.subject || '').toLowerCase().includes(search.toLowerCase()) ||
     String(f.summary || '').toLowerCase().includes(search.toLowerCase()))
   const grouped = DOMAIN_ORDER.map(d => ({
     domain: d,
     label: DOMAIN_LABELS[d] || d,
-    facts: filtered.filter((f: any) => f.domain === d || f.domain === d.toLowerCase()),
+    facts: filtered.filter((f: MemoryFact) => f.domain === d || f.domain === d.toLowerCase()),
   })).filter(g => g.facts.length > 0)
 
   const toggle = (d: string) => setCollapsed(prev => {
@@ -65,7 +69,7 @@ const WhisperMemoryList: React.FC<Props> = ({ facts, onOpenManage }) => {
         ) : (
           grouped.map(g => {
             const isCollapsed = collapsed.has(g.domain)
-            const coreCount = g.facts.filter((f: any) => f.tier === 'core').length
+            const coreCount = g.facts.filter((f: MemoryFact) => f.tier === 'core').length
             return (
               <div key={g.domain} style={{ marginBottom: 2 }}>
                 <div
@@ -86,7 +90,7 @@ const WhisperMemoryList: React.FC<Props> = ({ facts, onOpenManage }) => {
                   </Tag>
                   {coreCount > 0 && <StarFilled style={{ fontSize: 9, color: '#faad14' }} />}
                 </div>
-                {!isCollapsed && g.facts.map((f: any) => (
+                {!isCollapsed && g.facts.map((f: MemoryFact) => (
                   <div
                     key={f.id}
                     role="button" tabIndex={0}

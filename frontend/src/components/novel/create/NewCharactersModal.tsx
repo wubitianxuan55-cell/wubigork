@@ -19,6 +19,13 @@ interface LibMatchEntry {
   selected: boolean
 }
 
+/** new-characters-discovered 事件动态载荷（最小消费面） */
+interface NewCharactersPayload {
+  characters?: string[]
+  libraryMatches?: Array<{ id?: string; name?: string; roleType?: string; portraitUrl?: string }>
+  chapterNum?: number
+}
+
 const roleLabels: Record<string, string> = {
   protagonist: '主角', antagonist: '反派', supporting: '配角', minor: '次要',
 }
@@ -36,14 +43,15 @@ const NewCharactersModal: React.FC = () => {
 
   // 监听新角色发现事件
   useEffect(() => {
-    const handler = (event: any) => {
-      const data = event.detail || event
+    const handler = (event: { detail?: NewCharactersPayload } | NewCharactersPayload) => {
+      const raw = event as { detail?: NewCharactersPayload } | null | undefined
+      const data = (raw?.detail || raw) as NewCharactersPayload | undefined
       if (data?.characters?.length > 0 || data?.libraryMatches?.length > 0) {
         setNewCharsList((data.characters || []).map((name: string) => ({
           original: name, name, selected: true,
         })))
-        setLibMatches((data.libraryMatches || []).map((m: any) => ({
-          id: m.id, name: m.name, roleType: m.roleType || '', portraitUrl: m.portraitUrl || '', selected: true,
+        setLibMatches((data.libraryMatches || []).map((m) => ({
+          id: m.id ?? '', name: m.name ?? '', roleType: m.roleType || '', portraitUrl: m.portraitUrl || '', selected: true,
         })))
         setNewCharsChapter(data.chapterNum || 0)
         setOpen(true)
@@ -83,8 +91,8 @@ const NewCharactersModal: React.FC = () => {
             await syncProjectCharacters()
             message.success(`已关联 ${libSelected.length} 个角色库已有角色`)
           }
-        } catch (err: any) {
-          message.error(err?.message || '添加失败')
+        } catch (err: unknown) {
+          message.error(err instanceof Error ? err.message : '添加失败')
         } finally {
           setAdding(false)
           setOpen(false)

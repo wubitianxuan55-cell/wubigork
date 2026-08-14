@@ -23,6 +23,47 @@ interface Options {
   onReply?: (text: string) => void
 }
 
+// ── 事件载荷最小类型（后端 voice:* 事件动态 JSON） ──
+interface VoiceStateEvent { state: string }
+interface VoiceTranscriptEvent { text?: string; isFinal?: boolean }
+interface VoiceReplyEvent { text?: string }
+interface VoiceTTSAudioEvent { audio?: string | Uint8Array | ArrayLike<number>; mimeType?: string }
+interface VoiceActiveEvent { active?: boolean }
+
+// ── Web Speech API 最小接口（lib.dom 未内置 SpeechRecognition） ──
+interface SpeechRecognitionResultItem {
+  isFinal: boolean
+  0: { transcript: string }
+}
+interface SpeechRecognitionResultEventLike {
+  resultIndex: number
+  results: ArrayLike<SpeechRecognitionResultItem | null>
+}
+interface SpeechRecognitionErrorEventLike {
+  error?: string
+}
+interface SpeechRecognitionLike {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  maxAlternatives: number
+  start(): void
+  stop(): void
+  onresult: ((e: SpeechRecognitionResultEventLike) => void) | null
+  onerror: ((e: SpeechRecognitionErrorEventLike) => void) | null
+  onend: (() => void) | null
+}
+
+/** 取浏览器 SpeechRecognition 构造器（标准/WebKit 前缀，缺失返回 undefined） */
+function speechRecognitionCtor(): (new () => SpeechRecognitionLike) | undefined {
+  if (typeof window === 'undefined') return undefined
+  const w = window as unknown as {
+    SpeechRecognition?: new () => SpeechRecognitionLike
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike
+  }
+  return w.SpeechRecognition || w.webkitSpeechRecognition
+}
+
 // ── 音频常量（对齐后端 voice_config.go） ──
 
 const SAMPLE_RATE = 16000
@@ -31,7 +72,7 @@ const CHUNK_SIZE = SAMPLE_RATE * 2 * CHUNK_MS / 1000 // 6400 bytes
 
 // 浏览器端自带语音识别（WebView2 / Edge 内核，微软云端识别），
 // 免去后端 ASR 模型，识别更快。
-const browserASRAvailable = typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+const browserASRAvailable = !!speechRecognitionCtor()
 
 export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const [state, setState] = useState<VoiceChatState>({
@@ -47,7 +88,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const gainRef = useRef<GainNode | null>(null)
   const abortRef = useRef(false)
   const pttRef = useRef(false)
-  const recognitionRef = useRef<any>(null)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const recognitionActiveRef = useRef(false)
   const pendingSpeechRef = useRef(0)
   const volSmoothRef = useRef(0)
@@ -72,9 +113,9 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     const unsubs: (() => void)[] = []
 
     // 状态变更
-    unsubs.push(EventsOn('voice:state', (data: any) => {
+    unsubs.push(EventsOn('voice:state', (data: VoiceStateEvent) => {
       if (abortRef.current) return
-      const s = data.state as string
+      const s = data.state
       setState2({
         listening: s === 'listening',
         aiSpeaking: s === 'thinking' || s === 'speaking',
@@ -83,7 +124,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     }))
 
     // 识别结果
-    unsubs.push(EventsOn('voice:transcript', (data: any) => {
+    unsubs.push(EventsOn('voice:transcript', (data: VoiceTranscriptEvent) => {
       if (abortRef.current) return
       const text = data.text || ''
       const isFinal = data.isFinal ?? false
@@ -99,19 +140,19 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     }))
 
     // AI 回复（文本）
-    unsubs.push(EventsOn('voice:reply', (data: any) => {
+    unsubs.push(EventsOn('voice:reply', (data: VoiceReplyEvent) => {
       if (abortRef.current) return
       const text = data.text || ''
       if (text) onReply?.(text)
     }))
 
     // TTS 音频播放
-    unsubs.push(EventsOn('voice:tts-audio', async (data: any) => {
+    unsubs.push(EventsOn('voice:tts-audio', async (data: VoiceTTSAudioEvent) => {
       if (abortRef.current) return
       pendingSpeechRef.current += 1
       setState2({ aiSpeaking: true })
       try {
-        await playAudio(data.audio, data.mimeType)
+        await playAudio(data.audio as string | Uint8Array | ArrayLike<number>, data.mimeType || 'audio/mp3')
       } catch (err) {
         console.error('[Voice] TTS 播放失败:', err)
         pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
@@ -120,7 +161,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     }))
 
     // 浏览器 TTS fallback
-    unsubs.push(EventsOn('voice:tts-speak-text', (data: any) => {
+    unsubs.push(EventsOn('voice:tts-speak-text', (data: VoiceReplyEvent) => {
       if (abortRef.current) return
       const text = data.text || ''
       if (text && 'speechSynthesis' in window) {
@@ -150,13 +191,13 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     }))
 
     // 监听指示
-    unsubs.push(EventsOn('voice:listening', (data: any) => {
+    unsubs.push(EventsOn('voice:listening', (data: VoiceActiveEvent) => {
       if (abortRef.current) return
       setState2({ listening: data.active ?? false })
     }))
 
     // 思考指示
-    unsubs.push(EventsOn('voice:thinking', (data: any) => {
+    unsubs.push(EventsOn('voice:thinking', (data: VoiceActiveEvent) => {
       if (abortRef.current) return
       setState2({ aiSpeaking: data.active ?? false })
     }))
@@ -168,7 +209,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
   // ── 音频播放 ──
 
-  const playAudio = useCallback(async (audioData: any, mimeType: string) => {
+  const playAudio = useCallback(async (audioData: string | Uint8Array | ArrayLike<number>, mimeType: string) => {
     if (!audioData) {
       pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
       if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
@@ -330,7 +371,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
   const startBrowserRecognition = useCallback(() => {
     if (!browserASRAvailable) return
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const SR = speechRecognitionCtor()
     if (!SR || recognitionActiveRef.current) return
     recognitionActiveRef.current = true
 
@@ -341,7 +382,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     rec.interimResults = true
     rec.maxAlternatives = 1
 
-    rec.onresult = (e: any) => {
+    rec.onresult = (e: SpeechRecognitionResultEventLike) => {
       if (abortRef.current) return
       let interim = ''
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -360,7 +401,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       setState2(s => ({ ...s, transcript: interim }))
     }
 
-    rec.onerror = (e: any) => {
+    rec.onerror = (e: SpeechRecognitionErrorEventLike) => {
       console.warn('[Voice] 浏览器识别错误:', e?.error)
       if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
         setState2({ error: '语音识别被拒绝（麦克风权限或服务不可用）' })
@@ -400,8 +441,8 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     // 启动后端语音管道（浏览器识别模式下后端仅负责对话与 TTS）
     try {
       await App.VoiceStart(browserASRAvailable)
-    } catch (err: any) {
-      setState2({ error: `语音启动失败: ${err?.message || err}` })
+    } catch (err: unknown) {
+      setState2({ error: `语音启动失败: ${err instanceof Error ? err.message : String(err)}` })
       return
     }
 

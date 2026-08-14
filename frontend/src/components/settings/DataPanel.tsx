@@ -42,20 +42,20 @@ export const DataPanel: React.FC = () => {
   const [info, setInfo] = useState<BackupInfo | null>(null)
   const [creating, setCreating] = useState(false)
   const [restoring, setRestoring] = useState(false)
-  const [restoreResult, setRestoreResult] = useState<any>(null)
+  const [restoreResult, setRestoreResult] = useState<Record<string, unknown> | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const res: any = await App.GaeaDataBackupInfo()
+      const res = await App.GaeaDataBackupInfo()
       // #17：entries 必须为数组，否则渲染 .some 会崩溃
       if (res && typeof res.data_root === 'string' && Array.isArray(res.entries)) {
         setInfo(res as BackupInfo)
       } else if (res) {
-        setInfo({ ...(res as any), entries: [] } as BackupInfo)
+        setInfo({ ...res, entries: [] } as BackupInfo)
       }
     } catch { /* 后端未就绪 */ }
     try {
-      const rr: any = await App.GaeaDataBackupRestoreResult()
+      const rr = await App.GaeaDataBackupRestoreResult()
       if (rr?.has_result) setRestoreResult(rr)
     } catch { /* 忽略 */ }
   }, [])
@@ -67,11 +67,11 @@ export const DataPanel: React.FC = () => {
     try {
       const destDir: string = await App.GaeaPickDirectory()
       if (!destDir) return // 用户取消
-      const res: any = await App.GaeaDataBackupCreate(destDir)
+      const res = await App.GaeaDataBackupCreate(destDir)
       message.success(`备份完成：${res.zip_path}（${fmtSize(res.total_bytes)}）`)
       await load()
-    } catch (err: any) {
-      message.error(err?.message || '备份失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '备份失败')
     } finally {
       setCreating(false)
     }
@@ -88,11 +88,11 @@ export const DataPanel: React.FC = () => {
         message.warning('请选择 gaea 备份文件（.zip）')
         return
       }
-      const res: any = await App.GaeaDataBackupRestore(zip.path)
+      const res = await App.GaeaDataBackupRestore(zip.path)
       message.success(`恢复包已就绪（${res.zip_name}）。请重启 gaea 完成恢复——重启时会先自动备份当前数据。`)
       await load()
-    } catch (err: any) {
-      message.error(err?.message || '恢复失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '恢复失败')
     } finally {
       setRestoring(false)
     }
@@ -103,8 +103,8 @@ export const DataPanel: React.FC = () => {
       await App.GaeaDataBackupCancel()
       message.success('已取消待应用恢复')
       await load()
-    } catch (err: any) {
-      message.error(err?.message || '取消失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '取消失败')
     }
   }
 
@@ -113,8 +113,8 @@ export const DataPanel: React.FC = () => {
       const done: boolean = await App.GaeaDataBackupRollback()
       message.success(done ? '已回滚到恢复前数据' : '没有可回滚的恢复前备份')
       await load()
-    } catch (err: any) {
-      message.error(err?.message || '回滚失败')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '回滚失败')
     }
   }
 

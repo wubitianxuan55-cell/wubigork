@@ -180,10 +180,10 @@ export function BindSection() {
                 getPopupContainer={popupContainer}
                 onChange={async (v: string) => {
                   try {
-                    await (App as any).VoiceApplySettings?.({ ttsVoice: v })
+                    await App.VoiceApplySettings?.({ ttsVoice: v })
                     message.success('音色已更新：' + v)
-                  } catch (err: any) {
-                    message.error(err?.message || '音色更新失败')
+                  } catch (err: unknown) {
+                    message.error(err instanceof Error ? err.message : '音色更新失败')
                   }
                   setVoiceCfg(p => ({ ...p, tts: { ...p.tts, voice: v } }))
                 }}

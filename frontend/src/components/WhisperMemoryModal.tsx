@@ -4,8 +4,8 @@ import { Input, Button, Modal, Tag, Select, Tooltip, message, Popconfirm } from 
 import { SearchOutlined, DeleteOutlined, EditOutlined, CloseOutlined, CheckOutlined, StarFilled } from '@ant-design/icons'
 import * as App from '../../src/wailsjsCompat'
 
-interface EmotionalCtx { valence?: number; intensity?: number; trust?: number; relStage?: string }
-interface MemoryFact {
+export interface EmotionalCtx { valence?: number; intensity?: number; trust?: number; relStage?: string }
+export interface MemoryFact {
   id: string; domain: string; subcategory?: string; subject: string; summary: string
   weight: number; confidence: number; tier?: string; createdAt: string; updatedAt?: string
   triggers?: string[]; sensitivity?: string; privacyLevel?: string; emotionalContext?: EmotionalCtx
@@ -68,13 +68,13 @@ export default function WhisperMemoryModal({ facts, personalityID, onFactsChange
   const coreCount = facts.filter(f => f.tier === 'core').length
 
   const handleDelete = useCallback(async (id: string) => {
-    try { await App.WhisperDeleteFact(personalityID, id); message.success('Deleted'); if(onFactsChange) onFactsChange(facts.filter(f=>f.id!==id)) } catch(e:any){ message.error('Failed: '+e) }
+    try { await App.WhisperDeleteFact(personalityID, id); message.success('Deleted'); if(onFactsChange) onFactsChange(facts.filter(f=>f.id!==id)) } catch(e:unknown){ message.error('Failed: ' + (e instanceof Error ? e.message : String(e))) }
   }, [personalityID, facts, onFactsChange])
 
   const startEdit = useCallback((f: MemoryFact) => { setEditingId(f.id); setEditText(f.summary) }, [])
   const confirmEdit = useCallback(async () => {
     if (!editingId || !editText.trim()) return
-    try { await App.WhisperUpdateFact(personalityID, editingId, { summary: editText.trim() } as any); message.success('Updated'); if(onFactsChange) onFactsChange(facts.map(f=>f.id===editingId?{...f,summary:editText.trim()}:f)) } catch(e:any){ message.error('Failed: '+e) }
+    try { await App.WhisperUpdateFact(personalityID, editingId, { summary: editText.trim() } as Partial<MemoryFact>); message.success('Updated'); if(onFactsChange) onFactsChange(facts.map(f=>f.id===editingId?{...f,summary:editText.trim()}:f)) } catch(e:unknown){ message.error('Failed: ' + (e instanceof Error ? e.message : String(e))) }
     setEditingId(null)
   }, [editingId, editText, personalityID, facts, onFactsChange])
 

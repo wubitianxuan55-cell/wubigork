@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Button, Space, Switch, Tag, Typography, message } from 'antd'
 import { ReloadOutlined, SafetyCertificateOutlined, LockOutlined, BugOutlined } from '@ant-design/icons'
 import SettingsSection from './SettingsSection'
+import type { AppFacade } from '../../types/wails'
 
 /**
  * SecurityPanel — 安全设置（阶段 2 安全收敛 S2-1 / S2-2 / S2-4）
@@ -22,6 +23,7 @@ interface LanExposure {
 }
 
 export const SecurityPanel: React.FC = () => {
+  const go = window.go?.app?.App as AppFacade
   const [sensitiveLocal, setSensitiveLocal] = useState<boolean>(true)
   const [sensitiveLoading, setSensitiveLoading] = useState(true)
   const [exposure, setExposure] = useState<LanExposure | null>(null)
@@ -29,7 +31,6 @@ export const SecurityPanel: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const go = (window as any).go?.app?.App
       // S2-4：敏感域本地化开关（后端 GetSensitiveLocal/SetSensitiveLocal）
       if (typeof go?.GetSensitiveLocal === 'function') {
         setSensitiveLocal(!!(await go.GetSensitiveLocal()))
@@ -47,18 +48,18 @@ export const SecurityPanel: React.FC = () => {
     const prev = sensitiveLocal
     setSensitiveLocal(v)
     try {
-      await (window as any).go?.app?.App?.SetSensitiveLocal?.(v)
+      await go?.SetSensitiveLocal?.(v)
       message.success(v ? '敏感域 AI 已改为本地优先（数据不出本机）' : '敏感域 AI 已改为常规路由（可回云端）')
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSensitiveLocal(prev)
-      message.error(err?.message || '保存失败')
+      message.error(err instanceof Error ? err.message : '保存失败')
     }
   }
 
   const check = useCallback(async () => {
     setChecking(true)
     try {
-      const res: LanExposure | undefined = await (window as any).go?.app?.App?.HerdsmanSecurityCheck?.()
+      const res: LanExposure | undefined = await go?.HerdsmanSecurityCheck?.()
       if (res) setExposure(res)
     } catch {
       setExposure(null)

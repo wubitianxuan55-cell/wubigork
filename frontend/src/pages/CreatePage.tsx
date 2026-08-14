@@ -60,8 +60,8 @@ const CreatePage: React.FC = () => {
   // 创作统计（章节数 / 总字数）
   const refreshStats = useCallback(async () => {
     try {
-      const s: any = await App.GetStats()
-      if (s) setStats(s)
+      const s = await App.GetStats()
+      if (s) setStats(s as { totalWords: number; chapterCount: number })
     } catch { /* 统计失败不阻塞创作 */ }
   }, [])
 
@@ -77,8 +77,8 @@ const CreatePage: React.FC = () => {
     const requestedPath = useAppStore.getState().projectPath
     setActiveId(node.id); setChapterLoading(true)
     try {
-      const branch = (node as any).branch || ''
-      const result = await App.GetChapterBranch(node.order_index || 1, branch) as any
+      const branch = node.branch || ''
+      const result = await App.GetChapterBranch(node.order_index || 1, branch)
       if (token === chapterLoadToken.current && requestedPath === useAppStore.getState().projectPath) setContent(result?.content || '')
     } catch {
       if (token === chapterLoadToken.current && requestedPath === useAppStore.getState().projectPath) setContent('')
@@ -96,8 +96,8 @@ const CreatePage: React.FC = () => {
     const freshSetting = await refreshSetting()
     const prevSummary = prevChapter > 0 ? buildPrevSummary(outlines, prevChapter) : ''
     const res = await App.QuickBrainstormBranches(freshSetting, prevSummary || '')
-    const list = (res as any)?.branches || []
-    return list.map((b: any) => ({ title: b.title, pitch: b.summary }))
+    const list = res?.branches || []
+    return list.map((b: { title?: string; summary?: string }) => ({ title: b.title ?? '', pitch: b.summary ?? '' }))
   }, [refreshSetting, outlines])
 
   // 流式生成收尾：三路终态（done/error/cancelled）与停止兜底共用
@@ -136,7 +136,7 @@ const CreatePage: React.FC = () => {
             message.success(`${branch ? `第${chNum}${branch}章` : `第${chNum}章`} 生成完成（${(ev.total || 0).toLocaleString()} 字）`)
             refreshStats()
             loadOutlines().then(() => {
-              const ch = useOutlineStore.getState().outlines.find(n => n.order_index === chNum && (n as any).branch === branch)
+              const ch = useOutlineStore.getState().outlines.find(n => n.order_index === chNum && n.branch === branch)
               if (ch) setActiveId(ch.id)
             })
             break
@@ -165,20 +165,20 @@ const CreatePage: React.FC = () => {
       if (!freshSetting.trim()) { throw new Error('小说设定为空，请先在「设定」页填写世界观') }
       const result = await App.CreateChapter(freshSetting, '', plotReq, overwriteChapter, branchFromID, selectedSkill || '', minWords, temperature)
       // 预创建节点已由后端同步完成，立即激活；记录章节号供停止按钮
-      const nodeId = (result as any)?.nodeId
-      const chapNum = (result as any)?.chapterNum
-      streamTargetRef.current = { chapterNum: chapNum || 0, branch: (result as any)?.branch || '' }
+      const nodeId = result?.nodeId
+      const chapNum = result?.chapterNum
+      streamTargetRef.current = { chapterNum: chapNum || 0, branch: result?.branch || '' }
       if (nodeId) {
         const store = useOutlineStore.getState()
         if (!store.outlines.find(n => n.id === nodeId)) {
-          store.setOutlines([...store.outlines, { id: nodeId, order_index: chapNum, title: `第${chapNum}章`, status: 'writing', parent_id: '', summary: '' } as any])
+          store.setOutlines([...store.outlines, { id: nodeId, order_index: chapNum, title: `第${chapNum}章`, status: 'writing', parent_id: '', summary: '' } as OutlineNode])
         }
         setActiveId(nodeId)
         setContent('')
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       finishStream()
-      message.error(err?.message || '生成失败')
+      message.error(err instanceof Error ? err.message : '生成失败')
     }
   }
 
@@ -195,9 +195,9 @@ const CreatePage: React.FC = () => {
       const cancelled = await novelBridge.CancelCreateChapter(chapterNum, branch)
       if (cancelled) { setGenPhase('正在停止…') } // 随后收到 cancelled 事件收尾（保留部分正文）
       else { finishStream(); message.info('生成已结束') } // 幂等 false：本地兜底，避免 UI 悬挂
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStopping(false)
-      message.error(err?.message || '取消失败')
+      message.error(err instanceof Error ? err.message : '取消失败')
     }
   }
 
@@ -222,7 +222,7 @@ const CreatePage: React.FC = () => {
       if (activeId === node.id) { setActiveId(''); setContent('') }
       await loadOutlines(); refreshStats()
       message.success('已删除')
-    } catch (err: any) { message.error(err?.message || '失败') }
+    } catch (err: unknown) { message.error(err instanceof Error ? err.message : '失败') }
   }
 
   const handleRegenerate = (node: OutlineNode) => openWizard((node.order_index || 1) - 1, node.order_index || 1)
@@ -232,10 +232,10 @@ const CreatePage: React.FC = () => {
     if (!node || !content.trim()) return
     setSaving(true)
     try {
-      const branch = (node as any).branch || ''
+      const branch = node.branch || ''
       await App.SaveChapterBranchContent(node.order_index || 1, branch, content)
       message.success('已保存')
-    } catch (err: any) { message.error(err?.message || '失败') }
+    } catch (err: unknown) { message.error(err instanceof Error ? err.message : '失败') }
     finally { setSaving(false) }
   }
 

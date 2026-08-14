@@ -4,13 +4,14 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Modal, Tabs, Tag, Button } from 'antd'
 import { HeartOutlined, InboxOutlined, RadarChartOutlined } from '@ant-design/icons'
 import * as App from '../../../src/wailsjsCompat'
-import type { characterlib } from '../../../wailsjs/go/models'
+import type { characterlib, whisper } from '../../../wailsjs/go/models'
 import { C } from '../../utils/theme'
 import { WhisperEmotionPanel } from '../WhisperEmotionPanel'
 import WhisperDesirePanel from '../WhisperDesirePanel'
 import WhisperTracePanel from '../WhisperTracePanel'
 import WhisperMemoryList from '../WhisperMemoryList'
 import WhisperMemoryModal from '../WhisperMemoryModal'
+import type { MemoryFact } from '../WhisperMemoryModal'
 
 interface Props {
   open: boolean
@@ -19,9 +20,9 @@ interface Props {
 }
 
 const CharacterMemoryModal: React.FC<Props> = ({ open, character, onClose }) => {
-  const [state, setState] = useState<Record<string, any>>({})
-  const [facts, setFacts] = useState<any[]>([])
-  const [traces, setTraces] = useState<any[]>([])
+  const [state, setState] = useState<Record<string, unknown>>({})
+  const [facts, setFacts] = useState<MemoryFact[]>([])
+  const [traces, setTraces] = useState<whisper.TurnTrace[]>([])
   const [manageOpen, setManageOpen] = useState(false)
 
   const load = useCallback(async () => {
@@ -29,11 +30,11 @@ const CharacterMemoryModal: React.FC<Props> = ({ open, character, onClose }) => 
     setState({}); setFacts([]); setTraces([])
     try {
       const s = await App.WhisperGetState(character.id)
-      setState((s as Record<string, any>) || {})
+      setState((s as Record<string, unknown>) || {})
     } catch (_) {}
     try {
       const f = await App.WhisperGetFacts(character.id)
-      setFacts(Array.isArray(f) ? f : [])
+      setFacts((Array.isArray(f) ? f : []) as MemoryFact[])
     } catch (_) {}
     try {
       const t = await App.WhisperGetTraces(character.id)
@@ -47,11 +48,11 @@ const CharacterMemoryModal: React.FC<Props> = ({ open, character, onClose }) => 
 
   if (!character) return null
 
-  const rel = state?.relationship || {}
-  const emo = state?.emotion || {}
-  const personality = state?.personality || {}
-  const desireSlots = state?.desireStack?.slots || []
-  const totalTurns = state?.totalTurns || 0
+  const rel = (state?.relationship || {}) as { stage: string; trust: number; rifts: number }
+  const emo = (state?.emotion || {}) as { label: string; aff: number; sec: number; aro: number; dom: number }
+  const personality = (state?.personality || {}) as { T: number; I: number; S: number; O: number; R: number }
+  const desireSlots = ((state?.desireStack as { slots?: Array<{ id: string; topic: string; category: string; urgency: number; status: string } | null> } | undefined)?.slots) || []
+  const totalTurns = (state?.totalTurns as number) || 0
 
   return (
     <>
