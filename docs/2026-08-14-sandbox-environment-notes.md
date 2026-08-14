@@ -76,6 +76,11 @@
 - npm 缓存写 AppData 也可能被拒：`$env:npm_config_cache = 'C:\AI\wubigrok\.tmp\npmcache'`。
 - 版本资源：Wails 用 `build/windows/info.json`（模板）从 wails.json 生成版本信息；
   `fixed` 段需显式写 `product_version`，否则 exe 的 ProductVersion 为 0.0.0.0（FileVersion 正常）。
+  **v2.20.0 实测（2026-08-14）**：本机 `windres` 不可用（where.exe 找不到），
+  Wails 会静默跳过 VERSIONINFO 资源——无论 `wails build` 还是 `wails build -s` 产出的 exe
+  `[System.Diagnostics.FileVersionInfo]::GetVersionInfo(...)` 全部为空（FileVersion/ProductVersion 均空，
+  v2.19.0 及更早同样如此，非本版回归）。运行不受影响，仅文件属性无版本信息。要恢复需安装
+  MinGW-w64（含 windres）或改用 `github.com/akavel/rsrc` 手动生成 .syso 嵌入。
 - 根目录 `versioninfo.rc` 是遗留物，不影响构建（版本来自 info.json 模板），但发布流程中应与
   wails.json 同步更新以免误导。
 
