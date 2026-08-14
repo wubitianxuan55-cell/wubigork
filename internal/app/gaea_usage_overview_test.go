@@ -68,6 +68,60 @@ func TestBuildUsageOverview_NoEventsFallback(t *testing.T) {
 	}
 }
 
+// TestBuildUsageOverview_CacheHitRate 云端/本地拆分携带缓存命中 token：
+// 命中率 = hit/(hit+miss)；全局口径 = 云端 + 本地（gaea 侧记录）。
+func TestBuildUsageOverview_CacheHitRate(t *testing.T) {
+	gaeaStats := modelengine.ModelStatsSummary{
+		TotalCost: 1.0,
+		PerModel: []modelengine.ModelUsageStats{
+			{EngineID: "deepseek", Model: "deepseek-v4-flash", CallCount: 2, SuccessCount: 2,
+				InputTokens: 1_000, OutputTokens: 100, TotalTokens: 1_100,
+				CacheHitTokens: 600, CacheMissTokens: 400},
+			{EngineID: "xai", Model: "grok-4.20", CallCount: 1, SuccessCount: 1,
+				InputTokens: 200, OutputTokens: 20, TotalTokens: 220,
+				CacheHitTokens: 50, CacheMissTokens: 150},
+			{EngineID: "ollama", Model: "qwen2.5", CallCount: 1, SuccessCount: 1,
+				InputTokens: 100, OutputTokens: 10, TotalTokens: 110,
+				CacheHitTokens: 90, CacheMissTokens: 10},
+		},
+	}
+	o := buildUsageOverview(gaeaStats, HerdsmanModelStats{})
+	if o.Cloud.CacheHitTokens != 650 || o.Cloud.CacheMissTokens != 550 {
+		t.Fatalf("cloud cache = %d/%d, want 650/550", o.Cloud.CacheHitTokens, o.Cloud.CacheMissTokens)
+	}
+	if o.Local.CacheHitTokens != 90 || o.Local.CacheMissTokens != 10 {
+		t.Fatalf("local cache = %d/%d, want 90/10", o.Local.CacheHitTokens, o.Local.CacheMissTokens)
+	}
+	// 全局命中率 = (600+50+90)/((600+50+90)+(400+150+10)) = 740/1300
+	if o.CacheHitTokens != 740 || o.CacheMissTokens != 560 {
+		t.Fatalf("global cache = %d/%d, want 740/560", o.CacheHitTokens, o.CacheMissTokens)
+	}
+	want := 740.0 / 1300.0
+	if math.Abs(o.CacheHitRate-want) > 1e-9 {
+		t.Fatalf("CacheHitRate = %v, want %v", o.CacheHitRate, want)
+	}
+}
+
+// TestBuildUsageOverview_CacheHitRateNoData 无任何缓存数据时命中率为 0
+// （分母为 0 不 panic、不产生脏数据）。
+func TestBuildUsageOverview_CacheHitRateNoData(t *testing.T) {
+	gaeaStats := modelengine.ModelStatsSummary{
+		TotalCost: 1.0,
+		PerModel: []modelengine.ModelUsageStats{
+			{EngineID: "deepseek", Model: "deepseek-v4-flash", CallCount: 1, SuccessCount: 1,
+				InputTokens: 100, OutputTokens: 10, TotalTokens: 110},
+		},
+	}
+	o := buildUsageOverview(gaeaStats, HerdsmanModelStats{})
+	if o.CacheHitTokens != 0 || o.CacheMissTokens != 0 || o.CacheHitRate != 0 {
+		t.Fatalf("no-data cache = %d/%d rate %v, want 0/0/0",
+			o.CacheHitTokens, o.CacheMissTokens, o.CacheHitRate)
+	}
+	if o.Cloud.CacheHitTokens != 0 || o.Cloud.CacheMissTokens != 0 {
+		t.Fatalf("cloud cache = %d/%d, want 0/0", o.Cloud.CacheHitTokens, o.Cloud.CacheMissTokens)
+	}
+}
+
 // TestBuildUsageOverview_CloudOnly 只有云端用量：本地为空，节省为 0。
 func TestBuildUsageOverview_CloudOnly(t *testing.T) {
 	gaeaStats := modelengine.ModelStatsSummary{

@@ -34,6 +34,7 @@ import { OverviewSection } from './modelcenter/OverviewSection'
 import { ResourceMonitor } from './modelcenter/ResourceMonitor'
 import { HerdsmanCatalogSection } from './modelcenter/HerdsmanCatalogSection'
 import { BenchmarkSection } from './modelcenter/BenchmarkSection'
+import { SchedulingSection } from './modelcenter/SchedulingSection'
 import './modelcenter/modelcenter.css'
 import {
   FEATURES, XAI_VOICES, imageModelOptionsFor, kindOf, localTTSDefaultVoice, localTTSFallbackVoices, engineLabel,
@@ -722,7 +723,12 @@ const ModelCenterPage: React.FC = () => {
         {category === 'specialty' && <SpecialtySection />}
         {category === 'catalog' && <HerdsmanCatalogSection />}
         {category === 'benchmark' && <BenchmarkSection />}
-        {category === 'engine' && <EngineSection />}
+        {category === 'engine' && (
+          <>
+            <SchedulingSection />
+            <EngineSection />
+          </>
+        )}
         {category === 'bind' && <BindSection />}
         <Drawer
           title="模型调用统计"

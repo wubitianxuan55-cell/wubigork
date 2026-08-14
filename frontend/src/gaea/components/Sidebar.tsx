@@ -52,6 +52,11 @@ const FACT_OPEN_KEY = "gaea.sidebar.factBaseOpen";
 const PROJECTS_OPEN_KEY = "gaea.sidebar.projectsOpen";
 const PER_PROJECT_PAGE = 8;
 
+// 过渡期：SessionMeta.interrupted 由契约层子代理统一补充（后端列表接口新增字段），
+// 此处以内联类型断言读取；契约层补齐字段定义后可移除断言。
+const isInterruptedSession = (s: SessionMeta): boolean =>
+  (s as SessionMeta & { interrupted?: boolean }).interrupted === true;
+
 export function Sidebar({
   collapsed,
   toggleSidebar,
@@ -183,6 +188,14 @@ export function Sidebar({
                 >
                   {sessionTitle(session, t("history.emptySession"))}
                 </span>
+                {isInterruptedSession(session) && (
+                  <span
+                    className="shrink-0 self-center rounded-full bg-warning/15 px-1.5 py-px text-[10px] leading-[1.5] font-medium text-warning"
+                    title="上次运行中断，恢复后会自动带上进度摘要"
+                  >
+                    未完成
+                  </span>
+                )}
                 {session.hasRequirement && (
                   session.requirementDone ? (
                     <Check size={10} className="shrink-0 text-ok" aria-label="任务已验收" />
@@ -333,6 +346,14 @@ export function Sidebar({
                             ) : (
                               <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent" />
                             )
+                          )}
+                          {isInterruptedSession(s) && (
+                            <span
+                              className="shrink-0 rounded-full bg-warning/15 px-1.5 py-px text-[10px] leading-[1.5] font-medium text-warning"
+                              title="上次运行中断，恢复后会自动带上进度摘要"
+                            >
+                              未完成
+                            </span>
                           )}
                           <span className="shrink-0 text-fg-faint/50 font-mono text-[10px]">{relativeTime(s.modTime)}</span>
                         </button>

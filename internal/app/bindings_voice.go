@@ -50,6 +50,8 @@ func (b *VoiceB) WhisperSetAdultMode(personalityID string, enabled bool) error {
 func (b *VoiceB) WhisperSetEngine(engineID string) error { return b.a.WhisperSetEngine(engineID) }
 func (b *VoiceB) WhisperSetImageModel(modelName string) error { return b.a.WhisperSetImageModel(modelName) }
 func (b *VoiceB) WhisperSetModel(engineID string, modelName string) error { return b.a.WhisperSetModel(engineID, modelName) }
+func (b *VoiceB) WhisperTaskPlanResume() bool { return b.a.WhisperTaskPlanResume() }
+func (b *VoiceB) WhisperTaskPlanStatus() map[string]interface{} { return b.a.WhisperTaskPlanStatus() }
 func (b *VoiceB) WhisperUpdateFact(personalityID string, factID string, updates map[string]interface{}) error { return b.a.WhisperUpdateFact(personalityID, factID, updates) }
 func (b *VoiceB) WhisperWebSearch(query string) (map[string]interface{}, error) { return b.a.WhisperWebSearch(query) }
 func (b *VoiceB) WhisperWeixinGetQR() (map[string]interface{}, error) { return b.a.WhisperWeixinGetQR() }

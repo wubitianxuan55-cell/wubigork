@@ -74,6 +74,7 @@ import type {
   FileIndexStatus,
   FileSemanticHit,
   TaskView,
+  ModelSwitchEstimate,
 } from "./types";
 
 // AppBindings mirrors desktop/app.go's exported method set. Keep in sync by hand
@@ -363,6 +364,18 @@ export interface AppBindings {
   TaskList(): Promise<TaskView[]>;
   TaskCancel(id: string): Promise<void>;
   TaskRetry(id: string): Promise<void>;
+  // ── 阶段 5 T5-3 本地模型调度纵深 ──
+  // KeepWarmGet/KeepWarmSet 保活开关：空闲时定期轻量探测，防止本地模型被卸载
+  // （~/.gaea_config.json 持久化，重启后仍生效）。
+  KeepWarmGet(): Promise<boolean>;
+  KeepWarmSet(enabled: boolean): Promise<void>;
+  // PreloadPlanGet/PreloadPlanSet 启动自动预载开关：启动时后台预载常用本地模型，
+  // 减少首次对话等待。
+  PreloadPlanGet(): Promise<boolean>;
+  PreloadPlanSet(enabled: boolean): Promise<void>;
+  // ModelSwitchEstimate 换模预估：目标本地模型 hot/cold/download/unknown，
+  // 前端在非 hot 时提示预计等待秒数并让用户确认是否继续切换。
+  ModelSwitchEstimate(engineID: string): Promise<ModelSwitchEstimate>;
 }
 
 // Window 类型由 gaea 的 src/types/wails.d.ts 统一声明（go.app.App + runtime）。
@@ -614,6 +627,11 @@ const gaeaToGaea: Record<string, string> = {
   KnowledgeSave: "GaeaKnowledgeSave",
   KnowledgeDelete: "GaeaKnowledgeDelete",
   PickFiles: "GaeaPickFiles",
+  KeepWarmGet: "GaeaKeepWarmGet",
+  KeepWarmSet: "GaeaKeepWarmSet",
+  PreloadPlanGet: "GaeaPreloadPlanGet",
+  PreloadPlanSet: "GaeaPreloadPlanSet",
+  ModelSwitchEstimate: "GaeaModelSwitchEstimate",
 };
 
 // app proxies each call to the live binding (or the dev mock only when truly

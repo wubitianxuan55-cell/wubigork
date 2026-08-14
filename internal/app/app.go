@@ -168,6 +168,21 @@ type officeState struct {
 
 	// 阶段 5 T5-2：工作区实时文件监听（fsnotify 增量索引，失败回退轮询）。
 	fileWatch *filewatch.Watcher
+
+	// 阶段 5 T5-3a：本地模型保活（keep-warm）。每 5 分钟一轮，对 catalog 中
+	// Running 的 herdsman 模型发轻量探针，防止空闲卸载/降温。开关
+	// keep_warm_enabled 关闭时整轮跳过；只探不启（local_concurrency=1）。
+	keepWarmStop     chan struct{}
+	keepWarmOnce     sync.Once
+	keepWarmStopOnce sync.Once
+
+	// keepAliveAt 各模型最近一次成功探针时间（内存态，重启即失；供诊断/展示）。
+	keepAliveMu sync.RWMutex
+	keepAliveAt map[string]string
+
+	// 阶段 5 T5-3b：启动自动预载（auto_preload）。Startup 后延迟 10s，按功能
+	// 绑定 gaea→office→chat 预载一个已安装且未运行的 herdsman 模型。
+	preloadOnce sync.Once
 }
 
 // App Wails 应用实例 — 聚合各域子服务，方法经嵌入提升到 App 供前端绑定。
@@ -311,6 +326,10 @@ func (a *App) Startup(ctx context.Context) {
 
 	// 阶段 5 T5-1：通用任务调度器（价格抓取/文件索引等长任务统一异步化）。
 	a.startTaskScheduler()
+	// 阶段 5 T5-3a/b：本地模型调度纵深——保活（keep-warm）+ 启动自动预载。
+	// 放在任务调度器之后装配（幂等；只探已 Running 模型 / 只预载一个，互不影响）。
+	a.startKeepWarm()
+	a.startAutoPreload()
 	// 价格源定时抓取调度：启动后立即检查一次，之后每 30 分钟按订阅频率轮询。
 	a.startPriceCron()
 	// 文件语义索引自动维护：启动后立即增量重建一次，之后每 10 分钟（实时监听
@@ -434,6 +453,12 @@ func (a *App) Shutdown(ctx context.Context) {
 	a.officeState.fileIndexStopOnce.Do(func() {
 		if a.officeState.fileIndexStop != nil {
 			close(a.officeState.fileIndexStop)
+		}
+	})
+	// 停止本地模型保活轮询（T5-3a）。
+	a.officeState.keepWarmStopOnce.Do(func() {
+		if a.officeState.keepWarmStop != nil {
+			close(a.officeState.keepWarmStop)
 		}
 	})
 	// 停止任务调度器（running 任务留待下次启动续跑）与文件监听。

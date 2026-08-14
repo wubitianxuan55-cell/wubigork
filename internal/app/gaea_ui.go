@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/agent"
+	"github.com/gaea/gaea/internal/gaea/agent/session"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/event"
@@ -50,6 +51,9 @@ type SessionMeta struct {
 	RequirementDone bool `json:"requirementDone"`
 	// Archived 为 true 表示会话在 <sessions>/archive/ 下（可恢复，不参与列表排序）。
 	Archived bool `json:"archived"`
+	// Interrupted 为 true 表示上次会话因崩溃/进程被杀未正常结束（state 文件
+	// 残留 running=true），前端据此展示「未完成」徽标。
+	Interrupted bool `json:"interrupted"`
 }
 
 // CheckpointMeta 是一个可回退点（用户回合）。
@@ -246,6 +250,9 @@ func (a *App) listSessionsForDir(dir string, cur string, includeNewFallback bool
 		}
 		base := filepath.Base(s.Path)
 		req := reqs[base]
+		// 中断标记：state 文件残留 running=true 说明上次会话未正常结束。
+		// 状态文件很小，会话数在 50 以内全读没有开销问题。
+		st, _ := session.LoadState(session.StatePath(s.Path))
 		out = append(out, SessionMeta{
 			Path:            s.Path,
 			Preview:         s.Preview,
@@ -256,6 +263,7 @@ func (a *App) listSessionsForDir(dir string, cur string, includeNewFallback bool
 			Pinned:          pinned[base],
 			HasRequirement:  req.Text != "",
 			RequirementDone: req.Done,
+			Interrupted:     st.Running,
 		})
 	}
 	if cur != "" && !curFound && includeNewFallback {
@@ -285,6 +293,7 @@ func (a *App) archivedSessionsForDir(dir string) []SessionMeta {
 	out := make([]SessionMeta, 0, len(infos))
 	for _, s := range infos {
 		req := reqs[filepath.Base(s.Path)]
+		st, _ := session.LoadState(session.StatePath(s.Path))
 		out = append(out, SessionMeta{
 			Path:            s.Path,
 			Preview:         s.Preview,
@@ -294,6 +303,7 @@ func (a *App) archivedSessionsForDir(dir string) []SessionMeta {
 			Archived:        true,
 			HasRequirement:  req.Text != "",
 			RequirementDone: req.Done,
+			Interrupted:     st.Running,
 		})
 	}
 	return out
@@ -495,10 +505,59 @@ func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 中断恢复：上次进程崩溃/被杀时 state 残留 running=true，向消息末尾
+	// 追加一条 system 摘要让模型先总结进度再继续，并清除标记避免重复提示。
+	injectInterruption(loaded, path)
 	_ = c.Snapshot() // 切换前持久化当前会话
 	c.Resume(loaded, path)
 	c.SeedContextUsage() // 恢复后上下文读数立即反映该会话，而非 0
 	return a.GaeaHistory(), nil
+}
+
+// injectInterruption 检查会话的中断状态（state 文件残留 running=true）。
+// 若上次会话未完成，则在消息末尾追加一条中断摘要 system 消息，并清除
+// state 文件；非中断会话不注入、不触碰 state 文件。
+func injectInterruption(s *agent.Session, path string) {
+	stPath := session.StatePath(path)
+	st, err := session.LoadState(stPath)
+	if err != nil || !st.Running {
+		return
+	}
+	loc := st.Summary
+	if loc == "" {
+		loc = lastUserPreview(s)
+	}
+	s.Messages = append(s.Messages, provider.Message{
+		Role:    provider.RoleSystem,
+		Content: interruptionMessage(loc),
+	})
+	_ = session.ClearState(stPath)
+}
+
+// interruptionMessage 构造恢复中断会话时注入的 system 消息。loc 为中断位置
+// （state 摘要或最后用户消息预览），为空时省略引号部分。
+func interruptionMessage(loc string) string {
+	loc = strings.TrimSpace(loc)
+	if loc == "" {
+		return "上次会话中断。请先简要总结已完成进度与当前状态，再继续原任务。"
+	}
+	return "上次会话在「" + loc + "」处中断。请先简要总结已完成进度与当前状态，再继续原任务。"
+}
+
+// lastUserPreview 返回会话中最后一条用户消息的文本（截断到 80 字符），
+// 作为 state 摘要为空时中断位置的回退。
+func lastUserPreview(s *agent.Session) string {
+	msgs := s.Snapshot()
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == provider.RoleUser && strings.TrimSpace(msgs[i].Content) != "" {
+			t := strings.TrimSpace(msgs[i].Content)
+			if r := []rune(t); len(r) > 80 {
+				return string(r[:77]) + "…"
+			}
+			return t
+		}
+	}
+	return ""
 }
 
 // resumeLastSession 自动恢复会话目录中最近一次有内容的会话。
@@ -514,6 +573,9 @@ func (a *App) resumeLastSession(ctrl *control.Controller) string {
 		slog.Warn("gaea: 自动恢复最近会话失败", "path", infos[0].Path, "error", err)
 		return ""
 	}
+	// 崩溃后重启的自动恢复同样注入中断摘要并清除 state 标记，
+	// 避免「未完成」徽标残留在当前正在对话的会话上。
+	injectInterruption(loaded, infos[0].Path)
 	ctrl.Resume(loaded, infos[0].Path)
 	ctrl.SeedContextUsage()
 	slog.Info("gaea: 已自动恢复最近会话", "path", infos[0].Path, "messages", len(loaded.Messages))

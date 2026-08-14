@@ -17,8 +17,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/agent"
+	"github.com/gaea/gaea/internal/gaea/agent/session"
 	"github.com/gaea/gaea/internal/gaea/billing"
 	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/command"
@@ -267,6 +269,27 @@ func (c *Controller) SendWithRaw(input, raw string) {
 func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) error {
 	c.maybeSessionStart(ctx)
 
+	// 会话中断标记（T5-4）：回合开始时写 running=true，回合正常结束
+	// （无论成功/失败/取消）由 defer 写回 running=false 与最后助手摘要；
+	// 若进程在回合中被杀/崩溃，running=true 残留即为「上次未完成」信号。
+	// 仅交互回合标记（runTurnWithRaw）；headless Run 路径不写状态。
+	if p := c.statePath(); p != "" {
+		if err := session.SaveState(p, session.SessionState{Running: true, UpdatedAt: time.Now().UnixMilli()}); err != nil {
+			slog.Warn("controller: mark session running", "path", p, "err", err)
+		}
+	}
+	defer func() {
+		if p := c.statePath(); p != "" {
+			if err := session.SaveState(p, session.SessionState{
+				Running:   false,
+				Summary:   truncateSummary(lastAssistantText(c.History())),
+				UpdatedAt: time.Now().UnixMilli(),
+			}); err != nil {
+				slog.Warn("controller: clear session running mark", "path", p, "err", err)
+			}
+		}
+	}()
+
 	// V3.0 Phase 5: ContextManager handles first-turn orchestration.
 
 	// V3.0 Phase 5: ContextManager handles first-turn orchestration.
@@ -326,6 +349,27 @@ func lastAssistantText(msgs []provider.Message) string {
 		}
 	}
 	return ""
+}
+
+// statePath 返回当前会话的中断状态文件路径。持久化不可用（未接会话目录）
+// 或执行器未构建时返回空串，调用方据此跳过状态读写。
+func (c *Controller) statePath() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.executor == nil || c.sessionPath == "" {
+		return ""
+	}
+	return session.StatePath(c.sessionPath)
+}
+
+// truncateSummary 将摘要截断到 240 字符（按 rune，兼容中文），
+// 避免把超长助手消息整体写进状态文件。
+func truncateSummary(s string) string {
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > 240 {
+		return string(r[:240])
+	}
+	return s
 }
 
 // Submit is the one-call entry for a simple frontend: it takes raw user input

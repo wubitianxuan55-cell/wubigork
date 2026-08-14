@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { LocaleProvider } from "../lib/i18n";
 import { ToastProvider } from "./Toast";
 import { Sidebar } from "./Sidebar";
-import type { ProjectGroup } from "../lib/types";
+import type { ProjectGroup, SessionMeta } from "../lib/types";
 
 vi.mock("../../components/FeatureModelBar", () => ({
   default: () => <div data-testid="feature-model" />,
@@ -23,7 +23,7 @@ const group: ProjectGroup = {
   ],
 };
 
-function renderSidebar() {
+function renderSidebar(groups: ProjectGroup[] = [group]) {
   const callbacks = {
     toggleSidebar: vi.fn(),
     onClearFactBase: vi.fn(),
@@ -56,7 +56,7 @@ function renderSidebar() {
           onClearFactBase={callbacks.onClearFactBase}
           onPromoteFactBase={callbacks.onPromoteFactBase}
           newSessionAndReset={callbacks.newSessionAndReset}
-          projectGroups={[group]}
+          projectGroups={groups}
           searchQuery=""
           onSearchChange={callbacks.onSearchChange}
           onResumeSessionInProject={callbacks.onResumeSessionInProject}
@@ -102,5 +102,26 @@ describe("Sidebar 项目分组与会话操作", () => {
     const restore = screen.getByTitle("恢复");
     fireEvent.click(restore);
     expect(c.onRestoreSession).toHaveBeenCalledWith("/ws/archive/a.jsonl", "/ws");
+  });
+
+  it("interrupted 会话显示「未完成」徽标与提示", () => {
+    // 过渡期：SessionMeta.interrupted 由契约层子代理补充，mock 数据用类型断言过渡
+    const interruptedGroup: ProjectGroup = {
+      path: "/ws",
+      name: "ws",
+      current: true,
+      modTime: 20,
+      sessions: [
+        { path: "/ws/int.jsonl", preview: "中断预览", turns: 1, modTime: 20, current: false, interrupted: true } as SessionMeta,
+        { path: "/ws/norm.jsonl", preview: "正常预览", turns: 1, modTime: 15, current: false },
+      ],
+      archived: [],
+    };
+    renderSidebar([interruptedGroup]);
+    // 中断会话出现徽标，且 tooltip 文案正确
+    expect(screen.getByText("未完成")).toBeTruthy();
+    expect(screen.getByTitle("上次运行中断，恢复后会自动带上进度摘要")).toBeTruthy();
+    // 正常会话不出现徽标（全页只有一处）
+    expect(screen.getAllByText("未完成")).toHaveLength(1);
   });
 });

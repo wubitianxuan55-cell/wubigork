@@ -1,5 +1,30 @@
 # gaea · 多功能 AI 助手
 
+## v2.22.0「运行纵深 · 速度与韧性」（2026-08-14）
+> 阶段 5 第二刀（T5-3 + T5-4）：本地模型调度纵深、中断续跑。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段5-运行纵深.md；详见 releases/v2.22.0.md。
+- T5-3 本地模型调度纵深：
+  - **保活 keep-warm**：每 5 分钟对 catalog Running 的本地模型发轻量 SSE 探针（max_tokens=8，
+    防 herdsman 卸载空闲模型）；探针失败自动降级跳过直至重新运行；开关持久化
+    （keep_warm_enabled，模型中心「本地调度」设置区）；
+  - **启动自动预载**：启动后后台预载功能绑定（gaea→office→chat 优先级）第一个 herdsman 模型
+    （installed 且未 running 时 start --wait），首次对话免冷启动；开关 auto_preload；
+  - **换模预计等待**：GaeaModelSwitchEstimate（hot/cold/download/unknown 四态，cold 提示实测
+    约 15-20 秒），前端模型切换器选本地模型时弹确认；
+  - **KV 缓存命中率 KPI**：gaea 侧调用记录上报 cache hit/miss token（DeepSeek/OpenAI 两种
+    usage 风格归一，未上报时不污染命中率），「本地 vs 云端」统计卡新增缓存命中率
+    （全局 + 云端/本地拆分）；
+- T5-4 中断续跑：
+  - 任务级（v2.21.0 已交付）；**agent 会话级**：每轮 turn 在 session sidecar
+    （<session>.state.json）标记 running/完成 + 最后进度摘要；进程被杀残留 running=true →
+    会话列表「未完成」徽标；恢复会话自动注入「上次中断于 <摘要>，请先总结进度再继续」
+    并清除标记（含启动自动恢复路径）；
+  - **轻语长流程**：任务计划持久化到 whisper_data/task_plan.json（重启不丢），
+    WhisperTaskPlanStatus/Resume 恢复入口；
+- 测试：session state 5 + controller 中断 4 + app 注入 5 + schedule 14 + stats 缓存 3 +
+  overview 命中率 2 + whisper taskplan 10 + config 开关 2；Go 全量 90/90 包 ok、vet 干净、
+  gen_bindings 453 方法 → 10 门面；前端 tsc/eslint 0 errors、vitest 255/255；冒烟通过
+
 ## v2.21.0「运行纵深 · 调度与异步化」（2026-08-14）
 > 阶段 5 第一刀（T5-1 + T5-2）：通用任务调度器 + 批处理队列、实时文件监听。
 > 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段5-运行纵深.md；详见 releases/v2.21.0.md。

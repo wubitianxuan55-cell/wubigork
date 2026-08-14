@@ -27,11 +27,13 @@ func (b *CoreB) GetDashboard(dailyGoal int) (map[string]interface{}, error) { re
 func (b *CoreB) GetDeepseekKeyStatus() map[string]interface{} { return b.a.GetDeepseekKeyStatus() }
 func (b *CoreB) GetFeatureModel(feature string) map[string]string { return b.a.GetFeatureModel(feature) }
 func (b *CoreB) GetFeatureModelEnabled(feature string) bool { return b.a.GetFeatureModelEnabled(feature) }
+func (b *CoreB) GetKeepWarm() bool { return b.a.GetKeepWarm() }
 func (b *CoreB) GetLoginStatus() bool { return b.a.GetLoginStatus() }
 func (b *CoreB) GetModelCallStats() modelengine.ModelStatsSummary { return b.a.GetModelCallStats() }
 func (b *CoreB) GetNovelsDir() string { return b.a.GetNovelsDir() }
 func (b *CoreB) GetOpencodeGoKeyStatus() map[string]interface{} { return b.a.GetOpencodeGoKeyStatus() }
 func (b *CoreB) GetOpencodeZenKeyStatus() map[string]interface{} { return b.a.GetOpencodeZenKeyStatus() }
+func (b *CoreB) GetPreloadPlan() bool { return b.a.GetPreloadPlan() }
 func (b *CoreB) GetProjectInfo() map[string]interface{} { return b.a.GetProjectInfo() }
 func (b *CoreB) GetStats() map[string]interface{} { return b.a.GetStats() }
 func (b *CoreB) GetStyleProfile() (map[string]interface{}, error) { return b.a.GetStyleProfile() }
@@ -52,8 +54,10 @@ func (b *CoreB) SetActiveOCRModel(engineID string, modelID string) error { retur
 func (b *CoreB) SetDeepseekKey(apiKey string) error { return b.a.SetDeepseekKey(apiKey) }
 func (b *CoreB) SetDistFS(fsys fs.FS) { b.a.SetDistFS(fsys) }
 func (b *CoreB) SetEngineDefaultModel(engineID string, modelName string) error { return b.a.SetEngineDefaultModel(engineID, modelName) }
+func (b *CoreB) SetKeepWarm(enabled bool) error { return b.a.SetKeepWarm(enabled) }
 func (b *CoreB) SetOpencodeGoKey(apiKey string) error { return b.a.SetOpencodeGoKey(apiKey) }
 func (b *CoreB) SetOpencodeZenKey(apiKey string) error { return b.a.SetOpencodeZenKey(apiKey) }
+func (b *CoreB) SetPreloadPlan(enabled bool) error { return b.a.SetPreloadPlan(enabled) }
 func (b *CoreB) Shutdown(ctx context.Context) { b.a.Shutdown(ctx) }
 func (b *CoreB) Startup(ctx context.Context) { b.a.Startup(ctx) }
 func (b *CoreB) TestEngineConnection(engineID string) (*modelengine.EngineStatus, error) { return b.a.TestEngineConnection(engineID) }

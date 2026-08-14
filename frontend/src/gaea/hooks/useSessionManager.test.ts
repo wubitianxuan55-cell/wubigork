@@ -36,6 +36,20 @@ describe("useSessionManager", () => {
     expect(result.current.hasMore).toBe(false);
   });
 
+  it("refreshSessions 透传 interrupted 标记（中断会话数据流）", async () => {
+    // 过渡期：SessionMeta.interrupted 由契约层子代理补充，mock 数据用类型断言过渡
+    const d = makeDeps({
+      sessions: [
+        meta("/cur", { current: true }),
+        { ...meta("/int"), interrupted: true } as SessionMeta,
+      ],
+    });
+    const { result } = renderHook(() => useSessionManager(d.newSession, d.listSessions, d.listProjectSessions, d.resumeSession, d.deleteSession, d.renameSession, d.onError));
+    await act(async () => { await result.current.refreshSessions(); });
+    const interrupted = result.current.sidebarSessions.find((s) => s.path === "/int");
+    expect((interrupted as SessionMeta & { interrupted?: boolean }).interrupted).toBe(true);
+  });
+
   it("恢复会话失败时回调 onError", async () => {
     const d = makeDeps();
     d.resumeSession.mockRejectedValue(new Error("corrupt session"));

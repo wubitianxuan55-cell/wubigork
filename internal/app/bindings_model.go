@@ -17,6 +17,7 @@ func (b *ModelB) GaeaBenchmarkList() ([]BenchmarkRunSummary, error) { return b.a
 func (b *ModelB) GaeaBenchmarkStart(req BenchmarkRequest) (string, error) { return b.a.GaeaBenchmarkStart(req) }
 func (b *ModelB) GaeaEngines() []modelengine.EngineConfig { return b.a.GaeaEngines() }
 func (b *ModelB) GaeaModel() string { return b.a.GaeaModel() }
+func (b *ModelB) GaeaModelSwitchEstimate(engineID string) ModelSwitchEstimate { return b.a.GaeaModelSwitchEstimate(engineID) }
 func (b *ModelB) GaeaModels() []ModelInfo { return b.a.GaeaModels() }
 func (b *ModelB) GaeaSetEngine(engineID string) error { return b.a.GaeaSetEngine(engineID) }
 func (b *ModelB) GaeaSetModel(name string) error { return b.a.GaeaSetModel(name) }

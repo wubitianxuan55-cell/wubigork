@@ -160,6 +160,9 @@ export interface SessionMeta {
   hasRequirement?: boolean; // 会话锚定了任务目标（从需求到验收）
   requirementDone?: boolean; // 任务目标已标记验收
   archived?: boolean; // 已归档（在 <sessions>/archive/ 下，可恢复）
+  // interrupted=true 表示上次运行中断未完成；恢复会话时后端注入「上次会话中断」
+  // 摘要提示并清除该标记（可选字段：后端始终返回，前端对缺失按 false 处理）。
+  interrupted?: boolean;
 }
 
 // ProjectGroup 是侧边栏「项目」分组：一个工作区 + 它的会话列表。
@@ -987,4 +990,16 @@ export interface TaskView {
   createdAt: number; // unix 毫秒
   startedAt: number;
   finishedAt: number;
+}
+
+// ── 阶段 5 T5-3：本地模型调度纵深 ────────────────────────────
+// ModelSwitchEstimate 是换模预估结果（GaeaModelSwitchEstimate）：切换本地模型前
+// 提示等待时长，让用户决定是否继续（hot=已运行可直接切换；cold=已安装需冷启动；
+// download=未安装需先下载；unknown=无法评估）。
+export interface ModelSwitchEstimate {
+  engine: string; // 引擎 ID（如 herdsman）
+  model: string; // 目标模型名（预估基于引擎聚合时可为空）
+  status: "hot" | "cold" | "download" | "unknown";
+  waitSeconds: number; // 预计等待秒数（hot 为 0）
+  note: string; // 人类可读说明（如「已运行，约 0 秒」「需冷启动约 12 秒」）
 }

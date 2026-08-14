@@ -309,3 +309,61 @@ func TestSave_SensitiveLocalRoundTrip(t *testing.T) {
 		t.Error("保存 1 后敏感域本地化应为开启")
 	}
 }
+
+// TestSave_KeepWarmRoundTrip 本地模型保活开关（T5-3a）持久化：
+// 默认开启；显式关闭 → 保存 → 重新加载为 false；再开启恢复。
+func TestSave_KeepWarmRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	// 未配置时默认开启（T5-3a：保活开箱即用）
+	if cfg := Load(); !cfg.GetKeepWarm() {
+		t.Error("未配置时保活默认应为开启")
+	}
+
+	// 显式关闭 → 持久化 → 读取为 false
+	if err := Save(KeyKeepWarm, "0"); err != nil {
+		t.Fatalf("Save keep_warm_enabled=0 失败: %s", err)
+	}
+	if cfg := Load(); cfg.GetKeepWarm() {
+		t.Error("保存 0 后保活应为关闭")
+	}
+
+	// 重新开启
+	if err := Save(KeyKeepWarm, "1"); err != nil {
+		t.Fatalf("Save keep_warm_enabled=1 失败: %s", err)
+	}
+	if cfg := Load(); !cfg.GetKeepWarm() {
+		t.Error("保存 1 后保活应为开启")
+	}
+}
+
+// TestSave_AutoPreloadRoundTrip 启动自动预载开关（T5-3b）持久化：
+// 默认开启；显式关闭 → 保存 → 重新加载为 false；再开启恢复。
+func TestSave_AutoPreloadRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	// 未配置时默认开启（T5-3b：自动预载开箱即用）
+	if cfg := Load(); !cfg.GetAutoPreload() {
+		t.Error("未配置时自动预载默认应为开启")
+	}
+
+	// 显式关闭 → 持久化 → 读取为 false
+	if err := Save(KeyAutoPreload, "0"); err != nil {
+		t.Fatalf("Save auto_preload=0 失败: %s", err)
+	}
+	if cfg := Load(); cfg.GetAutoPreload() {
+		t.Error("保存 0 后自动预载应为关闭")
+	}
+
+	// 重新开启
+	if err := Save(KeyAutoPreload, "1"); err != nil {
+		t.Fatalf("Save auto_preload=1 失败: %s", err)
+	}
+	if cfg := Load(); !cfg.GetAutoPreload() {
+		t.Error("保存 1 后自动预载应为开启")
+	}
+}

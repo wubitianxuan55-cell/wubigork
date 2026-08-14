@@ -31,6 +31,7 @@ import type {
   SkillView,
   UpdateProgress,
   WireEvent,
+  ModelSwitchEstimate,
 } from "./types";
 import type { AppBindings } from "./bridge";
 
@@ -261,15 +262,17 @@ export function makeMockApp(): AppBindings {
     return cwd;
   };
   // Mutable so delete/rename are observable in browser dev.
+  // interrupted=true 表示上次运行中断未完成（T5-4）；d.jsonl 刻意标记中断，供浏览器
+  // 联调「未完成」徽标与恢复摘要注入。
   const sessions: SessionMeta[] = freshMock ? [] : [
-    { path: "/mock/sessions/a.jsonl", preview: "compile quarterly report", turns: 12, modTime: t0 - 3_600_000, current: true, hasRequirement: true },
-    { path: "/mock/sessions/b.jsonl", preview: "convert docx to markdown", turns: 5, modTime: t0 - 6 * 3_600_000, current: false, pinned: true },
-    { path: "/mock/sessions/c.jsonl", preview: "build chart from data", turns: 8, modTime: t0 - day - 3_600_000, current: false, hasRequirement: true, requirementDone: true },
-    { path: "/mock/sessions/d.jsonl", preview: "explain the plugin host design", turns: 3, modTime: t0 - 4 * day, current: false },
+    { path: "/mock/sessions/a.jsonl", preview: "compile quarterly report", turns: 12, modTime: t0 - 3_600_000, current: true, hasRequirement: true, interrupted: false },
+    { path: "/mock/sessions/b.jsonl", preview: "convert docx to markdown", turns: 5, modTime: t0 - 6 * 3_600_000, current: false, pinned: true, interrupted: false },
+    { path: "/mock/sessions/c.jsonl", preview: "build chart from data", turns: 8, modTime: t0 - day - 3_600_000, current: false, hasRequirement: true, requirementDone: true, interrupted: false },
+    { path: "/mock/sessions/d.jsonl", preview: "explain the plugin host design", turns: 3, modTime: t0 - 4 * day, current: false, interrupted: true },
   ];
   // 已归档会话（可恢复；浏览器 mock 内存态）
   const archivedMock: SessionMeta[] = freshMock ? [] : [
-    { path: "/mock/sessions/arch1.jsonl", preview: "上季度费用报销整理", turns: 7, modTime: t0 - 20 * day, current: false, archived: true, hasRequirement: true, requirementDone: true },
+    { path: "/mock/sessions/arch1.jsonl", preview: "上季度费用报销整理", turns: 7, modTime: t0 - 20 * day, current: false, archived: true, hasRequirement: true, requirementDone: true, interrupted: false },
   ];
   // 会话任务目标（从需求到验收；浏览器 mock 内存态）
   const requirementsMock = new Map<string, Requirement>();
@@ -331,6 +334,9 @@ export function makeMockApp(): AppBindings {
     bypass: false,
     permLevel: "ask",
   };
+  // 本地模型调度 mock（T5-3）：保活/自动预载开关（内存态，浏览器联调可切换）。
+  let keepWarmMock = true;
+  let preloadPlanMock = true;
   return {
     async Submit(input) {
       cancelled = false;
@@ -436,13 +442,21 @@ export function makeMockApp(): AppBindings {
       if (s) s.pinned = pinned;
     },
     async ResumeSession(path: string) {
-      return [
+      // T5-4 契约：interrupted 会话恢复时注入「上次会话中断」摘要提示并清除标记。
+      const s = sessions.find((x) => x.path === path);
+      const wasInterrupted = !!s?.interrupted;
+      if (s) s.interrupted = false;
+      const msgs = [
         { role: "user", content: `(mock) resumed ${path}` },
         { role: "assistant", content: "让我看看之前改到哪里了。" },
         { role: "tool", content: "", toolId: "mock-call-1", toolName: "edit_file", toolArgs: '{"path":"方案.md","edits":[]}' },
         { role: "tool_result", toolId: "mock-call-1", toolName: "edit_file", content: "已更新 方案.md" },
         { role: "assistant", content: "方案已按上次进度继续完善。" },
       ];
+      if (wasInterrupted) {
+        msgs.unshift({ role: "assistant", content: "⚠️ 上次会话中断未完成，已从中断点继续（mock 摘要）。" });
+      }
+      return msgs;
     },
     async DeleteSession(path: string) {
       const i = sessions.findIndex((s) => s.path === path);
@@ -890,9 +904,33 @@ export function makeMockApp(): AppBindings {
       return [
         { ref: "deepseek/deepseek-v4-flash", provider: "deepseek", model: "deepseek-v4-flash", current: true },
         { ref: "deepseek/deepseek-v4-pro", provider: "deepseek", model: "deepseek-v4-pro", current: false },
+        { ref: "herdsman/qwen3-coder", provider: "herdsman", model: "qwen3-coder", current: false },
       ];
     },
     async SetModel() {},
+    async KeepWarmGet() {
+      return keepWarmMock;
+    },
+    async KeepWarmSet(enabled: boolean) {
+      keepWarmMock = enabled;
+    },
+    async PreloadPlanGet() {
+      return preloadPlanMock;
+    },
+    async PreloadPlanSet(enabled: boolean) {
+      preloadPlanMock = enabled;
+    },
+    async ModelSwitchEstimate(engineID: string): Promise<ModelSwitchEstimate> {
+      // mock: 返回 hot 示例（目标模型已运行，无需等待），便于前端联调「直接切换」路径；
+      // 真实后端按引擎内模型运行状态返回 cold/download 并给出预计等待秒数。
+      return {
+        engine: engineID,
+        model: "",
+        status: "hot",
+        waitSeconds: 0,
+        note: "目标模型已运行，可直接切换（mock）",
+      };
+    },
     async Memory() {
       return {
         available: true,

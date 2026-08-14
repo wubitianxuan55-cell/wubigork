@@ -21,10 +21,13 @@ type ModelCallUsage struct {
 	Model        string `json:"model"`
 	InputTokens  int64  `json:"input_tokens"`
 	OutputTokens int64  `json:"output_tokens"`
-	DurationMs   int64  `json:"duration_ms"`
-	Success      bool   `json:"success"`
-	ErrorMessage string `json:"error_message,omitempty"`
-	FinishedAt   string `json:"finished_at,omitempty"`
+	// KV 缓存拆分（命中缓存的 prompt token / 未命中缓存的 prompt token）。
+	CacheHitTokens  int64  `json:"cache_hit_tokens,omitempty"`
+	CacheMissTokens int64  `json:"cache_miss_tokens,omitempty"`
+	DurationMs      int64  `json:"duration_ms"`
+	Success         bool   `json:"success"`
+	ErrorMessage    string `json:"error_message,omitempty"`
+	FinishedAt      string `json:"finished_at,omitempty"`
 }
 
 // ModelUsageStats 单个（引擎, 模型）维度的累计统计。
@@ -37,6 +40,8 @@ type ModelUsageStats struct {
 	InputTokens     int64   `json:"input_tokens"`
 	OutputTokens    int64   `json:"output_tokens"`
 	TotalTokens     int64   `json:"total_tokens"`
+	CacheHitTokens  int64   `json:"cache_hit_tokens,omitempty"`  // KV 缓存命中 prompt token
+	CacheMissTokens int64   `json:"cache_miss_tokens,omitempty"` // KV 缓存未命中 prompt token
 	TotalDurationMs int64   `json:"total_duration_ms"`
 	EstimatedCost   float64 `json:"estimated_cost,omitempty"` // 估算费用（按内置定价表从 Token 推导）
 	Currency        string  `json:"currency,omitempty"`       // "CNY" | "USD"；空表示本地/未知模型
@@ -52,6 +57,8 @@ type ModelStatsSummary struct {
 	TotalTokens     int64             `json:"total_tokens"`
 	InputTokens     int64             `json:"input_tokens"`
 	OutputTokens    int64             `json:"output_tokens"`
+	CacheHitTokens  int64             `json:"cache_hit_tokens,omitempty"`  // KV 缓存命中 prompt token（全局汇总）
+	CacheMissTokens int64             `json:"cache_miss_tokens,omitempty"` // KV 缓存未命中 prompt token（全局汇总）
 	TotalDurationMs int64             `json:"total_duration_ms"`
 	AvgDurationMs   int64             `json:"avg_duration_ms"`
 	TotalCost       float64           `json:"total_cost"` // 估算费用总额（统一折算为人民币）
@@ -321,6 +328,8 @@ func (r *statsRecorder) record(u ModelCallUsage) {
 	st.InputTokens += u.InputTokens
 	st.OutputTokens += u.OutputTokens
 	st.TotalTokens += u.InputTokens + u.OutputTokens
+	st.CacheHitTokens += u.CacheHitTokens
+	st.CacheMissTokens += u.CacheMissTokens
 	if u.FinishedAt != "" {
 		st.LastCalledAt = u.FinishedAt
 	}
@@ -371,6 +380,8 @@ func (r *statsRecorder) summary() ModelStatsSummary {
 		sum.TotalTokens += st.TotalTokens
 		sum.InputTokens += st.InputTokens
 		sum.OutputTokens += st.OutputTokens
+		sum.CacheHitTokens += st.CacheHitTokens
+		sum.CacheMissTokens += st.CacheMissTokens
 		sum.TotalDurationMs += st.TotalDurationMs
 		cp := *st
 		cost, cur := estimatedCostFor(st.EngineID, st.Model, st.InputTokens, st.OutputTokens)

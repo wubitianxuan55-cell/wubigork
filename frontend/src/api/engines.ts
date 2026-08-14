@@ -167,6 +167,8 @@ export interface UsageSide {
   input_tokens: number
   output_tokens: number
   total_tokens: number
+  cache_hit_tokens?: number
+  cache_miss_tokens?: number
   total_duration_ms: number
   cost: number
   engines: string[]
@@ -183,6 +185,9 @@ export interface UsageOverview {
   cloud: UsageSide
   local: UsageSide
   savings: SavingsView
+  cache_hit_tokens?: number
+  cache_miss_tokens?: number
+  cache_hit_rate?: number
 }
 
 // ── 阶段 3 D3-1 语义索引状态 ───────────────────────────────

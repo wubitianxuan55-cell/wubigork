@@ -5,7 +5,48 @@
 
 ## 版本状态
 
-- 最新发布：**v2.21.0（2026-08-14）「运行纵深 · 调度与异步化」（阶段 5 第一刀 T5-1+T5-2）**：
+- 最新发布：**v2.22.0（2026-08-14）「运行纵深 · 速度与韧性」（阶段 5 第二刀 T5-3+T5-4）**：
+  - **T5-3 本地模型调度纵深**（internal/app/gaea_schedule.go，新文件）：
+    ① 保活 keep-warm：每 5 分钟对 HerdsmanModelCatalog 中 Running=true 的模型发轻量 SSE 探针
+    （POST /v1/chat/completions，max_tokens=8，15s 超时，复用 herdsmanBenchHTTP/v1Join）；探针失败
+    记日志降级跳过该模型直至下轮 catalog 重新 Running；local_concurrency=1 下绝不主动 start；
+    开关 `keep_warm_enabled`（~/.gaea_config.json，internal/config KeyKeepWarm，默认 true）；
+    core.GetKeepWarm/SetKeepWarm 绑定；模型中心「本地调度」设置区（SchedulingSection.tsx）；
+    ② 启动自动预载：Startup 后延迟 10s，按功能绑定（gaea→office→chat 优先级）取第一个
+    engine==herdsman 的模型，catalog 判定 Installed 且 !Running 时 HerdsmanModelStart（--wait，
+    后台 goroutine 不阻塞启动）；只预载一个（互踢）；开关 `auto_preload`（KeyAutoPreload 默认 true）；
+    core.GetPreloadPlan/SetPreloadPlan；
+    ③ 换模预计等待：GaeaModelSwitchEstimate(engineID)——非 herdsman hot/1s；herdsman 按
+    catalog（Installed/Running）→ hot/cold（wait 20s，实测冷启动 15.2s）/download/unknown；
+    estimateModelSwitch(installed, running) 纯函数；前端 ModelSwitcher 对 herdsman 弹确认；
+    ④ KV 缓存命中率 KPI：modelengine.ModelCallUsage/ModelUsageStats/ModelStatsSummary 增
+    CacheHitTokens/CacheMissTokens；ai/client 两处 RecordCall 上报（cacheSplitForUsage 归一：
+    DeepSeek prompt_cache_hit_tokens 优先、OpenAI prompt_tokens_details.cached_tokens 次之；
+    miss 优先服务端显式值否则 prompt-hit 推算；服务端完全未上报时返回 0/0 不污染命中率）；
+    UsageOverview 增 cacheHitTokens/cacheMissTokens/cacheHitRate（**camelCase json tag**，
+    与 UsageOverview 既有风格一致；前端类型在 frontend/src/api/engines.ts 为 snake_case 接口
+    名——注意：引擎统计类型（ModelStatsSummary 等）在 engines.ts 全是 snake_case，与 gaea 侧
+    UsageOverview 内部 camelCase 是两套并存风格，改动前先确认所在文件惯例）；StatsSection
+    「本地 vs 云端」卡新增全局/云端/本地命中率（KpiTile）。
+  - **T5-4 中断续跑**：session sidecar（internal/gaea/agent/session/state.go：
+    <session>.state.json，SessionState{Running,Summary,UpdatedAt}，AtomicWrite；StatePath/
+    LoadState/SaveState/ClearState）；controller.runTurnWithRaw 回合开始写 Running=true、
+    defer 结束写 Running=false+最后助手文本摘要（240 字截断）；进程被杀残留 running=true；
+    SessionMeta.Interrupted + Sidebar「未完成」琥珀徽标（D3 子代理）；GaeaResumeSession 恢复时
+    注入「上次会话中断于 <摘要>，请先总结进度再继续」system 消息并 ClearState（含
+    resumeLastSession 启动自动恢复路径）；轻语任务计划持久化（internal/whisper/task_plan_store.go：
+    dataRoot + NewTaskPlanStoreWithDataRoot + Save 原子落盘 whisper_data/task_plan.json +
+    Clear + ReloadFromDisk + ActivePlan/Resume；internal/app/whisper_taskplan.go：进程级惰性装配 +
+    WhisperTaskPlanStatus/Resume 绑定）。
+  - 验证：45 个新 Go 用例；全量 90/90 包 ok、vet 干净；gen_bindings 453 方法 → 10 门面
+    （D4/D6 共 7 个新绑定统一由父代理重生成）；前端 tsc 0 errors、eslint 0 errors（751 存量
+    warnings）、vitest 255/255；冒烟通过；发布 gaea-v2.22.0.exe（SHA256=301E3CF2...）；
+    releases 清理至 5 版。
+  - **并行实施教训（本刀）**：7 个子代理并行，契约层文件（types.ts/bridge.ts/mock.ts）必须
+    指定单一负责人避免并发写覆盖；gen_bindings 必须由父代理在所有后端代理完成后统一执行；
+    Go json tag 风格先确认目标文件惯例（同一项目内 snake_case 与 camelCase 并存）；
+    前端内联类型断言过渡要标记「契约落盘后可移除」。
+- v2.21.0（2026-08-14）「运行纵深 · 调度与异步化」（阶段 5 第一刀 T5-1+T5-2）：
   - **T5-1 通用任务调度器**：internal/gaea/tasks（Hephaestus.db SchemaV8 tasks 表；状态机
     queued→running→succeeded|failed|cancelled、进度 0-100+消息、取消（context 传播，running 中断/
     queued 直接取消）、自动重试（指数退避默认 2 次）、手动重试（Retry 清零重排队）、**重启续跑**

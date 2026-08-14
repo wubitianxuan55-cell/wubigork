@@ -219,7 +219,7 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 
 	endpoint, apiKey, err := c.resolveChatEndpoint(req.EngineID)
 	if err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, err
 	}
 
@@ -230,13 +230,13 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 
 	body, err := json.Marshal(req)
 	if err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("构造请求失败: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -246,46 +246,47 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("API 请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("read response body: %w", err)
 	}
 
 	// 仅 xAI 引擎做 401 token 刷新重试
 	if resp.StatusCode == 401 && reqEngine == "xai" {
 		if err := c.tryRefreshToken(); err != nil {
-			c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 			return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
 		}
 		return c.Chat(ctx, req)
 	}
 	if resp.StatusCode != 200 {
 		errMsg := fmt.Sprintf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, errMsg)
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
 	var chatResp ChatResponse
 	if err := json.Unmarshal(respBody, &chatResp); err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 	if chatResp.Error != nil {
 		errMsg := fmt.Sprintf("[%s] %s", chatResp.Error.Code, chatResp.Error.Message)
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, errMsg)
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
-	var inTok, outTok int64
+	var inTok, outTok, cacheHit, cacheMiss int64
 	if chatResp.Usage != nil {
 		inTok, outTok = chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens
+		cacheHit, cacheMiss = cacheSplitForUsage(chatResp.Usage)
 	}
-	c.recordUsage(reqEngine, reqModel, start, inTok, outTok, true, "")
+	c.recordUsage(reqEngine, reqModel, start, inTok, outTok, cacheHit, cacheMiss, true, "")
 	return &chatResp, nil
 }
 
@@ -311,7 +312,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	endpoint, apiKey, err := c.resolveChatEndpoint(req.EngineID)
 	if err != nil {
 		c.releaseSem()
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, err
 	}
 
@@ -329,14 +330,14 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	body, err := json.Marshal(req)
 	if err != nil {
 		c.releaseSem()
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("marshal stream request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {
 		c.releaseSem()
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("构造流式请求失败: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -348,7 +349,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.releaseSem()
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 		return nil, fmt.Errorf("流式请求失败: %w", err)
 	}
 
@@ -357,7 +358,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 		resp.Body.Close()
 		c.releaseSem()
 		if err := c.tryRefreshToken(); err != nil {
-			c.recordUsage(reqEngine, reqModel, start, 0, 0, false, err.Error())
+			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
 			return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
 		}
 		return c.ChatStream(ctx, req)
@@ -379,7 +380,7 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 		} else {
 			errMsg = fmt.Sprintf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(body), 500))
 		}
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, false, errMsg)
+		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
@@ -414,19 +415,22 @@ func (c *Client) parseStreamEvents(ctx context.Context, resp *http.Response, chu
 		if c.engineMgr == nil {
 			return
 		}
-		var inTok, outTok int64
+		var inTok, outTok, cacheHit, cacheMiss int64
 		if streamUsage != nil {
 			inTok = streamUsage.PromptTokens
 			outTok = streamUsage.CompletionTokens
+			cacheHit, cacheMiss = cacheSplitForUsage(streamUsage)
 		}
 		c.engineMgr.RecordCall(modelengine.ModelCallUsage{
-			EngineID:     reqEngine,
-			Model:        reqModel,
-			InputTokens:  inTok,
-			OutputTokens: outTok,
-			DurationMs:   time.Since(start).Milliseconds(),
-			Success:      streamOK,
-			FinishedAt:   time.Now().Format("2006-01-02 15:04:05"),
+			EngineID:        reqEngine,
+			Model:           reqModel,
+			InputTokens:     inTok,
+			OutputTokens:    outTok,
+			CacheHitTokens:  cacheHit,
+			CacheMissTokens: cacheMiss,
+			DurationMs:      time.Since(start).Milliseconds(),
+			Success:         streamOK,
+			FinishedAt:      time.Now().Format("2006-01-02 15:04:05"),
 		})
 	}()
 
@@ -539,20 +543,41 @@ func flushToolCalls(pending map[int]*ChatToolCall, order []int) []ChatToolCall {
 }
 
 // recordUsage 上报一次模型调用统计（非流式路径 / 流式前置失败路径）。
-func (c *Client) recordUsage(engineID, model string, start time.Time, inTok, outTok int64, success bool, errMsg string) {
+func (c *Client) recordUsage(engineID, model string, start time.Time, inTok, outTok, cacheHit, cacheMiss int64, success bool, errMsg string) {
 	if c.engineMgr == nil {
 		return
 	}
 	c.engineMgr.RecordCall(modelengine.ModelCallUsage{
-		EngineID:     engineID,
-		Model:        model,
-		InputTokens:  inTok,
-		OutputTokens: outTok,
-		DurationMs:   time.Since(start).Milliseconds(),
-		Success:      success,
-		ErrorMessage: errMsg,
-		FinishedAt:   time.Now().Format("2006-01-02 15:04:05"),
+		EngineID:        engineID,
+		Model:           model,
+		InputTokens:     inTok,
+		OutputTokens:    outTok,
+		CacheHitTokens:  cacheHit,
+		CacheMissTokens: cacheMiss,
+		DurationMs:      time.Since(start).Milliseconds(),
+		Success:         success,
+		ErrorMessage:    errMsg,
+		FinishedAt:      time.Now().Format("2006-01-02 15:04:05"),
 	})
+}
+
+// cacheSplitForUsage 从 ChatUsage 提取 KV 缓存命中/未命中 token 数，归一两种形状：
+// DeepSeek 顶层 prompt_cache_{hit,miss}_tokens 与 OpenAI/MiMo
+// prompt_tokens_details.cached_tokens。命中取 CacheHitTokens()（两者兼容）；
+// 未命中取 CacheMissTokens()（优先服务端显式上报，否则按 prompt - 命中推算，
+// 下限 0）。防污染：服务端完全未上报缓存拆分（命中/未命中/详情都为空）时
+// 返回 0/0——此时 CacheMissTokens() 会把全部 prompt 推成未命中，把未知情况
+// 算作 100% 未命中会拉低缓存命中率，故归零。
+func cacheSplitForUsage(u *ChatUsage) (hit, miss int64) {
+	if u == nil {
+		return 0, 0
+	}
+	hit = u.CacheHitTokens()
+	miss = u.CacheMissTokens()
+	if hit == 0 && u.PromptCacheMissTokens == 0 && u.PromptTokensDetails == nil {
+		return 0, 0
+	}
+	return hit, miss
 }
 
 // ChatSimpleStream 简化流式对话，收集完整回复（5 分钟超时）。

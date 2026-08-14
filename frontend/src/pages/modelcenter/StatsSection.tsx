@@ -1,11 +1,28 @@
 import React from 'react'
 import { Button, Popconfirm, Segmented } from 'antd'
-import { CloudOutlined, DesktopOutlined, ReloadOutlined, SaveOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CloudOutlined, DatabaseOutlined, DesktopOutlined, ReloadOutlined, SaveOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, KpiTile, StatusChip } from './ui'
 import { costToCNY, engineColor, engineIcons, engineLabel, fmtCost, isLocalEngine, USD_TO_CNY } from './utils'
 import { RequestsTrendChart, TokenTrendChart, type StatsSort, type TrendRange } from './charts'
 import { useModelCenter } from './context'
-import { getUsageOverview, type UsageOverview } from '../../api/engines'
+import { getUsageOverview, type UsageOverview, type UsageSide } from '../../api/engines'
+
+// T5-3 KV 缓存命中率展示：后端 json tag 为 snake_case（与 engines.ts 类型一致），
+// 全局命中率由后端计算（cache_hit_rate，0-1），云端/本地命中率由组件自算。
+// 无任何缓存数据（hit+miss=0）时返回占位文案。
+function fmtCacheRate(hit: number, miss: number, rate?: number): string {
+  if ((hit ?? 0) + (miss ?? 0) === 0) return '暂无缓存数据'
+  const r = Number.isFinite(rate) ? (rate as number) : (hit + miss > 0 ? hit / (hit + miss) : 0)
+  return (r * 100).toFixed(1) + '%'
+}
+type OverviewCache = { cache_hit_tokens: number; cache_miss_tokens: number; cache_hit_rate: number }
+function overviewCache(o: UsageOverview): UsageOverview & OverviewCache {
+  return o as UsageOverview & OverviewCache
+}
+type SideCache = { cache_hit_tokens: number; cache_miss_tokens: number }
+function sideCache(s: UsageSide): UsageSide & SideCache {
+  return s as UsageSide & SideCache
+}
 
 export function StatsSection() {
   const {
@@ -82,6 +99,18 @@ export function StatsSection() {
             <KpiTile icon={<SaveOutlined />} label="已节省"
               value={fmtCost(overview.savings.saved, 'CNY')}
               hint={`若走云端约需 ${fmtCost(overview.savings.would_cost_cloud, 'CNY')}（参考 ¥${overview.savings.ref_price_per_mtok.toFixed(2)}/百万 token）`} />
+          </div>
+          {/* T5-3 KV 缓存命中率：全局 + 云端/本地各自命中率（无数据时显示占位） */}
+          <div className="mc-overview-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))', marginTop: 10 }}>
+            <KpiTile icon={<DatabaseOutlined />} label="全局 KV 命中率"
+              value={fmtCacheRate(overviewCache(overview).cache_hit_tokens, overviewCache(overview).cache_miss_tokens, overviewCache(overview).cache_hit_rate)}
+              hint={overviewCache(overview).cache_hit_tokens + overviewCache(overview).cache_miss_tokens > 0
+                ? `${overviewCache(overview).cache_hit_tokens.toLocaleString()} 命中 / ${overviewCache(overview).cache_miss_tokens.toLocaleString()} 未命中`
+                : undefined} />
+            <KpiTile icon={<CloudOutlined />} label="云端命中率"
+              value={fmtCacheRate(sideCache(overview.cloud).cache_hit_tokens, sideCache(overview.cloud).cache_miss_tokens)} />
+            <KpiTile icon={<DesktopOutlined />} label="本地命中率"
+              value={fmtCacheRate(sideCache(overview.local).cache_hit_tokens, sideCache(overview.local).cache_miss_tokens)} />
           </div>
           <div style={{ color: 'var(--mc-muted)', fontSize: 11, marginTop: 6 }}>{overview.savings.note}</div>
         </div>

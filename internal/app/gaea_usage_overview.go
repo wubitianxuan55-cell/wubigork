@@ -22,6 +22,8 @@ type UsageSide struct {
 	InputTokens     int64    `json:"input_tokens"`
 	OutputTokens    int64    `json:"output_tokens"`
 	TotalTokens     int64    `json:"total_tokens"`
+	CacheHitTokens  int64    `json:"cache_hit_tokens"`  // KV 缓存命中 prompt token（gaea 侧记录）
+	CacheMissTokens int64    `json:"cache_miss_tokens"` // KV 缓存未命中 prompt token（gaea 侧记录）
 	TotalDurationMs int64    `json:"total_duration_ms"`
 	Cost            float64  `json:"cost"` // 估算费用（CNY）；本地恒为 0
 	Engines         []string `json:"engines"`
@@ -45,6 +47,10 @@ type UsageOverview struct {
 	Cloud   UsageSide   `json:"cloud"`
 	Local   UsageSide   `json:"local"`
 	Savings SavingsView `json:"savings"`
+	// KV 缓存命中率（全局口径，数据来自 gaea 侧调用记录；events.jsonl 无缓存字段）。
+	CacheHitTokens  int64   `json:"cache_hit_tokens"`  // 全局缓存命中 prompt token
+	CacheMissTokens int64   `json:"cache_miss_tokens"` // 全局缓存未命中 prompt token
+	CacheHitRate    float64 `json:"cache_hit_rate"`    // hit/(hit+miss)；无数据时 0
 }
 
 // cloudEngineSet 云端引擎（费用估算表有价；herdsman/ollama/cosyvoice 为本地）。
@@ -107,7 +113,15 @@ func buildUsageOverview(gaeaStats modelengine.ModelStatsSummary, hm HerdsmanMode
 		out.Local.add(herdGaea)
 	}
 
-	// 3. 节省对比：参考单价 = 云端实际混合单价；无云端用量时回退 deepseek-v4-flash 官价。
+	// 3. KV 缓存命中率：全局 = 云端 + 本地中 gaea 侧记录的缓存字段
+	// （events.jsonl 无缓存字段，贡献为 0；分母为 0 时命中率取 0）。
+	out.CacheHitTokens = out.Cloud.CacheHitTokens + out.Local.CacheHitTokens
+	out.CacheMissTokens = out.Cloud.CacheMissTokens + out.Local.CacheMissTokens
+	if denom := out.CacheHitTokens + out.CacheMissTokens; denom > 0 {
+		out.CacheHitRate = float64(out.CacheHitTokens) / float64(denom)
+	}
+
+	// 4. 节省对比：参考单价 = 云端实际混合单价；无云端用量时回退 deepseek-v4-flash 官价。
 	ref := 1.5 // deepseek-v4-flash 混合价（输入 1 + 输出 2 的均值，¥/MTok）
 	note := "参考单价取 deepseek-v4-flash 官价混合均价（¥1.5/百万 token）；开启本地路由后按此折算节省"
 	if cloudTokens > 0 && out.Cloud.Cost > 0 {
@@ -125,6 +139,7 @@ func buildUsageOverview(gaeaStats modelengine.ModelStatsSummary, hm HerdsmanMode
 // usageSideCounters 按引擎聚合的中间计数。
 type usageSideCounters struct {
 	calls, succ, fail, in, out, dur int64
+	cacheHit, cacheMiss             int64
 }
 
 func (c *usageSideCounters) add(pm modelengine.ModelUsageStats) {
@@ -134,6 +149,8 @@ func (c *usageSideCounters) add(pm modelengine.ModelUsageStats) {
 	c.in += pm.InputTokens
 	c.out += pm.OutputTokens
 	c.dur += pm.TotalDurationMs
+	c.cacheHit += pm.CacheHitTokens
+	c.cacheMiss += pm.CacheMissTokens
 }
 
 // fromPM 把单条调用统计转为中间计数。
@@ -141,6 +158,7 @@ func fromPM(pm modelengine.ModelUsageStats) usageSideCounters {
 	return usageSideCounters{
 		calls: pm.CallCount, succ: pm.SuccessCount, fail: pm.FailCount,
 		in: pm.InputTokens, out: pm.OutputTokens, dur: pm.TotalDurationMs,
+		cacheHit: pm.CacheHitTokens, cacheMiss: pm.CacheMissTokens,
 	}
 }
 
@@ -152,6 +170,8 @@ func (s *UsageSide) add(c usageSideCounters) {
 	s.InputTokens += c.in
 	s.OutputTokens += c.out
 	s.TotalTokens += c.in + c.out
+	s.CacheHitTokens += c.cacheHit
+	s.CacheMissTokens += c.cacheMiss
 	s.TotalDurationMs += c.dur
 }
 

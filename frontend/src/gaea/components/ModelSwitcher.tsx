@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Modal } from "antd";
 import { Check, ChevronsUpDown } from "../icons";
 import { app } from "../lib/bridge";
 import { useT } from "../lib/i18n";
@@ -27,9 +28,37 @@ export function ModelSwitcher({
     if (open) app.Models().then(setModels).catch(() => {});
   }, [open]);
 
-  const pick = (name: string) => {
+  // 本地 herdsman 引擎换模前先做预估：非 hot（未运行）时提示预计等待秒数，
+  // 用户确认「继续切换」才真正切模型，避免切过去后长时间卡在冷启动/下载。
+  const pick = async (name: string) => {
     setOpen(false);
-    onPick(name);
+    if (!name.startsWith("herdsman/")) {
+      onPick(name);
+      return;
+    }
+    const engineID = name.slice(0, name.indexOf("/"));
+    try {
+      const est = await app.ModelSwitchEstimate(engineID);
+      if (!est || est.status === "hot") {
+        onPick(name);
+        return;
+      }
+      const waitText = est.waitSeconds > 0 ? `预计等待 ${est.waitSeconds} 秒` : "需要一些时间";
+      const ok = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: "切换本地模型",
+          content: `${name} 未在运行（${est.note || "需冷启动"}）。\n${waitText}，确定继续切换吗？`,
+          okText: "继续切换",
+          cancelText: "取消",
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+      if (ok) onPick(name);
+    } catch {
+      // 预估失败（如后端暂未实现）：不阻塞用户，照常切换
+      onPick(name);
+    }
   };
 
   return (
@@ -48,7 +77,7 @@ export function ModelSwitcher({
                 role="option"
                 aria-selected={!label || label === inheritLabel}
                 className={`flex items-center gap-2.5 w-full px-2.5 py-2 bg-transparent border-0 rounded-md text-left cursor-pointer text-fg-dim text-[13px] hover:bg-bg-soft hover:text-fg ${!label || label === inheritLabel ? "text-accent bg-accent-soft font-semibold hover:bg-accent-soft hover:text-accent" : ""}`}
-                onClick={() => pick("")}
+                onClick={() => void pick("")}
               >
                 <span className="flex-1 min-w-0 text-left font-medium">{inheritLabel || t("settings.subagentInherit")}</span>
                 {(!label || label === inheritLabel) && <Check size={13} className="shrink-0 text-accent" />}
@@ -60,7 +89,7 @@ export function ModelSwitcher({
                 role="option"
                 aria-selected={m.current}
                 className={`flex items-center gap-2.5 w-full px-2.5 py-2 bg-transparent border-0 rounded-md text-left cursor-pointer text-fg-dim text-[13px] hover:bg-bg-soft hover:text-fg ${m.current ? "text-accent bg-accent-soft font-semibold hover:bg-accent-soft hover:text-accent" : ""}`}
-                onClick={() => pick(m.ref)}
+                onClick={() => void pick(m.ref)}
               >
                 <span className="flex-1 min-w-0 text-left font-medium">{m.ref}</span>
                 {m.current && <Check size={13} className="shrink-0 text-accent" />}

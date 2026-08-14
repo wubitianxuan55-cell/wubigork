@@ -70,6 +70,9 @@ const (
 	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman，
 	// 可配置回云端。默认开启。
 	KeySensitiveLocal = "sensitive_local"
+	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
+	KeyKeepWarm       = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
+	KeyAutoPreload    = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
 	KeyDeepseekAPIKey     = "deepseek_api_key"
 	KeyOpencodeGoAPIKey   = "opencode_go_api_key"
 	KeyOpencodeZenAPIKey  = "opencode_zen_api_key"
@@ -137,6 +140,9 @@ type configFile struct {
 	FuncRoutineEnabled *bool  `json:"func_routine_enabled,omitempty"`
 	// 敏感域本地化开关（nil=默认开启，true=成本/报价 AI 走本地 Herdsman）
 	SensitiveLocal *bool `json:"sensitive_local,omitempty"`
+	// 本地模型调度开关（T5-3a/b，nil=默认开启）
+	KeepWarmEnabled *bool `json:"keep_warm_enabled,omitempty"` // 保活探针
+	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -244,6 +250,14 @@ type Config struct {
 	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman。
 	// true=本地优先（默认）；false=按常规路由（可回云端）。
 	SensitiveLocal bool
+
+	// 本地模型调度（T5-3a/b，默认开启）：
+	//   KeepWarmEnabled：保活——周期性对已运行的本地模型发轻量探针，防止被
+	//                     herdsman 空闲卸载/降温，保持「说用就能用」；
+	//   AutoPreload：启动自动预载——按功能绑定（gaea→office→chat）预载一个
+	//                 herdsman 模型，降低首次对话的冷启动等待。
+	KeepWarmEnabled bool
+	AutoPreload     bool
 }
 
 // funcMu 保护功能级模型绑定字段（GetFeatureModel/SetFeatureModel 并发读写）
@@ -355,6 +369,34 @@ func (c *Config) SetSensitiveLocal(enabled bool) {
 	c.SensitiveLocal = enabled
 }
 
+// GetKeepWarm 读取本地模型保活开关（T5-3a，未显式配置时默认开启）。
+func (c *Config) GetKeepWarm() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.KeepWarmEnabled
+}
+
+// SetKeepWarm 写入本地模型保活开关（true=周期性探活已运行模型）。
+func (c *Config) SetKeepWarm(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.KeepWarmEnabled = enabled
+}
+
+// GetAutoPreload 读取启动自动预载开关（T5-3b，未显式配置时默认开启）。
+func (c *Config) GetAutoPreload() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.AutoPreload
+}
+
+// SetAutoPreload 写入启动自动预载开关。
+func (c *Config) SetAutoPreload(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.AutoPreload = enabled
+}
+
 // Load 加载配置（只应调用一次）。
 // 优先级：config 文件 > 环境变量 > 默认值。
 func Load() *Config {
@@ -390,6 +432,9 @@ func Load() *Config {
 		FuncRoutineEnabled: true, // 常规办公默认启用：routine_llm 工具按绑定目标执行
 		// S2-4/D8：敏感域（成本/报价）AI 默认本地优先。
 		SensitiveLocal: true,
+		// T5-3a/b：本地模型保活 + 启动自动预载默认开启。
+		KeepWarmEnabled: true,
+		AutoPreload:     true,
 
 		// TTS 默认值
 		TTSBinaryPath: filepath.Join(home, "legacy-tts", "legacy_tts.exe"),
@@ -661,6 +706,12 @@ func Load() *Config {
 			if cf.SensitiveLocal != nil {
 				cfg.SensitiveLocal = *cf.SensitiveLocal
 			}
+			if cf.KeepWarmEnabled != nil {
+				cfg.KeepWarmEnabled = *cf.KeepWarmEnabled
+			}
+			if cf.AutoPreload != nil {
+				cfg.AutoPreload = *cf.AutoPreload
+			}
 			// 2.x 聊天/轻语合并：旧配置只写 func_whisper_* 时迁移到 func_chat；
 			// chat 显式配置优先，不覆盖；func_whisper_enabled=false 同步为 chat 停用。
 			if cfg.FuncChatEngine == "" && cf.FuncWhisperEngine != "" {
@@ -923,6 +974,22 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.SensitiveLocal = b
+		return nil
+	},
+	KeyKeepWarm: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.KeepWarmEnabled = b
+		return nil
+	},
+	KeyAutoPreload: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.AutoPreload = b
 		return nil
 	},
 }

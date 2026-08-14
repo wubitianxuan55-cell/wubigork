@@ -80,6 +80,43 @@ func TestRecordCall_Aggregates(t *testing.T) {
 	}
 }
 
+// TestRecordCall_CacheAggregation 缓存命中/未命中 token 随调用记录聚合：
+// 记录带缓存字段 → summary（全局 + per-model）聚合正确；无缓存字段的调用不贡献。
+func TestRecordCall_CacheAggregation(t *testing.T) {
+	m := NewManager("", "")
+	m.RecordCall(ModelCallUsage{
+		EngineID: "deepseek", Model: "deepseek-v4-flash",
+		InputTokens: 1000, OutputTokens: 100, DurationMs: 500, Success: true,
+		CacheHitTokens: 800, CacheMissTokens: 200,
+	})
+	m.RecordCall(ModelCallUsage{
+		EngineID: "deepseek", Model: "deepseek-v4-flash",
+		InputTokens: 500, OutputTokens: 50, DurationMs: 300, Success: true,
+		CacheHitTokens: 300, CacheMissTokens: 200,
+	})
+	m.RecordCall(ModelCallUsage{
+		EngineID: "xai", Model: "grok-4.20",
+		InputTokens: 100, OutputTokens: 10, DurationMs: 100, Success: true,
+		// 无缓存字段：不参与命中率分子/分母
+	})
+
+	sum := m.GetModelCallStats()
+	if sum.CacheHitTokens != 1100 || sum.CacheMissTokens != 400 {
+		t.Errorf("全局 CacheHit/Miss = %d/%d, want 1100/400", sum.CacheHitTokens, sum.CacheMissTokens)
+	}
+	if len(sum.PerModel) != 2 {
+		t.Fatalf("PerModel 数量 = %d, want 2", len(sum.PerModel))
+	}
+	ds := sum.PerModel[0]
+	if ds.EngineID != "deepseek" || ds.CacheHitTokens != 1100 || ds.CacheMissTokens != 400 {
+		t.Errorf("deepseek 缓存统计 = %+v, want hit 1100 miss 400", ds)
+	}
+	grok := sum.PerModel[1]
+	if grok.CacheHitTokens != 0 || grok.CacheMissTokens != 0 {
+		t.Errorf("grok（无缓存字段）缓存统计 = %d/%d, want 0/0", grok.CacheHitTokens, grok.CacheMissTokens)
+	}
+}
+
 // TestNormalizeModelID 验证模型 ID 归一化（对齐 CCSwitch 规则）。
 func TestNormalizeModelID(t *testing.T) {
 	cases := map[string]string{
@@ -135,6 +172,7 @@ func TestStats_PersistAcrossRestart(t *testing.T) {
 	m.RecordCall(ModelCallUsage{
 		EngineID: "opencode-zen", Model: "deepseek-v4-flash",
 		InputTokens: 33, OutputTokens: 12, DurationMs: 500, Success: true,
+		CacheHitTokens: 20, CacheMissTokens: 13,
 	})
 
 	// 重新创建 Manager 并从磁盘恢复
@@ -144,6 +182,9 @@ func TestStats_PersistAcrossRestart(t *testing.T) {
 	if sum.TotalCalls != 1 || sum.TotalTokens != 45 {
 		t.Errorf("恢复后 TotalCalls/TotalTokens = %d/%d, want 1/45", sum.TotalCalls, sum.TotalTokens)
 	}
+	if sum.CacheHitTokens != 20 || sum.CacheMissTokens != 13 {
+		t.Errorf("恢复后 CacheHit/Miss = %d/%d, want 20/13", sum.CacheHitTokens, sum.CacheMissTokens)
+	}
 	if len(sum.PerModel) != 1 || sum.PerModel[0].Model != "deepseek-v4-flash" {
 		t.Errorf("恢复后 PerModel = %+v", sum.PerModel)
 	}
@@ -152,6 +193,44 @@ func TestStats_PersistAcrossRestart(t *testing.T) {
 	}
 	if got := sum.Trend[0].Cost; got < 0.000056 || got > 0.000058 {
 		t.Errorf("恢复后 Trend Cost = %v, want ~0.000057", got)
+	}
+}
+
+// TestStats_LoadLegacyFileWithoutCache 旧版统计文件（version 2、无缓存字段）
+// 可正常加载，缓存字段自动为 0，不破坏既有数据。
+func TestStats_LoadLegacyFileWithoutCache(t *testing.T) {
+	dir := t.TempDir()
+	statsPath := filepath.Join(dir, "model_stats.json")
+	legacy := `{
+  "version": 2,
+  "since": "2026-08-01 10:00:00",
+  "models": {
+    "deepseek|deepseek-v4-flash": {
+      "engine_id": "deepseek",
+      "model": "deepseek-v4-flash",
+      "call_count": 1,
+      "success_count": 1,
+      "input_tokens": 100,
+      "output_tokens": 20,
+      "total_tokens": 120
+    }
+  }
+}`
+	if err := os.WriteFile(statsPath, []byte(legacy), 0644); err != nil {
+		t.Fatalf("写旧版统计文件失败: %v", err)
+	}
+	m := NewManager("", "")
+	m.SetStatsPath(statsPath)
+	sum := m.GetModelCallStats()
+	if sum.TotalCalls != 1 || sum.TotalTokens != 120 {
+		t.Fatalf("旧文件加载 = %+v, want 1 次调用 120 token", sum)
+	}
+	if sum.CacheHitTokens != 0 || sum.CacheMissTokens != 0 {
+		t.Errorf("旧文件缓存字段 = %d/%d, want 0/0", sum.CacheHitTokens, sum.CacheMissTokens)
+	}
+	if sum.PerModel[0].CacheHitTokens != 0 || sum.PerModel[0].CacheMissTokens != 0 {
+		t.Errorf("旧文件 per-model 缓存字段 = %d/%d, want 0/0",
+			sum.PerModel[0].CacheHitTokens, sum.PerModel[0].CacheMissTokens)
 	}
 }
 
