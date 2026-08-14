@@ -6,6 +6,7 @@
 
 | 版本 | 日期 | 安装包 | 核心变更 |
 |------|------|------|------|
+| v2.32.0 | 08-14 | [gaea-v2.32.0.exe](gaea-v2.32.0.exe) | 阶段 6「质量收敛」第九刀·辅助合集名实相符：微信 Stop 幂等/Start 重启/过期钩子 + wxToken DPAPI + 死表 V13 删除；OCR 超时杀进程树+单图降级+文案修正；配置原子写+损坏备份；CosyVoice 可配置+退避重试；token 改 header（fetch-SSE） |
 | v2.31.0 | 08-14 | [gaea-v2.31.0.exe](gaea-v2.31.0.exe) | 阶段 6「质量收敛」第八刀·记忆生命周期与审计：dream 写入审计（决策成文+SaveDreamFacts 带 source 落 dream-audit.jsonl）；facts 归档 90 天保留硬删+分页+新绑定+前端清理按钮+purge-audit 溯源；索引截断按边界（4096 字节口径+行边界+链接保护）；GraphView/WhisperMemoryLibrary 补测 13 用例 |
 | v2.30.0 | 08-14 | [gaea-v2.30.0.exe](gaea-v2.30.0.exe) | 阶段 6「质量收敛」第七刀·小说导出与原子性：export 整改 13 测试；CancelCreateChapter 生成中断+章节互斥；writeFileAtomic 原子化；{word_count} 占位符；CreatePage 791→288 行+停止按钮 |
 | v2.29.0 | 08-14 | [gaea-v2.29.0.exe](gaea-v2.29.0.exe) | 阶段 6「质量收敛」第六刀·模型中心密钥与 UI：refresh_token DPAPI 加密+迁移；汇率配置化+新绑定；probe 告警修复；ModelCenterPage useState 42→3；XAI_VOICES 单源；竞态守卫 |

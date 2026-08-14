@@ -1,5 +1,34 @@
 # gaea · 多功能 AI 助手
 
+## v2.32.0「质量收敛 · 辅助合集·名实相符」（2026-08-14）
+> 阶段 6 第九刀（T6-9）：微信生命周期与凭据、OCR 兜底名实相符、配置原子写、路径端口可配置、token 改 header。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.32.0.md。
+- T6-9.1 **微信生命周期与失效自愈**（internal/channels/weixin/clawbot.go + whisper_state.go）：
+  - Stop 幂等（stopMu + stopCh 关闭即置 nil，二次 Stop 不 panic）；Start 支持重启（running.Swap 幂等
+    防重复拉起 + stopCh 重建 + sessionExpired 重置，Stop→Start 轮询真正恢复）；
+  - 会话过期（errcode=-14）触发 OnSessionExpired 回调后退出轮询（删除 5 分钟空转）；app 层注入回调
+    emit notice「微信助手 X 会话过期，请重新扫码绑定」；getUpdatesFn/notifyStartFn/notifyStopFn 测试注入点；
+  3 测试；
+- T6-9.2 **凭据与表治理**：
+  - wxToken DPAPI 加密（assistant/manager.go：save() 落盘加密 dpapi: 前缀、Load 解密/旧明文一次性
+    迁移、解密失败返回含助手 ID 明确错误；内存保持明文 List 回显不变）；
+  - weixin_* 4 张死表（grep 核实零读写）SchemaV13 DROP 追加迁移链 + ClearStructuredData 移除；3 测试；
+- T6-9.3 **OCR 兜底名实相符**（office/docmd/ocr.go + single_prompt.go:43）：
+  - 超时杀进程树：proc.StartTracked（Job Object）+ 超时 KillTracked + 同步 Wait 回收，失败零孤儿；
+  - 单图降级：OCRImageText OvisOCR2 不可用 → tesseract 降级（同 PDF 参数），双不可用才报安装提示；
+  - 文案删除名不副实的「Windows 原生 OCR」（RapidOCR 核实存在保留）；4 测试；
+- T6-9.4 **配置原子写**（internal/config）：saveConfigFile 临时文件+fsync+rename 原子覆盖（失败保留
+  原文件）；Load 损坏备份 .gaea_config.json.corrupt-<ts> 后默认值继续；4 测试；
+- T6-9.5 **CosyVoice 路径端口可配置 + 退避重试**：新配置键 cosyvoice_dir/cosyvoice_port（默认与历史
+  一致，端口校验）；tts_service.go 写死常量全删由配置推导；启动失败 1s/2s/4s 退避重试 3 次；4 测试；
+- T6-9.6 **token 改 header**：服务端 tokenOK 删除 ?token= 查询兜底（仅 Bearer/X-Gaea-Token，常量时间
+  比较不变）；前端弃 EventSource 改 fetch 流式 SSE 带 Authorization 头（parseSSEFrame/parseSSEStream
+  纯函数：跨 chunk/CRLF/keep-alive/流尾 flush）；httpToken.ts 删 URL query 读取；Go 3 + 前端 6 测试；
+- 验证：改动包全绿 + vet 干净 + TestBindingsCompleteness PASS（462 方法）；tsc 0 errors、
+  vitest **354/354**（79 文件）、eslint 0 errors（72 存量 warnings）、vite build 15.17s；
+  全量 go test 中 hook/skill/tts 3 包 AV 锁 test.exe（单独重跑全绿，环境抖动先例）与 docmd GBK 编码
+  类失败（c426d3f 基线 worktree 复现同款，非回归）。
+
 ## v2.31.0「质量收敛 · 记忆·生命周期与审计」（2026-08-14）
 > 阶段 6 第八刀（T6-8）：dream 写入审计、facts 归档生命周期清理、索引截断按边界、记忆组件补测。
 > 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.31.0.md。

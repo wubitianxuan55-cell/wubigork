@@ -60,8 +60,55 @@ func ovisServerHealthy(c *http.Client, base string) bool {
 }
 
 // startOvisServer 按 GAEA_OCR_* 环境变量或默认 C:\AI\gaea-ocr 拉起 llama-server
-// （隐藏窗口，Vulkan），等待就绪（≤60s）。失败返回 false。
+// （隐藏窗口，Vulkan，Job Object 跟踪）。等待就绪（≤ovisStartWait，默认 60s）。
+// 启动成功返回 true 且进程保留存活（常驻服务继续使用）；任何失败路径（配置缺失、
+// 启动失败、超时未就绪）都会在返回 false 前用 proc.KillTracked 杀掉整棵进程树
+// （含子进程），保证不残留孤儿 llama-server。
 func startOvisServer(c *http.Client, base string) bool {
+	cmd, logf, ok := ovisBuildCmd()
+	if !ok {
+		return false
+	}
+	proc.HideWindow(cmd)
+	handle, err := proc.StartTracked(cmd)
+	if err != nil {
+		if logf != nil {
+			logf.Close()
+		}
+		return false
+	}
+	if logf != nil {
+		logf.Close() // 子进程已持有文件句柄，父进程可立即释放
+	}
+	deadline := time.Now().Add(ovisStartWait)
+	for time.Now().Before(deadline) {
+		time.Sleep(time.Second)
+		if ovisHealthy(c, base) {
+			go func() { _ = cmd.Wait() }() // 保留进程存活，异步回收
+			return true
+		}
+	}
+	proc.KillTracked(cmd, handle) // 超时：杀整棵进程树，防孤儿残留
+	_ = cmd.Wait()                // 同步回收，返回 false 前确保进程已终止
+	return false
+}
+
+// ovisStartWait 是 startOvisServer 等待 llama-server 就绪的时长（默认 60s）；
+// 包级变量便于单测缩短等待。
+var ovisStartWait = 60 * time.Second
+
+// ovisHealthy 是 startOvisServer 轮询的就绪探针（默认 ovisServerHealthy）；
+// 包级变量便于单测注入「永不健康/立即健康」的 fake。
+var ovisHealthy = ovisServerHealthy
+
+// ovisBuildCmd 构造 llama-server 命令（默认 buildOvisServerCmd）；包级变量便于
+// 单测注入假进程。
+var ovisBuildCmd = buildOvisServerCmd
+
+// buildOvisServerCmd 按 GAEA_OCR_* 配置构造 llama-server 命令与其日志文件（打不开时
+// 为 nil，调用方在子进程启动后负责 Close）。返回 ok=false 表示配置缺失（exe/模型/
+// 投影文件不存在）。
+func buildOvisServerCmd() (*exec.Cmd, *os.File, bool) {
 	dir := os.Getenv("GAEA_OCR_DIR")
 	if dir == "" {
 		dir = `C:\AI\gaea-ocr`
@@ -80,7 +127,7 @@ func startOvisServer(c *http.Client, base string) bool {
 	}
 	for _, p := range []string{exe, model, mmproj} {
 		if _, err := os.Stat(p); err != nil {
-			return false
+			return nil, nil, false
 		}
 	}
 	port := os.Getenv("GAEA_OCR_PORT")
@@ -97,25 +144,7 @@ func startOvisServer(c *http.Client, base string) bool {
 		cmd.Stdout = logf
 		cmd.Stderr = logf
 	}
-	proc.HideWindow(cmd)
-	if err := cmd.Start(); err != nil {
-		if logf != nil {
-			logf.Close()
-		}
-		return false
-	}
-	go func() { _ = cmd.Wait() }()
-	if logf != nil {
-		logf.Close() // 子进程已持有文件句柄，父进程可立即释放
-	}
-	deadline := time.Now().Add(60 * time.Second)
-	for time.Now().Before(deadline) {
-		time.Sleep(time.Second)
-		if ovisServerHealthy(c, base) {
-			return true
-		}
-	}
-	return false
+	return cmd, logf, true
 }
 
 // ovisPageOCR 把一页 PNG 发给常驻 OvisOCR2 服务，返回识别文本。
@@ -167,14 +196,43 @@ func ovisPageOCR(base, pngPath string) (string, error) {
 	return strings.TrimSpace(out.Choices[0].Message.Content), nil
 }
 
-// OCRImageText 识别单张图片中的文字（常驻 OvisOCR2 服务）。服务未安装/无法拉起时
-// 返回明确错误，方便上层提示安装路径。
-func OCRImageText(path string) (string, error) {
-	base := ovisServerBase()
-	if base == "" {
-		return "", fmt.Errorf("OvisOCR2 本地 OCR 不可用（未安装或服务无法拉起），请检查 C:\\AI\\gaea-ocr 或 GAEA_OCR_DIR")
+// tesseractImagePath 用 tesseract 识别单张图片：tesseract <img> stdout
+// -l chi_sim+eng --psm 3（隐藏窗口，与 ocrPDFRange 流水线同一参数），
+// 返回去首尾空白的识别文本。
+func tesseractImagePath(tesseractPath, imagePath string) (string, error) {
+	cmd := exec.Command(tesseractPath, imagePath, "stdout", "-l", "chi_sim+eng", "--psm", "3")
+	proc.HideWindow(cmd)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
 	}
-	return ovisPageOCR(base, path)
+	return strings.TrimSpace(string(out)), nil
+}
+
+// tesseractLookPath 定位 tesseract 可执行文件；tesseractImage 执行单图识别。
+// 包级变量以便单测注入假路径/假结果，不依赖真实 tesseract 安装。
+var (
+	tesseractLookPath = exec.LookPath
+	tesseractImage    = tesseractImagePath
+)
+
+// OCRImageText 识别单张图片中的文字。优先常驻 OvisOCR2 服务；服务不可用
+// （未安装/无法拉起，ovisServerBase()==""）或识别失败时降级 tesseract；
+// 两者都不可用才返回明确错误（含安装提示，保持原文案风格）。
+func OCRImageText(path string) (string, error) {
+	if base := ovisServerBase(); base != "" {
+		if text, err := ovisPageOCR(base, path); err == nil && strings.TrimSpace(text) != "" {
+			return text, nil
+		}
+	}
+	if tess, err := tesseractLookPath("tesseract"); err == nil {
+		if text, err := tesseractImage(tess, path); err == nil && strings.TrimSpace(text) != "" {
+			return text, nil
+		}
+	}
+	return "", fmt.Errorf("OvisOCR2 本地 OCR 不可用（未安装或服务无法拉起），且未找到 tesseract。" +
+		"请安装其一：\n  - OvisOCR2（本地推荐，见 pdf 技能：C:\\AI\\gaea-ocr 或 GAEA_OCR_DIR）\n" +
+		"  - tesseract: https://github.com/tesseract-ocr/tesseract")
 }
 
 // ocrPDF 处理扫描件 PDF：本地 OvisOCR2（常驻 llama-server）优先，
@@ -253,13 +311,11 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 			}
 		}
 		if text == "" && tesseractPath != "" {
-			cmd := exec.Command(tesseractPath, pngPath, "stdout", "-l", "chi_sim+eng", "--psm", "3")
-			proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
-			out, err := cmd.Output()
+			t, err := tesseractImagePath(tesseractPath, pngPath)
 			if err != nil {
 				return "", fmt.Errorf("tesseract OCR 第 %d 页失败: %w", pageNum, err)
 			}
-			text = strings.TrimSpace(string(out))
+			text = t
 		}
 		if text != "" {
 			pageTexts = append(pageTexts, text)

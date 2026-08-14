@@ -37,7 +37,7 @@ func (c *core) TestEngineConnection(engineID string) (*modelengine.EngineStatus,
 	// 本地 TTS 引擎：先确保服务在起（幂等），刚拉起时短暂等待，避免“测试连接”必失败
 	if engineID == "cosyvoice" {
 		c.ensureLocalTTSService(engineID)
-		for i := 0; i < 4 && !ttsReady(engineID); i++ {
+		for i := 0; i < 4 && !c.ttsReady(engineID); i++ {
 			time.Sleep(2 * time.Second)
 		}
 	}

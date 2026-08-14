@@ -65,7 +65,7 @@ async function rpcCall(method: string, ...args: unknown[]): Promise<unknown> {
     body: JSON.stringify({ method, args }),
   })
   if (res.status === 401) {
-    throw new Error('桥接鉴权失败：请携带正确的 token（URL ?token= / __GAEA_HTTP_TOKEN / localStorage gaea_http_token）')
+    throw new Error('桥接鉴权失败：请携带正确的 token（__GAEA_HTTP_TOKEN / localStorage gaea_http_token）')
   }
   if (!res.ok) {
     throw new Error(`RPC 请求失败: ${res.status} ${res.statusText}`)

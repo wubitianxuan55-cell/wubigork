@@ -147,9 +147,10 @@ var migrations = []string{
 	SchemaV10,
 	SchemaV11,
 	SchemaV12,
+	SchemaV13,
 }
 
-// runMigrations 执行递增迁移链 V1 → V11
+// runMigrations 执行递增迁移链 V1 → V13
 func runMigrations(db *sql.DB) error {
 	// 确保 schema_meta 表存在（首次运行）
 	if _, err := db.Exec(SchemaV1); err != nil {
@@ -206,7 +207,8 @@ func ClearStructuredData(dataRoot string) error {
 		"shared_events", "memory_associations", "temporal_anchors",
 		"user_habits", "foreground_history", "decision_log",
 		"fact_embeddings",
-		"weixin_account", "weixin_sync", "weixin_context", "weixin_seen",
+		// 注：weixin_* 4 表（weixin_account/weixin_sync/weixin_context/weixin_seen）
+		// 已由 SchemaV13 DROP 移除，清表列表不再引用
 	}
 
 	return WithTransaction(dataRoot, func(tx *sql.Tx) error {

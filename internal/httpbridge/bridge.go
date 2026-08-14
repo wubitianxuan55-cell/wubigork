@@ -93,8 +93,9 @@ func (b *Bridge) Handler() http.Handler {
 }
 
 // requireAuth 在 b.token 非空时校验请求 token，不匹配返回 401。
-// token 可来自 Authorization: Bearer <t>、X-Gaea-Token: <t> 或 ?token=<t>
-// （SSE 的 EventSource 无法自定义请求头，必须支持查询参数）。
+// token 只来自请求头：Authorization: Bearer <t> 或 X-Gaea-Token: <t>。
+// 历史：曾为 SSE 的 EventSource（无法自定义请求头）支持 ?token= 查询参数；
+// 前端已改用 fetch 流式 SSE 携带 Authorization 头（T6-9.6），URL 传 token 不再接受。
 func (b *Bridge) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if b.token != "" && !b.tokenOK(r) {
@@ -114,9 +115,6 @@ func (b *Bridge) tokenOK(r *http.Request) bool {
 	}
 	if got == "" {
 		got = strings.TrimSpace(r.Header.Get("X-Gaea-Token"))
-	}
-	if got == "" {
-		got = strings.TrimSpace(r.URL.Query().Get("token"))
 	}
 	if got == "" {
 		return false

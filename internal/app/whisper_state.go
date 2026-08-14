@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -69,6 +70,21 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 		}
 		return reply, nil
 	})
+	// 会话过期钩子（T6-9.1）：errcode=-14 时 Server 触发回调并停止轮询——
+	// 这里 emit 前端 notice 事件，让用户看到提示并重新扫码绑定；
+	// 状态已由 Server.SessionExpired() 透出（WhisperWeixinStatus 的 wxSessionExpired）
+	srv.OnSessionExpired = func() {
+		name := ast.Name
+		if name == "" {
+			name = ast.ID
+		}
+		slog.Warn("[assistant] 微信会话过期，请重新扫码绑定", "assistant", ast.ID)
+		w.emit("gaea-event", map[string]interface{}{
+			"kind":  "notice",
+			"level": "warn",
+			"text":  fmt.Sprintf("微信助手 %s 会话过期，请重新扫码绑定", name),
+		})
+	}
 	if err := srv.Start(); err != nil {
 		slog.Error("[assistant] 微信启动失败", "assistant", ast.ID, "err", err)
 		return

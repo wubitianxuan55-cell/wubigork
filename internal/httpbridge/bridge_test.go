@@ -137,6 +137,24 @@ func statusOf(t *testing.T, srv *httptest.Server, path string) int {
 	return resp.StatusCode
 }
 
+// statusOfHeader 返回一次携带指定请求头的 GET 状态码（Bearer / X-Gaea-Token 鉴权路径）。
+func statusOfHeader(t *testing.T, srv *httptest.Server, path, header, value string) int {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, srv.URL+path, nil)
+	if err != nil {
+		t.Fatalf("GET %s: %v", path, err)
+	}
+	if value != "" {
+		req.Header.Set(header, value)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
+}
+
 func TestTokenAuth(t *testing.T) {
 	const tok = "s3cr3t-token"
 	srv := httptest.NewServer(NewWithToken(&fakeApp{}, tok).Handler())
@@ -168,12 +186,21 @@ func TestTokenAuth(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || out.Result != float64(5) {
 		t.Fatalf("x-token rpc = %d %+v, want 200 5", resp.StatusCode, out)
 	}
-	// SSE：无 token 401；?token= 查询参数可用（EventSource 无法带请求头）。
+	// SSE：无 token 401；URL ?token= 已废弃——即使携带正确 token 也必须 401
+	// （前端已改用 fetch 流式 SSE 携带 Authorization 头，T6-9.6）。
 	if code := statusOf(t, srv, "/api/stream?id=chat"); code != http.StatusUnauthorized {
 		t.Fatalf("sse no-token status = %d, want 401", code)
 	}
-	if code := statusOf(t, srv, "/api/stream?id=chat&token="+tok); code != http.StatusOK {
-		t.Fatalf("sse token status = %d, want 200", code)
+	if code := statusOf(t, srv, "/api/stream?id=chat&token="+tok); code != http.StatusUnauthorized {
+		t.Fatalf("sse url-token status = %d, want 401（URL token 已废弃）", code)
+	}
+	// Authorization: Bearer 仍 200。
+	if code := statusOfHeader(t, srv, "/api/stream?id=chat", "Authorization", "Bearer "+tok); code != http.StatusOK {
+		t.Fatalf("sse bearer status = %d, want 200", code)
+	}
+	// X-Gaea-Token 头仍 200。
+	if code := statusOfHeader(t, srv, "/api/stream?id=chat", "X-Gaea-Token", tok); code != http.StatusOK {
+		t.Fatalf("sse x-token status = %d, want 200", code)
 	}
 	// /api/health 保持开放（存活探针）。
 	if code := statusOf(t, srv, "/api/health"); code != http.StatusOK {

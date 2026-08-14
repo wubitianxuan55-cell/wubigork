@@ -1,8 +1,10 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -402,5 +404,162 @@ func TestSave_UsdCnyRateRoundTrip(t *testing.T) {
 	// 非法值被拒绝后，文件中的合法值保持不变
 	if cfg := Load(); cfg.UsdCnyRate != 7.0 {
 		t.Errorf("非法写入被拒后汇率 = %v, want 保持 7.0", cfg.UsdCnyRate)
+	}
+}
+
+// TestSave_AtomicWriteKeepsValidJSON 原子写（T6-9.4）：连续 100 次 Save 后文件
+// 始终是完整合法 JSON（无半写状态）、最终值正确、无残留临时文件。
+func TestSave_AtomicWriteKeepsValidJSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	configPath := filepath.Join(home, ".gaea_config.json")
+
+	for i := 0; i < 100; i++ {
+		dir := filepath.Join("/novels", strconv.Itoa(i))
+		if err := Save(KeyNovelsDir, dir); err != nil {
+			t.Fatalf("第 %d 次 Save 失败: %s", i, err)
+		}
+		// 每次写后文件都可解析（无半写状态）
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			t.Fatalf("第 %d 次 Save 后读取失败: %s", i, err)
+		}
+		var cf configFile
+		if err := json.Unmarshal(data, &cf); err != nil {
+			t.Fatalf("第 %d 次 Save 后文件不是合法 JSON: %s", i, err)
+		}
+		if cf.NovelsDir != dir {
+			t.Fatalf("第 %d 次 Save 后值 = %q, want %q", i, cf.NovelsDir, dir)
+		}
+	}
+
+	// 无残留临时文件（原子写失败/中断会留下 .tmp-* 残留）
+	leftovers, _ := filepath.Glob(filepath.Join(home, ".gaea_config.json.tmp-*"))
+	if len(leftovers) != 0 {
+		t.Errorf("残留临时文件: %v", leftovers)
+	}
+}
+
+// TestSave_WriteFailureKeepsOldFile 写失败路径（T6-9.4）：注入 rename 失败后
+// Save 返回错误，原配置文件保持完好（内容不变、仍可解析），无残留临时文件。
+func TestSave_WriteFailureKeepsOldFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	configPath := filepath.Join(home, ".gaea_config.json")
+
+	if err := Save(KeyNovelsDir, "/novels/original"); err != nil {
+		t.Fatalf("首次 Save 失败: %s", err)
+	}
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	origRename := renameFile
+	renameFile = func(oldpath, newpath string) error { return os.ErrPermission }
+	t.Cleanup(func() { renameFile = origRename })
+
+	if err := Save(KeyNovelsDir, "/novels/updated"); err == nil {
+		t.Fatal("rename 失败时 Save 应返回 error")
+	}
+
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("写失败后原文件不可读: %s", err)
+	}
+	if string(after) != string(before) {
+		t.Error("写失败后原文件内容被破坏")
+	}
+	var cf configFile
+	if err := json.Unmarshal(after, &cf); err != nil {
+		t.Fatalf("写失败后原文件不是合法 JSON: %s", err)
+	}
+	if cf.NovelsDir != "/novels/original" {
+		t.Errorf("写失败后值 = %q, want /novels/original", cf.NovelsDir)
+	}
+	leftovers, _ := filepath.Glob(filepath.Join(home, ".gaea_config.json.tmp-*"))
+	if len(leftovers) != 0 {
+		t.Errorf("写失败后残留临时文件: %v", leftovers)
+	}
+}
+
+// TestLoad_CorruptFileBackupAndRecover 损坏恢复（T6-9.4）：预写坏 JSON →
+// Load() 不崩溃、生成 .corrupt-* 备份文件（损坏内容不丢）、默认值生效，
+// 且后续 Save 可正常重建配置。
+func TestLoad_CorruptFileBackupAndRecover(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	configPath := filepath.Join(home, ".gaea_config.json")
+
+	bad := []byte("{\"novels_dir\": \"unterminated")
+	if err := os.WriteFile(configPath, bad, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Load()
+	// 损坏不阻止启动：默认值生效
+	if cfg.NovelsDir != "C:\\AI\\xiaoshuo" {
+		t.Errorf("损坏后 NovelsDir = %q, want 默认 C:\\AI\\xiaoshuo", cfg.NovelsDir)
+	}
+
+	// 生成备份文件，损坏内容未丢失
+	backs, _ := filepath.Glob(filepath.Join(home, ".gaea_config.json.corrupt-*"))
+	if len(backs) == 0 {
+		t.Fatal("未生成 .corrupt-* 备份文件")
+	}
+	got, err := os.ReadFile(backs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(bad) {
+		t.Error("备份内容与损坏原文件不一致")
+	}
+
+	// 应用仍可正常写入：Save 重建合法配置
+	if err := Save(KeyNovelsDir, "/novels/recovered"); err != nil {
+		t.Fatalf("损坏恢复后 Save 失败: %s", err)
+	}
+	cfg2 := Load()
+	if cfg2.NovelsDir != "/novels/recovered" {
+		t.Errorf("恢复后 NovelsDir = %q", cfg2.NovelsDir)
+	}
+}
+
+// TestSave_CosyVoicePathPortRoundTrip CosyVoice 路径/端口（T6-9.5）持久化：
+// 默认值不变（C:\\AI\\cosyvoice / 8010）；合法值写入可读回；
+// 非法端口（0/负数/超范围/非数字）拒绝写入且保留合法值。
+func TestSave_CosyVoicePathPortRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	// 未配置时默认值（与历史硬编码一致）
+	if cfg := Load(); cfg.CosyVoiceDir != "C:\\AI\\cosyvoice" || cfg.CosyVoicePort != 8010 {
+		t.Errorf("默认 CosyVoice = (%q,%d), want (C:\\AI\\cosyvoice,8010)", cfg.CosyVoiceDir, cfg.CosyVoicePort)
+	}
+
+	if err := Save(KeyCosyVoiceDir, "D:\\voice\\cosy"); err != nil {
+		t.Fatalf("Save cosyvoice_dir 失败: %s", err)
+	}
+	if err := Save(KeyCosyVoicePort, "9020"); err != nil {
+		t.Fatalf("Save cosyvoice_port 失败: %s", err)
+	}
+	cfg := Load()
+	if cfg.CosyVoiceDir != "D:\\voice\\cosy" || cfg.CosyVoicePort != 9020 {
+		t.Errorf("CosyVoice = (%q,%d), want (D:\\voice\\cosy,9020)", cfg.CosyVoiceDir, cfg.CosyVoicePort)
+	}
+
+	// 非法端口拒绝
+	for _, bad := range []string{"0", "-1", "70000", "abc"} {
+		if err := Save(KeyCosyVoicePort, bad); err == nil {
+			t.Errorf("端口 %q 应返回 error", bad)
+		}
+	}
+	// 非法值被拒后文件中的合法值保持不变
+	if cfg := Load(); cfg.CosyVoicePort != 9020 {
+		t.Errorf("非法端口被拒后 = %d, want 保持 9020", cfg.CosyVoicePort)
 	}
 }

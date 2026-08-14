@@ -8,10 +8,15 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
+	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/whisper"
 )
+
+// wxTokenPrefix 与 internal/gaea/secure 的 "dpapi:" 前缀一致（同 auth/token.go 的迁移兼容模式）。
+const wxTokenPrefix = "dpapi:"
 
 // ─── 数据模型 ────────────────────────────────────────────────
 
@@ -66,6 +71,31 @@ func Load(dataDir string) (*Manager, error) {
 
 	if err := json.Unmarshal(data, &m.assistants); err != nil {
 		return nil, fmt.Errorf("解析助手配置失败: %w", err)
+	}
+
+	// T6-9.2 凭据解密：带 "dpapi:" 前缀的 wxToken 解密还原为内存明文；
+	// 无前缀的旧版明文读取成功并触发一次自动重写为加密（一次性迁移）。
+	// 解密失败返回明确错误（含助手 ID），绝不静默清空 token。
+	migrated := false
+	for i := range m.assistants {
+		a := &m.assistants[i]
+		if a.WxToken == "" {
+			continue
+		}
+		if !strings.HasPrefix(a.WxToken, wxTokenPrefix) {
+			migrated = true // 旧版明文：读取成功，标记迁移
+			continue
+		}
+		dec, err := secure.DecryptString(a.WxToken)
+		if err != nil {
+			return nil, fmt.Errorf("解密助手 %s 的 wxToken 失败: %w", a.ID, err)
+		}
+		a.WxToken = dec
+	}
+	if migrated {
+		if err := m.save(); err != nil {
+			return nil, fmt.Errorf("迁移旧明文 wxToken 为加密存储失败: %w", err)
+		}
 	}
 
 	for i := range m.assistants {
@@ -203,7 +233,23 @@ func (m *Manager) Delete(id string) error {
 // ─── 持久化 ──────────────────────────────────────────────────
 
 func (m *Manager) save() error {
-	data, err := json.MarshalIndent(m.assistants, "", "  ")
+	// 落盘加密决策（T6-9.2）：内存态保持明文——现有调用方、List/WhisperAssistantList
+	// 回显明文、改动面最小；仅在此处写盘前把 WxToken 加密为 "dpapi:" 前缀（与
+	// auth/token.go 同模式）。加密失败返回错误，绝不静默降级为明文落盘。
+	disk := make([]Assistant, len(m.assistants))
+	copy(disk, m.assistants)
+	for i := range disk {
+		tok := disk[i].WxToken
+		if tok == "" || strings.HasPrefix(tok, wxTokenPrefix) {
+			continue // 空 token 不加密；已带前缀（防御）不再重复加密
+		}
+		enc, err := secure.EncryptString(tok)
+		if err != nil {
+			return fmt.Errorf("加密助手 %s 的 wxToken 失败: %w", disk[i].ID, err)
+		}
+		disk[i].WxToken = enc
+	}
+	data, err := json.MarshalIndent(disk, "", "  ")
 	if err != nil {
 		return err
 	}

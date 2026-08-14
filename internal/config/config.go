@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // ── 配置键常量 ──────────────────────────────────────────
@@ -72,17 +73,26 @@ const (
 	// 可配置回云端。默认开启。
 	KeySensitiveLocal = "sensitive_local"
 	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
-	KeyKeepWarm       = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
-	KeyAutoPreload    = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
-	KeyDeepseekAPIKey     = "deepseek_api_key"
-	KeyOpencodeGoAPIKey   = "opencode_go_api_key"
-	KeyOpencodeZenAPIKey  = "opencode_zen_api_key"
+	KeyKeepWarm          = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
+	KeyAutoPreload       = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
+	KeyDeepseekAPIKey    = "deepseek_api_key"
+	KeyOpencodeGoAPIKey  = "opencode_go_api_key"
+	KeyOpencodeZenAPIKey = "opencode_zen_api_key"
 	// 美元→人民币汇率（费用估算折算用，默认 7.2，可在模型中心配置）
 	KeyUsdCnyRate = "usd_cny_rate"
+	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认与历史硬编码一致。
+	KeyCosyVoiceDir  = "cosyvoice_dir"
+	KeyCosyVoicePort = "cosyvoice_port"
 )
 
 // DefaultUsdCnyRate 美元→人民币汇率默认值（费用估算折算口径）。
 const DefaultUsdCnyRate = 7.2
+
+// CosyVoice 本地服务默认值（T6-9.5：路径/端口可配置，未配置时与历史硬编码一致）。
+const (
+	DefaultCosyVoiceDir  = `C:\AI\cosyvoice`
+	DefaultCosyVoicePort = 8010
+)
 
 // configFile 表示 ~/.gaea_config.json 的结构
 type configFile struct {
@@ -151,6 +161,9 @@ type configFile struct {
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
 	// 美元→人民币汇率（费用估算折算用；0=未配置，加载时回退默认 7.2）
 	UsdCnyRate float64 `json:"usd_cny_rate,omitempty"`
+	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，空值回退默认。
+	CosyVoiceDir  string `json:"cosyvoice_dir,omitempty"`
+	CosyVoicePort int    `json:"cosyvoice_port,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -269,6 +282,10 @@ type Config struct {
 
 	// 美元→人民币汇率（费用估算折算用，默认 7.2；模型中心可配置）
 	UsdCnyRate float64
+
+	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认 C:\AI\cosyvoice / 8010。
+	CosyVoiceDir  string
+	CosyVoicePort int
 }
 
 // funcMu 保护功能级模型绑定字段（GetFeatureModel/SetFeatureModel 并发读写）
@@ -448,6 +465,9 @@ func Load() *Config {
 		AutoPreload:     true,
 		// 汇率默认 7.2（费用估算折算口径）。
 		UsdCnyRate: DefaultUsdCnyRate,
+		// CosyVoice 本地 TTS 服务（T6-9.5，默认与历史硬编码一致）。
+		CosyVoiceDir:  DefaultCosyVoiceDir,
+		CosyVoicePort: DefaultCosyVoicePort,
 
 		// TTS 默认值
 		TTSBinaryPath: filepath.Join(home, "legacy-tts", "legacy_tts.exe"),
@@ -732,6 +752,12 @@ func Load() *Config {
 			if cf.UsdCnyRate != 0 {
 				cfg.UsdCnyRate = cf.UsdCnyRate
 			}
+			if cf.CosyVoiceDir != "" {
+				cfg.CosyVoiceDir = cf.CosyVoiceDir
+			}
+			if cf.CosyVoicePort != 0 {
+				cfg.CosyVoicePort = cf.CosyVoicePort
+			}
 			// 2.x 聊天/轻语合并：旧配置只写 func_whisper_* 时迁移到 func_chat；
 			// chat 显式配置优先，不覆盖；func_whisper_enabled=false 同步为 chat 停用。
 			if cfg.FuncChatEngine == "" && cf.FuncWhisperEngine != "" {
@@ -742,7 +768,14 @@ func Load() *Config {
 				}
 			}
 		} else {
-			slog.Error("配置文件解析失败，忽略文件覆盖", "path", configPath, "error", err)
+			// 损坏恢复（T6-9.4）：把损坏文件备份为 .gaea_config.json.corrupt-<时间戳>
+			// （不丢用户数据），再用默认值继续——应用可正常启动，设置重置但文件可追溯。
+			backup := filepath.Join(home, fmt.Sprintf(".gaea_config.json.corrupt-%d", time.Now().UnixNano()))
+			if berr := os.WriteFile(backup, data, 0644); berr != nil {
+				slog.Error("配置文件损坏且备份失败", "path", configPath, "error", err, "backup_error", berr)
+			} else {
+				slog.Warn("配置文件解析失败，已备份并重置为默认值", "path", configPath, "backup", backup, "error", err)
+			}
 		}
 	}
 
@@ -848,7 +881,45 @@ func Save(key, value string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(configPath, data, 0644)
+	return saveConfigFile(configPath, data)
+}
+
+// renameFile 覆盖写目标文件；抽为变量便于测试注入失败路径。
+var renameFile = os.Rename
+
+// saveConfigFile 原子写配置文件（T6-9.4）：同目录临时文件 → 写入 → fsync → rename 覆盖。
+// 任一步失败都会清理临时文件并保留原文件不破坏（中断不会截断/半写配置文件）。
+func saveConfigFile(path string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		cleanup()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		cleanup()
+		return err
+	}
+	if err := tmp.Chmod(0644); err != nil {
+		cleanup()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+	if err := renameFile(tmpName, path); err != nil {
+		_ = os.Remove(tmpName)
+		return err
+	}
+	return nil
 }
 
 // saveSetters 配置项 → setter 函数注册表
@@ -912,6 +983,18 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.TTSPort = n
+		return nil
+	},
+	KeyCosyVoiceDir: func(cf *configFile, v string) error { cf.CosyVoiceDir = v; return nil },
+	KeyCosyVoicePort: func(cf *configFile, v string) error {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		if n < 1 || n > 65535 {
+			return fmt.Errorf("CosyVoice 端口必须在 1-65535 之间（当前值: %s）", v)
+		}
+		cf.CosyVoicePort = n
 		return nil
 	},
 	KeyTTSBackend:          func(cf *configFile, v string) error { cf.TTSBackend = v; return nil },

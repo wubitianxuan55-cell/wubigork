@@ -83,6 +83,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v2.32.0** | 2026-08-14 | 阶段 6「质量收敛」第九刀·辅助合集名实相符：微信生命周期（Stop 幂等/Start 重启/过期钩子退出空转）+ wxToken DPAPI 加密迁移 + 4 张死表 V13 删除；OCR 兜底名实相符（超时杀进程树 + 单图 tesseract 降级 + 删「Windows 原生 OCR」文案）；配置原子写（fsync+rename）+ 损坏备份恢复；CosyVoice 路径/端口可配置 + 启动退避重试；token 改 header（服务端去 query 兜底 + 前端 fetch 流式 SSE） |
 | **v2.31.0** | 2026-08-14 | 阶段 6「质量收敛」第八刀·记忆生命周期与审计：dream 写入审计（决策成文 DREAM_WRITE_POLICY.md，SaveDreamFacts 带 source 落 dream-audit.jsonl）；facts 归档生命周期（90 天保留硬删 CleanupArchived + ListArchivedPaged 分页 + 新绑定 GaeaMemoryCleanupArchived/GaeaMemoryArchivedList + 前端清理按钮 + purge-audit 溯源审计）；索引截断按边界（4096 字节口径统一 + 行边界 + markdown 链接保护，6 测试）；GraphView/WhisperMemoryLibrary 补测 13 用例 |
 | **v2.30.0** | 2026-08-14 | 阶段 6「质量收敛」第七刀·小说导出与原子性：export 整改（失败计数/作者元数据/统一分段器/世界观对齐/保留名消毒，13 测试）；生成中断（CancelCreateChapter 绑定 + 章节互斥 + 取消保留部分正文）；writeFileAtomic 落盘原子化；模板 {word_count} 占位符；CreatePage 791→288 行 + 停止按钮 + 判别联合（18 vitest） |
 | **v2.29.0** | 2026-08-14 | 阶段 6「质量收敛」第六刀·模型中心密钥与 UI：refresh_token DPAPI 加密（旧明文自动迁移）；汇率配置化（usd_cny_rate 键 + 新绑定 + ModelPanel 输入）；probe 告警文案修复；ModelCenterPage 顶层 useState 42→3（5 hooks 下沉）+ XAI_VOICES 单源；refreshLocalModels 竞态守卫 + 定时器随分类重置 |
