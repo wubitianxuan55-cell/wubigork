@@ -9,6 +9,8 @@ vi.mock('../../src/wailsjsCompat', () => ({
   GaeaSettings: vi.fn().mockResolvedValue({}),
   GetActiveModel: vi.fn().mockResolvedValue(''),
   GetImageBackendInfo: vi.fn().mockResolvedValue({}),
+  GaeaDataBackupInfo: vi.fn().mockResolvedValue({ data_root: 'C:\\data', entries: [], total_bytes: 0, pending: false, app_version: '2.20.0' }),
+  GaeaDataBackupRestoreResult: vi.fn().mockResolvedValue({ has_result: false }),
 }))
 
 import SettingsPage from './SettingsPage'
@@ -16,7 +18,7 @@ import SettingsPage from './SettingsPage'
 describe('SettingsPage 按功能板块组织', () => {
   it('渲染七个功能分组导航', () => {
     render(<SettingsPage />)
-    for (const label of ['通用', '聊天', '小说', '绘梦', '办公', '模型', '关于']) {
+    for (const label of ['通用', '聊天', '小说', '绘梦', '办公', '模型', '安全', '数据', '关于']) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeTruthy()
     }
   })

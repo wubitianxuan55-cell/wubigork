@@ -512,6 +512,7 @@ const CharacterLibEditor: React.FC<Props> = ({
               {form.assistantId && (
                 <div className="cd-note">
                   聊天通道：assistantId={form.assistantId}（微信通道配置以助手记录为准）
+                  <span style={{ color: 'var(--md-sys-color-warning)', fontSize: 11 }}>⚠ 微信通道为个人使用实验功能（beta），凭证失效时不自动恢复，请以桌面聊天为主</span>
                 </div>
               )}
             </main>

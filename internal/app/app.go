@@ -224,6 +224,9 @@ func (a *App) Startup(ctx context.Context) {
 	// DataRoot，首次启动时把旧目录内容搬过去（目标已存在则跳过）。
 	a.migrateLegacyDataRoot()
 
+	// P4-3 数据可迁移：应用待恢复数据（恢复前先备份当前数据；必须在打开任何数据库/日志前执行）
+	a.applyPendingRestore()
+
 	// 将 slog 输出到文件（GUI 应用无控制台）
 	logFile, err := os.OpenFile(filepath.Join(a.whisperDataRoot, "gaea.log"),
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)

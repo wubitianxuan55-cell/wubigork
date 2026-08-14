@@ -5,7 +5,25 @@
 
 ## 版本状态
 
-- 最新发布：**v2.19.0（2026-08-14）「数据与成本纵深·补测评缺口」**（长期规划阶段 3，D3-4）：
+- 最新发布：**v2.20.0（2026-08-14）「个人使用收口·数据可迁移」**（长期规划阶段 4，P4-1~P4-4）：
+  - **产品定位（2026-08-14 用户决策）**：gaea 个人使用、不商用。阶段 4 不再做产品化分发
+    （安装器/自动更新/代码签名/SmartScreen 等商用项全部删除）；发布形态 = exe + SHA256SUMS +
+    冒烟 + 升级文档；升级 = 替换 exe（数据在用户目录，不动）。
+  - P4-3 数据可迁移：internal/gaea/backup/backup.go（Plan/Create/Extract/ReadManifest/
+    WritePending/ApplyPending/ClearPending；SQLite 用 VACUUM INTO 一致性快照，运行中备份安全，
+    WAL 自动合并；zip-slip 防穿越；Skip 规则 = 段相等/前缀/后缀，-wal/-shm/gaea.log 自动排除）；
+    internal/app/gaea_data_backup.go（GaeaDataBackupInfo/Create/Restore/Pending/Cancel/
+    RestoreResult，恢复两阶段：staging + pending 标记 -> 重启后 Startup applyPendingRestore 应用，
+    应用前自动备份当前数据到 .restore-before-<时间>）；设置页新增「数据」分类
+    components/settings/DataPanel.tsx；
+  - P4-1 模块收口：微信通道标注 beta（CharacterLibEditor）、移动端标注「已冻结」（SettingsMobile）；
+  - P4-4 磁盘治理：releases 保留最近 5 版 exe 约定（releases/README.md），旧 exe 已清理；
+  - 验证：Go backup 6 测试 + App 3 测试 + internal/app 全量 ok（29.97s）、vet 干净、
+    gen_bindings 重新生成（442 方法 -> 10 门面）、tsc/eslint 0 errors、vitest 251/251、
+    真实 E2E（备份 zip 无 wal/shm、恢复->重启自动应用->before 目录生成、restore-result 可读）。
+  发布产物 gaea-v2.20.0.exe（SHA256=49B7234886A8CCA56080C1D6812D5C73AB6BAE05F9CAFAE330D594CFED2FBF92）。
+  详见 releases/v2.20.0.md。
+- v2.19.0（2026-08-14）「数据与成本纵深·补测评缺口」（长期规划阶段 3，D3-4）：
   - D3-4 报告专项分析：renderBenchmarkReport 新增每模型对比/长上下文专项（TTFT vs
     context_size）/缓存复用专项（first vs second TTFT + prefill 加速比）/显存相关启动参数
     （effective_launch_params：gpu_layers/no_kv_offload/batch/ubatch/cache_type 等）/

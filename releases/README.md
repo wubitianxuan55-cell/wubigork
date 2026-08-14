@@ -2,10 +2,11 @@
 
 ## gaea 桌面端 v2.x 发布
 
-> 历史版本 exe 已归档（本地仅保留最近 5 个：v2.13.20+）；代码与发布说明见 git tag、CHANGELOG、releases/vX.md，需要时可从回收站恢复或重新构建。
+> **磁盘治理约定（P4-4）**：exe 本地仅保留最近 5 版；更早版本发布说明见 git tag、CHANGELOG、releases/vX.md，需要时从回收站恢复或重新构建。
 
 | 版本 | 日期 | 安装包 | 核心变更 |
 |------|------|------|------|
+| v2.20.0 | 08-14 | [gaea-v2.20.0.exe](gaea-v2.20.0.exe) | 个人使用收口（不商用）：设置「数据」分类一键备份/恢复（Hephaestus.db + whisper_data + 配置 + sessions → zip + manifest；SQLite VACUUM INTO 一致性快照；两阶段恢复重启生效、恢复前自动备份当前数据）；微信通道标注 beta、移动端冻结；发布形态简化（去安装器/签名/自动更新）；releases 保留 5 版约定 |
 | v2.19.0 | 08-14 | [gaea-v2.19.0.exe](gaea-v2.19.0.exe) | 阶段 3 第二刀（D3-4 补测评缺口）：报告新增每模型/长上下文/缓存复用/显存参数/并发专项分析；压力专项任务预设（长上下文/长输出/显存）；快速流式探针（SSE 断流/卡顿观察，TTFT/分块间隔/[DONE] 完整性） |
 | v2.18.0 | 08-14 | [gaea-v2.18.0.exe](gaea-v2.18.0.exe) | 长期规划阶段 3 首轮：跨库统一语义检索补齐「资料」+ 索引状态；模型中心「本地 vs 云端」分流统计与节省对比（herdsman events 打通 gaea 调用记录）；Herdsman 受控测评产品化（一键发起/逐 case 明细/Markdown 报告导出，复用 /api/benchmarks） |
 | v2.17.0 | 08-14 | [gaea-v2.17.0.exe](gaea-v2.17.0.exe) | 长期规划阶段 2·安全与架构收敛：LAN 暴露全局告警横幅 + 设置「安全」面板；WebView2 远程调试默认关闭（GAEA_WEBVIEW_DEBUG 开关）；HTTP 桥接一次性 token 鉴权；敏感域本地化开关（成本/报价 AI 默认本地 Herdsman）；429 个导出方法按板块拆 10 个绑定门面（脚本生成 + 完备性测试兜底） |

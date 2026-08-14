@@ -3,7 +3,7 @@ import { Input } from 'antd'
 import {
   AppstoreOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   SettingOutlined, ApiOutlined, InfoCircleOutlined, SearchOutlined,
-  SafetyCertificateOutlined,
+  SafetyCertificateOutlined, DatabaseOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
 import './settings-page.css'
@@ -14,6 +14,7 @@ import ImageGenPanel from '../components/settings/ImageGenPanel'
 import OfficePanel from '../components/settings/OfficePanel'
 import ModelPanel from '../components/settings/ModelPanel'
 import SecurityPanel from '../components/settings/SecurityPanel'
+import DataPanel from '../components/settings/DataPanel'
 import AboutPanel from '../components/settings/AboutPanel'
 
 interface Category {
@@ -82,6 +83,14 @@ const CATEGORIES: Category[] = [
     desc: '隐私 · 调试',
     keywords: ['安全', '隐私', '敏感', '本地化', '本地', '局域网', '暴露', 'lan', '调试', 'webview', '远程', 'token', '报价', '成本'],
     panel: <SecurityPanel />,
+  },
+  {
+    key: 'data',
+    icon: <DatabaseOutlined />,
+    label: '数据',
+    desc: '备份 · 恢复',
+    keywords: ['数据', '备份', '恢复', '迁移', '导出', '导入', 'zip', '换机', '重装', '防丢', '存档', '快照'],
+    panel: <DataPanel />,
   },
   {
     key: 'about',

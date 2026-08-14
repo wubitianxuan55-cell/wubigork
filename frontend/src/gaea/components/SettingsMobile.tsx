@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Smartphone, QrCode, RefreshCw, Copy, Check, ShieldAlert } from "../icons";
 
-/** SettingsMobile — 移动端访问配置卡片 */
+/** SettingsMobile — 移动端访问配置卡片（P4-1 模块收口：移动端已冻结，仅保留说明） */
 export function MobileSection() {
   const [lanEnabled, setLanEnabled] = useState(false);
   const [lanURL, setLanURL] = useState("");
@@ -56,6 +56,7 @@ export function MobileSection() {
         <div className="flex items-center gap-2">
           <Smartphone size={16} className="text-fg-dim" />
           <span className="text-sm text-fg">移动端访问</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-warn/40 text-warn">已冻结</span>
         </div>
         <label className="relative inline-flex items-center cursor-pointer">
           <input

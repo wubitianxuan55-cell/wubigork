@@ -59,14 +59,19 @@
 | D3-3 | 测评产品化 | 复用 herdsman `/api/benchmarks` 异步测评 + 报告导出，把 120 组对照方法学做成模型中心「一键受控测评」 |
 | D3-4 | 补测评缺口 | 长上下文（>4K）、并发、显存压力、流式中断恢复专项 |
 
-### 阶段 4 · 产品化收口（按需）
+### 阶段 4 · 个人使用收口（2026-08-14 重新定标）
 
-| 编号 | 任务 | 内容 |
-|---|---|---|
-| P4-1 | 模块收口 | 微信助手标注 beta 或冻结（gateway 现状：4 绑定中 2 凭证失效）；移动端冻结 |
-| P4-2 | 发布体验 | 安装器（NSIS/Inno）+ 自动更新 + 代码签名（SAC/SmartScreen） |
-| P4-3 | 数据可迁移 | 记忆/知识/成本库备份与导入导出 |
-| P4-4 | 磁盘治理 | 模型库显示已装总量/可用磁盘；releases 目录清理（README 约定保留最近 5 版） |
+> 用户 2026-08-14 决策：**gaea 个人使用、不商用**。阶段 4 不再做产品化分发
+> （安装器/自动更新/代码签名/SmartScreen 等商用项全部删除），聚焦个人使用最需要的
+> 三项：**数据可迁移**（换机/重装/防丢）、**模块收口**（降低维护面）、**磁盘治理**。
+> 发布形态保持「exe + SHA256SUMS + 冒烟 + 升级文档」即可，升级 = 替换 exe（数据在用户目录，不动）。
+
+| 编号 | 任务 | 内容 | 验收 |
+|---|---|---|---|
+| P4-1 | 模块收口 | 微信助手标注 beta/冻结（gateway 现状：4 绑定中 2 凭证失效）；移动端访问标注冻结 | 前端标注 + 文案 |
+| P4-2 | 发布形态简化 | 删除商用项（安装器/自动更新/代码签名）；升级文档写「替换 exe + 数据备份先行」 | 文档 + 发布流程核对 |
+| P4-3 | 数据可迁移 | 一键备份/恢复：Hephaestus.db（记忆/知识/成本/语义向量）+ whisper_data（hermes/office/角色库/聊天）+ 配置 + sessions，zip + manifest，恢复前先备份、需重启生效 | Go 单测 + 全绿 + 真实 zip 往返 |
+| P4-4 | 磁盘治理 | 模型库已装总量/磁盘余量 KPI（v2.16.1 已交付）+ releases 保留最近 5 版约定 | README 约定 + 清理 |
 
 ## 明确不做（战略聚焦）
 
@@ -174,5 +179,18 @@
     TTFT 15.2s、60 块、max_gap 83ms、completed）；
   - ✅ v2.19.0 发布产物：releases/gaea-v2.19.0.exe（33,808,384 字节，SHA256=CB338574993322F6C74A8916ABA46ED0990B65A7D43047E69D38DF3B0D4E9EE1）
     + SHA256SUMS-v2.19.0.txt；发布文档已更新。
-  - 📋 留待后续：D3-4 显存压力专项报告的实测模板校验（工具已齐）；阶段 4 产品化收口
-    （P4-1 模块收口 / P4-2 安装器与自动更新 / P4-3 数据可迁移 / P4-4 磁盘治理）。
+  - 📋 留待后续：D3-4 显存压力专项报告的实测模板校验（工具已齐）。
+- 2026-08-14（阶段 4 个人使用收口 v2.20.0，用户决策「不商用」）：
+  - ✅ 阶段 4 重新定标：删除安装器/自动更新/代码签名（SAC/SmartScreen）等商用项；聚焦
+    数据可迁移（P4-3）、模块收口（P4-1）、磁盘治理（P4-4）；
+  - ✅ P4-3 数据可迁移：`internal/gaea/backup/backup.go`（Plan/Manifest/Create/Extract/
+    WritePending/ApplyPending/ClearPending，SQLite VACUUM INTO 一致性快照，zip-slip 防穿越）
+    + `internal/app/gaea_data_backup.go`（GaeaDataBackupInfo/Create/Restore/Pending/Cancel/
+    RestoreResult + Startup applyPendingRestore 钩子，恢复前先自动备份当前数据）；
+    设置页新增「数据」分类 `components/settings/DataPanel.tsx`（备份清单/一键备份/从备份恢复/
+    待应用告警与取消/恢复结果提示）；
+  - ✅ P4-1 模块收口：微信通道标注 beta（CharacterLibEditor）、移动端标注「已冻结」（SettingsMobile）；
+  - ✅ P4-4 磁盘治理：releases 清理（删除 24 个旧 exe，保留最近 5 版）+ README 约定；
+  - ✅ 验证：Go backup 包 6 测试 + App 层 3 测试 + internal/app 全量 ok（29.97s）、vet 干净、
+    gen_bindings 重新生成（442 方法 → 10 门面）+ 完备性测试、tsc/eslint 0 errors、
+    vitest 251/251（61 文件，DataPanel 4 组 + SettingsPage 更新）；
