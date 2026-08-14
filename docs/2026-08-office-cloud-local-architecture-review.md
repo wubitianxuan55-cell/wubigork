@@ -123,7 +123,11 @@ imagegen 默认后端是 xAI；本地 ComfyUI / Herdsman / Ollama 需要手动�
 
 ### P2
 9. **PDF/图片报价单本地识别入表**：MinerU 表格结构 + 本地视觉归一化 → 预览确认。
-10. **票据批量入表与比价工作流**（供应商维度）。
+   ✅ **已交付（2026-08-14 v2.23.0 T5-5）**：GaeaCostImportVisionPreview（docmd 文本提取 /
+   本地 OCR（OvisOCR2→Windows OCR）+ 表格线启发式解析 + sensitive_local 本地视觉/常规模型
+   归一化 → 候选预览确认入表，无确认不落库）。
+10. **票据批量入表与比价工作流**（供应商维度）——比价已交付（v2.23.0 GaeaCostCompare +
+   前端比价弹层）；票据批量入表（多文件队列化）仍为候选。
 
 ## 5. 结论
 
