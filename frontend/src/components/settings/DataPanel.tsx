@@ -47,7 +47,12 @@ export const DataPanel: React.FC = () => {
   const load = useCallback(async () => {
     try {
       const res: any = await App.GaeaDataBackupInfo()
-      if (res && typeof res.data_root === 'string') setInfo(res as BackupInfo)
+      // #17：entries 必须为数组，否则渲染 .some 会崩溃
+      if (res && typeof res.data_root === 'string' && Array.isArray(res.entries)) {
+        setInfo(res as BackupInfo)
+      } else if (res) {
+        setInfo({ ...(res as any), entries: [] } as BackupInfo)
+      }
     } catch { /* 后端未就绪 */ }
     try {
       const rr: any = await App.GaeaDataBackupRestoreResult()
@@ -76,8 +81,13 @@ export const DataPanel: React.FC = () => {
     setRestoring(true)
     try {
       const files: { path: string; name: string; size: number }[] = await App.GaeaPickFiles()
-      const zip = files.find((f) => f.name.toLowerCase().endsWith('.zip')) || files[0]
-      if (!zip) return
+      if (!files || files.length === 0) return
+      // #9：只接受 .zip；选到非 zip 直接提示
+      const zip = files.find((f) => f.name.toLowerCase().endsWith('.zip'))
+      if (!zip) {
+        message.warning('请选择 gaea 备份文件（.zip）')
+        return
+      }
       const res: any = await App.GaeaDataBackupRestore(zip.path)
       message.success(`恢复包已就绪（${res.zip_name}）。请重启 gaea 完成恢复——重启时会先自动备份当前数据。`)
       await load()
@@ -95,6 +105,16 @@ export const DataPanel: React.FC = () => {
       await load()
     } catch (err: any) {
       message.error(err?.message || '取消失败')
+    }
+  }
+
+  const handleRollback = async () => {
+    try {
+      const done: boolean = await App.GaeaDataBackupRollback()
+      message.success(done ? '已回滚到恢复前数据' : '没有可回滚的恢复前备份')
+      await load()
+    } catch (err: any) {
+      message.error(err?.message || '回滚失败')
     }
   }
 
@@ -117,7 +137,18 @@ export const DataPanel: React.FC = () => {
             type="warning"
             showIcon
             message="数据恢复失败"
-            description={`${restoreResult.error || '未知错误'}。恢复任务已保留，可重试或取消。`}
+            description={`${restoreResult.error || '未知错误'}。恢复任务已保留，可重试、取消，或一键回滚到恢复前数据。`}
+            action={(
+              <Popconfirm
+                title="回滚到恢复前数据？"
+                description="会把 .restore-before 中的恢复前数据移回原位（当前新数据保留到 .restore-new-keep-*）。"
+                okText="回滚"
+                cancelText="取消"
+                onConfirm={handleRollback}
+              >
+                <Button size="small" danger icon={<UndoOutlined />}>回滚到恢复前</Button>
+              </Popconfirm>
+            )}
             style={{ marginBottom: 16, borderRadius: 'var(--md-sys-radius-md)' }}
           />
         )
@@ -168,9 +199,17 @@ export const DataPanel: React.FC = () => {
             <Button type="primary" icon={<CloudUploadOutlined />} loading={creating} onClick={handleBackup}>
               一键备份…
             </Button>
-            <Button icon={<CloudDownloadOutlined />} loading={restoring} onClick={handleRestore}>
-              从备份恢复…
-            </Button>
+            <Popconfirm
+              title="从备份恢复？"
+              description="将替换当前数据（恢复前会自动备份现有数据到 .restore-before），重启 gaea 后生效。"
+              okText="选择备份文件"
+              cancelText="取消"
+              onConfirm={handleRestore}
+            >
+              <Button icon={<CloudDownloadOutlined />} loading={restoring}>
+                从备份恢复…
+              </Button>
+            </Popconfirm>
           </Space>
 
           {info?.pending && (

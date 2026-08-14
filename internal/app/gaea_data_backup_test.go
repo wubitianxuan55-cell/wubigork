@@ -94,3 +94,64 @@ func TestApplyPendingRestoreHook(t *testing.T) {
 	a := &App{}
 	a.applyPendingRestore() // 不应 panic
 }
+
+// TestGaeaDataBackupRestoreRejectsExistingPending 验证 #5：已有 pending 时拒绝再次恢复。
+func TestGaeaDataBackupRestoreRejectsExistingPending(t *testing.T) {
+	dataRoot := t.TempDir()
+	t.Setenv("GAEA_DATA_ROOT", dataRoot)
+	a := &App{}
+	// 造一个合法备份 zip
+	if err := os.MkdirAll(filepath.Join(dataRoot, "whisper_data"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataRoot, "whisper_data", "a.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := a.GaeaDataBackupCreate(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	zipPath, _ := res["zip_path"].(string)
+	// 第一次恢复
+	if _, err := a.GaeaDataBackupRestore(zipPath); err != nil {
+		t.Fatalf("首次恢复: %v", err)
+	}
+	// 第二次应拒绝
+	if _, err := a.GaeaDataBackupRestore(zipPath); err == nil || !strings.Contains(err.Error(), "已有待应用恢复") {
+		t.Fatalf("应有 pending 时拒绝再次恢复: %v", err)
+	}
+	// 清理
+	_ = a.GaeaDataBackupCancel()
+}
+
+// TestGaeaDataBackupRollback 验证 #7：回滚到恢复前数据。
+func TestGaeaDataBackupRollback(t *testing.T) {
+	dataRoot := t.TempDir()
+	t.Setenv("GAEA_DATA_ROOT", dataRoot)
+	a := &App{}
+	// 无 before 目录时回滚 no-op
+	done, err := a.GaeaDataBackupRollback()
+	if err != nil || done {
+		t.Fatalf("无 before 时应 no-op: done=%v err=%v", done, err)
+	}
+	// 构造 before 目录 + 数据根被新数据占据
+	before := filepath.Join(dataRoot, ".restore-before")
+	if err := os.MkdirAll(before, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(before, "note.txt"), []byte("old-note"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataRoot, "note.txt"), []byte("new-note"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	done, err = a.GaeaDataBackupRollback()
+	if err != nil || !done {
+		t.Fatalf("应回滚: done=%v err=%v", done, err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dataRoot, "note.txt"))
+	if string(data) != "old-note" {
+		t.Fatalf("回滚后应为 old-note: %q", data)
+	}
+}
+

@@ -1,5 +1,20 @@
 # gaea · 多功能 AI 助手
 
+## v2.20.1「数据可迁移·独立审查修复」（2026-08-14）
+> 对 v2.20.0 变更面做独立子代理代码审查，修复 3 高危 + 4 中危 + 多项低危缺陷。
+> 详见 releases/v2.20.1.md。
+- 高危 #1：ApplyPending 部分失败后重试必失败 → 重构为两阶段幂等（先移走当前数据、再应用 staging，src 缺失视为已应用跳过），重试可成功且不破坏数据
+- 高危 #2：home-config 从不恢复（被主循环 rename 走）→ 主循环排除 home-config 单独处理；修复 HomeConfigRel 缺 . 前缀导致的恢复到错误文件名
+- 高危 #3：SQLite 快照连接无 busy_timeout + 静默回退复制缺 WAL → 加 _busy_timeout=5000 + 重试；回退改为 checkpoint 后复制；manifest 增 Warnings 告警字段
+- 中危 #4：恢复失败不可见 → 失败路径也写 .restore-result.json（前端失败告警可达）
+- 中危 #5：已有 pending 时再次 Restore 可堆叠/覆盖 → 拒绝并提示先取消；staging 加随机后缀防同秒撞名；Cancel 清理孤儿 staging
+- 中危 #6：dirSize 全量递归阻塞 UI → 目录大小缓存（mtime + TTL 失效）
+- 中危 #7：宣称可回滚但无回滚代码 → 新增 GaeaDataBackupRollback（.restore-before 移回）+ 前端失败告警「回滚到恢复前」按钮
+- 低危：#8 盘符路径拒绝、#9 恢复二次确认 + zip 校验、#10 备份文件名防同秒覆盖、#11 before 保留 2 份、
+  #12 WritePending 原子写、#13 Extract 两阶段、#15 shouldSkip 精确化、#16 pending 错误透出、#17 entries 数组校验
+- 测试：backup 包 9 组（新增重试幂等/home-config 恢复/盘符拒绝）、App 层 5 组（新增已有 pending 拒绝/Rollback）；
+  go 全量 ok、tsc/eslint 0 errors、vitest 251/251
+
 ## v2.20.0「个人使用收口·数据可迁移」（2026-08-14）
 > 长期规划阶段 4 按「个人使用、不商用」重新定标（用户 2026-08-14 决策）：
 > 删除商用分发项（安装器/自动更新/代码签名），聚焦个人使用最需要的

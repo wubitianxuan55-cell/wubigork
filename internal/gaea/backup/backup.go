@@ -46,7 +46,9 @@ type Plan struct {
 }
 
 // HomeConfigRel 是 home 下应用配置在 zip 内的相对名（与数据根分离）。
-const HomeConfigRel = "home-config/gaea_config.json"
+// 注意带点前缀：实际 home 文件是 ~/.gaea_config.json，恢复时 e.Name() 直接拼到 homeDir，
+// 若这里写成 gaea_config.json 会恢复到错误的文件名（#2 根因）。
+const HomeConfigRel = "home-config/.gaea_config.json"
 
 // NewPlan 构造备份计划：数据根 + 显式条目 + 跳过规则。
 func NewPlan(root string, entries []Source, skip []string) *Plan {
@@ -54,14 +56,19 @@ func NewPlan(root string, entries []Source, skip []string) *Plan {
 }
 
 // shouldSkip 判断相对路径是否命中跳过规则（匹配任意路径段）。
-// 命中条件：段完全相等 / 段以规则开头 / 段以规则结尾（如 "-wal" 匹配 "chat.db-wal"）。
+// 命中条件：#15 精确化——段完全相等，或段以 ".db-wal"/".db-shm" 等精确后缀结尾
+// （避免 "-wal" 前缀/后缀匹配误伤 my-wal.md、gaea.log.backup 等正常文件）。
 func (p *Plan) shouldSkip(rel string) bool {
 	for _, s := range p.Skip {
 		if s == "" {
 			continue
 		}
 		for _, seg := range strings.Split(rel, "/") {
-			if strings.EqualFold(seg, s) || strings.HasPrefix(seg, s) || strings.HasSuffix(seg, s) {
+			if strings.EqualFold(seg, s) {
+				return true
+			}
+			// 精确后缀（如 .db-wal / .db-shm）：仅当该段以特定后缀结尾
+			if strings.HasSuffix(seg, ".db-wal") || strings.HasSuffix(seg, ".db-shm") {
 				return true
 			}
 		}
@@ -90,6 +97,7 @@ type Manifest struct {
 	DataRoot   string    `json:"data_root"`   // 备份时的数据根（信息用）
 	EntryCount int       `json:"entry_count"` // 文件条目数
 	TotalBytes int64     `json:"total_bytes"` // 文件总大小
+	Warnings   []string  `json:"warnings,omitempty"` // 备份不完整告警（如快照失败回退）
 }
 
 // ValidateManifest 校验 manifest 是否为 gaea 备份。
@@ -147,7 +155,13 @@ func (p *Plan) Create(zipPath, appVersion string) (Manifest, error) {
 						files = append(files, fileEntry{rel: rel, abs: snap})
 						return nil
 					}
-					// 快照失败回退原样复制
+					// 快照失败：先尝试 checkpoint 后复制（保证 WAL 已合并），仍失败才原样复制并告警
+					if checkpointThenCopy(path, snap) {
+						files = append(files, fileEntry{rel: rel, abs: snap})
+						m.Warnings = append(m.Warnings, "快照失败已用 checkpoint 复制回退: "+rel)
+						return nil
+					}
+					m.Warnings = append(m.Warnings, "快照与 checkpoint 均失败，可能含未合并 WAL 数据: "+rel)
 				}
 				files = append(files, fileEntry{rel: rel, abs: path})
 				return nil
@@ -165,7 +179,11 @@ func (p *Plan) Create(zipPath, appVersion string) (Manifest, error) {
 				snap := filepath.Join(tmpDir, fmt.Sprintf("snap-single-%d.db", len(files)))
 				if serr := snapshotSQLite(s.Abs, snap); serr == nil {
 					files = append(files, fileEntry{rel: rel, abs: snap})
+				} else if checkpointThenCopy(s.Abs, snap) {
+					files = append(files, fileEntry{rel: rel, abs: snap})
+					m.Warnings = append(m.Warnings, "快照失败已用 checkpoint 复制回退: "+rel)
 				} else {
+					m.Warnings = append(m.Warnings, "快照与 checkpoint 均失败，可能含未合并 WAL 数据: "+rel)
 					files = append(files, fileEntry{rel: rel, abs: s.Abs})
 				}
 			} else {
@@ -243,17 +261,39 @@ func addFileToZip(zw *zip.Writer, rel, abs string) error {
 }
 
 // snapshotSQLite 用 VACUUM INTO 生成一致快照（源保持原样，WAL 自动合并）。
+// 常驻连接（busy_timeout=5000 的 WAL 模式）可能在写入提交期间持锁，只读连接必须
+// 带 busy_timeout 等待（否则立刻 SQLITE_BUSY），并重试一次。
 func snapshotSQLite(src, dst string) error {
-	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(src)+"?mode=ro")
+	dsn := "file:" + filepath.ToSlash(src) + "?mode=ro&_busy_timeout=5000"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 	stmt := "VACUUM INTO '" + strings.ReplaceAll(filepath.ToSlash(dst), "'", "''") + "'"
 	if _, err := db.Exec(stmt); err != nil {
-		return fmt.Errorf("vacuum into: %w", err)
+		// 重试一次（等锁释放）
+		time.Sleep(200 * time.Millisecond)
+		if _, err2 := db.Exec(stmt); err2 != nil {
+			return fmt.Errorf("vacuum into: %w", err2)
+		}
 	}
 	return nil
+}
+
+// checkpointThenCopy 回退快照：先对源库执行 wal_checkpoint(TRUNCATE) 让 WAL 合并进主文件，
+// 再复制主文件。用于 VACUUM INTO 失败（如磁盘紧张）时保证已提交数据不丢失。
+// 返回是否执行了 checkpoint（false 表示源不是可打开的 SQLite 或 checkpoint 失败，走原样复制）。
+func checkpointThenCopy(src, dst string) bool {
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(src)+"?_busy_timeout=5000")
+	if err != nil {
+		return false
+	}
+	defer db.Close()
+	if _, err := db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return false
+	}
+	return copyFile(src, dst) == nil
 }
 
 // ─── 校验与读取 ────────────────────────────────────────────────────
@@ -300,6 +340,9 @@ func safeZipRel(name string) (string, error) {
 	if clean == ".." || strings.HasPrefix(clean, "../") || strings.Contains(clean, "..\\") {
 		return "", fmt.Errorf("非法路径穿越: %s", name)
 	}
+	if vol := filepath.VolumeName(clean); vol != "" {
+		return "", fmt.Errorf("非法盘符路径: %s", name)
+	}
 	return clean, nil
 }
 
@@ -314,6 +357,14 @@ func Extract(zipPath, destDir string) (Manifest, error) {
 		return m, err
 	}
 	defer zr.Close()
+	// #13：两阶段解压——先建全部目录（含父目录），再写文件；同名冲突文件覆盖目录条目，
+	// 不依赖 zip 内条目顺序。
+	var dirs []string
+	type fileOut struct {
+		target string
+		f      *zip.File
+	}
+	var files []fileOut
 	for _, f := range zr.File {
 		if f.Name == "manifest.json" {
 			continue
@@ -324,19 +375,23 @@ func Extract(zipPath, destDir string) (Manifest, error) {
 		}
 		target := filepath.Join(destDir, filepath.FromSlash(rel))
 		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(target, 0o755); err != nil {
-				return m, err
-			}
+			dirs = append(dirs, target)
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		dirs = append(dirs, filepath.Dir(target))
+		files = append(files, fileOut{target: target, f: f})
+	}
+	for _, d := range dirs {
+		if err := os.MkdirAll(d, 0o755); err != nil {
 			return m, err
 		}
-		rc, err := f.Open()
+	}
+	for _, fo := range files {
+		rc, err := fo.f.Open()
 		if err != nil {
 			return m, err
 		}
-		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		out, err := os.OpenFile(fo.target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 		if err != nil {
 			rc.Close()
 			return m, err
@@ -366,7 +421,7 @@ type PendingState struct {
 	HomeDir   string    `json:"home_dir"`
 }
 
-// WritePending 写 pending 标记（DataRoot/.restore-pending.json）。
+// WritePending 写 pending 标记（DataRoot/.restore-pending.json），原子写（#12）。
 func WritePending(state PendingState) error {
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
@@ -376,7 +431,11 @@ func WritePending(state PendingState) error {
 	if err := os.MkdirAll(state.DataRoot, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // ReadPending 读取 pending 标记；不存在返回 (nil, nil)。
@@ -396,7 +455,7 @@ func ReadPending(dataRoot string) (*PendingState, error) {
 	return &st, nil
 }
 
-// ClearPending 删除 pending 标记与 staging 目录。
+// ClearPending 删除 pending 标记与 staging 目录，并清理无主孤儿 staging（#5）。
 func ClearPending(dataRoot string) error {
 	st, err := ReadPending(dataRoot)
 	if err != nil {
@@ -405,7 +464,62 @@ func ClearPending(dataRoot string) error {
 	if st != nil && st.StageDir != "" {
 		_ = os.RemoveAll(st.StageDir)
 	}
-	return os.Remove(filepath.Join(dataRoot, PendingFile))
+	_ = os.Remove(filepath.Join(dataRoot, PendingFile))
+	// 清理任何残留的 .restore-stage-* 孤儿目录（无 pending 引用）
+	entries, _ := os.ReadDir(dataRoot)
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, ".restore-stage-") {
+			if st == nil || filepath.Base(st.StageDir) != name {
+				_ = os.RemoveAll(filepath.Join(dataRoot, name))
+			}
+		}
+	}
+	return nil
+}
+
+// RollbackBefore 把恢复前的数据备份目录（.restore-before）整体移回数据根（#7）。
+// 用于恢复失败/取消后用户选择回滚到恢复前状态。返回是否执行了回滚。
+func RollbackBefore(dataRoot string) (bool, error) {
+	beforeDir := filepath.Join(dataRoot, ".restore-before")
+	info, err := os.Stat(beforeDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if !info.IsDir() {
+		return false, errors.New(".restore-before 不是目录")
+	}
+	entries, err := os.ReadDir(beforeDir)
+	if err != nil {
+		return false, err
+	}
+	moved := 0
+	for _, e := range entries {
+		src := filepath.Join(beforeDir, e.Name())
+		dst := filepath.Join(dataRoot, e.Name())
+		// 目标已存在（恢复后的新数据）则先移开，避免覆盖
+		if _, err := os.Stat(dst); err == nil {
+			keep := filepath.Join(dataRoot, ".restore-new-keep-"+e.Name())
+			_ = os.RemoveAll(keep)
+			if err := os.Rename(dst, keep); err != nil {
+				continue
+			}
+		}
+		if err := os.Rename(src, dst); err != nil {
+			if err2 := copyTree(src, dst); err2 != nil {
+				continue
+			}
+			_ = os.RemoveAll(src)
+		}
+		moved++
+	}
+	if moved > 0 {
+		_ = os.RemoveAll(beforeDir)
+	}
+	return moved > 0, nil
 }
 
 // ApplyResult 一次恢复应用的结果（写回 .restore-result.json 供前端提示）。
@@ -421,8 +535,17 @@ type ApplyResult struct {
 // ApplyPending 应用待恢复数据（Startup 早期、打开任何数据库前调用）。
 // 流程：读 pending → 校验 staging → 把当前数据整体移动为 .restore-before-<ts>
 // → 把 staging 内容移动到位 → 清理 pending → 写结果。失败保留 pending 以便重试。
-func ApplyPending(dataRoot, homeDir string) (ApplyResult, error) {
-	res := ApplyResult{AppDataRoot: dataRoot}
+func ApplyPending(dataRoot, homeDir string) (res ApplyResult, err error) {
+	res = ApplyResult{AppDataRoot: dataRoot}
+	// 无论成功失败都写 .restore-result.json（#4：失败路径对前端可见）
+	defer func() {
+		if res.Error != "" || res.Applied {
+			if data, e := json.MarshalIndent(res, "", "  "); e == nil {
+				_ = os.WriteFile(filepath.Join(dataRoot, ".restore-result.json"), data, 0o644)
+			}
+		}
+	}()
+
 	st, err := ReadPending(dataRoot)
 	if err != nil {
 		res.Error = err.Error()
@@ -442,8 +565,9 @@ func ApplyPending(dataRoot, homeDir string) (ApplyResult, error) {
 		return res, errors.New(res.Error)
 	}
 
-	ts := time.Now().Format("20060102-150405")
-	beforeDir := filepath.Join(dataRoot, ".restore-before-"+ts)
+	// 幂等 before 目录：部分失败重试时复用同一目录，避免把已应用数据反复搬入新目录（#1）。
+	// #11：应用成功后保留最近 2 份（见 res.Applied 分支的 pruneBeforeDirs）。
+	beforeDir := filepath.Join(dataRoot, ".restore-before")
 	if err := os.MkdirAll(beforeDir, 0o755); err != nil {
 		res.Error = err.Error()
 		return res, err
@@ -454,20 +578,38 @@ func ApplyPending(dataRoot, homeDir string) (ApplyResult, error) {
 		res.Error = err.Error()
 		return res, err
 	}
+
+	// 阶段 1：把当前数据全部移入 before（不依赖 src，重试时已移过的 dst 不存在则跳过，幂等可重入）。
+	// 排除 manifest.json 与 home-config（后者单独处理，避免被主循环 rename 走——#2）。
 	for _, e := range entries {
 		name := e.Name()
-		if name == "manifest.json" {
+		if name == "manifest.json" || name == "home-config" {
 			continue
 		}
-		src := filepath.Join(st.StageDir, name)
 		dst := filepath.Join(dataRoot, name)
 		before := filepath.Join(beforeDir, name)
 		if _, err := os.Stat(dst); err == nil {
+			if _, err := os.Stat(before); err == nil {
+				_ = os.RemoveAll(before) // 上次重试可能留下半成品，先清
+			}
 			if err := os.Rename(dst, before); err != nil {
 				res.Error = fmt.Sprintf("移动当前数据 %s 失败: %v", name, err)
 				return res, err
 			}
 		}
+	}
+
+	// 阶段 2：把 staging 内容移入数据根。src 缺失 = 该条目上次已应用成功，跳过而非报错（#1 重试幂等）。
+	for _, e := range entries {
+		name := e.Name()
+		if name == "manifest.json" || name == "home-config" {
+			continue
+		}
+		src := filepath.Join(st.StageDir, name)
+		if _, err := os.Stat(src); err != nil {
+			continue // 已应用，跳过
+		}
+		dst := filepath.Join(dataRoot, name)
 		if err := os.Rename(src, dst); err != nil {
 			if err2 := copyTree(src, dst); err2 != nil {
 				res.Error = fmt.Sprintf("应用 %s 失败: %v", name, err)
@@ -477,19 +619,26 @@ func ApplyPending(dataRoot, homeDir string) (ApplyResult, error) {
 		}
 	}
 
-	homeCfgStage := filepath.Join(st.StageDir, "home-config")
-	if fi, err := os.Stat(homeCfgStage); err == nil && fi.IsDir() {
-		entries2, _ := os.ReadDir(homeCfgStage)
-		for _, e := range entries2 {
-			src := filepath.Join(homeCfgStage, e.Name())
-			dst := filepath.Join(homeDir, e.Name())
-			before := filepath.Join(beforeDir, "home-config-"+e.Name())
-			if _, err := os.Stat(dst); err == nil {
-				_ = os.Rename(dst, before)
-			}
-			if err := copyFile(src, dst); err != nil {
-				res.Error = fmt.Sprintf("恢复 home 配置 %s 失败: %v", e.Name(), err)
-				return res, err
+	// home 配置单独恢复（#2：staging/home-config 仍在，未被主循环消费）
+	// #14：homeDir 参数为空时回退到 pending 记录的值（调用方未传时仍可恢复）
+	if homeDir == "" && st.HomeDir != "" {
+		homeDir = st.HomeDir
+	}
+	if homeDir != "" {
+		homeCfgStage := filepath.Join(st.StageDir, "home-config")
+		if fi, err := os.Stat(homeCfgStage); err == nil && fi.IsDir() {
+			entries2, _ := os.ReadDir(homeCfgStage)
+			for _, e := range entries2 {
+				src := filepath.Join(homeCfgStage, e.Name())
+				dst := filepath.Join(homeDir, e.Name())
+				before := filepath.Join(beforeDir, "home-config-"+e.Name())
+				if _, err := os.Stat(dst); err == nil {
+					_ = os.Rename(dst, before)
+				}
+				if err := copyFile(src, dst); err != nil {
+					res.Error = fmt.Sprintf("恢复 home 配置 %s 失败: %v", e.Name(), err)
+					return res, err
+				}
 			}
 		}
 	}
@@ -499,9 +648,28 @@ func ApplyPending(dataRoot, homeDir string) (ApplyResult, error) {
 	res.AppliedAt = time.Now()
 	_ = os.RemoveAll(st.StageDir)
 	_ = os.Remove(filepath.Join(dataRoot, PendingFile))
-	resultData, _ := json.MarshalIndent(res, "", "  ")
-	_ = os.WriteFile(filepath.Join(dataRoot, ".restore-result.json"), resultData, 0o644)
+	pruneBeforeDirs(dataRoot, 2) // #11：保留最近 2 份恢复前备份，清理更早的
 	return res, nil
+}
+
+// pruneBeforeDirs 保留最近 keep 份 .restore-before-* 目录（按 mtime），清理更早的。
+func pruneBeforeDirs(dataRoot string, keep int) {
+	pattern := filepath.Join(dataRoot, ".restore-before*")
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) <= keep {
+		return
+	}
+	sort.Slice(matches, func(i, j int) bool {
+		mi, _ := os.Stat(matches[i])
+		mj, _ := os.Stat(matches[j])
+		if mi == nil || mj == nil {
+			return false
+		}
+		return mi.ModTime().After(mj.ModTime())
+	})
+	for _, m := range matches[keep:] {
+		_ = os.RemoveAll(m)
+	}
 }
 
 // copyTree 目录递归复制。

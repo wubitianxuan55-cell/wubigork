@@ -233,3 +233,125 @@ func TestSHA256Stable(t *testing.T) {
 		t.Fatalf("SHA256 不稳定: %s %s", s1, s2)
 	}
 }
+
+
+// TestApplyPendingRetryIdempotent 验证 #1：部分失败后重试可成功且不破坏数据（幂等）。
+func TestApplyPendingRetryIdempotent(t *testing.T) {
+	rootA := setupDataRoot(t)
+	planA := NewPlan(rootA, []Source{
+		{ZipRel: "whisper_data", Abs: filepath.Join(rootA, "whisper_data")},
+		{ZipRel: "Hephaestus.db", Abs: filepath.Join(rootA, "Hephaestus.db")},
+	}, []string{"gaea.log", "-wal", "-shm"})
+	zipPath := filepath.Join(t.TempDir(), "a.zip")
+	if _, err := planA.Create(zipPath, "2.20.0"); err != nil {
+		t.Fatal(err)
+	}
+	rootB := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(rootB, "whisper_data"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootB, "whisper_data", "old.txt"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootB, "Hephaestus.db"), []byte("old-hep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stageDir := filepath.Join(rootB, ".restore-stage-test")
+	if _, err := Extract(zipPath, stageDir); err != nil {
+		t.Fatal(err)
+	}
+	// 模拟 #1 部分失败残留：Hephaestus.db 已应用（staging 中已删），whisper_data 未应用
+	if err := os.Remove(filepath.Join(stageDir, "Hephaestus.db")); err != nil {
+		t.Fatal(err)
+	}
+	if err := WritePending(PendingState{
+		StageDir:  stageDir,
+		ZipName:   "a.zip",
+		CreatedAt: time.Now(),
+		DataRoot:  rootB,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res1, err := ApplyPending(rootB, "")
+	if err != nil {
+		t.Fatalf("ApplyPending: %v", err)
+	}
+	if !res1.Applied {
+		t.Fatal("应标记 applied")
+	}
+	// 重试幂等：Hephaestus.db 应保持目标已有内容（不被重复搬移），whisper_data 应用新数据
+	if data, _ := os.ReadFile(filepath.Join(rootB, "Hephaestus.db")); string(data) != "old-hep" {
+		t.Fatalf("Hephaestus.db 应保持目标已有内容（重试幂等），实际 %q", data)
+	}
+	if _, err := os.Stat(filepath.Join(rootB, "whisper_data", "assistants.json")); err != nil {
+		t.Fatalf("whisper_data 应从 staging 应用: %v", err)
+	}
+	if st, _ := ReadPending(rootB); st != nil {
+		t.Fatal("pending 应已清理")
+	}
+}
+
+// TestApplyPendingHomeConfig 验证 #2：home-config 恢复到 homeDir（此前从未恢复）。
+func TestApplyPendingHomeConfig(t *testing.T) {
+	rootA := t.TempDir()
+	homeA := t.TempDir()
+	if err := os.WriteFile(filepath.Join(homeA, ".gaea_config.json"), []byte("{\"key\":\"v1\"}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootA, "note.txt"), []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	planA := NewPlan(rootA, []Source{
+		{ZipRel: "note.txt", Abs: filepath.Join(rootA, "note.txt")},
+		{ZipRel: HomeConfigRel, Abs: filepath.Join(homeA, ".gaea_config.json")},
+	}, nil)
+	zipPath := filepath.Join(t.TempDir(), "a.zip")
+	if _, err := planA.Create(zipPath, "2.20.0"); err != nil {
+		t.Fatal(err)
+	}
+	rootB := t.TempDir()
+	homeB := t.TempDir()
+	if err := os.WriteFile(filepath.Join(homeB, ".gaea_config.json"), []byte("{\"key\":\"old\"}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stageDir := filepath.Join(rootB, ".restore-stage-test")
+	if _, err := Extract(zipPath, stageDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := WritePending(PendingState{
+		StageDir:  stageDir,
+		ZipName:   "a.zip",
+		CreatedAt: time.Now(),
+		DataRoot:  rootB,
+		HomeDir:   homeB,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := ApplyPending(rootB, homeB)
+	if err != nil {
+		t.Fatalf("ApplyPending: %v", err)
+	}
+	if !res.Applied {
+		t.Fatal("应 applied")
+	}
+	data, err := os.ReadFile(filepath.Join(homeB, ".gaea_config.json"))
+	if err != nil || !strings.Contains(string(data), "v1") {
+		t.Fatalf("home 配置应恢复到 v1: %v %q", err, data)
+	}
+	if _, err := os.Stat(filepath.Join(rootB, "home-config")); err == nil {
+		t.Fatal("数据根不应残留 home-config 目录")
+	}
+	if _, err := os.Stat(filepath.Join(res.BeforeDir, "home-config-.gaea_config.json")); err != nil {
+		t.Fatalf("旧 home 配置应备份到 before: %v", err)
+	}
+}
+
+// TestSafeZipRelRejectsDriveLetter 验证 #8：盘符限定名被拒绝。
+func TestSafeZipRelRejectsDriveLetter(t *testing.T) {
+	for _, name := range []string{"C:/x", "C:\\x", "c:/x"} {
+		if _, err := safeZipRel(name); err == nil {
+			t.Errorf("%q 应被拒绝", name)
+		}
+	}
+}
+

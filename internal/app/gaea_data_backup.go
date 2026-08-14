@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	gaeaBackup "github.com/gaea/gaea/internal/gaea/backup"
@@ -88,13 +90,16 @@ func (a *App) GaeaDataBackupInfo() map[string]interface{} {
 		total += size
 		entries = append(entries, BackupEntryView{Path: s.ZipRel, Abs: s.Abs, Size: size, Exists: true, SQLite: strings.HasSuffix(strings.ToLower(s.ZipRel), ".db")})
 	}
-	pending, _ := gaeaBackup.ReadPending(config.DataRoot())
+	pending, pendingErr := gaeaBackup.ReadPending(config.DataRoot())
 	res := map[string]interface{}{
 		"data_root":   plan.Root,
 		"entries":     entries,
 		"total_bytes": total,
 		"pending":     pending != nil,
 		"app_version": AppVersion,
+	}
+	if pendingErr != nil {
+		res["pending_error"] = pendingErr.Error() // #16：损坏标记不再静默显示"无 pending"
 	}
 	if pending != nil {
 		res["pending_zip"] = pending.ZipName
@@ -111,7 +116,11 @@ func (a *App) GaeaDataBackupCreate(destDir string) (map[string]interface{}, erro
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return nil, fmt.Errorf("创建备份目录失败: %w", err)
 	}
-	zipPath := filepath.Join(destDir, fmt.Sprintf("gaea-backup-%s-%s.zip", AppVersion, time.Now().Format("20060102-150405")))
+	// #10：文件名毫秒级时间戳 + 随机后缀，防同秒覆盖
+	zipPath := filepath.Join(destDir, fmt.Sprintf("gaea-backup-%s-%s-%s.zip", AppVersion, time.Now().Format("20060102-150405.000"), randomSuffix(3)))
+	if _, err := os.Stat(zipPath); err == nil {
+		return nil, fmt.Errorf("备份文件已存在: %s", zipPath)
+	}
 	m, err := a.dataBackupPlan().Create(zipPath, AppVersion)
 	if err != nil {
 		return nil, err
@@ -130,11 +139,16 @@ func (a *App) GaeaDataBackupCreate(destDir string) (map[string]interface{}, erro
 // GaeaDataBackupRestore 从 zip 恢复（两阶段）：校验 → 解压到 staging → 写 pending。
 func (a *App) GaeaDataBackupRestore(zipPath string) (map[string]interface{}, error) {
 	root := config.DataRoot()
+	// #5：已有待应用恢复时拒绝再次恢复，避免堆叠/覆盖与孤儿 staging
+	if existing, _ := gaeaBackup.ReadPending(root); existing != nil {
+		return nil, fmt.Errorf("已有待应用恢复（%s，%s）。请先取消或重启完成后再试",
+			existing.ZipName, existing.CreatedAt.Format("2006-01-02 15:04:05"))
+	}
 	m, err := gaeaBackup.ReadManifest(zipPath)
 	if err != nil {
 		return nil, err
 	}
-	stageDir := filepath.Join(root, ".restore-stage-"+time.Now().Format("20060102-150405"))
+	stageDir := filepath.Join(root, ".restore-stage-"+time.Now().Format("20060102-150405")+"-"+randomSuffix(4))
 	if _, err := gaeaBackup.Extract(zipPath, stageDir); err != nil {
 		_ = os.RemoveAll(stageDir)
 		return nil, fmt.Errorf("解压备份失败: %w", err)
@@ -163,7 +177,10 @@ func (a *App) GaeaDataBackupRestore(zipPath string) (map[string]interface{}, err
 
 // GaeaDataBackupPending 查询是否有待应用恢复。
 func (a *App) GaeaDataBackupPending() map[string]interface{} {
-	pending, _ := gaeaBackup.ReadPending(config.DataRoot())
+	pending, err := gaeaBackup.ReadPending(config.DataRoot())
+	if err != nil {
+		return map[string]interface{}{"pending": false, "pending_error": err.Error()}
+	}
 	if pending == nil {
 		return map[string]interface{}{"pending": false}
 	}
@@ -175,9 +192,15 @@ func (a *App) GaeaDataBackupPending() map[string]interface{} {
 	}
 }
 
-// GaeaDataBackupCancel 取消待应用恢复（清理 staging + 标记）。
+// GaeaDataBackupCancel 取消待应用恢复（清理 staging + 标记 + 孤儿 staging）。
 func (a *App) GaeaDataBackupCancel() error {
 	return gaeaBackup.ClearPending(config.DataRoot())
+}
+
+// GaeaDataBackupRollback 把恢复前数据备份目录（.restore-before）移回数据根（#7）。
+// 用于恢复失败/取消后回滚到恢复前状态。返回是否执行了回滚。
+func (a *App) GaeaDataBackupRollback() (bool, error) {
+	return gaeaBackup.RollbackBefore(config.DataRoot())
 }
 
 // GaeaDataBackupRestoreResult 读取上次恢复应用结果（重启后前端提示）。
@@ -214,8 +237,50 @@ func (a *App) applyPendingRestore() {
 	}
 }
 
-// dirSize 递归统计目录大小（只统计普通文件）。
+// randomSuffix 生成短随机后缀（staging 目录防同秒撞名）。
+func randomSuffix(n int) string {
+	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, n)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := range b {
+		b[i] = chars[rng.Intn(len(chars))]
+	}
+	return string(b)
+}
+
+// dirSizeCache 目录大小缓存（#6：避免每次进设置页全量递归扫描大目录阻塞 Wails 调用）。
+// 键 = 目录绝对路径；值按目录 mtime 失效——目录内容变化必然更新父目录 mtime（含子目录新增/删除），
+// 足够接近真实；对 GB 级 whisper_data 从"每次全扫"降到"目录改动才扫"。
+var dirSizeCache = struct {
+	sync.Mutex
+	m map[string]dirSizeEntry
+}{m: make(map[string]dirSizeEntry)}
+
+type dirSizeEntry struct {
+	size  int64
+	modTS int64 // 目录 mtime unix nano
+	at    time.Time
+}
+
+const dirSizeCacheTTL = 15 * time.Second
+
+// dirSize 递归统计目录大小（带缓存：mtime + TTL 失效）。
 func dirSize(dir string) int64 {
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return 0
+	}
+	key := dir
+	modTS := info.ModTime().UnixNano()
+	now := time.Now()
+
+	dirSizeCache.Lock()
+	if e, ok := dirSizeCache.m[key]; ok && e.modTS == modTS && now.Sub(e.at) < dirSizeCacheTTL {
+		dirSizeCache.Unlock()
+		return e.size
+	}
+	dirSizeCache.Unlock()
+
 	var total int64
 	_ = filepath.WalkDir(dir, func(_ string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -228,5 +293,9 @@ func dirSize(dir string) int64 {
 		}
 		return nil
 	})
+
+	dirSizeCache.Lock()
+	dirSizeCache.m[key] = dirSizeEntry{size: total, modTS: modTS, at: now}
+	dirSizeCache.Unlock()
 	return total
 }

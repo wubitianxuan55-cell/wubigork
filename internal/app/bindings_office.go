@@ -40,6 +40,7 @@ func (b *OfficeB) GaeaDataBackupInfo() map[string]interface{} { return b.a.GaeaD
 func (b *OfficeB) GaeaDataBackupPending() map[string]interface{} { return b.a.GaeaDataBackupPending() }
 func (b *OfficeB) GaeaDataBackupRestore(zipPath string) (map[string]interface{}, error) { return b.a.GaeaDataBackupRestore(zipPath) }
 func (b *OfficeB) GaeaDataBackupRestoreResult() map[string]interface{} { return b.a.GaeaDataBackupRestoreResult() }
+func (b *OfficeB) GaeaDataBackupRollback() (bool, error) { return b.a.GaeaDataBackupRollback() }
 func (b *OfficeB) GaeaDeleteProvider(name string) error { return b.a.GaeaDeleteProvider(name) }
 func (b *OfficeB) GaeaDeleteSession(path string) error { return b.a.GaeaDeleteSession(path) }
 func (b *OfficeB) GaeaDocxAcceptChanges(rel string, accept bool) (PreviewResult, error) { return b.a.GaeaDocxAcceptChanges(rel, accept) }

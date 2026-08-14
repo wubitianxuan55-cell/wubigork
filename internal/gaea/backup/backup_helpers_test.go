@@ -2,6 +2,7 @@ package backup
 
 import (
 	"database/sql"
+	"os"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -48,3 +49,29 @@ func querySQLiteCount(t *testing.T, path string) int {
 	}
 	return n
 }
+
+// listDirNames 列目录名（测试辅助）。
+func listDirNames(t *testing.T, dir string) []string {
+	t.Helper()
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		t.Logf("listDirNames %s err=%v", dir, err)
+		return nil
+	}
+	var out []string
+	for _, e := range ents {
+		out = append(out, e.Name())
+	}
+	return out
+}
+
+// readOrEmpty 读文件内容或空串（测试辅助）。
+func readOrEmpty(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "<err:" + err.Error() + ">"
+	}
+	return string(data)
+}
+

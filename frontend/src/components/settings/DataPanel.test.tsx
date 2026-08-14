@@ -58,7 +58,9 @@ describe('DataPanel 数据备份/恢复', () => {
     mocks.GaeaPickFiles.mockResolvedValue([{ path: 'D:\\bk\\a.zip', name: 'a.zip', size: 1000 }])
     mocks.GaeaDataBackupRestore.mockResolvedValue({ restart_required: true, zip_name: 'a.zip', backup_version: '2.20.0' })
     render(<DataPanel />)
+    // Popconfirm 二次确认：先点「从备份恢复」打开确认，再点「选择备份文件」确认
     fireEvent.click(await screen.findByRole('button', { name: /从备份恢复/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /选择备份文件/ }))
     await waitFor(() => {
       expect(mocks.GaeaDataBackupRestore).toHaveBeenCalledWith('D:\\bk\\a.zip')
     })

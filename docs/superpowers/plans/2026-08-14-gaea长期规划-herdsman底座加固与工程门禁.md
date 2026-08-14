@@ -194,3 +194,12 @@
   - ✅ 验证：Go backup 包 6 测试 + App 层 3 测试 + internal/app 全量 ok（29.97s）、vet 干净、
     gen_bindings 重新生成（442 方法 → 10 门面）+ 完备性测试、tsc/eslint 0 errors、
     vitest 251/251（61 文件，DataPanel 4 组 + SettingsPage 更新）；
+  - 🔍 独立子代理代码审查（data_backup_review.md）：发现 3 高危 + 4 中危 + 9 低危；
+  - ✅ v2.20.1 审查修复（2026-08-14）：#1 ApplyPending 两阶段幂等（重试可成功）、#2 home 配置恢复
+    （修复 HomeConfigRel 缺 . 前缀根因）、#3 快照 busy_timeout + checkpoint 回退 + manifest Warnings、
+    #4 失败写 result、#5 已有 pending 拒绝 + staging 随机后缀 + 孤儿清理、#6 dirSize 缓存、
+    #7 GaeaDataBackupRollback + 前端回滚按钮、#8~#17 低危（盘符拒绝/二次确认/文件名防覆盖/before 保留 2 份/
+    原子写/两阶段解压/shouldSkip 精确化/错误透出/entries 校验）；
+    backup 包 9 测试 + App 层 5 测试、go 全量 ok、tsc/eslint 0 errors、vitest 251/251、
+    真实 E2E（第二次恢复拒绝、重启自动应用、home 配置恢复）；发布 gaea-v2.20.1.exe
+    （SHA256=F7347E70...）。
