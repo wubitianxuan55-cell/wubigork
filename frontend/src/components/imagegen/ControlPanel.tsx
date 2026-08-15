@@ -278,8 +278,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         {needsComfy && (
           <div style={{
             padding: '9px 11px', borderRadius: 10, fontSize: 11.5, lineHeight: 1.6,
-            border: '1px solid rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.08)',
-            color: '#f59e0b',
+            border: '1px solid color-mix(in srgb, var(--md-sys-color-warning) 35%, transparent)',
+            background: 'color-mix(in srgb, var(--md-sys-color-warning) 8%, transparent)',
+            color: 'var(--md-sys-color-warning)',
           }}>
             <VideoCameraOutlined style={{ marginRight: 5 }} />
             {mode === 't2v' ? '文生视频需使用 ComfyUI 本地后端' : '图生图需使用 ComfyUI / Herdsman 本地后端'}，请切换引擎
@@ -454,11 +455,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             ) : loraLoading ? (
               <div style={loraHintStyle}>正在加载 LoRA…</div>
             ) : loraError ? (
-              <div style={{ ...loraHintStyle, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ ...loraHintStyle, color: 'var(--color-destructive)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ flex: 1 }}>LoRA 加载失败：{loraError}</span>
                 {onRefreshLoras && (
                   <Button size="small" type="text" onClick={onRefreshLoras}
-                    style={{ color: '#f87171', fontSize: 11, padding: '0 4px' }}>
+                    style={{ color: 'var(--color-destructive)', fontSize: 11, padding: '0 4px' }}>
                     重试
                   </Button>
                 )}

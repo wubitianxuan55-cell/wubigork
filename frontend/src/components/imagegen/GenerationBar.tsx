@@ -69,7 +69,7 @@ export const GenerationBar: React.FC<Props> = ({
           </Tag>
         )}
         {needsComfy && (
-          <span style={{ fontSize: 11, color: '#f59e0b' }}>
+          <span style={{ fontSize: 11, color: 'var(--md-sys-color-warning)' }}>
             {mode === 't2v' ? '文生视频需切换至 ComfyUI' : '图生图需切换至 ComfyUI / Herdsman'}
           </span>
         )}

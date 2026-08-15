@@ -151,7 +151,7 @@ export const TaskCenter: React.FC<Props> = ({
                 const meta = STATUS_META[q.status]
                 const iconColor = q.status === 'running' ? 'var(--color-primary)'
                   : q.status === 'done' ? 'var(--color-success)'
-                  : q.status === 'failed' ? '#f87171'
+                  : q.status === 'failed' ? 'var(--color-destructive)'
                   : C('color-text-secondary')
                 return (
                   <div key={q.id} className="ig-queue-row">

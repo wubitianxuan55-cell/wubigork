@@ -69,12 +69,12 @@ export const ResultStage: React.FC<Props> = ({
       }}>
         <div style={{
           maxWidth: 460, width: '100%', borderRadius: 'var(--radius-md)',
-          border: '1px solid rgba(248,113,113,0.35)',
-          background: 'rgba(248,113,113,0.08)', padding: '14px 16px',
+          border: '1px solid color-mix(in srgb, var(--color-destructive) 35%, transparent)',
+          background: 'color-mix(in srgb, var(--color-destructive) 8%, transparent)', padding: '14px 16px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <span style={{ color: '#f87171', fontSize: 14 }}><ReloadOutlined /></span>
-            <span style={{ color: '#f87171', fontSize: 13, fontWeight: 600 }}>生成失败</span>
+            <span style={{ color: 'var(--color-destructive)', fontSize: 14 }}><ReloadOutlined /></span>
+            <span style={{ color: 'var(--color-destructive)', fontSize: 13, fontWeight: 600 }}>生成失败</span>
           </div>
           <Typography.Paragraph style={{ color: C('color-text-secondary'), fontSize: 12, margin: '0 0 10px' }}>
             {error}
