@@ -1,12 +1,13 @@
 // ModuleLauncher.tsx — AI 中枢首页（启动器）
 // 顶栏状态 → 正中语音交互中枢 + 两侧模块卡片；单一主题强调色，跟随 --gaea-glow
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useSyncExternalStore } from 'react'
 import {
   ThunderboltOutlined, ArrowRightOutlined, AudioOutlined,
   StopOutlined, RobotOutlined, UserOutlined,
 } from '@ant-design/icons'
-// 板块图标由 manifest 图标注册表解析（3.0 §5.2）
-import { canonicalBoards, resolveBoardIcon } from '../boards/manifests'
+// 板块清单：活动清单（静态 fallback / 后端合并）订阅驱动；图标由 manifest 图标注册表解析（3.0 §5.2）
+import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
+import { deriveLauncherModules, LAUNCHER_DESC, type LauncherModule } from '../boards/launcher'
 import { Tooltip } from 'antd'
 import VoiceChatOrb from './VoiceChatOrb'
 import { useVoiceChat } from '../hooks/useVoiceChat'
@@ -22,44 +23,6 @@ export type LauncherTarget = string
 /** 语音入口信号（首页现在本页启动语音，该信号保留兼容旧入口） */
 export const VOICE_LAUNCH_FLAG = 'gaea_voice_launch'
 
-interface LauncherModule {
-  key: LauncherTarget
-  name: string
-  desc: string
-  icon: React.ReactNode
-}
-
-// 卡片描述为 UI 文案（manifest 契约不含 desc），按板块 id 本地维护；
-// 名称/图标/顺序全部由 manifest 派生（3.0 §5.2，顺带补 memoryhub/characterlib 缺失入口）。
-const MODULE_DESC: Record<string, string> = {
-  chat: '与 AI 对话，激发灵感',
-  novel: '世界观、角色与大纲创作',
-  imagegen: 'AI 图像生成工作台',
-  gaea: '通用办公工作台',
-  memoryhub: '知识/成本/画像跨板块记忆沉淀',
-  modelcenter: '模型引擎管理与配置',
-  characterlib: '角色档案与跨板块角色管理',
-  settings: '应用偏好与主题外观',
-}
-
-/** 启动器模块清单 = 非 home 且可达（inMenu 或 settings 隐式入口）的板块，按 menuOrder 排序 */
-const modules: LauncherModule[] = canonicalBoards
-  .filter((b) => !b.isHome && (b.inMenu || b.id === 'settings'))
-  .sort((a, b) => a.menuOrder - b.menuOrder)
-  .map((b) => {
-    const Icon = resolveBoardIcon(b.icon)
-    return {
-      key: b.id,
-      name: b.label,
-      desc: MODULE_DESC[b.id] ?? b.label,
-      icon: Icon ? <Icon /> : <ThunderboltOutlined />,
-    }
-  })
-
-// 已/右卡片列（正中语音交互，卡片分居两侧）
-const leftModules = modules.slice(0, 3)
-const rightModules = modules.slice(3)
-
 interface ModuleLauncherProps {
   onNavigate: (target: LauncherTarget) => void
   /** 当前激活的 AI 模型名（顶栏已加装，传入提升真实感） */
@@ -67,31 +30,35 @@ interface ModuleLauncherProps {
 }
 
 /** 单张玻璃档案卡 */
-const LauncherCard: React.FC<{ m: LauncherModule; idx: number; onOpen: () => void }> = ({ m, idx, onOpen }) => (
-  <div
-    role="button"
-    tabIndex={0}
-    aria-label={`进入${m.name}模块`}
-    className="ml-card"
-    style={{ '--ml-i': idx } as React.CSSProperties}
-    onClick={onOpen}
-    onKeyDown={(e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        onOpen()
-      }
-    }}
-  >
-    <div className="ml-card-icon">{m.icon}</div>
-    <div className="ml-card-body">
-      <div className="ml-card-name">
-        {m.name}
-        <ArrowRightOutlined className="ml-card-arrow" />
+const LauncherCard: React.FC<{ m: LauncherModule; idx: number; onOpen: () => void }> = ({ m, idx, onOpen }) => {
+  // icon 为图标注册表名，渲染处查表解析；未知名 → Thunderbolt 兜底（3.0 §5.2）
+  const Icon = resolveBoardIcon(m.icon)
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`进入${m.name}模块`}
+      className="ml-card"
+      style={{ '--ml-i': idx } as React.CSSProperties}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+    >
+      <div className="ml-card-icon">{Icon ? <Icon /> : <ThunderboltOutlined />}</div>
+      <div className="ml-card-body">
+        <div className="ml-card-name">
+          {m.name}
+          <ArrowRightOutlined className="ml-card-arrow" />
+        </div>
+        <div className="ml-card-desc">{m.desc}</div>
       </div>
-      <div className="ml-card-desc">{m.desc}</div>
     </div>
-  </div>
-)
+  )
+}
 
 /** 卡片列（左右两侧） */
 const CardColumn: React.FC<{ list: LauncherModule[]; onNavigate: (t: LauncherTarget) => void }> = ({ list, onNavigate }) => (
@@ -124,6 +91,16 @@ const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ ro
  * 语音后端走聊天 voiceManager 管道，对话人格与聊天板块保持一致（后端持久化）。
  */
 const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel }) => {
+  // ── 板块清单（清单化数据源，3.0 §5.2 附 B #10/#11）──
+  // useSyncExternalStore 订阅活动清单：getActiveBoards 返回稳定引用（仅加载成功时
+  // 替换），subscribeBoards 通知即重渲染，无手动 setState 竞态。默认未加载 = 静态
+  // canonicalBoards（8 卡）；loadBoardManifests 成功并入 knowledge 后自动多出「知识库」卡。
+  const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
+  const modules = deriveLauncherModules(activeBoards, LAUNCHER_DESC)
+  // 左/右卡片列（正中语音交互，卡片分居两侧）
+  const leftModules = modules.slice(0, 3)
+  const rightModules = modules.slice(3)
+
   // ── 语音交互（本页直启麦克风）──
   const [userText, setUserText] = useState('')
   const [aiReply, setAiReply] = useState('')
