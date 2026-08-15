@@ -1133,11 +1133,14 @@ func (c *Client) GenerateImage(ctx context.Context, req *ImageGenerationRequest)
 	if backend != nil {
 		return backend.GenerateImage(ctx, req)
 	}
-	return c.generateImageXAI(ctx, req)
+	return c.generateImageXAI(ctx, req, false)
 }
 
-// generateImageXAI xAI 原生图片生成
-func (c *Client) generateImageXAI(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
+// generateImageXAI xAI 图片生成（3a Image seam）：
+// 走注册表 openai 兼容后端（kind = ImageBackendKindOpenAI），保留 xAI 特有参数清理；
+// 401 时刷新 token 重试一次（retried 守卫单次重试，避免持续 401 无限递归），
+// 内容审核拦截给出友好提示。
+func (c *Client) generateImageXAI(ctx context.Context, req *ImageGenerationRequest, retried bool) (*ImageGenerationResponse, error) {
 	token, err := c.GetToken()
 	if err != nil {
 		return nil, err
@@ -1153,56 +1156,33 @@ func (c *Client) generateImageXAI(ctx context.Context, req *ImageGenerationReque
 	req.Negative = ""
 	req.Seed = 0
 
-	endpoint := strings.TrimSuffix(c.cfg.XaiAPIBaseURL, "/") + "/images/generations"
-	body, err := json.Marshal(req)
+	backend, err := NewImageBackend(ImageBackendKindOpenAI, ImageBackendConfig{
+		BaseURL: c.cfg.XaiAPIBaseURL,
+		APIKey:  token,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("marshal image request: %w", err)
+		return nil, err
 	}
-	slog.Info("xAI图片请求", "body", string(body))
+	slog.Info("xAI图片请求", "model", req.Model, "n", req.N)
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
+	resp, err := backend.GenerateImage(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("构造图片请求失败: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+token)
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("图片 API 请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read image response: %w", err)
-	}
-
-	if resp.StatusCode == 401 {
-		if err := c.tryRefreshToken(); err != nil {
-			return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
-		}
-		return c.generateImageXAI(ctx, req)
-	}
-	if resp.StatusCode != 200 {
-		slog.Error("xAI图片生成失败", "status", resp.StatusCode, "body", trimStr(string(respBody), 500))
-		// 解析错误详情，提供友好提示
-		var errResp struct {
-			Code  string `json:"code"`
-			Error string `json:"error"`
-		}
-		if json.Unmarshal(respBody, &errResp) == nil && errResp.Code == "imagine:content-moderated" {
+		msg := err.Error()
+		// 内容审核拦截：错误体含 imagine:content-moderated 时给出友好提示
+		if strings.Contains(msg, "imagine:content-moderated") {
 			return nil, fmt.Errorf("xAI 内容审核拦截，请修改提示词后重试")
 		}
-		return nil, fmt.Errorf("图片 API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
+		// 401 认证失败：刷新 token 后重试一次（注册表后端以 "HTTP 401" 透传状态码）。
+		// retried 守卫：仅当尚未重试过才刷新并递归，持续 401 直接返回错误（不无限递归）。
+		if strings.Contains(msg, "HTTP 401") && !retried {
+			if rerr := c.tryRefreshToken(); rerr != nil {
+				return nil, fmt.Errorf("认证失败 (HTTP 401): %w", rerr)
+			}
+			return c.generateImageXAI(ctx, req, true)
+		}
+		return nil, err
 	}
-
-	var imgResp ImageGenerationResponse
-	if err := json.Unmarshal(respBody, &imgResp); err != nil {
-		slog.Error("解析xAI图片响应失败", "body", trimStr(string(respBody), 300), "error", err)
-		return nil, fmt.Errorf("解析图片响应失败: %w", err)
-	}
-	return &imgResp, nil
+	return resp, nil
 }
 
 // ── 工具函数 ──────────────────────────────────────────────────

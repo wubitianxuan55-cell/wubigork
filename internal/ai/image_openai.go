@@ -34,6 +34,17 @@ func NewOpenAIImageBackend(baseURL string, apiKey string) *OpenAIImageBackend {
 	}
 }
 
+// init 自注册：OpenAI 兼容后端经注册表提供（kind = ImageBackendKindOpenAI）。
+// 覆盖 xAI / Herdsman / Ollama 等提供 /v1/images/generations 的服务。
+func init() {
+	RegisterImageBackend(ImageBackendKindOpenAI, func(cfg ImageBackendConfig) (ImageBackend, error) {
+		if strings.TrimSpace(cfg.BaseURL) == "" {
+			return nil, fmt.Errorf("ai: openai image backend requires base_url")
+		}
+		return NewOpenAIImageBackend(cfg.BaseURL, cfg.APIKey), nil
+	})
+}
+
 // GenerateImage 通过 OpenAI 兼容 API 生成图片
 func (b *OpenAIImageBackend) GenerateImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
 	var endpoint string

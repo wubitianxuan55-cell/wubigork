@@ -43,6 +43,16 @@ func NewComfyUIBackend(baseURL string) *ComfyUIBackend {
 	}
 }
 
+// init 自注册：ComfyUI 后端经注册表提供（kind = ImageBackendKindComfyUI）。
+func init() {
+	RegisterImageBackend(ImageBackendKindComfyUI, func(cfg ImageBackendConfig) (ImageBackend, error) {
+		if strings.TrimSpace(cfg.BaseURL) == "" {
+			return nil, fmt.Errorf("ai: comfyui image backend requires base_url")
+		}
+		return NewComfyUIBackend(cfg.BaseURL), nil
+	})
+}
+
 // Interrupt 中断 ComfyUI 当前正在执行的任务（POST /interrupt），并置位本地取消标记。
 //
 // ComfyUI 限制说明：ComfyUI 没有「删除排队任务」的 API——/queue 仅能查询
