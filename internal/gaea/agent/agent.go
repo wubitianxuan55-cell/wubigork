@@ -135,7 +135,9 @@ const (
 )
 
 type AgentRunner struct {
-	prov    provider.Provider
+	// prov 是 LLM seam 提供者：只依赖 provider.LLMProvider 接口（定义），
+	// 具体后端由 boot 按配置 kind 经注册表装配，聊天调用经 Stream/Chat 接口。
+	prov    provider.LLMProvider
 	tools   *tool.Registry
 	session *Session
 	sessMu  sync.Mutex // guards the session pointer for external Session()/SetSession
@@ -507,7 +509,9 @@ func (a *AgentRunner) CompactRatio() float64 { return a.compaction.Ratio }
 // continues until the model gives a final answer, the context is cancelled, or
 // the provider errors (compaction keeps the context bounded). A nil sink is
 // replaced with event.Discard so the agent can always emit unconditionally.
-func New(prov provider.Provider, tools *tool.Registry, session *Session, opts Options, sink event.Sink) *AgentRunner {
+// prov is the LLM seam provider: the agent depends only on provider.LLMProvider,
+// so switching chat backends never touches this package.
+func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts Options, sink event.Sink) *AgentRunner {
 	// Build CompactionConfig from opts.Compaction.
 	comp := opts.Compaction
 	if comp.Window == 0 {

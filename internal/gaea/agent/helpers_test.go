@@ -60,6 +60,11 @@ func (m *mockProvider) Stream(ctx context.Context, req provider.Request) (<-chan
 	return ch, nil
 }
 
+// Chat 满足 LLM seam 接口：聚合本 mock 的 Stream（与真实后端同一默认实现）。
+func (m *mockProvider) Chat(ctx context.Context, req provider.Request) (*provider.Completion, error) {
+	return provider.ChatFromStream(ctx, m, req)
+}
+
 // lastUser returns the content of the last user-role message in a request.
 func lastUser(req provider.Request) string {
 	for i := len(req.Messages) - 1; i >= 0; i-- {

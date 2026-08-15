@@ -14,7 +14,8 @@ import (
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
-// Provider 是 gaea provider.Provider 的 gaea 实现。
+// Provider 是 gaea provider.LLMProvider（seam 定义）的 gaea 模型中心实现。
+// 注册 kind = "wubigrok"（provider.LLMKindWubigrok），是缺省 LLM 提供者。
 type Provider struct {
 	name   string
 	model  string
@@ -22,8 +23,17 @@ type Provider struct {
 	engine string // 办公功能级引擎（空 = 由 ai.Client 按活跃引擎解析）
 }
 
+// _ 编译期断言：bridge Provider 满足 LLM seam 定义接口（Stream + Chat）。
+var _ provider.LLMProvider = (*Provider)(nil)
+
 // Name 返回 provider 实例名。
 func (p *Provider) Name() string { return p.name }
+
+// Chat 执行一次性（非流式）补全：聚合 Stream 的同一转换路径（ChatFromStream），
+// 保证 Chat 与流式结果语义一致（思考链/工具调用/用量全部透传）。
+func (p *Provider) Chat(ctx context.Context, req provider.Request) (*provider.Completion, error) {
+	return provider.ChatFromStream(ctx, p, req)
+}
 
 // Stream 将 gaea 请求转发到 gaea 模型中心，并把流式响应转换为 gaea Chunk。
 func (p *Provider) Stream(ctx context.Context, req provider.Request) (<-chan provider.Chunk, error) {
@@ -156,7 +166,9 @@ func SetFeature(engine, model string) {
 }
 
 func init() {
-	provider.Register("wubigrok", func(cfg provider.Config) (provider.Provider, error) {
+	// LLM seam：wubigrok 是缺省 kind（provider.DefaultLLMKind）。互斥注册——
+	// 重复注册会在 init 阶段 panic（编译期接线错误，seam 三纪律）。
+	provider.Register(provider.LLMKindWubigrok, func(cfg provider.Config) (provider.Provider, error) {
 		if client == nil {
 			return nil, errors.New("bridge: ai.LLMClient 未注入，请先调用 bridge.SetClient")
 		}

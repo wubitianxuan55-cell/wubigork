@@ -489,11 +489,16 @@ func subagentModelKeys(name string) []string {
 	return keys
 }
 
-// NewProvider builds a provider.Provider from a configured entry. Exported so
-// custom assemblers (e.g. the ACP per-session factory) can reuse it without
-// going through the full Build.
-func NewProvider(e *config.ProviderEntry) (provider.Provider, error) {
-	return provider.New(e.Kind, provider.Config{
+// NewProvider builds the LLM seam provider (provider.LLMProvider) from a
+// configured entry. The kind comes from config (gaea.toml [[providers]] kind),
+// so switching the chat backend is a config-only change: providers.Register(kind)
+// selects the implementation, provider.NewLLM fails closed on an unknown kind,
+// and an empty kind defaults to provider.DefaultLLMKind ("wubigrok" — today's
+// bridge provider, keeping unconfigured behaviour unchanged). Exported so custom
+// assemblers (e.g. the ACP per-session factory) can reuse it without going
+// through the full Build.
+func NewProvider(e *config.ProviderEntry) (provider.LLMProvider, error) {
+	return provider.NewLLM(e.Kind, provider.Config{
 		Name:    e.Name,
 		BaseURL: e.BaseURL,
 		Model:   e.Model,

@@ -167,6 +167,13 @@ func (p *MockProvider) Reset() {
 	p.seen = 0
 }
 
+// Chat satisfies the LLM seam interface (provider.LLMProvider): it aggregates
+// this mock's scripted Stream into a single Completion — the same default
+// implementation real providers use via provider.ChatFromStream.
+func (p *MockProvider) Chat(ctx context.Context, req provider.Request) (*provider.Completion, error) {
+	return provider.ChatFromStream(ctx, p, req)
+}
+
 // UsageTurn is a convenience: a Turn whose text is empty but usage is set.
 // Useful for simulating a tool-call round-trip where the final model response
 // that round is tested later.
@@ -188,3 +195,4 @@ func ErrorTurn(err error) Turn {
 }
 
 var _ provider.Provider = (*MockProvider)(nil)
+var _ provider.LLMProvider = (*MockProvider)(nil) // LLM seam：mock 也满足 Chat

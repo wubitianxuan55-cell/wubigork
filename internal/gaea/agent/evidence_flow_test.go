@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/gaea/gaea/internal/gaea/tool/builtin" // 注册 builtin 工具
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/tool"
+	_ "github.com/gaea/gaea/internal/gaea/tool/builtin" // 注册 builtin 工具
 )
 
 // isolateProgressCwd 把 cwd 切到带独立 .gaea/ 的临时目录：
@@ -31,6 +31,7 @@ func isolateProgressCwd(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(cwd) })
 }
+
 // Run() sees tool calls on turn 1 and a plain final answer on turn 2.
 type scriptedProvider struct {
 	name  string
@@ -52,6 +53,11 @@ func (s *scriptedProvider) Stream(_ context.Context, _ provider.Request) (<-chan
 	}
 	close(ch)
 	return ch, nil
+}
+
+// Chat 满足 LLM seam 接口：聚合本 provider 的 Stream（与真实后端同一默认实现）。
+func (s *scriptedProvider) Chat(ctx context.Context, req provider.Request) (*provider.Completion, error) {
+	return provider.ChatFromStream(ctx, s, req)
 }
 
 func toolCallChunk(id, name, args string) provider.Chunk {

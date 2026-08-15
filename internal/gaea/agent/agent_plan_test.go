@@ -25,6 +25,11 @@ func (p planStubProvider) Stream(_ context.Context, _ provider.Request) (<-chan 
 	return ch, nil
 }
 
+// Chat 满足 LLM seam 接口：聚合本 stub 的 Stream。
+func (p planStubProvider) Chat(ctx context.Context, req provider.Request) (*provider.Completion, error) {
+	return provider.ChatFromStream(ctx, p, req)
+}
+
 func TestAgentRunnerPlan(t *testing.T) {
 	r := New(planStubProvider{}, nil, nil, Options{}, nil)
 	got, err := r.Plan(context.Background(), "你是 gaea", "帮我做成本测算")

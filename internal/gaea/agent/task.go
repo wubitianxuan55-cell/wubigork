@@ -95,7 +95,7 @@ type TaskCompiler interface {
 // parallel research across independent areas (the parallel-dispatch path picks
 // these up only when readOnly, which task is not).
 type TaskTool struct {
-	prov             provider.Provider
+	prov             provider.LLMProvider
 	pricing          *provider.Pricing
 	parentReg        *tool.Registry
 	maxSteps         int
@@ -109,7 +109,7 @@ type TaskTool struct {
 	templatePrefix   string                // V5.30: 子代理模板前缀，同类子代理共享缓存
 	accumulatedUsage *provider.Usage       // V5.30: 子代理累计 token 用量
 	activeSchemas    []provider.ToolSchema // V5.30: 父代理过滤工具集，子代理继承以共享缓存
-	subagentProv     provider.Provider     // V10.22: optional subagent model provider (nil → use prov)
+	subagentProv     provider.LLMProvider  // V10.22: optional subagent model provider (nil → use prov)
 	subagentPricing  *provider.Pricing
 	subagentCtxWin   int
 
@@ -122,7 +122,7 @@ type TaskTool struct {
 // is the permission gate sub-agents inherit — pass the headless variant so
 // deny rules still bite while autonomous sub-agents are never blocked on an
 // interactive prompt (there is no UI to answer one).
-func NewTaskTool(prov provider.Provider, pricing *provider.Pricing, parentReg *tool.Registry,
+func NewTaskTool(prov provider.LLMProvider, pricing *provider.Pricing, parentReg *tool.Registry,
 	maxSteps, contextWindow int, temperature float64, archiveDir, sysPrompt string, gate Gate) *TaskTool {
 	if sysPrompt == "" {
 		sysPrompt = DefaultTaskSystemPrompt
@@ -292,7 +292,7 @@ func (t *TaskTool) SubUsage() *provider.Usage                      { return t.ac
 
 // SetSubagentProvider installs an optional provider for sub-agents. When nil the
 // sub-agent falls back to the parent's execution provider (prov).
-func (t *TaskTool) SetSubagentProvider(p provider.Provider, pricing *provider.Pricing, ctxWin int) {
+func (t *TaskTool) SetSubagentProvider(p provider.LLMProvider, pricing *provider.Pricing, ctxWin int) {
 	t.subagentProv = p
 	t.subagentPricing = pricing
 	t.subagentCtxWin = ctxWin
@@ -471,20 +471,20 @@ func (t *TaskTool) finalizeRun(result string, err error, run *SubagentRun) (stri
 	return result, nil
 }
 
-func RunSubAgent(ctx context.Context, prov provider.Provider, reg *tool.Registry, sysPrompt, prompt string, opts Options, sink event.Sink, subUsage *provider.Usage) (string, error) {
+func RunSubAgent(ctx context.Context, prov provider.LLMProvider, reg *tool.Registry, sysPrompt, prompt string, opts Options, sink event.Sink, subUsage *provider.Usage) (string, error) {
 	return runSubAgentInternal(ctx, prov, reg, NewSession(sysPrompt), prompt, opts, sink, subUsage)
 }
 
 // RunSubAgentWithSession runs a sub-agent with an existing session (used for
 // continue_from). Unlike RunSubAgent which creates a new session, this uses the
 // provided session directly so the sub-agent continues from where it left off.
-func RunSubAgentWithSession(ctx context.Context, prov provider.Provider, reg *tool.Registry, sess *session.Session, prompt string, opts Options, sink event.Sink, subUsage *provider.Usage) (string, error) {
+func RunSubAgentWithSession(ctx context.Context, prov provider.LLMProvider, reg *tool.Registry, sess *session.Session, prompt string, opts Options, sink event.Sink, subUsage *provider.Usage) (string, error) {
 	return runSubAgentInternal(ctx, prov, reg, sess, prompt, opts, sink, subUsage)
 }
 
 // runSubAgentInternal is the shared sub-agent execution path: wire up an
 // AgentRunner, run the prompt, and extract the final assistant message.
-func runSubAgentInternal(ctx context.Context, prov provider.Provider, reg *tool.Registry, sess *Session, prompt string, opts Options, sink event.Sink, subUsage *provider.Usage) (string, error) {
+func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *tool.Registry, sess *Session, prompt string, opts Options, sink event.Sink, subUsage *provider.Usage) (string, error) {
 	// sub-agents don't need orchestrate verify — they execute a single task
 	opts.DisableVerify = true
 	sub := New(prov, reg, sess, opts, sink)
