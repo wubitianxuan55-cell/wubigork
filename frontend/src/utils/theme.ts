@@ -3,23 +3,23 @@
 /** 快捷引用 CSS 变量 */
 export const C = (name: string) => `var(--${name})`
 
-/** 状态颜色常量 */
+/** 状态颜色常量（3.0 Wave 4：硬编码 hex → 语义令牌，随 12 主题联动） */
 export const STATUS_COLORS: Record<string, string> = {
   planned: 'var(--color-text-secondary)',
-  writing: '#60a5fa',
-  done: 'var(--color-primary)',
-  abandoned: '#f87171',
+  writing: 'var(--color-primary)',
+  done: 'var(--color-success)',
+  abandoned: 'var(--color-destructive)',
 }
 
 export const STATUS_LABELS: Record<string, string> = {
   planned: '待写', writing: '写作中', done: '已完成', abandoned: '已弃',
 }
 
-/** 角色类型颜色 */
+/** 角色类型颜色（语义令牌） */
 export const ROLE_COLORS: Record<string, string> = {
   protagonist: 'var(--color-primary)',
-  antagonist: '#f87171',
-  supporting: '#60a5fa',
+  antagonist: 'var(--color-destructive)',
+  supporting: 'var(--color-text-secondary)',
   minor: 'var(--color-text-secondary)',
 }
 
