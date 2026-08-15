@@ -13,13 +13,14 @@ export interface MemoryFact {
 interface Props { facts: MemoryFact[]; personalityID: string; onFactsChange?: (facts: MemoryFact[]) => void }
 
 // ─── 精确分类映射（对齐后端 memory_taxonomy.go 6 domain + 25 subcategory）───
+// 3.0 Wave 4：领域分类 emoji → 纯文本标签（MASTER「no emoji-as-icon」）
 const DOMAIN_LABELS: Record<string, string> = {
-  IDENTITY: '🪪 身份', SOCIAL: '💕 社交', DAILY_LIFE: '🏠 日常',
-  PURSUITS: '🎯 追求', INNER_WORLD: '🧘 内心', TEMPORAL: '⏰ 时间',
+  IDENTITY: '身份', SOCIAL: '社交', DAILY_LIFE: '日常',
+  PURSUITS: '追求', INNER_WORLD: '内心', TEMPORAL: '时间',
   // 旧域兼容
-  personal: '🪪 身份', preference: '⭐ 偏好', relationship: '💕 社交',
-  shared_bond: '🤝 羁绊', health: '💊 健康', work: '💼 工作',
-  user_behavior: '🎯 行为', user_state: '💭 状态', companion_reply: '💬 回复',
+  personal: '身份', preference: '偏好', relationship: '社交',
+  shared_bond: '羁绊', health: '健康', work: '工作',
+  user_behavior: '行为', user_state: '状态', companion_reply: '回复',
 }
 const DOMAIN_ORDER = ['IDENTITY', 'SOCIAL', 'DAILY_LIFE', 'PURSUITS', 'INNER_WORLD', 'TEMPORAL']
 
@@ -38,7 +39,8 @@ const SUB_LABELS: Record<string, string> = {
   NOW: '当下', COMMITMENTS: '承诺', PLANS: '计划', WORLD: '世界观',
 }
 
-const VALENCE_COLOR = (v: number) => v > 0.2 ? '#52c41a' : v < -0.2 ? '#ff4d4f' : '#8c8c8c'
+const VALENCE_COLOR = (v: number) => v > 0.2 ? 'var(--color-success)' : v < -0.2 ? 'var(--color-destructive)' : 'var(--color-text-secondary)'
+// 情绪符号为内容语义（轻语情感表达），保留
 const VALENCE_LABEL = (v: number) => v > 0.2 ? '😊' : v < -0.2 ? '😔' : '😐'
 
 export default function WhisperMemoryModal({ facts, personalityID, onFactsChange }: Props) {
