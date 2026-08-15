@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DownloadOutlined, HeartOutlined, ReadOutlined } from "@ant-design/icons";
+import { DownloadOutlined, HeartOutlined, ReadOutlined, IdcardOutlined, HomeOutlined, AimOutlined, SmileOutlined, ClockCircleOutlined } from "@ant-design/icons";
 import { Modal, message } from "antd";
 import { RefreshCw } from "../../icons";
 import { app } from "../../lib/bridge";
@@ -7,9 +7,14 @@ import type { WhisperEpisodeView, WhisperMemoryView } from "../../lib/types";
 import { EmptyState } from "../EmptyState";
 
 // 对齐后端 memory_taxonomy.go 6 domain（与 WhisperMemoryModal 一致）
+// 3.0 Wave 4：领域分类 emoji → antd 图标（MASTER「no emoji-as-icon」）
 const DOMAIN_LABELS: Record<string, string> = {
-  IDENTITY: "🪪 身份", SOCIAL: "💕 社交", DAILY_LIFE: "🏠 日常",
-  PURSUITS: "🎯 追求", INNER_WORLD: "🧘 内心", TEMPORAL: "⏰ 时间",
+  IDENTITY: "身份", SOCIAL: "社交", DAILY_LIFE: "日常",
+  PURSUITS: "追求", INNER_WORLD: "内心", TEMPORAL: "时间",
+};
+const DOMAIN_ICONS: Record<string, React.ReactNode> = {
+  IDENTITY: <IdcardOutlined />, SOCIAL: <HeartOutlined />, DAILY_LIFE: <HomeOutlined />,
+  PURSUITS: <AimOutlined />, INNER_WORLD: <SmileOutlined />, TEMPORAL: <ClockCircleOutlined />,
 };
 const DOMAIN_ORDER = ["IDENTITY", "SOCIAL", "DAILY_LIFE", "PURSUITS", "INNER_WORLD", "TEMPORAL"];
 
@@ -212,7 +217,7 @@ export function WhisperMemoryLibrary() {
             {groups.map((g) => (
               <div key={g.domain}>
                 <div className="flex items-center gap-2 mb-1.5">
-                  <HeartOutlined style={{ fontSize: 13, color: "#f472b6" }} />
+                  <span className="text-fg-dim" style={{ fontSize: 13, color: "var(--md-sys-color-text-secondary)" }}>{DOMAIN_ICONS[g.domain]}</span>
                   <span className="text-fg-dim text-[12px] font-medium">{DOMAIN_LABELS[g.domain] ?? g.domain}</span>
                   <span className="text-fg-faint text-[10.5px]">{g.items.length}</span>
                 </div>

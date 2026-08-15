@@ -45,11 +45,12 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
   it("默认事实 tab 按 domain 分组渲染：身份/社交/其他 组标题与条数", async () => {
     render(<WhisperMemoryLibrary />);
 
-    expect(await screen.findByText("🪪 身份")).toBeTruthy();
+    // 3.0 Wave 4：领域分类 emoji → antd 图标，组标题为纯文本标签
+    expect(await screen.findByText("身份")).toBeTruthy();
     // 组头 = 图标 + 标签 + 条数（用父容器 textContent 断言条数）
-    expect(screen.getByText("🪪 身份").parentElement!.textContent).toContain("2");
-    expect(screen.getByText("💕 社交")).toBeTruthy();
-    expect(screen.getByText("💕 社交").parentElement!.textContent).toContain("1");
+    expect(screen.getByText("身份").parentElement!.textContent).toContain("2");
+    expect(screen.getByText("社交")).toBeTruthy();
+    expect(screen.getByText("社交").parentElement!.textContent).toContain("1");
     expect(screen.getByText("其他")).toBeTruthy();
     expect(screen.getByText("其他").parentElement!.textContent).toContain("1");
 
@@ -61,7 +62,7 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
 
   it("搜索框按 subject/summary/subcategory 关键词过滤事实", async () => {
     render(<WhisperMemoryLibrary />);
-    await screen.findByText("🪪 身份");
+    await screen.findByText("身份");
     const input = screen.getByPlaceholderText("搜索记忆…");
 
     // subject 命中
@@ -87,7 +88,7 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
 
   it("切到「情节」tab 显示情节列表：情绪 emoji / 强度条 / 关键词 chips / 轮次", async () => {
     render(<WhisperMemoryLibrary />);
-    await screen.findByText("🪪 身份");
+    await screen.findByText("身份");
 
     fireEvent.click(screen.getByRole("button", { name: /情节/ }));
 
@@ -108,7 +109,7 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
 
   it("点击事实打开详情 Modal：含 subject 与领域/子类/层级等字段", async () => {
     render(<WhisperMemoryLibrary />);
-    await screen.findByText("🪪 身份");
+    await screen.findByText("身份");
 
     fireEvent.click(screen.getByText("用户是软件工程师"));
 
@@ -124,7 +125,7 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
 
   it("点击情节打开详情 Modal：含 summary 与情绪/强度/关键词/会话", async () => {
     render(<WhisperMemoryLibrary />);
-    await screen.findByText("🪪 身份");
+    await screen.findByText("身份");
     fireEvent.click(screen.getByRole("button", { name: /情节/ }));
     await screen.findByText("深夜一起改 bug 到天亮");
 
@@ -143,7 +144,7 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
     pickDirMock.mockResolvedValue("/tmp/out");
     exportMock.mockResolvedValue(2);
     render(<WhisperMemoryLibrary />);
-    await screen.findByText("🪪 身份");
+    await screen.findByText("身份");
 
     fireEvent.click(screen.getByRole("button", { name: /导出归档/ }));
 
@@ -161,7 +162,7 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
   it("情节为空时切到情节 tab 展示「暂无情节记忆」空态", async () => {
     epMock.mockResolvedValue([]);
     render(<WhisperMemoryLibrary />);
-    await screen.findByText("🪪 身份");
+    await screen.findByText("身份");
 
     fireEvent.click(screen.getByRole("button", { name: /情节/ }));
 
