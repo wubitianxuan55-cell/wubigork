@@ -1,5 +1,21 @@
 # gaea · 多功能 AI 助手
 
+## v2.40.0「3.0 架构主线 · Wave 4：Step 3 收官」（2026-08-15）
+> 3.0 架构改造 Wave 4：Step 3（Provider Seam）遗留收官——semantic_search 工具注册、
+> BalanceKind 从 ProviderEntry 贯通、ModuleLauncher 清单化，双轨并行实施 + 父代理集成。
+> 详见 releases/v2.40.0.md。
+- **semantic_search 工具注册**：决策纳入——实现完整且有 E2E 测试，从死代码恢复为办公 agent
+  可用工具；gaeaSpecialistTools 集中注册 ocr + semantic_search，测试断言防回归
+- **BalanceKind 贯通**：ProviderEntry 新增 `balance_kind`（空 = 历史默认 deepseek 形状）；
+  boot→control.Options→controller.Balance 全链路透传，改走 billing.FetchByKind——切换余额
+  后端只改配置、未知 kind fail-closed，补齐 Step 3d #8 消费端贯通；config/control/boot 三层测试
+- **ModuleLauncher 清单化**：新增 boards/launcher.ts 纯函数派生（deriveLauncherModules +
+  LAUNCHER_DESC）；ModuleLauncher 改 useSyncExternalStore 订阅活动清单，删除静态
+  canonicalBoards 引用——后端合并清单（含 knowledge）变化后首页启动器自动跟随；
+  launcher.test.ts 7 用例 + manifests.test.ts 36（43/43 过）
+- 验证：go build/vet 干净 + test-all.ps1 全量（见发布说明）+ 前端 tsc/eslint 0 errors +
+  vitest 全量（见发布说明）+ TestBindingsCompleteness PASS（464）。发布 gaea-v2.40.0.exe。
+
 ## v2.39.0「3.0 架构主线 · Wave 3」（2026-08-15）
 > 3.0 架构改造 Wave 3：Step 3b LLM Seam + Step 3c OCR/ASR/TTS Seam + Step 3d 分类统一与 8 处硬编码注册表化 +
 > 前端 GetBoardManifests 接线，四路并行实施 + 父代理集成。详见 releases/v2.39.0.md。

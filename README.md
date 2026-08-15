@@ -83,6 +83,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v2.40.0** | 2026-08-15 | 3.0 架构主线 Wave 4「Step 3 收官」：semantic_search 工具注册（死代码恢复为办公 agent 可用工具）+ BalanceKind 从 ProviderEntry 贯通（`balance_kind` 配置项，切换余额后端只改配置，未知 kind fail-closed）+ ModuleLauncher 清单化（subscribeBoards 订阅活动清单，后端并入 knowledge 后首页启动器自动多出「知识库」卡） |
 | **v2.39.0** | 2026-08-15 | 3.0 架构主线 Wave 3：Step 3b LLM Seam（LLMProvider + NewLLM 配置驱动）+ Step 3c OCR/ASR/TTS Seam（三类注册表 + GAEA_OCR_ENGINE 驱动）+ Step 3d 分类单源化与 8 处硬编码注册表化（websearch/embed/rerank/vision/markitdown/billing）+ 前端 GetBoardManifests 接线（normalize 差集 + KnowledgePage）+ gaea.toml 新配置段 |
 | **v2.38.0** | 2026-08-15 | 3.0 架构主线 Wave 2：Step 1 app 层接线（会话事件日志「日志即真相」运行时闭环：Resume→Restore / Save→日志 / 模型调用前 fail-closed 检查点）+ Step 2 板块 Manifest（board 包 10 板块 + module_registry manifest 驱动 + GetBoardManifests + MainLayout 附 B 12 硬编码点清单化 + PageRegistry + events 常量表 + label 单一来源）+ Step 3a Image Seam（图片后端注册表化：openai/comfyui 自注册 + 401 单次重试守卫）。绑定面 464 方法 |
 | **v2.37.0** | 2026-08-15 | 正确性纵深收官：T7-2 可见性收口 / T7-3 名实相符 / T7-4 前端性能收尾 + 3.0 Step 0 修债 + Step 1 会话事件日志（append-only 日志 + 投影 + checkpoint + 迁移 + GaeaHistory 黄金测试） |

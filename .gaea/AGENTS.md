@@ -11,6 +11,23 @@
 
 - **3.0 架构改造设计（2026-08-15 定稿，待评审后开工）**：权威文档 docs/2026-08-15-gaea3-architecture-design.md（事件日志事实源 / 板块 Manifest / Provider Seam，四步实施计划）；调研证据存档在 docs/gaea3-review/（只读参考，权威性以设计文档为准）。阶段 7（v2.34-2.37 正确性纵深）先行，3.0 Step 0-3 在其后启动。
 
+- 最新发布：**v2.40.0（2026-08-15）「3.0 架构主线 · Wave 4：Step 3 收官」（2 子代理并行 + 父代理集成）**：
+  - semantic_search 工具注册（89d9fae）：决策纳入——实现完整且有 E2E 测试，能力面板「本地专业模型」
+    分组声明了它；gaeaSpecialistTools 集中注册 ocr + semantic_search（原仅 ocr），ExtraTools 装配展开，
+    TestSpecialistTools_Registered 断言两者防回归。
+  - BalanceKind 贯通（89d9fae）：ProviderEntry 新增 `balance_kind`（可选，空=历史默认 deepseek 形状）；
+    boot.NewProvider 透传 entry.BalanceKind → control.Options.BalanceKind → controller.Balance 改走
+    billing.FetchByKind(kind,url,key)——切换余额后端只改配置、未知 kind fail-closed，补齐 Step 3d #8
+    消费端贯通；render.go 渲染 balance_kind；config/control/boot 三层 7 测试（TOML 往返 / 自定义 kind
+    路由 / 空 kind 默认 deepseek / 无 url (nil,nil) / 未知 kind fail-closed / boot 全链路）。
+  - ModuleLauncher 清单化（4a6033a）：新增 boards/launcher.ts 纯函数（deriveLauncherModules +
+    LAUNCHER_DESC）；ModuleLauncher 改 useSyncExternalStore(subscribeBoards, getActiveBoards) 订阅活动
+    清单，删除静态 canonicalBoards 引用——后端合并清单（含 knowledge）变化后首页启动器自动跟随；
+    launcher.test.ts 7 用例 + manifests.test.ts 36（43/43 过）。
+  - 验证：go build/vet 干净 + test-all.ps1 **110/110 包** + 前端 tsc/eslint 0 errors + vite build 17s +
+    vitest 427 过（27 jsdom localStorage 基线失败零回归）+ TestBindingsCompleteness PASS（464）+ 冒烟
+    /api/health 200。发布 gaea-v2.40.0.exe（33.1MB，SHA256=f7c5fd1bc1859b025a742dcb78b26065a5718d8aa4374ef5c8cd90d7aaaff317）。
+  - **Step 0-3 全部落地**：3.0.0 发布条件仅剩统一回归与版本发布；pickHerdsmanModel 能力标签挑选保留。
 - 最新发布：**v2.39.0（2026-08-15）「3.0 架构主线 · Wave 3」（Step 3b LLM + Step 3c OCR/ASR/TTS + Step 3d 分类统一与 8 处注册表化 + 前端 GetBoardManifests 接线，4 子代理实现 + 父代理集成）**：
   - Step 3b LLM Seam（d183af7）：LLMProvider{Provider;Chat} + ChatFromStream 聚合 + streamChatAdapter 自动适配；
     bridge 互斥自注册（LLMKindWubigrok，DefaultLLMKind=wubigrok 空 kind 缺省=现状）；boot.NewProvider 经 NewLLM

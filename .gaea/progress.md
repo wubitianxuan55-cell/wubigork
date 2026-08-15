@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-15（gaea 3.0 执行 · v2.39.0 发布完成）
+> 最后更新: 2026-08-15（gaea 3.0 执行 · v2.40.0 发布完成）
 
 ## 阶段 7 收官 + 3.0 Step 0/1 完成（5 子代理并行，全部提交）
 
@@ -48,6 +48,26 @@
 - 前端 tsc 0 errors / eslint 0 errors（350 存量 warnings）/ vite build 15.7s / vitest 404 过（27 个 jsdom localStorage 基线失败，与 v2.37.0 一致零回归）
 - TestBindingsCompleteness PASS（464 方法 → 10 门面）；check-bindings-drift OK
 
+## Wave 4 完成：Step 3 收官清理（2 子代理并行 + 父代理集成，独立提交）
+
+| 状态 | 任务 | 提交 |
+|------|------|------|
+| ✅ | semantic_search 工具注册（决策纳入：实现完整 + E2E 测试，死代码恢复为办公 agent 可用工具；gaeaSpecialistTools 集中注册 ocr + semantic_search） | 89d9fae |
+| ✅ | BalanceKind 从 ProviderEntry 贯通（config `balance_kind` → boot → control.Options → controller.Balance 改走 FetchByKind，空=deepseek 默认，未知 kind fail-closed；config/control/boot 三层 7 测试 + render.go 渲染） | 89d9fae |
+| ✅ | ModuleLauncher 清单化（launcher.ts 纯函数 deriveLauncherModules + LAUNCHER_DESC；useSyncExternalStore 订阅活动清单，后端并入 knowledge 后首页启动器自动多出「知识库」卡；launcher.test.ts 7 用例） | 4a6033a |
+
+### 发布
+
+- **v2.40.0**（2026-08-15，Wave 4 统一构建发布）：gaea-v2.40.0.exe（33.1MB）
+  - SHA256=f7c5fd1bc1859b025a742dcb78b26065a5718d8aa4374ef5c8cd90d7aaaff317
+  - 冒烟通过（/api/health 200）；详见 releases/v2.40.0.md
+
+### 门禁快照（父代理实测）
+
+- go build/vet 干净；**test-all.ps1 110/110 包**
+- 前端 tsc 0 errors / eslint 0 errors（350 存量 warnings）/ vite build 17s / vitest 427 过（27 个 jsdom localStorage 基线失败，与 v2.39.0 一致零回归）
+- TestBindingsCompleteness PASS（464 方法，无新绑定）；check-bindings-drift OK
+
 ## Wave 3 完成：Step 3b/c/d Provider Seam + 前端接线（4 子代理实现 + 父代理集成，独立提交）
 
 | 状态 | 任务 | 提交 |
@@ -72,5 +92,6 @@
 
 ## 遗留（下一会话）
 
-- Step 3 收官清理：semantic_search 工具定义未注册（#6 只含 OCR，是否启用待决策）；billing kind 未从 ProviderEntry 贯通（controller 默认 deepseek）；ModuleLauncher 仍用静态 canonicalBoards
+- **Step 0-3 全部落地完成**：3.0.0 发布条件（§3.0.0）仅剩统一回归与版本发布；下一步候选 = 3.0.0 正式发布（chat 可恢复可回放为里程碑判据，Step 1 运行时闭环已在 v2.38.0 接线）
+- pickHerdsmanModel 能力标签挑选保留（非分类重复，无动作）
 - 回退保障硬要求不变（每 Step 独立提交 / 旧数据只读兼容 / 二进制保留 5 版 / 运行时开关 / 回退演练）
