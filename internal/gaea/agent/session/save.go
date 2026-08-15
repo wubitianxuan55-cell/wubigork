@@ -22,8 +22,8 @@ import (
 // append-only would have to be reconciled with the compaction pass that
 // mutates the middle of session.Messages.
 func (s *Session) Save(path string) error {
-	if path == "" {
-		return fmt.Errorf("empty session path")
+	if s.IsEventMode() {
+		return s.saveEventMode(path)
 	}
 	// Encode the whole JSONL into memory, then write atomically — a crash
 	// mid-write can't leave a partial JSONL that won't reload.
@@ -35,6 +35,35 @@ func (s *Session) Save(path string) error {
 		}
 	}
 	return fileutil.AtomicWrite(path, buf.Bytes(), 0o644)
+}
+
+// saveEventMode 是事件日志模式下的 Save：legacy 镜像（整文件 JSONL，与旧行为
+// 逐字节一致，供 GaeaListSessions/旧工具读取）+ 确保事件日志存在。日志缺失时
+// 由当前消息迁移生成（幂等；已存在时不动——运行期由事件 sink 持续追加，
+// 日志本身是恢复/派生的真相源）。
+func (s *Session) saveEventMode(path string) error {
+	if path == "" {
+		return fmt.Errorf("empty session path")
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	for _, m := range s.Snapshot() {
+		if err := enc.Encode(m); err != nil {
+			return fmt.Errorf("encode message: %w", err)
+		}
+	}
+	if err := fileutil.AtomicWrite(path, buf.Bytes(), 0o644); err != nil {
+		return err
+	}
+	logPath := LogPathFor(path)
+	if logPath == "" || HasEventLog(path) {
+		// 无日志路径（空会话路径）或日志已存在（sink 已持续写入）→ 不动日志。
+		return nil
+	}
+	if _, err := MigrateLegacyToLog(logPath, path); err != nil {
+		return fmt.Errorf("event save: migrate log: %w", err)
+	}
+	return nil
 }
 
 // Load reads a JSONL file written by Save into a fresh Session value.
@@ -64,6 +93,59 @@ func Load(path string) (*Session, error) {
 		s.Messages = append(s.Messages, m)
 	}
 	return s, nil
+}
+
+// LoadWithFormat 按持久化格式加载会话。logFormat="event" 时优先从事件日志
+// Restore（checkpoint 消息 + seq 之后的重放投影，torn-tail 自动修复），
+// 无日志时回退 legacy Load（含 os.IsNotExist 语义）。旧格式会话的迁移由
+// 调用方（控制器 ResumeFromDisk）先 DetectLegacy → MigrateLegacyToLog 完成，
+// 本函数不重复迁移。其余格式（含缺省 ""）与 Load 行为完全一致。
+func LoadWithFormat(path, logFormat string) (*Session, error) {
+	if !strings.EqualFold(logFormat, "event") || !HasEventLog(path) {
+		return Load(path)
+	}
+	msgs, last, err := Restore(CheckpointPathFor(path), LogPathFor(path))
+	if err != nil {
+		return nil, err
+	}
+	return NewFromRestore(msgs, last, "event"), nil
+}
+
+// LastLogSeq 返回事件日志最后一条完整条目的 seq（无日志/空日志/损坏返回 0）。
+// 检查点 flush 用它确定「已消费 seq」；不做 torn-tail 修复（调用时机在回合
+// 边界，日志写入器已关闭，读取与写入互不干扰）。
+func LastLogSeq(logPath string) int64 {
+	entries, err := ReadLog(logPath)
+	if err != nil {
+		return 0
+	}
+	return lastLogSeq(entries)
+}
+
+// AppendUserMessage 把一条用户消息追加到事件日志（「模型可见必入日志」：
+// 运行期 user_message 由控制器在模型调用前落盘）。日志不存在时自动创建
+// （legacyPath 非空且旧会话文件存在时先迁移旧消息）。返回新条目 seq。
+func AppendUserMessage(logPath, legacyPath, content string) (int64, error) {
+	return appendMessageLog(logPath, legacyPath, userLogPayload{Content: content}, KindUserMessage)
+}
+
+// AppendSystemMessage 把一条 system 消息追加到事件日志（中断摘要注入等）。
+// 返回新条目 seq。
+func AppendSystemMessage(logPath, legacyPath, content string) (int64, error) {
+	return appendMessageLog(logPath, legacyPath, userLogPayload{Content: content}, KindSystemMessage)
+}
+
+// appendMessageLog 打开（必要时创建/迁移）日志并追加一条消息级事件。
+func appendMessageLog(logPath, legacyPath string, payload any, kind string) (int64, error) {
+	if logPath == "" {
+		return 0, errors.New("empty log path")
+	}
+	w, err := OpenLog(logPath, legacyPath)
+	if err != nil {
+		return 0, err
+	}
+	defer w.Close()
+	return w.Append(kind, payload)
 }
 
 // Info summarises a saved session for the --resume picker: where it

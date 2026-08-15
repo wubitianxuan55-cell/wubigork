@@ -506,15 +506,17 @@ func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {
 	if c == nil {
 		return nil, errors.New("办公引擎未初始化")
 	}
-	loaded, err := agent.LoadSession(path)
+	// 3.0 Step 1 事件日志模式：恢复走 Restore（先 DetectLegacy 迁移，再
+	// checkpoint + log tail 重放）；legacy 模式保持原 LoadSession + Resume。
+	_ = c.Snapshot() // 切换前持久化当前会话（事件日志模式含检查点）
+	loaded, err := c.ResumeFromDisk(path)
 	if err != nil {
 		return nil, err
 	}
 	// 中断恢复：上次进程崩溃/被杀时 state 残留 running=true，向消息末尾
 	// 追加一条 system 摘要让模型先总结进度再继续，并清除标记避免重复提示。
+	// 事件日志模式下该摘要同步写入事件日志（「模型可见必入日志」）。
 	injectInterruption(loaded, path)
-	_ = c.Snapshot() // 切换前持久化当前会话
-	c.Resume(loaded, path)
 	c.SeedContextUsage() // 恢复后上下文读数立即反映该会话，而非 0
 	return a.GaeaHistory(), nil
 }
@@ -532,10 +534,20 @@ func injectInterruption(s *agent.Session, path string) {
 	if loc == "" {
 		loc = lastUserPreview(s)
 	}
-	s.Messages = append(s.Messages, provider.Message{
+	msg := provider.Message{
 		Role:    provider.RoleSystem,
 		Content: interruptionMessage(loc),
-	})
+	}
+	s.Messages = append(s.Messages, msg)
+	// 3.0 Step 1 事件日志模式：注入的中断摘要也写入事件日志（重放恢复不丢失；
+	// 写入失败仅告警，不阻断恢复——legacy 镜像仍保留该消息）。
+	if s.IsEventMode() {
+		if lp := session.LogPathFor(path); lp != "" {
+			if _, err := session.AppendSystemMessage(lp, path, msg.Content); err != nil {
+				slog.Warn("gaea: 中断摘要写入事件日志失败", "path", path, "error", err)
+			}
+		}
+	}
 	_ = session.ClearState(stPath)
 }
 
@@ -573,7 +585,9 @@ func (a *App) resumeLastSession(ctrl *control.Controller) string {
 	if err != nil || len(infos) == 0 {
 		return ""
 	}
-	loaded, err := agent.LoadSession(infos[0].Path)
+	// 3.0 Step 1 事件日志模式：自动恢复同样走 Restore（DetectLegacy 迁移 →
+	// checkpoint + log tail）；legacy 模式保持原 LoadSession + Resume。
+	loaded, err := ctrl.ResumeFromDisk(infos[0].Path)
 	if err != nil {
 		slog.Warn("gaea: 自动恢复最近会话失败", "path", infos[0].Path, "error", err)
 		return ""
@@ -581,7 +595,6 @@ func (a *App) resumeLastSession(ctrl *control.Controller) string {
 	// 崩溃后重启的自动恢复同样注入中断摘要并清除 state 标记，
 	// 避免「未完成」徽标残留在当前正在对话的会话上。
 	injectInterruption(loaded, infos[0].Path)
-	ctrl.Resume(loaded, infos[0].Path)
 	ctrl.SeedContextUsage()
 	slog.Info("gaea: 已自动恢复最近会话", "path", infos[0].Path, "messages", len(loaded.Messages))
 	return infos[0].Path

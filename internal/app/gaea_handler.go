@@ -110,6 +110,12 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gaea: 引擎初始化失败: %w", err)
 	}
+	// 3.0 Step 1 回退开关（session.log_format）：把配置的会话持久化格式注入
+	// 控制器——event 模式下 Snapshot 双写、回合前落用户消息 + flush 检查点
+	// （fail-closed）、Resume 走 Restore（checkpoint+tail）；缺省 legacy 行为不变。
+	if ga.cfg != nil {
+		ctrl.SetLogFormat(ga.cfg.Session.LogFormat)
+	}
 	// 启用交互式审批：工具调用放行/拒绝、ask 结构化提问经前端确认，
 	// 否则全部工具（含写文件/网络）自动放行且审批弹窗永不出现。
 	ctrl.EnableInteractiveApproval()

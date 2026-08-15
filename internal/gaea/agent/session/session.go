@@ -3,6 +3,7 @@
 package session
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
@@ -20,6 +21,9 @@ type Session struct {
 	// logSeq 是会话最后消费的事件日志 seq（事件日志模式下恢复/检查点游标）。
 	// 旧行为（legacy）下保持 0，不参与任何既有逻辑。
 	logSeq int64
+	// logFormat 是会话持久化格式："legacy"（缺省，旧行为）| "event"（事件日志）。
+	// 由 LoadWithFormat / SetLogFormat 设置；legacy 下 Save/Load 行为与改造前一致。
+	logFormat string
 }
 
 // New initializes a session with an optional system prompt.
@@ -106,6 +110,34 @@ func (s *Session) LogSeq() int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.logSeq
+}
+
+// SetLogFormat 设置会话持久化格式："legacy"|"" = 旧行为（缺省），
+// "event" = 事件日志模式（Save 双写 / Load 优先 Restore）。事件日志模式由
+// 控制器在 Resume/SetSessionPath/NewSession 时随配置注入。
+func (s *Session) SetLogFormat(f string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logFormat = f
+}
+
+// LogFormat 返回会话持久化格式（"" = legacy）。
+func (s *Session) LogFormat() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.logFormat
+}
+
+// IsEventMode 报告会话是否处于事件日志模式（"event" 大小写不敏感）。
+func (s *Session) IsEventMode() bool {
+	return strings.EqualFold(s.LogFormat(), "event")
+}
+
+// NewFromRestore 构造一个已由 checkpoint+log 恢复的会话（事件日志模式）：
+// msgs 是恢复出的消息投影，lastSeq 是最后消费的日志 seq。logFormat 通常为
+// "event"（LoadWithFormat 使用），也可由调用方指定。
+func NewFromRestore(msgs []provider.Message, lastSeq int64, logFormat string) *Session {
+	return &Session{Messages: msgs, logSeq: lastSeq, logFormat: logFormat}
 }
 
 // IncrementRewrite bumps the rewrite version by 1.

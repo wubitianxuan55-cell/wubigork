@@ -250,6 +250,11 @@ type AgentRunner struct {
 	memQueue     memory.Queue
 	sessionSaver memory.SessionSaver
 	promoter     memory.SessionFactPromoter
+	// checkpointFlusher 是事件日志模式下「模型调用前 flush 检查点（fail-closed）」
+	// 的落盘钩子：由控制器注入（会话路径 + 消息投影 + 已消费 log seq 写入
+	// <id>.gaea-checkpoint.json），agent 在模型调用边界经 FlushCheckpointFailClosed
+	// 触发。nil（legacy 模式）时静默跳过，行为与改造前一致。
+	checkpointFlusher func() error
 
 	// archive, when non-nil, records session messages to persistent storage
 	// for cross-session Dream/Distill analysis (V7.0).
@@ -381,6 +386,20 @@ func (a *AgentRunner) SetSessionSaver(s memory.SessionSaver) { a.sessionSaver = 
 
 // SetPromoter installs the sink the promote_session_facts tool uses.
 func (a *AgentRunner) SetPromoter(p memory.SessionFactPromoter) { a.promoter = p }
+
+// SetCheckpointFlusher 注入模型调用前的检查点 flush 钩子（事件日志模式）。
+// 控制器在装配时调用；nil（legacy 模式）时 flush 为 no-op。
+func (a *AgentRunner) SetCheckpointFlusher(fn func() error) { a.checkpointFlusher = fn }
+
+// FlushCheckpointFailClosed 在模型调用前刷检查点（fail-closed 语义）：
+// flush 失败返回错误，调用方必须中止本回合——绝不带着未持久化的状态继续
+// 调用模型。未注入钩子（legacy 模式）时恒返回 nil。
+func (a *AgentRunner) FlushCheckpointFailClosed() error {
+	if a.checkpointFlusher == nil {
+		return nil
+	}
+	return a.checkpointFlusher()
+}
 
 // SetArchive installs the session archive store for cross-session Dream/Distill.
 // nil disables archiving. V7.0.

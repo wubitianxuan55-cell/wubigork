@@ -48,6 +48,10 @@ type Controller struct {
 	label         string
 	systemPrompt  string
 	sessionDir    string
+	// logFormat 是会话持久化格式（3.0 Step 1 回退开关）："legacy"/""=旧行为，
+	// "event"=事件日志模式（Snapshot 双写、回合前落用户消息 + flush 检查点、
+	// Resume 走 Restore）。由 Options.LogFormat / SetLogFormat 注入。
+	logFormat string
 	host          *plugin.Host
 	commands      []command.Command
 	skills        []skill.Skill
@@ -151,6 +155,10 @@ type Options struct {
 	SystemPrompt string
 	SessionDir   string
 	SessionPath  string
+	// LogFormat 是会话持久化格式（"legacy"/""=旧行为，"event"=事件日志）。
+	// 事件日志模式下：Snapshot 双写（legacy 镜像+日志）、回合开始前落用户
+	// 消息并 flush 检查点（fail-closed）、Resume 走 Restore（checkpoint+tail）。
+	LogFormat string
 	Host         *plugin.Host
 	Commands     []command.Command
 	Skills       []skill.Skill
@@ -199,6 +207,7 @@ func New(opts Options) *Controller {
 		systemPrompt:  opts.SystemPrompt,
 		sessionDir:    opts.SessionDir,
 		sessionPath:   opts.SessionPath,
+		logFormat:     opts.LogFormat,
 		host:          opts.Host,
 		commands:      opts.Commands,
 		skills:        opts.Skills,
@@ -238,6 +247,9 @@ func New(opts Options) *Controller {
 		c.executor.SetSessionSaver(c)
 		c.executor.SetPromoter(c)
 	}
+	// 3.0 Step 1 事件日志模式接线：把持久化格式注入当前会话并挂上检查点
+	// flush 钩子（fail-closed：模型调用前由 executor 触发，失败中止回合）。
+	c.applyLogFormat(c.logFormat)
 	return c
 }
 
@@ -474,6 +486,19 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 			return err
 		} else if !ok {
 			return nil
+		}
+	}
+	// 3.0 Step 1 事件日志模式（session.log_format="event"）：模型调用前
+	// flush 检查点（fail-closed——检查点写失败即中止回合，绝不带着未持久化
+	// 的状态调用模型），随后把用户消息写入事件日志（「模型可见必入日志」）。
+	if c.EventMode() {
+		if c.executor != nil {
+			if err := c.executor.FlushCheckpointFailClosed(); err != nil {
+				return fmt.Errorf("flush checkpoint before model call: %w", err)
+			}
+		}
+		if err := c.logUserMessage(input); err != nil {
+			return err
 		}
 	}
 	if _, err := c.runner.Run(ctx, input); err != nil {
@@ -803,7 +828,13 @@ func (c *Controller) NewSession() error {
 		c.sessionPath = agent.NewSessionPath(c.sessionDir, c.label)
 		c.mu.Unlock()
 	}
-	c.executor.SetSession(agent.NewSession(c.systemPrompt))
+	ns := agent.NewSession(c.systemPrompt)
+	c.mu.Lock()
+	f := c.logFormat
+	c.mu.Unlock()
+	ns.SetLogFormat(f)
+	c.executor.SetSession(ns)
+	c.applyLogFormat(f)
 	// Reset V3.0 TCCA state so the new session starts clean.
 	if c.ctxMgr != nil {
 		c.ctxMgr.Flow().ReplaceMessages(nil)
@@ -824,7 +855,116 @@ func (c *Controller) Resume(s *agent.Session, path string) {
 	}
 	c.mu.Lock()
 	c.sessionPath = path
+	f := c.logFormat
 	c.mu.Unlock()
+	// 3.0 Step 1：恢复的会话继承当前持久化格式（事件日志模式下 Save 双写、
+	// 后续回合落用户消息 + flush 检查点都依赖该标记）。
+	s.SetLogFormat(f)
+	if c.executor != nil {
+		c.executor.SetCheckpointFlusher(c.flushCheckpoint)
+	}
+}
+
+// ResumeFromDisk 从磁盘恢复会话并接管为当前会话。事件日志模式下：
+// DetectLegacy → 旧格式先迁移 → Restore（checkpoint 消息 + log tail 重放），
+// 无日志时回退 legacy Load；legacy 模式保持原 LoadSession + Resume 行为。
+// 返回恢复后的会话（已注入 c.Resume）。
+func (c *Controller) ResumeFromDisk(path string) (*agent.Session, error) {
+	var (
+		s   *agent.Session
+		err error
+	)
+	if !c.EventMode() {
+		s, err = agent.LoadSession(path)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// 旧格式会话（无事件日志而有 <id>.jsonl）先迁移，旧文件保留。
+		if legacy, legacyPath, derr := session.DetectLegacy(path); derr != nil {
+			return nil, derr
+		} else if legacy {
+			if _, merr := session.MigrateLegacyToLog(session.LogPathFor(path), legacyPath); merr != nil {
+				return nil, fmt.Errorf("resume: migrate legacy session: %w", merr)
+			}
+		}
+		s, err = session.LoadWithFormat(path, "event")
+		if err != nil {
+			return nil, err
+		}
+	}
+	c.Resume(s, path)
+	return s, nil
+}
+
+// EventMode 报告控制器是否处于事件日志模式（session.log_format="event"）。
+func (c *Controller) EventMode() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return strings.EqualFold(c.logFormat, "event")
+}
+
+// SetLogFormat 设置会话持久化格式（"legacy"/""=旧行为，"event"=事件日志），
+// 并同步注入当前会话与检查点 flush 钩子。boot.Build 后由宿主（app）按配置
+// 注入；缺省（空）时所有事件日志接线均为 no-op，行为与改造前一致。
+func (c *Controller) SetLogFormat(f string) { c.applyLogFormat(f) }
+
+// applyLogFormat 把持久化格式写入控制器并传播到当前会话与 executor 的
+// 检查点 flush 钩子（fail-closed：模型调用前由 executor.FlushCheckpointFailClosed
+// 触发，失败中止回合）。
+func (c *Controller) applyLogFormat(f string) {
+	c.mu.Lock()
+	c.logFormat = f
+	exec := c.executor
+	c.mu.Unlock()
+	if exec != nil {
+		exec.Session().SetLogFormat(f)
+		exec.SetCheckpointFlusher(c.flushCheckpoint)
+	}
+}
+
+// flushCheckpoint 把当前会话消息投影 + 已消费的 log seq 写入检查点
+// （事件日志模式）。无会话路径 / 无内容 / 尚无日志条目时不写（幂等）。
+// 返回错误供 fail-closed 调用方（模型调用前）中止回合。
+func (c *Controller) flushCheckpoint() error {
+	c.mu.Lock()
+	path := c.sessionPath
+	exec := c.executor
+	c.mu.Unlock()
+	if path == "" || exec == nil {
+		return nil
+	}
+	s := exec.Session()
+	if !s.IsEventMode() || !s.HasContent() {
+		return nil
+	}
+	logPath := session.LogPathFor(path)
+	if logPath == "" {
+		return nil
+	}
+	seq := session.LastLogSeq(logPath)
+	if seq == 0 {
+		return nil // 尚无日志条目（本会话还没有任何事件），无可固化内容
+	}
+	return session.WriteCheckpoint(session.CheckpointPathFor(path), seq, s.Snapshot())
+}
+
+// logUserMessage 把本回合用户消息追加到事件日志（「模型可见必入日志」：
+// 运行期 user_message 由控制器在模型调用前落盘）。日志缺失时自动创建
+// （旧格式会话先迁移）。失败返回错误（fail-closed）。
+func (c *Controller) logUserMessage(input string) error {
+	path := c.SessionPath()
+	if path == "" {
+		return nil
+	}
+	logPath := session.LogPathFor(path)
+	if logPath == "" {
+		return nil
+	}
+	if _, err := session.AppendUserMessage(logPath, path, input); err != nil {
+		return fmt.Errorf("append user message to event log: %w", err)
+	}
+	return nil
 }
 
 // Snapshot writes the executor's conversation to the active session file. No-op
@@ -845,7 +985,17 @@ func (c *Controller) Snapshot() error {
 	if err := s.Save(path); err != nil {
 		return err
 	}
-	return agent.TouchBranchMeta(path)
+	if err := agent.TouchBranchMeta(path); err != nil {
+		return err
+	}
+	// 3.0 Step 1 事件日志模式：回合结束后 flush 检查点（含压缩后的消息
+	// 投影 + 已消费 log seq），断电/崩溃后可由 checkpoint + log tail 恢复。
+	if s.IsEventMode() {
+		if err := c.flushCheckpoint(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SetSessionPath pins where auto-save lands (a fresh session file minted by the
@@ -853,7 +1003,13 @@ func (c *Controller) Snapshot() error {
 func (c *Controller) SetSessionPath(p string) {
 	c.mu.Lock()
 	c.sessionPath = p
+	f := c.logFormat
+	exec := c.executor
 	c.mu.Unlock()
+	if exec != nil {
+		exec.Session().SetLogFormat(f)
+		exec.SetCheckpointFlusher(c.flushCheckpoint)
+	}
 }
 
 // SessionDir reports the directory new session files land in ("" disables
