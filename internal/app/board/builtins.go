@@ -18,7 +18,7 @@ package board
 // 直接返回其拷贝，前端 MainLayout/ModuleLauncher 数据驱动）。
 var builtinManifests = []Manifest{
 	{
-		ID: "chat", Label: "AI 聊天", Icon: "MessageOutlined",
+		ID: "chat", Label: "聊天", Icon: "MessageOutlined",
 		Page: "ChatPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full", Shortcut: "ctrl+1",
 		MenuOrder: 1, InMenu: Bool(true),
@@ -42,7 +42,7 @@ var builtinManifests = []Manifest{
 		Intents:      []IntentDecl{{ID: "create_chapter", Handler: "CreateChapter"}},
 	},
 	{
-		ID: "imagegen", Label: "AI 绘梦", Icon: "PictureOutlined",
+		ID: "imagegen", Label: "绘梦", Icon: "PictureOutlined",
 		Page: "ImageGenPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded", Shortcut: "ctrl+3",
 		MenuOrder: 3, InMenu: Bool(true),
@@ -76,7 +76,7 @@ var builtinManifests = []Manifest{
 		Bindings: []string{"MemoryB", "CostB"}, // 8 库聚合（§3.1）
 	},
 	{
-		ID: "modelcenter", Label: "模型引擎中心", Icon: "ApiOutlined",
+		ID: "modelcenter", Label: "模型中心", Icon: "ApiOutlined",
 		Page: "ModelCenterPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 6, InMenu: Bool(true),
@@ -106,8 +106,8 @@ var builtinManifests = []Manifest{
 	},
 	{
 		ID: "weixin", Label: "微信助手", Icon: "WechatOutlined",
-		Page: "", // §3.1：无前端页面（beta），Channels/weixin 服务板块
-		Lazy: false,
+		Page:      "", // §3.1：无前端页面（beta），Channels/weixin 服务板块
+		Lazy:      false,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 9, InMenu: Bool(false),
 	},

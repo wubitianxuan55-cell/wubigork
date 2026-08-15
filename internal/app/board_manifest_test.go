@@ -15,13 +15,13 @@ type fakeBoard struct {
 	intents []string
 }
 
-func (f fakeBoard) ID() string              { return f.id }
-func (f fakeBoard) Name() string            { return f.name }
-func (f fakeBoard) Icon() string            { return "I" }
-func (f fakeBoard) PageKey() string         { return "p" }
-func (f fakeBoard) Bindings() []string      { return nil }
-func (f fakeBoard) Intents() []string       { return f.intents }
-func (f fakeBoard) Tools() []string         { return nil }
+func (f fakeBoard) ID() string               { return f.id }
+func (f fakeBoard) Name() string             { return f.name }
+func (f fakeBoard) Icon() string             { return "I" }
+func (f fakeBoard) PageKey() string          { return "p" }
+func (f fakeBoard) Bindings() []string       { return nil }
+func (f fakeBoard) Intents() []string        { return f.intents }
+func (f fakeBoard) Tools() []string          { return nil }
 func (f fakeBoard) Init(board.AppHost) error { return nil }
 
 // TestInitModulesManifestDriven initModules 由 manifest 驱动（§5.2）：canonical
@@ -180,7 +180,7 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 	}
 	// chat 板块字段抽样对齐 TS schema
 	chat := byID["chat"]
-	if chat.Label != "AI 聊天" || chat.Icon != "MessageOutlined" || chat.Page != "ChatPage" ||
+	if chat.Label != "聊天" || chat.Icon != "MessageOutlined" || chat.Page != "ChatPage" ||
 		!chat.Lazy || chat.KeepAlive == nil || !*chat.KeepAlive || chat.Layout != "full" ||
 		chat.Shortcut != "ctrl+1" || chat.MenuOrder != 1 || chat.InMenu == nil || !*chat.InMenu ||
 		chat.FeatureModel != "chat" {
