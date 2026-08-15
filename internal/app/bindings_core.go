@@ -3,6 +3,7 @@
 package app
 
 import (
+	"github.com/gaea/gaea/internal/app/board"
 	"context"
 	"io/fs"
 	"github.com/gaea/gaea/internal/modelengine"
@@ -14,6 +15,7 @@ import (
 type CoreB struct{ a *App }
 
 func (b *CoreB) AnalyzeStyle() (map[string]interface{}, error) { return b.a.AnalyzeStyle() }
+func (b *CoreB) CheckModuleIntegrity() error { return b.a.CheckModuleIntegrity() }
 func (b *CoreB) CloseProject() error { return b.a.CloseProject() }
 func (b *CoreB) CreateProject(dir string, title string, genre string, style string) (map[string]interface{}, error) { return b.a.CreateProject(dir, title, genre, style) }
 func (b *CoreB) DeleteProject(dir string) error { return b.a.DeleteProject(dir) }
@@ -21,6 +23,7 @@ func (b *CoreB) ExportAll() (map[string]string, error) { return b.a.ExportAll() 
 func (b *CoreB) ExportHTML(templateName string) (map[string]interface{}, error) { return b.a.ExportHTML(templateName) }
 func (b *CoreB) GetActiveOCRModel() map[string]string { return b.a.GetActiveOCRModel() }
 func (b *CoreB) GetAppInfo() map[string]interface{} { return b.a.GetAppInfo() }
+func (b *CoreB) GetBoardManifests() []board.Manifest { return b.a.GetBoardManifests() }
 func (b *CoreB) GetCompileTemplates() []map[string]interface{} { return b.a.GetCompileTemplates() }
 func (b *CoreB) GetConfig() map[string]string { return b.a.GetConfig() }
 func (b *CoreB) GetDashboard(dailyGoal int) (map[string]interface{}, error) { return b.a.GetDashboard(dailyGoal) }

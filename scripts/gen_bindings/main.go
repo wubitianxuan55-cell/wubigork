@@ -154,6 +154,8 @@ var explicitOverrides = map[string]string{
 	"GaeaBenchmarkStart":      "model",
 	"GaeaBenchmarkDetail":     "model",
 	"GaeaBenchmarkExport":     "model",
+	// 3.0 Step 2：板块 manifest 查询挂 CoreB（前缀规则默认 core，显式声明对齐文档）
+	"GetBoardManifests": "core",
 }
 
 func main() {
