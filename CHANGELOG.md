@@ -1,5 +1,22 @@
 # gaea · 多功能 AI 助手
 
+## v2.39.0「3.0 架构主线 · Wave 3」（2026-08-15）
+> 3.0 架构改造 Wave 3：Step 3b LLM Seam + Step 3c OCR/ASR/TTS Seam + Step 3d 分类统一与 8 处硬编码注册表化 +
+> 前端 GetBoardManifests 接线，四路并行实施 + 父代理集成。详见 releases/v2.39.0.md。
+- **Step 3b LLM Seam**：LLMProvider{Provider;Chat} + ChatFromStream 聚合；bridge 互斥自注册（DefaultLLMKind=wubigrok）；
+  boot.NewProvider 经 NewLLM（providers[].kind 驱动 + fail-closed）；agent 聊天/子代理只依赖 seam 接口（19 测试）
+- **Step 3c OCR/ASR/TTS Seam**：OCRProvider（ovis/tesseract，GAEA_OCR_ENGINE 驱动）+ TTSProvider（edge/sapi/herdsman/xai
+  自注册，四级回退与合成器链注册表化）+ ASRProvider（herdsman，voice.Manager 接口注入）；isSTTModel 委托分类单源
+- **Step 3d 分类统一 + 8 处注册表化**：modelengine 导出 ClassifyModelKind/ClassifyModelByName（六桶单源）；websearch 6 引擎
+  注册表（engine_order 可配序）/embed/rerank/vision/markitdown/billing 注册表化（弃 HERDSMAN_BASE_URL/GAEA_VISION_*
+  环境变量绑死）；OCR 工具补注册；image_gen 裸字符串改常量
+- **前端接线**：loadBoardManifests 改调 CoreB.GetBoardManifests + normalize 差集（knowledge/home/weixin）+
+  KnowledgePage 注册；45/45 测试
+- **父集成**：gaea.toml 新增 [retrieval]/[vision]/[markdown_converter] 段 + [search] engine_order；boot 装配四组
+  Set*Runtime；app 层 5 处 provider.New→NewLLM
+- 验证：go build/vet 干净 + test-all.ps1 110/110 + 前端 tsc/eslint 0 errors + vite build 42.9s + vitest 420 过
+  （27 基线失败零回归）+ TestBindingsCompleteness PASS（464）。发布 gaea-v2.39.0.exe。
+
 ## v2.38.0「3.0 架构主线 · Wave 2」（2026-08-15）
 > 3.0 架构改造 Wave 2：Step 1 app 层接线 + Step 2 板块 Manifest（后端 board 包 + 前端 PageRegistry）+
 > Step 3a Image Seam，四路并行实施，每 Step 独立提交。详见 releases/v2.38.0.md。

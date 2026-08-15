@@ -6,6 +6,7 @@
 
 | 版本 | 日期 | 安装包 | 核心变更 |
 |------|------|------|------|
+| v2.39.0 | 08-15 | [gaea-v2.39.0.exe](gaea-v2.39.0.exe) | 3.0 架构主线 Wave 3：Step 3b LLM Seam / Step 3c OCR·ASR·TTS Seam / Step 3d 分类统一+8 处注册表化 / 前端 GetBoardManifests 接线；gaea.toml 新配置段（[retrieval]/[vision]/[markdown_converter]/[search] engine_order） |
 | v2.38.0 | 08-15 | [gaea-v2.38.0.exe](gaea-v2.38.0.exe) | 3.0 架构主线 Wave 2：Step 1 app 层接线（事件日志「日志即真相」运行时闭环，含模型调用前 fail-closed 检查点）；Step 2 板块 Manifest（board 包 10 板块 + manifest 驱动装配 + GetBoardManifests 464 绑定 + 前端 PageRegistry/MainLayout 12 硬编码点清单化/events 常量表）；Step 3a Image Seam（图片后端注册表化） |
 | v2.37.0 | 08-15 | [gaea-v2.37.0.exe](gaea-v2.37.0.exe) | 正确性纵深收官：T7-2 可见性收口 / T7-3 名实相符 / T7-4 前端性能收尾 + 3.0 Step 0 修债 + Step 1 会话事件日志机制层 |
 | v2.34.0 | 08-15 | [gaea-v2.34.0.exe](gaea-v2.34.0.exe) | 阶段 7「正确性纵深」第一刀·并发正确性：轻语会话并发安全（三入口串行化 + CloneFullState 深拷贝 + 四结构 RWMutex + forSession 只读 + 末轮 drain 落库 + rhythm 实例化，12 新测试）；任务调度器竞态（进度语义/取消优先/原子出队/panic 恢复，10 新测试）；TCCA 指标聚合收敛（同字段集/子锁/防重合并，6 新测试）；AI 客户端状态与重试（非流式退避重试 + RWMutex + single-flight 刷新，7 新测试） |

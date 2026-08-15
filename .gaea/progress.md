@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-15（gaea 3.0 执行 · v2.38.0 发布完成）
+> 最后更新: 2026-08-15（gaea 3.0 执行 · v2.39.0 发布完成）
 
 ## 阶段 7 收官 + 3.0 Step 0/1 完成（5 子代理并行，全部提交）
 
@@ -48,9 +48,29 @@
 - 前端 tsc 0 errors / eslint 0 errors（350 存量 warnings）/ vite build 15.7s / vitest 404 过（27 个 jsdom localStorage 基线失败，与 v2.37.0 一致零回归）
 - TestBindingsCompleteness PASS（464 方法 → 10 门面）；check-bindings-drift OK
 
+## Wave 3 完成：Step 3b/c/d Provider Seam + 前端接线（4 子代理实现 + 父代理集成，独立提交）
+
+| 状态 | 任务 | 提交 |
+|------|------|------|
+| ✅ | Step 3b LLM Seam（LLMProvider{Provider;Chat} + ChatFromStream + NewLLM 配置驱动 + 消费者切接口，19 测试） | d183af7 |
+| ✅ | Step 3c OCR/ASR/TTS Seam（OCRProvider ovis/tesseract + TTSProvider edge/sapi/herdsman/xai + ASRProvider herdsman 接口注入，GAEA_OCR_ENGINE 驱动） | 078ce1d |
+| ✅ | Step 3d 分类单源化（ClassifyModelKind/ClassifyModelByName）+ 8 处注册表化（websearch/embed/rerank/vision/image/ocr/markitdown/billing） | 9a535c4 |
+| ✅ | 前端 GetBoardManifests 接线（loadBoardManifests 远端 + normalize 差集 + KnowledgePage 注册，45/45 测试） | b1cc2fd |
+| ✅ | 父集成（gaea.toml [retrieval]/[vision]/[markdown_converter] + [search] engine_order + boot 装配 + app 层 NewLLM 迁移） | 048768c |
+
+### 发布
+
+- **v2.39.0**（2026-08-15，Wave 3 统一构建发布）：gaea-v2.39.0.exe（34.7MB）
+  - SHA256=fac19c50accc8310210bd768be51f1f519ba28cbce80d2a32a96ada271fb31fb
+  - 冒烟通过（/api/health 200）；详见 releases/v2.39.0.md
+
+### 门禁快照（父代理实测）
+
+- go build ./... 干净；go vet 干净；**test-all.ps1 110/110 包**
+- 前端 tsc 0 errors / eslint 0 errors / vite build 42.9s / vitest 420 过（27 个 jsdom localStorage 基线失败零回归）
+- TestBindingsCompleteness PASS（464 方法，无新绑定）；check-bindings-drift OK
+
 ## 遗留（下一会话）
 
-- Step 3 Provider Seam 剩余子步（3b LLM / 3c OCR/ASR/TTS / 3d 分类统一 8 处 + classifyModelKind 4 处）
-- 前端 GetBoardManifests 绑定接线（wails build 后 wailsjs 生成，loadBoardManifests 静态 fallback 替换为远端清单 + normalize 板块差集）
+- Step 3 收官清理：semantic_search 工具定义未注册（#6 只含 OCR，是否启用待决策）；billing kind 未从 ProviderEntry 贯通（controller 默认 deepseek）；ModuleLauncher 仍用静态 canonicalBoards
 - 回退保障硬要求不变（每 Step 独立提交 / 旧数据只读兼容 / 二进制保留 5 版 / 运行时开关 / 回退演练）
-- 观察项：boot.go 的 ctrlOpts 未传 LogFormat（生产消费者 gaeaBuildController 已注入，闭环成立；CLI/子代理宿主需自行注入）

@@ -11,6 +11,34 @@
 
 - **3.0 架构改造设计（2026-08-15 定稿，待评审后开工）**：权威文档 docs/2026-08-15-gaea3-architecture-design.md（事件日志事实源 / 板块 Manifest / Provider Seam，四步实施计划）；调研证据存档在 docs/gaea3-review/（只读参考，权威性以设计文档为准）。阶段 7（v2.34-2.37 正确性纵深）先行，3.0 Step 0-3 在其后启动。
 
+- 最新发布：**v2.39.0（2026-08-15）「3.0 架构主线 · Wave 3」（Step 3b LLM + Step 3c OCR/ASR/TTS + Step 3d 分类统一与 8 处注册表化 + 前端 GetBoardManifests 接线，4 子代理实现 + 父代理集成）**：
+  - Step 3b LLM Seam（d183af7）：LLMProvider{Provider;Chat} + ChatFromStream 聚合 + streamChatAdapter 自动适配；
+    bridge 互斥自注册（LLMKindWubigrok，DefaultLLMKind=wubigrok 空 kind 缺省=现状）；boot.NewProvider 经 NewLLM
+    （gaea.toml providers[].kind 驱动 + fail-closed）；agent 聊天/子代理/Plan/judge/compact 只依赖 seam 接口；
+    herdsman/ollama 思考模式分支测试冻结；19 新测试。
+  - Step 3c OCR/ASR/TTS Seam（078ce1d）：OCRProvider（ovis 常驻探测冷却/tesseract，GAEA_OCR_ENGINE auto=ovis→
+    tesseract 显式单引擎 fail-closed）+ TTSProvider（edge/sapi/herdsman 工厂四模式/xai 自注册，TTSSpeakBase64
+    四级回退与 TTSSpeakStreaming 合成器链注册表化 TTSChain 首个成功即赢）+ ASRProvider（herdsman，voice.Manager
+    SetASRProvider 接口注入弃回调注入）；isSTTModel 委托 modelengine.ClassifyModelByName，isTTSModelID 因 edge
+    关键词口径差异保守保留；cosyvoice ensure 惰性保持。
+  - Step 3d 分类统一 + 8 处注册表化（9a535c4）：modelengine 导出 ClassifyModelKind/ClassifyModelByName（六桶单源
+    关键词表零变化）；websearch 6 引擎 SearchEngine 注册表（[search] engine_order 可配序）/embed·rerank
+    EmbeddingProvider·RerankProvider（弃 HERDSMAN_BASE_URL）/vision Provider（删 GAEA_VISION_* 读 env 未知 kind
+    fail-closed）/image_gen comfyui 常量/OCR 工具补注册 ExtraTools/markitdown MarkdownConverter（cli 两级回退）/
+    billing FetchByKind（deepseek 形状默认）；6 注册表测试文件。
+  - 前端接线（b1cc2fd）：loadBoardManifests 改调 wailsjs CoreB.GetBoardManifests（v2.38.0 wails build 生成），
+    成功→normalizeManifests 合并替换（knowledge D7 菜单第 9 项 BookOutlined 补注册表/home 壳层 isHome 首位/
+    weixin page 空为准/重叠后端优先），失败→fail-closed 回退静态；MainLayout subscribeBoards+useReducer；
+    main.tsx 补注册 KnowledgePage；manifests.test.ts +16 用例（45/45）。
+  - 父集成（048768c）：gaea.toml 新增 [retrieval]/[vision]/[markdown_converter] 段 + [search] engine_order
+    （config.go 新结构体，零值=全默认本地端点）；boot/sysprompt.go 装配 SetSearchEngineOrder/SetRetrievalRuntime/
+    SetVisionRuntime/SetMarkdownConverterRuntime；app 层 5 处 provider.New→provider.NewLLM。
+  - 验证：go build/vet 干净 + test-all.ps1 **110/110 包** + 前端 tsc/eslint 0 errors + vite build 42.9s +
+    vitest 420 过（27 基线失败零回归）+ TestBindingsCompleteness PASS（464 无新绑定）+ 冒烟 /api/health 200。
+    发布 gaea-v2.39.0.exe（34.7MB，SHA256=fac19c50accc8310210bd768be51f1f519ba28cbce80d2a32a96ada271fb31fb）。
+    提交：d183af7(3b)/078ce1d(3c)/9a535c4(3d)/b1cc2fd(前端)/048768c(集成)。
+  - 遗留（Wave 4 候选）：semantic_search 工具定义未注册（#6 只含 OCR）；billing kind 未从 ProviderEntry 贯通；
+    ModuleLauncher 仍静态 canonicalBoards；pickHerdsmanModel 能力标签挑选保留。回退保障硬要求不变。
 - 最新发布：**v2.38.0（2026-08-15）「3.0 架构主线 · Wave 2」（Step 1 app 接线 + Step 2 板块 Manifest + Step 3a Image Seam，4 子代理核验 + 父代理收尾）**：
   - Step 1 app 层接线（事件日志「日志即真相」运行时闭环）：Resume→Restore（DetectLegacy 迁移→checkpoint+log tail
     重放）、Save→日志（saveEventMode 双写）、模型调用前 flush 检查点（FlushCheckpointFailClosed fail-closed，
