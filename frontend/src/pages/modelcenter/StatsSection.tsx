@@ -180,7 +180,7 @@ export function StatsSection() {
                       <span style={{ color: 'var(--mc-muted)', fontSize: 10 }}>折线 = 调用 · 红点 = 失败</span>
                     </div>
                     {trendData.length > 0 ? (
-                      <RequestsTrendChart data={trendData} color="#60a5fa" />
+                      <RequestsTrendChart data={trendData} color="var(--v3-telemetry)" />
                     ) : (
                       <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--mc-muted)', fontSize: 12 }}>
                         暂无趋势数据
@@ -193,9 +193,9 @@ export function StatsSection() {
                     <div className="mc-field-row">
                       <span className="mc-panel-title">Token 趋势</span>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 10, color: 'var(--mc-muted)' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: '#60a5fa', display: 'inline-block' }} />输入</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: '#34d399', display: 'inline-block' }} />输出</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 14, height: 0, borderTop: '2px dashed #f87171', display: 'inline-block' }} />费用</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--color-primary)', display: 'inline-block' }} />输入</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--color-success)', display: 'inline-block' }} />输出</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i style={{ width: 14, height: 0, borderTop: '2px dashed var(--color-destructive)', display: 'inline-block' }} />费用</span>
                       </span>
                     </div>
                     {trendData.length > 0 ? (

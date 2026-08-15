@@ -1,9 +1,12 @@
-// ModuleLauncher.tsx — AI 中枢首页（启动器）
-// 顶栏状态 → 正中语音交互中枢 + 两侧模块卡片；单一主题强调色，跟随 --gaea-glow
+// ModuleLauncher.tsx — 首页「任务指挥中心 Mission Control」（3.0 Bento 网格）
+// 顶部 AI 状态卡（活跃模型/引擎/资源/写作进度）＋ 中部模块 Bento 网格
+// ＋ 底部信息条（最近会话/记忆脉搏/系统状态）；原语音 orb 收进左上角小尺寸。
+// 模块卡数据源与 onNavigate 跳转逻辑保持不变（boards/launcher 纯函数派生）。
 import React, { useState, useCallback, useEffect, useSyncExternalStore } from 'react'
 import {
   ThunderboltOutlined, ArrowRightOutlined, AudioOutlined,
-  StopOutlined, RobotOutlined, UserOutlined,
+  StopOutlined, RobotOutlined, UserOutlined, DashboardOutlined,
+  FileTextOutlined, ClockCircleOutlined, HeartOutlined, ApiOutlined,
 } from '@ant-design/icons'
 // 板块清单：活动清单（静态 fallback / 后端合并）订阅驱动；图标由 manifest 图标注册表解析（3.0 §5.2）
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
@@ -11,6 +14,7 @@ import { deriveLauncherModules, LAUNCHER_DESC, type LauncherModule } from '../bo
 import { Tooltip } from 'antd'
 import VoiceChatOrb from './VoiceChatOrb'
 import { useVoiceChat } from '../hooks/useVoiceChat'
+import { useAppStore } from '../stores/appStore'
 import * as App from '../../src/wailsjsCompat'
 import './module-launcher.css'
 
@@ -29,8 +33,108 @@ interface ModuleLauncherProps {
   activeModel?: string
 }
 
-/** 单张玻璃档案卡 */
-const LauncherCard: React.FC<{ m: LauncherModule; idx: number; onOpen: () => void }> = ({ m, idx, onOpen }) => {
+// ── 遥测/会话/记忆的最小类型（对齐 wails 生成的 d.ts，避免引入重型类型）──
+interface MonitorStats {
+  cpu?: number
+  memUsed?: number
+  memTotal?: number
+  vramUsed?: number
+  vramTotal?: number
+  gpuUsage?: number
+  gpuName?: string
+}
+interface MonitorEngine {
+  engine: string
+  name?: string
+  model?: string
+  isLocal?: boolean
+}
+interface ModelMonitor {
+  engines?: MonitorEngine[]
+  stats?: MonitorStats
+  comfyRunning?: boolean
+}
+interface SessionLite {
+  title?: string
+  preview?: string
+  turns?: number
+  modTime?: number
+  current?: boolean
+}
+interface MemoryHubLite {
+  knowledgeCount?: number
+  profileCount?: number
+  officeCount?: number
+  costCount?: number
+  whisperCount?: number
+  pinnedCount?: number
+  latestUpdated?: string
+}
+
+/** 字数友好格式化（>=1 万显示 x.x 万） */
+function fmtWords(n: number): string {
+  if (!n) return '0'
+  if (n >= 10000) return (n / 10000).toFixed(1) + '万'
+  return n.toLocaleString()
+}
+
+/** 相对时间（unix ms → 「刚刚 / N 分钟前 / N 小时前 / N 天前」） */
+function fmtRel(ms: number): string {
+  if (!ms) return '—'
+  const diff = Date.now() - ms
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return '刚刚'
+  if (min < 60) return `${min} 分钟前`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h} 小时前`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `${d} 天前`
+  return new Date(ms).toLocaleDateString()
+}
+
+/**
+ * reduced-motion：应用「动效强度」设置（motion==='reduced' → .ui-reduced-motion）
+ * 或操作系统偏好任一命中即视为减弱动态（orb 渲染静态、呼吸环停转）。
+ */
+function useReducedMotion(): boolean {
+  const motion = useAppStore((s) => s.motion)
+  const [osReduced, setOsReduced] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setOsReduced(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+  return motion === 'reduced' || osReduced
+}
+
+/** 单张 AI 状态卡（v3-card + 渐次入场 v3-rise） */
+const StatCard: React.FC<{
+  icon: React.ReactNode
+  label: string
+  value: React.ReactNode
+  sub?: React.ReactNode
+  rise: string
+}> = ({ icon, label, value, sub, rise }) => (
+  <div className={`ml-stat v3-card v3-rise ${rise}`}>
+    <div className="ml-stat-head">
+      <span className="ml-stat-icon" aria-hidden="true">{icon}</span>
+      <span className="ml-stat-label">{label}</span>
+    </div>
+    <div className="ml-stat-value">{value}</div>
+    {sub && <div className="ml-stat-sub">{sub}</div>}
+  </div>
+)
+
+/** 单张模块卡片（v3-card + aurora 水印 + 进入箭头微交互） */
+const LauncherCard: React.FC<{
+  m: LauncherModule
+  idx: number
+  featured: boolean
+  onOpen: () => void
+}> = ({ m, idx, featured, onOpen }) => {
   // icon 为图标注册表名，渲染处查表解析；未知名 → Thunderbolt 兜底（3.0 §5.2）
   const Icon = resolveBoardIcon(m.icon)
   return (
@@ -38,8 +142,8 @@ const LauncherCard: React.FC<{ m: LauncherModule; idx: number; onOpen: () => voi
       role="button"
       tabIndex={0}
       aria-label={`进入${m.name}模块`}
-      className="ml-card"
-      style={{ '--ml-i': idx } as React.CSSProperties}
+      className={`ml-card v3-card is-interactive v3-rise ${featured ? 'ml-card--featured' : ''}`}
+      style={{ animationDelay: `${80 + idx * 45}ms` } as React.CSSProperties}
       onClick={onOpen}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -48,6 +152,7 @@ const LauncherCard: React.FC<{ m: LauncherModule; idx: number; onOpen: () => voi
         }
       }}
     >
+      <span className="ml-card-aurora" aria-hidden="true" />
       <div className="ml-card-icon">{Icon ? <Icon /> : <ThunderboltOutlined />}</div>
       <div className="ml-card-body">
         <div className="ml-card-name">
@@ -56,18 +161,15 @@ const LauncherCard: React.FC<{ m: LauncherModule; idx: number; onOpen: () => voi
         </div>
         <div className="ml-card-desc">{m.desc}</div>
       </div>
+      {featured && (
+        <div className="ml-card-foot">
+          <span>进入{m.name}工作台</span>
+          <ArrowRightOutlined className="ml-card-foot-arrow" />
+        </div>
+      )}
     </div>
   )
 }
-
-/** 卡片列（左右两侧） */
-const CardColumn: React.FC<{ list: LauncherModule[]; onNavigate: (t: LauncherTarget) => void }> = ({ list, onNavigate }) => (
-  <div className="ml-col">
-    {list.map((m, i) => (
-      <LauncherCard key={m.key} m={m} idx={i} onOpen={() => onNavigate(m.key)} />
-    ))}
-  </div>
-)
 
 /** 语音对话气泡 */
 const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ role, text }) => {
@@ -86,9 +188,10 @@ const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ ro
 }
 
 /**
- * ModuleLauncher — AI 中枢首页（正中语言粒子语音交互 + 模块启动器）。
- * 点击「进入语音对话」直接在本页启动麦克风开始语音交互（不跳转）。
- * 语音后端走聊天 voiceManager 管道，对话人格与聊天板块保持一致（后端持久化）。
+ * ModuleLauncher — 首页「任务指挥中心」。
+ * 布局：左上角语音 orb（小尺寸，呼吸 2s）＋ 顶部 AI 状态卡（遥测真实数据）
+ * ｜ 中部模块 Bento 网格（onNavigate 跳转）｜ 底部信息条（会话/记忆/系统）。
+ * 语音交互保留：点击 orb 下方按钮本页直启麦克风（不跳转）。
  */
 const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel }) => {
   // ── 板块清单（清单化数据源，3.0 §5.2 附 B #10/#11）──
@@ -97,22 +200,65 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
   // canonicalBoards（8 卡）；loadBoardManifests 成功并入 knowledge 后自动多出「知识库」卡。
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
   const modules = deriveLauncherModules(activeBoards, LAUNCHER_DESC)
-  // 左/右卡片列（正中语音交互，卡片分居两侧）
-  const leftModules = modules.slice(0, 3)
-  const rightModules = modules.slice(3)
+
+  // ── 项目统计（写作进度；appStore 已由壳层加载，只读消费）──
+  const stats = useAppStore((s) => s.stats)
+  const projectOpen = useAppStore((s) => s.projectOpen)
+
+  // ── 遥测：引擎 + 资源（轮询 GetModelMonitor，对齐底栏遥测数据源）──
+  const [monitor, setMonitor] = useState<ModelMonitor | null>(null)
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const m = (await App.GetModelMonitor()) as ModelMonitor
+        if (alive) setMonitor(m)
+      } catch (_) { /* 后端未就绪时静默，等待下一次轮询 */ }
+    }
+    load()
+    const t = window.setInterval(load, 3000)
+    return () => { alive = false; window.clearInterval(t) }
+  }, [])
+
+  // ── 最近会话（办公工作区真实数据）──
+  const [sessions, setSessions] = useState<SessionLite[]>([])
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const list = await App.GaeaListSessions()
+        if (!alive) return
+        const rows = (list || [])
+          .filter((s) => !s.current)
+          .sort((a, b) => (b.modTime || 0) - (a.modTime || 0))
+          .slice(0, 3)
+        setSessions(rows as SessionLite[])
+      } catch (_) { /* 静默：工作区未初始化时无最近会话 */ }
+    }
+    load()
+    return () => { alive = false }
+  }, [])
+
+  // ── 记忆脉搏（记忆中枢聚合总览，真实数据）──
+  const [memoryHub, setMemoryHub] = useState<MemoryHubLite | null>(null)
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const o = await App.GaeaMemoryHubOverview()
+        if (alive) setMemoryHub(o as MemoryHubLite)
+      } catch (_) { /* 静默：记忆中枢未就绪 */ }
+    }
+    load()
+    return () => { alive = false }
+  }, [])
+
+  // ── reduced-motion（orb 静态化）──
+  const reducedMotion = useReducedMotion()
 
   // ── 语音交互（本页直启麦克风）──
   const [userText, setUserText] = useState('')
   const [aiReply, setAiReply] = useState('')
-
-  // 粒子球尺寸随视口高度自适应（全局窗口变化实时响应，400 为上限）
-  const [orbSize, setOrbSize] = useState(() =>
-    Math.min(380, Math.max(240, (typeof window !== 'undefined' ? window.innerHeight : 800) - 480)))
-  useEffect(() => {
-    const onResize = () => setOrbSize(Math.min(380, Math.max(240, window.innerHeight - 480)))
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
   const { state: voice, start, stop, interrupt } = useVoiceChat({
     onTranscript: (t) => { setUserText(t); setAiReply('') },
     onReply: (t) => setAiReply(t),
@@ -138,149 +284,179 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
         ? '语音待命'
         : '待机'
 
-  const statusClass = voice.aiSpeaking
-    ? 'ml-status ml-status-speaking'
+  const voiceTone = voice.aiSpeaking
+    ? 'is-speaking'
     : voice.listening
-      ? 'ml-status ml-status-listening'
+      ? 'is-listening'
       : voice.active
-        ? 'ml-status ml-status-active'
-        : 'ml-status'
+        ? 'is-active'
+        : ''
 
   const hasChat = !!userText || !!aiReply
 
-  // 语音状态 → 中枢面板状态类（驱动 HUD 脉冲环 / 声谱 / 扫描线的强度与配色）
-  const centerClass = [
-    'ml-center',
-    voice.aiSpeaking ? 'is-speaking' : voice.listening ? 'is-listening' : voice.active ? 'is-active' : '',
-  ].filter(Boolean).join(' ')
+  // ── 状态卡数据（全部来自真实遥测/统计，不造假）──
+  const ms = monitor?.stats
+  const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
+  const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
+  // 后端未采样时 cpu/gpu 可能为 -1（哨兵），统一按「未就绪」显示 --
+  const cpuVal = ms && ms.cpu != null && ms.cpu >= 0 ? ms.cpu : null
+  const gpuVal = (ms?.gpuUsage ?? 0) > 0 ? ms.gpuUsage : vramPct
+  const engines = monitor?.engines || []
+  const engineCount = engines.length
+  const localCount = engines.filter((e) => e.isLocal).length
+
+  // 项目写作进度（与壳层 StatusBar 同公式：已写章节 / 规划章节保守估算）
+  const plannedChapters = stats?.chapterCount ? Math.max(stats.chapterCount, stats.plannedChapters || 0) : 0
+  const writtenChapters = stats?.chapterCount || 0
+  const progressPercent = plannedChapters > 0 ? Math.round((writtenChapters / Math.max(plannedChapters, writtenChapters + 5)) * 100) : 0
+
+  // 记忆总数 + 最近更新时间
+  const memoryTotal = memoryHub
+    ? (memoryHub.knowledgeCount || 0) + (memoryHub.profileCount || 0) + (memoryHub.officeCount || 0)
+      + (memoryHub.costCount || 0) + (memoryHub.whisperCount || 0) + (memoryHub.pinnedCount || 0)
+    : 0
+  const memoryUpdated = memoryHub?.latestUpdated ? Date.parse(memoryHub.latestUpdated) : 0
 
   return (
     <div className="ml">
       <div className="ml-shell">
-        {/* ── AI 中枢状态栏 ── */}
+        {/* ── 顶部：语音晶核（首页主视觉焦点）+ AI 状态卡 ── */}
         <div className="ml-top">
-          <ThunderboltOutlined className="ml-top-icon" />
-          <div className="ml-top-main">
-            <div className="ml-top-title">
-              <span className="live-dot" />
-              AI 中枢在线
-              <span className="ml-chip">GAEA CORE</span>
-              {activeModel && (
-                <span className="ml-chip ml-chip-model" title={activeModel}>
-                  {activeModel}
-                </span>
+          <div className={`ml-voice v3-card v3-rise ${voiceTone}`}>
+            <div className="ml-voice-main">
+              <div className="ml-orb">
+                <span className="ml-orb-ring" aria-hidden="true" />
+                {reducedMotion ? (
+                  <span className="ml-orb-static" aria-hidden="true" />
+                ) : (
+                  <VoiceChatOrb
+                    volume={voice.volume}
+                    listening={voice.listening}
+                    speaking={voice.speaking}
+                    aiSpeaking={voice.aiSpeaking}
+                    transcript={voice.transcript}
+                    size={120}
+                  />
+                )}
+              </div>
+              <span className="ml-voice-eyebrow" aria-hidden="true">语音晶核 · {voicePersonaLabel}</span>
+            </div>
+            <div className="ml-voice-side">
+              <div className="ml-voice-meta">
+                <span className="ml-voice-label">{voiceStateLabel}</span>
+                <span className="ml-voice-sub">与 {voicePersonaLabel} 语音对话 — 说话即可交互，无需打字</span>
+              </div>
+              <div className="ml-voice-actions">
+                {voice.active && voice.aiSpeaking && (
+                  <button className="ml-interrupt-btn" onClick={interrupt} type="button">
+                    <StopOutlined /> 打断
+                  </button>
+                )}
+                <Tooltip title={voice.active ? '结束语音对话' : '启动麦克风，开始语音交互'}>
+                  <button
+                    className={`ml-voice-btn ${voice.active ? 'is-active' : ''}`}
+                    onClick={toggleVoice}
+                    type="button"
+                    aria-label={voice.active ? '结束语音对话' : '启动语音对话'}
+                  >
+                    {voice.active ? <StopOutlined /> : <AudioOutlined />}
+                    {voice.active ? '结束对话' : '开始语音对话'}
+                  </button>
+                </Tooltip>
+              </div>
+              {voice.error && (
+                <div className="ml-voice-err" role="alert">{voice.error}</div>
               )}
-            </div>
-            <div className="ml-top-sub">
-              正中语音晶核直启麦克风 —— 与「{voicePersonaLabel}」语音对话
-            </div>
-          </div>
-          <span
-            role="button"
-            tabIndex={0}
-            className="ml-chat-cta"
-            onClick={() => onNavigate('chat')}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigate('chat') } }}
-          >
-            聊天板块 <ArrowRightOutlined style={{ fontSize: 11 }} />
-          </span>
-        </div>
-
-        {/* ── 主区：左卡片 | 语音交互 | 右卡片 ── */}
-        <div className="ml-main">
-          <CardColumn list={leftModules} onNavigate={onNavigate} />
-
-          {/* 正中：语音粒子交互 */}
-          <div className={centerClass}>
-            {/* 科幻 HUD 边框角标 */}
-            <div className="ml-hud-frame" aria-hidden="true">
-              <span className="ml-hud-corner ml-hud-tl" />
-              <span className="ml-hud-corner ml-hud-tr" />
-              <span className="ml-hud-corner ml-hud-bl" />
-              <span className="ml-hud-corner ml-hud-br" />
-            </div>
-
-            <div className="ml-center-head">
-              <span className="live-dot" />
-              <span className="ml-center-title">语音交互中枢</span>
-              <span className="ml-chip">{voicePersonaLabel}</span>
-            </div>
-
-            <div className="ml-orb-wrap">
-              {/* 雷达脉冲环：待机慢速呼吸，聆听/回复加速扩散 */}
-              <span className="ml-ring ml-ring-1" aria-hidden="true" />
-              <span className="ml-ring ml-ring-2" aria-hidden="true" />
-              <span className="ml-ring ml-ring-3" aria-hidden="true" />
-              <VoiceChatOrb
-                volume={voice.volume}
-                listening={voice.listening}
-                speaking={voice.speaking}
-                aiSpeaking={voice.aiSpeaking}
-                transcript={voice.transcript}
-                size={orbSize}
-              />
-            </div>
-
-            {/* 声谱均衡条：随语音状态律动 */}
-            <div className="ml-eq" aria-hidden="true">
-              {Array.from({ length: 9 }).map((_, i) => (
-                <span key={i} className="ml-eq-bar" style={{ '--eq-i': i } as React.CSSProperties} />
-              ))}
-            </div>
-
-            {/* HUD 遥测读数 */}
-            <div className="ml-telemetry">
-              <span className="ml-tele-dot" />
-              CORE <b>GAEA-07</b>
-              <span className="ml-tele-sep" />
-              LINK <b>OK</b>
-              <span className="ml-tele-sep" />
-              VAD <b>{voice.active ? 'ON' : 'STBY'}</b>
-              <span className="ml-tele-sep" />
-              VOL <b>{voice.active ? `${Math.round(voice.volume * 100)}%` : '--'}</b>
-            </div>
-
-            <div className={statusClass}>
-              {voiceStateLabel}
-            </div>
-
-            <div className="ml-bubbles">
-              {hasChat ? (
-                <>
+              {hasChat && (
+                <div className="ml-voice-chat">
                   {userText && <ChatBubble role="user" text={userText} />}
                   {aiReply && <ChatBubble role="assistant" text={aiReply} />}
-                </>
-              ) : (
-                <div className="ml-bubble-empty">
-                  语音晶核汇聚成声 —— 点击下方按钮开始语音对话
                 </div>
               )}
             </div>
-
-            {voice.error && (
-              <div className="ml-voice-err">{voice.error}</div>
-            )}
-
-            <div className="ml-controls">
-              {voice.active && voice.aiSpeaking && (
-                <button className="ml-interrupt-btn" onClick={interrupt}>
-                  <StopOutlined /> 打断回复
-                </button>
-              )}
-              <Tooltip title={voice.active ? '结束语音对话' : '启动麦克风，开始语音交互'}>
-                <button
-                  className={`ml-start-btn ${voice.active ? 'ml-starting' : ''}`}
-                  onClick={toggleVoice}
-                  type="button"
-                >
-                  {voice.active ? <StopOutlined /> : <AudioOutlined />}
-                  {voice.active ? '结束语音对话' : '进入语音对话'}
-                </button>
-              </Tooltip>
-            </div>
           </div>
 
-          <CardColumn list={rightModules} onNavigate={onNavigate} />
+          <div className="ml-status">
+            <StatCard
+              rise="v3-rise-1"
+              icon={<RobotOutlined />}
+              label="活跃模型"
+              value={activeModel || '未设置'}
+              sub="当前对话模型"
+            />
+            <StatCard
+              rise="v3-rise-2"
+              icon={<ThunderboltOutlined />}
+              label="已启用引擎"
+              value={engineCount > 0 ? `${engineCount}` : '—'}
+              sub={engineCount > 0 ? `${localCount} 本地 · ${engineCount - localCount} 云端` : '暂无引擎运行'}
+            />
+            <StatCard
+              rise="v3-rise-3"
+              icon={<DashboardOutlined />}
+              label="资源占用"
+              value={ms ? `CPU ${cpuVal != null ? cpuVal + '%' : '--'}` : '—'}
+              sub={ms ? `内存 ${memPct}% · GPU ${gpuVal}%` : '遥测待机'}
+            />
+            <StatCard
+              rise="v3-rise-4"
+              icon={<FileTextOutlined />}
+              label="项目写作进度"
+              value={stats ? `${progressPercent}%` : '—'}
+              sub={stats ? `${stats.chapterCount} 章 · ${fmtWords(stats.totalWords)} 字` : (projectOpen ? '统计加载中…' : '未打开项目')}
+            />
+          </div>
+        </div>
+
+        {/* ── 中部：模块卡片 Bento 网格（数据源/跳转逻辑不变）── */}
+        <div className="ml-bento">
+          {modules.map((m, i) => (
+            <LauncherCard key={m.key} m={m} idx={i} featured={i === 0} onOpen={() => onNavigate(m.key)} />
+          ))}
+        </div>
+
+        {/* ── 底部：信息条（最近会话 / 记忆脉搏 / 系统状态）── */}
+        <div className="ml-info v3-panel v3-rise">
+          <section className="ml-info-seg" aria-label="最近会话">
+            <div className="ml-info-head"><ClockCircleOutlined aria-hidden="true" />最近会话</div>
+            {sessions.length > 0 ? (
+              <ul className="ml-info-list">
+                {sessions.map((s, i) => (
+                  <li key={s.modTime ?? i} className="ml-info-item">
+                    <span className="ml-info-name">{s.title || s.preview || '未命名会话'}</span>
+                    <span className="ml-info-meta">{s.turns ?? 0} 轮 · {fmtRel(s.modTime || 0)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="ml-info-empty">暂无最近会话</div>
+            )}
+          </section>
+          <section className="ml-info-seg" aria-label="记忆脉搏">
+            <div className="ml-info-head"><HeartOutlined aria-hidden="true" />记忆脉搏</div>
+            {memoryHub ? (
+              <div className="ml-info-body">
+                <span className="ml-info-strong">{memoryTotal} 条记忆</span>
+                <span className="ml-info-meta">最近更新 {fmtRel(memoryUpdated)}</span>
+              </div>
+            ) : (
+              <div className="ml-info-empty">记忆中枢待命</div>
+            )}
+          </section>
+          <section className="ml-info-seg" aria-label="系统状态">
+            <div className="ml-info-head"><ApiOutlined aria-hidden="true" />系统状态</div>
+            {monitor ? (
+              <div className="ml-info-body">
+                <span className="ml-info-strong">引擎 {engineCount} · CPU {cpuVal != null ? cpuVal + '%' : '--'}</span>
+                <span className="ml-info-meta">
+                  内存 {memPct}% · GPU {gpuVal}%
+                  {monitor.comfyRunning ? ' · ComfyUI 运行中' : ''}
+                </span>
+              </div>
+            ) : (
+              <div className="ml-info-empty">遥测待机</div>
+            )}
+          </section>
         </div>
       </div>
     </div>

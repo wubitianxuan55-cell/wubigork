@@ -53,16 +53,16 @@ export const RequestsTrendChart: FC<{ data: TrendDatum[]; color: string }> = ({ 
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
       {ticks.map((t, i) => (
         <g key={i}>
-          <line x1={padL} y1={y(t)} x2={W - padR} y2={y(t)} stroke="rgba(128,128,128,0.14)" strokeWidth={1} />
+          <line x1={padL} y1={y(t)} x2={W - padR} y2={y(t)} style={{ stroke: 'color-mix(in srgb, var(--color-text) 10%, transparent)' }} strokeWidth={1} />
           <text x={padL - 6} y={y(t) + 3} textAnchor="end" fontSize={10} style={{ fill: C('color-text-secondary') }}>{fmtCompact(t)}</text>
         </g>
       ))}
-      <path d={area} fill={`${color}20`} />
-      <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <path d={area} style={{ fill: `color-mix(in srgb, ${color} 20%, transparent)` }} />
+      <path d={line} fill="none" style={{ stroke: color }} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
       {data.map((d, i) => (
         <g key={d.key}>
           {d.failCalls > 0 && (
-            <circle cx={x(i)} cy={y(d.calls)} r={3} fill="#f87171" stroke="#1e1e2e" strokeWidth={1}>
+            <circle cx={x(i)} cy={y(d.calls)} r={3} style={{ fill: 'var(--color-destructive)', stroke: 'var(--color-bg-container)' }} strokeWidth={1}>
               <title>{`${d.label} · ${d.calls} 次（失败 ${d.failCalls}）`}</title>
             </circle>
           )}
@@ -102,16 +102,16 @@ export const TokenTrendChart: FC<{ data: TrendDatum[] }> = ({ data }) => {
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
       {ticks.map((t, i) => (
         <g key={i}>
-          <line x1={padL} y1={yT(t)} x2={W - padR} y2={yT(t)} stroke="rgba(128,128,128,0.14)" strokeWidth={1} />
+          <line x1={padL} y1={yT(t)} x2={W - padR} y2={yT(t)} style={{ stroke: 'color-mix(in srgb, var(--color-text) 10%, transparent)' }} strokeWidth={1} />
           <text x={padL - 6} y={yT(t) + 3} textAnchor="end" fontSize={10} style={{ fill: C('color-text-secondary') }}>{fmtCompact(t)}</text>
         </g>
       ))}
       {hasCost && (
         <>
           {[0.5, 1].map(r => (
-            <text key={r} x={W - padR + 8} y={yC(maxCost * r) + 3} fontSize={10} style={{ fill: '#f87171' }}>{fmtAxis(maxCost * r)}</text>
+            <text key={r} x={W - padR + 8} y={yC(maxCost * r) + 3} fontSize={10} style={{ fill: 'var(--color-destructive)' }}>{fmtAxis(maxCost * r)}</text>
           ))}
-          <path d={costLine} fill="none" stroke="#f87171" strokeWidth={1.6} strokeDasharray="4 3" />
+          <path d={costLine} fill="none" style={{ stroke: 'var(--color-destructive)' }} strokeWidth={1.6} strokeDasharray="4 3" />
         </>
       )}
       {data.map((d, i) => {
@@ -122,14 +122,14 @@ export const TokenTrendChart: FC<{ data: TrendDatum[] }> = ({ data }) => {
         const yOut = yIn - hOut
         return (
           <g key={d.key}>
-            <rect x={x0} y={yIn} width={barW} height={Math.max(0, hIn)} fill="#60a5fa">
+            <rect x={x0} y={yIn} width={barW} height={Math.max(0, hIn)} style={{ fill: 'var(--color-primary)' }}>
               <title>{`${d.label} · 输入 ${d.inputTokens} Token`}</title>
             </rect>
-            <rect x={x0} y={yOut} width={barW} height={Math.max(0, hOut)} fill="#34d399">
+            <rect x={x0} y={yOut} width={barW} height={Math.max(0, hOut)} style={{ fill: 'var(--color-success)' }}>
               <title>{`${d.label} · 输出 ${d.outputTokens} Token`}</title>
             </rect>
             {hasCost && d.cost > 0 && (
-              <circle cx={x(i)} cy={yC(d.cost)} r={2} fill="#f87171">
+              <circle cx={x(i)} cy={yC(d.cost)} r={2} style={{ fill: 'var(--color-destructive)' }}>
                 <title>{`${d.label} · 费用 ${fmtAxis(d.cost)}`}</title>
               </circle>
             )}

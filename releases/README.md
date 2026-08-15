@@ -1,11 +1,12 @@
 # gaea 轻语模块 — 版本汇总
 
-## gaea 桌面端 v2.x 发布
+## gaea 桌面端 v3.0.0 发布
 
 > **磁盘治理约定（P4-4）**：exe 本地仅保留最近 5 版；更早版本发布说明见 git tag、CHANGELOG、releases/vX.md，需要时从回收站恢复或重新构建。
 
 | 版本 | 日期 | 安装包 | 核心变更 |
 |------|------|------|------|
+| **v3.0.0** | 08-15 | [gaea-v3.0.0.exe](gaea-v3.0.0.exe) | 星枢 Constellation OS · UI 革命性重设计：壳层革命（左侧指挥轨道 + 顶部轨道条 + 底部遥测轨道）；10 板块统一 3 分区工作台；Luminous Glass 2.0 令牌体系；发布前打磨（聊天模式条移入顶栏、输入框两级重设计、首页全屏适配）+ 7 个 CSS 文件注释 `*/` 根因修复（面板「只有上半截」）；详见 [v3.0.0.md](v3.0.0.md) |
 | v2.40.0 | 08-15 | [gaea-v2.40.0.exe](gaea-v2.40.0.exe) | 3.0 架构主线 Wave 4「Step 3 收官」：semantic_search 工具注册（死代码恢复可用）+ BalanceKind 从 ProviderEntry 贯通（balance_kind 配置项，切换余额后端只改配置）+ ModuleLauncher 清单化（订阅活动清单，后端并入 knowledge 后首页启动器自动多出「知识库」卡） |
 | v2.39.0 | 08-15 | [gaea-v2.39.0.exe](gaea-v2.39.0.exe) | 3.0 架构主线 Wave 3：Step 3b LLM Seam / Step 3c OCR·ASR·TTS Seam / Step 3d 分类统一+8 处注册表化 / 前端 GetBoardManifests 接线；gaea.toml 新配置段（[retrieval]/[vision]/[markdown_converter]/[search] engine_order） |
 | v2.38.0 | 08-15 | [gaea-v2.38.0.exe](gaea-v2.38.0.exe) | 3.0 架构主线 Wave 2：Step 1 app 层接线（事件日志「日志即真相」运行时闭环，含模型调用前 fail-closed 检查点）；Step 2 板块 Manifest（board 包 10 板块 + manifest 驱动装配 + GetBoardManifests 464 绑定 + 前端 PageRegistry/MainLayout 12 硬编码点清单化/events 常量表）；Step 3a Image Seam（图片后端注册表化） |

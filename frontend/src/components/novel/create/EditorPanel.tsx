@@ -37,7 +37,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   generating, genPhase, genPercent, stopping, saving,
   onRegenerate, onSave, onStop, hasChapters, nextChapterNum, onOpenWizard,
 }) => (
-  <section className="novel-panel novel-workspace-col novel-editor-col">
+  <section className="novel-editor-panel novel-workspace-col novel-editor-col">
     <div className="novel-panel-head">
       <span className="novel-panel-title">
         {activeNode ? (activeNode.title || chapterLabel(activeNode.order_index)) : '正文编辑'}

@@ -1,6 +1,8 @@
 // CapabilitiesPanel 拆分产物：工具列表区（行为零变化，T6-10.1）
+// v3「星枢」面板语言：工具卡实底收敛（图标 + 名称 + 描述 + 状态徽标），
+// 激活工具 = 主色容器底 + 左侧光条（inset shadow）+ 柔光。
 import { useMemo, useRef, useState } from "react";
-import { Cpu, ChevronDown, Search } from "../../icons";
+import { Cpu, ChevronDown, Search, X } from "../../icons";
 import { useGSAPCollapse } from "../../lib/useGSAPCollapse";
 
 type Counts = Record<string, number>;
@@ -67,19 +69,51 @@ function ToolCard({ name, count }: { name: string; count: number }) {
   const desc = TOOL_DESC[name]
   return (
     <div
-      className={`flex items-start gap-1.5 px-2 py-1.5 rounded-md border border-border-soft bg-bg cursor-default ${
-        active ? "border-accent-soft bg-sidebar-active" : ""
+      className={`flex items-start gap-1.5 px-2 py-1.5 rounded-[var(--radius-sm)] border cursor-default transition-all duration-150 ${
+        active ? "" : "hover:bg-(color:--md-sys-color-surface-container-high)"
       }`}
       title={desc ?? name}
+      style={{
+        background: active ? "var(--md-sys-color-primary-container)" : "var(--md-sys-color-surface-container)",
+        borderColor: active
+          ? "color-mix(in srgb, var(--gaea-glow) 30%, transparent)"
+          : "var(--md-sys-color-outline-variant)",
+        boxShadow: active
+          ? "inset 3px 0 0 var(--gaea-glow), inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 5%, transparent), var(--v3-glow-faint)"
+          : "inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 5%, transparent)",
+      }}
     >
-      <span className={`w-1.5 h-1.5 mt-[5px] rounded-full shrink-0 ${active ? "bg-accent" : "bg-border-soft"}`} />
+      {/* 状态点：语义色 + 光晕（激活/未激活三重传达之一） */}
+      <span
+        className="w-1.5 h-1.5 mt-[5px] rounded-full shrink-0"
+        style={{
+          background: active ? "var(--gaea-glow)" : "var(--md-sys-color-outline-variant)",
+          boxShadow: active ? "0 0 6px var(--gaea-glow)" : "none",
+        }}
+      />
       <span className="flex-1 min-w-0 flex flex-col gap-0.5 leading-[1.25]">
-        <span className={`font-mono text-[10.5px] truncate ${active ? "text-accent font-semibold" : "text-fg-dim"}`}>
+        <span
+          className={`font-mono text-[10.5px] truncate ${active ? "font-semibold" : ""}`}
+          style={{ color: active ? "var(--gaea-glow)" : "var(--md-sys-color-text-secondary)" }}
+        >
           {name}
         </span>
-        {desc && <span className="text-[10px] text-fg-faint leading-[1.3] line-clamp-1">{desc}</span>}
+        {desc && (
+          <span className="text-[10px] leading-[1.3] line-clamp-1" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+            {desc}
+          </span>
+        )}
       </span>
-      <span className={`shrink-0 font-mono text-[11px] font-semibold mt-px ${active ? "text-accent" : "text-fg-faint"}`}>
+      {/* 状态徽标：次数 + 语义色容器 */}
+      <span
+        className="shrink-0 font-mono text-[11px] font-semibold mt-px rounded-full px-1.5 py-px"
+        style={{
+          color: active ? "var(--gaea-glow)" : "var(--md-sys-color-text-secondary)",
+          background: active
+            ? "color-mix(in srgb, var(--gaea-glow) 16%, transparent)"
+            : "color-mix(in srgb, var(--md-sys-color-text) 8%, transparent)",
+        }}
+      >
         {count}
       </span>
     </div>
@@ -106,16 +140,18 @@ function ToolGroup({
   return (
     <div className="px-1.5 py-0.5">
       <button
-        className="flex items-center gap-1 w-full px-1 py-1.5 bg-transparent border-0 text-left cursor-pointer hover:bg-bg-soft rounded transition-colors"
+        className="flex items-center gap-1 w-full px-1 py-1.5 bg-transparent border-0 text-left cursor-pointer rounded transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
         onClick={() => setOpen((v) => !v)}
       >
         <ChevronDown
           size={10}
-          className={`text-fg-faint transition-transform duration-150 ${open ? "rotate-0" : "-rotate-90"}`}
+          aria-hidden
+          className={`transition-transform duration-150 ${open ? "rotate-0" : "-rotate-90"}`}
+          style={{ color: "var(--md-sys-color-text-secondary)" }}
         />
-        <span className="text-[10px] font-semibold uppercase tracking-[0.5px] text-fg-faint">{title}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.5px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{title}</span>
         {activeCount > 0 && (
-          <span className="ml-auto text-[9px] font-mono text-accent">{activeCount}</span>
+          <span className="ml-auto text-[9px] font-mono" style={{ color: "var(--gaea-glow)" }}>{activeCount}</span>
         )}
       </button>
       <div ref={ref} style={{ overflow: "hidden" }}>
@@ -158,34 +194,45 @@ export function ToolsTabContent({ toolCounts }: { toolCounts: Counts }) {
 
   return (
     <div className="flex flex-col overflow-hidden h-full" style={{minHeight: 0}}>
-      <div className="flex items-center gap-1.5 px-2 py-2 text-fg-dim font-semibold text-[11px] shrink-0">
-        <Cpu size={12} />
+      <div className="flex items-center gap-1.5 px-2 py-2 font-semibold text-[11px] shrink-0" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+        <Cpu size={12} aria-hidden className="text-(color:--gaea-glow)" />
         <span>工具</span>
-        <span className="ml-auto text-[10px] font-mono text-fg-faint/50">
+        <span className="ml-auto text-[10px] font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
           {activeTotal > 0 ? `${activeTotal}/${totalTools}` : totalTools}
         </span>
       </div>
-      <div className="flex items-center gap-1.5 mx-2 my-1 px-2 h-7 border border-border rounded-md bg-bg text-fg-faint shrink-0">
-        <Search size={12} />
+      <div
+        className="flex items-center gap-1.5 mx-2 my-1 px-2 h-7 rounded-md border shrink-0 transition-[border-color,box-shadow] duration-200 focus-within:border-[color:color-mix(in_srgb,var(--gaea-glow)_45%,var(--md-sys-color-outline-variant))] focus-within:shadow-[0_0_0_2px_color-mix(in_srgb,var(--gaea-glow)_14%,transparent)]"
+        style={{
+          borderColor: "var(--md-sys-color-outline-variant)",
+          background: "var(--md-sys-color-surface-container)",
+          color: "var(--md-sys-color-text-secondary)",
+        }}
+      >
+        <Search size={12} aria-hidden />
         <input
           ref={inputRef}
-          className="flex-1 min-w-0 border-0 outline-none bg-transparent text-fg text-[11.5px] placeholder:text-fg-faint"
+          className="flex-1 min-w-0 border-0 outline-none bg-transparent text-[11.5px] placeholder:text-(color:--md-sys-color-text-secondary)"
+          style={{ color: "var(--md-sys-color-text)" }}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="搜索工具…"
+          aria-label="搜索工具"
         />
         {query && (
           <button
-            className="border-0 bg-transparent text-fg-faint cursor-pointer p-0 leading-none hover:text-fg"
+            className="border-0 bg-transparent p-0 leading-none cursor-pointer hover:opacity-80"
+            style={{ color: "var(--md-sys-color-text-secondary)" }}
             onClick={() => { setQuery(""); inputRef.current?.focus() }}
+            aria-label="清除搜索"
           >
-            ✕
+            <X size={12} />
           </button>
         )}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto pb-2">
         {!hasResults ? (
-          <div className="text-fg-faint text-xs text-center py-8">无匹配工具</div>
+          <div className="text-xs text-center py-8" style={{ color: "var(--md-sys-color-text-secondary)" }}>无匹配工具</div>
         ) : (
           filteredSections.map((sec) => (
             <ToolGroup

@@ -1,10 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════
-  通用办公 · 整层重设计
-   参考 Claude / ChatGPT / Linear 的简洁工作台：
-   - 统一玻璃面层与 1px 细边，去掉花哨阴影与光晕
-   - 对话区铺满面板宽度，正文保持 74ch 阅读宽度
-   - 消息层级清晰：助手干净整块、用户柔和气泡、工具卡片安静
-   - 顶栏极简、状态栏低调、侧栏清爽
+   通用办公 · 整层重设计（Luminous Glass 2.0 · Constellation OS v3）
+    参考 Claude / ChatGPT / Linear 的简洁工作台 + v3 玻璃轨道语言：
+    - 玻璃只做容器（轨道/侧栏/检查器/顶栏），信息层实底（保证对比度）
+    - 容器顶部 1px 高光线（--v3-edge）、柔光（--v3-glow-soft）、分区线（--v3-split）
+    - 对话区铺满面板宽度，正文保持 74ch 阅读宽度
+    - 消息层级清晰：助手干净整块、用户柔和气泡、工具卡片安静
+    - 顶栏极简、状态栏低调、侧栏清爽；零硬编码色值（一律令牌）
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── 作用域令牌微调（仅 gaea 工作台内生效） ── */
@@ -14,29 +15,100 @@
   --border: color-mix(in srgb, var(--fg-faint) 26%, transparent);
   --ds-shadow-topbar: none;
   --ds-shadow-composer: 0 12px 34px rgba(0, 0, 0, 0.22);
+
+  /* v3 别名桥：foundation.css 的 .v3-* 原语直接消费 --color-* 别名；
+     全局别名（App.tsx shim）缺位时，在 gaea 工作台内桥接 M3 令牌（零 hex） */
+  --color-primary: var(--md-sys-color-primary);
+  --color-primary-container: var(--md-sys-color-primary-container);
+  --color-on-primary: var(--md-sys-color-on-primary);
+  --color-on-primary-container: var(--md-sys-color-on-primary-container);
+  --color-surface: var(--md-sys-color-surface);
+  --color-surface-dim: var(--md-sys-color-surface-dim);
+  --color-surface-container: var(--md-sys-color-surface-container);
+  --color-surface-container-high: var(--md-sys-color-surface-container-high);
+  --color-surface-container-highest: var(--md-sys-color-surface-container-highest);
 }
 
-/* ── 面层统一 ── */
-.gaea-app-layout,
-.layout,
+/* ── 面层统一：氛围层 aurora 透出，信息层实底 ── */
+.gaea-app-layout.ant-layout {
+  background: var(--gaea-aurora-bg, var(--bg));
+}
+.layout {
+  background: transparent; /* 让 aurora 氛围层透出（玻璃分区叠其上） */
+}
 .chat-pane {
-  background: var(--bg);
+  background: var(--bg); /* 对话流 = 信息层，实底保证正文对比度 */
+  position: relative;
 }
 
-/* ── 侧栏：清爽玻璃面，去掉渐变 ── */
+/* ── 侧栏：玻璃轨道 + 顶部 1px 高光线 ── */
 aside[aria-label="gaea navigation"] {
-  background: color-mix(in srgb, var(--sidebar-bg) 86%, var(--bg)) !important;
-  border-right: 1px solid var(--border-soft);
+  background: var(--v3-rail-bg, var(--gaea-glass-bg, var(--md-sys-color-surface))) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  border-right: var(--v3-split) !important;
+  position: relative;
+}
+aside[aria-label="gaea navigation"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--v3-edge);
+  opacity: 0.8;
+  pointer-events: none;
 }
 
 aside[aria-label="gaea navigation"] input {
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg-soft) 82%, transparent);
 }
+aside[aria-label="gaea navigation"] input:focus {
+  border-color: color-mix(in srgb, var(--gaea-glow, var(--accent)) 45%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gaea-glow, var(--accent)) 20%, transparent),
+    var(--v3-glow-faint);
+}
 
 /* ── 侧栏：会话优先，模型卡安静化（Codex 风） ── */
 aside[aria-label="gaea navigation"] .sidebar-session-scroll {
   scrollbar-width: thin;
+}
+
+/* 激活会话：主色容器底 + 左缘 3px 光条（v3 轨道语言） */
+.sidebar-session-active,
+.sidebar-session-active:hover {
+  background: var(--color-primary-container, var(--md-sys-color-primary-container)) !important;
+  box-shadow: var(--v3-glow-faint);
+  position: relative;
+}
+.sidebar-session-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--gaea-glow, var(--color-primary));
+  box-shadow: 0 0 8px var(--gaea-glow, var(--color-primary));
+}
+.sidebar-session-active [class*="text-accent"] {
+  color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
+}
+.sidebar-session-active [class*="bg-accent"] {
+  background: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
+}
+
+/* 折叠态当前会话角标 */
+.sidebar-current-chip {
+  background: var(--color-primary-container, var(--md-sys-color-primary-container)) !important;
+  color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container)) !important;
+  box-shadow: var(--v3-glow-faint);
+}
+.sidebar-current-chip:hover {
+  filter: brightness(1.12);
 }
 
 /* FeatureModelBar 原为带阴影/虚线边框的浮卡，在侧栏内收敛为安静一行 */
@@ -52,13 +124,26 @@ aside[aria-label="gaea navigation"] .side-model-wrap > div {
   gap: 4px !important;
 }
 
-/* ── 顶栏：极简一条线 ── */
+/* ── 顶栏：玻璃条 + 底部 1px 高光线 ── */
 .chat-pane > header {
-  background: color-mix(in srgb, var(--bg) 97%, var(--fg) 3%) !important;
+  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 92%, var(--bg)) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
   box-shadow: none !important;
   padding-left: 20px !important;
   padding-right: 20px !important;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: none !important;
+  position: relative;
+}
+.chat-pane > header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
 }
 
 /* ── 对话线程：铺满 + 留白 ── */
@@ -70,7 +155,7 @@ aside[aria-label="gaea navigation"] .side-model-wrap > div {
   padding-bottom: 26px;
 }
 
-/* ── 消息 ── */
+/* ── 消息（保持既有收敛；消息层视觉由 chat 子代理在组件内升级） ── */
 .msg--assistant {
   padding: 5px 0;
 }
@@ -97,23 +182,72 @@ aside[aria-label="gaea navigation"] .side-model-wrap > div {
   border-left-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-/* ── 输入框：光晕收拢，聚焦才亮 ── */
+/* ── 输入区：玻璃底座 + 顶部 1px 高光线 ── */
+.chat-pane > footer {
+  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 86%, var(--bg)) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  border-top: none !important;
+  position: relative;
+}
+.chat-pane > footer::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
+}
+
+/* ── 输入框：光晕收拢，聚焦才亮（AI 光升级为 --gaea-glow） ── */
 .composer-glow::before {
   opacity: 0.24;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--gaea-glow, var(--accent)) 8%, transparent), transparent 28%),
+    radial-gradient(circle at right 14% bottom 18%, color-mix(in srgb, var(--gaea-glow, var(--accent)) 5%, transparent), transparent 24%);
 }
 
 .composer-glow:focus-within::before {
   opacity: 0.55;
 }
 
-/* ── 工作区面板：统一面层 ── */
+/* ── 工作区面板：玻璃检查器 + 分区线 + 顶部 1px 高光线 ── */
 .workspace-pane {
-  background: var(--bg);
-  border-left: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 84%, var(--bg)) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  border-left: var(--v3-split) !important;
+  position: relative;
+}
+.workspace-pane::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
+  z-index: 1;
 }
 
-.workspace-pane > div:first-child {
-  background: color-mix(in srgb, var(--bg) 97%, var(--fg) 3%);
+/* 标签条收敛为 v3 panel head（玻璃微底 + 分区线） */
+.workspace-tabs {
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  border-bottom: var(--v3-split);
+}
+.workspace-tabs button {
+  transition: color var(--dur-fast), background var(--dur-fast), border-color var(--dur-fast);
+}
+.workspace-tabs button:hover {
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+}
+
+/* 主区域预览：信息层实底，左缘分区线 */
+.preview-pane {
+  border-left: var(--v3-split);
 }
 
 /* ── 滚动条：细、融入背景 ── */
@@ -167,8 +301,8 @@ aside[aria-label="gaea navigation"] .side-model-wrap > div {
   }
 }
 
-/* 焦点环统一 */
+/* 焦点环统一（v3 AI 光） */
 .gaea-app-layout :focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline: 2px solid var(--gaea-glow, var(--accent));
   outline-offset: 2px;
 }

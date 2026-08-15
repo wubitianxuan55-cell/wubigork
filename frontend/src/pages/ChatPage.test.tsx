@@ -158,9 +158,11 @@ describe('T6-3.1 流订阅竞态与超时', () => {
     await renderChat()
     await sendMessage('你好')
 
-    // runID 未知：尚无任何订阅
+    // runID 未知：尚无任何流订阅
+    // （v3「星枢」ChatInspector 会订阅 feature-model-changed 事件——功能模型状态，
+    //   与流订阅无关；此处只断言 chat-stream 频道订阅尚未发生）
     expect(ChatStreamPlain).toHaveBeenCalled()
-    expect(EventsOn).not.toHaveBeenCalled()
+    expect(EventsOn).not.toHaveBeenCalledWith('chat-stream:run-1', expect.any(Function))
 
     // 解析 runID：订阅必须紧跟（同一微任务），先订阅后收帧
     await act(async () => { resolveRunID('run-1') })

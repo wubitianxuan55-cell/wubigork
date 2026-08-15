@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
   BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, FileText, FolderGit2, FolderTree, Paperclip,
-  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, Diff, ClipboardList,
+  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, Diff, ClipboardList, List, Square,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -630,8 +630,8 @@ export default function App() {
           SIDEBAR_MAX_WIDTH={SIDEBAR_MAX_WIDTH}
         />
 
-        <section className="chat-pane">
-          <header className="flex flex-shrink-0 items-center gap-3 px-12 border-b border-border-soft select-none drag-region transition-all duration-200" style={{background: "var(--ds-gradient-topbar)", boxShadow: "var(--ds-shadow-topbar)"}}>
+        <section className="chat-pane v3-zone">
+          <header className="flex flex-shrink-0 items-center gap-3 px-12 border-b border-border-soft select-none drag-region transition-all duration-200" style={{background: "var(--gaea-glass-bg, var(--md-sys-color-surface-container))"}}>
             <div className="flex items-center gap-2 min-w-0">
               <ModelSwitcher label={state.meta?.label ?? t("status.connecting")} onPick={switchModel} />
             </div>
@@ -656,7 +656,7 @@ export default function App() {
               <ToolbarButton onClick={() => void toggleWorkspacePanel()} title={previewFile ? "返回文件列表" : workspacePanelOpen ? "收起文件面板" : "展开文件面板"}>
                 {workspacePanelOpen || previewFile ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
               </ToolbarButton>
-              <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); try { localStorage.setItem("gaea.compactMode", v ? "1" : "0"); } catch {} }} title={compactMode ? "展开模式" : "紧凑模式"}>{compactMode ? "⊞" : "⊟"}</ToolbarButton>
+              <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); try { localStorage.setItem("gaea.compactMode", v ? "1" : "0"); } catch {} }} title={compactMode ? "展开模式" : "紧凑模式"}>{compactMode ? <List size={13} /> : <Square size={13} />}</ToolbarButton>
               <ToolbarButton onClick={toggleFocus} title={focusMode ? "退出专注模式 (Ctrl+Shift+F)" : "专注模式 (Ctrl+Shift+F)"}>
                 <Aim size={13} className={focusMode ? "text-accent" : ""} />
               </ToolbarButton>
@@ -761,7 +761,7 @@ export default function App() {
 
         {workspacePanelOpen && (
         <div className="workspace-pane flex flex-col min-w-0 overflow-hidden border-l border-border-soft bg-bg transition-all duration-200">
-          <div className="flex items-center border-b border-border-soft overflow-hidden shrink">
+          <div className="workspace-tabs flex items-center border-b border-border-soft overflow-hidden shrink">
             <button
               className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "files" ? "text-accent border-accent" : ""}`}
               onClick={() => setRightTab("files")}

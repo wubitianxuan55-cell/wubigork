@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-15（gaea 3.0 执行 · v2.40.0 发布完成 · UI 设计系统 Wave 1-2 落地中）
+> 最后更新: 2026-08-15（**v3.0.0 发布完成** · 星枢 Constellation OS UI 革命性重设计 · T6-10.2 收官）
 
 ## UI 设计系统（3.0 补充环节，ui-ux-pro-max skill 驱动，2026-08-15）
 
@@ -17,7 +17,11 @@
 | ✅ | Wave 3 chat 设计语言落地（侧栏激活态/气泡语义色/Composer 玻璃化/硬编码色治理 9 文件） | 1666d63 |
 | ✅ | Wave 4 emoji 治理：壳层 StatusBar（antd 图标）/轻语记忆库（+测试同步）/WhisperMemoryModal/settings 4 面板/novel CommandBar+CharacterPage | e2715d5 / ca0cbff / a72f5e0 / 7c2b780 |
 | ✅ | Wave 4 硬编码色令牌化：novel 状态色/theme.ts 状态角色色/character-page 警告态/imagegen 失败警告色 | 4e82064 / 760de5d / 9c1c5a7 |
-| ✅ | 最终集成门禁（tsc/eslint/vitest 全量 + vite build） | 验证中 |
+| ✅ | 最终集成门禁（tsc/eslint/vitest 全量 + vite build） | 验证通过 |
+| ✅ | T6-10.2 收官·聊天模式条移入顶栏（ChatModeBar `variant='strip'` + MainLayout `#v3-chatmode-host` portal 宿主，仅聊天板块显示） | 本提交 |
+| ✅ | T6-10.2 收官·输入框两级重设计（工具行 搜索/深度思考/语音 独立 + 输入卡仅 textarea+发送，ComposerTool 子组件） | 本提交 |
+| ✅ | T6-10.2 收官·**7 个 CSS 文件注释 `*/` 根因修复**（`--md-sys-*/--gaea-*` 提前闭合注释吞掉首规则 `.novel-hub`/`.ml` 等 → 面板「只有上半截」/首页布局失效；全改 `* /`） | 本提交 |
+| ✅ | T6-10.2 收官·首页全屏适配（去 1320px 上限 + Bento 卡片 176→216px + 宽屏语音卡居中） | 本提交 |
 
 关键事实（盘点报告 docs/gaea3-review/10-ui-audit.md）：4 种视觉方言并行（M3 玻璃霓虹 / 办公扁平 Tailwind / modelcenter --mc-* 私有 / 记忆中枢科幻风）；--ds-* 仅 2/14 定义（已修）；主题色值 3 处重复（已单源化）；emoji 当图标 36 文件 177 处（已治理壳层/轻语/设置/novel 等，剩余为内容语义保留）；硬编码 hex 数百处（主要板块已令牌化）；11px 级字号 321 处（保留，未在本次范围）；antd 弹层动画因 WebView2 永久禁用（已知耦合）。
 剩余（下一会话候选）：记忆中枢 home 科幻风已走令牌（确认即可）；办公系玻璃过渡（gaea styles.css 兜底已改 --ds-* 补全，blur 策略因 WebKitGTK 性能保留）；11px 字号治理；侧栏会话项键盘可达（a11y）。
@@ -34,7 +38,13 @@
 
 ## 发布
 
-- **v2.37.0**（2026-08-15，统一构建发布，含三刀 + Step 0/1）：gaea-v2.37.0.exe（34.5MB）
+- **v3.0.0**（2026-08-15，星枢 Constellation OS · UI 革命性重设计首发）：gaea-v3.0.0.exe（33.2MB）
+  - 详见 releases/v3.0.0.md + CHANGELOG.md；git tag v3.0.0
+  - 冒烟通过（/api/health 200，桌面端 wails build 重建 + 浏览器 2560×1440 全屏 + 小说三栏撑满截图走查）
+- **v2.40.0**（2026-08-15，统一构建发布，含三刀 + Step 0/1）：gaea-v2.40.0.exe（33.1MB）
+  - SHA256=f7c5fd1bc1859b025a742dcb78b26065a5718d8aa4374ef5c8cd90d7aaaff317
+  - 冒烟通过（/api/health 200）；详见 releases/v2.40.0.md
+- **v2.37.0**（2026-08-15，统一构建发布，含 T7-2/3/4 + Step 0/1）：gaea-v2.37.0.exe（34.5MB）
   - SHA256=37A56F54DF653E3D9E8A5751EA282CEB34BF5BBCA2672D26439BF7BAEBA7A62B
   - 冒烟通过（/api/health 200）；详见 releases/v2.37.0.md
 

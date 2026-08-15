@@ -22,9 +22,14 @@ function baseName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
+// 小图标操作按钮：令牌化 + 可见焦点环（全局 :focus-visible）+ aria-label
+const iconBtn =
+  "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors";
+
 // DeliverablesPanel — 右侧「会话产物」视图（对标 Kimi 工作空间 / 千问办公产物面板）：
 // 展示本次会话交付的全部文件（去重、最新在前），点击预览，悬停提供
 // 外部打开 / 定位 / 复制路径；预览内编辑过的文件显示「已更新」徽标。
+// v3「星枢」面板语言：v3-panel-head 细条头部 + 实底交付物卡（不叠玻璃）。
 export const DeliverablesPanel = memo(function DeliverablesPanel({
   items,
   onOpenFile,
@@ -72,32 +77,43 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   }, [list, toast]);
 
   return (
-    <div className="flex flex-col h-full text-fg-dim text-xs">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border-soft">
-        <span className="flex items-center gap-1.5 font-semibold text-fg text-sm">
-          <FileText size={13} className="text-accent" />
-          会话产物
-        </span>
+    <div className="flex flex-col h-full min-h-0 text-xs" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+      {/* v3 细条头部：标题 + 计数徽标 + 复制全部 */}
+      <div className="v3-panel-head">
+        <FileText size={13} aria-hidden style={{ color: "var(--gaea-glow)" }} />
+        <span className="v3-panel-title">会话产物</span>
         {items.length > 0 && (
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-fg-faint border border-border-soft/60 rounded-full px-1.5 py-px">
-              {items.length}
-            </span>
-            <button
-              type="button"
-              className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
-              onClick={() => void copyAllPaths()}
-              title="复制全部文件路径"
-            >
-              <ClipboardList size={12} />
-            </button>
-          </div>
+          <span
+            className="rounded-full px-1.5 py-px text-[10px] font-mono"
+            style={{
+              background: "color-mix(in srgb, var(--gaea-glow) 10%, transparent)",
+              color: "var(--gaea-glow)",
+              border: "1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent)",
+            }}
+          >
+            {items.length}
+          </span>
+        )}
+        <span className="v3-panel-spacer" />
+        {items.length > 0 && (
+          <button
+            type="button"
+            className={iconBtn}
+            onClick={() => void copyAllPaths()}
+            title="复制全部文件路径"
+            aria-label="复制全部文件路径"
+          >
+            <ClipboardList size={12} />
+          </button>
         )}
       </div>
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center flex-1 gap-2 px-6 text-center text-fg-faint/50">
-          <Paperclip size={24} className="opacity-40" />
+        <div
+          className="flex flex-col items-center justify-center flex-1 gap-2 px-6 text-center"
+          style={{ color: "var(--md-sys-color-text-secondary)" }}
+        >
+          <Paperclip size={24} aria-hidden className="opacity-40" />
           <span className="text-[11px] leading-relaxed">
             本轮会话暂无交付文件
             <br />
@@ -105,16 +121,27 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
           </span>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-1">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-1.5">
           {list.map(({ path, turn }) => {
             const ext = extOf(path);
             const updated = updatedAt[path] != null;
             return (
               <div
                 key={path}
-                className="group flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border-soft/70 bg-bg-soft/30 hover:border-accent/30 hover:bg-bg-soft/60 transition-colors"
+                className="group flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] transition-all duration-200"
+                style={{
+                  background: "var(--md-sys-color-surface-container)",
+                  border: "1px solid var(--md-sys-color-outline-variant)",
+                  boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 5%, transparent)",
+                }}
               >
-                <span className="shrink-0 w-7 h-7 rounded-md bg-accent/10 text-accent flex items-center justify-center overflow-hidden">
+                <span
+                  className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center overflow-hidden"
+                  style={{
+                    background: "color-mix(in srgb, var(--gaea-glow) 11%, transparent)",
+                    color: "var(--gaea-glow)",
+                  }}
+                >
                   {IMAGE_EXT_RE.test(ext)
                     ? <FileThumb path={path} ext={ext} imgClassName="w-7 h-7 object-cover rounded-md" />
                     : <FileTypeIcon ext={ext} size={14} />}
@@ -126,16 +153,24 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                   className="min-w-0 flex-1 text-left cursor-pointer"
                 >
                   <span className="flex items-center gap-1">
-                    <span className="truncate text-[12px] text-fg font-medium leading-tight">
+                    <span className="truncate text-[12px] font-medium leading-tight" style={{ color: "var(--md-sys-color-text)" }}>
                       {baseName(path)}
                     </span>
                     {updated && (
-                      <span className="shrink-0 text-[9px] text-ok border border-ok/30 bg-ok/10 rounded-full px-1 py-px leading-none">
+                      <span
+                        className="shrink-0 inline-flex items-center gap-0.5 rounded-full px-1 py-px text-[9px] leading-none"
+                        style={{
+                          color: "var(--md-sys-color-success)",
+                          background: "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)",
+                          border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 32%, transparent)",
+                        }}
+                      >
+                        <FileText size={8} aria-hidden />
                         已更新
                       </span>
                     )}
                   </span>
-                  <span className="block truncate text-[10px] text-fg-faint font-mono leading-tight">
+                  <span className="block truncate text-[10px] font-mono leading-tight" style={{ color: "var(--md-sys-color-text-secondary)" }}>
                     {path}
                   </span>
                 </button>
@@ -143,43 +178,49 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                   {turn != null && onLocateSource && (
                     <button
                       type="button"
-                      className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+                      className={iconBtn}
                       onClick={() => onLocateSource(turn)}
                       title="跳转到生成它的消息"
+                      aria-label="跳转到生成它的消息"
                     >
                       <MessageSquare size={12} />
                     </button>
                   )}
                   <button
                     type="button"
-                    className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+                    className={iconBtn}
                     onClick={() => void copyPath(path)}
                     title="复制文件路径"
+                    aria-label="复制文件路径"
                   >
                     <Copy size={12} />
                   </button>
                   <button
                     type="button"
-                    className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+                    className={iconBtn}
                     onClick={() => void app.OpenWorkspacePath(path).catch(() => {})}
                     title="在外部程序中打开"
+                    aria-label="在外部程序中打开"
                   >
                     <ExternalLink size={12} />
                   </button>
                   <button
                     type="button"
-                    className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+                    className={iconBtn}
                     onClick={() => void app.RevealWorkspacePath(path).catch(() => {})}
                     title="在文件管理器中定位"
+                    aria-label="在文件管理器中定位"
                   >
                     <FolderTree size={12} />
                   </button>
                   {SPREADSHEET_EXT_RE.test(ext) && (
                     <button
                       type="button"
-                      className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-amber-400 cursor-pointer hover:text-amber-300 hover:bg-bg-soft transition-colors"
+                      className={iconBtn}
                       onClick={() => depositToCost(path)}
                       title="沉淀到成本库：把单价明细用 cost_save 写回成本库"
+                      aria-label="沉淀到成本库"
+                      style={{ color: "var(--md-sys-color-warning)" }}
                     >
                       <Coins size={12} />
                     </button>

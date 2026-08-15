@@ -1,6 +1,6 @@
 import React from 'react'
 import { Typography, Tag } from 'antd'
-import { EditOutlined, UserOutlined } from '@ant-design/icons'
+import { EditOutlined, LinkOutlined, UserOutlined } from '@ant-design/icons'
 import { C, ROLE_COLORS as roleColors, ROLE_LABELS as roleLabels } from '../../../utils/theme'
 import type { CharacterData } from '../../../types'
 import { PortraitImg } from '../../characterlib/PortraitImg'
@@ -13,25 +13,25 @@ export interface CharacterCardProps {
   onPortraitFullscreen: (url: string) => void
 }
 
-/** 角色类型 → 卡牌左侧边条颜色 */
+/** 角色类型 → 卡牌左侧边条颜色（语义令牌） */
 const SIDE_COLORS: Record<string, string> = {
-  protagonist: '#f59e0b',
-  antagonist: '#ef4444',
-  supporting: '#3b82f6',
-  minor: '#6b7280',
+  protagonist: 'var(--color-primary)',
+  antagonist: 'var(--color-destructive)',
+  supporting: 'var(--color-text-secondary)',
+  minor: 'var(--color-text-secondary)',
 }
 
-/** 状态 → 中文标签 + 颜色 */
+/** 状态 → 中文标签 + 颜色（语义令牌） */
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  Alive: { label: '存活', color: '#22c55e' },
-  Dead: { label: '已故', color: '#ef4444' },
-  Missing: { label: '失踪', color: '#f59e0b' },
-  Transformed: { label: '变身', color: '#a855f7' },
+  Alive: { label: '存活', color: 'var(--color-success)' },
+  Dead: { label: '已故', color: 'var(--color-destructive)' },
+  Missing: { label: '失踪', color: 'var(--color-warning)' },
+  Transformed: { label: '变身', color: 'var(--color-primary)' },
 }
 
 const CharacterCard: React.FC<CharacterCardProps> = ({ character, relationCount, onClick, onPortraitFullscreen }) => {
   const ch = character
-  const sideColor = SIDE_COLORS[ch.role_type] || '#6b7280'
+  const sideColor = SIDE_COLORS[ch.role_type] || 'var(--color-text-secondary)'
   // 非法状态回退默认（'Alive'）：始终展示合法状态标签，不泄露原始英文串
   const statusInfo = STATUS_MAP[normalizeCharacterStatus(ch.status)]
   const preview = ch.personality || ch.motivation || ''
@@ -98,7 +98,7 @@ const CharacterCard: React.FC<CharacterCardProps> = ({ character, relationCount,
         {/* 底部：关系数 + 编辑提示 */}
         <div className="char-card-footer">
           {relationCount > 0
-            ? <span>🔗 {relationCount} 个关系</span>
+            ? <span><LinkOutlined aria-hidden style={{ marginRight: 3 }} />{relationCount} 个关系</span>
             : <span>暂无关系</span>}
           <EditOutlined />
         </div>

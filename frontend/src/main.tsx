@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './v3/foundation.css' // 3.0「星枢 Constellation OS」v3 基础样式层（令牌派生/壳层/分区原语）
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './gaea/components/Toast'

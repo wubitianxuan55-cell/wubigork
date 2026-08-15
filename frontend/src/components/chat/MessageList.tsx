@@ -28,7 +28,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   messages, streamKey, streamText, mode, companionName,
   copiedId, speakingId, onCopy, onSpeak, onRetry,
 }) => (
-  <div className="chat-flow">
+  <div className="chat-flow v3-reading">
     {messages.map((msg, idx) => {
       const isUser = msg.role === 'user'
       const isStreaming = msg.streaming && msg.key === streamKey

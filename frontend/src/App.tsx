@@ -105,6 +105,8 @@ const App: React.FC = () => {
     // ═══ Backward-compat shims (old var names → new M3 tokens) ═══
     set('--accent-rgb', effTokens.accentRgb)
     set('--color-primary', effTokens.colorPrimary)
+    set('--color-primary-container', effTokens.primaryContainer)
+    set('--color-on-primary-container', effTokens.onPrimaryContainer)
     set('--color-text', effTokens.colorText)
     set('--color-text-secondary', effTokens.colorTextSecondary)
     set('--color-border', effTokens.colorBorder)
@@ -113,6 +115,10 @@ const App: React.FC = () => {
     set('--color-destructive', effTokens.colorDestructive)
     set('--color-bg-container', effTokens.colorBgContainer)
     set('--color-bg-layout', effTokens.colorBgLayout)
+    // 3.0「星枢」v3 层消费的容器色 shim（v3-card / v3-rail-item.is-active / v3-model-pill 等）
+    set('--color-surface-container', effTokens.surfaceContainer)
+    set('--color-surface-container-high', effTokens.surfaceContainerHigh)
+    set('--color-surface-container-highest', effTokens.surfaceContainerHighest)
     set('--bg-glass', effTokens.surfaceVariant)
     set('--bg-elevated', effTokens.surfaceContainer)
     set('--bg-deep', effTokens.surfaceDim)

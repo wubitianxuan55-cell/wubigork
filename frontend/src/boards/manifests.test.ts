@@ -6,7 +6,7 @@ import {
   deriveShortcutMap, deriveHomeBoard, deriveBoard, deriveProjectAnchorId,
   loadBoardManifests, subscribeBoards, getActiveBoards,
   getActiveMenuBoards, getActiveNavigateWhitelist, getActiveShortcutMap,
-  getActiveHomeBoard, getActiveBoard, activeBoardLabel,
+  getActiveHomeBoard, getActiveBoard,
   resetActiveBoardsForTest,
 } from './manifests'
 import { GetBoardManifests } from '../wailsjsCompat'
@@ -132,14 +132,14 @@ describe('boardLabel（附 B #7：pageLabels = manifest.label）', () => {
 
 
 describe('normalizeManifests（板块差集归一：后端清单 + 前端 home 壳层）', () => {
-  it('差集 #1/#2：并入后端 knowledge，补前端 home 壳层（isHome 唯一，menuOrder=0 首位）', () => {
+  it('差集 #2：过滤后端 knowledge（已并入记忆中枢，一级导航不单列），补前端 home 壳层', () => {
     const merged = normalizeManifests(BACKEND_FIXTURE)
     const ids = merged.map((b) => b.id)
-    expect(ids).toContain('knowledge')
+    expect(ids).not.toContain('knowledge')
     expect(ids[0]).toBe('home')
     expect(deriveHomeBoard(merged)?.id).toBe('home')
     expect(merged.filter((b) => b.isHome)).toHaveLength(1)
-    expect(merged).toHaveLength(11)
+    expect(merged).toHaveLength(10)
   })
 
   it('差集 #3：weixin 以后端为准（page=""，label=微信助手，inMenu=false）', () => {
@@ -150,19 +150,19 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
     expect(wx?.inMenu).toBe(false)
   })
 
-  it('重叠 id 后端字段优先：菜单顺序/文案与静态一致 + 尾部追加 knowledge（像素回归）', () => {
+  it('重叠 id 后端字段优先：菜单顺序/文案与静态一致（knowledge 被过滤，不尾随）', () => {
     const menu = deriveMenuBoards(normalizeManifests(BACKEND_FIXTURE))
     expect(menu.map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib', 'knowledge',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib',
     ])
     expect(menu.map((b) => b.label)).toEqual([
-      '首页', '聊天', '小说', '绘梦', '办公', '记忆中枢', '模型中心', '角色库', '知识库',
+      '首页', '聊天', '小说', '绘梦', '办公', '记忆中枢', '模型中心', '角色库',
     ])
   })
 
-  it('导航白名单 = 后端清单 + home（含 knowledge，不含 home/settings/weixin）', () => {
+  it('导航白名单 = 后端清单 + home（knowledge 已并入记忆中枢不单列）', () => {
     expect(deriveNavigateWhitelist(normalizeManifests(BACKEND_FIXTURE))).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib', 'knowledge',
+      'chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib',
     ])
   })
 
@@ -174,11 +174,11 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
     expect(sc['ctrl+4']).toBe('gaea')
   })
 
-  it('布局：chat/gaea=full，其余 padded（含新增 knowledge）', () => {
+  it('布局：chat/gaea=full，其余 padded', () => {
     const merged = normalizeManifests(BACKEND_FIXTURE)
     expect(deriveBoard(merged, 'chat')?.layout).toBe('full')
     expect(deriveBoard(merged, 'gaea')?.layout).toBe('full')
-    for (const id of ['novel', 'imagegen', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'knowledge']) {
+    for (const id of ['novel', 'imagegen', 'memoryhub', 'modelcenter', 'characterlib', 'settings']) {
       expect(deriveBoard(merged, id)?.layout, id).toBe('padded')
     }
   })
@@ -187,9 +187,9 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
     expect(deriveProjectAnchorId(normalizeManifests(BACKEND_FIXTURE))).toBe('novel')
   })
 
-  it('knowledge 图标 BookOutlined 已补录注册表，可解析', () => {
+  it('knowledge 已被过滤：一级导航不并入（记忆中枢承载），图标注册表仍可解析', () => {
     expect(resolveBoardIcon('BookOutlined')).not.toBeNull()
-    expect(deriveBoard(normalizeManifests(BACKEND_FIXTURE), 'knowledge')?.icon).toBe('BookOutlined')
+    expect(deriveBoard(normalizeManifests(BACKEND_FIXTURE), 'knowledge')).toBeUndefined()
   })
 
   it('后端自带 isHome 板块时不重复补壳层', () => {
@@ -213,14 +213,14 @@ describe('loadBoardManifests（数据源 seam：后端优先 / fail-closed 回�
     getBoardManifestsMock.mockReset()
   })
 
-  it('后端成功 → 合并清单生效（home 壳层 + knowledge 并入）并通知订阅者', async () => {
+  it('后端成功 → 合并清单生效（home 壳层补位，knowledge 过滤）并通知订阅者', async () => {
     getBoardManifestsMock.mockResolvedValue(BACKEND_FIXTURE)
     const cb = vi.fn()
     const unsub = subscribeBoards(cb)
     const result = await loadBoardManifests()
     unsub()
     expect(result.map((b) => b.id)).toContain('home')
-    expect(result.map((b) => b.id)).toContain('knowledge')
+    expect(result.map((b) => b.id)).not.toContain('knowledge')
     expect(getActiveBoards()).toBe(result)
     expect(cb).toHaveBeenCalledTimes(1)
   })
@@ -244,12 +244,11 @@ describe('loadBoardManifests（数据源 seam：后端优先 / fail-closed 回�
     getBoardManifestsMock.mockResolvedValue(BACKEND_FIXTURE)
     await loadBoardManifests()
     expect(getActiveMenuBoards().map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib', 'knowledge',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib',
     ])
-    expect(getActiveNavigateWhitelist()).toContain('knowledge')
+    expect(getActiveNavigateWhitelist()).not.toContain('knowledge')
     expect(getActiveShortcutMap()['ctrl+4']).toBe('gaea')
-    expect(getActiveBoard('knowledge')?.layout).toBe('padded')
-    expect(activeBoardLabel('knowledge')).toBe('知识库')
+    expect(getActiveBoard('knowledge')).toBeUndefined()
     expect(getActiveHomeBoard().id).toBe('home')
   })
 
@@ -267,7 +266,8 @@ describe('loadBoardManifests（数据源 seam：后端优先 / fail-closed 回�
   it('resetActiveBoardsForTest 恢复静态基线（测试隔离）', async () => {
     getBoardManifestsMock.mockResolvedValue(BACKEND_FIXTURE)
     await loadBoardManifests()
-    expect(getActiveBoards().length).toBeGreaterThan(canonicalBoards.length)
+    // knowledge 过滤后合并清单与静态长度相同（均为 10），但引用不同（home 壳层 + 后端字段优先）
+    expect(getActiveBoards()).not.toBe(canonicalBoards)
     resetActiveBoardsForTest()
     expect(getActiveBoards()).toBe(canonicalBoards)
   })

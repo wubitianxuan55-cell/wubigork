@@ -1,79 +1,82 @@
 /* ============================================================
-   novel-workspace.css — 小说板块统一设计层
-   外壳沿用 gaea 玻璃 HUD（M3 token + --gaea-glow 单一强调色），
+   novel-workspace.css — 小说板块「世界构建工作台」统一设计层
+   gaea 3.0 Constellation OS：轨道式细条子导航 + 3 分区工作台
+   （左侧栏 zone / 中主视图 zone / 右属性 inspector zone）。
+   玻璃只做容器（v3-panel），信息层实底卡（v3-card），
    正文编辑区保持纸面化的衬线书写面（克制、少干扰）。
+   令牌：--md-sys-* / --gaea-* / --color-* / --v3-*，零硬编码色值。
    ============================================================ */
 
-/* ── 小说板块外壳 ── */
+/* ── 板块外壳 ── */
 .novel-hub {
   display: flex;
   flex-direction: column;
   height: 100%;
   position: relative;
-}
-
-.novel-hub-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-}
-
-.novel-hub-body > div {
-  flex: 1;
   min-width: 0;
   min-height: 0;
-  display: flex;
 }
 
-/* ── 二级导航（平铺在顶部，与其他板块一致） ── */
+/* ═══ 子导航：轨道式细条（Orbit Strip 语言） ═══
+   从「大按钮」收敛为细 tab：激活项 = 主色容器 + 左缘光条 + 柔光。 */
 .novel-subnav {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 72%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
+  gap: 4px;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: var(--v3-split);
+  background: var(--v3-rail-bg, var(--gaea-glass-bg, var(--md-sys-color-surface-container)));
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
   flex-shrink: 0;
   overflow-x: auto;
   scrollbar-width: none;
+  position: relative;
 }
-
 .novel-subnav::-webkit-scrollbar {
   display: none;
 }
+.novel-subnav::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
+}
 
 .novel-subnav-item {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 15px;
-  border-radius: 999px;
-  border: 1px solid transparent;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
   background: transparent;
   cursor: pointer;
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--md-sys-color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
   white-space: nowrap;
   transition:
-    color var(--md-sys-transition-fast),
-    background var(--md-sys-transition-fast),
-    border-color var(--md-sys-transition-fast),
-    box-shadow var(--md-sys-transition-fast),
-    transform var(--md-sys-transition-fast);
+    color var(--md-sys-transition-fast, 200ms),
+    background var(--md-sys-transition-fast, 200ms),
+    box-shadow var(--md-sys-transition-fast, 200ms);
 }
 
 .novel-subnav-item:hover {
-  color: var(--md-sys-color-text);
-  background: color-mix(in srgb, var(--gaea-glow) 7%, transparent);
+  color: var(--color-text, var(--md-sys-color-text));
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
 }
 
 .novel-subnav-item:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 .novel-subnav-item:focus-visible {
@@ -81,36 +84,188 @@
   outline-offset: 2px;
 }
 
+/* 激活项：主色容器 + 左缘光条 + 柔光 */
 .novel-subnav-item.is-active {
-  color: var(--gaea-glow);
-  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
-  border-color: color-mix(in srgb, var(--gaea-glow) 30%, transparent);
-  box-shadow: 0 2px 14px color-mix(in srgb, var(--gaea-glow) 20%, transparent);
+  color: var(--color-text, var(--md-sys-color-text));
+  background: var(--color-primary-container, var(--md-sys-color-primary-container));
+  box-shadow: var(--v3-glow-faint, 0 0 18px color-mix(in srgb, var(--gaea-glow) 8%, transparent));
+}
+.novel-subnav-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
 }
 
 .novel-subnav-item .anticon {
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
+  color: currentColor;
 }
 
-/* ── 玻璃面板 ── */
+/* ═══ 3 分区工作台 ═══ */
+.novel-workspace {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  padding: 2px;
+}
+
+.novel-zone {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* 左：侧栏 zone（书架/大纲树） */
+.novel-side-zone {
+  width: 236px;
+  flex-shrink: 0;
+  transition: width var(--md-sys-transition-normal, 300ms) cubic-bezier(0.2, 0, 0, 1);
+}
+.novel-side-zone.is-collapsed {
+  width: 44px;
+}
+
+/* 中：主视图 zone */
+.novel-main-zone {
+  flex: 1;
+}
+
+/* 右：属性 inspector zone（可折叠） */
+.novel-inspector-zone {
+  width: 264px;
+  flex-shrink: 0;
+  transition: width var(--md-sys-transition-normal, 300ms) cubic-bezier(0.2, 0, 0, 1);
+}
+.novel-inspector-zone.is-collapsed {
+  width: 44px;
+}
+
+/* 创作页自带 3 栏工作台：外壳左右 zone 与分隔条收敛（避免双树/双检查器） */
+.novel-hub[data-novel-tab='create'] .novel-side-zone,
+.novel-hub[data-novel-tab='create'] .novel-inspector-zone,
+.novel-hub[data-novel-tab='create'] .v3-grip {
+  display: none;
+}
+
+/* 阅读页专注模式：左右 zone 收敛（沉浸书写；仅阅读 tab 生效，
+   避免专注状态跨 tab 残留导致其他页 zone 被误藏） */
+.novel-hub[data-novel-focus='1'][data-novel-tab='chapter'] .novel-side-zone,
+.novel-hub[data-novel-focus='1'][data-novel-tab='chapter'] .novel-inspector-zone,
+.novel-hub[data-novel-focus='1'][data-novel-tab='chapter'] .v3-grip {
+  display: none;
+}
+
+/* 窄窗口：自动折叠左右 zone，保证中区可读 */
+@media (max-width: 1160px) {
+  .novel-side-zone { width: 44px; }
+  .novel-side-zone .novel-zone-body,
+  .novel-side-zone .novel-zone-head-extra { display: none; }
+  .novel-inspector-zone { width: 44px; }
+  .novel-inspector-zone .novel-zone-body,
+  .novel-inspector-zone .novel-zone-head-extra { display: none; }
+}
+
+/* 折叠面板头（zone 级，与 v3-panel-head 同构） */
+.novel-zone-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  border-bottom: var(--v3-split);
+  flex-shrink: 0;
+}
+.novel-zone-head .novel-zone-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text, var(--md-sys-color-text));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.novel-zone-head .novel-zone-title .anticon {
+  color: var(--gaea-glow);
+  font-size: 12px;
+}
+.novel-zone-head .novel-zone-spacer { flex: 1; }
+.novel-zone-head .anticon { font-size: 12px; }
+.novel-zone.is-collapsed .novel-zone-title { display: none; }
+.novel-zone.is-collapsed .novel-zone-head { justify-content: center; padding: 0 6px; }
+
+/* 折叠模式：竖向微标签（可读性） */
+.novel-zone.is-collapsed .novel-zone-head::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
+  opacity: 0.7;
+}
+.novel-zone.is-collapsed .novel-zone-head { position: relative; }
+
+.novel-zone-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+/* ═══ 玻璃面板（v3-panel 同款：Luminous Glass 2.0） ═══ */
 .novel-panel {
   background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  backdrop-filter: blur(16px) saturate(140%);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-radius-lg);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: var(--radius-lg, var(--md-sys-radius-lg));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text, #fff) 6%, transparent);
+  position: relative;
+}
+.novel-panel::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--v3-edge);
+  border-radius: var(--radius-lg, var(--md-sys-radius-lg)) var(--radius-lg, var(--md-sys-radius-lg)) 0 0;
+  pointer-events: none;
 }
 
-/* HUD 面板头 */
+/* HUD 面板头（信息层实底，不叠玻璃） */
 .novel-panel-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  padding: 9px 12px;
+  border-bottom: var(--v3-split);
   flex-shrink: 0;
+  position: relative;
 }
 
 .novel-panel-head::before {
@@ -129,7 +284,7 @@
   gap: 7px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--md-sys-color-text);
+  color: var(--color-text, var(--md-sys-color-text));
 }
 
 .novel-panel-title .anticon {
@@ -137,7 +292,22 @@
   font-size: 13px;
 }
 
-/* ── 章节节点树 ── */
+/* ═══ 信息层实底卡（编辑器包裹层 / 导出卡） ═══ */
+.novel-editor-panel {
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: var(--radius-md, var(--md-sys-radius-md));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text, #fff) 6%, transparent);
+  transition:
+    box-shadow var(--md-sys-transition-fast, 200ms),
+    border-color var(--md-sys-transition-fast, 200ms);
+}
+.novel-editor-panel:hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 22%, var(--color-border));
+  box-shadow: var(--v3-glow-soft, 0 0 0 1px color-mix(in srgb, var(--gaea-glow) 14%, transparent));
+}
+
+/* ═══ 章节节点树 ═══ */
 .novel-tree {
   display: flex;
   flex-direction: column;
@@ -152,30 +322,46 @@
   padding: 5px 8px;
   border-radius: 8px;
   border-left: 2px solid transparent;
-  color: var(--md-sys-color-text);
+  color: var(--color-text, var(--md-sys-color-text));
   font-size: 12px;
   transition:
-    background var(--md-sys-transition-fast),
-    border-color var(--md-sys-transition-fast);
+    background var(--md-sys-transition-fast, 200ms),
+    border-color var(--md-sys-transition-fast, 200ms);
 }
 
 .novel-tree-item:hover {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
 }
 
 .novel-tree-item:focus-within {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
 }
 
 .novel-tree-item.is-active {
   background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
   border-left-color: var(--gaea-glow);
-  color: var(--md-sys-color-text);
+  color: var(--color-text, var(--md-sys-color-text));
 }
 
-/* 大纲面板行悬停（配合 OutlinePanel 内联底色） */
+/* 大纲面板行悬停（配合 OutlinePanel） */
 .novel-outline-row:hover {
   background: color-mix(in srgb, var(--gaea-glow) 7%, transparent) !important;
+}
+
+/* shell 侧栏内嵌大纲：折叠由 zone 接管，隐藏面板自身折叠按钮；
+   内嵌层用实底卡，避免玻璃上叠玻璃 */
+.novel-outline-shell .novel-outline-toggle {
+  display: none;
+}
+.novel-outline-shell .novel-panel {
+  box-shadow: none;
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-radius: var(--radius-md, var(--md-sys-radius-md));
+}
+.novel-outline-shell .novel-panel::after {
+  display: none;
 }
 
 .novel-tree-status {
@@ -185,24 +371,24 @@
   flex-shrink: 0;
 }
 
-.novel-tree-status.is-todo      { background: var(--md-sys-color-text-secondary); }
-.novel-tree-status.is-writing   { background: var(--md-sys-color-warning); box-shadow: 0 0 6px color-mix(in srgb, var(--md-sys-color-warning) 50%, transparent); }
-.novel-tree-status.is-done      { background: var(--md-sys-color-success); box-shadow: 0 0 6px color-mix(in srgb, var(--md-sys-color-success) 50%, transparent); }
-.novel-tree-status.is-abandoned { background: var(--md-sys-color-text-secondary); opacity: 0.7; }
+.novel-tree-status.is-todo      { background: var(--color-text-secondary, var(--md-sys-color-text-secondary)); }
+.novel-tree-status.is-writing   { background: var(--color-warning, var(--md-sys-color-warning)); box-shadow: 0 0 6px color-mix(in srgb, var(--color-warning, var(--md-sys-color-warning)) 50%, transparent); }
+.novel-tree-status.is-done      { background: var(--color-success, var(--md-sys-color-success)); box-shadow: 0 0 6px color-mix(in srgb, var(--color-success, var(--md-sys-color-success)) 50%, transparent); }
+.novel-tree-status.is-abandoned { background: var(--color-text-secondary, var(--md-sys-color-text-secondary)); opacity: 0.7; }
 
-/* ── 正文编辑面（纸面化衬线书写） ── */
+/* ═══ 正文编辑面（纸面化衬线书写） ═══ */
 .novel-editor {
   font-family: 'Georgia', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif !important;
-  background: var(--md-sys-color-surface-container) !important;
-  border: 1px solid var(--md-sys-color-outline-variant) !important;
-  border-radius: var(--md-sys-radius-md) !important;
-  color: var(--md-sys-color-on-surface) !important;
+  background: var(--color-surface-container, var(--md-sys-color-surface-container)) !important;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant)) !important;
+  border-radius: var(--radius-md, var(--md-sys-radius-md)) !important;
+  color: var(--color-text, var(--md-sys-color-on-surface)) !important;
   padding: 20px 24px !important;
   font-size: 15px !important;
   line-height: 1.9 !important;
   letter-spacing: 0.02em;
   resize: none;
-  transition: border-color var(--md-sys-transition-fast), box-shadow var(--md-sys-transition-fast);
+  transition: border-color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
 }
 
 .novel-editor:focus {
@@ -210,18 +396,7 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--gaea-glow) 12%, transparent) !important;
 }
 
-/* ── 创作工作台三栏布局 ── */
-.novel-workspace {
-  display: flex;
-  flex-direction: row;
-  gap: 12px;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-  padding: 2px;
-}
-
+/* ═══ 创作工作台三栏布局 ═══ */
 .novel-workspace-col {
   display: flex;
   flex-direction: column;
@@ -242,11 +417,25 @@
 .novel-inspector {
   width: 280px;
   flex-shrink: 0;
+  transition: width var(--md-sys-transition-normal, 300ms) cubic-bezier(0.2, 0, 0, 1);
+}
+.novel-inspector.is-collapsed {
+  width: 44px;
+}
+.novel-inspector.is-collapsed .novel-inspector-body {
+  display: none;
+}
+.novel-inspector.is-collapsed .novel-panel-head {
+  justify-content: center;
+  padding: 0 6px;
+}
+.novel-inspector.is-collapsed .novel-panel-title {
+  display: none;
 }
 
 .novel-tree-footer {
   padding: 10px;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
+  border-top: var(--v3-split);
   flex-shrink: 0;
 }
 
@@ -256,7 +445,7 @@
   align-items: center;
   gap: 8px;
   padding: 32px 12px;
-  color: var(--md-sys-color-text-secondary);
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
   font-size: 12px;
   text-align: center;
 }
@@ -291,7 +480,7 @@
   gap: 12px;
   padding: 24px;
   text-align: center;
-  color: var(--md-sys-color-text-secondary);
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
 }
 
 .novel-editor-empty-icon {
@@ -306,14 +495,14 @@
   margin: 10px 14px 12px;
   padding: 8px 12px;
   border: 1px solid color-mix(in srgb, var(--gaea-glow) 25%, transparent);
-  border-radius: var(--md-sys-radius-sm);
+  border-radius: var(--radius-sm, var(--md-sys-radius-sm));
   background: color-mix(in srgb, var(--gaea-glow) 8%, transparent);
   color: var(--gaea-glow);
   font-size: 12px;
   flex-shrink: 0;
 }
 
-/* ── 创作设置（右侧检查器） ── */
+/* ═══ 创作设置（右侧检查器） ═══ */
 .novel-inspector-body {
   flex: 1;
   min-height: 0;
@@ -336,7 +525,7 @@
   gap: 7px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--md-sys-color-text);
+  color: var(--color-text, var(--md-sys-color-text));
 }
 
 .novel-inspector-section-title .anticon {
@@ -348,31 +537,31 @@
   max-height: 150px;
   overflow-y: auto;
   padding: 10px 12px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-radius-sm);
-  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: var(--radius-sm, var(--md-sys-radius-sm));
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
   font-size: 12px;
   line-height: 1.8;
-  color: var(--md-sys-color-text-secondary);
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .novel-inspector-hint {
   padding: 8px 10px;
-  border-radius: var(--md-sys-radius-sm);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 60%, transparent);
-  color: var(--md-sys-color-text-secondary);
+  border-radius: var(--radius-sm, var(--md-sys-radius-sm));
+  background: color-mix(in srgb, var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 60%, transparent);
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
   font-size: 12px;
   line-height: 1.7;
 }
 
 .novel-skill-desc {
   padding: 8px 10px;
-  border-radius: var(--md-sys-radius-sm);
+  border-radius: var(--radius-sm, var(--md-sys-radius-sm));
   background: color-mix(in srgb, var(--gaea-glow) 6%, transparent);
   border: 1px solid color-mix(in srgb, var(--gaea-glow) 16%, transparent);
-  color: var(--md-sys-color-text-secondary);
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
   font-size: 12px;
   line-height: 1.7;
 }
@@ -383,28 +572,28 @@
   justify-content: space-between;
   gap: 10px;
   font-size: 12px;
-  color: var(--md-sys-color-text-secondary);
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
 }
 
 .novel-inspector-row b {
-  color: var(--md-sys-color-text);
+  color: var(--color-text, var(--md-sys-color-text));
   font-variant-numeric: tabular-nums;
 }
 
-/* ── 设定面板：Markdown 编辑 + 渲染 ── */
+/* ═══ 设定面板：Markdown 编辑 + 渲染 ═══ */
 .novel-setting-toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  border-bottom: var(--v3-split);
   flex-shrink: 0;
   background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 55%, transparent);
 }
 
 .novel-setting-meta {
   font-size: 12px;
-  color: var(--md-sys-color-text-secondary);
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -425,32 +614,44 @@
   min-width: 0;
   overflow-y: auto;
   padding: 20px 24px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-radius-md);
-  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: var(--radius-md, var(--md-sys-radius-md));
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
   font-family: 'Georgia', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif;
   font-size: 15px;
   line-height: 1.9;
   letter-spacing: 0.02em;
-  color: var(--md-sys-color-on-surface);
+  color: var(--color-text, var(--md-sys-color-on-surface));
 }
 
-/* ── antd Tabs 玻璃化（角色页 / 章节页） ── */
+/* ═══ antd Tabs 玻璃化（角色页 / 章节页，轨道式细 tab） ═══ */
 .novel-tabs .ant-tabs-nav {
   margin-bottom: 0;
   background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  border-bottom: var(--v3-split);
+  position: relative;
+}
+.novel-tabs .ant-tabs-nav::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
 }
 
 .novel-tabs .ant-tabs-tab {
-  color: var(--md-sys-color-text-secondary);
-  transition: color var(--md-sys-transition-fast);
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  border-radius: 8px 8px 0 0 !important;
+  transition: color var(--md-sys-transition-fast, 200ms);
 }
 
 .novel-tabs .ant-tabs-tab:hover {
-  color: var(--md-sys-color-text);
+  color: var(--color-text, var(--md-sys-color-text));
 }
 
 .novel-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
@@ -469,17 +670,17 @@
   border-radius: 8px 8px 0 0 !important;
 }
 
-/* ── 快捷键键帽 ── */
+/* ═══ 快捷键键帽 ═══ */
 .novel-kbd {
   display: inline-block;
   padding: 1px 6px;
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
   border-bottom-width: 2px;
   border-radius: 5px;
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: 10px;
-  color: var(--md-sys-color-text-secondary);
-  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 70%, transparent);
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  background: color-mix(in srgb, var(--color-surface-container-high, var(--md-sys-color-surface-container-high)) 70%, transparent);
 }
 
 /* 状态点 */
@@ -492,21 +693,99 @@
 }
 
 .novel-dot.ok {
-  background: var(--md-sys-color-success);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--md-sys-color-success) 50%, transparent);
+  background: var(--color-success, var(--md-sys-color-success));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-success, var(--md-sys-color-success)) 50%, transparent);
 }
 
 .novel-dot.dirty {
-  background: var(--md-sys-color-warning);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--md-sys-color-warning) 50%, transparent);
+  background: var(--color-warning, var(--md-sys-color-warning));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-warning, var(--md-sys-color-warning)) 50%, transparent);
 }
 
-/* ── 无障碍：减弱动态 ── */
+/* ═══ 世界侧栏：当前书目卡 ═══ */
+.novel-book-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-left: 3px solid var(--gaea-glow);
+  border-radius: var(--radius-md, var(--md-sys-radius-md));
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+}
+.novel-book-card .novel-book-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--color-text, var(--md-sys-color-text));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.novel-book-card .novel-book-path {
+  font-size: 10.5px;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.novel-book-card .novel-book-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  font-variant-numeric: tabular-nums;
+}
+.novel-book-card .novel-book-meta b {
+  color: var(--color-text, var(--md-sys-color-text));
+}
+
+/* ═══ 属性检查器：章节属性行 ═══ */
+.novel-inspector-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, var(--md-sys-radius-sm));
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+}
+.novel-inspector-item .novel-inspector-item-label {
+  font-size: 10px;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  letter-spacing: 0.04em;
+}
+.novel-inspector-item .novel-inspector-item-value {
+  font-size: 12.5px;
+  color: var(--color-text, var(--md-sys-color-text));
+  overflow-wrap: anywhere;
+}
+
+/* 轨道式动作（inspector 快捷入口） */
+.novel-action-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ═══ 无障碍：减弱动态 ═══ */
 @media (prefers-reduced-motion: reduce) {
   .novel-subnav-item,
   .novel-tree-item,
   .novel-tabs .ant-tabs-tab,
-  .novel-editor {
+  .novel-editor,
+  .novel-side-zone,
+  .novel-inspector-zone,
+  .novel-inspector,
+  .ai-console-panel {
     transition: none !important;
   }
+  .ai-console-panel {
+    animation: none !important;
+  }
+}
+.ui-reduced-motion .ai-console-panel {
+  animation: none !important;
 }

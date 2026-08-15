@@ -13,8 +13,8 @@ interface SettingFieldProps {
 }
 
 const inputStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid var(--border-subtle)',
+  background: 'var(--md-sys-color-surface-container)',
+  border: '1px solid var(--border-subtle, var(--md-sys-color-outline-variant))',
   borderRadius: 'var(--radius-md)',
   color: 'var(--color-text)',
 }

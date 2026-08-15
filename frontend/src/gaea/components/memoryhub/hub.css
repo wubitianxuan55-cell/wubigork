@@ -1,36 +1,43 @@
-/* ── 记忆中枢科幻感样式（cyberpunk 霓虹 + 玻璃拟态）──────────────
-   配色全部走 gaea 令牌（--bg/--fg/--accent 等 → 老栈 M3），跟随系统亮/暗主题。
-   各库霓虹标识色（LIB_COLORS）保留为库语义色，不随主题变。 */
+/* ═══════════════════════════════════════════════════════════════════
+   记忆中枢「记忆图谱舰桥」工作台样式
+   氛围层（网格/扫描线）保留但降透明（≤40%，不抢戏）；布局改为
+   左分类轨道 | 中主区视图 | 右详情 inspector 三区分区。
+   令牌纪律：只消费 --md-sys-* / --gaea-* / --color-* / --v3-* 与旧栈
+   --bg/--fg/--accent/--border 等主题令牌，零硬编码色值。
+   ═══════════════════════════════════════════════════════════════════ */
 
-/* 背景：令牌渐变 + 网格 + 光晕 */
+/* ── 氛围层：令牌渐变 + 网格 + 扫描线（降透明，避免抢戏） ─────── */
 .hub-bg {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  opacity: 0.4;
   background:
     radial-gradient(ellipse 60% 50% at 50% 40%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
     radial-gradient(ellipse 40% 35% at 15% 85%, color-mix(in srgb, var(--info) 5%, transparent), transparent 70%),
     radial-gradient(ellipse 40% 35% at 85% 15%, color-mix(in srgb, var(--add-fg) 5%, transparent), transparent 70%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
 }
-/* 网格线（accent 低透明，跟随主题色） */
+/* 网格线（accent 低透明，跟随主题色；整体降透明） */
 .hub-grid {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  opacity: 0.38;
   background-image:
     linear-gradient(color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px);
   background-size: 44px 44px;
   mask-image: radial-gradient(ellipse 70% 65% at 50% 45%, black 40%, transparent 100%);
 }
-/* 扫描线（缓慢下移，info 色低透明） */
+/* 扫描线（缓慢下移，info 色低透明；整体降透明） */
 .hub-scanline {
   position: absolute;
   left: 0;
   right: 0;
   height: 90px;
   pointer-events: none;
+  opacity: 0.35;
   background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--info) 6%, transparent), transparent);
   animation: hub-scan 9s linear infinite;
 }
@@ -39,17 +46,469 @@
   100% { top: 110%; }
 }
 
-/* 标题发光（accent 渐变，跟随主题） */
-.hub-title {
-  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--fg) 85%, var(--accent)) 45%, var(--info));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 0 24px color-mix(in srgb, var(--accent) 30%, transparent);
-  letter-spacing: 0.02em;
+/* ── 工作台骨架 ─────────────────────────────────────────────────── */
+.hub-workspace {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-bg-layout, var(--bg));
 }
 
-/* 玻璃拟态模块卡片（令牌背景 + 霓虹发光边框） */
+/* 细条头部（板块名收敛 + 三脑检索统一入口） */
+.hub-strip {
+  position: relative;
+  z-index: 40;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 14px;
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  border-bottom: 1px solid var(--color-border, var(--border));
+}
+/* 底部 1px 高光线（Luminous Glass 2.0） */
+.hub-strip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
+}
+.hub-strip-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text, var(--fg));
+}
+.hub-strip-title svg { color: var(--gaea-glow); }
+.hub-strip-sub {
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  white-space: nowrap;
+}
+.hub-strip-meta {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  opacity: 0.75;
+}
+
+/* 三脑检索 */
+.hub-search-input {
+  height: 26px;
+  width: 168px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--color-bg-container, var(--bg-soft));
+  border: 1px solid var(--color-border, var(--border-soft));
+  color: var(--color-text, var(--fg));
+  outline: none;
+  transition: border-color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+.hub-search-input::placeholder { color: var(--color-text-secondary, var(--fg-faint)); }
+.hub-search-input:focus {
+  border-color: var(--gaea-glow);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--gaea-glow) 18%, transparent);
+}
+.hub-search-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--color-primary-container, var(--md-sys-color-primary-container));
+  color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
+  cursor: pointer;
+  transition: filter var(--md-sys-transition-fast, 200ms);
+}
+.hub-search-btn:hover:not(:disabled) { filter: brightness(1.1); }
+.hub-search-btn:disabled { opacity: 0.45; cursor: default; }
+.hub-search-btn:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+
+/* 检索结果浮层 */
+.hub-search-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 400px;
+  max-width: calc(100vw - 40px);
+  max-height: 300px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border, var(--border));
+  background: var(--color-surface-container-highest, var(--md-sys-color-surface-container-highest));
+  box-shadow: var(--v3-glow-soft), 0 10px 30px color-mix(in srgb, var(--color-text) 10%, transparent);
+  z-index: 60;
+  scrollbar-width: thin;
+}
+.hub-search-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  border-bottom: var(--v3-split);
+}
+.hub-search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-secondary, var(--fg-faint));
+  cursor: pointer;
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
+}
+.hub-search-clear:hover {
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  color: var(--color-text, var(--fg));
+}
+.hub-search-clear:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 1px; }
+.hub-hit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background var(--md-sys-transition-fast, 200ms);
+}
+.hub-hit:hover { background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high)); }
+.hub-hit-entity {
+  flex-shrink: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text, var(--fg));
+  cursor: pointer;
+}
+.hub-hit-entity:hover { color: var(--accent); }
+.hub-hit-entity-static {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text, var(--fg));
+}
+.hub-hit-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--fg-faint));
+}
+.hub-hit-ref {
+  flex-shrink: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 10px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  cursor: pointer;
+}
+.hub-hit-ref:hover { color: var(--accent); }
+.hub-hit-ref.is-referenced { color: var(--accent); }
+
+/* ── 3 分区主体 ─────────────────────────────────────────────────── */
+.hub-body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* 左：分类轨道（对齐 v3 轨道语言：激活 = 主色容器 + 左缘光条） */
+.hub-rail {
+  width: 168px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.hub-rail-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 6px;
+  scrollbar-width: thin;
+}
+.hub-rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 12.5px;
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
+}
+.hub-rail-item:hover {
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  color: var(--color-text, var(--md-sys-color-text));
+}
+.hub-rail-item:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: -2px; }
+.hub-rail-item .hub-rail-icon { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+.hub-rail-item .hub-rail-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.hub-rail-item .hub-rail-count {
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 16px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.hub-rail-item.is-active {
+  background: var(--color-primary-container, var(--md-sys-color-primary-container));
+  color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
+  box-shadow: var(--v3-glow-faint);
+}
+/* 左缘 3px 主色光条 */
+.hub-rail-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
+}
+.hub-rail-item.is-active .hub-rail-count {
+  background: color-mix(in srgb, var(--gaea-glow) 16%, transparent);
+  color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
+}
+
+/* 中：主区视图 */
+.hub-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border-radius: var(--radius-lg, 16px);
+  border: 1px solid var(--color-border, var(--border-soft));
+  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 30%, transparent);
+  overflow: hidden;
+}
+.hub-library-zone {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 右：详情 inspector（可折叠） */
+.hub-inspector {
+  width: 264px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  transition: width var(--md-sys-transition-normal, 300ms) cubic-bezier(0.2, 0, 0, 1);
+}
+.hub-inspector.is-collapsed { width: 42px; }
+.hub-inspector.is-collapsed .v3-panel-title,
+.hub-inspector.is-collapsed .v3-panel-spacer { display: none; }
+.hub-inspector-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  cursor: pointer;
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
+}
+.hub-inspector-toggle:hover {
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  color: var(--color-text, var(--md-sys-color-text));
+}
+.hub-inspector-toggle:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.hub-inspector-collapsed-label {
+  writing-mode: vertical-rl;
+  margin: 14px auto;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  user-select: none;
+}
+.hub-inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  scrollbar-width: thin;
+}
+
+/* 详情内容 */
+.hub-detail { display: flex; flex-direction: column; gap: 10px; }
+.hub-detail-head { display: flex; align-items: center; gap: 8px; }
+.hub-detail-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.hub-detail-type {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+}
+.hub-detail-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--color-primary-container, var(--md-sys-color-primary-container));
+  color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
+}
+.hub-detail-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text, var(--md-sys-color-text));
+  word-break: break-word;
+}
+.hub-detail-desc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  border: 1px solid var(--color-border, var(--border-soft));
+  border-radius: 10px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.hub-detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11.5px;
+}
+.hub-detail-key {
+  width: 40px;
+  flex-shrink: 0;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+}
+.hub-detail-val { color: var(--color-text, var(--md-sys-color-text)); word-break: break-all; }
+.hub-detail-val.mono {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-size: 10.5px;
+}
+.hub-detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.hub-detail-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--color-border, var(--border-soft));
+  background: transparent;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  font-size: 11px;
+  cursor: pointer;
+  transition: color var(--md-sys-transition-fast, 200ms), border-color var(--md-sys-transition-fast, 200ms), background var(--md-sys-transition-fast, 200ms);
+}
+.hub-detail-action:hover {
+  color: var(--color-text, var(--md-sys-color-text));
+  border-color: color-mix(in srgb, var(--gaea-glow) 40%, transparent);
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+}
+.hub-detail-action:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+.hub-detail-action.is-referenced {
+  color: var(--gaea-glow);
+  border-color: color-mix(in srgb, var(--gaea-glow) 45%, transparent);
+}
+
+/* 空态 */
+.hub-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  min-height: 180px;
+  text-align: center;
+  padding: 16px;
+}
+.hub-empty-icon {
+  font-size: 26px;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  opacity: 0.6;
+}
+.hub-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, var(--md-sys-color-text));
+}
+.hub-empty-text {
+  font-size: 11.5px;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+}
+.hub-empty-tip {
+  max-width: 200px;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  opacity: 0.7;
+}
+
+/* ── 玻璃拟态模块卡片（旧首页卡片，ModuleCard 保留兼容） ───────── */
 .hub-card {
   position: relative;
   background: linear-gradient(150deg, color-mix(in srgb, var(--bg-elev) 55%, transparent), color-mix(in srgb, var(--bg-soft) 40%, transparent));
@@ -75,7 +534,7 @@
   border-color: color-mix(in srgb, var(--hub-color, var(--accent)) 55%, transparent);
   box-shadow:
     0 0 22px color-mix(in srgb, var(--hub-color, var(--accent)) 28%, transparent),
-    0 10px 30px rgba(0, 0, 0, 0.2);
+    0 10px 30px color-mix(in srgb, var(--color-text) 20%, transparent);
 }
 .hub-card:active { transform: translateY(-1px); }
 
@@ -101,20 +560,21 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* 中央图谱容器（令牌背景，卡片不遮挡） */
-.hub-graph-shell {
-  position: relative;
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
-  border-radius: 16px;
-  background: radial-gradient(ellipse 70% 60% at 50% 45%, color-mix(in srgb, var(--bg-soft) 55%, transparent), color-mix(in srgb, var(--bg) 85%, transparent));
-  overflow: hidden;
+/* ── reduced-motion / ui-reduced-motion 降级 ─────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .hub-scanline { animation: none; }
+  .hub-rail-item,
+  .hub-inspector,
+  .hub-search-input,
+  .hub-search-btn,
+  .hub-search-pop,
+  .hub-search-clear,
+  .hub-hit,
+  .hub-inspector-toggle,
+  .hub-detail-action { transition: none; }
+  .hub-enter { animation: none; opacity: 1; transform: none; }
+  .hub-card:hover { transform: none; }
 }
-.hub-graph-shell::after {
-  /* 角标装饰 */
-  content: "";
-  position: absolute;
-  inset: 8px;
-  border: 1px solid color-mix(in srgb, var(--accent) 10%, transparent);
-  border-radius: 12px;
-  pointer-events: none;
-}
+.ui-reduced-motion .hub-scanline { animation: none; }
+.ui-reduced-motion .hub-enter { animation: none; opacity: 1; transform: none; }
+.ui-reduced-motion .hub-card:hover { transform: none; }

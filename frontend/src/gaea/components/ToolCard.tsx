@@ -72,13 +72,13 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   const innerPb = compact ? "pb-1" : "pb-1.5";
 
   return (
-    <div className={`my-px rounded-md overflow-hidden border transition-colors duration-300 ${
+    <div className={`my-px rounded-md overflow-hidden border shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_4%,transparent)] transition-colors duration-300 ${
       item.status === "error" && !item.recoverable ? "border-err/40" :
       item.status === "error" && item.recoverable ? "border-fg-faint/30" :
-      item.status === "running" ? "border-accent/30 bg-accent/[0.02] shadow-[0_0_6px_var(--accent-soft)]" :
+      item.status === "running" ? "border-accent/30 bg-accent/[0.03] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--accent)_10%,transparent),0_0_10px_color-mix(in_srgb,var(--accent)_12%,transparent)]" :
       item.status === "stopped" ? "border-border-soft opacity-70" :
       "border-border-soft"
-    } ${quiet ? "border-transparent bg-transparent" : ""}`}
+    } ${quiet ? "border-transparent bg-transparent shadow-none" : ""}`}
     style={item.status === "error" && !item.recoverable ? {background: "var(--ds-danger-soft)"} : undefined} data-tone={item.status === "error" && !item.recoverable ? "danger" : item.status === "running" ? "info" : item.status === "done" ? "success" : item.status === "stopped" ? "warning" : undefined}>
       <div
         className={`flex items-center gap-1.5 ${rowPx} ${rowPy} text-fg-dim ${fontSize} select-none ${

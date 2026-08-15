@@ -5,7 +5,7 @@ import { Modal } from "antd";
 import {
   Plus, Brain, Blocks, BookOpen, MessageSquare, Search,
   PanelLeftClose, PanelLeftOpen, Loader2, FileText, ChevronDown, FolderGit2,
-  Pin, Inbox, Rollback, Check,
+  Pin, Inbox, Rollback, Check, X,
 } from "../icons";
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
@@ -184,7 +184,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
       <div style={style} {...ariaAttributes}>
         <div
           className={`group flex items-start gap-1 rounded-md py-[6px] pl-2 pr-1.5 mb-[1px] transition-colors duration-150 hover:bg-sidebar-hover ${
-            s.current ? "bg-sidebar-active" : ""
+            s.current ? "sidebar-session-active" : ""
           }`}
         >
           <button
@@ -290,7 +290,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
                   title="删除"
                   onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(s.path); }}
                 >
-                  ×
+                  <X size={12} />
                 </button>
               </span>
             )
@@ -360,7 +360,7 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
               title="永久删除"
               onClick={e => { e.stopPropagation(); ui.setDeleteConfirm(s.path); }}
             >
-              ×
+              <X size={12} />
             </button>
           </span>
         )}
@@ -534,7 +534,7 @@ export function Sidebar({
         className={`flex flex-col min-w-0 pt-[50px] pb-2 border-r border-border-soft select-none overflow-hidden drag-region ${
           collapsed ? "items-center px-2" : "px-2.5"
         }`}
-        style={{ background: "var(--ds-gradient-sidebar)" }}
+        style={{ background: "var(--v3-rail-bg, var(--gaea-glass-bg, var(--md-sys-color-surface)))" }}
         aria-label="gaea navigation"
       >
         {/* 品牌行：logo + 名称 + 折叠 */}
@@ -609,7 +609,7 @@ export function Sidebar({
         {/* 折叠态当前会话指示 */}
         {collapsed && currentSession && (
           <button
-            className="w-8 h-8 mb-3 rounded-lg bg-sidebar-active text-accent text-[12px] font-bold flex items-center justify-center cursor-pointer hover:bg-sidebar-hover transition-colors no-drag"
+            className="w-8 h-8 mb-3 rounded-lg sidebar-current-chip text-[12px] font-bold flex items-center justify-center cursor-pointer transition-colors no-drag"
             title={sessionTitle(currentSession, "")}
             type="button"
           >

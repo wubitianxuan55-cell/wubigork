@@ -30,9 +30,10 @@ type ForceGraph = ForceGraph3DInstance<GraphNode, GraphLink>;
 const createGraph = ForceGraph3D as unknown as () => (element: HTMLElement) => ForceGraph;
 
 /** GraphView 记忆 3D 图谱：节点=记忆实体，边=同标签/同分类/[[引用]]。
- *  variant="page" 带工具条（库面板内）；variant="home" 纯净展示（首页中央）。 */
-export function GraphView(p: { variant?: "page" | "home" }) {
-  const variant = p.variant ?? "page";
+ *  variant="page" 带工具条（库面板内）；variant="home" 纯净展示（首页中央）。
+ *  onSelect 可选回调：节点被点击 / 详情关闭时通知外层（详情 inspector 联动，不影响原有 Modal）。 */
+export function GraphView(p: { variant?: "page" | "home"; onSelect?: (node: GraphNode | null) => void }) {
+  const { variant = "page", onSelect } = p;
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraph | null>(null);
   const dataRef = useRef<MemoryGraphView | null>(null);
@@ -82,7 +83,10 @@ export function GraphView(p: { variant?: "page" | "home" }) {
       .linkWidth(1.2)
       .d3AlphaDecay(0.022)
       .warmupTicks(80)
-      .onNodeClick((d) => setSelected(d));
+      .onNodeClick((d) => {
+        setSelected(d);
+        onSelect?.(d);
+      });
     graphRef.current = fg;
 
     // 3d-force-graph 默认画布取 window 尺寸，不会自动适配容器：
@@ -185,7 +189,10 @@ export function GraphView(p: { variant?: "page" | "home" }) {
       {/* 节点详情 */}
       <Modal
         open={!!selected}
-        onCancel={() => setSelected(null)}
+        onCancel={() => {
+          setSelected(null);
+          onSelect?.(null);
+        }}
         footer={null}
         width={480}
         destroyOnHidden

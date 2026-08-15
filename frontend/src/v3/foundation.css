@@ -1,0 +1,557 @@
+/* ═══════════════════════════════════════════════════════════════════
+   gaea 3.0「星枢 Constellation OS」— v3 基础样式层
+   由 App.tsx 注入的 --md-sys-* / --gaea-* / --color-* 令牌派生，零硬编码色值。
+   消费方：MainLayout 新壳层 + 各板块工作台（子代理按规范使用 v3-* 类）。
+   规则：玻璃只做容器；信息层实底卡；轨道/卡片带顶部 1px 高光线；
+        reduced-motion 降级；全部可点元素 cursor-pointer。
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── v3 派生令牌（跟随 12 主题） ─────────────────────────────────── */
+:root {
+  /* Luminous Glass 2.0 高光线：轨道/卡片顶部 1px 渐变亮边 */
+  --v3-edge: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-text) 16%, transparent) 0%,
+    color-mix(in srgb, var(--color-text) 4%, transparent) 55%,
+    transparent 100%
+  );
+  --v3-edge-rev: linear-gradient(
+    0deg,
+    color-mix(in srgb, var(--color-text) 12%, transparent) 0%,
+    transparent 60%
+  );
+  /* 柔光：悬浮/激活 */
+  --v3-glow-soft: 0 0 0 1px color-mix(in srgb, var(--gaea-glow) 14%, transparent),
+    0 6px 28px color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  --v3-glow-faint: 0 0 18px color-mix(in srgb, var(--gaea-glow) 8%, transparent);
+  /* 轨道底（比普通玻璃更实，保证图标可读） */
+  --v3-rail-bg: color-mix(in srgb, var(--gaea-glass-bg) 80%, var(--color-surface));
+  /* 分区线 */
+  --v3-split: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
+  --v3-split-strong: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+  /* 遥测主色 */
+  --v3-telemetry: var(--gaea-glow);
+  --v3-telemetry-fill: color-mix(in srgb, var(--gaea-glow) 18%, transparent);
+  /* 轨道图标尺寸 */
+  --v3-rail-w: 48px;
+  --v3-rail-w-open: 176px;
+}
+
+/* ── 指挥轨道 Command Rail（OS 自动隐藏 dock：默认收进左缘，
+     鼠标滑到左缘热区（10px）时滑出展开，移开自动收起，悬浮覆盖内容）── */
+.v3-rail-dock {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  z-index: 200;
+  transition: width 280ms cubic-bezier(0.2, 0, 0, 1);
+}
+.v3-rail-dock:hover,
+.v3-rail-dock:focus-within {
+  width: 54px; /* 8px 左 margin + 46px rail */
+}
+.v3-rail-dock .v3-rail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  margin: 8px 0 8px 8px;
+  transform: translateX(-112%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 280ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
+}
+.v3-rail-dock:hover .v3-rail,
+.v3-rail-dock:focus-within .v3-rail {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.v3-rail {
+  width: 46px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--gaea-glass-bg) 52%, var(--color-surface));
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--v3-glow-faint), 0 6px 24px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 60;
+}
+.v3-rail::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.v3-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  flex-shrink: 0;
+}
+.v3-rail-head img {
+  width: 22px;
+  height: 22px;
+  filter: drop-shadow(0 0 6px var(--gaea-glow));
+  transition: filter var(--md-sys-transition-normal, 300ms);
+}
+.v3-rail:hover .v3-rail-head img {
+  filter: drop-shadow(0 0 9px var(--gaea-glow));
+}
+
+.v3-rail-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 5px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+.v3-rail-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 5px;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+  flex-shrink: 0;
+}
+
+/* 图标项：纯图标、居中、悬浮微缩放（Dock 感） */
+.v3-rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+.v3-rail-item:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-text);
+  transform: scale(1.1);
+}
+.v3-rail-item:active {
+  transform: scale(0.96);
+}
+.v3-rail-item:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: -2px;
+}
+.v3-rail-item .v3-rail-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+/* 激活项：主色容器底 + 主色图标 + 底部指示光条（Windows 11 任务栏风） */
+.v3-rail-item.is-active {
+  background: var(--color-primary-container);
+  color: var(--color-text);
+  box-shadow: var(--v3-glow-faint);
+  transform: none;
+}
+.v3-rail-item.is-active .v3-rail-icon {
+  color: var(--color-primary);
+  filter: drop-shadow(0 0 6px var(--gaea-glow));
+}
+.v3-rail-item.is-active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gaea-glow) 70%, transparent);
+  opacity: 0.9;
+}
+
+/* ── 轨道条 Orbit Strip（顶部） ───────────────────────────────────── */
+.v3-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 14px;
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  position: relative;
+  z-index: 55;
+  flex-shrink: 0;
+}
+.v3-strip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
+}
+.v3-strip .v3-strip-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v3-strip .v3-strip-context strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+.v3-strip .v3-strip-spacer {
+  flex: 1;
+}
+/* 聊天模式切换条宿主（ChatPage portal 目标）：自身不占布局宽度，只做对齐容器 */
+.v3-strip-chatmode {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+/* 模型 pill */
+.v3-model-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--color-primary-container);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent);
+  color: var(--color-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: box-shadow var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms);
+}
+.v3-model-pill:hover {
+  box-shadow: var(--v3-glow-soft);
+}
+.v3-model-pill:active {
+  transform: translateY(1px);
+}
+.v3-model-pill:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+.v3-model-pill .v3-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
+  animation: v3-orb-breathe 2s ease-in-out infinite;
+}
+.v3-model-pill .v3-pill-label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 遥测轨道 Telemetry Rail（底部） ─────────────────────────────── */
+.v3-telemetry {
+  position: relative;
+  background: var(--v3-rail-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  border-top: var(--v3-split);
+  flex-shrink: 0;
+  transition: height var(--md-sys-transition-normal, 300ms) cubic-bezier(0.2, 0, 0, 1);
+  z-index: 55;
+}
+.v3-telemetry::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 1px;
+  background: var(--v3-edge-rev);
+  pointer-events: none;
+}
+.v3-telemetry.is-collapsed {
+  height: 30px;
+}
+.v3-telemetry:not(.is-collapsed) {
+  height: 132px;
+}
+.v3-telemetry-inner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 30px;
+  padding: 0 14px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+}
+.v3-telemetry-toggle {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+}
+.v3-telemetry-toggle:hover { color: var(--color-text); background: var(--color-surface-container-high); }
+.v3-telemetry-toggle:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+/* 引擎 pod */
+.v3-engine-pod {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.v3-engine-pod:hover { box-shadow: var(--v3-glow-faint); }
+.v3-engine-pod .v3-pod-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+}
+.v3-engine-pod.is-hot .v3-pod-dot { background: var(--color-warning); box-shadow: 0 0 6px var(--color-warning); }
+/* 遥测数值 */
+.v3-tele-value {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+.v3-tele-key { color: var(--color-text-secondary); }
+/* 展开态内容 */
+.v3-telemetry-body {
+  display: none;
+  height: calc(100% - 30px);
+  padding: 8px 14px 10px;
+  gap: 16px;
+  align-items: stretch;
+}
+.v3-telemetry:not(.is-collapsed) .v3-telemetry-body {
+  display: flex;
+}
+.v3-spark-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 12px);
+  padding: 8px 12px;
+}
+.v3-spark-card .v3-spark-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.v3-spark-card .v3-spark-val {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.v3-spark-card svg {
+  width: 100%;
+  height: 34px;
+  display: block;
+}
+.v3-spark-line {
+  fill: none;
+  stroke: var(--v3-telemetry);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.v3-spark-fill {
+  fill: var(--v3-telemetry-fill);
+}
+
+/* ── 板块工作台原语 ──────────────────────────────────────────────── */
+.v3-zone {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  position: relative;
+}
+.v3-zone-row {
+  display: flex;
+  flex-direction: row;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+/* 玻璃面板（轨道/侧栏/检查器容器） */
+.v3-panel {
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 16px);
+  position: relative;
+}
+.v3-panel::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--v3-edge);
+  border-radius: var(--radius-lg, 16px) var(--radius-lg, 16px) 0 0;
+  pointer-events: none;
+}
+/* 信息层实底卡 */
+.v3-card {
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 6%, transparent);
+  transition: box-shadow var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms), border-color var(--md-sys-transition-fast, 200ms);
+}
+.v3-card:hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 22%, var(--color-border));
+  box-shadow: var(--v3-glow-soft);
+}
+.v3-card.is-interactive { cursor: pointer; }
+.v3-card.is-interactive:hover { transform: translateY(-2px); }
+/* 分区线（可拖拽分隔条视觉，配合各板块已有拖动逻辑） */
+.v3-split-v {
+  width: 1px;
+  background: var(--v3-split-strong);
+  flex-shrink: 0;
+}
+.v3-split-h {
+  height: 1px;
+  background: var(--v3-split-strong);
+  flex-shrink: 0;
+}
+/* 拖拽把手视觉 */
+.v3-grip {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background var(--md-sys-transition-fast, 200ms);
+  flex-shrink: 0;
+}
+.v3-grip:hover,
+.v3-grip:active { background: color-mix(in srgb, var(--gaea-glow) 35%, transparent); }
+.v3-grip-h {
+  height: 4px;
+  cursor: row-resize;
+  background: transparent;
+  transition: background var(--md-sys-transition-fast, 200ms);
+  flex-shrink: 0;
+}
+.v3-grip-h:hover,
+.v3-grip-h:active { background: color-mix(in srgb, var(--gaea-glow) 35%, transparent); }
+/* 面板头部（轨道/检查器标题条） */
+.v3-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  border-bottom: var(--v3-split);
+  flex-shrink: 0;
+}
+.v3-panel-head .v3-panel-title {
+  color: var(--color-text);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v3-panel-head .v3-panel-spacer { flex: 1; }
+/* 阅读宽度（对话/文档） */
+.v3-reading {
+  max-width: 74ch;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ── 动效工具类 ──────────────────────────────────────────────────── */
+/* 板块切换入场（page-enter 历史容器 class，补 v3 淡入；keepAlive 切换 display 时重新触发） */
+.page-enter {
+  animation: v3-page-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes v3-page-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.v3-rise {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: v3-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.v3-rise-1 { animation-delay: 40ms; }
+.v3-rise-2 { animation-delay: 100ms; }
+.v3-rise-3 { animation-delay: 160ms; }
+.v3-rise-4 { animation-delay: 220ms; }
+@keyframes v3-rise {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── reduced-motion / ui-reduced-motion 降级 ─────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .v3-rail, .v3-telemetry { transition: none; }
+  .v3-rail-item:hover,
+  .v3-rail-item:active { transform: none; }
+  .v3-model-pill .v3-pulse-dot { animation: none; }
+  .v3-rise, .page-enter { opacity: 1; transform: none; animation: none; }
+  .v3-card.is-interactive:hover { transform: none; }
+}
+.ui-reduced-motion .v3-rail-item:hover,
+.ui-reduced-motion .v3-rail-item:active { transform: none; }
+.ui-reduced-motion .v3-model-pill .v3-pulse-dot { animation: none; }
+.ui-reduced-motion .v3-rise, .ui-reduced-motion .page-enter { opacity: 1; transform: none; animation: none; }
+.ui-reduced-motion .v3-card.is-interactive:hover { transform: none; }

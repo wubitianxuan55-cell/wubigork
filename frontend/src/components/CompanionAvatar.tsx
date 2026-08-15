@@ -13,10 +13,11 @@ interface Props {
 const N = 64 // 粒子数
 const R = 0.55 // 球半径
 
-// canvas 不支持 CSS 变量，这里把 var(--x, fallback) 解析成具体颜色再拼透明度后缀
+// canvas 不支持 CSS 变量，这里把 var(--x[, fallback]) 解析成具体颜色再拼透明度后缀；
+// 支持嵌套 fallback（如 var(--gaea-glow, var(--md-sys-color-primary))），递归解析。
 function resolveCanvasColor(raw: string): string {
   const s = (raw || '').trim()
-  const m = s.match(/^var\(\s*(--[\w-]+)\s*(?:,\s*([^)]+))?\)$/)
+  const m = s.match(/^var\(\s*(--[\w-]+)\s*(?:,\s*(.*))?\)$/)
   if (m) {
     try {
       const computed = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim()
@@ -24,7 +25,8 @@ function resolveCanvasColor(raw: string): string {
     } catch {
       /* 非浏览器环境（测试等）忽略 */
     }
-    if (m[2]) return m[2].trim()
+    // fallback 存在 → 递归解析（可能仍是 var(...)）
+    if (m[2] !== undefined) return resolveCanvasColor(m[2])
   }
   return s
 }

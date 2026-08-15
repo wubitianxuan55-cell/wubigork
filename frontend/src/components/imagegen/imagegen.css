@@ -1,65 +1,195 @@
-/* imagegen.css — 绘梦多模式工作台（gaea 玻璃 HUD 统一令牌，无独立深黑配色） */
+/* imagegen.css — 画廊工作台（gaea 3.0「星枢 Constellation OS」v3）
+   布局：顶条（轨道式模式细 tab + 引擎状态 pill）→ 3 分区工作台
+   （左控制台 v3-panel | v3-split-v | 中画布 v3-zone | v3-split-v | 右任务 inspector v3-panel）
+   + 底部生成栏（Luminous Glass 2.0 高光线 + 生成中 v3 高光进度光带）。
+   令牌纪律：零硬编码 hex，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*。 */
 
+/* ── 工作台根 ── */
 .ig-studio {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   background:
     radial-gradient(1000px 520px at 12% -8%, color-mix(in srgb, var(--gaea-glow) 7%, transparent), transparent 60%),
     radial-gradient(760px 460px at 94% 8%, color-mix(in srgb, var(--gaea-glow) 5%, transparent), transparent 55%);
   color: var(--md-sys-color-text, var(--color-text));
 }
 
-.ig-studio-header {
+/* ── 顶条：模式轨道 tab + 引擎 pill ── */
+.ig-top-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  flex-shrink: 0;
+  position: relative;
   border-bottom: 1px solid var(--md-sys-color-outline-variant, var(--border-subtle));
-  padding: 12px 14px 10px;
   background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 55%, transparent);
-}
-
-.ig-workspace {
-  padding: 12px;
-}
-
-.ig-control-rail,
-.ig-result-canvas,
-.ig-task-center {
-  border: 1px solid var(--md-sys-color-outline-variant, var(--border-subtle));
-  border-radius: var(--radius-lg);
-  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
-  box-shadow: 0 14px 44px color-mix(in srgb, var(--gaea-glow) 8%, transparent);
   -webkit-backdrop-filter: blur(20px) saturate(150%);
   backdrop-filter: blur(20px) saturate(150%);
 }
+/* 底部 1px 高光线（Luminous Glass 2.0） */
+.ig-top-strip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
+}
 
+.ig-strip-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.ig-strip-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* 引擎状态 pill */
+.ig-engine-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  max-width: 340px;
+  flex-shrink: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.ig-engine-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* ── 模式导航：轨道式细 tab（激活 = 主色容器 + 底部光条 + 柔光） ── */
+.ig-mode-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 2px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid var(--md-sys-color-outline-variant, var(--border-subtle));
+  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 70%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ig-mode-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.ig-mode-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 13px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
+  white-space: nowrap;
+  transition:
+    color var(--md-sys-transition-fast, 0.15s ease),
+    background var(--md-sys-transition-fast, 0.15s ease),
+    box-shadow var(--md-sys-transition-fast, 0.15s ease),
+    transform var(--md-sys-transition-fast, 0.15s ease);
+}
+
+.ig-mode-item:hover {
+  color: var(--md-sys-color-text, var(--color-text));
+  background: color-mix(in srgb, var(--gaea-glow) 7%, transparent);
+}
+
+.ig-mode-item:active {
+  transform: scale(0.98);
+}
+
+.ig-mode-item:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 1px;
+}
+
+/* 激活：主色容器底 + 底部渐变光条（对齐 v3 轨道语言） */
+.ig-mode-item.is-active {
+  color: var(--color-text);
+  background: var(--color-primary-container);
+  box-shadow: var(--v3-glow-faint);
+}
+
+.ig-mode-item.is-active::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--gaea-glow), transparent);
+  box-shadow: 0 0 6px var(--gaea-glow);
+  pointer-events: none;
+}
+
+.ig-mode-item .anticon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* ── 3 分区工作台 ── */
+.ig-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+
+/* ── 左控制台 zone（玻璃外观由 v3-panel 提供） ── */
 .ig-control-rail {
+  width: 300px;
+  flex-shrink: 0;
   padding: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-/* ── 绘梦下拉弹层（WebView2 老问题兜底） ──
-   WebView2 挂起 CSS 动画 tick 时，antd 下拉（rc-motion）打开动画会卡在
-   keyframe 首帧（opacity:0 / scale(0)），表现为「下拉弹不出来」。
-   这里对绘梦下拉（popupClassName=ig-select-dropdown）直接禁用弹层动画：
-   打开立即显示、关闭立即隐藏，不依赖 rAF 降级检测（gaea-raf-degraded）。 */
-.ig-select-dropdown.ant-select-dropdown {
-  animation: none !important;
-  transition: none !important;
-}
-
-.ig-select-dropdown.ant-select-dropdown[class*='ant-slide-up-enter'],
-.ig-select-dropdown.ant-select-dropdown[class*='ant-slide-up-appear'],
-.ig-select-dropdown.ant-select-dropdown[class*='ant-zoom-enter'],
-.ig-select-dropdown.ant-select-dropdown[class*='ant-zoom-appear'] {
-  opacity: 1 !important;
-  transform: none !important;
-}
-
-.ig-select-dropdown.ant-select-dropdown[class*='ant-slide-up-leave'],
-.ig-select-dropdown.ant-select-dropdown[class*='ant-zoom-leave'] {
-  display: none !important;
-}
-
+/* ── 中画布 zone ── */
 .ig-result-canvas {
   padding: 12px;
+  overflow: auto;
   background:
     radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--gaea-glow) 7%, transparent), transparent 46%),
     var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  border: 1px solid var(--md-sys-color-outline-variant, var(--border-subtle));
+  border-radius: var(--radius-lg);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
 }
 
 .ig-result-canvas .img-card {
@@ -74,11 +204,12 @@
   box-shadow: 0 18px 42px color-mix(in srgb, var(--gaea-glow) 16%, transparent);
 }
 
-/* ── 可折叠分区（渐进式披露基础容器） ── */
+/* ── 可折叠分区（信息层实底卡：玻璃面板内不叠玻璃） ── */
 .ig-collapse {
-  border: 1px solid var(--md-sys-color-outline-variant, var(--border-subtle));
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 68%, transparent);
+  background: var(--color-surface-container);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 5%, transparent);
   overflow: hidden;
 }
 
@@ -149,14 +280,16 @@
   padding: 4px 11px 12px;
 }
 
-/* ── 底部常驻生成栏 ── */
+/* ── 底部常驻生成栏（Luminous Glass 2.0 + 生成中高光进度光带） ── */
 .ig-bottom-bar {
+  position: relative;
+  overflow: hidden;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: 0 12px 12px;
+  margin: 10px 12px 12px;
   padding: 10px 14px;
   border: 1px solid var(--md-sys-color-outline-variant, var(--border-subtle));
   border-radius: var(--radius-lg);
@@ -164,6 +297,38 @@
   -webkit-backdrop-filter: blur(20px) saturate(150%);
   backdrop-filter: blur(20px) saturate(150%);
   box-shadow: 0 10px 34px color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+}
+
+/* 顶部 1px 高光线 */
+.ig-bottom-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
+}
+
+/* 生成中：v3 高光进度光带（不定态，compositor-only 位移动画） */
+.ig-bottom-bar.is-busy::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 42%;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--gaea-glow), transparent);
+  box-shadow: 0 0 10px var(--gaea-glow);
+  animation: ig-progress-slide 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes ig-progress-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(260%); }
 }
 
 .ig-bottom-hint {
@@ -210,16 +375,22 @@
   outline-offset: 2px;
 }
 
-/* ── 右侧任务中心 ── */
+/* ── 右侧任务 inspector（玻璃外观由 v3-panel 提供） ── */
 .ig-task-center {
+  width: 280px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 0;
   padding: 10px;
 }
 
 .ig-task-center.is-collapsed {
   width: 46px !important;
   align-items: center;
+  gap: 10px;
+  padding-top: 10px;
 }
 
 .ig-task-tabs {
@@ -228,7 +399,7 @@
   gap: 4px;
   padding: 4px;
   border-radius: 12px;
-  border: 1px solid var(--md-sys-color-outline-variant, var(--border-subtle));
+  border: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 72%, transparent);
   flex-shrink: 0;
 }
@@ -304,6 +475,12 @@
   background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
 }
 
+.ig-task-icon:focus-visible,
+.ig-task-tab:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 1px;
+}
+
 .ig-task-badge {
   position: absolute;
   top: -3px;
@@ -313,7 +490,7 @@
   padding: 0 3px;
   border-radius: 999px;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--md-sys-color-on-primary, #fff);
   font-size: 9px;
   font-weight: 600;
   display: inline-flex;
@@ -332,14 +509,15 @@
   font-size: 12px;
 }
 
+/* 队列/模板行：信息层实底卡 */
 .ig-queue-row {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   padding: 8px 9px;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 64%, transparent);
-  border: 1px solid var(--md-sys-color-outline-variant, var(--border-subtle));
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-border);
 }
 
 .ig-template-row {
@@ -351,7 +529,7 @@
   padding: 6px 9px;
   border-radius: 10px;
   border: 1px solid transparent;
-  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 60%, transparent);
+  background: var(--color-surface-container);
   cursor: pointer;
   font-family: inherit;
   text-align: left;
@@ -367,75 +545,6 @@
 
 .ig-task-center .img-card {
   border-radius: 14px;
-}
-
-/* ── 模式导航：文生图 / 图生图 / 文生视频 ── */
-.ig-mode-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  margin: 0 12px 12px;
-  flex-shrink: 0;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--gaea-glass-bg, var(--md-sys-color-surface-container)) 78%, transparent);
-  border: 1px solid var(--md-sys-color-outline-variant, var(--border-subtle));
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
-  backdrop-filter: blur(22px) saturate(150%);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.ig-mode-nav::-webkit-scrollbar {
-  display: none;
-}
-
-.ig-mode-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 18px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
-  white-space: nowrap;
-  transition:
-    color var(--md-sys-transition-fast, 0.15s ease),
-    background var(--md-sys-transition-fast, 0.15s ease),
-    border-color var(--md-sys-transition-fast, 0.15s ease),
-    box-shadow var(--md-sys-transition-fast, 0.15s ease),
-    transform var(--md-sys-transition-fast, 0.15s ease);
-}
-
-.ig-mode-item:hover {
-  color: var(--md-sys-color-text, var(--color-text));
-  background: color-mix(in srgb, var(--gaea-glow) 7%, transparent);
-}
-
-.ig-mode-item:active {
-  transform: scale(0.97);
-}
-
-.ig-mode-item:focus-visible {
-  outline: 2px solid var(--gaea-glow);
-  outline-offset: 2px;
-}
-
-.ig-mode-item.is-active {
-  color: var(--gaea-glow);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--gaea-glow) 24%, transparent), color-mix(in srgb, var(--gaea-glow) 10%, transparent));
-  border-color: color-mix(in srgb, var(--gaea-glow) 40%, transparent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--gaea-glow) 20%, transparent);
-}
-
-.ig-mode-item .anticon {
-  font-size: 13px;
-  line-height: 1;
 }
 
 /* ── 图生图参考图上传区 ── */
@@ -473,6 +582,29 @@
   outline-offset: 2px;
 }
 
+/* ── 绘梦下拉弹层（WebView2 老问题兜底） ──
+   WebView2 挂起 CSS 动画 tick 时，antd 下拉（rc-motion）打开动画会卡在
+   keyframe 首帧（opacity:0 / scale(0)），表现为「下拉弹不出来」。
+   这里对绘梦下拉（popupClassName=ig-select-dropdown）直接禁用弹层动画：
+   打开立即显示、关闭立即隐藏，不依赖 rAF 降级检测（gaea-raf-degraded）。 */
+.ig-select-dropdown.ant-select-dropdown {
+  animation: none !important;
+  transition: none !important;
+}
+
+.ig-select-dropdown.ant-select-dropdown[class*='ant-slide-up-enter'],
+.ig-select-dropdown.ant-select-dropdown[class*='ant-slide-up-appear'],
+.ig-select-dropdown.ant-select-dropdown[class*='ant-zoom-enter'],
+.ig-select-dropdown.ant-select-dropdown[class*='ant-zoom-appear'] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.ig-select-dropdown.ant-select-dropdown[class*='ant-slide-up-leave'],
+.ig-select-dropdown.ant-select-dropdown[class*='ant-zoom-leave'] {
+  display: none !important;
+}
+
 /* ── 响应式 ── */
 @media (max-width: 1180px) {
   .ig-control-rail {
@@ -487,6 +619,10 @@
   .ig-workspace {
     flex-direction: column;
     overflow-y: auto;
+    padding-bottom: 10px;
+  }
+  .ig-workspace .v3-split-v {
+    display: none;
   }
   .ig-control-rail,
   .ig-result-canvas,
@@ -503,20 +639,19 @@
   .ig-task-center {
     min-height: 180px;
   }
+  .ig-top-strip {
+    flex-wrap: wrap;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
   .ig-bottom-bar {
     flex-direction: column;
     align-items: stretch;
+    margin-left: 10px;
+    margin-right: 10px;
   }
   .ig-bottom-actions {
     justify-content: flex-end;
-  }
-  .ig-mode-nav {
-    margin-left: 10px;
-    margin-right: 10px;
-  }
-  .ig-bottom-bar {
-    margin-left: 10px;
-    margin-right: 10px;
   }
 }
 
@@ -526,15 +661,29 @@
   .ig-upload-zone,
   .ig-template-row,
   .ig-collapse-chevron,
-  .ig-gen-button {
+  .ig-gen-button,
+  .ig-result-canvas .img-card,
+  .ig-bottom-bar {
     transition: none !important;
   }
+  .ig-bottom-bar.is-busy::after {
+    animation: none !important;
+  }
+}
+
+.ui-reduced-motion .ig-bottom-bar.is-busy::after {
+  animation: none !important;
 }
 
 html.gaea-raf-degraded .ig-mode-item,
 html.gaea-raf-degraded .ig-upload-zone,
 html.gaea-raf-degraded .ig-template-row,
 html.gaea-raf-degraded .ig-collapse-chevron,
-html.gaea-raf-degraded .ig-gen-button {
+html.gaea-raf-degraded .ig-gen-button,
+html.gaea-raf-degraded .ig-result-canvas .img-card {
   transition: none !important;
+}
+
+html.gaea-raf-degraded .ig-bottom-bar.is-busy::after {
+  animation: none !important;
 }

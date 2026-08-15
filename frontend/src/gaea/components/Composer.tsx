@@ -362,12 +362,14 @@ export function Composer({
       {/* ── 排队列表 ── */}
       {running && <ComposerQueueList queueDisplay={queueDisplay} onCancelItem={cancelQueueItem} />}
 
-      {/* ── 输入卡片 ── */}
+      {/* ── 输入卡片（Luminous Glass：玻璃底 + 顶部 1px 高光线 + 聚焦收敛光晕） ── */}
       <div
-        className={`relative border border-border-soft bg-bg-elev rounded-2xl overflow-hidden transition-[border-color,box-shadow] duration-[var(--dur-base)] focus-within:border-accent/30 focus-within:shadow-[0_0_0_1px_var(--accent-soft),var(--ds-shadow-composer)] ${composerHeight !== null ? "flex flex-col" : ""} ${composerResizing ? "cursor-ns-resize" : ""}`}
+        className={`relative border border-border-soft/80 bg-bg-elev/70 backdrop-blur-xl backdrop-saturate-150 rounded-2xl overflow-hidden shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_6%,transparent)] transition-[border-color,box-shadow,background] duration-[var(--dur-base)] focus-within:border-accent/30 focus-within:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_6%,transparent),0_0_0_1px_var(--accent-soft),0_0_22px_color-mix(in_srgb,var(--accent)_10%,transparent),var(--ds-shadow-composer)] ${composerHeight !== null ? "flex flex-col" : ""} ${composerResizing ? "cursor-ns-resize" : ""}`}
         style={{ ...(composerHeight !== null ? { height: "var(--composer-height)" } : {}), ...composerCardStyle }}
         ref={composerCardRef}
       >
+        {/* 顶部 1px 高光线（v3-edge 渐变） */}
+        <div aria-hidden className="pointer-events-none absolute top-0 left-0 right-0 h-px z-[4]" style={{ background: "var(--v3-edge)" }} />
         {/* 拖拽调整大小把手 */}
         <div
           className="absolute top-0 left-[14px] right-[14px] z-[5] h-2 cursor-ns-resize no-drag touch-none"

@@ -32,10 +32,11 @@ export function useStatsState(statsOpen: boolean): StatsState {
     } catch (_) {}
   }, [])
 
-  // 调用统计抽屉打开时定时刷新
+  // 3.0「引擎控制台」：右侧统计检查器常显，进入页面即加载一次；
+  // 统计抽屉打开期间叠加 15s 定时刷新（原实现仅在抽屉打开时轮询）。
   useEffect(() => {
-    if (!statsOpen) return
     loadCallStats()
+    if (!statsOpen) return
     const timer = window.setInterval(loadCallStats, 15000)
     return () => window.clearInterval(timer)
   }, [statsOpen, loadCallStats])

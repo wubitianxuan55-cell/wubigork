@@ -202,7 +202,8 @@ export interface RemoteBoardManifest {
 /**
  * 板块差集归一（merge 语义 = 后端清单 + 前端 home 壳层）：
  *  - 重叠 id：后端字段优先，缺失字段回填前端静态（icon/page/layout 兜底）；
- *  - knowledge：后端独有板块直接并入（差集 #1）；
+ *  - knowledge：后端 D7 独立板块**过滤不并入一级导航**——知识库已并入记忆中枢
+ *    （MemoryHubPage「知识库」分类），一级导航不再单列避免重复入口（3.0 定制）；
  *  - home：后端无 isHome 板块时补前端静态壳层，menuOrder=0 恒首位（差集 #2）；
  *  - weixin：后端 page=""（无前端页面）保留空串，静态 WeixinPage 不覆盖（差集 #3）；
  *  - 空输入返回 []（回退决策在 loadBoardManifests 层）。
@@ -212,6 +213,8 @@ export function normalizeManifests(remote: RemoteBoardManifest[]): BoardManifest
   const out: BoardManifest[] = []
   for (const r of remote ?? []) {
     if (!r || typeof r.id !== 'string' || r.id === '') continue
+    // 3.0 定制：knowledge 并入记忆中枢，一级导航不单列（后端清单照常返回，仅导航侧过滤）
+    if (r.id === 'knowledge') continue
     const base = staticById.get(r.id)
     out.push({
       id: r.id,

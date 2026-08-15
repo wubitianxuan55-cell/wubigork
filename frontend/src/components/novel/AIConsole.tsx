@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Space, Tag, Typography } from "antd";
-import { ConsoleSqlOutlined } from "@ant-design/icons";
+import { ConsoleSqlOutlined, CloseOutlined } from "@ant-design/icons";
 import { useAppStore } from "../../stores/appStore";
 
 // ── 小说板块专属：AI 控制台 ──────────────────────────────────────
@@ -76,9 +76,9 @@ export function AIConsole() {
     <>
       {consoleOpen && (
         <div className="ai-console-panel" style={{
-          width: 380, flexShrink: 0, alignSelf: 'stretch',
-          maxHeight: 'calc(100vh - 80px)',
-          margin: '8px 8px 8px 0',
+          position: 'fixed', right: 12, top: 104, zIndex: 900,
+          width: 380, flexShrink: 0,
+          maxHeight: 'calc(100vh - 120px)',
           background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
           WebkitBackdropFilter: 'blur(24px) saturate(140%)',
           backdropFilter: 'blur(24px) saturate(140%)',
@@ -110,14 +110,13 @@ export function AIConsole() {
               <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 9, opacity: 0.6 }}>
                 {logs.length}
               </Typography.Text>
-              <Button type="text" size="small" onClick={() => setConsoleOpen(false)}
+              <Button type="text" size="small" onClick={() => setConsoleOpen(false)} aria-label="关闭 AI 控制台"
+                icon={<CloseOutlined />}
                 style={{
                   color: 'var(--md-sys-color-text-secondary)', fontSize: 12, padding: 0,
                   width: 20, height: 20, borderRadius: '50%',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                ✕
-              </Button>
+                }} />
             </Space>
           </div>
           <div ref={logContainerRef} style={{ flex: 1, overflowY: 'scroll', maxHeight: 'calc(100vh - 200px)', padding: '8px 12px' }}>
@@ -135,7 +134,7 @@ export function AIConsole() {
                   : l.type === 'response' ? `${(l.length || 0).toLocaleString()} 字`
                   : l.type === 'error' ? l.error?.slice(0, 80) || ''
                   : `+${(l.content?.length || 0)} 字`
-                const borderColor = l.type === 'error' ? '#f87171' : l.type === 'request' ? '#60a5fa' : l.type === 'response' ? '#4ade80' : 'transparent'
+                const borderColor = l.type === 'error' ? 'var(--color-destructive)' : l.type === 'request' ? 'var(--color-primary)' : l.type === 'response' ? 'var(--color-success)' : 'transparent'
                 return (
                   <div key={l.id}>
                     <div onClick={() => setExpandedLog(open ? null : l.id)}
@@ -147,11 +146,11 @@ export function AIConsole() {
                     {open && (
                       <div style={{ padding: '6px 8px', marginBottom: 4, marginLeft: 8, background: 'var(--md-sys-color-surface-container-high)', borderRadius: 4, fontSize: 10, overflow: 'auto', borderLeft: '2px solid var(--md-sys-color-outline-variant)' }}>
                         {l.type === 'request' && <>
-                          {l.system && <div style={{ marginBottom: 4 }}><div style={{ color: '#60a5fa', fontWeight: 600, marginBottom: 2 }}>SYSTEM:</div><pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text-secondary)', fontFamily: 'monospace', fontSize: 9 }}>{l.system}</pre></div>}
-                          {l.user && <div><div style={{ color: '#f59e0b', fontWeight: 600, marginBottom: 2 }}>USER:</div><pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text-secondary)', fontFamily: 'monospace', fontSize: 9 }}>{l.user}</pre></div>}
+                          {l.system && <div style={{ marginBottom: 4 }}><div style={{ color: 'var(--color-primary)', fontWeight: 600, marginBottom: 2 }}>SYSTEM:</div><pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text-secondary)', fontFamily: 'monospace', fontSize: 9 }}>{l.system}</pre></div>}
+                          {l.user && <div><div style={{ color: 'var(--color-warning)', fontWeight: 600, marginBottom: 2 }}>USER:</div><pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text-secondary)', fontFamily: 'monospace', fontSize: 9 }}>{l.user}</pre></div>}
                         </>}
                         {l.type === 'response' && l.content && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text)', fontFamily: 'monospace', fontSize: 9 }}>{l.content}</pre>}
-                        {l.type === 'error' && l.error && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: '#f87171', fontFamily: 'monospace', fontSize: 9 }}>{l.error}</pre>}
+                        {l.type === 'error' && l.error && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--color-destructive)', fontFamily: 'monospace', fontSize: 9 }}>{l.error}</pre>}
                         {l.type === 'chunk' && l.content && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text)', fontFamily: 'monospace', fontSize: 9 }}>{l.content}</pre>}
                       </div>
                     )}

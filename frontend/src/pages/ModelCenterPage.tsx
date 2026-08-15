@@ -15,17 +15,17 @@ import { VoiceSection } from './modelcenter/VoiceSection'
 import { EngineSection } from './modelcenter/EngineSection'
 import { SpecialtySection } from './modelcenter/SpecialtySection'
 import { OverviewSection } from './modelcenter/OverviewSection'
-import { ResourceMonitor } from './modelcenter/ResourceMonitor'
 import { HerdsmanCatalogSection } from './modelcenter/HerdsmanCatalogSection'
 import { BenchmarkSection } from './modelcenter/BenchmarkSection'
 import { RetrievalEvalSection } from './modelcenter/RetrievalEvalSection'
 import { SchedulingSection } from './modelcenter/SchedulingSection'
+import { InspectorPanel } from './modelcenter/InspectorPanel'
 import { useEngineState } from './modelcenter/hooks/useEngineState'
 import { useStatsState } from './modelcenter/hooks/useStatsState'
 import { useImageState } from './modelcenter/hooks/useImageState'
 import { useVoiceState } from './modelcenter/hooks/useVoiceState'
 import { useBindState } from './modelcenter/hooks/useBindState'
-import { type Category } from './modelcenter/utils'
+import { FEATURES, type Category } from './modelcenter/utils'
 import './modelcenter/modelcenter.css'
 
 /** 订阅 runtime 事件并返回退订函数（原生 runtime 返回退订；HTTP polyfill 返回 void，安全兜底） */
@@ -39,6 +39,11 @@ function runtimeOn(event: string, handler: (data: unknown) => void): (() => void
   }
 }
 
+// gaea 3.0「引擎控制台」：3 分区工作台（§2.7）——
+// 左 = 分类导航栏（v3-panel，激活项 = 主色容器 + 光条 + 光晕 orb）；
+// 中 = 主区（KPI 卡行 + 引擎卡网格，各 Section 渲染）；
+// 右 = 统计/资源检查器（v3-panel，可折叠，InspectorPanel）。
+// 头部收敛为细条：板块名已在左侧指挥轨道/面包屑，仅保留账号连接状态与必要操作。
 const ModelCenterPage: React.FC = () => {
   const { loggedIn, login, logout } = useAppStore()
   // T6-6.4：顶层仅保留全局状态（分类/统计抽屉/登录中），
@@ -54,10 +59,10 @@ const ModelCenterPage: React.FC = () => {
   const voice = useVoiceState()
   const bind = useBindState(engine.engines)
 
-  // 模型中心左侧分类切换后，把外层滚动容器回到顶部，避免上一分类的滚动位置
+  // 模型中心左侧分类切换后，把主区滚动容器回到顶部，避免上一分类的滚动位置
   // 残留，导致功能绑定等页面顶部的控件落在可视区域外、看起来像下拉框点不开。
   useEffect(() => {
-    const scroller = document.querySelector('.ant-layout-content')
+    const scroller = document.querySelector<HTMLElement>('.mc-main') || document.querySelector<HTMLElement>('.ant-layout-content')
     if (scroller && typeof scroller.scrollTo === 'function') {
       scroller.scrollTo({ top: 0, behavior: 'auto' })
     }
@@ -148,50 +153,41 @@ const ModelCenterPage: React.FC = () => {
     { key: 'engine', icon: <SettingOutlined />, label: '引擎管理' },
   ]
 
-  const navTab = (tab: { key: Category; icon: React.ReactNode; label: string }) => (
-    <button
-      type="button"
-      key={tab.key}
-      className={`mc-tab${category === tab.key ? ' is-active' : ''}`}
-      aria-selected={category === tab.key}
-      onClick={() => setCategory(tab.key)}
-    >
-      {tab.icon}
-      <span>{tab.label}</span>
-    </button>
-  )
+  // 左栏「绑定状态」摘要：已绑定（引擎+模型齐全）的功能数
+  const boundFeatures = FEATURES.filter(f => {
+    const c = bind.featureCfg[f.key]
+    return !!c?.engine && !!c?.model
+  }).length
 
   if (engine.loading) {
     return (
       <div className="mc-page">
-        <div className="mc-header">
-          <div className="mc-title-row">
-            <div className="mc-eyebrow"><ThunderboltOutlined /> Model Center</div>
-            <h1 className="mc-title">模型引擎中心</h1>
-            <p className="mc-subtitle">正在读取引擎、模型和调用统计</p>
+        <div className="mc-skeleton" style={{ height: 34 }} />
+        <div className="mc-workbench">
+          <div className="v3-panel mc-rail">
+            <div className="mc-skeleton" style={{ height: 300 }} />
+          </div>
+          <div className="mc-main">
+            <div className="mc-skeleton" style={{ height: 52 }} />
+            <div className="mc-skeleton" style={{ height: 120 }} />
+            <div className="mc-skeleton" style={{ height: 220 }} />
           </div>
         </div>
-        <div className="mc-skeleton" style={{ height: 56 }} />
-        <div className="mc-skeleton" style={{ height: 46 }} />
-        <div className="mc-skeleton" style={{ height: 260 }} />
       </div>
     )
   }
 
   return (
     <div className="mc-page">
+      {/* 细条头部：板块名已在左侧指挥轨道/面包屑，仅保留账号连接状态与必要操作 */}
       <header className="mc-header">
-        <div className="mc-title-row">
-          <div className="mc-eyebrow"><ThunderboltOutlined /> Model Center</div>
-          <h1 className="mc-title">模型引擎中心</h1>
-          <p className="mc-subtitle">统一管理云端与本地引擎、模型路由、语音/图片/专业模型与调用统计。</p>
-        </div>
+        <span className={`mc-account${loggedIn ? ' is-online' : ''}`}>
+          {loggedIn ? <CheckCircleOutlined /> : <LoginOutlined />}
+          {loggedIn ? 'xAI 已连接' : '未登录 xAI'}
+        </span>
         <div className="mc-header-actions">
           {loggedIn ? (
-            <>
-              <span className="mc-account is-online"><CheckCircleOutlined /> xAI 已连接</span>
-              <Button size="small" icon={<LogoutOutlined />} onClick={() => logout()}>退出</Button>
-            </>
+            <Button size="small" icon={<LogoutOutlined />} onClick={() => logout()}>退出</Button>
           ) : (
             <Button
               size="small"
@@ -214,42 +210,78 @@ const ModelCenterPage: React.FC = () => {
               登录 xAI
             </Button>
           )}
-          <Button icon={<BarChartOutlined />} onClick={() => setStatsOpen(true)}>调用统计</Button>
-          <Button icon={<ReloadOutlined />} onClick={engine.loadAll}>刷新状态</Button>
+          <Button size="small" icon={<BarChartOutlined />} onClick={() => setStatsOpen(true)}>详细统计</Button>
+          <Button size="small" icon={<ReloadOutlined />} onClick={engine.loadAll}>刷新状态</Button>
         </div>
       </header>
 
-      <ResourceMonitor />
-
-      <nav className="mc-tabs" aria-label="模型中心导航">
-        {TABS.map(navTab)}
-      </nav>
-
       <ModelCenterContext.Provider value={ctx}>
-        {category === 'overview' && <OverviewSection />}
-        {category === 'llm' && <LLMSection />}
-        {category === 'image' && <ImageSection />}
-        {category === 'tts' && <VoiceSection />}
-        {category === 'specialty' && <SpecialtySection />}
-        {category === 'catalog' && <HerdsmanCatalogSection />}
-        {category === 'benchmark' && <BenchmarkSection />}
-        {category === 'retrieval' && <RetrievalEvalSection />}
-        {category === 'engine' && (
-          <>
-            <SchedulingSection />
-            <EngineSection />
-          </>
-        )}
-        {category === 'bind' && <BindSection />}
-        <Drawer
-          title="模型调用统计"
-          open={statsOpen}
-          onClose={() => setStatsOpen(false)}
-          width={860}
-          styles={{ body: { padding: 0 } }}
-        >
-          <StatsSection />
-        </Drawer>
+        <div className="mc-workbench">
+          {/* 左：分类导航栏（v3-panel；激活项 = 主色容器 + 左缘光条 + 光晕 orb） */}
+          <nav className="v3-panel mc-rail" aria-label="引擎控制台分类导航">
+            <div className="v3-panel-head">
+              <span className="v3-panel-title">引擎控制台</span>
+            </div>
+            <div className="mc-rail-nav">
+              {TABS.map(tab => (
+                <button
+                  type="button"
+                  key={tab.key}
+                  className={`mc-rail-item${category === tab.key ? ' is-active' : ''}`}
+                  aria-selected={category === tab.key}
+                  onClick={() => setCategory(tab.key)}
+                >
+                  <span className="mc-rail-icon" aria-hidden="true">{tab.icon}</span>
+                  <span className="mc-rail-label">{tab.label}</span>
+                  <span className="mc-rail-orb" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <div className="mc-rail-foot">
+              <span className="mc-rail-foot-title">功能绑定</span>
+              <button
+                type="button"
+                className="mc-rail-foot-item"
+                onClick={() => setCategory('bind')}
+                aria-label={`查看功能绑定，${boundFeatures} / ${FEATURES.length} 已绑定`}
+              >
+                <span className="mc-rail-foot-dot" aria-hidden="true" />
+                {boundFeatures} / {FEATURES.length} 已绑定
+              </button>
+            </div>
+          </nav>
+
+          {/* 中：主区（各分类 Section：KPI 卡行 + 引擎卡网格等） */}
+          <main className="mc-main" aria-label="引擎控制台内容">
+            {category === 'overview' && <OverviewSection />}
+            {category === 'llm' && <LLMSection />}
+            {category === 'image' && <ImageSection />}
+            {category === 'tts' && <VoiceSection />}
+            {category === 'specialty' && <SpecialtySection />}
+            {category === 'catalog' && <HerdsmanCatalogSection />}
+            {category === 'benchmark' && <BenchmarkSection />}
+            {category === 'retrieval' && <RetrievalEvalSection />}
+            {category === 'engine' && (
+              <>
+                <SchedulingSection />
+                <EngineSection />
+              </>
+            )}
+            {category === 'bind' && <BindSection />}
+            <Drawer
+              title="模型调用统计"
+              open={statsOpen}
+              onClose={() => setStatsOpen(false)}
+              width={860}
+              styles={{ body: { padding: 0 } }}
+            >
+              <StatsSection />
+            </Drawer>
+          </main>
+
+          {/* 右：统计/资源检查器（v3-panel，可折叠） */}
+          <InspectorPanel />
+        </div>
       </ModelCenterContext.Provider>
     </div>
   )

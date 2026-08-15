@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
-import { ChevronRight, Brain, Wand2 } from "../icons";
+import { ChevronRight, Brain, FileText, Rollback, Wand2 } from "../icons";
 import { app } from "../lib/bridge";
 import { MemoMarkdown } from "./MemoMarkdown";
 import { useT } from "../lib/i18n";
@@ -55,10 +55,7 @@ function InlineAttachment({ path }: { path: string }) {
       title={`点击预览 ${path}`}
       className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-bg-soft border border-border-soft text-fg-dim text-[11px] font-mono mx-0.5 cursor-pointer hover:border-accent/40 hover:text-fg transition-colors"
     >
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent shrink-0">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-      </svg>
+      <FileText size={11} className="text-accent shrink-0" />
       {fileName}
     </button>
   );
@@ -113,7 +110,7 @@ export const UserMessage = memo(function UserMessage({
     <div className="flex justify-end my-2 group" data-entrance={turn != null ? `u${turn}` : undefined}>
       <div className={`flex items-start gap-2 max-w-[85%] ${compact ? "min-w-[120px]" : "min-w-[160px]"}`}>
         <div className="flex-1">
-          <div className={`rounded-2xl rounded-br-md px-3.5 py-2 bg-accent/10 border border-accent/15 ${
+          <div className={`rounded-2xl rounded-br-md px-3.5 py-2 bg-accent/10 border border-accent/20 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--accent)_14%,transparent)] ${
             compact ? "text-[13px]" : "text-[14px]"
           } text-fg leading-relaxed`}>
             {textParts.map((part, i) => {
@@ -128,7 +125,8 @@ export const UserMessage = memo(function UserMessage({
                 onClick={onToggle}
                 title={t("rewind.label")}
               >
-                ⟲ 回退
+                <Rollback size={10} className="inline-block -mt-px mr-0.5" aria-hidden />
+                回退
               </button>
               {open && (
                 <div className="absolute bottom-full right-0 mb-1 z-30 min-w-[140px] py-1 bg-bg-elev-2 border border-border rounded-lg" style={{boxShadow: "var(--ds-shadow-dropdown)"}}>
@@ -145,7 +143,7 @@ export const UserMessage = memo(function UserMessage({
             </div>
           )}
         </div>
-        <span className="shrink-0 w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center text-accent mt-0.5">
+        <span className="shrink-0 w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center text-accent mt-0.5 shadow-[0_0_10px_color-mix(in_srgb,var(--accent)_16%,transparent)]">
           <UserAvatar size={14} />
         </span>
       </div>
@@ -200,12 +198,15 @@ export const AssistantMessage = memo(function AssistantMessage({
               <button
                 type="button"
                 className={`flex items-center gap-1.5 w-full px-2.5 py-1 rounded-lg border transition-colors ${
-                  reasoningOpen ? "border-accent/20 bg-accent/5" : "border-transparent hover:bg-bg-soft"
+                  reasoningOpen
+                    ? "border-accent/20 bg-accent/5 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--accent)_10%,transparent)]"
+                    : "border-transparent hover:bg-bg-soft"
                 } text-fg-faint text-[11px] cursor-pointer`}
                 onClick={toggleReasoning}
                 aria-expanded={reasoningOpen}
               >
                 <Brain size={13} className="flex-shrink-0" />
+                {reasoningRunning && <span aria-hidden className="w-1 h-1 rounded-full bg-accent animate-pulse shadow-[0_0_6px_var(--accent)] shrink-0" />}
                 <span className="font-medium">{reasoningRunning ? t("msg.thinkingRunning") : t("msg.thinking")}</span>
                 <span className="text-fg-faint/50 text-[10px] ml-auto tabular-nums">
                   {reasoningRunning
@@ -218,7 +219,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                 />
               </button>
               <div ref={reasoningBodyRef} style={{ overflow: "hidden" }}>
-                <div className={`mt-1 px-2.5 py-1.5 border-l-2 border-accent/20 ml-1 text-fg-dim/80 text-[11px] leading-relaxed whitespace-pre-wrap ${
+                <div className={`mt-1 px-2.5 py-1.5 border-l-2 border-accent/25 ml-1 text-fg-dim/80 text-[11px] leading-relaxed whitespace-pre-wrap ${
                   compact ? "max-h-[160px] overflow-y-auto" : ""
                 }`}>
                   {reasoningDisplay}
@@ -231,6 +232,10 @@ export const AssistantMessage = memo(function AssistantMessage({
           {item.text && (
             <div className="min-w-0">
               <MemoMarkdown text={item.text} streaming={streaming} />
+              {/* 流式光标：生成中闪烁的细光标（reduced-motion 下全局动画关停 → 静态） */}
+              {streaming && (
+                <span aria-hidden className="inline-block w-[2px] h-[1.05em] align-text-bottom ml-0.5 rounded-full bg-accent/80 animate-pulse" />
+              )}
             </div>
           )}
           {/* 交付物附件卡片：正文中的文件引用渲染成可点击预览卡片 */}

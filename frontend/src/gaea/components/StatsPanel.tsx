@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, TrendingUp, Zap } from "../icons";
+import { ArrowDown, ArrowUp, BarChart3, TrendingUp, Wallet, Zap } from "../icons";
 import type { WireUsage } from "../lib/types";
 import { aggSteps, colFromUsage, hitRateColor, type StepRecord, type ColStats } from "../lib/stats";
 import { TrendChart, type TrendPoint } from "./TrendChart";
@@ -359,25 +359,25 @@ function TokenTrendChart({ history }: { history: TurnRecord[] }) {
           <TrendingUp size={11} className="inline mr-1 align-middle" />
           Token 趋势 (最近 {recent.length} 轮)
         </div>
-        <div className="flex items-center gap-3 text-[9px] text-fg-faint">
-          <span className="flex items-center gap-1"><span className="w-2 h-0.5 rounded" style={{background:"#22d3ee"}} />输入</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-0.5 rounded" style={{background:"#fb923c"}} />输出</span>
+        <div className="flex items-center gap-3 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+          <span className="flex items-center gap-1"><span className="w-2 h-0.5 rounded" style={{ background: "var(--v3-telemetry)" }} />输入</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-0.5 rounded" style={{ background: "var(--md-sys-color-warning)" }} />输出</span>
         </div>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
         {pYLabels.map(([_val, label], i) => {
           const y = padT + plotH - (i / (pYLabels.length - 1)) * plotH;
-          return (<g key={`py${i}`}><line x1={padL} y1={y} x2={W - padR} y2={y} stroke="var(--border-soft)" strokeWidth={0.5} /><text x={padL - 4} y={y + 3} fontSize={9} fill="#22d3ee" textAnchor="end">{label}</text></g>);
+          return (<g key={`py${i}`}><line x1={padL} y1={y} x2={W - padR} y2={y} stroke="var(--md-sys-color-outline-variant)" strokeWidth={0.5} /><text x={padL - 4} y={y + 3} fontSize={9} fill="var(--v3-telemetry)" textAnchor="end">{label}</text></g>);
         })}
         {cYLabels.map(([_val, label], i) => {
           const y = padT + plotH - (i / (cYLabels.length - 1)) * plotH;
-          return (<g key={`cy${i}`}><text x={W - padR + 4} y={y + 3} fontSize={9} fill="#fb923c" textAnchor="start">{label}</text></g>);
+          return (<g key={`cy${i}`}><text x={W - padR + 4} y={y + 3} fontSize={9} fill="var(--md-sys-color-warning)" textAnchor="start">{label}</text></g>);
         })}
-        <path d={pPath} fill="none" stroke="#22d3ee" strokeWidth={2} strokeLinejoin="round" />
-        {pPoints.map((p, i) => (<circle key={"p"+i} cx={p.x} cy={p.y} r={2} fill="#22d3ee"><title>{p.label}</title></circle>))}
-        <path d={cPath} fill="none" stroke="#fb923c" strokeWidth={2} strokeLinejoin="round" />
-        {cPoints.map((p, i) => (<circle key={"c"+i} cx={p.x} cy={p.y} r={2} fill="#fb923c"><title>{p.label}</title></circle>))}
-        {xLabels.map((xl, i) => (<text key={i} x={xl.at} y={H - 3} fontSize={9} fill="var(--fg-faint)" textAnchor="middle">{xl.text}</text>))}
+        <path d={pPath} fill="none" stroke="var(--v3-telemetry)" strokeWidth={2} strokeLinejoin="round" />
+        {pPoints.map((p, i) => (<circle key={"p"+i} cx={p.x} cy={p.y} r={2} fill="var(--v3-telemetry)"><title>{p.label}</title></circle>))}
+        <path d={cPath} fill="none" stroke="var(--md-sys-color-warning)" strokeWidth={2} strokeLinejoin="round" />
+        {cPoints.map((p, i) => (<circle key={"c"+i} cx={p.x} cy={p.y} r={2} fill="var(--md-sys-color-warning)"><title>{p.label}</title></circle>))}
+        {xLabels.map((xl, i) => (<text key={i} x={xl.at} y={H - 3} fontSize={9} fill="var(--md-sys-color-text-secondary)" textAnchor="middle">{xl.text}</text>))}
       </svg>
     </div>
   );
@@ -427,17 +427,51 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
   const lastStep = stepHistory[stepHistory.length - 1];
   const hasAnyData = history.length > 0 || stepHistory.length > 0;
 
+  // KPI 卡行数据（v3-card 高光线；命中率用 toFixed(1) 与明细表的两位小数区分）
+  const totalTokens = sessTotal.prompt + sessTotal.completion;
+  const hitTotal = sessTotal.cacheHit + sessTotal.cacheMiss;
+  const hitPct = hitTotal > 0 ? (sessTotal.cacheHit / hitTotal) * 100 : 0;
+  const kpiCards = [
+    { icon: <BarChart3 size={13} aria-hidden />, label: "轮次", value: String(history.length) },
+    { icon: <TrendingUp size={13} aria-hidden />, label: "Token", value: tk(totalTokens) },
+    { icon: <Wallet size={13} aria-hidden />, label: "成本", value: `¥${sessTotal.cost.toFixed(2)}` },
+    { icon: <Zap size={13} aria-hidden />, label: "命中率", value: hitTotal > 0 ? `${hitPct.toFixed(1)}%` : "—" },
+  ];
+
   return (
     <div className="flex flex-col h-full overflow-y-auto">
 
       {!hasAnyData ? (
-        <div className="flex flex-col items-center justify-center gap-2 flex-1 text-fg-faint">
-          <BarChart3 size={32} className="opacity-30" />
+        <div className="flex flex-col items-center justify-center gap-2 flex-1" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+          <BarChart3 size={32} aria-hidden className="opacity-30" />
           <span className="text-[12px]">暂无统计数据</span>
           <span className="text-[10px] opacity-60">发起对话后自动开始记录</span>
         </div>
       ) : (
       <div className="flex flex-col gap-0 p-3 overflow-y-auto">
+
+        {/* ── KPI 卡行：v3-card 高光线（实底、顶部 1px 内高光） ── */}
+        <div className="grid grid-cols-4 gap-1.5 mb-2">
+          {kpiCards.map((k) => (
+            <div
+              key={k.label}
+              className="rounded-[var(--radius-md)] px-2 py-1.5 min-w-0"
+              style={{
+                background: "var(--md-sys-color-surface-container)",
+                border: "1px solid var(--md-sys-color-outline-variant)",
+                boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 6%, transparent)",
+              }}
+            >
+              <div className="flex items-center gap-1 mb-0.5" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                <span className="shrink-0" style={{ color: "var(--gaea-glow)" }}>{k.icon}</span>
+                <span className="text-[9px] font-semibold uppercase tracking-wider truncate">{k.label}</span>
+              </div>
+              <div className="font-mono tabular-nums text-[13px] font-bold truncate" style={{ color: "var(--md-sys-color-text)" }}>
+                {k.value}
+              </div>
+            </div>
+          ))}
+        </div>
 
         {/* ── 会话级统计表格 ── */}
         <div className="cursor-pointer select-none" onClick={() => setSessionExpanded(!sessionExpanded)}>
@@ -447,8 +481,16 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
             collapsed={!sessionExpanded}
           />
         </div>
-        {sessionExpanded && (<div className="text-[10px] text-fg-faint text-center -mt-2 mb-1">▲ 点击收起明细</div>)}
-        {!sessionExpanded && (<div className="text-[10px] text-fg-faint text-center -mt-2 mb-1">▼ 点击展开明细</div>)}
+        {sessionExpanded && (
+          <div className="text-[10px] text-center -mt-2 mb-1 inline-flex items-center justify-center gap-0.5" style={{ color: "var(--md-sys-color-text-secondary)", width: "100%" }}>
+            <ArrowUp size={9} aria-hidden /> 点击收起明细
+          </div>
+        )}
+        {!sessionExpanded && (
+          <div className="text-[10px] text-center -mt-2 mb-1 inline-flex items-center justify-center gap-0.5" style={{ color: "var(--md-sys-color-text-secondary)", width: "100%" }}>
+            <ArrowDown size={9} aria-hidden /> 点击展开明细
+          </div>
+        )}
 
         {/* ── 本轮级统计表格 ── */}
 
@@ -457,8 +499,16 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
             <div className="cursor-pointer select-none" onClick={() => setTurnExpanded(!turnExpanded)}>
               <StatsTable title={`本轮 (${turnSteps?.length || 0}步)`} executor={turnExecutor} sub={turnSub} total={turnTotal} collapsed={!turnExpanded} />
             </div>
-            {turnExpanded && (<div className="text-[10px] text-fg-faint text-center -mt-2 mb-1">▲ 点击收起明细</div>)}
-            {!turnExpanded && (<div className="text-[10px] text-fg-faint text-center -mt-2 mb-1">▼ 点击展开明细</div>)}
+            {turnExpanded && (
+              <div className="text-[10px] text-center -mt-2 mb-1 inline-flex items-center justify-center gap-0.5" style={{ color: "var(--md-sys-color-text-secondary)", width: "100%" }}>
+                <ArrowUp size={9} aria-hidden /> 点击收起明细
+              </div>
+            )}
+            {!turnExpanded && (
+              <div className="text-[10px] text-center -mt-2 mb-1 inline-flex items-center justify-center gap-0.5" style={{ color: "var(--md-sys-color-text-secondary)", width: "100%" }}>
+                <ArrowDown size={9} aria-hidden /> 点击展开明细
+              </div>
+            )}
           </>
         )}
 
@@ -491,10 +541,10 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
         )}
 
         {/* ── 命中率趋势（执行）── */}
-        <HitRateTrend steps={executorSteps} title="命中率趋势 · 执行模型" color="#3b82f6" callCount={executorSteps.length} />
+        <HitRateTrend steps={executorSteps} title="命中率趋势 · 执行模型" color="var(--v3-telemetry)" callCount={executorSteps.length} />
 
         {/* ── 命中率趋势（子代理）── */}
-        <HitRateTrend steps={subSteps} title={`命中率趋势 · ${subagentModel || "子代理"}`} color="var(--warn)" callCount={subSteps.length} />
+        <HitRateTrend steps={subSteps} title={`命中率趋势 · ${subagentModel || "子代理"}`} color="var(--md-sys-color-warning)" callCount={subSteps.length} />
 
         {/* ── Token 趋势 ── */}
         {history.length > 1 && <TokenTrendChart history={history} />}
@@ -537,7 +587,15 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
 
         {/* 清空按钮 */}
         <div className="flex justify-end pb-1">
-          <button className="text-[10px] px-1.5 py-0.5 border border-border-soft rounded bg-transparent text-fg-faint cursor-pointer hover:text-err hover:border-err transition-colors" onClick={clearData} title="清空统计">
+          <button
+            className="text-[10px] px-1.5 py-0.5 rounded bg-transparent cursor-pointer transition-colors hover:bg-[color:color-mix(in_srgb,var(--md-sys-color-destructive)_10%,transparent)]"
+            style={{
+              border: "1px solid var(--md-sys-color-outline-variant)",
+              color: "var(--md-sys-color-text-secondary)",
+            }}
+            onClick={clearData}
+            title="清空统计"
+          >
             清空统计
           </button>
         </div>

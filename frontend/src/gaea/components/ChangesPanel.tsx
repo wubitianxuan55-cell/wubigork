@@ -5,6 +5,7 @@ import type { SessionChange } from "../lib/changes";
 // ── 文件变更面板（Kun 可观察性精华）─────────────────────────────────
 // 汇总本会话中 Agent 写/改过的文件（write_file / edit_file / move_file 等），
 // 点击行直接打开预览，方便验收前快速核对改动范围。
+// v3「星枢」面板语言：v3-panel-head 细条头部；行 hover 柔光、图标/计数走令牌。
 
 function relPath(path: string, cwd?: string): string {
   const p = path.replace(/\\/g, "/");
@@ -28,11 +29,23 @@ export function ChangesPanel({
   if (changes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-        <span className="w-10 h-10 rounded-xl bg-accent/8 border border-accent/15 text-accent flex items-center justify-center mb-3">
-          <Diff size={18} />
+        <span
+          className="w-10 h-10 rounded-[var(--radius-md)] flex items-center justify-center mb-3"
+          style={{
+            background: "color-mix(in srgb, var(--gaea-glow) 9%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--gaea-glow) 20%, transparent)",
+            color: "var(--gaea-glow)",
+          }}
+        >
+          <Diff size={18} aria-hidden />
         </span>
-        <div className="text-fg-dim text-[12.5px] font-medium">本会话暂无文件变更</div>
-        <div className="text-fg-faint text-[11px] mt-1 leading-snug max-w-[220px]">
+        <div className="text-(color:--md-sys-color-text-secondary) text-[12.5px] font-medium">
+          本会话暂无文件变更
+        </div>
+        <div
+          className="mt-1 text-[11px] leading-snug max-w-[220px]"
+          style={{ color: "var(--md-sys-color-text-secondary)" }}
+        >
           Agent 写入或修改工作区文件后，会在这里汇总，点击可打开预览
         </div>
       </div>
@@ -40,34 +53,60 @@ export function ChangesPanel({
   }
   return (
     <div className="flex flex-col py-1">
-      <div className="flex items-center gap-1.5 px-3 pt-1.5 pb-2 text-fg-faint text-[11px] font-medium tracking-[0.02em]">
-        <Diff size={12} className="text-accent" />
-        文件变更
-        <span className="ml-auto font-mono text-[10px] text-fg-faint/60">
+      {/* v3 细条头部：标题 + 汇总计数 */}
+      <div className="v3-panel-head">
+        <Diff size={12} aria-hidden style={{ color: "var(--gaea-glow)" }} />
+        <span className="v3-panel-title">文件变更</span>
+        <span className="v3-panel-spacer" />
+        <span className="font-mono text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
           {changes.length} 个文件 · {totalChanges} 次
         </span>
       </div>
-      <div className="flex flex-col gap-px">
+      <div className="flex flex-col gap-px px-1.5 pt-1.5 pb-1">
         {sorted.map((c) => {
           const name = c.path.split(/[\\/]/).filter(Boolean).pop() || c.path;
           const rel = relPath(c.path, cwd);
           return (
             <button
               key={c.path}
-              className="group flex items-center gap-2.5 px-3 py-2 text-left rounded-lg bg-transparent border-0 cursor-pointer transition-colors hover:bg-sidebar-hover"
+              className="group flex items-center gap-2.5 px-2.5 py-2 text-left rounded-[var(--radius-md)] border border-transparent bg-transparent cursor-pointer transition-all duration-200 hover:bg-(color:--md-sys-color-surface-container-high) hover:shadow-[var(--v3-glow-faint)]"
               onClick={() => onOpenFile(c.path)}
               title={`打开 ${rel}`}
+              aria-label={`打开 ${rel}`}
             >
-              <span className="w-7 h-7 rounded-md bg-bg-soft/70 border border-border-soft text-fg-faint flex items-center justify-center shrink-0 group-hover:text-accent group-hover:border-accent/25 transition-colors">
-                <FileText size={13} />
+              <span
+                className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-colors"
+                style={{
+                  background: "color-mix(in srgb, var(--gaea-glow) 8%, transparent)",
+                  border: "1px solid var(--md-sys-color-outline-variant)",
+                  color: "var(--md-sys-color-text-secondary)",
+                }}
+              >
+                <FileText size={13} aria-hidden />
               </span>
               <span className="min-w-0 flex-1">
-                <span className={`block truncate text-fg-dim font-medium ${compact ? "text-[11.5px]" : "text-[12.5px]"}`}>
+                <span
+                  className={`block truncate text-fg-dim font-medium ${
+                    compact ? "text-[11.5px]" : "text-[12.5px]"
+                  }`}
+                >
                   {name}
                 </span>
-                <span className="block truncate text-fg-faint/70 font-mono text-[10px]">{rel}</span>
+                <span
+                  className="block truncate font-mono text-[10px]"
+                  style={{ color: "var(--md-sys-color-text-secondary)" }}
+                >
+                  {rel}
+                </span>
               </span>
-              <span className="shrink-0 rounded-full bg-accent/10 text-accent font-mono text-[10px] px-1.5 py-px">
+              <span
+                className="shrink-0 rounded-full font-mono text-[10px] px-1.5 py-px"
+                style={{
+                  background: "color-mix(in srgb, var(--gaea-glow) 10%, transparent)",
+                  color: "var(--gaea-glow)",
+                  border: "1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent)",
+                }}
+              >
                 {c.count} 次
               </span>
             </button>

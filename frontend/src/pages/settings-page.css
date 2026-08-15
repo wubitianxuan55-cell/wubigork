@@ -1,160 +1,241 @@
-/* 设置中心重设计：二级分类磁贴平铺在顶部 + 内容区（与其他功能板块一致的横向二级导航） */
+/* ═══════════════════════════════════════════════════════════════════
+   设置中心「控制室」— 3 分区工作台（§2.9）
+   细条头部（控制室标识 + 全局搜索 + 帮助开关）
+   左 = 分类导航（v3-panel，激活项主色容器 + 左缘光条，替代磁贴）
+   中 = 表单区（v3-zone，v3-card 分组卡片）
+   右 = 预留 inspector（帮助说明，可隐藏）
+   令牌纪律：仅消费 --md-sys-* / --gaea-* / --color-* / --v3-*，零硬编码色值。
+   ═══════════════════════════════════════════════════════════════════ */
+
 .settings-page {
   width: 100%;
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 20px 24px 48px;
-  min-height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 10px;
+  padding: 10px 2px 2px;
 }
 
-/* ── 页头：标题 + 全局搜索 ── */
-.settings-page__header {
+/* ── 细条头部 ── */
+.settings-bar {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.settings-page__title {
-  display: inline-flex;
   align-items: center;
-  gap: 9px;
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--md-sys-color-text);
+  gap: 12px;
+  min-height: 40px;
+  padding: 2px 2px 0;
 }
 
-.settings-page__title::before {
-  content: '';
-  width: 9px;
-  height: 9px;
+.settings-bar__context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-bar__glow {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--gaea-glow);
   box-shadow: 0 0 10px var(--gaea-glow);
+  flex-shrink: 0;
 }
 
-.settings-page__subtitle {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--md-sys-color-text-secondary);
+.settings-bar__title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--color-text);
+  white-space: nowrap;
 }
 
+.settings-bar__hint {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-bar__spacer {
+  flex: 1;
+}
+
+.settings-bar__toggle {
+  color: var(--color-text-secondary);
+}
+
+.settings-bar__toggle:hover {
+  color: var(--color-text);
+  background: var(--color-surface-container-high);
+}
+
+.settings-bar__toggle.is-active {
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+}
+
+/* 搜索框：玻璃底 + 聚焦光晕（焦点环沿用 antd 3px ring） */
 .settings-page__search {
-  width: 240px;
+  width: 250px;
 }
 
-/* ── 二级分类磁贴：平铺在顶部，内容滚动时吸顶保持可切换 ── */
-.settings-tiles {
-  position: sticky;
-  top: 6px;
-  z-index: 10;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
-  gap: 8px;
-  padding: 10px;
-  border-radius: var(--md-sys-radius-lg);
+.settings-page__search.ant-input-affix-wrapper {
   background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
   border: 1px solid var(--md-sys-color-outline-variant);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  backdrop-filter: blur(20px) saturate(140%);
-  box-shadow: 0 8px 28px color-mix(in srgb, var(--gaea-glow) 10%, transparent);
+  border-radius: var(--radius-md, 10px);
+  transition: border-color var(--md-sys-transition-fast, 200ms),
+    box-shadow var(--md-sys-transition-fast, 200ms);
 }
 
-.settings-tile {
-  position: relative;
+.settings-page__search.ant-input-affix-wrapper:hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 40%, transparent);
+}
+
+.settings-page__search.ant-input-affix-wrapper-focused,
+.settings-page__search.ant-input-affix-wrapper:focus-within {
+  border-color: color-mix(in srgb, var(--gaea-glow) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gaea-glow) 14%, transparent);
+}
+
+.settings-page__search .ant-input {
+  background: transparent;
+}
+
+.settings-page__search .ant-input-prefix {
+  color: var(--color-text-secondary);
+}
+
+/* ── 3 分区工作台 ── */
+.settings-workbench {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+/* ── 左 = 分类导航（v3-panel） ── */
+.settings-nav {
+  width: 220px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  min-width: 0;
-  padding: 11px 13px 10px;
-  border-radius: var(--md-sys-radius-md);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-nav__count {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-border);
+}
+
+.settings-nav__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scrollbar-width: thin;
+}
+
+.settings-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
   border: 1px solid transparent;
+  border-radius: var(--radius-md, 12px);
   background: transparent;
-  color: var(--md-sys-color-text-secondary);
+  color: var(--color-text-secondary);
   font-family: inherit;
   text-align: left;
   cursor: pointer;
   transition:
-    background var(--md-sys-transition-fast),
-    color var(--md-sys-transition-fast),
-    border-color var(--md-sys-transition-fast),
-    box-shadow var(--md-sys-transition-fast),
-    transform var(--md-sys-transition-fast);
+    background var(--md-sys-transition-fast, 200ms),
+    color var(--md-sys-transition-fast, 200ms),
+    box-shadow var(--md-sys-transition-fast, 200ms);
 }
 
-.settings-tile:hover {
-  background: var(--md-sys-color-surface-container-high);
-  color: var(--md-sys-color-text);
-  transform: translateY(-1px);
+.settings-nav-item:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-text);
 }
 
-.settings-tile:active {
-  transform: scale(0.97);
-}
-
-.settings-tile:focus-visible {
+.settings-nav-item:focus-visible {
   outline: 2px solid var(--gaea-glow);
-  outline-offset: 2px;
+  outline-offset: -1px;
 }
 
-.settings-tile.is-active {
-  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
-  border-color: color-mix(in srgb, var(--gaea-glow) 32%, transparent);
-  box-shadow: 0 4px 18px color-mix(in srgb, var(--gaea-glow) 22%, transparent);
-  color: var(--md-sys-color-text);
+/* 激活项：主色容器底 + 左缘 3px 光条 + 光晕 orb（呼吸 2s） */
+.settings-nav-item.is-active {
+  background: var(--color-primary-container);
+  color: var(--color-text);
+  box-shadow: var(--v3-glow-faint);
 }
 
-.settings-tile.is-active::after {
+.settings-nav-item.is-active::before {
   content: '';
   position: absolute;
-  top: 9px;
-  right: 9px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
   background: var(--gaea-glow);
-  box-shadow: 0 0 7px var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
 }
 
-.settings-tile__icon {
+.settings-nav-item__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  margin-bottom: 4px;
-  border-radius: 9px;
-  font-size: 15px;
-  color: var(--md-sys-color-text-secondary);
-  background: var(--md-sys-color-surface-variant);
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  background: var(--md-sys-color-surface-variant, var(--color-surface-container-high));
   transition:
-    color var(--md-sys-transition-fast),
-    background var(--md-sys-transition-fast),
-    box-shadow var(--md-sys-transition-fast);
+    color var(--md-sys-transition-fast, 200ms),
+    background var(--md-sys-transition-fast, 200ms),
+    box-shadow var(--md-sys-transition-fast, 200ms);
 }
 
-.settings-tile.is-active .settings-tile__icon {
+.settings-nav-item.is-active .settings-nav-item__icon {
   color: var(--gaea-glow);
   background: color-mix(in srgb, var(--gaea-glow) 14%, transparent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--gaea-glow) 25%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--gaea-glow) 22%, transparent);
 }
 
-.settings-tile__label {
+.settings-nav-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.settings-nav-item__label {
   font-size: 13px;
   font-weight: 600;
   line-height: 1.3;
   color: inherit;
 }
 
-.settings-tile__desc {
-  max-width: 100%;
-  font-size: 11px;
+.settings-nav-item__desc {
+  font-size: 10.5px;
   line-height: 1.4;
   opacity: 0.72;
   overflow: hidden;
@@ -162,9 +243,54 @@
   white-space: nowrap;
 }
 
-/* ── 内容区：切换分类时轻量入场 ── */
+.settings-nav-item__orb {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-left: auto;
+  flex-shrink: 0;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
+  opacity: 0;
+  transition: opacity var(--md-sys-transition-fast, 200ms);
+}
+
+.settings-nav-item.is-active .settings-nav-item__orb {
+  opacity: 1;
+  animation: settings-orb-breathe 2s ease-in-out infinite;
+}
+
+@keyframes settings-orb-breathe {
+  0%, 100% { box-shadow: 0 0 6px var(--gaea-glow); opacity: 0.75; }
+  50% { box-shadow: 0 0 12px var(--gaea-glow), 0 0 20px var(--gaea-glow); opacity: 1; }
+}
+
+.settings-nav__foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: var(--v3-split);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+/* ── 中 = 表单区（v3-zone） ── */
 .settings-content {
-  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 2px 24px;
+  scrollbar-width: thin;
+}
+
+.settings-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-align: center;
 }
 
 .settings-panel-enter {
@@ -181,31 +307,176 @@ html.gaea-raf-degraded .settings-panel-enter {
   animation: none !important;
 }
 
+/* ── 右 = 预留 inspector（帮助说明，可隐藏） ── */
+.settings-inspector {
+  width: 252px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.settings-inspector__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    color var(--md-sys-transition-fast, 200ms),
+    background var(--md-sys-transition-fast, 200ms);
+}
+
+.settings-inspector__close:hover {
+  color: var(--color-text);
+  background: var(--color-surface-container-high);
+}
+
+.settings-inspector__close:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 1px;
+}
+
+.settings-inspector__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+}
+
+.settings-help-card {
+  padding: 12px 14px;
+}
+
+.settings-help-card__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-help-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+}
+
+.settings-help-card__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.settings-help-card__desc {
+  margin: 8px 0 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.settings-help-card__keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-keyword {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-border);
+}
+
+.settings-help-card__title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.settings-help-card__list {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
 /* ── 窄屏适配 ── */
+@media (max-width: 1100px) {
+  .settings-nav { width: 196px; }
+  .settings-inspector { width: 224px; }
+}
+
 @media (max-width: 900px) {
-  .settings-page__header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .settings-page__search {
-    width: 100%;
-  }
+  .settings-inspector { display: none; }
+  .settings-bar__hint { display: none; }
 }
 
 @media (max-width: 720px) {
-  .settings-tiles {
-    display: flex;
+  .settings-page { padding: 8px 2px 2px; }
+  .settings-bar { flex-wrap: wrap; }
+  .settings-page__search { width: 100%; order: 3; }
+  .settings-workbench { flex-direction: column; gap: 10px; }
+  .settings-nav {
+    width: 100%;
+    flex: 0 0 auto;
+    max-height: 150px;
+  }
+  .settings-nav__list {
+    flex-direction: row;
     overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
-  .settings-tiles::-webkit-scrollbar {
-    display: none;
+  .settings-nav__list::-webkit-scrollbar { display: none; }
+  .settings-nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 132px;
   }
-  .settings-tile {
-    flex: 0 0 112px;
-  }
-  .settings-tile__desc {
-    display: none;
-  }
+  .settings-nav-item__desc { display: none; }
+  .settings-nav__foot { display: none; }
+  .settings-content { overflow: visible; }
 }
+
+/* ── reduced-motion / ui-reduced-motion 降级 ── */
+@media (prefers-reduced-motion: reduce) {
+  .settings-nav-item,
+  .settings-nav-item__icon,
+  .settings-nav-item__orb,
+  .settings-bar__toggle,
+  .settings-inspector__close,
+  .settings-page__search.ant-input-affix-wrapper { transition: none; }
+  .settings-nav-item.is-active .settings-nav-item__orb { animation: none; }
+  .settings-panel-enter { animation: none; }
+}
+
+.ui-reduced-motion .settings-nav-item,
+.ui-reduced-motion .settings-nav-item__icon,
+.ui-reduced-motion .settings-nav-item__orb,
+.ui-reduced-motion .settings-bar__toggle,
+.ui-reduced-motion .settings-inspector__close { transition: none; }
+.ui-reduced-motion .settings-nav-item.is-active .settings-nav-item__orb { animation: none; }
+.ui-reduced-motion .settings-panel-enter { animation: none; }

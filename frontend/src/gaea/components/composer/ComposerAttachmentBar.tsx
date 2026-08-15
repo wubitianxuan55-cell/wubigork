@@ -19,14 +19,11 @@ export function ComposerAttachmentBar({
   return (
     <div className="flex flex-wrap gap-1.5 px-1 pb-1.5">
       {attachments.map((a) => (
-        <div className="flex items-center gap-1.5 pl-1.5 pr-1 py-1 bg-bg-elev-2 border border-border-soft rounded-lg text-xs" key={a.path}>
+        <div className="flex items-center gap-1.5 pl-1.5 pr-1 py-1 bg-bg-elev-2/90 border border-border-soft/70 rounded-lg shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_4%,transparent)] text-xs" key={a.path}>
           {a.type === "image" ? (
             <img src={a.previewUrl} alt="" className="w-8 h-8 rounded object-cover" />
           ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-accent shrink-0">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
+            <FileText size={20} className="text-accent shrink-0" />
           )}
           <span className="max-w-[120px] truncate text-fg-dim font-mono text-[11px]">{a.path.split("/").pop()}</span>
           {a.type === "image" && (

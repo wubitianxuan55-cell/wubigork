@@ -1,11 +1,10 @@
 import React, { useMemo, useState } from 'react'
-import { Input } from 'antd'
+import { Button, Input, Tooltip } from 'antd'
 import {
   AppstoreOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   SettingOutlined, ApiOutlined, InfoCircleOutlined, SearchOutlined,
-  SafetyCertificateOutlined, DatabaseOutlined,
+  SafetyCertificateOutlined, DatabaseOutlined, QuestionCircleOutlined, CloseOutlined,
 } from '@ant-design/icons'
-import { C } from '../utils/theme'
 import './settings-page.css'
 import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, AccentPanel } from '../components/settings/AppearancePanel'
 import ChatPanel from '../components/settings/ChatPanel'
@@ -102,10 +101,12 @@ const CATEGORIES: Category[] = [
   },
 ]
 
-/** SettingsPage — 设置中心：二级分类磁贴平铺在顶部（与其他功能板块一致），支持全局搜索过滤 */
+/** SettingsPage —「控制室」3 分区工作台：细条头部 + 左分类导航 + 中表单区 + 右帮助 inspector（可隐藏）
+ *  分类导航替代原磁贴网格，激活项 = 主色容器 + 左缘光条；搜索跨分组过滤并自动切换。 */
 const SettingsPage: React.FC = () => {
   const [query, setQuery] = useState('')
   const [activeKey, setActiveKey] = useState('general')
+  const [inspectorOpen, setInspectorOpen] = useState(false)
 
   const q = query.trim().toLowerCase()
   const visible = useMemo(() => {
@@ -123,54 +124,121 @@ const SettingsPage: React.FC = () => {
 
   return (
     <div className="settings-page">
-      <header className="settings-page__header">
-        <div>
-          <h1 className="settings-page__title">设置</h1>
-          <p className="settings-page__subtitle">按功能板块整理：通用 / 聊天 / 小说 / 绘梦 / 办公 / 模型 / 关于</p>
+      {/* ── 细条头部：控制室标识 + 全局搜索 + 帮助开关 ── */}
+      <header className="settings-bar">
+        <div className="settings-bar__context">
+          <span className="settings-bar__glow" aria-hidden="true" />
+          <strong className="settings-bar__title">控制室</strong>
+          <span className="settings-bar__hint">设置中心 · {CATEGORIES.length} 个分组</span>
         </div>
+        <div className="settings-bar__spacer" />
         <Input
           allowClear
-          prefix={<SearchOutlined style={{ color: C('color-text-secondary') }} />}
+          prefix={<SearchOutlined />}
           placeholder="搜索设置项，如：主题 / 模型 / 存储"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="settings-page__search"
-          style={{
-            borderRadius: 8,
-            background: 'var(--bg-glass, var(--md-sys-color-surface-container))',
-            border: '1px solid var(--border-subtle, var(--md-sys-color-outline-variant))',
-          }}
+          aria-label="搜索设置项"
         />
+        <Tooltip title={inspectorOpen ? '隐藏帮助面板' : '显示帮助面板'}>
+          <Button
+            type="text"
+            size="small"
+            aria-label={inspectorOpen ? '隐藏帮助面板' : '显示帮助面板'}
+            className={`settings-bar__toggle${inspectorOpen ? ' is-active' : ''}`}
+            icon={<QuestionCircleOutlined />}
+            onClick={() => setInspectorOpen((v) => !v)}
+          />
+        </Tooltip>
       </header>
 
-      {/* 二级分类：平铺在顶部，滚动时吸顶保持可切换 */}
-      <nav className="settings-tiles" aria-label="设置分类">
-        {visible.map((it) => (
-          <button
-            key={it.key}
-            type="button"
-            className={`settings-tile${it.key === effectiveKey ? ' is-active' : ''}`}
-            onClick={() => setActiveKey(it.key)}
-            aria-current={it.key === effectiveKey ? 'page' : undefined}
-          >
-            <span className="settings-tile__icon">{it.icon}</span>
-            <span className="settings-tile__label">{it.label}</span>
-            <span className="settings-tile__desc">{it.desc}</span>
-          </button>
-        ))}
-      </nav>
+      {/* ── 3 分区工作台：分类导航 | 表单区 | 帮助 inspector ── */}
+      <div className="settings-workbench">
+        {/* 左 = 分类导航（竖向，替代磁贴） */}
+        <aside className="v3-panel settings-nav" aria-label="设置分类导航">
+          <div className="v3-panel-head">
+            <span className="v3-panel-title">设置分组</span>
+            <span className="v3-panel-spacer" />
+            <span className="settings-nav__count">{visible.length}</span>
+          </div>
+          <nav className="settings-nav__list">
+            {visible.map((it) => (
+              <button
+                key={it.key}
+                type="button"
+                className={`settings-nav-item${it.key === effectiveKey ? ' is-active' : ''}`}
+                onClick={() => setActiveKey(it.key)}
+                aria-current={it.key === effectiveKey ? 'page' : undefined}
+              >
+                <span className="settings-nav-item__icon" aria-hidden="true">{it.icon}</span>
+                <span className="settings-nav-item__text">
+                  <span className="settings-nav-item__label">{it.label}</span>
+                  <span className="settings-nav-item__desc">{it.desc}</span>
+                </span>
+                <span className="settings-nav-item__orb" aria-hidden="true" />
+              </button>
+            ))}
+          </nav>
+          <div className="settings-nav__foot">
+            <SearchOutlined aria-hidden="true" />
+            <span>搜索可跨分组过滤</span>
+          </div>
+        </aside>
 
-      <main className="settings-content">
-        {visible.length === 0 ? (
-          <div className="md-glass" style={{ borderRadius: 'var(--md-sys-radius-lg)', padding: '48px 20px', textAlign: 'center', color: 'var(--md-sys-color-text-secondary)' }}>
-            没有匹配的设置项，试试「主题」「模型」或「存储」
-          </div>
-        ) : (
-          <div key={effectiveKey} className="settings-panel-enter">
-            {active.panel}
-          </div>
+        {/* 中 = 表单区（v3-zone，分组卡片） */}
+        <main className="v3-zone settings-content">
+          {visible.length === 0 ? (
+            <div className="v3-card settings-empty">
+              没有匹配的设置项，试试「主题」「模型」或「存储」
+            </div>
+          ) : (
+            <div key={effectiveKey} className="settings-panel-enter">
+              {active.panel}
+            </div>
+          )}
+        </main>
+
+        {/* 右 = 预留 inspector（帮助说明，可隐藏） */}
+        {inspectorOpen && (
+          <aside className="v3-panel settings-inspector" aria-label="设置帮助面板">
+            <div className="v3-panel-head">
+              <span className="v3-panel-title">帮助</span>
+              <span className="v3-panel-spacer" />
+              <button
+                type="button"
+                className="settings-inspector__close"
+                onClick={() => setInspectorOpen(false)}
+                aria-label="关闭帮助面板"
+              >
+                <CloseOutlined />
+              </button>
+            </div>
+            <div className="settings-inspector__body">
+              <section className="v3-card settings-help-card">
+                <div className="settings-help-card__row">
+                  <span className="settings-help-card__icon" aria-hidden="true">{active.icon}</span>
+                  <span className="settings-help-card__label">当前分类：{active.label}</span>
+                </div>
+                <p className="settings-help-card__desc">{active.desc}</p>
+                <div className="settings-help-card__keywords">
+                  {active.keywords.slice(0, 8).map((k) => (
+                    <span key={k} className="settings-keyword">{k}</span>
+                  ))}
+                </div>
+              </section>
+              <section className="v3-card settings-help-card">
+                <h4 className="settings-help-card__title">操作提示</h4>
+                <ul className="settings-help-card__list">
+                  <li>左侧导航切换设置分组，当前项带主色光条</li>
+                  <li>顶部搜索可跨分组过滤设置项</li>
+                  <li>带「即时生效」标记的项保存后立刻生效</li>
+                </ul>
+              </section>
+            </div>
+          </aside>
         )}
-      </main>
+      </div>
     </div>
   )
 }

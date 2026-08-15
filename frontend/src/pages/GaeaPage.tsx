@@ -13,7 +13,7 @@ import '../gaea/redesign.css'
 function GaeaPage() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div className="v3-zone" style={{ flex: 1, minHeight: 0 }}>
         <LocaleProvider>
           <GaeaApp />
         </LocaleProvider>

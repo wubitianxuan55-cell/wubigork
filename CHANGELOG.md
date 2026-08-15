@@ -1,5 +1,42 @@
 # gaea · 多功能 AI 助手
 
+## v3.0.0「星枢 Constellation OS · UI 革命性重设计」（2026-08-15）
+> 用户指令「革命性重设计整个 UI，适配 V3.0，面板布局可调整」——ui-ux-pro-max skill 驱动 +
+> 12 个子代理并行实施。设计规格见 `docs/2026-08-15-gaea3-ui-constellation-os.md`，
+> 令牌见 `design-system/gaea/MASTER.md`（v2）。
+- **壳层革命**：顶栏横向菜单 → 左侧**指挥轨道**（icon dock，hover 展开标签、键盘方向键导航、
+  激活项 = 主色容器 + 左缘光条 + 呼吸 orb）+ 顶部**轨道条**（面包屑 / 模型 pill / 主题点 / ⌘K 搜索 / 设置）
+  + 底部**遥测轨道**（CPU/内存/GPU 实时面积 sparkline + 引擎 pods + 写作进度，可折叠展开）；
+  快捷键升级 Ctrl+1~9（MainLayout.tsx + v3/foundation.css）
+- **板块工作台革命**：10 板块统一 3 分区工作台（侧栏 zone | 主区 zone | inspector zone），
+  12 个子代理并行改造：home Mission Control（Bento 网格 + AI 状态卡）/ chat 对话驾驶舱（新增
+  上下文·人格 inspector）/ novel 世界构建工作台（轨道子导航 + 大纲树侧栏 + 属性检查器）/
+  imagegen 画廊工作台（新增历史·队列 inspector）/ gaea 办公 3 分区（会话栏|过程卡流|工具交付物）/
+  memoryhub 记忆图谱舰桥（左分类轨道 + 右详情检查器）/ modelcenter 引擎控制台（左导航 + 右统计检查器）/
+  characterlib 角色档案库（左检索栏 + 右详情检查器）/ settings 控制室（左分类导航 + 帮助面板）/
+  knowledge 知识舰桥（列表|详情|引用 3 分区）
+- **视觉升级 Luminous Glass 2.0**：`--v3-*` 令牌派生（高光线/柔光/分区线/遥测色），卡片顶部 1px
+  高光线、hover 柔光位移 ≤2px、状态三重传达；App.tsx 补齐容器色令牌 shim；零硬编码 hex、antd icons only、
+  焦点环/aria 齐全、reduced-motion 双路径降级
+- **修复**：modelcenter InspectorPanel 注释 `*/` 语法错误、ChapterPage activeTab TDZ、CharacterLibraryPage
+  回调参数类型（build 模式 tsc -b）、test/setup.ts 补 localStorage/sessionStorage polyfill（Node 25 基线）
+- **发布前打磨（T6-10.2 收官）**：
+  - 聊天：模式切换条（普通对话/角色对话）从聊天窗口上方移入全局顶栏轨道条（v3-strip）——
+    MainLayout 提供 `#v3-chatmode-host` 宿主容器（仅聊天板块显示），ChatPage 经 createPortal 渲染，
+    ChatModeBar 新增 `variant='strip'`（去横条外壳，由轨道条统一玻璃/分割线）
+  - 聊天：输入框两级重设计——工具行（搜索/深度思考/语音，激活态胶囊 + 键盘提示）独立于输入卡，
+    输入卡仅 textarea + 发送（ChatComposer 新增 ComposerTool 子组件）
+  - **根因修复（重要）**：7 个 CSS 文件头注释内 `--md-sys-*/--gaea-*/--color-*/--v3-*` 的 `*/` 提前闭合
+    CSS 注释，解析器吞掉各文件首个规则（`.novel-hub`/`.ml`/`.v3-*` 等）——表现为小说板块面板
+    「只有上半截」（高度塌缩为内容高）、首页布局约束失效；全部改 `* /` 修复（novel-workspace /
+    module-launcher / foundation / imagegen / character-library / settings-page / hub）
+  - 首页全屏适配：移除 `.ml-shell` 1320px 宽度上限（全屏 Bento 网格随宽扩展），卡片最小宽 176→216px，
+    宽屏（≥1600px）语音卡内容居中 + 侧栏限宽
+  - 验证：tsc/vite build 通过；浏览器 2560×1440 全屏 + 小说三栏撑满截图走查；`wails build` 重建通过
+- 验证：tsc 0 errors + vitest 全量 **91 文件 457 用例通过** + `npm run build` 成功；
+  浏览器全板块截图视觉走查（home/chat/novel/imagegen/办公/memoryhub/modelcenter/characterlib/settings）
+- 版本：wails.json / versioninfo.rc / frontend package.json → 3.0.0
+
 ## v2.40.0「3.0 架构主线 · Wave 4：Step 3 收官」（2026-08-15）
 > 3.0 架构改造 Wave 4：Step 3（Provider Seam）遗留收官——semantic_search 工具注册、
 > BalanceKind 从 ProviderEntry 贯通、ModuleLauncher 清单化，双轨并行实施 + 父代理集成。

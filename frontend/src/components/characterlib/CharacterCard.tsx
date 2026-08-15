@@ -3,7 +3,7 @@
 import React from 'react'
 import { Button, Popconfirm } from 'antd'
 import {
-  EditOutlined, SwapOutlined, DatabaseOutlined, DeleteOutlined, ReadOutlined,
+  EditOutlined, SwapOutlined, DatabaseOutlined, DeleteOutlined, ReadOutlined, ArrowRightOutlined,
 } from '@ant-design/icons'
 import TisorRadar from '../TisorRadar'
 import type { LibraryCharacter } from '../../api/characterlib'
@@ -69,7 +69,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   return (
     <div
-      className="ccard"
+      className={`ccard${onClick ? ' v3-card is-interactive' : ''}`}
       style={{ '--ccard-i': String(Math.min(index % 12, 11)) } as React.CSSProperties}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -98,6 +98,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           <PortraitImg className="ccard-portrait-img" src={c.portraitUrl} alt={c.name} />
         ) : (
           <div className="ccard-placeholder"><span>{c.name.slice(0, 1) || '?'}</span></div>
+        )}
+        {onClick && (
+          <span className="ccard-enter" aria-hidden="true"><ArrowRightOutlined /></span>
         )}
         <div className="ccard-id">
           <h3 className="ccard-name">{c.name}</h3>

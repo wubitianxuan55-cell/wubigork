@@ -47,15 +47,15 @@ export function RunStatus({ running, turnStartAt, turnTokens, used }: {
       <div className="flex items-center gap-2 text-fg-dim tabular-nums font-mono">
         <span className="font-medium">{elapsedStr}</span>
         {tokStr && <span className="text-fg-faint">{tokStr}</span>}
-        {slowHint && <span className="text-amber-500/90">{slowHint}</span>}
+        {slowHint && <span className="text-warning/90">{slowHint}</span>}
       </div>
       <div className="flex items-center gap-3">
         <span className="flex items-center gap-1.5 text-fg">
-          <Cpu size={12} className="text-cyan-400" />
+          <Cpu size={12} className="text-info" />
           <span className="font-medium">执行中</span>
           <span className="inline-flex items-center gap-1 ml-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="text-[10px] text-cyan-400/70">中</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-info animate-pulse" />
+            <span className="text-[10px] text-info/70">中</span>
           </span>
         </span>
       </div>

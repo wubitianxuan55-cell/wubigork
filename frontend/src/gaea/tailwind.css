@@ -65,7 +65,7 @@
   /* ── scrollbar ── */
   --color-scrollbar-track: transparent;
   --color-scrollbar-thumb: var(--border);
-  --color-scrollbar-thumb-hover: #444956;
+  --color-scrollbar-thumb-hover: var(--border);
 
   /* ── fonts ── */
   --font-mono: var(--mono);
@@ -314,8 +314,8 @@
 
 /* pulse-glow — 生成中加载态呼吸光晕 */
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(139, 92, 246, 0.2); }
-  50%      { box-shadow: 0 0 24px rgba(139, 92, 246, 0.5); }
+  0%, 100% { box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 20%, transparent); }
+  50%      { box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 50%, transparent); }
 }
 
 /* overlay-in — 遮罩淡入 */

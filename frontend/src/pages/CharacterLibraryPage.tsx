@@ -1,17 +1,19 @@
-// CharacterLibraryPage.tsx — 全局统一角色库（档案墙）
+// CharacterLibraryPage.tsx — 全局统一角色库（角色档案库 · 3 分区工作台）
 // 角色是独立资产：不绑定任何一本小说，小说只是引用；聊天直接把角色当人格用。
+// 布局：细条头部（统计 + 新建主操作）→ 左检索/筛选栏 + 中档案卡网格 + 右详情 inspector。
 import React, { useCallback, useEffect, useState } from 'react'
 import {
-  Input, Segmented, Switch, Button, message, Pagination, Modal, Spin,
+  Button, message, Pagination, Modal, Spin,
 } from 'antd'
 import {
-  PlusOutlined, SearchOutlined, TeamOutlined, ImportOutlined, SyncOutlined, ThunderboltOutlined,
+  PlusOutlined, TeamOutlined, ImportOutlined,
 } from '@ant-design/icons'
 import CharacterCard from '../components/characterlib/CharacterCard'
 import CharacterLibEditor from '../components/characterlib/CharacterLibEditor'
+import CharacterLibInspector from '../components/characterlib/CharacterLibInspector'
+import CharacterLibFilterBar from '../components/characterlib/CharacterLibFilterBar'
 import CharacterMemoryModal from '../components/characterlib/CharacterMemoryModal'
 import FeatureModelBar from '../components/FeatureModelBar'
-import { C } from '../utils/theme'
 import { useAppStore } from '../stores/appStore'
 import {
   listCharacters, getCharacter, deleteCharacter, importProjectCharacters,
@@ -52,6 +54,12 @@ const CharacterLibraryPage: React.FC = () => {
   const [editingProjects, setEditingProjects] = useState<string[]>([])
   const [editingIndex, setEditingIndex] = useState(0)
   const [memoryChar, setMemoryChar] = useState<LibraryCharacter | null>(null)
+
+  // 右侧详情 inspector 选中项 + 折叠状态
+  const [selected, setSelected] = useState<LibraryCharacter | null>(null)
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [inspectorOpen, setInspectorOpen] = useState(true)
+
   const [currentPersona, setCurrentPersonaState] = useState<string>(() => {
     try { return localStorage.getItem(PERSONALITY_KEY) || '' } catch { return '' }
   })
@@ -87,6 +95,14 @@ const CharacterLibraryPage: React.FC = () => {
     window.addEventListener('gaea-persona-changed', onPersona)
     return () => window.removeEventListener('gaea-persona-changed', onPersona)
   }, [])
+
+  /** 点击档案卡 → 右侧 inspector 预览（编辑走 inspector/卡片上的「编辑」） */
+  const selectForInspector = (c: LibraryCharacter) => {
+    const idx = items.findIndex(i => i.id === c.id)
+    setSelected(c)
+    setSelectedIndex(idx)
+    setInspectorOpen(true)
+  }
 
   const openNew = () => {
     setEditing(null)
@@ -147,6 +163,7 @@ const CharacterLibraryPage: React.FC = () => {
     try {
       await deleteCharacter(c.id)
       message.success(c.kind === 'builtin' ? `「${c.name}」已隐藏` : `「${c.name}」已删除`)
+      if (selected?.id === c.id) { setSelected(null); setSelectedIndex(0) }
       load()
       loadProjectRefs()
     } catch (err: unknown) {
@@ -221,129 +238,129 @@ const CharacterLibraryPage: React.FC = () => {
   }
 
   const hasProject = !!projectPath
+  const inProjectOf = (id: string) => projectRefs.has(id)
 
   return (
     <div className="clib-page">
-      {/* ── 页头：标题 + 统计 + 操作 ── */}
-      <div className="clib-header">
-        <div className="clib-title-wrap">
-          <div className="clib-icon"><TeamOutlined /></div>
-          <div className="clib-title-col">
-            <h2 className="clib-title">角色库</h2>
-            <div className="clib-sub">全局资产 · 小说引用 · 聊天直用 · 共 {total} 位</div>
-          </div>
+      {/* ── 细条头部：统计 + 主操作（板块名已在左侧轨道） ── */}
+      <div className="clib-header-bar">
+        <div className="clib-count">
+          <TeamOutlined aria-hidden />
+          角色档案库
+          <span className="clib-count-num">{total}</span>
+          <span className="clib-count-unit">位</span>
         </div>
         <div className="clib-actions">
-          <Button size="small" icon={<ThunderboltOutlined />} loading={fillingAll}
-            onClick={handleFillAll}
-            title="为所有角色补齐空缺字段（基于已有设定推断）">
-            {fillingAll ? '补齐中…' : '一键补齐'}
-          </Button>
-          <Button size="small" icon={<ImportOutlined />} disabled={!hasProject}
-            onClick={handleImportProject}
-            title="把当前项目的 characters.json 导入全局库">导入项目</Button>
-          <Button size="small" icon={<SyncOutlined />} disabled={!hasProject}
-            onClick={handleSyncProject}
-            title="把项目引用写回 characters.json，小说 Agent 生效">同步到项目</Button>
-          <Button size="small" type="primary" icon={<PlusOutlined />} onClick={openNew}
+          <Button type="primary" icon={<PlusOutlined />} onClick={openNew}
             className="clib-new-btn">新建角色</Button>
         </div>
       </div>
 
-      {/* ── 工具栏：搜索 + 类型 + 可聊天 ── */}
-      <div className="clib-toolbar">
-        <Input size="middle" allowClear prefix={<SearchOutlined style={{ color: C('color-text-secondary') }} />}
-          placeholder="搜索名称 / 标签 / 性格" value={query}
-          onChange={e => { setQuery(e.target.value); setPage(1) }}
-          className="clib-search" />
-        <Segmented
-          size="small"
-          value={kind}
-          onChange={v => { setKind(v as string); setPage(1) }}
-          options={[
-            { value: '', label: '全部类型' },
-            { value: 'builtin', label: '内置' },
-            { value: 'custom', label: '自定义' },
-            { value: 'assistant', label: '助手' },
-          ]}
+      {/* ── 3 分区工作台 ── */}
+      <div className="clib-workbench">
+        {/* 左：检索 / 筛选栏 */}
+        <CharacterLibFilterBar
+          query={query}
+          kind={kind}
+          chatOnly={chatOnly}
+          total={total}
+          hasProject={hasProject}
+          fillingAll={fillingAll}
+          onQueryChange={q => { setQuery(q); setPage(1) }}
+          onKindChange={k => { setKind(k); setPage(1) }}
+          onChatOnlyChange={v => { setChatOnly(v); setPage(1) }}
+          onFillAll={handleFillAll}
+          onImportProject={handleImportProject}
+          onSyncProject={handleSyncProject}
         />
-        <span className="clib-chat-only">
-          <Switch size="small" checked={chatOnly}
-            onChange={v => { setChatOnly(v); setPage(1) }} />
-          仅可聊天
-        </span>
-      </div>
 
-      {!hasProject && (
-        <div className="clib-hint">
-          当前未打开小说项目：角色仍可全局管理、设为聊天人格；打开项目后可将角色加入小说。
-        </div>
-      )}
+        {/* 中：档案卡网格 */}
+        <main className="clib-main" aria-label="角色档案网格">
+          {!hasProject && (
+            <div className="clib-hint">
+              当前未打开小说项目：角色仍可全局管理、设为聊天人格；打开项目后可将角色加入小说。
+            </div>
+          )}
 
-      {fillingAll && fillProgress && (
-        <div className="clib-hint">
-          <Spin size="small" /> {fillProgress}（AI 逐个补齐中，可继续浏览其他页面）
-        </div>
-      )}
+          {fillingAll && fillProgress && (
+            <div className="clib-hint">
+              <Spin size="small" /> {fillProgress}（AI 逐个补齐中，可继续浏览其他页面）
+            </div>
+          )}
 
-      {/* ── 档案墙 ── */}
-      <div className="clib-wall">
-        {loading ? (
-          <div className="clib-grid">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="clib-skel">
-                <div className="clib-skel-portrait" />
-                <div className="clib-skel-body">
-                  <div className="clib-skel-line" />
-                  <div className="clib-skel-line short" />
+          <div className="clib-wall">
+            {loading ? (
+              <div className="clib-grid">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="clib-skel">
+                    <div className="clib-skel-portrait" />
+                    <div className="clib-skel-body">
+                      <div className="clib-skel-line" />
+                      <div className="clib-skel-line short" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : items.length === 0 ? (
+              <div className="clib-empty">
+                <div className="clib-empty-icon"><TeamOutlined /></div>
+                <h3 className="clib-empty-title">档案库还是空的</h3>
+                <p className="clib-empty-desc">创建第一个角色档案，或从当前小说项目导入已有角色。</p>
+                <div className="clib-empty-actions">
+                  <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>新建第一个角色</Button>
+                  {hasProject && (
+                    <Button icon={<ImportOutlined className="clib-empty-import" />} onClick={handleImportProject}>从当前项目导入</Button>
+                  )}
                 </div>
               </div>
-            ))}
+            ) : (
+              <div className="clib-grid">
+                {items.map((c, idx) => (
+                  <CharacterCard
+                    key={c.id}
+                    character={c}
+                    index={idx}
+                    inProject={inProjectOf(c.id)}
+                    isCurrentPersona={currentPersona === c.id}
+                    hasProject={hasProject}
+                    onClick={selectForInspector}
+                    onEdit={openEdit}
+                    onSetPersona={handleSetPersona}
+                    onMemory={setMemoryChar}
+                    onAssociate={handleAssociate}
+                    onDissociate={handleDissociate}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        ) : items.length === 0 ? (
-          <div className="clib-empty">
-            <div className="clib-empty-icon"><TeamOutlined /></div>
-            <h3 className="clib-empty-title">档案库还是空的</h3>
-            <p className="clib-empty-desc">创建第一个角色档案，或从当前小说项目导入已有角色。</p>
-            <div className="clib-empty-actions">
-              <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>新建第一个角色</Button>
-              {hasProject && (
-                <Button icon={<ImportOutlined />} onClick={handleImportProject}>从当前项目导入</Button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="clib-grid">
-            {items.map((c, idx) => {
-              const inProject = projectRefs.has(c.id)
-              return (
-                <CharacterCard
-                  key={c.id}
-                  character={c}
-                  index={idx}
-                  inProject={inProject}
-                  isCurrentPersona={currentPersona === c.id}
-                  hasProject={hasProject}
-                  onClick={openEdit}
-                  onEdit={openEdit}
-                  onSetPersona={handleSetPersona}
-                  onMemory={setMemoryChar}
-                  onAssociate={handleAssociate}
-                  onDissociate={handleDissociate}
-                  onDelete={handleDelete}
-                />
-              )
-            })}
-          </div>
-        )}
-      </div>
 
-      {total > PAGE_SIZE && (
-        <div className="clib-pager">
-          <Pagination size="small" current={page} pageSize={PAGE_SIZE} total={total}
-            onChange={setPage} showSizeChanger={false} />
-        </div>
-      )}
+          {total > PAGE_SIZE && (
+            <div className="clib-pager">
+              <Pagination size="small" current={page} pageSize={PAGE_SIZE} total={total}
+                onChange={setPage} showSizeChanger={false} />
+            </div>
+          )}
+        </main>
+
+        {/* 右：详情 inspector（可折叠） */}
+        <CharacterLibInspector
+          character={selected}
+          index={selectedIndex}
+          inProject={selected ? inProjectOf(selected.id) : false}
+          isCurrentPersona={selected ? currentPersona === selected.id : false}
+          hasProject={hasProject}
+          collapsed={!inspectorOpen}
+          onToggleCollapse={() => setInspectorOpen(v => !v)}
+          onEdit={openEdit}
+          onSetPersona={handleSetPersona}
+          onMemory={setMemoryChar}
+          onAssociate={handleAssociate}
+          onDissociate={handleDissociate}
+          onDelete={handleDelete}
+        />
+      </div>
 
       <CharacterLibEditor
         open={editorOpen}
@@ -360,10 +377,7 @@ const CharacterLibraryPage: React.FC = () => {
         onClose={() => setMemoryChar(null)}
       />
 
-      {/* 绑定模型卡（左下角浮动）：角色库 AI 生成/补全走独立绑定 */}
-      <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
-        <FeatureModelBar feature="characterlib" label="角色库" />
-      </div>
+      {/* 模型状态统一由顶栏轨道条展示（3.0 定制：移除左下角悬浮模型卡） */}
     </div>
   )
 }

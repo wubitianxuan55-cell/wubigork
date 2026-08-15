@@ -16,8 +16,8 @@ export function ComposerWorkspaceMenu({ menuRef, query, onQueryChange, workspace
   const t = useT()
   return (
     <div
-      className="absolute left-2.5 bottom-12 z-40 w-[min(320px,82vw)] p-2.5 border border-border rounded-xl bg-bg-elev anim-menu-in no-drag"
-      style={{boxShadow: "var(--ds-shadow-dropdown)"}}
+      className="absolute left-2.5 bottom-12 z-40 w-[min(320px,82vw)] p-2.5 border border-border rounded-xl bg-bg-elev/95 backdrop-blur-md anim-menu-in no-drag"
+      style={{boxShadow: "var(--ds-shadow-dropdown), inset 0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent)"}}
       ref={menuRef}
     >
       <label className="flex items-center gap-[7px] px-2 py-1.5 mb-1 border border-border-soft rounded-md bg-bg-soft focus-within:border-accent transition-colors">

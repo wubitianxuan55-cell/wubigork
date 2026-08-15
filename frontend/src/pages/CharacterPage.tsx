@@ -720,9 +720,8 @@ const CharacterPage: React.FC = () => {
         </div>
       )}
 
-      {/* 头部信息栏 */}
+      {/* 头部信息栏（收敛：无重复板块标题，保留统计与操作） */}
       <div className="char-panel-header">
-        <span className="char-panel-title"><TeamOutlined />角色面板</span>
         <div className="char-panel-stats">
           <span className="char-panel-stat">角色 <strong>{characters.length}</strong></span>
           <span className="char-panel-stat">组织 <strong>{organizations.length}</strong></span>

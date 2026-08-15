@@ -13,7 +13,6 @@ import {
 import { useAppStore } from '../stores/appStore'
 import TTSPlayer from '../components/TTSPlayer'
 import ChapterEditor from '../components/novel/ChapterEditor'
-import OutlinePanel from '../components/novel/OutlinePanel'
 import { findAllLeaves, sortNodes } from '../utils/outline'
 import { useOutlineStore } from '../stores/outlineStore'
 import { countTextChars } from '../utils/text'
@@ -38,9 +37,44 @@ const ChapterPage: React.FC = () => {
   const [tabs, setTabs] = useState<ChapterTabData[]>([])
   const [activeKey, setActiveKey] = useState<string>('')
   const [focusMode, setFocusMode] = useState(false)
-  const [outlineCollapsed, setOutlineCollapsed] = useState(false)
+  // 当前激活章节（须在首个引用它的 useEffect 依赖数组之前定义，避免 TDZ）
+  const activeTab = tabs.find((t) => t.node.id === activeKey) ?? null
   const handleSaveRef = useRef<() => void>(() => {})
   const sceneTextareaRefs = useRef<Map<number, HTMLTextAreaElement>>(new Map())
+
+  // 世界构建工作台：大纲树位于壳层左 zone，点击经 novel:open-chapter 事件进入
+  const handleSelectNodeRef = useRef<(node: OutlineNode) => void>(() => {})
+  useEffect(() => { handleSelectNodeRef.current = handleSelectNode })
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const node = (e as CustomEvent<{ node?: OutlineNode }>).detail?.node
+      if (node) void handleSelectNodeRef.current(node)
+    }
+    window.addEventListener('novel:open-chapter', handler)
+    return () => window.removeEventListener('novel:open-chapter', handler)
+  }, [])
+
+  // 上报当前章节属性 → 壳层右 zone（属性检查器）与大纲激活项
+  useEffect(() => {
+    if (!activeTab) {
+      window.dispatchEvent(new CustomEvent('novel:chapter-active', { detail: {} }))
+      return
+    }
+    window.dispatchEvent(new CustomEvent('novel:chapter-active', {
+      detail: {
+        id: activeTab.node.id,
+        title: activeTab.node.title,
+        words: countTextChars(activeTab.scenes.join('\n')),
+        saved: activeTab.saved,
+        status: activeTab.node.status,
+      },
+    }))
+  }, [activeTab])
+
+  // 专注模式：通知壳层收起左右 zone
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('novel:focus-mode', { detail: { active: focusMode } }))
+  }, [focusMode])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -149,8 +183,6 @@ const ChapterPage: React.FC = () => {
     closeTab(key)
   }
 
-  const activeTab = tabs.find((t) => t.node.id === activeKey) ?? null
-
   function updateTab<K extends keyof ChapterTabData>(field: K, value: ChapterTabData[K]) {
     setTabs((prev) => {
       const i = prev.findIndex((t) => t.node.id === activeKey)
@@ -200,18 +232,7 @@ const ChapterPage: React.FC = () => {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
 
       <div style={{ flex: 1, display: 'flex', gap: 8, minHeight: 0 }}>
-        {/* 左：大纲 */}
-        {!focusMode && (
-          <OutlinePanel
-            outlines={sortedOutlines}
-            activeKey={activeTab?.node.id || ''}
-            onSelectNode={handleSelectNode}
-            collapsed={outlineCollapsed}
-            onToggleCollapse={() => setOutlineCollapsed((p) => !p)}
-          />
-        )}
-
-        {/* 右：正文 */}
+        {/* 右：正文（大纲树已上移壳层左 zone） */}
         {!activeTab ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C('color-text-secondary'), opacity: 0.5 }}>
             <div style={{ textAlign: 'center' }}>
@@ -221,7 +242,7 @@ const ChapterPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="novel-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="novel-editor-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {/* 标签栏 + 前后章节按钮 */}
               {!focusMode && (
                 <div style={{ borderBottom: '1px solid ' + C('color-border'), display: 'flex', alignItems: 'center', paddingRight: 8 }}>
@@ -239,14 +260,14 @@ const ChapterPage: React.FC = () => {
 
               {/* 章节信息栏 */}
               {!focusMode && (
-                <div style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid ' + C('color-border'), fontSize: 12, background: 'rgba(192,132,252,0.03)' }}>
-                  <BookOutlined style={{ color: '#c084fc', fontSize: 11 }} />
+                <div style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid ' + C('color-border'), fontSize: 12, background: 'color-mix(in srgb, var(--gaea-glow) 4%, transparent)' }}>
+                  <BookOutlined style={{ color: 'var(--gaea-glow)', fontSize: 11 }} />
                   <span style={{ fontWeight: 600, color: C('color-text') }}>{activeTab.node.title}</span>
                   <span style={{ color: C('color-text-secondary') }}>· {totalWords.toLocaleString()} 字</span>
                   <div style={{ flex: 1 }} />
                   <Tooltip title={activeTab.saved ? '内容已保存' : '内容有未保存的修改'}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: activeTab.saved ? '#4ade80' : '#f59e0b', fontSize: 11 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: activeTab.saved ? '#4ade80' : '#f59e0b', display: 'inline-block' }} />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: activeTab.saved ? 'var(--color-success)' : 'var(--color-warning)', fontSize: 11 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: activeTab.saved ? 'var(--color-success)' : 'var(--color-warning)', display: 'inline-block' }} />
                       {activeTab.saved ? '已保存' : '未保存'}
                     </span>
                   </Tooltip>
@@ -274,7 +295,7 @@ const ChapterPage: React.FC = () => {
                 <>
                   <div style={{ flex: 1 }} />
                   <span>{activeTab.node.title} · {totalWords.toLocaleString()} 字</span>
-                  <span style={{ color: '#f59e0b' }}>专注模式已开启 · Esc 退出</span>
+                  <span style={{ color: 'var(--color-warning)' }}>专注模式已开启 · Esc 退出</span>
                 </>
               )}
             </div>

@@ -1,5 +1,6 @@
-/* 角色库列表页：档案墙外壳
-   页头（图标盒 + 标题 + 统计）→ 工具栏（搜索/类型/可聊天）→ 档案墙 → 分页 */
+/* 角色档案库「角色档案库」工作台外壳
+   细条头部 → 3 分区工作台：左检索/筛选栏（v3-panel）｜中档案卡网格（v3-zone）｜右详情 inspector（v3-panel，可折叠）
+   全部颜色走 --md-sys-* / --gaea-* / --color-* / --v3-* 令牌，零硬编码 hex */
 
 .clib-page {
   flex: 1;
@@ -9,58 +10,50 @@
   position: relative;
 }
 
-/* ── 页头 ── */
-.clib-header {
+/* ── 细条头部（板块名已在左侧轨道，只保留统计 + 主操作） ── */
+.clib-header-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  flex-shrink: 0;
-}
-
-.clib-title-wrap {
-  display: flex;
-  align-items: center;
   gap: 12px;
-  min-width: 0;
-}
-
-.clib-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: var(--gaea-glow);
-  background: color-mix(in srgb, var(--gaea-glow) 13%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--gaea-glow) 18%, transparent);
+  padding: 4px 2px 12px;
+  border-bottom: var(--v3-split);
   flex-shrink: 0;
 }
 
-.clib-title-col {
+.clib-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
   min-width: 0;
+  white-space: nowrap;
 }
 
-.clib-title {
-  margin: 0;
-  font-size: 19px;
+.clib-count .anticon {
+  color: var(--gaea-glow);
+  font-size: 14px;
+}
+
+.clib-count-num {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: 0.01em;
-  color: var(--md-sys-color-text);
-  text-shadow: 0 0 18px color-mix(in srgb, var(--gaea-glow) 30%, transparent);
+  line-height: 19px;
 }
 
-.clib-sub {
-  margin-top: 3px;
+.clib-count-unit {
   font-size: 11.5px;
-  color: var(--md-sys-color-text-secondary);
+  font-weight: 400;
+  color: var(--color-text-secondary);
 }
 
 .clib-actions {
@@ -75,46 +68,211 @@
 }
 
 .clib-new-btn {
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--gaea-glow) 30%, transparent);
+  box-shadow: var(--v3-glow-faint);
 }
 
-/* ── 工具栏 ── */
-.clib-toolbar {
+/* ── 3 分区工作台 ── */
+.clib-workbench {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 12px;
-  flex-wrap: wrap;
-  padding: 12px 0 10px;
+  flex: 1;
+  min-height: 0;
+  padding-top: 12px;
+}
+
+/* ── 左：检索 / 筛选栏（v3-panel 玻璃面板） ── */
+.clib-side {
+  width: 236px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.clib-side-head-icon {
+  color: var(--gaea-glow);
+  font-size: 13px;
+}
+
+.clib-side-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.clib-side-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.clib-side-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+}
+
+/* 搜索框聚焦光晕 */
+.clib-search-wrap {
+  position: relative;
 }
 
 .clib-search {
-  width: 240px;
+  width: 100%;
   border-radius: 10px;
 }
 
-.clib-chat-only {
+.clib-search-wrap:focus-within .ant-input-affix-wrapper {
+  border-color: color-mix(in srgb, var(--gaea-glow) 48%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--gaea-glow) 18%, transparent),
+    0 0 18px color-mix(in srgb, var(--gaea-glow) 10%, transparent);
+}
+
+/* 筛选 chips：激活项 = 主色容器底 + 左缘光条 + 柔光 */
+.clib-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.clib-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-container);
+  color: var(--color-text-secondary);
   font-size: 12px;
-  color: var(--md-sys-color-text-secondary);
+  cursor: pointer;
   white-space: nowrap;
+  transition:
+    background var(--md-sys-transition-fast, 200ms),
+    color var(--md-sys-transition-fast, 200ms),
+    border-color var(--md-sys-transition-fast, 200ms),
+    box-shadow var(--md-sys-transition-fast, 200ms);
+}
+
+.clib-chip:hover {
+  color: var(--color-text);
+  border-color: color-mix(in srgb, var(--gaea-glow) 32%, var(--color-border));
+  background: var(--color-surface-container-high);
+}
+
+.clib-chip:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 1px;
+}
+
+.clib-chip.is-active {
+  background: var(--color-primary-container);
+  border-color: color-mix(in srgb, var(--gaea-glow) 28%, transparent);
+  color: var(--color-text);
+  box-shadow: var(--v3-glow-faint);
+}
+
+.clib-chip.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
+}
+
+.clib-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  transition: background var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+
+.clib-chip.is-active .clib-chip-dot {
+  background: var(--gaea-glow);
+  box-shadow: 0 0 8px var(--gaea-glow);
+}
+
+/* 统计小卡 */
+.clib-side-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--gaea-glow) 6%, transparent);
+  border: 1px dashed var(--color-border);
+  font-size: 11.5px;
+}
+
+.clib-stat-key {
+  color: var(--color-text-secondary);
+}
+
+.clib-stat-val {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--gaea-glow);
+}
+
+/* 数据操作 */
+.clib-side-ops {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: var(--v3-split);
+  margin-top: auto;
+}
+
+.clib-side-ops .clib-side-label {
+  margin-bottom: 2px;
+}
+
+.clib-side-ops .ant-btn {
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+/* ── 中：档案卡网格区 ── */
+.clib-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .clib-hint {
   font-size: 11.5px;
   line-height: 1.6;
-  color: var(--md-sys-color-text-secondary);
+  color: var(--color-text-secondary);
   margin-bottom: 10px;
   padding: 8px 12px;
   border-radius: 10px;
-  border: 1px dashed var(--md-sys-color-outline-variant);
+  border: 1px dashed var(--color-border);
   background: color-mix(in srgb, var(--gaea-glow) 5%, transparent);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* ── 档案墙滚动区 ── */
 .clib-wall {
   flex: 1;
   overflow-y: auto;
@@ -130,7 +288,7 @@
   flex-shrink: 0;
 }
 
-/* ── 空状态 ── */
+/* ── 空状态（中区） ── */
 .clib-empty {
   display: flex;
   flex-direction: column;
@@ -153,8 +311,8 @@
   color: var(--gaea-glow);
   background:
     radial-gradient(120% 120% at 30% 0%, color-mix(in srgb, var(--gaea-glow) 22%, transparent), transparent 60%),
-    var(--md-sys-color-surface-container);
-  border: 1px solid var(--md-sys-color-outline-variant);
+    var(--color-surface-container);
+  border: 1px solid var(--color-border);
   box-shadow: 0 10px 30px color-mix(in srgb, var(--gaea-glow) 12%, transparent);
   margin-bottom: 8px;
 }
@@ -163,13 +321,13 @@
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: var(--md-sys-color-text);
+  color: var(--color-text);
 }
 
 .clib-empty-desc {
   margin: 0 0 14px;
   font-size: 12px;
-  color: var(--md-sys-color-text-secondary);
+  color: var(--color-text-secondary);
 }
 
 .clib-empty-actions {
@@ -180,16 +338,396 @@
   justify-content: center;
 }
 
-/* 移动端收起页头操作区 */
-@media (max-width: 720px) {
-  .clib-header {
-    flex-direction: column;
-    align-items: flex-start;
+.clib-empty-import {
+  color: var(--gaea-glow);
+}
+
+/* ── 右：详情 inspector（v3-panel，可折叠） ── */
+.clib-inspector {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  transition: width var(--md-sys-transition-normal, 300ms) cubic-bezier(0.2, 0, 0, 1);
+}
+
+.clib-inspector.is-collapsed {
+  width: 44px;
+}
+
+.clib-inspector-head {
+  padding: 0 8px 0 12px;
+}
+
+.clib-insp-no {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  padding: 1px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-container);
+}
+
+.clib-inspector-fold {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 12px;
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
+}
+
+.clib-inspector-fold:hover {
+  background: var(--color-surface-container-high);
+  color: var(--gaea-glow);
+}
+
+.clib-inspector-fold:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 1px;
+}
+
+.clib-inspector-reopen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 14px 0;
+  font-size: 14px;
+  transition: color var(--md-sys-transition-fast, 200ms), background var(--md-sys-transition-fast, 200ms);
+}
+
+.clib-inspector-reopen:hover {
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 6%, transparent);
+}
+
+.clib-inspector-reopen:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: -2px;
+}
+
+.clib-inspector-reopen-label {
+  writing-mode: vertical-rl;
+  letter-spacing: 0.18em;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.clib-inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* inspector 空态 */
+.clib-insp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  padding: 48px 16px;
+  flex: 1;
+  min-height: 240px;
+}
+
+.clib-insp-empty-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--gaea-glow);
+  background:
+    radial-gradient(120% 120% at 30% 0%, color-mix(in srgb, var(--gaea-glow) 18%, transparent), transparent 60%),
+    var(--color-surface-container-high);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--gaea-glow) 10%, transparent);
+  margin-bottom: 6px;
+}
+
+.clib-insp-empty-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.clib-insp-empty-desc {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+/* 立绘 + 身份 */
+.clib-insp-hero {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-container-high);
+  padding: 10px;
+}
+
+.clib-insp-hero-img {
+  width: 84px;
+  height: 112px;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+}
+
+.clib-insp-hero-ph {
+  width: 84px;
+  height: 112px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--gaea-glow);
+  background:
+    radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--gaea-glow) 20%, transparent), transparent 60%),
+    var(--color-surface-container);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.clib-insp-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  justify-content: center;
+}
+
+.clib-insp-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.25;
+  word-break: break-all;
+}
+
+.clib-insp-meta {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.clib-insp-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.clib-insp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-container);
+  white-space: nowrap;
+}
+
+.clib-insp-badge.is-chat {
+  color: var(--gaea-glow);
+  border-color: color-mix(in srgb, var(--gaea-glow) 30%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 10%, transparent);
+}
+
+.clib-insp-badge.is-persona {
+  color: var(--md-sys-color-on-primary, var(--color-on-primary));
+  background: var(--md-sys-color-primary, var(--color-primary));
+  border-color: transparent;
+}
+
+.clib-insp-badge.is-project {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+}
+
+.clib-insp-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 6px var(--gaea-glow);
+}
+
+.clib-insp-kind {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+  align-self: flex-start;
+  white-space: nowrap;
+}
+
+/* 快速操作 */
+.clib-insp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.clib-insp-actions .ant-btn {
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+/* 设定摘要分区 */
+.clib-insp-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.clib-insp-sec-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clib-insp-sec-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
+}
+
+.clib-insp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.clib-insp-label {
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+}
+
+.clib-insp-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.clib-insp-quote {
+  border-left: 2px solid color-mix(in srgb, var(--gaea-glow) 50%, transparent);
+  padding-left: 8px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.clib-insp-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 8px;
+}
+
+.clib-insp-tag {
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+}
+
+.clib-insp-radar {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.clib-insp-mem-hint {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.clib-insp-mem-hint .anticon {
+  color: var(--gaea-glow);
+  margin-top: 2px;
+}
+
+/* ── 窄窗口适配：压缩侧栏宽度（inspector 可手动折叠） ── */
+@media (max-width: 1120px) {
+  .clib-side {
+    width: 208px;
   }
-  .clib-actions {
-    width: 100%;
+  .clib-inspector {
+    width: 272px;
   }
-  .clib-search {
-    width: 100%;
+}
+
+/* ── reduced-motion 降级 ── */
+@media (prefers-reduced-motion: reduce) {
+  .clib-inspector,
+  .clib-chip,
+  .clib-chip-dot,
+  .clib-inspector-fold,
+  .clib-inspector-reopen {
+    transition: none !important;
   }
+}
+
+.ui-reduced-motion .clib-inspector,
+.ui-reduced-motion .clib-chip,
+.ui-reduced-motion .clib-chip-dot,
+.ui-reduced-motion .clib-inspector-fold,
+.ui-reduced-motion .clib-inspector-reopen {
+  transition: none !important;
 }

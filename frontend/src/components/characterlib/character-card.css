@@ -8,30 +8,40 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  border-radius: 18px;
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--gaea-glow) 5%, transparent), transparent 30%),
-    var(--gaea-glass-bg, var(--md-sys-color-surface-container));
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
+    var(--color-surface-container);
   overflow: hidden;
   isolation: isolate;
   animation: ccardIn 460ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   animation-delay: calc(var(--ccard-i, 0) * 24ms);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 6%, transparent);
   transition:
     transform 240ms cubic-bezier(0.2, 0, 0, 1),
     border-color 240ms ease,
     box-shadow 240ms ease;
 }
 
+/* v3-card 高光线：顶部 1px 渐变亮边 */
+.ccard::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: var(--v3-edge);
+  border-radius: 16px 16px 0 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
 .ccard:hover {
-  transform: translateY(-4px);
-  border-color: color-mix(in srgb, var(--gaea-glow) 45%, transparent);
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--gaea-glow) 42%, transparent);
   box-shadow:
-    0 18px 42px rgba(0, 0, 0, 0.26),
-    0 0 0 1px color-mix(in srgb, var(--gaea-glow) 16%, transparent),
-    0 10px 32px color-mix(in srgb, var(--gaea-glow) 14%, transparent);
+    0 14px 30px color-mix(in srgb, var(--color-text) 7%, transparent),
+    var(--v3-glow-soft);
 }
 
 .ccard:active {
@@ -176,7 +186,7 @@
   font-size: 19px;
   font-weight: 700;
   line-height: 1.25;
-  color: #fff;
+  color: rgb(255 255 255);
   letter-spacing: 0.01em;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
@@ -193,6 +203,36 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 进入箭头微交互：立绘右上角，hover/focus 时滑入 */
+.ccard-enter {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 6;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms);
+  pointer-events: none;
+}
+
+.ccard:hover .ccard-enter,
+.ccard:focus-visible .ccard-enter {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 /* 光泽扫过 */
@@ -289,8 +329,8 @@
 }
 
 .ccard-actions .ant-btn-dangerous:hover {
-  color: #f87171 !important;
-  background: color-mix(in srgb, #f87171 10%, transparent) !important;
+  color: var(--color-destructive) !important;
+  background: color-mix(in srgb, var(--color-destructive) 10%, transparent) !important;
 }
 
 /* 列表页：档案墙网格 */
@@ -363,6 +403,7 @@
   .ccard-sheen::after,
   .ccard-actions,
   .ccard-portrait-img,
+  .ccard-enter,
   .clib-skel::after {
     animation: none !important;
     transition: none !important;
@@ -370,6 +411,28 @@
   .ccard:hover {
     transform: none;
   }
+  .ccard:hover .ccard-enter,
+  .ccard:focus-visible .ccard-enter {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ui-reduced-motion .ccard,
+.ui-reduced-motion .ccard-sheen::after,
+.ui-reduced-motion .ccard-actions,
+.ui-reduced-motion .ccard-portrait-img,
+.ui-reduced-motion .ccard-enter,
+.ui-reduced-motion .clib-skel::after {
+  animation: none !important;
+  transition: none !important;
+}
+.ui-reduced-motion .ccard:hover {
+  transform: none;
+}
+.ui-reduced-motion .ccard:hover .ccard-enter,
+.ui-reduced-motion .ccard:focus-visible .ccard-enter {
+  opacity: 1;
+  transform: none;
 }
 
 /* WebView2 rAF 降级：禁用入场动画，避免卡片停在 opacity:0 */

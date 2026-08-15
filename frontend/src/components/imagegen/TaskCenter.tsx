@@ -77,7 +77,7 @@ export const TaskCenter: React.FC<Props> = ({
 
   if (collapsed) {
     return (
-      <div className="ig-task-center is-collapsed" style={{ width: 46, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, paddingTop: 10 }}>
+      <div className="ig-task-center is-collapsed v3-panel" role="complementary" aria-label="历史与任务队列（已收起）">
         {TABS.map((t) => {
           const count = t.key === 'queue' ? queueItems.length : t.key === 'recent' ? recentCount : customTemplates.length
           const active = tab === t.key
@@ -107,7 +107,7 @@ export const TaskCenter: React.FC<Props> = ({
   }
 
   return (
-    <div className="ig-task-center" style={{ width: 250, flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <div className="ig-task-center v3-panel" role="complementary" aria-label="历史与任务队列">
       <div className="ig-task-tabs" role="tablist" aria-label="任务中心">
         {TABS.map((t) => {
           const active = tab === t.key

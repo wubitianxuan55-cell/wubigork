@@ -159,9 +159,13 @@ function AppearancePreview({ t, previewing }: { t: typeof themeOptions[number]; 
             {t.label} · {darkMode ? '暗色' : '亮色'}
           </span>
           <span style={{
-            marginLeft: 'auto', fontSize: 10, padding: '2px 8px', borderRadius: 999,
-            color: '#34d399', border: '1px solid #34d39944', background: '#34d39914', fontWeight: 500,
-          }}>{previewing ? '预览中' : '⚡ 即时生效'}</span>
+            marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3,
+            fontSize: 10, padding: '2px 8px', borderRadius: 999,
+            color: 'var(--md-sys-color-success)',
+            border: '1px solid color-mix(in srgb, var(--md-sys-color-success) 30%, transparent)',
+            background: 'color-mix(in srgb, var(--md-sys-color-success) 10%, transparent)',
+            fontWeight: 500,
+          }}>{previewing ? '预览中' : (<><ThunderboltOutlined aria-hidden="true" />即时生效</>)}</span>
         </div>
         {/* 玻璃卡片模拟 */}
         <div style={{

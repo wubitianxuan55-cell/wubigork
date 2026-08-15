@@ -2,13 +2,13 @@
 // 职责：状态编排 + 跨 hook/组件装配；流订阅（useChatStream）、话题状态机
 // （useChatTopics）、语音集成（useChatVoice）与纯展示组件拆分见各产物文件。
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { Typography, Modal, message, Input } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
 import * as App from '../../src/wailsjsCompat'
 import { C } from '../utils/theme'
 import { shouldSubmitOnEnter } from '../utils/chatComposer'
 import { isNearBottom } from '../utils/scroll'
-import FeatureModelBar from '../components/FeatureModelBar'
 import ChatTopicSidebar, { type Topic as SidebarTopic } from '../components/ChatTopicSidebar'
 import { mdStyles } from '../components/MarkdownContent'
 import { ParticleFlow } from '../components/ParticleFlow'
@@ -21,7 +21,8 @@ import { ChatModeBar } from '../components/chat/ChatModeBar'
 import { ChatPersonaBar } from '../components/chat/ChatPersonaBar'
 import { MessageList } from '../components/chat/MessageList'
 import { WelcomeScreen } from '../components/chat/WelcomeScreen'
-import { ChatComposer } from '../components/chat/ChatComposer'
+import { ChatComposer, QUICK_REPLIES } from '../components/chat/ChatComposer'
+import { ChatInspector } from '../components/chat/ChatInspector'
 import { STREAM_SILENCE_TIMEOUT_MS, EMO_COLORS } from './chat/constants'
 import { navigateToCharacterLib, loadCompanionName, toUpdatedAt, loadPersonality } from './chat/utils'
 import type { ChatMsg, Personality } from './chat/types'
@@ -58,6 +59,14 @@ const ChatPage: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [speakingId, setSpeakingId] = useState<string | null>(null)
 
+  // ── 顶栏模式条宿主（T6-10.2）：ChatModeBar 移入 MainLayout 的 v3-strip，
+  // 经 portal 渲染。宿主 DOM 在首帧提交后才存在，故挂载后查找一次即可
+  // （MainLayout 恒挂载该容器，仅按板块切换显隐，节点不会重建）。
+  const [modeBarHost, setModeBarHost] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setModeBarHost(document.getElementById('v3-chatmode-host'))
+  }, [])
+
   // 左侧会话栏折叠态（本地持久化，随面板一起折叠悬浮绑定模型卡）
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem('gaea.chatSidebarCollapsed') === '1' } catch { return false }
@@ -66,6 +75,18 @@ const ChatPage: React.FC = () => {
     setSidebarCollapsed((c) => {
       const next = !c
       try { localStorage.setItem('gaea.chatSidebarCollapsed', next ? '1' : '0') } catch { /* ignore */ }
+      return next
+    })
+  }, [])
+
+  // 右侧上下文/人格 inspector 折叠态（本地持久化，随面板折叠为窄条）
+  const [inspectorCollapsed, setInspectorCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('gaea.chatInspectorCollapsed') === '1' } catch { return false }
+  })
+  const toggleChatInspector = useCallback(() => {
+    setInspectorCollapsed((c) => {
+      const next = !c
+      try { localStorage.setItem('gaea.chatInspectorCollapsed', next ? '1' : '0') } catch { /* ignore */ }
       return next
     })
   }, [])
@@ -276,8 +297,29 @@ const ChatPage: React.FC = () => {
     preview: t.preview || '',
   }))
 
+  // 顶栏模式切换条（T6-10.2）：渲染进全局轨道条宿主；行为与原先完全一致。
+  const modeBar = (
+    <ChatModeBar
+      variant="strip"
+      mode={mode}
+      personaLabel={personaLabel}
+      currentPersonalityLabel={currentPersonality?.label}
+      personaPickerActiveId={mode !== 'plain' ? mode : activePersonality}
+      searchEnabled={searchEnabled}
+      onToggleSearch={() => setSearchEnabled(!searchEnabled)}
+      onNavigateLib={navigateToCharacterLib}
+      onSwitchPlain={() => switchMode('plain')}
+      onSwitchPersona={() => { if (mode === 'plain') switchMode(activePersonality) }}
+      onSwitchPersonality={handleSwitchPersonality}
+      onOpenVoiceSettings={() => setShowVoiceSettings(true)}
+      hasMessages={hasMessages}
+      onExport={handleExport}
+      onClear={handleClearMessages}
+    />
+  )
+
   return (
-    <div className="chat-board" style={{ flex: 1, display: 'flex', flexDirection: 'row', minHeight: 0, position: 'relative' }}>
+    <div className="chat-board chat-cockpit" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
       <ChatTopicSidebar
         topics={topicList}
         activeId={activeId}
@@ -289,27 +331,12 @@ const ChatPage: React.FC = () => {
         onToggle={toggleChatSidebar}
       />
 
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden', position: 'relative', background: 'transparent' }}>
+      <div className="v3-split-v" aria-hidden="true" />
+
+      <main className="chat-main v3-zone">
         <style>{mdStyles}</style>
         {mode !== 'plain' && <ParticleFlow aro={aro} />}
         <SoundWaveOverlay active={speakingId !== null} aff={aff} aro={aro} />
-
-        <ChatModeBar
-          mode={mode}
-          personaLabel={personaLabel}
-          currentPersonalityLabel={currentPersonality?.label}
-          personaPickerActiveId={mode !== 'plain' ? mode : activePersonality}
-          searchEnabled={searchEnabled}
-          onToggleSearch={() => setSearchEnabled(!searchEnabled)}
-          onNavigateLib={navigateToCharacterLib}
-          onSwitchPlain={() => switchMode('plain')}
-          onSwitchPersona={() => { if (mode === 'plain') switchMode(activePersonality) }}
-          onSwitchPersonality={handleSwitchPersonality}
-          onOpenVoiceSettings={() => setShowVoiceSettings(true)}
-          hasMessages={hasMessages}
-          onExport={handleExport}
-          onClear={handleClearMessages}
-        />
 
         {/* 人格状态条（临场感：头像常驻 + 名字；状态/记忆归角色库） */}
         {mode !== 'plain' && hasMessages && (
@@ -388,17 +415,37 @@ const ChatPage: React.FC = () => {
         />
       </main>
 
-      {/* 绑定模型条（聊天板块统一入口；whisper 为 chat 别名） */}
-      {!sidebarCollapsed && (
-        <div style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 50 }}>
-          <FeatureModelBar feature="chat" label="聊天" />
-        </div>
-      )}
+      <div className="v3-split-v" aria-hidden="true" />
+
+      <ChatInspector
+        mode={mode}
+        personalities={personalities}
+        activePersonality={activePersonality}
+        companionName={companionName}
+        emoColor={emoColor}
+        messages={messages}
+        speaking={speakingId !== null}
+        thinking={sending}
+        quickReplies={mode !== 'plain' ? QUICK_REPLIES : []}
+        collapsed={inspectorCollapsed}
+        onToggle={toggleChatInspector}
+        onFillInput={handleFillInput}
+        onSwitchPersonality={handleSwitchPersonality}
+        onExport={handleExport}
+        onClear={handleClearMessages}
+        onOpenVoiceSettings={() => setShowVoiceSettings(true)}
+        onNavigateLib={navigateToCharacterLib}
+      />
+
+      {/* 模型状态统一由顶栏轨道条展示（3.0 定制：移除左下角悬浮模型卡） */}
 
       <Modal title="语音设置" open={showVoiceSettings} onCancel={() => setShowVoiceSettings(false)} footer={null} width={480} centered
         destroyOnHidden transitionName="" maskTransitionName="">
         <VoiceSettingsPanel />
       </Modal>
+
+      {/* 顶栏模式切换条（T6-10.2：portal 进 MainLayout 的 v3-strip 宿主） */}
+      {modeBarHost !== null && createPortal(modeBar, modeBarHost)}
 
     </div>
   )

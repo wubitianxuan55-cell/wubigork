@@ -10,7 +10,7 @@ export interface ComposerTableBannerProps {
 
 export function ComposerTableBanner({ rows, cols, tableMode, onTableModeChange }: ComposerTableBannerProps) {
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-soft/60 bg-accent/[0.03] text-[11px]">
+    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-soft/60 bg-accent/5 text-[11px]">
       <Table size={12} className="text-accent shrink-0" />
       <span className="text-fg-dim">
         已识别表格数据：{rows} 行 × {cols} 列

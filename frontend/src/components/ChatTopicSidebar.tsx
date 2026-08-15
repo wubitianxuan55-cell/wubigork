@@ -70,21 +70,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
   const visibleTopics = filterChatTopics(topics, query)
 
   return (
-    <div
-      style={{
-        width: collapsed ? 52 : 264,
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        borderRight: `1px solid ${C('color-border')}`,
-        background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
-        WebkitBackdropFilter: 'blur(20px) saturate(140%)',
-        backdropFilter: 'blur(20px) saturate(140%)',
-        height: '100%',
-        userSelect: 'none',
-        boxShadow: '2px 0 14px rgba(0,0,0,0.05)',
-      }}
-    >
+    <div className={`chat-topic-sidebar v3-panel${collapsed ? ' is-collapsed' : ''}`}>
       {collapsed ? (
         /* 折叠窄栏：切换按钮 + 新建会话 */
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, paddingTop: 10 }}>
@@ -112,14 +98,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
       ) : (
         <>
           {/* header: title + new topic button + collapse */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 14px 10px',
-            }}
-          >
+          <div className="chat-topic-head">
             <Typography.Text strong style={{ color: C('color-text'), fontSize: 13.5 }}>
               <MessageOutlined style={{ marginRight: 8, color: C('color-primary') }} />
               会话

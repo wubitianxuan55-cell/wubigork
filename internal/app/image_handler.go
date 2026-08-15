@@ -15,6 +15,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
@@ -1103,53 +1104,87 @@ func (a *mediaState) GetSystemStats() map[string]interface{} {
 	return result
 }
 
-// getCPUUsage 获取 Windows CPU 使用率
+// ── Windows 系统资源采集（弃用 wmic——Win11 24H2 起已移除；
+//    直接调 kernel32.dll 原生 API，不依赖 x/sys/windows 符号，全版本可用）──
+
+var (
+	kernel32                  = syscall.NewLazyDLL("kernel32.dll")
+	procGetSystemTimes        = kernel32.NewProc("GetSystemTimes")
+	procGlobalMemoryStatusEx  = kernel32.NewProc("GlobalMemoryStatusEx")
+)
+
+type winFiletime struct{ LowDateTime, HighDateTime uint32 }
+
+type winMemoryStatusEx struct {
+	Length               uint32
+	MemoryLoad           uint32
+	TotalPhys, AvailPhys uint64
+	TotalPageFile, AvailPageFile   uint64
+	TotalVirtual, AvailVirtual     uint64
+	TotalExtendedVirtual, AvailExtendedVirtual uint64
+}
+
+// getCPUUsage 获取 Windows CPU 使用率（%）。
+// GetSystemTimes 两次采样差值计算；首次/短间隔返回 0（无历史基准），后续轮询（4s）实时。
+var (
+	prevCPUTimes  [3]uint64 // idle, kernel, user（100ns 单位）
+	prevCPUSample time.Time
+	prevCPUInit   bool
+)
+
 func getCPUUsage() int {
-	cmd := exec.Command("wmic", "cpu", "get", "loadpercentage")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	out, err := cmd.Output()
-	if err != nil {
+	var idle, kernel, user winFiletime
+	r1, _, _ := procGetSystemTimes.Call(
+		uintptr(unsafe.Pointer(&idle)),
+		uintptr(unsafe.Pointer(&kernel)),
+		uintptr(unsafe.Pointer(&user)),
+	)
+	if r1 == 0 {
 		return -1
 	}
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) < 2 {
-		return -1
+	now := time.Now()
+	idleT := uint64(idle.HighDateTime)<<32 | uint64(idle.LowDateTime)
+	kernelT := uint64(kernel.HighDateTime)<<32 | uint64(kernel.LowDateTime)
+	userT := uint64(user.HighDateTime)<<32 | uint64(user.LowDateTime)
+	if !prevCPUInit || now.Sub(prevCPUSample) < time.Second {
+		prevCPUTimes = [3]uint64{idleT, kernelT, userT}
+		prevCPUSample = now
+		prevCPUInit = true
+		return 0
 	}
-	val := strings.TrimSpace(lines[1])
-	usage, err := strconv.Atoi(val)
-	if err != nil {
-		return -1
+	dIdle := idleT - prevCPUTimes[0]
+	dKernel := kernelT - prevCPUTimes[1]
+	dUser := userT - prevCPUTimes[2]
+	prevCPUTimes = [3]uint64{idleT, kernelT, userT}
+	prevCPUSample = now
+	total := dKernel + dUser // kernel 含 idle
+	if total == 0 {
+		return 0
+	}
+	usage := int((total - dIdle) * 100 / total)
+	if usage < 0 {
+		usage = 0
+	}
+	if usage > 100 {
+		usage = 100
 	}
 	return usage
 }
 
-// getMemoryStats 获取 Windows 总内存与已用内存 (GB)，一次 wmic 调用取两列
-// getMemoryStats 获取 Windows 总内存与已用内存 (GB)，一次 wmic 调用取两列
+// getMemoryStats 获取 Windows 总内存与已用内存 (GB)。GlobalMemoryStatusEx 原生 API。
 func getMemoryStats() (totalGB, usedGB float64) {
-	cmd := exec.Command("wmic", "OS", "get", "TotalVisibleMemorySize,FreePhysicalMemory")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	out, err := cmd.Output()
-	if err != nil {
+	var ms winMemoryStatusEx
+	ms.Length = uint32(unsafe.Sizeof(ms))
+	r1, _, _ := procGlobalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&ms)))
+	if r1 == 0 {
 		return 0, 0
 	}
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) < 2 {
-		return 0, 0
+	totalGB = float64(ms.TotalPhys) / 1e9
+	usedGB = float64(ms.TotalPhys-ms.AvailPhys) / 1e9
+	if usedGB < 0 {
+		usedGB = 0
 	}
-	fields := strings.Fields(lines[1])
-	if len(fields) < 2 {
-		return 0, 0
-	}
-	totalKB, err1 := strconv.ParseFloat(fields[0], 64)
-	freeKB, err2 := strconv.ParseFloat(fields[1], 64)
-	if err1 != nil || err2 != nil {
-		return 0, 0
-	}
-	used := (totalKB - freeKB) / 1e6
-	if used < 0 {
-		used = 0
-	}
-	return totalKB / 1e6, used
+	return totalGB, usedGB
 }
 
 // getGPUInfo 获取 GPU 名称、总显存、已用显存 (GB)
@@ -1167,14 +1202,17 @@ func getGPUInfo() (name string, totalGB float64, usedGB float64) {
 			return name, totalMB / 1024.0, usedMB / 1024.0
 		}
 	}
-	// wmic 回退
-	cmd2 := exec.Command("wmic", "path", "win32_VideoController", "get", "name")
+	// PowerShell CIM 回退（wmic 已从 Win11 24H2 移除；PowerShell 全版本可用）
+	cmd2 := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_VideoController).Name")
 	cmd2.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out2, err := cmd2.Output()
 	if err == nil {
 		lines := strings.Split(strings.TrimSpace(string(out2)), "\n")
-		if len(lines) >= 2 {
-			name = strings.TrimSpace(lines[1])
+		for _, l := range lines {
+			if l = strings.TrimSpace(l); l != "" {
+				name = l
+				break
+			}
 		}
 	}
 	return

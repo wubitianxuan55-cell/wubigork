@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle, File, FileText, List, Wrench } from "../icons";
+import { AlertCircle, Check, CheckCircle, File, FileText, List, Wrench } from "../icons";
 import { useT } from "../lib/i18n";
 import type { QuestionAnswer, WireAsk, WireAskQuestion, WirePlan } from "../lib/types";
 import { Markdown } from "./Markdown";
@@ -11,7 +11,7 @@ function PlanBody({ plan }: { plan: WirePlan }) {
   return (
     <div className="flex flex-col gap-3">
       {plan.goal && (
-        <div className="flex items-start gap-2 rounded-lg bg-accent-soft/70 border border-accent/25 px-3 py-2.5">
+        <div className="flex items-start gap-2 rounded-lg bg-accent-soft/70 border border-accent/25 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--accent)_12%,transparent)] px-3 py-2.5">
           <CheckCircle size={14} className="text-accent shrink-0 mt-0.5" />
           <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-wider text-fg-faint">{t("ask.planGoal")}</div>
@@ -26,7 +26,7 @@ function PlanBody({ plan }: { plan: WirePlan }) {
             <span>{t("ask.planSteps")} · {plan.steps.length}</span>
           </div>
           {plan.steps.map((s, i) => (
-            <div key={`${i}-${s.title}`} className="rounded-lg border border-border-soft bg-bg-soft/60 px-3 py-2.5">
+            <div key={`${i}-${s.title}`} className="rounded-lg border border-border-soft/60 border-l-2 border-l-accent/15 bg-bg-soft/40 px-3 py-2.5">
               <div className="flex items-baseline gap-2 min-w-0">
                 <span className="flex items-center justify-center w-[18px] h-[18px] rounded-full bg-accent/15 text-accent text-[11px] font-semibold shrink-0">
                   {i + 1}
@@ -63,8 +63,8 @@ function PlanBody({ plan }: { plan: WirePlan }) {
         </div>
       )}
       {(plan.questions?.length ?? 0) > 0 && (
-        <div className="flex flex-col gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2.5">
-          <div className="flex items-center gap-1.5 text-[11px] text-amber-400">
+        <div className="flex flex-col gap-1.5 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5">
+          <div className="flex items-center gap-1.5 text-[11px] text-warning">
             <AlertCircle size={12} className="shrink-0" />
             <span>{t("ask.planQuestions")}</span>
           </div>
@@ -204,6 +204,7 @@ export function AskCard({
   const answered = (q: WireAskQuestion) =>
     (sel[q.id]?.length ?? 0) > 0 || (custom[q.id]?.trim() ?? "") !== "";
   const allAnswered = ask.questions.every(answered);
+  const answeredCount = ask.questions.filter(answered).length;
 
   const submit = () => {
     onAnswer(
@@ -222,9 +223,9 @@ export function AskCard({
     <div className="fixed inset-0 bg-bg/60 z-50 p-6 animate-[fadeIn_.15s_ease-out] pointer-events-none">
       <div
         ref={cardRef}
-        className="relative flex flex-col gap-4 w-full max-w-lg max-h-[85vh] overflow-y-auto bg-bg-elev border border-border rounded-xl p-5 pt-8 animate-[scaleIn_.2s_ease-out] pointer-events-auto"
+        className="relative flex flex-col gap-4 w-full max-w-lg max-h-[85vh] overflow-y-auto bg-bg-elev border border-border-soft rounded-xl p-5 pt-8 animate-[scaleIn_.2s_ease-out] pointer-events-auto"
         style={{
-          boxShadow: "var(--ds-shadow-panel)",
+          boxShadow: "var(--ds-shadow-panel), inset 0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent)",
           ...(pos
             ? { position: "absolute", left: pos.x, top: pos.y }
             : { visibility: "hidden" })
@@ -239,10 +240,25 @@ export function AskCard({
           <span className="w-8 h-1 rounded-full bg-fg-faint/25 group-hover:bg-fg-faint/50 group-hover:w-10 transition-all duration-200" />
         </div>
 
+        {/* 回答进度条：细线 + v3 高光 */}
+        <div
+          className="h-[2px] rounded-full bg-bg-soft overflow-hidden shrink-0"
+          role="progressbar"
+          aria-label="回答进度"
+          aria-valuemin={0}
+          aria-valuemax={ask.questions.length}
+          aria-valuenow={answeredCount}
+        >
+          <div
+            className="h-full rounded-full bg-accent/80 shadow-[0_0_6px_color-mix(in_srgb,var(--accent)_45%,transparent)] transition-all duration-300"
+            style={{ width: `${(answeredCount / Math.max(ask.questions.length, 1)) * 100}%` }}
+          />
+        </div>
+
         {/* 卡片标题 */}
         {cardTitle && ask.questions.length === 1 && (
           <div className="flex items-center gap-2 -mt-1">
-            <span className="w-1 h-4 rounded-full bg-accent shrink-0" />
+            <span className="w-1 h-4 rounded-full bg-accent shrink-0 shadow-[0_0_8px_color-mix(in_srgb,var(--accent)_35%,transparent)]" />
             <span className="text-fg text-[15px] font-semibold leading-tight">{cardTitle}</span>
           </div>
         )}
@@ -252,7 +268,7 @@ export function AskCard({
             {/* 多问题时显示各自 header */}
             {q.header && ask.questions.length > 1 && (
               <div className="flex items-center gap-2">
-                <span className="w-1 h-4 rounded-full bg-accent shrink-0" />
+                <span className="w-1 h-4 rounded-full bg-accent shrink-0 shadow-[0_0_8px_color-mix(in_srgb,var(--accent)_35%,transparent)]" />
                 <span className="text-fg text-[14px] font-semibold leading-tight">{q.header}</span>
               </div>
             )}
@@ -271,7 +287,7 @@ export function AskCard({
                     key={o.label}
                     className={`flex items-start gap-2.5 w-full px-3 py-2.5 rounded-lg border text-left transition-all duration-150 ${
                       on
-                        ? "border-accent bg-accent-soft shadow-[0_0_0_1px_var(--accent)]"
+                        ? "border-accent bg-accent-soft shadow-[0_0_0_1px_var(--accent),0_0_12px_color-mix(in_srgb,var(--accent)_12%,transparent)]"
                         : "border-border-soft bg-transparent hover:border-border hover:bg-bg-soft active:scale-[0.99]"
                     }`}
                     onClick={() => toggle(q, o.label)}
@@ -285,7 +301,7 @@ export function AskCard({
                     >
                       {on && (
                         q.multi
-                          ? <span className="text-accent-fg text-[10px] font-bold">✓</span>
+                          ? <Check size={10} className="text-accent-fg" />
                           : <span className="w-1.5 h-1.5 rounded-full bg-accent-fg" />
                       )}
                     </span>
@@ -302,7 +318,7 @@ export function AskCard({
               })}
             </div>
             <input
-              className="w-full border border-border-soft rounded-lg bg-bg text-fg text-[12.5px] px-3 py-2 outline-none placeholder:text-fg-faint/40 transition-colors duration-150 focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft)]"
+              className="w-full border border-border-soft rounded-lg bg-bg text-fg text-[12.5px] px-3 py-2 outline-none placeholder:text-fg-faint/40 transition-colors duration-150 focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-soft),0_0_14px_color-mix(in_srgb,var(--accent)_10%,transparent)]"
               placeholder={t("ask.customPlaceholder")}
               value={custom[q.id] ?? ""}
               onChange={(e) => setTyped(q, e.target.value)}
@@ -323,7 +339,7 @@ export function AskCard({
             {t("ask.justChat")}
           </button>
           <button
-            className="px-4 py-2 border-0 rounded-lg bg-accent text-accent-fg text-[12.5px] font-semibold cursor-pointer transition-all duration-[var(--dur-fast)] enabled:hover:brightness-110 enabled:hover:-translate-y-px enabled:active:scale-[0.98] disabled:opacity-40 disabled:cursor-default"
+            className="px-4 py-2 border-0 rounded-lg bg-accent text-accent-fg text-[12.5px] font-semibold cursor-pointer transition-all duration-[var(--dur-fast)] enabled:shadow-[0_0_12px_color-mix(in_srgb,var(--accent)_22%,transparent)] enabled:hover:brightness-110 enabled:hover:-translate-y-px enabled:active:scale-[0.98] disabled:opacity-40 disabled:cursor-default disabled:shadow-none"
             onClick={submit}
             disabled={!allAnswered}
           >

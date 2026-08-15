@@ -1,5 +1,11 @@
 # gaea 3.0 UI 设计系统（定制版）
 
+> **⚠️ 已升级为 v2「星枢 Constellation OS」（2026-08-15 用户指令革命性重设计）**：
+> 壳层由顶栏菜单革命为左侧指挥轨道 + 顶部轨道条 + 底部遥测轨道；每板块统一 3 分区工作台；
+> 视觉升级 Luminous Glass 2.0。**v2 完整规格见 `docs/2026-08-15-gaea3-ui-constellation-os.md`**，
+> 令牌见 `design-system/gaea/MASTER.md`（v2）。本文档 v1 内容保留作历史基线，其中
+> §1 令牌体系、§2 组件规范、§5 可访问性红线仍有效并被 v2 沿用。
+>
 > 状态：**定稿 v1**（2026-08-15，ui-ux-pro-max skill 驱动 + gaea 现状定制）
 > 定位：本文是 gaea 3.0「个人 AI 智能体平台」的视觉与交互规范；配套机器可读文件见
 > `design-system/gaea/MASTER.md`（skill 持久化 source of truth）；各板块蓝图见

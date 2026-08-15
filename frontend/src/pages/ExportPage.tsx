@@ -66,12 +66,12 @@ const ExportPage: React.FC = () => {
                 <div key={ext} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 0 }}>
                   <Space>
                     {ext === '.epub' ? <BookOutlined style={{ color: C('color-primary') }} /> :
-                     ext === '.md' ? <FileMarkdownOutlined style={{ color: '#60a5fa' }} /> :
+                     ext === '.md' ? <FileMarkdownOutlined style={{ color: 'var(--color-primary)' }} /> :
                      <FileTextOutlined style={{ color: C('color-text-secondary') }} />}
                     <Tag>{ext.toUpperCase()}</Tag>
                   </Space>
                   <Typography.Text style={{
-                    color: path.startsWith('失败') ? '#f87171' : C('color-primary'),
+                    color: path.startsWith('失败') ? 'var(--color-destructive)' : C('color-primary'),
                     fontSize: 12,
                     maxWidth: 400,
                     overflow: 'hidden',

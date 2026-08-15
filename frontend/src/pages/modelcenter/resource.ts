@@ -46,13 +46,13 @@ export function computeResourceSnapshot(m: ResourceMonitorData | null | undefine
   const vramUsed = s.vramUsed || 0
   const memPct = memTotal ? Math.round((memUsed / memTotal) * 100) : 0
   const vramPct = vramTotal ? Math.round((vramUsed / vramTotal) * 100) : 0
-  const gpuPct = s.gpuUsage || vramPct
+  const gpuPct = Math.max(0, (s.gpuUsage ?? 0) > 0 ? s.gpuUsage : vramPct)
   const localEngines = (m?.engines || [])
     .filter(e => e.isLocal)
     .map(e => `${e.engine}${e.model ? '·' + String(e.model).split('/').pop() : ''}`)
 
   return {
-    cpu: s.cpu ?? 0,
+    cpu: Math.max(0, s.cpu ?? 0),
     memPct,
     memUsed,
     memTotal,
@@ -74,10 +74,11 @@ export function resourceLevel(pct: number): ResourceLevel {
   return 'ok'
 }
 
+// 3.0 Wave 4：硬编码 hex → 全局语义令牌（App.tsx 注入 :root，随 12 主题联动）
 export const resourceLevelColor: Record<ResourceLevel, string> = {
-  ok: '#34d399',
-  warn: '#fbbf24',
-  high: '#fb7185',
+  ok: 'var(--color-success)',
+  warn: 'var(--color-warning)',
+  high: 'var(--color-destructive)',
 }
 
 export function fmtGB(gb: number): string {

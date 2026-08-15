@@ -4,7 +4,7 @@ import {
   BookOutlined, UnorderedListOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined,
 } from '@ant-design/icons'
-import { C } from '../../utils/theme'
+import { C, STATUS_COLORS, STATUS_LABELS } from '../../utils/theme'
 import type { OutlineNode } from '../../types'
 
 interface OutlinePanelProps {
@@ -39,14 +39,8 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
             </div>
           )
         } else {
-            const statusColor =
-              n.status === 'writing' ? '#f59e0b' :
-              n.status === 'done' ? '#22c55e' :
-              n.status === 'abandoned' ? '#374151' : '#6b7280'
-            const statusLabel =
-              n.status === 'writing' ? '草稿' :
-              n.status === 'done' ? '定稿' :
-              n.status === 'abandoned' ? '废弃' : '未写'
+            const statusColor = STATUS_COLORS[n.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.planned
+            const statusLabel = STATUS_LABELS[n.status as keyof typeof STATUS_LABELS] || '未写'
           cards.push(
             <div key={n.id} className="novel-outline-row" onClick={() => onSelectNode(n)} style={{
               padding: '6px 10px', paddingLeft: 10 + depth * 16,
@@ -81,23 +75,23 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
 
   return (
     <div className="novel-panel" style={{
-      width: collapsed ? 40 : 220, flexShrink: 0, overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', transition: 'width 0.2s',
+      width: collapsed ? 40 : '100%', flexShrink: 0, overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
     }}>
-      <div style={{
-        padding: collapsed ? '10px 8px' : '10px 14px',
-        borderBottom: '1px solid ' + C('color-border'),
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      <div className="novel-zone-head" style={{
+        padding: collapsed ? '0 8px' : '0 12px',
       }}>
         {!collapsed && (
-          <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>
-            <UnorderedListOutlined style={{ marginRight: 6 }} />大纲
-          </Typography.Text>
+          <span className="novel-zone-title" style={{ fontSize: 12 }}>
+            <UnorderedListOutlined />大纲
+          </span>
         )}
+        <div style={{ flex: 1 }} />
         <Tooltip title={collapsed ? '展开大纲' : '收起大纲'}>
-          <Button type="text" size="small"
+          <Button type="text" size="small" className="novel-outline-toggle"
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={onToggleCollapse}
+            aria-label={collapsed ? '展开大纲' : '收起大纲'}
             style={{ color: C('color-text-secondary'), fontSize: 11, padding: collapsed ? '0' : undefined }}
           />
         </Tooltip>
@@ -115,17 +109,17 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({
               padding: '6px 0 2px', borderTop: '1px solid ' + C('color-border'),
               display: 'flex', justifyContent: 'center', gap: 12, flexShrink: 0,
             }}>
-              <span style={{ fontSize: 9, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b7280', display: 'inline-block' }} />未写
+              <span style={{ fontSize: 9, color: STATUS_COLORS.planned, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span className="novel-dot" style={{ background: STATUS_COLORS.planned }} />{STATUS_LABELS.planned}
               </span>
-              <span style={{ fontSize: 9, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />草稿
+              <span style={{ fontSize: 9, color: STATUS_COLORS.writing, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span className="novel-dot" style={{ background: STATUS_COLORS.writing }} />{STATUS_LABELS.writing}
               </span>
-              <span style={{ fontSize: 9, color: '#22c55e', display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />定稿
+              <span style={{ fontSize: 9, color: STATUS_COLORS.done, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span className="novel-dot" style={{ background: STATUS_COLORS.done }} />{STATUS_LABELS.done}
               </span>
-              <span style={{ fontSize: 9, color: '#374151', display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#374151', display: 'inline-block' }} />废弃
+              <span style={{ fontSize: 9, color: STATUS_COLORS.abandoned, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span className="novel-dot" style={{ background: STATUS_COLORS.abandoned }} />{STATUS_LABELS.abandoned}
               </span>
             </div>
           )}

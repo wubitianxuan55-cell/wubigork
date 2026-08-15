@@ -32,22 +32,22 @@
   /* ── brand accent — 引用主应用主色 ──────────────────────────────── */
   --accent: var(--md-sys-color-primary, #6366F1);
   --accent-fg: var(--md-sys-color-on-primary, #FFFFFF);
-  --accent-soft: rgba(99, 102, 241, 0.14);
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
 
-  /* ── semantic — ok/warn 跟随主应用；err/info 无对应令牌保留兜底 ── */
+  /* ── semantic — ok/warn/err 跟随主应用令牌（hex 仅作兜底） ── */
   --ok: var(--md-sys-color-success, #22C55E);
   --warn: var(--md-sys-color-warning, #F59E0B);
-  --err: #EF4444;
-  --info: #38BDF8;
-  --warning: var(--md-sys-color-warning, #F59E0B);
-  --error: #EF4444;
-  --danger: #EF4444;
+  --err: var(--md-sys-color-destructive, #EF4444);
+  --info: var(--md-sys-color-info, #38BDF8);
+  --warning: var(--warn);
+  --error: var(--err);
+  --danger: var(--err);
 
   /* ── diff ──────────────────────────────────────────────────────────── */
-  --add-bg: rgba(34, 197, 94, 0.14);
-  --add-fg: var(--md-sys-color-success, #22C55E);
-  --del-bg: rgba(239, 68, 68, 0.14);
-  --del-fg: #EF4444;
+  --add-bg: color-mix(in srgb, var(--ok) 14%, transparent);
+  --add-fg: var(--ok);
+  --del-bg: color-mix(in srgb, var(--err) 14%, transparent);
+  --del-fg: var(--err);
 
   /* ── syntax highlight (One Dark inspired, adjusted for new palette) ── */
   --hl-keyword: #C084FC;  /* purple */
@@ -93,12 +93,12 @@
   --ds-shadow-card-hover: var(--md-sys-elevation-3, 0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15));
   --ds-shadow-panel: var(--md-sys-elevation-3, 0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15));
   --ds-shadow-dropdown: var(--md-sys-elevation-4, 0 6px 12px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.15));
-  --ds-danger: var(--err, #EF4444);
-  --ds-danger-soft: color-mix(in srgb, var(--err, #EF4444) 14%, transparent);
-  --ds-success: var(--ok, #22C55E);
-  --ds-success-soft: color-mix(in srgb, var(--ok, #22C55E) 14%, transparent);
-  --ds-warning: var(--warn, #F59E0B);
-  --ds-warning-soft: color-mix(in srgb, var(--warn, #F59E0B) 14%, transparent);
+  --ds-danger: var(--err);
+  --ds-danger-soft: color-mix(in srgb, var(--err) 14%, transparent);
+  --ds-success: var(--ok);
+  --ds-success-soft: color-mix(in srgb, var(--ok) 14%, transparent);
+  --ds-warning: var(--warn);
+  --ds-warning-soft: color-mix(in srgb, var(--warn) 14%, transparent);
 }
 /* -- Platform-specific font stacks -------------------------------------------------- */
 :root[data-platform="windows"] {
@@ -888,7 +888,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--ds-overlay);
 }
 .ds-modal {
   width: 100%;
@@ -921,7 +921,7 @@ body {
   background: var(--bg-soft);
   color: var(--fg-dim);
   border: 1px solid var(--border-soft);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 4%, transparent);
 }
 
 /* ── badge (semantic label variants) ─────────────────────────────────────── */
@@ -972,7 +972,7 @@ body {
   font-weight: 500;
   color: var(--fg-dim);
   background: color-mix(in srgb, var(--bg-elev) 70%, var(--bg-soft));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent);
   cursor: pointer;
   transition: all var(--dur-fast);
 }
@@ -980,7 +980,7 @@ body {
   color: var(--fg);
   background: var(--bg-elev);
   border-color: var(--fg-faint);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), var(--ds-shadow-card);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--fg) 8%, transparent), var(--ds-shadow-card);
 }
 .ds-button-pill:active {
   transform: scale(0.985);
@@ -1044,8 +1044,8 @@ body::after {
   pointer-events: none;
   z-index: -2;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
-    linear-gradient(120deg, rgba(255, 255, 255, 0.015), transparent 35%, rgba(255, 255, 255, 0.01) 72%, transparent);
+    linear-gradient(180deg, color-mix(in srgb, var(--fg) 2%, transparent), transparent 24%),
+    linear-gradient(120deg, color-mix(in srgb, var(--fg) 1.5%, transparent), transparent 35%, color-mix(in srgb, var(--fg) 1%, transparent) 72%, transparent);
 }
 
 /* ── command palette (Ctrl+K) ────────────────────────────────────────────── */
@@ -1380,7 +1380,7 @@ body::after {
   font-weight: 400;
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--ds-shadow-dropdown);
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;

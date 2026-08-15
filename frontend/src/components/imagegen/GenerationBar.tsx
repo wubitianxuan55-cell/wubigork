@@ -51,7 +51,7 @@ export const GenerationBar: React.FC<Props> = ({
     : mode === 't2v' ? '生成视频' : `生成 ${count} 张`
 
   return (
-    <div className="ig-bottom-bar">
+    <div className={generating ? 'ig-bottom-bar is-busy' : 'ig-bottom-bar'}>
       <div
         className="ig-bottom-hint"
         aria-live="polite"

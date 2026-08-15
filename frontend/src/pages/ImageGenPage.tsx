@@ -2,13 +2,16 @@
 // 职责：状态编排 + 跨 hook 装配；配置/引擎（useImageGenConfig）、生成队列
 // （useImageGenQueue）、历史/灯箱（useImageGenHistory）、自定义模板
 // （useCustomTemplates）与纯工具（components/imagegen/meta）拆分见各产物文件。
+//
+// 3.0「画廊工作台」：顶部轨道式模式 tab（细条，激活=主色容器+光条）
+// + 3 分区工作台（左控制台 zone / 中画布 zone / 右历史·任务 inspector），
+// 分区用 v3-split-v 分隔，容器统一 Luminous Glass 2.0（v3-panel / v3-zone）。
 import React, { useState, useCallback } from 'react'
-import { Typography, Button, Space, message } from 'antd'
+import { Button, message } from 'antd'
 import {
   PictureOutlined, FolderOpenOutlined,
   SwapOutlined, VideoCameraOutlined,
 } from '@ant-design/icons'
-import { C } from '../utils/theme'
 import Lightbox from '../components/Lightbox'
 import CustomTemplateModal from '../components/imagegen/CustomTemplateModal'
 import TemplatePickerModal from '../components/imagegen/TemplatePickerModal'
@@ -134,81 +137,70 @@ const ImageGenPage: React.FC = () => {
   const needsComfy = (mode === 't2v' && backend !== 'comfyui')
     || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman')
 
+  const engineStatusText = engineStarting
+    ? '引擎启动中...'
+    : isLocalEngine
+      ? (engineRunning ? `${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 运行中` : '引擎未连接')
+      : `${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 云端`
+
   // ── 渲染 ──
   return (
-    <div className="ig-studio" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-      {/* 顶栏 */}
-      <div className="ig-studio-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(var(--accent-rgb), 0.14)', border: '1px solid rgba(var(--accent-rgb), 0.25)',
-            color: 'var(--color-primary)', fontSize: 16,
-          }}>
-            <PictureOutlined />
-          </div>
-          <div>
-            <Typography.Title level={5} style={{ color: C('color-text'), margin: 0, fontSize: 16, fontWeight: 600, lineHeight: 1.2 }}>
-              AI 绘梦
-            </Typography.Title>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-              <StatusDot tone={engineStarting ? 'warn' : isLocalEngine ? (engineRunning ? 'ok' : 'idle') : 'ok'} />
-              <span style={{ fontSize: 11, color: C('color-text-secondary'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280 }}>
-                {engineStarting
-                  ? '引擎启动中...'
-                  : isLocalEngine
-                    ? (engineRunning ? `${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 运行中` : '引擎未连接')
-                    : `${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 云端`}
-                {!engineStarting && model ? ` · ${model}` : ''}
-              </span>
-            </div>
-          </div>
+    <div className="ig-studio">
+      {/* 顶条：模式轨道细 tab + 引擎状态 pill + 目录入口（板块名已在轨道/面包屑，不再重复大标题） */}
+      <div className="ig-top-strip">
+        <div className="ig-mode-nav" role="tablist" aria-label="生成模式">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'txt2img'}
+            className={`ig-mode-item${mode === 'txt2img' ? ' is-active' : ''}`}
+            onClick={() => handleSwitchMode('txt2img')}
+          >
+            <PictureOutlined /> 文生图
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'img2img'}
+            className={`ig-mode-item${mode === 'img2img' ? ' is-active' : ''}`}
+            onClick={() => handleSwitchMode('img2img')}
+          >
+            <SwapOutlined /> 图生图
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 't2v'}
+            className={`ig-mode-item${mode === 't2v' ? ' is-active' : ''}`}
+            onClick={() => handleSwitchMode('t2v')}
+          >
+            <VideoCameraOutlined /> 文生视频
+          </button>
         </div>
-        <Space size={6}>
+
+        <div className="ig-strip-spacer" />
+
+        <div className="ig-engine-pill" aria-live="polite">
+          <StatusDot tone={engineStarting ? 'warn' : isLocalEngine ? (engineRunning ? 'ok' : 'idle') : 'ok'} />
+          <span className="ig-engine-text">
+            {engineStatusText}
+            {!engineStarting && model ? ` · ${model}` : ''}
+          </span>
+        </div>
+
+        <div className="ig-strip-actions">
           <Button type="text" size="small" icon={<FolderOpenOutlined />}
             onClick={handleOpenNovelDir} title="小说图片目录" aria-label="打开小说图片目录"
-            style={{ color: C('color-text-secondary'), fontSize: 13, padding: '0 6px' }} />
+            style={{ color: 'var(--color-text-secondary)', fontSize: 13, padding: '0 6px' }} />
           <Button type="text" size="small" icon={<FolderOpenOutlined />}
             onClick={handleOpenDir} title="生成图片目录" aria-label="打开生成图片目录"
-            style={{ color: C('color-text-secondary'), fontSize: 13, padding: '0 6px' }} />
-        </Space>
+            style={{ color: 'var(--color-text-secondary)', fontSize: 13, padding: '0 6px' }} />
+        </div>
       </div>
 
-      {/* 模式导航：文生图 / 图生图 / 文生视频 */}
-      <div className="ig-mode-nav" role="tablist" aria-label="生成模式">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'txt2img'}
-          className={`ig-mode-item${mode === 'txt2img' ? ' is-active' : ''}`}
-          onClick={() => handleSwitchMode('txt2img')}
-        >
-          <PictureOutlined /> 文生图
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'img2img'}
-          className={`ig-mode-item${mode === 'img2img' ? ' is-active' : ''}`}
-          onClick={() => handleSwitchMode('img2img')}
-        >
-          <SwapOutlined /> 图生图
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 't2v'}
-          className={`ig-mode-item${mode === 't2v' ? ' is-active' : ''}`}
-          onClick={() => handleSwitchMode('t2v')}
-        >
-          <VideoCameraOutlined /> 文生视频
-        </button>
-      </div>
-
-      {/* 主工作区：左控制面板 + 中结果舞台 + 右历史胶片 */}
-      <div className="ig-workspace" style={{ flex: 1, display: 'flex', gap: 12, minHeight: 0 }}>
-        {/* 左栏 — 控制面板 */}
-        <div className="ig-control-rail" style={{ width: 300, flexShrink: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 2 }}>
+      {/* 3 分区工作台：左控制台 zone | 中画布 zone | 右历史·任务 inspector */}
+      <div className="ig-workspace">
+        <aside className="ig-control-rail v3-panel" aria-label="生成控制台">
           <ControlPanel
             mode={mode}
             prompt={prompt} negative={negative}
@@ -237,10 +229,12 @@ const ImageGenPage: React.FC = () => {
             onStartEngine={handleStartEngine} onStopEngine={handleStopEngine}
             sysStats={sysStats}
           />
-        </div>
+        </aside>
 
-        {/* 中间 — 结果舞台 */}
-        <div ref={canvasRef} className="ig-result-canvas" style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+        <div className="v3-split-v" aria-hidden="true" />
+
+        {/* 中央画布 zone（canvasRef 供生成时回顶） */}
+        <div ref={canvasRef} className="ig-result-canvas v3-zone" aria-label="画布">
           <ResultStage
             results={results} generating={generating} error={genError} mode={mode}
             initImage={initImage}
@@ -253,7 +247,9 @@ const ImageGenPage: React.FC = () => {
           />
         </div>
 
-        {/* 右侧 — 任务中心：队列 / 最近结果 / 模板 */}
+        <div className="v3-split-v" aria-hidden="true" />
+
+        {/* 右栏 — 历史 / 任务队列 / 模板 inspector（可折叠，数据与逻辑沿用 TaskCenter） */}
         <TaskCenter
           queueItems={queueItems}
           onClearQueue={() => setQueueItems([])}

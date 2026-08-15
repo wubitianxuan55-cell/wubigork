@@ -7,6 +7,7 @@
 // the CLI's /mcp + /skill, aligning with Claude Code's Customize → Connectors:
 // each server shows a connected/failed dot, transport, and tool/prompt/resource
 // counts, with add / remove / retry; skills list their scope and run mode.
+// v3「星枢」面板语言：分段式 v3 标签页（激活 = 主色容器 + 柔光），令牌化操作按钮。
 import { useCallback, useState } from "react";
 import { Globe, Cpu, RefreshCw } from "../icons";
 import { app } from "../lib/bridge";
@@ -66,6 +67,9 @@ export function CapabilitiesPanel({
     });
   }, []);
 
+  const reloadBtn =
+    "flex items-center gap-1.5 px-2 py-1 text-xs rounded-md cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-default";
+
   return (
     <ResizableDrawer onClose={onClose} subtle>
         <DrawerHeader onClose={onClose}>
@@ -74,7 +78,12 @@ export function CapabilitiesPanel({
             {view && <DrawerSubtitle text={summary} />}
           </div>
           <button
-            className="flex items-center gap-1.5 px-2 py-1 text-xs border border-border-soft rounded text-fg-dim cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors disabled:opacity-40 disabled:cursor-default"
+            className={reloadBtn}
+            style={{
+              border: "1px solid var(--md-sys-color-outline-variant)",
+              color: "var(--md-sys-color-text-secondary)",
+              background: "transparent",
+            }}
             disabled={reloading}
             onClick={() => void reloadEngine()}
             title={t("caps.reloadHint")}
@@ -92,30 +101,65 @@ export function CapabilitiesPanel({
           <div className="empty-state">{t("caps.loading")}</div>
         ) : (
           <div className="overflow-y-auto px-4 py-3.5 flex flex-col gap-5">
-            {err && <div className="shrink-0 px-4 py-2 text-[12.5px] bg-del-bg text-err border-b border-border-soft">{err}</div>}
-            {notice && <div className="shrink-0 px-4 py-2 text-[12.5px] bg-ok/10 text-ok border-b border-ok/20">{notice}</div>}
-            <div className="flex border-b border-border-soft mb-3" role="tablist" aria-label={t("caps.title")}>
-              <button
-                className={`flex-1 px-4 py-2 border-0 border-b-2 bg-transparent text-[13px] font-medium cursor-pointer transition-[color,border] duration-[var(--dur-fast)] ${
-                  tab === "servers" ? "text-accent border-accent" : "text-fg-dim border-transparent hover:text-fg hover:border-fg-faint"
-                }`}
-                role="tab" aria-selected={tab === "servers"} onClick={() => setTab("servers")}
-              >{t("caps.connectorsTab")}</button>
-              <button
-                className={`flex-1 px-4 py-2 border-0 border-b-2 bg-transparent text-[13px] font-medium cursor-pointer transition-[color,border] duration-[var(--dur-fast)] ${
-                  tab === "tools" ? "text-accent border-accent" : "text-fg-dim border-transparent hover:text-fg hover:border-fg-faint"
-                }`}
-                role="tab" aria-selected={tab === "tools"} onClick={() => setTab("tools")}
+            {err && (
+              <div
+                className="shrink-0 px-4 py-2 text-[12.5px]"
+                style={{
+                  background: "color-mix(in srgb, var(--md-sys-color-destructive) 9%, transparent)",
+                  color: "var(--md-sys-color-destructive)",
+                  borderBottom: "1px solid color-mix(in srgb, var(--md-sys-color-destructive) 22%, transparent)",
+                }}
               >
-                <Cpu size={12} className="inline mr-1 align-middle -mt-px" />
-                <span>工具</span>
-              </button>
-              <button
-                className={`flex-1 px-4 py-2 border-0 border-b-2 bg-transparent text-[13px] font-medium cursor-pointer transition-[color,border] duration-[var(--dur-fast)] ${
-                  tab === "skills" ? "text-accent border-accent" : "text-fg-dim border-transparent hover:text-fg hover:border-fg-faint"
-                }`}
-                role="tab" aria-selected={tab === "skills"} onClick={() => setTab("skills")}
-              >{t("caps.skillsTab")}</button>
+                {err}
+              </div>
+            )}
+            {notice && (
+              <div
+                className="shrink-0 px-4 py-2 text-[12.5px]"
+                style={{
+                  background: "color-mix(in srgb, var(--md-sys-color-success) 9%, transparent)",
+                  color: "var(--md-sys-color-success)",
+                  borderBottom: "1px solid color-mix(in srgb, var(--md-sys-color-success) 22%, transparent)",
+                }}
+              >
+                {notice}
+              </div>
+            )}
+            {/* v3 分段标签页：激活 = 主色容器 + 柔光 */}
+            <div
+              className="flex gap-1 p-1 rounded-[var(--radius-md)]"
+              role="tablist"
+              aria-label={t("caps.title")}
+              style={{
+                background: "var(--md-sys-color-surface-container)",
+                border: "1px solid var(--md-sys-color-outline-variant)",
+              }}
+            >
+              {(
+                [
+                  { key: "servers" as CapTab, label: t("caps.connectorsTab") },
+                  { key: "tools" as CapTab, label: "工具", icon: <Cpu size={12} aria-hidden className="inline mr-1 align-middle -mt-px" /> },
+                  { key: "skills" as CapTab, label: t("caps.skillsTab") },
+                ]
+              ).map((item) => {
+                const active = tab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setTab(item.key)}
+                    className={`flex-1 px-3 py-1.5 rounded-[var(--radius-sm)] text-[13px] font-medium cursor-pointer transition-all duration-200 ${
+                      active
+                        ? "bg-(color:--md-sys-color-primary-container) text-(color:--md-sys-color-on-primary-container) shadow-[var(--v3-glow-faint)]"
+                        : "text-(color:--md-sys-color-text-secondary) hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high)"
+                    }`}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {tab === "servers" ? (
@@ -123,7 +167,12 @@ export function CapabilitiesPanel({
                 <div className="flex justify-end mb-2">
                   {/* Context7 一键添加 */}
                   <button
-                    className="flex items-center gap-1.5 mr-2 px-2.5 py-1 text-xs border border-accent/30 rounded bg-accent/5 text-accent cursor-pointer hover:bg-accent/10 transition-colors disabled:opacity-40"
+                    className="flex items-center gap-1.5 mr-2 px-2.5 py-1 text-xs rounded-md cursor-pointer transition-colors disabled:opacity-40"
+                    style={{
+                      border: "1px solid color-mix(in srgb, var(--gaea-glow) 34%, transparent)",
+                      background: "color-mix(in srgb, var(--gaea-glow) 7%, transparent)",
+                      color: "var(--gaea-glow)",
+                    }}
                     disabled={busy || addingContext7}
                     onClick={() => addContext7()}
                     title={t("caps.addContext7Hint")}
@@ -136,7 +185,16 @@ export function CapabilitiesPanel({
                     <span>{addingContext7 ? t("caps.addContext7Busy") : t("caps.addContext7")}</span>
                   </button>
                   {!adding && (
-                    <button className="px-2.5 py-1 text-xs" disabled={busy} onClick={() => setAdding(true)}>
+                    <button
+                      className="px-2.5 py-1 text-xs rounded-md cursor-pointer"
+                      style={{
+                        border: "1px solid var(--md-sys-color-outline-variant)",
+                        color: "var(--md-sys-color-text-secondary)",
+                        background: "transparent",
+                      }}
+                      disabled={busy}
+                      onClick={() => setAdding(true)}
+                    >
                       {t("caps.addServer")}
                     </button>
                   )}
@@ -155,7 +213,7 @@ export function CapabilitiesPanel({
                   />
                 )}
                 {view.servers.length === 0 && !adding && (
-                  <div className="text-fg-faint text-xs text-center py-4">{t("caps.noServers")}</div>
+                  <div className="text-xs text-center py-4" style={{ color: "var(--md-sys-color-text-secondary)" }}>{t("caps.noServers")}</div>
                 )}
                 <ServerGroup
                   busy={busy}

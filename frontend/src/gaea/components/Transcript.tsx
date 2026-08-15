@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Brain, ChevronRight } from "../icons";
+import { AlertCircle, ArrowDown, Brain, CheckCircle, ChevronRight, FileText, Loader } from "../icons";
 import type { Item } from "../lib/store";
 import { useItems, useTurnStartAt } from "../lib/store";
 import { AssistantMessage, UserMessage } from "./Message";
@@ -279,7 +279,7 @@ function renderOutsideItems(
           const clean = it.text.includes("— clean");
           return (
             <div key={it.id} className={`flex items-center gap-1.5 px-4 py-1 text-[11px] ${clean ? "text-ok" : "text-warning"}`}>
-              <span className="shrink-0">{clean ? "✔" : "⚠"}</span>
+              <span aria-hidden className="shrink-0">{clean ? <CheckCircle size={12} className="text-ok" /> : <AlertCircle size={12} className="text-warning" />}</span>
               <span>{it.text}</span>
             </div>
           );
@@ -372,6 +372,7 @@ function InlineReasoning({ item }: { item: AssistantItem }) {
         aria-expanded={open}
       >
         <Brain size={12} className="reasoning__icon" />
+        {running && <span aria-hidden className="w-1 h-1 rounded-full bg-accent animate-pulse shadow-[0_0_6px_var(--accent)] shrink-0" />}
         <span className="reasoning__label">思考</span>
         <ChevronRight size={12} className={`reasoning__chevron${open ? " reasoning__chevron--open" : ""}`} />
       </button>
@@ -484,7 +485,7 @@ export const ProcessCard = memo(function ProcessCard({
   }, [items, subcallsByParent]);
 
   return (
-    <div className={`my-1.5 border rounded-xl overflow-hidden bg-bg-soft/40 transition-colors ${running ? "border-accent/25" : "border-border-soft"}`}>
+    <div className={`my-1.5 border rounded-xl overflow-hidden bg-bg-soft/50 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_5%,transparent)] transition-[border-color,box-shadow] duration-[var(--dur-base)] ${running ? "border-accent/25 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--gaea-glow)_12%,transparent),var(--v3-glow-faint)]" : "border-border-soft"}`}>
       <button
         type="button"
         className="flex items-center gap-2 w-full px-3 py-2 text-left cursor-pointer hover:bg-bg-elev/60 transition-colors"
@@ -495,7 +496,7 @@ export const ProcessCard = memo(function ProcessCard({
         <ChevronRight size={13} className={`shrink-0 text-fg-faint transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
         <Brain size={13} className={`shrink-0 ${running ? "text-accent animate-pulse" : "text-fg-faint"}`} />
         <span className="text-[11px] font-medium text-fg-dim">{label}</span>
-        {running && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />}
+        {running && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_6px_var(--accent)]" />}
       </button>
       <div ref={bodyRef} style={{ overflow: "hidden" }}>
         <div className="px-2.5 pb-2.5 pt-0.5 space-y-1">{body}</div>
@@ -727,41 +728,44 @@ export function Transcript({
   }, [scrollToBottom]);
 
   return (
-    <div className="transcript" ref={scrollRef} onScroll={onScroll}>
-      <div className="w-full px-8 md:px-12 py-4" ref={entranceRef}>
+    <div className="transcript v3-zone" ref={scrollRef} onScroll={onScroll}>
+      <div className="w-full px-4 sm:px-6 md:px-8 py-4" ref={entranceRef}>
         {items.length === 0 && (
           <Welcome onPrompt={onPrompt} cwd={cwd} cwdName={cwdName} sessions={sessions} onResumeSession={onResumeSession} meta={meta} />
         )}
-        <StreamingIndicator running={running} items={items} />
-        {segments.map((seg, segIdx, arr) => {
-          const isLast = segIdx === arr.length - 1;
-          const segKey = seg.processItems[0]?.id ?? seg.outsideItems[0]?.id ?? `seg${segIdx}`;
-          // 大过程卡（整轮结束后的合并卡）用独立 key 全新挂载：
-          // 默认展开，且不复用运行中小过程卡的折叠实例（小卡始终折叠）。
-          const segKeyFinal = running ? segKey : `done-${segKey}`;
-          return (
-            <TurnBlock
-              key={segKeyFinal}
-              seg={seg}
-              running={running}
-              isLast={isLast}
-              turnNo={turnNos.get(segIdx)}
-              openTurn={openTurn}
-              onToggleTurn={toggleTurn}
-              onRewindTurn={handleRewindTurn}
-              onCollapse={scheduleMeasure}
-              dismissedErrors={dismissedErrors}
-              onDismissError={dismissError}
-              captureForId={captureForId}
-              turnElsRef={turnEls}
-            />
-          );
-        })}
+        {/* 正文 74ch 阅读宽度（.v3-reading 居中）；欢迎页作为启动器保持铺满 */}
+        <div className="v3-reading">
+          <StreamingIndicator running={running} items={items} />
+          {segments.map((seg, segIdx, arr) => {
+            const isLast = segIdx === arr.length - 1;
+            const segKey = seg.processItems[0]?.id ?? seg.outsideItems[0]?.id ?? `seg${segIdx}`;
+            // 大过程卡（整轮结束后的合并卡）用独立 key 全新挂载：
+            // 默认展开，且不复用运行中小过程卡的折叠实例（小卡始终折叠）。
+            const segKeyFinal = running ? segKey : `done-${segKey}`;
+            return (
+              <TurnBlock
+                key={segKeyFinal}
+                seg={seg}
+                running={running}
+                isLast={isLast}
+                turnNo={turnNos.get(segIdx)}
+                openTurn={openTurn}
+                onToggleTurn={toggleTurn}
+                onRewindTurn={handleRewindTurn}
+                onCollapse={scheduleMeasure}
+                dismissedErrors={dismissedErrors}
+                onDismissError={dismissError}
+                captureForId={captureForId}
+                turnElsRef={turnEls}
+              />
+            );
+          })}
+        </div>
       </div>
-      {/* 回到底部按钮 —— 居中圆形，accent 色调 */}
+      {/* 回到底部按钮 —— 居中圆形，v3 柔光 */}
       {showScrollDown && (
         <button
-          className="absolute left-1/2 bottom-8 z-20 flex items-center justify-center w-9 h-9 rounded-full border border-accent/20 bg-bg-elev text-fg-dim cursor-pointer hover:text-accent hover:border-accent/40 hover:bg-bg-elev-2 active:scale-95 transition-all shadow-lg"
+          className="absolute left-1/2 bottom-8 z-20 flex items-center justify-center w-9 h-9 rounded-full border border-accent/25 bg-bg-elev/85 backdrop-blur-md text-fg-dim cursor-pointer hover:text-accent hover:border-accent/40 hover:bg-bg-elev-2 active:scale-95 transition-all shadow-[var(--v3-glow-faint)]"
           style={{ transform: "translateX(-50%)" }}
           onClick={scrollDown}
           aria-label="回到底部"
@@ -789,14 +793,15 @@ function CompactionCard({ item }: { item: CompactionItem }) {
   if (item.pending) {
     return (
       <div className="flex items-center gap-2 my-1 mx-2 px-3 py-2 border border-border-soft rounded-lg bg-bg-soft text-fg-faint text-xs animate-pulse">
-        <span className="text-accent font-bold">⋯</span> Compacting conversation…
+        <Loader size={12} className="animate-spin text-accent" />
+        <span>Compacting conversation…</span>
       </div>
     );
   }
   return (
-    <div className="my-1 mx-2 border border-border-soft rounded-lg bg-bg-soft overflow-hidden">
+    <div className="my-1 mx-2 border border-border-soft rounded-lg bg-bg-soft shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_5%,transparent)] overflow-hidden">
       <button className="flex items-center gap-2 w-full px-3 py-2 bg-transparent border-0 text-fg-dim text-[12.5px] cursor-pointer hover:bg-bg-elev" onClick={() => setOpen((v) => !v)}>
-        <span className="text-accent text-xs shrink-0">◆</span>
+        <FileText size={12} className="text-accent shrink-0" />
         <span className="font-medium text-fg">Context compacted</span>
         <span className="text-fg-faint text-[11px] ml-auto">{item.messages} messages · {item.trigger}</span>
         <span className="text-fg-faint text-[10.5px] underline shrink-0">{open ? "hide summary" : "show summary"}</span>

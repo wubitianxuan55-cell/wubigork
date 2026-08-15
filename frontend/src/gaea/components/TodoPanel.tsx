@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Circle, Loader } from "../icons";
+import { Check, Circle, Loader, X } from "../icons";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
@@ -7,14 +7,16 @@ import type { Todo } from "../lib/tools";
 import type { Requirement } from "../lib/types";
 import { PromptBadge, PromptHeaderAction, PromptShelf } from "./PromptShelf";
 
+// v3「星枢」面板语言：状态图标/进度条/当前任务全部令牌化
+// （--md-sys-color-success / --gaea-glow / --md-sys-color-primary-container），零硬编码色值。
 const statusIcon = (status: string) => {
   switch (status) {
     case "completed":
-      return <Check size={13} className="text-ok shrink-0" />;
+      return <Check size={13} className="shrink-0" aria-hidden style={{ color: "var(--md-sys-color-success)" }} />;
     case "in_progress":
-      return <Loader size={13} className="text-accent shrink-0 animate-spin" />;
+      return <Loader size={13} className="shrink-0 animate-spin" aria-hidden style={{ color: "var(--gaea-glow)" }} />;
     default:
-      return <Circle size={13} className="text-fg-faint shrink-0" />;
+      return <Circle size={13} className="shrink-0" aria-hidden style={{ color: "var(--md-sys-color-text-secondary)" }} />;
   }
 };
 
@@ -73,38 +75,60 @@ export function TodoPanel({
             {open ? t("common.collapse") : t("common.expand")}
           </PromptHeaderAction>
           <PromptHeaderAction onClick={onDismiss}>
-            ✕
+            <X size={11} aria-hidden />
           </PromptHeaderAction>
         </>
       }
     >
       {/* 任务目标（Kun 从需求到验收）：会话首条消息自动锚定，随会话持久化 */}
       {requirement?.text && (
-        <div className={`flex items-start gap-2.5 px-3 ${compact ? "pt-1.5 pb-2" : "pt-2 pb-2.5"} border-b border-border-soft`}>
+        <div className={`flex items-start gap-2.5 px-3 ${compact ? "pt-1.5 pb-2" : "pt-2 pb-2.5"} border-b`} style={{ borderBottom: "var(--v3-split)" }}>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-fg-faint text-[10.5px] font-semibold uppercase tracking-[0.02em]">
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.02em]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
                 任务目标
               </span>
               <span
-                className={`inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10px] font-medium ${
-                  reqDone ? "bg-ok/12 text-ok" : "bg-accent/10 text-accent"
-                }`}
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10px] font-medium"
+                style={
+                  reqDone
+                    ? {
+                        background: "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)",
+                        color: "var(--md-sys-color-success)",
+                        border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 30%, transparent)",
+                      }
+                    : {
+                        background: "color-mix(in srgb, var(--md-sys-color-primary-container) 55%, transparent)",
+                        color: "var(--gaea-glow)",
+                        border: "1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent)",
+                      }
+                }
               >
-                {reqDone ? <Check size={10} /> : <Circle size={10} />}
+                {reqDone ? <Check size={10} aria-hidden /> : <Circle size={10} aria-hidden />}
                 {reqDone ? "已验收" : "进行中"}
               </span>
             </div>
-            <p className={`text-fg leading-relaxed line-clamp-2 ${compact ? "text-[11.5px]" : "text-[12.5px]"}`}>
+            <p className={`leading-relaxed line-clamp-2 ${compact ? "text-[11.5px]" : "text-[12.5px]"}`} style={{ color: "var(--md-sys-color-text)" }}>
               {requirement.text}
             </p>
           </div>
           <button
-            className={`shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium cursor-pointer transition-[color,background] active:scale-[0.98] ${
-              reqDone
-                ? "border border-border-soft text-fg-dim hover:text-fg hover:bg-sidebar-hover"
-                : "border border-ok/30 text-ok bg-ok/8 hover:bg-ok/15"
+            className={`shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium cursor-pointer transition-[color,background,border-color] active:scale-[0.98] ${
+              reqDone ? "" : "hover:brightness-110"
             }`}
+            style={
+              reqDone
+                ? {
+                    border: "1px solid var(--md-sys-color-outline-variant)",
+                    color: "var(--md-sys-color-text-secondary)",
+                    background: "transparent",
+                  }
+                : {
+                    border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 36%, transparent)",
+                    color: "var(--md-sys-color-success)",
+                    background: "color-mix(in srgb, var(--md-sys-color-success) 9%, transparent)",
+                  }
+            }
             onClick={onToggleRequirementDone}
             title={reqDone ? "重新打开任务" : "对照验收标准，标记任务完成"}
           >
@@ -113,20 +137,28 @@ export function TodoPanel({
         </div>
       )}
 
-      {/* 进度条 — 加高+渐变色+百分比标注 */}
+      {/* 进度条 — 令牌渐变 + 百分比标注 */}
       {todos.length > 0 && (
-        <div className="h-[5px] bg-border-soft relative">
+        <div className="h-[5px] relative" style={{ background: "var(--md-sys-color-outline-variant)" }}>
           <div
-            className={`h-full transition-[width] duration-700 ease-out rounded-r-sm ${
-              pct >= 100
-                ? "bg-ok"
-                : "bg-gradient-to-r from-accent via-accent to-ok/70"
-            }`}
-            style={{ width: `${pct}%` }}
+            className="h-full transition-[width] duration-700 ease-out rounded-r-sm"
+            style={{
+              width: `${pct}%`,
+              background:
+                pct >= 100
+                  ? "var(--md-sys-color-success)"
+                  : "linear-gradient(90deg, var(--gaea-glow), color-mix(in srgb, var(--gaea-glow) 62%, var(--md-sys-color-success)))",
+            }}
           />
           {pct >= 100 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <span className="text-[9px] font-bold text-ok tracking-wider">✓ 全部完成</span>
+              <span
+                className="inline-flex items-center gap-0.5 text-[9px] font-bold tracking-wider"
+                style={{ color: "var(--md-sys-color-success)" }}
+              >
+                <Check size={9} aria-hidden />
+                全部完成
+              </span>
             </div>
           )}
         </div>
@@ -143,33 +175,50 @@ export function TodoPanel({
             <li
               key={i}
               ref={isCurrent ? currentRef : undefined}
-              className={`relative flex items-center gap-2.5 ${itemPx} ${itemPy} border-b border-border-soft last:border-b-0 transition-colors duration-200 ${
+              className={`relative flex items-center gap-2.5 ${itemPx} ${itemPy} border-b last:border-b-0 transition-colors duration-200 ${
                 isCurrent
-                  ? "bg-accent-soft/70"
-                  : "bg-transparent hover:bg-bg-elev"
+                  ? ""
+                  : "hover:bg-(color:--md-sys-color-surface-container-high)"
               } ${isSub ? (compact ? "pl-8" : "pl-9") : ""}`}
+              style={{
+                borderColor: "color-mix(in srgb, var(--color-border) 75%, transparent)",
+                background: isCurrent ? "var(--md-sys-color-primary-container)" : "transparent",
+              }}
             >
-              {/* 左强调条 — 进行中带微动画 */}
+              {/* 左强调条 — 进行中带微动画（reduced-motion 下全局关停） */}
               {isCurrent && !isSub && (
-                <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent rounded-r-sm animate-pulse" />
+                <div
+                  className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r animate-pulse"
+                  style={{ background: "var(--gaea-glow)", boxShadow: "0 0 8px var(--gaea-glow)" }}
+                />
               )}
               {/* 子任务连接线 */}
               {isSub && (
-                <div className="absolute left-[11px] top-0 bottom-0 w-[2px] bg-border-soft" />
+                <div className="absolute left-[11px] top-0 bottom-0 w-[2px]" style={{ background: "var(--md-sys-color-outline-variant)" }} />
               )}
 
               {statusIcon(td.status)}
 
               <span
                 className={`min-w-0 leading-relaxed ${
-                  isPhase ? "font-medium text-fg" : "text-fg-dim"
+                  isPhase ? "font-medium" : ""
                 } ${
                   td.status === "completed"
-                    ? "line-through text-fg-faint/60"
+                    ? "line-through"
                     : isCurrent
-                      ? "text-fg font-semibold"
+                      ? "font-semibold"
                       : ""
                 } ${itemTextSize}`}
+                style={{
+                  color:
+                    td.status === "completed"
+                      ? "var(--md-sys-color-text-secondary)"
+                      : isCurrent
+                        ? "var(--md-sys-color-on-primary-container)"
+                        : isPhase
+                          ? "var(--md-sys-color-text)"
+                          : "var(--md-sys-color-text-secondary)",
+                }}
               >
                 {isCurrent && td.activeForm ? td.activeForm : td.content}
               </span>

@@ -1,4 +1,6 @@
-// ChatPage 拆分产物：顶部模式切换条（行为零变化，T6-10.1）
+// ChatPage 拆分产物：顶部模式切换条（行为零变化，T6-10.1）。
+// variant='strip'：渲染进全局顶栏（v3-strip）时剥离横条外壳（背景/边框/内撑），
+// 由宿主轨道条统一承担玻璃与分割线（T6-10.2 顶栏迁移）。
 import React from 'react'
 import { Button, Space, Tooltip, Popconfirm } from 'antd'
 import {
@@ -9,6 +11,8 @@ import { C } from '../../utils/theme'
 import PersonaPicker from '../PersonaPicker'
 
 export interface ChatModeBarProps {
+  /** 'panel'：聊天窗口上方的独立横条（默认）；'strip'：顶栏轨道条内嵌变体。 */
+  variant?: 'panel' | 'strip'
   mode: string
   personaLabel: string
   currentPersonalityLabel?: string
@@ -26,11 +30,11 @@ export interface ChatModeBarProps {
 }
 
 export const ChatModeBar: React.FC<ChatModeBarProps> = ({
-  mode, personaLabel, currentPersonalityLabel, personaPickerActiveId, searchEnabled,
+  variant = 'panel', mode, personaLabel, currentPersonalityLabel, personaPickerActiveId, searchEnabled,
   onToggleSearch, onNavigateLib, onSwitchPlain, onSwitchPersona, onSwitchPersonality,
   onOpenVoiceSettings, hasMessages, onExport, onClear,
 }) => (
-  <div className="chat-mode-bar">
+  <div className={`chat-mode-bar${variant === 'strip' ? ' chat-mode-bar--strip' : ''}`}>
     <div className="chat-mode-seg" role="tablist" aria-label="对话模式">
       <button role="tab" aria-selected={mode === 'plain'} className={mode === 'plain' ? 'active' : ''}
         onClick={onSwitchPlain}>
@@ -41,7 +45,7 @@ export const ChatModeBar: React.FC<ChatModeBarProps> = ({
         <HeartOutlined style={{ fontSize: 12 }} /> 角色 · {mode !== 'plain' ? personaLabel : (currentPersonalityLabel || '人格')}
       </button>
     </div>
-    <div style={{ flex: 1 }} />
+    {variant !== 'strip' && <div className="chat-mode-bar-spacer" style={{ flex: 1 }} />}
     <Space size={2}>
       <Tooltip title={searchEnabled ? '联网搜索已开启（自动检测搜索意图）' : '联网搜索已关闭'}>
         <Button type="text" size="small" icon={<GlobalOutlined style={{ color: searchEnabled ? 'var(--md-sys-color-success)' : C('color-text-secondary') }} />}

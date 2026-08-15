@@ -30,7 +30,7 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
   const iconSize = compact ? 12 : 14;
 
   return (
-    <div className="my-1 border border-border-soft rounded-lg overflow-hidden bg-bg-elev/30">
+    <div className="my-1 border border-border-soft rounded-lg overflow-hidden bg-bg-soft/40 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_4%,transparent)]">
       <div
         className={`flex items-center gap-2 ${rowPx} ${rowPy} cursor-pointer hover:bg-bg-elev/60 text-fg-dim transition-colors duration-[var(--dur-fast)]`}
         onClick={() => { setOpen((v) => !v); onCollapse?.(); }}

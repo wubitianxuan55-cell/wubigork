@@ -140,14 +140,14 @@
   border-radius: 10px;
   background: rgba(10, 10, 20, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.22);
-  color: #fff;
+  color: rgb(255 255 255);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
 .cd-hero-gen:hover {
-  color: #fff !important;
+  color: rgb(255 255 255) !important;
   border-color: var(--gaea-glow) !important;
 }
 
@@ -165,7 +165,7 @@
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0.01em;
-  color: #fff;
+  color: rgb(255 255 255);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

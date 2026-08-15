@@ -3,6 +3,7 @@ import { Button, Input, InputNumber, Select, Tag } from 'antd'
 import {
   BulbOutlined, FileTextOutlined, ReloadOutlined, ExperimentOutlined,
   SettingOutlined, ThunderboltOutlined, BarChartOutlined,
+  MenuFoldOutlined, MenuUnfoldOutlined,
 } from '@ant-design/icons'
 import { C } from '../../../utils/theme'
 import * as App from '../../../../src/wailsjsCompat'
@@ -38,6 +39,7 @@ const CreateInspector: React.FC<CreateInspectorProps> = ({
   onOpenWizard, stats, chapterCount,
 }) => {
   const [skills, setSkills] = useState<Skill[]>([])
+  const [collapsed, setCollapsed] = useState(false)
 
   // 加载可用 Skill 列表
   useEffect(() => {
@@ -55,10 +57,18 @@ const CreateInspector: React.FC<CreateInspectorProps> = ({
   const selectedSkillApplies = skills.find(s => s.name === selectedSkill)?.appliesTo || []
 
   return (
-    <aside className="novel-panel novel-workspace-col novel-inspector">
+    <aside className={`novel-panel novel-workspace-col novel-inspector${collapsed ? ' is-collapsed' : ''}`}>
       <div className="novel-panel-head">
         <span className="novel-panel-title"><SettingOutlined />创作设置</span>
+        <div style={{ flex: 1 }} />
+        <Button type="text" size="small"
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onClick={() => setCollapsed((p) => !p)}
+          aria-label={collapsed ? '展开创作设置' : '折叠创作设置'}
+          title={collapsed ? '展开创作设置' : '折叠创作设置'}
+          style={{ color: 'var(--color-text-secondary)', fontSize: 11, padding: 0 }} />
       </div>
+      {!collapsed && (
       <div className="novel-inspector-body">
 
         <section className="novel-inspector-section">
@@ -156,6 +166,7 @@ const CreateInspector: React.FC<CreateInspectorProps> = ({
         </section>
 
       </div>
+      )}
     </aside>
   )
 }

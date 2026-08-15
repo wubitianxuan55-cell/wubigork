@@ -263,11 +263,13 @@ const CreatePage: React.FC = () => {
       <ChapterTreePanel flatNodes={flatNodes} activeId={activeId} nextChapterNum={nextMainChapterNum}
         onSelect={selectChapter} onRegenerate={handleRegenerate} onDelete={handleDelete}
         onAddNext={handleAddNext} onGenerateNext={() => openWizard(lastMainChapter)} />
+      <div className="v3-grip" aria-hidden="true" />
       <EditorPanel activeNode={activeNode} content={content} onContentChange={setContent}
         chapterLoading={chapterLoading}
         generating={generating} genPhase={genPhase} genPercent={genPercent} stopping={stopping} saving={saving}
         onRegenerate={() => activeNode && handleRegenerate(activeNode)} onSave={handleSave} onStop={handleStop}
         hasChapters={flatNodes.length > 0} nextChapterNum={nextMainChapterNum} onOpenWizard={openWizard} />
+      <div className="v3-grip" aria-hidden="true" />
       <CreateInspector setting={setting} onRefreshSetting={() => void refreshSetting()}
         selectedSkill={selectedSkill} onSelectSkill={(v) => setSelectedSkill(v)}
         minWords={minWords} onMinWordsChange={setMinWords}

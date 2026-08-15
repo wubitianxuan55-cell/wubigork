@@ -523,7 +523,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 /** 迷你指标条 */
 const MetricBar: React.FC<{ label: string; value: number; detail: string }> = ({ label, value, detail }) => {
   const pct = Math.min(Math.max(value, 0), 100)
-  const color = pct < 60 ? 'var(--color-success)' : pct < 85 ? 'var(--color-warning)' : '#f87171'
+  const color = pct < 60 ? 'var(--color-success)' : pct < 85 ? 'var(--color-warning)' : 'var(--color-destructive)'
   return (
     <div style={{
       background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border-subtle)',

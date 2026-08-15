@@ -1,5 +1,5 @@
 // Composer 拆分产物：底部工具栏（工作区/导入/截图/权限级别/快捷键提示，行为零变化，T6-10.1）
-import { Camera, ChevronDown, FolderGit2, Loader, Paperclip } from "../../icons";
+import { Camera, ChevronDown, FolderGit2, Loader, Paperclip, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
 
 export interface ComposerToolbarProps {
@@ -17,7 +17,7 @@ export interface ComposerToolbarProps {
   onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void
 }
 
-const PERM_LABELS: Record<string, string> = { ask: "询问", auto: "自动", yolo: "⚡ YOLO" }
+const PERM_LABELS: Record<string, string> = { ask: "询问", auto: "自动", yolo: "YOLO" }
 const PERM_DESCS: Record<string, string> = { ask: "写入前需确认（默认）", auto: "写入无需确认，deny 规则仍生效", yolo: "跳过所有确认提示" }
 
 export function ComposerToolbar({
@@ -77,7 +77,11 @@ export function ComposerToolbar({
               onClick={() => { if (permLevel !== level && onSetPermLevel) onSetPermLevel(level) }}
               title={PERM_DESCS[level]}
             >
-              {PERM_LABELS[level]}
+              {level === "yolo" ? (
+                <><Zap size={11} className="shrink-0" /><span>YOLO</span></>
+              ) : (
+                PERM_LABELS[level]
+              )}
             </button>
           )
         })}
