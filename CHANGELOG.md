@@ -1,5 +1,21 @@
 # gaea · 多功能 AI 助手
 
+## v2.37.0「正确性纵深 · 收官」（2026-08-15）
+> 阶段 7 第二~四刀（T7-2 可见性收口 / T7-3 名实相符 / T7-4 前端性能收尾）并行实施 +
+> 3.0 架构主线 Step 0 修债 + Step 1 会话事件日志。详见 releases/v2.37.0.md。
+- **T7-2 可见性收口**：qrlogin/chatWebSearch/SaveConfig/LocalTranslate 吞错清零；成本进料截断 6000 字 +
+  整批事务；测评参数钳制 + 基地址 engineMgr；token 明文清理 + 剧照 ID 哈希防穿越（41 测试）
+- **T7-3 名实相符**：PDF FlateDecode 压缩流还原 + OCR 单页容错 + OvisOCR2 4096/截断检测；语义检索按需
+  + search 上限 + BM25 缓存 + dashboard mtime 真实聚合 + WatchErr 回退轮询（约 33 测试）
+- **T7-4 前端性能收尾**：写路径静默清零 + 三态错误重试 + Transcript/MarkdownContent memo + Toast role +
+  reconcileFinalAnswer 完整文本比较（41 用例）
+- **Step 0 修债**：office 模块注册 GaeaSend + MainBrainChat 全链路测试 + 版本源同步脚本（搭车）
+- **Step 1 会话事件日志**（3.0 地基）：append-only 日志 + 投影 + checkpoint + 迁移 + 派生 API +
+  GaeaHistory 黄金测试逐字节一致（机制层；app 接线留待 gen_bindings）
+- 验证：go build/vet 干净 + 逐包测试全绿（含 session 67 / T7-2 41 / T7-3 约 33 / T7-4 41）+ 前端
+  tsc/eslint 0 errors + vite build 通过 + 冒烟 /api/health 200。发布 gaea-v2.37.0.exe（34.5MB，
+  SHA256=37A56F54DF653E3D9E8A5751EA282CEB34BF5BBCA2672D26439BF7BAEBA7A62B）。
+
 ## v2.34.0「正确性纵深 · 并发正确性」（2026-08-15）
 > 阶段 7 第一刀（T7-1）：轻语会话并发安全、任务调度器竞态、TCCA 指标聚合收敛、AI 客户端状态与重试。
 > 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段7-正确性纵深.md；详见 releases/v2.34.0.md。
