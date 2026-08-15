@@ -13,10 +13,14 @@
 | ✅ | Wave 1 令牌层（colorDestructive 12 主题 + antd colorError 对齐 + .gp-panel 工具类 + appStore.test 3 用例） | ab08d2a |
 | ✅ | Wave 2 死令牌治理（--ds-* 14 令牌补全 27 处消费生效 + THEME_PRESETS 单一数据源） | 9a0c374 |
 | ✅ | Wave 3 壳层可访问性（theme-dot 键盘可达 + focus-visible） | fc659e4 |
-| 🔄 | Wave 3 板块（modelcenter --mc-* 收敛 / chat 设计语言落地，子代理并行中） | — |
-| ⏳ | Wave 3 其余（记忆中枢科幻风收敛 / 办公系玻璃过渡 / emoji 177 处治理 / 硬编码 hex / 11px 字号） | — |
+| ✅ | Wave 3 modelcenter --mc-* 收敛（125 处消费别名到全局令牌，danger→destructive） | 74c20c9 |
+| ✅ | Wave 3 chat 设计语言落地（侧栏激活态/气泡语义色/Composer 玻璃化/硬编码色治理 9 文件） | 1666d63 |
+| ✅ | Wave 4 emoji 治理：壳层 StatusBar（antd 图标）/轻语记忆库（+测试同步）/WhisperMemoryModal/settings 4 面板/novel CommandBar+CharacterPage | e2715d5 / ca0cbff / a72f5e0 / 7c2b780 |
+| ✅ | Wave 4 硬编码色令牌化：novel 状态色/theme.ts 状态角色色/character-page 警告态/imagegen 失败警告色 | 4e82064 / 760de5d / 9c1c5a7 |
+| ✅ | 最终集成门禁（tsc/eslint/vitest 全量 + vite build） | 验证中 |
 
-关键事实（盘点报告 docs/gaea3-review/10-ui-audit.md）：4 种视觉方言并行（M3 玻璃霓虹 / 办公扁平 Tailwind / modelcenter --mc-* 私有 / 记忆中枢科幻风）；--ds-* 仅 2/14 定义（已修）；主题色值 3 处重复（已单源化）；emoji 当图标 36 文件 177 处；硬编码 hex 数百处；11px 级字号 321 处；antd 弹层动画因 WebView2 永久禁用（已知耦合）。
+关键事实（盘点报告 docs/gaea3-review/10-ui-audit.md）：4 种视觉方言并行（M3 玻璃霓虹 / 办公扁平 Tailwind / modelcenter --mc-* 私有 / 记忆中枢科幻风）；--ds-* 仅 2/14 定义（已修）；主题色值 3 处重复（已单源化）；emoji 当图标 36 文件 177 处（已治理壳层/轻语/设置/novel 等，剩余为内容语义保留）；硬编码 hex 数百处（主要板块已令牌化）；11px 级字号 321 处（保留，未在本次范围）；antd 弹层动画因 WebView2 永久禁用（已知耦合）。
+剩余（下一会话候选）：记忆中枢 home 科幻风已走令牌（确认即可）；办公系玻璃过渡（gaea styles.css 兜底已改 --ds-* 补全，blur 策略因 WebKitGTK 性能保留）；11px 字号治理；侧栏会话项键盘可达（a11y）。
 
 ## 阶段 7 收官 + 3.0 Step 0/1 完成（5 子代理并行，全部提交）
 
