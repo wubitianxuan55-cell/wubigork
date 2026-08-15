@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Collapse, Tag, Typography } from 'antd'
+import { GlobalOutlined, FolderOutlined, FileTextOutlined } from '@ant-design/icons'
 import { getConfig } from '../../api/settings'
 import SettingsSection from './SettingsSection'
 import * as App from '../../../src/wailsjsCompat'
@@ -27,7 +28,7 @@ const AboutPanel: React.FC = () => {
   return (
     <>
       <SettingsSection
-        icon={<span style={{ fontSize: 15 }}>🌏</span>}
+        icon={<span style={{ fontSize: 15 }}><GlobalOutlined /></span>}
         title="关于 gaea"
         desc="gaea（盖亚）——你的通用办公与日常 AI 伙伴：可靠、清晰、有温度。"
       >
@@ -57,7 +58,7 @@ const AboutPanel: React.FC = () => {
       </SettingsSection>
 
       <SettingsSection
-        icon={<span style={{ fontSize: 15 }}>🗂️</span>}
+        icon={<span style={{ fontSize: 15 }}><FolderOutlined /></span>}
         title="系统信息"
         desc="当前引擎、API 与凭证存储路径。"
       >
@@ -85,7 +86,7 @@ const AboutPanel: React.FC = () => {
       </SettingsSection>
 
       <SettingsSection
-        icon={<span style={{ fontSize: 15 }}>📜</span>}
+        icon={<span style={{ fontSize: 15 }}><FileTextOutlined /></span>}
         title="更新日志"
         desc="最近版本的主要变化。"
       >

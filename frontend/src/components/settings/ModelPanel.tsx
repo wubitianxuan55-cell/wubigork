@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Button, InputNumber, Select, Tag, Typography, message } from 'antd'
-import { ApiOutlined, ArrowRightOutlined } from '@ant-design/icons'
+import { ApiOutlined, ArrowRightOutlined, RobotOutlined, MoneyCollectOutlined } from '@ant-design/icons'
 import { getActiveModel, getConfig, saveConfig } from '../../api/settings'
 import { getUsdCnyRate, setUsdCnyRate } from '../../api/engines'
 import SettingsSection from './SettingsSection'
@@ -82,7 +82,7 @@ const ModelPanel: React.FC = () => {
       </SettingsSection>
 
       <SettingsSection
-        icon={<span style={{ fontSize: 15 }}>🧠</span>}
+        icon={<span style={{ fontSize: 15 }}><RobotOutlined /></span>}
         title="推理强度"
         desc="控制 AI 回答的思考深度：低 = 快速响应，高 = 更深入的分析；留空 = 提供方默认。"
         instant
@@ -94,9 +94,9 @@ const ModelPanel: React.FC = () => {
           style={{ width: 220 }}
           allowClear
           options={[
-            { value: 'low', label: '⚡ 低 — 快速响应' },
-            { value: 'medium', label: '⚖️ 中 — 均衡' },
-            { value: 'high', label: '🛰️ 高 — 深度思考' },
+            { value: 'low', label: '低 — 快速响应' },
+            { value: 'medium', label: '中 — 均衡' },
+            { value: 'high', label: '高 — 深度思考' },
           ]}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
@@ -108,7 +108,7 @@ const ModelPanel: React.FC = () => {
       </SettingsSection>
 
       <SettingsSection
-        icon={<span style={{ fontSize: 15 }}>💱</span>}
+        icon={<span style={{ fontSize: 15 }}><MoneyCollectOutlined /></span>}
         title="美元→人民币汇率"
         desc="模型调用费用按此汇率折算为人民币展示（模型中心「调用统计」同步生效）；仅接受大于 0 的数值。"
         instant

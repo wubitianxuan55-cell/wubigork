@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import {
   CheckOutlined, DesktopOutlined, MoonOutlined, BgColorsOutlined,
   SunOutlined, ThunderboltOutlined, FontSizeOutlined, DashboardOutlined, CompressOutlined,
+  EyeOutlined, SwapOutlined, AimOutlined,
 } from '@ant-design/icons'
 import { Button, InputNumber, Select, Typography } from 'antd'
 import { useAppStore, THEME_PRESETS, FONT_OPTIONS, type DisplayMode, type ThemePreset, type Density, type MotionPref } from '../../stores/appStore'
@@ -160,7 +161,7 @@ function AppearancePreview({ t, previewing }: { t: typeof themeOptions[number]; 
           <span style={{
             marginLeft: 'auto', fontSize: 10, padding: '2px 8px', borderRadius: 999,
             color: '#34d399', border: '1px solid #34d39944', background: '#34d39914', fontWeight: 500,
-          }}>{previewing ? '👆 预览中' : '⚡ 即时生效'}</span>
+          }}>{previewing ? '预览中' : '⚡ 即时生效'}</span>
         </div>
         {/* 玻璃卡片模拟 */}
         <div style={{
@@ -195,11 +196,11 @@ const AppearancePanel: React.FC = () => {
 
   return (
     <>
-      <SettingsSection icon={<span style={{ fontSize: 15 }}>👁️</span>} title="外观实时预览" desc="当前主题与显示模式的组合效果；鼠标悬停下方主题卡可即时预览，点击才生效。" noMargin>
+      <SettingsSection icon={<span style={{ fontSize: 15 }}><EyeOutlined /></span>} title="外观实时预览" desc="当前主题与显示模式的组合效果；鼠标悬停下方主题卡可即时预览，点击才生效。" noMargin>
         <AppearancePreview t={previewT} previewing={!!hovered} />
       </SettingsSection>
       <SettingsSection
-        icon={<span style={{ fontSize: 15 }}>🎨</span>}
+        icon={<span style={{ fontSize: 15 }}><BgColorsOutlined /></span>}
         title="主题色系"
         desc="选择全局氛围色 —— 深空星云背景、霓虹光效与玻璃质感将随主题联动。"
       >
@@ -223,7 +224,7 @@ const AppearancePanel: React.FC = () => {
 export const DarkModePanel: React.FC = () => {
   const { mode, systemDark, setMode } = useAppStore()
   return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}>🌗</span>} title="显示模式" desc="暗色为深空星云沉浸体验，亮色为柔和晨光风格，跟随系统将随操作系统明暗自动切换。">
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><SwapOutlined /></span>} title="显示模式" desc="暗色为深空星云沉浸体验，亮色为柔和晨光风格，跟随系统将随操作系统明暗自动切换。">
       <ChoiceCards<DisplayMode>
         value={mode}
         onChange={setMode}
@@ -241,7 +242,7 @@ export const DarkModePanel: React.FC = () => {
 export const FontPanel: React.FC = () => {
   const { fontFamily, fontSize, setFontFamily, setFontSize } = useAppStore()
   return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}>🔤</span>} title="字体设置" desc="界面字体与全局字号，即时生效。">
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><FontSizeOutlined /></span>} title="字体设置" desc="界面字体与全局字号，即时生效。">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{
@@ -294,7 +295,7 @@ export const FontPanel: React.FC = () => {
 export const DensityPanel: React.FC = () => {
   const { density, setDensity } = useAppStore()
   return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}>📐</span>} title="界面密度" desc="控件与区块的紧凑程度。">
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><DashboardOutlined /></span>} title="界面密度" desc="控件与区块的紧凑程度。">
       <ChoiceCards<Density>
         value={density}
         onChange={setDensity}
@@ -311,7 +312,7 @@ export const DensityPanel: React.FC = () => {
 export const MotionPanel: React.FC = () => {
   const { motion, setMotion } = useAppStore()
   return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}>⚡</span>} title="动效强度" desc="减弱动态可减少界面动画与过渡，降低视觉负担（对齐系统「减弱动态」）。">
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><ThunderboltOutlined /></span>} title="动效强度" desc="减弱动态可减少界面动画与过渡，降低视觉负担（对齐系统「减弱动态」）。">
       <ChoiceCards<MotionPref>
         value={motion}
         onChange={setMotion}
@@ -328,7 +329,7 @@ export const MotionPanel: React.FC = () => {
 export const AccentPanel: React.FC = () => {
   const { accentColor, setAccentColor } = useAppStore()
   return (
-    <SettingsSection icon={<span style={{ fontSize: 15 }}>🎯</span>} title="强调色" desc="自定义霓虹光效与主色调；留空则跟随所选主题色系。">
+    <SettingsSection icon={<span style={{ fontSize: 15 }}><AimOutlined /></span>} title="强调色" desc="自定义霓虹光效与主色调；留空则跟随所选主题色系。">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{
           width: 30, height: 30, borderRadius: 9, flexShrink: 0,

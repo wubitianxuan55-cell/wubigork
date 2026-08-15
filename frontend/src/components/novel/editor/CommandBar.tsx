@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Modal, Input, Button, Space, Typography, Spin, Tag } from 'antd'
-import { ThunderboltOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
+import { ThunderboltOutlined, CheckOutlined, CloseOutlined, BgColorsOutlined, ScissorOutlined, MessageOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
 import DiffReview from './DiffReview'
 import { C } from '../../../utils/theme'
 
@@ -23,12 +23,12 @@ interface CommandBarProps {
 }
 
 const PRESET_COMMANDS = [
-  { label: '更紧张', icon: '⚡', instruction: '用更紧张的节奏和更短的句子重写，增加紧迫感' },
-  { label: '丰富描写', icon: '🎨', instruction: '添加生动的感官细节描写（视觉、听觉、触觉），让场景更立体' },
-  { label: '精简', icon: '✂️', instruction: '精简冗余表达，保留核心信息，控制字数' },
-  { label: '改对话', icon: '💬', instruction: '将这段改为生动的对话形式，增强角色个性' },
-  { label: '更文艺', icon: '🖋️', instruction: '提升文笔，用更有文学性的语言重写' },
-  { label: '展示代替讲述', icon: '👁️', instruction: '用具体场景和动作展示情绪，不要直接告诉读者角色的感受' },
+  { label: '更紧张', icon: <ThunderboltOutlined />, instruction: '用更紧张的节奏和更短的句子重写，增加紧迫感' },
+  { label: '丰富描写', icon: <BgColorsOutlined />, instruction: '添加生动的感官细节描写（视觉、听觉、触觉），让场景更立体' },
+  { label: '精简', icon: <ScissorOutlined />, instruction: '精简冗余表达，保留核心信息，控制字数' },
+  { label: '改对话', icon: <MessageOutlined />, instruction: '将这段改为生动的对话形式，增强角色个性' },
+  { label: '更文艺', icon: <EditOutlined />, instruction: '提升文笔，用更有文学性的语言重写' },
+  { label: '展示代替讲述', icon: <EyeOutlined />, instruction: '用具体场景和动作展示情绪，不要直接告诉读者角色的感受' },
 ]
 
 const CommandBar: React.FC<CommandBarProps> = ({ selectedText, onAccept, onClose, styleProfile }) => {

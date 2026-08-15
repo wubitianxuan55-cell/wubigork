@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Input, Radio, Select, Switch, Typography, message } from 'antd'
+import { TeamOutlined, SmileOutlined, AudioOutlined } from '@ant-design/icons'
 import * as App from '../../../src/wailsjsCompat'
 import { applyVoiceSettings, getVoiceSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
@@ -139,7 +140,7 @@ const ChatPanel: React.FC = () => {
   return (
     <>
       <SettingsSection
-        icon={<span style={{ fontSize: 15 }}>🤝</span>}
+        icon={<span style={{ fontSize: 15 }}><TeamOutlined /></span>}
         title="AI 伴侣"
         desc="聊天 AI 伴侣的基础设定（称呼/性别），在聊天板块生效。"
       >
@@ -161,7 +162,7 @@ const ChatPanel: React.FC = () => {
       </SettingsSection>
 
       <SettingsSection
-        icon={<span style={{ fontSize: 15 }}>🎭</span>}
+        icon={<span style={{ fontSize: 15 }}><SmileOutlined /></span>}
         title="默认人格"
         desc="聊天默认使用的人格（默认 gaea）。自定义人格与剧照在「角色库」管理。"
         instant
@@ -187,7 +188,7 @@ const ChatPanel: React.FC = () => {
       </SettingsSection>
 
       <SettingsSection
-        icon={<span style={{ fontSize: 15 }}>🎙️</span>}
+        icon={<span style={{ fontSize: 15 }}><AudioOutlined /></span>}
         title="语音对话"
         desc="聊天的语音输入与朗读回复核心项；完整面板（识别模式/阈值等）在聊天面板中。"
         instant

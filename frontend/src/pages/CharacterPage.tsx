@@ -10,7 +10,7 @@ import {
   ThunderboltOutlined, PlusOutlined, ExperimentOutlined, CameraOutlined, MergeCellsOutlined,
   UserOutlined, ApartmentOutlined, LinkOutlined, TeamOutlined,
   ImportOutlined, SyncOutlined, EditOutlined, SwapOutlined, DeleteOutlined,
-  GlobalOutlined, BookOutlined,
+  GlobalOutlined, BookOutlined, CloseOutlined,
 } from '@ant-design/icons'
 import RelationGraph from '../components/RelationGraph'
 import type { CharacterData, OrganizationData, RelationshipData } from '../types'
@@ -444,9 +444,9 @@ const CharacterPage: React.FC = () => {
                 <Tag color={roleColor}>{roleLabel}</Tag>
                 <Tag>{statusLabel}</Tag>
                 <span className="char-detail-meta">{genderText}{ch.age ? ` · ${ch.age}岁` : ''}</span>
-                <span className="char-detail-meta">🔗 {relCount} 个关系</span>
+                <span className="char-detail-meta"><LinkOutlined aria-hidden /> {relCount} 个关系</span>
                 {orgs.length > 0 && (
-                  <span className="char-detail-meta">🏛 {orgs.map(o => o.name).join('、')}</span>
+                  <span className="char-detail-meta"><ApartmentOutlined aria-hidden /> {orgs.map(o => o.name).join('、')}</span>
                 )}
               </div>
             </div>
@@ -616,8 +616,8 @@ const CharacterPage: React.FC = () => {
               <Select size="small" value={filterOrg} onChange={setFilterOrg} style={{ width: 120 }}
                 options={[{ label: '全部组织', value: '' }, ...organizations.map(o => ({ label: o.name, value: o.id }))]} />
               {(filterGender || filterRole || filterStatus || filterOrg) && (
-                <Button size="small" onClick={() => { setFilterGender(''); setFilterRole(''); setFilterStatus(''); setFilterOrg('') }}
-                  style={{ fontSize: 10, padding: '0 6px' }}>✕ 清除</Button>
+                <Button size="small" icon={<CloseOutlined />} onClick={() => { setFilterGender(''); setFilterRole(''); setFilterStatus(''); setFilterOrg('') }}
+                  style={{ fontSize: 10, padding: '0 6px' }}>清除</Button>
               )}
             </div>
           )}
