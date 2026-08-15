@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -8,7 +9,9 @@ type Props = {
   className?: string
 }
 
-export function MarkdownContent({ source, className }: Props) {
+// T7-4：React.memo 包裹——source 未变化时跳过重渲染，避免父级无关
+// state 刷新导致整棵 markdown 子树（大文档时开销明显）重复 diff。
+export const MarkdownContent = memo(function MarkdownContent({ source, className }: Props) {
   return (
     <div
       className={className}
@@ -21,7 +24,7 @@ export function MarkdownContent({ source, className }: Props) {
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{source}</ReactMarkdown>
     </div>
   )
-}
+})
 
 // Markdown 全局样式注入
 export const mdStyles = `

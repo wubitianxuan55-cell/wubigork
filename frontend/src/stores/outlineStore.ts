@@ -17,8 +17,10 @@ interface OutlineState {
   outlines: OutlineNode[]
   storyThread: string
   loading: boolean
+  /** T7-4：加载三态 {data, loading, error} 的 error 档；null 表示无错误 */
+  error: string | null
 
-  /** 从后端加载大纲 + 故事主线 */
+  /** 从后端加载大纲 + 故事主线（失败置 error，可再次调用重试） */
   loadOutlines: () => Promise<void>
   /** 用 API 返回结果刷新大纲（用于 ApplyBranch 等操作后） */
   refreshOutlines: (result: RefreshOutlinesResult) => void
@@ -32,13 +34,24 @@ export const useOutlineStore = create<OutlineState>((set) => ({
   outlines: [],
   storyThread: '',
   loading: false,
+  error: null,
 
   loadOutlines: async () => {
-    set({ loading: true })
-    const data = await fetchOutlines()
-    if (data?.nodes) set({ outlines: sortNodes(data.nodes) })
-    if (data?.story_thread !== undefined) set({ storyThread: data.story_thread })
-    set({ loading: false })
+    set({ loading: true, error: null })
+    try {
+      const data = await fetchOutlines()
+      // fetchOutlines 内部吞错并返回 null：null 同样视为加载失败（否则
+      // 前端会呈现“加载完成但大纲为空”的假空态，无法区分失败与真空）。
+      if (!data) {
+        set({ loading: false, error: '加载大纲失败：后端未返回数据' })
+        return
+      }
+      if (data.nodes) set({ outlines: sortNodes(data.nodes) })
+      if (data.story_thread !== undefined) set({ storyThread: data.story_thread })
+      set({ loading: false, error: null })
+    } catch (err) {
+      set({ loading: false, error: err instanceof Error ? err.message : String(err) })
+    }
   },
 
   refreshOutlines: (result: RefreshOutlinesResult) => {

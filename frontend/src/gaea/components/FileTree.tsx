@@ -69,19 +69,26 @@ function DirNode({
   const [open, setOpen] = useState(defaultOpen ?? false);
   const [entries, setEntries] = useState<DirEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
+  // T7-4：加载三态——失败不再呈现“假空目录”（catch 置空列表），而是给出
+  // 错误信息 + 重试按钮，让用户知道是加载失败而非目录真的为空。
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const es = await app.ListDir(relPath);
       setEntries(es ?? []);
-    } catch { setEntries([]); }
+    } catch (err) {
+      setEntries(null);
+      setError(err instanceof Error ? err.message : String(err));
+    }
     finally { setLoading(false); }
   }, [relPath]);
 
   useEffect(() => {
-    if (open && entries === null) void load();
-  }, [open, entries, load]);
+    if (open && entries === null && error === null) void load();
+  }, [open, entries, error, load]);
 
   const toggle = () => {
     if (!open) setOpen(true);
@@ -104,6 +111,23 @@ function DirNode({
         <span className="truncate flex-1">{name}</span>
         {loading && <span className="text-fg-faint text-[9px]">⋯</span>}
       </button>
+      {open && !loading && error && (
+        <div className="flex items-center gap-1 px-2 py-1 text-[10px] text-red-400" style={{ paddingLeft: `${8 + (depth + 1) * 14}px` }}>
+          <span className="truncate">加载失败：{error}</span>
+          <button
+            className="shrink-0 border-0 bg-transparent text-accent cursor-pointer hover:underline"
+            onClick={() => void load()}
+            type="button"
+          >
+            重试
+          </button>
+        </div>
+      )}
+      {open && loading && entries === null && !error && (
+        <div className="text-fg-faint/50 text-[10px] text-center py-1" style={{ paddingLeft: `${8 + (depth + 1) * 14}px` }}>
+          加载中…
+        </div>
+      )}
       {open && entries && (
         <div>
           {entries

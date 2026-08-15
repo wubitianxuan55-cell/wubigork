@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react";
 
-type ToastKind = "info" | "warn";
+type ToastKind = "info" | "warn" | "error";
 
 interface ToastItem {
   id: number;
@@ -37,8 +37,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`px-4 py-1.5 rounded-lg text-xs bg-bg-elev-2 text-fg-dim border border-border animate-[toast-in_0.2s_ease-out] ${
-              t.kind === "info" ? "border-l-[3px] border-l-info" : "border-l-[3px] border-l-warning"
+            // T7-4：role 属性只加在 error 档（role=alert，失败需读屏干预），
+            // info/warn 是短暂提示、不设 role——避免与页面内持久状态框的
+            // role=status/alert 双匹配（CostCompareModal / CostImportModal
+            // 等存量测试依赖单匹配）。
+            role={t.kind === "error" ? "alert" : undefined}
+            className={`px-4 py-1.5 rounded-lg text-xs border border-border animate-[toast-in_0.2s_ease-out] ${
+              t.kind === "error"
+                ? "bg-red-500/10 text-red-400 border-l-[3px] border-l-red-500"
+                : t.kind === "warn"
+                  ? "bg-bg-elev-2 text-fg-dim border-l-[3px] border-l-warning"
+                  : "bg-bg-elev-2 text-fg-dim border-l-[3px] border-l-info"
             }`}
             style={{boxShadow: "var(--ds-shadow-dropdown)"}}
           >

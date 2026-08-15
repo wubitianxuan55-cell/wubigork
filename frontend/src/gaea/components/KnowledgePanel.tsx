@@ -16,6 +16,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
   const t = useT();
   const [entries, setEntries] = useState<KnowledgeSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null); // T7-4 加载三态：失败不再无限 loading/假空列表
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [phase, setPhase] = useState("all");
@@ -50,6 +51,7 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
 
   const loadList = useCallback(() => {
     setLoading(true);
+    setListError(null);
     app.KnowledgeList().then((list) => {
       setEntries(list);
       setSelected((prev) => {
@@ -57,6 +59,9 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
         return new Set([...prev].filter((n) => names.has(n)));
       });
       setLoading(false);
+    }).catch((err) => {
+      setLoading(false);
+      setListError(err instanceof Error ? err.message : String(err));
     });
   }, []);
 
@@ -79,17 +84,30 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
 
   const batchDelete = useCallback(async () => {
     if (selected.size === 0) return;
-    await Promise.all([...selected].map((n) => app.KnowledgeDelete(n).catch(() => {})));
+    // T7-4：批量删除失败可见化——不再逐条静默吞错。
+    const results = await Promise.all(
+      [...selected].map((n) => app.KnowledgeDelete(n).then(() => null as null | unknown).catch((err: unknown) => err)),
+    );
+    const failed = results.filter((r): r is unknown => r !== null);
+    if (failed.length > 0) setListError(`批量删除失败 ${failed.length} 条，请重试`);
     setSelected(new Set());
     loadList();
   }, [selected, loadList]);
 
   const batchStatus = useCallback(async (next: string) => {
     if (selected.size === 0 || !next) return;
+    // T7-4：批量改状态失败可见化——保存失败不再静默。
+    let failed = 0;
     for (const name of selected) {
       const e = await app.KnowledgeGet(name).catch(() => null);
-      if (e) await app.KnowledgeSave({ ...e, status: next }).catch(() => {});
+      if (e) {
+        const ok = await app.KnowledgeSave({ ...e, status: next }).then(() => true).catch(() => false);
+        if (!ok) failed += 1;
+      } else {
+        failed += 1;
+      }
     }
+    if (failed > 0) setListError(`批量改状态失败 ${failed} 条，请重试`);
     setSelected(new Set());
     loadList();
   }, [selected, loadList]);
@@ -156,12 +174,16 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
   // 全文检索：query 非空时走后端全文搜索（含正文），否则走 List + 前端分类过滤。
   const doSearch = useCallback(async (q: string, cat: string, ph: string, st: string) => {
     setLoading(true);
+    setListError(null);
     try {
       const list = q.trim()
         ? await app.KnowledgeSearch(q, cat, ph, st)
         : await app.KnowledgeList();
       setEntries(list);
-    } catch { /* 搜索失败保持原列表 */ }
+    } catch (err) {
+      // T7-4：搜索失败不再静默保持原列表——给出可见错误，重试按钮可重新拉取。
+      setListError(err instanceof Error ? err.message : String(err));
+    }
     setLoading(false);
   }, []);
 
@@ -324,6 +346,18 @@ export function KnowledgePanel(p: { onClose: () => void; variant?: "modal" | "pa
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-3">
           {loading ? (
             <div className="py-10 text-center text-fg-faint text-[13px]">{t("common.loading")}</div>
+          ) : listError ? (
+            // T7-4：加载失败三态——错误信息 + 重试按钮，不再无限 loading/假空列表
+            <div className="py-10 text-center">
+              <div className="text-red-500 text-[13px] mb-3">加载失败：{listError}</div>
+              <button
+                className="px-3 h-8 rounded-lg bg-accent text-white text-[12px] hover:opacity-90 cursor-pointer"
+                onClick={() => void loadList()}
+                type="button"
+              >
+                重试
+              </button>
+            </div>
           ) : entries.length === 0 ? (
             <EmptyState message={t("knowledge.empty")} />
           ) : filtered.length === 0 && (!isAdding) ? (

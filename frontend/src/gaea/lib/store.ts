@@ -345,6 +345,29 @@ function logBridgeError(where: string, err: unknown): void {
   void Promise.resolve(lfe(`[${code}] ${where}: ${message}`)).catch(() => {});
 }
 
+// errText 提取用户可读的错误信息（BridgeError/Error/其他值统一字符串化）。
+function errText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err ?? "未知错误");
+}
+
+// failWrite 写路径失败出口（T7-4）：bridge 层 invoke 已把错误记录到 gaea.log，
+// 这里再补一条用户可见的 warn notice，保证写/提交/审批失败绝不静默、用户可重试。
+function failWrite(dispatch: (a: Action) => void, what: string, err: unknown): void {
+  logBridgeError(what, err);
+  dispatch({ type: "event", e: { kind: "notice", level: "warn", text: `${what}失败：${errText(err)}，请重试` } });
+}
+
+// isFinalAnswerRendered：最终回答是否已完整渲染（T7-4 完整文本比较）。
+// 旧实现用「前 120 字前缀是否包含在渲染文本里」判断，流式事件丢尾（后端
+// 正文更长、前端只收到前半段）时前缀命中但正文缺失，最终回答依然看不到。
+// 新实现要求渲染文本以完整正文结尾才算已渲染：正文为空（纯推理/纯工具轮）
+// 视为已渲染，避免误补发。
+export function isFinalAnswerRendered(rendered: string, finalContent: string): boolean {
+  const full = finalContent.trim();
+  if (!full) return true;
+  return rendered.trimEnd().endsWith(full);
+}
+
 export function useController() {
   const store = useStore;
   const state = store(useShallow(s => s));
@@ -378,8 +401,10 @@ export function useController() {
         .filter((i) => i.kind === "assistant" && i.text)
         .map((i) => (i as Extract<Item, { kind: "assistant" }>).text)
         .join("\n");
-      const probe = last.content.trim().slice(0, 120);
-      if (!rendered.includes(probe)) {
+      // T7-4：前缀启发式（只查前 120 字是否已渲染）改为完整文本比较——
+      // 流式丢尾时前缀命中但正文不完整，仍会误判“已渲染”。要求渲染文本
+      // 以完整正文结尾才算渲染过，缺失才补发 message。
+      if (!isFinalAnswerRendered(rendered, last.content)) {
         dispatch({
           type: "event",
           e: { kind: "message", text: last.content, reasoning: (last as { reasoning?: string }).reasoning ?? "" },
@@ -448,25 +473,50 @@ export function useController() {
     return () => { off(); offReady(); window.clearInterval(watchdog); };
   }, [loadSessionData, refreshFactBase, reconcileFinalAnswer]);
 
+  // T7-4：send 失败不再静默——保留已上屏的用户消息（可复制重发），
+  // 记录 bridge 日志并给出用户可见的失败提示。
   const send = useCallback((displayText: string, submitText = displayText) => {
     dispatch({ type: "user", text: displayText });
     const display = displayText.trim(); const submit = submitText.trim();
-    (display !== submit ? app.SubmitDisplay(display, submit) : app.Submit(submit)).catch(() => {});
+    const p = display !== submit ? app.SubmitDisplay(display, submit) : app.Submit(submit);
+    p.catch((err) => failWrite(dispatch, "发送消息", err));
   }, [dispatch]);
 
   const cancel = useCallback((): string | undefined => {
     const cur = store.getState();
-    if (cur.running && cur.pendingUser !== undefined) { const text = cur.pendingUser; dispatch({ type: "unsend" }); app.Cancel().catch(() => {}); return text; }
+    const onFail = (err: unknown) => failWrite(dispatch, "取消", err);
+    if (cur.running && cur.pendingUser !== undefined) { const text = cur.pendingUser; dispatch({ type: "unsend" }); app.Cancel().catch(onFail); return text; }
     if (cur.running) dispatch({ type: "localCancel" }); // 事件丢失时仍能复位本地运行态
-    app.Cancel().catch(() => {}); return undefined;
+    app.Cancel().catch(onFail); return undefined;
   }, [store, dispatch]);
 
-  const approve = useCallback((id: string, allow: boolean, session: boolean) => { dispatch({ type: "clearApproval" }); app.Approve(id, allow, session).catch(() => {}); }, [dispatch]);
-  const answerQuestion = useCallback((id: string, answers: QuestionAnswer[]) => { dispatch({ type: "clearAsk" }); app.AnswerQuestion(id, answers).catch(() => {}); }, [dispatch]);
-  const setPermLevel = useCallback((level: string) => { app.SetPermLevel(level).catch(() => {}); }, []);
-  const newSession = useCallback(async () => { await app.NewSession().catch(() => {}); dispatch({ type: "reset" }); refreshFactBase(); }, [dispatch, refreshFactBase]);
-  const listSessions = useCallback((): Promise<SessionMeta[]> => app.ListSessions().catch(() => []), []);
-  const listProjectSessions = useCallback((): Promise<ProjectGroup[]> => app.ListProjectSessions().catch(() => []), []);
+  // T7-4：approve/answerQuestion 失败时不清掉弹窗（保留审批/提问界面），
+  // 记录日志并提示用户重试；成功后才清除。
+  const approve = useCallback((id: string, allow: boolean, session: boolean) => {
+    app.Approve(id, allow, session)
+      .then(() => dispatch({ type: "clearApproval" }))
+      .catch((err) => failWrite(dispatch, "审批提交", err));
+  }, [dispatch]);
+  const answerQuestion = useCallback((id: string, answers: QuestionAnswer[]) => {
+    app.AnswerQuestion(id, answers)
+      .then(() => dispatch({ type: "clearAsk" }))
+      .catch((err) => failWrite(dispatch, "回答提交", err));
+  }, [dispatch]);
+  const setPermLevel = useCallback((level: string) => { app.SetPermLevel(level).catch((err) => failWrite(dispatch, "切换权限级别", err)); }, [dispatch]);
+  const newSession = useCallback(async () => {
+    try {
+      await app.NewSession();
+      dispatch({ type: "reset" });
+      refreshFactBase();
+    } catch (err) {
+      // 新建失败不重置界面（后端会话未切换），给出可见提示。
+      failWrite(dispatch, "新建会话", err);
+    }
+  }, [dispatch, refreshFactBase]);
+  const listSessions = useCallback((): Promise<SessionMeta[]> =>
+    app.ListSessions().catch((err) => { logBridgeError("listSessions", err); return [] as SessionMeta[]; }), []);
+  const listProjectSessions = useCallback((): Promise<ProjectGroup[]> =>
+    app.ListProjectSessions().catch((err) => { logBridgeError("listProjectSessions", err); return [] as ProjectGroup[]; }), []);
   const resumeSession = useCallback(async (path: string) => {
     const ms = await app.ResumeSession(path).catch((e: unknown) => {
       // 恢复失败不要静默清空：给用户明确提示
@@ -478,46 +528,98 @@ export function useController() {
     });
     dispatch({ type: "reset" });
     if (ms.length) dispatch({ type: "history", messages: ms });
-    app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch(() => {});
+    app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("resumeSession ContextUsage", err));
     refreshFactBase();
   }, [dispatch, refreshFactBase]);
-  const archiveSession = useCallback((path: string) => app.ArchiveSession(path).catch(() => {}), []);
-  const unarchiveSession = useCallback((path: string): Promise<string> => app.UnarchiveSession(path).catch(() => ""), []);
-  const pinSession = useCallback((path: string, pinned: boolean) => app.PinSession(path, pinned).catch(() => {}), []);
-  const deleteSession = useCallback((path: string) => app.DeleteSession(path).catch(() => {}), []);
-  const renameSession = useCallback((path: string, title: string) => app.RenameSession(path, title).catch(() => {}), []);
+  const archiveSession = useCallback((path: string) => app.ArchiveSession(path).catch((err) => failWrite(dispatch, "归档会话", err)), [dispatch]);
+  const unarchiveSession = useCallback((path: string): Promise<string> => app.UnarchiveSession(path).catch((err) => { failWrite(dispatch, "取消归档", err); return ""; }), [dispatch]);
+  const pinSession = useCallback((path: string, pinned: boolean) => app.PinSession(path, pinned).catch((err) => failWrite(dispatch, "更新固定状态", err)), [dispatch]);
+  const deleteSession = useCallback((path: string) => app.DeleteSession(path).catch((err) => failWrite(dispatch, "删除会话", err)), [dispatch]);
+  const renameSession = useCallback((path: string, title: string) => app.RenameSession(path, title).catch((err) => failWrite(dispatch, "重命名会话", err)), [dispatch]);
   const fetchRequirement = useCallback(
-    (path: string): Promise<Requirement> => app.Requirement(path).catch(() => ({ text: "", done: false, updatedAt: 0 })),
+    (path: string): Promise<Requirement> => app.Requirement(path).catch((err) => {
+      logBridgeError("fetchRequirement", err);
+      return { text: "", done: false, updatedAt: 0 };
+    }),
     [],
   );
   const setRequirement = useCallback(
-    async (path: string, text: string) => { await app.SetRequirement(path, text).catch(() => {}); },
-    [],
+    async (path: string, text: string) => { await app.SetRequirement(path, text).catch((err) => failWrite(dispatch, "保存任务目标", err)); },
+    [dispatch],
   );
   const setRequirementDone = useCallback(
-    async (path: string, done: boolean) => { await app.SetRequirementDone(path, done).catch(() => {}); },
-    [],
+    async (path: string, done: boolean) => { await app.SetRequirementDone(path, done).catch((err) => failWrite(dispatch, "更新任务状态", err)); },
+    [dispatch],
   );
-  const refreshMeta = useCallback(async () => { try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} }, [dispatch]);
-  const pickWorkspace = useCallback(async (): Promise<string> => { const p = await app.PickWorkspace().catch(() => ""); if (p) { dispatch({ type: "reset" }); refreshFactBase(); try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} } return p; }, [dispatch, refreshFactBase]);
-  const switchWorkspace = useCallback(async (path: string): Promise<string> => { const n = await app.SwitchWorkspace(path).catch(() => ""); if (n) { dispatch({ type: "reset" }); refreshFactBase(); try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} } return n; }, [dispatch, refreshFactBase]);
-  const compact = useCallback(() => { app.Compact().catch(() => {}); }, []);
-  const setModel = useCallback(async (name: string) => { await app.SetModel(name).catch(() => {}); try { dispatch({ type: "meta", meta: await app.Meta() }); dispatch({ type: "context", context: await app.ContextUsage() }); } catch {} }, [dispatch]);
-  const fetchMemory = useCallback((): Promise<MemoryView> => app.Memory().catch(() => ({ docs: [], facts: [], scopes: [], storeDir: "", available: false } as MemoryView)), []);
-  const remember = useCallback(async (scope: string, note: string) => { await app.Remember(scope, note).catch(() => {}); }, []);
-  const forget = useCallback(async (name: string) => { await app.Forget(name).catch(() => {}); }, []);
-  const saveDoc = useCallback(async (path: string, body: string) => { await app.SaveDoc(path, body).catch(() => {}); }, []);
-  const updateFact = useCallback(async (name: string, body: string) => { await app.UpdateFact(name, body).catch(() => {}); }, []);
-  const changeFactType = useCallback(async (name: string, typ: string) => { await app.ChangeFactType(name, typ).catch(() => {}); }, []);
-  const clearFactBase = useCallback(async () => {
-    await app.FactBaseClear().catch(() => {});
-    refreshFactBase();
-  }, [refreshFactBase]);
-  const promoteFactBase = useCallback(async (): Promise<number> => {
-    const n = await app.FactBasePromote().catch(() => 0);
+  const refreshMeta = useCallback(async () => {
+    try {
+      dispatch({ type: "meta", meta: await app.Meta() });
+      dispatch({ type: "context", context: await app.ContextUsage() });
+    } catch (err) { logBridgeError("refreshMeta", err); }
+  }, [dispatch]);
+  const pickWorkspace = useCallback(async (): Promise<string> => {
+    const p = await app.PickWorkspace().catch((err: unknown) => { failWrite(dispatch, "打开工作区", err); return ""; });
+    if (p) {
+      dispatch({ type: "reset" }); refreshFactBase();
+      try {
+        dispatch({ type: "meta", meta: await app.Meta() });
+        dispatch({ type: "context", context: await app.ContextUsage() });
+      } catch (err) { logBridgeError("pickWorkspace refresh", err); }
+    }
+    return p;
+  }, [dispatch, refreshFactBase]);
+  const switchWorkspace = useCallback(async (path: string): Promise<string> => {
+    const n = await app.SwitchWorkspace(path).catch((err: unknown) => { failWrite(dispatch, "切换工作区", err); return ""; });
+    if (n) {
+      dispatch({ type: "reset" }); refreshFactBase();
+      try {
+        dispatch({ type: "meta", meta: await app.Meta() });
+        dispatch({ type: "context", context: await app.ContextUsage() });
+      } catch (err) { logBridgeError("switchWorkspace refresh", err); }
+    }
     return n;
-  }, []);
-  const rewind = useCallback(async (turn: number, scope: string) => { if (scope === "fork") await app.Fork(turn).catch(() => {}); else if (scope === "summ-from") await app.SummarizeFrom(turn).catch(() => {}); else if (scope === "summ-upto") await app.SummarizeUpTo(turn).catch(() => {}); else await app.Rewind(turn, scope).catch(() => {}); const ms = await app.History().catch(() => [] as HistoryMessage[]); dispatch({ type: "reset" }); if (ms.length) dispatch({ type: "history", messages: ms }); app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch(() => {}); }, [dispatch]);
+  }, [dispatch, refreshFactBase]);
+  const compact = useCallback(() => { app.Compact().catch((err) => failWrite(dispatch, "压缩上下文", err)); }, [dispatch]);
+  const setModel = useCallback(async (name: string) => {
+    await app.SetModel(name).catch((err) => failWrite(dispatch, "切换模型", err));
+    try {
+      dispatch({ type: "meta", meta: await app.Meta() });
+      dispatch({ type: "context", context: await app.ContextUsage() });
+    } catch (err) { logBridgeError("setModel refresh", err); }
+  }, [dispatch]);
+  const fetchMemory = useCallback((): Promise<MemoryView> => app.Memory().catch((err) => {
+    logBridgeError("fetchMemory", err);
+    return { docs: [], facts: [], scopes: [], storeDir: "", available: false } as MemoryView;
+  }), []);
+  const remember = useCallback(async (scope: string, note: string) => { await app.Remember(scope, note).catch((err) => failWrite(dispatch, "保存记忆", err)); }, [dispatch]);
+  const forget = useCallback(async (name: string) => { await app.Forget(name).catch((err) => failWrite(dispatch, "删除记忆", err)); }, [dispatch]);
+  const saveDoc = useCallback(async (path: string, body: string) => { await app.SaveDoc(path, body).catch((err) => failWrite(dispatch, "保存文档", err)); }, [dispatch]);
+  const updateFact = useCallback(async (name: string, body: string) => { await app.UpdateFact(name, body).catch((err) => failWrite(dispatch, "更新画像", err)); }, [dispatch]);
+  const changeFactType = useCallback(async (name: string, typ: string) => { await app.ChangeFactType(name, typ).catch((err) => failWrite(dispatch, "修改画像类型", err)); }, [dispatch]);
+  const clearFactBase = useCallback(async () => {
+    await app.FactBaseClear().catch((err) => failWrite(dispatch, "清空事实库", err));
+    refreshFactBase();
+  }, [dispatch, refreshFactBase]);
+  const promoteFactBase = useCallback(async (): Promise<number> => {
+    const n = await app.FactBasePromote().catch((err) => { failWrite(dispatch, "写入永久记忆", err); return 0; });
+    return n;
+  }, [dispatch]);
+  const rewind = useCallback(async (turn: number, scope: string) => {
+    // T7-4：回退失败不再静默，且不触发 reset——保留当前对话现场（否则刚
+    // 弹的失败提示会被 reset 清空，用户连发生了什么都看不到）。
+    const act = (p: Promise<unknown>): Promise<boolean> =>
+      p.then(() => true).catch((err) => { failWrite(dispatch, "回退对话", err); return false; });
+    let ok = false;
+    if (scope === "fork") ok = await act(app.Fork(turn));
+    else if (scope === "summ-from") ok = await act(app.SummarizeFrom(turn));
+    else if (scope === "summ-upto") ok = await act(app.SummarizeUpTo(turn));
+    else ok = await act(app.Rewind(turn, scope));
+    if (!ok) return;
+    const ms = await app.History().catch((err) => { logBridgeError("rewind History", err); return [] as HistoryMessage[]; });
+    dispatch({ type: "reset" });
+    if (ms.length) dispatch({ type: "history", messages: ms });
+    app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("rewind ContextUsage", err));
+  }, [dispatch]);
 
   return { state, send, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, fetchRequirement, setRequirement, setRequirementDone, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase };
 }

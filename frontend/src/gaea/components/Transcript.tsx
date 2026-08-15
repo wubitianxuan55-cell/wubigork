@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, Brain, ChevronRight } from "../icons";
 import type { Item } from "../lib/store";
 import { useItems, useTurnStartAt } from "../lib/store";
@@ -181,6 +181,175 @@ export function buildSegments(items: Item[], running = false): Segment[] {
   return segments;
 }
 
+// segSig 计算一段内容的版本签名（T7-4 轮级缓存用）：流式只改最后一轮时，
+// 已完成段的 item 引用与内容都不变 → 签名不变 → Transcript 复用缓存段对象，
+// TurnBlock（memo）才能整体跳过重渲染。
+function segSig(seg: Segment): string {
+  let s = "";
+  for (const it of [...seg.processItems, ...seg.outsideItems]) {
+    if (it.kind === "assistant") s += `${it.id}:${it.text.length}:${it.reasoning.length}:${it.streaming ? 1 : 0};`;
+    else if (it.kind === "tool") s += `${it.id}:${it.status}:${it.output?.length ?? 0};`;
+    else s += `${it.id};`;
+  }
+  return s;
+}
+
+// buildSubcalls 收集段内的父子工具调用（parentId → 子调用列表），供本段的
+// 过程卡与外部工具卡渲染子调用。
+function buildSubcalls(seg: Segment): Map<string, ToolItem[]> {
+  const map = new Map<string, ToolItem[]>();
+  for (const it of [...seg.processItems, ...seg.outsideItems]) {
+    if (it.kind === "tool" && it.parentId) {
+      const arr = map.get(it.parentId) ?? [];
+      arr.push(it);
+      map.set(it.parentId, arr);
+    }
+  }
+  return map;
+}
+
+// renderOutsideItems 渲染段内正文元素（用户/助手/工具/阶段/通知/压缩卡）。
+// 顶层纯函数 + TurnBlock 内 useMemo：段 props 不变时整棵子树跳过重渲染。
+function renderOutsideItems(
+  outsideItems: Item[],
+  ctx: {
+    turnNo?: number;
+    openTurn: number | null;
+    onToggleTurn: (tn: number) => void;
+    onRewindTurn: (turn: number, scope: string) => void;
+    onCollapse: () => void;
+    dismissedErrors: Set<string>;
+    onDismissError: (id: string) => void;
+    captureForId: (id: string) => ((solution: string) => void) | undefined;
+    subcalls: Map<string, ToolItem[]>;
+    setTurnEl: (tn: number) => (el: HTMLElement | null) => void;
+  },
+): React.ReactNode[] {
+  const gs = scanGroups(outsideItems);
+  return gs.map((g) => {
+    if (g.kind === "group") {
+      return <ToolGroup key={g.id} tools={g.tools} onCollapse={ctx.onCollapse} />;
+    }
+    const it = g.item;
+    switch (it.kind) {
+      case "user": {
+        const tn = ctx.turnNo;
+        return (
+          <div
+            key={it.id}
+            data-turn={tn != null ? tn : undefined}
+            data-entrance={it.id}
+            ref={tn != null ? ctx.setTurnEl(tn) : undefined}
+          >
+            <UserMessage
+              text={it.text} turn={tn}
+              open={tn != null && ctx.openTurn === tn}
+              onToggle={tn != null ? () => ctx.onToggleTurn(tn) : undefined}
+              onRewind={ctx.onRewindTurn}
+            />
+          </div>
+        );
+      }
+      case "assistant":
+        return (
+          <div key={it.id} data-entrance={it.id}>
+            <AssistantMessage
+              item={it}
+              onCollapse={ctx.onCollapse}
+              onCapture={ctx.captureForId(it.id)}
+            />
+          </div>
+        );
+      case "tool":
+        if (it.parentId) return null;
+        if (it.name === "todo_write") return null;
+        return (
+          <div key={it.id} data-entrance={it.id}>
+            <ToolCard item={it} subcalls={ctx.subcalls.get(it.id)} />
+          </div>
+        );
+      case "phase":
+        return <div key={it.id} className="phase">{it.text}</div>;
+      case "notice":
+        if (it.level === "warn") {
+          if (ctx.dismissedErrors.has(it.id)) return null;
+          return <ErrorCard key={it.id} item={it as Extract<Item, { kind: "notice" }>} onDismiss={ctx.onDismissError} />;
+        }
+        if (it.text.startsWith("diagnostics:")) {
+          const clean = it.text.includes("— clean");
+          return (
+            <div key={it.id} className={`flex items-center gap-1.5 px-4 py-1 text-[11px] ${clean ? "text-ok" : "text-warning"}`}>
+              <span className="shrink-0">{clean ? "✔" : "⚠"}</span>
+              <span>{it.text}</span>
+            </div>
+          );
+        }
+        return <div key={it.id} className="notice">{it.text}</div>;
+      case "compaction":
+        return <CompactionCard key={it.id} item={it} />;
+      default:
+        return null;
+    }
+  });
+}
+
+// T7-4 轮级 memo：把每一段的渲染拆进独立 memo 组件。流式只追加/修改最后一轮
+// 时，其余已完成的段（props 引用不变）整体跳过重渲染——避免每 chunk 全量
+// 重建消息树造成的滚动/渲染卡顿。onToggle/onCapture/onRewind 等回调全部
+// 由 Transcript 用 useCallback 稳定化后传入，memo 才能生效。
+export const TurnBlock = memo(function TurnBlock({
+  seg, running, isLast, turnNo, openTurn, onToggleTurn, onRewindTurn, onCollapse,
+  dismissedErrors, onDismissError, captureForId, turnElsRef,
+}: {
+  seg: Segment;
+  running: boolean;
+  isLast: boolean;
+  turnNo?: number;
+  openTurn: number | null;
+  onToggleTurn: (tn: number) => void;
+  onRewindTurn: (turn: number, scope: string) => void;
+  onCollapse: () => void;
+  dismissedErrors: Set<string>;
+  onDismissError: (id: string) => void;
+  captureForId: (id: string) => ((solution: string) => void) | undefined;
+  turnElsRef: React.MutableRefObject<Map<number, HTMLElement>>;
+}) {
+  const toolCount = seg.processItems.filter((it) => it.kind === "tool" && !it.parentId).length;
+  const thoughtCount = seg.processItems.filter((it) => it.kind === "assistant" && it.reasoning).length;
+  const hasProcess = seg.processItems.length > 0;
+  const subcalls = useMemo(() => buildSubcalls(seg), [seg]);
+  const setTurnEl = useCallback(
+    (tn: number) => (el: HTMLElement | null) => {
+      if (el) turnElsRef.current.set(tn, el);
+      else turnElsRef.current.delete(tn);
+    },
+    [turnElsRef],
+  );
+  const outside = useMemo(
+    () =>
+      renderOutsideItems(seg.outsideItems, {
+        turnNo, openTurn, onToggleTurn, onRewindTurn, onCollapse,
+        dismissedErrors, onDismissError, captureForId, subcalls, setTurnEl,
+      }),
+    [seg.outsideItems, turnNo, openTurn, onToggleTurn, onRewindTurn, onCollapse, dismissedErrors, onDismissError, captureForId, subcalls, setTurnEl],
+  );
+  return (
+    <>
+      {hasProcess && (
+        <ProcessCard
+          items={seg.processItems}
+          toolCount={toolCount}
+          thoughtCount={thoughtCount}
+          running={running && isLast}
+          small={running && !isLast}
+          subcallsByParent={subcalls}
+        />
+      )}
+      {seg.outsideItems.length > 0 && outside}
+    </>
+  );
+});
+
 // 过程卡内的思考块（复用 .reasoning 样式）
 function InlineReasoning({ item }: { item: AssistantItem }) {
   // 思考卡默认折叠：展开大过程卡时只看到标题，点开才看推理内容。
@@ -213,7 +382,9 @@ function InlineReasoning({ item }: { item: AssistantItem }) {
   );
 }
 
-export function ProcessCard({
+// T7-4：ProcessCard 也加 memo——流式期间已完成轮的过程卡 props 不变，
+// 无需随每 chunk 重渲染内部工具/思考卡。
+export const ProcessCard = memo(function ProcessCard({
   items,
   toolCount,
   thoughtCount,
@@ -331,7 +502,7 @@ export function ProcessCard({
       </div>
     </div>
   );
-}
+});
 
 export function Transcript({
   onPrompt, onRewind, running, onThreadEl, onScrollToTurnReady,
@@ -428,7 +599,28 @@ export function Transcript({
     if (items.length === 0) turnEls.current.clear();
   }, [items.length]);
   const merged = useMemo(() => mergeConsecutiveReasoning(items), [items]);
-  const segments = useMemo(() => buildSegments(merged, running), [merged, running]);
+
+  // T7-4 轮级缓存：按「段内容签名」复用已构建的 Segment 对象。流式只改
+  // 最后一轮时，已完成段的签名不变 → 引用不变 → TurnBlock memo 生效。
+  const segCache = useRef(new Map<number, { sig: string; seg: Segment }>());
+  const segments = useMemo(() => {
+    const built = buildSegments(merged, running);
+    const cache = segCache.current;
+    const out: Segment[] = [];
+    built.forEach((seg, i) => {
+      const sig = segSig(seg);
+      const prev = cache.get(i);
+      if (prev && prev.sig === sig) {
+        out.push(prev.seg);
+      } else {
+        cache.set(i, { sig, seg });
+        out.push(seg);
+      }
+    });
+    // 剪枝：段数收缩（新会话）时丢弃多余缓存
+    for (const k of cache.keys()) if (k >= built.length) cache.delete(k);
+    return out;
+  }, [merged, running]);
 
   // turn→DOM 元素映射（用于跳转）
   const turnEls = useRef(new Map<number, HTMLElement>());
@@ -460,19 +652,6 @@ export function Transcript({
     items.length,
   );
 
-  // ── 子调用收集 ──────────────────────────────────────────────────
-  const subcallsByParent = useMemo(() => {
-    const map = new Map<string, ToolItem[]>();
-    for (const it of items) {
-      if (it.kind === "tool" && it.parentId) {
-        const arr = map.get(it.parentId) ?? [];
-        arr.push(it);
-        map.set(it.parentId, arr);
-      }
-    }
-    return map;
-  }, [items]);
-
   const [dismissedErrors, setDismissedErrors] = useState(new Set<string>());
   const [openTurn, setOpenTurn] = useState<number | null>(null);
   const [capture, setCapture] = useState<{ task: string; solution: string } | null>(null);
@@ -486,96 +665,60 @@ export function Transcript({
     return () => document.removeEventListener("mousedown", onDown);
   }, [openTurn]);
 
-  const userTurn = useMemo(() => {
-    const map = new Map<string, number>();
-    let nt = 0;
+  // 每段对应的用户轮次号（data-turn / 回退弹窗 open 判定用）
+  const turnNos = useMemo(() => {
+    const map = new Map<number, number>();
+    let n = 0;
+    segments.forEach((seg, i) => {
+      const users = seg.outsideItems.filter((it) => it.kind === "user");
+      if (users.length > 0) map.set(i, n);
+      n += users.length;
+    });
+    return map;
+  }, [segments]);
+
+  // T7-4：onToggle/onRewind/onDismiss 全部 useCallback 稳定化，UserMessage/
+  // ErrorCard 的 memo 才不会被每次渲染的新函数击穿。
+  const toggleTurn = useCallback((tn: number) => {
+    setOpenTurn((cur) => (cur === tn ? null : tn));
+  }, []);
+
+  const handleRewindTurn = useCallback((turn: number, scope: string) => {
+    onRewind?.(turn, scope);
+    setOpenTurn(null);
+  }, [onRewind]);
+
+  const dismissError = useCallback((id: string) => {
+    setDismissedErrors((p) => new Set(p).add(id));
+  }, []);
+
+  // onCapture 稳定化：同一 assistant id 复用同一闭包（task 文本来自按 items
+  // 重建的映射），AssistantMessage 的 memo 才有效。
+  const captureTaskMapRef = useRef(new Map<string, string>());
+  const captureFnsRef = useRef(new Map<string, (solution: string) => void>());
+  const captureTaskMap = useMemo(() => {
+    const map = new Map<string, string>();
+    let last = "";
     for (const it of items) {
-      if (it.kind === "user") map.set(it.id, nt++);
+      if (it.kind === "user") last = it.text;
+      else if (it.kind === "assistant") map.set(it.id, last);
     }
     return map;
   }, [items]);
-
-  // ── 分段渲染：过程（思考/工具）进过程卡，正文留在外面 ──
-  const renderSegment = useCallback((outsideItems: Item[]) => {
-    const gs = scanGroups(outsideItems);
-    let lastUserText = "";
-    return gs.map((g) => {
-      if (g.kind === "group") {
-        return <ToolGroup key={g.id} tools={g.tools} onCollapse={scheduleMeasure} />;
-      }
-      const it = g.item;
-      if (it.kind === "user") lastUserText = it.text;
-      switch (it.kind) {
-        case "user": {
-          const tn = userTurn.get(it.id);
-          return (
-            <div
-              key={it.id}
-              data-turn={tn != null ? tn : undefined}
-              data-entrance={it.id}
-              ref={(el) => {
-                if (el && tn != null) {
-                  turnEls.current.set(tn, el);
-                } else if (tn != null) {
-                  turnEls.current.delete(tn);
-                }
-              }}
-            >
-              <UserMessage
-                text={it.text} turn={tn}
-                open={tn != null && openTurn === tn}
-                onToggle={() => setOpenTurn((cur) => (cur === tn ? null : (tn ?? null)))}
-                onRewind={(turn, scope) => { onRewind?.(turn, scope); setOpenTurn(null); }}
-              />
-            </div>
-          );
-        }
-        case "assistant":
-          return (
-            <div key={it.id} data-entrance={it.id}>
-              <AssistantMessage
-                item={it}
-                onCollapse={scheduleMeasure}
-                onCapture={
-                  lastUserText
-                    ? (solution) => setCapture({ task: lastUserText, solution })
-                    : undefined
-                }
-              />
-            </div>
-          );
-        case "tool":
-          if (it.parentId) return null;
-          if (it.name === "todo_write") return null;
-          return (
-            <div key={it.id} data-entrance={it.id}>
-              <ToolCard item={it} subcalls={subcallsByParent.get(it.id)} />
-            </div>
-          );
-        case "phase":
-          return <div key={it.id} className="phase">{it.text}</div>;
-        case "notice":
-          if (it.level === "warn") {
-            if (dismissedErrors.has(it.id)) return null;
-            return <ErrorCard key={it.id} item={it as Extract<Item, { kind: "notice" }>} onDismiss={(id) => setDismissedErrors((p) => new Set(p).add(id))} />;
-          }
-          if (it.text.startsWith("diagnostics:")) {
-            const clean = it.text.includes("— clean");
-            return (
-              <div key={it.id} className={`flex items-center gap-1.5 px-4 py-1 text-[11px] ${clean ? "text-ok" : "text-warning"}`}>
-                <span className="shrink-0">{clean ? "✔" : "⚠"}</span>
-                <span>{it.text}</span>
-              </div>
-            );
-          }
-          return <div key={it.id} className="notice">{it.text}</div>;
-        case "compaction":
-          return <CompactionCard key={it.id} item={it} />;
-        default:
-          return null;
-      }
-    });
-  }, [userTurn, openTurn, onRewind, scheduleMeasure, subcallsByParent, dismissedErrors]);
+  useEffect(() => {
+    captureTaskMapRef.current = captureTaskMap;
+    if (items.length === 0) captureFnsRef.current.clear();
+  }, [captureTaskMap, items.length]);
+  const captureForId = useCallback((id: string): ((solution: string) => void) | undefined => {
+    const task = captureTaskMapRef.current.get(id);
+    if (!task) return undefined;
+    let fn = captureFnsRef.current.get(id);
+    if (!fn) {
+      fn = (solution: string) => setCapture({ task, solution });
+      captureFnsRef.current.set(id, fn);
+    }
+    return fn;
+  }, []);
 
   const scrollDown = useCallback(() => {
     stick.current = true;
@@ -591,28 +734,27 @@ export function Transcript({
         )}
         <StreamingIndicator running={running} items={items} />
         {segments.map((seg, segIdx, arr) => {
-          const toolCount = seg.processItems.filter((it) => it.kind === "tool" && !it.parentId).length;
-          const thoughtCount = seg.processItems.filter((it) => it.kind === "assistant" && it.reasoning).length;
-          const hasProcess = seg.processItems.length > 0;
           const isLast = segIdx === arr.length - 1;
           const segKey = seg.processItems[0]?.id ?? seg.outsideItems[0]?.id ?? `seg${segIdx}`;
           // 大过程卡（整轮结束后的合并卡）用独立 key 全新挂载：
           // 默认展开，且不复用运行中小过程卡的折叠实例（小卡始终折叠）。
           const segKeyFinal = running ? segKey : `done-${segKey}`;
           return (
-            <div key={segKeyFinal}>
-              {hasProcess && (
-                <ProcessCard
-                  items={seg.processItems}
-                  toolCount={toolCount}
-                  thoughtCount={thoughtCount}
-                  running={running && isLast}
-                  small={running && !isLast}
-                  subcallsByParent={subcallsByParent}
-                />
-              )}
-              {seg.outsideItems.length > 0 && renderSegment(seg.outsideItems)}
-            </div>
+            <TurnBlock
+              key={segKeyFinal}
+              seg={seg}
+              running={running}
+              isLast={isLast}
+              turnNo={turnNos.get(segIdx)}
+              openTurn={openTurn}
+              onToggleTurn={toggleTurn}
+              onRewindTurn={handleRewindTurn}
+              onCollapse={scheduleMeasure}
+              dismissedErrors={dismissedErrors}
+              onDismissError={dismissError}
+              captureForId={captureForId}
+              turnElsRef={turnEls}
+            />
           );
         })}
       </div>
