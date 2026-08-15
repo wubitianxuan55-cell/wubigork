@@ -1,6 +1,22 @@
 # 任务进度
 
-> 最后更新: 2026-08-15（gaea 3.0 执行 · v2.40.0 发布完成）
+> 最后更新: 2026-08-15（gaea 3.0 执行 · v2.40.0 发布完成 · UI 设计系统 Wave 1-2 落地中）
+
+## UI 设计系统（3.0 补充环节，ui-ux-pro-max skill 驱动，2026-08-15）
+
+> 需求：3.0 还差「对所有板块的 UI 进行设计」——已确认：用 ui-ux-pro-max skill、重新定义 3.0 设计语言、设计文档 + 全部板块落地实施。
+
+| 状态 | 任务 | 提交 |
+|------|------|------|
+| ✅ | 设计系统定稿（docs/2026-08-15-gaea3-ui-design-system.md「智能玻璃」+ design-system/gaea/MASTER.md 定制） | 0fe3e49 |
+| ✅ | 10 板块 UI 蓝图（design-system/gaea/pages/*.md，8 文件覆盖 11 板块） | d33e569 |
+| ✅ | Wave 1 令牌层（colorDestructive 12 主题 + antd colorError 对齐 + .gp-panel 工具类 + appStore.test 3 用例） | ab08d2a |
+| ✅ | Wave 2 死令牌治理（--ds-* 14 令牌补全 27 处消费生效 + THEME_PRESETS 单一数据源） | 9a0c374 |
+| ✅ | Wave 3 壳层可访问性（theme-dot 键盘可达 + focus-visible） | fc659e4 |
+| 🔄 | Wave 3 板块（modelcenter --mc-* 收敛 / chat 设计语言落地，子代理并行中） | — |
+| ⏳ | Wave 3 其余（记忆中枢科幻风收敛 / 办公系玻璃过渡 / emoji 177 处治理 / 硬编码 hex / 11px 字号） | — |
+
+关键事实（盘点报告 docs/gaea3-review/10-ui-audit.md）：4 种视觉方言并行（M3 玻璃霓虹 / 办公扁平 Tailwind / modelcenter --mc-* 私有 / 记忆中枢科幻风）；--ds-* 仅 2/14 定义（已修）；主题色值 3 处重复（已单源化）；emoji 当图标 36 文件 177 处；硬编码 hex 数百处；11px 级字号 321 处；antd 弹层动画因 WebView2 永久禁用（已知耦合）。
 
 ## 阶段 7 收官 + 3.0 Step 0/1 完成（5 子代理并行，全部提交）
 
