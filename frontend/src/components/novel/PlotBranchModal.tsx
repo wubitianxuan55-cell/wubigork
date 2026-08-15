@@ -29,7 +29,7 @@ const PlotBranchModal: React.FC<PlotBranchModalProps> = ({ open, onClose, nodeID
 
   return (
     <Modal
-      title={<span style={{ color: C('color-text') }}><BranchesOutlined style={{ color: '#c084fc', marginRight: 8 }} />剧情分支 · {nodeTitle}</span>}
+      title={<span style={{ color: C('color-text') }}><BranchesOutlined style={{ color: 'var(--color-primary)', marginRight: 8 }} />剧情分支 · {nodeTitle}</span>}
       open={open}
       onCancel={onClose}
       footer={null}

@@ -1,5 +1,29 @@
 # gaea · 多功能 AI 助手
 
+## v3.0.1「小说板块 UX/UI 重构 · 版本漂移修复」（2026-08-15）
+> 用户指令「对 gaea 的小说板块 UX/UI 进行重构」——ui-ux-pro-max skill 驱动，保持 6-tab 信息架构，
+> 重构书架/阅读/创作/控制台的视觉与交互。详见 releases/v3.0.1.md。
+- **书架重构**：卡片重设计（题材→令牌 tone 封面渐变条 + 阅读进度条 + 标签/统计/相对时间）；
+  搜索 + 排序工具条（最近打开/总字数/章节数/书名）；「继续阅读」主操作（新增 `novel:goto-tab`
+  事件联动阅读 tab）；空态/无结果态；首本宽屏 span 2 锚点；hover 位移收敛 ≤2px
+- **阅读页重构**：三层堆叠 chrome（tab/信息/工具栏）收敛为单条 `.novel-chrome`；新增阅读模式
+  （居中限宽 46rem 衬线排版 17px×2 + 场景分隔符 + 页脚前后章导航）；编辑/阅读分离，
+  F11 专注模式 + Esc 逐级退出
+- **创作页令牌化**：EditorPanel 状态 Tag 与生成进度条统一 `--gaea-glow`（novel-gen-progress-*）；
+  分支色板令牌化（usePlotBranch toneColors → 语义令牌；BranchSelector/NextChapter/PlotBranch/
+  NewCharacters 选中态改 `--color-primary/-warning` 派生）
+- **AI 控制台面板化**：内联样式 → v3 玻璃面板（`.ai-console-*`），字号 9-10px → 12px、
+  antd Tag 预设色 → 令牌 Tag、FAB 30px 不与轨道条重叠、条目键盘可达
+- **令牌化清理**：NovelSettingPage 导入/导出、ChapterEditor 重试条与右键菜单、NovelInspector 保存态、
+  OrganizationEditModal、RelationGraph 画布色板（挂载时 getComputedStyle 解析令牌）；
+  novel-workspace.css +566 行重构层（零硬编码 hex），新元素进 reduced-motion 降级
+- **版本漂移修复**：app_info.go `AppVersion` 停在 2.40.0（v3.0.0 发布漏改）——
+  sync-version.ps1 统一三处（app_info.go / wails.json / versioninfo.rc）→ 3.0.1，frontend package.json 同步
+- **基建**：vite.config.ts `/api` 代理支持 `GAEA_PROXY_PORT` 环境变量（本地桥接端口冲突可指路）
+- 验证：tsc 0 errors + vitest 455 通过（2 个既有失败在 launcher.test.ts，改动前基线相同）+
+  `wails build` 重建通过 + `scripts/smoke.ps1` 冒烟通过 + 浏览器端到端实测（书架→大纲→阅读模式→
+  创作→AI 控制台）。发布 gaea-v3.0.1.exe。
+
 ## v3.0.0「星枢 Constellation OS · UI 革命性重设计」（2026-08-15）
 > 用户指令「革命性重设计整个 UI，适配 V3.0，面板布局可调整」——ui-ux-pro-max skill 驱动 +
 > 12 个子代理并行实施。设计规格见 `docs/2026-08-15-gaea3-ui-constellation-os.md`，

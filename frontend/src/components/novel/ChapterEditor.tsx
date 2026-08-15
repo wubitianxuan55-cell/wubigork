@@ -76,11 +76,11 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
       {tab.retryStatus && (
         <div style={{
           marginBottom: 12, padding: '8px 16px',
-          background: 'rgba(245, 158, 11, 0.1)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
+          background: 'color-mix(in srgb, var(--color-warning) 10%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)',
           borderRadius: 'var(--radius-md)',
           display: 'flex', alignItems: 'center', gap: 8,
-          fontSize: 12, color: '#f59e0b',
+          fontSize: 12, color: 'var(--color-warning)',
         }}>
           <span>AI 审稿评分 {tab.retryStatus.score}/10（目标 ≥{tab.retryStatus.target}），正在根据修改建议重写...</span>
         </div>
@@ -177,19 +177,19 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ tab, onUpdate, sceneTexta
             style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C('color-text') }}
             onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = C('color-bg-layout')}
             onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-            <EditOutlined style={{ color: '#4ade80' }} /> 丰富描写
+            <EditOutlined style={{ color: 'var(--color-success)' }} /> 丰富描写
           </div>
           <div onClick={() => triggerAI('expand')}
             style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C('color-text') }}
             onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = C('color-bg-layout')}
             onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-            <ColumnWidthOutlined style={{ color: '#60a5fa' }} /> 扩展场景
+            <ColumnWidthOutlined style={{ color: 'var(--color-primary)' }} /> 扩展场景
           </div>
           <div onClick={() => triggerAI('rewrite')}
             style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C('color-text') }}
             onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = C('color-bg-layout')}
             onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-            <RedoOutlined style={{ color: '#f59e0b' }} /> 重写此段
+            <RedoOutlined style={{ color: 'var(--color-warning)' }} /> 重写此段
           </div>
         </div>
       )}

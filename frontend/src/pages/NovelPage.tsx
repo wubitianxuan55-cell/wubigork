@@ -113,6 +113,16 @@ const NovelPage: React.FC = () => {
     return () => window.removeEventListener('novel:focus-mode', handler)
   }, [])
 
+  // 书架卡「继续阅读」→ 切到阅读 tab（HomePage 派发 novel:goto-tab）
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: NovelTab }>).detail?.tab
+      if (tab) changeTab(tab)
+    }
+    window.addEventListener('novel:goto-tab', handler)
+    return () => window.removeEventListener('novel:goto-tab', handler)
+  }, [])
+
   // 侧栏大纲点击 → 切到阅读 tab 并定位章节（ChapterPage 监听 novel:open-chapter）
   const handleOpenChapter = useCallback((node: OutlineNode) => {
     changeTab('chapter')

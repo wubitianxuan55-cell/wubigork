@@ -1,5 +1,5 @@
 import React from 'react'
-import { Button, Spin, Tag, Typography, Input } from 'antd'
+import { Button, Spin, Typography, Input } from 'antd'
 import {
   EditOutlined, LoadingOutlined, ReloadOutlined, SaveOutlined,
   PlusOutlined, ThunderboltOutlined, StopOutlined,
@@ -42,8 +42,8 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       <span className="novel-panel-title">
         {activeNode ? (activeNode.title || chapterLabel(activeNode.order_index)) : '正文编辑'}
       </span>
-      {activeNode?.status === 'writing' && <Tag color="warning" style={{ marginInlineEnd: 0, fontSize: 11 }}>生成中</Tag>}
-      {activeNode?.status === 'done' && <Tag color="success" style={{ marginInlineEnd: 0, fontSize: 11 }}>已写入</Tag>}
+      {activeNode?.status === 'writing' && <span className="novel-tag-tone is-warning">生成中</span>}
+      {activeNode?.status === 'done' && <span className="novel-tag-tone is-success">已写入</span>}
       <div style={{ flex: 1 }} />
       <span className="novel-setting-meta">{countTextChars(content).toLocaleString()} 字</span>
       {activeNode && (
@@ -100,17 +100,8 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             停止生成
           </Button>
         </div>
-        <div style={{
-          height: 4, marginTop: 7, borderRadius: 999,
-          background: 'color-mix(in srgb, var(--gaea-glow) 12%, transparent)',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            width: `${genPercent}%`, height: '100%',
-            background: 'var(--gaea-glow)',
-            borderRadius: 999,
-            transition: 'width 200ms ease',
-          }} />
+        <div className="novel-gen-progress-track">
+          <div className="novel-gen-progress-fill" style={{ width: `${genPercent}%` }} />
         </div>
       </div>
     )}

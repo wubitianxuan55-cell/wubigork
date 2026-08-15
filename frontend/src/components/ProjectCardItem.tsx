@@ -1,10 +1,10 @@
 import React from 'react'
-import { Typography, Button, Space, Tag, Popconfirm } from 'antd'
+import { Button, Popconfirm, Tooltip } from 'antd'
 import {
-  BookOutlined, FileTextOutlined, ClockCircleOutlined, DeleteOutlined,
+  BookOutlined, ReadOutlined, ClockCircleOutlined,
+  DeleteOutlined, RightOutlined,
 } from '@ant-design/icons'
 import type { ProjectCard } from '../stores/appStore'
-import { C } from '../utils/theme'
 import { formatRelativeTime } from '../utils/time'
 
 interface ProjectCardItemProps {
@@ -13,134 +13,120 @@ interface ProjectCardItemProps {
   isHero: boolean
   isMobile?: boolean
   readingChapter?: string
+  /** 阅读进度（0-1，undefined = 无进度） */
+  readingProgress?: number
   onOpen: (card: ProjectCard) => void
+  onContinueReading?: (card: ProjectCard) => void
   onDelete: (card: ProjectCard) => void
 }
 
-/** ProjectCardItem — Bento grid 项目卡片 */
+/** 题材 → 封面 tone 类（零硬编码色值，令牌派生渐变） */
+function coverToneFor(genre: string): string {
+  const g = (genre || '').trim()
+  if (!g || g === '未分类') return 'novel-cover-tone-primary'
+  if (/玄幻|奇幻|仙侠|魔幻|魔法|神话|东方幻想/.test(g)) return 'novel-cover-tone-fantasy'
+  if (/科幻|赛博|未来|末世|星际|机甲|末日/.test(g)) return 'novel-cover-tone-scifi'
+  if (/悬疑|推理|惊悚|恐怖|侦探|犯罪/.test(g)) return 'novel-cover-tone-mystery'
+  if (/言情|爱情|都市情缘|耽美|百合|婚恋/.test(g)) return 'novel-cover-tone-romance'
+  if (/历史|穿越|古代|架空|军事|战争/.test(g)) return 'novel-cover-tone-history'
+  if (/都市|现实|职场|校园|生活|青春/.test(g)) return 'novel-cover-tone-urban'
+  return 'novel-cover-tone-primary'
+}
+
+/** ProjectCardItem — 书架卡：封面渐变条 + 题材标签 + 进度条 + 继续阅读主操作 */
 const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
-  card, isActive, isHero, readingChapter, onOpen, onDelete,
-}) => (
-  <div
-    key={card.path}
-    className="neon-card"
-    onClick={() => onOpen(card)}
-    style={{
-      gridColumn: isHero ? 'span 2' : 'span 1',
-      gridRow: isHero ? 'span 2' : 'span 1',
-      cursor: 'pointer',
-      padding: '20px 24px',
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-      borderRadius: 'var(--radius-xl)',
-      background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
-      WebkitBackdropFilter: 'blur(14px) saturate(130%)',
-      backdropFilter: 'blur(14px) saturate(130%)',
-      border: isActive ? '1px solid var(--gaea-glow)' : '1px solid var(--border-subtle)',
-      boxShadow: isActive
-        ? '0 0 0 1px var(--gaea-glow), 0 8px 28px rgba(from var(--gaea-glow) r g b / 0.2)'
-        : 'var(--shadow-md)',
-      transition: 'all var(--transition-normal)',
-      position: 'relative',
-      overflow: 'hidden',
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = 'translateY(-3px)'
-      e.currentTarget.style.boxShadow = isActive
-        ? '0 0 0 1px var(--gaea-glow), 0 12px 36px rgba(from var(--gaea-glow) r g b / 0.3)'
-        : '0 0 0 1px var(--gaea-glow), 0 10px 30px rgba(from var(--gaea-glow) r g b / 0.18)'
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = 'translateY(0)'
-      e.currentTarget.style.boxShadow = isActive
-        ? '0 0 0 1px var(--gaea-glow), 0 8px 28px rgba(from var(--gaea-glow) r g b / 0.2)'
-        : 'var(--shadow-md)'
-    }}
-  >
-    {/* 装饰光晕 */}
-    {isActive && (
-      <div style={{
-        position: 'absolute', top: -40, right: -40,
-        width: 120, height: 120, borderRadius: '50%',
-        background: `radial-gradient(circle, color-mix(in srgb, var(--gaea-glow) 16%, transparent) 0%, transparent 70%)`,
-        pointerEvents: 'none',
-      }} />
-    )}
+  card, isActive, isHero, readingChapter, readingProgress, onOpen, onContinueReading, onDelete,
+}) => {
+  const pct = readingProgress != null && readingProgress > 0
+    ? Math.min(100, Math.round(readingProgress * 100))
+    : 0
+  const tone = coverToneFor(card.genre)
 
-    {/* 标题行 */}
-    <div>
-      <Typography.Title level={isHero ? 4 : 5} style={{
-        color: C('color-text'), marginBottom: 8, marginTop: 0,
-        display: 'flex', alignItems: 'center', gap: 8,
-      }}>
-        <BookOutlined style={{
-          color: isActive ? C('color-primary') : C('color-text-secondary'),
-          fontSize: isHero ? 20 : 16,
-        }} />
-        {card.title}
-        {isActive && (
-          <Tag color="green" style={{ marginLeft: 4, fontSize: 10, lineHeight: '18px' }}>
-            已打开
-          </Tag>
-        )}
-      </Typography.Title>
+  return (
+    <div
+      key={card.path}
+      role="button"
+      tabIndex={0}
+      className={`novel-shelf-card${isActive ? ' is-active' : ''}${isHero ? ' novel-shelf-card-hero' : ''}`}
+      onClick={() => onOpen(card)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(card) } }}
+      aria-label={`打开小说「${card.title}」`}
+    >
+      {/* 封面渐变条 */}
+      <div className={`novel-cover ${tone}`}>
+        <BookOutlined aria-hidden className="novel-cover-icon" />
+        <span className="novel-cover-title">{card.title}</span>
+      </div>
 
-      {/* 标签 */}
-      <Space size={4} wrap style={{ marginBottom: 12 }}>
-        {card.genre && card.genre !== '未分类' && (
-          <Tag color="#60a5fa" style={{ fontSize: 11, borderRadius: 6 }}>{card.genre}</Tag>
-        )}
-        {card.style && card.style !== '默认' && (
-          <Tag color="#c084fc" style={{ fontSize: 11, borderRadius: 6 }}>{card.style}</Tag>
-        )}
-      </Space>
+      <div className="novel-shelf-body">
+        {/* 题材 / 风格标签 */}
+        <div className="novel-shelf-tags">
+          {card.genre && card.genre !== '未分类' && (
+            <span className="novel-tag-tone is-primary">{card.genre}</span>
+          )}
+          {card.style && card.style !== '默认' && (
+            <span className="novel-tag-tone is-neutral">{card.style}</span>
+          )}
+        </div>
 
-      {/* 统计信息 */}
-      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+        {/* 统计 + 最近打开 */}
+        <div className="novel-shelf-meta">
+          <span>{card.chapter_count > 0
+            ? <><b>{card.word_count.toLocaleString()}</b> 字 · <b>{card.chapter_count}</b> 章</>
+            : '尚未开始写作'}</span>
+          <span aria-hidden style={{ opacity: 0.6 }}>·</span>
+          <span><ClockCircleOutlined aria-hidden /> {formatRelativeTime(card.last_opened_at)}</span>
+        </div>
+
         {readingChapter && (
-          <Typography.Text style={{ color: C('color-primary'), fontSize: 12 }}>
-            继续阅读：{readingChapter}
-          </Typography.Text>
+          <div className="novel-shelf-continue" title={readingChapter}>
+            <ReadOutlined aria-hidden />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{readingChapter}</span>
+          </div>
         )}
-        <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12 }}>
-          <FileTextOutlined style={{ marginRight: 6 }} />
-          {card.chapter_count > 0
-            ? `${card.word_count.toLocaleString()} 字 · ${card.chapter_count} 章`
-            : '尚未开始写作'}
-        </Typography.Text>
-        {isHero && card.word_count > 0 && (
-          <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12, lineHeight: 1.8 }}>
-            {card.chapter_count > 0 && `平均 ${Math.round(card.word_count / Math.max(card.chapter_count, 1)).toLocaleString()} 字/章`}
-          </Typography.Text>
-        )}
-        <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>
-          <ClockCircleOutlined style={{ marginRight: 6 }} />
-          {formatRelativeTime(card.last_opened_at)}
-        </Typography.Text>
-      </Space>
-    </div>
 
-    {/* 操作区 */}
-    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-      <Popconfirm
-        key="delete"
-        title="确定删除？"
-        description={`「${card.title}」的所有数据将被永久删除`}
-        onConfirm={(e) => { e?.stopPropagation(); onDelete(card) }}
-        onCancel={(e) => e?.stopPropagation()}
-        okText="删除"
-        cancelText="取消"
-        okButtonProps={{ danger: true }}
-      >
-        <Button
-          type="text" size="small" danger
-          icon={<DeleteOutlined />}
-          onClick={(e) => e.stopPropagation()}
-        >
-          删除
-        </Button>
-      </Popconfirm>
+        {/* 阅读进度条（主色，章节进度） */}
+        {pct > 0 && (
+          <div className="novel-progress-track" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`阅读进度 ${pct}%`}>
+            <i className="novel-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+        )}
+
+        {/* 操作区 */}
+        <div className="novel-shelf-actions">
+          {readingChapter ? (
+            <Tooltip title="跳转到阅读页继续上次章节">
+              <Button size="small" type="primary" icon={<ReadOutlined />} onClick={(e) => { e.stopPropagation(); onContinueReading ? onContinueReading(card) : onOpen(card) }}>
+                继续阅读
+              </Button>
+            </Tooltip>
+          ) : (
+            <Button size="small" icon={<RightOutlined />} onClick={(e) => { e.stopPropagation(); onOpen(card) }}>
+              打开
+            </Button>
+          )}
+          <span className="novel-shelf-spacer" />
+          <Popconfirm
+            key="delete"
+            title="确定删除？"
+            description={`「${card.title}」的所有数据将被永久删除`}
+            onConfirm={(e) => { e?.stopPropagation(); onDelete(card) }}
+            onCancel={(e) => e?.stopPropagation()}
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Button
+              type="text" size="small" danger
+              icon={<DeleteOutlined />}
+              aria-label={`删除「${card.title}」`}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </Popconfirm>
+        </div>
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 export default ProjectCardItem

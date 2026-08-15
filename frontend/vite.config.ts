@@ -45,11 +45,12 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0', // 允许手机访问 Vite dev server
     // 网页版对齐桌面端：/api 转发到 Go 内核的 HTTP 调试桥接
-    // （由 GAEA_HTTP_PORT 启动，默认 8080）。桥接未启动时这些请求会失败，
+    // （由 GAEA_HTTP_PORT 启动，默认 8080；本地端口被占用时可用
+    //   GAEA_PROXY_PORT 指向实际桥接端口）。桥接未启动时这些请求会失败，
     // 前端页面会退化为空数据而不是渲染崩溃。
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8080',
+        target: `http://127.0.0.1:${process.env.GAEA_PROXY_PORT || '8080'}`,
         changeOrigin: true,
       },
     },

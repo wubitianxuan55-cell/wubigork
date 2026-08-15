@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Space, Tag, Typography } from "antd";
 import { ConsoleSqlOutlined, CloseOutlined } from "@ant-design/icons";
 import { useAppStore } from "../../stores/appStore";
 
 // ── 小说板块专属：AI 控制台 ──────────────────────────────────────
 // 展示小说 AI 调用的实时输出（xai-output 事件）。从 MainLayout 抽出，
 // 仅由 NovelPage 挂载，不再占用全局布局。
+// v3.1：改为 v3 玻璃面板语言（.ai-console-* 类），状态色走令牌。
 
 interface LogEntry {
   id: number; type: string; time: string
@@ -75,83 +75,64 @@ export function AIConsole() {
   return (
     <>
       {consoleOpen && (
-        <div className="ai-console-panel" style={{
-          position: 'fixed', right: 12, top: 104, zIndex: 900,
-          width: 380, flexShrink: 0,
-          maxHeight: 'calc(100vh - 120px)',
-          background: 'var(--gaea-glass-bg, var(--md-sys-color-surface-container))',
-          WebkitBackdropFilter: 'blur(24px) saturate(140%)',
-          backdropFilter: 'blur(24px) saturate(140%)',
-          border: '1px solid var(--md-sys-color-outline-variant)',
-          borderRadius: 'var(--md-sys-radius-lg)',
-          boxShadow: 'var(--md-sys-elevation-2)',
-          display: 'flex', flexDirection: 'column', fontSize: 11,
-          fontFamily: 'system-ui, sans-serif',
-          overflow: 'hidden',
-          animation: 'slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}>
-          <div style={{
-            padding: '8px 12px',
-            borderBottom: '1px solid var(--md-sys-color-outline-variant)',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          }}>
-            <Space size={6}>
-              <span style={{
-                width: 6, height: 6, borderRadius: '50%',
-                background: logs.length > 0 ? 'var(--md-sys-color-primary)' : 'var(--md-sys-color-text-secondary)',
-                display: 'inline-block',
-                boxShadow: logs.length > 0 ? '0 0 6px var(--md-sys-color-primary)' : 'none',
-              }} />
-              <Typography.Text style={{ color: 'var(--gaea-glow)', fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textShadow: '0 0 10px var(--gaea-glow)' }}>
-                AI 控制台
-              </Typography.Text>
-            </Space>
-            <Space size={4}>
-              <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 9, opacity: 0.6 }}>
-                {logs.length}
-              </Typography.Text>
-              <Button type="text" size="small" onClick={() => setConsoleOpen(false)} aria-label="关闭 AI 控制台"
-                icon={<CloseOutlined />}
-                style={{
-                  color: 'var(--md-sys-color-text-secondary)', fontSize: 12, padding: 0,
-                  width: 20, height: 20, borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }} />
-            </Space>
+        <div className="ai-console-panel" role="log" aria-label="AI 控制台">
+          <div className="ai-console-head">
+            <span className="ai-console-head-title">
+              <i className={`ai-console-status-dot ${logs.length > 0 ? 'is-live' : 'is-idle'}`} aria-hidden />
+              AI 控制台
+            </span>
+            <span className="ai-console-head-count">{logs.length}</span>
+            <button
+              type="button"
+              className="ai-console-head-close"
+              onClick={() => setConsoleOpen(false)}
+              aria-label="关闭 AI 控制台"
+            >
+              <CloseOutlined />
+            </button>
           </div>
-          <div ref={logContainerRef} style={{ flex: 1, overflowY: 'scroll', maxHeight: 'calc(100vh - 200px)', padding: '8px 12px' }}>
+
+          <div ref={logContainerRef} className="ai-console-body">
             {logs.length === 0 ? (
-              <div style={{ color: 'var(--md-sys-color-text-secondary)', textAlign: 'center', marginTop: 40, opacity: 0.5 }}>
-                <ConsoleSqlOutlined style={{ fontSize: 24, marginBottom: 8 }} />
+              <div className="ai-console-empty">
+                <ConsoleSqlOutlined aria-hidden />
                 <div>等待 AI 调用...</div>
               </div>
             ) : (
               logs.map((l) => {
                 const open = expandedLog === l.id
-                const tagColor = l.type === 'error' ? 'red' : l.type === 'request' ? 'blue' : l.type === 'response' ? 'green' : 'processing'
-                const tagLabel = l.type === 'request' ? 'REQ' : l.type === 'response' ? 'OK' : l.type === 'error' ? 'ERR' : '···'
+                const borderCls = l.type === 'error' ? 'ai-console-entry-border-error'
+                  : l.type === 'request' ? 'ai-console-entry-border-request'
+                  : l.type === 'response' ? 'ai-console-entry-border-response'
+                  : 'ai-console-entry-border-other'
                 const summary = l.type === 'request' ? l.model || ''
                   : l.type === 'response' ? `${(l.length || 0).toLocaleString()} 字`
                   : l.type === 'error' ? l.error?.slice(0, 80) || ''
                   : `+${(l.content?.length || 0)} 字`
-                const borderColor = l.type === 'error' ? 'var(--color-destructive)' : l.type === 'request' ? 'var(--color-primary)' : l.type === 'response' ? 'var(--color-success)' : 'transparent'
                 return (
                   <div key={l.id}>
-                    <div onClick={() => setExpandedLog(open ? null : l.id)}
-                      style={{ marginBottom: 1, padding: '3px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, borderLeft: `2px solid ${borderColor}`, background: open ? 'var(--md-sys-color-surface-container-high)' : 'transparent', borderRadius: 2 }}>
-                      <span style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 9, opacity: 0.5, minWidth: 52 }}>{l.time}</span>
-                      <Tag color={tagColor} style={{ fontSize: 10, lineHeight: '16px', margin: 0 }}>{tagLabel}</Tag>
-                      <span style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 10, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{summary}</span>
+                    <div
+                      className={`ai-console-entry ${borderCls}${open ? ' is-open' : ''}`}
+                      onClick={() => setExpandedLog(open ? null : l.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedLog(open ? null : l.id) } }}
+                    >
+                      <span className="ai-console-entry-time">{l.time}</span>
+                      <span className={`novel-tag-tone ${l.type === 'error' ? 'is-destructive' : l.type === 'request' ? 'is-primary' : l.type === 'response' ? 'is-success' : 'is-neutral'}`}>
+                        {l.type === 'request' ? 'REQ' : l.type === 'response' ? 'OK' : l.type === 'error' ? 'ERR' : '···'}
+                      </span>
+                      <span className="ai-console-entry-summary">{summary}</span>
                     </div>
                     {open && (
-                      <div style={{ padding: '6px 8px', marginBottom: 4, marginLeft: 8, background: 'var(--md-sys-color-surface-container-high)', borderRadius: 4, fontSize: 10, overflow: 'auto', borderLeft: '2px solid var(--md-sys-color-outline-variant)' }}>
+                      <div className="ai-console-detail">
                         {l.type === 'request' && <>
-                          {l.system && <div style={{ marginBottom: 4 }}><div style={{ color: 'var(--color-primary)', fontWeight: 600, marginBottom: 2 }}>SYSTEM:</div><pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text-secondary)', fontFamily: 'monospace', fontSize: 9 }}>{l.system}</pre></div>}
-                          {l.user && <div><div style={{ color: 'var(--color-warning)', fontWeight: 600, marginBottom: 2 }}>USER:</div><pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text-secondary)', fontFamily: 'monospace', fontSize: 9 }}>{l.user}</pre></div>}
+                          {l.system && <div style={{ marginBottom: 4 }}><div className="ai-console-detail-label is-system">SYSTEM</div><pre>{l.system}</pre></div>}
+                          {l.user && <div><div className="ai-console-detail-label is-user">USER</div><pre>{l.user}</pre></div>}
                         </>}
-                        {l.type === 'response' && l.content && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text)', fontFamily: 'monospace', fontSize: 9 }}>{l.content}</pre>}
-                        {l.type === 'error' && l.error && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--color-destructive)', fontFamily: 'monospace', fontSize: 9 }}>{l.error}</pre>}
-                        {l.type === 'chunk' && l.content && <pre style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--md-sys-color-text)', fontFamily: 'monospace', fontSize: 9 }}>{l.content}</pre>}
+                        {l.type === 'response' && l.content && <pre>{l.content}</pre>}
+                        {l.type === 'error' && l.error && <div><div className="ai-console-detail-label is-error">ERROR</div><pre>{l.error}</pre></div>}
+                        {l.type === 'chunk' && l.content && <pre>{l.content}</pre>}
                       </div>
                     )}
                   </div>
@@ -164,21 +145,15 @@ export function AIConsole() {
       )}
 
       {!consoleOpen && (
-        <Button
+        <button
+          type="button"
+          className="ai-console-fab"
           onClick={() => setConsoleOpen(true)}
-          style={{
-            position: 'fixed', right: 12, top: 56, zIndex: 1000,
-            width: 28, height: 28, borderRadius: '50%',
-            background: 'var(--md-sys-color-surface-container)',
-            border: '1px solid var(--md-sys-color-outline-variant)',
-            color: 'var(--md-sys-color-text-secondary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: 'var(--md-sys-elevation-1)',
-          }}
+          aria-label="打开 AI 控制台"
           title="AI 控制台"
         >
-          <ConsoleSqlOutlined style={{ fontSize: 12 }} />
-        </Button>
+          <ConsoleSqlOutlined aria-hidden />
+        </button>
       )}
     </>
   )

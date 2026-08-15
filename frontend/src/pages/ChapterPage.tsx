@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
-  Typography, Button, Space, Tag, message, Modal, Tabs, Tooltip,
+  Button, Space, message, Modal, Tabs, Tooltip,
 } from 'antd'
 import type { TabsProps } from 'antd'
 import {
   SaveOutlined, LeftOutlined, RightOutlined,
-  BookOutlined,
+  BookOutlined, EditOutlined, ReadOutlined, ExpandOutlined, ShrinkOutlined,
 } from '@ant-design/icons'
 import {
   GetChapter, GetChapterBranch, SaveChapterContent, SaveChapterBranchContent,
@@ -37,6 +37,7 @@ const ChapterPage: React.FC = () => {
   const [tabs, setTabs] = useState<ChapterTabData[]>([])
   const [activeKey, setActiveKey] = useState<string>('')
   const [focusMode, setFocusMode] = useState(false)
+  const [readMode, setReadMode] = useState(false)
   // 当前激活章节（须在首个引用它的 useEffect 依赖数组之前定义，避免 TDZ）
   const activeTab = tabs.find((t) => t.node.id === activeKey) ?? null
   const handleSaveRef = useRef<() => void>(() => {})
@@ -78,7 +79,10 @@ const ChapterPage: React.FC = () => {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && focusMode) { setFocusMode(false); return }
+      if (e.key === 'Escape') {
+        if (readMode) { setReadMode(false); return }
+        if (focusMode) { setFocusMode(false); return }
+      }
       if (e.key === 'F11') { e.preventDefault(); setFocusMode((p) => !p) }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
@@ -87,11 +91,11 @@ const ChapterPage: React.FC = () => {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [focusMode])
+  }, [focusMode, readMode])
 
   const projectPath = useAppStore((s) => s.projectPath)
   useEffect(() => {
-    setTabs([]); setActiveKey('')
+    setTabs([]); setActiveKey(''); setReadMode(false)
     if (projectPath) {
       void loadOutlines()
         .then(() => {
@@ -228,12 +232,15 @@ const ChapterPage: React.FC = () => {
     closable: true,
   }))
 
+  const atFirst = activeTab ? outlineLeaves.findIndex((n) => n.id === activeTab.node.id) <= 0 : true
+  const atLast = activeTab ? outlineLeaves.findIndex((n) => n.id === activeTab.node.id) >= outlineLeaves.length - 1 : true
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
 
       <div style={{ flex: 1, display: 'flex', gap: 8, minHeight: 0 }}>
-        {/* 右：正文（大纲树已上移壳层左 zone） */}
         {!activeTab ? (
+          /* 空态：从左侧大纲选择章节 */
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C('color-text-secondary'), opacity: 0.5 }}>
             <div style={{ textAlign: 'center' }}>
               <BookOutlined style={{ fontSize: 48, marginBottom: 16 }} />
@@ -241,67 +248,126 @@ const ChapterPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          <>
-            <div className="novel-editor-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {/* 标签栏 + 前后章节按钮 */}
-              {!focusMode && (
-                <div style={{ borderBottom: '1px solid ' + C('color-border'), display: 'flex', alignItems: 'center', paddingRight: 8 }}>
-                  <Tabs className="novel-editor-tabs" activeKey={activeKey} onChange={setActiveKey}
-                    onEdit={(key, action) => { if (action === 'remove' && typeof key === 'string') requestCloseTab(key) }}
-                    items={tabItems} type="editable-card" size="small"
-                    style={{ flex: 1, marginBottom: 0 }} tabBarStyle={{ marginBottom: 0 }}
-                  />
-                  <Space size={4} style={{ flexShrink: 0 }}>
-                    <Button size="small" icon={<LeftOutlined />} onClick={handlePrevChapter} type="text" />
-                    <Button size="small" icon={<RightOutlined />} onClick={handleNextChapter} type="text" />
-                  </Space>
-                </div>
-              )}
-
-              {/* 章节信息栏 */}
-              {!focusMode && (
-                <div style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid ' + C('color-border'), fontSize: 12, background: 'color-mix(in srgb, var(--gaea-glow) 4%, transparent)' }}>
-                  <BookOutlined style={{ color: 'var(--gaea-glow)', fontSize: 11 }} />
-                  <span style={{ fontWeight: 600, color: C('color-text') }}>{activeTab.node.title}</span>
-                  <span style={{ color: C('color-text-secondary') }}>· {totalWords.toLocaleString()} 字</span>
-                  <div style={{ flex: 1 }} />
-                  <Tooltip title={activeTab.saved ? '内容已保存' : '内容有未保存的修改'}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: activeTab.saved ? 'var(--color-success)' : 'var(--color-warning)', fontSize: 11 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: activeTab.saved ? 'var(--color-success)' : 'var(--color-warning)', display: 'inline-block' }} />
-                      {activeTab.saved ? '已保存' : '未保存'}
+          <div className="novel-editor-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* ── 单条 chrome（收敛原 tab/信息/工具栏 三层） ── */}
+            {!focusMode && (
+              <div className="novel-chrome">
+                {readMode ? (
+                  <>
+                    <span className="novel-chrome-title">
+                      <ReadOutlined aria-hidden />{activeTab.node.title || '未命名章节'}
                     </span>
-                  </Tooltip>
+                    <span className="novel-chrome-sub">· {totalWords.toLocaleString()} 字</span>
+                    <span className="novel-chrome-spacer" />
+                    <span className="novel-chrome-save-state">
+                      <i className={`novel-dot ${activeTab.saved ? 'ok' : 'dirty'}`} aria-hidden />
+                      <span style={{ color: activeTab.saved ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                        {activeTab.saved ? '已保存' : '未保存'}
+                      </span>
+                    </span>
+                    <div className="novel-chrome-nav">
+                      <Tooltip title="上一章"><Button size="small" icon={<LeftOutlined />} onClick={handlePrevChapter} type="text" disabled={atFirst} aria-label="上一章" /></Tooltip>
+                      <Tooltip title="下一章"><Button size="small" icon={<RightOutlined />} onClick={handleNextChapter} type="text" disabled={atLast} aria-label="下一章" /></Tooltip>
+                    </div>
+                    <Tooltip title="返回编辑">
+                      <Button size="small" icon={<EditOutlined />} onClick={() => setReadMode(false)}>编辑</Button>
+                    </Tooltip>
+                  </>
+                ) : (
+                  <>
+                    <Tabs
+                      className="novel-editor-tabs"
+                      activeKey={activeKey}
+                      onChange={setActiveKey}
+                      onEdit={(key, action) => { if (action === 'remove' && typeof key === 'string') requestCloseTab(key) }}
+                      items={tabItems}
+                      type="editable-card"
+                      size="small"
+                      hideAdd
+                      style={{ flex: 1, minWidth: 0, marginBottom: 0 }}
+                      tabBarStyle={{ marginBottom: 0 }}
+                    />
+                    <span className="novel-chrome-spacer" />
+                    <span className="novel-chrome-save-state">
+                      <i className={`novel-dot ${activeTab.saved ? 'ok' : 'dirty'}`} aria-hidden />
+                      <span style={{ color: activeTab.saved ? 'var(--color-success)' : 'var(--color-warning)', fontSize: 11 }}>
+                        {activeTab.saved ? '已保存' : '未保存'}
+                      </span>
+                    </span>
+                    <div className="novel-chrome-nav">
+                      <Tooltip title="上一章"><Button size="small" icon={<LeftOutlined />} onClick={handlePrevChapter} type="text" disabled={atFirst} aria-label="上一章" /></Tooltip>
+                      <Tooltip title="下一章"><Button size="small" icon={<RightOutlined />} onClick={handleNextChapter} type="text" disabled={atLast} aria-label="下一章" /></Tooltip>
+                    </div>
+                    <TTSPlayer getText={() => activeTab?.scenes?.join('\n\n') || ''} />
+                    <Tooltip title="阅读模式（沉浸排版）">
+                      <Button size="small" icon={<ReadOutlined />} onClick={() => setReadMode(true)} className="is-readmode" aria-label="进入阅读模式" />
+                    </Tooltip>
+                    <Tooltip title={focusMode ? '退出专注模式' : '专注模式 F11'}>
+                      <Button size="small" icon={focusMode ? <ShrinkOutlined /> : <ExpandOutlined />} onClick={() => setFocusMode((p) => !p)} type="text" aria-label="专注模式" />
+                    </Tooltip>
+                    <Tooltip title="Ctrl+S">
+                      <Button size="small" icon={<SaveOutlined />} onClick={handleSave} disabled={!totalWords}>保存</Button>
+                    </Tooltip>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ── 阅读模式：居中限宽衬线排版 ── */}
+            {readMode ? (
+              <>
+                <div className="novel-reading-scroll">
+                  <div className="novel-reading-column">
+                    {activeTab.scenes.map((scene, i) => (
+                      <React.Fragment key={i}>
+                        {i > 0 && <div className="novel-reading-scene-sep" aria-hidden>＊ ＊ ＊</div>}
+                        <p style={{ margin: 0 }}>{scene || '（本章暂无内容）'}</p>
+                      </React.Fragment>
+                    ))}
+                  </div>
                 </div>
-              )}
-
-              {/* 工具栏 */}
-              {!focusMode && (
-                <div style={{ padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1px solid ' + C('color-border') }}>
-                  <TTSPlayer getText={() => activeTab?.scenes?.join('\n\n') || ''} />
-                  <div style={{ flex: 1 }} />
-                  <Tooltip title="Ctrl+S"><Button size="small" icon={<SaveOutlined />} onClick={handleSave} disabled={!totalWords}>保存</Button></Tooltip>
+                {/* 阅读页脚：章节导航 */}
+                <div className="novel-reading-foot">
+                  <Button size="small" icon={<LeftOutlined />} onClick={handlePrevChapter} disabled={atFirst}>上一章</Button>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {activeTab.node.title || '未命名章节'} · {totalWords.toLocaleString()} 字
+                  </span>
+                  <Button size="small" onClick={handleNextChapter} disabled={atLast}>下一章<RightOutlined /></Button>
                 </div>
-              )}
-
-              {/* 编辑器主体 */}
-              <ChapterEditor tab={activeTab} onUpdate={updateTab} sceneTextareaRefs={sceneTextareaRefs} ghostEnabled={false} />
-            </div>
-
-            {/* 底部快捷键提示栏 */}
-            <div style={{ padding: '2px 12px', display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: C('color-text-secondary'), opacity: 0.7 }}>
-              <span><kbd className="novel-kbd">F11</kbd> 专注模式</span>
-              <span><kbd className="novel-kbd">Ctrl+S</kbd> 保存</span>
-              {focusMode && (
-                <>
-                  <div style={{ flex: 1 }} />
-                  <span>{activeTab.node.title} · {totalWords.toLocaleString()} 字</span>
-                  <span style={{ color: 'var(--color-warning)' }}>专注模式已开启 · Esc 退出</span>
-                </>
-              )}
-            </div>
-          </>
+              </>
+            ) : (
+              /* ── 编辑模式：场景多文本框 ── */
+              <>
+                <ChapterEditor
+                  tab={activeTab}
+                  onUpdate={updateTab}
+                  sceneTextareaRefs={sceneTextareaRefs}
+                  ghostEnabled={false}
+                />
+                {focusMode && (
+                  <div style={{ padding: '2px 12px', display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: C('color-text-secondary'), opacity: 0.7 }}>
+                    <span><kbd className="novel-kbd">F11</kbd> 专注模式</span>
+                    <span><kbd className="novel-kbd">Ctrl+S</kbd> 保存</span>
+                    <div style={{ flex: 1 }} />
+                    <span>{activeTab.node.title} · {totalWords.toLocaleString()} 字</span>
+                    <span style={{ color: 'var(--color-warning)' }}>专注模式已开启 · Esc 退出</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )}
       </div>
+
+      {/* 底部快捷键提示栏（阅读模式隐藏，避免噪音） */}
+      {activeTab && !readMode && !focusMode && (
+        <div style={{ padding: '2px 12px', display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: C('color-text-secondary'), opacity: 0.7 }}>
+          <span><kbd className="novel-kbd">F11</kbd> 专注模式</span>
+          <span><kbd className="novel-kbd">Ctrl+S</kbd> 保存</span>
+          <span><kbd className="novel-kbd">Ctrl+K</kbd> AI 编辑选中段落</span>
+          <span style={{ marginLeft: 'auto' }}><ReadOutlined style={{ marginRight: 4 }} />阅读模式 = 沉浸排版</span>
+        </div>
+      )}
     </div>
   )
 }

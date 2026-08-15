@@ -83,6 +83,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v3.0.1** | 2026-08-15 | 小说板块 UX/UI 重构：书架卡片化（封面渐变条/阅读进度条/搜索排序/继续阅读联动）、阅读页单条 chrome + 沉浸阅读模式（居中限宽衬线排版）、AI 控制台 v3 玻璃面板化、创作页令牌化与生成发光统一、全板块零硬编码色值；修复 app_info.go 版本漂移（2.40.0→3.0.1 三处统一）。详见 releases/v3.0.1.md |
 | **v3.0.0** | 2026-08-15 | 星枢 Constellation OS · UI 革命性重设计（V3.0 首发）：壳层革命（左侧指挥轨道 + 顶部轨道条 + 底部遥测轨道）；10 板块统一 3 分区工作台；Luminous Glass 2.0 令牌体系；发布前打磨（聊天模式条移入顶栏、输入框两级重设计、首页全屏适配）+ 7 个 CSS 文件注释 `*/` 根因修复（面板「只有上半截」）。详见 releases/v3.0.0.md |
 | **v2.40.0** | 2026-08-15 | 3.0 架构主线 Wave 4「Step 3 收官」：semantic_search 工具注册（死代码恢复为办公 agent 可用工具）+ BalanceKind 从 ProviderEntry 贯通（`balance_kind` 配置项，切换余额后端只改配置，未知 kind fail-closed）+ ModuleLauncher 清单化（subscribeBoards 订阅活动清单，后端并入 knowledge 后首页启动器自动多出「知识库」卡） |
 | **v2.39.0** | 2026-08-15 | 3.0 架构主线 Wave 3：Step 3b LLM Seam（LLMProvider + NewLLM 配置驱动）+ Step 3c OCR/ASR/TTS Seam（三类注册表 + GAEA_OCR_ENGINE 驱动）+ Step 3d 分类单源化与 8 处硬编码注册表化（websearch/embed/rerank/vision/markitdown/billing）+ 前端 GetBoardManifests 接线（normalize 差集 + KnowledgePage）+ gaea.toml 新配置段 |

@@ -162,11 +162,11 @@ const NovelSettingPage: React.FC = () => {
           <span className="novel-setting-meta">{wordCount.toLocaleString()} 字</span>
           <Space size={8}>
             <Button size="small" icon={<ImportOutlined />} onClick={handleImport}
-              style={{ borderColor: '#60a5fa', color: '#60a5fa' }}>
+              style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}>
               导入
             </Button>
             <Button size="small" icon={<ExportOutlined />} onClick={handleExport}
-              style={{ borderColor: '#f59e0b', color: '#f59e0b' }}>
+              style={{ borderColor: 'var(--color-warning)', color: 'var(--color-warning)' }}>
               导出
             </Button>
             <Button size="small" type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={saving}>

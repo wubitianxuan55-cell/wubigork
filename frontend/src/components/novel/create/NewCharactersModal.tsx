@@ -107,11 +107,11 @@ const NewCharactersModal: React.FC = () => {
     >
       {libMatches.length > 0 && (
         <>
-          <div style={{ marginBottom: 4, fontSize: 12, fontWeight: 600, color: '#60a5fa' }}>
+          <div style={{ marginBottom: 4, fontSize: 12, fontWeight: 600, color: 'var(--color-primary)' }}>
             角色库已有同名角色（直接关联，不新建）
           </div>
           <div style={{
-            maxHeight: 180, overflow: 'auto', border: '1px solid rgba(96,165,250,0.25)',
+            maxHeight: 180, overflow: 'auto', border: '1px solid color-mix(in srgb, var(--color-primary) 25%, transparent)',
             borderRadius: 8, padding: '2px 8px', marginBottom: 10,
           }}>
             {libMatches.map((m, i) => (
@@ -167,15 +167,15 @@ const NewCharactersModal: React.FC = () => {
                   setNewCharsList(prev => prev.map((c, j) => j === i ? { ...c, name: e.target.value } : c))
                 }}
                 style={{
-                  flex: 1, background: entry.name !== entry.original ? 'rgba(245,158,11,0.08)' : 'transparent',
-                  border: entry.name !== entry.original ? '1px solid rgba(245,158,11,0.4)' : '1px solid transparent',
+                  flex: 1, background: entry.name !== entry.original ? 'color-mix(in srgb, var(--color-warning) 8%, transparent)' : 'transparent',
+                  border: entry.name !== entry.original ? '1px solid color-mix(in srgb, var(--color-warning) 40%, transparent)' : '1px solid transparent',
                   color: 'var(--color-text)', fontSize: 13
                 }}
               />
               {entry.name !== entry.original && (
                 <Button type="text" size="small"
                   onClick={() => setNewCharsList(prev => prev.map((c, j) => j === i ? { ...c, name: c.original } : c))}
-                  style={{ fontSize: 10, padding: '0 2px', height: 20, color: '#f59e0b' }}>
+                  style={{ fontSize: 10, padding: '0 2px', height: 20, color: 'var(--color-warning)' }}>
                   还原
                 </Button>
               )}

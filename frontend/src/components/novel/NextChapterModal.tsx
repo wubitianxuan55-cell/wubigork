@@ -47,7 +47,7 @@ const NextChapterModal: React.FC<NextChapterModalProps> = ({
 
   return (
     <Modal
-      title={<span style={{ color: C('color-text') }}><BranchesOutlined style={{ color: '#c084fc', marginRight: 8 }} />下一章方向</span>}
+      title={<span style={{ color: C('color-text') }}><BranchesOutlined style={{ color: 'var(--color-primary)', marginRight: 8 }} />下一章方向</span>}
       open={open}
       onCancel={onClose}
       footer={null}
@@ -77,7 +77,7 @@ const NextChapterModal: React.FC<NextChapterModalProps> = ({
         manualApplyText="确认生成"
         header={
           currentNode ? (
-            <div style={{ padding: '8px 12px', background: 'rgba(192,132,252,0.06)', borderRadius: 'var(--radius-md)', borderLeft: '2px solid #c084fc' }}>
+            <div style={{ padding: '8px 12px', background: 'color-mix(in srgb, var(--color-primary) 7%, transparent)', borderRadius: 'var(--radius-md)', borderLeft: '2px solid color-mix(in srgb, var(--color-primary) 60%, transparent)' }}>
               <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 11 }}>已完成：{currentNode.title}</Typography.Text>
             </div>
           ) : undefined

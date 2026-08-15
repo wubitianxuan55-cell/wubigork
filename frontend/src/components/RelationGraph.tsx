@@ -20,18 +20,41 @@ interface RelationGraphProps {
   relationships: { from_id: string; to_id: string; relation_type: string }[]
 }
 
-// ── 颜色常量 ──
-const roleColors: Record<string, string> = {
-  protagonist: '#f59e0b', antagonist: '#ef4444', supporting: '#3b82f6', minor: '#6b7280',
+// ── 颜色常量（令牌派生：canvas 不解析 var()，挂载时经 getComputedStyle 解析为具体色；
+//    解析失败回退到原 hex，保证可用性） ──
+function resolveCSSColor(v: string): string {
+  if (!v.includes('var(') || typeof document === 'undefined') return v
+  try {
+    const el = document.createElement('span')
+    el.style.color = v
+    document.body.appendChild(el)
+    const c = getComputedStyle(el).color
+    el.remove()
+    return c || v
+  } catch { return v }
 }
-const orgColor = '#c084fc'
-const relColors: Record<string, string> = {
-  friend: '#22c55e', enemy: '#ef4444', family: '#c084fc', mentor: '#3b82f6',
-  rival: '#f59e0b', lover: '#f472b6', member: '#6b7280', leader: '#fbbf24',
+
+const roleColorTokens: Record<string, string> = {
+  protagonist: 'var(--color-warning)', antagonist: 'var(--color-destructive)',
+  supporting: 'var(--color-primary)', minor: 'var(--color-text-secondary)',
 }
+const orgColorToken = 'var(--gaea-glow)'
+const relColorTokens: Record<string, string> = {
+  friend: 'var(--color-success)', enemy: 'var(--color-destructive)',
+  family: 'var(--color-primary)', mentor: 'color-mix(in srgb, var(--color-primary) 55%, var(--color-text))',
+  rival: 'var(--color-warning)', lover: 'color-mix(in srgb, var(--color-destructive) 45%, var(--color-primary))',
+  member: 'var(--color-text-secondary)', leader: 'var(--gaea-glow)',
+}
+const roleColors: Record<string, string> = Object.fromEntries(
+  Object.entries(roleColorTokens).map(([k, v]) => [k, resolveCSSColor(v)]),
+)
+const orgColor = resolveCSSColor(orgColorToken)
+const relColors: Record<string, string> = Object.fromEntries(
+  Object.entries(relColorTokens).map(([k, v]) => [k, resolveCSSColor(v)]),
+)
 const roleCN = ROLE_LABELS
 const relCN = RELATION_LABELS
-const BG = '#0f0f0f'
+const BG = resolveCSSColor('color-mix(in srgb, var(--color-surface, #0f0f0f) 92%, #000)')
 
 // ── d3-force 二维仿真 ──
 function runSimulation(

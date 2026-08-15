@@ -29,7 +29,7 @@ const OrganizationEditModal: React.FC<OrganizationEditModalProps> = ({
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <Typography.Title level={4} style={{ color: C('color-text'), margin: 0 }}>
-            <ApartmentOutlined style={{ marginRight: 8, color: '#c084fc' }} />{org.name}
+            <ApartmentOutlined style={{ marginRight: 8, color: 'var(--color-primary)' }} />{org.name}
           </Typography.Title>
           <Space>
             <Button type="primary" onClick={onSave}

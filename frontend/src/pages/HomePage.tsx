@@ -1,15 +1,25 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
-  Typography, Button, Space, Tag, Skeleton, message,
+  Button, Skeleton, message, Input, Select, Empty,
 } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import {
+  PlusOutlined, SearchOutlined, ReadOutlined, SortAscendingOutlined,
+} from '@ant-design/icons'
 import { useAppStore, type ProjectCard } from '../stores/appStore'
-import { C } from '../utils/theme'
 
 import WelcomePage from '../components/WelcomePage'
 import CreateNovelModal from '../components/novel/CreateNovelModal'
 import ProjectCardItem from '../components/ProjectCardItem'
 import { readReadingProgress } from '../utils/readingProgress'
+
+type SortKey = 'recent' | 'words' | 'chapters' | 'title'
+
+const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: 'recent', label: '最近打开' },
+  { value: 'words', label: '总字数' },
+  { value: 'chapters', label: '章节数' },
+  { value: 'title', label: '书名' },
+]
 
 const HomePage: React.FC = () => {
   const {
@@ -17,12 +27,15 @@ const HomePage: React.FC = () => {
     projects, loadProjects, openProject, closeProject, deleteProject, loadNovelsDir,
   } = useAppStore()
 
-
   // 新建小说表单
   const [newModal, setNewModal] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newGenre, setNewGenre] = useState<string[]>([])
   const [newStyle, setNewStyle] = useState<string[]>([])
+
+  // 书架工具条：搜索 / 排序
+  const [query, setQuery] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('recent')
 
   // 加载状态
   const [loadingProjects, setLoadingProjects] = useState(true)
@@ -74,17 +87,19 @@ const HomePage: React.FC = () => {
   }
 
   // ── 打开/关闭项目 ──
-  const handleOpen = async (card: ProjectCard) => {
+  const handleOpen = async (card: ProjectCard, goRead = false) => {
     if (projectOpen && card.path === projectPath) {
-      try {
-        await window.go.app.App.CloseProject()
-        closeProject()
-      } catch (err) { console.error('[HomePage] CloseProject:', err) }
+      if (goRead) {
+        window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'chapter' } }))
+      }
       return
     }
     try {
       await window.go.app.App.OpenProject(card.path)
       openProject(card.path, card.title)
+      if (goRead) {
+        window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'chapter' } }))
+      }
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '打开失败')
     }
@@ -100,6 +115,30 @@ const HomePage: React.FC = () => {
     }
   }
 
+  // ── 书架过滤 + 排序（纯前端，不依赖后端） ──
+  const visibleProjects = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    let list = projects.filter(Boolean)
+    if (q) {
+      list = list.filter((card) =>
+        card.title.toLowerCase().includes(q) ||
+        (card.genre || '').toLowerCase().includes(q) ||
+        (card.style || '').toLowerCase().includes(q),
+      )
+    }
+    const sorted = [...list]
+    switch (sortKey) {
+      case 'words': sorted.sort((a, b) => (b.word_count || 0) - (a.word_count || 0)); break
+      case 'chapters': sorted.sort((a, b) => (b.chapter_count || 0) - (a.chapter_count || 0)); break
+      case 'title': sorted.sort((a, b) => a.title.localeCompare(b.title, 'zh')); break
+      default: {
+        const t = (s: ProjectCard) => Date.parse(s.last_opened_at) || 0
+        sorted.sort((a, b) => t(b) - t(a))
+      }
+    }
+    return sorted
+  }, [projects, query, sortKey])
+
   // --- 未登录：品牌欢迎页 ---
   if (!loggedIn) {
     return <WelcomePage onLogin={login} />
@@ -107,21 +146,40 @@ const HomePage: React.FC = () => {
 
   // --- 书架视图 ---
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Space direction="vertical" size={0}>
-          {projectOpen && (
-            <Tag color="green" style={{ fontSize: 11, marginTop: 4 }}>
-              正在编辑：{projectTitle}
-            </Tag>
-          )}
-        </Space>
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      {/* 工具条：搜索 / 排序 / 新建 */}
+      <div className="novel-shelf-toolbar">
+        <Input
+          allowClear
+          prefix={<SearchOutlined style={{ color: 'var(--color-text-secondary)' }} />}
+          placeholder="搜索书名 / 题材 / 风格…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="novel-shelf-search"
+          aria-label="搜索书架"
+        />
+        <Select
+          value={sortKey}
+          onChange={setSortKey}
+          options={SORT_OPTIONS}
+          size="middle"
+          suffixIcon={<SortAscendingOutlined style={{ color: 'var(--color-text-secondary)' }} />}
+          popupMatchSelectWidth={false}
+          style={{ width: 128 }}
+          aria-label="书架排序"
+        />
+        {projectOpen && (
+          <span className="novel-tag-tone is-success" style={{ height: 24 }}>
+            正在编辑：{projectTitle}
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
         <Button
           type="primary" icon={<PlusOutlined />}
           onClick={() => { resetForm(); setNewModal(true) }}
           style={{
             background: 'var(--color-primary)', borderColor: 'var(--color-primary)',
-            boxShadow: 'var(--shadow-glow)', borderRadius: 'var(--radius-md)',
+            boxShadow: 'var(--v3-glow-faint)', borderRadius: 'var(--radius-md)',
           }}
         >
           新建小说
@@ -130,53 +188,55 @@ const HomePage: React.FC = () => {
 
       {/* 书架主区域 */}
       {loadingProjects ? (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 16,
-        }}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} style={{ padding: 20 }}>
-              <Skeleton active paragraph={{ rows: 3 }} />
+        <div className="novel-shelf-grid">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="novel-shelf-card" style={{ pointerEvents: 'none', height: 240 }}>
+              <Skeleton active paragraph={{ rows: 3 }} style={{ padding: 16 }} />
             </div>
           ))}
         </div>
-      ) : projects.length === 0 ? (
-        /* 空书架 */
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          height: '60vh', opacity: 0.3, userSelect: 'none', pointerEvents: 'none',
-        }}>
-          <img src="/favicon.svg" alt="" style={{ width: 80, height: 80, marginBottom: 16 }} />
-          <Typography.Text style={{ color: 'var(--color-text-secondary)', fontSize: 24, fontWeight: 200, letterSpacing: '0.1em' }}>
-            gaea
-          </Typography.Text>
-          <Typography.Text style={{ color: 'var(--color-text-secondary)', fontSize: 12, marginTop: 8 }}>
-            Ctrl+N 新建小说
-          </Typography.Text>
-        </div>
+      ) : visibleProjects.length === 0 ? (
+        query.trim() ? (
+          /* 搜索无结果 */
+          <div className="novel-shelf-empty">
+            <SearchOutlined aria-hidden />
+            <div className="novel-shelf-empty-title">没有匹配的书</div>
+            <div className="novel-shelf-empty-hint">换个关键词试试</div>
+          </div>
+        ) : projects.length === 0 ? (
+          /* 空书架 */
+          <div className="novel-shelf-empty">
+            <ReadOutlined aria-hidden />
+            <div className="novel-shelf-empty-title">书架空空如也</div>
+            <div className="novel-shelf-empty-hint">Ctrl+N 新建你的第一本小说</div>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { resetForm(); setNewModal(true) }}>
+              新建小说
+            </Button>
+          </div>
+        ) : (
+          <Empty description="没有可显示的小说" style={{ marginTop: 80 }} />
+        )
       ) : (
-        /* Bento Grid 书架 */
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gridAutoRows: 'minmax(160px, auto)',
-          gap: 16,
-        }}>
-          {projects.filter(Boolean).map((card, idx) => {
+        /* 书架栅格 */
+        <div className="novel-shelf-grid">
+          {visibleProjects.map((card, idx) => {
             const progress = readReadingProgress(card.path)
-            const readingChapter = progress
-              ? `第${progress.chapterNum}章 · ${progress.title}`
-              : undefined
+            const chapterCount = card.chapter_count || 0
             return (
               <ProjectCardItem
                 key={card.path}
                 card={card}
                 isActive={projectOpen && card.path === projectPath}
-                isHero={idx === 0 && projects.length > 1}
+                isHero={idx === 0 && visibleProjects.length > 1}
                 isMobile={false}
-                readingChapter={readingChapter}
-                onOpen={handleOpen}
+                readingChapter={progress
+                  ? `第${progress.chapterNum}章 · ${progress.title}`
+                  : undefined}
+                readingProgress={progress && chapterCount > 0
+                  ? progress.chapterNum / chapterCount
+                  : undefined}
+                onOpen={(c) => handleOpen(c, false)}
+                onContinueReading={(c) => handleOpen(c, true)}
                 onDelete={handleDelete}
               />
             )

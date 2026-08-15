@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Button, Tooltip, Tag } from 'antd'
+import { Button, Tooltip } from 'antd'
 import {
   ControlOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
   FileTextOutlined, BookOutlined, ThunderboltOutlined, UserOutlined,
@@ -81,9 +81,9 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
           <div className="novel-inspector-item">
             <span className="novel-inspector-item-label">保存状态</span>
             <span className="novel-inspector-item-value">
-              <Tag color={chapter.saved ? 'success' : 'warning'} style={{ marginInlineEnd: 0, fontSize: 11 }}>
+              <span className={`novel-tag-tone ${chapter.saved ? 'is-success' : 'is-warning'}`}>
                 {chapter.saved ? '已保存' : '未保存'}
-              </Tag>
+              </span>
             </span>
           </div>
         </>

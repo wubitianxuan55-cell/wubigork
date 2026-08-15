@@ -110,8 +110,8 @@ const BranchSelectorPanel: React.FC<BranchSelectorPanelProps> = ({
                 size="small"
                 onClick={() => handleSelectBranch(i, b)}
                 style={{
-                  background: selected === i ? 'rgba(192, 132, 252, 0.12)' : 'rgba(255,255,255,0.03)',
-                  border: selected === i ? '1px solid #c084fc' : '1px solid var(--border-subtle)',
+                  background: selected === i ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'color-mix(in srgb, var(--color-text) 4%, transparent)',
+                  border: selected === i ? '1px solid color-mix(in srgb, var(--color-primary) 60%, var(--color-border))' : '1px solid var(--color-border)',
                   borderRadius: 'var(--radius-md)',
                 }}
               >
@@ -130,7 +130,7 @@ const BranchSelectorPanel: React.FC<BranchSelectorPanelProps> = ({
                       {b.tone}
                     </Tag>
                     {selected === i && (
-                      <Tag color="#c084fc" style={{ fontSize: 9, marginLeft: 2 }}>已选</Tag>
+                      <span className="novel-tag-tone is-primary" style={{ marginLeft: 2 }}>已选</span>
                     )}
                   </Col>
                 </Row>

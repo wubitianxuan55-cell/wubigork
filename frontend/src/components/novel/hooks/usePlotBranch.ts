@@ -12,11 +12,11 @@ export interface Branch {
   tone: string
 }
 
-/** toneColors — 语气 → 颜色映射 */
+/** toneColors — 语气 → 颜色映射（语义令牌，随 12 主题联动） */
 export const toneColors: Record<string, string> = {
-  '紧张': '#f87171', '温暖': '#f59e0b', '悲伤': '#60a5fa',
-  '欢乐': '#4ade80', '阴沉': '#9ca3af', '悬疑': '#c084fc',
-  '史诗': '#a78bfa',
+  '紧张': 'var(--color-destructive)', '温暖': 'var(--color-warning)', '悲伤': 'var(--color-primary)',
+  '欢乐': 'var(--color-success)', '阴沉': 'var(--color-text-secondary)', '悬疑': 'var(--color-primary)',
+  '史诗': 'var(--gaea-glow)',
 }
 
 /** usePlotBranch — 剧情分支脑暴 + 应用逻辑 */
