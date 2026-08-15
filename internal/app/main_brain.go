@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"log/slog"
 	"strings"
 )
 
@@ -57,6 +58,9 @@ func (a *App) MainBrainChat(message string) (string, error) {
 				result["reply"] = text
 			}
 		}
+	} else {
+		// 缺陷 2 修复：模块未注册时不再静默跳过，记录告警便于排查（D8）。
+		slog.Warn("主脑: 模块未注册，跳过派发", "module", moduleID, "intent", intent)
 	}
 	b, _ := json.MarshalIndent(result, "", "  ")
 	return string(b), nil

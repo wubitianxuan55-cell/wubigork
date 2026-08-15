@@ -55,6 +55,26 @@ func (a *App) initModules() {
 				intField(input, "seed", 0), intField(input, "n", 1), "")
 		},
 	})
+	_ = a.modules.Register(Module{
+		ID: "office", Name: "方案",
+		Intents: []string{"create"},
+		Handle: func(input map[string]any) (map[string]any, error) {
+			msg, _ := input["prompt"].(string)
+			if msg == "" {
+				msg, _ = input["message"].(string)
+			}
+			if msg == "" {
+				return nil, fmt.Errorf("office: 缺少 prompt/message 输入")
+			}
+			// D8 决策：office.create 路由到现成 GaeaSend（异步，结果经 gaea-event
+			// 回调），不实现不存在的 ProposalCreate。App 未装配（测试等退化场景）
+			// 时跳过引擎初始化，直接返回提交语义，避免裸 App 触发 GaeaInit。
+			if a.core != nil {
+				a.GaeaSend(msg)
+			}
+			return map[string]any{"status": "submitted", "message": msg}, nil
+		},
+	})
 }
 
 func intField(input map[string]any, key string, def int) int {

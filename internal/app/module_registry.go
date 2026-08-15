@@ -1,6 +1,9 @@
 package app
 
-import "fmt"
+import (
+	"fmt"
+	"log/slog"
+)
 
 // Module 是一个可派发模块：Handle 接收 input map，返回结构化输出。
 type Module struct {
@@ -33,6 +36,7 @@ func (r *ModuleRegistry) Register(m Module) error {
 func (r *ModuleRegistry) Dispatch(moduleID, intent string, input map[string]any) (map[string]any, error) {
 	m, ok := r.modules[moduleID]
 	if !ok {
+		slog.Error("主脑: 派发未知模块", "module", moduleID, "intent", intent)
 		return nil, fmt.Errorf("unknown module %q", moduleID)
 	}
 	for _, i := range m.Intents {
