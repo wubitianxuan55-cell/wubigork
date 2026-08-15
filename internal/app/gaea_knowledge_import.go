@@ -88,7 +88,7 @@ func (a *App) GaeaKnowledgeImportAIParse(path string) (KnowledgeImportPreview, e
 	}
 
 	featEng, featModel, _ := a.routeModel("office")
-	prov, err := provider.New("wubigrok", provider.Config{Name: "knowledge-import-ai", Model: featModel, Engine: featEng})
+	prov, err := provider.NewLLM("", provider.Config{Name: "knowledge-import-ai", Model: featModel, Engine: featEng})
 	if err != nil {
 		return KnowledgeImportPreview{}, fmt.Errorf("AI 解析模型初始化失败: %w", err)
 	}

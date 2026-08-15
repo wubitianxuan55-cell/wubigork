@@ -515,7 +515,7 @@ func (a *App) visionAINormalize(text string, fallback []costimport.Row) (rows []
 	if featEng == "" || featModel == "" {
 		return fallback, false
 	}
-	prov, err := provider.New("wubigrok", provider.Config{Name: "cost-import-vision", Model: featModel, Engine: featEng})
+	prov, err := provider.NewLLM("", provider.Config{Name: "cost-import-vision", Model: featModel, Engine: featEng})
 	if err != nil {
 		return fallback, false
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/pins"
 	"github.com/gaea/gaea/internal/gaea/skill"
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
+	"github.com/gaea/gaea/internal/gaea/vision"
 )
 
 // syspromptOut contains the artifacts produced by building the system prompt.
@@ -68,6 +69,25 @@ func buildSystemPrompt(cfg *config.Config, cwd string, stderrPath io.Writer) (*s
 	builtin.SetMemorySearchIndex(mem.Search)
 	builtin.SetSearchConfig(cfg.Search)
 	builtin.SetSearchProxy(cfg.NetworkProxySpec())
+	// 3.0 Step 3d Provider Seam：搜索/检索/视觉/文档转换后端由 gaea.toml 配置驱动，
+	// 零值回落各自默认（本地 herdsman 兼容端点），切换后端只改配置、代码零改动。
+	builtin.SetSearchEngineOrder(cfg.Search.EngineOrder)
+	builtin.SetRetrievalRuntime(builtin.RetrievalRuntime{
+		EmbedKind:     cfg.Retrieval.EmbedKind,
+		EmbedBaseURL:  cfg.Retrieval.EmbedBaseURL,
+		EmbedModel:    cfg.Retrieval.EmbedModel,
+		RerankKind:    cfg.Retrieval.RerankKind,
+		RerankBaseURL: cfg.Retrieval.RerankBaseURL,
+		RerankModel:   cfg.Retrieval.RerankModel,
+	})
+	vision.SetVisionRuntime(vision.VisionRuntime{
+		Kind:    cfg.Vision.Kind,
+		BaseURL: cfg.Vision.BaseURL,
+		Model:   cfg.Vision.Model,
+	})
+	builtin.SetMarkdownConverterRuntime(builtin.MarkdownConverterRuntime{
+		Kind: cfg.MarkdownConverter.Kind,
+	})
 
 	skillStore := skill.New(skill.Options{ProjectRoot: cwd, CustomPaths: cfg.SkillCustomPaths(), Stderr: stderrPath})
 	skills := skillStore.List()

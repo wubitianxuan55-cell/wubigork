@@ -52,7 +52,7 @@ func TestBridgeClientInjectedWithoutGaeaInit(t *testing.T) {
 	a.client = ai.NewClient(config.Load())
 	a.configureClient()
 
-	p, err := provider.New("wubigrok", provider.Config{Name: "cost-import-ai", Model: "", Engine: ""})
+	p, err := provider.NewLLM("", provider.Config{Name: "cost-import-ai", Model: "", Engine: ""})
 	if err != nil {
 		t.Fatalf("桥接 provider 创建失败（client 未注入）: %v", err)
 	}

@@ -34,6 +34,11 @@ type Config struct {
 	Search       SearchConfig      `toml:"search"`
 	Network      NetworkConfig     `toml:"network"`
 	Memory       MemoryConfig      `toml:"memory"`
+	// 3.0 Step 3d Provider Seam：embed/rerank/vision/markdown_converter 后端选择。
+	// 零值 = 全默认（本地 herdsman 兼容端点 + 各自默认模型），切换后端只改配置。
+	Retrieval        RetrievalConfig        `toml:"retrieval"`
+	Vision           VisionConfig           `toml:"vision"`
+	MarkdownConverter MarkdownConverterConfig `toml:"markdown_converter"`
 }
 
 // SessionConfig 是会话持久化行为配置（3.0 Step 1 回退开关）。
@@ -47,6 +52,34 @@ type SessionConfig struct {
 // LogFormatIsEvent 报告是否启用事件日志模式（大小写不敏感，仅精确匹配 "event"）。
 func (c *Config) LogFormatIsEvent() bool {
 	return c != nil && strings.EqualFold(c.Session.LogFormat, "event")
+}
+
+// RetrievalConfig 配置本地检索后端（3.0 Step 3d #2/#3 Provider Seam）。
+// 零值 = 全默认：kind=openai（OpenAI 兼容 /v1/embeddings、/v1/rerank），
+// base_url 默认 http://localhost:8080，模型默认 bge-m3 / bge-reranker-v2-m3。
+type RetrievalConfig struct {
+	EmbedKind     string `toml:"embed_kind"`
+	EmbedBaseURL  string `toml:"embed_base_url"`
+	EmbedModel    string `toml:"embed_model"`
+	RerankKind    string `toml:"rerank_kind"`
+	RerankBaseURL string `toml:"rerank_base_url"`
+	RerankModel   string `toml:"rerank_model"`
+}
+
+// VisionConfig 配置视觉识别后端（3.0 Step 3d #4 Provider Seam）。
+// 零值 = 全默认：kind=openai，base_url 默认 http://127.0.0.1:8080/v1，
+// model 默认本地 Qwen3.6 视觉模型（等价旧 GAEA_VISION_* 环境变量缺省行为）。
+type VisionConfig struct {
+	Kind    string `toml:"kind"`
+	BaseURL string `toml:"base_url"`
+	Model   string `toml:"model"`
+}
+
+// MarkdownConverterConfig 配置文档转换后端（3.0 Step 3d #7 Provider Seam）。
+// kind 空 = 关闭转换（二进制文件走旧"提示安装 markitdown"错误路径）；
+// kind="cli" = markitdown CLI→python -m markitdown 两级回退（默认）。
+type MarkdownConverterConfig struct {
+	Kind string `toml:"kind"`
 }
 
 // MemoryConfig 是办公记忆开关（记忆可控性：用户可一键关闭记忆注入）。
@@ -79,6 +112,10 @@ type SearchConfig struct {
 	// DenyDomains blocks web_fetch from accessing these domains (supports *.example.com wildcards).
 	// Deny always takes precedence over allow.
 	DenyDomains []string `toml:"deny_domains"`
+	// EngineOrder overrides the fallback engine priority (3.0 Step 3d #1):
+	// registry kinds like "local-searxng","tavily","brave","public-searxng","bing","duckduckgo-lite".
+	// Empty = the built-in default order (local SearXNG → Tavily → Brave → public SearXNG → Bing → DDG).
+	EngineOrder []string `toml:"engine_order"`
 }
 
 // TavilyKey resolves the Tavily API key from the configured environment variable.
