@@ -1,8 +1,14 @@
 /**
- * boards/manifests.ts — 内置 canonical 板块静态清单（3.0 架构 §5.2 / 附 B）
+ * boards/manifests.ts — 板块 manifest 数据源（3.0 架构 §5.2 / 附 B）
  *
- * 当前先用静态清单驱动导航（后端 GetBoardManifests 绑定由父代理 gen_bindings 后统一替换，
- * 本静态清单保留为 fallback —— 见 loadBoardManifests()）。
+ * 数据源 seam（§5.3 前端侧）：提供者 = CoreB.GetBoardManifests()（经 wailsjsCompat
+ * 直调，见 gaea/lib/bridge.ts LegacySurfaceNames 注记）；消费者 = 菜单/白名单/快捷键/
+ * 布局派生视图（MainLayout 经 subscribeBoards 订阅）。加载失败/未就绪时 fail-closed
+ * 回退内置静态 canonicalBoards，壳层永远可用。
+ * 板块差集归一（normalizeManifests）：后端清单为准 + 前端 home 壳层补位——
+ *   · knowledge：后端 D7 独立板块（前端静态清单无）→ 并入；
+ *   · home：后端无壳层 → 补前端静态壳层（isHome 唯一）；
+ *   · weixin：后端 page=""（无前端页面）→ 以后端为准（静态 WeixinPage 未注册不覆盖）。
  * 12 硬编码点收敛映射（附 B）：menuItems=filter(inMenu).sort(menuOrder)；
  * allPageKeys=manifest 派生导航白名单；pageLabels=manifest.label；Ctrl+1~4=manifest.shortcut；
  * Content 布局=manifest.layout；面包屑锚点=manifest.breadcrumb.anchorTo；
@@ -11,16 +17,17 @@
 import {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
-  SettingOutlined, WechatOutlined,
+  SettingOutlined, WechatOutlined, BookOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
+import { GetBoardManifests } from '../wailsjsCompat'
 
 // ─── 图标注册表：manifest.icon 名（antd 图标名）→ 组件查表解析 ───────────────
 const ICON_REGISTRY: Record<string, ComponentType> = {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
-  SettingOutlined, WechatOutlined,
+  SettingOutlined, WechatOutlined, BookOutlined,
 }
 
 /** 查表解析 antd 图标；未知图标名返回 null（不抛错，渲染时退化） */
@@ -119,44 +126,171 @@ export type BoardId = (typeof canonicalBoards)[number]['id']
 type _AssertBoardIdsUnique = AssertNever<never>
 type _AssertBoardIdCoversLegacy = AssertNever<Exclude<'home' | 'chat' | 'novel' | 'imagegen' | 'gaea' | 'memoryhub' | 'modelcenter' | 'characterlib' | 'settings' | 'weixin', BoardId>>
 
-// ─── 派生视图（附 B 收敛映射的单一实现）───────────────────────────────────
+// ─── 派生视图通用实现（列表参数化：静态 canonicalBoards 与活动清单共用）──────
 /** 顶栏菜单：filter(inMenu) + sort(menuOrder)（附 B #4） */
-export const menuBoards: BoardManifest[] = [...canonicalBoards]
-  .filter((b) => b.inMenu)
-  .sort((a, b) => a.menuOrder - b.menuOrder)
+export function deriveMenuBoards(list: BoardManifest[]): BoardManifest[] {
+  return [...list]
+    .filter((b) => b.inMenu)
+    .sort((a, b) => (a.menuOrder ?? Number.MAX_SAFE_INTEGER) - (b.menuOrder ?? Number.MAX_SAFE_INTEGER))
+}
 
 /** 导航白名单：非 home 且 inMenu 的板块 id（附 B #2，navigate 事件校验） */
-export const navigateWhitelist: BoardId[] = canonicalBoards
-  .filter((b) => b.inMenu && !b.isHome)
-  .map((b) => b.id)
+export function deriveNavigateWhitelist(list: BoardManifest[]): string[] {
+  return list.filter((b) => b.inMenu && !b.isHome).map((b) => b.id)
+}
 
 /** 快捷键映射：'ctrl+1' → board（附 B #6，显式声明不依赖数组顺序） */
-export const shortcutMap: Record<string, BoardId> = Object.fromEntries(
-  canonicalBoards.filter((b) => b.shortcut).map((b) => [b.shortcut as string, b.id]),
-)
+export function deriveShortcutMap(list: BoardManifest[]): Record<string, string> {
+  return Object.fromEntries(list.filter((b) => b.shortcut).map((b) => [b.shortcut as string, b.id]))
+}
 
 /** 首页启动器板块（附 B #10/#11） */
-export const homeBoard: BoardManifest = canonicalBoards.find((b) => b.isHome)!
+export function deriveHomeBoard(list: BoardManifest[]): BoardManifest | undefined {
+  return list.find((b) => b.isHome)
+}
 
-/** 面包屑项目锚点板块（附 B #8：novel 声明自己是项目锚点） */
-export const projectAnchorId: string = canonicalBoards.find((b) => b.breadcrumb?.anchorTo)?.id ?? 'novel'
+/** 面包屑项目锚点板块（附 B #8：声明 breadcrumb.anchorTo 的板块，novel 是项目锚点） */
+export function deriveProjectAnchorId(list: BoardManifest[]): string {
+  return list.find((b) => b.breadcrumb?.anchorTo)?.id ?? 'novel'
+}
 
 /** 按 id 查板块（附 B #7 pageLabels 来源） */
-export function getBoard(id: string): BoardManifest | undefined {
-  return canonicalBoards.find((b) => b.id === id)
+export function deriveBoard(list: BoardManifest[], id: string): BoardManifest | undefined {
+  return list.find((b) => b.id === id)
 }
 
 /** 板块显示名（面包屑/启动器直接用 manifest.label，附 B #7） */
+export function deriveBoardLabel(list: BoardManifest[], id: string): string {
+  return deriveBoard(list, id)?.label ?? id
+}
+
+// ─── 静态派生视图（fallback 基线，附 B 像素回归测试锁定）─────────────────
+export const menuBoards: BoardManifest[] = deriveMenuBoards(canonicalBoards)
+export const navigateWhitelist: BoardId[] = deriveNavigateWhitelist(canonicalBoards)
+export const shortcutMap: Record<string, BoardId> = deriveShortcutMap(canonicalBoards)
+export const homeBoard: BoardManifest = deriveHomeBoard(canonicalBoards)!
+export const projectAnchorId: string = deriveProjectAnchorId(canonicalBoards)
+export function getBoard(id: string): BoardManifest | undefined {
+  return deriveBoard(canonicalBoards, id)
+}
 export function boardLabel(id: string): string {
-  return getBoard(id)?.label ?? id
+  return deriveBoardLabel(canonicalBoards, id)
+}
+
+// ─── 后端 GetBoardManifests 接线（§5.3 seam 前端侧）──────────────────────
+// 提供者 = CoreB.GetBoardManifests()（经 wailsjsCompat 直调）；消费者 = 下方
+// getActive* 派生视图（MainLayout 订阅）。加载前活动清单 = 静态 canonicalBoards。
+
+/** 后端 manifest 原始形态（wailsjs board.Manifest 字段子集，结构兼容） */
+export interface RemoteBoardManifest {
+  id: string
+  label?: string
+  icon?: string
+  page?: string
+  lazy?: boolean
+  keepAlive?: boolean
+  layout?: string
+  shortcut?: string
+  menuOrder?: number
+  inMenu?: boolean
+  breadcrumb?: { anchorTo?: string }
+  isHome?: boolean
+  nav?: { children?: BoardNavChild[] }
+  featureModel?: string
 }
 
 /**
- * 后端 GetBoardManifests 绑定的接入点（父代理 gen_bindings 后统一替换）：
- * 当前返回静态清单（fallback）；绑定就绪后改为
- *   const remote = await App.GetBoardManifests?.() ?? []
- *   return remote.length ? normalize(remote) : canonicalBoards
+ * 板块差集归一（merge 语义 = 后端清单 + 前端 home 壳层）：
+ *  - 重叠 id：后端字段优先，缺失字段回填前端静态（icon/page/layout 兜底）；
+ *  - knowledge：后端独有板块直接并入（差集 #1）；
+ *  - home：后端无 isHome 板块时补前端静态壳层，menuOrder=0 恒首位（差集 #2）；
+ *  - weixin：后端 page=""（无前端页面）保留空串，静态 WeixinPage 不覆盖（差集 #3）；
+ *  - 空输入返回 []（回退决策在 loadBoardManifests 层）。
+ */
+export function normalizeManifests(remote: RemoteBoardManifest[]): BoardManifest[] {
+  const staticById = new Map(canonicalBoards.map((b) => [b.id, b]))
+  const out: BoardManifest[] = []
+  for (const r of remote ?? []) {
+    if (!r || typeof r.id !== 'string' || r.id === '') continue
+    const base = staticById.get(r.id)
+    out.push({
+      id: r.id,
+      label: r.label ?? base?.label ?? r.id,
+      icon: r.icon ?? base?.icon ?? '',
+      page: r.page ?? base?.page ?? '',
+      lazy: r.lazy ?? base?.lazy ?? false,
+      keepAlive: r.keepAlive ?? base?.keepAlive ?? true,
+      layout: r.layout === 'full' || r.layout === 'padded' ? r.layout : (base?.layout ?? 'padded'),
+      shortcut: r.shortcut ?? base?.shortcut,
+      menuOrder: r.menuOrder ?? base?.menuOrder,
+      inMenu: r.inMenu ?? base?.inMenu ?? false,
+      breadcrumb: r.breadcrumb ? { anchorTo: r.breadcrumb.anchorTo } : base?.breadcrumb,
+      isHome: r.isHome ?? base?.isHome ?? false,
+      nav: r.nav ? { children: r.nav.children ?? [] } : base?.nav,
+      featureModel: r.featureModel ?? base?.featureModel,
+    })
+  }
+  if (out.length > 0 && !out.some((b) => b.isHome)) {
+    out.push({ ...homeBoard })
+  }
+  // 稳定排序：menuOrder 升序（undefined 视为无穷大；home=0 恒首位）
+  out.sort((a, b) => (a.menuOrder ?? Number.MAX_SAFE_INTEGER) - (b.menuOrder ?? Number.MAX_SAFE_INTEGER))
+  return out
+}
+
+// ── 活动清单状态（加载成功后被合并清单替换；失败保持静态 fallback）──────
+let activeBoards: BoardManifest[] = canonicalBoards
+const boardListeners = new Set<() => void>()
+
+/** 订阅活动板块清单变化（MainLayout 重渲染用）；返回退订函数 */
+export function subscribeBoards(cb: () => void): () => void {
+  boardListeners.add(cb)
+  return () => { boardListeners.delete(cb) }
+}
+
+function notifyBoardsChanged(): void {
+  for (const cb of boardListeners) cb()
+}
+
+/** 当前生效板块清单（后端 + home 壳层合并；未加载 = 静态 canonicalBoards） */
+export function getActiveBoards(): BoardManifest[] {
+  return activeBoards
+}
+
+// ── 活动派生视图（消费者：MainLayout 菜单/白名单/快捷键/布局/面包屑）────
+export function getActiveMenuBoards(): BoardManifest[] { return deriveMenuBoards(activeBoards) }
+export function getActiveNavigateWhitelist(): string[] { return deriveNavigateWhitelist(activeBoards) }
+export function getActiveShortcutMap(): Record<string, string> { return deriveShortcutMap(activeBoards) }
+export function getActiveHomeBoard(): BoardManifest { return deriveHomeBoard(activeBoards) ?? homeBoard }
+export function getActiveProjectAnchorId(): string { return deriveProjectAnchorId(activeBoards) }
+export function getActiveBoard(id: string): BoardManifest | undefined { return deriveBoard(activeBoards, id) }
+export function activeBoardLabel(id: string): string { return deriveBoardLabel(activeBoards, id) }
+
+/** 测试隔离：恢复静态 fallback 基线（vitest beforeEach，与 clearPageRegistry 同范式） */
+export function resetActiveBoardsForTest(): void {
+  activeBoards = canonicalBoards
+  notifyBoardsChanged()
+}
+
+/**
+ * 后端 GetBoardManifests 绑定的接入点（§5.3 seam 提供者调用）：
+ *  1. 优先 CoreB.GetBoardManifests()（经 wailsjsCompat 直调）；
+ *  2. 成功 → normalizeManifests 合并（后端清单 + home 壳层）并替换活动清单；
+ *  3. 失败/空/未就绪（浏览器 dev mock 无 window.go）→ fail-closed 回退静态
+ *     canonicalBoards，壳层保持可用。
+ * 返回生效清单；消费方经 subscribeBoards 感知变化。
  */
 export async function loadBoardManifests(): Promise<BoardManifest[]> {
-  return canonicalBoards
+  let merged: BoardManifest[] = []
+  try {
+    const remote = await GetBoardManifests()
+    if (Array.isArray(remote)) {
+      merged = normalizeManifests(remote)
+    }
+  } catch {
+    merged = []
+  }
+  activeBoards = merged.length ? merged : canonicalBoards
+  notifyBoardsChanged()
+  return activeBoards
 }

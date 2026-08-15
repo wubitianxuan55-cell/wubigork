@@ -20,6 +20,8 @@ registerPage('MemoryHubPage', lazy(() => import('./pages/MemoryHubPage')))
 registerPage('ModelCenterPage', lazy(() => import('./pages/ModelCenterPage')))
 registerPage('CharacterLibraryPage', lazy(() => import('./pages/CharacterLibraryPage')))
 registerPage('SettingsPage', lazy(() => import('./pages/SettingsPage')))
+// D7 knowledge 独立板块（页面文件已存在；GetBoardManifests 接线后菜单可点击）——3.0 Wave 3 集成补注册
+registerPage('KnowledgePage', lazy(() => import('./pages/KnowledgePage')))
 
 
 // ═══ WebView2 rAF 节流降级 ═══════════════════════════════════════════

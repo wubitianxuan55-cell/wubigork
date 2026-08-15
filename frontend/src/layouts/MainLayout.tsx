@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense } from 'react'
+import React, { useState, useEffect, useRef, Suspense, useReducer } from 'react'
 import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag, notification, type MenuProps } from 'antd'
 import {
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
@@ -12,10 +12,14 @@ import { Z_INDEX } from '../utils/zIndex'
 import { useAppStore, type ThemePreset, type StatsData, type ProjectInfo } from '../stores/appStore'
 import ModuleLauncher, { type LauncherTarget } from '../components/ModuleLauncher'
 import * as App from '../../src/wailsjsCompat'
-// 3.0 §5.2 / 附 B：12 硬编码点收敛为 manifest 驱动
+// 3.0 §5.2 / 附 B：12 硬编码点收敛为 manifest 驱动。
+// 数据源 seam：活动清单（后端 GetBoardManifests + home 壳层合并）经
+// subscribeBoards 订阅，加载失败自动回退静态 canonicalBoards（manifests.ts）。
 import {
-  type BoardId, menuBoards, navigateWhitelist, shortcutMap, homeBoard,
-  projectAnchorId, getBoard, boardLabel, resolveBoardIcon,
+  type BoardId, resolveBoardIcon,
+  subscribeBoards, loadBoardManifests,
+  getActiveMenuBoards, getActiveNavigateWhitelist, getActiveShortcutMap,
+  getActiveHomeBoard, getActiveProjectAnchorId, getActiveBoard, activeBoardLabel,
 } from '../boards/manifests'
 import { getPageComponent } from '../boards/pageRegistry'
 import { subscribe, BACKEND_EVENTS, FRONTEND_EVENTS } from '../events'
@@ -39,15 +43,9 @@ const { Header, Footer, Content } = Layout
 // 附 B #1：Page 类型由 manifest.id 派生（类型级断言锁死在 manifests.ts）
 type Page = BoardId
 
-// 附 B #4：顶栏横向导航（含首页启动器）= manifest.filter(inMenu).sort(menuOrder)
-const menuItems: MenuProps['items'] = menuBoards.map((b) => {
-  const Icon = resolveBoardIcon(b.icon)
-  return { key: b.id, icon: Icon ? <Icon /> : undefined, label: b.label }
-})
-
 /** 解析页面组件：PageRegistry（manifest.page）优先，旧 pageComponents 兜底（过渡期） */
 function resolvePageComponent(p: Page): React.ComponentType | undefined {
-  const m = getBoard(p)
+  const m = getActiveBoard(p)
   if (!m) return undefined
   return getPageComponent(m.page) ?? legacyPageComponents[m.page]
 }
@@ -206,7 +204,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
 
 // ─── 主布局 ─────────────────────────────────────────────────
 const MainLayout: React.FC = () => {
-  const [page, setPage] = useState<Page>(homeBoard.id)
+  const [page, setPage] = useState<Page>(getActiveHomeBoard().id)
   const {
     loggedIn, login, checkLogin, baseTheme, darkMode, setTheme, toggleDarkMode,
     projectOpen, projectInfo, stats, loadProjectInfo, loadStats,
@@ -215,7 +213,16 @@ const MainLayout: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   // 附 B #10：visitedPages 初始 home = manifest.isHome
-  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set([homeBoard.id]))
+  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set([getActiveHomeBoard().id]))
+
+  // 数据源 seam 接线：订阅活动板块清单（后端 GetBoardManifests + home 壳层合并，
+  // 失败回退静态）并触发一次加载；清单变化时重渲染菜单/白名单/快捷键/布局。
+  const [, forceBoards] = useReducer((c: number) => c + 1, 0)
+  useEffect(() => {
+    const unsub = subscribeBoards(() => forceBoards())
+    void loadBoardManifests()
+    return unsub
+  }, [])
 
   // 跟踪已访问的页面，避免切换 tab 时销毁组件丢失状态
   React.useEffect(() => {
@@ -253,7 +260,7 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail
-      if (detail?.page && navigateWhitelist.includes(detail.page as Page)) {
+      if (detail?.page && getActiveNavigateWhitelist().includes(detail.page as Page)) {
         setPage(detail.page as Page)
       }
     }
@@ -267,7 +274,7 @@ const MainLayout: React.FC = () => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
       if (e.key >= '1' && e.key <= '4') {
-        const target = shortcutMap[`ctrl+${e.key}`]
+        const target = getActiveShortcutMap()[`ctrl+${e.key}`]
         if (target) {
           e.preventDefault()
           setPage(target)
@@ -283,10 +290,16 @@ const MainLayout: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey)
   }, [projectOpen])
 
+  // 附 B #4：顶栏横向导航（含首页启动器）= 活动清单 filter(inMenu).sort(menuOrder)
+  const menuItems: MenuProps['items'] = getActiveMenuBoards().map((b) => {
+    const Icon = resolveBoardIcon(b.icon)
+    return { key: b.id, icon: Icon ? <Icon /> : undefined, label: b.label }
+  })
+
   // 附 B #9：Content 布局 = manifest.layout（chat/gaea=full，其余 padded，home=isHome 特判）
-  const currentLayout = getBoard(page)?.layout ?? 'padded'
+  const currentLayout = getActiveBoard(page)?.layout ?? 'padded'
   const isFullLayout = currentLayout === 'full'
-  const isHomePage = page === homeBoard.id
+  const isHomePage = page === getActiveHomeBoard().id
 
   return (
     <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'transparent' }}>
@@ -399,16 +412,16 @@ const MainLayout: React.FC = () => {
       <Layout style={{ flex: 1, flexDirection: 'row', background: 'transparent' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {/* 面包屑导航（附 B #8：锚点 = manifest.breadcrumb.anchorTo，novel 声明自己是项目锚点） */}
-          {projectOpen && page !== projectAnchorId && page !== homeBoard.id && (
+          {projectOpen && page !== getActiveProjectAnchorId() && page !== getActiveHomeBoard().id && (
             <div style={{
               padding: '6px 16px 0', background: 'var(--color-bg-layout)',
             }}>
               <Breadcrumb
                 items={[
-                  { title: <a onClick={() => setPage(projectAnchorId as Page)} style={{ color: 'var(--md-sys-color-text-secondary)', cursor: 'pointer' }}>
+                  { title: <a onClick={() => setPage(getActiveProjectAnchorId() as Page)} style={{ color: 'var(--md-sys-color-text-secondary)', cursor: 'pointer' }}>
                     <HomeOutlined style={{ marginRight: 2 }} />{projectInfo?.title || ''}
                   </a> },
-                  { title: <span style={{ color: 'var(--md-sys-color-primary)' }}>{boardLabel(page)}</span> },
+                  { title: <span style={{ color: 'var(--md-sys-color-primary)' }}>{activeBoardLabel(page)}</span> },
                 ]}
                 style={{ fontSize: 12 }}
               />
@@ -435,10 +448,10 @@ const MainLayout: React.FC = () => {
               )}>
                 {Array.from(visitedPages).map((p) => {
                   // 附 B #11：home 特判分支 = manifest.isHome（渲染 ModuleLauncher）
-                  const Comp = p === homeBoard.id ? undefined : resolvePageComponent(p)
+                  const Comp = p === getActiveHomeBoard().id ? undefined : resolvePageComponent(p)
                   return (
                     <div key={p} className="page-enter" style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
-                      {p === homeBoard.id
+                      {p === getActiveHomeBoard().id
                         ? <ModuleLauncher onNavigate={(target: LauncherTarget) => setPage(target as Page)} activeModel={activeModel || undefined} />
                         : Comp ? <Comp /> : null}
                     </div>
