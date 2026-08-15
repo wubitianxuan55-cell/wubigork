@@ -1028,6 +1028,8 @@ type LegacySurfaceNames =
   | "GetAppInfo"
   | "GetBacklinks"
   | "GetBookData"
+  | "GetBoardManifests" // 3.0 Step 2：板块清单经 wailsjsCompat 直接调用（gen_bindings 新增；前端接线见 boards/manifests.ts loadBoardManifests）
+  | "CheckModuleIntegrity" // 3.0 Step 2：板块装配启动自检（Startup 内部调用，前端不经 AppBindings 消费）
   | "GetChapter"
   | "GetChapterBranch"
   | "GetChapterScenes"

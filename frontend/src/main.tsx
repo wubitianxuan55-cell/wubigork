@@ -5,6 +5,22 @@ import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './gaea/components/Toast'
 import { app } from './gaea/lib/bridge'
+import { lazy } from 'react'
+import { registerPage } from './boards/pageRegistry'
+
+// ═══ PageRegistry 集中注册（3.0 §5.2 附 B #3/#5）══════════════════════
+// manifest.page 键 ↔ 页面组件统一 lazy 包装；MainLayout 渲染时按 manifest 查表。
+// home 启动器为壳层（ModuleLauncher），不注册组件。过渡期后删除 MainLayout 的
+// legacy lazy import，全部以本注册表为唯一来源。
+registerPage('ChatPage', lazy(() => import('./pages/ChatPage')))
+registerPage('NovelPage', lazy(() => import('./pages/NovelPage')))
+registerPage('ImageGenPage', lazy(() => import('./pages/ImageGenPage')))
+registerPage('GaeaPage', lazy(() => import('./pages/GaeaPage')))
+registerPage('MemoryHubPage', lazy(() => import('./pages/MemoryHubPage')))
+registerPage('ModelCenterPage', lazy(() => import('./pages/ModelCenterPage')))
+registerPage('CharacterLibraryPage', lazy(() => import('./pages/CharacterLibraryPage')))
+registerPage('SettingsPage', lazy(() => import('./pages/SettingsPage')))
+
 
 // ═══ WebView2 rAF 节流降级 ═══════════════════════════════════════════
 // 背景（2026-08-06 根因定位）：Wails WebView2 在特定状态下把 requestAnimationFrame

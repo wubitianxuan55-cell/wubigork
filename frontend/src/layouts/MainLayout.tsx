@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react'
 import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, Tag, notification, type MenuProps } from 'antd'
 import {
-  HomeOutlined,
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
-  ReadOutlined, PictureOutlined, MessageOutlined, ToolOutlined, ApiOutlined,
-  FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined, DatabaseOutlined,
-  BarChartOutlined, DownOutlined,
+  FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined, BarChartOutlined,
+  HomeOutlined,
 } from '@ant-design/icons'
 import SearchModal from '../components/SearchModal'
 import SecurityBanner from '../components/SecurityBanner'
@@ -14,44 +12,45 @@ import { Z_INDEX } from '../utils/zIndex'
 import { useAppStore, type ThemePreset, type StatsData, type ProjectInfo } from '../stores/appStore'
 import ModuleLauncher, { type LauncherTarget } from '../components/ModuleLauncher'
 import * as App from '../../src/wailsjsCompat'
-const NovelPage = React.lazy(() => import('../pages/NovelPage'))
-const SettingsPage = React.lazy(() => import('../pages/SettingsPage'))
-const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'))
-const ModelCenterPage = React.lazy(() => import('../pages/ModelCenterPage'))
-const CharacterLibraryPage = React.lazy(() => import('../pages/CharacterLibraryPage'))
-const ChatPage = React.lazy(() => import('../pages/ChatPage'))
-const GaeaPage = React.lazy(() => import('../pages/GaeaPage'))
-const MemoryHubPage = React.lazy(() => import('../pages/MemoryHubPage'))
-const { Header, Footer, Content } = Layout
+// 3.0 §5.2 / 附 B：12 硬编码点收敛为 manifest 驱动
+import {
+  type BoardId, menuBoards, navigateWhitelist, shortcutMap, homeBoard,
+  projectAnchorId, getBoard, boardLabel, resolveBoardIcon,
+} from '../boards/manifests'
+import { getPageComponent } from '../boards/pageRegistry'
+import { subscribe, BACKEND_EVENTS, FRONTEND_EVENTS } from '../events'
 
-type Page = 'home' | 'novel' | 'imagegen' | 'settings' | 'modelcenter' | 'characterlib' | 'chat' | 'gaea' | 'memoryhub'
-
-// 功能模块 key（navigate 事件校验 + Ctrl+1~4 快捷键映射；home 启动器不参与）
-const allPageKeys: Page[] = ['chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib']
-
-// 顶栏横向导航（含首页启动器），点击直接切换模块
-const menuItems: MenuProps['items'] = [
-  { key: 'home', icon: <HomeOutlined />, label: '首页' },
-  { key: 'chat', icon: <MessageOutlined />, label: '聊天' },
-  { key: 'novel', icon: <ReadOutlined />, label: '小说' },
-  { key: 'imagegen', icon: <PictureOutlined />, label: '绘梦' },
-  { key: 'gaea', icon: <ToolOutlined />, label: '办公' },
-  { key: 'memoryhub', icon: <DatabaseOutlined />, label: '记忆中枢' },
-  { key: 'modelcenter', icon: <ApiOutlined />, label: '模型中心' },
-  { key: 'characterlib', icon: <TeamOutlined />, label: '角色库' },
-]
-
-const pageComponents: Record<Exclude<Page, 'home'>, React.ReactNode> = {
-  novel: <NovelPage />,
-  imagegen: <ImageGenPage />,
-  settings: <SettingsPage />,
-  modelcenter: <ModelCenterPage />,
-  chat: <ChatPage />,
-  gaea: <GaeaPage />,
-  memoryhub: <MemoryHubPage />,
-  characterlib: <CharacterLibraryPage />,
+// ─── 页面组件：PageRegistry 集中注册（main.tsx），此处保留旧 lazy import 作为
+//     过渡期 fallback（附 B #3/#5：PageRegistry 与旧 pageComponents 并行一个版本）。
+//     过渡期后仅保留 registerPage，删除本组 lazy。
+const legacyPageComponents: Record<string, React.ComponentType> = {
+  ChatPage: React.lazy(() => import('../pages/ChatPage')),
+  NovelPage: React.lazy(() => import('../pages/NovelPage')),
+  ImageGenPage: React.lazy(() => import('../pages/ImageGenPage')),
+  GaeaPage: React.lazy(() => import('../pages/GaeaPage')),
+  MemoryHubPage: React.lazy(() => import('../pages/MemoryHubPage')),
+  ModelCenterPage: React.lazy(() => import('../pages/ModelCenterPage')),
+  CharacterLibraryPage: React.lazy(() => import('../pages/CharacterLibraryPage')),
+  SettingsPage: React.lazy(() => import('../pages/SettingsPage')),
 }
 
+const { Header, Footer, Content } = Layout
+
+// 附 B #1：Page 类型由 manifest.id 派生（类型级断言锁死在 manifests.ts）
+type Page = BoardId
+
+// 附 B #4：顶栏横向导航（含首页启动器）= manifest.filter(inMenu).sort(menuOrder)
+const menuItems: MenuProps['items'] = menuBoards.map((b) => {
+  const Icon = resolveBoardIcon(b.icon)
+  return { key: b.id, icon: Icon ? <Icon /> : undefined, label: b.label }
+})
+
+/** 解析页面组件：PageRegistry（manifest.page）优先，旧 pageComponents 兜底（过渡期） */
+function resolvePageComponent(p: Page): React.ComponentType | undefined {
+  const m = getBoard(p)
+  if (!m) return undefined
+  return getPageComponent(m.page) ?? legacyPageComponents[m.page]
+}
 
 // 5 色系
 const themeDots: Record<ThemePreset, string> = {
@@ -205,14 +204,9 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
   )
 }
 
-const pageLabels: Record<Page, string> = {
-  home: '首页', novel: '小说', imagegen: 'AI 绘梦', settings: '设置', modelcenter: '模型引擎中心', characterlib: '角色库', chat: 'AI 聊天', gaea: '办公', memoryhub: '记忆中枢',
-}
-
-// ─── 主布局 ─────────────────────────────────────────────────
 // ─── 主布局 ─────────────────────────────────────────────────
 const MainLayout: React.FC = () => {
-  const [page, setPage] = useState<Page>('home')
+  const [page, setPage] = useState<Page>(homeBoard.id)
   const {
     loggedIn, login, checkLogin, baseTheme, darkMode, setTheme, toggleDarkMode,
     projectOpen, projectInfo, stats, loadProjectInfo, loadStats,
@@ -220,7 +214,8 @@ const MainLayout: React.FC = () => {
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
-  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set(['home']))
+  // 附 B #10：visitedPages 初始 home = manifest.isHome
+  const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set([homeBoard.id]))
 
   // 跟踪已访问的页面，避免切换 tab 时销毁组件丢失状态
   React.useEffect(() => {
@@ -243,19 +238,10 @@ const MainLayout: React.FC = () => {
     } catch (_) {}
   }
 
-  // 监听后端模型切换事件，实时刷新右上角显示
+  // 监听后端模型切换事件，实时刷新右上角显示（事件名常量收敛到 events.ts）
   useEffect(() => {
     const handler = () => { loadActiveModel() }
-    try {
-      // @ts-ignore
-      window.runtime?.EventsOn?.('model-changed', handler)
-    } catch (_) {}
-    return () => {
-      try {
-        // @ts-ignore
-        window.runtime?.EventsOff?.('model-changed', handler)
-      } catch (_) {}
-    }
+    return subscribe(BACKEND_EVENTS.MODEL_CHANGED, handler)
   }, [])
   useEffect(() => {
     if (projectOpen) {
@@ -263,27 +249,29 @@ const MainLayout: React.FC = () => {
       loadStats()
     }
   }, [projectOpen])
-  // 监听跨页面导航事件
+  // 监听跨页面导航事件（附 B #2：白名单 = manifest 派生）
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail
-      if (detail?.page && allPageKeys.includes(detail.page as Page)) {
+      if (detail?.page && navigateWhitelist.includes(detail.page as Page)) {
         setPage(detail.page as Page)
       }
     }
-    window.addEventListener('navigate', handler)
-    return () => window.removeEventListener('navigate', handler)
+    window.addEventListener(FRONTEND_EVENTS.NAVIGATE, handler)
+    return () => window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, handler)
   }, [])
 
-  // 全局快捷键
+  // 全局快捷键（附 B #6：Ctrl+1~4 = manifest.shortcut 显式声明）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
-      // Ctrl+1~4 切换页面
       if (e.key >= '1' && e.key <= '4') {
-        e.preventDefault()
-        setPage(allPageKeys[Number(e.key) - 1] as Page)
+        const target = shortcutMap[`ctrl+${e.key}`]
+        if (target) {
+          e.preventDefault()
+          setPage(target)
+        }
       }
       // Ctrl+N 新建项目（仅在首页）
       if (e.key === 'n' && !projectOpen) {
@@ -294,6 +282,11 @@ const MainLayout: React.FC = () => {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [projectOpen])
+
+  // 附 B #9：Content 布局 = manifest.layout（chat/gaea=full，其余 padded，home=isHome 特判）
+  const currentLayout = getBoard(page)?.layout ?? 'padded'
+  const isFullLayout = currentLayout === 'full'
+  const isHomePage = page === homeBoard.id
 
   return (
     <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'transparent' }}>
@@ -380,6 +373,7 @@ const MainLayout: React.FC = () => {
                 搜索
               </Button>
             )}
+            {/* 附 B #12：settings 隐式入口 —— inMenu=false，壳层保留右上角按钮 */}
             <Button type="text" size="small" icon={<SettingOutlined />}
               onClick={() => setPage('settings')}
               style={{ color: 'var(--md-sys-color-text-secondary)' }}>
@@ -402,30 +396,29 @@ const MainLayout: React.FC = () => {
       {/* ═══ Herdsman LAN 暴露安全告警（S2-1，暴露时全局展示）═══ */}
       <SecurityBanner />
       {/* ═══ 主体：面包屑 + 内容 + 右侧 XAI ═══ */}
-      {/* ═══ 主体：面包屑 + 内容 + 右侧 XAI ═══ */}
       <Layout style={{ flex: 1, flexDirection: 'row', background: 'transparent' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          {/* 面包屑导航 */}
-          {projectOpen && page !== 'novel' && page !== 'home' && (
+          {/* 面包屑导航（附 B #8：锚点 = manifest.breadcrumb.anchorTo，novel 声明自己是项目锚点） */}
+          {projectOpen && page !== projectAnchorId && page !== homeBoard.id && (
             <div style={{
               padding: '6px 16px 0', background: 'var(--color-bg-layout)',
             }}>
               <Breadcrumb
                 items={[
-                  { title: <a onClick={() => setPage('novel')} style={{ color: 'var(--md-sys-color-text-secondary)', cursor: 'pointer' }}>
+                  { title: <a onClick={() => setPage(projectAnchorId as Page)} style={{ color: 'var(--md-sys-color-text-secondary)', cursor: 'pointer' }}>
                     <HomeOutlined style={{ marginRight: 2 }} />{projectInfo?.title || ''}
                   </a> },
-                  { title: <span style={{ color: 'var(--md-sys-color-primary)' }}>{pageLabels[page]}</span> },
+                  { title: <span style={{ color: 'var(--md-sys-color-primary)' }}>{boardLabel(page)}</span> },
                 ]}
                 style={{ fontSize: 12 }}
               />
             </div>
           )}
           <Content style={{
-            padding: page === 'chat' || page === 'gaea' ? 0 : (page === 'home' ? '16px' : '8px 16px 16px'),
-            paddingBottom: page === 'chat' || page === 'home' || page === 'gaea' ? 0 : '16px',
-            background: page === 'chat' || page === 'gaea' ? 'var(--gaea-glass-bg, var(--md-sys-color-surface))' : 'transparent',
-            overflow: page === 'chat' || page === 'gaea' ? 'hidden' : 'auto',
+            padding: isFullLayout ? 0 : (isHomePage ? '16px' : '8px 16px 16px'),
+            paddingBottom: isFullLayout || isHomePage ? 0 : '16px',
+            background: isFullLayout ? 'var(--gaea-glass-bg, var(--md-sys-color-surface))' : 'transparent',
+            overflow: isFullLayout ? 'hidden' : 'auto',
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
@@ -440,13 +433,17 @@ const MainLayout: React.FC = () => {
                   </Typography.Text>
                 </div>
               )}>
-                {Array.from(visitedPages).map((p) => (
-                  <div key={p} className="page-enter" style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
-                    {p === 'home'
-                      ? <ModuleLauncher onNavigate={(target: LauncherTarget) => setPage(target as Page)} activeModel={activeModel || undefined} />
-                      : pageComponents[p]}
-                  </div>
-                ))}
+                {Array.from(visitedPages).map((p) => {
+                  // 附 B #11：home 特判分支 = manifest.isHome（渲染 ModuleLauncher）
+                  const Comp = p === homeBoard.id ? undefined : resolvePageComponent(p)
+                  return (
+                    <div key={p} className="page-enter" style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
+                      {p === homeBoard.id
+                        ? <ModuleLauncher onNavigate={(target: LauncherTarget) => setPage(target as Page)} activeModel={activeModel || undefined} />
+                        : Comp ? <Comp /> : null}
+                    </div>
+                  )
+                })}
               </Suspense>
             </ErrorBoundary>
           </Content>

@@ -2,20 +2,22 @@
 // 顶栏状态 → 正中语音交互中枢 + 两侧模块卡片；单一主题强调色，跟随 --gaea-glow
 import React, { useState, useCallback, useEffect } from 'react'
 import {
-  MessageOutlined, ReadOutlined, PictureOutlined,
-  ToolOutlined, ApiOutlined, SettingOutlined,
   ThunderboltOutlined, ArrowRightOutlined, AudioOutlined,
   StopOutlined, RobotOutlined, UserOutlined,
 } from '@ant-design/icons'
+// 板块图标由 manifest 图标注册表解析（3.0 §5.2）
+import { canonicalBoards, resolveBoardIcon } from '../boards/manifests'
 import { Tooltip } from 'antd'
 import VoiceChatOrb from './VoiceChatOrb'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import * as App from '../../src/wailsjsCompat'
 import './module-launcher.css'
 
-/** 启动器可跳转的目标页（与 MainLayout 的 Page 类型保持一致的子集） */
-export type LauncherTarget =
-  | 'chat' | 'novel' | 'imagegen' | 'gaea' | 'modelcenter' | 'settings'
+/**
+ * 启动器可跳转的目标页（3.0 §5.2：放宽为 string，由 manifest.id 派生，
+ * 不再与 MainLayout 的 Page 字面量联合保持手工同步）。
+ */
+export type LauncherTarget = string
 
 /** 语音入口信号（首页现在本页启动语音，该信号保留兼容旧入口） */
 export const VOICE_LAUNCH_FLAG = 'gaea_voice_launch'
@@ -27,15 +29,32 @@ interface LauncherModule {
   icon: React.ReactNode
 }
 
-// 每张卡片使用主题强调色（不硬编码多色，跟随 6 套主题预设）
-const modules: LauncherModule[] = [
-  { key: 'chat', name: '聊天', desc: '与 AI 对话，激发灵感', icon: <MessageOutlined /> },
-  { key: 'novel', name: '小说', desc: '世界观、角色与大纲创作', icon: <ReadOutlined /> },
-  { key: 'imagegen', name: '绘梦', desc: 'AI 图像生成工作台', icon: <PictureOutlined /> },
-  { key: 'gaea', name: '办公', desc: '通用办公工作台', icon: <ToolOutlined /> },
-  { key: 'modelcenter', name: '模型中心', desc: '模型引擎管理与配置', icon: <ApiOutlined /> },
-  { key: 'settings', name: '设置', desc: '应用偏好与主题外观', icon: <SettingOutlined /> },
-]
+// 卡片描述为 UI 文案（manifest 契约不含 desc），按板块 id 本地维护；
+// 名称/图标/顺序全部由 manifest 派生（3.0 §5.2，顺带补 memoryhub/characterlib 缺失入口）。
+const MODULE_DESC: Record<string, string> = {
+  chat: '与 AI 对话，激发灵感',
+  novel: '世界观、角色与大纲创作',
+  imagegen: 'AI 图像生成工作台',
+  gaea: '通用办公工作台',
+  memoryhub: '知识/成本/画像跨板块记忆沉淀',
+  modelcenter: '模型引擎管理与配置',
+  characterlib: '角色档案与跨板块角色管理',
+  settings: '应用偏好与主题外观',
+}
+
+/** 启动器模块清单 = 非 home 且可达（inMenu 或 settings 隐式入口）的板块，按 menuOrder 排序 */
+const modules: LauncherModule[] = canonicalBoards
+  .filter((b) => !b.isHome && (b.inMenu || b.id === 'settings'))
+  .sort((a, b) => a.menuOrder - b.menuOrder)
+  .map((b) => {
+    const Icon = resolveBoardIcon(b.icon)
+    return {
+      key: b.id,
+      name: b.label,
+      desc: MODULE_DESC[b.id] ?? b.label,
+      icon: Icon ? <Icon /> : <ThunderboltOutlined />,
+    }
+  })
 
 // 已/右卡片列（正中语音交互，卡片分居两侧）
 const leftModules = modules.slice(0, 3)
