@@ -8,19 +8,23 @@
   ═══════════════════════════════════════════════════════════════ */
 
 .mc-page {
-  /* ── 作用域设计令牌（全部映射到应用 M3 令牌，浅/深色自动生效） ── */
-  --mc-accent: var(--color-primary, #2dd4bf);
-  --mc-text: var(--color-text, #e2e8f0);
-  --mc-muted: var(--color-text-secondary, #94a3b8);
-  --mc-border: var(--border-subtle, rgba(148, 163, 184, 0.18));
-  --mc-surface: var(--bg-glass, rgba(15, 23, 42, 0.62));
-  --mc-surface-strong: var(--bg-elevated, rgba(15, 23, 42, 0.9));
-  --mc-ok: var(--color-success, #34d399);
-  --mc-warn: var(--color-warning, #fbbf24);
-  --mc-danger: #fb7185;
-  --mc-radius-lg: 18px;
-  --mc-radius-md: 13px;
-  --mc-radius-sm: 9px;
+  /* ── 作用域设计令牌 ──
+     Wave 3 收敛：保留 --mc-* 名称（125 处消费零改动），值全部别名到
+     全局 md-sys/gaea 令牌（App.tsx 按 12 主题写入 :root），主题联动自动生效。
+     无全局对应的专用色保留并注释。 */
+  --mc-accent: var(--md-sys-color-primary);
+  --mc-text: var(--md-sys-color-text);
+  --mc-muted: var(--md-sys-color-text-secondary);
+  --mc-border: var(--md-sys-color-outline-variant);
+  --mc-surface: var(--md-sys-color-surface-container); /* 实底卡（设计系统：信息层不叠玻璃） */
+  --mc-surface-strong: var(--md-sys-color-surface-container-high);
+  --mc-ok: var(--md-sys-color-success);
+  --mc-warn: var(--md-sys-color-warning);
+  --mc-danger: var(--color-destructive); /* 替代硬编码 #fb7185，随主题（暗 #ef4444 / 亮 #dc2626） */
+  --mc-accent-soft: color-mix(in srgb, var(--mc-accent) 14%, transparent); /* 消费点原无定义（柠檬绿 fallback 不随主题），补定义 */
+  --mc-radius-lg: var(--md-sys-radius-lg); /* 18px → 16px（收敛全局半径体系） */
+  --mc-radius-md: var(--md-sys-radius-md); /* 13px → 12px */
+  --mc-radius-sm: var(--md-sys-radius-sm); /* 9px → 8px（当前无消费点，保留定义） */
 
   width: 100%;
   max-width: 1440px;
@@ -470,7 +474,7 @@
 .mc-model-card:hover {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--mc-text) 26%, transparent);
-  box-shadow: var(--shadow-md, 0 16px 34px rgba(2, 6, 23, 0.2));
+  box-shadow: var(--md-sys-elevation-2, var(--shadow-md, 0 16px 34px rgba(2, 6, 23, 0.2)));
 }
 
 .mc-model-card:active {
@@ -482,7 +486,7 @@
   background: color-mix(in srgb, var(--mc-accent) 6%, var(--mc-surface));
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--mc-accent) 14%, transparent),
-    var(--shadow-md, 0 16px 34px rgba(2, 6, 23, 0.22));
+    var(--md-sys-elevation-2, var(--shadow-md, 0 16px 34px rgba(2, 6, 23, 0.22)));
 }
 
 .mc-model-card.is-dim {
