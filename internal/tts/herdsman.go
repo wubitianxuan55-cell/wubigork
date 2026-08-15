@@ -102,6 +102,29 @@ func (h *HerdsmanTTS) Synthesize(text string) ([]byte, error) {
 	return audio, err
 }
 
+// Name 返回提供者 kind（seam 提供者自注册用）。
+func (h *HerdsmanTTS) Name() string { return "herdsman" }
+
+func init() {
+	// herdsman kind 工厂：按模型/配置路由到 customvoice / voicedesign / voiceclone 构造器，
+	// 收敛 app 层 tryEngineTTS 的按模型分支（voicedesign/voxcpm 无描述时用空音色，
+	// 与历史行为一致）。
+	RegisterTTSProvider("herdsman", func(cfg TTSConfig) (TTSProvider, error) {
+		l := strings.ToLower(cfg.Model)
+		switch {
+		case cfg.RefAudio != "" || strings.Contains(l, "voiceclone"):
+			return NewHerdsmanTTSWithClone(cfg.BaseURL, cfg.Model, cfg.RefAudio, cfg.RefText), nil
+		case strings.Contains(l, "voicedesign"), strings.Contains(l, "voxcpm"):
+			if cfg.VoiceDescription != "" {
+				return NewHerdsmanTTSWithDesc(cfg.BaseURL, cfg.Model, cfg.VoiceDescription), nil
+			}
+			return NewHerdsmanTTS(cfg.BaseURL, cfg.Model, cfg.Voice), nil
+		default:
+			return NewHerdsmanTTS(cfg.BaseURL, cfg.Model, cfg.Voice), nil
+		}
+	})
+}
+
 // SynthesizeWithMime 合成并返回音频和实际 MIME 类型
 func (h *HerdsmanTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
 	voice := h.resolveVoice()

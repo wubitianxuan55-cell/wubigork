@@ -70,8 +70,8 @@ type Manager struct {
 	// 打断检测（P0修复: 对齐 ackem interruptSpeechMs 累积逻辑）
 	interruptSpeechMs int // 连续语音打断累积毫秒数（需超阈值才触发打断）
 
-	// ASR
-	asrClient *asr.HerdsmanASR
+	// ASR（接口注入：消费者只依赖 asr.ASRProvider，不依赖具体引擎）
+	asrProvider asr.ASRProvider
 
 	// 回调
 	whisperChatFn WhisperChatFn
@@ -104,17 +104,19 @@ func NewManager(emitter EventEmitter, config VoiceRuntimeConfig) *Manager {
 
 // ── 配置与回调设置 ──
 
-// SetASRClient 设置 ASR 客户端
-func (m *Manager) SetASRClient(client *asr.HerdsmanASR) {
-	m.asrClient = client
+// SetASRProvider 设置 ASR 提供者（seam 消费者：接口注入，引擎经 asr 注册表选择）。
+// 由 app 层按模型中心 STT 模型路由经 asr.NewASRProvider 构造后注入。
+func (m *Manager) SetASRProvider(provider asr.ASRProvider) {
+	m.asrProvider = provider
 }
 
-// SetWhisperChatFn 设置 whisper 对话回调
+// SetWhisperChatFn 设置 whisper 对话回调（seam 消费者：函数注入，由 app 层接线到对话引擎）。
 func (m *Manager) SetWhisperChatFn(fn WhisperChatFn) {
 	m.whisperChatFn = fn
 }
 
-// SetTTSSynthesizeFn 设置 TTS 合成回调
+// SetTTSSynthesizeFn 设置 TTS 合成回调（seam 消费者：函数注入，携带情感音色描述；
+// app 层经 TTS 提供者注册表统一路由）。
 func (m *Manager) SetTTSSynthesizeFn(fn TTSSynthesizeFn) {
 	m.ttsSynthFn = fn
 }
@@ -642,13 +644,13 @@ func (m *Manager) speak(text string, voiceDesc string) {
 
 // transcribe 调用 ASR 进行语音识别
 func (m *Manager) transcribe(audioData []byte) (string, error) {
-	if m.asrClient == nil {
-		return "", fmt.Errorf("ASR 客户端未设置")
+	if m.asrProvider == nil {
+		return "", fmt.Errorf("ASR 提供者未设置")
 	}
 
 	wavAudio := wrapPCMAsWAV(audioData)
 	base64Audio := asr.EncodeBase64(wavAudio)
-	result, err := m.asrClient.TranscribeBase64(base64Audio, "audio/wav")
+	result, err := m.asrProvider.TranscribeBase64(base64Audio, "audio/wav")
 	if err != nil {
 		return "", err
 	}
@@ -741,7 +743,7 @@ func (m *Manager) SetPTTActive(active bool) {
 
 // HealthCheck 健康检查（对齐 Ackem voice:health）
 func (m *Manager) HealthCheck() map[string]interface{} {
-	asrReady := m.asrClient != nil
+	asrReady := m.asrProvider != nil
 	ttsReady := m.ttsSynthFn != nil
 
 	return map[string]interface{}{
@@ -847,11 +849,11 @@ func (m *Manager) isRunning() bool {
 	return m.running
 }
 
-// ASRReady reports whether an ASR client has been configured.
+// ASRReady reports whether an ASR provider has been configured.
 func (m *Manager) ASRReady() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.asrClient != nil
+	return m.asrProvider != nil
 }
 
 // WhisperReady reports whether the whisper chat callback has been configured.

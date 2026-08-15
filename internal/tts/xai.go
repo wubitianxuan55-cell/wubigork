@@ -70,6 +70,18 @@ func (x *XaiTTS) Synthesize(text string) ([]byte, error) {
 	return audio, err
 }
 
+// Name 返回提供者 kind（seam 提供者自注册用）。
+func (x *XaiTTS) Name() string { return "xai" }
+
+func init() {
+	RegisterTTSProvider("xai", func(cfg TTSConfig) (TTSProvider, error) {
+		if cfg.GetToken == nil {
+			return nil, fmt.Errorf("tts: xai provider 需要 GetToken（OAuth token 提供函数）")
+		}
+		return NewXaiTTS(cfg.BaseURL, cfg.Voice, cfg.GetToken, cfg.HTTPClient), nil
+	})
+}
+
 // SynthesizeWithMime 合成语音并返回音频与 MIME（POST /v1/tts，返回 audio/mpeg）
 func (x *XaiTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
 	token, err := x.getToken()

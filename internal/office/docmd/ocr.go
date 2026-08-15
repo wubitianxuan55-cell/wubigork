@@ -15,8 +15,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/proc"
@@ -225,23 +227,232 @@ var (
 	tesseractImage    = tesseractImagePath
 )
 
-// OCRImageText 识别单张图片中的文字。优先常驻 OvisOCR2 服务；服务不可用
-// （未安装/无法拉起，ovisServerBase()==""）或识别失败时降级 tesseract；
-// 两者都不可用才返回明确错误（含安装提示，保持原文案风格）。
-func OCRImageText(path string) (string, error) {
-	if base := ovisServerBase(); base != "" {
-		if text, err := ovisPageOCR(base, path); err == nil && strings.TrimSpace(text) != "" {
-			return text, nil
+// ── OCR Provider Seam（Step 3c） ──────────────────────────────────────────
+//
+// seam 三元组（定义/提供者/消费者，范式见 internal/ai/image_backend.go 的
+// Register/New/Kinds）：
+//   - 定义：OCRProvider 接口（Name + ExtractImage）
+//   - 提供者：ovis（常驻 OvisOCR2 llama-server）、tesseract（命令行），各自
+//     init() 自注册，互斥注册（重复即 panic）
+//   - 消费者：OCRImageText / ocrPDFRange 只依赖接口，引擎顺序由配置
+//     GAEA_OCR_ENGINE 驱动（"auto"=ovis→tesseract 自动回退，保持现状；
+//     显式指定 = 仅该引擎，不可用即 fail-closed 报错，不静默降级）
+//
+// 验收：切换 OCR 引擎只改配置项（GAEA_OCR_ENGINE），代码零改动。
+
+// OCRProvider 单图 OCR 提供者（seam 定义）。
+type OCRProvider interface {
+	// Name 返回提供者 kind（"ovis" / "tesseract"）。
+	Name() string
+	// ExtractImage 识别单张图片，返回去首尾空白的文本。
+	// 引擎不可用（未安装/无法拉起）必须返回错误（fail-closed），不得静默返回空。
+	ExtractImage(path string) (string, error)
+}
+
+// OCR 引擎 kind 常量（代码与配置只依赖 kind；具体实现由各文件 init() 自注册）。
+const (
+	// OCRKindOvis 常驻 OvisOCR2 llama-server（本地推荐，见 pdf 技能）。
+	OCRKindOvis = "ovis"
+	// OCRKindTesseract tesseract 命令行 OCR（chi_sim+eng）。
+	OCRKindTesseract = "tesseract"
+)
+
+// ocrProviderFactory 按实例构造 OCR 提供者（无额外配置，环境变量驱动）。
+type ocrProviderFactory func() OCRProvider
+
+// ocrProviderRegistry kind → 工厂注册表（互斥注册，重复即 panic）。
+var ocrProviderRegistry = map[string]ocrProviderFactory{}
+
+// RegisterOCRProvider 注册 OCR 引擎 kind（如 "ovis" / "tesseract"）。
+// 供各引擎 init() 自注册；kind 为空或重复注册直接 panic（编译期接线错误）。
+func RegisterOCRProvider(kind string, factory ocrProviderFactory) {
+	if kind == "" {
+		panic("docmd: ocr provider kind must not be empty")
+	}
+	if _, dup := ocrProviderRegistry[kind]; dup {
+		panic("docmd: duplicate ocr provider kind " + kind)
+	}
+	ocrProviderRegistry[kind] = factory
+}
+
+// NewOCRProvider 经注册表构造 OCR 提供者；未知 kind 返回错误
+// （附已注册 kind 列表，fail-closed 不静默降级）。
+func NewOCRProvider(kind string) (OCRProvider, error) {
+	factory, ok := ocrProviderRegistry[kind]
+	if !ok {
+		return nil, fmt.Errorf("docmd: unknown ocr provider kind %q (registered: %v)", kind, OCRProviderKinds())
+	}
+	p := factory()
+	if p == nil {
+		return nil, fmt.Errorf("docmd: ocr provider factory %q returned nil", kind)
+	}
+	return p, nil
+}
+
+// OCRProviderKinds 返回已注册 OCR 引擎 kind 列表（排序，供诊断/校验）。
+func OCRProviderKinds() []string {
+	out := make([]string, 0, len(ocrProviderRegistry))
+	for k := range ocrProviderRegistry {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ocrEngineOrder 由配置解析 OCR 引擎顺序：
+// GAEA_OCR_ENGINE 为空或 "auto" → [ovis, tesseract]（自动回退链，保持现状）；
+// 显式指定 → 单引擎（未知 kind 报错，fail-closed 不静默回退到 auto）。
+func ocrEngineOrder() ([]string, error) {
+	raw := strings.TrimSpace(os.Getenv("GAEA_OCR_ENGINE"))
+	if raw == "" || strings.EqualFold(raw, "auto") {
+		return []string{OCRKindOvis, OCRKindTesseract}, nil
+	}
+	kind := strings.ToLower(raw)
+	for _, k := range OCRProviderKinds() {
+		if k == kind {
+			return []string{kind}, nil
 		}
 	}
-	if tess, err := tesseractLookPath("tesseract"); err == nil {
-		if text, err := tesseractImage(tess, path); err == nil && strings.TrimSpace(text) != "" {
-			return text, nil
+	return nil, fmt.Errorf("docmd: 未知 OCR 引擎 %q（可用：auto / %s）", raw, strings.Join(OCRProviderKinds(), " / "))
+}
+
+// ovisOCRProvider 常驻 OvisOCR2 llama-server OCR 提供者：首次使用探测/拉起并
+// 缓存 base URL；探测失败进入短冷却（避免逐页重复拉起）。不可用即返回错误。
+type ovisOCRProvider struct {
+	mu       sync.Mutex
+	base     string // 已解析的常驻服务 base URL；空 = 未解析/不可用
+	lastFail time.Time
+}
+
+// ovisProbeCooldown 探测失败后的冷却时长：冷却期内不再重复探测/拉起服务。
+const ovisProbeCooldown = 5 * time.Second
+
+func (p *ovisOCRProvider) Name() string { return OCRKindOvis }
+
+// Available 预探测提供者是否可用（解析并缓存常驻服务地址；失败进入冷却）。
+func (p *ovisOCRProvider) Available() bool { return p.resolveBase() != "" }
+
+// ExtractImage 识别单张图片；服务不可用返回错误（fail-closed）。
+func (p *ovisOCRProvider) ExtractImage(path string) (string, error) {
+	base := p.resolveBase()
+	if base == "" {
+		return "", fmt.Errorf("OvisOCR2 服务不可用（未安装或无法拉起）")
+	}
+	text, err := ovisOCRPage(base, path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(text), nil
+}
+
+// resolveBase 解析常驻服务 base URL：成功缓存，失败记录冷却时间。
+func (p *ovisOCRProvider) resolveBase() string {
+	p.mu.Lock()
+	if p.base != "" {
+		base := p.base
+		p.mu.Unlock()
+		return base
+	}
+	if time.Since(p.lastFail) < ovisProbeCooldown {
+		p.mu.Unlock()
+		return ""
+	}
+	p.mu.Unlock()
+
+	base := ovisServerBase() // 探测/拉起（注入点可控，测试不依赖真实服务）
+	p.mu.Lock()
+	if base != "" {
+		p.base = base
+	} else {
+		p.lastFail = time.Now()
+	}
+	p.mu.Unlock()
+	return base
+}
+
+// tesseractOCRProvider tesseract 命令行 OCR 提供者（未安装即 fail-closed 报错）。
+type tesseractOCRProvider struct{}
+
+func (p *tesseractOCRProvider) Name() string { return OCRKindTesseract }
+
+// Available 预探测 tesseract 可执行文件是否存在。
+func (p *tesseractOCRProvider) Available() bool {
+	_, err := tesseractLookPath("tesseract")
+	return err == nil
+}
+
+// ExtractImage 用 tesseract 识别单张图片（chi_sim+eng，--psm 3）。
+func (p *tesseractOCRProvider) ExtractImage(path string) (string, error) {
+	tess, err := tesseractLookPath("tesseract")
+	if err != nil {
+		return "", fmt.Errorf("tesseract 未安装（%v）", err)
+	}
+	text, err := tesseractImage(tess, path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(text), nil
+}
+
+func init() {
+	RegisterOCRProvider(OCRKindOvis, func() OCRProvider { return &ovisOCRProvider{} })
+	RegisterOCRProvider(OCRKindTesseract, func() OCRProvider { return &tesseractOCRProvider{} })
+}
+
+// ocrAnyAvailable 预探测提供者链中是否至少一个引擎可用（ovis 解析并缓存常驻
+// 服务；tesseract 检查可执行文件）。用于 ocrPDFRange 渲染前的提前失败。
+func ocrAnyAvailable(providers []OCRProvider) bool {
+	for _, p := range providers {
+		if checker, ok := p.(interface{ Available() bool }); ok && checker.Available() {
+			return true
 		}
 	}
-	return "", fmt.Errorf("OvisOCR2 本地 OCR 不可用（未安装或服务无法拉起），且未找到 tesseract。" +
+	return false
+}
+
+// ocrUnavailableError 生成引擎链不可用错误：auto 链保留原文案（含安装提示），
+// 显式单引擎给出针对性文案。
+func ocrUnavailableError(kinds []string) error {
+	if len(kinds) == 1 {
+		return fmt.Errorf("OCR 引擎 %q 不可用（未安装或无法运行）。请安装该引擎或检查 GAEA_OCR_ENGINE 配置。", kinds[0])
+	}
+	return fmt.Errorf("OvisOCR2 本地 OCR 不可用（未安装或服务无法拉起），且未找到 tesseract。" +
 		"请安装其一：\n  - OvisOCR2（本地推荐，见 pdf 技能：C:\\AI\\gaea-ocr 或 GAEA_OCR_DIR）\n" +
 		"  - tesseract: https://github.com/tesseract-ocr/tesseract")
+}
+
+// ocrPDFUnavailableError 生成扫描件 PDF 的引擎不可用错误：auto 链保留原文案
+// （含安装提示），显式单引擎给出针对性文案。
+func ocrPDFUnavailableError(kinds []string) error {
+	if len(kinds) == 1 {
+		return fmt.Errorf("扫描件 PDF 需要 OCR 引擎 %q，但该引擎不可用（未安装或无法运行）。"+
+			"请检查 GAEA_OCR_ENGINE 配置或安装该引擎，或使用文本 PDF（非扫描件）。", kinds[0])
+	}
+	return fmt.Errorf("扫描件 PDF 需要 OCR 引擎，但未找到 OvisOCR2 或 tesseract。" +
+		"请安装其一：\n  - OvisOCR2（本地推荐，见 pdf 技能：C:\\AI\\gaea-ocr）\n" +
+		"  - tesseract: https://github.com/tesseract-ocr/tesseract\n\n" +
+		"或者使用文本 PDF（非扫描件）")
+}
+
+// OCRImageText 识别单张图片中的文字。引擎顺序由 GAEA_OCR_ENGINE 配置驱动：
+// "auto"（默认）= 常驻 OvisOCR2 服务优先，不可用时降级 tesseract（保持现状）；
+// 显式指定（ovis/tesseract）= 仅该引擎，不可用即报错（fail-closed，不静默降级）。
+// 引擎顺序与降级行为由测试固化（见 ocr_seam_test.go / ocr_test.go）。
+func OCRImageText(path string) (string, error) {
+	kinds, err := ocrEngineOrder()
+	if err != nil {
+		return "", err
+	}
+	for _, kind := range kinds {
+		p, perr := NewOCRProvider(kind)
+		if perr != nil {
+			continue // kind 已校验，防御性跳过
+		}
+		if text, err := p.ExtractImage(path); err == nil && strings.TrimSpace(text) != "" {
+			return text, nil
+		}
+	}
+	return "", ocrUnavailableError(kinds)
 }
 
 // ocrPDF 处理扫描件 PDF：本地 OvisOCR2（常驻 llama-server）优先，
@@ -252,13 +463,22 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 		return "", fmt.Errorf("扫描件 PDF 需要 poppler 渲染（pdftoppm），但未找到。" +
 			"请安装 poppler：https://poppler.freedesktop.org\n\n或者使用文本 PDF（非扫描件）")
 	}
-	ovisBase := ovisServerBase() // 可能为空 → 退回 tesseract
-	tesseractPath, _ := exec.LookPath("tesseract")
-	if ovisBase == "" && tesseractPath == "" {
-		return "", fmt.Errorf("扫描件 PDF 需要 OCR 引擎，但未找到 OvisOCR2 或 tesseract。" +
-			"请安装其一：\n  - OvisOCR2（本地推荐，见 pdf 技能：C:\\AI\\gaea-ocr）\n" +
-			"  - tesseract: https://github.com/tesseract-ocr/tesseract\n\n" +
-			"或者使用文本 PDF（非扫描件）")
+	// 引擎链由 GAEA_OCR_ENGINE 配置驱动（"auto" = ovis → tesseract，保持现状；
+	// 显式指定 = 仅该引擎）。构造提供者实例后预探测一次：至少一个引擎可用才继续
+	// （ovis 探测并缓存常驻服务地址，失败整轮跳过、不逐页重试拉起；tesseract
+	// 检查可执行文件），与历史提前失败行为一致。
+	kinds, err := ocrEngineOrder()
+	if err != nil {
+		return "", err
+	}
+	providers := make([]OCRProvider, 0, len(kinds))
+	for _, kind := range kinds {
+		if p, perr := NewOCRProvider(kind); perr == nil {
+			providers = append(providers, p)
+		}
+	}
+	if !ocrAnyAvailable(providers) {
+		return "", ocrPDFUnavailableError(kinds)
 	}
 
 	// 创建临时目录
@@ -303,14 +523,12 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 	// 页范围过滤用绝对页码（与文本路径一致），避免 pdftoppm 偏移后的错位。
 	// 单页失败跳过继续（失败页计入 failed 列表，在结果尾部注明），全部失败才报错。
 	pageOCR := func(pageNum int, pngPath string) (string, error) {
-		// OvisOCR2 常驻服务优先；失败/截断时退回 tesseract。
-		if ovisBase != "" {
-			if t, err := ovisOCRPage(ovisBase, pngPath); err == nil && strings.TrimSpace(t) != "" {
+		// 逐引擎尝试（auto 链 = OvisOCR2 常驻服务优先，失败/截断退回 tesseract）；
+		// 单页全部引擎失败由 ocrPageLoop 跳过继续（逐页容错，测试固化）。
+		for _, p := range providers {
+			if t, err := p.ExtractImage(pngPath); err == nil && strings.TrimSpace(t) != "" {
 				return t, nil
 			}
-		}
-		if tesseractPath != "" {
-			return tesseractImage(tesseractPath, pngPath)
 		}
 		return "", fmt.Errorf("无可用 OCR 引擎")
 	}

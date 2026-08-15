@@ -50,6 +50,15 @@ func NewHerdsmanASR(baseURL, model string) *HerdsmanASR {
 	}
 }
 
+func init() {
+	RegisterASRProvider("herdsman", func(cfg ASRConfig) (ASRProvider, error) {
+		return NewHerdsmanASR(cfg.BaseURL, cfg.Model), nil
+	})
+}
+
+// Name 返回提供者 kind（seam 提供者自注册用）。
+func (h *HerdsmanASR) Name() string { return "herdsman" }
+
 // SetModel 动态切换 ASR 模型
 func (h *HerdsmanASR) SetModel(model string) {
 	h.model = model

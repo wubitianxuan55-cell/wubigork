@@ -42,7 +42,7 @@ func TestManager_VoiceRoundTrip(t *testing.T) {
 	defer srv.Close()
 
 	m := NewManager(&mockEmitter{}, DefaultVoiceConfig())
-	m.SetASRClient(asr.NewHerdsmanASR(srv.URL, "whisper-base"))
+	m.SetASRProvider(asr.NewHerdsmanASR(srv.URL, "whisper-base"))
 	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
 		return "收到", "CALM_RATIONAL", nil
 	})

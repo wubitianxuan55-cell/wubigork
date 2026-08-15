@@ -69,6 +69,24 @@ $s.Dispose()`,
 	return audio, nil
 }
 
+// Name 返回提供者 kind（seam 提供者自注册用）。
+func (w *WinTTS) Name() string { return "sapi" }
+
+// SynthesizeWithMime 合成语音并返回音频与 MIME（SAPI 输出 WAV）。
+func (w *WinTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
+	audio, err := w.Synthesize(text)
+	if err != nil {
+		return nil, "", err
+	}
+	return audio, "audio/wav", nil
+}
+
+func init() {
+	RegisterTTSProvider("sapi", func(cfg TTSConfig) (TTSProvider, error) {
+		return NewWinTTS(), nil
+	})
+}
+
 // escapePath 转义路径中的单引号，供 PowerShell 单引号字符串使用
 // PowerShell 单引号字符串中 ' → ''
 func escapePath(p string) string {

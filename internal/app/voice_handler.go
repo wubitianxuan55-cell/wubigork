@@ -18,6 +18,7 @@ import (
 
 	"github.com/gaea/gaea/internal/asr"
 	appconfig "github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/tts"
 	"github.com/gaea/gaea/internal/voice"
 )
@@ -97,7 +98,8 @@ func (a *mediaState) initVoice() {
 	// 设置 whisper 对话回调（默认轻语人格对话，使用搜索增强版，语音也能上网查）
 	a.setWhisperChatFn()
 
-	// 设置 TTS 合成回调（复用现有 TTSSpeakBase64）
+	// 设置 TTS 合成回调（seam 消费者：经 synthesizeVoiceTTS → tryEngineTTS /
+	// TTSSpeakBase64 统一路由到 TTS 提供者注册表）
 	a.voiceManager.SetTTSSynthesizeFn(func(text, voiceDescription string) ([]byte, string, error) {
 		return a.synthesizeVoiceTTS(text, voiceDescription)
 	})
@@ -133,8 +135,8 @@ func (a *mediaState) applyASRClient() {
 	// 1. 用户选中的 ASR 模型（模型中心）
 	if a.activeASREngine != "" && a.activeASRModel != "" {
 		if eng, ok := a.engineMgr.GetEngine(a.activeASREngine); ok && eng.Enabled {
-			a.voiceManager.SetASRClient(asr.NewHerdsmanASR(eng.BaseURL, a.activeASRModel))
-			slog.Info("ASR 客户端已配置（用户选择）", "engine", a.activeASREngine, "model", a.activeASRModel)
+			a.voiceManager.SetASRProvider(a.newASRProvider(eng.BaseURL, a.activeASRModel))
+			slog.Info("ASR 提供者已配置（用户选择）", "engine", a.activeASREngine, "model", a.activeASRModel)
 			return
 		}
 		slog.Warn("用户选中的 ASR 引擎不可用，自动扫描", "engine", a.activeASREngine)
@@ -148,8 +150,8 @@ func (a *mediaState) applyASRClient() {
 		}
 		for _, m := range eng.Models {
 			if isSTTModel(m.ID) {
-				a.voiceManager.SetASRClient(asr.NewHerdsmanASR(eng.BaseURL, m.ID))
-				slog.Info("ASR 客户端已配置（自动扫描）", "engine", eid, "model", m.ID)
+				a.voiceManager.SetASRProvider(a.newASRProvider(eng.BaseURL, m.ID))
+				slog.Info("ASR 提供者已配置（自动扫描）", "engine", eid, "model", m.ID)
 				return
 			}
 		}
@@ -157,17 +159,27 @@ func (a *mediaState) applyASRClient() {
 
 	// 3. 默认 herdsman whisper-base
 	if eng, ok := a.engineMgr.GetEngine("herdsman"); ok && eng.Enabled {
-		a.voiceManager.SetASRClient(asr.NewHerdsmanASR(eng.BaseURL, "whisper-base"))
-		slog.Info("ASR 客户端已配置（默认）", "baseURL", eng.BaseURL)
+		a.voiceManager.SetASRProvider(a.newASRProvider(eng.BaseURL, "whisper-base"))
+		slog.Info("ASR 提供者已配置（默认）", "baseURL", eng.BaseURL)
 	}
 }
 
-// isSTTModel 判断模型 ID 是否为语音识别模型（与模型中心 classifyModel 的 stt 分类一致）
+// newASRProvider 经 ASR 注册表构造 herdsman 提供者（seam 消费者；kind 固定
+// "herdsman"——当前唯一实现，后续新增引擎只改注册表，调用方零改动）。
+func (a *mediaState) newASRProvider(baseURL, model string) asr.ASRProvider {
+	p, err := asr.NewASRProvider("herdsman", asr.ASRConfig{BaseURL: baseURL, Model: model})
+	if err != nil {
+		slog.Warn("ASR 提供者构造失败", "error", err)
+		return nil
+	}
+	return p
+}
+
+// isSTTModel 判断模型 ID 是否为语音识别模型。
+// 3.0 Step 3c：委托 modelengine.ClassifyModelByName（Track G 已导出；关键词表与
+// 历史 isSTTModel 完全一致，避免双源漂移）。
 func isSTTModel(id string) bool {
-	l := strings.ToLower(id)
-	return strings.Contains(l, "whisper") || strings.Contains(l, "sherpa") ||
-		strings.Contains(l, "zipformer") || strings.Contains(l, "asr") ||
-		strings.Contains(l, "funasr")
+	return modelengine.ClassifyModelByName(id) == "stt"
 }
 
 // synthesizeVoiceTTS 语音管道专用的 TTS 合成（带情感参数）
@@ -192,39 +204,20 @@ func (a *mediaState) synthesizeVoiceTTS(text, voiceDescription string) ([]byte, 
 	return a.synthesizeFromBase64(text)
 }
 
-// tryEngineTTS 用指定引擎+模型尝试 TTS 合成
-// xAI 走云端 Grok TTS（/v1/tts），其余引擎走 Herdsman 风格 /v1/audio/speech
+// tryEngineTTS 用指定引擎+模型尝试 TTS 合成（seam 消费者：统一路由到 TTS 提供者
+// 注册表）。xAI 走云端 Grok TTS（"xai" kind），其余引擎走 Herdsman 风格
+// /v1/audio/speech（"herdsman" kind）；引擎构造分支（voicedesign/voxcpm/voiceclone）
+// 由 herdsman 工厂收敛，这里零分支。
 func (a *mediaState) tryEngineTTS(engineID, model, text, voiceDescription string) ([]byte, string, bool) {
-	if a.engineMgr == nil {
-		return nil, "", false
-	}
-	eng, ok := a.engineMgr.GetEngine(engineID)
-	if !ok || !eng.Enabled {
-		return nil, "", false
-	}
 	// 本地 TTS 服务兜底：cosyvoice 未就绪时自动拉起（幂等，已就绪零开销）
 	if engineID == "cosyvoice" {
 		a.ensureLocalTTSService(engineID)
 	}
-	if engineID == "xai" {
-		return a.tryXaiTTS(eng.BaseURL, text)
+	p, ok := a.ttsProviderForEngine(engineID, model, voiceDescription)
+	if !ok {
+		return nil, "", false
 	}
-	var htts *tts.HerdsmanTTS
-	if strings.Contains(strings.ToLower(model), "voicedesign") ||
-		strings.Contains(strings.ToLower(model), "voxcpm") {
-		if voiceDescription != "" {
-			htts = tts.NewHerdsmanTTSWithDesc(eng.BaseURL, model, voiceDescription)
-		} else {
-			htts = tts.NewHerdsmanTTS(eng.BaseURL, model, "")
-		}
-	} else if strings.Contains(strings.ToLower(model), "voiceclone") {
-		refAudio := strings.TrimSpace(os.Getenv("HERDSMAN_TTS_REF_AUDIO"))
-		refText := strings.TrimSpace(os.Getenv("HERDSMAN_TTS_REF_TEXT"))
-		htts = tts.NewHerdsmanTTSWithClone(eng.BaseURL, model, refAudio, refText)
-	} else {
-		htts = tts.NewHerdsmanTTS(eng.BaseURL, model, a.ttsVoiceForModel(model))
-	}
-	audio, mime, err := htts.SynthesizeWithMime(text)
+	audio, mime, err := p.SynthesizeWithMime(text)
 	if err != nil || len(audio) == 0 {
 		return nil, "", false
 	}
@@ -234,22 +227,52 @@ func (a *mediaState) tryEngineTTS(engineID, model, text, voiceDescription string
 	return audio, mime, true
 }
 
-// tryXaiTTS 通过 xAI 云端 Grok TTS 合成（复用 OAuth token；音色无效时回退 eve）
-func (a *mediaState) tryXaiTTS(baseURL, text string) ([]byte, string, bool) {
-	if a.client == nil {
-		return nil, "", false
+// ttsProviderForEngine 经 TTS 提供者注册表构造指定引擎+模型的提供者：
+// xAI → "xai" kind；其余 OpenAI 兼容引擎（herdsman/cosyvoice/ollama/deepseek）→
+// "herdsman" kind。引擎未启用/缺少凭据时返回 false（与历史 tryEngineTTS 一致）。
+func (a *mediaState) ttsProviderForEngine(engineID, model, voiceDescription string) (tts.TTSProvider, bool) {
+	if a.engineMgr == nil {
+		return nil, false
 	}
-	voice := strings.TrimSpace(a.activeTTSVoice)
-	if !tts.IsXaiVoice(voice) {
-		voice = "eve"
+	eng, ok := a.engineMgr.GetEngine(engineID)
+	if !ok || !eng.Enabled {
+		return nil, false
 	}
-	xtts := tts.NewXaiTTS(baseURL, voice, a.client.GetToken, nil)
-	audio, mime, err := xtts.SynthesizeWithMime(text)
-	if err != nil || len(audio) == 0 {
-		slog.Debug("xAI TTS 合成失败，回退其他引擎", "voice", voice, "error", err)
-		return nil, "", false
+	if engineID == "xai" {
+		if a.client == nil {
+			return nil, false
+		}
+		voice := strings.TrimSpace(a.activeTTSVoice)
+		if !tts.IsXaiVoice(voice) {
+			voice = "eve"
+		}
+		p, err := tts.NewTTSProvider("xai", tts.TTSConfig{
+			BaseURL: eng.BaseURL, Voice: voice, GetToken: a.client.GetToken,
+		})
+		if err != nil {
+			return nil, false
+		}
+		return p, true
 	}
-	return audio, mime, true
+
+	// 其余引擎：OpenAI 兼容 /v1/audio/speech（Herdsman 风格）
+	cfg := tts.TTSConfig{BaseURL: eng.BaseURL, Model: model, VoiceDescription: voiceDescription}
+	l := strings.ToLower(model)
+	switch {
+	case strings.Contains(l, "voiceclone"):
+		// voiceclone 参考音频/文本来自环境变量（与历史 tryEngineTTS 一致）
+		cfg.RefAudio = strings.TrimSpace(os.Getenv("HERDSMAN_TTS_REF_AUDIO"))
+		cfg.RefText = strings.TrimSpace(os.Getenv("HERDSMAN_TTS_REF_TEXT"))
+	case strings.Contains(l, "voicedesign"), strings.Contains(l, "voxcpm"):
+		// voicedesign/voxcpm 无描述时用空音色（工厂按模型收敛；历史行为一致）
+	default:
+		cfg.Voice = a.ttsVoiceForModel(model)
+	}
+	p, err := tts.NewTTSProvider("herdsman", cfg)
+	if err != nil {
+		return nil, false
+	}
+	return p, true
 }
 
 // synthesizeFromBase64 通过 TTSSpeakBase64 路由合成并解码
@@ -404,11 +427,11 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 	}
 	if v, ok := settings["asrModel"].(string); ok {
 		config.ASRModel = voice.ASRModel(v)
-		// 动态切换 ASR 模型
+		// 动态切换 ASR 模型（经注册表构造 herdsman 提供者）
 		if a.voiceManager != nil {
 			eng, engOk := a.engineMgr.GetEngine("herdsman")
 			if engOk && eng.Enabled {
-				a.voiceManager.SetASRClient(asr.NewHerdsmanASR(eng.BaseURL, v))
+				a.voiceManager.SetASRProvider(a.newASRProvider(eng.BaseURL, v))
 			}
 		}
 	}

@@ -125,6 +125,24 @@ func (e *EdgeTTS) Synthesize(text string) ([]byte, error) {
 	return audio, nil
 }
 
+// Name 返回提供者 kind（seam 提供者自注册用）。
+func (e *EdgeTTS) Name() string { return "edge" }
+
+// SynthesizeWithMime 合成语音并返回音频与 MIME（Edge 返回 MP3）。
+func (e *EdgeTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
+	audio, err := e.Synthesize(text)
+	if err != nil {
+		return nil, "", err
+	}
+	return audio, "audio/mp3", nil
+}
+
+func init() {
+	RegisterTTSProvider("edge", func(cfg TTSConfig) (TTSProvider, error) {
+		return NewEdgeTTS(), nil
+	})
+}
+
 // ── WebSocket 连接 ──────────────────────────────────────────
 
 func (e *EdgeTTS) dial() (*tls.Conn, error) {
