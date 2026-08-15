@@ -9,6 +9,17 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
+// gaeaSpecialistTools 需要 App 服务的专业工具清单（ExtraTools 的补充部分）。
+// 3.0 Step 3d #6：ocr 工具此前已定义但未注册进 ExtraTools（gaea_handler.go
+// 装配列表漂移，死代码）；在此集中注册，gaea_handler.go 装配时展开进 ExtraTools，
+// 后续新增专业工具只需改这一处。semantic_search 同样定义未注册，是否纳入由
+// 装配决策（详见报告遗留项）。
+func gaeaSpecialistTools(a *App) []tool.Tool {
+	return []tool.Tool{
+		ocrTool{a: a},
+	}
+}
+
 // ocrTool 专业 OCR 工具：图片/扫描件文字提取走本地 OvisOCR2 常驻服务。
 // 与 vision（整图理解）分工：要"看懂图"用 vision，要"提取图中文字"用 ocr。
 type ocrTool struct {

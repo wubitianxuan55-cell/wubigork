@@ -92,7 +92,9 @@ func (t imageGenTool) Execute(ctx context.Context, args json.RawMessage) (string
 		Lora:     p.Lora,
 	}
 	// 非 ComfyUI 后端不接受 size 参数（xAI 返回 400）。
-	if t.a.cfg.ImageBackend != "comfyui" {
+	// 3.0 Step 3d #5：后端判定引用注册表 kind 常量（ai.ImageBackendKindComfyUI），
+	// 不再出现裸字符串硬编码；cfg.ImageBackend 仍由配置驱动。
+	if t.a.cfg.ImageBackend != ai.ImageBackendKindComfyUI {
 		req.Size = ""
 	}
 	resp, err := t.a.client.GenerateImage(ctx, req)

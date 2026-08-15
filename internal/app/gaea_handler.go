@@ -97,7 +97,9 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		// 而非进程 cwd（否则办公 agent 在启动目录而非用户工作空间操作）。
 		Cwd: gaeaCwd(),
 		// 注入需要应用服务的工具（生图/画图复用模型中心模型与图片后端）。
-		ExtraTools: []tool.Tool{
+		// 3.0 Step 3d #6：专业工具（ocr 等）经 gaeaSpecialistTools 集中注册，
+		// 展开进 ExtraTools，避免装配列表与定义漂移。
+		ExtraTools: append([]tool.Tool{
 			imageGenTool{a: a},
 			diagramTool{a: a},
 			routineLLMTool{a: a},
@@ -105,7 +107,7 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 			factAddTool{},
 			factListTool{},
 			factClearTool{},
-		},
+		}, gaeaSpecialistTools(a)...),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gaea: 引擎初始化失败: %w", err)

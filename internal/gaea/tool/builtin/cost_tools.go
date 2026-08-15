@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -187,20 +187,36 @@ func openSemanticStore() *semantic.Store {
 	return semantic.Open(db.GetDatabase(config.MemoryUserDir()))
 }
 
-// costEmbedder 构造本地 embedding 客户端：HERDSMAN_BASE_URL/EMBED_MODEL 可覆盖。
+// costEmbedder 构造本地 embedding 客户端：config 驱动（SetRetrievalRuntime
+// 注入的 embed kind/base/model），未注入时回落默认值（等价旧 HERDSMAN_BASE_URL
+// 缺省行为：localhost:8080 + bge-m3）。3.0 Step 3d #2：不再读环境变量绑死。
 func costEmbedder() *retrieval.Embedder {
 	if embedderOverride != nil {
 		return embedderOverride
 	}
-	base := strings.TrimSpace(os.Getenv("HERDSMAN_BASE_URL"))
-	if base == "" {
-		base = "http://localhost:8080"
+	kind := retrieval.EmbedderKindOpenAI
+	cfg := retrieval.EmbedderConfig{BaseURL: "http://localhost:8080", Model: "bge-m3"}
+	if retrievalRuntime.EmbedKind != "" {
+		kind = retrievalRuntime.EmbedKind
 	}
-	model := strings.TrimSpace(os.Getenv("HERDSMAN_EMBED_MODEL"))
-	if model == "" {
-		model = "bge-m3"
+	if retrievalRuntime.EmbedBaseURL != "" {
+		cfg.BaseURL = retrievalRuntime.EmbedBaseURL
 	}
-	return retrieval.NewEmbedder(base, model)
+	if retrievalRuntime.EmbedModel != "" {
+		cfg.Model = retrievalRuntime.EmbedModel
+	}
+	e, err := retrieval.NewEmbedderByKind(kind, cfg)
+	if err != nil {
+		// 未知 kind fail-closed：不静默降级，返回 nil（调用方按"服务不可用"回退）。
+		slog.Warn("cost_search: embedding 后端不可用", "kind", kind, "error", err)
+		return nil
+	}
+	if em, ok := e.(*retrieval.Embedder); ok {
+		return em
+	}
+	// 注册表可能返回非 *Embedder 实现（第三方 kind），本工具沿用具体类型，
+	// 接口化后由调用方统一处理——此处仅保留兼容路径。
+	return nil
 }
 
 // rerankCostResults 用本地 rerank 对粗召回结果精排；失败返回 nil（调用方回退）。
@@ -234,21 +250,55 @@ func rerankCostResults(query string, list []cost.Summary, limit int) []cost.Summ
 	return out
 }
 
-// costReranker 构造本地 rerank 客户端：HERDSMAN_BASE_URL 可覆盖默认地址。
+// costReranker 构造本地 rerank 客户端：config 驱动（SetRetrievalRuntime
+// 注入的 rerank kind/base/model），未注入时回落默认值（等价旧 HERDSMAN_BASE_URL
+// 缺省行为：localhost:8080 + bge-reranker-v2-m3）。3.0 Step 3d #3：不再读环境变量绑死。
 func costReranker() *retrieval.Reranker {
 	if rerankerOverride != nil {
 		return rerankerOverride
 	}
-	base := strings.TrimSpace(os.Getenv("HERDSMAN_BASE_URL"))
-	if base == "" {
-		base = "http://localhost:8080"
+	kind := retrieval.RerankerKindOpenAI
+	cfg := retrieval.RerankerConfig{BaseURL: "http://localhost:8080", Model: "bge-reranker-v2-m3"}
+	if retrievalRuntime.RerankKind != "" {
+		kind = retrievalRuntime.RerankKind
 	}
-	model := strings.TrimSpace(os.Getenv("HERDSMAN_RERANK_MODEL"))
-	if model == "" {
-		model = "bge-reranker-v2-m3"
+	if retrievalRuntime.RerankBaseURL != "" {
+		cfg.BaseURL = retrievalRuntime.RerankBaseURL
 	}
-	return retrieval.New(base, model)
+	if retrievalRuntime.RerankModel != "" {
+		cfg.Model = retrievalRuntime.RerankModel
+	}
+	r, err := retrieval.NewRerankerByKind(kind, cfg)
+	if err != nil {
+		// 未知 kind fail-closed：返回 nil（调用方回退 SQL 结果，不静默降级）。
+		slog.Warn("cost_search: rerank 后端不可用", "kind", kind, "error", err)
+		return nil
+	}
+	if rk, ok := r.(*retrieval.Reranker); ok {
+		return rk
+	}
+	return nil
 }
+
+// ── retrieval 运行时配置注入（3.0 Step 3d #2/#3）────────────────────────
+
+// RetrievalRuntime 是本地检索（embed/rerank）后端的运行时配置，由 boot 从
+// gaea.toml 注入。零值 = 全默认（kind=openai，localhost:8080 + 各自默认模型）。
+type RetrievalRuntime struct {
+	EmbedKind     string // 注册表 kind（默认 retrieval.EmbedderKindOpenAI）
+	EmbedBaseURL  string // embedding API 地址（默认 http://localhost:8080）
+	EmbedModel    string // embedding 模型（默认 bge-m3）
+	RerankKind    string // 注册表 kind（默认 retrieval.RerankerKindOpenAI）
+	RerankBaseURL string // rerank API 地址（默认 http://localhost:8080）
+	RerankModel   string // rerank 模型（默认 bge-reranker-v2-m3）
+}
+
+// retrievalRuntime 保存 SetRetrievalRuntime 注入的检索后端配置。
+var retrievalRuntime RetrievalRuntime
+
+// SetRetrievalRuntime 注入本地检索后端配置（boot 装配调用）。
+// 切换 embedding/rerank 后端只改配置（kind/base/model），消费方代码零改动。
+func SetRetrievalRuntime(cfg RetrievalRuntime) { retrievalRuntime = cfg }
 
 // costDocText 把成本条目摘要拼成精排文档串。
 func costDocText(e cost.Summary) string {

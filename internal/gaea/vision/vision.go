@@ -1,6 +1,7 @@
 // Package vision 提供办公板块的本地图片识别（识图）能力。
 // 默认调用本机 herdsman 的 OpenAI 兼容视觉端点（与 ds-vision-skill custom-1
-// 使用同一本地模型），端点和模型可用环境变量覆盖。
+// 使用同一本地模型）；端点/模型/后端由 config 驱动（SetVisionRuntime 注入），
+// 不再读环境变量。
 package vision
 
 import (
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -23,15 +25,136 @@ const (
 	DefaultModel   = "Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_P-2"
 )
 
-// RecognizeImage 识别本地图片文件内容，返回文本描述。
-// 端点与模型分别由环境变量 GAEA_VISION_BASE_URL / GAEA_VISION_MODEL 覆盖。
-func RecognizeImage(ctx context.Context, imagePath, prompt string) (string, error) {
-	baseURL := envOr("GAEA_VISION_BASE_URL", DefaultBaseURL)
-	model := envOr("GAEA_VISION_MODEL", DefaultModel)
+// ── VisionProvider seam（3.0 Step 3d #4：端点硬编码/环境变量 → 注册表 + config）──
+// 范式见 internal/gaea/provider/provider.go 与 internal/ai/image_backend.go 的
+// Register/New/Kinds。消费者（RecognizeImage）只依赖 Provider 接口与 config
+// 驱动的 kind；切换视觉后端只改配置、代码零改动。
+
+// Provider 本地图片识别能力接口（OpenAI 兼容 /v1/chat/completions 视觉端点）。
+type Provider interface {
+	// Recognize 识别图片文件内容，返回文本描述。
+	Recognize(ctx context.Context, imagePath, prompt string) (string, error)
+}
+
+// VisionProviderKindOpenAI OpenAI 兼容视觉后端 kind（覆盖 Herdsman/Ollama
+// 等 /v1/chat/completions 视觉模型服务）。
+const VisionProviderKindOpenAI = "openai"
+
+// VisionProviderConfig 是视觉后端实例配置（注册表 New 入参）。
+type VisionProviderConfig struct {
+	BaseURL string // API 地址（如 "http://127.0.0.1:8080/v1"）
+	Model   string // 视觉模型名
+}
+
+// VisionProviderFactory 按实例配置构建视觉后端（kind → 实例）。
+type VisionProviderFactory func(cfg VisionProviderConfig) (Provider, error)
+
+// visionProviderRegistry kind → 工厂注册表。各实现 init() 自注册；互斥注册，
+// 重复即 panic（编译期接线错误）。
+var visionProviderRegistry = map[string]VisionProviderFactory{}
+
+func init() {
+	RegisterVisionProvider(VisionProviderKindOpenAI, func(cfg VisionProviderConfig) (Provider, error) {
+		return &openAIProvider{baseURL: cfg.BaseURL, model: cfg.Model}, nil
+	})
+}
+
+// RegisterVisionProvider 注册视觉后端 kind（如 "openai"）。供各实现 init()
+// 自注册；kind 为空或重复注册直接 panic。
+func RegisterVisionProvider(kind string, factory VisionProviderFactory) {
+	if kind == "" {
+		panic("vision: provider kind must not be empty")
+	}
+	if _, dup := visionProviderRegistry[kind]; dup {
+		panic("vision: duplicate provider kind " + kind)
+	}
+	visionProviderRegistry[kind] = factory
+}
+
+// NewVisionProvider 按 kind 经注册表构建视觉后端；未知 kind 返回错误
+// （fail-closed，附已注册 kind 列表）。
+func NewVisionProvider(kind string, cfg VisionProviderConfig) (Provider, error) {
+	factory, ok := visionProviderRegistry[kind]
+	if !ok {
+		return nil, fmt.Errorf("vision: unknown provider kind %q (registered: %v)", kind, VisionProviderKinds())
+	}
+	p, err := factory(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if p == nil {
+		return nil, fmt.Errorf("vision: provider factory %q returned nil", kind)
+	}
+	return p, nil
+}
+
+// VisionProviderKinds 返回已注册视觉后端 kind 列表（排序，供诊断/校验）。
+func VisionProviderKinds() []string {
+	out := make([]string, 0, len(visionProviderRegistry))
+	for k := range visionProviderRegistry {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// openAIProvider OpenAI 兼容视觉端点实现（POST /v1/chat/completions，image_url
+// base64 data URL）。
+type openAIProvider struct {
+	baseURL string
+	model   string
+}
+
+func (p *openAIProvider) Recognize(ctx context.Context, imagePath, prompt string) (string, error) {
 	if strings.TrimSpace(prompt) == "" {
 		prompt = "请详细描述这张图片的内容，包括所有可见文字、布局和关键细节。"
 	}
-	return RecognizeImageAt(ctx, baseURL, model, imagePath, prompt, 90*time.Second)
+	return RecognizeImageAt(ctx, p.baseURL, p.model, imagePath, prompt, 90*time.Second)
+}
+
+// ── 运行时配置注入 ─────────────────────────────────────────────
+
+// VisionRuntime 是视觉后端的运行时配置，由 boot 从 gaea.toml 注入。
+// 零值 = 全默认（kind=openai，DefaultBaseURL + DefaultModel）。
+type VisionRuntime struct {
+	Kind    string // 注册表 kind（默认 VisionProviderKindOpenAI）
+	BaseURL string // API 地址（默认 DefaultBaseURL）
+	Model   string // 视觉模型（默认 DefaultModel）
+}
+
+// visionRuntime 保存 SetVisionRuntime 注入的视觉后端配置。
+var visionRuntime VisionRuntime
+
+// SetVisionRuntime 注入视觉后端配置（boot 装配调用）。
+// 切换视觉后端只改配置（kind/base/model），消费方代码零改动。
+func SetVisionRuntime(cfg VisionRuntime) { visionRuntime = cfg }
+
+// resolveVisionRuntime 返回生效的视觉后端配置：注入值优先，空字段回落默认
+// （等价旧 GAEA_VISION_BASE_URL/MODEL 缺省行为）。
+func resolveVisionRuntime() VisionRuntime {
+	r := visionRuntime
+	if r.Kind == "" {
+		r.Kind = VisionProviderKindOpenAI
+	}
+	if r.BaseURL == "" {
+		r.BaseURL = DefaultBaseURL
+	}
+	if r.Model == "" {
+		r.Model = DefaultModel
+	}
+	return r
+}
+
+// RecognizeImage 识别本地图片文件内容，返回文本描述。
+// 后端由 config 驱动（SetVisionRuntime 注入），未注入时回落默认值。
+func RecognizeImage(ctx context.Context, imagePath, prompt string) (string, error) {
+	r := resolveVisionRuntime()
+	p, err := NewVisionProvider(r.Kind, VisionProviderConfig{BaseURL: r.BaseURL, Model: r.Model})
+	if err != nil {
+		// 未知 kind fail-closed：拒绝运行而非静默降级。
+		return "", err
+	}
+	return p.Recognize(ctx, imagePath, prompt)
 }
 
 // RecognizeImageAt 向指定 OpenAI 兼容端点发起视觉识别请求（可测试注入）。
@@ -121,9 +244,3 @@ func mimeByExt(path string) string {
 	}
 }
 
-func envOr(name, fallback string) string {
-	if v := os.Getenv(name); strings.TrimSpace(v) != "" {
-		return v
-	}
-	return fallback
-}

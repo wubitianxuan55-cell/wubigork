@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -233,26 +234,136 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 }
 
 // V5.9: markitdown 集成 —— 将二进制文档自动转为 Markdown
+// 3.0 Step 3d #7：markitdown CLI→python 两级回退收敛为 MarkdownConverter
+// 注册表 + config 选择（默认 kind=cli，行为不变）；切换文档转换后端只改配置。
 
-// 支持的文档扩展名列表
+// MarkdownConverterKindCLI markitdown CLI 后端（markitdown 可执行文件 →
+// `python -m markitdown` 两级回退，与旧实现一致）。
+const MarkdownConverterKindCLI = "cli"
+
+// MarkdownConverter 文档→Markdown 转换能力接口。
+type MarkdownConverter interface {
+	// Convert 把 path 指向的二进制文档转为 Markdown；失败返回错误。
+	Convert(ctx context.Context, path string) (string, error)
+}
+
+// MarkdownConverterConfig 是转换后端实例配置（注册表 New 入参）。
+// 当前 kind 无参数；预留结构以便未来后端（如库内转换器）带参注册。
+type MarkdownConverterConfig struct{}
+
+// MarkdownConverterFactory 按实例配置构建转换后端（kind → 实例）。
+type MarkdownConverterFactory func(cfg MarkdownConverterConfig) (MarkdownConverter, error)
+
+// markdownConverterRegistry kind → 工厂注册表。各实现 init() 自注册；互斥注册，
+// 重复即 panic（编译期接线错误）。
+var markdownConverterRegistry = map[string]MarkdownConverterFactory{}
+
+func init() {
+	RegisterMarkdownConverter(MarkdownConverterKindCLI, func(cfg MarkdownConverterConfig) (MarkdownConverter, error) {
+		return &markitdownCLIConverter{}, nil
+	})
+}
+
+// RegisterMarkdownConverter 注册文档转换后端 kind（如 "cli"）。供各实现 init()
+// 自注册；kind 为空或重复注册直接 panic。
+func RegisterMarkdownConverter(kind string, factory MarkdownConverterFactory) {
+	if kind == "" {
+		panic("builtin: markdown converter kind must not be empty")
+	}
+	if _, dup := markdownConverterRegistry[kind]; dup {
+		panic("builtin: duplicate markdown converter kind " + kind)
+	}
+	markdownConverterRegistry[kind] = factory
+}
+
+// NewMarkdownConverter 按 kind 经注册表构建转换后端；未知 kind 返回错误
+// （fail-closed，附已注册 kind 列表）。
+func NewMarkdownConverter(kind string, cfg MarkdownConverterConfig) (MarkdownConverter, error) {
+	factory, ok := markdownConverterRegistry[kind]
+	if !ok {
+		return nil, fmt.Errorf("builtin: unknown markdown converter kind %q (registered: %v)", kind, MarkdownConverterKinds())
+	}
+	c, err := factory(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if c == nil {
+		return nil, fmt.Errorf("builtin: markdown converter factory %q returned nil", kind)
+	}
+	return c, nil
+}
+
+// MarkdownConverterKinds 返回已注册转换后端 kind 列表（排序，供诊断/校验）。
+func MarkdownConverterKinds() []string {
+	out := make([]string, 0, len(markdownConverterRegistry))
+	for k := range markdownConverterRegistry {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ── 运行时配置注入 ─────────────────────────────────────────────
+
+// MarkdownConverterRuntime 是文档转换后端的运行时配置，由 boot 从 gaea.toml
+// 注入。Kind 为空 = 关闭转换（二进制文件走原有"提示安装 markitdown"错误路径）。
+type MarkdownConverterRuntime struct {
+	Kind string // 注册表 kind（默认 MarkdownConverterKindCLI）
+}
+
+// markdownConverterRuntime 保存 SetMarkdownConverterRuntime 注入的配置。
+var markdownConverterRuntime MarkdownConverterRuntime
+
+// SetMarkdownConverterRuntime 注入文档转换后端配置（boot 装配调用）。
+// 切换转换后端只改配置（kind），消费方（read_file）代码零改动。
+func SetMarkdownConverterRuntime(cfg MarkdownConverterRuntime) {
+	markdownConverterRuntime = cfg
+}
+
+// markdownConverterKind 返回生效的转换后端 kind（空配置回落默认 cli）。
+func markdownConverterKind() string {
+	if markdownConverterRuntime.Kind != "" {
+		return markdownConverterRuntime.Kind
+	}
+	return MarkdownConverterKindCLI
+}
+
+// tryMarkItDown 尝试用配置的文档转换后端把二进制文件转为 Markdown。
+// 返回 (markdown, true) 表示成功，(_, false) 表示不可用或转换失败
+// （调用方沿用旧错误提示路径）。
+func tryMarkItDown(path string) (string, bool) {
+	conv, err := NewMarkdownConverter(markdownConverterKind(), MarkdownConverterConfig{})
+	if err != nil {
+		return "", false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	result, err := conv.Convert(ctx, path)
+	if err != nil {
+		return "", false
+	}
+	result = strings.TrimSpace(result)
+	if result == "" {
+		return "", false
+	}
+	return result, true
+}
+
+// markitdownCLIConverter 支持的文档扩展名列表。
+type markitdownCLIConverter struct{}
+
 var markitdownExtensions = map[string]bool{
 	".pdf": true, ".docx": true, ".xlsx": true, ".xls": true,
 	".pptx": true, ".epub": true, ".html": true, ".htm": true,
 	".csv": true, ".ipynb": true,
 }
 
-// tryMarkItDown 尝试用 markitdown CLI 将文件转为 Markdown。
-// 返回 (markdown, true) 表示成功，(_, false) 表示不可用或转换失败。
-func tryMarkItDown(path string) (string, bool) {
+// Convert 优先用 markitdown CLI，未安装则回退到 `python -m markitdown`。
+func (c *markitdownCLIConverter) Convert(ctx context.Context, path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	if !markitdownExtensions[ext] {
-		return "", false // 不支持的格式
+		return "", fmt.Errorf("unsupported extension %q", ext)
 	}
-
-	// 优先用 markitdown CLI，未安装则回退到 `python -m markitdown`
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
 	var out []byte
 	var runErr error
 	if p, err := exec.LookPath("markitdown"); err == nil {
@@ -268,15 +379,10 @@ func tryMarkItDown(path string) (string, bool) {
 		hideBashWindow(cmd)
 		out, runErr = cmd.Output()
 	} else {
-		return "", false
+		return "", fmt.Errorf("markitdown 未安装（pip install markitdown）")
 	}
 	if runErr != nil {
-		return "", false
+		return "", runErr
 	}
-
-	result := strings.TrimSpace(string(out))
-	if result == "" {
-		return "", false
-	}
-	return result, true
+	return string(out), nil
 }

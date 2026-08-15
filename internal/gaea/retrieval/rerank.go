@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -138,4 +139,79 @@ func (r *Reranker) Rerank(ctx context.Context, query string, docs []string, topN
 		}
 	}
 	return res, nil
+}
+
+// ── RerankProvider seam（3.0 Step 3d #3：rerank 环境变量绑死 → 注册表 + config）──
+// 范式见 internal/gaea/provider/provider.go 与 internal/ai/image_backend.go 的
+// Register/New/Kinds。消费者（cost_tools）只依赖 RerankProvider 接口与
+// config 驱动的 kind；切换 rerank 后端只改配置、代码零改动。
+
+// RerankProvider 本地 rerank 能力接口（OpenAI 兼容 POST /v1/rerank）。
+type RerankProvider interface {
+	// Available 探测模型是否已安装/可加载（结果可缓存）。
+	Available(ctx context.Context) bool
+	// Rerank 对 docs 按与 query 的相关性精排，返回按得分降序的 topN 结果。
+	Rerank(ctx context.Context, query string, docs []string, topN int) ([]ScoredDoc, error)
+}
+
+// RerankerKindOpenAI OpenAI 兼容 rerank 后端 kind（覆盖 Herdsman/Ollama
+// 等 /v1/rerank 兼容服务）。
+const RerankerKindOpenAI = "openai"
+
+// RerankerConfig 是 rerank 后端实例配置（注册表 New 入参）。
+type RerankerConfig struct {
+	BaseURL string // API 地址（如 "http://localhost:8080"；自动补 /v1 后缀）
+	Model   string // 模型名（空 = "bge-reranker-v2-m3"）
+}
+
+// RerankerFactory 按实例配置构建 rerank 后端（kind → 实例）。
+type RerankerFactory func(cfg RerankerConfig) (RerankProvider, error)
+
+// rerankerRegistry kind → 工厂注册表。各实现 init() 自注册；互斥注册，
+// 重复即 panic（编译期接线错误）。
+var rerankerRegistry = map[string]RerankerFactory{}
+
+func init() {
+	RegisterReranker(RerankerKindOpenAI, func(cfg RerankerConfig) (RerankProvider, error) {
+		return New(cfg.BaseURL, cfg.Model), nil
+	})
+}
+
+// RegisterReranker 注册 rerank 后端 kind（如 "openai"）。供各实现 init()
+// 自注册；kind 为空或重复注册直接 panic。
+func RegisterReranker(kind string, factory RerankerFactory) {
+	if kind == "" {
+		panic("retrieval: reranker kind must not be empty")
+	}
+	if _, dup := rerankerRegistry[kind]; dup {
+		panic("retrieval: duplicate reranker kind " + kind)
+	}
+	rerankerRegistry[kind] = factory
+}
+
+// NewRerankerByKind 按 kind 经注册表构建 rerank 后端；未知 kind 返回错误
+// （fail-closed，附已注册 kind 列表）。
+func NewRerankerByKind(kind string, cfg RerankerConfig) (RerankProvider, error) {
+	factory, ok := rerankerRegistry[kind]
+	if !ok {
+		return nil, fmt.Errorf("retrieval: unknown reranker kind %q (registered: %v)", kind, RerankerKinds())
+	}
+	r, err := factory(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if r == nil {
+		return nil, fmt.Errorf("retrieval: reranker factory %q returned nil", kind)
+	}
+	return r, nil
+}
+
+// RerankerKinds 返回已注册 rerank 后端 kind 列表（排序，供诊断/校验）。
+func RerankerKinds() []string {
+	out := make([]string, 0, len(rerankerRegistry))
+	for k := range rerankerRegistry {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

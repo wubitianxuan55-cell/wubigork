@@ -153,6 +153,20 @@ func TestSemanticSearchTool_FileScope(t *testing.T) {
 	}
 }
 
+// TestSpecialistTools_Registered 固化 3.0 Step 3d #6：ocr 等专业工具已注册
+// 进 ExtraTools（gaeaSpecialistTools 集中注册），不再是死代码。
+func TestSpecialistTools_Registered(t *testing.T) {
+	tools := gaeaSpecialistTools(&App{})
+	names := make([]string, 0, len(tools))
+	for _, tl := range tools {
+		names = append(names, tl.Name())
+	}
+	joined := strings.Join(names, ",")
+	if !strings.Contains(joined, "ocr") {
+		t.Fatalf("专业工具应包含 ocr, got %v", names)
+	}
+}
+
 // TestOCRTool_Validation ocr 工具参数校验：空路径与不存在的文件。
 func TestOCRTool_Validation(t *testing.T) {
 	a := &App{}

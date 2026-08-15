@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -136,4 +137,79 @@ func Cosine(a, b []float32) float64 {
 		return 0
 	}
 	return dot / (math.Sqrt(na) * math.Sqrt(nb))
+}
+
+// ── EmbeddingProvider seam（3.0 Step 3d #2：embedding 环境变量绑死 → 注册表 + config）──
+// 范式见 internal/gaea/provider/provider.go 与 internal/ai/image_backend.go 的
+// Register/New/Kinds。消费者（cost_tools / semantic）只依赖 EmbeddingProvider
+// 接口与 config 驱动的 kind；切换 embedding 后端只改配置、代码零改动。
+
+// EmbeddingProvider 本地 embedding 能力接口（OpenAI 兼容 POST /v1/embeddings）。
+type EmbeddingProvider interface {
+	// Available 探测模型是否可用（结果可缓存）。
+	Available(ctx context.Context) bool
+	// Embed 批量向量化文本，返回与输入等长的向量列表。
+	Embed(ctx context.Context, texts []string) ([][]float32, error)
+}
+
+// EmbedderKindOpenAI OpenAI 兼容 embedding 后端 kind（覆盖 Herdsman/Ollama
+// 等 /v1/embeddings 兼容服务）。
+const EmbedderKindOpenAI = "openai"
+
+// EmbedderConfig 是 embedding 后端实例配置（注册表 New 入参）。
+type EmbedderConfig struct {
+	BaseURL string // API 地址（如 "http://localhost:8080"；自动补 /v1 后缀）
+	Model   string // 模型名（空 = "bge-m3"）
+}
+
+// EmbedderFactory 按实例配置构建 embedding 后端（kind → 实例）。
+type EmbedderFactory func(cfg EmbedderConfig) (EmbeddingProvider, error)
+
+// embedderRegistry kind → 工厂注册表。各实现 init() 自注册；互斥注册，
+// 重复即 panic（编译期接线错误）。
+var embedderRegistry = map[string]EmbedderFactory{}
+
+func init() {
+	RegisterEmbedder(EmbedderKindOpenAI, func(cfg EmbedderConfig) (EmbeddingProvider, error) {
+		return NewEmbedder(cfg.BaseURL, cfg.Model), nil
+	})
+}
+
+// RegisterEmbedder 注册 embedding 后端 kind（如 "openai"）。供各实现 init()
+// 自注册；kind 为空或重复注册直接 panic。
+func RegisterEmbedder(kind string, factory EmbedderFactory) {
+	if kind == "" {
+		panic("retrieval: embedder kind must not be empty")
+	}
+	if _, dup := embedderRegistry[kind]; dup {
+		panic("retrieval: duplicate embedder kind " + kind)
+	}
+	embedderRegistry[kind] = factory
+}
+
+// NewEmbedderByKind 按 kind 经注册表构建 embedding 后端；未知 kind 返回错误
+// （fail-closed，附已注册 kind 列表）。
+func NewEmbedderByKind(kind string, cfg EmbedderConfig) (EmbeddingProvider, error) {
+	factory, ok := embedderRegistry[kind]
+	if !ok {
+		return nil, fmt.Errorf("retrieval: unknown embedder kind %q (registered: %v)", kind, EmbedderKinds())
+	}
+	e, err := factory(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if e == nil {
+		return nil, fmt.Errorf("retrieval: embedder factory %q returned nil", kind)
+	}
+	return e, nil
+}
+
+// EmbedderKinds 返回已注册 embedding 后端 kind 列表（排序，供诊断/校验）。
+func EmbedderKinds() []string {
+	out := make([]string, 0, len(embedderRegistry))
+	for k := range embedderRegistry {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

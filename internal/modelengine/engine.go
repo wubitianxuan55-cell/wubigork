@@ -211,7 +211,7 @@ func (m *Manager) EnsureModel(engineID, modelID string) {
 			return
 		}
 	}
-	engine.Models = append(engine.Models, ModelInfo{ID: modelID, OwnedBy: engineID, Kind: classifyModelKind(engine.Type, modelID)})
+	engine.Models = append(engine.Models, ModelInfo{ID: modelID, OwnedBy: engineID, Kind: ClassifyModelKind(engine.Type, modelID)})
 	m.mu.Unlock()
 	m.saveState()
 }
@@ -441,7 +441,7 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 			ID:      d.ID,
 			OwnedBy: d.OwnedBy,
 			Status:  d.Status,
-			Kind:    classifyModelKind(engine.Type, d.ID),
+			Kind:    ClassifyModelKind(engine.Type, d.ID),
 		}
 	}
 
@@ -473,9 +473,11 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 	return models, nil
 }
 
-// classifyModelKind 按引擎类型与模型名分类（llm/tts/stt/image）。
+// ClassifyModelKind 按引擎类型与模型名分类（llm/tts/stt/ocr/rerank/embedding/image）。
+// 3.0 Step 3d：模型能力关键词分类的单一来源——语音（voice_handler.go:isSTTModel）、
+// OCR（gaea_ocr.go:pickHerdsmanModel）等消费点委托到本函数，不再各自维护关键词表。
 // 分类下沉到后端后，前端不再需要根据名称猜测；逻辑与旧前端启发式保持一致，避免行为跳变。
-func classifyModelKind(engineType EngineType, modelID string) string {
+func ClassifyModelKind(engineType EngineType, modelID string) string {
 	l := strings.ToLower(modelID)
 	if engineType == EngineCosyVoice ||
 		strings.Contains(l, "tts") || strings.Contains(l, "voice") ||
@@ -506,6 +508,13 @@ func classifyModelKind(engineType EngineType, modelID string) string {
 		return "image"
 	}
 	return "llm"
+}
+
+// ClassifyModelByName 只按模型名关键词分类（不依赖引擎类型），供语音/OCR 侧
+// 按模型 ID 单参数判断能力（如 isSTTModel / pickHerdsmanModel 委托）。
+// 与 ClassifyModelKind 的引擎无关部分保持同一关键词表，避免双源漂移。
+func ClassifyModelByName(modelID string) string {
+	return ClassifyModelKind("", modelID)
 }
 
 // opencodeGoCompatible 判断 OpenCode Go 模型是否走 OpenAI /chat/completions 端点。

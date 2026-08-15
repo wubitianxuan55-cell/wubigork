@@ -581,8 +581,88 @@ func TestClassifyModelKind_HerdsmanSpecialized(t *testing.T) {
 		{"bge-m3", "embedding"},
 	}
 	for _, c := range cases {
-		if got := classifyModelKind(EngineHerdsman, c.model); got != c.want {
-			t.Errorf("classifyModelKind(herdsman, %q) = %q, want %q", c.model, got, c.want)
+		if got := ClassifyModelKind(EngineHerdsman, c.model); got != c.want {
+			t.Errorf("ClassifyModelKind(herdsman, %q) = %q, want %q", c.model, got, c.want)
 		}
+	}
+}
+
+// TestClassifyModelKind_AllKinds 固化全部分类桶（llm/tts/stt/ocr/rerank/embedding/image）：
+// 关键词命中规则与旧前端启发式一致，任何改动必须先过本表。
+func TestClassifyModelKind_AllKinds(t *testing.T) {
+	cases := []struct {
+		engine EngineType
+		model  string
+		want   string
+	}{
+		// tts：引擎特判 + 关键词（tts/voice/edge/speech/voxcpm）
+		{EngineCosyVoice, "CosyVoice2-0.5B", "tts"},
+		{EngineXAI, "grok-tts", "tts"},
+		{EngineOllama, "edge-tts", "tts"},
+		{EngineDeepseek, "qwen3-voiceclone", "tts"},
+		{EngineOllama, "voxcpm2", "tts"},
+		// stt
+		{EngineOllama, "whisper-base", "stt"},
+		{EngineHerdsman, "sherpa-onnx-zh", "stt"},
+		{EngineOllama, "zipformer-ctc", "stt"},
+		{EngineHerdsman, "funasr-large", "stt"},
+		{EngineOllama, "asr-server", "stt"},
+		// ocr
+		{EngineHerdsman, "paddleocr-server", "ocr"},
+		{EngineOllama, "ocr-model", "ocr"},
+		{EngineHerdsman, "mineru-pp", "ocr"},
+		// rerank
+		{EngineHerdsman, "bge-reranker-v2-m3", "rerank"},
+		{EngineOllama, "rerank-model", "rerank"},
+		// embedding
+		{EngineHerdsman, "bge-m3", "embedding"},
+		{EngineOllama, "text-embedding-v3", "embedding"},
+		{EngineOllama, "bge-large", "embedding"},
+		// image：关键词（image/zimage/flux/turbo/sd/dalle/krea）
+		{EngineXAI, "grok-imagine-image-quality", "image"},
+		{EngineOllama, "z-image-turbo", "image"},
+		{EngineOllama, "flux-dev", "image"},
+		{EngineHerdsman, "sd-xl", "image"},
+		{EngineXAI, "dalle-3", "image"},
+		{EngineType("comfyui"), "krea2", "image"}, // 引擎未知时仍按关键词分类
+		// llm：无关键词命中回落
+		{EngineXAI, "grok-4.20", "llm"},
+		{EngineDeepseek, "deepseek-v4-pro", "llm"},
+		{EngineOllama, "qwen3", "llm"},
+		{EngineOpencodeGo, "deepseek-v4-pro", "llm"},
+	}
+	for _, c := range cases {
+		if got := ClassifyModelKind(c.engine, c.model); got != c.want {
+			t.Errorf("ClassifyModelKind(%s, %q) = %q, want %q", c.engine, c.model, got, c.want)
+		}
+	}
+}
+
+// TestClassifyModelByName_EngineIndependent 供语音/OCR 消费点委托的按名分类：
+// 与 ClassifyModelKind 的引擎无关分支同源。
+func TestClassifyModelByName_EngineIndependent(t *testing.T) {
+	cases := map[string]string{
+		"whisper-base":        "stt",
+		"sherpa-onnx-zh":      "stt",
+		"qwen3-tts":           "tts",
+		"paddleocr":           "ocr",
+		"bge-reranker-v2-m3":  "rerank",
+		"bge-m3":              "embedding",
+		"z-image-turbo":       "image",
+		"grok-4.20":           "llm",
+		"deepseek-v4-flash":   "llm",
+	}
+	for model, want := range cases {
+		if got := ClassifyModelByName(model); got != want {
+			t.Errorf("ClassifyModelByName(%q) = %q, want %q", model, got, want)
+		}
+	}
+	// 按名分类 = ClassifyModelKind 的引擎无关分支：关键词命中即分类（含 voice 等），
+	// 纯引擎特判（EngineCosyVoice → tts）不在此路径。
+	if got := ClassifyModelByName("CosyVoice2-0.5B"); got != "tts" {
+		t.Errorf("ClassifyModelByName(CosyVoice2-0.5B) = %q, want tts（voice 关键词命中）", got)
+	}
+	if got := ClassifyModelByName("some-llm-only"); got != "llm" {
+		t.Errorf("ClassifyModelByName(some-llm-only) = %q, want llm", got)
 	}
 }

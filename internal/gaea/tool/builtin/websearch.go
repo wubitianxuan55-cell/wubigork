@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,7 +19,29 @@ import (
 	"github.com/gaea/gaea/internal/netclient"
 )
 
-func init() { tool.RegisterBuiltin(webSearch{}) }
+func init() {
+	tool.RegisterBuiltin(webSearch{})
+	// 6 个搜索引擎自注册（3.0 Step 3d #1：6 引擎硬编码扇出 → 引擎注册表 + config 可配序）。
+	// kind 列表见 SearchEngineKinds()；各引擎在注册表互斥注册，重复即 panic。
+	RegisterSearchEngine(SearchEngineKindLocalSearXNG, func(cfg SearchEngineConfig) (SearchEngine, error) {
+		return &localSearxNGEngine{baseURL: cfg.BaseURL}, nil
+	})
+	RegisterSearchEngine(SearchEngineKindTavily, func(cfg SearchEngineConfig) (SearchEngine, error) {
+		return &tavilyEngine{apiKey: cfg.APIKey}, nil
+	})
+	RegisterSearchEngine(SearchEngineKindBrave, func(cfg SearchEngineConfig) (SearchEngine, error) {
+		return &braveEngine{apiKey: cfg.APIKey}, nil
+	})
+	RegisterSearchEngine(SearchEngineKindPublicSearXNG, func(cfg SearchEngineConfig) (SearchEngine, error) {
+		return &publicSearxNGEngine{}, nil
+	})
+	RegisterSearchEngine(SearchEngineKindBing, func(cfg SearchEngineConfig) (SearchEngine, error) {
+		return &bingEngine{}, nil
+	})
+	RegisterSearchEngine(SearchEngineKindDuckDuckGo, func(cfg SearchEngineConfig) (SearchEngine, error) {
+		return &duckDuckGoLiteEngine{}, nil
+	})
+}
 
 type webSearch struct{}
 
@@ -29,16 +52,95 @@ const (
 	webSearchTotalLimit = 20 * time.Second // total execution deadline
 )
 
-// --- search engine interface ---
+// --- search engine seam（定义 / 提供者 / 消费者） ---
+// 3.0 Step 3d #1：websearch 6 引擎硬编码扇出收敛为注册表 + config 可配序。
+// 范式见 internal/gaea/provider/provider.go 与 internal/ai/image_backend.go
+// 的 Register/New/Kinds；消费者（webSearch.Execute → buildEngines）只依赖
+// SearchEngine 接口与 config 驱动的 kind 顺序，不硬编码引擎实现。
 
-// searchEngine abstracts a single search backend.
-type searchEngine interface {
+// SearchEngineKind 各引擎注册 kind（稳定标识，config 按此排顺序）。
+const (
+	SearchEngineKindLocalSearXNG  = "local-searxng"
+	SearchEngineKindTavily        = "tavily"
+	SearchEngineKindBrave         = "brave"
+	SearchEngineKindPublicSearXNG = "public-searxng"
+	SearchEngineKindBing          = "bing"
+	SearchEngineKindDuckDuckGo    = "duckduckgo-lite"
+)
+
+// defaultSearchEngineOrder 与改造前 buildEngines 的硬编码优先级一致：
+// local SearXNG → Tavily → Brave → public SearXNG → Bing → DDG。
+// config（[search] engine_order）未配置时使用此默认序，行为零变化。
+var defaultSearchEngineOrder = []string{
+	SearchEngineKindLocalSearXNG,
+	SearchEngineKindTavily,
+	SearchEngineKindBrave,
+	SearchEngineKindPublicSearXNG,
+	SearchEngineKindBing,
+	SearchEngineKindDuckDuckGo,
+}
+
+// SearchEngine abstracts a single search backend.
+type SearchEngine interface {
 	// Name returns a human-readable label for error messages.
 	Name() string
 	// Available reports whether this engine is configured and ready.
 	Available() bool
 	// Search executes a search and returns results (never nil on success).
-	Search(ctx context.Context, query string, limit int) ([]searchResult, error)
+	Search(ctx context.Context, query string, limit int) ([]SearchResult, error)
+}
+
+// SearchEngineConfig 是引擎实例化入参（注册表 New 用）。
+// 各 kind 按需读取字段：local-searxng 用 BaseURL；tavily/brave 用 APIKey。
+type SearchEngineConfig struct {
+	BaseURL string
+	APIKey  string
+}
+
+// SearchEngineFactory 按实例配置构建搜索引擎（kind → 实例）。
+type SearchEngineFactory func(cfg SearchEngineConfig) (SearchEngine, error)
+
+// searchEngineRegistry kind → 工厂注册表。各实现 init() 自注册；
+// 互斥注册，重复即 panic（编译期接线错误）。
+var searchEngineRegistry = map[string]SearchEngineFactory{}
+
+// RegisterSearchEngine 注册搜索引擎 kind（如 "tavily" / "bing"）。
+// kind 为空或重复注册直接 panic。
+func RegisterSearchEngine(kind string, factory SearchEngineFactory) {
+	if kind == "" {
+		panic("builtin: search engine kind must not be empty")
+	}
+	if _, dup := searchEngineRegistry[kind]; dup {
+		panic("builtin: duplicate search engine kind " + kind)
+	}
+	searchEngineRegistry[kind] = factory
+}
+
+// NewSearchEngine 按 kind 经注册表构建引擎；未知 kind 返回错误
+// （fail-closed，附已注册 kind 列表）。
+func NewSearchEngine(kind string, cfg SearchEngineConfig) (SearchEngine, error) {
+	factory, ok := searchEngineRegistry[kind]
+	if !ok {
+		return nil, fmt.Errorf("builtin: unknown search engine kind %q (registered: %v)", kind, SearchEngineKinds())
+	}
+	eng, err := factory(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if eng == nil {
+		return nil, fmt.Errorf("builtin: search engine factory %q returned nil", kind)
+	}
+	return eng, nil
+}
+
+// SearchEngineKinds 返回已注册引擎 kind 列表（排序，供诊断/校验）。
+func SearchEngineKinds() []string {
+	out := make([]string, 0, len(searchEngineRegistry))
+	for k := range searchEngineRegistry {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // --- webSearch tool implementation ---
@@ -94,7 +196,7 @@ func (ws webSearch) Execute(ctx context.Context, args json.RawMessage) (string, 
 
 	// Parallel execution: every engine fires in its own goroutine.
 	// First success wins; failures are collected for diagnostics.
-	resultCh := make(chan []searchResult, 1)
+	resultCh := make(chan []SearchResult, 1)
 	errCh := make(chan engineError, len(engines))
 
 	ctx, cancel := context.WithTimeout(ctx, webSearchTotalLimit)
@@ -166,36 +268,51 @@ func (ws webSearch) Execute(ctx context.Context, args json.RawMessage) (string, 
 	return "", fmt.Errorf("%s", diag.String())
 }
 
-// buildEngines returns engines in priority order: local SearXNG → Tavily → Brave → public SearXNG.
-func (webSearch) buildEngines() []searchEngine {
-	var engines []searchEngine
+// buildEngines 按 config 驱动的 kind 顺序经注册表构建引擎（可用性过滤）。
+// 顺序来源：[search] engine_order（SetSearchEngineOrder 注入），未配置时用
+// defaultSearchEngineOrder（与改造前硬编码优先级一致：local SearXNG → Tavily →
+// Brave → public SearXNG → Bing → DDG）。每个 kind 经 NewSearchEngine 构建后
+// 用 Available() 过滤（等价于旧逻辑里"有 key/有 URL 才加入"的分支）。
+func (webSearch) buildEngines() []SearchEngine {
+	var engines []SearchEngine
 	cfg := searchCfg // may be nil
 
-	// 1. Local SearXNG (fastest, private)
-	if cfg != nil && cfg.LocalSearXNGURL != "" {
-		engines = append(engines, &localSearxNGEngine{baseURL: cfg.LocalSearXNGURL})
+	for _, kind := range searchEngineOrder() {
+		var ecfg SearchEngineConfig
+		switch kind {
+		case SearchEngineKindLocalSearXNG:
+			if cfg != nil {
+				ecfg.BaseURL = cfg.LocalSearXNGURL
+			}
+		case SearchEngineKindTavily:
+			if cfg != nil {
+				ecfg.APIKey = cfg.TavilyKey()
+			}
+		case SearchEngineKindBrave:
+			if cfg != nil {
+				ecfg.APIKey = cfg.BraveKey()
+			}
+		}
+		eng, err := NewSearchEngine(kind, ecfg)
+		if err != nil {
+			// 未知 kind（config 写了未注册引擎）：跳过并在诊断中提示，不中断搜索。
+			slog.Warn("websearch: 跳过不可用搜索引擎", "kind", kind, "error", err)
+			continue
+		}
+		if !eng.Available() {
+			continue // 未配置凭据/URL 的引擎不参与扇出（等价旧分支）
+		}
+		engines = append(engines, eng)
 	}
-
-	// 2. Tavily Search API
-	if cfg != nil && cfg.TavilyKey() != "" {
-		engines = append(engines, &tavilyEngine{apiKey: cfg.TavilyKey()})
-	}
-
-	// 3. Brave Search API
-	if cfg != nil && cfg.BraveKey() != "" {
-		engines = append(engines, &braveEngine{apiKey: cfg.BraveKey()})
-	}
-
-	// 4. Public SearXNG instances (always available as fallback)
-	engines = append(engines, &publicSearxNGEngine{})
-
-	// 5. Bing web search (keyless; reachable without a proxy in mainland China)
-	engines = append(engines, &bingEngine{})
-
-	// 6. DuckDuckGo Lite (keyless; reliable in most regions)
-	engines = append(engines, &duckDuckGoLiteEngine{})
-
 	return engines
+}
+
+// searchEngineOrder 返回生效的引擎顺序：config 注入序优先，否则默认序。
+func searchEngineOrder() []string {
+	if len(searchEngineOrderCfg) > 0 {
+		return searchEngineOrderCfg
+	}
+	return defaultSearchEngineOrder
 }
 
 // --- HTTP client ---
@@ -235,7 +352,7 @@ type localSearxNGEngine struct{ baseURL string }
 
 func (e *localSearxNGEngine) Name() string    { return "local-searxng" }
 func (e *localSearxNGEngine) Available() bool { return e.baseURL != "" }
-func (e *localSearxNGEngine) Search(ctx context.Context, query string, limit int) ([]searchResult, error) {
+func (e *localSearxNGEngine) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
 	return trySearXNG(ctx, e.baseURL, query, limit)
 }
 
@@ -255,7 +372,7 @@ type publicSearxNGEngine struct{}
 
 func (e *publicSearxNGEngine) Name() string    { return "public-searxng" }
 func (e *publicSearxNGEngine) Available() bool { return true }
-func (e *publicSearxNGEngine) Search(ctx context.Context, query string, limit int) ([]searchResult, error) {
+func (e *publicSearxNGEngine) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
 	var lastErr error
 	for _, baseURL := range publicSearxNGInstances {
 		results, err := trySearXNG(ctx, baseURL, query, limit)
@@ -273,7 +390,7 @@ type bingEngine struct{}
 
 func (e *bingEngine) Name() string    { return "bing" }
 func (e *bingEngine) Available() bool { return true }
-func (e *bingEngine) Search(ctx context.Context, query string, limit int) ([]searchResult, error) {
+func (e *bingEngine) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
 	searchURL := fmt.Sprintf("https://www.bing.com/search?q=%s&count=%d&setlang=zh-CN&mkt=zh-CN",
 		url.QueryEscape(query), limit)
 	body, err := doSearchRequest(ctx, searchHTTPClient(), searchURL, webSearchMaxRetries)
@@ -285,12 +402,12 @@ func (e *bingEngine) Search(ctx context.Context, query string, limit int) ([]sea
 
 // parseBingResults extracts organic results from a Bing SERP: <li class="b_algo">
 // blocks with the title in <h2><a> and the snippet inside <div class="b_caption">.
-func parseBingResults(body []byte, limit int) ([]searchResult, error) {
+func parseBingResults(body []byte, limit int) ([]SearchResult, error) {
 	doc, err := nethtml.Parse(bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("parse bing response: %w", err)
 	}
-	var results []searchResult
+	var results []SearchResult
 	var walk func(*nethtml.Node)
 	walk = func(n *nethtml.Node) {
 		if len(results) >= limit {
@@ -312,7 +429,7 @@ func parseBingResults(body []byte, limit int) ([]searchResult, error) {
 	return results, nil
 }
 
-func bingResultFromBlock(li *nethtml.Node) (searchResult, bool) {
+func bingResultFromBlock(li *nethtml.Node) (SearchResult, bool) {
 	var title, href, snippet string
 	var walk func(*nethtml.Node)
 	walk = func(n *nethtml.Node) {
@@ -337,9 +454,9 @@ func bingResultFromBlock(li *nethtml.Node) (searchResult, bool) {
 	}
 	walk(li)
 	if title == "" || href == "" || strings.HasPrefix(href, "javascript:") {
-		return searchResult{}, false
+		return SearchResult{}, false
 	}
-	return searchResult{Title: title, URL: href, Snippet: truncate(snippet, 300), Source: "bing"}, true
+	return SearchResult{Title: title, URL: href, Snippet: truncate(snippet, 300), Source: "bing"}, true
 }
 
 // --- DuckDuckGo Lite Engine (keyless HTML fallback) ---
@@ -348,7 +465,7 @@ type duckDuckGoLiteEngine struct{}
 
 func (e *duckDuckGoLiteEngine) Name() string    { return "duckduckgo-lite" }
 func (e *duckDuckGoLiteEngine) Available() bool { return true }
-func (e *duckDuckGoLiteEngine) Search(ctx context.Context, query string, limit int) ([]searchResult, error) {
+func (e *duckDuckGoLiteEngine) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
 	searchURL := "https://lite.duckduckgo.com/lite/?q=" + url.QueryEscape(query)
 	body, err := doSearchRequest(ctx, searchHTTPClient(), searchURL, 0)
 	if err != nil {
@@ -359,12 +476,12 @@ func (e *duckDuckGoLiteEngine) Search(ctx context.Context, query string, limit i
 
 // parseDDGLiteResults extracts results from DuckDuckGo Lite: <a class="result-link">
 // entries with snippets in <td class="result-snippet"> cells.
-func parseDDGLiteResults(body []byte, limit int) ([]searchResult, error) {
+func parseDDGLiteResults(body []byte, limit int) ([]SearchResult, error) {
 	doc, err := nethtml.Parse(bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("parse duckduckgo response: %w", err)
 	}
-	var results []searchResult
+	var results []SearchResult
 	var snippets []string
 	var walk func(*nethtml.Node)
 	walk = func(n *nethtml.Node) {
@@ -372,7 +489,7 @@ func parseDDGLiteResults(body []byte, limit int) ([]searchResult, error) {
 			href := strings.TrimSpace(attrValue(n, "href"))
 			title := strings.TrimSpace(nodeText(n))
 			if href != "" && title != "" {
-				results = append(results, searchResult{Title: title, URL: href, Source: "duckduckgo"})
+				results = append(results, SearchResult{Title: title, URL: href, Source: "duckduckgo"})
 			}
 		}
 		if n.Type == nethtml.ElementNode && n.Data == "td" && hasClass(n, "result-snippet") {
@@ -479,7 +596,7 @@ type tavilyResponse struct {
 	Answer string `json:"answer,omitempty"`
 }
 
-func (e *tavilyEngine) Search(ctx context.Context, query string, limit int) ([]searchResult, error) {
+func (e *tavilyEngine) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
 	body, err := json.Marshal(tavilyRequest{
 		Query:      query,
 		MaxResults: limit,
@@ -517,12 +634,12 @@ func (e *tavilyEngine) Search(ctx context.Context, query string, limit int) ([]s
 	}
 
 	// Tavily
-	results := make([]searchResult, 0, limit)
+	results := make([]SearchResult, 0, limit)
 	for _, r := range tr.Results {
 		if len(results) >= limit {
 			break
 		}
-		results = append(results, searchResult{
+		results = append(results, SearchResult{
 			Title:   strings.TrimSpace(r.Title),
 			URL:     strings.TrimSpace(r.URL),
 			Snippet: truncate(r.Content, 300),
@@ -549,7 +666,7 @@ type braveResponse struct {
 	} `json:"web"`
 }
 
-func (e *braveEngine) Search(ctx context.Context, query string, limit int) ([]searchResult, error) {
+func (e *braveEngine) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
 	searchURL := fmt.Sprintf("https://api.search.brave.com/res/v1/web/search?q=%s&count=%d",
 		url.QueryEscape(query), limit)
 
@@ -583,12 +700,12 @@ func (e *braveEngine) Search(ctx context.Context, query string, limit int) ([]se
 	}
 
 	// Brave
-	results := make([]searchResult, 0, limit)
+	results := make([]SearchResult, 0, limit)
 	for _, r := range br.Web.Results {
 		if len(results) >= limit {
 			break
 		}
-		results = append(results, searchResult{
+		results = append(results, SearchResult{
 			Title:   strings.TrimSpace(r.Title),
 			URL:     strings.TrimSpace(r.URL),
 			Snippet: truncate(r.Description, 300),
@@ -600,7 +717,7 @@ func (e *braveEngine) Search(ctx context.Context, query string, limit int) ([]se
 
 // --- shared SearXNG implementation ---
 
-func trySearXNG(ctx context.Context, baseURL, query string, limit int) ([]searchResult, error) {
+func trySearXNG(ctx context.Context, baseURL, query string, limit int) ([]SearchResult, error) {
 	searchURL := fmt.Sprintf("%s/search?%s", strings.TrimRight(baseURL, "/"),
 		"q="+url.QueryEscape(query)+"&format=json&language=zh-CN&safesearch=1")
 
@@ -616,12 +733,12 @@ func trySearXNG(ctx context.Context, baseURL, query string, limit int) ([]search
 	}
 
 	// SearXNG
-	results := make([]searchResult, 0, limit)
+	results := make([]SearchResult, 0, limit)
 	for _, r := range resp.Results {
 		if len(results) >= limit {
 			break
 		}
-		results = append(results, searchResult{
+		results = append(results, SearchResult{
 			Title:   strings.TrimSpace(r.Title),
 			URL:     strings.TrimSpace(r.URL),
 			Snippet: truncate(r.Content, 300),
@@ -694,7 +811,7 @@ func doSearchRequest(ctx context.Context, client *http.Client, urlStr string, ma
 
 // --- formatting ---
 
-func formatResults(results []searchResult) string {
+func formatResults(results []SearchResult) string {
 	var out strings.Builder
 	enc := json.NewEncoder(&out)
 	enc.SetEscapeHTML(false)
@@ -713,7 +830,7 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen]
 }
 
-type searchResult struct {
+type SearchResult struct {
 	Title   string `json:"title"`
 	URL     string `json:"url"`
 	Snippet string `json:"snippet"`
