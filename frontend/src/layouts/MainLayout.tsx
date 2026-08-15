@@ -3,7 +3,7 @@ import { Layout, Menu, Button, Space, Typography, Tooltip, Spin, Progress, Bread
 import {
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
   FileTextOutlined, EditOutlined, TeamOutlined, EyeOutlined, BarChartOutlined,
-  HomeOutlined,
+  HomeOutlined, RobotOutlined, DesktopOutlined, DatabaseOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import SearchModal from '../components/SearchModal'
 import SecurityBanner from '../components/SecurityBanner'
@@ -151,7 +151,7 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
       <Space size={16}>
         <span className="live-dot" style={{ width: 6, height: 6 }} />
         <span title="已启用引擎（模型中心可启停）" style={{ whiteSpace: 'nowrap' }}>
-          🧠 {engLabel.length ? engLabel.join('　') : <span style={{ opacity: 0.5 }}>无启用引擎</span>}
+          <RobotOutlined style={{ marginRight: 4 }} />{engLabel.length ? engLabel.join('　') : <span style={{ opacity: 0.5 }}>无启用引擎</span>}
         </span>
         {info && <span style={{ color: 'var(--md-sys-color-text)', fontWeight: 500 }}>{info.title}</span>}
         {/* 全书进度条 — 借鉴 Scrivener 写作目标 */}
@@ -179,10 +179,10 @@ const StatusBar: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }>
         )}
       </Space>
       <Space size={16}>
-        <span title="CPU 使用率">💻 CPU {ms?.cpu ?? '--'}%</span>
-        <span title="内存使用率">🧠 内存 {ms ? memPct + '%' : '--'}</span>
+        <span title="CPU 使用率"><DesktopOutlined style={{ marginRight: 4 }} />CPU {ms?.cpu ?? '--'}%</span>
+        <span title="内存使用率"><DatabaseOutlined style={{ marginRight: 4 }} />内存 {ms ? memPct + '%' : '--'}</span>
         {ms?.gpuName ? (
-          <span title={`GPU ${ms.gpuName}`}>🎮 GPU {ms.gpuUsage ? ms.gpuUsage + '%' : vramPct ? vramPct + '%' : '--'}</span>
+          <span title={`GPU ${ms.gpuName}`}><ThunderboltOutlined style={{ marginRight: 4 }} />GPU {ms.gpuUsage ? ms.gpuUsage + '%' : vramPct ? vramPct + '%' : '--'}</span>
         ) : null}
         {stats && (
           <>
