@@ -44,7 +44,7 @@ export const ChatModeBar: React.FC<ChatModeBarProps> = ({
     <div style={{ flex: 1 }} />
     <Space size={2}>
       <Tooltip title={searchEnabled ? '联网搜索已开启（自动检测搜索意图）' : '联网搜索已关闭'}>
-        <Button type="text" size="small" icon={<GlobalOutlined style={{ color: searchEnabled ? '#52c41a' : C('color-text-secondary') }} />}
+        <Button type="text" size="small" icon={<GlobalOutlined style={{ color: searchEnabled ? 'var(--md-sys-color-success)' : C('color-text-secondary') }} />}
           onClick={onToggleSearch} style={{ padding: '0 4px', height: 24, opacity: searchEnabled ? 1 : 0.5 }} />
       </Tooltip>
       {mode !== 'plain' && (

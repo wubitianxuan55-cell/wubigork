@@ -101,7 +101,8 @@
 .chat-mode-seg button:focus-visible,
 .chat-board button:focus-visible,
 .chat-board [role='button']:focus-visible {
-  outline: 2px solid var(--gaea-glow, var(--md-sys-color-primary));
+  /* 3.0 焦点环规范：primary 优先（design-system §1.1 --focus-ring） */
+  outline: 2px solid var(--md-sys-color-primary, var(--gaea-glow));
   outline-offset: 2px;
 }
 
@@ -195,9 +196,10 @@
   max-width: min(72%, 560px);
   padding: 9px 15px;
   border-radius: 18px 18px 5px 18px;
-  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--gaea-glow) 24%, transparent);
-  color: var(--md-sys-color-text);
+  /* 3.0 用户气泡语义色：primary-container 底 + on-primary-container 文字（12 主题对比度 ≥4.5:1） */
+  background: var(--md-sys-color-primary-container);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 26%, transparent);
+  color: var(--md-sys-color-on-primary-container);
   font-size: 14px;
   line-height: 1.65;
   white-space: pre-wrap;
@@ -297,7 +299,7 @@
   gap: 2px;
   margin-top: 4px;
   opacity: 0;
-  transition: opacity 160ms;
+  transition: opacity var(--md-sys-transition-fast);
 }
 
 .chat-row:hover .chat-msg-actions {
@@ -545,7 +547,8 @@
 }
 
 .chat-suggestion-card:focus-visible {
-  outline: 2px solid var(--gaea-glow);
+  /* 3.0 焦点环规范：primary 优先 */
+  outline: 2px solid var(--md-sys-color-primary, var(--gaea-glow));
   outline-offset: 2px;
 }
 
@@ -680,8 +683,22 @@
 }
 
 .chat-topic-item.active {
-  background: color-mix(in srgb, var(--gaea-glow) 11%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gaea-glow) 22%, transparent);
+  /* 3.0 侧栏激活态：primary-container 高亮 + 主色左缘 3px 指示条（padding 补偿，文字零位移） */
+  background: var(--md-sys-color-primary-container);
+  border-left: 3px solid var(--md-sys-color-primary);
+  padding-left: 7px;
+}
+
+.chat-topic-item.active .chat-topic-title,
+.chat-topic-item.active .chat-topic-preview,
+.chat-topic-item.active .chat-topic-time {
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.chat-topic-item.active .chat-topic-badge {
+  color: var(--md-sys-color-on-primary-container);
+  border-color: color-mix(in srgb, var(--md-sys-color-on-primary-container) 32%, transparent);
+  background: color-mix(in srgb, var(--md-sys-color-on-primary-container) 10%, transparent);
 }
 
 .chat-topic-title {
@@ -751,6 +768,20 @@
 /* ── 打字与流光 ── */
 .chat-streaming {
   min-height: 22px;
+  display: inline-block;
+  width: 100%;
+  border-radius: 8px;
+  /* 3.0 AI 生成态发光脉冲（--gaea-glow 走令牌；prefers-reduced-motion 下关闭） */
+  animation: chatStreamGlow 2.4s ease-in-out infinite;
+}
+
+@keyframes chatStreamGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 color-mix(in srgb, var(--gaea-glow) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 22px color-mix(in srgb, var(--gaea-glow) 20%, transparent);
+  }
 }
 
 /* ── 无障碍：减少动效 ── */
@@ -766,7 +797,8 @@
     transition: none !important;
   }
   .chat-wel-ring,
-  .chat-wel-dot {
+  .chat-wel-dot,
+  .chat-streaming {
     animation: none !important;
   }
 }

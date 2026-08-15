@@ -18,6 +18,8 @@ export const MIGRATION_KEY = 'gaea_chat_migration_v1'
 // （vitest fake timers 推进同一阈值）；后端正常完成必 emit done、失败必 emit error。
 export const STREAM_SILENCE_TIMEOUT_MS = 30_000
 
+// 情绪类别专用色（9 种情绪各一色，属分类色板而非状态色：映射到成功/警告/次要文字会丢失区分度，
+// 故保留专用 hex，UI 走令牌时以 CompanionAvatar emotionColor 独立使用，不随 12 主题）。
 export const EMO_COLORS: Record<string, string> = {
   SWEET_ATTACHMENT: '#f472b6', SHY_HEARTBEAT: '#fb7185', TSUNDERE: '#f59e0b',
   HURT_GRIEVANCE: '#a78bfa', ANGRY_ATTACK: '#ef4444', COLD_DETACHED: '#94a3b8',

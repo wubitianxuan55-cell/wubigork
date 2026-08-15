@@ -41,7 +41,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           {msg.content && !msg.streaming && (
             <div className="chat-msg-actions">
               <Tooltip title={copiedId === msg.key ? '已复制' : '复制'}>
-                <Button type="text" size="small" icon={copiedId === msg.key ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />}
+                <Button type="text" size="small" icon={copiedId === msg.key ? <CheckOutlined style={{ color: 'var(--md-sys-color-success)' }} /> : <CopyOutlined />}
                   onClick={() => onCopy(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
               </Tooltip>
             </div>
@@ -90,7 +90,7 @@ export const MessageList: React.FC<MessageListProps> = ({
           {msg.content && !msg.streaming && (
             <div className="chat-msg-actions">
               <Tooltip title={copiedId === msg.key ? '已复制' : '复制'}>
-                <Button type="text" size="small" icon={copiedId === msg.key ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />}
+                <Button type="text" size="small" icon={copiedId === msg.key ? <CheckOutlined style={{ color: 'var(--md-sys-color-success)' }} /> : <CopyOutlined />}
                   onClick={() => onCopy(msg.content, msg.key)} style={{ color: C('color-text-secondary'), fontSize: 12, padding: '0 4px', height: 22 }} />
               </Tooltip>
               {!msg.error && (

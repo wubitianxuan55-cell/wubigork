@@ -338,9 +338,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         padding: '10px 14px',
                         borderRadius: isUser ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
                         background: isUser
-                          ? `linear-gradient(135deg, ${C('color-primary')}, ${C('color-primary')}ee)`
+                          ? 'var(--md-sys-color-primary-container)'
                           : C('color-bg-elevated'),
-                        color: isUser ? '#fff' : C('color-text'),
+                        color: isUser ? 'var(--md-sys-color-on-primary-container)' : C('color-text'),
                         whiteSpace: 'pre-wrap',
                         lineHeight: 1.65,
                         fontSize: 13.5,
@@ -363,7 +363,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             className="chat-copy-btn"
                             icon={
                               copiedId === msg.id ? (
-                                <CheckOutlined style={{ color: '#52c41a' }} />
+                                <CheckOutlined style={{ color: 'var(--md-sys-color-success)' }} />
                               ) : (
                                 <CopyOutlined />
                               )
@@ -377,9 +377,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                               top: 4,
                               right: 4,
                               opacity: 0,
-                              color: isUser ? 'rgba(255,255,255,0.7)' : C('color-text-secondary'),
-                              transition: 'opacity 0.15s',
-                              background: isUser ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.04)',
+                              color: isUser ? 'var(--md-sys-color-on-primary-container)' : C('color-text-secondary'),
+                              transition: `opacity var(--md-sys-transition-fast)`,
+                              background: isUser ? 'color-mix(in srgb, var(--md-sys-color-on-primary-container) 12%, transparent)' : 'rgba(0,0,0,0.04)',
                               borderRadius: 6,
                               width: 28,
                               height: 28,

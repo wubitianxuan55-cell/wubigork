@@ -50,7 +50,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       <Tooltip title={forceSearch ? '联网搜索已开启：回答前先搜索网页' : '联网搜索：开启后回答前先搜索网页'}>
         <Button type="text" icon={<GlobalOutlined />}
           onClick={onToggleForceSearch}
-          style={{ color: forceSearch ? '#52c41a' : C('color-text-secondary'), borderRadius: 10, width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: forceSearch ? 'color-mix(in srgb, #52c41a 12%, transparent)' : 'transparent', flexShrink: 0, fontSize: 15 }} />
+          style={{ color: forceSearch ? 'var(--md-sys-color-success)' : C('color-text-secondary'), borderRadius: 10, width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: forceSearch ? 'color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)' : 'transparent', flexShrink: 0, fontSize: 15 }} />
       </Tooltip>
       <Tooltip title={thinking ? '深度思考已开启（本地模型先思考再回答）' : '深度思考（本地模型先思考再回答）'}>
         <Button type="text" icon={<BulbOutlined />}

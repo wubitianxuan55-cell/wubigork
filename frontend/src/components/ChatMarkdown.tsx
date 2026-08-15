@@ -30,11 +30,11 @@ function CodeBlockHeader({ language, text }: { language?: string; text: string }
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
           border: 'none', background: 'transparent', padding: '2px 6px', borderRadius: 6,
-          color: copied ? '#52c41a' : C('color-text-secondary'), fontSize: 11,
+          color: copied ? 'var(--md-sys-color-success)' : C('color-text-secondary'), fontSize: 11,
           transition: 'color 0.15s',
         }}
         onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = C('color-text') }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = copied ? '#52c41a' : C('color-text-secondary') }}
+        onMouseLeave={(e) => { e.currentTarget.style.color = copied ? 'var(--md-sys-color-success)' : C('color-text-secondary') }}
       >
         {copied ? <CheckOutlined style={{ fontSize: 10 }} /> : <CopyOutlined style={{ fontSize: 10 }} />}
         {copied ? '已复制' : '复制'}
@@ -61,6 +61,7 @@ const components: Components = {
     const isBlock = match !== null || text.includes('\n')
     if (isBlock) {
       return (
+        /* 代码块专用深色底（#0b0e14/#e2e8f0 为行业标准暗色代码面板，不随主题，属专用色保留） */
         <div style={{ margin: '10px 0', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.09)', background: '#0b0e14' }}>
           <CodeBlockHeader language={lang} text={text} />
           <pre style={{ padding: '10px 12px', margin: 0, overflow: 'auto', fontFamily: "'Cascadia Code', Consolas, monospace", fontSize: 12.5, lineHeight: 1.55, color: '#e2e8f0', whiteSpace: 'pre' }}><code>{text}</code></pre>

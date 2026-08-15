@@ -197,13 +197,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                   onClick={() => onSelect(topic.id)}
                   onMouseEnter={() => setHoveredId(topic.id)}
                   onMouseLeave={() => setHoveredId(null)}
-                  style={{
-                    background: active
-                      ? `${C('color-primary')}15`
-                      : hovered
-                        ? C('color-bg-container')
-                        : 'transparent',
-                  }}
+                  /* 背景走 chat-board.css：active=primary-container，hover=surface-container-high */
                 >
                   {/* title + preview (double-click to edit) */}
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -225,7 +219,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                             ellipsis
                             onDoubleClick={() => startEdit(topic)}
                             style={{
-                              color: active ? C('color-primary') : C('color-text'),
+                              color: active ? 'var(--md-sys-color-on-primary-container)' : C('color-text'),
                               fontSize: 12.5,
                               fontWeight: active ? 600 : 500,
                               flex: 1,
@@ -280,7 +274,7 @@ const ChatTopicSidebar: React.FC<ChatTopicSidebarProps> = ({
                         icon={<DeleteOutlined style={{ fontSize: 13 }} />}
                         onClick={(e) => e.stopPropagation()}
                         style={{
-                          color: C('color-text-secondary'),
+                          color: active ? 'var(--md-sys-color-on-primary-container)' : C('color-text-secondary'),
                           width: 26, height: 26, padding: 0,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           borderRadius: 6,

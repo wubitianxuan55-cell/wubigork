@@ -121,7 +121,7 @@ const ChatPage: React.FC = () => {
   const companionName = useMemo(
     () => loadCompanionName(currentPersonality?.label || 'gaea'),
     [currentPersonality])
-  const emoColor = EMO_COLORS[emotion] || 'var(--gaea-glow, #2dd4bf)'
+  const emoColor = EMO_COLORS[emotion] || 'var(--gaea-glow, var(--md-sys-color-primary))'
   const personaLabel = currentPersonality?.label || '角色'
   const hasMessages = messages.length > 0
 
