@@ -2,6 +2,8 @@ package memory
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -16,20 +18,20 @@ import (
 type Memory struct {
 	ID         string  `json:"id"`
 	ChapterNum int     `json:"chapter_num"`
-	Text       string  `json:"text"`       // 记忆内容
-	Category   string  `json:"category"`   // event / character / world / plot
-	Tokens     int     `json:"tokens"`     // 估算 token 数
-	Score      float64 `json:"score"`      // BM25 相关度分数（检索时填充）
+	Text       string  `json:"text"`     // 记忆内容
+	Category   string  `json:"category"` // event / character / world / plot
+	Tokens     int     `json:"tokens"`   // 估算 token 数
+	Score      float64 `json:"score"`    // BM25 相关度分数（检索时填充）
 }
 
 // Index BM25 索引
 type Index struct {
-	memories    []Memory
-	docFreq     map[string]int     // 词 → 包含该词的文档数
-	docLengths  []int              // 每个文档的长度
-	avgDocLen   float64
-	k1          float64 // BM25 参数
-	b           float64
+	memories   []Memory
+	docFreq    map[string]int // 词 → 包含该词的文档数
+	docLengths []int          // 每个文档的长度
+	avgDocLen  float64
+	k1         float64 // BM25 参数
+	b          float64
 }
 
 // NewIndex 创建 BM25 索引
@@ -74,36 +76,79 @@ func tokenize(text string) []string {
 	return tokens
 }
 
-// BuildFromProject 从项目构建 BM25 索引
+// BuildFromProject 从项目构建 BM25 索引（T7-3「章节断档即停」修复）：
+// 改用 project.ReadAllChapterSummaries 单次目录扫描读取全部章节摘要，替代
+// 逐个文件探测——中间缺章（如 1、2、4）不再因缺章文件提前终止索引，断档后的
+// 章节摘要也能进入记忆库。章节号由文件名 NNN 前缀解析（与摘要排序一致）。
 func BuildFromProject(pm *project.Manager) (*Index, error) {
 	idx := NewIndex()
 
-	for chapterNum := 1; ; chapterNum++ {
-		summary, err := pm.ReadChapterSummary(chapterNum)
-		if err != nil {
-			break
-		}
-		if summary == nil {
-			continue
-		}
+	summaries, err := pm.ReadAllChapterSummaries()
+	if err != nil {
+		// chapters 目录不存在/不可读：按空项目处理（保持旧行为：空索引不报错）。
+		return idx, nil
+	}
+	nums := summaryChapterNums(pm) // 文件名章节号（与 ReadAllChapterSummaries 排序一致）
 
-		text := summary.Summary
+	for i, s := range summaries {
+		text := s.Summary
 		if text == "" {
 			continue
 		}
-
+		num := 0
+		if i < len(nums) {
+			num = nums[i]
+		}
 		mem := Memory{
-			ID:         summary.Title,
-			ChapterNum: chapterNum,
+			ID:         s.Title,
+			ChapterNum: num,
 			Text:       text,
 			Category:   "event",
 			Tokens:     util.EstimateTokens(text),
 		}
-
 		idx.Add(mem)
 	}
 
 	return idx, nil
+}
+
+// summaryChapterNums 单次目录扫描解析各摘要文件的章节号（文件名开头的 NNN
+// 数字；分支摘要 NNNx 取主章节号），排序规则与 ReadAllChapterSummaries 一致
+// （字典序），保证按序配对。目录不可读返回 nil（调用方降级为 0）。
+func summaryChapterNums(pm *project.Manager) []int {
+	entries, err := os.ReadDir(filepath.Join(pm.Dir, "chapters"))
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), "-summary.json") {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	nums := make([]int, 0, len(names))
+	for _, n := range names {
+		nums = append(nums, leadingNumber(n))
+	}
+	return nums
+}
+
+// leadingNumber 解析字符串开头的连续数字（无数字前缀返回 0）。
+func leadingNumber(s string) int {
+	num := 0
+	started := false
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			break
+		}
+		started = true
+		num = num*10 + int(r-'0')
+	}
+	if !started {
+		return 0
+	}
+	return num
 }
 
 // Add 添加一条记忆到索引
@@ -242,4 +287,3 @@ func formatScore(s float64) string {
 	}
 	return "⭐ 低"
 }
-

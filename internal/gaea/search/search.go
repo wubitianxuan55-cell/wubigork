@@ -25,6 +25,11 @@ type ScoredDoc struct {
 	Score float64
 }
 
+// MaxResults 是单次检索返回结果数的硬上限（T7-3：防全量返回）。调用方即使把
+// topK 传成全部文档数（如 knowledge.Search 传 len(candidates)），结果也不会
+// 超过该值，避免大库全量返回。
+const MaxResults = 100
+
 // TfidfIndex 是内存 TF-IDF 倒排索引：整词（≥2 字）+ CJK bigram 分词，
 // TF 以 maxTF 归一化，IDF 采用平滑 log 公式，检索用余弦相似度。
 type TfidfIndex struct {
@@ -107,6 +112,12 @@ func (idx *TfidfIndex) Build(docs []Doc) {
 func (idx *TfidfIndex) Search(query string, topK int, minScore float64) []ScoredDoc {
 	if minScore <= 0 {
 		minScore = 0.05
+	}
+	if topK <= 0 {
+		return nil
+	}
+	if topK > MaxResults {
+		topK = MaxResults
 	}
 	queryVec := make(Vector)
 	for _, t := range Tokenize(query) {

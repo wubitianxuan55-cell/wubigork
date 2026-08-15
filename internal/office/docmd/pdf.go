@@ -8,7 +8,9 @@ package docmd
 
 import (
 	"bytes"
+	"compress/zlib"
 	"encoding/hex"
+	"io"
 	"os"
 	"strings"
 	"unicode/utf16"
@@ -29,15 +31,19 @@ func pdfToMarkdownLimit(path, pages string, maxPages int, progress func(done, to
 		return "", 0, false, err
 	}
 
-	content := string(data)
+	raw := string(data)
+	// FlateDecode 压缩文本流还原（数字型 PDF 的正文通常压缩在流里）：解压后
+	// 再做 BT/ET 文本提取，数字型 PDF 不再被误判为扫描件。解压失败/非 Flate
+	// 流保持原样，由 stripNonTextStreams 继续按文本/二进制判定。
+	decoded := decodeFlateStreams(raw)
 	// 剔除压缩流/图像/ICC 等非文本 stream 块，避免二进制里的假 BT/ET 与可打印垃圾
 	// 混入正文（真实文本流含 BT，会被保留）。
-	content = stripNonTextStreams(content)
+	content := stripNonTextStreams(decoded)
 
 	// 解析 PDF 页数信息：/Type /Page 每出现一次即一页。精确匹配排除 /Type /Pages
-	//（页树数组对象声明），避免总页数恒多 ≥1；压缩对象流不在本实现支持范围内，
-	// 与文本提取（仅未压缩文本流）保持一致，不额外解流。
-	totalPages := countPDFPages(content)
+	//（页树数组对象声明），避免总页数恒多 ≥1；页对象位于对象字典（流外），
+	// 不受流压缩影响，故对原始字节计数即可。
+	totalPages := countPDFPages(raw)
 	if totalPages == 0 {
 		totalPages = 1
 	}
@@ -400,6 +406,113 @@ func extractRawText(data []byte) string {
 		return ""
 	}
 	return out
+}
+
+// decodeFlateStreams 还原 PDF 中带 /Filter /FlateDecode 的压缩流：把流内二进制
+// 原位替换为 zlib 解压后的内容（保持 stream/endstream 结构），后续 BT/ET 提取器
+// 与 stripNonTextStreams 都能读到解压后的正文。数字型 PDF 文本多压缩在文本流里，
+// 不还原就会整段被剔除，导致文本提取失败而误判为扫描件。
+// 解压失败（非 zlib 封装/损坏）或非 FlateDecode 流保持原样不动。
+func decodeFlateStreams(s string) string {
+	var b strings.Builder
+	pos := 0
+	for pos < len(s) {
+		i := strings.Index(s[pos:], "stream")
+		if i < 0 {
+			break
+		}
+		i += pos
+		// 真正的 stream 关键字：前面最近的非空白字符是对象字典结尾 '>'。
+		// 不满足该模式（如 endstream 里的 "stream" 子串）→ 原样跳过继续扫描。
+		pre := i
+		for pre > 0 && isPDFSpace(s[pre-1]) {
+			pre--
+		}
+		if pre == 0 || s[pre-1] != '>' {
+			b.WriteString(s[pos : i+len("stream")])
+			pos = i + len("stream")
+			continue
+		}
+		// 流声明字典是否含 FlateDecode 过滤器（向前定位字典起点 '<<'）。
+		dictEnd := pre - 1
+		if dictStart := findDictStart(s, dictEnd); dictStart < 0 ||
+			!strings.Contains(s[dictStart:dictEnd], "FlateDecode") {
+			b.WriteString(s[pos : i+len("stream")])
+			pos = i + len("stream")
+			continue
+		}
+		bodyStart := i + len("stream")
+		for bodyStart < len(s) && (s[bodyStart] == '\r' || s[bodyStart] == '\n') {
+			bodyStart++
+		}
+		end := findEndstream(s, bodyStart)
+		if end < 0 {
+			break
+		}
+		dec, err := flateDecompress([]byte(s[bodyStart:end]))
+		if err != nil || len(dec) == 0 {
+			// 解压失败：保留原流体，由 stripNonTextStreams 决定去留。
+			b.WriteString(s[pos:end])
+			pos = end
+			continue
+		}
+		// 原位替换：pos..bodyStart 原样复制，流体换成解压内容。
+		b.WriteString(s[pos:bodyStart])
+		b.Write(dec)
+		pos = end
+	}
+	b.WriteString(s[pos:])
+	return b.String()
+}
+
+// findDictStart 从字典结尾 '>>' 向前定位字典起点 '<<'（支持嵌套字典）。
+// 找不到返回 -1。
+func findDictStart(s string, dictEnd int) int {
+	depth := 0
+	for i := dictEnd - 1; i >= 0; i-- {
+		if s[i] == '>' && i > 0 && s[i-1] == '>' {
+			depth++
+			i--
+			continue
+		}
+		if s[i] == '<' && i > 0 && s[i-1] == '<' {
+			if depth > 0 {
+				depth--
+				i--
+				continue
+			}
+			return i
+		}
+	}
+	return -1
+}
+
+// findEndstream 从 from 起定位独立的 endstream 关键字位置（-1 表示没有）。
+func findEndstream(s string, from int) int {
+	search := from
+	for search < len(s) {
+		j := strings.Index(s[search:], "endstream")
+		if j < 0 {
+			return -1
+		}
+		j += search
+		after := j + len("endstream")
+		if after >= len(s) || isPDFSpace(s[after]) {
+			return j
+		}
+		search = j + len("endstream")
+	}
+	return -1
+}
+
+// flateDecompress zlib 解压（PDF FlateDecode 即 zlib 封装）；上限 64MB 防恶意放大。
+func flateDecompress(data []byte) ([]byte, error) {
+	zr, err := zlib.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	defer zr.Close()
+	return io.ReadAll(io.LimitReader(zr, 64<<20))
 }
 
 // stripNonTextStreams 移除 PDF 中所有 stream...endstream 块，仅保留包含 "BT"

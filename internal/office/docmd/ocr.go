@@ -147,6 +147,9 @@ func buildOvisServerCmd() (*exec.Cmd, *os.File, bool) {
 	return cmd, logf, true
 }
 
+// ovisOCRPage 是单页 OvisOCR2 识别函数（包级变量便于单测注入 fake；默认 ovisPageOCR）。
+var ovisOCRPage = ovisPageOCR
+
 // ovisPageOCR 把一页 PNG 发给常驻 OvisOCR2 服务，返回识别文本。
 func ovisPageOCR(base, pngPath string) (string, error) {
 	data, err := os.ReadFile(pngPath)
@@ -165,7 +168,7 @@ func ovisPageOCR(base, pngPath string) (string, error) {
 			},
 		}},
 		"temperature": 0.0,
-		"max_tokens":  1024,
+		"max_tokens":  4096,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -185,6 +188,7 @@ func ovisPageOCR(base, pngPath string) (string, error) {
 			Message struct {
 				Content string `json:"content"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&out); err != nil {
@@ -192,6 +196,11 @@ func ovisPageOCR(base, pngPath string) (string, error) {
 	}
 	if len(out.Choices) == 0 {
 		return "", fmt.Errorf("OvisOCR2 无返回")
+	}
+	// finish_reason=length 说明输出被 max_tokens 截断：不把残缺文本当完整结果，
+	// 返回错误由上层按单页失败处理（跳过该页，避免静默丢内容）。
+	if out.Choices[0].FinishReason == "length" {
+		return "", fmt.Errorf("OvisOCR2 输出被 max_tokens 截断（finish_reason=length）")
 	}
 	return strings.TrimSpace(out.Choices[0].Message.Content), nil
 }
@@ -292,45 +301,77 @@ func ocrPDFRange(path, pages string, first, last, total int, progress func(done,
 
 	// 逐页 OCR：pdftoppm 从 first 页起渲染，PNG 按序对应绝对页码 first+i。
 	// 页范围过滤用绝对页码（与文本路径一致），避免 pdftoppm 偏移后的错位。
-	var pageTexts []string
-	totalOCR := last - first + 1
-	if totalOCR < 1 {
-		totalOCR = 0
+	// 单页失败跳过继续（失败页计入 failed 列表，在结果尾部注明），全部失败才报错。
+	pageOCR := func(pageNum int, pngPath string) (string, error) {
+		// OvisOCR2 常驻服务优先；失败/截断时退回 tesseract。
+		if ovisBase != "" {
+			if t, err := ovisOCRPage(ovisBase, pngPath); err == nil && strings.TrimSpace(t) != "" {
+				return t, nil
+			}
+		}
+		if tesseractPath != "" {
+			return tesseractImage(tesseractPath, pngPath)
+		}
+		return "", fmt.Errorf("无可用 OCR 引擎")
 	}
-	done := 0
+	pageTexts, _, failed, err := ocrPageLoop(pngFiles, first, pages, pageOCR, progress)
+	if err != nil {
+		return "", err
+	}
+	if len(failed) > 0 {
+		pageTexts = append(pageTexts, fmt.Sprintf("（第 %v 页 OCR 失败已跳过，共 %d 页）", failed, len(failed)))
+	}
+	result := strings.Join(pageTexts, "\n\n---\n\n")
+	return fmt.Sprintf("（以下内容由 OCR 识别，可能存在误差）\n\n%s", result), nil
+}
+
+// ocrPageLoop 逐页调用 pageOCR 识别（单页失败跳过继续，全部失败才报错）。
+// 返回识别文本列表、实际 OCR 页数（按页范围过滤后，即 progress 的 total）、
+// 失败页码列表与错误（仅全部失败时非 nil）。progress 回调 (done, total)，
+// total 为实际 OCR 页数而非渲染页数，保证进度条反映真实工作量。
+func ocrPageLoop(pngFiles []string, first int, pages string,
+	pageOCR func(pageNum int, pngPath string) (string, error),
+	progress func(done, total int)) ([]string, int, []int, error) {
+
+	type pageJob struct {
+		num int
+		png string
+	}
+	var jobs []pageJob
 	for i, pngPath := range pngFiles {
 		pageNum := first + i
 		if pages != "" && !pageInRange(pageNum, pages) {
 			continue
 		}
-		// OvisOCR2 常驻服务优先；不可用时退回 tesseract。
-		text := ""
-		if ovisBase != "" {
-			if t, err := ovisPageOCR(ovisBase, pngPath); err == nil {
-				text = t
-			}
-		}
-		if text == "" && tesseractPath != "" {
-			t, err := tesseractImagePath(tesseractPath, pngPath)
-			if err != nil {
-				return "", fmt.Errorf("tesseract OCR 第 %d 页失败: %w", pageNum, err)
-			}
-			text = t
-		}
-		if text != "" {
-			pageTexts = append(pageTexts, text)
+		jobs = append(jobs, pageJob{num: pageNum, png: pngPath})
+	}
+	total := len(jobs)
+	if total == 0 {
+		return nil, 0, nil, fmt.Errorf("没有需要 OCR 的页面")
+	}
+	var texts []string
+	var failed []int
+	done := 0
+	for _, j := range jobs {
+		text, err := pageOCR(j.num, j.png)
+		if err != nil || strings.TrimSpace(text) == "" {
+			failed = append(failed, j.num)
+		} else {
+			texts = append(texts, text)
 		}
 		done++
-		if progress != nil && totalOCR > 0 {
-			progress(done, totalOCR)
+		if progress != nil {
+			progress(done, total)
 		}
 	}
-
-	if len(pageTexts) == 0 {
-		return "", fmt.Errorf("OCR 未能提取到任何文本")
+	if len(texts) == 0 {
+		if len(failed) > 0 {
+			return nil, total, failed, fmt.Errorf("OCR 全部 %d 页失败（第 %v 页），未能提取到任何文本",
+				total, failed)
+		}
+		return nil, total, nil, fmt.Errorf("OCR 未能提取到任何文本")
 	}
-	result := strings.Join(pageTexts, "\n\n---\n\n")
-	return fmt.Sprintf("（以下内容由 OCR 识别，可能存在误差）\n\n%s", result), nil
+	return texts, total, failed, nil
 }
 
 // findPdftoppm 探测可用的 pdftoppm：优先 GAEA_PDFTOPM 显式路径，其次 PATH 里的

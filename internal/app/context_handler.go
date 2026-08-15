@@ -10,7 +10,11 @@ import (
 
 // ── 上下文智能 API ──────────────────────────────────────────
 
-// SearchMemories 语义检索相关记忆
+// SearchMemories 语义检索相关记忆。
+// 注：记忆索引经 memory.BuildFromProject 构建，该实现已改用
+// project.ReadAllChapterSummaries 单次目录扫描（替代逐个文件探测），
+// 章节断档（中间缺章）不再提前终止索引；chapters 目录缺失时返回空结果
+// 而非报错，保证本接口对未建章项目友好。
 func (a *writingState) SearchMemories(query string, maxResults int) ([]map[string]interface{}, error) {
 	pm := a.getPM()
 	if pm == nil {

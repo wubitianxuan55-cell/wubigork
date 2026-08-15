@@ -130,7 +130,7 @@ func (a *App) priceFetchTaskHandler(ctx context.Context, t *tasks.Task, p *tasks
 	}
 	res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
 	rec := pricefeed.FetchRecord{
-		ID: fmt.Sprintf("fetch-%d", time.Now().UnixNano()), // SaveFetch 按值拷贝，ID 须先预生成
+		ID:       fmt.Sprintf("fetch-%d", time.Now().UnixNano()), // SaveFetch 按值拷贝，ID 须先预生成
 		SourceID: src.ID, SourceName: src.Name, URL: src.URL,
 		Period: res.Period, FetchedAt: res.FetchedAt, Status: "pending",
 		Candidates: res.Candidates,
@@ -199,7 +199,7 @@ func (a *App) priceFetchAllTaskHandler(ctx context.Context, t *tasks.Task, p *ta
 		}
 		res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
 		rec := pricefeed.FetchRecord{
-			ID: fmt.Sprintf("fetch-%d", time.Now().UnixNano()), // SaveFetch 按值拷贝，ID 须先预生成
+			ID:       fmt.Sprintf("fetch-%d", time.Now().UnixNano()), // SaveFetch 按值拷贝，ID 须先预生成
 			SourceID: src.ID, SourceName: src.Name, URL: src.URL,
 			Period: res.Period, FetchedAt: res.FetchedAt, Status: "pending",
 			Candidates: res.Candidates,
@@ -293,21 +293,39 @@ func (a *App) submitFileIndexTask(reason string) {
 
 // ─── 消费者：实时文件监听增量索引（T5-2） ────────────────────
 
-// startFileWatch 启动工作区 fsnotify 实时监听（失败回退 10 分钟轮询）。
+// watchHealthInterval 是 fileWatchLoop 周期健康检查间隔（默认 2 分钟；包级变量
+// 便于测试缩短）。
+var watchHealthInterval = 2 * time.Minute
+
+// watchPollInterval 是回退轮询间隔（默认 10 分钟；包级变量便于测试缩短）。
+var watchPollInterval = 10 * time.Minute
+
+// startFileWatch 启动工作区 fsnotify 实时监听；不可用/启动失败时立即触发一次
+// 全量索引并回退轮询（兑现「实时监听失败回退轮询」承诺，调度器去重）。
 func (a *App) startFileWatch() {
 	root := gaeaCwd()
 	w, err := filewatch.New(root, filewatch.DefaultSkipDirs, 2*time.Second)
 	if err != nil {
 		slog.Warn("filewatch: 实时监听不可用，回退轮询", "error", err)
+		a.submitFileIndexTask("watch-fallback-new")
+		_ = a.startWatchPollingFallback("new-failed")
 		return
 	}
 	a.officeState.fileWatch = w
 	go a.fileWatchLoop()
 	if err := w.Start(); err != nil {
 		slog.Warn("filewatch: 启动失败，回退轮询", "error", err)
+		a.submitFileIndexTask("watch-fallback-start")
+		_ = a.startWatchPollingFallback("start-failed")
 		return
 	}
 	slog.Info("filewatch: 工作区实时监听已启动", "root", root)
+}
+
+// fileWatchSource 是 fileWatchLoop 依赖的监听器最小接口（便于测试注入 fake）。
+type fileWatchSource interface {
+	Events() <-chan filewatch.Event
+	WatchErr() error
 }
 
 func (a *App) fileWatchLoop() {
@@ -315,13 +333,63 @@ func (a *App) fileWatchLoop() {
 	if w == nil {
 		return
 	}
-	for ev := range w.Events() {
-		if ev.Full {
-			// 目录级变更/事件风暴：全量重建（经任务队列去重）
-			a.submitFileIndexTask("watch-full")
-			continue
+	a.fileWatchLoopWith(w, watchHealthInterval)
+}
+
+// fileWatchLoopWith 消费监听事件批次，并周期检查 WatchErr：实时监听中途出现
+// 错误（WatchErr 非空）时触发全量重建兜底（经任务队列去重），兑现「实时监听
+// 异常回退轮询」承诺——不再依赖事件静默丢失。interval 供测试缩短。
+func (a *App) fileWatchLoopWith(w fileWatchSource, interval time.Duration) {
+	if w == nil {
+		return
+	}
+	if interval <= 0 {
+		interval = watchHealthInterval
+	}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case ev, ok := <-w.Events():
+			if !ok {
+				return
+			}
+			if ev.Full {
+				// 目录级变更/事件风暴：全量重建（经任务队列去重）
+				a.submitFileIndexTask("watch-full")
+				continue
+			}
+			a.applyIncrementalFileIndex(ev)
+		case <-t.C:
+			if err := w.WatchErr(); err != nil {
+				slog.Warn("filewatch: 监听异常（WatchErr），触发全量重建兜底", "error", err)
+				a.submitFileIndexTask("watch-error")
+			}
 		}
-		a.applyIncrementalFileIndex(ev)
+	}
+}
+
+// startWatchPollingFallback 启动回退轮询：周期提交全量索引任务（调度器去重），
+// 兑现「实时监听不可用/启动失败时 10 分钟轮询」承诺。返回停止函数（测试用）。
+func (a *App) startWatchPollingFallback(reason string) func() {
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		t := time.NewTicker(watchPollInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				a.submitFileIndexTask("watch-poll-" + reason)
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return func() {
+		close(stop)
+		<-done
 	}
 }
 
