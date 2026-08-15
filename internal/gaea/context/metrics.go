@@ -35,6 +35,11 @@ type CacheMetrics struct {
 	// Hierarchy
 	parent   *CacheMetrics
 	children []*CacheMetrics
+
+	// merged marks a child whose metrics have already been merged into its
+	// parent; MergeChild ignores children with this flag set to avoid
+	// double counting.
+	merged bool
 }
 
 // NewCacheMetrics creates a root-level metrics tracker.
@@ -53,17 +58,41 @@ func (m *CacheMetrics) NewChild() *CacheMetrics {
 }
 
 // MergeChild aggregates a completed child's metrics into the parent.
+// It snapshots the child under the child's own lock and merges the same
+// aggregation field set used by Report. Each child may be merged at most
+// once: repeated calls for the same child are ignored.
 func (m *CacheMetrics) MergeChild(child *CacheMetrics) {
+	if child == nil {
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.SavedByFork += child.SavedByFork
-	m.SavedByCompact += child.SavedByCompact
-	m.SavedUSD += child.SavedUSD
-	m.SavedLatencyMs += child.SavedLatencyMs
-	m.ForkCount += child.ForkCount + 1
+	// Mark the child as merged under its own lock so duplicate-merge
+	// detection is atomic even while the child is being recorded elsewhere.
+	child.mu.Lock()
+	if child.merged {
+		child.mu.Unlock()
+		return
+	}
+	child.merged = true
+	child.mu.Unlock()
 
-	// Remove child from children list
+	// Snapshot the child under its own lock (child.Report) to avoid a torn
+	// read of a child that is still being recorded concurrently.
+	cr := child.Report()
+
+	m.SavedByCompact += cr.SavedByCompact
+	m.SavedByFork += cr.SavedByFork
+	m.ForkCount += cr.ForkCount + 1
+	m.SavedUSD += cr.SavedUSD
+	m.SavedLatencyMs += cr.SavedLatencyMs
+	m.CompactionCount += cr.CompactionCount
+	m.CacheHitTokens += cr.CacheHitTokens
+	m.CacheMissTokens += cr.CacheMissTokens
+	m.BreakCount += cr.BreakCount
+
+	// Remove child from children list so Report no longer aggregates it.
 	for i, c := range m.children {
 		if c == child {
 			m.children = append(m.children[:i], m.children[i+1:]...)
@@ -146,15 +175,19 @@ func (m *CacheMetrics) Report() CacheReport {
 		BreakCount:      m.BreakCount,
 	}
 
-	// Aggregate children
+	// Aggregate children. The +1 fork count for the child itself follows the
+	// same semantic as MergeChild.
 	for _, c := range m.children {
 		cr := c.Report()
 		total.SavedByCompact += cr.SavedByCompact
 		total.SavedByFork += cr.SavedByFork
-		total.ForkCount += cr.ForkCount
+		total.ForkCount += cr.ForkCount + 1
 		total.SavedUSD += cr.SavedUSD
 		total.SavedLatencyMs += cr.SavedLatencyMs
 		total.CompactionCount += cr.CompactionCount
+		total.CacheHitTokens += cr.CacheHitTokens
+		total.CacheMissTokens += cr.CacheMissTokens
+		total.BreakCount += cr.BreakCount
 	}
 
 	return total

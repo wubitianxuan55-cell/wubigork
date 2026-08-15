@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -63,6 +64,13 @@ type Orchestrator struct {
 	adultLockTurns             int
 	adultConsecutiveVulnerable int
 	adultLastRejectedTurn      int
+
+	// T7-1.1 并发正确性：
+	// mu 串行化同一会话的回合处理（GUI/微信/语音三个入口汇聚到 WhisperChat，
+	// 由 app 层持锁调用）；异步持久化协程经 CloneFullState 快照读取，不持本锁。
+	mu sync.Mutex
+	// rhythm 节奏连续计数器（本会话独立，修复包级全局串台）。
+	rhythm RhythmCounters
 }
 
 const (
@@ -70,6 +78,13 @@ const (
 	intensityRecoveryPerTurn = 3.0
 	negativeLockTurns        = 3
 )
+
+// LockTurn 串行化同一会话的回合处理（T7-1.1）。三个并发入口
+// （GUI 聊天 / 微信回调 / 语音）都汇聚到 app 层 WhisperChat，调用方
+// 在回合开始前 LockTurn、结束后 UnlockTurn。异步持久化协程不持此锁
+// （经 CloneFullState 快照读取），避免阻塞下一轮。
+func (o *Orchestrator) LockTurn()   { o.mu.Lock() }
+func (o *Orchestrator) UnlockTurn() { o.mu.Unlock() }
 
 func NewOrchestrator(sessionID string, preset PersonalityPreset) *Orchestrator {
 	personality := DefaultPersonalitySlice(preset.ID)
@@ -102,7 +117,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 
 	// ═══ 会话复位 ═══
 	if turnIndex == 1 {
-		ResetRhythmState()
+		o.rhythm.Reset()
 		ResetEmergenceTracking()
 	}
 
@@ -245,7 +260,7 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	rhythm := DecideRhythm(RhythmInput{
 		Aro: newEmotion.Aro, Aff: newEmotion.Aff, Stage: newL1.Stage,
 		PersonalityID: o.Preset.ID, Sincerity: event.Sincerity, Intensity: event.Intensity,
-	})
+	}, &o.rhythm)
 
 	// ═══ psycheBlock 组装 ═══
 	psycheBlock := BuildPsycheBlock(newEmotion, mod, expr, silent, barrier.Hint, emergence)

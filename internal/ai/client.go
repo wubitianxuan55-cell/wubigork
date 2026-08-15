@@ -23,6 +23,10 @@ import (
 
 // Client xAI API 客户端，封装认证和 HTTP 通信
 type Client struct {
+	// mu 保护以下可变状态：activeEngineID、imageBackend/imageBackendType、token。
+	// 读写必须经锁；持锁期间不得调用可能再取锁的方法（避免死锁）。
+	mu sync.RWMutex
+
 	cfg        *config.Config
 	httpClient *http.Client
 	tokenStore *auth.TokenStore
@@ -42,6 +46,9 @@ type Client struct {
 	// 并发控制信号量（限制同时进行的 API 调用数）
 	sem chan struct{}
 
+	// 非流式 Chat 请求重试退避序列（连接错误与 5xx；默认 2 次，1s/2s，
+	// 复用流式 defaultStreamRetryBackoff 语义）。测试可覆盖为短间隔。
+	chatRetryBackoff []time.Duration
 	// 流式请求重试退避序列（连接错误与 5xx；默认 2 次，1s/2s）。测试可覆盖为短间隔。
 	streamRetryBackoff []time.Duration
 	// 流空闲超时：连接/首字节后超过该时长无任何数据视为失败（默认 60s）。测试可覆盖为短时长。
@@ -65,6 +72,16 @@ var defaultStreamRetryBackoff = []time.Duration{time.Second, 2 * time.Second}
 // defaultStreamIdleTimeout 流空闲超时默认值。
 const defaultStreamIdleTimeout = 60 * time.Second
 
+// chatBackoffOrDefault 返回非流式 Chat 生效的退避序列：未注入时复用流式共享默认值
+// defaultStreamRetryBackoff（连接错误与 5xx 指数退避：1s/2s 共 2 次重试，语义与
+// 流式一致）。测试可通过 chatRetryBackoff 字段注入短间隔。
+func (c *Client) chatBackoffOrDefault() []time.Duration {
+	if len(c.chatRetryBackoff) > 0 {
+		return c.chatRetryBackoff
+	}
+	return defaultStreamRetryBackoff
+}
+
 // NewClient 创建 AI 客户端
 func NewClient(cfg *config.Config) *Client {
 	const maxConcurrency = 4 // SuperGrok 并发限制
@@ -72,6 +89,7 @@ func NewClient(cfg *config.Config) *Client {
 		cfg:                cfg,
 		tokenStore:         auth.NewTokenStore(cfg.TokenStorePath),
 		sem:                make(chan struct{}, maxConcurrency),
+		chatRetryBackoff:   append([]time.Duration(nil), defaultStreamRetryBackoff...),
 		streamRetryBackoff: append([]time.Duration(nil), defaultStreamRetryBackoff...),
 		streamIdleTimeout:  defaultStreamIdleTimeout,
 	}
@@ -140,16 +158,21 @@ func (c *Client) SetActiveEngine(engineID string) {
 	if engineID == "" {
 		engineID = "xai"
 	}
+	c.mu.Lock()
 	c.activeEngineID = engineID
+	c.mu.Unlock()
 	slog.Info("切换活跃引擎", "engine", engineID)
 }
 
 // ActiveEngineID 返回当前活跃引擎 ID
 func (c *Client) ActiveEngineID() string {
-	if c.activeEngineID == "" {
+	c.mu.RLock()
+	id := c.activeEngineID
+	c.mu.RUnlock()
+	if id == "" {
 		return "xai"
 	}
-	return c.activeEngineID
+	return id
 }
 
 // resolveChatEndpoint 根据活跃引擎解析 chat completions 的 URL 和 API key。
@@ -208,8 +231,21 @@ func (c *Client) resolveModelName(reqModel string, engineID string) string {
 	return reqModel
 }
 
-// GetToken 获取有效 token（自动刷新）
+// GetToken 获取有效 token（自动刷新）。内部加锁保证并发安全：
+// 快速路径（token 未过期）只取读锁；刷新路径持写锁并在锁内二次判空
+// （single-flight）——等锁期间其他调用方已完成刷新时直接复用，避免并发重复刷新。
 func (c *Client) GetToken() (string, error) {
+	c.mu.RLock()
+	if c.token != nil && !c.token.IsExpired() {
+		tok := c.token.AccessToken
+		c.mu.RUnlock()
+		return tok, nil
+	}
+	c.mu.RUnlock()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// 锁内二次判空：等锁期间可能已有调用方完成刷新
 	if c.token != nil && !c.token.IsExpired() {
 		return c.token.AccessToken, nil
 	}
@@ -251,7 +287,9 @@ func (c *Client) EnsureToken() error {
 		slog.Warn("EnsureToken: token 加载失败", "error", loadErr)
 	}
 	if tok != nil && !tok.IsExpired() {
+		c.mu.Lock()
 		c.token = tok
+		c.mu.Unlock()
 		return nil
 	}
 	// token 不存在或已过期，返回原始错误
@@ -261,8 +299,11 @@ func (c *Client) EnsureToken() error {
 	return err
 }
 
-// tryRefreshToken 尝试刷新 token 并保存，成功返回 nil
+// tryRefreshToken 尝试刷新 token 并保存，成功返回 nil。
+// 内部加锁保护 c.token 读写（刷新期间阻塞其他 token 访问，避免并发重复刷新）。
 func (c *Client) tryRefreshToken() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.token == nil || c.token.RefreshToken == "" {
 		return fmt.Errorf("无 refresh token")
 	}
@@ -279,7 +320,18 @@ func (c *Client) tryRefreshToken() error {
 
 // ── Chat Completions（非流式）─────────────────────────────────
 
-// Chat 非流式对话
+// Chat 非流式对话。
+//
+// 请求建立阶段失败的重试语义与流式一致：
+//   - 连接错误（httpClient.Do 返回 err）与 5xx 响应按指数退避重试（默认 2 次
+//     1s/2s，复用 defaultStreamRetryBackoff，测试可通过 chatRetryBackoff 注入）；
+//   - 收到 200 后不再重试（非流式天然单次响应）；
+//   - 仅 xAI 引擎对 401 刷新 token 后在同一函数内重发一次（不递归调用 Chat，
+//     避免外层 defer releaseSem 未执行导致信号量占双槽）；
+//   - 其余非 200 状态照旧直接返回错误。
+//
+// 重试期间保持信号量占用；usage 统计只在最终成功/失败时记录一次（与流式一致，
+// 避免重试成功时重复累计失败）。
 func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
 	if err := c.acquireSem(ctx); err != nil {
 		return nil, fmt.Errorf("等待 API 槽位: %w", err)
@@ -313,60 +365,103 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
-	if err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
-		return nil, fmt.Errorf("构造请求失败: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-	}
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
-		return nil, fmt.Errorf("API 请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
-		return nil, fmt.Errorf("read response body: %w", err)
-	}
-
-	// 仅 xAI 引擎做 401 token 刷新重试
-	if resp.StatusCode == 401 && reqEngine == "xai" {
-		if err := c.tryRefreshToken(); err != nil {
-			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
-			return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
+	backoff := c.chatBackoffOrDefault()
+	var lastErr error
+	refreshed := false // 401 刷新只做一次
+	for attempt := 0; attempt <= len(backoff); attempt++ {
+		if attempt > 0 {
+			select {
+			case <-time.After(backoff[attempt-1]):
+			case <-ctx.Done():
+				errMsg := fmt.Sprintf("请求已取消: %v", ctx.Err())
+				c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
+				return nil, fmt.Errorf("%s", errMsg)
+			}
 		}
-		return c.Chat(ctx, req)
-	}
-	if resp.StatusCode != 200 {
-		errMsg := fmt.Sprintf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
-	}
 
-	var chatResp ChatResponse
-	if err := json.Unmarshal(respBody, &chatResp); err != nil {
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
-		return nil, fmt.Errorf("解析响应失败: %w", err)
+		httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
+		if err != nil {
+			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+			return nil, fmt.Errorf("构造请求失败: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		if apiKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+		}
+
+		resp, err := c.httpClient.Do(httpReq)
+		if err != nil {
+			// 连接建立失败：ctx 取消不重试，其余退避重试
+			if ctx.Err() != nil {
+				c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+				return nil, fmt.Errorf("API 请求失败: %w", err)
+			}
+			lastErr = fmt.Errorf("API 请求失败: %w", err)
+			slog.Warn("Chat 请求失败，准备退避重试", "attempt", attempt+1, "error", lastErr)
+			continue
+		}
+
+		respBody, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, readErr.Error())
+			return nil, fmt.Errorf("read response body: %w", readErr)
+		}
+
+		// 仅 xAI 引擎做 401 token 刷新重试：刷新后立即在同一函数内重发一次
+		//（不递归调用 Chat，避免外层 defer releaseSem 未执行而占 2 个信号量槽）。
+		if resp.StatusCode == 401 && reqEngine == "xai" && !refreshed {
+			if err := c.tryRefreshToken(); err != nil {
+				c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+				return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
+			}
+			refreshed = true
+			newKey, err := c.GetToken()
+			if err != nil {
+				c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+				return nil, fmt.Errorf("认证失败 (HTTP 401): %w", err)
+			}
+			apiKey = newKey
+			attempt = -1 // 立即重发（attempt 自增回 0，不走退避等待）
+			continue
+		}
+
+		// 5xx：服务端故障，响应未开始，退避重试
+		if resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
+			slog.Warn("Chat 请求 5xx，准备退避重试", "attempt", attempt+1, "error", lastErr)
+			continue
+		}
+
+		if resp.StatusCode != 200 {
+			errMsg := fmt.Sprintf("API 错误 (HTTP %d): %s", resp.StatusCode, trimStr(string(respBody), 500))
+			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
+			return nil, fmt.Errorf("%s", errMsg)
+		}
+
+		var chatResp ChatResponse
+		if err := json.Unmarshal(respBody, &chatResp); err != nil {
+			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+			return nil, fmt.Errorf("解析响应失败: %w", err)
+		}
+		if chatResp.Error != nil {
+			errMsg := fmt.Sprintf("[%s] %s", chatResp.Error.Code, chatResp.Error.Message)
+			c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
+			return nil, fmt.Errorf("%s", errMsg)
+		}
+		var inTok, outTok, cacheHit, cacheMiss int64
+		if chatResp.Usage != nil {
+			inTok, outTok = chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens
+			cacheHit, cacheMiss = cacheSplitForUsage(chatResp.Usage)
+		}
+		c.recordUsage(reqEngine, reqModel, start, inTok, outTok, cacheHit, cacheMiss, true, "")
+		return &chatResp, nil
 	}
-	if chatResp.Error != nil {
-		errMsg := fmt.Sprintf("[%s] %s", chatResp.Error.Code, chatResp.Error.Message)
-		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, errMsg)
-		return nil, fmt.Errorf("%s", errMsg)
+	if lastErr == nil {
+		lastErr = fmt.Errorf("API 请求失败（重试耗尽）")
 	}
-	var inTok, outTok, cacheHit, cacheMiss int64
-	if chatResp.Usage != nil {
-		inTok, outTok = chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens
-		cacheHit, cacheMiss = cacheSplitForUsage(chatResp.Usage)
-	}
-	c.recordUsage(reqEngine, reqModel, start, inTok, outTok, cacheHit, cacheMiss, true, "")
-	return &chatResp, nil
+	c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, lastErr.Error())
+	return nil, lastErr
 }
 
 // ── SSE 流式 ──────────────────────────────────────────────────
@@ -961,19 +1056,24 @@ func (c *Client) ChatStreamChunks(ctx context.Context, model, systemPrompt, user
 
 // SetImageBackend 设置图片生成后端（nil + backendType 回退到 xAI）
 func (c *Client) SetImageBackend(backend ImageBackend, backendType string) {
-	c.imageBackend = backend
 	if backendType == "" {
 		backendType = "xai"
 	}
+	c.mu.Lock()
+	c.imageBackend = backend
 	c.imageBackendType = backendType
+	c.mu.Unlock()
 }
 
 // GetImageBackendType 获取当前图片后端类型
 func (c *Client) GetImageBackendType() string {
-	if c.imageBackendType == "" {
+	c.mu.RLock()
+	t := c.imageBackendType
+	c.mu.RUnlock()
+	if t == "" {
 		return "xai"
 	}
-	return c.imageBackendType
+	return t
 }
 
 // GetImageBackend 返回当前图片后端实例（可能为 nil）。
@@ -982,7 +1082,10 @@ func (c *Client) GetImageBackend() ImageBackend {
 	if c == nil {
 		return nil
 	}
-	return c.imageBackend
+	c.mu.RLock()
+	b := c.imageBackend
+	c.mu.RUnlock()
+	return b
 }
 
 // ── Models ────────────────────────────────────────────────────
@@ -1024,8 +1127,11 @@ func (c *Client) ListModels(ctx context.Context) (*ModelsResponse, error) {
 // ── 图片生成 ──────────────────────────────────────────────────
 
 func (c *Client) GenerateImage(ctx context.Context, req *ImageGenerationRequest) (*ImageGenerationResponse, error) {
-	if c.imageBackend != nil {
-		return c.imageBackend.GenerateImage(ctx, req)
+	c.mu.RLock()
+	backend := c.imageBackend
+	c.mu.RUnlock()
+	if backend != nil {
+		return backend.GenerateImage(ctx, req)
 	}
 	return c.generateImageXAI(ctx, req)
 }

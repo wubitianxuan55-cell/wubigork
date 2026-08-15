@@ -7,13 +7,15 @@ package whisper
 import (
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 )
 
 // ─── HabitsStore ──────────────────────────────────────────────
 
-// HabitsStore 用户习惯存储
+// HabitsStore 用户习惯存储。T7-1.1：异步记忆写入协程与主流程并发读写，加锁。
 type HabitsStore struct {
+	mu     sync.RWMutex
 	habits []*UserHabit
 }
 
@@ -37,6 +39,8 @@ func itoa(n int) string {
 
 // Upsert 写入或更新习惯（对齐 upsertHabit）
 func (hs *HabitsStore) Upsert(h UserHabit) {
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
 	key := h.upsertKey()
 	for i, existing := range hs.habits {
 		if existing.upsertKey() == key {
@@ -64,8 +68,10 @@ func (hs *HabitsStore) Upsert(h UserHabit) {
 	hs.habits = append(hs.habits, &h)
 }
 
-// MatchHabits 匹配当前时间命中的所有习惯
+// MatchHabits 匹配当前时间命中的所有习惯（拷贝元素指针，调用方不得持锁修改）
 func (hs *HabitsStore) MatchHabits(now time.Time) []*UserHabit {
+	hs.mu.RLock()
+	defer hs.mu.RUnlock()
 	weekday := int(now.Weekday())
 	hour := now.Hour()
 	nowMs := now.UnixMilli()
@@ -122,6 +128,8 @@ func (hs *HabitsStore) MatchHabits(now time.Time) []*UserHabit {
 
 // UpgradeToLongTerm 短期→长期升级
 func (hs *HabitsStore) UpgradeToLongTerm(id string) {
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
 	for _, h := range hs.habits {
 		if h.ID == id {
 			h.Scope = "long_term"
@@ -140,6 +148,8 @@ func (hs *HabitsStore) UpgradeToLongTerm(id string) {
 // P0修复: 原实现错误地衰减 short_term 习惯并直接删除；
 // ackem 的正确逻辑是衰减 long_term 习惯(久未确认则降级为 short_term)
 func (hs *HabitsStore) DecayAndCleanup(now time.Time) {
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
 	nowMs := now.UnixMilli()
 	weekMs := int64(7 * 24 * 3600 * 1000)
 	var kept []*UserHabit
@@ -172,6 +182,8 @@ func (hs *HabitsStore) DecayAndCleanup(now time.Time) {
 
 // Delete 删除习惯
 func (hs *HabitsStore) Delete(id string) {
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
 	for i, h := range hs.habits {
 		if h.ID == id {
 			hs.habits = append(hs.habits[:i], hs.habits[i+1:]...)
@@ -180,8 +192,10 @@ func (hs *HabitsStore) Delete(id string) {
 	}
 }
 
-// All 返回所有习惯
+// All 返回所有习惯（拷贝）
 func (hs *HabitsStore) All() []*UserHabit {
+	hs.mu.RLock()
+	defer hs.mu.RUnlock()
 	result := make([]*UserHabit, len(hs.habits))
 	copy(result, hs.habits)
 	return result
@@ -189,5 +203,7 @@ func (hs *HabitsStore) All() []*UserHabit {
 
 // Count 习惯总数
 func (hs *HabitsStore) Count() int {
+	hs.mu.RLock()
+	defer hs.mu.RUnlock()
 	return len(hs.habits)
 }

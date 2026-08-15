@@ -150,6 +150,11 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinkin
 
 	orch := a.getOrCreateOrch(personalityID)
 
+	// T7-1.1 会话并发安全：同一角色 GUI/微信/语音三入口串行化，
+	// 防止状态机并发撕裂（TotalTurns/情绪/成人 FSM）。
+	orch.LockTurn()
+	defer orch.UnlockTurn()
+
 	turnPlan := whisper.BuildTurnPlanFromRules(userMsg, whisper.BuildTurnPlanRulePriors(userMsg))
 	slog.Info("[whisper] TurnPlan", "routing", turnPlan.Routing, "goal", turnPlan.Goal)
 
@@ -705,6 +710,29 @@ func restoreWhisperState(orch *whisper.Orchestrator) error {
 	}
 	return nil
 }
+
+// persistMu 全局持久化互斥（T7-1.1 跨会话正确性）：persistFactsToDB/
+// persistEpisodesToDB/persistKGToDB 都是「全表读 → 内存合并 → 全表替换」，
+// SQLite 单连接只串行化单条语句，「读→改→写」跨语句交错会让后完成者
+// 用旧快照覆盖先完成者的写入（多会话并发聊天时记忆互相丢失）。
+// 持久化整体持锁，串行化所有会话的落库。
+var persistMu sync.Mutex
+
+// persistStateSync 同步持久化会话状态（T7-1.1 ③）：先在回合锁内取状态快照
+// （不阻塞下一轮对话），再在全局单写锁（persistMu）内落库，串行化所有会话的
+// 「全表读→内存合并→全表替换」，避免多会话并发互相覆盖（H3）。返回落库错误。
+// 供 persistStateAsync（异步）与 drainAndPersistAll（Shutdown 末轮）共用，
+// 测试也可直接调用做确定性断言。
+func (a *whisperState) persistStateSync(orch *whisper.Orchestrator) error {
+	orch.LockTurn()
+	stateSnap := whisper.CloneFullState(orch.State)
+	orch.UnlockTurn()
+
+	persistMu.Lock()
+	defer persistMu.Unlock()
+	return persistWhisperStateWithSnapshot(orch, stateSnap)
+}
+
 // persistStateAsync 异步持久化会话状态（fire-and-forget，T6-5.3）：
 // 落库失败与 panic 统一计入 WriteErrors 计数并记录日志，不再静默丢弃。
 func (a *whisperState) persistStateAsync(orch *whisper.Orchestrator) {
@@ -714,19 +742,51 @@ func (a *whisperState) persistStateAsync(orch *whisper.Orchestrator) {
 			a.recordMemoryWriteError(orch.SessionID, "persist_panic", fmt.Errorf("persist state panic: %v", r))
 		}
 	}()
-	if err := persistWhisperState(orch); err != nil {
+	if err := a.persistStateSync(orch); err != nil {
 		a.recordMemoryWriteError(orch.SessionID, "persist", err)
+	}
+}
+
+// drainAndPersistAll 末轮落库（T7-1.1 ③）：Shutdown 时先 drain 全部异步记忆
+// 写入队列（保证末轮 LLM 抽取的事实已进入内存 FactStore，H4），再按全局单写锁
+// 串行持久化所有会话，避免进程退出时末轮记忆/状态丢失。
+func (a *whisperState) drainAndPersistAll() {
+	whisper.DrainAllMemoryWriteJobs()
+
+	whisperSessionsMu.RLock()
+	orchs := make([]*whisper.Orchestrator, 0, len(whisperSessions))
+	for _, o := range whisperSessions {
+		orchs = append(orchs, o)
+	}
+	whisperSessionsMu.RUnlock()
+
+	for _, o := range orchs {
+		if o.DataRoot == "" {
+			continue
+		}
+		if err := a.persistStateSync(o); err != nil {
+			slog.Error("[whisper] shutdown 末轮落库失败", "sessionID", o.SessionID, "error", err)
+		}
 	}
 }
 
 // persistWhisperState 持久化会话状态（同伴状态/聊天历史/事实/情节/图谱）。
 // 任一落库失败返回合并错误（不中断后续写回），由调用方记录与计数。
+// 测试直接调用本函数（以 orch.State 当前值落库）；异步路径请用
+// persistWhisperStateWithSnapshot 避免与主流程竞争。
 func persistWhisperState(orch *whisper.Orchestrator) error {
+	return persistWhisperStateWithSnapshot(orch, orch.State)
+}
+
+// persistWhisperStateWithSnapshot 与 persistWhisperState 同语义，
+// 但同伴状态取调用方传入的快照（T7-1.1：异步持久化在回合锁外执行，
+// orch.State 可能已被新回合改写，必须用回合锁内快照）。
+func persistWhisperStateWithSnapshot(orch *whisper.Orchestrator, stateSnap whisper.FullState) error {
 	if orch.DataRoot == "" {
 		return nil
 	}
 	var errs []error
-	if err := repos.SaveCompanionStateToDB(orch.DataRoot, orch.SessionID, orch.State); err != nil {
+	if err := repos.SaveCompanionStateToDB(orch.DataRoot, orch.SessionID, stateSnap); err != nil {
 		slog.Error("[whisper] 同伴状态落库失败", "sessionID", orch.SessionID, "error", err)
 		errs = append(errs, err)
 	}

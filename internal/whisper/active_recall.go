@@ -4,6 +4,7 @@ package whisper
 import (
 	"math"
 	"math/rand"
+	"sync"
 )
 
 // ─── RecallRecord 回忆记录 ────────────────────────────────────
@@ -15,7 +16,9 @@ type RecallRecord struct {
 
 // ─── ActiveRecall 主动回忆选择器 ──────────────────────────────
 
+// ActiveRecall 主动回忆选择器。T7-1.1：异步记忆写入协程与主流程并发读写，加锁。
 type ActiveRecall struct {
+	mu      sync.RWMutex
 	history []RecallRecord
 }
 
@@ -23,7 +26,7 @@ func NewActiveRecall() *ActiveRecall {
 	return &ActiveRecall{}
 }
 
-// SelectRecallCandidate 挑选主动回忆候选（无副作用）
+// SelectRecallCandidate 挑选主动回忆候选（无副作用，读 history 加 RLock）
 func (ar *ActiveRecall) SelectRecallCandidate(
 	store *FactStore,
 	currentTurn int,
@@ -52,9 +55,14 @@ func (ar *ActiveRecall) SelectRecallCandidate(
 		return nil
 	}
 
+	ar.mu.RLock()
+	history := make([]RecallRecord, len(ar.history))
+	copy(history, ar.history)
+	ar.mu.RUnlock()
+
 	// 排除最近已回忆的
 	recentIDs := make(map[string]bool)
-	for _, r := range ar.history {
+	for _, r := range history {
 		if currentTurn-r.RecalledAtTurn < ActiveRecallMinInterval {
 			recentIDs[r.FactID] = true
 		}
@@ -74,7 +82,7 @@ func (ar *ActiveRecall) SelectRecallCandidate(
 	totalW := 0.0
 	for i, c := range candidates {
 		turnsSinceRecall := ActiveRecallMinInterval
-		for _, r := range ar.history {
+		for _, r := range history {
 			if r.FactID == c.ID {
 				gap := currentTurn - r.RecalledAtTurn
 				if gap < turnsSinceRecall {
@@ -113,6 +121,8 @@ func (ar *ActiveRecall) SelectRecallCandidate(
 
 // MarkRecalled 标记已回忆
 func (ar *ActiveRecall) MarkRecalled(factID string, currentTurn int) {
+	ar.mu.Lock()
+	defer ar.mu.Unlock()
 	ar.history = append(ar.history, RecallRecord{FactID: factID, RecalledAtTurn: currentTurn})
 	if len(ar.history) > 100 {
 		ar.history = ar.history[len(ar.history)-50:]
@@ -120,6 +130,8 @@ func (ar *ActiveRecall) MarkRecalled(factID string, currentTurn int) {
 }
 
 func (ar *ActiveRecall) GetHistory() []RecallRecord {
+	ar.mu.RLock()
+	defer ar.mu.RUnlock()
 	result := make([]RecallRecord, len(ar.history))
 	copy(result, ar.history)
 	return result

@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -51,8 +52,8 @@ type Task struct {
 	Error      string `json:"error"`
 	RetryCount int    `json:"retryCount"`
 	MaxRetries int    `json:"maxRetries"`
-	Payload    string `json:"payload"` // 不透明 JSON（提交方定义）
-	Result     string `json:"result"`  // 不透明 JSON（handler 产出）
+	Payload    string `json:"payload"`   // 不透明 JSON（提交方定义）
+	Result     string `json:"result"`    // 不透明 JSON（handler 产出）
 	CreatedAt  int64  `json:"createdAt"` // unix 毫秒
 	StartedAt  int64  `json:"startedAt"`
 	FinishedAt int64  `json:"finishedAt"`
@@ -111,7 +112,7 @@ type Manager struct {
 	mu        sync.Mutex
 	handlers  map[string]Handler
 	cancels   map[string]context.CancelFunc
-	cancelReq map[string]bool      // 用户显式取消（区别于 Close 中断）
+	cancelReq map[string]bool // 用户显式取消（区别于 Close 中断）
 	lastEmit  map[string]time.Time
 
 	opts   Options
@@ -279,29 +280,38 @@ func (m *Manager) HasActive(kind Kind) bool {
 	return err == nil && n > 0
 }
 
-// Cancel 取消一个任务：running 则中断（context 传播），queued 直接置 cancelled。
+// Cancel 取消一个任务：queued 用带 status 条件的原子 UPDATE 直接置 cancelled
+// （与 worker 出队竞态：同一时刻只有一方能成功）；running 则中断（context 传播）。
+// 重复取消幂等；对已结束/不存在的任务返回错误。
 func (m *Manager) Cancel(id string) error {
 	if m == nil || m.db == nil {
 		return fmt.Errorf("任务调度器不可用")
 	}
-	m.mu.Lock()
-	cancel, running := m.cancels[id]
-	queued := false
-	if !running {
-		var st string
-		if err := m.db.QueryRow(`SELECT status FROM tasks WHERE id=?`, id).Scan(&st); err == nil && st == string(StatusQueued) {
-			queued = true
-		}
+	// ① 原子取消 queued 任务：与 worker 出队（claimQueued）共用 status 条件互斥，
+	// 避免「Cancel 读到 queued 后 worker 已出队、终态 UPDATE 覆盖 running」的竞态。
+	res, err := m.db.Exec(`UPDATE tasks SET status=?, message=?, finished_at=? WHERE id=? AND status=?`,
+		string(StatusCancelled), "已取消", nowMillis(), id, string(StatusQueued))
+	if err != nil {
+		return err
 	}
-	if running {
-		m.cancelReq[id] = true
-		m.mu.Unlock()
-		cancel()
+	if n, _ := res.RowsAffected(); n > 0 {
+		t, err := m.Get(id)
+		if err != nil {
+			return err
+		}
+		m.emitView(t)
 		return nil
 	}
+	// ② 未命中 queued（已被出队或已结束）：尝试中断 running 任务。
+	m.mu.Lock()
+	cancel, running := m.cancels[id]
+	if running {
+		m.cancelReq[id] = true
+	}
 	m.mu.Unlock()
-	if queued {
-		return m.markTerminal(id, StatusCancelled, "", "已取消")
+	if running {
+		cancel()
+		return nil
 	}
 	return fmt.Errorf("任务不存在或已结束")
 }
@@ -417,24 +427,46 @@ func (m *Manager) isClosed() bool {
 
 // runNext 取出最早的 queued 任务执行一条（无则等待下一次唤醒）。
 func (m *Manager) runNext() {
-	t, err := m.popQueued()
+	t, err := m.GetFirstQueued()
 	if err != nil || t == nil {
 		return
 	}
-	m.mu.Lock()
-	h := m.handlers[t.Kind]
-	m.mu.Unlock()
-	if h == nil {
-		_ = m.markTerminal(t.ID, StatusFailed, "", "未注册的任务类型: "+t.Kind)
-		return
-	}
+	// 出队（状态置 running）之前先注册 cancel，消除「已出队但尚未注册」的窗口，
+	// 保证 Cancel 对刚出队、正在跑的任务也能命中并中断。
 	ctx, cancel := context.WithCancel(context.Background())
 	m.mu.Lock()
 	m.cancels[t.ID] = cancel
 	m.mu.Unlock()
 
+	claimed, err := m.claimQueued(t.ID)
+	if err != nil {
+		m.unregisterCancel(t.ID)
+		cancel()
+		slog.Warn("tasks: 领取任务失败", "id", t.ID, "error", err)
+		return
+	}
+	if !claimed {
+		// 已被并发 Cancel（或其它 worker）消费
+		m.unregisterCancel(t.ID)
+		cancel()
+		return
+	}
+	t.Status = string(StatusRunning)
+	t.StartedAt = nowMillis()
+	m.emitView(t)
+
+	m.mu.Lock()
+	h := m.handlers[t.Kind]
+	m.mu.Unlock()
+	if h == nil {
+		m.unregisterCancel(t.ID)
+		cancel()
+		_ = m.markTerminal(t.ID, StatusFailed, "", "未注册的任务类型: "+t.Kind)
+		return
+	}
+
 	progress := &Progress{manager: m, id: t.ID}
-	handlerErr := h(ctx, t, progress)
+	handlerErr := m.callHandler(h, ctx, t, progress)
 
 	m.mu.Lock()
 	delete(m.cancels, t.ID)
@@ -447,19 +479,26 @@ func (m *Manager) runNext() {
 	cancel()
 
 	switch {
-	case handlerErr == nil:
-		_ = m.markTerminal(t.ID, StatusSucceeded, "", "")
+	// 取消优先：用户取消必须胜过 succeeded（handler 即便返回 nil 也不吞掉取消）
 	case interrupted && userCancel:
 		_ = m.markTerminal(t.ID, StatusCancelled, "", "已取消")
+	case handlerErr == nil:
+		_ = m.markTerminal(t.ID, StatusSucceeded, "", "")
 	case interrupted:
 		// Close 中断：重新排队（下次 Start 续跑），不记失败
 		_ = m.requeue(t.ID, "运行中断，等待恢复")
 	default:
-		cur := m.mustGet(t.ID)
-		if cur != nil && cur.RetryCount < cur.MaxRetries {
-			_ = m.requeueWithBackoff(t.ID, cur.RetryCount+1, handlerErr)
-		} else {
+		var pe *handlerPanicError
+		if errors.As(handlerErr, &pe) {
+			// handler panic：不重试（退避救不了编程错误），直接置 failed
 			_ = m.markTerminal(t.ID, StatusFailed, "", handlerErr.Error())
+		} else {
+			cur := m.mustGet(t.ID)
+			if cur != nil && cur.RetryCount < cur.MaxRetries {
+				_ = m.requeueWithBackoff(t.ID, cur.RetryCount+1, handlerErr)
+			} else {
+				_ = m.markTerminal(t.ID, StatusFailed, "", handlerErr.Error())
+			}
 		}
 	}
 	if !m.isClosed() {
@@ -467,23 +506,45 @@ func (m *Manager) runNext() {
 	}
 }
 
-func (m *Manager) popQueued() (*Task, error) {
-	t, err := m.GetFirstQueued()
-	if err != nil || t == nil {
-		return nil, err
-	}
+// claimQueued 用带 status 条件的原子 UPDATE 把 queued 任务置 running，
+// 返回是否成功认领（false 表示该任务已被并发取消/消费）。
+func (m *Manager) claimQueued(id string) (bool, error) {
 	res, err := m.db.Exec(`UPDATE tasks SET status=?, started_at=? WHERE id=? AND status=?`,
-		string(StatusRunning), nowMillis(), t.ID, string(StatusQueued))
+		string(StatusRunning), nowMillis(), id, string(StatusQueued))
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return nil, nil // 已被并发消费（不应发生，防御）
-	}
-	t.Status = string(StatusRunning)
-	t.StartedAt = nowMillis()
-	m.emitView(t)
-	return t, nil
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+// unregisterCancel 清除某任务的取消登记（用于未真正运行/未进入终态收尾的路径）。
+func (m *Manager) unregisterCancel(id string) {
+	m.mu.Lock()
+	delete(m.cancels, id)
+	delete(m.cancelReq, id)
+	m.mu.Unlock()
+}
+
+// handlerPanicError 标记 handler 内部 panic（区别于普通业务错误，不参与退避重试）。
+type handlerPanicError struct {
+	value any
+}
+
+func (e *handlerPanicError) Error() string {
+	return fmt.Sprintf("任务 handler panic: %v", e.value)
+}
+
+// callHandler 调用 handler，并在其 panic 时恢复：记日志、转成错误返回，
+// 使 worker 循环存活（不能死一个任务卡死整个调度器）。
+func (m *Manager) callHandler(h Handler, ctx context.Context, t *Task, p *Progress) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("tasks: 任务 handler panic", "id", t.ID, "kind", t.Kind, "panic", r)
+			err = &handlerPanicError{value: r}
+		}
+	}()
+	return h(ctx, t, p)
 }
 
 // GetFirstQueued 返回最早的 queued 任务（无则 nil）。
@@ -534,8 +595,14 @@ func (m *Manager) updateResult(id, result string) {
 }
 
 func (m *Manager) markTerminal(id string, status Status, message, errText string) error {
-	if _, err := m.db.Exec(`UPDATE tasks SET status=?, message=?, error=?, finished_at=?, progress=CASE WHEN ?=100 THEN 100 ELSE progress END WHERE id=?`,
-		string(status), message, errText, nowMillis(), 100, id); err != nil {
+	// 只有 succeeded 才把进度置 100；fail/cancel 保留任务当前实际进度。
+	// （修复 SQL 恒真：原 CASE WHEN ?=100 恒传 100，导致终态进度恒置 100。）
+	set100 := 0
+	if status == StatusSucceeded {
+		set100 = 1
+	}
+	if _, err := m.db.Exec(`UPDATE tasks SET status=?, message=?, error=?, finished_at=?, progress=CASE WHEN ?=1 THEN 100 ELSE progress END WHERE id=?`,
+		string(status), message, errText, nowMillis(), set100, id); err != nil {
 		return err
 	}
 	t, err := m.Get(id)

@@ -6,6 +6,7 @@
 
 | 版本 | 日期 | 安装包 | 核心变更 |
 |------|------|------|------|
+| v2.34.0 | 08-15 | [gaea-v2.34.0.exe](gaea-v2.34.0.exe) | 阶段 7「正确性纵深」第一刀·并发正确性：轻语会话并发安全（三入口串行化 + CloneFullState 深拷贝 + 四结构 RWMutex + forSession 只读 + 末轮 drain 落库 + rhythm 实例化，12 新测试）；任务调度器竞态（进度语义/取消优先/原子出队/panic 恢复，10 新测试）；TCCA 指标聚合收敛（同字段集/子锁/防重合并，6 新测试）；AI 客户端状态与重试（非流式退避重试 + RWMutex + single-flight 刷新，7 新测试） |
 | v2.33.0 | 08-14 | [gaea-v2.33.0.exe](gaea-v2.33.0.exe) | 阶段 6「质量收敛」第十刀·前端收敛：巨型文件拆分（ChatPage/ImageGenPage/CapabilitiesPanel/Composer/mock.ts，全部 ≤410 行）+ 11 no-op 落实；any 清零（no-explicit-any 升 error，315→0）；绑定漂移检查恢复（gen_bindings -names + bindingNames.ts 462 方法 + bridge 双向守卫 + CI 步骤）；mock 契约对齐（RetrievalEvalRun 12 条查询集）；Sidebar 虚拟滚动 + CostLibraryView memo + useDebouncedValue；删 api/bridge.ts 桥接合流；vitest 361/361 |
 | v2.32.0 | 08-14 | [gaea-v2.32.0.exe](gaea-v2.32.0.exe) | 阶段 6「质量收敛」第九刀·辅助合集名实相符：微信 Stop 幂等/Start 重启/过期钩子 + wxToken DPAPI + 死表 V13 删除；OCR 超时杀进程树+单图降级+文案修正；配置原子写+损坏备份；CosyVoice 可配置+退避重试；token 改 header（fetch-SSE） |
 | v2.31.0 | 08-14 | [gaea-v2.31.0.exe](gaea-v2.31.0.exe) | 阶段 6「质量收敛」第八刀·记忆生命周期与审计：dream 写入审计（决策成文+SaveDreamFacts 带 source 落 dream-audit.jsonl）；facts 归档 90 天保留硬删+分页+新绑定+前端清理按钮+purge-audit 溯源；索引截断按边界（4096 字节口径+行边界+链接保护）；GraphView/WhisperMemoryLibrary 补测 13 用例 |

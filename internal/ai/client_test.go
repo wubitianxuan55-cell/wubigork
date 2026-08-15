@@ -21,10 +21,11 @@ func newTestClient(t *testing.T, handler http.Handler) (*Client, *httptest.Serve
 
 	cfg := &config.Config{XaiAPIBaseURL: srv.URL, Model: "grok-4.20"}
 	c := &Client{
-		cfg:        cfg,
-		httpClient: srv.Client(),
-		tokenStore: auth.NewTokenStore(t.TempDir() + "/token.json"),
-		sem:        make(chan struct{}, 4),
+		cfg:              cfg,
+		httpClient:       srv.Client(),
+		tokenStore:       auth.NewTokenStore(t.TempDir() + "/token.json"),
+		sem:              make(chan struct{}, 4),
+		chatRetryBackoff: []time.Duration{20 * time.Millisecond, 20 * time.Millisecond}, // 非流式重试退避注入短间隔，避免默认 1s/2s 拖慢测试
 	}
 	// 直接注入有效 token，避免走 tokenStore / 刷新流程
 	// ExpiresIn 需大于 3600（IsExpired 提前 1 小时刷新），否则偶发"登录已过期"。

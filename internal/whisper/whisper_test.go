@@ -616,7 +616,7 @@ func TestDecideRhythm_Chatter(t *testing.T) {
 		Aro: 20, Aff: 30, Stage: StageFamiliar,
 		PersonalityID: "genki", Sincerity: 0.5, Intensity: 0.7,
 	}
-	d := DecideRhythm(input)
+	d := DecideRhythm(input, &RhythmCounters{})
 	if d.Mode != RhythmChatter {
 		t.Errorf("genki personality should chatter, got %s", d.Mode)
 	}
@@ -627,7 +627,7 @@ func TestDecideRhythm_Monologue(t *testing.T) {
 		Aro: -20, Aff: 0, Stage: StageFamiliar,
 		PersonalityID: "kuudere", Sincerity: 0.5, Intensity: 0.5,
 	}
-	d := DecideRhythm(input)
+	d := DecideRhythm(input, &RhythmCounters{})
 	if d.Mode != RhythmMonologue {
 		t.Errorf("kuudere personality should monologue, got %s", d.Mode)
 	}

@@ -1,7 +1,10 @@
 // Package whisper — 工作记忆（对齐 ackem memory/workingMemory.ts）
 package whisper
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
 
 // ─── Exchange 对话交换 ────────────────────────────────────────
 
@@ -13,7 +16,10 @@ type Exchange struct {
 
 // ─── WorkingMemory 工作记忆缓冲区 ─────────────────────────────
 
+// WorkingMemory 工作记忆缓冲区。T7-1.1：异步持久化协程与主流程
+// 并发读写同一 map，必须加锁（Go 并发 map 读写直接 panic）。
 type WorkingMemory struct {
+	mu       sync.RWMutex
 	sessions map[string][]Exchange
 }
 
@@ -21,16 +27,16 @@ func NewWorkingMemory() *WorkingMemory {
 	return &WorkingMemory{sessions: make(map[string][]Exchange)}
 }
 
+// forSession 返回会话缓冲区（只读，不初始化）。调用方必须已持有 mu（读或写锁）。
+// 不存在时返回 nil：Push 对 nil append 会自动建新切片；GetRecent/GetAll 对 nil 返回空。
+// 注意：不得在只读路径（RLock）里惰性写 map，否则并发读会触发写-写数据竞争。
 func (wm *WorkingMemory) forSession(sessionID string) []Exchange {
-	buf := wm.sessions[sessionID]
-	if buf == nil {
-		buf = []Exchange{}
-		wm.sessions[sessionID] = buf
-	}
-	return buf
+	return wm.sessions[sessionID]
 }
 
 func (wm *WorkingMemory) Push(sessionID string, ex Exchange) {
+	wm.mu.Lock()
+	defer wm.mu.Unlock()
 	buf := wm.forSession(sessionID)
 	buf = append(buf, ex)
 	if len(buf) > WorkingMemoryMaxExchanges*2 {
@@ -39,18 +45,24 @@ func (wm *WorkingMemory) Push(sessionID string, ex Exchange) {
 	wm.sessions[sessionID] = buf
 }
 
-// GetRecent 返回最近 N 轮对话
+// GetRecent 返回最近 N 轮对话（拷贝，调用方可安全持有）。
 func (wm *WorkingMemory) GetRecent(sessionID string) []Exchange {
+	wm.mu.RLock()
+	defer wm.mu.RUnlock()
 	buf := wm.forSession(sessionID)
 	start := len(buf) - WorkingMemoryMaxExchanges
 	if start < 0 {
 		start = 0
 	}
-	return buf[start:]
+	out := make([]Exchange, len(buf)-start)
+	copy(out, buf[start:])
+	return out
 }
 
-// GetAll 返回所有对话（用于持久化）
+// GetAll 返回所有对话（用于持久化，拷贝）。
 func (wm *WorkingMemory) GetAll(sessionID string) []Exchange {
+	wm.mu.RLock()
+	defer wm.mu.RUnlock()
 	buf := wm.forSession(sessionID)
 	out := make([]Exchange, len(buf))
 	copy(out, buf)
@@ -80,6 +92,8 @@ func (wm *WorkingMemory) BuildContextBlock(sessionID string) string {
 }
 
 func (wm *WorkingMemory) Clear(sessionID string) {
+	wm.mu.Lock()
+	defer wm.mu.Unlock()
 	delete(wm.sessions, sessionID)
 }
 

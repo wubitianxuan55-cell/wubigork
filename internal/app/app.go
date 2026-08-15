@@ -448,6 +448,11 @@ func (a *App) Shutdown(ctx context.Context) {
 		}
 		a.weixinMu.Unlock()
 	}
+	// T7-1.1 ③：末轮落库——先 drain 异步记忆写入队列再持久化所有轻语会话，
+	// 避免进程退出时末轮 LLM 抽取的记忆/状态丢失（H4）。须在关闭 DB 前执行。
+	if a.whisperState != nil {
+		a.whisperState.drainAndPersistAll()
+	}
 	if err := a.closePM(); err != nil {
 		slog.Error("关闭项目失败", "error", err)
 	}

@@ -1,5 +1,31 @@
 # gaea · 多功能 AI 助手
 
+## v2.34.0「正确性纵深 · 并发正确性」（2026-08-15）
+> 阶段 7 第一刀（T7-1）：轻语会话并发安全、任务调度器竞态、TCCA 指标聚合收敛、AI 客户端状态与重试。
+> 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段7-正确性纵深.md；详见 releases/v2.34.0.md。
+- T7-1.1 **轻语会话并发安全**（internal/whisper + whisper_handler + app.go Shutdown）：Orchestrator
+  per-instance Mutex 串行化三并发入口（GUI/微信/语音）；修复 CloneFullState 浅拷贝竞态（-race 实证）→
+  逐指针/切片/map 深拷贝；WorkingMemory/AssociationIndex/HabitsStore/ActiveRecall 加 RWMutex；修复
+  forSession 读路径惰性写 map（-race 实证）→ 只读；跨会话持久化走 persistStateSync（回合锁内快照 +
+  persistMu 落库）+ drainAndPersistAll 挂 Shutdown（末轮先 drain 再 persist）；rhythm 包级计数器移入
+  Orchestrator 实例（Reset 只清自己的）；新增 12 测试（并发访问/回合串行/节奏隔离/末轮落库）；
+- T7-1.2 **任务调度器竞态修复**（internal/gaea/tasks）：markTerminal 进度语义（succeeded 才置 100，
+  SQL CASE WHEN）；取消优先于 succeeded（handler 返回 nil 也不吞取消）；Cancel 与出队原子化
+  （WHERE status='queued' 条件 UPDATE + 出队前注册取消）；runNext 包 defer recover（handler panic →
+  failed 不重试，worker 存活）；新增 10 测试（进度/取消优先/竞态 50 并发/panic 恢复），22/22 -race 全绿；
+- T7-1.3 **TCCA 指标聚合收敛**（internal/gaea/context/metrics.go）：MergeChild 与 Report 同字段集
+  （补齐 CacheHitTokens/CacheMissTokens/BreakCount/CompactionCount 四条漏项）；merged 标记移入 child.mu
+  临界区 + 数据快照走 child.Report()（子锁，锁序 父→子→孙 无死锁）；ForkCount +1 每 child 恰好一次
+  （children 移除 + merged 标记防重）；新增 6 测试（Merge 前后 Report 一致/全字段/防重/并发 -race）；
+- T7-1.4 **AI 客户端状态与重试**（internal/ai/client.go）：非流式 Chat 复用流式退避（连接错误/5xx
+  重试 1s/2s；401 仅 xAI 同函数内刷新重发一次，不递归不占双槽）；activeEngineID/imageBackend/token
+  加 RWMutex + GetToken single-flight 刷新；修复 vet 错误（Sprintf %w→%v）；新增 7 测试
+  （连接/5xx/401 刷新/不占双槽/状态并发/20 并发单飞刷新）；
+- 验证：go build/vet 干净 + scripts/test-all.ps1 **109/109 包 ok** + 并发门禁 C（whisper/tasks/context/ai
+  go test -race 全绿，-race 需 cgo：CC=C:/msys64/ucrt64/bin/gcc.exe）；前端零改动（tsc 0 errors、
+  eslint 0 errors、359 存量 warnings 与基线一致）；TestBindingsCompleteness 兜底（无新绑定）；
+  冒烟通过（/api/health 200）。
+
 ## v2.33.0「质量收敛 · 前端收敛」（2026-08-14）
 > 阶段 6 第十刀（T6-10）贯穿收官：巨型文件拆分、any 清零、漂移检查恢复、mock 契约化、桥接归一、性能与补测。
 > 规划：docs/superpowers/plans/2026-08-14-gaea长期规划-阶段6-质量收敛.md；详见 releases/v2.33.0.md。

@@ -21,16 +21,19 @@ var monologuePersonalities = map[string]bool{
 	"dominatrix": true, "tamer": true,
 }
 
-// ─── 模块级连续计数器 ─────────────────────────────────────────
+// ─── 节奏连续计数器 ───────────────────────────────────────────
 
-var (
-	consecutiveChatter   int
-	consecutiveMonologue int
-)
+// RhythmCounters 连续节奏计数器。T7-1.1：从包级全局移入 Orchestrator 实例，
+// 修复「角色 A 连聊后角色 B 首轮被切独白、新会话清零他人计数」的跨会话串台。
+type RhythmCounters struct {
+	Chatter   int
+	Monologue int
+}
 
-func ResetRhythmState() {
-	consecutiveChatter = 0
-	consecutiveMonologue = 0
+// Reset 清零本实例计数器。
+func (c *RhythmCounters) Reset() {
+	c.Chatter = 0
+	c.Monologue = 0
 }
 
 // ─── 节奏决策输入 ─────────────────────────────────────────────
@@ -45,8 +48,9 @@ type RhythmInput struct {
 	Intensity     float64
 }
 
-// DecideRhythm 主决策函数
-func DecideRhythm(input RhythmInput) RhythmDecision {
+// DecideRhythm 主决策函数（计数器由调用方持有——Orchestrator 实例字段，
+// 测试可传独立计数器，互不串台）。
+func DecideRhythm(input RhythmInput, counters *RhythmCounters) RhythmDecision {
 	aro := input.Aro
 	aff := input.Aff
 	stage := input.Stage
@@ -57,55 +61,55 @@ func DecideRhythm(input RhythmInput) RhythmDecision {
 
 	// 低强度不拆分
 	if intensity < 0.3 && mathAbs(aro) < 20 {
-		return defaultDecision()
+		return defaultDecision(counters)
 	}
 
 	// 强制切换
-	if consecutiveChatter >= 3 {
-		consecutiveChatter = 0
-		consecutiveMonologue = 1
+	if counters.Chatter >= 3 {
+		counters.Chatter = 0
+		counters.Monologue = 1
 		return monologueDecision()
 	}
-	if consecutiveMonologue >= 3 {
-		consecutiveMonologue = 0
-		consecutiveChatter = 1
+	if counters.Monologue >= 3 {
+		counters.Monologue = 0
+		counters.Chatter = 1
 		return chatterDecision(stage)
 	}
 
 	// 深夜偏向长篇
 	if timeOfDay == "late_night" && aro < 0 {
-		consecutiveMonologue++
-		consecutiveChatter = 0
+		counters.Monologue++
+		counters.Chatter = 0
 		return monologueDecision()
 	}
 
 	// 人格偏向
 	if chatterPersonalities[personalityID] && aro > 0 && aff > 3 {
-		consecutiveChatter++
-		consecutiveMonologue = 0
+		counters.Chatter++
+		counters.Monologue = 0
 		return chatterDecision(stage)
 	}
 	if monologuePersonalities[personalityID] {
-		consecutiveMonologue++
-		consecutiveChatter = 0
+		counters.Monologue++
+		counters.Chatter = 0
 		return monologueDecision()
 	}
 
 	// 核心规则：chatter
 	if aro > 3 && aff > 8 {
-		consecutiveChatter++
-		consecutiveMonologue = 0
+		counters.Chatter++
+		counters.Monologue = 0
 		return chatterDecision(stage)
 	}
 
 	// 核心规则：monologue
 	if aro < -10 || sincerity > 0.7 {
-		consecutiveMonologue++
-		consecutiveChatter = 0
+		counters.Monologue++
+		counters.Chatter = 0
 		return monologueDecision()
 	}
 
-	return defaultDecision()
+	return defaultDecision(counters)
 }
 
 func randInt(min, max int) int {
@@ -136,9 +140,11 @@ func monologueDecision() RhythmDecision {
 	}
 }
 
-func defaultDecision() RhythmDecision {
-	consecutiveChatter = 0
-	consecutiveMonologue = 0
+func defaultDecision(counters *RhythmCounters) RhythmDecision {
+	if counters != nil {
+		counters.Chatter = 0
+		counters.Monologue = 0
+	}
 	return RhythmDecision{
 		Mode:           RhythmDefault,
 		Count:          2,

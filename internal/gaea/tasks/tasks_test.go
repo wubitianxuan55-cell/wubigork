@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -448,5 +449,331 @@ func TestProgressThrottleEmits(t *testing.T) {
 	last, _ := col.last()
 	if last.Status != string(StatusSucceeded) || last.Progress != 100 {
 		t.Fatalf("终态事件缺失或进度错误: %+v", last)
+	}
+}
+
+// ─── T7-1.2 竞态修复新增测试 ─────────────────────────────
+
+// ① 进度语义：succeeded 强制进度 100（即使 handler 只报 50）。
+func TestMarkTerminalSucceededForces100(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{BackoffBase: 10 * time.Millisecond})
+	m.Register(KindFileIndex, func(ctx context.Context, tk *Task, p *Progress) error {
+		p.Report(50, "半程")
+		return nil
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+	tk, _ := m.Submit(KindFileIndex, "半程成功", nil)
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.Status != string(StatusSucceeded) {
+		t.Fatalf("期望 succeeded，实际 %s", done.Status)
+	}
+	if done.Progress != 100 {
+		t.Fatalf("succeeded 应强制进度 100，实际 %d", done.Progress)
+	}
+}
+
+// ① 进度语义：failed 保留实际进度（不恒置 100）。
+func TestMarkTerminalFailedKeepsProgress(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{MaxRetries: 0, BackoffBase: 10 * time.Millisecond})
+	m.Register(KindFileIndex, func(ctx context.Context, tk *Task, p *Progress) error {
+		p.Report(40, "进行中")
+		return errors.New("中途失败")
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+	tk, _ := m.Submit(KindFileIndex, "失败保留进度", nil)
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.Status != string(StatusFailed) {
+		t.Fatalf("期望 failed，实际 %s", done.Status)
+	}
+	if done.Progress != 40 {
+		t.Fatalf("failed 应保留实际进度 40，实际 %d", done.Progress)
+	}
+}
+
+// ① 进度语义：cancelled 保留实际进度（不恒置 100）。
+func TestMarkTerminalCancelledKeepsProgress(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{BackoffBase: 10 * time.Millisecond})
+	reported := make(chan struct{})
+	m.Register(KindPriceFetch, func(ctx context.Context, tk *Task, p *Progress) error {
+		p.Report(30, "进行中")
+		close(reported)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+	tk, _ := m.Submit(KindPriceFetch, "取消保留进度", nil)
+	select {
+	case <-reported:
+	case <-time.After(2 * time.Second):
+		t.Fatal("任务未开始")
+	}
+	if err := m.Cancel(tk.ID); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.Status != string(StatusCancelled) {
+		t.Fatalf("期望 cancelled，实际 %s", done.Status)
+	}
+	if done.Progress != 30 {
+		t.Fatalf("cancelled 应保留实际进度 30，实际 %d", done.Progress)
+	}
+}
+
+// ② 取消优先：handler 返回 nil（而非 ctx.Err()）时，用户取消仍应胜出。
+func TestCancelWinsOverNilHandler(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{BackoffBase: 10 * time.Millisecond})
+	started := make(chan struct{})
+	m.Register(KindPriceFetch, func(ctx context.Context, tk *Task, p *Progress) error {
+		close(started)
+		<-ctx.Done()
+		return nil // 注意：返回 nil 而非 ctx.Err()，验证取消不被 succeeded 吞掉
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+	tk, _ := m.Submit(KindPriceFetch, "取消优先", nil)
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("任务未开始")
+	}
+	if err := m.Cancel(tk.ID); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.Status != string(StatusCancelled) {
+		t.Fatalf("期望 cancelled（取消优先于 succeeded），实际 %s", done.Status)
+	}
+}
+
+// ③ Cancel 与出队竞态：queued 任务被原子取消后绝不再运行，且不被出队覆盖。
+func TestCancelQueuedAtomicNeverRuns(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{MaxConcurrent: 1, BackoffBase: 10 * time.Millisecond})
+	var victimRan int32
+	block := make(chan struct{})
+	m.Register(KindFileIndex, func(ctx context.Context, tk *Task, p *Progress) error {
+		if tk.Label == "victim" {
+			atomic.AddInt32(&victimRan, 1)
+		}
+		<-block
+		return nil
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+	first, _ := m.Submit(KindFileIndex, "blocker", nil)
+	second, _ := m.Submit(KindFileIndex, "victim", nil)
+	// 等 blocker 真正 running，victim 保持 queued
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		f, _ := m.Get(first.ID)
+		if f.Status == string(StatusRunning) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("blocker 未运行")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := m.Cancel(second.ID); err != nil {
+		t.Fatalf("cancel queued: %v", err)
+	}
+	close(block)
+	waitTerminal(t, m, first.ID, 3*time.Second)
+	if atomic.LoadInt32(&victimRan) != 0 {
+		t.Fatalf("被取消的 queued 任务不应运行，实际运行了 %d 次", victimRan)
+	}
+	s, _ := m.Get(second.ID)
+	if s.Status != string(StatusCancelled) {
+		t.Fatalf("victim 应保持 cancelled，实际 %s（被出队覆盖？）", s.Status)
+	}
+}
+
+// ③ 重复取消：对 running 任务连续取消两次，均成功且终态一致。
+func TestCancelRepeatedRunningTask(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{BackoffBase: 10 * time.Millisecond})
+	started := make(chan struct{})
+	release := make(chan struct{})
+	m.Register(KindPriceFetch, func(ctx context.Context, tk *Task, p *Progress) error {
+		close(started)
+		<-release // 不响应 ctx.Done，模拟慢响应，保证两次 Cancel 都在 running 期命中
+		return ctx.Err()
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+	tk, _ := m.Submit(KindPriceFetch, "重复取消", nil)
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("任务未开始")
+	}
+	if err := m.Cancel(tk.ID); err != nil {
+		t.Fatalf("第一次 cancel: %v", err)
+	}
+	if err := m.Cancel(tk.ID); err != nil {
+		t.Fatalf("第二次 cancel 应幂等成功: %v", err)
+	}
+	close(release)
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.Status != string(StatusCancelled) {
+		t.Fatalf("期望 cancelled，实际 %s", done.Status)
+	}
+}
+
+// ③ 取消不存在/已结束的任务应报错。
+func TestCancelUnknownAndTerminalErrors(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{BackoffBase: 10 * time.Millisecond})
+	m.Register(KindFileIndex, func(ctx context.Context, tk *Task, p *Progress) error {
+		return nil
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+	if err := m.Cancel("tsk_不存在"); err == nil {
+		t.Fatal("取消不存在的任务应报错")
+	}
+	tk, _ := m.Submit(KindFileIndex, "先完成", nil)
+	waitTerminal(t, m, tk.ID, 3*time.Second)
+	if err := m.Cancel(tk.ID); err == nil {
+		t.Fatal("取消已结束的任务应报错")
+	}
+}
+
+// ③ 并发竞态压力：大量提交+取消并发执行，Cancel 成功的任务终态必须为 cancelled。
+func TestCancelConcurrentStress(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{MaxConcurrent: 4, MaxRetries: 0, BackoffBase: 5 * time.Millisecond})
+	m.Register(KindPriceFetch, func(ctx context.Context, tk *Task, p *Progress) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Millisecond):
+			return nil
+		}
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+
+	var mu sync.Mutex
+	cancelled := map[string]bool{}
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			tk, err := m.Submit(KindPriceFetch, "压力", nil)
+			if err != nil {
+				return
+			}
+			if i%2 == 0 {
+				if m.Cancel(tk.ID) == nil {
+					mu.Lock()
+					cancelled[tk.ID] = true
+					mu.Unlock()
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	// 等所有任务到达终态
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var pending int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE status IN ('queued','running')`).Scan(&pending); err != nil {
+			t.Fatalf("查询未终态数: %v", err)
+		}
+		if pending == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("仍有 %d 个任务未达终态", pending)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	for id := range cancelled {
+		tk, err := m.Get(id)
+		if err != nil {
+			t.Fatalf("get %s: %v", id, err)
+		}
+		if tk.Status != string(StatusCancelled) {
+			t.Fatalf("Cancel 成功的任务 %s 终态应为 cancelled，实际 %s", id, tk.Status)
+		}
+	}
+}
+
+// ④ panic 恢复：handler panic 记日志、任务置 failed，且不重试。
+func TestHandlerPanicMarksFailed(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{MaxRetries: 2, BackoffBase: 10 * time.Millisecond})
+	var attempts int32
+	m.Register(KindFileIndex, func(ctx context.Context, tk *Task, p *Progress) error {
+		atomic.AddInt32(&attempts, 1)
+		panic("boom")
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+	tk, _ := m.Submit(KindFileIndex, "panic 任务", nil)
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.Status != string(StatusFailed) {
+		t.Fatalf("期望 failed，实际 %s", done.Status)
+	}
+	if !strings.Contains(done.Error, "panic") {
+		t.Fatalf("错误信息应包含 panic，实际 %q", done.Error)
+	}
+	if n := atomic.LoadInt32(&attempts); n != 1 {
+		t.Fatalf("panic 不应重试，期望执行 1 次，实际 %d", n)
+	}
+}
+
+// ④ panic 恢复：handler panic 后 worker 循环存活，后续任务仍能执行。
+func TestHandlerPanicWorkerSurvives(t *testing.T) {
+	db := openTestDB(t)
+	m := New(db, nil, Options{MaxRetries: 0, BackoffBase: 10 * time.Millisecond})
+	m.Register(KindFileIndex, func(ctx context.Context, tk *Task, p *Progress) error {
+		if tk.Label == "panic" {
+			panic("boom")
+		}
+		return nil
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+	first, _ := m.Submit(KindFileIndex, "panic", nil)
+	waitTerminal(t, m, first.ID, 3*time.Second)
+	// 关键：第二个任务仍能正常完成，证明 worker 未因 panic 死亡
+	second, _ := m.Submit(KindFileIndex, "正常", nil)
+	done := waitTerminal(t, m, second.ID, 3*time.Second)
+	if done.Status != string(StatusSucceeded) {
+		t.Fatalf("panic 后 worker 应存活，后续任务应 succeeded，实际 %s（%s）", done.Status, done.Error)
 	}
 }
