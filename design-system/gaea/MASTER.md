@@ -37,11 +37,14 @@
 | Warning | `--color-warning` | `#f59e0b` | 警告 |
 | Destructive | `--color-destructive` | `#ef4444` | 破坏性操作（Wave 1 补令牌） |
 | Accent RGB | `--accent-rgb` | `45,212,191` | rgba 发光/水印 |
-| Glow | `--glow` | `#5eead4` | AI 状态发光 |
-| Glass BG | `--glass-bg` | `rgba(15,26,32,0.62)` | 玻璃面板 |
-| Aurora BG | `--aurora-bg` | radial 渐变 | 氛围背景 |
+| Glow | `--gaea-glow` | `#5eead4` | AI 状态发光 |
+| Glass BG | `--gaea-glass-bg` | `rgba(15,26,32,0.62)` | 玻璃面板 |
+| Aurora BG | `--gaea-aurora-bg` | radial 渐变 | 氛围背景 |
+| Destructive | `--color-destructive` | `#ef4444` 暗 / `#dc2626` 亮 | 破坏性操作（Wave 1 已落地，antd colorError 对齐） |
 
 **Color Notes:** 主题即身份（6 色系 × 明暗）；组件零硬编码色值；正文对比度 ≥4.5:1。
+**死令牌治理（Wave 2+）:** `--ds-*` 仅 2/14 定义（27 处消费失效）→ 定义或迁移；`--mc-*` 私有命名空间
+125 处 → 迁移全局令牌；tailwind `--color-border` 与 legacy shim 同名 → 消歧；主题色值 3 处重复 → 单源派生。
 
 ### Typography
 

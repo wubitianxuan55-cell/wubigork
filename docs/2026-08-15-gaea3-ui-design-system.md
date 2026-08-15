@@ -48,12 +48,19 @@
 | 警告 | `--color-warning` | `#f59e0b` | 警告状态 |
 | 强调 RGB | `--accent-rgb` | `45,212,191` | rgba() 构建发光/水印 |
 | 发光 | `--glow` | `#5eead4` | AI 状态发光 |
-| 玻璃底 | `--glass-bg` | `rgba(15,26,32,0.62)` | 玻璃面板背景 |
+| 玻璃底 | `--gaea-glass-bg` | `rgba(15,26,32,0.62)` | 玻璃面板背景 |
+| 发光 | `--gaea-glow` | `#5eead4` | AI 状态发光 |
+| 氛围渐变 | `--gaea-aurora-bg` | radial 渐变 | 深空氛围背景 |
 
-**新增规范（落地 Wave 1 补充）**：
-- `--color-destructive`（破坏性操作红，各主题统一 `#ef4444` 暗 / `#dc2626` 亮）
-- `--focus-ring`（焦点环：`0 0 0 2px var(--color-bg-layout), 0 0 0 4px var(--color-primary)`）
+**新增规范（Wave 1 已落地）**：
+- `--color-destructive`（破坏性操作红，暗 `#ef4444` / 亮 `#dc2626`，12 主题经 appStore `dS/lS` 统一注入；
+  App.tsx 同时对齐 antd `colorError`）
+- `--focus-ring` 规范 = `outline: 2px solid var(--md-sys-color-primary, var(--gaea-glow)) + outline-offset 2px`
+  （现状各板块已用 `--gaea-glow` 2px outline，统一为 primary 优先即可）
 - 对比度契约：正文 ≥ 4.5:1、次要文字 ≥ 3:1、主色上文字 ≥ 3:1（对照现有令牌逐主题核验）
+- **死令牌治理**：`--ds-*` 声明为 canonical 但仅 2 个被定义（27 处消费失效）——Wave 2 修
+  （要么定义，要么消费改走 `--md-sys-*`/`--gaea-*`）；`--mc-*` 私有命名空间（125 处）Wave 3 迁移
+  到全局令牌；`--color-border` tailwind 与 legacy shim 同名冲突 Wave 2 消歧（gaea 层改 `--color-line`）。
 
 ### 1.2 圆角 / 阴影 / 间距 / 动效（现有令牌，规范用法）
 
@@ -160,9 +167,16 @@
 
 ## 6. 实施路线（分 Wave，每 Wave 独立提交 + 门禁）
 
-- **Wave 1（令牌层）**：index.css 补充 `--color-destructive`/`--focus-ring` 等缺失令牌；
-  appStore 主题校验对比度；清点组件内硬编码色值清单。
-- **Wave 2（壳层）**：MainLayout 顶栏/侧栏/首页启动器按 §3 收敛（玻璃面板 + 激活态 +
-  focus 环）。
-- **Wave 3+（板块）**：按 pages/*.md 蓝图逐板块改造，每板块一批次提交。
+- **Wave 1（令牌层）✅ 已落地**：`colorDestructive` 加入 ThemeTokens（dS/lS 统一注入 12 主题）；
+  App.tsx 注入 `--color-destructive` + antd colorError 对齐；index.css 新增 `.gp-panel` 玻璃容器
+  工具类；appStore.test.ts 3 用例锁定令牌完整性。
+- **Wave 2（壳层 + 死令牌治理）**：MainLayout 顶栏/侧栏/首页启动器按 §3 收敛；修 `--ds-*` 死令牌
+  （定义或迁移）；`--color-border` tailwind/shim 同名消歧；主题色值 3 处重复维护改单一数据源
+  （MainLayout themeDots + AppearancePanel 列表改从 appStore 派生）。
+- **Wave 3（方言收敛）**：模型中心 `--mc-*` 私有命名空间迁移到全局令牌（125 处，半径 18/13/9 →
+  全局 8/12/16/28）；办公系从「扁平 Tailwind」过渡为「玻璃容器 + 实底卡信息层」（gaea styles.css
+  短名令牌兜底从硬编码暗色 hex 改全局令牌回退）；记忆中枢 home 科幻风（hub-grid/scanline）收敛。
+- **Wave 4+（板块级）**：按 pages/*.md 蓝图逐板块改造（chat/novel/imagegen/gaea/memoryhub/
+  modelcenter/characterlib/settings/knowledge），每板块一批次提交；emoji 图标、硬编码 hex、
+  11px 字号、焦点环、状态三重传达逐项治理。
 - 每 Wave 验收：tsc/eslint/vitest 全绿 + 12 主题冒烟（关键页面截屏对比）+ 无回归。

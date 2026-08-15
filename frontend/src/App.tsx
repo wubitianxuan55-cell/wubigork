@@ -77,6 +77,7 @@ const App: React.FC = () => {
     // Semantic
     set('--md-sys-color-success', effTokens.colorSuccess)
     set('--md-sys-color-warning', effTokens.colorWarning)
+    set('--md-sys-color-destructive', effTokens.colorDestructive)
 
     // Elevation
     set('--md-sys-elevation-1', effTokens.elevation1)
@@ -109,6 +110,7 @@ const App: React.FC = () => {
     set('--color-border', effTokens.colorBorder)
     set('--color-success', effTokens.colorSuccess)
     set('--color-warning', effTokens.colorWarning)
+    set('--color-destructive', effTokens.colorDestructive)
     set('--color-bg-container', effTokens.colorBgContainer)
     set('--color-bg-layout', effTokens.colorBgLayout)
     set('--bg-glass', effTokens.surfaceVariant)
@@ -144,6 +146,7 @@ const App: React.FC = () => {
             colorText: effTokens.colorText,
             colorTextSecondary: effTokens.colorTextSecondary,
             colorBorder: effTokens.colorBorder,
+            colorError: effTokens.colorDestructive, // antd 危险语义对齐 gaea 令牌（删除/错误确认）
             borderRadius: density === 'compact' ? 12 : 16,       // M3 默认更大圆角
             borderRadiusLG: density === 'compact' ? 14 : 20,
             borderRadiusSM: density === 'compact' ? 8 : 12,

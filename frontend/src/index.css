@@ -526,6 +526,14 @@ body {
 }
 
 /* ── 玻璃拟态工具类 ── */
+/* gp-panel = 3.0 设计系统玻璃容器基座（§2.1）：氛围层之上的容器层，信息层用实底卡不叠玻璃 */
+.gp-panel {
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-radius-lg);
+}
 .md-glass {
   background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
   -webkit-backdrop-filter: blur(20px) saturate(140%);

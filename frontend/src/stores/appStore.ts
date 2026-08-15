@@ -20,6 +20,7 @@ export interface ThemeTokens {
   colorBgContainer: string; colorBgLayout: string
   colorText: string; colorTextSecondary: string; colorBorder: string
   colorSuccess: string; colorWarning: string
+  colorDestructive: string  // 破坏性操作红（危险确认/删除/失败态），12 主题统一语义
   elevation1: string; elevation2: string; elevation3: string; elevation4: string; elevation5: string
   radiusSm: string; radiusMd: string; radiusLg: string; radiusXl: string
   transitionFast: string; transitionNormal: string; transitionSlow: string
@@ -34,8 +35,8 @@ export interface ThemeTokens {
 // Shared
 // ═══════════════════════════════════════════════════════════
 
-const dS = { elevation1:'0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.15)', elevation2:'0 1px 2px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.15)', elevation3:'0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15)', elevation4:'0 6px 12px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.15)', elevation5:'0 8px 24px rgba(0,0,0,0.45), 0 4px 12px rgba(0,0,0,0.2)', radiusSm:'8px', radiusMd:'12px', radiusLg:'16px', radiusXl:'28px', transitionFast:'200ms cubic-bezier(0.2,0,0,1)', transitionNormal:'300ms cubic-bezier(0.2,0,0,1)', transitionSlow:'400ms cubic-bezier(0.2,0,0,1)' }
-const lS = { elevation1:'0 1px 2px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04)', elevation2:'0 1px 2px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04)', elevation3:'0 4px 8px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.04)', elevation4:'0 6px 12px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.04)', elevation5:'0 8px 24px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.08)', radiusSm:'8px', radiusMd:'12px', radiusLg:'16px', radiusXl:'28px', transitionFast:'200ms cubic-bezier(0.2,0,0,1)', transitionNormal:'300ms cubic-bezier(0.2,0,0,1)', transitionSlow:'400ms cubic-bezier(0.2,0,0,1)' }
+const dS = { elevation1:'0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.15)', elevation2:'0 1px 2px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.15)', elevation3:'0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15)', elevation4:'0 6px 12px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.15)', elevation5:'0 8px 24px rgba(0,0,0,0.45), 0 4px 12px rgba(0,0,0,0.2)', radiusSm:'8px', radiusMd:'12px', radiusLg:'16px', radiusXl:'28px', transitionFast:'200ms cubic-bezier(0.2,0,0,1)', transitionNormal:'300ms cubic-bezier(0.2,0,0,1)', transitionSlow:'400ms cubic-bezier(0.2,0,0,1)', colorDestructive:'#ef4444' }
+const lS = { elevation1:'0 1px 2px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04)', elevation2:'0 1px 2px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04)', elevation3:'0 4px 8px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.04)', elevation4:'0 6px 12px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.04)', elevation5:'0 8px 24px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.08)', radiusSm:'8px', radiusMd:'12px', radiusLg:'16px', radiusXl:'28px', transitionFast:'200ms cubic-bezier(0.2,0,0,1)', transitionNormal:'300ms cubic-bezier(0.2,0,0,1)', transitionSlow:'400ms cubic-bezier(0.2,0,0,1)', colorDestructive:'#dc2626' }
 
 // ═══════════════════════════════════════════════════════════
 // 6 Dark Themes
