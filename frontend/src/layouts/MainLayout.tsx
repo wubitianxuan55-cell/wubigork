@@ -347,7 +347,11 @@ const MainLayout: React.FC = () => {
                 <Tooltip key={t} title={themeLabels[t]}>
                   <span
                     className="theme-dot"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`切换主题 ${themeLabels[t]}`}
                     onClick={() => setTheme(t)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTheme(t) } }}
                     style={{
                       width: 18, height: 18, borderRadius: '50%',
                       background: `radial-gradient(circle at 35% 30%, ${themeDots[t]}, color-mix(in srgb, ${themeDots[t]} 55%, #000))`,

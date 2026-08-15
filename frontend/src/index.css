@@ -669,10 +669,14 @@ body {
   box-shadow: 0 0 34px color-mix(in srgb, var(--gaea-glow) 65%, transparent) !important;
 }
 
-/* ── 主题色块 hover ── */
+/* ── 主题色块 hover / focus ── */
 .theme-dot:hover {
   transform: scale(1.22) !important;
   opacity: 1 !important;
+}
+.theme-dot:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
 }
 
 /* ── 聊天输入栏聚焦霓虹 ── */
