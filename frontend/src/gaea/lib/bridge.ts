@@ -868,6 +868,15 @@ export function initBridge(): void {
   if (!w.go) w.go = {};
   if (!w.go.app) w.go.app = {};
   w.go.app.App = createAppProxy();
+  // HTTP 模式也补齐板块门面代理（CoreB/OfficeB/MemoryB/CostB/ModelB/VoiceB/ChatB/NovelB/ImageB/CharlibB）：
+  // wailsjsCompat 从 '../wailsjs/go/app/<门面>' 直调 window.go.app.<门面>.<方法>（如
+  // useVoiceChat 的 App.VoiceStop），HTTP 桥接下这些门面不存在会抛
+  // "Cannot read properties of undefined (reading 'VoiceStop')"。RPC 端点按方法名路由，
+  // 与门面无关，故每门面挂同一 RPC 代理即可（方法名冲突时后注册者生效，方法与门面一一对应无冲突）。
+  const FACADES = ["CoreB", "OfficeB", "MemoryB", "CostB", "ModelB", "VoiceB", "ChatB", "NovelB", "ImageB", "CharlibB"] as const;
+  for (const ns of FACADES) {
+    if (!w.go.app[ns]) w.go.app[ns] = createAppProxy();
+  }
 }
 
 import {
