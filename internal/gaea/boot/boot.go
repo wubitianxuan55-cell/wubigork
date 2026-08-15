@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/agent"
+	"github.com/gaea/gaea/internal/gaea/agent/session"
 	"github.com/gaea/gaea/internal/gaea/archive"
 	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/command"
@@ -112,6 +113,14 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// shares this synchronized sink. The job manager is session-scoped — its jobs
 	// outlive a turn and are cancelled by Controller.Close.
 	sink := event.Sync(opts.Sink)
+	// 3.0 Step 1: 会话事件日志（回退开关 session.log_format="event"；缺省 legacy
+	// 保持旧行为，sink 链与改造前完全一致）。事件先写 <id>.gaea-log.jsonl 再转发
+	// 前端——「模型可见必入日志」由该单点保证；会话路径在控制构建完成后注入。
+	var eventLogSink *session.EventLogSink
+	if cfg.LogFormatIsEvent() {
+		eventLogSink = session.NewEventLogSink(orDefault(opts.SessionDir, config.SessionDir()), sink)
+		sink = event.Sync(eventLogSink)
+	}
 	jm := jobs.NewManager(sink)
 
 	execProv, err := NewProvider(entry)
@@ -414,7 +423,14 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		AutoPlan:       autoPlanEnabled(cfg),
 		WorkspaceRoot:  cwd,
 	}
-	return control.New(ctrlOpts), nil
+	ctrl := control.New(ctrlOpts)
+	// 事件日志 sink 的会话路径只有控制构建完成后才可知（首次对话自动创建 /
+	// Resume 注入），故在此注入路径解析器；事件发射发生在 Build 返回之后，
+	// 闭包读取的是实时 SessionPath。
+	if eventLogSink != nil {
+		eventLogSink.SetPathSource(func() string { return ctrl.SessionPath() })
+	}
+	return ctrl, nil
 }
 
 // autoPlanEnabled 读取配置：auto_plan = "ask"/"on" 时开启开工前计划确认。

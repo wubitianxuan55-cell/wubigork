@@ -17,6 +17,9 @@ type Session struct {
 	mu             sync.RWMutex
 	Messages       []provider.Message
 	rewriteVersion int // bumped each time the log is rewritten (compact/fold)
+	// logSeq 是会话最后消费的事件日志 seq（事件日志模式下恢复/检查点游标）。
+	// 旧行为（legacy）下保持 0，不参与任何既有逻辑。
+	logSeq int64
 }
 
 // New initializes a session with an optional system prompt.
@@ -87,6 +90,23 @@ func (s *Session) HasContent() bool {
 
 // RewriteVersion returns the current rewrite version.
 func (s *Session) RewriteVersion() int { return s.rewriteVersion }
+
+// ReplayFromLog 把事件日志条目投影为消息并整体替换当前 Messages，
+// 同时记录最后消费的 log seq（事件日志模式下「日志 + 投影」薄封装的核心）。
+// 旧行为（legacy）下不会调用，Messages 语义不变。
+func (s *Session) ReplayFromLog(entries []LogEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Messages = ProjectMessages(entries)
+	s.logSeq = lastLogSeq(entries)
+}
+
+// LogSeq 返回会话最后消费的事件日志 seq（0 = 非事件日志模式/未消费）。
+func (s *Session) LogSeq() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.logSeq
+}
 
 // IncrementRewrite bumps the rewrite version by 1.
 func (s *Session) IncrementRewrite() { s.rewriteVersion++ }

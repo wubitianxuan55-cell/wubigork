@@ -24,6 +24,7 @@ type Config struct {
 	Language     string            `toml:"language"`  // ui/model language tag (e.g. "zh"); empty = auto-detect from $LANG / $TIANXUAN_LANG
 	Workspace    string            `toml:"workspace"` // 办公工作空间目录（空 = 进程启动目录）
 	Agent        AgentConfig       `toml:"agent"`
+	Session      SessionConfig     `toml:"session"` // 3.0 Step 1: 会话持久化格式（事件日志回退开关）
 	Providers    []ProviderEntry   `toml:"providers"`
 	Tools        ToolsConfig       `toml:"tools"`
 	Permissions  PermissionsConfig `toml:"permissions"`
@@ -33,6 +34,19 @@ type Config struct {
 	Search       SearchConfig      `toml:"search"`
 	Network      NetworkConfig     `toml:"network"`
 	Memory       MemoryConfig      `toml:"memory"`
+}
+
+// SessionConfig 是会话持久化行为配置（3.0 Step 1 回退开关）。
+// 缺省 legacy = 旧行为（整文件重写 JSONL），不迁移用户配置；显式配置
+// log_format = "event" 才启用追加式事件日志（<id>.gaea-log.jsonl）。
+type SessionConfig struct {
+	// LogFormat 选择会话持久化格式："legacy"（默认，旧行为）| "event"（事件日志）。
+	LogFormat string `toml:"log_format"`
+}
+
+// LogFormatIsEvent 报告是否启用事件日志模式（大小写不敏感，仅精确匹配 "event"）。
+func (c *Config) LogFormatIsEvent() bool {
+	return c != nil && strings.EqualFold(c.Session.LogFormat, "event")
 }
 
 // MemoryConfig 是办公记忆开关（记忆可控性：用户可一键关闭记忆注入）。
