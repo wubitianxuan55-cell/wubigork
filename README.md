@@ -83,6 +83,9 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v2.38.0** | 2026-08-15 | 3.0 架构主线 Wave 2：Step 1 app 层接线（会话事件日志「日志即真相」运行时闭环：Resume→Restore / Save→日志 / 模型调用前 fail-closed 检查点）+ Step 2 板块 Manifest（board 包 10 板块 + module_registry manifest 驱动 + GetBoardManifests + MainLayout 附 B 12 硬编码点清单化 + PageRegistry + events 常量表 + label 单一来源）+ Step 3a Image Seam（图片后端注册表化：openai/comfyui 自注册 + 401 单次重试守卫）。绑定面 464 方法 |
+| **v2.37.0** | 2026-08-15 | 正确性纵深收官：T7-2 可见性收口 / T7-3 名实相符 / T7-4 前端性能收尾 + 3.0 Step 0 修债 + Step 1 会话事件日志（append-only 日志 + 投影 + checkpoint + 迁移 + GaeaHistory 黄金测试） |
+| **v2.34.0** | 2026-08-15 | 正确性纵深第一刀：轻语会话并发安全（深拷贝/-race 实证修复）+ 任务调度器竞态 + TCCA 指标聚合收敛 + AI 客户端状态与重试 |
 | **v2.33.0** | 2026-08-14 | 阶段 6「质量收敛」第十刀·前端收敛：巨型文件拆分（ChatPage 1022→370 / ImageGenPage 911→310 / CapabilitiesPanel 803→178 / Composer 786→406 / mock.ts 1563→50 按域拆 10 文件，11 no-op 落实）；any 清零（no-explicit-any 升 error 进 CI，315→0）；绑定漂移检查恢复（gen_bindings -names + bindingNames.ts + bridge.ts 双向类型守卫 + CI 步骤）；mock 契约对齐（RetrievalEvalRun 12 条真实查询集）；Sidebar react-window 虚拟滚动 + CostLibraryView memo 化 + useDebouncedValue；删除 api/bridge.ts 双桥接合流；测试 354→361 |
 | **v2.32.0** | 2026-08-14 | 阶段 6「质量收敛」第九刀·辅助合集名实相符：微信生命周期（Stop 幂等/Start 重启/过期钩子退出空转）+ wxToken DPAPI 加密迁移 + 4 张死表 V13 删除；OCR 兜底名实相符（超时杀进程树 + 单图 tesseract 降级 + 删「Windows 原生 OCR」文案）；配置原子写（fsync+rename）+ 损坏备份恢复；CosyVoice 路径/端口可配置 + 启动退避重试；token 改 header（服务端去 query 兜底 + 前端 fetch 流式 SSE） |
 | **v2.31.0** | 2026-08-14 | 阶段 6「质量收敛」第八刀·记忆生命周期与审计：dream 写入审计（决策成文 DREAM_WRITE_POLICY.md，SaveDreamFacts 带 source 落 dream-audit.jsonl）；facts 归档生命周期（90 天保留硬删 CleanupArchived + ListArchivedPaged 分页 + 新绑定 GaeaMemoryCleanupArchived/GaeaMemoryArchivedList + 前端清理按钮 + purge-audit 溯源审计）；索引截断按边界（4096 字节口径统一 + 行边界 + markdown 链接保护，6 测试）；GraphView/WhisperMemoryLibrary 补测 13 用例 |

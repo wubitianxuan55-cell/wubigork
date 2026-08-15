@@ -1,5 +1,22 @@
 # gaea · 多功能 AI 助手
 
+## v2.38.0「3.0 架构主线 · Wave 2」（2026-08-15）
+> 3.0 架构改造 Wave 2：Step 1 app 层接线 + Step 2 板块 Manifest（后端 board 包 + 前端 PageRegistry）+
+> Step 3a Image Seam，四路并行实施，每 Step 独立提交。详见 releases/v2.38.0.md。
+- **Step 1 app 层接线**（会话事件日志「日志即真相」运行时闭环）：Resume→Restore（DetectLegacy 迁移 →
+  checkpoint+log tail 重放）、Save→日志（事件模式双写）、模型调用前 flush 检查点（fail-closed，失败中止回合）、
+  压缩→checkpoint（回合后 Snapshot 刷新压缩投影 + 已消费 seq）；session.log_format 回退开关，legacy 零行为变化
+- **Step 2 板块 Manifest**：board 包（Board 接口 + Manifest 16 字段 + Validate 缺陷 2 防复发）+ 10 板块 canonical
+  清单（9 业务 + knowledge D7）；module_registry manifest 驱动装配（intent 无 handler 启动显式报错）；
+  GetBoardManifests 挂 CoreB（绑定面 464 方法）；前端 PageRegistry + MainLayout 附 B 12 硬编码点清单化 +
+  events.ts 常量表（21 后端 + 4 前端）+ ModuleLauncher 清单驱动；label 单一来源统一菜单文案（用户决策）
+- **Step 3a Image Seam**：图片后端注册表化（openai 兼容/comfyui 各自 init 自注册，互斥注册 panic、未知 kind
+  fail-closed）；generateImageXAI 走注册表 + 401 刷新 token 单次重试守卫（retried 防无限递归）+
+  imagine:content-moderated 友好提示；config 驱动选择零代码切换
+- 验证：go build/vet 干净 + test-all.ps1 110/110 包 + internal/app 26.5s + 前端 tsc/eslint 0 errors +
+  vite build 通过 + vitest 404 过（27 个 jsdom localStorage 基线失败，与 v2.37.0 一致零回归）+
+  TestBindingsCompleteness PASS（464）+ check-bindings-drift OK。发布 gaea-v2.38.0.exe。
+
 ## v2.37.0「正确性纵深 · 收官」（2026-08-15）
 > 阶段 7 第二~四刀（T7-2 可见性收口 / T7-3 名实相符 / T7-4 前端性能收尾）并行实施 +
 > 3.0 架构主线 Step 0 修债 + Step 1 会话事件日志。详见 releases/v2.37.0.md。

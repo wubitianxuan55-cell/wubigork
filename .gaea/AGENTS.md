@@ -11,6 +11,31 @@
 
 - **3.0 架构改造设计（2026-08-15 定稿，待评审后开工）**：权威文档 docs/2026-08-15-gaea3-architecture-design.md（事件日志事实源 / 板块 Manifest / Provider Seam，四步实施计划）；调研证据存档在 docs/gaea3-review/（只读参考，权威性以设计文档为准）。阶段 7（v2.34-2.37 正确性纵深）先行，3.0 Step 0-3 在其后启动。
 
+- 最新发布：**v2.38.0（2026-08-15）「3.0 架构主线 · Wave 2」（Step 1 app 接线 + Step 2 板块 Manifest + Step 3a Image Seam，4 子代理核验 + 父代理收尾）**：
+  - Step 1 app 层接线（事件日志「日志即真相」运行时闭环）：Resume→Restore（DetectLegacy 迁移→checkpoint+log tail
+    重放）、Save→日志（saveEventMode 双写）、模型调用前 flush 检查点（FlushCheckpointFailClosed fail-closed，
+    失败中止回合）、压缩→checkpoint（回合后 Snapshot 刷新压缩投影 + 已消费 seq）；session.log_format=legacy|event
+    回退开关，legacy 零行为变化；新增 event_mode_test/controller_eventlog_test（含压缩后 checkpoint 可恢复）。
+  - Step 2 板块 Manifest：board 包（Board 接口 + Manifest 16 字段对齐 §5.2 + Validate 缺陷 2 防复发）+ 10 板块
+    canonical（9 业务 + knowledge D7）；module_registry FillFromManifests manifest 驱动 + Startup 装配失败显式
+    slog.Error；GetBoardManifests 挂 App+CoreB（gen_bindings explicitOverrides，绑定面 464 方法 → 10 门面）；
+    前端 PageRegistry（main.tsx registerPage 8 页）+ MainLayout 附 B #1~#12 全部清单化 + ModuleLauncher 清单驱动
+    （补 memoryhub/characterlib 入口）+ events.ts（21 后端 + 4 前端常量 + subscribe 封装）+ bindingNames.ts 464
+    重生成 + bridge.ts 双向守卫补 GetBoardManifests/CheckModuleIntegrity。**label 单一来源=菜单文案（用户决策）**：
+    chat/imagegen/modelcenter 用 聊天/绘梦/模型中心，面包屑跟随菜单。
+  - Step 3a Image Seam：RegisterImageBackend/NewImageBackend/ImageBackendKinds 注册表（openai 兼容 + comfyui 各自
+    init 自注册；互斥注册 panic、未知 kind fail-closed）；generateImageXAI 走注册表（kind=openai）+ 401 刷新 token
+    单次重试守卫（retried 防无限递归）+ imagine:content-moderated 友好提示；GenerateImage 分发不变（imageBackend
+    实例优先，config 驱动选择零代码切换）。
+  - 验证：go build/vet 干净 + test-all.ps1 **110/110 包**（首跑 6 包失败为并发抖动 + 状态文件残留，单独重跑全绿）+
+    前端 tsc/eslint 0 errors（350 存量 warnings）+ vite build 15.7s + vitest 404 过（27 个 jsdom localStorage 基线
+    失败与 v2.37.0 一致零回归）+ TestBindingsCompleteness PASS（464）+ check-bindings-drift OK + 冒烟 /api/health 200。
+    发布 gaea-v2.38.0.exe（34.6MB，SHA256=a9eeb837462109f8aa599213558ce6b3bd798eafbd25783fefa2edb6ca0b29fa）。
+    提交：f5ddf62(Step2后端)/a9254c8(Step1接线)/4b5af82(Step2前端)/2ba821b(label对齐)/9d9716d(Step3a)。
+  - 遗留（Wave 3）：Step 3b LLM / 3c OCR-ASR-TTS / 3d 分类统一 8 处 + classifyModelKind 4 处；前端
+    GetBoardManifests 绑定接线（wails build 后 wailsjs 生成后替换 loadBoardManifests 静态 fallback +
+    normalize 板块差集 home/weixin/knowledge）；观察项 boot.go ctrlOpts 未传 LogFormat（生产消费者
+    gaeaBuildController 已注入闭环，CLI/子代理宿主需自行注入）。回退保障硬要求不变。
 - 最新发布：**v2.37.0（2026-08-15）「正确性纵深 · 收官」（阶段 7 第二~四刀 T7-2/T7-3/T7-4 + 3.0 Step 0/1，5 子代理并行）**：
   - T7-2 可见性收口（v2.35.0）：qrlogin/chatWebSearch/SaveConfig/LocalTranslate 吞错清零；成本进料截断
     6000 字 + 整批事务；测评参数钳制 + 基地址 engineMgr；token 明文清理 + 剧照 ID 哈希防穿越；41 测试。
