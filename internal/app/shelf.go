@@ -110,14 +110,18 @@ func (a *App) DeleteProject(dir string) error {
 // ── 内部辅助 ─────────────────────────────────────────────────
 
 // SaveConfig 将单个配置项写回 ~/.gaea_config.json 并更新内存。
+// T7-2 可见性收口：内存同步补齐到全部支持项（写盘后同步 a.cfg），
+// 避免「盘上已改、内存未动」的设置不同步；无内存对应项的配置写盘后
+// 明确记 Warn 日志标注需重启生效。
 func (a *App) SaveConfig(key, value string) error {
 	if err := config.Save(key, value); err != nil {
 		return err
 	}
 
-	// 更新内存中的对应字段
+	// 更新内存中的对应字段（config.Save 已校验值格式，这里解析失败仅记录
+	// 并跳过——磁盘已是权威来源，不阻断）。
 	switch key {
-	case "novels_dir":
+	case config.KeyNovelsDir:
 		// 如果当前打开了旧目录下的项目，先关闭
 		oldDir := a.cfg.NovelsDir
 		if oldDir != value {
@@ -126,18 +130,200 @@ func (a *App) SaveConfig(key, value string) error {
 			}
 		}
 		a.cfg.NovelsDir = value
-	case "xai_client_id":
+	case config.KeyXaiClientID:
 		a.cfg.XaiClientID = value
-	case "http_timeout_seconds":
+	case config.KeyModel:
+		a.cfg.Model = value
+	case config.KeyHTTPTimeoutSeconds:
 		if n, err := strconv.Atoi(value); err == nil {
 			a.cfg.HTTPTimeoutSeconds = n
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（整数解析失败）", "key", key, "value", value)
 		}
-	case "default_temperature":
+	case config.KeyDefaultTemperature:
 		if f, err := strconv.ParseFloat(value, 64); err == nil {
 			a.cfg.DefaultTemperature = f
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（浮点解析失败）", "key", key, "value", value)
 		}
-	case "model":
-		a.cfg.Model = value
+	case config.KeyAnalysisTemperature:
+		if f, err := strconv.ParseFloat(value, 64); err == nil {
+			a.cfg.AnalysisTemperature = f
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（浮点解析失败）", "key", key, "value", value)
+		}
+	case config.KeyReasoningEffort:
+		a.cfg.ReasoningEffort = value
+	case config.KeyQualityThreshold:
+		if n, err := strconv.Atoi(value); err == nil {
+			a.cfg.QualityThreshold = n
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（整数解析失败）", "key", key, "value", value)
+		}
+	case config.KeyQualityMaxRetries:
+		if n, err := strconv.Atoi(value); err == nil {
+			a.cfg.QualityMaxRetries = n
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（整数解析失败）", "key", key, "value", value)
+		}
+	case config.KeyTTSBinaryPath:
+		a.cfg.TTSBinaryPath = value
+	case config.KeyTTSModelPath:
+		a.cfg.TTSModelPath = value
+	case config.KeyTTSPort:
+		if n, err := strconv.Atoi(value); err == nil {
+			a.cfg.TTSPort = n
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（整数解析失败）", "key", key, "value", value)
+		}
+	case config.KeyTTSBackend:
+		a.cfg.TTSBackend = value
+	case config.KeyTTSSpeed:
+		if f, err := strconv.ParseFloat(value, 64); err == nil {
+			a.cfg.TTSSpeed = f
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（浮点解析失败）", "key", key, "value", value)
+		}
+	case config.KeyImageBackend:
+		a.cfg.ImageBackend = value
+	case config.KeyComfyUIURL:
+		a.cfg.ComfyUIURL = value
+	case config.KeyImageSaveDir:
+		a.cfg.ImageSaveDir = value
+	case config.KeyImageModel:
+		a.cfg.ImageModel = value
+	case config.KeyPortraitBackend:
+		a.cfg.PortraitBackend = value
+	case config.KeyPortraitModel:
+		a.cfg.PortraitModel = value
+	case config.KeyComfyUIPath:
+		a.cfg.ComfyUIPath = value
+	case config.KeyComfyUIPythonPath:
+		a.cfg.ComfyUIPythonPath = value
+	case config.KeyActiveEngineID:
+		a.cfg.ActiveEngineID = value
+	case config.KeyDeepseekAPIKey:
+		a.cfg.DeepseekAPIKey = value
+	case config.KeyOpencodeGoAPIKey:
+		a.cfg.OpenCodeGoAPIKey = value
+	case config.KeyOpencodeZenAPIKey:
+		a.cfg.OpenCodeZenAPIKey = value
+	case config.KeyActiveASREngine:
+		a.cfg.ActiveASREngine = value
+	case config.KeyActiveASRModel:
+		a.cfg.ActiveASRModel = value
+	case config.KeyActiveTTSEngine:
+		a.cfg.ActiveTTSEngine = value
+	case config.KeyActiveTTSModel:
+		a.cfg.ActiveTTSModel = value
+	case config.KeyTTSVoice:
+		a.cfg.TTSVoice = value
+	case config.KeyActiveOCREngine:
+		a.cfg.ActiveOCREngine = value
+	case config.KeyActiveOCRModel:
+		a.cfg.ActiveOCRModel = value
+	case config.KeyVoicePersonality:
+		a.cfg.VoicePersonality = value
+	case config.KeyFuncChatVoiceEngine:
+		a.cfg.FuncChatVoiceEngine = value
+	case config.KeyFuncChatVoiceModel:
+		a.cfg.FuncChatVoiceModel = value
+	case config.KeyFuncChatEngine:
+		a.cfg.FuncChatEngine = value
+	case config.KeyFuncChatModel:
+		a.cfg.FuncChatModel = value
+	case config.KeyFuncNovelEngine:
+		a.cfg.FuncNovelEngine = value
+	case config.KeyFuncNovelModel:
+		a.cfg.FuncNovelModel = value
+	case config.KeyFuncOfficeEngine:
+		a.cfg.FuncOfficeEngine = value
+	case config.KeyFuncOfficeModel:
+		a.cfg.FuncOfficeModel = value
+	case config.KeyFuncGaeaEngine:
+		a.cfg.FuncGaeaEngine = value
+	case config.KeyFuncGaeaModel:
+		a.cfg.FuncGaeaModel = value
+	case config.KeyFuncCharLibEngine:
+		a.cfg.FuncCharLibEngine = value
+	case config.KeyFuncCharLibModel:
+		a.cfg.FuncCharLibModel = value
+	case config.KeyFuncRoutineEngine:
+		a.cfg.FuncRoutineEngine = value
+	case config.KeyFuncRoutineModel:
+		a.cfg.FuncRoutineModel = value
+	case config.KeyUsdCnyRate:
+		if f, err := strconv.ParseFloat(value, 64); err == nil {
+			a.cfg.UsdCnyRate = f
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（浮点解析失败）", "key", key, "value", value)
+		}
+	case config.KeyCosyVoiceDir:
+		a.cfg.CosyVoiceDir = value
+	case config.KeyCosyVoicePort:
+		if n, err := strconv.Atoi(value); err == nil {
+			a.cfg.CosyVoicePort = n
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（整数解析失败）", "key", key, "value", value)
+		}
+	// 布尔开关（*bool 在盘上，内存为 bool）
+	case config.KeyFuncChatEnabled:
+		if b, err := strconv.ParseBool(value); err == nil {
+			a.cfg.FuncChatEnabled = b
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
+		}
+	case config.KeyFuncNovelEnabled:
+		if b, err := strconv.ParseBool(value); err == nil {
+			a.cfg.FuncNovelEnabled = b
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
+		}
+	case config.KeyFuncOfficeEnabled:
+		if b, err := strconv.ParseBool(value); err == nil {
+			a.cfg.FuncOfficeEnabled = b
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
+		}
+	case config.KeyFuncGaeaEnabled:
+		if b, err := strconv.ParseBool(value); err == nil {
+			a.cfg.FuncGaeaEnabled = b
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
+		}
+	case config.KeyFuncCharLibEnabled:
+		if b, err := strconv.ParseBool(value); err == nil {
+			a.cfg.FuncCharLibEnabled = b
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
+		}
+	case config.KeyFuncRoutineEnabled:
+		if b, err := strconv.ParseBool(value); err == nil {
+			a.cfg.FuncRoutineEnabled = b
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
+		}
+	case config.KeySensitiveLocal:
+		if b, err := strconv.ParseBool(value); err == nil {
+			a.cfg.SensitiveLocal = b
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
+		}
+	case config.KeyKeepWarm:
+		if b, err := strconv.ParseBool(value); err == nil {
+			a.cfg.KeepWarmEnabled = b
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
+		}
+	case config.KeyAutoPreload:
+		if b, err := strconv.ParseBool(value); err == nil {
+			a.cfg.AutoPreload = b
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
+		}
+	default:
+		// 无内存对应项（或未来新增键）：已成功写盘，标注需重启生效。
+		slog.Warn("SaveConfig: 配置项已持久化，无内存同步项（重启后生效）", "key", key, "value", value)
 	}
 	return nil
 }

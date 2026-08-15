@@ -997,6 +997,17 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.CosyVoicePort = n
 		return nil
 	},
+	KeyTTSSpeed: func(cf *configFile, v string) error {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return err
+		}
+		if f < 0.25 || f > 4.0 {
+			return fmt.Errorf("语速必须在 0.25-4.0 之间（当前值: %s）", v)
+		}
+		cf.TTSSpeed = f
+		return nil
+	},
 	KeyTTSBackend:          func(cf *configFile, v string) error { cf.TTSBackend = v; return nil },
 	KeyActiveEngineID:      func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
 	KeyModel:               func(cf *configFile, v string) error { cf.Model = v; return nil },

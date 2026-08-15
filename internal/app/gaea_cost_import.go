@@ -2,14 +2,17 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 	"unicode"
 
+	gconfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/costimport"
+	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/knowledgeimport"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
@@ -60,6 +63,23 @@ func (a *App) GaeaCostImportPreview(path string) (CostImportPreview, error) {
 	return toCostImportPreview(pv, false), nil
 }
 
+// extractImportText 可注入的 PDF/文档文本提取（T7-2：测试替换避免真实 PDF/OCR 链路）。
+var extractImportText = knowledgeimport.ExtractText
+
+// maxModelInputRunes 单次送入模型的文本上限（rune）。与视觉识别路径
+// （visionAINormalize 的 6000 上限）对齐，避免本地模型上下文/超时失控。
+const maxModelInputRunes = 6000
+
+// truncateModelInput 把待送入模型的文本截断到 maxModelInputRunes rune，
+// 超出部分以截断标注收尾（与 visionAINormalize 的截断口径一致）。
+func truncateModelInput(s string) string {
+	rs := []rune(s)
+	if len(rs) <= maxModelInputRunes {
+		return s
+	}
+	return string(rs[:maxModelInputRunes]) + "\n…（已截断）"
+}
+
 // GaeaCostImportAIParse 用办公功能模型把表格行归一化为成本条目（AI 解析）。
 // 表头 + 样本行进提示词，模型只输出 JSON 数组；失败时由前端保留自动映射预览。
 func (a *App) GaeaCostImportAIParse(path string) (CostImportPreview, error) {
@@ -75,7 +95,7 @@ func (a *App) GaeaCostImportAIParse(path string) (CostImportPreview, error) {
 	if err != nil {
 		// PDF 等无法直接读表的文件：先做格式转换（文本提取，扫描件自动 OCR），
 		// 把转换后的文本交给 AI 归一化——绝不把原始 PDF 字节直接发给模型。
-		textFallback, err = knowledgeimport.ExtractText(abs)
+		textFallback, err = extractImportText(abs)
 		if err != nil {
 			return CostImportPreview{}, fmt.Errorf("解析文件失败: %w", err)
 		}
@@ -109,15 +129,18 @@ func (a *App) GaeaCostImportAIParse(path string) (CostImportPreview, error) {
 			table.WriteString("\n")
 		}
 	}
+	// T7-2：textFallback 与表格文本统一截断到 6000 rune（与 vision 识别对齐），
+	// 超长文本不再整段塞给模型（超上下文/超时），截断标注让模型知道内容不完整。
+	tableContent := truncateModelInput(table.String())
 
 	const sysPrompt = "你是成本数据提取助手。把报价/成本表格的每一行归一化为成本条目 JSON 数组，规则：\n" +
 		"title=材料/设备/项目名称（去掉序号前缀）；spec=规格型号（无则空串）；unit=单位（台班/吨/m³/工日等，无则空串）；\n" +
 		"price=数字单价（元，去掉货币符号与千分位，无法识别填 0）；source=来源（取文件中的供应商/产地/备注，无则\"导入文件\"）；\n" +
 		"category 只能是 机械/材料/人工/运输/检测/综合单价/其他 之一。\n" +
 		"只输出 JSON 数组，不要代码块标记，不要任何解释。"
-	user := "请提取以下表格（表头 + 样本行）：\n\n" + table.String()
+	user := "请提取以下表格（表头 + 样本行）：\n\n" + tableContent
 	if textFallback != "" {
-		user = "请从以下文件文本中提取成本条目（若为 Markdown 表格，按表头与行提取）：\n\n" + table.String()
+		user = "请从以下文件文本中提取成本条目（若为 Markdown 表格，按表头与行提取）：\n\n" + tableContent
 	}
 
 	ctx := a.ctx
@@ -196,37 +219,91 @@ func (a *App) finishAIParse(abs string, columns []string, raw string) (CostImpor
 	return toCostImportPreview(pv, true), nil
 }
 
-// GaeaCostImportApply 批量写入成本条目（前端确认后的行）；返回成功写入条数。
-func (a *App) GaeaCostImportApply(rows []CostEntry) (int, error) {
-	store := a.hubCostStore()
-	saved := 0
-	for _, e := range rows {
-		e.Name = strings.TrimSpace(e.Name)
-		if e.Name == "" {
-			e.Name = cost.SlugName(e.Title)
-		}
-		if strings.TrimSpace(e.Title) == "" {
-			continue
-		}
-		if e.Price < 0 {
-			continue
-		}
-		if e.Category == "" {
-			e.Category = "其他"
-		}
-		if e.Status == "" {
-			e.Status = "现行"
-		}
-		if err := store.Save(cost.Entry{
-			Name: e.Name, Title: e.Title, Category: e.Category, Unit: e.Unit,
-			Price: e.Price, Spec: e.Spec, Source: e.Source, Tags: e.Tags,
-			Status: e.Status, Body: e.Body,
-		}); err != nil {
-			return saved, fmt.Errorf("第 %d 条保存失败: %w", saved+1, err)
-		}
-		saved++
+// costEntryUpsertSQL 与 cost.Store.Save 同构的 UPSERT（整批事务内逐条执行，
+// 保证事务内写入与常规 Save 的落盘形态完全一致）。
+const costEntryUpsertSQL = `
+INSERT INTO cost_entries(name, title, category, category_path, unit, price, spec, source, tags, status, body, created_at, updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+ON CONFLICT(name) DO UPDATE SET
+  title=excluded.title, category=excluded.category, category_path=excluded.category_path, unit=excluded.unit,
+  price=excluded.price, spec=excluded.spec, source=excluded.source,
+  tags=excluded.tags, status=excluded.status, body=excluded.body,
+  updated_at=excluded.updated_at`
+
+// marshalCostTags 序列化标签 JSON（与 cost.Store.Save 口径一致）。
+func marshalCostTags(tags []string) string {
+	if len(tags) == 0 {
+		return "[]"
 	}
-	return saved, nil
+	if b, err := json.Marshal(tags); err == nil {
+		return string(b)
+	}
+	return "[]"
+}
+
+// normalizeCostEntryForTx 校验并归一化一条导入行；无效行返回 error
+// （整个批次拒绝，不做「跳过部分行」的半批写入）。
+func normalizeCostEntryForTx(e CostEntry) (cost.Entry, error) {
+	e.Name = strings.TrimSpace(e.Name)
+	if e.Name == "" {
+		e.Name = cost.SlugName(e.Title)
+	}
+	if strings.TrimSpace(e.Title) == "" {
+		return cost.Entry{}, fmt.Errorf("标题为空")
+	}
+	if e.Price < 0 {
+		return cost.Entry{}, fmt.Errorf("价格为负（%v）", e.Price)
+	}
+	if e.Category == "" {
+		e.Category = "其他"
+	}
+	if e.Status == "" {
+		e.Status = "现行"
+	}
+	if e.CategoryPath == "" {
+		e.CategoryPath = e.Category
+	}
+	now := time.Now().UTC()
+	return cost.Entry{
+		Name: e.Name, Title: strings.TrimSpace(e.Title), Category: e.Category,
+		CategoryPath: e.CategoryPath, Unit: e.Unit, Price: e.Price, Spec: e.Spec,
+		Source: e.Source, Tags: e.Tags, Status: e.Status, Body: e.Body,
+		CreatedAt: now, UpdatedAt: now,
+	}, nil
+}
+
+// GaeaCostImportApply 批量写入成本条目（前端确认后的行）；返回成功写入条数。
+// T7-2 整批事务：先整体校验，再单事务写入——任一行无效或写库失败，整个批次
+// 回滚，不再出现「前几条写入、后几条失败」的半批状态。
+func (a *App) GaeaCostImportApply(rows []CostEntry) (int, error) {
+	entries := make([]cost.Entry, 0, len(rows))
+	for i, e := range rows {
+		norm, err := normalizeCostEntryForTx(e)
+		if err != nil {
+			return 0, fmt.Errorf("第 %d 行无效: %w", i+1, err)
+		}
+		entries = append(entries, norm)
+	}
+	if len(entries) == 0 {
+		return 0, nil
+	}
+	if !a.hubCostStore().Available() {
+		return 0, fmt.Errorf("成本库不可用")
+	}
+	if err := db.WithTransaction(gconfig.MemoryUserDir(), func(tx *sql.Tx) error {
+		for i, e := range entries {
+			if _, err := tx.Exec(costEntryUpsertSQL,
+				e.Name, e.Title, e.Category, e.CategoryPath, e.Unit, e.Price, e.Spec, e.Source,
+				marshalCostTags(e.Tags), e.Status, e.Body,
+				e.CreatedAt.Format(time.RFC3339), e.UpdatedAt.Format(time.RFC3339)); err != nil {
+				return fmt.Errorf("第 %d 条写入失败: %w", i+1, err)
+			}
+		}
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	return len(entries), nil
 }
 
 func toCostImportPreview(pv *costimport.Preview, aiUsed bool) CostImportPreview {

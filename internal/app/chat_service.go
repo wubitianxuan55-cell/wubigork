@@ -35,14 +35,28 @@ func (a *App) ChatSend(topicID, message, mode string, searchEnabled, thinking, f
 }
 
 // preparePlainChatMessage 联网搜索增强：命中搜索意图/强制搜索时，把实时结果注入
-// 为待发送的提示词上下文（不污染原始用户消息）。
+// 为待发送的提示词上下文（不污染原始用户消息）。搜索失败/空结果不再静默丢弃
+// （T7-2）：记 Warn 日志并注入占位提示，让模型如实说明未获取到实时信息。
 func (a *App) preparePlainChatMessage(message string, searchEnabled, forceSearch bool) string {
 	if forceSearch || (searchEnabled && shouldSearchWeb(message)) {
-		if result, err := chatWebSearch(message); err == nil && result != "" {
+		result, err := chatWebSearch(message)
+		if err != nil {
+			slog.Warn("联网搜索失败，注入占位提示（不阻断对话）", "error", err)
+			return searchFallbackMessage(message)
+		}
+		if result != "" {
 			return fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", message, result)
 		}
+		slog.Warn("联网搜索返回空结果，注入占位提示")
+		return searchFallbackMessage(message)
 	}
 	return message
+}
+
+// searchFallbackMessage 搜索失败/空结果时的占位提示：如实告知模型未获取到
+// 实时信息，避免模型假装已搜索或误导用户（T7-2 可见性，不静默吞错）。
+func searchFallbackMessage(message string) string {
+	return fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果]\n（联网搜索暂不可用，请基于已有知识回答；如不确定请明确说明未获取到实时信息）", message)
 }
 
 func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, forceSearch bool) (map[string]interface{}, error) {

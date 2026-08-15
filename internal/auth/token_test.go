@@ -345,3 +345,119 @@ func TestTokenLoad_DecryptFailureReturnsError(t *testing.T) {
 		t.Fatalf("错误信息应指明失败字段, 得到: %s", err)
 	}
 }
+
+// ── T7-2 可见性收口：legacy 明文迁移后删除 / Delete 清理 legacyPath ──
+
+// TestTokenLoad_MigratesLegacyPathAndRemovesPlaintext 主路径缺失、legacy 旧品牌
+// 明文文件存在：Load 迁移到主路径（加密）后，旧明文文件必须被删除（T7-2，
+// 明文凭证不再残留在盘上）。
+func TestTokenLoad_MigratesLegacyPathAndRemovesPlaintext(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gaea_token.json")
+	legacy := filepath.Join(dir, ".wubigork_token.json")
+	store := NewTokenStore(path)
+	if store.legacyPath != legacy {
+		t.Fatalf("legacyPath = %q, want %q", store.legacyPath, legacy)
+	}
+
+	// 构造旧品牌明文 token 文件（无 dpapi: 前缀）。
+	legacyToken := &Token{AccessToken: "legacy_plain_access", RefreshToken: "legacy_plain_refresh", ObtainedAt: time.Now()}
+	data, err := json.MarshalIndent(legacyToken, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := store.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded == nil || loaded.AccessToken != "legacy_plain_access" {
+		t.Fatalf("Load 值异常: %+v", loaded)
+	}
+
+	// 迁移落主路径（加密）。
+	mainRaw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("主路径未写入: %v", err)
+	}
+	if !strings.Contains(string(mainRaw), securePrefix) {
+		t.Fatalf("主路径未加密: %s", mainRaw)
+	}
+
+	// 旧明文 legacy 文件必须已删除。
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatalf("迁移后 legacy 明文文件应被删除, stat err = %v", err)
+	}
+}
+
+// TestTokenLoad_MigratedFromLegacyIdempotent 迁移后再 Load：走主路径，不再触碰 legacy。
+func TestTokenLoad_MigratedFromLegacyIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gaea_token.json")
+	legacy := filepath.Join(dir, ".wubigork_token.json")
+	store := NewTokenStore(path)
+	legacyToken := &Token{AccessToken: "legacy_a", RefreshToken: "legacy_r", ObtainedAt: time.Now()}
+	data, _ := json.MarshalIndent(legacyToken, "", "  ")
+	_ = os.WriteFile(legacy, data, 0600)
+
+	if _, err := store.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Load(); err != nil {
+		t.Fatalf("二次 Load: %v", err)
+	}
+	// 主路径已加密；legacy 已删除。
+	mainRaw, _ := os.ReadFile(path)
+	if !strings.Contains(string(mainRaw), securePrefix) {
+		t.Fatalf("主路径未加密: %s", mainRaw)
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatal("legacy 明文应已删除")
+	}
+}
+
+// TestTokenDelete_RemovesLegacyPath Delete 同时清理主路径与 legacy 明文文件。
+func TestTokenDelete_RemovesLegacyPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gaea_token.json")
+	legacy := filepath.Join(dir, ".wubigork_token.json")
+	store := NewTokenStore(path)
+
+	if err := store.Save(&Token{AccessToken: "del_main", ObtainedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte(`{"access_token":"plain"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.Delete(); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("主路径应已删除")
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Fatal("legacy 路径应已删除")
+	}
+}
+
+// TestTokenDelete_NoLegacyConfigured 未配置 legacy 路径（非 .gaea_token.json 主路径）时
+// Delete 行为不变。
+func TestTokenDelete_NoLegacyConfigured(t *testing.T) {
+	store, path := newTestStore(t)
+	if store.legacyPath != "" {
+		t.Fatalf("test_token.json 不应配置 legacyPath, got %q", store.legacyPath)
+	}
+	if err := store.Save(&Token{AccessToken: "x", ObtainedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Delete(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("主路径应已删除")
+	}
+}

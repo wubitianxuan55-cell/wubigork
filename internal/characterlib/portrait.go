@@ -1,10 +1,13 @@
 package characterlib
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 )
 
 // portraitFileDir 返回角色库剧照文件目录。
@@ -40,11 +43,47 @@ func savePortraitFile(dataDir, id, dataURL string) string {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return dataURL
 	}
-	path := filepath.Join(dir, id+ext)
+	base := portraitFileBase(id)
+	path := filepath.Join(dir, base+ext)
+	// 纵深防御：清洗后最终路径必须仍落在 portraits 目录内（防路径穿越）。
+	if !strings.HasPrefix(path, dir+string(filepath.Separator)) {
+		return dataURL
+	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return dataURL
 	}
 	return path
+}
+
+// portraitFileBase 把角色 ID 清洗为安全文件名基名（T7-2 防路径穿越）：
+//   - 含路径分隔符（/ \）、".." 片段或为空 → 用 ID 的 SHA-256 短哈希代替
+//     （哈希无分隔符，天然安全且保持唯一性）；
+//   - 其余非安全字符（空白/标点/控制符）替换为 _，首尾 . 与 _ 去除；
+//   - 全部清洗后为空 → 同样回退哈希。
+func portraitFileBase(id string) string {
+	clean := strings.TrimSpace(id)
+	if clean == "" || strings.ContainsAny(clean, `/\`) || strings.Contains(clean, "..") {
+		return portraitIDHash(id)
+	}
+	var b strings.Builder
+	for _, r := range clean {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' || r == '.' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	out := strings.Trim(b.String(), "._")
+	if out == "" {
+		return portraitIDHash(id)
+	}
+	return out
+}
+
+// portraitIDHash 由角色 ID 生成固定 16 位十六进制哈希（防穿越/空 ID 回退）。
+func portraitIDHash(id string) string {
+	sum := sha256.Sum256([]byte(id))
+	return hex.EncodeToString(sum[:8])
 }
 
 // MigratePortraitsToFiles 把库内超大 base64 剧照迁移为文件（启动时调用）。

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gaea/gaea/internal/modelengine"
 )
 
 // TestReadBenchmarkRuns 解析 runs.json 明细（HERDSMAN_DATA_DIR 注入）。
@@ -199,5 +201,163 @@ func TestRenderBenchmarkAnalysis(t *testing.T) {
 		if !strings.Contains(md, want) {
 			t.Errorf("报告缺少 %q\n---\n%s", want, md)
 		}
+	}
+}
+
+// ── T7-2 可见性收口：参数钳制 / engineMgr 基地址 / 原子导出 ──
+
+// TestGaeaBenchmarkStart_ClampsParams 并发 >4 被钳到 4、重复 >20 被钳到 20
+// （服务端收到的请求体即为钳制后的值）。
+func TestGaeaBenchmarkStart_ClampsParams(t *testing.T) {
+	var got BenchmarkRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s", r.Method)
+			w.WriteHeader(405)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Errorf("decode: %v", err)
+			w.WriteHeader(400)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(benchmarkStartResp{ID: "run-clamped"})
+	}))
+	defer srv.Close()
+
+	oldBase := herdsmanBenchBaseURL
+	herdsmanBenchBaseURL = srv.URL
+	defer func() { herdsmanBenchBaseURL = oldBase }()
+
+	a := &App{}
+	id, err := a.GaeaBenchmarkStart(BenchmarkRequest{
+		ModelNames:  []string{"A"},
+		Concurrency: 9,
+		RepeatCount: 99,
+		Request:     BenchmarkPromptRequest{UserPrompt: "hi", MaxTokens: 128},
+	})
+	if err != nil {
+		t.Fatalf("GaeaBenchmarkStart: %v", err)
+	}
+	if id != "run-clamped" {
+		t.Errorf("id = %q", id)
+	}
+	if got.Concurrency != 4 {
+		t.Errorf("Concurrency = %d, want 4（>4 钳制）", got.Concurrency)
+	}
+	if got.RepeatCount != 20 {
+		t.Errorf("RepeatCount = %d, want 20（>20 钳制）", got.RepeatCount)
+	}
+}
+
+// TestGaeaBenchmarkStart_ClampsNoOverreach 未超限参数不被误钳。
+func TestGaeaBenchmarkStart_ClampsNoOverreach(t *testing.T) {
+	var got BenchmarkRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_ = json.NewEncoder(w).Encode(benchmarkStartResp{ID: "run-ok"})
+	}))
+	defer srv.Close()
+	oldBase := herdsmanBenchBaseURL
+	herdsmanBenchBaseURL = srv.URL
+	defer func() { herdsmanBenchBaseURL = oldBase }()
+
+	if _, err := (&App{}).GaeaBenchmarkStart(BenchmarkRequest{
+		ModelNames: []string{"A"}, Concurrency: 3, RepeatCount: 5,
+		Request: BenchmarkPromptRequest{UserPrompt: "hi", MaxTokens: 128},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got.Concurrency != 3 || got.RepeatCount != 5 {
+		t.Errorf("未超限参数不应被钳制: %d/%d", got.Concurrency, got.RepeatCount)
+	}
+}
+
+// TestGaeaBenchmarkStart_BaseURLFromEngineMgr 基地址取 engineMgr 的 herdsman
+// BaseURL（带 /v1 后缀被规整为根路径），而非硬编码 127.0.0.1:8080。
+func TestGaeaBenchmarkStart_BaseURLFromEngineMgr(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/benchmarks" {
+			t.Errorf("path = %q, want /api/benchmarks（不应带 /v1）", r.URL.Path)
+			w.WriteHeader(404)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(benchmarkStartResp{ID: "run-eng"})
+	}))
+	defer srv.Close()
+
+	mgr := modelengine.NewManager("", "")
+	if err := mgr.SaveEngine(modelengine.EngineConfig{ID: "herdsman", Enabled: true, BaseURL: srv.URL + "/v1"}); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{core: &core{engineMgr: mgr}}
+
+	// 不覆盖 herdsmanBenchBaseURL：若基地址仍取硬编码值，请求会打到 127.0.0.1:8080 失败。
+	id, err := a.GaeaBenchmarkStart(BenchmarkRequest{
+		ModelNames: []string{"A"},
+		Request:    BenchmarkPromptRequest{UserPrompt: "hi", MaxTokens: 128},
+	})
+	if err != nil {
+		t.Fatalf("GaeaBenchmarkStart: %v", err)
+	}
+	if id != "run-eng" {
+		t.Errorf("id = %q", id)
+	}
+}
+
+// TestGaeaBenchmarkList_BaseURLFromEngineMgr 列表接口同样取 engineMgr 基地址。
+func TestGaeaBenchmarkList_BaseURLFromEngineMgr(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/benchmarks" {
+			t.Errorf("path = %q", r.URL.Path)
+			w.WriteHeader(404)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(benchmarkListResp{Data: []BenchmarkRunSummary{{ID: "r1", Status: "succeeded"}}})
+	}))
+	defer srv.Close()
+	mgr := modelengine.NewManager("", "")
+	_ = mgr.SaveEngine(modelengine.EngineConfig{ID: "herdsman", Enabled: true, BaseURL: srv.URL})
+	a := &App{core: &core{engineMgr: mgr}}
+	list, err := a.GaeaBenchmarkList()
+	if err != nil {
+		t.Fatalf("GaeaBenchmarkList: %v", err)
+	}
+	if len(list) != 1 || list[0].ID != "r1" {
+		t.Fatalf("list = %+v", list)
+	}
+}
+
+// TestGaeaBenchmarkExport_AtomicNoTempLeft 原子导出：成功后目录只留下最终报告，
+// 无 .tmp 半截文件。
+func TestGaeaBenchmarkExport_AtomicNoTempLeft(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HERDSMAN_DATA_DIR", home)
+	dir := filepath.Join(home, "model_benchmark")
+	_ = os.MkdirAll(dir, 0755)
+	runs := []BenchmarkRunDetail{{
+		ID: "run-atomic", Status: "succeeded", CreatedAt: "2026-08-11T17:50:51+08:00",
+		Config: BenchmarkRequest{ModelNames: []string{"A"}, Request: BenchmarkPromptRequest{UserPrompt: "p", MaxTokens: 128}},
+	}}
+	data, _ := json.Marshal(runs)
+	_ = os.WriteFile(filepath.Join(dir, "runs.json"), data, 0644)
+
+	outDir := t.TempDir()
+	path, err := (&App{}).GaeaBenchmarkExport("run-atomic", outDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(outDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("导出后目录应只有最终报告, got %d 个文件: %v", len(entries), entries)
+	}
+	if entries[0].Name() != filepath.Base(path) {
+		t.Errorf("残留文件异常: %s", entries[0].Name())
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("报告不存在: %v", err)
 	}
 }

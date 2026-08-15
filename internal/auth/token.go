@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,9 +96,11 @@ func (s *TokenStore) Load() (*Token, error) {
 	defer s.mu.Unlock()
 
 	data, err := os.ReadFile(s.path)
+	fromLegacy := false
 	if err != nil && os.IsNotExist(err) && s.legacyPath != "" {
 		// 回退旧品牌 token 文件（老用户免重新登录）
 		data, err = os.ReadFile(s.legacyPath)
+		fromLegacy = err == nil
 	}
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -119,15 +122,28 @@ func (s *TokenStore) Load() (*Token, error) {
 			return nil, fmt.Errorf("迁移旧 token 为加密存储失败: %w", err)
 		}
 	}
+	if migrated && fromLegacy {
+		// T7-2：迁移完成后删除旧明文 legacy 文件（.wubigork_token.json），
+		// 明文凭证不再残留在盘上。删除失败不阻断——主路径已加密落盘，
+		// 待下次 Delete/迁移再清理。
+		if err := os.Remove(s.legacyPath); err != nil && !os.IsNotExist(err) {
+			slog.Warn("auth: 清理旧明文 token 文件失败", "path", s.legacyPath, "error", err)
+		}
+	}
 	return token, nil
 }
 
-// Delete 删除 token 文件
+// Delete 删除 token 文件（主路径 + 旧明文 legacy 路径一并清理，T7-2）。
 func (s *TokenStore) Delete() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := os.Remove(s.path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("删除 token 文件失败: %w", err)
+	}
+	if s.legacyPath != "" {
+		if err := os.Remove(s.legacyPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("删除旧 token 文件失败: %w", err)
+		}
 	}
 	return nil
 }

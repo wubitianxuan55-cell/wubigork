@@ -24,67 +24,67 @@ import (
 
 // BenchmarkRunSummary 测评运行摘要（GET /api/benchmarks 元素）。
 type BenchmarkRunSummary struct {
-	ID          string           `json:"id"`
-	CreatedAt   string           `json:"created_at"`
-	FinishedAt  string           `json:"finished_at,omitempty"`
-	Status      string           `json:"status"` // succeeded / failed / running / canceled
-	ModelNames  []string         `json:"model_names"`
-	Variants    []string         `json:"variants"`
-	ContextSizes []int           `json:"context_sizes"`
-	Summary     BenchmarkSummary `json:"summary,omitempty"`
+	ID           string           `json:"id"`
+	CreatedAt    string           `json:"created_at"`
+	FinishedAt   string           `json:"finished_at,omitempty"`
+	Status       string           `json:"status"` // succeeded / failed / running / canceled
+	ModelNames   []string         `json:"model_names"`
+	Variants     []string         `json:"variants"`
+	ContextSizes []int            `json:"context_sizes"`
+	Summary      BenchmarkSummary `json:"summary,omitempty"`
 }
 
 // BenchmarkSummary 运行级汇总指标。
 type BenchmarkSummary struct {
-	TotalCases   int     `json:"total_cases"`
-	Succeeded    int     `json:"succeeded"`
-	Failed       int     `json:"failed"`
-	Canceled     int     `json:"canceled"`
+	TotalCases    int     `json:"total_cases"`
+	Succeeded     int     `json:"succeeded"`
+	Failed        int     `json:"failed"`
+	Canceled      int     `json:"canceled"`
 	AvgDurationMs float64 `json:"avg_duration_ms"`
-	AvgTTFTMs    float64 `json:"avg_ttft_ms"`
-	AvgTPS       float64 `json:"avg_tps"`
+	AvgTTFTMs     float64 `json:"avg_ttft_ms"`
+	AvgTPS        float64 `json:"avg_tps"`
 }
 
 // BenchmarkRequest 发起受控测评的配置（对齐 runs.json config 契约）。
 type BenchmarkRequest struct {
-	ModelNames    []string `json:"model_names"`
-	Variants      []string `json:"variants"`
-	ContextSizes  []int    `json:"context_sizes"`
-	CacheReuseMode string  `json:"cache_reuse_mode"` // "same_prompt_second"
-	WarmupCount   int      `json:"warmup_count"`
-	RepeatCount   int      `json:"repeat_count"`
-	Concurrency   int      `json:"concurrency"`
-	Request       BenchmarkPromptRequest `json:"request"`
+	ModelNames     []string               `json:"model_names"`
+	Variants       []string               `json:"variants"`
+	ContextSizes   []int                  `json:"context_sizes"`
+	CacheReuseMode string                 `json:"cache_reuse_mode"` // "same_prompt_second"
+	WarmupCount    int                    `json:"warmup_count"`
+	RepeatCount    int                    `json:"repeat_count"`
+	Concurrency    int                    `json:"concurrency"`
+	Request        BenchmarkPromptRequest `json:"request"`
 }
 
 // BenchmarkPromptRequest 单次请求参数。
 type BenchmarkPromptRequest struct {
-	UserPrompt      string  `json:"user_prompt"`
-	Temperature     float64 `json:"temperature"`
-	TopP            float64 `json:"top_p"`
-	TopK            int     `json:"top_k"`
-	RepeatPenalty   float64 `json:"repeat_penalty"`
-	MaxTokens       int     `json:"max_tokens"`
-	Stream          bool    `json:"stream"`
-	TimeoutSeconds  int     `json:"timeout_seconds"`
+	UserPrompt     string  `json:"user_prompt"`
+	Temperature    float64 `json:"temperature"`
+	TopP           float64 `json:"top_p"`
+	TopK           int     `json:"top_k"`
+	RepeatPenalty  float64 `json:"repeat_penalty"`
+	MaxTokens      int     `json:"max_tokens"`
+	Stream         bool    `json:"stream"`
+	TimeoutSeconds int     `json:"timeout_seconds"`
 }
 
 // BenchmarkCase 逐 case 明细（来自 runs.json）。
 type BenchmarkCase struct {
-	ModelName     string  `json:"model_name"`
-	VariantID     string  `json:"variant_id"`
-	ContextSize   int     `json:"context_size"`
-	Status        string  `json:"status"`
-	StartedAt     string  `json:"started_at,omitempty"`
-	EndedAt       string  `json:"ended_at,omitempty"`
-	DurationMS    int64   `json:"duration_ms"`
-	TTFTMSAvg     float64 `json:"ttft_ms_avg"`
-	TTFTMSP95     float64 `json:"ttft_ms_p95"`
-	InputTokens   int64   `json:"input_tokens"`
-	OutputTokens  int64   `json:"output_tokens"`
-	TotalTokens   int64   `json:"total_tokens"`
-	CachedTokens  int64   `json:"cached_tokens"`
-	SecondDurationMS int64 `json:"second_duration_ms"`
+	ModelName        string  `json:"model_name"`
+	VariantID        string  `json:"variant_id"`
+	ContextSize      int     `json:"context_size"`
+	Status           string  `json:"status"`
+	StartedAt        string  `json:"started_at,omitempty"`
+	EndedAt          string  `json:"ended_at,omitempty"`
+	DurationMS       int64   `json:"duration_ms"`
+	TTFTMSAvg        float64 `json:"ttft_ms_avg"`
+	TTFTMSP95        float64 `json:"ttft_ms_p95"`
+	InputTokens      int64   `json:"input_tokens"`
+	OutputTokens     int64   `json:"output_tokens"`
+	TotalTokens      int64   `json:"total_tokens"`
+	CachedTokens     int64   `json:"cached_tokens"`
+	SecondDurationMS int64   `json:"second_duration_ms"`
 	SecondTTFTMSAvg  float64 `json:"second_ttft_ms_avg"`
 	// D3-4 富字段：缓存复用与显存参数
 	PromptTokensTPS     float64 `json:"prompt_tokens_tps"`
@@ -102,13 +102,13 @@ type BenchmarkCase struct {
 
 // BenchmarkRunDetail 运行完整明细（含 config 与逐 case）。
 type BenchmarkRunDetail struct {
-	ID        string          `json:"id"`
-	CreatedAt string          `json:"created_at"`
-	FinishedAt string         `json:"finished_at,omitempty"`
-	Status    string          `json:"status"`
-	Config    BenchmarkRequest `json:"config"`
-	Summary   BenchmarkSummary `json:"summary"`
-	Cases     []BenchmarkCase `json:"cases"`
+	ID         string           `json:"id"`
+	CreatedAt  string           `json:"created_at"`
+	FinishedAt string           `json:"finished_at,omitempty"`
+	Status     string           `json:"status"`
+	Config     BenchmarkRequest `json:"config"`
+	Summary    BenchmarkSummary `json:"summary"`
+	Cases      []BenchmarkCase  `json:"cases"`
 }
 
 // benchmarkListResp GET /api/benchmarks 响应。
@@ -127,17 +127,39 @@ var herdsmanBenchHTTP = &http.Client{Timeout: 30 * time.Second}
 // herdsmanBenchBaseURL 测评 API 基地址（测试可注入）。
 var herdsmanBenchBaseURL = "http://127.0.0.1:8080"
 
+// benchAPIRoot 规整引擎 BaseURL 为测评 API 根：去掉尾部 /v1（兼容两种写法），
+// 测评接口挂在根路径下（/api/benchmarks），不在 /v1 之下。
+func benchAPIRoot(base string) string {
+	base = strings.TrimRight(base, "/")
+	if strings.HasSuffix(base, "/v1") {
+		return strings.TrimSuffix(base, "/v1")
+	}
+	return base
+}
+
+// benchBaseURL 测评 API 基地址：优先取 engineMgr 的 herdsman 引擎 BaseURL
+// （T7-2：不再硬编码 127.0.0.1:8080）；引擎未配置时回退包级 var（测试注入）。
+func (a *App) benchBaseURL() string {
+	if a != nil && a.core != nil && a.engineMgr != nil {
+		if e, ok := a.engineMgr.GetEngine("herdsman"); ok && e.BaseURL != "" {
+			return benchAPIRoot(e.BaseURL)
+		}
+	}
+	return herdsmanBenchBaseURL
+}
+
 // GaeaBenchmarkList 返回 Herdsman 受控测评运行列表（按创建时间倒序）。
 func (a *App) GaeaBenchmarkList() ([]BenchmarkRunSummary, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, herdsmanBenchBaseURL+"/api/benchmarks", nil)
+	base := a.benchBaseURL()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/api/benchmarks", nil)
 	if err != nil {
 		return nil, err
 	}
 	resp, err := herdsmanBenchHTTP.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("连接 Herdsman 测评接口失败（%s 未运行？）: %w", herdsmanBenchBaseURL, err)
+		return nil, fmt.Errorf("连接 Herdsman 测评接口失败（%s 未运行？）: %w", base, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -184,20 +206,28 @@ func (a *App) GaeaBenchmarkStart(req BenchmarkRequest) (string, error) {
 	if req.Request.TimeoutSeconds <= 0 {
 		req.Request.TimeoutSeconds = 1800
 	}
+	// T7-2 参数上限钳制：并发 <= 4、重复 <= 20（防止一次性把本地引擎压垮/跑太久）。
+	if req.Concurrency > 4 {
+		req.Concurrency = 4
+	}
+	if req.RepeatCount > 20 {
+		req.RepeatCount = 20
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return "", err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	hr, err := http.NewRequestWithContext(ctx, http.MethodPost, herdsmanBenchBaseURL+"/api/benchmarks", bytes.NewReader(body))
+	base := a.benchBaseURL()
+	hr, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/benchmarks", bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}
 	hr.Header.Set("Content-Type", "application/json")
 	resp, err := herdsmanBenchHTTP.Do(hr)
 	if err != nil {
-		return "", fmt.Errorf("连接 Herdsman 测评接口失败（%s 未运行？）: %w", herdsmanBenchBaseURL, err)
+		return "", fmt.Errorf("连接 Herdsman 测评接口失败（%s 未运行？）: %w", base, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
@@ -249,7 +279,31 @@ func (a *App) GaeaBenchmarkExport(id, dir string) (string, error) {
 		shortID = shortID[:8]
 	}
 	path := filepath.Join(dir, fmt.Sprintf("herdsman-benchmark-%s-%s.md", ts, shortID))
-	if err := os.WriteFile(path, []byte(md), 0644); err != nil {
+	// T7-2 原子写：同目录临时文件 → 写入 → 落盘 → rename 覆盖，
+	// 中途失败清理临时文件，绝不留下半截报告。
+	tmp, err := os.CreateTemp(dir, "herdsman-benchmark-*.md.tmp")
+	if err != nil {
+		return "", fmt.Errorf("创建临时报告失败: %w", err)
+	}
+	tmpName := tmp.Name()
+	cleanup := func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}
+	if _, err := tmp.Write([]byte(md)); err != nil {
+		cleanup()
+		return "", fmt.Errorf("写入报告失败: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		cleanup()
+		return "", fmt.Errorf("写入报告失败: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return "", fmt.Errorf("写入报告失败: %w", err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		_ = os.Remove(tmpName)
 		return "", fmt.Errorf("写入报告失败: %w", err)
 	}
 	return path, nil

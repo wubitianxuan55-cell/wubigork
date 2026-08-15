@@ -14,12 +14,14 @@ import (
 // ─── QR 登录 API ─────────────────────────────────────────────
 
 const (
-	qrBaseURL       = "https://ilinkai.weixin.qq.com"
 	qrCodeEndpoint  = "/ilink/bot/get_bot_qrcode?bot_type=3"
 	qrStatusFmt     = "/ilink/bot/get_qrcode_status?qrcode=%s"
 	qrVerifyCodeFmt = "/ilink/bot/get_qrcode_status?qrcode=%s&verify_code=%s"
 	qrPollTimeout   = 35 * time.Second
 )
+
+// qrBaseURL 微信扫码登录 API 基地址（var 而非 const：测试可注入 httptest 地址）。
+var qrBaseURL = "https://ilinkai.weixin.qq.com"
 
 type QRCodeResp struct {
 	Qrcode           string `json:"qrcode"`
@@ -107,12 +109,18 @@ func PollQRStatusWithCode(qrcode, verifyCode string) (*QRStatusResp, error) {
 	client := netclient.NewSimpleClient(qrPollTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("轮询状态失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
 	var result QRStatusResp
-	json.Unmarshal(b, &result)
+	if err := json.Unmarshal(b, &result); err != nil {
+		return nil, fmt.Errorf("解析状态响应失败: %w", err)
+	}
 	return &result, nil
 }

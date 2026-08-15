@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -559,7 +560,7 @@ func TestSanitizeChatFilename(t *testing.T) {
 		{"lpt9", "_lpt9"},
 		{"  标题  ", "标题"},
 		{"标题.", "标题"}, // 尾部点号非法 → 去掉
-		{"", "chat"},   // 空 → 默认名
+		{"", "chat"},  // 空 → 默认名
 		{"...", "chat"},
 		{strings.Repeat("长", 50), strings.Repeat("长", 40)}, // 截断 40 字符
 	}
@@ -567,5 +568,83 @@ func TestSanitizeChatFilename(t *testing.T) {
 		if got := sanitizeChatFilename(c.in); got != c.want {
 			t.Errorf("sanitizeChatFilename(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+// ── T7-2 可见性收口：联网搜索失败占位/Notice（不静默丢弃） ──
+
+// TestPreparePlainChatMessage_SearchErrorInjectsPlaceholder 搜索函数返回错误时，
+// 注入占位提示（含失败说明），原始消息保留——失败可见而非静默丢弃。
+func TestPreparePlainChatMessage_SearchErrorInjectsPlaceholder(t *testing.T) {
+	a := &App{}
+	orig := chatWebSearch
+	chatWebSearch = func(string) (string, error) { return "", errors.New("搜索服务不可用") }
+	t.Cleanup(func() { chatWebSearch = orig })
+
+	got := a.preparePlainChatMessage("今天天气如何", false, true)
+	if !strings.Contains(got, "今天天气如何") {
+		t.Errorf("占位消息应保留原始消息: %q", got)
+	}
+	if !strings.Contains(got, "联网搜索暂不可用") {
+		t.Errorf("搜索失败应注入占位提示: %q", got)
+	}
+	if strings.Contains(got, "实时搜索结果，请参考") {
+		t.Errorf("失败时不应注入伪造的成功结果: %q", got)
+	}
+}
+
+// TestPreparePlainChatMessage_EmptyResultInjectsPlaceholder 搜索返回空结果（无错误）
+// 同样注入占位提示，避免模型把空搜索当成实时信息。
+func TestPreparePlainChatMessage_EmptyResultInjectsPlaceholder(t *testing.T) {
+	a := &App{}
+	orig := chatWebSearch
+	chatWebSearch = func(string) (string, error) { return "", nil }
+	t.Cleanup(func() { chatWebSearch = orig })
+
+	got := a.preparePlainChatMessage("今天天气如何", false, true)
+	if !strings.Contains(got, "联网搜索暂不可用") {
+		t.Errorf("空结果应注入占位提示: %q", got)
+	}
+}
+
+// TestPreparePlainChatMessage_NoSearchKeepsMessage 未开启搜索且未强制时，
+// 消息原样返回，不注入任何搜索内容。
+func TestPreparePlainChatMessage_NoSearchKeepsMessage(t *testing.T) {
+	a := &App{}
+	orig := chatWebSearch
+	chatWebSearch = func(string) (string, error) { return "【模拟搜索结果】", nil }
+	t.Cleanup(func() { chatWebSearch = orig })
+
+	got := a.preparePlainChatMessage("普通闲聊", false, false)
+	if got != "普通闲聊" {
+		t.Errorf("未开启搜索应原样返回: %q", got)
+	}
+}
+
+// TestChatSend_Plain_SearchErrorStillSucceeds 搜索失败不阻断对话：ChatSend 仍
+// 正常返回回复并落库（占位注入让模型如实说明，而不是整条对话报错）。
+func TestChatSend_Plain_SearchErrorStillSucceeds(t *testing.T) {
+	a := newChatServiceTestApp(t)
+	topic, err := a.ChatTopicCreate("搜索失败", "plain")
+	if err != nil {
+		t.Fatalf("ChatTopicCreate: %v", err)
+	}
+	orig := chatWebSearch
+	chatWebSearch = func(string) (string, error) { return "", errors.New("网络不可达") }
+	t.Cleanup(func() { chatWebSearch = orig })
+
+	out, err := a.ChatSend(topic.ID, "有什么新闻", "plain", true, false, true)
+	if err != nil {
+		t.Fatalf("搜索失败不应导致 ChatSend 报错: %v", err)
+	}
+	if out["reply"] != "你好呀" {
+		t.Errorf("reply = %v, want 你好呀（对话正常继续）", out["reply"])
+	}
+	msgs, err := a.ChatMessagesList(topic.ID)
+	if err != nil {
+		t.Fatalf("ChatMessagesList: %v", err)
+	}
+	if len(msgs) != 2 || msgs[0].Content != "有什么新闻" {
+		t.Errorf("消息落库应保留用户原文: %+v", msgs)
 	}
 }
