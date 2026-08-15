@@ -73,6 +73,9 @@ func RenderTOML(c *Config) string {
 		if p.BalanceURL != "" {
 			fmt.Fprintf(&b, "balance_url = %q   # optional; wallet-balance endpoint shown in the status bar\n", p.BalanceURL)
 		}
+		if p.BalanceKind != "" {
+			fmt.Fprintf(&b, "balance_kind = %q   # optional; balance-backend registry kind (empty = \"deepseek\" shape)\n", p.BalanceKind)
+		}
 		if p.ContextWindow > 0 {
 			fmt.Fprintf(&b, "context_window = %d   # tokens; compaction triggers near this limit\n", p.ContextWindow)
 		}

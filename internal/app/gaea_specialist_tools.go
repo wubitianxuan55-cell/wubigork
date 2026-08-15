@@ -10,13 +10,14 @@ import (
 )
 
 // gaeaSpecialistTools 需要 App 服务的专业工具清单（ExtraTools 的补充部分）。
-// 3.0 Step 3d #6：ocr 工具此前已定义但未注册进 ExtraTools（gaea_handler.go
-// 装配列表漂移，死代码）；在此集中注册，gaea_handler.go 装配时展开进 ExtraTools，
-// 后续新增专业工具只需改这一处。semantic_search 同样定义未注册，是否纳入由
-// 装配决策（详见报告遗留项）。
+// 3.0 Step 3d #6：ocr/semantic_search 工具此前已定义但未注册进 ExtraTools
+// （gaea_handler.go 装配列表漂移，死代码）；Wave 4 在此集中注册（决策：纳入——
+// semantic_search 实现完整且有 E2E 测试，能力面板「本地专业模型」分组也声明了它），
+// gaea_handler.go 装配时展开进 ExtraTools，后续新增专业工具只需改这一处。
 func gaeaSpecialistTools(a *App) []tool.Tool {
 	return []tool.Tool{
 		ocrTool{a: a},
+		semanticSearchTool{a: a},
 	}
 }
 

@@ -416,6 +416,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		Cleanup:        cleanup,
 		BalanceURL:     entry.BalanceURL,
 		BalanceKey:     entry.APIKey(),
+		// 3.0 Wave 4：余额后端 kind 从 ProviderEntry 贯通（空 = controller 按
+		// 历史默认 deepseek 形状；配置 balance_kind 即切换，代码零改动）。
+		BalanceKind: entry.BalanceKind,
 		Jobs:           jm,
 		Registry:       reg,
 		PluginCtx:      ctx,

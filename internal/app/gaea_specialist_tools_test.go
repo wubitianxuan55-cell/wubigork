@@ -153,8 +153,9 @@ func TestSemanticSearchTool_FileScope(t *testing.T) {
 	}
 }
 
-// TestSpecialistTools_Registered 固化 3.0 Step 3d #6：ocr 等专业工具已注册
-// 进 ExtraTools（gaeaSpecialistTools 集中注册），不再是死代码。
+// TestSpecialistTools_Registered 固化 3.0 Step 3d #6 + Wave 4 收官：ocr 与
+// semantic_search 等专业工具均已注册进 ExtraTools（gaeaSpecialistTools 集中
+// 注册），不再是死代码。
 func TestSpecialistTools_Registered(t *testing.T) {
 	tools := gaeaSpecialistTools(&App{})
 	names := make([]string, 0, len(tools))
@@ -164,6 +165,9 @@ func TestSpecialistTools_Registered(t *testing.T) {
 	joined := strings.Join(names, ",")
 	if !strings.Contains(joined, "ocr") {
 		t.Fatalf("专业工具应包含 ocr, got %v", names)
+	}
+	if !strings.Contains(joined, "semantic_search") {
+		t.Fatalf("专业工具应包含 semantic_search, got %v", names)
 	}
 }
 

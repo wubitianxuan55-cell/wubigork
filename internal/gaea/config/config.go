@@ -314,6 +314,10 @@ type ProviderEntry struct {
 	Default       string            `toml:"default"` // default model when Models is set (else Models[0])
 	APIKeyEnv     string            `toml:"api_key_env"`
 	BalanceURL    string            `toml:"balance_url"` // optional; a provider-specific wallet-balance endpoint (DeepSeek: https://api.deepseek.com/user/balance). Empty = no balance readout.
+	// BalanceKind 是余额查询后端的注册 kind（billing 包按 kind 注册形状；
+	// 3.0 Step 3d #8 + Wave 4 收官：从 ProviderEntry 贯通到 controller，不再
+	// 硬编码 deepseek）。空 = 历史默认 "deepseek" 形状。未知 kind fail-closed。
+	BalanceKind string `toml:"balance_kind"`
 	ContextWindow int               `toml:"context_window"`
 	Price         *provider.Pricing `toml:"price"`
 	// Prices holds per-model pricing when a single provider exposes multiple

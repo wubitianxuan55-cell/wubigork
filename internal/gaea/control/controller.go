@@ -62,10 +62,12 @@ type Controller struct {
 	startedOnce   bool // guards the one-shot SessionStart hook on first turn
 
 	// balanceURL/balanceKey target the active provider's optional wallet-balance
-	// endpoint (empty when the provider declares none). Captured at build so a
-	// model/key switch — which rebuilds the controller — refreshes them.
-	balanceURL string
-	balanceKey string
+	// endpoint (empty when the provider declares none). balanceKind selects the
+	// balance-backend registry kind ("" = historical default "deepseek"). Captured
+	// at build so a model/key switch — which rebuilds the controller — refreshes them.
+	balanceURL   string
+	balanceKey   string
+	balanceKind  string
 
 	// jobs is the session-scoped background-job manager. The agent's background
 	// tools spawn into it; Compose drains its completion notes into the next turn;
@@ -169,6 +171,10 @@ type Options struct {
 	// endpoint and bearer key; empty when the provider declares no balance_url.
 	BalanceURL string
 	BalanceKey string
+	// BalanceKind selects the balance-backend registry kind (billing package).
+	// Empty = historical default "deepseek" shape; unknown kinds fail closed.
+	// 3.0 Wave 4：从 ProviderEntry 贯通，切换余额后端只改配置。
+	BalanceKind string
 	// Jobs is the session-scoped background-job manager (nil disables background jobs).
 	Jobs *jobs.Manager
 	// Registry is the executor's live tool set, and PluginCtx the session-scoped
@@ -217,6 +223,7 @@ func New(opts Options) *Controller {
 		cleanup:       opts.Cleanup,
 		balanceURL:    opts.BalanceURL,
 		balanceKey:    opts.BalanceKey,
+		balanceKind:   opts.BalanceKind,
 		jobs:          opts.Jobs,
 		reg:           opts.Registry,
 		pluginCtx:     pluginCtx,
@@ -1085,12 +1092,18 @@ func (c *Controller) SessionCache() (hit, miss int) {
 
 // Balance queries the active provider's wallet balance, or (nil, nil) when the
 // provider declares no balance_url — so a caller treats "not configured" and
-// "fetched" the same and just omits the readout when nil.
+// "fetched" the same and just omits the readout when nil. The balance-backend
+// kind comes from Options.BalanceKind ("" = historical default "deepseek");
+// an unknown kind fails closed with an explicit error.
 func (c *Controller) Balance(ctx context.Context) (*billing.Balance, error) {
 	if strings.TrimSpace(c.balanceURL) == "" {
 		return nil, nil
 	}
-	return billing.Fetch(ctx, c.balanceURL, c.balanceKey)
+	kind := strings.TrimSpace(c.balanceKind)
+	if kind == "" {
+		kind = billing.BalanceKindDeepSeek // 历史默认：DeepSeek GET /user/balance 形状
+	}
+	return billing.FetchByKind(ctx, kind, c.balanceURL, c.balanceKey)
 }
 
 // Host returns the running MCP host (nil when no plugins), for frontends that
