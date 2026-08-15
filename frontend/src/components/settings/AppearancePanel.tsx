@@ -4,17 +4,11 @@ import {
   SunOutlined, ThunderboltOutlined, FontSizeOutlined, DashboardOutlined, CompressOutlined,
 } from '@ant-design/icons'
 import { Button, InputNumber, Select, Typography } from 'antd'
-import { useAppStore, FONT_OPTIONS, type DisplayMode, type ThemePreset, type Density, type MotionPref } from '../../stores/appStore'
+import { useAppStore, THEME_PRESETS, FONT_OPTIONS, type DisplayMode, type ThemePreset, type Density, type MotionPref } from '../../stores/appStore'
 import SettingsSection from './SettingsSection'
 
-const themeOptions: { key: ThemePreset; label: string; desc: string; color: string }[] = [
-  { key: 'nightJade',   label: '暗夜青', desc: '深海翡翠 · 冷静专注', color: '#2dd4bf' },
-  { key: 'nightViolet', label: '暗夜紫', desc: '深靛星云 · 灵感涌动', color: '#a78bfa' },
-  { key: 'nightRose',   label: '暗夜玫', desc: '深褐暖调 · 温情创作', color: '#fb7185' },
-  { key: 'nightAmber',  label: '暗夜金', desc: '深色暖灯 · 沉浸舒适', color: '#f59e0b' },
-  { key: 'nightMoss',   label: '暗夜苔', desc: '深色林间 · 自然舒适', color: '#84cc16' },
-  { key: 'nightSlate',  label: '暗夜墨', desc: '中性深灰 · 极简克制', color: '#94a3b8' },
-]
+// 主题选项：单一数据源 THEME_PRESETS（appStore，3.0 Wave 2 消除与 MainLayout/appStore 色板表三处重复）
+const themeOptions: { key: ThemePreset; label: string; desc: string; color: string }[] = THEME_PRESETS
 
 /** 通用「选择卡片」：多选一，选中发光对勾（外观设置各维度复用） */
 function ChoiceCards<T extends string>({ options, value, onChange }: {

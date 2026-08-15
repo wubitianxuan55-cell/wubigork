@@ -11,6 +11,34 @@ export interface ProjectCard { title: string; genre: string; style: string; path
 // 暗夜系列 — 6套精心调色
 export type ThemePreset = 'nightJade' | 'nightViolet' | 'nightRose' | 'nightAmber' | 'nightMoss' | 'nightSlate'
 
+// 主题元数据单一数据源（3.0 Wave 2：MainLayout 色点 / AppearancePanel 选择卡从此派生，
+// 消除三处重复维护——appStore 色板表 + MainLayout themeDots + AppearancePanel themeOptions）。
+export interface ThemePresetMeta {
+  key: ThemePreset
+  label: string
+  desc: string
+  /** 暗色主色（色点/预览用；与 getThemeTokens(preset, true).colorPrimary 一致） */
+  color: string
+}
+
+export const THEME_PRESETS: ThemePresetMeta[] = [
+  { key: 'nightJade',   label: '暗夜青', desc: '深海翡翠 · 冷静专注', color: '#2dd4bf' },
+  { key: 'nightViolet', label: '暗夜紫', desc: '深靛星云 · 灵感涌动', color: '#a78bfa' },
+  { key: 'nightRose',   label: '暗夜玫', desc: '深褐暖调 · 温情创作', color: '#fb7185' },
+  { key: 'nightAmber',  label: '暗夜金', desc: '深色暖灯 · 沉浸舒适', color: '#f59e0b' },
+  { key: 'nightMoss',   label: '暗夜苔', desc: '深色林间 · 自然舒适', color: '#84cc16' },
+  { key: 'nightSlate',  label: '暗夜墨', desc: '中性深灰 · 极简克制', color: '#94a3b8' },
+]
+
+/** 主题色点查表（MainLayout 等轻量消费，避免逐次 find） */
+export const THEME_PRESET_COLORS: Record<ThemePreset, string> = Object.fromEntries(
+  THEME_PRESETS.map((t) => [t.key, t.color]),
+) as Record<ThemePreset, string>
+
+export const THEME_PRESET_LABELS: Record<ThemePreset, string> = Object.fromEntries(
+  THEME_PRESETS.map((t) => [t.key, t.label]),
+) as Record<ThemePreset, string>
+
 export interface ThemeTokens {
   colorPrimary: string; onPrimary: string; primaryContainer: string; onPrimaryContainer: string
   surface: string; onSurface: string; surfaceVariant: string; onSurfaceVariant: string

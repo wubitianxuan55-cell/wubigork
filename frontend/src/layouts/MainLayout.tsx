@@ -9,7 +9,7 @@ import SearchModal from '../components/SearchModal'
 import SecurityBanner from '../components/SecurityBanner'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Z_INDEX } from '../utils/zIndex'
-import { useAppStore, type ThemePreset, type StatsData, type ProjectInfo } from '../stores/appStore'
+import { useAppStore, THEME_PRESETS, THEME_PRESET_COLORS, THEME_PRESET_LABELS, type ThemePreset, type StatsData, type ProjectInfo } from '../stores/appStore'
 import ModuleLauncher, { type LauncherTarget } from '../components/ModuleLauncher'
 import * as App from '../../src/wailsjsCompat'
 // 3.0 §5.2 / 附 B：12 硬编码点收敛为 manifest 驱动。
@@ -50,14 +50,10 @@ function resolvePageComponent(p: Page): React.ComponentType | undefined {
   return getPageComponent(m.page) ?? legacyPageComponents[m.page]
 }
 
-// 5 色系
-const themeDots: Record<ThemePreset, string> = {
-  nightJade: '#2dd4bf', nightViolet: '#a78bfa', nightRose: '#fb7185', nightAmber: '#f59e0b', nightMoss: '#84cc16', nightSlate: '#94a3b8',
-}
-const themeLabels: Record<ThemePreset, string> = {
-  nightJade: '暗夜青', nightViolet: '暗夜紫', nightRose: '暗夜玫', nightAmber: '暗夜金', nightMoss: '暗夜苔', nightSlate: '暗夜墨',
-}
-const themeKeys = ['nightJade', 'nightViolet', 'nightRose', 'nightAmber', 'nightMoss', 'nightSlate'] as ThemePreset[]
+// 主题色点/标签：单一数据源 THEME_PRESETS（appStore，3.0 Wave 2 消除三处重复维护）
+const themeKeys = THEME_PRESETS.map((t) => t.key)
+const themeDots = THEME_PRESET_COLORS
+const themeLabels = THEME_PRESET_LABELS
 
 function fmtWords(n: number): string {
   if (n >= 10000) return (n / 10000).toFixed(1) + '万'

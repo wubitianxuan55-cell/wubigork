@@ -76,6 +76,29 @@
   --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
   --motion-pop-scale: 0.98;
   --motion-rise: 4px;
+
+  /* ── --ds-* canonical 令牌完整定义（3.0 Wave 2 补全，此前仅 2/14 定义、27 处消费失效）── */
+  --ds-bg-app: var(--bg);
+  --ds-overlay: rgba(0, 0, 0, 0.4);
+  --ds-gradient-sidebar: linear-gradient(180deg, var(--bg) 0%, var(--bg-soft) 100%);
+  --ds-gradient-topbar: linear-gradient(90deg, var(--bg) 0%, var(--bg-soft) 100%);
+  --ds-font-display: var(--sans);
+  --ds-font-mono: var(--mono);
+  --ds-radius-sm: var(--md-sys-radius-sm, 8px);
+  --ds-radius-lg: var(--md-sys-radius-lg, 16px);
+  --ds-radius-xl: var(--md-sys-radius-xl, 28px);
+  --ds-radius-3xl: 24px;
+  --ds-radius-pill: 999px;
+  --ds-shadow-card: var(--md-sys-elevation-2, 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px rgba(0,0,0,0.15));
+  --ds-shadow-card-hover: var(--md-sys-elevation-3, 0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15));
+  --ds-shadow-panel: var(--md-sys-elevation-3, 0 4px 8px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15));
+  --ds-shadow-dropdown: var(--md-sys-elevation-4, 0 6px 12px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.15));
+  --ds-danger: var(--err, #EF4444);
+  --ds-danger-soft: color-mix(in srgb, var(--err, #EF4444) 14%, transparent);
+  --ds-success: var(--ok, #22C55E);
+  --ds-success-soft: color-mix(in srgb, var(--ok, #22C55E) 14%, transparent);
+  --ds-warning: var(--warn, #F59E0B);
+  --ds-warning-soft: color-mix(in srgb, var(--warn, #F59E0B) 14%, transparent);
 }
 /* -- Platform-specific font stacks -------------------------------------------------- */
 :root[data-platform="windows"] {
