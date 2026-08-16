@@ -1,17 +1,7 @@
 import React from 'react'
-import { Typography, Button, Space, Input, Modal, Checkbox } from 'antd'
+import { Typography, Space, Input, Modal, Checkbox } from 'antd'
 import { C } from '../../utils/theme'
-
-const GENRE_OPTIONS = [
-  '玄幻', '奇幻', '武侠', '仙侠', '都市',
-  '现实', '历史', '军事', '游戏', '体育',
-  '科幻', '悬疑', '灵异', '二次元', '短篇',
-]
-
-const STYLE_OPTIONS = [
-  '热血', '轻松', '搞笑', '治愈', '暗黑',
-  '爽文', '甜宠', '正剧', '无CP', '悬疑',
-]
+import { GENRE_OPTIONS, STYLE_OPTIONS } from './novelOptions'
 
 interface CreateNovelModalProps {
   open: boolean

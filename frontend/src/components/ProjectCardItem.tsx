@@ -10,7 +10,6 @@ import { formatRelativeTime } from '../utils/time'
 interface ProjectCardItemProps {
   card: ProjectCard
   isActive: boolean
-  isHero: boolean
   isMobile?: boolean
   readingChapter?: string
   /** 阅读进度（0-1，undefined = 无进度） */
@@ -35,7 +34,7 @@ function coverToneFor(genre: string): string {
 
 /** ProjectCardItem — 书架卡：封面渐变条 + 题材标签 + 进度条 + 继续阅读主操作 */
 const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
-  card, isActive, isHero, readingChapter, readingProgress, onOpen, onContinueReading, onDelete,
+  card, isActive, readingChapter, readingProgress, onOpen, onContinueReading, onDelete,
 }) => {
   const pct = readingProgress != null && readingProgress > 0
     ? Math.min(100, Math.round(readingProgress * 100))
@@ -47,7 +46,7 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
       key={card.path}
       role="button"
       tabIndex={0}
-      className={`novel-shelf-card${isActive ? ' is-active' : ''}${isHero ? ' novel-shelf-card-hero' : ''}`}
+      className={`novel-shelf-card${isActive ? ' is-active' : ''}`}
       onClick={() => onOpen(card)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(card) } }}
       aria-label={`打开小说「${card.title}」`}
@@ -96,7 +95,7 @@ const ProjectCardItem: React.FC<ProjectCardItemProps> = ({
         <div className="novel-shelf-actions">
           {readingChapter ? (
             <Tooltip title="跳转到阅读页继续上次章节">
-              <Button size="small" type="primary" icon={<ReadOutlined />} onClick={(e) => { e.stopPropagation(); onContinueReading ? onContinueReading(card) : onOpen(card) }}>
+              <Button size="small" type="primary" icon={<ReadOutlined />} onClick={(e) => { e.stopPropagation(); if (onContinueReading) onContinueReading(card); else onOpen(card) }}>
                 继续阅读
               </Button>
             </Tooltip>

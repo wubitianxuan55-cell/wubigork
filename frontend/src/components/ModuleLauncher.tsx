@@ -1,18 +1,19 @@
 // ModuleLauncher.tsx — 首页「任务指挥中心 Mission Control」（3.0 Bento 网格）
-// 顶部 AI 状态卡（活跃模型/引擎/资源/写作进度）＋ 中部模块 Bento 网格
-// ＋ 底部信息条（最近会话/记忆脉搏/系统状态）；原语音 orb 收进左上角小尺寸。
+// DeepSeek 风格 Hero：左文右卡（公告 pill + 大标题 + 双行动卡 / 右侧深色渐变 AI 视觉卡）
+// ＋ AI 状态细条（活跃模型/引擎/资源/写作进度）＋ 中部模块 Bento 网格
+// ＋ 底部信息条（最近会话/记忆脉搏/系统状态）；语音 orb 收进 Hero 右侧视觉卡。
 // 模块卡数据源与 onNavigate 跳转逻辑保持不变（boards/launcher 纯函数派生）。
 import React, { useState, useCallback, useEffect, useSyncExternalStore } from 'react'
 import {
   ThunderboltOutlined, ArrowRightOutlined, AudioOutlined,
   StopOutlined, RobotOutlined, UserOutlined, DashboardOutlined,
   FileTextOutlined, ClockCircleOutlined, HeartOutlined, ApiOutlined,
+  EditOutlined, MessageOutlined,
 } from '@ant-design/icons'
 // 板块清单：活动清单（静态 fallback / 后端合并）订阅驱动；图标由 manifest 图标注册表解析（3.0 §5.2）
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
 import { deriveLauncherModules, LAUNCHER_DESC, type LauncherModule } from '../boards/launcher'
 import { Tooltip } from 'antd'
-import VoiceChatOrb from './VoiceChatOrb'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { useAppStore } from '../stores/appStore'
 import * as App from '../../src/wailsjsCompat'
@@ -92,25 +93,7 @@ function fmtRel(ms: number): string {
   return new Date(ms).toLocaleDateString()
 }
 
-/**
- * reduced-motion：应用「动效强度」设置（motion==='reduced' → .ui-reduced-motion）
- * 或操作系统偏好任一命中即视为减弱动态（orb 渲染静态、呼吸环停转）。
- */
-function useReducedMotion(): boolean {
-  const motion = useAppStore((s) => s.motion)
-  const [osReduced, setOsReduced] = useState(false)
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const update = () => setOsReduced(mq.matches)
-    update()
-    mq.addEventListener('change', update)
-    return () => mq.removeEventListener('change', update)
-  }, [])
-  return motion === 'reduced' || osReduced
-}
-
-/** 单张 AI 状态卡（v3-card + 渐次入场 v3-rise） */
+/** 单条 AI 状态（透明无边框信息行：图标 + 标签/数值/副文 + 渐次入场 v3-rise） */
 const StatCard: React.FC<{
   icon: React.ReactNode
   label: string
@@ -118,14 +101,37 @@ const StatCard: React.FC<{
   sub?: React.ReactNode
   rise: string
 }> = ({ icon, label, value, sub, rise }) => (
-  <div className={`ml-stat v3-card v3-rise ${rise}`}>
-    <div className="ml-stat-head">
-      <span className="ml-stat-icon" aria-hidden="true">{icon}</span>
-      <span className="ml-stat-label">{label}</span>
+  <div className={`ml-stat v3-rise ${rise}`}>
+    <span className="ml-stat-icon" aria-hidden="true">{icon}</span>
+    <div className="ml-stat-body">
+      <div className="ml-stat-label">{label}</div>
+      <div className="ml-stat-value">{value}</div>
+      {sub && <div className="ml-stat-sub">{sub}</div>}
     </div>
-    <div className="ml-stat-value">{value}</div>
-    {sub && <div className="ml-stat-sub">{sub}</div>}
   </div>
+)
+
+/** 行动引导卡（DeepSeek 式：图标 + 标题 + 描述，整卡可点） */
+const HeroActionCard: React.FC<{
+  icon: React.ReactNode
+  title: string
+  desc: string
+  onClick: () => void
+  rise: string
+}> = ({ icon, title, desc, onClick, rise }) => (
+  <button
+    type="button"
+    className={`ml-hero-action v3-card is-interactive v3-rise ${rise}`}
+    onClick={onClick}
+    aria-label={`${title}：${desc}`}
+  >
+    <span className="ml-hero-action-icon" aria-hidden="true">{icon}</span>
+    <span className="ml-hero-action-body">
+      <span className="ml-hero-action-title">{title}</span>
+      <span className="ml-hero-action-desc">{desc}</span>
+    </span>
+    <ArrowRightOutlined className="ml-hero-action-arrow" aria-hidden="true" />
+  </button>
 )
 
 /** 单张模块卡片（v3-card + aurora 水印 + 进入箭头微交互） */
@@ -200,6 +206,9 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
   // canonicalBoards（8 卡）；loadBoardManifests 成功并入 knowledge 后自动多出「知识库」卡。
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
   const modules = deriveLauncherModules(activeBoards, LAUNCHER_DESC)
+  // 办公为左侧大卡；其余 8 个模块排成右侧 4×2 网格（角色库/设置不再单独成行）
+  const featuredModule = modules.find((m) => m.key === 'gaea')
+  const otherModules = modules.filter((m) => m.key !== 'gaea')
 
   // ── 项目统计（写作进度；appStore 已由壳层加载，只读消费）──
   const stats = useAppStore((s) => s.stats)
@@ -252,9 +261,6 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     load()
     return () => { alive = false }
   }, [])
-
-  // ── reduced-motion（orb 静态化）──
-  const reducedMotion = useReducedMotion()
 
   // ── 语音交互（本页直启麦克风）──
   const [userText, setUserText] = useState('')
@@ -320,32 +326,57 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
   return (
     <div className="ml">
       <div className="ml-shell">
-        {/* ── 顶部：语音晶核（首页主视觉焦点）+ AI 状态卡 ── */}
-        <div className="ml-top">
-          <div className={`ml-voice v3-card v3-rise ${voiceTone}`}>
-            <div className="ml-voice-main">
+        {/* ── Hero：左文右卡（参照 DeepSeek 首页风格）── */}
+        <section className="ml-hero" aria-label="首页概览">
+          {/* 左侧：公告 pill + 大标题 + 行动卡 */}
+          <div className="ml-hero-copy">
+            <span className="ml-hero-eyebrow">
+              <span className="ml-hero-dot" aria-hidden="true" />
+              GAEA 3.0 已就绪 · 本地 AI 创作中枢
+              <ArrowRightOutlined className="ml-hero-eyebrow-arrow" aria-hidden="true" />
+            </span>
+            <h1 className="ml-hero-title">从灵光乍现，到星河成篇</h1>
+            <p className="ml-hero-sub">
+              本地优先的 AI 创作中枢：写作、绘梦、记忆与语音，都在一个工作台里。
+            </p>
+            <div className="ml-hero-actions">
+              <HeroActionCard
+                rise="v3-rise-1"
+                icon={<EditOutlined />}
+                title="开始创作"
+                desc="世界观、角色与大纲"
+                onClick={() => onNavigate('novel')}
+              />
+              <HeroActionCard
+                rise="v3-rise-2"
+                icon={<MessageOutlined />}
+                title="和 gaea 对话"
+                desc="与 AI 对话，激发灵感"
+                onClick={() => onNavigate('chat')}
+              />
+            </div>
+          </div>
+
+          {/* 右侧：深色渐变视觉卡（语音晶核 · AI 在线） */}
+          <div className={`ml-hero-visual v3-rise v3-rise-2 ${voiceTone}`}>
+            <div className="ml-visual-grid" aria-hidden="true" />
+            <div className="ml-visual-glow" aria-hidden="true" />
+            <div className="ml-visual-main">
               <div className="ml-orb">
                 <span className="ml-orb-ring" aria-hidden="true" />
-                {reducedMotion ? (
-                  <span className="ml-orb-static" aria-hidden="true" />
-                ) : (
-                  <VoiceChatOrb
-                    volume={voice.volume}
-                    listening={voice.listening}
-                    speaking={voice.speaking}
-                    aiSpeaking={voice.aiSpeaking}
-                    transcript={voice.transcript}
-                    size={120}
-                  />
-                )}
+                <span className="ml-orb-static" aria-hidden="true" />
               </div>
               <span className="ml-voice-eyebrow" aria-hidden="true">语音晶核 · {voicePersonaLabel}</span>
             </div>
-            <div className="ml-voice-side">
-              <div className="ml-voice-meta">
-                <span className="ml-voice-label">{voiceStateLabel}</span>
-                <span className="ml-voice-sub">与 {voicePersonaLabel} 语音对话 — 说话即可交互，无需打字</span>
+            <div className="ml-visual-side">
+              <div className="ml-visual-head">
+                <span className="ml-visual-title">AI 内核 · {voiceStateLabel}</span>
+                <span className="ml-visual-model">
+                  <span className="ml-visual-model-dot" aria-hidden="true" />
+                  {activeModel || '本地模型'}
+                </span>
               </div>
+              <p className="ml-visual-sub">说话即可交互，无需打字 — 用声音直接指挥你的创作工作台。</p>
               <div className="ml-voice-actions">
                 {voice.active && voice.aiSpeaking && (
                   <button className="ml-interrupt-btn" onClick={interrupt} type="button">
@@ -375,45 +406,59 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
               )}
             </div>
           </div>
+        </section>
 
-          <div className="ml-status">
-            <StatCard
-              rise="v3-rise-1"
-              icon={<RobotOutlined />}
-              label="活跃模型"
-              value={activeModel || '未设置'}
-              sub="当前对话模型"
-            />
-            <StatCard
-              rise="v3-rise-2"
-              icon={<ThunderboltOutlined />}
-              label="已启用引擎"
-              value={engineCount > 0 ? `${engineCount}` : '—'}
-              sub={engineCount > 0 ? `${localCount} 本地 · ${engineCount - localCount} 云端` : '暂无引擎运行'}
-            />
-            <StatCard
-              rise="v3-rise-3"
-              icon={<DashboardOutlined />}
-              label="资源占用"
-              value={ms ? `CPU ${cpuVal != null ? cpuVal + '%' : '--'}` : '—'}
-              sub={ms ? `内存 ${memPct}% · GPU ${gpuVal}%` : '遥测待机'}
-            />
-            <StatCard
-              rise="v3-rise-4"
-              icon={<FileTextOutlined />}
-              label="项目写作进度"
-              value={stats ? `${progressPercent}%` : '—'}
-              sub={stats ? `${stats.chapterCount} 章 · ${fmtWords(stats.totalWords)} 字` : (projectOpen ? '统计加载中…' : '未打开项目')}
-            />
-          </div>
+        {/* ── AI 状态细条（真实遥测/统计，4 列）── */}
+        <div className="ml-stats">
+          <StatCard
+            rise="v3-rise-1"
+            icon={<RobotOutlined />}
+            label="活跃模型"
+            value={activeModel || '未设置'}
+            sub="当前对话模型"
+          />
+          <StatCard
+            rise="v3-rise-2"
+            icon={<ThunderboltOutlined />}
+            label="已启用引擎"
+            value={engineCount > 0 ? `${engineCount}` : '—'}
+            sub={engineCount > 0 ? `${localCount} 本地 · ${engineCount - localCount} 云端` : '暂无引擎运行'}
+          />
+          <StatCard
+            rise="v3-rise-3"
+            icon={<DashboardOutlined />}
+            label="资源占用"
+            value={ms ? `CPU ${cpuVal != null ? cpuVal + '%' : '--'}` : '—'}
+            sub={ms ? `内存 ${memPct}% · GPU ${gpuVal}%` : '遥测待机'}
+          />
+          <StatCard
+            rise="v3-rise-4"
+            icon={<FileTextOutlined />}
+            label="项目写作进度"
+            value={stats ? `${progressPercent}%` : '—'}
+            sub={stats ? `${stats.chapterCount} 章 · ${fmtWords(stats.totalWords)} 字` : (projectOpen ? '统计加载中…' : '未打开项目')}
+          />
         </div>
 
         {/* ── 中部：模块卡片 Bento 网格（数据源/跳转逻辑不变）── */}
-        <div className="ml-bento">
-          {modules.map((m, i) => (
-            <LauncherCard key={m.key} m={m} idx={i} featured={i === 0} onOpen={() => onNavigate(m.key)} />
-          ))}
-        </div>
+        <section className="ml-section" aria-label="全部模块">
+          <div className="ml-section-head">
+            <h2>全部模块</h2>
+            <span>选择一个工作台开始</span>
+          </div>
+          <div className="ml-bento">
+            {featuredModule && (
+              <div className="ml-bento-side">
+                <LauncherCard key={featuredModule.key} m={featuredModule} idx={0} featured onOpen={() => onNavigate(featuredModule.key)} />
+              </div>
+            )}
+            <div className="ml-bento-grid">
+              {otherModules.map((m, i) => (
+                <LauncherCard key={m.key} m={m} idx={i + 1} featured={false} onOpen={() => onNavigate(m.key)} />
+              ))}
+            </div>
+          </div>
+        </section>
 
         {/* ── 底部：信息条（最近会话 / 记忆脉搏 / 系统状态）── */}
         <div className="ml-info v3-panel v3-rise">

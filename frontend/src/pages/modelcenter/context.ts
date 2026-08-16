@@ -31,6 +31,7 @@ export interface ModelCenterContextValue {
   setOpencodeZenKeyState: (v: string) => void
   opencodeZenKeyMasked: string
   callStats: ModelStatsSummary | null
+  loadError: string | null
   statsSort: StatsSort
   setStatsSort: (v: StatsSort) => void
   trendRange: TrendRange

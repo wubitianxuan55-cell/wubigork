@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gaea/gaea/internal/ai"
@@ -20,7 +21,7 @@ var libFillKeys = []string{
 
 // libRandomKeys 所有可随机生成的字段（"all" 时全部重生成）。
 var libRandomKeys = append(append([]string{}, libFillKeys...),
-	"tags", "dialogueSamples", "voiceGuide", "behaviorRules", "emotionLogic")
+	"tags", "dialogueSamples", "voiceGuide", "behaviorRules", "emotionLogic", "dims")
 
 // libFillLabels 补全字段的中文标签（用于把已有设定注入 prompt，保持一致性）。
 var libFillLabels = map[string]string{
@@ -37,6 +38,120 @@ var libRandomLabels = map[string]string{
 	"motivation": "动机", "arc": "角色弧线", "status": "状态", "notes": "备注",
 	"tags": "标签", "dialogueSamples": "对话样本", "voiceGuide": "口吻指南",
 	"behaviorRules": "行为规则", "emotionLogic": "情感逻辑",
+	"dims": "五维人格",
+}
+
+// dimsKeys 五维人格的字段键（T/I/S/O/R，与 whisper.PersonalityDims 一致）。
+var dimsKeys = []string{"T", "I", "S", "O", "R"}
+
+// dimsLabels 五维人格的中文说明（注入 prompt）。
+var dimsLabels = "T 温柔、I 主动、S 顺从、O 独特、R 矜持"
+
+// dimsIsDefault 判断五维人格是否仍是编辑器默认（全 50），视为“未设定”。
+// 角色卡补齐时把默认五维人格当作空缺一并生成（见 CharacterGenerateFill）。
+func dimsIsDefault(cur map[string]interface{}) bool {
+	d, ok := cur["dims"].(map[string]interface{})
+	if !ok {
+		return true
+	}
+	for _, k := range dimsKeys {
+		v, ok := d[k].(float64)
+		if !ok || v != 50 {
+			return false
+		}
+	}
+	return true
+}
+
+// parseDims 解析 AI 输出的五维人格：支持对象 {"T":85,...} 或字符串
+// "T=85,I=40,S=20,O=70,R=60" / "85/40/20/70/60" / "85,40,20,70,60"。
+func parseDims(v interface{}) (map[string]interface{}, bool) {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(dimsKeys))
+		for _, k := range dimsKeys {
+			f, ok := numOf(t[k])
+			if !ok || f < 0 || f > 100 {
+				return nil, false
+			}
+			out[k] = f
+		}
+		return out, true
+	case string:
+		return parseDimsString(t)
+	}
+	return nil, false
+}
+
+// parseDimsString 解析字符串形式的五维人格（宽松分隔符）。
+func parseDimsString(s string) (map[string]interface{}, bool) {
+	vals := make([]float64, 0, len(dimsKeys))
+	// 键值对形式：T=85,I=40,...（键名大小写不敏感）
+	if strings.ContainsAny(s, "=：") {
+		kv := make(map[string]float64, len(dimsKeys))
+		for _, part := range strings.FieldsFunc(s, func(r rune) bool {
+			return r == ',' || r == '，' || r == ' ' || r == ';' || r == '；'
+		}) {
+			key, val, ok := strings.Cut(part, "=")
+			if !ok {
+				if key, val, ok = strings.Cut(part, "："); !ok {
+					return nil, false
+				}
+			}
+			f, err := strconv.ParseFloat(strings.TrimSpace(val), 64)
+			if err != nil {
+				return nil, false
+			}
+			kv[strings.ToUpper(strings.TrimSpace(key))] = f
+		}
+		out := make(map[string]interface{}, len(dimsKeys))
+		for _, k := range dimsKeys {
+			f, ok := kv[k]
+			if !ok || f < 0 || f > 100 {
+				return nil, false
+			}
+			out[k] = f
+		}
+		return out, true
+	}
+	// 纯数值形式：85/40/20/70/60 或 85,40,20,70,60
+	for _, part := range strings.FieldsFunc(s, func(r rune) bool {
+		return r == '/' || r == ',' || r == '，' || r == ' ' || r == '-' || r == '、'
+	}) {
+		f, err := strconv.ParseFloat(strings.TrimSpace(part), 64)
+		if err != nil {
+			return nil, false
+		}
+		vals = append(vals, f)
+	}
+	if len(vals) != len(dimsKeys) {
+		return nil, false
+	}
+	out := make(map[string]interface{}, len(dimsKeys))
+	for i, k := range dimsKeys {
+		if vals[i] < 0 || vals[i] > 100 {
+			return nil, false
+		}
+		out[k] = vals[i]
+	}
+	return out, true
+}
+
+// numOf 从任意 JSON 数值类型提取 float64。
+func numOf(v interface{}) (float64, bool) {
+	switch t := v.(type) {
+	case float64:
+		return t, true
+	case json.Number:
+		f, err := t.Float64()
+		return f, err == nil
+	case int:
+		return float64(t), true
+	case string:
+		f, err := strconv.ParseFloat(strings.TrimSpace(t), 64)
+		return f, err == nil
+	}
+	return 0, false
 }
 
 // CharacterGenerateFill 一键随机补全角色库角色：只填充空缺字段，保留已有内容。
@@ -47,9 +162,10 @@ func (a *App) CharacterGenerateFill(chJSON string) (string, error) {
 
 // CharacterGenerateRandom 按字段随机再生成角色设定。
 // fields 语义：
-//   空字符串 / "fill" → 只补空缺字段（与 CharacterGenerateFill 一致）
-//   "all" → 全部字段重新随机（含性格，姓名不变）
-//   其他 → 逗号分隔的字段 key，如 "personality,appearance" 仅随机这些字段
+//
+//	空字符串 / "fill" → 只补空缺字段（与 CharacterGenerateFill 一致）
+//	"all" → 全部字段重新随机（含性格，姓名不变）
+//	其他 → 逗号分隔的字段 key，如 "personality,appearance" 仅随机这些字段
 func (a *App) CharacterGenerateRandom(chJSON, fields string) (string, error) {
 	targets := parseRandomFields(fields)
 	if len(targets) == 0 {
@@ -138,7 +254,12 @@ func hasMissingFillFields(c characterlib.Character) bool {
 			return true
 		}
 	}
-	return len(c.Tags) == 0
+	if len(c.Tags) == 0 {
+		return true
+	}
+	// 五维人格全为默认 50 视为未设定，批量补齐时一并生成。
+	d := c.Dims
+	return d.T == 50 && d.I == 50 && d.S == 50 && d.O == 50 && d.R == 50
 }
 
 // parseRandomFields 解析随机列表；"all" 返回全部可随机字段。
@@ -212,14 +333,27 @@ func (a *App) characterGenerate(chJSON, mode string, targets []string) (string, 
 			userPrompt += "\n\n【已有设定】" + existing
 		}
 		userPrompt += "\n\n【补全要求】角色已有信息必须保持不变，仅补齐空缺字段；输出仍为完整 JSON。"
+		if dimsIsDefault(cur) {
+			userPrompt += "\n\n【五维人格】当前角色的五维人格尚未设定（默认 50/50/50/50/50）。" +
+				"请按补全后的性格给出五维人格（0-100 整数）：" + dimsLabels + "。" +
+				"在 JSON 的 dims 字段输出对象，如 {\"dims\":{\"T\":85,\"I\":40,\"S\":20,\"O\":70,\"R\":60}}。"
+		}
 	} else {
 		if existing != "" {
 			userPrompt += "\n\n【当前设定（仅作上下文参考，可完全推翻）】" + existing
 		}
 		if len(targets) == 0 || len(targets) == len(libRandomKeys) {
-			userPrompt += "\n\n【随机要求】请为角色重新设计一套完整的新设定（含性格、外貌、背景等全部字段），可完全推翻当前设定；姓名必须与输入完全一致、保持不变；输出完整 JSON。"
+			userPrompt += "\n\n【随机要求】请为角色重新设计一套完整的新设定（含性格、外貌、背景、五维人格等全部字段），" +
+				"可完全推翻当前设定；姓名必须与输入完全一致、保持不变；输出完整 JSON。" +
+				"其中 dims 为五维人格（0-100 整数）：" + dimsLabels + "，必须与重新设计的性格保持一致。" +
+				"示例：{\"dims\":{\"T\":30,\"I\":80,\"S\":70,\"O\":40,\"R\":50}}。"
 		} else {
-			userPrompt += "\n\n【随机要求】仅重新随机设计以下字段：" + randomTargetLabels(targets) + "。其余字段必须与当前设定完全一致、保持不变；姓名不变；输出完整 JSON。"
+			userPrompt += "\n\n【随机要求】仅重新随机设计以下字段：" + randomTargetLabels(targets) + "。" +
+				"其余字段必须与当前设定完全一致、保持不变；姓名不变；输出完整 JSON。"
+			if containsKey(targets, "dims") {
+				userPrompt += "其中 dims 为五维人格（0-100 整数）：" + dimsLabels + "，与当前性格保持一致。" +
+					"示例：{\"dims\":{\"T\":30,\"I\":80,\"S\":70,\"O\":40,\"R\":50}}。"
+			}
 		}
 	}
 
@@ -261,6 +395,16 @@ func randomTargetLabels(targets []string) string {
 	return strings.Join(labels, "、")
 }
 
+// containsKey 判断 targets 是否包含指定 key。
+func containsKey(targets []string, key string) bool {
+	for _, k := range targets {
+		if k == key {
+			return true
+		}
+	}
+	return false
+}
+
 // mergeRandom 将生成结果写入目标字段（非空才覆盖），其余字段保持不变。
 func mergeRandom(cur, gen map[string]interface{}, targets []string) {
 	targetSet := make(map[string]bool, len(targets))
@@ -274,6 +418,12 @@ func mergeRandom(cur, gen map[string]interface{}, targets []string) {
 	}
 	for _, k := range libRandomKeys {
 		if !targetSet[k] {
+			continue
+		}
+		if k == "dims" {
+			if genDims, ok := parseDims(gen["dims"]); ok {
+				cur["dims"] = genDims
+			}
 			continue
 		}
 		genVal, ok := gen[k]
@@ -444,6 +594,12 @@ func mergeFill(cur, gen map[string]interface{}) {
 			cur["tags"] = genTags
 		}
 	}
+	// 五维人格：仅当当前为默认（全 50）且生成结果有效时填充。
+	if dimsIsDefault(cur) {
+		if genDims, ok := parseDims(gen["dims"]); ok {
+			cur["dims"] = genDims
+		}
+	}
 }
 
 // libSnakeFallback AI 输出字段名 → 库内 camelCase 键的映射（模板输出常带下划线）。
@@ -472,6 +628,10 @@ func summarizeExisting(cur map[string]interface{}) string {
 		if len(ts) > 0 {
 			parts = append(parts, "标签: "+strings.Join(ts, "、"))
 		}
+	}
+	if d, ok := cur["dims"].(map[string]interface{}); ok && !dimsIsDefault(cur) {
+		parts = append(parts, fmt.Sprintf("五维人格: T%v I%v S%v O%v R%v",
+			d["T"], d["I"], d["S"], d["O"], d["R"]))
 	}
 	return strings.Join(parts, "；")
 }

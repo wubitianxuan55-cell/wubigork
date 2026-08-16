@@ -5,7 +5,7 @@ import {
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import {
-  TEMPLATES, CATEGORIES, CUSTOM_CATEGORY_ID, getCategory,
+  TEMPLATES, CATEGORIES, CUSTOM_CATEGORY_ID, ALL_CATEGORY_ID, ALL_CATEGORY, getCategory,
   type Template, type CustomTemplate, type TemplateCategory,
 } from '../../data/imageTemplates'
 
@@ -51,20 +51,33 @@ const TemplateCard: React.FC<{
     onMouseEnter={onHover}
     onMouseLeave={onLeave}
     style={{
-      padding: '10px 12px',
-      borderRadius: 'var(--radius-md)',
+      position: 'relative',
+      padding: '12px 14px',
+      borderRadius: 12,
       border: '1px solid',
       borderColor: hovered ? accent : 'var(--border-subtle)',
-      background: hovered ? withAlpha(accent, 0.07) : 'rgba(255,255,255,0.03)',
+      background: hovered ? withAlpha(accent, 0.06) : 'var(--color-surface-container)',
+      boxShadow: hovered ? '0 8px 20px rgba(0,0,0,0.10)' : '0 1px 3px rgba(0,0,0,0.05)',
       cursor: 'pointer',
-      transition: 'all 0.15s',
-      display: 'flex', flexDirection: 'column', gap: 5, minHeight: 104,
+      transition: 'all 0.15s ease',
+      display: 'flex', flexDirection: 'column', gap: 7, minHeight: 96,
     }}
   >
-    {/* 标题行 + 自定义操作 */}
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+    {/* 图标（圆角方底）+ 标题 + 自定义操作 */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <span style={{
+        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        background: withAlpha(accent, 0.12), fontSize: 15, lineHeight: 1,
+      }}>
+        {t.icon || <AppstoreOutlined style={{ fontSize: 13, color: accent }} />}
+      </span>
       <Typography.Text
-        style={{ fontSize: 12.5, fontWeight: 600, color: C('color-text'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+        strong
+        style={{
+          flex: 1, minWidth: 0, fontSize: 13, color: C('color-text'),
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}
       >
         {t.label}
       </Typography.Text>
@@ -88,45 +101,25 @@ const TemplateCard: React.FC<{
     {t.description && (
       <Typography.Text
         style={{
-          fontSize: 10.5, color: C('color-text-secondary'), lineHeight: 1.4,
+          fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.45,
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-          overflow: 'hidden', minHeight: 29,
+          overflow: 'hidden', minHeight: 32,
         }}
       >
         {t.description}
       </Typography.Text>
     )}
 
-    {/* 分类 + 标签 + 画幅徽标 */}
-    <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-      {showCat && t.catLabel && (
-        <span style={{
-          fontSize: 9.5, padding: '1px 6px', borderRadius: 999,
-          background: withAlpha(accent, 0.12), color: accent,
-          border: `1px solid ${withAlpha(accent, 0.35)}`, lineHeight: 1.5,
-        }}>
-          {t.catLabel}
-        </span>
-      )}
-      {(t.tags || []).slice(0, 3).map((tag) => (
-        <span key={tag} style={{
-          fontSize: 9.5, padding: '1px 6px', borderRadius: 999,
-          border: '1px solid var(--border-subtle)', color: C('color-text-secondary'),
-          background: 'rgba(255,255,255,0.04)', lineHeight: 1.5,
-        }}>
-          {tag}
-        </span>
-      ))}
-      {t.size && (
-        <span style={{
-          fontSize: 9.5, padding: '1px 6px', borderRadius: 999, marginLeft: 'auto',
-          background: withAlpha(accent, 0.12), color: accent,
-          border: `1px solid ${withAlpha(accent, 0.35)}`, lineHeight: 1.5,
-        }}>
-          {t.size}
-        </span>
-      )}
-    </div>
+    {showCat && t.catLabel && (
+      <span style={{
+        position: 'absolute', right: 10, bottom: 8,
+        fontSize: 9.5, padding: '1px 7px', borderRadius: 999,
+        background: withAlpha(accent, 0.12), color: accent,
+        border: `1px solid ${withAlpha(accent, 0.35)}`, lineHeight: 1.5,
+      }}>
+        {t.catLabel}
+      </span>
+    )}
   </div>
 )
 
@@ -134,20 +127,32 @@ const TemplatePickerModal: React.FC<Props> = ({
   open, onClose, customTemplates,
   onSelect, onAddCustom, onEditCustom, onDeleteCustom,
 }) => {
-  const defaultCat = CATEGORIES[0]?.id ?? 'enhance'
+  const defaultCat = ALL_CATEGORY_ID
   const [activeCatId, setActiveCatId] = useState(defaultCat)
   const [search, setSearch] = useState('')
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
 
-  // 分类行：预设 7 类 + 始终保留「我的模板」（空库时也可新建）
+  // 分类行：「全部模板」+ 预设 19 类 + 始终保留「我的模板」（空库时也可新建）
   const catRow: TemplateCategory[] = useMemo(() => {
-    return [...CATEGORIES, CUSTOM_CAT]
+    return [ALL_CATEGORY, ...CATEGORIES, CUSTOM_CAT]
   }, [])
 
   // 当前分类下的模板（自定义模板在「我的模板」分类）
   const baseTemplates: CardItem[] = useMemo(() => {
     if (activeCatId === CUSTOM_CATEGORY_ID) {
       return customTemplates.map((t) => ({ ...t, isCustom: true }))
+    }
+    if (activeCatId === ALL_CATEGORY_ID) {
+      const all: CardItem[] = []
+      for (const cat of CATEGORIES) {
+        for (const t of TEMPLATES[cat.id] || []) {
+          all.push({ ...t, catLabel: cat.label, catColor: cat.color })
+        }
+      }
+      for (const t of customTemplates) {
+        all.push({ ...t, isCustom: true, catLabel: CUSTOM_CAT.label, catColor: CUSTOM_CAT.color })
+      }
+      return all
     }
     return (TEMPLATES[activeCatId] || []).map((t) => ({ ...t }))
   }, [activeCatId, customTemplates])
@@ -195,7 +200,7 @@ const TemplatePickerModal: React.FC<Props> = ({
       open={open}
       onCancel={onClose}
       footer={null}
-      width={680}
+      width={720}
       destroyOnHidden
       transitionName=""
       maskTransitionName=""
@@ -219,30 +224,19 @@ const TemplatePickerModal: React.FC<Props> = ({
         }}
       />
 
-      {/* 分类 pill（彩色圆点 + 主题色选中态） */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+      {/* 分类页签（参考 herdsman：横向滚动灰色胶囊，选中加深） */}
+      <div className="ig-tpl-tabs" role="tablist" aria-label="模板分类">
         {catRow.map((cat) => {
           const selected = activeCatId === cat.id
           return (
             <button
               key={cat.id}
               type="button"
+              role="tab"
+              aria-selected={selected}
               onClick={() => { setActiveCatId(cat.id); setSearch('') }}
-              style={{
-                cursor: 'pointer', borderRadius: 999, fontSize: 12, padding: '3px 11px',
-                border: '1px solid',
-                borderColor: selected ? cat.color : 'var(--border-subtle)',
-                background: selected ? withAlpha(cat.color, 0.14) : 'transparent',
-                color: selected ? cat.color : C('color-text-secondary'),
-                fontWeight: selected ? 600 : 400,
-                display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'inherit',
-                transition: 'all 0.15s',
-              }}
+              className={`ig-tpl-tab${selected ? ' is-active' : ''}`}
             >
-              <span style={{
-                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                background: cat.color, boxShadow: selected ? `0 0 5px ${cat.color}` : 'none',
-              }} />
               {cat.label}
             </button>
           )
@@ -268,21 +262,14 @@ const TemplatePickerModal: React.FC<Props> = ({
           </Empty>
         </div>
       ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
-          gap: 8,
-          maxHeight: 360,
-          overflowY: 'auto',
-          paddingRight: 4,
-        }}>
+        <div className="ig-tpl-grid">
           {filtered.map((t, i) => (
             <TemplateCard
               key={t.label + (t.id || '')}
               t={t}
               accent={(t as CardItem).catColor || activeColor}
               hovered={hoverIdx === i}
-              showCat={searching}
+              showCat={searching || activeCatId === ALL_CATEGORY_ID}
               onSelect={() => handleSelect(t)}
               onHover={() => setHoverIdx(i)}
               onLeave={() => setHoverIdx(null)}

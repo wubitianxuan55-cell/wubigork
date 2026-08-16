@@ -138,12 +138,12 @@ const CharacterLibInspector: React.FC<Props> = ({
               {c.chatEnabled && (
                 <Button size="small" icon={<DatabaseOutlined />} onClick={() => onMemory(c)}>状态 / 记忆</Button>
               )}
-              {hasProject && (
-                inProject ? (
+              {inProject ? (
+                hasProject && (
                   <Button size="small" icon={<ReadOutlined />} onClick={() => onDissociate(c)}>移出项目</Button>
-                ) : (
-                  <Button size="small" icon={<ReadOutlined />} onClick={() => onAssociate(c)}>加入项目</Button>
                 )
+              ) : (
+                <Button size="small" icon={<ReadOutlined />} onClick={() => onAssociate(c)}>加入项目</Button>
               )}
               <Popconfirm
                 title={c.kind === 'builtin' ? `隐藏「${c.name}」？` : `删除「${c.name}」？删除会同时清理项目引用与聊天通道`}

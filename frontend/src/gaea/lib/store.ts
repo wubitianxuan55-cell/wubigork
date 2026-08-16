@@ -559,7 +559,7 @@ export function useController() {
   const fetchRequirement = useCallback(
     (path: string): Promise<Requirement> => app.Requirement(path).catch((err) => {
       logBridgeError("fetchRequirement", err);
-      return { text: "", done: false, updatedAt: 0 };
+      return { text: "", done: false, updatedAt: 0, items: [], autoPursue: false };
     }),
     [],
   );
@@ -569,6 +569,26 @@ export function useController() {
   );
   const setRequirementDone = useCallback(
     async (path: string, done: boolean) => { await app.SetRequirementDone(path, done).catch((err) => failWrite(dispatch, "更新任务状态", err)); },
+    [dispatch],
+  );
+  const addRequirementItem = useCallback(
+    async (path: string, text: string) => { await app.AddRequirementItem(path, text).catch((err) => failWrite(dispatch, "添加验收项", err)); },
+    [dispatch],
+  );
+  const setRequirementItem = useCallback(
+    async (path: string, index: number, text: string) => { await app.SetRequirementItem(path, index, text).catch((err) => failWrite(dispatch, "修改验收项", err)); },
+    [dispatch],
+  );
+  const removeRequirementItem = useCallback(
+    async (path: string, index: number) => { await app.RemoveRequirementItem(path, index).catch((err) => failWrite(dispatch, "删除验收项", err)); },
+    [dispatch],
+  );
+  const setRequirementItemDone = useCallback(
+    async (path: string, index: number, done: boolean) => { await app.SetRequirementItemDone(path, index, done).catch((err) => failWrite(dispatch, "更新验收项", err)); },
+    [dispatch],
+  );
+  const setRequirementAutoPursue = useCallback(
+    async (path: string, on: boolean) => { await app.SetRequirementAutoPursue(path, on).catch((err) => failWrite(dispatch, "切换自动追踪", err)); },
     [dispatch],
   );
   const refreshMeta = useCallback(async () => {
@@ -641,7 +661,7 @@ export function useController() {
     app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("rewind ContextUsage", err));
   }, [dispatch]);
 
-  return { state, send, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, fetchRequirement, setRequirement, setRequirementDone, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase, fetchSessionStats };
+  return { state, send, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, fetchRequirement, setRequirement, setRequirementDone, addRequirementItem, setRequirementItem, removeRequirementItem, setRequirementItemDone, setRequirementAutoPursue, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase, fetchSessionStats };
 }
 
 // useItems 订阅 items 数组，与 useController 分离。

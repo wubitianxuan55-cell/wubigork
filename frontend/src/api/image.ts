@@ -143,6 +143,10 @@ export async function readFileAsDataURL(path: string): Promise<string> {
 export interface ComfyTaskProgress {
   status: string
   elapsed: number
+  /** 0-100 实时进度；-1/缺省 = 未知（未接入 ComfyUI 实时进度） */
+  percent?: number
+  /** 当前执行节点 class_type（如 KSampler / CLIPLoader） */
+  node?: string
 }
 
 /** 获取当前 ComfyUI 任务状态（前端轮询显示） */

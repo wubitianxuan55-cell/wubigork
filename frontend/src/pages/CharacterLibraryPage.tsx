@@ -7,6 +7,7 @@ import {
 } from 'antd'
 import {
   PlusOutlined, TeamOutlined, ImportOutlined,
+  ReadOutlined, BookOutlined,
 } from '@ant-design/icons'
 import CharacterCard from '../components/characterlib/CharacterCard'
 import CharacterLibEditor from '../components/characterlib/CharacterLibEditor'
@@ -17,8 +18,9 @@ import FeatureModelBar from '../components/FeatureModelBar'
 import { useAppStore } from '../stores/appStore'
 import {
   listCharacters, getCharacter, deleteCharacter, importProjectCharacters,
-  listProjectCharacters, associateToProject, dissociateFromProject, syncProjectCharacters,
-  fillAllCharacters, type LibraryCharacter,
+  listProjectCharacters, associateToProjectDir, listShelfProjects,
+  dissociateFromProject, syncProjectCharacters,
+  fillAllCharacters, type LibraryCharacter, type ShelfProject,
 } from '../api/characterlib'
 import '../components/characterlib/character-library.css'
 
@@ -54,6 +56,10 @@ const CharacterLibraryPage: React.FC = () => {
   const [editingProjects, setEditingProjects] = useState<string[]>([])
   const [editingIndex, setEditingIndex] = useState(0)
   const [memoryChar, setMemoryChar] = useState<LibraryCharacter | null>(null)
+  // ── 加入项目：选择目标小说（不改变当前打开的项目） ──
+  const [associateTarget, setAssociateTarget] = useState<LibraryCharacter | null>(null)
+  const [shelfProjects, setShelfProjects] = useState<ShelfProject[]>([])
+  const [shelfLoading, setShelfLoading] = useState(false)
 
   // 右侧详情 inspector 选中项 + 折叠状态
   const [selected, setSelected] = useState<LibraryCharacter | null>(null)
@@ -138,10 +144,30 @@ const CharacterLibraryPage: React.FC = () => {
   }
 
   const handleAssociate = async (c: LibraryCharacter) => {
+    setAssociateTarget(c)
+    setShelfLoading(true)
     try {
-      await associateToProject(c.id, c.roleType || 'supporting')
-      message.success(`「${c.name}」已加入当前项目`)
+      const list = await listShelfProjects()
+      setShelfProjects(list || [])
+    } catch (err: unknown) {
+      setShelfProjects([])
+      message.error(`读取小说书架失败：${errText(err, String(err))}`)
+    } finally {
+      setShelfLoading(false)
+    }
+  }
+
+  const runAssociate = async (dir: string) => {
+    const c = associateTarget
+    if (!c) return
+    try {
+      await associateToProjectDir(dir, c.id, c.roleType || 'supporting')
+      const title = shelfProjects.find(p => p.path === dir)?.title || '所选小说'
+      message.success(`「${c.name}」已加入「${title}」`)
+      setAssociateTarget(null)
       loadProjectRefs()
+      // 通知已挂载的小说角色面板刷新（MainLayout 切换页面不销毁组件）
+      window.dispatchEvent(new CustomEvent('gaea-project-chars-changed'))
     } catch (err: unknown) {
       message.error(errText(err, '加入项目失败'))
     }
@@ -278,7 +304,7 @@ const CharacterLibraryPage: React.FC = () => {
         <main className="clib-main" aria-label="角色档案网格">
           {!hasProject && (
             <div className="clib-hint">
-              当前未打开小说项目：角色仍可全局管理、设为聊天人格；打开项目后可将角色加入小说。
+              当前未打开小说项目：角色仍可全局管理、设为聊天人格；「加入项目」可直接选择任意小说。
             </div>
           )}
 
@@ -376,6 +402,51 @@ const CharacterLibraryPage: React.FC = () => {
         character={memoryChar}
         onClose={() => setMemoryChar(null)}
       />
+
+      {/* ── 加入项目：选择目标小说 ── */}
+      <Modal
+        open={!!associateTarget}
+        onCancel={() => setAssociateTarget(null)}
+        footer={null}
+        width={480}
+        title={associateTarget ? `把「${associateTarget.name}」加入小说` : '加入小说'}
+      >
+        <div className="clib-assoc">
+          <div className="clib-assoc-title">
+            选择要加入的小说（不会改变当前打开的项目）
+          </div>
+          {hasProject && (
+            <button type="button" className="clib-assoc-item is-current"
+              onClick={() => void runAssociate(projectPath)}>
+              <span className="clib-assoc-ic"><BookOutlined /></span>
+              <span className="clib-assoc-name">当前打开的项目</span>
+              <span className="clib-assoc-meta">加入后立即在小说角色面板生效</span>
+            </button>
+          )}
+          {shelfLoading ? (
+            <div className="clib-assoc-loading"><Spin size="small" /> 读取书架中…</div>
+          ) : shelfProjects.length === 0 ? (
+            <div className="clib-assoc-empty">
+              <ReadOutlined className="clib-assoc-empty-ic" />
+              <p>书架里还没有小说，先去「书架」新建或打开一本。</p>
+            </div>
+          ) : (
+            <div className="clib-assoc-list">
+              {shelfProjects.map(p => (
+                <button key={p.path} type="button" className="clib-assoc-item"
+                  onClick={() => void runAssociate(p.path)}>
+                  <span className="clib-assoc-ic"><ReadOutlined /></span>
+                  <span className="clib-assoc-name">{p.title}</span>
+                  <span className="clib-assoc-meta">
+                    {[p.genre, p.style].filter(Boolean).join(' · ') || '未分类'}
+                    {p.chapter_count > 0 ? ` · ${p.chapter_count} 章` : ''}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* 模型状态统一由顶栏轨道条展示（3.0 定制：移除左下角悬浮模型卡） */}
     </div>

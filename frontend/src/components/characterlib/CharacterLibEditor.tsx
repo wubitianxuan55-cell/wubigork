@@ -117,6 +117,7 @@ const CharacterLibEditor: React.FC<Props> = ({
   const [saving, setSaving] = useState(false)
   const [filling, setFilling] = useState(false)
   const [genAll, setGenAll] = useState(false)
+  const [genDims, setGenDims] = useState(false)
   const [fieldGen, setFieldGen] = useState<string | null>(null)
   const [genPortrait, setGenPortrait] = useState(false)
 
@@ -126,7 +127,7 @@ const CharacterLibEditor: React.FC<Props> = ({
 
   const isNew = !character
   const kindLabel = character?.kind ? KIND_META[character.kind] || KIND_META.custom : KIND_META.custom
-  const busy = saving || filling || genAll || !!fieldGen
+  const busy = saving || filling || genAll || genDims || !!fieldGen
 
   const patch = (p: Partial<LibraryCharacter>) => setForm(prev => ({ ...prev, ...p }))
   const patchTags = (v: string) => patch({ tags: v.split(/[,，]/).map(s => s.trim()).filter(Boolean) })
@@ -166,6 +167,7 @@ const CharacterLibEditor: React.FC<Props> = ({
     setFilling(true)
     try {
       const filled = await generateFill(form)
+      const wasDimsDefault = !form.dims || (['T', 'I', 'S', 'O', 'R'] as const).every(k => form.dims![k] === 50)
       let filledCount = 0
       const textKeys = ['roleType', 'gender', 'age', 'personality', 'appearance', 'figure',
         'background', 'motivation', 'arc', 'status', 'notes', 'behaviorRules', 'emotionLogic'] as const
@@ -175,6 +177,10 @@ const CharacterLibEditor: React.FC<Props> = ({
         if (!f?.trim() && g?.trim()) filledCount++
       }
       if (!(form.tags ?? []).length && (filled.tags ?? []).length) filledCount++
+      const nowDims = filled.dims
+      if (wasDimsDefault && nowDims && !(['T', 'I', 'S', 'O', 'R'] as const).every(k => nowDims[k] === 50)) {
+        filledCount++
+      }
       setForm(filled as Partial<LibraryCharacter>)
       message.success(filledCount > 0
         ? `已补齐 ${filledCount} 处空缺，检查后保存`
@@ -204,14 +210,29 @@ const CharacterLibEditor: React.FC<Props> = ({
     }
   }
 
-  const randomizeDims = () => {
+  const randomizeDims = async () => {
     if (busy) return
-    const next = {} as LibraryCharacter['dims']
-    ;(['T', 'I', 'S', 'O', 'R'] as const).forEach(k => {
-      next[k] = 25 + Math.floor(Math.random() * 66)
-    })
-    patch({ dims: next })
-    message.success('已随机五维数值')
+    if (!form.name?.trim()) {
+      message.warning('角色名称不能为空')
+      return
+    }
+    setGenDims(true)
+    try {
+      // AI 按当前性格生成一致的五维人格（后端 dims 随机目标）
+      const next = await generateRandom(form, 'dims')
+      setForm(next as Partial<LibraryCharacter>)
+      message.success('已按性格随机五维人格，检查后保存')
+    } catch {
+      // 后端不可用时本地随机兜底（保持原行为）
+      const next = {} as LibraryCharacter['dims']
+      ;(['T', 'I', 'S', 'O', 'R'] as const).forEach(k => {
+        next[k] = 25 + Math.floor(Math.random() * 66)
+      })
+      patch({ dims: next })
+      message.success('已随机五维数值（本地兜底）')
+    } finally {
+      setGenDims(false)
+    }
   }
 
   const randomizeField = async (key: string) => {
@@ -417,8 +438,10 @@ const CharacterLibEditor: React.FC<Props> = ({
               <div className="cd-radar">
                 <div className="cd-radar-head">
                   <Text className="cd-radar-title">五维人格</Text>
-                  <Button size="small" type="text" className="cd-dice" icon={<RetweetOutlined />}
-                    title="随机五维数值" disabled={busy} onClick={randomizeDims} />
+                  <Button size="small" type="text" className="cd-dice"
+                    icon={genDims ? <LoadingOutlined /> : <RetweetOutlined />}
+                    loading={genDims}
+                    title="按性格随机五维人格" disabled={busy && !genDims} onClick={() => void randomizeDims()} />
                 </div>
                 <TisorRadar dims={dims} size={132} color="var(--gaea-glow)" />
                 <div className="cd-dims">

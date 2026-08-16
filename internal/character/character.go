@@ -5,10 +5,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
@@ -259,28 +262,59 @@ func buildNovelPortraitPrompt(c types.Character) string {
 	return strings.Join(parts, "。")
 }
 
-// savePortraitToProject 将剧照 base64 数据保存到项目 portraits/ 子目录
+// savePortraitToProject 将剧照保存到项目 portraits/ 子目录：
+// data URL 直接解码落盘；远程 URL（xAI 临时图等会过期）下载后落盘，
+// 避免 characters.json 引用过期链接导致剧照裂图。失败返回空串。
 func (a *Agent) savePortraitToProject(imageData string, charID string) string {
-	if !strings.HasPrefix(imageData, "data:") {
-		return "" // 远程 URL 不处理，保留原值
-	}
-	commaIdx := strings.Index(imageData, ",")
-	if commaIdx < 0 {
-		return ""
-	}
 	ext := ".png"
-	meta := imageData[5:commaIdx]
-	switch {
-	case strings.Contains(meta, "jpeg") || strings.Contains(meta, "jpg"):
-		ext = ".jpg"
-	case strings.Contains(meta, "webp"):
-		ext = ".webp"
-	case strings.Contains(meta, "gif"):
-		ext = ".gif"
-	}
-	data, err := base64.StdEncoding.DecodeString(imageData[commaIdx+1:])
-	if err != nil {
-		return ""
+	var data []byte
+	if strings.HasPrefix(imageData, "data:") {
+		commaIdx := strings.Index(imageData, ",")
+		if commaIdx < 0 {
+			return ""
+		}
+		meta := imageData[5:commaIdx]
+		switch {
+		case strings.Contains(meta, "jpeg") || strings.Contains(meta, "jpg"):
+			ext = ".jpg"
+		case strings.Contains(meta, "webp"):
+			ext = ".webp"
+		case strings.Contains(meta, "gif"):
+			ext = ".gif"
+		}
+		decoded, err := base64.StdEncoding.DecodeString(imageData[commaIdx+1:])
+		if err != nil {
+			return ""
+		}
+		data = decoded
+	} else if strings.HasPrefix(imageData, "http://") || strings.HasPrefix(imageData, "https://") {
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Get(imageData)
+		if err != nil {
+			return ""
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return ""
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 20<<20)) // 20MB 上限
+		if err != nil || len(body) == 0 {
+			return ""
+		}
+		data = body
+		ct := strings.ToLower(resp.Header.Get("Content-Type"))
+		switch {
+		case strings.Contains(ct, "jpeg") || strings.Contains(ct, "jpg"):
+			ext = ".jpg"
+		case strings.Contains(ct, "webp"):
+			ext = ".webp"
+		case strings.Contains(ct, "gif"):
+			ext = ".gif"
+		default:
+			ext = ".png"
+		}
+	} else {
+		return "" // 已是本地路径
 	}
 
 	portraitDir := filepath.Join(a.pm.Dir, "portraits")

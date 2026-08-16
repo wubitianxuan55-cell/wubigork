@@ -1,10 +1,14 @@
 import React, { useState } from 'react'
 import { Typography, Button, Space, Tag, Empty, message } from 'antd'
 import { FileTextOutlined, FileMarkdownOutlined, BookOutlined } from '@ant-design/icons'
-import { C } from '../utils/theme'
-import * as App from '../../src/wailsjsCompat'
+import { C } from '../../utils/theme'
+import * as App from '../../../src/wailsjsCompat'
 
-const ExportPage: React.FC = () => {
+/**
+ * 小说导出面板（原 ExportPage 内容，合并进阅读面板后复用）：
+ * 一键导出全部格式到小说目录下的 export/ 文件夹。
+ */
+const ExportPanel: React.FC = () => {
   const [exporting, setExporting] = useState(false)
   const [results, setResults] = useState<Record<string, string>>({})
   const [exported, setExported] = useState(false)
@@ -31,7 +35,6 @@ const ExportPage: React.FC = () => {
 
   return (
     <div>
-
       <div className="novel-panel" style={{ padding: 24, textAlign: 'center', marginBottom: 24 }}>
         <Typography.Paragraph style={{ color: C('color-text-secondary') }}>
           一键导出全部格式到小说目录下的 export/ 文件夹。
@@ -43,7 +46,12 @@ const ExportPage: React.FC = () => {
           onClick={handleExport}
           loading={exporting}
           block
-          style={{ background: 'var(--color-primary)', borderColor: 'var(--color-primary)', boxShadow: 'var(--shadow-glow)', borderRadius: 'var(--radius-md)' }}
+          style={{
+            background: 'var(--color-primary)',
+            borderColor: 'var(--color-primary)',
+            boxShadow: 'var(--shadow-glow)',
+            borderRadius: 'var(--radius-md)',
+          }}
         >
           导出全部格式 (TXT + Markdown + EPUB)
         </Button>
@@ -66,14 +74,14 @@ const ExportPage: React.FC = () => {
                 <div key={ext} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 0 }}>
                   <Space>
                     {ext === '.epub' ? <BookOutlined style={{ color: C('color-primary') }} /> :
-                     ext === '.md' ? <FileMarkdownOutlined style={{ color: 'var(--color-primary)' }} /> :
-                     <FileTextOutlined style={{ color: C('color-text-secondary') }} />}
+                      ext === '.md' ? <FileMarkdownOutlined style={{ color: 'var(--color-primary)' }} /> :
+                        <FileTextOutlined style={{ color: C('color-text-secondary') }} />}
                     <Tag>{ext.toUpperCase()}</Tag>
                   </Space>
                   <Typography.Text style={{
                     color: path.startsWith('失败') ? 'var(--color-destructive)' : C('color-primary'),
                     fontSize: 12,
-                    maxWidth: 400,
+                    maxWidth: 360,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -91,4 +99,4 @@ const ExportPage: React.FC = () => {
   )
 }
 
-export default ExportPage
+export default ExportPanel

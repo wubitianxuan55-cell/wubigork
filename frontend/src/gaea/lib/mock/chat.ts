@@ -15,6 +15,8 @@ type ChatMethods = Pick<
   | "ListSessions" | "ListProjectSessions" | "ArchiveSession" | "UnarchiveSession"
   | "PinSession" | "ResumeSession" | "DeleteSession" | "RenameSession"
   | "Requirement" | "SetRequirement" | "SetRequirementDone"
+  | "AddRequirementItem" | "SetRequirementItem" | "RemoveRequirementItem"
+  | "SetRequirementItemDone" | "SetRequirementAutoPursue"
   | "SessionStats"
   | "ChatTopicsList" | "ChatMessagesList" | "ChatAppendMessages"
 >;
@@ -273,19 +275,79 @@ export function buildChat(s: MakeMockState): ChatMethods {
       if (s) s.title = title.trim() || undefined;
     },
     async Requirement(path: string) {
-      return requirementsMock.get(path) ?? { text: "", done: false, updatedAt: 0 };
+      return requirementsMock.get(path) ?? { text: "", done: false, updatedAt: 0, items: [], autoPursue: false };
     },
     async SetRequirement(path: string, text: string) {
-      const prev = requirementsMock.get(path) ?? { text: "", done: false, updatedAt: 0 };
+      const prev = requirementsMock.get(path) ?? { text: "", done: false, updatedAt: 0, items: [], autoPursue: false };
       if (!text.trim()) {
         requirementsMock.delete(path);
         return;
       }
-      requirementsMock.set(path, { text: text.trim(), done: prev.done, updatedAt: Date.now() });
+      if (text.trim() === prev.text) {
+        requirementsMock.set(path, { ...prev, updatedAt: Date.now() });
+        return;
+      }
+      // 文本变更 = 新目标：验收清单重置，自动追踪保留
+      requirementsMock.set(path, {
+        text: text.trim(),
+        done: prev.items.length > 0 ? false : prev.done,
+        updatedAt: Date.now(),
+        items: [],
+        autoPursue: prev.autoPursue,
+      });
     },
     async SetRequirementDone(path: string, done: boolean) {
       const r = requirementsMock.get(path);
-      if (r && r.text) requirementsMock.set(path, { ...r, done, updatedAt: Date.now() });
+      if (r && r.text) {
+        requirementsMock.set(path, {
+          ...r,
+          done,
+          items: r.items.map((it) => ({ ...it, done })),
+          updatedAt: Date.now(),
+        });
+      }
+    },
+    async AddRequirementItem(path: string, text: string) {
+      const r = requirementsMock.get(path);
+      if (!r?.text || !text.trim()) return;
+      requirementsMock.set(path, {
+        ...r,
+        items: [...r.items, { text: text.trim(), done: false }],
+        done: false,
+        updatedAt: Date.now(),
+      });
+    },
+    async SetRequirementItem(path: string, index: number, text: string) {
+      const r = requirementsMock.get(path);
+      if (!r || index < 0 || index >= r.items.length || !text.trim()) return;
+      const items = r.items.map((it, i) => (i === index ? { ...it, text: text.trim() } : it));
+      requirementsMock.set(path, { ...r, items, updatedAt: Date.now() });
+    },
+    async RemoveRequirementItem(path: string, index: number) {
+      const r = requirementsMock.get(path);
+      if (!r || index < 0 || index >= r.items.length) return;
+      const items = r.items.filter((_, i) => i !== index);
+      requirementsMock.set(path, {
+        ...r,
+        items,
+        done: items.length === 0 ? false : items.every((it) => it.done),
+        updatedAt: Date.now(),
+      });
+    },
+    async SetRequirementItemDone(path: string, index: number, done: boolean) {
+      const r = requirementsMock.get(path);
+      if (!r || index < 0 || index >= r.items.length) return;
+      const items = r.items.map((it, i) => (i === index ? { ...it, done } : it));
+      requirementsMock.set(path, {
+        ...r,
+        items,
+        done: items.every((it) => it.done),
+        updatedAt: Date.now(),
+      });
+    },
+    async SetRequirementAutoPursue(path: string, on: boolean) {
+      const r = requirementsMock.get(path);
+      if (r?.text) requirementsMock.set(path, { ...r, autoPursue: on, updatedAt: Date.now() });
     },
     // ── 对话 chat（T6-3 契约同步：ChatTopicsList/ChatMessagesList 返回
     // [数据, 错误] 元组形态；ChatAppendMessages 语音消息持久化 no-op）──

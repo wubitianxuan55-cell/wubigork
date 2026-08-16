@@ -1,8 +1,8 @@
-/* 首页 · 任务指挥中心 Mission Control（3.0 Bento 网格）
-   顶部 AI 状态卡（v3-card + v3-rise 渐次入场）｜ 中部模块 Bento 网格
-   （v3-card + aurora 水印 + 进入箭头微交互，hover 位移 ≤2px）｜
-   底部信息条（最近会话 / 记忆脉搏 / 系统状态）。
-   令牌纪律：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*。 */
+/* 首页 · 任务指挥中心 Mission Control（DeepSeek 风格 Hero + 3.0 Bento 网格）
+   Hero 左文右卡：公告 pill + 大标题 + 双行动卡 ｜ 右侧深色渐变 AI 视觉卡（语音晶核）
+   ＋ AI 状态细条（真实遥测）＋ 模块 Bento 网格 ＋ 底部信息条。
+   令牌纪律：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*。
+   DeepSeek 参照点：浅灰网格底、大圆角（16-28px）、克制阴影、胶囊 pill、悬停位移 ≤2px。 */
 
 .ml {
   flex: 1;
@@ -11,7 +11,7 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: 16px 20px 20px;
+  padding: 20px 24px 24px;
 }
 
 .ml-shell {
@@ -19,58 +19,249 @@
   flex-direction: column;
   gap: 18px;
   width: 100%;
-  /* 全屏撑开：不再锁死 1320px 居中窄列，随视口宽度伸展 */
-  max-width: none;
+  /* 参照 DeepSeek 首页：内容收进居中容器，宽屏不拉伸到边缘 */
+  max-width: 1240px;
   margin: 0 auto;
   min-height: 0;
   flex: 1;
 }
 
-/* ══ 顶部：语音晶核（首页主视觉焦点）+ AI 状态卡 ══
-   宽屏下语音卡占 2.1fr（大 orb + 状态/按钮 + 对话气泡），状态卡 1fr（2×2） */
+/* ══ Hero：左文右卡 ══ */
 
-.ml-top {
+.ml-hero {
   display: grid;
-  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.12fr) minmax(380px, 0.88fr);
+  gap: 18px;
   align-items: stretch;
-  gap: 14px;
   flex-shrink: 0;
 }
 
-/* 宽屏（≥1600px）：语音卡内容水平居中 + 侧栏信息限宽，
-   避免 2.1fr 拉伸后右侧大片空荡（T6-10.2 全屏适配） */
-@media (min-width: 1600px) {
-  .ml-voice {
-    justify-content: center;
-  }
-  .ml-voice-side {
-    max-width: 560px;
-    flex: 1 1 auto;
-  }
+/* ── 左侧文案区 ── */
+.ml-hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 14px;
+  padding: 12px 8px;
+  min-width: 0;
 }
 
-/* ── 语音晶核卡（主视觉焦点：横向 大 orb + 侧栏信息）── */
-.ml-voice {
+.ml-hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: var(--color-primary-container);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: default;
+}
+.ml-hero-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-success) 70%, transparent);
+  animation: mlHeroPulse 2.4s ease-in-out infinite;
+}
+@keyframes mlHeroPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.ml-hero-eyebrow-arrow {
+  font-size: 11px;
+  color: var(--gaea-glow);
+  transition: transform var(--md-sys-transition-fast, 200ms) ease;
+}
+.ml-hero-eyebrow:hover .ml-hero-eyebrow-arrow {
+  transform: translateX(3px);
+}
+
+.ml-hero-title {
+  margin: 0;
+  font-size: clamp(30px, 3.4vw, 46px);
+  line-height: 1.16;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.ml-hero-sub {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+  text-wrap: pretty;
+}
+
+/* ── 行动引导卡（DeepSeek 式双卡：图标 + 标题 + 描述，整卡可点）── */
+.ml-hero-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 540px;
+  margin-top: 4px;
+}
+.ml-hero-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  text-align: left;
+  font: inherit;
+  border-radius: var(--radius-lg, 16px);
+  color: inherit;
+  background: var(--color-surface-container);
+  /* 明确描边：两张行动卡（开始创作 / 和 gaea 对话）用黑色线条 */
+  border: 1px solid color-mix(in srgb, var(--color-text) 72%, transparent);
+  box-shadow:
+    0 8px 24px color-mix(in srgb, var(--gaea-glow) 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text) 6%, transparent);
+  cursor: pointer;
+  transition: border-color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms), transform var(--md-sys-transition-fast, 200ms);
+}
+.ml-hero-action:hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 34%, transparent);
+  box-shadow:
+    0 12px 30px color-mix(in srgb, var(--gaea-glow) 14%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text) 7%, transparent);
+}
+.ml-hero-action:focus-visible {
+  outline: 2px solid var(--gaea-glow);
+  outline-offset: 2px;
+}
+.ml-hero-action-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 22%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--gaea-glow) 14%, transparent);
+  flex-shrink: 0;
+  transition: transform var(--md-sys-transition-normal, 300ms), box-shadow var(--md-sys-transition-normal, 300ms);
+}
+.ml-hero-action:hover .ml-hero-action-icon {
+  transform: scale(1.06);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--gaea-glow) 16%, transparent),
+    0 0 18px color-mix(in srgb, var(--gaea-glow) 26%, transparent);
+}
+.ml-hero-action-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ml-hero-action-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ml-hero-action-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ml-hero-action-arrow {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--gaea-glow);
+  opacity: 0;
+  transform: translateX(-5px);
+  transition: opacity var(--md-sys-transition-fast, 200ms) ease, transform var(--md-sys-transition-fast, 200ms) ease;
+  flex-shrink: 0;
+}
+.ml-hero-action:hover .ml-hero-action-arrow,
+.ml-hero-action:focus-visible .ml-hero-action-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ── 右侧视觉卡（深色渐变 + 网格纹理 + 语音晶核）── */
+.ml-hero-visual {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 18px;
-  padding: 18px 22px;
-  min-width: 0;
-  position: relative;
-  overflow: hidden;
+  padding: 24px 26px;
+  min-height: 292px;
+  border-radius: var(--radius-xl, 28px);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 18%, var(--color-border));
+  background:
+    radial-gradient(ellipse 110% 90% at 88% -15%, color-mix(in srgb, var(--gaea-glow) 32%, transparent), transparent 55%),
+    radial-gradient(ellipse 95% 80% at 8% 115%, color-mix(in srgb, var(--color-primary) 30%, transparent), transparent 60%),
+    linear-gradient(150deg,
+      color-mix(in srgb, var(--color-primary) 42%, var(--color-surface-dim)) 0%,
+      color-mix(in srgb, var(--color-primary) 20%, var(--color-surface-dim)) 52%,
+      var(--color-surface) 100%);
+  box-shadow:
+    0 20px 48px color-mix(in srgb, var(--gaea-glow) 20%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text) 10%, transparent);
 }
-.ml-voice::before {
+.ml-hero-visual::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 0% 50%,
-    color-mix(in srgb, var(--gaea-glow) 10%, transparent),
-    transparent 55%);
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: var(--v3-edge);
   pointer-events: none;
 }
 
-.ml-voice-main {
+/* 细网格纹理（参照 DeepSeek 浅网格，径向渐隐避免生硬） */
+.ml-visual-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-text) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-text) 5%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(ellipse 92% 82% at 72% 18%, #000 28%, transparent 74%);
+  mask-image: radial-gradient(ellipse 92% 82% at 72% 18%, #000 28%, transparent 74%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 星云流光（右上角主光） */
+.ml-visual-glow {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  right: -90px;
+  top: -120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--gaea-glow) 30%, transparent), transparent 62%);
+  filter: blur(8px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ml-visual-main {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -80,8 +271,8 @@
 
 .ml-orb {
   position: relative;
-  width: 120px;
-  height: 120px;
+  width: 108px;
+  height: 108px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -104,8 +295,8 @@
 
 /* reduced-motion 静态 orb（JS 切换渲染，CSS 兜底停动画） */
 .ml-orb-static {
-  width: 96px;
-  height: 96px;
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%,
     color-mix(in srgb, var(--gaea-glow) 55%, transparent),
@@ -122,7 +313,9 @@
   white-space: nowrap;
 }
 
-.ml-voice-side {
+.ml-visual-side {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -131,30 +324,58 @@
   flex: 1;
 }
 
-.ml-voice-meta {
+.ml-visual-head {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
   min-width: 0;
 }
-.ml-voice-label {
-  font-size: 15px;
+.ml-visual-title {
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--color-text-secondary);
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  line-height: 1.3;
 }
-.ml-voice.is-active .ml-voice-label,
-.ml-voice.is-speaking .ml-voice-label { color: var(--gaea-glow); }
-.ml-voice.is-listening .ml-voice-label { color: var(--md-sys-color-warning); }
-.ml-voice-sub {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  opacity: 0.85;
+.ml-hero-visual.is-active .ml-visual-title,
+.ml-hero-visual.is-speaking .ml-visual-title { color: var(--gaea-glow); }
+.ml-hero-visual.is-listening .ml-visual-title { color: var(--md-sys-color-warning); }
+
+.ml-visual-model {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--color-primary-container);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 28%, transparent);
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-size: 11px;
+  color: var(--color-text);
   white-space: nowrap;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+}
+.ml-visual-model-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+  flex-shrink: 0;
+}
+
+.ml-visual-sub {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--color-text) 74%, var(--color-text-secondary));
+  max-width: 46ch;
 }
 
 .ml-voice-actions {
@@ -226,54 +447,51 @@
   font-size: 11px;
   line-height: 1.5;
   color: var(--md-sys-color-destructive);
-  text-align: center;
   max-width: 100%;
 }
 
 .ml-voice-chat {
   width: 100%;
-  max-height: 96px;
+  max-height: 92px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-/* ── AI 状态卡行（4 张 2×2，v3-card 玻璃 + 高光线 + v3-rise 渐次入场）── */
-.ml-status {
-  flex: 1;
-  min-width: 0;
+/* ── AI 状态行（4 列，透明无边框，不呈现卡片感）── */
+.ml-stats {
+  flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  align-content: stretch;
 }
-
 .ml-stat {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px 16px;
-  min-height: 96px;
-  justify-content: center;
-}
-
-.ml-stat-head {
-  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  padding: 6px 4px;
   min-width: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 .ml-stat-icon {
-  font-size: 15px;
+  font-size: 17px;
   color: var(--gaea-glow);
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gaea-glow) 40%, transparent));
   flex-shrink: 0;
 }
+.ml-stat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
 .ml-stat-label {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--color-text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -282,16 +500,16 @@
 .ml-stat-value {
   font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', 'Consolas', monospace);
   font-variant-numeric: tabular-nums;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--color-text);
-  line-height: 1.2;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .ml-stat-sub {
-  font-size: 11px;
+  font-size: 10.5px;
   line-height: 1.5;
   color: var(--color-text-secondary);
   white-space: nowrap;
@@ -301,15 +519,59 @@
 
 /* ══ 中部：模块卡片 Bento 网格 ══ */
 
-.ml-bento {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  /* 卡片最小宽度抬到 216px：宽屏下列数随空间增长，卡片同步变大，不再挤窄 */
-  grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
-  grid-auto-flow: dense;
+.ml-section {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-content: start;
+  /* 不压缩、不拉伸：模块网格按内容高度排布，整页滚动，
+     避免网格溢出到下方信息条被盖住（设置卡被横框遮挡的问题） */
+  flex: 0 0 auto;
+}
+.ml-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 4px;
+}
+.ml-section-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-text);
+}
+.ml-section-head span {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.ml-bento {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+/* 左侧：办公大卡（2×2 视觉高度，与右侧 4×2 网格等高） */
+.ml-bento-side {
+  flex: 0 0 280px;
+  min-width: 0;
+  display: flex;
+}
+.ml-bento-side .ml-card--featured {
+  flex: 1;
+  width: 100%;
+  min-height: 292px;
+  grid-column: auto;
+  grid-row: auto;
+}
+/* 右侧：其余 8 个模块 4×2 网格（角色库/设置与其他卡同排，不单独成行） */
+.ml-bento-grid {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(140px, 1fr));
+  gap: 12px;
 }
 
 .ml-card {
@@ -318,7 +580,8 @@
   flex-direction: column;
   gap: 10px;
   padding: 16px;
-  min-height: 132px;
+  min-height: 140px;
+  border-radius: var(--radius-lg, 16px);
   overflow: hidden;
   isolation: isolate;
 }
@@ -327,7 +590,7 @@
 .ml-card--featured {
   grid-column: span 2;
   grid-row: span 2;
-  min-height: 280px;
+  min-height: 292px;
   justify-content: space-between;
 }
 
@@ -521,43 +784,69 @@
 
 /* ══ 响应式 ══ */
 
-@media (max-width: 1080px) {
-  .ml-top { grid-template-columns: 1fr; }
-  .ml-voice { flex-direction: row; justify-content: flex-start; gap: 16px; }
-  .ml-status { min-width: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1120px) {
+  .ml-hero { grid-template-columns: 1fr; }
+  .ml-hero-copy { padding: 8px 4px; }
+  .ml-hero-visual { min-height: 240px; }
+  .ml-bento-side { flex-basis: 240px; }
+  .ml-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ml-info { grid-template-columns: 1fr; gap: 10px; }
   .ml-info-seg { padding: 0; }
   .ml-info-seg + .ml-info-seg { border-left: none; border-top: var(--v3-split); padding-top: 10px; }
 }
 
+@media (max-width: 920px) {
+  /* 窄屏：办公大卡上移整行，其余卡 2×2 */
+  .ml-bento { flex-direction: column; }
+  .ml-bento-side { flex: 0 0 auto; width: 100%; }
+  .ml-bento-side .ml-card--featured { min-height: 160px; }
+  .ml-bento-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+  }
+}
+
 @media (max-width: 720px) {
-  .ml-bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ml-card--featured { grid-column: span 2; grid-row: span 1; min-height: 132px; }
-  .ml-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ml { padding: 14px 14px 20px; }
+  .ml-hero-actions { grid-template-columns: 1fr; max-width: none; }
+  .ml-hero-visual { flex-direction: column; align-items: center; text-align: center; }
+  .ml-visual-side { align-items: center; }
+  .ml-visual-head { justify-content: center; }
 }
 
 @media (max-width: 520px) {
-  .ml-bento { grid-template-columns: 1fr; }
-  .ml-card--featured { grid-column: span 1; }
-  .ml-voice { flex-direction: column; align-items: center; text-align: center; }
-  .ml-voice-side { align-items: center; }
+  .ml-bento-grid { grid-template-columns: 1fr; }
+  .ml-stats { grid-template-columns: 1fr; }
 }
 
 /* ══ reduced-motion / ui-reduced-motion 降级 ══ */
 @media (prefers-reduced-motion: reduce) {
+  .ml-hero-dot { animation: none; opacity: 1; }
   .ml-orb-ring { animation: none; opacity: 0.8; }
-  .ml-voice-btn, .ml-interrupt-btn { transition: none; }
-  .ml-card-arrow, .ml-card-foot-arrow { transition: none; }
+  .ml-hero-eyebrow-arrow,
+  .ml-hero-action-arrow,
+  .ml-card-arrow,
+  .ml-card-foot-arrow { transition: none; }
+  .ml-hero-eyebrow:hover .ml-hero-eyebrow-arrow,
+  .ml-hero-action:hover .ml-hero-action-arrow { transform: none; }
+  .ml-hero-action:hover .ml-hero-action-icon,
   .ml-card:hover .ml-card-icon { transform: none; }
   .ml-card:hover .ml-card-foot-arrow { transform: none; }
+  .ml-voice-btn, .ml-interrupt-btn { transition: none; }
 }
+.ui-reduced-motion .ml-hero-dot { animation: none; opacity: 1; }
 .ui-reduced-motion .ml-orb-ring { animation: none; opacity: 0.8; }
-.ui-reduced-motion .ml-voice-btn,
-.ui-reduced-motion .ml-interrupt-btn { transition: none; }
+.ui-reduced-motion .ml-hero-eyebrow-arrow,
+.ui-reduced-motion .ml-hero-action-arrow,
 .ui-reduced-motion .ml-card-arrow,
 .ui-reduced-motion .ml-card-foot-arrow { transition: none; }
+.ui-reduced-motion .ml-hero-eyebrow:hover .ml-hero-eyebrow-arrow,
+.ui-reduced-motion .ml-hero-action:hover .ml-hero-action-arrow { transform: none; }
+.ui-reduced-motion .ml-hero-action:hover .ml-hero-action-icon,
 .ui-reduced-motion .ml-card:hover .ml-card-icon { transform: none; }
 .ui-reduced-motion .ml-card:hover .ml-card-foot-arrow { transform: none; }
+.ui-reduced-motion .ml-voice-btn,
+.ui-reduced-motion .ml-interrupt-btn { transition: none; }
 
 /* ══ WebView2 rAF 降级：v3-rise 入场动画禁用后显式恢复可见态，
      避免卡片停在 opacity:0（index.css 只处理了 .ml-card 的 animation）══ */

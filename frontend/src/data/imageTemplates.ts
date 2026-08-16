@@ -1,7 +1,12 @@
-// imageTemplates.ts — 绘梦结构化提示词模板库（7 大类 79 个）+ 自定义模板管理
+// imageTemplates.ts — 绘梦结构化提示词模板库（内置 7 类 79 个 + herdsman 12 类 152 个）+ 自定义模板管理
 // 提示词统一按「风格 → 主体 → 环境 → 光线 → 构图 → 质量」结构化书写
+import { HERDSMAN_CATEGORIES, HERDSMAN_TEMPLATES } from './herdsmanTemplates'
 
 export interface Template {
+  /** 稳定标识（herdsman 模板为 "category:名称"，自定义模板为 custom_*） */
+  id?: string
+  /** 分类图标（herdsman 模板自带的 emoji） */
+  icon?: string
   label: string            // 模板名称（无 emoji）
   description?: string     // 一句话用途说明
   prompt: string           // 正面提示词
@@ -20,13 +25,18 @@ export interface TemplateCategory {
   id: string
   label: string
   color: string
+  /** 分类图标（可选，herdsman 分类自带 emoji） */
+  icon?: string
 }
 
 export const CUSTOM_CATEGORY_ID = 'custom'
+/** 「全部模板」虚拟分类（模板库入口，浏览/搜索全量） */
+export const ALL_CATEGORY_ID = 'all'
+export const ALL_CATEGORY: TemplateCategory = { id: ALL_CATEGORY_ID, label: '全部模板', color: '#94a3b8' }
 
 // ─── 分类：7 大类，各配主题色 ───
 
-export const CATEGORIES: TemplateCategory[] = [
+export const CORE_CATEGORIES: TemplateCategory[] = [
   { id: 'enhance', label: '通用增强', color: '#2dd4bf' },
   { id: 'style', label: '艺术风格', color: '#a78bfa' },
   { id: 'photo', label: '摄影风格', color: '#60a5fa' },
@@ -42,7 +52,7 @@ export function getCategory(id: string): TemplateCategory | undefined {
 
 // ─── 预设模板：7 大类 79 个 ───
 
-export const TEMPLATES: Record<string, Template[]> = {
+export const CORE_TEMPLATES: Record<string, Template[]> = {
   'enhance': [
     {
       label: '通用高质量', description: '万金油质量增强，任何画面都适用',
@@ -532,6 +542,12 @@ export const TEMPLATES: Record<string, Template[]> = {
     },
   ],
 }
+
+// ─── 合并库：内置 7 类 + herdsman 12 类（共 231 个模板） ───
+
+export const CATEGORIES: TemplateCategory[] = [...CORE_CATEGORIES, ...HERDSMAN_CATEGORIES]
+
+export const TEMPLATES: Record<string, Template[]> = { ...CORE_TEMPLATES, ...HERDSMAN_TEMPLATES }
 
 // ─── 自定义模板持久化（兼容旧 key） ───
 

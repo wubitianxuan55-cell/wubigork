@@ -197,11 +197,20 @@ export interface ProjectGroup {
 }
 
 // Requirement 是会话的「任务目标」（从需求到验收工作流）：
-// 记录目标文本与验收状态，随会话持久化。
+// 目标文本 + 可选验收清单 + 验收状态，随会话持久化。存在验收清单时
+// done 由清单推导（全部勾选即验收）；autoPursue 开启后目标写入 agent
+// goal gate，未达标会自动继续工作。
+export interface RequirementItem {
+  text: string;
+  done: boolean;
+}
+
 export interface Requirement {
   text: string;
   done: boolean;
   updatedAt: number;
+  items: RequirementItem[];
+  autoPursue: boolean;
 }
 
 export interface WorkspaceView {
@@ -1067,4 +1076,15 @@ export interface ModelSwitchEstimate {
   status: "hot" | "cold" | "download" | "unknown";
   waitSeconds: number; // 预计等待秒数（hot 为 0）
   note: string; // 人类可读说明（如「已运行，约 0 秒」「需冷启动约 12 秒」）
+}
+
+// ── 编程板块：DeepSeek Harness Web 进程管理 ─────────────────────
+// GetProgrammingWebStatus 的返回契约：running=3080 端口在服务；
+// owned=该实例由 gaea 自启（StopProgrammingWeb 只杀 owned 实例，不误杀外部进程）。
+export interface ProgrammingWebStatus {
+  running: boolean;
+  owned: boolean;
+  pid: number;
+  url: string; // Web UI 地址（默认 http://127.0.0.1:3080）
+  root: string; // harness 仓库根目录
 }

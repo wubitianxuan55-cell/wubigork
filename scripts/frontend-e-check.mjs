@@ -25,15 +25,15 @@ const bad = (msg) => {
 
 const section = (name) => console.log(`\n[${name}]`);
 
-// E16: QUICK_REPLIES 模块顶层（合并版 ChatPage）
+// E16: QUICK_REPLIES 模块顶层（拆分后位于 ChatComposer，ChatPage 导入）
 section("E16 QUICK_REPLIES 常量化位置");
 {
-  const src = read("frontend/src/pages/ChatPage.tsx");
+  const src = read("frontend/src/components/chat/ChatComposer.tsx");
   const declIdx = src.indexOf("const QUICK_REPLIES = [");
-  const compIdx = src.indexOf("const ChatPage:");
-  if (declIdx < 0) bad("ChatPage.tsx 找不到 QUICK_REPLIES 声明");
+  const compIdx = src.indexOf("export const ChatComposer:");
+  if (declIdx < 0) bad("ChatComposer.tsx 找不到 QUICK_REPLIES 声明");
   else ok("QUICK_REPLIES 声明存在");
-  if (compIdx < 0) bad("ChatPage.tsx 找不到组件声明（无法校验作用域）");
+  if (compIdx < 0) bad("ChatComposer.tsx 找不到组件声明（无法校验作用域）");
   else if (declIdx >= 0 && declIdx > compIdx) {
     bad("QUICK_REPLIES 声明在组件之后——可能被插回组件体内");
   } else if (declIdx >= 0) {
@@ -84,8 +84,11 @@ section("E24 记忆中枢 3D 图谱");
   const pkg = read("frontend/package.json");
   if (gv.includes('import ForceGraph3D from "3d-force-graph"')) ok("GraphView 使用 3d-force-graph");
   else bad("GraphView 未使用 3d-force-graph（误装底层库会白屏）");
-  if (gv.includes("(ForceGraph3D as any)()(containerRef.current)")) ok("ForceGraph3D 初始化写法正确");
-  else bad("ForceGraph3D 初始化写法异常");
+  if (gv.includes("const createGraph = ForceGraph3D as unknown as") && gv.includes("createGraph()(containerRef.current)")) {
+    ok("ForceGraph3D 初始化写法正确");
+  } else {
+    bad("ForceGraph3D 初始化写法异常");
+  }
   if (mhp.includes('from "../gaea/components/memoryhub/GraphView"')) ok("MemoryHubPage 已挂载 GraphView");
   else bad("MemoryHubPage 未引用 GraphView");
   if (pkg.includes('"3d-force-graph"')) ok("package.json 声明 3d-force-graph 依赖");
@@ -96,20 +99,22 @@ section("E24 记忆中枢 3D 图谱");
 section("E25 聊天×轻语合并");
 {
   const chatPage = read("frontend/src/pages/ChatPage.tsx");
+  const stream = read("frontend/src/hooks/useChatStream.ts");
+  const utils = read("frontend/src/pages/chat/utils.ts");
   const layout = read("frontend/src/layouts/MainLayout.tsx");
   const models = read("frontend/wailsjs/go/models.ts");
-  const bindings = read("frontend/wailsjs/go/app/App.d.ts");
+  const bindings = read("frontend/wailsjs/go/app/ChatB.d.ts");
 
-  if (chatPage.includes("App.ChatSend(")) ok("ChatPage 使用统一入口 ChatSend");
-  else bad("ChatPage 未使用 ChatSend（应走统一聊天入口）");
+  if (stream.includes("App.ChatSend(")) ok("useChatStream 使用统一入口 ChatSend");
+  else bad("useChatStream 未使用 ChatSend（应走统一聊天入口）");
 
   if (
-    chatPage.includes("App.ChatImportTopic(") &&
-    chatPage.includes("localStorage.removeItem(STORAGE_KEY)")
+    utils.includes("App.ChatImportTopic(") &&
+    utils.includes("localStorage.removeItem(")
   ) {
     ok("旧 localStorage 话题迁移 chat.db 存在且清理本地键");
   } else {
-    bad("ChatPage 缺少 localStorage → ChatImportTopic 迁移路径");
+    bad("chat/utils 缺少 localStorage → ChatImportTopic 迁移路径");
   }
 
   if (chatPage.includes("const QUICK_REPLIES = [") && chatPage.includes("const ChatPage:")) {

@@ -1,0 +1,204 @@
+/* 编程板块 · DeepSeek Harness Web 进程管理
+   令牌纪律：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*。 */
+
+.prog {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 20px 24px 24px;
+}
+
+.prog-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ── 页首：标题卡 ── */
+.prog-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: var(--radius-lg, 16px);
+}
+.prog-hero-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 24%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--gaea-glow) 14%, transparent);
+  flex-shrink: 0;
+}
+.prog-hero-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.prog-hero-copy h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+.prog-hero-copy p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+/* 状态徽标 */
+.prog-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.prog-badge.is-on {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
+  background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface-container));
+}
+.prog-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+}
+.prog-badge.is-on .prog-badge-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-success) 70%, transparent);
+  animation: progPulse 2s ease-in-out infinite;
+}
+@keyframes progPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* ── 状态面板 ── */
+.prog-panel {
+  border-radius: var(--radius-lg, 16px);
+  overflow: hidden;
+}
+.prog-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+  border-bottom: var(--v3-split);
+}
+.prog-panel-head svg { color: var(--gaea-glow); }
+
+.prog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+
+.prog-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.prog-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+.prog-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 130px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.prog-key svg { font-size: 12px; color: var(--gaea-glow); }
+.prog-val {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--color-text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prog-root { max-width: 100%; }
+
+.prog-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.prog-error {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--md-sys-color-destructive);
+  background: color-mix(in srgb, var(--md-sys-color-destructive) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-destructive) 30%, transparent);
+  border-radius: var(--radius-md, 12px);
+  padding: 10px 12px;
+}
+
+.prog-hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--color-text-secondary);
+  opacity: 0.85;
+}
+.prog-hint code {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  background: var(--color-surface-container-high);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ══ reduced-motion ══ */
+@media (prefers-reduced-motion: reduce) {
+  .prog-badge.is-on .prog-badge-dot { animation: none; opacity: 1; }
+}
+.ui-reduced-motion .prog-badge.is-on .prog-badge-dot { animation: none; opacity: 1; }
+
+html.gaea-raf-degraded .prog .v3-rise {
+  opacity: 1 !important;
+  transform: none !important;
+  animation: none !important;
+}

@@ -14,7 +14,8 @@ import { Transcript } from "./components/Transcript";
 import { JumpBar } from "./components/JumpBar";
 import { useToast } from "./components/Toast";
 import { Composer } from "./components/Composer";
-import { TodoPanel } from "./components/TodoPanel";
+import { GoalCard } from "./components/GoalCard";
+import { TodoCard } from "./components/TodoCard";
 import { ApprovalModal } from "./components/ApprovalModal";
 import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
@@ -82,6 +83,11 @@ export default function App() {
     fetchRequirement,
     setRequirement,
     setRequirementDone,
+    addRequirementItem,
+    setRequirementItem,
+    removeRequirementItem,
+    setRequirementItemDone,
+    setRequirementAutoPursue,
     deleteSession,
     renameSession,
     refreshMeta,
@@ -553,6 +559,46 @@ export default function App() {
     await refreshRequirement();
   }, [currentSessionPath, requirement, setRequirementDone, refreshRequirement]);
 
+  const mutateRequirement = useCallback(
+    async (fn: (path: string) => Promise<unknown>) => {
+      if (!currentSessionPath) return;
+      try {
+        await fn(currentSessionPath);
+      } finally {
+        await refreshRequirement();
+      }
+    },
+    [currentSessionPath, refreshRequirement],
+  );
+
+  const handleAddRequirementItem = useCallback(
+    (text: string) => {
+      void mutateRequirement((p) => addRequirementItem(p, text));
+    },
+    [mutateRequirement, addRequirementItem],
+  );
+  const handleSetRequirementItem = useCallback(
+    (index: number, text: string) => {
+      void mutateRequirement((p) => setRequirementItem(p, index, text));
+    },
+    [mutateRequirement, setRequirementItem],
+  );
+  const handleRemoveRequirementItem = useCallback(
+    (index: number) => {
+      void mutateRequirement((p) => removeRequirementItem(p, index));
+    },
+    [mutateRequirement, removeRequirementItem],
+  );
+  const handleSetRequirementItemDone = useCallback(
+    (index: number, done: boolean) => {
+      void mutateRequirement((p) => setRequirementItemDone(p, index, done));
+    },
+    [mutateRequirement, setRequirementItemDone],
+  );
+  const handleToggleRequirementAutoPursue = useCallback(() => {
+    void mutateRequirement((p) => setRequirementAutoPursue(p, !requirement?.autoPursue));
+  }, [mutateRequirement, setRequirementAutoPursue, requirement?.autoPursue]);
+
   const statsPersistence = useStatsPersistence(currentSessionKey, statsReset, state.turnSteps, state.perTurnUsage);
 
   // 任务模板（命令面板「任务模板」组 + 欢迎页共用数据源；loadTemplates 模块级缓存）。
@@ -745,12 +791,21 @@ export default function App() {
 
           <footer className={`shrink-0 border-t border-border-soft bg-bg px-8 ${compactMode ? "pt-2 pb-0.5" : "pt-3 pb-1"}`}>
             <CompactContext.Provider value={compactMode}>
-            {(showTodos || !!requirement?.text) && (
-              <TodoPanel
-                todos={todos}
-                onDismiss={() => { if (todoItem) setDismissedTodo(todoItem.id); }}
+            {requirement?.text && (
+              <GoalCard
                 requirement={requirement}
                 onToggleRequirementDone={toggleRequirementDone}
+                onAddRequirementItem={handleAddRequirementItem}
+                onSetRequirementItem={handleSetRequirementItem}
+                onSetRequirementItemDone={handleSetRequirementItemDone}
+                onRemoveRequirementItem={handleRemoveRequirementItem}
+                onToggleRequirementAutoPursue={handleToggleRequirementAutoPursue}
+              />
+            )}
+            {showTodos && (
+              <TodoCard
+                todos={todos}
+                onDismiss={() => { if (todoItem) setDismissedTodo(todoItem.id); }}
               />
             )}
             <RunStatus

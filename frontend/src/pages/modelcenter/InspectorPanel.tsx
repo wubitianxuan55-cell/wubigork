@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Segmented } from 'antd'
-import { BarChartOutlined, FundOutlined, LeftOutlined, RightOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { Button, Segmented, Space, Tooltip } from 'antd'
+import { BarChartOutlined, FundOutlined, LeftOutlined, ReloadOutlined, RightOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { ResourceMonitor } from './ResourceMonitor'
 import { EmptyState, KpiTile } from './ui'
 import { RequestsTrendChart, TokenTrendChart, type TrendRange } from './charts'
@@ -58,27 +58,43 @@ export function InspectorPanel() {
 
 /** 检查器内紧凑调用统计：KPI 摘要 + 趋势图（趋势范围与「详细统计」抽屉共享） */
 function StatsInspector() {
-  const { callStats, trendData, trendRange, setTrendRange } = useModelCenter()
+  const { callStats, trendData, trendRange, setTrendRange, loadError, loadCallStats } = useModelCenter()
   const hasStats = !!callStats && callStats.total_calls > 0
   return (
     <section className="mc-inspector-block" aria-label="模型调用统计">
       <div className="mc-inspector-block-head">
         <span className="mc-inspector-block-title"><BarChartOutlined /> 调用统计</span>
-        {hasStats && (
-          <Segmented
-            size="small"
-            value={trendRange}
-            onChange={(v) => setTrendRange(v as TrendRange)}
-            options={[
-              { value: 'today', label: '今日' },
-              { value: '7d', label: '7天' },
-              { value: '30d', label: '30天' },
-            ]}
-          />
-        )}
+        <Space size={4}>
+          {hasStats && (
+            <Segmented
+              size="small"
+              value={trendRange}
+              onChange={(v) => setTrendRange(v as TrendRange)}
+              options={[
+                { value: 'today', label: '今日' },
+                { value: '7d', label: '7天' },
+                { value: '30d', label: '30天' },
+              ]}
+            />
+          )}
+          <Tooltip title="刷新统计">
+            <Button
+              size="small"
+              type="text"
+              icon={<ReloadOutlined />}
+              aria-label="刷新统计"
+              onClick={() => void loadCallStats()}
+            />
+          </Tooltip>
+        </Space>
       </div>
 
-      {!hasStats ? (
+      {loadError ? (
+        <div className="mc-inspector-error">
+          <span>统计加载失败：{loadError}</span>
+          <Button size="small" type="primary" ghost onClick={() => void loadCallStats()}>重试</Button>
+        </div>
+      ) : !hasStats ? (
         <EmptyState
           compact
           icon={<BarChartOutlined />}

@@ -3,6 +3,8 @@ package characterlib
 // T7-2 可见性收口：剧照文件 ID 清洗/哈希——防路径穿越与不安全字符替换测试。
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,5 +97,54 @@ func TestSavePortraitFile_NonDataURLPassthrough(t *testing.T) {
 	dir := t.TempDir()
 	if got := savePortraitFile(dir, "c1", "http://example.com/p.png"); got != "http://example.com/p.png" {
 		t.Errorf("远程 URL 应原样返回: %q", got)
+	}
+}
+
+// TestSaveRemotePortrait_Downloads 远程剧照下载到本地 portraits 目录。
+func TestSaveRemotePortrait_Downloads(t *testing.T) {
+	tinyPNG := []byte("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(tinyPNG)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	got := saveRemotePortrait(dir, "c1", srv.URL+"/p.png")
+	if got == srv.URL+"/p.png" {
+		t.Fatalf("远程 URL 应被本地化，仍返回原 URL: %q", got)
+	}
+	data, err := os.ReadFile(got)
+	if err != nil {
+		t.Fatalf("本地文件不存在: %v", err)
+	}
+	if string(data) != string(tinyPNG) {
+		t.Fatalf("文件内容不一致")
+	}
+	if !strings.HasPrefix(got, portraitFileDir(dir)+string(filepath.Separator)) {
+		t.Fatalf("落盘路径不在 portraits 目录: %q", got)
+	}
+}
+
+// TestSaveRemotePortrait_FailureKeepsURL 下载失败保留原 URL（保存不阻塞）。
+func TestSaveRemotePortrait_FailureKeepsURL(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	if got := saveRemotePortrait(t.TempDir(), "c1", srv.URL+"/missing.png"); got != srv.URL+"/missing.png" {
+		t.Fatalf("404 时应保留原 URL, got %q", got)
+	}
+}
+
+func TestExtFromContentType(t *testing.T) {
+	cases := map[string]string{
+		"image/png":      ".png",
+		"image/jpeg":     ".jpg",
+		"image/webp;...": ".webp",
+		"text/html":      "",
+	}
+	for ct, want := range cases {
+		if got := extFromContentType(ct); got != want {
+			t.Errorf("extFromContentType(%q) = %q, want %q", ct, got, want)
+		}
 	}
 }

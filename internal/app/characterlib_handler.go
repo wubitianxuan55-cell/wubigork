@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gaea/gaea/internal/assistant"
 	"github.com/gaea/gaea/internal/characterlib"
+	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
 )
 
@@ -117,6 +120,16 @@ func (a *App) CharacterSave(cJSON string) (characterlib.Character, error) {
 	if err := a.charLib.Upsert(&c); err != nil {
 		return c, err
 	}
+	// 剧照 URL 可能在 Upsert 内被本地化（远程 xAI 临时图 → 本地路径），
+	// 回写助手记录保持一致，避免聊天人格头像仍引用过期链接。
+	if a.assistantMgr != nil && c.ChatEnabled && c.AssistantID != "" {
+		if ast := a.assistantMgr.Get(c.AssistantID); ast != nil && ast.PortraitURL != c.PortraitURL {
+			ast.PortraitURL = c.PortraitURL
+			if err := a.assistantMgr.Update(ast.ID, *ast); err != nil {
+				slog.Warn("保存角色后同步助手剧照失败", "assistantID", ast.ID, "error", err)
+			}
+		}
+	}
 	return c, nil
 }
 
@@ -189,6 +202,101 @@ func (a *App) CharacterAssociate(charID, role string) error {
 		role = c.RoleType
 	}
 	return a.charLib.Associate(pm.Dir, charID, role, c.Arc, c.Status)
+}
+
+// CharacterAssociateTo 把库内角色加入指定小说项目（不改变当前打开的项目）。
+// projectDir 可以是书架下子目录名（如 "星落之城"）或完整路径；必须位于书架目录内
+// 且是有效项目（存在 project.json）。
+func (a *App) CharacterAssociateTo(projectDir, charID, role string) error {
+	if a.charLib == nil {
+		return fmt.Errorf("角色库未初始化")
+	}
+	if strings.TrimSpace(projectDir) == "" {
+		return fmt.Errorf("请选择要加入的小说项目")
+	}
+	abs := projectDir
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(a.cfg.NovelsDir, abs)
+	}
+	abs, err := filepath.Abs(abs)
+	if err != nil {
+		return fmt.Errorf("路径解析失败: %w", err)
+	}
+	novelsDir, err := filepath.Abs(a.cfg.NovelsDir)
+	if err != nil {
+		return fmt.Errorf("书架目录解析失败: %w", err)
+	}
+	rel, err := filepath.Rel(novelsDir, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("项目必须在书架目录内")
+	}
+	if _, err := os.Stat(filepath.Join(abs, "project.json")); err != nil {
+		return fmt.Errorf("小说项目不存在或已损坏：%s", abs)
+	}
+	c, err := a.charLib.Get(charID)
+	if err != nil {
+		return err
+	}
+	if c == nil {
+		return fmt.Errorf("角色不存在")
+	}
+	if role == "" {
+		role = c.RoleType
+	}
+	if err := a.charLib.Associate(abs, charID, role, c.Arc, c.Status); err != nil {
+		return err
+	}
+	// 物化到目标小说 characters.json：角色库关联表与小说面板读的
+	// 工作副本是两个数据面，只有写回 characters.json 面板才可见。
+	if _, err := a.mergeLibraryRefsIntoProject(abs); err != nil {
+		return fmt.Errorf("角色已加入「%s」，但写入小说角色文件失败：%w", abs, err)
+	}
+	return nil
+}
+
+// mergeLibraryRefsIntoProject 把项目已关联的库角色按 ID 幂等合入 characters.json：
+// 缺失则追加、已存在则跳过（保留项目内既有角色/组织/关系与本地编辑）。
+// 返回是否发生了写入。
+func (a *App) mergeLibraryRefsIntoProject(dir string) (bool, error) {
+	if a.charLib == nil {
+		return false, fmt.Errorf("角色库未初始化")
+	}
+	chars, err := a.charLib.ProjectCharactersForNovel(dir)
+	if err != nil {
+		return false, err
+	}
+	if len(chars) == 0 {
+		return false, nil
+	}
+	meta, err := loadProjectMeta(filepath.Join(dir, "project.json"))
+	if err != nil {
+		return false, fmt.Errorf("小说项目不存在或已损坏：%s", dir)
+	}
+	pm := &project.Manager{Dir: dir, Meta: meta}
+	cf, err := pm.ReadCharacters()
+	if err != nil {
+		return false, err
+	}
+	if cf == nil {
+		cf = &types.CharacterFile{}
+	}
+	byID := make(map[string]int, len(cf.Characters))
+	for i := range cf.Characters {
+		byID[cf.Characters[i].ID] = i
+	}
+	changed := false
+	for _, ch := range chars {
+		if _, ok := byID[ch.ID]; ok {
+			continue
+		}
+		cf.Characters = append(cf.Characters, ch)
+		byID[ch.ID] = len(cf.Characters) - 1
+		changed = true
+	}
+	if !changed {
+		return false, nil
+	}
+	return true, pm.WriteCharacters(cf)
 }
 
 // CharacterDissociate 把角色从当前项目移除（角色保留在全局库）。

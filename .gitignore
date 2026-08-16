@@ -65,6 +65,7 @@ z_image_turbo-Q5_K_M(1).gguf
 
 # 发布二进制（太大）
 releases/*.exe
+releases/archive/*.exe
 nul
 .tmp/
 comfy_startup.log

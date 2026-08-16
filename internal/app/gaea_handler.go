@@ -324,6 +324,9 @@ func (a *App) GaeaNewSession() error {
 	if ga.ctrl == nil {
 		return nil
 	}
+	// 新会话 = 全新目标：清空 goal gate，避免上个会话的「持续工作到验收」
+	// 目标残留到新会话（手动 /goal 在新会话同样需要重设）。
+	ga.ctrl.SetGoal("")
 	return ga.ctrl.NewSession()
 }
 

@@ -18,6 +18,23 @@ export interface CharacterDetail {
   projects: string[]
 }
 
+/** 书架项目摘要（对齐 internal/app/shelf.go ProjectCard，用于「加入项目」选择目标小说） */
+export interface ShelfProject {
+  title: string
+  genre: string
+  style: string
+  path: string
+  word_count: number
+  chapter_count: number
+  created_at: string
+  last_opened_at: string
+}
+
+/** 书架全部小说项目（角色库「加入项目」时供用户选择目标小说） */
+export async function listShelfProjects(): Promise<ShelfProject[]> {
+  return App.ListProjects() as unknown as ShelfProject[]
+}
+
 /** 分页查询全局角色库 */
 export async function listCharacters(
   query: string,
@@ -59,6 +76,11 @@ export async function listProjectCharacters(): Promise<ProjectCharacter[]> {
 /** 把库内角色加入当前项目 */
 export async function associateToProject(charID: string, role: string): Promise<void> {
   return App.CharacterAssociate(charID, role)
+}
+
+/** 把库内角色加入指定小说项目（不改变当前打开的项目） */
+export async function associateToProjectDir(projectDir: string, charID: string, role: string): Promise<void> {
+  return App.CharacterAssociateTo(projectDir, charID, role)
 }
 
 /** 更新角色在当前项目的状态（定位/弧线/状态，仅项目内覆盖，不影响全局角色） */

@@ -9,6 +9,7 @@ import {
   CopyOutlined,
   CheckOutlined,
   MessageOutlined,
+  ImportOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
 
@@ -34,6 +35,10 @@ interface ChatPanelProps {
   onAutoSendDone?: () => void
   /** 撑满父容器高度（忽略默认 280px） */
   fillHeight?: boolean
+  /** 提供后将 AI 消息内容应用到外部（如设定编辑器），AI 气泡上会显示「应用到设定」按钮 */
+  onApply?: (msg: Message) => void | Promise<void>
+  /** 应用按钮文案，默认「应用到设定」 */
+  applyLabel?: string
 }
 
 let msgId = 0
@@ -54,6 +59,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   autoSend,
   onAutoSendDone,
   fillHeight = false,
+  onApply,
+  applyLabel = '应用到设定',
 }) => {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -375,11 +382,44 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             style={{
                               position: 'absolute',
                               top: 4,
-                              right: 4,
+                              right: onApply && !isUser ? 34 : 4,
                               opacity: 0,
                               color: isUser ? 'var(--md-sys-color-on-primary-container)' : C('color-text-secondary'),
                               transition: `opacity var(--md-sys-transition-fast)`,
                               background: isUser ? 'color-mix(in srgb, var(--md-sys-color-on-primary-container) 12%, transparent)' : 'rgba(0,0,0,0.04)',
+                              borderRadius: 6,
+                              width: 28,
+                              height: 28,
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          />
+                        </Tooltip>
+                      )}
+
+                      {/* 应用到设定按钮 — hover 显示（仅 AI 消息） */}
+                      {!isUser && msg.content && !msg.streaming && onApply && (
+                        <Tooltip title={applyLabel} placement="top">
+                          <Button
+                            type="text"
+                            size="small"
+                            className="chat-apply-btn"
+                            icon={<ImportOutlined />}
+                            aria-label={applyLabel}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void onApply(msg)
+                            }}
+                            style={{
+                              position: 'absolute',
+                              top: 4,
+                              right: 4,
+                              opacity: 0,
+                              color: C('color-text-secondary'),
+                              transition: `opacity var(--md-sys-transition-fast)`,
+                              background: 'rgba(0,0,0,0.04)',
                               borderRadius: 6,
                               width: 28,
                               height: 28,

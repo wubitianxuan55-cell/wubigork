@@ -110,7 +110,7 @@ const SparkCard: React.FC<{ label: string; value: string; data: number[]; hint?:
 )
 
 // ─── 遥测轨道（底部）────────────────────────────────────────
-const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | null }> = ({ stats, info }) => {
+const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | null; showProject: boolean }> = ({ stats, info, showProject }) => {
   const [collapsed, setCollapsed] = useState(true)
   const [monitor, setMonitor] = useState<{ engines?: MonitorEngine[]; stats?: MonitorStats } | null>(null)
   // 历史缓冲：CPU/内存/GPU 各保留最近 20 点（60s @ 3s 轮询）
@@ -209,10 +209,10 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
             <span className="v3-engine-pod" style={{ opacity: 0.65 }}><ThunderboltOutlined style={{ fontSize: 10 }} />无启用引擎</span>
           </Tooltip>
         )}
-        {info && (
+        {info && showProject && (
           <span style={{ color: 'var(--color-text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{info.title}</span>
         )}
-        {stats && (
+        {stats && showProject && (
           <>
             <span className="v3-tele-key">进度</span>
             <Progress
@@ -355,6 +355,9 @@ const MainLayout: React.FC = () => {
     : activeModel
       ? `当前模型：${activeModel} · 点击前往模型中心`
       : '未设置模型，点击前往模型中心'
+  // 项目上下文（小说标题/进度/字数）只在「项目锚点板块」（小说）显示；
+  // 切到绘梦/办公/聊天等板块时，顶栏面包屑与底栏遥测不再残留小说信息。
+  const projectContextVisible = projectOpen && !!getActiveBoard(page)?.breadcrumb?.anchorTo
 
   const loadActiveModel = async () => {
     try {
@@ -453,7 +456,7 @@ const MainLayout: React.FC = () => {
               </Tooltip>
             )}
             <div className="v3-strip-context">
-              {projectOpen && page !== getActiveProjectAnchorId() && page !== getActiveHomeBoard().id && (
+              {projectContextVisible && page !== getActiveProjectAnchorId() && page !== getActiveHomeBoard().id && (
                 <>
                   <span
                     role="link"
@@ -469,7 +472,7 @@ const MainLayout: React.FC = () => {
                   <strong>{activeBoardLabel(page)}</strong>
                 </>
               )}
-              {!projectOpen && page !== getActiveHomeBoard().id && <strong>{activeBoardLabel(page)}</strong>}
+              {!projectContextVisible && page !== getActiveHomeBoard().id && <strong>{activeBoardLabel(page)}</strong>}
             </div>
             {/* 聊天模式切换条宿主（T6-10.2：ChatPage 经 portal 渲染进此容器；
                 仅聊天板块激活时可见，其他板块隐藏） */}
@@ -577,7 +580,7 @@ const MainLayout: React.FC = () => {
           </Layout>
 
           {/* ═══ 底部遥测轨道 ═══ */}
-          <TelemetryRail stats={stats} info={projectInfo} />
+          <TelemetryRail stats={stats} info={projectInfo} showProject={projectContextVisible} />
         </div>
       </div>
 

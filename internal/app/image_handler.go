@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -115,11 +116,19 @@ func (a *mediaState) resetComfyCancel() {
 	}
 }
 
-func (a *mediaState) updateComfyTaskProgress(status string, elapsedSeconds int) {
+// updateComfyTaskProgress 更新 ComfyUI 任务状态（进度回调；status=queued/running）。
+// percent<0 表示未知（保留上一次），node 为空表示无变化（保留上一次）。
+func (a *mediaState) updateComfyTaskProgress(status string, elapsedSeconds int, percent int, node string) {
 	a.comfyTaskMu.Lock()
 	defer a.comfyTaskMu.Unlock()
 	a.comfyTaskStatus = status
 	a.comfyTaskElapsed = elapsedSeconds
+	if percent >= 0 {
+		a.comfyTaskPercent = percent
+	}
+	if node != "" {
+		a.comfyTaskNode = node
+	}
 }
 
 func (a *mediaState) clearComfyTaskProgress() {
@@ -127,6 +136,8 @@ func (a *mediaState) clearComfyTaskProgress() {
 	defer a.comfyTaskMu.Unlock()
 	a.comfyTaskStatus = ""
 	a.comfyTaskElapsed = 0
+	a.comfyTaskPercent = 0
+	a.comfyTaskNode = ""
 }
 
 // GetComfyUITaskProgress 返回当前 ComfyUI 任务状态（前端轮询显示）。
@@ -136,6 +147,8 @@ func (a *mediaState) GetComfyUITaskProgress() map[string]interface{} {
 	return map[string]interface{}{
 		"status":  a.comfyTaskStatus,
 		"elapsed": a.comfyTaskElapsed,
+		"percent": a.comfyTaskPercent,
+		"node":    a.comfyTaskNode,
 	}
 }
 
@@ -149,7 +162,7 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 	genCtx, cancel, genID := a.beginImageGen(a.ctx)
 	defer a.endImageGen(genID, cancel)
 	if a.cfg.ImageBackend == "comfyui" {
-		a.updateComfyTaskProgress("queued", 0)
+		a.updateComfyTaskProgress("queued", 0, 0, "")
 		a.resetComfyCancel()
 	}
 
@@ -281,7 +294,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 	genCtx, cancel, genID := a.beginImageGen(a.ctx)
 	defer a.endImageGen(genID, cancel)
 	if a.cfg.ImageBackend == "comfyui" {
-		a.updateComfyTaskProgress("queued", 0)
+		a.updateComfyTaskProgress("queued", 0, 0, "")
 		a.resetComfyCancel()
 	}
 	var p mediaGenParams
@@ -728,6 +741,12 @@ func (a *mediaState) StartComfyUI() error {
 	if a.isComfyUIRunning() {
 		return fmt.Errorf("ComfyUI 已在运行")
 	}
+	// 端口已被占用但 /system_stats 未就绪（实例正在启动/卡死）：直接复用现有进程，
+	// 避免再拉起第二个实例导致 "Port 8188 already in use" 与 SQLite 数据库锁冲突。
+	if pid := findProcessByPort(extractPort(a.cfg.ComfyUIURL)); pid > 0 {
+		slog.Warn("ComfyUI 端口已被占用，跳过重复启动", "port", extractPort(a.cfg.ComfyUIURL), "pid", pid)
+		return fmt.Errorf("端口 %s 已被进程 %d 占用（ComfyUI 可能正在启动），请稍候重试", extractPort(a.cfg.ComfyUIURL), pid)
+	}
 
 	// 检查 main.py 是否存在
 	mainPy := filepath.Join(a.cfg.ComfyUIPath, "main.py")
@@ -1115,21 +1134,25 @@ var (
 
 type winFiletime struct{ LowDateTime, HighDateTime uint32 }
 
+// winMemoryStatusEx 必须与 Windows MEMORYSTATUSEX 完全一致（64 字节）：
+// 2×uint32 + 7×uint64。字段数不对会令 GlobalMemoryStatusEx 失败（返回 0）。
 type winMemoryStatusEx struct {
 	Length               uint32
 	MemoryLoad           uint32
 	TotalPhys, AvailPhys uint64
 	TotalPageFile, AvailPageFile   uint64
 	TotalVirtual, AvailVirtual     uint64
-	TotalExtendedVirtual, AvailExtendedVirtual uint64
+	AvailExtendedVirtual uint64
 }
 
 // getCPUUsage 获取 Windows CPU 使用率（%）。
-// GetSystemTimes 两次采样差值计算；首次/短间隔返回 0（无历史基准），后续轮询（4s）实时。
+// GetSystemTimes 两次采样差值计算；首次返回 0（无历史基准），
+// 短间隔（<1s）重复调用返回上一次结果而不是重置基准，避免多个轮询者叠加导致恒 0。
 var (
 	prevCPUTimes  [3]uint64 // idle, kernel, user（100ns 单位）
 	prevCPUSample time.Time
 	prevCPUInit   bool
+	prevCPUUsage  int
 )
 
 func getCPUUsage() int {
@@ -1140,17 +1163,20 @@ func getCPUUsage() int {
 		uintptr(unsafe.Pointer(&user)),
 	)
 	if r1 == 0 {
-		return -1
+		return prevCPUUsage // 保持上一次，避免偶尔失败闪烁为 0
 	}
 	now := time.Now()
 	idleT := uint64(idle.HighDateTime)<<32 | uint64(idle.LowDateTime)
 	kernelT := uint64(kernel.HighDateTime)<<32 | uint64(kernel.LowDateTime)
 	userT := uint64(user.HighDateTime)<<32 | uint64(user.LowDateTime)
-	if !prevCPUInit || now.Sub(prevCPUSample) < time.Second {
+	if !prevCPUInit {
 		prevCPUTimes = [3]uint64{idleT, kernelT, userT}
 		prevCPUSample = now
 		prevCPUInit = true
 		return 0
+	}
+	if now.Sub(prevCPUSample) < time.Second {
+		return prevCPUUsage
 	}
 	dIdle := idleT - prevCPUTimes[0]
 	dKernel := kernelT - prevCPUTimes[1]
@@ -1168,6 +1194,7 @@ func getCPUUsage() int {
 	if usage > 100 {
 		usage = 100
 	}
+	prevCPUUsage = usage
 	return usage
 }
 
@@ -1187,8 +1214,25 @@ func getMemoryStats() (totalGB, usedGB float64) {
 	return totalGB, usedGB
 }
 
+// GPU 信息缓存（15s TTL）：nvidia-smi / PowerShell 每次轮询都执行代价高，
+// 且显存总量不会频繁变化；已用显存由 nvidia-smi（NVIDIA）或 ComfyUI 提供。
+var (
+	gpuCacheMu    sync.Mutex
+	gpuCacheAt    time.Time
+	gpuCacheName  string
+	gpuCacheTotal float64
+	gpuCacheUsed  float64
+)
+
 // getGPUInfo 获取 GPU 名称、总显存、已用显存 (GB)
 func getGPUInfo() (name string, totalGB float64, usedGB float64) {
+	gpuCacheMu.Lock()
+	defer gpuCacheMu.Unlock()
+	if !gpuCacheAt.IsZero() && time.Since(gpuCacheAt) < 15*time.Second {
+		return gpuCacheName, gpuCacheTotal, gpuCacheUsed
+	}
+
+	// NVIDIA：nvidia-smi 直接给出名称 + 总/已用显存
 	cmd := exec.Command("nvidia-smi", "--query-gpu=name,memory.total,memory.used", "--format=csv,noheader,nounits")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, err := cmd.Output()
@@ -1199,21 +1243,51 @@ func getGPUInfo() (name string, totalGB float64, usedGB float64) {
 			name = strings.TrimSpace(parts[0])
 			totalMB, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
 			usedMB, _ := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
+			gpuCacheName, gpuCacheTotal, gpuCacheUsed = name, totalMB/1024.0, usedMB/1024.0
+			gpuCacheAt = time.Now()
 			return name, totalMB / 1024.0, usedMB / 1024.0
 		}
 	}
-	// PowerShell CIM 回退（wmic 已从 Win11 24H2 移除；PowerShell 全版本可用）
-	cmd2 := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_VideoController).Name")
+
+	// AMD / 其他：注册表读真实 GPU 显存（HardwareInformation.qwMemorySize），
+	// 跳过 Todesk / 虚拟显示器 / 基础显示适配器等虚拟设备。
+	psScript := `
+$vram=0; $best=''
+Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}' -ErrorAction SilentlyContinue | ForEach-Object {
+  $p = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+  $d = $p.'DriverDesc'
+  if (-not $d) { return }
+  if ($d -match 'Todesk|Virtual|Remote|Basic Display|RDP|Mirror') { return }
+  $m = $p.'HardwareInformation.qwMemorySize'
+  if (-not $m) { $m = $p.AdapterRAM }
+  if ($m -and [uint64]$m -gt $vram) { $vram = [uint64]$m; $best = $d }
+}
+if ($best) { $best + '|' + $vram }
+`
+	cmd2 := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psScript)
 	cmd2.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out2, err := cmd2.Output()
 	if err == nil {
-		lines := strings.Split(strings.TrimSpace(string(out2)), "\n")
-		for _, l := range lines {
-			if l = strings.TrimSpace(l); l != "" {
-				name = l
-				break
+		line := strings.TrimSpace(string(out2))
+		if i := strings.Index(line, "|"); i > 0 {
+			gb, _ := strconv.ParseFloat(strings.TrimSpace(line[i+1:]), 64)
+			if gb > 0 {
+				name, totalGB = strings.TrimSpace(line[:i]), gb/1e9
+				gpuCacheName, gpuCacheTotal, gpuCacheUsed = name, totalGB, 0
+				gpuCacheAt = time.Now()
+				return
 			}
 		}
 	}
+
+	// 兜底：CIM 名称（跳过虚拟设备），无显存信息
+	cmd3 := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
+		"(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Todesk|Virtual|Remote|Basic Display|RDP|Mirror' } | Select-Object -First 1).Name")
+	cmd3.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	if out3, err := cmd3.Output(); err == nil {
+		name = strings.TrimSpace(string(out3))
+	}
+	gpuCacheName, gpuCacheTotal, gpuCacheUsed = name, 0, 0
+	gpuCacheAt = time.Now()
 	return
 }

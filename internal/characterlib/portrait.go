@@ -4,9 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -16,7 +19,7 @@ func portraitFileDir(dataDir string) string {
 }
 
 // savePortraitFile 把 data URL 剧照落盘为文件并返回文件路径；
-// 非 data URL（远程 URL / 已是文件路径）原样返回。落盘失败时回退原值。
+// 非 data URL（已是文件路径）原样返回。落盘失败时回退原值。
 func savePortraitFile(dataDir, id, dataURL string) string {
 	if !strings.HasPrefix(dataURL, "data:") {
 		return dataURL
@@ -25,34 +28,145 @@ func savePortraitFile(dataDir, id, dataURL string) string {
 	if comma < 0 {
 		return dataURL
 	}
-	meta := dataURL[5:comma]
-	ext := ".png"
-	switch {
-	case strings.Contains(meta, "jpeg") || strings.Contains(meta, "jpg"):
-		ext = ".jpg"
-	case strings.Contains(meta, "webp"):
-		ext = ".webp"
-	case strings.Contains(meta, "gif"):
-		ext = ".gif"
-	}
 	data, err := base64.StdEncoding.DecodeString(dataURL[comma+1:])
 	if err != nil {
 		return dataURL
 	}
+	return writePortraitBytes(dataDir, id, extFromDataURL(dataURL[:comma]), data)
+}
+
+// saveRemotePortrait 把远程剧照 URL（如 xAI 临时生成图，会过期）下载到本地
+// portraits 目录并返回本地路径；下载失败返回原 URL（保存不阻塞，启动迁移会重试）。
+func saveRemotePortrait(dataDir, id, remoteURL string) string {
+	if !strings.HasPrefix(remoteURL, "http://") && !strings.HasPrefix(remoteURL, "https://") {
+		return remoteURL
+	}
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(remoteURL)
+	if err != nil {
+		return remoteURL
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return remoteURL
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 20<<20)) // 20MB 上限
+	if err != nil || len(body) == 0 {
+		return remoteURL
+	}
+	ext := extFromContentType(resp.Header.Get("Content-Type"))
+	if ext == "" {
+		ext = extFromPath(remoteURL)
+	}
+	if ext == "" {
+		ext = ".png"
+	}
+	if path := writePortraitBytes(dataDir, id, ext, body); path != "" {
+		return path
+	}
+	return remoteURL
+}
+
+// writePortraitBytes 把剧照字节写入 portraits 目录（文件名经清洗防穿越），
+// 成功返回完整路径，失败返回空串。
+func writePortraitBytes(dataDir, id, ext string, data []byte) string {
 	dir := portraitFileDir(dataDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return dataURL
+		return ""
 	}
 	base := portraitFileBase(id)
 	path := filepath.Join(dir, base+ext)
 	// 纵深防御：清洗后最终路径必须仍落在 portraits 目录内（防路径穿越）。
 	if !strings.HasPrefix(path, dir+string(filepath.Separator)) {
-		return dataURL
+		return ""
 	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return dataURL
+		return ""
 	}
 	return path
+}
+
+// extFromDataURL 从 data URL 的 meta 段推断扩展名。
+func extFromDataURL(meta string) string {
+	switch {
+	case strings.Contains(meta, "jpeg") || strings.Contains(meta, "jpg"):
+		return ".jpg"
+	case strings.Contains(meta, "webp"):
+		return ".webp"
+	case strings.Contains(meta, "gif"):
+		return ".gif"
+	default:
+		return ".png"
+	}
+}
+
+// extFromContentType 从 HTTP Content-Type 推断图片扩展名。
+func extFromContentType(ct string) string {
+	ct = strings.ToLower(strings.TrimSpace(strings.SplitN(ct, ";", 2)[0]))
+	switch ct {
+	case "image/png":
+		return ".png"
+	case "image/jpeg", "image/jpg":
+		return ".jpg"
+	case "image/webp":
+		return ".webp"
+	case "image/gif":
+		return ".gif"
+	default:
+		return ""
+	}
+}
+
+// extFromPath 从 URL 路径推断扩展名（Content-Type 缺失时兜底）。
+func extFromPath(rawURL string) string {
+	lower := strings.ToLower(rawURL)
+	for _, ext := range []string{".png", ".jpg", ".jpeg", ".webp", ".gif"} {
+		if strings.Contains(lower, ext) {
+			if ext == ".jpeg" {
+				return ".jpg"
+			}
+			return ext
+		}
+	}
+	return ""
+}
+
+// MigrateRemotePortraits 把库内远程剧照 URL（http/https，多为会过期的
+// xAI 临时图）下载到本地 portraits 目录并回写路径。幂等：非 http 行跳过。
+func (s *Store) MigrateRemotePortraits() int {
+	if s == nil || s.db == nil {
+		return 0
+	}
+	rows, err := s.db.Query(
+		`SELECT id, portrait_url FROM characters WHERE portrait_url LIKE 'http://%' OR portrait_url LIKE 'https://%'`)
+	if err != nil {
+		return 0
+	}
+	type pending struct {
+		id, url string
+	}
+	var todo []pending
+	for rows.Next() {
+		var id, url string
+		if err := rows.Scan(&id, &url); err != nil {
+			continue
+		}
+		todo = append(todo, pending{id: id, url: url})
+	}
+	rows.Close()
+
+	migrated := 0
+	for _, p := range todo {
+		path := saveRemotePortrait(s.dataDir, p.id, p.url)
+		if path == p.url {
+			continue // 下载失败，保持原值（下次启动重试）
+		}
+		if _, err := s.db.Exec(`UPDATE characters SET portrait_url=? WHERE id=?`, path, p.id); err != nil {
+			continue
+		}
+		migrated++
+	}
+	return migrated
 }
 
 // portraitFileBase 把角色 ID 清洗为安全文件名基名（T7-2 防路径穿越）：

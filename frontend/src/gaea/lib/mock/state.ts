@@ -95,6 +95,12 @@ export function createMockState(): MakeMockState {
       text: "整理季度经营数据，输出一份带图表的总结报告（docx）",
       done: false,
       updatedAt: t0 - 3_600_000,
+      items: [
+        { text: "数据口径与来源确认", done: true },
+        { text: "图表生成并嵌入报告", done: false },
+        { text: "输出 docx 到交付物目录", done: false },
+      ],
+      autoPursue: false,
     });
   }
   // 侧边栏「项目」分组 mock：当前工作区 + 两个历史项目。

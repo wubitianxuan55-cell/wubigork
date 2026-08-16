@@ -18,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 // ComfyUIBackend 通过 ComfyUI REST API 调用本地 Flux / Z-Image-Turbo 模型
@@ -289,8 +291,18 @@ func (b *ComfyUIBackend) GenerateImage(ctx context.Context, req *ImageGeneration
 	b.mu.Unlock()
 	slog.Info("ComfyUI 任务已提交", "promptID", promptID, "size", fmt.Sprintf("%dx%d", width, height))
 
+	// 节点 id → class_type 映射（WebSocket progress_state 只给节点 id，用于展示当前节点）
+	nodeClasses := make(map[string]string)
+	for id, n := range workflow {
+		if nm, ok := n.(map[string]interface{}); ok {
+			if ct, ok := nm["class_type"].(string); ok {
+				nodeClasses[id] = ct
+			}
+		}
+	}
+
 	// 2. 轮询等待完成
-	imageData, outKind, err := b.waitForResult(ctx, promptID, req)
+	imageData, outKind, err := b.waitForResult(ctx, promptID, req, nodeClasses)
 	if err != nil {
 		return nil, fmt.Errorf("ComfyUI 生成失败: %w", err)
 	}
@@ -515,9 +527,13 @@ func (b *ComfyUIBackend) buildZImageImg2ImgWorkflow(prompt, negative string, wid
 	return wf
 }
 
-// buildLTXVideoWorkflow 构建 LTX-Video 文生视频工作流（ComfyUI 核心节点）：
-// LTXVLoader → CLIPTextEncode ×2 → LTXVConditioning → EmptyLTXVLatentVideo
-// → LTXVSampler → VAEDecode → SaveAnimatedWEBP
+// buildLTXVideoWorkflow 构建 LTX-Video 文生视频工作流（ComfyUI ≥0.30 节点组）：
+// CheckpointLoaderSimple + CLIPLoader(ltxv) → CLIPTextEncode ×2 → LTXVConditioning
+// → EmptyLTXVLatentVideo + LTXVScheduler + KSamplerSelect → SamplerCustom
+// → VAEDecode → CreateVideo → SaveVideo
+//
+// 注意：ComfyUI 0.30+ 移除了旧版 LTXVLoader/LTXVSampler/SaveAnimatedWEBP 组合，
+// 官方模板改用上述节点组（LTXVLoader/LTXVSampler 会以 missing_node_type 报错）。
 func (b *ComfyUIBackend) buildLTXVideoWorkflow(prompt, negative string, width, height, seed, frames, fps int, model string) map[string]interface{} {
 	ckpt := strings.TrimSpace(model)
 	if ckpt == "" {
@@ -531,17 +547,22 @@ func (b *ComfyUIBackend) buildLTXVideoWorkflow(prompt, negative string, width, h
 		fps = 8
 	}
 	wf := map[string]interface{}{
-		"1": map[string]interface{}{"class_type": "LTXVLoader", "inputs": map[string]interface{}{"ckpt_name": ckpt}},
-		"2": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"1", 1}}},
-		"3": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"1", 1}}},
-		"4": map[string]interface{}{"class_type": "LTXVConditioning", "inputs": map[string]interface{}{"positive": []interface{}{"2", 0}, "negative": []interface{}{"3", 0}}},
-		"5": map[string]interface{}{"class_type": "EmptyLTXVLatentVideo", "inputs": map[string]interface{}{"width": width, "height": height, "length": frames, "batch_size": 1}},
-		"6": map[string]interface{}{"class_type": "LTXVSampler", "inputs": map[string]interface{}{
-			"model": []interface{}{"1", 0}, "positive": []interface{}{"4", 0}, "negative": []interface{}{"4", 1}, "latent": []interface{}{"5", 0},
-			"seed": seed, "steps": 24, "cfg": 2.0, "sampler_name": "euler", "scheduler": "normal",
+		"1": map[string]interface{}{"class_type": "CheckpointLoaderSimple", "inputs": map[string]interface{}{"ckpt_name": ckpt}},
+		"2": map[string]interface{}{"class_type": "CLIPLoader", "inputs": map[string]interface{}{"clip_name": "t5xxl_fp16.safetensors", "type": "ltxv"}},
+		"3": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": prompt, "clip": []interface{}{"2", 0}}},
+		"4": map[string]interface{}{"class_type": "CLIPTextEncode", "inputs": map[string]interface{}{"text": negative, "clip": []interface{}{"2", 0}}},
+		"5": map[string]interface{}{"class_type": "LTXVConditioning", "inputs": map[string]interface{}{"positive": []interface{}{"3", 0}, "negative": []interface{}{"4", 0}, "frame_rate": 25}},
+		"6": map[string]interface{}{"class_type": "EmptyLTXVLatentVideo", "inputs": map[string]interface{}{"width": width, "height": height, "length": frames, "batch_size": 1}},
+		"7": map[string]interface{}{"class_type": "LTXVScheduler", "inputs": map[string]interface{}{"steps": 30, "max_shift": 2.05, "base_shift": 0.95, "stretch": true, "terminal": 0.1}},
+		"8": map[string]interface{}{"class_type": "KSamplerSelect", "inputs": map[string]interface{}{"sampler_name": "euler"}},
+		"9": map[string]interface{}{"class_type": "SamplerCustom", "inputs": map[string]interface{}{
+			"model": []interface{}{"1", 0}, "add_noise": true, "noise_seed": seed, "cfg": 2.0,
+			"positive": []interface{}{"5", 0}, "negative": []interface{}{"5", 1},
+			"sampler": []interface{}{"8", 0}, "sigmas": []interface{}{"7", 0}, "latent_image": []interface{}{"6", 0},
 		}},
-		"7": map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"6", 0}, "vae": []interface{}{"1", 2}}},
-		"8": map[string]interface{}{"class_type": "SaveAnimatedWEBP", "inputs": map[string]interface{}{"images": []interface{}{"7", 0}, "filename_prefix": "gaea", "fps": fps, "quality": 85, "lossless": false}},
+		"10": map[string]interface{}{"class_type": "VAEDecode", "inputs": map[string]interface{}{"samples": []interface{}{"9", 0}, "vae": []interface{}{"1", 2}}},
+		"11": map[string]interface{}{"class_type": "CreateVideo", "inputs": map[string]interface{}{"images": []interface{}{"10", 0}, "fps": fps}},
+		"12": map[string]interface{}{"class_type": "SaveVideo", "inputs": map[string]interface{}{"video": []interface{}{"11", 0}, "filename_prefix": "gaea", "format": "auto", "codec": "auto"}},
 	}
 	return wf
 }
@@ -668,10 +689,20 @@ type comfyOutputFile struct {
 	format     string
 }
 
-// waitForResult 轮询等待 ComfyUI 生成完成，返回 base64 data URL 与输出类型
-func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req *ImageGenerationRequest) (string, string, error) {
+// waitForResult 轮询等待 ComfyUI 生成完成，返回 base64 data URL 与输出类型。
+// nodeClasses 用于把 WebSocket 进度消息里的节点 id 映射为 class_type 展示名。
+func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req *ImageGenerationRequest, nodeClasses map[string]string) (string, string, error) {
 	ticker := time.NewTicker(b.pollInterval)
 	defer ticker.Stop()
+
+	// WebSocket 实时进度（尽力而为：连接失败静默，不影响历史轮询主路径）
+	if req.ProgressCallback != nil {
+		pollCtx, pollCancel := context.WithCancel(ctx)
+		defer pollCancel()
+		go b.pollComfyProgress(pollCtx, promptID, nodeClasses, func(status string, elapsed int, percent int, node string) {
+			req.ProgressCallback(status, elapsed, percent, node)
+		})
+	}
 
 	timeout := time.After(15 * time.Minute)
 	start := time.Now()
@@ -684,7 +715,8 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req
 			return "", "", fmt.Errorf("ComfyUI 生成超时 (15分钟)")
 		case <-ticker.C:
 			if req.ProgressCallback != nil {
-				req.ProgressCallback("running", int(time.Since(start).Seconds()))
+				// percent=-1 / node=""：真实进度由 ws 回调推送，这里只保底刷新 elapsed
+				req.ProgressCallback("running", int(time.Since(start).Seconds()), -1, "")
 			}
 			files, done, err := b.checkHistory(ctx, promptID)
 			if err != nil {
@@ -707,6 +739,109 @@ func (b *ComfyUIBackend) waitForResult(ctx context.Context, promptID string, req
 			}
 		}
 	}
+}
+
+// pollComfyProgress 订阅 ComfyUI /ws 实时进度（尽力而为，失败静默）。
+// 兼容两种消息：新版 progress_state（nodes{id:{value,max,state}}，节点名经 nodeClasses 映射）
+// 与旧版 progress（data.value/max/node，node 即 class_type）。
+func (b *ComfyUIBackend) pollComfyProgress(ctx context.Context, promptID string, nodeClasses map[string]string, cb func(status string, elapsed int, percent int, node string)) {
+	u, err := url.Parse(b.baseURL)
+	if err != nil {
+		return
+	}
+	switch u.Scheme {
+	case "https":
+		u.Scheme = "wss"
+	default:
+		u.Scheme = "ws"
+	}
+	u.Path = "/ws"
+	q := u.Query()
+	q.Set("clientId", strconv.FormatInt(rand.Int63(), 10))
+	u.RawQuery = q.Encode()
+
+	conn, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	start := time.Now()
+	readErr := make(chan error, 1)
+	go func() {
+		for {
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
+				readErr <- err
+				return
+			}
+			var ev struct {
+				Type string          `json:"type"`
+				Data json.RawMessage `json:"data"`
+			}
+			if json.Unmarshal(msg, &ev) != nil {
+				continue
+			}
+			switch ev.Type {
+			case "progress": // node 字段可能是节点 id（新版）或 class_type（旧版）
+				var d struct {
+					Value float64 `json:"value"`
+					Max   float64 `json:"max"`
+					Node  string  `json:"node"`
+					ID    string  `json:"prompt_id"`
+				}
+				if json.Unmarshal(ev.Data, &d) != nil || d.Max <= 0 {
+					continue
+				}
+				if d.ID != "" && d.ID != promptID {
+					continue
+				}
+				node := d.Node
+				if ct, ok := nodeClasses[node]; ok {
+					node = ct
+				}
+				cb("running", int(time.Since(start).Seconds()), clampPercent(d.Value/d.Max), node)
+			case "progress_state": // 新版 ComfyUI：nodes 按节点 id 上报
+				var d struct {
+					ID    string `json:"prompt_id"`
+					Nodes map[string]struct {
+						Value float64 `json:"value"`
+						Max   float64 `json:"max"`
+						State string  `json:"state"`
+						NodeID string  `json:"node_id"`
+					} `json:"nodes"`
+				}
+				if json.Unmarshal(ev.Data, &d) != nil {
+					continue
+				}
+				if d.ID != "" && d.ID != promptID {
+					continue
+				}
+				for id, n := range d.Nodes {
+					if n.State == "running" && n.Max > 0 {
+						cb("running", int(time.Since(start).Seconds()), clampPercent(n.Value/n.Max), nodeClasses[id])
+						break
+					}
+				}
+			}
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-readErr:
+	}
+}
+
+// clampPercent 把 0-1 比例收敛到 0-100 整数百分比。
+func clampPercent(f float64) int {
+	if f < 0 {
+		return 0
+	}
+	if f > 1 {
+		return 100
+	}
+	return int(f * 100)
 }
 
 // checkHistory 查询任务状态，返回 (输出文件列表, 是否完成, 错误)。
@@ -763,7 +898,7 @@ func (b *ComfyUIBackend) checkHistory(ctx context.Context, promptID string) ([]c
 					}
 				}
 			}
-			return nil, true, fmt.Errorf("%s", errMsg)
+			return nil, true, fmt.Errorf("%s%s", errMsg, comfyExecutionHint(errMsg))
 		}
 	}
 
@@ -812,6 +947,26 @@ func (b *ComfyUIBackend) checkHistory(ctx context.Context, promptID string) ([]c
 	}
 
 	return files, true, nil
+}
+
+// comfyExecutionHint 针对常见 ComfyUI 执行错误追加可操作的中文提示。
+// 已知环境故障（T6-4.2 同类风格）：
+//   - comfy-kitchen 版本与 ComfyUI 源码不匹配（rms_rope ABI 错误、fp8 布局缺失）
+//     → 提示用户按 ComfyUI 官方指引更新 Python 依赖；
+//   - 模型/LoRA 不在列表中 → 提示重新选择 LoRA / 检查 models 目录。
+func comfyExecutionHint(errMsg string) string {
+	switch {
+	case strings.Contains(errMsg, "rms_rope"),
+		strings.Contains(errMsg, "AsymW4A8Int8Layout"),
+		strings.Contains(errMsg, "comfy_kitchen"),
+		strings.Contains(errMsg, "comfy-kitchen"),
+		strings.Contains(errMsg, "'NoneType' object has no attribute 'Params'"):
+		return "\n💡 ComfyUI 依赖与代码版本不匹配（comfy-kitchen 过旧/损坏，fp8 与加速内核不可用）。请在 ComfyUI 安装目录运行: python -m pip install -r requirements.txt，然后重启 ComfyUI"
+	case strings.Contains(errMsg, "value_not_in_list"):
+		return "\n💡 提交的模型/LoRA 不在 ComfyUI 列表中：请在绘梦页重新选择 LoRA（列表已与本地 ComfyUI 同步），或确认 ComfyUI models 目录包含所选文件"
+	default:
+		return ""
+	}
 }
 
 func strOr(v interface{}) string {

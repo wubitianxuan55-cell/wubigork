@@ -3,12 +3,13 @@ import {
   Button, Skeleton, message, Input, Select, Empty,
 } from 'antd'
 import {
-  PlusOutlined, SearchOutlined, ReadOutlined, SortAscendingOutlined,
+  PlusOutlined, SearchOutlined, ReadOutlined, SortAscendingOutlined, UploadOutlined,
 } from '@ant-design/icons'
 import { useAppStore, type ProjectCard } from '../stores/appStore'
 
 import WelcomePage from '../components/WelcomePage'
 import CreateNovelModal from '../components/novel/CreateNovelModal'
+import ImportNovelModal from '../components/novel/ImportNovelModal'
 import ProjectCardItem from '../components/ProjectCardItem'
 import { readReadingProgress } from '../utils/readingProgress'
 
@@ -32,6 +33,14 @@ const HomePage: React.FC = () => {
   const [newTitle, setNewTitle] = useState('')
   const [newGenre, setNewGenre] = useState<string[]>([])
   const [newStyle, setNewStyle] = useState<string[]>([])
+
+  // 导入成品小说
+  const [importModal, setImportModal] = useState(false)
+  const [importFile, setImportFile] = useState<{ path: string; name: string } | null>(null)
+  const [importTitle, setImportTitle] = useState('')
+  const [importGenre, setImportGenre] = useState<string[]>([])
+  const [importStyle, setImportStyle] = useState<string[]>([])
+  const [importing, setImporting] = useState(false)
 
   // 书架工具条：搜索 / 排序
   const [query, setQuery] = useState('')
@@ -83,6 +92,43 @@ const HomePage: React.FC = () => {
       resetForm()
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '创建失败')
+    }
+  }
+
+  // ── 导入成品小说 ──
+  const handlePickImport = async () => {
+    try {
+      const picked = await window.go.app.App.GaeaPickFiles()
+      const file = picked && picked.length > 0 ? picked[0] : null
+      if (!file?.path) return
+      setImportFile({ path: file.path, name: file.name || file.path })
+      setImportTitle(file.name ? file.name.replace(/\.[^.]+$/, '') : '')
+      setImportGenre([])
+      setImportStyle([])
+      setImportModal(true)
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '选择文件失败')
+    }
+  }
+
+  const handleImport = async () => {
+    if (!importFile || !importTitle.trim() || importing) return
+    setImporting(true)
+    try {
+      const res = await window.go.app.App.ImportNovelBook(
+        importFile.path,
+        importTitle.trim(),
+        importGenre.join('、') || '未分类',
+        importStyle.join('、') || '默认',
+      )
+      openProject(res.path, res.title)
+      await loadProjects()
+      setImportModal(false)
+      message.success(`已导入「${res.title}」：${res.chapter_count} 章，${res.total_words.toLocaleString()} 字`)
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '导入失败')
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -175,6 +221,17 @@ const HomePage: React.FC = () => {
         )}
         <span style={{ flex: 1 }} />
         <Button
+          icon={<UploadOutlined />}
+          onClick={handlePickImport}
+          style={{
+            color: 'var(--color-primary)',
+            borderColor: 'var(--color-primary)',
+            borderRadius: 'var(--radius-md)',
+          }}
+        >
+          导入小说
+        </Button>
+        <Button
           type="primary" icon={<PlusOutlined />}
           onClick={() => { resetForm(); setNewModal(true) }}
           style={{
@@ -190,7 +247,7 @@ const HomePage: React.FC = () => {
       {loadingProjects ? (
         <div className="novel-shelf-grid">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="novel-shelf-card" style={{ pointerEvents: 'none', height: 240 }}>
+            <div key={i} className="novel-shelf-card" style={{ pointerEvents: 'none' }}>
               <Skeleton active paragraph={{ rows: 3 }} style={{ padding: 16 }} />
             </div>
           ))}
@@ -212,6 +269,9 @@ const HomePage: React.FC = () => {
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { resetForm(); setNewModal(true) }}>
               新建小说
             </Button>
+            <Button icon={<UploadOutlined />} onClick={handlePickImport}>
+              导入成品小说
+            </Button>
           </div>
         ) : (
           <Empty description="没有可显示的小说" style={{ marginTop: 80 }} />
@@ -219,7 +279,7 @@ const HomePage: React.FC = () => {
       ) : (
         /* 书架栅格 */
         <div className="novel-shelf-grid">
-          {visibleProjects.map((card, idx) => {
+          {visibleProjects.map((card) => {
             const progress = readReadingProgress(card.path)
             const chapterCount = card.chapter_count || 0
             return (
@@ -227,7 +287,6 @@ const HomePage: React.FC = () => {
                 key={card.path}
                 card={card}
                 isActive={projectOpen && card.path === projectPath}
-                isHero={idx === 0 && visibleProjects.length > 1}
                 isMobile={false}
                 readingChapter={progress
                   ? `第${progress.chapterNum}章 · ${progress.title}`
@@ -252,6 +311,19 @@ const HomePage: React.FC = () => {
         title={newTitle} onTitleChange={setNewTitle}
         genre={newGenre} onGenreChange={setNewGenre}
         style={newStyle} onStyleChange={setNewStyle}
+      />
+      <ImportNovelModal
+        open={importModal}
+        fileName={importFile?.name || ''}
+        title={importTitle}
+        genre={importGenre}
+        style={importStyle}
+        importing={importing}
+        onTitleChange={setImportTitle}
+        onGenreChange={setImportGenre}
+        onStyleChange={setImportStyle}
+        onImport={() => void handleImport()}
+        onClose={() => { if (!importing) setImportModal(false) }}
       />
     </div>
   )

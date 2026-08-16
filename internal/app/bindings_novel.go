@@ -45,11 +45,14 @@ func (b *NovelB) GetOutlines() map[string]interface{} { return b.a.GetOutlines()
 func (b *NovelB) GetWorldMapImage() string { return b.a.GetWorldMapImage() }
 func (b *NovelB) GetWorldview() string { return b.a.GetWorldview() }
 func (b *NovelB) GetWorldviewSections() (map[string]interface{}, error) { return b.a.GetWorldviewSections() }
+func (b *NovelB) ImportNovelBook(filePath string, title string, genre string, style string) (NovelImportResult, error) { return b.a.ImportNovelBook(filePath, title, genre, style) }
 func (b *NovelB) InjectMemories(currentContext string, maxMemories int, maxTokens int) (map[string]interface{}, error) { return b.a.InjectMemories(currentContext, maxMemories, maxTokens) }
 func (b *NovelB) IsProjectV4() bool { return b.a.IsProjectV4() }
 func (b *NovelB) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interface{}, error) { return b.a.ListSnapshots(sceneID, chapterNum) }
 func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]interface{}, error) { return b.a.MergeCharacters(keepID, mergeID) }
 func (b *NovelB) MigrateProjectToV4() error { return b.a.MigrateProjectToV4() }
+func (b *NovelB) NovelReadingAsk(kind string, title string, chapterText string, selection string, question string) (string, error) { return b.a.NovelReadingAsk(kind, title, chapterText, selection, question) }
+func (b *NovelB) NovelSearch(query string) ([]NovelSearchHit, error) { return b.a.NovelSearch(query) }
 func (b *NovelB) ParseLinks(content string) []string { return b.a.ParseLinks(content) }
 func (b *NovelB) QueryEntities(entityType string) ([]map[string]interface{}, error) { return b.a.QueryEntities(entityType) }
 func (b *NovelB) QuickBrainstormBranches(setting string, prevSummary string) (map[string]interface{}, error) { return b.a.QuickBrainstormBranches(setting, prevSummary) }

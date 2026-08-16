@@ -105,6 +105,7 @@ const ModelCenterPage: React.FC = () => {
     opencodeGoKey: engine.opencodeGoKey, setOpencodeGoKeyState: engine.setOpencodeGoKeyState, opencodeGoKeyMasked: engine.opencodeGoKeyMasked,
     opencodeZenKey: engine.opencodeZenKey, setOpencodeZenKeyState: engine.setOpencodeZenKeyState, opencodeZenKeyMasked: engine.opencodeZenKeyMasked,
     callStats: stats.callStats, statsSort: stats.statsSort, setStatsSort: stats.setStatsSort,
+    loadError: stats.loadError,
     trendRange: stats.trendRange, setTrendRange: stats.setTrendRange, trendData: stats.trendData,
     imageBackend: image.imageBackend, setImageBackend: image.setImageBackend,
     comfyUIURL: image.comfyUIURL, comfyUIPath: image.comfyUIPath, comfyUIPythonPath: image.comfyUIPythonPath,

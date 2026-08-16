@@ -147,6 +147,8 @@ func (s *Store) Upsert(c *Character) error {
 	}
 	c.UpdatedAt = ts
 	// 剧照单独落盘为文件，角色 JSON/响应只存路径（防巨型 base64 撑爆 IPC）。
+	// 远程 URL（xAI 临时图等会过期）先下载到本地，避免之后裂图。
+	c.PortraitURL = saveRemotePortrait(s.dataDir, c.ID, c.PortraitURL)
 	c.PortraitURL = savePortraitFile(s.dataDir, c.ID, c.PortraitURL)
 
 	tags, _ := json.Marshal(c.Tags)

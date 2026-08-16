@@ -13,6 +13,7 @@ import NewCharactersModal from '../components/novel/create/NewCharactersModal'
 import BranchWizardModal, { type Branch } from '../components/novel/create/BranchWizardModal'
 
 interface WizardRequest { prevChapter: number; overwriteChapter: number; branchFromID: string }
+const BRAINSTORM_MSG_KEY = 'novel-brainstorm-loading'
 
 // T6-7.5 拆分后的编排层（≤300 行）：持有页面状态与生成编排；视图拆到 5 个子组件；
 // 流式事件经 useChapterStream + chapterStreamTypes 判别联合分发（T6-7.2 停止按钮 + cancelled）。
@@ -35,12 +36,28 @@ const CreatePage: React.FC = () => {
   const [temperature, setTemperature] = useState(0)
   const [directPlot, setDirectPlot] = useState('')
   const [stats, setStats] = useState<{ totalWords: number; chapterCount: number } | null>(null)
-  const [selectedSkill, setSelectedSkill] = useState<string | undefined>(undefined)
+  // 默认启用 story-deslop 去 AI 味润色技能；可在右侧创作设置中切换或清空
+  const [selectedSkill, setSelectedSkill] = useState<string | undefined>('story-deslop')
+  const [editorFontSize, setEditorFontSize] = useState<number>(() => {
+    try {
+      const v = Number(localStorage.getItem('gaea.novel.editorFontSize'))
+      if (Number.isFinite(v) && v >= 12 && v <= 24) return v
+    } catch { /* 读取失败按默认值 */ }
+    return 15
+  })
   const [wizard, setWizard] = useState<WizardRequest | null>(null)
+  const [wizardBranches, setWizardBranches] = useState<Branch[]>([])
 
   const settingLoadToken = useRef(0)
   const chapterLoadToken = useRef(0)
   const generatingRef = useRef(false)
+  const brainstormingRef = useRef(false)
+
+  const handleEditorFontSizeChange = useCallback((v: number) => {
+    setEditorFontSize(v)
+    try { localStorage.setItem('gaea.novel.editorFontSize', String(v)) } catch { /* 持久化失败不影响使用 */ }
+  }, [])
+
   // 当前生成任务的章节标识（取 CreateChapter 返回值，供停止按钮 CancelCreateChapter）
   const streamTargetRef = useRef({ chapterNum: 0, branch: '' })
 
@@ -87,10 +104,6 @@ const CreatePage: React.FC = () => {
     }
   }
 
-  const openWizard = useCallback((prevChapter: number, overwriteChapter = 0, branchFromID = '') => {
-    setWizard({ prevChapter, overwriteChapter, branchFromID })
-  }, [])
-
   // 向导拉取 AI 构思分支（注入最新设定与前文摘要）
   const fetchWizardBranches = useCallback(async (prevChapter: number): Promise<Branch[]> => {
     const freshSetting = await refreshSetting()
@@ -99,6 +112,30 @@ const CreatePage: React.FC = () => {
     const list = res?.branches || []
     return list.map((b: { title?: string; summary?: string }) => ({ title: b.title ?? '', pitch: b.summary ?? '' }))
   }, [refreshSetting, outlines])
+
+  // 后台构思剧情分支：不弹阻塞弹窗，构思完成后弹窗确认选择
+  const openWizard = useCallback(async (prevChapter: number, overwriteChapter = 0, branchFromID = '') => {
+    if (brainstormingRef.current) return
+    brainstormingRef.current = true
+    setWizard({ prevChapter, overwriteChapter, branchFromID })
+    setWizardBranches([])
+    message.open({ key: BRAINSTORM_MSG_KEY, content: 'AI 正在构思剧情分支，你可以继续操作…', duration: 0 })
+    try {
+      const list = await fetchWizardBranches(prevChapter)
+      if (list.length === 0) {
+        setWizard(null)
+        message.warning('AI 未构思出剧情分支，可直接输入剧情要求')
+        return
+      }
+      setWizardBranches(list)
+    } catch (err: unknown) {
+      setWizard(null)
+      message.error(err instanceof Error ? err.message : '剧情构思失败，可手动输入剧情要求')
+    } finally {
+      message.destroy(BRAINSTORM_MSG_KEY)
+      brainstormingRef.current = false
+    }
+  }, [fetchWizardBranches])
 
   // 流式生成收尾：三路终态（done/error/cancelled）与停止兜底共用
   const finishStream = useCallback(() => {
@@ -268,7 +305,8 @@ const CreatePage: React.FC = () => {
         chapterLoading={chapterLoading}
         generating={generating} genPhase={genPhase} genPercent={genPercent} stopping={stopping} saving={saving}
         onRegenerate={() => activeNode && handleRegenerate(activeNode)} onSave={handleSave} onStop={handleStop}
-        hasChapters={flatNodes.length > 0} nextChapterNum={nextMainChapterNum} onOpenWizard={openWizard} />
+        hasChapters={flatNodes.length > 0} nextChapterNum={nextMainChapterNum} onOpenWizard={openWizard}
+        editorFontSize={editorFontSize} onEditorFontSizeChange={handleEditorFontSizeChange} />
       <div className="v3-grip" aria-hidden="true" />
       <CreateInspector setting={setting} onRefreshSetting={() => void refreshSetting()}
         selectedSkill={selectedSkill} onSelectSkill={(v) => setSelectedSkill(v)}
@@ -279,9 +317,10 @@ const CreatePage: React.FC = () => {
         prevChapterHint={activeNode?.order_index || lastMainChapter}
         stats={stats} chapterCount={flatNodes.length} />
       <NewCharactersModal />
-      <BranchWizardModal open={!!wizard}
+      <BranchWizardModal open={!!wizard && wizardBranches.length > 0}
         prevChapter={wizard?.prevChapter ?? 0} overwriteChapter={wizard?.overwriteChapter ?? 0}
-        branchFromID={wizard?.branchFromID ?? ''} onClose={() => setWizard(null)}
+        branchFromID={wizard?.branchFromID ?? ''} onClose={() => { setWizard(null); setWizardBranches([]) }}
+        preloadedBranches={wizardBranches}
         onFetchBranches={fetchWizardBranches} onStart={startGeneration} />
     </div>
   )

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { DashboardOutlined } from '@ant-design/icons'
+import { useCallback, useEffect, useState } from 'react'
+import { Button, Tooltip } from 'antd'
+import { DashboardOutlined, ReloadOutlined } from '@ant-design/icons'
 import * as App from '../../../src/wailsjsCompat'
 import { StatusChip } from './ui'
 import {
@@ -14,23 +15,58 @@ import {
 // 本地资源占用实时条：轮询 GetModelMonitor，展示 CPU/内存/GPU(显存) 与本地已启动模型。
 export function ResourceMonitor() {
   const [snap, setSnap] = useState<ResourceSnapshot | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState('')
 
-  useEffect(() => {
-    let alive = true
-    const load = async () => {
-      try {
-        const m: ResourceMonitorData = await App.GetModelMonitor()
-        if (alive) setSnap(computeResourceSnapshot(m))
-      } catch {
-        // 后端尚未就绪时静默，等待下一次轮询
-      }
+  const load = useCallback(async () => {
+    try {
+      const m: ResourceMonitorData = await App.GetModelMonitor()
+      setSnap(computeResourceSnapshot(m))
+      setError(null)
+      setLastUpdated(new Date().toLocaleTimeString())
+    } catch (err: unknown) {
+      // 后端尚未就绪：保留已有快照，仅提示刷新失败，不隐藏整个资源块
+      setError(err instanceof Error ? err.message : '读取资源信息失败')
     }
-    load()
-    const t = window.setInterval(load, 4000)
-    return () => { alive = false; window.clearInterval(t) }
   }, [])
 
-  if (!snap) return null
+  useEffect(() => {
+    load()
+    const t = window.setInterval(load, 4000)
+    return () => window.clearInterval(t)
+  }, [load])
+
+  const refreshBtn = (
+    <Tooltip title="刷新资源">
+      <Button
+        size="small"
+        type="text"
+        icon={<ReloadOutlined />}
+        aria-label="刷新资源"
+        onClick={() => void load()}
+      />
+    </Tooltip>
+  )
+
+  if (!snap) {
+    return (
+      <div className="mc-live">
+        <div className="mc-live-title">
+          <DashboardOutlined /> 本地资源
+          <span style={{ flex: 1 }} />
+          {refreshBtn}
+        </div>
+        {error ? (
+          <div className="mc-inspector-error">
+            <span>资源加载失败：{error}</span>
+            <Button size="small" type="primary" ghost onClick={() => void load()}>重试</Button>
+          </div>
+        ) : (
+          <div className="mc-live-loading">正在读取系统资源…</div>
+        )}
+      </div>
+    )
+  }
 
   const bars = [
     { label: 'CPU', pct: snap.cpu },
@@ -41,7 +77,13 @@ export function ResourceMonitor() {
 
   return (
     <div className="mc-live">
-      <span className="mc-live-title"><DashboardOutlined /> 本地资源</span>
+      <div className="mc-live-title">
+        <DashboardOutlined /> 本地资源
+        <span style={{ flex: 1 }} />
+        {refreshBtn}
+        {lastUpdated && <span className="mc-live-updated">{lastUpdated}</span>}
+      </div>
+      {error && <div className="mc-live-error">刷新失败：{error}</div>}
       <div className="mc-live-bars">
         {bars.map(b => {
           const level = resourceLevel(b.pct)
@@ -74,7 +116,11 @@ export function ResourceMonitor() {
           <StatusChip title={snap.gpuName}>{snap.gpuName}</StatusChip>
         )}
         {snap.vramTotal > 0 && (
-          <StatusChip>显存 {fmtGB(snap.vramUsed)} / {fmtGB(snap.vramTotal)}</StatusChip>
+          <StatusChip title={snap.vramUsed > 0 ? `已用 ${fmtGB(snap.vramUsed)} / 共 ${fmtGB(snap.vramTotal)}` : '当前无可用占用数据（AMD 需 ComfyUI 运行）'}>
+            {snap.vramUsed > 0
+              ? `显存 ${fmtGB(snap.vramUsed)} / ${fmtGB(snap.vramTotal)}`
+              : `显存 ${fmtGB(snap.vramTotal)}`}
+          </StatusChip>
         )}
         {snap.memTotal > 0 && (
           <StatusChip>内存 {fmtGB(snap.memUsed)} / {fmtGB(snap.memTotal)}</StatusChip>

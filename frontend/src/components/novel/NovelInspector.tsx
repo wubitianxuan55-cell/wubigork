@@ -3,7 +3,7 @@ import { Button, Tooltip } from 'antd'
 import {
   ControlOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
   FileTextOutlined, BookOutlined, ThunderboltOutlined, UserOutlined,
-  ExportOutlined, ReadOutlined, InfoCircleOutlined,
+  ReadOutlined, InfoCircleOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../../stores/appStore'
 import { C } from '../../utils/theme'
@@ -130,16 +130,6 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
             <div className="novel-inspector-section-title"><InfoCircleOutlined />提示</div>
             <div className="novel-inspector-hint">
               世界观设定为纯 Markdown 文本，支持编辑 / 分屏 / 渲染三种模式；创作生成时会自动注入最新设定。
-            </div>
-          </section>
-        )}
-
-        {/* 导出 tab：说明 */}
-        {activeTab === 'export' && (
-          <section className="novel-inspector-section">
-            <div className="novel-inspector-section-title"><ExportOutlined />导出</div>
-            <div className="novel-inspector-hint">
-              一键导出全部格式到小说目录下的 export/ 文件夹（TXT + Markdown + EPUB）。
             </div>
           </section>
         )}

@@ -11,6 +11,7 @@ import (
 type CharlibB struct{ a *App }
 
 func (b *CharlibB) CharacterAssociate(charID string, role string) error { return b.a.CharacterAssociate(charID, role) }
+func (b *CharlibB) CharacterAssociateTo(projectDir string, charID string, role string) error { return b.a.CharacterAssociateTo(projectDir, charID, role) }
 func (b *CharlibB) CharacterDelete(id string) error { return b.a.CharacterDelete(id) }
 func (b *CharlibB) CharacterDissociate(charID string) error { return b.a.CharacterDissociate(charID) }
 func (b *CharlibB) CharacterDrawRandom(count int, gender string, tags string, chatOnly bool) []characterlib.Character { return b.a.CharacterDrawRandom(count, gender, tags, chatOnly) }

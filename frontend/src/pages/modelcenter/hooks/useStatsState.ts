@@ -11,6 +11,7 @@ import { type StatsSort, type TrendDatum, type TrendRange } from '../charts'
 
 export interface StatsState {
   callStats: ModelStatsSummary | null
+  loadError: string | null
   statsSort: StatsSort
   setStatsSort: (v: StatsSort) => void
   trendRange: TrendRange
@@ -22,22 +23,26 @@ export interface StatsState {
 
 export function useStatsState(statsOpen: boolean): StatsState {
   const [callStats, setCallStats] = useState<ModelStatsSummary | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [statsSort, setStatsSort] = useState<StatsSort>('calls')
   const [trendRange, setTrendRange] = useState<TrendRange>('7d')
 
   const loadCallStats = useCallback(async () => {
     try {
       const s = await getModelCallStats()
-      if (s) setCallStats(s)
-    } catch (_) {}
+      setCallStats(s ?? null)
+      setLoadError(null)
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : '加载调用统计失败')
+    }
   }, [])
 
-  // 3.0「引擎控制台」：右侧统计检查器常显，进入页面即加载一次；
-  // 统计抽屉打开期间叠加 15s 定时刷新（原实现仅在抽屉打开时轮询）。
+  // 3.0「引擎控制台」：右侧统计检查器常显，进入页面即加载；
+  // 页面 keep-alive 常驻，统计需自行定期刷新——基础 30s 轮询，
+  // 统计抽屉打开期间加快到 15s（原实现仅在抽屉打开时轮询，面板数据会过期）。
   useEffect(() => {
     loadCallStats()
-    if (!statsOpen) return
-    const timer = window.setInterval(loadCallStats, 15000)
+    const timer = window.setInterval(loadCallStats, statsOpen ? 15000 : 30000)
     return () => window.clearInterval(timer)
   }, [statsOpen, loadCallStats])
 
@@ -52,14 +57,18 @@ export function useStatsState(statsOpen: boolean): StatsState {
     }
   }
 
-  // 趋势数据：后端按小时返回，按当前范围聚合为小时或天粒度。
+  // 趋势数据：后端按小时返回；「今日」只取当天的小时桶，
+  // 「7天/30天」按天聚合（标签只显示日期，不再带小时）。
   const trendData = useMemo<TrendDatum[]>(() => {
     if (!callStats?.trend?.length) return []
+    const now = new Date()
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     const agg = new Map<string, TrendDatum>()
     for (const p of callStats.trend) {
       const hourly = trendRange === 'today'
+      if (hourly && !p.time.startsWith(todayKey)) continue // 今日只显示当天的数据
       const key = hourly ? p.time : p.time.slice(0, 10)
-      const label = hourly ? p.time.slice(5, 16).replace('T', ' ') : p.time.slice(5)
+      const label = hourly ? p.time.slice(11, 16) : p.time.slice(5, 10)
       const cur = agg.get(key)
       if (cur) {
         cur.calls += p.calls
@@ -88,6 +97,7 @@ export function useStatsState(statsOpen: boolean): StatsState {
 
   return {
     callStats,
+    loadError,
     statsSort,
     setStatsSort,
     trendRange,

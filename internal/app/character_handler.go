@@ -195,6 +195,15 @@ func (a *writingState) GetCharacters() map[string]interface{} {
 	if a.characterAgent == nil {
 		return nil
 	}
+	// 自愈：角色库已关联但尚未物化进 characters.json 的角色（旧版本从角色库
+	// 「加入项目」只写关联表），读取时按 ID 幂等合入，保证小说角色面板立即可见。
+	if a.app != nil {
+		if pm := a.getPM(); pm != nil {
+			if _, err := a.app.mergeLibraryRefsIntoProject(pm.Dir); err != nil {
+				slog.Warn("GetCharacters: 合并角色库引用失败", "error", err)
+			}
+		}
+	}
 	cf := a.characterAgent.GetCharacters()
 	if cf == nil {
 		return nil

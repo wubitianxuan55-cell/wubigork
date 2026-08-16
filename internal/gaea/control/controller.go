@@ -122,11 +122,6 @@ type Controller struct {
 	// pendingSends 是回合进行中排队等待的用户消息（T6-2.5 Send 排队），
 	// turnLoop 在每个回合结束后按序排空。由 mu 保护。
 	pendingSends []sendRequest
-
-	// watchdog 是运行态看门狗（T6-2.4）：nil 表示配置禁用（两维度均 < 0）。
-	// 每个回合在 turnLoop 里 begin/end，触发时取消该回合上下文（与用户
-	// Cancel 同一条中断链路），由 runTurnGuarded 包装错误并 Emit TurnDone(Err)。
-	watchdog *watchdog
 }
 
 type approvalReply struct {
@@ -189,9 +184,6 @@ type Options struct {
 	MemoryDisabled bool
 	// no confinement). Frontends pass the cwd they launched the session in.
 	WorkspaceRoot string
-	// Watchdog 配置单回合运行态看门狗阈值（T6-2.4）：零值 = 生产默认
-	// （墙钟 10 分钟 / 停滞 30 秒，默认开启）；字段 < 0 禁用对应维度。
-	Watchdog WatchdogConfig
 }
 
 // New builds a Controller. A nil Sink is replaced with event.Discard.
@@ -233,21 +225,6 @@ func New(opts Options) *Controller {
 		approvals:     map[string]chan approvalReply{},
 		asks:          map[string]chan []event.AskAnswer{},
 		granted:       map[string]bool{},
-	}
-	// 运行态看门狗（T6-2.4，默认开启）：把控制器与执行器（生产装配中即
-	// runner）的 sink 重接线到包装器，让模型流式输出/工具调用等推进事件
-	// 都能被观察到。两维度均 < 0 时看门狗整体不装配（c.watchdog 保持 nil）。
-	if wdCfg := opts.Watchdog.withDefaults(); wdCfg.enabled() {
-		wd := newWatchdog(wdCfg)
-		c.watchdog = wd
-		wrapped := watchdogSink{inner: c.sink, wd: wd}
-		c.sink = wrapped
-		if c.executor != nil {
-			c.executor.SetSink(wrapped)
-		}
-		if setter, ok := c.runner.(interface{ SetSink(event.Sink) }); ok {
-			setter.SetSink(wrapped)
-		}
 	}
 	// Checkpoints: bind a store to the session and route writer pre-edits into it.
 	if c.executor != nil {
@@ -305,10 +282,7 @@ func (c *Controller) launchTurnLocked(body func(ctx context.Context) error) {
 // queue still continues.
 func (c *Controller) turnLoop(ctx context.Context, body func(ctx context.Context) error) {
 	for {
-		// runTurnGuarded 包一层运行态看门狗（T6-2.4）：回合内墙钟超时或
-		// 推进停滞时取消本回合上下文（与用户 Cancel 同一链路），并把
-		// 返回错误包装为可识别的看门狗超时；下面照常 Emit TurnDone(Err)。
-		err := c.runTurnGuarded(ctx, body)
+		err := c.runOneTurn(ctx, body)
 
 		c.mu.Lock()
 		if len(c.pendingSends) > 0 {
@@ -342,41 +316,6 @@ func (c *Controller) runOneTurn(ctx context.Context, body func(ctx context.Conte
 		}
 	}()
 	return body(ctx)
-}
-
-// runTurnGuarded 运行一个回合；启用看门狗时，开始前启动、结束后按触发状态
-// 发 Notice、把错误包装为看门狗超时并停止（同步等待，不会跨回合误触发）。
-// 看门狗未装配（配置禁用）时与直接调用 runOneTurn 行为完全一致。
-func (c *Controller) runTurnGuarded(ctx context.Context, body func(ctx context.Context) error) error {
-	wd := c.beginWatchdog(ctx)
-	err := c.runOneTurn(ctx, body)
-	if wd == nil {
-		return err
-	}
-	if reason, fired := wd.firedReason(); fired {
-		c.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelWarn,
-			Text: fmt.Sprintf("看门狗终止回合：%s", reason)})
-	}
-	err = wd.wrapErr(err)
-	wd.end()
-	return err
-}
-
-// beginWatchdog 在回合开始前启动看门狗（若启用），返回 nil 表示未启用。
-// cancel 取自当前回合的 c.cancel（与用户 Cancel 走同一条中断链路）。
-func (c *Controller) beginWatchdog(ctx context.Context) *watchdog {
-	wd := c.watchdog
-	if wd == nil {
-		return nil
-	}
-	c.mu.Lock()
-	cancel := c.cancel
-	c.mu.Unlock()
-	if cancel == nil {
-		return nil
-	}
-	wd.begin(ctx, cancel)
-	return wd
 }
 
 // Send starts a turn with an uncomposed message. The controller applies

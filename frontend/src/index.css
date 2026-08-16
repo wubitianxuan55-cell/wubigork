@@ -279,6 +279,9 @@ body {
 .chat-bubble:hover .chat-copy-btn {
   opacity: 1 !important;
 }
+.chat-bubble:hover .chat-apply-btn {
+  opacity: 1 !important;
+}
 
 /* ═══ 打字指示器（三点跳动） ═══ */
 @keyframes typingBounce {

@@ -282,8 +282,11 @@ const TemplateGroup: React.FC<{
           onClick={() => onApply(t)}
           className="ig-template-row"
         >
-          <span style={{ fontSize: 12, color: 'var(--color-text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {t.label}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+            {t.icon && <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>{t.icon}</span>}
+            <span style={{ fontSize: 12, color: 'var(--color-text)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {t.label}
+            </span>
           </span>
           {t.description && (
             <span style={{ fontSize: 10, color: C('color-text-secondary'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

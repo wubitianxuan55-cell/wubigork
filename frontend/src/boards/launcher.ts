@@ -25,6 +25,7 @@ export const LAUNCHER_DESC: Record<string, string> = {
   novel: '世界观、角色与大纲创作',
   imagegen: 'AI 图像生成工作台',
   gaea: '通用办公工作台',
+  code: 'DeepSeek Harness 编程工作台',
   memoryhub: '知识/成本/画像跨板块记忆沉淀',
   modelcenter: '模型引擎管理与配置',
   characterlib: '角色档案与跨板块角色管理',

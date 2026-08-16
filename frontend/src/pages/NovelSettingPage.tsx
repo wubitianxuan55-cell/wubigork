@@ -3,7 +3,7 @@
 // 不做结构化维度拆分与任何反解析；导入导出、设定 Agent 对话直接操作整篇文本。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Button, Empty, Input, Segmented, Space, Spin, Tag, message,
+  Button, Empty, Input, Modal, Segmented, Space, Spin, Tag, message,
 } from 'antd'
 import {
   ColumnWidthOutlined, EditOutlined, ExportOutlined, EyeOutlined,
@@ -13,7 +13,7 @@ import ChatPanel from '../components/ChatPanel'
 import type { Message } from '../components/ChatPanel'
 import { MarkdownContent, mdStyles } from '../components/MarkdownContent'
 import { useAppStore } from '../stores/appStore'
-import { countTextChars } from '../utils/text'
+import { countTextChars, extractSettingText } from '../utils/text'
 import * as App from '../../src/wailsjsCompat'
 
 type EditorMode = 'edit' | 'split' | 'preview'
@@ -131,6 +131,28 @@ const NovelSettingPage: React.FC = () => {
     }
   }
 
+  /** 手动将某条 AI 回复应用到设定编辑器（覆盖） */
+  const handleApplyAiOutput = useCallback((msg: Message) => {
+    const text = extractSettingText(msg.content)
+    if (!text) {
+      message.warning('这条消息没有可应用的内容')
+      return
+    }
+    Modal.confirm({
+      title: '将 AI 输出应用到设定',
+      content: text !== msg.content.trim()
+        ? '已提取回复中的 Markdown 代码块，将覆盖当前设定编辑器内容；未保存的修改会丢失。'
+        : '将用这条 AI 回复的完整内容覆盖当前设定编辑器；未保存的修改会丢失。',
+      okText: '覆盖设定',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: () => {
+        setContent(text)
+        message.success('已应用到设定编辑器，点击「保存」生效')
+      },
+    })
+  }, [])
+
   const editorPane = (
     <Input.TextArea
       className="novel-editor"
@@ -229,6 +251,7 @@ const NovelSettingPage: React.FC = () => {
           messages={messages}
           onSend={handleChatSend}
           onMessagesChange={setMessages}
+          onApply={handleApplyAiOutput}
           placeholder="描述你想要的设定修改，AI 帮你调整…"
           fillHeight
         />

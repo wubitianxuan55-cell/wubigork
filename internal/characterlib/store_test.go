@@ -1,6 +1,8 @@
 package characterlib
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -353,6 +355,75 @@ func TestMigratePortraitsToFiles(t *testing.T) {
 	got, _ := s.Get("h1")
 	if got == nil || got.PortraitURL == huge {
 		t.Fatalf("迁移后应指向文件: %+v", got)
+	}
+	if _, err := os.Stat(got.PortraitURL); err != nil {
+		t.Fatalf("迁移文件不存在: %v", err)
+	}
+}
+
+// TestUpsertLocalizesRemotePortrait 远程剧照（xAI 临时图等）保存时下载到本地。
+func TestUpsertLocalizesRemotePortrait(t *testing.T) {
+	body := []byte("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	s := NewStore(dir)
+	if s == nil || s.db == nil {
+		t.Fatal("store 不可用")
+	}
+	defer s.Close()
+
+	remote := srv.URL + "/portrait.png"
+	c := &Character{ID: "r1", Name: "远程图", Kind: KindCustom, PortraitURL: remote}
+	if err := s.Upsert(c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Get("r1")
+	if err != nil || got == nil {
+		t.Fatalf("Get: %v %v", err, got)
+	}
+	if got.PortraitURL == remote {
+		t.Fatal("远程 URL 应被下载为本地文件路径")
+	}
+	if _, err := os.Stat(got.PortraitURL); err != nil {
+		t.Fatalf("下载的剧照文件不存在: %v", err)
+	}
+}
+
+// TestMigrateRemotePortraits 历史遗留的远程剧照 URL 启动时迁移为本地文件。
+func TestMigrateRemotePortraits(t *testing.T) {
+	body := []byte("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	s := NewStore(dir)
+	if s == nil || s.db == nil {
+		t.Fatal("store 不可用")
+	}
+	defer s.Close()
+
+	// 直写 DB 模拟历史遗留行（绕过 Upsert 的下载逻辑）
+	remote := srv.URL + "/legacy.png"
+	if _, err := s.db.Exec(
+		`INSERT INTO characters (id, name, kind, portrait_url, created_at, updated_at) VALUES ('l1', '遗留', 'custom', ?, 'x', 'x')`,
+		remote); err != nil {
+		t.Fatal(err)
+	}
+	n := s.MigrateRemotePortraits()
+	if n != 1 {
+		t.Fatalf("迁移数 = %d, want 1", n)
+	}
+	got, _ := s.Get("l1")
+	if got == nil || got.PortraitURL == remote {
+		t.Fatalf("迁移后应指向本地文件: %+v", got)
 	}
 	if _, err := os.Stat(got.PortraitURL); err != nil {
 		t.Fatalf("迁移文件不存在: %v", err)

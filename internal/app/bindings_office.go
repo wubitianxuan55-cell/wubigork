@@ -16,6 +16,7 @@ func (b *OfficeB) GaeaAcceptMemorySuggestion(candidate interface{}) (string, err
 func (b *OfficeB) GaeaAcceptSkillSuggestion(candidate interface{}) (string, error) { return b.a.GaeaAcceptSkillSuggestion(candidate) }
 func (b *OfficeB) GaeaAddMCPServer(input MCPServerInput) (int, error) { return b.a.GaeaAddMCPServer(input) }
 func (b *OfficeB) GaeaAddPermissionRule(list string, rule string) error { return b.a.GaeaAddPermissionRule(list, rule) }
+func (b *OfficeB) GaeaAddRequirementItem(path string, text string) error { return b.a.GaeaAddRequirementItem(path, text) }
 func (b *OfficeB) GaeaAgentMode() string { return b.a.GaeaAgentMode() }
 func (b *OfficeB) GaeaAnswer(id string, answers []event.AskAnswer) { b.a.GaeaAnswer(id, answers) }
 func (b *OfficeB) GaeaApplyUpdate() error { return b.a.GaeaApplyUpdate() }
@@ -86,6 +87,7 @@ func (b *OfficeB) GaeaReload() (GaeaReloadResult, error) { return b.a.GaeaReload
 func (b *OfficeB) GaeaRemember(scope string, note string) (string, error) { return b.a.GaeaRemember(scope, note) }
 func (b *OfficeB) GaeaRemoveMCPServer(name string) error { return b.a.GaeaRemoveMCPServer(name) }
 func (b *OfficeB) GaeaRemovePermissionRule(list string, rule string) error { return b.a.GaeaRemovePermissionRule(list, rule) }
+func (b *OfficeB) GaeaRemoveRequirementItem(path string, index int) error { return b.a.GaeaRemoveRequirementItem(path, index) }
 func (b *OfficeB) GaeaRenameSession(path string, title string) error { return b.a.GaeaRenameSession(path, title) }
 func (b *OfficeB) GaeaRequirement(path string) RequirementView { return b.a.GaeaRequirement(path) }
 func (b *OfficeB) GaeaResumeSession(path string) ([]HistoryMessage, error) { return b.a.GaeaResumeSession(path) }
@@ -110,7 +112,10 @@ func (b *OfficeB) GaeaSetPermLevel(level string) error { return b.a.GaeaSetPermL
 func (b *OfficeB) GaeaSetPermissionMode(mode string) error { return b.a.GaeaSetPermissionMode(mode) }
 func (b *OfficeB) GaeaSetProviderKey(apiKeyEnv string, value string) error { return b.a.GaeaSetProviderKey(apiKeyEnv, value) }
 func (b *OfficeB) GaeaSetRequirement(path string, text string) error { return b.a.GaeaSetRequirement(path, text) }
+func (b *OfficeB) GaeaSetRequirementAutoPursue(path string, on bool) error { return b.a.GaeaSetRequirementAutoPursue(path, on) }
 func (b *OfficeB) GaeaSetRequirementDone(path string, done bool) error { return b.a.GaeaSetRequirementDone(path, done) }
+func (b *OfficeB) GaeaSetRequirementItem(path string, index int, text string) error { return b.a.GaeaSetRequirementItem(path, index, text) }
+func (b *OfficeB) GaeaSetRequirementItemDone(path string, index int, done bool) error { return b.a.GaeaSetRequirementItemDone(path, index, done) }
 func (b *OfficeB) GaeaSetSandbox(bash string, network bool, workspaceRoot string, allowWrite []string) error { return b.a.GaeaSetSandbox(bash, network, workspaceRoot, allowWrite) }
 func (b *OfficeB) GaeaSetSubagentEffort(effort string) error { return b.a.GaeaSetSubagentEffort(effort) }
 func (b *OfficeB) GaeaSetSubagentModelForSkill(skill string, ref string) error { return b.a.GaeaSetSubagentModelForSkill(skill, ref) }

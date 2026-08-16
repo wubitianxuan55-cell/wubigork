@@ -4,7 +4,7 @@ import NovelSidebar from '../components/novel/NovelSidebar'
 import NovelInspector from '../components/novel/NovelInspector'
 import {
   HomeOutlined, FileTextOutlined, UserOutlined,
-  ThunderboltOutlined, BookOutlined, ExportOutlined,
+  ThunderboltOutlined, BookOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import { useOutlineStore } from '../stores/outlineStore'
@@ -18,9 +18,8 @@ const NovelSettingPage = React.lazy(() => import('./NovelSettingPage'))
 const CharacterPage = React.lazy(() => import('./CharacterPage'))
 const CreatePage = React.lazy(() => import('./CreatePage'))
 const ChapterPage = React.lazy(() => import('./ChapterPage'))
-const ExportPage = React.lazy(() => import('./ExportPage'))
 
-export type NovelTab = 'home' | 'novelsetting' | 'character' | 'create' | 'chapter' | 'export'
+export type NovelTab = 'home' | 'novelsetting' | 'character' | 'create' | 'chapter'
 const NOVEL_TAB_KEY = 'gaea.novel.activeTab'
 const NOVEL_SIDE_KEY = 'gaea.novel.sideCollapsed'
 const NOVEL_INSPECTOR_KEY = 'gaea.novel.inspectorCollapsed'
@@ -28,7 +27,7 @@ const NOVEL_INSPECTOR_KEY = 'gaea.novel.inspectorCollapsed'
 function loadActiveTab(): NovelTab {
   try {
     const v = localStorage.getItem(NOVEL_TAB_KEY)
-    if (v === 'home' || v === 'novelsetting' || v === 'character' || v === 'create' || v === 'chapter' || v === 'export') {
+    if (v === 'home' || v === 'novelsetting' || v === 'character' || v === 'create' || v === 'chapter') {
       return v
     }
   } catch { /* ignore */ }
@@ -45,7 +44,6 @@ const tabItems = [
   { key: 'character', icon: <UserOutlined />, label: '角色', component: CharacterPage },
   { key: 'create', icon: <ThunderboltOutlined />, label: '创作', component: CreatePage },
   { key: 'chapter', icon: <BookOutlined />, label: '阅读', component: ChapterPage },
-  { key: 'export', icon: <ExportOutlined />, label: '导出', component: ExportPage },
 ] as const
 
 /** 世界构建工作台：轨道式细条子导航 + 3 分区（侧栏 / 主视图 / 属性 inspector） */

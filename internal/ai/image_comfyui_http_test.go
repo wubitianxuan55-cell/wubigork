@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 // comfyHTTPServer 一个可编程的 ComfyUI 假服务：按路径记录调用并返回脚本化响应。
@@ -429,11 +431,78 @@ func TestWaitForResult_CancelExitsPromptly(t *testing.T) {
 		cancel()
 	}()
 	start := time.Now()
-	_, _, err := b.waitForResult(ctx, "pid-cancel", &ImageGenerationRequest{})
+	_, _, err := b.waitForResult(ctx, "pid-cancel", &ImageGenerationRequest{}, nil)
 	if err != context.Canceled {
 		t.Fatalf("取消后应返回 context.Canceled, got %v", err)
 	}
 	if elapsed := time.Since(start); elapsed > 2*time.Second {
 		t.Fatalf("取消后轮询未即刻退出: %v", elapsed)
+	}
+}
+
+// TestPollComfyProgress 验证 WebSocket 实时进度：percent 计算 + 节点 id→class_type 映射。
+func TestPollComfyProgress(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/ws") {
+			w.WriteHeader(404)
+			return
+		}
+		up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+		conn, err := up.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_ = conn.WriteJSON(map[string]interface{}{
+			"type": "progress_state",
+			"data": map[string]interface{}{
+				"prompt_id": "p1",
+				"nodes": map[string]interface{}{
+					"3": map[string]interface{}{"value": 6, "max": 8, "state": "running", "node_id": "3"},
+				},
+			},
+		})
+		// 保持连接直到客户端断开（cancel 后关闭）
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	defer srv.Close()
+
+	b := NewComfyUIBackend(srv.URL)
+	got := make(chan string, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go b.pollComfyProgress(ctx, "p1", map[string]string{"3": "KSampler"}, func(status string, elapsed int, percent int, node string) {
+		select {
+		case got <- fmt.Sprintf("%d|%s", percent, node):
+		default:
+		}
+	})
+
+	select {
+	case v := <-got:
+		if v != "75|KSampler" {
+			t.Fatalf("progress = %q, want 75|KSampler", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("等待 ws 进度回调超时")
+	}
+}
+
+func TestClampPercent(t *testing.T) {
+	if got := clampPercent(0); got != 0 {
+		t.Fatalf("clampPercent(0) = %d", got)
+	}
+	if got := clampPercent(0.5); got != 50 {
+		t.Fatalf("clampPercent(0.5) = %d", got)
+	}
+	if got := clampPercent(1.2); got != 100 {
+		t.Fatalf("clampPercent(1.2) = %d", got)
+	}
+	if got := clampPercent(-0.2); got != 0 {
+		t.Fatalf("clampPercent(-0.2) = %d", got)
 	}
 }

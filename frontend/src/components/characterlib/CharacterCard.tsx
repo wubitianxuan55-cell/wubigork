@@ -133,14 +133,14 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             <Button size="small" type="text" icon={<DatabaseOutlined />} title="查看状态 / 记忆 / 追踪"
               onClick={e => { e.stopPropagation(); onMemory(c) }} />
           )}
-          {hasProject && (
-            inProject ? (
+          {inProject ? (
+            hasProject && (
               <Button size="small" type="text" icon={<ReadOutlined />} title="从当前项目移除"
                 onClick={e => { e.stopPropagation(); onDissociate(c) }}>已加入</Button>
-            ) : (
-              <Button size="small" type="text" icon={<ReadOutlined />} title="加入当前项目"
-                onClick={e => { e.stopPropagation(); onAssociate(c) }}>加入项目</Button>
             )
+          ) : (
+            <Button size="small" type="text" icon={<ReadOutlined />} title="加入项目（可选择任意小说）"
+              onClick={e => { e.stopPropagation(); onAssociate(c) }}>加入项目</Button>
           )}
           <Popconfirm
             title={c.kind === 'builtin' ? `隐藏「${c.name}」？` : `删除「${c.name}」？删除会同时清理项目引用与聊天通道`}

@@ -55,6 +55,7 @@ import type {
   WorkspaceView,
   MemoryHubOverview,
   ProfileFactView,
+  ProgrammingWebStatus,
   WhisperEpisodeView,
   WhisperMemoryView,
   MemoryGraphView,
@@ -132,10 +133,16 @@ export interface AppBindings {
   PinSession(path: string, pinned: boolean): Promise<void>;
   DeleteSession(path: string): Promise<void>;
   RenameSession(path: string, title: string): Promise<void>;
-  // Requirement 是会话「任务目标」：读取 / 设置（空文本清除）/ 标记验收。
+  // Requirement 是会话「任务目标」：读取 / 设置（空文本清除）/ 标记验收 /
+  // 验收清单增删改勾选 / 自动追踪开关（开启后写入 agent goal gate）。
   Requirement(path: string): Promise<Requirement>;
   SetRequirement(path: string, text: string): Promise<void>;
   SetRequirementDone(path: string, done: boolean): Promise<void>;
+  AddRequirementItem(path: string, text: string): Promise<void>;
+  SetRequirementItem(path: string, index: number, text: string): Promise<void>;
+  RemoveRequirementItem(path: string, index: number): Promise<void>;
+  SetRequirementItemDone(path: string, index: number, done: boolean): Promise<void>;
+  SetRequirementAutoPursue(path: string, on: boolean): Promise<void>;
   // Workspace: open a folder chooser and switch to that project (fresh session);
   // returns the chosen path, or "" if cancelled.
   ListWorkspaces(): Promise<WorkspaceView[]>;
@@ -411,7 +418,7 @@ export interface AppBindings {
   // GetProgrammingWebStatus 返回运行状态（running/owned/pid/url/root）；
   // StartProgrammingWeb 启动 dsh web（已运行幂等返回）；StopProgrammingWeb
   // 仅停止 gaea 自启实例（外部实例返回提示，不误杀）。
-  GetProgrammingWebStatus(): Promise<Record<string, any>>;
+  GetProgrammingWebStatus(): Promise<ProgrammingWebStatus>;
   StartProgrammingWeb(): Promise<void>;
   StopProgrammingWeb(): Promise<void>;
 }
@@ -536,6 +543,11 @@ const gaeaToGaea = {
   Requirement: "GaeaRequirement",
   SetRequirement: "GaeaSetRequirement",
   SetRequirementDone: "GaeaSetRequirementDone",
+  AddRequirementItem: "GaeaAddRequirementItem",
+  SetRequirementItem: "GaeaSetRequirementItem",
+  RemoveRequirementItem: "GaeaRemoveRequirementItem",
+  SetRequirementItemDone: "GaeaSetRequirementItemDone",
+  SetRequirementAutoPursue: "GaeaSetRequirementAutoPursue",
   ListWorkspaces: "GaeaListWorkspaces",
   PickWorkspace: "GaeaPickWorkspace",
   SwitchWorkspace: "GaeaSwitchWorkspace",
@@ -956,6 +968,7 @@ type LegacySurfaceNames =
   | "CancelCreateChapter"
   | "CancelImageGeneration"
   | "CharacterAssociate"
+  | "CharacterAssociateTo"
   | "CharacterDelete"
   | "CharacterDissociate"
   | "CharacterDrawRandom"
@@ -1106,6 +1119,7 @@ type LegacySurfaceNames =
   | "HerdsmanModelUninstall"
   | "HerdsmanProbe"
   | "HerdsmanSecurityCheck"
+  | "ImportNovelBook"
   | "ImportStyleProfile"
   | "InjectMemories"
   | "IsProjectV4"
@@ -1118,6 +1132,8 @@ type LegacySurfaceNames =
   | "MainBrainChat"
   | "MergeCharacters"
   | "MigrateProjectToV4"
+  | "NovelReadingAsk"
+  | "NovelSearch"
   | "OfficeCancelJob"
   | "OfficeExecute"
   | "OfficeGetJobState"

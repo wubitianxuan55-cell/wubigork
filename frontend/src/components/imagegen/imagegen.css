@@ -286,8 +286,8 @@
   overflow: hidden;
   flex-shrink: 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 12px;
   margin: 10px 12px 12px;
   padding: 10px 14px;
@@ -297,6 +297,55 @@
   -webkit-backdrop-filter: blur(20px) saturate(150%);
   backdrop-filter: blur(20px) saturate(150%);
   box-shadow: 0 10px 34px color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+}
+
+/* 底部栏内容行（进度条下方：提示 + 操作） */
+.ig-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+
+/* ── 生成进度（ComfyUI 实时百分比 / 其余后端不定态光带） ── */
+.ig-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ig-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--md-sys-color-text, var(--color-text)) 10%, transparent);
+  overflow: hidden;
+}
+
+.ig-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-primary), var(--gaea-glow));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--gaea-glow) 55%, transparent);
+  transition: width 320ms ease;
+}
+
+.ig-progress-fill.is-indeterminate {
+  width: 42%;
+  animation: ig-progress-slide 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.ig-progress-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-text-secondary, var(--color-text-secondary));
 }
 
 /* 顶部 1px 高光线 */
@@ -541,6 +590,53 @@
 .ig-template-row:hover {
   border-color: color-mix(in srgb, var(--gaea-glow) 35%, transparent);
   background: color-mix(in srgb, var(--gaea-glow) 7%, transparent);
+}
+
+/* ── 模板库面板（参考 herdsman 灵感示例：横向滚动分类页签 + 三列卡片） ── */
+.ig-tpl-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 8px;
+  margin-bottom: 10px;
+  scrollbar-width: thin;
+}
+
+.ig-tpl-tab {
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 5px 15px;
+  font-size: 12px;
+  font-family: inherit;
+  border: 1px solid var(--border-subtle);
+  background: var(--color-surface-container);
+  color: var(--color-text-secondary);
+  transition: all 0.15s ease;
+}
+
+.ig-tpl-tab:hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 35%, transparent);
+  color: var(--color-text);
+}
+
+.ig-tpl-tab.is-active {
+  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.ig-tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  max-height: 430px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-width: thin;
 }
 
 .ig-task-center .img-card {

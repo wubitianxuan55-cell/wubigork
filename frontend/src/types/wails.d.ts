@@ -49,6 +49,21 @@ interface ProjectCard {
   last_opened_at: string // ISO8601
 }
 
+/** 原生文件选择结果（对齐 internal/app FilePickResult） */
+interface FilePickResult {
+  path: string
+  name: string
+  size: number
+}
+
+/** 导入成品小说结果（对齐 internal/app NovelImportResult） */
+interface NovelImportResult {
+  path: string
+  title: string
+  chapter_count: number
+  total_words: number
+}
+
 /** 写作统计摘要（对齐 internal/app/stats_handler.go GetStats） */
 interface StatsData {
   totalWords: number
@@ -116,6 +131,8 @@ export interface AppAPI {
   GetNovelsDir(): string
   ListProjects(): Promise<ProjectCard[]>
   DeleteProject(dir: string): Promise<void>
+  GaeaPickFiles(): Promise<FilePickResult[]>
+  ImportNovelBook(filePath: string, title: string, genre: string, style: string): Promise<NovelImportResult>
 
   // ── 大纲 ──
   GetOutlines(): { nodes: OutlineNode[]; story_thread?: string }

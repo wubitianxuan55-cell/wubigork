@@ -51,6 +51,13 @@ async function startGeneration() {
 }
 
 describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', () => {
+  it('默认使用 story-deslop 技能生成章节', async () => {
+    await startGeneration()
+    expect(mocks.CreateChapter).toHaveBeenCalledWith(
+      expect.any(String), '', '主角觉醒', 0, '', 'story-deslop', 5000, 0,
+    )
+  })
+
   it('生成中渲染停止按钮；点击调用 NovelB.CancelCreateChapter(chapNum, branch)', async () => {
     await startGeneration()
     const stop = screen.getByRole('button', { name: /停止生成/ })
@@ -101,5 +108,31 @@ describe('CreatePage 生成控制（T6-7.2 停止按钮 + cancelled 事件）', 
     fireEvent.click(screen.getByRole('button', { name: /停止生成/ }))
     await waitFor(() => expect(screen.queryByRole('button', { name: /停止生成/ })).toBeNull())
     expect(EventsOff).toHaveBeenCalledWith('create-chapter-stream')
+  })
+
+  it('构思剧情分支在后台进行（不弹阻塞弹窗），完成后弹窗确认并生成', async () => {
+    vi.mocked(mocks.QuickBrainstormBranches).mockResolvedValue({
+      branches: [{ title: '帝国阴谋', summary: '朝堂暗流涌动' }],
+    })
+    render(<CreatePage />)
+
+    // 点击「构思剧情方向」：构思完成前不出现弹窗，可继续操作
+    fireEvent.click(await screen.findByRole('button', { name: /构思剧情方向/ }))
+    expect(screen.queryByRole('dialog', { name: /剧情方向/ })).toBeNull()
+
+    // 构思完成后弹出确认弹窗，展示分支
+    const dialog = await screen.findByRole('dialog', { name: /剧情方向/ })
+    expect(dialog.textContent).toContain('帝国阴谋')
+    expect(dialog.textContent).toContain('朝堂暗流涌动')
+
+    // 选择分支并生成 → CreateChapter 携带分支拼装的剧情要求
+    fireEvent.click(screen.getByText(/帝国阴谋/))
+    fireEvent.click(screen.getByRole('button', { name: /^生\s*成$/ }))
+    await waitFor(() => {
+      expect(mocks.CreateChapter).toHaveBeenCalledWith(
+        expect.any(String), '', expect.stringContaining('帝国阴谋'), 0, '', 'story-deslop', 5000, 0,
+      )
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /剧情方向/ })).toBeNull())
   })
 })

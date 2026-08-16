@@ -192,7 +192,9 @@ type ImageGenerationRequest struct {
 	Denoise          float64                                 `json:"denoise,omitempty"`    // img2img 重绘幅度 0-1
 	Frames           int                                     `json:"frames,omitempty"`     // t2v 帧数
 	FPS              int                                     `json:"fps,omitempty"`        // t2v 帧率
-	ProgressCallback func(status string, elapsedSeconds int) `json:"-"`
+	// ProgressCallback 生成进度回调（status/elapsedSeconds/percent(-1=未知)/node 当前节点 class_type）。
+	// 仅 ComfyUI 后端会带上真实 percent 与 node；其余后端 percent 恒为 -1。
+	ProgressCallback func(status string, elapsedSeconds int, percent int, node string) `json:"-"`
 }
 
 // PortraitStylePrefix 角色剧照统一前置风格提示词（写实摄影风）。

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Button, Spin, Typography, Input } from 'antd'
+import { Button, Spin, Typography, Input, Tooltip, Space } from 'antd'
 import {
   EditOutlined, LoadingOutlined, ReloadOutlined, SaveOutlined,
   PlusOutlined, ThunderboltOutlined, StopOutlined,
@@ -29,6 +29,9 @@ interface EditorPanelProps {
   hasChapters: boolean
   nextChapterNum: number
   onOpenWizard: (prevChapter: number) => void
+  /** 正文编辑字号（px） */
+  editorFontSize?: number
+  onEditorFontSizeChange?: (value: number) => void
 }
 
 /** 中部编辑器面板（T6-7.5 从 CreatePage 拆分）：标题/状态标签/字数 + 正文编辑 + 生成进度与停止按钮 */
@@ -36,8 +39,12 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   activeNode, content, onContentChange, chapterLoading,
   generating, genPhase, genPercent, stopping, saving,
   onRegenerate, onSave, onStop, hasChapters, nextChapterNum, onOpenWizard,
+  editorFontSize = 15, onEditorFontSizeChange,
 }) => (
-  <section className="novel-editor-panel novel-workspace-col novel-editor-col">
+  <section
+    className="novel-editor-panel novel-workspace-col novel-editor-col"
+    style={{ '--novel-editor-font-size': `${editorFontSize}px` } as React.CSSProperties}
+  >
     <div className="novel-panel-head">
       <span className="novel-panel-title">
         {activeNode ? (activeNode.title || chapterLabel(activeNode.order_index)) : '正文编辑'}
@@ -46,6 +53,35 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       {activeNode?.status === 'done' && <span className="novel-tag-tone is-success">已写入</span>}
       <div style={{ flex: 1 }} />
       <span className="novel-setting-meta">{countTextChars(content).toLocaleString()} 字</span>
+      <Space size={2}>
+        <Tooltip title="减小字号">
+          <Button
+            size="small"
+            aria-label="减小字号"
+            disabled={editorFontSize <= 12}
+            onClick={() => onEditorFontSizeChange?.(Math.max(12, editorFontSize - 1))}
+            style={{ padding: '0 7px', fontSize: 11, color: C('color-text-secondary') }}
+          >
+            A−
+          </Button>
+        </Tooltip>
+        <Tooltip title="增大字号">
+          <Button
+            size="small"
+            aria-label="增大字号"
+            disabled={editorFontSize >= 24}
+            onClick={() => onEditorFontSizeChange?.(Math.min(24, editorFontSize + 1))}
+            style={{ padding: '0 7px', fontSize: 11, color: C('color-text-secondary') }}
+          >
+            A+
+          </Button>
+        </Tooltip>
+        <Tooltip title="正文字号">
+          <span style={{ fontSize: 11, color: C('color-text-secondary'), minWidth: 34, textAlign: 'center', display: 'inline-block' }}>
+            {editorFontSize}px
+          </span>
+        </Tooltip>
+      </Space>
       {activeNode && (
         <Button size="small" icon={<ReloadOutlined />} onClick={onRegenerate}>重写</Button>
       )}

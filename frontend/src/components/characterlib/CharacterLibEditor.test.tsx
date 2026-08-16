@@ -195,6 +195,26 @@ describe('CharacterLibEditor（档案详情）', () => {
     })
   })
 
+  it('五维人格骰子调用 generateRandom(fields=dims) 并按性格回填', async () => {
+    mockedRandom.mockResolvedValue(makeCharacter({ dims: { T: 20, I: 30, S: 40, O: 50, R: 80 } }))
+    renderEditor()
+    fireEvent.click(screen.getByTitle('按性格随机五维人格'))
+    await vi.waitFor(() => {
+      expect(mockedRandom).toHaveBeenCalledTimes(1)
+      expect(mockedRandom.mock.calls[0][1]).toBe('dims')
+    })
+  })
+
+  it('随机补齐后五维人格默认值时计入填充数', async () => {
+    mockedFill.mockResolvedValue(makeCharacter({ dims: { T: 85, I: 40, S: 20, O: 70, R: 60 } }))
+    renderEditor({ character: makeCharacter({ dims: { T: 50, I: 50, S: 50, O: 50, R: 50 } }) })
+    fireEvent.click(screen.getByText('随机补齐'))
+    await vi.waitFor(() => {
+      expect(mockedFill).toHaveBeenCalledTimes(1)
+      expect(screen.getByText(/已补齐 1 处空缺/)).toBeTruthy()
+    })
+  })
+
   it('枚举字段（性别）本地随机，不调用后端', () => {
     renderEditor()
     fireEvent.click(screen.getByTitle('随机生成性别'))

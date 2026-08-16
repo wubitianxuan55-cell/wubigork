@@ -40,7 +40,7 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
   const [elapsed, setElapsed] = useState(0)
   const [lastTime, setLastTime] = useState(0)
   const [genError, setGenError] = useState('')
-  const [comfyProgress, setComfyProgress] = useState({ status: '', elapsed: 0 })
+  const [comfyProgress, setComfyProgress] = useState({ status: '', elapsed: 0, percent: -1, node: '' })
   const [results, setResults] = useState<GenResult[]>([])
   const [pendingCount, setPendingCount] = useState(0)
   const [queueItems, setQueueItems] = useState<QueueEntry[]>([])
@@ -274,13 +274,13 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
   // ComfyUI 任务状态轮询
   useEffect(() => {
     if (!generating || config.backend !== 'comfyui') {
-      setComfyProgress({ status: '', elapsed: 0 })
+      setComfyProgress({ status: '', elapsed: 0, percent: -1, node: '' })
       return
     }
     let cancelled = false
     const tick = async () => {
       const p = await getComfyUITaskProgress()
-      if (!cancelled) setComfyProgress(p)
+      if (!cancelled) setComfyProgress({ status: p.status, elapsed: p.elapsed, percent: p.percent ?? -1, node: p.node || '' })
     }
     tick()
     const timer = setInterval(tick, 2000)

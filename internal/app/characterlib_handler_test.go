@@ -138,6 +138,100 @@ func TestCharacterImportAssociateSyncProject(t *testing.T) {
 	}
 }
 
+// TestCharacterAssociateTo_PicksSpecificNovel 回归：角色库「加入项目」时
+// 应能选择任意小说，而不是只能加入当前打开的项目。
+func TestCharacterAssociateTo_PicksSpecificNovel(t *testing.T) {
+	a := newCharacterLibTestApp(t)
+	a.cfg.NovelsDir = t.TempDir()
+
+	// 当前打开的项目 A
+	dirA := filepath.Join(a.cfg.NovelsDir, "novelA")
+	pmA, err := project.Create(dirA, "小说A", "玄幻", "", "")
+	if err != nil {
+		t.Fatalf("创建项目A: %v", err)
+	}
+	a.setPM(pmA)
+	a.characterAgent = character.New(nil, pmA, a.cfg, nil)
+
+	// 未打开的另一个项目 B
+	dirB := filepath.Join(a.cfg.NovelsDir, "novelB")
+	if _, err := project.Create(dirB, "小说B", "都市", "", ""); err != nil {
+		t.Fatalf("创建项目B: %v", err)
+	}
+
+	c, err := a.CharacterSave(`{"id":"ch_1","name":"林晚","roleType":"protagonist","chatEnabled":false}`)
+	if err != nil {
+		t.Fatalf("保存角色: %v", err)
+	}
+
+	// 指定加入 B（不改变当前项目 A）
+	if err := a.CharacterAssociateTo(dirB, c.ID, "supporting"); err != nil {
+		t.Fatalf("加入指定小说: %v", err)
+	}
+	projects, err := a.charLib.ProjectIDsForCharacter(c.ID)
+	if err != nil || len(projects) != 1 || projects[0] != dirB {
+		t.Fatalf("应只加入小说B: %v %v", projects, err)
+	}
+	// 角色必须物化进小说 B 的 characters.json，小说角色面板才可见
+	pmB, err := project.Open(dirB)
+	if err != nil {
+		t.Fatalf("打开小说B: %v", err)
+	}
+	cfB, err := pmB.ReadCharacters()
+	if err != nil || len(cfB.Characters) != 1 || cfB.Characters[0].ID != c.ID {
+		t.Fatalf("角色应物化进小说B characters.json: %+v %v", cfB, err)
+	}
+	if a.getPM().Dir != dirA {
+		t.Fatalf("当前打开的项目不应被改变: %v", a.getPM().Dir)
+	}
+
+	// 非法目录 / 无效项目应被拒绝
+	if err := a.CharacterAssociateTo(filepath.Join(t.TempDir(), "outside"), c.ID, ""); err == nil {
+		t.Fatalf("书架外的目录应被拒绝")
+	}
+	if err := a.CharacterAssociateTo(filepath.Join(a.cfg.NovelsDir, "not-a-novel"), c.ID, ""); err == nil {
+		t.Fatalf("无 project.json 的目录应被拒绝")
+	}
+}
+
+// TestGetCharacters_HealsOrphanLibraryRefs 回归：旧版本从角色库「加入项目」
+// 只写关联表、未物化 characters.json，打开小说角色面板（GetCharacters）时
+// 应自动按 ID 合入，保证角色立即可见。
+func TestGetCharacters_HealsOrphanLibraryRefs(t *testing.T) {
+	a := newCharacterLibTestApp(t)
+	a.cfg.NovelsDir = t.TempDir()
+	dir := filepath.Join(a.cfg.NovelsDir, "novelA")
+	pm, err := project.Create(dir, "测试小说", "玄幻", "", "")
+	if err != nil {
+		t.Fatalf("创建项目: %v", err)
+	}
+	a.setPM(pm)
+	a.characterAgent = character.New(nil, pm, a.cfg, nil)
+
+	c, err := a.CharacterSave(`{"id":"ch_1","name":"林晚","roleType":"protagonist","chatEnabled":false}`)
+	if err != nil {
+		t.Fatalf("保存角色: %v", err)
+	}
+	// 模拟旧版「加入项目」：只写关联表，characters.json 保持为空
+	if err := a.charLib.Associate(dir, c.ID, "protagonist", "", "Alive"); err != nil {
+		t.Fatalf("关联角色: %v", err)
+	}
+	cf0, err := pm.ReadCharacters()
+	if err != nil || len(cf0.Characters) != 0 {
+		t.Fatalf("前置：characters.json 应为空: %+v %v", cf0, err)
+	}
+
+	data := a.GetCharacters()
+	chars, ok := data["characters"].([]types.Character)
+	if !ok || len(chars) != 1 || chars[0].ID != c.ID {
+		t.Fatalf("GetCharacters 应包含角色库关联角色: %+v", data)
+	}
+	cf1, err := pm.ReadCharacters()
+	if err != nil || len(cf1.Characters) != 1 || cf1.Characters[0].Name != "林晚" {
+		t.Fatalf("characters.json 应已写入物化副本: %+v %v", cf1, err)
+	}
+}
+
 func TestCharacterSave_JSONRoundTrip(t *testing.T) {
 	a := newCharacterLibTestApp(t)
 	c, err := a.CharacterSave(`{"name":"测试角色","chatEnabled":false,"roleType":"supporting"}`)

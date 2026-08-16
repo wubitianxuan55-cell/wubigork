@@ -131,6 +131,8 @@ type mediaState struct {
 	comfyTaskMu      sync.RWMutex
 	comfyTaskStatus  string
 	comfyTaskElapsed int
+	comfyTaskPercent int
+	comfyTaskNode    string
 }
 
 // whisperState 是轻语域状态（AI 人格/虚拟助手/微信通道）。
@@ -320,12 +322,30 @@ func (a *App) Startup(ctx context.Context) {
 	if n := a.charLib.MigratePortraitsToFiles(); n > 0 {
 		slog.Info("角色库剧照已迁移为文件", "count", n)
 	}
+	// 远程剧照（xAI 临时图等会过期）本地化，避免角色卡裂图
+	if n := a.charLib.MigrateRemotePortraits(); n > 0 {
+		slog.Info("角色库远程剧照已本地化", "count", n)
+	}
 	if a.charLib != nil {
 		if err := a.charLib.EnsureBuiltins(whisper.PersonalityPresets); err != nil {
 			slog.Error("角色库种子化内置角色失败", "error", err)
 		}
 		if err := a.charLib.EnsureAssistants(a.assistantMgr.List(), whisper.PersonalityPresets); err != nil {
 			slog.Error("角色库同步助手失败", "error", err)
+		}
+		// 助手记录同步本地化后的剧照路径（聊天人格头像与角色库一致）
+		if a.assistantMgr != nil {
+			for _, c := range a.charLib.ListChatEnabled() {
+				if c.AssistantID == "" || c.PortraitURL == "" {
+					continue
+				}
+				if ast := a.assistantMgr.Get(c.AssistantID); ast != nil && ast.PortraitURL != c.PortraitURL {
+					ast.PortraitURL = c.PortraitURL
+					if err := a.assistantMgr.Update(ast.ID, *ast); err != nil {
+						slog.Warn("同步助手剧照失败", "assistantID", ast.ID, "error", err)
+					}
+				}
+			}
 		}
 	}
 

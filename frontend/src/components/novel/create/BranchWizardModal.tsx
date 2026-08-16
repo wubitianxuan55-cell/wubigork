@@ -15,6 +15,8 @@ interface BranchWizardModalProps {
   onFetchBranches: (prevChapter: number) => Promise<Branch[]>
   /** 确认生成：plotReq 由分支标题或用户输入组装 */
   onStart: (plotReq: string, overwriteChapter: number, branchFromID: string) => void
+  /** 打开时已后台构思完成的分支；为空则打开后自动构思（用于弹窗内「重新构思」） */
+  preloadedBranches?: Branch[]
 }
 
 /**
@@ -22,7 +24,7 @@ interface BranchWizardModalProps {
  * 打开时自动拉取 AI 构思；「重新构思」与「生成」按钮行为与旧实现一致。
  */
 const BranchWizardModal: React.FC<BranchWizardModalProps> = ({
-  open, prevChapter, overwriteChapter, branchFromID, onClose, onFetchBranches, onStart,
+  open, prevChapter, overwriteChapter, branchFromID, onClose, onFetchBranches, onStart, preloadedBranches,
 }) => {
   const [wizStep, setWizStep] = useState<'loading' | 'branches'>('loading')
   const [branches, setBranches] = useState<Branch[]>([])
@@ -45,12 +47,19 @@ const BranchWizardModal: React.FC<BranchWizardModalProps> = ({
     }
   }, [onFetchBranches, prevChapter])
 
-  // 每次打开重新构思（初始即 loading → 拉取 → branches）
+  // 打开时优先使用后台已构思完成的分支，直接进入选择确认；否则自动构思
   useEffect(() => {
     if (open) {
-      void loadBranches()
+      if (preloadedBranches && preloadedBranches.length > 0) {
+        setBranches(preloadedBranches)
+        setSelectedBranch(null)
+        setUserInput('')
+        setWizStep('branches')
+      } else {
+        void loadBranches()
+      }
     }
-  }, [open, loadBranches])
+  }, [open, preloadedBranches, loadBranches])
 
   const confirmGenerate = () => {
     const chosen = selectedBranch !== null ? branches[selectedBranch] : null

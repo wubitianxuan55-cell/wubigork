@@ -10,6 +10,7 @@ const baseProps = {
   content: '正文',
   onContentChange: () => {},
   chapterLoading: false,
+  generating: false,
   genPhase: '正在生成…',
   genPercent: 10,
   stopping: false,
@@ -41,5 +42,23 @@ describe('EditorPanel 生成状态栏（T6-7.2 停止按钮）', () => {
     const stop = screen.getByRole('button', { name: /停止生成/ })
     expect(stop.className).toContain('ant-btn-loading')
     expect(stop).toHaveProperty('disabled', false)
+  })
+
+  it('字号调节：点击 A+ / A− 回调对应步进', () => {
+    const onChange = vi.fn()
+    render(<EditorPanel {...baseProps} editorFontSize={15} onEditorFontSizeChange={onChange} />)
+    fireEvent.click(screen.getByRole('button', { name: /增大字号/ }))
+    expect(onChange).toHaveBeenCalledWith(16)
+    fireEvent.click(screen.getByRole('button', { name: /减小字号/ }))
+    expect(onChange).toHaveBeenCalledWith(14)
+  })
+
+  it('字号到达边界时对应按钮禁用', () => {
+    const { rerender } = render(<EditorPanel {...baseProps} editorFontSize={12} />)
+    expect(screen.getByRole('button', { name: /减小字号/ })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: /增大字号/ })).toHaveProperty('disabled', false)
+    rerender(<EditorPanel {...baseProps} editorFontSize={24} />)
+    expect(screen.getByRole('button', { name: /增大字号/ })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: /减小字号/ })).toHaveProperty('disabled', false)
   })
 })

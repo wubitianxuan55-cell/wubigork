@@ -250,19 +250,73 @@ func TestBuildLTXVideoWorkflow(t *testing.T) {
 	b := &ComfyUIBackend{}
 	wf := b.buildLTXVideoWorkflow("测试 prompt", "低质量", 768, 512, 42, 97, 8, "")
 
-	if wf["1"].(map[string]interface{})["class_type"] != "LTXVLoader" {
-		t.Errorf("节点1 = %v, want LTXVLoader", wf["1"].(map[string]interface{})["class_type"])
+	if wf["1"].(map[string]interface{})["class_type"] != "CheckpointLoaderSimple" {
+		t.Errorf("节点1 = %v, want CheckpointLoaderSimple", wf["1"].(map[string]interface{})["class_type"])
 	}
-	if wf["8"].(map[string]interface{})["class_type"] != "SaveAnimatedWEBP" {
-		t.Errorf("节点8 = %v, want SaveAnimatedWEBP", wf["8"].(map[string]interface{})["class_type"])
+	if wf["12"].(map[string]interface{})["class_type"] != "SaveVideo" {
+		t.Errorf("节点12 = %v, want SaveVideo", wf["12"].(map[string]interface{})["class_type"])
 	}
-	if got := nodeInput(t, wf, "5", "length"); got.(int) != 96 {
+	if got := nodeInput(t, wf, "6", "length"); got.(int) != 96 {
 		t.Errorf("视频帧数 = %v, want 96（97 归一化为 8 的倍数）", got)
 	}
-	if got := nodeInput(t, wf, "5", "width"); got.(int) != 768 {
+	if got := nodeInput(t, wf, "6", "width"); got.(int) != 768 {
 		t.Errorf("视频宽度 = %v, want 768", got)
 	}
-	if got := nodeInput(t, wf, "8", "fps"); got.(int) != 8 {
+	if got := nodeInput(t, wf, "11", "fps"); got.(int) != 8 {
 		t.Errorf("视频 fps = %v, want 8", got)
+	}
+	// SamplerCustom 接线：model=Checkpoint[0]，positive/negative=LTXVConditioning，
+	// sampler=KSamplerSelect，sigmas=LTXVScheduler，latent=EmptyLTXVLatentVideo
+	if got := nodeInput(t, wf, "9", "model"); !equalLink(got, "1", 0) {
+		t.Errorf("SamplerCustom.model = %v, want [1,0]", got)
+	}
+	if got := nodeInput(t, wf, "9", "positive"); !equalLink(got, "5", 0) {
+		t.Errorf("SamplerCustom.positive = %v, want [5,0]", got)
+	}
+	if got := nodeInput(t, wf, "9", "negative"); !equalLink(got, "5", 1) {
+		t.Errorf("SamplerCustom.negative = %v, want [5,1]", got)
+	}
+	if got := nodeInput(t, wf, "9", "sigmas"); !equalLink(got, "7", 0) {
+		t.Errorf("SamplerCustom.sigmas = %v, want [7,0]", got)
+	}
+	if got := nodeInput(t, wf, "12", "video"); !equalLink(got, "11", 0) {
+		t.Errorf("SaveVideo.video = %v, want [11,0]", got)
+	}
+}
+
+// equalLink 断言工作流链接（[]interface{}{节点ID, 输出槽}）。
+func equalLink(got interface{}, wantNode string, wantSlot int) bool {
+	arr, ok := got.([]interface{})
+	if !ok || len(arr) != 2 {
+		return false
+	}
+	return arr[0] == wantNode && arr[1] == wantSlot
+}
+
+func TestComfyExecutionHint(t *testing.T) {
+	cases := []struct {
+		name string
+		msg  string
+		want string
+	}{
+		{"rms_rope", "ComfyUI 执行错误: rms_rope(): incompatible function arguments", "requirements.txt"},
+		{"fp8_layout", "ComfyUI 执行错误: 'NoneType' object has no attribute 'Params'", "requirements.txt"},
+		{"kitchen_import", "ComfyUI 执行错误: cannot import name 'AsymW4A8Int8Layout' from 'comfy_kitchen.tensor'", "requirements.txt"},
+		{"value_not_in_list", "ComfyUI 执行错误: value_not_in_list: model not found", "绘梦页重新选择 LoRA"},
+		{"unknown", "ComfyUI 执行错误: 显存不足", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := comfyExecutionHint(tc.msg)
+			if tc.want == "" {
+				if got != "" {
+					t.Fatalf("comfyExecutionHint(%q) = %q, want 空", tc.msg, got)
+				}
+				return
+			}
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("comfyExecutionHint(%q) = %q, want 包含 %q", tc.msg, got, tc.want)
+			}
+		})
 	}
 }

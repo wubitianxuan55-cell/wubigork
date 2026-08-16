@@ -17,7 +17,7 @@
 import {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
-  SettingOutlined, WechatOutlined, BookOutlined,
+  SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
@@ -27,7 +27,7 @@ import { GetBoardManifests } from '../wailsjsCompat'
 const ICON_REGISTRY: Record<string, ComponentType> = {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
-  SettingOutlined, WechatOutlined, BookOutlined,
+  SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined,
 }
 
 /** 查表解析 antd 图标；未知图标名返回 null（不抛错，渲染时退化） */
@@ -42,7 +42,6 @@ const NOVEL_NAV: BoardNavChild[] = [
   { id: 'character', label: '角色' },
   { id: 'create', label: '创作' },
   { id: 'chapter', label: '阅读' },
-  { id: 'export', label: '导出' },
 ]
 const SETTINGS_NAV: BoardNavChild[] = [
   { id: 'general', label: '通用' }, { id: 'chat', label: '聊天' },
@@ -91,29 +90,34 @@ export const canonicalBoards: BoardManifest[] = [
     menuOrder: 4, inMenu: true, featureModel: 'gaea',
   },
   {
+    id: 'code', label: '编程', icon: 'CodeOutlined', page: 'ProgrammingPage',
+    lazy: true, keepAlive: true, layout: 'padded',
+    menuOrder: 5, inMenu: true,
+  },
+  {
     id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 5, inMenu: true, nav: { children: MEMORYHUB_NAV },
+    menuOrder: 6, inMenu: true, nav: { children: MEMORYHUB_NAV },
   },
   {
     id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 6, inMenu: true,
+    menuOrder: 7, inMenu: true,
   },
   {
     id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 7, inMenu: true, featureModel: 'characterlib',
+    menuOrder: 8, inMenu: true, featureModel: 'characterlib',
   },
   {
     id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 8, inMenu: false, nav: { children: SETTINGS_NAV },
+    menuOrder: 9, inMenu: false, nav: { children: SETTINGS_NAV },
   },
   {
     id: 'weixin', label: '微信', icon: 'WechatOutlined', page: 'WeixinPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 9, inMenu: false,
+    menuOrder: 10, inMenu: false,
   },
 ]
 
@@ -124,7 +128,7 @@ type AssertNever<T extends never> = T
 export type BoardId = (typeof canonicalBoards)[number]['id']
 /** 编译期断言：Page 联合恰好等于 manifest 全部 id（新增板块只改 manifests.ts） */
 type _AssertBoardIdsUnique = AssertNever<never>
-type _AssertBoardIdCoversLegacy = AssertNever<Exclude<'home' | 'chat' | 'novel' | 'imagegen' | 'gaea' | 'memoryhub' | 'modelcenter' | 'characterlib' | 'settings' | 'weixin', BoardId>>
+type _AssertBoardIdCoversLegacy = AssertNever<Exclude<'home' | 'chat' | 'novel' | 'imagegen' | 'gaea' | 'code' | 'memoryhub' | 'modelcenter' | 'characterlib' | 'settings' | 'weixin', BoardId>>
 
 // ─── 派生视图通用实现（列表参数化：静态 canonicalBoards 与活动清单共用）──────
 /** 顶栏菜单：filter(inMenu) + sort(menuOrder)（附 B #4） */

@@ -9,6 +9,10 @@ import { C } from '../utils/theme'
 interface TTSPlayerProps {
   getText: () => string
   onStatusChange?: (playing: boolean) => void
+  /** 每个音频块开始合成/播放时回调对应句子（朗读跟随高亮用） */
+  onSentence?: (sentence: string) => void
+  /** 停止/重新开始时清除朗读高亮 */
+  onClear?: () => void
 }
 
 interface AudioChunk {
@@ -24,11 +28,12 @@ interface TTSStreamEvent {
   engine?: string
   audio?: string
   mimeType?: string
+  text?: string
   done?: boolean
   error?: string
 }
 
-const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange }) => {
+const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSentence, onClear }) => {
   const [playing, setPlaying] = useState(false)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState({ index: 0, total: 0 })
@@ -41,6 +46,10 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange }) => {
   const pausedRef = useRef(false)
   const onStatusChangeRef = useRef(onStatusChange)
   onStatusChangeRef.current = onStatusChange
+  const onSentenceRef = useRef(onSentence)
+  onSentenceRef.current = onSentence
+  const onClearRef = useRef(onClear)
+  onClearRef.current = onClear
 
   // 清理音频资源
   const cleanupAudio = useCallback(() => {
@@ -112,6 +121,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange }) => {
       if (ev.type === 'progress') {
         setProgress({ index: ev.index, total: ev.total })
         setLoading(true)
+        if (ev.text) onSentenceRef.current?.(ev.text)
       } else if (ev.type === 'chunk') {
         if (ev.engine) setEngine(ev.engine)
         if (ev.audio && !stoppedRef.current) {
@@ -159,6 +169,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange }) => {
     setProgress({ index: 0, total: 0 })
     setEngine(null)
     setLoading(true)
+    onClearRef.current?.()
 
     try {
       // @ts-ignore
@@ -187,6 +198,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange }) => {
     setProgress({ index: 0, total: 0 })
     setEngine(null)
     onStatusChangeRef.current?.(false)
+    onClearRef.current?.()
   }
 
   const handleResume = () => {

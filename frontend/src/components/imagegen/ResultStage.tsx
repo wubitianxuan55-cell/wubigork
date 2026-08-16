@@ -128,6 +128,72 @@ export const ResultStage: React.FC<Props> = ({
     )
   }
 
+  // 单张结果：铺满中央画布（object-fit contain 完整展示，不裁剪）
+  if (results.length === 1) {
+    const r = results[0]
+    return (
+      <div
+        className="img-stage-enter"
+        style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex' }}
+      >
+        <div
+          className="img-card"
+          onClick={() => onPreview(0)}
+          style={{
+            position: 'relative', flex: 1, minHeight: 0, borderRadius: 'var(--radius-md)',
+            overflow: 'hidden', border: '1px solid var(--md-sys-color-outline-variant)',
+            background: '#000', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          {mediaIsVideo(r.image) ? (
+            <video
+              src={r.image}
+              controls
+              autoPlay
+              loop
+              muted
+              playsInline
+              style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
+            />
+          ) : (
+            <img
+              src={r.image}
+              alt=""
+              style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
+            />
+          )}
+          {r.kind === 'video' && (
+            <span style={{
+              position: 'absolute', top: 10, left: 10, display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: 'rgba(0,0,0,0.55)', borderRadius: 999, padding: '3px 10px', fontSize: 11, color: '#fff',
+              backdropFilter: 'blur(4px)',
+            }}>
+              <VideoCameraOutlined style={{ fontSize: 11 }} /> 视频
+            </span>
+          )}
+          <div style={{
+            position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.55)',
+            borderRadius: 999, padding: '3px 10px', fontSize: 11, color: '#fff', backdropFilter: 'blur(4px)',
+          }}>
+            {r.time}s
+          </div>
+          <div style={{
+            position: 'absolute', bottom: 12, left: 0, right: 0,
+            display: 'flex', gap: 6, justifyContent: 'center',
+            opacity: 0, transition: 'opacity 0.2s ease', pointerEvents: 'none',
+          }} className="img-card-actions">
+            <Action icon={<ExpandOutlined />} label="预览" onClick={(e) => { e.stopPropagation(); onPreview(0) }} />
+            <Action icon={<DownloadOutlined />} label="下载" onClick={(e) => { e.stopPropagation(); onDownload(0) }} />
+            <Action icon={<SyncOutlined />} label="复用" onClick={(e) => { e.stopPropagation(); onReuse(0) }} />
+            {onDelete && (
+              <Action icon={<DeleteOutlined />} label="删除" onClick={(e) => { e.stopPropagation(); onDelete(0) }} />
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="img-stage-enter" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
       {results.map((r, i) => (
