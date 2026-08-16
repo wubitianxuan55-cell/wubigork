@@ -2,8 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
-  BarChart3, BookOpen, Check, SquarePen, Brain, ChevronDown, FileText, FolderGit2, FolderTree, Paperclip,
-  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, Diff, ClipboardList, List, Square,
+  BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2,
+  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -25,6 +25,7 @@ const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
 import { WorkspacePanel } from "./components/WorkspacePanel";
+import { WorkspaceTabs } from "./components/WorkspaceTabs";
 import { FilePreview } from "./components/FilePreview";
 import { DeliverablesPanel, type SessionDeliverable } from "./components/DeliverablesPanel";
 import { MaterialsPanel } from "./components/MaterialsPanel";
@@ -58,6 +59,7 @@ import { deliverableMentions } from "./lib/fileLinks";
 import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, type SessionChange } from "./lib/changes";
 import { classifyComposerCommand } from "./lib/command";
+import { DEFAULT_WORKSPACE_TAB, WORKSPACE_TABS, type WorkspaceTabId } from "./lib/workspaceTabs";
 
 export default function App() {
   const toast = useToast();
@@ -100,7 +102,7 @@ export default function App() {
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
   const newSessionAndReset = useCallback(async () => { setStatsReset(n => n + 1); await startNewSession(); }, [startNewSession]);
   const [statsReset, setStatsReset] = useState(0);
-  const [rightTab, setRightTab] = useState<"files" | "materials" | "deliverables" | "changes" | "stats" | "tasks">("files");
+  const [rightTab, setRightTab] = useState<WorkspaceTabId>(DEFAULT_WORKSPACE_TAB);
   const [compactMode, setCompactMode] = useState(() => { try { return localStorage.getItem("gaea.compactMode") === "1"; } catch { return false; } });
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -549,12 +551,22 @@ export default function App() {
       { id: "cmd-memory", group: t("palette.group.commands") ?? "命令", title: t("topbar.memory") ?? "记忆", icon: <Brain size={15} />, compact: true, keywords: ["memory", "记忆"], run: () => void openMemory() },
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
-      { id: "cmd-files", group: t("palette.group.commands") ?? "命令", title: "文件面板", icon: <FolderGit2 size={15} />, compact: true, keywords: ["files", "文件"], run: () => { setPreviewFile(null); setWorkspacePanel(true); setRightTab("files"); } },
-      { id: "cmd-materials", group: t("palette.group.commands") ?? "命令", title: "资料面板", icon: <Paperclip size={15} />, compact: true, keywords: ["materials", "资料"], run: () => { setPreviewFile(null); setWorkspacePanel(true); setRightTab("materials"); } },
-      { id: "cmd-deliverables", group: t("palette.group.commands") ?? "命令", title: "产物面板", icon: <FileText size={15} />, compact: true, keywords: ["deliverables", "产物"], run: () => { setPreviewFile(null); setWorkspacePanel(true); setRightTab("deliverables"); } },
-      { id: "cmd-changes", group: t("palette.group.commands") ?? "命令", title: "变更面板", icon: <Diff size={15} />, compact: true, keywords: ["changes", "变更"], run: () => { setPreviewFile(null); setWorkspacePanel(true); setRightTab("changes"); } },
-      { id: "cmd-stats", group: t("palette.group.commands") ?? "命令", title: "统计面板", icon: <BarChart3 size={15} />, compact: true, keywords: ["stats", "统计"], run: () => { setWorkspacePanel(true); setRightTab("stats"); } },
     ];
+    // 右侧面板命令项：由 WORKSPACE_TABS 清单派生（tasks 不在命令面板，与原行为一致）
+    for (const tab of WORKSPACE_TABS) {
+      if (tab.id === "tasks") continue;
+      const Icon = tab.icon;
+      cmds.push({
+        id: `cmd-${tab.id}`,
+        group: t("palette.group.commands") ?? "命令",
+        title: `${tab.label}面板`,
+        icon: <Icon size={15} />,
+        compact: true,
+        keywords: tab.keywords,
+        // 原实现中 stats 命令不关闭预览（统计面板可与预览并存），其余面板关闭预览
+        run: () => { if (tab.id !== "stats") setPreviewFile(null); setWorkspacePanel(true); setRightTab(tab.id); },
+      });
+    }
     const sessionItems: PaletteItem[] = sidebarSessions.slice(0, 10).map((s) => ({
       id: `sess-${s.path}`,
       group: t("palette.group.sessions") ?? "会话",
@@ -758,50 +770,7 @@ export default function App() {
 
         {workspacePanelOpen && (
         <div className="workspace-pane flex flex-col min-w-0 overflow-hidden border-l border-border-soft bg-bg transition-all duration-200">
-          <div className="workspace-tabs flex items-center border-b border-border-soft overflow-hidden shrink">
-            <button
-              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "files" ? "text-accent border-accent" : ""}`}
-              onClick={() => setRightTab("files")}
-            >
-              <FolderTree size={13} />
-              <span>文件</span>
-            </button>
-            <button
-              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "materials" ? "text-accent border-accent" : ""}`}
-              onClick={() => setRightTab("materials")}
-            >
-              <FileText size={13} />
-              <span>资料</span>
-            </button>
-            <button
-              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "deliverables" ? "text-accent border-accent" : ""}`}
-              onClick={() => setRightTab("deliverables")}
-            >
-              <Paperclip size={13} />
-              <span>产物</span>
-            </button>
-            <button
-              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "changes" ? "text-accent border-accent" : ""}`}
-              onClick={() => setRightTab("changes")}
-            >
-              <Diff size={13} />
-              <span>变更</span>
-            </button>
-            <button
-              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "stats" ? "text-accent border-accent" : ""}`}
-              onClick={() => setRightTab("stats")}
-            >
-              <BarChart3 size={13} />
-              <span>统计</span>
-            </button>
-            <button
-              className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${rightTab === "tasks" ? "text-accent border-accent" : ""}`}
-              onClick={() => setRightTab("tasks")}
-            >
-              <ClipboardList size={13} />
-              <span>任务</span>
-            </button>
-          </div>
+          <WorkspaceTabs active={rightTab} onChange={setRightTab} />
           <div className="flex-1 min-h-0 overflow-y-auto">
             {rightTab === "files" ? (
               <WorkspacePanel
