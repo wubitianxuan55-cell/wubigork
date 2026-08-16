@@ -1,22 +1,22 @@
-/* 编程板块 · DeepSeek Harness Web 进程管理
+/* 编程板块 · DeepSeek Harness 编程工作台（重设计）
    令牌纪律：零硬编码色值，全部走 --md-sys-* / --gaea-* / --color-* / --v3-*。 */
 
 .prog {
-  flex: 1;
-  min-width: 0;
+  height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: 20px 24px 24px;
+  padding: 12px 16px 16px;
 }
 
+/* ── 未运行：启动引导壳 ── */
 .prog-shell {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   width: 100%;
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
 }
 
@@ -63,7 +63,7 @@
   color: var(--color-text-secondary);
 }
 
-/* 状态徽标 */
+/* ── 状态徽标 ── */
 .prog-badge {
   display: inline-flex;
   align-items: center;
@@ -101,36 +101,81 @@
   50% { opacity: 0.45; }
 }
 
-/* ── 状态面板 ── */
-.prog-panel {
+/* ── 启动面板：主行动区 + 状态侧栏 ── */
+.prog-launch {
   border-radius: var(--radius-lg, 16px);
   overflow: hidden;
-}
-.prog-panel-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding: 0 16px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: var(--color-text-secondary);
-  border-bottom: var(--v3-split);
-}
-.prog-panel-head svg { color: var(--gaea-glow); }
-
-.prog-body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px;
+}
+.prog-launch-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  flex-wrap: wrap;
+}
+.prog-launch-orb {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--gaea-glow);
+  background:
+    radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--gaea-glow) 28%, transparent), transparent 62%),
+    color-mix(in srgb, var(--gaea-glow) 10%, var(--color-surface-container));
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 28%, transparent);
+  box-shadow: var(--v3-glow-faint), inset 0 1px 0 color-mix(in srgb, var(--gaea-glow) 16%, transparent);
+}
+.prog-launch-copy {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.prog-launch-copy h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+.prog-launch-copy p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--color-text-secondary);
+}
+.prog-launch-copy code,
+.prog-hint code {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  background: var(--color-surface-container-high);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.prog-launch-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
+.prog-launch-side {
+  padding: 14px 20px 18px;
+  border-top: var(--v3-split);
+  background: color-mix(in srgb, var(--color-surface-container) 46%, transparent);
+}
+
+/* ── 状态行 ── */
 .prog-rows {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
 }
 .prog-row {
   display: flex;
@@ -147,7 +192,10 @@
   font-size: 12px;
   color: var(--color-text-secondary);
 }
-.prog-key svg { font-size: 12px; color: var(--gaea-glow); }
+.prog-key svg {
+  font-size: 12px;
+  color: var(--gaea-glow);
+}
 .prog-val {
   font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
   font-variant-numeric: tabular-nums;
@@ -158,15 +206,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.prog-root { max-width: 100%; }
-
-.prog-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+.prog-root {
+  max-width: 100%;
 }
 
+/* ── 错误 / 使用说明 ── */
 .prog-error {
   font-size: 12px;
   line-height: 1.6;
@@ -177,18 +221,110 @@
   padding: 10px 12px;
 }
 
+.prog-hint-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md, 12px);
+}
+.prog-hint-icon {
+  font-size: 13px;
+  color: var(--gaea-glow);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
 .prog-hint {
   margin: 0;
   font-size: 11.5px;
   line-height: 1.7;
   color: var(--color-text-secondary);
-  opacity: 0.85;
 }
-.prog-hint code {
+
+/* ══ 运行中：桌面内嵌工作台 ══ */
+.prog-workbench {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 工作台工具栏 */
+.prog-frame-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 8px 0 14px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  border: 1px solid var(--color-border);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 5%, transparent);
+  flex-shrink: 0;
+}
+.prog-frame-spacer {
+  flex: 1;
+}
+.prog-url-chip {
   font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
   background: var(--color-surface-container-high);
-  border-radius: 4px;
-  padding: 1px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  padding: 3px 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 340px;
+}
+.prog-frame-bar .ant-btn {
+  color: var(--color-text-secondary);
+}
+.prog-frame-bar .ant-btn:hover {
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 10%, transparent);
+}
+
+/* iframe 容器 */
+.prog-frame-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius-lg, 16px);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--v3-glow-faint), inset 0 1px 0 color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+.prog-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--color-surface);
+}
+
+/* 加载遮罩 */
+.prog-frame-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: color-mix(in srgb, var(--color-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+.prog-frame-overlay-text {
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
 }
 
 /* ══ reduced-motion ══ */
@@ -201,4 +337,20 @@ html.gaea-raf-degraded .prog .v3-rise {
   opacity: 1 !important;
   transform: none !important;
   animation: none !important;
+}
+
+/* 窄窗：启动面板纵向堆叠，状态行自适应 */
+@media (max-width: 720px) {
+  .prog {
+    padding: 10px 12px 14px;
+  }
+  .prog-launch-main {
+    padding: 16px;
+  }
+  .prog-key {
+    width: 108px;
+  }
+  .prog-url-chip {
+    max-width: 180px;
+  }
 }

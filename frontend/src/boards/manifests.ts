@@ -91,7 +91,7 @@ export const canonicalBoards: BoardManifest[] = [
   },
   {
     id: 'code', label: '编程', icon: 'CodeOutlined', page: 'ProgrammingPage',
-    lazy: true, keepAlive: true, layout: 'padded',
+    lazy: true, keepAlive: true, layout: 'full', // 桌面内嵌 Harness Web 工作台（全出血）
     menuOrder: 5, inMenu: true,
   },
   {

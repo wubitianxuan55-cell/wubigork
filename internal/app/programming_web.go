@@ -42,6 +42,11 @@ func harnessRoot() string {
 	return defaultHarnessRoot
 }
 
+// harnessLogPath 返回 gaea 自启 dsh web 的日志文件路径（GetStatus 与启动共用）。
+func harnessLogPath() string {
+	return filepath.Join(os.TempDir(), "gaea-dsh-web.log")
+}
+
 // harnessPortOpen 探测 3080 端口是否有进程在监听。
 func harnessPortOpen() bool {
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", harnessWebPort), 500*time.Millisecond)
@@ -77,6 +82,7 @@ func (a *App) GetProgrammingWebStatus() map[string]interface{} {
 		"pid":     pid,
 		"url":     harnessWebURL,
 		"root":    harnessRoot(),
+		"log":     harnessLogPath(),
 	}
 }
 
@@ -101,7 +107,7 @@ func (a *App) StartProgrammingWeb() error {
 		return fmt.Errorf("未找到 pnpm，请先安装 Node.js ≥22 并启用 corepack（corepack enable）")
 	}
 
-	logPath := filepath.Join(os.TempDir(), "gaea-dsh-web.log")
+	logPath := harnessLogPath()
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("无法打开 dsh web 日志 %s: %w", logPath, err)

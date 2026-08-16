@@ -65,7 +65,7 @@ var builtinManifests = []Manifest{
 	{
 		ID: "code", Label: "编程", Icon: "CodeOutlined",
 		Page: "ProgrammingPage", Lazy: true,
-		KeepAlive: Bool(true), Layout: "padded",
+		KeepAlive: Bool(true), Layout: "full", // 桌面内嵌 Harness Web 工作台（全出血）
 		MenuOrder: 5, InMenu: Bool(true),
 		Bindings: []string{"CoreB"}, // dsh web 进程管理（Get/Start/StopProgrammingWeb）
 	},

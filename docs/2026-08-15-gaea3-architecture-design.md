@@ -424,6 +424,12 @@ interface BoardManifest {
 > StopProgrammingWeb（dsh web 默认 http://127.0.0.1:3080，仅停止 gaea 自启实例）；前端新增
 > ProgrammingPage + manifest 板块（code，菜单顺序 5），首页启动器自动入网格。
 
+> **2026-08-16 重设计：** 编程板块改版为「桌面内嵌编程工作台」——服务运行后把 dsh web
+> 以 iframe 直接嵌进 gaea 桌面窗口（http://wails.localhost 与 127.0.0.1:3080 同为 http，
+> 无混合内容拦截；Wails 资源拦截只匹配 wails.localhost 主机），工具栏提供刷新 / 浏览器
+> 打开 / 停止；未运行时为启动引导视图（一键启动 + 打开 Harness 目录 + 状态行）。板块
+> layout 由 padded 改为 full（全出血），GetProgrammingWebStatus 新增 log 字段。
+
 ## 10. 开放问题与决策记录（定稿状态）
 
 | 编号 | 问题 | 状态 | 说明 |

@@ -94,10 +94,11 @@ describe('shortcutMap（附 B #6：Ctrl+1~4 显式声明）', () => {
 })
 
 describe('layout / breadcrumb / home（附 B #8/#9/#10/#11）', () => {
-  it('chat/gaea = full（全出血），其余 = padded', () => {
+  it('chat/gaea/code = full（全出血），其余 = padded', () => {
     expect(getBoard('chat')?.layout).toBe('full')
     expect(getBoard('gaea')?.layout).toBe('full')
-    for (const id of ['novel', 'imagegen', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings']) {
+    expect(getBoard('code')?.layout).toBe('full')
+    for (const id of ['novel', 'imagegen', 'memoryhub', 'modelcenter', 'characterlib', 'settings']) {
       expect(getBoard(id)?.layout, id).toBe('padded')
     }
   })
