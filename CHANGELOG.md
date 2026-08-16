@@ -9,6 +9,15 @@
   启动视图新增可展开日志面板（读取/刷新/空态提示），排障不再需要去临时目录翻文件
 - **运行时长**：GetProgrammingWebStatus 新增 uptime_s；运行中工具栏显示
   「已运行 X 小时 Y 分」芯片，外部实例显示警示芯片（不可停止，防误杀）
+- **启动动画视图**：点击「启动」到端口就绪之间显示启动动画——纯 CSS 双虚线环反向
+  旋转 + 发光 orb 呼吸脉冲（WebView2 下不依赖 rAF，与粒子星云回退同理）+ 「已等待
+  X 秒」实时计时 + 内嵌日志折叠面板；启动失败自动展开日志并回到引导视图
+- **数据源 seam 化**：ProgrammingPage 从 wailsjsCompat 直调改为 bridge app seam
+  （§5.3 前端侧模式）——Wails 原生走门面代理、浏览器 mock 走 makeMockApp，两种
+  环境同一套代码；mock 的 StartProgrammingWeb 延迟 3s 报错，保留启动动画演示窗口
+- **修复 useVoiceChat cleanup 崩溃**：wailsjsCompat 直调在 mock/未就绪时同步 throw，
+  effect cleanup 的 App.VoiceStop().catch() 拦不住同步异常导致首页渲染崩（错误边界
+  兜底）——两处调用加 try/catch，浏览器 mock 模式恢复可用
 - **后端可测性**：端口探测/tasklist/taskkill/LookPath/cmd.Start/日志路径/等待超时
   全部经 probe* 探针注入；新增 programming_web_test.go 16 用例（状态归属/幂等启动/
   外部占用守卫/目录与 pnpm 缺失/超时/停止三态/日志尾读/前置检查全绿与全红），
@@ -17,7 +26,9 @@
   绑定完备性与漂移检查 PASS（476 方法一致）；wailsjs 绑定已重新生成
 - 验证：Go 全量 internal/app ok（首轮 TestGaeaPriceFetchAllTask UNIQUE 冲突为偶发
   环境抖动——与 vitest 全量并行时的时序/资源竞争，单独重跑与全量重跑均通过）；
-  前端 tsc 0 errors、eslint 0 errors、vitest 541 通过（新增 ProgrammingPage 9 用例）
+  前端 tsc 0 errors、eslint 0 errors、vitest 543 通过（编程板块 11 用例，新增
+  启动动画/失败自动展开日志 2 用例）、vite build 通过；浏览器 mock 实机走查
+  （引导视图 → 启动动画 → 失败展开日志 → 前置条件全绿）
 
 ## v3.0.5「首页任务指挥中心改版」(2026-08-16)
 > 参照 DeepSeek 首页风格重做桌面端首页：Hero 左文右卡 + 透明 AI 状态细条 +

@@ -1,11 +1,12 @@
 // ProgrammingPage.test.tsx — 编程板块「DeepSeek Harness 编程工作台」测试。
-// 桥接经 vi.mock("../../src/wailsjsCompat") 注入确定性数据：未运行引导视图
-// （前置条件清单/启动/日志）、运行中内嵌工作台（iframe/运行时长/归属/停止守卫）。
+// 桥接经 vi.mock("../gaea/lib/bridge") 注入确定性数据：未运行引导视图
+// （前置条件清单/启动/日志）、启动中动画视图、运行中内嵌工作台
+// （iframe/运行时长/归属/停止守卫）。
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
-// 屏蔽 Wails 绑定（vi.hoisted 避免 mock 提升导致的初始化顺序问题）
+// 屏蔽 bridge seam（vi.hoisted 避免 mock 提升导致的初始化顺序问题）
 const mocks = vi.hoisted(() => ({
   GetProgrammingWebStatus: vi.fn(),
   GetProgrammingWebPreflight: vi.fn(),
@@ -13,7 +14,15 @@ const mocks = vi.hoisted(() => ({
   StartProgrammingWeb: vi.fn(),
   StopProgrammingWeb: vi.fn(),
 }))
-vi.mock('../../src/wailsjsCompat', () => mocks)
+vi.mock('../gaea/lib/bridge', () => ({
+  app: {
+    GetProgrammingWebStatus: mocks.GetProgrammingWebStatus,
+    GetProgrammingWebPreflight: mocks.GetProgrammingWebPreflight,
+    ProgrammingWebLogTail: mocks.ProgrammingWebLogTail,
+    StartProgrammingWeb: mocks.StartProgrammingWeb,
+    StopProgrammingWeb: mocks.StopProgrammingWeb,
+  },
+}))
 
 import ProgrammingPage from './ProgrammingPage'
 
@@ -88,6 +97,38 @@ describe('ProgrammingPage 未运行：启动引导视图', () => {
     await screen.findByText(/全部就绪/)
     fireEvent.click(screen.getByRole('button', { name: /重新检查前置条件/ }))
     await waitFor(() => expect(mocks.GetProgrammingWebPreflight).toHaveBeenCalledTimes(2))
+  })
+
+  it('启动中：显示启动动画视图（计时），就绪后切入内嵌工作台', async () => {
+    let resolveStart!: () => void
+    mocks.StartProgrammingWeb.mockReturnValue(new Promise<void>((res) => { resolveStart = res }))
+    render(<ProgrammingPage />)
+    await screen.findByText(/全部就绪/)
+    fireEvent.click(screen.getByRole('button', { name: /启动编程工作台/ }))
+    // 启动动画视图（而非 iframe）
+    expect(await screen.findByText('正在启动编程工作台')).toBeTruthy()
+    expect(screen.getByText(/已等待/)).toBeTruthy()
+    expect(screen.queryByTitle('DeepSeek Harness 编程工作台')).toBeNull()
+    // 启动完成 → 轮询返回运行中 → 切入 iframe 工作台
+    mocks.GetProgrammingWebStatus.mockResolvedValue({
+      ...idleStatus, running: true, owned: true, pid: 9, uptime_s: 3,
+    })
+    resolveStart()
+    const frame = await screen.findByTitle('DeepSeek Harness 编程工作台')
+    expect(frame.getAttribute('src')).toBe('http://127.0.0.1:3080')
+  })
+
+  it('启动失败：回到引导视图 + 错误提示 + 自动展开日志', async () => {
+    mocks.StartProgrammingWeb.mockRejectedValue(new Error('端口 3080 已被其他进程占用（非 gaea 自启实例）'))
+    render(<ProgrammingPage />)
+    await screen.findByText(/全部就绪/)
+    fireEvent.click(screen.getByRole('button', { name: /启动编程工作台/ }))
+    // 回到引导视图并显示错误
+    expect(await screen.findByText(/端口 3080 已被其他进程占用/)).toBeTruthy()
+    expect(await screen.findByText(/全部就绪，可一键启动/)).toBeTruthy()
+    // 日志面板自动展开并拉取
+    await waitFor(() => expect(mocks.ProgrammingWebLogTail).toHaveBeenCalled())
+    expect(await screen.findByText(/listening on :3080/)).toBeTruthy()
   })
 })
 

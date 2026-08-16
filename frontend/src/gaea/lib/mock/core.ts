@@ -216,6 +216,9 @@ export function buildCore(s: MakeMockState): CoreMethods {
       };
     },
     async StartProgrammingWeb() {
+      // 延迟 3s 再报错：浏览器开发模式无法真实启动，但保留一段「启动动画」
+      // 演示窗口，让启动中视图可被看到（真实桌面版由 Go 侧驱动）。
+      await delay(3000);
       throw new Error("浏览器开发模式不支持启动 DeepSeek Harness（请运行桌面版）");
     },
     async StopProgrammingWeb() {

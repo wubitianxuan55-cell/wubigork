@@ -4,8 +4,9 @@
 // http://127.0.0.1:3080 以 iframe 内嵌在 gaea 窗口内（同一桌面应用里
 // 打开 web，无需跳出到浏览器）；未运行时给出启动引导视图：一键启动 +
 // 真实前置条件检查清单（GetProgrammingWebPreflight）+ 自启日志查看
-// （ProgrammingWebLogTail）+ 状态行。数据源：CoreB.GetProgrammingWebStatus /
-// StartProgrammingWeb / StopProgrammingWeb（wailsjsCompat）。
+// （ProgrammingWebLogTail）+ 状态行。数据源：bridge 的 app seam——
+// Wails 原生走门面代理（CoreB），浏览器 mock 走 makeMockApp（§5.3
+// 前端侧 seam 模式），两种环境同一套代码。
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Button, Tooltip, message, Spin } from 'antd'
 import {
@@ -16,7 +17,7 @@ import {
   CloseCircleOutlined, DownOutlined, UpOutlined,
   FileSearchOutlined, SyncOutlined, CheckOutlined, WarningOutlined,
 } from '@ant-design/icons'
-import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
 import type {
   ProgrammingWebStatus, ProgrammingWebPreflight, ProgrammingWebLogTail,
 } from '../gaea/lib/types'
@@ -50,6 +51,57 @@ const PREFLIGHT_ITEMS: PreflightItem[] = [
   { key: 'port_free', label: '端口 3080 空闲', desc: '被其他进程占用时需手动停止后再启动' },
 ]
 
+/** 启动日志折叠面板（启动引导视图 / 启动中动画视图共用） */
+function LogSection(props: {
+  className?: string
+  logPath: string
+  log: ProgrammingWebLogTail | null
+  expanded: boolean
+  loading: boolean
+  onToggle: () => void
+  onRefresh: () => void
+}) {
+  const { className, logPath, log, expanded, loading, onToggle, onRefresh } = props
+  return (
+    <section className={`prog-log v3-panel ${className ?? ''}`} aria-label="启动日志">
+      <button type="button" className="prog-panel-head prog-log-toggle" onClick={onToggle} aria-expanded={expanded}>
+        <span className="prog-panel-title">
+          <FileTextOutlined aria-hidden="true" />
+          启动日志
+          <code className="prog-log-path">{logPath}</code>
+        </span>
+        <span className="prog-log-toggle-actions">
+          {expanded && (
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              loading={loading}
+              onClick={(e) => { e.stopPropagation(); onRefresh() }}
+              aria-label="刷新日志"
+            />
+          )}
+          <span className="prog-log-chevron" aria-hidden="true">
+            {expanded ? <UpOutlined /> : <DownOutlined />}
+          </span>
+        </span>
+      </button>
+      {expanded && (
+        <div className="prog-log-body">
+          {log == null ? (
+            <div className="prog-log-empty" role="status"><Spin size="small" /> 读取日志…</div>
+          ) : !log.exists ? (
+            <div className="prog-log-empty">{log.error}</div>
+          ) : (
+            <pre className="prog-log-pre" aria-label="日志内容">
+              {log.lines.length ? log.lines.join('\n') : '（日志为空）'}
+            </pre>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 const ProgrammingPage: React.FC = () => {
   const [status, setStatus] = useState<ProgrammingWebStatus | null>(null)
   const [preflight, setPreflight] = useState<ProgrammingWebPreflight | null>(null)
@@ -59,10 +111,13 @@ const ProgrammingPage: React.FC = () => {
   const [error, setError] = useState('')
   const [frameKey, setFrameKey] = useState(0)
   const [frameLoaded, setFrameLoaded] = useState(false)
+  const [starting, setStarting] = useState(false) // 启动中（独立于 busy：启动视图内点日志刷新不应退出）
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [now, setNow] = useState(() => Date.now())
 
   const refresh = useCallback(async () => {
     try {
-      const s = (await App.GetProgrammingWebStatus()) as ProgrammingWebStatus
+      const s = (await app.GetProgrammingWebStatus()) as ProgrammingWebStatus
       setStatus(s)
     } catch {
       /* 后端未就绪时静默，等待下一次轮询 */
@@ -72,7 +127,7 @@ const ProgrammingPage: React.FC = () => {
   const refreshPreflight = useCallback(async () => {
     setBusy((b) => b ?? 'preflight')
     try {
-      setPreflight((await App.GetProgrammingWebPreflight()) as ProgrammingWebPreflight)
+      setPreflight((await app.GetProgrammingWebPreflight()) as ProgrammingWebPreflight)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -83,7 +138,7 @@ const ProgrammingPage: React.FC = () => {
   const refreshLog = useCallback(async () => {
     setBusy((b) => b ?? 'log')
     try {
-      setLog((await App.ProgrammingWebLogTail(LOG_TAIL_LINES)) as ProgrammingWebLogTail)
+      setLog((await app.ProgrammingWebLogTail(LOG_TAIL_LINES)) as ProgrammingWebLogTail)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -111,14 +166,21 @@ const ProgrammingPage: React.FC = () => {
   const handleStart = async () => {
     setBusy('start')
     setError('')
+    setStarting(true)
+    setStartedAt(Date.now())
     try {
-      await App.StartProgrammingWeb()
+      await app.StartProgrammingWeb()
       message.success('DeepSeek Harness Web 已启动')
       setFrameLoaded(false)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
+      // 启动失败：自动展开日志面板，直接给排障入口
+      setLogExpanded(true)
+      void refreshLog()
     } finally {
       setBusy(null)
+      setStarting(false)
+      setStartedAt(null)
       void refresh()
       void refreshPreflight()
     }
@@ -128,7 +190,7 @@ const ProgrammingPage: React.FC = () => {
     setBusy('stop')
     setError('')
     try {
-      await App.StopProgrammingWeb()
+      await app.StopProgrammingWeb()
       message.success('已停止 gaea 自启的 Harness Web 实例')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
@@ -165,12 +227,57 @@ const ProgrammingPage: React.FC = () => {
     setFrameKey((k) => k + 1)
   }
 
+  // 启动中：每秒刷新等待秒数（纯 CSS 动画 + 计时文本反馈，WebView2 安全）。
+  const booting = starting
+  useEffect(() => {
+    if (!booting) return
+    const t = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(t)
+  }, [booting])
+  const waited = booting && startedAt != null ? Math.floor((now - startedAt) / 1000) : 0
+
   const toggleLog = () => {
     if (!logExpanded) void refreshLog()
     setLogExpanded((v) => !v)
   }
 
   const owned = !!status?.owned
+
+  // ── 启动中：启动动画视图（点击「启动」→ 端口就绪前） ─────────────
+  if (booting) {
+    return (
+      <div className="prog">
+        <div className="prog-shell">
+          <div className="prog-boot v3-card v3-rise" role="status" aria-live="polite" aria-label="正在启动编程工作台">
+            <div className="prog-boot-orb-wrap" aria-hidden="true">
+              <span className="prog-boot-ring is-a" />
+              <span className="prog-boot-ring is-b" />
+              <span className="prog-boot-orb"><CodeOutlined /></span>
+            </div>
+            <h2 className="prog-boot-title">正在启动编程工作台</h2>
+            <p className="prog-boot-sub">DeepSeek Harness Web 启动中，端口就绪后自动进入内嵌工作台</p>
+            <p className="prog-boot-wait">
+              <ClockCircleOutlined aria-hidden="true" />
+              已等待 <b>{waited}</b> 秒
+            </p>
+            <p className="prog-boot-hint">
+              首次启动通常需要 5–20 秒（依赖加载 + 端口就绪）。启动较慢可展开下方日志查看进度，失败会自动展开日志。
+            </p>
+            <div className="prog-boot-log">
+              <LogSection
+                logPath={status?.log ?? 'gaea-dsh-web.log'}
+                log={log}
+                expanded={logExpanded}
+                loading={busy === 'log'}
+                onToggle={toggleLog}
+                onRefresh={() => void refreshLog()}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // ── 运行中：桌面内嵌工作台（核心视图） ───────────────────────────
   if (running) {
@@ -393,42 +500,15 @@ const ProgrammingPage: React.FC = () => {
         </section>
 
         {/* 启动日志：可展开查看自启日志尾部 */}
-        <section className="prog-log v3-panel v3-rise v3-rise-2" aria-label="启动日志">
-          <button type="button" className="prog-panel-head prog-log-toggle" onClick={toggleLog} aria-expanded={logExpanded}>
-            <span className="prog-panel-title">
-              <FileTextOutlined aria-hidden="true" />
-              启动日志
-              <code className="prog-log-path">{status?.log ?? 'gaea-dsh-web.log'}</code>
-            </span>
-            <span className="prog-log-toggle-actions">
-              {logExpanded && (
-                <Button
-                  size="small"
-                  icon={<ReloadOutlined />}
-                  loading={busy === 'log'}
-                  onClick={(e) => { e.stopPropagation(); void refreshLog() }}
-                  aria-label="刷新日志"
-                />
-              )}
-              <span className="prog-log-chevron" aria-hidden="true">
-                {logExpanded ? <UpOutlined /> : <DownOutlined />}
-              </span>
-            </span>
-          </button>
-          {logExpanded && (
-            <div className="prog-log-body">
-              {log == null ? (
-                <div className="prog-log-empty" role="status"><Spin size="small" /> 读取日志…</div>
-              ) : !log.exists ? (
-                <div className="prog-log-empty">{log.error}</div>
-              ) : (
-                <pre className="prog-log-pre" aria-label="日志内容">
-                  {log.lines.length ? log.lines.join('\n') : '（日志为空）'}
-                </pre>
-              )}
-            </div>
-          )}
-        </section>
+        <LogSection
+          className="v3-rise v3-rise-2"
+          logPath={status?.log ?? 'gaea-dsh-web.log'}
+          log={log}
+          expanded={logExpanded}
+          loading={busy === 'log'}
+          onToggle={toggleLog}
+          onRefresh={() => void refreshLog()}
+        />
       </div>
     </div>
   )

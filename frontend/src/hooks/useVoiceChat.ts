@@ -461,8 +461,8 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     // 停止浏览器端识别
     stopBrowserRecognition()
 
-    // 停止后端
-    App.VoiceStop().catch(() => {})
+    // 停止后端（wailsjsCompat 直调在 mock/未就绪时同步 throw，需 try/catch 防 cleanup 崩溃）
+    try { App.VoiceStop().catch(() => {}) } catch { /* 后端未就绪 */ }
 
     // 停止采集
     volSmoothRef.current = 0
@@ -523,7 +523,8 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       if (playbackCtxRef.current) { playbackCtxRef.current.close().catch(() => {}) }
       if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()) }
       speechSynthesis.cancel()
-      App.VoiceStop().catch(() => {})
+      // wailsjsCompat 直调在 mock/未就绪时同步 throw，需 try/catch 防 cleanup 崩溃
+      try { App.VoiceStop().catch(() => {}) } catch { /* 后端未就绪 */ }
     }
   }, [])
 
