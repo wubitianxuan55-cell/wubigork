@@ -496,9 +496,37 @@ func sessionDirForPath(sessionPath string) string {
 	return dir
 }
 
+// SessionStatsView 是会话级 token/成本派生统计（3.0 Step 1 事件日志重放）。
+// Available=false 表示该会话无事件日志（legacy 会话或路径非法），前端不展示
+// 历史统计块（避免全 0 误导）。
+type SessionStatsView struct {
+	Available bool               `json:"available"`
+	Stats     session.TokenStats `json:"stats"`
+}
+
+// GaeaSessionStats 从会话事件日志派生 token/成本统计（DeriveStats 重放 usage
+// 事件）。恢复会话后前端调用它回填统计面板，修复「恢复的长会话成本展示不全」
+// （评审 03-office-frontend.md 缺陷 11：StatsPanel 只累计本次窗口内 usage 事件，
+// 不回溯历史）。路径经 sessionDirForPath 校验（防穿越），读失败/无日志返回
+// Available=false，不阻塞恢复流程。
+func (a *App) GaeaSessionStats(path string) SessionStatsView {
+	if path == "" || sessionDirForPath(path) == "" {
+		return SessionStatsView{}
+	}
+	lp := session.LogPathFor(path)
+	if lp == "" {
+		return SessionStatsView{}
+	}
+	entries, err := session.ReadLogRepaired(lp)
+	if err != nil {
+		// 无日志文件（legacy 会话）或读取失败：不视为统计为 0，标记不可用。
+		return SessionStatsView{}
+	}
+	return SessionStatsView{Available: true, Stats: session.DeriveStats(entries)}
+}
+
 // GaeaResumeSession 快照当前会话并加载目标会话继续，返回其消息。
-func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {
-	// 引擎未初始化时先初始化（幂等），避免重启后首次点击会话报"引擎未初始化"
+func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {	// 引擎未初始化时先初始化（幂等），避免重启后首次点击会话报"引擎未初始化"
 	if err := a.GaeaInit(); err != nil {
 		return nil, err
 	}

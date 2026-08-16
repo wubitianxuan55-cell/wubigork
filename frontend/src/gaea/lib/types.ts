@@ -148,6 +148,26 @@ export interface CheckpointMeta {
   time: number; // unix ms
 }
 
+// SessionStatsView 是会话级 token/成本派生统计（后端从事件日志重放 usage 事件）。
+// available=false 表示该会话无事件日志（legacy 会话或路径非法），前端不展示
+// 历史统计块。
+export interface SessionStatsView {
+  available: boolean;
+  stats: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    cacheHitTokens: number;
+    cacheMissTokens: number;
+    reasoningTokens: number;
+    usageCount: number;
+    cost: number;
+    currency?: string;
+    mainCost: number;
+    subagentCost: number;
+  };
+}
+
 // SessionMeta is one saved session for the history panel.
 export interface SessionMeta {
   path: string;

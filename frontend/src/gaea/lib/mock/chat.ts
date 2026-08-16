@@ -14,6 +14,7 @@ type ChatMethods = Pick<
   | "ListSessions" | "ListProjectSessions" | "ArchiveSession" | "UnarchiveSession"
   | "PinSession" | "ResumeSession" | "DeleteSession" | "RenameSession"
   | "Requirement" | "SetRequirement" | "SetRequirementDone"
+  | "SessionStats"
   | "ChatTopicsList" | "ChatMessagesList" | "ChatAppendMessages"
 >;
 
@@ -144,6 +145,25 @@ export function buildChat(s: MakeMockState): ChatMethods {
     async DeleteSession(path: string) {
       const i = sessions.findIndex((s) => s.path === path);
       if (i >= 0) sessions.splice(i, 1);
+    },
+    async SessionStats(path: string) {
+      // 派生统计 mock：可用 + 固定示例值（浏览器开发模式回填历史成本用）。
+      return {
+        available: true,
+        stats: {
+          promptTokens: 128000,
+          completionTokens: 32000,
+          totalTokens: 160000,
+          cacheHitTokens: 96000,
+          cacheMissTokens: 32000,
+          reasoningTokens: 0,
+          usageCount: 12,
+          cost: 0.284,
+          currency: "usd",
+          mainCost: 0.211,
+          subagentCost: 0.073,
+        },
+      };
     },
     async RenameSession(path: string, title: string) {
       const s = sessions.find((x) => x.path === path);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, BarChart3, TrendingUp, Wallet, Zap } from "../icons";
-import type { WireUsage } from "../lib/types";
+import type { SessionStatsView, WireUsage } from "../lib/types";
 import { aggSteps, colFromUsage, hitRateColor, type StepRecord, type ColStats } from "../lib/stats";
 import { TrendChart, type TrendPoint } from "./TrendChart";
 
@@ -387,12 +387,13 @@ function TokenTrendChart({ history }: { history: TurnRecord[] }) {
 // 纯展示组件，不再管理 localStorage 持久化。
 // 持久化由 App 层调用 useStatsPersistence 负责。
 
-export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCounts, skillCounts, perTurnExecutorUsage, perTurnSubUsage }: {
+export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCounts, skillCounts, perTurnExecutorUsage, perTurnSubUsage, sessionStats }: {
   data: StoredData;
   clearData: () => void;
   turnSteps?: WireUsage[]; subagentModel?: string;
   toolCounts: Record<string, number>; skillCounts: Record<string, number>;
   perTurnExecutorUsage?: WireUsage; perTurnSubUsage?: WireUsage;
+  sessionStats?: SessionStatsView;
 }) {
   const { turns: history, steps: stepHistory } = data;
   const [sessionExpanded, setSessionExpanded] = useState(false);
@@ -427,6 +428,13 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
   const lastStep = stepHistory[stepHistory.length - 1];
   const hasAnyData = history.length > 0 || stepHistory.length > 0;
 
+  // 会话级派生统计（事件日志重放）：恢复/加载会话后由后端回填，
+  // 补足「恢复的长会话成本展示不完整」。available=false 时不展示。
+  const derived = sessionStats?.available ? sessionStats.stats : undefined;
+  const derivedTotal = derived ? derived.cacheHitTokens + derived.cacheMissTokens : 0;
+  const derivedHitPct = derived && derivedTotal > 0 ? (derived.cacheHitTokens / derivedTotal) * 100 : 0;
+  const hasAnyDisplay = hasAnyData || !!derived;
+
   // KPI 卡行数据（v3-card 高光线；命中率用 toFixed(1) 与明细表的两位小数区分）
   const totalTokens = sessTotal.prompt + sessTotal.completion;
   const hitTotal = sessTotal.cacheHit + sessTotal.cacheMiss;
@@ -441,7 +449,7 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
   return (
     <div className="flex flex-col h-full overflow-y-auto">
 
-      {!hasAnyData ? (
+      {!hasAnyDisplay ? (
         <div className="flex flex-col items-center justify-center gap-2 flex-1" style={{ color: "var(--md-sys-color-text-secondary)" }}>
           <BarChart3 size={32} aria-hidden className="opacity-30" />
           <span className="text-[12px]">暂无统计数据</span>
@@ -449,6 +457,32 @@ export function StatsPanel({ data, clearData, turnSteps, subagentModel, toolCoun
         </div>
       ) : (
       <div className="flex flex-col gap-0 p-3 overflow-y-auto">
+
+        {/* ── 历史累计（会话级派生统计）：恢复/加载的长会话成本回填 ── */}
+        {derived && (
+          <div
+            className="rounded-[var(--radius-md)] px-2.5 py-2 mb-2"
+            style={{
+              background: "color-mix(in srgb, var(--md-sys-color-primary-container) 30%, transparent)",
+              border: "1px solid var(--md-sys-color-outline-variant)",
+              boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 6%, transparent)",
+            }}
+          >
+            <div className="flex items-center gap-1 mb-1 text-[9px] font-semibold uppercase tracking-wider" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+              <BarChart3 size={11} aria-hidden className="shrink-0" />
+              <span>会话历史累计（日志派生）</span>
+              <span className="ml-auto font-normal normal-case">{derived.usageCount} 次调用</span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] font-mono tabular-nums">
+              <div className="flex justify-between"><span className="text-fg-faint">Token</span><span className="text-fg">{tk(derived.totalTokens)}</span></div>
+              <div className="flex justify-between"><span className="text-fg-faint">成本</span><span className="text-fg">{cash(derived.cost)}</span></div>
+              <div className="flex justify-between"><span className="text-fg-faint">Prompt / Compl</span><span className="text-fg">{tk(derived.promptTokens)} / {tk(derived.completionTokens)}</span></div>
+              <div className="flex justify-between"><span className="text-fg-faint">主 / 子代理</span><span className="text-fg">{cash(derived.mainCost)} / {cash(derived.subagentCost)}</span></div>
+              <div className="flex justify-between"><span className="text-fg-faint">缓存命中率</span><span className={`font-bold ${hitRateColor(derivedHitPct)}`}>{derivedTotal > 0 ? `${derivedHitPct.toFixed(1)}%` : "—"}</span></div>
+              <div className="flex justify-between"><span className="text-fg-faint">命中 / 未命中</span><span className="text-fg">{tk(derived.cacheHitTokens)} / {tk(derived.cacheMissTokens)}</span></div>
+            </div>
+          </div>
+        )}
 
         {/* ── KPI 卡行：v3-card 高光线（实底、顶部 1px 内高光） ── */}
         <div className="grid grid-cols-4 gap-1.5 mb-2">

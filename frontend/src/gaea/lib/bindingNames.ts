@@ -219,6 +219,7 @@ export const bindingNames = [
   "GaeaSemanticIndexStatus",
   "GaeaSemanticSearch",
   "GaeaSend",
+  "GaeaSessionStats",
   "GaeaSetAgentParams",
   "GaeaSetDefaultModel",
   "GaeaSetEngine",

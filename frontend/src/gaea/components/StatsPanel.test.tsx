@@ -50,4 +50,56 @@ describe("StatsPanel 统计面板", () => {
     );
     expect(screen.getByText("暂无统计数据")).toBeTruthy();
   });
+
+  it("有派生统计（available）时展示历史累计块，且空数据不再显示占位", () => {
+    render(
+      <StatsPanel
+        data={{ turns: [], steps: [] }}
+        clearData={() => {}}
+        turnSteps={[]}
+        toolCounts={{}}
+        skillCounts={{}}
+        sessionStats={{
+          available: true,
+          stats: {
+            promptTokens: 128000,
+            completionTokens: 32000,
+            totalTokens: 160000,
+            cacheHitTokens: 96000,
+            cacheMissTokens: 32000,
+            reasoningTokens: 0,
+            usageCount: 12,
+            cost: 0.284,
+            currency: "usd",
+            mainCost: 0.211,
+            subagentCost: 0.073,
+          },
+        }}
+      />,
+    );
+    // 历史累计块
+    expect(screen.getByText(/会话历史累计（日志派生）/)).toBeTruthy();
+    expect(screen.getByText("12 次调用")).toBeTruthy();
+    expect(screen.getByText("160,000")).toBeTruthy();
+    expect(screen.getByText("¥0.2840")).toBeTruthy();
+    // 命中率 96000/(96000+32000) = 75%
+    expect(screen.getByText("75.0%")).toBeTruthy();
+    // 不再显示空态占位
+    expect(screen.queryByText("暂无统计数据")).toBeNull();
+  });
+
+  it("available=false 时不展示历史累计块，空数据仍显示占位", () => {
+    render(
+      <StatsPanel
+        data={{ turns: [], steps: [] }}
+        clearData={() => {}}
+        turnSteps={[]}
+        toolCounts={{}}
+        skillCounts={{}}
+        sessionStats={{ available: false, stats: { promptTokens: 0, completionTokens: 0, totalTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0, reasoningTokens: 0, usageCount: 0, cost: 0, mainCost: 0, subagentCost: 0 } }}
+      />,
+    );
+    expect(screen.queryByText(/会话历史累计（日志派生）/)).toBeNull();
+    expect(screen.getByText("暂无统计数据")).toBeTruthy();
+  });
 });

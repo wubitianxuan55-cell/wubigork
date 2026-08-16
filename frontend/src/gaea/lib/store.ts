@@ -7,7 +7,7 @@ import { app, onEvent, onReady } from "./bridge";
 import { parseTodos } from "./tools";
 import type {
   BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView, MemoryView,
-  Meta, ProjectGroup, QuestionAnswer, Requirement, SessionMeta, TCCAReport, WireApproval, WireAsk,
+  Meta, ProjectGroup, QuestionAnswer, Requirement, SessionMeta, SessionStatsView, TCCAReport, WireApproval, WireAsk,
   WireEvent, WireUsage,
 } from "./types";
 
@@ -34,6 +34,9 @@ export interface ControllerState {
   perTurnSubUsage?: WireUsage;      // V10.22: subagent usage only
   turnSteps: WireUsage[]; // V5.31: raw per-step usage within current turn
   sessionNonce: number; // V5.25: 每次新建/恢复会话递增，确保统计面板按会话区分
+  // 会话级派生统计（事件日志重放）：恢复/加载会话后由后端回填，
+  // 补足「恢复的长会话成本展示不完整」（评审缺陷 11）。
+  sessionStats?: SessionStatsView;
   _dispatch: (a: Action) => void;
 }
 
@@ -43,6 +46,7 @@ type Action =
   | { type: "meta"; meta: Meta } | { type: "context"; context: ContextInfo }
   | { type: "balance"; balance: BalanceInfo } | { type: "jobs"; jobs: JobView[] } | { type: "factbase"; factBase: FactBaseView }
   | { type: "tcca"; report: TCCAReport }
+  | { type: "sessionStats"; stats?: SessionStatsView }
   | { type: "history"; messages: HistoryMessage[] } | { type: "clearApproval" } | { type: "clearAsk" } | { type: "reset" };
 
 
@@ -260,6 +264,7 @@ export function reducer(s: ControllerState, a: Action): ControllerState {
     case "meta": return { ...s, meta: a.meta }; case "context": return { ...s, context: a.context };
     case "balance": return { ...s, balance: a.balance }; case "jobs": return { ...s, jobs: a.jobs }; case "factbase": return { ...s, factBase: a.factBase };
     case "tcca": return { ...s, tcca: a.report };
+    case "sessionStats": return { ...s, sessionStats: a.stats };
     case "history": {
       const rebuilt = rebuildHistoryItems(a.messages);
       const items = finalizeStaleTodos(rebuilt.items);
@@ -523,6 +528,13 @@ export function useController() {
     app.ListSessions().catch((err) => { logBridgeError("listSessions", err); return [] as SessionMeta[]; }), []);
   const listProjectSessions = useCallback((): Promise<ProjectGroup[]> =>
     app.ListProjectSessions().catch((err) => { logBridgeError("listProjectSessions", err); return [] as ProjectGroup[]; }), []);
+  // fetchSessionStats 拉取会话级派生统计并写入 store；失败/无日志标记为不可用
+  // （不阻塞恢复流程，仅影响统计面板的历史成本展示）。
+  const fetchSessionStats = useCallback((path: string) => {
+    app.SessionStats(path)
+      .then((stats) => dispatch({ type: "sessionStats", stats }))
+      .catch((err) => { logBridgeError("fetchSessionStats", err); dispatch({ type: "sessionStats", stats: undefined }); });
+  }, [dispatch]);
   const resumeSession = useCallback(async (path: string) => {
     const ms = await app.ResumeSession(path).catch((e: unknown) => {
       // 恢复失败不要静默清空：给用户明确提示
@@ -534,9 +546,11 @@ export function useController() {
     });
     dispatch({ type: "reset" });
     if (ms.length) dispatch({ type: "history", messages: ms });
+    // 恢复后回填会话级派生统计（成本/用量历史，评审缺陷 11 根治）
+    void fetchSessionStats(path);
     app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("resumeSession ContextUsage", err));
     refreshFactBase();
-  }, [dispatch, refreshFactBase]);
+  }, [dispatch, refreshFactBase, fetchSessionStats]);
   const archiveSession = useCallback((path: string) => app.ArchiveSession(path).catch((err) => failWrite(dispatch, "归档会话", err)), [dispatch]);
   const unarchiveSession = useCallback((path: string): Promise<string> => app.UnarchiveSession(path).catch((err) => { failWrite(dispatch, "取消归档", err); return ""; }), [dispatch]);
   const pinSession = useCallback((path: string, pinned: boolean) => app.PinSession(path, pinned).catch((err) => failWrite(dispatch, "更新固定状态", err)), [dispatch]);
@@ -627,7 +641,7 @@ export function useController() {
     app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("rewind ContextUsage", err));
   }, [dispatch]);
 
-  return { state, send, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, fetchRequirement, setRequirement, setRequirementDone, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase };
+  return { state, send, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, fetchRequirement, setRequirement, setRequirementDone, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase, fetchSessionStats };
 }
 
 // useItems 订阅 items 数组，与 useController 分离。

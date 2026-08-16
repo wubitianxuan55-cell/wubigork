@@ -95,6 +95,7 @@ export default function App() {
     changeFactType,
     clearFactBase,
     promoteFactBase,
+    fetchSessionStats,
   } = useController();
   const t = useT();
   const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
@@ -510,6 +511,13 @@ export default function App() {
       : cwd ? `unsaved_${cwd.replace(/[\\/:*?"<>|]/g, "_")}` : "unsaved";
   }, [currentSessionPath, cwd]);
 
+  // 会话切换（启动装载/新建/恢复/切换工作区）后拉取会话级派生统计，
+  // 回填「全会话成本」的历史部分（评审缺陷 11）。
+  useEffect(() => {
+    if (!currentSessionPath) return;
+    void fetchSessionStats(currentSessionPath);
+  }, [currentSessionPath, fetchSessionStats]);
+
   // ── 任务目标（Kun「从需求到验收」）：会话首条消息自动成为目标，随会话持久化 ──
   const [requirement, setRequirementState] = useState<Requirement | null>(null);
   const capturedReqPathRef = useRef<string | null>(null);
@@ -789,6 +797,7 @@ export default function App() {
               <StatsPanel
                 data={statsPersistence.data}
                 clearData={statsPersistence.clearData}
+                sessionStats={state.sessionStats}
                 perTurnExecutorUsage={state.perTurnExecutorUsage}
                 perTurnSubUsage={state.perTurnSubUsage}
                 turnSteps={state.turnSteps}

@@ -43,6 +43,7 @@ import type {
   QuestionAnswer,
   Requirement,
   SessionMeta,
+  SessionStatsView,
   ProjectGroup,
   SettingsView,
   SkillCaptureInput,
@@ -120,6 +121,9 @@ export interface AppBindings {
   // (current first, then recently opened workspaces with sessions).
   ListProjectSessions(): Promise<ProjectGroup[]>;
   ResumeSession(path: string): Promise<HistoryMessage[]>;
+  // SessionStats 返回会话级 token/成本派生统计（事件日志重放；legacy 会话
+  // available=false）。恢复会话后调用，回填「全会话成本」缺失的历史部分。
+  SessionStats(path: string): Promise<SessionStatsView>;
   // ArchiveSession moves a saved session to <sessions>/archive/ (restorable);
   // UnarchiveSession moves it back and returns the active path;
   // PinSession toggles the pinned flag (pinned sessions sort first).
@@ -523,6 +527,7 @@ const gaeaToGaea = {
   ListSessions: "GaeaListSessions",
   ListProjectSessions: "GaeaListProjectSessions",
   ResumeSession: "GaeaResumeSession",
+  SessionStats: "GaeaSessionStats",
   ArchiveSession: "GaeaArchiveSession",
   UnarchiveSession: "GaeaUnarchiveSession",
   PinSession: "GaeaPinSession",
