@@ -1,6 +1,21 @@
 # gaea · 多功能 AI 助手
 
-### 追加：编程板块启动引导增强（2026-08-16）
+## v3.0.6「编程板块工作台 · 办公会话回退分叉 · 顶栏工具栏迁移」(2026-08-16)
+> 办公板块会话能力闭环（回退/分叉/回退点 + 右侧 Tab 清单化 + 会话统计回填 +
+> mock 场景补全）与编程板块桌面内嵌工作台（iframe 内嵌 DeepSeek Harness Web +
+> 启动引导 + 运行中工具栏移入顶栏）。
+- **办公板块 UI+功能优化**：ProcessCard 状态四态 / 思考深度三档接线 / useDrawers
+  收敛 / 恢复会话状态还原 / 右侧 tabs 激活态修复
+- **会话回退/分叉/回退点**：后端实现会话 rewind 链路（此前为前端空实现）——
+  会话级派生统计绑定 GaeaSessionStats + 前端恢复回填，根治恢复会话成本展示不完整
+- **右侧面板 Tab 体系清单化**：workspaceTabs 单源声明 + WorkspaceTabs 组件 +
+  装配层测试；同步清理死绑定（移除 GaeaWorkspaceChanges/GaeaSelectTab/GaeaTabMeta）
+- **mock 场景补全**：审批/提问/压缩卡三类事件流 + initBridge `?mock=` 优先——
+  浏览器离线开发可用
+- **命令面板任务模板 / 领域色单源 / 模板缓存去重**：办公板块体验三件套
+- **编程板块桌面内嵌工作台**：DeepSeek Harness Web（http://127.0.0.1:3080）以
+  iframe 内嵌桌面窗口，运行中显示工作台工具栏（运行徽标/时长/URL/刷新/浏览器
+  打开/停止），未运行时提供一键启动引导视图
 - **前置条件真实检查**：启动引导从静态使用说明升级为逐项清单——新增
   GetProgrammingWebPreflight（harness 目录有效 / pnpm 可用 / node_modules 已装 /
   apps/web/dist 构建就绪 / 端口 3080 空闲 + all_ready 汇总），每项绿/红呈现 + 修复
@@ -9,6 +24,10 @@
   启动视图新增可展开日志面板（读取/刷新/空态提示），排障不再需要去临时目录翻文件
 - **运行时长**：GetProgrammingWebStatus 新增 uptime_s；运行中工具栏显示
   「已运行 X 小时 Y 分」芯片，外部实例显示警示芯片（不可停止，防误杀）
+- **顶栏工具栏迁移**：运行中工具栏（「Harness Web 运行中」徽标 / URL / 刷新 /
+  浏览器打开 / 停止）整体移入顶栏 v3-strip（portal 进 v3-prog-host 宿主，与聊天
+  模式条同款模式），仅编程板块激活时自动显示、其他板块自动隐藏；iframe 独占
+  工作区全高展示；宿主缺失兜底保持原布局；新增 portal 渲染用例
 - **启动动画视图**：点击「启动」到端口就绪之间显示启动动画——纯 CSS 双虚线环反向
   旋转 + 发光 orb 呼吸脉冲（WebView2 下不依赖 rAF，与粒子星云回退同理）+ 「已等待
   X 秒」实时计时 + 内嵌日志折叠面板；启动失败自动展开日志并回到引导视图
@@ -26,9 +45,10 @@
   绑定完备性与漂移检查 PASS（476 方法一致）；wailsjs 绑定已重新生成
 - 验证：Go 全量 internal/app ok（首轮 TestGaeaPriceFetchAllTask UNIQUE 冲突为偶发
   环境抖动——与 vitest 全量并行时的时序/资源竞争，单独重跑与全量重跑均通过）；
-  前端 tsc 0 errors、eslint 0 errors、vitest 543 通过（编程板块 11 用例，新增
-  启动动画/失败自动展开日志 2 用例）、vite build 通过；浏览器 mock 实机走查
-  （引导视图 → 启动动画 → 失败展开日志 → 前置条件全绿）
+  前端 tsc 0 errors、eslint 0 errors、vitest 544 通过（编程板块 12 用例，新增
+  顶栏 portal 渲染 1 用例）、vite build 通过；浏览器 mock 实机走查
+  （引导视图 → 启动动画 → 失败展开日志 → 前置条件全绿）；wails build 发布版
+  通过 + 冒烟测试（/api/health 200）
 
 ## v3.0.5「首页任务指挥中心改版」(2026-08-16)
 > 参照 DeepSeek 首页风格重做桌面端首页：Hero 左文右卡 + 透明 AI 状态细条 +

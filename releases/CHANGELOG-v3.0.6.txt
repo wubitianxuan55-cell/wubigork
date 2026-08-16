@@ -1,0 +1,13 @@
+gaea v3.0.6 (2026-08-16)
+
+编程板块工作台 + 办公会话回退分叉 + 顶栏工具栏迁移
+- 编程板块：DeepSeek Harness Web 以 iframe 内嵌桌面窗口（http://127.0.0.1:3080）
+- 启动引导：前置条件逐项真实检查（GetProgrammingWebPreflight）+ 日志尾部查看（ProgrammingWebLogTail）
+- 启动动画：双虚线环 + 呼吸 orb + 实时等待计时；失败自动展开日志回引导视图
+- 运行中工具栏移入顶栏 v3-strip：Harness Web 徽标/运行时长/URL/刷新/浏览器打开/停止，
+  仅编程板块激活时自动显示，iframe 独占工作区全高展示（portal 宿主缺失兜底原布局）
+- 办公板块：会话回退/分叉/回退点后端实现（兑现 rewind 链路）+ GaeaSessionStats 恢复回填
+- 右侧面板 Tab 体系清单化（workspaceTabs 单源 + WorkspaceTabs 组件）；清理 3 个死绑定
+- mock 场景补全审批/提问/压缩卡 + initBridge ?mock= 优先；命令面板任务模板/领域色单源/模板缓存去重
+- 后端可测性：编程 Web 全链路探针注入，programming_web_test.go 16 用例；绑定面 470 方法漂移 PASS
+- 验证：前端 tsc/eslint 0 errors、vitest 544 通过（编程板块 12 用例）、wails build 35.2MB、冒烟测试通过

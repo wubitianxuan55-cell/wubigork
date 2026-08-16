@@ -1,6 +1,6 @@
 # 任务进度
 
-> 最后更新: 2026-08-16 20:05:00
+> 最后更新: 2026-08-16 23:56:25
 
 | 状态 | 任务 |
 |------|------|
@@ -25,3 +25,6 @@
 | ✅ | 打包发布 v3.0.4：版本三处统一 3.0.4（sync-version + package.json）；CI 全绿（go build/vet/test + 前端 build/vitest/eslint + E 系列守卫修复——ChatComposer/useChatStream/chat utils/ChatB.d.ts/GraphView 陈旧断言）；wails build 发布版 35.18MB；冒烟测试通过（/api/health 200）；发布 gaea-v3.0.4.exe + SHA256SUMS-v3.0.4.txt + v3.0.4.md + CHANGELOG-v3.0.4.txt + README 索引更新（v2.38-v2.40 归档到 releases/archive/） |
 | ✅ | 首页任务指挥中心改版（参照 DeepSeek 首页风格）：Hero 左文右卡（公告 pill + 大标题 + 双行动卡「开始创作/和 gaea 对话」黑色描边）+ 右侧深色渐变 AI 视觉卡（细网格纹理 + 星云流光 + 语音晶核呼吸环 + 活跃模型 pill）；AI 状态细条改 4 列透明无边框；「全部模块」分区：办公大卡固定 280px 居左 + 其余 8 卡 4×2 网格（角色库/设置不再单独成行），模块区不被压缩——修复设置卡被底部信息条横框遮挡；PageRegistry 补注册 ProgrammingPage（编程卡恢复可见）；语音晶核 canvas 粒子星云在 WebView2 下 rAF 被节流只剩首帧（静止图片），setTimeout 驱动实测不稳，最终取消粒子星云恢复发光球；tsc 0 errors、vite build 通过 |
 | ✅ | 打包发布 v3.0.5：版本统一 3.0.5（sync-version 三处 + package.json）；CI 全绿（go build/vet/test + 前端 build + E 系列守卫）；wails build 发布版 35.2MB；冒烟测试通过（/api/health 200）；发布 gaea-v3.0.5.exe + SHA256SUMS-v3.0.5.txt + v3.0.5.md + CHANGELOG-v3.0.5.txt + README 索引更新（v3.0.0 归档到 releases/archive/）；git 提交 + tag v3.0.5（v3.0.2–v3.0.4 发布资产随本次一并入库） |
+| ✅ | 编程板块桌面内嵌工作台 + 启动引导：DeepSeek Harness Web（http://127.0.0.1:3080）iframe 内嵌桌面窗口；启动引导升级为真实前置条件逐项检查（GetProgrammingWebPreflight）+ 日志尾部查看（ProgrammingWebLogTail）+ 启动动画视图（失败自动展开日志回引导视图）+ 运行时长/外部实例芯片；数据源 seam 化（bridge app seam + useVoiceChat cleanup 修复）；后端全链路 probe 探针注入，programming_web_test.go 16 用例零外部依赖；绑定面 470 方法漂移 PASS |
+| ✅ | 编程板块运行中工具栏移入顶栏：Harness Web 运行中徽标/运行时长/URL/刷新/浏览器打开/停止按钮 portal 进 MainLayout v3-strip（v3-prog-host 宿主，与聊天模式条同款），仅编程板块激活时自动显示、其他板块隐藏；iframe 独占工作区全高；宿主缺失兜底保持原布局；新增 portal 渲染用例（vitest 544 通过，编程板块 12 用例） |
+| ✅ | 打包发布 v3.0.6：版本三处统一 3.0.6（sync-version + package.json/package-lock）；前端 tsc/eslint 0 errors、vitest 544 通过、vite build 通过；wails build 发布版 35.2MB + 冒烟测试通过（/api/health 200）；发布 gaea-v3.0.6.exe + SHA256SUMS-v3.0.6.txt + v3.0.6.md + CHANGELOG-v3.0.6.txt；README 索引补齐 v3.0.2–v3.0.5 缺行 + 新增 v3.0.6 行；v3.0.1 归档到 releases/archive/；git 提交 + tag v3.0.6 + 推送 origin/main |
