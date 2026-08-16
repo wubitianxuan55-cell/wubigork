@@ -55,6 +55,8 @@ import type {
   WorkspaceView,
   MemoryHubOverview,
   ProfileFactView,
+  ProgrammingWebLogTail,
+  ProgrammingWebPreflight,
   ProgrammingWebStatus,
   WhisperEpisodeView,
   WhisperMemoryView,
@@ -415,12 +417,17 @@ export interface AppBindings {
   // role 仅接受 user/assistant（其余后端跳过）。
   ChatAppendMessages(topicID: string, messages: AppModels.ChatMessageInput[]): Promise<void>;
   // ── 编程板块：DeepSeek Harness Web 进程管理 ──────────────
-  // GetProgrammingWebStatus 返回运行状态（running/owned/pid/url/root）；
+  // GetProgrammingWebStatus 返回运行状态（running/owned/pid/url/root/log/uptime_s）；
   // StartProgrammingWeb 启动 dsh web（已运行幂等返回）；StopProgrammingWeb
   // 仅停止 gaea 自启实例（外部实例返回提示，不误杀）。
+  // GetProgrammingWebPreflight 返回启动前置条件逐项检查（harness 有效 / pnpm 可用 /
+  // 依赖已装 / 构建就绪 / 端口空闲 + all_ready）；ProgrammingWebLogTail(n) 读自启
+  // 日志尾部（n 钳制 [1,200]，默认 50），启动引导视图渲染真实清单与日志。
   GetProgrammingWebStatus(): Promise<ProgrammingWebStatus>;
   StartProgrammingWeb(): Promise<void>;
   StopProgrammingWeb(): Promise<void>;
+  GetProgrammingWebPreflight(): Promise<ProgrammingWebPreflight>;
+  ProgrammingWebLogTail(n?: number): Promise<ProgrammingWebLogTail>;
 }
 
 // Window 类型由 gaea 的 src/types/wails.d.ts 统一声明（go.app.App + runtime）。

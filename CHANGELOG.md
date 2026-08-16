@@ -1,5 +1,24 @@
 # gaea · 多功能 AI 助手
 
+### 追加：编程板块启动引导增强（2026-08-16）
+- **前置条件真实检查**：启动引导从静态使用说明升级为逐项清单——新增
+  GetProgrammingWebPreflight（harness 目录有效 / pnpm 可用 / node_modules 已装 /
+  apps/web/dist 构建就绪 / 端口 3080 空闲 + all_ready 汇总），每项绿/红呈现 + 修复
+  提示 + 「重新检查」按钮；未全部就绪时启动按钮禁用，杜绝「点完没反应」
+- **启动日志可查看**：新增 ProgrammingWebLogTail（自启日志尾部，n 钳制 [1,200]），
+  启动视图新增可展开日志面板（读取/刷新/空态提示），排障不再需要去临时目录翻文件
+- **运行时长**：GetProgrammingWebStatus 新增 uptime_s；运行中工具栏显示
+  「已运行 X 小时 Y 分」芯片，外部实例显示警示芯片（不可停止，防误杀）
+- **后端可测性**：端口探测/tasklist/taskkill/LookPath/cmd.Start/日志路径/等待超时
+  全部经 probe* 探针注入；新增 programming_web_test.go 16 用例（状态归属/幂等启动/
+  外部占用守卫/目录与 pnpm 缺失/超时/停止三态/日志尾读/前置检查全绿与全红），
+  零外部依赖（不碰真实 3080 与进程）
+- **绑定面**：CoreB 468→470 方法（GetProgrammingWebPreflight / ProgrammingWebLogTail），
+  绑定完备性与漂移检查 PASS（476 方法一致）；wailsjs 绑定已重新生成
+- 验证：Go 全量 internal/app ok（首轮 TestGaeaPriceFetchAllTask UNIQUE 冲突为偶发
+  环境抖动——与 vitest 全量并行时的时序/资源竞争，单独重跑与全量重跑均通过）；
+  前端 tsc 0 errors、eslint 0 errors、vitest 541 通过（新增 ProgrammingPage 9 用例）
+
 ## v3.0.5「首页任务指挥中心改版」(2026-08-16)
 > 参照 DeepSeek 首页风格重做桌面端首页：Hero 左文右卡 + 透明 AI 状态细条 +
 > 「全部模块」办公大卡 + 8 卡 4×2 网格；修复设置卡被底部信息条遮挡、编程板块

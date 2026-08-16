@@ -2,36 +2,60 @@
 //
 // 设计目标：桌面端直接使用 DeepSeek Harness Web——服务运行时把
 // http://127.0.0.1:3080 以 iframe 内嵌在 gaea 窗口内（同一桌面应用里
-// 打开 web，无需跳出到浏览器）；未运行时给出启动/状态/前置条件的
-// 引导视图。数据源：CoreB.GetProgrammingWebStatus / StartProgrammingWeb /
-// StopProgrammingWeb（wailsjsCompat）。
-import React, { useEffect, useState, useCallback } from 'react'
+// 打开 web，无需跳出到浏览器）；未运行时给出启动引导视图：一键启动 +
+// 真实前置条件检查清单（GetProgrammingWebPreflight）+ 自启日志查看
+// （ProgrammingWebLogTail）+ 状态行。数据源：CoreB.GetProgrammingWebStatus /
+// StartProgrammingWeb / StopProgrammingWeb（wailsjsCompat）。
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Button, Tooltip, message, Spin } from 'antd'
 import {
   CodeOutlined, PlayCircleOutlined, StopOutlined,
   LinkOutlined, FolderOpenOutlined, ClockCircleOutlined,
   ThunderboltOutlined, ReloadOutlined, GlobalOutlined,
   FileTextOutlined, ApiOutlined, CheckCircleOutlined,
+  CloseCircleOutlined, DownOutlined, UpOutlined,
+  FileSearchOutlined, SyncOutlined, CheckOutlined, WarningOutlined,
 } from '@ant-design/icons'
 import * as App from '../../src/wailsjsCompat'
+import type {
+  ProgrammingWebStatus, ProgrammingWebPreflight, ProgrammingWebLogTail,
+} from '../gaea/lib/types'
 import './programming-page.css'
 
-/** 与 Go 侧 map[string]interface{} 返回契约一致（见 internal/app/programming_web.go） */
-interface ProgrammingWebStatus {
-  running: boolean
-  owned: boolean
-  pid: number
-  url: string
-  root: string
-  /** 自启日志路径（Go 侧返回；旧二进制缺失时前端兜底显示文件名） */
-  log?: string
+const POLL_MS = 3000
+const LOG_TAIL_LINES = 100
+
+/** 秒 → "X 小时 Y 分" / "X 分 Y 秒" / "X 秒" */
+function formatUptime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '刚刚启动'
+  const s = Math.floor(seconds)
+  if (s < 60) return `${s} 秒`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m} 分 ${s % 60} 秒`
+  return `${Math.floor(m / 60)} 小时 ${m % 60} 分`
 }
 
-const POLL_MS = 3000
+interface PreflightItem {
+  key: keyof ProgrammingWebPreflight
+  label: string
+  desc: string
+}
+
+/** 前置条件清单（与 Go GetProgrammingWebPreflight 字段一一对应） */
+const PREFLIGHT_ITEMS: PreflightItem[] = [
+  { key: 'harness_valid', label: 'Harness 目录有效', desc: '根目录存在 package.json（GAEA_HARNESS_DIR 可指定）' },
+  { key: 'pnpm_found', label: 'pnpm 可用', desc: 'Node.js ≥22 + corepack（corepack enable）' },
+  { key: 'deps_ready', label: '依赖已安装', desc: 'node_modules 存在（首次使用先执行 pnpm install）' },
+  { key: 'build_ready', label: 'Web 构建产物就绪', desc: 'apps/web/dist 已构建（pnpm run build 生成）' },
+  { key: 'port_free', label: '端口 3080 空闲', desc: '被其他进程占用时需手动停止后再启动' },
+]
 
 const ProgrammingPage: React.FC = () => {
   const [status, setStatus] = useState<ProgrammingWebStatus | null>(null)
-  const [busy, setBusy] = useState<'start' | 'stop' | null>(null)
+  const [preflight, setPreflight] = useState<ProgrammingWebPreflight | null>(null)
+  const [log, setLog] = useState<ProgrammingWebLogTail | null>(null)
+  const [logExpanded, setLogExpanded] = useState(false)
+  const [busy, setBusy] = useState<'start' | 'stop' | 'preflight' | 'log' | null>(null)
   const [error, setError] = useState('')
   const [frameKey, setFrameKey] = useState(0)
   const [frameLoaded, setFrameLoaded] = useState(false)
@@ -45,11 +69,44 @@ const ProgrammingPage: React.FC = () => {
     }
   }, [])
 
+  const refreshPreflight = useCallback(async () => {
+    setBusy((b) => b ?? 'preflight')
+    try {
+      setPreflight((await App.GetProgrammingWebPreflight()) as ProgrammingWebPreflight)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy((b) => (b === 'preflight' ? null : b))
+    }
+  }, [])
+
+  const refreshLog = useCallback(async () => {
+    setBusy((b) => b ?? 'log')
+    try {
+      setLog((await App.ProgrammingWebLogTail(LOG_TAIL_LINES)) as ProgrammingWebLogTail)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy((b) => (b === 'log' ? null : b))
+    }
+  }, [])
+
   useEffect(() => {
     void refresh()
+    void refreshPreflight()
     const t = window.setInterval(refresh, POLL_MS)
     return () => window.clearInterval(t)
-  }, [refresh])
+  }, [refresh, refreshPreflight])
+
+  // 服务停止后端口重新空闲：预检 port_free 状态需要跟随刷新
+  // （仅「运行中 → 停止」方向，挂载/轮询不重复拉取）。
+  const running = !!status?.running
+  const prevRunning = useRef(running)
+  useEffect(() => {
+    if (prevRunning.current && !running) void refreshPreflight()
+    prevRunning.current = running
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running])
 
   const handleStart = async () => {
     setBusy('start')
@@ -63,6 +120,7 @@ const ProgrammingPage: React.FC = () => {
     } finally {
       setBusy(null)
       void refresh()
+      void refreshPreflight()
     }
   }
 
@@ -107,7 +165,11 @@ const ProgrammingPage: React.FC = () => {
     setFrameKey((k) => k + 1)
   }
 
-  const running = !!status?.running
+  const toggleLog = () => {
+    if (!logExpanded) void refreshLog()
+    setLogExpanded((v) => !v)
+  }
+
   const owned = !!status?.owned
 
   // ── 运行中：桌面内嵌工作台（核心视图） ───────────────────────────
@@ -120,6 +182,17 @@ const ProgrammingPage: React.FC = () => {
               <span className="prog-badge-dot" aria-hidden="true" />
               Harness Web 运行中
             </span>
+            {owned ? (
+              <span className="prog-uptime-chip" title="gaea 自启实例运行时长">
+                <ClockCircleOutlined aria-hidden="true" />
+                {formatUptime(status?.uptime_s ?? 0)}
+              </span>
+            ) : (
+              <span className="prog-uptime-chip is-external" title="非 gaea 自启实例，停止需手动操作">
+                <WarningOutlined aria-hidden="true" />
+                外部实例
+              </span>
+            )}
             <code className="prog-url-chip" title={status?.url}>{status?.url}</code>
             <span className="prog-frame-spacer" aria-hidden="true" />
             <Tooltip title="重新加载工作台">
@@ -176,6 +249,9 @@ const ProgrammingPage: React.FC = () => {
   }
 
   // ── 未运行：启动引导视图 ────────────────────────────────────────
+  const allReady = preflight?.all_ready ?? false
+  const checking = preflight == null || busy === 'preflight'
+
   return (
     <div className="prog">
       <div className="prog-shell">
@@ -197,18 +273,18 @@ const ProgrammingPage: React.FC = () => {
             <div className="prog-launch-copy">
               <h2>一键启动，桌面内嵌</h2>
               <p>
-                在 Harness 目录执行 <code>pnpm dsh web</code> 并等待端口就绪后，
-                工作台会直接嵌入当前窗口。
+                前置条件全部就绪后，在 Harness 目录执行 <code>pnpm dsh web</code> 并等待端口
+                就绪，工作台会直接嵌入当前窗口。
               </p>
             </div>
             <div className="prog-launch-actions">
-              <Tooltip title="在 Harness 目录启动 pnpm dsh web（已运行幂等）">
+              <Tooltip title={allReady ? '在 Harness 目录启动 pnpm dsh web（已运行幂等）' : '前置条件未全部就绪，请先按下方清单处理'}>
                 <Button
                   type="primary"
                   size="large"
                   icon={<PlayCircleOutlined />}
                   loading={busy === 'start'}
-                  disabled={running}
+                  disabled={running || !allReady}
                   onClick={() => void handleStart()}
                 >
                   启动编程工作台
@@ -264,13 +340,94 @@ const ProgrammingPage: React.FC = () => {
 
         {error && <div className="prog-error v3-rise v3-rise-2" role="alert">{error}</div>}
 
-        <section className="prog-hint-card v3-card v3-rise v3-rise-2" aria-label="使用说明">
-          <span className="prog-hint-icon" aria-hidden="true"><ThunderboltOutlined /></span>
-          <p className="prog-hint">
-            首次使用前需在 Harness 目录执行过一次 <code>pnpm install</code> 与 <code>pnpm run build</code>；
-            启动日志写入系统临时目录（默认 <code>gaea-dsh-web.log</code>）。
-            若 3080 端口已被其他进程占用，gaea 会明确提示而不会抢端口。
-          </p>
+        {/* 启动前置条件：真实逐项检查（替代静态使用说明） */}
+        <section className="prog-preflight v3-panel v3-rise v3-rise-2" aria-label="启动前置条件">
+          <div className="prog-panel-head">
+            <span className="prog-panel-title">
+              <FileSearchOutlined aria-hidden="true" />
+              启动前置条件
+            </span>
+            <Button
+              size="small"
+              icon={<SyncOutlined />}
+              loading={busy === 'preflight'}
+              onClick={() => void refreshPreflight()}
+              aria-label="重新检查前置条件"
+            >
+              重新检查
+            </Button>
+          </div>
+
+          {checking ? (
+            <div className="prog-preflight-loading" role="status">
+              <Spin size="small" />
+              <span>正在检查 Harness 环境…</span>
+            </div>
+          ) : (
+            <>
+              <ul className="prog-preflight-list">
+                {PREFLIGHT_ITEMS.map((item) => {
+                  const ok = preflight?.[item.key] === true
+                  return (
+                    <li key={item.key} className={`prog-preflight-item ${ok ? 'is-ok' : 'is-fail'}`}>
+                      <span className="prog-preflight-icon" aria-hidden="true">
+                        {ok ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                      </span>
+                      <span className="prog-preflight-copy">
+                        <span className="prog-preflight-label">{item.label}</span>
+                        <span className="prog-preflight-desc">{item.desc}</span>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+              <div className={`prog-preflight-foot ${allReady ? 'is-ready' : 'is-pending'}`}>
+                {allReady ? (
+                  <><CheckOutlined aria-hidden="true" /> 全部就绪，可一键启动</>
+                ) : (
+                  <><WarningOutlined aria-hidden="true" /> 存在未满足项，按提示处理后「重新检查」</>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+
+        {/* 启动日志：可展开查看自启日志尾部 */}
+        <section className="prog-log v3-panel v3-rise v3-rise-2" aria-label="启动日志">
+          <button type="button" className="prog-panel-head prog-log-toggle" onClick={toggleLog} aria-expanded={logExpanded}>
+            <span className="prog-panel-title">
+              <FileTextOutlined aria-hidden="true" />
+              启动日志
+              <code className="prog-log-path">{status?.log ?? 'gaea-dsh-web.log'}</code>
+            </span>
+            <span className="prog-log-toggle-actions">
+              {logExpanded && (
+                <Button
+                  size="small"
+                  icon={<ReloadOutlined />}
+                  loading={busy === 'log'}
+                  onClick={(e) => { e.stopPropagation(); void refreshLog() }}
+                  aria-label="刷新日志"
+                />
+              )}
+              <span className="prog-log-chevron" aria-hidden="true">
+                {logExpanded ? <UpOutlined /> : <DownOutlined />}
+              </span>
+            </span>
+          </button>
+          {logExpanded && (
+            <div className="prog-log-body">
+              {log == null ? (
+                <div className="prog-log-empty" role="status"><Spin size="small" /> 读取日志…</div>
+              ) : !log.exists ? (
+                <div className="prog-log-empty">{log.error}</div>
+              ) : (
+                <pre className="prog-log-pre" aria-label="日志内容">
+                  {log.lines.length ? log.lines.join('\n') : '（日志为空）'}
+                </pre>
+              )}
+            </div>
+          )}
         </section>
       </div>
     </div>

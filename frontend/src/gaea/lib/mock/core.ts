@@ -18,6 +18,7 @@ type CoreMethods = Pick<
   | "LogFrontendError"
   // 编程板块：DeepSeek Harness Web 进程管理（浏览器 mock 恒为未运行）。
   | "GetProgrammingWebStatus" | "StartProgrammingWeb" | "StopProgrammingWeb"
+  | "GetProgrammingWebPreflight" | "ProgrammingWebLogTail"
 >;
 
 export function buildCore(s: MakeMockState): CoreMethods {
@@ -188,6 +189,30 @@ export function buildCore(s: MakeMockState): CoreMethods {
         pid: 0,
         url: "http://127.0.0.1:3080",
         root: "C:\\AI\\deepseek-harness",
+        log: "gaea-dsh-web.log",
+        uptime_s: 0,
+      };
+    },
+    async GetProgrammingWebPreflight() {
+      // 浏览器开发模式：假定本机 harness 已就绪（未运行 → 端口空闲），
+      // 启动引导视图可完整演示。
+      return {
+        harness_valid: true,
+        pnpm_found: true,
+        deps_ready: true,
+        build_ready: true,
+        port_free: true,
+        all_ready: true,
+        root: "C:\\AI\\deepseek-harness",
+      };
+    },
+    async ProgrammingWebLogTail() {
+      // 浏览器开发模式无真实日志：返回未生成提示（面板空态展示）。
+      return {
+        exists: false,
+        path: "gaea-dsh-web.log",
+        lines: [],
+        error: "日志文件尚未生成（第一次启动后出现）",
       };
     },
     async StartProgrammingWeb() {

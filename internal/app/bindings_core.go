@@ -37,6 +37,7 @@ func (b *CoreB) GetNovelsDir() string { return b.a.GetNovelsDir() }
 func (b *CoreB) GetOpencodeGoKeyStatus() map[string]interface{} { return b.a.GetOpencodeGoKeyStatus() }
 func (b *CoreB) GetOpencodeZenKeyStatus() map[string]interface{} { return b.a.GetOpencodeZenKeyStatus() }
 func (b *CoreB) GetPreloadPlan() bool { return b.a.GetPreloadPlan() }
+func (b *CoreB) GetProgrammingWebPreflight() map[string]interface{} { return b.a.GetProgrammingWebPreflight() }
 func (b *CoreB) GetProgrammingWebStatus() map[string]interface{} { return b.a.GetProgrammingWebStatus() }
 func (b *CoreB) GetProjectInfo() map[string]interface{} { return b.a.GetProjectInfo() }
 func (b *CoreB) GetStats() map[string]interface{} { return b.a.GetStats() }
@@ -47,6 +48,7 @@ func (b *CoreB) ListSkills() []map[string]interface{} { return b.a.ListSkills() 
 func (b *CoreB) Login() error { return b.a.Login() }
 func (b *CoreB) Logout() error { return b.a.Logout() }
 func (b *CoreB) OpenProject(dir string) (map[string]interface{}, error) { return b.a.OpenProject(dir) }
+func (b *CoreB) ProgrammingWebLogTail(n int) map[string]interface{} { return b.a.ProgrammingWebLogTail(n) }
 func (b *CoreB) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, error) { return b.a.RefreshEngineModels(engineID) }
 func (b *CoreB) ResetModelCallStats() { b.a.ResetModelCallStats() }
 func (b *CoreB) SaveConfig(key string, value string) error { return b.a.SaveConfig(key, value) }

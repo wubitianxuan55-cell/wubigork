@@ -430,6 +430,15 @@ interface BoardManifest {
 > 打开 / 停止；未运行时为启动引导视图（一键启动 + 打开 Harness 目录 + 状态行）。板块
 > layout 由 padded 改为 full（全出血），GetProgrammingWebStatus 新增 log 字段。
 
+> **2026-08-16 增强：** 启动引导从「静态使用说明」升级为「真实前置条件检查」——
+> 新增 GetProgrammingWebPreflight（harness 目录有效 / pnpm 可用 / node_modules 已装 /
+> apps/web/dist 构建就绪 / 端口 3080 空闲 + all_ready 汇总）与 ProgrammingWebLogTail
+> （自启日志尾部，n 钳制 [1,200] 默认 50）；GetProgrammingWebStatus 新增 uptime_s
+> （自启实例运行时长，非自启恒 0）。前端启动视图渲染 5 项绿/红清单 + 重新检查 +
+> 可展开日志面板；运行中工具栏显示运行时长 / 外部实例芯片。后端全部外部副作用
+> （端口探测 / tasklist / taskkill / LookPath / cmd.Start / 日志路径 / 等待超时）经
+> probe* 可替换探针注入，编程板块单元测试 16 用例零外部依赖（不碰真实 3080 与进程）。
+
 ## 10. 开放问题与决策记录（定稿状态）
 
 | 编号 | 问题 | 状态 | 说明 |
