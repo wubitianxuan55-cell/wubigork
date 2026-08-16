@@ -238,6 +238,12 @@
   align-items: center;
   min-width: 0;
 }
+/* 编程工作台工具栏宿主（ProgrammingPage portal 目标）：自身不占布局宽度，只做对齐容器 */
+.v3-strip-prog {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
 /* 模型 pill */
 .v3-model-pill {
   display: inline-flex;

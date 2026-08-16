@@ -8,6 +8,7 @@
 // Wails 原生走门面代理（CoreB），浏览器 mock 走 makeMockApp（§5.3
 // 前端侧 seam 模式），两种环境同一套代码。
 import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Button, Tooltip, message, Spin } from 'antd'
 import {
   CodeOutlined, PlayCircleOutlined, StopOutlined,
@@ -114,6 +115,13 @@ const ProgrammingPage: React.FC = () => {
   const [starting, setStarting] = useState(false) // 启动中（独立于 busy：启动视图内点日志刷新不应退出）
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  // ── 顶栏工具栏宿主：prog-frame-bar 经 portal 移入 MainLayout 的 v3-strip
+  // （T6-10.2 同款模式：宿主 DOM 在首帧提交后才存在，挂载后查找一次即可，
+  // MainLayout 恒挂载该容器，仅按板块切换显隐，节点不会重建）。
+  const [progBarHost, setProgBarHost] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setProgBarHost(document.getElementById('v3-prog-host'))
+  }, [])
 
   const refresh = useCallback(async () => {
     try {
@@ -281,58 +289,62 @@ const ProgrammingPage: React.FC = () => {
 
   // ── 运行中：桌面内嵌工作台（核心视图） ───────────────────────────
   if (running) {
+    const frameBar = (
+      <div className="prog-frame-bar">
+        <span className="prog-badge is-on" title="服务运行中，工作台已内嵌到桌面窗口">
+          <span className="prog-badge-dot" aria-hidden="true" />
+          Harness Web 运行中
+        </span>
+        {owned ? (
+          <span className="prog-uptime-chip" title="gaea 自启实例运行时长">
+            <ClockCircleOutlined aria-hidden="true" />
+            {formatUptime(status?.uptime_s ?? 0)}
+          </span>
+        ) : (
+          <span className="prog-uptime-chip is-external" title="非 gaea 自启实例，停止需手动操作">
+            <WarningOutlined aria-hidden="true" />
+            外部实例
+          </span>
+        )}
+        <code className="prog-url-chip" title={status?.url}>{status?.url}</code>
+        <span className="prog-frame-spacer" aria-hidden="true" />
+        <Tooltip title="重新加载工作台">
+          <Button
+            type="text"
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={handleReload}
+            aria-label="重新加载工作台"
+          />
+        </Tooltip>
+        <Tooltip title="在浏览器中打开">
+          <Button
+            type="text"
+            size="small"
+            icon={<GlobalOutlined />}
+            onClick={handleOpenBrowser}
+            aria-label="在浏览器中打开"
+          />
+        </Tooltip>
+        <Tooltip title={owned ? '停止 gaea 自启的实例' : '外部实例，为避免误杀请手动停止'}>
+          <Button
+            type="text"
+            danger
+            size="small"
+            icon={<StopOutlined />}
+            loading={busy === 'stop'}
+            disabled={!owned}
+            onClick={() => void handleStop()}
+            aria-label="停止服务"
+          />
+        </Tooltip>
+      </div>
+    )
     return (
       <div className="prog">
         <div className="prog-workbench">
-          <div className="prog-frame-bar">
-            <span className="prog-badge is-on" title="服务运行中，工作台已内嵌到桌面窗口">
-              <span className="prog-badge-dot" aria-hidden="true" />
-              Harness Web 运行中
-            </span>
-            {owned ? (
-              <span className="prog-uptime-chip" title="gaea 自启实例运行时长">
-                <ClockCircleOutlined aria-hidden="true" />
-                {formatUptime(status?.uptime_s ?? 0)}
-              </span>
-            ) : (
-              <span className="prog-uptime-chip is-external" title="非 gaea 自启实例，停止需手动操作">
-                <WarningOutlined aria-hidden="true" />
-                外部实例
-              </span>
-            )}
-            <code className="prog-url-chip" title={status?.url}>{status?.url}</code>
-            <span className="prog-frame-spacer" aria-hidden="true" />
-            <Tooltip title="重新加载工作台">
-              <Button
-                type="text"
-                size="small"
-                icon={<ReloadOutlined />}
-                onClick={handleReload}
-                aria-label="重新加载工作台"
-              />
-            </Tooltip>
-            <Tooltip title="在浏览器中打开">
-              <Button
-                type="text"
-                size="small"
-                icon={<GlobalOutlined />}
-                onClick={handleOpenBrowser}
-                aria-label="在浏览器中打开"
-              />
-            </Tooltip>
-            <Tooltip title={owned ? '停止 gaea 自启的实例' : '外部实例，为避免误杀请手动停止'}>
-              <Button
-                type="text"
-                danger
-                size="small"
-                icon={<StopOutlined />}
-                loading={busy === 'stop'}
-                disabled={!owned}
-                onClick={() => void handleStop()}
-                aria-label="停止服务"
-              />
-            </Tooltip>
-          </div>
+          {/* 宿主缺失兜底：工具栏仍显示在 iframe 上方（正常路径已移入顶栏） */}
+          {progBarHost === null && frameBar}
 
           <div className="prog-frame-wrap">
             {!frameLoaded && (
@@ -351,6 +363,8 @@ const ProgrammingPage: React.FC = () => {
             />
           </div>
         </div>
+        {/* 顶栏工具栏（portal 进 MainLayout 的 v3-strip 宿主，仅编程板块激活时可见） */}
+        {progBarHost !== null && createPortal(frameBar, progBarHost)}
       </div>
     )
   }

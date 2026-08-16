@@ -479,6 +479,11 @@ const MainLayout: React.FC = () => {
             <div id="v3-chatmode-host" className="v3-strip-chatmode"
               style={{ display: page === 'chat' ? undefined : 'none' }}
               aria-hidden={page !== 'chat' || undefined} />
+            {/* 编程工作台工具栏宿主（ProgrammingPage 经 portal 渲染进此容器；
+                仅编程板块激活时可见，其他板块隐藏） */}
+            <div id="v3-prog-host" className="v3-strip-prog"
+              style={{ display: page === 'code' ? undefined : 'none' }}
+              aria-hidden={page !== 'code' || undefined} />
             <div className="v3-strip-spacer" />
             {/* 模型 pill：当前板块功能绑定模型 / 全局活跃模型；点击进入模型中心 */}
             <Tooltip title={pillTip}>

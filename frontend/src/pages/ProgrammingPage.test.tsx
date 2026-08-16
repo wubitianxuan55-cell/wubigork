@@ -3,7 +3,7 @@
 // （前置条件清单/启动/日志）、启动中动画视图、运行中内嵌工作台
 // （iframe/运行时长/归属/停止守卫）。
 
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 // 屏蔽 bridge seam（vi.hoisted 避免 mock 提升导致的初始化顺序问题）
@@ -52,6 +52,10 @@ beforeEach(() => {
   })
   mocks.StartProgrammingWeb.mockResolvedValue(undefined)
   mocks.StopProgrammingWeb.mockResolvedValue(undefined)
+})
+
+afterEach(() => {
+  document.body.innerHTML = ''
 })
 
 describe('ProgrammingPage 未运行：启动引导视图', () => {
@@ -164,6 +168,22 @@ describe('ProgrammingPage 运行中：桌面内嵌工作台', () => {
     await screen.findByTitle('DeepSeek Harness 编程工作台')
     fireEvent.click(screen.getByRole('button', { name: '停止服务' }))
     await waitFor(() => expect(mocks.StopProgrammingWeb).toHaveBeenCalled())
+  })
+
+  it('工具栏经 portal 渲染进顶栏宿主（v3-prog-host），iframe 上方不再显示', async () => {
+    document.body.innerHTML = '<div id="v3-prog-host"></div>'
+    mocks.GetProgrammingWebStatus.mockResolvedValue({
+      ...idleStatus, running: true, owned: true, pid: 9, uptime_s: 65,
+    })
+    render(<ProgrammingPage />)
+    await screen.findByTitle('DeepSeek Harness 编程工作台')
+    const host = document.getElementById('v3-prog-host') as HTMLElement
+    expect(host.textContent).toContain('Harness Web 运行中')
+    expect(host.textContent).toContain('1 分 5 秒')
+    expect(host.textContent).toContain('http://127.0.0.1:3080')
+    // 工作台内部不再保留工具栏（已整体移入顶栏宿主）
+    expect(document.querySelector('.prog-workbench .prog-frame-bar')).toBeNull()
+    expect(screen.getByRole('button', { name: '停止服务' })).toBeTruthy()
   })
 })
 

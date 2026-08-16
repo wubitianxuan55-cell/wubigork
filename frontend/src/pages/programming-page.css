@@ -263,6 +263,18 @@
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 5%, transparent);
   flex-shrink: 0;
 }
+/* 顶栏内嵌工具栏：portal 进 v3-strip 后适配 38px 轨道条高度（胶囊形，压扁不溢出） */
+.v3-strip-prog .prog-frame-bar {
+  height: 30px;
+  padding: 0 4px 0 12px;
+  border-radius: 999px;
+  gap: 8px;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--color-surface-container-high) 70%, transparent);
+}
+.v3-strip-prog .prog-url-chip {
+  max-width: 220px;
+}
 .prog-frame-spacer {
   flex: 1;
 }
