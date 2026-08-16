@@ -148,6 +148,27 @@ export function resolveTemplates(remote: TaskTemplate[] | null | undefined): Tas
   return remote && remote.length > 0 ? remote : FALLBACK_TEMPLATES;
 }
 
+// 模块级缓存：欢迎页每次挂载（新建/切换会话时 items 清空）都会重新拉
+// TaskTemplates；与命令面板「任务模板」组共用数据源，缓存避免重复请求。
+let templatesCache: TaskTemplate[] | null = null;
+
+/** 拉取任务模板（带缓存）：远端成功 → 缓存；失败/空 → 内置模板。 */
+export async function loadTemplates(): Promise<TaskTemplate[]> {
+  if (templatesCache) return templatesCache;
+  try {
+    const ts = await app.TaskTemplates();
+    templatesCache = resolveTemplates(ts);
+  } catch {
+    templatesCache = FALLBACK_TEMPLATES;
+  }
+  return templatesCache;
+}
+
+// 测试辅助：清空缓存（vitest 隔离用例间状态）。
+export function resetTemplatesCacheForTest(): void {
+  templatesCache = null;
+}
+
 export function Welcome({
   onPrompt,
   cwd: _cwd,
@@ -168,9 +189,7 @@ export function Welcome({
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   useEffect(() => {
     let live = true;
-    app.TaskTemplates()
-      .then((ts) => { if (live) setTemplates(resolveTemplates(ts)); })
-      .catch(() => { if (live) setTemplates(FALLBACK_TEMPLATES); });
+    loadTemplates().then((ts) => { if (live) setTemplates(ts); });
     return () => { live = false; };
   }, []);
   const recentSessions = sessions?.filter((s) => !s.current).slice(0, 3) ?? [];

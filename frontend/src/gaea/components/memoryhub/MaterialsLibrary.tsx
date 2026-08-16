@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExternalLink, FileText, Pin, RefreshCw, Eye } from "../../icons";
 import { app } from "../../lib/bridge";
 import { usePreviewStore } from "../../lib/store";
+import { DOMAIN_COLORS } from "../../lib/domainColors";
 import type { FileSearchHit } from "../../lib/types";
 
 /**
@@ -47,7 +48,7 @@ export function MaterialsLibrary() {
     <div className="h-full flex flex-col text-fg-dim text-xs">
       <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-border-soft">
         <span className="flex items-center gap-1.5 font-semibold text-fg text-sm">
-          <Pin size={13} style={{ color: "#38bdf8" }} />
+          <Pin size={13} style={{ color: DOMAIN_COLORS.material }} />
           项目资料
         </span>
         <span className="text-fg-faint text-[10.5px]">固定常用文件 · 新会话自动带入上下文</span>
@@ -66,7 +67,7 @@ export function MaterialsLibrary() {
         {/* 已固定 */}
         <section>
           <div className="text-[10px] uppercase tracking-wider text-fg-faint/70 font-medium mb-1.5 flex items-center gap-1.5">
-            <Pin size={10} style={{ color: "#38bdf8" }} />
+            <Pin size={10} style={{ color: DOMAIN_COLORS.material }} />
             已固定 · {pinned.length}
           </div>
           {pinned.length === 0 ? (

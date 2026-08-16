@@ -439,6 +439,7 @@ export const zhTW: Record<DictKey, string> = {
   "palette.empty": "無匹配結果",
   "palette.group.commands": "命令",
   "palette.group.sessions": "工作階段",
+  "palette.group.templates": "任務模板",
 
   // memory panel — 新增鍵
   "memory.filterAll": "全部",

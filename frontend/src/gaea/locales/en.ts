@@ -434,6 +434,7 @@ export const en = {
   "palette.empty": "No matches",
   "palette.group.commands": "Commands",
   "palette.group.sessions": "Sessions",
+  "palette.group.templates": "Templates",
 
   // memory panel — new additions
   "memory.filterAll": "All",

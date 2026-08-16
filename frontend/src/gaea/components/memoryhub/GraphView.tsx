@@ -3,20 +3,12 @@ import ForceGraph3D from "3d-force-graph";
 import type { ForceGraph3DInstance } from "3d-force-graph";
 import { Modal, Spin } from "antd";
 import { app } from "../../lib/bridge";
+import { DOMAIN_COLORS, DOMAIN_KEYS, DOMAIN_LABELS } from "../../lib/domainColors";
 import type { GraphLink, GraphNode, MemoryGraphView } from "../../lib/types";
 
-const TYPE_COLORS: Record<string, string> = {
-  knowledge: "#818cf8", // indigo
-  profile: "#a78bfa", // violet
-  office: "#34d399", // emerald
-  whisper: "#f472b6", // pink
-  material: "#38bdf8", // sky：项目资料（固定常用文件）
-  cost: "#fbbf24", // amber：成本条目
-};
-const TYPE_LABELS: Record<string, string> = {
-  knowledge: "知识", profile: "画像", office: "办公记忆", whisper: "聊天记忆", material: "项目资料", cost: "成本",
-};
-const TYPE_KEYS = ["knowledge", "profile", "office", "whisper", "material", "cost"] as const;
+const TYPE_COLORS = DOMAIN_COLORS;
+const TYPE_LABELS = DOMAIN_LABELS;
+const TYPE_KEYS = DOMAIN_KEYS;
 const LINK_COLORS: Record<string, string> = {
   "same-tag": "rgba(129,140,248,0.30)",
   "same-category": "rgba(52,211,153,0.30)",

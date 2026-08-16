@@ -1,12 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "../lib/i18n";
-import { Welcome, FALLBACK_TEMPLATES, resolveTemplates } from "./Welcome";
+import { Welcome, FALLBACK_TEMPLATES, resolveTemplates, loadTemplates, resetTemplatesCacheForTest } from "./Welcome";
 
 function wrap(ui: ReactElement) {
   return <LocaleProvider>{ui}</LocaleProvider>;
 }
+
+beforeEach(() => {
+  resetTemplatesCacheForTest();
+});
 
 describe("Welcome 欢迎页", () => {
   it("任务模板空库/失败回退内置模板", () => {
@@ -14,6 +18,13 @@ describe("Welcome 欢迎页", () => {
     expect(resolveTemplates([])).toHaveLength(FALLBACK_TEMPLATES.length);
     const remote = [{ name: "custom", title: "自定义", description: "d", prompt: "p" }];
     expect(resolveTemplates(remote)).toEqual(remote);
+  });
+
+  it("loadTemplates 返回模板且缓存命中后结果稳定", async () => {
+    const first = await loadTemplates();
+    const second = await loadTemplates();
+    expect(first.length).toBeGreaterThan(0);
+    expect(second).toEqual(first);
   });
 
   it("渲染核心能力与任务模板区", async () => {

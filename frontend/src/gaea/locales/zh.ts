@@ -437,6 +437,7 @@ export const zh: Record<DictKey, string> = {
   "palette.empty": "无匹配结果",
   "palette.group.commands": "命令",
   "palette.group.sessions": "会话",
+  "palette.group.templates": "任务模板",
 
   // memory panel — 新增键
   "memory.filterAll": "全部",

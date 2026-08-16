@@ -3,6 +3,7 @@ import { DownloadOutlined, HeartOutlined, ReadOutlined, IdcardOutlined, HomeOutl
 import { Modal, message } from "antd";
 import { RefreshCw } from "../../icons";
 import { app } from "../../lib/bridge";
+import { DOMAIN_COLORS } from "../../lib/domainColors";
 import type { WhisperEpisodeView, WhisperMemoryView } from "../../lib/types";
 import { EmptyState } from "../EmptyState";
 
@@ -296,7 +297,7 @@ export function WhisperMemoryLibrary() {
         maskTransitionName=""
         title={
           <span>
-            <ReadOutlined style={{ color: "#f472b6" }} />
+            <ReadOutlined style={{ color: DOMAIN_COLORS.whisper }} />
             <span className="ml-1 text-pink-400">情节记忆</span>
           </span>
         }

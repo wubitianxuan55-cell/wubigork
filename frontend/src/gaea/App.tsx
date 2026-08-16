@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
-  BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2,
+  BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
   PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
@@ -60,6 +60,8 @@ import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, type SessionChange } from "./lib/changes";
 import { classifyComposerCommand } from "./lib/command";
 import { DEFAULT_WORKSPACE_TAB, WORKSPACE_TABS, type WorkspaceTabId } from "./lib/workspaceTabs";
+import { loadTemplates, FALLBACK_TEMPLATES } from "./components/Welcome";
+import type { TaskTemplate } from "./lib/types";
 
 export default function App() {
   const toast = useToast();
@@ -553,6 +555,14 @@ export default function App() {
 
   const statsPersistence = useStatsPersistence(currentSessionKey, statsReset, state.turnSteps, state.perTurnUsage);
 
+  // 任务模板（命令面板「任务模板」组 + 欢迎页共用数据源；loadTemplates 模块级缓存）。
+  const [templates, setTemplates] = useState<TaskTemplate[]>(FALLBACK_TEMPLATES);
+  useEffect(() => {
+    let live = true;
+    loadTemplates().then((ts) => { if (live) setTemplates(ts); });
+    return () => { live = false; };
+  }, []);
+
   const paletteItems = useMemo<PaletteItem[]>(() => {
     const cmds: PaletteItem[] = [
       { id: "cmd-new", group: t("palette.group.commands") ?? "命令", title: t("topbar.newSession") ?? "新建会话", icon: <SquarePen size={15} />, compact: true, keywords: ["new", "新建"], run: () => void newSessionAndReset() },
@@ -586,8 +596,19 @@ export default function App() {
       keywords: ["session", "会话"],
       run: () => { if (!s.current) void onResumeSession(s.path); },
     }));
-    return [...cmds, ...sessionItems];
-  }, [t, sidebarSessions, startNewSession, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, setPreviewFile, setRightTab]);
+    // 任务模板组：与欢迎页同源（FALLBACK_TEMPLATES/远端），Ctrl+K 可直接发起
+    const templateItems: PaletteItem[] = templates.map((tm) => ({
+      id: `tpl-${tm.name}`,
+      group: t("palette.group.templates") ?? "任务模板",
+      title: tm.title,
+      hint: `/${tm.name}`,
+      meta: tm.description,
+      icon: <FileText size={15} />,
+      keywords: ["template", "模板", tm.name, ...tm.title.split(/\s+/)],
+      run: () => { setPreviewFile(null); setWorkspacePanel(false); send(tm.prompt); },
+    }));
+    return [...cmds, ...templateItems, ...sessionItems];
+  }, [t, sidebarSessions, startNewSession, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, setPreviewFile, setRightTab, templates, send]);
 
   const layoutStyle = useMemo(
     () =>
