@@ -695,7 +695,7 @@ export default function App() {
               <Skeleton />
             ) : (
               <>
-                <Transcript onPrompt={send} running={state.running} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
+                <Transcript onPrompt={send} running={state.running} onRewind={rewind} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
                 {state.items.length > 1 && <JumpBar items={state.items} scrollToTurn={scrollToTurn ?? undefined} />}
               </>
             )}

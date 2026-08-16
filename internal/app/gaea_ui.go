@@ -600,17 +600,62 @@ func (a *App) resumeLastSession(ctrl *control.Controller) string {
 	return infos[0].Path
 }
 
-// GaeaCheckpoints 列出会话回退点（办公板块暂不支持回退，返回空）。
-func (a *App) GaeaCheckpoints() []CheckpointMeta { return []CheckpointMeta{} }
+// GaeaCheckpoints 列出会话可回退点（每个用户回合一个：turn/prompt/files/time）。
+// 事件日志模式从日志派生；legacy 模式从内存消息派生。引擎未初始化返回空。
+func (a *App) GaeaCheckpoints() []CheckpointMeta {
+	c := gaeaCtrl()
+	if c == nil {
+		return nil
+	}
+	ranges := c.Checkpoints()
+	out := make([]CheckpointMeta, 0, len(ranges))
+	for _, r := range ranges {
+		out = append(out, CheckpointMeta{Turn: r.Turn, Prompt: r.Prompt, Files: r.Files, Time: r.Time})
+	}
+	return out
+}
 
-// GaeaRewind/GaeaFork/GaeaSummarizeFrom/GaeaSummarizeUpTo 暂不支持。
-// 办公引擎无 checkpoint/分支系统，无法在会话中途回退到历史回合。
-var errNoCheckpoint = errors.New("办公引擎不支持会话回退（无 checkpoint 系统）")
+// GaeaRewind 回退到指定回合。scope 语义（与前端 rewind 菜单对齐）：
+//   - conversation / both：回退会话（both 下文件无独立版本系统，文件随会话
+//     产物自然撤销，故与 conversation 同行为）；
+//   - fork：从该回合分叉新会话；
+//   - code / summ-from / summ-upto：明确报错（文件快照 / 摘要协议未支持）。
+func (a *App) GaeaRewind(turn int, scope string) error {
+	c := gaeaCtrl()
+	if c == nil {
+		return errors.New("办公引擎未初始化")
+	}
+	switch scope {
+	case "fork":
+		if _, err := c.Fork(turn); err != nil {
+			return err
+		}
+		return nil
+	case "code":
+		return errors.New("文件级回退需要文件版本快照，暂未支持；可用「仅对话」回退会话")
+	case "summ-from", "summ-upto":
+		return errors.New("摘要回退暂未支持")
+	default: // conversation / both
+		return c.Rewind(turn)
+	}
+}
 
-func (a *App) GaeaRewind(turn int, scope string) error { return errNoCheckpoint }
-func (a *App) GaeaFork(turn int) error                 { return errNoCheckpoint }
-func (a *App) GaeaSummarizeFrom(turn int) error        { return errNoCheckpoint }
-func (a *App) GaeaSummarizeUpTo(turn int) error        { return errNoCheckpoint }
+// GaeaFork 从指定回合分叉出新会话并接管为当前会话。
+func (a *App) GaeaFork(turn int) error {
+	c := gaeaCtrl()
+	if c == nil {
+		return errors.New("办公引擎未初始化")
+	}
+	_, err := c.Fork(turn)
+	return err
+}
+
+// GaeaSummarizeFrom/GaeaSummarizeUpTo 摘要回退暂未支持（压缩协议需 LLM 摘要
+// 服务，留给后续）；保留签名返回明确错误，避免前端误以为成功。
+func (a *App) GaeaSummarizeFrom(turn int) error { return errSummarizeUnsupported }
+func (a *App) GaeaSummarizeUpTo(turn int) error { return errSummarizeUnsupported }
+
+var errSummarizeUnsupported = errors.New("摘要回退暂未支持")
 
 // ── 会话辅助（照搬 gaeaW desktop/sessions.go）──────────────────────
 

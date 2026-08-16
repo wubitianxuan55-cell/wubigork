@@ -1,6 +1,22 @@
 # 任务进度
 
-> 最后更新: 2026-08-15（**办公板块 UI+功能优化完成** · 提交 e1a6631）
+> 最后更新: 2026-08-15（**办公板块后端优化完成** · 回退链路实现 · 提交见下）
+
+## 办公板块后端优化：会话回退/分叉/回退点（2026-08-15，独立提交）
+
+> 需求：继续优化办公板块，本次优化后端。发现回退功能前后端双缺口并整体兑现。
+
+| 状态 | 任务 | 说明 |
+|------|------|------|
+| ✅ | 根因确认 | 前端 rewind 菜单（both/conversation/code/fork/summ-*）久已存在，但 GaeaCheckpoints/GaeaRewind/GaeaFork 后端空实现（「无 checkpoint 系统」注释已过时），且 App.tsx 未把 rewind 传给 Transcript（回退按钮从未显示） |
+| ✅ | session/rewind.go | UserTurnRanges 日志→回合边界（turn/prompt/files/time 对齐 CheckpointMeta）+ RewindLog 原子截断（空文件续写 seq 从 0） |
+| ✅ | control/controller_rewind.go | Rewind（截断日志→删 checkpoint→全量重放→Resume+镜像同步；legacy 直接截断）、Fork（新会话+日志+分支 meta ParentID/ForkTurn）、Checkpoints |
+| ✅ | app 层 | GaeaCheckpoints/Rewind/Fork 委托；scope：conversation/both→会话回退、fork→分叉、code/summ-*→明确错误；Summarize* 保留签名返回「暂未支持」 |
+| ✅ | 前端 | App.tsx 补 onRewind 接线（一行） |
+| ✅ | 测试 | session 5 + app 5（Rewind/Fork/Checkpoints/未支持 scope/引擎未初始化） |
+
+验证：go build/vet（改动包）干净 + session(1.5s)/control(7s)/app(25s) 全量过（app 仅既有 novel 并发 flaky 单跑过）+ 前端 tsc 0 / vitest 238 / eslint 0 errors。
+提交：`feat(office-backend): 实现会话回退/分叉/回退点`（6 文件 +829/-10）。
 
 ## 办公板块 UI+功能优化（2026-08-15，独立提交 e1a6631）
 
