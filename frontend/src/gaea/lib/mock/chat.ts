@@ -2,8 +2,9 @@
 import type { AppBindings } from "../bridge";
 // chat 板块契约类型（wails 生成物；AppBindings 契约同步 T6-3）。
 import type { app as AppModels, chat } from "../../../../wailsjs/go/models";
-import { delay, emit } from "./shared";
+import { delay, emit, mockScenario } from "./shared";
 import type { MakeMockState } from "./state";
+import type { QuestionAnswer } from "../types";
 
 type ChatMethods = Pick<
   AppBindings,
@@ -18,60 +19,162 @@ type ChatMethods = Pick<
   | "ChatTopicsList" | "ChatMessagesList" | "ChatAppendMessages"
 >;
 
+// 完整一轮「普通」对话模拟（demo 默认路径）：turn_started → reasoning 逐字
+// → 3 个工具（ls/write_file/edit_file）→ 正文逐字 → usage ×2 → turn_done。
+// 与真实 Go 事件序列同构，是 UI 全链路（过程卡/工具卡/统计）离线可开发的基础。
+async function runDemoTurn(input: string, cancelledRef: { v: boolean }, runningMock: boolean) {
+  const cancelled = () => cancelledRef.v;
+  emit({ kind: "turn_started" });
+  await delay(300);
+  if (cancelled()) return;
+  if (runningMock) await delay(1500); // simulate existing reasoning in progress
+  const isPoetry = /(诗|古诗|词)/.test(input);
+  const think = isPoetry ? "用户想写诗，直接创作即可。"
+    : `用户说"${input}"，先查看工作区里的资料再回复。`;
+  for (const ch of think) { if (cancelled()) break; emit({ kind: "reasoning", reasoning: ch }); await delay(12); }
+  await delay(200);
+  emit({ kind: "tool_dispatch", tool: { id: "t1", name: "ls", args: '{"path":"."}', readOnly: true } });
+  await delay(400);
+  emit({ kind: "tool_result", tool: { id: "t1", name: "ls", output: "方案.md\n成本测算.md\n表格.xlsx", readOnly: true } });
+  emit({ kind: "tool_dispatch", tool: { id: "t2", name: "write_file", args: '{"path":"季度总结.md","content":"# 季度总结\\n\\n经营数据平稳增长。"}', readOnly: false } });
+  await delay(350);
+  emit({ kind: "tool_result", tool: { id: "t2", name: "write_file", output: "已写入 季度总结.md", readOnly: false } });
+  emit({ kind: "tool_dispatch", tool: { id: "t3", name: "edit_file", args: '{"path":"方案.md","edits":[{"old":"初稿","new":"终稿"}]}', readOnly: false } });
+  await delay(300);
+  emit({ kind: "tool_result", tool: { id: "t3", name: "edit_file", output: "已更新 方案.md", readOnly: false } });
+  await delay(200);
+  let reply: string;
+  if (isPoetry) reply = "**《山居秋暝》**\n\n> 空山新雨后，天气晚来秋。\n> 明月松间照，清泉石上流。";
+  else reply = `收到！**${input}**\n\n我先查看当前办公目录中的资料（方案、成本测算、表格等），整理好后给你。`;
+  for (const ch of reply) { if (cancelled()) break; emit({ kind: "text", text: ch }); await delay(10); }
+  emit({ kind: "message", text: reply });
+  emitUsageTwice();
+  emit({ kind: "turn_done" });
+}
+
+function emitUsageTwice() {
+  emit({ kind: "usage", usage: { promptTokens: 1200, completionTokens: 200, totalTokens: 1400, cacheHitTokens: 800, cacheMissTokens: 400, sessionCacheHitTokens: 800, sessionCacheMissTokens: 400 } });
+  emit({ kind: "usage", usage: { promptTokens: 1280, completionTokens: 64, totalTokens: 1344, cacheHitTokens: 1024, cacheMissTokens: 256, sessionCacheHitTokens: 1024, sessionCacheMissTokens: 256 } });
+}
+
+// 审批场景（?mock=approval）：turn_started → 工具卡 → approval_request 挂起。
+// Approve 后补发 tool_result → 正文 → turn_done（与真实流程一致）。
+function runApprovalTurn(input: string) {
+  emit({ kind: "turn_started" });
+  emit({ kind: "reasoning", reasoning: `用户请求"${input}"，写入工作区文件需要审批确认。` });
+  emit({ kind: "tool_dispatch", tool: { id: "appr-t1", name: "write_file", args: '{"path":"审批测试.md","content":"# 待审批内容\\n\\n这是一份需要审批才能落盘的文件。"}', readOnly: false } });
+  emit({
+    kind: "approval_request",
+    approval: { id: "appr-1", tool: "write_file", subject: "写入 审批测试.md（3 行）" },
+  });
+}
+
+// 提问场景（?mock=ask）：turn_started → reasoning → ask_request 挂起（带开工计划）。
+// AnswerQuestion 后补发正文 → turn_done。
+function runAskTurn(input: string) {
+  emit({ kind: "turn_started" });
+  emit({ kind: "reasoning", reasoning: `用户请求"${input}"，先与用户确认任务范围与产出物。` });
+  emit({
+    kind: "ask_request",
+    ask: {
+      id: "ask-1",
+      plan: {
+        goal: "整理本季度经营数据，生成成本测算表与汇总报告",
+        steps: [
+          { title: "盘点现有资料", detail: "读取工作区中的方案、成本测算与表格文件，确认数据口径。", resources: ["成本测算.xlsx", "方案.md"], tools: ["read_file"] },
+          { title: "编制成本测算表", detail: "按现有模板合并季度数据，输出 xlsx 明细与汇总页。", resources: ["成本测算模板.xlsx"], tools: ["write_file"], deliverable: "成本测算表.xlsx" },
+          { title: "汇总报告", detail: "基于测算结果撰写季度经营总结（Word 交付）。", deliverable: "季度经营总结.docx" },
+        ],
+        questions: ["是否需要把测算结果同步进成本库？"],
+      },
+      questions: [
+        {
+          id: "plan",
+          header: "开工计划确认",
+          prompt: "请确认以下开工计划是否符合预期（可直接修改后提交）：",
+          options: [
+            { label: "按计划开工", description: "确认任务理解与步骤，立即执行" },
+            { label: "调整后开工", description: "在下方输入框中描述需要调整的内容" },
+          ],
+        },
+      ],
+    },
+  });
+}
+
+// 压缩场景（?mock=compaction）：turn_started → 正文 → compaction_started →
+// compaction_done → 继续正文 → turn_done。
+async function runCompactionTurn(input: string, cancelledRef: { v: boolean }) {
+  const cancelled = () => cancelledRef.v;
+  emit({ kind: "turn_started" });
+  await delay(200);
+  const think = `用户说"${input}"，上下文已较长，需要压缩历史。`;
+  for (const ch of think) { if (cancelled()) break; emit({ kind: "reasoning", reasoning: ch }); await delay(12); }
+  emit({ kind: "compaction_started", compaction: { trigger: "auto", messages: 28 } });
+  await delay(500);
+  if (cancelled()) return;
+  emit({
+    kind: "compaction_done",
+    compaction: {
+      trigger: "auto",
+      messages: 28,
+      summary: "会话早期内容：撰写季度总结、成本测算表编制流程与审批记录。",
+      archive: "sessions/archive/2026-08-compacted.jsonl",
+    },
+  });
+  const reply = `已压缩 28 条早期消息，保留关键上下文。继续处理：**${input}**`;
+  for (const ch of reply) { if (cancelled()) break; emit({ kind: "text", text: ch }); await delay(10); }
+  emit({ kind: "message", text: reply });
+  emitUsageTwice();
+  emit({ kind: "turn_done" });
+}
+
 export function buildChat(s: MakeMockState): ChatMethods {
   const { runningMock, sessions, archivedMock, requirementsMock, projectGroupsMock } = s;
   let cancelled = false; // Submit/Cancel 共享的中断标记（原 makeMockApp 局部状态）
+  const cancelledRef = { v: false }; // 供异步场景读取最新值
+  let pendingFlow: "approval" | "ask" | null = null; // 挂起中的审批/提问场景
   return {
     async Submit(input) {
       cancelled = false;
-      emit({ kind: "turn_started" });
-      await delay(300);
-      if (cancelled) return;
-      if (runningMock) await delay(1500); // simulate existing reasoning in progress
-      const isPoetry = /(诗|古诗|词)/.test(input);
-      const think = isPoetry ? "用户想写诗，直接创作即可。"
-        : `用户说"${input}"，先查看工作区里的资料再回复。`;
-      for (const ch of think) { if (cancelled) break; emit({ kind: "reasoning", reasoning: ch }); await delay(12); }
-      await delay(200);
-      emit({ kind: "tool_dispatch", tool: { id: "t1", name: "ls", args: '{"path":"."}', readOnly: true } });
-      await delay(400);
-      emit({ kind: "tool_result", tool: { id: "t1", name: "ls", output: "方案.md\n成本测算.md\n表格.xlsx", readOnly: true } });
-      emit({ kind: "tool_dispatch", tool: { id: "t2", name: "write_file", args: '{"path":"季度总结.md","content":"# 季度总结\\n\\n经营数据平稳增长。"}', readOnly: false } });
-      await delay(350);
-      emit({ kind: "tool_result", tool: { id: "t2", name: "write_file", output: "已写入 季度总结.md", readOnly: false } });
-      emit({ kind: "tool_dispatch", tool: { id: "t3", name: "edit_file", args: '{"path":"方案.md","edits":[{"old":"初稿","new":"终稿"}]}', readOnly: false } });
-      await delay(300);
-      emit({ kind: "tool_result", tool: { id: "t3", name: "edit_file", output: "已更新 方案.md", readOnly: false } });
-      await delay(200);
-      let reply: string;
-      if (isPoetry) reply = "**《山居秋暝》**\n\n> 空山新雨后，天气晚来秋。\n> 明月松间照，清泉石上流。";
-      else reply = `收到！**${input}**\n\n我先查看当前办公目录中的资料（方案、成本测算、表格等），整理好后给你。`;
-      for (const ch of reply) { if (cancelled) break; emit({ kind: "text", text: ch }); await delay(10); }
-      emit({ kind: "message", text: reply });
-      emit({ kind: "usage", usage: { promptTokens: 1200, completionTokens: 200, totalTokens: 1400, cacheHitTokens: 800, cacheMissTokens: 400, sessionCacheHitTokens: 800, sessionCacheMissTokens: 400 } });
-      emit({
-        kind: "usage",
-        usage: {
-          promptTokens: 1280,
-          completionTokens: 64,
-          totalTokens: 1344,
-          cacheHitTokens: 1024,
-          cacheMissTokens: 256,
-          sessionCacheHitTokens: 1024,
-          sessionCacheMissTokens: 256,
-        },
-      });
-      emit({ kind: "turn_done" });
+      cancelledRef.v = false;
+      pendingFlow = null;
+      const scenario = mockScenario();
+      if (scenario === "approval") { pendingFlow = "approval"; runApprovalTurn(input); return; }
+      if (scenario === "ask") { pendingFlow = "ask"; runAskTurn(input); return; }
+      if (scenario === "compaction") { await runCompactionTurn(input, cancelledRef); return; }
+      await runDemoTurn(input, cancelledRef, runningMock);
     },
     async SubmitDisplay(_display, input) {
       await this.Submit(input);
     },
     async Cancel() {
       cancelled = true;
+      cancelledRef.v = true;
+      pendingFlow = null;
       emit({ kind: "turn_done" });
     },
-    async Approve() {},
-    async AnswerQuestion() {},
+    async Approve(_id: string, _allow: boolean, _session: boolean) {
+      if (pendingFlow !== "approval") return;
+      pendingFlow = null;
+      // 审批通过后补发工具结果与收尾（与真实 gaeaApprove → 工具继续一致）
+      emit({ kind: "tool_result", tool: { id: "appr-t1", name: "write_file", output: "已写入 审批测试.md", readOnly: false } });
+      const reply = "已获批准，文件已写入工作区。";
+      for (const ch of reply) { emit({ kind: "text", text: ch }); }
+      emit({ kind: "message", text: reply });
+      emitUsageTwice();
+      emit({ kind: "turn_done" });
+    },
+    async AnswerQuestion(_id: string, _answers: QuestionAnswer[]) {
+      if (pendingFlow !== "ask") return;
+      pendingFlow = null;
+      // 回答后继续执行（与真实 gaeaAnswer → 回合继续一致）
+      const reply = "已确认开工计划，现在开始执行。";
+      for (const ch of reply) { emit({ kind: "text", text: ch }); }
+      emit({ kind: "message", text: reply });
+      emitUsageTwice();
+      emit({ kind: "turn_done" });
+    },
     async GaeaRunning() { return false; },
     async SetAgentMode(_mode: string) {},
     async AgentMode() { return "develop"; },

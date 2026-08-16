@@ -15,7 +15,7 @@ import type {
 import { mockScenario } from "./shared";
 
 export interface MakeMockState {
-  scenario: "demo" | "fresh" | "running";
+  scenario: import("./shared").MockScenario;
   freshMock: boolean;
   runningMock: boolean;
   cwd: string;

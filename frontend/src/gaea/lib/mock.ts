@@ -5,9 +5,14 @@
 // import 路径零改动。
 //
 // 场景系统：通过 URL 参数切换 mock 行为，无需修改代码。
-//   ?mock=fresh     空状态：无工作区、无会话、无 API key
-//   ?mock=running   模拟活跃流式输出（工具执行中 / 思考中）
-//   ?mock=demo      默认：完整 mock 数据（等同于不传参数）
+//   ?mock=fresh       空状态：无工作区、无会话、无 API key
+//   ?mock=running     模拟活跃流式输出（工具执行中 / 思考中）
+//   ?mock=approval    审批卡流程：tool_dispatch → approval_request 挂起，
+//                     Approve 后补发工具结果并收尾（审批卡离线可开发）
+//   ?mock=ask         提问卡流程：ask_request 挂起（带开工计划），
+//                     AnswerQuestion 后继续收尾（提问卡/计划卡离线可开发）
+//   ?mock=compaction  压缩卡流程：compaction_started → compaction_done → 继续
+//   ?mock=demo        默认：完整 mock 数据（等同于不传参数）
 //   ?platform=darwin|windows|linux 覆盖平台检测
 //
 // 缓存安全: 纯前端 mock，不触及 Go 内核。

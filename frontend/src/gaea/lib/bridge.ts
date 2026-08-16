@@ -860,6 +860,17 @@ export function initBridge(): void {
   if ((window as unknown as Record<string, unknown>).__bridge_initialized) return;
   (window as unknown as Record<string, unknown>).__bridge_initialized = true;
 
+  // 显式 ?mock= 场景优先（评审 03-office-frontend.md 缺陷 8）：浏览器开发时
+  // 用 URL 参数进入 mock 模式（approval/ask/compaction 等场景），不创建
+  // RPC 代理——保持 window.go 为空，realApp() 返回 undefined，app 代理
+  // 走 getMock()。此前 initBridge 在非 Wails 环境无条件创建 RPC 代理，
+  // ?mock= 从未生效，审批/提问/压缩卡无法离线开发。
+  const mockParam = new URLSearchParams(window.location.search).get("mock")?.trim().toLowerCase();
+  if (mockParam && !isWailsNative()) {
+    console.log(`[bridge] 浏览器 mock 模式（?mock=${mockParam}）`);
+    return;
+  }
+
   if (isWailsNative()) {
     ensureLegacyAppProxy();
     console.log("[bridge] Wails 原生环境，已就绪板块门面路由");

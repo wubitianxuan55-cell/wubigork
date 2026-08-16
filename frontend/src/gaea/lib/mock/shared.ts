@@ -200,11 +200,19 @@ export function delay(ms: number): Promise<void> {
 
 // ── 场景系统（URL 参数驱动）────────────────────────────────────────────────
 
-export function mockScenario(): "demo" | "fresh" | "running" {
+// MockScenario 是浏览器开发模式的场景全集：demo/fresh/running 为既有，
+// approval/ask/compaction 为评审 03-office-frontend.md 缺陷 8 补全——
+// 审批卡/提问卡/压缩卡此前无 mock 场景，浏览器开发无法覆盖这三条事件流。
+export type MockScenario = "demo" | "fresh" | "running" | "approval" | "ask" | "compaction";
+
+export function mockScenario(): MockScenario {
   if (typeof window === "undefined") return "demo";
   const value = new URLSearchParams(window.location.search).get("mock")?.trim().toLowerCase();
   if (value === "fresh" || value === "empty" || value === "first-run") return "fresh";
   if (value === "running" || value === "busy" || value === "streaming") return "running";
+  if (value === "approval" || value === "approve") return "approval";
+  if (value === "ask" || value === "question") return "ask";
+  if (value === "compaction" || value === "compress") return "compaction";
   return "demo";
 }
 
