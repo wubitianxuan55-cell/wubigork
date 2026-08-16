@@ -184,12 +184,6 @@ export interface Requirement {
   updatedAt: number;
 }
 
-export interface WorkspaceChangeView {
-  path: string;
-  added: number;
-  removed: number;
-}
-
 export interface WorkspaceView {
   path: string;
   name: string;
@@ -690,16 +684,6 @@ export interface MemorySuggestionsView {
   generatedAt: string;
   available: boolean;
   source: string;
-}
-
-export interface TabMeta {
-  id: string;
-  scope: string;
-  workspaceRoot: string;
-  title: string;
-  ready: boolean;
-  label?: string;
-  activityStatus?: string;
 }
 
 /** TraceStep 记录一次推理过程中的关键步骤，用于实时推理可视化面板 */

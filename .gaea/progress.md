@@ -1,6 +1,20 @@
 # 任务进度
 
-> 最后更新: 2026-08-15（**办公板块后端优化完成** · 回退链路实现 · 提交见下）
+> 最后更新: 2026-08-15（**办公板块后端优化（二）完成** · 死绑定清理 · 提交 c69f1cf）
+
+## 办公板块后端优化（二）：死绑定清理（2026-08-15，独立提交 c69f1cf）
+
+> 需求：继续优化办公板块后端。执行评审 03-office-frontend.md §6 缺陷 3（GaeaWorkspaceChanges 死代码）。
+
+| 状态 | 任务 | 说明 |
+|------|------|------|
+| ✅ | Go 删除 | GaeaWorkspaceChanges/GaeaSelectTab/GaeaTabMeta 方法 + WorkspaceChangeView/TabMeta 类型（gaea_ui_extra.go） |
+| ✅ | 绑定面重生成 | gen_bindings：office 137→134 方法；编程板块既有方法（GetProgrammingWebStatus 等 3 个）随扫描纳入 core 门面（配套自洽） |
+| ✅ | 前端清理 | AppBindings 声明/gaeaToGaea 映射/import/mock 实现/types 接口五处同步删 |
+| ✅ | bindingNames 重生成 | 464 方法；**必须保留尾部 `] as const;`**（漏掉 → 数组推断 string[] → 方向二报泛化 TS2344，难排查） |
+
+验证：TestBindingsCompleteness PASS + check-bindings-drift OK（464 一致）+ go build + 前端 tsc 0 / vitest 238 / vite build；eslint 仅剩编程板块既有 any error（未提交工作，未触碰）。
+提交：`feat(office-backend): 清理死绑定`（8 文件 +33/-59）。
 
 ## 办公板块后端优化：会话回退/分叉/回退点（2026-08-15，独立提交）
 

@@ -414,13 +414,6 @@ type FilePreview struct {
 	Size     int64  `json:"size"`
 }
 
-// WorkspaceChangeView 是会话期间被修改的文件。
-type WorkspaceChangeView struct {
-	Path    string `json:"path"`
-	Added   int    `json:"added"`
-	Removed int    `json:"removed"`
-}
-
 // gaeaCwd 返回办公引擎工作目录：优先当前工作空间配置，回退进程启动目录。
 func gaeaCwd() string {
 	if ga.cfg != nil && ga.cfg.Workspace != "" {
@@ -612,9 +605,6 @@ func (a *App) GaeaRevealWorkspacePath(rel string) error {
 	path, _ := resolvePreviewPath(rel)
 	return exec.Command("explorer", "/select,", path).Start()
 }
-
-// GaeaWorkspaceChanges 办公板块不追踪工作区变更，返回空。
-func (a *App) GaeaWorkspaceChanges() []WorkspaceChangeView { return []WorkspaceChangeView{} }
 
 // GaeaPickDirectory 使用系统目录对话框选择导出目录（记忆归档导出用）。
 func (a *App) GaeaPickDirectory() string {
@@ -901,16 +891,6 @@ func (a *App) GaeaSetMCPServerEnabled(name string, enabled bool) error {
 	}
 	c.DisconnectMCPServer(name)
 	return nil
-}
-
-// GaeaSelectTab/GaeaTabMeta 办公板块为单标签，返回空。
-func (a *App) GaeaSelectTab(tabID string) error { return nil }
-func (a *App) GaeaTabMeta() []TabMeta           { return []TabMeta{} }
-
-// TabMeta 是标签元信息。
-type TabMeta struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
 }
 
 // GaeaCheckUpdate/GaeaApplyUpdate/GaeaOpenDownloadPage 更新由 gaea 自身管理。

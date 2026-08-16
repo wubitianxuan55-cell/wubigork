@@ -100,7 +100,6 @@ func (b *OfficeB) GaeaSavePastedImage(dataURL string) (string, error) { return b
 func (b *OfficeB) GaeaSaveProvider(p ProviderView) error { return b.a.GaeaSaveProvider(p) }
 func (b *OfficeB) GaeaSaveSettings(view SettingsView) error { return b.a.GaeaSaveSettings(view) }
 func (b *OfficeB) GaeaSaveWindowState(state map[string]interface{}) error { return b.a.GaeaSaveWindowState(state) }
-func (b *OfficeB) GaeaSelectTab(tabID string) error { return b.a.GaeaSelectTab(tabID) }
 func (b *OfficeB) GaeaSend(input string) { b.a.GaeaSend(input) }
 func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt string) error { return b.a.GaeaSetAgentParams(temperature, maxSteps, systemPrompt) }
 func (b *OfficeB) GaeaSetDefaultModel(ref string) error { return b.a.GaeaSetDefaultModel(ref) }
@@ -122,7 +121,6 @@ func (b *OfficeB) GaeaSummarizeFrom(turn int) error { return b.a.GaeaSummarizeFr
 func (b *OfficeB) GaeaSummarizeUpTo(turn int) error { return b.a.GaeaSummarizeUpTo(turn) }
 func (b *OfficeB) GaeaSwitchWorkspace(path string) string { return b.a.GaeaSwitchWorkspace(path) }
 func (b *OfficeB) GaeaTCCAReport() string { return b.a.GaeaTCCAReport() }
-func (b *OfficeB) GaeaTabMeta() []TabMeta { return b.a.GaeaTabMeta() }
 func (b *OfficeB) GaeaTaskCancel(id string) error { return b.a.GaeaTaskCancel(id) }
 func (b *OfficeB) GaeaTaskList() []tasks.Task { return b.a.GaeaTaskList() }
 func (b *OfficeB) GaeaTaskRetry(id string) error { return b.a.GaeaTaskRetry(id) }
@@ -133,7 +131,6 @@ func (b *OfficeB) GaeaUnifiedSearch(query string, topN int) (UnifiedSearchView, 
 func (b *OfficeB) GaeaUnpinMaterial(rel string) []FileSearchHit { return b.a.GaeaUnpinMaterial(rel) }
 func (b *OfficeB) GaeaUpdateFact(name string, body string) (string, error) { return b.a.GaeaUpdateFact(name, body) }
 func (b *OfficeB) GaeaVersion() string { return b.a.GaeaVersion() }
-func (b *OfficeB) GaeaWorkspaceChanges() []WorkspaceChangeView { return b.a.GaeaWorkspaceChanges() }
 func (b *OfficeB) GaeaWorkspaceSearch(query string, limit int) []WorkspaceSearchHit { return b.a.GaeaWorkspaceSearch(query, limit) }
 func (b *OfficeB) GaeaXlsxColOps(rel string, sheet string, action string, ref string) (XlsxEditResult, error) { return b.a.GaeaXlsxColOps(rel, sheet, action, ref) }
 func (b *OfficeB) GaeaXlsxEdit(rel string, sheet string, instruction string, selection string) (XlsxEditResult, error) { return b.a.GaeaXlsxEdit(rel, sheet, instruction, selection) }

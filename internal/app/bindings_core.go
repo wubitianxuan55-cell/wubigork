@@ -37,6 +37,7 @@ func (b *CoreB) GetNovelsDir() string { return b.a.GetNovelsDir() }
 func (b *CoreB) GetOpencodeGoKeyStatus() map[string]interface{} { return b.a.GetOpencodeGoKeyStatus() }
 func (b *CoreB) GetOpencodeZenKeyStatus() map[string]interface{} { return b.a.GetOpencodeZenKeyStatus() }
 func (b *CoreB) GetPreloadPlan() bool { return b.a.GetPreloadPlan() }
+func (b *CoreB) GetProgrammingWebStatus() map[string]interface{} { return b.a.GetProgrammingWebStatus() }
 func (b *CoreB) GetProjectInfo() map[string]interface{} { return b.a.GetProjectInfo() }
 func (b *CoreB) GetStats() map[string]interface{} { return b.a.GetStats() }
 func (b *CoreB) GetStyleProfile() (map[string]interface{}, error) { return b.a.GetStyleProfile() }
@@ -62,5 +63,7 @@ func (b *CoreB) SetOpencodeGoKey(apiKey string) error { return b.a.SetOpencodeGo
 func (b *CoreB) SetOpencodeZenKey(apiKey string) error { return b.a.SetOpencodeZenKey(apiKey) }
 func (b *CoreB) SetPreloadPlan(enabled bool) error { return b.a.SetPreloadPlan(enabled) }
 func (b *CoreB) Shutdown(ctx context.Context) { b.a.Shutdown(ctx) }
+func (b *CoreB) StartProgrammingWeb() error { return b.a.StartProgrammingWeb() }
 func (b *CoreB) Startup(ctx context.Context) { b.a.Startup(ctx) }
+func (b *CoreB) StopProgrammingWeb() error { return b.a.StopProgrammingWeb() }
 func (b *CoreB) TestEngineConnection(engineID string) (*modelengine.EngineStatus, error) { return b.a.TestEngineConnection(engineID) }

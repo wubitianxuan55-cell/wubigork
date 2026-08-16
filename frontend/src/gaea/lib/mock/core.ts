@@ -13,9 +13,11 @@ type CoreMethods = Pick<
   | "ContextUsage" | "TCCAReport" | "Jobs"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
-  | "SlashArgs" | "SelectTab" | "TabMeta"
+  | "SlashArgs"
   | "Version" | "CheckUpdate" | "ApplyUpdate" | "OpenDownloadPage" | "SaveWindowState"
   | "LogFrontendError"
+  // 编程板块：DeepSeek Harness Web 进程管理（浏览器 mock 恒为未运行）。
+  | "GetProgrammingWebStatus" | "StartProgrammingWeb" | "StopProgrammingWeb"
 >;
 
 export function buildCore(s: MakeMockState): CoreMethods {
@@ -138,10 +140,6 @@ export function buildCore(s: MakeMockState): CoreMethods {
         .map((it) => ({ label: it.label, insert: it.insert, hint: it.hint, descend: it.descend ?? false }));
       return { items, from };
     },
-    async SelectTab(_tabID: string) {},
-    async TabMeta() {
-      return [{ id: "mock-tab", scope: "project", workspaceRoot: "", title: "Mock", ready: true }];
-    },
     async Version() {
       return "v1.0.0 (browser dev)";
     },
@@ -181,6 +179,22 @@ export function buildCore(s: MakeMockState): CoreMethods {
     },
     async LogFrontendError(message: string) {
       console.error("[frontend]", message);
+    },
+    async GetProgrammingWebStatus() {
+      // 浏览器开发模式无 Go 进程，恒返回未运行（空状态引导正常展示）。
+      return {
+        running: false,
+        owned: false,
+        pid: 0,
+        url: "http://127.0.0.1:3080",
+        root: "C:\\AI\\deepseek-harness",
+      };
+    },
+    async StartProgrammingWeb() {
+      throw new Error("浏览器开发模式不支持启动 DeepSeek Harness（请运行桌面版）");
+    },
+    async StopProgrammingWeb() {
+      throw new Error("浏览器开发模式无 gaea 自启进程");
     },
   };
 }

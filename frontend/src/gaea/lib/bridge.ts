@@ -7,7 +7,6 @@
 
 import type {
   BalanceInfo,
-  WorkspaceChangeView,
   CapabilitiesView,
   CheckpointMeta,
   CommandInfo,
@@ -38,7 +37,6 @@ import type {
   XlsxEditResult,
   SkillSuggestion,
   TaskTemplate,
-  TabMeta,
   Meta,
   ModelInfo,
   ProviderView,
@@ -210,8 +208,6 @@ export interface AppBindings {
   // CrossEmbed 跨应用联动：xlsx 数据 → 图表 → 嵌入 docx/pptx。
   CrossEmbed(input: CrossEmbedInput): Promise<CrossEmbedResult>;
   OpenWorkspacePath(rel: string): Promise<void>;
-  // WorkspaceChanges returns files modified during this session by the agent.
-  WorkspaceChanges(): Promise<WorkspaceChangeView[]>;
   RevealWorkspacePath(rel: string): Promise<void>;
   SavePastedImage(dataUrl: string): Promise<string>;
   SaveAttachmentFile(fileName: string, base64Data: string): Promise<string>;
@@ -241,8 +237,6 @@ export interface AppBindings {
   LogFrontendError(message: string): Promise<void>;
   AcceptMemorySuggestion(candidate: MemorySuggestion): Promise<string>;
   AcceptSkillSuggestion(candidate: SkillSuggestion): Promise<string>;
-  SelectTab(tabID: string): Promise<void>;
-  TabMeta(): Promise<TabMeta[]>;
   // Settings panel: read the resolved config and apply edits (each writes config
   // and rebuilds the controller live). Secrets go through SetProviderKey (→ .env).
   Settings(): Promise<SettingsView>;
@@ -409,6 +403,13 @@ export interface AppBindings {
   // ChatAppendMessages 语音消息持久化（T6-3.3）：单事务批量追加，
   // role 仅接受 user/assistant（其余后端跳过）。
   ChatAppendMessages(topicID: string, messages: AppModels.ChatMessageInput[]): Promise<void>;
+  // ── 编程板块：DeepSeek Harness Web 进程管理 ──────────────
+  // GetProgrammingWebStatus 返回运行状态（running/owned/pid/url/root）；
+  // StartProgrammingWeb 启动 dsh web（已运行幂等返回）；StopProgrammingWeb
+  // 仅停止 gaea 自启实例（外部实例返回提示，不误杀）。
+  GetProgrammingWebStatus(): Promise<Record<string, any>>;
+  StartProgrammingWeb(): Promise<void>;
+  StopProgrammingWeb(): Promise<void>;
 }
 
 // Window 类型由 gaea 的 src/types/wails.d.ts 统一声明（go.app.App + runtime）。
@@ -569,7 +570,6 @@ const gaeaToGaea = {
   ExportDeliverable: "GaeaExportDeliverable",
   CrossEmbed: "GaeaCrossEmbed",
   OpenWorkspacePath: "GaeaOpenWorkspacePath",
-  WorkspaceChanges: "GaeaWorkspaceChanges",
   RevealWorkspacePath: "GaeaRevealWorkspacePath",
   SavePastedImage: "GaeaSavePastedImage",
   SaveAttachmentFile: "GaeaSaveAttachmentFile",
@@ -590,8 +590,6 @@ const gaeaToGaea = {
   LogFrontendError: "GaeaLogFrontendError",
   AcceptMemorySuggestion: "GaeaAcceptMemorySuggestion",
   AcceptSkillSuggestion: "GaeaAcceptSkillSuggestion",
-  SelectTab: "GaeaSelectTab",
-  TabMeta: "GaeaTabMeta",
   Settings: "GaeaSettings",
   SetDefaultModel: "GaeaSetDefaultModel",
   SaveProvider: "GaeaSaveProvider",
@@ -1229,4 +1227,3 @@ export type _CheckAppBindingsHasNoStray = AssertNever<
 export type _CheckAppBindingsCoversAll = AssertNever<
   Exclude<BindingName, AppBindingTarget | ExcludeNames>
 >;
-

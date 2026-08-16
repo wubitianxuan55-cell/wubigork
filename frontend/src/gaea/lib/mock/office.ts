@@ -23,7 +23,7 @@ type OfficeMethods = Pick<
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
   | "XlsxEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
-  | "ExportDeliverable" | "CrossEmbed" | "WorkspaceChanges" | "RevealWorkspacePath"
+  | "ExportDeliverable" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
   | "HerdsmanDigitalLife" | "HerdsmanOperations"
@@ -286,7 +286,6 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         chartPath: `.gaea/exports/${input.title || "chart"}-chart-mock.png`,
       };
     },
-    async WorkspaceChanges() { return []; },
     async RevealWorkspacePath(rel: string) {
       console.info("mock RevealWorkspacePath", rel);
     },
