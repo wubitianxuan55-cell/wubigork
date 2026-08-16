@@ -72,9 +72,15 @@ export function rebuildHistoryItems(messages: HistoryMessage[]): { items: Item[]
       items.push({ kind: "assistant", id: `h${items.length}`, text: m.content, reasoning: "", streaming: false } as Item);
     } else if (m.role === "tool" && m.toolName) {
       const id = m.toolId || `ht${i}`;
+      const hasResult = results.has(id);
       items.push({
         kind: "tool", id, name: m.toolName, args: m.toolArgs ?? "",
-        readOnly: false, status: "done", output: results.get(id) ?? "",
+        readOnly: false,
+        // 有 tool_result → 完成态；无结果 = 该调用未执行完（运行中被看门狗
+        // localCancel / 中断保存），还原为 stopped 而非假完成，避免恢复后
+        // 工具卡显示「已完成」却无任何输出（03-office-frontend.md §6 缺陷 2）。
+        status: hasResult ? "done" : "stopped",
+        output: results.get(id) ?? "",
       } as Item);
     }
   });

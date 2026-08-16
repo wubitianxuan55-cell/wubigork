@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, ArrowDown, Brain, CheckCircle, ChevronRight, FileText, Loader } from "../icons";
+import { AlertCircle, ArrowDown, Ban, Brain, CheckCircle, ChevronRight, FileText, Loader } from "../icons";
 import type { Item } from "../lib/store";
 import { useItems, useTurnStartAt } from "../lib/store";
 import { AssistantMessage, UserMessage } from "./Message";
@@ -385,6 +385,13 @@ function InlineReasoning({ item }: { item: AssistantItem }) {
 
 // T7-4：ProcessCard 也加 memo——流式期间已完成轮的过程卡 props 不变，
 // 无需随每 chunk 重渲染内部工具/思考卡。
+
+// ── 过程卡状态四态（推导纯函数在 lib/processStatus.ts：
+//    状态不只靠颜色——色 + 图标 + 文字三重传达，12 主题下可区分）──
+import { deriveProcessStatus, PROCESS_STATUS_META } from "../lib/processStatus";
+
+const STATUS_ICONS = { alert: AlertCircle, ban: Ban, check: CheckCircle } as const;
+
 export const ProcessCard = memo(function ProcessCard({
   items,
   toolCount,
@@ -444,6 +451,15 @@ export const ProcessCard = memo(function ProcessCard({
     ? labelParts.join(" · ")
     : (running ? "处理中…" : "过程");
 
+  // 状态四态：色 + 图标 + 文字（容器边框 / 头部徽标各自传达）
+  const status = deriveProcessStatus(items, running);
+  const statusMeta = status !== "idle" ? PROCESS_STATUS_META[status] : null;
+  const StatusIcon = statusMeta?.icon ? STATUS_ICONS[statusMeta.icon] : null;
+  const containerTone =
+    status === "error" ? "border-err/40" :
+    status === "stopped" ? "border-warning/30" :
+    status === "done" ? "border-ok/20" : "border-border-soft";
+
   const body = useMemo(() => {
     const out: React.ReactNode[] = [];
     const grouped = scanGroups(items);
@@ -485,7 +501,7 @@ export const ProcessCard = memo(function ProcessCard({
   }, [items, subcallsByParent]);
 
   return (
-    <div className={`my-1.5 border rounded-xl overflow-hidden bg-bg-soft/50 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_5%,transparent)] transition-[border-color,box-shadow] duration-[var(--dur-base)] ${running ? "border-accent/25 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--gaea-glow)_12%,transparent),var(--v3-glow-faint)]" : "border-border-soft"}`}>
+    <div className={`my-1.5 border rounded-xl overflow-hidden bg-bg-soft/50 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_5%,transparent)] transition-[border-color,box-shadow] duration-[var(--dur-base)] ${running ? "border-accent/25 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--gaea-glow)_12%,transparent),var(--v3-glow-faint)]" : containerTone}`}>
       <button
         type="button"
         className="flex items-center gap-2 w-full px-3 py-2 text-left cursor-pointer hover:bg-bg-elev/60 transition-colors"
@@ -496,6 +512,12 @@ export const ProcessCard = memo(function ProcessCard({
         <ChevronRight size={13} className={`shrink-0 text-fg-faint transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
         <Brain size={13} className={`shrink-0 ${running ? "text-accent animate-pulse" : "text-fg-faint"}`} />
         <span className="text-[11px] font-medium text-fg-dim">{label}</span>
+        {statusMeta && (
+          <span className={`inline-flex items-center gap-1 shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium ${statusMeta.cls}`}>
+            {StatusIcon && <StatusIcon size={10} className="shrink-0" />}
+            <span>{statusMeta.label}</span>
+          </span>
+        )}
         {running && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_6px_var(--accent)]" />}
       </button>
       <div ref={bodyRef} style={{ overflow: "hidden" }}>

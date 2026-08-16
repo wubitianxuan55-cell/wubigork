@@ -31,13 +31,14 @@ describe("rebuildHistoryItems", () => {
     }
   });
 
-  it("没有结果条目时输出为空但卡片仍存在", () => {
+  it("没有结果条目时输出为空、状态为 stopped（中断而非假完成）", () => {
     const { items } = rebuildHistoryItems([
       { role: "user", content: "hi" },
       { role: "tool", content: "", toolId: "c2", toolName: "write_file", toolArgs: '{"path":"a.md"}' },
     ]);
     const tool = items.find((it) => it.kind === "tool");
     expect(tool && tool.kind === "tool" ? tool.output : null).toBe("");
+    expect(tool && tool.kind === "tool" ? tool.status : null).toBe("stopped");
   });
 
   it("计算最后一个助手索引", () => {

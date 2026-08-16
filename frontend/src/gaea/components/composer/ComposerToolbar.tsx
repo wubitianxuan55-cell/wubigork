@@ -1,5 +1,5 @@
-// Composer 拆分产物：底部工具栏（工作区/导入/截图/权限级别/快捷键提示，行为零变化，T6-10.1）
-import { Camera, ChevronDown, FolderGit2, Loader, Paperclip, Zap } from "../../icons";
+// Composer 拆分产物：底部工具栏（工作区/导入/截图/权限级别/思考深度/快捷键提示，行为零变化，T6-10.1）
+import { Camera, ChevronDown, FolderGit2, Gauge, Loader, Paperclip, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
 
 export interface ComposerToolbarProps {
@@ -15,15 +15,23 @@ export interface ComposerToolbarProps {
   onScreenshot: () => void
   permLevel?: string
   onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void
+  thinkLevel?: string
+  onSetThinkLevel?: (level: "fast" | "normal" | "deep") => void
 }
 
 const PERM_LABELS: Record<string, string> = { ask: "询问", auto: "自动", yolo: "YOLO" }
 const PERM_DESCS: Record<string, string> = { ask: "写入前需确认（默认）", auto: "写入无需确认，deny 规则仍生效", yolo: "跳过所有确认提示" }
+const THINK_LABELS: Record<string, string> = { fast: "快速", normal: "标准", deep: "深度" }
+const THINK_DESCS: Record<string, string> = {
+  fast: "思考温度 0.1 — 快而直接，适合简单任务",
+  normal: "思考温度 0.3 — 平衡质量与速度（默认）",
+  deep: "思考温度 0.7 — 更发散，适合复杂方案",
+}
 
 export function ComposerToolbar({
   cwd, workspaceName, workspaceMenuOpen, onToggleWorkspaceMenu, workspaceAnchorRef,
   running, pendingPaste, captureBusy, onPickFiles, onScreenshot,
-  permLevel, onSetPermLevel,
+  permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel,
 }: ComposerToolbarProps) {
   const t = useT()
   return (
@@ -85,6 +93,25 @@ export function ComposerToolbar({
             </button>
           )
         })}
+      </div>
+
+      {/* 思考深度选择器：快速 / 标准 / 深度（映射到 SetAgentParams 温度） */}
+      <div className="flex gap-[3px]" aria-label="思考深度">
+        {(["fast", "normal", "deep"] as const).map((level) => (
+          <button key={level} type="button"
+            className={`flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
+              thinkLevel === level
+                ? "text-accent bg-accent-soft border-accent/30 shadow-[0_0_0_1px_var(--accent-soft)]"
+                : "text-fg-faint border-transparent hover:text-fg hover:bg-bg-soft"
+            }`}
+            onClick={() => { if (thinkLevel !== level && onSetThinkLevel) void onSetThinkLevel(level) }}
+            title={THINK_DESCS[level]}
+            aria-pressed={thinkLevel === level}
+          >
+            <Gauge size={11} className="shrink-0" />
+            <span>{THINK_LABELS[level]}</span>
+          </button>
+        ))}
       </div>
 
       {/* 快捷提示 */}

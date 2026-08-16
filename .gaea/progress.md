@@ -1,6 +1,25 @@
 # 任务进度
 
-> 最后更新: 2026-08-15（**v3.0.0 发布完成** · 星枢 Constellation OS UI 革命性重设计 · T6-10.2 收官）
+> 最后更新: 2026-08-15（**办公板块 UI+功能优化完成** · 提交 e1a6631）
+
+## 办公板块 UI+功能优化（2026-08-15，独立提交 e1a6631）
+
+> 需求：本次优化 gaea 的办公板块（用户选定范围 = UI 视觉 + 功能/性能）。
+> 依据：design-system/gaea/pages/gaea.md 蓝图落地清单 + docs/gaea3-review/03-office-frontend.md 缺陷。
+
+| 状态 | 任务 | 说明 |
+|------|------|------|
+| ✅ | B1 thinkLevel 接线 | ComposerToolbar 新增 快速/标准/深度 三档（Gauge=antd DashboardOutlined），走既有 handleThinkLevelChange → SetAgentParams 温度 0.1/0.3/0.7（§6 缺陷 1 兑现） |
+| ✅ | B2 useDrawers 收敛 | 新 hooks/useDrawers.ts 统一 memView/histView/capsOpen/knowledgeOpen + Esc 分层关闭（§6 缺陷 9） |
+| ✅ | B3 恢复会话状态还原 | rebuildHistoryItems 无 tool_result 的工具 → stopped 非假 done（§6 缺陷 2） |
+| ✅ | A2 ProcessCard 状态四态 | 新 lib/processStatus.ts 推导 running/done/error/stopped，徽标色+图标+文字 + 容器边框语义色 |
+| ✅ | A3 右侧 tabs 激活态修复 | 根因：Tailwind 类冲突（text-fg-dim 覆盖 text-accent、border-transparent 覆盖 border-accent）→ 激活态从未生效；redesign.css `[class*="text-accent"]`+!important 收复 |
+| ✅ | A5 Skeleton 令牌化 | 3 处 hex → --md-sys-*（图谱分类语义色保留） |
+
+现状事实（摸底确认已达标，未动）：redesign.css 已落地侧栏/顶栏/footer/工作区面板/composer 玻璃化；ToolCard 状态四态、StatsPanel 令牌、Sidebar 激活会话令牌均已就绪。
+新增测试 10：deriveProcessStatus 5 + 状态徽标渲染 4 + history stopped 1。
+验证：tsc 0 / eslint 0 errors / vitest 238 过（56 文件）/ vite build 通过；浏览器截图走查通过。
+注意：浏览器 dev 的 ?mock=demo 不生效是既有行为——initBridge 在非 Wails 环境创建 HTTP RPC 代理（window.go.app 有键后 isWailsNative 判定 true → realApp 返回 RPC 代理），mock 仅对未 initBridge 场景（vitest）生效。
 
 ## UI 设计系统（3.0 补充环节，ui-ux-pro-max skill 驱动，2026-08-15）
 

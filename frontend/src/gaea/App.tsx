@@ -37,11 +37,12 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
 
 import { downloadMarkdown, exportAsMarkdown } from "./lib/export";
-import type { MemorySuggestion, MemorySuggestionsView, MemoryView, Requirement, SessionMeta, SkillSuggestion } from "./lib/types";
+import type { MemorySuggestion, MemorySuggestionsView, Requirement, SessionMeta, SkillSuggestion } from "./lib/types";
 import { useTodoExtractor } from "./hooks/useTodoExtractor";
 import { useModeManager } from "./hooks/useModeManager";
 import { useSessionManager } from "./hooks/useSessionManager";
 import { useBridgeWatch } from "./hooks/useBridgeWatch";
+import { useDrawers } from "./hooks/useDrawers";
 import { useToolStats } from "./hooks/useToolStats";
 import { useSidebar } from "./hooks/useSidebar";
 
@@ -94,14 +95,11 @@ export default function App() {
     promoteFactBase,
   } = useController();
   const t = useT();
-  const { permLevel, setPermLevel, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
-  const [memView, setMemView] = useState<MemoryView | null>(null);
-  const [histView, setHistView] = useState<SessionMeta[] | null>(null);
+  const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
+  const { memView, setMemView, histView, setHistView, capsOpen, setCapsOpen, knowledgeOpen, setKnowledgeOpen, closeTopmost } = useDrawers();
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
   const newSessionAndReset = useCallback(async () => { setStatsReset(n => n + 1); await startNewSession(); }, [startNewSession]);
   const [statsReset, setStatsReset] = useState(0);
-  const [capsOpen, setCapsOpen] = useState(false);
-  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [rightTab, setRightTab] = useState<"files" | "materials" | "deliverables" | "changes" | "stats" | "tasks">("files");
   const [compactMode, setCompactMode] = useState(() => { try { return localStorage.getItem("gaea.compactMode") === "1"; } catch { return false; } });
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
@@ -242,12 +240,12 @@ export default function App() {
   // panel reflects what landed on disk.
   const openMemory = useCallback(async () => {
     setMemView(await fetchMemory());
-  }, [fetchMemory]);
+  }, [fetchMemory, setMemView]);
 
-  const closeMemory = useCallback(() => setMemView(null), []);
+  const closeMemory = useCallback(() => setMemView(null), [setMemView]);
 
-  const openKnowledge = useCallback(() => setKnowledgeOpen(true), []);
-  const closeKnowledge = useCallback(() => setKnowledgeOpen(false), []);
+  const openKnowledge = useCallback(() => setKnowledgeOpen(true), [setKnowledgeOpen]);
+  const closeKnowledge = useCallback(() => setKnowledgeOpen(false), [setKnowledgeOpen]);
 
   // handleSend intercepts the slash commands that need a desktop-native action
   // before they reach the backend: "/model <ref>" rebuilds on that model, and
@@ -278,19 +276,19 @@ export default function App() {
   // (the transcript swaps in; the model/folder are unchanged).
   const openHistory = useCallback(async () => {
     setHistView(await refreshSessions());
-  }, [refreshSessions]);
-  const closeHistory = useCallback(() => setHistView(null), []);
+  }, [refreshSessions, setHistView]);
+  const closeHistory = useCallback(() => setHistView(null), [setHistView]);
   const onResumeSession = useCallback(
     async (path: string) => { setHistView(null); await handleResumeSession(path); },
-    [handleResumeSession],
+    [handleResumeSession, setHistView],
   );
   const onDeleteSession = useCallback(
     async (path: string) => { await handleDeleteSession(path); setHistView(await refreshSessions()); },
-    [handleDeleteSession, refreshSessions],
+    [handleDeleteSession, refreshSessions, setHistView],
   );
   const onRenameSession = useCallback(
     async (path: string, title: string) => { await handleRenameSession(path, title); setHistView(await refreshSessions()); },
-    [handleRenameSession, refreshSessions],
+    [handleRenameSession, refreshSessions, setHistView],
   );
 
   // 删除当前会话：无需打开侧边栏，顶栏直接操作；删除后自动开启新会话
@@ -391,7 +389,7 @@ export default function App() {
       await remember(scope, note);
       setMemView(await fetchMemory());
     },
-    [remember, fetchMemory],
+    [remember, fetchMemory, setMemView],
   );
 
   const onForget = useCallback(
@@ -399,7 +397,7 @@ export default function App() {
       await forget(name);
       setMemView(await fetchMemory());
     },
-    [forget, fetchMemory],
+    [forget, fetchMemory, setMemView],
   );
 
   const onSaveDoc = useCallback(
@@ -407,7 +405,7 @@ export default function App() {
       await saveDoc(path, body);
       setMemView(await fetchMemory());
     },
-    [saveDoc, fetchMemory],
+    [saveDoc, fetchMemory, setMemView],
   );
 
   const onSaveFact = useCallback(
@@ -415,7 +413,7 @@ export default function App() {
       await updateFact(name, body);
       setMemView(await fetchMemory());
     },
-    [updateFact, fetchMemory],
+    [updateFact, fetchMemory, setMemView],
   );
 
   const onAcceptMemorySuggestion = useCallback(
@@ -423,7 +421,7 @@ export default function App() {
       await app.AcceptMemorySuggestion(candidate);
       setMemView(await fetchMemory());
     },
-    [fetchMemory],
+    [fetchMemory, setMemView],
   );
 
   const onAcceptSkillSuggestion = useCallback(
@@ -451,10 +449,7 @@ export default function App() {
       const inInput = t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
       if (ke.key === "Escape" && !inInput && !state.running) {
         if (previewFile !== null) { ke.preventDefault(); setPreviewFile(null); return; }
-        if (capsOpen) { ke.preventDefault(); setCapsOpen(false); return; }
-        if (memView !== null) { ke.preventDefault(); setMemView(null); return; }
-        if (histView !== null) { ke.preventDefault(); setHistView(null); return; }
-        if (knowledgeOpen) { ke.preventDefault(); setKnowledgeOpen(false); return; }
+        if (closeTopmost()) { ke.preventDefault(); return; }
       }
       if (!mod) return;
       if (ke.key === "n" && !state.running) { ke.preventDefault(); void newSessionAndReset(); return; }
@@ -467,7 +462,7 @@ export default function App() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [state.running, capsOpen, memView, histView, knowledgeOpen, workspacePanelOpen, previewFile, toggleFocus]);
+  }, [state.running, closeTopmost, workspacePanelOpen, previewFile, toggleFocus]);
 
   const { toolCounts, skillCounts } = useToolStats(state.items);
   // 会话产物：从会话消息文本中提取交付文件（去重、按消息顺序），
@@ -731,6 +726,8 @@ export default function App() {
               onCancel={cancel}
               permLevel={permLevel}
               onSetPermLevel={setPermLevel}
+              thinkLevel={thinkLevel}
+              onSetThinkLevel={handleThinkLevelChange}
               onPickFolder={switchFolder}
               disabled={state.meta?.ready === false || state.approval != null}
             />

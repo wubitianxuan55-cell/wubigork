@@ -26,6 +26,7 @@ import {
   CopyOutlined,
   DeleteOutlined,
   DiffOutlined,
+  DashboardOutlined,
   DownOutlined,
   EditOutlined,
   EyeOutlined,
@@ -120,6 +121,7 @@ export const Command: Icon = wrap(CodeOutlined);
 export const Copy: Icon = wrap(CopyOutlined);
 export const Cpu: Icon = wrap(ApiOutlined);
 export const Diff: Icon = wrap(DiffOutlined);
+export const Gauge: Icon = wrap(DashboardOutlined);
 export const ExternalLink: Icon = wrap(LinkOutlined);
 export const Eye: Icon = wrap(EyeOutlined);
 export const File: Icon = wrap(FileOutlined);

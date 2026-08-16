@@ -30,9 +30,9 @@ export const Skeleton = memo(function Skeleton() {
       {/* Capability cards */}
       <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
         <Card icon={<Wrench size={16} />} color="var(--accent)"      title={t("skeleton.tools")}  desc={t("skeleton.toolsDesc")} />
-        <Card icon={<Brain size={16} />}   color="#a78bfa"            title={t("skeleton.skills")} desc={t("skeleton.skillsDesc")} />
-        <Card icon={<Blocks size={16} />}  color="#38bdf8"            title={t("skeleton.models")} desc={t("skeleton.modelsDesc")} />
-        <Card icon={<Cpu size={16} />}     color="#34d399"            title={t("skeleton.cache")}  desc={t("skeleton.cacheDesc")} />
+        <Card icon={<Brain size={16} />}   color="var(--md-sys-color-primary-container, #a78bfa)" title={t("skeleton.skills")} desc={t("skeleton.skillsDesc")} />
+        <Card icon={<Blocks size={16} />}  color="var(--md-sys-color-info, #38bdf8)"              title={t("skeleton.models")} desc={t("skeleton.modelsDesc")} />
+        <Card icon={<Cpu size={16} />}     color="var(--md-sys-color-success, #34d399)"           title={t("skeleton.cache")}  desc={t("skeleton.cacheDesc")} />
       </div>
 
       {/* Animated dots */}
