@@ -11,6 +11,42 @@
 
 - **V3.0 总规划（2026-08-15 定稿，V1-V8 已全部确认）**：docs/2026-08-15-gaea3-vision-roadmap.md（个人 AI 智能体平台：一个内核 + 统一记忆 + 板块插件化 + 本地优先/分层智能 + 移动终端）；架构执行见 docs/2026-08-15-gaea3-architecture-design.md（Step 0-3）。已确认决策：V1 愿景=个人 AI 智能体平台；V2 3.0.0 首发=chat 会话可恢复+知识库试点；V3 版本节奏=3.0.0 地基→3.1.0 板块生态·记忆起步→3.2.0 受控自主→3.3.0+ 身份；V4 记忆统一层 3.2.0；V5 数字生命 3.3+ 再定；V6 启动用户试用；V7 分层智能模型策略（云端统筹+本地执行+能本地则本地）；V8 插件化边界（只做启动期声明式装配，不做运行期热替换；工具级 MCP 热增删保留例外）；D8 office 模块路由 GaeaSend；单窗口编排已废弃。~~编程板块搁置（用户指示）~~ → **已恢复（2026-08-16）：编程板块桌面内嵌 Harness Web 工作台落地**。
 
+- **最新发布：v3.0.8（2026-08-17）「办公板块表格可交付 + 会话产物打包 + 多智能体分工 + 界面收敛」**：
+  - **市场调研**：docs/market-research-2026-08-office-table-agent-and-package.md（表格 Agent
+    「可交付」+ 会话产物打包 + 补充调研：多 Agent 团队化/AI PPT 全流程/政务场景）。
+  - **P0-1 会话产物一键打包 Zip**：`GaeaZipDeliverables`（只接受工作区相对路径，拒绝绝对路径
+    与 `..` 穿越、缺失/目录静默跳过、zip 内保留相对路径结构防同名覆盖）+ 会话产物面板
+    「打包下载」按钮（zipping 态 + toast + 文件管理器定位）。对标 Kimi 工作空间/WorkBuddy。
+  - **P0-2 表格「选中区域 → 一键图表」**：`GaeaXlsxChart`（选中区域 `A1:B6`/单单元格 `B2`=表头到
+    选中行/空=自动前两列数据行 → 标签列+数值列 → matplotlib PNG 落 .gaea/exports → 预览队列，
+    复用 crosslink.GenerateChartPNG）+ XlsxPreview「图表 ▾」下拉（柱状/折线/饼图 PNG + 图表→Word/
+    →PPT）。对标千问表格 Agent/ChatExcel/GLM in Excel。
+  - **P1 产物缩略图增强**：FileThumb 升级为内容缩略图（xlsx 前 3×3 迷你表格/md 文本摘要/图片
+    dataURL，失败静默回退类型图标），接入 DeliverableCards 与会话产物面板，**零新后端绑定**
+    （复用 GaeaPreview 结构化数据）。
+  - **P2-1 多智能体分工可见**：`GaeaSubagentRuns`（读 `<sessionDir>/subagents/` 的 meta +
+    transcript 派生：状态/任务摘要=首条 user 消息/最后回答/工具调用次数，路径经 sessionDirForPath
+    防穿越，无目录返回 available=false）+ 右侧「运行」组「分工」子面板（SubagentsPanel：
+    状态徽标/任务摘要/模型/工具范围/耗时/展开回答，运行中 5 秒轮询）。对标 WorkSwarm 蜂群/
+    QClaw V2 多 Agent/飞书 aily 同事。
+  - **右侧面板 Tab 收敛为 4 个主标签（用户决策：不堆功能）**：7 个子面板按「文件域/成果域/
+    运行域/分析域」归入 4 个主 Tab——文件（文件/资料）、成果（产物/变更）、运行（任务/分工）、
+    分析（统计）；workspaceTabs 重构为 WORKSPACE_GROUPS 分组清单 + groupOfTab/defaultTabOfGroup
+    映射 + 扁平兼容导出，App.tsx 渲染分支与命令面板零改动；WorkspaceTabs 两级渲染（第一级主
+    Tab + 第二级组内子 Tab，data-grouptab/data-subtab 测试锚点）。
+  - **Excel 编辑器工具栏收敛（用户决策：不做 PPT、聚焦 Word/Excel、优化现有）**：① 顶部 10 个
+    常驻按钮 → 行操作（选中才显示）+ 重算公式 + 图表 ▾ 下拉；② 选中单元格布局重排为「公式栏
+    （写值/公式）在上、AI 编辑（自然语言指令）在下」——两个输入框逻辑分层，AI 编辑从两行大块
+    收成单行紧凑（预设回填指令有激活态 + 输入框 + 执行 + 关闭）。原则：**入口按上下文收敛，
+    不按功能铺开**。Word（DocxPreview）检查后确认已收敛未改动（不为了对称而改）。
+  - **验证**：Go `internal/app` 全量 ok（12 个新测试）；绑定面 **480 方法**漂移 PASS（+3：
+    GaeaZipDeliverables/GaeaXlsxChart/GaeaSubagentRuns）；前端 tsc 0 errors、vitest **605 通过**
+    （新增 18 用例）、vite build 通过；wails build 发布版（35.3MB）+ 冒烟 /api/health 200。
+  - 版本四处统一 3.0.8（sync-version 三处 + package.json）；README 版本索引新增 v3.0.8 行；
+    v3.0.7 资产归档 releases/archive/（exe/sha/md）；git tag `v3.0.8`，commit `219d019`。
+  - **决策记录**：PPT 分阶段工作流取消（用户：PPT 有专门软件，平时用得不多，聚焦 Word/Excel）；
+    办公迭代原则 = 先体检现有再决定改什么、入口按上下文收敛、不堆功能。
+
 - **最新发布：v3.0.7（2026-08-17）「办公板块文件交互体验 + 内置 prompt 模板兜底」**：
   - **文件交互 P0-P2 全落地**（调研 docs/2026-08-16-office-file-interaction-research.md）：
     P0-1 非图片附件 chip 化（docx/xlsx 拖入不再注入裸 @路径，进附件栏渲染为
