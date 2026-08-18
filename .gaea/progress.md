@@ -1,9 +1,10 @@
 # 任务进度
 
-> 最后更新: 2026-08-16 23:56:25
+> 最后更新: 2026-08-17
 
 | 状态 | 任务 |
 |------|------|
+| ✅ | 打包发布 v3.0.7：版本四处统一 3.0.7（sync-version 三处 + package.json/package-lock）；前端 tsc/eslint 0 errors、vitest 587 通过、vite build 通过；Go prompt/app/main 测试全绿、绑定面 477 方法漂移 PASS；wails build 发布版 35.2MB + 冒烟通过（/api/health 200）；发布 gaea-v3.0.7.exe + SHA256SUMS-v3.0.7.txt + v3.0.7.md + CHANGELOG-v3.0.7.txt；README 索引新增 v3.0.7 行（含补齐 v3.0.6 缺失行）；v3.0.2 归档到 releases/archive/（乱码行修复为归档状态）；git 提交 + tag v3.0.7 |
 | ✅ | 读取校正版0816表结构与实际数值 |
 | ✅ | 按校正口径对齐备注/断链公式并重算 |
 | ✅ | 更新记忆与事实底座为校正后单价和总价 |

@@ -1,5 +1,35 @@
 # gaea · 多功能 AI 助手
 
+## v3.0.7「办公板块文件交互体验 · 内置 prompt 模板兜底」(2026-08-17)
+> 调研 docs/2026-08-16-office-file-interaction-research.md 的 P0+P1+P2（纯前端部分）
+> 全部落地：文件从「附件/路径文本」升级为一等公民交互对象——非图片附件 chip、
+> 行内文件 chip 视觉统一、最近文件快捷区、多文件预览队列、产物版本时间线、
+> 大工具输出有界预览、附件上下文占用透明化。
+- **P0-1 非图片附件 chip 化**：拖入/选择的 docx/xlsx/pdf 等非图片文件不再注入裸
+  `@路径` 文本，而是进 Composer 附件栏渲染为「图标+文件名+扩展名 badge」chip
+  （点击预览/移除）；提交仍按附件数组统一注入 `@路径`，行为零变化
+- **P0-2 行内文件 chip 视觉统一**：新 FileChip 组件 + lib/fileBadge 扩展名单源
+  （BADGE_EXTS 从 FileMenu 收敛）；FileLinkText / Markdown 文件链接 / 流式尾部
+  htmlFileLinks 全部升级为「图标+文件名+badge」，与 @ 菜单同视觉
+- **P0-3 最近文件快捷区**：lib/recentFiles localStorage 单源（@ 引用与预览共用，
+  去重置顶 20 条）；文件面板顶部「最近」快捷条一键回看，预览过的文件自动记录
+- **P1-1 多文件预览队列**：preview store 扩展 previewList/index/navPreview 单源
+  （兼容 previewFile；已在队列去重跳转、上限 50、close 清空）；App 预览状态全部
+  改由 store 驱动（消除局部副本双写不一致）；预览底部 ← index/total → 导航条
+- **P1-2 产物版本时间线**：sessionDeliverables 记录同一文件会话内出现次数
+  （versions），产物面板对多次更新的文件显示「vN」徽标（对标 Hermes 版本步进器）
+- **P2-2 大工具输出有界预览**：boundedOutput 纯函数（>60 行折叠为头部+「已折叠
+  N 行」提示）；ToolCard「展开全部 N 行/收起输出」开关，超长输出不再撑爆卡片
+  （对标 QwenPaw 超长输出折叠）
+- **P2-4 附件上下文占用透明化**：附件 chip 显示「4.0 KB」占用（图片 base64 估算 /
+  文件 File.size / PickFiles 后端 size 补前端类型），title 注明「附件占用（进入
+  上下文的体量）」（对标 QwenPaw context-usage）
+- **内置 prompt 模板兜底（SetPromptFS）**：main.go go:embed 内置 prompts/ 模板，
+  exe 单文件分发（旁边无 prompts/ 目录）时由内置模板兜底，磁盘 prompts/ 仍优先
+  （开发期直接改模板生效）；prompt 引擎 6 个新测试
+- **验证**：vitest 587 通过（新增办公文件交互 40+ 用例）、绑定面 477 方法漂移
+  PASS、wails build 发布版 35.2MB、冒烟 /api/health 200
+
 ## v3.0.6「编程板块工作台 · 办公会话回退分叉 · 顶栏工具栏迁移」(2026-08-16)
 > 办公板块会话能力闭环（回退/分叉/回退点 + 右侧 Tab 清单化 + 会话统计回填 +
 > mock 场景补全）与编程板块桌面内嵌工作台（iframe 内嵌 DeepSeek Harness Web +

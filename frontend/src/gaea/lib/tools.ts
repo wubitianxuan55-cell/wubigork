@@ -213,3 +213,46 @@ export function summarize(name: string, args: string, output?: string, error?: s
       return "";
   }
 }
+
+// ── 大工具输出有界预览（P2-2，调研 2026-08-16）────────────────────────
+// 超长工具输出（bash/web_fetch/read_file 等）直接全量渲染会撑爆卡片、
+// 拖慢 Transcript。boundedOutput 把输出折叠为「头部 + 折叠计数」，
+// 由 ToolCard 提供「展开全部」开关（对标 QwenPaw 超长工具输出折叠）。
+export interface BoundedOutput {
+  /** 折叠状态下展示的文本（尾部追加折叠提示行）。 */
+  preview: string;
+  /** 完整输出。 */
+  full: string;
+  /** 是否发生了折叠（totalLines > maxPreviewLines）。 */
+  collapsed: boolean;
+  /** 折叠掉的行数。 */
+  hiddenLines: number;
+  /** 输出总行数。 */
+  totalLines: number;
+}
+
+export const TOOL_OUTPUT_MAX_PREVIEW_LINES = 60;
+
+export function boundedOutput(
+  output: string | undefined,
+  maxPreviewLines: number = TOOL_OUTPUT_MAX_PREVIEW_LINES,
+): BoundedOutput {
+  const full = output ?? "";
+  if (full === "") {
+    return { preview: "", full, collapsed: false, hiddenLines: 0, totalLines: 0 };
+  }
+  const lines = full.split("\n");
+  const totalLines = lines.length;
+  if (totalLines <= maxPreviewLines) {
+    return { preview: full, full, collapsed: false, hiddenLines: 0, totalLines };
+  }
+  const head = lines.slice(0, maxPreviewLines).join("\n");
+  const hiddenLines = totalLines - maxPreviewLines;
+  return {
+    preview: `${head}\n… 已折叠 ${hiddenLines} 行`,
+    full,
+    collapsed: true,
+    hiddenLines,
+    totalLines,
+  };
+}

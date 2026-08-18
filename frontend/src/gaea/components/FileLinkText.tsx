@@ -2,9 +2,11 @@ import { memo, useMemo } from "react";
 import type { ReactNode } from "react";
 import { findFileMentions } from "../lib/fileLinks";
 import { usePreviewStore } from "../lib/store";
+import { FileChip } from "./FileChip";
 
-// FileLinkText 把纯文本中的本地文件引用渲染为可点击预览按钮，
+// FileLinkText 把纯文本中的本地文件引用渲染为可点击预览 chip，
 // 用于工具输出等不经过 Markdown 管道的文本表面（保留原始空白/换行）。
+// 视觉统一（P0-2）：行内文件引用全部走 FileChip —— 图标 + 文件名 + 扩展名 badge。
 export const FileLinkText = memo(function FileLinkText({
   text,
   onOpen,
@@ -25,19 +27,13 @@ export const FileLinkText = memo(function FileLinkText({
   mentions.forEach((m, i) => {
     if (m.start > last) parts.push(<span key={`t${i}`}>{text.slice(last, m.start)}</span>);
     parts.push(
-      <button
+      <FileChip
         key={`f${i}`}
-        type="button"
-        onClick={() => open(m.path)}
+        path={m.path}
+        onOpen={open}
+        compact={compact}
         title={`点击预览 ${m.path}`}
-        className={
-          compact
-            ? "inline-flex items-center gap-1 align-middle mx-0.5 px-1 py-px rounded bg-accent/10 text-accent font-mono text-[inherit] cursor-pointer hover:bg-accent/20 transition-colors"
-            : "inline-flex items-center gap-1 align-middle mx-0.5 px-1.5 py-0.5 rounded-md border border-accent/25 bg-accent/5 text-accent text-[0.86em] font-medium cursor-pointer hover:bg-accent/15 transition-colors"
-        }
-      >
-        {m.label}
-      </button>,
+      />,
     );
     last = m.end;
   });

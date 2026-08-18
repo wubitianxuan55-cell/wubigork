@@ -1,5 +1,5 @@
 import { memo, useCallback } from "react";
-import { ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, MessageSquare, Paperclip } from "../icons";
+import { ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, MessageSquare, Paperclip, Rollback } from "../icons";
 import { app } from "../lib/bridge";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import { useToast } from "./Toast";
@@ -9,6 +9,8 @@ export interface SessionDeliverable {
   path: string;
   sourceId: string;
   turn?: number;
+  /** 同一文件在会话内被提及/更新的次数（≥1）；>1 显示版本徽标与步进器。 */
+  versions?: number;
 }
 
 const SPREADSHEET_EXT_RE = /\.(xlsx?|csv|et|ods)$/i;
@@ -122,9 +124,10 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-1.5">
-          {list.map(({ path, turn }) => {
+          {list.map(({ path, turn, versions }) => {
             const ext = extOf(path);
             const updated = updatedAt[path] != null;
+            const rev = versions && versions > 1 ? versions : undefined;
             return (
               <div
                 key={path}
@@ -167,6 +170,20 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       >
                         <FileText size={8} aria-hidden />
                         已更新
+                      </span>
+                    )}
+                    {rev && (
+                      <span
+                        className="shrink-0 inline-flex items-center gap-0.5 rounded-full px-1 py-px text-[9px] leading-none font-mono"
+                        style={{
+                          color: "var(--md-sys-color-primary)",
+                          background: "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)",
+                          border: "1px solid color-mix(in srgb, var(--md-sys-color-primary) 32%, transparent)",
+                        }}
+                        title={`会话内更新了 ${rev} 次（产物版本时间线）`}
+                      >
+                        <Rollback size={8} aria-hidden />
+                        v{rev}
                       </span>
                     )}
                   </span>

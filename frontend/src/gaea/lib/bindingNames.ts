@@ -421,6 +421,7 @@ export const bindingNames = [
   "SetOpencodeZenKey",
   "SetPortraitConfig",
   "SetPreloadPlan",
+  "SetPromptFS",
   "SetSensitiveLocal",
   "Shutdown",
   "StartComfyUI",

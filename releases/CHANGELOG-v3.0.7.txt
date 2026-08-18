@@ -1,0 +1,20 @@
+gaea v3.0.7 (2026-08-17)
+
+办公板块文件交互体验（P0-P2）+ 内置 prompt 模板兜底
+- P0-1 非图片附件 chip 化：拖入/选择 docx/xlsx 等不再注入裸 @路径，而是进附件栏渲染为
+  「图标+文件名+扩展名 badge」chip（点击预览/移除），提交仍按附件统一注入 @路径零变化
+- P0-2 行内文件 chip 视觉统一：新 FileChip 组件 + lib/fileBadge 扩展名单源（BADGE_EXTS
+  从 FileMenu 收敛）；FileLinkText/Markdown 链接/流式尾部全部升级为图标+文件名+badge
+- P0-3 最近文件快捷区：lib/recentFiles 单源（@ 引用与预览共用，去重置顶 20 条）；
+  文件面板顶部「最近」快捷条一键回看，预览过的文件自动记录
+- P1-1 多文件预览队列：preview store 扩展 previewList/index/navPreview 单源；
+  App 预览状态全部由 store 驱动；预览底部 ← index/total → 导航条（单文件不渲染）
+- P1-2 产物版本时间线：sessionDeliverables 记录同一文件会话内出现次数（versions），
+  产物面板显示「vN」徽标（对标 Hermes 版本步进器）
+- P2-2 大工具输出有界预览：boundedOutput 纯函数（>60 行折叠为头部+提示），
+  ToolCard「展开全部 N 行/收起输出」开关（对标 QwenPaw 超长输出折叠）
+- P2-4 附件上下文占用透明化：附件 chip 显示「4.0 KB」占用（图片 base64 估算/
+  文件 File.size/PickFiles size），title 注明「附件占用（进入上下文的体量）」
+- 内置 prompt 模板兜底（SetPromptFS）：go:embed 内置 prompts/，exe 单文件分发兜底，
+  磁盘 prompts/ 仍优先；prompt 引擎 6 新测试
+- 版本四处统一 3.0.7；vitest 587 通过（新增办公文件交互 40+ 用例）；绑定面 477 方法漂移 PASS

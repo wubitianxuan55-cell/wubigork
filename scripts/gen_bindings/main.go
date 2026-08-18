@@ -116,6 +116,7 @@ var explicitOverrides = map[string]string{
 	"Startup":            "core",
 	"Shutdown":           "core",
 	"SetDistFS":          "core",
+	"SetPromptFS":        "core",
 	"Login":              "core",
 	"GetLoginStatus":     "core",
 	"Logout":             "core",

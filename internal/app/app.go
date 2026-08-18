@@ -518,6 +518,17 @@ func (a *App) SetDistFS(fsys fs.FS) {
 	a.distFS = fsys
 }
 
+// SetPromptFS 注入内置 prompt 模板（由 main.go 的 go:embed 在启动前调用）。
+// 磁盘 prompts/ 仍优先（开发期可直接改模板生效），exe 单独分发（旁边没有
+// prompts/ 目录，如桌面快捷副本）时由内置模板兜底，避免“缺少 xxx 模板文件”。
+func (a *App) SetPromptFS(fsys fs.FS) {
+	if a.writingState == nil {
+		return
+	}
+	a.writingState.eng = prompt.NewEngineWithEmbedded(
+		filepath.Join(a.cfg.ResourceDir, "prompts"), fsys)
+}
+
 func CLILogin() {
 	cfg := config.Load()
 	fmt.Println("🚀 gaea — 多功能 AI 助手")

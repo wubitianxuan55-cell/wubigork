@@ -64,6 +64,7 @@ func (b *CoreB) SetKeepWarm(enabled bool) error { return b.a.SetKeepWarm(enabled
 func (b *CoreB) SetOpencodeGoKey(apiKey string) error { return b.a.SetOpencodeGoKey(apiKey) }
 func (b *CoreB) SetOpencodeZenKey(apiKey string) error { return b.a.SetOpencodeZenKey(apiKey) }
 func (b *CoreB) SetPreloadPlan(enabled bool) error { return b.a.SetPreloadPlan(enabled) }
+func (b *CoreB) SetPromptFS(fsys fs.FS) { b.a.SetPromptFS(fsys) }
 func (b *CoreB) Shutdown(ctx context.Context) { b.a.Shutdown(ctx) }
 func (b *CoreB) StartProgrammingWeb() error { return b.a.StartProgrammingWeb() }
 func (b *CoreB) Startup(ctx context.Context) { b.a.Startup(ctx) }

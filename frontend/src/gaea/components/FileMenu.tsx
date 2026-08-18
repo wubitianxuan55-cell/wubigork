@@ -1,25 +1,9 @@
 import { Folder, FileText } from "../icons";
 import { MenuContainer, useMenuScroll } from "./MenuContainer";
+import { extBadge } from "../lib/fileBadge";
+import type { AtEntry } from "../lib/types";
 
-// AtEntry 是 @ 菜单的统一条目（目录浏览 / 工作区搜索 / 最近使用文件）。
-export interface AtEntry {
-  path: string; // 工作区相对路径；目录以 / 结尾
-  name: string;
-  isDir: boolean;
-  size?: number;
-}
-
-const BADGE_EXTS = new Set([
-  "doc", "docx", "pdf", "xls", "xlsx", "ppt", "pptx", "md", "txt",
-  "csv", "png", "jpg", "jpeg", "svg",
-]);
-
-function extBadge(name: string): string | null {
-  const m = /\.([a-z0-9]+)$/i.exec(name);
-  if (!m) return null;
-  const ext = m[1].toLowerCase();
-  return BADGE_EXTS.has(ext) ? ext : null;
-}
+export type { AtEntry };
 
 export function FileMenu({
   items,
@@ -58,7 +42,7 @@ export function FileMenu({
           </span>
           {!e.isDir && (
             <span className="ml-auto shrink-0 text-[9px] uppercase text-fg-faint/60 border border-border-soft/60 rounded px-1 py-px font-mono">
-              {extBadge(e.name) ?? "file"}
+              {extBadge(e.name)}
             </span>
           )}
         </button>

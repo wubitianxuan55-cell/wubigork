@@ -3,6 +3,7 @@ package prompt
 import (
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func TestEngineGetExisting(t *testing.T) {
@@ -41,6 +42,49 @@ func TestEngineGetAllTemplates(t *testing.T) {
 		if tmpl := eng.Get(name); tmpl == nil {
 			t.Errorf("template %q should exist", name)
 		}
+	}
+}
+
+func TestEngineEmbeddedFallback(t *testing.T) {
+	embedded := fstest.MapFS{
+		"prompts/plot-branch-browser.json": &fstest.MapFile{
+			Data: []byte(`{"name":"plot-branch-browser","system":"s","task":"t",
+				"input_sections":{},"output":{"format":"json","description":"d"},
+				"constraints":{"must":[],"forbidden":[]}}`),
+		},
+		"prompts/embedded-only.json": &fstest.MapFile{
+			Data: []byte(`{"name":"embedded-only","system":"s","task":"t",
+				"input_sections":{},"output":{"format":"json","description":"d"},
+				"constraints":{"must":[],"forbidden":[]}}`),
+		},
+	}
+	// dir 指向不存在的目录：模拟单文件 exe 部署（无磁盘 prompts/）
+	eng := NewEngineWithEmbedded("../../prompts-does-not-exist", embedded)
+	if tmpl := eng.Get("plot-branch-browser"); tmpl == nil {
+		t.Fatal("内置 plot-branch-browser 模板应可用（磁盘缺失时兜底）")
+	}
+	if tmpl := eng.Get("embedded-only"); tmpl == nil {
+		t.Fatal("内置 embedded-only 模板应加载")
+	}
+}
+
+func TestEngineEmbeddedDiskOverrides(t *testing.T) {
+	embedded := fstest.MapFS{
+		"prompts/plot-branch-browser.json": &fstest.MapFile{
+			Data: []byte(`{"name":"plot-branch-browser","system":"embedded","task":"t",
+				"input_sections":{},"output":{"format":"json","description":"d"},
+				"constraints":{"must":[],"forbidden":[]}}`),
+		},
+	}
+	// dir 指向真实仓库 prompts/：磁盘模板应叠加且同名覆盖内置
+	eng := NewEngineWithEmbedded("../../prompts", embedded)
+	if tmpl := eng.Get("plot-branch-browser"); tmpl == nil {
+		t.Fatal("plot-branch-browser 应可用")
+	} else if strings.Contains(tmpl.System, "embedded") {
+		t.Error("磁盘模板应优先于内置模板")
+	}
+	if tmpl := eng.Get("chapter-generate"); tmpl == nil {
+		t.Error("磁盘其余模板应与内置叠加")
 	}
 }
 

@@ -12,7 +12,7 @@ import { ICONS, mcpOr } from "./tool_icons";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
-import { diffsFor, subjectOf, summarize } from "../lib/tools";
+import { boundedOutput, diffsFor, subjectOf, summarize } from "../lib/tools";
 import type { Item } from "../lib/store";
 import { FileLinkText } from "./FileLinkText";
 
@@ -54,6 +54,9 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   const expandable = hasArgs || hasOutput;
 
   const [open, setOpen] = useState(false);
+  // P2-2 大工具输出有界预览：超长输出折叠为头部 + 展开全部开关
+  const bounded = useMemo(() => boundedOutput(item.output), [item.output]);
+  const [showFullOutput, setShowFullOutput] = useState(false);
 
   const bodyRef = useRef<HTMLDivElement>(null);
   useGSAPCollapse(bodyRef, open && expandable);
@@ -137,7 +140,16 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           {hasOutput && (
             <div className={`${innerPx} ${innerPb}`}>
               <div className="text-[9px] text-fg-faint/60 uppercase tracking-wider mb-0.5 select-none">输出 · {outputLines}L</div>
-              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded text-fg-dim"><code><FileLinkText text={item.output ?? ""} compact /></code></pre>
+              <pre className="px-3 py-2 font-mono text-[12px] leading-[1.5] overflow-auto whitespace-pre bg-bg-soft border border-border-soft rounded text-fg-dim"><code><FileLinkText text={showFullOutput ? bounded.full : bounded.preview} compact /></code></pre>
+              {bounded.collapsed && (
+                <button
+                  type="button"
+                  className="mt-1 px-2 py-0.5 border border-border-soft rounded bg-bg-soft text-fg-dim text-[11px] cursor-pointer hover:bg-bg-soft hover:text-fg transition-colors"
+                  onClick={() => setShowFullOutput((v) => !v)}
+                >
+                  {showFullOutput ? "收起输出" : `展开全部 ${bounded.hiddenLines} 行`}
+                </button>
+              )}
               {item.truncated && (
                 <div className="mt-1 px-2 py-0.5 border border-border-soft rounded bg-bg-soft text-fg-dim text-[11px]">
                   {t("tool.truncated")}

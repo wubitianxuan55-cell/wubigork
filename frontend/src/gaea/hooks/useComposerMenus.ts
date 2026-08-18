@@ -2,10 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { app } from '../lib/bridge'
 import { slashQueryOf, atMentionOf } from '../lib/composer'
-import type { CommandInfo, DirEntry, FileSearchHit, SlashArgsResult, SlashArgItem } from '../lib/types'
-import type { AtEntry } from '../components/FileMenu'
-
-const RECENT_AT_KEY = "gaea.atRecentFiles"
+import type { CommandInfo, DirEntry, FileSearchHit, SlashArgsResult, SlashArgItem, AtEntry } from '../lib/types'
+import { loadRecentFiles, recordRecentFile } from '../lib/recentFiles'
 
 export interface UseComposerMenusOptions {
   text: string
@@ -59,13 +57,8 @@ export function useComposerMenus({ text, debouncedText, setTextCaretEnd }: UseCo
     app.FileSearch(atFrag, 30).then((h) => { if (live) setAtHits(h ?? []); }).catch(() => {})
     return () => { live = false; }
   }, [atRaw, atFrag])
-  // 最近使用文件（@ 选择过的文件，本地持久化）
-  const [recent, setRecent] = useState<AtEntry[]>(() => {
-    try { return JSON.parse(localStorage.getItem(RECENT_AT_KEY) || "[]") as AtEntry[] } catch { return []; }
-  })
-  useEffect(() => {
-    try { localStorage.setItem(RECENT_AT_KEY, JSON.stringify(recent.slice(0, 20))); } catch {}
-  }, [recent])
+  // 最近使用文件（@ 选择过的文件，本地持久化 —— 与「最近文件」快捷区共用单源）
+  const [recent, setRecent] = useState<AtEntry[]>(() => loadRecentFiles())
   // 统一 @ 条目：目录内浏览（路径前缀）或 最近使用 + 工作区搜索 + 当前目录
   const atItems: AtEntry[] = useMemo(() => {
     if (atRaw === null) return []
@@ -108,7 +101,8 @@ export function useComposerMenus({ text, debouncedText, setTextCaretEnd }: UseCo
       setTextCaretEnd(prefix + "@" + e.path)
       return
     }
-    setRecent((prev) => [{ path: e.path, name: e.name, isDir: false, size: e.size }, ...prev.filter((r) => r.path !== e.path)].slice(0, 20))
+    recordRecentFile(e.path, e.name)
+    setRecent(loadRecentFiles())
     setTextCaretEnd(prefix + "@" + e.path + " ")
   }
   const pickArg = (it: SlashArgItem) => { if (!argRes) return; setTextCaretEnd(text.slice(0, argRes.from) + it.insert) }

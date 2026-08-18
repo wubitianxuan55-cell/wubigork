@@ -18,6 +18,9 @@ import (
 //go:embed all:dist
 var assets embed.FS
 
+//go:embed all:prompts
+var promptTemplates embed.FS
+
 func main() {
 	// CLI login 模式：不启动桌面，纯终端 OAuth
 	if len(os.Args) >= 2 && os.Args[1] == "login" {
@@ -28,6 +31,7 @@ func main() {
 	// 启动桌面应用
 	application := app.New()
 	application.SetDistFS(assets)
+	application.SetPromptFS(promptTemplates)
 
 	// 网页/移动端调试桥接：设置 GAEA_HTTP_PORT（如 8080）后，浏览器页面
 	// 可通过 /api/rpc + /api/stream 驱动同一个 Go 内核，与桌面端完全对齐。

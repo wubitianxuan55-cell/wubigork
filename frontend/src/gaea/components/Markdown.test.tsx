@@ -56,7 +56,8 @@ describe("Markdown 本地文件预览", () => {
     usePreviewStore.setState({ previewFile: null });
     render(<Markdown text="保存到：报告.docx。（详见附件）" />);
     const btn = screen.getByRole("button", { name: /报告\.docx/ });
-    expect(btn.textContent).toBe("报告.docx");
+    // P0-2 chip：文件名 + 扩展名 badge（不含句号后的中文尾巴）
+    expect(btn.textContent).toContain("报告.docx");
     fireEvent.click(btn);
     expect(usePreviewStore.getState().previewFile).toBe("报告.docx");
   });

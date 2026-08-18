@@ -11,6 +11,27 @@
 
 - **V3.0 总规划（2026-08-15 定稿，V1-V8 已全部确认）**：docs/2026-08-15-gaea3-vision-roadmap.md（个人 AI 智能体平台：一个内核 + 统一记忆 + 板块插件化 + 本地优先/分层智能 + 移动终端）；架构执行见 docs/2026-08-15-gaea3-architecture-design.md（Step 0-3）。已确认决策：V1 愿景=个人 AI 智能体平台；V2 3.0.0 首发=chat 会话可恢复+知识库试点；V3 版本节奏=3.0.0 地基→3.1.0 板块生态·记忆起步→3.2.0 受控自主→3.3.0+ 身份；V4 记忆统一层 3.2.0；V5 数字生命 3.3+ 再定；V6 启动用户试用；V7 分层智能模型策略（云端统筹+本地执行+能本地则本地）；V8 插件化边界（只做启动期声明式装配，不做运行期热替换；工具级 MCP 热增删保留例外）；D8 office 模块路由 GaeaSend；单窗口编排已废弃。~~编程板块搁置（用户指示）~~ → **已恢复（2026-08-16）：编程板块桌面内嵌 Harness Web 工作台落地**。
 
+- **最新发布：v3.0.7（2026-08-17）「办公板块文件交互体验 + 内置 prompt 模板兜底」**：
+  - **文件交互 P0-P2 全落地**（调研 docs/2026-08-16-office-file-interaction-research.md）：
+    P0-1 非图片附件 chip 化（docx/xlsx 拖入不再注入裸 @路径，进附件栏渲染为
+    「图标+文件名+扩展名 badge」chip，点击预览/移除，提交仍统一注入 @路径零变化）；
+    P0-2 行内文件 chip 视觉统一（FileChip 组件 + lib/fileBadge 扩展名单源，FileLinkText/
+    Markdown/流式尾部全部升级）；P0-3 最近文件快捷区（lib/recentFiles localStorage
+    单源，@ 引用与预览共用去重置顶 20 条，文件面板顶部 RecentFilesBar）；
+    P1-1 多文件预览队列（preview store 扩展 previewList/index/navPreview 单源，App
+    预览状态全部改由 store 驱动消除双写，预览底部 ←/→ 导航条 PreviewNavBar）；
+    P1-2 产物版本时间线（sessionDeliverables 记录 versions，产物面板 vN 徽标）；
+    P2-2 大工具输出有界预览（boundedOutput >60 行折叠 + ToolCard 展开全部开关）；
+    P2-4 附件上下文占用透明化（附件 chip 显示 KB 占用）。
+  - **内置 prompt 模板兜底（SetPromptFS）**：main.go go:embed 内置 prompts/ 模板，
+    exe 单文件分发（旁边无 prompts/ 目录）时兜底，磁盘 prompts/ 仍优先（开发期
+    直接改模板生效）；prompt 引擎 6 新测试。
+  - **验证**：前端 tsc/eslint 0 errors、vitest **587 通过**（新增办公文件交互 40+
+    用例）、vite build 通过；Go prompt/app/main 全绿；绑定面 **477 方法**漂移 PASS；
+    wails build 发布版 35.2MB；冒烟 /api/health 200。
+  - 版本四处统一 3.0.7（sync-version 三处 + package.json/package-lock）；README
+    版本索引新增 v3.0.7 行（含补齐 v3.0.6 缺行）；v3.0.2 归档；git tag `v3.0.7`。
+
 - **最新发布：v3.0.6（2026-08-16）「编程板块工作台 + 办公会话回退分叉 + 顶栏工具栏迁移」**：
   - 编程板块：DeepSeek Harness Web 以 iframe 内嵌桌面窗口（http://127.0.0.1:3080，
     未运行显示启动引导）；启动引导 = 真实前置条件逐项检查（GetProgrammingWebPreflight）+

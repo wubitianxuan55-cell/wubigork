@@ -12,6 +12,7 @@ import { isLocalFilePath } from "../lib/fileLinks";
 import { remarkFileLinks } from "../lib/remarkFileLinks";
 import { usePreviewStore } from "../lib/store";
 import { useToast } from "./Toast";
+import { FileChip } from "./FileChip";
 
 // KaTeX CSS 延迟注入：避免非数学对话的 ~23KB CSS 开销。
 // 有数学内容时才加载（$$ 或 $ 包裹的公式）。
@@ -396,15 +397,12 @@ function buildComponents(onOpenFile: (rel: string) => void, autoExportMermaid = 
       if (href && isLocalFilePath(href)) {
         const rel = decodeURIComponent(href.replace(/^\.{0,2}\//, ""));
         return (
-          <button
-            type="button"
-            onClick={() => onOpenFile(rel)}
+          <FileChip
+            path={rel}
+            label={typeof children === "string" ? children : undefined}
+            onOpen={onOpenFile}
             title={`点击预览 ${rel}`}
-            className="inline-flex items-center gap-1 align-middle mx-0.5 px-1.5 py-0.5 rounded-md border border-accent/25 bg-accent/5 text-accent text-[0.86em] font-medium cursor-pointer hover:bg-accent/15 transition-colors"
-          >
-            <FileText size={11} className="shrink-0" />
-            <span className="truncate max-w-[260px] font-mono">{children}</span>
-          </button>
+          />
         );
       }
       return (

@@ -259,6 +259,14 @@ export interface FileSearchHit {
   size?: number;
 }
 
+/** AtEntry 是 @ 菜单的统一条目（目录浏览 / 工作区搜索 / 最近使用文件）。 */
+export interface AtEntry {
+  path: string; // 工作区相对路径；目录以 / 结尾
+  name: string;
+  isDir: boolean;
+  size?: number;
+}
+
 // WorkspaceSearchHit 是工作区全文搜索的一条命中（轻量 RAG）。
 export interface WorkspaceSearchHit {
   path: string;
@@ -737,6 +745,8 @@ export interface FilePickResult {
   previewUrl?: string;
   type: "image" | "file";
   name: string;
+  /** 文件字节数（P2-4 附件上下文占用展示用；后端 GaeaPickFiles 已返回）。 */
+  size?: number;
 }
 
 // ── 记忆中枢（Memory Hub）类型 ──────────────────────────────────────

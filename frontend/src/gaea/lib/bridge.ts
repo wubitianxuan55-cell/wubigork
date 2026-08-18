@@ -1196,6 +1196,7 @@ type LegacySurfaceNames =
   | "SetOpencodeGoKey"
   | "SetOpencodeZenKey"
   | "SetPortraitConfig"
+  | "SetPromptFS"
   | "SetSensitiveLocal"
   | "Shutdown"
   | "StartComfyUI"

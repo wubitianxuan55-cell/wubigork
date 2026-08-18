@@ -110,4 +110,20 @@ describe("DeliverablesPanel 会话产物面板", () => {
       expect(writeText).toHaveBeenCalledWith(".gaea/exports/方案.docx\nexports/成本测算.xlsx"),
     );
   });
+
+  it("会话内多次出现的文件显示版本徽标（P1-2 产物版本时间线）", () => {
+    render(
+      <DeliverablesPanel
+        items={[
+          { path: "exports/周报.docx", sourceId: "a1", versions: 3 },
+          { path: "exports/成本测算.xlsx", sourceId: "a2", versions: 1 },
+        ]}
+        onOpenFile={() => {}}
+      />,
+    );
+    // 更新 3 次 → v3 徽标；仅 1 次不显示
+    expect(screen.getByTitle("会话内更新了 3 次（产物版本时间线）")).toBeTruthy();
+    expect(screen.getByText("v3")).toBeTruthy();
+    expect(screen.queryByText("v1")).toBeNull();
+  });
 });

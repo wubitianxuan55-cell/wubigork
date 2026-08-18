@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { FolderTree, RefreshCw, X } from "../icons";
 import { FileTree } from "./FileTree";
+import { RecentFilesBar } from "./RecentFilesBar";
 
 // 右侧面板：增强文件树（Codex 式工作区）。
 // 点击文件后由 App 收起本面板，并在主区域展开可拖宽的预览。
@@ -60,6 +61,9 @@ export function WorkspacePanel({
           {cwd}
         </div>
       )}
+
+      {/* 最近文件快捷区（P0-3：@ 引用/预览过的文件一键回到） */}
+      <RecentFilesBar cwd={cwd} onOpenFile={onSelectFile} />
 
       {/* 文件树：点击文件后自动收起面板，在主区域展开预览 */}
       <div className="flex-1 min-h-0 overflow-hidden">

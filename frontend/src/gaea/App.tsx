@@ -28,6 +28,7 @@ const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m =
 import { WorkspacePanel } from "./components/WorkspacePanel";
 import { WorkspaceTabs } from "./components/WorkspaceTabs";
 import { FilePreview } from "./components/FilePreview";
+import { PreviewNavBar } from "./components/PreviewNavBar";
 import { DeliverablesPanel, type SessionDeliverable } from "./components/DeliverablesPanel";
 import { MaterialsPanel } from "./components/MaterialsPanel";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
@@ -57,6 +58,7 @@ import {
 } from "./lib/layoutPreferences";
 import CompactContext from "./hooks/useCompact";
 import { deliverableMentions } from "./lib/fileLinks";
+import { recordRecentFile } from "./lib/recentFiles";
 import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, type SessionChange } from "./lib/changes";
 import { classifyComposerCommand } from "./lib/command";
@@ -124,10 +126,16 @@ export default function App() {
   } = useSidebar();
 
   const [workspacePanelOpen, setWorkspacePanel] = useState(false);
-  const [previewFile, setPreviewFile] = useState<string | null>(null);
   const [previewWidth, setPreviewWidth] = useState(loadPreviewWidth);
   const [previewResizing, setPreviewResizing] = useState(false);
   const [workspaceRefreshKey, setWorkspaceRefreshKey] = useState(0);
+  // P1-1 多文件预览队列：previewFile 与队列全部由全局 store 驱动（单一数据源），
+  // 局部不再持有一份副本；openFilePreview 入队、navPreview ←/→ 切换。
+  const previewFile = usePreviewStore((s) => s.previewFile);
+  const previewIndex = usePreviewStore((s) => s.previewIndex);
+  const previewList = usePreviewStore((s) => s.previewList);
+  const closeFilePreview = usePreviewStore((s) => s.closeFilePreview);
+  const navPreview = usePreviewStore((s) => s.navPreview);
 
   // ── 专注模式（Kun 精华）：一键收起侧栏与右侧面板，只留对话和输入区 ──
   const [focusMode, setFocusMode] = useState(() => {
@@ -137,9 +145,9 @@ export default function App() {
     handleWorkspacePreviewModeChange(active);
     if (active) {
       setWorkspacePanel(false);
-      setPreviewFile(null);
+      closeFilePreview();
     }
-  }, [handleWorkspacePreviewModeChange]);
+  }, [handleWorkspacePreviewModeChange, closeFilePreview]);
   const toggleFocus = useCallback(() => {
     const next = !focusMode;
     setFocusMode(next);
@@ -155,43 +163,45 @@ export default function App() {
   }, []);
 
   // 点文件 → 收起右侧树，在主区域展开可拖宽的预览（Codex 式）
+  // P0-3：预览过的文件同步进「最近文件」快捷区（lib/recentFiles 单源）
+  // P1-1：经全局 store 入队，支持 ←/→ 多文件切换
   const openFilePreview = useCallback((rel: string) => {
+    recordRecentFile(rel);
     setRightTab("files");
     setWorkspacePanel(false);
-    setPreviewFile(rel);
+    usePreviewStore.getState().openFilePreview(rel);
   }, []);
 
   // 对话内「交付文件」卡片与正文文件链接走 usePreviewStore（弹窗通道）。
   // 本页有嵌入式预览容器，把这类请求重定向为嵌入预览（弹窗仅保留给
-  // 记忆中枢等没有嵌入容器的页面）。
+  // 记忆中枢等没有嵌入容器的页面）。P1-1：重定向时保留队列（不清空），
+  // 直接入队即可由预览容器渲染，无需再转发局部状态。
   useEffect(() => {
     return usePreviewStore.subscribe((s, prev) => {
       if (s.previewFile && s.previewFile !== prev.previewFile) {
         const rel = s.previewFile;
-        usePreviewStore.getState().closeFilePreview();
         setRightTab("files");
         setWorkspacePanel(false);
-        setPreviewFile(rel);
       }
     });
   }, []);
 
   // 预览头部“文件”按钮 → 回到文件树
   const backToFiles = useCallback(() => {
-    setPreviewFile(null);
+    closeFilePreview();
     setRightTab("files");
     setWorkspacePanel(true);
-  }, []);
+  }, [closeFilePreview]);
 
   // 面板开关：预览打开时先收起预览再展开树
   const toggleWorkspacePanel = useCallback(() => {
     if (previewFile !== null) {
-      setPreviewFile(null);
+      closeFilePreview();
       setWorkspacePanel(true);
       return;
     }
     setWorkspacePanel((o) => !o);
-  }, [previewFile]);
+  }, [previewFile, closeFilePreview]);
 
   // 拖拽分割条调整预览宽度
   const startPreviewResize = useCallback((e: React.PointerEvent) => {
@@ -321,12 +331,12 @@ export default function App() {
   const switchFolder = useCallback(async (path?: string) => {
     const picked = path === undefined ? await pickWorkspace() : await switchWorkspace(path);
     if (picked) {
-      setPreviewFile(null);
+      closeFilePreview();
       setWorkspacePanel(false);
       await refreshSessions();
     }
     return picked;
-  }, [pickWorkspace, switchWorkspace, refreshSessions]);
+  }, [pickWorkspace, switchWorkspace, refreshSessions, closeFilePreview]);
 
   // 从侧边栏点其他项目的会话：先切换到该项目工作区，再恢复该会话。
   const currentProjectPath = projectGroups.find((g) => g.current)?.path;
@@ -459,7 +469,7 @@ export default function App() {
       const mod = ke.ctrlKey || ke.metaKey, t = ke.target as HTMLElement;
       const inInput = t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
       if (ke.key === "Escape" && !inInput && !state.running) {
-        if (previewFile !== null) { ke.preventDefault(); setPreviewFile(null); return; }
+        if (previewFile !== null) { ke.preventDefault(); closeFilePreview(); return; }
         if (closeTopmost()) { ke.preventDefault(); return; }
       }
       if (!mod) return;
@@ -473,14 +483,13 @@ export default function App() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [state.running, closeTopmost, workspacePanelOpen, previewFile, toggleFocus]);
+  }, [state.running, closeTopmost, workspacePanelOpen, previewFile, toggleFocus, closeFilePreview]);
 
   const { toolCounts, skillCounts } = useToolStats(state.items);
-  // 会话产物：从会话消息文本中提取交付文件（去重、按消息顺序），
-  // 供右侧「产物」面板展示（对标 Kimi 工作空间 / 千问办公产物面板）。
+  // 会话产物：从会话消息文本中提取交付文件（保留首现顺序；同一文件多次
+  // 出现计入 versions 次数——产物版本时间线数据源，对标 Hermes 版本步进器）。
   const sessionDeliverables = useMemo<SessionDeliverable[]>(() => {
-    const seen = new Set<string>();
-    const out: SessionDeliverable[] = [];
+    const order = new Map<string, { sourceId: string; turn: number; versions: number }>();
     let turn = -1;
     for (const it of state.items) {
       if (it.kind === "user") {
@@ -489,10 +498,17 @@ export default function App() {
       }
       if (it.kind !== "assistant" || !it.text) continue;
       for (const p of deliverableMentions(it.text)) {
-        if (seen.has(p)) continue;
-        seen.add(p);
-        out.push({ path: p, sourceId: it.id, turn: Math.max(0, turn) });
+        const rec = order.get(p);
+        if (rec) {
+          rec.versions++;
+        } else {
+          order.set(p, { sourceId: it.id, turn: Math.max(0, turn), versions: 1 });
+        }
       }
+    }
+    const out: SessionDeliverable[] = [];
+    for (const [path, rec] of order) {
+      out.push({ path, sourceId: rec.sourceId, turn: rec.turn, versions: rec.versions });
     }
     return out;
   }, [state.items]);
@@ -628,7 +644,7 @@ export default function App() {
         compact: true,
         keywords: tab.keywords,
         // 原实现中 stats 命令不关闭预览（统计面板可与预览并存），其余面板关闭预览
-        run: () => { if (tab.id !== "stats") setPreviewFile(null); setWorkspacePanel(true); setRightTab(tab.id); },
+        run: () => { if (tab.id !== "stats") closeFilePreview(); setWorkspacePanel(true); setRightTab(tab.id); },
       });
     }
     const sessionItems: PaletteItem[] = sidebarSessions.slice(0, 10).map((s) => ({
@@ -651,10 +667,10 @@ export default function App() {
       meta: tm.description,
       icon: <FileText size={15} />,
       keywords: ["template", "模板", tm.name, ...tm.title.split(/\s+/)],
-      run: () => { setPreviewFile(null); setWorkspacePanel(false); send(tm.prompt); },
+      run: () => { closeFilePreview(); setWorkspacePanel(false); send(tm.prompt); },
     }));
     return [...cmds, ...templateItems, ...sessionItems];
-  }, [t, sidebarSessions, startNewSession, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, setPreviewFile, setRightTab, templates, send]);
+  }, [t, sidebarSessions, startNewSession, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, closeFilePreview, setRightTab, templates, send]);
 
   const layoutStyle = useMemo(
     () =>
@@ -845,8 +861,14 @@ export default function App() {
             <div className="preview-pane">
               <FilePreview
                 relPath={previewFile}
-                onClose={() => setPreviewFile(null)}
+                onClose={closeFilePreview}
                 onBackToFiles={backToFiles}
+              />
+              <PreviewNavBar
+                index={previewIndex}
+                total={previewList.length}
+                onPrev={() => navPreview(-1)}
+                onNext={() => navPreview(1)}
               />
             </div>
           </>

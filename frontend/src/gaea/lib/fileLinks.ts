@@ -120,7 +120,26 @@ export function escapeHtml(s: string): string {
   return esc(s);
 }
 
-// 把纯文本中的文件引用转成 HTML 可点击按钮（流式尾部 / 简单 HTML 渲染用）。
+/**
+ * fileChipHtml — 行内文件引用 chip 的 HTML 形态（与 FileChip 组件同构，
+ * 供流式尾部 / MemoMarkdown 等字符串渲染使用）。P0-2 视觉统一：
+ * 文件名 + 扩展名 badge，data-file-preview 由外层容器事件委托打开预览。
+ */
+export function fileChipHtml(path: string, label?: string): string {
+  const name = label ?? path.split(/[/\\]/).pop() ?? path;
+  const badge = (name.match(/\.([a-z0-9]+)$/i)?.[1] ?? "file").toLowerCase();
+  return (
+    `<button type="button" data-file-preview="${escAttr(path)}" title="点击预览 ${escAttr(path)}" ` +
+    `class="inline-flex items-center gap-1 align-middle mx-0.5 px-1.5 py-0.5 rounded-md border border-accent/25 bg-accent/5 ` +
+    `text-accent text-[0.86em] font-medium cursor-pointer hover:bg-accent/15 transition-colors">` +
+    `<span class="max-w-[220px] truncate font-mono">${esc(name)}</span>` +
+    `<span class="shrink-0 text-[9px] uppercase text-fg-faint/70 border border-border-soft/60 rounded px-1 py-px font-mono">${esc(badge)}</span>` +
+    `</button>`
+  );
+}
+
+// 把纯文本中的文件引用转成 HTML 可点击 chip（流式尾部 / 简单 HTML 渲染用）。
+// 视觉与 FileChip 组件同构（P0-2 统一：文件名 + 扩展名 badge）。
 // 路径通过 data-file-preview 携带，由外层容器事件委托打开预览。
 export function htmlFileLinks(text: string): string {
   const mentions = findFileMentions(text);
@@ -129,12 +148,7 @@ export function htmlFileLinks(text: string): string {
   let last = 0;
   for (const m of mentions) {
     out += esc(text.slice(last, m.start));
-    out +=
-      `<button type="button" data-file-preview="${escAttr(m.path)}" title="点击预览 ${escAttr(m.path)}" ` +
-      `class="inline-flex items-center gap-1 align-middle mx-0.5 px-1.5 py-0.5 rounded-md border border-accent/25 bg-accent/5 ` +
-      `text-accent text-[0.86em] font-medium cursor-pointer hover:bg-accent/15 transition-colors">` +
-      esc(m.label) +
-      `</button>`;
+    out += fileChipHtml(m.path, m.label.split(/[/\\]/).pop());
     last = m.end;
   }
   out += esc(text.slice(last));

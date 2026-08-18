@@ -4,7 +4,13 @@ import { Modal } from 'antd'
 import { app } from '../lib/bridge'
 import { useToast } from '../components/Toast'
 
-export interface Attachment { path: string; previewUrl: string; type: "image" | "file" }
+export interface Attachment {
+  path: string;
+  previewUrl: string;
+  type: "image" | "file";
+  /** 附件字节数（P2-4 上下文用量透明化：图片由 base64 估算，文件取 File.size）。 */
+  size?: number;
+}
 
 export interface UseComposerAttachmentsOptions {
   text: string
@@ -14,7 +20,15 @@ export interface UseComposerAttachmentsOptions {
   onSend: (displayText: string, submitText?: string) => void
 }
 
-export function useComposerAttachments({ text, setText, taRef, running, onSend }: UseComposerAttachmentsOptions) {
+// 图片 base64 dataURL → 估算字节数（P2-4 上下文占用透明化）。
+// base64 每 4 字符 ≈ 3 字节,减去 data:image/...;base64, 前缀。
+function dataUrlBytes(dataUrl: string): number {
+  const comma = dataUrl.indexOf(",");
+  const body = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+  return Math.floor((body.length * 3) / 4);
+}
+
+export function useComposerAttachments({ setText, running, onSend }: UseComposerAttachmentsOptions) {
   const toast = useToast()
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [pendingPaste, setPendingPaste] = useState(0)
@@ -58,10 +72,13 @@ export function useComposerAttachments({ text, setText, taRef, running, onSend }
         const dataUrl = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(file) })
         const path = await app.SavePastedImage(dataUrl)
         const previewUrl = await app.AttachmentDataURL(path)
-        setAttachments((prev) => [...prev, { path, previewUrl, type: "image" }])
+        setAttachments((prev) => [...prev, { path, previewUrl, type: "image", size: file.size || dataUrlBytes(dataUrl) }])
       } catch {} finally { setPendingPaste((n) => Math.max(0, n - 1)) }
     }
-    // 处理非图片文件
+    // 处理非图片文件（P0-1 chip 化）：不再注入裸 @路径 文本，而是进入
+    // attachments 数组渲染为 chip（图标 + 文件名 + 扩展名 badge + 移除），
+    // 点击可预览；提交时 Composer.submit 仍按 attachments 统一注入 @路径，
+    // 行为与旧「裸文本注入」一致（调研 2026-08-16 P0-1）。
     for (const file of others) {
       setPendingPaste((n) => n + 1)
       try {
@@ -71,9 +88,7 @@ export function useComposerAttachments({ text, setText, taRef, running, onSend }
         for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
         const b64 = btoa(bin)
         const path = await app.SaveAttachmentFile(file.name, b64)
-        const atRef = `@${path}`
-        setText((prev) => prev + (prev.endsWith(" ") || prev === "" ? "" : " ") + atRef + " ")
-        if (taRef.current) { taRef.current.focus(); taRef.current.selectionStart = taRef.current.selectionEnd = (text + " " + atRef + " ").length }
+        setAttachments((prev) => [...prev, { path, previewUrl: "", type: "file", size: file.size }])
       } catch {} finally { setPendingPaste((n) => Math.max(0, n - 1)) }
     }
   }
@@ -85,11 +100,10 @@ export function useComposerAttachments({ text, setText, taRef, running, onSend }
       if (!files || files.length === 0) return
       for (const f of files) {
         if (f.type === "image") {
-          setAttachments((prev) => [...prev, { path: f.path, previewUrl: f.previewUrl ?? "", type: "image" as const }])
+          setAttachments((prev) => [...prev, { path: f.path, previewUrl: f.previewUrl ?? "", type: "image" as const, size: f.size }])
         } else {
-          const atRef = `@${f.path}`
-          setText((prev) => prev + (prev.endsWith(" ") || prev === "" ? "" : " ") + atRef + " ")
-          if (taRef.current) { taRef.current.focus(); taRef.current.selectionStart = taRef.current.selectionEnd = (text + " " + atRef + " ").length }
+          // P0-1 chip 化：非图片附件进 attachments（提交时统一注入 @路径）
+          setAttachments((prev) => [...prev, { path: f.path, previewUrl: "", type: "file" as const, size: f.size }])
         }
       }
     } catch {
