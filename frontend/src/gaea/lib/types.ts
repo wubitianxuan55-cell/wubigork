@@ -368,6 +368,51 @@ export interface XlsxEditResult {
   applied: number;
 }
 
+// ── 表格「选中区域 → 一键图表」（P0-2，对标千问表格 Agent） ──
+export interface XlsxChartInput {
+  rel: string; // xlsx 工作区相对路径
+  sheet?: string; // 工作表名；空 = 第一个工作表
+  refs?: string; // 区域 "A1:B6" 或单单元格 "B2"；空 = 自动取前两列数据行
+  chartType?: "bar" | "line" | "pie" | "scatter";
+  title?: string;
+}
+
+export interface XlsxChartResult {
+  path: string; // PNG 工作区相对路径
+  name: string;
+  dataUrl: string; // base64 PNG dataURL（直接预览）
+  labels: number;
+  chartType: string;
+}
+
+// ── 会话产物一键打包（P0-1，对标 Kimi 工作空间 / WorkBuddy） ──
+export interface ZipDeliverableResult {
+  path: string; // zip 工作区相对路径
+  name: string;
+  entries: number;
+  bytes: number;
+}
+
+// ── 多智能体分工可见（P2，对标 WorkSwarm 蜂群 / QClaw V2） ──
+export interface SubagentRunView {
+  ref: string; // sa_YYYYMMDD_HHMMSS_... 稳定引用
+  status: "running" | "completed" | "failed";
+  model?: string;
+  toolScope?: string[];
+  task: string; // transcript 首条 user 消息（任务摘要）
+  answer?: string; // 最后一条 assistant 回答摘要
+  toolCalls: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubagentRunsView {
+  available: boolean; // false = 会话无 subagents 目录（未派发子代理）
+  runs: SubagentRunView[];
+  total: number;
+  running: number;
+}
+
 // ── 统一交付出口（事实底座 → 多形态交付） ──────────────────
 export interface ExportDeliverableInput {
   markdown: string;

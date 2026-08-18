@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DeliverablesPanel } from "./DeliverablesPanel";
+import { ToastProvider } from "./Toast";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 
 describe("DeliverablesPanel 会话产物面板", () => {
@@ -125,5 +126,33 @@ describe("DeliverablesPanel 会话产物面板", () => {
     expect(screen.getByTitle("会话内更新了 3 次（产物版本时间线）")).toBeTruthy();
     expect(screen.getByText("v3")).toBeTruthy();
     expect(screen.queryByText("v1")).toBeNull();
+  });
+
+  it("一键打包下载全部交付文件（P0-1，对标 Kimi/WorkBuddy 会话产物打包）", async () => {
+    const first = render(
+      <ToastProvider>
+        <DeliverablesPanel
+          items={[
+            { path: "exports/成本测算.xlsx", sourceId: "a1" },
+            { path: ".gaea/exports/方案.docx", sourceId: "a2" },
+          ]}
+          onOpenFile={() => {}}
+        />
+      </ToastProvider>,
+    );
+    const btn = screen.getByTitle("打包下载：把本次会话全部交付文件打成一个 zip");
+    expect(btn).toBeTruthy();
+    // 点击后走 mock ZipDeliverables（返回 2 个条目）并触发定位，不应抛错
+    fireEvent.click(btn);
+    expect(await screen.findByText(/已打包 2 个文件/)).toBeTruthy();
+    first.unmount();
+
+    // 无产物时不显示打包按钮
+    render(
+      <ToastProvider>
+        <DeliverablesPanel items={[]} onOpenFile={() => {}} />
+      </ToastProvider>,
+    );
+    expect(screen.queryByTitle("打包下载：把本次会话全部交付文件打成一个 zip")).toBeNull();
   });
 });

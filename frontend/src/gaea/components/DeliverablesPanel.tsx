@@ -1,9 +1,9 @@
-import { memo, useCallback } from "react";
-import { ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, MessageSquare, Paperclip, Rollback } from "../icons";
+import { memo, useCallback, useState } from "react";
+import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, Loader2, MessageSquare, Paperclip, Rollback } from "../icons";
 import { app } from "../lib/bridge";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import { useToast } from "./Toast";
-import { FileThumb, FileTypeIcon, IMAGE_EXT_RE } from "./FileThumb";
+import { FileThumb } from "./FileThumb";
 
 export interface SessionDeliverable {
   path: string;
@@ -78,6 +78,23 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     }
   }, [list, toast]);
 
+  // 打包下载：把本次会话全部交付文件打成一个 zip（对标 Kimi 工作空间 /
+  // WorkBuddy 会话产物打包），完成后在文件管理器中定位 zip。
+  const [zipping, setZipping] = useState(false);
+  const zipDeliverables = useCallback(async () => {
+    if (zipping || list.length === 0) return;
+    setZipping(true);
+    try {
+      const r = await app.ZipDeliverables(list.map((d) => d.path));
+      toast.show(`已打包 ${r.entries} 个文件（${(r.bytes / 1024).toFixed(1)} KB）`, "info");
+      void app.RevealWorkspacePath(r.path).catch(() => {});
+    } catch (e) {
+      toast.show(`打包失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+    } finally {
+      setZipping(false);
+    }
+  }, [zipping, list, toast]);
+
   return (
     <div className="flex flex-col h-full min-h-0 text-xs" style={{ color: "var(--md-sys-color-text-secondary)" }}>
       {/* v3 细条头部：标题 + 计数徽标 + 复制全部 */}
@@ -98,15 +115,27 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
         )}
         <span className="v3-panel-spacer" />
         {items.length > 0 && (
-          <button
-            type="button"
-            className={iconBtn}
-            onClick={() => void copyAllPaths()}
-            title="复制全部文件路径"
-            aria-label="复制全部文件路径"
-          >
-            <ClipboardList size={12} />
-          </button>
+          <>
+            <button
+              type="button"
+              className={iconBtn}
+              onClick={() => void zipDeliverables()}
+              disabled={zipping}
+              title="打包下载：把本次会话全部交付文件打成一个 zip"
+              aria-label="打包下载全部交付文件"
+            >
+              {zipping ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
+            </button>
+            <button
+              type="button"
+              className={iconBtn}
+              onClick={() => void copyAllPaths()}
+              title="复制全部文件路径"
+              aria-label="复制全部文件路径"
+            >
+              <ClipboardList size={12} />
+            </button>
+          </>
         )}
       </div>
 
@@ -145,9 +174,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                     color: "var(--gaea-glow)",
                   }}
                 >
-                  {IMAGE_EXT_RE.test(ext)
-                    ? <FileThumb path={path} ext={ext} imgClassName="w-7 h-7 object-cover rounded-md" />
-                    : <FileTypeIcon ext={ext} size={14} />}
+                  <FileThumb path={path} ext={ext} imgClassName="w-7 h-7 object-cover rounded-md" />
                 </span>
                 <button
                   type="button"

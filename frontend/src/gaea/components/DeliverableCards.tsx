@@ -8,7 +8,7 @@ import { app } from "../lib/bridge";
 import { deliverableMentions } from "../lib/fileLinks";
 import { usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import { useToast } from "./Toast";
-import { FileThumb, FileTypeIcon, IMAGE_EXT_RE } from "./FileThumb";
+import { FileThumb } from "./FileThumb";
 
 function extOf(path: string): string {
   const m = /\.[^.\\/]+$/.exec(path);
@@ -52,7 +52,6 @@ export const DeliverableCards = memo(function DeliverableCards({ text }: { text:
       <div className="flex flex-wrap gap-1.5">
         {items.map((path) => {
           const ext = extOf(path);
-          const isImage = IMAGE_EXT_RE.test(ext);
           const updated = updatedAt[path] != null;
           return (
             <div
@@ -70,7 +69,7 @@ export const DeliverableCards = memo(function DeliverableCards({ text }: { text:
                   color: "var(--gaea-glow)",
                 }}
               >
-                {isImage ? <FileThumb path={path} ext={ext} /> : <FileTypeIcon ext={ext} size={14} />}
+                {<FileThumb path={path} ext={ext} />}
               </span>
               <button
                 type="button"

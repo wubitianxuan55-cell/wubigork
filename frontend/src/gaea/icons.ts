@@ -53,6 +53,7 @@ import {
   NumberOutlined,
   PaperClipOutlined,
   PartitionOutlined,
+  PieChartOutlined,
   PictureOutlined,
   PushpinOutlined,
   PlusOutlined,
@@ -100,6 +101,7 @@ export const Aim: Icon = wrap(AimOutlined);
 export const ArrowDown: Icon = wrap(ArrowDownOutlined);
 export const ArrowUp: Icon = wrap(ArrowUpOutlined);
 export const ArrowUpRight: Icon = wrap(ArrowUpOutlined);
+export const Archive: Icon = wrap(InboxOutlined);
 export const BarChart3: Icon = wrap(BarChartOutlined);
 export const BookOpen: Icon = wrap(BookOutlined);
 export const Bot: Icon = wrap(RobotOutlined);
@@ -139,6 +141,8 @@ export const Home: Icon = wrap(HomeOutlined);
 export const Inbox: Icon = wrap(InboxOutlined);
 export const Image: Icon = wrap(PictureOutlined);
 export const Loader: Icon = wrap(LoadingOutlined);
+export const LineChart: Icon = wrap(LineChartOutlined);
+export const PieChart: Icon = wrap(PieChartOutlined);
 export const MessageSquare: Icon = wrap(MessageOutlined);
 export const Moon: Icon = wrap(MoonOutlined);
 export const Palette: Icon = wrap(EditOutlined);

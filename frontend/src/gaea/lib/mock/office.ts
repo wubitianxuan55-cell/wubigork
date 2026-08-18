@@ -23,6 +23,7 @@ type OfficeMethods = Pick<
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
   | "XlsxEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
+  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns"
   | "ExportDeliverable" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
@@ -266,6 +267,53 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         preview: MOCK_XLSX_BODY,
         summary: `（mock）已在 ${sheet} 执行列操作 ${action}@${ref}`,
         applied: 1,
+      };
+    },
+    async XlsxChart(input: { rel: string; chartType?: string; refs?: string }) {
+      const name = `${input.rel.split("/").pop() ?? "sheet"}-chart-mock.png`;
+      return {
+        path: `.gaea/exports/${name}`,
+        name,
+        dataUrl:
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        labels: input.refs ? 3 : 2,
+        chartType: input.chartType ?? "bar",
+      };
+    },
+    async ZipDeliverables(paths: string[]) {
+      return {
+        path: ".gaea/exports/gaea-会话产物-mock.zip",
+        name: "gaea-会话产物-mock.zip",
+        entries: paths.length,
+        bytes: paths.length * 128,
+      };
+    },
+    async SubagentRuns(_sessionPath: string) {
+      return {
+        available: true,
+        total: 2,
+        running: 1,
+        runs: [
+          {
+            ref: "sa_20260817_110000_0000000002_b2b2b2b2",
+            status: "running",
+            task: "调研竞品表格 Agent 能力并总结可蒸馏点",
+            toolCalls: 0,
+            createdAt: "2026-08-17T11:00:00+08:00",
+            updatedAt: "2026-08-17T11:01:00+08:00",
+          },
+          {
+            ref: "sa_20260817_100000_0000000001_a1a1a1a1",
+            status: "completed",
+            model: "deepseek-v4-flash",
+            toolScope: ["web_search", "web_fetch"],
+            task: "收集 2026 年办公 Agent 竞品更新信息",
+            answer: "千问办公公测、WorkSwarm 蜂群智能体、QClaw V2 多 Agent。",
+            toolCalls: 3,
+            createdAt: "2026-08-17T10:00:00+08:00",
+            updatedAt: "2026-08-17T10:30:00+08:00",
+          },
+        ],
       };
     },
     async ExportDeliverable(input: { markdown: string; format: string; title?: string }) {

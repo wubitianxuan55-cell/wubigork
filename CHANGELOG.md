@@ -1,5 +1,32 @@
 # gaea · 多功能 AI 助手
 
+## v3.0.8「办公板块 · 表格可交付 + 会话产物打包 + 多智能体分工」(2026-08-17)
+> 按调研 docs/market-research-2026-08-office-table-agent-and-package.md 落地 P0 三项
+> （表格选中区域→一键图表、会话产物一键打包 Zip、产物缩略图增强）+ P2 首项
+> （多智能体分工可见），并按用户决策做界面收敛（不做 PPT、聚焦 Word/Excel、
+> 不堆功能）：右侧面板 Tab 收敛为 4 个主标签、Excel 工具栏按上下文收敛。
+- **P0-1 会话产物一键打包 Zip**：会话产物面板新增「打包下载」→
+  `.gaea/exports/gaea-会话产物-<stamp>.zip`；只接受工作区相对路径（拒绝绝对路径/
+  `..` 穿越）、缺失/目录静默跳过、zip 内保留相对路径防同名覆盖；后端
+  `GaeaZipDeliverables` + 前端 Archive 按钮（对标 Kimi 工作空间 / WorkBuddy）
+- **P0-2 表格「选中区域 → 一键图表」**：XlsxPreview「图表 ▾」菜单（柱状/折线/饼图
+  PNG + 图表→Word/→PPT）——选中区域/单单元格/自动前两列数据提取 → matplotlib PNG
+  → 预览队列；后端 `GaeaXlsxChart`（对标千问表格 Agent / ChatExcel）
+- **P1 产物缩略图增强**：FileThumb 升级为内容缩略图（xlsx 迷你表格 / md 文本摘要 /
+  图片 dataURL，失败回退类型图标），接入交付卡与会话产物面板，零新后端绑定
+- **P2-1 多智能体分工可见**：右侧「运行」组新增「分工」子面板（SubagentsPanel）——
+  子代理状态徽标/任务摘要/模型/工具范围/耗时/回答摘要，运行中 5 秒轮询；后端
+  `GaeaSubagentRuns`（对标 WorkSwarm 蜂群 / QClaw V2 多 Agent）
+- **右侧面板 Tab 收敛为 4 个主标签**：文件（文件/资料）/ 成果（产物/变更）/ 运行
+  （任务/分工）/ 分析（统计），第一级组 + 第二级子 Tab；workspaceTabs 重构为
+  WORKSPACE_GROUPS 分组清单，App.tsx 渲染分支与命令面板零改动
+- **Excel 编辑器工具栏收敛**：10 个常驻按钮 → 行操作（选中才显示）+ 重算公式 +
+  图表 ▾ 下拉；选中单元格布局重排为「公式栏在上、AI 编辑（单行紧凑）在下」，
+  两个输入框逻辑分层；预设点击回填指令并有激活态
+- **验证**：Go `internal/app` 全量 ok（12 个新测试）；前端 tsc 0 errors、vitest
+  **605 通过**（新增 18 用例）、vite build 通过；绑定面 **480 方法**漂移检查 PASS；
+  版本四处统一 3.0.8；wails build 发布版 + 烟雾测试（/api/health 200）
+
 ## v3.0.7「办公板块文件交互体验 · 内置 prompt 模板兜底」(2026-08-17)
 > 调研 docs/2026-08-16-office-file-interaction-research.md 的 P0+P1+P2（纯前端部分）
 > 全部落地：文件从「附件/路径文本」升级为一等公民交互对象——非图片附件 chip、

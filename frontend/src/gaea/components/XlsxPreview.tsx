@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { AlertCircle, Check, FileText, Loader2, RefreshCw, Table, Wand2, X } from "../icons";
+import { AlertCircle, BarChart3, Check, ChevronDown, FileText, LineChart, Loader2, PieChart, RefreshCw, Table, Wand2, X } from "../icons";
 import { app } from "../lib/bridge";
-import { useUpdatedFilesStore } from "../lib/store";
+import { usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import type { XlsxCell, XlsxPreview, XlsxSheet } from "../lib/types";
 
 function parseRef(ref: string): { col: number; row: number } {
@@ -119,6 +119,12 @@ export function XlsxPreview({
   const [selectedCol, setSelectedCol] = useState<string | null>(null);
   const [colOpsBusy, setColOpsBusy] = useState(false);
   const [confirmDeleteCol, setConfirmDeleteCol] = useState(false);
+  // P0-2 表格「选中区域 → 一键图表」：选中单元格后生成图表 PNG 并预览
+  const [chartBusy, setChartBusy] = useState(false);
+  // v3.0.8 工具栏收敛：图表动作（柱/线/饼/→Word/→PPT）收进一个下拉菜单，
+  // 不再 5 个按钮常驻一字排开（与右侧 Tab 收敛同一原则：按上下文、不按功能铺开）
+  const [chartMenuOpen, setChartMenuOpen] = useState(false);
+  const chartMenuRef = useRef<HTMLDivElement>(null);
   // Excel 式直接编辑：双击单元格/在 fx 栏输入 → 写回文件
   const [editingRef, setEditingRef] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -164,6 +170,18 @@ export function XlsxPreview({
     setInstruction("");
     setEditError("");
   }, []);
+
+  // 点击图表菜单外部关闭下拉
+  useEffect(() => {
+    if (!chartMenuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (chartMenuRef.current && !chartMenuRef.current.contains(e.target as Node)) {
+        setChartMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [chartMenuOpen]);
 
   const startEditCell = useCallback((ref: string, initial: string) => {
     setSelected(ref);
@@ -221,6 +239,34 @@ export function XlsxPreview({
       }
     },
     [preview, active, relPath, fileName],
+  );
+
+  // P0-2 表格「选中区域 → 一键图表」：把选中区域（或自动前两列）数据交给
+  // chart 工具生成 PNG，产物入预览队列（对标千问表格 Agent 的可交付表格）。
+  const genChart = useCallback(
+    async (chartType: "bar" | "line" | "pie") => {
+      if (!preview || chartBusy) return;
+      const sheet = preview.sheets[Math.min(active, preview.sheets.length - 1)];
+      setChartBusy(true);
+      setEditError("");
+      try {
+        const r = await app.XlsxChart({
+          rel: relPath,
+          sheet: sheet.name,
+          refs: selected ?? undefined,
+          chartType,
+          title: fileName.replace(/\.xlsx$/i, ""),
+        });
+        setNotice(`已生成图表：${r.name}（${r.labels} 个数据点）`);
+        usePreviewStore.getState().openFilePreview(r.path);
+        window.setTimeout(() => setNotice(""), 6000);
+      } catch (e) {
+        setEditError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setChartBusy(false);
+      }
+    },
+    [preview, active, relPath, fileName, selected, chartBusy],
   );
 
   // 手动重算公式（预览打开时已自动兜底；用户可随时主动刷新）
@@ -327,42 +373,47 @@ export function XlsxPreview({
         <span>·</span>
         <span>单元格预览</span>
         <span className="ml-auto inline-flex items-center gap-1.5 shrink-0">
-          <span className="w-px h-3.5 bg-border-soft shrink-0" />
-          <button
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border-soft bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            onClick={() => void rowOps("insert_before")}
-            disabled={!selected || editingRef !== null || rowOpsBusy}
-            title="在选中行上方插入空行"
-          >
-            ↑ 插行
-          </button>
-          <button
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border-soft bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            onClick={() => void rowOps("insert_after")}
-            disabled={!selected || editingRef !== null || rowOpsBusy}
-            title="在选中行下方插入空行"
-          >
-            ↓ 插行
-          </button>
-          {confirmDeleteRow ? (
-            <button
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-err/40 bg-err/15 text-err text-[10px] cursor-pointer hover:bg-err/25 transition-colors"
-              onClick={() => void rowOps("delete")}
-              disabled={rowOpsBusy}
-              title="再次点击确认删除选中行"
-            >
-              {rowOpsBusy ? <Loader2 size={10} className="animate-spin" /> : null}
-              确认删除
-            </button>
-          ) : (
-            <button
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border-soft bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              onClick={() => setConfirmDeleteRow(true)}
-              disabled={!selected || editingRef !== null || rowOpsBusy}
-              title="删除选中行（需再次确认）"
-            >
-              删除行
-            </button>
+          {/* v3.0.8 收敛：行操作只在选中单元格时出现（按上下文，不常驻铺开） */}
+          {selected && editingRef === null && (
+            <>
+              <span className="w-px h-3.5 bg-border-soft shrink-0" />
+              <button
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border-soft bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                onClick={() => void rowOps("insert_before")}
+                disabled={rowOpsBusy}
+                title="在选中行上方插入空行"
+              >
+                ↑ 插行
+              </button>
+              <button
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border-soft bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                onClick={() => void rowOps("insert_after")}
+                disabled={rowOpsBusy}
+                title="在选中行下方插入空行"
+              >
+                ↓ 插行
+              </button>
+              {confirmDeleteRow ? (
+                <button
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-err/40 bg-err/15 text-err text-[10px] cursor-pointer hover:bg-err/25 transition-colors"
+                  onClick={() => void rowOps("delete")}
+                  disabled={rowOpsBusy}
+                  title="再次点击确认删除选中行"
+                >
+                  {rowOpsBusy ? <Loader2 size={10} className="animate-spin" /> : null}
+                  确认删除
+                </button>
+              ) : (
+                <button
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border-soft bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  onClick={() => setConfirmDeleteRow(true)}
+                  disabled={rowOpsBusy}
+                  title="删除选中行（需再次确认）"
+                >
+                  删除行
+                </button>
+              )}
+            </>
           )}
           {selectedRow > 0 && <span className="text-fg-faint text-[10px] shrink-0">第 {selectedRow} 行</span>}
           <button
@@ -374,24 +425,46 @@ export function XlsxPreview({
             {recalcing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
             重算公式
           </button>
-          <button
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-accent/30 bg-accent/10 text-accent text-[10px] cursor-pointer hover:bg-accent/20 disabled:opacity-50 transition-colors"
-            onClick={() => void embedChart("docx")}
-            disabled={embedding}
-            title="把当前工作表数据生成图表并嵌入 Word 报告"
-          >
-            {embedding ? <Loader2 size={10} className="animate-spin" /> : <Wand2 size={10} />}
-            图表→Word
-          </button>
-          <button
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border-soft bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft disabled:opacity-50 transition-colors"
-            onClick={() => void embedChart("pptx")}
-            disabled={embedding}
-            title="把当前工作表数据生成图表并嵌入 PPT"
-          >
-            <Wand2 size={10} />
-            图表→PPT
-          </button>
+          {/* 图表动作收敛为下拉菜单（柱/线/饼/嵌入 Word/嵌入 PPT） */}
+          <div className="relative" ref={chartMenuRef}>
+            <button
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-accent/30 bg-accent/10 text-accent text-[10px] cursor-pointer hover:bg-accent/20 disabled:opacity-50 transition-colors"
+              onClick={() => setChartMenuOpen((o) => !o)}
+              disabled={chartBusy || embedding}
+              title="把工作表数据生成图表（PNG 预览 / 嵌入 Word / 嵌入 PPT）"
+              aria-expanded={chartMenuOpen}
+              aria-haspopup="menu"
+            >
+              {chartBusy || embedding ? <Loader2 size={10} className="animate-spin" /> : <BarChart3 size={10} />}
+              图表
+              <ChevronDown size={9} />
+            </button>
+            {chartMenuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[150px] bg-bg-elev border border-border rounded-[10px] p-1 anim-menu-in"
+                style={{ boxShadow: "var(--ds-shadow-dropdown)" }}
+              >
+                {[
+                  { label: "柱状图 PNG", icon: <BarChart3 size={11} />, run: () => void genChart("bar") },
+                  { label: "折线图 PNG", icon: <LineChart size={11} />, run: () => void genChart("line") },
+                  { label: "饼图 PNG", icon: <PieChart size={11} />, run: () => void genChart("pie") },
+                  { label: "图表→Word", icon: <Wand2 size={11} />, run: () => void embedChart("docx") },
+                  { label: "图表→PPT", icon: <Wand2 size={11} />, run: () => void embedChart("pptx") },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    role="menuitem"
+                    className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md bg-transparent border-0 text-[11.5px] text-fg-dim text-left cursor-pointer hover:bg-accent-soft hover:text-accent transition-colors"
+                    onClick={() => { setChartMenuOpen(false); item.run(); }}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </span>
         <span className="inline-flex items-center gap-1 text-accent/80">
           <Wand2 size={10} />
@@ -467,32 +540,34 @@ export function XlsxPreview({
         </div>
       )}
 
+      {/* 公式栏（可直接输入值或 =公式，回车写回）——选中单元格后的第一层操作 */}
+      <FormulaBar
+        sheet={sheet}
+        selected={selected}
+        onCommit={commitCell}
+        disabled={saving || editingRef !== null}
+      />
+
       {selected && (
-        <div className="px-3 py-2 border-b border-border-soft bg-bg shrink-0">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[11px] text-fg font-medium flex-1">
-              AI 编辑选中单元格 <span className="font-mono text-accent">{selected}</span>
+        <div className="px-3 py-1.5 border-b border-border-soft bg-bg shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-fg font-medium shrink-0">
+              AI 编辑 <span className="font-mono text-accent">{selected}</span>
             </span>
-            <button
-              className="flex items-center justify-center w-5 h-5 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg rounded"
-              onClick={closeEdit}
-              title="取消 (Esc)"
-            >
-              <X size={12} />
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1.5 mb-1.5">
             {EDIT_PRESETS.map((p) => (
               <button
                 key={p.label}
-                className="px-2 py-1 rounded-md border border-border-soft bg-transparent text-[11px] text-fg-dim cursor-pointer hover:bg-accent/10 hover:text-accent hover:border-accent/30 transition-colors"
+                className={`px-2 py-0.5 rounded-md border text-[10.5px] cursor-pointer transition-colors ${
+                  instruction === p.instruction
+                    ? "border-accent/40 bg-accent/10 text-accent"
+                    : "border-border-soft bg-transparent text-fg-dim hover:bg-accent/10 hover:text-accent hover:border-accent/30"
+                }`}
                 onClick={() => setInstruction(p.instruction)}
+                title={p.instruction}
               >
                 {p.label}
               </button>
             ))}
-          </div>
-          <div className="flex gap-2">
             <input
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
@@ -502,29 +577,28 @@ export function XlsxPreview({
                   runEdit();
                 }
               }}
-              placeholder="输入指令，如：对 B 列求和并写入 B5 / 拆分 A 列…"
-              className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-border-soft bg-bg text-[12px] text-fg outline-none focus:border-accent/50"
+              placeholder="或输入指令，如：对 B 列求和写入 B5 / 拆分 A 列…"
+              className="flex-1 min-w-[160px] px-2.5 py-1 rounded-lg border border-border-soft bg-bg text-[12px] text-fg outline-none focus:border-accent/50"
             />
             <button
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-bg text-[12px] font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-accent text-bg text-[12px] font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
               disabled={!instruction.trim() || running}
               onClick={runEdit}
             >
               {running ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
               执行
             </button>
+            <button
+              className="flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg"
+              onClick={closeEdit}
+              title="取消 (Esc)"
+            >
+              <X size={12} />
+            </button>
           </div>
-          {editError && <div className="mt-1.5 text-[11px] text-err">{editError}</div>}
+          {editError && <div className="mt-1 text-[11px] text-err">{editError}</div>}
         </div>
       )}
-
-      {/* 公式栏（可直接输入值或 =公式，回车写回） */}
-      <FormulaBar
-        sheet={sheet}
-        selected={selected}
-        onCommit={commitCell}
-        disabled={saving || editingRef !== null}
-      />
 
       <div className="flex-1 min-h-0 overflow-auto docx-preview-body">
         <SheetGrid

@@ -1,4 +1,4 @@
-// 由 go run ./scripts/gen_bindings -names 生成，勿手改；
+﻿// 由 go run ./scripts/gen_bindings -names 生成，勿手改；
 // 新增/删除 Go 绑定后重新生成（scripts/check-bindings-drift.ps1 在 CI 校验其与 Go 侧一致）。
 // 内容 = internal/app 下全部导出绑定方法名（scripts/gen_bindings 收集，稳定字典序）。
 export const bindingNames = [
@@ -244,6 +244,7 @@ export const bindingNames = [
   "GaeaSettings",
   "GaeaSkills",
   "GaeaSlashArgs",
+  "GaeaSubagentRuns",
   "GaeaSummarizeFile",
   "GaeaSummarizeFrom",
   "GaeaSummarizeUpTo",
@@ -264,11 +265,13 @@ export const bindingNames = [
   "GaeaWhisperExportArchive",
   "GaeaWhisperMemories",
   "GaeaWorkspaceSearch",
+  "GaeaXlsxChart",
   "GaeaXlsxColOps",
   "GaeaXlsxEdit",
   "GaeaXlsxRecalc",
   "GaeaXlsxRowOps",
   "GaeaXlsxSetCell",
+  "GaeaZipDeliverables",
   "GenerateCharacterPortrait",
   "GenerateCharacters",
   "GenerateDefaultCanvas",

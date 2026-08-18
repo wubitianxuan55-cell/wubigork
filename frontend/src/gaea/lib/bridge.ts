@@ -35,6 +35,11 @@ import type {
   MemoryView,
   OfficeEditResult,
   XlsxEditResult,
+  XlsxChartInput,
+  XlsxChartResult,
+  ZipDeliverableResult,
+  SubagentRunView,
+  SubagentRunsView,
   SkillSuggestion,
   TaskTemplate,
   Meta,
@@ -216,6 +221,13 @@ export interface AppBindings {
   XlsxRowOps(rel: string, sheet: string, action: string, ref: string): Promise<XlsxEditResult>;
   // XlsxColOps 列级操作：insert_before / insert_after / delete（基于选中单元格所在列）。
   XlsxColOps(rel: string, sheet: string, action: string, ref: string): Promise<XlsxEditResult>;
+  // XlsxChart 表格「选中区域 → 一键图表」：从选中区域提取数据 → matplotlib 生成
+  // PNG → 返回可预览 dataURL（对标千问表格 Agent 的可交付表格体验）。
+  XlsxChart(input: XlsxChartInput): Promise<XlsxChartResult>;
+  // ZipDeliverables 会话产物一键打包：把本次会话交付文件打成一个 zip。
+  ZipDeliverables(paths: string[]): Promise<ZipDeliverableResult>;
+  // SubagentRuns 读取当前会话派发的全部子代理分工（状态/任务摘要/回答/工具数）。
+  SubagentRuns(sessionPath: string): Promise<SubagentRunsView>;
   // ExportDeliverable 统一交付出口：受控 Markdown → docx/pptx/xlsx/md。
   ExportDeliverable(input: ExportDeliverableInput): Promise<ExportDeliverableResult>;
   // CrossEmbed 跨应用联动：xlsx 数据 → 图表 → 嵌入 docx/pptx。
@@ -591,6 +603,9 @@ const gaeaToGaea = {
   XlsxRecalc: "GaeaXlsxRecalc",
   XlsxRowOps: "GaeaXlsxRowOps",
   XlsxColOps: "GaeaXlsxColOps",
+  XlsxChart: "GaeaXlsxChart",
+  ZipDeliverables: "GaeaZipDeliverables",
+  SubagentRuns: "GaeaSubagentRuns",
   ExportDeliverable: "GaeaExportDeliverable",
   CrossEmbed: "GaeaCrossEmbed",
   OpenWorkspacePath: "GaeaOpenWorkspacePath",

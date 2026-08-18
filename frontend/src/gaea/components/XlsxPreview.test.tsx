@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { XlsxPreview } from "./XlsxPreview";
+import { usePreviewStore } from "../lib/store";
 
 const body = JSON.stringify({
   sheets: [
@@ -96,5 +97,38 @@ describe("XlsxPreview", () => {
     fireEvent.change(input, { target: { value: "求和" } });
     fireEvent.click(screen.getByText("执行"));
     expect(await screen.findByText(/mock.*求和/)).toBeTruthy();
+  });
+
+  it("点击预设按钮回填指令到输入框（AI 编辑收敛为单行紧凑）", () => {
+    render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" />);
+    fireEvent.click(screen.getByText("项目"));
+    // 预设「清洗」→ 指令回填
+    fireEvent.click(screen.getByText("清洗"));
+    const input = screen.getByPlaceholderText(/输入指令/) as HTMLInputElement;
+    expect(input.value).toContain("清洗");
+  });
+
+  it("选中单元格后经图表菜单生成柱状图并预览（P0-2，对标千问表格 Agent）", async () => {
+    render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" />);
+    fireEvent.click(screen.getByText("设备")); // 选中 A2
+    // 图表动作收敛为下拉菜单：先展开「图表 ▾」，再选「柱状图 PNG」
+    fireEvent.click(screen.getByRole("button", { name: /图表/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /柱状图 PNG/ }));
+    // mock XlsxChart 返回 3 个数据点 → notice 显示
+    expect(await screen.findByText(/已生成图表.*3 个数据点/)).toBeTruthy();
+    // 产物入预览队列（mock 返回 .gaea/exports/xxx-chart-mock.png）
+    expect(usePreviewStore.getState().previewFile).toContain("chart-mock.png");
+  });
+
+  it("图表菜单含折线/饼图/嵌入 Word/嵌入 PPT 入口（mock 不抛错）", async () => {
+    render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" />);
+    fireEvent.click(screen.getByRole("button", { name: /图表/ }));
+    // 菜单内 5 个动作齐全
+    expect(screen.getByRole("menuitem", { name: /折线图 PNG/ })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: /饼图 PNG/ })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: /图表→Word/ })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: /图表→PPT/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("menuitem", { name: /折线图 PNG/ }));
+    expect(await screen.findByText(/已生成图表/)).toBeTruthy();
   });
 });

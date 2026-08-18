@@ -35,6 +35,7 @@ import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { StatsPanel, useStatsPersistence } from "./components/StatsPanel";
 import { ChangesPanel } from "./components/ChangesPanel";
 import { TaskCenter } from "./components/TaskCenter";
+import { SubagentsPanel } from "./components/SubagentsPanel";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
@@ -922,6 +923,9 @@ export default function App() {
               />
             )}
             {rightTab === "tasks" && <TaskCenter />}
+            {rightTab === "subagents" && (
+              <SubagentsPanel sessionPath={currentSessionPath ?? undefined} />
+            )}
           </div>
         </div>
         )}

@@ -122,6 +122,7 @@ func (b *OfficeB) GaeaSetSubagentModelForSkill(skill string, ref string) error {
 func (b *OfficeB) GaeaSettings() SettingsView { return b.a.GaeaSettings() }
 func (b *OfficeB) GaeaSkills() []map[string]interface{} { return b.a.GaeaSkills() }
 func (b *OfficeB) GaeaSlashArgs(input string) SlashArgsResult { return b.a.GaeaSlashArgs(input) }
+func (b *OfficeB) GaeaSubagentRuns(sessionPath string) SubagentRunsView { return b.a.GaeaSubagentRuns(sessionPath) }
 func (b *OfficeB) GaeaSummarizeFile(rel string, focus string) (GaeaSummaryResult, error) { return b.a.GaeaSummarizeFile(rel, focus) }
 func (b *OfficeB) GaeaSummarizeFrom(turn int) error { return b.a.GaeaSummarizeFrom(turn) }
 func (b *OfficeB) GaeaSummarizeUpTo(turn int) error { return b.a.GaeaSummarizeUpTo(turn) }
@@ -138,11 +139,13 @@ func (b *OfficeB) GaeaUnpinMaterial(rel string) []FileSearchHit { return b.a.Gae
 func (b *OfficeB) GaeaUpdateFact(name string, body string) (string, error) { return b.a.GaeaUpdateFact(name, body) }
 func (b *OfficeB) GaeaVersion() string { return b.a.GaeaVersion() }
 func (b *OfficeB) GaeaWorkspaceSearch(query string, limit int) []WorkspaceSearchHit { return b.a.GaeaWorkspaceSearch(query, limit) }
+func (b *OfficeB) GaeaXlsxChart(in XlsxChartInput) (XlsxChartResult, error) { return b.a.GaeaXlsxChart(in) }
 func (b *OfficeB) GaeaXlsxColOps(rel string, sheet string, action string, ref string) (XlsxEditResult, error) { return b.a.GaeaXlsxColOps(rel, sheet, action, ref) }
 func (b *OfficeB) GaeaXlsxEdit(rel string, sheet string, instruction string, selection string) (XlsxEditResult, error) { return b.a.GaeaXlsxEdit(rel, sheet, instruction, selection) }
 func (b *OfficeB) GaeaXlsxRecalc(rel string) (XlsxEditResult, error) { return b.a.GaeaXlsxRecalc(rel) }
 func (b *OfficeB) GaeaXlsxRowOps(rel string, sheet string, action string, ref string) (XlsxEditResult, error) { return b.a.GaeaXlsxRowOps(rel, sheet, action, ref) }
 func (b *OfficeB) GaeaXlsxSetCell(rel string, sheet string, ref string, value string) (XlsxEditResult, error) { return b.a.GaeaXlsxSetCell(rel, sheet, ref, value) }
+func (b *OfficeB) GaeaZipDeliverables(paths []string) (ZipDeliverableResult, error) { return b.a.GaeaZipDeliverables(paths) }
 func (b *OfficeB) LocalTranslate(req LocalTranslateRequest) (LocalTranslateResult, error) { return b.a.LocalTranslate(req) }
 func (b *OfficeB) OfficeCancelJob(s string) { b.a.OfficeCancelJob(s) }
 func (b *OfficeB) OfficeExecute(act string, path string, tgt string, q string, url string, content string) office.ExecResult { return b.a.OfficeExecute(act, path, tgt, q, url, content) }
