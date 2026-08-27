@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  BarChart3, Box, ChevronRight, CloudUpload, Coins, FileSpreadsheet, FolderPlus,
-  FolderTree, Gauge, PieChart, Plus, RefreshCw, Shield, Sparkles,
+  BarChart3, BookOpen, Box, Calculator, ChevronRight, CloudUpload, Coins, FileSpreadsheet, FolderPlus,
+  FolderTree, Gauge, PieChart, Plus, RefreshCw, Shield, Sparkles, TrendingUp,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import type { CostCategory, CostSummary, FilePickResult, PriceSource } from "../gaea/lib/types";
@@ -10,6 +10,9 @@ import { CostEntryModal } from "../gaea/components/memoryhub/CostEntryModal";
 import { CostImportModal } from "../gaea/components/memoryhub/CostImportModal";
 import { PriceSourcesPanel } from "../gaea/components/memoryhub/PriceSourcesPanel";
 import { PriceSourcesRepository } from "../gaea/components/memoryhub/PriceSourcesRepository";
+import { CostProjectsView } from "../gaea/components/memoryhub/CostProjectsView";
+import { CostIndicatorsView } from "../gaea/components/memoryhub/CostIndicatorsView";
+import { CostNotesView } from "../gaea/components/memoryhub/CostNotesView";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
@@ -21,11 +24,14 @@ import "../gaea/components/memoryhub/hub.css";
  * （组成行明细），资源库层由价格源/信息价模块承载。概览围绕「库规模 +
  * 人材机构成 + 数据健康」组织，复用 v3 玻璃面板/辉光卡设计语言。
  */
-type CostModule = "overview" | "entries" | "sources" | "repository";
+type CostModule = "overview" | "entries" | "sources" | "repository" | "projects" | "indicators" | "notes";
 
 const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }[] = [
   { key: "overview", label: "概览", icon: <Gauge size={14} />, hint: "库规模 · 人材机构成 · 数据健康" },
   { key: "entries", label: "成本条目", icon: <Coins size={14} />, hint: "分类树 + 列表/表格管理" },
+  { key: "projects", label: "测算项目", icon: <Calculator size={14} />, hint: "报价/测算工作 · 版本留痕 · 沉淀回库" },
+  { key: "indicators", label: "造价参考", icon: <TrendingUp size={14} />, hint: "案例分位数对标（不落表实时聚合）" },
+  { key: "notes", label: "复盘笔记", icon: <BookOpen size={14} />, hint: "结论/边界/风险/证据沉淀判断" },
   { key: "sources", label: "价格源", icon: <CloudUpload size={14} />, hint: "订阅源 + 手动/定时抓取" },
   { key: "repository", label: "价格仓库", icon: <BarChart3 size={14} />, hint: "抓取记录与价格历史" },
 ];
@@ -220,6 +226,9 @@ export function CostLibraryPage() {
       {/* 主区 */}
       <div className="flex-1 min-h-0">
         {module === "entries" && <CostLibraryView />}
+        {module === "projects" && <CostProjectsView onChanged={loadStats} />}
+        {module === "indicators" && <CostIndicatorsView />}
+        {module === "notes" && <CostNotesView />}
         {module === "sources" && <PriceSourcesPanel onChanged={loadStats} />}
         {module === "repository" && <PriceSourcesRepository />}
         {module === "overview" && (
@@ -376,6 +385,24 @@ export function CostLibraryPage() {
                         hint="抓取记录与价格历史快照"
                         icon={<BarChart3 size={14} className="text-violet-400" />}
                         onClick={() => setModule("repository")}
+                      />
+                      <QuickAction
+                        label="测算项目"
+                        hint="报价/测算工作 · 版本留痕 · 沉淀回库"
+                        icon={<Calculator size={14} className="text-accent" />}
+                        onClick={() => setModule("projects")}
+                      />
+                      <QuickAction
+                        label="造价参考"
+                        hint="案例分位数对标，供下次报价"
+                        icon={<TrendingUp size={14} className="text-emerald-400" />}
+                        onClick={() => setModule("indicators")}
+                      />
+                      <QuickAction
+                        label="复盘笔记"
+                        hint="结论/边界/风险/证据沉淀判断"
+                        icon={<BookOpen size={14} className="text-sky-400" />}
+                        onClick={() => setModule("notes")}
                       />
                     </div>
                   </section>

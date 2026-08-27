@@ -70,6 +70,8 @@ var builtinManifests = []Manifest{
 		MenuOrder: 5, InMenu: Bool(true),
 		Nav: &NavSpec{Children: []NavChild{
 			{ID: "overview", Label: "概览"}, {ID: "entries", Label: "成本条目"},
+			{ID: "projects", Label: "测算项目"}, {ID: "indicators", Label: "造价参考"},
+			{ID: "notes", Label: "复盘笔记"},
 			{ID: "sources", Label: "价格源"}, {ID: "repository", Label: "价格仓库"},
 		}},
 		FeatureModel: "cost",

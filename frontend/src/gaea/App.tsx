@@ -40,6 +40,7 @@ import { SubagentsPanel } from "./components/SubagentsPanel";
 import { useRunningBadge } from "./hooks/useRunningBadge";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { SelectionToComposer } from "./components/SelectionToComposer";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
 
 import { downloadMarkdown, exportAsMarkdown } from "./lib/export";
@@ -1012,6 +1013,9 @@ export default function App() {
         items={paletteItems}
         onClose={() => setPaletteOpen(false)}
       />
+
+      {/* C4 选区转对话：办公板内选中正文 → 浮动「转为提问」→ 引用插入输入框（v3.1.1） */}
+      <SelectionToComposer />
 
     </>
   );
