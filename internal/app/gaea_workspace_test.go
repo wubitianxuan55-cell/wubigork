@@ -200,3 +200,67 @@ func TestGaeaWorkspaceConfigRoundTrip(t *testing.T) {
 		t.Errorf("toml 往返后 Workspace = %q, want %q", got.Workspace, ws)
 	}
 }
+
+// TestGaeaWriteFile 工作区内联编辑保存（C5）：正常写回 + 各类拒绝路径。
+func TestGaeaWriteFile(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
+
+	oldCfg := ga.cfg
+	ga.cfg = nil
+	defer func() { ga.cfg = oldCfg }()
+
+	a := &App{}
+	workspace := t.TempDir()
+	ga.mu.Lock()
+	if err := a.persistWorkspaceLocked(workspace); err != nil {
+		ga.mu.Unlock()
+		t.Fatalf("persistWorkspaceLocked() 失败: %v", err)
+	}
+	ga.mu.Unlock()
+
+	// 准备目标文件
+	target := filepath.Join(workspace, "notes", "a.md")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("旧内容\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. 正常写回（原子替换）
+	if err := a.GaeaWriteFile("notes/a.md", "新内容\n第二行"); err != nil {
+		t.Fatalf("写回失败: %v", err)
+	}
+	b, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "新内容\n第二行" {
+		t.Fatalf("写回内容异常: %q", string(b))
+	}
+
+	// 2. 拒绝：路径穿越 / 绝对路径
+	for _, bad := range []string{"../escape.md", "..\\escape.md", "a/../../escape.md", filepath.Join(t.TempDir(), "outside.md")} {
+		if err := a.GaeaWriteFile(bad, "x"); err == nil {
+			t.Errorf("应拒绝非法路径 %q", bad)
+		}
+	}
+
+	// 3. 拒绝：非文本扩展名 / 不存在的文件 / 超大内容
+	if err := a.GaeaWriteFile("notes/b.exe", "x"); err == nil {
+		t.Error("应拒绝非文本扩展名")
+	}
+	if err := a.GaeaWriteFile("notes/missing.md", "x"); err == nil {
+		t.Error("应拒绝不存在的文件")
+	}
+	big := strings.Repeat("大", maxTextEditBytes/2+1)
+	if err := a.GaeaWriteFile("notes/a.md", big); err == nil {
+		t.Error("应拒绝超大内容")
+	}
+	// 拒绝后原文件不受影响
+	b2, _ := os.ReadFile(target)
+	if string(b2) != "新内容\n第二行" {
+		t.Errorf("拒绝路径不应改动原文件: %q", string(b2))
+	}
+}

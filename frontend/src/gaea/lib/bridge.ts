@@ -235,6 +235,9 @@ export interface AppBindings {
   ZipDeliverables(paths: string[]): Promise<ZipDeliverableResult>;
   // SubagentRuns 读取当前会话派发的全部子代理分工（状态/任务摘要/回答/工具数）。
   SubagentRuns(sessionPath: string): Promise<SubagentRunsView>;
+  // WriteFile 工作区内联编辑保存（C5）：把文本原子写回工作区相对路径文本文件
+  // （路径/扩展名/大小校验在后端；用户显式保存，不走 agent 审批）。
+  WriteFile(rel: string, content: string): Promise<void>;
   // ExportDeliverable 统一交付出口：受控 Markdown → docx/pptx/xlsx/md。
   ExportDeliverable(input: ExportDeliverableInput): Promise<ExportDeliverableResult>;
   // CrossEmbed 跨应用联动：xlsx 数据 → 图表 → 嵌入 docx/pptx。
@@ -634,6 +637,7 @@ const gaeaToGaea = {
   XlsxChart: "GaeaXlsxChart",
   ZipDeliverables: "GaeaZipDeliverables",
   SubagentRuns: "GaeaSubagentRuns",
+  WriteFile: "GaeaWriteFile",
   ExportDeliverable: "GaeaExportDeliverable",
   CrossEmbed: "GaeaCrossEmbed",
   OpenWorkspacePath: "GaeaOpenWorkspacePath",

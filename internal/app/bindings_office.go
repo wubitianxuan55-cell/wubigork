@@ -140,6 +140,7 @@ func (b *OfficeB) GaeaUnpinMaterial(rel string) []FileSearchHit { return b.a.Gae
 func (b *OfficeB) GaeaUpdateFact(name string, body string) (string, error) { return b.a.GaeaUpdateFact(name, body) }
 func (b *OfficeB) GaeaVersion() string { return b.a.GaeaVersion() }
 func (b *OfficeB) GaeaWorkspaceSearch(query string, limit int) []WorkspaceSearchHit { return b.a.GaeaWorkspaceSearch(query, limit) }
+func (b *OfficeB) GaeaWriteFile(rel string, content string) error { return b.a.GaeaWriteFile(rel, content) }
 func (b *OfficeB) GaeaXlsxChart(in XlsxChartInput) (XlsxChartResult, error) { return b.a.GaeaXlsxChart(in) }
 func (b *OfficeB) GaeaXlsxColOps(rel string, sheet string, action string, ref string) (XlsxEditResult, error) { return b.a.GaeaXlsxColOps(rel, sheet, action, ref) }
 func (b *OfficeB) GaeaXlsxEdit(rel string, sheet string, instruction string, selection string) (XlsxEditResult, error) { return b.a.GaeaXlsxEdit(rel, sheet, instruction, selection) }

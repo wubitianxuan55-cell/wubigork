@@ -281,6 +281,7 @@ export const bindingNames = [
   "GaeaWhisperExportArchive",
   "GaeaWhisperMemories",
   "GaeaWorkspaceSearch",
+  "GaeaWriteFile",
   "GaeaXlsxChart",
   "GaeaXlsxColOps",
   "GaeaXlsxEdit",

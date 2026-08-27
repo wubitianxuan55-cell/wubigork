@@ -596,6 +596,90 @@ func (a *App) GaeaReadFile(rel string) FilePreview {
 	return FilePreview{Path: rel, Markdown: string(b), Size: int64(len(b))}
 }
 
+// textEditExts 是允许内联编辑的文本扩展名白名单（C5：工作区内联编辑）。
+// 白名单避免把二进制/大文件通过 UI 写回（编辑体验面向 txt/笔记/markdown/脚本）。
+var textEditExts = map[string]bool{
+	".md": true, ".markdown": true, ".txt": true, ".csv": true,
+	".json": true, ".toml": true, ".yaml": true, ".yml": true, ".ini": true,
+	".xml": true, ".html": true, ".htm": true, ".css": true,
+	".js": true, ".mjs": true, ".cjs": true, ".ts": true, ".tsx": true, ".jsx": true,
+	".go": true, ".py": true, ".sh": true, ".bat": true, ".ps1": true,
+	".sql": true, ".log": true, ".java": true, ".c": true, ".h": true, ".cpp": true, ".rs": true,
+}
+
+// maxTextEditBytes 内联编辑内容上限（2MB，与预览截断语义一致，防拖死面板）。
+const maxTextEditBytes = 2 * 1024 * 1024
+
+// GaeaWriteFile 工作区内联编辑保存（C5）：把文本原子写回工作区相对路径文件。
+// 安全：相对路径（拒绝绝对/..穿越）+ 必须落在可写根（WriteRoots：工作区 +
+// allow_write）内 + 文本扩展名白名单 + 内容 ≤2MB + 仅允许编辑已存在文件；
+// 原子写（同目录临时文件 + fsync + rename），失败保留原文件。用户显式保存
+// 视为用户意图（非 agent 自动写，不走审批）；agent 写仍受工具权限面约束。
+func (a *App) GaeaWriteFile(rel string, content string) error {
+	rel = strings.TrimSpace(rel)
+	clean := filepath.Clean(filepath.FromSlash(rel))
+	if rel == "" || filepath.IsAbs(clean) || clean == "." || strings.HasPrefix(clean, "..") || strings.Contains(clean, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("非法工作区相对路径: %s", rel)
+	}
+	abs := filepath.Join(gaeaCwd(), clean)
+	if !withinWriteRoots(abs) {
+		return fmt.Errorf("路径不在可写范围内（工作区/allow_write）: %s", rel)
+	}
+	ext := strings.ToLower(filepath.Ext(abs))
+	if !textEditExts[ext] {
+		return fmt.Errorf("仅支持文本文件内联编辑（当前扩展名 %q）", ext)
+	}
+	if len(content) > maxTextEditBytes {
+		return fmt.Errorf("内容过大（上限 2MB，当前 %d 字节）", len(content))
+	}
+	info, err := os.Stat(abs)
+	if err != nil || !info.Mode().IsRegular() {
+		return fmt.Errorf("目标不是已存在的文本文件: %s", rel)
+	}
+	// 原子写：同目录临时文件 → fsync → rename（失败清理临时文件、保留原文件）
+	dir := filepath.Dir(abs)
+	tmp, err := os.CreateTemp(dir, ".gaea-edit-*")
+	if err != nil {
+		return fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.WriteString(content); err != nil {
+		tmp.Close()
+		return fmt.Errorf("写入失败: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("落盘失败: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("关闭临时文件失败: %w", err)
+	}
+	if err := os.Rename(tmpName, abs); err != nil {
+		return fmt.Errorf("替换原文件失败: %w", err)
+	}
+	return nil
+}
+
+// withinWriteRoots 判断绝对路径是否落在任一可写根（工作区 + allow_write）内。
+func withinWriteRoots(abs string) bool {
+	roots := []string{gaeaCwd()}
+	if ga.cfg != nil {
+		roots = ga.cfg.WriteRoots()
+	}
+	abs = filepath.Clean(abs)
+	for _, r := range roots {
+		root := filepath.Clean(filepath.FromSlash(r))
+		if root == abs {
+			return true
+		}
+		if strings.HasPrefix(abs, root+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
 // GaeaOpenWorkspacePath/GaeaRevealWorkspacePath 在文件管理器中打开/定位。
 func (a *App) GaeaOpenWorkspacePath(rel string) error {
 	path, _ := resolvePreviewPath(rel)

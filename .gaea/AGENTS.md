@@ -5,6 +5,21 @@
 
 ## 版本状态
 
+- **最新发布：v3.2.1（2026-08-26）「工作区内联编辑 · C5 文本文件直接编辑保存」**：
+  git tag `v3.2.1`；CHANGELOG / releases/v3.2.1.md / README 索引同步。要点：
+  - **C5（蒸馏候选清单 9 项全部收官）**：新绑定 `GaeaWriteFile(rel, content)`（绑定面
+    497，+1）——四重校验：相对路径（拒绝对/..穿越）+ 写根（WriteRoots：工作区 +
+    allow_write）+ 文本扩展名白名单 30 种 + ≤2MB + 仅已存在文件；原子写（临时文件 +
+    fsync + rename，失败保留原文件）；用户显式保存=用户意图不走审批（agent 写仍受
+    权限面约束）。FilePreview 编辑模式（markdown/text 且未截断才可编辑）：脏标记 /
+    Ctrl+S / 保存状态机（失败可重试）/ 保存后自动重读预览 / 脏退出内联确认条。
+  - **验证**：Go 全量测试绿（TestGaeaWriteFile：正常写回 + 五类拒绝 + 拒绝不改动原文件）；
+    vitest **652/652（124 文件，+5：FilePreview 编辑模式）**、tsc/eslint 0 errors
+    （366 存量 warnings）；绑定面 497 漂移 PASS；wails build + 冒烟 /api/health 200。
+  - **下一阶段**（v3.2.0 里程碑剩余）：记忆统一层（路线图 V4）+ 受控自主（goal gate
+    深化）；C9 分栏对照留待验证真实需求；质量收敛（eslint 366 warnings / flaky 治理 /
+    前端性能复查）；造价数据库体验收口（手册二期/测算项目导入导出/分类树维护）。
+
 - **最新发布：v3.2.0（2026-08-26）「任务可见性 · C1 任务实时输出 + C2 子代理活动行」**：
   git tag `v3.2.0`；CHANGELOG / releases/v3.2.0.md / README 索引同步。要点：
   - **C1 任务实时输出**：tasks 包 `Progress.Output(line)` 输出环形缓冲（200 行/64KB 上限，

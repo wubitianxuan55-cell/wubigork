@@ -794,11 +794,11 @@ func TestCancelConcurrentStress(t *testing.T) {
 	}
 	wg.Wait()
 
-	// 等所有任务到达终态
+	// 等所有任务到达终态（stopping 是非终态：取消请求后仍等待 handler 退出）
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		var pending int
-		if err := db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE status IN ('queued','running')`).Scan(&pending); err != nil {
+		if err := db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE status IN ('queued','running','stopping')`).Scan(&pending); err != nil {
 			t.Fatalf("查询未终态数: %v", err)
 		}
 		if pending == 0 {

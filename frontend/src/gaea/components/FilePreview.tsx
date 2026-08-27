@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
-import { AlertCircle, ExternalLink, File, FileText, FolderTree, Loader2, X } from "../icons";
+import { useCallback, useEffect, useState } from "react";
+import { AlertCircle, Check, ExternalLink, File, FileText, FolderTree, Loader2, Pencil, X } from "../icons";
 import { app } from "../lib/bridge";
 import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
 import { Markdown } from "./Markdown";
 import { XlsxPreview } from "./XlsxPreview";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
+import { useToast } from "./Toast";
 
 function formatSize(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -25,18 +26,88 @@ export function FilePreview({
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
   const ocrProgress = usePreviewProgress(relPath);
+  const toast = useToast();
+  // C5 工作区内联编辑：编辑态 / 草稿 / 脏标记 / 保存状态机 / 放弃确认
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
     if (!relPath) { setPreview(null); return; }
     let live = true;
     setLoading(true);
     setPreview(null);
+    setEditing(false);
+    setDraft("");
+    setDirty(false);
+    setSaveState("idle");
     app.Preview(relPath)
       .then((r) => { if (live) setPreview(r); })
       .catch(() => { if (live) setPreview({ path: relPath, name: relPath.split("/").pop() ?? relPath, ext: "", size: 0, kind: "error", body: "", dataUrl: "", error: "读取文件失败" }); })
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [relPath]);
+
+  // 可编辑 = 纯文本/markdown 预览且未截断（截断内容不完整，写回会丢数据）
+  const editable = preview !== null && !loading && !editing && (preview.kind === "markdown" || preview.kind === "text") && !preview.truncated;
+
+  const startEdit = useCallback(() => {
+    if (!preview) return;
+    setDraft(preview.body);
+    setDirty(false);
+    setSaveState("idle");
+    setEditing(true);
+  }, [preview]);
+
+  const save = useCallback(async () => {
+    if (!relPath) return;
+    setSaveState("saving");
+    try {
+      await app.WriteFile(relPath, draft);
+      setDirty(false);
+      setSaveState("saved");
+      toast.show("已保存到工作区", "info");
+      // 保存后刷新预览（内容回读），稍后复位状态机
+      const r = await app.Preview(relPath).catch(() => null);
+      if (r) setPreview(r);
+      window.setTimeout(() => setSaveState((s) => (s === "saving" ? s : "idle")), 0);
+    } catch (e) {
+      setSaveState("failed");
+      toast.show(`保存失败：${String(e)}`, "error");
+    }
+  }, [relPath, draft, toast]);
+
+  const cancelEdit = useCallback(() => {
+    if (!dirty) {
+      setEditing(false);
+      setConfirmDiscard(false);
+      return;
+    }
+    setConfirmDiscard(true);
+  }, [dirty]);
+
+  const discardAndExit = useCallback(() => {
+    setEditing(false);
+    setDraft("");
+    setDirty(false);
+    setSaveState("idle");
+    setConfirmDiscard(false);
+  }, []);
+
+  // Ctrl/Cmd+S 保存
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (dirty) void save();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing, dirty, save]);
 
   if (!relPath) {
     return (
@@ -66,6 +137,9 @@ export function FilePreview({
         )}
         <FileText size={13} className="text-accent shrink-0" />
         <span className="font-mono text-fg truncate flex-1 text-[12px]">{fileName}</span>
+        {dirty && (
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" title="有未保存的修改" />
+        )}
         {preview && preview.size > 0 && (
           <span className="text-fg-faint text-[10px] shrink-0">{formatSize(preview.size)}</span>
         )}
@@ -84,6 +158,37 @@ export function FilePreview({
           <ExternalLink size={10} />
           打开
         </button>
+        {editable && (
+          <button
+            className="flex items-center gap-1 px-2 py-0.5 border border-border-soft rounded bg-transparent text-accent text-[10px] cursor-pointer hover:bg-bg-soft"
+            onClick={startEdit}
+            title="在预览中直接编辑文本文件（Ctrl+S 保存）"
+          >
+            <Pencil size={10} />
+            编辑
+          </button>
+        )}
+        {editing && (
+          <>
+            <button
+              className="flex items-center gap-1 px-2 py-0.5 border border-border-soft rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft"
+              onClick={() => void cancelEdit()}
+              title="取消编辑"
+            >
+              <X size={10} />
+              取消
+            </button>
+            <button
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-accent text-white text-[10px] cursor-pointer hover:opacity-90 disabled:opacity-50"
+              onClick={() => void save()}
+              disabled={!dirty || saveState === "saving"}
+              title="保存（Ctrl+S）"
+            >
+              {saveState === "saving" ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+              {saveState === "saving" ? "保存中" : saveState === "failed" ? "重试" : "保存"}
+            </button>
+          </>
+        )}
         <button
           className="flex items-center justify-center w-5 h-5 border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg rounded"
           onClick={onClose}
@@ -93,8 +198,44 @@ export function FilePreview({
         </button>
       </div>
 
-      {/* 预览内容 */}
+      {/* 预览内容 / 编辑区 */}
       <div className="flex-1 overflow-auto">
+        {editing ? (
+          <>
+            {confirmDiscard && (
+              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-soft bg-amber-500/10 text-[11px] text-amber-500 shrink-0">
+                <span className="flex-1">有未保存的修改，退出编辑将丢弃。</span>
+                <button
+                  type="button"
+                  className="px-2 py-0.5 rounded border border-amber-500/40 text-amber-500 hover:bg-amber-500/10 cursor-pointer"
+                  onClick={discardAndExit}
+                >
+                  放弃修改
+                </button>
+                <button
+                  type="button"
+                  className="px-2 py-0.5 rounded border border-border-soft text-fg-dim hover:bg-bg-soft cursor-pointer"
+                  onClick={() => setConfirmDiscard(false)}
+                >
+                  继续编辑
+                </button>
+              </div>
+            )}
+            <textarea
+              className="w-full h-full bg-transparent text-fg text-[12px] p-3 font-mono leading-relaxed outline-none resize-none whitespace-pre"
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setDirty(true);
+                setSaveState("idle");
+              }}
+              spellCheck={false}
+              autoFocus
+              aria-label="文本编辑"
+            />
+          </>
+        ) : (
+          <>
         {loading && (
           <div className="flex flex-col items-center justify-center h-full text-fg-faint text-xs gap-2">
             {ocrProgress ? (
@@ -148,6 +289,8 @@ export function FilePreview({
               在外部程序中打开
             </button>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

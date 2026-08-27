@@ -23,7 +23,7 @@ type OfficeMethods = Pick<
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
   | "XlsxEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
-  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns"
+  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "WriteFile"
   | "ExportDeliverable" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
@@ -412,6 +412,9 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         t.status === "running" ? "[10:00:02] 正在抓取四川造价信息网…" : `[10:00:03] 完成（${t.error || t.message || "ok"}）`,
       ];
       return { tail: tail.join("\n"), truncated: false };
+    },
+    async WriteFile(_rel: string, _content: string) {
+      // mock：浏览器开发环境不落盘（真实实现 = GaeaWriteFile 原子写回工作区）。
     },
   };
 }
