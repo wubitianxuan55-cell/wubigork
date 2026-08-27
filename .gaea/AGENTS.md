@@ -5,6 +5,40 @@
 
 ## 版本状态
 
+- **最新发布：v3.4.0（2026-08-27）「记忆统一层第一刀 · 统一检索收口 + 生命周期产品化」**：
+  git tag `v3.4.0`；CHANGELOG / releases/v3.4.0.md / README 索引同步；计划
+  `docs/superpowers/plans/2026-08-27-记忆统一层第一刀.md`。要点：
+  - **统一检索后端收口**：`GaeaUnifiedSearch` 视图扩展四组——keyword（工作区全文）+
+    semantic（跨库语义）+ **brain（三脑命中，新增；a.brain==nil 时空数组不报错）** +
+    **files（文件语义，新增；复用 GaeaFileSemanticSearch 抽出的私有实现 fileSemanticHits）**；
+    hub 搜索（MemoryHubPage.runSearch）由「4 绑定 Promise.all 前端拼装」（BrainSearch +
+    WorkspaceSearch + SemanticSearch + FileSemanticSearch）收敛为「单次 app.UnifiedSearch」，
+    四组映射回原 HubSearchHit 渲染（徽标/预览/@ 引用零变化）；WorkspaceSearchPanel 跨库
+    模式零改动，其 kindChip 补 file kind（后端本就返回，前端类型漏声明）。
+  - **归档 tab 永远空白（缺陷修复）**：前端归档 tab 读 `view.archives`，但后端 `GaeaMemory()`
+    的 MemoryView 结构体**没有 archives 字段** → 列表永远空白；改 `GaeaMemoryArchivedList`
+    分页加载（每页 50 + 加载更多 + total 展示）。
+  - **恢复能力补齐（Unarchive）**：memory 包此前只有 Archive（软删）无恢复路径（注释声称
+    「90 天可恢复」但实际不存在）；补双后端 `Store.Unarchive`（sqlite 置 archived=0 +
+    updated_at；file 从 `.archive/<ts>-<name>.md` 移回主目录 + reindex；未归档/已硬删报错）+
+    新绑定 `GaeaMemoryUnarchive`（绑定面 497→**498**）+ 归档 tab「恢复」按钮（Rollback 图标/
+    恢复中态/成功后刷新提示）。
+  - **保留期下发展示**：`MemoryArchivedPage` 增 `RetentionDays`（= ArchivedRetention 90 天），
+    归档 tab 顶部「归档保留 N 天，超期可清理」，清理确认弹窗文案跟随真实保留期。
+  - **修复漂移脚本单条差异静默放行（质量 bug）**：`check-bindings-drift.ps1` 判
+    `$diff.Count -gt 0` 但 **PS 5.1 下单条差异 `$diff` 是单个 PSCustomObject（无 .Count
+    属性）→ `$null -gt 0` 为 False 静默放行**（实测复现：新增 GaeaMemoryUnarchive 后脚本
+    仍报 OK）；`@()` 强制数组化修复 + 负向验证（单条漂移现在 exit 1）。**教训：PS 脚本里
+    对可能为单个对象的管道结果判 Count 前先 `@()` 包裹。**
+  - **验证**：Go 全量 **112/112 包**（+6：Unarchive 双后端/app 绑定/RetentionDays/BrainNil）、
+    eslint **0/0**、tsc 0 errors、vitest **654/654（124 文件，+2：归档 tab 交互 +
+    UnifiedSearch 扩展契约）**、绑定面 **498 方法**漂移 PASS、版本四处统一 3.4.0、
+    wails build + 冒烟 /api/health 200；v3.3.0 资产归档 releases/archive/。
+  - **下一阶段**（记忆统一层后续 + v3.2.0 里程碑剩余）：生命周期产品化收尾（归档保留期
+    可配置/批量恢复）；受控自主（goal gate 深化：目标验收自动追踪产品化、审批流收敛）；
+    C9 分栏对照留待验证真实需求；造价数据库体验收口（手册二期/测算项目导入导出/分类树
+    维护）；XlsxPreview 虚拟滚动待真实卡顿反馈。
+
 - **最新发布：v3.3.0（2026-08-27）「质量收敛 · eslint 存量 warnings 清零 + flaky 治理」**：
   git tag `v3.3.0`；CHANGELOG / releases/v3.3.0.md / README 索引同步。要点：
   - **eslint 366 → 0（errors 0 / warnings 0）**，四层收敛：

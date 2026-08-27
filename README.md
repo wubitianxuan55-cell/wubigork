@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v3.4.0** | 2026-08-27 | 记忆统一层第一刀：统一检索后端收口（GaeaUnifiedSearch 增三脑/文件语义两组，hub 搜索 4 绑定前端拼装→1 绑定）+ 生命周期产品化（归档 tab 分页修复 + Unarchive 恢复 + retentionDays 展示）+ 修复漂移脚本单条差异静默放行 bug。eslint 0/0、tsc 0、vitest 654、Go 112/112、绑定面 498。详见 releases/v3.4.0.md |
 | **v3.3.0** | 2026-08-27 | 质量收敛：eslint 存量 warnings 366→0（配置显式化 `^_` 前缀/空 catch/常量导出 + 死代码清理 56 处 + exhaustive-deps 40 处含两处 TDZ 重排 + 混合导出显式声明 + 冗余 @ts-ignore 移除）；flaky 治理（filewatch 超时 3s→5s + CI 测试失败重试）；releases/README.md 历史乱码重建；前端性能体检。eslint 0/0、tsc 0、vitest 652、Go 112/112、绑定面 497。详见 releases/v3.3.0.md |
 | **v3.2.1** | 2026-08-26 | 工作区内联编辑（C5，蒸馏清单收官）：GaeaWriteFile（相对路径/写根/文本白名单/大小四重校验 + 原子写）+ 文件预览编辑模式（脏标记/Ctrl+S/保存状态机/保存后重读）。vitest 652、绑定面 497 方法。详见 releases/v3.2.1.md |
 | **v3.2.0** | 2026-08-26 | 任务可见性：C1 任务实时输出（Progress.Output 环形缓冲 + GaeaTaskOutput + 任务中心输出 dock 2s 轮询尾随滚动 + stopping 结束态细分）+ C2 子代理活动行（lastText/lastTool「正在…」实时线）+ 数据备份计划路径统一修复。vitest 647、绑定面 496 方法。详见 releases/v3.2.0.md |

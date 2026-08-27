@@ -1,5 +1,34 @@
 # gaea · 多功能 AI 助手
 
+## v3.4.0「记忆统一层第一刀 · 统一检索收口 + 生命周期产品化」(2026-08-27)
+> 路线图 V4（记忆统一层）首发：hub 搜索 4 绑定前端拼装 → 1 绑定后端聚合（GaeaUnifiedSearch
+> 增三脑/文件语义两组）；归档 tab 从「永远空白」到「分页可浏览 + 一键恢复」（新增
+> GaeaMemoryUnarchive）；保留期下发展示；修复漂移脚本单条差异静默放行 bug。
+- **统一检索后端收口**：`GaeaUnifiedSearch` 视图扩展四组——keyword（工作区全文）+
+  semantic（跨库语义）+ **brain（三脑命中，新增，a.brain==nil 时空数组不报错）** +
+  **files（文件语义，新增，复用 GaeaFileSemanticSearch 抽出的私有实现）**；hub 搜索
+  （MemoryHubPage.runSearch）由「4 绑定 Promise.all 前端拼装」收敛为「单次 app.UnifiedSearch」，
+  四组映射回原 HubSearchHit 渲染（徽标/预览/@ 引用零变化）；WorkspaceSearchPanel 跨库模式
+  零改动，语义徽标补 file kind（后端本就返回，前端类型漏声明）。测试：Combined 扩展 +
+  新增 BrainNil；空 query 四组空数组。
+- **归档 tab 永远空白（缺陷修复）**：前端归档 tab 读 `view.archives`，但后端 `GaeaMemory()`
+  结构体无 archives 字段 → 列表永远空白；改 `GaeaMemoryArchivedList` 分页加载（每页 50 +
+  加载更多 + total）。
+- **恢复能力补齐（Unarchive）**：memory 包此前只有 Archive（软删）无恢复路径（注释声称
+  「90 天可恢复」但实际不存在）；补双后端 `Unarchive`（sqlite 置 archived=0；file 从
+  `.archive/<ts>-<name>.md` 移回主目录 + 重建索引；未归档/已清理报错）+ 新绑定
+  `GaeaMemoryUnarchive`（绑定面 497→**498**）+ 归档 tab「恢复」按钮（Rollback 图标/恢复中态/
+  成功后刷新提示）。
+- **保留期下发展示**：`MemoryArchivedPage` 增 `retentionDays`（= ArchivedRetention 90 天），
+  归档 tab 顶部「归档保留 N 天，超期可清理」，清理确认弹窗文案跟随真实保留期（此前硬编码）。
+- **修复漂移脚本单条差异静默放行**：`check-bindings-drift.ps1` 判 `$diff.Count -gt 0` 但
+  PS 5.1 下单条差异 `$diff` 是单个 PSCustomObject（无 .Count）→ `$null -gt 0` 为 False 静默
+  放行（实测复现：新增绑定后脚本仍报 OK）；`@()` 强制数组化修复 + 脚本恢复 UTF-8 带 BOM
+  （AGENTS.md 编码规范）。
+- **验证**：Go 全量 **112/112 包**（+6 测试：Unarchive 双后端/app 绑定/RetentionDays/BrainNil）、
+  eslint **0/0**、tsc 0 errors、vitest **654/654（124 文件，+2）**、绑定面 **498 方法**漂移
+  PASS（含负向验证：单条漂移现在能红）、版本四处统一 3.4.0、wails build + 冒烟 /api/health 200
+
 ## v3.3.0「质量收敛 · eslint 存量 warnings 清零 + flaky 治理」(2026-08-27)
 > v3.2.1 后的工程质量刀：366 条存量 eslint warnings 归零（配置显式化 + 死代码清理 +
 > exhaustive-deps 补全 + 混合导出显式声明 + 冗余 @ts-ignore 移除）、CI/测试 flaky 治理、
