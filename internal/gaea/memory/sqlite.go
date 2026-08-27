@@ -100,6 +100,27 @@ func (b *sqliteBackend) Delete(name string) error {
 	return err
 }
 
+// Unarchive restores an archived fact back to active memory (reverse of
+// Archive): clears archived=1 and bumps updated_at. A fact that is not
+// currently archived (active, or already hard-deleted by CleanupArchived)
+// is an error.
+func (b *sqliteBackend) Unarchive(name string) error {
+	name = slug(name)
+	if name == "" {
+		return fmt.Errorf("memory needs a name")
+	}
+	res, err := b.db.Exec(
+		`UPDATE facts SET archived=0, updated_at=? WHERE project=? AND name=? AND archived=1`,
+		time.Now().UTC().Format(time.RFC3339), b.project, name)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("memory %q 未归档或已被清理", name)
+	}
+	return nil
+}
+
 func (b *sqliteBackend) ChangeType(name string, newType Type) error {
 	name = slug(name)
 	if name == "" {

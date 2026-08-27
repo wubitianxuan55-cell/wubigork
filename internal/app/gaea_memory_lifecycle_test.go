@@ -104,3 +104,65 @@ func TestGaeaMemoryArchivedListPaged(t *testing.T) {
 		t.Fatalf("beyond page: %+v err=%v", page2, err)
 	}
 }
+
+// 记忆统一层第一刀：归档分页绑定携带保留期天数（前端「归档保留 N 天」文案）。
+func TestGaeaMemoryArchivedList_RetentionDays(t *testing.T) {
+	dir := t.TempDir()
+	gdb := db.GetDatabase(dir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	defer db.CloseDatabase(dir)
+	s := memory.SQLiteStoreFor(gdb, dir, "/Users/me/proj")
+	SetOfficeStoreForTest(s)
+	defer ResetOfficeStoreForTest()
+
+	a := &App{}
+	page, err := a.GaeaMemoryArchivedList(10, 0)
+	if err != nil {
+		t.Fatalf("ArchivedList: %v", err)
+	}
+	if page.RetentionDays != 90 {
+		t.Fatalf("RetentionDays = %d, want 90（与 memory.ArchivedRetention 一致）", page.RetentionDays)
+	}
+}
+
+// 记忆统一层第一刀：GaeaMemoryUnarchive 恢复归档事实回活跃列表；
+// 未归档/不存在返回错误；恢复后归档列表减一。
+func TestGaeaMemoryUnarchive(t *testing.T) {
+	dir := t.TempDir()
+	gdb := db.GetDatabase(dir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	defer db.CloseDatabase(dir)
+	s := memory.SQLiteStoreFor(gdb, dir, "/Users/me/proj")
+	if _, err := s.Save(memory.Memory{Name: "fact-a", Description: "d", Body: "b"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Archive("fact-a"); err != nil {
+		t.Fatal(err)
+	}
+	SetOfficeStoreForTest(s)
+	defer ResetOfficeStoreForTest()
+
+	a := &App{}
+	if err := a.GaeaMemoryUnarchive("fact-a"); err != nil {
+		t.Fatalf("Unarchive: %v", err)
+	}
+	if list := s.List(); len(list) != 1 || list[0].Name != "fact-a" {
+		t.Fatalf("恢复后活跃列表: %+v", list)
+	}
+	if arch := s.ListArchived(); len(arch) != 0 {
+		t.Fatalf("恢复后归档应为空: %+v", arch)
+	}
+
+	// 未归档（活跃事实）恢复报错
+	if err := a.GaeaMemoryUnarchive("fact-a"); err == nil {
+		t.Fatal("活跃事实的恢复应报错")
+	}
+	// 不存在的事实恢复报错
+	if err := a.GaeaMemoryUnarchive("nope"); err == nil {
+		t.Fatal("不存在事实的恢复应报错")
+	}
+}

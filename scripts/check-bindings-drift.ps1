@@ -45,7 +45,9 @@ $tsNames = @(
 # ── 3. 对比 ───────────────────────────────────────────────────────────────
 $goSorted = @($goNames | Sort-Object)
 $tsSorted = @($tsNames | Sort-Object)
-$diff = Compare-Object -ReferenceObject $goSorted -DifferenceObject $tsSorted
+# @() 包裹：单条差异时 $diff 是单个 PSCustomObject（PS 5.1 无 .Count 属性，
+# $null -gt 0 为 False 会静默放行）——强制数组化保证单条差异也能被检出。
+$diff = @(Compare-Object -ReferenceObject $goSorted -DifferenceObject $tsSorted)
 if ($diff.Count -gt 0) {
   Write-Host "绑定面漂移：Go 侧 ($($goSorted.Count) 个) 与 bindingNames.ts ($($tsSorted.Count) 个) 不一致：" -ForegroundColor Red
   $diff | ForEach-Object {

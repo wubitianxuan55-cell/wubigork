@@ -94,6 +94,53 @@ func (b *fileBackend) Delete(name string) error {
 	return err
 }
 
+// Unarchive restores an archived memory file back to active memory (reverse of
+// Archive): finds the newest `<ts>-<name>.md` in .archive/, moves it back to
+// `<name>.md` and rebuilds its index line. A memory with no archived file
+// (never archived, or already hard-deleted by CleanupArchived) is an error.
+func (b *fileBackend) Unarchive(name string) error {
+	if b.Dir == "" {
+		return fmt.Errorf("memory store unavailable (no user config dir)")
+	}
+	name = slug(name)
+	if name == "" {
+		return fmt.Errorf("memory needs a name")
+	}
+	archiveDir := filepath.Join(b.Dir, ".archive")
+	entries, err := os.ReadDir(archiveDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("memory %q 未归档或已被清理", name)
+		}
+		return err
+	}
+	// 找该名字最新的归档文件（<ts>-<name>.md，时间戳前缀倒序取第一个）。
+	var target string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), "-"+name+".md") {
+			continue
+		}
+		if target == "" || e.Name() > target {
+			target = e.Name()
+		}
+	}
+	if target == "" {
+		return fmt.Errorf("memory %q 未归档或已被清理", name)
+	}
+	src := filepath.Join(archiveDir, target)
+	dst := filepath.Join(b.Dir, name+".md")
+	if err := os.Rename(src, dst); err != nil {
+		return err
+	}
+	// 重建索引行：文件已回到主目录，loadMemory 读到完整记忆后 reindex。
+	if m, ok := loadMemory(dst); ok {
+		if err := b.reindex(name, m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ChangeType changes the Type of a saved memory (e.g. promote to "user" level
 // or demote to "project"/"feedback"). The memory is reloaded from disk, its
 // Type updated, and re-saved — all other fields are preserved.

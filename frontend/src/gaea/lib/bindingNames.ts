@@ -182,6 +182,7 @@ export const bindingNames = [
   "GaeaMemoryHubOverview",
   "GaeaMemoryMerge",
   "GaeaMemorySuggestions",
+  "GaeaMemoryUnarchive",
   "GaeaMeta",
   "GaeaModel",
   "GaeaModelSwitchEstimate",

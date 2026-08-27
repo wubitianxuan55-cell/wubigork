@@ -37,12 +37,20 @@ type MemoryArchivedPage struct {
 	Total  int                  `json:"total"`
 	Limit  int                  `json:"limit"`
 	Offset int                  `json:"offset"`
+	// RetentionDays 是归档保留期（天）：归档超过该时长为硬删除候选
+	// （GaeaMemoryCleanupArchived 清理），前端据此展示「归档保留 N 天」。
+	RetentionDays int `json:"retentionDays"`
 }
 
 // GaeaMemoryArchivedList 分页返回归档事实（updated_at 倒序）。limit 钳制
 // [1,200]（默认 50），offset 下限 0；办公引擎未初始化时返回空页。
 func (a *App) GaeaMemoryArchivedList(limit, offset int) (MemoryArchivedPage, error) {
-	page := MemoryArchivedPage{Limit: limit, Offset: offset, Items: []MemoryArchivedView{}}
+	page := MemoryArchivedPage{
+		Limit:         limit,
+		Offset:        offset,
+		Items:         []MemoryArchivedView{},
+		RetentionDays: int(memory.ArchivedRetention / (24 * time.Hour)),
+	}
 	store := a.hubOfficeStore()
 	items, total, err := store.ListArchivedPaged(limit, offset)
 	if err != nil {
@@ -61,6 +69,18 @@ func (a *App) GaeaMemoryArchivedList(limit, offset int) (MemoryArchivedPage, err
 		})
 	}
 	return page, nil
+}
+
+// GaeaMemoryUnarchive 恢复一条已归档记忆（reverse of Archive，记忆统一层
+// 第一刀「生命周期闭环」）：误归档可在保留期内一键恢复回活跃列表。
+// 未归档/已被清理的事实返回明确错误。
+func (a *App) GaeaMemoryUnarchive(name string) error {
+	store := a.hubOfficeStore()
+	if err := store.Unarchive(name); err != nil {
+		return fmt.Errorf("恢复归档: %w", err)
+	}
+	slog.Info("记忆归档恢复", "name", name)
+	return nil
 }
 
 // purgeAuditEntry 是归档清理审计行：硬删前把溯源字段完整落盘。

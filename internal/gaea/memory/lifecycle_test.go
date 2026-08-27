@@ -236,3 +236,125 @@ func TestListArchivedPagedFileBackend(t *testing.T) {
 		t.Fatalf("full page: total=%d err=%v", total2, err)
 	}
 }
+
+// 记忆统一层第一刀：SQLite 后端 Unarchive——归档→恢复→活跃列表出现；
+// 二次恢复报错；清理硬删后恢复报错。
+func TestUnarchiveSQLite(t *testing.T) {
+	dir := t.TempDir()
+	gdb := db.GetDatabase(dir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	defer db.CloseDatabase(dir)
+
+	s := SQLiteStoreFor(gdb, dir, "/Users/me/proj")
+	if _, err := s.Save(Memory{Name: "fact-a", Description: "d", Body: "b"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Archive("fact-a"); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.List()) != 0 || len(s.ListArchived()) != 1 {
+		t.Fatal("归档后：活跃 0 / 归档 1")
+	}
+
+	// 恢复
+	if err := s.Unarchive("fact-a"); err != nil {
+		t.Fatalf("Unarchive: %v", err)
+	}
+	if len(s.List()) != 1 || s.List()[0].Name != "fact-a" {
+		t.Fatalf("恢复后活跃列表: %+v", s.List())
+	}
+	if len(s.ListArchived()) != 0 {
+		t.Fatal("恢复后归档应为空")
+	}
+
+	// 二次恢复报错（已是活跃事实）
+	if err := s.Unarchive("fact-a"); err == nil {
+		t.Fatal("二次恢复应报错")
+	}
+
+	// 归档→清理硬删→恢复报错
+	if _, err := s.Archive("fact-a"); err != nil {
+		t.Fatal(err)
+	}
+	// 回拨归档时间使其超期
+	ts := time.Now().UTC().Add(-100 * 24 * time.Hour).Format(time.RFC3339)
+	if _, err := gdb.Exec(`UPDATE facts SET updated_at=? WHERE name='fact-a'`, ts); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CleanupArchived(time.Now().Add(-ArchivedRetention)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Unarchive("fact-a"); err == nil {
+		t.Fatal("已硬删事实的恢复应报错")
+	}
+}
+
+// 记忆统一层第一刀：文件后端 Unarchive——归档文件移回主目录 + 索引重建；
+// 二次恢复报错；清理硬删后恢复报错。
+func TestUnarchiveFileBackend(t *testing.T) {
+	storeDir := t.TempDir()
+	s := Store{Dir: storeDir}
+	if _, err := s.Save(Memory{Name: "keep", Description: "keep desc", Body: "b"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Archive("keep"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(storeDir, "keep.md")); !os.IsNotExist(err) {
+		t.Fatal("归档后主目录不应有 keep.md")
+	}
+
+	if err := s.Unarchive("keep"); err != nil {
+		t.Fatalf("Unarchive: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(storeDir, "keep.md")); err != nil {
+		t.Fatalf("恢复后主目录应有 keep.md: %v", err)
+	}
+	if len(s.List()) != 1 || s.List()[0].Name != "keep" {
+		t.Fatalf("恢复后活跃列表: %+v", s.List())
+	}
+	if len(s.ListArchived()) != 0 {
+		t.Fatal("恢复后归档应为空")
+	}
+	// 索引行已重建（MEMORY.md 含 keep.md 链接）
+	idx, err := os.ReadFile(filepath.Join(storeDir, "MEMORY.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(idx), "keep.md") {
+		t.Fatalf("索引应含 keep.md: %s", idx)
+	}
+
+	// 二次恢复报错
+	if err := s.Unarchive("keep"); err == nil {
+		t.Fatal("二次恢复应报错")
+	}
+
+	// 归档→清理硬删→恢复报错
+	if _, err := s.Archive("keep"); err != nil {
+		t.Fatal(err)
+	}
+	// 把归档文件时间戳前缀改为 100 天前使其超期
+	archiveDir := filepath.Join(storeDir, ".archive")
+	entries, err := os.ReadDir(archiveDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), "keep.md") {
+			old := filepath.Join(archiveDir, e.Name())
+			ts := time.Now().UTC().Add(-100 * 24 * time.Hour).Format("20060102-150405.000")
+			if err := os.Rename(old, filepath.Join(archiveDir, ts+"-keep.md")); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if _, err := s.CleanupArchived(time.Now().Add(-ArchivedRetention)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Unarchive("keep"); err == nil {
+		t.Fatal("已硬删事实的恢复应报错")
+	}
+}

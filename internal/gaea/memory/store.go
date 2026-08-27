@@ -91,6 +91,7 @@ type backend interface {
 	Path(name string) string
 	Save(m Memory) (string, error)
 	Archive(name string) (string, error)
+	Unarchive(name string) error
 	Delete(name string) error
 	ChangeType(name string, newType Type) error
 	Touch(name string) error
@@ -173,6 +174,11 @@ func (s Store) Save(m Memory) (string, error) { return s.engine().Save(m) }
 // it, so wrong memories remain traceable and recoverable. A missing memory is
 // not an error.
 func (s Store) Archive(name string) (string, error) { return s.engine().Archive(name) }
+
+// Unarchive restores an archived memory back to active memory (the reverse of
+// Archive). A memory that was never archived — or was hard-deleted by
+// CleanupArchived — is an error, so callers can surface the failure.
+func (s Store) Unarchive(name string) error { return s.engine().Unarchive(name) }
 
 // Delete removes a memory — it archives first, so wrong memories remain
 // traceable.
