@@ -1,5 +1,28 @@
 # gaea · 多功能 AI 助手
 
+## v3.2.0「任务可见性 · C1 任务实时输出 + C2 子代理活动行」(2026-08-26)
+> v3.2.0 第一刀（蒸馏收尾第 3 轮，按候选清单推进顺序）：办公长任务与子代理的
+> 「看得见在干什么」。后端零侵入扩展（tasks 输出环形缓冲 + stopping 结束态细分 +
+> SubagentRunView 活动行字段），前端任务中心输出 dock + 分工面板活动行。
+- **C1 任务实时输出（GaeaTaskOutput）**：tasks 包新增 `Progress.Output(line)` 输出
+  环形缓冲（200 行 / 64KB 上限，超限截断标注，仅回放不消费游标）；三个消费者
+  （价格抓取/批量抓取/语义索引）逐源逐批输出时间戳行；新绑定 `GaeaTaskOutput(taskID)
+  → { tail, truncated }`（绑定面 496 方法）。任务中心：任务行可点击选中 → 底部共享
+  输出 dock（pre 等宽回放、运行中 2s 轮询 + 自动尾随滚动、截断标注、可关闭）
+- **C1 结束态细分（stopping）**：取消运行中任务先条件置 `stopping`（正在停止…，
+  WHERE status='running' 防覆盖终态竞态）再传播取消，handler 退出后终态 cancelled；
+  前端「停止中」琥珀色旋转徽标 + 取消按钮文案变化；重启续跑把 stopping 一并恢复为
+  queued（取消途中崩溃不丢任务）
+- **C2 子代理活动行（SubagentRunView + lastText/lastTool）**：`summarizeSubagentTranscript`
+  从 transcript 尾部派生 最后 assistant 文本（截断 160 字）与 最后一次工具调用摘要
+  （name + 结果首行，截断 80 字）；分工面板运行中卡片显示「正在：…」+「⚙ 工具」两行
+  活动线（脉冲指示点，随 5s 轮询刷新）；父子拓扑按候选清单建议暂不做（meta 无父子
+  记录，退化为活动行 + 扁平列表）
+- **验证**：Go 全量测试绿（tasks 新增输出缓冲/stopping 竞态 2 用例 + app 活动行派生
+  1 用例）；前端 tsc/eslint 0 errors（360 存量 warnings）、vitest **647/647（123 文件，
+  +4：TaskCenter 3 + SubagentsPanel 活动行 1）**；绑定面 **496 方法**漂移 PASS（+1：
+  GaeaTaskOutput）；wails build 发布版 + 冒烟 /api/health 200
+
 ## v3.1.1「造价数据库闭环补齐 · 测算项目 UI + 造价参考 + 复盘笔记 + 选区转对话」(2026-08-26)
 > 承接 v3.1.0 发布后盘点：costproject/costref 后端与 15 个绑定已就绪但前端无入口，
 > 本版补齐三个前端 UI + C4 选区转对话 + 仓储卫生。纪律延续：不做新板块、不堆功能。

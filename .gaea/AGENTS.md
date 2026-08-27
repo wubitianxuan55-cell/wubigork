@@ -5,6 +5,31 @@
 
 ## 版本状态
 
+- **最新发布：v3.2.0（2026-08-26）「任务可见性 · C1 任务实时输出 + C2 子代理活动行」**：
+  git tag `v3.2.0`；CHANGELOG / releases/v3.2.0.md / README 索引同步。要点：
+  - **C1 任务实时输出**：tasks 包 `Progress.Output(line)` 输出环形缓冲（200 行/64KB 上限，
+    超限截断标注、只回放不消费游标）；三个消费者（价格抓取/批量/语义索引）逐源逐批
+    时间戳输出；新绑定 `GaeaTaskOutput(taskID) → {tail, truncated}`（绑定面 496，+1）；
+    任务中心选中任务 → 底部输出 dock（pre 回放、运行中 2s 轮询 + 尾随滚动、截断标注、
+    可关闭，终态仍可复核）。
+  - **C1 结束态细分 `stopping`**：取消 running 先条件置 stopping（WHERE status='running'
+    防覆盖终态竞态）再传播取消，handler 退出终态 cancelled；前端「停止中」琥珀色徽标；
+    重启续跑把 stopping 一并恢复 queued。
+  - **C2 子代理活动行**：`summarizeSubagentTranscript` 从 transcript 尾部派生 lastText
+    （最后 assistant 文本 160 字）与 lastTool（工具名+结果首行 80 字），随 SubagentRunView
+    下发；分工面板运行中卡片显示「正在：…」+「⚙ 工具」两行活动线。父子拓扑暂不做
+    （meta 无父子记录，退化为活动行 + 扁平列表）。
+  - **修复数据备份隔离缺陷**：`dataBackupPlan` 混用 DataRoot（尊重 GAEA_DATA_ROOT）与
+    MemoryUserDir/UserConfigPath/SessionDir/ArchiveDir（永远真实用户目录）——测试隔离时
+    zip 混入真实数据 + 相对路径穿越；统一从 DataRoot 派生全部条目（生产行为不变）。
+  - **验证**：Go 全量测试绿（tasks +2 输出缓冲/stopping 竞态、app +1 活动行派生、备份
+    修复回归）；vitest **647/647（123 文件，+4：TaskCenter 3 + SubagentsPanel 1）**、
+    tsc/eslint 0 errors（360 存量 warnings）；绑定面 496 漂移 PASS；wails build + 冒烟
+    /api/health 200。
+  - **下一阶段**（v3.2.0 后续刀）：C5 工作区内联编辑（需 GaeaWriteFile）/ C9 分栏对照
+    （候选清单建议验证真实需求后再启动）；记忆统一层 + 受控自主（路线图 3.2.0）；
+    eslint 存量 warnings 收敛 + flaky 治理。
+
 - **最新发布：v3.1.1（2026-08-26）「造价数据库闭环补齐 · 测算项目 UI + 造价参考 + 复盘笔记 + 选区转对话」**：
   git tag `v3.1.1`；CHANGELOG / releases/v3.1.1.md / README 索引同步。要点：
   - **测算项目 UI**（CostProjectsView，造价板块新增导航）：左列项目列表（状态徽标/条目数/合计/

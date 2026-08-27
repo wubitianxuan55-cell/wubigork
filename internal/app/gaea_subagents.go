@@ -14,15 +14,17 @@ import (
 // SubagentRunView 是「多智能体分工」面板的单条子代理视图（P2，对标
 // WorkSwarm 蜂群 / QClaw V2 多 Agent：让用户看到「谁在干什么」）。
 type SubagentRunView struct {
-	Ref        string    `json:"ref"`        // sa_YYYYMMDD_HHMMSS_... 稳定引用
-	Status     string    `json:"status"`     // running | completed | failed
-	Model      string    `json:"model,omitempty"`
-	ToolScope  []string  `json:"toolScope,omitempty"`
-	Task       string    `json:"task"`       // transcript 首条 user 消息（任务摘要）
-	Answer     string    `json:"answer"`     // 最后一条 assistant 回答（截断摘要）
-	ToolCalls  int       `json:"toolCalls"`  // transcript 中工具调用次数
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	Ref       string    `json:"ref"`        // sa_YYYYMMDD_HHMMSS_... 稳定引用
+	Status    string    `json:"status"`     // running | completed | failed
+	Model     string    `json:"model,omitempty"`
+	ToolScope []string  `json:"toolScope,omitempty"`
+	Task      string    `json:"task"`       // transcript 首条 user 消息（任务摘要）
+	Answer    string    `json:"answer"`     // 最后一条 assistant 回答（截断摘要）
+	ToolCalls int       `json:"toolCalls"`  // transcript 中工具调用次数
+	LastText  string    `json:"lastText,omitempty"` // C2 活动行：最后一段 assistant 文本（运行中实时更新）
+	LastTool  string    `json:"lastTool,omitempty"` // C2 活动行：最后一次工具调用摘要（name + 结果头）
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // SubagentRunsView 是当前会话的子代理分工总览。
@@ -82,11 +84,13 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 			CreatedAt: m.CreatedAt,
 			UpdatedAt: m.UpdatedAt,
 		}
-		// transcript：任务摘要（首条 user 消息）+ 最后回答 + 工具调用计数
-		task, answer, toolCalls := summarizeSubagentTranscript(filepath.Join(dir, ref+".jsonl"))
+		// transcript：任务摘要（首条 user 消息）+ 最后回答 + 工具调用计数 + 活动行
+		task, answer, toolCalls, lastText, lastTool := summarizeSubagentTranscript(filepath.Join(dir, ref+".jsonl"))
 		v.Task = task
 		v.Answer = answer
 		v.ToolCalls = toolCalls
+		v.LastText = lastText
+		v.LastTool = lastTool
 		runs = append(runs, v)
 	}
 	sort.Slice(runs, func(i, j int) bool { return runs[i].CreatedAt.After(runs[j].CreatedAt) })
@@ -107,11 +111,13 @@ func (a *App) GaeaSubagentRuns(sessionPath string) SubagentRunsView {
 
 // summarizeSubagentTranscript 从子代理 transcript JSONL 提取：
 // 任务摘要（首条 user 消息，截断 120 字）、最后一条 assistant 回答（截断 200 字）、
-// 工具调用次数。错误静默返回空（meta 存在但 transcript 缺失/损坏时面板仍能展示状态）。
-func summarizeSubagentTranscript(path string) (task, answer string, toolCalls int) {
+// 工具调用次数，以及 C2 活动行——最后一段 assistant 文本（截断 160 字）与
+// 最后一次工具调用摘要（name + 结果头部，截断 80 字）。
+// 错误静默返回空（meta 存在但 transcript 缺失/损坏时面板仍能展示状态）。
+func summarizeSubagentTranscript(path string) (task, answer string, toolCalls int, lastText, lastTool string) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", "", 0
+		return "", "", 0, "", ""
 	}
 	defer f.Close()
 	dec := json.NewDecoder(f)
@@ -128,12 +134,36 @@ func summarizeSubagentTranscript(path string) (task, answer string, toolCalls in
 		case provider.RoleAssistant:
 			if strings.TrimSpace(m.Content) != "" {
 				answer = truncateRunes(strings.TrimSpace(m.Content), 200)
+				lastText = truncateRunes(strings.TrimSpace(m.Content), 160)
 			}
 		case provider.RoleTool:
 			toolCalls++
+			name := strings.TrimSpace(m.Name)
+			if name == "" {
+				name = "tool"
+			}
+			head := oneLineHead(m.Content, 60)
+			if head != "" {
+				lastTool = truncateRunes(name+": "+head, 80)
+			} else {
+				lastTool = truncateRunes(name, 80)
+			}
 		}
 	}
-	return task, answer, toolCalls
+	return task, answer, toolCalls, lastText, lastTool
+}
+
+// oneLineHead 取多行文本的首行且截断（工具结果摘要用，避免把整段结果塞进活动行）。
+func oneLineHead(s string, n int) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	s = strings.TrimSpace(s)
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }
 
 // truncateRunes 按 rune 截断字符串（中文字符按字符计）。

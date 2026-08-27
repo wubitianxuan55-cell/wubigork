@@ -29,7 +29,7 @@ type OfficeMethods = Pick<
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
   | "HerdsmanDigitalLife" | "HerdsmanOperations"
   | "PickFiles" | "PickDirectory"
-  | "TaskList" | "TaskCancel" | "TaskRetry"
+  | "TaskList" | "TaskCancel" | "TaskRetry" | "TaskOutput"
 >;
 
 export function buildOffice(_s: MakeMockState): OfficeMethods {
@@ -298,7 +298,9 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
             ref: "sa_20260817_110000_0000000002_b2b2b2b2",
             status: "running",
             task: "调研竞品表格 Agent 能力并总结可蒸馏点",
-            toolCalls: 0,
+            lastText: "正在比对三家竞品的表格选中→图表链路…",
+            lastTool: "web_fetch: https://example.com/table-agent",
+            toolCalls: 1,
             createdAt: "2026-08-17T11:00:00+08:00",
             updatedAt: "2026-08-17T11:01:00+08:00",
           },
@@ -309,6 +311,8 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
             toolScope: ["web_search", "web_fetch"],
             task: "收集 2026 年办公 Agent 竞品更新信息",
             answer: "千问办公公测、WorkSwarm 蜂群智能体、QClaw V2 多 Agent。",
+            lastText: "千问办公公测、WorkSwarm 蜂群智能体、QClaw V2 多 Agent。",
+            lastTool: "web_search: 办公 Agent 竞品 2026",
             toolCalls: 3,
             createdAt: "2026-08-17T10:00:00+08:00",
             updatedAt: "2026-08-17T10:30:00+08:00",
@@ -397,6 +401,17 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         t.finishedAt = Date.now();
         mockTaskListeners.forEach((l) => l(t));
       }
+    },
+    async TaskOutput(id: string) {
+      // mock：对已知任务返回样例输出尾（真实实现 = tasks 环形缓冲回放）。
+      const t = taskMock.find((x) => x.id === id);
+      if (!t) return { tail: "", truncated: false };
+      const tail = [
+        `[10:00:00] 开始 ${t.label}`,
+        `[10:00:01] 处理中…（进度 ${t.progress}%）`,
+        t.status === "running" ? "[10:00:02] 正在抓取四川造价信息网…" : `[10:00:03] 完成（${t.error || t.message || "ok"}）`,
+      ];
+      return { tail: tail.join("\n"), truncated: false };
     },
   };
 }

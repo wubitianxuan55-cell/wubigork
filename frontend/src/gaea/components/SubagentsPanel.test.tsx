@@ -32,4 +32,11 @@ describe("SubagentsPanel 多智能体分工可见（P2）", () => {
     // 头部徽标：总数 2（runs.length）+ 运行中 1
     expect(screen.getByText("1 运行中")).toBeTruthy();
   });
+
+  it("C2 活动行：运行中的子代理显示「正在…」文本与最后工具调用", async () => {
+    render(<SubagentsPanel sessionPath="s1.jsonl" />);
+    await screen.findByText(/调研竞品表格 Agent 能力/);
+    expect(await screen.findByText(/正在：正在比对三家竞品的表格选中→图表链路/)).toBeTruthy();
+    expect(screen.getByText(/web_fetch: https:\/\/example\.com\/table-agent/)).toBeTruthy();
+  });
 });

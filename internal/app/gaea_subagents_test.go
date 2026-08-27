@@ -157,8 +157,43 @@ func TestTruncateRunes(t *testing.T) {
 }
 
 func TestSummarizeSubagentTranscript_Missing(t *testing.T) {
-	task, answer, calls := summarizeSubagentTranscript(filepath.Join(t.TempDir(), "nope.jsonl"))
-	if task != "" || answer != "" || calls != 0 {
-		t.Fatalf("缺失 transcript 应返回空：%q/%q/%d", task, answer, calls)
+	task, answer, calls, lastText, lastTool := summarizeSubagentTranscript(filepath.Join(t.TempDir(), "nope.jsonl"))
+	if task != "" || answer != "" || calls != 0 || lastText != "" || lastTool != "" {
+		t.Fatalf("缺失 transcript 应返回空：%q/%q/%d/%q/%q", task, answer, calls, lastText, lastTool)
+	}
+}
+
+// TestSummarizeSubagentTranscript_Activity：C2 活动行——lastText（最后 assistant 文本）
+// 与 lastTool（最后一次工具调用 name+结果头）从 transcript 尾部派生。
+func TestSummarizeSubagentTranscript_Activity(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sa_x.jsonl")
+	lines := []string{
+		`{"role":"user","content":"帮我查一下机械挖土方综合单价"}`,
+		`{"role":"assistant","content":"我来检索成本库。"}`,
+		`{"role":"tool","name":"cost_search","content":"找到 3 条\nHP300 台班 3200\n…"}`,
+		`{"role":"assistant","content":"结论：机械挖土方综合单价约 12.5 元/m³"}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatalf("写 transcript: %v", err)
+	}
+	task, answer, calls, lastText, lastTool := summarizeSubagentTranscript(path)
+	if task != "帮我查一下机械挖土方综合单价" {
+		t.Fatalf("任务摘要异常：%q", task)
+	}
+	if !strings.Contains(answer, "结论：机械挖土方") {
+		t.Fatalf("最后回答异常：%q", answer)
+	}
+	if calls != 1 {
+		t.Fatalf("工具调用计数异常：%d", calls)
+	}
+	if lastText != "结论：机械挖土方综合单价约 12.5 元/m³" {
+		t.Fatalf("lastText 异常：%q", lastText)
+	}
+	if !strings.HasPrefix(lastTool, "cost_search: 找到 3 条") {
+		t.Fatalf("lastTool 异常：%q", lastTool)
+	}
+	if strings.Contains(lastTool, "\n") {
+		t.Fatalf("lastTool 应为单行摘要，实际含换行：%q", lastTool)
 	}
 }

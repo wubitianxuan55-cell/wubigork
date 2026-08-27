@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
-import { CheckCircle, Clock, Inbox, Loader, RefreshCw, XCircle } from "../icons";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { CheckCircle, Clock, Inbox, Loader, RefreshCw, X, XCircle } from "../icons";
 import { app, onTaskEvent } from "../lib/bridge";
-import type { TaskStatus, TaskView } from "../lib/types";
+import type { TaskOutputView, TaskStatus, TaskView } from "../lib/types";
 import { useToast } from "./Toast";
 
 // TaskCenter — 通用任务中心（阶段 5 T5-1）：展示持久化任务队列
 // （价格抓取/文件索引重建等）的实时进度，支持取消与重试。
 // 数据源：GaeaTaskList 初始拉取 + gaea-task 事件实时增量。
+// v3.2.0（C1）：任务行可选中 → 底部共享输出 dock 回放实时输出（2s 轮询、
+// 运行中自动尾随滚动、截断标注）；结束态细分 stopping（取消请求后等待退出）。
 // v3「星枢」面板语言：v3-panel-head 细条头部；状态徽标 = 语义色 + 图标 + 文字三重传达。
 
 const KIND_LABEL: Record<string, string> = {
@@ -26,6 +28,8 @@ function statusMeta(status: TaskStatus): { icon: ReactElement; color: string; te
       return { icon: <Clock size={10} aria-hidden />, color: "var(--md-sys-color-text-secondary)", text: "排队中" };
     case "running":
       return { icon: <Loader size={10} aria-hidden />, color: "var(--gaea-glow)", text: "进行中" };
+    case "stopping":
+      return { icon: <Loader size={10} className="animate-spin" aria-hidden />, color: "var(--md-sys-color-warning)", text: "停止中" };
     case "succeeded":
       return { icon: <CheckCircle size={10} aria-hidden />, color: "var(--md-sys-color-success)", text: "已完成" };
     case "failed":
@@ -45,6 +49,10 @@ export function TaskCenter() {
   const [tasks, setTasks] = useState<TaskView[]>([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+  // C1：选中任务 → 底部共享输出 dock
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [output, setOutput] = useState<TaskOutputView>({ tail: "", truncated: false });
+  const outputRef = useRef<HTMLPreElement>(null);
 
   const load = useCallback(() => {
     app
@@ -65,6 +73,42 @@ export function TaskCenter() {
     });
     return off;
   }, [load]);
+
+  // C1：选中任务后回放输出；running/stopping/queued 时 2s 轮询（整尾回放，不消费游标）。
+  // 任务到达终态后停止轮询（保留最后回放，便于复核）。
+  const selectedTask = useMemo(() => tasks.find((t) => t.id === selectedId) ?? null, [tasks, selectedId]);
+  const selectedActive = selectedTask !== null && (selectedTask.status === "running" || selectedTask.status === "stopping" || selectedTask.status === "queued");
+
+  useEffect(() => {
+    if (!selectedId) {
+      setOutput({ tail: "", truncated: false });
+      return;
+    }
+    const loadOutput = () => {
+      app
+        .TaskOutput(selectedId)
+        .then((o) => setOutput(o))
+        .catch(() => {});
+    };
+    loadOutput();
+    if (selectedActive) {
+      const timer = window.setInterval(loadOutput, 2000);
+      return () => window.clearInterval(timer);
+    }
+    return undefined;
+  }, [selectedId, selectedActive]);
+
+  // 运行中输出自动尾随滚动到底部（用户未手动上翻时）
+  useEffect(() => {
+    const el = outputRef.current;
+    if (el && selectedActive) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [output, selectedActive]);
+
+  const select = useCallback((id: string) => {
+    setSelectedId((prev) => (prev === id ? null : id));
+  }, []);
 
   const cancel = useCallback(
     async (id: string) => {
@@ -94,7 +138,7 @@ export function TaskCenter() {
     const activeList: TaskView[] = [];
     const historyList: TaskView[] = [];
     for (const t of tasks) {
-      if (t.status === "queued" || t.status === "running") activeList.push(t);
+      if (t.status === "queued" || t.status === "running" || t.status === "stopping") activeList.push(t);
       else historyList.push(t);
     }
     return { active: activeList, history: historyList };
@@ -155,7 +199,7 @@ export function TaskCenter() {
         {active.length > 0 && (
           <div className="space-y-2">
             {active.map((t) => (
-              <TaskRow key={t.id} task={t} onCancel={cancel} onRetry={retry} />
+              <TaskRow key={t.id} task={t} selected={t.id === selectedId} onSelect={select} onCancel={cancel} onRetry={retry} />
             ))}
           </div>
         )}
@@ -167,35 +211,87 @@ export function TaskCenter() {
             </div>
             <div className="space-y-1">
               {history.map((t) => (
-                <TaskRow key={t.id} task={t} onCancel={cancel} onRetry={retry} />
+                <TaskRow key={t.id} task={t} selected={t.id === selectedId} onSelect={select} onCancel={cancel} onRetry={retry} />
               ))}
             </div>
           </>
         )}
       </div>
+
+      {/* C1：共享输出 dock（选中任务时显示） */}
+      {selectedTask && (
+        <div
+          className="shrink-0 border-t flex flex-col min-h-0"
+          style={{ borderColor: "var(--md-sys-color-outline-variant)", background: "color-mix(in srgb, var(--md-sys-color-surface-container) 60%, transparent)" }}
+        >
+          <div className="flex items-center gap-2 px-3 py-1.5">
+            <span className="text-[10.5px] font-medium truncate" style={{ color: "var(--md-sys-color-text)" }}>
+              输出 · {selectedTask.label}
+            </span>
+            <span className="text-[9.5px] shrink-0 font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+              {kindLabel(selectedTask.kind)}
+            </span>
+            {selectedActive && (
+              <span className="text-[9.5px] shrink-0 animate-pulse" style={{ color: "var(--gaea-glow)" }}>
+                ● 运行中
+              </span>
+            )}
+            <span className="v3-panel-spacer" />
+            <button
+              type="button"
+              className="p-0.5 rounded cursor-pointer hover:bg-(color:--md-sys-color-surface-container-high) transition-colors"
+              style={{ color: "var(--md-sys-color-text-secondary)" }}
+              onClick={() => setSelectedId(null)}
+              title="关闭输出"
+              aria-label="关闭输出"
+            >
+              <X size={11} aria-hidden />
+            </button>
+          </div>
+          <pre
+            ref={outputRef}
+            className="m-0 px-3 pb-2 text-[10px] leading-relaxed whitespace-pre-wrap break-words overflow-y-auto font-mono"
+            style={{ color: "var(--md-sys-color-text-secondary)", maxHeight: 128 }}
+          >
+            {output.tail || "（暂无输出）"}
+          </pre>
+          {output.truncated && (
+            <div className="px-3 pb-1.5 text-[9.5px]" style={{ color: "var(--md-sys-color-warning)" }}>
+              输出过长已截断（仅保留最近 200 行 / 64KB）
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 function TaskRow({
   task,
+  selected,
+  onSelect,
   onCancel,
   onRetry,
 }: {
   task: TaskView;
+  selected: boolean;
+  onSelect: (id: string) => void;
   onCancel: (id: string) => void;
   onRetry: (id: string) => void;
 }) {
   const meta = statusMeta(task.status);
-  const running = task.status === "running" || task.status === "queued";
+  const running = task.status === "running" || task.status === "queued" || task.status === "stopping";
+  const cancelable = task.status === "running" || task.status === "queued" || task.status === "stopping";
   return (
     <div
-      className="rounded-[var(--radius-md)] p-2.5 space-y-1.5"
+      className="rounded-[var(--radius-md)] p-2.5 space-y-1.5 cursor-pointer transition-colors"
       style={{
-        background: "var(--md-sys-color-surface-container)",
-        border: "1px solid var(--md-sys-color-outline-variant)",
+        background: selected ? "color-mix(in srgb, var(--gaea-glow) 7%, var(--md-sys-color-surface-container))" : "var(--md-sys-color-surface-container)",
+        border: `1px solid ${selected ? "color-mix(in srgb, var(--gaea-glow) 45%, transparent)" : "var(--md-sys-color-outline-variant)"}`,
         boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 6%, transparent)",
       }}
+      onClick={() => onSelect(task.id)}
+      title={task.status === "running" || task.status === "stopping" ? "点击查看实时输出" : "点击查看输出"}
     >
       <div className="flex items-center gap-2">
         <span className="text-[11px] font-medium truncate" style={{ color: "var(--md-sys-color-text)" }}>
@@ -259,17 +355,20 @@ function TaskRow({
         </span>
         {task.retryCount > 0 && <span style={{ color: "var(--md-sys-color-warning)" }}>已重试 {task.retryCount} 次</span>}
         <span className="ml-auto flex items-center gap-1">
-          {running && (
+          {cancelable && (
             <button
               className="px-1.5 py-0.5 rounded-md cursor-pointer transition-colors"
               style={{
                 border: "1px solid var(--md-sys-color-outline-variant)",
-                color: "var(--md-sys-color-text-secondary)",
+                color: task.status === "stopping" ? "var(--md-sys-color-warning)" : "var(--md-sys-color-text-secondary)",
                 background: "transparent",
               }}
-              onClick={() => onCancel(task.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancel(task.id);
+              }}
             >
-              取消
+              {task.status === "stopping" ? "停止中…" : "取消"}
             </button>
           )}
           {(task.status === "failed" || task.status === "cancelled") && (
@@ -280,7 +379,10 @@ function TaskRow({
                 color: "var(--gaea-glow)",
                 background: "color-mix(in srgb, var(--gaea-glow) 8%, transparent)",
               }}
-              onClick={() => onRetry(task.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry(task.id);
+              }}
             >
               重试
             </button>

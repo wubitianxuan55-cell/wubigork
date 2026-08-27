@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 )
@@ -36,6 +37,7 @@ type Status string
 const (
 	StatusQueued    Status = "queued"
 	StatusRunning   Status = "running"
+	StatusStopping  Status = "stopping" // 用户已请求取消，等待 handler 退出（C1）
 	StatusSucceeded Status = "succeeded"
 	StatusFailed    Status = "failed"
 	StatusCancelled Status = "cancelled"
@@ -60,7 +62,7 @@ type Task struct {
 }
 
 // Progress 是 handler 的进度报告器：Report 更新进度（持久化 + 节流事件），
-// Result 写入任务结果 JSON。
+// Result 写入任务结果 JSON，Output 追加一行实时输出（C1：任务输出面板回放）。
 type Progress struct {
 	mu      sync.Mutex
 	manager *Manager
@@ -85,6 +87,16 @@ func (p *Progress) Result(result string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.manager.updateResult(p.id, result)
+}
+
+// Output 追加一行实时输出（尾部回放，GaeaTaskOutput 读取；环形缓冲截断）。
+func (p *Progress) Output(line string) {
+	if p == nil || p.manager == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.manager.appendOutput(p.id, line)
 }
 
 // Handler 执行一个任务。ctx 在用户取消 / Manager.Close 时 Done；错误返回后
@@ -114,6 +126,7 @@ type Manager struct {
 	cancels   map[string]context.CancelFunc
 	cancelReq map[string]bool // 用户显式取消（区别于 Close 中断）
 	lastEmit  map[string]time.Time
+	outputs   map[string]*taskOutput // 任务实时输出环形缓冲（C1）
 
 	opts   Options
 	sem    chan struct{}
@@ -121,6 +134,73 @@ type Manager struct {
 	closed chan struct{}
 	wg     sync.WaitGroup
 	once   sync.Once
+}
+
+// taskOutput 单任务实时输出（环形缓冲：上限行数 + 字节数，超出截断标注）。
+type taskOutput struct {
+	lines   []string
+	bytes   int
+	trunc   bool
+	lastSeq int // 预留：将来可按 seq 增量拉取（当前整尾回放）
+}
+
+// 输出缓冲上限：200 行 / 64KB（对齐插件 jobs.output 的字节 cap + truncated 语义）。
+const (
+	outputMaxLines = 200
+	outputMaxBytes = 64 * 1024
+)
+
+// appendOutput 追加一行输出；超限丢弃最旧行并置截断标记。
+func (m *Manager) appendOutput(id, line string) {
+	if m == nil {
+		return
+	}
+	line = strings.TrimRight(line, "\r\n")
+	if line == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	o := m.outputs[id]
+	if o == nil {
+		o = &taskOutput{}
+		if m.outputs == nil {
+			m.outputs = map[string]*taskOutput{}
+		}
+		m.outputs[id] = o
+	}
+	o.lines = append(o.lines, line)
+	o.bytes += len(line)
+	for len(o.lines) > outputMaxLines || o.bytes > outputMaxBytes {
+		drop := o.lines[0]
+		o.lines = o.lines[1:]
+		o.bytes -= len(drop)
+		o.trunc = true
+	}
+	// 防止长时间运行任务累积过多缓冲（保留最近 100 个任务的缓冲）
+	if len(m.outputs) > 100 {
+		for k := range m.outputs {
+			if k != id {
+				delete(m.outputs, k)
+			}
+			break
+		}
+	}
+}
+
+// Output 返回任务实时输出尾部（整尾回放，不消费游标——前端按需轮询）。
+// 不存在/无输出的任务返回空串、truncated=false。
+func (m *Manager) Output(id string) (string, bool) {
+	if m == nil {
+		return "", false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	o := m.outputs[id]
+	if o == nil {
+		return "", false
+	}
+	return strings.Join(o.lines, "\n"), o.trunc
 }
 
 // New 创建调度器（未启动；调用 Start 后开始执行）。
@@ -147,6 +227,7 @@ func New(db *sql.DB, emit func(Task), opts Options) *Manager {
 		cancels:   map[string]context.CancelFunc{},
 		cancelReq: map[string]bool{},
 		lastEmit:  map[string]time.Time{},
+		outputs:   map[string]*taskOutput{},
 		opts:      opts,
 		sem:       make(chan struct{}, opts.MaxConcurrent),
 		wake:      make(chan struct{}, 1),
@@ -310,10 +391,32 @@ func (m *Manager) Cancel(id string) error {
 	}
 	m.mu.Unlock()
 	if running {
+		// C1 结束态细分：先条件置 stopping（仅当仍为 running，避免覆盖已终态），
+		// 再传播取消；handler 退出后由 runNext 收尾为 cancelled。
+		_ = m.setStoppingIfRunning(id)
 		cancel()
 		return nil
 	}
 	return fmt.Errorf("任务不存在或已结束")
+}
+
+// setStoppingIfRunning 把仍处于 running 的任务置为 stopping（C1 结束态细分）。
+// 条件 UPDATE 防竞态：若任务已先到达终态（cancelled/succeeded/failed），不覆盖。
+func (m *Manager) setStoppingIfRunning(id string) error {
+	res, err := m.db.Exec(`UPDATE tasks SET status=?, message=? WHERE id=? AND status=?`,
+		string(StatusStopping), "正在停止…", id, string(StatusRunning))
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil // 已到达终态，无需改写
+	}
+	t, err := m.Get(id)
+	if err != nil {
+		return err
+	}
+	m.emitView(t)
+	return nil
 }
 
 // Retry 重试一个已结束（failed/cancelled）的任务：重置状态重新排队。
@@ -378,8 +481,9 @@ func scanTask(s scanner) (*Task, error) {
 }
 
 func (m *Manager) resumeInterrupted() (int, error) {
-	res, err := m.db.Exec(`UPDATE tasks SET status=?, message='上次运行中断，已重新排队', error='' WHERE status=?`,
-		string(StatusQueued), string(StatusRunning))
+	// running 与 stopping（取消途中崩溃）都视为中断，恢复为 queued 重新排队。
+	res, err := m.db.Exec(`UPDATE tasks SET status=?, message='上次运行中断，已重新排队', error='' WHERE status IN (?, ?)`,
+		string(StatusQueued), string(StatusRunning), string(StatusStopping))
 	if err != nil {
 		return 0, err
 	}

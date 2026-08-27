@@ -130,6 +130,7 @@ func (b *OfficeB) GaeaSwitchWorkspace(path string) string { return b.a.GaeaSwitc
 func (b *OfficeB) GaeaTCCAReport() string { return b.a.GaeaTCCAReport() }
 func (b *OfficeB) GaeaTaskCancel(id string) error { return b.a.GaeaTaskCancel(id) }
 func (b *OfficeB) GaeaTaskList() []tasks.Task { return b.a.GaeaTaskList() }
+func (b *OfficeB) GaeaTaskOutput(id string) (TaskOutputView, error) { return b.a.GaeaTaskOutput(id) }
 func (b *OfficeB) GaeaTaskRetry(id string) error { return b.a.GaeaTaskRetry(id) }
 func (b *OfficeB) GaeaTaskTemplates() []TaskTemplate { return b.a.GaeaTaskTemplates() }
 func (b *OfficeB) GaeaTools() []map[string]interface{} { return b.a.GaeaTools() }

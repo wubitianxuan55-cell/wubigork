@@ -184,6 +184,28 @@ export function SubagentsPanel({ sessionPath }: { sessionPath?: string }) {
                   )}
                 </div>
 
+                {/* C2 活动行：运行中的子代理「此刻正在干什么」（transcript 尾部派生） */}
+                {r.status === "running" && (r.lastText || r.lastTool) && (
+                  <div className="flex flex-col gap-0.5 px-1.5 py-1 rounded-md text-[10.5px] leading-relaxed"
+                    style={{
+                      background: "color-mix(in srgb, var(--gaea-glow) 6%, transparent)",
+                      border: "1px solid color-mix(in srgb, var(--gaea-glow) 18%, transparent)",
+                    }}
+                  >
+                    {r.lastText && (
+                      <span className="truncate" title={r.lastText} style={{ color: "var(--md-sys-color-text)" }}>
+                        <span className="inline-block w-1 h-1 rounded-full mr-1.5 align-middle animate-pulse" style={{ background: "var(--gaea-glow)" }} />
+                        正在：{r.lastText}
+                      </span>
+                    )}
+                    {r.lastTool && (
+                      <span className="truncate font-mono" title={r.lastTool} style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                        ⚙ {r.lastTool}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {isOpen && r.answer && (
                   <div
                     className="mt-1 px-2 py-1.5 rounded-md text-[11px] leading-relaxed whitespace-pre-wrap break-words"

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	gaeaBackup "github.com/gaea/gaea/internal/gaea/backup"
-	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	gaeadb "github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/config"
 )
@@ -22,31 +21,34 @@ import (
 // （hermes/office/角色库/聊天）+ config.toml + sessions + home 配置。
 
 // dataBackupPlan 构造备份计划（数据根 + 显式条目）。
+// 所有条目统一从 config.DataRoot() 派生（GAEA_DATA_ROOT 测试隔离可覆盖；
+// 未设置时 DataRoot == MemoryUserDir/UserConfigPath/ArchiveDir 等，生产行为不变）——
+// 避免混用 MemoryUserDir 系路径导致测试 zip 混入真实用户目录（相对路径穿越）。
 func (a *App) dataBackupPlan() *gaeaBackup.Plan {
 	root := config.DataRoot()
 	skip := []string{"gaea.log", "-wal", "-shm", ".restore-", "backups"}
 	sources := []gaeaBackup.Source{
 		{ZipRel: "whisper_data", Abs: filepath.Join(root, "whisper_data")},
 	}
-	// Hephaestus.db：默认在 DataRoot 下；若 MemoryUserDir 与 DataRoot 不同则显式加入
-	hepPath := gaeadb.DatabasePath(gaeaConfig.MemoryUserDir())
+	// Hephaestus.db：位于数据根下（默认 UserConfigDir/gaea/Hephaestus.db，与历史一致）
+	hepPath := gaeadb.DatabasePath(root)
 	if _, err := os.Stat(hepPath); err == nil {
 		sources = append(sources, gaeaBackup.Source{ZipRel: filepath.Base(hepPath), Abs: hepPath})
 	}
 	// config.toml（办公引擎配置）
-	if p := gaeaConfig.UserConfigPath(); p != "" {
+	if p := filepath.Join(root, "config.toml"); p != "" {
 		if _, err := os.Stat(p); err == nil {
 			sources = append(sources, gaeaBackup.Source{ZipRel: filepath.Base(p), Abs: p})
 		}
 	}
 	// sessions（用户级会话）
-	if p := gaeaConfig.SessionDir(); p != "" {
+	if p := filepath.Join(root, "sessions"); p != "" {
 		if _, err := os.Stat(p); err == nil {
 			sources = append(sources, gaeaBackup.Source{ZipRel: "sessions", Abs: p})
 		}
 	}
 	// archive（压缩归档）
-	if p := gaeaConfig.ArchiveDir(); p != "" {
+	if p := filepath.Join(root, "archive"); p != "" {
 		if _, err := os.Stat(p); err == nil {
 			sources = append(sources, gaeaBackup.Source{ZipRel: "archive", Abs: p})
 		}

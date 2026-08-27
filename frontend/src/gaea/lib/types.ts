@@ -402,6 +402,8 @@ export interface SubagentRunView {
   task: string; // transcript 首条 user 消息（任务摘要）
   answer?: string; // 最后一条 assistant 回答摘要
   toolCalls: number;
+  lastText?: string; // C2 活动行：最后一段 assistant 文本（运行中实时更新）
+  lastTool?: string; // C2 活动行：最后一次工具调用摘要（name + 结果头）
   createdAt: string;
   updatedAt: string;
 }
@@ -1228,7 +1230,8 @@ export interface FileSemanticHit {
 // ── 阶段 5 T5-1：通用任务调度器视图 ──
 // 长任务（价格抓取/文件索引重建等）统一走持久化任务队列；gaea-task 事件
 // 实时推送任务视图（状态/进度/消息），任务中心据此渲染并支持取消/重试。
-export type TaskStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+// stopping（C1）：用户已请求取消，等待 handler 退出（结束态细分）。
+export type TaskStatus = "queued" | "running" | "stopping" | "succeeded" | "failed" | "cancelled";
 
 export interface TaskView {
   id: string;
@@ -1245,6 +1248,12 @@ export interface TaskView {
   createdAt: number; // unix 毫秒
   startedAt: number;
   finishedAt: number;
+}
+
+// TaskOutputView 是任务实时输出的尾部回放视图（C1：GaeaTaskOutput）。
+export interface TaskOutputView {
+  tail: string;
+  truncated: boolean;
 }
 
 // ── 阶段 5 T5-3：本地模型调度纵深 ────────────────────────────

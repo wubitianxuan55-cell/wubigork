@@ -267,6 +267,7 @@ export const bindingNames = [
   "GaeaTCCAReport",
   "GaeaTaskCancel",
   "GaeaTaskList",
+  "GaeaTaskOutput",
   "GaeaTaskRetry",
   "GaeaTaskTemplates",
   "GaeaTools",

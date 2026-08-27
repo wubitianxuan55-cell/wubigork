@@ -40,6 +40,7 @@ import type {
   ZipDeliverableResult,
   SubagentRunView,
   SubagentRunsView,
+  TaskOutputView,
   SkillSuggestion,
   TaskTemplate,
   Meta,
@@ -428,10 +429,12 @@ export interface AppBindings {
   PickFiles(): Promise<FilePickResult[]>;
   // ── 阶段 5 T5-1 任务中心 ──
   // TaskList 返回最近任务（新→旧）；TaskCancel 取消（running 中断/queued 取消）；
-  // TaskRetry 重试失败/已取消的任务。任务实时进度经 onTaskEvent 推送。
+  // TaskRetry 重试失败/已取消的任务；TaskOutput 读取任务实时输出尾部（C1）。
+  // 任务实时进度经 onTaskEvent 推送。
   TaskList(): Promise<TaskView[]>;
   TaskCancel(id: string): Promise<void>;
   TaskRetry(id: string): Promise<void>;
+  TaskOutput(id: string): Promise<TaskOutputView>;
   // ── 阶段 5 T5-3 本地模型调度纵深 ──
   // KeepWarmGet/KeepWarmSet 保活开关：空闲时定期轻量探测，防止本地模型被卸载
   // （~/.gaea_config.json 持久化，重启后仍生效）。
@@ -708,6 +711,7 @@ const gaeaToGaea = {
   TaskList: "GaeaTaskList",
   TaskCancel: "GaeaTaskCancel",
   TaskRetry: "GaeaTaskRetry",
+  TaskOutput: "GaeaTaskOutput",
   PriceFetches: "GaeaPriceFetches",
   PriceFetchApply: "GaeaPriceFetchApply",
   PriceFetchIgnore: "GaeaPriceFetchIgnore",

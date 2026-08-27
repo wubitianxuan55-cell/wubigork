@@ -106,6 +106,23 @@ func (a *App) GaeaTaskRetry(id string) error {
 	return m.Retry(id)
 }
 
+// TaskOutputView 是任务实时输出的尾部回放视图（C1：任务输出面板）。
+type TaskOutputView struct {
+	Tail      string `json:"tail"`      // 输出尾部（整尾回放，前端按需轮询）
+	Truncated bool   `json:"truncated"` // 超出行数/字节上限被截断
+}
+
+// GaeaTaskOutput 返回任务实时输出尾部（环形缓冲回放，不消费游标）。
+// 任务无输出/不存在时返回空 tail。
+func (a *App) GaeaTaskOutput(id string) (TaskOutputView, error) {
+	m := a.taskMgr()
+	if m == nil || !m.Available() {
+		return TaskOutputView{}, fmt.Errorf("任务调度器未启动")
+	}
+	tail, truncated := m.Output(id)
+	return TaskOutputView{Tail: tail, Truncated: truncated}, nil
+}
+
 // ─── 消费者：价格抓取 ─────────────────────────────────────────
 
 type priceFetchPayload struct {
@@ -123,12 +140,15 @@ func (a *App) priceFetchTaskHandler(ctx context.Context, t *tasks.Task, p *tasks
 	if !ok {
 		return fmt.Errorf("价格源不存在: %s", req.SourceID)
 	}
+	p.Output(fmt.Sprintf("[%s] 抓取 %s（%s）", time.Now().Format("15:04:05"), src.Name, src.URL))
 	p.Report(5, "正在抓取 "+src.Name)
 	res, err := pricefeed.Fetch(ctx, src, a.hubCostStore())
 	if err != nil {
+		p.Output(fmt.Sprintf("[%s] 抓取失败：%v", time.Now().Format("15:04:05"), err))
 		return err
 	}
 	res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
+	p.Output(fmt.Sprintf("[%s] 解析出 %d 条候选价格，异常检测完成", time.Now().Format("15:04:05"), len(res.Candidates)))
 	rec := pricefeed.FetchRecord{
 		ID:       fmt.Sprintf("fetch-%d", time.Now().UnixNano()), // SaveFetch 按值拷贝，ID 须先预生成
 		SourceID: src.ID, SourceName: src.Name, URL: src.URL,
@@ -187,17 +207,22 @@ func (a *App) priceFetchAllTaskHandler(ctx context.Context, t *tasks.Task, p *ta
 
 	var errs []string
 	fetched := 0
+	p.Output(fmt.Sprintf("[%s] 待抓取 %d 个价格源", time.Now().Format("15:04:05"), len(todo)))
 	for i, src := range todo {
 		if ctx.Err() != nil {
+			p.Output(fmt.Sprintf("[%s] 已中断（用户取消）", time.Now().Format("15:04:05")))
 			return ctx.Err()
 		}
+		p.Output(fmt.Sprintf("[%s] (%d/%d) 抓取 %s", time.Now().Format("15:04:05"), i+1, len(todo), src.Name))
 		p.Report(i*100/len(todo), fmt.Sprintf("正在抓取 %s（%d/%d）", src.Name, i+1, len(todo)))
 		res, err := pricefeed.Fetch(ctx, src, a.hubCostStore())
 		if err != nil {
 			errs = append(errs, src.Name+": "+err.Error())
+			p.Output(fmt.Sprintf("[%s]   ✗ %s：%v", time.Now().Format("15:04:05"), src.Name, err))
 			continue
 		}
 		res.Candidates = pricefeed.DetectAnomalies(res.Candidates, a.priceHistoryLookup())
+		p.Output(fmt.Sprintf("[%s]   ✓ %s：%d 条候选", time.Now().Format("15:04:05"), src.Name, len(res.Candidates)))
 		rec := pricefeed.FetchRecord{
 			ID:       fmt.Sprintf("fetch-%d", time.Now().UnixNano()), // SaveFetch 按值拷贝，ID 须先预生成
 			SourceID: src.ID, SourceName: src.Name, URL: src.URL,
@@ -253,8 +278,10 @@ func (a *App) fileIndexTaskHandler(ctx context.Context, t *tasks.Task, p *tasks.
 	for _, d := range docs {
 		keep[d.Path] = true
 	}
+	p.Output(fmt.Sprintf("[%s] 扫描到 %d 个文件（跳过 %d），开始建索引", time.Now().Format("15:04:05"), total, skipped))
 	for start := 0; start < total; start += batch {
 		if ctx.Err() != nil {
+			p.Output(fmt.Sprintf("[%s] 已中断（用户取消）", time.Now().Format("15:04:05")))
 			return ctx.Err()
 		}
 		end := start + batch
@@ -266,13 +293,16 @@ func (a *App) fileIndexTaskHandler(ctx context.Context, t *tasks.Task, p *tasks.
 			semDocs = append(semDocs, fileindex.Doc(d))
 		}
 		if _, err := st.Ensure(ctx, e, "file", semDocs); err != nil {
+			p.Output(fmt.Sprintf("[%s] ✗ 批次 %d-%d 失败：%v", time.Now().Format("15:04:05"), start+1, end, err))
 			return err
 		}
+		p.Output(fmt.Sprintf("[%s] 已索引 %d/%d 个文件", time.Now().Format("15:04:05"), end, total))
 		p.Report(end*100/total, fmt.Sprintf("已索引 %d/%d 个文件", end, total))
 	}
 	_, _ = st.Stale("file", keep)
 	out, _ := json.Marshal(map[string]any{"total": total, "skipped": skipped})
 	p.Result(string(out))
+	p.Output(fmt.Sprintf("[%s] 索引完成：%d 个文件（跳过 %d）", time.Now().Format("15:04:05"), total, skipped))
 	p.Report(100, fmt.Sprintf("索引完成：%d 个文件（跳过 %d）", total, skipped))
 	return nil
 }
