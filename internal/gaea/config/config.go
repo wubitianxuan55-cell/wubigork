@@ -87,6 +87,10 @@ type MemoryConfig struct {
 	// Enabled 控制自动记忆（画像/规则/事实）是否注入系统提示词与逐轮上下文。
 	// 关闭后记忆不写入提示词（文档记忆文件仍保留在磁盘，重新开启即恢复）。
 	Enabled bool `toml:"enabled"`
+	// ArchivedRetentionDays 是归档事实的保留期（天）：归档超过该时长的事实由
+	// GaeaMemoryCleanupArchived 硬删（0/缺省 = 90 天默认，钳制 [1,730]）。
+	// 记忆统一层第二刀：保留期从常量改为可配置，误归档在保留期内可恢复。
+	ArchivedRetentionDays int `toml:"archived_retention_days"`
 }
 
 // SearchConfig configures web search engines.
@@ -514,7 +518,8 @@ func Default() *Config {
 		// deny/allow rules to harden or quiet specific tools.
 		Permissions: PermissionsConfig{Mode: "ask", Allow: []string{"run_skill"}},
 		// 办公记忆默认开启；用户在记忆面板可一键关闭（记忆可控性）。
-		Memory: MemoryConfig{Enabled: true},
+		// 归档保留期默认 90 天（0 = 走默认值，见 memoryRetentionDays）。
+		Memory: MemoryConfig{Enabled: true, ArchivedRetentionDays: 90},
 		// Sandbox on by default: bash is jailed (macOS), network allowed so
 		// builds/downloads work. Set bash = "off" to disable. Network=true here
 		// so an absent [sandbox] in a user's file keeps egress (zero value would

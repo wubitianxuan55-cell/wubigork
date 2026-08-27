@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/memory"
 )
@@ -164,5 +165,123 @@ func TestGaeaMemoryUnarchive(t *testing.T) {
 	// 不存在的事实恢复报错
 	if err := a.GaeaMemoryUnarchive("nope"); err == nil {
 		t.Fatal("不存在事实的恢复应报错")
+	}
+}
+
+// 记忆统一层第二刀：GaeaMemoryUnarchiveBatch 批量恢复——全部成功返回计数；
+// 部分失败跳过并聚合错误，成功数正确。
+func TestGaeaMemoryUnarchiveBatch(t *testing.T) {
+	dir := t.TempDir()
+	gdb := db.GetDatabase(dir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	defer db.CloseDatabase(dir)
+	s := memory.SQLiteStoreFor(gdb, dir, "/Users/me/proj")
+	for _, n := range []string{"fact-a", "fact-b", "fact-c"} {
+		if _, err := s.Save(memory.Memory{Name: n, Description: n, Body: "b"}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Archive(n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	SetOfficeStoreForTest(s)
+	defer ResetOfficeStoreForTest()
+
+	a := &App{}
+	// 全部成功
+	n, err := a.GaeaMemoryUnarchiveBatch([]string{"fact-a", "fact-b", "fact-c"})
+	if err != nil {
+		t.Fatalf("全成功批量恢复不应报错: %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("恢复计数 = %d, want 3", n)
+	}
+	if list := s.List(); len(list) != 3 {
+		t.Fatalf("恢复后活跃列表 = %d, want 3", len(list))
+	}
+
+	// 部分失败：2 个活跃（再恢复会错）+ 1 个已删（不存在）→ 全部失败
+	n2, err2 := a.GaeaMemoryUnarchiveBatch([]string{"fact-a", "fact-b", "nope"})
+	if err2 == nil {
+		t.Fatal("部分失败应返回聚合错误")
+	}
+	if n2 != 0 {
+		t.Fatalf("全部失败计数 = %d, want 0", n2)
+	}
+
+	// 混合：重新归档 fact-a，与不存在的事实混合 → 成功 1 / 失败 1
+	if _, err := s.Archive("fact-a"); err != nil {
+		t.Fatal(err)
+	}
+	n3, err3 := a.GaeaMemoryUnarchiveBatch([]string{"fact-a", "nope"})
+	if err3 == nil {
+		t.Fatal("混合批量应返回聚合错误")
+	}
+	if n3 != 1 {
+		t.Fatalf("混合批量成功计数 = %d, want 1", n3)
+	}
+
+	// 空列表 no-op
+	n4, err4 := a.GaeaMemoryUnarchiveBatch(nil)
+	if err4 != nil || n4 != 0 {
+		t.Fatalf("空列表: n=%d err=%v, want 0/nil", n4, err4)
+	}
+}
+
+// 记忆统一层第二刀：memoryRetentionDays 读配置、钳制、回退默认。
+func TestMemoryRetentionDays(t *testing.T) {
+	oldCfg, oldCtrl := ga.cfg, ga.ctrl
+	defer func() { ga.cfg, ga.ctrl = oldCfg, oldCtrl }()
+
+	ga.cfg = nil
+	ga.ctrl = nil
+	// 缺省（配置未初始化）：回退 90
+	if d := memoryRetentionDays(); d != 90 {
+		t.Fatalf("缺省保留期 = %d, want 90", d)
+	}
+	// 配置生效
+	ga.cfg = &gaeaConfig.Config{Memory: gaeaConfig.MemoryConfig{ArchivedRetentionDays: 30}}
+	if d := memoryRetentionDays(); d != 30 {
+		t.Fatalf("配置保留期 = %d, want 30", d)
+	}
+	// 钳制上限
+	ga.cfg.Memory.ArchivedRetentionDays = 9999
+	if d := memoryRetentionDays(); d != 730 {
+		t.Fatalf("钳制上限 = %d, want 730", d)
+	}
+	// 钳制下限
+	ga.cfg.Memory.ArchivedRetentionDays = 0
+	if d := memoryRetentionDays(); d != 90 {
+		t.Fatalf("0 值回退 = %d, want 90", d)
+	}
+}
+
+// 记忆统一层第二刀：GaeaMemorySetRetentionDays 钳制 + 配置写入。
+func TestGaeaMemorySetRetentionDays(t *testing.T) {
+	oldCfg, oldCtrl := ga.cfg, ga.ctrl
+	defer func() { ga.cfg, ga.ctrl = oldCfg, oldCtrl }()
+	ga.cfg = &gaeaConfig.Config{Workspace: t.TempDir()}
+	ga.ctrl = nil
+
+	a := &App{}
+	// 正常设置
+	if err := a.GaeaMemorySetRetentionDays(45); err != nil {
+		t.Fatalf("SetRetentionDays(45): %v", err)
+	}
+	// 钳制下限（<1 → 1）
+	if err := a.GaeaMemorySetRetentionDays(0); err != nil {
+		t.Fatalf("SetRetentionDays(0): %v", err)
+	}
+	if d := ga.cfg.Memory.ArchivedRetentionDays; d != 1 {
+		t.Fatalf("0 钳制后 = %d, want 1", d)
+	}
+	// 钳制上限（>730 → 730）
+	if err := a.GaeaMemorySetRetentionDays(9999); err != nil {
+		t.Fatalf("SetRetentionDays(9999): %v", err)
+	}
+	if d := ga.cfg.Memory.ArchivedRetentionDays; d != 730 {
+		t.Fatalf("9999 钳制后 = %d, want 730", d)
 	}
 }

@@ -26,8 +26,10 @@ func (b *MemoryB) GaeaMemoryDuplicates(min float64) []MemoryDuplicateView { retu
 func (b *MemoryB) GaeaMemoryGraph() MemoryGraphView { return b.a.GaeaMemoryGraph() }
 func (b *MemoryB) GaeaMemoryHubOverview() MemoryHubOverview { return b.a.GaeaMemoryHubOverview() }
 func (b *MemoryB) GaeaMemoryMerge(targetName string, sourceNames []string) (string, error) { return b.a.GaeaMemoryMerge(targetName, sourceNames) }
+func (b *MemoryB) GaeaMemorySetRetentionDays(days int) error { return b.a.GaeaMemorySetRetentionDays(days) }
 func (b *MemoryB) GaeaMemorySuggestions() MemorySuggestionsView { return b.a.GaeaMemorySuggestions() }
 func (b *MemoryB) GaeaMemoryUnarchive(name string) error { return b.a.GaeaMemoryUnarchive(name) }
+func (b *MemoryB) GaeaMemoryUnarchiveBatch(names []string) (int, error) { return b.a.GaeaMemoryUnarchiveBatch(names) }
 func (b *MemoryB) GaeaProfileConflicts() []string { return b.a.GaeaProfileConflicts() }
 func (b *MemoryB) GaeaProfileDelete(name string) error { return b.a.GaeaProfileDelete(name) }
 func (b *MemoryB) GaeaProfileList() []ProfileFactView { return b.a.GaeaProfileList() }
