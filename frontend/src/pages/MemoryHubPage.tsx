@@ -13,8 +13,7 @@ import { BookOpen, Brain, FileText, Pin } from "../gaea/icons";
 import { LocaleProvider } from "../gaea/lib/i18n";
 import { app } from "../gaea/lib/bridge";
 import { useComposerInsertStore, usePreviewStore } from "../gaea/lib/store";
-import type { GraphNode, MemoryHubOverview, SemanticHitView, WorkspaceSearchHit } from "../gaea/lib/types";
-import type { AppFacade } from "../types/wails";
+import type { GraphNode, MemoryHubOverview } from "../gaea/lib/types";
 import { KnowledgePanel } from "../gaea/components/KnowledgePanel";
 import { ProfileLibrary } from "../gaea/components/memoryhub/ProfileLibrary";
 import { OfficeMemoryLibrary } from "../gaea/components/memoryhub/OfficeMemoryLibrary";
@@ -135,6 +134,9 @@ function MemoryHubPage() {
   const [inspectorOpen, setInspectorOpen] = useState(true);
 
   // 三脑检索 + 工作区全文搜索合并：记忆与资料一次找齐。
+  // 记忆统一层第一刀：hub 搜索由「4 绑定前端拼装」收敛为「1 绑定后端聚合」——
+  // 单次 UnifiedSearch 返回 keyword（文件）/ semantic（语义）/ brain（三脑）/
+  // files（文件语义）四组，前端只做展示映射。
   const runSearch = async () => {
     const q = brainQuery.trim();
     if (!q) {
@@ -142,33 +144,35 @@ function MemoryHubPage() {
       return;
     }
     setSearching(true);
-    const bind = window.go?.app?.App as AppFacade;
     try {
-      const [brainRaw, files, sem, fileSem] = await Promise.all([
-        bind?.BrainSearch ? bind.BrainSearch(q, "") : Promise.resolve("[]"),
-        app.WorkspaceSearch(q, 8).catch(() => [] as WorkspaceSearchHit[]),
-        app.SemanticSearch(q).catch(() => [] as SemanticHitView[]),
-        app.FileSemanticSearch(q, 6).catch(() => [] as import("../gaea/lib/types").FileSemanticHit[]),
-      ]);
-      let brain: Array<{ brain: string; entity: string; text: string }> = [];
-      try { brain = JSON.parse(typeof brainRaw === 'string' ? brainRaw : (brainRaw ? JSON.stringify(brainRaw) : '[]')); } catch { brain = []; }
+      const v = await app.UnifiedSearch(q, 8).catch(() => null);
+      if (!v) return;
       const kindLabel: Record<string, string> = { cost: "语义·成本", knowledge: "语义·知识", office: "语义·办公", file: "语义·资料" };
       setHits([
-        ...brain.map((h) => ({ kind: "brain" as const, brain: h.brain, entity: h.entity, text: h.text })),
-        ...(files ?? []).map((f) => ({
+        // 三脑命中（brain.main 主脑 / brain.left 左脑 / brain.right 右脑）
+        ...(v.brain ?? []).map((h) => ({
+          kind: "brain" as const,
+          brain: h.brain,
+          entity: h.entity,
+          text: h.text,
+        })),
+        // 工作区关键词全文命中 → 文件组（可预览 / @引用）
+        ...(v.keyword ?? []).map((f) => ({
           kind: "file" as const,
           brain: "文件",
           entity: f.name,
           text: f.snippet || f.path,
           path: f.path,
         })),
-        ...(sem ?? []).map((h) => ({
+        // 跨库语义命中（成本/知识/办公/资料）
+        ...(v.semantic ?? []).map((h) => ({
           kind: "brain" as const,
           brain: kindLabel[h.kind] ?? "语义",
           entity: h.name,
           text: h.text,
         })),
-        ...(fileSem ?? []).map((h) => ({
+        // 文件语义命中（path/snippet，可预览 / @引用）
+        ...(v.files ?? []).map((h) => ({
           kind: "file" as const,
           brain: "语义·文件",
           entity: h.path.split("/").pop() ?? h.path,

@@ -407,11 +407,14 @@ export interface AppBindings {
   // ── 办公记忆查重/合并 ──
   MemoryDuplicates(min: number): Promise<MemoryDuplicateView[]>;
   MemoryMerge(targetName: string, sourceNames: string[]): Promise<string>;
-  // ── 办公记忆归档生命周期（T6-8.2）──
-  // MemoryArchivedList 分页列出归档（含超过 90 天的硬删除候选）；
-  // MemoryCleanupArchived 硬删除归档超过 90 天的事实，返回删除条数（无超期返回 0）。
+  // ── 办公记忆归档生命周期（T6-8.2 / 记忆统一层）──
+  // MemoryArchivedList 分页列出归档（含超过 90 天的硬删除候选），
+  // 响应含 retentionDays（归档保留期天数，前端展示「归档保留 N 天」）；
+  // MemoryCleanupArchived 硬删除归档超过 90 天的事实，返回删除条数（无超期返回 0）；
+  // MemoryUnarchive 恢复一条已归档记忆回活跃列表（误归档可在保留期内一键恢复）。
   MemoryArchivedList(limit: number, offset: number): Promise<MemoryArchivedPage>;
   MemoryCleanupArchived(): Promise<number>;
+  MemoryUnarchive(name: string): Promise<void>;
   // ── 工作区文件语义索引 ──
   // FileIndexRebuild 重建索引（异步任务，T5-1）：进度经 gaea-task 事件推送，
   // 结果（total/skipped）在任务 result 里。
@@ -749,6 +752,7 @@ const gaeaToGaea = {
   MemoryMerge: "GaeaMemoryMerge",
   MemoryArchivedList: "GaeaMemoryArchivedList",
   MemoryCleanupArchived: "GaeaMemoryCleanupArchived",
+  MemoryUnarchive: "GaeaMemoryUnarchive",
   FileIndexRebuild: "GaeaFileIndexRebuild",
   FileSemanticSearch: "GaeaFileSemanticSearch",
   ProfileResolveConflict: "GaeaProfileResolveConflict",

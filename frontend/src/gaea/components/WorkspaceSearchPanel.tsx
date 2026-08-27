@@ -23,12 +23,13 @@ function fileIcon(name: string) {
   return <FileText size={12} />;
 }
 
-// 跨库语义命中的库徽标（cost/knowledge/office）。
+// 跨库语义命中的库徽标（cost/knowledge/office/file——后端语义检索含 file kind）。
 function kindChip(kind: SemanticHitView["kind"]) {
   const map: Record<SemanticHitView["kind"], string> = {
     cost: "成本",
     knowledge: "知识",
     office: "办公",
+    file: "文件",
   };
   return (
     <span className="shrink-0 px-1.5 h-4 rounded-full bg-accent/15 text-accent text-[9px] font-mono flex items-center leading-none">

@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal, message } from "antd";
-import { RefreshCw, Sparkles, Trash2 } from "../../icons";
+import { RefreshCw, Rollback, Sparkles, Trash2 } from "../../icons";
 import { app } from "../../lib/bridge";
-import type { MemoryDuplicateView, MemoryFact, MemoryView } from "../../lib/types";
+import type { MemoryArchivedView, MemoryDuplicateView, MemoryFact, MemoryView } from "../../lib/types";
 import { FactCard } from "../FactCard";
 import { DocEditor } from "../DocEditor";
-import { ArchivesSection } from "../ArchivesSection";
 import { EmptyState } from "../EmptyState";
 
 const TYPE_FILTERS = ["all", "user", "feedback", "project", "reference"] as const;
@@ -16,6 +15,8 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "docs", label: "文档" },
   { key: "archives", label: "归档" },
 ];
+
+const ARCHIVE_PAGE = 50;
 
 /** OfficeMemoryLibrary 左脑办公记忆库：gaea 的 facts/docs/archives 管理。 */
 export function OfficeMemoryLibrary() {
@@ -31,6 +32,14 @@ export function OfficeMemoryLibrary() {
   const [dups, setDups] = useState<MemoryDuplicateView[]>([]);
   const [dupMsg, setDupMsg] = useState<string | null>(null);
   const [merging, setMerging] = useState<string | null>(null);
+  // ── 归档分页（记忆统一层第一刀：归档 tab 由 view.archives（后端无此字段，
+  // 永远空白）改为 GaeaMemoryArchivedList 分页加载）──
+  const [archives, setArchives] = useState<MemoryArchivedView[]>([]);
+  const [archTotal, setArchTotal] = useState(0);
+  const [retentionDays, setRetentionDays] = useState(90);
+  const [archLoading, setArchLoading] = useState(false);
+  const [archOffset, setArchOffset] = useState(0);
+  const [restoring, setRestoring] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -42,6 +51,28 @@ export function OfficeMemoryLibrary() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  // 归档分页加载：切到归档 tab 或「加载更多」时读取下一页。
+  const loadArchives = useCallback(async (offset: number, append: boolean) => {
+    setArchLoading(true);
+    try {
+      const page = await app.MemoryArchivedList(ARCHIVE_PAGE, offset).catch(() => null);
+      if (!page) return;
+      setRetentionDays(page.retentionDays ?? 90);
+      setArchTotal(page.total);
+      setArchOffset(offset + page.items.length);
+      setArchives((prev) => (append ? [...prev, ...page.items] : page.items));
+    } finally {
+      setArchLoading(false);
+    }
+  }, []);
+
+  // 切到归档 tab 时首载（分页列表不依赖 view.archives）
+  useEffect(() => {
+    if (tab === "archives") {
+      void loadArchives(0, false);
+    }
+  }, [tab, loadArchives]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -128,18 +159,30 @@ export function OfficeMemoryLibrary() {
 
   const handleCleanupArchived = useCallback(() => {
     Modal.confirm({
-      title: "清理 90 天前归档？",
-      content: "归档超过 90 天的事实将被永久删除（溯源留档 purge-audit.jsonl），误归档可在 90 天内恢复，此操作不可撤销",
+      title: `清理 ${retentionDays} 天前归档？`,
+      content: `归档超过 ${retentionDays} 天的事实将被永久删除（溯源留档 purge-audit.jsonl），误归档可在 ${retentionDays} 天内恢复，此操作不可撤销`,
       okText: "清理",
       cancelText: "取消",
       okButtonProps: { danger: true },
       onOk: async () => {
         const n = await app.MemoryCleanupArchived();
         message.success(`已清理 ${n} 条超期归档`);
-        await refresh();
+        await loadArchives(0, false);
       },
     });
-  }, [refresh]);
+  }, [retentionDays, loadArchives]);
+
+  // 记忆统一层第一刀：恢复归档事实回活跃列表（误归档可在保留期内一键恢复）。
+  const handleUnarchive = useCallback(async (name: string) => {
+    setRestoring(name);
+    try {
+      await app.MemoryUnarchive(name);
+      message.success(`已恢复「${name}」回活跃记忆`);
+      await loadArchives(0, false);
+    } finally {
+      setRestoring(null);
+    }
+  }, [loadArchives]);
 
   return (
     <div className="h-full flex flex-col">
@@ -203,7 +246,7 @@ export function OfficeMemoryLibrary() {
               <span className="ml-1 opacity-70">{filtered.length}</span>
             )}
             {t.key === "archives" && (
-              <span className="ml-1 opacity-70">{view?.archives?.length ?? 0}</span>
+              <span className="ml-1 opacity-70">{archTotal}</span>
             )}
           </button>
         ))}
@@ -270,7 +313,60 @@ export function OfficeMemoryLibrary() {
       {/* archives tab */}
       {tab === "archives" && (
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
-          <ArchivesSection archives={view?.archives ?? []} />
+          {/* 保留期说明（retentionDays 由后端下发） */}
+          <div className="mb-2 px-3 py-2 rounded-lg bg-bg-elev/60 text-fg-faint text-[11px] leading-relaxed">
+            归档保留 {retentionDays} 天，超期可清理；误归档可在保留期内一键恢复。
+          </div>
+          {archLoading && archives.length === 0 ? (
+            <div className="py-10 text-center text-fg-faint text-[13px]">加载中…</div>
+          ) : archives.length === 0 ? (
+            <EmptyState message="暂无归档 — 办公 agent 用 forget/删除操作归档的事实会出现在这里" />
+          ) : (
+            <>
+              <div className="flex flex-col gap-1.5">
+                {archives.map((a) => (
+                  <div
+                    key={a.name}
+                    className="border border-border-soft rounded-lg px-3 py-2 bg-bg-soft/50 opacity-70 hover:opacity-100 transition-opacity"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="badge badge--muted">{a.type}</span>
+                      {a.archivedAt && (
+                        <span className="text-fg-faint text-[10px] font-mono">
+                          {new Date(a.archivedAt).toLocaleDateString()} 归档
+                        </span>
+                      )}
+                      <span className="ml-auto" />
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 px-2 h-6 rounded-md bg-accent/15 text-accent text-[11px] cursor-pointer hover:bg-accent/25 disabled:opacity-50"
+                        disabled={restoring === a.name}
+                        onClick={() => void handleUnarchive(a.name)}
+                        title={`把「${a.title || a.name}」恢复回活跃记忆`}
+                      >
+                        <Rollback size={11} />
+                        {restoring === a.name ? "恢复中…" : "恢复"}
+                      </button>
+                    </div>
+                    <div className="text-fg text-[12px] mt-0.5 truncate">{a.title || a.name}</div>
+                    {a.description && (
+                      <div className="text-fg-faint text-[10.5px] mt-0.5 line-clamp-2">{a.description}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {archOffset < archTotal && (
+                <button
+                  type="button"
+                  className="mt-2 w-full py-2 rounded-lg border border-border-soft text-fg-faint text-[12px] cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors disabled:opacity-50"
+                  disabled={archLoading}
+                  onClick={() => void loadArchives(archOffset, true)}
+                >
+                  {archLoading ? "加载中…" : `加载更多（${archOffset}/${archTotal}）`}
+                </button>
+              )}
+            </>
+          )}
         </div>
       )}
 

@@ -12,7 +12,7 @@ import type { MakeMockState } from "./state";
 
 type MemoryMethods = Pick<
   AppBindings,
-  | "Memory" | "MemoryArchivedList" | "MemoryCleanupArchived"
+  | "Memory" | "MemoryArchivedList" | "MemoryCleanupArchived" | "MemoryUnarchive"
   | "Remember" | "Forget" | "SaveDoc" | "UpdateFact" | "ChangeFactType"
   | "SetMemoryEnabled" | "MemorySuggestions"
   | "AcceptMemorySuggestion" | "AcceptSkillSuggestion"
@@ -64,12 +64,36 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
       };
     },
     async MemoryArchivedList(limit: number, offset: number) {
-      // mock: 无真实归档，返回空分页（结构对齐 GaeaMemoryArchivedList）。
-      return { items: [], total: 0, limit, offset };
+      // mock: 演示归档分页（含 retentionDays，对齐 GaeaMemoryArchivedList）。
+      const items = [
+        {
+          name: "pile-v2",
+          title: "桩基施工 要点（修订）",
+          description: "振动锤选型需匹配地质条件（旧版重复归档）",
+          type: "reference",
+          kind: "semantic",
+          archivedAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+        },
+        {
+          name: "cost-2025",
+          title: "2025 年机械台班价（已过期）",
+          description: "过期的价格快照，保留期内待清理",
+          type: "project",
+          kind: "episodic",
+          archivedAt: new Date(Date.now() - 40 * 86400000).toISOString(),
+        },
+      ];
+      const total = items.length;
+      const page = items.slice(offset, offset + limit);
+      return { items: page, total, limit, offset, retentionDays: 90 };
     },
     async MemoryCleanupArchived() {
       // mock: 无真实归档库可清理，返回删除条数 0（Go 侧为清理条目计数）。
       return 0;
+    },
+    async MemoryUnarchive(name: string) {
+      // mock: no-op——浏览器开发环境无持久化归档库（真实实现恢复事实回活跃列表）。
+      emit({ kind: "notice", level: "info", text: `unarchived → ${name}` });
     },
     async Remember(scope: string, note: string) {
       emit({ kind: "notice", level: "info", text: `remembered → ${scope}` });

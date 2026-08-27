@@ -84,14 +84,25 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
         },
       ];
     },
-    // ── 跨库统一检索（mock：关键词 + 语义各 1-2 条，与后端 topN 参数一致）──
+    // ── 跨库统一检索（mock：关键词 + 语义 + 三脑 + 文件语义各 1-2 条，
+    // 与后端 GaeaUnifiedSearch 四组视图一致）──
     async UnifiedSearch(query: string, topN = 10) {
-      if (!query.trim()) return { keyword: [], semantic: [] };
+      if (!query.trim()) return { keyword: [], semantic: [], brain: [], files: [] };
       const kw = await this.WorkspaceSearch(query, topN);
       const sem = await this.SemanticSearch(query);
+      const files = await this.FileSemanticSearch(query);
       return {
         keyword: kw.length ? kw.slice(0, 2) : [],
         semantic: sem.length ? sem.slice(0, 2) : [],
+        brain: [
+          {
+            brain: "brain.left",
+            entity: "项目-振动锤选型",
+            text: "桩基施工-振动锤选型：需匹配地质条件与桩型。",
+            score: 0.9,
+          },
+        ],
+        files: files.length ? files.slice(0, 2) : [],
       };
     },
     // ── 检索质量测评（契约对齐 Go；topHits 为演示命中）──

@@ -1107,10 +1107,18 @@ export interface PriceHistory {
 
 // 跨库统一语义检索命中（cost / knowledge / office，本地 bge-m3）。
 export interface SemanticHitView {
-  kind: "cost" | "knowledge" | "office";
+  kind: "cost" | "knowledge" | "office" | "file";
   name: string;
   score: number;
   text: string;
+}
+
+// BrainHit 是三脑统一检索命中（brain.main 主脑 / brain.left 左脑 / brain.right 右脑）。
+export interface BrainHit {
+  brain: string;
+  entity: string;
+  text: string;
+  score: number;
 }
 
 // CostCompareRow 是一条比价明细：同一成本条目在多个来源/时段的报价对比。
@@ -1124,11 +1132,15 @@ export interface CostCompareRow {
   kind: "current" | "history" | "fetch";
 }
 
-// UnifiedSearchView 是一次「跨库统一检索」调用的完整结果：
-// keyword = 工作区全文关键词命中（轻量 RAG），semantic = 跨库语义命中。
+// UnifiedSearchView 是一次「跨库统一检索」调用的完整结果（记忆统一层第一刀：
+// hub 搜索由 4 绑定前端拼装收敛为 1 绑定后端聚合）：
+// keyword = 工作区全文关键词命中（轻量 RAG），semantic = 跨库语义命中，
+// brain = 三脑命中（brain.main/left/right），files = 文件语义命中。
 export interface UnifiedSearchView {
   keyword: WorkspaceSearchHit[];
   semantic: SemanticHitView[];
+  brain?: BrainHit[];
+  files?: FileSemanticHit[];
 }
 
 // RetrievalEvalQuery 是检索质量测评中单条查询的明细：期望命中 vs 实际前 10 命中。

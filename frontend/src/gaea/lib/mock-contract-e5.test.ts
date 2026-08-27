@@ -41,7 +41,26 @@ describe("E5 契约层 mock（进料与质量）", () => {
     expect(v.keyword.length + v.semantic.length).toBeGreaterThan(0);
     // 语义命中带库徽标字段
     v.semantic.forEach((h) => {
-      expect(["cost", "knowledge", "office"]).toContain(h.kind);
+      expect(["cost", "knowledge", "office", "file"]).toContain(h.kind);
+    });
+  });
+
+  it("UnifiedSearch 记忆统一层扩展：brain/files 两组结构对齐 Go", async () => {
+    const v = await app.UnifiedSearch("振动锤", 8);
+    // 记忆统一层第一刀：GaeaUnifiedSearch 四组视图（keyword/semantic/brain/files）
+    expect(Array.isArray(v.brain)).toBe(true);
+    expect(Array.isArray(v.files)).toBe(true);
+    // brain 命中：三脑命名空间 + entity/text
+    (v.brain ?? []).forEach((h) => {
+      expect(typeof h.brain).toBe("string");
+      expect(typeof h.entity).toBe("string");
+      expect(typeof h.text).toBe("string");
+      expect(typeof h.score).toBe("number");
+    });
+    // files 命中：path/snippet（供 hub 预览 / @引用）
+    (v.files ?? []).forEach((h) => {
+      expect(typeof h.path).toBe("string");
+      expect(typeof h.snippet).toBe("string");
     });
   });
 
