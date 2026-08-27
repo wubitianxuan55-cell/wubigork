@@ -10,7 +10,7 @@ import type { MakeMockState } from "./state";
 type CoreMethods = Pick<
   AppBindings,
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
-  | "ContextUsage" | "TCCAReport" | "Jobs"
+  | "ContextUsage" | "ContextView" | "Trajectory" | "AgentNetwork" | "TCCAReport" | "Jobs"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
   | "SlashArgs"
@@ -40,6 +40,122 @@ export function buildCore(s: MakeMockState): CoreMethods {
     },
     async ContextUsage() {
       return { used: 1280, window: 1_000_000 };
+    },
+    async ContextView() {
+      // 浏览器开发 mock：固定一份与效果图形态一致的快照。
+      return {
+        ok: true,
+        window: 1_000_000,
+        current: { system: 2100, tools: 10400, user: 20, inject: 21900, assistant: 93400, tool: 114000 },
+        stats: { turns: 2, steps: 60, injects: 6, compacts: 0, prunes: 0, toolCalls: 279, images: 0, cacheHitPercent: 99.57, costEstimate: 3.83 },
+        requests: [
+          {
+            seq: 8, ts: 1750000000, turn: 1, step: 1,
+            category: { system: 2100, tools: 10400, user: 20, inject: 21000, assistant: 1200, tool: 8000 },
+            briefUser: "grep C:\\AI\\wubigrok\\internal\\gaea\\config",
+            briefResp: "read C:\\AI\\wubigrok\\internal\\gaea\\config\\config.go",
+            promptTokens: 350600, outputTokens: 93, cacheHitTokens: 350200, cacheMissTokens: 400,
+          },
+        ],
+        events: [
+          { kind: "inject", seq: 2, delta: 10500, source: "指令注入 · .gaea\\AGENTS.md", turn: 1, step: 4, ts: 1750000000 },
+          { kind: "compact", seq: 30, delta: -535500, source: "ratio", turn: 2, step: 20, ts: 1750000100 },
+          { kind: "prune", seq: 31, delta: 0, source: "bash", turn: 2, step: 21, ts: 1750000101 },
+        ],
+        nodes: [
+          { seq: 1, cat: "system", tokens: 2100 },
+          { seq: 2, cat: "tools", tokens: 10400 },
+          { seq: 3, cat: "inject", tokens: 21000, text: "Referenced context: …" },
+          { seq: 4, cat: "tool", tokens: 8000, text: "package main …" },
+        ],
+        archive: [],
+      };
+    },
+    async Trajectory() {
+      // 浏览器开发 mock：固定一份与后端折叠形态一致的轨迹快照。
+      return {
+        ok: true,
+        turns: [
+          {
+            turn: 1,
+            startedAt: 1750000000,
+            end: { seq: 30, ts: 1750000100 },
+            records: [
+              { seq: 2, kind: "user", ts: 1750000001, user: { text: "调研 internal/gaea/config 的配置项" } },
+              {
+                seq: 3, kind: "header", ts: 1750000002, step: 1,
+                header: { system: "系统提示词预览…", toolCount: 50, tokens: 12500, change: "initial" },
+              },
+              { seq: 4, kind: "assistant", ts: 1750000003, step: 1, assistant: { reasoning: "先搜索配置相关代码", text: "配置集中在 config.go", usage: { promptTokens: 350600, completionTokens: 93, cacheHitTokens: 350200, cacheMissTokens: 400 } } },
+              {
+                seq: 8, kind: "tool", ts: 1750000004, step: 1, durationMs: 3200,
+                tool: { id: "t1", name: "pwsh", args: "{\"command\":\"git status --short\"}", output: "M frontend/src/gaea/App.tsx …", status: "ok" },
+              },
+              {
+                seq: 12, kind: "tool", ts: 1750000008, step: 1, durationMs: 1500,
+                tool: { id: "t2", name: "bash", args: "rm -rf /", output: "", err: "denied by policy", status: "error" },
+              },
+              { seq: 15, kind: "ask", ts: 1750000010, step: 1, ask: { question: "如何协调并行改动？" } },
+            ],
+          },
+          {
+            turn: 2,
+            startedAt: 1750000101,
+            end: { seq: 40, ts: 1750000200 },
+            records: [
+              { seq: 32, kind: "user", ts: 1750000102, user: { text: "总结" } },
+              { seq: 33, kind: "header", ts: 1750000103, step: 1, header: { system: "…", toolCount: 50, tokens: 5000, change: "system" } },
+              { seq: 34, kind: "assistant", ts: 1750000104, step: 1, assistant: { text: "总结完毕", usage: { promptTokens: 8000, completionTokens: 120 } } },
+            ],
+          },
+        ],
+        betweenTurns: [
+          { seq: 31, kind: "compact", ts: 1750000100, compact: { trigger: "manual", summary: "轮间压缩：旧内容已归档" } },
+        ],
+      };
+    },
+    async AgentNetwork() {
+      // 浏览器开发 mock：主 agent + 两个子代理（一完成一运行）。
+      return {
+        ok: true,
+        window: 1_000_000,
+        root: {
+          id: "root",
+          name: "主 agent",
+          kind: "root",
+          status: "running",
+          toolCalls: 3,
+          errors: 0,
+          tokens: 420000,
+          firstTs: 1750000000,
+          lastTs: 1750000200,
+          children: [
+            {
+              id: "taskA",
+              name: "task",
+              kind: "subagent",
+              status: "completed",
+              task: "调研模块A的现状",
+              toolCalls: 4,
+              errors: 0,
+              tokens: 180000,
+              firstTs: 1750000100,
+              lastTs: 1750000150,
+            },
+            {
+              id: "taskB",
+              name: "task",
+              kind: "subagent",
+              status: "running",
+              task: "并行生成测试用例",
+              toolCalls: 2,
+              errors: 0,
+              tokens: 65000,
+              firstTs: 1750000160,
+            },
+          ],
+        },
+      };
     },
     async TCCAReport() {
       return JSON.stringify({

@@ -5,6 +5,33 @@
 
 ## 版本状态
 
+- **最新发布：v3.5.0（2026-08-28）「办公对话区标签页 · dsh-context Go 移植」**：
+  git tag `v3.5.0`；CHANGELOG / releases/v3.5.0.md / README 索引同步；规划文档
+  `docs/2026-08-27-dsh-context-go-port.md`。要点：
+  - **对话窗口三标签**：办公聊天窗顶部 `[对话 | 轨迹 | 上下文]`（ChatTabs，localStorage
+    持久化）；对话=Transcript 零改动，轨迹=事件账本，上下文=构成看板。
+  - **request_header 事件**：`event.RequestHeader` + `request_header` 日志行——每次模型
+    请求前记录实际 system prompt 与工具 schema（「模型可见必入日志」请求头落点，旧日志
+    无此事件按估算降级）。
+  - **上下文标签**：新包 `internal/gaea/contextview`（FoldTimeline 纯函数折叠：六分类
+    组成/趋势/事件/节点归档，usage 实际 promptTokens 等比锚定与顶栏同源，`Referenced
+    context:` 前缀拆 inject，压缩 gone+负 delta）+ 绑定 `GaeaContextView`（+1）；7 测试。
+  - **轨迹标签**：新包 `internal/gaea/trajectory`（FoldTrajectory 对齐 DSH
+    ui-trajectory 扁平事件账本：user/header/assistant/tool/compact/ask/approval 记录，
+    header change 检测，tool parentId 嵌套与 running/error/截断/耗时，轮间压缩
+    Between-turns 区段，turn-end 错误）+ 绑定 `GaeaTrajectory`（+1）+ TrajectoryView
+    （chips/搜索/徽标/检查器）；9 折叠 + 5 vitest。
+  - **Agent 网络**：`FoldAgentNetwork` 子代理树（拥有子记录的元工具调用，不写死工具名）
+    + 绑定 `GaeaAgentNetwork`（+1，subagents meta 任务摘要匹配富化）+ AgentNetworkCard
+    （SVG 树/节点 token 环/running 绿脉冲/悬停详情）；3+3 测试。
+  - **随版并入**：记忆统一层第二刀前端收尾（GaeaMemoryUnarchiveBatch /
+    GaeaMemorySetRetentionDays 的 bridge 类型、批量恢复/保留期 UI 与 mock、生命周期测试）。
+  - **验证**：Go 全量 **114/114 包** + vet；vitest **668/668（127 文件）**；eslint 0/0；
+    tsc 0；绑定面 **503 方法**漂移 PASS；版本四处统一 3.5.0；wails build + 冒烟 200。
+  - **下一阶段（Phase D）**：增量（Delta）模式、上下文浏览器、`/context` 命令、
+    File activity、SSE 增量刷新、轨迹时间条 Overview 投影与虚拟滚动、
+    Agent 节点点击跳转子代理会话。
+
 - **最新发布：v3.4.0（2026-08-27）「记忆统一层第一刀 · 统一检索收口 + 生命周期产品化」**：
   git tag `v3.4.0`；CHANGELOG / releases/v3.4.0.md / README 索引同步；计划
   `docs/superpowers/plans/2026-08-27-记忆统一层第一刀.md`。要点：

@@ -1,5 +1,34 @@
 # gaea · 多功能 AI 助手
 
+## v3.5.0「办公对话区标签页 · dsh-context Go 移植」(2026-08-28)
+> 对话窗口上方新增 [对话 | 轨迹 | 上下文] 三标签：上下文 = 逐请求上下文构成看板，
+> 轨迹 = 对齐 DSH ui-trajectory 的扁平事件账本，Agent 网络 = 主 agent + 子代理树。
+- **request_header 事件（日志不变量补位）**：`event.RequestHeader` + `request_header` 日志行，
+  每次模型请求前记录实际 system prompt 与工具 schema——上下文/轨迹 system/tools 分类的
+  精确数据源；旧日志无此事件按估算降级。
+- **上下文标签（新包 internal/gaea/contextview + GaeaContextView）**：`FoldTimeline` 纯函数
+  折叠——六分类当前组成（system/tools/user/inject/assistant/tool，usage 实际 promptTokens
+  等比锚定，与顶栏 ContextBar 同源；`Referenced context:` 前缀拆 inject）+ 原生 SVG 趋势图
+  （步数|轮次|全局|增量四钮，增量 Phase D；压缩 ✂；点击联动步骤详情卡：输入→回复/实际
+  prompt/输出/缓存）+ 事件流（注入|压缩|剪枝筛选，压缩节点 gone + 负 delta + 归档）；
+  7 个折叠黄金测试。
+- **轨迹标签（新包 internal/gaea/trajectory + GaeaTrajectory）**：对齐 DSH ui-trajectory
+  事件账本——扁平记录表（user/request-header/assistant/tool/compact/ask/approval，带
+  ts/durationMs/step；header change 检测 initial|system|tools|system-and-tools；tool
+  dispatch+result 按 ID 合并、parentId 嵌套根、running/error、截断、耗时；轮间压缩
+  Between-turns 区段；turn-end 错误）；前端 TrajectoryView = Duration/Turns/Calls chips +
+  搜索 + 类型徽标（ASSISTANT 紫/TOOL 橙/提问 深蓝/REQUEST HEADER/COMPACTION）+ 点击展开
+  检查器；9 个折叠黄金测试 + 5 个 vitest。
+- **Agent 网络（FoldAgentNetwork + GaeaAgentNetwork + AgentNetworkCard）**：主 agent 根 +
+  子代理树（拥有子记录的元工具调用，不写死工具名），节点聚合子树工具数/错误/估算 token/
+  状态 running|error|completed；subagents/ meta 任务摘要匹配富化状态与模型；前端 SVG 树 +
+  节点 token 占比环 + running 绿脉冲 + 悬停详情条；3+3 测试。
+- **随版并入（并行工作流）**：记忆统一层第二刀前端收尾（GaeaMemoryUnarchiveBatch /
+  GaeaMemorySetRetentionDays 的 bridge 类型、批量恢复/保留期 UI 与 mock、生命周期测试补强）。
+- **验证**：Go 全量 **114/114 包** + vet；vitest **668/668（127 文件）**；eslint 0/0；
+  tsc 0；绑定面 **503 方法**漂移 PASS；版本四处统一 3.5.0；wails build + 冒烟 /api/health 200。
+  详见 releases/v3.5.0.md。
+
 ## v3.4.0「记忆统一层第一刀 · 统一检索收口 + 生命周期产品化」(2026-08-27)
 > 路线图 V4（记忆统一层）首发：hub 搜索 4 绑定前端拼装 → 1 绑定后端聚合（GaeaUnifiedSearch
 > 增三脑/文件语义两组）；归档 tab 从「永远空白」到「分页可浏览 + 一键恢复」（新增

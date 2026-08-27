@@ -52,4 +52,31 @@ describe("OfficeMemoryLibrary 办公记忆", () => {
     fireEvent.click(screen.getByTitle(/把「桩基施工 要点（修订）」恢复回活跃记忆/));
     expect(await screen.findByText(/已恢复「pile-v2」回活跃记忆/)).toBeTruthy();
   });
+
+  it("归档批量恢复：多选 → 恢复选中（N）→ 批量恢复成功提示", async () => {
+    render(wrap(<OfficeMemoryLibrary />));
+    fireEvent.click(screen.getByRole("button", { name: /归档/ }));
+    await screen.findByText("桩基施工 要点（修订）");
+
+    // 勾选两条归档
+    fireEvent.click(screen.getByRole("checkbox", { name: /选择归档 桩基施工 要点（修订）/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /选择归档 2025 年机械台班价（已过期）/ }));
+
+    // 恢复选中按钮出现并点击
+    const batchBtn = screen.getByRole("button", { name: /恢复选中（2）/ });
+    fireEvent.click(batchBtn);
+    expect(await screen.findByText(/已批量恢复 2 条归档记忆/)).toBeTruthy();
+  });
+
+  it("归档保留期编辑：修改 → 保存 → 提示已设置", async () => {
+    render(wrap(<OfficeMemoryLibrary />));
+    fireEvent.click(screen.getByRole("button", { name: /归档/ }));
+    await screen.findByText(/归档保留 90 天/);
+
+    fireEvent.click(screen.getByRole("button", { name: /修改保留期/ }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: /归档保留期天数/ }), { target: { value: "30" } });
+    fireEvent.click(screen.getByRole("button", { name: /^保存$/ }));
+
+    expect(await screen.findByText(/归档保留期已设为 30 天/)).toBeTruthy();
+  });
 });

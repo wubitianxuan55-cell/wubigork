@@ -27,6 +27,9 @@ const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").th
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
 import { WorkspacePanel } from "./components/WorkspacePanel";
 import { WorkspaceTabs } from "./components/WorkspaceTabs";
+import { ChatTabs, type ChatTabId } from "./components/ChatTabs";
+import { ContextView } from "./components/ContextView";
+import { TrajectoryView } from "./components/TrajectoryView";
 import { FilePreview } from "./components/FilePreview";
 import { PreviewNavBar } from "./components/PreviewNavBar";
 import { DeliverablesPanel, type SessionDeliverable } from "./components/DeliverablesPanel";
@@ -72,6 +75,15 @@ import type { TaskTemplate } from "./lib/types";
 
 export default function App() {
   const toast = useToast();
+  const [chatTab, setChatTab] = useState<ChatTabId>(() => {
+    try {
+      const saved = localStorage.getItem("gaea.chatTab");
+      return saved === "trajectory" || saved === "context" ? saved : "chat";
+    } catch { return "chat"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("gaea.chatTab", chatTab); } catch { /* ignore */ }
+  }, [chatTab]);
   const {
     state,
     send,
@@ -813,14 +825,21 @@ export default function App() {
 
           <UpdateBanner />
           <NewSessionToast done={newSessionDone} />
+          <ChatTabs active={chatTab} onChange={setChatTab} />
           <main className="main">
             <CompactContext.Provider value={compactMode}>
             {(state.meta?.ready === false && !state.meta?.startupErr) || switchingModel ? (
               <Skeleton />
             ) : (
               <>
-                <Transcript onPrompt={send} running={state.running} onRewind={rewind} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
-                {state.items.length > 1 && <JumpBar items={state.items} scrollToTurn={scrollToTurn ?? undefined} />}
+                {chatTab === "chat" && (
+                  <>
+                    <Transcript onPrompt={send} running={state.running} onRewind={rewind} onScrollToTurnReady={setScrollToTurn} cwd={state.meta?.cwd} cwdName={cwdName} sessions={recentSessions} onResumeSession={resumeRecentSession} meta={state.meta} />
+                    {state.items.length > 1 && <JumpBar items={state.items} scrollToTurn={scrollToTurn ?? undefined} />}
+                  </>
+                )}
+                {chatTab === "trajectory" && <TrajectoryView running={state.running} />}
+                {chatTab === "context" && <ContextView running={state.running} />}
               </>
             )}
             </CompactContext.Provider>

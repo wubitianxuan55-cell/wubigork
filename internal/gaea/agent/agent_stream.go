@@ -23,6 +23,15 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 	a.activeSchemasMu.RUnlock()
 	msgs := a.session.Messages
 
+	// V3.4: request header 事件——把本次请求实际发给模型的 system prompt 与
+	// 工具 schema 入日志（context-view 折叠的数据源，也是「模型可见必入日志」
+	// 不变量在请求头这一层的落点）。
+	a.sink.Emit(event.Event{Kind: event.RequestHeader, Header: event.RequestHeaderInfo{
+		System: systemPromptFromMessages(msgs),
+		Tools:  headerToolsFromSchemas(tools),
+		Window: a.ContextWindow(),
+	}})
+
 	// V5.10: ImmutablePrefix guard — capture prefix shape before API call,
 	// compare against session baseline; emit Notice on drift (not panic).
 	prevShape := a.verifyPrefixAndShape()
@@ -149,6 +158,33 @@ func (a *AgentRunner) stream(ctx context.Context, turn int) (string, string, str
 		a.sink.Emit(event.Event{Kind: event.Message, Text: text.String(), Reasoning: display})
 	}
 	return text.String(), stored, signature, calls, usage, false, nil
+}
+
+// systemPromptFromMessages 拼接请求中全部 system 角色的内容（L1 + L2）。
+func systemPromptFromMessages(msgs []provider.Message) string {
+	var b strings.Builder
+	for _, m := range msgs {
+		if m.Role == provider.RoleSystem && m.Content != "" {
+			if b.Len() > 0 {
+				b.WriteString("\n\n")
+			}
+			b.WriteString(m.Content)
+		}
+	}
+	return b.String()
+}
+
+// headerToolsFromSchemas 把工具 schema 序列化为 header 事件携带的形态。
+func headerToolsFromSchemas(schemas []provider.ToolSchema) []event.ToolSchemaInfo {
+	out := make([]event.ToolSchemaInfo, 0, len(schemas))
+	for _, s := range schemas {
+		schemaJSON, _ := json.Marshal(s)
+		out = append(out, event.ToolSchemaInfo{
+			Name:   s.Name,
+			Schema: string(schemaJSON),
+		})
+	}
+	return out
 }
 
 // repairArguments applies Tool-Call-Repair fixes (flatten wrappers, scavenge

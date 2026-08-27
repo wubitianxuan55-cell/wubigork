@@ -65,6 +65,7 @@ import {
   RobotOutlined,
   SafetyCertificateOutlined,
   SaveOutlined,
+  ScissorOutlined,
   ScanOutlined,
   SearchOutlined,
   SettingOutlined,
@@ -75,6 +76,7 @@ import {
   TeamOutlined,
   ThunderboltOutlined,
   ToolOutlined,
+  UserOutlined,
   WalletOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
@@ -156,6 +158,7 @@ export const QrCode: Icon = wrap(QrcodeOutlined);
 export const Rollback: Icon = wrap(RollbackOutlined);
 export const RefreshCw: Icon = wrap(ReloadOutlined);
 export const Save: Icon = wrap(SaveOutlined);
+export const Scissors: Icon = wrap(ScissorOutlined);
 export const ScrollText: Icon = wrap(FileTextOutlined);
 export const Scan: Icon = wrap(ScanOutlined);
 export const Search: Icon = wrap(SearchOutlined);
@@ -166,6 +169,7 @@ export const Square: Icon = wrap(AppstoreOutlined);
 export const Sun: Icon = wrap(SunOutlined);
 export const Trash2: Icon = wrap(DeleteOutlined);
 export const TrendingUp: Icon = wrap(LineChartOutlined);
+export const User: Icon = wrap(UserOutlined);
 export const Wallet: Icon = wrap(WalletOutlined);
 export const Wand2: Icon = wrap(BulbOutlined);
 export const Wrench: Icon = wrap(ToolOutlined);

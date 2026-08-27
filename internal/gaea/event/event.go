@@ -62,6 +62,12 @@ const (
 	// Summary so the placeholder still resolves. Replaces the older plain Notice
 	// so a sink can render a distinct, expandable card.
 	CompactionDone
+	// RequestHeader marks one model request's assembled header: the system
+	// prompt and tool schemas that were actually sent. Emitted by the agent
+	// right before the provider call, so the context-view fold can show the
+	// system/tools composition of every request — and satisfies the
+	// "model-visible inputs are logged" invariant.
+	RequestHeader
 	// Retrying marks a stream-recovery retry attempt.
 	// Steer is a mid-turn user guidance message injected while the agent is running.
 	Steer
@@ -208,9 +214,30 @@ type Event struct {
 	Ask         Ask        // AskRequest
 	Err         error      // TurnDone: non-nil on failure
 	Compaction  Compaction // Compaction
+	// Header carries the assembled request header (RequestHeader events):
+	// the system prompt text and the tool schemas sent to the provider.
+	Header RequestHeaderInfo
 	// RetryAttempt / RetryMax track stream-recovery progress (Retrying events).
 	RetryAttempt int // Retrying: current attempt number (1-based)
 	RetryMax     int // Retrying: maximum allowed attempts
+}
+
+// RequestHeaderInfo is the assembled header of one model request.
+// System is the concatenated system-role prompt (L1 + L2); Tools are the
+// schemas actually sent (after per-agent filtering); Window is the model's
+// context-window size in tokens (0 = unknown).
+type RequestHeaderInfo struct {
+	System string           `json:"system,omitempty"`
+	Tools  []ToolSchemaInfo `json:"tools,omitempty"`
+	Window int              `json:"window,omitempty"`
+}
+
+// ToolSchemaInfo is one tool schema as sent to the provider. Schema is the
+// JSON-serialized schema (name + description + parameters), kept so the
+// context browser can show the exact definition the model saw.
+type ToolSchemaInfo struct {
+	Name   string `json:"name"`
+	Schema string `json:"schema,omitempty"`
 }
 
 // Sink consumes a turn's events. The agent calls Emit serially from its run

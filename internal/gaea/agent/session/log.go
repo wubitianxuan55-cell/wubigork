@@ -35,6 +35,9 @@ const (
 	// system_message 仅用于旧格式迁移：旧 JSONL 里的 system 消息没有对应事件，
 	// 迁移时原样落日志，投影时还原为 system 消息，保证恢复后的会话提示词不丢。
 	KindSystemMessage = "system_message"
+	// KindRequestHeader 是 request_header 事件：一次模型请求组装后的
+	// system prompt 与工具 schema（context-view 折叠的 system/tools 数据源）。
+	KindRequestHeader = "request_header"
 )
 
 // KindString 把 event.Kind 映射为日志 kind 字符串。
@@ -68,6 +71,8 @@ func KindString(k event.Kind) string {
 		return "compaction_started"
 	case event.CompactionDone:
 		return "compaction_done"
+	case event.RequestHeader:
+		return KindRequestHeader
 	case event.Retrying:
 		return "retrying"
 	case event.Steer:
@@ -90,6 +95,20 @@ type LogEntry struct {
 type userLogPayload struct {
 	Content string `json:"content"`
 	Name    string `json:"name,omitempty"`
+}
+
+// requestHeaderLogPayload 是 request_header 事件的 payload：一次模型请求
+// 组装后的 system prompt 与工具 schema（context-view 折叠的数据源）。
+type requestHeaderLogPayload struct {
+	System string                  `json:"system,omitempty"`
+	Tools  []requestToolLogPayload `json:"tools,omitempty"`
+	Window int                     `json:"window,omitempty"`
+}
+
+// requestToolLogPayload 是 request_header 中单个工具 schema。
+type requestToolLogPayload struct {
+	Name   string `json:"name"`
+	Schema string `json:"schema,omitempty"`
 }
 
 // toolCallLogPayload 是 tool_call / tool_dispatch 事件中的一次工具调用。
@@ -461,6 +480,16 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 			"summary":  e.Compaction.Summary,
 			"archive":  e.Compaction.Archive,
 			"quality":  e.Compaction.Quality,
+		}
+	case event.RequestHeader:
+		tools := make([]requestToolLogPayload, 0, len(e.Header.Tools))
+		for _, t := range e.Header.Tools {
+			tools = append(tools, requestToolLogPayload{Name: t.Name, Schema: t.Schema})
+		}
+		payload = requestHeaderLogPayload{
+			System: e.Header.System,
+			Tools:  tools,
+			Window: e.Header.Window,
 		}
 	case event.Retrying:
 		payload = map[string]int{"attempt": e.RetryAttempt, "max": e.RetryMax}

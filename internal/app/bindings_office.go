@@ -3,9 +3,11 @@
 package app
 
 import (
+	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/office"
 	"github.com/gaea/gaea/internal/gaea/tasks"
+	"github.com/gaea/gaea/internal/gaea/trajectory"
 )
 
 // OfficeB 办公引擎与工作区绑定门面（S2-3「App 绑定面拆分」）：仅暴露办公引擎与工作区的方法，
@@ -18,6 +20,7 @@ func (b *OfficeB) GaeaAddMCPServer(input MCPServerInput) (int, error) { return b
 func (b *OfficeB) GaeaAddPermissionRule(list string, rule string) error { return b.a.GaeaAddPermissionRule(list, rule) }
 func (b *OfficeB) GaeaAddRequirementItem(path string, text string) error { return b.a.GaeaAddRequirementItem(path, text) }
 func (b *OfficeB) GaeaAgentMode() string { return b.a.GaeaAgentMode() }
+func (b *OfficeB) GaeaAgentNetwork() (trajectory.AgentNetwork, error) { return b.a.GaeaAgentNetwork() }
 func (b *OfficeB) GaeaAnswer(id string, answers []event.AskAnswer) { b.a.GaeaAnswer(id, answers) }
 func (b *OfficeB) GaeaApplyUpdate() error { return b.a.GaeaApplyUpdate() }
 func (b *OfficeB) GaeaApprove(id string, allow bool, session bool) { b.a.GaeaApprove(id, allow, session) }
@@ -35,6 +38,7 @@ func (b *OfficeB) GaeaCheckUpdate() (*UpdateInfo, error) { return b.a.GaeaCheckU
 func (b *OfficeB) GaeaCheckpoints() []CheckpointMeta { return b.a.GaeaCheckpoints() }
 func (b *OfficeB) GaeaCommands() []CommandInfo { return b.a.GaeaCommands() }
 func (b *OfficeB) GaeaContext() ContextInfo { return b.a.GaeaContext() }
+func (b *OfficeB) GaeaContextView() (contextview.ContextTimeline, error) { return b.a.GaeaContextView() }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
 func (b *OfficeB) GaeaDataBackupCancel() error { return b.a.GaeaDataBackupCancel() }
 func (b *OfficeB) GaeaDataBackupCreate(destDir string) (map[string]interface{}, error) { return b.a.GaeaDataBackupCreate(destDir) }
@@ -134,6 +138,7 @@ func (b *OfficeB) GaeaTaskOutput(id string) (TaskOutputView, error) { return b.a
 func (b *OfficeB) GaeaTaskRetry(id string) error { return b.a.GaeaTaskRetry(id) }
 func (b *OfficeB) GaeaTaskTemplates() []TaskTemplate { return b.a.GaeaTaskTemplates() }
 func (b *OfficeB) GaeaTools() []map[string]interface{} { return b.a.GaeaTools() }
+func (b *OfficeB) GaeaTrajectory() (trajectory.Trajectory, error) { return b.a.GaeaTrajectory() }
 func (b *OfficeB) GaeaUnarchiveSession(path string) (string, error) { return b.a.GaeaUnarchiveSession(path) }
 func (b *OfficeB) GaeaUnifiedSearch(query string, topN int) (UnifiedSearchView, error) { return b.a.GaeaUnifiedSearch(query, topN) }
 func (b *OfficeB) GaeaUnpinMaterial(rel string) []FileSearchHit { return b.a.GaeaUnpinMaterial(rel) }

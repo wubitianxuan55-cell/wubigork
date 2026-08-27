@@ -224,6 +224,186 @@ export interface ContextInfo {
   window: number;
 }
 
+// ─── 上下文视图（dsh-context Go 移植 Phase A）────────────────────
+
+export interface ContextCategory {
+  system: number;
+  tools: number;
+  user: number;
+  inject: number;
+  assistant: number;
+  tool: number;
+}
+
+export interface ContextStats {
+  turns: number;
+  steps: number;
+  injects: number;
+  compacts: number;
+  prunes: number;
+  toolCalls: number;
+  images: number;
+  cacheHitPercent?: number;
+  costEstimate?: number;
+}
+
+export interface ContextRequestRecord {
+  seq: number;
+  ts: number;
+  turn: number;
+  step: number;
+  category: ContextCategory;
+  briefUser?: string;
+  briefIn?: string[];
+  briefResp?: string;
+  promptTokens?: number;
+  outputTokens?: number;
+  cacheHitTokens?: number;
+  cacheMissTokens?: number;
+}
+
+export interface ContextEvent {
+  kind: "inject" | "compact" | "prune" | "switch" | "mode";
+  seq: number;
+  delta?: number;
+  source?: string;
+  turn: number;
+  step: number;
+  ts: number;
+}
+
+export interface ContextSurfaceNode {
+  seq: number;
+  cat: "system" | "tools" | "user" | "inject" | "assistant" | "tool";
+  tokens: number;
+  text?: string;
+  gone?: number;
+}
+
+export interface ContextTimeline {
+  ok: boolean;
+  window: number;
+  current: ContextCategory;
+  stats: ContextStats;
+  requests: ContextRequestRecord[];
+  events: ContextEvent[];
+  nodes: ContextSurfaceNode[];
+  archive: ContextSurfaceNode[];
+}
+
+// ─── 轨迹视图（对齐 DSH ui-trajectory 事件账本）────────────────
+
+export interface Trajectory {
+  ok: boolean;
+  turns: TrajectoryTurn[];
+  betweenTurns?: TrajectoryRecord[];
+}
+
+export interface TrajectoryTurn {
+  turn: number;
+  startedAt?: number;
+  end?: TrajectoryTurnEnd;
+  records: TrajectoryRecord[];
+}
+
+export interface TrajectoryTurnEnd {
+  seq: number;
+  ts: number;
+  err?: string;
+}
+
+export type TrajectoryRecordKind =
+  | "user" | "header" | "assistant" | "tool" | "compact" | "ask" | "approval";
+
+export interface TrajectoryRecord {
+  seq: number;
+  kind: TrajectoryRecordKind;
+  ts: number;
+  durationMs?: number;
+  step?: number;
+  user?: TrajectoryUserRec;
+  header?: TrajectoryHeaderRec;
+  assistant?: TrajectoryAssistantRec;
+  tool?: TrajectoryToolRec;
+  compact?: TrajectoryCompactRec;
+  ask?: TrajectoryAskRec;
+  approval?: TrajectoryApprovalRec;
+}
+
+export interface TrajectoryUserRec {
+  text: string;
+}
+
+export interface TrajectoryHeaderRec {
+  system?: string;
+  toolCount: number;
+  tokens: number;
+  change?: "initial" | "system" | "tools" | "system-and-tools";
+}
+
+export interface TrajectoryAssistantRec {
+  text?: string;
+  reasoning?: string;
+  usage?: TrajectoryUsage;
+}
+
+export interface TrajectoryToolRec {
+  id: string;
+  name: string;
+  args?: string;
+  output?: string;
+  err?: string;
+  truncated?: boolean;
+  readOnly?: boolean;
+  status: "ok" | "error" | "running";
+  parentId?: string;
+}
+
+export interface TrajectoryCompactRec {
+  trigger?: string;
+  summary?: string;
+}
+
+export interface TrajectoryAskRec {
+  question?: string;
+}
+
+export interface TrajectoryApprovalRec {
+  tool?: string;
+  subject?: string;
+}
+
+export interface TrajectoryUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  cacheHitTokens?: number;
+  cacheMissTokens?: number;
+  reasoningTokens?: number;
+}
+
+// ─── Agent 网络（dsh-context Agent network 卡）────────────────
+
+export interface AgentNetwork {
+  ok: boolean;
+  window: number;
+  root: AgentNode;
+}
+
+export interface AgentNode {
+  id: string;
+  name: string;
+  kind: "root" | "subagent";
+  status: "running" | "completed" | "error";
+  model?: string;
+  task?: string;
+  toolCalls: number;
+  errors: number;
+  tokens: number;
+  firstTs?: number;
+  lastTs?: number;
+  children?: AgentNode[];
+}
+
 export interface Meta {
   label: string;
   subagentLabel?: string;

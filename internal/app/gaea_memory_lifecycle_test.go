@@ -14,6 +14,9 @@ import (
 
 // T6-8.2 归档清理绑定：超期归档硬删（溯源审计落盘），活跃事实不受影响。
 func TestGaeaMemoryCleanupArchived(t *testing.T) {
+	// 隔离 APPDATA/XDG：memoryRetentionDays 缺省读 gaeaLoadConfig，避免读真实配置
+	restore := workspaceTestIsolate(t)
+	defer restore()
 	dir := t.TempDir()
 	gdb := db.GetDatabase(dir)
 	if gdb == nil {
@@ -108,6 +111,9 @@ func TestGaeaMemoryArchivedListPaged(t *testing.T) {
 
 // 记忆统一层第一刀：归档分页绑定携带保留期天数（前端「归档保留 N 天」文案）。
 func TestGaeaMemoryArchivedList_RetentionDays(t *testing.T) {
+	// 隔离 APPDATA/XDG：断言值 90 依赖缺省配置，避免被真实/污染配置干扰
+	restore := workspaceTestIsolate(t)
+	defer restore()
 	dir := t.TempDir()
 	gdb := db.GetDatabase(dir)
 	if gdb == nil {
@@ -231,7 +237,10 @@ func TestGaeaMemoryUnarchiveBatch(t *testing.T) {
 }
 
 // 记忆统一层第二刀：memoryRetentionDays 读配置、钳制、回退默认。
+// 使用 workspaceTestIsolate 隔离 APPDATA/XDG，避免读取真实用户配置。
 func TestMemoryRetentionDays(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
 	oldCfg, oldCtrl := ga.cfg, ga.ctrl
 	defer func() { ga.cfg, ga.ctrl = oldCfg, oldCtrl }()
 
@@ -259,7 +268,11 @@ func TestMemoryRetentionDays(t *testing.T) {
 }
 
 // 记忆统一层第二刀：GaeaMemorySetRetentionDays 钳制 + 配置写入。
+// 使用 workspaceTestIsolate 隔离 APPDATA——gaeaConfig.Save 落盘到临时目录，
+// 绝不触碰真实用户配置（此前一版测试直接污染了真实 config.toml，已修复）。
 func TestGaeaMemorySetRetentionDays(t *testing.T) {
+	restore := workspaceTestIsolate(t)
+	defer restore()
 	oldCfg, oldCtrl := ga.cfg, ga.ctrl
 	defer func() { ga.cfg, ga.ctrl = oldCfg, oldCtrl }()
 	ga.cfg = &gaeaConfig.Config{Workspace: t.TempDir()}
@@ -269,6 +282,9 @@ func TestGaeaMemorySetRetentionDays(t *testing.T) {
 	// 正常设置
 	if err := a.GaeaMemorySetRetentionDays(45); err != nil {
 		t.Fatalf("SetRetentionDays(45): %v", err)
+	}
+	if d := ga.cfg.Memory.ArchivedRetentionDays; d != 45 {
+		t.Fatalf("设置后 = %d, want 45", d)
 	}
 	// 钳制下限（<1 → 1）
 	if err := a.GaeaMemorySetRetentionDays(0); err != nil {
@@ -283,5 +299,13 @@ func TestGaeaMemorySetRetentionDays(t *testing.T) {
 	}
 	if d := ga.cfg.Memory.ArchivedRetentionDays; d != 730 {
 		t.Fatalf("9999 钳制后 = %d, want 730", d)
+	}
+	// 落盘到隔离 APPDATA：重载（模拟下次启动）应读到 730
+	got, err := gaeaLoadConfig()
+	if err != nil {
+		t.Fatalf("重载隔离配置: %v", err)
+	}
+	if got.Memory.ArchivedRetentionDays != 730 {
+		t.Fatalf("隔离落盘重载 = %d, want 730", got.Memory.ArchivedRetentionDays)
 	}
 }

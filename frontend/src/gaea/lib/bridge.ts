@@ -11,6 +11,9 @@ import type {
   CheckpointMeta,
   CommandInfo,
   ContextInfo,
+  ContextTimeline,
+  AgentNetwork,
+  Trajectory,
   CrossEmbedInput,
   CrossEmbedResult,
   DirEntry,
@@ -161,6 +164,13 @@ export interface AppBindings {
   PickWorkspace(): Promise<string>;
   SwitchWorkspace(path: string): Promise<string>;
   ContextUsage(): Promise<ContextInfo>;
+  // ContextView 返回当前会话的上下文构成快照（dsh-context Go 移植 Phase A）：
+  // 六分类当前组成、逐请求趋势、上下文事件、模型可见节点与归档。
+  ContextView(): Promise<ContextTimeline>;
+  // Trajectory 返回当前会话的轨迹时间线（轮次→步骤→工具调用）。
+  Trajectory(): Promise<Trajectory>;
+  // AgentNetwork 返回当前会话的 Agent 网络（主 agent 根 + 子代理树）。
+  AgentNetwork(): Promise<AgentNetwork>;
   // TCCA 缓存报告（V3.0）— 返回 CacheReport JSON 字符串
   TCCAReport(): Promise<string>;
   // Balance queries the active provider's wallet balance (a network call);
@@ -410,11 +420,15 @@ export interface AppBindings {
   // ── 办公记忆归档生命周期（T6-8.2 / 记忆统一层）──
   // MemoryArchivedList 分页列出归档（含超过 90 天的硬删除候选），
   // 响应含 retentionDays（归档保留期天数，前端展示「归档保留 N 天」）；
-  // MemoryCleanupArchived 硬删除归档超过 90 天的事实，返回删除条数（无超期返回 0）；
-  // MemoryUnarchive 恢复一条已归档记忆回活跃列表（误归档可在保留期内一键恢复）。
+  // MemoryCleanupArchived 硬删除归档超过保留期的事实，返回删除条数（无超期返回 0）；
+  // MemoryUnarchive 恢复一条已归档记忆回活跃列表（误归档可在保留期内一键恢复）；
+  // MemoryUnarchiveBatch 批量恢复（逐条恢复、失败跳过并聚合错误，返回成功数）；
+  // MemorySetRetentionDays 设置归档保留期（天，钳制 [1,730]，持久化生效）。
   MemoryArchivedList(limit: number, offset: number): Promise<MemoryArchivedPage>;
   MemoryCleanupArchived(): Promise<number>;
   MemoryUnarchive(name: string): Promise<void>;
+  MemoryUnarchiveBatch(names: string[]): Promise<number>;
+  MemorySetRetentionDays(days: number): Promise<void>;
   // ── 工作区文件语义索引 ──
   // FileIndexRebuild 重建索引（异步任务，T5-1）：进度经 gaea-task 事件推送，
   // 结果（total/skipped）在任务 result 里。
@@ -603,6 +617,9 @@ const gaeaToGaea = {
   PickWorkspace: "GaeaPickWorkspace",
   SwitchWorkspace: "GaeaSwitchWorkspace",
   ContextUsage: "GaeaContext",
+  ContextView: "GaeaContextView",
+  Trajectory: "GaeaTrajectory",
+  AgentNetwork: "GaeaAgentNetwork",
   TCCAReport: "GaeaTCCAReport",
   Balance: "GaeaBalance",
   Jobs: "GaeaJobs",
@@ -753,6 +770,8 @@ const gaeaToGaea = {
   MemoryArchivedList: "GaeaMemoryArchivedList",
   MemoryCleanupArchived: "GaeaMemoryCleanupArchived",
   MemoryUnarchive: "GaeaMemoryUnarchive",
+  MemoryUnarchiveBatch: "GaeaMemoryUnarchiveBatch",
+  MemorySetRetentionDays: "GaeaMemorySetRetentionDays",
   FileIndexRebuild: "GaeaFileIndexRebuild",
   FileSemanticSearch: "GaeaFileSemanticSearch",
   ProfileResolveConflict: "GaeaProfileResolveConflict",

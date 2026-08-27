@@ -40,6 +40,10 @@ export function OfficeMemoryLibrary() {
   const [archLoading, setArchLoading] = useState(false);
   const [archOffset, setArchOffset] = useState(0);
   const [restoring, setRestoring] = useState<string | null>(null);
+  // 记忆统一层第二刀：批量恢复多选 + 保留期编辑
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [retentionInput, setRetentionInput] = useState<number | null>(null);
+  const [savingRetention, setSavingRetention] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -184,6 +188,35 @@ export function OfficeMemoryLibrary() {
     }
   }, [loadArchives]);
 
+  // 记忆统一层第二刀：批量恢复选中的归档事实（成功后清空选择并刷新）。
+  const handleUnarchiveBatch = useCallback(async () => {
+    const names = Array.from(selected);
+    if (names.length === 0) return;
+    setRestoring("batch");
+    try {
+      const n = await app.MemoryUnarchiveBatch(names);
+      message.success(`已批量恢复 ${n} 条归档记忆`);
+      setSelected(new Set());
+      await loadArchives(0, false);
+    } finally {
+      setRestoring(null);
+    }
+  }, [selected, loadArchives]);
+
+  // 记忆统一层第二刀：保存归档保留期（天）。
+  const handleSaveRetention = useCallback(async () => {
+    if (retentionInput == null) return;
+    setSavingRetention(true);
+    try {
+      await app.MemorySetRetentionDays(retentionInput);
+      message.success(`归档保留期已设为 ${retentionInput} 天`);
+      setRetentionDays(retentionInput);
+      setRetentionInput(null);
+    } finally {
+      setSavingRetention(false);
+    }
+  }, [retentionInput]);
+
   return (
     <div className="h-full flex flex-col">
       {/* 工具条 */}
@@ -313,9 +346,50 @@ export function OfficeMemoryLibrary() {
       {/* archives tab */}
       {tab === "archives" && (
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
-          {/* 保留期说明（retentionDays 由后端下发） */}
+          {/* 保留期说明 + 编辑（retentionDays 由后端下发；可配置保存） */}
           <div className="mb-2 px-3 py-2 rounded-lg bg-bg-elev/60 text-fg-faint text-[11px] leading-relaxed">
-            归档保留 {retentionDays} 天，超期可清理；误归档可在保留期内一键恢复。
+            <div className="flex items-center gap-2">
+              <span className="flex-1">
+                归档保留 {retentionDays} 天，超期可清理；误归档可在保留期内一键恢复。
+              </span>
+              {retentionInput == null ? (
+                <button
+                  type="button"
+                  className="shrink-0 px-2 h-6 rounded-md border border-border-soft text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[11px]"
+                  onClick={() => setRetentionInput(retentionDays)}
+                  title="修改归档保留期（天）"
+                >
+                  修改保留期
+                </button>
+              ) : (
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <input
+                    type="number"
+                    min={1}
+                    max={730}
+                    value={retentionInput}
+                    onChange={(e) => setRetentionInput(e.target.value === "" ? 1 : Math.max(1, Math.min(730, Number(e.target.value))))}
+                    className="w-16 px-2 h-6 rounded-md border border-border bg-bg text-fg text-[11px] outline-none focus:border-accent"
+                    aria-label="归档保留期天数"
+                  />
+                  <button
+                    type="button"
+                    className="px-2 h-6 rounded-md bg-accent/15 text-accent text-[11px] cursor-pointer hover:bg-accent/25 disabled:opacity-50"
+                    disabled={savingRetention}
+                    onClick={() => void handleSaveRetention()}
+                  >
+                    {savingRetention ? "保存中…" : "保存"}
+                  </button>
+                  <button
+                    type="button"
+                    className="px-2 h-6 rounded-md border border-border-soft text-fg-faint hover:text-fg transition-colors text-[11px]"
+                    onClick={() => setRetentionInput(null)}
+                  >
+                    取消
+                  </button>
+                </span>
+              )}
+            </div>
           </div>
           {archLoading && archives.length === 0 ? (
             <div className="py-10 text-center text-fg-faint text-[13px]">加载中…</div>
@@ -323,13 +397,63 @@ export function OfficeMemoryLibrary() {
             <EmptyState message="暂无归档 — 办公 agent 用 forget/删除操作归档的事实会出现在这里" />
           ) : (
             <>
+              {/* 批量操作条：全选 + 恢复选中 */}
+              <div className="mb-2 flex items-center gap-2">
+                <label className="flex items-center gap-1.5 text-[11px] text-fg-faint cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="accent-accent cursor-pointer"
+                    checked={selected.size > 0 && selected.size === archives.length}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelected(new Set(archives.map((a) => a.name)));
+                      else setSelected(new Set());
+                    }}
+                    aria-label="全选归档"
+                  />
+                  全选（{archives.length}）
+                </label>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-md bg-accent/15 text-accent text-[11.5px] cursor-pointer hover:bg-accent/25 disabled:opacity-50"
+                  disabled={selected.size === 0 || restoring === "batch"}
+                  onClick={() => void handleUnarchiveBatch()}
+                >
+                  <Rollback size={11} />
+                  {restoring === "batch" ? "恢复中…" : `恢复选中（${selected.size}）`}
+                </button>
+                {selected.size > 0 && (
+                  <button
+                    type="button"
+                    className="text-[11px] text-fg-faint hover:text-fg transition-colors"
+                    onClick={() => setSelected(new Set())}
+                  >
+                    取消选择
+                  </button>
+                )}
+              </div>
               <div className="flex flex-col gap-1.5">
                 {archives.map((a) => (
                   <div
                     key={a.name}
-                    className="border border-border-soft rounded-lg px-3 py-2 bg-bg-soft/50 opacity-70 hover:opacity-100 transition-opacity"
+                    className={`border rounded-lg px-3 py-2 bg-bg-soft/50 hover:opacity-100 transition-opacity ${
+                      selected.has(a.name) ? "border-accent/40" : "border-border-soft opacity-70"
+                    }`}
                   >
                     <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="accent-accent cursor-pointer"
+                        checked={selected.has(a.name)}
+                        onChange={(e) => {
+                          setSelected((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(a.name);
+                            else next.delete(a.name);
+                            return next;
+                          });
+                        }}
+                        aria-label={`选择归档 ${a.title || a.name}`}
+                      />
                       <span className="badge badge--muted">{a.type}</span>
                       {a.archivedAt && (
                         <span className="text-fg-faint text-[10px] font-mono">
@@ -340,7 +464,7 @@ export function OfficeMemoryLibrary() {
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 px-2 h-6 rounded-md bg-accent/15 text-accent text-[11px] cursor-pointer hover:bg-accent/25 disabled:opacity-50"
-                        disabled={restoring === a.name}
+                        disabled={restoring === a.name || restoring === "batch"}
                         onClick={() => void handleUnarchive(a.name)}
                         title={`把「${a.title || a.name}」恢复回活跃记忆`}
                       >

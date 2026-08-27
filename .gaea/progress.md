@@ -1,6 +1,31 @@
 # 任务进度
 
-> 最后更新: 2026-08-27 22:45（v3.4.0 已发布）
+> 最后更新: 2026-08-28 00:10（v3.5.0 已发布）
+
+## v3.5.0（2026-08-28 发布）——全部完成 ✅
+
+- ✅ **办公对话区三标签**：`[对话 | 轨迹 | 上下文]`（ChatTabs，localStorage 持久化）。
+- ✅ **request_header 事件**：模型请求前把 system prompt + 工具 schema 入日志
+  （「模型可见必入日志」请求头落点）。
+- ✅ **上下文标签**：`internal/gaea/contextview` FoldTimeline（六分类组成 + 原生 SVG
+  趋势图 + 事件流 + 步骤详情，usage 锚定与顶栏同源）+ `GaeaContextView`。
+- ✅ **轨迹标签**：`internal/gaea/trajectory` FoldTrajectory（对齐 DSH ui-trajectory
+  扁平事件账本：header change / 工具 parentId 嵌套 / 轮间压缩 / ask+approval）+ 
+  `GaeaTrajectory` + TrajectoryView（chips/搜索/徽标/检查器）。
+- ✅ **Agent 网络**：FoldAgentNetwork 子代理树 + `GaeaAgentNetwork`（subagents meta 富化）
+  + AgentNetworkCard（SVG 树/节点 token 环/悬停详情）。
+- ✅ **随版并入**：记忆统一层第二刀前端收尾（批量恢复/保留期 UI）。
+- ✅ **验证**：Go 114/114 + vet；vitest 668/668（127 文件）；eslint 0/0；tsc 0；
+  绑定面 503 漂移 PASS；版本四处统一 3.5.0；wails build + 冒烟 200。
+
+## 下一阶段候选（Phase D + 里程碑剩余）
+
+- ⏳ 上下文浏览器 / `/context` 命令 / 增量(Delta)模式 / File activity
+- ⏳ 轨迹时间条 Overview 投影、虚拟滚动分页、流式跟随尾部
+- ⏳ Agent 节点点击跳转子代理会话；SSE 增量刷新（现为回合结束重拉）
+- ⏳ 记忆统一层（路线图 V4）：三脑/多库记忆归并视图 + 统一检索 + 生命周期产品化（第一刀已发）
+- ⏳ 受控自主（goal gate 深化）：目标验收自动追踪产品化、审批流收敛
+- ⏳ 造价数据库体验收口：手册二期、测算项目批量导入/导出、分类树维护界面
 
 ## v3.4.0（2026-08-27 发布）——全部完成 ✅
 

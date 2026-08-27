@@ -13,6 +13,7 @@ import type { MakeMockState } from "./state";
 type MemoryMethods = Pick<
   AppBindings,
   | "Memory" | "MemoryArchivedList" | "MemoryCleanupArchived" | "MemoryUnarchive"
+  | "MemoryUnarchiveBatch" | "MemorySetRetentionDays"
   | "Remember" | "Forget" | "SaveDoc" | "UpdateFact" | "ChangeFactType"
   | "SetMemoryEnabled" | "MemorySuggestions"
   | "AcceptMemorySuggestion" | "AcceptSkillSuggestion"
@@ -94,6 +95,15 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     async MemoryUnarchive(name: string) {
       // mock: no-op——浏览器开发环境无持久化归档库（真实实现恢复事实回活跃列表）。
       emit({ kind: "notice", level: "info", text: `unarchived → ${name}` });
+    },
+    async MemoryUnarchiveBatch(names: string[]) {
+      // mock: 批量恢复返回成功数（全部成功）。
+      emit({ kind: "notice", level: "info", text: `batch unarchived → ${names.join(", ")}` });
+      return names.length;
+    },
+    async MemorySetRetentionDays(days: number) {
+      // mock: no-op——浏览器开发环境无持久化配置（真实实现写 config 并生效）。
+      emit({ kind: "notice", level: "info", text: `retention → ${days} 天` });
     },
     async Remember(scope: string, note: string) {
       emit({ kind: "notice", level: "info", text: `remembered → ${scope}` });
