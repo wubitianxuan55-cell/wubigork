@@ -148,9 +148,21 @@ func TestGaeaUnifiedSearch_Combined(t *testing.T) {
 			t.Errorf("语义未命中 %s: %+v", key, view.Semantic)
 		}
 	}
+
+	// 记忆统一层扩展：brain 组在测试环境（未 initBrain，a.brain==nil）应为
+	// 空数组且不报错；files 组结构完整（本环境无预建文件向量，命中可空但数组非 nil）。
+	if view.Brain == nil {
+		t.Fatal("brain 应为空数组（非 nil），保证 JSON 序列化为 []")
+	}
+	if len(view.Brain) != 0 {
+		t.Errorf("未装配三脑时 brain 应为空: %+v", view.Brain)
+	}
+	if view.Files == nil {
+		t.Fatal("files 应为数组（非 nil），保证 JSON 序列化为 []")
+	}
 }
 
-// TestGaeaUnifiedSearch_EmptyQuery 空 query 返回空视图（两组均为空数组），不报错。
+// TestGaeaUnifiedSearch_EmptyQuery 空 query 返回空视图（四组均为空数组），不报错。
 func TestGaeaUnifiedSearch_EmptyQuery(t *testing.T) {
 	// 显式填充嵌入的 *core：embedding 未配置时 localSearchEmbedder 会走到
 	// resolveHerdsmanSearchModel（读 a.engineMgr），零值 App 的 core 为 nil 会崩溃。
@@ -159,18 +171,36 @@ func TestGaeaUnifiedSearch_EmptyQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("空 query 不应报错: %v", err)
 	}
-	if len(view.Keyword) != 0 || len(view.Semantic) != 0 {
+	if len(view.Keyword) != 0 || len(view.Semantic) != 0 || len(view.Brain) != 0 || len(view.Files) != 0 {
 		t.Fatalf("空 query 应返回空视图: %+v", view)
 	}
-	if view.Keyword == nil || view.Semantic == nil {
+	if view.Keyword == nil || view.Semantic == nil || view.Brain == nil || view.Files == nil {
 		t.Fatalf("空 query 也应返回空数组（非 nil，JSON 序列化为 []）: %+v", view)
 	}
 	view2, err := a.GaeaUnifiedSearch("   ", 10)
 	if err != nil {
 		t.Fatalf("空白 query 不应报错: %v", err)
 	}
-	if len(view2.Keyword) != 0 || len(view2.Semantic) != 0 {
+	if len(view2.Keyword) != 0 || len(view2.Semantic) != 0 || len(view2.Brain) != 0 || len(view2.Files) != 0 {
 		t.Fatalf("空白 query 应返回空视图: %+v", view2)
+	}
+}
+
+// TestGaeaUnifiedSearch_BrainNil 三脑未装配（a.brain==nil）时 brain 组为空数组
+// 且不报错——hub 搜索降级为 keyword/semantic/files 照常。
+func TestGaeaUnifiedSearch_BrainNil(t *testing.T) {
+	t.Chdir(t.TempDir())
+	newUnifiedSearchEnv(t)
+	a := &App{core: &core{}}
+	view, err := a.GaeaUnifiedSearch("振动锤", 10)
+	if err != nil {
+		t.Fatalf("brain nil 不应报错: %v", err)
+	}
+	if view.Brain == nil {
+		t.Fatal("brain 应为空数组（非 nil）")
+	}
+	if len(view.Brain) != 0 {
+		t.Fatalf("brain nil 时命中应为空: %+v", view.Brain)
 	}
 }
 

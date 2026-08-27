@@ -87,6 +87,13 @@ func (a *App) tickFileIndex() {
 
 // GaeaFileSemanticSearch 对已索引的工作区文件做语义检索（本地 bge-m3）。
 func (a *App) GaeaFileSemanticSearch(query string, topN int) ([]FileSemanticHit, error) {
+	return a.fileSemanticHits(query, topN)
+}
+
+// fileSemanticHits 文件语义检索的共用私有实现（统一检索聚合复用，T-记忆统一层）：
+// 逻辑与 GaeaFileSemanticSearch 完全一致——embedding/索引不可用时返回空数组
+// 而不报错（与跨库语义检索同降级语义），查询超时 60s。
+func (a *App) fileSemanticHits(query string, topN int) ([]FileSemanticHit, error) {
 	if strings.TrimSpace(query) == "" {
 		return nil, nil
 	}
