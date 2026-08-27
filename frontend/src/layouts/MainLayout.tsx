@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, useReducer } from 'react'
-import { Layout, Button, Space, Typography, Tooltip, Spin, Progress, Breadcrumb, notification } from 'antd'
+import { Layout, Button, Space, Typography, Tooltip, Spin, Progress, notification } from 'antd'
 import {
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
   HomeOutlined, FileTextOutlined, UpOutlined, DownOutlined, ThunderboltOutlined,
@@ -344,7 +344,7 @@ const MainLayout: React.FC = () => {
   }, [page])
 
   const [activeModel, setActiveModel] = useState('')
-  useEffect(() => { checkLogin(); loadActiveModel() }, [])
+  useEffect(() => { checkLogin(); loadActiveModel() }, [checkLogin])
 
   // 3.0 定制：左下角悬浮模型卡（FeatureModelBar）移除后，顶栏 pill 统一展示
   // 「当前板块功能绑定的模型状态」（manifest.featureModel 驱动），无板块绑定时回退全局活跃模型。
@@ -378,7 +378,7 @@ const MainLayout: React.FC = () => {
       loadProjectInfo()
       loadStats()
     }
-  }, [projectOpen])
+  }, [projectOpen, loadProjectInfo, loadStats])
 
   // 跨页面导航事件（附 B #2：白名单 = manifest 派生）
   useEffect(() => {

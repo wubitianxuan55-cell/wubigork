@@ -39,7 +39,7 @@ export function MemoryPanel(p: {
   const noteRef = useRef<HTMLInputElement>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const facts = view?.facts ?? [];
+  const facts = useMemo(() => view?.facts ?? [], [view?.facts]);
   const docs = view?.docs ?? [];
   const archives = view?.archives ?? [];
   const [suggestions, setSuggestions] = useState<MemorySuggestionsView | null>(null);
@@ -48,7 +48,7 @@ export function MemoryPanel(p: {
   // 记忆开关（记忆可控性）：与后端配置同步，切换后引擎重建立即生效
   const [memoryEnabled, setMemoryEnabled] = useState(view?.enabled ?? true);
   const toast = useToast();
-  const scopes = view?.scopes ?? [];
+  const scopes = useMemo(() => view?.scopes ?? [], [view?.scopes]);
   const factNames = useMemo(() => new Set(facts.map((f) => f.name)), [facts]);
   const factTypes = useMemo(
     () => Array.from(new Set(facts.map((f) => f.type).filter(Boolean))).sort(),

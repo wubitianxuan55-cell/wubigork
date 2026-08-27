@@ -31,10 +31,19 @@ export default defineConfig([
       // T6-10.2（v2.33.0）：any 已全仓清零，升为硬错误进 CI 门禁——
       // 新增任何显式 any 都会让 lint 失败。
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-unused-vars': 'warn',
-      'no-empty': 'warn',
+      // 质量收敛（v3.3.0）：`^_` 前缀参数/变量/catch 参数 = 显式声明「故意不用」，
+      // 属社区标准约定，配置放行；真正的死代码（无 `_` 前缀）仍报警告待清理。
+      '@typescript-eslint/no-unused-vars': ['warn', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
+      // 空 catch 块（localStorage/绑定降级吞错）为有意为之，放行；空 if/for/函数体仍报警告。
+      'no-empty': ['warn', { allowEmptyCatch: true }],
       '@typescript-eslint/ban-ts-comment': 'warn',
-      'react-refresh/only-export-components': 'warn',
+      // react-refresh：放行纯常量导出（Vite 官方模板默认项）——组件文件内
+      // const 常量（如 QUICK_REPLIES / FALLBACK_TEMPLATES）不影响 Fast Refresh。
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       '@typescript-eslint/no-namespace': 'warn',
     },
   },

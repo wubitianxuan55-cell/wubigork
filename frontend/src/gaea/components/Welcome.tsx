@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- 任务模板加载/兜底函数导出供测试与复用 */
 import {
   ArrowUpRight, BarChart3, BookOpen, Brain, Clock, FilePpt, FileText, FolderOpen,
   MessageSquare, RefreshCw, ScrollText, Sparkles, Table, Wand2,

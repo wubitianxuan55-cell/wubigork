@@ -43,6 +43,7 @@ export function StreamingIndicator({
   items: Item[];
 }) {
   const last = items[items.length - 1];
+  const isStreaming = last?.kind === "assistant" && last.streaming;
   const [stage, setStage] = useState<Stage>("idle");
   const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -52,7 +53,7 @@ export function StreamingIndicator({
       if (stallTimer.current) clearTimeout(stallTimer.current);
       return;
     }
-    if (last?.kind === "assistant" && last.streaming) {
+    if (isStreaming) {
       setStage("streaming");
       if (stallTimer.current) clearTimeout(stallTimer.current);
       return;
@@ -71,7 +72,7 @@ export function StreamingIndicator({
     return () => {
       if (stallTimer.current) clearTimeout(stallTimer.current);
     };
-  }, [running, last?.id, last?.kind === "assistant" && last.streaming, items]);
+  }, [running, isStreaming, items]);
 
   const hidden = !running || stage === "idle";
   const cfg = stageConfig[hidden ? "idle" : stage];

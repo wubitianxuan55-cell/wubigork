@@ -8,6 +8,8 @@ import (
 )
 
 // waitEvent 在超时内等待一个批次事件。
+// 注意：调用方统一传 5s（历史 flaky：沙箱/CI 高负载下 fsnotify 事件投递 + 100ms
+// debounce 可能延迟超过 3s，导致首跑假红复跑绿；2026-08-27 质量收敛放宽至 5s）。
 func waitEvent(t *testing.T, w *Watcher, timeout time.Duration) Event {
 	t.Helper()
 	select {
@@ -38,7 +40,7 @@ func TestWatchFileCreateModifyRemove(t *testing.T) {
 	if err := os.WriteFile(f1, []byte("hello"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	ev := waitEvent(t, w, 3*time.Second)
+	ev := waitEvent(t, w, 5*time.Second)
 	if !contains(ev.Changed, "a.md") {
 		t.Fatalf("新增事件应含 a.md: %+v", ev)
 	}
@@ -47,7 +49,7 @@ func TestWatchFileCreateModifyRemove(t *testing.T) {
 	if err := os.WriteFile(f1, []byte("hello world"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	ev = waitEvent(t, w, 3*time.Second)
+	ev = waitEvent(t, w, 5*time.Second)
 	if !contains(ev.Changed, "a.md") {
 		t.Fatalf("修改事件应含 a.md: %+v", ev)
 	}
@@ -56,7 +58,7 @@ func TestWatchFileCreateModifyRemove(t *testing.T) {
 	if err := os.Remove(f1); err != nil {
 		t.Fatal(err)
 	}
-	ev = waitEvent(t, w, 3*time.Second)
+	ev = waitEvent(t, w, 5*time.Second)
 	if !contains(ev.Removed, "a.md") {
 		t.Fatalf("删除事件应含 a.md: %+v", ev)
 	}
@@ -101,7 +103,7 @@ func TestDirCreateTriggersFull(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "sub"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	ev := waitEvent(t, w, 3*time.Second)
+	ev := waitEvent(t, w, 5*time.Second)
 	if !ev.Full {
 		t.Fatalf("新建目录应触发 Full: %+v", ev)
 	}
@@ -109,7 +111,7 @@ func TestDirCreateTriggersFull(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "sub", "b.txt"), []byte("b"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	ev = waitEvent(t, w, 3*time.Second)
+	ev = waitEvent(t, w, 5*time.Second)
 	if !contains(ev.Changed, "sub/b.txt") {
 		t.Fatalf("子目录文件事件应含 sub/b.txt: %+v", ev)
 	}

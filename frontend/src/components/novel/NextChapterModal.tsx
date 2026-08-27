@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Typography, Button, Modal, message } from 'antd'
+import { Typography, Modal, message } from 'antd'
 import { BranchesOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import type { OutlineNode } from '../../types'
@@ -20,7 +20,7 @@ const NextChapterModal: React.FC<NextChapterModalProps> = ({
   const nodeID = nextNode?.id || ''
   const { loading, branches, selected, setSelected, handleBrainstorm } = usePlotBranch(nodeID)
 
-  const [keyInfo, setKeyInfo] = useState('')
+  const [, setKeyInfo] = useState('')
   const [generating, setGenerating] = useState(false)
 
   useEffect(() => {

@@ -61,7 +61,7 @@ export const MaterialsPanel = memo(function MaterialsPanel({
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
     loadPinned();
-  }, []);
+  }, [loadPinned]);
   useEffect(() => { load(); }, [load]);
   // 一键 @ 引用后也刷新固定清单（引用本身不改固定，仅保持面板同步）
   useEffect(() => { loadPinned(); }, [requestAt, loadPinned]);

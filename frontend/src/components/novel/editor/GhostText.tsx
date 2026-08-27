@@ -72,24 +72,6 @@ const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleP
     }
   }, [enabled])
 
-  // 键盘事件: Tab 接受, Esc 取消
-  useEffect(() => {
-    if (!enabled) return
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Tab' && ghost.visible && ghost.text) {
-        e.preventDefault()
-        acceptGhost()
-      } else if (e.key === 'Escape' && ghost.visible) {
-        e.preventDefault()
-        dismissGhost()
-      }
-    }
-
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [ghost.visible, ghost.text, enabled])
-
   // 接受补全：插入文本并清除 ghost
   const acceptGhost = useCallback(() => {
     const ctx = getCursorContext()
@@ -118,6 +100,23 @@ const GhostText: React.FC<GhostTextProps> = ({ getCursorContext, enabled, styleP
     currentRequestRef.current = ''
   }, [])
 
+  // 键盘事件: Tab 接受, Esc 取消
+  useEffect(() => {
+    if (!enabled) return
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab' && ghost.visible && ghost.text) {
+        e.preventDefault()
+        acceptGhost()
+      } else if (e.key === 'Escape' && ghost.visible) {
+        e.preventDefault()
+        dismissGhost()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [ghost.visible, ghost.text, enabled, acceptGhost, dismissGhost])
 
   // 更新 ghost 位置（跟随光标）
   const updatePosition = useCallback(() => {

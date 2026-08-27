@@ -1,7 +1,7 @@
 import React from 'react'
 import { Button, Tooltip } from 'antd'
 import {
-  GlobalOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+  GlobalOutlined, MenuFoldOutlined,
   ReadOutlined, BookOutlined, BarChartOutlined,
 } from '@ant-design/icons'
 import OutlinePanel from './OutlinePanel'

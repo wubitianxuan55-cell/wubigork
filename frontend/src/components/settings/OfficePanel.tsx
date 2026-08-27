@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Button, Input, InputNumber, Select, Space, Switch, Tag, Typography, message } from 'antd'
-import { SaveOutlined, RobotOutlined, ApiOutlined, CheckCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Input, InputNumber, Select, Space, Switch, Typography, message } from 'antd'
+import { SaveOutlined, ReloadOutlined } from '@ant-design/icons'
 import { gaeaSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
 import * as App from '../../../src/wailsjsCompat'

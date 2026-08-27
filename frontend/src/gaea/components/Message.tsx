@@ -155,7 +155,6 @@ export const UserMessage = memo(function UserMessage({
 
 export const AssistantMessage = memo(function AssistantMessage({
   item,
-  onCollapse,
   onCapture,
 }: {
   item: AssistantItem;

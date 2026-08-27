@@ -168,7 +168,7 @@ export function DocxPreview({
     } finally {
       setApplying(false);
     }
-  }, [selected, proposal, relPath]);
+  }, [selected, proposal, relPath, markUpdated]);
 
   const closeToolbar = useCallback(() => {
     setSelected(null);
@@ -196,7 +196,7 @@ export function DocxPreview({
         setFlattening(false);
       }
     },
-    [relPath],
+    [relPath, markUpdated],
   );
 
   return (

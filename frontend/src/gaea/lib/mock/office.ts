@@ -227,7 +227,7 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         body: "", dataUrl: MOCK_DOCX_DATA_URL, error: "",
       };
     },
-    async DocxAcceptChanges(rel: string, accept: boolean) {
+    async DocxAcceptChanges(rel: string, _accept: boolean) {
       return {
         path: rel, name: rel.split("/").pop() ?? rel, ext: ".docx",
         size: 1728, kind: "docx" as const,

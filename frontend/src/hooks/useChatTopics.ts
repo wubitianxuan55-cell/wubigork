@@ -7,7 +7,7 @@ import { message } from 'antd'
 import * as App from '../wailsjsCompat'
 import { sortByUpdatedAtDesc, autoTopicTitle } from '../utils/chatTopics'
 import { ACTIVE_TOPIC_KEY, PERSONALITY_KEY } from '../pages/chat/constants'
-import { toUpdatedAt, loadPersonality, migrateLegacyTopics, logFrontendError, parseExtra } from '../pages/chat/utils'
+import { toUpdatedAt, migrateLegacyTopics, logFrontendError, parseExtra } from '../pages/chat/utils'
 import type { ChatMsg, Personality } from '../pages/chat/types'
 import type { chat, whisper } from '../../wailsjs/go/models'
 

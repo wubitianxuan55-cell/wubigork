@@ -214,7 +214,6 @@ export default function App() {
   useEffect(() => {
     return usePreviewStore.subscribe((s, prev) => {
       if (s.previewFile && s.previewFile !== prev.previewFile) {
-        const rel = s.previewFile;
         setRightTab("files");
         setWorkspacePanel(false);
       }
@@ -285,7 +284,7 @@ export default function App() {
       toast.show(e instanceof Error ? e.message : String(e), "warn");
     }
   }, [state.items, toast]);
-  const { alive: bridgeAlive, onReconnect } = useBridgeWatch();
+  const { onReconnect } = useBridgeWatch();
   useEffect(() => {
     onReconnect(() => { refreshMeta(); });
   }, [onReconnect, refreshMeta]);
@@ -518,7 +517,7 @@ export default function App() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [state.running, closeTopmost, workspacePanelOpen, previewFile, toggleFocus, closeFilePreview]);
+  }, [state.running, closeTopmost, workspacePanelOpen, previewFile, toggleFocus, closeFilePreview, newSessionAndReset, openHistory, openKnowledge, toggleSidebar, toggleWorkspacePanel]);
 
   const { toolCounts, skillCounts } = useToolStats(state.items);
   // 会话产物：从会话消息文本中提取交付文件（保留首现顺序；同一文件多次
@@ -692,7 +691,7 @@ export default function App() {
       run: () => { closeFilePreview(); setWorkspacePanel(false); send(tm.prompt); },
     }));
     return [...cmds, ...templateItems, ...sessionItems];
-  }, [t, sidebarSessions, startNewSession, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, closeFilePreview, setRightTab, templates, send]);
+  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, closeFilePreview, setRightTab, templates, send, newSessionAndReset]);
 
   const layoutStyle = useMemo(
     () =>

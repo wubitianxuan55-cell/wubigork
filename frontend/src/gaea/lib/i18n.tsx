@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- i18n 基础设施：Provider + 翻译工具/hook 同文件（Context 模块惯例），非组件热更新场景 */
 // i18n is the desktop's localization seam. It mirrors theme.ts's "persist a choice
 // and apply it" shape, but UI text must re-render on a switch, so the active locale
 // lives in React state behind a context — flipping it re-renders the whole tree

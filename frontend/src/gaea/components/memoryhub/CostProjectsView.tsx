@@ -615,7 +615,7 @@ function ItemRow({
 
 // ── 成本库单价搜索下拉 ────────────────────────────────────────
 function EntryPicker({ query, onPick }: { query: string; onPick: (e: CostSummary) => void }) {
-  const [q, setQ] = useState(query);
+  const [q] = useState(query);
   const [results, setResults] = useState<CostSummary[]>([]);
   const debounced = useDebouncedValue(q, 250);
   useEffect(() => {

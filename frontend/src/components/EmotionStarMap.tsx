@@ -1,5 +1,4 @@
 import React from 'react'
-import { C } from '../utils/theme'
 
 // ─── 四维情绪星图（对齐 ackem EmotionStarMap） ─────────────────
 

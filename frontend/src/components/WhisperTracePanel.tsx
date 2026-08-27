@@ -37,13 +37,6 @@ function trustColor(t: number): string {
   return '#f87171'
 }
 
-// aff 颜色（绿→红→灰）
-function affColor(a: number): string {
-  if (a >= 30) return '#4ade80'
-  if (a >= -30) return '#facc15'
-  return '#f87171'
-}
-
 // MiniBar 四色：indigo/green/amber/pink
 function MiniBar2({ value, color, max }: { value: number; color: string; max: number }) {
   const pct = Math.max(0, Math.min(100, ((value + max) / (2 * max)) * 100))
@@ -147,7 +140,7 @@ function TraceRow({ entry, expanded, onToggle }: {
   )
 }
 
-export default function WhisperTracePanel({ traces, currentTurn }: Props) {
+export default function WhisperTracePanel({ traces }: Props) {
   const [expandedTurn, setExpandedTurn] = useState<number | null>(null)
   const [count, setCount] = useState(20)
 

@@ -36,7 +36,7 @@ export function BindSection() {
   const {
     engines, featureCfg, featureDraft, featureEnabled, modelRoutes,
     chatVoiceCfg, chatVoiceDraft, chatVoiceSaving, chatVoiceOptions, chatVoiceValue,
-    voiceCfg, setVoiceCfg,
+    setVoiceCfg,
     portraitCfg, portraitDraft, portraitModelOptions, portraitSaving,
     llmModels, ttsModels,
     setFeatureDraft, setChatVoiceDraft, setPortraitDraft,

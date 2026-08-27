@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   BarChart3, BookOpen, Box, Calculator, ChevronRight, CloudUpload, Coins, FileSpreadsheet, FolderPlus,
-  FolderTree, Gauge, PieChart, Plus, RefreshCw, Shield, Sparkles, TrendingUp,
+  FolderTree, Gauge, PieChart, Plus, RefreshCw, Shield, TrendingUp,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import type { CostCategory, CostSummary, FilePickResult, PriceSource } from "../gaea/lib/types";

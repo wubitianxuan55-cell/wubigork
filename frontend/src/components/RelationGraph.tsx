@@ -151,7 +151,7 @@ const RelationGraph: React.FC<RelationGraphProps> = ({
     return related
   }, [hovered, edges])
 
-  const allNodes = [...charNodes, ...orgNodes]
+  const allNodes = useMemo(() => [...charNodes, ...orgNodes], [charNodes, orgNodes])
   const nodeRadiusScale = 8 + 2 * Math.log10(allNodes.length + 1)
 
   // 检测鼠标下的节点（基于前一帧的变换）

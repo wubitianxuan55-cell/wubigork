@@ -133,6 +133,7 @@ export function Composer({
       paste.clearBlocks();
     }
     wasRunning.current = running;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- paste 为 usePasteBlocks 每次渲染新建的对象，补依赖会导致 effect 每渲染重跑；其 clearBlocks 方法本身是 useCallback([]) 稳定
   }, [running, text]);
 
   // 右侧资料面板「一键 @ 引用」→ 插入输入框

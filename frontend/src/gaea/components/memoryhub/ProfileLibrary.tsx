@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Modal, Button, Input, Form, Tag } from "antd";
+import { Modal, Input, Form, Tag } from "antd";
 import { AlertCircle, Brain, Plus, Pencil, Trash2, RefreshCw } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { ProfileFactView } from "../../lib/types";

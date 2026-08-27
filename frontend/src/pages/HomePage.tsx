@@ -25,7 +25,7 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
 const HomePage: React.FC = () => {
   const {
     loggedIn, login, projectOpen, projectPath, projectTitle, novelsDir,
-    projects, loadProjects, openProject, closeProject, deleteProject, loadNovelsDir,
+    projects, loadProjects, openProject, deleteProject, loadNovelsDir,
   } = useAppStore()
 
   // 新建小说表单
@@ -56,7 +56,7 @@ const HomePage: React.FC = () => {
     } else {
       setLoadingProjects(false)
     }
-  }, [loggedIn])
+  }, [loggedIn, loadNovelsDir, loadProjects])
 
   // Ctrl+N 快捷键
   useEffect(() => {

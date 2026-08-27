@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal, message } from "antd";
-import { FileText, RefreshCw, Sparkles, Trash2 } from "../../icons";
+import { RefreshCw, Sparkles, Trash2 } from "../../icons";
 import { app } from "../../lib/bridge";
 import type { MemoryDuplicateView, MemoryFact, MemoryView } from "../../lib/types";
 import { FactCard } from "../FactCard";
@@ -45,7 +45,7 @@ export function OfficeMemoryLibrary() {
 
   useEffect(() => { load(); }, [load]);
 
-  const facts = view?.facts ?? [];
+  const facts = useMemo(() => view?.facts ?? [], [view?.facts]);
   const factNames = useMemo(() => new Set(facts.map((f) => f.name)), [facts]);
 
   const filtered = useMemo(() => {

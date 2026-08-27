@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Tooltip } from 'antd'
 import {
-  ControlOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+  ControlOutlined, MenuFoldOutlined,
   FileTextOutlined, BookOutlined, ThunderboltOutlined, UserOutlined,
   ReadOutlined, InfoCircleOutlined,
 } from '@ant-design/icons'

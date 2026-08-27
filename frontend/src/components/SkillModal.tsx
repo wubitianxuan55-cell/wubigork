@@ -31,7 +31,6 @@ const SkillModal: React.FC<SkillModalProps> = ({ open, onClose }) => {
 
   const loadSkills = async () => {
     try {
-      // @ts-ignore
       const s = await window.go.app.App.ListSkills()
       setSkills(s || [])
     } catch (_) {}

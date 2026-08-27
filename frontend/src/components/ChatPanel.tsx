@@ -8,7 +8,6 @@ import {
   UpOutlined,
   CopyOutlined,
   CheckOutlined,
-  MessageOutlined,
   ImportOutlined,
 } from '@ant-design/icons'
 import { C } from '../utils/theme'
@@ -81,6 +80,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       onAutoSendDone?.()
     }, 100)
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onAutoSendDone 为可选 props 回调，父组件（NovelSettingPage）未以 useCallback 包裹传入，补依赖会在回调身份变化时重置发送定时器
   }, [autoSend])
 
   useEffect(() => {

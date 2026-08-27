@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
 import { Coins, CloudUpload } from "../icons";
-import { app } from "../lib/bridge";
 import { useComposerInsertStore } from "../lib/store";
 import type { CostSummary } from "../lib/types";
 import { CostLibraryView } from "./CostLibraryView";

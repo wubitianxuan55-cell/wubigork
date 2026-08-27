@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- useStatsPersistence hook 与组件同文件（usage 事件订阅持久化） */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, BarChart3, TrendingUp, Wallet, Zap } from "../icons";
 import type { SessionStatsView, WireUsage } from "../lib/types";
@@ -148,7 +149,7 @@ export function useStatsPersistence(
     }
     turnAccumRef.current = { prompt: 0, completion: 0, cacheHit: 0, cacheMiss: 0, cost: 0 };
     perTurnRef.current = null;
-  }, [perTurnUsage]);
+  }, [perTurnUsage, sessionKey]);
 
   const clearData = () => {
     saveData(sessionKey, { turns: [], steps: [] });

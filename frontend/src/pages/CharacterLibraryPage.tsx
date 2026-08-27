@@ -14,7 +14,6 @@ import CharacterLibEditor from '../components/characterlib/CharacterLibEditor'
 import CharacterLibInspector from '../components/characterlib/CharacterLibInspector'
 import CharacterLibFilterBar from '../components/characterlib/CharacterLibFilterBar'
 import CharacterMemoryModal from '../components/characterlib/CharacterMemoryModal'
-import FeatureModelBar from '../components/FeatureModelBar'
 import { useAppStore } from '../stores/appStore'
 import {
   listCharacters, getCharacter, deleteCharacter, importProjectCharacters,

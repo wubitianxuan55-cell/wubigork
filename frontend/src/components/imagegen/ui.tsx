@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- estimateImageTime 工具函数导出供生成流程复用 */
 import React from 'react'
 import { RightOutlined } from '@ant-design/icons'
 import { C } from '../../utils/theme'

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- 粘贴处理工具函数 + usePasteBlocks hook 与组件同文件（共享逻辑） */
 import { useCallback, useRef, useState } from "react";
 import type { ClipboardEvent, RefObject } from "react";
 import { Eye, FileText, Trash2 } from "../icons";

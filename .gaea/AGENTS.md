@@ -5,6 +5,35 @@
 
 ## 版本状态
 
+- **最新发布：v3.3.0（2026-08-27）「质量收敛 · eslint 存量 warnings 清零 + flaky 治理」**：
+  git tag `v3.3.0`；CHANGELOG / releases/v3.3.0.md / README 索引同步。要点：
+  - **eslint 366 → 0（errors 0 / warnings 0）**，四层收敛：
+    ① 配置显式化——`no-unused-vars` 加 `^_` 前缀 ignore patterns（下划线=显式「故意
+    不用」，社区标准）、`no-empty` 开 `allowEmptyCatch`（空 catch 为降级吞错设计）、
+    react-refresh 开 `allowConstantExport`；② 死代码清理 56 处（未用 import/const/
+    函数/catch 参数/解构成员，跨 40 文件；含 mock chat.ts 只写不读 `cancelled` 及其
+    两处死写入）；③ exhaustive-deps 40 处——稳定依赖补全 / 不稳定依赖显式 disable
+    注释（含 GhostText/useVoiceChat 两处 TDZ 陷阱 useCallback 定义上移重排、
+    GraphView/Composer 两处 disable 位置修正）/ 复杂表达式提取变量 / 每渲染重建数组
+    wrap useMemo / ref cleanup 竞态局部变量化；④ react-refresh 25 处混合导出加文件级
+    显式声明（14 文件）+ 移除 10 处冗余 `@ts-ignore`（wails.d.ts 类型早已生成，tsc 验证
+    0 错误）。
+  - **flaky 治理**：filewatch 测试超时 3s→5s（沙箱/CI 高负载下 fsnotify 投递延迟曾致
+    首跑假红复跑绿）；CI 后端测试失败后整体重试一次（重试后仍失败正常红）；确认 CI
+    已排除 internal/tts、test-all.ps1 已有 AV 锁重试。
+  - **releases/README.md 乱码恢复**：v2.40.0 及更早 98 行 GBK 损坏（U+FFFD 不可逆）
+    从 git 历史（v3.0.1 提交 7c53db8 干净版）逐行重建，0 残留。
+  - **前端性能体检**：大组件 memo 复查（页面级组件收益有限不额外加）；唯一热点 =
+    XlsxPreview Excel 网格全量渲染（maxRow×maxCol `<td>`），修复需虚拟滚动重构、
+    收益/风险比低——按「先体检再决定」纪律记录待真实卡顿反馈。
+  - **验证**：eslint **0/0**（366→0）、tsc 0 errors、vitest **652/652（124 文件）**
+    零回归、Go 全量 **112/112 包**、filewatch 5 测试绿、绑定面 **497 方法**漂移 PASS
+    （零新绑定）、版本四处统一 3.3.0、wails build + 冒烟 /api/health 200；v3.2.1 归档
+    releases/archive/。
+  - **下一阶段**（v3.2.0 里程碑剩余）：记忆统一层（路线图 V4）+ 受控自主（goal gate
+    深化）；C9 分栏对照留待验证真实需求；造价数据库体验收口（手册二期/测算项目导入
+    导出/分类树维护）。eslint 已清零——CI 门禁「存量 warn 随迭代清理」正式收官。
+
 - **最新发布：v3.2.1（2026-08-26）「工作区内联编辑 · C5 文本文件直接编辑保存」**：
   git tag `v3.2.1`；CHANGELOG / releases/v3.2.1.md / README 索引同步。要点：
   - **C5（蒸馏候选清单 9 项全部收官）**：新绑定 `GaeaWriteFile(rel, content)`（绑定面

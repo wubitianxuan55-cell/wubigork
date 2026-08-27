@@ -39,16 +39,17 @@ export function useComposerMenus({ text, debouncedText, setTextCaretEnd }: UseCo
   const atRaw = atMention?.raw ?? null
   const atDir = atMention?.dir ?? ""
   const atFrag = atMention?.frag ?? ""
+  const atActive = atRaw !== null
   const [entries, setEntries] = useState<DirEntry[]>([])
   const dirCache = useRef<Record<string, DirEntry[]>>({})
   useEffect(() => {
-    if (atRaw === null) return
+    if (!atActive) return
     const cached = dirCache.current[atDir]
     if (cached) { setEntries(cached); return }
     let live = true
     app.ListDir(atDir).then((es) => { const list = es ?? []; dirCache.current[atDir] = list; if (live) setEntries(list); }).catch(() => {})
     return () => { live = false; }
-  }, [atRaw === null, atDir])
+  }, [atActive, atDir])
   // 工作区跨目录搜索（@ 引用增强：搜一下定位资料）
   const [atHits, setAtHits] = useState<FileSearchHit[]>([])
   useEffect(() => {

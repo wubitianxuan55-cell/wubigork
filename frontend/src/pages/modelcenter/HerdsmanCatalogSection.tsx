@@ -11,7 +11,6 @@ import {
   uninstallHerdsmanModel,
   type HerdsmanCatalogModel,
   type HerdsmanLaunchPreset,
-  type HerdsmanModelStat,
   type HerdsmanModelStats,
   type HerdsmanOpResult,
 } from '../../api/engines'

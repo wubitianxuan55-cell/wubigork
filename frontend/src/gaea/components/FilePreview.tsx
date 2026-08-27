@@ -119,7 +119,6 @@ export function FilePreview({
   }
 
   const fileName = preview?.name ?? relPath.split("/").pop() ?? relPath;
-  const kind = preview?.kind ?? "text";
 
   return (
     <div className="flex flex-col h-full text-[12px]">

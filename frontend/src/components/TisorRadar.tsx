@@ -95,7 +95,7 @@ export default function TisorRadar({ dims, size = 200, color = '#e85388', showLa
         strokeOpacity={0.5} filter="url(#tisor-glow)" />
 
       {/* 数据点 */}
-      {dotPositions.map(({ x, y, key, value }) => (
+      {dotPositions.map(({ x, y, key }) => (
         <g key={`dot-${key}`} onMouseEnter={() => setHovered(key)} onMouseLeave={() => setHovered(null)}
           style={{ cursor: 'pointer' }}>
           {/* 外圈光晕 */}

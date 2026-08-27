@@ -32,7 +32,6 @@ export function usePlotBranch(nodeID: string, onApplied?: () => void) {
     setBranches([])
     setSelected(-1)
     try {
-      // @ts-ignore
       const result = await window.go.app.App.BrainstormBranches(nodeID)
       if (result?.branches) setBranches(result.branches)
     } catch (err: unknown) {
@@ -44,7 +43,6 @@ export function usePlotBranch(nodeID: string, onApplied?: () => void) {
     if (selected < 0 && !manualMode) { message.warning('请选择分支或手工录入'); return }
     setApplying(true)
     try {
-      // @ts-ignore
       await window.go.app.App.ApplyBranch(
         nodeID,
         manualMode ? -1 : selected,

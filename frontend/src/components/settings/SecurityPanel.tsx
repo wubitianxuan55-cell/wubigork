@@ -40,7 +40,7 @@ export const SecurityPanel: React.FC = () => {
     } finally {
       setSensitiveLoading(false)
     }
-  }, [])
+  }, [go])
 
   useEffect(() => { void load() }, [load])
 
@@ -66,7 +66,7 @@ export const SecurityPanel: React.FC = () => {
     } finally {
       setChecking(false)
     }
-  }, [])
+  }, [go])
 
   useEffect(() => { void check() }, [check])
 

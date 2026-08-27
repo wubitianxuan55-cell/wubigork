@@ -21,7 +21,17 @@ jobs:
       - run: go vet ./...
 
       # internal/tts 的 TestEdgeTTS 依赖外部网络，暂时排除
-      - run: go test $(go list ./... | grep -v /internal/tts) -count=1
+      # flaky 治理（2026-08-27）：整体失败后重试一次——filewatch 等时间敏感测试
+      # 在 windows-latest 高负载下偶发假红（本地复跑即绿），重试可消除环境抖动；
+      # 重试后仍失败则正常红，不掩盖真实缺陷。
+      - name: Go tests (with flaky retry)
+        shell: bash
+        run: |
+          pkgs=$(go list ./... | grep -v /internal/tts)
+          if ! go test $pkgs -count=1; then
+            echo "first run failed (possibly flaky), retrying once..."
+            go test $pkgs -count=1
+          fi
 
       - uses: golangci/golangci-lint-action@v7
         with:

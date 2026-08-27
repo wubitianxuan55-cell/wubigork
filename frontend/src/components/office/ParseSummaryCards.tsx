@@ -1,6 +1,6 @@
 import React from 'react'
-import { Button, Card, Input, Space, Tag, Typography } from 'antd'
-import { FileTextOutlined, SaveOutlined } from '@ant-design/icons'
+import { Card, Input, Space, Tag, Typography } from 'antd'
+import { FileTextOutlined } from '@ant-design/icons'
 
 const { Text } = Typography
 

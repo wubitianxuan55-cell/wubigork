@@ -54,7 +54,7 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
   const treeInited = useRef(false);
 
   // 分类树 → 节点/路径索引（多级路径：一级/二级/…/叶子）。
-  const { nodeById, pathById, allPaths } = useMemo(() => {
+  const { pathById, allPaths } = useMemo(() => {
     const nodeById = new Map<number, CostCategory>();
     const pathById = new Map<number, string>();
     const allPaths: string[] = [];

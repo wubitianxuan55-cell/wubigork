@@ -29,7 +29,7 @@ import OrganizationEditModal from '../components/novel/character/OrganizationEdi
 import PortraitLightbox from '../components/novel/character/PortraitLightbox'
 import { PortraitImg } from '../components/characterlib/PortraitImg'
 import {
-  getCharacters, saveOrganization, deleteOrganization, toggleOrgMember,
+  getCharacters, saveOrganization, deleteOrganization,
   saveRelationship, deleteRelationship,
   generateCharacterFill, generateCharacterPortrait, mergeCharacters,
 } from '../components/novel/api/character'
@@ -347,20 +347,14 @@ const CharacterPage: React.FC = () => {
       await loadData()
       message.success('组织已保存')
       setModalOrg(null)
-    } catch (err) { message.error('保存失败') }
+    } catch { message.error('保存失败') }
   }
   const handleDeleteOrg = async (id: string) => {
     try {
       await deleteOrganization(id)
       await loadData()
       message.success('组织已删除')
-    } catch (err) { message.error('删除失败') }
-  }
-  const handleToggleOrgMember = async (charID: string, orgID: string) => {
-    try {
-      await toggleOrgMember(charID, orgID)
-      await loadData()
-    } catch (err) { message.error('切换成员失败') }
+    } catch { message.error('删除失败') }
   }
   const handleAddRel = async () => {
     if (!relFromId || !relTargetId) return
@@ -370,13 +364,13 @@ const CharacterPage: React.FC = () => {
       await loadData()
       message.success('关系已建立')
       setRelModalOpen(false)
-    } catch (err) { message.error('建立关系失败') }
+    } catch { message.error('建立关系失败') }
   }
   const handleDeleteRel = async (rel: RelationshipData) => {
     try {
       await deleteRelationship(rel.from_id, rel.to_id)
       await loadData()
-    } catch (err) { message.error('删除关系失败') }
+    } catch { message.error('删除关系失败') }
   }
 
   const filteredCharacters = useMemo(() => characters.filter(ch => {

@@ -1,5 +1,34 @@
 # gaea · 多功能 AI 助手
 
+## v3.3.0「质量收敛 · eslint 存量 warnings 清零 + flaky 治理」(2026-08-27)
+> v3.2.1 后的工程质量刀：366 条存量 eslint warnings 归零（配置显式化 + 死代码清理 +
+> exhaustive-deps 补全 + 混合导出显式声明 + 冗余 @ts-ignore 移除）、CI/测试 flaky 治理、
+> releases/README.md 历史乱码恢复、前端性能体检。纯工程质量，零功能变更。
+- **eslint 366 → 0（errors 0 / warnings 0）**：
+  - 配置显式化：`no-unused-vars` 加 `^_` 前缀 ignore patterns（下划线 = 显式「故意不用」，
+    社区标准）、`no-empty` 开 `allowEmptyCatch`（空 catch 为降级吞错的有意设计）、
+    react-refresh 开 `allowConstantExport`（纯常量导出不破坏 Fast Refresh）
+  - 死代码清理 56 处（未用 import/const/函数/catch 参数/解构成员，跨 40 文件）
+  - exhaustive-deps 40 处：稳定依赖补全（useCallback/store 方法/setter）+ 不稳定依赖
+    显式 disable 注释（含 GhostText/useVoiceChat 两处 TDZ 陷阱的 useCallback 定义上移
+    重排、GraphView/Composer 两处 disable 注释位置修正）+ 复杂表达式提取变量 +
+    每渲染重建数组 wrap useMemo + ref cleanup 竞态局部变量化
+  - react-refresh/only-export-components 25 处：14 个混合导出文件加文件级显式声明
+    （Provider+hook 同文件、工具函数供测试/复用等设计使然）
+  - 移除 10 处冗余 `@ts-ignore`/`@ts-expect-error`（wails.d.ts 已生成类型，注释多余）
+- **flaky 治理**：filewatch 测试事件等待超时 3s→5s（沙箱/CI 高负载下 fsnotify 投递 +
+  debounce 延迟曾致首跑假红复跑绿）；CI 后端测试失败后整体重试一次（重试后仍失败
+  正常红，不掩盖真实缺陷）；确认 CI 已排除 internal/tts、test-all.ps1 已有 AV 锁重试
+- **releases/README.md 乱码恢复**：v2.40.0 及更早 98 行 GBK 损坏（U+FFFD 不可逆）从
+  git 历史（v3.0.1 提交 7c53db8 干净版本）逐行重建，0 残留；版本索引历史行完整可读
+- **前端性能体检**：大组件 memo 复查（Transcript/CostLibraryView/Message 已 memo，
+  页面级组件 memo 收益有限不额外加）；唯一热点 = XlsxPreview Excel 网格全量渲染
+  （maxRow×maxCol `<td>`），修复需虚拟滚动重构、收益/风险比低——按「先体检再决定」
+  纪律记录待真实卡顿反馈
+- **验证**：eslint **0 errors / 0 warnings**（366→0）、tsc 0 errors、vitest
+  **652/652（124 文件）**零回归、Go 全量 **112/112 包**、filewatch 5 测试绿、
+  绑定面 **497 方法**漂移 PASS、版本四处统一 3.3.0、wails build + 冒烟 /api/health 200
+
 ## v3.2.1「工作区内联编辑 · C5 文本文件直接编辑保存」(2026-08-26)
 > v3.2.0 第二刀（蒸馏候选清单第 9 项收尾）：工作区文本文件在预览中直接编辑保存。
 - **C5 工作区内联编辑（GaeaWriteFile）**：新绑定 `GaeaWriteFile(rel, content) error`

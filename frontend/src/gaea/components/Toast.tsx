@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- ToastProvider 组件 + useToast hook 同文件（Context 模块） */
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react";
 
 type ToastKind = "info" | "warn" | "error";

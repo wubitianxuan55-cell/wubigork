@@ -133,12 +133,10 @@ async function runCompactionTurn(input: string, cancelledRef: { v: boolean }) {
 
 export function buildChat(s: MakeMockState): ChatMethods {
   const { runningMock, sessions, archivedMock, requirementsMock, projectGroupsMock } = s;
-  let cancelled = false; // Submit/Cancel 共享的中断标记（原 makeMockApp 局部状态）
   const cancelledRef = { v: false }; // 供异步场景读取最新值
   let pendingFlow: "approval" | "ask" | null = null; // 挂起中的审批/提问场景
   return {
     async Submit(input) {
-      cancelled = false;
       cancelledRef.v = false;
       pendingFlow = null;
       const scenario = mockScenario();
@@ -151,7 +149,6 @@ export function buildChat(s: MakeMockState): ChatMethods {
       await this.Submit(input);
     },
     async Cancel() {
-      cancelled = true;
       cancelledRef.v = true;
       pendingFlow = null;
       emit({ kind: "turn_done" });
@@ -251,7 +248,7 @@ export function buildChat(s: MakeMockState): ChatMethods {
       const i = sessions.findIndex((s) => s.path === path);
       if (i >= 0) sessions.splice(i, 1);
     },
-    async SessionStats(path: string) {
+    async SessionStats(_path: string) {
       // 派生统计 mock：可用 + 固定示例值（浏览器开发模式回填历史成本用）。
       return {
         available: true,

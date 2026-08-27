@@ -111,10 +111,8 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
 
   // 监听 Wails TTS 流式事件
   useEffect(() => {
-    // @ts-ignore
     if (!window.runtime?.EventsOn) return
 
-    // @ts-ignore
     window.runtime.EventsOn('tts-stream', (ev: TTSStreamEvent) => {
       if (!ev?.type) return
 
@@ -148,7 +146,6 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
 
     return () => {
       try {
-        // @ts-ignore
         window.runtime?.EventsOff?.('tts-stream')
       } catch (_) {}
     }
@@ -172,7 +169,6 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
     onClearRef.current?.()
 
     try {
-      // @ts-ignore
       await window.go.app.App.TTSSpeakStreaming(text)
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '语音合成失败')

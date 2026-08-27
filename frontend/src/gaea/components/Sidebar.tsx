@@ -425,7 +425,7 @@ export function Sidebar({
   useEffect(() => {
     const timer = setTimeout(() => onSearchChange(localQuery), 200);
     return () => clearTimeout(timer);
-  }, [localQuery]);
+  }, [localQuery, onSearchChange]);
 
   // 高频搜索防抖：输入框值即时更新（localQuery），过滤/搜索消费防抖后的值
   const debouncedQuery = useDebouncedValue(localQuery, 250);

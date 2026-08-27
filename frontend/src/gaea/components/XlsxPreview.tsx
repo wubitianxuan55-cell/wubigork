@@ -163,7 +163,7 @@ export function XlsxPreview({
     } finally {
       setRunning(false);
     }
-  }, [selected, instruction, preview, active, relPath]);
+  }, [selected, instruction, preview, active, relPath, markUpdated]);
 
   const closeEdit = useCallback(() => {
     setSelected(null);
@@ -212,7 +212,7 @@ export function XlsxPreview({
         setSaving(false);
       }
     },
-    [preview, active, relPath, saving],
+    [preview, active, relPath, saving, markUpdated],
   );
 
   const embedChart = useCallback(
@@ -285,7 +285,7 @@ export function XlsxPreview({
     } finally {
       setRecalcing(false);
     }
-  }, [preview, recalcing, relPath]);
+  }, [preview, recalcing, relPath, markUpdated]);
 
   // 行级操作：插上行/插下行/删除行（基于选中单元格所在行）
   const rowOps = useCallback(
@@ -308,7 +308,7 @@ export function XlsxPreview({
         setRowOpsBusy(false);
       }
     },
-    [preview, active, selected, relPath, rowOpsBusy],
+    [preview, active, selected, relPath, rowOpsBusy, markUpdated],
   );
 
   // 切换选区时取消“删除行”二次确认
@@ -337,7 +337,7 @@ export function XlsxPreview({
         setColOpsBusy(false);
       }
     },
-    [preview, active, selectedCol, relPath, colOpsBusy],
+    [preview, active, selectedCol, relPath, colOpsBusy, markUpdated],
   );
 
   const selectCol = useCallback((letter: string) => {
@@ -790,7 +790,7 @@ function SheetGrid({
               >
                 {r}
               </td>
-              {headerCells.map((letter, ci) => {
+              {headerCells.map((letter) => {
                 const ref = letter + r;
                 if (mergeContinuations.has(ref)) return null;
                 const cell = cellMap.get(ref);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Typography, Space, Tag, Modal, Input, Spin, Empty } from 'antd'
-import { SearchOutlined, FileTextOutlined, UserOutlined, UnorderedListOutlined } from '@ant-design/icons'
+import { SearchOutlined, FileTextOutlined, UserOutlined } from '@ant-design/icons'
 
 import { C } from '../utils/theme'
 
@@ -52,7 +52,6 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose }) => {
     setSearched(true)
     setFilterCategory(null)
     try {
-      // @ts-ignore
       const data = await window.go.app.App.Search(q)
       setResults(data || {})
     } catch (_) {

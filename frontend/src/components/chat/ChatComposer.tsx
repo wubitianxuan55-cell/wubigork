@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- QUICK_REPLIES 常量导出供右侧 inspector 快捷建议复用 */
 // ChatPage 拆分产物：输入岛（快捷回复 + 工具行 + 输入卡，T6-10.1）。
 // 3.0 Wave 2 布局重设计（T6-10.2）：工具按钮（搜索/深度思考/语音）从输入卡内
 // 移出，独立成上方细工具行（激活态胶囊 + 键盘提示）；输入卡只保留 textarea + 发送。

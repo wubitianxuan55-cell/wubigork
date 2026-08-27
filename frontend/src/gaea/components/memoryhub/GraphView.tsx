@@ -104,11 +104,11 @@ export function GraphView(p: { variant?: "page" | "home"; onSelect?: (node: Grap
 
     // 数据就绪后首次渲染
     if (dataRef.current) applyFilter(fg, dataRef.current, typeFilter);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => {
       window.removeEventListener("resize", resizeGraph);
       ro?.disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 图初始化 effect 只应运行一次：typeFilter 为随过滤变化的状态、onSelect 为父组件回调、applyFilter 为普通函数，均非稳定值；补依赖会在其变化时先执行 cleanup（断开 ResizeObserver、移除 resize 监听）再因 graphRef 已存在而早退，画布将失去自适应
   }, []);
 
   // 类型过滤变化 → 重新构图

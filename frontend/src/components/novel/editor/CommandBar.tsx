@@ -66,7 +66,6 @@ const CommandBar: React.FC<CommandBarProps> = ({ selectedText, onAccept, onClose
     setEditedText(null)
 
     try {
-      // @ts-ignore
       const result = await window.go.app.App.CmdKEdit(selectedText, instruction.trim(), styleProfile || '')
       const edited = result?.edited || ''
       if (!edited) {

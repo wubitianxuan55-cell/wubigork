@@ -23,23 +23,24 @@ export function useRunningBadge(): number {
   // 以最新任务表为准，天然幂等。
   useEffect(() => {
     let cancelled = false;
+    const tasks = tasksRef.current;
     const recalc = () => {
       if (cancelled) return;
       let n = 0;
-      for (const t of tasksRef.current.values()) {
+      for (const t of tasks.values()) {
         if (isActive(t.status)) n += 1;
       }
       setCount(n);
     };
     const off = onTaskEvent((t) => {
-      tasksRef.current.set(t.id, t);
+      tasks.set(t.id, t);
       recalc();
     });
     app
       .TaskList()
       .then((list) => {
         if (cancelled) return;
-        for (const t of list ?? []) tasksRef.current.set(t.id, t);
+        for (const t of list ?? []) tasks.set(t.id, t);
         recalc();
       })
       .catch(() => {
@@ -48,7 +49,7 @@ export function useRunningBadge(): number {
     return () => {
       cancelled = true;
       off();
-      tasksRef.current.clear();
+      tasks.clear();
     };
   }, []);
 

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import * as App from '../../src/wailsjsCompat'
-import { EventsOn, EventsOff } from '../../wailsjs/runtime/runtime'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
 
 // ── 状态类型（兼容现有 VoiceChatOrb） ──
 
@@ -107,6 +107,98 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     })
   }, [])
 
+  // ── 音频播放 ──
+
+  const playAudio = useCallback(async (audioData: string | Uint8Array | ArrayLike<number>, mimeType: string) => {
+    if (!audioData) {
+      pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+      if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+      App.VoicePlaybackDone().catch(() => {})
+      return
+    }
+
+    // 确保 playback context 存在
+    if (!playbackCtxRef.current || playbackCtxRef.current.state === 'closed') {
+      playbackCtxRef.current = new AudioContext()
+      gainRef.current = playbackCtxRef.current.createGain()
+      gainRef.current.connect(playbackCtxRef.current.destination)
+      gainRef.current.gain.value = 1.0
+    }
+
+    const ctx = playbackCtxRef.current
+    if (ctx.state === 'suspended') await ctx.resume()
+
+    // 转换数据：Wails 事件中 []byte 以 base64 字符串传输（对齐 TTSPlayer atob 解码）
+    let bytes: Uint8Array
+    if (typeof audioData === 'string') {
+      const bin = atob(audioData)
+      bytes = Uint8Array.from(bin, c => c.charCodeAt(0))
+    } else if (audioData instanceof Uint8Array) {
+      bytes = audioData
+    } else {
+      bytes = new Uint8Array(audioData)
+    }
+    if (bytes.length === 0) {
+      pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+      if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+      App.VoicePlaybackDone().catch(() => {})
+      return
+    }
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) as ArrayBuffer
+
+    try {
+      const audioBuffer = await ctx.decodeAudioData(buffer)
+      const source = ctx.createBufferSource()
+      source.buffer = audioBuffer
+      source.connect(gainRef.current!)
+      source.onended = () => {
+        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+        App.VoicePlaybackDone().catch(() => {})
+      }
+      source.start(0)
+    } catch {
+      // decodeAudioData 可能失败（非浏览器原生格式），尝试用 Audio 元素
+      const blob = new Blob([bytes as BlobPart], { type: mimeType || 'audio/mp3' })
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      audio.onended = () => {
+        URL.revokeObjectURL(url)
+        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+        App.VoicePlaybackDone().catch(() => {})
+      }
+      audio.onerror = () => {
+        URL.revokeObjectURL(url)
+        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+        App.VoicePlaybackDone().catch(() => {})
+      }
+      try {
+        await audio.play()
+      } catch {
+        // 播放被阻止等失败：兜底释放状态机，避免后端一直等待播放完成
+        URL.revokeObjectURL(url)
+        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
+        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
+        App.VoicePlaybackDone().catch(() => {})
+      }
+    }
+  }, [setState2])
+
+  const stopPlayback = useCallback(() => {
+    pendingSpeechRef.current = 0
+    setState2({ aiSpeaking: false })
+    if (playbackCtxRef.current && playbackCtxRef.current.state !== 'closed') {
+      playbackCtxRef.current.close().catch(() => {})
+    }
+    playbackCtxRef.current = null
+    gainRef.current = null
+    speechSynthesis.cancel()
+    App.VoiceCancelTTS().catch(() => {})
+    App.VoicePlaybackDone().catch(() => {})
+  }, [setState2])
+
   // ── 事件监听 ──
 
   useEffect(() => {
@@ -205,99 +297,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     return () => {
       unsubs.forEach(fn => { try { fn() } catch (_) {} })
     }
-  }, [onTranscript, onReply, setState2])
-
-  // ── 音频播放 ──
-
-  const playAudio = useCallback(async (audioData: string | Uint8Array | ArrayLike<number>, mimeType: string) => {
-    if (!audioData) {
-      pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
-      if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-      App.VoicePlaybackDone().catch(() => {})
-      return
-    }
-
-    // 确保 playback context 存在
-    if (!playbackCtxRef.current || playbackCtxRef.current.state === 'closed') {
-      playbackCtxRef.current = new AudioContext()
-      gainRef.current = playbackCtxRef.current.createGain()
-      gainRef.current.connect(playbackCtxRef.current.destination)
-      gainRef.current.gain.value = 1.0
-    }
-
-    const ctx = playbackCtxRef.current
-    if (ctx.state === 'suspended') await ctx.resume()
-
-    // 转换数据：Wails 事件中 []byte 以 base64 字符串传输（对齐 TTSPlayer atob 解码）
-    let bytes: Uint8Array
-    if (typeof audioData === 'string') {
-      const bin = atob(audioData)
-      bytes = Uint8Array.from(bin, c => c.charCodeAt(0))
-    } else if (audioData instanceof Uint8Array) {
-      bytes = audioData
-    } else {
-      bytes = new Uint8Array(audioData)
-    }
-    if (bytes.length === 0) {
-      pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
-      if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-      App.VoicePlaybackDone().catch(() => {})
-      return
-    }
-    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) as ArrayBuffer
-
-    try {
-      const audioBuffer = await ctx.decodeAudioData(buffer)
-      const source = ctx.createBufferSource()
-      source.buffer = audioBuffer
-      source.connect(gainRef.current!)
-      source.onended = () => {
-        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
-        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-        App.VoicePlaybackDone().catch(() => {})
-      }
-      source.start(0)
-    } catch (err) {
-      // decodeAudioData 可能失败（非浏览器原生格式），尝试用 Audio 元素
-      const blob = new Blob([bytes as BlobPart], { type: mimeType || 'audio/mp3' })
-      const url = URL.createObjectURL(blob)
-      const audio = new Audio(url)
-      audio.onended = () => {
-        URL.revokeObjectURL(url)
-        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
-        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-        App.VoicePlaybackDone().catch(() => {})
-      }
-      audio.onerror = () => {
-        URL.revokeObjectURL(url)
-        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
-        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-        App.VoicePlaybackDone().catch(() => {})
-      }
-      try {
-        await audio.play()
-      } catch (playErr) {
-        // 播放被阻止等失败：兜底释放状态机，避免后端一直等待播放完成
-        URL.revokeObjectURL(url)
-        pendingSpeechRef.current = Math.max(0, pendingSpeechRef.current - 1)
-        if (pendingSpeechRef.current === 0) setState2({ aiSpeaking: false })
-        App.VoicePlaybackDone().catch(() => {})
-      }
-    }
-  }, [setState2])
-
-  const stopPlayback = useCallback(() => {
-    pendingSpeechRef.current = 0
-    setState2({ aiSpeaking: false })
-    if (playbackCtxRef.current && playbackCtxRef.current.state !== 'closed') {
-      playbackCtxRef.current.close().catch(() => {})
-    }
-    playbackCtxRef.current = null
-    gainRef.current = null
-    speechSynthesis.cancel()
-    App.VoiceCancelTTS().catch(() => {})
-    App.VoicePlaybackDone().catch(() => {})
-  }, [])
+  }, [onTranscript, onReply, setState2, playAudio, stopPlayback])
 
   // ── 音频采集 ──
 
@@ -453,7 +453,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     if (browserASRAvailable) {
       startBrowserRecognition()
     }
-  }, [startCapture, setState2])
+  }, [startCapture, setState2, startBrowserRecognition])
 
   const stop = useCallback(() => {
     abortRef.current = true
@@ -489,7 +489,7 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       active: false, listening: false, speaking: false, aiSpeaking: false,
       transcript: '', finalTranscript: '', volume: 0, error: null,
     })
-  }, [stopPlayback, setState2])
+  }, [stopPlayback, setState2, stopBrowserRecognition])
 
   // ── PTT 控制 ──
 

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- STREAM_SILENCE_TIMEOUT_MS 常量再导出供 vitest 导入（T6-3.1） */
 // ChatPage（T6-10.1 巨型组件拆分后的编排层，行为零变化）
 // 职责：状态编排 + 跨 hook/组件装配；流订阅（useChatStream）、话题状态机
 // （useChatTopics）、语音集成（useChatVoice）与纯展示组件拆分见各产物文件。

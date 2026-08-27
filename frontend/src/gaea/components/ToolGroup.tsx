@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- scanGroups 工具函数导出供复用/测试 */
 import { memo, useRef, useState } from "react";
 import { ChevronRight, FolderOpen } from "../icons";
 import { ToolCard } from "./ToolCard";

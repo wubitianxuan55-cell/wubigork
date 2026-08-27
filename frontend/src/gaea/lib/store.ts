@@ -317,7 +317,7 @@ export const usePreviewStore = create<PreviewState>()((set, get) => ({
   previewIndex: -1,
   openFilePreview: (rel: string) => {
     if (!rel) return;
-    const { previewList, previewIndex } = get();
+    const { previewList } = get();
     // 已在队列：移动为当前（不重复入列）
     const existIdx = previewList.indexOf(rel);
     if (existIdx >= 0) {
@@ -538,7 +538,7 @@ export function useController() {
     app.Jobs().then(j => dispatch({ type: "jobs", jobs: j })).catch((err) => logBridgeError("init Jobs", err));
     refreshFactBase();
     return () => { off(); offReady(); window.clearInterval(watchdog); };
-  }, [loadSessionData, refreshFactBase, reconcileFinalAnswer]);
+  }, [loadSessionData, refreshFactBase, reconcileFinalAnswer, store, dispatch]);
 
   // T7-4：send 失败不再静默——保留已上屏的用户消息（可复制重发），
   // 记录 bridge 日志并给出用户可见的失败提示。

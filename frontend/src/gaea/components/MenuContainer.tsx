@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- useMenuScroll hook 与 MenuContainer 同文件（共享滚动逻辑） */
 import { useEffect, useRef, type ReactNode } from "react";
 
 /** 三个菜单(SlashMenu/FileMenu/ArgMenu)共享的容器：定位、外观、动画、键盘提示栏 */

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- buildSegments 纯函数导出供测试与消息渲染复用 */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowDown, Ban, Brain, CheckCircle, ChevronRight, FileText, Loader } from "../icons";
 import type { Item } from "../lib/store";
@@ -118,7 +119,7 @@ function alternatingSegments(turn: Item[]): Segment[] {
   return segments;
 }
 
-export function buildSegments(items: Item[], running = false): Segment[] {
+export function buildSegments(items: Item[], _running = false): Segment[] {
   // 先按用户消息切成轮
   const turns: Item[][] = [];
   let curTurn: Item[] = [];
@@ -558,7 +559,7 @@ export function Transcript({
       if (last && last.kind === "user") onNewQuestion();
     }
     prevItemsLen.current = items.length;
-  }, [items.length, onNewQuestion]);
+  }, [onNewQuestion, items]);
 
   useEffect(() => {
     scrollToBottom();

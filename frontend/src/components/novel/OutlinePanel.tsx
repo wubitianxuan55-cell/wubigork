@@ -1,5 +1,5 @@
 import React from 'react'
-import { Typography, Button, Tooltip } from 'antd'
+import { Button, Tooltip } from 'antd'
 import {
   BookOutlined, UnorderedListOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined,

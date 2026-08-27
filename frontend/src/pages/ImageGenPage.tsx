@@ -47,7 +47,7 @@ const ImageGenPage: React.FC = () => {
   const historyApi = useImageGenHistory({ setPrompt, setNegative, setSeed, setSize })
   const {
     history, setHistory, lightboxIndex, setLightboxIndex,
-    handleDownload, handleReuse, handleDelete, handleSetPortrait,
+    handleDownload, handleReuse, handleSetPortrait,
   } = historyApi
 
   const queueApi = useImageGenQueue({

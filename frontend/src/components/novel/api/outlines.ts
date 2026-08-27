@@ -13,7 +13,6 @@ export interface OutlineData {
 /** 加载大纲列表和故事主线 */
 export async function loadOutlines(): Promise<OutlineData | null> {
   try {
-    // @ts-ignore
     const data = await window.go.app.App.GetOutlines()
     return data || null
   } catch (err) {

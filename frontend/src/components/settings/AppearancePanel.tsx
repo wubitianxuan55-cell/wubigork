@@ -4,7 +4,7 @@ import {
   SunOutlined, ThunderboltOutlined, FontSizeOutlined, DashboardOutlined, CompressOutlined,
   EyeOutlined, SwapOutlined, AimOutlined,
 } from '@ant-design/icons'
-import { Button, InputNumber, Select, Typography } from 'antd'
+import { Button, InputNumber, Select } from 'antd'
 import { useAppStore, THEME_PRESETS, FONT_OPTIONS, type DisplayMode, type ThemePreset, type Density, type MotionPref } from '../../stores/appStore'
 import SettingsSection from './SettingsSection'
 
