@@ -17,7 +17,7 @@
 import {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
-  SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined,
+  SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined, AccountBookOutlined,
 } from '@ant-design/icons'
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
@@ -27,7 +27,7 @@ import { GetBoardManifests } from '../wailsjsCompat'
 const ICON_REGISTRY: Record<string, ComponentType> = {
   HomeOutlined, MessageOutlined, ReadOutlined, PictureOutlined,
   ToolOutlined, DatabaseOutlined, ApiOutlined, TeamOutlined,
-  SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined,
+  SettingOutlined, WechatOutlined, BookOutlined, CodeOutlined, AccountBookOutlined,
 }
 
 /** 查表解析 antd 图标；未知图标名返回 null（不抛错，渲染时退化） */
@@ -51,14 +51,20 @@ const SETTINGS_NAV: BoardNavChild[] = [
   { id: 'about', label: '关于' },
 ]
 const MEMORYHUB_NAV: BoardNavChild[] = [
-  { id: 'knowledge', label: '知识库' }, { id: 'cost', label: '成本库' },
+  { id: 'knowledge', label: '知识库' },
   { id: 'profile', label: '用户画像' }, { id: 'office', label: '办公记忆' },
   { id: 'materials', label: '项目资料' }, { id: 'whisper', label: '聊天记忆' },
   { id: 'graph', label: '记忆图谱' }, { id: 'digitallife', label: '数字生命' },
 ]
+const COST_NAV: BoardNavChild[] = [
+  { id: 'overview', label: '概览' },
+  { id: 'entries', label: '成本条目' },
+  { id: 'sources', label: '价格源' },
+  { id: 'repository', label: '价格仓库' },
+]
 
 /**
- * 内置 canonical 板块清单（10 条 = 9 业务板块 + home 启动器壳层）。
+ * 内置 canonical 板块清单（11 条 = 10 业务板块 + home 启动器壳层）。
  * menuOrder 与现状 menuItems 顺序一致；settings/weixin inMenu=false（不进顶栏菜单）。
  * weixin 为 3.0 §3.1 canonical 9 预留（前端页面尚未落地，暂无入口）。
  */
@@ -90,34 +96,39 @@ export const canonicalBoards: BoardManifest[] = [
     menuOrder: 4, inMenu: true, featureModel: 'gaea',
   },
   {
+    id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage',
+    lazy: true, keepAlive: true, layout: 'padded',
+    menuOrder: 5, inMenu: true, nav: { children: COST_NAV }, featureModel: 'cost',
+  },
+  {
     id: 'code', label: '编程', icon: 'CodeOutlined', page: 'ProgrammingPage',
     lazy: true, keepAlive: true, layout: 'full', // 桌面内嵌 Harness Web 工作台（全出血）
-    menuOrder: 5, inMenu: true,
+    menuOrder: 6, inMenu: true,
   },
   {
     id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 6, inMenu: true, nav: { children: MEMORYHUB_NAV },
+    menuOrder: 7, inMenu: true, nav: { children: MEMORYHUB_NAV },
   },
   {
     id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 7, inMenu: true,
+    menuOrder: 8, inMenu: true,
   },
   {
     id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 8, inMenu: true, featureModel: 'characterlib',
+    menuOrder: 9, inMenu: true, featureModel: 'characterlib',
   },
   {
     id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 9, inMenu: false, nav: { children: SETTINGS_NAV },
+    menuOrder: 10, inMenu: false, nav: { children: SETTINGS_NAV },
   },
   {
     id: 'weixin', label: '微信', icon: 'WechatOutlined', page: 'WeixinPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 10, inMenu: false,
+    menuOrder: 11, inMenu: false,
   },
 ]
 
@@ -128,7 +139,7 @@ type AssertNever<T extends never> = T
 export type BoardId = (typeof canonicalBoards)[number]['id']
 /** 编译期断言：Page 联合恰好等于 manifest 全部 id（新增板块只改 manifests.ts） */
 type _AssertBoardIdsUnique = AssertNever<never>
-type _AssertBoardIdCoversLegacy = AssertNever<Exclude<'home' | 'chat' | 'novel' | 'imagegen' | 'gaea' | 'code' | 'memoryhub' | 'modelcenter' | 'characterlib' | 'settings' | 'weixin', BoardId>>
+type _AssertBoardIdCoversLegacy = AssertNever<Exclude<'home' | 'chat' | 'novel' | 'imagegen' | 'gaea' | 'cost' | 'code' | 'memoryhub' | 'modelcenter' | 'characterlib' | 'settings' | 'weixin', BoardId>>
 
 // ─── 派生视图通用实现（列表参数化：静态 canonicalBoards 与活动清单共用）──────
 /** 顶栏菜单：filter(inMenu) + sort(menuOrder)（附 B #4） */

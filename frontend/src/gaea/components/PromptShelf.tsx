@@ -19,7 +19,7 @@ export function PromptShelf(p: {
   return (
     <div
       ref={p.barRef}
-      className="max-w-[--maxw] mx-auto mb-2 border border-border rounded-[9px] bg-bg-soft overflow-hidden"
+      className="max-w-(--maxw) mx-auto mb-2 border border-border rounded-[9px] bg-bg-soft overflow-hidden"
       style={{ boxShadow: "var(--ds-shadow-card)" }}
       role={p.role}
     >

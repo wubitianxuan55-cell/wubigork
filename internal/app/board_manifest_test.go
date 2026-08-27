@@ -143,13 +143,13 @@ func TestFillFromManifestsHappyPath(t *testing.T) {
 }
 
 // TestGetBoardManifestsCanonical GetBoardManifests 返回 canonical 清单：
-// 10 个 canonical 板块 + knowledge 独立板块（D7），含 weixin 服务板块；
+// 11 个 canonical 板块（含 cost 成本库）+ knowledge 独立板块（D7），含 weixin 服务板块；
 // JSON 字段对齐 doc §5.2 TS schema；CoreB 委托与 App 方法一致。
 func TestGetBoardManifestsCanonical(t *testing.T) {
 	a := &App{}
 	manifests := a.GetBoardManifests()
-	if len(manifests) != 11 {
-		t.Fatalf("GetBoardManifests 应返回 11 个板块（10 canonical + knowledge D7），got %d", len(manifests))
+	if len(manifests) != 12 {
+		t.Fatalf("GetBoardManifests 应返回 12 个板块（11 canonical + knowledge D7），got %d", len(manifests))
 	}
 	byID := map[string]board.Manifest{}
 	for _, m := range manifests {
@@ -184,8 +184,18 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 		t.Fatal("编程板块缺失")
 	}
 	if cd.Label != "编程" || cd.Page != "ProgrammingPage" || cd.Icon != "CodeOutlined" ||
-		cd.InMenu == nil || !*cd.InMenu || cd.MenuOrder != 5 {
+		cd.InMenu == nil || !*cd.InMenu || cd.MenuOrder != 6 {
 		t.Errorf("编程板块 manifest 字段不齐: %+v", cd)
+	}
+	// 成本库一级板块（2026-08-19 重设计：成本库独立成一级导航）
+	ct, ok := byID["cost"]
+	if !ok {
+		t.Fatal("成本库一级板块缺失")
+	}
+	if ct.Label != "造价数据库" || ct.Page != "CostLibraryPage" || ct.Icon != "AccountBookOutlined" ||
+		ct.InMenu == nil || !*ct.InMenu || ct.MenuOrder != 5 ||
+		len(ct.Bindings) != 1 || ct.Bindings[0] != "CostB" {
+		t.Errorf("成本库板块 manifest 字段不齐: %+v", ct)
 	}
 	// chat 板块字段抽样对齐 TS schema
 	chat := byID["chat"]

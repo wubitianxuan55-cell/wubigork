@@ -142,6 +142,12 @@ func (a *App) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) 
 	}
 	costStore := a.hubCostStore()
 	applied := 0
+	// 抓价来源的地区（造价信息网价格表通常按城市/区发布），写回条目时作为
+	// 价格三要素的「地区」维度（zaojia-database 蒸馏）。
+	var area string
+	if src, ok := store.GetSource(rec.SourceID); ok {
+		area = src.Area
+	}
 	for _, c := range rec.Candidates {
 		if !want[c.Title] {
 			continue
@@ -154,11 +160,15 @@ func (a *App) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) 
 			Name: name, Title: c.Title, Category: "其他", Unit: c.Unit,
 			Price: c.Price, Spec: c.Spec, Status: "现行",
 			Source: fmt.Sprintf("%s（期数 %s）", rec.SourceName, rec.Period),
+			Region: area, PriceDate: rec.Period,
 		}
 		if existing, err := costStore.Get(name); err == nil && existing != nil {
 			entry.Category = existing.Category
 			entry.Tags = existing.Tags
 			entry.Body = existing.Body
+			entry.PriceType = existing.PriceType
+			entry.ValidUntil = existing.ValidUntil
+			entry.SourceRow = existing.SourceRow
 			if existing.CreatedAt.Unix() > 0 {
 				entry.CreatedAt = existing.CreatedAt
 			}
@@ -168,7 +178,8 @@ func (a *App) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) 
 		}
 		_ = store.AddHistory(pricefeed.History{
 			Name: name, Title: c.Title, Unit: c.Unit, Price: c.Price,
-			Source: rec.SourceName, Period: rec.Period, FetchedAt: rec.FetchedAt,
+			Source: rec.SourceName, Period: rec.Period,
+			Region: entry.Region, PriceType: entry.PriceType, FetchedAt: rec.FetchedAt,
 			Note: "价格源更新",
 		})
 		applied++

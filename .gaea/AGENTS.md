@@ -5,6 +5,88 @@
 
 ## 版本状态
 
+- **最新发布：v3.1.0（2026-08-26）「造价数据库 · 一级板块 + 办公蒸馏 + 死锁修复」**：
+  git tag `v3.1.0`；CHANGELOG / releases/v3.1.0.md / README 索引同步。要点：
+  - **一级板块「造价数据库」**（zaojia-database 蒸馏，2026-08-19 启动）：成本库从记忆中枢
+    二级分类提升为独立板块（board cost，`CostLibraryPage`，MenuOrder 5，导航：概览/成本条目/
+    价格源/价格仓库）；记忆中枢成本二级入口移除（记忆图谱节点保留琥珀色）。
+  - **综合单价架构**（用户定调「数据库就是数据库」）：综合单价=一级、人材机=二级组成
+    （SchemaV12/V13：cost_entries 增人工/材料/机械合计 + 管理/利润/垫资/税率仅展示；
+    `cost_entry_components` 组成行表；Save 组成行整组替换）；价格三要素与溯源
+    （SchemaV9：region/price_date/price_type/valid_until/source_row，history 同步）；
+    默认分类树重构（综合单价→专业→分部）；《市政成本测算手册》整本导入实测 8 表 234 条
+    全命中。调研文档 `docs/market-research-2026-08-cost-architecture-zonghe-danjia.md`。
+  - **测算项目 + 造价参考**（新包 costproject/costref，SchemaV10 三表）：测算项目容器 +
+    明细行（数量×单价自动算金额）+ 不可变版本快照 + 「沉淀」UPSERT 回成本库；
+    costref 实时聚合分位数指标（不落表）+ 复盘笔记；`cost_indicators` 办公 agent 工具。
+  - **数据自愈**（cost/repair.go）：201 条非法 category_path 规则引擎幂等映射回合法路径 +
+    保守回填地区/期数，`Store.Open` 自动执行。
+  - **办公蒸馏**（2026-08-20/26 两轮，全部随 v3.1.0 发布）：C3 会话级右侧面板持久化 /
+    C6 运行域活动角标（useRunningBadge）/ C7 预览队列 chip 化；FileTree → 资源管理器
+    （行悬浮 @引用/右键菜单/cwd 持久化/树内搜索）；删除完成轮大过程卡（Transcript 交替
+    语义）；GoalCard/TodoCard 默认折叠紧凑化；Tailwind v4 `max-w-(--maxw)` 括号语法修复。
+  - **成本库入口接线（用户决策 2026-08-26）**：办公右侧「文件」组新增「成本库」子 Tab
+    （CostLibraryPanel），4 主 Tab 收敛不变。
+  - **修复办公板块初始化死锁**：`GaeaInit` 持 `ga.mu` 时 `resumeLastSession →
+    syncGoalForSession` 对同一把非重入锁二次加锁 → 永久卡死；`syncGoalForSession` 改显式
+    接收控制器 + 两个回归测试；`persistWorkspaceLocked` 同步磁盘 workspace_root。
+  - **绑定面 495 方法**（+15：CostB 测算项目/明细/版本/沉淀 + 造价参考/复盘笔记/指标），
+    漂移 PASS；版本四处统一 3.1.0；验证：go 全量测试绿（filewatch 首跑环境抖动复跑绿）、
+    tsc/eslint 0 errors、vitest **630/630（118 文件）**、wails build + 冒烟 /api/health 200。
+  - **下一阶段候选**（见 docs/superpowers/plans/2026-08-26-…右侧面板.md 与蒸馏候选清单）：
+    C1 任务实时输出 / C2 子代理活动行（需后端字段）/ C4 选区转对话 / C5 工作区内联编辑
+    （需 GaeaWriteFile）/ C9 分栏对照；造价数据库体验收口（CostLibraryPanel 已是入口，
+    待测：测算项目页 UI 打磨、造价参考应用、手册二期）。
+
+- **路线决策（2026-08-26）：V4.0 dsh化 验证失败，正式废弃；继续 V3 迭代。** 曾把 gaea 改造成
+  DSH 插件体系（独立工作空间 `C:\AI\gaea-v4`，DSH 底座 + `packages/gaea/*` 插件，V4.19.0）——
+  用户验证后判定失败。已删除**工作空间内** V4.0 相关文档：`docs/superpowers/specs/2026-06-29-wubigork-v4-blueprint.md`、
+  `docs/superpowers/plans/2026-06-29-phase4-data-foundation.md`、`phase4.1-copilot.md`、
+  CHANGELOG.md 的 v4.0.0「织梦者」章节。**纪律：`C:\AI\gaea-v4` 与 `~/.dsh*`（会话/记忆/编码记忆）为
+  工作空间外文件，不删不动**；勿再引用或复活 V4.0 路线。开发主线 = 本仓库（gaea V3 桌面端，
+  Wails + Go + React，当前已发布 v3.1.0）。
+
+- **右侧面板改造（2026-08-26，蒸馏 dsh-better-sidebar，用户拍板不装 DSH 插件、直接改 gaea 代码）**：
+  承接 2026-08-20 蒸馏候选清单（C1-C9），本轮落地三项纯前端（计划
+  `docs/superpowers/plans/2026-08-26-办公蒸馏-better-sidebar-右侧面板.md`）：
+  - **C3 会话级布局持久化**：`rightTab` 改为按会话 key（`gaea.rightPanel.v1:<sessionKey>`）读写，
+    切会话/新建/恢复各自恢复面板关注点；无会话路径回退全局 key `gaea.workspace.rightTab`
+    （旧值兼容）。`currentSessionPath`/`currentSessionKey` 上移到 App.tsx 顶部（rightTab 之前）。
+  - **C6 运行域活动角标**：`useRunningBadge` hook（TaskList 基线 + gaea-task 事件增量，重算活跃任务数），
+    WorkspaceTabs 新增 `badges` prop，运行组未激活时显示计数角标（99+ 封顶）。
+  - **C7 预览队列 chip 化**：PreviewNavBar 从 ← index/total → 升级为文件 chip 条（basename、点击切换、
+    × 关闭、中键关闭 VS Code 语义按下/弹起同目标才关）；`usePreviewStore` 增 `navTo(index)` 与
+    `closePreviewAt(index)`（删当前项跳相邻、删唯一项清空）。
+  - 验证：tsc 0 errors、vitest **629/629（118 文件）**全绿（新增 42 用例：workspaceTabs 会话 key 5、
+    previewQueue closePreviewAt/navTo 5、PreviewNavBar chip 6、WorkspaceTabs badge 5 + 更新旧断言）。
+  - 后续轮次：C1 任务实时输出（需后端 GaeaTaskOutput）/ C2 子代理活动行（需后端字段）/ C4 选区转对话 /
+    C5 工作区内联编辑（需 GaeaWriteFile）/ C9 分栏对照。
+
+- **删除输出显示的大过程卡（2026-08-26，用户决策）**：办公板块（`Transcript.tsx`）已完成轮不再把
+  「思考 + 工具 + 中间正文」整轮合并成一张默认展开的大过程卡（`consolidatedSegments` 已删除）；
+  所有轮次统一走 `alternatingSegments` 交替——正文（含中间正文）始终以独立消息显示、不进卡片，
+  过程（思考/工具）单独成小卡。**纪律：交替过程卡逻辑 / `ProcessCard` / `TurnBlock` 组件零改动**
+  （只删大卡合并函数、Transcript 渲染 key 去掉 `done-` 前缀防止完成后重挂载丢失手动折叠态、注释
+  对齐）；`Transcript.test.ts` 断言重写为交替语义（3 用例）。验证：tsc 0 errors、vitest 629/629 全绿。
+
+- **目标卡/待办卡紧凑化（2026-08-26，用户：太占地方）**：
+  - `GoalCard`：由「始终展开不可折叠」改为**默认折叠**——折叠态只占一行（chevron + 标题 + 状态徽标 +
+    进度 + 目标文本截断，整行可点击展开）；展开才显示验收清单 / 添加 / 操作 / 自动追踪开关（开关移入
+    展开区操作行，头部不再常驻）。展开体条件渲染（折叠时不占 DOM，对齐 TodoCard 模式）；头部 button
+    显式 `aria-label="任务目标"`。
+  - `TodoCard`：头部收紧——展开按钮由文字改图标（ChevronRight/ChevronDown），padding 紧凑化，
+    关闭按钮图标化（`aria-label="展开待办/收起待办/关闭待办"`）。
+  - 验证：tsc 0 errors、vitest **630/630**（118 文件）全绿（GoalCard 测试改为「默认折叠 + 展开交互」
+    9 用例，新增折叠态断言 1）。
+
+- **卡片宽度与输入框对齐（2026-08-26，用户）**：发现并修复 **Tailwind v4 下 `max-w-[--maxw]` 任意值
+  语法不生成 CSS**（计算样式 `max-width: none`）——GoalCard/TodoCard/PromptShelf 的宽度约束此前
+  全部失效，宽窗口下会无限撑宽；输入框正常仅因 `.composer-glow`（styles.css 手写
+  `max-width: var(--maxw)`）兜底。统一改为 Tailwind v4 括号语法 **`max-w-(--maxw)`**（四处：
+  GoalCard / TodoCard / PromptShelf / Composer），实测计算样式 `max-width: min(1000px, 100%)`、
+  卡片与输入框完全对齐。**教训：本项目 Tailwind v4 下 CSS 变量任意值一律用 `max-w-(--var)` 括号
+  语法，`[--var]` 方括号旧语法不生效**。验证：tsc 0 errors、vitest 630/630 全绿。
+
 - **V3.0.0 已发布（2026-08-15）**：git tag `v3.0.0`；星枢 Constellation OS UI 革命性重设计首发
   （详情 CHANGELOG.md + releases/v3.0.0.md）。3.0.0 首发目标（chat 会话可恢复 + 知识库试点）已随
   Step 0-3 架构改造 + UI 重设计达成；下一版本节奏 = 3.1.0 板块生态·记忆起步。

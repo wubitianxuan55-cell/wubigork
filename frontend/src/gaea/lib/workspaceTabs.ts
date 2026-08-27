@@ -16,10 +16,10 @@
 // 面板零改动。label 与现状一致使用中文（未接 i18n，与既有行为对齐）。
 
 import type { Icon } from "../icons";
-import { BarChart3, ClipboardList, Diff, FileText, FolderTree, Paperclip, Users } from "../icons";
+import { BarChart3, ClipboardList, Coins, Diff, FileText, FolderTree, Paperclip, Users } from "../icons";
 
 /** 子面板（具体功能页）的稳定 id —— App.tsx 的 rightTab 状态直接消费。 */
-export const WORKSPACE_TAB_IDS = ["files", "materials", "deliverables", "changes", "stats", "tasks", "subagents"] as const;
+export const WORKSPACE_TAB_IDS = ["files", "materials", "cost", "deliverables", "changes", "stats", "tasks", "subagents"] as const;
 export type WorkspaceTabId = (typeof WORKSPACE_TAB_IDS)[number];
 
 /** 主 Tab（分组）的稳定 id。 */
@@ -55,6 +55,7 @@ export const WORKSPACE_GROUPS: WorkspaceGroupDef[] = [
     tabs: [
       { id: "files", label: "文件", icon: FolderTree, keywords: ["files", "文件", "工作区", "树"] },
       { id: "materials", label: "资料", icon: Paperclip, keywords: ["materials", "资料", "素材", "钉住"] },
+      { id: "cost", label: "成本库", icon: Coins, keywords: ["cost", "成本库", "造价", "单价", "价格"] },
     ],
   },
   {
@@ -108,4 +109,40 @@ export function groupOfTab(tabId: WorkspaceTabId): WorkspaceGroupDef {
 export function defaultTabOfGroup(groupId: WorkspaceGroupId): WorkspaceTabId {
   const g = WORKSPACE_GROUPS.find((x) => x.id === groupId);
   return g?.tabs[0]?.id ?? DEFAULT_WORKSPACE_TAB;
+}
+
+// ── 会话隔离（蒸馏 dsh-better-sidebar 布局持久化）────────────────────
+// 记住用户上次选中的右侧面板子 Tab：重开办公板块/重启应用后恢复，而不是
+// 每次回到「文件」。v3.0.8 起支持**按会话**持久化（C3 升级）：有 sessionKey
+// 时写入 `gaea.rightPanel.v1:<sessionKey>`（切会话/新建/恢复各自恢复面板
+// 关注点）；无 sessionKey 时回退全局 key `gaea.workspace.rightTab`（旧版
+// 行为，向后兼容）。损坏/非法值经 isWorkspaceTabId 收敛回默认，写失败静默
+// （与 layoutPreferences/recentFiles 同款容错）。
+const RIGHT_TAB_KEY = "gaea.workspace.rightTab";
+const RIGHT_TAB_SESSION_PREFIX = "gaea.rightPanel.v1:";
+
+/** 会话级 key：直接拼接（sessionKey 已由 App 侧清洗非法字符）。 */
+function rightTabKey(sessionKey?: string): string {
+  return sessionKey ? `${RIGHT_TAB_SESSION_PREFIX}${sessionKey}` : RIGHT_TAB_KEY;
+}
+
+/** 读取上次选中的子面板；无记录/非法值回退默认「文件」。
+ *  sessionKey 提供时按会话读取（C3），否则读全局 key（旧版兼容）。 */
+export function loadPersistedRightTab(sessionKey?: string): WorkspaceTabId {
+  try {
+    const raw = localStorage.getItem(rightTabKey(sessionKey));
+    if (raw && isWorkspaceTabId(raw)) return raw;
+  } catch {
+    /* 隐私模式/配额等：回退默认 */
+  }
+  return DEFAULT_WORKSPACE_TAB;
+}
+
+/** 记录当前子面板选择（切换时由 App 调用）。sessionKey 语义同上。 */
+export function savePersistedRightTab(tab: WorkspaceTabId, sessionKey?: string): void {
+  try {
+    localStorage.setItem(rightTabKey(sessionKey), tab);
+  } catch {
+    /* 静默失败，不影响主流程 */
+  }
 }

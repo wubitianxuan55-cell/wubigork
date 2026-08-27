@@ -151,16 +151,40 @@ func TestGaeaCostImportApply_AllRowsCommit(t *testing.T) {
 	n, err := a.GaeaCostImportApply([]CostEntry{
 		{CostSummary: CostSummary{Title: "P.O 42.5 水泥", Price: 480, Unit: "吨"}},
 		{CostSummary: CostSummary{Title: "HP300 高频液压振动锤", Price: 3200, Unit: "台班"}},
+		{
+			CostSummary: CostSummary{
+				Title: "挖一般土方", Category: "土方工程",
+				CategoryPath: "综合单价/道路工程/土方工程", Unit: "m³", Price: 3.79,
+				LaborFee: 0, MaterialFee: 0, MachineFee: 3,
+			},
+			ManagementFee: 0.09, ProfitFee: 0.3, AdvanceFee: 0.09, TaxRate: 9,
+			Components: []CostComponentView{
+				{Kind: "机械", Title: "挖土方(甩土)", Unit: "m³", Quantity: 1, Price: 3, Amount: 3, Note: "3元/m³"},
+			},
+		},
 	})
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if n != 2 {
-		t.Errorf("写入条数 = %d, want 2", n)
+	if n != 3 {
+		t.Errorf("写入条数 = %d, want 3", n)
 	}
 	list := a.hubCostStore().List()
-	if len(list) != 2 {
-		t.Fatalf("库内条目 = %d, want 2: %+v", len(list), list)
+	if len(list) != 3 {
+		t.Fatalf("库内条目 = %d, want 3: %+v", len(list), list)
+	}
+	// 综合单价子目：人材机二级（合计 + 组成行）+ 费率 全链路写回。
+	got := a.GaeaCostGet(cost.SlugName("挖一般土方"))
+	if got == nil {
+		t.Fatal("挖一般土方 未写入")
+	}
+	if got.LaborFee != 0 || got.MaterialFee != 0 || got.MachineFee != 3 ||
+		got.ManagementFee != 0.09 || got.ProfitFee != 0.3 || got.AdvanceFee != 0.09 || got.TaxRate != 9 {
+		t.Errorf("费率/人材机合计 = %+v", got)
+	}
+	if len(got.Components) != 1 || got.Components[0].Title != "挖土方(甩土)" ||
+		got.Components[0].Amount != 3 {
+		t.Errorf("组成行 = %+v", got.Components)
 	}
 }
 

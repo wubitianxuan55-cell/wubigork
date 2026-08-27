@@ -41,3 +41,35 @@ describe("WorkspaceTabs 两级按钮条（v3.0.8 收敛为 4 个主 Tab）", () 
     expect(document.querySelector('[data-subtab="stats"]')).toBeNull();
   });
 });
+
+describe("WorkspaceTabs 运行域活动角标（C6，蒸馏 dsh-better-sidebar badge）", () => {
+  it("无 badges 时不渲染角标", () => {
+    render(<WorkspaceTabs active="files" onChange={() => {}} />);
+    expect(document.querySelector('[data-grouptab="running"]')?.textContent).toBe("运行");
+  });
+
+  it("活跃任务数 >0 时运行组显示计数角标", () => {
+    render(<WorkspaceTabs active="files" onChange={() => {}} badges={{ running: 3 }} />);
+    const runningTab = document.querySelector('[data-grouptab="running"]');
+    expect(runningTab?.textContent).toContain("运行");
+    expect(runningTab?.textContent).toContain("3");
+  });
+
+  it("角标 99+ 封顶", () => {
+    render(<WorkspaceTabs active="files" onChange={() => {}} badges={{ running: 123 }} />);
+    const runningTab = document.querySelector('[data-grouptab="running"]');
+    expect(runningTab?.textContent).toContain("99+");
+  });
+
+  it("运行组激活时不显示角标（视为已读）", () => {
+    render(<WorkspaceTabs active="tasks" onChange={() => {}} badges={{ running: 3 }} />);
+    const runningTab = document.querySelector('[data-grouptab="running"]');
+    expect(runningTab?.textContent).toBe("运行");
+  });
+
+  it("非运行组不渲染角标（0 计数不渲染）", () => {
+    render(<WorkspaceTabs active="files" onChange={() => {}} badges={{ running: 0, outputs: 2 }} />);
+    const filesTab = document.querySelector('[data-grouptab="files"]');
+    expect(filesTab?.textContent).toBe("文件");
+  });
+});

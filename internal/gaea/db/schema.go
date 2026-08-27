@@ -212,3 +212,124 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, created_at);
 `
+
+// SchemaV9 成本库蒸馏（参照 zaojia-database：价格三要素/口径/有效期/溯源）：
+// cost_entries 增加 地区（region）、价格时间/期数（price_date）、价格口径
+// （price_type：出厂价/到场价/安装综合价）、有效期至（valid_until）、导入原始
+// 行号（source_row，0=手动录入未标注）；cost_price_history 同步记录发布时的
+// 地区与口径，保证价格快照可追溯「哪个地区、什么口径、哪一期」。
+const SchemaV9 = `
+ALTER TABLE cost_entries ADD COLUMN region TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_entries ADD COLUMN price_date TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_entries ADD COLUMN price_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_entries ADD COLUMN valid_until TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_entries ADD COLUMN source_row INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cost_price_history ADD COLUMN region TEXT NOT NULL DEFAULT '';
+ALTER TABLE cost_price_history ADD COLUMN price_type TEXT NOT NULL DEFAULT '';
+`
+
+// SchemaV10 测算项目与沉淀闭环（zaojia-database 蒸馏：我的项目/工程量清单/版本留痕）：
+// cost_projects 存测算项目容器；cost_estimate_items 存测算明细行（引用成本库单价、
+// 数量×单价自动算金额）；cost_estimate_versions 存不可变版本快照（保存时对明细行
+// 做 JSON 快照，支持回看/对比/恢复思路）。沉淀动作把明细行 UPSERT 回 cost_entries。
+const SchemaV10 = `
+CREATE TABLE IF NOT EXISTS cost_projects (
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL DEFAULT '',
+  project_type TEXT NOT NULL DEFAULT '',
+  scale        TEXT NOT NULL DEFAULT '',
+  craft        TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT '编制中',
+  note         TEXT NOT NULL DEFAULT '',
+  created_at   TEXT NOT NULL DEFAULT '',
+  updated_at   TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS cost_estimate_items (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id    TEXT NOT NULL DEFAULT '',
+  name          TEXT NOT NULL DEFAULT '',
+  title         TEXT NOT NULL DEFAULT '',
+  category_path TEXT NOT NULL DEFAULT '',
+  unit          TEXT NOT NULL DEFAULT '',
+  quantity      REAL NOT NULL DEFAULT 0,
+  price         REAL NOT NULL DEFAULT 0,
+  amount        REAL NOT NULL DEFAULT 0,
+  entry_name    TEXT NOT NULL DEFAULT '',
+  source        TEXT NOT NULL DEFAULT '',
+  note          TEXT NOT NULL DEFAULT '',
+  sort          INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT '',
+  updated_at    TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_estimate_items_project ON cost_estimate_items(project_id);
+CREATE TABLE IF NOT EXISTS cost_estimate_versions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL DEFAULT '',
+  version    INTEGER NOT NULL DEFAULT 0,
+  total      REAL NOT NULL DEFAULT 0,
+  snapshot   TEXT NOT NULL DEFAULT '[]',
+  note       TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_estimate_versions_project ON cost_estimate_versions(project_id);
+`
+
+// SchemaV11 复盘笔记（zaojia-database 蒸馏：结论/适用边界/风险/证据/可信度/有效期/
+// 复核状态 + 引用计数）。造价参考指标不做独立表——由已保存版本/已沉淀项目的明细行
+// 实时聚合计算（分位数/中位数/均值），避免双写。
+const SchemaV11 = `
+CREATE TABLE IF NOT EXISTS cost_review_notes (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  title        TEXT NOT NULL DEFAULT '',
+  conclusion   TEXT NOT NULL DEFAULT '',
+  boundary     TEXT NOT NULL DEFAULT '',
+  risk         TEXT NOT NULL DEFAULT '',
+  evidence     TEXT NOT NULL DEFAULT '',
+  confidence   TEXT NOT NULL DEFAULT '中',
+  valid_until  TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT '草稿',
+  category     TEXT NOT NULL DEFAULT '',
+  project_type TEXT NOT NULL DEFAULT '',
+  craft        TEXT NOT NULL DEFAULT '',
+  ref_count    INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL DEFAULT '',
+  updated_at   TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_review_notes_status ON cost_review_notes(status);
+`
+
+// SchemaV12 综合单价架构（用户定调：综合单价为一级，人材机为二级，对标
+// 「市政成本测算手册」：专业→分部→综合单价子目→人材机组成）：
+// cost_entries 增加 人工费/材料费/机械费 三个金额合计（人材机二级汇总）；
+// cost_entry_components 保存综合单价子目的人材机组成明细行（kind=人工/材料/机械，
+// 名称/单位/数量/单价/金额），一个综合单价子目对应多行组成，构成二级明细。
+const SchemaV12 = `
+ALTER TABLE cost_entries ADD COLUMN labor_fee REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_entries ADD COLUMN material_fee REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_entries ADD COLUMN machine_fee REAL NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS cost_entry_components (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  entry_name TEXT NOT NULL DEFAULT '',
+  kind       TEXT NOT NULL DEFAULT '人工',
+  title      TEXT NOT NULL DEFAULT '',
+  unit       TEXT NOT NULL DEFAULT '',
+  quantity   REAL NOT NULL DEFAULT 0,
+  price      REAL NOT NULL DEFAULT 0,
+  amount     REAL NOT NULL DEFAULT 0,
+  note       TEXT NOT NULL DEFAULT '',
+  sort       INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_entry_components_name ON cost_entry_components(entry_name);
+`
+
+// SchemaV13 费率追溯列（用户定调：费率入库但仅展示追溯、不参与计算）。
+// 管理费/利润/垫资 为金额（元，与市政手册/蜘蛛网口径一致），税率为百分比。
+// 字段可空（默认 0 = 未录入）。
+const SchemaV13 = `
+ALTER TABLE cost_entries ADD COLUMN management_fee REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_entries ADD COLUMN profit_fee REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_entries ADD COLUMN advance_fee REAL NOT NULL DEFAULT 0;
+ALTER TABLE cost_entries ADD COLUMN tax_rate REAL NOT NULL DEFAULT 0;
+`

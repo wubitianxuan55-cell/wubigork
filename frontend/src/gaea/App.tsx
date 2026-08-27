@@ -31,11 +31,13 @@ import { FilePreview } from "./components/FilePreview";
 import { PreviewNavBar } from "./components/PreviewNavBar";
 import { DeliverablesPanel, type SessionDeliverable } from "./components/DeliverablesPanel";
 import { MaterialsPanel } from "./components/MaterialsPanel";
+import { CostLibraryPanel } from "./components/CostLibraryPanel";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
 import { StatsPanel, useStatsPersistence } from "./components/StatsPanel";
 import { ChangesPanel } from "./components/ChangesPanel";
 import { TaskCenter } from "./components/TaskCenter";
 import { SubagentsPanel } from "./components/SubagentsPanel";
+import { useRunningBadge } from "./hooks/useRunningBadge";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
@@ -63,7 +65,7 @@ import { recordRecentFile } from "./lib/recentFiles";
 import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, type SessionChange } from "./lib/changes";
 import { classifyComposerCommand } from "./lib/command";
-import { DEFAULT_WORKSPACE_TAB, WORKSPACE_TABS, type WorkspaceTabId } from "./lib/workspaceTabs";
+import { WORKSPACE_TABS, loadPersistedRightTab, savePersistedRightTab, groupOfTab, type WorkspaceTabId } from "./lib/workspaceTabs";
 import { loadTemplates, FALLBACK_TEMPLATES } from "./components/Welcome";
 import type { TaskTemplate } from "./lib/types";
 
@@ -114,7 +116,37 @@ export default function App() {
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
   const newSessionAndReset = useCallback(async () => { setStatsReset(n => n + 1); await startNewSession(); }, [startNewSession]);
   const [statsReset, setStatsReset] = useState(0);
-  const [rightTab, setRightTab] = useState<WorkspaceTabId>(DEFAULT_WORKSPACE_TAB);
+  // 当前会话标识：直接使用 Go 后端生成的 .jsonl 文件路径作为 key。
+  // 每个会话文件对应唯一的 localStorage key：新会话自然空数据开始，
+  // 恢复/重启同一会话则统计数据持续累加，会话之间互不干扰。
+  // 定义在右侧面板状态之前：rightTab 会话级持久化（C3）也依赖它。
+  const currentSessionPath = useMemo(
+    () => sidebarSessions.find(s => s.current)?.path,
+    [sidebarSessions],
+  );
+  const currentSessionKey = useMemo(() => {
+    const cwdNow = state.meta?.cwd;
+    return currentSessionPath
+      ? currentSessionPath.replace(/[\\/:*?"<>|]/g, "_")
+      : cwdNow ? `unsaved_${cwdNow.replace(/[\\/:*?"<>|]/g, "_")}` : "unsaved";
+  }, [currentSessionPath, state.meta?.cwd]);
+  // 会话隔离（蒸馏 dsh-better-sidebar）：右侧面板子 Tab 按会话记忆（C3）——
+  // 切会话/新建/恢复时恢复该会话上次选中的子面板；显式切换（如点文件回
+  // 「文件」面板）照常覆盖当前会话记忆。无会话路径（未保存草稿）回退全局 key。
+  const [rightTab, setRightTab] = useState<WorkspaceTabId>(() => loadPersistedRightTab(currentSessionKey));
+  // currentSessionKey 变化（会话切换）时：从新会话 key 恢复面板 Tab；
+  // 切换本身不覆盖新会话已存的记忆（仅当新会话无记录时回退默认）。
+  const prevSessionKey = useRef(currentSessionKey);
+  useEffect(() => {
+    if (prevSessionKey.current === currentSessionKey) return;
+    prevSessionKey.current = currentSessionKey;
+    setRightTab(loadPersistedRightTab(currentSessionKey));
+  }, [currentSessionKey]);
+  useEffect(() => { savePersistedRightTab(rightTab, currentSessionKey); }, [rightTab, currentSessionKey]);
+  // C6 运行域活动角标：活跃任务数（queued/running）；「运行」组激活时视为已读不显示。
+  const runningTasks = useRunningBadge();
+  const runningGroupActive = groupOfTab(rightTab).id === "running";
+  const runningBadge = runningGroupActive ? undefined : { running: runningTasks };
   const [compactMode, setCompactMode] = useState(() => { try { return localStorage.getItem("gaea.compactMode") === "1"; } catch { return false; } });
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -136,7 +168,8 @@ export default function App() {
   const previewIndex = usePreviewStore((s) => s.previewIndex);
   const previewList = usePreviewStore((s) => s.previewList);
   const closeFilePreview = usePreviewStore((s) => s.closeFilePreview);
-  const navPreview = usePreviewStore((s) => s.navPreview);
+  const navTo = usePreviewStore((s) => s.navTo);
+  const closePreviewAt = usePreviewStore((s) => s.closePreviewAt);
 
   // ── 专注模式（Kun 精华）：一键收起侧栏与右侧面板，只留对话和输入区 ──
   const [focusMode, setFocusMode] = useState(() => {
@@ -523,19 +556,6 @@ export default function App() {
     setWorkspaceRefreshKey((k) => k + 1);
   }, [updatedAt]);
 
-  // 当前会话标识：直接使用 Go 后端生成的 .jsonl 文件路径作为 key。
-  // 每个会话文件对应唯一的 localStorage key：新会话自然空数据开始，
-  // 恢复/重启同一会话则统计数据持续累加，会话之间互不干扰。
-  const currentSessionPath = useMemo(
-    () => sidebarSessions.find(s => s.current)?.path,
-    [sidebarSessions],
-  );
-  const currentSessionKey = useMemo(() => {
-    return currentSessionPath
-      ? currentSessionPath.replace(/[\\/:*?"<>|]/g, "_")
-      : cwd ? `unsaved_${cwd.replace(/[\\/:*?"<>|]/g, "_")}` : "unsaved";
-  }, [currentSessionPath, cwd]);
-
   // 会话切换（启动装载/新建/恢复/切换工作区）后拉取会话级派生统计，
   // 回填「全会话成本」的历史部分（评审缺陷 11）。
   useEffect(() => {
@@ -866,10 +886,10 @@ export default function App() {
                 onBackToFiles={backToFiles}
               />
               <PreviewNavBar
+                files={previewList}
                 index={previewIndex}
-                total={previewList.length}
-                onPrev={() => navPreview(-1)}
-                onNext={() => navPreview(1)}
+                onJump={navTo}
+                onClose={closePreviewAt}
               />
             </div>
           </>
@@ -877,7 +897,7 @@ export default function App() {
 
         {workspacePanelOpen && (
         <div className="workspace-pane flex flex-col min-w-0 overflow-hidden border-l border-border-soft bg-bg transition-all duration-200">
-          <WorkspaceTabs active={rightTab} onChange={setRightTab} />
+          <WorkspaceTabs active={rightTab} onChange={setRightTab} badges={runningBadge} />
           <div className="flex-1 min-h-0 overflow-y-auto">
             {rightTab === "files" ? (
               <WorkspacePanel
@@ -892,6 +912,7 @@ export default function App() {
             {rightTab === "materials" && (
               <MaterialsPanel onOpenFile={openFilePreview} />
             )}
+            {rightTab === "cost" && <CostLibraryPanel />}
             {rightTab === "stats" && (
               <StatsPanel
                 data={statsPersistence.data}

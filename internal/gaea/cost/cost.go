@@ -25,28 +25,67 @@ type Entry struct {
 	CategoryPath string // 完整分类路径：一级/二级/…/叶子（树形过滤与分组依据）
 	Unit         string // 台班/吨/m³/工日…
 	Price        float64
-	Spec         string
-	Source       string // 定额/市场询价/历史项目…
-	Tags         []string
-	Status       string // 现行/草稿/已归档
-	Body         string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// 人材机二级汇总（综合单价子目口径）：人工费/材料费/机械费 金额。
+	// 与 Components 明细对应；组件金额合计与列值允许微小出入（导入原值保留）。
+	LaborFee    float64
+	MaterialFee float64
+	MachineFee  float64
+	// 费率（仅展示追溯，不参与计算）：管理费/利润/垫资为金额（元），税率为百分比。
+	ManagementFee float64
+	ProfitFee     float64
+	AdvanceFee    float64
+	TaxRate       float64
+	Spec          string
+	Source        string // 定额/市场询价/历史项目…
+	Region        string // 地区（如 成都市区/上海）：价格三要素之一
+	PriceDate     string // 价格时间/期数（如 2026-08 / 2026年第2期）
+	PriceType     string // 价格口径：出厂价/到场价/安装综合价
+	ValidUntil    string // 有效期至（YYYY-MM-DD，空=长期有效）
+	SourceRow     int    // 导入原始工作表行号（0=手动录入未标注）
+	Tags          []string
+	Status        string // 现行/草稿/已归档
+	Body          string
+	Components    []Component // 人材机二级组成明细（综合单价子目内部）
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+// Component 综合单价子目的人材机组成明细行（二级）。
+// Kind 取值 人工/材料/机械，或保留源文件合并段标签（如 人工+机械）。
+// Note 保留原始行表达式（含损耗系数等），保证追溯。
+type Component struct {
+	Kind     string  // 人工/材料/机械（可合并标签）
+	Title    string  // 资源/工作名称
+	Unit     string  // 单位（可空）
+	Quantity float64 // 含量/数量（0=未解析出）
+	Price    float64 // 资源单价（0=未解析出）
+	Amount   float64 // 金额（含量×单价，含损耗）
+	Note     string  // 原始行表达式/备注
+	Sort     int
 }
 
 // Summary 轻量视图（无 Body）。
 type Summary struct {
-	Name         string
-	Title        string
-	Category     string
-	CategoryPath string
-	Unit         string
-	Price        float64
-	Spec         string
-	Source       string
-	Tags         []string
-	Status       string
-	UpdatedAt    time.Time
+	Name           string
+	Title          string
+	Category       string
+	CategoryPath   string
+	Unit           string
+	Price          float64
+	LaborFee       float64
+	MaterialFee    float64
+	MachineFee     float64
+	ComponentCount int // 人材机组成行数（综合单价子目的二级明细规模）
+	Spec           string
+	Source         string
+	Region         string
+	PriceDate      string
+	PriceType      string
+	ValidUntil     string
+	SourceRow      int
+	Tags           []string
+	Status         string
+	UpdatedAt      time.Time
 }
 
 // Category 成本分类树节点（可任意层级）。
@@ -75,9 +114,11 @@ type Store struct {
 }
 
 // Open 打开成本库；gdb 为 nil 时返回不可用 store。
+// 打开后播种默认分类树并执行幂等自愈（分类路径修复 + 价格元数据回填）。
 func Open(gdb *sql.DB) *Store {
 	s := &Store{db: gdb}
 	s.EnsureDefaultCategories()
+	s.SelfHeal()
 	return s
 }
 
@@ -109,16 +150,49 @@ func (s *Store) Save(e Entry) error {
 			tags = string(b)
 		}
 	}
-	_, err := s.db.Exec(`
-INSERT INTO cost_entries(name, title, category, category_path, unit, price, spec, source, tags, status, body, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.Exec(`
+INSERT INTO cost_entries(name, title, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(name) DO UPDATE SET
   title=excluded.title, category=excluded.category, category_path=excluded.category_path, unit=excluded.unit,
-  price=excluded.price, spec=excluded.spec, source=excluded.source,
+  price=excluded.price, labor_fee=excluded.labor_fee, material_fee=excluded.material_fee,
+  machine_fee=excluded.machine_fee, management_fee=excluded.management_fee,
+  profit_fee=excluded.profit_fee, advance_fee=excluded.advance_fee, tax_rate=excluded.tax_rate,
+  spec=excluded.spec, source=excluded.source,
+  region=excluded.region, price_date=excluded.price_date, price_type=excluded.price_type,
+  valid_until=excluded.valid_until, source_row=excluded.source_row,
   tags=excluded.tags, status=excluded.status, body=excluded.body,
   updated_at=excluded.updated_at`,
-		e.Name, e.Title, e.Category, e.CategoryPath, e.Unit, e.Price, e.Spec, e.Source,
+		e.Name, e.Title, e.Category, e.CategoryPath, e.Unit, e.Price,
+		e.LaborFee, e.MaterialFee, e.MachineFee,
+		e.ManagementFee, e.ProfitFee, e.AdvanceFee, e.TaxRate,
+		e.Spec, e.Source,
+		e.Region, e.PriceDate, e.PriceType, e.ValidUntil, e.SourceRow,
 		tags, e.Status, e.Body, e.CreatedAt.Format(time.RFC3339), e.UpdatedAt.Format(time.RFC3339))
+	if err != nil {
+		return err
+	}
+	// 人材机二级组成：整组替换（同名 UPSERT 语义一致）。
+	if _, err := tx.Exec("DELETE FROM cost_entry_components WHERE entry_name=?", e.Name); err != nil {
+		return err
+	}
+	for i, c := range e.Components {
+		if strings.TrimSpace(c.Title) == "" {
+			continue
+		}
+		if _, err := tx.Exec(`
+INSERT INTO cost_entry_components(entry_name, kind, title, unit, quantity, price, amount, note, sort, created_at, updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+			e.Name, c.Kind, c.Title, c.Unit, c.Quantity, c.Price, c.Amount, c.Note, i, now.Format(time.RFC3339), now.Format(time.RFC3339)); err != nil {
+			return err
+		}
+	}
+	err = tx.Commit()
 	return err
 }
 
@@ -130,9 +204,13 @@ func (s *Store) Get(name string) (*Entry, error) {
 	var e Entry
 	var tags, created, updated string
 	err := s.db.QueryRow(`
-SELECT name, title, category, category_path, unit, price, spec, source, tags, status, body, created_at, updated_at
+SELECT name, title, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at
 FROM cost_entries WHERE name=?`, name).Scan(
-		&e.Name, &e.Title, &e.Category, &e.CategoryPath, &e.Unit, &e.Price, &e.Spec, &e.Source,
+		&e.Name, &e.Title, &e.Category, &e.CategoryPath, &e.Unit, &e.Price,
+		&e.LaborFee, &e.MaterialFee, &e.MachineFee,
+		&e.ManagementFee, &e.ProfitFee, &e.AdvanceFee, &e.TaxRate,
+		&e.Spec, &e.Source,
+		&e.Region, &e.PriceDate, &e.PriceType, &e.ValidUntil, &e.SourceRow,
 		&tags, &e.Status, &e.Body, &created, &updated)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -143,7 +221,28 @@ FROM cost_entries WHERE name=?`, name).Scan(
 	e.Tags = parseTagsJSON(tags)
 	e.CreatedAt, _ = time.Parse(time.RFC3339, created)
 	e.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
+	e.Components = s.componentsOf(name)
 	return &e, nil
+}
+
+// componentsOf 读取条目的全部人材机组成行（按 sort 排序）。
+func (s *Store) componentsOf(name string) []Component {
+	rows, err := s.db.Query(`
+SELECT kind, title, unit, quantity, price, amount, note, sort
+FROM cost_entry_components WHERE entry_name=? ORDER BY sort, id`, name)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []Component
+	for rows.Next() {
+		var c Component
+		if err := rows.Scan(&c.Kind, &c.Title, &c.Unit, &c.Quantity, &c.Price, &c.Amount, &c.Note, &c.Sort); err != nil {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
 }
 
 // Delete 删除条目。
@@ -151,7 +250,18 @@ func (s *Store) Delete(name string) error {
 	if s.db == nil {
 		return nil
 	}
-	_, err := s.db.Exec("DELETE FROM cost_entries WHERE name=?", name)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec("DELETE FROM cost_entry_components WHERE entry_name=?", name); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("DELETE FROM cost_entries WHERE name=?", name); err != nil {
+		return err
+	}
+	err = tx.Commit()
 	return err
 }
 
@@ -178,7 +288,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 		conds = append(conds, "status = ?")
 		args = append(args, status)
 	}
-	sqlText := "SELECT name, title, category, category_path, unit, price, spec, source, tags, status, updated_at FROM cost_entries"
+	sqlText := "SELECT name, title, category, category_path, unit, price, labor_fee, material_fee, machine_fee, (SELECT COUNT(*) FROM cost_entry_components c WHERE c.entry_name = cost_entries.name), spec, source, region, price_date, price_type, valid_until, source_row, tags, status, updated_at FROM cost_entries"
 	if len(conds) > 0 {
 		sqlText += " WHERE " + strings.Join(conds, " AND ")
 	}
@@ -193,7 +303,9 @@ func (s *Store) Search(query, category, status string) []Summary {
 	for rows.Next() {
 		var sm Summary
 		var tags, updated string
-		if err := rows.Scan(&sm.Name, &sm.Title, &sm.Category, &sm.CategoryPath, &sm.Unit, &sm.Price, &sm.Spec, &sm.Source, &tags, &sm.Status, &updated); err != nil {
+		if err := rows.Scan(&sm.Name, &sm.Title, &sm.Category, &sm.CategoryPath, &sm.Unit, &sm.Price,
+			&sm.LaborFee, &sm.MaterialFee, &sm.MachineFee, &sm.ComponentCount, &sm.Spec, &sm.Source,
+			&sm.Region, &sm.PriceDate, &sm.PriceType, &sm.ValidUntil, &sm.SourceRow, &tags, &sm.Status, &updated); err != nil {
 			continue
 		}
 		sm.Tags = parseTagsJSON(tags)
@@ -208,7 +320,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 		terms := strings.Fields(q)
 		filtered := out[:0]
 		for _, e := range out {
-			hay := strings.ToLower(e.Name + "\x00" + e.Title + "\x00" + e.Category + "\x00" + e.CategoryPath + "\x00" + e.Unit + "\x00" + e.Spec + "\x00" + e.Source + "\x00" + strings.Join(e.Tags, " "))
+			hay := strings.ToLower(e.Name + "\x00" + e.Title + "\x00" + e.Category + "\x00" + e.CategoryPath + "\x00" + e.Unit + "\x00" + e.Spec + "\x00" + e.Source + "\x00" + e.Region + "\x00" + e.PriceType + "\x00" + e.PriceDate + "\x00" + strings.Join(e.Tags, " "))
 			ok := true
 			for _, term := range terms {
 				if !strings.Contains(hay, term) {
@@ -226,7 +338,7 @@ func (s *Store) Search(query, category, status string) []Summary {
 		if len(out) > 1 {
 			docs := make([]bm25.Doc, len(out))
 			for i, e := range out {
-				docs[i] = bm25.Doc{ID: i, Text: e.Name + " " + e.Title + " " + e.Unit + " " + e.Spec + " " + e.Source + " " + strings.Join(e.Tags, " ")}
+				docs[i] = bm25.Doc{ID: i, Text: e.Name + " " + e.Title + " " + e.Unit + " " + e.Spec + " " + e.Source + " " + e.Region + " " + e.PriceType + " " + e.PriceDate + " " + strings.Join(e.Tags, " ")}
 			}
 			scored := bm25.NewRanker(docs).Rank(query)
 			if len(scored) > 0 {
@@ -267,24 +379,56 @@ func parseTagsJSON(raw string) []string {
 // ── 多级分类树（按分类分级保存）──────────────────────────────────
 
 // defaultCategories 默认分类树（{父名, 名称}，父名为空=一级；顺序即层级，
-// 父节点必须先于子节点）。对齐造价行业「费用要素 × 信息价专业分类」组织：
-// 一级为费用要素（人工/材料/机械/运输/检测/综合单价/其他），
-// 材料按信息价体系细分到三级（土建/安装/周转 → 钢材/水泥/电线电缆…）。
-// 名称全局唯一；用户可随时增删改。
+// 父节点必须先于子节点）。
+//
+// 结构（2026-08-19 数据库梳理后与真实库对齐）：树承载两类内容——
+//   - 资源库层：人工（普工/技工/特殊工种）、材料（土建/安装/周转/辅助/市政绿化）、
+//     机械（土方/桩基/起重/运输/混凝土/钢筋）、运输、检测、其他（管理费/税费/措施费/
+//     处置/服务）——信息价/材料价/人工费/机械费条目按此归类；
+//   - 综合单价层（用户定调，对标《市政成本测算手册》）：一级=综合单价，二级=专业
+//     （道路/交通/绿化/电力/给水/暖气/雨污/照明/房建/其他工程），三级=分部；
+//     房建工程 收纳房建成本测算手册条目（给排水/电气/通风空调/采暖/弱电/土建/单方指标）。
+//
+// 名称全局唯一（同父同名唯一索引兜底）；用户可随时增删改。
 var defaultCategories = [][2]string{
-	{"", "人工"}, {"", "材料"}, {"", "机械"}, {"", "运输"}, {"", "检测"}, {"", "综合单价"}, {"", "其他"},
+	// 资源库层
+	{"", "人工"}, {"", "材料"}, {"", "机械"}, {"", "运输"}, {"", "检测"},
+	{"", "综合单价"}, {"", "其他"},
 	{"人工", "普工"}, {"人工", "技工"}, {"人工", "特殊工种"},
 	{"材料", "土建材料"}, {"材料", "安装材料"}, {"材料", "周转材料"}, {"材料", "辅助材料"}, {"材料", "市政绿化材料"},
-	{"土建材料", "水泥及水泥制品"}, {"土建材料", "砖瓦灰砂石"}, {"土建材料", "钢材"},
-	{"土建材料", "木材及竹木制品"}, {"土建材料", "防水材料"}, {"土建材料", "保温吸声材料"},
-	{"土建材料", "装饰石材"}, {"土建材料", "墙面天棚及屋面饰面材料"},
-	{"安装材料", "电线电缆"}, {"安装材料", "管材管件"}, {"安装材料", "阀门"}, {"安装材料", "灯具照明"}, {"安装材料", "消防器材"},
-	{"周转材料", "模板"}, {"周转材料", "脚手架"}, {"周转材料", "扣件"},
 	{"机械", "土方机械"}, {"机械", "桩基机械"}, {"机械", "起重机械"}, {"机械", "运输机械"}, {"机械", "混凝土机械"}, {"机械", "钢筋机械"},
 	{"运输", "场内运输"}, {"运输", "场外运输"},
 	{"检测", "材料检测"}, {"检测", "实体检测"},
-	{"综合单价", "土方"}, {"综合单价", "混凝土"}, {"综合单价", "钢筋"}, {"综合单价", "装饰装修"},
-	{"其他", "管理费"}, {"其他", "税费"}, {"其他", "措施费"},
+	{"其他", "管理费"}, {"其他", "税费"}, {"其他", "措施费"}, {"其他", "处置"}, {"其他", "服务"},
+	{"土建材料", "水泥及水泥制品"}, {"土建材料", "砖瓦灰砂石"}, {"土建材料", "钢材"},
+	{"土建材料", "木材及竹木制品"}, {"土建材料", "防水材料"}, {"土建材料", "保温吸声材料"},
+	{"土建材料", "装饰石材"}, {"土建材料", "墙面天棚及屋面饰面材料"}, {"土建材料", "玻璃及玻璃制品"},
+	{"安装材料", "电线电缆"}, {"安装材料", "管材管件"}, {"安装材料", "阀门"}, {"安装材料", "灯具照明"},
+	{"安装材料", "消防器材"}, {"安装材料", "通风空调"}, {"安装材料", "电气配件"},
+	{"周转材料", "模板"}, {"周转材料", "脚手架"}, {"周转材料", "扣件"},
+	{"辅助材料", "临建设施"}, {"辅助材料", "燃料火工"}, {"辅助材料", "土工合成材料"},
+
+	// 综合单价层：一级 = 综合单价
+	{"综合单价", "土方"}, {"综合单价", "混凝土"}, {"综合单价", "钢筋"},
+	{"综合单价", "装饰装修"}, {"综合单价", "修复处置"},
+	{"综合单价", "道路工程"}, {"综合单价", "交通工程"}, {"综合单价", "绿化工程"},
+	{"综合单价", "电力工程"}, {"综合单价", "给水工程"}, {"综合单价", "暖气工程"},
+	{"综合单价", "雨污工程"}, {"综合单价", "照明工程"}, {"综合单价", "其他工程"},
+	{"综合单价", "房建工程"},
+	// 二级 = 专业 → 三级 = 分部
+	{"道路工程", "土方工程"}, {"道路工程", "地基处理"}, {"道路工程", "机动车道"},
+	{"道路工程", "非机动车道"}, {"道路工程", "人行道"}, {"道路工程", "附属构造"}, {"道路工程", "拆除工程"},
+	{"交通工程", "标识标牌"}, {"交通工程", "标线"}, {"交通工程", "信号灯"},
+	{"绿化工程", "土方工程"}, {"绿化工程", "乔木"}, {"绿化工程", "灌木"}, {"绿化工程", "地被"},
+	{"电力工程", "土方工程"}, {"电力工程", "管沟与井室"}, {"电力工程", "电缆敷设"}, {"电力工程", "设备安装"},
+	{"给水工程", "土方工程"}, {"给水工程", "管道铺设"}, {"给水工程", "井室及附件"},
+	{"暖气工程", "土方工程"}, {"暖气工程", "管道铺设"}, {"暖气工程", "井室及附件"},
+	{"雨污工程", "土方工程"}, {"雨污工程", "管道铺设"}, {"雨污工程", "检查井及雨水口"},
+	{"照明工程", "基础工程"}, {"照明工程", "灯杆灯具安装"}, {"照明工程", "电缆敷设"},
+	{"其他工程", "拆除工程"}, {"其他工程", "临时设施"},
+	// 房建工程：房建成本测算手册章节
+	{"房建工程", "给排水工程"}, {"房建工程", "电气工程"}, {"房建工程", "通风空调工程"},
+	{"房建工程", "采暖工程"}, {"房建工程", "弱电工程"}, {"房建工程", "土建工程"}, {"房建工程", "单方指标"},
 }
 
 // EnsureDefaultCategories 幂等播种默认分类树（已存在节点跳过）。

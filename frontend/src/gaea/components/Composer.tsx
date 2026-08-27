@@ -319,7 +319,7 @@ export function Composer({
   }, [disabled, running, queueLen, cwd, workspaceName, t]);
 
   return (
-    <div className="relative max-w-[--maxw] mx-auto">
+    <div className="relative max-w-(--maxw) mx-auto">
       {/* ── 拖放指示器 ── */}
       <ComposerDragOverlay show={dragOver} />
 

@@ -191,6 +191,8 @@ type History struct {
 	Price     float64 `json:"price"`
 	Source    string  `json:"source"`
 	Period    string  `json:"period"`
+	Region    string  `json:"region,omitempty"`    // 发布时条目所在地区
+	PriceType string  `json:"priceType,omitempty"` // 发布时条目价格口径
 	FetchedAt string  `json:"fetchedAt"`
 	Note      string  `json:"note"`
 }
@@ -204,9 +206,9 @@ func (s *Store) AddHistory(h History) error {
 		h.FetchedAt = time.Now().UTC().Format(time.RFC3339)
 	}
 	_, err := s.db.Exec(`
-INSERT INTO cost_price_history(name,title,unit,price,source,period,fetched_at,note)
-VALUES(?,?,?,?,?,?,?,?)`,
-		h.Name, h.Title, h.Unit, h.Price, h.Source, h.Period, h.FetchedAt, h.Note)
+INSERT INTO cost_price_history(name,title,unit,price,source,period,region,price_type,fetched_at,note)
+VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		h.Name, h.Title, h.Unit, h.Price, h.Source, h.Period, h.Region, h.PriceType, h.FetchedAt, h.Note)
 	return err
 }
 
@@ -218,7 +220,7 @@ func (s *Store) ListHistory(name string, limit int) []History {
 	if limit <= 0 {
 		limit = 20
 	}
-	rows, err := s.db.Query(`SELECT name,title,unit,price,source,period,fetched_at,note FROM cost_price_history WHERE name=? ORDER BY fetched_at DESC LIMIT ?`, name, limit)
+	rows, err := s.db.Query(`SELECT name,title,unit,price,source,period,region,price_type,fetched_at,note FROM cost_price_history WHERE name=? ORDER BY fetched_at DESC LIMIT ?`, name, limit)
 	if err != nil {
 		return nil
 	}
@@ -226,7 +228,7 @@ func (s *Store) ListHistory(name string, limit int) []History {
 	var out []History
 	for rows.Next() {
 		var h History
-		if err := rows.Scan(&h.Name, &h.Title, &h.Unit, &h.Price, &h.Source, &h.Period, &h.FetchedAt, &h.Note); err != nil {
+		if err := rows.Scan(&h.Name, &h.Title, &h.Unit, &h.Price, &h.Source, &h.Period, &h.Region, &h.PriceType, &h.FetchedAt, &h.Note); err != nil {
 			continue
 		}
 		out = append(out, h)

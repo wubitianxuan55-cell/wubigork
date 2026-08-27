@@ -1,31 +1,35 @@
 # 任务进度
 
-> 最后更新: 2026-08-17
+> 最后更新: 2026-08-26 20:30（v3.1.0 已发布）
 
-| 状态 | 任务 |
-|------|------|
-| ✅ | 打包发布 v3.0.7：版本四处统一 3.0.7（sync-version 三处 + package.json/package-lock）；前端 tsc/eslint 0 errors、vitest 587 通过、vite build 通过；Go prompt/app/main 测试全绿、绑定面 477 方法漂移 PASS；wails build 发布版 35.2MB + 冒烟通过（/api/health 200）；发布 gaea-v3.0.7.exe + SHA256SUMS-v3.0.7.txt + v3.0.7.md + CHANGELOG-v3.0.7.txt；README 索引新增 v3.0.7 行（含补齐 v3.0.6 缺失行）；v3.0.2 归档到 releases/archive/（乱码行修复为归档状态）；git 提交 + tag v3.0.7 |
-| ✅ | 读取校正版0816表结构与实际数值 |
-| ✅ | 按校正口径对齐备注/断链公式并重算 |
-| ✅ | 更新记忆与事实底座为校正后单价和总价 |
-| ✅ | 小说：设定页「应用到设定」手动按钮 + 创作面板字号调节 + 默认 story-deslop + 剧情后台构思后弹窗确认 |
-| ✅ | 模型中心：修复右侧统计与资源（内存采集/CPU 采样/AMD GPU 显存识别/趋势时间轴/失败可见+重试+30s 刷新） |
-| ✅ | 绘梦：模板库重设计（内置 7 类 + herdsman 12 类 = 19 类 231 个，gen-herdsman-templates.mjs 生成）+ ComfyUI WebSocket 实时进度 + 单图铺满画布 |
-| ✅ | 角色剧照：远程 URL 本地化（保存+启动迁移）、助手/项目角色同步、前端裂图占位兜底 |
-| ✅ | 打包发布 v3.0.3：版本三处统一 3.0.3，Go 全量测试 + 前端 507/509（2 个既有 launcher 基线失败）通过，发布 gaea-v3.0.3.exe + SHA256SUMS + v3.0.3.md + CHANGELOG |
-| ✅ | 办公板块「任务目标 → 验收清单」升级：RequirementView 扩展 items/autoPursue + 5 个新绑定；目标卡/待办卡拆分重设计（GoalCard 始终展开 + TodoCard 默认折叠、未完成在前已完成收尾分组）；恢复会话时把目标写入 agent goal gate；Go +2、前端 +11 用例，全量测试零回归 |
-| ✅ | 角色库文件交互修复：补齐/随机管线支持五维人格（按性格生成 T/I/S/O/R）；「加入项目」弹窗选择任意小说（新增 CharacterAssociateTo 绑定，校验书架目录）；加入后物化 characters.json + 小说角色面板读取自愈（旧版只写关联表的角色自动补齐可见）；Go 全量测试通过、前端 tsc/eslint 0 errors、vitest 521 通过（2 个既有 launcher 基线失败） |
-| ✅ | 小说阅读体验优化：阅读面板铺满主视区（根容器 flex 修复 + 去掉 46rem 限宽）；新增排版面板（字号/行距/版宽，全局持久化，默认铺满）；段落首行缩进 + 两端对齐 + 章节标题；顶部阅读进度条 + 每章滚动位置记忆；←/→ 上一章/下一章快捷键；readingSettings 3 用例，前端 tsc/eslint 0 errors、vitest 524 通过（2 个既有 launcher 基线失败） |
-| ✅ | 小说阅读 P0（调研驱动）：阅读主题（跟随/米黄/护眼绿/夜间）+ 亮度滑杆（70-120%，持久化）；书签（图钉面板，当前滚动位置「＋ 此处」带段落摘录，列表跳转/删除，按项目持久化）；自动滚屏（播放/暂停、Aa 面板 5 档速度、滚轮手动暂停、到底自动停）；readingSettings 扩展 + readingBookmarks 3 用例，tsc/eslint 0 errors、vitest 527 通过（2 个既有 launcher 基线失败） |
-| ✅ | 小说阅读 P1-划线/高亮/想法：划词浮动工具条（四色高亮 + 想法，单段内选择，滚动收起）；高亮按摘录文本回渲染（冲突跳过、点击编辑/删除）；本章批注面板（颜色点 + 摘录 + 想法标记，点击定位/删除）；想法弹窗（摘录引用 + 多行编辑）；readingAnnotations 3 用例，tsc/eslint 0 errors、vitest 530 通过（2 个既有 launcher 基线失败） |
-| ✅ | 小说阅读 P1-AI 伴读：章节顶部「AI 摘要」折叠卡（展开生成 3-5 条要点，按章缓存 + 失败重试，仅本地文本）；划词工具条「问书」（摘录引用 + 提问 + AI 回答弹窗）；后端 NovelReadingAsk（summary/ask，正文 rune 截断 9000，novel 功能路由，内联提示词），novel 门面 67→68，绑定漂移 469 一致；Go +1 守卫用例，tsc/eslint 0 errors、vitest 530 通过（2 个既有 launcher 基线失败） |
-| ✅ | 小说阅读 P1-朗读同步 + 全文搜索：阅读页脚 TTS 听书（逐句蓝色高亮 + 平滑滚动居中，停止自动清除）；全文搜索（放大镜弹层，标题+正文、防抖 300ms、一章一命中带 ±40 字片段，点击打开章节阅读模式并黄色定位首个命中）；后端 NovelSearch（大纲顺序扫描、分支章节 ReadChapterBranch、上限 100），novel 门面 68→69，绑定漂移 470 一致；Go +1 守卫用例，tsc/eslint 0 errors、vitest 530 通过（2 个既有 launcher 基线失败） |
-| ✅ | 修复：项目上下文跨板块残留——切到绘梦/办公/聊天等板块时，顶栏面包屑和底栏遥测不再显示小说标题/进度/章数/字数；项目上下文仅在项目锚点板块（小说）展示，其他板块顶栏只显示板块名、底栏保留系统遥测；前端 tsc/eslint 0 errors、vitest 530 通过（2 个既有 launcher 基线失败） |
-| ✅ | 导出标签页合并进阅读面板：删除小说板块「导出」tab（子导航/类型/懒加载/ExportPage.tsx 移除），导出逻辑抽为 ExportPanel 组件，阅读页脚新增导出按钮 + 弹窗（一键导出 TXT/Markdown/EPUB，结果列表与空态保留）；NOVEL_NAV 与 NovelInspector 导出说明同步清理；tsc/eslint 0 errors、vitest 530 通过（2 个既有 launcher 基线失败） |
-| ✅ | 书架优化 + 导入成品小说：移除首卡 hero 双列效果，全部卡片固定等高 288px（封面/信息/操作对齐）；「导入小说」按钮（原生文件选择 TXT/MD/EPUB）→ 弹窗填书名/题材/文风 → 后端 ImportNovelBook 解析章节（第X章/Chapter N/序章/Markdown 标题切分，GBK/GB18030 兜底，EPUB spine 顺序读正文去 HTML）新建项目并自动打开；同名目录自动加序号；Go +4 用例，novel 门面 69→70、绑定漂移 471 一致，tsc/eslint 0 errors、vitest 530 通过（2 个既有 launcher 基线失败） |
-| ✅ | 打包发布 v3.0.4：版本三处统一 3.0.4（sync-version + package.json）；CI 全绿（go build/vet/test + 前端 build/vitest/eslint + E 系列守卫修复——ChatComposer/useChatStream/chat utils/ChatB.d.ts/GraphView 陈旧断言）；wails build 发布版 35.18MB；冒烟测试通过（/api/health 200）；发布 gaea-v3.0.4.exe + SHA256SUMS-v3.0.4.txt + v3.0.4.md + CHANGELOG-v3.0.4.txt + README 索引更新（v2.38-v2.40 归档到 releases/archive/） |
-| ✅ | 首页任务指挥中心改版（参照 DeepSeek 首页风格）：Hero 左文右卡（公告 pill + 大标题 + 双行动卡「开始创作/和 gaea 对话」黑色描边）+ 右侧深色渐变 AI 视觉卡（细网格纹理 + 星云流光 + 语音晶核呼吸环 + 活跃模型 pill）；AI 状态细条改 4 列透明无边框；「全部模块」分区：办公大卡固定 280px 居左 + 其余 8 卡 4×2 网格（角色库/设置不再单独成行），模块区不被压缩——修复设置卡被底部信息条横框遮挡；PageRegistry 补注册 ProgrammingPage（编程卡恢复可见）；语音晶核 canvas 粒子星云在 WebView2 下 rAF 被节流只剩首帧（静止图片），setTimeout 驱动实测不稳，最终取消粒子星云恢复发光球；tsc 0 errors、vite build 通过 |
-| ✅ | 打包发布 v3.0.5：版本统一 3.0.5（sync-version 三处 + package.json）；CI 全绿（go build/vet/test + 前端 build + E 系列守卫）；wails build 发布版 35.2MB；冒烟测试通过（/api/health 200）；发布 gaea-v3.0.5.exe + SHA256SUMS-v3.0.5.txt + v3.0.5.md + CHANGELOG-v3.0.5.txt + README 索引更新（v3.0.0 归档到 releases/archive/）；git 提交 + tag v3.0.5（v3.0.2–v3.0.4 发布资产随本次一并入库） |
-| ✅ | 编程板块桌面内嵌工作台 + 启动引导：DeepSeek Harness Web（http://127.0.0.1:3080）iframe 内嵌桌面窗口；启动引导升级为真实前置条件逐项检查（GetProgrammingWebPreflight）+ 日志尾部查看（ProgrammingWebLogTail）+ 启动动画视图（失败自动展开日志回引导视图）+ 运行时长/外部实例芯片；数据源 seam 化（bridge app seam + useVoiceChat cleanup 修复）；后端全链路 probe 探针注入，programming_web_test.go 16 用例零外部依赖；绑定面 470 方法漂移 PASS |
-| ✅ | 编程板块运行中工具栏移入顶栏：Harness Web 运行中徽标/运行时长/URL/刷新/浏览器打开/停止按钮 portal 进 MainLayout v3-strip（v3-prog-host 宿主，与聊天模式条同款），仅编程板块激活时自动显示、其他板块隐藏；iframe 独占工作区全高；宿主缺失兜底保持原布局；新增 portal 渲染用例（vitest 544 通过，编程板块 12 用例） |
-| ✅ | 打包发布 v3.0.6：版本三处统一 3.0.6（sync-version + package.json/package-lock）；前端 tsc/eslint 0 errors、vitest 544 通过、vite build 通过；wails build 发布版 35.2MB + 冒烟测试通过（/api/health 200）；发布 gaea-v3.0.6.exe + SHA256SUMS-v3.0.6.txt + v3.0.6.md + CHANGELOG-v3.0.6.txt；README 索引补齐 v3.0.2–v3.0.5 缺行 + 新增 v3.0.6 行；v3.0.1 归档到 releases/archive/；git 提交 + tag v3.0.6 + 推送 origin/main |
+## v3.1.0（2026-08-26 发布）——全部完成 ✅
+
+- ✅ 造价数据库一级板块（board cost，CostLibraryPage）：成本库从记忆中枢二级分类提升为一级导航；
+  记忆中枢成本二级入口移除（图谱节点保留琥珀色）
+- ✅ 综合单价架构（用户定调「数据库就是数据库」）：综合单价=一级、人材机=二级组成；
+  SchemaV12/V13（人工/材料/机械合计 + 管理/利润/垫资/税率仅展示 + cost_entry_components 组成行表）
+- ✅ 价格三要素与溯源 SchemaV9（region/price_date/price_type/valid_until/source_row + history 同步）
+- ✅ 默认分类树重构：综合单价 → 专业（道路/交通/绿化/电力/给水/暖气/雨污/照明/其他）→ 分部
+- ✅ 《市政成本测算手册》整本导入：综合单价分析表头专有解析 + 人材机组成行文本解析；实测 8 表 234 条全命中
+- ✅ 测算项目与沉淀闭环（costproject 包 + SchemaV10 三表）：容器/明细/不可变版本 + 沉淀 UPSERT 回成本库
+- ✅ 造价参考与复盘笔记（costref 包）：分位数指标实时聚合（不落表）+ 复盘笔记 + cost_indicators 办公工具
+- ✅ 成本库数据自愈（cost/repair.go）：201 条非法 category_path 映射回合法路径 + 地区/期数回填，Store.Open 自动执行
+- ✅ 造价数据库面板重设计：库规模 hero + 人材机构成占比 + 数据健康 + 空库引导 + 骨架屏
+- ✅ 办公蒸馏两轮（2026-08-20/26）：C3 会话级右侧面板持久化 / C6 运行域活动角标 / C7 预览队列 chip 化；
+  FileTree → 资源管理器（@引用/右键菜单/cwd 持久化/树内搜索）；删除完成轮大过程卡；GoalCard/TodoCard 紧凑化；
+  Tailwind v4 max-w-(--maxw) 括号语法修复
+- ✅ 成本库入口接线（用户决策 2026-08-26）：办公右侧「文件」组新增「成本库」子 Tab（CostLibraryPanel），4 主 Tab 收敛不变
+- ✅ 修复办公板块初始化死锁（GaeaInit 非重入锁二次加锁；syncGoalForSession 显式接收控制器 + 回归测试）
+- ✅ V4.0 dsh化 验证失败正式废弃（删除工作空间内 V4.0 文档；C:\AI\gaea-v4 与 ~/.dsh* 不动）；继续 V3 迭代
+- ✅ 发布工程：版本四处统一 3.1.0、绑定面 495 方法漂移 PASS、go 全量测试绿、vitest 630/630、wails build + 冒烟 /api/health 200；
+  CHANGELOG / releases/v3.1.0.md / README / AGENTS.md / progress.md 同步；git tag v3.1.0
+
+## 下一阶段候选（v3.1.1 / v3.2.0）
+
+- ⏳ 办公蒸馏后续轮次：C1 任务实时输出（需后端 GaeaTaskOutput）/ C2 子代理活动行（需后端字段）/
+  C4 选区转对话 / C5 工作区内联编辑（需 GaeaWriteFile）/ C9 分栏对照（见蒸馏候选清单）
+- ⏳ 造价数据库体验收口：测算项目页 UI 打磨（版本对比/恢复交互）、造价参考应用到报价、
+  手册二期（其他专业手册导入）、分类树维护界面
+- ⏳ 3.1.0 板块生态·记忆起步：记忆统一层（3.2.0 规划 V4）、受控自主（3.2.0）、板块插件化边界（V8 声明式装配）
+- ⏳ 质量收敛遗留：eslint 存量 warnings 收敛、flaky 测试基线治理（AV 锁/filewatch 抖动）、
+  前端性能（Sidebar 虚拟滚动已做，其余大组件 memo 复查）

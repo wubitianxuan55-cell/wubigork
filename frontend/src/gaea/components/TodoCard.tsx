@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Check, Circle, Loader, X } from "../icons";
+import { Check, ChevronDown, ChevronRight, Circle, Loader, X } from "../icons";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
@@ -48,52 +48,50 @@ export function TodoCard({ todos, onDismiss }: { todos: Todo[]; onDismiss: () =>
   const itemTextSize = compact ? "text-[11.5px]" : "text-[12.5px]";
 
   const headerBtn =
-    "inline-flex items-center gap-1 border-0 bg-transparent text-[11px] cursor-pointer px-1.5 py-0.5 rounded hover:text-fg hover:bg-bg transition-colors";
+    "inline-flex items-center justify-center gap-1 border-0 bg-transparent cursor-pointer w-6 h-6 rounded text-fg-faint hover:text-fg hover:bg-bg transition-colors";
 
   return (
     <section
       aria-label="待办"
-      className="max-w-[--maxw] mx-auto mb-2 border border-border rounded-[9px] bg-bg-soft overflow-hidden"
+      className="max-w-(--maxw) mx-auto mb-2 border border-border rounded-[9px] bg-bg-soft overflow-hidden"
       style={{ boxShadow: "var(--ds-shadow-card)" }}
     >
-      {/* 头部：标题 + 进度徽标 + 状态摘要 + 折叠/关闭 */}
-      <div className="flex items-center gap-2 px-3 py-2">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-fg text-[12.5px] font-semibold shrink-0">{t("todo.title")}</span>
-          <span
-            className="inline-flex items-center gap-1 rounded px-1.5 py-px bg-bg text-fg-faint text-[10px] font-mono tabular-nums"
-            role="status"
-            aria-label={`待办进度 ${done}/${todos.length}`}
-          >
-            {done}/{todos.length}
-            {pct > 0 && pct < 100 && ` · ${pct}%`}
+      {/* 头部：标题 + 进度徽标 + 状态摘要 + 折叠/关闭（单行紧凑） */}
+      <div className={`flex items-center gap-1.5 ${compact ? "px-2 py-1" : "px-2.5 py-1.5"}`}>
+        <button
+          type="button"
+          className={headerBtn}
+          aria-expanded={open}
+          aria-controls="todo-card-body"
+          aria-label={open ? "收起待办" : "展开待办"}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
+        </button>
+        <span className={`font-semibold shrink-0 ${compact ? "text-[12px]" : "text-[12.5px]"}`}>{t("todo.title")}</span>
+        <span
+          className="inline-flex items-center gap-1 rounded px-1.5 py-px bg-bg text-fg-faint text-[10px] font-mono tabular-nums shrink-0"
+          role="status"
+          aria-label={`待办进度 ${done}/${todos.length}`}
+        >
+          {done}/{todos.length}
+          {pct > 0 && pct < 100 && ` · ${pct}%`}
+        </span>
+        {!open && (
+          <span className="text-fg-faint text-[11px] truncate flex-1 min-w-0">
+            {allDone
+              ? "全部完成"
+              : current
+                ? `进行中：${summary}`
+                : summary
+                  ? `待办：${summary}`
+                  : `${active.length} 项待办`}
           </span>
-          {!open && (
-            <span className="text-fg-faint text-[11px] truncate">
-              {allDone
-                ? "全部完成"
-                : current
-                  ? `进行中：${summary}`
-                  : summary
-                    ? `待办：${summary}`
-                    : `${active.length} 项待办`}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            className={headerBtn}
-            aria-expanded={open}
-            aria-controls="todo-card-body"
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? t("common.collapse") : t("common.expand")}
-          </button>
-          <button type="button" className={headerBtn} onClick={onDismiss} aria-label="关闭待办">
-            <X size={11} aria-hidden />
-          </button>
-        </div>
+        )}
+        {open && <span className="flex-1" />}
+        <button type="button" className={headerBtn} onClick={onDismiss} aria-label="关闭待办">
+          <X size={12} aria-hidden />
+        </button>
       </div>
 
       {/* 展开体 */}

@@ -122,13 +122,14 @@ func (costSearch) Execute(_ context.Context, args json.RawMessage) (string, erro
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "## 成本库搜索结果（%d 条）\n\n", len(list))
-	b.WriteString("| 名称 | 标题 | 分类 | 单价(元) | 单位 | 规格 | 来源 | 状态 |\n")
-	b.WriteString("|---|---|---|---|---|---|---|---|\n")
+	b.WriteString("| 名称 | 标题 | 分类 | 单价(元) | 单位 | 规格 | 地区 | 期数 | 口径 | 来源 | 状态 |\n")
+	b.WriteString("|---|---|---|---|---|---|---|---|---|---|---|\n")
 	for _, e := range list {
 		price := fmt.Sprintf("%.2f", e.Price)
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s | %s |\n",
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n",
 			cell(e.Name), cell(e.Title), cell(e.Category), price, cell(e.Unit),
-			cell(e.Spec), cell(e.Source), cell(e.Status))
+			cell(e.Spec), cell(e.Region), cell(e.PriceDate), cell(e.PriceType),
+			cell(e.Source), cell(e.Status))
 	}
 	b.WriteString("\n同名条目可用 cost_save 覆盖更新（name 同上）。")
 	return tool.WrapText(b.String()), nil
@@ -442,14 +443,19 @@ func (costSave) Execute(_ context.Context, args json.RawMessage) (string, error)
 	}
 
 	action := "新增"
-	if existing, _ := store.Get(name); existing != nil {
-		action = "覆盖更新"
-	}
 	e := cost.Entry{
 		Name: name, Title: strings.TrimSpace(p.Title), Category: category,
 		CategoryPath: strings.TrimSpace(p.CategoryPath), Unit: strings.TrimSpace(p.Unit),
 		Price: p.Price, Spec: strings.TrimSpace(p.Spec), Source: strings.TrimSpace(p.Source),
 		Tags: tags, Status: status, Body: strings.TrimSpace(p.Body),
+	}
+	if existing, _ := store.Get(name); existing != nil {
+		action = "覆盖更新"
+		// 工具不管理人材机二级组成/费率：更新时保留，避免改价抹掉子目明细。
+		e.Components = existing.Components
+		e.LaborFee, e.MaterialFee, e.MachineFee = existing.LaborFee, existing.MaterialFee, existing.MachineFee
+		e.ManagementFee, e.ProfitFee, e.AdvanceFee, e.TaxRate =
+			existing.ManagementFee, existing.ProfitFee, existing.AdvanceFee, existing.TaxRate
 	}
 	if err := store.Save(e); err != nil {
 		return "", fmt.Errorf("保存失败: %w", err)

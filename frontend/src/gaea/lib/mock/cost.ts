@@ -1,6 +1,6 @@
 // mock/cost.ts — 成本库/价格域（T6-10.1 拆分自 lib/mock.ts，方法体零改动）。
 import type { AppBindings } from "../bridge";
-import type { CostCategory, PriceFetchRecord, PriceSource } from "../types";
+import type { CostCategory, CostEstimateItem, CostEstimateVersion, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, PriceFetchRecord, PriceSource } from "../types";
 import {
   costCategoriesMock,
   costMock,
@@ -21,7 +21,79 @@ type CostMethods = Pick<
   | "PriceSources" | "PriceSourceSave" | "PriceSourceDelete"
   | "PriceFetch" | "PriceFetchAll" | "PriceFetches" | "PriceFetchApply" | "PriceFetchIgnore"
   | "PriceHistory" | "CostCompare"
+  | "CostProjectSave" | "CostProjectList" | "CostProjectGet" | "CostProjectDelete"
+  | "CostEstimateItemSave" | "CostEstimateItemDelete" | "CostEstimateItems"
+  | "CostEstimateVersionSave" | "CostEstimateVersions" | "CostEstimateSediment"
+  | "CostIndicators" | "CostNoteSave" | "CostNoteList" | "CostNoteDelete" | "CostNoteBumpRef"
 >;
+
+// ── 测算项目 mock 状态（浏览器开发环境内存态，无持久化）──
+let mockProjects: CostProject[] = [];
+let mockProjectSeq = 1;
+let mockItems: CostEstimateItem[] = [];
+let mockItemSeq = 1;
+let mockVersions: CostEstimateVersion[] = [];
+let mockVersionSeq = 1;
+let mockNotes: CostReviewNote[] = [];
+let mockNoteSeq = 1;
+
+function mockProjectSummaries(): CostProjectSummary[] {
+  return mockProjects.map((p) => {
+    const items = mockItems.filter((i) => i.projectId === p.id);
+    const versions = mockVersions.filter((v) => v.projectId === p.id);
+    return {
+      ...p,
+      itemCount: items.length,
+      total: items.reduce((s, i) => s + (i.quantity ?? 0) * (i.price ?? 0), 0),
+      versionCount: versions.length,
+    };
+  });
+}
+
+function mockIndicators(group: string): CostIndicator[] {
+  const caseIds = new Set(mockVersions.map((v) => v.projectId));
+  const rows = mockItems.filter((i) => caseIds.has(i.projectId) && (i.price ?? 0) > 0);
+  const buckets = new Map<string, { prices: number[]; units: Map<string, number> }>();
+  for (const r of rows) {
+    const key = group === "category" ? (r.categoryPath?.split("/")[0] || "未分类") : r.title;
+    if (!key) continue;
+    if (!buckets.has(key)) buckets.set(key, { prices: [], units: new Map() });
+    const b = buckets.get(key)!;
+    b.prices.push(r.price ?? 0);
+    if (group !== "category" && r.unit) b.units.set(r.unit, (b.units.get(r.unit) ?? 0) + 1);
+  }
+  const out: CostIndicator[] = [];
+  const pct = (sorted: number[], p: number) => {
+    if (sorted.length === 1) return sorted[0];
+    const rank = p * (sorted.length - 1);
+    const lo = Math.floor(rank);
+    const hi = Math.min(lo + 1, sorted.length - 1);
+    return sorted[lo] + (rank - lo) * (sorted[hi] - sorted[lo]);
+  };
+  for (const [key, b] of buckets) {
+    const sorted = [...b.prices].sort((x, y) => x - y);
+    let unit = "";
+    let bestN = 0;
+    for (const [u, n] of b.units) {
+      if (n > bestN) {
+        unit = u;
+        bestN = n;
+      }
+    }
+    out.push({
+      key,
+      unit,
+      samples: sorted.length,
+      min: sorted[0],
+      max: sorted[sorted.length - 1],
+      mean: sorted.reduce((s, x) => s + x, 0) / sorted.length,
+      median: pct(sorted, 0.5),
+      p25: pct(sorted, 0.25),
+      p75: pct(sorted, 0.75),
+    });
+  }
+  return out.sort((a, b) => a.key.localeCompare(b.key, "zh-CN"));
+}
 
 export function buildCost(_s: MakeMockState): CostMethods {
   return {
@@ -228,6 +300,101 @@ export function buildCost(_s: MakeMockState): CostMethods {
           fetchedAt: now, kind: "fetch",
         },
       ];
+    },
+    // ── 测算项目与沉淀闭环（mock：内存态）──
+    async CostProjectSave(p: CostProject) {
+      if (!p.name?.trim()) throw new Error("测算项目需要名称");
+      if (!p.id) {
+        p = { ...p, id: `proj-mock-${mockProjectSeq++}`, createdAt: new Date().toISOString() };
+        mockProjects.push(p);
+      } else {
+        mockProjects = mockProjects.map((x) => (x.id === p.id ? { ...x, ...p, updatedAt: new Date().toISOString() } : x));
+      }
+      return p.id;
+    },
+    async CostProjectList() {
+      return mockProjectSummaries();
+    },
+    async CostProjectGet(id: string) {
+      return mockProjects.find((p) => p.id === id) ?? null;
+    },
+    async CostProjectDelete(id: string) {
+      mockProjects = mockProjects.filter((p) => p.id !== id);
+      mockItems = mockItems.filter((i) => i.projectId !== id);
+      mockVersions = mockVersions.filter((v) => v.projectId !== id);
+    },
+    async CostEstimateItemSave(i: CostEstimateItem) {
+      if (!i.title?.trim()) throw new Error("明细行需要标题");
+      const item: CostEstimateItem = {
+        ...i,
+        amount: (i.quantity ?? 0) * (i.price ?? 0),
+        updatedAt: new Date().toISOString(),
+      };
+      if (!item.id) {
+        item.id = mockItemSeq++;
+        item.createdAt = new Date().toISOString();
+        mockItems.push(item);
+      } else {
+        mockItems = mockItems.map((x) => (x.id === item.id ? { ...x, ...item } : x));
+      }
+      return item.id;
+    },
+    async CostEstimateItemDelete(id: number) {
+      mockItems = mockItems.filter((i) => i.id !== id);
+    },
+    async CostEstimateItems(projectId: string) {
+      return mockItems.filter((i) => i.projectId === projectId);
+    },
+    async CostEstimateVersionSave(projectId: string, note: string) {
+      const items = mockItems.filter((i) => i.projectId === projectId);
+      if (items.length === 0) throw new Error("项目没有明细行，无法保存版本");
+      const versions = mockVersions.filter((v) => v.projectId === projectId);
+      const v: CostEstimateVersion = {
+        id: mockVersionSeq++,
+        projectId,
+        version: versions.length + 1,
+        total: items.reduce((s, i) => s + (i.amount ?? 0), 0),
+        snapshot: JSON.stringify(items),
+        note,
+        createdAt: new Date().toISOString(),
+      };
+      mockVersions.push(v);
+      return v;
+    },
+    async CostEstimateVersions(projectId: string) {
+      return mockVersions.filter((v) => v.projectId === projectId).sort((a, b) => b.version - a.version);
+    },
+    async CostEstimateSediment(projectId: string, itemIds: number[]) {
+      // mock：与 CostSave 同口径 no-op，仅按缺单价过滤后返回条数。
+      return mockItems.filter((i) => i.projectId === projectId && itemIds.includes(i.id ?? -1) && (i.price ?? 0) > 0).length;
+    },
+    // ── 造价参考与复盘笔记（mock）──
+    async CostIndicators(group: string) {
+      return mockIndicators(group);
+    },
+    async CostNoteSave(n: CostReviewNote) {
+      if (!n.title?.trim()) throw new Error("复盘笔记需要标题");
+      const now = new Date().toISOString();
+      if (!n.id) {
+        n = { ...n, id: mockNoteSeq++, status: n.status || "草稿", confidence: n.confidence || "中", createdAt: now, updatedAt: now };
+        mockNotes.push(n);
+      } else {
+        mockNotes = mockNotes.map((x) => (x.id === n.id ? { ...x, ...n, updatedAt: now } : x));
+      }
+      return n.id!;
+    },
+    async CostNoteList(query: string, status: string) {
+      const q = (query ?? "").toLowerCase();
+      return mockNotes
+        .filter((n) => (status && status !== "all" ? n.status === status : true))
+        .filter((n) => !q || [n.title, n.conclusion, n.boundary, n.risk, n.evidence].some((s) => (s ?? "").toLowerCase().includes(q)))
+        .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+    },
+    async CostNoteDelete(id: number) {
+      mockNotes = mockNotes.filter((n) => n.id !== id);
+    },
+    async CostNoteBumpRef(id: number) {
+      mockNotes = mockNotes.map((n) => (n.id === id ? { ...n, refCount: (n.refCount ?? 0) + 1 } : n));
     },
   };
 }

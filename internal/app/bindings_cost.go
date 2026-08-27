@@ -3,6 +3,8 @@
 package app
 
 import (
+	"github.com/gaea/gaea/internal/gaea/costproject"
+	"github.com/gaea/gaea/internal/gaea/costref"
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 )
@@ -16,12 +18,27 @@ func (b *CostB) GaeaCostCategoryDelete(id int) error { return b.a.GaeaCostCatego
 func (b *CostB) GaeaCostCategorySave(parentID int, name string, sort int, id int) (int, error) { return b.a.GaeaCostCategorySave(parentID, name, sort, id) }
 func (b *CostB) GaeaCostCompare(name string) ([]CostCompareRow, error) { return b.a.GaeaCostCompare(name) }
 func (b *CostB) GaeaCostDelete(name string) error { return b.a.GaeaCostDelete(name) }
+func (b *CostB) GaeaCostEstimateItemDelete(id int64) error { return b.a.GaeaCostEstimateItemDelete(id) }
+func (b *CostB) GaeaCostEstimateItemSave(i costproject.Item) (int64, error) { return b.a.GaeaCostEstimateItemSave(i) }
+func (b *CostB) GaeaCostEstimateItems(projectID string) []costproject.Item { return b.a.GaeaCostEstimateItems(projectID) }
+func (b *CostB) GaeaCostEstimateSediment(projectID string, itemIDs []int64) (int, error) { return b.a.GaeaCostEstimateSediment(projectID, itemIDs) }
+func (b *CostB) GaeaCostEstimateVersionSave(projectID string, note string) (*costproject.Version, error) { return b.a.GaeaCostEstimateVersionSave(projectID, note) }
+func (b *CostB) GaeaCostEstimateVersions(projectID string) []costproject.Version { return b.a.GaeaCostEstimateVersions(projectID) }
 func (b *CostB) GaeaCostGet(name string) *CostEntry { return b.a.GaeaCostGet(name) }
 func (b *CostB) GaeaCostImportAIParse(path string) (CostImportPreview, error) { return b.a.GaeaCostImportAIParse(path) }
 func (b *CostB) GaeaCostImportApply(rows []CostEntry) (int, error) { return b.a.GaeaCostImportApply(rows) }
 func (b *CostB) GaeaCostImportPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportPreview(path) }
 func (b *CostB) GaeaCostImportVisionPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportVisionPreview(path) }
+func (b *CostB) GaeaCostIndicators(group string) []costref.Indicator { return b.a.GaeaCostIndicators(group) }
 func (b *CostB) GaeaCostList() []CostSummary { return b.a.GaeaCostList() }
+func (b *CostB) GaeaCostNoteBumpRef(id int64) error { return b.a.GaeaCostNoteBumpRef(id) }
+func (b *CostB) GaeaCostNoteDelete(id int64) error { return b.a.GaeaCostNoteDelete(id) }
+func (b *CostB) GaeaCostNoteList(query string, status string) []costref.Note { return b.a.GaeaCostNoteList(query, status) }
+func (b *CostB) GaeaCostNoteSave(n costref.Note) (int64, error) { return b.a.GaeaCostNoteSave(n) }
+func (b *CostB) GaeaCostProjectDelete(id string) error { return b.a.GaeaCostProjectDelete(id) }
+func (b *CostB) GaeaCostProjectGet(id string) *costproject.Project { return b.a.GaeaCostProjectGet(id) }
+func (b *CostB) GaeaCostProjectList() []costproject.ProjectSummary { return b.a.GaeaCostProjectList() }
+func (b *CostB) GaeaCostProjectSave(p costproject.Project) (string, error) { return b.a.GaeaCostProjectSave(p) }
 func (b *CostB) GaeaCostSave(e CostEntry) error { return b.a.GaeaCostSave(e) }
 func (b *CostB) GaeaCostSearch(query string, category string, status string) []CostSummary { return b.a.GaeaCostSearch(query, category, status) }
 func (b *CostB) GaeaPriceFetch(id string) (*tasks.Task, error) { return b.a.GaeaPriceFetch(id) }

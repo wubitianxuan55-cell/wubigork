@@ -69,6 +69,11 @@ func TestPersistWorkspace(t *testing.T) {
 	if ga.cfg == nil || ga.cfg.Workspace != workspace {
 		t.Fatalf("ga.cfg.Workspace = %v, want %v", ga.cfg.Workspace, workspace)
 	}
+	// 1b. 沙箱写入根跟随工作空间（与 gaeaLoadConfig 加载期归一一致，
+	// 避免磁盘残留旧工作区的 workspace_root）。
+	if ga.cfg.Sandbox.WorkspaceRoot != workspace {
+		t.Errorf("ga.cfg.Sandbox.WorkspaceRoot = %q, want %q", ga.cfg.Sandbox.WorkspaceRoot, workspace)
+	}
 
 	// 2. 重新加载（模拟下次启动）仍保持
 	got, err := gaeaLoadConfig()
@@ -77,6 +82,9 @@ func TestPersistWorkspace(t *testing.T) {
 	}
 	if got.Workspace != workspace {
 		t.Errorf("持久化后重载 Workspace = %q, want %q", got.Workspace, workspace)
+	}
+	if got.Sandbox.WorkspaceRoot != workspace {
+		t.Errorf("持久化后重载 Sandbox.WorkspaceRoot = %q, want %q", got.Sandbox.WorkspaceRoot, workspace)
 	}
 
 	// 3. gaeaCwd 跟随工作空间

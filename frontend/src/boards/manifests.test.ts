@@ -27,38 +27,41 @@ const getBoardManifestsMock = GetBoardManifests as unknown as {
 }
 
 // 后端 GetBoardManifests 契约形态（对齐 internal/app/board/builtins.go）：
-// 10 个业务板块（含 D7 knowledge），无 home 壳层，weixin.page=""、label=微信助手。
+// 11 个业务板块（含 cost 造价数据库 + D7 knowledge），无 home 壳层，
+// weixin.page=""、label=微信助手。
 const BACKEND_FIXTURE = [
   { id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1', menuOrder: 1, inMenu: true, featureModel: 'chat' },
   { id: 'novel', label: '小说', icon: 'ReadOutlined', page: 'NovelPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+2', menuOrder: 2, inMenu: true, breadcrumb: { anchorTo: 'project' }, featureModel: 'novel' },
   { id: 'imagegen', label: '绘梦', icon: 'PictureOutlined', page: 'ImageGenPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+3', menuOrder: 3, inMenu: true, featureModel: 'imagegen' },
   { id: 'gaea', label: '办公', icon: 'ToolOutlined', page: 'GaeaPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+4', menuOrder: 4, inMenu: true, featureModel: 'gaea' },
-  { id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 5, inMenu: true },
-  { id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 6, inMenu: true },
-  { id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 7, inMenu: true, featureModel: 'characterlib' },
-  { id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: false },
-  { id: 'weixin', label: '微信助手', icon: 'WechatOutlined', page: '', lazy: false, keepAlive: true, layout: 'padded', menuOrder: 9, inMenu: false },
+  { id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 5, inMenu: true, featureModel: 'cost' },
+  { id: 'code', label: '编程', icon: 'CodeOutlined', page: 'ProgrammingPage', lazy: true, keepAlive: true, layout: 'full', menuOrder: 6, inMenu: true },
+  { id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 7, inMenu: true },
+  { id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true },
+  { id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 9, inMenu: true, featureModel: 'characterlib' },
+  { id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 10, inMenu: false },
+  { id: 'weixin', label: '微信助手', icon: 'WechatOutlined', page: '', lazy: false, keepAlive: true, layout: 'padded', menuOrder: 11, inMenu: false },
   { id: 'knowledge', label: '知识库', icon: 'BookOutlined', page: 'KnowledgePage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true, featureModel: 'knowledge' },
 ]
 
 // 3.0 附 B 收敛映射回归：manifest 派生结果必须与旧 MainLayout 硬编码一致（像素级）。
 
 describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
-  it('菜单顺序与现状一致：首页 → 聊天 → 小说 → 绘梦 → 办公 → 编程 → 记忆中枢 → 模型中心 → 角色库', () => {
+  it('菜单顺序与现状一致：首页 → 聊天 → 小说 → 绘梦 → 办公 → 造价数据库 → 编程 → 记忆中枢 → 模型中心 → 角色库', () => {
     expect(menuBoards.map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'code', 'memoryhub', 'modelcenter', 'characterlib',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib',
     ])
   })
 
-  it('菜单文案与现状一致（首页/聊天/小说/绘梦/办公/编程/记忆中枢/模型中心/角色库）', () => {
+  it('菜单文案与现状一致（首页/聊天/小说/绘梦/办公/造价数据库/编程/记忆中枢/模型中心/角色库）', () => {
     expect(menuBoards.map((b) => b.label)).toEqual([
-      '首页', '聊天', '小说', '绘梦', '办公', '编程', '记忆中枢', '模型中心', '角色库',
+      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '编程', '记忆中枢', '模型中心', '角色库',
     ])
   })
 
   it('菜单图标名与现状一致（antd 图标注册表可解析）', () => {
     const expected = ['HomeOutlined', 'MessageOutlined', 'ReadOutlined', 'PictureOutlined',
-      'ToolOutlined', 'CodeOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined']
+      'ToolOutlined', 'AccountBookOutlined', 'CodeOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined']
     expect(menuBoards.map((b) => b.icon)).toEqual(expected)
     for (const b of menuBoards) {
       expect(resolveBoardIcon(b.icon), `icon ${b.icon} 可解析`).not.toBeNull()
@@ -72,9 +75,9 @@ describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
 })
 
 describe('navigateWhitelist（附 B #2：manifest 派生导航白名单）', () => {
-  it('与旧 allPageKeys 一致：7 个业务板块，不含 home/settings', () => {
+  it('与旧 allPageKeys 一致：8 个业务板块，不含 home/settings', () => {
     expect(navigateWhitelist).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'code', 'memoryhub', 'modelcenter', 'characterlib',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib',
     ])
   })
 })
@@ -98,7 +101,7 @@ describe('layout / breadcrumb / home（附 B #8/#9/#10/#11）', () => {
     expect(getBoard('chat')?.layout).toBe('full')
     expect(getBoard('gaea')?.layout).toBe('full')
     expect(getBoard('code')?.layout).toBe('full')
-    for (const id of ['novel', 'imagegen', 'memoryhub', 'modelcenter', 'characterlib', 'settings']) {
+    for (const id of ['novel', 'imagegen', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings']) {
       expect(getBoard(id)?.layout, id).toBe('padded')
     }
   })
@@ -140,7 +143,7 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
     expect(ids[0]).toBe('home')
     expect(deriveHomeBoard(merged)?.id).toBe('home')
     expect(merged.filter((b) => b.isHome)).toHaveLength(1)
-    expect(merged).toHaveLength(10)
+    expect(merged).toHaveLength(12)
   })
 
   it('差集 #3：weixin 以后端为准（page=""，label=微信助手，inMenu=false）', () => {
@@ -154,16 +157,16 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
   it('重叠 id 后端字段优先：菜单顺序/文案与静态一致（knowledge 被过滤，不尾随）', () => {
     const menu = deriveMenuBoards(normalizeManifests(BACKEND_FIXTURE))
     expect(menu.map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib',
     ])
     expect(menu.map((b) => b.label)).toEqual([
-      '首页', '聊天', '小说', '绘梦', '办公', '记忆中枢', '模型中心', '角色库',
+      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '编程', '记忆中枢', '模型中心', '角色库',
     ])
   })
 
   it('导航白名单 = 后端清单 + home（knowledge 已并入记忆中枢不单列）', () => {
     expect(deriveNavigateWhitelist(normalizeManifests(BACKEND_FIXTURE))).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib',
     ])
   })
 
@@ -179,7 +182,8 @@ describe('normalizeManifests（板块差集归一：后端清单 + 前端 home �
     const merged = normalizeManifests(BACKEND_FIXTURE)
     expect(deriveBoard(merged, 'chat')?.layout).toBe('full')
     expect(deriveBoard(merged, 'gaea')?.layout).toBe('full')
-    for (const id of ['novel', 'imagegen', 'memoryhub', 'modelcenter', 'characterlib', 'settings']) {
+    expect(deriveBoard(merged, 'code')?.layout).toBe('full')
+    for (const id of ['novel', 'imagegen', 'cost', 'memoryhub', 'modelcenter', 'characterlib', 'settings']) {
       expect(deriveBoard(merged, id)?.layout, id).toBe('padded')
     }
   })
@@ -245,7 +249,7 @@ describe('loadBoardManifests（数据源 seam：后端优先 / fail-closed 回�
     getBoardManifestsMock.mockResolvedValue(BACKEND_FIXTURE)
     await loadBoardManifests()
     expect(getActiveMenuBoards().map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'memoryhub', 'modelcenter', 'characterlib',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib',
     ])
     expect(getActiveNavigateWhitelist()).not.toContain('knowledge')
     expect(getActiveShortcutMap()['ctrl+4']).toBe('gaea')

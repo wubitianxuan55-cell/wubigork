@@ -33,6 +33,7 @@ const legacyPageComponents: Record<string, React.ComponentType> = {
   ImageGenPage: React.lazy(() => import('../pages/ImageGenPage')),
   GaeaPage: React.lazy(() => import('../pages/GaeaPage')),
   MemoryHubPage: React.lazy(() => import('../pages/MemoryHubPage')),
+  CostLibraryPage: React.lazy(() => import('../pages/CostLibraryPage')),
   ModelCenterPage: React.lazy(() => import('../pages/ModelCenterPage')),
   CharacterLibraryPage: React.lazy(() => import('../pages/CharacterLibraryPage')),
   SettingsPage: React.lazy(() => import('../pages/SettingsPage')),

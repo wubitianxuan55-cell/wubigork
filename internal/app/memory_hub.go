@@ -465,8 +465,19 @@ type CostSummary struct {
 	CategoryPath string    `json:"categoryPath"`
 	Unit         string    `json:"unit"`
 	Price        float64   `json:"price"`
+	// 人材机二级汇总（综合单价子目）：人工费/材料费/机械费（元）。
+	LaborFee    float64 `json:"laborFee,omitempty"`
+	MaterialFee float64 `json:"materialFee,omitempty"`
+	MachineFee  float64 `json:"machineFee,omitempty"`
+	// 人材机组成行数（二级明细规模，综合单价子目才有）。
+	ComponentCount int `json:"componentCount,omitempty"`
 	Spec         string    `json:"spec"`
 	Source       string    `json:"source"`
+	Region       string    `json:"region,omitempty"`       // 地区（价格三要素）
+	PriceDate    string    `json:"priceDate,omitempty"`    // 价格时间/期数
+	PriceType    string    `json:"priceType,omitempty"`    // 价格口径：出厂价/到场价/安装综合价
+	ValidUntil   string    `json:"validUntil,omitempty"`   // 有效期至
+	SourceRow    int       `json:"sourceRow,omitempty"`    // 导入原始行号（0=手动）
 	Tags         []string  `json:"tags"`
 	Status       string    `json:"status"`
 	UpdatedAt    time.Time `json:"updatedAt"`
@@ -475,8 +486,26 @@ type CostSummary struct {
 // CostEntry 完整成本条目。
 type CostEntry struct {
 	CostSummary
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"createdAt"`
+	// 费率（仅展示追溯，不参与计算）：管理费/利润/垫资 为金额（元），税率为百分比。
+	ManagementFee float64             `json:"managementFee,omitempty"`
+	ProfitFee     float64             `json:"profitFee,omitempty"`
+	AdvanceFee    float64             `json:"advanceFee,omitempty"`
+	TaxRate       float64             `json:"taxRate,omitempty"`
+	Components    []CostComponentView `json:"components,omitempty"`
+	Body          string              `json:"body"`
+	CreatedAt     time.Time           `json:"createdAt"`
+}
+
+// CostComponentView 综合单价子目的人材机组成明细行（二级）。
+type CostComponentView struct {
+	Kind     string  `json:"kind"`
+	Title    string  `json:"title"`
+	Unit     string  `json:"unit,omitempty"`
+	Quantity float64 `json:"quantity,omitempty"`
+	Price    float64 `json:"price,omitempty"`
+	Amount   float64 `json:"amount,omitempty"`
+	Note     string  `json:"note,omitempty"`
+	Sort     int     `json:"sort,omitempty"`
 }
 
 // CostCategoryView 成本分类树节点视图。
@@ -552,10 +581,17 @@ func (a *App) GaeaCostGet(name string) *CostEntry {
 	return &CostEntry{
 		CostSummary: toCostSummary(cost.Summary{
 			Name: e.Name, Title: e.Title, Category: e.Category, CategoryPath: e.CategoryPath,
-			Unit: e.Unit, Price: e.Price, Spec: e.Spec, Source: e.Source,
+			Unit: e.Unit, Price: e.Price,
+			LaborFee: e.LaborFee, MaterialFee: e.MaterialFee, MachineFee: e.MachineFee,
+			Spec: e.Spec, Source: e.Source,
+			Region: e.Region, PriceDate: e.PriceDate, PriceType: e.PriceType,
+			ValidUntil: e.ValidUntil, SourceRow: e.SourceRow,
 			Tags: e.Tags, Status: e.Status, UpdatedAt: e.UpdatedAt,
 		}),
-		Body: e.Body, CreatedAt: e.CreatedAt,
+		ManagementFee: e.ManagementFee, ProfitFee: e.ProfitFee,
+		AdvanceFee: e.AdvanceFee, TaxRate: e.TaxRate,
+		Components: toCostComponentViews(e.Components),
+		Body:       e.Body, CreatedAt: e.CreatedAt,
 	}
 }
 
@@ -563,7 +599,14 @@ func (a *App) GaeaCostGet(name string) *CostEntry {
 func (a *App) GaeaCostSave(e CostEntry) error {
 	return a.hubCostStore().Save(cost.Entry{
 		Name: e.Name, Title: e.Title, Category: e.Category, CategoryPath: e.CategoryPath,
-		Unit: e.Unit, Price: e.Price, Spec: e.Spec, Source: e.Source,
+		Unit: e.Unit, Price: e.Price,
+		LaborFee: e.LaborFee, MaterialFee: e.MaterialFee, MachineFee: e.MachineFee,
+		ManagementFee: e.ManagementFee, ProfitFee: e.ProfitFee,
+		AdvanceFee: e.AdvanceFee, TaxRate: e.TaxRate,
+		Components: fromCostComponentViews(e.Components),
+		Spec:       e.Spec, Source: e.Source,
+		Region: e.Region, PriceDate: e.PriceDate, PriceType: e.PriceType,
+		ValidUntil: e.ValidUntil, SourceRow: e.SourceRow,
 		Tags: e.Tags, Status: e.Status, Body: e.Body, CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt,
 	})
 }
@@ -596,9 +639,47 @@ func (a *App) GaeaCostCategoryDelete(id int) error {
 func toCostSummary(s cost.Summary) CostSummary {
 	return CostSummary{
 		Name: s.Name, Title: s.Title, Category: s.Category, CategoryPath: s.CategoryPath,
-		Unit: s.Unit, Price: s.Price, Spec: s.Spec, Source: s.Source,
+		Unit: s.Unit, Price: s.Price,
+		LaborFee: s.LaborFee, MaterialFee: s.MaterialFee, MachineFee: s.MachineFee,
+		ComponentCount: s.ComponentCount,
+		Spec: s.Spec, Source: s.Source,
+		Region: s.Region, PriceDate: s.PriceDate, PriceType: s.PriceType,
+		ValidUntil: s.ValidUntil, SourceRow: s.SourceRow,
 		Tags: s.Tags, Status: s.Status, UpdatedAt: s.UpdatedAt,
 	}
+}
+
+func toCostComponentViews(list []cost.Component) []CostComponentView {
+	if len(list) == 0 {
+		return nil
+	}
+	out := make([]CostComponentView, 0, len(list))
+	for _, c := range list {
+		out = append(out, CostComponentView{
+			Kind: c.Kind, Title: c.Title, Unit: c.Unit,
+			Quantity: c.Quantity, Price: c.Price, Amount: c.Amount,
+			Note: c.Note, Sort: c.Sort,
+		})
+	}
+	return out
+}
+
+func fromCostComponentViews(list []CostComponentView) []cost.Component {
+	if len(list) == 0 {
+		return nil
+	}
+	out := make([]cost.Component, 0, len(list))
+	for _, c := range list {
+		if strings.TrimSpace(c.Title) == "" {
+			continue
+		}
+		out = append(out, cost.Component{
+			Kind: c.Kind, Title: c.Title, Unit: c.Unit,
+			Quantity: c.Quantity, Price: c.Price, Amount: c.Amount,
+			Note: c.Note, Sort: c.Sort,
+		})
+	}
+	return out
 }
 
 func toCostCategoryView(c *cost.CategoryView) CostCategoryView {

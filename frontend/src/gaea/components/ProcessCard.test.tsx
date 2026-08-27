@@ -9,8 +9,8 @@ const noSubcalls = new Map<string, never>();
 
 const wrap = (node: React.ReactNode) => <LocaleProvider>{node}</LocaleProvider>;
 
-describe("ProcessCard 小过程卡 / 大过程卡初始状态", () => {
-  it("分段小过程卡（small）默认折叠；大过程卡（含文本合并卡）默认展开", () => {
+describe("ProcessCard 小过程卡 / 展开态初始状态", () => {
+  it("分段小过程卡（small）默认折叠；非 small（交替段展开态）默认展开", () => {
     const items: Item[] = [
       { kind: "assistant", id: "a1", text: "", reasoning: "先分析需求", streaming: false },
     ];
@@ -22,7 +22,7 @@ describe("ProcessCard 小过程卡 / 大过程卡初始状态", () => {
     expect(smallHeader?.getAttribute("aria-expanded")).toBe("false");
     smallView.unmount();
 
-    // 大过程卡：整轮结束后以全新实例挂载（small=false），默认展开
+    // 非 small（交替段展开态）：默认展开
     const bigView = render(
       <ProcessCard items={items} toolCount={0} thoughtCount={1} small={false} subcallsByParent={noSubcalls} />,
     );

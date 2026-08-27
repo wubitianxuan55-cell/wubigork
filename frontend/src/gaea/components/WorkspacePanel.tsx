@@ -2,6 +2,10 @@ import { useCallback } from "react";
 import { FolderTree, RefreshCw, X } from "../icons";
 import { FileTree } from "./FileTree";
 import { RecentFilesBar } from "./RecentFilesBar";
+import { app } from "../lib/bridge";
+import { useComposerInsertStore } from "../lib/store";
+import { recordRecentFile } from "../lib/recentFiles";
+import { useToast } from "./Toast";
 
 // 右侧面板：增强文件树（Codex 式工作区）。
 // 点击文件后由 App 收起本面板，并在主区域展开可拖宽的预览。
@@ -21,7 +25,25 @@ export function WorkspacePanel({
   onSelectFile: (rel: string) => void;
   onRefresh?: () => void;
 }) {
+  const toast = useToast();
   const handleRefresh = useCallback(() => onRefresh?.(), [onRefresh]);
+
+  // 行内 @ 引用：插入输入框 + 记入最近文件 + toast（与 MaterialsPanel 行为一致）。
+  // 空路径（根行 @ 按钮引用工作区根）无引用意义，静默忽略。
+  const reference = useCallback((rel: string) => {
+    if (!rel) return;
+    useComposerInsertStore.getState().requestAt(rel);
+    recordRecentFile(rel);
+    toast.show(`已引用 @${rel}`, "info");
+  }, [toast]);
+
+  const openExternal = useCallback((rel: string) => {
+    void app.OpenWorkspacePath(rel).catch(() => {});
+  }, []);
+
+  const reveal = useCallback((rel: string) => {
+    void app.RevealWorkspacePath(rel).catch(() => {});
+  }, []);
 
   const headActionBtn =
     "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--color-text-secondary) cursor-pointer hover:text-(color:--color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors";
@@ -72,6 +94,9 @@ export function WorkspacePanel({
           cwd={cwd}
           selectedFile={selectedFile}
           onSelect={onSelectFile}
+          onReference={reference}
+          onOpenExternal={openExternal}
+          onReveal={reveal}
         />
       </div>
     </div>

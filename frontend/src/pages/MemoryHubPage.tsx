@@ -9,7 +9,7 @@ import {
   RightOutlined,
   RobotOutlined,
 } from "@ant-design/icons";
-import { BookOpen, Brain, Coins, FileText, Pin } from "../gaea/icons";
+import { BookOpen, Brain, FileText, Pin } from "../gaea/icons";
 import { LocaleProvider } from "../gaea/lib/i18n";
 import { app } from "../gaea/lib/bridge";
 import { useComposerInsertStore, usePreviewStore } from "../gaea/lib/store";
@@ -20,7 +20,6 @@ import { ProfileLibrary } from "../gaea/components/memoryhub/ProfileLibrary";
 import { OfficeMemoryLibrary } from "../gaea/components/memoryhub/OfficeMemoryLibrary";
 import { WhisperMemoryLibrary } from "../gaea/components/memoryhub/WhisperMemoryLibrary";
 import { GraphView } from "../gaea/components/memoryhub/GraphView";
-import { CostLibrary } from "../gaea/components/memoryhub/CostLibrary";
 import { MaterialsLibrary } from "../gaea/components/memoryhub/MaterialsLibrary";
 import { DigitalLifeLibrary } from "../gaea/components/memoryhub/DigitalLifeLibrary";
 import { FilePreviewModal } from "../gaea/components/FilePreviewModal";
@@ -28,12 +27,11 @@ import "../gaea/styles.css";
 import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
 
-type LibraryKey = "knowledge" | "cost" | "profile" | "office" | "materials" | "whisper" | "graph" | "digitallife";
+type LibraryKey = "knowledge" | "profile" | "office" | "materials" | "whisper" | "graph" | "digitallife";
 
 // 各库霓虹色（与 3D 图谱着色一致：indigo 知识 / amber 成本 / emerald 办公 / pink 聊天记忆）
 const LIB_COLORS: Record<LibraryKey, string> = {
   knowledge: "#818cf8",
-  cost: "#fbbf24",
   profile: "#a78bfa",
   office: "#34d399",
   materials: "#38bdf8",
@@ -51,7 +49,6 @@ interface LibraryDef {
 
 const LIBRARIES: LibraryDef[] = [
   { key: "knowledge", label: "知识库", icon: <BookOpen size={17} />, hint: "规范/案例/经验条目" },
-  { key: "cost", label: "成本库", icon: <Coins size={17} />, hint: "单价/单位/来源" },
   { key: "profile", label: "用户画像", icon: <Brain size={17} />, hint: "跨板块共享画像" },
   { key: "office", label: "办公记忆", icon: <FileText size={17} />, hint: "跨会话办公事实" },
   { key: "materials", label: "项目资料", icon: <Pin size={17} />, hint: "固定常用文件 · 新会话带入" },
@@ -67,7 +64,7 @@ const NODE_COLORS: Record<string, string> = {
   office: LIB_COLORS.office,
   whisper: LIB_COLORS.whisper,
   material: LIB_COLORS.materials,
-  cost: LIB_COLORS.cost,
+  cost: "#fbbf24", // 成本库已独立为一级板块，图谱节点仍保留琥珀色
 };
 const NODE_LABELS: Record<string, string> = {
   knowledge: "知识",
@@ -226,7 +223,6 @@ function MemoryHubPage() {
         knowledge: overview.knowledgeCount,
         profile: overview.profileCount,
         office: overview.officeCount,
-        cost: overview.costCount,
         materials: overview.pinnedCount,
         whisper: overview.whisperCount,
       }
@@ -375,7 +371,6 @@ function MemoryHubPage() {
                     <KnowledgePanel variant="page" onClose={() => {}} />
                   </div>
                 )}
-                {active === "cost" && <CostLibrary />}
                 {active === "profile" && <ProfileLibrary />}
                 {active === "office" && <OfficeMemoryLibrary />}
                 {active === "materials" && <MaterialsLibrary />}

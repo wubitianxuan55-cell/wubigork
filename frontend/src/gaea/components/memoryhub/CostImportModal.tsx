@@ -5,8 +5,6 @@ import { app } from "../../lib/bridge";
 import type { CostEntry, CostImportPreview, CostImportRow } from "../../lib/types";
 import { useToast } from "../Toast";
 
-const CATEGORIES = ["机械", "材料", "人工", "运输", "检测", "综合单价", "其他"];
-
 // 识别来源 → 中文标注（source 契约：xlsx/csv/pdf_text/pdf_scan/image）。
 const SOURCE_LABELS: Record<string, string> = {
   xlsx: "Excel 表格",
@@ -93,19 +91,32 @@ export function CostImportModal({
   const doApply = useCallback(async () => {
     setSaving(true);
     try {
-      const entries: CostEntry[] = confirmRows.map((r) => ({
-        name: r.name,
-        title: r.title,
-        category: r.category || "其他",
-        categoryPath: r.category || "",
-        unit: r.unit,
-        price: r.price,
-        spec: r.spec,
-        source: r.source,
-        tags: [],
-        status: r.status || "现行",
-        body: "",
-      }));
+      const entries: CostEntry[] = confirmRows.map((r) => {
+        const cat = r.category || "其他";
+        const leaf = cat.split("/").filter(Boolean).pop() ?? "其他";
+        return {
+          name: r.name,
+          title: r.title,
+          category: leaf,
+          categoryPath: cat,
+          unit: r.unit,
+          price: r.price,
+          laborFee: r.laborFee ?? 0,
+          materialFee: r.materialFee ?? 0,
+          machineFee: r.machineFee ?? 0,
+          managementFee: r.managementFee ?? 0,
+          profitFee: r.profitFee ?? 0,
+          advanceFee: r.advanceFee ?? 0,
+          taxRate: r.taxRate ?? 0,
+          components: r.components ?? [],
+          body: r.body ?? "",
+          spec: r.spec,
+          source: r.source,
+          sourceRow: r.sourceRow ?? 0,
+          tags: [],
+          status: r.status || "现行",
+        };
+      });
       const n = await app.CostImportApply(entries);
       toast.show(`已导入 ${n} 条成本条目`, "info");
       onImported();
@@ -127,7 +138,7 @@ export function CostImportModal({
       }
       open={open}
       onCancel={onClose}
-      width={860}
+      width={1020}
       // WebView2 在特定状态下会冻结 rAF/CSS 动画：退出动画永远不结束，
       // 遮罩残留在窗口上导致整个软件点不了。这里禁用弹层动画，关闭即卸载。
       destroyOnHidden
@@ -204,6 +215,10 @@ export function CostImportModal({
               <th className="px-2 py-1.5 w-20">分类</th>
               <th className="px-2 py-1.5 w-20">单位</th>
               <th className="px-2 py-1.5 w-24">单价(元)</th>
+              <th className="px-2 py-1.5 w-20">人工</th>
+              <th className="px-2 py-1.5 w-20">材料</th>
+              <th className="px-2 py-1.5 w-20">机械</th>
+              <th className="px-2 py-1.5 w-12">组成</th>
               <th className="px-2 py-1.5 min-w-[110px]">规格</th>
               <th className="px-2 py-1.5 min-w-[90px]">来源</th>
               <th className="px-2 py-1.5 w-28">状态</th>
@@ -239,15 +254,12 @@ export function CostImportModal({
                     )}
                   </td>
                   <td className="px-2 py-1">
-                    <select
+                    <input
                       value={r.category}
                       onChange={(e) => patchRow(i, { category: e.target.value })}
-                      className="bg-transparent outline-none text-fg-dim text-[11px]"
-                    >
-                      {CATEGORIES.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
+                      placeholder="综合单价/道路/土方"
+                      className="w-36 bg-transparent outline-none border-b border-transparent focus:border-accent text-fg-dim text-[11px]"
+                    />
                   </td>
                   <td className="px-2 py-1">
                     <input
@@ -265,6 +277,39 @@ export function CostImportModal({
                       onChange={(e) => patchRow(i, { price: Number(e.target.value) || 0 })}
                       className="w-full bg-transparent outline-none border-b border-transparent focus:border-accent text-fg text-right"
                     />
+                  </td>
+                  <td className="px-2 py-1">
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={r.laborFee ?? ""}
+                      onChange={(e) => patchRow(i, { laborFee: Number(e.target.value) || 0 })}
+                      className="w-full bg-transparent outline-none border-b border-transparent focus:border-accent text-fg text-right"
+                    />
+                  </td>
+                  <td className="px-2 py-1">
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={r.materialFee ?? ""}
+                      onChange={(e) => patchRow(i, { materialFee: Number(e.target.value) || 0 })}
+                      className="w-full bg-transparent outline-none border-b border-transparent focus:border-accent text-fg text-right"
+                    />
+                  </td>
+                  <td className="px-2 py-1">
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={r.machineFee ?? ""}
+                      onChange={(e) => patchRow(i, { machineFee: Number(e.target.value) || 0 })}
+                      className="w-full bg-transparent outline-none border-b border-transparent focus:border-accent text-fg text-right"
+                    />
+                  </td>
+                  <td className="px-2 py-1 text-center text-fg-faint tabular-nums" title={r.components?.map((c) => `${c.kind} ${c.title} ${c.amount ?? ""}`).join("\n") ?? ""}>
+                    {r.components?.length ?? 0}
                   </td>
                   <td className="px-2 py-1">
                     <input

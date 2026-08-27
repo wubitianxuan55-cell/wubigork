@@ -1,5 +1,82 @@
 # gaea · 多功能 AI 助手
 
+## v3.1.0「造价数据库 · 一级板块 + 办公蒸馏 + 死锁修复」(2026-08-26)
+> 主线 = 参照 zaojia-database 蒸馏造价数据库并提升为一级板块：综合单价=一级、
+> 人材机=二级组成；按用户定调「数据库就是数据库」收口——测算引用/对标由办公
+> agent 工具承担，造价数据库只做数据沉淀与管理。并行落地办公蒸馏
+> （dsh-better-sidebar 右侧面板 C3/C6/C7 + 文件工作台资源管理器）与 UI 紧凑化；
+> 修复办公板块初始化死锁。
+- **一级板块「造价数据库」**：成本库从记忆中枢二级分类提升为独立板块（board
+  cost，`CostLibraryPage`，MenuOrder 5，AccountBookOutlined，导航：概览/成本条目/
+  价格源/价格仓库），复用 CostB 门面；记忆中枢成本二级入口移除（避免双入口，
+  记忆图谱节点仍保留琥珀色）
+- **架构定稿（市场调研驱动）**：专项调研陕西蜘蛛网工程成本平台，确认其公开内容
+  全部为「综合单价分析」（人工费+材料费+机械费+管理/利润/税金→综合单价），与
+  市政手册同构；三个决策点定稿：记录=综合单价子目、资源库层保留不强制关联、
+  费率入库仅展示追溯。调研文档
+  `docs/market-research-2026-08-cost-architecture-zonghe-danjia.md`
+- **数据模型（SchemaV9/V10/V12/V13）**：`cost_entries` 增加 地区（region）/价格
+  时间期数（price_date）/价格口径（price_type）/有效期（valid_until）/导入原始
+  行号（source_row），`cost_price_history` 同步记录地区与口径（价格快照可追溯
+  「哪个地区、什么口径、哪一期」）；再增加 人工费/材料费/机械费 三个合计与
+  管理费/利润/垫资/税率（仅展示不参与计算）；新建 `cost_entry_components` 组成
+  行表（kind/title/unit/quantity/price/amount/note/sort）。`cost.Store` 的
+  Save/Get/Delete/Search 与导入事务写库全链路接通，Save 组成行整组替换；
+  `Summary` 增 `componentCount` 支撑面板统计
+- **默认分类树重构**：综合单价 → 专业（道路/交通/绿化/电力/给水/暖气/雨污/照明/
+  其他）→ 分部；人材机不再平级成类，资源库层由价格源模块承载
+- **《市政成本测算手册》整本导入**：任一 sheet 含「综合单价分析+人工费/材料费/
+  机械费」表头即触发专有解析（多专业表 → 分部行 → 子目行）；「综合单价分析」
+  文本解析为人材机组成行（段头切 kind、行尾金额、原始表达式入 note 保留损耗系数），
+  同名子目按项目特征片段去重；实测 8 张专业表 234 条全部命中，通用报价单导入不受影响
+- **测算项目与沉淀闭环（新包 costproject，SchemaV10）**：`cost_projects` /
+  `cost_estimate_items` / `cost_estimate_versions` 三表——测算项目容器（类型/规模/
+  工艺/状态）+ 明细行（引用成本库单价或手动填价，数量×单价自动算金额）+ 不可变
+  版本快照（回看/对比/恢复）；「沉淀」把明细行 UPSERT 回 cost_entries，
+  「沉淀即调用」闭环；App 绑定 GaeaCostProjectSave/List/Get、GaeaCostEstimate* 系列
+- **造价参考与复盘笔记（新包 costref）**：对「已保存版本/已沉淀」测算项目明细行
+  实时聚合 样本数/极值/P25/P75/中位数/均值（指标不落表避免双写），供下次报价对标；
+  复盘笔记沉淀「判断」（结论/适用边界/风险/证据/可信度/有效期/复核状态 + 引用计数）；
+  新增 `cost_indicators` 办公 agent 工具（只读聚合，测算前对标与引用依据）
+- **成本库数据自愈（cost/repair.go）**：修复历史遗留平铺分类路径——1420 条里 201 条
+  category_path 在分类树上无法解析（树上看不到、统计对不上），规则引擎幂等映射回
+  合法路径 + 从来源字符串保守回填地区/期数（不臆造）；`Store.Open` 自动执行防再次漂移
+- **造价数据库面板重设计**：概览改为 库规模 hero（条目/专业/分部/组成行 + 累计
+  人材机构成占比条）+ 数据健康（缺单价/草稿/引用完备度）+ 最近更新（行内人材机
+  mini 条）+ 空库三步引导 + 骨架屏；模块导航由圆角胶囊改分段下划线；条目列表加
+  人材机占比条、表格加「组成」列；沿用 v3 玻璃面板/辉光卡设计语言
+- **办公联动收口**：`cost_search`/`cost_save`/`cost_indicators` 三个 agent 工具
+  承载测算引用、单价沉淀与分位数对标；交付物面板「沉淀到成本库」一键生成
+  `cost_save` 指令；`cost_save` 与测算沉淀更新既有子目时保留人材机组成/费率，
+  避免改价抹掉二级明细
+- **办公蒸馏（dsh-better-sidebar，2026-08-20/26 两轮）**：C3 会话级右侧面板布局
+  持久化（`gaea.rightPanel.v1:<sessionKey>`）+ C6 运行域活动角标（useRunningBadge
+  计数徽标，99+ 封顶）+ C7 预览队列 chip 化（点击切换/×关闭/中键关闭 VS Code 语义）；
+  FileTree → 资源管理器（行悬浮 @引用 / 右键菜单：预览·外部打开·在文件夹中显示·
+  复制相对路径 / 展开态按 cwd 持久化 / 树内搜索接 GaeaFileSearch），纯前端零后端；
+  删除完成轮「大过程卡」（Transcript 统一交替语义，正文独立显示）；GoalCard/TodoCard
+  默认折叠紧凑化（用户：太占地方）；修复 Tailwind v4 `max-w-[--maxw]` 方括号语法
+  不生成 CSS → 统一 `max-w-(--maxw)` 括号语法（四处卡片宽度对齐输入框）
+- **成本库入口接线（用户决策，2026-08-26）**：办公右侧面板「文件」组新增「成本库」
+  子 Tab（CostLibraryPanel：条目列表/价格源/价格仓库三态 + 一键插入输入框），
+  4 主 Tab 收敛不变；workspaceTabs 单源声明 + App 渲染分支 + 测试断言同步
+- **修复办公板块初始化死锁（工作空间/新建会话不可用的根因）**：`GaeaInit` 持
+  `ga.mu` 初始化时会走 `resumeLastSession → syncGoalForSession`，而后者内部经
+  `gaeaCtrl()` 对同一把非重入互斥锁二次加锁，导致工作区存在会话时办公板块首次
+  打开即永久卡死（界面停在「连接中…」、侧栏看不到任何项目/会话、无法新建会话、
+  无法切换工作空间）。修复：`syncGoalForSession` 改为显式接收控制器，不再内部
+  取锁；新增两个回归测试（持锁上下文直接调用 + 工作区含会话的完整 `GaeaInit`
+  场景），并让 `persistWorkspaceLocked` 同步更新磁盘上的
+  `sandbox.workspace_root`，避免切换工作空间后配置文件残留旧工作区路径。
+- **决策：V4.0 dsh化 验证失败，正式废弃**（2026-08-26）：曾把 gaea 改造成 DSH 插件
+  体系（独立工作空间 `C:\AI\gaea-v4`），用户验证后判定失败；删除工作空间内 V4.0
+  文档（v4-blueprint 蓝图 / phase4 两份实施计划 / CHANGELOG v4.0.0 章节），
+  `C:\AI\gaea-v4` 与 `~/.dsh*` 工作空间外文件一律不动；继续 V3 迭代
+- **验证**：`go build ./...` + vet 干净 + 全量 `go test` 通过（filewatch 首跑为
+  环境抖动，单独重跑全绿）；前端 `tsc -b` 0 errors、eslint 0 errors、vitest
+  **630/630（118 文件）**；绑定面 **495 方法**漂移检查 PASS；`wails build` 发布版
+  成功 + 冒烟测试（/api/health 200），产物 `build/bin/gaea.exe` 复制到 releases
+
 ## v3.0.8「办公板块 · 表格可交付 + 会话产物打包 + 多智能体分工」(2026-08-17)
 > 按调研 docs/market-research-2026-08-office-table-agent-and-package.md 落地 P0 三项
 > （表格选中区域→一键图表、会话产物一键打包 Zip、产物缩略图增强）+ P2 首项
@@ -2920,52 +2997,6 @@ go build -o build/bin/wubigork-v5.1.0.exe -ldflags="-s -w" .  # 9.9MB
 wails build                              # 生产包 (build/bin/wubigork.exe, 16MB)
 go build -o build/bin/wubigork-v5.0.0.exe .  # 开发包 (不含嵌入 dist)
 ```
-
----
-
-## v4.0.0「织梦者」— AI 原生叙事工作室 (2026-06-29)
-
-> 对标 Scrivener + Sudowrite + Cursor + Obsidian + Notion，从「AI 辅助写作工具」跃升为「人机共创的叙事操作系统」
-
-### 🏗 数据基础: 场景优先架构
-- **场景引擎**: 章节由场景组合，场景级 CRUD + 元数据（POV/地点/情感/标签），`Stitch()` 拼接编辑
-- **快照系统**: 行级 diff 存储，自动快照 + 时间线恢复 + 双栏对比
-- **v4 项目结构**: `chapters/NNN/scenes/` 目录，非破坏性 v3→v4 迁移（原件备份到 `_v3_backup/`）
-
-### ✍️ AI 协写系统 (对标 Cursor + Sudowrite)
-- **Ghost Text**: 内联 AI 补全，800ms 防抖，Tab 接受/Esc 取消，光标追踪
-- **Cmd+K**: 6 个预设指令 + 自定义指令，选中文本 → AI 原地编辑 → diff 预览
-- **Diff Review**: 行级 diff（绿色新增/红色删除），⌘Y 接受/⌘N 拒绝
-- **Beat-to-Prose**: 两栏布局，AI 生成叙事节拍 → 逐个展开为正文，完成自动存为 v4 场景
-
-### 🕸 叙事知识图谱 (对标 Obsidian + Notion)
-- **[[wiki-link]]**: 双向链接解析 + 反向链接索引 + 未链接提及检测
-- **EntityDB**: 6 种实体类型（角色/地点/物品/事件/概念/组织），关联查询
-- **一致性守护**: 跨章属性冲突检测（眼睛/发色）+ 角色状态异常（Dead→出场）+ 时间线校验
-- **StoryGraph**: Canvas 力导向 2D 图谱 + 悬停高亮 + 6 色图例
-
-### 🧠 上下文智能引擎 (对标 NovelAI + Cursor)
-- **语义记忆**: BM25 检索 + 中文 2-gram 分词，零外部依赖
-- **Lorebook 2.0**: 触发式关键词注入 + Token 预算可视化（7 分区堆叠条形图）
-- **多模型路由**: 8 种任务类型 → 最优参数自动映射（温度/Token/推理深度）
-- **@-mention**: 弹出实体选择器，@角色/@地点/@概念 精确控制 AI 上下文
-
-### 📊 视觉叙事工作台 (对标 Scrivener Corkboard)
-- **StoryTimeline**: 水平滚动时间线 + 彩色情绪卡片 + 字数比例条 + 悬停详情
-- **EmotionCurve**: Canvas 贝塞尔曲线 + tension/valence 切换 + 渐变填充
-- **CharacterHeatmap**: 角色×章节矩阵 + POV 红色标记 + 颜色强度
-- **CanvasCards**: SVG 连线软木板 + 30%-200% 缩放
-
-### 🌐 生态平台
-- **导出 2.0**: HTML 导出 + 3 个 Compile 模板（网文阅读/出版审阅/极简纯净）+ 暗色模式
-- **写作仪表盘**: 8 个写作成就 + 统计总览 + 章节柱状图 + 目标进度
-- **风格档案**: AI 分析 3 章样本 → 8 维风格特征 → 自动注入 prompt
-
-### 🔧 工程质量
-- **Go**: 6 个新包 (scene/snapshot/graph/memory/context/visual) + 34 项测试
-- **React**: 14 个新组件 + TypeScript 零错误
-- **API**: 60+ Wails 绑定方法
-- **兼容**: v3 项目完全兼容，迁移可手动触发
 
 ---
 

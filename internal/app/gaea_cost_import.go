@@ -24,8 +24,19 @@ type CostImportRowView struct {
 	Category      string  `json:"category"`
 	Unit          string  `json:"unit"`
 	Price         float64 `json:"price"`
+	// 综合单价架构：人材机二级 = 合计 + 组成明细；费率仅展示追溯。
+	LaborFee      float64             `json:"laborFee,omitempty"`
+	MaterialFee   float64             `json:"materialFee,omitempty"`
+	MachineFee    float64             `json:"machineFee,omitempty"`
+	ManagementFee float64             `json:"managementFee,omitempty"`
+	ProfitFee     float64             `json:"profitFee,omitempty"`
+	AdvanceFee    float64             `json:"advanceFee,omitempty"`
+	TaxRate       float64             `json:"taxRate,omitempty"`
+	Components    []CostComponentView `json:"components,omitempty"`
+	Body          string              `json:"body,omitempty"`
 	Spec          string  `json:"spec"`
 	Source        string  `json:"source"`
+	SourceRow     int     `json:"sourceRow,omitempty"` // 原始工作表物理行号（0=无法确定）
 	Status        string  `json:"status"`
 	ExistingName  string  `json:"existingName"`
 	ExistingPrice float64 `json:"existingPrice"`
@@ -136,7 +147,8 @@ func (a *App) GaeaCostImportAIParse(path string) (CostImportPreview, error) {
 	const sysPrompt = "你是成本数据提取助手。把报价/成本表格的每一行归一化为成本条目 JSON 数组，规则：\n" +
 		"title=材料/设备/项目名称（去掉序号前缀）；spec=规格型号（无则空串）；unit=单位（台班/吨/m³/工日等，无则空串）；\n" +
 		"price=数字单价（元，去掉货币符号与千分位，无法识别填 0）；source=来源（取文件中的供应商/产地/备注，无则\"导入文件\"）；\n" +
-		"category 只能是 机械/材料/人工/运输/检测/综合单价/其他 之一。\n" +
+		"category=分类：综合单价子目用完整路径（如 综合单价/道路工程/土方工程），否则用 机械/材料/人工/运输/检测/综合单价/其他；\n" +
+		"综合单价行可附 laborFee/materialFee/machineFee（人材机金额，元）与 managementFee/profitFee/advanceFee/taxRate（费率，仅展示追溯）。\n" +
 		"只输出 JSON 数组，不要代码块标记，不要任何解释。"
 	user := "请提取以下表格（表头 + 样本行）：\n\n" + tableContent
 	if textFallback != "" {
@@ -187,12 +199,19 @@ func (a *App) finishAIParse(abs string, columns []string, raw string) (CostImpor
 		return CostImportPreview{}, fmt.Errorf("AI 解析输出不是 JSON 数组")
 	}
 	var aiRows []struct {
-		Title    string  `json:"title"`
-		Spec     string  `json:"spec"`
-		Unit     string  `json:"unit"`
-		Price    float64 `json:"price"`
-		Source   string  `json:"source"`
-		Category string  `json:"category"`
+		Title         string  `json:"title"`
+		Spec          string  `json:"spec"`
+		Unit          string  `json:"unit"`
+		Price         float64 `json:"price"`
+		Source        string  `json:"source"`
+		Category      string  `json:"category"`
+		LaborFee      float64 `json:"laborFee,omitempty"`
+		MaterialFee   float64 `json:"materialFee,omitempty"`
+		MachineFee    float64 `json:"machineFee,omitempty"`
+		ManagementFee float64 `json:"managementFee,omitempty"`
+		ProfitFee     float64 `json:"profitFee,omitempty"`
+		AdvanceFee    float64 `json:"advanceFee,omitempty"`
+		TaxRate       float64 `json:"taxRate,omitempty"`
 	}
 	if err := json.Unmarshal([]byte(raw[start:end+1]), &aiRows); err != nil {
 		return CostImportPreview{}, fmt.Errorf("AI 解析输出无效: %w", err)
@@ -205,6 +224,9 @@ func (a *App) finishAIParse(abs string, columns []string, raw string) (CostImpor
 			Spec:     strings.TrimSpace(r.Spec),
 			Unit:     strings.TrimSpace(r.Unit),
 			Price:    r.Price,
+			LaborFee: r.LaborFee, MaterialFee: r.MaterialFee, MachineFee: r.MachineFee,
+			ManagementFee: r.ManagementFee, ProfitFee: r.ProfitFee,
+			AdvanceFee: r.AdvanceFee, TaxRate: r.TaxRate,
 			Source:   strings.TrimSpace(r.Source),
 			Category: normalizeAICategory(r.Category),
 		})
@@ -222,11 +244,16 @@ func (a *App) finishAIParse(abs string, columns []string, raw string) (CostImpor
 // costEntryUpsertSQL 与 cost.Store.Save 同构的 UPSERT（整批事务内逐条执行，
 // 保证事务内写入与常规 Save 的落盘形态完全一致）。
 const costEntryUpsertSQL = `
-INSERT INTO cost_entries(name, title, category, category_path, unit, price, spec, source, tags, status, body, created_at, updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+INSERT INTO cost_entries(name, title, category, category_path, unit, price, labor_fee, material_fee, machine_fee, management_fee, profit_fee, advance_fee, tax_rate, spec, source, region, price_date, price_type, valid_until, source_row, tags, status, body, created_at, updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(name) DO UPDATE SET
   title=excluded.title, category=excluded.category, category_path=excluded.category_path, unit=excluded.unit,
-  price=excluded.price, spec=excluded.spec, source=excluded.source,
+  price=excluded.price, labor_fee=excluded.labor_fee, material_fee=excluded.material_fee,
+  machine_fee=excluded.machine_fee, management_fee=excluded.management_fee,
+  profit_fee=excluded.profit_fee, advance_fee=excluded.advance_fee, tax_rate=excluded.tax_rate,
+  spec=excluded.spec, source=excluded.source,
+  region=excluded.region, price_date=excluded.price_date, price_type=excluded.price_type,
+  valid_until=excluded.valid_until, source_row=excluded.source_row,
   tags=excluded.tags, status=excluded.status, body=excluded.body,
   updated_at=excluded.updated_at`
 
@@ -266,8 +293,14 @@ func normalizeCostEntryForTx(e CostEntry) (cost.Entry, error) {
 	now := time.Now().UTC()
 	return cost.Entry{
 		Name: e.Name, Title: strings.TrimSpace(e.Title), Category: e.Category,
-		CategoryPath: e.CategoryPath, Unit: e.Unit, Price: e.Price, Spec: e.Spec,
-		Source: e.Source, Tags: e.Tags, Status: e.Status, Body: e.Body,
+		CategoryPath: e.CategoryPath, Unit: e.Unit, Price: e.Price,
+		LaborFee: e.LaborFee, MaterialFee: e.MaterialFee, MachineFee: e.MachineFee,
+		ManagementFee: e.ManagementFee, ProfitFee: e.ProfitFee,
+		AdvanceFee: e.AdvanceFee, TaxRate: e.TaxRate,
+		Components: fromCostComponentViews(e.Components),
+		Spec:       e.Spec, Source: e.Source, Region: e.Region, PriceDate: e.PriceDate, PriceType: e.PriceType,
+		ValidUntil: e.ValidUntil, SourceRow: e.SourceRow,
+		Tags: e.Tags, Status: e.Status, Body: e.Body,
 		CreatedAt: now, UpdatedAt: now,
 	}, nil
 }
@@ -293,10 +326,27 @@ func (a *App) GaeaCostImportApply(rows []CostEntry) (int, error) {
 	if err := db.WithTransaction(gconfig.MemoryUserDir(), func(tx *sql.Tx) error {
 		for i, e := range entries {
 			if _, err := tx.Exec(costEntryUpsertSQL,
-				e.Name, e.Title, e.Category, e.CategoryPath, e.Unit, e.Price, e.Spec, e.Source,
+				e.Name, e.Title, e.Category, e.CategoryPath, e.Unit, e.Price,
+				e.LaborFee, e.MaterialFee, e.MachineFee,
+				e.ManagementFee, e.ProfitFee, e.AdvanceFee, e.TaxRate,
+				e.Spec, e.Source,
+				e.Region, e.PriceDate, e.PriceType, e.ValidUntil, e.SourceRow,
 				marshalCostTags(e.Tags), e.Status, e.Body,
 				e.CreatedAt.Format(time.RFC3339), e.UpdatedAt.Format(time.RFC3339)); err != nil {
 				return fmt.Errorf("第 %d 条写入失败: %w", i+1, err)
+			}
+			// 人材机二级组成：整组替换（与 cost.Store.Save 语义一致）。
+			if _, err := tx.Exec("DELETE FROM cost_entry_components WHERE entry_name=?", e.Name); err != nil {
+				return fmt.Errorf("第 %d 条组成清理失败: %w", i+1, err)
+			}
+			for j, c := range e.Components {
+				if _, err := tx.Exec(`
+INSERT INTO cost_entry_components(entry_name, kind, title, unit, quantity, price, amount, note, sort, created_at, updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+					e.Name, c.Kind, c.Title, c.Unit, c.Quantity, c.Price, c.Amount, c.Note, j,
+					e.CreatedAt.Format(time.RFC3339), e.UpdatedAt.Format(time.RFC3339)); err != nil {
+					return fmt.Errorf("第 %d 条组成写入失败: %w", i+1, err)
+				}
 			}
 		}
 		return nil
@@ -319,7 +369,11 @@ func toCostImportPreview(pv *costimport.Preview, aiUsed bool) CostImportPreview 
 	for _, r := range pv.Rows {
 		out.Rows = append(out.Rows, CostImportRowView{
 			Name: r.Name, Title: r.Title, Category: r.Category, Unit: r.Unit,
-			Price: r.Price, Spec: r.Spec, Source: r.Source, Status: r.Status,
+			Price: r.Price, LaborFee: r.LaborFee, MaterialFee: r.MaterialFee, MachineFee: r.MachineFee,
+			ManagementFee: r.ManagementFee, ProfitFee: r.ProfitFee, AdvanceFee: r.AdvanceFee,
+			TaxRate: r.TaxRate, Components: toCostComponentViews(r.Components), Body: r.Body,
+			Spec: r.Spec, Source: r.Source, Status: r.Status,
+			SourceRow: r.SourceRow,
 			ExistingName: r.ExistingName, ExistingPrice: r.ExistingPrice,
 			MatchNote: r.MatchNote, Raw: r.Raw, Skip: r.Skip, SkipReason: r.SkipReason,
 		})
@@ -328,9 +382,13 @@ func toCostImportPreview(pv *costimport.Preview, aiUsed bool) CostImportPreview 
 }
 
 func normalizeAICategory(s string) string {
-	switch strings.TrimSpace(s) {
+	t := strings.TrimSpace(s)
+	if strings.Contains(t, "/") {
+		return t
+	}
+	switch t {
 	case "机械", "材料", "人工", "运输", "检测", "综合单价", "其他":
-		return strings.TrimSpace(s)
+		return t
 	default:
 		return "其他"
 	}

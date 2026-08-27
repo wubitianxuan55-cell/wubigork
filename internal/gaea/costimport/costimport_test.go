@@ -1,6 +1,7 @@
 package costimport
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,127 @@ import (
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 )
+
+func cellName(col, row int) string {
+	s := ""
+	for col > 0 {
+		col--
+		s = string(rune('A'+col%26)) + s
+		col /= 26
+	}
+	return fmt.Sprintf("%s%d", s, row)
+}
+
+func TestParseAnalysisComponents(t *testing.T) {
+	text := "人工费\n" +
+		"1.混凝土基础浇筑85元/m³*0.77=65.45元\n" +
+		"材料费\n" +
+		"1.标志牌(含IV类反光膜)520元/m²*0.5=260元\n" +
+		"2.镀锌钢管立柱9元/Kg*28.01Kg*1.03=259.65元\n" +
+		"机械费\n" +
+		"1.挖土方9元/m³*0.86=7.74元"
+	comps := parseAnalysisComponents(text)
+	if len(comps) != 4 {
+		t.Fatalf("components = %d, want 4: %+v", len(comps), comps)
+	}
+	if comps[0].Kind != "人工" || comps[0].Title != "混凝土基础浇筑" || comps[0].Amount != 65.45 {
+		t.Errorf("comp0 = %+v", comps[0])
+	}
+	if comps[1].Kind != "材料" || comps[1].Title != "标志牌(含IV类反光膜)" || comps[1].Amount != 260 {
+		t.Errorf("comp1 = %+v", comps[1])
+	}
+	if comps[2].Kind != "材料" || comps[2].Amount != 259.65 {
+		t.Errorf("comp2 = %+v", comps[2])
+	}
+	if comps[3].Kind != "机械" || comps[3].Title != "挖土方" || comps[3].Price != 9 || comps[3].Amount != 7.74 {
+		t.Errorf("comp3 = %+v", comps[3])
+	}
+
+	// 合并段「人工费+机械费」与「3.9元」价格前缀不误剥。
+	merged := parseAnalysisComponents("人工费+机械费\n1.护栏安装10元/m\n材料费\n1.钢筋网片（圆钢）3.9元/Kg*2.22Kg/㎡*1.02=8.83元/㎡")
+	if len(merged) != 2 || merged[0].Kind != "人工+机械" || merged[0].Title != "护栏安装" {
+		t.Fatalf("merged = %+v", merged)
+	}
+	if merged[1].Kind != "材料" || merged[1].Title != "钢筋网片（圆钢）" || merged[1].Price != 3.9 || merged[1].Amount != 8.83 {
+		t.Errorf("merged material = %+v", merged[1])
+	}
+}
+
+func TestParseManualFormatWorkbook(t *testing.T) {
+	f := excelize.NewFile()
+	sheet1 := "道路"
+	if _, err := f.NewSheet(sheet1); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.DeleteSheet("Sheet1")
+	rows1 := [][]interface{}{
+		{"序号", "工程名称", "项目特征及工作内容", "计量单位", "工程数量", "报价", "", "综合单价分析", "人工费", "材料费", "机械费", "管理\n(3%)", "利润\n(10%)", "垫资\n(3%)"},
+		{"", "", "", "", "", "含税单价\n(9%)", "含税合价", "", "", "", "", "", "", ""},
+		{"土方工程", "", "", "", "", "", "", "", "", "", "", "", "", ""},
+		{"1", "挖一般土方", "[项目特征]\n1.土壤类别：综合土\n2.挖土深度：2m以内\n[工作内容]\n1.土方开挖", "m³", "1", "3.79", "3.79", "机械费\n1.挖土方(甩土)3元/m³", "0", "0", "3", "0.09", "0.3", "0.09"},
+		{"2", "挖一般土方", "[项目特征]\n1.土壤类别：杂填土\n2.挖土深度：4m以内\n[工作内容]\n1.土方开挖", "m³", "1", "7.59", "7.59", "机械费\n1.挖土方6元/m³", "0", "0", "6", "0.18", "0.6", "0.18"},
+		{"3", "土方回填", "[项目特征]\n1.素土回填", "m³", "1", "8.85", "8.85", "机械费\n1.回填7元/m³", "0", "0", "7", "0.21", "0.7", "0.21"},
+	}
+	for i, r := range rows1 {
+		for j, v := range r {
+			_ = f.SetCellValue(sheet1, cellName(j+1, i+1), v)
+		}
+	}
+
+	sheet2 := "交通"
+	if _, err := f.NewSheet(sheet2); err != nil {
+		t.Fatal(err)
+	}
+	rows2 := [][]interface{}{
+		{"序号", "工程名称", "项目特征及工作内容", "计量单位", "工程数量", "报价", "", "综合单价分析", "人工费", "材料费", "机械费", "管理\n(3%)", "利润\n(10%)", "垫资\n(3%)"},
+		{"", "", "", "", "", "含税单价\n(9%)", "含税合价", "", "", "", "", "", "", ""},
+		{"标识标牌", "", "", "", "", "", "", "", "", "", "", "", "", ""},
+		{"1", "单柱式标志牌", "[项目特征]\n1.φ800铝板\n[工作内容]\n1.安装", "套", "1", "1572.24", "1572.24", "人工费\n1.立杆标志牌安装50元\n材料费\n1.标志牌(含IV类反光膜)520元/m²*0.5=260元\n机械费\n1.挖土方9元/m³*0.86=7.74元", "118.95", "1110.96", "7.74", "37.13", "123.77", "37.13"},
+	}
+	for i, r := range rows2 {
+		for j, v := range r {
+			_ = f.SetCellValue(sheet2, cellName(j+1, i+1), v)
+		}
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "市政成本测算手册.xlsx")
+	if err := f.SaveAs(path); err != nil {
+		t.Fatal(err)
+	}
+
+	pv, err := Parse(path, nil)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if len(pv.Rows) != 4 {
+		t.Fatalf("rows = %d, want 4: %+v", len(pv.Rows), pv.Rows)
+	}
+
+	r0 := pv.Rows[0]
+	if r0.Category != "综合单价/道路工程/土方工程" {
+		t.Errorf("r0 category = %q", r0.Category)
+	}
+	if r0.Price != 3.79 || r0.MachineFee != 3 || r0.LaborFee != 0 || r0.MaterialFee != 0 ||
+		r0.ManagementFee != 0.09 || r0.ProfitFee != 0.3 || r0.AdvanceFee != 0.09 || r0.TaxRate != 9 {
+		t.Errorf("r0 fees = %+v", r0)
+	}
+	if len(r0.Components) != 1 || r0.Components[0].Kind != "机械" ||
+		r0.Components[0].Title != "挖土方(甩土)" || r0.Components[0].Amount != 3 {
+		t.Errorf("r0 components = %+v", r0.Components)
+	}
+
+	// 同名子目按特征片段去重：两个「挖一般土方」不同名。
+	if pv.Rows[0].Title == pv.Rows[1].Title {
+		t.Errorf("duplicate titles not disambiguated: %q == %q", pv.Rows[0].Title, pv.Rows[1].Title)
+	}
+	if !strings.Contains(pv.Rows[1].Title, "挖一般土方") || !strings.Contains(pv.Rows[1].Title, "挖土深度") {
+		t.Errorf("r1 disambiguated title = %q", pv.Rows[1].Title)
+	}
+	if r3 := pv.Rows[3]; r3.Category != "综合单价/交通工程/标识标牌" || len(r3.Components) != 3 {
+		t.Errorf("r3 = %+v", r3)
+	}
+}
 
 func newTestStore(t *testing.T) *cost.Store {
 	t.Helper()

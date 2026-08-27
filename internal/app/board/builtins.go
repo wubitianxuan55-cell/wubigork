@@ -3,7 +3,8 @@ package board
 // builtins 注册 canonical 板块（§3.1 清单 + 决策 D7）。
 //
 // canonical 集合 = §3.1 的 9 业务板块 + 编程板块（code，DeepSeek Harness Web
-// 进程管理）+ knowledge（决策 D7：恢复挂载为独立板块 = 3.0.0 最小 manifest 试点）。
+// 进程管理）+ 成本库（cost，2026-08-19 从记忆中枢二级分类提升为一级板块）
+// + knowledge（决策 D7：恢复挂载为独立板块 = 3.0.0 最小 manifest 试点）。
 // home 是壳（启动器，不进 manifest 业务清单，见 §3.1 注；前端 manifests.ts 的
 // 静态清单含 home 属壳层数据）。
 //
@@ -63,37 +64,49 @@ var builtinManifests = []Manifest{
 		},
 	},
 	{
+		ID: "cost", Label: "造价数据库", Icon: "AccountBookOutlined",
+		Page: "CostLibraryPage", Lazy: true, // 2026-08-19：成本库从记忆中枢二级分类提升为一级板块
+		KeepAlive: Bool(true), Layout: "padded",
+		MenuOrder: 5, InMenu: Bool(true),
+		Nav: &NavSpec{Children: []NavChild{
+			{ID: "overview", Label: "概览"}, {ID: "entries", Label: "成本条目"},
+			{ID: "sources", Label: "价格源"}, {ID: "repository", Label: "价格仓库"},
+		}},
+		FeatureModel: "cost",
+		Bindings:     []string{"CostB"},
+	},
+	{
 		ID: "code", Label: "编程", Icon: "CodeOutlined",
 		Page: "ProgrammingPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full", // 桌面内嵌 Harness Web 工作台（全出血）
-		MenuOrder: 5, InMenu: Bool(true),
+		MenuOrder: 6, InMenu: Bool(true),
 		Bindings: []string{"CoreB"}, // dsh web 进程管理（Get/Start/StopProgrammingWeb）
 	},
 	{
 		ID: "memoryhub", Label: "记忆中枢", Icon: "DatabaseOutlined",
 		Page: "MemoryHubPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 6, InMenu: Bool(true),
+		MenuOrder: 7, InMenu: Bool(true),
 		Nav: &NavSpec{Children: []NavChild{
-			{ID: "knowledge", Label: "知识库"}, {ID: "cost", Label: "成本库"},
+			{ID: "knowledge", Label: "知识库"},
 			{ID: "profile", Label: "用户画像"}, {ID: "office", Label: "办公记忆"},
 			{ID: "materials", Label: "项目资料"}, {ID: "whisper", Label: "聊天记忆"},
 			{ID: "graph", Label: "记忆图谱"}, {ID: "digitallife", Label: "数字生命"},
 		}},
-		Bindings: []string{"MemoryB", "CostB"}, // 8 库聚合（§3.1）
+		Bindings: []string{"MemoryB", "CostB"}, // 记忆库聚合（成本库已独立为一级板块）
 	},
 	{
 		ID: "modelcenter", Label: "模型中心", Icon: "ApiOutlined",
 		Page: "ModelCenterPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 7, InMenu: Bool(true),
+		MenuOrder: 8, InMenu: Bool(true),
 		Bindings: []string{"ModelB"},
 	},
 	{
 		ID: "characterlib", Label: "角色库", Icon: "TeamOutlined",
 		Page: "CharacterLibraryPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 8, InMenu: Bool(true),
+		MenuOrder: 9, InMenu: Bool(true),
 		FeatureModel: "characterlib",
 		Bindings:     []string{"CharlibB"},
 	},
@@ -101,7 +114,7 @@ var builtinManifests = []Manifest{
 		ID: "settings", Label: "设置", Icon: "SettingOutlined",
 		Page: "SettingsPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 9, InMenu: Bool(false), // 附 B #12：不进菜单，右上角按钮入口
+		MenuOrder: 10, InMenu: Bool(false), // 附 B #12：不进菜单，右上角按钮入口
 		Nav: &NavSpec{Children: []NavChild{
 			{ID: "general", Label: "通用"}, {ID: "chat", Label: "聊天"},
 			{ID: "novel", Label: "小说"}, {ID: "imagegen", Label: "绘梦"},
@@ -116,7 +129,7 @@ var builtinManifests = []Manifest{
 		Page:      "", // §3.1：无前端页面（beta），Channels/weixin 服务板块
 		Lazy:      false,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 10, InMenu: Bool(false),
+		MenuOrder: 11, InMenu: Bool(false),
 	},
 	{
 		ID: "knowledge", Label: "知识库", Icon: "BookOutlined",
@@ -151,5 +164,5 @@ func Builtins() []Board {
 // CanonicalIDs 返回 canonical 业务板块的 id（验收断言用；不含 knowledge——
 // knowledge 是 D7 独立板块，见 BuiltinManifests）。
 func CanonicalIDs() []string {
-	return []string{"chat", "novel", "imagegen", "gaea", "code", "memoryhub", "modelcenter", "characterlib", "settings", "weixin"}
+	return []string{"chat", "novel", "imagegen", "gaea", "cost", "code", "memoryhub", "modelcenter", "characterlib", "settings", "weixin"}
 }

@@ -835,6 +835,10 @@ func (a *App) persistWorkspaceLocked(abs string) error {
 		ga.cfg = cfg
 	}
 	ga.cfg.Workspace = abs
+	// 与 gaeaLoadConfig 的加载期归一保持一致：沙箱写入根跟随工作空间。
+	// 否则磁盘上会残留旧工作区的 workspace_root（运行期虽被覆盖，但配置
+	// 文件自相矛盾，且重启前的重建会读到过期值）。
+	ga.cfg.Sandbox.WorkspaceRoot = abs
 	return gaeaConfig.Save(ga.cfg)
 }
 

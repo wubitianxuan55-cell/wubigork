@@ -305,7 +305,7 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
           ) : (
             <>
               <div className="text-fg text-[13px] font-medium">成本库</div>
-              <span className="text-fg-faint text-[11px]">按分类分级保存 · 供方案测算复用</span>
+              <span className="text-fg-faint text-[11px]">综合单价一级 · 人材机二级 · 按专业/分部分类</span>
             </>
           )}
           <div className="ml-auto flex items-center gap-1.5">
@@ -814,10 +814,54 @@ export const CostRow = memo(function CostRow({
           </button>
         </span>
       </div>
-      {e.source && <div className="mt-0.5 pl-6 text-fg-faint text-[10.5px] truncate">来源：{e.source}</div>}
+      {(e.source || e.region || e.priceType || e.priceDate || e.validUntil) && (
+        <div className="mt-0.5 pl-6 flex items-center gap-1.5 text-fg-faint text-[10.5px] min-w-0">
+          {e.source && <span className="truncate">来源：{e.source}</span>}
+          {e.region && <span className="shrink-0 truncate max-w-[90px]">· {e.region}</span>}
+          {e.priceType && <span className="shrink-0 px-1 py-px rounded bg-bg-elev">{e.priceType}</span>}
+          {e.priceDate && <span className="shrink-0 truncate max-w-[110px]">· {e.priceDate}</span>}
+          {e.validUntil && <span className="shrink-0">· 至 {e.validUntil}</span>}
+        </div>
+      )}
+      {(e.laborFee > 0 || e.materialFee > 0 || e.machineFee > 0) && (
+        <div className="mt-1 pl-6 flex items-center gap-2 text-[10.5px] text-fg-faint min-w-0">
+          <span className="shrink-0 font-medium">人材机</span>
+          <div className="shrink-0 w-24">
+            <MiniCompositionBar labor={e.laborFee ?? 0} material={e.materialFee ?? 0} machine={e.machineFee ?? 0} />
+          </div>
+          <span className="shrink-0 tabular-nums text-sky-400/90">人工 {priceText(e.laborFee)}</span>
+          <span className="shrink-0 tabular-nums text-emerald-400/90">材料 {priceText(e.materialFee)}</span>
+          <span className="shrink-0 tabular-nums text-amber-400/90">机械 {priceText(e.machineFee)}</span>
+        </div>
+      )}
     </div>
   );
 });
+
+// ── 人材机组成 mini 条（列表行内：人工/材料/机械 占比）─────────────
+function MiniCompositionBar({ labor, material, machine }: { labor: number; material: number; machine: number }) {
+  const total = labor + material + machine;
+  if (total <= 0) return null;
+  const seg = (v: number, cls: string, label: string) =>
+    v > 0 ? (
+      <div
+        className={`h-full ${cls}`}
+        style={{ width: `${Math.max(2, (v / total) * 100)}%` }}
+        title={`${label} ${v.toFixed(2)}`}
+      />
+    ) : null;
+  return (
+    <div
+      className="flex h-1 rounded-full overflow-hidden bg-bg-elev"
+      role="img"
+      aria-label={`人材机：人工 ${labor.toFixed(2)}，材料 ${material.toFixed(2)}，机械 ${machine.toFixed(2)}`}
+    >
+      {seg(labor, "bg-sky-400/80", "人工")}
+      {seg(material, "bg-emerald-400/80", "材料")}
+      {seg(machine, "bg-amber-400/80", "机械")}
+    </div>
+  );
+}
 
 // ── 列表视图 ──
 export const ListView = memo(function ListView({
@@ -878,7 +922,23 @@ export const TableRow = memo(function TableRow({
         {e.categoryPath || e.category || "—"}
       </td>
       <td className="px-3 py-1.5 text-fg-dim">{e.spec || "—"}</td>
+      <td className="px-3 py-1.5 text-fg-faint text-[11px] whitespace-nowrap max-w-[150px] truncate" title={[e.region, e.priceDate].filter(Boolean).join(" · ")}>
+        {[e.region, e.priceDate].filter(Boolean).join(" · ") || "—"}
+      </td>
       <td className="px-3 py-1.5 text-fg-dim">{e.unit || "—"}</td>
+      <td className="px-3 py-1.5 text-fg-faint text-[11px] whitespace-nowrap">
+        {e.laborFee > 0 || e.materialFee > 0 || e.machineFee > 0 ? (
+          <span className="tabular-nums">
+            人 {priceText(e.laborFee)} · 材 {priceText(e.materialFee)} · 机 {priceText(e.machineFee)}
+          </span>
+        ) : (
+          "—"
+        )}
+      </td>
+      <td className="px-3 py-1.5 text-fg-faint text-[11px] text-center tabular-nums">
+        {(e.componentCount ?? 0) > 0 ? `${e.componentCount} 行` : "—"}
+      </td>
+      <td className="px-3 py-1.5 text-fg-faint text-[11px] whitespace-nowrap">{e.priceType || "—"}</td>
       <td className="px-3 py-1.5 text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap">
         {priceText(e.price)}
       </td>
@@ -961,7 +1021,11 @@ const TableView = memo(function TableView({
             {th("标题", "title")}
             {th("分类")}
             {th("规格")}
+            {th("地区 · 期数")}
             {th("单位")}
+            {th("人材机")}
+            {th("组成")}
+            {th("口径")}
             {th("单价（元）", "price", "right")}
             {th("来源")}
             {th("状态")}

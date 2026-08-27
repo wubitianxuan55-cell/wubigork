@@ -69,10 +69,14 @@ type AssistantItem = Extract<Item, { kind: "assistant" }>;
 // ── 过程卡：把一轮助手回合的“思考 + 工具调用”收进可折叠卡片 ──
 // 参考 tianxuan 桌面端 TurnCollapse：运行中自动展开，完成后自动收起，
 // 头部显示耗时 / 工具数 / 思考段数，正文按“思考 → 工具批次”分段。
+// 2026-08-26 决策（用户）：删除「大过程卡」——已完成轮不再把整轮合并成一张
+// 展开的大卡，文本与过程卡分开：正文始终以独立消息显示，过程（思考/工具）
+// 单独成小卡、默认折叠。所有轮次统一走 alternatingSegments（与流式一致）。
 
 type Segment = { processItems: Item[]; outsideItems: Item[] };
 
-// 流式进行中的轮：与 tianxuan 一致，正文与过程卡交替出现。
+// 流式进行中的轮 / 已完成轮：与 tianxuan 一致，正文与过程卡交替出现。
+// （用户决策 2026-08-26 起不再区分：删除大过程卡后，全部轮次统一交替。）
 function alternatingSegments(turn: Item[]): Segment[] {
   const segments: Segment[] = [];
   let curProcess: Item[] = [];
@@ -114,46 +118,6 @@ function alternatingSegments(turn: Item[]): Segment[] {
   return segments;
 }
 
-// 已完成的轮：把思考、工具和中间正文折叠成一张大过程卡，
-// 只把最终正文留在外面（“最后输出时前面的折叠成一个大的过程卡”）。
-function consolidatedSegments(turn: Item[]): Segment[] {
-  const users: Item[] = turn.filter((it) => it.kind === "user");
-  const rest = turn.filter((it) => it.kind !== "user");
-  const process: Item[] = [];
-
-  // 最后一个带正文的 assistant 视为最终输出；中间文本与思考/工具进过程卡
-  let lastTextIdx = -1;
-  for (let i = 0; i < rest.length; i++) {
-    if (rest[i].kind === "assistant" && (rest[i] as AssistantItem).text) lastTextIdx = i;
-  }
-
-  let finalText: Item | null = null;
-  rest.forEach((it, i) => {
-    if (it.kind === "assistant") {
-      if (it.reasoning) process.push({ ...it, text: "" } as Item);
-      if (i === lastTextIdx) {
-        finalText = { ...it, reasoning: "" } as Item;
-      } else if (it.text) {
-        process.push({ ...it, reasoning: "" } as Item);
-      }
-      return;
-    }
-    if (it.kind === "tool" || it.kind === "compaction" || it.kind === "notice") {
-      process.push(it);
-    } else {
-      users.push(it); // phase 等正文元素与用户消息同段，先于过程卡
-    }
-  });
-
-  // 渲染顺序必须是 [用户问题] → [过程卡] → [最终输出]：
-  // 把用户消息拆成独立段先渲染，过程卡与最终正文放同一段，否则卡片会
-  // 跑到用户问题上方（看起来像被顶到窗口最上方）。
-  const segments: Segment[] = [];
-  if (users.length > 0) segments.push({ processItems: [], outsideItems: users });
-  segments.push({ processItems: process, outsideItems: finalText ? [finalText] : [] });
-  return segments;
-}
-
 export function buildSegments(items: Item[], running = false): Segment[] {
   // 先按用户消息切成轮
   const turns: Item[][] = [];
@@ -168,15 +132,11 @@ export function buildSegments(items: Item[], running = false): Segment[] {
   }
   if (curTurn.length > 0) turns.push(curTurn);
 
+  // 2026-08-26（用户决策）：删除大过程卡——所有轮次（含已完成）统一交替，
+  // 文本独立显示、过程单独成卡，不再把文本和过程包在一张卡片内。
   const segments: Segment[] = [];
-  turns.forEach((turn, ti) => {
-    const isLastTurn = ti === turns.length - 1;
-    // 只有“正在流式输出的最后一轮”保持交替；其余已完成轮一律折叠成大过程卡
-    if (isLastTurn && running) {
-      segments.push(...alternatingSegments(turn));
-    } else {
-      segments.push(...consolidatedSegments(turn));
-    }
+  turns.forEach((turn) => {
+    segments.push(...alternatingSegments(turn));
   });
   return segments;
 }
@@ -352,7 +312,7 @@ export const TurnBlock = memo(function TurnBlock({
 
 // 过程卡内的思考块（复用 .reasoning 样式）
 function InlineReasoning({ item }: { item: AssistantItem }) {
-  // 思考卡默认折叠：展开大过程卡时只看到标题，点开才看推理内容。
+  // 思考卡默认折叠：只看到标题，点开才看推理内容。
   const [open, setOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   useGSAPCollapse(bodyRef, open);
@@ -404,11 +364,11 @@ export const ProcessCard = memo(function ProcessCard({
   toolCount: number;
   thoughtCount: number;
   running?: boolean;
-  /** 运行中轮次的分段小过程卡（完成后应折叠；整轮合并的大过程卡为 false） */
+  /** 流式交替段的小过程卡（默认折叠）；false = 展开态（默认展开） */
   small?: boolean;
   subcallsByParent: Map<string, ToolItem[]>;
 }) {
-  // 大过程卡（整轮合并）默认展开；运行中的分段小过程卡默认折叠。
+  // 展开态段默认展开；流式交替段的小过程卡默认折叠。
   // 用户手动折叠/展开过则不干预。
   const [open, setOpen] = useState(!small);
   const userOverridden = useRef(false);
@@ -426,7 +386,7 @@ export const ProcessCard = memo(function ProcessCard({
       if (!wasRunning) userOverridden.current = false;
       if (!userOverridden.current) setOpen(true);
     } else if (wasRunning && !userOverridden.current) {
-      // 本段刚完成：分段小过程卡折叠收起，整轮合并的大过程卡保持展开；
+      // 本段刚完成：按 small 收敛（展开态保持展开、小过程卡折叠收起）；
       // 用户手动折叠过则不干预。
       setOpen(!small);
       finalElapsedRef.current = turnStartAt > 0 ? Math.max(0, now - Math.floor(turnStartAt / 1000)) : 0;
@@ -760,13 +720,13 @@ export function Transcript({
           <StreamingIndicator running={running} items={items} />
           {segments.map((seg, segIdx, arr) => {
             const isLast = segIdx === arr.length - 1;
+            // 2026-08-26：删除大过程卡后全部走交替段，key 直接用段内首条 id
+            // （不再有 done- 重挂载——交替段跨 running 复用实例，用户手动
+            // 折叠/展开的过程卡状态不丢）。
             const segKey = seg.processItems[0]?.id ?? seg.outsideItems[0]?.id ?? `seg${segIdx}`;
-            // 大过程卡（整轮结束后的合并卡）用独立 key 全新挂载：
-            // 默认展开，且不复用运行中小过程卡的折叠实例（小卡始终折叠）。
-            const segKeyFinal = running ? segKey : `done-${segKey}`;
             return (
               <TurnBlock
-                key={segKeyFinal}
+                key={segKey}
                 seg={seg}
                 running={running}
                 isLast={isLast}

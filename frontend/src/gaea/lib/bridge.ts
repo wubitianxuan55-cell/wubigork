@@ -70,6 +70,12 @@ import type {
   CostSummary,
   CostEntry,
   CostCategory,
+  CostProject,
+  CostProjectSummary,
+  CostEstimateItem,
+  CostEstimateVersion,
+  CostIndicator,
+  CostReviewNote,
   CostImportPreview,
   CostCompareRow,
   PriceSource,
@@ -358,6 +364,25 @@ export interface AppBindings {
   SemanticSearch(query: string): Promise<SemanticHitView[]>;
   // CostCompare 返回某成本条目的多来源比价明细（现价/历史/价格源抓取候选）。
   CostCompare(name: string): Promise<CostCompareRow[]>;
+  // ── 测算项目与沉淀闭环（我的项目/工程量清单/版本留痕 → 沉淀回成本库）──
+  CostProjectSave(p: CostProject): Promise<string>;
+  CostProjectList(): Promise<CostProjectSummary[]>;
+  CostProjectGet(id: string): Promise<CostProject | null>;
+  CostProjectDelete(id: string): Promise<void>;
+  CostEstimateItemSave(i: CostEstimateItem): Promise<number>;
+  CostEstimateItemDelete(id: number): Promise<void>;
+  CostEstimateItems(projectId: string): Promise<CostEstimateItem[]>;
+  CostEstimateVersionSave(projectId: string, note: string): Promise<CostEstimateVersion>;
+  CostEstimateVersions(projectId: string): Promise<CostEstimateVersion[]>;
+  // CostEstimateSediment 沉淀选中明细行回成本库（UPSERT cost_entries），返回条数。
+  CostEstimateSediment(projectId: string, itemIds: number[]): Promise<number>;
+  // ── 造价参考与复盘笔记（案例指标 + 经验沉淀）──
+  // CostIndicators 造价参考指标：group=title（按科目）| category（按一级分类）。
+  CostIndicators(group: string): Promise<CostIndicator[]>;
+  CostNoteSave(n: CostReviewNote): Promise<number>;
+  CostNoteList(query: string, status: string): Promise<CostReviewNote[]>;
+  CostNoteDelete(id: number): Promise<void>;
+  CostNoteBumpRef(id: number): Promise<void>;
   // UnifiedSearch 跨库统一检索一次调用：工作区关键词命中（topN 条）+ 语义跨库命中。
   UnifiedSearch(query: string, topN?: number): Promise<UnifiedSearchView>;
   // RetrievalEvalRun 运行检索质量测评：内置查询集统计平均 recall@10，
@@ -689,6 +714,21 @@ const gaeaToGaea = {
   PriceHistory: "GaeaPriceHistory",
   SemanticSearch: "GaeaSemanticSearch",
   CostCompare: "GaeaCostCompare",
+  CostProjectSave: "GaeaCostProjectSave",
+  CostProjectList: "GaeaCostProjectList",
+  CostProjectGet: "GaeaCostProjectGet",
+  CostProjectDelete: "GaeaCostProjectDelete",
+  CostEstimateItemSave: "GaeaCostEstimateItemSave",
+  CostEstimateItemDelete: "GaeaCostEstimateItemDelete",
+  CostEstimateItems: "GaeaCostEstimateItems",
+  CostEstimateVersionSave: "GaeaCostEstimateVersionSave",
+  CostEstimateVersions: "GaeaCostEstimateVersions",
+  CostEstimateSediment: "GaeaCostEstimateSediment",
+  CostIndicators: "GaeaCostIndicators",
+  CostNoteSave: "GaeaCostNoteSave",
+  CostNoteList: "GaeaCostNoteList",
+  CostNoteDelete: "GaeaCostNoteDelete",
+  CostNoteBumpRef: "GaeaCostNoteBumpRef",
   UnifiedSearch: "GaeaUnifiedSearch",
   RetrievalEvalRun: "GaeaRetrievalEvalRun",
   KnowledgeImportPreview: "GaeaKnowledgeImportPreview",

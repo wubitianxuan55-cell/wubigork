@@ -302,6 +302,11 @@ interface PreviewState {
   closeFilePreview: () => void;
   /** 在多文件队列中前后切换（dir=1 下一个 / dir=-1 上一个）；越界无操作。 */
   navPreview: (dir: 1 | -1) => void;
+  /** 跳到队列指定索引（C7：预览队列 chip 点击）；越界无操作。 */
+  navTo: (index: number) => void;
+  /** 关闭队列中指定索引的文件（C7：预览队列可点条 × 关闭 / 中键关闭）。
+   *  移除后当前索引收敛：删当前项跳到相邻项、删唯一项清空队列关闭预览。 */
+  closePreviewAt: (index: number) => void;
 }
 
 const PREVIEW_MAX_QUEUE = 50;
@@ -330,6 +335,28 @@ export const usePreviewStore = create<PreviewState>()((set, get) => ({
     const next = Math.max(0, Math.min(previewList.length - 1, previewIndex + dir));
     if (next === previewIndex) return;
     set({ previewIndex: next, previewFile: previewList[next] });
+  },
+  navTo: (index: number) => {
+    const { previewList, previewIndex } = get();
+    if (index < 0 || index >= previewList.length || index === previewIndex) return;
+    set({ previewIndex: index, previewFile: previewList[index] });
+  },
+  closePreviewAt: (index: number) => {
+    const { previewList, previewIndex } = get();
+    if (index < 0 || index >= previewList.length) return;
+    const nextList = previewList.filter((_, i) => i !== index);
+    if (nextList.length === 0) {
+      set({ previewFile: null, previewIndex: -1, previewList: [] });
+      return;
+    }
+    // 删除当前项：跳到相邻项（偏向前一个，头项则下一个）；删除其他项：保持当前。
+    let nextIndex = previewIndex;
+    if (index === previewIndex) {
+      nextIndex = Math.min(index, nextList.length - 1);
+    } else if (index < previewIndex) {
+      nextIndex = previewIndex - 1;
+    }
+    set({ previewList: nextList, previewIndex: nextIndex, previewFile: nextList[nextIndex] });
   },
 }));
 

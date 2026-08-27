@@ -264,7 +264,7 @@ func (a *App) GaeaSetRequirement(path, text string) error {
 	if err := saveRequirements(registryDir, m); err != nil {
 		return err
 	}
-	a.syncGoalForSession(path)
+	a.syncGoalForSession(gaeaCtrl(), path)
 	return nil
 }
 
@@ -293,7 +293,7 @@ func (a *App) GaeaSetRequirementDone(path string, done bool) error {
 	if err := saveRequirements(registryDir, m); err != nil {
 		return err
 	}
-	a.syncGoalForSession(path)
+	a.syncGoalForSession(gaeaCtrl(), path)
 	return nil
 }
 
@@ -321,7 +321,7 @@ func (a *App) GaeaAddRequirementItem(path, text string) error {
 	if err := saveRequirements(registryDir, m); err != nil {
 		return err
 	}
-	a.syncGoalForSession(path)
+	a.syncGoalForSession(gaeaCtrl(), path)
 	return nil
 }
 
@@ -348,7 +348,7 @@ func (a *App) GaeaSetRequirementItem(path string, index int, text string) error 
 	if err := saveRequirements(registryDir, m); err != nil {
 		return err
 	}
-	a.syncGoalForSession(path)
+	a.syncGoalForSession(gaeaCtrl(), path)
 	return nil
 }
 
@@ -376,7 +376,7 @@ func (a *App) GaeaRemoveRequirementItem(path string, index int) error {
 	if err := saveRequirements(registryDir, m); err != nil {
 		return err
 	}
-	a.syncGoalForSession(path)
+	a.syncGoalForSession(gaeaCtrl(), path)
 	return nil
 }
 
@@ -400,7 +400,7 @@ func (a *App) GaeaSetRequirementItemDone(path string, index int, done bool) erro
 	if err := saveRequirements(registryDir, m); err != nil {
 		return err
 	}
-	a.syncGoalForSession(path)
+	a.syncGoalForSession(gaeaCtrl(), path)
 	return nil
 }
 
@@ -424,16 +424,18 @@ func (a *App) GaeaSetRequirementAutoPursue(path string, on bool) error {
 	if err := saveRequirements(registryDir, m); err != nil {
 		return err
 	}
-	a.syncGoalForSession(path)
+	a.syncGoalForSession(gaeaCtrl(), path)
 	return nil
 }
 
 // syncGoalForSession 把当前会话的任务目标同步进 agent goal gate：仅当目标
 // 存在且启用了 AutoPursue 时写入；存在目标但未开启时清空（目标工作流接管）；
 // 无任务目标时不干预（保留 /goal 等手动设置），避免跨会话残留。
-func (a *App) syncGoalForSession(path string) {
-	c := gaeaCtrl()
-	if c == nil || c.SessionPath() != path {
+// ctrl 必须由调用方显式传入：GaeaInit 持 ga.mu 初始化时 resumeLastSession
+// 也会走到这里，若内部再经 gaeaCtrl() 取锁会对同一把非重入互斥锁二次加锁
+// 造成办公板块首次初始化永久死锁（连接中… / 会话与工作空间不可用）。
+func (a *App) syncGoalForSession(ctrl *control.Controller, path string) {
+	if ctrl == nil || ctrl.SessionPath() != path {
 		return
 	}
 	r := a.GaeaRequirement(path)
@@ -441,10 +443,10 @@ func (a *App) syncGoalForSession(path string) {
 		return
 	}
 	if r.AutoPursue {
-		c.SetGoal(r.Text)
+		ctrl.SetGoal(r.Text)
 		return
 	}
-	c.SetGoal("")
+	ctrl.SetGoal("")
 }
 
 // listSessionsForDir 构建一个工作区会话目录的 SessionMeta 列表。
@@ -754,7 +756,7 @@ func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {	// 引�
 	}
 	// 任务目标 → goal gate：启用了「持续工作到验收」的会话，恢复后把目标
 	// 写入 agent 目标循环（回合结束未达标会自动继续），否则清空避免跨会话残留。
-	a.syncGoalForSession(path)
+	a.syncGoalForSession(c, path)
 	// 中断恢复：上次进程崩溃/被杀时 state 残留 running=true，向消息末尾
 	// 追加一条 system 摘要让模型先总结进度再继续，并清除标记避免重复提示。
 	// 事件日志模式下该摘要同步写入事件日志（「模型可见必入日志」）。
@@ -834,7 +836,7 @@ func (a *App) resumeLastSession(ctrl *control.Controller) string {
 		slog.Warn("gaea: 自动恢复最近会话失败", "path", infos[0].Path, "error", err)
 		return ""
 	}
-	a.syncGoalForSession(infos[0].Path)
+	a.syncGoalForSession(ctrl, infos[0].Path)
 	// 崩溃后重启的自动恢复同样注入中断摘要并清除 state 标记，
 	// 避免「未完成」徽标残留在当前正在对话的会话上。
 	injectInterruption(loaded, infos[0].Path)

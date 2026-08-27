@@ -870,19 +870,49 @@ export interface CostSummary {
   category: string;
   // 完整分类路径：一级/二级/…/叶子（多级分类保存与树形过滤依据）。
   categoryPath: string;
-  unit: string;
-  price: number;
-  spec: string;
+    unit: string;
+    price: number;
+    // 人材机二级汇总（综合单价子目，元）。
+    laborFee?: number;
+    materialFee?: number;
+    machineFee?: number;
+    // 人材机组成行数（综合单价子目的二级明细规模）。
+    componentCount?: number;
+    spec: string;
   source: string;
+  // 价格三要素蒸馏（zaojia-database）：地区 + 价格时间/期数；口径与有效期辅助判断可信度。
+  region?: string;
+  priceDate?: string;
+  priceType?: string;
+  validUntil?: string;
+  sourceRow?: number;
   tags: string[];
   status: string;
   // 新建/导入时前端不发送时间戳（Go 端 time.Time 不接受空串），留空由后端置零。
   updatedAt?: string;
 }
-export interface CostEntry extends CostSummary {
-  body: string;
-  createdAt?: string;
-}
+  // 综合单价子目的人材机组成明细行（二级）。
+  export interface CostComponent {
+    kind: string; // 人工/材料/机械（可组合标签，如 人工+机械）
+    title: string;
+    unit?: string;
+    quantity?: number; // 含量/数量（0=未解析出）
+    price?: number; // 资源单价（0=未解析出）
+    amount?: number; // 金额（含量×单价，含损耗）
+    note?: string; // 原始行表达式（含损耗系数，追溯用）
+    sort?: number;
+  }
+
+  export interface CostEntry extends CostSummary {
+    // 费率（仅展示追溯，不参与计算）：管理费/利润/垫资 为金额（元），税率为百分比。
+    managementFee?: number;
+    profitFee?: number;
+    advanceFee?: number;
+    taxRate?: number;
+    components?: CostComponent[];
+    body: string;
+    createdAt?: string;
+  }
 
 // 成本分类树节点（多级：parentId 自引用，children 为子树）。
 export interface CostCategory {
@@ -894,6 +924,90 @@ export interface CostCategory {
   children?: CostCategory[];
 }
 
+// ── 测算项目与沉淀闭环（zaojia-database 蒸馏：我的项目/工程量清单/版本留痕）──
+
+// CostProject 测算项目容器（一次报价/测算工作）。
+export interface CostProject {
+  id: string;
+  name: string;
+  projectType: string;
+  scale: string;
+  craft: string;
+  status: string; // 编制中 / 已保存版本 / 已沉淀
+  note: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// CostProjectSummary 项目列表视图（含条目数/合计/版本数）。
+export interface CostProjectSummary extends CostProject {
+  itemCount: number;
+  total: number;
+  versionCount: number;
+}
+
+// CostEstimateItem 测算明细行（工程量清单行；金额=数量×单价自动计算）。
+export interface CostEstimateItem {
+  id?: number;
+  projectId: string;
+  name: string; // kebab 稳定名（沉淀为成本条目 name）
+  title: string;
+  categoryPath: string;
+  unit: string;
+  quantity: number;
+  price: number;
+  amount?: number;
+  entryName?: string; // 引用的成本条目 name（可空=手动估价）
+  source?: string;
+  note?: string;
+  sort?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// CostEstimateVersion 不可变版本快照（保存时对明细行 JSON 快照 + 合计）。
+export interface CostEstimateVersion {
+  id: number;
+  projectId: string;
+  version: number;
+  total: number;
+  snapshot: string;
+  note: string;
+  createdAt: string;
+}
+
+// CostIndicator 造价参考指标（对案例项目明细行的价格聚合，实时计算不落表）。
+export interface CostIndicator {
+  key: string; // 科目标题 或 一级分类名
+  unit: string;
+  samples: number;
+  min: number;
+  max: number;
+  mean: number;
+  median: number;
+  p25: number;
+  p75: number;
+}
+
+// CostReviewNote 复盘笔记（结论/边界/风险/证据/可信度/有效期/复核状态）。
+export interface CostReviewNote {
+  id?: number;
+  title: string;
+  conclusion: string;
+  boundary: string;
+  risk: string;
+  evidence: string;
+  confidence: string; // 高/中/低
+  validUntil?: string;
+  status: string; // 草稿 / 已确认
+  category?: string;
+  projectType?: string;
+  craft?: string;
+  refCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // 导入预览中的一条候选成本条目（前端可编辑后确认导入）。
 export interface CostImportRow {
   name: string;
@@ -901,8 +1015,20 @@ export interface CostImportRow {
   category: string;
   unit: string;
   price: number;
+  // 综合单价架构：人材机二级 = 合计 + 组成明细；费率仅展示追溯。
+  laborFee?: number;
+  materialFee?: number;
+  machineFee?: number;
+  managementFee?: number;
+  profitFee?: number;
+  advanceFee?: number;
+  taxRate?: number;
+  components?: CostComponent[];
+  body?: string;
   spec: string;
   source: string;
+  // 原始工作表物理行号（1-based；0=无法确定，如纵向参数表/AI 解析）。
+  sourceRow?: number;
   status: string;
   existingName: string;
   existingPrice: number;

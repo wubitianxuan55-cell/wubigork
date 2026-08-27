@@ -6,13 +6,34 @@ import { WORKSPACE_GROUPS, groupOfTab, type WorkspaceGroupId, type WorkspaceTabI
 // 由 lib/workspaceTabs.ts 清单驱动渲染；激活态与 App.tsx 的 rightTab 保持一致。
 // 激活态样式与 App.tsx 原手写按钮一致（text-accent + border-accent，
 // redesign.css 用 [class*="text-accent"] 收复 Tailwind 类冲突）。
+// C6（蒸馏 dsh-better-sidebar badge）：主 Tab 支持计数角标（99+ 封顶），
+// 由 App 传入；角标走语义色令牌，不硬编码色值。
+
+/** 角标渲染上限（对齐插件 Sidebar badge 的 99+ 封顶）。 */
+const BADGE_CAP = 99;
+
+function BadgePill({ count }: { count: number }) {
+  const text = count > BADGE_CAP ? `${BADGE_CAP}+` : String(count);
+  return (
+    <span
+      aria-label={`${count} 项进行中`}
+      className="ml-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[9px] leading-none font-medium"
+      style={{ background: "var(--gaea-glow)", color: "#fff" }}
+    >
+      {text}
+    </span>
+  );
+}
 
 export function WorkspaceTabs({
   active,
   onChange,
+  badges,
 }: {
   active: WorkspaceTabId;
   onChange: (tab: WorkspaceTabId) => void;
+  /** 主 Tab（组）计数角标：>0 才渲染，99+ 封顶（C6）。 */
+  badges?: Partial<Record<WorkspaceGroupId, number>>;
 }) {
   const group = groupOfTab(active);
   return (
@@ -22,6 +43,7 @@ export function WorkspaceTabs({
         {WORKSPACE_GROUPS.map((g) => {
           const Icon = g.icon;
           const isActive = group.id === g.id;
+          const badge = badges?.[g.id];
           return (
             <button
               key={g.id}
@@ -34,6 +56,7 @@ export function WorkspaceTabs({
             >
               <Icon size={13} />
               <span>{g.label}</span>
+              {typeof badge === "number" && badge > 0 && !isActive && <BadgePill count={badge} />}
             </button>
           );
         })}
