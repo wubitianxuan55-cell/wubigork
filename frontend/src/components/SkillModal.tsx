@@ -1,3 +1,4 @@
+import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useEffect, useRef } from 'react'
 import { Typography, Button, Space, Tag, Modal, Empty, message } from 'antd'
 import {
@@ -31,7 +32,7 @@ const SkillModal: React.FC<SkillModalProps> = ({ open, onClose }) => {
 
   const loadSkills = async () => {
     try {
-      const s = await window.go.app.App.ListSkills()
+      const s = await wailsApp().ListSkills()
       setSkills(s || [])
     } catch (_) {}
   }

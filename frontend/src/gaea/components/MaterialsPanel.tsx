@@ -229,7 +229,7 @@ export const MaterialsPanel = memo(function MaterialsPanel({
                       >
                         <span className="block truncate text-[12px] font-medium leading-tight" style={{ color: "var(--md-sys-color-text)" }}>
                           {f.name}
-                          {f.size > 5 * 1024 * 1024 && (
+                          {(f.size ?? 0) > 5 * 1024 * 1024 && (
                             <span className="ml-1.5 text-[9px] font-mono align-middle" style={{ color: "var(--md-sys-color-warning)" }}>
                               大文件
                             </span>

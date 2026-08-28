@@ -301,7 +301,7 @@ const CreatePage: React.FC = () => {
         onSelect={selectChapter} onRegenerate={handleRegenerate} onDelete={handleDelete}
         onAddNext={handleAddNext} onGenerateNext={() => openWizard(lastMainChapter)} />
       <div className="v3-grip" aria-hidden="true" />
-      <EditorPanel activeNode={activeNode} content={content} onContentChange={setContent}
+      <EditorPanel activeNode={activeNode ?? null} content={content} onContentChange={setContent}
         chapterLoading={chapterLoading}
         generating={generating} genPhase={genPhase} genPercent={genPercent} stopping={stopping} saving={saving}
         onRegenerate={() => activeNode && handleRegenerate(activeNode)} onSave={handleSave} onStop={handleStop}

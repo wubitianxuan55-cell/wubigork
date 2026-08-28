@@ -233,9 +233,9 @@ function StepDetail({ record }: { record: ContextRequestRecord | null }) {
     );
   }
   const total = catTotal(record.category);
-  const cachePct = record.cacheHitTokens + record.cacheMissTokens > 0
-    ? (record.cacheHitTokens * 100) / (record.cacheHitTokens + record.cacheMissTokens)
-    : null;
+  const cacheHit = record.cacheHitTokens ?? 0;
+  const cacheMiss = record.cacheMissTokens ?? 0;
+  const cachePct = cacheHit + cacheMiss > 0 ? (cacheHit * 100) / (cacheHit + cacheMiss) : null;
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-center justify-between">

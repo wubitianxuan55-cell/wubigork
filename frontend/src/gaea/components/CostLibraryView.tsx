@@ -823,15 +823,15 @@ export const CostRow = memo(function CostRow({
           {e.validUntil && <span className="shrink-0">· 至 {e.validUntil}</span>}
         </div>
       )}
-      {(e.laborFee > 0 || e.materialFee > 0 || e.machineFee > 0) && (
+      {((e.laborFee ?? 0) > 0 || (e.materialFee ?? 0) > 0 || (e.machineFee ?? 0) > 0) && (
         <div className="mt-1 pl-6 flex items-center gap-2 text-[10.5px] text-fg-faint min-w-0">
           <span className="shrink-0 font-medium">人材机</span>
           <div className="shrink-0 w-24">
             <MiniCompositionBar labor={e.laborFee ?? 0} material={e.materialFee ?? 0} machine={e.machineFee ?? 0} />
           </div>
-          <span className="shrink-0 tabular-nums text-sky-400/90">人工 {priceText(e.laborFee)}</span>
-          <span className="shrink-0 tabular-nums text-emerald-400/90">材料 {priceText(e.materialFee)}</span>
-          <span className="shrink-0 tabular-nums text-amber-400/90">机械 {priceText(e.machineFee)}</span>
+          <span className="shrink-0 tabular-nums text-sky-400/90">人工 {priceText(e.laborFee ?? 0)}</span>
+          <span className="shrink-0 tabular-nums text-emerald-400/90">材料 {priceText(e.materialFee ?? 0)}</span>
+          <span className="shrink-0 tabular-nums text-amber-400/90">机械 {priceText(e.machineFee ?? 0)}</span>
         </div>
       )}
     </div>
@@ -927,9 +927,9 @@ export const TableRow = memo(function TableRow({
       </td>
       <td className="px-3 py-1.5 text-fg-dim">{e.unit || "—"}</td>
       <td className="px-3 py-1.5 text-fg-faint text-[11px] whitespace-nowrap">
-        {e.laborFee > 0 || e.materialFee > 0 || e.machineFee > 0 ? (
+        {(e.laborFee ?? 0) > 0 || (e.materialFee ?? 0) > 0 || (e.machineFee ?? 0) > 0 ? (
           <span className="tabular-nums">
-            人 {priceText(e.laborFee)} · 材 {priceText(e.materialFee)} · 机 {priceText(e.machineFee)}
+            人 {priceText(e.laborFee ?? 0)} · 材 {priceText(e.materialFee ?? 0)} · 机 {priceText(e.machineFee ?? 0)}
           </span>
         ) : (
           "—"

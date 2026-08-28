@@ -398,7 +398,7 @@ export function Composer({
           onPaste={onPaste}
           onKeyDown={onKeyDown}
           placeholder={placeholderText}
-          disabled={disabled}
+          disabled={disabled ?? false}
           running={running}
           composerHeightFixed={composerHeight !== null}
           dragOver={dragOver}

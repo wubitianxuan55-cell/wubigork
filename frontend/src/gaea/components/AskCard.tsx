@@ -68,7 +68,7 @@ function PlanBody({ plan }: { plan: WirePlan }) {
             <AlertCircle size={12} className="shrink-0" />
             <span>{t("ask.planQuestions")}</span>
           </div>
-          {plan.questions.map((q, i) => (
+          {(plan.questions ?? []).map((q, i) => (
             <div key={i} className="text-[12px] text-fg-dim leading-relaxed">• {q}</div>
           ))}
         </div>

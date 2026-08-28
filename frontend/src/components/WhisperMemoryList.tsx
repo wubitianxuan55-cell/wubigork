@@ -109,7 +109,7 @@ const WhisperMemoryList: React.FC<Props> = ({ facts, onOpenManage }) => {
                         {f.subject}
                       </span>
                       <span style={{ fontSize: 9, color: C('color-text-secondary'), opacity: 0.55, flexShrink: 0 }}>
-                        {SUB_LABELS[f.subcategory] || f.subcategory || ''}
+                        {(f.subcategory ? SUB_LABELS[f.subcategory] : undefined) || f.subcategory || ''}
                       </span>
                     </div>
                     <div style={{ fontSize: 9, color: C('color-text-secondary'), marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.7 }}>

@@ -1,3 +1,4 @@
+import { wailsApp } from '../lib/wailsApp';
 import { create } from 'zustand'
 
 // ═══════════════════════════════════════════════════════════
@@ -293,12 +294,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   login: async () => {
     try {
       // Login() 现在是异步的：立即返回，OAuth 在后台进行
-      await window.go.app.App.Login()
+      await wailsApp().Login()
       // 轮询等待登录完成（最多 5 分钟）
       for (let i = 0; i < 75; i++) {
         await new Promise((r) => setTimeout(r, 4000))
         try {
-          const status = await window.go.app.App.GetLoginStatus()
+          const status = await wailsApp().GetLoginStatus()
           if (status) {
             set({ loggedIn: true })
             return
@@ -314,7 +315,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   checkLogin: async () => {
     try {
-      const status = await window.go.app.App.GetLoginStatus()
+      const status = await wailsApp().GetLoginStatus()
       set({ loggedIn: status })
     } catch (_) {
       // Go 绑定未就绪时静默忽略
@@ -322,7 +323,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   logout: async () => {
     try {
-      await window.go.app.App.Logout()
+      await wailsApp().Logout()
     } catch (_) {}
     set({ loggedIn: false })
   },
@@ -337,21 +338,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   loadProjectInfo: async () => {
     try {
-      const info = await window.go.app.App.GetProjectInfo()
+      const info = await wailsApp().GetProjectInfo()
       if (info) set({ projectInfo: info as ProjectInfo })
     } catch (_) {}
   },
 
   loadStats: async () => {
     try {
-      const s = await window.go.app.App.GetStats()
+      const s = await wailsApp().GetStats()
       if (s) set({ stats: s as StatsData })
     } catch (_) {}
   },
 
   loadNovelsDir: async () => {
     try {
-      const dir: string = await window.go.app.App.GetNovelsDir()
+      const dir: string = await wailsApp().GetNovelsDir()
       set({ novelsDir: dir })
     } catch (_) {
       // 保持默认值
@@ -360,7 +361,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   loadProjects: async () => {
     try {
-      const cards: ProjectCard[] = await window.go.app.App.ListProjects()
+      const cards: ProjectCard[] = await wailsApp().ListProjects()
       set({ projects: cards || [] })
     } catch (err) {
       console.error('loadProjects failed:', err)
@@ -369,7 +370,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   deleteProject: async (path: string) => {
     try {
-      await window.go.app.App.DeleteProject(path)
+      await wailsApp().DeleteProject(path)
       const projects = get().projects.filter((p) => p.path !== path)
       set({ projects })
     } catch (err: unknown) {
@@ -379,11 +380,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setNovelsDir: async (dir: string) => {
-    await window.go.app.App.SaveConfig('novels_dir', dir)
+    await wailsApp().SaveConfig('novels_dir', dir)
     set({ novelsDir: dir, projectOpen: false, projectPath: '', projectTitle: '' })
     // 刷新书架
     try {
-      const cards: ProjectCard[] = await window.go.app.App.ListProjects()
+      const cards: ProjectCard[] = await wailsApp().ListProjects()
       set({ projects: cards || [] })
     } catch (err) {
       console.error('loadProjects failed after setNovelsDir:', err)

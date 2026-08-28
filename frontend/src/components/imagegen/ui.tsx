@@ -67,19 +67,21 @@ export const StatusDot: React.FC<{ tone: 'ok' | 'warn' | 'danger' | 'idle' }> = 
   )
 }
 
-export interface PickerOption {
+export interface PickerOption<T = string | number> {
   label: string
-  value: string | number
+  value: T
   icon?: React.ReactNode
 }
 
-/** 分组选择器：选中 = 主色填充 + 按压反馈 */
-export const PickerGroup: React.FC<{
-  options: PickerOption[]
-  value: string | number
-  onChange: (v: unknown) => void
+/** 分组选择器：选中 = 主色填充 + 按压反馈。T 由 options/value 推导，onChange 收到精确类型。 */
+export const PickerGroup = <T extends string | number,>(props: {
+  options: PickerOption<T>[]
+  value: T
+  onChange: (v: T) => void
   columns?: number
-}> = ({ options, value, onChange, columns }) => (
+}) => {
+  const { options, value, onChange, columns } = props
+  return (
   <div style={{
     display: 'grid',
     gridTemplateColumns: columns ? `repeat(${columns}, 1fr)` : 'repeat(auto-fill, minmax(76px, 1fr))',
@@ -111,5 +113,6 @@ export const PickerGroup: React.FC<{
       )
     })}
   </div>
-)
+  )
+}
 

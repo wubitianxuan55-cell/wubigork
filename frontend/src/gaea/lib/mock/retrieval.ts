@@ -2,7 +2,7 @@
 // 从 office.ts 独立拆分（原 office 域超过 400 行预算）；方法体除
 // RetrievalEvalRun 契约对齐（T6-10.4）外零改动。
 import type { AppBindings } from "../bridge";
-import type { RetrievalEvalReport } from "../types";
+import type { RetrievalEvalReport, WorkspaceSearchHit } from "../types";
 import { taskView } from "./shared";
 import type { MakeMockState } from "./state";
 
@@ -11,6 +11,11 @@ type RetrievalMethods = Pick<
   | "SemanticSearch" | "UnifiedSearch" | "RetrievalEvalRun"
   | "FileIndexRebuild" | "FileSemanticSearch"
 >;
+
+/** WorkspaceSearch 实现在 office 域，运行时经 mock 聚合后同对象可用；按方法形态收窄引用。 */
+type WithWorkspaceSearch = {
+  WorkspaceSearch(query: string, limit?: number): Promise<WorkspaceSearchHit[]>;
+};
 
 // ── 检索质量测评（T6-10.4 契约对齐 Go GaeaRetrievalEvalRun）─────────────
 // 查询集与字段形状与 internal/app/gaea_retrieval_eval.go + docs/retrieval-eval-set.md
@@ -88,9 +93,9 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
     // 与后端 GaeaUnifiedSearch 四组视图一致）──
     async UnifiedSearch(query: string, topN = 10) {
       if (!query.trim()) return { keyword: [], semantic: [], brain: [], files: [] };
-      const kw = await this.WorkspaceSearch(query, topN);
+      const kw = await (this as unknown as WithWorkspaceSearch).WorkspaceSearch(query, topN);
       const sem = await this.SemanticSearch(query);
-      const files = await this.FileSemanticSearch(query);
+      const files = await this.FileSemanticSearch(query, topN);
       return {
         keyword: kw.length ? kw.slice(0, 2) : [],
         semantic: sem.length ? sem.slice(0, 2) : [],

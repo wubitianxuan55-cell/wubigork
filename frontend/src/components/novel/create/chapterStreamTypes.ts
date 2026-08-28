@@ -116,5 +116,7 @@ export function parseCreateChapterEvent(payload: unknown): CreateChapterStreamEv
         total: num(payload.total),
         content: str(payload.content),
       }
+    default:
+      return null
   }
 }

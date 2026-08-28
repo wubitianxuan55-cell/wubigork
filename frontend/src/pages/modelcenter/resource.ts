@@ -46,7 +46,7 @@ export function computeResourceSnapshot(m: ResourceMonitorData | null | undefine
   const vramUsed = s.vramUsed || 0
   const memPct = memTotal ? Math.round((memUsed / memTotal) * 100) : 0
   const vramPct = vramTotal ? Math.round((vramUsed / vramTotal) * 100) : 0
-  const gpuPct = Math.max(0, (s.gpuUsage ?? 0) > 0 ? s.gpuUsage : vramPct)
+  const gpuPct = Math.max(0, (s.gpuUsage ?? 0) > 0 ? (s.gpuUsage ?? 0) : vramPct)
   const localEngines = (m?.engines || [])
     .filter(e => e.isLocal)
     .map(e => `${e.engine}${e.model ? '·' + String(e.model).split('/').pop() : ''}`)

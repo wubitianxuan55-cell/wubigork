@@ -1,3 +1,4 @@
+import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useEffect, useMemo } from 'react'
 import {
   Button, Skeleton, message, Input, Select, Empty,
@@ -84,7 +85,7 @@ const HomePage: React.FC = () => {
       const genreStr = newGenre.join('、') || '未分类'
       const styleStr = newStyle.join('、') || '默认'
 
-      await window.go.app.App.CreateProject(dir, newTitle, genreStr, styleStr)
+      await wailsApp().CreateProject(dir, newTitle, genreStr, styleStr)
 
       openProject(dir, newTitle)
       await loadProjects()
@@ -98,7 +99,7 @@ const HomePage: React.FC = () => {
   // ── 导入成品小说 ──
   const handlePickImport = async () => {
     try {
-      const picked = await window.go.app.App.GaeaPickFiles()
+      const picked = await wailsApp().GaeaPickFiles()
       const file = picked && picked.length > 0 ? picked[0] : null
       if (!file?.path) return
       setImportFile({ path: file.path, name: file.name || file.path })
@@ -115,7 +116,7 @@ const HomePage: React.FC = () => {
     if (!importFile || !importTitle.trim() || importing) return
     setImporting(true)
     try {
-      const res = await window.go.app.App.ImportNovelBook(
+      const res = await wailsApp().ImportNovelBook(
         importFile.path,
         importTitle.trim(),
         importGenre.join('、') || '未分类',
@@ -141,7 +142,7 @@ const HomePage: React.FC = () => {
       return
     }
     try {
-      await window.go.app.App.OpenProject(card.path)
+      await wailsApp().OpenProject(card.path)
       openProject(card.path, card.title)
       if (goRead) {
         window.dispatchEvent(new CustomEvent('novel:goto-tab', { detail: { tab: 'chapter' } }))

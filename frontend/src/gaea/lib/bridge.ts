@@ -518,7 +518,7 @@ function realApp(): AppBindings | undefined {
   if (!goApp || typeof goApp !== "object") return undefined;
   return new Proxy({} as AppBindings, {
     get(_t, prop) {
-      const key = gaeaToGaea[String(prop)] ?? String(prop);
+      const key = (gaeaToGaea as Record<string, string>)[String(prop)] ?? String(prop);
       for (const ns of Object.values(goApp)) {
         if (ns === null || typeof ns !== "object") continue;
         const rec = ns as Record<string, unknown>;
@@ -850,7 +850,7 @@ function logFrontendError(message: string): void {
 export const app: AppBindings = new Proxy({} as AppBindings, {
   get(_t, prop) {
     const target = realApp() ?? getMock();
-    const key = gaeaToGaea[String(prop)] ?? String(prop);
+    const key = (gaeaToGaea as Record<string, string>)[String(prop)] ?? String(prop);
     const rec = target as unknown as Record<string, unknown>;
     // 真实绑定按 Gaea 前缀查找；浏览器 mock 直接暴露同名字段，需回退。
     const v = rec[key] ?? rec[String(prop)];

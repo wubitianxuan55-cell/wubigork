@@ -919,6 +919,8 @@ export interface MemoryArchivedPage {
   total: number;
   limit: number;
   offset: number;
+  /** 归档保留期（天），后端 gaea_memory_lifecycle.go RetentionDays 下发；mock 未带时 UI 回退 90 */
+  retentionDays?: number;
 }
 
 export interface MemorySuggestion {

@@ -49,7 +49,7 @@ function renderEditor(overrides: {
   const utils = render(
     <CharacterLibEditor
       open
-      character={character}
+      character={character ?? null}
       projects={overrides.projects ?? []}
       index={0}
       isCurrentPersona={overrides.isCurrentPersona}

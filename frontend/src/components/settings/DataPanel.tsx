@@ -51,7 +51,7 @@ export const DataPanel: React.FC = () => {
       if (res && typeof res.data_root === 'string' && Array.isArray(res.entries)) {
         setInfo(res as BackupInfo)
       } else if (res) {
-        setInfo({ ...res, entries: [] } as BackupInfo)
+        setInfo({ ...res, entries: [] } as unknown as BackupInfo)
       }
     } catch { /* 后端未就绪 */ }
     try {

@@ -53,7 +53,7 @@ export function remarkFileLinks(): (tree: MdNode) => void {
       }
       if (last < value.length) children.push({ type: "text", value: value.slice(last) });
 
-      parent.children.splice(index, 1, ...children);
+      parent.children?.splice(index, 1, ...children);
       // 跳过已插入节点（前缀/链接/后缀均不再包含可匹配文本），
       // 从原下一个兄弟节点继续遍历。
       return index + children.length;

@@ -41,7 +41,7 @@ export function useImageState(): ImageState {
     try {
       const cfg = await getImageBackendInfo()
       if (cfg?.backend) setImageBackend(cfg.backend)
-      if (cfg?.image_model || cfg?.model) setImageModel(cfg.image_model || cfg.model)
+      if (cfg?.image_model || cfg?.model) setImageModel(cfg.image_model || cfg.model || '')
       if (cfg?.comfyui_url) setComfyUIURL(cfg.comfyui_url)
       if (cfg?.image_save_dir) setImageSaveDir(cfg.image_save_dir)
       if (cfg?.comfyui_path) setComfyUIPath(cfg.comfyui_path)

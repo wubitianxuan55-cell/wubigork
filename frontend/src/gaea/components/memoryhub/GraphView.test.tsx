@@ -93,8 +93,8 @@ describe("GraphView 记忆 3D 图谱", () => {
     expect(screen.getByText(/3 节点 · 2 边/)).toBeTruthy();
 
     await waitFor(() => expect(graphStub.calls.length).toBeGreaterThan(0));
-    expect(graphStub.calls.at(-1).nodes.map((n) => n.type).sort()).toEqual(["cost", "knowledge", "whisper"]);
-    expect(graphStub.calls.at(-1).links).toHaveLength(2);
+    expect(graphStub.calls.at(-1)!.nodes.map((n) => n.type).sort()).toEqual(["cost", "knowledge", "whisper"]);
+    expect(graphStub.calls.at(-1)!.links).toHaveLength(2);
   });
 
   it("类型过滤：点击「成本」后 graphData 收到过滤后的 nodes/links，计数更新；再点恢复全量", async () => {
@@ -104,8 +104,8 @@ describe("GraphView 记忆 3D 图谱", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /成本/ }));
 
-    await waitFor(() => expect(graphStub.calls.at(-1).nodes).toHaveLength(2));
-    const filtered = graphStub.calls.at(-1);
+    await waitFor(() => expect(graphStub.calls.at(-1)!.nodes).toHaveLength(2));
+    const filtered = graphStub.calls.at(-1)!;
     expect(filtered.nodes.map((n) => n.type).sort()).toEqual(["knowledge", "whisper"]);
     // 与被过滤节点相连的边同步剔除（cost 节点相关边消失）
     expect(filtered.links).toHaveLength(1);
@@ -114,7 +114,7 @@ describe("GraphView 记忆 3D 图谱", () => {
 
     // 重新点回「成本」→ 全量数据重新构图
     fireEvent.click(screen.getByRole("button", { name: /成本/ }));
-    await waitFor(() => expect(graphStub.calls.at(-1).nodes).toHaveLength(3));
+    await waitFor(() => expect(graphStub.calls.at(-1)!.nodes).toHaveLength(3));
     expect(await screen.findByText(/3 节点 · 2 边/)).toBeTruthy();
   });
 
@@ -125,7 +125,7 @@ describe("GraphView 记忆 3D 图谱", () => {
     await waitFor(() => expect(graphStub.nodeClickCb).toBeTruthy());
 
     // 模拟 3D 画布上的节点点击 → 组件 setSelected(node) → Modal 打开
-    graphStub.nodeClickCb(GRAPH.nodes[0]);
+    graphStub.nodeClickCb!(GRAPH.nodes[0]);
 
     // Modal 标题/正文由多个文本节点拼成，用 dialog 容器 textContent 断言
     const dialog = await screen.findByRole("dialog");
@@ -141,8 +141,8 @@ describe("GraphView 记忆 3D 图谱", () => {
 
     expect(await screen.findByText(/0 节点 · 0 边/)).toBeTruthy();
     await waitFor(() => expect(graphStub.calls.at(-1)).toBeTruthy());
-    expect(graphStub.calls.at(-1).nodes).toHaveLength(0);
-    expect(graphStub.calls.at(-1).links).toHaveLength(0);
+    expect(graphStub.calls.at(-1)!.nodes).toHaveLength(0);
+    expect(graphStub.calls.at(-1)!.links).toHaveLength(0);
     // 工具条仍在
     expect(screen.getByText("记忆 3D 图谱")).toBeTruthy();
   });

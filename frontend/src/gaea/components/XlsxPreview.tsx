@@ -740,7 +740,7 @@ function SheetGrid({
     return <div className="p-6 text-center text-[12px] text-fg-faint">（空工作表）</div>;
   }
 
-  const headerCells = [];
+  const headerCells: string[] = [];
   for (let c = 1; c <= maxCol; c++) headerCells.push(colToLetter(c));
 
   return (

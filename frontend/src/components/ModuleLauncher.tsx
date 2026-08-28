@@ -306,7 +306,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
   const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
   // 后端未采样时 cpu/gpu 可能为 -1（哨兵），统一按「未就绪」显示 --
   const cpuVal = ms && ms.cpu != null && ms.cpu >= 0 ? ms.cpu : null
-  const gpuVal = (ms?.gpuUsage ?? 0) > 0 ? ms.gpuUsage : vramPct
+  const gpuVal = (ms?.gpuUsage ?? 0) > 0 ? (ms?.gpuUsage ?? 0) : vramPct
   const engines = monitor?.engines || []
   const engineCount = engines.length
   const localCount = engines.filter((e) => e.isLocal).length

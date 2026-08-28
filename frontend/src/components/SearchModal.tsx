@@ -1,3 +1,4 @@
+import { wailsApp } from '../lib/wailsApp';
 import React, { useState } from 'react'
 import { Typography, Space, Tag, Modal, Input, Spin, Empty } from 'antd'
 import { SearchOutlined, FileTextOutlined, UserOutlined } from '@ant-design/icons'
@@ -52,7 +53,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose }) => {
     setSearched(true)
     setFilterCategory(null)
     try {
-      const data = await window.go.app.App.Search(q)
+      const data = await wailsApp().Search(q)
       setResults(data || {})
     } catch (_) {
       setResults({})

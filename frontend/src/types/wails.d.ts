@@ -16,12 +16,14 @@ import type {
  * window.runtime 事件 API（Wails 原生与 HTTP polyfill 共有形态）。
  * 使用方法签名（方法参数双变检查）：调用方可传 (data: unknown) => void，
  * 也可传具体载荷类型（如 TTSStreamEvent），由调用方自行收窄。
+ * 泛型 T（默认 unknown）让具体载荷回调在 strict 下直接通过推导，
+ * 而非依赖 unknown → T 的反向赋值（strictFunctionTypes 会拒绝）。
  */
 export interface RuntimeAPI {
-  EventsOn(event: string, handler: (data: unknown) => void): void
-  EventsOff?(event: string, callback?: (data: unknown) => void): void
-  EventsOnce?(event: string, handler: (data: unknown) => void): void
-  EventsOnMultiple?(event: string, handler: (data: unknown) => void, maxCallbacks: number): (() => void) | void
+  EventsOn<T = unknown>(event: string, handler: (data: T) => void): void
+  EventsOff?<T = unknown>(event: string, callback?: (data: T) => void): void
+  EventsOnce?<T = unknown>(event: string, handler: (data: T) => void): void
+  EventsOnMultiple?<T = unknown>(event: string, handler: (data: T) => void, maxCallbacks: number): (() => void) | void
   EventsEmit?(event: string, ...data: unknown[]): void
   BrowserOpenURL?(url: string): void
 }

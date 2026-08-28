@@ -1,3 +1,4 @@
+import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useEffect, useRef, Suspense, useReducer } from 'react'
 import { Layout, Button, Space, Typography, Tooltip, Spin, Progress, notification } from 'antd'
 import {
@@ -137,7 +138,7 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
       const gpuPct = ms?.gpuUsage || vramPct
       const localEngCount = (m?.engines || []).filter((e: MonitorEngine) => e.isLocal).length + (m?.comfyRunning ? 1 : 0)
       const warns: { key: string; title: string; desc: string }[] = []
-      if ((ms?.cpu ?? 0) > 85) warns.push({ key: 'cpu', title: '⚠ CPU 负载过高', desc: `当前 CPU 使用率 ${ms.cpu}%，模型占用过大，建议停用部分模型` })
+      if ((ms?.cpu ?? 0) > 85) warns.push({ key: 'cpu', title: '⚠ CPU 负载过高', desc: `当前 CPU 使用率 ${ms?.cpu ?? 0}%，模型占用过大，建议停用部分模型` })
       if (gpuPct > 85) warns.push({ key: 'gpu', title: '⚠ GPU 负载过高', desc: `GPU 使用率 ${gpuPct}%（显存占用），建议停用部分本地模型` })
       if (memPct > 90) warns.push({ key: 'mem', title: '⚠ 内存占用过高', desc: `内存使用率 ${memPct}%，建议释放不用的模型` })
       if (localEngCount > 3) warns.push({ key: 'models', title: '⚠ 已启动模型过多', desc: `已启用 ${localEngCount} 个引擎，建议停用不用的模型（各功能窗口 ⚡ 一键启停）` })
@@ -161,7 +162,7 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
           const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
           const cpu = [...prev.cpu, Math.max(0, ms?.cpu ?? 0)].slice(-keep)
           const mem = [...prev.mem, ms?.memTotal ? Math.max(0, Math.round((ms.memUsed || 0) / ms.memTotal * 100)) : 0].slice(-keep)
-          const gpu = [...prev.gpu, Math.max(0, (ms?.gpuUsage ?? 0) > 0 ? ms.gpuUsage : vramPct)].slice(-keep)
+          const gpu = [...prev.gpu, Math.max(0, (ms?.gpuUsage ?? 0) > 0 ? (ms?.gpuUsage ?? 0) : vramPct)].slice(-keep)
           return { cpu, mem, gpu }
         })
       } catch { /* 忽略轮询失败 */ }
@@ -176,7 +177,7 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
   const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
   // 后端未采样哨兵（-1）统一按「未就绪」显示 --
   const cpuOk = ms && ms.cpu != null && ms.cpu >= 0 ? ms.cpu : null
-  const gpuOk = (ms?.gpuUsage ?? 0) > 0 ? ms.gpuUsage : vramPct
+  const gpuOk = (ms?.gpuUsage ?? 0) > 0 ? (ms?.gpuUsage ?? 0) : vramPct
   // 只展示本地已启用引擎（云端引擎走 API，不占本机资源）
   const engLabel = (monitor?.engines || [])
     .filter((e: MonitorEngine) => e.isLocal)
@@ -362,7 +363,7 @@ const MainLayout: React.FC = () => {
 
   const loadActiveModel = async () => {
     try {
-      const model = await window.go.app.App.GetActiveModel()
+      const model = await wailsApp().GetActiveModel()
       setActiveModel(model || '')
     } catch { /* 忽略 */ }
   }

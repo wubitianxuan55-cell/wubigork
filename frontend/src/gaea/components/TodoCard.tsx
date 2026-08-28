@@ -25,7 +25,7 @@ export function TodoCard({ todos, onDismiss }: { todos: Todo[]; onDismiss: () =>
   const compact = useCompact();
   const [open, setOpen] = useState(false); // 默认折叠
   const listRef = useRef<HTMLUListElement>(null);
-  const currentRef = useRef<HTMLLIElement | null>(null);
+  const currentRef = useRef<HTMLLIElement>(null);
   useGSAPCollapse(listRef, open);
 
   const done = todos.filter((td) => td.status === "completed").length;
@@ -160,7 +160,7 @@ function TodoRow({
 }: {
   td: Todo;
   isCurrent: boolean;
-  currentRef: RefObject<HTMLLIElement | null>;
+  currentRef: RefObject<HTMLLIElement>;
   itemPx: string;
   itemPy: string;
   itemTextSize: string;

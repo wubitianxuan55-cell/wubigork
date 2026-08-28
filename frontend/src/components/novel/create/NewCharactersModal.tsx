@@ -46,14 +46,14 @@ const NewCharactersModal: React.FC = () => {
     const handler = (event: { detail?: NewCharactersPayload } | NewCharactersPayload) => {
       const raw = event as { detail?: NewCharactersPayload } | null | undefined
       const data = (raw?.detail || raw) as NewCharactersPayload | undefined
-      if (data?.characters?.length > 0 || data?.libraryMatches?.length > 0) {
-        setNewCharsList((data.characters || []).map((name: string) => ({
+      if ((data?.characters?.length ?? 0) > 0 || (data?.libraryMatches?.length ?? 0) > 0) {
+        setNewCharsList((data?.characters || []).map((name: string) => ({
           original: name, name, selected: true,
         })))
-        setLibMatches((data.libraryMatches || []).map((m) => ({
+        setLibMatches((data?.libraryMatches || []).map((m) => ({
           id: m.id ?? '', name: m.name ?? '', roleType: m.roleType || '', portraitUrl: m.portraitUrl || '', selected: true,
         })))
-        setNewCharsChapter(data.chapterNum || 0)
+        setNewCharsChapter(data?.chapterNum || 0)
         setOpen(true)
       }
     }

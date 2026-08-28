@@ -1,3 +1,4 @@
+import { wailsApp } from '../../../lib/wailsApp';
 import { useState, useCallback } from 'react'
 import { message } from 'antd'
 
@@ -32,7 +33,7 @@ export function usePlotBranch(nodeID: string, onApplied?: () => void) {
     setBranches([])
     setSelected(-1)
     try {
-      const result = await window.go.app.App.BrainstormBranches(nodeID)
+      const result = await wailsApp().BrainstormBranches(nodeID)
       if (result?.branches) setBranches(result.branches)
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '推理失败')
@@ -43,7 +44,7 @@ export function usePlotBranch(nodeID: string, onApplied?: () => void) {
     if (selected < 0 && !manualMode) { message.warning('请选择分支或手工录入'); return }
     setApplying(true)
     try {
-      await window.go.app.App.ApplyBranch(
+      await wailsApp().ApplyBranch(
         nodeID,
         manualMode ? -1 : selected,
         manualMode ? manualInput : '',

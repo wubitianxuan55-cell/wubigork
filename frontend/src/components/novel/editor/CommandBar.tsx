@@ -1,3 +1,4 @@
+import { wailsApp } from '../../../lib/wailsApp';
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Modal, Input, Button, Space, Typography, Spin, Tag } from 'antd'
 import { ThunderboltOutlined, CheckOutlined, CloseOutlined, BgColorsOutlined, ScissorOutlined, MessageOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons'
@@ -66,7 +67,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ selectedText, onAccept, onClose
     setEditedText(null)
 
     try {
-      const result = await window.go.app.App.CmdKEdit(selectedText, instruction.trim(), styleProfile || '')
+      const result = await wailsApp().CmdKEdit(selectedText, instruction.trim(), styleProfile || '')
       const edited = result?.edited || ''
       if (!edited) {
         setError('AI 未返回有效编辑结果')

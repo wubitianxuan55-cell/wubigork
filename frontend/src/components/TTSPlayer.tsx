@@ -1,3 +1,4 @@
+import { wailsApp } from '../lib/wailsApp';
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Button, Space, Tooltip, message, Progress, Typography } from 'antd'
 import {
@@ -117,7 +118,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
       if (!ev?.type) return
 
       if (ev.type === 'progress') {
-        setProgress({ index: ev.index, total: ev.total })
+        setProgress({ index: ev.index ?? 0, total: ev.total ?? 0 })
         setLoading(true)
         if (ev.text) onSentenceRef.current?.(ev.text)
       } else if (ev.type === 'chunk') {
@@ -125,7 +126,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
         if (ev.audio && !stoppedRef.current) {
           const bytes = Uint8Array.from(atob(ev.audio), c => c.charCodeAt(0))
           enqueueChunk({ audio: bytes, mimeType: ev.mimeType || 'audio/wav' })
-          setProgress({ index: ev.index + 1, total: ev.total })
+          setProgress({ index: (ev.index ?? 0) + 1, total: ev.total ?? 0 })
           setPlaying(true)
           onStatusChangeRef.current?.(true)
         }
@@ -169,7 +170,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
     onClearRef.current?.()
 
     try {
-      await window.go.app.App.TTSSpeakStreaming(text)
+      await wailsApp().TTSSpeakStreaming(text)
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : '语音合成失败')
       setLoading(false)
