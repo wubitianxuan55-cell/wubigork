@@ -244,6 +244,7 @@ export const bindingNames = [
   "GaeaSend",
   "GaeaSessionStats",
   "GaeaSetAgentParams",
+  "GaeaSetAgentMode",
   "GaeaSetDefaultModel",
   "GaeaSetEngine",
   "GaeaSetMCPServerEnabled",

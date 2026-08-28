@@ -21,6 +21,9 @@ type ChatMethods = Pick<
   | "ChatTopicsList" | "ChatMessagesList" | "ChatAppendMessages"
 >;
 
+// 会话协作模式（default|plan）——mock 内维护状态，离线开发可切换。
+let agentMode: string = "default";
+
 // 完整一轮「普通」对话模拟（demo 默认路径）：turn_started → reasoning 逐字
 // → 3 个工具（ls/write_file/edit_file）→ 正文逐字 → usage ×2 → turn_done。
 // 与真实 Go 事件序列同构，是 UI 全链路（过程卡/工具卡/统计）离线可开发的基础。
@@ -175,8 +178,8 @@ export function buildChat(s: MakeMockState): ChatMethods {
       emit({ kind: "turn_done" });
     },
     async GaeaRunning() { return false; },
-    async SetAgentMode(_mode: string) {},
-    async AgentMode() { return "develop"; },
+    async SetAgentMode(mode: string) { agentMode = mode; },
+    async AgentMode() { return agentMode; },
     async Compact() {},
     async NewSession() {},
     async Reload() {

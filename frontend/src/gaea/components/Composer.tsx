@@ -47,11 +47,12 @@ function loadComposerHeight(): number | null {
 }
 
 export function Composer({
-  running, cwd, onSend, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled,
+  running, cwd, onSend, onCancel, permLevel, onSetPermLevel, sessionMode, onSetSessionMode, thinkLevel, onSetThinkLevel, onPickFolder, disabled,
 }: {
   running: boolean; cwd?: string;
   onSend: (displayText: string, submitText?: string) => void;
   onCancel: () => string | undefined; permLevel?: string; onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void;
+  sessionMode?: string; onSetSessionMode?: (m: "default" | "plan") => void;
   thinkLevel?: string; onSetThinkLevel?: (level: "fast" | "normal" | "deep") => void;
   onPickFolder: (path?: string) => Promise<string>; disabled?: boolean;
 }) {
@@ -426,6 +427,8 @@ export function Composer({
           onScreenshot={() => void handleScreenshot()}
           permLevel={permLevel}
           onSetPermLevel={onSetPermLevel}
+          sessionMode={sessionMode}
+          onSetSessionMode={onSetSessionMode}
           thinkLevel={thinkLevel}
           onSetThinkLevel={onSetThinkLevel}
         />

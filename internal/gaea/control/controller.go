@@ -102,6 +102,11 @@ type Controller struct {
 	turn        int
 	autoApprove bool
 	autoPlan    bool
+	// mode is the session collaboration mode: "default" (existing heuristic:
+	// auto-plan only for non-simple queries when AutoPlan is on) or "plan"
+	// (方案模式: every turn goes through the plan card before execution).
+	// Distilled from codex ModeKind (Default/Plan).
+	mode string
 
 	// permLevel controls permission strictness: "ask" (prompt before writes, default),
 	// "auto" (allow writes without asking), or "yolo" (skip all prompts).
@@ -221,6 +226,7 @@ func New(opts Options) *Controller {
 		pluginCtx:     pluginCtx,
 		ctxMgr:        opts.CtxMgr,
 		permLevel:     "ask",
+		mode:          "default",
 		autoPlan:      opts.AutoPlan,
 		approvals:     map[string]chan approvalReply{},
 		asks:          map[string]chan []event.AskAnswer{},
@@ -426,8 +432,9 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 		}
 		defer func() { c.hooks.Stop(ctx, lastAssistantText(c.History()), turn) }()
 	}
-	// 开工前计划确认：非简单查询且开启 AutoPlan 时，先出计划卡片再执行
-	if c.autoPlan && !cache.IsSimpleQuery(strings.ToLower(input), input) {
+	// 开工前计划确认：方案模式（mode="plan"）下每轮都先出计划卡片再执行；
+	// 默认模式保持 AutoPlan 启发式（非简单查询才规划）。
+	if c.shouldPlan(input) {
 		if ok, err := c.planGate(ctx, input); err != nil {
 			return err
 		} else if !ok {
@@ -455,6 +462,18 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 		slog.Warn("controller: snapshot after turn", "err", err)
 	}
 	return nil
+}
+
+// shouldPlan decides whether the turn starts with a plan card: 方案模式 forces
+// it for every input; 默认模式 keeps the AutoPlan heuristic (only non-simple
+// queries). Distilled from codex ModeKind Plan/Default semantics.
+func (c *Controller) shouldPlan(input string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.mode == "plan" {
+		return true
+	}
+	return c.autoPlan && !cache.IsSimpleQuery(strings.ToLower(input), input)
 }
 
 // lastAssistantText returns the content of the most recent assistant message with
@@ -658,6 +677,30 @@ func (c *Controller) PermLevel() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.permLevel
+}
+
+// SetMode sets the session collaboration mode: "default" (existing heuristic)
+// or "plan" (every turn plans first). Emits a notice so the user sees the
+// change; planGate reads the mode on the next Send.
+func (c *Controller) SetMode(mode string) {
+	if mode != "plan" {
+		mode = "default"
+	}
+	c.mu.Lock()
+	c.mode = mode
+	c.mu.Unlock()
+	if mode == "plan" {
+		c.notice("会话模式: 方案 — 每轮先出开工计划，确认后执行")
+	} else {
+		c.notice("会话模式: 默认 — 仅在复杂任务时自动规划")
+	}
+}
+
+// Mode returns the current session collaboration mode ("default"|"plan").
+func (c *Controller) Mode() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.mode
 }
 
 // SetGoal sets the session goal (set via /goal) and propagates it to the

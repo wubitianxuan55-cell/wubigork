@@ -108,6 +108,7 @@ func (b *OfficeB) GaeaSaveSettings(view SettingsView) error { return b.a.GaeaSav
 func (b *OfficeB) GaeaSaveWindowState(state map[string]interface{}) error { return b.a.GaeaSaveWindowState(state) }
 func (b *OfficeB) GaeaSend(input string) { b.a.GaeaSend(input) }
 func (b *OfficeB) GaeaSessionStats(path string) SessionStatsView { return b.a.GaeaSessionStats(path) }
+func (b *OfficeB) GaeaSetAgentMode(mode string) error { return b.a.GaeaSetAgentMode(mode) }
 func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt string) error { return b.a.GaeaSetAgentParams(temperature, maxSteps, systemPrompt) }
 func (b *OfficeB) GaeaSetDefaultModel(ref string) error { return b.a.GaeaSetDefaultModel(ref) }
 func (b *OfficeB) GaeaSetMCPServerEnabled(name string, enabled bool) error { return b.a.GaeaSetMCPServerEnabled(name, enabled) }

@@ -124,7 +124,7 @@ export default function App() {
     fetchSessionStats,
   } = useController();
   const t = useT();
-  const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
+  const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel, sessionMode, setSessionMode } = useModeManager(ctrlSetPermLevel, setModel);
   const { memView, setMemView, histView, setHistView, capsOpen, setCapsOpen, knowledgeOpen, setKnowledgeOpen, closeTopmost } = useDrawers();
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
   const newSessionAndReset = useCallback(async () => { setStatsReset(n => n + 1); await startNewSession(); }, [startNewSession]);
@@ -878,6 +878,8 @@ export default function App() {
               onCancel={cancel}
               permLevel={permLevel}
               onSetPermLevel={setPermLevel}
+              sessionMode={sessionMode}
+              onSetSessionMode={setSessionMode}
               thinkLevel={thinkLevel}
               onSetThinkLevel={handleThinkLevelChange}
               onPickFolder={switchFolder}

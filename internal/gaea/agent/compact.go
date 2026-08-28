@@ -100,6 +100,34 @@ func (a *AgentRunner) maybeCompact(ctx context.Context, u *provider.Usage) {
 	if prompt == 0 {
 		return
 	}
+	a.compactIfOver(ctx, prompt, "auto")
+}
+
+// midTurnMaybeCompact checks the compaction threshold between sampling rounds
+// using an estimated prompt size. Long tool chains grow the context
+// monotonically within a turn; compacting here keeps the next sampling round
+// from hitting the window limit mid-task (distilled from codex
+// run_auto_compact, CompactionPhase::MidTurn). The estimate is character-based
+// and is superseded by the next sampling round's real usage; before the first
+// real usage there is nothing calibrated to compact against.
+func (a *AgentRunner) midTurnMaybeCompact(ctx context.Context) {
+	if a.compaction.Window <= 0 || a.compactStuck {
+		return
+	}
+	if a.lastUsage.Load() == nil {
+		return
+	}
+	prompt := a.EstimateContextTokens()
+	if prompt <= 0 {
+		return
+	}
+	a.compactIfOver(ctx, prompt, "mid-turn")
+}
+
+// compactIfOver runs the shared compaction tiers once the prompt size crosses
+// the high-water mark. trigger tags the CompactionStarted/Done events:
+// "auto" after a sampling round, "mid-turn" between tool rounds.
+func (a *AgentRunner) compactIfOver(ctx context.Context, prompt int, trigger string) {
 
 	high := int(float64(a.compaction.Window) * a.ratio())
 	soft := int(float64(a.compaction.Window) * a.softRatio())
@@ -141,7 +169,7 @@ func (a *AgentRunner) maybeCompact(ctx context.Context, u *provider.Usage) {
 	if progress := readProgressFile(); progress != "" {
 		instructions = "Include this task progress in the summary under ## Pending & next step:\n" + progress
 	}
-	if err := a.compact(ctx, "auto", instructions, force); err != nil {
+	if err := a.compact(ctx, trigger, instructions, force); err != nil {
 		a.sink.Emit(event.Event{Kind: event.Notice, Level: event.LevelInfo,
 			Text: fmt.Sprintf("compaction skipped: %v", err)})
 		return

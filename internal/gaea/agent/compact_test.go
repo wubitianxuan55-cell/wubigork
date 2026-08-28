@@ -85,6 +85,71 @@ func TestMaybeCompact_WithUsage_StillWorks(t *testing.T) {
 	t.Logf("compaction (usage path): %d -> %d messages", original, len(a.session.Messages))
 }
 
+// TestMidTurnMaybeCompact_TriggersCompaction verifies the mid-turn path
+// compacts based on the estimated prompt size (char count × calibrated
+// tokPerChar) after tool batches grow the session inside a turn.
+func TestMidTurnMaybeCompact_TriggersCompaction(t *testing.T) {
+	a := testAgentC(4000, 0.8, 5) // high-water = 3200
+	s := NewSession("system prompt here")
+	for i := 0; i < 40; i++ {
+		s.Add(provider.Message{Role: provider.RoleUser, Content: "please process " + strings.Repeat("a", 150)})
+		s.Add(provider.Message{Role: provider.RoleAssistant, Content: "handled " + strings.Repeat("b", 200)})
+		s.Add(provider.Message{Role: provider.RoleTool, Name: "write_file", Content: strings.Repeat("c", 300)})
+	}
+	a.session = s
+	// Calibrate tokPerChar with a synthetic usage record, like a sampling
+	// round that just finished before the tool batch grew the session.
+	a.lastUsage.Store(&provider.Usage{PromptTokens: 3500})
+
+	original := len(s.Messages)
+	a.midTurnMaybeCompact(context.Background())
+
+	if len(a.session.Messages) >= original {
+		t.Fatalf("mid-turn compaction should reduce messages: got %d, original %d",
+			len(a.session.Messages), original)
+	}
+	t.Logf("mid-turn compaction: %d -> %d messages", original, len(a.session.Messages))
+}
+
+// TestMidTurnMaybeCompact_BelowThreshold_NoOp verifies the mid-turn path is a
+// no-op when the estimated prompt is below the high-water mark.
+func TestMidTurnMaybeCompact_BelowThreshold_NoOp(t *testing.T) {
+	a := testAgentC(100000, 0.8, 5)
+	s := NewSession("system")
+	for i := 0; i < 6; i++ {
+		s.Add(provider.Message{Role: provider.RoleUser, Content: "msg " + strings.Repeat("x", 20)})
+		s.Add(provider.Message{Role: provider.RoleAssistant, Content: "reply " + strings.Repeat("y", 30)})
+	}
+	a.session = s
+	a.lastUsage.Store(&provider.Usage{PromptTokens: 1000})
+
+	original := len(s.Messages)
+	a.midTurnMaybeCompact(context.Background())
+
+	if len(a.session.Messages) != original {
+		t.Errorf("no-op expected but messages changed: %d -> %d", original, len(a.session.Messages))
+	}
+}
+
+// TestMidTurnMaybeCompact_Uncalibrated_NoOp verifies the mid-turn path waits
+// for real usage before trusting character-based estimates.
+func TestMidTurnMaybeCompact_Uncalibrated_NoOp(t *testing.T) {
+	a := testAgentC(2000, 0.8, 3)
+	s := NewSession("system")
+	for i := 0; i < 30; i++ {
+		s.Add(provider.Message{Role: provider.RoleUser, Content: strings.Repeat("u", 200)})
+		s.Add(provider.Message{Role: provider.RoleTool, Name: "read_file", Content: strings.Repeat("t", 400)})
+	}
+	a.session = s
+
+	original := len(s.Messages)
+	a.midTurnMaybeCompact(context.Background())
+
+	if len(a.session.Messages) != original {
+		t.Errorf("uncalibrated mid-turn should be a no-op: %d -> %d", original, len(a.session.Messages))
+	}
+}
+
 // TestCompactNow verifies that CompactNow triggers compaction regardless
 // of prompt size.
 func TestCompactNow(t *testing.T) {

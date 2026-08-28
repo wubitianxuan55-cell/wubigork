@@ -585,6 +585,8 @@ const gaeaToGaea = {
   AnswerQuestion: "GaeaAnswer",
   // Go 侧为 GaeaAgentMode（T6-10.3 对齐）。
   AgentMode: "GaeaAgentMode",
+  // 会话协作模式设置（蒸馏自 codex ModeKind）：GaeaSetAgentMode(mode)。
+  SetAgentMode: "GaeaSetAgentMode",
   NewSession: "GaeaNewSession",
   Reload: "GaeaReload",
   CaptureSkill: "GaeaCaptureSkill",
@@ -1037,7 +1039,6 @@ type AppBindingTarget = {
 
 /** AppBindings mock-only：Go 侧无对应绑定方法（仅 dev mock 提供）。 */
 type MockOnlyNames =
-  | "SetAgentMode" // 无 Go 绑定；mock 返回固定模式（develop），前端未调用
   | "Compact" // 无 Go 绑定；上下文压缩由后端会话事件驱动，无独立绑定
   | "SetSubagentTemperature" // 声明但 Go 侧从未实现（仅 GaeaSetSubagentEffort 存在）
   | "SetEffort" // 同上：Go 侧无 SetEffort，推理强度实际走 GaeaSetSubagentEffort

@@ -81,6 +81,15 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 			a.session.Add(provider.Message{Role: provider.RoleUser, Content: midTurnSteerMessage(text)})
 			a.sink.Emit(event.Event{Kind: event.Steer, Text: text})
 		}
+		// mid-turn compaction — before the next sampling round, check whether
+		// the tool batch (or a mid-turn steer) pushed the estimated prompt past
+		// the high-water mark. Compacting here prevents long tool chains from
+		// growing the context monotonically to the window limit (distilled from
+		// codex CompactionPhase::MidTurn). Skipped during the grace round so the
+		// final summary never pays a message rewrite right before finishing.
+		if !graceRound {
+			a.midTurnMaybeCompact(ctx)
+		}
 		text, reasoning, signature, calls, usage, interrupted, err := a.stream(ctx, step+1)
 		if err != nil {
 			// stream recovery — save partial output and inject recovery prompt

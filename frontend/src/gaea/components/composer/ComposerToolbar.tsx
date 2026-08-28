@@ -15,12 +15,19 @@ export interface ComposerToolbarProps {
   onScreenshot: () => void
   permLevel?: string
   onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void
+  sessionMode?: string
+  onSetSessionMode?: (m: "default" | "plan") => void
   thinkLevel?: string
   onSetThinkLevel?: (level: "fast" | "normal" | "deep") => void
 }
 
 const PERM_LABELS: Record<string, string> = { ask: "询问", auto: "自动", yolo: "YOLO" }
 const PERM_DESCS: Record<string, string> = { ask: "写入前需确认（默认）", auto: "写入无需确认，deny 规则仍生效", yolo: "跳过所有确认提示" }
+const MODE_LABELS: Record<string, string> = { default: "默认", plan: "方案" }
+const MODE_DESCS: Record<string, string> = {
+  default: "默认模式 — 复杂任务自动规划",
+  plan: "方案模式 — 每轮先出开工计划，确认后执行",
+}
 const THINK_LABELS: Record<string, string> = { fast: "快速", normal: "标准", deep: "深度" }
 const THINK_DESCS: Record<string, string> = {
   fast: "思考温度 0.1 — 快而直接，适合简单任务",
@@ -31,7 +38,7 @@ const THINK_DESCS: Record<string, string> = {
 export function ComposerToolbar({
   cwd, workspaceName, workspaceMenuOpen, onToggleWorkspaceMenu, workspaceAnchorRef,
   running, pendingPaste, captureBusy, onPickFiles, onScreenshot,
-  permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel,
+  permLevel, onSetPermLevel, sessionMode, onSetSessionMode, thinkLevel, onSetThinkLevel,
 }: ComposerToolbarProps) {
   const t = useT()
   return (
@@ -93,6 +100,24 @@ export function ComposerToolbar({
             </button>
           )
         })}
+      </div>
+
+      {/* 会话模式选择器（蒸馏自 codex ModeKind）：默认 / 方案 */}
+      <div className="flex gap-[3px]" aria-label="会话模式">
+        {(["default", "plan"] as const).map((mode) => (
+          <button key={mode} type="button"
+            className={`flex items-center gap-1 px-2 py-1 border rounded-md bg-transparent text-xs cursor-pointer transition-[color,background,border,transform] duration-[var(--dur-fast)] active:scale-[0.97] ${
+              sessionMode === mode
+                ? "text-accent bg-accent-soft border-accent/30 shadow-[0_0_0_1px_var(--accent-soft)]"
+                : "text-fg-faint border-transparent hover:text-fg hover:bg-bg-soft"
+            }`}
+            onClick={() => { if (sessionMode !== mode && onSetSessionMode) onSetSessionMode(mode) }}
+            title={MODE_DESCS[mode]}
+            aria-pressed={sessionMode === mode}
+          >
+            <span>{MODE_LABELS[mode]}</span>
+          </button>
+        ))}
       </div>
 
       {/* 思考深度选择器：快速 / 标准 / 深度（映射到 SetAgentParams 温度） */}

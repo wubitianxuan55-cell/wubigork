@@ -131,6 +131,19 @@ func (c *Controller) Submit(input string) {
 			c.notice("未知权限级别: " + level + " — 使用 ask/auto/yolo (或 a/w/y)")
 		}
 		return
+	case strings.HasPrefix(trimmed, "/mode") || strings.HasPrefix(trimmed, "/mode "):
+		mode := strings.TrimSpace(strings.TrimPrefix(trimmed, "/mode"))
+		switch mode {
+		case "plan", "p":
+			c.SetMode("plan")
+		case "default", "d":
+			c.SetMode("default")
+		case "":
+			c.notice("当前模式: " + c.Mode() + " | 用法: /mode plan|default (或 p/d)")
+		default:
+			c.notice("未知模式: " + mode + " — 使用 plan|default (或 p/d)")
+		}
+		return
 	case strings.HasPrefix(trimmed, "/distill"):
 		sub := strings.TrimSpace(strings.TrimPrefix(trimmed, "/distill"))
 		go func() {
