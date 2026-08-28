@@ -290,12 +290,12 @@ export default function App() {
         cover: format === "docx",
         toc: format === "docx",
       });
-      toast.show(`已导出 ${r.name}`, "info");
+      toast.show(t("toast.exported", { name: r.name }), "info");
       void app.RevealWorkspacePath(r.path).catch(() => {});
     } catch (e) {
       toast.show(e instanceof Error ? e.message : String(e), "warn");
     }
-  }, [state.items, toast]);
+  }, [state.items, toast, t]);
   const { onReconnect } = useBridgeWatch();
   useEffect(() => {
     onReconnect(() => { refreshMeta(); });
@@ -426,9 +426,9 @@ export default function App() {
       await archiveSession(path);
       await refreshSessions();
     } catch (e) {
-      toast.show(`归档失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+      toast.show(t("toast.archiveFailed", { msg: e instanceof Error ? e.message : String(e) }), "warn");
     }
-  }, [archiveSession, refreshSessions, toast]);
+  }, [archiveSession, refreshSessions, toast, t]);
 
   const onPinSession = useCallback(async (path: string, pinned: boolean) => {
     try {
@@ -771,7 +771,7 @@ export default function App() {
               <div className="flex flex-row gap-2 min-w-[260px] max-w-[360px] flex-1">
                 <div className="flex-1 min-w-0">
                   <ContextBar
-                    label="上下文"
+                    label={t("topbar.context")}
                     used={state.context.used}
                     window={state.context.window}
                     color="bg-cyan-500/60"
@@ -784,35 +784,35 @@ export default function App() {
             </div>
             <div className="flex-1" />
             <div className="flex items-center gap-2">
-              <ToolbarButton onClick={() => void toggleWorkspacePanel()} title={previewFile ? "返回文件列表" : workspacePanelOpen ? "收起文件面板" : "展开文件面板"}>
+              <ToolbarButton onClick={() => void toggleWorkspacePanel()} title={previewFile ? t("topbar.backToFiles") : workspacePanelOpen ? t("topbar.collapseFilePanel") : t("topbar.expandFilePanel")}>
                 {workspacePanelOpen || previewFile ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
               </ToolbarButton>
-              <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); try { localStorage.setItem("gaea.compactMode", v ? "1" : "0"); } catch {} }} title={compactMode ? "展开模式" : "紧凑模式"}>{compactMode ? <List size={13} /> : <Square size={13} />}</ToolbarButton>
-              <ToolbarButton onClick={toggleFocus} title={focusMode ? "退出专注模式 (Ctrl+Shift+F)" : "专注模式 (Ctrl+Shift+F)"}>
+              <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); try { localStorage.setItem("gaea.compactMode", v ? "1" : "0"); } catch {} }} title={compactMode ? t("topbar.expandMode") : t("topbar.compactMode")}>{compactMode ? <List size={13} /> : <Square size={13} />}</ToolbarButton>
+              <ToolbarButton onClick={toggleFocus} title={focusMode ? t("topbar.exitFocusMode") : t("topbar.focusMode")}>
                 <Aim size={13} className={focusMode ? "text-accent" : ""} />
               </ToolbarButton>
-              <ToolbarButton onClick={() => downloadMarkdown(exportAsMarkdown(state.items))} disabled={state.items.length===0} title="导出 Markdown">导出</ToolbarButton>
-              <ToolbarButton onClick={() => void exportConversation("docx")} disabled={state.items.length===0} title="导出 Word（统一交付出口）">导出 Word</ToolbarButton>
+              <ToolbarButton onClick={() => downloadMarkdown(exportAsMarkdown(state.items))} disabled={state.items.length===0} title={t("topbar.exportMarkdown")}>{t("topbar.export")}</ToolbarButton>
+              <ToolbarButton onClick={() => void exportConversation("docx")} disabled={state.items.length===0} title={t("topbar.exportWord")}>{t("topbar.exportWordShort")}</ToolbarButton>
               {deleteConfirm ? (
                 <span className="flex items-center gap-1 rounded-md border border-err/30 bg-del-bg px-1.5 py-1">
-                  <span className="text-[11px] text-err whitespace-nowrap">删除当前会话？</span>
+                  <span className="text-[11px] text-err whitespace-nowrap">{t("topbar.deleteSessionAsk")}</span>
                   <button
                     className="inline-flex items-center justify-center w-5 h-5 border-0 rounded bg-transparent text-err cursor-pointer hover:bg-err/15"
                     onClick={() => void confirmDeleteCurrent()}
-                    title="确认删除"
+                    title={t("history.confirmDelete")}
                   >
                     <Check size={12} />
                   </button>
                   <button
                     className="inline-flex items-center justify-center w-5 h-5 border-0 rounded bg-transparent text-fg-faint cursor-pointer hover:bg-bg-soft hover:text-fg"
                     onClick={() => setDeleteConfirm(false)}
-                    title="取消"
+                    title={t("common.cancel")}
                   >
                     <X size={12} />
                   </button>
                 </span>
               ) : (
-                <ToolbarButton onClick={() => setDeleteConfirm(true)} disabled={state.running} title="删除当前会话">
+                <ToolbarButton onClick={() => setDeleteConfirm(true)} disabled={state.running} title={t("topbar.deleteSession")}>
                   <Trash2 size={13} />
                 </ToolbarButton>
               )}
@@ -898,7 +898,7 @@ export default function App() {
               onPointerDown={startPreviewResize}
               role="separator"
               aria-orientation="vertical"
-              title="拖拽调整预览宽度"
+              title={t("topbar.resizePreview")}
             />
             <div className="preview-pane">
               <FilePreview

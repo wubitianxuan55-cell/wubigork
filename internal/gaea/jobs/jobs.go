@@ -86,6 +86,11 @@ type Manager struct {
 	completed []string // finished-job summaries awaiting drain into the next turn
 }
 
+// terminalJobLimit caps how many finished jobs the manager retains. Evicted jobs
+// become unknown to Output/Wait/Kill — recent completions stay readable, ancient
+// ones stop pinning their output buffers in long-lived sessions.
+const terminalJobLimit = 32
+
 // NewManager returns a Manager whose jobs run under a fresh session-scoped
 // context (cancelled by Close). sink receives job-lifecycle notices; pass the
 // session's synchronized sink (event.Sync) since jobs emit from goroutines.
@@ -172,6 +177,7 @@ func (m *Manager) recordCompletion(id, kind, label string, st Status, err error)
 	}
 	m.mu.Lock()
 	m.completed = append(m.completed, fmt.Sprintf("%s — %s", tag, st))
+	m.pruneTerminalLocked()
 	m.mu.Unlock()
 
 	level, text := event.LevelInfo, fmt.Sprintf("background %s finished: %s", kind, id)
@@ -182,6 +188,43 @@ func (m *Manager) recordCompletion(id, kind, label string, st Status, err error)
 		text = fmt.Sprintf("background %s killed: %s", kind, id)
 	}
 	m.sink.Emit(event.Event{Kind: event.Notice, Level: level, Text: text})
+}
+
+// pruneTerminalLocked evicts the oldest terminal jobs beyond terminalJobLimit so
+// m.jobs/m.order stay bounded in long sessions. Running jobs are never evicted.
+// Caller holds m.mu; the inner j.mu take follows the same m.mu → j.mu order as
+// resolve/Running.
+func (m *Manager) pruneTerminalLocked() {
+	var terminal []string
+	for _, id := range m.order {
+		j := m.jobs[id]
+		if j == nil {
+			continue
+		}
+		j.mu.Lock()
+		finished := j.status != Running
+		j.mu.Unlock()
+		if finished {
+			terminal = append(terminal, id)
+		}
+	}
+	if len(terminal) <= terminalJobLimit {
+		return
+	}
+	evict := make(map[string]bool, len(terminal)-terminalJobLimit)
+	for _, id := range terminal[:len(terminal)-terminalJobLimit] {
+		evict[id] = true
+	}
+	kept := make([]string, 0, len(m.order)-len(evict))
+	for _, id := range m.order {
+		if !evict[id] {
+			kept = append(kept, id)
+		}
+	}
+	m.order = kept
+	for id := range evict {
+		delete(m.jobs, id)
+	}
 }
 
 func (m *Manager) get(id string) *Job {
