@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -127,14 +128,14 @@ func TestTranslateTextTool(t *testing.T) {
 		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"Hello"}}]}`))
 	})
 	tool := translateTextTool{a: a}
-	out, err := tool.Execute(nil, json.RawMessage(`{"text":"你好","target_lang":"en"}`))
+	out, err := tool.Execute(context.Background(), json.RawMessage(`{"text":"你好","target_lang":"en"}`))
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	if !strings.Contains(out, "Hello") || !strings.Contains(out, "翻译模型") {
 		t.Fatalf("输出异常: %q", out)
 	}
-	if _, err := tool.Execute(nil, json.RawMessage(`{}`)); err == nil {
+	if _, err := tool.Execute(context.Background(), json.RawMessage(`{}`)); err == nil {
 		t.Fatal("缺 text 应报错")
 	}
 }

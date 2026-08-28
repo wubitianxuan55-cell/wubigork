@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -26,7 +27,7 @@ func TestCostSaveAndSearch(t *testing.T) {
 	SetCostStoreForTest(cost.Open(gdb))
 
 	cs := costSave{}
-	result, err := cs.Execute(nil, toJSON(t, map[string]interface{}{
+	result, err := cs.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"title": "HP300 高频液压振动锤", "category": "机械", "unit": "台班",
 		"price": 3200, "spec": "300kW", "source": "市场询价", "tags": "振动锤,桩基",
 	}))
@@ -38,7 +39,7 @@ func TestCostSaveAndSearch(t *testing.T) {
 	}
 
 	// 同名覆盖更新：价格变化，名称保持稳定。
-	result, err = cs.Execute(nil, toJSON(t, map[string]interface{}{
+	result, err = cs.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"title": "HP300 高频液压振动锤", "category": "机械", "unit": "台班",
 		"price": 3400, "spec": "300kW", "source": "市场询价",
 	}))
@@ -51,7 +52,7 @@ func TestCostSaveAndSearch(t *testing.T) {
 
 	// 搜索命中且价格已更新。
 	ks := costSearch{}
-	searchResult, err := ks.Execute(nil, toJSON(t, map[string]interface{}{"query": "振动锤"}))
+	searchResult, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{"query": "振动锤"}))
 	if err != nil {
 		t.Fatalf("costSearch failed: %v", err)
 	}
@@ -60,7 +61,7 @@ func TestCostSaveAndSearch(t *testing.T) {
 	}
 
 	// 分类过滤。
-	filtered, err := ks.Execute(nil, toJSON(t, map[string]interface{}{"category": "材料"}))
+	filtered, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{"category": "材料"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,14 +81,14 @@ func TestCostSearchOverview(t *testing.T) {
 	SetCostStoreForTest(cost.Open(gdb))
 
 	cs := costSave{}
-	if _, err := cs.Execute(nil, toJSON(t, map[string]interface{}{
+	if _, err := cs.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"title": "P.O 42.5 水泥", "category": "材料", "unit": "吨", "price": 480, "source": "定额",
 	})); err != nil {
 		t.Fatal(err)
 	}
 
 	ks := costSearch{}
-	ov, err := ks.Execute(nil, toJSON(t, map[string]interface{}{}))
+	ov, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{}))
 	if err != nil {
 		t.Fatalf("costSearch overview failed: %v", err)
 	}
@@ -176,7 +177,7 @@ func TestCostSearchRerank(t *testing.T) {
 	SetRerankerForTest(retrieval.New(srv.URL, "bge-reranker-v2-m3"))
 
 	ks := costSearch{}
-	res, err := ks.Execute(nil, toJSON(t, map[string]interface{}{"query": "材料", "limit": 3}))
+	res, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{"query": "材料", "limit": 3}))
 	if err != nil {
 		t.Fatalf("costSearch failed: %v", err)
 	}
@@ -194,7 +195,7 @@ func TestCostSearchRerank(t *testing.T) {
 	}))
 	defer srv2.Close()
 	SetRerankerForTest(retrieval.New(srv2.URL, "bge-reranker-v2-m3"))
-	res2, err := ks.Execute(nil, toJSON(t, map[string]interface{}{"query": "材料", "limit": 3}))
+	res2, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{"query": "材料", "limit": 3}))
 	if err != nil {
 		t.Fatalf("fallback should not error: %v", err)
 	}
@@ -231,7 +232,7 @@ func TestCostSearchRerankLiveHerdsman(t *testing.T) {
 	SetRerankerForTest(retrieval.New("http://localhost:8080", "bge-reranker-v2-m3"))
 
 	ks := costSearch{}
-	res, err := ks.Execute(nil, toJSON(t, map[string]interface{}{"query": "液压振动锤 台班", "limit": 3}))
+	res, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{"query": "液压振动锤 台班", "limit": 3}))
 	if err != nil {
 		t.Fatalf("live rerank search failed: %v", err)
 	}
@@ -283,7 +284,7 @@ func TestCostSearchSemanticRecall(t *testing.T) {
 	SetSemanticStoreForTest(semantic.Open(gdb))
 
 	ks := costSearch{}
-	res, err := ks.Execute(nil, toJSON(t, map[string]interface{}{"query": "打桩锤"}))
+	res, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{"query": "打桩锤"}))
 	if err != nil {
 		t.Fatalf("costSearch failed: %v", err)
 	}
@@ -297,7 +298,7 @@ func TestCostSearchSemanticRecall(t *testing.T) {
 	}))
 	defer srv2.Close()
 	SetEmbedderForTest(retrieval.NewEmbedder(srv2.URL, "bge-m3"))
-	res2, err := ks.Execute(nil, toJSON(t, map[string]interface{}{"query": "打桩锤"}))
+	res2, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{"query": "打桩锤"}))
 	if err != nil {
 		t.Fatalf("fallback should not error: %v", err)
 	}
@@ -327,7 +328,7 @@ func TestCostSearchSemanticLiveHerdsman(t *testing.T) {
 	SetEmbedderForTest(retrieval.NewEmbedder("http://localhost:8080", "bge-m3"))
 
 	ks := costSearch{}
-	res, err := ks.Execute(nil, toJSON(t, map[string]interface{}{"query": "打桩设备 台班价"}))
+	res, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{"query": "打桩设备 台班价"}))
 	if err != nil {
 		t.Fatalf("live semantic search failed: %v", err)
 	}

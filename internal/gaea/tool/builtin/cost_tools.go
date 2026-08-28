@@ -70,7 +70,7 @@ func (costSearch) ReadOnly() bool                 { return true }
 func (costSearch) CompactDescription() string     { return compactDesc["cost_search"] }
 func (costSearch) CompactSchema() json.RawMessage { return compactSchema["cost_search"] }
 
-func (costSearch) Execute(_ context.Context, args json.RawMessage) (string, error) {
+func (costSearch) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Query    string `json:"query,omitempty"`
 		Category string `json:"category,omitempty"`
@@ -105,7 +105,7 @@ func (costSearch) Execute(_ context.Context, args json.RawMessage) (string, erro
 	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回，覆盖别名/口语
 	// 表达（如「液压振动锤」→ hp300），避免漏检。纯本地，不消耗云端 token。
 	if len(list) < 3 && strings.TrimSpace(p.Query) != "" {
-		if sem := semanticCostRecall(p.Query, list, store, 10); len(sem) > 0 {
+		if sem := semanticCostRecall(ctx, p.Query, list, store, 10); len(sem) > 0 {
 			list = sem
 		}
 	}
@@ -114,7 +114,7 @@ func (costSearch) Execute(_ context.Context, args json.RawMessage) (string, erro
 	}
 	// 本地语义精排（Herdsman bge-reranker-v2-m3）：候选多时提升排序精度；
 	// 模型不可用或失败时自动回退 SQL 结果。纯本地推理，不消耗云端 token。
-	if reranked := rerankCostResults(p.Query, list, limit); len(reranked) > 0 {
+	if reranked := rerankCostResults(ctx, p.Query, list, limit); len(reranked) > 0 {
 		list = reranked
 	} else if len(list) > limit {
 		list = list[:limit]
@@ -137,7 +137,7 @@ func (costSearch) Execute(_ context.Context, args json.RawMessage) (string, erro
 
 // semanticCostRecall 语义召回：持久化向量索引（Ensure 增量向量化 + 查询只嵌
 // query），候选库规模不影响单次查询成本。
-func semanticCostRecall(query string, have []cost.Summary, store *cost.Store, topN int) []cost.Summary {
+func semanticCostRecall(ctx context.Context, query string, have []cost.Summary, store *cost.Store, topN int) []cost.Summary {
 	e := costEmbedder()
 	if e == nil {
 		return nil
@@ -150,7 +150,7 @@ func semanticCostRecall(query string, have []cost.Summary, store *cost.Store, to
 	if st == nil || !st.Available() {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	docs := make([]semantic.Doc, len(full))
 	keep := make(map[string]bool, len(full))
@@ -221,7 +221,7 @@ func costEmbedder() *retrieval.Embedder {
 }
 
 // rerankCostResults 用本地 rerank 对粗召回结果精排；失败返回 nil（调用方回退）。
-func rerankCostResults(query string, list []cost.Summary, limit int) []cost.Summary {
+func rerankCostResults(ctx context.Context, query string, list []cost.Summary, limit int) []cost.Summary {
 	if len(list) <= 8 || strings.TrimSpace(query) == "" || limit <= 0 {
 		return nil
 	}
@@ -229,7 +229,7 @@ func rerankCostResults(query string, list []cost.Summary, limit int) []cost.Summ
 	if r == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	if !r.Available(ctx) {
 		return nil

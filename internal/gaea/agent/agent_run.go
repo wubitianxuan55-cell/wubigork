@@ -239,7 +239,7 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 				continue
 			}
 			// Gate 2: goal gate — judge model goal verification
-			if a.goalGate() {
+			if a.goalGate(ctx) {
 				continue
 			}
 			// verify gate merged into taskGate — no separate call needed

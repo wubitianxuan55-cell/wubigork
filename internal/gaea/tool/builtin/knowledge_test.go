@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +23,7 @@ func TestKnowledgeAddAndSearch(t *testing.T) {
 	knowledge.SetStoreForTest(isoStore)
 
 	ka := knowledgeAdd{}
-	result, err := ka.Execute(nil, toJSON(t, map[string]interface{}{
+	result, err := ka.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"title":    "测试知识条目",
 		"category": "经验总结",
 		"body":     "这是一条测试知识条目，用于验证知识库功能。",
@@ -36,7 +37,7 @@ func TestKnowledgeAddAndSearch(t *testing.T) {
 
 	// Now search for it.
 	ks := knowledgeSearch{}
-	searchResult, err := ks.Execute(nil, toJSON(t, map[string]interface{}{
+	searchResult, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"query": "测试知识条目",
 	}))
 	if err != nil {
@@ -56,7 +57,7 @@ func TestKnowledgeSearchOverview(t *testing.T) {
 
 	// Add one entry first.
 	ka := knowledgeAdd{}
-	_, err := ka.Execute(nil, toJSON(t, map[string]interface{}{
+	_, err := ka.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"title":    "概览测试",
 		"category": "规范标准",
 		"body":     "概览测试正文",
@@ -67,7 +68,7 @@ func TestKnowledgeSearchOverview(t *testing.T) {
 
 	// Search with empty query should return overview.
 	ks := knowledgeSearch{}
-	result, err := ks.Execute(nil, toJSON(t, map[string]interface{}{}))
+	result, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{}))
 	if err != nil {
 		t.Fatalf("knowledgeSearch overview failed: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestKnowledgeAddGeneratesUniqueName(t *testing.T) {
 
 	ka := knowledgeAdd{}
 	// Add the same title twice.
-	r1, err := ka.Execute(nil, toJSON(t, map[string]interface{}{
+	r1, err := ka.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"title":    "相同标题",
 		"category": "其他",
 		"body":     "第一次",
@@ -98,7 +99,7 @@ func TestKnowledgeAddGeneratesUniqueName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r2, err := ka.Execute(nil, toJSON(t, map[string]interface{}{
+	r2, err := ka.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"title":    "相同标题",
 		"category": "其他",
 		"body":     "第二次",
@@ -157,7 +158,7 @@ func TestKnowledgeSearchSemanticRecall(t *testing.T) {
 	SetEmbedderForTest(retrieval.NewEmbedder(srv.URL, "bge-m3"))
 
 	ks := knowledgeSearch{}
-	res, err := ks.Execute(nil, toJSON(t, map[string]interface{}{"query": "打桩锤"}))
+	res, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{"query": "打桩锤"}))
 	if err != nil {
 		t.Fatalf("knowledgeSearch failed: %v", err)
 	}
@@ -178,15 +179,15 @@ func TestKnowledgeSearchByCategory(t *testing.T) {
 	t.Setenv("USERPROFILE", t.TempDir())
 
 	ka := knowledgeAdd{}
-	ka.Execute(nil, toJSON(t, map[string]interface{}{
+	ka.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"title": "案例A", "category": "工程案例", "body": "案例A正文",
 	}))
-	ka.Execute(nil, toJSON(t, map[string]interface{}{
+	ka.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"title": "规范B", "category": "规范标准", "body": "规范B正文",
 	}))
 
 	ks := knowledgeSearch{}
-	result, err := ks.Execute(nil, toJSON(t, map[string]interface{}{
+	result, err := ks.Execute(context.Background(), toJSON(t, map[string]interface{}{
 		"category": "工程案例",
 	}))
 	if err != nil {

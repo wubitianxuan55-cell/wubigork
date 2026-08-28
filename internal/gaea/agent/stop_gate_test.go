@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -143,7 +144,7 @@ func TestGoalGateBlocksWhenGoalNotMet(t *testing.T) {
 	s := NewSession("")
 	s.Add(makeTodoMsg("completed"))
 	a := &AgentRunner{session: s, goal: "implement user login"}
-	blocked := a.goalGate()
+	blocked := a.goalGate(context.Background())
 	if !blocked {
 		t.Fatal("expected true (block for goal), got false")
 	}
@@ -161,7 +162,7 @@ func TestGoalGateAllowsWhenNoGoal(t *testing.T) {
 	s.Add(makeTodoMsg("completed"))
 	a := &AgentRunner{session: s}
 	before := len(s.Messages)
-	blocked := a.goalGate()
+	blocked := a.goalGate(context.Background())
 	if blocked {
 		t.Fatal("expected false (no goal, allow), got true")
 	}
@@ -176,11 +177,11 @@ func TestGoalGateSafetyValve(t *testing.T) {
 	a := &AgentRunner{session: s, goal: "implement user login"}
 
 	for i := 0; i < goalGateCap; i++ {
-		if !a.goalGate() {
+		if !a.goalGate(context.Background()) {
 			t.Fatalf("reentry %d: expected true (block for goal)", i+1)
 		}
 	}
-	if a.goalGate() {
+	if a.goalGate(context.Background()) {
 		t.Fatal("after cap: expected false (allow), got true")
 	}
 }

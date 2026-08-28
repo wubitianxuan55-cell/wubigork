@@ -128,7 +128,7 @@ func (r readFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	} else {
 		// V5.9: 二进制文件 → 尝试用 markitdown 转为 Markdown
 		if bytes.IndexByte(peek, 0) >= 0 {
-			if markdown, ok := tryMarkItDown(p.Path); ok {
+			if markdown, ok := tryMarkItDown(ctx, p.Path); ok {
 				return markdown, nil
 			}
 			return "", fmt.Errorf(
@@ -331,12 +331,12 @@ func markdownConverterKind() string {
 // tryMarkItDown 尝试用配置的文档转换后端把二进制文件转为 Markdown。
 // 返回 (markdown, true) 表示成功，(_, false) 表示不可用或转换失败
 // （调用方沿用旧错误提示路径）。
-func tryMarkItDown(path string) (string, bool) {
+func tryMarkItDown(ctx context.Context, path string) (string, bool) {
 	conv, err := NewMarkdownConverter(markdownConverterKind(), MarkdownConverterConfig{})
 	if err != nil {
 		return "", false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	result, err := conv.Convert(ctx, path)
 	if err != nil {

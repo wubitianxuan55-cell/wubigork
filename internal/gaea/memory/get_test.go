@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -20,7 +21,7 @@ func TestMemoryGetTool(t *testing.T) {
 
 	tool := NewMemoryGetTool(s)
 	args, _ := json.Marshal(map[string]string{"name": "prefers-tabs"})
-	out, err := tool.Execute(nil, args)
+	out, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -32,11 +33,11 @@ func TestMemoryGetTool(t *testing.T) {
 
 	// 不存在 → 报错
 	bad, _ := json.Marshal(map[string]string{"name": "nope"})
-	if _, err := tool.Execute(nil, bad); err == nil {
+	if _, err := tool.Execute(context.Background(), bad); err == nil {
 		t.Error("expected error for missing memory")
 	}
 	// 缺参数 → 报错
-	if _, err := tool.Execute(nil, json.RawMessage(`{}`)); err == nil {
+	if _, err := tool.Execute(context.Background(), json.RawMessage(`{}`)); err == nil {
 		t.Error("expected error for missing name")
 	}
 }

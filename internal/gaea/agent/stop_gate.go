@@ -66,7 +66,7 @@ const goalGateNudge = "[system] The session goal has not been met yet — " +
 	"review the goal and continue working. " +
 	"Only stop when you have verifiably achieved the stated goal."
 
-func (a *AgentRunner) goalGate() bool {
+func (a *AgentRunner) goalGate(ctx context.Context) bool {
 	if a.goal == "" {
 		a.goalGateReentry = 0
 		return false
@@ -78,7 +78,7 @@ func (a *AgentRunner) goalGate() bool {
 	}
 
 	if a.goalGateReentry == 1 {
-		verdict, err := a.judgeGoal(context.Background(), a.goal)
+		verdict, err := a.judgeGoal(ctx, a.goal)
 		if err == nil {
 			if verdict.OK {
 				a.goalGateReentry = 0

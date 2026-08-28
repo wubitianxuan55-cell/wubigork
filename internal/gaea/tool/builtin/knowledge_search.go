@@ -35,7 +35,7 @@ func (knowledgeSearch) ReadOnly() bool                 { return true }
 func (knowledgeSearch) CompactDescription() string     { return compactDesc["knowledge_search"] }
 func (knowledgeSearch) CompactSchema() json.RawMessage { return compactSchema["knowledge_search"] }
 
-func (knowledgeSearch) Execute(_ context.Context, args json.RawMessage) (string, error) {
+func (knowledgeSearch) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Query    string `json:"query,omitempty"`
 		Category string `json:"category,omitempty"`
@@ -62,7 +62,7 @@ func (knowledgeSearch) Execute(_ context.Context, args json.RawMessage) (string,
 	results := knowledge.Search(store, p.Query, filter)
 	// 语义召回：关键词召回不足（<3）时用本地 bge-m3 补召回（别名/口语表达）。
 	if len(results) < 3 && strings.TrimSpace(p.Query) != "" {
-		if sem := semanticKnowledgeRecall(store, p.Query, results, 10); len(sem) > 0 {
+		if sem := semanticKnowledgeRecall(ctx, store, p.Query, results, 10); len(sem) > 0 {
 			results = sem
 		}
 	}
@@ -70,7 +70,7 @@ func (knowledgeSearch) Execute(_ context.Context, args json.RawMessage) (string,
 		return "未找到匹配的知识条目。", nil
 	}
 	// 本地语义精排（bge-reranker-v2-m3）：候选多时提升排序精度，失败回退。
-	if reranked := rerankKnowledgeResults(p.Query, results, 20); len(reranked) > 0 {
+	if reranked := rerankKnowledgeResults(ctx, p.Query, results, 20); len(reranked) > 0 {
 		results = reranked
 	} else if len(results) > 20 {
 		results = results[:20]
@@ -103,7 +103,8 @@ func (knowledgeSearch) Execute(_ context.Context, args json.RawMessage) (string,
 }
 
 // semanticKnowledgeRecall 知识库语义召回：持久化向量索引（kind=knowledge）。
-func semanticKnowledgeRecall(store *knowledge.Store, query string, have []knowledge.Entry, topN int) []knowledge.Entry {
+// ctx 来自工具 Execute，取消随回合传播。
+func semanticKnowledgeRecall(ctx context.Context, store *knowledge.Store, query string, have []knowledge.Entry, topN int) []knowledge.Entry {
 	e := costEmbedder()
 	if e == nil {
 		return nil
@@ -123,7 +124,7 @@ func semanticKnowledgeRecall(store *knowledge.Store, query string, have []knowle
 		keep[e2.Name] = true
 	}
 	_, _ = st.Stale("knowledge", keep)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	hits, err := st.Search(ctx, e, "knowledge", docs, query, topN)
 	if err != nil || len(hits) == 0 {
@@ -147,7 +148,7 @@ func semanticKnowledgeRecall(store *knowledge.Store, query string, have []knowle
 }
 
 // rerankKnowledgeResults 知识条目本地精排（失败回退原顺序）。
-func rerankKnowledgeResults(query string, list []knowledge.Entry, topN int) []knowledge.Entry {
+func rerankKnowledgeResults(ctx context.Context, query string, list []knowledge.Entry, topN int) []knowledge.Entry {
 	if len(list) <= 8 || strings.TrimSpace(query) == "" || topN <= 0 {
 		return nil
 	}
@@ -155,7 +156,7 @@ func rerankKnowledgeResults(query string, list []knowledge.Entry, topN int) []kn
 	if r == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	if !r.Available(ctx) {
 		return nil
