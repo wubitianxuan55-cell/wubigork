@@ -57,10 +57,28 @@
       自动判定）、权限升级请求、策略文件回写——按真实反馈排期。
     - **验证**：Go 全量 114/114 + vet；vitest **676/676（129 文件）**；eslint 0/0；
       tsc 0；绑定面 499 漂移 PASS。
-  - **下一阶段候选**：codex 清单第三刀（C9 工具级事件 + PlanUpdate 事件化 / C3
-    记忆渐进披露 / C5 上下文占用状态行 / C6 项目说明文件，见
-    `docs/superpowers/plans/2026-08-28-办公蒸馏-codex-候选清单.md` §6）；
-    C4 遗留的审批超时/权限升级/策略文件化。
+  - **后续（2026-08-29，办公蒸馏 codex 清单第三刀，随下版发布）**：
+    - **C9 任务输出事件化（feat 01bc032）**：`appendOutput` 经 `gaea-task` 事件推送
+      输出尾部整尾回放——`Task` 加非持久化事件视图字段 `outputTail`/`outputTruncated`
+      （omitempty，List/Get 不带），输出事件独立节流（与进度事件分计时，防紧邻
+      Report 被挤掉节流窗口）；`markTerminal` 终态事件兜底带完整尾回放（覆盖节流
+      窗口内被跳过的最后几行）；TaskCenter 输出 dock 事件即推，2s 轮询降级为兜底
+      （对齐 Codex「事件为主、轮询兜底」）。测试教训：`markTerminal` 先落库后 emit，
+      测试断言事件要轮询 collector 而非 `waitTerminal` 后直接读快照（竞态）。
+    - **C5 上下文占用状态行（feat，纯前端）**：RunStatus 增窗口占用迷你进度条 +
+      百分比；≥75%「接近自动压缩」/≥90%「即将强制压缩」两档预警（对齐 gaea 压缩
+      触发线 80%/强制线 90%），窗口未知（window=0）隐藏；usage 事件实时驱动
+      （state.context.used 本就逐事件更新）。
+    - **C6 项目说明文件（feat，蒸馏 codex agents_md.rs）**：单文件 32KB 注入字节
+      预算（`docMaxBytes`，对齐 project_doc_max_bytes 默认），超限 UTF-8 边界截断 +
+      `<!-- truncated -->` 标记；每层目录在平铺记忆名之后追加发现 `.gaea/AGENTS.md`
+      （更具体者后注入），自动进入记忆面板 DocEditor 可编辑（allowedDocPaths 已
+      含已发现文档）。既有分层发现（root→cwd/@import/override）此前已具备，本刀
+      只补差距。
+    - **验证**：Go 全量 114/114 + vet；vitest **681/681（130 文件）**；eslint 0/0；tsc 0。
+  - **下一阶段候选**：C3 记忆渐进披露分层 + dream no-op 优化（第三刀剩余，M-L）；
+    C4 遗留（审批超时/权限升级/策略文件化）；C11 压缩口径、C7 碎片抽象、C10 回合
+    恢复、执行容量上限（观察项）。
 
 - **最新发布：v3.5.0（2026-08-28）「办公对话区标签页 · dsh-context Go 移植」**：
   git tag `v3.5.0`；CHANGELOG / releases/v3.5.0.md / README 索引同步；规划文档
