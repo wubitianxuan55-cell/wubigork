@@ -98,6 +98,7 @@ import type {
   FileSemanticHit,
   TaskView,
   ModelSwitchEstimate,
+  JournalChangeRecord,
 } from "./types";
 import {
   isBindingAllowedInSpace,
@@ -468,6 +469,8 @@ export interface AppBindings {
   TaskCancel(id: string): Promise<void>;
   TaskRetry(id: string): Promise<void>;
   TaskOutput(id: string): Promise<TaskOutputView>;
+  // v4.1 证据链：Journal 最近证据卡（跨会话聚合，时间倒序；前端「证据」入口）。
+  GaeaJournalList(limit: number): Promise<JournalChangeRecord[]>;
   // ── 阶段 5 T5-3 本地模型调度纵深 ──
   // KeepWarmGet/KeepWarmSet 保活开关：空闲时定期轻量探测，防止本地模型被卸载
   // （~/.gaea_config.json 持久化，重启后仍生效）。

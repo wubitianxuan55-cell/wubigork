@@ -5,6 +5,7 @@ package app
 import (
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/office"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
@@ -62,6 +63,7 @@ func (b *OfficeB) GaeaFork(turn int) error { return b.a.GaeaFork(turn) }
 func (b *OfficeB) GaeaHistory() []HistoryMessage { return b.a.GaeaHistory() }
 func (b *OfficeB) GaeaInit() error { return b.a.GaeaInit() }
 func (b *OfficeB) GaeaJobs() []JobView { return b.a.GaeaJobs() }
+func (b *OfficeB) GaeaJournalList(limit int) []evidence.ChangeRecord { return b.a.GaeaJournalList(limit) }
 func (b *OfficeB) GaeaListDir(rel string) []DirEntry { return b.a.GaeaListDir(rel) }
 func (b *OfficeB) GaeaListProjectSessions() []ProjectGroup { return b.a.GaeaListProjectSessions() }
 func (b *OfficeB) GaeaListSessions() []SessionMeta { return b.a.GaeaListSessions() }

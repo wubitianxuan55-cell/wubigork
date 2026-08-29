@@ -97,7 +97,10 @@
 - [x] **v4.1a 证据链核心**：ChangeRecord（原文摘要 8KB）+ ChangeLedger（ctx 盖章）
   + JournalStore（JSONL 追加 + turn markdown 投影）；AgentRunner 回合收尾 flush
   （play 不落盘红线）；edit_file/write_file/move_file 接入上报
-- [ ] v4.1a2（multi_edit/edit_lines 摘要 + xlsx_apply 接入 + 前端「证据」入口）
+- [x] **v4.1a2 证据链补齐**：multi_edit/edit_lines 逐条摘要；xlsx_apply 接入
+  （App 层写 Journal，SessionID 取自控制器，play 红线过滤）；新绑定
+  GaeaJournalList（gen_bindings 重生成 bindingNames 503）+ 前端「证据」入口
+  （DeliverablesPanel 证据链折叠区，展示最近证据卡）
 - [ ] v4.1b Verifier（通道 A 公式重算/引用 + 通道 B PDF 视觉 diff + verdict 状态机）
 - [ ] v4.1c 规范包（GB/T 9704 红头 lint + 体检报告）
 

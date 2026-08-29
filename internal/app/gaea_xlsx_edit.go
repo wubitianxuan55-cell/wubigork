@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 	"github.com/gaea/gaea/internal/office/xlsxpreview"
 	"github.com/gaea/gaea/internal/util"
@@ -118,6 +119,9 @@ func (a *App) GaeaXlsxApplyEdit(rel, opsJSON string) (XlsxEditResult, error) {
 	if err != nil {
 		return XlsxEditResult{}, err
 	}
+	// v4.1 证据链：xlsx 应用后记录证据卡（Target=工作区相对路径；Before 为操作
+	// 载荷摘要，After 为应用摘要；单元格级 old/new 由 Verifier 对基线快照复核）。
+	appendXlsxEvidence(rel, ops, summary)
 	recalcNote := ""
 	if rep, rerr := xlsxedit.Recalc(path, gaeaCwd()); rerr == nil {
 		if rep.TotalErrors > 0 {
@@ -135,6 +139,42 @@ func (a *App) GaeaXlsxApplyEdit(rel, opsJSON string) (XlsxEditResult, error) {
 		Summary: strings.Join(summary, "；") + recalcNote,
 		Applied: len(ops),
 	}, nil
+}
+
+// appendXlsxEvidence 把一次 xlsx 应用写入 work 空间 Journal（JSONL）。
+// 红线：非 work 空间（play）不落证据链；journal 目录不可用/写失败静默。
+func appendXlsxEvidence(rel string, ops []xlsxedit.Op, summary []string) {
+	if gaeaEffectiveSpace() != "work" {
+		return
+	}
+	st, err := evidence.OpenJournal(filepath.Join(gaeaCwd(), ".gaea", "work", "journal"))
+	if err != nil {
+		return
+	}
+	sid := ""
+	if c := gaeaCtrl(); c != nil {
+		sid = c.SessionPath()
+	}
+	if sid == "" {
+		sid = "unsaved"
+	}
+	var before strings.Builder
+	for _, op := range ops {
+		fmt.Fprintf(&before, "%s!%s %s=%v", op.Sheet, op.Target, op.Type, op.Value)
+		if op.Find != "" || op.Replace != "" {
+			fmt.Fprintf(&before, " find=%q replace=%q", op.Find, op.Replace)
+		}
+		before.WriteString("; ")
+	}
+	_ = st.Append(evidence.ChangeRecord{
+		SessionID:     sid,
+		Space:         "work",
+		Tool:          "xlsx_apply",
+		Target:        rel,
+		BeforeSummary: strings.TrimSpace(before.String()),
+		AfterSummary:  strings.Join(summary, "；"),
+		Status:        evidence.StatusPendingVerify,
+	})
 }
 
 func firstSheetName(path string) string {
@@ -223,7 +263,9 @@ func (a *App) GaeaXlsxRecalc(rel string) (XlsxEditResult, error) {
 }
 
 // GaeaXlsxRowOps 行级操作（基于选中单元格所在行）：
-//   insert_before 在选中行上方插入空行；insert_after 在下方插入；delete 删除该行。
+//
+//	insert_before 在选中行上方插入空行；insert_after 在下方插入；delete 删除该行。
+//
 // 同表公式/合并区域由 excelize 平移，随后 LibreOffice 重算刷新结果。
 func (a *App) GaeaXlsxRowOps(rel, sheet, action, ref string) (XlsxEditResult, error) {
 	if rel == "" || ref == "" {
@@ -277,7 +319,8 @@ func (a *App) GaeaXlsxRowOps(rel, sheet, action, ref string) (XlsxEditResult, er
 }
 
 // GaeaXlsxColOps 列级操作（基于选中单元格所在列）：
-//   insert_before 在选中列左侧插入空列；insert_after 在右侧插入；delete 删除该列。
+//
+//	insert_before 在选中列左侧插入空列；insert_after 在右侧插入；delete 删除该列。
 func (a *App) GaeaXlsxColOps(rel, sheet, action, ref string) (XlsxEditResult, error) {
 	if rel == "" || ref == "" {
 		return XlsxEditResult{}, fmt.Errorf("缺少文件路径或单元格")

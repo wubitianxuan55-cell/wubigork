@@ -154,6 +154,7 @@ export const bindingNames = [
   "GaeaHistory",
   "GaeaInit",
   "GaeaJobs",
+  "GaeaJournalList",
   "GaeaKnowledgeDelete",
   "GaeaKnowledgeExport",
   "GaeaKnowledgeFindSimilar",

@@ -1,6 +1,7 @@
-import { memo, useCallback, useState } from "react";
-import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, Loader2, MessageSquare, Paperclip, Rollback } from "../icons";
+import { memo, useCallback, useEffect, useState } from "react";
+import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, Loader2, MessageSquare, Paperclip, Rollback, Shield } from "../icons";
 import { app } from "../lib/bridge";
+import type { JournalChangeRecord } from "../lib/types";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import { useToast } from "./Toast";
 import { FileThumb } from "./FileThumb";
@@ -77,6 +78,30 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
       toast.show("复制失败：剪贴板不可用", "warn");
     }
   }, [list, toast]);
+
+  // ── v4.1 证据链：最近证据卡（「证据」入口，复用产物面板挂载点）──
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const [evidence, setEvidence] = useState<JournalChangeRecord[] | null>(null);
+  useEffect(() => {
+    if (!evidenceOpen) return;
+    let cancelled = false;
+    void app
+      .GaeaJournalList(15)
+      .then((recs) => { if (!cancelled) setEvidence(recs ?? []); })
+      .catch(() => { if (!cancelled) setEvidence([]); });
+    return () => { cancelled = true };
+  }, [evidenceOpen]);
+
+  const fmtEvidenceTime = (at: number): string => {
+    if (!at) return "—";
+    const diff = Date.now() - at;
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return "刚刚";
+    if (min < 60) return `${min} 分钟前`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `${h} 小时前`;
+    return new Date(at).toLocaleString();
+  };
 
   // 打包下载：把本次会话全部交付文件打成一个 zip（对标 Kimi 工作空间 /
   // WorkBuddy 会话产物打包），完成后在文件管理器中定位 zip。
@@ -271,6 +296,50 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
           })}
         </div>
       )}
+
+      {/* v4.1 证据链入口：最近变更证据卡（Apply→Verify→Journal 的 Journal 面） */}
+      <div className="shrink-0 border-t border-(color:--md-sys-color-outline-variant)">
+        <button
+          type="button"
+          className="w-full flex items-center gap-2 px-3 py-2 text-[11px] cursor-pointer hover:bg-(color:--md-sys-color-surface-container-high)"
+          onClick={() => setEvidenceOpen((v) => !v)}
+          aria-expanded={evidenceOpen}
+        >
+          <Shield size={13} aria-hidden style={{ color: "var(--md-sys-color-primary)" }} />
+          <span className="font-medium" style={{ color: "var(--md-sys-color-text)" }}>证据链</span>
+          <span className="truncate text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+            {evidence ? `${evidence.length} 条变更证据卡` : "最近变更审计"}
+          </span>
+          <span className="v3-panel-spacer" />
+          <span className="text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{evidenceOpen ? "收起" : "展开"}</span>
+        </button>
+        {evidenceOpen && (
+          <div className="max-h-44 overflow-y-auto px-2 pb-2 flex flex-col gap-1">
+            {evidence && evidence.length === 0 ? (
+              <div className="px-2 py-2 text-[10px] text-center" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                暂无证据卡——AI 改文件后这里会记录变更原文摘要
+              </div>
+            ) : (
+              (evidence ?? []).map((r) => (
+                <div key={r.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-(color:--md-sys-color-surface-container) border border-(color:--md-sys-color-outline-variant)">
+                  <span className="shrink-0 font-mono text-[9px] px-1 py-px rounded" style={{
+                    color: "var(--md-sys-color-primary)",
+                    background: "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)",
+                  }}>
+                    {r.tool}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[10px] font-mono" style={{ color: "var(--md-sys-color-text)" }} title={r.target}>
+                    {r.target}
+                  </span>
+                  <span className="shrink-0 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                    {fmtEvidenceTime(r.at)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 });

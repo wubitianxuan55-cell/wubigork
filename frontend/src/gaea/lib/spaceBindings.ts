@@ -241,6 +241,8 @@ export const GAEA_METHOD_FACETS = {
   TaskCancel: "work",
   TaskRetry: "work",
   TaskOutput: "work",
+  // v4.1 证据链：Journal 读取属工位（前端「证据」入口，DeliverablesPanel）。
+  GaeaJournalList: "work",
 } as const satisfies Record<keyof AppBindings, BindingSpace>;
 
 /** 编译期双向断言（与 bridge 绑定面漂移检查同范式）：分类表不得出现

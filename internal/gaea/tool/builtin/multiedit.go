@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -88,6 +89,15 @@ func (m multiEdit) Execute(ctx context.Context, args json.RawMessage) (string, e
 	}
 	if err := atomicWriteEncoded(p.Path, cur, enc); err != nil {
 		return "", fmt.Errorf("write %s: %w", p.Path, err)
+	}
+	// v4.1 证据链：逐条编辑上报（Before/After = 各编辑的原文/新文摘要）。
+	for _, e := range p.Edits {
+		evidence.RecordChange(ctx, evidence.ChangeRecord{
+			Tool:          "multi_edit",
+			Target:        p.Path,
+			BeforeSummary: e.OldString,
+			AfterSummary:  e.NewString,
+		})
 	}
 	out := fmt.Sprintf("%s: applied %d/%d edits", p.Path, len(p.Edits), len(p.Edits))
 	for i := range p.Edits {

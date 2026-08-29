@@ -1166,6 +1166,24 @@ export interface TaskView {
   outputTruncated?: boolean;
 }
 
+// ── v4.1 证据链（docs/gaea-v41-evidence-chain-design.md §3）────────────────
+// JournalChangeRecord 是 GaeaJournalList 返回的证据卡视图（对齐 Go
+// evidence.ChangeRecord JSON；wailsjs 生成物刷新前手写，字段漂移由
+// typesGenerationCheck 同范式在后续 Step 收口）。
+export interface JournalChangeRecord {
+  id: string;
+  sessionId: string;
+  space: string;
+  turn: number;
+  tool: string;
+  target: string;
+  beforeSummary: string;
+  afterSummary: string;
+  model?: string;
+  at: number; // unix ms
+  status: string;
+}
+
 // TaskOutputView 是任务实时输出的尾部回放视图（C1：GaeaTaskOutput）。
 export type TaskOutputView = WireShape<AppModels.TaskOutputView>;
 

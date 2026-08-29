@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -101,6 +102,14 @@ func (e editLines) Execute(ctx context.Context, args json.RawMessage) (string, e
 	if err := atomicWriteEncoded(p.Path, result, enc); err != nil {
 		return "", fmt.Errorf("write %s: %w", p.Path, err)
 	}
+	// v4.1 证据链：被替换行区（原文摘要）→ 新内容。
+	beforeLines := lines[p.StartLine-1 : p.EndLine]
+	evidence.RecordChange(ctx, evidence.ChangeRecord{
+		Tool:          "edit_lines",
+		Target:        p.Path,
+		BeforeSummary: strings.Join(beforeLines, "\n"),
+		AfterSummary:  *p.NewContent,
+	})
 	return fmt.Sprintf("replaced lines %d-%d in %s (%d→%d lines)",
 		p.StartLine, p.EndLine, p.Path, p.EndLine-p.StartLine+1, len(newLines)), nil
 }
