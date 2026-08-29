@@ -22,6 +22,23 @@
 
 ## 版本状态
 
+- **最新发布：v3.8.0（2026-09-01）「双空间内核 · 工位/乐园 + 质量地基」**：
+  git tag `v3.8.0`；CHANGELOG / releases/v3.8.0.md / README 索引同步。要点：
+  - **双空间内核（阶段 1，S1.1-S1.5）**：SchemaV14（facts/tasks space_id 回填 work）+
+    会话目录分区 `sessions/work|play` + 事件日志/checkpoint space + `space.mode` 开关；
+    记忆写侧盖章（remember/dream 指纹含 space/审计加列）+ 读端隔离（GetInSpace/citations/
+    UnifiedSearch scope）+ 前端 scope 切换；`[space_profiles]` 模型 + 工具装配期过滤
+    （work 33/play 1/shared 13 + MCP spec 层滤）；任务 per-space 并发/优先级；权限策略按空间
+    （play 不弹审批卡）+ play 内容护栏（5 处生成点钳制）。**用户拍板：编程板块保持独立
+    DSH 窗口，不并入工位/不共享工具面（防工具膨胀）。**
+  - **质量地基（阶段 0）**：S0.1 turnMu 并发加固（worktree 实证修复前必崩）｜S0.2 Registry
+    锁+幽灵名｜S0.3 gate 原子化｜S0.4 retry_until 门控｜S0.6 edit_file 工具层（五工具）｜
+    隔离岛（knowledge 缓存/office 原子写/secure AES/tasks LRU）｜前端虚拟化+轮询门控｜CI -race。
+  - **验证**：Go 全量 **115 包** + vet；vitest 全绿；eslint 0/0；tsc 0；绑定面 **502 方法**
+    漂移 PASS；版本五处统一 3.8.0；wails build + 冒烟 200。
+  - **下一执行**：阶段 2 双空间壳（前端两视图，见 progress.md）；遗留小修（stubGate 竞态/
+    Cancel flake/持久化套件统一）。
+
 - **最新发布：v3.7.0（2026-08-29）「办公蒸馏 codex 收官 · 引用可追溯 + 审批决策族 + 输出事件化」**：
   git tag `v3.7.0`；CHANGELOG / releases/v3.7.0.md / README 索引同步；内容 = 第二/三刀
   全部 8 个 feat 提交（89cf962/445485f/01bc032/807dcf5/b38e79c/341e78e/9e161fe/cfcf72d）。

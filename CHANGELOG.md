@@ -1,5 +1,27 @@
 # gaea · 多功能 AI 助手
 
+## v3.8.0「双空间内核 · 工位/乐园 + 质量地基」(2026-09-01)
+> 双空间（工作/娱乐隔离）从规划到内核落地：会话/记忆/任务/产物/模型/工具/权限/护栏全按
+> 空间装配、互不干扰；同步完成审计 P0/P1 质量地基（并发/安全/编辑脊柱）与长期规划定稿。
+- **双空间内核（阶段 1）**：SchemaV14（facts/tasks space_id，旧数据回填 work）+
+  会话目录分区 `sessions/work|play` + 事件日志/checkpoint 空间自描述 + `space.mode` 开关；
+  记忆写侧盖章（remember/dream 指纹含 space/审计加列/play notes 不写 work AGENTS.md）+
+  读端隔离（GetInSpace/citations 限定/UnifiedSearch scope 四组）+ 前端 hub/面板 scope 切换；
+  `[space_profiles]` 模型按空间 + 工具装配期过滤（work 33 / play 1 / shared 13 + MCP spec 层滤）；
+  任务 per-space 并发/优先级防饥饿 + cron 显式 work；权限策略按空间（play 默认不弹审批卡）+
+  hardAsk 参数化 + persist_allow 分段回写 + play 内容护栏（5 处生成点钳制）。
+- **质量地基（阶段 0）**：S0.1 回合级并发加固（turnMu，临时 worktree 实证修复前必崩）；
+  S0.2 Registry 锁 + 幽灵名修复；S0.3 gate 原子化（撕裂换闸）；S0.4 retry_until 门控
+  （堵审批绕过 shell）；S0.6 **edit_file 工具层**（grep/edit_file/multi_edit/edit_lines/
+  move_file 五工具全落地）；knowledge 索引缓存 / office 原子写 / secure 非 Win AES-GCM /
+  tasks 输出 LRU；前端聊天 memo+尾部窗口 / keepAlive 轮询门控；CI 新增 `-race` 并发门禁。
+- **长期规划**：`docs/gaea-nextgen-roadmap-2026.md` 定稿（双空间版本重定义 + 四层落地 +
+  执行计划 + 二次审核缺口清单）；99 个过时文档归档 `docs/archive/`；**用户拍板：编程板块
+  保持独立 DSH 窗口、不并入工位/不共享工具面（防工具膨胀）**。
+- **验证**：Go 全量 **115 包** + vet；vitest 全绿；eslint 0/0；tsc 0；绑定面 **502 方法**
+  漂移 PASS；版本五处统一 3.8.0（app_info / wails.json / versioninfo.rc / package.json /
+  package-lock）；wails build + 冒烟。详见 releases/v3.8.0.md。
+
 ## v3.7.0「办公蒸馏 codex 收官 · 引用可追溯 + 审批决策族 + 输出事件化」(2026-08-29)
 > 办公蒸馏 codex 清单第二/三刀收官（C1 方案模式已随 v3.6.0 回退）。
 - **C2 记忆引用可追溯**：RecallBlock 注入行带引用键 `[MEM:name]` + 句末标注纪律 +
