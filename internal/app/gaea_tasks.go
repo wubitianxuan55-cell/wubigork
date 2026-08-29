@@ -23,6 +23,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/filewatch"
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
 	"github.com/gaea/gaea/internal/gaea/semantic"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
@@ -70,11 +71,16 @@ func (a *App) emitTaskEvent(t tasks.Task) {
 	a.emit("gaea-task", m)
 }
 
-// GaeaTaskList 返回最近任务（新→旧，供任务中心）。空间维度（S1 双空间）：
-// 绑定入口保持零参数 = 不过滤（跨空间全量，旧行为零变化）；space.mode 开关
-// 由 S2 接线后在绑定层透传当前空间。
-func (a *App) GaeaTaskList() []tasks.Task {
-	return a.taskListInSpace("")
+// GaeaTaskList 返回最近任务（新→旧，供任务中心）。变参 space（S1.4，对齐
+// GaeaUnifiedSearch 先例——Wails 反射 Call 对变参安全，前端零参调用不破）：
+// 不传/传空 = 不过滤（跨空间全量，旧行为零变化）；传 "work"/"play" = 按空间
+// 过滤（只取首个；S2 接线后由绑定层透传当前空间）。
+func (a *App) GaeaTaskList(space ...string) []tasks.Task {
+	sc := ""
+	if len(space) > 0 {
+		sc = space[0]
+	}
+	return a.taskListInSpace(sc)
 }
 
 // taskListInSpace 按空间返回最近任务（新→旧）：space 为空不过滤（旧行为零
@@ -317,16 +323,17 @@ func (a *App) fileIndexTaskHandler(ctx context.Context, t *tasks.Task, p *tasks.
 	return nil
 }
 
-// submitFileIndexTask 提交索引任务（去重：已有 queued/running 则跳过）。
+// submitFileIndexTask 提交索引任务（去重：本空间已有 queued/running 则跳过）。
+// 索引为工作区级后台维护，无会话空间 → 显式 work（S1.4 cron 后台提交点铁律）。
 func (a *App) submitFileIndexTask(reason string) {
 	m := a.taskMgr()
 	if m == nil || !m.Available() {
 		return
 	}
-	if m.HasActive(tasks.KindFileIndex) {
+	if m.HasActiveInSpace(tasks.KindFileIndex, spaces.SpaceWork) {
 		return
 	}
-	if _, err := m.Submit(tasks.KindFileIndex, "工作区语义索引", map[string]any{"reason": reason}); err != nil {
+	if _, err := m.SubmitSpace(tasks.KindFileIndex, "工作区语义索引", map[string]any{"reason": reason}, spaces.SpaceWork); err != nil {
 		slog.Warn("tasks: 索引任务提交失败", "error", err)
 	}
 }

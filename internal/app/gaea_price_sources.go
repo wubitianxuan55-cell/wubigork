@@ -11,6 +11,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
@@ -48,16 +49,18 @@ func (a *App) startPriceCron() {
 }
 
 // tickPriceCron 检查并提交「定时价格抓取」任务（T5-1）：到期源过滤在任务
-// handler 内按 cron 语义执行；已有排队/运行中的抓取任务则跳过（去重）。
+// handler 内按 cron 语义执行；本空间已有排队/运行中的抓取任务则跳过（去重）。
+// cron 后台提交点无会话空间 → 显式 work（S1.4 铁律：价格抓取是办公域任务）。
 func (a *App) tickPriceCron() {
 	m := a.taskMgr()
 	if m == nil || !m.Available() {
 		return
 	}
-	if m.HasActive(tasks.KindPriceFetchAll) || m.HasActive(tasks.KindPriceFetch) {
+	if m.HasActiveInSpace(tasks.KindPriceFetchAll, spaces.SpaceWork) ||
+		m.HasActiveInSpace(tasks.KindPriceFetch, spaces.SpaceWork) {
 		return
 	}
-	if _, err := m.Submit(tasks.KindPriceFetchAll, "定时价格抓取", map[string]any{"cron": true}); err != nil {
+	if _, err := m.SubmitSpace(tasks.KindPriceFetchAll, "定时价格抓取", map[string]any{"cron": true}, spaces.SpaceWork); err != nil {
 		slog.Warn("tasks: 定时价格抓取提交失败", "error", err)
 	}
 }
@@ -99,7 +102,7 @@ func (a *App) GaeaPriceFetch(id string) (*tasks.Task, error) {
 			}
 		}
 	}
-	return m.Submit(tasks.KindPriceFetch, "抓取 "+src.Name, map[string]any{"sourceId": id})
+	return m.SubmitSpace(tasks.KindPriceFetch, "抓取 "+src.Name, map[string]any{"sourceId": id}, spaces.SpaceWork)
 }
 
 // GaeaPriceFetchAll 一键抓取全部启用的价格源（异步任务，T5-1）：提交任务
@@ -110,7 +113,7 @@ func (a *App) GaeaPriceFetchAll() (*tasks.Task, error) {
 	if m == nil || !m.Available() {
 		return nil, fmt.Errorf("任务调度器未启动")
 	}
-	return m.Submit(tasks.KindPriceFetchAll, "一键抓取全部价格源", map[string]any{"cron": false})
+	return m.SubmitSpace(tasks.KindPriceFetchAll, "一键抓取全部价格源", map[string]any{"cron": false}, spaces.SpaceWork)
 }
 
 // GaeaPriceFetches 返回最近抓取记录（含 pending 待确认）。

@@ -117,6 +117,15 @@ type Handler func(ctx context.Context, t *Task, p *Progress) error
 type Options struct {
 	// MaxConcurrent 同时执行的任务数（默认 1，对齐 herdsman local_concurrency=1）。
 	MaxConcurrent int
+	// PerSpace 每空间并发上限（S1.4 任务按空间分账）：键=space_id，值=该空间
+	// 同时 running 的任务数上限；未列入的空间不设专项额度（仅受 worker 总数
+	// 兜底）。空 map = 不启用空间分账：全局 MaxConcurrent 语义，旧行为零变化。
+	// 启用时 worker 数自动取 max(MaxConcurrent, Σ PerSpace)，保证各空间额度
+	// 可真正并行（某空间额度占满不阻塞其他空间出队）。
+	PerSpace map[string]int
+	// Priority 按 kind 的出队优先级（S1.4）：值越大越先出队，缺省 0；同优先级
+	// 按 created_at 升序（FIFO）。空 map = 纯 FIFO（旧行为零变化）。
+	Priority map[string]int
 	// MaxRetries 自动重试上限（默认 2）。
 	MaxRetries int
 	// BackoffBase 重试退避基数（默认 2s，按 2^retry 递增，封顶 60s）。
@@ -151,6 +160,11 @@ type Manager struct {
 	closed chan struct{}
 	wg     sync.WaitGroup
 	once   sync.Once
+
+	// spaceRunning 是各空间当前占用的并发额度（S1.4 按空间分账）：与
+	// opts.PerSpace 组成按空间信号量（m.mu 保护；仅配置了额度的空间被跟踪，
+	// pickNext 预留 / releaseSpace 释放严格配对，额度永不超发）。
+	spaceRunning map[string]int
 }
 
 // taskOutput 单任务实时输出（环形缓冲：上限行数 + 字节数，超出截断标注）。
@@ -273,6 +287,15 @@ func New(db *sql.DB, emit func(Task), opts Options) *Manager {
 	if opts.EmitThrottle <= 0 {
 		opts.EmitThrottle = 400 * time.Millisecond
 	}
+	if len(opts.PerSpace) > 0 {
+		ps := make(map[string]int, len(opts.PerSpace))
+		for sp, n := range opts.PerSpace {
+			if n > 0 { // 非正值视为未配置：该空间不设专项额度
+				ps[sp] = n
+			}
+		}
+		opts.PerSpace = ps
+	}
 	return &Manager{
 		db:             db,
 		emit:           emit,
@@ -284,6 +307,7 @@ func New(db *sql.DB, emit func(Task), opts Options) *Manager {
 		outputs:        map[string]*taskOutput{},
 		opts:           opts,
 		sem:            make(chan struct{}, opts.MaxConcurrent),
+		spaceRunning:   map[string]int{},
 		wake:           make(chan struct{}, 1),
 		closed:         make(chan struct{}),
 	}
@@ -312,7 +336,17 @@ func (m *Manager) Start() (int, error) {
 	if err != nil {
 		slog.Warn("tasks: 重启续跑失败", "error", err)
 	}
-	for i := 0; i < m.opts.MaxConcurrent; i++ {
+	workers := m.opts.MaxConcurrent
+	if len(m.opts.PerSpace) > 0 {
+		total := 0
+		for _, n := range m.opts.PerSpace {
+			total += n
+		}
+		if total > workers {
+			workers = total // 各空间额度可并行，worker 数须覆盖总额度（S1.4）
+		}
+	}
+	for i := 0; i < workers; i++ {
 		m.wg.Add(1)
 		go m.worker()
 	}
@@ -441,6 +475,24 @@ func (m *Manager) HasActive(kind Kind) bool {
 	}
 	var n int
 	err := m.db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE kind=? AND status IN ('queued','running')`, string(kind)).Scan(&n)
+	return err == nil && n > 0
+}
+
+// HasActiveInSpace 报告某空间内某类任务是否已有 queued/running（S1.4 按空间
+// 去重）：同一 kind 跨空间互不挡（play 的抓取不阻止 work 的抓取）。space 为空
+// = 跨空间不过滤（等价 HasActive，旧行为）。
+func (m *Manager) HasActiveInSpace(kind Kind, space string) bool {
+	if m == nil || m.db == nil {
+		return false
+	}
+	query := `SELECT COUNT(*) FROM tasks WHERE kind=? AND status IN ('queued','running')`
+	args := []any{string(kind)}
+	if space != "" {
+		query += ` AND space_id=?`
+		args = append(args, space)
+	}
+	var n int
+	err := m.db.QueryRow(query, args...).Scan(&n)
 	return err == nil && n > 0
 }
 
@@ -612,12 +664,94 @@ func (m *Manager) isClosed() bool {
 	}
 }
 
-// runNext 取出最早的 queued 任务执行一条（无则等待下一次唤醒）。
+// runNext 取出下一条要执行的 queued 任务并执行一条（无则等待下一次唤醒）。
+// S1.4 调度语义：
+//   - PerSpace/Priority 均未配置 → 取全局最早 queued（GetFirstQueued，旧行为）；
+//   - 否则在「其空间并发额度有余量」的 queued 任务中按 优先级高→创建早 选择，
+//     空间额度占满的任务暂不取（不阻塞其他空间出队）；执行收尾先释放额度再
+//     re-signal 唤醒——本空间完成腾出额度时，等待中的同空间任务立即被重新
+//     调度（防饥饿）。
 func (m *Manager) runNext() {
-	t, err := m.GetFirstQueued()
-	if err != nil || t == nil {
+	t := m.pickNext()
+	if t == nil {
 		return
 	}
+	m.execute(t)
+	m.releaseSpace(t.Space)
+	if !m.isClosed() {
+		m.signal()
+	}
+}
+
+// pickNext 选择下一条要执行的 queued 任务；选中即预留其空间并发额度（m.mu 下
+// 原子完成「查空间余量 → 择优 → 额度 +1」，多 worker 并发取任务不超发）。
+// 返回 nil 表示当前无可执行任务（队列空或各空间额度均已占满）。
+func (m *Manager) pickNext() *Task {
+	if len(m.opts.PerSpace) == 0 && len(m.opts.Priority) == 0 {
+		t, err := m.GetFirstQueued()
+		if err != nil {
+			return nil
+		}
+		return t
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rows, err := m.db.Query(`SELECT id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at,space_id FROM tasks WHERE status=? ORDER BY created_at ASC`, string(StatusQueued))
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var best *Task
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			break
+		}
+		if !m.spaceHasRoomLocked(t.Space) {
+			continue // 该空间额度已满：暂不取（不阻塞其他空间出队）
+		}
+		if best == nil || m.opts.Priority[t.Kind] > m.opts.Priority[best.Kind] {
+			best = t // 同优先级保持扫描序（created_at 升序）= FIFO
+		}
+	}
+	if best != nil {
+		if _, ok := m.opts.PerSpace[best.Space]; ok {
+			m.spaceRunning[best.Space]++ // 预留空间额度（releaseSpace 释放）
+		}
+	}
+	return best
+}
+
+// spaceHasRoomLocked 报告某空间是否还有并发额度余量（m.mu 持有下调用）：
+// 未配置额度的空间不受限（全局 worker 总数兜底）。
+func (m *Manager) spaceHasRoomLocked(space string) bool {
+	limit, ok := m.opts.PerSpace[space]
+	if !ok {
+		return true
+	}
+	return m.spaceRunning[space] < limit
+}
+
+// releaseSpace 释放一个空间并发额度（与 pickNext 的预留严格配对；未配置额度
+// 的空间为 no-op）。必须在 re-signal 之前调用，保证被额度挡住的同空间任务
+// 在本次唤醒内即可被重新选中。
+func (m *Manager) releaseSpace(space string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.opts.PerSpace[space]; !ok {
+		return
+	}
+	if n := m.spaceRunning[space]; n > 1 {
+		m.spaceRunning[space] = n - 1
+	} else {
+		delete(m.spaceRunning, space)
+	}
+}
+
+// execute 运行已选中的任务一条：认领 → 执行 handler → 终态收尾（原 runNext
+// 主体）。空间额度由 pickNext 预留、runNext 收尾释放，本方法内所有提前返回
+// 路径都处于「已预留」状态，由调用方统一释放。
+func (m *Manager) execute(t *Task) {
 	// 出队（状态置 running）之前先注册 cancel，消除「已出队但尚未注册」的窗口，
 	// 保证 Cancel 对刚出队、正在跑的任务也能命中并中断。
 	ctx, cancel := context.WithCancel(context.Background())
@@ -687,9 +821,6 @@ func (m *Manager) runNext() {
 				_ = m.markTerminal(t.ID, StatusFailed, "", handlerErr.Error())
 			}
 		}
-	}
-	if !m.isClosed() {
-		m.signal()
 	}
 }
 

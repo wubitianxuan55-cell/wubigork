@@ -15,6 +15,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 )
 
@@ -291,8 +292,9 @@ func TestTickPriceCronDedup(t *testing.T) {
 
 var _ = os.Getenv // keep os import if unused in future edits
 
-// TestGaeaTaskListSpacePassthrough S1 双空间透传回归：绑定入口 GaeaTaskList
-// 零参数 = 不过滤（旧行为零变化）；未导出 taskListInSpace 按空间过滤。
+// TestGaeaTaskListSpacePassthrough S1.4 变参透传回归（对齐 GaeaUnifiedSearch
+// 变参先例）：绑定入口 GaeaTaskList 不传/空串 = 不过滤（旧行为零变化）；
+// 非空 = 按空间过滤。
 func TestGaeaTaskListSpacePassthrough(t *testing.T) {
 	a := newTestTaskApp(t)
 	// 不 Start：任务停在 queued，列表可读
@@ -305,23 +307,69 @@ func TestGaeaTaskListSpacePassthrough(t *testing.T) {
 		t.Fatalf("submit play: %v", err)
 	}
 
-	// 绑定入口（零参数）= 跨空间全量
+	// 绑定入口不传参 = 跨空间全量
 	if l := a.GaeaTaskList(); len(l) != 2 {
 		t.Fatalf("GaeaTaskList() = %d 条, want 2（不过滤）", len(l))
 	}
-	// 透传按空间过滤
-	if l := a.taskListInSpace("work"); len(l) != 1 || l[0].ID != tkWork.ID {
-		t.Fatalf("taskListInSpace(work) = %+v, want [tkWork]", l)
+	// 变参按空间过滤
+	if l := a.GaeaTaskList("work"); len(l) != 1 || l[0].ID != tkWork.ID {
+		t.Fatalf("GaeaTaskList(\"work\") = %+v, want [tkWork]", l)
 	}
-	if l := a.taskListInSpace("play"); len(l) != 1 || l[0].ID != tkPlay.ID {
-		t.Fatalf("taskListInSpace(play) = %+v, want [tkPlay]", l)
+	if l := a.GaeaTaskList("play"); len(l) != 1 || l[0].ID != tkPlay.ID {
+		t.Fatalf("GaeaTaskList(\"play\") = %+v, want [tkPlay]", l)
 	}
-	// 空 space = 不过滤
-	if l := a.taskListInSpace(""); len(l) != 2 {
-		t.Fatalf("taskListInSpace(\"\") = %d 条, want 2", len(l))
+	// 空串 = 不过滤
+	if l := a.GaeaTaskList(""); len(l) != 2 {
+		t.Fatalf("GaeaTaskList(\"\") = %d 条, want 2", len(l))
 	}
 	// 未知空间 = 空集
-	if l := a.taskListInSpace("none"); len(l) != 0 {
-		t.Fatalf("taskListInSpace(none) = %d 条, want 0", len(l))
+	if l := a.GaeaTaskList("none"); len(l) != 0 {
+		t.Fatalf("GaeaTaskList(\"none\") = %d 条, want 0", len(l))
+	}
+}
+
+// TestTaskSubmissionsTargetWorkSpace S1.4 提交点空间断言：现有 kind
+// （price_fetch/price_fetch_all/file_index）全部显式落 work——尤其 cron 后台
+// 提交点（tickPriceCron）无会话空间，必须显式 work（设计 §3 铁律）。
+func TestTaskSubmissionsTargetWorkSpace(t *testing.T) {
+	a := newTestTaskApp(t)
+	// 不 Start：任务停在 queued，空间归属可断言
+
+	// ① cron 后台提交点：定时价格抓取（无会话空间 → 显式 work）
+	a.tickPriceCron()
+	// ② 绑定入口：一键抓取全部
+	tkAll, err := a.GaeaPriceFetchAll()
+	if err != nil {
+		t.Fatalf("GaeaPriceFetchAll: %v", err)
+	}
+	if tkAll.Space != spaces.SpaceWork {
+		t.Fatalf("GaeaPriceFetchAll Space = %q, want work", tkAll.Space)
+	}
+	// ③ 绑定入口：单源抓取
+	srv := mockPriceServer(t)
+	id := seedPriceSource(t, a, "space", srv.URL, 0)
+	tkOne, err := a.GaeaPriceFetch(id)
+	if err != nil {
+		t.Fatalf("GaeaPriceFetch: %v", err)
+	}
+	if tkOne.Space != spaces.SpaceWork {
+		t.Fatalf("GaeaPriceFetch Space = %q, want work", tkOne.Space)
+	}
+	// ④ 后台维护：工作区语义索引
+	a.submitFileIndexTask("test")
+
+	list := a.GaeaTaskList()
+	kinds := map[string]int{}
+	for _, task := range list {
+		if task.Space != spaces.SpaceWork {
+			t.Fatalf("任务 %s(%s) Space = %q, want work", task.Kind, task.ID, task.Space)
+		}
+		kinds[task.Kind]++
+	}
+	if kinds[string(tasks.KindPriceFetchAll)] != 2 { // cron + 手动一键
+		t.Fatalf("price_fetch_all 应有 2 条（cron+手动），实际 %v", kinds)
+	}
+	if kinds[string(tasks.KindPriceFetch)] != 1 || kinds[string(tasks.KindFileIndex)] != 1 {
+		t.Fatalf("提交点 kind 覆盖不全: %v", kinds)
 	}
 }
