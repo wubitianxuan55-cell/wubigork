@@ -243,6 +243,12 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// task/skill meta-tools, to bar recursion), and an optional per-skill model.
 	// Its tool activity nests under the invoking call, like `task`.
 	skillRunner := func(sctx context.Context, sk skill.Skill, task string) (string, error) {
+		// S3 双空间：技能子代理与 task 子代理同规则继承父会话空间。正常链路
+		// sctx 已由 agent.Run 注入空间（run_skill 工具的调用 ctx 原样透传，
+		// 并行技能的 WithTimeout 派生也保留 value）；此处显式落定为防御点，
+		// 保证 ctx 链被中间层重建（job 包裹等）时子代理空间仍确定（缺省 work），
+		// 与 RunSubAgent 内部的 fail-closed 断言构成双重保险。
+		sctx = agent.WithSpace(sctx, agent.SpaceFromContext(sctx))
 		prov, price, ctxWin := execProv, entry.Price, entry.ContextWindow
 		if modelRef := subagentModelRef(cfg, sk); modelRef != "" {
 			if me, ok := cfg.ResolveModel(modelRef); ok {
@@ -308,7 +314,9 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		applyCompactToolset(reg)
 	}
 
-	execSess := agent.NewSession(compiler.SystemPrompt() + "\n\n" + agent.SingleModelPrompt)
+	// S4 双空间：执行纪律文本按会话空间渲染 exports/work 路径根段（设计 §5）。
+	// work 缺省（含 space.mode=off 的 "" 生效值）输出与历史 const 逐字一致。
+	execSess := agent.NewSession(compiler.SystemPrompt() + "\n\n" + agent.SingleModelPromptFor(cfg.EffectiveSessionSpace()))
 	executor := agent.New(execProv, reg, execSess, agent.Options{
 		MaxSteps:      maxSteps,
 		Temperature:   cfg.Agent.Temperature,

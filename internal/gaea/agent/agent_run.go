@@ -19,6 +19,12 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	// generate trace ID for this turn
 	traceID := NewTraceID()
 	ctx = WithTraceID(ctx, traceID)
+	// S3 双空间：把会话空间注入运行上下文（组装运行上下文点，与 trace 同位）。
+	// 工具（task / run_skill 等）经 SpaceFromContext 读取并把空间继承给子代理
+	// 会话；空 space（space.mode=off 平铺形态）归一为 work，行为与改造前一致。
+	// 子代理 runSubAgentInternal 会在自己的 runDirect 再盖一次同一空间（其会话
+	// 已被断言与 ctx 一致），不产生漂移。
+	ctx = WithSpace(ctx, a.session.Space())
 	defer func() { a.steerMu.Lock(); a.steerQueue = nil; a.steerConsumed = false; a.steerMu.Unlock() }() // drain any remaining steer on turn exit
 
 	if a.evidence != nil {

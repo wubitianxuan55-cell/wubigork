@@ -11,6 +11,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/jobs"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tool"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
@@ -209,7 +210,7 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 	subReg := t.buildSubReg(p.Tools)
 
 	// V10.29: prepare transcript — continue_from loads existing, otherwise fresh.
-	run, prepErr := t.prepareRun(p.ContinueFrom, p.RunInBackground)
+	run, prepErr := t.prepareRun(ctx, p.ContinueFrom, p.RunInBackground)
 	if prepErr != nil {
 		return "", prepErr
 	}
@@ -242,7 +243,10 @@ func (t *TaskTool) Execute(ctx context.Context, args json.RawMessage) (string, e
 			label = "task"
 		}
 		job := jm.Start("task", label, func(jobCtx context.Context, _ io.Writer) (string, error) {
-			return t.runSubSession(jobCtx, p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema)
+			// S3 双空间：jobCtx 由 jobs.Manager 的 root（context.Background 派生）
+			// 新建，不继承父调用 ctx 的 value——空间会在此丢失。显式补注父空间，
+			// 后台子代理与前台一样继承（缺省 work）。
+			return t.runSubSession(WithSpace(jobCtx, SpaceFromContext(ctx)), p.Prompt, subReg, nested, run, maxSteps, p.OutputSchema)
 		})
 		return fmt.Sprintf("Started background task %q (%s). It runs across turns; collect its final answer with wait (or wait will return it once done), and you'll be notified when it finishes.", job.ID, label), nil
 	}
@@ -476,8 +480,10 @@ func (t *TaskTool) runCheckCommand(ctx context.Context, command string) (string,
 
 // prepareRun returns a SubagentRun for the given continue_from ref or creates
 // a fresh one. Returns (nil, nil) when no transcript store is available
-// (ephemeral mode). Rejects continue_from + run_in_background.
-func (t *TaskTool) prepareRun(continueFrom string, runInBackground bool) (*SubagentRun, error) {
+// (ephemeral mode). Rejects continue_from + run_in_background. The run
+// context's space (SpaceFromContext) is handed to the store so a continue
+// cannot cross spaces (S3 防穿越 C：请求空间与 ref 空间一致性校验).
+func (t *TaskTool) prepareRun(ctx context.Context, continueFrom string, runInBackground bool) (*SubagentRun, error) {
 	continueFrom = strings.TrimSpace(continueFrom)
 	if t.transcripts == nil {
 		if continueFrom != "" {
@@ -490,9 +496,9 @@ func (t *TaskTool) prepareRun(continueFrom string, runInBackground bool) (*Subag
 		if runInBackground {
 			return nil, fmt.Errorf("continue_from cannot be used with run_in_background")
 		}
-		return t.transcripts.PrepareContinue(continueFrom)
+		return t.transcripts.PrepareContinue(continueFrom, SpaceFromContext(ctx))
 	}
-	return t.transcripts.PrepareFresh(t.sysPrompt)
+	return t.transcripts.PrepareFresh(t.sysPrompt, SpaceFromContext(ctx))
 }
 
 // finalizeRun persists the run result and appends the reference to the output.
@@ -512,19 +518,38 @@ func (t *TaskTool) finalizeRun(result string, err error, run *SubagentRun) (stri
 }
 
 func RunSubAgent(ctx context.Context, prov provider.LLMProvider, reg *tool.Registry, sysPrompt, prompt string, opts Options, sink event.Sink, subUsage *provider.Usage) (string, error) {
-	return runSubAgentInternal(ctx, prov, reg, NewSession(sysPrompt), prompt, opts, sink, subUsage)
+	sess := NewSession(sysPrompt)
+	// S3 双空间：新建子会话继承父运行上下文空间（缺省 work，空值已被
+	// withSpace 归一）。空间一致性由 runSubAgentInternal 的 fail-closed 断言兜底。
+	sess.SetSpace(SpaceFromContext(ctx))
+	return runSubAgentInternal(ctx, prov, reg, sess, prompt, opts, sink, subUsage)
 }
 
 // RunSubAgentWithSession runs a sub-agent with an existing session (used for
 // continue_from). Unlike RunSubAgent which creates a new session, this uses the
 // provided session directly so the sub-agent continues from where it left off.
+// S3 双空间：装载的子会话若无空间自描述（空值）则标记父运行上下文空间；
+// 已带合法空间且与 ctx 不一致的会话不改写——由 runSubAgentInternal 的
+// fail-closed 断言拒绝，防止跨空间续写。
 func RunSubAgentWithSession(ctx context.Context, prov provider.LLMProvider, reg *tool.Registry, sess *session.Session, prompt string, opts Options, sink event.Sink, subUsage *provider.Usage) (string, error) {
+	if sess != nil && !spaces.Valid(sess.Space()) {
+		sess.SetSpace(SpaceFromContext(ctx))
+	}
 	return runSubAgentInternal(ctx, prov, reg, sess, prompt, opts, sink, subUsage)
 }
 
 // runSubAgentInternal is the shared sub-agent execution path: wire up an
 // AgentRunner, run the prompt, and extract the final assistant message.
 func runSubAgentInternal(ctx context.Context, prov provider.LLMProvider, reg *tool.Registry, sess *Session, prompt string, opts Options, sink event.Sink, subUsage *provider.Usage) (string, error) {
+	// S3 防穿越 A（fail-closed）：子会话空间必须与运行上下文空间一致。
+	// 两条继承路径（RunSubAgent 新建 / RunSubAgentWithSession 装载）都汇入
+	// 这里，断言是防穿越的单点闸门：任何绕过继承注入、携带异空间会话到达
+	// 此处的调用一律报错拒绝，绝不带着错误空间运行子代理。
+	if sess != nil {
+		if space := SpaceFromContext(ctx); sess.Space() != space {
+			return "", fmt.Errorf("subagent space mismatch: session space %q != context space %q (fail-closed)", sess.Space(), space)
+		}
+	}
 	// sub-agents don't need orchestrate verify — they execute a single task
 	opts.DisableVerify = true
 	sub := New(prov, reg, sess, opts, sink)

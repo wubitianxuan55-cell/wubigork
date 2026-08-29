@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // ── Subagent transcript persistence (V10.29) ─────────────────────────
@@ -40,6 +41,10 @@ type SubagentMeta struct {
 	Status    SubagentStatus `json:"status"`
 	ToolScope []string       `json:"toolScope,omitempty"`
 	Model     string         `json:"model,omitempty"`
+	// Space 是子代理的空间自描述（S3 双空间，设计 §1「子代理 transcript meta
+	// 前瞻」）：work/play。旧 meta 无此字段 = 零值，读端按 work 降级
+	// （spaces.SpaceOr）——与事件日志 space 字段同一兼容语义。
+	Space string `json:"space,omitempty"`
 }
 
 // SubagentRun holds a prepared sub-agent transcript ready to execute.
@@ -48,6 +53,9 @@ type SubagentMeta struct {
 type SubagentRun struct {
 	Ref     string
 	Session *session.Session
+	// Space 是本次子代理运行的空间（S3 前瞻）：prepare 时落定，meta
+	// sidecar 写入时带上，续跑（continue_from）时用于一致性校验。
+	Space   string
 	store   *SubagentStore
 	release func()
 }
@@ -101,6 +109,7 @@ func (s *SubagentStore) MarkRunning(run *SubagentRun) error {
 	return s.saveMeta(run.Ref, SubagentMeta{
 		Ref: run.Ref, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 		Status: SubagentRunning,
+		Space:  spaces.Normalize(run.Space),
 	})
 }
 
@@ -115,6 +124,7 @@ func (s *SubagentStore) SaveCompleted(run *SubagentRun) error {
 	return s.saveMeta(run.Ref, SubagentMeta{
 		Ref: run.Ref, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 		Status: SubagentCompleted,
+		Space:  spaces.Normalize(run.Space),
 	})
 }
 
@@ -123,19 +133,23 @@ func (s *SubagentStore) SaveFailed(run *SubagentRun) error {
 	return s.saveMeta(run.Ref, SubagentMeta{
 		Ref: run.Ref, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 		Status: SubagentFailed,
+		Space:  spaces.Normalize(run.Space),
 	})
 }
 
 // ── Prepare entry points ────────────────────────────────────────────
 
 // PrepareFresh creates a new sub-agent transcript. Caller must Release()
-// after the run finishes.
-func (s *SubagentStore) PrepareFresh(sysPrompt string) (*SubagentRun, error) {
+// after the run finishes. space 记录到 run 与子会话（S3 前瞻）：空值经
+// Normalize 归一为 work，与 ctx 注入的缺省语义一致。
+func (s *SubagentStore) PrepareFresh(sysPrompt, space string) (*SubagentRun, error) {
 	ref := newRef(time.Now())
 	sess := session.New(sysPrompt)
+	sess.SetSpace(spaces.Normalize(space))
 	return &SubagentRun{
 		Ref:     ref,
 		Session: sess,
+		Space:   spaces.Normalize(space),
 		store:   s,
 	}, nil
 }
@@ -143,7 +157,10 @@ func (s *SubagentStore) PrepareFresh(sysPrompt string) (*SubagentRun, error) {
 // PrepareContinue loads an existing sub-agent transcript by ref so the
 // model can pick up where it left off. The ref must belong to a completed
 // or failed run — a running ref cannot be continued concurrently.
-func (s *SubagentStore) PrepareContinue(ref string) (*SubagentRun, error) {
+// space 是发起续跑一侧的请求空间（SpaceFromContext）：与 ref meta 记录的
+// 空间不一致时报错拒绝（S3 防穿越 C，fail-closed）——play 子代理的转录
+// 不能被 work 会话续写，反之亦然。旧 meta 无 space 字段按 work 降级。
+func (s *SubagentStore) PrepareContinue(ref, space string) (*SubagentRun, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return nil, fmt.Errorf("continue_from is empty")
@@ -161,6 +178,11 @@ func (s *SubagentStore) PrepareContinue(ref string) (*SubagentRun, error) {
 		return nil, fmt.Errorf("subagent %s is still running; wait for it to complete before continuing", ref)
 	}
 
+	// S3 防穿越 C：请求空间与 ref 空间一致性校验（读端降级：空值 = work）。
+	if refSpace := spaces.SpaceOr(meta.Space, spaces.SpaceWork); refSpace != spaces.Normalize(space) {
+		return nil, fmt.Errorf("subagent %s space mismatch: recorded space %q != request space %q (fail-closed)", ref, refSpace, spaces.Normalize(space))
+	}
+
 	// Load the transcript.
 	path := s.transcriptPath(ref)
 	sess, err := session.Load(path)
@@ -171,6 +193,7 @@ func (s *SubagentStore) PrepareContinue(ref string) (*SubagentRun, error) {
 	return &SubagentRun{
 		Ref:     ref,
 		Session: sess,
+		Space:   spaces.Normalize(space),
 		store:   s,
 	}, nil
 }

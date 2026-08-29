@@ -17,6 +17,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/nilutil"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -57,6 +58,30 @@ func CallContext(ctx context.Context) (parentID string, sink event.Sink, asker A
 		return "", nil, nil, false
 	}
 	return cc.parentID, cc.sink, cc.asker, true
+}
+
+// spaceContextKey carries the session's space dimension (work|play) into the
+// run context. A private struct type prevents collisions with other ctx keys.
+type spaceContextKey struct{}
+
+// withSpace stamps ctx with the session's space (S3 双空间：子代理空间继承).
+// The value is normalized through spaces.Normalize so an empty/unknown space
+// (space.mode=off 平铺形态, legacy sessions) lands on work — the same
+// read-side downgrade every other space consumer uses.
+func WithSpace(ctx context.Context, space string) context.Context {
+	return context.WithValue(ctx, spaceContextKey{}, spaces.Normalize(space))
+}
+
+// SpaceFromContext returns the space stamped by withSpace, defaulting to
+// spaces.SpaceWork for contexts without one (headless tool tests, background
+// jobs that rebuild their context, calls made outside the run loop). TaskTool
+// and the skillRunner read this to inherit the parent's space into sub-agent
+// sessions, so a play parent spawns play sub-agents and never crosses.
+func SpaceFromContext(ctx context.Context) string {
+	if s, ok := ctx.Value(spaceContextKey{}).(string); ok {
+		return spaces.Normalize(s)
+	}
+	return spaces.SpaceWork
 }
 
 // TurnResult is a structured result produced by an AgentRunner after one turn.
