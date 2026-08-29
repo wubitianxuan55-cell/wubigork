@@ -8,8 +8,10 @@
   + 创作间世界模型面板 + 角色参考图 + 朗读情绪 UI）。验证：Go 全量 118/118 包；
   vitest 789/789（+20）；tsc -b / eslint 0；绑定面 525 漂移 PASS（+3）；
   spaceBindings 235 全覆盖；版本五处统一 4.3.1。
-- **桌面端产物**：v4.3.1 exe 待构建（wails build 42s + 冒烟 /api/health 200 流程
-  照 v4.3.0，产物 releases/gaea-v4.3.1.exe + SHA256SUMS）。
+- **桌面端产物（2026-08-30）**：`releases/gaea-v4.3.1.exe`（36,633,088 字节 ≈ 34.9MB，
+  SHA256 `3f24f2b8ac0a187134e499a7920d4fc94ceec9450ced6ebac6122f1cba39d098`，
+  见 releases/SHA256SUMS-v4.3.1.txt）；wails v2.13.0 构建（43s）+ 冒烟
+  /api/health 200（GAEA_HTTP_PORT=18999 隔离）。
 - 构建注意：wails build 走 `build.bat` 的 TMP/TEMP 重定向到 `.tmp`（规避 SAC
   策略拦截）。
 
