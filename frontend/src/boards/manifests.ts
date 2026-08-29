@@ -22,7 +22,7 @@ import {
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
 import { GetBoardManifests } from '../wailsjsCompat'
-import { filterBoardsForSpace, isIndependentBoard, type ShellSpace } from './space'
+import { filterBoardsForSpace, isIndependentBoard, type BoardSpace, type ShellSpace } from './space'
 
 // ─── 图标注册表：manifest.icon 名（antd 图标名）→ 组件查表解析 ───────────────
 const ICON_REGISTRY: Record<string, ComponentType> = {
@@ -210,11 +210,17 @@ export interface RemoteBoardManifest {
   shortcut?: string
   menuOrder?: number
   inMenu?: boolean
-  space?: 'work' | 'play' | 'shared'
+  // 后端为 Go string（空间枚举由后端校验）；前端在此收敛为字面量联合，
+  // 未知值回退静态清单，避免把不可信远程值直接灌进导航派生视图。
+  space?: string
   breadcrumb?: { anchorTo?: string }
   isHome?: boolean
   nav?: { children?: BoardNavChild[] }
   featureModel?: string
+}
+
+function isBoardSpace(s: unknown): s is BoardSpace {
+  return s === "work" || s === "play" || s === "shared" || s === "independent";
 }
 
 /**
@@ -245,7 +251,7 @@ export function normalizeManifests(remote: RemoteBoardManifest[]): BoardManifest
       shortcut: r.shortcut ?? base?.shortcut,
       menuOrder: r.menuOrder ?? base?.menuOrder,
       inMenu: r.inMenu ?? base?.inMenu ?? false,
-      space: r.space ?? base?.space,
+      space: isBoardSpace(r.space) ? r.space : base?.space,
       breadcrumb: r.breadcrumb ? { anchorTo: r.breadcrumb.anchorTo } : base?.breadcrumb,
       isHome: r.isHome ?? base?.isHome ?? false,
       nav: r.nav ? { children: r.nav.children ?? [] } : base?.nav,
