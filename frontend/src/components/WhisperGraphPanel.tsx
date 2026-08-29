@@ -383,7 +383,7 @@ export function WhisperGraphPanel({
                   <g
                     key={p.node.id}
                     className="cursor-pointer"
-                    title={`以「${p.node.name}」为中心重新查询`}
+                    aria-label={`以「${p.node.name}」为中心重新查询`}
                     onClick={() => {
                       setEntityInput(p.node.name);
                       void handleQuery(p.node.name);
