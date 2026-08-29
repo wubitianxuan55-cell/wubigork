@@ -344,3 +344,38 @@ CREATE INDEX IF NOT EXISTS idx_facts_space ON facts(project, space_id);
 ALTER TABLE tasks ADD COLUMN space_id TEXT NOT NULL DEFAULT 'work';
 CREATE INDEX IF NOT EXISTS idx_tasks_space ON tasks(space_id, status);
 `
+
+// SchemaV15 造价 AI 化 v4.2（docs/gaea-v42-cost-ai-design.md §3）：
+// 询价库数据点（四源归一：信息价/OCR报价/供应商比价/手动询价）+ 五算阶段值
+// （估/概/预/结/决）。v4.2b 核心包已在 Open 内幂等自建同款表（成本包先行落地、
+// 本迁移收编正式版本，CREATE IF NOT EXISTS 双路径兼容）。
+const SchemaV15 = `
+CREATE TABLE IF NOT EXISTS cost_inquiry_records (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  title       TEXT NOT NULL,
+  spec        TEXT NOT NULL DEFAULT '',
+  unit        TEXT NOT NULL DEFAULT '',
+  price       REAL NOT NULL,
+  source      TEXT NOT NULL DEFAULT '手动询价',
+  supplier    TEXT NOT NULL DEFAULT '',
+  region      TEXT NOT NULL DEFAULT '',
+  price_date  TEXT NOT NULL DEFAULT '',
+  valid_until TEXT NOT NULL DEFAULT '',
+  note        TEXT NOT NULL DEFAULT '',
+  status      TEXT NOT NULL DEFAULT '现行',
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cost_inquiry_title ON cost_inquiry_records(title);
+CREATE TABLE IF NOT EXISTS cost_stage_values (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL,
+  stage      TEXT NOT NULL,
+  amount     REAL NOT NULL,
+  date       TEXT NOT NULL DEFAULT '',
+  note       TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(project_id, stage)
+);
+`

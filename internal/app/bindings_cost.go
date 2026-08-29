@@ -3,8 +3,10 @@
 package app
 
 import (
+	"github.com/gaea/gaea/internal/gaea/costinquiry"
 	"github.com/gaea/gaea/internal/gaea/costproject"
 	"github.com/gaea/gaea/internal/gaea/costref"
+	"github.com/gaea/gaea/internal/gaea/coststage"
 	"github.com/gaea/gaea/internal/gaea/pricefeed"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 )
@@ -17,6 +19,8 @@ func (b *CostB) GaeaCostCategories() []CostCategoryView { return b.a.GaeaCostCat
 func (b *CostB) GaeaCostCategoryDelete(id int) error { return b.a.GaeaCostCategoryDelete(id) }
 func (b *CostB) GaeaCostCategorySave(parentID int, name string, sort int, id int) (int, error) { return b.a.GaeaCostCategorySave(parentID, name, sort, id) }
 func (b *CostB) GaeaCostCompare(name string) ([]CostCompareRow, error) { return b.a.GaeaCostCompare(name) }
+func (b *CostB) GaeaCostCompose(desc string, unit string) (CostComposeView, error) { return b.a.GaeaCostCompose(desc, unit) }
+func (b *CostB) GaeaCostComposeApply(v CostComposeView) (string, error) { return b.a.GaeaCostComposeApply(v) }
 func (b *CostB) GaeaCostDelete(name string) error { return b.a.GaeaCostDelete(name) }
 func (b *CostB) GaeaCostEstimateItemDelete(id int64) error { return b.a.GaeaCostEstimateItemDelete(id) }
 func (b *CostB) GaeaCostEstimateItemSave(i costproject.Item) (int64, error) { return b.a.GaeaCostEstimateItemSave(i) }
@@ -30,6 +34,11 @@ func (b *CostB) GaeaCostImportApply(rows []CostEntry) (int, error) { return b.a.
 func (b *CostB) GaeaCostImportPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportPreview(path) }
 func (b *CostB) GaeaCostImportVisionPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportVisionPreview(path) }
 func (b *CostB) GaeaCostIndicators(group string) []costref.Indicator { return b.a.GaeaCostIndicators(group) }
+func (b *CostB) GaeaCostInquiryAdjust() []costinquiry.AdjustSuggestion { return b.a.GaeaCostInquiryAdjust() }
+func (b *CostB) GaeaCostInquiryDelete(id int64) error { return b.a.GaeaCostInquiryDelete(id) }
+func (b *CostB) GaeaCostInquiryExpiring(days int) []costinquiry.Record { return b.a.GaeaCostInquiryExpiring(days) }
+func (b *CostB) GaeaCostInquiryList(query string, limit int) []costinquiry.Record { return b.a.GaeaCostInquiryList(query, limit) }
+func (b *CostB) GaeaCostInquirySave(r costinquiry.Record) (int64, error) { return b.a.GaeaCostInquirySave(r) }
 func (b *CostB) GaeaCostList() []CostSummary { return b.a.GaeaCostList() }
 func (b *CostB) GaeaCostNoteBumpRef(id int64) error { return b.a.GaeaCostNoteBumpRef(id) }
 func (b *CostB) GaeaCostNoteDelete(id int64) error { return b.a.GaeaCostNoteDelete(id) }
@@ -41,6 +50,10 @@ func (b *CostB) GaeaCostProjectList() []costproject.ProjectSummary { return b.a.
 func (b *CostB) GaeaCostProjectSave(p costproject.Project) (string, error) { return b.a.GaeaCostProjectSave(p) }
 func (b *CostB) GaeaCostSave(e CostEntry) error { return b.a.GaeaCostSave(e) }
 func (b *CostB) GaeaCostSearch(query string, category string, status string) []CostSummary { return b.a.GaeaCostSearch(query, category, status) }
+func (b *CostB) GaeaCostStageCompare(projectID string) []coststage.CompareRow { return b.a.GaeaCostStageCompare(projectID) }
+func (b *CostB) GaeaCostStageDeviations(projectID string) []coststage.Deviation { return b.a.GaeaCostStageDeviations(projectID) }
+func (b *CostB) GaeaCostStageSave(v coststage.StageValue) error { return b.a.GaeaCostStageSave(v) }
+func (b *CostB) GaeaCostStages(projectID string) []coststage.StageValue { return b.a.GaeaCostStages(projectID) }
 func (b *CostB) GaeaPriceFetch(id string) (*tasks.Task, error) { return b.a.GaeaPriceFetch(id) }
 func (b *CostB) GaeaPriceFetchAll() (*tasks.Task, error) { return b.a.GaeaPriceFetchAll() }
 func (b *CostB) GaeaPriceFetchApply(fetchID string, titles []string) (int, error) { return b.a.GaeaPriceFetchApply(fetchID, titles) }

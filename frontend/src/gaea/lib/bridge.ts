@@ -84,6 +84,12 @@ import type {
   CostReviewNote,
   CostImportPreview,
   CostCompareRow,
+  CostComposeView,
+  CostInquiryRecord,
+  CostAdjustSuggestion,
+  CostStageValue,
+  CostStageCompareRow,
+  CostStageDeviation,
   PriceSource,
   PriceFetchRecord,
   PriceHistory,
@@ -409,6 +415,25 @@ export interface AppBindings {
   CostNoteList(query: string, status: string): Promise<CostReviewNote[]>;
   CostNoteDelete(id: number): Promise<void>;
   CostNoteBumpRef(id: number): Promise<void>;
+  // ── v4.2 造价 AI 化：AI 组价 + 询价飞轮 + 五算对比 ──
+  // CostCompose AI 组价：清单描述 → 相似检索（关键词+语义）→ 价格带推荐 +
+  // 证据链 + LLM 人材机拆解；band=null 表示成本库无相似条目。无确认不落库。
+  CostCompose(desc: string, unit: string): Promise<CostComposeView>;
+  // CostComposeApply 确认组价建议并回写成本库（UPSERT），返回条目 name。
+  CostComposeApply(v: CostComposeView): Promise<string>;
+  // ── 询价飞轮（四源归一数据点：信息价/OCR报价/供应商比价/手动询价）──
+  CostInquirySave(r: CostInquiryRecord): Promise<number>;
+  CostInquiryList(query: string, limit: number): Promise<CostInquiryRecord[]>;
+  CostInquiryDelete(id: number): Promise<void>;
+  // CostInquiryExpiring 到期预警：valid_until <= today+days 的数据点。
+  CostInquiryExpiring(days: number): Promise<CostInquiryRecord[]>;
+  // CostInquiryAdjust 调差建议：成本库条目 vs 最新询价数据点（|差幅|>2%）。
+  CostInquiryAdjust(): Promise<CostAdjustSuggestion[]>;
+  // ── 五算对比（估/概/预/结/决）──
+  CostStageSave(v: CostStageValue): Promise<void>;
+  CostStages(projectId: string): Promise<CostStageValue[]>;
+  CostStageCompare(projectId: string): Promise<CostStageCompareRow[]>;
+  CostStageDeviations(projectId: string): Promise<CostStageDeviation[]>;
   // UnifiedSearch 跨库统一检索一次调用：工作区关键词命中（topN 条）+ 语义跨库命中。
   // S1.2-B/C（docs/gaea-memory-isolation-design.md）：签名加 scope 参数——
   // ""=全部（旧行为，仅显式选择时使用），"work"/"play"=只搜对应空间；前端默认
@@ -763,6 +788,17 @@ const gaeaToGaea = {
   PriceHistory: "GaeaPriceHistory",
   SemanticSearch: "GaeaSemanticSearch",
   CostCompare: "GaeaCostCompare",
+  CostCompose: "GaeaCostCompose",
+  CostComposeApply: "GaeaCostComposeApply",
+  CostInquirySave: "GaeaCostInquirySave",
+  CostInquiryList: "GaeaCostInquiryList",
+  CostInquiryDelete: "GaeaCostInquiryDelete",
+  CostInquiryExpiring: "GaeaCostInquiryExpiring",
+  CostInquiryAdjust: "GaeaCostInquiryAdjust",
+  CostStageSave: "GaeaCostStageSave",
+  CostStages: "GaeaCostStages",
+  CostStageCompare: "GaeaCostStageCompare",
+  CostStageDeviations: "GaeaCostStageDeviations",
   CostProjectSave: "GaeaCostProjectSave",
   CostProjectList: "GaeaCostProjectList",
   CostProjectGet: "GaeaCostProjectGet",

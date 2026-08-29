@@ -1073,6 +1073,124 @@ export interface CostCompareRow {
   kind: "current" | "history" | "fetch";
 }
 
+// ── v4.2 造价 AI 化（docs/gaea-v42-cost-ai-design.md）────────────────
+// PriceBand 是相似清单的价格带推荐（Go cost.PriceBand 视图：分位数 R-7 口径）。
+export interface PriceBandSource {
+  name: string;
+  title: string;
+  category: string;
+  unit: string;
+  spec: string;
+  source: string;
+  region: string;
+  priceDate: string;
+  priceType: string;
+  price: number;
+  updatedAt: string;
+}
+export interface PriceBand {
+  samples: number;
+  min: number;
+  max: number;
+  mean: number;
+  median: number;
+  p25: number;
+  p75: number;
+  spreadPct: number;
+  outliers: number;
+  confidence: string;
+  sources: PriceBandSource[];
+}
+// CostComposeEvidence 组价证据链一条：溯源字段（来源/地区/期数/口径）即证据格式。
+export interface CostComposeEvidence {
+  name: string;
+  title: string;
+  category: string;
+  unit: string;
+  spec: string;
+  price: number;
+  source: string;
+  region: string;
+  priceDate: string;
+  priceType: string;
+}
+// CostComposeView 是 AI 组价建议（无确认不落库；band=null 表示成本库无相似条目）。
+export interface CostComposeView {
+  description: string;
+  unit: string;
+  band: PriceBand | null;
+  recommendedPrice: number;
+  reason: string;
+  components?: CostComponent[];
+  componentsNote?: string;
+  llmUsed: boolean;
+  evidence: CostComposeEvidence[];
+}
+// ── 询价飞轮（四源归一：信息价/OCR报价/供应商比价/手动询价）──
+export interface CostInquiryRecord {
+  id: number;
+  title: string;
+  spec: string;
+  unit: string;
+  price: number;
+  source: string;
+  supplier: string;
+  region: string;
+  priceDate: string;
+  validUntil: string;
+  note: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+// CostAdjustSuggestion 调差建议：成本库条目 vs 最新询价数据点（|差幅|>2%）。
+export interface CostAdjustSuggestion {
+  entryName: string;
+  entryTitle: string;
+  entryPrice: number;
+  latestPrice: number;
+  latestDate: string;
+  latestSource: string;
+  diff: number;
+  diffPct: number;
+  unit: string;
+}
+// ── 五算对比（估/概/预/结/决，coststage）──
+export interface CostStageValue {
+  id: number;
+  projectId: string;
+  stage: string;
+  amount: number;
+  date: string;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+}
+// CostStageCompareRow 五算对比行：固定 5 阶段顺序，缺阶段 hasValue=false。
+export interface CostStageCompareRow {
+  stage: string;
+  amount: number;
+  hasValue: boolean;
+  prevStage: string;
+  hasPrev: boolean;
+  chainDiff: number;
+  chainDiffPct: number;
+  baseDiff: number;
+  baseDiffPct: number;
+}
+// CostStageDeviation 相邻阶段偏差特征（level: 正常/关注/异常，供复盘诊断）。
+export interface CostStageDeviation {
+  fromStage: string;
+  toStage: string;
+  fromAmount: number;
+  toAmount: number;
+  diff: number;
+  diffPct: number;
+  direction: string;
+  level: string;
+  suggestion: string;
+}
+
 // SearchScope 是统一检索的空间范围（S1.2-C，docs/gaea-memory-isolation-design.md）：
 // ""=全部（旧行为，仅用户显式选择「全部」时使用）；"work"/"play"=只搜对应空间。
 // 双空间红线：默认只搜当前空间（GaeaSpaceActive 下发的 space）。
