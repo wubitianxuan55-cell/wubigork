@@ -1397,8 +1397,16 @@ export interface WhisperSubgraph {
 // WhisperProactiveNow 返回：主动关心评估结果（shouldSend=false 时不发）。
 export interface WhisperProactiveResult {
   shouldSend: boolean;
-  messageType?: string; // check_in/miss_you/time_aware/playful_nudge/...
+  messageType?: string; // check_in/miss_you/time_aware/playful_nudge/birthday/...
   promptHint?: string;
+}
+// WhisperProactiveConfig 返回：主动关心定时推送配置（v4.3c 后续小步）。
+export interface WhisperProactiveConfigView {
+  enabled: boolean; // 定时推送总开关
+  limitPerHour: number; // 每小时主动消息上限（AttentionManager 频控）
+  intervalMin: number; // 评估间隔分钟（10-120）
+  quietStartHour: number; // 免打扰时窗开始小时（-1=未启用）
+  quietEndHour: number; // 免打扰时窗结束小时（-1=未启用）
 }
 // TTS 风格/情绪参数（tts.TTSParams，零值=引擎默认）。
 export interface TTSParams {

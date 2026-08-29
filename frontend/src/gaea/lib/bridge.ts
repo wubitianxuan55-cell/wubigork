@@ -109,6 +109,7 @@ import type {
   LintReportView,
   WhisperSubgraph,
   WhisperProactiveResult,
+  WhisperProactiveConfigView,
   TTSParams,
 } from "./types";
 import {
@@ -358,6 +359,10 @@ export interface AppBindings {
   WhisperGraphSubgraph(personalityId: string, entity: string, hops: number): Promise<WhisperSubgraph>;
   // WhisperProactiveNow 手动触发主动关心评估（「轻语先开口」按钮/定时器共用）。
   WhisperProactiveNow(personalityId: string): Promise<WhisperProactiveResult>;
+  // WhisperProactiveConfig 返回主动关心定时推送配置（频控上限/间隔/时窗/开关）。
+  WhisperProactiveConfig(): Promise<WhisperProactiveConfigView>;
+  // WhisperProactiveSetConfig 部分更新主动关心定时推送配置（JSON 字符串，校验失败报错）。
+  WhisperProactiveSetConfig(cfgJSON: string): Promise<void>;
   // TTSVoiceParams 返回情绪标签对应的结构化 TTS 参数（预览/调试）。
   TTSVoiceParams(emotion: string): Promise<TTSParams>;
   // GenerateBookCover 生成项目书封（3:4，play exports），返回封面路径。
@@ -767,6 +772,8 @@ const gaeaToGaea = {
   WhisperMemories: "GaeaWhisperMemories",
   WhisperGraphSubgraph: "GaeaWhisperGraphSubgraph",
   WhisperProactiveNow: "GaeaWhisperProactiveNow",
+  WhisperProactiveConfig: "GaeaWhisperProactiveConfig",
+  WhisperProactiveSetConfig: "GaeaWhisperSetProactiveConfig",
   TTSVoiceParams: "GaeaTTSVoiceParams",
   GenerateBookCover: "GaeaGenerateBookCover",
   WhisperEpisodes: "GaeaWhisperEpisodes",
@@ -1175,6 +1182,7 @@ type LegacySurfaceNames =
   | "CharacterFillAll"
   | "CharacterGenerateFill"
   | "CharacterGeneratePortrait"
+  | "CharacterGeneratePortraitWithRef"
   | "CharacterGenerateRandom"
   | "CharacterGet"
   | "CharacterImportProject"

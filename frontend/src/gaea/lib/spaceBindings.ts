@@ -70,6 +70,9 @@ export const GAEA_METHOD_FACETS = {
   // v4.3 会客厅：关系图谱/主动关心（轻语数据面）；书封生成（创作间 play）
   WhisperGraphSubgraph: "play",
   WhisperProactiveNow: "play",
+  // v4.3c 后续小步：主动关心定时推送配置（频控/时窗，play 数据面）
+  WhisperProactiveConfig: "play",
+  WhisperProactiveSetConfig: "play",
   GenerateBookCover: "play",
   // v4.3 情感语音：TTS 参数预览为 shared（语音朗读两空间共用）
   TTSVoiceParams: "shared",
