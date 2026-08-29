@@ -26,6 +26,7 @@ func (b *NovelB) DeleteRelationship(fromID string, toID string) error { return b
 func (b *NovelB) ExpandOutlineNode(nodeID string, subCount int) (map[string]interface{}, error) { return b.a.ExpandOutlineNode(nodeID, subCount) }
 func (b *NovelB) FindLorebookTriggers(text string) ([]map[string]interface{}, error) { return b.a.FindLorebookTriggers(text) }
 func (b *NovelB) FindUnlinkedMentions(content string, entityNames []string) []string { return b.a.FindUnlinkedMentions(content, entityNames) }
+func (b *NovelB) GaeaGenerateBookCover(projectID string, promptHint string) (string, error) { return b.a.GaeaGenerateBookCover(projectID, promptHint) }
 func (b *NovelB) GenerateCharacters(count int) (map[string]interface{}, error) { return b.a.GenerateCharacters(count) }
 func (b *NovelB) GenerateOutlineWithDialogue(storyPrompt string, numChapters int, maxTurns int) (map[string]interface{}, error) { return b.a.GenerateOutlineWithDialogue(storyPrompt, numChapters, maxTurns) }
 func (b *NovelB) GenerateProjectCharacterFill(chJSON string) (string, error) { return b.a.GenerateProjectCharacterFill(chJSON) }

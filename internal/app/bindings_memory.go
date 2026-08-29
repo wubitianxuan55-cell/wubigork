@@ -2,6 +2,10 @@
 
 package app
 
+import (
+	"github.com/gaea/gaea/internal/whisper"
+)
+
 // MemoryB 记忆中枢与知识库绑定门面（S2-3「App 绑定面拆分」）：仅暴露记忆中枢与知识库的方法，
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type MemoryB struct{ a *App }
@@ -39,4 +43,6 @@ func (b *MemoryB) GaeaSemanticIndexStatus() SemanticIndexStatus { return b.a.Gae
 func (b *MemoryB) GaeaSemanticSearch(query string) ([]SemanticHitView, error) { return b.a.GaeaSemanticSearch(query) }
 func (b *MemoryB) GaeaWhisperEpisodes() []WhisperEpisodeView { return b.a.GaeaWhisperEpisodes() }
 func (b *MemoryB) GaeaWhisperExportArchive(dir string) (int, error) { return b.a.GaeaWhisperExportArchive(dir) }
+func (b *MemoryB) GaeaWhisperGraphSubgraph(personalityID string, entity string, hops int) (whisper.Subgraph, error) { return b.a.GaeaWhisperGraphSubgraph(personalityID, entity, hops) }
 func (b *MemoryB) GaeaWhisperMemories() []WhisperMemoryView { return b.a.GaeaWhisperMemories() }
+func (b *MemoryB) GaeaWhisperProactiveNow(personalityID string) (map[string]interface{}, error) { return b.a.GaeaWhisperProactiveNow(personalityID) }

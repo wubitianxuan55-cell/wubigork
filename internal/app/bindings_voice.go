@@ -5,6 +5,7 @@ package app
 import (
 	"github.com/gaea/gaea/internal/assistant"
 	"github.com/gaea/gaea/internal/modelengine"
+	"github.com/gaea/gaea/internal/tts"
 	"github.com/gaea/gaea/internal/whisper"
 )
 
@@ -12,9 +13,11 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type VoiceB struct{ a *App }
 
+func (b *VoiceB) GaeaTTSVoiceParams(emotion string) tts.TTSParams { return b.a.GaeaTTSVoiceParams(emotion) }
 func (b *VoiceB) GetEngineList() []string { return b.a.GetEngineList() }
 func (b *VoiceB) TTSSpeak(text string) (string, error) { return b.a.TTSSpeak(text) }
 func (b *VoiceB) TTSSpeakBase64(text string) (map[string]interface{}, error) { return b.a.TTSSpeakBase64(text) }
+func (b *VoiceB) TTSSpeakBase64WithParams(text string, params tts.TTSParams) (map[string]interface{}, error) { return b.a.TTSSpeakBase64WithParams(text, params) }
 func (b *VoiceB) TTSSpeakStreaming(text string) error { return b.a.TTSSpeakStreaming(text) }
 func (b *VoiceB) VoiceApplySettings(settings map[string]interface{}) error { return b.a.VoiceApplySettings(settings) }
 func (b *VoiceB) VoiceCancelTTS() error { return b.a.VoiceCancelTTS() }

@@ -67,6 +67,13 @@ export const GAEA_METHOD_FACETS = {
   WhisperMemories: "play",
   WhisperEpisodes: "play",
   WhisperExportArchive: "play",
+  // v4.3 会客厅：关系图谱/主动关心（轻语数据面）；书封生成（创作间 play）
+  WhisperGraphSubgraph: "play",
+  WhisperProactiveNow: "play",
+  GenerateBookCover: "play",
+  // v4.3 情感语音：TTS 参数预览为 shared（语音朗读两空间共用）
+  TTSVoiceParams: "shared",
+  TTSSpeakBase64WithParams: "shared",
 
   // ── independent：编程 DSH 独立窗口 ──────────────────────────
   GetProgrammingWebStatus: "independent",

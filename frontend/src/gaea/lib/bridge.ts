@@ -107,6 +107,9 @@ import type {
   JournalChangeRecord,
   VerdictView,
   LintReportView,
+  WhisperSubgraph,
+  WhisperProactiveResult,
+  TTSParams,
 } from "./types";
 import {
   isBindingAllowedInSpace,
@@ -350,6 +353,15 @@ export interface AppBindings {
   ProfileDelete(name: string): Promise<void>;
   ProfileConflicts(): Promise<string[]>;
   WhisperMemories(): Promise<WhisperMemoryView[]>;
+  // ── v4.3 会客厅：关系图谱 + 主动关心 ──
+  // WhisperGraphSubgraph 返回指定人格关系图谱中以 entity 为中心、hops 跳内子图。
+  WhisperGraphSubgraph(personalityId: string, entity: string, hops: number): Promise<WhisperSubgraph>;
+  // WhisperProactiveNow 手动触发主动关心评估（「轻语先开口」按钮/定时器共用）。
+  WhisperProactiveNow(personalityId: string): Promise<WhisperProactiveResult>;
+  // TTSVoiceParams 返回情绪标签对应的结构化 TTS 参数（预览/调试）。
+  TTSVoiceParams(emotion: string): Promise<TTSParams>;
+  // GenerateBookCover 生成项目书封（3:4，play exports），返回封面路径。
+  GenerateBookCover(projectId: string, promptHint: string): Promise<string>;
   // WhisperEpisodes 聊天情节记忆（hermes.db，时间倒序）。
   WhisperEpisodes(): Promise<WhisperEpisodeView[]>;
   // WhisperExportArchive 导出聊天记忆归档（hermes.db → Markdown 分目录），返回文件数。
@@ -753,6 +765,10 @@ const gaeaToGaea = {
   ProfileDelete: "GaeaProfileDelete",
   ProfileConflicts: "GaeaProfileConflicts",
   WhisperMemories: "GaeaWhisperMemories",
+  WhisperGraphSubgraph: "GaeaWhisperGraphSubgraph",
+  WhisperProactiveNow: "GaeaWhisperProactiveNow",
+  TTSVoiceParams: "GaeaTTSVoiceParams",
+  GenerateBookCover: "GaeaGenerateBookCover",
   WhisperEpisodes: "GaeaWhisperEpisodes",
   WhisperExportArchive: "GaeaWhisperExportArchive",
   PickDirectory: "GaeaPickDirectory",
@@ -1387,6 +1403,7 @@ type LegacySurfaceNames =
   | "SyncEntityDB"
   | "TTSSpeak"
   | "TTSSpeakBase64"
+  | "TTSSpeakBase64WithParams" // v4.3d：带风格/情绪参数合成（wailsjsCompat 直调）
   | "TTSSpeakStreaming"
   | "TestEngineConnection"
   | "ToggleOrgMember"

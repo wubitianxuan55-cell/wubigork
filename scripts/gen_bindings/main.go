@@ -163,6 +163,9 @@ var explicitOverrides = map[string]string{
 	"GaeaSpaceList":     "core",
 	"GaeaSpaceActive":   "core",
 	"GaeaSpaceActivate": "core",
+	// v4.3：TTS 参数预览归 voice 板块；书封生成归 novel 板块（前缀规则会落 office）
+	"GaeaTTSVoiceParams":  "voice",
+	"GaeaGenerateBookCover": "novel",
 }
 
 func main() {

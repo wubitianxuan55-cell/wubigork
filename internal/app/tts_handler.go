@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gaea/gaea/internal/tts"
+	"github.com/gaea/gaea/internal/voice"
 )
 
 // ── TTS 语音朗读 ──────────────────────────────────────────────────────────────
@@ -206,12 +207,19 @@ func (a *mediaState) ttsProviderPipeline(includeScan bool) []ttsPipelineStep {
 
 // speakFromTTSProviderSteps 依次尝试各步骤合成，返回第一个成功的 (音频, MIME)。
 // cosyvoice 步骤首次合成前惰性 ensure 本地服务（幂等，已就绪零开销）。
+// 参数版本委托 speakFromTTSProviderStepsParams（零值参数 = 引擎默认）。
 func (a *mediaState) speakFromTTSProviderSteps(text string, steps []ttsPipelineStep) ([]byte, string, error) {
+	return a.speakFromTTSProviderStepsParams(text, steps, tts.TTSParams{})
+}
+
+// speakFromTTSProviderStepsParams 带合成参数（v4.3d：speed/style/emotion 透传
+// 各引擎，edge SSML 参数化），失败依次回退下一提供者。
+func (a *mediaState) speakFromTTSProviderStepsParams(text string, steps []ttsPipelineStep, params tts.TTSParams) ([]byte, string, error) {
 	for _, st := range steps {
 		if st.engineID == "cosyvoice" {
 			a.ensureLocalTTSService(st.engineID)
 		}
-		audio, mime, err := st.provider.SynthesizeWithMime(text)
+		audio, mime, err := st.provider.SynthesizeWithParams(text, params)
 		if err != nil || len(audio) == 0 {
 			slog.Debug("TTS 引擎失败，尝试下一个", "engine", st.provider.Name(), "error", err)
 			continue
@@ -222,6 +230,22 @@ func (a *mediaState) speakFromTTSProviderSteps(text string, steps []ttsPipelineS
 		return audio, mime, nil
 	}
 	return nil, "", fmt.Errorf("无可用的 TTS 模型：请在模型中心启动一个语音模型")
+}
+
+// TTSSpeakBase64WithParams 带参数合成语音并返回 Base64 音频（v4.3d）：
+// params 为 TTS 风格/情绪/语速参数（零值 = 引擎默认，行为同 TTSSpeakBase64）。
+func (a *mediaState) TTSSpeakBase64WithParams(text string, params tts.TTSParams) (map[string]interface{}, error) {
+	audio, mime, err := a.speakFromTTSProviderStepsParams(text, a.ttsProviderPipeline(true), params)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"base64": base64.StdEncoding.EncodeToString(audio), "mimeType": mime}, nil
+}
+
+// GaeaTTSVoiceParams 返回情绪标签对应的结构化 TTS 参数（v4.3d，shared）：
+// 前端预览/调试与语音管道共用；未知情绪返回零值（引擎默认）。
+func (a *App) GaeaTTSVoiceParams(emotion string) tts.TTSParams {
+	return voice.GetEmotionVoiceParams(emotion)
 }
 
 // ttsStreamingProviders 构建流式 TTS 的合成器链（注册表驱动）：

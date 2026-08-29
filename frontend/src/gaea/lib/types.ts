@@ -1375,3 +1375,35 @@ export interface ProgrammingWebLogTail {
   lines: string[];
   error: string;
 }
+
+// ── v4.3 乐园做深（docs/gaea-v43-play-deepen-design.md）────────────────
+// 轻语关系图谱子图（whisper.Subgraph：实体=三元组 Subject/Object，边=Predicate）。
+export interface WhisperGraphNode {
+  id: string;
+  name: string;
+  type: string;
+  weight: number;
+}
+export interface WhisperGraphEdge {
+  from: string;
+  to: string;
+  type: string;
+  weight: number;
+}
+export interface WhisperSubgraph {
+  nodes: WhisperGraphNode[];
+  edges: WhisperGraphEdge[];
+}
+// WhisperProactiveNow 返回：主动关心评估结果（shouldSend=false 时不发）。
+export interface WhisperProactiveResult {
+  shouldSend: boolean;
+  messageType?: string; // check_in/miss_you/time_aware/playful_nudge/...
+  promptHint?: string;
+}
+// TTS 风格/情绪参数（tts.TTSParams，零值=引擎默认）。
+export interface TTSParams {
+  speed: number; // 倍速 0.5-2.0
+  pitch: number; // 音高偏移半音 -12..12
+  style: string;
+  emotion: string;
+}
