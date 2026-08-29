@@ -630,6 +630,8 @@ export const zh: Record<DictKey, string> = {
   "shell.launcher.openSettings": "打开设置",
   "shell.launcher.settings": "设置",
   "shell.launcher.settingsDesc": "应用偏好与主题外观",
+  "shell.launcher.courtyardPlaceholder": "对 gaea 说点什么，或按住麦克风…",
+  "shell.launcher.courtyardSend": "发送",
   "shell.launcher.voiceKernel": "AI 内核 · {state}",
   "shell.launcher.localModel": "本地模型",
   "shell.launcher.voiceStartTip": "启动麦克风，开始语音交互",

@@ -1,15 +1,17 @@
 /**
- * ModuleLauncher — 首页「双空间任务指挥中心」
- * 三栏布局（v4.3.2 重构）：
- *   · 左栏「书房」：work + shared 板块卡（办公/造价/记忆/模型）
- *   · 中栏：语音晶核（放大 orb + 状态 + 对话气泡，视觉焦点）
- *   · 右栏「庭院」：play + shared 板块卡（聊天/小说/绘梦/角色）
- *   · 底部横条：编程（独立窗口入口，不并入两栏）+ 设置
- * 沿用既有视觉体系：深空玻璃拟态、gaea-glow、orb 呼吸环、v3-rise。
+ * ModuleLauncher — 首页「双翼 · 中庭」
+ * 设计概念（v4.3.2b，遵循 design-taste-frontend 原则）：
+ *   · 中庭（中央 · 磁吸核心）：语音 + 打字一体对话条 + 大 orb，视觉权重最高
+ *   · 左翼「书房」：work 板块，2×2 紧凑格，冷静克制（青蓝案头感）
+ *   · 右翼「庭院」：play 板块，纵向列表 + 预览感，温暖生动（粉紫院落感）
+ *   · 门廊（底部）：编程（独立窗口，独立之门）+ 设置
+ * 不对称原则：两翼组织方式不同（格 vs 列表），避免机械镜像；hero 让位给中庭。
+ * 动效：中庭先浮现 → 两翼如门扇从两侧滑入（transform/opacity，reduced-motion 降级）。
+ * 沿用既有视觉体系：深空玻璃拟态、gaea-glow、orb 呼吸环、v3-rise、--color-* 令牌。
  */
 import React, { useState, useCallback, useEffect, useSyncExternalStore } from 'react'
 import {
-  ThunderboltOutlined, ArrowRightOutlined, AudioOutlined,
+  ThunderboltOutlined, ArrowRightOutlined, AudioOutlined, SendOutlined,
   StopOutlined, RobotOutlined, UserOutlined, DashboardOutlined,
   FileTextOutlined, ClockCircleOutlined, HeartOutlined, ApiOutlined,
   EditOutlined, ToolOutlined, CodeOutlined, SettingOutlined,
@@ -18,7 +20,7 @@ import {
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
 import { deriveLauncherModules, LAUNCHER_DESC, type LauncherModule } from '../boards/launcher'
 import type { ShellSpace } from '../boards/space'
-import { Tooltip } from 'antd'
+import { Input } from 'antd'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { useAppStore } from '../stores/appStore'
 import { usePollingGate } from '../hooks/usePollingGate'
@@ -120,14 +122,12 @@ const StatCard: React.FC<{
   </div>
 )
 
-/** 单张模块卡片（v3-card + aurora 水印 + 进入箭头微交互） */
+/** 模块卡（两翼通用：图标 + 标题 + 描述；左右翼 CSS 区分性格） */
 const LauncherCard: React.FC<{
   m: LauncherModule
   idx: number
-  featured: boolean
   onOpen: () => void
-}> = ({ m, idx, featured, onOpen }) => {
-  // icon 为图标注册表名，渲染处查表解析；未知名 → Thunderbolt 兜底（3.0 §5.2）
+}> = ({ m, idx, onOpen }) => {
   const Icon = resolveBoardIcon(m.icon)
   const t = useT()
   return (
@@ -135,7 +135,7 @@ const LauncherCard: React.FC<{
       role="button"
       tabIndex={0}
       aria-label={t('shell.launcher.enterModule', { name: m.name })}
-      className={`ml-card v3-card is-interactive v3-rise ${featured ? 'ml-card--featured' : ''}`}
+      className={`ml-card v3-card is-interactive v3-rise`}
       style={{ animationDelay: `${80 + idx * 45}ms` } as React.CSSProperties}
       onClick={onOpen}
       onKeyDown={(e) => {
@@ -154,17 +154,11 @@ const LauncherCard: React.FC<{
         </div>
         <div className="ml-card-desc">{m.desc}</div>
       </div>
-      {featured && (
-        <div className="ml-card-foot">
-          <span>{t('shell.launcher.enterWorkbench', { name: m.name })}</span>
-          <ArrowRightOutlined className="ml-card-foot-arrow" />
-        </div>
-      )}
     </div>
   )
 }
 
-/** 语音对话气泡 */
+/** 语音/对话气泡 */
 const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ role, text }) => {
   const isUser = role === 'user'
   return (
@@ -181,33 +175,31 @@ const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ ro
 }
 
 /**
- * ModuleLauncher — 首页「双空间任务指挥中心」。
- * 布局：顶部精简 Hero（eyebrow + 标题 + 副标题）＋ AI 状态细条
- * ｜ 三栏主体（左书房 / 中语音晶核 / 右庭院）＋ 底部编程/设置入口条
+ * ModuleLauncher — 首页「双翼 · 中庭」。
+ * 布局：顶部细眉（空间状态）＋ AI 状态细条
+ * ｜ 三区主体：左翼书房（2×2 格）/ 中庭对话（orb + 一体输入条 + 气泡）/ 右翼庭院（纵向列）
+ * ｜ 门廊：编程（独立窗口）+ 设置
  * ｜ 底部信息条（会话/记忆/系统）。
- * 语音交互保留：中栏 orb 下方按钮本页直启麦克风（不跳转）。
+ * 中庭输入：打字 → VoiceChatText；语音 → 本页直启麦克风；共用同一对话流。
  */
 const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel, space }) => {
-  // ── 板块清单（清单化数据源，3.0 §5.2 附 B #10/#11）──
+  // ── 板块清单 ──
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
-  // 三栏分组：书房 = work + shared（模型中心归书房，避免 shared 两栏重复）；
-  // 庭院 = play 板块（聊天/小说/绘梦/角色）；设置移到底部横条。
+  // 书房 = work + shared（模型中心归书房）；庭院 = play；设置入门廊
   const studyModules = deriveLauncherModules(activeBoards, LAUNCHER_DESC, 'work')
-    .filter((m) => m.key !== 'settings') // 设置移到底部横条
+    .filter((m) => m.key !== 'settings')
   const gardenModules = deriveLauncherModules(activeBoards, LAUNCHER_DESC, 'play')
-    .filter((m) => m.key !== 'settings' && m.key !== 'modelcenter') // shared 模型中心归书房，避免重复
-  // 编程独立窗口入口（manifest.space=independent，不进两栏）
+    .filter((m) => m.key !== 'settings' && m.key !== 'modelcenter')
   const codeModule = deriveLauncherModules(activeBoards, LAUNCHER_DESC)
     .find((m) => m.key === 'code')
   const t = useT()
 
-  // ── 项目统计（写作进度；appStore 已由壳层加载，只读消费）──
+  // ── 项目统计 ──
   const stats = useAppStore((s) => s.stats)
   const projectOpen = useAppStore((s) => s.projectOpen)
 
-  // ── 遥测：引擎 + 资源（轮询 GetModelMonitor，对齐底栏遥测数据源）──
+  // ── 遥测 ──
   const [monitor, setMonitor] = useState<ModelMonitor | null>(null)
-  // 系统级后台轮询治理：页面不可见（窗口最小化/切走）时轮询空转零成本
   const pollable = usePollingGate()
   useEffect(() => {
     let alive = true
@@ -216,14 +208,14 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
       try {
         const m = (await App.GetModelMonitor()) as ModelMonitor
         if (alive) setMonitor(m)
-      } catch (_) { /* 后端未就绪时静默，等待下一次轮询 */ }
+      } catch (_) { /* 后端未就绪时静默 */ }
     }
     load()
     const timer = window.setInterval(load, 3000)
     return () => { alive = false; window.clearInterval(timer) }
   }, [pollable])
 
-  // ── 最近会话（办公工作区真实数据）──
+  // ── 最近会话 ──
   const [sessions, setSessions] = useState<SessionLite[]>([])
   useEffect(() => {
     let alive = true
@@ -236,13 +228,13 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
           .sort((a, b) => (b.modTime || 0) - (a.modTime || 0))
           .slice(0, 3)
         setSessions(rows as SessionLite[])
-      } catch (_) { /* 静默：工作区未初始化时无最近会话 */ }
+      } catch (_) { /* 静默 */ }
     }
     load()
     return () => { alive = false }
   }, [])
 
-  // ── 记忆脉搏（记忆中枢聚合总览，真实数据）──
+  // ── 记忆脉搏 ──
   const [memoryHub, setMemoryHub] = useState<MemoryHubLite | null>(null)
   useEffect(() => {
     let alive = true
@@ -250,13 +242,14 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
       try {
         const o = await App.GaeaMemoryHubOverview()
         if (alive) setMemoryHub(o as MemoryHubLite)
-      } catch (_) { /* 静默：记忆中枢未就绪 */ }
+      } catch (_) { /* 静默 */ }
     }
     load()
     return () => { alive = false }
   }, [])
 
-  // ── 语音交互（本页直启麦克风）──
+  // ── 中庭对话：语音 + 打字一体 ──
+  const [typedText, setTypedText] = useState('')
   const [userText, setUserText] = useState('')
   const [aiReply, setAiReply] = useState('')
   const { state: voice, start, stop, interrupt } = useVoiceChat({
@@ -264,17 +257,25 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     onReply: (txt) => setAiReply(txt),
   })
 
-  // 首页语音固定使用核心人格 gaea（与聊天板块解耦，不跟随聊天所选人格）
-  const voicePersonaLabel = 'gaea'
-
   const toggleVoice = useCallback(async () => {
     if (voice.active) { stop(); return }
-    // 首页语音始终使用 gaea
     try { await App.VoiceApplySettings?.({ personalityPresetId: 'gaea' }) } catch (_) {}
     setUserText('')
     setAiReply('')
     await start()
   }, [voice.active, start, stop])
+
+  // 打字发送：复用语音对话管道（VoiceChatText），回复走 voice:reply 事件
+  const sendTyped = useCallback(() => {
+    const text = typedText.trim()
+    if (!text) return
+    setUserText(text)
+    setAiReply('')
+    setTypedText('')
+    try {
+      App.VoiceChatText(text).catch(() => {})
+    } catch { /* 后端未就绪 */ }
+  }, [typedText])
 
   const voiceStateLabel = voice.aiSpeaking
     ? t('shell.launcher.voiceReplying')
@@ -294,50 +295,41 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
 
   const hasChat = !!userText || !!aiReply
 
-  // ── 状态卡数据（全部来自真实遥测/统计，不造假）──
+  // ── 状态卡数据 ──
   const ms = monitor?.stats
   const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
   const vramPct = ms?.vramTotal ? Math.round((ms.vramUsed || 0) / ms.vramTotal * 100) : 0
-  // 后端未采样时 cpu/gpu 可能为 -1（哨兵），统一按「未就绪」显示 --
   const cpuVal = ms && ms.cpu != null && ms.cpu >= 0 ? ms.cpu : null
   const gpuVal = (ms?.gpuUsage ?? 0) > 0 ? (ms?.gpuUsage ?? 0) : vramPct
   const engines = monitor?.engines || []
   const engineCount = engines.length
   const localCount = engines.filter((e) => e.isLocal).length
 
-  // 项目写作进度（与壳层 StatusBar 同公式：已写章节 / 规划章节保守估算）
   const plannedChapters = stats?.chapterCount ? Math.max(stats.chapterCount, stats.plannedChapters || 0) : 0
   const writtenChapters = stats?.chapterCount || 0
   const progressPercent = plannedChapters > 0 ? Math.round((writtenChapters / Math.max(plannedChapters, writtenChapters + 5)) * 100) : 0
 
-  // 记忆总数 + 最近更新时间
   const memoryTotal = memoryHub
     ? (memoryHub.knowledgeCount || 0) + (memoryHub.profileCount || 0) + (memoryHub.officeCount || 0)
       + (memoryHub.costCount || 0) + (memoryHub.whisperCount || 0) + (memoryHub.pinnedCount || 0)
     : 0
   const memoryUpdated = memoryHub?.latestUpdated ? Date.parse(memoryHub.latestUpdated) : 0
 
-  // 当前空间高亮侧（书房/庭院）
   const studyActive = space === 'work'
   const gardenActive = space === 'play'
 
   return (
     <div className="ml">
       <div className="ml-shell">
-        {/* ── Hero：eyebrow + 大标题 + 副标题（双空间门面共用）── */}
-        <section className="ml-hero ml-hero--slim" aria-label={t('shell.launcher.heroAria')}>
-          <div className="ml-hero-copy">
-            <span className="ml-hero-eyebrow">
-              <span className="ml-hero-dot" aria-hidden="true" />
-              {studyActive
-                ? t('shell.hero.work.eyebrow')
-                : t('shell.hero.play.eyebrow')}
-              <ArrowRightOutlined className="ml-hero-eyebrow-arrow" aria-hidden="true" />
-            </span>
-            <h1 className="ml-hero-title">{t('shell.launcher.homeTitle')}</h1>
-            <p className="ml-hero-sub">{t('shell.launcher.homeSub')}</p>
-          </div>
-        </section>
+        {/* ── 顶部细眉：空间状态（低调，视觉权重让给中庭）── */}
+        <div className="ml-masthead" aria-label={t('shell.launcher.heroAria')}>
+          <span className="ml-masthead-eyebrow">
+            <span className="ml-hero-dot" aria-hidden="true" />
+            {studyActive ? t('shell.hero.work.eyebrow') : t('shell.hero.play.eyebrow')}
+          </span>
+          <span className="ml-masthead-title">{t('shell.launcher.homeTitle')}</span>
+          <span className="ml-masthead-hint">{t('shell.launcher.homeSub')}</span>
+        </div>
 
         {/* ── AI 状态细条（真实遥测/统计，4 列）── */}
         <div className="ml-stats">
@@ -375,18 +367,18 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
           />
         </div>
 
-        {/* ── 主体：三栏（左书房 / 中语音晶核 / 右庭院）── */}
+        {/* ── 主体：双翼 · 中庭 ── */}
         <div className="ml-main">
-          {/* 左栏 · 书房（work + shared 板块） */}
-          <section className="ml-col" aria-label={t('shell.space.work')}>
-            <div className={`ml-col-head${studyActive ? ' is-active' : ''}`}>
+          {/* 左翼 · 书房（2×2 紧凑格，冷静克制） */}
+          <section className="ml-wing ml-wing--study" aria-label={t('shell.space.work')}>
+            <div className={`ml-wing-head${studyActive ? ' is-active' : ''}`}>
               <ToolOutlined aria-hidden="true" />
               <span>{t('shell.space.work')}</span>
-              <span className="ml-col-head-desc">{t('shell.launcher.studyHint')}</span>
+              <span className="ml-wing-head-desc">{t('shell.launcher.studyHint')}</span>
             </div>
-            <div className="ml-col-cards">
+            <div className="ml-wing-grid">
               {studyModules.map((m, i) => (
-                <LauncherCard key={m.key} m={m} idx={i} featured={false} onOpen={() => onNavigate(m.key)} />
+                <LauncherCard key={m.key} m={m} idx={i} onOpen={() => onNavigate(m.key)} />
               ))}
               {studyModules.length === 0 && (
                 <div className="ml-col-empty">{t('shell.launcher.noModules')}</div>
@@ -394,68 +386,94 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
             </div>
           </section>
 
-          {/* 中栏 · 语音晶核（放大 orb，视觉焦点） */}
-          <section className="ml-voice" aria-label={t('shell.launcher.voiceKernel', { state: voiceStateLabel })}>
-            <div className={`ml-voice-panel v3-rise v3-rise-2 ${voiceTone}`}>
+          {/* 中庭 · 对话（磁吸核心：orb + 一体输入条 + 气泡） */}
+          <section className="ml-courtyard" aria-label={t('shell.launcher.voiceKernel', { state: voiceStateLabel })}>
+            <div className={`ml-courtyard-panel v3-rise v3-rise-2 ${voiceTone}`}>
               <div className="ml-visual-grid" aria-hidden="true" />
               <div className="ml-visual-glow" aria-hidden="true" />
-              <div className="ml-voice-main">
+              {/* 对话气泡流（先于 orb 显示，回复可见） */}
+              {hasChat && (
+                <div className="ml-courtyard-chat" aria-live="polite">
+                  {userText && <ChatBubble role="user" text={userText} />}
+                  {aiReply && <ChatBubble role="assistant" text={aiReply} />}
+                </div>
+              )}
+              {/* orb + 状态 */}
+              <div className="ml-courtyard-orb">
                 <div className="ml-orb ml-orb--lg">
                   <span className="ml-orb-ring" aria-hidden="true" />
                   <span className="ml-orb-static" aria-hidden="true" />
                 </div>
-                <span className="ml-voice-eyebrow" aria-hidden="true">{t('shell.launcher.voiceOrb', { persona: voicePersonaLabel })}</span>
+                <span className="ml-courtyard-orb-label">
+                  {t('shell.launcher.voiceKernel', { state: voiceStateLabel })}
+                </span>
+                <span className="ml-courtyard-model">
+                  <span className="ml-visual-model-dot" aria-hidden="true" />
+                  {activeModel || t('shell.launcher.localModel')}
+                </span>
               </div>
-              <div className="ml-voice-side">
-                <div className="ml-visual-head">
-                  <span className="ml-visual-title">{t('shell.launcher.voiceKernel', { state: voiceStateLabel })}</span>
-                  <span className="ml-visual-model">
-                    <span className="ml-visual-model-dot" aria-hidden="true" />
-                    {activeModel || t('shell.launcher.localModel')}
-                  </span>
-                </div>
-                <p className="ml-visual-sub">{t('shell.launcher.voiceSub')}</p>
-                <div className="ml-voice-actions">
-                  {voice.active && voice.aiSpeaking && (
-                    <button className="ml-interrupt-btn" onClick={interrupt} type="button">
-                      <StopOutlined /> {t('shell.launcher.voiceInterrupt')}
-                    </button>
-                  )}
-                  <Tooltip title={voice.active ? t('shell.launcher.voiceAriaEnd') : t('shell.launcher.voiceStartTip')}>
-                    <button
-                      className={`ml-voice-btn ${voice.active ? 'is-active' : ''}`}
-                      onClick={toggleVoice}
-                      type="button"
-                      aria-label={voice.active ? t('shell.launcher.voiceAriaEnd') : t('shell.launcher.voiceAriaStart')}
-                    >
-                      {voice.active ? <StopOutlined /> : <AudioOutlined />}
-                      {voice.active ? t('shell.launcher.voiceEnd') : t('shell.launcher.voiceStart')}
-                    </button>
-                  </Tooltip>
-                </div>
-                {voice.error && (
-                  <div className="ml-voice-err" role="alert">{voice.error}</div>
+              {/* 一体输入条：打字 + 语音 */}
+              <div className="ml-courtyard-input">
+                <Input
+                  value={typedText}
+                  onChange={(e) => setTypedText(e.target.value)}
+                  onPressEnter={() => sendTyped()}
+                  placeholder={t('shell.launcher.courtyardPlaceholder')}
+                  aria-label={t('shell.launcher.courtyardPlaceholder')}
+                  variant="borderless"
+                  className="ml-courtyard-input-field"
+                  disabled={voice.active}
+                />
+                {voice.active ? (
+                  <button
+                    type="button"
+                    className="ml-voice-btn is-active"
+                    onClick={toggleVoice}
+                    aria-label={t('shell.launcher.voiceAriaEnd')}
+                  >
+                    <StopOutlined /> {t('shell.launcher.voiceEnd')}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="ml-voice-btn"
+                    onClick={toggleVoice}
+                    aria-label={t('shell.launcher.voiceAriaStart')}
+                  >
+                    <AudioOutlined /> {t('shell.launcher.voiceStart')}
+                  </button>
                 )}
-                {hasChat && (
-                  <div className="ml-voice-chat">
-                    {userText && <ChatBubble role="user" text={userText} />}
-                    {aiReply && <ChatBubble role="assistant" text={aiReply} />}
-                  </div>
-                )}
+                <button
+                  type="button"
+                  className="ml-courtyard-send"
+                  onClick={sendTyped}
+                  disabled={!typedText.trim() || voice.active}
+                  aria-label={t('shell.launcher.courtyardSend')}
+                >
+                  <SendOutlined />
+                </button>
               </div>
+              {voice.error && (
+                <div className="ml-voice-err" role="alert">{voice.error}</div>
+              )}
+              {voice.active && voice.aiSpeaking && (
+                <button className="ml-interrupt-btn" onClick={interrupt} type="button">
+                  <StopOutlined /> {t('shell.launcher.voiceInterrupt')}
+                </button>
+              )}
             </div>
           </section>
 
-          {/* 右栏 · 庭院（play + shared 板块） */}
-          <section className="ml-col" aria-label={t('shell.space.play')}>
-            <div className={`ml-col-head${gardenActive ? ' is-active' : ''}`}>
+          {/* 右翼 · 庭院（纵向列表，温暖生动） */}
+          <section className="ml-wing ml-wing--garden" aria-label={t('shell.space.play')}>
+            <div className={`ml-wing-head${gardenActive ? ' is-active' : ''}`}>
               <EditOutlined aria-hidden="true" />
               <span>{t('shell.space.play')}</span>
-              <span className="ml-col-head-desc">{t('shell.launcher.gardenHint')}</span>
+              <span className="ml-wing-head-desc">{t('shell.launcher.gardenHint')}</span>
             </div>
-            <div className="ml-col-cards">
+            <div className="ml-wing-list">
               {gardenModules.map((m, i) => (
-                <LauncherCard key={m.key} m={m} idx={i} featured={false} onOpen={() => onNavigate(m.key)} />
+                <LauncherCard key={m.key} m={m} idx={i} onOpen={() => onNavigate(m.key)} />
               ))}
               {gardenModules.length === 0 && (
                 <div className="ml-col-empty">{t('shell.launcher.noModules')}</div>
@@ -464,7 +482,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
           </section>
         </div>
 
-        {/* ── 底部入口条：编程（独立窗口）+ 设置 ── */}
+        {/* ── 门廊：编程（独立窗口）+ 设置 ── */}
         <div className="ml-utilities v3-panel v3-rise">
           {codeModule ? (
             <button

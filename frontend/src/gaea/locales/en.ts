@@ -629,6 +629,8 @@ export const en = {
   "shell.launcher.openSettings": "Open settings",
   "shell.launcher.settings": "Settings",
   "shell.launcher.settingsDesc": "Preferences & appearance",
+  "shell.launcher.courtyardPlaceholder": "Say something to gaea, or hold the mic…",
+  "shell.launcher.courtyardSend": "Send",
   "shell.launcher.voiceKernel": "AI core · {state}",
   "shell.launcher.localModel": "local model",
   "shell.launcher.voiceStartTip": "Start microphone for voice interaction",
