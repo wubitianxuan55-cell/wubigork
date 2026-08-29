@@ -102,3 +102,21 @@ func TestDreamInputTruncatesLongMessages(t *testing.T) {
 		t.Fatal("dream input should truncate long content")
 	}
 }
+
+// C3 no-op：相同内容的整理输入指纹一致（跳过重复 LLM 提炼），内容变化则指纹
+// 变化；指纹记录仅在完整处理成功后写入（由 runDream 收尾保证，此处测纯函数）。
+func TestDreamInputHashNoop(t *testing.T) {
+	msgs := []provider.Message{
+		{Role: provider.RoleUser, Content: "帮我整理这份成本测算表"},
+		{Role: provider.RoleAssistant, Content: "已完成，公式与汇总如下……（超过 100 字的实质内容省略）"},
+	}
+	h1 := dreamInputHash(dreamInput(msgs))
+	h2 := dreamInputHash(dreamInput(msgs))
+	if h1 == "" || h1 != h2 {
+		t.Fatalf("相同输入指纹应一致: %q vs %q", h1, h2)
+	}
+	msgs2 := append(append([]provider.Message{}, msgs...), provider.Message{Role: provider.RoleUser, Content: "再补一列环比"})
+	if h3 := dreamInputHash(dreamInput(msgs2)); h3 == h1 {
+		t.Fatal("内容变化后指纹应变化")
+	}
+}

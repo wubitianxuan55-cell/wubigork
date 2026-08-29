@@ -17,6 +17,8 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -35,6 +37,11 @@ var gaeaDreamState struct {
 	sync.Mutex
 	running bool
 	last    time.Time
+	// lastHash 是上次**成功处理**的轮次输入指纹（C3 no-op 优化，对齐 codex
+	// memories/write phase2 的「无变化即 no-op 成功，省一次 LLM 调用」）：内容
+	// 相同的轮次（重试/重入/同内容连问）不再重复提炼。仅内存态——跨重启不
+	// 持久化，恢复会话后的首次整理宁可多跑一次（记忆库可能已变化）。
+	lastHash string
 }
 
 // dreamSystemPrompt 记忆整理提示词：只输出 JSON，控制条数与类型。
@@ -104,6 +111,16 @@ func (a *App) runDream() error {
 	if !dreamWorthwhile(msgs) {
 		return fmt.Errorf("no worthwhile content")
 	}
+	input := dreamInput(msgs)
+	hash := dreamInputHash(input)
+	gaeaDreamState.Lock()
+	dup := hash == gaeaDreamState.lastHash
+	gaeaDreamState.Unlock()
+	if dup {
+		// C3 no-op：本轮内容与上次成功整理的完全一致，提炼结论不会变化，
+		// 直接跳过（省一次 LLM 调用；codex phase2「无变化即成功」同型）。
+		return fmt.Errorf("dream no-op: 本轮内容已整理过")
+	}
 	if a.client == nil {
 		return fmt.Errorf("ai client unavailable")
 	}
@@ -117,7 +134,7 @@ func (a *App) runDream() error {
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
-	out, err := a.client.ChatSimpleStreamWithOptions(ctx, featModel, dreamSystemPrompt, dreamInput(msgs),
+	out, err := a.client.ChatSimpleStreamWithOptions(ctx, featModel, dreamSystemPrompt, input,
 		ai.ChatSimpleOptions{EngineID: featEng, Temperature: 0.2, MaxTokens: 1200})
 	if err != nil {
 		return fmt.Errorf("dream summarize: %w", err)
@@ -155,7 +172,18 @@ func (a *App) runDream() error {
 			Text:  fmt.Sprintf("已自动整理记忆：新增 %d 条事实、%d 条笔记", saved, notes),
 		}))
 	}
+	// 完整处理成功（含「模型判定无可记内容」）才记录指纹：写入失败不记录，
+	// 下次同内容重试不受影响。
+	gaeaDreamState.Lock()
+	gaeaDreamState.lastHash = hash
+	gaeaDreamState.Unlock()
 	return nil
+}
+
+// dreamInputHash 返回整理输入的内容指纹（sha256 hex，sha256 无空串歧义）。
+func dreamInputHash(input string) string {
+	sum := sha256.Sum256([]byte(input))
+	return hex.EncodeToString(sum[:])
 }
 
 // dreamTurnMessages 取会话历史最后一轮（最后一个 user 消息起）的 user/assistant 消息。
