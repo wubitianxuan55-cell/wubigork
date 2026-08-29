@@ -97,9 +97,10 @@ isIndependentBoard(b): boolean          // 独立窗口板块（rail 单独入�
 ### 4.6 store/localStorage 空间前缀迁移
 
 - 新增壳层 key 即带空间语义（`gaea.shell.space` / `gaea.shell.page.<space>`）。
-- gaea 工作台右侧面板 key（`gaea.workspace.rightTab` / `gaea.rightPanel.v1:`）属
-  工位工作台（S2.2 迁入工位后自然按空间收敛），S2.1 保留原键不破坏；补丁项随
-  S2.2 页面迁入完成空间前缀化。
+- **S2.2 已落地**：工作台 localStorage 空间分键（`gaea/lib/workbenchStorage.ts`）——
+  旧 key `gaea.<x>` → 新 key `gaea.work.<x>`（读优先分键、旧 key 只读回退迁移，
+  写只走分键）。覆盖：rightTab 全局/会话键、layoutPreferences JSON blob、
+  chatTab/compactMode/focusMode。
 
 ### 4.7 事件订阅过滤（events.ts）
 
@@ -118,6 +119,19 @@ subscribeForSpace(event, handler, space?)  // payload.spaceId ?? payload.space
   - 全部 → 两路结果合并展示。
 - scope 选择不持久化（每次打开默认跟随当前空间；「全部」需显式选择，符合
   双空间红线「默认不跨空间」）。
+
+## 7. S2.2 增量（页面迁入/i18n 第一刀/性能门控）
+
+- **工作台空间分键**（§4.6）：`workbenchStorage.ts` + 旧 key 只读迁移（补丁项
+  「store 与 localStorage 迁移」完成）。
+- **性能门控**：空间切换时 `pruneVisitedForSpace` 剪枝 keepAlive 保活页——
+  跨空间页面卸载，后台轮询/渲染归零（审计「keepAlive 挂载策略系统级后台轮询」
+  风险项；同空间 keepAlive 不受影响）。
+- **i18n 全铺第一刀**：`LocaleProvider` 提升到根级（壳层与页面共用 gaea 字典）；
+  S2.1 新增的全部壳层 chrome 文案（空间切换/双首页 Hero/搜索 scope）进入
+  zh/zh-TW/en 字典并消费；存量硬编码中文按同一模式逐步收敛（后续切片）。
+- **页面迁入**：导航层已完成（S2.1 manifest.space）；「对话降为对话流 / 记忆降为
+  侧栏 / 模型中心并入设置 / 创作间合并」属 v4.x 深层重构，随版本推进，不在本步。
 
 ## 5. 验收
 

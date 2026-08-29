@@ -12,7 +12,11 @@ type LayoutPreferences = {
   sizes?: Partial<Record<LayoutSizeKey, number>>;
 };
 
-const STORAGE_KEY = "gaea.layoutPreferences.v1";
+// S2.2 空间分键：旧 JSON blob key 只读回退；新写入走 `gaea.work.*`
+import { workbenchKey } from "./workbenchStorage";
+
+const LEGACY_STORAGE_KEY = "gaea.layoutPreferences.v1";
+const STORAGE_KEY = workbenchKey(LEGACY_STORAGE_KEY);
 
 const LEGACY_SIZE_KEYS: Record<LayoutSizeKey, string[]> = {
   sidebarWidth: ["gaea.sidebar.width"],
@@ -30,7 +34,7 @@ type ClampSize = (value: number) => number;
 function readPrefs(): LayoutPreferences {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as LayoutPreferences;
     return parsed && typeof parsed === "object" ? parsed : {};

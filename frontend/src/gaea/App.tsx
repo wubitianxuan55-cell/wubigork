@@ -54,6 +54,7 @@ import { useBridgeWatch } from "./hooks/useBridgeWatch";
 import { useDrawers } from "./hooks/useDrawers";
 import { useToolStats } from "./hooks/useToolStats";
 import { useSidebar } from "./hooks/useSidebar";
+import { readWorkbenchValue, writeWorkbenchValue } from "./lib/workbenchStorage";
 
 import {
   SIDEBAR_DEFAULT_WIDTH, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH,
@@ -76,12 +77,12 @@ export default function App() {
   const toast = useToast();
   const [chatTab, setChatTab] = useState<ChatTabId>(() => {
     try {
-      const saved = localStorage.getItem("gaea.chatTab");
+      const saved = readWorkbenchValue("gaea.chatTab");
       return saved === "trajectory" || saved === "context" ? saved : "chat";
     } catch { return "chat"; }
   });
   useEffect(() => {
-    try { localStorage.setItem("gaea.chatTab", chatTab); } catch { /* ignore */ }
+    writeWorkbenchValue("gaea.chatTab", chatTab);
   }, [chatTab]);
   const {
     state,
@@ -152,7 +153,7 @@ export default function App() {
   const runningTasks = useRunningBadge();
   const runningGroupActive = groupOfTab(rightTab).id === "running";
   const runningBadge = runningGroupActive ? undefined : { running: runningTasks };
-  const [compactMode, setCompactMode] = useState(() => { try { return localStorage.getItem("gaea.compactMode") === "1"; } catch { return false; } });
+  const [compactMode, setCompactMode] = useState(() => readWorkbenchValue("gaea.compactMode") === "1");
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -178,7 +179,7 @@ export default function App() {
 
   // ── 专注模式（Kun 精华）：一键收起侧栏与右侧面板，只留对话和输入区 ──
   const [focusMode, setFocusMode] = useState(() => {
-    try { return localStorage.getItem("gaea.focusMode") === "1"; } catch { return false; }
+    return readWorkbenchValue("gaea.focusMode") === "1";
   });
   const applyFocus = useCallback((active: boolean) => {
     handleWorkspacePreviewModeChange(active);
@@ -190,7 +191,7 @@ export default function App() {
   const toggleFocus = useCallback(() => {
     const next = !focusMode;
     setFocusMode(next);
-    try { localStorage.setItem("gaea.focusMode", next ? "1" : "0"); } catch { /* ignore */ }
+    writeWorkbenchValue("gaea.focusMode", next ? "1" : "0");
     applyFocus(next);
   }, [focusMode, applyFocus]);
   useEffect(() => {
@@ -719,7 +720,7 @@ export default function App() {
               <ToolbarButton onClick={() => void toggleWorkspacePanel()} title={previewFile ? t("topbar.backToFiles") : workspacePanelOpen ? t("topbar.collapseFilePanel") : t("topbar.expandFilePanel")}>
                 {workspacePanelOpen || previewFile ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
               </ToolbarButton>
-              <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); try { localStorage.setItem("gaea.compactMode", v ? "1" : "0"); } catch {} }} title={compactMode ? t("topbar.expandMode") : t("topbar.compactMode")}>{compactMode ? <List size={13} /> : <Square size={13} />}</ToolbarButton>
+              <ToolbarButton onClick={() => { const v = !compactMode; setCompactMode(v); writeWorkbenchValue("gaea.compactMode", v ? "1" : "0"); }} title={compactMode ? t("topbar.expandMode") : t("topbar.compactMode")}>{compactMode ? <List size={13} /> : <Square size={13} />}</ToolbarButton>
               <ToolbarButton onClick={toggleFocus} title={focusMode ? t("topbar.exitFocusMode") : t("topbar.focusMode")}>
                 <Aim size={13} className={focusMode ? "text-accent" : ""} />
               </ToolbarButton>

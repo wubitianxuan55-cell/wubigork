@@ -68,6 +68,9 @@ describe("workspaceTabs 清单完整性（v3.0.8 分组收敛）", () => {
 describe("workspaceTabs 会话隔离（蒸馏 dsh-better-sidebar 布局持久化）", () => {
   afterEach(() => {
     try {
+      localStorage.removeItem("gaea.work.workspace.rightTab");
+      localStorage.removeItem("gaea.work.rightPanel.v1:s1");
+      localStorage.removeItem("gaea.work.rightPanel.v1:s2");
       localStorage.removeItem("gaea.workspace.rightTab");
       localStorage.removeItem("gaea.rightPanel.v1:s1");
       localStorage.removeItem("gaea.rightPanel.v1:s2");
@@ -109,5 +112,15 @@ describe("workspaceTabs 会话隔离（蒸馏 dsh-better-sidebar 布局持久化
     savePersistedRightTab("stats");
     expect(loadPersistedRightTab(undefined)).toBe("stats");
     expect(loadPersistedRightTab("other")).toBe(DEFAULT_WORKSPACE_TAB);
+  });
+
+  it("S2.2 旧 key 只读迁移：旧全局/会话值仍被读取，新写入走空间分键", () => {
+    try { localStorage.setItem("gaea.workspace.rightTab", "deliverables"); } catch { /* ignore */ }
+    expect(loadPersistedRightTab()).toBe("deliverables");
+    try { localStorage.setItem("gaea.rightPanel.v1:s1", "stats"); } catch { /* ignore */ }
+    expect(loadPersistedRightTab("s1")).toBe("stats");
+    savePersistedRightTab("subagents", "s1");
+    expect(localStorage.getItem("gaea.work.rightPanel.v1:s1")).toBe("subagents");
+    expect(loadPersistedRightTab("s1")).toBe("subagents"); // 分键优先于旧值
   });
 });

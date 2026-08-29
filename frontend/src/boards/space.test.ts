@@ -5,7 +5,7 @@ import {
 } from './manifests'
 import {
   SHELL_SPACES, isShellSpace, boardSpace, isBoardReachableInSpace, isIndependentBoard,
-  filterBoardsForSpace,
+  filterBoardsForSpace, pruneVisitedForSpace,
 } from './space'
 
 describe('SHELL_SPACES / isShellSpace', () => {
@@ -80,5 +80,15 @@ describe('isBoardReachableInSpace / filterBoardsForSpace', () => {
     const input = [...canonicalBoards]
     filterBoardsForSpace(input, 'play')
     expect(input).toHaveLength(canonicalBoards.length)
+  })
+
+  it('pruneVisitedForSpace（S2.2 性能门控）：只保留谓词通过的页面', () => {
+    const visited = new Set(['home', 'novel', 'gaea', 'imagegen'])
+    const inWork = (id: string) => id === 'home' || id === 'gaea'
+    expect(pruneVisitedForSpace(visited, inWork)).toEqual(['home', 'gaea'])
+    const inPlay = (id: string) => id === 'home' || id === 'novel' || id === 'imagegen'
+    expect(pruneVisitedForSpace(visited, inPlay)).toEqual(['home', 'novel', 'imagegen'])
+    // 保活页被清空时结果为空数组（不抛错）
+    expect(pruneVisitedForSpace(visited, () => false)).toEqual([])
   })
 })

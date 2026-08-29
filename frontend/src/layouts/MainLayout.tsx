@@ -20,12 +20,13 @@ import {
   getActiveHomeBoard, getActiveProjectAnchorId, getActiveBoard, activeBoardLabel,
 } from '../boards/manifests'
 import {
-  SHELL_SPACES, isBoardReachableInSpace, type ShellSpace,
+  SHELL_SPACES, isBoardReachableInSpace, pruneVisitedForSpace, type ShellSpace,
 } from '../boards/space'
 import { getPageComponent } from '../boards/pageRegistry'
 import { subscribe, BACKEND_EVENTS, FRONTEND_EVENTS } from '../events'
 import { useFeatureModel } from '../hooks/useFeatureModel'
 import { usePollingGate } from '../hooks/usePollingGate'
+import { useT } from '../gaea/lib/i18n'
 
 const { Content } = Layout
 
@@ -295,6 +296,7 @@ const CommandRail: React.FC<{
   const boards = getActiveMenuBoardsForSpace(space)
   // 独立窗口板块（编程 DSH）：单独入口，不混入任一空间导航
   const independentBoards = getActiveIndependentBoards()
+  const t = useT()
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const moveFocus = (idx: number, dir: number) => {
@@ -310,18 +312,18 @@ const CommandRail: React.FC<{
       <div className="v3-rail-head">
         <img src="/favicon.svg" alt="gaea" />
         {/* S2.1 空间切换（持久化，appStore.space）——工位 / 乐园 */}
-        <div className="v3-rail-space" role="radiogroup" aria-label="空间切换">
+        <div className="v3-rail-space" role="radiogroup" aria-label={t('shell.rail.spaceGroup')}>
           {SHELL_SPACES.map((s) => (
             <button
               key={s.id}
               type="button"
               role="radio"
               aria-checked={space === s.id}
-              title={s.title}
+              title={t(s.titleKey)}
               className={`v3-rail-space-item${space === s.id ? ' is-active' : ''}`}
               onClick={() => { if (space !== s.id) onSwitchSpace(s.id) }}
             >
-              {s.label}
+              {t(s.labelKey)}
             </button>
           ))}
         </div>
@@ -368,7 +370,7 @@ const CommandRail: React.FC<{
                   tabIndex={active ? 0 : -1}
                   aria-current={active ? 'page' : undefined}
                   aria-label={b.label}
-                  title={`${b.label}（独立窗口）`}
+                  title={`${b.label}（${t('shell.rail.independentWindow')}）`}
                   className={`v3-rail-item${active ? ' is-active' : ''}`}
                   onClick={() => { onNavigate(b.id as Page) }}
                 >
@@ -417,8 +419,15 @@ const MainLayout: React.FC = () => {
     saveShellPage(space, page)
     setSpace(next)
     const saved = loadShellPage(next)
-    setPage((pageReachableInSpace(saved as Page, next) ? saved : getActiveHomeBoard().id) as Page)
-  }, [space, page, setSpace])
+    const nextPage = (pageReachableInSpace(saved as Page, next) ? saved : getActiveHomeBoard().id) as Page
+    setPage(nextPage)
+    // S2.2 性能门控：剪枝 keepAlive 保活页——只保留 home/当前空间可达页，
+    // 跨空间页面卸载，后台轮询/渲染归零（审计「keepAlive 后台轮询」风险项）
+    setVisitedPages(new Set(pruneVisitedForSpace(
+      new Set([...visitedPages, nextPage]),
+      (id) => pageReachableInSpace(id as Page, next),
+    )))
+  }, [space, page, setSpace, visitedPages])
 
   // 数据源 seam 接线：订阅活动板块清单并触发一次加载；清单变化时重渲染菜单/白名单/快捷键/布局。
   const [, forceBoards] = useReducer((c: number) => c + 1, 0)

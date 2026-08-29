@@ -17,6 +17,7 @@
 
 import type { Icon } from "../icons";
 import { BarChart3, ClipboardList, Coins, Diff, FileText, FolderTree, Paperclip, Users } from "../icons";
+import { readWorkbenchValue, writeWorkbenchValue } from "./workbenchStorage";
 
 /** 子面板（具体功能页）的稳定 id —— App.tsx 的 rightTab 状态直接消费。 */
 export const WORKSPACE_TAB_IDS = ["files", "materials", "cost", "deliverables", "changes", "stats", "tasks", "subagents"] as const;
@@ -114,15 +115,15 @@ export function defaultTabOfGroup(groupId: WorkspaceGroupId): WorkspaceTabId {
 // ── 会话隔离（蒸馏 dsh-better-sidebar 布局持久化）────────────────────
 // 记住用户上次选中的右侧面板子 Tab：重开办公板块/重启应用后恢复，而不是
 // 每次回到「文件」。v3.0.8 起支持**按会话**持久化（C3 升级）：有 sessionKey
-// 时写入 `gaea.rightPanel.v1:<sessionKey>`（切会话/新建/恢复各自恢复面板
-// 关注点）；无 sessionKey 时回退全局 key `gaea.workspace.rightTab`（旧版
-// 行为，向后兼容）。损坏/非法值经 isWorkspaceTabId 收敛回默认，写失败静默
-// （与 layoutPreferences/recentFiles 同款容错）。
+// 时写入 `gaea.work.rightPanel.v1:<sessionKey>`（切会话/新建/恢复各自恢复
+// 面板关注点）；无 sessionKey 时回退全局 key `gaea.work.workspace.rightTab`。
+// S2.2 空间分键：旧 key（`gaea.rightPanel.v1:` / `gaea.workspace.rightTab`）
+// 只读回退迁移。损坏/非法值经 isWorkspaceTabId 收敛回默认，写失败静默。
 const RIGHT_TAB_KEY = "gaea.workspace.rightTab";
 const RIGHT_TAB_SESSION_PREFIX = "gaea.rightPanel.v1:";
 
-/** 会话级 key：直接拼接（sessionKey 已由 App 侧清洗非法字符）。 */
-function rightTabKey(sessionKey?: string): string {
+/** 旧 key（读回退用）：会话级直接拼接（sessionKey 已由 App 侧清洗非法字符）。 */
+function legacyRightTabKey(sessionKey?: string): string {
   return sessionKey ? `${RIGHT_TAB_SESSION_PREFIX}${sessionKey}` : RIGHT_TAB_KEY;
 }
 
@@ -130,7 +131,7 @@ function rightTabKey(sessionKey?: string): string {
  *  sessionKey 提供时按会话读取（C3），否则读全局 key（旧版兼容）。 */
 export function loadPersistedRightTab(sessionKey?: string): WorkspaceTabId {
   try {
-    const raw = localStorage.getItem(rightTabKey(sessionKey));
+    const raw = readWorkbenchValue(legacyRightTabKey(sessionKey));
     if (raw && isWorkspaceTabId(raw)) return raw;
   } catch {
     /* 隐私模式/配额等：回退默认 */
@@ -140,9 +141,5 @@ export function loadPersistedRightTab(sessionKey?: string): WorkspaceTabId {
 
 /** 记录当前子面板选择（切换时由 App 调用）。sessionKey 语义同上。 */
 export function savePersistedRightTab(tab: WorkspaceTabId, sessionKey?: string): void {
-  try {
-    localStorage.setItem(rightTabKey(sessionKey), tab);
-  } catch {
-    /* 静默失败，不影响主流程 */
-  }
+  writeWorkbenchValue(legacyRightTabKey(sessionKey), tab);
 }

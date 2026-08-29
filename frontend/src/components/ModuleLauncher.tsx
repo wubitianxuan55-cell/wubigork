@@ -18,6 +18,8 @@ import { Tooltip } from 'antd'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { useAppStore } from '../stores/appStore'
 import { usePollingGate } from '../hooks/usePollingGate'
+import { useT } from '../gaea/lib/i18n'
+import type { DictKey } from '../gaea/locales/en'
 import * as App from '../../src/wailsjsCompat'
 import './module-launcher.css'
 
@@ -29,6 +31,17 @@ export type LauncherTarget = string
 
 /** 语音入口信号（首页现在本页启动语音，该信号保留兼容旧入口） */
 export const VOICE_LAUNCH_FLAG = 'gaea_voice_launch'
+
+/** 空间化首页文案（key 走 i18n 字典，S2.2 i18n 全铺第一刀） */
+interface HeroCopy {
+  eyebrowKey: DictKey
+  titleKey: DictKey
+  subKey: DictKey
+  primary: { key: string; titleKey: DictKey; descKey: DictKey }
+  secondary: { key: string; titleKey: DictKey; descKey: DictKey }
+  sectionKey: DictKey
+  sectionHintKey: DictKey
+}
 
 interface ModuleLauncherProps {
   onNavigate: (target: LauncherTarget) => void
@@ -214,26 +227,27 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
   // 左侧大卡：工位=办公工作台；乐园=小说创作间；缺省取首卡
   const featuredModule = modules.find((m) => m.key === (space === 'work' ? 'gaea' : 'novel')) ?? modules[0]
   const otherModules = modules.filter((m) => m.key !== featuredModule?.key)
+  const t = useT()
 
   // 空间化文案（工位=任务工作台门面；乐园=会客厅/创作间门面）
-  const hero = space === 'work'
+  const hero: HeroCopy = space === 'work'
     ? {
-        eyebrow: 'GAEA 工位已就绪 · 本地 AI 办公中枢',
-        title: '把活儿交给我，我来干',
-        sub: '工位 = 任务工作台：办公、造价、记忆，都在一个工作台里。',
-        primary: { key: 'gaea', title: '进入办公工作台', desc: '委托任务、审阅执行' },
-        secondary: { key: 'cost', title: '查造价数据库', desc: '单价、定额与价格源' },
-        section: '工位模块',
-        sectionHint: '办公 / 造价 / 记忆 / 编程',
+        eyebrowKey: 'shell.hero.work.eyebrow',
+        titleKey: 'shell.hero.work.title',
+        subKey: 'shell.hero.work.sub',
+        primary: { key: 'gaea', titleKey: 'shell.hero.work.primaryTitle', descKey: 'shell.hero.work.primaryDesc' },
+        secondary: { key: 'cost', titleKey: 'shell.hero.work.secondaryTitle', descKey: 'shell.hero.work.secondaryDesc' },
+        sectionKey: 'shell.hero.work.section',
+        sectionHintKey: 'shell.hero.work.sectionHint',
       }
     : {
-        eyebrow: 'GAEA 乐园已就绪 · 本地 AI 创作乐园',
-        title: '从灵光乍现，到星河成篇',
-        sub: '乐园 = 会客厅与创作间：轻语、小说、绘梦，沉浸不打扰。',
-        primary: { key: 'novel', title: '开始创作', desc: '世界观、角色与大纲' },
-        secondary: { key: 'chat', title: '和 gaea 对话', desc: '与 AI 对话，激发灵感' },
-        section: '乐园模块',
-        sectionHint: '小说 / 绘梦 / 角色 / 会客厅',
+        eyebrowKey: 'shell.hero.play.eyebrow',
+        titleKey: 'shell.hero.play.title',
+        subKey: 'shell.hero.play.sub',
+        primary: { key: 'novel', titleKey: 'shell.hero.play.primaryTitle', descKey: 'shell.hero.play.primaryDesc' },
+        secondary: { key: 'chat', titleKey: 'shell.hero.play.secondaryTitle', descKey: 'shell.hero.play.secondaryDesc' },
+        sectionKey: 'shell.hero.play.section',
+        sectionHintKey: 'shell.hero.play.sectionHint',
       }
 
   // ── 项目统计（写作进度；appStore 已由壳层加载，只读消费）──
@@ -366,24 +380,24 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
           <div className="ml-hero-copy">
             <span className="ml-hero-eyebrow">
               <span className="ml-hero-dot" aria-hidden="true" />
-              {hero.eyebrow}
+              {t(hero.eyebrowKey)}
               <ArrowRightOutlined className="ml-hero-eyebrow-arrow" aria-hidden="true" />
             </span>
-            <h1 className="ml-hero-title">{hero.title}</h1>
-            <p className="ml-hero-sub">{hero.sub}</p>
+            <h1 className="ml-hero-title">{t(hero.titleKey)}</h1>
+            <p className="ml-hero-sub">{t(hero.subKey)}</p>
             <div className="ml-hero-actions">
               <HeroActionCard
                 rise="v3-rise-1"
                 icon={heroActions[0].key === 'gaea' ? <ToolOutlined /> : <EditOutlined />}
-                title={heroActions[0].title}
-                desc={heroActions[0].desc}
+                title={t(heroActions[0].titleKey)}
+                desc={t(heroActions[0].descKey)}
                 onClick={heroActions[0].onClick}
               />
               <HeroActionCard
                 rise="v3-rise-2"
                 icon={<MessageOutlined />}
-                title={heroActions[1].title}
-                desc={heroActions[1].desc}
+                title={t(heroActions[1].titleKey)}
+                desc={t(heroActions[1].descKey)}
                 onClick={heroActions[1].onClick}
               />
             </div>
@@ -475,8 +489,8 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
         {/* ── 中部：模块卡片 Bento 网格（数据源/跳转逻辑不变）── */}
         <section className="ml-section" aria-label="全部模块">
           <div className="ml-section-head">
-            <h2>{hero.section}</h2>
-            <span>{hero.sectionHint}</span>
+            <h2>{t(hero.sectionKey)}</h2>
+            <span>{t(hero.sectionHintKey)}</span>
           </div>
           <div className="ml-bento">
             {featuredModule && (

@@ -5,8 +5,10 @@ import { SearchOutlined, FileTextOutlined, UserOutlined } from '@ant-design/icon
 
 import { C } from '../utils/theme'
 import { app } from '../gaea/lib/bridge'
+import { useT } from '../gaea/lib/i18n'
 import type { SearchScope, UnifiedSearchView } from '../gaea/lib/types'
 import type { ShellSpace } from '../boards/space'
+import type { DictKey } from '../gaea/locales/en'
 
 interface SearchResult {
   file: string
@@ -29,10 +31,10 @@ const categoryLabels: Record<string, string> = {
 }
 
 /** S2.1 scope 三档（工位/乐园/全部；默认=当前空间，「全部」仅显式选择，红线不默认跨空间） */
-const SCOPE_OPTIONS: { value: SearchScope; label: string; title: string }[] = [
-  { value: 'work', label: '工位', title: '工位：工作区文件 + 工位记忆' },
-  { value: 'play', label: '乐园', title: '乐园：小说章节 / 角色' },
-  { value: '', label: '全部', title: '全部（跨工位与乐园，显式选择）' },
+const SCOPE_OPTIONS: { value: SearchScope; labelKey: DictKey; titleKey: DictKey }[] = [
+  { value: 'work', labelKey: 'shell.search.scope.work', titleKey: 'shell.search.scope.workTitle' },
+  { value: 'play', labelKey: 'shell.search.scope.play', titleKey: 'shell.search.scope.playTitle' },
+  { value: '', labelKey: 'shell.search.scope.all', titleKey: 'shell.search.scope.allTitle' },
 ]
 
 /** 在文本中用 <mark> 高亮关键词 */
@@ -101,6 +103,7 @@ function sectionsFromUnified(v: UnifiedSearchView): SearchSection[] {
 }
 
 const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
+  const t = useT()
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [sections, setSections] = useState<SearchSection[]>([])
@@ -138,7 +141,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
 
   return (
     <Modal
-      title={<span style={{ color: C('color-text') }}><SearchOutlined style={{ color: C('color-primary'), marginRight: 8 }} />全局搜索</span>}
+      title={<span style={{ color: C('color-text') }}><SearchOutlined style={{ color: C('color-primary'), marginRight: 8 }} />{t('shell.search.title')}</span>}
       open={open}
       onCancel={() => { onClose(); setQuery(''); setSections([]); setSearched(false) }}
       footer={null}
@@ -152,7 +155,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
     >
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         <Input.Search
-          placeholder="搜索章节、角色、文件与记忆..."
+          placeholder={t('shell.search.placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onSearch={handleSearch}
@@ -170,7 +173,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
               type="button"
               role="radio"
               aria-checked={scope === o.value}
-              title={o.title}
+              title={t(o.titleKey)}
               onClick={() => setScope(o.value)}
               style={{
                 border: `1px solid ${scope === o.value ? C('color-primary') : C('color-border')}`,
@@ -179,7 +182,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
                 fontSize: 12, cursor: 'pointer',
               }}
             >
-              {o.label}
+              {t(o.labelKey)}
             </button>
           ))}
         </div>
@@ -188,7 +191,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
           <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
         ) : searched ? (
           totalResults === 0 ? (
-            <Empty description={`未找到「${query}」`} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            <Empty description={t('shell.search.noResults', { q: query })} image={Empty.PRESENTED_IMAGE_SIMPLE} />
           ) : (
             <>
               {/* 分类标签过滤 */}
@@ -242,7 +245,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
           )
         ) : (
           <div style={{ textAlign: 'center', padding: 20, color: C('color-text-secondary'), fontSize: 12 }}>
-            输入关键词，搜索当前空间（工位文件/记忆 或 乐园章节/角色）
+            {t('shell.search.empty')}
           </div>
         )}
       </Space>

@@ -4,6 +4,7 @@ import MainLayout from './layouts/MainLayout'
 import { useAppStore, getThemeTokens, FONT_OPTIONS } from './stores/appStore'
 import { initBridge } from './gaea/lib/bridge'
 import { initRuntimePolyfill } from './api/runtimePolyfill'
+import { LocaleProvider } from './gaea/lib/i18n'
 
 // 在模块作用域最早时机初始化桥接层
 // 无论 Wails 原生还是移动端 HTTP，都能确保 window.go.app.App 可用
@@ -163,7 +164,10 @@ const App: React.FC = () => {
           },
         }}
       >
-        <MainLayout />
+        {/* S2.2 i18n 全铺：LocaleProvider 提到根级，壳层/页面共用 gaea 字典 */}
+        <LocaleProvider>
+          <MainLayout />
+        </LocaleProvider>
       </ConfigProvider>
     </div>
   )

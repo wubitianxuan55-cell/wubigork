@@ -11,6 +11,7 @@
  * 与阶段 1 S1.1 旧数据回填 work 同语义）；home 壳层恒 shared。
  */
 import type { BoardManifest } from './types'
+import type { DictKey } from '../gaea/locales/en'
 
 /** 壳层视图空间 */
 export type ShellSpace = 'work' | 'play'
@@ -18,10 +19,20 @@ export type ShellSpace = 'work' | 'play'
 /** manifest 板块空间归属 */
 export type BoardSpace = ShellSpace | 'shared' | 'independent'
 
-/** 壳层空间静态枚举（导航切换器/搜索 scope 共用标签） */
-export const SHELL_SPACES: { id: ShellSpace; label: string; title: string }[] = [
-  { id: 'work', label: '工位', title: '工位（办公/造价/记忆）——工作空间' },
-  { id: 'play', label: '乐园', title: '乐园（轻语/小说/绘梦）——娱乐空间' },
+/**
+ * 壳层空间静态枚举（导航切换器/搜索 scope 共用标签）。
+ * label/title 为 zh 兜底（纯数据层），labelKey/titleKey 供组件 i18n 渲染
+ * （S2.2 i18n 全铺第一刀：新壳 chrome 全部走字典）。
+ */
+export const SHELL_SPACES: {
+  id: ShellSpace
+  label: string
+  title: string
+  labelKey: DictKey
+  titleKey: DictKey
+}[] = [
+  { id: 'work', label: '工位', title: '工位（办公/造价/记忆）——工作空间', labelKey: 'shell.space.work', titleKey: 'shell.space.workTitle' },
+  { id: 'play', label: '乐园', title: '乐园（轻语/小说/绘梦）——娱乐空间', labelKey: 'shell.space.play', titleKey: 'shell.space.playTitle' },
 ]
 
 /** 类型守卫：仅 work/play 是合法壳层空间（localStorage 读取/后端回包用） */
@@ -50,4 +61,17 @@ export function isBoardReachableInSpace(b: BoardManifest, space: ShellSpace): bo
 /** 清单按空间过滤（导航/启动器/快捷键共用；保持原顺序） */
 export function filterBoardsForSpace(list: BoardManifest[], space: ShellSpace): BoardManifest[] {
   return list.filter((b) => isBoardReachableInSpace(b, space))
+}
+
+/**
+ * S2.2 性能门控：空间切换时剪枝 keepAlive 保活页（docs §4.4 补）。
+ * 只保留谓词通过（home/当前空间可达）的页面；跨空间页面随之卸载，
+ * 后台轮询/渲染归零——对齐审计「keepAlive 挂载策略带来的系统级后台轮询」
+ * 风险项与「work 不打扰乐园 UI（反之亦然）」红线。
+ */
+export function pruneVisitedForSpace(
+  visited: Iterable<string>,
+  isReachable: (id: string) => boolean,
+): string[] {
+  return Array.from(visited).filter(isReachable);
 }
