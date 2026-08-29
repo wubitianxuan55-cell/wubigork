@@ -61,8 +61,11 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 				call.Arguments = string(modifiedArgs)
 			}
 		}
-		if a.gate != nil {
-			allow, reason, err := a.gate.Check(ctx, call.Name, json.RawMessage(call.Arguments), t.ReadOnly())
+		// Audit P1: load the gate once, atomically — the controller may swap
+		// it mid-turn (SetPermLevel) while this goroutine runs, so a plain
+		// field read could tear. One Load yields one whole gate (old or new).
+		if gw := a.gate.Load(); gw != nil {
+			allow, reason, err := gw.g.Check(ctx, call.Name, json.RawMessage(call.Arguments), t.ReadOnly())
 			if err != nil {
 				return toolOutcome{
 					output:  fmt.Sprintf("blocked: %s (%v)", reason, err),

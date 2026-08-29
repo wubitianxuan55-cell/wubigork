@@ -87,6 +87,15 @@ type Gate interface {
 	Check(ctx context.Context, toolName string, args json.RawMessage, readOnly bool) (allow bool, reason string, err error)
 }
 
+// gateWrapper boxes a Gate so the AgentRunner can hold it in an
+// atomic.Pointer (audit P1 race fix): the controller may swap the gate
+// mid-turn (SetPermLevel) while executeOne goroutines read it, and an atomic
+// pointer load/store can never tear. A nil pointer means "no gate" — the same
+// nil-primitive semantics the plain field had — and the wrapper keeps the
+// stored concrete type constant so Store can never panic on inconsistent
+// gate implementations.
+type gateWrapper struct{ g Gate }
+
 // ToolHooks fires user-configured shell hooks around each tool call. PreToolUse
 // runs before the call and may block it (block=true; message is the reason fed
 // back to the model); PostToolUse runs after and only surfaces output to the
@@ -218,14 +227,13 @@ type AgentRunner struct {
 	goal string
 
 	// gate, when non-nil, is the per-call permission gate consulted in
-	// executeOne. nil disables gating entirely.
-	// MUST be set before Run() starts — executeOne is called from concurrent
-	// goroutines (executeBatch → runParallel), and SetGate does not lock.
-	// The happens-before guarantee: Controller.EnableInteractiveApproval calls
-	// SetGate before dispatching Send(), which starts the run loop. The run loop
-	// spawns goroutines only after the gate is written, so the write is visible
-	// to all concurrent readers. A nil gate means no gating.
-	gate Gate
+	// executeOne. A nil pointer disables gating entirely.
+	// Atomic (audit P1 race fix): the controller may swap the gate mid-turn
+	// (SetPermLevel on the UI thread) while executeOne goroutines read it,
+	// so the gate lives behind an atomic.Pointer — every reader loads one
+	// whole gate (old or new), never a torn interface value, without a lock.
+	// SetGate/Load are the only access path; no raw field reads remain.
+	gate atomic.Pointer[gateWrapper]
 
 	// hooks fires PreToolUse / PostToolUse / PermissionRequest / SubagentStop
 	// hooks around tool calls. Set once during New() and never mutated afterwards,
@@ -357,16 +365,19 @@ func (a *AgentRunner) SetActiveSchemas(schemas []provider.ToolSchema) {
 	a.activeSchemasMu.Unlock()
 }
 
-// SetGate installs the per-call permission gate. MUST be called before the
-// run loop starts — executeOne reads gate from concurrent goroutines and
-// SetGate does not lock. The happens-before guarantee is provided by the
-// caller (Controller) wiring the gate before dispatching the first Send().
-// nil disables gating.
+// SetGate installs the per-call permission gate. Thread-safe (audit P1 race
+// fix): the gate is stored atomically, so it may be swapped mid-turn
+// (Controller.SetPermLevel) while executeOne goroutines read it — each reader
+// sees one whole gate, old or new, never a torn value. nil disables gating.
 func (a *AgentRunner) SetGate(g Gate) {
 	if nilutil.IsNil(g) {
 		g = nil
 	}
-	a.gate = g
+	if g == nil {
+		a.gate.Store(nil)
+		return
+	}
+	a.gate.Store(&gateWrapper{g: g})
 }
 
 // SetAsker installs the asker the `ask` tool uses to question the user.
@@ -553,7 +564,6 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 		temperature:   opts.Temperature,
 		pricing:       opts.Pricing,
 		sink:          sink,
-		gate:          gate,
 		hooks:         hooks,
 		jobs:          opts.Jobs,
 		evidence:      evidence.NewLedger(),
@@ -564,6 +574,10 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 		auditFunc:     opts.AuditFunc,
 		tc:            cache.New(-1), // V5.8: session 缓存，mtime 校验器
 		disableVerify: opts.DisableVerify,
+	}
+	// Audit P1: install the gate atomically (zero value = no gate).
+	if gate != nil {
+		r.gate.Store(&gateWrapper{g: gate})
 	}
 	// V5.13: 参数风暴断路器
 	// V5.13: �������籩��·��
