@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
@@ -117,7 +118,24 @@ func LookupBuiltin(name string) (Tool, bool) {
 
 // Registry is a per-run set of tools: enabled built-ins plus plugin tools.
 // V6.0 P8: supports hiding tools from the model schema while keeping them callable.
+//
+// Concurrency: mu guards every field below. Readers (Get/Len/Names/
+// PersistWriteNames/Schemas/FilteredSchemas) take RLock; writers (Add/Hide/
+// HideUnlessOnly/RemovePrefix/SuspendPrefix/ResumePrefix) take Lock. This is
+// required because MCP hot-plug mutates the registry from the Wails binding
+// goroutine (Controller.AddMCPServer → Add, RemoveMCPServer/DisconnectMCPServer
+// → RemovePrefix) while the agent turn loop reads it concurrently
+// (agent_stream.go → Schemas).
+//
+// Lock order: Registry.mu is a leaf lock. No method may call tool-implemented
+// code (Name/Schema/Description/CompactDescription/CompactSchema/PersistWrite)
+// or another Registry method while holding mu. Values that require tool code —
+// the canonicalized schema in Add, descriptions in FilteredSchemas, persist-write
+// markers in PersistWriteNames — are computed from a snapshot after the lock is
+// released, so a tool implementation can never re-enter (and deadlock against)
+// the registry.
 type Registry struct {
+	mu        sync.RWMutex
 	tools     map[string]Tool
 	order     []string
 	hidden    map[string]bool            // V6.0 P8: hidden from schema but still callable
@@ -132,23 +150,41 @@ func NewRegistry() *Registry {
 
 // Add inserts (or replaces) a tool, preserving first-seen order.
 // V10.0: canonicalizes the schema once here — Schemas() reuses the cached result.
+//
+// Ghost-name rule: a tool whose name carries a suspended prefix (see
+// SuspendPrefix) is silently rejected BEFORE anything is appended to order, so
+// a rejected Add never leaves a name in order without a Tool behind it (which
+// would make Schemas() dereference a nil Tool and panic). The order append and
+// the tools/canon stores happen in one locked critical section, so they cannot
+// be observed (or left) inconsistent.
+//
+// Schema canonicalization runs BEFORE the write lock is taken: Schema() is
+// tool-implemented code and Registry.mu is a leaf lock (see Registry doc). Note
+// this means Schema() is invoked even when the Add ends up suspended-rejected;
+// implementations must keep it side-effect free (as for every registration).
 func (r *Registry) Add(t Tool) {
 	name := t.Name()
+	canon := provider.CanonicalizeSchema(t.Schema())
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for prefix := range r.suspended {
+		if strings.HasPrefix(name, prefix) {
+			return // silently reject — prefix is suspended; do not touch order
+		}
+	}
 	if _, ok := r.tools[name]; !ok {
 		r.order = append(r.order, name)
 	}
-	for prefix := range r.suspended {
-		if strings.HasPrefix(name, prefix) {
-			return // silently reject — prefix is suspended
-		}
-	}
 	r.tools[name] = t
-	r.canon[name] = provider.CanonicalizeSchema(t.Schema())
+	r.canon[name] = canon
 }
 
 // Hide removes a tool from the model-visible schema list without unregistering it.
 // Hidden tools remain callable via Get(). V6.0 P8: reduces model cognitive load.
 func (r *Registry) Hide(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.hidden[name] = true
 }
 
@@ -156,6 +192,8 @@ func (r *Registry) Hide(name string) {
 // least one of the alternatives — so the model always has at least one way to
 // perform the operation. V6.0 P8.
 func (r *Registry) HideUnlessOnly(names []string, alternatives []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	hasAlt := false
 	for _, a := range alternatives {
 		if _, ok := r.tools[a]; ok {
@@ -194,6 +232,8 @@ func SplitMCPName(name string) (server, tool string, ok bool) {
 // drop an MCP server's "mcp__<server>__" namespace when it's disconnected — and
 // returns the count removed.
 func (r *Registry) RemovePrefix(prefix string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	kept := r.order[:0]
 	removed := 0
 	for _, name := range r.order {
@@ -214,6 +254,8 @@ func (r *Registry) RemovePrefix(prefix string) int {
 // Used for per-session MCP disables — an in-flight background handshake
 // may attempt to re-add tools for the suspended prefix.
 func (r *Registry) SuspendPrefix(prefix string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.suspended[prefix] = true
 	kept := r.order[:0]
 	removed := 0
@@ -232,20 +274,30 @@ func (r *Registry) SuspendPrefix(prefix string) int {
 
 // ResumePrefix allows future Add calls for a previously suspended prefix.
 func (r *Registry) ResumePrefix(prefix string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	delete(r.suspended, prefix)
 }
 
 // Get looks up a tool by name.
 func (r *Registry) Get(name string) (Tool, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	t, ok := r.tools[name]
 	return t, ok
 }
 
 // Len returns the number of registered tools.
-func (r *Registry) Len() int { return len(r.order) }
+func (r *Registry) Len() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.order)
+}
 
 // Names returns the registered tool names in insertion order.
 func (r *Registry) Names() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	out := make([]string, len(r.order))
 	copy(out, r.order)
 	return out
@@ -255,11 +307,28 @@ func (r *Registry) Names() []string {
 // persistent-write tools (PersistWriteTool), in registration order. Sub-agent
 // registry filtering and approval gates derive their forbidden/always-ask sets
 // from this so a newly marked tool takes effect automatically.
+//
+// The (name, tool) pairs are snapshotted under RLock; the PersistWrite marker
+// calls happen after the lock is released — tool code must never run under
+// Registry.mu (leaf lock, see Registry doc).
 func (r *Registry) PersistWriteNames() []string {
-	out := make([]string, 0, 2)
+	r.mu.RLock()
+	type pair struct {
+		name string
+		t    Tool
+	}
+	pairs := make([]pair, 0, len(r.order))
 	for _, name := range r.order {
-		if t, ok := r.tools[name]; ok && IsPersistWrite(t) {
-			out = append(out, name)
+		if t, ok := r.tools[name]; ok {
+			pairs = append(pairs, pair{name: name, t: t})
+		}
+	}
+	r.mu.RUnlock()
+
+	out := make([]string, 0, 2)
+	for _, p := range pairs {
+		if IsPersistWrite(p.t) {
+			out = append(out, p.name)
 		}
 	}
 	return out
@@ -278,10 +347,15 @@ func (r *Registry) Schemas() []provider.ToolSchema {
 // in the names slice. When names is nil or empty, all non-hidden tools are
 // included (equivalent to Schemas()). Tools not found in the registry are
 // silently skipped.
+//
+// Registry state (order, tools, hidden set, canonical schemas) is snapshotted
+// under a single RLock — no nested locking — and Description/CompactDescription/
+// CompactSchema are called after the lock is released, so tool code can never
+// re-enter the registry while it is locked (leaf-lock rule, see Registry doc).
+// A name that has no Tool behind it is skipped rather than dereferenced: the
+// schema export can never panic on a nil Tool.
 func (r *Registry) FilteredSchemas(names []string) []provider.ToolSchema {
-	allNames := r.Names()
-	sort.Strings(allNames)
-
+	r.mu.RLock()
 	var filter map[string]bool
 	if len(names) > 0 {
 		filter = make(map[string]bool, len(names))
@@ -289,32 +363,47 @@ func (r *Registry) FilteredSchemas(names []string) []provider.ToolSchema {
 			filter[n] = true
 		}
 	}
-
-	out := make([]provider.ToolSchema, 0, len(allNames))
-	for _, name := range allNames {
+	type snapshot struct {
+		name  string
+		t     Tool
+		canon json.RawMessage
+	}
+	snaps := make([]snapshot, 0, len(r.order))
+	for _, name := range r.order {
 		if r.hidden[name] {
 			continue
 		}
 		if filter != nil && !filter[name] {
 			continue
 		}
-		t := r.tools[name]
-		desc := t.Description()
-		if cd, ok := t.(CompactDescriptor); ok {
+		t, ok := r.tools[name]
+		if !ok {
+			continue // defensive ghost-name guard: skip instead of nil-dereference
+		}
+		snaps = append(snaps, snapshot{name: name, t: t, canon: r.canon[name]})
+	}
+	r.mu.RUnlock()
+
+	sort.Slice(snaps, func(i, j int) bool { return snaps[i].name < snaps[j].name })
+
+	out := make([]provider.ToolSchema, 0, len(snaps))
+	for _, s := range snaps {
+		desc := s.t.Description()
+		if cd, ok := s.t.(CompactDescriptor); ok {
 			desc = cd.CompactDescription()
 			schema := cd.CompactSchema()
 			// Compact schemas are context-dependent — canonicalize inline.
 			out = append(out, provider.ToolSchema{
-				Name:        t.Name(),
+				Name:        s.t.Name(),
 				Description: desc,
 				Parameters:  provider.CanonicalizeSchema(schema),
 			})
 		} else {
 			// Standard schema — use pre-canonicalized cache from Add().
 			out = append(out, provider.ToolSchema{
-				Name:        t.Name(),
+				Name:        s.t.Name(),
 				Description: desc,
-				Parameters:  r.canon[name],
+				Parameters:  s.canon,
 			})
 		}
 	}
