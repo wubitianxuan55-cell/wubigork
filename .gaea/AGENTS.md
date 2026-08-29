@@ -26,6 +26,24 @@
 
 ## 版本状态
 
+- **最新发布：v4.3.0（2026-08-29）「乐园」娱乐做深**：
+  git tag `v4.3.0`；CHANGELOG / releases/v4.3.0.md / README 索引同步；设计
+  `docs/gaea-v43-play-deepen-design.md`（4 份只读调研结论入账）。要点：
+  - **会客厅关系记忆**：三表（associations/habits/temporal_anchors）repo 持久化
+    闭环 + ReseedAssociationGraph 打通 + hermes.db 外键延迟检查；QuerySubgraph
+    多跳子图召回 + GaeaWhisperGraphSubgraph（play）+ WhisperGraphPanel（SVG 图谱）。
+  - **主动关心**：GaeaWhisperProactiveNow 评估绑定 + 前端「轻语先开口」；
+    定时推送/频控列后续小步。
+  - **情感语音**：TTS SynthesizeWithParams 参数扩展（cosyvoice 工厂修复/edge SSML
+    参数化）+ 情绪→参数映射 + 长期心境维 Mood（EWMA 持久化）+ TTSSpeakBase64WithParams。
+  - **创作间图文联动**：章节配图复活死绑定 + GaeaGenerateBookCover 3:4 书封
+    （play exports）。
+  - **验证**：Go 全量绿；vitest **769/769**（144 文件）；tsc -b / eslint 0；
+    绑定面 **522** 漂移 PASS（+5）；spaceBindings **233** 全覆盖；版本五处统一 4.3.0。
+  - **下一执行**：v4.4 触点（微信任务入口 + 语音双通路 + 本地离线模式，§10.4）；
+    v4.3 后续小步（主动关心定时推送、文本朗读情绪 UI、设定页维度化编辑器/
+    伏笔登记表/一致性面板、角色参考图 IP-Adapter）。
+
 - **最新发布：v4.2.0（2026-08-29）「智慧」工位造价包**：
   git tag `v4.2.0`；CHANGELOG / releases/v4.2.0.md / README 索引同步；设计
   `docs/gaea-v42-cost-ai-design.md`。要点：

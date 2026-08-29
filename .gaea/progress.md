@@ -1,12 +1,12 @@
 # 任务进度
 
-> 最后更新: 2026-08-29（v4.2.0 发布：阶段 3+ 领域包第一发——造价 AI 化三支柱）
+> 最后更新: 2026-08-29（v4.3.0 发布：阶段 3+ 第二发——乐园做深）
 
 ## 当前状态
 
-- **最新发布：v4.2.0（2026-08-29）**——v4.2 造价 AI 化（AI 组价 + 询价飞轮 +
-  五算对比，§10.4）。验证：Go 全量绿；vitest 759/759（+21）；tsc/eslint 0；
-  绑定面 517 漂移 PASS（+11）；spaceBindings 229 全覆盖。
+- **最新发布：v4.3.0（2026-08-29）**——v4.3 乐园做深（会客厅关系记忆/主动关心/
+  情感语音 + 创作间图文联动，§10.4）。验证：Go 全量绿；vitest 769/769（+10）；
+  tsc -b / eslint 0；绑定面 522 漂移 PASS（+5）；spaceBindings 233 全覆盖。
 
 ## 长期规划（权威文档）
 
@@ -131,6 +131,30 @@
 
 **v4.2 造价 AI 化已收官**（bindingNames 517 / spaceBindings 229 / vitest 759
 + go 全量绿）。剩余领域包：v4.3 乐园 / v4.4 触点（§10.4）。
+
+### v4.3 乐园做深 —— ✅ 全部完成（v4.3.0 发布）
+- [x] **v4.3 设计定稿**（`docs/gaea-v43-play-deepen-design.md`）：4 份只读调研
+  （轻语关系记忆/情感语音 TTS/创作间世界模型/角色资产库）结论入账——后端骨架约
+  70% 已存在，本版以「接线 + 参数扩展 + 持久化闭环」为主
+- [x] **v4.3a 轻语记忆持久化闭环**：memory_associations/user_habits/temporal_anchors
+  三表补 repo（此前有 schema 无 repos）+ 装配进持久化链 + ReseedAssociationGraph
+  打通 + hermes.db 外键延迟检查实证修复
+- [x] **v4.3b 关系图谱子图召回**：KnowledgeGraph.QuerySubgraph 多跳邻接（BFS+去重+
+  权重，10 测试）+ GaeaWhisperGraphSubgraph 绑定（play）
+- [x] **v4.3c 主动关心**：GaeaWhisperProactiveNow 评估绑定（门控+合成器复用）；
+  前端「轻语先开口」；定时推送留后续小步
+- [x] **v4.3d 情感语音**：TTSProvider.SynthesizeWithParams 参数扩展（cosyvoice 工厂
+  修复不丢 voiceDescription、edge SSML 参数化）+ GetEmotionVoiceParams 情绪映射 +
+  EmotionState.Mood 长期心境维（EWMA α=0.01 持久化）+ TTSSpeakBase64WithParams
+- [x] **v4.3g 创作间图文联动**：章节配图复活死绑定（ChapterPage 按钮 + 弹窗）；
+  GaeaGenerateBookCover 3:4 书封落 play exports（修 Windows 盘符卷 bug）
+- [x] **绑定集成**：gen_bindings 522（+5，显式覆盖归位 voice/novel）+ bindingNames/
+  spaceBindings(233)/bridge/types 接线
+
+**v4.3 乐园做深已收官**（bindingNames 522 / spaceBindings 233 / vitest 769
++ go 全量绿）。剩余：v4.4 触点（微信任务入口 + 语音双通路 + 本地离线模式，§10.4）；
+v4.3 后续小步（主动关心定时推送频控、文本朗读情绪 UI、设定页维度化编辑器/
+伏笔登记表/一致性面板、角色参考图 IP-Adapter）。
 
 ## 纪律（沿用）
 

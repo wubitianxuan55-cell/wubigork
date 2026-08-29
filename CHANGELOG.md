@@ -1,5 +1,27 @@
 # gaea · 多功能 AI 助手
 
+## v4.3.0「乐园」娱乐做深 (2026-08-29)
+> 阶段 3+ 领域包第二发：会客厅关系记忆 + 主动关心 + 情感语音；创作间图文联动。
+> 设计 `docs/gaea-v43-play-deepen-design.md`（4 份只读调研：后端骨架约 70% 已存在，
+> 本版以「接线 + 参数扩展」为主，与工位零交叉）。
+- **会客厅·关系记忆**：`memory_associations`/`user_habits`/`temporal_anchors` 三表
+  补 repo 闭环（此前有 schema 无 repos，重启关联全空）+ `ReseedAssociationGraph` 打通
+  + hermes.db 外键延迟检查实证修复；`QuerySubgraph` 多跳邻接子图召回；前端
+  WhisperGraphPanel（零依赖 SVG 环形邻接图、节点点击重查）。
+- **会客厅·主动关心**：`GaeaWhisperProactiveNow` 评估绑定（门控+合成器现成复用，
+  时段感知）+ 前端「轻语先开口」按钮（类型徽标/提示词）；定时推送留后续小步。
+- **会客厅·情感语音**：`TTSProvider.SynthesizeWithParams` 参数扩展（speed/style/
+  emotion；cosyvoice 工厂不再丢弃 voiceDescription；edge SSML 参数化）；
+  情绪→参数映射 `GetEmotionVoiceParams`；长期心境维 `EmotionState.Mood`（EWMA α=0.01
+  持久化）——「听得出她今天低落」原料就绪；`TTSSpeakBase64WithParams` 绑定。
+- **创作间·图文联动**：章节配图复活死绑定（ChapterPage「配图」按钮 +
+  ChapterIllustration 弹窗）；书封生成 `GaeaGenerateBookCover`（3:4 落 play exports
+  + NovelPage「生成封面」按钮；修 Windows 盘符卷文件名清洗 bug）。
+- **验证**：Go 全量绿；vitest **769/769**（144 文件，+10）；tsc -b / eslint 0
+  （顺带修 v4.2 遗留 TS2488/spaceBindings 键）；绑定面 **522 方法**漂移 PASS（+5）；
+  spaceBindings **233 方法**全覆盖断言；版本五处统一 4.3.0。
+  详见 releases/v4.3.0.md。
+
 ## v4.2.0「智慧」工位造价包 (2026-08-29)
 > 阶段 3+ 领域包第一发：AI 组价 + 询价飞轮 + 五算对比（垂直蓝海率先变现）。
 > 设计 `docs/gaea-v42-cost-ai-design.md`；「无确认不落库」纪律贯穿三支柱。
