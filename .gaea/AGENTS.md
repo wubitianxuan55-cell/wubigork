@@ -26,6 +26,21 @@
 
 ## 版本状态
 
+- **最新发布：v3.9.0（2026-08-29）「双空间壳 + 办公信任链」**：
+  git tag `v3.9.0`；CHANGELOG / releases/v3.9.0.md / README 索引同步。要点：
+  - **双空间壳（阶段 2，S2.1-S2.3/S2.3b）**：两视图+空间切换持久化（gaea.shell.space /
+    gaea.shell.page.<space>）+ 删旧 10 板块导航 + 双首页；工作台 localStorage 空间分键 +
+    keepAlive 跨空间卸载；**i18n 决策**（壳层三语 + 页面 zh-only）；页面迁入 P1（chat→play
+    对话流）；bridge 三门面（spaceBindings 214 方法分类）+ types 全量迁移（WireShape）；
+    151 hex token 化（VoiceSettingsPanel 浅色 bug 修复 + eslint no-raw-hex）。
+  - **v4.1 办公信任链**：证据链（ChangeRecord 原文摘要/ChangeLedger/JournalStore，
+    play 不落盘）+ Verifier 双通道复核 + 基线快照回滚（手工编辑冲突保护）+
+    GB/T 9704 红头规范体检；前端证据入口（DeliverablesPanel 复核/回滚）。
+  - **验证**：Go 全量绿；vitest **738/738**；tsc/eslint 0；vite build；绑定面 **506** 漂移
+    PASS；spaceBindings 218 全覆盖；版本五处统一 3.9.0。
+  - **下一执行**：v4.2 造价 AI 化（AI 组价 + 询价飞轮 + 五算对比，§10.4）；
+    遗留小修（stubGate 竞态/Cancel flake/ProgrammingPage 负载 flake）。
+
 - **最新发布：v3.8.0（2026-08-29）「双空间内核 · 工位/乐园 + 质量地基」**：
   git tag `v3.8.0`；CHANGELOG / releases/v3.8.0.md / README 索引同步。要点：
   - **双空间内核（阶段 1，S1.1-S1.5）**：SchemaV14（facts/tasks space_id 回填 work）+

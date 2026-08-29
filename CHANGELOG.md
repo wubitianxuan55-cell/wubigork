@@ -1,5 +1,29 @@
 # gaea · 多功能 AI 助手
 
+## v3.9.0「双空间壳 + 办公信任链」(2026-08-29)
+> 阶段 2 双空间壳（S2.1–S2.3/S2.3b + 页面迁入 P1）+ v4.1 办公信任链（证据链→复核→
+> 回滚→规范体检）一次收官；「审阅后」护城河从设计到端到端闭环。
+- **双空间壳（阶段 2）**：S2.1 壳层两视图 + 空间切换持久化（`gaea.shell.space` /
+  `gaea.shell.page.<space>`）+ 删旧 10 板块导航 + 双首页（工位任务工作台 / 乐园会客厅
+  创作间）+ 事件订阅空间过滤 + Ctrl+K scope；S2.2 工作台 localStorage 空间分键
+  （`gaea.work.*` 旧 key 只读迁移）+ keepAlive 跨空间卸载（性能门控）+ **i18n 决策**
+  （壳层 chrome+设置三语，页面 zh-only，审计「诚实 zh-only」选项）+ 页面迁入 P1
+  （chat→play 对话流）；S2.3 bridge 三门面（spaceBindings 214 方法显式分类，
+  workApp/playApp/sharedApp 类型级红线）+ types 全量迁移（WireShape 55 别名 +
+  typesGenerationCheck 漂移校验）。
+- **151 hex token 化（S0.7 遗留）**：VoiceSettingsPanel 浅色主题不可读真 bug 修复；
+  语义色全 token；图表/品牌/覆盖层显式 `hex-exempt`；eslint `local/no-raw-hex` 防回归。
+- **v4.1 办公信任链**：证据链（ChangeRecord 原文摘要 8KB / ChangeLedger / JournalStore
+  JSONL+markdown，play 不落盘；六类写盘工具 + xlsx_apply 接入）；Verifier 双通道
+  （结构/引用完整性 + 基线 PDF 渲染对比）+ 基线快照回滚（手工编辑冲突保护零覆盖）；
+  GB/T 9704 红头 7 要素规范体检（GaeaDocumentLint + OfficePanel 入口）；
+  前端「证据」入口（DeliverablesPanel 复核/回滚）。
+- **验证**：Go 全量绿；vitest **738/738**（139 文件）；tsc/eslint 0；vite build；
+  绑定面 **506 方法**漂移 PASS（新增 4 绑定）；spaceBindings 218 全覆盖；
+  版本五处统一 3.9.0（app_info / wails.json / versioninfo.rc / package.json /
+  package-lock）；CHANGELOG / README / releases / AGENTS / progress 同步。
+  详见 releases/v3.9.0.md。
+
 ## v3.8.0「双空间内核 · 工位/乐园 + 质量地基」(2026-08-29)
 > 双空间（工作/娱乐隔离）从规划到内核落地：会话/记忆/任务/产物/模型/工具/权限/护栏全按
 > 空间装配、互不干扰；同步完成审计 P0/P1 质量地基（并发/安全/编辑脊柱）与长期规划定稿。

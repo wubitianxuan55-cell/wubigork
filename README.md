@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v3.9.0** | 2026-08-29 | 双空间壳（阶段 2 收官：两视图+空间切换持久化+双首页+删旧 10 板块导航+bridge 三门面+types 全量迁移+151 hex token 化+i18n 决策+页面迁入 P1 对话流）+ v4.1 办公信任链（证据链 ChangeRecord/Journal + Verifier 双通道复核 + 基线回滚冲突保护 + GB/T 9704 红头规范体检）。绑定面 506、spaceBindings 218、vitest 738/738。详见 releases/v3.9.0.md |
 | **v3.8.0** | 2026-08-29 | 双空间内核（工位/乐园隔离：会话/记忆/任务/产物/模型/工具/权限/护栏全按空间装配，space.mode 可回退）+ 质量地基（并发加固/Registry 锁/gate 原子化/retry_until 门控/edit_file 工具层/前端虚拟化与轮询门控/CI -race）+ 长期规划定稿（编程板块保持独立 DSH 窗口）。绑定面 502、Go 115 包、vitest 全绿。详见 releases/v3.8.0.md |
 | **v3.7.0** | 2026-08-29 | 办公蒸馏 codex 清单收官：C2 记忆引用可追溯（注入行引用键 [MEM:name] + 回传解析 Touch + 前端引用徽标弹层展示记忆详情/沉淀来源）；C4 审批决策族（deny/abort 拒绝三分 + approval_timeout_secs 超时 + persist_allow「始终允许」回写 [permissions].allow 策略文件，hardAsk 降级不回写，GaeaApprove 重构决策串五值）；C9 任务输出事件化（gaea-task 事件推输出尾回放，dock 事件即推、轮询兜底）；C5 运行状态行窗口占用百分比 + 压缩前预警（75%/90% 两档）；C6 项目说明文件 32KB 预算 + .gaea/AGENTS.md 发现；C3 自动做梦 no-op 指纹去重。绑定面 499、vitest 681/681、Go 114/114。详见 releases/v3.7.0.md |
 | **v3.6.0** | 2026-08-29 | 办公文件编辑审阅制 + 本地优先 + 对话面减负：xlsx AI 编辑两段式（GaeaXlsxPlanEdit 临时副本试运行+单元格级 diff → 批准 → GaeaXlsxApplyEdit，新增 set_style 叠加/合并/列宽）；xlsx 原生图表嵌入工作簿（非截图）；PDF 统一出口（GaeaConvertToPdf，LibreOffice 无头 + md 经 docx 中转 + 顶栏导出）；办公功能级 AI 本地优先（routeOfficeLocal + 安全设置开关，主 agent 不受影响）；运行中插话（GaeaSteer + event.Steer）；回退方案模式 v1、撤下任务目标/验收清单（GoalCard + GaeaRequirement 系）、用户消息 Codex 式收敛 + 超长折叠；修复 whisper 关机排水丢任务 / 空切片 null 崩溃。绑定面 499、vitest 669/669、Go 114/114。详见 releases/v3.6.0.md |
