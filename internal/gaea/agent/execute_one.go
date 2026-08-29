@@ -105,11 +105,16 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	// V10.28: stale anchor 守卫 — 同一轮内已编辑的文件必须先 read_file 才能再编辑
 	if !t.ReadOnly() && isFileWriter(call.Name) {
 		if path := extractFilePath(call.Name, call.Arguments); path != "" {
-			if a.staleWrittenFiles != nil && a.staleWrittenFiles[path] {
-				if a.staleReadFiles == nil || !a.staleReadFiles[path] {
-					msg := fmt.Sprintf("blocked: [stale content] %q was already modified this turn. Re-read it with read_file first so your edit anchors (old_string/anchors) match the current file content.", path)
-					return toolOutcome{output: msg, blocked: true, errMsg: msg}
-				}
+			// turnMu guards the per-turn stale maps against the other executeOne
+			// goroutines running this batch (audit P0 race fix). Only the map
+			// reads happen under the lock; the message is built outside it.
+			a.turnMu.Lock()
+			written := a.staleWrittenFiles != nil && a.staleWrittenFiles[path]
+			read := a.staleReadFiles != nil && a.staleReadFiles[path]
+			a.turnMu.Unlock()
+			if written && !read {
+				msg := fmt.Sprintf("blocked: [stale content] %q was already modified this turn. Re-read it with read_file first so your edit anchors (old_string/anchors) match the current file content.", path)
+				return toolOutcome{output: msg, blocked: true, errMsg: msg}
 			}
 		}
 	}
@@ -233,6 +238,10 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	// V10.13: 记录成功签名用于循环检测
 	a.recordRepeatSuccess(call, t)
 	// V10.27: 追踪后台任务启停模式，用于检测 start-kill 循环
+	// turnMu guards the bg flags/streak — sibling executeOne goroutines in the
+	// same batch and the run loop's checkBgStartKillCycle touch them too
+	// (audit P0 race fix).
+	a.turnMu.Lock()
 	switch call.Name {
 	case "bash":
 		var bp struct {
@@ -250,7 +259,11 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	case "kill_shell":
 		a.bgJobKilledThisTurn = true
 	}
+	a.turnMu.Unlock()
 	// V10.28: 追踪 stale anchor — 记录本轮成功的读写操作
+	// Locked: the lazy map init + writes race with the other executeOne
+	// goroutines of this batch (audit P0 — "concurrent map writes" crash).
+	a.turnMu.Lock()
 	if path := extractFilePath(call.Name, call.Arguments); path != "" {
 		if t.ReadOnly() && call.Name == "read_file" {
 			if a.staleReadFiles == nil {
@@ -267,6 +280,7 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 			a.staleWrittenFiles[path] = true
 		}
 	}
+	a.turnMu.Unlock()
 	// A foreground `task` sub-agent just finished — its result is the final answer.
 	if a.hooks != nil && call.Name == "task" && !isBackgroundTaskCall(call.Arguments) {
 		a.hooks.SubagentStop(ctx, result)
@@ -302,10 +316,17 @@ const repeatSuccessAllowed = 2
 // 命中时返回阻止消息，防止模型无意义循环消耗 token。
 func (a *AgentRunner) repeatedSuccessBlock(call provider.ToolCall, t tool.Tool) (string, bool) {
 	sig, ok := repeatSuccessSignature(call, t)
-	if !ok || a.repeatSuccessCounts == nil {
+	if !ok {
 		return "", false
 	}
-	count := a.repeatSuccessCounts[sig]
+	// turnMu guards repeatSuccessCounts: sibling executeOne goroutines increment
+	// it concurrently (audit P0 race fix). A nil map simply means count 0.
+	a.turnMu.Lock()
+	count := 0
+	if a.repeatSuccessCounts != nil {
+		count = a.repeatSuccessCounts[sig]
+	}
+	a.turnMu.Unlock()
 	if count < repeatSuccessAllowed {
 		return "", false
 	}
@@ -315,15 +336,20 @@ func (a *AgentRunner) repeatedSuccessBlock(call provider.ToolCall, t tool.Tool) 
 }
 
 // recordRepeatSuccess 记录一次成功的写工具调用，用于循环检测。
+// turnMu covers the lazy map init and the increment — executeOne runs in
+// parallel goroutines and unsynchronized map access here is a fatal
+// "concurrent map writes" crash (audit P0 race fix).
 func (a *AgentRunner) recordRepeatSuccess(call provider.ToolCall, t tool.Tool) {
 	sig, ok := repeatSuccessSignature(call, t)
 	if !ok {
 		return
 	}
+	a.turnMu.Lock()
 	if a.repeatSuccessCounts == nil {
 		a.repeatSuccessCounts = make(map[string]int)
 	}
 	a.repeatSuccessCounts[sig]++
+	a.turnMu.Unlock()
 }
 
 // repeatSuccessSignature 为写工具调用计算可比较的签名。

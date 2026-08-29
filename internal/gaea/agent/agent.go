@@ -199,6 +199,12 @@ type AgentRunner struct {
 	// 检测写工具在同一用户轮次中重复成功调用，阈值 2 次后阻止。
 	repeatSuccessCounts map[string]int
 
+	// turnMu guards per-turn mutable state updated concurrently by executeOne
+	// goroutines (stale maps, repeat-success counts, bg start/kill flags).
+	// Race fix (audit P0): without it, two parallel read_file/write_file calls
+	// can hit "concurrent map writes" — a fatal runtime error recover() cannot catch.
+	turnMu sync.Mutex
+
 	// V6.0: 回忆提醒开关（recall_reminder.go）
 	recallReminderFired bool
 
@@ -651,6 +657,11 @@ func (a *AgentRunner) shouldMidTurnSteer(calls []provider.ToolCall, results []st
 // injected to break the loop. Resets on any foreground bash or output-read.
 // Returns true if a nudge was injected (caller should continue the loop).
 func (a *AgentRunner) checkBgStartKillCycle() bool {
+	// turnMu guards the bg start/kill flags and streak: executeOne writes them
+	// from parallel batch goroutines (audit P0 race fix). session.Add below has
+	// its own mutex and never takes turnMu, so no inversion is possible.
+	a.turnMu.Lock()
+	defer a.turnMu.Unlock()
 	// Only track when the pattern appears: started AND killed in the same turn
 	// without reading output.
 	if !a.bgJobStartedThisTurn || !a.bgJobKilledThisTurn {
