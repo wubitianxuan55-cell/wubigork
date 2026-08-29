@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { app, onTaskEvent } from "../lib/bridge";
+import { workApp, onTaskEvent } from "../lib/bridge";
 import type { TaskStatus, TaskView } from "../lib/types";
 import { isWorkSpaceTask } from "../lib/taskSpace";
 
@@ -38,7 +38,7 @@ export function useRunningBadge(): number {
       tasks.set(t.id, t);
       recalc();
     });
-    app
+    workApp
       .TaskList()
       .then((list) => {
         if (cancelled) return;

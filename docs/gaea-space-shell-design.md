@@ -133,6 +133,23 @@ subscribeForSpace(event, handler, space?)  // payload.spaceId ?? payload.space
 - **页面迁入**：导航层已完成（S2.1 manifest.space）；「对话降为对话流 / 记忆降为
   侧栏 / 模型中心并入设置 / 创作间合并」属 v4.x 深层重构，随版本推进，不在本步。
 
+## 8. S2.3 增量（bridge 分面 + types 生成化）
+
+- **绑定空间分类表** `gaea/lib/spaceBindings.ts`：gaea 桥 AppBindings **214 个方法
+  全部显式分类**（work/play/shared/independent），`satisfies Record<keyof
+  AppBindings, BindingSpace>` 编译期全覆盖 + `_NoStray/_NoMissing/_NoFacetOverlap`
+  双向断言——新方法未分类 tsc 直接报错。规则：工位工作台（会话/办公/记忆/造价/
+  任务/文件）→ work；轻语记忆 → play；元信息/模型/设置/空间开关/统一检索 → shared
+  （UnifiedSearch 隔离由 scope 参数承担，S1.2-C）；编程 DSH 五方法 → independent。
+- **bridge 三门面** `bridge.ts`：`workApp`（work+shared+independent）/ `playApp`
+  （play+shared+independent）/ `sharedApp`（仅 shared）——类型级（play 页面引用
+  work 专属方法 tsc 报错）+ 运行时（越界方法返回 undefined → TypeError）双保险；
+  `app` 全量代理保留兼容，解析逻辑收敛为 `resolveBinding`。
+- **消费示例**：TaskCenter / useRunningBadge 改用 `workApp`（任务中心 = 工位 UI）。
+- **types 生成化第一刀** `typesGenerationCheck.ts`：wailsjs 生成模型字段 ⊆ 手写
+  view 类型编译期钉死（8 个核心模型）；借此修复 `SessionMeta.spaceId` 漂移。
+  全量迁移（types.ts re-export 生成模型）为 S2.3b。
+
 ## 5. 验收
 
 1. 切到乐园：导航只剩 shared+play 板块，首页为乐园门面；切回工位恢复工位首页。

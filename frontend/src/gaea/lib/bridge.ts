@@ -99,6 +99,11 @@ import type {
   TaskView,
   ModelSwitchEstimate,
 } from "./types";
+import {
+  isBindingAllowedInSpace,
+  isSharedBinding,
+  type GaeaFacetBySpace,
+} from "./spaceBindings";
 // chat 板块契约类型来自 wails 生成物（wails build 自动生成，勿手改生成物本身）。
 // AppBindings 只做类型标注：ChatTopicsList/ChatMessagesList Go 侧为
 // ([]chat.Topic, error) / ([]chat.Message, error)，Wails 绑定后失败呈现为
@@ -846,23 +851,58 @@ function logFrontendError(message: string): void {
   void Promise.resolve(lfe(message)).catch(() => {});
 }
 
+/** 解析单个绑定：按方法名路由到 live binding 或 dev mock（无空间门控的通用解析）。 */
+function resolveBinding(prop: string | symbol): unknown {
+  const target = realApp() ?? getMock();
+  const key = (gaeaToGaea as Record<string, string>)[String(prop)] ?? String(prop);
+  const rec = target as unknown as Record<string, unknown>;
+  // 真实绑定按 Gaea 前缀查找；浏览器 mock 直接暴露同名字段，需回退。
+  const v = rec[key] ?? rec[String(prop)];
+  if (typeof v !== "function") return v;
+  const bound = (v as (...a: unknown[]) => unknown).bind(target);
+  // LogFrontendError 是错误上报通道自身，不套 invoke 归一化层，避免日志
+  // 通道故障时无限递归；其余方法统一走 invoke。
+  if (String(prop) === "LogFrontendError") return bound;
+  return (...args: unknown[]) => invoke(String(prop), bound, args);
+}
+
 // app proxies each call to the live binding (or the dev mock only when truly
 // outside the shell), so a late-injected window.go is picked up transparently.
 export const app: AppBindings = new Proxy({} as AppBindings, {
   get(_t, prop) {
-    const target = realApp() ?? getMock();
-    const key = (gaeaToGaea as Record<string, string>)[String(prop)] ?? String(prop);
-    const rec = target as unknown as Record<string, unknown>;
-    // 真实绑定按 Gaea 前缀查找；浏览器 mock 直接暴露同名字段，需回退。
-    const v = rec[key] ?? rec[String(prop)];
-    if (typeof v !== "function") return v;
-    const bound = (v as (...a: unknown[]) => unknown).bind(target);
-    // LogFrontendError 是错误上报通道自身，不套 invoke 归一化层，避免日志
-    // 通道故障时无限递归；其余方法统一走 invoke。
-    if (String(prop) === "LogFrontendError") return bound;
-    return (...args: unknown[]) => invoke(String(prop), bound, args);
+    return resolveBinding(prop);
   },
 });
+
+// ── S2.3 bridge 分面（docs/gaea-space-shell-design.md §7）────────────────
+// 类型级门面：work/play 各自只暴露「所属空间 + shared + independent」的方法，
+// play 页面引用 work 专属方法会 tsc 报错；运行时同样按 spaceBindings 门控
+// （越界方法返回 undefined → TypeError，双保险）。sharedApp 只暴露 shared。
+function createSpaceFacade<S extends "work" | "play">(space: S): GaeaFacetBySpace[S] {
+  return new Proxy({} as GaeaFacetBySpace[S], {
+    get(_t, prop) {
+      if (prop === "then") return undefined; // 避免被误判为 Promise
+      if (!isBindingAllowedInSpace(String(prop), space)) return undefined;
+      return resolveBinding(prop);
+    },
+  });
+}
+
+/** 工位门面（work + shared + independent）——办公工作台专用。 */
+export const workApp = createSpaceFacade("work");
+/** 乐园门面（play + shared + independent）——轻语/小说/绘梦等页面专用。 */
+export const playApp = createSpaceFacade("play");
+/** 共用门面（仅 shared）——壳层/设置等两空间共用代码专用。 */
+export const sharedApp: GaeaFacetBySpace["work"] & GaeaFacetBySpace["play"] = new Proxy(
+  {} as GaeaFacetBySpace["work"] & GaeaFacetBySpace["play"],
+  {
+    get(_t, prop) {
+      if (prop === "then") return undefined;
+      if (!isSharedBinding(String(prop))) return undefined;
+      return resolveBinding(prop);
+    },
+  },
+);
 
 // openExternal opens a URL in the system browser (so links in rendered markdown
 // don't navigate the webview away from the app). Falls back to window.open in the

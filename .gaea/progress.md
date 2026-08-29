@@ -45,7 +45,7 @@
 - [x] **S1.5 空间策略**：S1.5-A 权限按空间+hardAsk 参数化+persist_allow 分段（装配族 `f8612d0`）；S1.5-B play 护栏 5 处钳制（`21f8978`）
 - 设计文档：`docs/gaea-space-dimension-design.md` / `gaea-memory-isolation-design.md` / `gaea-space-assembly-design.md`
 
-### 阶段 2 · 双空间壳（前端两视图，S2.1-S2.3）—— S2.1+S2.2 完成
+### 阶段 2 · 双空间壳（前端两视图，S2.1-S2.3）—— 全部完成
 - [x] **S2.1 壳层重构**（设计 `docs/gaea-space-shell-design.md`）：
   - [x] manifest 空间维度（Go + TS 同构）：work/play/shared/**independent**（编程 DSH 独立窗口，
     用户拍板不并入工位/乐园）——导航/启动器/快捷键/导航事件白名单全部由 manifest.space 派生
@@ -62,7 +62,13 @@
   - [x] i18n 全铺第一刀：LocaleProvider 提升根级 + S2.1 新壳 chrome 文案三语字典化
   - [ ] i18n 存量硬编码中文全铺（MainLayout/ChatPage/Settings 等，逐切片推进）
   - [ ] 页面深层迁入（对话降为对话流/记忆侧栏/模型中心并入设置/创作间）——v4.x 范围
-- S2.3 bridge 分面（work/play/shared）+ types 生成化
+- [x] **S2.3 bridge 分面 + types 生成化**：
+  - [x] `spaceBindings.ts` 分类表：AppBindings 214 方法显式分类（work/play/shared/
+    independent），satisfies + 双向断言编译期全覆盖；UnifiedSearch=shared（scope 隔离）
+  - [x] bridge 三门面 workApp/playApp/sharedApp（类型级 + 运行时双保险）；
+    TaskCenter/useRunningBadge 消费 workApp
+  - [x] types 生成化第一刀：typesGenerationCheck.ts 编译期漂移校验 + 修 SessionMeta.spaceId
+  - [ ] S2.3b types 全量迁移（types.ts re-export 生成模型）——待启动
 
 ## 纪律（沿用）
 

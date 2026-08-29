@@ -10,7 +10,7 @@ const tasks = vi.hoisted(() => ({
 }));
 
 vi.mock("../lib/bridge", () => ({
-  app: {
+  workApp: {
     TaskList: async (): Promise<TaskView[]> => [...tasks.list],
     TaskCancel: async () => {},
     TaskRetry: async () => {},

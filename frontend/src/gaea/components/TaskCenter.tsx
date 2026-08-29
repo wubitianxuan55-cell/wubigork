@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { CheckCircle, Clock, Inbox, Loader, RefreshCw, X, XCircle } from "../icons";
-import { app, onTaskEvent } from "../lib/bridge";
+import { workApp, onTaskEvent } from "../lib/bridge";
 import type { TaskOutputView, TaskStatus, TaskView } from "../lib/types";
 import { isWorkSpaceTask } from "../lib/taskSpace";
 import { useToast } from "./Toast";
@@ -61,7 +61,7 @@ export function TaskCenter() {
   selectedIdRef.current = selectedId;
 
   const load = useCallback(() => {
-    app
+    workApp
       .TaskList()
       .then((list) => setTasks((list ?? []).filter(isWorkSpaceTask)))
       .catch(() => setTasks([]))
@@ -97,7 +97,7 @@ export function TaskCenter() {
       return;
     }
     const loadOutput = () => {
-      app
+      workApp
         .TaskOutput(selectedId)
         .then((o) => setOutput(o))
         .catch(() => {});
@@ -125,7 +125,7 @@ export function TaskCenter() {
   const cancel = useCallback(
     async (id: string) => {
       try {
-        await app.TaskCancel(id);
+        await workApp.TaskCancel(id);
         toast.show("已请求取消任务", "info");
       } catch (e) {
         toast.show(`取消失败：${String(e)}`, "warn");
@@ -137,7 +137,7 @@ export function TaskCenter() {
   const retry = useCallback(
     async (id: string) => {
       try {
-        await app.TaskRetry(id);
+        await workApp.TaskRetry(id);
         toast.show("任务已重新排队", "info");
       } catch (e) {
         toast.show(`重试失败：${String(e)}`, "warn");
