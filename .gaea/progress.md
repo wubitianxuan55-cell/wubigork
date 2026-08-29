@@ -60,7 +60,10 @@
     compact/focus → `gaea.work.*`，旧 key 只读回退）
   - [x] 性能门控：空间切换剪枝 keepAlive 保活页（跨空间页面卸载，后台轮询归零）
   - [x] i18n 全铺第一刀：LocaleProvider 提升根级 + S2.1 新壳 chrome 文案三语字典化
-  - [ ] i18n 存量硬编码中文全铺（MainLayout/ChatPage/Settings 等，逐切片推进）
+  - [x] **i18n 存量切片（壳层 chrome）**：MainLayout（strip/rail/telemetry 超载警告等）
+    + ModuleLauncher（统计卡/语音/信息条/相对时间）+ SearchModal（分类标签/计数）
+    全部三语字典化（~90 新 key）；fmtWords/fmtRel 接 translator
+  - [ ] i18n 存量切片（pages/ChatPage/Settings 等，逐切片推进）
   - [ ] 页面深层迁入（对话降为对话流/记忆侧栏/模型中心并入设置/创作间）——v4.x 范围
 - [x] **S2.3 bridge 分面 + types 生成化**：
   - [x] `spaceBindings.ts` 分类表：AppBindings 214 方法显式分类（work/play/shared/

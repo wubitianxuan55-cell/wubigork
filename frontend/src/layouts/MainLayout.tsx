@@ -26,7 +26,7 @@ import { getPageComponent } from '../boards/pageRegistry'
 import { subscribe, BACKEND_EVENTS, FRONTEND_EVENTS } from '../events'
 import { useFeatureModel } from '../hooks/useFeatureModel'
 import { usePollingGate } from '../hooks/usePollingGate'
-import { useT } from '../gaea/lib/i18n'
+import { useT, type Translator } from '../gaea/lib/i18n'
 
 const { Content } = Layout
 
@@ -86,8 +86,8 @@ const themeKeys = THEME_PRESETS.map((t) => t.key)
 const themeDots = THEME_PRESET_COLORS
 const themeLabels = THEME_PRESET_LABELS
 
-function fmtWords(n: number): string {
-  if (n >= 10000) return (n / 10000).toFixed(1) + '万'
+function fmtWords(n: number, t: Translator): string {
+  if (n >= 10000) return (n / 10000).toFixed(1) + t('shell.launcher.fmtWan')
   return n.toLocaleString()
 }
 
@@ -146,6 +146,7 @@ const SparkCard: React.FC<{ label: string; value: string; data: number[]; hint?:
 const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | null; showProject: boolean }> = ({ stats, info, showProject }) => {
   const [collapsed, setCollapsed] = useState(true)
   const [monitor, setMonitor] = useState<{ engines?: MonitorEngine[]; stats?: MonitorStats } | null>(null)
+  const t = useT()
   // 历史缓冲：CPU/内存/GPU 各保留最近 20 点（60s @ 3s 轮询）
   const [history, setHistory] = useState<{ cpu: number[]; mem: number[]; gpu: number[] }>({ cpu: [], mem: [], gpu: [] })
   const lastWarn = useRef<Record<string, number>>({})
@@ -171,10 +172,10 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
       const gpuPct = ms?.gpuUsage || vramPct
       const localEngCount = (m?.engines || []).filter((e: MonitorEngine) => e.isLocal).length + (m?.comfyRunning ? 1 : 0)
       const warns: { key: string; title: string; desc: string }[] = []
-      if ((ms?.cpu ?? 0) > 85) warns.push({ key: 'cpu', title: '⚠ CPU 负载过高', desc: `当前 CPU 使用率 ${ms?.cpu ?? 0}%，模型占用过大，建议停用部分模型` })
-      if (gpuPct > 85) warns.push({ key: 'gpu', title: '⚠ GPU 负载过高', desc: `GPU 使用率 ${gpuPct}%（显存占用），建议停用部分本地模型` })
-      if (memPct > 90) warns.push({ key: 'mem', title: '⚠ 内存占用过高', desc: `内存使用率 ${memPct}%，建议释放不用的模型` })
-      if (localEngCount > 3) warns.push({ key: 'models', title: '⚠ 已启动模型过多', desc: `已启用 ${localEngCount} 个引擎，建议停用不用的模型（各功能窗口 ⚡ 一键启停）` })
+      if ((ms?.cpu ?? 0) > 85) warns.push({ key: 'cpu', title: t('shell.tele.overloadCpu'), desc: t('shell.tele.overloadCpuDesc', { cpu: ms?.cpu ?? 0 }) })
+      if (gpuPct > 85) warns.push({ key: 'gpu', title: t('shell.tele.overloadGpu'), desc: t('shell.tele.overloadGpuDesc', { gpu: gpuPct }) })
+      if (memPct > 90) warns.push({ key: 'mem', title: t('shell.tele.overloadMem'), desc: t('shell.tele.overloadMemDesc', { mem: memPct }) })
+      if (localEngCount > 3) warns.push({ key: 'models', title: t('shell.tele.overloadModels'), desc: t('shell.tele.overloadModelsDesc', { count: localEngCount }) })
       warns.forEach((w) => {
         if (now - (lastWarn.current[w.key] || 0) > 60_000) {
           lastWarn.current[w.key] = now
@@ -202,9 +203,9 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
       } catch { /* 忽略轮询失败 */ }
     }
     load()
-    const t = setInterval(load, 3000)
-    return () => { alive = false; clearInterval(t) }
-  }, [visible])
+    const timer = setInterval(load, 3000)
+    return () => { alive = false; clearInterval(timer) }
+  }, [visible, t])
 
   const ms = monitor?.stats
   const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
@@ -222,27 +223,27 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
   const progressPercent = plannedChapters > 0 ? Math.round((writtenChapters / Math.max(plannedChapters, writtenChapters + 5)) * 100) : 0
 
   return (
-    <div className={`v3-telemetry${collapsed ? ' is-collapsed' : ''}`} aria-label="系统遥测轨道">
+    <div className={`v3-telemetry${collapsed ? ' is-collapsed' : ''}`} aria-label={t('shell.tele.aria')}>
       <div className="v3-telemetry-inner">
         <button
           className="v3-telemetry-toggle"
           onClick={() => setCollapsed((c) => !c)}
           aria-expanded={!collapsed}
-          aria-label={collapsed ? '展开遥测轨道' : '折叠遥测轨道'}
+          aria-label={collapsed ? t('shell.tele.expand') : t('shell.tele.collapse')}
         >
           {collapsed ? <UpOutlined /> : <DownOutlined />}
-          <span style={{ marginLeft: 4 }}>遥测</span>
+          <span style={{ marginLeft: 4 }}>{t('shell.tele.label')}</span>
         </button>
         {/* 引擎 pods */}
         {engLabel.length ? (
           engLabel.map((e) => (
-            <Tooltip key={e} title="已启用引擎（模型中心可启停）">
+            <Tooltip key={e} title={t('shell.tele.enginesTip')}>
               <span className="v3-engine-pod"><span className="v3-pod-dot" />{e}</span>
             </Tooltip>
           ))
         ) : (
-          <Tooltip title="模型中心可启动本地引擎">
-            <span className="v3-engine-pod" style={{ opacity: 0.65 }}><ThunderboltOutlined style={{ fontSize: 10 }} />无启用引擎</span>
+          <Tooltip title={t('shell.tele.noEnginesTip')}>
+            <span className="v3-engine-pod" style={{ opacity: 0.65 }}><ThunderboltOutlined style={{ fontSize: 10 }} />{t('shell.tele.noEngines')}</span>
           </Tooltip>
         )}
         {info && showProject && (
@@ -250,7 +251,7 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
         )}
         {stats && showProject && (
           <>
-            <span className="v3-tele-key">进度</span>
+            <span className="v3-tele-key">{t('shell.tele.progress')}</span>
             <Progress
               percent={progressPercent}
               size="small"
@@ -260,12 +261,12 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
               trailColor="var(--md-sys-color-outline-variant)"
             />
             <span className="v3-tele-value">{progressPercent}%</span>
-            <span className="v3-tele-key"><FileTextOutlined />{stats.chapterCount} 章 · {fmtWords(stats.totalWords)} 字</span>
+            <span className="v3-tele-key"><FileTextOutlined />{t('shell.tele.chapters', { count: stats.chapterCount, words: fmtWords(stats.totalWords, t) })}</span>
           </>
         )}
         <span className="v3-telemetry-spacer" style={{ flex: 1 }} />
         <span className="v3-tele-key">CPU</span><span className="v3-tele-value">{cpuOk != null ? cpuOk + '%' : '--'}</span>
-        <span className="v3-tele-key">内存</span><span className="v3-tele-value">{ms ? memPct + '%' : '--'}</span>
+        <span className="v3-tele-key">{t('shell.tele.mem')}</span><span className="v3-tele-value">{ms ? memPct + '%' : '--'}</span>
         {ms?.gpuName ? (
           <>
             <span className="v3-tele-key">GPU</span>
@@ -274,9 +275,9 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
         ) : null}
       </div>
       <div className="v3-telemetry-body">
-        <SparkCard label="CPU 使用率" value={cpuOk != null ? `${cpuOk}%` : '--'} data={history.cpu} hint={`CPU 使用率 ${cpuOk != null ? cpuOk + '%' : '--'}`} />
-        <SparkCard label="内存使用率" value={ms ? `${memPct}%` : '--'} data={history.mem} hint={`内存 ${memPct}% / 总 ${ms?.memTotal ?? '--'}`} />
-        <SparkCard label={ms?.gpuName ? `GPU · ${ms.gpuName}` : 'GPU 使用率'} value={ms?.gpuName ? (gpuOk ? gpuOk + '%' : '--') : '--'} data={history.gpu} hint={`GPU 使用率/显存 ${vramPct}%`} />
+        <SparkCard label={t('shell.tele.cpuUsage')} value={cpuOk != null ? `${cpuOk}%` : '--'} data={history.cpu} hint={t('shell.tele.cpuHint', { value: cpuOk != null ? cpuOk + '%' : '--' })} />
+        <SparkCard label={t('shell.tele.memUsage')} value={ms ? `${memPct}%` : '--'} data={history.mem} hint={t('shell.tele.memHint', { used: memPct, total: ms?.memTotal ?? '--' })} />
+        <SparkCard label={ms?.gpuName ? t('shell.tele.gpuNamed', { name: ms.gpuName }) : t('shell.tele.gpuUsage')} value={ms?.gpuName ? (gpuOk ? gpuOk + '%' : '--') : '--'} data={history.gpu} hint={t('shell.tele.gpuHint', { vram: vramPct })} />
       </div>
     </div>
   )
@@ -307,7 +308,7 @@ const CommandRail: React.FC<{
   return (
     <nav
       className="v3-rail"
-      aria-label="指挥轨道（板块导航）"
+      aria-label={t('shell.rail.aria')}
     >
       <div className="v3-rail-head">
         <img src="/favicon.svg" alt="gaea" />
@@ -328,7 +329,7 @@ const CommandRail: React.FC<{
           ))}
         </div>
       </div>
-      <div className="v3-rail-nav" role="menubar" aria-label="板块">
+      <div className="v3-rail-nav" role="menubar" aria-label={t('shell.rail.nav')}>
         {boards.map((b, i) => {
           const Icon = resolveBoardIcon(b.icon)
           const active = b.id === page
@@ -380,10 +381,10 @@ const CommandRail: React.FC<{
             })}
           </>
         )}
-        <Tooltip title={darkMode ? '切换亮色' : '切换暗色'} placement="right">
+        <Tooltip title={darkMode ? t('shell.rail.darkOff') : t('shell.rail.darkOn')} placement="right">
           <button
             className="v3-rail-item"
-            aria-label={darkMode ? '切换亮色' : '切换暗色'}
+            aria-label={darkMode ? t('shell.rail.darkOff') : t('shell.rail.darkOn')}
             onClick={toggleDarkMode}
           >
             <span className="v3-rail-icon">{darkMode ? <SunOutlined /> : <MoonOutlined />}</span>
@@ -399,6 +400,7 @@ const MainLayout: React.FC = () => {
   // S2.1：壳层空间（持久化 appStore.space）+ 每空间最后页面
   const space = useAppStore((s) => s.space)
   const setSpace = useAppStore((s) => s.setSpace)
+  const t = useT()
   const [page, setPage] = useState<Page>(() => loadShellPage(space) as Page)
   const {
     loggedIn, login, checkLogin, baseTheme, darkMode, setTheme, toggleDarkMode,
@@ -456,10 +458,10 @@ const MainLayout: React.FC = () => {
   const fm = useFeatureModel(curFeature ?? '')
   const pillModel = fm?.model || activeModel || ''
   const pillTip = fm?.model
-    ? `当前模型：${fm.model}${fm.engine ? `（${fm.engine}）` : ''} · 点击前往模型中心`
+    ? t('shell.strip.modelTip', { model: fm.model, engine: fm.engine ?? '' })
     : activeModel
-      ? `当前模型：${activeModel} · 点击前往模型中心`
-      : '未设置模型，点击前往模型中心'
+      ? t('shell.strip.modelTipSimple', { model: activeModel })
+      : t('shell.strip.modelTipNone')
   // 项目上下文（小说标题/进度/字数）只在「项目锚点板块」（小说）显示；
   // 切到绘梦/办公/聊天等板块时，顶栏面包屑与底栏遥测不再残留小说信息。
   const projectContextVisible = projectOpen && !!getActiveBoard(page)?.breadcrumb?.anchorTo
@@ -565,13 +567,13 @@ const MainLayout: React.FC = () => {
           <header className="v3-strip">
             {/* 一键返回首页（非首页时显示） */}
             {page !== getActiveHomeBoard().id && (
-              <Tooltip title="返回首页">
+              <Tooltip title={t('shell.strip.home')}>
                 <Button
                   type="text"
                   size="small"
                   icon={<HomeOutlined />}
                   onClick={() => setPage(getActiveHomeBoard().id as Page)}
-                  aria-label="返回首页"
+                  aria-label={t('shell.strip.home')}
                   style={{ color: 'var(--color-text-secondary)' }}
                 />
               </Tooltip>
@@ -643,22 +645,22 @@ const MainLayout: React.FC = () => {
             </Space>
             {/* 搜索 */}
             {projectOpen && (
-              <Tooltip title="搜索（Ctrl+K）">
-                <Button type="text" size="small" icon={<SearchOutlined />} onClick={() => setSearchOpen(true)} aria-label="打开搜索" style={{ color: 'var(--color-text-secondary)' }} />
+              <Tooltip title={t('shell.strip.searchTip')}>
+                <Button type="text" size="small" icon={<SearchOutlined />} onClick={() => setSearchOpen(true)} aria-label={t('shell.strip.searchAria')} style={{ color: 'var(--color-text-secondary)' }} />
               </Tooltip>
             )}
             {/* 设置 */}
-            <Tooltip title="设置">
-              <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setPage('settings')} aria-label="打开设置" style={{ color: 'var(--color-text-secondary)' }} />
+            <Tooltip title={t('shell.strip.settings')}>
+              <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setPage('settings')} aria-label={t('shell.strip.settingsAria')} style={{ color: 'var(--color-text-secondary)' }} />
             </Tooltip>
             {/* 登录状态 */}
             {loggedIn ? (
-              <Tooltip title="已登录">
-                <Button type="text" size="small" icon={<LoginOutlined />} aria-label="已登录" style={{ color: 'var(--color-success)' }} />
+              <Tooltip title={t('shell.strip.loggedIn')}>
+                <Button type="text" size="small" icon={<LoginOutlined />} aria-label={t('shell.strip.loggedIn')} style={{ color: 'var(--color-success)' }} />
               </Tooltip>
             ) : (
               <Button type="link" size="small" icon={<LoginOutlined />} onClick={login} style={{ color: 'var(--color-primary)', fontSize: 12 }}>
-                登录 xAI
+                {t('shell.strip.login')}
               </Button>
             )}
           </header>
@@ -684,7 +686,7 @@ const MainLayout: React.FC = () => {
                       <Spin size="large" style={{ color: 'var(--gaea-glow)' }} />
                       <span className="live-dot" />
                       <Typography.Text style={{ color: 'var(--color-text-secondary)', fontSize: 12, letterSpacing: '0.06em' }}>
-                        正在唤醒 AI 模块…
+                        {t('shell.strip.loading')}
                       </Typography.Text>
                     </div>
                   )}>

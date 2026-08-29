@@ -18,7 +18,7 @@ import { Tooltip } from 'antd'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { useAppStore } from '../stores/appStore'
 import { usePollingGate } from '../hooks/usePollingGate'
-import { useT } from '../gaea/lib/i18n'
+import { useT, type Translator } from '../gaea/lib/i18n'
 import type { DictKey } from '../gaea/locales/en'
 import * as App from '../../src/wailsjsCompat'
 import './module-launcher.css'
@@ -90,23 +90,23 @@ interface MemoryHubLite {
 }
 
 /** 字数友好格式化（>=1 万显示 x.x 万） */
-function fmtWords(n: number): string {
+function fmtWords(n: number, t: Translator): string {
   if (!n) return '0'
-  if (n >= 10000) return (n / 10000).toFixed(1) + '万'
+  if (n >= 10000) return (n / 10000).toFixed(1) + t('shell.launcher.fmtWan')
   return n.toLocaleString()
 }
 
 /** 相对时间（unix ms → 「刚刚 / N 分钟前 / N 小时前 / N 天前」） */
-function fmtRel(ms: number): string {
+function fmtRel(ms: number, t: Translator): string {
   if (!ms) return '—'
   const diff = Date.now() - ms
   const min = Math.floor(diff / 60000)
-  if (min < 1) return '刚刚'
-  if (min < 60) return `${min} 分钟前`
+  if (min < 1) return t('shell.launcher.fmtJustNow')
+  if (min < 60) return t('shell.launcher.fmtMin', { n: min })
   const h = Math.floor(min / 60)
-  if (h < 24) return `${h} 小时前`
+  if (h < 24) return t('shell.launcher.fmtHour', { n: h })
   const d = Math.floor(h / 24)
-  if (d < 30) return `${d} 天前`
+  if (d < 30) return t('shell.launcher.fmtDay', { n: d })
   return new Date(ms).toLocaleDateString()
 }
 
@@ -160,11 +160,12 @@ const LauncherCard: React.FC<{
 }> = ({ m, idx, featured, onOpen }) => {
   // icon 为图标注册表名，渲染处查表解析；未知名 → Thunderbolt 兜底（3.0 §5.2）
   const Icon = resolveBoardIcon(m.icon)
+  const t = useT()
   return (
     <div
       role="button"
       tabIndex={0}
-      aria-label={`进入${m.name}模块`}
+      aria-label={t('shell.launcher.enterModule', { name: m.name })}
       className={`ml-card v3-card is-interactive v3-rise ${featured ? 'ml-card--featured' : ''}`}
       style={{ animationDelay: `${80 + idx * 45}ms` } as React.CSSProperties}
       onClick={onOpen}
@@ -186,7 +187,7 @@ const LauncherCard: React.FC<{
       </div>
       {featured && (
         <div className="ml-card-foot">
-          <span>进入{m.name}工作台</span>
+          <span>{t('shell.launcher.enterWorkbench', { name: m.name })}</span>
           <ArrowRightOutlined className="ml-card-foot-arrow" />
         </div>
       )}
@@ -326,12 +327,12 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
   }, [voice.active, start, stop])
 
   const voiceStateLabel = voice.aiSpeaking
-    ? 'AI 回复中…'
+    ? t('shell.launcher.voiceReplying')
     : voice.listening
-      ? '正在聆听…'
+      ? t('shell.launcher.voiceListening')
       : voice.active
-        ? '语音待命'
-        : '待机'
+        ? t('shell.launcher.voiceStandby')
+        : t('shell.launcher.voiceIdle')
 
   const voiceTone = voice.aiSpeaking
     ? 'is-speaking'
@@ -375,7 +376,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     <div className="ml">
       <div className="ml-shell">
         {/* ── Hero：左文右卡（参照 DeepSeek 首页风格）── */}
-        <section className="ml-hero" aria-label="首页概览">
+        <section className="ml-hero" aria-label={t('shell.launcher.heroAria')}>
           {/* 左侧：公告 pill + 大标题 + 行动卡 */}
           <div className="ml-hero-copy">
             <span className="ml-hero-eyebrow">
@@ -412,32 +413,32 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
                 <span className="ml-orb-ring" aria-hidden="true" />
                 <span className="ml-orb-static" aria-hidden="true" />
               </div>
-              <span className="ml-voice-eyebrow" aria-hidden="true">语音晶核 · {voicePersonaLabel}</span>
+              <span className="ml-voice-eyebrow" aria-hidden="true">{t('shell.launcher.voiceOrb', { persona: voicePersonaLabel })}</span>
             </div>
             <div className="ml-visual-side">
               <div className="ml-visual-head">
-                <span className="ml-visual-title">AI 内核 · {voiceStateLabel}</span>
+                <span className="ml-visual-title">{t('shell.launcher.voiceKernel', { state: voiceStateLabel })}</span>
                 <span className="ml-visual-model">
                   <span className="ml-visual-model-dot" aria-hidden="true" />
-                  {activeModel || '本地模型'}
+                  {activeModel || t('shell.launcher.localModel')}
                 </span>
               </div>
-              <p className="ml-visual-sub">说话即可交互，无需打字 — 用声音直接指挥你的创作工作台。</p>
+              <p className="ml-visual-sub">{t('shell.launcher.voiceSub')}</p>
               <div className="ml-voice-actions">
                 {voice.active && voice.aiSpeaking && (
                   <button className="ml-interrupt-btn" onClick={interrupt} type="button">
-                    <StopOutlined /> 打断
+                    <StopOutlined /> {t('shell.launcher.voiceInterrupt')}
                   </button>
                 )}
-                <Tooltip title={voice.active ? '结束语音对话' : '启动麦克风，开始语音交互'}>
+                <Tooltip title={voice.active ? t('shell.launcher.voiceAriaEnd') : t('shell.launcher.voiceStartTip')}>
                   <button
                     className={`ml-voice-btn ${voice.active ? 'is-active' : ''}`}
                     onClick={toggleVoice}
                     type="button"
-                    aria-label={voice.active ? '结束语音对话' : '启动语音对话'}
+                    aria-label={voice.active ? t('shell.launcher.voiceAriaEnd') : t('shell.launcher.voiceAriaStart')}
                   >
                     {voice.active ? <StopOutlined /> : <AudioOutlined />}
-                    {voice.active ? '结束对话' : '开始语音对话'}
+                    {voice.active ? t('shell.launcher.voiceEnd') : t('shell.launcher.voiceStart')}
                   </button>
                 </Tooltip>
               </div>
@@ -459,35 +460,39 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
           <StatCard
             rise="v3-rise-1"
             icon={<RobotOutlined />}
-            label="活跃模型"
-            value={activeModel || '未设置'}
-            sub="当前对话模型"
+            label={t('shell.launcher.statModel')}
+            value={activeModel || t('shell.launcher.statModelNone')}
+            sub={t('shell.launcher.statModelSub')}
           />
           <StatCard
             rise="v3-rise-2"
             icon={<ThunderboltOutlined />}
-            label="已启用引擎"
+            label={t('shell.launcher.statEngines')}
             value={engineCount > 0 ? `${engineCount}` : '—'}
-            sub={engineCount > 0 ? `${localCount} 本地 · ${engineCount - localCount} 云端` : '暂无引擎运行'}
+            sub={engineCount > 0
+              ? t('shell.launcher.statEnginesSub', { local: localCount, cloud: engineCount - localCount })
+              : t('shell.launcher.statNoEngines')}
           />
           <StatCard
             rise="v3-rise-3"
             icon={<DashboardOutlined />}
-            label="资源占用"
-            value={ms ? `CPU ${cpuVal != null ? cpuVal + '%' : '--'}` : '—'}
-            sub={ms ? `内存 ${memPct}% · GPU ${gpuVal}%` : '遥测待机'}
+            label={t('shell.launcher.statResource')}
+            value={ms ? t('shell.launcher.statResourceValue', { cpu: cpuVal != null ? cpuVal + '%' : '--' }) : '—'}
+            sub={ms ? t('shell.launcher.statResourceSub', { mem: memPct, gpu: gpuVal }) : t('shell.launcher.statIdle')}
           />
           <StatCard
             rise="v3-rise-4"
             icon={<FileTextOutlined />}
-            label="项目写作进度"
+            label={t('shell.launcher.statWriting')}
             value={stats ? `${progressPercent}%` : '—'}
-            sub={stats ? `${stats.chapterCount} 章 · ${fmtWords(stats.totalWords)} 字` : (projectOpen ? '统计加载中…' : '未打开项目')}
+            sub={stats
+              ? t('shell.launcher.statWritingSub', { chapters: stats.chapterCount, words: fmtWords(stats.totalWords, t) })
+              : (projectOpen ? t('shell.launcher.statLoading') : t('shell.launcher.statNoProject'))}
           />
         </div>
 
         {/* ── 中部：模块卡片 Bento 网格（数据源/跳转逻辑不变）── */}
-        <section className="ml-section" aria-label="全部模块">
+        <section className="ml-section" aria-label={t(hero.sectionKey)}>
           <div className="ml-section-head">
             <h2>{t(hero.sectionKey)}</h2>
             <span>{t(hero.sectionHintKey)}</span>
@@ -508,44 +513,44 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
 
         {/* ── 底部：信息条（最近会话 / 记忆脉搏 / 系统状态）── */}
         <div className="ml-info v3-panel v3-rise">
-          <section className="ml-info-seg" aria-label="最近会话">
-            <div className="ml-info-head"><ClockCircleOutlined aria-hidden="true" />最近会话</div>
+          <section className="ml-info-seg" aria-label={t('shell.launcher.sessions')}>
+            <div className="ml-info-head"><ClockCircleOutlined aria-hidden="true" />{t('shell.launcher.sessions')}</div>
             {sessions.length > 0 ? (
               <ul className="ml-info-list">
                 {sessions.map((s, i) => (
                   <li key={s.modTime ?? i} className="ml-info-item">
-                    <span className="ml-info-name">{s.title || s.preview || '未命名会话'}</span>
-                    <span className="ml-info-meta">{s.turns ?? 0} 轮 · {fmtRel(s.modTime || 0)}</span>
+                    <span className="ml-info-name">{s.title || s.preview || t('shell.launcher.unnamed')}</span>
+                    <span className="ml-info-meta">{t('shell.launcher.sessionTurns', { turns: s.turns ?? 0, time: fmtRel(s.modTime || 0, t) })}</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <div className="ml-info-empty">暂无最近会话</div>
+              <div className="ml-info-empty">{t('shell.launcher.noSessions')}</div>
             )}
           </section>
-          <section className="ml-info-seg" aria-label="记忆脉搏">
-            <div className="ml-info-head"><HeartOutlined aria-hidden="true" />记忆脉搏</div>
+          <section className="ml-info-seg" aria-label={t('shell.launcher.memoryPulse')}>
+            <div className="ml-info-head"><HeartOutlined aria-hidden="true" />{t('shell.launcher.memoryPulse')}</div>
             {memoryHub ? (
               <div className="ml-info-body">
-                <span className="ml-info-strong">{memoryTotal} 条记忆</span>
-                <span className="ml-info-meta">最近更新 {fmtRel(memoryUpdated)}</span>
+                <span className="ml-info-strong">{t('shell.launcher.memoryCount', { count: memoryTotal })}</span>
+                <span className="ml-info-meta">{t('shell.launcher.memoryUpdated', { time: fmtRel(memoryUpdated, t) })}</span>
               </div>
             ) : (
-              <div className="ml-info-empty">记忆中枢待命</div>
+              <div className="ml-info-empty">{t('shell.launcher.memoryIdle')}</div>
             )}
           </section>
-          <section className="ml-info-seg" aria-label="系统状态">
-            <div className="ml-info-head"><ApiOutlined aria-hidden="true" />系统状态</div>
+          <section className="ml-info-seg" aria-label={t('shell.launcher.sysStatus')}>
+            <div className="ml-info-head"><ApiOutlined aria-hidden="true" />{t('shell.launcher.sysStatus')}</div>
             {monitor ? (
               <div className="ml-info-body">
-                <span className="ml-info-strong">引擎 {engineCount} · CPU {cpuVal != null ? cpuVal + '%' : '--'}</span>
+                <span className="ml-info-strong">{t('shell.launcher.sysEngines', { count: engineCount, cpu: cpuVal != null ? cpuVal + '%' : '--' })}</span>
                 <span className="ml-info-meta">
-                  内存 {memPct}% · GPU {gpuVal}%
-                  {monitor.comfyRunning ? ' · ComfyUI 运行中' : ''}
+                  {t('shell.launcher.sysMeta', { mem: memPct, gpu: gpuVal })}
+                  {monitor.comfyRunning ? t('shell.launcher.sysComfy') : ''}
                 </span>
               </div>
             ) : (
-              <div className="ml-info-empty">遥测待机</div>
+              <div className="ml-info-empty">{t('shell.launcher.statIdle')}</div>
             )}
           </section>
         </div>

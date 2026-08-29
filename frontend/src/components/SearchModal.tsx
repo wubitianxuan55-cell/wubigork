@@ -26,8 +26,8 @@ const categoryIcons: Record<string, React.ReactNode> = {
   chapters: <FileTextOutlined style={{ color: '#4ade80' }} />,
   characters: <UserOutlined style={{ color: '#60a5fa' }} />,
 }
-const categoryLabels: Record<string, string> = {
-  chapters: '章节', characters: '角色',
+const categoryLabels: Record<string, DictKey> = {
+  chapters: 'shell.search.catChapters', characters: 'shell.search.catCharacters',
 }
 
 /** S2.1 scope 三档（工位/乐园/全部；默认=当前空间，「全部」仅显式选择，红线不默认跨空间） */
@@ -61,24 +61,30 @@ interface SearchSection {
 }
 
 /** 小说项目搜索 → 章节/角色分节 */
-function sectionsFromNovel(results: Record<string, SearchResult[]>): SearchSection[] {
+function sectionsFromNovel(
+  results: Record<string, SearchResult[]>,
+  t: (k: DictKey) => string,
+): SearchSection[] {
   return Object.keys(results)
     .filter((k) => results[k].length > 0)
     .map((cat) => ({
       key: cat,
-      label: categoryLabels[cat] || cat,
+      label: categoryLabels[cat] ? t(categoryLabels[cat]) : cat,
       icon: categoryIcons[cat],
       rows: results[cat],
     }))
 }
 
 /** 统一检索（工位记忆/文件）→ 工作区文件 + 记忆语义分节 */
-function sectionsFromUnified(v: UnifiedSearchView): SearchSection[] {
+function sectionsFromUnified(
+  v: UnifiedSearchView,
+  t: (k: DictKey) => string,
+): SearchSection[] {
   const out: SearchSection[] = []
   if (v.keyword?.length) {
     out.push({
       key: 'files',
-      label: '工作区文件',
+      label: t('shell.search.files'),
       icon: <FileTextOutlined style={{ color: '#4ade80' }} />,
       rows: v.keyword.map((h) => ({ file: h.path, context: h.snippet })),
     })
@@ -86,7 +92,7 @@ function sectionsFromUnified(v: UnifiedSearchView): SearchSection[] {
   if (v.semantic?.length) {
     out.push({
       key: 'memory',
-      label: '记忆检索',
+      label: t('shell.search.memory'),
       icon: <FileTextOutlined style={{ color: '#a78bfa' }} />,
       rows: v.semantic.map((h) => ({ file: h.kind, context: h.text })),
     })
@@ -94,7 +100,7 @@ function sectionsFromUnified(v: UnifiedSearchView): SearchSection[] {
   if (v.brain?.length) {
     out.push({
       key: 'brain',
-      label: '三脑记忆',
+      label: t('shell.search.brain'),
       icon: <FileTextOutlined style={{ color: '#f472b6' }} />,
       rows: v.brain.map((h) => ({ file: `${h.brain} · ${h.entity}`, context: h.text })),
     })
@@ -126,8 +132,8 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
       const novel = scope === 'work' ? null : await wailsApp().Search(q).catch(() => null)
       const unified = scope === 'play' ? null : await app.UnifiedSearch(q, scope === 'work' ? 'work' : '', 8).catch(() => null)
       const all: SearchSection[] = []
-      if (novel) all.push(...sectionsFromNovel(novel))
-      if (unified) all.push(...sectionsFromUnified(unified))
+      if (novel) all.push(...sectionsFromNovel(novel, t))
+      if (unified) all.push(...sectionsFromUnified(unified, t))
       setSections(all)
     } catch (_) {
       setSections([])
@@ -166,7 +172,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
         />
 
         {/* S2.1 scope 切换：默认=当前空间；「全部」=scope '' 仅显式选择 */}
-        <div role="radiogroup" aria-label="搜索范围" style={{ display: 'flex', gap: 8 }}>
+        <div role="radiogroup" aria-label={t('shell.search.scopeAria')} style={{ display: 'flex', gap: 8 }}>
           {SCOPE_OPTIONS.map((o) => (
             <button
               key={o.value}
@@ -201,7 +207,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
                   style={{ cursor: 'pointer', fontSize: 11 }}
                   onClick={() => setFilterCategory(null)}
                 >
-                  全部 ({totalResults})
+                  {t('shell.search.allTag')} ({totalResults})
                 </Tag>
                 {sections.map((s) => (
                   <Tag
@@ -219,7 +225,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
               {filteredSections.map((s) => (
                 <div key={s.key}>
                   <Typography.Text strong style={{ color: C('color-text'), fontSize: 12, display: 'block', marginBottom: 6 }}>
-                    {s.icon} {s.label} · {s.rows.length} 条
+                    {s.icon} {s.label} · {t('shell.search.count', { count: s.rows.length })}
                   </Typography.Text>
                   <Space direction="vertical" size={6} style={{ width: '100%' }}>
                     {s.rows.map((r, i) => (
