@@ -93,6 +93,7 @@ type TemporalAnchor struct {
 	ID                 string             `json:"id"`
 	AnchorDate         string             `json:"anchorDate"`
 	AnchorType         TemporalAnchorType `json:"anchorType"`
+	RecurrenceRule     string             `json:"recurrenceRule,omitempty"` // v4.3a: 循环规则（对齐表列 recurrence_rule）
 	LinkedFactIDs      []string           `json:"linkedFactIds"`
 	EmotionalValence   float64            `json:"emotionalValence"`
 	EmotionalIntensity float64            `json:"emotionalIntensity"`

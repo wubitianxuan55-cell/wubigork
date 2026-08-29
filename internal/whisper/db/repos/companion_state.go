@@ -50,6 +50,9 @@ func LoadCompanionStateFromDB(dataRoot, sessionID string) (*whisper.FullState, e
 		}
 	}
 
+	// v4.3a: 关系记忆三表回填（关联/习惯/锚点），fail-open（表失败保留 JSON 字段）
+	loadMemoryGraphIntoState(sqlDB, &state)
+
 	return &state, nil
 }
 
@@ -87,7 +90,15 @@ func SaveCompanionStateToDB(dataRoot, sessionID string, state whisper.FullState)
 		   updated_at = excluded.updated_at`,
 		sessionID, version, string(stateJSON), emergenceJSON, updatedAt,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// v4.3a: 关系记忆三表落库（关联/习惯/锚点随状态持久化）
+	if err := saveMemoryGraphFromState(sqlDB, &state); err != nil {
+		return err
+	}
+	return nil
 }
 
 // DeleteCompanionStateFromDB 删除同伴状态

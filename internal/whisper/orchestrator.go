@@ -71,6 +71,9 @@ type Orchestrator struct {
 	mu sync.Mutex
 	// rhythm 节奏连续计数器（本会话独立，修复包级全局串台）。
 	rhythm RhythmCounters
+	// v4.3a: 关系记忆回填标记位——首个回合 restoreMemoryGraphFromState 执行后置位，
+	// 避免重复重建（不能依赖 turnIndex==1：重启后 Counters.TotalTurns 恢复为历史值）。
+	memoryGraphRestored bool
 }
 
 const (
@@ -111,6 +114,10 @@ func NewOrchestrator(sessionID string, preset PersonalityPreset) *Orchestrator {
 // ─── PreLLMTurn ───────────────────────────────────────────────
 
 func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
+	// v4.3a: 重启后首回合回填关系记忆（关联索引/习惯库）并重建关联图（fail-open）。
+	// 必须在读 State 之前执行——State.Associations/Habits 已由 restoreWhisperState 装载。
+	o.restoreMemoryGraphFromState()
+
 	now := time.Now()
 	state := o.State
 	turnIndex := state.Counters.TotalTurns + 1

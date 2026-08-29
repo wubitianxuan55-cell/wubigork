@@ -191,8 +191,14 @@ func queryFacts(dataRoot, where string, args ...interface{}) []whisper.MemoryFac
 }
 
 // ReplaceFactsInDB 全量替换记忆事实（事务 + FTS 重建）
+// v4.3a：事务内开启 defer_foreign_keys —— memory_associations 外键引用 memory_facts，
+// 全表 DELETE 时父行瞬态缺失；提交前父行已全部重插，延迟到 COMMIT 的统一外键检查
+// 自然通过（语义无损：事务结束时引用完整性成立）。
 func ReplaceFactsInDB(dataRoot string, facts []whisper.MemoryFact) error {
 	return db.WithTransaction(dataRoot, func(tx *sql.Tx) error {
+		if _, err := tx.Exec("PRAGMA defer_foreign_keys = ON"); err != nil {
+			return fmt.Errorf("开启延迟外键检查失败: %w", err)
+		}
 		if _, err := tx.Exec("DELETE FROM memory_facts"); err != nil {
 			return fmt.Errorf("清空 memory_facts 失败: %w", err)
 		}

@@ -212,6 +212,12 @@ func ClearStructuredData(dataRoot string) error {
 	}
 
 	return WithTransaction(dataRoot, func(tx *sql.Tx) error {
+		// v4.3a: 事务内延迟外键检查 —— memory_associations 外键引用 memory_facts，
+		// 清空顺序中 memory_facts 先于 memory_associations；延迟到 COMMIT 统一检查，
+		// 两者均被删除后引用完整性自然成立（否则 DELETE memory_facts 被外键拦截）。
+		if _, err := tx.Exec("PRAGMA defer_foreign_keys = ON"); err != nil {
+			return fmt.Errorf("开启延迟外键检查失败: %w", err)
+		}
 		for _, table := range tables {
 			if _, err := tx.Exec("DELETE FROM " + table); err != nil {
 				// 表可能不存在（旧版本），忽略

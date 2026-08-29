@@ -317,6 +317,12 @@ type FullState struct {
 	FirstMetDate         *time.Time            `json:"firstMetDate,omitempty"`
 	AckemBirthday        *time.Time            `json:"ackemBirthday,omitempty"`
 	OriginExposure       *OriginExposure       `json:"originExposure,omitempty"`
+	// v4.3a: 会客厅关系记忆——关联索引/作息习惯/时间锚点随状态持久化。
+	// 落库由 repos 装配进 memory_associations / user_habits / temporal_anchors 三表
+	// （见 repos/memory_graph.go）；内存态 ↔ 本字段的双向同步见 memory_graph_persist.go。
+	Associations    []Association    `json:"associations,omitempty"`
+	Habits          []UserHabit      `json:"habits,omitempty"`
+	TemporalAnchors []TemporalAnchor `json:"temporalAnchors,omitempty"`
 }
 
 // StateCounters 状态计数器

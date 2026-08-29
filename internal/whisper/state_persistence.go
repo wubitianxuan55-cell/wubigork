@@ -160,5 +160,19 @@ func CloneFullState(s FullState) FullState {
 		clone.EmergencePersistence = ep
 	}
 
+	// v4.3a: 关系记忆三表切片——值切片深拷贝（异步快照独立于主流程后续修改）
+	if s.Associations != nil {
+		clone.Associations = make([]Association, len(s.Associations))
+		copy(clone.Associations, s.Associations)
+	}
+	if s.Habits != nil {
+		clone.Habits = make([]UserHabit, len(s.Habits))
+		copy(clone.Habits, s.Habits)
+	}
+	if s.TemporalAnchors != nil {
+		clone.TemporalAnchors = make([]TemporalAnchor, len(s.TemporalAnchors))
+		copy(clone.TemporalAnchors, s.TemporalAnchors)
+	}
+
 	return clone
 }

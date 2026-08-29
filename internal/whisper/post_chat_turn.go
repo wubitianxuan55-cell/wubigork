@@ -88,6 +88,10 @@ func FinalizeTurn(orch *Orchestrator, ctx PostTurnContext) {
 		now := ctx.TurnIndex
 		orch.State.Counters.LastConsolidationTurn = &now
 	}
+
+	// 9. v4.3a: 回合末把内存关联索引/习惯库同步进 State（时间锚点以 State 为内存态，
+	// 无需同步）。app 层 persistStateAsync 随后 CloneFullState 快照落库，三表随之更新。
+	orch.syncMemoryGraphToState()
 }
 
 func updateWorkingMemoryReply(orch *Orchestrator, sessionID string, turnIndex int, reply string) {
