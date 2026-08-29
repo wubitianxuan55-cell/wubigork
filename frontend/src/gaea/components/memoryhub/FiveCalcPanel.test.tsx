@@ -82,7 +82,9 @@ describe("FiveCalcPanel 五算对比", () => {
     expect(devsSpy).toHaveBeenCalledWith(PROJECT_ID);
 
     // 固定 5 行、顺序 估/概/预/结/决。
-    const rowEls = [...document.querySelectorAll<HTMLElement>('[data-testid^="stage-input-"]')];
+    // Array.from 而非展开运算符：tsc -b（tsconfig.app.json lib）下
+    // NodeListOf 无 Symbol.iterator，展开会 TS2488。
+    const rowEls = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="stage-input-"]'));
     expect(rowEls.map((r) => r.dataset.testid?.replace("stage-input-", ""))).toEqual([
       "估算",
       "概算",

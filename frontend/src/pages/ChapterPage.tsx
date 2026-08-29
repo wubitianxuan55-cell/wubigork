@@ -8,7 +8,7 @@ import {
   BookOutlined, EditOutlined, ReadOutlined, ExpandOutlined, ShrinkOutlined, FontSizeOutlined,
   PushpinOutlined, PushpinFilled, PlayCircleOutlined, PauseCircleOutlined, CloseOutlined,
   HighlightOutlined, CommentOutlined, ThunderboltOutlined, DownOutlined, LoadingOutlined, SearchOutlined,
-  ExportOutlined,
+  ExportOutlined, PictureOutlined,
 } from '@ant-design/icons'
 import {
   GetChapter, GetChapterBranch, SaveChapterContent, SaveChapterBranchContent,
@@ -36,6 +36,7 @@ import {
 import { askReadingAssistant } from '../components/novel/api/readingAssistant'
 import { searchNovel, type NovelSearchHit } from '../components/novel/api/search'
 import ExportPanel from '../components/novel/ExportPanel'
+import { ChapterIllustration } from './chapter/ChapterIllustration'
 import type { OutlineNode, ChapterTabData } from '../types'
 import { C } from '../utils/theme'
 
@@ -88,6 +89,7 @@ const ChapterPage: React.FC = () => {
   const [searchHits, setSearchHits] = useState<NovelSearchHit[]>([])
   const [searchError, setSearchError] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const [illusOpen, setIllusOpen] = useState(false)
   const pendingSearch = useRef<{ nodeId: string; query: string } | null>(null)
   const readingScrollRef = useRef<HTMLDivElement | null>(null)
   const readScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1055,6 +1057,17 @@ const ChapterPage: React.FC = () => {
                     <Tooltip title={focusMode ? '退出专注模式' : '专注模式 F11'}>
                       <Button size="small" icon={focusMode ? <ShrinkOutlined /> : <ExpandOutlined />} onClick={() => setFocusMode((p) => !p)} type="text" aria-label="专注模式" />
                     </Tooltip>
+                    <Tooltip title="为当前章节生成配图">
+                      <Button
+                        size="small"
+                        icon={<PictureOutlined />}
+                        onClick={() => setIllusOpen(true)}
+                        disabled={!activeTab || activeTab.chapterNum < 1}
+                        aria-label="生成配图"
+                      >
+                        配图
+                      </Button>
+                    </Tooltip>
                     <Tooltip title="Ctrl+S">
                       <Button size="small" icon={<SaveOutlined />} onClick={handleSave} disabled={!totalWords}>保存</Button>
                     </Tooltip>
@@ -1291,6 +1304,14 @@ const ChapterPage: React.FC = () => {
       >
         <ExportPanel />
       </Modal>
+
+      {/* 章节配图（v4.3g 图文联动）：打开即加载，父级卸载即关闭 */}
+      {illusOpen && activeTab && activeTab.chapterNum >= 1 && (
+        <ChapterIllustration
+          chapterNum={activeTab.chapterNum}
+          onClose={() => setIllusOpen(false)}
+        />
+      )}
     </div>
   )
 }

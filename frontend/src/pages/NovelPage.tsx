@@ -1,15 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { Button, Modal, message } from 'antd'
 import { AIConsole } from '../components/novel/AIConsole'
 import NovelSidebar from '../components/novel/NovelSidebar'
 import NovelInspector from '../components/novel/NovelInspector'
 import {
   HomeOutlined, FileTextOutlined, UserOutlined,
-  ThunderboltOutlined, BookOutlined,
+  ThunderboltOutlined, BookOutlined, PictureOutlined,
 } from '@ant-design/icons'
 import { useAppStore } from '../stores/appStore'
 import { useOutlineStore } from '../stores/outlineStore'
 import { sortNodes } from '../utils/outline'
 import * as App from '../../src/wailsjsCompat'
+import { app } from '../gaea/lib/bridge'
+import { PortraitImg } from '../components/characterlib/PortraitImg'
 import '../novel-workspace.css'
 import type { OutlineNode } from '../types'
 
@@ -54,6 +57,10 @@ const NovelPage: React.FC = () => {
   const [activeChapterId, setActiveChapterId] = useState('')
   const [stats, setStats] = useState<{ totalWords: number; chapterCount: number } | null>(null)
   const [focusMode, setFocusMode] = useState(false)
+  // v4.3g 书封生成：生成中 / 最近一次封面路径 / 预览弹窗
+  const [coverBusy, setCoverBusy] = useState(false)
+  const [coverPath, setCoverPath] = useState('')
+  const [coverPreviewOpen, setCoverPreviewOpen] = useState(false)
 
   const projectPath = useAppStore((s) => s.projectPath)
   const projectTitle = useAppStore((s) => s.projectTitle)
@@ -129,6 +136,23 @@ const NovelPage: React.FC = () => {
 
   const sortedOutlines = React.useMemo(() => sortNodes(outlines), [outlines])
 
+  // ── v4.3g 书封生成：调 bridge 的 GenerateBookCover（play 空间 GaeaGenerateBookCover），
+  // 返回本地封面路径；成功后 toast 并打开预览弹窗（本地路径经 PortraitImg/AttachmentDataURL 预览）。 ──
+  const handleGenerateCover = async () => {
+    if (!projectPath || coverBusy) return
+    setCoverBusy(true)
+    try {
+      const path = await app.GenerateBookCover(projectPath, '')
+      setCoverPath(path)
+      setCoverPreviewOpen(true)
+      message.success('封面已生成')
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : '封面生成失败')
+    } finally {
+      setCoverBusy(false)
+    }
+  }
+
   return (
     <div className="novel-hub" data-novel-tab={activeTab} data-novel-focus={focusMode ? '1' : '0'}>
       {/* 轨道式细条子导航（对齐 v3 轨道语言：激活 = 主色容器 + 光条） */}
@@ -145,6 +169,17 @@ const NovelPage: React.FC = () => {
             {t.label}
           </button>
         ))}
+        <span style={{ flex: 1 }} />
+        <Button
+          size="small"
+          icon={<PictureOutlined />}
+          loading={coverBusy}
+          disabled={!projectPath}
+          onClick={() => void handleGenerateCover()}
+          title="为当前项目生成书封（3:4 竖版）"
+        >
+          生成封面
+        </Button>
       </nav>
 
       {/* 3 分区工作台：侧栏 zone | 主视图 zone | 属性 inspector zone */}
@@ -183,6 +218,36 @@ const NovelPage: React.FC = () => {
 
       {/* 小说专属：AI 控制台（右上角悬浮） */}
       <AIConsole />
+
+      {/* 书封预览（v4.3g 生成封面）：展示缩略图 + 本地路径 */}
+      <Modal
+        open={coverPreviewOpen}
+        onCancel={() => setCoverPreviewOpen(false)}
+        title="书封预览"
+        footer={null}
+        width={420}
+      >
+        {coverPath ? (
+          <div style={{ textAlign: 'center' }}>
+            <PortraitImg
+              src={coverPath}
+              alt="书封"
+              style={{ maxWidth: 300, width: '100%', borderRadius: 8 }}
+            />
+            <div
+              style={{
+                marginTop: 12,
+                fontSize: 11,
+                color: 'var(--color-text-secondary)',
+                textAlign: 'left',
+                wordBreak: 'break-all',
+              }}
+            >
+              {coverPath}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   )
 }

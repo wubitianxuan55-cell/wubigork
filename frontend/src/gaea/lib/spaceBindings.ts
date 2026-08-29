@@ -73,7 +73,6 @@ export const GAEA_METHOD_FACETS = {
   GenerateBookCover: "play",
   // v4.3 情感语音：TTS 参数预览为 shared（语音朗读两空间共用）
   TTSVoiceParams: "shared",
-  TTSSpeakBase64WithParams: "shared",
 
   // ── independent：编程 DSH 独立窗口 ──────────────────────────
   GetProgrammingWebStatus: "independent",

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DownloadOutlined, HeartOutlined, ReadOutlined, IdcardOutlined, HomeOutlined, AimOutlined, SmileOutlined, ClockCircleOutlined } from "@ant-design/icons";
+import { DownloadOutlined, HeartOutlined, ReadOutlined, IdcardOutlined, HomeOutlined, AimOutlined, SmileOutlined, ClockCircleOutlined, ShareAltOutlined } from "@ant-design/icons";
 import { Modal, message } from "antd";
 import { RefreshCw } from "../../icons";
 import { app } from "../../lib/bridge";
 import { DOMAIN_COLORS } from "../../lib/domainColors";
 import type { WhisperEpisodeView, WhisperMemoryView } from "../../lib/types";
 import { EmptyState } from "../EmptyState";
+import { WhisperGraphPanel, currentPersonalityId } from "../../../components/WhisperGraphPanel";
 
 // 对齐后端 memory_taxonomy.go 6 domain（与 WhisperMemoryModal 一致）
 // 3.0 Wave 4：领域分类 emoji → antd 图标（MASTER「no emoji-as-icon」）
@@ -49,6 +50,7 @@ export function WhisperMemoryLibrary() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<WhisperMemoryView | null>(null);
   const [selectedEp, setSelectedEp] = useState<WhisperEpisodeView | null>(null);
+  const [graphOpen, setGraphOpen] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -139,6 +141,14 @@ export function WhisperMemoryLibrary() {
             placeholder={`搜索${tab === "facts" ? "记忆" : "情节"}…`}
             className="w-40 px-3 h-8 rounded-lg border border-border bg-bg text-fg text-[12px] placeholder:text-fg-faint outline-none focus:border-accent transition-colors"
           />
+          <button
+            className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
+            onClick={() => setGraphOpen(true)}
+            title="关系图谱：以实体为中心查看轻语记忆图谱"
+          >
+            <ShareAltOutlined style={{ fontSize: 12 }} />
+            关系图谱
+          </button>
           <button
             className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors text-[12px]"
             onClick={handleExport}
@@ -318,6 +328,13 @@ export function WhisperMemoryLibrary() {
           </div>
         )}
       </Modal>
+
+      {/* 关系图谱面板 */}
+      <WhisperGraphPanel
+        open={graphOpen}
+        personalityId={currentPersonalityId()}
+        onClose={() => setGraphOpen(false)}
+      />
     </div>
   );
 }
