@@ -31,18 +31,20 @@
 - [x] **S0.3** gate 改 atomic.Pointer[gateWrapper]（撕裂换闸）—— `8b661d2`
 - [x] **S0.4** retry_until 走统 gated 派发（堵绕过审批 shell）—— `87bbf20`
 - [x] **S0.5** CI 后端 job 加 `go test -race`（独立 ubuntu job）—— `afefa11`
-- [x] **S0.6/隔离岛** knowledge TF-IDF 索引缓存 `aadb7aa`；office 原子写 `5a82209`；secure 非 Win AES-GCM `fa1778f`；tasks 输出 LRU `2a3ca50`
-- [x] **S0.7/前端** 聊天列表 memo+尾部窗口 `9a41090`；keepAlive 轮询门控+LoRA 修复 `d373fba`
-- [ ] **S0.6 edit_file 工具层**（审计 P1 功能 bug：edit_file/multi_edit/edit_lines/move_file/grep 被 ~40 处引用但无实现，模型被指示用却收 "unknown tool"）——产品文件编辑脊柱，**未做，独立一刀**
-- [ ] 遗留观察：持久化套件统一（desktop_session.go/archive.go 原子写，office 子代理排查）
+- [x] **S0.6 edit_file 工具层**（grep/edit_file/multi_edit/edit_lines/move_file 五工具 + 名单全对齐 + 双路径失效特判）—— `7d560e6`
+- [x] **S0.7/隔离岛** knowledge 索引缓存 `aadb7aa`；office 原子写 `5a82209`；secure 非 Win AES-GCM `fa1778f`；tasks LRU `2a3ca50`
+- [x] **前端** 聊天 memo+尾部窗口 `9a41090`；keepAlive 轮询门控 `d373fba`
+- [ ] 遗留：gate_test.go stubGate 计数器既有竞态（测试基建小修）；持久化套件统一（desktop_session/archive 原子写）
 
-### 阶段 1 · 双空间内核（后端 space 维度）—— S1.1 ✅，S1.2-S1.5 待做
+### 阶段 1 · 双空间内核（后端 space 维度）—— S1.1 ✅ S1.2 ✅，S1.3-S1.5 待做
 - [x] **S1.1 空间维度落地**（设计文档 `docs/gaea-space-dimension-design.md` S1-S4 拆解）：
   - [x] S1 列落库（SchemaV14 facts/tasks + 读写谓词）—— `5c24d16`（V13 旧库升级回填 work 测试）
   - [x] S2 会话空间（核心）（目录分区 + 日志/checkpoint space + space.mode 开关）—— `0722aeb`（34 文件，全仓 go test 绿）
   - [x] S3 子代理继承（ctx 注入 + 后台补注 + fail-closed + 前瞻 meta 校验）—— `76f565e`
   - [x] S4 产物分区+绑定面（exports 分区 + GaeaSpace* 挂 CoreB，绑定面 499→502）—— `5c9fc4e`
-- [ ] **S1.2 记忆空间隔离器**（work/play 互不检索 + dream 做梦空间化 + [MEM:] 限定本空间 + 统一检索 scope 参数化）—— 待派
+- [x] **S1.2 记忆空间隔离器**（红线最硬实现；设计 `docs/gaea-memory-isolation-design.md`）：
+  - [x] 后端 A+B（写侧盖章 remember/dream/指纹含 space/审计加列 + 读端 GetInSpace/TouchInSpace/citations 限定 + UnifiedSearch scope 四组隔离 + wssearch 噪音补 play exports）—— `819d7ff`
+  - [x] 前端 C（hub/面板 scope 切换，默认当前空间 + 显式「全部」）—— `53d621d`
 - [ ] **S1.3 模型 profile 按空间 + 工具空间标签装配**（Seam 加 per-space 路由；Registry 工具加空间标签）—— 待派
 - [ ] **S1.4 任务/资源按空间分账**（jobs 每空间队列 + 优先级）—— 待派
 - [ ] **S1.5 空间策略**（work 审阅制 / play 内容护栏，同一权限引擎两套策略装配）—— 待派
