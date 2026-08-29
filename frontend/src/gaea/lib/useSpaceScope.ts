@@ -54,10 +54,10 @@ export function useSpaceScope(): { active: SpaceActiveView | null } {
   return { active };
 }
 
-// scope 切换的三档选项（工位/乐园/全部）：默认选中项=当前生效空间，
+// scope 切换的三档选项（书房/庭院/全部）：默认选中项=当前生效空间，
 // 「全部」=scope ""（旧行为，仅显式选择时使用）。
 export const SCOPE_OPTIONS: { value: SearchScope; label: string; title: string }[] = [
-  { value: "work", label: "工位", title: "工位（办公空间）——只搜工位记忆与资料" },
-  { value: "play", label: "乐园", title: "乐园（娱乐空间）——只搜乐园记忆" },
-  { value: "", label: "全部", title: "全部——跨工位与乐园检索（显式选择，默认不跨空间）" },
+  { value: "work", label: "书房", title: "书房（工作空间）——只搜工作记忆与资料" },
+  { value: "play", label: "庭院", title: "庭院（娱乐空间）——只搜娱乐记忆" },
+  { value: "", label: "全部", title: "全部——跨书房与庭院检索（显式选择，默认不跨空间）" },
 ];

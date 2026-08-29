@@ -16,11 +16,11 @@ import * as App from '../../src/wailsjsCompat'
 import {
   type BoardId, resolveBoardIcon,
   subscribeBoards, loadBoardManifests,
-  getActiveMenuBoardsForSpace, getActiveIndependentBoards, getActiveNavigateWhitelist,
+  getActiveMenuBoards, getActiveMenuBoardsForSpace, getActiveIndependentBoards, getActiveNavigateWhitelist,
   getActiveHomeBoard, getActiveProjectAnchorId, getActiveBoard, activeBoardLabel,
 } from '../boards/manifests'
 import {
-  SHELL_SPACES, isBoardReachableInSpace, pruneVisitedForSpace, type ShellSpace,
+  isBoardReachableInSpace, boardSpace, pruneVisitedForSpace, type ShellSpace,
 } from '../boards/space'
 import { getPageComponent } from '../boards/pageRegistry'
 import { subscribe, BACKEND_EVENTS, FRONTEND_EVENTS } from '../events'
@@ -288,13 +288,12 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
 const CommandRail: React.FC<{
   page: Page
   onNavigate: (p: Page) => void
-  space: ShellSpace
-  onSwitchSpace: (s: ShellSpace) => void
   darkMode: boolean
   toggleDarkMode: () => void
-}> = ({ page, onNavigate, space, onSwitchSpace, darkMode, toggleDarkMode }) => {
-  // S2.1：指挥轨道导航 = 当前空间菜单（shared + 当前空间板块），替换旧「10 板块」全量导航
-  const boards = getActiveMenuBoardsForSpace(space)
+}> = ({ page, onNavigate, darkMode, toggleDarkMode }) => {
+  // v4.3.2c：空间切换入口已移除（首页三栏即空间入口，导航按板块自动切空间），
+  // rail 展示全部 inMenu 板块（含共享），独立窗口（编程 DSH）单列。
+  const boards = getActiveMenuBoards()
   // 独立窗口板块（编程 DSH）：单独入口，不混入任一空间导航
   const independentBoards = getActiveIndependentBoards()
   const t = useT()
@@ -312,22 +311,6 @@ const CommandRail: React.FC<{
     >
       <div className="v3-rail-head">
         <img src="/favicon.svg" alt="gaea" />
-        {/* S2.1 空间切换（持久化，appStore.space）——工位 / 乐园 */}
-        <div className="v3-rail-space" role="radiogroup" aria-label={t('shell.rail.spaceGroup')}>
-          {SHELL_SPACES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              role="radio"
-              aria-checked={space === s.id}
-              title={t(s.titleKey)}
-              className={`v3-rail-space-item${space === s.id ? ' is-active' : ''}`}
-              onClick={() => { if (space !== s.id) onSwitchSpace(s.id) }}
-            >
-              {t(s.labelKey)}
-            </button>
-          ))}
-        </div>
       </div>
       <div className="v3-rail-nav" role="menubar" aria-label={t('shell.rail.nav')}>
         {boards.map((b, i) => {
@@ -535,7 +518,27 @@ const MainLayout: React.FC = () => {
   const isFullLayout = currentLayout === 'full'
   const isHomePage = page === getActiveHomeBoard().id
 
-  const navigate = (p: Page) => setPage(p)
+  // v4.3.2c：统一导航入口——按目标板块的 manifest.space 自动切换壳层空间。
+  // 首页三栏/rail 均走此入口：左翼书房板块 → work；右翼庭院板块 → play；
+  // 编程(independent)/设置(shared) 保持当前空间。空间切换持久化 + 页面落地。
+  const navigateBoard = useCallback((target: Page) => {
+    const b = getActiveBoard(target)
+    if (!b) return
+    const targetSpace = boardSpace(b)
+    if (targetSpace === 'work' || targetSpace === 'play') {
+      if (targetSpace !== space) {
+        saveShellPage(space, page)
+        setSpace(targetSpace)
+        setPage(target)
+        setVisitedPages(new Set(pruneVisitedForSpace(
+          new Set([...visitedPages, target]),
+          (id) => pageReachableInSpace(id as Page, targetSpace),
+        )))
+        return
+      }
+    }
+    setPage(target)
+  }, [space, page, setSpace, visitedPages])
 
   return (
     <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'transparent' }}>
@@ -553,9 +556,7 @@ const MainLayout: React.FC = () => {
         <div className="v3-rail-dock">
           <CommandRail
             page={page}
-            onNavigate={navigate}
-            space={space}
-            onSwitchSpace={switchSpace}
+            onNavigate={navigateBoard}
             darkMode={darkMode}
             toggleDarkMode={toggleDarkMode}
           />
@@ -697,7 +698,7 @@ const MainLayout: React.FC = () => {
                         <div key={p} className="page-enter" style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
                           {p === getActiveHomeBoard().id
                             ? <ModuleLauncher
-                                onNavigate={(target: LauncherTarget) => setPage(target as Page)}
+                                onNavigate={(target: LauncherTarget) => navigateBoard(target as Page)}
                                 activeModel={activeModel || undefined}
                                 space={space}
                               />

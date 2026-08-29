@@ -27,8 +27,8 @@ describe("useSpaceScope 检索 scope 的当前空间来源", () => {
     expect(result.current.active?.space).toBe("play");
   });
 
-  it("SCOPE_OPTIONS 提供工位/乐园/全部三档（「全部」=scope \"\"）", () => {
+  it("SCOPE_OPTIONS 提供书房/庭院/全部三档（「全部」=scope \"\"）", () => {
     expect(SCOPE_OPTIONS.map((o) => o.value)).toEqual(["work", "play", ""]);
-    expect(SCOPE_OPTIONS.map((o) => o.label)).toEqual(["工位", "乐园", "全部"]);
+    expect(SCOPE_OPTIONS.map((o) => o.label)).toEqual(["书房", "庭院", "全部"]);
   });
 });

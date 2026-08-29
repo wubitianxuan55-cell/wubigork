@@ -173,7 +173,7 @@ describe("WorkspaceSearchPanel 工作区搜索", () => {
     expect(h.unifiedCalls()[0][1]).toBe("work");
 
     // 切「全部」（scope=""）→ run 重建 → 防抖后自动重搜一次。
-    fireEvent.click(screen.getByTitle(/跨工位与乐园检索/));
+    fireEvent.click(screen.getByTitle(/跨书房与庭院检索/));
     await waitFor(() => expect(h.unifiedCalls().length).toBeGreaterThanOrEqual(2));
     const last = h.unifiedCalls()[h.unifiedCalls().length - 1];
     expect(last[0]).toBe("振动锤");
@@ -184,7 +184,7 @@ describe("WorkspaceSearchPanel 工作区搜索", () => {
   it("跨库模式：SpaceChip 激活 play 后（noteSpaceActivated 广播）默认 scope=play", async () => {
     // 放在最后一个用例：noteSpaceActivated 会改写模块缓存（cached=play）。
     render(wrap(<WorkspaceSearchPanel onOpenFile={() => {}} />));
-    // 模拟 SpaceChip 激活乐园空间：广播给已挂载的检索面（scope 未被用户改过）。
+    // 模拟 SpaceChip 激活庭院空间：广播给已挂载的检索面（scope 未被用户改过）。
     act(() => {
       noteSpaceActivated({
         space: "play",
