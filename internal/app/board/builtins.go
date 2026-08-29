@@ -23,7 +23,7 @@ var builtinManifests = []Manifest{
 		Page: "ChatPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full", Shortcut: "ctrl+1",
 		MenuOrder: 1, InMenu: Bool(true),
-		Space:        SpaceShared, // §10.3：对话共用（S2.2 降为对话流）
+		Space:        SpacePlay, // §10.3 对话降为对话流：工位对话在办公工作台内，乐园=会客厅沉浸对话（P1）
 		FeatureModel: "chat",
 		Bindings:     []string{"VoiceB", "ChatB"}, // §3.1：ChatB + VoiceB(whisper 部分)
 		Intents:      []IntentDecl{{ID: "chat", Handler: "WhisperChat"}},

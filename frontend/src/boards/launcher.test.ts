@@ -93,11 +93,11 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     expect(workKeys).toContain('gaea')
     expect(workKeys).toContain('cost')
     expect(workKeys).toContain('memoryhub')
-    expect(workKeys).toContain('chat') // 对话共用
     expect(workKeys).not.toContain('novel')
     expect(workKeys).not.toContain('imagegen')
     expect(workKeys).not.toContain('characterlib')
     expect(workKeys).not.toContain('code') // 编程独立窗口不进双首页
+    expect(workKeys).not.toContain('chat') // P1：对话降为对话流，工位首页不出聊天卡
   })
 
   it('S2.1 双首页：乐园不含工位板块，含小说/绘梦/角色', () => {
@@ -106,6 +106,7 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     expect(playKeys).toContain('novel')
     expect(playKeys).toContain('imagegen')
     expect(playKeys).toContain('characterlib')
+    expect(playKeys).toContain('chat') // 乐园=会客厅沉浸对话
     expect(playKeys).not.toContain('gaea')
     expect(playKeys).not.toContain('cost')
     expect(playKeys).not.toContain('memoryhub')

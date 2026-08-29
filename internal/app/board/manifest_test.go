@@ -60,7 +60,7 @@ func TestManifestDuplicateIDRejected(t *testing.T) {
 // （docs/gaea-space-shell-design.md §3）逐项断言，防止新增板块漏标空间。
 func TestManifestSpaceAssignments(t *testing.T) {
 	want := map[string]string{
-		"chat":         SpaceShared,
+		"chat":         SpacePlay,
 		"novel":        SpacePlay,
 		"imagegen":     SpacePlay,
 		"gaea":         SpaceWork,

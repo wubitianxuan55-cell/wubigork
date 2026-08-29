@@ -79,7 +79,7 @@ export const canonicalBoards: BoardManifest[] = [
   {
     id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage',
     lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1',
-    menuOrder: 1, inMenu: true, featureModel: 'chat', space: 'shared',
+    menuOrder: 1, inMenu: true, featureModel: 'chat', space: 'play', // §10.3 对话降为对话流（乐园=会客厅）
   },
   {
     id: 'novel', label: '小说', icon: 'ReadOutlined', page: 'NovelPage',

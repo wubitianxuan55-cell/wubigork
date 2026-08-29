@@ -70,7 +70,10 @@
     **壳层 chrome + 设置外壳三语（已完成，消灭壳层混合语言根因）；页面内容层
     保持 zh 单语**，不再逐页铺 en/zh-TW 字典（~5000 字符、边际价值≈0、个人
     中文工具无国际化受众）。若未来需要国际化，按 S2.3b WireShape 模式整页迁移。
-  - [ ] 页面深层迁入（对话降为对话流/记忆侧栏/模型中心并入设置/创作间）——v4.x 范围
+  - [x] **页面迁入收口**（`docs/gaea-page-migration-design.md`）：处置矩阵按版本锚点
+    落账——办公升格/造价领域包/编程独立/记忆侧栏形态/微信触点 v4.0 已达成；
+    **P1 对话流**（chat shared→play：工位不再有独立聊天板块，乐园=会客厅）本轮落地；
+    创作间合并=v4.3（§10.4 明示）、模型中心并入设置=v4.1+、微信任务入口=v4.4
 - [x] **S2.3 bridge 分面 + types 生成化**：
   - [x] `spaceBindings.ts` 分类表：AppBindings 214 方法显式分类（work/play/shared/
     independent），satisfies + 双向断言编译期全覆盖；UnifiedSearch=shared（scope 隔离）
