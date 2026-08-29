@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.3.2** | 2026-08-30 | 首页「双翼·中庭」重构 + 空间导航收敛：中庭语音+打字一体对话条（VoiceChatText 共用管道 + 放大 orb 磁吸核心，hero 让位细眉）；左翼「书房」2×2 格（办公/造价/记忆/模型）；右翼「庭院」纵向列表（聊天/小说/绘梦/角色）；门廊编程独立窗口入口；命名 工位→书房、乐园→庭院；移除 rail 空间切换按钮，navigateBoard 按板块自动切空间；搜索 scope 文案同步。绑定面不变、vitest 789/789、Go 全量绿。详见 releases/v4.3.2.md |
 | **v4.3.1** | 2026-08-30 | v4.3 后续小步：主动关心定时推送频控（ticker 四信号：频控/作息尊重/生日祝福/门控合成 → gaea-whisper-proactive 事件 + GaeaWhisperProactiveConfig 配置绑定）+ 创作间世界模型面板（设定页维度化编辑器 6 维度卡片 + 伏笔登记表状态流转/回收率 + 一致性检查三类告警）+ 角色参考图（SchemaV2 reference/gallery 两列 + CharacterGeneratePortraitWithRef img2img 参考槽 + 前端参考图管理）+ 朗读情绪 UI（9 情绪选择器 + 会话情绪跟随 + TTSSpeakBase64WithParams）。绑定面 525、spaceBindings 235、vitest 789/789、Go 118/118。详见 releases/v4.3.1.md |
 | **v4.3.0** | 2026-08-29 | v4.3 乐园做深（阶段 3+ 第二发）：会客厅关系记忆（三表持久化闭环 + ReseedAssociationGraph + QuerySubgraph 多跳子图召回 + WhisperGraphPanel SVG 图谱）+ 主动关心（GaeaWhisperProactiveNow 评估 + 前端「轻语先开口」）+ 情感语音（TTS SynthesizeWithParams 参数扩展 + cosyvoice 修复 + 情绪→参数映射 + 长期心境维 Mood）+ 创作间图文联动（章节配图复活死绑定 + GaeaGenerateBookCover 3:4 书封落 play exports）。绑定面 522、spaceBindings 233、vitest 769/769。详见 releases/v4.3.0.md |
 | **v4.2.0** | 2026-08-29 | v4.2 造价 AI 化（阶段 3+ 领域包第一发）：AI 组价（PriceBand 价格带 P25-P75+置信度+证据链 → GaeaCostCompose 相似检索+LLM 人材机拆解 → 一键回写，前端 ComposeModal）+ 询价飞轮（costinquiry 四源归一数据点 + 到期预警 + 调差建议 + 前端询价视图）+ 五算对比（coststage 估/概/预/结/决阶段值 + 对比/偏差三档 + 前端 FiveCalcPanel）。绑定面 517、spaceBindings 229、vitest 759/759。详见 releases/v4.2.0.md |
