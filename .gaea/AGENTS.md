@@ -5,6 +5,28 @@
 
 ## 版本状态
 
+- **最新发布：v3.7.0（2026-08-29）「办公蒸馏 codex 收官 · 引用可追溯 + 审批决策族 + 输出事件化」**：
+  git tag `v3.7.0`；CHANGELOG / releases/v3.7.0.md / README 索引同步；内容 = 第二/三刀
+  全部 8 个 feat 提交（89cf962/445485f/01bc032/807dcf5/b38e79c/341e78e/9e161fe/cfcf72d）。
+  要点：
+  - **C2 记忆引用可追溯**：RecallBlock 引用键 `[MEM:name]` + 标注纪律 + 90 天时效提示；
+    `memory/citations.go` 回传解析 Touch；前端 remarkMemCitations + MemCitationChip
+    弹层（记忆详情/沉淀来源，零新增绑定面）。
+  - **C4 审批决策族**：deny/abort 拒绝三分；`[agent] approval_timeout_secs` 超时
+    （默认 0=等待）；persist_allow「始终允许」回写 `[permissions].allow`（hardAsk
+    降级不回写）；`GaeaApprove` 决策串五值重构，审批卡快捷键 1-5。
+  - **C9 任务输出事件化**：gaea-task 事件携带 `outputTail` 整尾回放（独立节流，
+    终态兜底带完整尾），输出 dock 事件即推、2s 轮询兜底。
+  - **C5 上下文占用状态行**：RunStatus 窗口占用百分比 + 75%/90% 两档压缩前预警。
+  - **C6 项目说明文件**：单文件 32KB 注入预算（UTF-8 边界截断留标记）+
+    `.gaea/AGENTS.md` 子目录发现（更具体者后注入）。
+  - **C3 自动做梦 no-op**：dream 输入 sha256 指纹去重（成功后记录）；三层渐进
+    披露确认已存在，LLM 滚动摘要层列观察项。
+  - **验证**：Go 全量 **114/114 包** + vet；vitest **681/681（130 文件）**；eslint 0/0；
+    tsc 0；绑定面 **499 方法**漂移 PASS；版本四处统一 3.7.0；wails build + 冒烟 200。
+  - **下一阶段候选**：权限升级请求（独立一刀）；观察项 C11 压缩口径 / C7 碎片
+    抽象 / C10 回合恢复 / 执行容量上限 / 记忆 LLM 滚动摘要层——按真实反馈排期。
+
 - **最新发布：v3.6.0（2026-08-29）「办公文件编辑审阅制 · 本地优先 · 对话面减负」**：
   git tag `v3.6.0`；CHANGELOG / releases/v3.6.0.md / README 索引同步。要点：
   - **xlsx AI 编辑审阅制（Plan→Apply 两段式）**：`GaeaXlsxPlanEdit`（AI 操作集在原文件
