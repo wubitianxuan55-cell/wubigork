@@ -165,6 +165,8 @@ export interface SessionMeta {
   // interrupted=true 表示上次运行中断未完成；恢复会话时后端注入「上次会话中断」
   // 摘要提示并清除该标记（可选字段：后端始终返回，前端对缺失按 false 处理）。
   interrupted?: boolean;
+  // S1 空间归属（后端 SessionMeta.spaceId，typesGenerationCheck 漂移校验钉死）。
+  spaceId?: string;
 }
 
 // ProjectGroup 是侧边栏「项目」分组：一个工作区 + 它的会话列表。
