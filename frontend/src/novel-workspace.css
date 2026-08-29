@@ -624,6 +624,104 @@
   color: var(--color-text, var(--md-sys-color-on-surface));
 }
 
+/* ═══ 维度化编辑器 + 伏笔/一致性面板（v4.3e/f） ═══ */
+.wv-sections-editor .novel-setting-toolbar {
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: var(--radius-md, var(--md-sys-radius-md));
+}
+
+.wv-sections-empty {
+  margin: auto;
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  font-size: 13px;
+}
+
+.wv-sections-collapse .ant-collapse-header {
+  align-items: center !important;
+  padding: 8px 12px !important;
+}
+.wv-sections-collapse .ant-collapse-content-box {
+  padding: 4px 12px 12px !important;
+}
+.wv-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.wv-section-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--color-text, var(--md-sys-color-text));
+}
+.wv-section-chars {
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  font-variant-numeric: tabular-nums;
+}
+.wv-section-input {
+  resize: none;
+}
+
+/* 伏笔 / 一致性面板（复用 novel-panel 玻璃容器） */
+.fs-panel {
+  min-height: 0;
+}
+.fs-list {
+  min-height: 0;
+}
+.fs-item {
+  border: 1px solid var(--color-border, var(--md-sys-color-outline-variant));
+  border-radius: var(--radius-sm, var(--md-sys-radius-sm));
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  padding: 6px 10px;
+}
+.fs-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.fs-item-desc {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--color-text, var(--md-sys-color-text));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fs-item-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.fs-item-suggestion {
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  font-size: 11px;
+  line-height: 1.6;
+}
+.fs-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+.fs-flow-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+}
+.fs-flow-legend .fs-arrow {
+  color: var(--gaea-glow);
+  opacity: 0.7;
+}
+
 /* ═══ antd Tabs 玻璃化（角色页 / 章节页，轨道式细 tab） ═══ */
 .novel-tabs .ant-tabs-nav {
   margin-bottom: 0;

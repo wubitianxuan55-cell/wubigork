@@ -129,7 +129,7 @@ const NovelInspector: React.FC<NovelInspectorProps> = ({
           <section className="novel-inspector-section">
             <div className="novel-inspector-section-title"><InfoCircleOutlined />提示</div>
             <div className="novel-inspector-hint">
-              世界观设定为纯 Markdown 文本，支持编辑 / 分屏 / 渲染三种模式；创作生成时会自动注入最新设定。
+              世界观设定支持编辑 / 分屏 / 渲染 / 维度化四种模式；创作生成时会自动注入最新设定。
             </div>
           </section>
         )}

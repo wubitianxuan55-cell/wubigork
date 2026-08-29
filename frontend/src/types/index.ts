@@ -73,6 +73,38 @@ export interface ConsistencyReportData {
   overall_note: string
 }
 
+// ── 伏笔（v4.3f，对齐 internal/types.Foreshadow）────────────────
+export type ForeshadowStatus = 'planted' | 'hinted' | 'revealed'
+
+export interface ForeshadowItemData {
+  id: string
+  category: string // character / plot / world / relationship
+  description: string
+  planted_in: string // 章节文件名
+  revealed_in?: string // 回收章节
+  status: ForeshadowStatus
+  is_long_term: boolean
+}
+
+// ── 一致性检查（v4.3f，对齐 internal/graph.ConsistencyIssue）────
+export type ConsistencySeverity = 'error' | 'warning' | 'info'
+
+export interface ConsistencyCheckIssue {
+  severity: ConsistencySeverity
+  category: string // attribute / timeline / status / relationship
+  entity_name: string
+  description: string
+  location: string
+  evidence: string
+  suggestion: string
+}
+
+export interface ConsistencyCheckReport {
+  issues: ConsistencyCheckIssue[]
+  total_issues: number
+  summary: string
+}
+
 // ── 画布 ────────────────────────────────────────────────
 export interface CanvasChapterData {
   num: number
