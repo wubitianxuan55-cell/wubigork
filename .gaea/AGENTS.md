@@ -76,9 +76,24 @@
       含已发现文档）。既有分层发现（root→cwd/@import/override）此前已具备，本刀
       只补差距。
     - **验证**：Go 全量 114/114 + vet；vitest **681/681（130 文件）**；eslint 0/0；tsc 0。
-  - **下一阶段候选**：C3 记忆渐进披露分层 + dream no-op 优化（第三刀剩余，M-L）；
-    C4 遗留（审批超时/权限升级/策略文件化）；C11 压缩口径、C7 碎片抽象、C10 回合
-    恢复、执行容量上限（观察项）。
+  - **后续（2026-08-29 续，C3 收尾 + C4 遗留第一项）**：
+    - **C3 自动做梦 no-op（feat，对齐 codex memories/write phase2「无变化即 no-op
+      成功」）**：`runDream` 输入 sha256 指纹（`dreamInputHash`），与上次**成功处理**
+      的轮次内容一致时直接跳过 LLM 提炼（重试/重入/同内容连问省一次调用）；指纹仅
+      在完整处理后记录（SaveDreamFacts 失败不记录，可重试）；仅内存态不跨重启。
+      排查结论：三层渐进披露**已存在**——ProfileBlock 画像常载（600 rune）/
+      「Saved memories」索引注册表（capMemoryIndex 4KB 截断 + memory_search 提示）/
+      RecallBlock 逐轮注入 / memory_search+UnifiedSearch 按需，映射 codex
+      summary/registry/rollout 完整；LLM 滚动摘要层（codex memory_summary.md 式）
+      列观察项，不预先建管线。
+    - **C4 审批等待超时（feat，TimedOut）**：`requestApproval` 配置
+      `approvalTimeout>0` 时无人响应按拒绝处理（回合继续、工具结果记拒绝，不静默
+      放行）并发 Notice；配置 `[agent] approval_timeout_secs`（默认 0=永久等待，
+      交互场景兼容）经 boot 贯通 `control.Options.ApprovalTimeout`；TestApprovalTimeout
+      双用例。C4 剩余：权限升级请求、策略文件回写（granted map 重启即失）。
+    - **验证**：Go 全量 114/114；前端本刀零改动（上轮 681/681 门禁仍有效）。
+  - **下一阶段候选**：C4 剩余（权限升级请求 + 策略文件回写）；C11 压缩口径、C7
+    碎片抽象、C10 回合恢复、执行容量上限（观察项，按真实反馈排期）。
 
 - **最新发布：v3.5.0（2026-08-28）「办公对话区标签页 · dsh-context Go 移植」**：
   git tag `v3.5.0`；CHANGELOG / releases/v3.5.0.md / README 索引同步；规划文档
