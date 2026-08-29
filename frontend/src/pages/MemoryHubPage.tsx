@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   CloseOutlined,
   FileSearchOutlined,
@@ -12,8 +12,9 @@ import {
 import { BookOpen, Brain, FileText, Pin } from "../gaea/icons";
 import { LocaleProvider } from "../gaea/lib/i18n";
 import { app } from "../gaea/lib/bridge";
+import { SCOPE_OPTIONS, useSpaceScope } from "../gaea/lib/useSpaceScope";
 import { useComposerInsertStore, usePreviewStore } from "../gaea/lib/store";
-import type { GraphNode, MemoryHubOverview } from "../gaea/lib/types";
+import type { GraphNode, MemoryHubOverview, SearchScope } from "../gaea/lib/types";
 import { KnowledgePanel } from "../gaea/components/KnowledgePanel";
 import { ProfileLibrary } from "../gaea/components/memoryhub/ProfileLibrary";
 import { OfficeMemoryLibrary } from "../gaea/components/memoryhub/OfficeMemoryLibrary";
@@ -133,6 +134,18 @@ function MemoryHubPage() {
   const [detail, setDetail] = useState<InspectorDetail | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
 
+  // S1.2-C 检索 scope（docs/gaea-memory-isolation-design.md）：默认=当前生效空间，
+  // 「工位/乐园/全部」显式切换，「全部」传 ""（旧行为）。双空间红线：默认不跨空间。
+  const [scope, setScope] = useState<SearchScope>("work");
+  const scopeTouched = useRef(false);
+  const { active: spaceActive } = useSpaceScope();
+  useEffect(() => {
+    // 当前空间解析到达后回填默认 scope（用户已手动切换过则不覆盖）。
+    if (spaceActive && !scopeTouched.current) {
+      setScope(spaceActive.space === "play" ? "play" : "work");
+    }
+  }, [spaceActive]);
+
   // 三脑检索 + 工作区全文搜索合并：记忆与资料一次找齐。
   // 记忆统一层第一刀：hub 搜索由「4 绑定前端拼装」收敛为「1 绑定后端聚合」——
   // 单次 UnifiedSearch 返回 keyword（文件）/ semantic（语义）/ brain（三脑）/
@@ -145,7 +158,7 @@ function MemoryHubPage() {
     }
     setSearching(true);
     try {
-      const v = await app.UnifiedSearch(q, 8).catch(() => null);
+      const v = await app.UnifiedSearch(q, scope, 8).catch(() => null);
       if (!v) return;
       const kindLabel: Record<string, string> = { cost: "语义·成本", knowledge: "语义·知识", office: "语义·办公", file: "语义·资料" };
       setHits([
@@ -264,6 +277,22 @@ function MemoryHubPage() {
             aria-label="三脑检索 · 工作区资料"
             className="hub-search-input"
           />
+          {/* S1.2-C scope 切换：默认当前空间，「全部」=scope "" 仅显式选择 */}
+          <div className="hub-scope-switch" role="radiogroup" aria-label="检索范围">
+            {SCOPE_OPTIONS.map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                role="radio"
+                aria-checked={scope === o.value}
+                className={`hub-scope-option${scope === o.value ? " is-active" : ""}`}
+                title={o.title}
+                onClick={() => { scopeTouched.current = true; setScope(o.value); }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
           <button
             onClick={runSearch}
             disabled={searching}

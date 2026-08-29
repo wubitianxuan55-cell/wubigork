@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Layers } from "../icons";
 import { useT } from "../lib/i18n";
 import { app } from "../lib/bridge";
+import { noteSpaceActivated } from "../lib/useSpaceScope";
 import type { SpaceActiveView, SpaceOption } from "../lib/types";
 
 export default function SpaceChip({ disabled }: { disabled?: boolean }) {
@@ -38,7 +39,10 @@ export default function SpaceChip({ disabled }: { disabled?: boolean }) {
     if (disabled || busy || id === active.space) return;
     setBusy(true);
     try {
-      setActive(await app.GaeaSpaceActivate(id));
+      const v = await app.GaeaSpaceActivate(id);
+      // S1.2-C：广播给检索面（记忆中枢搜索/搜索面板），默认 scope 随之更新。
+      noteSpaceActivated(v);
+      setActive(v);
     } catch {
       /* 激活失败保持现状（Go 侧已拒绝非法值） */
     } finally {

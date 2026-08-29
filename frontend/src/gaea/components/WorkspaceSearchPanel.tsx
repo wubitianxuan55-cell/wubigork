@@ -11,8 +11,9 @@ import {
   X,
 } from "../icons";
 import { app, onTaskEvent } from "../lib/bridge";
+import { SCOPE_OPTIONS, useSpaceScope } from "../lib/useSpaceScope";
 import { useComposerInsertStore } from "../lib/store";
-import type { FileSemanticHit, SemanticHitView, TaskView, WorkspaceSearchHit } from "../lib/types";
+import type { FileSemanticHit, SearchScope, SemanticHitView, TaskView, WorkspaceSearchHit } from "../lib/types";
 import { useToast } from "./Toast";
 
 function fileIcon(name: string) {
@@ -70,6 +71,19 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
   const [cross, setCross] = useState(false);
   const [crossSem, setCrossSem] = useState<SemanticHitView[]>([]);
   const [indexMsg, setIndexMsg] = useState<string | null>(null);
+  // S1.2-C 检索 scope（docs/gaea-memory-isolation-design.md）：面板级状态，默认=
+  // 当前生效空间（GaeaSpaceActive，复用 SpaceChip 来源），「全部」=scope ""（旧行为）。
+  // 双空间红线：默认只搜当前空间。keyword（WorkspaceSearch）/files
+  // （FileSemanticSearch）为工作区共享面（设计检索面地图），绑定不带 scope。
+  const [scope, setScope] = useState<SearchScope>("work");
+  const scopeTouched = useRef(false);
+  const { active: spaceActive } = useSpaceScope();
+  useEffect(() => {
+    // 当前空间解析到达后回填默认 scope（用户已手动切换过则不覆盖）。
+    if (spaceActive && !scopeTouched.current) {
+      setScope(spaceActive.space === "play" ? "play" : "work");
+    }
+  }, [spaceActive]);
   const seq = useRef(0);
   // 索引任务事件订阅的注销函数（重复点击/卸载时断开，避免监听泄漏）
   const taskOff = useRef<(() => void) | null>(null);
@@ -91,7 +105,8 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
 
     if (cross) {
       // 跨库模式：一次 UnifiedSearch 调用，关键词 + 语义两组一次拿齐。
-      app.UnifiedSearch(trimmed, 20)
+      // scope 随面板切换传递（""=全部 / "work"/"play"）。
+      app.UnifiedSearch(trimmed, scope, 20)
         .then((v) => {
           if (id !== seq.current) return;
           setHits(v?.keyword ?? []);
@@ -142,7 +157,7 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
     } else {
       setSemHits([]);
     }
-  }, [semantic, cross]);
+  }, [semantic, cross, scope]);
 
   const rebuildIndex = useCallback(async () => {
     // 重复点击时断开上一次未完成的订阅
@@ -209,6 +224,30 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
           <span className="ml-1.5 text-[10px] text-fg-faint font-normal">
             {cross ? "跨库检索" : "工作区全文"}
           </span>
+          {/* S1.2-C scope 切换：默认当前空间，「全部」=scope "" 仅显式选择 */}
+          <div
+            className="shrink-0 flex items-center rounded-full border border-border overflow-hidden"
+            role="radiogroup"
+            aria-label="检索范围"
+          >
+            {SCOPE_OPTIONS.map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                role="radio"
+                aria-checked={scope === o.value}
+                className={`px-1.5 h-6 text-[10.5px] border-0 cursor-pointer transition-colors ${
+                  scope === o.value
+                    ? "bg-accent text-white"
+                    : "bg-bg-elev text-fg-faint hover:text-fg"
+                }`}
+                onClick={() => { scopeTouched.current = true; setScope(o.value); }}
+                title={o.title}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             className={`px-2 h-6 rounded-full text-[10.5px] transition-colors ${semantic ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"}`}

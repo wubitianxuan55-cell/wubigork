@@ -1326,6 +1326,11 @@ export interface CostCompareRow {
   kind: "current" | "history" | "fetch";
 }
 
+// SearchScope 是统一检索的空间范围（S1.2-C，docs/gaea-memory-isolation-design.md）：
+// ""=全部（旧行为，仅用户显式选择「全部」时使用）；"work"/"play"=只搜对应空间。
+// 双空间红线：默认只搜当前空间（GaeaSpaceActive 下发的 space）。
+export type SearchScope = "" | "work" | "play";
+
 // UnifiedSearchView 是一次「跨库统一检索」调用的完整结果（记忆统一层第一刀：
 // hub 搜索由 4 绑定前端拼装收敛为 1 绑定后端聚合）：
 // keyword = 工作区全文关键词命中（轻量 RAG），semantic = 跨库语义命中，

@@ -88,6 +88,7 @@ import type {
   PriceFetchRecord,
   PriceHistory,
   SemanticHitView,
+  SearchScope,
   UnifiedSearchView,
   RetrievalEvalReport,
   KnowledgeImportPreview,
@@ -401,7 +402,11 @@ export interface AppBindings {
   CostNoteDelete(id: number): Promise<void>;
   CostNoteBumpRef(id: number): Promise<void>;
   // UnifiedSearch 跨库统一检索一次调用：工作区关键词命中（topN 条）+ 语义跨库命中。
-  UnifiedSearch(query: string, topN?: number): Promise<UnifiedSearchView>;
+  // S1.2-B/C（docs/gaea-memory-isolation-design.md）：签名加 scope 参数——
+  // ""=全部（旧行为，仅显式选择时使用），"work"/"play"=只搜对应空间；前端默认
+  // 传当前生效空间（GaeaSpaceActive，双空间红线：默认不跨空间混搜）。
+  // 注意：后端 B 步合入前，旧绑定为 (query, topN)，此签名按约定先行对齐。
+  UnifiedSearch(query: string, scope: SearchScope, topN?: number): Promise<UnifiedSearchView>;
   // RetrievalEvalRun 运行检索质量测评：内置查询集统计平均 recall@10，
   // 达标门槛后端固定 0.8，返回指标 + 逐查询命中明细。
   RetrievalEvalRun(): Promise<RetrievalEvalReport>;

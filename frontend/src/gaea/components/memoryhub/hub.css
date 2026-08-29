@@ -140,6 +140,37 @@
 .hub-search-btn:disabled { opacity: 0.45; cursor: default; }
 .hub-search-btn:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
 
+/* S1.2-C 检索 scope 切换（工位/乐园/全部）：与三脑检索同高的分段小按钮 */
+.hub-scope-switch {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border, var(--border-soft));
+  background: var(--color-bg-container, var(--bg-soft));
+}
+.hub-scope-option {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  background: transparent;
+  color: var(--color-text-secondary, var(--fg-faint));
+  cursor: pointer;
+  transition: background-color var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
+}
+.hub-scope-option:hover { color: var(--color-text, var(--fg)); }
+.hub-scope-option.is-active {
+  background: var(--color-primary-container, var(--md-sys-color-primary-container));
+  color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
+}
+.hub-scope-option:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 1px; }
+
 /* 检索结果浮层 */
 .hub-search-pop {
   position: absolute;
@@ -567,6 +598,7 @@
   .hub-inspector,
   .hub-search-input,
   .hub-search-btn,
+  .hub-scope-option,
   .hub-search-pop,
   .hub-search-clear,
   .hub-hit,

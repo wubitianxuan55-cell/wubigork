@@ -90,23 +90,49 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
       ];
     },
     // ── 跨库统一检索（mock：关键词 + 语义 + 三脑 + 文件语义各 1-2 条，
-    // 与后端 GaeaUnifiedSearch 四组视图一致）──
-    async UnifiedSearch(query: string, topN = 10) {
+    // 与后端 GaeaUnifiedSearch 四组视图一致；S1.2-B 起带 scope 参数：
+    // ""=全部/旧行为，"work"/"play"=只搜对应空间）──
+    // 过滤规则对齐设计 docs/gaea-memory-isolation-design.md 检索面地图：
+    //   · brain：brain.left/main 属 work，brain.right（轻语）属 play；
+    //     work scope 滤 right，play scope 只留 right。
+    //   · semantic：只对最终 hits 过滤（严禁动索引源）——演示数据里
+    //     cost/knowledge/office 为 work 域，play scope 返回 play 分区命中。
+    //   · keyword/files：工作区单根目录=共享面，不过滤。
+    async UnifiedSearch(query: string, scope = "", topN = 10) {
       if (!query.trim()) return { keyword: [], semantic: [], brain: [], files: [] };
       const kw = await (this as unknown as WithWorkspaceSearch).WorkspaceSearch(query, topN);
       const sem = await this.SemanticSearch(query);
       const files = await this.FileSemanticSearch(query, topN);
+      const workBrain = [
+        {
+          brain: "brain.left",
+          entity: "项目-振动锤选型",
+          text: "桩基施工-振动锤选型：需匹配地质条件与桩型。",
+          score: 0.9,
+        },
+      ];
+      const playBrain = [
+        {
+          brain: "brain.right",
+          entity: "游戏偏好",
+          text: "轻语记忆：偏好策略与模拟经营类游戏。",
+          score: 0.88,
+        },
+      ];
+      const workSemantic = sem.length ? sem.slice(0, 2) : [];
+      const playSemantic = [
+        {
+          kind: "office" as const,
+          name: "娱乐偏好-策略模拟",
+          score: 0.77,
+          text: "乐园分区记忆：偏好策略与模拟经营类游戏，周末常玩。",
+        },
+      ];
       return {
         keyword: kw.length ? kw.slice(0, 2) : [],
-        semantic: sem.length ? sem.slice(0, 2) : [],
-        brain: [
-          {
-            brain: "brain.left",
-            entity: "项目-振动锤选型",
-            text: "桩基施工-振动锤选型：需匹配地质条件与桩型。",
-            score: 0.9,
-          },
-        ],
+        semantic:
+          scope === "play" ? playSemantic : scope === "work" ? workSemantic : [...workSemantic, ...playSemantic],
+        brain: scope === "play" ? playBrain : scope === "work" ? workBrain : [...workBrain, ...playBrain],
         files: files.length ? files.slice(0, 2) : [],
       };
     },

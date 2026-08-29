@@ -33,8 +33,9 @@ describe("E5 契约层 mock（进料与质量）", () => {
     });
   });
 
-  it("UnifiedSearch 一次返回关键词 + 语义两组，topN 生效", async () => {
-    const v = await app.UnifiedSearch("打桩", 20);
+  it("UnifiedSearch 一次返回关键词 + 语义两组，scope + topN 生效", async () => {
+    // S1.2-C：签名变为 (query, scope, topN)；scope="work" 走 work 分区演示命中。
+    const v = await app.UnifiedSearch("打桩", "work", 20);
     // 结构对齐 Go gaea_unified_search.go（keyword/semantic 两组）
     expect(Array.isArray(v.keyword)).toBe(true);
     expect(Array.isArray(v.semantic)).toBe(true);
@@ -46,7 +47,7 @@ describe("E5 契约层 mock（进料与质量）", () => {
   });
 
   it("UnifiedSearch 记忆统一层扩展：brain/files 两组结构对齐 Go", async () => {
-    const v = await app.UnifiedSearch("振动锤", 8);
+    const v = await app.UnifiedSearch("振动锤", "", 8);
     // 记忆统一层第一刀：GaeaUnifiedSearch 四组视图（keyword/semantic/brain/files）
     expect(Array.isArray(v.brain)).toBe(true);
     expect(Array.isArray(v.files)).toBe(true);
@@ -62,6 +63,29 @@ describe("E5 契约层 mock（进料与质量）", () => {
       expect(typeof h.path).toBe("string");
       expect(typeof h.snippet).toBe("string");
     });
+  });
+
+  it("UnifiedSearch scope=work：三脑滤 brain.right（轻语=play 专属），语义只含 work 域", async () => {
+    const v = await app.UnifiedSearch("振动锤", "work", 8);
+    // 设计检索面地图：brain.left/main 属 work，brain.right 属 play → work scope 滤 right。
+    expect((v.brain ?? []).some((h) => h.brain === "brain.right")).toBe(false);
+    expect((v.brain ?? []).some((h) => h.brain === "brain.left")).toBe(true);
+    // semantic 只对最终 hits 过滤：work 演示域为 cost/knowledge（非 play 分区命中）。
+    expect((v.semantic ?? []).some((h) => h.name.includes("娱乐"))).toBe(false);
+  });
+
+  it("UnifiedSearch scope=play：三脑只留 brain.right，语义为 play 分区命中", async () => {
+    const v = await app.UnifiedSearch("游戏", "play", 8);
+    expect((v.brain ?? []).every((h) => h.brain === "brain.right")).toBe(true);
+    expect((v.brain ?? []).length).toBeGreaterThan(0);
+    expect((v.semantic ?? []).some((h) => h.name.includes("娱乐"))).toBe(true);
+  });
+
+  it("UnifiedSearch scope=\"\"（全部）：work + play 两分区命中都返回（显式选择才跨空间）", async () => {
+    const v = await app.UnifiedSearch("振动锤", "", 8);
+    expect((v.brain ?? []).some((h) => h.brain === "brain.left")).toBe(true);
+    expect((v.brain ?? []).some((h) => h.brain === "brain.right")).toBe(true);
+    expect((v.semantic ?? []).some((h) => h.name.includes("娱乐"))).toBe(true);
   });
 
   it("RetrievalEvalRun 契约对齐 Go：12 条真实查询集、threshold=0.8、recall 自洽", async () => {
