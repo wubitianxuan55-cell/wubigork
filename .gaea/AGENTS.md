@@ -26,6 +26,26 @@
 
 ## 版本状态
 
+- **最新发布：v4.3.1（2026-08-30）「乐园」后续小步**：
+  git tag `v4.3.1`；CHANGELOG / releases/v4.3.1.md / README 索引同步。要点：
+  - **主动关心定时推送频控（v4.3c 补完）**：app 层 ticker 四信号评估（AttentionManager
+    频控 ≤3 条/小时 → MatchHabits dnd 作息尊重 → DetectSpecialDatesV2 生日祝福
+    （每天首条、人格感知提示词）→ 门控+合成器）→ `gaea-whisper-proactive` 事件推
+    前端（space=play）；新绑定 GaeaWhisperProactiveConfig/SetProactiveConfig；
+    前端 WhisperGraphPanel 订阅显示推送气泡（birthday 徽标）。play 红线零落盘。
+  - **创作间世界模型面板（v4.3e/f 落地）**：设定页「维度化」模式（6 维度卡片就地
+    编辑整存）+ 伏笔登记表面板（状态流转/回收率）+ 一致性检查面板（三类告警）。
+  - **角色参考图 + 生图参考槽（v4.3g 补完）**：characterlib SchemaV2 迁移（reference/
+    gallery_images 两列幂等）+ CharacterGeneratePortraitWithRef（img2img 参考槽
+    denoise 0.55 + 模型门禁）+ 前端参考图管理。
+  - **文本朗读情绪 UI（v4.3d 收尾）**：EmotionSpeakSelector（9 标签对齐
+    EmotionVoiceMap）+ 会话情绪自动跟随 + TTSSpeakBase64WithParams 携带情绪。
+  - **验证**：Go 全量 **118/118 包**；vitest **789/789**（144 文件，+20）；
+    tsc -b / eslint 0；绑定面 **525** 漂移 PASS（+3）；spaceBindings **235** 全覆盖；
+    版本五处统一 4.3.1。
+  - **下一执行**：v4.4 触点（微信任务入口 + 语音双通路 + 本地离线模式，§10.4）；
+    观察项（主动关心配置前端面板、角色 gallery 前端管理、IP-Adapter 节点级参考槽）。
+
 - **最新发布：v4.3.0（2026-08-29）「乐园」娱乐做深**：
   git tag `v4.3.0`；CHANGELOG / releases/v4.3.0.md / README 索引同步；设计
   `docs/gaea-v43-play-deepen-design.md`（4 份只读调研结论入账）。要点：

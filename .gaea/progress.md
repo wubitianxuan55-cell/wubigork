@@ -1,20 +1,17 @@
 # 任务进度
 
-> 最后更新: 2026-08-29（v4.3.0 桌面端发布完成，冒烟 200）
+> 最后更新: 2026-08-30（v4.3.1 后续小步发布完成）
 
 ## 当前状态
 
-- **最新发布：v4.3.0（2026-08-29）**——v4.3 乐园做深（会客厅关系记忆/主动关心/
-  情感语音 + 创作间图文联动，§10.4）。验证：Go 全量绿；vitest 769/769（+10）；
-  tsc -b / eslint 0；绑定面 522 漂移 PASS（+5）；spaceBindings 233 全覆盖。
-- **桌面端产物（2026-08-29）**：`releases/gaea-v4.3.0.exe`（36,551,680 字节 ≈ 34.9MB，
-  SHA256 `7b8d3cf4a22945aca4ba00d832a54800830a52e7dd5dff33e67fbdffb123154a`，
-  见 releases/SHA256SUMS-v4.3.0.txt）；wails v2.13.0 构建（42s）+ 冒烟
-  /api/health 200（GAEA_HTTP_PORT=18999 隔离）；旧 2 版（v3.0.8/v3.1.0）归档
-  releases/archive/，本地保留 5 版（v3.1.1/3.2.0/3.4.0/3.5.0/4.3.0）。
+- **最新发布：v4.3.1（2026-08-30）**——v4.3 后续小步收口（主动关心定时推送频控
+  + 创作间世界模型面板 + 角色参考图 + 朗读情绪 UI）。验证：Go 全量 118/118 包；
+  vitest 789/789（+20）；tsc -b / eslint 0；绑定面 525 漂移 PASS（+3）；
+  spaceBindings 235 全覆盖；版本五处统一 4.3.1。
+- **桌面端产物**：v4.3.1 exe 待构建（wails build 42s + 冒烟 /api/health 200 流程
+  照 v4.3.0，产物 releases/gaea-v4.3.1.exe + SHA256SUMS）。
 - 构建注意：wails build 走 `build.bat` 的 TMP/TEMP 重定向到 `.tmp`（规避 SAC
-  策略拦截）；v4.3.0 构建期修复 WhisperGraphPanel SVG `title`→`aria-label`
-  （tsc -b 门禁 TS2322，独立 fix 提交）。
+  策略拦截）。
 
 ## 长期规划（权威文档）
 
@@ -159,10 +156,25 @@
 - [x] **绑定集成**：gen_bindings 522（+5，显式覆盖归位 voice/novel）+ bindingNames/
   spaceBindings(233)/bridge/types 接线
 
-**v4.3 乐园做深已收官**（bindingNames 522 / spaceBindings 233 / vitest 769
-+ go 全量绿）。剩余：v4.4 触点（微信任务入口 + 语音双通路 + 本地离线模式，§10.4）；
-v4.3 后续小步（主动关心定时推送频控、文本朗读情绪 UI、设定页维度化编辑器/
-伏笔登记表/一致性面板、角色参考图 IP-Adapter）。
+### v4.3 后续小步 —— ✅ 全部完成（v4.3.1 发布）
+- [x] **主动关心定时推送频控（v4.3c 补完）**：app 层 ticker 四信号评估（AttentionManager
+  频控 ≤3 条/小时 → MatchHabits dnd 作息尊重 → DetectSpecialDatesV2 生日祝福（每天首条、
+  人格感知提示词）→ 门控+合成器）→ `gaea-whisper-proactive` 事件推前端（space=play）；
+  新绑定 GaeaWhisperProactiveConfig/SetProactiveConfig（开关/上限/间隔/免打扰时窗）；
+  前端 WhisperGraphPanel 订阅显示推送气泡（birthday 徽标）；16 Go 测试
+- [x] **设定页维度化编辑器 + 伏笔登记表 + 一致性面板（v4.3e/f 落地）**：NovelSettingPage
+  「维度化」模式（6 维度卡片就地编辑整存，复用已有绑定）+ ForeshadowPanel（状态流转/
+  回收率）+ ConsistencyPanel（三类告警/重新检查）；7 vitest
+- [x] **角色参考图 + 生图参考槽（v4.3g 补完）**：characterlib SchemaV2 迁移（reference/
+  gallery_images 两列幂等）+ CharacterGeneratePortraitWithRef（img2img 参考槽 denoise
+  0.55 + 模型门禁）+ 前端参考图管理（以参考图生成剧照）；8 vitest + 5 Go 测试
+- [x] **文本朗读情绪 UI（v4.3d 收尾）**：EmotionSpeakSelector（9 标签对齐 EmotionVoiceMap）+
+  会话情绪自动跟随 + TTSSpeakBase64WithParams 携带情绪（无情绪回退原路径）；3 vitest
+- [x] **绑定收口**：gen_bindings 525（+3）+ bindingNames/spaceBindings(235)/bridge/types
+
+**v4.3.1 后续小步已收官**（bindingNames 525 / spaceBindings 235 / vitest 789
++ go 118/118 包）。剩余：v4.4 触点（微信任务入口 + 语音双通路 + 本地离线模式，§10.4）；
+后续观察项（主动关心配置前端面板、角色 gallery 前端管理、IP-Adapter 节点级参考槽）。
 
 ## 纪律（沿用）
 

@@ -1,5 +1,24 @@
 # gaea · 多功能 AI 助手
 
+## v4.3.1「乐园」后续小步 (2026-08-30)
+> v4.3 后续小步收口：主动关心定时推送频控 + 创作间世界模型面板 + 角色参考图 +
+> 朗读情绪 UI。设计沿用 `docs/gaea-v43-play-deepen-design.md`（v4.3c/e/f/g 补完）。
+> 验证：Go 全量 **118/118 包**；vitest **789/789**（144 文件，+20）；tsc -b / eslint 0；
+> 绑定面 **525 方法**漂移 PASS（+3）；spaceBindings **235 方法**全覆盖断言；
+> 版本五处统一 4.3.1。详见 releases/v4.3.1.md。
+- **主动关心定时推送频控（v4.3c 补完）**：app 层 ticker 四信号评估（AttentionManager
+  频控 ≤3 条/小时 → MatchHabits 作息尊重 → DetectSpecialDatesV2 生日祝福（每天首条、
+  人格感知提示词）→ 门控+合成器）→ `gaea-whisper-proactive` 事件推前端；
+  新绑定 `GaeaWhisperProactiveConfig/SetProactiveConfig`（开关/上限/间隔/免打扰时窗）；
+  前端 WhisperGraphPanel 订阅显示推送气泡（含 birthday 徽标）。play 红线零落盘。
+- **创作间世界模型面板（v4.3e/f 落地）**：设定页「维度化」模式（6 维度卡片就地编辑
+  整存）+ 伏笔登记表面板（状态流转/回收率）+ 一致性检查面板（三类规则告警/重新检查）。
+- **角色参考图 + 生图参考槽（v4.3g 补完）**：characterlib SchemaV2 迁移（reference/
+  gallery_images 两列幂等）+ `CharacterGeneratePortraitWithRef`（img2img 参考槽
+  denoise 0.55 + 模型门禁）+ 前端角色库参考图管理（以参考图生成剧照/删除/添加）。
+- **文本朗读情绪 UI（v4.3d 收尾）**：朗读情绪选择器（9 标签对齐 EmotionVoiceMap）+
+  会话情绪自动跟随 + 朗读携带 `TTSSpeakBase64WithParams` 情绪参数（无情绪回退原路径）。
+
 ## v4.3.0「乐园」娱乐做深 (2026-08-29)
 > 阶段 3+ 领域包第二发：会客厅关系记忆 + 主动关心 + 情感语音；创作间图文联动。
 > 设计 `docs/gaea-v43-play-deepen-design.md`（4 份只读调研：后端骨架约 70% 已存在，
