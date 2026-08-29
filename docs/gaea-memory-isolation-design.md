@@ -31,3 +31,14 @@
 - semantic Stale 陷阱（见上）——实现时严禁按空间过滤索引源。
 - GaeaUnifiedSearch 签名变更会触碰前端 hub/面板调用点与 mock（mock/core.ts 需同步）。
 - 绑定面计数不变（签名变更），但 bridge.ts 类型需同步。
+
+## 勘误与关键锚点（完整勘察报告补录）
+- remember 工具在 **`internal/gaea/memory/remember.go:87-95`**（非 agent 包）；ctx 空间管线仿 `memory.WithQueue/WithSessionSaver`（memory/queue.go:15-41，注入点 execute_one.go:147-150）。
+- dream：gaea_handler.go:77-79 事件槽不带上下文 → 取 ctrl.SessionSpace()（回退 gaeaEffectiveSpace()，mode=off=""）→ gaea_dream.go:82,105 runDream(space) → :184 指纹 = sha256(space+"\x00"+input) → :147 SaveDreamFacts（controller_memory.go:295 空 Space 统一 Normalize 兜底）→ :164 notes QuickAdd：**play dream notes 丢弃+slog.Debug**；审计 DreamAuditEntry（controller_memory.go:20-25）加 Space 列（JSONL 追加列向后兼容）；显式路径 gaea_memory_suggestions.go:199 同点盖章。
+- citations：ResolveCitations（citations.go:44-65）内部 Get/Touch → GetInSpace/TouchInSpace（space="" 走旧方法）；touchMemoryCitations（control/controller.go:488-493）传 c.SessionSpace()；memory_get 工具（memory/get.go:50-55）同步换。
+- semantic Stale 陷阱：gaea_semantic_search.go:96-101,138-142 Ensure+Stale 会物理删另一空间向量——只对最终 hits 后过滤（kind=="office" 按 ListInSpace(scope) 映射；cost/knowledge/file 不过滤）。
+- brain：左脑 brain_left.go:69-71 List→ListInSpace(scope)；右脑（whisper=play 整域）work scope 整体丢弃；profile+knowledge 共享不过滤。
+- **UNIQUE(project,name) 跨空间同名冲突**：ON CONFLICT DO UPDATE 会覆盖并翻转 space_id——本刀不改约束，盖章路径在「目标名已存在且 space 不同」时打 audit 警告（可溯源）。
+- **listInSpace SELECT 补取 space_id 回填 m.Space**（sqlite.go:173；store.go:70 注释随之更新）。
+- **mode=off 三态回退**：scope=""/SessionSpace=""/EffectiveSessionSpace="" 必须严格等价旧行为（不过滤/不写 space/纯内容哈希指纹）——任何一处把 "" 归一成 work 都会让 off 模式旧数据不可见。
+- 未接线项：ProceduralBlock/EpisodicMatches/EpisodicBlock 无活调用方（接线时必须走 spaceList）；hub 库列表前端消费面未清点（留 S2.1）；dream 触发仅 app 事件槽一处（实现时全库 grep TurnDone 复核）。
