@@ -437,11 +437,22 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 	if _, err := c.runner.Run(ctx, input); err != nil {
 		return err
 	}
+	c.touchMemoryCitations()
 	// 每轮对话后自动快照保存，确保崩溃/重启不丢上下文
 	if err := c.Snapshot(); err != nil {
 		slog.Warn("controller: snapshot after turn", "err", err)
 	}
 	return nil
+}
+
+// touchMemoryCitations 解析最终回复中的 [MEM:name] 引用并触达对应记忆（更新
+// last_used_at，高频排序与前端引用徽标同源）——记忆引用可追溯的回传侧。
+// 静默：记忆关闭/未命中/未知键都不报错，不影响回合结果。
+func (c *Controller) touchMemoryCitations() {
+	if c.mem == nil || !c.memoryEnabled {
+		return
+	}
+	c.mem.ResolveCitations(lastAssistantText(c.History()))
 }
 
 // lastAssistantText returns the content of the most recent assistant message with
@@ -516,6 +527,9 @@ func (c *Controller) Run(ctx context.Context, input string) error {
 		defer func() { c.hooks.Stop(ctx, lastAssistantText(c.History()), turn) }()
 	}
 	_, err := c.runner.Run(ctx, input)
+	if err == nil {
+		c.touchMemoryCitations()
+	}
 	return err
 }
 

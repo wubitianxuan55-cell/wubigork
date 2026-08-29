@@ -409,6 +409,12 @@ export const en = {
   "msg.showSummary": "show summary",
   "msg.hideSummary": "hide summary",
   "msg.dismissError": "Dismiss error",
+  "mem.citationChipTitle": "View memory {name}",
+  "mem.citationTitle": "Memory citation",
+  "mem.citationNotFound": "Citation not found in memory (may be archived or deleted)",
+  "mem.citationLoading": "Loading memory…",
+  "mem.citationSource": "Source",
+  "mem.citationLastUsed": "Last used",
 
   // tool card summaries
   "tool.stepOne": "{n} step",

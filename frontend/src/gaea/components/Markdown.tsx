@@ -10,9 +10,11 @@ import { Check, Copy, FileText, Loader } from "../icons";
 import { app, openExternal } from "../lib/bridge";
 import { isLocalFilePath } from "../lib/fileLinks";
 import { remarkFileLinks } from "../lib/remarkFileLinks";
+import { remarkMemCitations } from "../lib/remarkMemCitations";
 import { usePreviewStore } from "../lib/store";
 import { useToast } from "./Toast";
 import { FileChip } from "./FileChip";
+import { MemCitationChip } from "./MemCitationChip";
 
 // KaTeX CSS 延迟注入：避免非数学对话的 ~23KB CSS 开销。
 // 有数学内容时才加载（$$ 或 $ 包裹的公式）。
@@ -394,6 +396,12 @@ function buildComponents(onOpenFile: (rel: string) => void, autoExportMermaid = 
       return <code className="px-1 py-0.5 rounded bg-bg-soft text-fg text-[0.9em] font-mono border border-border-soft/50">{children}</code>;
     },
     a: ({ href, children }) => {
+      // 记忆引用键（remarkMemCitations 产出 mem:<name> 链接）：渲染成可点击
+      // 溯源徽标（C2 记忆引用可追溯）。
+      if (href?.startsWith("mem:")) {
+        const name = decodeURIComponent(href.slice(4));
+        return <MemCitationChip name={name} />;
+      }
       if (href && isLocalFilePath(href)) {
         const rel = decodeURIComponent(href.replace(/^\.{0,2}\//, ""));
         return (
@@ -464,10 +472,10 @@ export const Markdown = memo(function Markdown({ text, autoExportMermaid = true 
   return (
     <div className="md text-[14px] leading-relaxed">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath, remarkFileLinks]}
+        remarkPlugins={[remarkGfm, remarkMath, remarkFileLinks, remarkMemCitations]}
         rehypePlugins={[rehypeKatex]}
         components={buildComponents(openFilePreview, autoExportMermaid)}
-        urlTransform={(url) => (isLocalFilePath(url) ? url : defaultUrlTransform(url))}
+        urlTransform={(url) => (isLocalFilePath(url) || url.startsWith("mem:") ? url : defaultUrlTransform(url))}
       >
         {normalizeMath(text)}
       </ReactMarkdown>

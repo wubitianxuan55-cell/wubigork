@@ -414,6 +414,12 @@ export const zhTW: Record<DictKey, string> = {
   "msg.showSummary": "顯示摘要",
   "msg.hideSummary": "收起摘要",
   "msg.dismissError": "關閉錯誤提示",
+  "mem.citationChipTitle": "查看記憶 {name}",
+  "mem.citationTitle": "記憶引用",
+  "mem.citationNotFound": "未在記憶庫中找到該引用（可能已歸檔或刪除）",
+  "mem.citationLoading": "正在讀取記憶…",
+  "mem.citationSource": "來源",
+  "mem.citationLastUsed": "最近使用",
 
   // tool card summaries
   "tool.stepOne": "{n} 個步驟",

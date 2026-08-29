@@ -2,6 +2,7 @@ package memory
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -88,6 +89,8 @@ func rankMemories(text string, ms []Memory, now time.Time) []Memory {
 // RecallBlock 返回逐轮注入的「记忆上下文」：procedural 常驻 + 触发命中的
 // episodic + 相关 user/semantic 事实，按「关键词 + 时间 + 高频」排序并压缩到
 // budget（默认 800 rune，对标轻量压缩注入）。无记忆或全部不相关时返回 ""。
+// 每行带稳定引用键 [MEM:<name>]（citations.go）：模型采纳时在句末标注同名
+// 引用，回合结束解析回传并 Touch——引用可追溯闭环的注入侧。
 func (s *Set) RecallBlock(text string, budget int) string {
 	if s == nil {
 		return ""
@@ -103,7 +106,7 @@ func (s *Set) RecallBlock(text string, budget int) string {
 	ranked := rankMemories(text, ms, now)
 
 	var b strings.Builder
-	b.WriteString("## 记忆上下文（按相关度/近期自动注入）\n")
+	b.WriteString(recallHeader + "\n")
 	written := 0
 	for _, m := range ranked {
 		// 非 procedural 且无关键词命中的事实不逐轮注入（靠系统前缀索引兜底）
@@ -119,11 +122,14 @@ func (s *Set) RecallBlock(text string, budget int) string {
 		written += lineRunes
 	}
 	block := strings.TrimSpace(b.String())
-	if block == "## 记忆上下文（按相关度/近期自动注入）" {
+	if block == recallHeader {
 		return ""
 	}
 	return block
 }
+
+// recallHeader 是注入块头（无注入行时用于早退判断）。
+const recallHeader = "## 记忆上下文（按相关度/近期自动注入；采纳某条时在句末标注其 [MEM:引用键]，记忆可能过时，以工作区文件为准）"
 
 // episodicTriggered 判断 episodic 记忆的触发标签是否命中输入（复用
 // EpisodicMatches 的标签判定）。
@@ -159,7 +165,8 @@ func keywordHit(text string, m Memory) bool {
 }
 
 // formatRecallLine 渲染一条注入行：procedural 附正文（供模型直接遵循），
-// 其他附一句话摘要。
+// 其他附一句话摘要；行尾带引用键 [MEM:<name>]（模型照抄标注，前端渲染成
+// 可点击溯源徽标），陈旧记忆（90 天未修订）附时效提示。
 func formatRecallLine(m Memory) string {
 	var b strings.Builder
 	fmtTags := ""
@@ -172,18 +179,40 @@ func formatRecallLine(m Memory) string {
 		fmtTags = string(m.Type)
 	}
 	label := displayTitle(m.Title, m.Name)
+	var line string
 	if m.Kind == KindProcedural && strings.TrimSpace(m.Body) != "" {
 		body := strings.TrimSpace(m.Body)
 		if r := []rune(body); len(r) > 200 {
 			body = string(r[:200]) + "…"
 		}
-		b.WriteString("- [" + fmtTags + "] " + label + "：" + oneLine(body) + "\n")
-		return b.String()
+		line = "- [" + fmtTags + "] " + label + "：" + oneLine(body)
+	} else {
+		desc := oneLine(m.Description)
+		if desc == "" {
+			desc = label
+		}
+		line = "- [" + fmtTags + "] " + label + "：" + desc
 	}
-	desc := oneLine(m.Description)
-	if desc == "" {
-		desc = label
+	if staleDays(m, time.Now()) > 0 {
+		line += "（已 " + strconv.Itoa(staleDays(m, time.Now())) + " 天未修订，注意时效）"
 	}
-	b.WriteString("- [" + fmtTags + "] " + label + "：" + desc + "\n")
+	line += " [MEM:" + m.Name + "]"
+	b.WriteString(line + "\n")
 	return b.String()
+}
+
+// staleCitedDays 是「陈旧记忆」判定阈值：距最近修订超过该天数视为可能过时。
+const staleCitedDays = 90
+
+// staleDays 返回记忆距最近修订的天数；不足阈值（含零值未知时间）返回 0 表示
+// 不提示时效。
+func staleDays(m Memory, now time.Time) int {
+	if m.UpdatedAt.IsZero() {
+		return 0
+	}
+	days := int(now.Sub(m.UpdatedAt).Hours() / 24)
+	if days < staleCitedDays {
+		return 0
+	}
+	return days
 }

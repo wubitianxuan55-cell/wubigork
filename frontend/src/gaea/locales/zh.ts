@@ -412,6 +412,12 @@ export const zh: Record<DictKey, string> = {
   "msg.showSummary": "显示摘要",
   "msg.hideSummary": "收起摘要",
   "msg.dismissError": "关闭错误提示",
+  "mem.citationChipTitle": "查看记忆 {name}",
+  "mem.citationTitle": "记忆引用",
+  "mem.citationNotFound": "未在记忆库中找到该引用（可能已归档或删除）",
+  "mem.citationLoading": "正在读取记忆…",
+  "mem.citationSource": "来源",
+  "mem.citationLastUsed": "最近使用",
 
   // 工具卡片摘要
   "tool.stepOne": "{n} 步",
