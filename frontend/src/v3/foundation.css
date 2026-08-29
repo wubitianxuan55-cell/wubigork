@@ -113,26 +113,32 @@
   filter: drop-shadow(0 0 9px var(--gaea-glow));
 }
 
-/* S2.1 空间切换（工位/乐园）：折叠 48px 时仅见文字短标，展开 176px 全显 */
+/* S2.1 空间切换（书房/庭院）：折叠 48px 时仅见文字短标，展开 176px 全显。
+   v4.3.2：加大按钮、激活态带光晕描边，从「角落小字」提升为可见入口。 */
 .v3-rail-space {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  margin: 6px 5px 2px;
+  gap: 4px;
+  margin: 6px 5px 4px;
   flex-shrink: 0;
+  padding: 4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-surface-container-high) 38%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
 }
 .v3-rail-space-item {
-  height: 24px;
+  height: 30px;
   margin: 0;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 9px;
   background: transparent;
   color: var(--color-text-secondary);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms), border-color var(--md-sys-transition-fast, 200ms);
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms), border-color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
 }
 .v3-rail-space-item:hover {
   background: var(--color-surface-container-high);
@@ -143,9 +149,10 @@
   outline-offset: -2px;
 }
 .v3-rail-space-item.is-active {
-  border-color: color-mix(in srgb, var(--gaea-glow) 55%, transparent);
-  background: var(--color-primary-container);
-  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--gaea-glow) 60%, transparent);
+  background: color-mix(in srgb, var(--gaea-glow) 16%, var(--color-surface));
+  color: var(--color-text);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--gaea-glow) 26%, transparent);
 }
 
 .v3-rail-nav {

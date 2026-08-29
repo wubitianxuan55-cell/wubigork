@@ -856,3 +856,321 @@ html.gaea-raf-degraded .ml .v3-rise {
   animation: none !important;
 }
 html.gaea-raf-degraded .ml-orb-ring { animation: none !important; opacity: 0.8; }
+
+/* ════════════════════════════════════════════════════════════════
+   v4.3.2 三栏重构：左书房 / 中语音晶核 / 右庭院
+   沿用既有令牌（--color-* / --gaea-glow / --v3-*），不引入新视觉体系。
+   ════════════════════════════════════════════════════════════════ */
+
+/* 精简 Hero：只有 eyebrow + 标题 + 副标题（不再双行动卡） */
+.ml-hero--slim {
+  display: block;
+  flex-shrink: 0;
+}
+.ml-hero--slim .ml-hero-copy {
+  padding: 4px 8px;
+  gap: 10px;
+}
+
+/* ── 三栏主体 ── */
+.ml-main {
+  flex: 1 1 auto;
+  min-height: 320px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 1.1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+/* 左/右栏（书房 / 庭院）：栏头 + 卡片竖排 */
+.ml-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.ml-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+.ml-col-head > svg {
+  font-size: 15px;
+  color: var(--color-text-secondary);
+}
+.ml-col-head.is-active > svg {
+  color: var(--gaea-glow);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gaea-glow) 45%, transparent));
+}
+.ml-col-head-desc {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.ml-col-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding-right: 2px;
+}
+/* 三栏卡片 = 紧凑横排卡（图标左 + 文字右），覆盖 Bento 竖排样式 */
+.ml-col-cards .ml-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 14px;
+}
+.ml-col-cards .ml-card-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.ml-col-cards .ml-card-body {
+  min-width: 0;
+}
+.ml-col-cards .ml-card-name {
+  font-size: 13.5px;
+}
+.ml-col-cards .ml-card-desc {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ml-col-empty {
+  padding: 18px 12px;
+  border-radius: var(--radius-lg, 16px);
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ── 中栏：语音晶核（放大 orb，视觉焦点）── */
+.ml-voice {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.ml-voice-panel {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 26px 24px;
+  border-radius: var(--radius-xl, 28px);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 20%, var(--color-border));
+  background:
+    radial-gradient(ellipse 110% 90% at 88% -15%, color-mix(in srgb, var(--gaea-glow) 30%, transparent), transparent 55%),
+    radial-gradient(ellipse 95% 80% at 8% 115%, color-mix(in srgb, var(--color-primary) 28%, transparent), transparent 60%),
+    linear-gradient(150deg,
+      color-mix(in srgb, var(--color-primary) 40%, var(--color-surface-dim)) 0%,
+      color-mix(in srgb, var(--color-primary) 18%, var(--color-surface-dim)) 52%,
+      var(--color-surface) 100%);
+  box-shadow:
+    0 20px 48px color-mix(in srgb, var(--gaea-glow) 18%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text) 10%, transparent);
+  overflow: hidden;
+  isolation: isolate;
+}
+.ml-voice-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
+}
+.ml-voice-main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.ml-orb--lg {
+  width: 148px;
+  height: 148px;
+}
+.ml-orb--lg .ml-orb-static {
+  width: 118px;
+  height: 118px;
+}
+.ml-voice-side {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+  text-align: center;
+}
+.ml-voice-side .ml-visual-head {
+  justify-content: center;
+}
+.ml-voice-side .ml-visual-title {
+  font-size: 19px;
+}
+.ml-voice-side .ml-visual-sub {
+  max-width: 30ch;
+  margin: 0;
+}
+.ml-voice-side .ml-voice-actions {
+  justify-content: center;
+}
+
+/* ── 底部入口条：编程（独立窗口）+ 设置 ── */
+.ml-utilities {
+  flex-shrink: 0;
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-lg, 16px);
+}
+.ml-util-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-md, 12px);
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--color-surface-container-high) 60%, transparent);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--md-sys-transition-fast, 200ms) ease,
+    background var(--md-sys-transition-fast, 200ms) ease;
+}
+.ml-util-entry:hover,
+.ml-util-entry:focus-visible {
+  border-color: color-mix(in srgb, var(--gaea-glow) 40%, transparent);
+  background: color-mix(in srgb, var(--color-surface-container-high) 90%, transparent);
+}
+.ml-util-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 22%, transparent);
+  flex-shrink: 0;
+}
+.ml-util-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ml-util-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ml-util-desc {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ml-util-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ml-util-arrow {
+  font-size: 12px;
+  color: var(--gaea-glow);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity var(--md-sys-transition-fast, 200ms) ease, transform var(--md-sys-transition-fast, 200ms) ease;
+  flex-shrink: 0;
+}
+.ml-util-entry:hover .ml-util-arrow,
+.ml-util-entry:focus-visible .ml-util-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+.ml-util-entry--settings .ml-util-icon {
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text-secondary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-text-secondary) 20%, transparent);
+}
+
+/* 窄窗口降级：三栏 → 纵向堆叠（保持语音晶核居中优先） */
+@media (max-width: 1180px) {
+  .ml-main {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .ml-col {
+    overflow: visible;
+  }
+  .ml-col-cards {
+    flex-direction: row;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .ml-col-cards .ml-card {
+    flex: 1 1 220px;
+  }
+  .ml-voice {
+    min-height: 320px;
+  }
+  .ml-utilities {
+    flex-direction: column;
+  }
+}
+
+/* reduced-motion 降级补充（三栏新元素） */
+@media (prefers-reduced-motion: reduce) {
+  .ml-util-arrow { transition: none; }
+  .ml-util-entry:hover .ml-util-arrow,
+  .ml-util-entry:focus-visible .ml-util-arrow { transform: none; }
+}
+.ui-reduced-motion .ml-util-arrow { transition: none; }
+.ui-reduced-motion .ml-util-entry:hover .ml-util-arrow,
+.ui-reduced-motion .ml-util-entry:focus-visible .ml-util-arrow { transform: none; }
