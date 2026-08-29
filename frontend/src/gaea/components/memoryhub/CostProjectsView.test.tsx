@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { CostProjectsView } from "./CostProjectsView";
 import { ToastProvider } from "../Toast";
-import type { CostEstimateItem, CostEstimateVersion, CostProject, CostProjectSummary } from "../../lib/types";
+import type { CostEstimateItem, CostEstimateVersion, CostProject, CostProjectSummary, CostStageCompareRow, CostStageDeviation, CostStageValue } from "../../lib/types";
 
 // ── 内存态 mock（对齐 lib/mock/cost.ts 的测算项目实现口径）──
 const state = vi.hoisted(() => {
@@ -84,6 +84,11 @@ vi.mock("../../lib/bridge", () => ({
       return state.items.filter((i) => i.projectId === projectId && idset.has(i.id ?? -1) && (i.price || 0) > 0).length;
     },
     CostSearch: async () => [],
+    // v4.2 五算对比（FiveCalcPanel 挂载即调）：空实现不干扰既有用例。
+    CostStages: async (): Promise<CostStageValue[]> => [],
+    CostStageSave: async () => {},
+    CostStageCompare: async (): Promise<CostStageCompareRow[]> => [],
+    CostStageDeviations: async (): Promise<CostStageDeviation[]> => [],
   },
 }));
 

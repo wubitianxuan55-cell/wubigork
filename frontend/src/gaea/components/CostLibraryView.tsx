@@ -3,7 +3,7 @@ import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { Input, Modal, message } from "antd";
 import {
   BarChart3, ChevronDown, ChevronRight, Clock, CloudUpload, Coins, FolderPlus, List,
-  Pencil, Plus, RefreshCw, Table, Trash2,
+  Pencil, Plus, RefreshCw, Table, Trash2, TrendingUp,
 } from "../icons";
 import { app } from "../lib/bridge";
 import type { CostCategory, CostSummary, FilePickResult, PriceHistory } from "../lib/types";
@@ -11,6 +11,7 @@ import { EmptyState } from "./EmptyState";
 import { CostEntryModal } from "./memoryhub/CostEntryModal";
 import { CostImportModal } from "./memoryhub/CostImportModal";
 import { CostCompareModal } from "./memoryhub/CostCompareModal";
+import { CostInquiryPanel } from "./memoryhub/CostInquiryPanel";
 
 const STATUSES = ["现行", "草稿", "已归档"];
 
@@ -36,7 +37,8 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [selectedPath, setSelectedPath] = useState("");
-  const [view, setView] = useState<"list" | "table">("list");
+  // v4.2：新增「询价」视图（询价飞轮面板）；默认仍为 list，既有行为零回归。
+  const [view, setView] = useState<"list" | "table" | "inquiry">("list");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
@@ -329,40 +331,54 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
                 >
                   <Table size={12} />
                 </button>
+                <button
+                  className={`inline-flex items-center gap-1 px-2 h-7 text-[11px] transition-colors ${
+                    view === "inquiry" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"
+                  }`}
+                  onClick={() => setView("inquiry")}
+                  title="询价视图"
+                >
+                  <TrendingUp size={12} />
+                </button>
               </div>
             )}
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索名称/规格/来源…"
-              className={`px-2.5 h-7 rounded-lg border border-border bg-bg text-fg placeholder:text-fg-faint outline-none focus:border-accent transition-colors ${
-                compact ? "w-32 text-[11px]" : "w-44 text-[12px]"
-              }`}
-            />
-            <button
-              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors"
-              onClick={load}
-              title="刷新"
-            >
-              <RefreshCw size={12} />
-            </button>
-            <button
-              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-border text-amber-400 hover:text-amber-300 hover:bg-bg-soft transition-colors"
-              onClick={() => void pickImport()}
-              title="导入 xlsx/csv 报价单或测算表"
-            >
-              <CloudUpload size={12} />
-            </button>
-            <button
-              className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-white text-[11.5px] hover:opacity-90 transition-opacity"
-              onClick={openCreate}
-            >
-              <Plus size={12} /> 新建
-            </button>
+            {view !== "inquiry" && (
+              <>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="搜索名称/规格/来源…"
+                  className={`px-2.5 h-7 rounded-lg border border-border bg-bg text-fg placeholder:text-fg-faint outline-none focus:border-accent transition-colors ${
+                    compact ? "w-32 text-[11px]" : "w-44 text-[12px]"
+                  }`}
+                />
+                <button
+                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors"
+                  onClick={load}
+                  title="刷新"
+                >
+                  <RefreshCw size={12} />
+                </button>
+                <button
+                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-border text-amber-400 hover:text-amber-300 hover:bg-bg-soft transition-colors"
+                  onClick={() => void pickImport()}
+                  title="导入 xlsx/csv 报价单或测算表"
+                >
+                  <CloudUpload size={12} />
+                </button>
+                <button
+                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-white text-[11.5px] hover:opacity-90 transition-opacity"
+                  onClick={openCreate}
+                >
+                  <Plus size={12} /> 新建
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* 筛选行：分类面包屑/下拉 + 状态 + 计数 */}
+        {/* 筛选行：分类面包屑/下拉 + 状态 + 计数（询价视图隐藏） */}
+        {view !== "inquiry" && (
         <div className={`shrink-0 flex items-center gap-2 flex-wrap ${compact ? "px-3 pb-1" : "px-4 pb-2"}`}>
           {compact ? (
             <select
@@ -440,10 +456,13 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
             </span>
           )}
         </div>
+        )}
 
-        {/* 内容区 */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          {loading ? (
+        {/* 内容区（询价视图整面板替换列表/表格） */}
+        <div className={view === "inquiry" ? "flex-1 min-h-0" : "flex-1 min-h-0 overflow-y-auto"}>
+          {view === "inquiry" ? (
+            <CostInquiryPanel compact={compact} />
+          ) : loading ? (
             <div className="p-4 space-y-2 animate-pulse">
               {Array.from({ length: compact ? 4 : 6 }).map((_, i) => (
                 <div key={i} className="h-11 rounded-lg bg-bg-elev/60" />

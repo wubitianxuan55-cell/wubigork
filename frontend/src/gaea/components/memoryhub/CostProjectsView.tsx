@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Modal } from "antd";
 import {
   Calculator, CheckCircle, ChevronRight, Clock, Coins, Layers,
-  Plus, RefreshCw, Rollback, Save, Search, Trash2, X,
+  Plus, RefreshCw, Rollback, Save, Search, Sparkles, Trash2, X,
 } from "../../icons";
 import { app } from "../../lib/bridge";
 import { useToast } from "../Toast";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
-import type { CostEstimateItem, CostEstimateVersion, CostProject, CostProjectSummary, CostSummary } from "../../lib/types";
+import type { CostComponent, CostComposeEvidence, CostEstimateItem, CostEstimateVersion, CostProject, CostProjectSummary, CostSummary } from "../../lib/types";
+import { ComposeModal } from "./ComposeModal";
+import { FiveCalcPanel } from "./FiveCalcPanel";
 
 const fmtPrice = (p: number) => "¥" + new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(p);
 
@@ -46,6 +48,10 @@ export function CostProjectsView({ onChanged }: { onChanged?: () => void }) {
   const [snapshot, setSnapshot] = useState<CostEstimateVersion | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [sedimenting, setSedimenting] = useState(false);
+  // ── v4.2 AI 组价（ComposeModal）──
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeDesc, setComposeDesc] = useState("");
+  const [composeUnit, setComposeUnit] = useState("");
 
   const setSel = useCallback((id: string | null) => {
     selectedRef.current = id;
@@ -192,6 +198,45 @@ export function CostProjectsView({ onChanged }: { onChanged?: () => void }) {
       },
     });
   }, []);
+
+  // ── v4.2 AI 组价 ─────────────────────────────────────────────
+  // openCompose 预填：选中行优先，否则第一行（描述/单位带入弹窗）。
+  const openCompose = useCallback(() => {
+    const pick = items.find((it) => it.id !== undefined && selectedRows.has(it.id)) ?? items[0];
+    setComposeDesc(pick?.title ?? "");
+    setComposeUnit(pick?.unit ?? "");
+    setComposeOpen(true);
+  }, [items, selectedRows]);
+
+  // applyCompose 组价结果作为新明细行应用（描述/单位/推荐价），自动保存。
+  const applyCompose = useCallback(
+    async (r: { desc: string; unit: string; price: number; components: CostComponent[]; evidence: CostComposeEvidence[] }) => {
+      if (!project) return;
+      if (!r.desc.trim() || r.price <= 0) {
+        toast.show("组价结果无效，请先开始组价", "warn");
+        return;
+      }
+      try {
+        const row: CostEstimateItem = {
+          projectId: project.id,
+          name: "",
+          title: r.desc,
+          categoryPath: "",
+          unit: r.unit,
+          quantity: 1,
+          price: r.price,
+        };
+        const id = await app.CostEstimateItemSave(row);
+        setItems((prev) => [...prev, { ...row, id: id || undefined, amount: r.price }]);
+        toast.show(`已应用组价「${r.desc}」`, "info");
+        setComposeOpen(false);
+        onChanged?.();
+      } catch (e) {
+        toast.show(String(e), "error");
+      }
+    },
+    [project, toast, onChanged],
+  );
 
   // ── 版本 ────────────────────────────────────────────────────
   const saveVersion = useCallback(async () => {
@@ -366,6 +411,9 @@ export function CostProjectsView({ onChanged }: { onChanged?: () => void }) {
                   <Layers size={12} className="text-sky-400" /> 工程量清单（{rowCount} 行 · 合计 {fmtPrice(total)}）
                 </span>
                 <div className="flex items-center gap-1.5">
+                  <button type="button" className={ghostBtn} onClick={openCompose} title="AI 组价：清单描述 → 相似清单价格带 + 证据链 + 人材机拆解">
+                    <Sparkles size={12} className="text-amber-400" /> AI 组价
+                  </button>
                   <button type="button" className={ghostBtn} onClick={addRow} title="添加明细行">
                     <Plus size={12} /> 加行
                   </button>
@@ -450,6 +498,16 @@ export function CostProjectsView({ onChanged }: { onChanged?: () => void }) {
                 </div>
               )}
             </div>
+
+            {/* v4.2 五算对比（估/概/预/结/决） */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12px] font-semibold text-fg flex items-center gap-1.5">
+                  <Calculator size={12} className="text-sky-400" /> 五算对比
+                </span>
+              </div>
+              <FiveCalcPanel projectId={project.id} onChanged={() => refreshList(project.id)} />
+            </div>
           </>
         )}
       </section>
@@ -504,6 +562,15 @@ export function CostProjectsView({ onChanged }: { onChanged?: () => void }) {
       >
         {snapshot && <SnapshotTable v={snapshot} />}
       </Modal>
+
+      {/* v4.2 AI 组价弹窗：描述 → 价格带/证据链/人材机拆解 → 应用为明细行 */}
+      <ComposeModal
+        open={composeOpen}
+        initialDesc={composeDesc}
+        initialUnit={composeUnit}
+        onClose={() => setComposeOpen(false)}
+        onApply={applyCompose}
+      />
     </div>
   );
 }
