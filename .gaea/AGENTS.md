@@ -92,8 +92,23 @@
       交互场景兼容）经 boot 贯通 `control.Options.ApprovalTimeout`；TestApprovalTimeout
       双用例。C4 剩余：权限升级请求、策略文件回写（granted map 重启即失）。
     - **验证**：Go 全量 114/114；前端本刀零改动（上轮 681/681 门禁仍有效）。
-  - **下一阶段候选**：C4 剩余（权限升级请求 + 策略文件回写）；C11 压缩口径、C7
-    碎片抽象、C10 回合恢复、执行容量上限（观察项，按真实反馈排期）。
+  - **后续（2026-08-29 再续，C4 尾项·策略文件回写）**：
+    - **Approve 决策串重构（feat）**：`GaeaApprove(id, allow, session, abort)` 4 bool
+      → `GaeaApprove(id, decision)`，决策串 `allow_once / allow_session / persist_allow
+      / deny / abort`（`control.ApproveDecision` 常量，对齐 codex ReviewDecision 语义族
+      + 策略修订分离）；审批卡快捷键固定映射 1-5（hardAsk 隐藏的按钮按键不响应）。
+    - **「始终允许」策略回写（feat，persist_allow）**：会话 granted + 经
+      `Options.PersistAllowRule` 回调回写——boot 实现用 `config.Load → AddPermissionRule
+      ("allow", rule)（幂等去重 + ParseRule 校验）→ Save()`（AtomicWrite + RenderTOML
+      →Load 往返保证）；规则串 `"ToolName"` / `"ToolName(subject-glob)"`；hardAsk
+      （alwaysPrompt）完全降级——不记 granted、不回写（「任何级别都不自动放行」硬纪律）；
+      回调失败仅记日志不阻断批准。frontend 审批卡新增「始终允许」按钮（非 hardAsk，
+      快捷键 4）+ 三语 i18n。3 Go 新测试（回写成功/失败不阻断/hardAsk 降级）。
+    - **验证**：Go 全量 + vet；tsc 0；eslint 0；vitest **681/681（130 文件）**；
+      绑定面 499 方法漂移 PASS（签名变更数量不变）。
+  - **下一阶段候选**：权限升级请求（模型临时申请放开某目录/工具，codex
+    request_permissions_for_environment——需新工具面 + 审批卡复用，独立一刀）；
+    C11 压缩口径、C7 碎片抽象、C10 回合恢复、执行容量上限（观察项，按真实反馈排期）。
 
 - **最新发布：v3.5.0（2026-08-28）「办公对话区标签页 · dsh-context Go 移植」**：
   git tag `v3.5.0`；CHANGELOG / releases/v3.5.0.md / README 索引同步；规划文档
