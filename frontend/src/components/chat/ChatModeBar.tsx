@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import PersonaPicker from '../PersonaPicker'
+import { EmotionSpeakSelector } from './EmotionSpeakSelector'
 
 export interface ChatModeBarProps {
   /** 'panel'：聊天窗口上方的独立横条（默认）；'strip'：顶栏轨道条内嵌变体。 */
@@ -24,6 +25,10 @@ export interface ChatModeBarProps {
   onSwitchPersona: () => void
   onSwitchPersonality: (id: string) => void
   onOpenVoiceSettings: () => void
+  /** v4.3d 朗读情绪：手动选择（'' = 跟随会话）；缺省不渲染选择器 */
+  speakEmotion?: string
+  sessionEmotion?: string
+  onChangeSpeakEmotion?: (emotion: string) => void
   hasMessages: boolean
   onExport: () => void
   onClear: () => void
@@ -32,7 +37,7 @@ export interface ChatModeBarProps {
 export const ChatModeBar: React.FC<ChatModeBarProps> = ({
   variant = 'panel', mode, personaLabel, currentPersonalityLabel, personaPickerActiveId, searchEnabled,
   onToggleSearch, onNavigateLib, onSwitchPlain, onSwitchPersona, onSwitchPersonality,
-  onOpenVoiceSettings, hasMessages, onExport, onClear,
+  onOpenVoiceSettings, speakEmotion, sessionEmotion, onChangeSpeakEmotion, hasMessages, onExport, onClear,
 }) => (
   <div className={`chat-mode-bar${variant === 'strip' ? ' chat-mode-bar--strip' : ''}`}>
     <div className="chat-mode-seg" role="tablist" aria-label="对话模式">
@@ -69,6 +74,13 @@ export const ChatModeBar: React.FC<ChatModeBarProps> = ({
               style={{ color: C('color-text-secondary'), height: 24 }} />
           </Tooltip>
         </>
+      )}
+      {onChangeSpeakEmotion && (
+        <EmotionSpeakSelector
+          value={speakEmotion || ''}
+          sessionEmotion={sessionEmotion || ''}
+          onChange={onChangeSpeakEmotion}
+        />
       )}
       {hasMessages && (
         <Tooltip title="导出为 Markdown">

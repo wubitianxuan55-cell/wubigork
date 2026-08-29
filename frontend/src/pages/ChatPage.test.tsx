@@ -72,6 +72,7 @@ vi.mock('../../src/wailsjsCompat', () => ({
   WhisperClearSession: vi.fn(),
   VoiceApplySettings: vi.fn(),
   TTSSpeakBase64: vi.fn(),
+  TTSSpeakBase64WithParams: vi.fn(),
   GaeaLogFrontendError: vi.fn(),
 }))
 
@@ -89,7 +90,8 @@ import { EventsOn } from '../../wailsjs/runtime/runtime'
 import * as AppCompat from '../../src/wailsjsCompat'
 import {
   ChatTopicsList, ChatMessagesList, ChatStreamPlain,
-  ChatSend, ChatImportTopic, ChatTopicCreate, TTSSpeakBase64, GaeaLogFrontendError,
+  ChatSend, ChatImportTopic, ChatTopicCreate, TTSSpeakBase64,
+  TTSSpeakBase64WithParams, GaeaLogFrontendError,
 } from '../../src/wailsjsCompat'
 
 // ChatAppendMessages 为 T6-3 新绑定：wailsjs/go 生成物待 wails build 再生成，
@@ -135,6 +137,7 @@ beforeEach(() => {
   vi.mocked(ChatImportTopic).mockResolvedValue({ id: 'imp-1', title: '', mode: 'plain', created_at: '', updated_at: '' })
   vi.mocked(ChatTopicCreate).mockResolvedValue({ id: 'new-1', title: '新对话', mode: 'plain', created_at: '', updated_at: '' })
   vi.mocked(TTSSpeakBase64).mockResolvedValue({ base64: '', mimeType: 'audio/mp3' })
+  vi.mocked(TTSSpeakBase64WithParams).mockResolvedValue({ base64: '', mimeType: 'audio/mp3' })
   vi.mocked(GaeaLogFrontendError).mockResolvedValue(undefined)
 })
 
@@ -278,6 +281,78 @@ describe('T6-3.3 语音持久化与资源清理', () => {
 
     expect(urlCreate).toHaveBeenCalledTimes(1)
     expect(urlRevoke).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('T6-3.3 朗读情绪（v4.3d）', () => {
+  const personaTopic = { id: 'p1', title: '角色话题', mode: 'persona-1', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
+  const assistantMsg = (content: string, extra = '') => ({
+    id: 1, topic_id: 'p1', role: 'assistant', content, extra, seq: 1, created_at: '2026-01-01T00:00:00Z',
+  })
+  /** 顶栏模式条宿主（生产 MainLayout 恒提供 #v3-chatmode-host；测试手动挂载以渲染模式条/情绪选择器）。 */
+  const mountStripHost = () => {
+    const host = document.createElement('div')
+    host.id = 'v3-chatmode-host'
+    document.body.appendChild(host)
+    return host
+  }
+
+  it('朗读携带会话最近一轮情绪（extra.emotion → TTSSpeakBase64WithParams）', async () => {
+    const messages = [assistantMsg('带着甜蜜情绪的话', JSON.stringify({ emotion: 'SWEET_ATTACHMENT' }))]
+    const { container } = await renderChat({ topics: [personaTopic], messages })
+    const speakBtn = container.querySelector('.chat-row-assistant .anticon-sound')?.closest('button')
+    expect(speakBtn).toBeTruthy()
+    fireEvent.click(speakBtn!)
+    await flushAsync()
+
+    expect(TTSSpeakBase64WithParams).toHaveBeenCalledWith(
+      '带着甜蜜情绪的话',
+      expect.objectContaining({ Emotion: 'SWEET_ATTACHMENT' }),
+    )
+    expect(TTSSpeakBase64).not.toHaveBeenCalled()
+  })
+
+  it('无情绪：回退无参数版 TTSSpeakBase64（不携带情绪参数）', async () => {
+    const { container } = await renderChat({ topics: [personaTopic], messages: [assistantMsg('普通内容')] })
+    const speakBtn = container.querySelector('.chat-row-assistant .anticon-sound')?.closest('button')
+    expect(speakBtn).toBeTruthy()
+    fireEvent.click(speakBtn!)
+    await flushAsync()
+
+    expect(TTSSpeakBase64).toHaveBeenCalledWith('普通内容')
+    expect(TTSSpeakBase64WithParams).not.toHaveBeenCalled()
+  })
+
+  it('情绪选择 UI：选中后朗读携带所选情绪，且生效情绪徽标更新', async () => {
+    const host = mountStripHost()
+    try {
+      const { container } = await renderChat({ topics: [personaTopic], messages: [assistantMsg('需要愤怒地读的内容')] })
+      await flushAsync()
+
+      // 顶栏模式条 portal 已渲染，默认「自动」（跟随会话）
+      const trigger = screen.getByLabelText('朗读情绪')
+      expect(trigger.textContent).toContain('自动')
+
+      // 打开 Popover 选择「愤怒反击」
+      fireEvent.click(trigger)
+      fireEvent.click(await screen.findByText('愤怒反击'))
+      await flushAsync()
+
+      // 生效情绪徽标更新为所选情绪
+      expect(screen.getByLabelText('朗读情绪').textContent).toContain('愤怒反击')
+
+      // 朗读携带所选情绪参数
+      const speakBtn = container.querySelector('.chat-row-assistant .anticon-sound')?.closest('button')
+      expect(speakBtn).toBeTruthy()
+      fireEvent.click(speakBtn!)
+      await flushAsync()
+      expect(TTSSpeakBase64WithParams).toHaveBeenCalledWith(
+        '需要愤怒地读的内容',
+        expect.objectContaining({ Emotion: 'ANGRY_ATTACK' }),
+      )
+    } finally {
+      host.remove()
+    }
   })
 })
 

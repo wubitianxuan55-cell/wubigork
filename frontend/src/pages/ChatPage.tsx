@@ -59,6 +59,9 @@ const ChatPage: React.FC = () => {
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [speakingId, setSpeakingId] = useState<string | null>(null)
+  // v4.3d 朗读情绪：手动选择（'' = 跟随会话最近一轮情绪）；朗读时作为
+  // TTSParams.Emotion 透传，无情绪回退无参数版（零值参数语义等价）。
+  const [speakEmotion, setSpeakEmotion] = useState('')
 
   // ── 顶栏模式条宿主（T6-10.2）：ChatModeBar 移入 MainLayout 的 v3-strip，
   // 经 portal 渲染。宿主 DOM 在首帧提交后才存在，故挂载后查找一次即可
@@ -146,6 +149,8 @@ const ChatPage: React.FC = () => {
   const emoColor = EMO_COLORS[emotion] || 'var(--gaea-glow, var(--md-sys-color-primary))'
   const personaLabel = currentPersonality?.label || '角色'
   const hasMessages = messages.length > 0
+  // 朗读生效情绪：手动选择优先，其次当前会话最近一轮情绪（whisper L2 标签）
+  const effectiveSpeakEmotion = speakEmotion || emotion
 
   // ── 滚动跟随（新消息/流式文本变化时若用户贴底则保持吸底） ──
   useEffect(() => {
@@ -246,7 +251,11 @@ const ChatPage: React.FC = () => {
   const handleSpeak = async (content: string, id: string) => {
     if (speakingId) return; setSpeakingId(id)
     try {
-      const result = await App.TTSSpeakBase64(content)
+      // v4.3d：朗读携带当前生效情绪（TTSParams.Emotion 透传，后端按标签映射
+      // 语速/音高/风格）；无情绪时回退无参数版 TTSSpeakBase64（引擎默认）。
+      const result = effectiveSpeakEmotion
+        ? await App.TTSSpeakBase64WithParams(content, { Speed: 0, Pitch: 0, Style: '', Emotion: effectiveSpeakEmotion })
+        : await App.TTSSpeakBase64(content)
       if (result?.base64) {
         const b = atob(result.base64); const bytes = new Uint8Array(b.length)
         for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i)
@@ -313,6 +322,9 @@ const ChatPage: React.FC = () => {
       onSwitchPersona={() => { if (mode === 'plain') switchMode(activePersonality) }}
       onSwitchPersonality={handleSwitchPersonality}
       onOpenVoiceSettings={() => setShowVoiceSettings(true)}
+      speakEmotion={speakEmotion}
+      sessionEmotion={emotion}
+      onChangeSpeakEmotion={setSpeakEmotion}
       hasMessages={hasMessages}
       onExport={handleExport}
       onClear={handleClearMessages}
