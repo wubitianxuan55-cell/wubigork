@@ -120,7 +120,8 @@ func RewindLog(logPath string, keepSeq int64) error {
 		if e.Seq > keepSeq {
 			continue
 		}
-		buf.Write(formatLogLine(e.Seq, e.Ts, e.Kind, e.Payload))
+		// 保留条目原始 space 自描述（空值保持空，重写前后逐字节一致）。
+		buf.Write(formatLogLine(e.Seq, e.Ts, e.Kind, e.Space, e.Payload))
 		kept++
 	}
 	if kept == 0 {

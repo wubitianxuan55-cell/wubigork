@@ -443,9 +443,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	ctrl := control.New(ctrlOpts)
 	// 事件日志 sink 的会话路径只有控制构建完成后才可知（首次对话自动创建 /
 	// Resume 注入），故在此注入路径解析器；事件发射发生在 Build 返回之后，
-	// 闭包读取的是实时 SessionPath。
+	// 闭包读取的是实时 SessionPath。S2：空间来源同风格懒解析——实时读取
+	// 当前会话的写入侧空间（""=space.mode=off 平铺日志不写 space 字段）。
 	if eventLogSink != nil {
 		eventLogSink.SetPathSource(func() string { return ctrl.SessionPath() })
+		eventLogSink.SetSpaceSource(func() string { return ctrl.SessionSpace() })
 	}
 	return ctrl, nil
 }

@@ -15,14 +15,16 @@ import (
 
 // EventLogSink 把 event.Event 流追加写入当前会话的事件日志。
 // 会话路径由 pathSrc 在 Emit 时解析（boot 在控制构建完成后注入），
-// 为空（尚未建立会话）时只转发不落盘。
+// 为空（尚未建立会话）时只转发不落盘。空间自描述值由 spaceSrc 懒解析
+// （与 pathSrc 同风格；boot 注入控制器按 space.mode 计算的写入侧空间）。
 type EventLogSink struct {
-	mu      sync.Mutex
-	inner   event.Sink
-	pathSrc func() string
-	writer  *LogWriter
-	logPath string
-	openErr error // 打开失败时记一次，避免每事件重试刷屏
+	mu       sync.Mutex
+	inner    event.Sink
+	pathSrc  func() string
+	spaceSrc func() string
+	writer   *LogWriter
+	logPath  string
+	openErr  error // 打开失败时记一次，避免每事件重试刷屏
 }
 
 // NewEventLogSink 构造事件日志 sink。dir 是会话目录；inner 是下一环 sink。
@@ -35,6 +37,25 @@ func (s *EventLogSink) SetPathSource(fn func() string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pathSrc = fn
+}
+
+// SetSpaceSource 注入空间解析器（S2，boot 在 control.New 之后调用；与
+// pathSrc 同风格懒解析）。返回 "" 表示本会话日志不写 space 字段
+// （space.mode=off 平铺形态）。未注入时按会话路径归属推导兜底。
+func (s *EventLogSink) SetSpaceSource(fn func() string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.spaceSrc = fn
+}
+
+// spaceFor 解析当前会话的空间自描述值。优先 spaceSrc（控制器已按
+// space.mode + 路径归属折算）；未注入时按目录归属推导（兜底）。
+// 调用方持有 s.mu（Emit→logTo 串行链）。
+func (s *EventLogSink) spaceFor(path string) string {
+	if s.spaceSrc != nil {
+		return s.spaceSrc()
+	}
+	return SpaceForPath(path)
 }
 
 // Emit 先写日志再转发前端。并发由调用方（event.Sync 包装）串行保证，
@@ -67,7 +88,8 @@ func (s *EventLogSink) logTo(path string, e event.Event) {
 		}
 		s.logPath = lp
 		s.openErr = nil
-		w, err := OpenLog(lp, path)
+		// 空间自描述随写入器确定（懒解析：打开时实时读取当前会话空间）。
+		w, err := OpenLog(lp, path, s.spaceFor(path))
 		if err != nil {
 			s.openErr = err
 			slog.Warn("session event log: open failed", "log", lp, "error", err)

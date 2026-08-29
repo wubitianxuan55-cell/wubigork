@@ -79,15 +79,21 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 		}
 	})
 	// 构建 controller（单模型 agent）
-	//    SessionDir 必须指向工作区会话目录（cwd/.gaea/sessions），与
-	//    GaeaListSessions/GaeaResumeSession 的读取路径一致，否则历史面板
+	//    SessionDir 必须指向工作区会话目录（cwd/.gaea/sessions[/<space>]），
+	//    与 GaeaListSessions/GaeaResumeSession 的读取路径一致，否则历史面板
 	//    永远看不到当前会话（会落到用户级 AppData/Roaming/gaea/sessions）。
+	//    S2：目录按配置空间分区（space.mode=off 回平铺 ""），读取端对两个
+	//    空间目录 + 平铺兜底各列一次。
+	space := ""
+	if ga.cfg != nil {
+		space = ga.cfg.EffectiveSessionSpace()
+	}
 	ctrl, err := gaeaBoot.Build(a.ctx, gaeaBoot.Options{
 		Model:      "gaea",
 		RequireKey: false,
 		Sink:       sink,
 		MaxSteps:   0,
-		SessionDir: gaeaConfig.WorkspaceSessionDir(gaeaCwd()),
+		SessionDir: gaeaConfig.WorkspaceSessionDir(gaeaCwd(), space),
 		// 工作空间根：基础工具（read/write/bash/ls）相对路径基于它，
 		// 而非进程 cwd（否则办公 agent 在启动目录而非用户工作空间操作）。
 		Cwd: gaeaCwd(),
@@ -110,8 +116,10 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	// 3.0 Step 1 回退开关（session.log_format）：把配置的会话持久化格式注入
 	// 控制器——event 模式下 Snapshot 双写、回合前落用户消息 + flush 检查点
 	// （fail-closed）、Resume 走 Restore（checkpoint+tail）；缺省 legacy 行为不变。
+	// S2 双空间：同点注入空间配置生效值（""=space.mode=off，仿 logFormat 三件套）。
 	if ga.cfg != nil {
 		ctrl.SetLogFormat(ga.cfg.Session.LogFormat)
+		ctrl.SetSpace(ga.cfg.EffectiveSessionSpace())
 	}
 	// 启用交互式审批：工具调用放行/拒绝、ask 结构化提问经前端确认，
 	// 否则全部工具（含写文件/网络）自动放行且审批弹窗永不出现。

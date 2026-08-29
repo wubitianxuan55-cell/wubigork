@@ -27,7 +27,7 @@ func writeEventSessionWithUsage(t *testing.T, dir string) string {
 	}
 
 	lp := session.LogPathFor(path)
-	w, err := session.OpenLog(lp, path)
+	w, err := session.OpenLog(lp, path, "")
 	if err != nil {
 		t.Fatalf("OpenLog: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestGaeaSessionStats(t *testing.T) {
 	defer restore()
 
 	ws := t.TempDir()
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	path := writeEventSessionWithUsage(t, sessionDir)
 
 	a := &App{}
@@ -120,7 +120,7 @@ func TestGaeaSessionStats_Unavailable(t *testing.T) {
 	}
 	// legacy 会话（有 jsonl 无事件日志）
 	ws := t.TempDir()
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	s := agent.NewSession("you are gaea")
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "hi"})
 	legacyPath := filepath.Join(sessionDir, "legacy.jsonl")
@@ -139,7 +139,7 @@ func TestGaeaSessionStats_EmptyLog(t *testing.T) {
 	defer restore()
 
 	ws := t.TempDir()
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	s := agent.NewSession("you are gaea")
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "hi"})
 	path := filepath.Join(sessionDir, "empty.jsonl")
@@ -148,7 +148,7 @@ func TestGaeaSessionStats_EmptyLog(t *testing.T) {
 	}
 	// 仅迁移出日志（无 usage 事件）
 	lp := session.LogPathFor(path)
-	w, err := session.OpenLog(lp, path)
+	w, err := session.OpenLog(lp, path, "")
 	if err != nil {
 		t.Fatalf("OpenLog: %v", err)
 	}

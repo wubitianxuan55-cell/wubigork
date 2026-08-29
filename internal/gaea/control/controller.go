@@ -33,6 +33,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/plugin"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/skill"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -50,7 +51,12 @@ type Controller struct {
 	// logFormat 是会话持久化格式（3.0 Step 1 回退开关）："legacy"/""=旧行为，
 	// "event"=事件日志模式（Snapshot 双写、回合前落用户消息 + flush 检查点、
 	// Resume 走 Restore）。由 Options.LogFormat / SetLogFormat 注入。
-	logFormat     string
+	logFormat string
+	// space 是会话空间配置的生效值（S2 双空间）："work"/"play"=分区空间，
+	// ""=space.mode=off（忽略空间：新会话落平铺目录、日志不写 space 字段）。
+	// 由 Options.Space / SetSpace 注入；会话写入侧的空间自描述以「路径归属」
+	// 为准折算（writeSpaceForLocked），目录分区方案的决定性优势。
+	space         string
 	host          *plugin.Host
 	commands      []command.Command
 	skills        []skill.Skill
@@ -176,6 +182,10 @@ type Options struct {
 	// 事件日志模式下：Snapshot 双写（legacy 镜像+日志）、回合开始前落用户
 	// 消息并 flush 检查点（fail-closed）、Resume 走 Restore（checkpoint+tail）。
 	LogFormat string
+	// Space 是会话空间的配置生效值（S2 双空间）："work"/"play"=分区空间；
+	// ""=space.mode=off（忽略空间，平铺 + 日志不写 space 字段）。注入后由
+	// NewSession/Resume/SetSessionPath 以路径归属折算传播到当前会话。
+	Space     string
 	Host      *plugin.Host
 	Commands  []command.Command
 	Skills    []skill.Skill
@@ -224,6 +234,7 @@ func New(opts Options) *Controller {
 		sessionDir:       opts.SessionDir,
 		sessionPath:      opts.SessionPath,
 		logFormat:        opts.LogFormat,
+		space:            opts.Space,
 		host:             opts.Host,
 		commands:         opts.Commands,
 		skills:           opts.Skills,
@@ -253,6 +264,8 @@ func New(opts Options) *Controller {
 	// 3.0 Step 1 事件日志模式接线：把持久化格式注入当前会话并挂上检查点
 	// flush 钩子（fail-closed：模型调用前由 executor 触发，失败中止回合）。
 	c.applyLogFormat(c.logFormat)
+	// S2 会话空间接线：把配置生效空间折算为写入侧自描述并注入当前会话。
+	c.applySpace(c.space)
 	return c
 }
 
@@ -826,8 +839,11 @@ func (c *Controller) NewSession() error {
 	f := c.logFormat
 	c.mu.Unlock()
 	ns.SetLogFormat(f)
+	// S2：新会话空间自描述按新路径归属折算（sessionDir 已由宿主按配置分区）。
+	ns.SetSpace(c.writeSpaceFor(c.SessionPath()))
 	c.executor.SetSession(ns)
 	c.applyLogFormat(f)
+	c.applySpace(c.space)
 	// Reset V3.0 TCCA state so the new session starts clean.
 	if c.ctxMgr != nil {
 		c.ctxMgr.Flow().ReplaceMessages(nil)
@@ -853,6 +869,9 @@ func (c *Controller) Resume(s *agent.Session, path string) {
 	// 3.0 Step 1：恢复的会话继承当前持久化格式（事件日志模式下 Save 双写、
 	// 后续回合落用户消息 + flush 检查点都依赖该标记）。
 	s.SetLogFormat(f)
+	// S2：恢复会话的空间自描述按「路径归属」折算（play 分区会话即使当前
+	// 配置为 work 也写 play，保证日志/检查点与目录归属一致、可通过恢复校验）。
+	s.SetSpace(c.writeSpaceFor(path))
 	if c.executor != nil {
 		c.executor.SetCheckpointFlusher(c.flushCheckpoint)
 	}
@@ -874,10 +893,12 @@ func (c *Controller) ResumeFromDisk(path string) (*agent.Session, error) {
 		}
 	} else {
 		// 旧格式会话（无事件日志而有 <id>.jsonl）先迁移，旧文件保留。
+		// S2：迁移条目按会话目录归属携带空间自描述（play 分区迁移必须带
+		// play，否则恢复校验按空间穿越拒绝）。
 		if legacy, legacyPath, derr := session.DetectLegacy(path); derr != nil {
 			return nil, derr
 		} else if legacy {
-			if _, merr := session.MigrateLegacyToLog(session.LogPathFor(path), legacyPath); merr != nil {
+			if _, merr := session.MigrateLegacyToLog(session.LogPathFor(path), legacyPath, c.writeSpaceFor(path)); merr != nil {
 				return nil, fmt.Errorf("resume: migrate legacy session: %w", merr)
 			}
 		}
@@ -916,6 +937,60 @@ func (c *Controller) applyLogFormat(f string) {
 	}
 }
 
+// SetSpace 设置会话空间的配置生效值（S2 双空间）："work"/"play"=分区空间，
+// ""=space.mode=off。与 SetLogFormat 同点注入（boot.Build 后由宿主按配置调用）。
+func (c *Controller) SetSpace(space string) { c.applySpace(space) }
+
+// applySpace 把空间配置生效值写入控制器并按「路径归属」折算后传播到当前
+// 会话（仿 applyLogFormat 的注入点）。
+func (c *Controller) applySpace(space string) {
+	c.mu.Lock()
+	c.space = space
+	path := c.sessionPath
+	exec := c.executor
+	spaceForPath := c.writeSpaceForLocked(path)
+	c.mu.Unlock()
+	if exec != nil {
+		exec.Session().SetSpace(spaceForPath)
+	}
+}
+
+// writeSpaceForLocked 计算会话路径对应的写入侧空间自描述值（日志行/检查点/
+// 分支 meta 用）。已持有 c.mu（或初始化单线程上下文）时调用。规则：
+//   - play 分区目录 → 恒 "play"：即使 space.mode=off 也保持自描述，否则
+//     off 时代恢复 play 存量会话会写入无 space 的行，混合空间日志将被恢复
+//     校验拒绝（fail-closed 防穿越）；
+//   - work 分区/平铺目录 → space.mode=on 时 "work"；off 时 ""（日志不写
+//     space 字段，与旧行为逐字节一致；读端空值降级 work，行为等价）。
+//
+// 路径归属是唯一真相源（session.SpaceForPath）：配置空间只决定「off 与否」，
+// 不直接决定写入值——恢复的 play 会话在 work 配置下仍按目录归属写 play。
+func (c *Controller) writeSpaceForLocked(path string) string {
+	sp := session.SpaceForPath(path)
+	if sp == spaces.SpacePlay {
+		return spaces.SpacePlay
+	}
+	if c.space == "" {
+		return "" // space.mode=off：平铺日志不写 space 字段（旧行为形态）
+	}
+	return spaces.SpaceWork
+}
+
+// writeSpaceFor 是 writeSpaceForLocked 的自带锁版本（无锁上下文调用）。
+func (c *Controller) writeSpaceFor(path string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.writeSpaceForLocked(path)
+}
+
+// SessionSpace 返回当前会话的写入侧空间自描述值（事件日志 sink 的懒解析
+// 来源；""=space.mode=off 平铺日志不写 space 字段）。
+func (c *Controller) SessionSpace() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.writeSpaceForLocked(c.sessionPath)
+}
+
 // flushCheckpoint 把当前会话消息投影 + 已消费的 log seq 写入检查点
 // （事件日志模式）。无会话路径 / 无内容 / 尚无日志条目时不写（幂等）。
 // 返回错误供 fail-closed 调用方（模型调用前）中止回合。
@@ -923,6 +998,7 @@ func (c *Controller) flushCheckpoint() error {
 	c.mu.Lock()
 	path := c.sessionPath
 	exec := c.executor
+	spaceForPath := c.writeSpaceForLocked(path)
 	c.mu.Unlock()
 	if path == "" || exec == nil {
 		return nil
@@ -939,7 +1015,8 @@ func (c *Controller) flushCheckpoint() error {
 	if seq == 0 {
 		return nil // 尚无日志条目（本会话还没有任何事件），无可固化内容
 	}
-	return session.WriteCheckpoint(session.CheckpointPathFor(path), seq, s.Snapshot())
+	// S2：检查点携带空间自描述做对账（与日志行同源）。
+	return session.WriteCheckpoint(session.CheckpointPathFor(path), seq, s.Snapshot(), spaceForPath)
 }
 
 // logUserMessage 把本回合用户消息追加到事件日志（「模型可见必入日志」：
@@ -954,7 +1031,8 @@ func (c *Controller) logUserMessage(input string) error {
 	if logPath == "" {
 		return nil
 	}
-	if _, err := session.AppendUserMessage(logPath, path, input); err != nil {
+	// S2：用户消息行携带空间自描述（与日志所在目录归属一致）。
+	if _, err := session.AppendUserMessage(logPath, path, c.writeSpaceFor(path), input); err != nil {
 		return fmt.Errorf("append user message to event log: %w", err)
 	}
 	return nil
@@ -997,10 +1075,13 @@ func (c *Controller) SetSessionPath(p string) {
 	c.mu.Lock()
 	c.sessionPath = p
 	f := c.logFormat
+	spaceForPath := c.writeSpaceForLocked(p)
 	exec := c.executor
 	c.mu.Unlock()
 	if exec != nil {
 		exec.Session().SetLogFormat(f)
+		// S2：空间自描述随落点路径归属折算注入当前会话。
+		exec.Session().SetSpace(spaceForPath)
 		exec.SetCheckpointFlusher(c.flushCheckpoint)
 	}
 }

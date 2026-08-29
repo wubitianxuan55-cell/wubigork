@@ -24,6 +24,11 @@ type Session struct {
 	// logFormat 是会话持久化格式："legacy"（缺省，旧行为）| "event"（事件日志）。
 	// 由 LoadWithFormat / SetLogFormat 设置；legacy 下 Save/Load 行为与改造前一致。
 	logFormat string
+	// space 是会话空间自描述（S2 双空间）："work"/"play"=分区空间；
+	// ""=不区分（space.mode=off 的平铺日志形态）。由控制器在 NewSession/
+	// Resume/SetSessionPath 时以「路径归属」为准注入（SetSpace），并随事件
+	// 日志/检查点/分支 meta 落盘。读端缺省按 work 兼容。
+	space string
 }
 
 // New initializes a session with an optional system prompt.
@@ -131,6 +136,23 @@ func (s *Session) LogFormat() string {
 // IsEventMode 报告会话是否处于事件日志模式（"event" 大小写不敏感）。
 func (s *Session) IsEventMode() bool {
 	return strings.EqualFold(s.LogFormat(), "event")
+}
+
+// SetSpace 设置会话空间自描述（S2 双空间）："work"/"play"=分区空间，
+// ""=不区分（space.mode=off 平铺日志形态）。以会话路径归属为准，由控制器
+// 在 NewSession/Resume/SetSessionPath 时注入；saveEventMode 的日志迁移
+// 与事件日志写入统一消费该值。
+func (s *Session) SetSpace(space string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.space = space
+}
+
+// Space 返回会话空间自描述（"" = 不区分，读端按 work 兼容降级）。
+func (s *Session) Space() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.space
 }
 
 // NewFromRestore 构造一个已由 checkpoint+log 恢复的会话（事件日志模式）：

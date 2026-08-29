@@ -3,8 +3,8 @@ package session
 // 3.0 Step 1: 旧格式迁移。
 // Load 检测旧格式（无 .gaea-log.jsonl 而有旧 <id>.jsonl）→ 旧格式读入 →
 // 首次保存时写新日志；旧文件保留不清除（3.1 再清理）。
-// 迁移在 OpenLog(logPath, legacyPath) 里自动触发：日志不存在而旧会话存在时，
-// 把旧消息投影为初始日志条目。
+// 迁移在 OpenLog(logPath, legacyPath, space) 里自动触发：日志不存在而旧会话
+// 存在时，把旧消息投影为初始日志条目。
 
 import (
 	"errors"
@@ -41,8 +41,10 @@ func DetectLegacy(sessionPath string) (bool, string, error) {
 
 // MigrateLegacyToLog 把旧格式会话文件的内容迁移为新事件日志：
 // 旧消息 → ToLogEntries → 写入 <logPath>。日志已存在时拒绝（幂等防重）。
-// 旧文件保留不清除。返回迁移的条目数。
-func MigrateLegacyToLog(logPath, legacyPath string) (int, error) {
+// 旧文件保留不清除。space 是迁移条目的空间自描述值（"work"/"play"；""=
+// 不写 space 字段），与日志所在目录归属一致（play 分区迁移必须带 play，
+// 否则恢复校验会按空间穿越拒绝）。返回迁移的条目数。
+func MigrateLegacyToLog(logPath, legacyPath, space string) (int, error) {
 	if logPath == "" || legacyPath == "" {
 		return 0, errors.New("empty log/legacy path")
 	}
@@ -60,7 +62,7 @@ func MigrateLegacyToLog(logPath, legacyPath string) (int, error) {
 		// 空会话（无内容）不产生日志文件，保持与 listDir 跳过空会话一致。
 		return 0, nil
 	}
-	w, err := OpenLog(logPath, "")
+	w, err := OpenLog(logPath, "", space)
 	if err != nil {
 		return 0, fmt.Errorf("open new log: %w", err)
 	}

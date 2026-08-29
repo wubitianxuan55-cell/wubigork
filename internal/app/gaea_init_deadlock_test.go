@@ -48,7 +48,7 @@ func TestGaeaInitAutoResumeWithSessions(t *testing.T) {
 	if err := gaeaConfig.Save(seed); err != nil {
 		t.Fatalf("种子配置保存失败: %v", err)
 	}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	writeProjectSession(t, sessionDir, "s1", "起草年度总结", time.Now().Add(-time.Hour))
 	path := filepath.Join(sessionDir, "s1.jsonl")
 

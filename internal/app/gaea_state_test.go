@@ -34,7 +34,7 @@ func TestGaeaListSessionsInterrupted(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	writeProjectSession(t, sessionDir, "s1", "整理季度报告", time.Now().Add(-time.Hour))
 	writeProjectSession(t, sessionDir, "s2", "写市场方案", time.Now().Add(-30*time.Minute))
 
@@ -84,7 +84,7 @@ func TestGaeaResumeSessionInjectsInterruption(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 
 	// 构造会话：用户回合 + 助手回复
 	s := agent.NewSession("you are gaea")
@@ -138,7 +138,7 @@ func TestGaeaResumeSessionNoInterruption(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 
 	s := agent.NewSession("you are gaea")
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "帮我写季度总结"})

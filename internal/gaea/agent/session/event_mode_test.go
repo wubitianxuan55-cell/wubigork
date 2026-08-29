@@ -116,11 +116,11 @@ func TestAppendMessageHelpersAndLastLogSeq(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
 
-	seq, err := AppendUserMessage(logPath, "", "你好")
+	seq, err := AppendUserMessage(logPath, "", "", "你好")
 	if err != nil || seq != 1 {
 		t.Fatalf("AppendUserMessage = (%d, %v), want (1, nil)", seq, err)
 	}
-	seq, err = AppendSystemMessage(logPath, "", "中断摘要")
+	seq, err = AppendSystemMessage(logPath, "", "", "中断摘要")
 	if err != nil || seq != 2 {
 		t.Fatalf("AppendSystemMessage = (%d, %v), want (2, nil)", seq, err)
 	}
@@ -138,7 +138,7 @@ func TestAppendMessageHelpersAndLastLogSeq(t *testing.T) {
 		t.Fatal("缺失日志 LastLogSeq 应为 0")
 	}
 	// 追加后重开续 seq（写入器单点保证）
-	seq, err = AppendUserMessage(logPath, "", "第二条")
+	seq, err = AppendUserMessage(logPath, "", "", "第二条")
 	if err != nil || seq != 3 {
 		t.Fatalf("reopen append = (%d, %v), want (3, nil)", seq, err)
 	}

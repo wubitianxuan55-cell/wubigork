@@ -13,7 +13,7 @@ import (
 func makeTwoTurnLog(t *testing.T, dir string) string {
 	t.Helper()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
-	w, err := OpenLog(logPath, "")
+	w, err := OpenLog(logPath, "", "")
 	if err != nil {
 		t.Fatalf("OpenLog: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestUserTurnRanges(t *testing.T) {
 
 func TestUserTurnRangesEmpty(t *testing.T) {
 	dir := t.TempDir()
-	w, err := OpenLog(filepath.Join(dir, "e.gaea-log.jsonl"), "")
+	w, err := OpenLog(filepath.Join(dir, "e.gaea-log.jsonl"), "", "")
 	if err != nil {
 		t.Fatalf("OpenLog: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestUserTurnRangesEmpty(t *testing.T) {
 func TestUserTurnRangesDedupFiles(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
-	w, err := OpenLog(logPath, "")
+	w, err := OpenLog(logPath, "", "")
 	if err != nil {
 		t.Fatalf("OpenLog: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestRewindLogTruncates(t *testing.T) {
 		t.Fatalf("清空后条目 = %d, want 0", len(entries2))
 	}
 	// 清空后可继续写：seq 从 1 重新计（OpenLog 的 countLogLines 对空文件返回 0）
-	w, err := OpenLog(logPath, "")
+	w, err := OpenLog(logPath, "", "")
 	if err != nil {
 		t.Fatalf("OpenLog after clear: %v", err)
 	}

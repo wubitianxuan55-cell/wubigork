@@ -17,7 +17,7 @@ import (
 func TestLogWriterSeqIncrements(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
-	w, err := OpenLog(logPath, "")
+	w, err := OpenLog(logPath, "", "")
 	if err != nil {
 		t.Fatalf("OpenLog: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestLogWriterSeqIncrements(t *testing.T) {
 	}
 
 	// 重开续 seq：已写 2 行，下一行 seq=3
-	w2, err := OpenLog(logPath, "")
+	w2, err := OpenLog(logPath, "", "")
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestLogWriterSeqIncrements(t *testing.T) {
 func TestLogWriterJsonValidRejectsInvalid(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
-	w, err := OpenLog(logPath, "")
+	w, err := OpenLog(logPath, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestLogWriterJsonValidRejectsInvalid(t *testing.T) {
 }
 
 func TestLogWriterAppendRejectsUnmarshalable(t *testing.T) {
-	w, err := OpenLog(filepath.Join(t.TempDir(), "s.gaea-log.jsonl"), "")
+	w, err := OpenLog(filepath.Join(t.TempDir(), "s.gaea-log.jsonl"), "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestLogWriterAppendRejectsUnmarshalable(t *testing.T) {
 func TestRepairLogFileTruncatesTornTail(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
-	w, _ := OpenLog(logPath, "")
+	w, _ := OpenLog(logPath, "", "")
 	w.Append("turn_started", map[string]string{})
 	w.Append("turn_done", map[string]string{})
 	w.Close()
@@ -158,7 +158,7 @@ func TestRepairLogFileTruncatesTornTail(t *testing.T) {
 func TestRepairLogFileNoopOnCleanTail(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
-	w, _ := OpenLog(logPath, "")
+	w, _ := OpenLog(logPath, "", "")
 	w.Append("turn_started", map[string]string{})
 	w.Close()
 	truncated, err := RepairLogFile(logPath)
@@ -177,7 +177,7 @@ func TestRepairLogFileNoopOnCleanTail(t *testing.T) {
 func TestBalanceEntriesSyntheticCloser(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
-	w, _ := OpenLog(logPath, "")
+	w, _ := OpenLog(logPath, "", "")
 	w.Append("turn_started", map[string]string{})
 	w.Append("tool_result", toolResultLogPayload{ID: "t1", Output: "ok"})
 	w.Close()
@@ -306,7 +306,7 @@ func TestToLogEntries(t *testing.T) {
 func TestLogWriterConcurrentAppend(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
-	w, err := OpenLog(logPath, "")
+	w, err := OpenLog(logPath, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

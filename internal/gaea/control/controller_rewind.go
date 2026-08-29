@@ -147,6 +147,7 @@ func (c *Controller) Fork(turn int) (string, error) {
 		return "", fmt.Errorf("fork: turn %d not found (会话只有 %d 个回合)", turn, countTurns(msgs))
 	}
 	// 分支文件落在父会话同目录（sessionDir 可能未在控制构建时注入）。
+	// S2：同目录即同空间——Fork 天然继承父会话的空间归属，无需额外搬迁。
 	dir := filepath.Dir(path)
 	if dir == "." {
 		return "", errors.New("fork: 无法确定会话目录")
@@ -155,16 +156,21 @@ func (c *Controller) Fork(turn int) (string, error) {
 	forkMsgs := append([]provider.Message(nil), msgs[:cut]...)
 	ns := agent.NewSession(sys)
 	ns.SetLogFormat(f)
+	// S2：分支空间自描述按路径归属折算（与父会话同目录 → 同空间），
+	// 先于 Save 注入，保证首次日志迁移的条目即带 space。
+	ns.SetSpace(c.writeSpaceFor(path))
 	ns.Replace(forkMsgs)
 	if err := ns.Save(newPath); err != nil {
 		return "", fmt.Errorf("fork: save branch: %w", err)
 	}
-	// 分支 meta：记录父分支与会话关系（ParentID = 父会话文件名）。
+	// 分支 meta：记录父分支与会话关系（ParentID = 父会话文件名）；
+	// S2：space 自描述按目录归属写入。
 	meta := agent.BranchMeta{
 		ID:        agent.BranchID(newPath),
 		Name:      fmt.Sprintf("分叉 · 第 %d 轮", turn),
 		ParentID:  agent.BranchID(path),
 		ForkTurn:  turn,
+		Space:     session.SpaceForPath(newPath),
 		CreatedAt: time.Now().UTC(),
 	}
 	if err := agent.SaveBranchMeta(newPath, meta); err != nil {

@@ -30,7 +30,7 @@ func TestDetectLegacy(t *testing.T) {
 	}
 
 	// 有日志 → 非 legacy
-	w, _ := OpenLog(LogPathFor(sessionPath), "")
+	w, _ := OpenLog(LogPathFor(sessionPath), "", "")
 	w.Append(KindUserMessage, userLogPayload{Content: "hi"})
 	w.Close()
 	legacy, _, err = DetectLegacy(sessionPath)
@@ -54,7 +54,7 @@ func TestMigrateLegacyToLog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	n, err := MigrateLegacyToLog(logPath, sessionPath)
+	n, err := MigrateLegacyToLog(logPath, sessionPath, "")
 	if err != nil {
 		t.Fatalf("MigrateLegacyToLog: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestMigrateLegacyToLog(t *testing.T) {
 	}
 
 	// 追加续 seq：迁移后 OpenLog 的 seq = 4
-	w, err := OpenLog(logPath, sessionPath)
+	w, err := OpenLog(logPath, sessionPath, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,10 +110,10 @@ func TestMigrateRefusesDoubleMigration(t *testing.T) {
 	s := New("")
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "hi"})
 	s.Save(sessionPath)
-	if _, err := MigrateLegacyToLog(logPath, sessionPath); err != nil {
+	if _, err := MigrateLegacyToLog(logPath, sessionPath, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := MigrateLegacyToLog(logPath, sessionPath); err == nil {
+	if _, err := MigrateLegacyToLog(logPath, sessionPath, ""); err == nil {
 		t.Fatal("expected error on double migration")
 	} else if !strings.Contains(err.Error(), "already exists") {
 		t.Errorf("unexpected error: %v", err)
@@ -129,7 +129,7 @@ func TestOpenLogAutoMigrates(t *testing.T) {
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "迁移我"})
 	s.Save(sessionPath)
 
-	w, err := OpenLog(logPath, sessionPath)
+	w, err := OpenLog(logPath, sessionPath, "")
 	if err != nil {
 		t.Fatal(err)
 	}

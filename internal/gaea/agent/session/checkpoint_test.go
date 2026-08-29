@@ -16,7 +16,7 @@ func TestCheckpointRoundTrip(t *testing.T) {
 		{Role: provider.RoleSystem, Content: "sys"},
 		{Role: provider.RoleUser, Content: "压缩后摘要"},
 	}
-	if err := WriteCheckpoint(cpPath, 42, msgs); err != nil {
+	if err := WriteCheckpoint(cpPath, 42, msgs, ""); err != nil {
 		t.Fatalf("WriteCheckpoint: %v", err)
 	}
 	cp, err := ReadCheckpoint(cpPath)
@@ -51,7 +51,7 @@ func TestReadCheckpointMissingOrCorrupt(t *testing.T) {
 }
 
 func TestWriteCheckpointEmptyPath(t *testing.T) {
-	if err := WriteCheckpoint("", 1, nil); err == nil {
+	if err := WriteCheckpoint("", 1, nil, ""); err == nil {
 		t.Fatal("expected error for empty path")
 	}
 }
@@ -63,7 +63,7 @@ func TestRestoreCheckpointPlusTail(t *testing.T) {
 	logPath := LogPathFor(sessionPath)
 	cpPath := CheckpointPathFor(sessionPath)
 
-	w, err := OpenLog(logPath, "")
+	w, err := OpenLog(logPath, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestRestoreCheckpointPlusTail(t *testing.T) {
 	ckMsgs := []provider.Message{
 		{Role: provider.RoleSystem, Content: "sys"},
 		{Role: provider.RoleUser, Content: "<compaction-summary>…"}}
-	if err := WriteCheckpoint(cpPath, 4, ckMsgs); err != nil {
+	if err := WriteCheckpoint(cpPath, 4, ckMsgs, ""); err != nil {
 		t.Fatal(err)
 	}
 	// turn2: seq 5-6（user + assistant_message）
@@ -110,7 +110,7 @@ func TestRestoreCheckpointPlusTail(t *testing.T) {
 func TestRestoreNoCheckpoint(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
-	w, _ := OpenLog(logPath, "")
+	w, _ := OpenLog(logPath, "", "")
 	w.Append(KindUserMessage, userLogPayload{Content: "u1"})
 	w.Append(KindAssistantMessage, assistantLogPayload{Text: "a1"})
 	w.Close()
@@ -131,7 +131,7 @@ func TestRestoreMissingLog(t *testing.T) {
 	dir := t.TempDir()
 	cpPath := filepath.Join(dir, "s.gaea-checkpoint.json")
 	msgs := []provider.Message{{Role: provider.RoleUser, Content: "ck"}}
-	WriteCheckpoint(cpPath, 5, msgs)
+	WriteCheckpoint(cpPath, 5, msgs, "")
 	got, last, err := Restore(cpPath, filepath.Join(dir, "missing.gaea-log.jsonl"))
 	if err != nil {
 		t.Fatalf("Restore: %v", err)
@@ -145,7 +145,7 @@ func TestRestoreMissingLog(t *testing.T) {
 func TestRestoreRepairsTornTail(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "s.gaea-log.jsonl")
-	w, _ := OpenLog(logPath, "")
+	w, _ := OpenLog(logPath, "", "")
 	w.Append(KindUserMessage, userLogPayload{Content: "u1"})
 	w.Close()
 	// 模拟崩溃写入的不完整尾行

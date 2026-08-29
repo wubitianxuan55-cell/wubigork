@@ -77,14 +77,14 @@ func TestGaeaHistoryGolden(t *testing.T) {
 		Model:      "mock",
 		RequireKey: false,
 		Sink:       event.FuncSink(func(event.Event) {}),
-		SessionDir: gaeaConfig.WorkspaceSessionDir(""),
+		SessionDir: gaeaConfig.WorkspaceSessionDir("", ""),
 	})
 	if err != nil {
 		t.Fatalf("boot.Build: %v", err)
 	}
 	defer ctrl.Close()
 
-	path := filepath.Join(gaeaConfig.WorkspaceSessionDir(""), "golden-session.jsonl")
+	path := filepath.Join(gaeaConfig.WorkspaceSessionDir("", ""), "golden-session.jsonl")
 	ctrl.Resume(goldenFixtureSession(), path)
 
 	oldCtrl := ga.ctrl

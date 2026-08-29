@@ -47,7 +47,7 @@ func TestGaeaBootBuild(t *testing.T) {
 		RequireKey: false,
 		Sink:       event.FuncSink(func(event.Event) {}),
 		MaxSteps:   0,
-		SessionDir: gaeaConfig.WorkspaceSessionDir(""),
+		SessionDir: gaeaConfig.WorkspaceSessionDir("", ""),
 	})
 	// GaeaInit 同样在构建后启用交互审批（工具审批/提问走前端）
 	ctrl.EnableInteractiveApproval()
@@ -68,7 +68,7 @@ func TestGaeaBootBuild(t *testing.T) {
 	}
 	// 会话必须落在工作区会话目录（与 GaeaListSessions 读取路径一致）
 	wd, _ := os.Getwd()
-	wantDir := gaeaConfig.WorkspaceSessionDir(wd)
+	wantDir := gaeaConfig.WorkspaceSessionDir(wd, "")
 	if gotDir := filepath.Dir(ctrl.SessionPath()); gotDir != wantDir {
 		t.Fatalf("会话目录不一致: got=%s want=%s（历史面板将无法看到会话）", gotDir, wantDir)
 	}

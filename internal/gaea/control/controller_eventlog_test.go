@@ -25,7 +25,7 @@ func TestEventResumeRestoresCheckpointPlusTail(t *testing.T) {
 	logPath := session.LogPathFor(path)
 	cpPath := session.CheckpointPathFor(path)
 
-	w, err := session.OpenLog(logPath, "")
+	w, err := session.OpenLog(logPath, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestEventResumeRestoresCheckpointPlusTail(t *testing.T) {
 		{Role: provider.RoleSystem, Content: "sys"},
 		{Role: provider.RoleUser, Content: "<compaction-summary>…"},
 	}
-	if err := session.WriteCheckpoint(cpPath, 3, ck); err != nil {
+	if err := session.WriteCheckpoint(cpPath, 3, ck, ""); err != nil {
 		t.Fatal(err)
 	}
 	// turn2: user + assistant_message（seq 4-5，checkpoint 之后的 tail）
@@ -101,7 +101,7 @@ func TestEventCompactionCheckpointRestorable(t *testing.T) {
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "u1"})
 	s.Add(provider.Message{Role: provider.RoleAssistant, Content: "a1"})
 	// 压缩前的历史日志（seq 1-2）
-	w, err := session.OpenLog(session.LogPathFor(path), "")
+	w, err := session.OpenLog(session.LogPathFor(path), "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestEventFlushCheckpointBeforeModelCall(t *testing.T) {
 	s.SetLogFormat("event")
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "u1"})
 	// 历史日志（seq 1-2）：使模型调用前的 flush 有内容可固化
-	w, err := session.OpenLog(session.LogPathFor(path), "")
+	w, err := session.OpenLog(session.LogPathFor(path), "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

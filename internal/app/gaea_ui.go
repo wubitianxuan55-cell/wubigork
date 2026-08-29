@@ -19,6 +19,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/factbase"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // ── gaeaW 原生 UI 绑定（前端 gaea/lib/bridge.ts 适配层映射短名 → Gaea*）──
@@ -51,6 +52,9 @@ type SessionMeta struct {
 	// Interrupted 为 true 表示上次会话因崩溃/进程被杀未正常结束（state 文件
 	// 残留 running=true），前端据此展示「未完成」徽标。
 	Interrupted bool `json:"interrupted"`
+	// SpaceId 是会话空间归属（S2 双空间）："work"/"play"。平铺兜底（旧会话）
+	// 恒标记 work；前端按字段过滤展示。
+	SpaceID string `json:"spaceId,omitempty"`
 }
 
 // CheckpointMeta 是一个可回退点（用户回合）。
@@ -127,6 +131,39 @@ const pinnedFileName = ".pinned.json"
 
 func pinnedPath(dir string) string { return filepath.Join(dir, pinnedFileName) }
 
+// sessionRegistryDirs 返回会话目录族的注册表搜索目录（S2）：平铺兜底 +
+// work/play 两个空间分区。置顶/标题注册表跟随会话所在目录，列表端需合并
+// 三处读取才能覆盖全部会话。
+func sessionRegistryDirs(base string) []string {
+	return []string{
+		base,
+		filepath.Join(base, spaces.SpaceWork),
+		filepath.Join(base, spaces.SpacePlay),
+	}
+}
+
+// loadSessionTitlesAll 合并读取会话目录族全部标题注册表。
+func loadSessionTitlesAll(base string) map[string]string {
+	merged := map[string]string{}
+	for _, dir := range sessionRegistryDirs(base) {
+		for k, v := range loadSessionTitles(dir) {
+			merged[k] = v
+		}
+	}
+	return merged
+}
+
+// loadPinnedAll 合并读取会话目录族全部置顶注册表。
+func loadPinnedAll(base string) map[string]bool {
+	merged := map[string]bool{}
+	for _, dir := range sessionRegistryDirs(base) {
+		for k, v := range loadPinned(dir) {
+			merged[k] = v
+		}
+	}
+	return merged
+}
+
 // loadPinned 读取工作区会话目录的置顶注册表（base name → true）。
 func loadPinned(dir string) map[string]bool {
 	m := map[string]bool{}
@@ -148,16 +185,18 @@ func savePinned(dir string, m map[string]bool) error {
 	return saveAtomically(dir, ".pinned.*.tmp", pinnedPath(dir), m)
 }
 
-// listSessionsForDir 构建一个工作区会话目录的 SessionMeta 列表。
+// listSessionsForDir 构建一个工作区会话目录族的 SessionMeta 列表。
 // includeNewFallback 为 true 时，把当前未落盘的会话补为「(新会话)」条目；
 // 仅当前工作区需要该回退，历史项目目录不需要。排序：当前会话 → 置顶 → 最近使用。
+// S2：agent.ListSessions 同时枚举平铺兜底 + 两个空间分区目录，条目按来源
+// 标记 spaceId（平铺 = work 兼容）。
 func (a *App) listSessionsForDir(dir string, cur string, includeNewFallback bool) []SessionMeta {
 	infos, err := agent.ListSessions(dir)
 	if err != nil {
 		return []SessionMeta{}
 	}
-	titles := loadSessionTitles(dir)
-	pinned := loadPinned(dir)
+	titles := loadSessionTitlesAll(dir)
+	pinned := loadPinnedAll(dir)
 	out := make([]SessionMeta, 0, len(infos)+1)
 	curFound := false
 	for _, s := range infos {
@@ -169,18 +208,19 @@ func (a *App) listSessionsForDir(dir string, cur string, includeNewFallback bool
 		// 状态文件很小，会话数在 50 以内全读没有开销问题。
 		st, _ := session.LoadState(session.StatePath(s.Path))
 		out = append(out, SessionMeta{
-			Path:            s.Path,
-			Preview:         s.Preview,
-			Title:           titles[base],
-			Turns:           s.Turns,
-			ModTime:         s.ModTime.UnixMilli(),
-			Current:         s.Path == cur,
-			Pinned:          pinned[base],
-			Interrupted:     st.Running,
+			Path:        s.Path,
+			Preview:     s.Preview,
+			Title:       titles[base],
+			Turns:       s.Turns,
+			ModTime:     s.ModTime.UnixMilli(),
+			Current:     s.Path == cur,
+			Pinned:      pinned[base],
+			Interrupted: st.Running,
+			SpaceID:     s.Space,
 		})
 	}
 	if cur != "" && !curFound && includeNewFallback {
-		out = append(out, SessionMeta{Path: cur, Preview: "(新会话)", ModTime: time.Now().UnixMilli(), Current: true, Pinned: true})
+		out = append(out, SessionMeta{Path: cur, Preview: "(新会话)", ModTime: time.Now().UnixMilli(), Current: true, Pinned: true, SpaceID: session.SpaceForPath(cur)})
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Current != out[j].Current {
@@ -201,32 +241,34 @@ func (a *App) archivedSessionsForDir(dir string) []SessionMeta {
 	if err != nil {
 		return []SessionMeta{}
 	}
-	titles := loadSessionTitles(dir)
+	titles := loadSessionTitlesAll(dir)
 	out := make([]SessionMeta, 0, len(infos))
 	for _, s := range infos {
 		st, _ := session.LoadState(session.StatePath(s.Path))
 		out = append(out, SessionMeta{
-			Path:            s.Path,
-			Preview:         s.Preview,
-			Title:           titles[filepath.Base(s.Path)],
-			Turns:           s.Turns,
-			ModTime:         s.ModTime.UnixMilli(),
-			Archived:        true,
-			Interrupted:     st.Running,
+			Path:        s.Path,
+			Preview:     s.Preview,
+			Title:       titles[filepath.Base(s.Path)],
+			Turns:       s.Turns,
+			ModTime:     s.ModTime.UnixMilli(),
+			Archived:    true,
+			Interrupted: st.Running,
+			SpaceID:     s.Space,
 		})
 	}
 	return out
 }
 
 // GaeaListSessions 返回当前工作区的已保存会话（新→旧），标记当前会话。
-// 会话写入统一在 gaeaCwd()/.gaea/sessions（见 gaeaBuildController），
-// 这里必须用同一路径读取，否则从不同目录启动时历史会"消失"。
+// 会话写入统一在 gaeaCwd()/.gaea/sessions[/<space>]（见 gaeaBuildController），
+// 这里必须用同一路径族读取，否则从不同目录启动时历史会"消失"。
+// S2：传平铺基目录，listSessionsForDir 会同时枚举两个空间分区目录。
 func (a *App) GaeaListSessions() []SessionMeta {
 	cur := ""
 	if c := gaeaCtrl(); c != nil {
 		cur = c.SessionPath()
 	}
-	return a.listSessionsForDir(gaeaConfig.WorkspaceSessionDir(gaeaCwd()), cur, true)
+	return a.listSessionsForDir(gaeaConfig.WorkspaceSessionDir(gaeaCwd(), ""), cur, true)
 }
 
 // ProjectGroup 是侧边栏「项目」分组：一个工作区 + 它的会话列表。
@@ -266,8 +308,8 @@ func (a *App) GaeaListProjectSessions() []ProjectGroup {
 		if err != nil || !info.IsDir() {
 			continue
 		}
-		sessions := a.listSessionsForDir(gaeaConfig.WorkspaceSessionDir(root), curSession, root == cur)
-		archived := a.archivedSessionsForDir(gaeaConfig.WorkspaceSessionDir(root))
+		sessions := a.listSessionsForDir(gaeaConfig.WorkspaceSessionDir(root, ""), curSession, root == cur)
+		archived := a.archivedSessionsForDir(gaeaConfig.WorkspaceSessionDir(root, ""))
 		if root != cur && len(sessions) == 0 && len(archived) == 0 {
 			continue
 		}
@@ -321,14 +363,16 @@ func (a *App) GaeaDeleteSession(path string) error {
 	return deleteSessionFile(dir, path)
 }
 
-// GaeaArchiveSession 归档已保存会话（移动至 <sessions>/archive/，可恢复）。
-// 拒绝归档当前会话——当前会话由「新建会话」管理生命周期。
+// GaeaArchiveSession 归档已保存会话（移动至 <sessions>[/<space>]/archive/，
+// 可恢复）。拒绝归档当前会话——当前会话由「新建会话」管理生命周期。
+// S2：守卫放行空间分区目录（sessions/work|play/）——归档落在会话所在
+// 空间目录自己的 archive/ 子目录。
 func (a *App) GaeaArchiveSession(path string) error {
 	if c := gaeaCtrl(); c != nil && c.SessionPath() == path {
 		return errActiveSession
 	}
 	dir := sessionDirForPath(path)
-	if dir == "" || filepath.Base(dir) != "sessions" {
+	if dir == "" || !isSessionSpaceBase(dir) {
 		return fmt.Errorf("非法会话路径: %s", path)
 	}
 	if err := agent.ArchiveSession(path); err != nil {
@@ -357,9 +401,11 @@ func (a *App) GaeaUnarchiveSession(path string) (string, error) {
 }
 
 // GaeaPinSession 置顶/取消置顶一个活动会话（持久化到 .pinned.json）。
+// S2：守卫放行空间分区目录，置顶注册表跟随会话所在目录（.gaea/sessions/
+// <space>/.pinned.json）。
 func (a *App) GaeaPinSession(path string, pinned bool) error {
 	dir := sessionDirForPath(path)
-	if dir == "" || filepath.Base(dir) != "sessions" {
+	if dir == "" || !isSessionSpaceBase(dir) {
 		return fmt.Errorf("仅活动会话可置顶: %s", path)
 	}
 	m := loadPinned(dir)
@@ -381,20 +427,33 @@ func (a *App) GaeaRenameSession(path, title string) error {
 	return setSessionTitle(dir, path, title)
 }
 
+// isSessionSpaceBase 报告 dir 是否为会话目录族成员（S2）：
+// <root>/.gaea/sessions（平铺兜底）或 <root>/.gaea/sessions/{work,play}
+// （空间分区）。供 archive/pin 等守卫放行两段路径形态。
+func isSessionSpaceBase(dir string) bool {
+	switch filepath.Base(dir) {
+	case "sessions":
+		return filepath.Base(filepath.Dir(dir)) == ".gaea"
+	case spaces.SpaceWork, spaces.SpacePlay:
+		return filepath.Base(filepath.Dir(dir)) == "sessions" &&
+			filepath.Base(filepath.Dir(filepath.Dir(dir))) == ".gaea"
+	}
+	return false
+}
+
 // sessionDirForPath 从绝对会话路径反推其所属会话目录，仅接受
-// <root>/.gaea/sessions/<file> 或 <root>/.gaea/sessions/archive/<file>
-// 形态，防止删除/重命名/归档逃出会话目录。
+// <root>/.gaea/sessions/<file>、<root>/.gaea/sessions/<space>/<file> 及二者
+// archive/ 子目录形态，防止删除/重命名/归档逃出会话目录。
 func sessionDirForPath(sessionPath string) string {
 	dir := filepath.Dir(filepath.Clean(sessionPath))
 	if filepath.Base(dir) == "archive" {
-		// <root>/.gaea/sessions/archive/<file>
-		if filepath.Base(filepath.Dir(dir)) != "sessions" ||
-			filepath.Base(filepath.Dir(filepath.Dir(dir))) != ".gaea" {
+		// <root>/.gaea/sessions[/work|/play]/archive/<file>
+		if !isSessionSpaceBase(filepath.Dir(dir)) {
 			return ""
 		}
 		return dir
 	}
-	if filepath.Base(dir) != "sessions" || filepath.Base(filepath.Dir(dir)) != ".gaea" {
+	if !isSessionSpaceBase(dir) {
 		return ""
 	}
 	return dir
@@ -473,9 +532,10 @@ func injectInterruption(s *agent.Session, path string) {
 	s.Messages = append(s.Messages, msg)
 	// 3.0 Step 1 事件日志模式：注入的中断摘要也写入事件日志（重放恢复不丢失；
 	// 写入失败仅告警，不阻断恢复——legacy 镜像仍保留该消息）。
+	// S2：日志行携带会话空间自描述（与控制器写入侧同源）。
 	if s.IsEventMode() {
 		if lp := session.LogPathFor(path); lp != "" {
-			if _, err := session.AppendSystemMessage(lp, path, msg.Content); err != nil {
+			if _, err := session.AppendSystemMessage(lp, path, s.Space(), msg.Content); err != nil {
 				slog.Warn("gaea: 中断摘要写入事件日志失败", "path", path, "error", err)
 			}
 		}
@@ -512,7 +572,9 @@ func lastUserPreview(s *agent.Session) string {
 // resumeLastSession 自动恢复会话目录中最近一次有内容的会话。
 // 仅在办公引擎首次初始化时调用；返回最近会话路径（无可恢复会话时为空）。
 func (a *App) resumeLastSession(ctrl *control.Controller) string {
-	dir := gaeaConfig.WorkspaceSessionDir(gaeaCwd())
+	// S2：平铺基目录，agent.ListSessions 同时枚举两个空间分区目录
+	// （平铺兜底 + work/play 各自列出），自动恢复取全局最近一个。
+	dir := gaeaConfig.WorkspaceSessionDir(gaeaCwd(), "")
 	infos, err := agent.ListSessions(dir)
 	if err != nil || len(infos) == 0 {
 		return ""

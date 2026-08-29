@@ -15,6 +15,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/netclient"
 )
 
@@ -25,6 +26,8 @@ type Config struct {
 	Workspace    string            `toml:"workspace"` // 办公工作空间目录（空 = 进程启动目录）
 	Agent        AgentConfig       `toml:"agent"`
 	Session      SessionConfig     `toml:"session"` // 3.0 Step 1: 会话持久化格式（事件日志回退开关）
+	// Space 是双空间分区开关（S2）：[space] mode = "on"|"off"，默认 on。
+	Space      SpaceConfig       `toml:"space"`
 	Providers    []ProviderEntry   `toml:"providers"`
 	Tools        ToolsConfig       `toml:"tools"`
 	Permissions  PermissionsConfig `toml:"permissions"`
@@ -47,6 +50,39 @@ type Config struct {
 type SessionConfig struct {
 	// LogFormat 选择会话持久化格式："legacy"（默认，旧行为）| "event"（事件日志）。
 	LogFormat string `toml:"log_format"`
+	// Space 是新建会话的空间落点（S2 双空间）："work"（默认）| "play"。
+	// 仅 space.mode=on 时生效；space.mode=off 时所有读写路径回退平铺目录。
+	Space string `toml:"space"`
+}
+
+// SpaceConfig 是双空间分区开关（S2 回退开关，仿 session.log_format 三件套）。
+type SpaceConfig struct {
+	// Mode 控制会话空间分区："on"（默认）| "off"。off 时所有会话读写路径
+	// 忽略空间（新会话回平铺目录、日志不写 space 字段），行为整体回退；
+	// 旧分区数据仍可读（读端按目录归属降级）。
+	Mode string `toml:"mode"`
+}
+
+// SpaceModeIsOn 报告会话空间分区是否启用（缺省 on；仅显式 "off" 关闭）。
+func (c *Config) SpaceModeIsOn() bool {
+	return c == nil || c.Space.Mode != "off"
+}
+
+// SessionSpace 解析 session.space 配置（trim + 小写；空/非法 → work）。
+func (c *Config) SessionSpace() string {
+	if c == nil {
+		return spaces.SpaceWork
+	}
+	return spaces.Normalize(strings.ToLower(strings.TrimSpace(c.Session.Space)))
+}
+
+// EffectiveSessionSpace 返回写入侧生效空间："work" | "play"；
+// space.mode=off 时返回 ""（调用方据此回退平铺目录、日志不写 space 字段）。
+func (c *Config) EffectiveSessionSpace() string {
+	if !c.SpaceModeIsOn() {
+		return ""
+	}
+	return c.SessionSpace()
 }
 
 // LogFormatIsEvent 报告是否启用事件日志模式（大小写不敏感，仅精确匹配 "event"）。
@@ -632,10 +668,14 @@ func SessionDir() string {
 	return filepath.Join(dir, "gaea", "sessions")
 }
 
-// WorkspaceSessionDir returns the workspace-scoped session directory under
-// cwd/.gaea/sessions/. Sessions are isolated per workspace so switching
-// projects shows only that workspace's history.
-func WorkspaceSessionDir(cwd string) string {
+// WorkspaceSessionDir returns the workspace-scoped session directory.
+// Sessions are isolated per workspace so switching projects shows only that
+// workspace's history.
+//
+// S2 双空间：space 为 "work"/"play" 时返回分区目录 <cwd>/.gaea/sessions/<space>/；
+// space 为 ""（space.mode=off 的回退形态）返回平铺目录 <cwd>/.gaea/sessions/
+// （旧行为）。旧平铺会话恒按 work 兼容可读（读端各空间目录 + 平铺兜底）。
+func WorkspaceSessionDir(cwd, space string) string {
 	if cwd == "" {
 		if wd, err := os.Getwd(); err == nil {
 			cwd = wd
@@ -643,7 +683,15 @@ func WorkspaceSessionDir(cwd string) string {
 			return SessionDir()
 		}
 	}
-	return filepath.Join(cwd, ".gaea", "sessions")
+	base := filepath.Join(cwd, ".gaea", "sessions")
+	switch space {
+	case spaces.SpaceWork:
+		return filepath.Join(base, spaces.SpaceWork)
+	case spaces.SpacePlay:
+		return filepath.Join(base, spaces.SpacePlay)
+	default:
+		return base // "" = 平铺（space.mode=off 回退形态）
+	}
 }
 
 // MemoryUserDir returns the gaea user config root (…/gaea), under which

@@ -22,7 +22,7 @@ func buildRewindSession(t *testing.T, sessionDir string) string {
 	t.Helper()
 	path := filepath.Join(sessionDir, "s1.jsonl")
 	logPath := session.LogPathFor(path)
-	w, err := session.OpenLog(logPath, "")
+	w, err := session.OpenLog(logPath, "", "")
 	if err != nil {
 		t.Fatalf("OpenLog: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestGaeaRewindConversation(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	path := buildRewindSession(t, sessionDir)
 
 	ctrl := rewindController(t, path)
@@ -136,7 +136,7 @@ func TestGaeaRewindTurn0(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	path := buildRewindSession(t, gaeaConfig.WorkspaceSessionDir(ws))
+	path := buildRewindSession(t, gaeaConfig.WorkspaceSessionDir(ws, ""))
 
 	ctrl := rewindController(t, path)
 	ga.ctrl = ctrl
@@ -173,7 +173,7 @@ func TestGaeaRewindUnsupportedScopes(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	path := buildRewindSession(t, gaeaConfig.WorkspaceSessionDir(ws))
+	path := buildRewindSession(t, gaeaConfig.WorkspaceSessionDir(ws, ""))
 
 	ctrl := rewindController(t, path)
 	ga.ctrl = ctrl
@@ -204,7 +204,7 @@ func TestGaeaFork(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	path := buildRewindSession(t, sessionDir)
 
 	ctrl := rewindController(t, path)
@@ -258,7 +258,7 @@ func TestGaeaCheckpoints(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	path := buildRewindSession(t, gaeaConfig.WorkspaceSessionDir(ws))
+	path := buildRewindSession(t, gaeaConfig.WorkspaceSessionDir(ws, ""))
 
 	ctrl := rewindController(t, path)
 	ga.ctrl = ctrl

@@ -21,8 +21,11 @@ type BranchMeta struct {
 	ParentID         string    `json:"parent_id,omitempty"`
 	ForkTurn         int       `json:"fork_turn,omitempty"`
 	ForkMessageIndex int       `json:"fork_message_index,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	// Space 是会话空间自描述（S2）：分支 meta 随会话目录归属写入，读端空值
+	// 降级 work（旧 meta 无此字段）。
+	Space     string    `json:"space,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // BranchInfo combines sidecar metadata with the session file details needed for
@@ -111,6 +114,7 @@ func EnsureBranchMeta(sessionPath string) (BranchMeta, error) {
 	now := time.Now().UTC()
 	m := BranchMeta{
 		ID:        BranchID(sessionPath),
+		Space:     SpaceForPath(sessionPath), // S2：空间自描述按目录归属写入
 		CreatedAt: now,
 		UpdatedAt: now,
 	}

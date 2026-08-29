@@ -85,9 +85,13 @@ func KindString(k event.Kind) string {
 
 // LogEntry 是日志中的一行。Payload 保持原始 JSON 无损（不重新编解码）。
 type LogEntry struct {
-	Seq     int64           `json:"seq"`
-	Ts      int64           `json:"ts"`
-	Kind    string          `json:"kind"`
+	Seq  int64           `json:"seq"`
+	Ts   int64           `json:"ts"`
+	Kind string          `json:"kind"`
+	// Space 是会话空间自描述（S2 双空间）：写端由 LogWriter 按会话目录归属
+	// 写入（"work"/"play"）；space.mode=off 的平铺日志无此字段。读端空值一律
+	// 降级 work（spaces.SpaceOr），且保持原始空值以便 RewindLog 逐字节重写。
+	Space   string          `json:"space,omitempty"`
 	Payload json.RawMessage `json:"payload"`
 }
 
@@ -194,6 +198,9 @@ type LogWriter struct {
 	mu     sync.Mutex
 	f      *os.File
 	path   string
+	// space 是本日志的空间自描述值（"work"/"play"；""=不写 space 字段，
+	// space.mode=off 平铺日志的旧行为形态）。由 OpenLog 在打开时确定。
+	space  string
 	seq    int64
 	closed bool
 }
@@ -201,7 +208,9 @@ type LogWriter struct {
 // OpenLog 打开（必要时创建）一个事件日志。若文件已存在，先修复 torn-tail
 // 并把 seq 续到已写行数；不存在时新建。legacyPath 非空且日志不存在、而
 // 旧格式会话文件存在时，自动把旧消息迁移进新日志（旧文件保留）。
-func OpenLog(logPath, legacyPath string) (*LogWriter, error) {
+// space 是会话空间自描述值（"work"/"play"；""=不写 space 字段），随每行
+// 日志统一写入（AppendRaw/formatLogLine 单点）。
+func OpenLog(logPath, legacyPath, space string) (*LogWriter, error) {
 	if logPath == "" {
 		return nil, errors.New("empty log path")
 	}
@@ -222,7 +231,7 @@ func OpenLog(logPath, legacyPath string) (*LogWriter, error) {
 	// 首次写入且存在旧格式会话：迁移旧消息为初始日志条目（旧文件保留）。
 	if !existed && legacyPath != "" {
 		if _, err := os.Stat(legacyPath); err == nil {
-			if _, err := MigrateLegacyToLog(logPath, legacyPath); err != nil {
+			if _, err := MigrateLegacyToLog(logPath, legacyPath, space); err != nil {
 				return nil, fmt.Errorf("migrate legacy session: %w", err)
 			}
 		}
@@ -232,7 +241,7 @@ func OpenLog(logPath, legacyPath string) (*LogWriter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open log: %w", err)
 	}
-	w := &LogWriter{f: f, path: logPath}
+	w := &LogWriter{f: f, path: logPath, space: space}
 	w.seq = countLogLines(logPath)
 	return w, nil
 }
@@ -260,7 +269,7 @@ func (w *LogWriter) AppendRaw(kind string, raw json.RawMessage) (int64, error) {
 	if w.closed {
 		return 0, errors.New("log writer closed")
 	}
-	line := formatLogLine(w.seq+1, time.Now().Unix(), kind, raw)
+	line := formatLogLine(w.seq+1, time.Now().Unix(), kind, w.space, raw)
 	n, err := w.f.Write(line)
 	if err != nil {
 		return 0, fmt.Errorf("append log line: %w", err)
@@ -385,14 +394,16 @@ func countLogLines(path string) int64 {
 	return int64(len(entries))
 }
 
-// formatLogLine 组装一行日志（单次 Write 原子追加）。
-func formatLogLine(seq, ts int64, kind string, raw json.RawMessage) []byte {
+// formatLogLine 组装一行日志（单次 Write 原子追加）。space 为空时省略
+// space 字段（space.mode=off 平铺日志与旧行为逐字节一致）。
+func formatLogLine(seq, ts int64, kind, space string, raw json.RawMessage) []byte {
 	line := struct {
 		Seq     int64           `json:"seq"`
 		Ts      int64           `json:"ts"`
 		Kind    string          `json:"kind"`
+		Space   string          `json:"space,omitempty"`
 		Payload json.RawMessage `json:"payload"`
-	}{seq, ts, kind, raw}
+	}{seq, ts, kind, space, raw}
 	b, err := json.Marshal(line)
 	if err != nil {
 		panic(err) // 内部固定形状，不可能失败

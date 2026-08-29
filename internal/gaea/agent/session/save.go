@@ -14,6 +14,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // Save writes the session's messages to path in JSONL — one provider.Message
@@ -60,7 +61,8 @@ func (s *Session) saveEventMode(path string) error {
 		// 无日志路径（空会话路径）或日志已存在（sink 已持续写入）→ 不动日志。
 		return nil
 	}
-	if _, err := MigrateLegacyToLog(logPath, path); err != nil {
+	// 首次迁移：迁移条目携带会话空间自描述（s.space，由控制器按路径归属注入）。
+	if _, err := MigrateLegacyToLog(logPath, path, s.space); err != nil {
 		return fmt.Errorf("event save: migrate log: %w", err)
 	}
 	return nil
@@ -124,23 +126,24 @@ func LastLogSeq(logPath string) int64 {
 
 // AppendUserMessage 把一条用户消息追加到事件日志（「模型可见必入日志」：
 // 运行期 user_message 由控制器在模型调用前落盘）。日志不存在时自动创建
-// （legacyPath 非空且旧会话文件存在时先迁移旧消息）。返回新条目 seq。
-func AppendUserMessage(logPath, legacyPath, content string) (int64, error) {
-	return appendMessageLog(logPath, legacyPath, userLogPayload{Content: content}, KindUserMessage)
+// （legacyPath 非空且旧会话文件存在时先迁移旧消息）。space 是会话空间
+// 自描述值（"work"/"play"；""=不写 space 字段）。返回新条目 seq。
+func AppendUserMessage(logPath, legacyPath, space, content string) (int64, error) {
+	return appendMessageLog(logPath, legacyPath, space, userLogPayload{Content: content}, KindUserMessage)
 }
 
 // AppendSystemMessage 把一条 system 消息追加到事件日志（中断摘要注入等）。
-// 返回新条目 seq。
-func AppendSystemMessage(logPath, legacyPath, content string) (int64, error) {
-	return appendMessageLog(logPath, legacyPath, userLogPayload{Content: content}, KindSystemMessage)
+// space 语义同 AppendUserMessage。返回新条目 seq。
+func AppendSystemMessage(logPath, legacyPath, space, content string) (int64, error) {
+	return appendMessageLog(logPath, legacyPath, space, userLogPayload{Content: content}, KindSystemMessage)
 }
 
 // appendMessageLog 打开（必要时创建/迁移）日志并追加一条消息级事件。
-func appendMessageLog(logPath, legacyPath string, payload any, kind string) (int64, error) {
+func appendMessageLog(logPath, legacyPath, space string, payload any, kind string) (int64, error) {
 	if logPath == "" {
 		return 0, errors.New("empty log path")
 	}
-	w, err := OpenLog(logPath, legacyPath)
+	w, err := OpenLog(logPath, legacyPath, space)
 	if err != nil {
 		return 0, err
 	}
@@ -156,24 +159,72 @@ type Info struct {
 	ModTime time.Time
 	Preview string
 	Turns   int
+	// Space 是会话空间归属（S2）：平铺兜底恒 work，分区目录按目录名。
+	// 供列表端标记 spaceId（前端按字段过滤）。
+	Space string
 }
 
 // List returns every *.jsonl session under dir, newest first, each
 // with a preview line so the picker can show something the user recognises.
 // A missing directory is not an error — it just means there's nothing to
-// resume yet.
+// resume yet. S2：同时枚举 dir/work 与 dir/play 两个空间分区目录
+// （平铺目录兜底，内容恒按 work 兼容）。
 func List(dir string) ([]Info, error) {
 	return listDir(dir)
 }
 
 // ListArchived returns archived sessions (dir/archive) newest first, with the
 // same Info shape so the sidebar can render a restorable "已归档" group.
+// S2：归档按空间分区——平铺 archive/ 兜底（恒 work 兼容）+ 各空间目录自己的
+// archive/（session.Archive 落在会话文件所在目录的 archive/ 子目录）。
 func ListArchived(dir string) ([]Info, error) {
-	return listDir(filepath.Join(dir, "archive"))
+	out, err := listDir(filepath.Join(dir, "archive"))
+	if err != nil {
+		return nil, err
+	}
+	for _, space := range []string{spaces.SpaceWork, spaces.SpacePlay} {
+		// 空间归档目录按所属空间标记（listDir 的平铺兜底语义不适用于此）。
+		infos, err := listSingleDir(filepath.Join(dir, space, "archive"), space)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, infos...)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ModTime.After(out[j].ModTime)
+	})
+	return out, nil
 }
 
-// listDir is the shared implementation behind List / ListArchived.
+// listDir 枚举一个会话目录族：dir 本身（平铺，S2 之前唯一形态，恒按 work
+// 兼容）+ dir/work + dir/play 两个空间分区目录。缺失的目录按空处理（非
+// 错误），结果合并后按修改时间新→旧排序。
 func listDir(dir string) ([]Info, error) {
+	roots := []struct {
+		dir   string
+		space string
+	}{
+		{dir, spaces.SpaceWork}, // 平铺兜底：旧会话视为 work
+		{filepath.Join(dir, spaces.SpaceWork), spaces.SpaceWork},
+		{filepath.Join(dir, spaces.SpacePlay), spaces.SpacePlay},
+	}
+	var out []Info
+	for _, root := range roots {
+		infos, err := listSingleDir(root.dir, root.space)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, infos...)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ModTime.After(out[j].ModTime)
+	})
+	return out, nil
+}
+
+// listSingleDir 枚举单个目录下的会话文件（listDir 的单目录原语），
+// 每个 Info 标记所属空间。
+func listSingleDir(dir, space string) ([]Info, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -203,11 +254,9 @@ func listDir(dir string) ([]Info, error) {
 			ModTime: info.ModTime(),
 			Preview: preview,
 			Turns:   turns,
+			Space:   space,
 		})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].ModTime.After(out[j].ModTime)
-	})
 	return out, nil
 }
 

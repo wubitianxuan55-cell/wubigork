@@ -57,9 +57,9 @@ func TestGaeaListProjectSessions(t *testing.T) {
 	wsEmpty := t.TempDir()
 
 	now := time.Now()
-	writeProjectSession(t, gaeaConfig.WorkspaceSessionDir(wsA), "s1", "整理季度报告", now.Add(-2*time.Hour))
-	writeProjectSession(t, gaeaConfig.WorkspaceSessionDir(wsB), "s1", "写市场方案", now.Add(-30*time.Minute))
-	writeProjectSession(t, gaeaConfig.WorkspaceSessionDir(wsB), "s2", "做竞品表格", now.Add(-3*time.Hour))
+	writeProjectSession(t, gaeaConfig.WorkspaceSessionDir(wsA, ""), "s1", "整理季度报告", now.Add(-2*time.Hour))
+	writeProjectSession(t, gaeaConfig.WorkspaceSessionDir(wsB, ""), "s1", "写市场方案", now.Add(-30*time.Minute))
+	writeProjectSession(t, gaeaConfig.WorkspaceSessionDir(wsB, ""), "s2", "做竞品表格", now.Add(-3*time.Hour))
 
 	ga.cfg = &gaeaConfig.Config{Workspace: wsA}
 	gaeaConfig.TouchRecentWorkspace(wsB)
@@ -177,7 +177,7 @@ func TestGaeaArchiveUnarchive(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	writeProjectSession(t, sessionDir, "s1", "季度总结", time.Now().Add(-time.Hour))
 
 	a := &App{}
@@ -224,7 +224,7 @@ func TestGaeaPinSession(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	now := time.Now()
 	writeProjectSession(t, sessionDir, "old", "旧会话", now.Add(-2*time.Hour))
 	writeProjectSession(t, sessionDir, "new", "新会话", now.Add(-time.Hour))
@@ -291,7 +291,7 @@ func TestGaeaHistoryToolEvents(t *testing.T) {
 	ws := t.TempDir()
 	_ = os.Chdir(ws)
 
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		t.Fatalf("mkdir session dir: %v", err)
 	}
@@ -373,7 +373,7 @@ func TestGaeaDeleteSessionClearsRegistries(t *testing.T) {
 
 	ws := t.TempDir()
 	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
+	sessionDir := gaeaConfig.WorkspaceSessionDir(ws, "")
 	writeProjectSession(t, sessionDir, "s1", "年度总结", time.Now().Add(-time.Hour))
 
 	a := &App{}
