@@ -22,7 +22,7 @@
 
 ## 版本状态
 
-- **最新发布：v3.8.0（2026-09-01）「双空间内核 · 工位/乐园 + 质量地基」**：
+- **最新发布：v3.8.0（2026-08-29）「双空间内核 · 工位/乐园 + 质量地基」**：
   git tag `v3.8.0`；CHANGELOG / releases/v3.8.0.md / README 索引同步。要点：
   - **双空间内核（阶段 1，S1.1-S1.5）**：SchemaV14（facts/tasks space_id 回填 work）+
     会话目录分区 `sessions/work|play` + 事件日志/checkpoint space + `space.mode` 开关；
