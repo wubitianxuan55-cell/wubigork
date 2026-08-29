@@ -38,8 +38,9 @@ func (g gateApprover) Approve(ctx context.Context, tool, subject string, args js
 	auto := g.c.autoApprove || g.c.permLevel != "ask"
 	g.c.mu.Unlock()
 	// 持久化写入（成本库/记忆/知识库）必须逐条经用户确认：
-	// auto/yolo 权限级别也强制询问，且不记忆会话放行。
-	if hardAskTools[tool] {
+	// auto/yolo 权限级别也强制询问，且不记忆会话放行。集合按空间策略
+	// 参数化（S1.5-A：play 产品默认空集 = 不弹审批卡；默认集 = 包级 hardAskTools）。
+	if g.c.hardAskSet()[tool] {
 		return g.c.requestApproval(ctx, tool, approvalSubjectFor(tool, args), true)
 	}
 	if auto {

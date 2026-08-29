@@ -5,6 +5,8 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/plugin"
+	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 )
 
 // --- MCP server management -------------------------------------------------
@@ -52,11 +54,27 @@ func (c *Controller) connectMCPSpec(s plugin.Spec) (int, error) {
 		return 0, err
 	}
 	if c.reg != nil {
-		for _, t := range tools {
+		// S1.3-B：MCP 热插拔绕过构建期过滤，必须在 spec 层按当前会话空间过滤
+		// （MCP 工具缺省 shared → 除非显式打标签，过滤为 no-op）。c.space 为
+		// 空间配置生效值（"" = space.mode=off → 全注册现状），与装配空间同源。
+		for _, t := range spaceAllowedTools(tools, c.space) {
 			c.reg.Add(t)
 		}
 	}
 	return len(tools), nil
+}
+
+// spaceAllowedTools 过滤出允许在 space 会话注册的工具（S1.3-B MCP spec 层）。
+// 规则与装配期一致（builtin.AllowsSpace）：shared 通用、work/play 只入对应
+// 空间、space 为空（mode=off）全保留。
+func spaceAllowedTools(tools []tool.Tool, space string) []tool.Tool {
+	out := make([]tool.Tool, 0, len(tools))
+	for _, t := range tools {
+		if builtin.AllowsSpace(t, space) {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // ConfiguredMCPNames returns the names of all MCP servers declared in the config

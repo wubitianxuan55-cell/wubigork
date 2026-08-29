@@ -111,6 +111,10 @@ type Controller struct {
 	approvalTimeout time.Duration
 	// persistAllowRule 是「始终允许」的策略回写回调（见 Options 同名字段）。
 	persistAllowRule func(rule string) error
+	// hardAskTools 是逐条强制审批工具集（S1.5-A 按空间策略参数化）：构造时
+	// 从 Options.HardAskTools 快照，nil = 包级默认集（见 hardAskSet）。构造后
+	// 不可变，读不加锁。
+	hardAskTools map[string]bool
 
 	// permLevel controls permission strictness: "ask" (prompt before writes, default),
 	// "auto" (allow writes without asking), or "yolo" (skip all prompts).
@@ -170,6 +174,12 @@ type Options struct {
 	// "ToolName" / "ToolName(subject-glob)" 后持久化到策略文件；nil = 不支持回写
 	// （persist_allow 退化为 allow_session）。回调失败仅记日志，不阻断批准。
 	PersistAllowRule func(rule string) error
+	// HardAskTools 覆盖逐条强制审批的工具集（S1.5-A 按空间权限策略）：写入
+	// 成本库/记忆/知识库等持久化数据，任何权限级别（含 yolo）都不自动放行，
+	// 且不记忆会话放行。nil = 包级默认集 hardAskTools（现状）；非 nil（可为
+	// 空集）= 按空间策略生效——play 产品默认空集（不弹审批卡，与 S1.2 play
+	// 记忆隔离配套）。硬拒绝（deny 规则）与本参数无关，始终生效。
+	HardAskTools     map[string]bool
 	Runner           agent.Runner
 	Executor         *agent.Agent
 	Sink             event.Sink
@@ -252,6 +262,7 @@ func New(opts Options) *Controller {
 		permLevel:        "ask",
 		approvalTimeout:  opts.ApprovalTimeout,
 		persistAllowRule: opts.PersistAllowRule,
+		hardAskTools:     opts.HardAskTools,
 		approvals:        map[string]chan approvalReply{},
 		asks:             map[string]chan []event.AskAnswer{},
 		granted:          map[string]bool{},
@@ -635,10 +646,20 @@ func (c *Controller) Approve(id string, decision string) {
 func (c *Controller) EnableInteractiveApproval() {
 	if c.executor != nil {
 		g := permission.NewGate(c.policy, gateApprover{c})
-		g.AlwaysAsk = hardAskTools
+		g.AlwaysAsk = c.hardAskSet()
 		c.executor.SetGate(g)
 		c.executor.SetAsker(c)
 	}
+}
+
+// hardAskSet 返回生效的逐条强制审批工具集（S1.5-A）：Options.HardAskTools
+// 非空快照优先（按空间策略），nil = 包级默认集 hardAskTools（现状）。4 个
+// gate 挂点与 gateApprover 统一经本函数取值，保证空间策略一致生效。
+func (c *Controller) hardAskSet() map[string]bool {
+	if c.hardAskTools != nil {
+		return c.hardAskTools
+	}
+	return hardAskTools
 }
 
 // Ask implements agent.Asker: it emits an AskRequest and blocks until
@@ -689,13 +710,13 @@ func (c *Controller) SetPermLevel(level string) {
 	c.mu.Lock()
 	c.permLevel = level
 	// 持久化写入（成本库/记忆/知识库）必须逐条确认：
-	// 任何权限级别都保留 AlwaysAsk 硬门。
+	// 任何权限级别都保留 AlwaysAsk 硬门（按空间策略参数化，S1.5-A）。
 	switch level {
 	case "auto":
 		c.policy.Mode = permission.Allow
 		if c.executor != nil {
 			g := permission.NewGate(c.policy, gateApprover{c})
-			g.AlwaysAsk = hardAskTools
+			g.AlwaysAsk = c.hardAskSet()
 			c.executor.SetGate(g)
 		}
 	case "yolo":
@@ -703,14 +724,14 @@ func (c *Controller) SetPermLevel(level string) {
 			// yolo 保持"跳过一切门禁"，但持久化写入例外仍必须确认：
 			// 用空策略 + AlwaysAsk 的 gate 替代 nil gate。
 			g := permission.NewGate(permission.New("allow", nil, nil, nil), gateApprover{c})
-			g.AlwaysAsk = hardAskTools
+			g.AlwaysAsk = c.hardAskSet()
 			c.executor.SetGate(g)
 		}
 	default: // "ask"
 		c.policy.Mode = permission.Ask
 		if c.executor != nil {
 			g := permission.NewGate(c.policy, gateApprover{c})
-			g.AlwaysAsk = hardAskTools
+			g.AlwaysAsk = c.hardAskSet()
 			c.executor.SetGate(g)
 		}
 	}

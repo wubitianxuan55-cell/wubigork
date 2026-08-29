@@ -80,6 +80,25 @@ func IsPersistWrite(t Tool) bool {
 	return ok && pw.PersistWrite()
 }
 
+// SpaceTaggedTool is an optional capability a Tool may implement to declare the
+// space it belongs to (S1.3-B 双空间装配): "work"（办公/编辑/检索域）或
+// "play"（生图/轻语/小说/角色域）。未实现该接口的工具按名字查 builtin 分类表
+// （internal/gaea/tool/builtin/spacetags.go），缺省 shared（两空间通用）。
+// 装配期（addBuiltins / ExtraTools / MCP spec 层）据此做物理过滤，运行时
+// 不改 executeOne 行为（ActiveSchemas 对齐依赖注册表一致性）。
+type SpaceTaggedTool interface {
+	SpaceTag() string
+}
+
+// SpaceTagOf returns the tool's self-declared space tag, or "" when the tool
+// does not implement SpaceTaggedTool (callers fall back to the name table).
+func SpaceTagOf(t Tool) string {
+	if st, ok := t.(SpaceTaggedTool); ok {
+		return st.SpaceTag()
+	}
+	return ""
+}
+
 // --- process-global built-in set (populated by builtin subpackage init) ---
 
 var builtins = map[string]Tool{}

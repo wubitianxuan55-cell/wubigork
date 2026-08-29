@@ -28,6 +28,9 @@ type Config struct {
 	Session      SessionConfig     `toml:"session"` // 3.0 Step 1: 会话持久化格式（事件日志回退开关）
 	// Space 是双空间分区开关（S2）：[space] mode = "on"|"off"，默认 on。
 	Space      SpaceConfig       `toml:"space"`
+	// SpaceProfiles 是按空间装配 profile（S1.3-A/S1.5-A）：[space_profiles.<space>]。
+	// 缺省（段缺失/空 map）= 零值 = 现状逐字节回退；space.mode=off 时整体不读。
+	SpaceProfiles map[string]SpaceProfile `toml:"space_profiles"`
 	Providers    []ProviderEntry   `toml:"providers"`
 	Tools        ToolsConfig       `toml:"tools"`
 	Permissions  PermissionsConfig `toml:"permissions"`
@@ -88,6 +91,139 @@ func (c *Config) EffectiveSessionSpace() string {
 // LogFormatIsEvent 报告是否启用事件日志模式（大小写不敏感，仅精确匹配 "event"）。
 func (c *Config) LogFormatIsEvent() bool {
 	return c != nil && strings.EqualFold(c.Session.LogFormat, "event")
+}
+
+// ── 按空间装配（S1.3-A 模型 profile + S1.5-A 权限策略）────────────────
+
+// SpacePermissionsConfig 是 [space_profiles.<space>.permissions] 子段（S1.5-A）。
+// 字段语义对齐顶层 [permissions]；nil 指针 = 段未配置（逐字段回退现状）。
+type SpacePermissionsConfig struct {
+	// Mode 是该空间的 writer 回退决策（"ask"|"allow"|"deny"；空 = 回退顶层/空间缺省）。
+	Mode string `toml:"mode"`
+	// HardAsk 是逐条强制审批的工具名列表（覆盖 control 包默认集）。TOML 显式
+	// 空数组 = 清空（play 不弹审批卡）；未写 = 按空间缺省（play 空集 / work 默认集）。
+	HardAsk []string `toml:"hard_ask"`
+	// ApprovalTimeoutSecs 是审批等待超时（0 = 回退 agent.approval_timeout_secs）。
+	ApprovalTimeoutSecs int `toml:"approval_timeout_secs"`
+	Allow               []string `toml:"allow"`
+	Ask                 []string `toml:"ask"`
+	Deny                []string `toml:"deny"`
+}
+
+// SpaceProfile 是单个空间的装配 profile。模型字段引用现有模型选择键体系
+// （feature_model_handler 功能域：chat/whisper/novel/office/gaea/characterlib/
+// routine），值经 ResolveModel 既有链解析为 provider entry；空 = 该域维持现状
+// （零值 = 现状逐字节回退）。桌面端 play 域模型走既有 bridge_feature 功能绑定
+// （零新增绑定），boot 装配层消费 gaea 键（办公 agent 功能域）。
+type SpaceProfile struct {
+	Chat         string `toml:"chat"`
+	Whisper      string `toml:"whisper"`
+	Novel        string `toml:"novel"`
+	Office       string `toml:"office"`
+	Gaea         string `toml:"gaea"`
+	CharacterLib string `toml:"characterlib"`
+	Routine      string `toml:"routine"`
+	// Permissions 是该空间的权限策略段（S1.5-A）；nil = 未配置。
+	Permissions *SpacePermissionsConfig `toml:"permissions"`
+}
+
+// SpacePermissions 是空间生效的权限装配值（S1.5-A，PermissionsForSpace 返回）。
+type SpacePermissions struct {
+	// Mode 是 writer 回退决策（permission.ParseDecision 解析，缺省 ask）。
+	Mode string
+	// Allow/Ask/Deny 是生效规则列表（顶层 + 空间段叠加，precedence 引擎天然处理）。
+	Allow []string
+	Ask   []string
+	Deny  []string
+	// HardAsk 是逐条强制审批工具集：nil = 未按空间配置（control 用包级默认集，
+	// 现状）；非 nil（可为空集）= 按空间策略生效（play 产品默认 = 空集，不弹审批卡）。
+	HardAsk []string
+	// ApprovalTimeoutSecs 是审批等待超时（0 = 未配置，boot 回退 agent.approval_timeout_secs）。
+	ApprovalTimeoutSecs int
+}
+
+// SpaceProfile 返回空间的装配 profile（S1.3-A）。space 为 "work"/"play"
+// （大小写不敏感）；空串（space.mode=off 回退形态）或该空间未配置段 → 零值
+// profile + nil error（现状回退）；其他值 → 错误。
+func (c *Config) SpaceProfile(space string) (*SpaceProfile, error) {
+	space = strings.ToLower(strings.TrimSpace(space))
+	if space == "" {
+		return &SpaceProfile{}, nil
+	}
+	if !spaces.Valid(space) {
+		return nil, fmt.Errorf("space profile: 非法空间 %q（仅 work|play）", space)
+	}
+	if c == nil {
+		return &SpaceProfile{}, nil
+	}
+	for k, p := range c.SpaceProfiles {
+		if strings.ToLower(strings.TrimSpace(k)) == space {
+			cp := p
+			return &cp, nil
+		}
+	}
+	return &SpaceProfile{}, nil
+}
+
+// PermissionsForSpace 返回空间生效的权限装配值（S1.5-A）。缺省 = 现状单 Policy：
+//   - space 为空（space.mode=off）或非法 → 顶层 [permissions] 原样（HardAsk=nil、
+//     Timeout=0，boot 据此走现状路径）；
+//   - work 未配置段 → 现状；
+//   - play 未配置段 → 产品默认：mode="allow" + hard_ask 空集（不弹审批卡，与
+//     S1.2 play 记忆隔离配套，产品已确认）；规则列表继承顶层（deny 硬拒绝仍生效）；
+//   - 配置了 [space_profiles.<space>.permissions] 段 → mode 非空覆盖（否则按
+//     空间缺省）、规则列表 = 顶层 + 段叠加、hard_ask 已配置（含空数组）用段值、
+//     approval_timeout_secs > 0 覆盖。
+func (c *Config) PermissionsForSpace(space string) SpacePermissions {
+	flat := SpacePermissions{
+		Mode:  c.Permissions.Mode,
+		Allow: c.Permissions.Allow,
+		Ask:   c.Permissions.Ask,
+		Deny:  c.Permissions.Deny,
+	}
+	space = strings.ToLower(strings.TrimSpace(space))
+	if c == nil || space == "" || !spaces.Valid(space) {
+		return flat // mode=off / 异常值：现状逐字节回退
+	}
+	prof, err := c.SpaceProfile(space)
+	if err != nil {
+		return flat
+	}
+	out := flat
+	if space == spaces.SpacePlay {
+		out.Mode = "allow"       // play 产品默认（显式段 mode 仍可覆盖）
+		out.HardAsk = []string{} // 显式空集：不弹审批卡（remember 等不再确认）
+	}
+	if perm := prof.Permissions; perm != nil {
+		if perm.Mode != "" {
+			out.Mode = perm.Mode
+		}
+		out.Allow = concatRuleLists(flat.Allow, perm.Allow)
+		out.Ask = concatRuleLists(flat.Ask, perm.Ask)
+		out.Deny = concatRuleLists(flat.Deny, perm.Deny)
+		if perm.HardAsk != nil {
+			out.HardAsk = perm.HardAsk
+		}
+		if perm.ApprovalTimeoutSecs > 0 {
+			out.ApprovalTimeoutSecs = perm.ApprovalTimeoutSecs
+		}
+	}
+	return out
+}
+
+// concatRuleLists 拼接两个规则列表（base 在前、空间段在后），base 为空时直接
+// 返回空间的切片（避免为纯空间配置多复制一层）。
+func concatRuleLists(base, extra []string) []string {
+	if len(extra) == 0 {
+		return base
+	}
+	if len(base) == 0 {
+		return extra
+	}
+	out := make([]string, 0, len(base)+len(extra))
+	out = append(out, base...)
+	out = append(out, extra...)
+	return out
 }
 
 // RetrievalConfig 配置本地检索后端（3.0 Step 3d #2/#3 Provider Seam）。

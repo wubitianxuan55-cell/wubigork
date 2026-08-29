@@ -89,6 +89,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	if err != nil {
 		return nil, err
 	}
+	// S1.3/S1.5 装配空间：session.space 的配置生效值（"work"/"play"）；
+	// ""=space.mode=off（整体回退：不滤工具、模型与权限走现状路径）。
+	// 与桌面端 gaeaBuildController 的 SessionDir 空间同源（同一 cfg），因此
+	// GaeaSpaceActivate 的「重建生效」语义对工具/模型/权限装配一致成立。
+	space := cfg.EffectiveSessionSpace()
 	modelName := opts.Model
 	if modelName == "" {
 		modelName = cfg.DefaultModel
@@ -96,6 +101,24 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	entry, ok := cfg.ResolveModel(modelName)
 	if !ok {
 		return nil, fmt.Errorf("unknown model %q (configured: %s)", modelName, providerNames(cfg))
+	}
+	// S1.3-A：按空间取模型 profile（缺省零值=现状逐字节回退）。控制器按空间
+	// 装配时，profile 的 gaea 键（办公 agent 功能域，对应既有 GetFeatureModel
+	// 键体系）优先——经 ResolveModel 既有链解析为 provider entry，BalanceKind/
+	// BalanceURL/usage 随所选 entry 自然分账（billing 不改）。桌面端 play 域
+	// 模型走既有 bridge_feature 功能绑定（零新增绑定），此处只在 gaea.toml
+	// 配置世界解析；引用不可解析时告警并回退现状，不阻断装配。
+	if space != "" {
+		if prof, perr := cfg.SpaceProfile(space); perr != nil {
+			fmt.Fprintf(stderr, "warning: space_profiles.%s: %v（现状模型继续生效）\n", space, perr)
+		} else if ref := strings.TrimSpace(prof.Gaea); ref != "" {
+			if e, ok := cfg.ResolveModel(ref); ok {
+				entry = e
+				modelName = ref
+			} else {
+				fmt.Fprintf(stderr, "warning: space_profiles.%s.gaea = %q 无法解析（现状模型继续生效）\n", space, ref)
+			}
+		}
 	}
 	// Providers without explicit context_window (e.g. user's "deepseek" with
 	// per-model pricing) default to 0, which hides the status-bar gauge.
@@ -161,11 +184,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			fmt.Fprintln(stderr, "warning: bash not found on PATH; the shell tool will run commands under Windows PowerShell. Install Git for Windows or WSL to use bash.")
 		})
 	}
-	addBuiltins(reg, opts.Cwd, cfg.Tools.Enabled, cfg.WriteRoots(), bashSpec, cfg.NetworkProxySpec(), stderr)
+	addBuiltins(reg, opts.Cwd, cfg.Tools.Enabled, cfg.WriteRoots(), bashSpec, cfg.NetworkProxySpec(), stderr, space)
 	// Always construct a host, even with no plugins configured, so the controller's
 	// host pointer is stable for the session and `/mcp add` can hot-add into it.
 	// V10.22: plugins + LSP assembled in plugins.go
-	po := startPlugins(ctx, cfg, reg, sink, opts.Stderr)
+	po := startPlugins(ctx, cfg, reg, sink, opts.Stderr, space)
 	pluginHost := po.host
 	cleanup := po.cleanup
 	maxSteps := cfg.Agent.MaxSteps
@@ -179,7 +202,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// in an interactive gate later via Controller.EnableInteractiveApproval.
 	// Sub-agents always run headless: they have no UI to answer a prompt, so they
 	// inherit this same gate.
-	policy := permission.New(cfg.Permissions.Mode, cfg.Permissions.Allow, cfg.Permissions.Ask, cfg.Permissions.Deny)
+	// S1.5-A：权限策略按空间装配——space 为空（mode=off）或未配置段时
+	// PermissionsForSpace 逐字段回退顶层 [permissions]（现状单 Policy）；play
+	// 产品默认 mode=allow + hard_ask 空集（不弹审批卡），deny 硬拒绝仍生效。
+	perm := cfg.PermissionsForSpace(space)
+	policy := permission.New(perm.Mode, perm.Allow, perm.Ask, perm.Deny)
 	headlessGate := permission.NewGate(policy, nil)
 
 	// Hooks: load the global settings.json plus the project's (only when trusted —
@@ -369,9 +396,11 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	}
 	reg.Add(command.NewSlashCommandTool(slashEntries))
 
-	// 前端注入的工具（如桌面端 image_gen）追加到注册表。
+	// 前端注入的工具（如桌面端 image_gen）追加到注册表。S1.3-B：按装配空间
+	// 物理过滤（work=办公/编辑/检索域、play=生图/轻语/小说/角色域、shared
+	// 两空间通用；space 为空 = mode=off 全注册现状），重建时随新空间生效。
 	for _, t := range opts.ExtraTools {
-		if t != nil {
+		if t != nil && builtin.AllowsSpace(t, space) {
 			reg.Add(t)
 		}
 	}
@@ -407,6 +436,14 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	}
 	compiler.IdentityLayer().SaveHash(cacheDir) // best-effort
 
+	// C4 TimedOut：审批等待超时贯通（0 = 不超时，交互场景默认等待）。
+	// S1.5-A：空间权限段的 approval_timeout_secs 显式配置（>0）时优先于
+	// agent 全局值；未配置回退现状。
+	approvalTimeoutSecs := cfg.Agent.ApprovalTimeoutSecs
+	if perm.ApprovalTimeoutSecs > 0 {
+		approvalTimeoutSecs = perm.ApprovalTimeoutSecs
+	}
+
 	ctrlOpts := control.Options{
 		Runner:         runner,
 		Executor:       executor,
@@ -422,16 +459,21 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		Memory:         mem,
 		MemoryDisabled: !cfg.Memory.Enabled,
 		// C4 TimedOut：审批等待超时贯通（0 = 不超时，交互场景默认等待）。
-		ApprovalTimeout: time.Duration(cfg.Agent.ApprovalTimeoutSecs) * time.Second,
+		ApprovalTimeout: time.Duration(approvalTimeoutSecs) * time.Second,
+		// S1.5-A：逐条强制审批工具集按空间策略生效（nil = control 包级默认集
+		// 现状；play 产品默认空集 = 不弹审批卡）。
+		HardAskTools: hardAskSetFromList(perm.HardAsk),
 		// C4 persist_allow：审批「始终允许」回写 [permissions].allow 策略文件
 		// （编辑器 AtomicWrite + RenderTOML→Load 往返保证；AddPermissionRule
 		// 幂等去重）。加载失败/无配置文件时 Save() 落到 ./gaea.toml。
+		// S1.5-A：按装配空间分段回写——该空间配置了 permissions 段写段内，
+		// 否则顶层 [permissions]（现状路径；space 为空恒顶层）。
 		PersistAllowRule: func(rule string) error {
 			pcfg, err := config.Load()
 			if err != nil {
 				return err
 			}
-			if err := pcfg.AddPermissionRule("allow", rule); err != nil {
+			if err := pcfg.AddPermissionRuleForSpace(space, "allow", rule); err != nil {
 				return err
 			}
 			return pcfg.Save()
@@ -504,6 +546,22 @@ func subagentModelKeys(name string) []string {
 	return keys
 }
 
+// hardAskSetFromList 把空间策略的 hard_ask 列表转成 control 的集合形态：
+// nil（未按空间配置）原样透传（control 用包级默认集现状）；非 nil（含空集）
+// 转集合，空条目丢弃。
+func hardAskSetFromList(names []string) map[string]bool {
+	if names == nil {
+		return nil
+	}
+	m := make(map[string]bool, len(names))
+	for _, n := range names {
+		if n = strings.TrimSpace(n); n != "" {
+			m[n] = true
+		}
+	}
+	return m
+}
+
 // NewProvider builds the LLM seam provider (provider.LLMProvider) from a
 // configured entry. The kind comes from config (gaea.toml [[providers]] kind),
 // so switching the chat backend is a config-only change: providers.Register(kind)
@@ -533,17 +591,25 @@ func NewProvider(e *config.ProviderEntry) (provider.LLMProvider, error) {
 // them. writeRoots confines the file-writing built-ins to the workspace: after
 // the (unconfined) defaults are added, each enabled writer is replaced by an
 // instance bound to writeRoots (preserving registry order).
-func addBuiltins(reg *tool.Registry, dir string, enabled, writeRoots []string, bashSpec sandbox.Spec, proxySpec netclient.ProxySpec, stderr io.Writer) {
+// S1.3-B：space 为装配空间（"work"/"play"；""=space.mode=off 全注册现状），
+// 按 builtin 分类表做装配期物理过滤（play 不含 edit 系/bash，work 不含
+// image_gen，shared 两空间通用）——不改运行时行为，ActiveSchemas 对齐不受影响。
+func addBuiltins(reg *tool.Registry, dir string, enabled, writeRoots []string, bashSpec sandbox.Spec, proxySpec netclient.ProxySpec, stderr io.Writer, space string) {
 	if len(enabled) == 0 {
 		for _, t := range tool.Builtins() {
-			reg.Add(t)
+			if builtin.AllowsSpace(t, space) {
+				reg.Add(t)
+			}
 		}
 	} else {
 		for _, name := range enabled {
-			if t, ok := tool.LookupBuiltin(name); ok {
-				reg.Add(t)
-			} else {
+			t, ok := tool.LookupBuiltin(name)
+			if !ok {
 				fmt.Fprintf(stderr, "warning: unknown built-in tool %q\n", name)
+				continue
+			}
+			if builtin.AllowsSpace(t, space) {
+				reg.Add(t)
 			}
 		}
 	}

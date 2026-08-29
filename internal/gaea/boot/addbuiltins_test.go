@@ -37,7 +37,7 @@ func TestAddBuiltins_WorkspaceDir(t *testing.T) {
 	}
 
 	reg := tool.NewRegistry()
-	addBuiltins(reg, wsDir, nil, []string{wsDir}, sandbox.Spec{}, netclient.ProxySpec{}, io.Discard)
+	addBuiltins(reg, wsDir, nil, []string{wsDir}, sandbox.Spec{}, netclient.ProxySpec{}, io.Discard, "")
 
 	readFile, ok := reg.Get("read_file")
 	if !ok {
@@ -72,7 +72,7 @@ func TestAddBuiltins_NoDir(t *testing.T) {
 	}
 
 	reg := tool.NewRegistry()
-	addBuiltins(reg, "", nil, nil, sandbox.Spec{}, netclient.ProxySpec{}, io.Discard)
+	addBuiltins(reg, "", nil, nil, sandbox.Spec{}, netclient.ProxySpec{}, io.Discard, "")
 
 	readFile, ok := reg.Get("read_file")
 	if !ok {
@@ -102,7 +102,7 @@ func TestAddBuiltins_EditToolsRegistered(t *testing.T) {
 	}
 
 	reg := tool.NewRegistry()
-	addBuiltins(reg, wsDir, nil, []string{wsDir}, sandbox.Spec{}, netclient.ProxySpec{}, io.Discard)
+	addBuiltins(reg, wsDir, nil, []string{wsDir}, sandbox.Spec{}, netclient.ProxySpec{}, io.Discard, "")
 
 	for _, name := range []string{"edit_file", "multi_edit", "edit_lines", "move_file", "grep"} {
 		if _, ok := reg.Get(name); !ok {

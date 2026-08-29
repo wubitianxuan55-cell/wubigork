@@ -114,6 +114,39 @@ func RenderTOML(c *Config) string {
 	b.WriteString(renderRuleList("ask", c.Permissions.Ask, `["write_file"]   # force a prompt even if otherwise allowed`))
 	b.WriteString("\n")
 
+	// S1.3-A/S1.5-A：按空间装配 profile（模型引用 + 权限策略段）。段缺失时
+	// 不输出任何内容——配置缺省 = 现状逐字节回退。
+	for _, k := range sortedSpaceProfileKeys(c.SpaceProfiles) {
+		p := c.SpaceProfiles[k]
+		fmt.Fprintf(&b, "[space_profiles.%s]\n", k)
+		b.WriteString("# 按空间装配：模型键引用现有模型选择键体系（ResolveModel 既有链），\n")
+		b.WriteString("# 空键 = 该域维持现状；permissions 子段为该空间权限策略（S1.5-A）。\n")
+		renderSpaceModelKey(&b, "chat", p.Chat)
+		renderSpaceModelKey(&b, "whisper", p.Whisper)
+		renderSpaceModelKey(&b, "novel", p.Novel)
+		renderSpaceModelKey(&b, "office", p.Office)
+		renderSpaceModelKey(&b, "gaea", p.Gaea)
+		renderSpaceModelKey(&b, "characterlib", p.CharacterLib)
+		renderSpaceModelKey(&b, "routine", p.Routine)
+		if perm := p.Permissions; perm != nil {
+			fmt.Fprintf(&b, "[space_profiles.%s.permissions]\n", k)
+			if perm.Mode != "" {
+				fmt.Fprintf(&b, "mode  = %q\n", perm.Mode)
+			} else {
+				b.WriteString("# mode  = \"allow\"   # writer 回退（ask|allow|deny；空 = 按空间缺省）\n")
+			}
+			// hard_ask 显式渲染（含空数组——空集 = 该空间不弹审批卡，语义字段）。
+			fmt.Fprintf(&b, "hard_ask = %s\n", renderStringArray(perm.HardAsk))
+			if perm.ApprovalTimeoutSecs > 0 {
+				fmt.Fprintf(&b, "approval_timeout_secs = %d\n", perm.ApprovalTimeoutSecs)
+			}
+			b.WriteString(renderRuleList("deny", perm.Deny, `["bash(rm -rf*)"]`))
+			b.WriteString(renderRuleList("allow", perm.Allow, `["bash(go test*)"]`))
+			b.WriteString(renderRuleList("ask", perm.Ask, `["write_file"]`))
+		}
+		b.WriteString("\n")
+	}
+
 	b.WriteString("[sandbox]\n")
 	b.WriteString("# Confine tool blast radius. File-writers (write_file/edit_file/multi_edit)\n")
 	b.WriteString("# may only write under workspace_root (empty = current dir) + allow_write.\n")
@@ -238,4 +271,25 @@ func formatFloat(f float64) string {
 		s += ".0"
 	}
 	return s
+}
+
+// sortedSpaceProfileKeys 返回按字典序排序的空间 profile 键，保证渲染确定性
+// （round-trip 干净）。
+func sortedSpaceProfileKeys(m map[string]SpaceProfile) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// renderSpaceModelKey 渲染单个空间模型键：非空输出活动行，空输出注释示例
+// （配置缺省 = 该域维持现状）。
+func renderSpaceModelKey(b *strings.Builder, key, ref string) {
+	if ref != "" {
+		fmt.Fprintf(b, "%s = %q\n", key, ref)
+		return
+	}
+	fmt.Fprintf(b, "# %s = \"provider/model\"   # 空 = 维持现状\n", key)
 }

@@ -56,7 +56,11 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 		// 极慢、看起来像“没流式输出”）。256k 下 80% 阈值≈204k，超限自动压缩。
 		ContextWindow: 256_000,
 	}}
-	// 全部 47 个工程工具注册（Enabled 为空 = 全部）
+	// 全部工程工具注册（Enabled 为空 = 全部）。S1.3-B：装配期按当前空间过滤
+	// ——boot.Build 读同一份配置的 EffectiveSessionSpace，在 addBuiltins/
+	// ExtraTools/MCP spec 层物理过滤（work=办公/编辑/检索域，play=生图/轻语域，
+	// shared 通用）；GaeaSpaceActivate 写 session.space 后下次引擎重建/重启
+	// 生效，与既有会话目录分区语义一致（运行中引擎不受影响）。
 	cfg.Tools.Enabled = nil
 	// 关闭写文件/网络类工具的沙箱限制，避免办公工具被无谓拦截
 	cfg.Sandbox.Bash = "off"

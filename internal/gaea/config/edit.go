@@ -6,6 +6,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/permission"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // edit.go is the programmatic mutation surface a settings UI drives: change the
@@ -155,6 +156,46 @@ func (c *Config) AddPermissionRule(list, rule string) error {
 		}
 	}
 	*target = append(*target, rule)
+	return nil
+}
+
+// AddPermissionRuleForSpace 把规则（"ToolName" / "ToolName(glob)"）追加到空间
+// 生效的 allow / ask / deny 列表（S1.5-A persist_allow 按空间分段回写）。
+// 回写目标跟随读取来源（PermissionsForSpace 的对称写端）：该空间已配置
+// [space_profiles.<space>.permissions] 段时写段内，否则写顶层 [permissions]
+// （现状路径；space 为空 = mode=off 或段不存在时恒顶层，不隐式创建段）。
+// 规则校验与幂等去重和 AddPermissionRule 一致。
+func (c *Config) AddPermissionRuleForSpace(space, list, rule string) error {
+	space = strings.ToLower(strings.TrimSpace(space))
+	if space == "" || !spaces.Valid(space) {
+		return c.AddPermissionRule(list, rule)
+	}
+	prof, ok := c.SpaceProfiles[space]
+	if !ok || prof.Permissions == nil {
+		return c.AddPermissionRule(list, rule)
+	}
+	rule = strings.TrimSpace(rule)
+	if _, ok := permission.ParseRule(rule); !ok {
+		return fmt.Errorf("invalid permission rule %q (want \"ToolName\" or \"ToolName(glob)\")", rule)
+	}
+	var target *[]string
+	switch strings.ToLower(strings.TrimSpace(list)) {
+	case listAllow:
+		target = &prof.Permissions.Allow
+	case listAsk:
+		target = &prof.Permissions.Ask
+	case listDeny:
+		target = &prof.Permissions.Deny
+	default:
+		return fmt.Errorf("unknown permission list %q (want allow|ask|deny)", list)
+	}
+	for _, existing := range *target {
+		if existing == rule {
+			return nil // already present
+		}
+	}
+	*target = append(*target, rule)
+	c.SpaceProfiles[space] = prof // map 值为结构体，写回才生效
 	return nil
 }
 
