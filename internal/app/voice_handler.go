@@ -110,6 +110,13 @@ func (a *mediaState) initVoice() {
 // setWhisperChatFn 设置默认对话回调（轻语人格化对话，搜索增强）
 func (a *mediaState) setWhisperChatFn() {
 	a.voiceManager.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
+		// v4.5 指令中枢（S4.3）：语音文本先过统一意图路由——命中即能力执行，
+		// 回复文本经下方同一 TTS 流程播报；未命中走原轻语对话管道。
+		if a.app != nil {
+			if reply, handled := a.app.routeIntent(userMsg); handled {
+				return reply, "CALM_RATIONAL", nil
+			}
+		}
 		result, err := a.app.WhisperChatWithSearch(userMsg, personalityID, false, false)
 		if err != nil {
 			return "", "", err

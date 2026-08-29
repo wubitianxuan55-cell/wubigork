@@ -50,6 +50,8 @@ export const BACKEND_EVENTS = {
   GAEA_TASK: 'gaea-task',
   /** 轻语主动关心定时推送（v4.3c 后续小步：payload 含 personalityID/messageType/promptHint/space） */
   WHISPER_PROACTIVE: 'gaea-whisper-proactive',
+  /** 指令中枢导航（v4.5：语音等入口的意图命中 → navigateBoard 自动切空间） */
+  INTENT_NAVIGATE: 'gaea-intent-navigate',
   /** 桥接就绪（bridge.ts onReady） */
   GAEA_READY: 'gaea-ready',
 } as const

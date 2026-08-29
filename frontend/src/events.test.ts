@@ -3,9 +3,9 @@ import { BACKEND_EVENTS, FRONTEND_EVENTS, chatStreamChannel, subscribe, subscrib
 
 // 3.0 01 报告 §4：22 后端事件（+v4.3c 轻语主动关心定时推送）+ 4 前端事件常量表 + subscribe 统一封装
 
-describe('BACKEND_EVENTS（§4.1，22 个）', () => {
-  it('共 22 个后端事件常量', () => {
-    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(22)
+describe('BACKEND_EVENTS（§4.1，23 个）', () => {
+  it('共 23 个后端事件常量', () => {
+    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(23)
   })
 
   it('常量名与事件名字面量一一对应（防复制笔误）', () => {

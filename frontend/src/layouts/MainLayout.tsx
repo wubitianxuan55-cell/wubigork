@@ -540,6 +540,18 @@ const MainLayout: React.FC = () => {
     setPage(target)
   }, [space, page, setSpace, visitedPages])
 
+  // v4.5 指令中枢（S4.4）：语音等入口的意图命中 → 壳层导航（自动切空间，
+  // 复用 navigateBoard 机制）。后端 intent_router.go emit。
+  useEffect(() => {
+    const unsub = subscribe(BACKEND_EVENTS.INTENT_NAVIGATE, (data: unknown) => {
+      const detail = data as { board?: string }
+      if (detail?.board && typeof detail.board === 'string') {
+        navigateBoard(detail.board as Page)
+      }
+    })
+    return unsub
+  }, [navigateBoard])
+
   return (
     <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'transparent' }}>
       {/* ── 未来感背景层（星云 + 网格 + 星点，fixed 且不拦截事件）── */}
