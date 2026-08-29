@@ -11,12 +11,15 @@ import {
   type ResourceMonitorData,
   type ResourceSnapshot,
 } from './resource'
+import { usePollingGate } from '../../hooks/usePollingGate'
 
 // 本地资源占用实时条：轮询 GetModelMonitor，展示 CPU/内存/GPU(显存) 与本地已启动模型。
 export function ResourceMonitor() {
   const [snap, setSnap] = useState<ResourceSnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState('')
+  // 系统级后台轮询治理：页面不可见（窗口最小化/切走）时轮询空转零成本
+  const pollable = usePollingGate()
 
   const load = useCallback(async () => {
     try {
@@ -31,10 +34,11 @@ export function ResourceMonitor() {
   }, [])
 
   useEffect(() => {
-    load()
-    const t = window.setInterval(load, 4000)
+    const tick = () => { if (!pollable) return; void load() }
+    tick()
+    const t = window.setInterval(tick, 4000)
     return () => window.clearInterval(t)
-  }, [load])
+  }, [load, pollable])
 
   const refreshBtn = (
     <Tooltip title="刷新资源">

@@ -22,6 +22,7 @@ import {
 import { getPageComponent } from '../boards/pageRegistry'
 import { subscribe, BACKEND_EVENTS, FRONTEND_EVENTS } from '../events'
 import { useFeatureModel } from '../hooks/useFeatureModel'
+import { usePollingGate } from '../hooks/usePollingGate'
 
 const { Content } = Layout
 
@@ -119,6 +120,8 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
   const [history, setHistory] = useState<{ cpu: number[]; mem: number[]; gpu: number[] }>({ cpu: [], mem: [], gpu: [] })
   const lastWarn = useRef<Record<string, number>>({})
   const reducedMotion = useRef(false)
+  // 系统级后台轮询治理：页面不可见（窗口最小化/切走）时轮询空转零成本
+  const visible = usePollingGate()
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
     reducedMotion.current = mq.matches
@@ -150,6 +153,7 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
       })
     }
     const load = async () => {
+      if (!visible) return
       try {
         const m = (await App.GetModelMonitor()) as ModelMonitor
         if (!alive) return
@@ -170,7 +174,7 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
     load()
     const t = setInterval(load, 3000)
     return () => { alive = false; clearInterval(t) }
-  }, [])
+  }, [visible])
 
   const ms = monitor?.stats
   const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0

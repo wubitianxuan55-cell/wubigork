@@ -12,6 +12,7 @@ import { setImageBackend as setImageBackendAPI } from '../api/settings'
 import { filterLorasByModel, loraFamily, loraFamiliesForModel } from '../utils/loraFilter'
 import { BACKEND_OPTIONS, classifyModel, loraLabel } from '../components/imagegen/meta'
 import type { ImageMode } from '../components/imagegen/types'
+import { usePollingGate } from './usePollingGate'
 
 /** 提取错误消息（unknown 收窄后统一取 message；无则用 fallback） */
 function errText(err: unknown, fallback: string): string {
@@ -48,6 +49,9 @@ export function useImageGenConfig() {
   const [sysStats, setSysStats] = useState<SystemStats | null>(null)
 
   const [characters, setCharacters] = useState<{ id: string; name: string }[]>([])
+
+  // 系统级后台轮询治理：页面不可见（窗口最小化/切走）时各轮询空转零成本
+  const pollable = usePollingGate()
 
   const comfyModels = useMemo(() => [
     { label: 'Krea2 Turbo', value: 'krea2' },
@@ -105,6 +109,7 @@ export function useImageGenConfig() {
     // ComfyUI 用专用状态 API，其他本地引擎用通用 testEngineConnection
     if (backend === 'comfyui') {
       const check = async () => {
+        if (!pollable) return
         try {
           const s = await getComfyUIStatus()
           const running = !!s?.running
@@ -119,6 +124,7 @@ export function useImageGenConfig() {
     }
 
     const check = async () => {
+      if (!pollable) return
       try {
         const status = await testEngineConnection(backend)
         setEngineRunning(!!status?.connected)
@@ -128,7 +134,7 @@ export function useImageGenConfig() {
     check()
     const timer = setInterval(check, 8000)
     return () => clearInterval(timer)
-  }, [backend])
+  }, [backend, pollable])
 
   // ── ComfyUI LoRA 列表动态加载 ──
   const refreshComfyLoras = useCallback(async () => {
@@ -147,15 +153,18 @@ export function useImageGenConfig() {
     setSelectedLoras((prev) => (list.length ? prev.filter((v) => list.includes(v)) : prev))
   }, [backend])
 
+  // 合并原「engineRunning 就绪触发」与「挂载 + 30s 轮询」两个 effect：挂载序列只发一次请求
+  // （engineRunning 初始恒为 false，就绪翻转时才立即拉取），非 ComfyUI 后端不再起 30s
+  // interval（原先每 tick 推新 [] 引用导致消费者无谓重渲染）
   useEffect(() => {
-    if (backend === 'comfyui' && engineRunning) refreshComfyLoras()
-  }, [backend, engineRunning, refreshComfyLoras])
-
-  useEffect(() => {
-    refreshComfyLoras()
-    const timer = setInterval(refreshComfyLoras, 30000)
+    if (backend !== 'comfyui') {
+      refreshComfyLoras() // 清理残留 LoRA 状态（仅一次，不起 interval）
+      return
+    }
+    if (engineRunning && pollable) refreshComfyLoras()
+    const timer = setInterval(() => { if (pollable) void refreshComfyLoras() }, 30000)
     return () => clearInterval(timer)
-  }, [refreshComfyLoras])
+  }, [backend, engineRunning, pollable, refreshComfyLoras])
 
   // 切换模型时清掉不属于该模型族的已选 LoRA，避免提交无效 lora_name
   useEffect(() => {
@@ -166,6 +175,7 @@ export function useImageGenConfig() {
   // ── 系统状态轮询（所有后端显示 CPU+内存，GPU 仅 ComfyUI） ──
   useEffect(() => {
     const fetchStats = async () => {
+      if (!pollable) return
       try {
         const s = await getSystemStats()
         if (s) setSysStats(s)
@@ -174,7 +184,7 @@ export function useImageGenConfig() {
     fetchStats()
     const timer = setInterval(fetchStats, 5000)
     return () => clearInterval(timer)
-  }, [backend])
+  }, [backend, pollable])
 
   // ── 切换后端 ──
   const handleSwitchBackend = useCallback(async (newBackend: string) => {

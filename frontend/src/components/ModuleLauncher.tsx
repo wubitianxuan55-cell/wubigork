@@ -16,6 +16,7 @@ import { deriveLauncherModules, LAUNCHER_DESC, type LauncherModule } from '../bo
 import { Tooltip } from 'antd'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { useAppStore } from '../stores/appStore'
+import { usePollingGate } from '../hooks/usePollingGate'
 import * as App from '../../src/wailsjsCompat'
 import './module-launcher.css'
 
@@ -216,9 +217,12 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
 
   // ── 遥测：引擎 + 资源（轮询 GetModelMonitor，对齐底栏遥测数据源）──
   const [monitor, setMonitor] = useState<ModelMonitor | null>(null)
+  // 系统级后台轮询治理：页面不可见（窗口最小化/切走）时轮询空转零成本
+  const pollable = usePollingGate()
   useEffect(() => {
     let alive = true
     const load = async () => {
+      if (!pollable) return
       try {
         const m = (await App.GetModelMonitor()) as ModelMonitor
         if (alive) setMonitor(m)
@@ -227,7 +231,7 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
     load()
     const t = window.setInterval(load, 3000)
     return () => { alive = false; window.clearInterval(t) }
-  }, [])
+  }, [pollable])
 
   // ── 最近会话（办公工作区真实数据）──
   const [sessions, setSessions] = useState<SessionLite[]>([])
