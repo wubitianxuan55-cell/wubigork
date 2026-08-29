@@ -65,6 +65,10 @@ type Memory struct {
 	Kind        Kind     // cognitive function: semantic / episodic / procedural
 	Tags        []string // trigger tags for episodic memories (empty for others)
 	Body        string   // the fact itself (Markdown)
+	// 空间归属（S1 双空间列落库，facts.space_id）：写入端携带，零值缺省
+	// "work"；SQLite 后端落列，file 后端不落盘（按项目目录天然隔离）。
+	// 读取端暂不回填（S1 读端只做 ListInSpace 谓词过滤，见 store.go）。
+	Space string
 	// 生命周期与溯源（SQLite 后端持久化；file 后端不落盘，语义为空）：
 	UpdatedAt     time.Time // 最近一次写入/修订时间（近期排序用）
 	LastUsedAt    time.Time // 最近一次被模型读取/检索的时间（高频排序用）
@@ -96,6 +100,9 @@ type backend interface {
 	ChangeType(name string, newType Type) error
 	Touch(name string) error
 	List() []Memory
+	// ListInSpace 按空间过滤活跃事实（S1 双空间读谓词）：space 为空不过滤
+	// （与 List 等价，既有调用零变化），非空时仅返回该 space_id 下的行。
+	ListInSpace(space string) []Memory
 	ListArchived() []ArchivedMemory
 	// T6-8.2 生命周期：归档分页视图 + 超期硬删（返回被删行供审计）。
 	ListArchivedPaged(limit, offset int) ([]ArchivedMemory, int, error)
@@ -197,6 +204,12 @@ func (s Store) Touch(name string) error { return s.engine().Touch(name) }
 // List returns the saved memories, sorted by name. Used by /memory and the
 // desktop memory panel.
 func (s Store) List() []Memory { return s.engine().List() }
+
+// ListInSpace returns the saved memories filtered by space（S1 双空间读谓词）:
+// "" lists across spaces（与 List 等价，既有调用零变化）；非空 space 仅返回
+// 该空间下的事实（SQLite 后端 WHERE space_id=?；file 后端按项目目录天然隔离，
+// 与 List 等价）。
+func (s Store) ListInSpace(space string) []Memory { return s.engine().ListInSpace(space) }
 
 // ListArchived returns archived memories, newest first. Archived facts stay
 // out of List() and the prompt index, so stale facts remain inspectable without

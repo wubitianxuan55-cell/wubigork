@@ -290,3 +290,38 @@ func TestTickPriceCronDedup(t *testing.T) {
 }
 
 var _ = os.Getenv // keep os import if unused in future edits
+
+// TestGaeaTaskListSpacePassthrough S1 双空间透传回归：绑定入口 GaeaTaskList
+// 零参数 = 不过滤（旧行为零变化）；未导出 taskListInSpace 按空间过滤。
+func TestGaeaTaskListSpacePassthrough(t *testing.T) {
+	a := newTestTaskApp(t)
+	// 不 Start：任务停在 queued，列表可读
+	tkWork, err := a.officeState.tasks.Submit(tasks.KindPriceFetch, "work 任务", map[string]any{"sourceId": "nope"})
+	if err != nil {
+		t.Fatalf("submit work: %v", err)
+	}
+	tkPlay, err := a.officeState.tasks.SubmitSpace(tasks.KindPriceFetch, "play 任务", nil, "play")
+	if err != nil {
+		t.Fatalf("submit play: %v", err)
+	}
+
+	// 绑定入口（零参数）= 跨空间全量
+	if l := a.GaeaTaskList(); len(l) != 2 {
+		t.Fatalf("GaeaTaskList() = %d 条, want 2（不过滤）", len(l))
+	}
+	// 透传按空间过滤
+	if l := a.taskListInSpace("work"); len(l) != 1 || l[0].ID != tkWork.ID {
+		t.Fatalf("taskListInSpace(work) = %+v, want [tkWork]", l)
+	}
+	if l := a.taskListInSpace("play"); len(l) != 1 || l[0].ID != tkPlay.ID {
+		t.Fatalf("taskListInSpace(play) = %+v, want [tkPlay]", l)
+	}
+	// 空 space = 不过滤
+	if l := a.taskListInSpace(""); len(l) != 2 {
+		t.Fatalf("taskListInSpace(\"\") = %d 条, want 2", len(l))
+	}
+	// 未知空间 = 空集
+	if l := a.taskListInSpace("none"); len(l) != 0 {
+		t.Fatalf("taskListInSpace(none) = %d 条, want 0", len(l))
+	}
+}

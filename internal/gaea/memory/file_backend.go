@@ -195,6 +195,10 @@ func (b *fileBackend) List() []Memory {
 	return out
 }
 
+// ListInSpace 按空间过滤（S1 双空间读谓词）：file 后端按项目目录天然隔离、
+// 无空间维度，与 List 等价返回全量（S2 目录分区时再接空间谓词）。
+func (b *fileBackend) ListInSpace(string) []Memory { return b.List() }
+
 // ListArchivedPaged 返回归档文件的分页视图（按归档时间倒序）：总量 + 当前页。
 // 与 sqliteBackend 同语义；文件后端归档时间取文件名时间戳前缀，缺失时回退
 // 文件修改时间。

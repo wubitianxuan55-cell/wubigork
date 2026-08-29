@@ -70,13 +70,23 @@ func (a *App) emitTaskEvent(t tasks.Task) {
 	a.emit("gaea-task", m)
 }
 
-// GaeaTaskList 返回最近任务（新→旧，供任务中心）。
+// GaeaTaskList 返回最近任务（新→旧，供任务中心）。空间维度（S1 双空间）：
+// 绑定入口保持零参数 = 不过滤（跨空间全量，旧行为零变化）；space.mode 开关
+// 由 S2 接线后在绑定层透传当前空间。
 func (a *App) GaeaTaskList() []tasks.Task {
+	return a.taskListInSpace("")
+}
+
+// taskListInSpace 按空间返回最近任务（新→旧）：space 为空不过滤（旧行为零
+// 变化），非空经 tasks.Manager.ListInSpace 落 WHERE space_id=?。未导出是有意
+// 之为：绑定面（bindings_office.go 生成物 + TestBindingsCompleteness 方法集
+// 对账）保持不动，绑定面透传属 S4（gen_bindings 重新生成 + 前端同步）。
+func (a *App) taskListInSpace(space string) []tasks.Task {
 	m := a.taskMgr()
 	if m == nil || !m.Available() {
 		return nil
 	}
-	list, err := m.List(50)
+	list, err := m.ListInSpace(50, space)
 	if err != nil {
 		slog.Warn("tasks: 列表读取失败", "error", err)
 		return nil

@@ -43,6 +43,10 @@ func (b *sqliteBackend) Path(name string) string {
 	return fmt.Sprintf("hephaestus.db://%s/%s", b.project, slug(name))
 }
 
+// defaultFactSpace 是事实的空间缺省值（S1 双空间：写入端零值 = work，
+// space.mode 开关由 S2 接线）。
+const defaultFactSpace = "work"
+
 func (b *sqliteBackend) Save(m Memory) (string, error) {
 	name := slug(m.Name)
 	if name == "" {
@@ -55,19 +59,24 @@ func (b *sqliteBackend) Save(m Memory) (string, error) {
 			tags = string(b)
 		}
 	}
+	space := m.Space
+	if space == "" {
+		space = defaultFactSpace
+	}
 	_, err := b.db.Exec(`
-INSERT INTO facts(project, name, title, description, type, kind, tags, body, archived, created_at, updated_at, last_used_at, source_session, source_message)
-VALUES(?,?,?,?,?,?,?,?,0,?,?,?,?,?)
+INSERT INTO facts(project, name, title, description, type, kind, tags, body, archived, created_at, updated_at, last_used_at, source_session, source_message, space_id)
+VALUES(?,?,?,?,?,?,?,?,0,?,?,?,?,?,?)
 ON CONFLICT(project, name) DO UPDATE SET
   title=excluded.title, description=excluded.description,
   type=excluded.type, kind=excluded.kind, tags=excluded.tags,
   body=excluded.body, archived=0, updated_at=excluded.updated_at,
   last_used_at=CASE WHEN excluded.last_used_at != '' THEN excluded.last_used_at ELSE facts.last_used_at END,
   source_session=excluded.source_session,
-  source_message=excluded.source_message`,
+  source_message=excluded.source_message,
+  space_id=excluded.space_id`,
 		b.project, name, m.Title, m.Description,
 		string(NormalizeType(string(m.Type))), string(NormalizeKind(string(m.Kind))),
-		tags, m.Body, now, now, fmtTime(m.LastUsedAt), m.SourceSession, m.SourceMessage)
+		tags, m.Body, now, now, fmtTime(m.LastUsedAt), m.SourceSession, m.SourceMessage, space)
 	if err != nil {
 		return "", err
 	}
@@ -151,10 +160,25 @@ func (b *sqliteBackend) Touch(name string) error {
 }
 
 func (b *sqliteBackend) List() []Memory {
-	rows, err := b.db.Query(
-		`SELECT name, title, description, type, kind, tags, body, created_at, updated_at, last_used_at, source_session, source_message
-		 FROM facts WHERE project=? AND archived=0 ORDER BY name`,
-		b.project)
+	return b.listInSpace("")
+}
+
+// ListInSpace 返回活跃事实，按空间过滤（S1 双空间读谓词）：space 为空不过滤
+// （旧行为恒真，既有调用零变化），非空时仅返回该 space_id 下的行。
+func (b *sqliteBackend) ListInSpace(space string) []Memory {
+	return b.listInSpace(space)
+}
+
+func (b *sqliteBackend) listInSpace(space string) []Memory {
+	query := `SELECT name, title, description, type, kind, tags, body, created_at, updated_at, last_used_at, source_session, source_message
+		 FROM facts WHERE project=? AND archived=0`
+	args := []any{b.project}
+	if space != "" {
+		query += ` AND space_id=?`
+		args = append(args, space)
+	}
+	query += ` ORDER BY name`
+	rows, err := b.db.Query(query, args...)
 	if err != nil {
 		return nil
 	}

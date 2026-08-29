@@ -333,3 +333,14 @@ ALTER TABLE cost_entries ADD COLUMN profit_fee REAL NOT NULL DEFAULT 0;
 ALTER TABLE cost_entries ADD COLUMN advance_fee REAL NOT NULL DEFAULT 0;
 ALTER TABLE cost_entries ADD COLUMN tax_rate REAL NOT NULL DEFAULT 0;
 `
+
+// SchemaV14 双空间维度 S1 列落库（docs/gaea-space-dimension-design.md §1-2）：
+// facts/tasks 增加 space_id（work/play；ADD COLUMN NOT NULL DEFAULT 'work'
+// 对既有行零成本回填为 work），配空间过滤索引。不动 facts UNIQUE(project,name)
+// （SQLite 不能 ALTER 约束，跨空间同名冲突留 S1.2 决策）。
+const SchemaV14 = `
+ALTER TABLE facts ADD COLUMN space_id TEXT NOT NULL DEFAULT 'work';
+CREATE INDEX IF NOT EXISTS idx_facts_space ON facts(project, space_id);
+ALTER TABLE tasks ADD COLUMN space_id TEXT NOT NULL DEFAULT 'work';
+CREATE INDEX IF NOT EXISTS idx_tasks_space ON tasks(space_id, status);
+`

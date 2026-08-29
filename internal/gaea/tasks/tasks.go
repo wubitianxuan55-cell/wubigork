@@ -60,6 +60,10 @@ type Task struct {
 	StartedAt  int64  `json:"startedAt"`
 	FinishedAt int64  `json:"finishedAt"`
 
+	// 空间归属（S1 双空间列落库，SchemaV14 space_id 列）：零值/空串按 "work"
+	// 落库（提交入口 SubmitSpace 归一化）；读取端 Get/List 原样回带。
+	Space string `json:"spaceId,omitempty"`
+
 	// 以下为事件视图字段（不落库）：appendOutput / markTerminal 触发的
 	// gaea-task 事件携带输出尾部整尾回放（C9 事件驱动 + 轮询兜底）；
 	// Get/List 查询与进度事件返回时为空（omitempty），载荷有界（环形缓冲上限）。
@@ -336,14 +340,28 @@ func (m *Manager) Close() {
 	})
 }
 
-// Submit 提交一个新任务（queued 入队），返回任务视图。
+// defaultTaskSpace 是任务的空间缺省值（S1 双空间：旧调用零值 = work，
+// space.mode 开关由 S2 接线）。
+const defaultTaskSpace = "work"
+
+// Submit 提交一个新任务（queued 入队），返回任务视图。空间归属缺省 "work"
+// （等价 SubmitSpace(kind, label, payload, "")，既有调用零变化）。
 func (m *Manager) Submit(kind Kind, label string, payload map[string]any) (*Task, error) {
+	return m.SubmitSpace(kind, label, payload, "")
+}
+
+// SubmitSpace 提交一个带空间归属的新任务（S1 双空间）：space 为空按 "work"
+// 落库，非空原样写 space_id（work/play 合法值由 S2 spaces 包校验）。
+func (m *Manager) SubmitSpace(kind Kind, label string, payload map[string]any, space string) (*Task, error) {
 	if m == nil || m.db == nil {
 		return nil, fmt.Errorf("任务调度器不可用")
 	}
 	pb, _ := json.Marshal(payload)
 	if pb == nil {
 		pb = []byte("{}")
+	}
+	if space == "" {
+		space = defaultTaskSpace
 	}
 	t := &Task{
 		ID:         newID(),
@@ -353,10 +371,11 @@ func (m *Manager) Submit(kind Kind, label string, payload map[string]any) (*Task
 		Payload:    string(pb),
 		MaxRetries: m.opts.MaxRetries,
 		CreatedAt:  nowMillis(),
+		Space:      space,
 	}
-	if _, err := m.db.Exec(`INSERT INTO tasks(id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at)
-VALUES(?,?,?,?,0,'','',0,?,?,'',?,0,0)`,
-		t.ID, t.Kind, t.Label, t.Status, t.MaxRetries, t.Payload, t.CreatedAt); err != nil {
+	if _, err := m.db.Exec(`INSERT INTO tasks(id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at,space_id)
+VALUES(?,?,?,?,0,'','',0,?,?,'',?,0,0,?)`,
+		t.ID, t.Kind, t.Label, t.Status, t.MaxRetries, t.Payload, t.CreatedAt, t.Space); err != nil {
 		return nil, fmt.Errorf("任务入队失败: %w", err)
 	}
 	m.emitView(t)
@@ -369,7 +388,7 @@ func (m *Manager) Get(id string) (*Task, error) {
 	if m == nil || m.db == nil {
 		return nil, fmt.Errorf("任务调度器不可用")
 	}
-	row := m.db.QueryRow(`SELECT id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at FROM tasks WHERE id=?`, id)
+	row := m.db.QueryRow(`SELECT id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at,space_id FROM tasks WHERE id=?`, id)
 	t, err := scanTask(row)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("任务不存在: %s", id)
@@ -377,15 +396,29 @@ func (m *Manager) Get(id string) (*Task, error) {
 	return t, err
 }
 
-// List 返回最近 limit 条任务（新→旧）。
+// List 返回最近 limit 条任务（新→旧，跨空间全量；等价 ListInSpace(limit, "")）。
 func (m *Manager) List(limit int) ([]*Task, error) {
+	return m.ListInSpace(limit, "")
+}
+
+// ListInSpace 返回最近 limit 条任务（新→旧），按空间过滤（S1 双空间谓词）：
+// space 为空不过滤（旧行为恒真，既有调用零变化）；非空时 WHERE space_id=?。
+func (m *Manager) ListInSpace(limit int, space string) ([]*Task, error) {
 	if m == nil || m.db == nil {
 		return nil, nil
 	}
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := m.db.Query(`SELECT id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at FROM tasks ORDER BY created_at DESC LIMIT ?`, limit)
+	query := `SELECT id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at,space_id FROM tasks`
+	args := []any{}
+	if space != "" {
+		query += ` WHERE space_id=?`
+		args = append(args, space)
+	}
+	query += ` ORDER BY created_at DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := m.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -523,7 +556,7 @@ type scanner interface {
 func scanTask(s scanner) (*Task, error) {
 	var t Task
 	err := s.Scan(&t.ID, &t.Kind, &t.Label, &t.Status, &t.Progress, &t.Message, &t.Error,
-		&t.RetryCount, &t.MaxRetries, &t.Payload, &t.Result, &t.CreatedAt, &t.StartedAt, &t.FinishedAt)
+		&t.RetryCount, &t.MaxRetries, &t.Payload, &t.Result, &t.CreatedAt, &t.StartedAt, &t.FinishedAt, &t.Space)
 	if err != nil {
 		return nil, err
 	}
@@ -539,7 +572,7 @@ func (m *Manager) resumeInterrupted() (int, error) {
 	}
 	n, _ := res.RowsAffected()
 	if n > 0 {
-		rows, err := m.db.Query(`SELECT id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at FROM tasks WHERE status=? ORDER BY created_at`, string(StatusQueued))
+		rows, err := m.db.Query(`SELECT id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at,space_id FROM tasks WHERE status=? ORDER BY created_at`, string(StatusQueued))
 		if err == nil {
 			for rows.Next() {
 				if t, err := scanTask(rows); err == nil {
@@ -703,7 +736,7 @@ func (m *Manager) callHandler(h Handler, ctx context.Context, t *Task, p *Progre
 
 // GetFirstQueued 返回最早的 queued 任务（无则 nil）。
 func (m *Manager) GetFirstQueued() (*Task, error) {
-	row := m.db.QueryRow(`SELECT id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at FROM tasks WHERE status=? ORDER BY created_at ASC LIMIT 1`, string(StatusQueued))
+	row := m.db.QueryRow(`SELECT id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at,space_id FROM tasks WHERE status=? ORDER BY created_at ASC LIMIT 1`, string(StatusQueued))
 	t, err := scanTask(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
