@@ -1,12 +1,20 @@
 # 任务进度
 
-> 最后更新: 2026-08-29（v4.3.0 发布：阶段 3+ 第二发——乐园做深）
+> 最后更新: 2026-08-29（v4.3.0 桌面端发布完成，冒烟 200）
 
 ## 当前状态
 
 - **最新发布：v4.3.0（2026-08-29）**——v4.3 乐园做深（会客厅关系记忆/主动关心/
   情感语音 + 创作间图文联动，§10.4）。验证：Go 全量绿；vitest 769/769（+10）；
   tsc -b / eslint 0；绑定面 522 漂移 PASS（+5）；spaceBindings 233 全覆盖。
+- **桌面端产物（2026-08-29）**：`releases/gaea-v4.3.0.exe`（36,551,680 字节 ≈ 34.9MB，
+  SHA256 `7b8d3cf4a22945aca4ba00d832a54800830a52e7dd5dff33e67fbdffb123154a`，
+  见 releases/SHA256SUMS-v4.3.0.txt）；wails v2.13.0 构建（42s）+ 冒烟
+  /api/health 200（GAEA_HTTP_PORT=18999 隔离）；旧 2 版（v3.0.8/v3.1.0）归档
+  releases/archive/，本地保留 5 版（v3.1.1/3.2.0/3.4.0/3.5.0/4.3.0）。
+- 构建注意：wails build 走 `build.bat` 的 TMP/TEMP 重定向到 `.tmp`（规避 SAC
+  策略拦截）；v4.3.0 构建期修复 WhisperGraphPanel SVG `title`→`aria-label`
+  （tsc -b 门禁 TS2322，独立 fix 提交）。
 
 ## 长期规划（权威文档）
 
