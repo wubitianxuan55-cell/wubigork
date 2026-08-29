@@ -81,6 +81,8 @@ export const en = {
   "sidebar.viewAll": "All",
   "sidebar.noRecent": "No recent chats",
   "sidebar.search": "Search chats…",
+  "sidebar.space": "Space",
+  "sidebar.spaceHint": "Dual space: deliverables are partitioned by space; activation persists and takes effect on next engine rebuild/restart",
   "sidebar.workspace": "Workspace",
   "sidebar.changeWorkspace": "Change",
   "sidebar.collapse": "Collapse sidebar",

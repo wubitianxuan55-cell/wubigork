@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/xuri/excelize/v2"
+
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // ExportDeliverableInput 是统一交付出口的入参：受控 Markdown + 目标格式。
@@ -68,7 +70,8 @@ func (a *App) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverabl
 		in.Footer = "第 {page} 页"
 	}
 
-	exportsDir := filepath.Join(gaeaCwd(), ".gaea", "exports")
+	// S4 产物路径分区：work 恒 .gaea/exports（现状不动），play 落 .gaea/play/exports。
+	exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
 	if err := os.MkdirAll(exportsDir, 0o755); err != nil {
 		return ExportDeliverableResult{}, err
 	}

@@ -184,6 +184,22 @@ export interface WorkspaceView {
   current: boolean;
 }
 
+// SpaceOption 是双空间静态枚举项（GaeaSpaceList，work/play 固定两值）。
+export interface SpaceOption {
+  id: string; // "work" | "play"
+  title: string; // 展示名（办公空间/娱乐空间）
+  desc: string; // 一句话说明
+}
+
+// SpaceActiveView 是当前生效空间视图（GaeaSpaceActive / GaeaSpaceActivate）。
+// space.mode=off 时分区整体关闭，space 恒报 work（modeOn=false 标记关闭态）。
+export interface SpaceActiveView {
+  space: string; // "work" | "play"
+  modeOn: boolean;
+  exportsDir: string; // 当前生效产物目录（工作区相对，如 .gaea/exports）
+  workDir: string; // 当前生效过程目录（工作区相对）
+}
+
 export interface ContextInfo {
   used: number;
   window: number;

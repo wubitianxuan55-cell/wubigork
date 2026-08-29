@@ -21,6 +21,9 @@ func (b *CoreB) CreateProject(dir string, title string, genre string, style stri
 func (b *CoreB) DeleteProject(dir string) error { return b.a.DeleteProject(dir) }
 func (b *CoreB) ExportAll() (map[string]string, error) { return b.a.ExportAll() }
 func (b *CoreB) ExportHTML(templateName string) (map[string]interface{}, error) { return b.a.ExportHTML(templateName) }
+func (b *CoreB) GaeaSpaceActivate(space string) (SpaceActiveView, error) { return b.a.GaeaSpaceActivate(space) }
+func (b *CoreB) GaeaSpaceActive() SpaceActiveView { return b.a.GaeaSpaceActive() }
+func (b *CoreB) GaeaSpaceList() []SpaceOption { return b.a.GaeaSpaceList() }
 func (b *CoreB) GetActiveOCRModel() map[string]string { return b.a.GetActiveOCRModel() }
 func (b *CoreB) GetAppInfo() map[string]interface{} { return b.a.GetAppInfo() }
 func (b *CoreB) GetBoardManifests() []board.Manifest { return b.a.GetBoardManifests() }

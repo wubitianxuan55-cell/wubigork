@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // ZipDeliverableResult 是会话产物打包结果（工作区相对路径）。
@@ -54,7 +56,8 @@ func (a *App) GaeaZipDeliverables(paths []string) (ZipDeliverableResult, error) 
 		return ZipDeliverableResult{}, fmt.Errorf("会话产物文件都不存在或不可访问")
 	}
 
-	exportsDir := filepath.Join(gaeaCwd(), ".gaea", "exports")
+	// S4 产物路径分区：work 恒 .gaea/exports（现状不动），play 落 .gaea/play/exports。
+	exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
 	if err := os.MkdirAll(exportsDir, 0o755); err != nil {
 		return ZipDeliverableResult{}, err
 	}

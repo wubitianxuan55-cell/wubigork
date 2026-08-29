@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/proc"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // ── PDF 导出：LibreOffice 无头转换 ──────────────────────────
@@ -90,7 +91,8 @@ func (a *App) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) {
 		defer os.RemoveAll(tmpDir)
 	}
 
-	exportsDir := filepath.Join(gaeaCwd(), ".gaea", "exports")
+	// S4 产物路径分区：work 恒 .gaea/exports（现状不动），play 落 .gaea/play/exports。
+	exportsDir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
 	if err := os.MkdirAll(exportsDir, 0o755); err != nil {
 		return ConvertPdfResult{}, err
 	}

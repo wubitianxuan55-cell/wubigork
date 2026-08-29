@@ -62,6 +62,8 @@ import type {
   UpdateProgress,
   WireEvent,
   WorkspaceView,
+  SpaceOption,
+  SpaceActiveView,
   MemoryHubOverview,
   ProfileFactView,
   ProgrammingWebLogTail,
@@ -155,6 +157,11 @@ export interface AppBindings {
   ListWorkspaces(): Promise<WorkspaceView[]>;
   PickWorkspace(): Promise<string>;
   SwitchWorkspace(path: string): Promise<string>;
+  // 双空间（S4，设计 §6）：work/play 静态枚举、当前生效空间、切换持久化。
+  // Activate 只写配置（非法 space 拒绝）；生效时机为下次引擎重建/重启。
+  GaeaSpaceList(): Promise<SpaceOption[]>;
+  GaeaSpaceActive(): Promise<SpaceActiveView>;
+  GaeaSpaceActivate(space: string): Promise<SpaceActiveView>;
   ContextUsage(): Promise<ContextInfo>;
   // ContextView 返回当前会话的上下文构成快照（dsh-context Go 移植 Phase A）：
   // 六分类当前组成、逐请求趋势、上下文事件、模型可见节点与归档。

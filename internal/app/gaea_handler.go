@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/BurntSushi/toml"
@@ -15,6 +14,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/provider/bridge"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tool"
 	"github.com/gaea/gaea/internal/modelengine"
 )
@@ -176,9 +176,22 @@ func (a *App) GaeaInit() error {
 	}
 	// 文件落盘规范配套：过程/中间文件统一目录 .gaea/work/（脚本、OCR 页图、
 	// 中间文本等），交付物 .gaea/exports/，避免与源文件混在工作空间根目录。
-	for _, sub := range []string{"work", "exports"} {
-		if err := os.MkdirAll(filepath.Join(gaeaCwd(), ".gaea", sub), 0o755); err != nil {
-			slog.Warn("创建工作区 .gaea 子目录失败", "dir", sub, "error", err)
+	// S4 双空间：work 侧现状目录恒建（兼容红线，不挪目录）；当前生效空间为
+	// play 时追加创建 .gaea/play/{work,exports} 分区目录（space.mode=off 时
+	// 生效空间为空，行为与改造前一致）。注意：GaeaInit 持有 ga.mu，空间取
+	// 本地 cfg 计算而非 gaeaEffectiveSpace()（其内部加锁会死锁）。
+	spaceDirs := []string{
+		spaces.WorkDir(gaeaCwd(), spaces.SpaceWork),
+		spaces.ExportsDir(gaeaCwd(), spaces.SpaceWork),
+	}
+	if cfg.EffectiveSessionSpace() == spaces.SpacePlay {
+		spaceDirs = append(spaceDirs,
+			spaces.WorkDir(gaeaCwd(), spaces.SpacePlay),
+			spaces.ExportsDir(gaeaCwd(), spaces.SpacePlay))
+	}
+	for _, dir := range spaceDirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			slog.Warn("创建工作区 .gaea 子目录失败", "dir", dir, "error", err)
 		}
 	}
 	// loader 无锁读 ga.cfg：ga.cfg 指针的替换在持锁下进行，读取方只会拿到

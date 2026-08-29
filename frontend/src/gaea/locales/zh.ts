@@ -84,6 +84,8 @@ export const zh: Record<DictKey, string> = {
   "sidebar.viewAll": "全部",
   "sidebar.noRecent": "还没有最近会话",
   "sidebar.search": "搜索会话…",
+  "sidebar.space": "空间",
+  "sidebar.spaceHint": "双空间：交付物落点随空间分区；切换持久化后于下次引擎重建/重启生效",
   "sidebar.workspace": "工作区",
   "sidebar.changeWorkspace": "更改",
   "sidebar.collapse": "收起侧边栏",

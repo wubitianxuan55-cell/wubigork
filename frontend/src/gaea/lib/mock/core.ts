@@ -10,6 +10,7 @@ import type { MakeMockState } from "./state";
 type CoreMethods = Pick<
   AppBindings,
   | "ListWorkspaces" | "PickWorkspace" | "SwitchWorkspace"
+  | "GaeaSpaceList" | "GaeaSpaceActive" | "GaeaSpaceActivate"
   | "ContextUsage" | "ContextView" | "Trajectory" | "AgentNetwork" | "TCCAReport" | "Jobs"
   | "Meta" | "Commands" | "Capabilities"
   | "AddMCPServer" | "RemoveMCPServer" | "RetryMCPServer" | "SetMCPServerEnabled"
@@ -339,6 +340,27 @@ export function buildCore(s: MakeMockState): CoreMethods {
     },
     async StopProgrammingWeb() {
       throw new Error("浏览器开发模式无 gaea 自启进程");
+    },
+    // 双空间（S4）：mock 会话内可切换（真实后端 Activate 只写配置，重启后生效）。
+    async GaeaSpaceList() {
+      await delay(80);
+      return [
+        { id: "work", title: "办公空间", desc: "交付物落 .gaea/exports（现状路径）" },
+        { id: "play", title: "娱乐空间", desc: "交付物落 .gaea/play/exports（分区）" },
+      ];
+    },
+    async GaeaSpaceActive() {
+      await delay(80);
+      return { space: "work", modeOn: true, exportsDir: ".gaea/exports", workDir: ".gaea/work" };
+    },
+    async GaeaSpaceActivate(space: string) {
+      await delay(120);
+      if (space !== "work" && space !== "play") {
+        throw new Error(`非法空间 ${space}（仅 work|play）`);
+      }
+      return space === "play"
+        ? { space, modeOn: true, exportsDir: ".gaea/play/exports", workDir: ".gaea/play/work" }
+        : { space, modeOn: true, exportsDir: ".gaea/exports", workDir: ".gaea/work" };
     },
   };
 }

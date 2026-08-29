@@ -14,6 +14,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/knowledge"
 	"github.com/gaea/gaea/internal/gaea/knowledgeimport"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // knowledgeHistoryDBOverride 测试注入隔离的历史库（避免触碰真实 Hephaestus.db）。
@@ -143,7 +144,10 @@ func (a *App) GaeaKnowledgeExport(dir string) (int, error) {
 		return 0, err
 	}
 	if strings.TrimSpace(dir) == "" {
-		dir = filepath.Join(gaeaCwd(), ".gaea", "exports", "knowledge-"+time.Now().Format("20060102"))
+		// S4：knowledge 域仅 work 侧读写（设计 §5），导出目录固定 work 现状
+		// 路径，不随会话空间分区。
+		dir = filepath.Join(spaces.ExportsDir(gaeaCwd(), spaces.SpaceWork),
+			"knowledge-"+time.Now().Format("20060102"))
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return 0, err

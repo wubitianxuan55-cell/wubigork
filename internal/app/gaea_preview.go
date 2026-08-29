@@ -54,8 +54,9 @@ var imageExts = map[string]bool{
 }
 
 // previewSearchDirs 裸文件名预览的常见输出目录（按优先级）。
+// S4 产物路径分区：.gaea/play/exports 与 .gaea/exports 并列可检索。
 var previewSearchDirs = []string{
-	"exports", ".gaea/exports", "outputs", "reports", "docs",
+	"exports", ".gaea/exports", ".gaea/play/exports", "outputs", "reports", "docs",
 	".gaea/uploads", "uploads", "attachments", ".gaea/attachments",
 	"templates", ".gaea/templates",
 }

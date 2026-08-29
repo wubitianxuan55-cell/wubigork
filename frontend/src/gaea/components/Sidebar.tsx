@@ -18,6 +18,7 @@ import { app } from "../lib/bridge";
 import { useToast } from "./Toast";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import FeatureModelBar from "../../components/FeatureModelBar";
+import SpaceChip from "./SpaceChip";
 
 export interface SidebarProps {
   collapsed: boolean;
@@ -589,6 +590,8 @@ export function Sidebar({
               <Blocks size={15} className="shrink-0 text-fg-faint" />
               <span className="flex-1 min-w-0 truncate text-left">{t("caps.title")}</span>
             </button>
+            {/* S4 双空间：当前生效空间 + 切换入口（绑定不可用时自行隐藏） */}
+            <SpaceChip disabled={running} />
           </div>
         )}
 

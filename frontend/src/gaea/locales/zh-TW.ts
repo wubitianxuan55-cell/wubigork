@@ -84,6 +84,8 @@ export const zhTW: Record<DictKey, string> = {
   "sidebar.viewAll": "全部",
   "sidebar.noRecent": "暫無最近對話",
   "sidebar.search": "搜尋對話…",
+  "sidebar.space": "空間",
+  "sidebar.spaceHint": "雙空間：交付物落點隨空間分區；切換持久化後於下次引擎重建/重啟生效",
   "sidebar.workspace": "工作區",
   "sidebar.changeWorkspace": "切換",
   "sidebar.collapse": "收起側邊欄",

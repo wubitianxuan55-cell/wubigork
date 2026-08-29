@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // TaskTemplate 是预置办公任务模板（P1-③ 任务模板库）。
@@ -53,16 +55,44 @@ var taskTemplates = []TaskTemplate{
 	},
 }
 
-// GaeaTaskTemplates 返回内置办公任务模板库。
-func (a *App) GaeaTaskTemplates() []TaskTemplate {
+// templateExportsRoot 返回模板 prompt 文本中的产物目录根段（S4 参数化）：
+// work（缺省/空/非法值）= ".gaea/exports/"（现状逐字），play = ".gaea/play/exports/"。
+const (
+	templateExportsRootWork = ".gaea/exports/"
+	templateExportsRootPlay = ".gaea/play/exports/"
+)
+
+func templateExportsRoot(space string) string {
+	if spaces.Normalize(space) == spaces.SpacePlay {
+		return templateExportsRootPlay
+	}
+	return templateExportsRootWork
+}
+
+// renderTaskTemplates 按会话空间渲染内置模板库（设计 §5 参数化）：play 空间把
+// prompt 里的 .gaea/exports/ 根段替换为 .gaea/play/exports/；work 缺省输出与
+// taskTemplates 原文逐字一致（欢迎页/命令面板的既有文本与测试锚定不动）。
+func renderTaskTemplates(space string) []TaskTemplate {
+	root := templateExportsRoot(space)
 	out := make([]TaskTemplate, len(taskTemplates))
-	copy(out, taskTemplates)
+	for i, t := range taskTemplates {
+		if root != templateExportsRootWork {
+			t.Prompt = strings.ReplaceAll(t.Prompt, templateExportsRootWork, root)
+		}
+		out[i] = t
+	}
 	return out
+}
+
+// GaeaTaskTemplates 返回内置办公任务模板库（按当前生效空间渲染产物路径）。
+func (a *App) GaeaTaskTemplates() []TaskTemplate {
+	return renderTaskTemplates(gaeaEffectiveSpace())
 }
 
 // ensureTaskTemplateCommands 把模板落盘为 .gaea/commands/<name>.md（幂等）：
 // 已存在的文件不覆盖（保留用户自己的修改/同名命令），让 / 菜单与 Submit
-// 能通过既有自定义命令管线解析模板。
+// 能通过既有自定义命令管线解析模板。命令文件是工作区级共享资产（跨空间
+// 复用、只播种一次），恒用 work 缺省文本，不随会话空间渲染（S4）。
 func ensureTaskTemplateCommands(cwd string) error {
 	dir := filepath.Join(cwd, ".gaea", "commands")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

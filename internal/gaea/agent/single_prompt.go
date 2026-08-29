@@ -1,5 +1,11 @@
 package agent
 
+import (
+	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/spaces"
+)
+
 // SingleModelPrompt is the execution discipline appended to the config system
 // prompt (DefaultSystemPrompt = domain knowledge layer). It steers the
 // single-model office assistant's workflow: plan → execute → verify →
@@ -63,3 +69,29 @@ const SingleModelPrompt = `## 角色与原则
 - 不要用纯文本提问——使用 ask 工具
 - 不要批量签退——一任务一 complete_step
 - 不要在无验证的情况下签退`
+
+// promptExportsRoot / promptWorkRoot 是执行纪律文本中按会话空间替换的路径
+// 根段（S4 产物路径分区，设计 docs/gaea-space-dimension-design.md §5）。
+const (
+	promptExportsRoot = ".gaea/exports/"
+	promptWorkRoot    = ".gaea/work/"
+)
+
+// SingleModelPromptFor 返回按会话空间渲染的执行纪律文本（S4 参数化）：
+//   - work（缺省/空/非法值）：与 SingleModelPrompt 逐字一致（兼容红线：
+//     boot 缺省链路的前缀缓存与既有测试锚定都依赖逐字节稳定）；
+//   - play：落盘规范里的 exports/work 根段替换为 .gaea/play/exports/ 与
+//     .gaea/play/work/。
+//
+// 实现取「常量文本 + 根段替换」而非模板变量：work 缺省输出与历史文本逐字
+// 相同（不做任何重组），只有 play 空间才产生差异。space.mode=off 时 boot
+// 传 EffectiveSessionSpace()=""，同样得到 work 缺省文本（整体回退语义）。
+func SingleModelPromptFor(space string) string {
+	if spaces.Normalize(space) != spaces.SpacePlay {
+		return SingleModelPrompt
+	}
+	return strings.ReplaceAll(
+		strings.ReplaceAll(SingleModelPrompt,
+			promptExportsRoot, ".gaea/play/exports/"),
+		promptWorkRoot, ".gaea/play/work/")
+}
