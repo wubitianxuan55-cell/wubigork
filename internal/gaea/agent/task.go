@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -104,6 +105,7 @@ type TaskTool struct {
 	archiveDir       string
 	sysPrompt        string
 	gate             Gate
+	hooks            ToolHooks             // optional: gates the retry_until check command like any normal tool call
 	compiler         TaskCompiler          // optional, for cache sharing via Fork
 	runtimePrompt    string                // V5.25: L2 runtime context for sub-agents
 	templatePrefix   string                // V5.30: 子代理模板前缀，同类子代理共享缓存
@@ -305,6 +307,15 @@ func (t *TaskTool) WithTranscripts(store *SubagentStore) *TaskTool {
 	return t
 }
 
+// WithHooks wires the parent's hook runner so the retry_until check command
+// passes through the same PermissionRequest / PreToolUse gating as a normal
+// tool call. Optional — nil hooks (the default) skip hook checks while the
+// permission gate still applies to every check command.
+func (t *TaskTool) WithHooks(h ToolHooks) *TaskTool {
+	t.hooks = h
+	return t
+}
+
 // runSubSession executes the sub-agent with the given session (from a SubagentRun if
 // non-nil, otherwise creates an ephemeral session). When run is non-nil the session
 // from the store is used directly (supporting continue_from).
@@ -404,6 +415,13 @@ func (t *TaskTool) runSubWithRetrySession(ctx context.Context, prompt string, cf
 		}
 
 		checkOutput, checkErr := t.runCheckCommand(ctx, cfg.Check)
+		if errors.Is(checkErr, errCheckBlocked) {
+			// The permission gate or a PreToolUse hook refused the check
+			// command and it was never executed. Re-running the sub-agent
+			// cannot fix a permission denial — surface the block immediately
+			// instead of burning retries on it.
+			return result, fmt.Errorf("%w\n\nSub-agent's final result (unverified):\n%s", checkErr, result)
+		}
 		if checkErr == nil {
 			// Check passed — return the sub-agent's result.
 			return result, nil
@@ -422,13 +440,35 @@ func (t *TaskTool) runSubWithRetrySession(ctx context.Context, prompt string, cf
 	return finalResult, fmt.Errorf("retry_until: unreachable")
 }
 
-// runCheckCommand executes a shell command using the parent registry's bash tool.
+// errCheckBlocked marks that the retry_until check command was refused by the
+// permission gate or a PreToolUse hook and was NOT executed. The retry loop
+// treats it as terminal: a permission denial is not something re-running the
+// sub-agent can fix, so it must never be retried.
+var errCheckBlocked = errors.New("retry_until check command blocked")
+
+// runCheckCommand executes the retry_until check command with the parent
+// registry's bash tool. The command text is model-controlled input (it arrives
+// in the task tool's retry_until arguments), so it must pass the same
+// pre-execution gating as a normal tool call — dispatcher.Check:
+// PermissionRequest hooks → permission gate → PreToolUse hooks. A refusal
+// returns the block reason wrapped in errCheckBlocked and the command is never
+// executed. Without this gate the check would be an approval bypass: arbitrary
+// shell reachable through a tool call that never consults the permission gate.
 func (t *TaskTool) runCheckCommand(ctx context.Context, command string) (string, error) {
 	bashTool, ok := t.parentReg.Get("bash")
 	if !ok {
 		return "", fmt.Errorf("bash tool not available for retry check")
 	}
 	args, _ := json.Marshal(map[string]string{"command": command})
+	// Same gate instance the parent's dispatcher uses for ordinary bash calls
+	// (boot wires headlessGate here), so deny rules, headless auto-allow, and
+	// hardAsk semantics are identical to a normal bash approval. readOnly
+	// mirrors bash's own classification (false — its effects can't be inferred
+	// from args).
+	cr := NewToolDispatcher(t.gate, t.hooks).Check(ctx, "bash", args, bashTool.ReadOnly())
+	if !cr.Allowed {
+		return cr.Reason, fmt.Errorf("%w: %s", errCheckBlocked, cr.Reason)
+	}
 	return bashTool.Execute(ctx, args)
 }
 
