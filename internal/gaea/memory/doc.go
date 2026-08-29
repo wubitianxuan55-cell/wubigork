@@ -40,6 +40,11 @@ const (
 // defaultDocName / Set.DocPath.
 var docNames = []string{"TIANXUAN.md", "AGENTS.md", "CLAUDE.md"}
 
+// gaeaDocNames 是项目记忆的 .gaea 子目录约定（C6 项目说明文件，对齐
+// settings.json 的 .gaea 分层）：同层在平铺名之后加载（更具体的位置 = 更高
+// 信息密度），让 /init 或人工维护的 <dir>/.gaea/AGENTS.md 自动进入注入面。
+var gaeaDocNames = []string{".gaea/AGENTS.md"}
+
 // localNames are the personal, git-ignored overrides, highest precedence.
 var localNames = []string{"TIANXUAN.local.md", "AGENTS.local.md", "CLAUDE.local.md"}
 
@@ -75,13 +80,15 @@ func discoverDocs(cwd, userDir string) []Source {
 	}
 
 	// 2. Ancestor chain, outermost → project root. The project root (cwd) is
-	//    tagged ScopeProject; everything above it ScopeAncestor.
+	//    tagged ScopeProject; everything above it ScopeAncestor. 每层在平铺
+	//    记忆名之后追加 .gaea/ 子目录约定（C6 项目说明文件）。
 	for _, dir := range ancestorsToRoot(cwd) {
 		scope := ScopeAncestor
 		if sameDir(dir, cwd) {
 			scope = ScopeProject
 		}
 		out = append(out, loadFrom(dir, docNames, scope)...)
+		out = append(out, loadFrom(dir, gaeaDocNames, scope)...)
 	}
 
 	// 3. Project-local overrides (highest precedence).
@@ -92,6 +99,8 @@ func discoverDocs(cwd, userDir string) []Source {
 
 // loadFrom loads each present name in dir, in order, expanding @imports relative
 // to dir. A name with no file, or one that fails to read, is silently skipped.
+// 每个文件受 docMaxBytes 字节预算约束（C6，对齐 codex project_doc_max_bytes）：
+// 超长文档截断并留标记，防止单文件撑爆缓存前缀。
 func loadFrom(dir string, names []string, scope Scope) []Source {
 	var out []Source
 	for _, name := range names {
@@ -104,10 +113,28 @@ func loadFrom(dir string, names []string, scope Scope) []Source {
 		if body == "" {
 			continue
 		}
+		body = truncateDoc(body, path)
 		body = resolveImports(body, dir, map[string]bool{absOf(path): true}, 0)
 		out = append(out, Source{Path: path, Scope: scope, Body: body})
 	}
 	return out
+}
+
+// docMaxBytes 是单个记忆文档的字节预算（对齐 codex project_doc_max_bytes
+// 默认 32KB）：注入面按缓存前缀设计，单文件超限即截断并留标记。
+const docMaxBytes = 32 * 1024
+
+// truncateDoc 把超出 docMaxBytes 的正文在 UTF-8 字符边界处截断并附标记注释，
+// 模型（与面板编辑器）能看到截断事实而非静默丢失。
+func truncateDoc(body, path string) string {
+	if len(body) <= docMaxBytes {
+		return body
+	}
+	cut := docMaxBytes
+	for cut > 0 && (body[cut]&0xC0) == 0x80 { // 回退到 UTF-8 起始字节
+		cut--
+	}
+	return body[:cut] + "\n\n<!-- truncated: 文档超出 32KB 注入预算，已截断（" + filepath.Base(path) + "） -->"
 }
 
 // ancestorsToRoot returns the directory chain from the project root down to cwd,
