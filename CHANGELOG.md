@@ -1,5 +1,26 @@
 # gaea · 多功能 AI 助手
 
+## v4.2.0「智慧」工位造价包 (2026-08-29)
+> 阶段 3+ 领域包第一发：AI 组价 + 询价飞轮 + 五算对比（垂直蓝海率先变现）。
+> 设计 `docs/gaea-v42-cost-ai-design.md`；「无确认不落库」纪律贯穿三支柱。
+- **AI 组价**：`cost.PriceBand` 价格带推荐纯函数（P25/P50/P75 + 离散度 + 离群 +
+  置信度 + 证据链 BandSource，分位数 R-7 与 costref 同口径）；`GaeaCostCompose`
+  绑定（相似清单检索：关键词 + 本地 bge-m3 语义召回 + rerank 精排 → 价格带 →
+  **LLM 人材机拆解**（`routeSensitiveLocal("office")` 敏感域本地化，失败规则降级）
+  → 建议视图 + `GaeaCostComposeApply` 一键回写）；前端 ComposeModal（测算明细行
+  「AI 组价」按钮：价格带卡 + 证据链 8 列表 + 人材机行编辑 → 应用为明细行）。
+- **询价飞轮**：`costinquiry` 包四源归一数据点（信息价/OCR报价/供应商比价/手动
+  询价，`cost_inquiry_records`）+ 到期预警（valid_until）+ 调差建议（标题归一化
+  匹配，|差幅|>2%）；前端询价视图（数据点 CRUD + 预警横幅 + 一键更新成本库）。
+- **五算对比**：`coststage` 包估/概/预/结/决阶段值（`cost_stage_values` UPSERT）+
+  对比计算（环比/累计差）+ 偏差特征（正常/关注/异常三档 + 规则诊断文案）；前端
+  FiveCalcPanel（项目详情五算区：输入保存 + 对比表着色 + 偏差卡片）。
+- **验证**：Go 全量绿；vitest **759/759**（142 文件，+21）；tsc/eslint 0；
+  绑定面 **517 方法**漂移 PASS（+11）；spaceBindings **229 方法**全覆盖断言；
+  版本五处统一 4.2.0（app_info / wails.json / versioninfo.rc / package.json /
+  package-lock）；CHANGELOG / README / releases / AGENTS / progress 同步。
+  详见 releases/v4.2.0.md。
+
 ## v3.9.0「双空间壳 + 办公信任链」(2026-08-29)
 > 阶段 2 双空间壳（S2.1–S2.3/S2.3b + 页面迁入 P1）+ v4.1 办公信任链（证据链→复核→
 > 回滚→规范体检）一次收官；「审阅后」护城河从设计到端到端闭环。

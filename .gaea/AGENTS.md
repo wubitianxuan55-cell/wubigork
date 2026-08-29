@@ -26,6 +26,23 @@
 
 ## 版本状态
 
+- **最新发布：v4.2.0（2026-08-29）「智慧」工位造价包**：
+  git tag `v4.2.0`；CHANGELOG / releases/v4.2.0.md / README 索引同步；设计
+  `docs/gaea-v42-cost-ai-design.md`。要点：
+  - **AI 组价**：`cost.PriceBand` 价格带纯函数（P25-P75/离散度/离群/置信度/证据链，
+    R-7 与 costref 同口径）+ `GaeaCostCompose`（关键词+语义+rerank 相似检索 →
+    价格带 → LLM 人材机拆解 `routeSensitiveLocal("office")` 失败规则降级 →
+    建议视图）+ `GaeaCostComposeApply` 回写；前端 ComposeModal（测算明细行入口）。
+  - **询价飞轮**：`costinquiry` 四源归一数据点 + 到期预警 + 调差建议（标题归一化
+    匹配 |差幅|>2%）；前端询价视图（CostLibraryView 第三视图）。
+  - **五算对比**：`coststage` 估/概/预/结/决阶段值 + 对比（环比/累计差）+
+    偏差三档（正常/关注/异常，阈值 5/15 导出）+ 规则诊断文案；前端 FiveCalcPanel。
+  - **验证**：Go 全量绿；vitest **759/759**（142 文件）；tsc/eslint 0；
+    绑定面 **517** 漂移 PASS（+11）；spaceBindings **229** 全覆盖；版本五处统一 4.2.0。
+  - **下一执行**：v4.3 乐园做深（轻语关系记忆 + 情感语音；创作间一体化，§10.4）；
+    组价 LLM 拆解质量依赖办公功能模型（未配置时规则降级可用）；
+    复盘笔记 AI 偏差诊断（LLM 生成文案）列后续小步。
+
 - **最新发布：v3.9.0（2026-08-29）「双空间壳 + 办公信任链」**：
   git tag `v3.9.0`；CHANGELOG / releases/v3.9.0.md / README 索引同步。要点：
   - **双空间壳（阶段 2，S2.1-S2.3/S2.3b）**：两视图+空间切换持久化（gaea.shell.space /

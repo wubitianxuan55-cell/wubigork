@@ -1,12 +1,12 @@
 # 任务进度
 
-> 最后更新: 2026-08-29（v3.9.0 发布：阶段 2 双空间壳 + v4.1 办公信任链收官）
+> 最后更新: 2026-08-29（v4.2.0 发布：阶段 3+ 领域包第一发——造价 AI 化三支柱）
 
 ## 当前状态
 
-- **最新发布：v3.9.0（2026-08-29）**——阶段 2 双空间壳（S2.1-S2.3/S2.3b + 页面迁入
-  P1 + hex token 化 + i18n 决策）+ v4.1 办公信任链（证据链/Verifier 双通道复核/基线回滚/
-  红头规范体检）。验证：Go 全量绿；vitest 738/738；tsc/eslint 0；绑定面 506 漂移 PASS。
+- **最新发布：v4.2.0（2026-08-29）**——v4.2 造价 AI 化（AI 组价 + 询价飞轮 +
+  五算对比，§10.4）。验证：Go 全量绿；vitest 759/759（+21）；tsc/eslint 0；
+  绑定面 517 漂移 PASS（+11）；spaceBindings 229 全覆盖。
 
 ## 长期规划（权威文档）
 
@@ -107,8 +107,30 @@
 - [x] **v4.1c 规范包**：internal/office/standard GB/T 9704 红头 7 要素 lint +
   GaeaDocumentLint 绑定 + OfficePanel「规范体检」入口
 
-**v4.1 办公信任链已收官**（bindingNames 506 / spaceBindings 218 全覆盖 / vitest 738
-+ go 全量绿 / build OK）。剩余领域包：v4.2 造价 / v4.3 乐园 / v4.4 触点（§10.4）。
+### v4.2 造价 AI 化 —— ✅ 全部完成（v4.2.0 发布）
+- [x] **v4.2 设计定稿**（`docs/gaea-v42-cost-ai-design.md`）：三支柱契约 +
+  SchemaV15 数据模型（cost_inquiry_records / cost_stage_values）+ 绑定面 + Step 拆分
+- [x] **v4.2a 组价底座**：`cost.PriceBand` 价格带推荐纯函数（P25/P50/P75/离散度/
+  离群/置信度/证据链 BandSource，R-7 分位数与 costref 同口径）+ `RecommendPrice`
+  五档；22 测试
+- [x] **v4.2b 询价飞轮核心包**：`costinquiry` 四源归一数据点（信息价/OCR报价/供应商
+  比价/手动询价）+ 到期预警（valid_until ≤ today+days）+ 调差建议（标题归一化匹配
+  + |差幅|>2%）；7 测试
+- [x] **v4.2b 五算对比核心包**：`coststage` 估/概/预/结/决阶段值（UPSERT）+ 对比
+  计算（环比/累计差/除零保护）+ 偏差特征（正常<5/关注 5-15/异常>15 + 规则文案）；
+  17 测试
+- [x] **v4.2c AI 组价绑定**：`GaeaCostCompose`（关键词+语义召回+rerank 精排 →
+  PriceBand → LLM 人材机拆解 `routeSensitiveLocal("office")` 失败规则降级 →
+  建议视图）+ `GaeaCostComposeApply` 回写
+- [x] **v4.2d 前端面板**：ComposeModal（测算明细行「AI 组价」：价格带卡/证据链 8 列
+  表/人材机行编辑 → 应用为明细行）；询价视图（CostLibraryView 第三视图：数据点
+  CRUD/四源徽标/预警横幅/调差一键更新）；FiveCalcPanel（项目详情五算区：输入保存/
+  对比表着色/偏差卡）
+- [x] **后端集成**：SchemaV15 正式迁移收编 + CostB 门面 11 新绑定（gen_bindings
+  重生成，绑定面 506→517）+ bindingNames/spaceBindings(229)/bridge/types 接线
+
+**v4.2 造价 AI 化已收官**（bindingNames 517 / spaceBindings 229 / vitest 759
++ go 全量绿）。剩余领域包：v4.3 乐园 / v4.4 触点（§10.4）。
 
 ## 纪律（沿用）
 
