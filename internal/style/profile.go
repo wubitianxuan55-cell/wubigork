@@ -22,16 +22,36 @@ type Profile struct {
 	RawMarkdown string            `json:"raw_markdown"` // 原始风格指导
 }
 
+// ParamClamp 生成参数钳制（S1.5-B play 内容护栏透传，platform_handler
+// AnalyzeStyle 消费）：零值 = 不钳制（现状逐字节）。只降不升——低于上限的
+// 现值保留，不抬高。
+type ParamClamp struct {
+	TemperatureMax  float64 // 生成温度上限（0 = 不钳制）
+	MaxOutputTokens int     // max_tokens 上限（0 = 不钳制）
+}
+
 // Analyzer 风格分析器
 type Analyzer struct {
 	pm     *project.Manager
 	client *ai.Client
 	model  string
+	clamp  ParamClamp
 }
 
-// NewAnalyzer 创建风格分析器
-func NewAnalyzer(pm *project.Manager, client *ai.Client, model string) *Analyzer {
-	return &Analyzer{pm: pm, client: client, model: model}
+// NewAnalyzer 创建风格分析器。clamp 为护栏钳制参数（零值 = 现状）。
+func NewAnalyzer(pm *project.Manager, client *ai.Client, model string, clamp ParamClamp) *Analyzer {
+	return &Analyzer{pm: pm, client: client, model: model, clamp: clamp}
+}
+
+// clampParams 按 clamp 钳制生成参数（S1.5-B；零值 = 原样返回）。
+func clampParams(opts ai.ChatSimpleOptions, clamp ParamClamp) ai.ChatSimpleOptions {
+	if clamp.TemperatureMax > 0 && opts.Temperature > clamp.TemperatureMax {
+		opts.Temperature = clamp.TemperatureMax
+	}
+	if clamp.MaxOutputTokens > 0 && opts.MaxTokens > clamp.MaxOutputTokens {
+		opts.MaxTokens = clamp.MaxOutputTokens
+	}
+	return opts
 }
 
 // Analyze 分析已有章节，生成风格档案
@@ -82,10 +102,11 @@ func (a *Analyzer) Analyze() (*Profile, error) {
 		a.model,
 		systemPrompt,
 		userPrompt,
-		ai.ChatSimpleOptions{
+		// S1.5-B：护栏钳制（0.3/1024 为该点现状基线；clamp 零值 = 原样）。
+		clampParams(ai.ChatSimpleOptions{
 			Temperature: 0.3,
 			MaxTokens:   1024,
-		},
+		}, a.clamp),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("风格分析失败: %w", err)

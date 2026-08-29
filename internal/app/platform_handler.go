@@ -150,8 +150,14 @@ func (a *App) AnalyzeStyle() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("请先打开项目")
 	}
 
+	// S1.5-B play 内容护栏：temperature_max/max_output_tokens 钳制透传给
+	// 风格分析生成点（未配置 = 零值 = 现状逐字节）。
+	g := playGuardrails()
 	_, featModel, _ := a.routeModel("novel")
-	analyzer := style.NewAnalyzer(pm, a.client, featModel)
+	analyzer := style.NewAnalyzer(pm, a.client, featModel, style.ParamClamp{
+		TemperatureMax:  g.TemperatureMax,
+		MaxOutputTokens: g.MaxOutputTokens,
+	})
 	profile, err := analyzer.Analyze()
 	if err != nil {
 		return nil, err

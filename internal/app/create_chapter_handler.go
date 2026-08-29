@@ -239,6 +239,10 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 	var bodyText string // 纯正文（不含 ---CHAPTER_SUMMARY--- 及摘要，用于字数和最终保存）
 	currentPrompt := userPrompt
 
+	// S1.5-B play 内容护栏：temperature_max/max_output_tokens 钳制（未配置
+	// = 零值 = 请求与现状逐字节一致），每次续写尝试均按同一钳制值下发。
+	g := playGuardrails()
+
 	for attempt := 0; attempt <= maxContinues; attempt++ {
 		if attempt > 0 {
 			a.emit("create-chapter-stream", map[string]interface{}{
@@ -287,9 +291,7 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 			EngineID: featEng,
 			Messages: []ai.ChatMessage{{Role: "system", Content: systemPrompt}, {Role: "user", Content: currentPrompt}},
 		}
-		if temperature > 0 {
-			req.Temperature = temperature
-		}
+		applyChapterGuardrails(req, temperature, g)
 		chunks, err := a.client.ChatStream(ctx, req)
 		if err != nil {
 			a.emit("create-chapter-stream", map[string]interface{}{"type": "error", "error": err.Error()})

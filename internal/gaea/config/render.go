@@ -114,13 +114,14 @@ func RenderTOML(c *Config) string {
 	b.WriteString(renderRuleList("ask", c.Permissions.Ask, `["write_file"]   # force a prompt even if otherwise allowed`))
 	b.WriteString("\n")
 
-	// S1.3-A/S1.5-A：按空间装配 profile（模型引用 + 权限策略段）。段缺失时
-	// 不输出任何内容——配置缺省 = 现状逐字节回退。
+	// S1.3-A/S1.5-A/S1.5-B：按空间装配 profile（模型引用 + 权限策略段 +
+	// play 内容护栏段）。段缺失时不输出任何内容——配置缺省 = 现状逐字节回退。
 	for _, k := range sortedSpaceProfileKeys(c.SpaceProfiles) {
 		p := c.SpaceProfiles[k]
 		fmt.Fprintf(&b, "[space_profiles.%s]\n", k)
 		b.WriteString("# 按空间装配：模型键引用现有模型选择键体系（ResolveModel 既有链），\n")
-		b.WriteString("# 空键 = 该域维持现状；permissions 子段为该空间权限策略（S1.5-A）。\n")
+		b.WriteString("# 空键 = 该域维持现状；permissions/guardrails 子段为该空间\n")
+		b.WriteString("# 权限策略（S1.5-A）与 play 内容护栏（S1.5-B）。\n")
 		renderSpaceModelKey(&b, "chat", p.Chat)
 		renderSpaceModelKey(&b, "whisper", p.Whisper)
 		renderSpaceModelKey(&b, "novel", p.Novel)
@@ -143,6 +144,19 @@ func RenderTOML(c *Config) string {
 			b.WriteString(renderRuleList("deny", perm.Deny, `["bash(rm -rf*)"]`))
 			b.WriteString(renderRuleList("allow", perm.Allow, `["bash(go test*)"]`))
 			b.WriteString(renderRuleList("ask", perm.Ask, `["write_file"]`))
+		}
+		// S1.5-B：guardrails 子段恒活动渲染（hard_ask 空集同款保真处理）——
+		// 段存在时全部键输出活动行，避免 Save() 往返丢段/丢显式零值配置
+		// （0/false = 不钳制，活动渲染语义等价）。
+		if gr := p.Guardrails; gr != nil {
+			fmt.Fprintf(&b, "[space_profiles.%s.guardrails]\n", k)
+			b.WriteString("# play 内容护栏（S1.5-B）：钳制直连生成点参数（不走权限引擎）。\n")
+			b.WriteString("# 0/false 字段 = 不钳制；enabled = false = 全部不生效（现状逐字节）。\n")
+			fmt.Fprintf(&b, "enabled = %v\n", gr.Enabled)
+			fmt.Fprintf(&b, "temperature_max = %s\n", formatFloat(gr.TemperatureMax))
+			fmt.Fprintf(&b, "max_output_tokens = %d\n", gr.MaxOutputTokens)
+			fmt.Fprintf(&b, "image_safe_mode = %v\n", gr.ImageSafeMode)
+			fmt.Fprintf(&b, "persona_lock = %v\n", gr.PersonaLock)
 		}
 		b.WriteString("\n")
 	}

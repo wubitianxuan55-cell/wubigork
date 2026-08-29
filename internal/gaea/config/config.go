@@ -110,6 +110,27 @@ type SpacePermissionsConfig struct {
 	Deny                []string `toml:"deny"`
 }
 
+// PlayGuardrails 是 [space_profiles.<space>.guardrails] 子段（S1.5-B）：
+// play 域直连生成点（轻语人格对话/章节/支线/角色卡/生图）的参数钳制配置。
+// 护栏不走 permission 引擎（这些点本来没有闸），只钳参数/加安全段，不改
+// 生成逻辑语义。零值字段 = 不钳制（现状逐字节）。
+type PlayGuardrails struct {
+	// Enabled 是护栏总开关：false（含段未配置）= 全部钳制不生效。
+	Enabled bool `toml:"enabled"`
+	// TemperatureMax 是生成温度上限（0 = 不钳制）：生成温度超过它时钳到它，
+	// 只降不升（该点未显式传温度时不注入新参数）。
+	TemperatureMax float64 `toml:"temperature_max"`
+	// MaxOutputTokens 是单次生成 max_tokens 上限（0 = 不钳制）：超过它的点
+	// 钳到它；对未设置 max_tokens 的直连 ChatRequest 点显式下发该上限。
+	MaxOutputTokens int `toml:"max_output_tokens"`
+	// ImageSafeMode 是绘梦/生图安全模式：提交前为提示词注入安全段。
+	ImageSafeMode bool `toml:"image_safe_mode"`
+	// PersonaLock 是轻语人格锁：人格一致性参数（dims/voiceGuide）注入时
+	// 追加人格锁定段（防系统层覆盖人格）并锁温度上限（上限取
+	// TemperatureMax，0 = 不设温度上限）。
+	PersonaLock bool `toml:"persona_lock"`
+}
+
 // SpaceProfile 是单个空间的装配 profile。模型字段引用现有模型选择键体系
 // （feature_model_handler 功能域：chat/whisper/novel/office/gaea/characterlib/
 // routine），值经 ResolveModel 既有链解析为 provider entry；空 = 该域维持现状
@@ -125,6 +146,9 @@ type SpaceProfile struct {
 	Routine      string `toml:"routine"`
 	// Permissions 是该空间的权限策略段（S1.5-A）；nil = 未配置。
 	Permissions *SpacePermissionsConfig `toml:"permissions"`
+	// Guardrails 是该空间的内容护栏段（S1.5-B，仅 play 域生成点消费）；
+	// nil = 未配置（零钳制 = 现状逐字节）。
+	Guardrails *PlayGuardrails `toml:"guardrails"`
 }
 
 // SpacePermissions 是空间生效的权限装配值（S1.5-A，PermissionsForSpace 返回）。
@@ -209,6 +233,31 @@ func (c *Config) PermissionsForSpace(space string) SpacePermissions {
 		}
 	}
 	return out
+}
+
+// PlayGuardrails 返回空间生效的 play 内容护栏值（S1.5-B，五个 play 域直连
+// 生成点共用的取值点）。零值 = 零钳制 = 现状逐字节回退：
+//   - space 非 "play"（含空串 = space.mode=off 回退形态）→ 零值；
+//   - space.mode=off → 零值（空间维度整体关闭，恒等现状）；
+//   - guardrails 段未配置或 enabled=false → 零值（总开关关 = 全部不钳制）；
+//   - 段配置且 enabled=true → 段值原样（0/""/false 字段仍不钳制）。
+func (c *Config) PlayGuardrails(space string) PlayGuardrails {
+	if c == nil {
+		return PlayGuardrails{}
+	}
+	space = strings.ToLower(strings.TrimSpace(space))
+	if space != spaces.SpacePlay || !c.SpaceModeIsOn() {
+		return PlayGuardrails{}
+	}
+	prof, err := c.SpaceProfile(space)
+	if err != nil || prof == nil || prof.Guardrails == nil {
+		return PlayGuardrails{}
+	}
+	g := *prof.Guardrails
+	if !g.Enabled {
+		return PlayGuardrails{}
+	}
+	return g
 }
 
 // concatRuleLists 拼接两个规则列表（base 在前、空间段在后），base 为空时直接

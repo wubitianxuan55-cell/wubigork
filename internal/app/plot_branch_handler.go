@@ -98,7 +98,11 @@ func (a *writingState) BrainstormBranches(nodeID string) (map[string]interface{}
 	})
 
 	eng, model, _ := a.routeModel("novel")
-	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: eng})
+	// S1.5-B play 内容护栏：max_output_tokens 钳制（temperature_max 不适用
+	// ——该点未显式传温度，钳制不注入新参数）。未配置 = 零值 = 现状逐字节。
+	opts := ai.ChatSimpleOptions{EngineID: eng}
+	applyChatSimpleMaxTokens(&opts, playGuardrails().MaxOutputTokens)
+	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, opts)
 	if err != nil {
 		return nil, fmt.Errorf("剧情分支推理失败: %w", err)
 	}
@@ -218,7 +222,11 @@ func (a *writingState) QuickBrainstormBranches(setting, prevSummary string) (map
 	})
 
 	eng, model, _ := a.routeModel("novel")
-	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{EngineID: eng})
+	// S1.5-B play 内容护栏：同 BrainstormBranches（max_output_tokens 钳制；
+	// 未配置 = 零值 = 现状逐字节）。
+	opts := ai.ChatSimpleOptions{EngineID: eng}
+	applyChatSimpleMaxTokens(&opts, playGuardrails().MaxOutputTokens)
+	reply, err := a.client.ChatSimpleStreamWithOptions(a.ctx, model, systemPrompt, userPrompt, opts)
 	if err != nil {
 		return nil, fmt.Errorf("剧情分支推理失败: %w", err)
 	}

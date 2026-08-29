@@ -180,6 +180,10 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 	images := make([]imageItem, 0, n)
 	var lastErr string
 	comfyRecovered := false
+	// S1.5-B play 内容护栏：image_safe_mode 提交前注入提示词安全段（后端
+	// NSFW 开关位：ai 图片后端无 NSFW 透传字段，按后端能力缺省关，无法
+	// 透传时仅注入 prompt 安全段）。未配置 = 零值 = 提示词原样。
+	safePrompt := applyImageSafeMode(fullPrompt, playGuardrails().ImageSafeMode)
 
 	for i := 0; i < n; i++ {
 		genSeed := seed
@@ -197,7 +201,7 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 
 		imgReq := &ai.ImageGenerationRequest{
 			Model:    imgModel,
-			Prompt:   fullPrompt,
+			Prompt:   safePrompt,
 			Negative: negative,
 			N:        1,
 			Size:     size,
@@ -335,6 +339,9 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 
 	results := make([]imageItem, 0, n)
 	var lastErr string
+	// S1.5-B play 内容护栏：image_safe_mode 同 GenerateFreeImage（提交前
+	// 注入提示词安全段；未配置 = 零值 = 提示词原样）。
+	safePrompt := applyImageSafeMode(p.Prompt, playGuardrails().ImageSafeMode)
 	for i := 0; i < n; i++ {
 		genSeed := p.Seed
 		if genSeed == 0 {
@@ -349,7 +356,7 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		}
 		imgReq := &ai.ImageGenerationRequest{
 			Model:     imgModel,
-			Prompt:    p.Prompt,
+			Prompt:    safePrompt,
 			Negative:  p.Negative,
 			N:         1,
 			Size:      size,

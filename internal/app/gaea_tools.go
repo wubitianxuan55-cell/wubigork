@@ -83,8 +83,10 @@ func (t imageGenTool) Execute(ctx context.Context, args json.RawMessage) (string
 		model = p.Model
 	}
 	req := &ai.ImageGenerationRequest{
-		Model:    model,
-		Prompt:   p.Prompt,
+		Model: model,
+		// S1.5-B play 内容护栏：image_safe_mode 提交前注入提示词安全段
+		// （后端无 NSFW 透传字段，按后端能力缺省关；未配置 = 提示词原样）。
+		Prompt:   applyImageSafeMode(p.Prompt, playGuardrails().ImageSafeMode),
 		Negative: p.Negative,
 		N:        p.N,
 		Size:     p.Size,

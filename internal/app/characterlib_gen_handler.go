@@ -363,10 +363,14 @@ func (a *App) characterGenerate(chJSON, mode string, targets []string) (string, 
 	}
 	// 角色库使用独立功能绑定（未绑定时回退全局激活引擎）
 	eng, model := a.cfg.GetFeatureModel("characterlib")
+	// S1.5-B play 内容护栏：0.85/2048 为该点现状基线，temperature_max/
+	// max_output_tokens 只降不升（cap 未配置或 >= 基线时不钳，零值 = 现状
+	// 逐字节）。
+	g := playGuardrails()
 	reply, err := a.client.ChatSimpleStreamWithOptions(ctx, model, systemPrompt, userPrompt, ai.ChatSimpleOptions{
 		EngineID:    eng,
-		Temperature: 0.85,
-		MaxTokens:   2048,
+		Temperature: clampPlayTemperature(0.85, g.TemperatureMax),
+		MaxTokens:   clampPlayMaxTokens(2048, g.MaxOutputTokens),
 	})
 	if err != nil {
 		return "", fmt.Errorf("AI 补全失败: %w", err)
