@@ -343,7 +343,8 @@ func TestGaeaUnifiedSearchScopeIsolation(t *testing.T) {
 		t.Fatalf("keyword 共享面 work 应命中: %+v", work.Keyword)
 	}
 
-	// ── scope=play：只见 play 侧 ───────────────────────────────
+	// ── scope=play：office 只见 play 侧；cost/knowledge/file 不过滤（共享
+	// 源、无 play 侧数据可漏，锚点 5）────────────────────────────
 	play, err := a.GaeaUnifiedSearch("振动锤", 10, "play")
 	if err != nil {
 		t.Fatalf("play scope: %v", err)
@@ -352,8 +353,11 @@ func TestGaeaUnifiedSearchScopeIsolation(t *testing.T) {
 	if !semPlay["office/office-play"] {
 		t.Fatalf("play scope 语义应含 play 记忆: %v", semPlay)
 	}
-	if semPlay["office/office-pile"] || semPlay["cost/pile-rent"] {
-		t.Fatalf("play scope 不得出现 work 侧语义命中（cost/knowledge/file 恒 work）: %v", semPlay)
+	if !semPlay["cost/pile-rent"] {
+		t.Fatalf("play scope cost/knowledge/file 不过滤（共享源）: %v", semPlay)
+	}
+	if semPlay["office/office-pile"] {
+		t.Fatalf("play scope 不得出现 work 侧 office 记忆: %v", semPlay)
 	}
 	brPlay := scopeBrainHits(play.Brain)
 	if _, ok := brPlay["brain.right|轻语记忆"]; !ok {

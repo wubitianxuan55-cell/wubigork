@@ -192,9 +192,13 @@ func (a *App) runDream(space string) error {
 // dreamInputHash 返回整理输入的内容指纹（sha256 hex，sha256 无空串歧义）。
 // S1.2 A 双空间：指纹键含会话空间（space+"\x00"+input）——同内容跨空间不
 // 共用指纹，防「play 会话内容与 work 相同被误判 no-op 跳过提炼」。space 为
-// 空（space.mode=off 平铺形态）时键内无空间成分，退化为纯内容指纹，与旧行
-// 为严格等价（off 无空间维度）。
+// 空（space.mode=off 平铺形态）时**字节级**退化为纯内容哈希 sha256(input)，
+// 与改造前逐字节相同（off 无空间维度，mode=off 三态回退锚点）。
 func dreamInputHash(space, input string) string {
+	if space == "" {
+		sum := sha256.Sum256([]byte(input))
+		return hex.EncodeToString(sum[:])
+	}
 	sum := sha256.Sum256([]byte(space + "\x00" + input))
 	return hex.EncodeToString(sum[:])
 }

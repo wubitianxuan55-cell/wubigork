@@ -5,6 +5,8 @@ package app
 // 不写 work AGENTS.md（丢弃仅落 facts）。
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/memory"
@@ -13,8 +15,8 @@ import (
 )
 
 // S1.2 A：指纹键含会话空间——同内容跨空间不共用指纹（play 会话内容与 work
-// 相同时不得误命中 work 指纹跳过提炼）；space=""（mode=off）退化为纯内容
-// 指纹（旧行为等价）。
+// 相同时不得误命中 work 指纹跳过提炼）；space=""（mode=off）**字节级**退化
+// 为纯内容哈希 sha256(input)（mode=off 三态回退锚点 9）。
 func TestDreamInputHashSpaceKeyed(t *testing.T) {
 	in := dreamInput([]provider.Message{
 		{Role: provider.RoleUser, Content: "帮我整理这份成本测算表"},
@@ -31,6 +33,11 @@ func TestDreamInputHashSpaceKeyed(t *testing.T) {
 	}
 	if hWork == hOff || hPlay == hOff {
 		t.Fatal("off（纯内容指纹）与分区空间指纹应不同")
+	}
+	// off 字节级等价旧行为：纯内容 sha256
+	sum := sha256.Sum256([]byte(in))
+	if hOff != hex.EncodeToString(sum[:]) {
+		t.Fatal("off 指纹应等于 sha256(input)（旧行为字节级一致）")
 	}
 	// 内容变化 → 指纹变化（同空间）
 	in2 := in + "追加一列环比"

@@ -83,29 +83,33 @@ func searchScope(scope string) string {
 // filterSemanticHitsByScope 语义命中后过滤（S1.2 B）。**严禁按空间过滤索引
 // 源**：semantic_vectors 是四库共享索引且无空间列，Ensure/Stale 以「向量条数
 // == 源文档数」判定就绪——按空间砍源会让另一空间的向量被 Stale(keep) 物理删
-// 除（设计 §风险「semantic Stale 陷阱」），因此只在最终 hits 上按 kind 映射
-// 过滤：
-//   - cost（成本库）/ knowledge（工程知识库）/ file（工作区文件）：恒 work
-//     ——这些库当前只在 work 语义落库，play 域无对应索引源；
-//   - office（办公 facts）：facts 同库混存两空间且唯一键 (project, name) 全
-//     局唯一——按 space_id 精确回查（GetInSpace）判定归属，命中才保留；
-//   - 未知 kind：保守丢弃（fail-closed 宁缺毋漏；scope="" 不走本过滤）。
-//     whisper 不入 semantic 库（play 专属走 brain.right，由 brain 组隔离）。
+// 除（设计 §风险「semantic Stale 陷阱」，最高危），因此只在最终 hits 上按
+// kind 映射过滤（勘察锚点 5）：
+//   - office（办公 facts）：facts 同库混存两空间——按 ListInSpace(scope) 的
+//     名称集映射剔除（唯一键 (project, name) 全局唯一，名称即身份）；
+//   - cost / knowledge / file：不过滤（勘察锚点 5）——三库当前只在 work 语义
+//     落库、无 play 侧数据可漏（红线「工位搜不到乐园记忆」不受影响），且
+//     knowledge 与 brain.main 工程知识库同属共享面（play 可见，见 brain 组）；
+//   - 未知 kind：保守丢弃（fail-closed 宁缺毋漏；当前四库封闭不会触达，
+//     scope="" 不走本过滤）。whisper 不入 semantic 库（play 专属走
+//     brain.right，由 brain 组隔离）。
 func (a *App) filterSemanticHitsByScope(hits []SemanticHitView, scope string) []SemanticHitView {
 	if scope == "" || len(hits) == 0 {
 		return hits
+	}
+	officeAllowed := map[string]bool{}
+	for _, m := range a.hubOfficeStore().ListInSpace(scope) {
+		officeAllowed[m.Name] = true
 	}
 	out := make([]SemanticHitView, 0, len(hits))
 	for _, h := range hits {
 		switch h.Kind {
 		case "office":
-			if _, ok := a.hubOfficeStore().GetInSpace(h.Name, scope); ok {
+			if officeAllowed[h.Name] {
 				out = append(out, h)
 			}
 		case "cost", "knowledge", "file":
-			if scope == spaces.SpaceWork {
-				out = append(out, h)
-			}
+			out = append(out, h) // 不过滤：共享源，无 play 侧数据
 		}
 	}
 	return out
