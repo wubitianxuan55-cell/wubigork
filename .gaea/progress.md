@@ -33,13 +33,16 @@
 - [ ] **S0.6 edit_file 工具层**（审计 P1 功能 bug：edit_file/multi_edit/edit_lines/move_file/grep 被 ~40 处引用但无实现，模型被指示用却收 "unknown tool"）——产品文件编辑脊柱，**未做，独立一刀**
 - [ ] 遗留观察：持久化套件统一（desktop_session.go/archive.go 原子写，office 子代理排查）
 
-### 阶段 1 · 双空间内核（后端 space 维度）—— ✅ S1.1-S1.4 完成
-- [x] **S1 列落库**（SchemaV14 facts/tasks + 读写谓词）—— `5c24d16`（V13 旧库升级回填 work 测试）
-- [x] **S2 会话空间（核心）**（目录分区 + 日志/checkpoint space + space.mode 开关）—— `0722aeb`（34 文件，全仓 go test 绿）
-- [x] **S3 子代理继承**（ctx 注入 + 后台补注 + fail-closed + 前瞻 meta 校验）—— `76f565e`
-- [x] **S4 产物分区+绑定面**（exports 分区 + GaeaSpace* 挂 CoreB，绑定面 499→502）—— `5c9fc4e`
+### 阶段 1 · 双空间内核（后端 space 维度）—— S1.1 ✅，S1.2-S1.5 待做
+- [x] **S1.1 空间维度落地**（设计文档 `docs/gaea-space-dimension-design.md` S1-S4 拆解）：
+  - [x] S1 列落库（SchemaV14 facts/tasks + 读写谓词）—— `5c24d16`（V13 旧库升级回填 work 测试）
+  - [x] S2 会话空间（核心）（目录分区 + 日志/checkpoint space + space.mode 开关）—— `0722aeb`（34 文件，全仓 go test 绿）
+  - [x] S3 子代理继承（ctx 注入 + 后台补注 + fail-closed + 前瞻 meta 校验）—— `76f565e`
+  - [x] S4 产物分区+绑定面（exports 分区 + GaeaSpace* 挂 CoreB，绑定面 499→502）—— `5c9fc4e`
+- [ ] **S1.2 记忆空间隔离器**（work/play 互不检索 + dream 做梦空间化 + [MEM:] 限定本空间 + 统一检索 scope 参数化）—— 待派
+- [ ] **S1.3 模型 profile 按空间 + 工具空间标签装配**（Seam 加 per-space 路由；Registry 工具加空间标签）—— 待派
+- [ ] **S1.4 任务/资源按空间分账**（jobs 每空间队列 + 优先级）—— 待派
 - [ ] **S1.5 空间策略**（work 审阅制 / play 内容护栏，同一权限引擎两套策略装配）—— 待派
-- 设计文档：`docs/gaea-space-dimension-design.md`（S1.1 权威；含 Step 拆解与 10 条风险坑）
 
 ### 阶段 2 · 双空间壳（前端两视图，S2.1-S2.3）
 
