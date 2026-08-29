@@ -86,6 +86,37 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     deriveLauncherModules(input, LAUNCHER_DESC)
     expect(input.map((b) => b.id)).toEqual(before)
   })
+
+  it('S2.1 双首页：按空间过滤（shared + 当前空间），工位不含乐园板块', () => {
+    const work = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC, 'work')
+    const workKeys = work.map((m) => m.key)
+    expect(workKeys).toContain('gaea')
+    expect(workKeys).toContain('cost')
+    expect(workKeys).toContain('memoryhub')
+    expect(workKeys).toContain('chat') // 对话共用
+    expect(workKeys).not.toContain('novel')
+    expect(workKeys).not.toContain('imagegen')
+    expect(workKeys).not.toContain('characterlib')
+    expect(workKeys).not.toContain('code') // 编程独立窗口不进双首页
+  })
+
+  it('S2.1 双首页：乐园不含工位板块，含小说/绘梦/角色', () => {
+    const play = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC, 'play')
+    const playKeys = play.map((m) => m.key)
+    expect(playKeys).toContain('novel')
+    expect(playKeys).toContain('imagegen')
+    expect(playKeys).toContain('characterlib')
+    expect(playKeys).not.toContain('gaea')
+    expect(playKeys).not.toContain('cost')
+    expect(playKeys).not.toContain('memoryhub')
+    expect(playKeys).not.toContain('code')
+  })
+
+  it('不传 space = 全量（旧调用语义不变）', () => {
+    const all = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
+    expect(all.map((m) => m.key)).toContain('novel')
+    expect(all.map((m) => m.key)).toContain('gaea')
+  })
 })
 
 describe('launcher 订阅联动（loadBoardManifests 通知 → 派生结果变化）', () => {

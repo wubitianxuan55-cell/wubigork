@@ -22,6 +22,7 @@ import {
 import type { ComponentType } from 'react'
 import type { BoardManifest, BoardNavChild } from './types'
 import { GetBoardManifests } from '../wailsjsCompat'
+import { filterBoardsForSpace, isIndependentBoard, type ShellSpace } from './space'
 
 // ─── 图标注册表：manifest.icon 名（antd 图标名）→ 组件查表解析 ───────────────
 const ICON_REGISTRY: Record<string, ComponentType> = {
@@ -73,62 +74,63 @@ export const canonicalBoards: BoardManifest[] = [
     id: 'home', label: '首页', icon: 'HomeOutlined', page: 'home',
     lazy: false, keepAlive: true, layout: 'padded',
     menuOrder: 0, inMenu: true, isHome: true,
+    space: 'shared',
   },
   {
     id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage',
     lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1',
-    menuOrder: 1, inMenu: true, featureModel: 'chat',
+    menuOrder: 1, inMenu: true, featureModel: 'chat', space: 'shared',
   },
   {
     id: 'novel', label: '小说', icon: 'ReadOutlined', page: 'NovelPage',
     lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+2',
     menuOrder: 2, inMenu: true, breadcrumb: { anchorTo: 'novel' },
-    nav: { children: NOVEL_NAV }, featureModel: 'novel',
+    nav: { children: NOVEL_NAV }, featureModel: 'novel', space: 'play',
   },
   {
     id: 'imagegen', label: '绘梦', icon: 'PictureOutlined', page: 'ImageGenPage',
     lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+3',
-    menuOrder: 3, inMenu: true,
+    menuOrder: 3, inMenu: true, space: 'play',
   },
   {
     id: 'gaea', label: '办公', icon: 'ToolOutlined', page: 'GaeaPage',
     lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+4',
-    menuOrder: 4, inMenu: true, featureModel: 'gaea',
+    menuOrder: 4, inMenu: true, featureModel: 'gaea', space: 'work',
   },
   {
     id: 'cost', label: '造价数据库', icon: 'AccountBookOutlined', page: 'CostLibraryPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 5, inMenu: true, nav: { children: COST_NAV }, featureModel: 'cost',
+    menuOrder: 5, inMenu: true, nav: { children: COST_NAV }, featureModel: 'cost', space: 'work',
   },
   {
     id: 'code', label: '编程', icon: 'CodeOutlined', page: 'ProgrammingPage',
     lazy: true, keepAlive: true, layout: 'full', // 桌面内嵌 Harness Web 工作台（全出血）
-    menuOrder: 6, inMenu: true,
+    menuOrder: 6, inMenu: true, space: 'independent', // 独立 DSH 窗口（用户拍板：不并入工位/乐园）
   },
   {
     id: 'memoryhub', label: '记忆中枢', icon: 'DatabaseOutlined', page: 'MemoryHubPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 7, inMenu: true, nav: { children: MEMORYHUB_NAV },
+    menuOrder: 7, inMenu: true, nav: { children: MEMORYHUB_NAV }, space: 'work',
   },
   {
     id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 8, inMenu: true,
+    menuOrder: 8, inMenu: true, space: 'shared',
   },
   {
     id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 9, inMenu: true, featureModel: 'characterlib',
+    menuOrder: 9, inMenu: true, featureModel: 'characterlib', space: 'play',
   },
   {
     id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 10, inMenu: false, nav: { children: SETTINGS_NAV },
+    menuOrder: 10, inMenu: false, nav: { children: SETTINGS_NAV }, space: 'shared',
   },
   {
     id: 'weixin', label: '微信', icon: 'WechatOutlined', page: 'WeixinPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 11, inMenu: false,
+    menuOrder: 11, inMenu: false, space: 'work',
   },
 ]
 
@@ -208,6 +210,7 @@ export interface RemoteBoardManifest {
   shortcut?: string
   menuOrder?: number
   inMenu?: boolean
+  space?: 'work' | 'play' | 'shared'
   breadcrumb?: { anchorTo?: string }
   isHome?: boolean
   nav?: { children?: BoardNavChild[] }
@@ -242,6 +245,7 @@ export function normalizeManifests(remote: RemoteBoardManifest[]): BoardManifest
       shortcut: r.shortcut ?? base?.shortcut,
       menuOrder: r.menuOrder ?? base?.menuOrder,
       inMenu: r.inMenu ?? base?.inMenu ?? false,
+      space: r.space ?? base?.space,
       breadcrumb: r.breadcrumb ? { anchorTo: r.breadcrumb.anchorTo } : base?.breadcrumb,
       isHome: r.isHome ?? base?.isHome ?? false,
       nav: r.nav ? { children: r.nav.children ?? [] } : base?.nav,
@@ -277,6 +281,14 @@ export function getActiveBoards(): BoardManifest[] {
 
 // ── 活动派生视图（消费者：MainLayout 菜单/白名单/快捷键/布局/面包屑）────
 export function getActiveMenuBoards(): BoardManifest[] { return deriveMenuBoards(activeBoards) }
+/** S2.1：按壳层空间过滤后的菜单（shared + 当前空间板块） */
+export function getActiveMenuBoardsForSpace(space: ShellSpace): BoardManifest[] {
+  return deriveMenuBoards(filterBoardsForSpace(activeBoards, space))
+}
+/** S2.1：独立窗口板块（编程 DSH）——两空间导航/首页均不出现，壳层单独入口 */
+export function getActiveIndependentBoards(): BoardManifest[] {
+  return deriveMenuBoards(activeBoards.filter(isIndependentBoard))
+}
 export function getActiveNavigateWhitelist(): string[] { return deriveNavigateWhitelist(activeBoards) }
 export function getActiveShortcutMap(): Record<string, string> { return deriveShortcutMap(activeBoards) }
 export function getActiveHomeBoard(): BoardManifest { return deriveHomeBoard(activeBoards) ?? homeBoard }

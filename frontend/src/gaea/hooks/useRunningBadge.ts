@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { app, onTaskEvent } from "../lib/bridge";
 import type { TaskStatus, TaskView } from "../lib/types";
+import { isWorkSpaceTask } from "../lib/taskSpace";
 
 // useRunningBadge — 运行域活动角标计数（蒸馏 dsh-better-sidebar badge，C6）。
 // 维护「当前活跃任务数」（queued + running），供右侧面板「运行」主 Tab 角标。
@@ -33,6 +34,7 @@ export function useRunningBadge(): number {
       setCount(n);
     };
     const off = onTaskEvent((t) => {
+      if (!isWorkSpaceTask(t)) return;
       tasks.set(t.id, t);
       recalc();
     });
@@ -40,7 +42,10 @@ export function useRunningBadge(): number {
       .TaskList()
       .then((list) => {
         if (cancelled) return;
-        for (const t of list ?? []) tasks.set(t.id, t);
+        for (const t of list ?? []) {
+          if (!isWorkSpaceTask(t)) continue;
+          tasks.set(t.id, t);
+        }
         recalc();
       })
       .catch(() => {

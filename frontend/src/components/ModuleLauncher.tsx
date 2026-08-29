@@ -8,11 +8,12 @@ import {
   ThunderboltOutlined, ArrowRightOutlined, AudioOutlined,
   StopOutlined, RobotOutlined, UserOutlined, DashboardOutlined,
   FileTextOutlined, ClockCircleOutlined, HeartOutlined, ApiOutlined,
-  EditOutlined, MessageOutlined,
+  EditOutlined, MessageOutlined, ToolOutlined,
 } from '@ant-design/icons'
 // 板块清单：活动清单（静态 fallback / 后端合并）订阅驱动；图标由 manifest 图标注册表解析（3.0 §5.2）
 import { getActiveBoards, subscribeBoards, resolveBoardIcon } from '../boards/manifests'
 import { deriveLauncherModules, LAUNCHER_DESC, type LauncherModule } from '../boards/launcher'
+import type { ShellSpace } from '../boards/space'
 import { Tooltip } from 'antd'
 import { useVoiceChat } from '../hooks/useVoiceChat'
 import { useAppStore } from '../stores/appStore'
@@ -33,6 +34,8 @@ interface ModuleLauncherProps {
   onNavigate: (target: LauncherTarget) => void
   /** 当前激活的 AI 模型名（顶栏已加装，传入提升真实感） */
   activeModel?: string
+  /** S2.1 壳层空间：双首页按空间装配（docs/gaea-space-shell-design.md §4.5） */
+  space: ShellSpace
 }
 
 // ── 遥测/会话/记忆的最小类型（对齐 wails 生成的 d.ts，避免引入重型类型）──
@@ -200,16 +203,38 @@ const ChatBubble: React.FC<{ role: 'user' | 'assistant'; text: string }> = ({ ro
  * ｜ 中部模块 Bento 网格（onNavigate 跳转）｜ 底部信息条（会话/记忆/系统）。
  * 语音交互保留：点击 orb 下方按钮本页直启麦克风（不跳转）。
  */
-const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel }) => {
+const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel, space }) => {
   // ── 板块清单（清单化数据源，3.0 §5.2 附 B #10/#11）──
   // useSyncExternalStore 订阅活动清单：getActiveBoards 返回稳定引用（仅加载成功时
   // 替换），subscribeBoards 通知即重渲染，无手动 setState 竞态。默认未加载 = 静态
   // canonicalBoards（8 卡）；loadBoardManifests 成功并入 knowledge 后自动多出「知识库」卡。
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
-  const modules = deriveLauncherModules(activeBoards, LAUNCHER_DESC)
-  // 办公为左侧大卡；其余 8 个模块排成右侧 4×2 网格（角色库/设置不再单独成行）
-  const featuredModule = modules.find((m) => m.key === 'gaea')
-  const otherModules = modules.filter((m) => m.key !== 'gaea')
+  // S2.1 双首页：模块卡按空间装配（shared + 当前空间）；缺省 work（旧调用语义）
+  const modules = deriveLauncherModules(activeBoards, LAUNCHER_DESC, space)
+  // 左侧大卡：工位=办公工作台；乐园=小说创作间；缺省取首卡
+  const featuredModule = modules.find((m) => m.key === (space === 'work' ? 'gaea' : 'novel')) ?? modules[0]
+  const otherModules = modules.filter((m) => m.key !== featuredModule?.key)
+
+  // 空间化文案（工位=任务工作台门面；乐园=会客厅/创作间门面）
+  const hero = space === 'work'
+    ? {
+        eyebrow: 'GAEA 工位已就绪 · 本地 AI 办公中枢',
+        title: '把活儿交给我，我来干',
+        sub: '工位 = 任务工作台：办公、造价、记忆，都在一个工作台里。',
+        primary: { key: 'gaea', title: '进入办公工作台', desc: '委托任务、审阅执行' },
+        secondary: { key: 'cost', title: '查造价数据库', desc: '单价、定额与价格源' },
+        section: '工位模块',
+        sectionHint: '办公 / 造价 / 记忆 / 编程',
+      }
+    : {
+        eyebrow: 'GAEA 乐园已就绪 · 本地 AI 创作乐园',
+        title: '从灵光乍现，到星河成篇',
+        sub: '乐园 = 会客厅与创作间：轻语、小说、绘梦，沉浸不打扰。',
+        primary: { key: 'novel', title: '开始创作', desc: '世界观、角色与大纲' },
+        secondary: { key: 'chat', title: '和 gaea 对话', desc: '与 AI 对话，激发灵感' },
+        section: '乐园模块',
+        sectionHint: '小说 / 绘梦 / 角色 / 会客厅',
+      }
 
   // ── 项目统计（写作进度；appStore 已由壳层加载，只读消费）──
   const stats = useAppStore((s) => s.stats)
@@ -304,6 +329,11 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
 
   const hasChat = !!userText || !!aiReply
 
+  const heroActions = [
+    { ...hero.primary, onClick: () => onNavigate(hero.primary.key) },
+    { ...hero.secondary, onClick: () => onNavigate(hero.secondary.key) },
+  ]
+
   // ── 状态卡数据（全部来自真实遥测/统计，不造假）──
   const ms = monitor?.stats
   const memPct = ms?.memTotal ? Math.round((ms.memUsed || 0) / ms.memTotal * 100) : 0
@@ -336,27 +366,25 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
           <div className="ml-hero-copy">
             <span className="ml-hero-eyebrow">
               <span className="ml-hero-dot" aria-hidden="true" />
-              GAEA 3.0 已就绪 · 本地 AI 创作中枢
+              {hero.eyebrow}
               <ArrowRightOutlined className="ml-hero-eyebrow-arrow" aria-hidden="true" />
             </span>
-            <h1 className="ml-hero-title">从灵光乍现，到星河成篇</h1>
-            <p className="ml-hero-sub">
-              本地优先的 AI 创作中枢：写作、绘梦、记忆与语音，都在一个工作台里。
-            </p>
+            <h1 className="ml-hero-title">{hero.title}</h1>
+            <p className="ml-hero-sub">{hero.sub}</p>
             <div className="ml-hero-actions">
               <HeroActionCard
                 rise="v3-rise-1"
-                icon={<EditOutlined />}
-                title="开始创作"
-                desc="世界观、角色与大纲"
-                onClick={() => onNavigate('novel')}
+                icon={heroActions[0].key === 'gaea' ? <ToolOutlined /> : <EditOutlined />}
+                title={heroActions[0].title}
+                desc={heroActions[0].desc}
+                onClick={heroActions[0].onClick}
               />
               <HeroActionCard
                 rise="v3-rise-2"
                 icon={<MessageOutlined />}
-                title="和 gaea 对话"
-                desc="与 AI 对话，激发灵感"
-                onClick={() => onNavigate('chat')}
+                title={heroActions[1].title}
+                desc={heroActions[1].desc}
+                onClick={heroActions[1].onClick}
               />
             </div>
           </div>
@@ -447,8 +475,8 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
         {/* ── 中部：模块卡片 Bento 网格（数据源/跳转逻辑不变）── */}
         <section className="ml-section" aria-label="全部模块">
           <div className="ml-section-head">
-            <h2>全部模块</h2>
-            <span>选择一个工作台开始</span>
+            <h2>{hero.section}</h2>
+            <span>{hero.sectionHint}</span>
           </div>
           <div className="ml-bento">
             {featuredModule && (

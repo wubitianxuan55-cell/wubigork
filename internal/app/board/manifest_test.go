@@ -56,6 +56,53 @@ func TestManifestDuplicateIDRejected(t *testing.T) {
 	}
 }
 
+// TestManifestSpaceAssignments S2.1 双空间壳：canonical 板块空间归属表
+// （docs/gaea-space-shell-design.md §3）逐项断言，防止新增板块漏标空间。
+func TestManifestSpaceAssignments(t *testing.T) {
+	want := map[string]string{
+		"chat":         SpaceShared,
+		"novel":        SpacePlay,
+		"imagegen":     SpacePlay,
+		"gaea":         SpaceWork,
+		"cost":         SpaceWork,
+		"code":         SpaceIndependent,
+		"memoryhub":    SpaceWork,
+		"modelcenter":  SpaceShared,
+		"characterlib": SpacePlay,
+		"settings":     SpaceShared,
+		"weixin":       SpaceWork,
+		"knowledge":    SpaceWork,
+	}
+	got := map[string]string{}
+	for _, m := range BuiltinManifests() {
+		got[m.ID] = m.Space
+	}
+	for id, space := range want {
+		if got[id] != space {
+			t.Errorf("板块 %q space = %q, want %q", id, got[id], space)
+		}
+	}
+	if err := ValidateAll(BuiltinManifests()); err != nil {
+		t.Fatalf("space 赋值后清单校验失败: %v", err)
+	}
+}
+
+// TestManifestSpaceValidation 非法 space 拒绝；空串（旧数据兼容）放行。
+func TestManifestSpaceValidation(t *testing.T) {
+	for _, bad := range []string{"home", "WORK", "office", "garden"} {
+		m := Manifest{ID: "x", Label: "X", Icon: "I", Page: "p", Space: bad}
+		if err := m.Validate(); err == nil || !strings.Contains(err.Error(), "space") {
+			t.Errorf("space %q 应报错，got err = %v", bad, err)
+		}
+	}
+	for _, ok := range []string{"", SpaceWork, SpacePlay, SpaceShared, SpaceIndependent} {
+		m := Manifest{ID: "x", Label: "X", Icon: "I", Page: "p", Space: ok}
+		if err := m.Validate(); err != nil {
+			t.Errorf("space %q 应放行，got err = %v", ok, err)
+		}
+	}
+}
+
 // TestManifestIntentWithoutHandlerRejected 意图无 handler 必须报错
 // （缺陷 2 的机器保证：intent 无 handler 启动即报错，不静默）。
 func TestManifestIntentWithoutHandlerRejected(t *testing.T) {

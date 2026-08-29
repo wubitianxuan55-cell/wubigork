@@ -36,8 +36,9 @@
     隔离岛（knowledge 缓存/office 原子写/secure AES/tasks LRU）｜前端虚拟化+轮询门控｜CI -race。
   - **验证**：Go 全量 **115 包** + vet；vitest 全绿；eslint 0/0；tsc 0；绑定面 **502 方法**
     漂移 PASS；版本五处统一 3.8.0；wails build + 冒烟 200。
-  - **下一执行**：阶段 2 双空间壳（前端两视图，见 progress.md）；遗留小修（stubGate 竞态/
-    Cancel flake/持久化套件统一）。
+  - **下一执行**：阶段 2 双空间壳——S2.1 壳层两视图+空间切换+双首页已收官
+    （`docs/gaea-space-shell-design.md`），S2.2 页面迁入/i18n/性能门控待启动；
+    遗留小修（stubGate 竞态/Cancel flake/持久化套件统一）。
 
 - **最新发布：v3.7.0（2026-08-29）「办公蒸馏 codex 收官 · 引用可追溯 + 审批决策族 + 输出事件化」**：
   git tag `v3.7.0`；CHANGELOG / releases/v3.7.0.md / README 索引同步；内容 = 第二/三刀

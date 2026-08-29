@@ -1,5 +1,5 @@
 import { wailsApp } from '../lib/wailsApp';
-import React, { useState, useEffect, useRef, Suspense, useReducer } from 'react'
+import React, { useState, useEffect, useRef, Suspense, useReducer, useCallback } from 'react'
 import { Layout, Button, Space, Typography, Tooltip, Spin, Progress, notification } from 'antd'
 import {
   SunOutlined, MoonOutlined, SearchOutlined, SettingOutlined, LoginOutlined,
@@ -16,15 +16,44 @@ import * as App from '../../src/wailsjsCompat'
 import {
   type BoardId, resolveBoardIcon,
   subscribeBoards, loadBoardManifests,
-  getActiveMenuBoards, getActiveNavigateWhitelist,
+  getActiveMenuBoardsForSpace, getActiveIndependentBoards, getActiveNavigateWhitelist,
   getActiveHomeBoard, getActiveProjectAnchorId, getActiveBoard, activeBoardLabel,
 } from '../boards/manifests'
+import {
+  SHELL_SPACES, isBoardReachableInSpace, type ShellSpace,
+} from '../boards/space'
 import { getPageComponent } from '../boards/pageRegistry'
 import { subscribe, BACKEND_EVENTS, FRONTEND_EVENTS } from '../events'
 import { useFeatureModel } from '../hooks/useFeatureModel'
 import { usePollingGate } from '../hooks/usePollingGate'
 
 const { Content } = Layout
+
+// ─── S2.1 每空间最后页面持久化（docs/gaea-space-shell-design.md §4.3）───────
+const SHELL_PAGE_PREFIX = 'gaea.shell.page.'
+
+function shellPageKey(space: ShellSpace): string {
+  return `${SHELL_PAGE_PREFIX}${space}`
+}
+
+function loadShellPage(space: ShellSpace): string {
+  try {
+    const v = localStorage.getItem(shellPageKey(space))
+    if (v && getActiveBoard(v)) return v
+  } catch (_) {}
+  return getActiveHomeBoard().id
+}
+
+function saveShellPage(space: ShellSpace, page: string): void {
+  try { localStorage.setItem(shellPageKey(space), page) } catch (_) {}
+}
+
+/** 目标页在当前空间是否可达（home 恒可达；其余按 manifest.space） */
+function pageReachableInSpace(p: Page, s: ShellSpace): boolean {
+  const b = getActiveBoard(p)
+  if (!b) return false
+  return b.isHome || isBoardReachableInSpace(b, s)
+}
 
 // ─── 页面组件：PageRegistry 集中注册（main.tsx），此处保留旧 lazy import 作为
 //     过渡期 fallback（附 B #3/#5：PageRegistry 与旧 pageComponents 并行一个版本）。
@@ -257,10 +286,15 @@ const TelemetryRail: React.FC<{ stats: StatsData | null; info: ProjectInfo | nul
 const CommandRail: React.FC<{
   page: Page
   onNavigate: (p: Page) => void
+  space: ShellSpace
+  onSwitchSpace: (s: ShellSpace) => void
   darkMode: boolean
   toggleDarkMode: () => void
-}> = ({ page, onNavigate, darkMode, toggleDarkMode }) => {
-  const boards = getActiveMenuBoards()
+}> = ({ page, onNavigate, space, onSwitchSpace, darkMode, toggleDarkMode }) => {
+  // S2.1：指挥轨道导航 = 当前空间菜单（shared + 当前空间板块），替换旧「10 板块」全量导航
+  const boards = getActiveMenuBoardsForSpace(space)
+  // 独立窗口板块（编程 DSH）：单独入口，不混入任一空间导航
+  const independentBoards = getActiveIndependentBoards()
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const moveFocus = (idx: number, dir: number) => {
@@ -275,6 +309,22 @@ const CommandRail: React.FC<{
     >
       <div className="v3-rail-head">
         <img src="/favicon.svg" alt="gaea" />
+        {/* S2.1 空间切换（持久化，appStore.space）——工位 / 乐园 */}
+        <div className="v3-rail-space" role="radiogroup" aria-label="空间切换">
+          {SHELL_SPACES.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              role="radio"
+              aria-checked={space === s.id}
+              title={s.title}
+              className={`v3-rail-space-item${space === s.id ? ' is-active' : ''}`}
+              onClick={() => { if (space !== s.id) onSwitchSpace(s.id) }}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="v3-rail-nav" role="menubar" aria-label="板块">
         {boards.map((b, i) => {
@@ -304,6 +354,30 @@ const CommandRail: React.FC<{
         })}
       </div>
       <div className="v3-rail-foot">
+        {independentBoards.length > 0 && (
+          <>
+            <div className="v3-rail-divider" aria-hidden="true" />
+            {independentBoards.map((b) => {
+              const Icon = resolveBoardIcon(b.icon)
+              const active = b.id === page
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  role="menuitem"
+                  tabIndex={active ? 0 : -1}
+                  aria-current={active ? 'page' : undefined}
+                  aria-label={b.label}
+                  title={`${b.label}（独立窗口）`}
+                  className={`v3-rail-item${active ? ' is-active' : ''}`}
+                  onClick={() => { onNavigate(b.id as Page) }}
+                >
+                  <span className="v3-rail-icon">{Icon ? <Icon /> : null}</span>
+                </button>
+              )
+            })}
+          </>
+        )}
         <Tooltip title={darkMode ? '切换亮色' : '切换暗色'} placement="right">
           <button
             className="v3-rail-item"
@@ -320,7 +394,10 @@ const CommandRail: React.FC<{
 
 // ─── 主布局 ─────────────────────────────────────────────────
 const MainLayout: React.FC = () => {
-  const [page, setPage] = useState<Page>(getActiveHomeBoard().id)
+  // S2.1：壳层空间（持久化 appStore.space）+ 每空间最后页面
+  const space = useAppStore((s) => s.space)
+  const setSpace = useAppStore((s) => s.setSpace)
+  const [page, setPage] = useState<Page>(() => loadShellPage(space) as Page)
   const {
     loggedIn, login, checkLogin, baseTheme, darkMode, setTheme, toggleDarkMode,
     projectOpen, projectInfo, stats, loadProjectInfo, loadStats,
@@ -329,6 +406,19 @@ const MainLayout: React.FC = () => {
   const [searchOpen, setSearchOpen] = useState(false)
   // 附 B #10：visitedPages 初始 home = manifest.isHome
   const [visitedPages, setVisitedPages] = useState<Set<Page>>(new Set([getActiveHomeBoard().id]))
+
+  // 页面切换 → 持久化到当前空间 key；切空间时恢复到该空间最后页面
+  React.useEffect(() => {
+    saveShellPage(space, page)
+  }, [space, page])
+
+  const switchSpace = useCallback((next: ShellSpace) => {
+    if (next === space) return
+    saveShellPage(space, page)
+    setSpace(next)
+    const saved = loadShellPage(next)
+    setPage((pageReachableInSpace(saved as Page, next) ? saved : getActiveHomeBoard().id) as Page)
+  }, [space, page, setSpace])
 
   // 数据源 seam 接线：订阅活动板块清单并触发一次加载；清单变化时重渲染菜单/白名单/快捷键/布局。
   const [, forceBoards] = useReducer((c: number) => c + 1, 0)
@@ -389,21 +479,24 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail
-      if (detail?.page && getActiveNavigateWhitelist().includes(detail.page as Page)) {
+      // S2.1：白名单 + 空间可达性双重校验（work 事件不打扰乐园 UI，反之亦然）
+      if (detail?.page && getActiveNavigateWhitelist().includes(detail.page as Page)
+        && pageReachableInSpace(detail.page as Page, space)) {
         setPage(detail.page as Page)
       }
     }
     window.addEventListener(FRONTEND_EVENTS.NAVIGATE, handler)
     return () => window.removeEventListener(FRONTEND_EVENTS.NAVIGATE, handler)
-  }, [])
+  }, [space])
 
-  // 全局快捷键：Ctrl+1~9 = 指挥轨道模块顺序（home 恒首位除外），Ctrl+N 新建项目（仅首页）
+  // 全局快捷键：Ctrl+1~9 = 当前空间指挥轨道模块顺序（home 恒首位除外），
+  // Ctrl+N 新建项目（仅首页；在工位时显式切到乐园——跨空间由用户显式发起）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
       if (e.key >= '1' && e.key <= '9') {
-        const targets = getActiveMenuBoards().filter((b) => !b.isHome)
+        const targets = getActiveMenuBoardsForSpace(space).filter((b) => !b.isHome)
         const target = targets[parseInt(e.key, 10) - 1]
         if (target) {
           e.preventDefault()
@@ -413,12 +506,18 @@ const MainLayout: React.FC = () => {
       }
       if (e.key === 'n' && !projectOpen) {
         e.preventDefault()
-        setPage('novel')
+        if (space !== 'play') {
+          switchSpace('play')
+          // 切空间后落地到乐园小说页（loadShellPage(play) 兜底；显式指定 novel）
+          setPage('novel')
+        } else {
+          setPage('novel')
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [projectOpen])
+  }, [projectOpen, space, switchSpace])
 
   // 附 B #9：Content 布局 = manifest.layout（chat/gaea=full，其余 padded，home=isHome 特判）
   const currentLayout = getActiveBoard(page)?.layout ?? 'padded'
@@ -441,7 +540,14 @@ const MainLayout: React.FC = () => {
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         {/* ═══ 左侧指挥轨道（OS 自动隐藏 dock：默认收进左缘，滑过热区展开） ═══ */}
         <div className="v3-rail-dock">
-          <CommandRail page={page} onNavigate={navigate} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
+          <CommandRail
+            page={page}
+            onNavigate={navigate}
+            space={space}
+            onSwitchSpace={switchSpace}
+            darkMode={darkMode}
+            toggleDarkMode={toggleDarkMode}
+          />
         </div>
 
         {/* ═══ 右侧列：轨道条 + 内容 + 遥测轨道 ═══ */}
@@ -579,7 +685,11 @@ const MainLayout: React.FC = () => {
                       return (
                         <div key={p} className="page-enter" style={{ display: p === page ? 'flex' : 'none', flex: 1, flexDirection: 'column', minHeight: 0 }}>
                           {p === getActiveHomeBoard().id
-                            ? <ModuleLauncher onNavigate={(target: LauncherTarget) => setPage(target as Page)} activeModel={activeModel || undefined} />
+                            ? <ModuleLauncher
+                                onNavigate={(target: LauncherTarget) => setPage(target as Page)}
+                                activeModel={activeModel || undefined}
+                                space={space}
+                              />
                             : Comp ? <Comp /> : null}
                         </div>
                       )
@@ -596,7 +706,7 @@ const MainLayout: React.FC = () => {
       </div>
 
       {/* 搜索 */}
-      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} space={space} />
     </Layout>
   )
 }

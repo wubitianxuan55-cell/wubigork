@@ -9,6 +9,7 @@
  * 缺失时兜底 = manifest.label。
  */
 import type { BoardManifest } from './types'
+import { isBoardReachableInSpace, type ShellSpace } from './space'
 
 /** 启动器卡片模块（icon 为图标注册表名，渲染处 resolveBoardIcon 解析） */
 export interface LauncherModule {
@@ -36,12 +37,19 @@ export const LAUNCHER_DESC: Record<string, string> = {
 /**
  * 启动器模块清单 = 非 home 且可达（inMenu 或 settings 隐式入口）的板块，
  * 按 menuOrder 升序（undefined 视为无穷大，与 manifests.ts 其它派生视图一致；
- * filter 已产出新数组，sort 不污染入参）。desc 取 descMap 覆盖文案，缺失兜底
- * = manifest.label；icon 字段透传图标注册表名（渲染处解析）。
+ * filter 已产出新数组，sort 不污染入参）。space 可选：传入时按空间过滤
+ * （S2.1 双首页，shared + 当前空间）；不传 = 全量（保持旧调用语义）。
+ * desc 取 descMap 覆盖文案，缺失兜底 = manifest.label；icon 字段透传图标
+ * 注册表名（渲染处解析）。
  */
-export function deriveLauncherModules(list: BoardManifest[], descMap: Record<string, string>): LauncherModule[] {
+export function deriveLauncherModules(
+  list: BoardManifest[],
+  descMap: Record<string, string>,
+  space?: ShellSpace,
+): LauncherModule[] {
   return list
     .filter((b) => !b.isHome && (b.inMenu || b.id === 'settings'))
+    .filter((b) => !space || isBoardReachableInSpace(b, space))
     .sort((a, b) => (a.menuOrder ?? Number.MAX_SAFE_INTEGER) - (b.menuOrder ?? Number.MAX_SAFE_INTEGER))
     .map((b) => ({
       key: b.id,

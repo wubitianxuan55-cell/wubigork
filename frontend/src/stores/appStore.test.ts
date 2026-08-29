@@ -2,7 +2,7 @@
 // 锁定：12 套主题（6 色系 × 明暗）必须产出完整 ThemeTokens，
 // 含 3.0 新增语义令牌 colorDestructive（破坏性操作红）。
 import { describe, expect, it } from 'vitest'
-import { getThemeTokens, type ThemePreset } from './appStore'
+import { getThemeTokens, useAppStore, type ThemePreset } from './appStore'
 
 const PRESETS: ThemePreset[] = ['nightJade', 'nightViolet', 'nightRose', 'nightAmber', 'nightMoss', 'nightSlate']
 const HEX = /^#[0-9a-fA-F]{6}$/
@@ -34,5 +34,17 @@ describe('getThemeTokens（3.0 设计系统 Wave 1 令牌契约）', () => {
     const light = getThemeTokens('nightJade', false)
     expect(dark.radiusMd).toBe(light.radiusMd)
     expect(dark.transitionNormal).toBe(light.transitionNormal)
+  })
+})
+
+describe('useAppStore.space（S2.1 壳层视图空间持久化）', () => {
+  it('默认工位（work），setSpace 写 localStorage 并可读回', () => {
+    localStorage.removeItem('gaea.shell.space')
+    expect(useAppStore.getState().space).toBe('work')
+    useAppStore.getState().setSpace('play')
+    expect(useAppStore.getState().space).toBe('play')
+    expect(localStorage.getItem('gaea.shell.space')).toBe('play')
+    useAppStore.getState().setSpace('work')
+    expect(localStorage.getItem('gaea.shell.space')).toBe('work')
   })
 })

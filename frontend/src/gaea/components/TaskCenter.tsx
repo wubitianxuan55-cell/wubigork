@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import { CheckCircle, Clock, Inbox, Loader, RefreshCw, X, XCircle } from "../icons";
 import { app, onTaskEvent } from "../lib/bridge";
 import type { TaskOutputView, TaskStatus, TaskView } from "../lib/types";
+import { isWorkSpaceTask } from "../lib/taskSpace";
 import { useToast } from "./Toast";
 
 // TaskCenter — 通用任务中心（阶段 5 T5-1）：展示持久化任务队列
@@ -62,7 +63,7 @@ export function TaskCenter() {
   const load = useCallback(() => {
     app
       .TaskList()
-      .then((list) => setTasks(list ?? []))
+      .then((list) => setTasks((list ?? []).filter(isWorkSpaceTask)))
       .catch(() => setTasks([]))
       .finally(() => setLoading(false));
   }, []);
@@ -71,6 +72,7 @@ export function TaskCenter() {
   useEffect(() => {
     load();
     const off = onTaskEvent((t) => {
+      if (!isWorkSpaceTask(t)) return;
       setTasks((prev) => {
         const next = prev.filter((x) => x.id !== t.id);
         return [t, ...next].slice(0, 50);

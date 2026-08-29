@@ -45,9 +45,17 @@
 - [x] **S1.5 空间策略**：S1.5-A 权限按空间+hardAsk 参数化+persist_allow 分段（装配族 `f8612d0`）；S1.5-B play 护栏 5 处钳制（`21f8978`）
 - 设计文档：`docs/gaea-space-dimension-design.md` / `gaea-memory-isolation-design.md` / `gaea-space-assembly-design.md`
 
-### 阶段 2 · 双空间壳（前端两视图，S2.1-S2.3）—— 待启动
-- S2.1 壳层重构（工位任务工作台 + 乐园沉浸视图 + 空间切换持久化；删除旧 10 板块导航；双首页）
-- S2.2 页面迁入 + i18n 全铺 + 性能门控（并入 S0.7 项）+ store/key 空间前缀迁移 + 事件订阅按空间过滤 + Ctrl+K scope
+### 阶段 2 · 双空间壳（前端两视图，S2.1-S2.3）—— S2.1 完成
+- [x] **S2.1 壳层重构**（设计 `docs/gaea-space-shell-design.md`）：
+  - [x] manifest 空间维度（Go + TS 同构）：work/play/shared/**independent**（编程 DSH 独立窗口，
+    用户拍板不并入工位/乐园）——导航/启动器/快捷键/导航事件白名单全部由 manifest.space 派生
+  - [x] 两视图壳层：CommandRail 空间切换（appStore.space 持久化 `gaea.shell.space`）+ 按空间菜单
+    （shared + 当前空间）；独立窗口板块单独 rail 入口；每空间最后页面持久化 `gaea.shell.page.<space>`
+  - [x] 双首页：ModuleLauncher 按空间装配（工位=任务工作台门面 / 乐园=会客厅创作间门面）
+  - [x] 事件订阅空间过滤：events.ts `subscribeForSpace`（payload.spaceId/space 过滤）；
+    TaskCenter/useRunningBadge 只收工位任务（TaskView.spaceId）
+  - [x] Ctrl+K 搜索 scope：工位/乐园/全部三档，默认当前空间（工位=UnifiedSearch；乐园=项目搜索）
+- S2.2 页面迁入 + i18n 全铺 + 性能门控（并入 S0.7 项）+ store/key 空间前缀迁移（gaea 工作台按空间分键）
 - S2.3 bridge 分面（work/play/shared）+ types 生成化
 
 ## 纪律（沿用）

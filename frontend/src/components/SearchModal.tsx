@@ -4,6 +4,9 @@ import { Typography, Space, Tag, Modal, Input, Spin, Empty } from 'antd'
 import { SearchOutlined, FileTextOutlined, UserOutlined } from '@ant-design/icons'
 
 import { C } from '../utils/theme'
+import { app } from '../gaea/lib/bridge'
+import type { SearchScope, UnifiedSearchView } from '../gaea/lib/types'
+import type { ShellSpace } from '../boards/space'
 
 interface SearchResult {
   file: string
@@ -13,6 +16,8 @@ interface SearchResult {
 interface SearchModalProps {
   open: boolean
   onClose: () => void
+  /** S2.1：当前壳层空间——搜索 scope 默认跟随（docs/gaea-space-shell-design.md §4.8） */
+  space: ShellSpace
 }
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -22,6 +27,13 @@ const categoryIcons: Record<string, React.ReactNode> = {
 const categoryLabels: Record<string, string> = {
   chapters: '章节', characters: '角色',
 }
+
+/** S2.1 scope 三档（工位/乐园/全部；默认=当前空间，「全部」仅显式选择，红线不默认跨空间） */
+const SCOPE_OPTIONS: { value: SearchScope; label: string; title: string }[] = [
+  { value: 'work', label: '工位', title: '工位：工作区文件 + 工位记忆' },
+  { value: 'play', label: '乐园', title: '乐园：小说章节 / 角色' },
+  { value: '', label: '全部', title: '全部（跨工位与乐园，显式选择）' },
+]
 
 /** 在文本中用 <mark> 高亮关键词 */
 function highlightText(text: string, query: string): React.ReactNode {
@@ -39,38 +51,96 @@ function highlightText(text: string, query: string): React.ReactNode {
   )
 }
 
-const SearchModal: React.FC<SearchModalProps> = ({ open, onClose }) => {
+interface SearchSection {
+  key: string
+  label: string
+  icon?: React.ReactNode
+  rows: SearchResult[]
+}
+
+/** 小说项目搜索 → 章节/角色分节 */
+function sectionsFromNovel(results: Record<string, SearchResult[]>): SearchSection[] {
+  return Object.keys(results)
+    .filter((k) => results[k].length > 0)
+    .map((cat) => ({
+      key: cat,
+      label: categoryLabels[cat] || cat,
+      icon: categoryIcons[cat],
+      rows: results[cat],
+    }))
+}
+
+/** 统一检索（工位记忆/文件）→ 工作区文件 + 记忆语义分节 */
+function sectionsFromUnified(v: UnifiedSearchView): SearchSection[] {
+  const out: SearchSection[] = []
+  if (v.keyword?.length) {
+    out.push({
+      key: 'files',
+      label: '工作区文件',
+      icon: <FileTextOutlined style={{ color: '#4ade80' }} />,
+      rows: v.keyword.map((h) => ({ file: h.path, context: h.snippet })),
+    })
+  }
+  if (v.semantic?.length) {
+    out.push({
+      key: 'memory',
+      label: '记忆检索',
+      icon: <FileTextOutlined style={{ color: '#a78bfa' }} />,
+      rows: v.semantic.map((h) => ({ file: h.kind, context: h.text })),
+    })
+  }
+  if (v.brain?.length) {
+    out.push({
+      key: 'brain',
+      label: '三脑记忆',
+      icon: <FileTextOutlined style={{ color: '#f472b6' }} />,
+      rows: v.brain.map((h) => ({ file: `${h.brain} · ${h.entity}`, context: h.text })),
+    })
+  }
+  return out
+}
+
+const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<Record<string, SearchResult[]>>({})
+  const [sections, setSections] = useState<SearchSection[]>([])
   const [searched, setSearched] = useState(false)
+  const [scope, setScope] = useState<SearchScope>(space)
   const [filterCategory, setFilterCategory] = useState<string | null>(null)
+
+  // 每次打开：scope 默认跟随当前壳层空间（不持久化——默认不跨空间红线）
+  React.useEffect(() => {
+    if (open) setScope(space)
+  }, [open, space])
 
   const handleSearch = async (value: string) => {
     const q = value.trim()
-    if (!q) { setResults({}); setSearched(false); return }
+    if (!q) { setSections([]); setSearched(false); return }
     setLoading(true)
     setSearched(true)
     setFilterCategory(null)
     try {
-      const data = await wailsApp().Search(q)
-      setResults(data || {})
+      const novel = scope === 'work' ? null : await wailsApp().Search(q).catch(() => null)
+      const unified = scope === 'play' ? null : await app.UnifiedSearch(q, scope === 'work' ? 'work' : '', 8).catch(() => null)
+      const all: SearchSection[] = []
+      if (novel) all.push(...sectionsFromNovel(novel))
+      if (unified) all.push(...sectionsFromUnified(unified))
+      setSections(all)
     } catch (_) {
-      setResults({})
+      setSections([])
     } finally { setLoading(false) }
   }
 
-  const totalResults = Object.values(results).flat().length
-  const categories = Object.keys(results).filter((k) => results[k].length > 0)
-  const filteredCategories = filterCategory
-    ? categories.filter((c) => c === filterCategory)
-    : categories
+  const totalResults = sections.reduce((n, s) => n + s.rows.length, 0)
+  const filteredSections = filterCategory
+    ? sections.filter((s) => s.key === filterCategory)
+    : sections
 
   return (
     <Modal
-      title={<span style={{ color: C('color-text') }}><SearchOutlined style={{ color: C('color-primary'), marginRight: 8 }} />全文搜索</span>}
+      title={<span style={{ color: C('color-text') }}><SearchOutlined style={{ color: C('color-primary'), marginRight: 8 }} />全局搜索</span>}
       open={open}
-      onCancel={() => { onClose(); setQuery(''); setResults({}); setSearched(false) }}
+      onCancel={() => { onClose(); setQuery(''); setSections([]); setSearched(false) }}
       footer={null}
       destroyOnHidden
       transitionName=""
@@ -82,7 +152,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose }) => {
     >
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         <Input.Search
-          placeholder="搜索章节内容、角色、大纲..."
+          placeholder="搜索章节、角色、文件与记忆..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onSearch={handleSearch}
@@ -91,6 +161,28 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose }) => {
           allowClear
           style={{ background: C('color-bg-layout') }}
         />
+
+        {/* S2.1 scope 切换：默认=当前空间；「全部」=scope '' 仅显式选择 */}
+        <div role="radiogroup" aria-label="搜索范围" style={{ display: 'flex', gap: 8 }}>
+          {SCOPE_OPTIONS.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={scope === o.value}
+              title={o.title}
+              onClick={() => setScope(o.value)}
+              style={{
+                border: `1px solid ${scope === o.value ? C('color-primary') : C('color-border')}`,
+                color: scope === o.value ? C('color-primary') : C('color-text-secondary'),
+                background: 'transparent', borderRadius: 999, padding: '2px 12px',
+                fontSize: 12, cursor: 'pointer',
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
@@ -108,26 +200,26 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose }) => {
                 >
                   全部 ({totalResults})
                 </Tag>
-                {categories.map((cat) => (
+                {sections.map((s) => (
                   <Tag
-                    key={cat}
-                    color={filterCategory === cat ? 'blue' : 'default'}
+                    key={s.key}
+                    color={filterCategory === s.key ? 'blue' : 'default'}
                     style={{ cursor: 'pointer', fontSize: 11 }}
-                    onClick={() => setFilterCategory(cat === filterCategory ? null : cat)}
+                    onClick={() => setFilterCategory(s.key === filterCategory ? null : s.key)}
                   >
-                    {categoryIcons[cat]} {categoryLabels[cat] || cat} ({results[cat].length})
+                    {s.icon} {s.label} ({s.rows.length})
                   </Tag>
                 ))}
               </Space>
 
               {/* 结果列表 */}
-              {filteredCategories.map((cat) => (
-                <div key={cat}>
+              {filteredSections.map((s) => (
+                <div key={s.key}>
                   <Typography.Text strong style={{ color: C('color-text'), fontSize: 12, display: 'block', marginBottom: 6 }}>
-                    {categoryIcons[cat]} {categoryLabels[cat] || cat} · {results[cat].length} 条
+                    {s.icon} {s.label} · {s.rows.length} 条
                   </Typography.Text>
                   <Space direction="vertical" size={6} style={{ width: '100%' }}>
-                    {results[cat].map((r, i) => (
+                    {s.rows.map((r, i) => (
                       <div
                         key={i}
                         style={{
@@ -150,7 +242,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose }) => {
           )
         ) : (
           <div style={{ textAlign: 'center', padding: 20, color: C('color-text-secondary'), fontSize: 12 }}>
-            输入关键词，搜索小说中的全部内容
+            输入关键词，搜索当前空间（工位文件/记忆 或 乐园章节/角色）
           </div>
         )}
       </Space>

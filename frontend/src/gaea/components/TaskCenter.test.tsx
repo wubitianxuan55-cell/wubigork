@@ -85,6 +85,22 @@ describe("TaskCenter 任务中心（C1 实时输出 + 结束态细分）", () =>
     await waitFor(() => expect(screen.queryByText(/输出 · 抓取四川造价信息网/)).toBeNull());
   });
 
+  it("S2.1 事件过滤：play 任务事件不进入工位任务中心，列表初始拉取同样过滤", async () => {
+    tasks.list = [
+      makeTask({ id: "w1", label: "工位索引", status: "running", spaceId: "work" }),
+      makeTask({ id: "p1", label: "乐园任务", status: "running", spaceId: "play" }),
+    ];
+    render(wrap(<TaskCenter />));
+    expect(await screen.findByText("工位索引")).toBeTruthy();
+    expect(screen.queryByText("乐园任务")).toBeNull();
+
+    // 事件流：play 事件丢弃、work 事件进入
+    taskEventCb?.(makeTask({ id: "p2", label: "乐园事件", status: "running", spaceId: "play" }));
+    taskEventCb?.(makeTask({ id: "w2", label: "工位事件", status: "queued", spaceId: "work" }));
+    expect(await screen.findByText("工位事件")).toBeTruthy();
+    expect(screen.queryByText("乐园事件")).toBeNull();
+  });
+
   it("C9：事件携带 outputTail 时输出 dock 即推更新（不等轮询）", async () => {
     tasks.list = [makeTask({ id: "t1", label: "抓取A", status: "running" })];
     tasks.output = { t1: { tail: "[10:00:00] 开始", truncated: false } };

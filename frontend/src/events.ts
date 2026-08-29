@@ -90,6 +90,26 @@ export function subscribe(event: string, handler: (data: unknown) => void): () =
   }
 }
 
+/**
+ * S2.1 双空间壳：按空间过滤的事件订阅（docs/gaea-space-shell-design.md §4.7）。
+ * 事件 payload 带 `spaceId`（任务事件，后端 Task.Space `json:"spaceId"`）或
+ * `space` 字段时，与当前壳层空间不匹配的事件直接丢弃；payload 无空间字段
+ * = 全局事件（模型切换/桥接就绪等），一律放行。
+ */
+export function subscribeForSpace(
+  event: string,
+  handler: (data: unknown) => void,
+  space?: string,
+): () => void {
+  if (!space) return subscribe(event, handler)
+  return subscribe(event, (data) => {
+    const payload = data as { spaceId?: unknown; space?: unknown } | null
+    const evSpace = payload?.spaceId ?? payload?.space
+    if (typeof evSpace === 'string' && evSpace !== space) return
+    handler(data)
+  })
+}
+
 /** 分发前端自定义事件（§4.2 的 dispatchEvent 统一封装） */
 export function emitFrontendEvent(name: FrontendEventName, detail?: unknown): void {
   window.dispatchEvent(new CustomEvent(name, { detail }))

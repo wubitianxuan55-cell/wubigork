@@ -32,6 +32,8 @@ export interface BoardNav {
 export interface BoardManifest {
   /** 板块稳定 id（导航白名单键，现 allPageKeys 的替代） */
   id: string
+  /** 空间归属（S2.1 双空间壳）：work 工位 / play 乐园 / shared 共用 / independent 独立窗口（缺省按 work 兼容） */
+  space?: 'work' | 'play' | 'shared' | 'independent'
   /** 菜单/面包屑/启动器显示名 */
   label: string
   /** antd 图标名（图标注册表查表解析） */

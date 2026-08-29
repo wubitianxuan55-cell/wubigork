@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { BACKEND_EVENTS, FRONTEND_EVENTS, chatStreamChannel, subscribe, emitFrontendEvent } from './events'
+import { BACKEND_EVENTS, FRONTEND_EVENTS, chatStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
 
 // 3.0 01 报告 §4：21 后端事件 + 4 前端事件常量表 + subscribe 统一封装
 
@@ -87,5 +87,48 @@ describe('subscribe（§4.3 两套并存收敛）', () => {
     const got = subscribe('evt', () => {})
     got()
     expect(off).toHaveBeenCalledWith('evt', expect.any(Function))
+  })
+})
+
+describe('subscribeForSpace（S2.1 事件空间过滤）', () => {
+  afterEach(() => {
+    window.runtime = undefined
+  })
+
+  it('payload.spaceId 与当前空间不匹配的事件被丢弃，全局事件放行', () => {
+    const unsub = vi.fn()
+    window.runtime = { EventsOn: vi.fn(() => unsub) } as unknown as Window['runtime']
+    const handler = vi.fn()
+    const off = subscribeForSpace('gaea-task', handler, 'work')
+    const cb = (window.runtime!.EventsOn as ReturnType<typeof vi.fn>).mock.calls[0][1] as (data: unknown) => void
+    cb({ id: 't1', spaceId: 'work' })
+    cb({ id: 't2', spaceId: 'play' })
+    cb({ id: 't3' })
+    expect(handler).toHaveBeenCalledTimes(2)
+    expect(handler.mock.calls[0][0]).toMatchObject({ id: 't1' })
+    expect(handler.mock.calls[1][0]).toMatchObject({ id: 't3' })
+    off()
+    expect(unsub).toHaveBeenCalledTimes(1)
+  })
+
+  it('payload.space 别名同样过滤', () => {
+    window.runtime = { EventsOn: vi.fn() } as unknown as Window['runtime']
+    const handler = vi.fn()
+    subscribeForSpace('x', handler, 'play')
+    const cb = (window.runtime!.EventsOn as ReturnType<typeof vi.fn>).mock.calls[0][1] as (data: unknown) => void
+    cb({ space: 'work' })
+    cb({ space: 'play' })
+    expect(handler).toHaveBeenCalledTimes(1)
+    expect(handler.mock.calls[0][0]).toMatchObject({ space: 'play' })
+  })
+
+  it('无 space 参数 = 普通 subscribe（全部放行）', () => {
+    window.runtime = { EventsOn: vi.fn() } as unknown as Window['runtime']
+    const handler = vi.fn()
+    subscribeForSpace('model-changed', handler)
+    const cb = (window.runtime!.EventsOn as ReturnType<typeof vi.fn>).mock.calls[0][1] as (data: unknown) => void
+    cb({ model: 'x' })
+    cb({ spaceId: 'play' })
+    expect(handler).toHaveBeenCalledTimes(2)
   })
 })

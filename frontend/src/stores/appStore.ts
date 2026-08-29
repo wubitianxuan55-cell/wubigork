@@ -1,5 +1,6 @@
 import { wailsApp } from '../lib/wailsApp';
 import { create } from 'zustand'
+import { isShellSpace, type ShellSpace } from '../boards/space'
 
 // ═══════════════════════════════════════════════════════════
 // Types
@@ -119,6 +120,9 @@ const MOTION_KEY = 'gaea-motion'
 const ACCENT_KEY = 'gaea-accent'
 const FONT_KEY = 'gaea-font-family'
 const FONT_SIZE_KEY = 'gaea-font-size'
+// S2.1 双空间壳：壳层视图空间（工位/乐园）。独立于后端生效空间
+// （GaeaSpaceActive 管数据落点；本键管导航/首页/事件面呈现）。
+const SHELL_SPACE_KEY = 'gaea.shell.space'
 
 /** 预置界面字体（key → 完整 font-family 值） */
 export const FONT_OPTIONS: { key: string; label: string; value: string }[] = [
@@ -159,6 +163,14 @@ function loadMotion(): MotionPref {
 }
 function loadAccent(): string {
   try { return localStorage.getItem(ACCENT_KEY) || '' } catch (_) { return '' }
+}
+
+function loadShellSpace(): ShellSpace {
+  try {
+    const v = localStorage.getItem(SHELL_SPACE_KEY)
+    if (isShellSpace(v)) return v
+  } catch (_) {}
+  return 'work'
 }
 
 /** 显示模式：light/dark/system（system = 跟随操作系统明暗） */
@@ -207,6 +219,7 @@ interface AppState {
   accentColor: string          // 强调色自定义（'' = 跟随主题）
   fontFamily: string           // 界面字体预设 key（FONT_OPTIONS）
   fontSize: number             // 界面字号 12-20
+  space: ShellSpace            // S2.1 壳层视图空间（工位/乐园，持久化）
   projectInfo: ProjectInfo | null
   stats: StatsData | null
   login: () => Promise<void>
@@ -226,6 +239,7 @@ interface AppState {
   setAccentColor: (c: string) => void
   setFontFamily: (f: string) => void
   setFontSize: (n: number) => void
+  setSpace: (s: ShellSpace) => void
   loadProjectInfo: () => Promise<void>
   loadStats: () => Promise<void>
   setNovelsDir: (dir: string) => Promise<void>
@@ -247,6 +261,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   accentColor: loadAccent(),
   fontFamily: loadFontFamily(),
   fontSize: loadFontSize(),
+  space: loadShellSpace(),
   projectInfo: null,
   stats: null,
 
@@ -289,6 +304,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setFontSize: (n: number) => {
     set({ fontSize: n })
     try { localStorage.setItem(FONT_SIZE_KEY, String(n)) } catch (_) {}
+  },
+
+  setSpace: (s: ShellSpace) => {
+    set({ space: s })
+    try { localStorage.setItem(SHELL_SPACE_KEY, s) } catch (_) {}
   },
 
   login: async () => {

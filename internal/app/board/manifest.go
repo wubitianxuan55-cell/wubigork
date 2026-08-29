@@ -16,11 +16,16 @@ import (
 //     App 上提供该意图的绑定方法名（gen_bindings 的 manifest 覆盖层与
 //     initModules 的处理器解析共用）。
 type Manifest struct {
-	ID           string          `json:"id"`
-	Label        string          `json:"label"`
-	Icon         string          `json:"icon"`
-	Page         string          `json:"page"`
-	Lazy         bool            `json:"lazy"`
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Icon  string `json:"icon"`
+	Page  string `json:"page"`
+	Lazy  bool   `json:"lazy"`
+	// Space 板块空间归属（S2.1 双空间壳，docs/gaea-space-shell-design.md §3）：
+	// ""（缺省，按 work 兼容）| "work" 工位 | "play" 乐园 | "shared" 共用 |
+	// "independent" 独立窗口（编程 DSH——不进工位/乐园导航，单独入口）。
+	// 前端导航/启动器/快捷键按 space 过滤（shared 两空间均可达；independent 两空间均不出现）。
+	Space        string          `json:"space,omitempty"`
 	KeepAlive    *bool           `json:"keepAlive,omitempty"`
 	Layout       string          `json:"layout,omitempty"`
 	Shortcut     string          `json:"shortcut,omitempty"`
@@ -34,6 +39,14 @@ type Manifest struct {
 	Intents      []IntentDecl    `json:"intents,omitempty"`
 	Tools        []string        `json:"tools,omitempty"`
 }
+
+// 板块空间归属常量（S2.1，与前端 boards/space.ts 的 BoardSpace 同构）。
+const (
+	SpaceWork        = "work"
+	SpacePlay        = "play"
+	SpaceShared      = "shared"
+	SpaceIndependent = "independent"
+)
 
 // BreadcrumbSpec 面包屑锚点语义（附 B #8：novel 声明自己是项目锚点）。
 type BreadcrumbSpec struct {
@@ -80,6 +93,8 @@ func (m *Manifest) Validate() error {
 		return fmt.Errorf("manifest %q: page 为空", m.ID)
 	case m.Layout != "" && m.Layout != "full" && m.Layout != "padded":
 		return fmt.Errorf("manifest %q: layout %q 非法（仅 full|padded）", m.ID, m.Layout)
+	case m.Space != "" && m.Space != SpaceWork && m.Space != SpacePlay && m.Space != SpaceShared && m.Space != SpaceIndependent:
+		return fmt.Errorf("manifest %q: space %q 非法（仅 work|play|shared|independent 或空）", m.ID, m.Space)
 	}
 	seen := map[string]bool{}
 	for _, it := range m.Intents {

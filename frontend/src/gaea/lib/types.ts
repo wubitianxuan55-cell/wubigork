@@ -1459,6 +1459,9 @@ export interface TaskView {
   createdAt: number; // unix 毫秒
   startedAt: number;
   finishedAt: number;
+  // S1 空间归属（后端 Task.Space `json:"spaceId,omitempty"`）：任务中心/角标
+  // 按当前空间过滤事件（S2.1 docs/gaea-space-shell-design.md §4.7）。
+  spaceId?: string;
   // C9 事件视图字段：gaea-task 事件在输出变更/终态时携带输出尾部整尾回放
   // （有界环形缓冲），输出 dock 事件即推（轮询兜底）；列表/查询响应中缺省。
   outputTail?: string;

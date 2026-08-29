@@ -23,6 +23,7 @@ var builtinManifests = []Manifest{
 		Page: "ChatPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full", Shortcut: "ctrl+1",
 		MenuOrder: 1, InMenu: Bool(true),
+		Space:        SpaceShared, // §10.3：对话共用（S2.2 降为对话流）
 		FeatureModel: "chat",
 		Bindings:     []string{"VoiceB", "ChatB"}, // §3.1：ChatB + VoiceB(whisper 部分)
 		Intents:      []IntentDecl{{ID: "chat", Handler: "WhisperChat"}},
@@ -32,6 +33,7 @@ var builtinManifests = []Manifest{
 		Page: "NovelPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded", Shortcut: "ctrl+2",
 		MenuOrder: 2, InMenu: Bool(true),
+		Space:      SpacePlay,                            // 乐园·小说
 		Breadcrumb: &BreadcrumbSpec{AnchorTo: "project"}, // 附 B #8：项目名→novel 锚点
 		Nav: &NavSpec{Children: []NavChild{
 			{ID: "home", Label: "书架"}, {ID: "novelsetting", Label: "设定"},
@@ -47,6 +49,7 @@ var builtinManifests = []Manifest{
 		Page: "ImageGenPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded", Shortcut: "ctrl+3",
 		MenuOrder: 3, InMenu: Bool(true),
+		Space:        SpacePlay, // 乐园·绘梦
 		FeatureModel: "imagegen",
 		Bindings:     []string{"ImageB"},
 		Intents:      []IntentDecl{{ID: "generate", Handler: "GenerateFreeImage"}},
@@ -56,6 +59,7 @@ var builtinManifests = []Manifest{
 		Page: "GaeaPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full", Shortcut: "ctrl+4",
 		MenuOrder: 4, InMenu: Bool(true),
+		Space:        SpaceWork, // 工位主体（任务制工作台）
 		FeatureModel: "gaea",
 		Bindings:     []string{"OfficeB", "MemoryB", "CostB"}, // §3.1：OfficeB + MemoryB + CostB
 		Intents: []IntentDecl{
@@ -68,6 +72,7 @@ var builtinManifests = []Manifest{
 		Page: "CostLibraryPage", Lazy: true, // 2026-08-19：成本库从记忆中枢二级分类提升为一级板块
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 5, InMenu: Bool(true),
+		Space: SpaceWork, // 工位·造价领域包
 		Nav: &NavSpec{Children: []NavChild{
 			{ID: "overview", Label: "概览"}, {ID: "entries", Label: "成本条目"},
 			{ID: "projects", Label: "测算项目"}, {ID: "indicators", Label: "造价参考"},
@@ -82,6 +87,7 @@ var builtinManifests = []Manifest{
 		Page: "ProgrammingPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "full", // 桌面内嵌 Harness Web 工作台（全出血）
 		MenuOrder: 6, InMenu: Bool(true),
+		Space:    SpaceIndependent,  // 独立 DSH 窗口（用户拍板：不并入工位、不共享工具面）
 		Bindings: []string{"CoreB"}, // dsh web 进程管理（Get/Start/StopProgrammingWeb）
 	},
 	{
@@ -89,6 +95,7 @@ var builtinManifests = []Manifest{
 		Page: "MemoryHubPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 7, InMenu: Bool(true),
+		Space: SpaceWork, // 工位·记忆中枢
 		Nav: &NavSpec{Children: []NavChild{
 			{ID: "knowledge", Label: "知识库"},
 			{ID: "profile", Label: "用户画像"}, {ID: "office", Label: "办公记忆"},
@@ -102,6 +109,7 @@ var builtinManifests = []Manifest{
 		Page: "ModelCenterPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 8, InMenu: Bool(true),
+		Space:    SpaceShared, // 模型设置共用
 		Bindings: []string{"ModelB"},
 	},
 	{
@@ -109,6 +117,7 @@ var builtinManifests = []Manifest{
 		Page: "CharacterLibraryPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 9, InMenu: Bool(true),
+		Space:        SpacePlay, // 乐园·角色资产
 		FeatureModel: "characterlib",
 		Bindings:     []string{"CharlibB"},
 	},
@@ -117,6 +126,7 @@ var builtinManifests = []Manifest{
 		Page: "SettingsPage", Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 10, InMenu: Bool(false), // 附 B #12：不进菜单，右上角按钮入口
+		Space: SpaceShared, // 全局设置
 		Nav: &NavSpec{Children: []NavChild{
 			{ID: "general", Label: "通用"}, {ID: "chat", Label: "聊天"},
 			{ID: "novel", Label: "小说"}, {ID: "imagegen", Label: "绘梦"},
@@ -132,12 +142,14 @@ var builtinManifests = []Manifest{
 		Lazy:      false,
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 11, InMenu: Bool(false),
+		Space: SpaceWork, // 工位触点（微信远程任务入口，§10.3）
 	},
 	{
 		ID: "knowledge", Label: "知识库", Icon: "BookOutlined",
 		Page: "KnowledgePage", Lazy: true, // D7：恢复挂载为独立板块（3.0.0 最小 manifest 试点；§3.1 孤儿页）
 		KeepAlive: Bool(true), Layout: "padded",
 		MenuOrder: 8, InMenu: Bool(true),
+		Space:        SpaceWork, // 工位·知识库（D7 独立板块）
 		FeatureModel: "knowledge",
 		Bindings:     []string{"MemoryB"}, // 知识库能力经记忆域门面（§3.1 建议）
 	},
