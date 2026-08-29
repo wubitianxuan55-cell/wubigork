@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/gaea/gaea/internal/netclient"
 )
@@ -121,8 +122,9 @@ func execCreateDir(path string) ExecResult {
 }
 
 func execWriteFile(path, content string) ExecResult {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil { return ExecResult{Success: false, Action: "write_file", Path: path, Error: err.Error()} }
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil { return ExecResult{Success: false, Action: "write_file", Path: path, Error: err.Error()} }
+	// 原子写（临时文件 + rename）：崩溃/断电不留半截文件，避免丢用户造价数据。
+	// AtomicWrite 内部已 MkdirAll 父目录；内容/编码/权限（0644）与原 os.WriteFile 一致。
+	if err := fileutil.AtomicWrite(path, []byte(content), 0644); err != nil { return ExecResult{Success: false, Action: "write_file", Path: path, Error: err.Error()} }
 	return ExecResult{Success: true, Action: "write_file", Path: path, Summary: fmt.Sprintf("wrote %s (%d bytes)", filepath.Base(path), len(content))}
 }
 
