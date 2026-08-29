@@ -4,8 +4,6 @@ import (
 	"sort"
 	"strings"
 	"unicode"
-
-	gaesearch "github.com/gaea/gaea/internal/gaea/search"
 )
 
 // Filter constrains search results.
@@ -42,14 +40,10 @@ func Search(s *Store, query string, filter Filter) []Entry {
 	}
 
 	// TF-IDF 向量相似度（RAG）：查询与条目正文的语义距离。
+	// 索引按过滤签名+候选指纹缓存（tfidfIndexFor），写路径失效，避免每次查询重建。
 	vecScores := map[string]float64{}
 	if query != "" && len(candidates) > 0 {
-		idx := gaesearch.NewTfidfIndex()
-		docs := make([]gaesearch.Doc, 0, len(candidates))
-		for _, e := range candidates {
-			docs = append(docs, gaesearch.Doc{ID: e.Name, Text: e.Title + " " + e.Category + " " + e.Body})
-		}
-		idx.Build(docs)
+		idx := s.tfidfIndexFor(candidates, filter)
 		for _, r := range idx.Search(query, len(candidates), 0.02) {
 			vecScores[r.ID] = r.Score
 		}

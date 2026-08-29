@@ -28,6 +28,7 @@ type Store struct {
 	Dir     string // file backend: knowledge base directory
 	backend backend
 	mu      sync.RWMutex
+	tfidf   tfidfCache // Search 的 TF-IDF 索引缓存（写路径失效，见 search_cache.go）
 }
 
 // Open initializes a file-backed Store at the given directory. The directory
@@ -59,7 +60,11 @@ func OpenSQLite(gdb *sql.DB) (*Store, error) {
 func (s *Store) Save(e Entry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.backend.Save(e)
+	if err := s.backend.Save(e); err != nil {
+		return err
+	}
+	s.tfidf.invalidate() // 写路径失效：下次 Search 重建 TF-IDF 索引
+	return nil
 }
 
 // Get reads and parses an entry by name.
@@ -73,7 +78,11 @@ func (s *Store) Get(name string) (*Entry, error) {
 func (s *Store) Delete(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.backend.Delete(name)
+	if err := s.backend.Delete(name); err != nil {
+		return err
+	}
+	s.tfidf.invalidate() // 写路径失效：下次 Search 重建 TF-IDF 索引
+	return nil
 }
 
 // List returns all entries with their metadata (without Body).
