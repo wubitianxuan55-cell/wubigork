@@ -527,4 +527,9 @@ export const bindingNames = [
   "WhisperWeixinQRStatus",
   "WhisperWeixinQRStatusWithCode",
   "WhisperWeixinStatus",
+  "WeixinReminderAdd",
+  "WeixinReminderConfig",
+  "WeixinReminderDelete",
+  "WeixinReminderList",
+  "WeixinReminderSetConfig",
 ] as const;

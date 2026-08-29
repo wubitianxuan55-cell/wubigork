@@ -8,7 +8,7 @@
  * 板块差集归一（normalizeManifests）：后端清单为准 + 前端 home 壳层补位——
  *   · knowledge：后端 D7 独立板块（前端静态清单无）→ 并入；
  *   · home：后端无壳层 → 补前端静态壳层（isHome 唯一）；
- *   · weixin：后端 page=""（无前端页面）→ 以后端为准（静态 WeixinPage 未注册不覆盖）。
+ *   · weixin：v4.4 起两端一致（WeixinPage 已落地，后端 Page 优先照常生效）。
  * 12 硬编码点收敛映射（附 B）：menuItems=filter(inMenu).sort(menuOrder)；
  * allPageKeys=manifest 派生导航白名单；pageLabels=manifest.label；Ctrl+1~4=manifest.shortcut；
  * Content 布局=manifest.layout；面包屑锚点=manifest.breadcrumb.anchorTo；
@@ -66,8 +66,8 @@ const COST_NAV: BoardNavChild[] = [
 
 /**
  * 内置 canonical 板块清单（11 条 = 10 业务板块 + home 启动器壳层）。
- * menuOrder 与现状 menuItems 顺序一致；settings/weixin inMenu=false（不进顶栏菜单）。
- * weixin 为 3.0 §3.1 canonical 9 预留（前端页面尚未落地，暂无入口）。
+ * menuOrder 与现状 menuItems 顺序一致；settings inMenu=false（右上角按钮入口）。
+ * weixin：v4.4 触点落地（WeixinPage 扫码绑定 + 离线代办），进 rail 与首页左翼书房。
  */
 export const canonicalBoards: BoardManifest[] = [
   {
@@ -128,9 +128,9 @@ export const canonicalBoards: BoardManifest[] = [
     menuOrder: 10, inMenu: false, nav: { children: SETTINGS_NAV }, space: 'shared',
   },
   {
-    id: 'weixin', label: '微信', icon: 'WechatOutlined', page: 'WeixinPage',
+    id: 'weixin', label: '微信助手', icon: 'WechatOutlined', page: 'WeixinPage',
     lazy: true, keepAlive: true, layout: 'padded',
-    menuOrder: 11, inMenu: false, space: 'work',
+    menuOrder: 11, inMenu: true, space: 'work', // v4.4：触点落地，进 rail + 首页左翼
   },
 ]
 
@@ -229,7 +229,7 @@ function isBoardSpace(s: unknown): s is BoardSpace {
  *  - knowledge：后端 D7 独立板块**过滤不并入一级导航**——知识库已并入记忆中枢
  *    （MemoryHubPage「知识库」分类），一级导航不再单列避免重复入口（3.0 定制）；
  *  - home：后端无 isHome 板块时补前端静态壳层，menuOrder=0 恒首位（差集 #2）；
- *  - weixin：后端 page=""（无前端页面）保留空串，静态 WeixinPage 不覆盖（差集 #3）；
+ *  - weixin：v4.4 触点落地，前后端同为 WeixinPage/inMenu=true（后端字段优先不变）；
  *  - 空输入返回 []（回退决策在 loadBoardManifests 层）。
  */
 export function normalizeManifests(remote: RemoteBoardManifest[]): BoardManifest[] {

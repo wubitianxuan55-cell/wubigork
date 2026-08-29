@@ -7,7 +7,7 @@ import { deriveLauncherModules, LAUNCHER_DESC } from './launcher'
 import { GetBoardManifests } from '../wailsjsCompat'
 
 // 数据源 seam（§5.3 前端侧）：mock 掉 wailsjsCompat 的 GetBoardManifests，
-// 隔离后端提供者，验证「加载前静态 8 卡 / 加载后合并清单 9 卡（含 knowledge）」。
+// 隔离后端提供者，验证「启动器卡清单随 manifest 派生（v4.4 起 11 卡，含 weixin；knowledge 过滤）」。
 vi.mock('../wailsjsCompat', () => ({
   GetBoardManifests: vi.fn(),
 }))
@@ -20,7 +20,7 @@ const getBoardManifestsMock = GetBoardManifests as unknown as {
 
 // 后端 GetBoardManifests 契约形态（对齐 internal/app/board/builtins.go）：
 // 12 个业务板块（含 cost 造价数据库 + code 编程 + D7 knowledge），无 home 壳层，
-// weixin.page=""、label=微信助手。
+// v4.4 起 weixin.page="WeixinPage"、inMenu=true、label=微信助手。
 const BACKEND_FIXTURE = [
   { id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1', menuOrder: 1, inMenu: true, featureModel: 'chat' },
   { id: 'novel', label: '小说', icon: 'ReadOutlined', page: 'NovelPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+2', menuOrder: 2, inMenu: true, breadcrumb: { anchorTo: 'project' }, featureModel: 'novel' },
@@ -32,21 +32,20 @@ const BACKEND_FIXTURE = [
   { id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true },
   { id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 9, inMenu: true, featureModel: 'characterlib' },
   { id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 10, inMenu: false },
-  { id: 'weixin', label: '微信助手', icon: 'WechatOutlined', page: '', lazy: false, keepAlive: true, layout: 'padded', menuOrder: 11, inMenu: false },
+  { id: 'weixin', label: '微信助手', icon: 'WechatOutlined', page: 'WeixinPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 11, inMenu: true },
   { id: 'knowledge', label: '知识库', icon: 'BookOutlined', page: 'KnowledgePage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true, featureModel: 'knowledge' },
 ]
 
 describe('deriveLauncherModules（启动器清单纯函数）', () => {
-  it('静态清单 → 10 卡，顺序与 LAUNCHER_DESC 对齐（不含 home/weixin）', () => {
+  it('静态清单 → 11 卡，顺序与 LAUNCHER_DESC 对齐（v4.4 起 weixin 进清单；不含 home）', () => {
     const modules = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
     expect(modules.map((m) => m.key)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin',
     ])
     expect(modules.map((m) => m.key)).not.toContain('home')
-    expect(modules.map((m) => m.key)).not.toContain('weixin')
   })
 
-  it('静态 10 卡 desc 全部取 LAUNCHER_DESC 文案（name/icon 取 manifest）', () => {
+  it('静态 11 卡 desc 全部取 LAUNCHER_DESC 文案（name/icon 取 manifest）', () => {
     const modules = deriveLauncherModules(canonicalBoards, LAUNCHER_DESC)
     for (const m of modules) {
       expect(LAUNCHER_DESC[m.key], m.key).toBeDefined()
@@ -61,13 +60,12 @@ describe('deriveLauncherModules（启动器清单纯函数）', () => {
     expect(keys).toContain('settings')
   })
 
-  it('后端合并清单（normalizeManifests 后）→ 10 卡（knowledge 并入记忆中枢被过滤），desc 兜底 = label', () => {
+  it('后端合并清单（normalizeManifests 后）→ 11 卡（knowledge 并入记忆中枢被过滤），desc 兜底 = label', () => {
     const merged = normalizeManifests(BACKEND_FIXTURE)
     const modules = deriveLauncherModules(merged, LAUNCHER_DESC)
     expect(modules.map((m) => m.key)).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'settings', 'weixin',
     ])
-    expect(modules.map((m) => m.key)).not.toContain('weixin')
     expect(modules.map((m) => m.key)).not.toContain('knowledge')
   })
 
@@ -135,10 +133,10 @@ describe('launcher 订阅联动（loadBoardManifests 通知 → 派生结果变�
     const unsub = subscribeBoards(notified)
     await loadBoardManifests()
     unsub()
-    // 加载后：活动清单替换 → 订阅者收到通知，派生结果 10 卡含 cost/code
+    // 加载后：活动清单替换 → 订阅者收到通知，派生结果 11 卡含 cost/code（v4.4 起 +weixin）
     expect(notified).toHaveBeenCalledTimes(1)
     const keys = deriveLauncherModules(getActiveBoards(), LAUNCHER_DESC).map((m) => m.key)
-    expect(keys).toHaveLength(10)
+    expect(keys).toHaveLength(11)
     expect(keys).toContain('code')
     expect(keys).toContain('cost')
   })

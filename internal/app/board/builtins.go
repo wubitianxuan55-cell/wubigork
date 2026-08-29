@@ -138,11 +138,11 @@ var builtinManifests = []Manifest{
 	},
 	{
 		ID: "weixin", Label: "微信助手", Icon: "WechatOutlined",
-		Page:      "", // §3.1：无前端页面（beta），Channels/weixin 服务板块
-		Lazy:      false,
+		Page: "WeixinPage", // v4.4 触点落地（扫码绑定 + 离线代办提醒）
+		Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",
-		MenuOrder: 11, InMenu: Bool(false),
-		Space: SpaceWork, // 工位触点（微信远程任务入口，§10.3）
+		MenuOrder: 11, InMenu: Bool(true), // v4.4：进 rail + 首页左翼书房格
+		Space: SpaceWork, // 书房触点（微信远程任务入口，§10.3/§10.4）
 	},
 	{
 		ID: "knowledge", Label: "知识库", Icon: "BookOutlined",

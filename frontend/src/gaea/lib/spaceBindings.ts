@@ -85,6 +85,19 @@ export const GAEA_METHOD_FACETS = {
   ProgrammingWebLogTail: "independent",
 
   // ── work：gaea 工位工作台（会话/办公/记忆/知识库/造价/任务/文件）──
+  // v4.4 微信触点（书房·离线代办）：扫码绑定/通道状态/助手管理/提醒管理，全部 work。
+  WhisperWeixinGetQR: "work",
+  WhisperWeixinQRStatus: "work",
+  WhisperWeixinQRStatusWithCode: "work",
+  WhisperWeixinStatus: "work",
+  WhisperAssistantList: "work",
+  WhisperAssistantSave: "work",
+  WhisperAssistantDelete: "work",
+  WeixinReminderList: "work",
+  WeixinReminderAdd: "work",
+  WeixinReminderDelete: "work",
+  WeixinReminderConfig: "work",
+  WeixinReminderSetConfig: "work",
   Submit: "work",
   SubmitDisplay: "work",
   Cancel: "work",

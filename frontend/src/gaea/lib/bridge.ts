@@ -110,6 +110,10 @@ import type {
   WhisperSubgraph,
   WhisperProactiveResult,
   WhisperProactiveConfigView,
+  WeixinAssistantStatusRow,
+  WeixinAssistantView,
+  WeixinReminderView,
+  WeixinReminderConfigView,
   TTSParams,
 } from "./types";
 import {
@@ -363,6 +367,31 @@ export interface AppBindings {
   WhisperProactiveConfig(): Promise<WhisperProactiveConfigView>;
   // WhisperProactiveSetConfig 部分更新主动关心定时推送配置（JSON 字符串，校验失败报错）。
   WhisperProactiveSetConfig(cfgJSON: string): Promise<void>;
+  // ── v4.4 微信触点（书房·离线代办；WhisperWeixin* 自 LegacySurface 转正）──
+  // WhisperWeixinGetQR 获取微信扫码登录二维码（dataURL 图片 + 会话 token）。
+  WhisperWeixinGetQR(): Promise<{ qrcode: string; imageUrl: string }>;
+  // WhisperWeixinQRStatus 轮询扫码状态（waiting/scanned/confirmed；confirmed 携带 botToken/botId）。
+  WhisperWeixinQRStatus(qrcode: string): Promise<Record<string, unknown>>;
+  // WhisperWeixinQRStatusWithCode 带手机配对码轮询（need_verifycode 状态时使用）。
+  WhisperWeixinQRStatusWithCode(qrcode: string, verifyCode: string): Promise<Record<string, unknown>>;
+  // WhisperWeixinStatus 全部助手的微信通道状态（运行/过期/未配置）。
+  WhisperWeixinStatus(): Promise<WeixinAssistantStatusRow[]>;
+  // WhisperAssistantList 全部虚拟助手（微信绑定/人格/启停）。
+  WhisperAssistantList(): Promise<WeixinAssistantView[]>;
+  // WhisperAssistantSave 新建/更新助手（含 WxToken/WxBotID 微信绑定，保存后自动重拉通道）。
+  WhisperAssistantSave(ast: Partial<WeixinAssistantView>): Promise<void>;
+  // WhisperAssistantDelete 删除助手并停其微信通道。
+  WhisperAssistantDelete(id: string): Promise<void>;
+  // WeixinReminderList 全量微信提醒（待触发/已完成/失败，触发时间升序）。
+  WeixinReminderList(): Promise<WeixinReminderView[]>;
+  // WeixinReminderAdd 前端手动建提醒（fireAtRFC3339 为 RFC3339 时间串，必须在未来）。
+  WeixinReminderAdd(text: string, fireAtRFC3339: string): Promise<{ id: string; fireAt: string; status: string }>;
+  // WeixinReminderDelete 删除提醒（任意状态可删）。
+  WeixinReminderDelete(id: string): Promise<void>;
+  // WeixinReminderConfig 微信任务化配置（当前仅提醒开关）。
+  WeixinReminderConfig(): Promise<WeixinReminderConfigView>;
+  // WeixinReminderSetConfig 部分更新微信任务化配置（JSON 字符串）。
+  WeixinReminderSetConfig(cfgJSON: string): Promise<void>;
   // TTSVoiceParams 返回情绪标签对应的结构化 TTS 参数（预览/调试）。
   TTSVoiceParams(emotion: string): Promise<TTSParams>;
   // GenerateBookCover 生成项目书封（3:4，play exports），返回封面路径。
@@ -1429,9 +1458,6 @@ type LegacySurfaceNames =
   | "VoiceSetPTTActive"
   | "VoiceStart"
   | "VoiceStop"
-  | "WhisperAssistantDelete"
-  | "WhisperAssistantList"
-  | "WhisperAssistantSave"
   | "WhisperChat"
   | "WhisperChatWithSearch"
   | "WhisperClearSession"
@@ -1451,11 +1477,7 @@ type LegacySurfaceNames =
   | "WhisperTaskPlanResume"
   | "WhisperTaskPlanStatus"
   | "WhisperUpdateFact"
-  | "WhisperWebSearch"
-  | "WhisperWeixinGetQR"
-  | "WhisperWeixinQRStatus"
-  | "WhisperWeixinQRStatusWithCode"
-  | "WhisperWeixinStatus";
+  | "WhisperWebSearch";
 
 /** 显式排除 = mock-only + legacy 绑定面。 */
 type ExcludeNames = MockOnlyNames | LegacySurfaceNames;

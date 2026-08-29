@@ -47,37 +47,37 @@ const BACKEND_FIXTURE = [
 // 3.0 附 B 收敛映射回归：manifest 派生结果必须与旧 MainLayout 硬编码一致（像素级）。
 
 describe('menuBoards（附 B #4：filter(inMenu) + sort(menuOrder)）', () => {
-  it('菜单顺序与现状一致：首页 → 聊天 → 小说 → 绘梦 → 办公 → 造价数据库 → 编程 → 记忆中枢 → 模型中心 → 角色库', () => {
+  it('菜单顺序与现状一致：首页 → 聊天 → 小说 → 绘梦 → 办公 → 造价数据库 → 编程 → 记忆中枢 → 模型中心 → 角色库 → 微信助手（v4.4 进菜单）', () => {
     expect(menuBoards.map((b) => b.id)).toEqual([
-      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib',
+      'home', 'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'weixin',
     ])
   })
 
-  it('菜单文案与现状一致（首页/聊天/小说/绘梦/办公/造价数据库/编程/记忆中枢/模型中心/角色库）', () => {
+  it('菜单文案与现状一致（首页/聊天/小说/绘梦/办公/造价数据库/编程/记忆中枢/模型中心/角色库/微信助手）', () => {
     expect(menuBoards.map((b) => b.label)).toEqual([
-      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '编程', '记忆中枢', '模型中心', '角色库',
+      '首页', '聊天', '小说', '绘梦', '办公', '造价数据库', '编程', '记忆中枢', '模型中心', '角色库', '微信助手',
     ])
   })
 
   it('菜单图标名与现状一致（antd 图标注册表可解析）', () => {
     const expected = ['HomeOutlined', 'MessageOutlined', 'ReadOutlined', 'PictureOutlined',
-      'ToolOutlined', 'AccountBookOutlined', 'CodeOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined']
+      'ToolOutlined', 'AccountBookOutlined', 'CodeOutlined', 'DatabaseOutlined', 'ApiOutlined', 'TeamOutlined', 'WechatOutlined']
     expect(menuBoards.map((b) => b.icon)).toEqual(expected)
     for (const b of menuBoards) {
       expect(resolveBoardIcon(b.icon), `icon ${b.icon} 可解析`).not.toBeNull()
     }
   })
 
-  it('settings/weixin 不进菜单（inMenu=false）', () => {
+  it('settings 不进菜单（inMenu=false）；weixin v4.4 起进菜单（inMenu=true）', () => {
     expect(menuBoards.map((b) => b.id)).not.toContain('settings')
-    expect(menuBoards.map((b) => b.id)).not.toContain('weixin')
+    expect(menuBoards.map((b) => b.id)).toContain('weixin')
   })
 })
 
 describe('navigateWhitelist（附 B #2：manifest 派生导航白名单）', () => {
-  it('与旧 allPageKeys 一致：8 个业务板块，不含 home/settings', () => {
+  it('与旧 allPageKeys 一致：9 个业务板块，不含 home/settings（v4.4 加 weixin）', () => {
     expect(navigateWhitelist).toEqual([
-      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib',
+      'chat', 'novel', 'imagegen', 'gaea', 'cost', 'code', 'memoryhub', 'modelcenter', 'characterlib', 'weixin',
     ])
   })
 })
