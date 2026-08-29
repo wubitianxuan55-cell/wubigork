@@ -2,7 +2,8 @@
 //
 // seam 三元组（定义/提供者/消费者，范式见 internal/gaea/provider/provider.go 与
 // internal/ai/image_backend.go 的 Register/New/Kinds）：
-//   - 定义：TTSProvider 接口（Name + Synthesize + SynthesizeWithMime）
+//   - 定义：TTSProvider 接口（Name + Synthesize + SynthesizeWithMime +
+//     SynthesizeWithParams）
 //   - 提供者：edge（Edge 在线 TTS）、herdsman（/v1/audio/speech 兼容）、
 //     xai（Grok TTS /v1/tts）、sapi（Windows SAPI），各自 init() 自注册，互斥注册
 //   - 消费者：app 层 tts_handler.go / voice_handler.go 只依赖 TTSProvider 与注册表
@@ -17,16 +18,30 @@ import (
 	"sort"
 )
 
+// TTSParams 单次合成参数（零值=不指定，提供者按自身能力消费，能力外参数静默忽略）。
+// 语义见 docs/gaea-v43-play-deepen-design.md §5.3（v4.3d 情感语音参数扩展）。
+type TTSParams struct {
+	Speed   float64 // 倍速 0.5-2.0；0=不指定（edge→rate、herdsman→speed）
+	Pitch   float64 // 音高偏移半音 -12..12；0=不指定（edge→pitch、herdsman→pitch）
+	Style   string  // 风格标签（cosyvoice/herdsman 透传 style）
+	Emotion string  // 情绪标签（ANGRY/CALM/... 透传 emotion）
+}
+
 // TTSProvider TTS 合成提供者接口（seam 定义）。
 // Synthesize 返回音频字节；SynthesizeWithMime 额外返回实际 MIME（如 audio/mp3 /
 // audio/wav / audio/mpeg），空 MIME 由调用方按 audio/mp3 兜底（与历史行为一致）。
+// SynthesizeWithParams 额外携带单次合成参数（TTSParams），旧方法保持兼容，
+// 语义上 Synthesize / SynthesizeWithMime 等价于 SynthesizeWithParams 传零值参数。
 type TTSProvider interface {
 	// Name 返回提供者 kind（"edge" / "herdsman" / "xai" / "sapi"）。
 	Name() string
-	// Synthesize 合成语音，返回音频字节。
+	// Synthesize 合成语音，返回音频字节（默认参数）。
 	Synthesize(text string) ([]byte, error)
-	// SynthesizeWithMime 合成语音并返回音频与 MIME 类型。
+	// SynthesizeWithMime 合成语音并返回音频与 MIME 类型（默认参数）。
 	SynthesizeWithMime(text string) ([]byte, string, error)
+	// SynthesizeWithParams 携带单次合成参数合成语音，返回音频与 MIME 类型
+	// （新增，v4.3d；提供者按能力消费 Speed/Pitch/Style/Emotion）。
+	SynthesizeWithParams(text string, p TTSParams) ([]byte, string, error)
 }
 
 // TTSConfig TTS 提供者实例配置（注册表 New 入参）。

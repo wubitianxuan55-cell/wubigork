@@ -101,6 +101,10 @@ type EmotionState struct {
 	Dom          float64 `json:"dom"`
 	PrimaryLabel string  `json:"primaryLabel"`
 	IsLocked     bool    `json:"isLocked"`
+	// Mood 长期心境（v4.3d 新增）：4D 慢速 EWMA（α=MoodAlpha）向即时情绪靠拢，
+	// 与即时情绪同量纲（-100..100），随 FullState 经 JSON 自动持久化；
+	// 全 0 视为未播种（新会话），EmotionStep 以即时情绪首值播种。
+	Mood [4]float64 `json:"mood"`
 }
 
 // MemoryEcho 记忆回声

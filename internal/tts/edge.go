@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"strings"
@@ -38,15 +39,22 @@ func NewEdgeTTS() *EdgeTTS {
 	}
 }
 
-// Synthesize 通过 WebSocket 合成语音，返回 MP3 字节。
+// Synthesize 通过 WebSocket 合成语音，返回 MP3 字节（默认参数，兼容路径）。
 func (e *EdgeTTS) Synthesize(text string) ([]byte, error) {
+	audio, _, err := e.SynthesizeWithParams(text, TTSParams{})
+	return audio, err
+}
+
+// SynthesizeWithParams 通过 WebSocket 合成语音，返回 MP3 字节与 MIME（v4.3d）。
+// Speed→rate、Pitch→Hz 进入 SSML prosody；Style/Emotion 超出 Edge 能力，忽略。
+func (e *EdgeTTS) SynthesizeWithParams(text string, p TTSParams) ([]byte, string, error) {
 	if text == "" {
-		return nil, fmt.Errorf("朗读文本为空")
+		return nil, "", fmt.Errorf("朗读文本为空")
 	}
 
 	conn, err := e.dial()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer conn.Close()
 
@@ -60,27 +68,22 @@ func (e *EdgeTTS) Synthesize(text string) ([]byte, error) {
 		now,
 	)
 	if err := wsSend(conn, []byte(configMsg), wsTextFrame); err != nil {
-		return nil, fmt.Errorf("Edge TTS 配置发送失败: %w", err)
+		return nil, "", fmt.Errorf("Edge TTS 配置发送失败: %w", err)
 	}
 
-	// 2. 发送 SSML
+	// 2. 发送 SSML（由参数生成 prosody）
 	requestID := randomHex(16)
-	escaped := escapeSSML(text)
-	ssml := fmt.Sprintf(
-		`<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='zh-CN'>`+
-			`<voice name='%s'><prosody pitch='+0Hz' rate='+0%%' volume='+0%%'>%s</prosody></voice>`+
-			`</speak>`,
-		e.voice, escaped,
-	)
+	ssml := e.buildSSML(text, p)
 	ssmlMsg := fmt.Sprintf(
 		"X-RequestId:%s\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:%sZ\r\nPath:ssml\r\n\r\n%s",
 		requestID, now, ssml,
 	)
 
-	slog.Info("EdgeTTS 合成", "text_len", len([]rune(text)), "voice", e.voice)
+	slog.Info("EdgeTTS 合成", "text_len", len([]rune(text)), "voice", e.voice,
+		"speed", p.Speed, "pitch", p.Pitch)
 
 	if err := wsSend(conn, []byte(ssmlMsg), wsTextFrame); err != nil {
-		return nil, fmt.Errorf("Edge TTS SSML 发送失败: %w", err)
+		return nil, "", fmt.Errorf("Edge TTS SSML 发送失败: %w", err)
 	}
 
 	// 3. 接收响应
@@ -92,7 +95,7 @@ func (e *EdgeTTS) Synthesize(text string) ([]byte, error) {
 			if len(audio) > 0 {
 				break
 			}
-			return nil, fmt.Errorf("Edge TTS 接收失败: %w", err)
+			return nil, "", fmt.Errorf("Edge TTS 接收失败: %w", err)
 		}
 		switch frameType {
 		case wsBinaryFrame:
@@ -110,7 +113,7 @@ func (e *EdgeTTS) Synthesize(text string) ([]byte, error) {
 				// 流正常结束
 			}
 		case wsCloseFrame:
-			return audio, nil
+			return audio, "audio/mp3", nil
 		}
 		if len(audio) > 0 && frameType == wsTextFrame && strings.Contains(string(data), "Path:turn.end") {
 			break
@@ -118,23 +121,41 @@ func (e *EdgeTTS) Synthesize(text string) ([]byte, error) {
 	}
 
 	if len(audio) == 0 {
-		return nil, fmt.Errorf("Edge TTS 未返回音频数据")
+		return nil, "", fmt.Errorf("Edge TTS 未返回音频数据")
 	}
 
 	slog.Info("EdgeTTS 完成", "bytes", len(audio))
-	return audio, nil
+	return audio, "audio/mp3", nil
+}
+
+// buildSSML 由合成参数生成 SSML prosody（v4.3d）：
+//   - Speed 倍速 → rate='+X%'（1.2→+20%、0.9→-10%，四舍五入取整）
+//   - Pitch 半音 → pitch='+YHz'（简化近似：1 半音 ≈ 1Hz，够情绪语气微调用）
+//   - 参数为零值时保持现默认（pitch='+0Hz' rate='+0%'）
+func (e *EdgeTTS) buildSSML(text string, p TTSParams) string {
+	pitchAttr := "pitch='+0Hz'"
+	if p.Pitch != 0 {
+		pitchAttr = fmt.Sprintf("pitch='%+dHz'", int(math.Round(p.Pitch)))
+	}
+	rateAttr := "rate='+0%'"
+	if p.Speed > 0 {
+		rateAttr = fmt.Sprintf("rate='%+d%%'", int(math.Round((p.Speed-1)*100)))
+	}
+	escaped := escapeSSML(text)
+	return fmt.Sprintf(
+		"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='zh-CN'>"+
+			"<voice name='%s'><prosody %s %s volume='+0%%'>%s</prosody></voice>"+
+			"</speak>",
+		e.voice, pitchAttr, rateAttr, escaped,
+	)
 }
 
 // Name 返回提供者 kind（seam 提供者自注册用）。
 func (e *EdgeTTS) Name() string { return "edge" }
 
-// SynthesizeWithMime 合成语音并返回音频与 MIME（Edge 返回 MP3）。
+// SynthesizeWithMime 合成语音并返回音频与 MIME（Edge 返回 MP3，默认参数）。
 func (e *EdgeTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
-	audio, err := e.Synthesize(text)
-	if err != nil {
-		return nil, "", err
-	}
-	return audio, "audio/mp3", nil
+	return e.SynthesizeWithParams(text, TTSParams{})
 }
 
 func init() {

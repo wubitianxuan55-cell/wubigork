@@ -123,6 +123,12 @@ func (x *XaiTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
 	return audio, "audio/mpeg", nil
 }
 
+// SynthesizeWithParams 合成语音并返回音频与 MIME。
+// xAI 当前能力外忽略 Speed/Pitch/Style/Emotion（不报错，行为与 SynthesizeWithMime 一致）。
+func (x *XaiTTS) SynthesizeWithParams(text string, p TTSParams) ([]byte, string, error) {
+	return x.SynthesizeWithMime(text)
+}
+
 func truncStr(s string, n int) string {
 	runes := []rune(s)
 	if len(runes) <= n {

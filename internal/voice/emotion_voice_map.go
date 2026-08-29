@@ -9,6 +9,8 @@
 //   - WinTTS SAPI: 无情感控制（仅做标记）
 package voice
 
+import "github.com/gaea/gaea/internal/tts"
+
 // EmotionVoiceParams 情感→语音参数
 type EmotionVoiceParams struct {
 	// 中文自然语言指令（用于 qwen3-tts-voicedesign / CosyVoice 风格）
@@ -86,9 +88,11 @@ var EmotionVoiceMap = map[string]EmotionVoiceParams{
 	},
 }
 
-// GetEmotionVoiceParams 获取情绪对应的语音参数
-// 对齐 Ackem getEmotionInstruction() 逻辑
-func GetEmotionVoiceParams(emotionLabel string) EmotionVoiceParams {
+// GetEmotionVoiceLegacyParams 获取情绪对应的语音参数（旧版，返回描述型参数）
+// 对齐 Ackem getEmotionInstruction() 逻辑；v4.3d 起结构化参数见
+// GetEmotionVoiceParams（返回 EmotionTTSParams），本函数仅保留给
+// VoiceDescription/Edge 字符串参数路径使用。
+func GetEmotionVoiceLegacyParams(emotionLabel string) EmotionVoiceParams {
 	if params, ok := EmotionVoiceMap[emotionLabel]; ok {
 		return params
 	}
@@ -98,13 +102,40 @@ func GetEmotionVoiceParams(emotionLabel string) EmotionVoiceParams {
 
 // GetVoiceDescription 获取中文自然语言指令（用于 qwen3-tts-voicedesign）
 func GetVoiceDescription(emotionLabel string) string {
-	return GetEmotionVoiceParams(emotionLabel).VoiceDescription
+	return GetEmotionVoiceLegacyParams(emotionLabel).VoiceDescription
 }
 
 // GetEdgeTTSParams 获取 Edge TTS 的 rate/pitch 参数
 func GetEdgeTTSParams(emotionLabel string) (rate string, pitch string) {
-	p := GetEmotionVoiceParams(emotionLabel)
+	p := GetEmotionVoiceLegacyParams(emotionLabel)
 	return p.EdgeRate, p.EdgePitch
+}
+
+// ── 结构化 TTS 参数（v4.3d 新增） ──
+
+// EmotionTTSParamsMap 情绪标签 → 结构化 TTS 参数默认值（v4.3d）。
+//
+// 映射依据：结合设计文档 §5.3「每情绪标签 → TTSParams 默认值」与本任务契约的
+// 取值约定——仅强情绪标签给非中性参数，其余标签一律中性默认（Speed/Pitch=0，
+// 即引擎默认语速/音高，Style/Emotion 为空），未知/空标签返回零值。
+// 具体数值来源：参考现有 EdgeRate/EdgePitch 数据的情感方向——
+//   - ANGRY_ATTACK（愤怒，EdgeRate "+10%"/EdgePitch "+10Hz"）：加速 + 提音，
+//     Speed 1.1（≈+10% 语速）、Pitch +2 半音、Emotion "angry"（透传引擎情绪）；
+//   - CALM_RATIONAL（冷静，EdgeRate "0%"/EdgePitch "0Hz"）：放缓 + 微降调，
+//     Speed 0.9、Pitch -1 半音、Emotion "calm"。
+// 其余 7 个标签（SWEET_ATTACHMENT/SHY_HEARTBEAT/QUIET_FOND/TSUNDERE/
+// COLD_DETACHED/HURT_GRIEVANCE/FEARFUL_OBEDIENT）暂不指定结构化参数，
+// 走引擎中性默认，避免过度调参；需要时按同一方向增量补表。
+var EmotionTTSParamsMap = map[string]tts.TTSParams{
+	"ANGRY_ATTACK":  {Speed: 1.1, Pitch: 2, Emotion: "angry"},
+	"CALM_RATIONAL": {Speed: 0.9, Pitch: -1, Emotion: "calm"},
+}
+
+// GetEmotionVoiceParams 获取情绪标签对应的结构化 TTS 参数（v4.3d）。
+// emotion 为空或未知（不在 EmotionTTSParamsMap）→ 零值 TTSParams
+// （Speed/Pitch=0 表示引擎默认，Style/Emotion 为空串，语义即「中性默认」）。
+func GetEmotionVoiceParams(emotion string) tts.TTSParams {
+	return EmotionTTSParamsMap[emotion]
 }
 
 // ── 人格修饰 ──

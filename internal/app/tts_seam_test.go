@@ -21,6 +21,9 @@ func (f *fakeTTSProvider) Synthesize(string) ([]byte, error) { return f.out, f.e
 func (f *fakeTTSProvider) SynthesizeWithMime(string) ([]byte, string, error) {
 	return f.out, f.mime, f.err
 }
+func (f *fakeTTSProvider) SynthesizeWithParams(string, tts.TTSParams) ([]byte, string, error) {
+	return f.out, f.mime, f.err
+}
 
 // TestSpeakFromTTSProviderSteps_Fallback 首个失败 → 回退下一个；首个成功即返回。
 func TestSpeakFromTTSProviderSteps_Fallback(t *testing.T) {

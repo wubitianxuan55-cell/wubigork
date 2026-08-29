@@ -4,7 +4,7 @@ package voice
 import "testing"
 
 func TestGetEmotionVoiceParams_KnownEmotion(t *testing.T) {
-	p := GetEmotionVoiceParams("SWEET_ATTACHMENT")
+	p := GetEmotionVoiceLegacyParams("SWEET_ATTACHMENT")
 	if p.VoiceDescription == "" {
 		t.Error("已知情绪应返回非空 VoiceDescription")
 	}
@@ -32,7 +32,7 @@ func TestGetEmotionVoiceParams_AllMappedEmotions(t *testing.T) {
 }
 
 func TestGetEmotionVoiceParams_UnknownFallback(t *testing.T) {
-	p := GetEmotionVoiceParams("UNKNOWN_EMOTION")
+	p := GetEmotionVoiceLegacyParams("UNKNOWN_EMOTION")
 	if p.VoiceDescription != "用冷静平淡的语气说" {
 		t.Errorf("未知情绪应回退 CALM_RATIONAL, got %q", p.VoiceDescription)
 	}

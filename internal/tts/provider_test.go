@@ -91,6 +91,9 @@ func (f *fakeTTSProvider) Synthesize(text string) ([]byte, error) {
 func (f *fakeTTSProvider) SynthesizeWithMime(text string) ([]byte, string, error) {
 	return f.out, f.mime, f.err
 }
+func (f *fakeTTSProvider) SynthesizeWithParams(text string, p TTSParams) ([]byte, string, error) {
+	return f.out, f.mime, f.err
+}
 
 func TestTTSChain_FirstSuccessWins(t *testing.T) {
 	chain := NewTTSChain(

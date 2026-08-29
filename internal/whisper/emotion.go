@@ -255,7 +255,29 @@ func EmotionStep(event Event, modulation Modulation, prev EmotionState, opts *Em
 
 	label := MapEmotionLabel(next)
 	locked := checkLock(next)
-	return EmotionState{Aff: next.Aff, Sec: next.Sec, Aro: next.Aro, Dom: next.Dom, PrimaryLabel: label, IsLocked: locked}
+	return EmotionState{
+		Aff: next.Aff, Sec: next.Sec, Aro: next.Aro, Dom: next.Dom,
+		PrimaryLabel: label, IsLocked: locked,
+		Mood: stepMood(prev.Mood, next),
+	}
+}
+
+// ─── 长期心境(Mood) ───────────────────────────────────────────
+
+// stepMood 长期心境 EWMA 递推：Mood = Mood*(1-α) + Emotion*α（α=MoodAlpha）。
+// 无历史（prevMood 全 0，即新会话/未播种）时直接以即时情绪首值播种，
+// 避免冷启动从 0 每轮仅挪 1% 的慢爬；未被识别的事件在 EmotionStep 入口
+// 提前返回，天然保持 Mood 不变（与 Emotion 行为一致）。
+func stepMood(prevMood [4]float64, emotion Emotion4D) [4]float64 {
+	vec := [4]float64{emotion.Aff, emotion.Sec, emotion.Aro, emotion.Dom}
+	if prevMood == ([4]float64{}) {
+		return vec
+	}
+	var out [4]float64
+	for i := 0; i < len(out); i++ {
+		out[i] = prevMood[i]*(1-MoodAlpha) + vec[i]*MoodAlpha
+	}
+	return out
 }
 
 // ApplyMemoryEcho 记忆回声叠加到情绪

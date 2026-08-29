@@ -81,6 +81,12 @@ func (w *WinTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
 	return audio, "audio/wav", nil
 }
 
+// SynthesizeWithParams 合成语音并返回音频与 MIME。
+// SAPI 当前能力外忽略 Speed/Pitch/Style/Emotion（不报错，行为与 SynthesizeWithMime 一致）。
+func (w *WinTTS) SynthesizeWithParams(text string, p TTSParams) ([]byte, string, error) {
+	return w.SynthesizeWithMime(text)
+}
+
 func init() {
 	RegisterTTSProvider("sapi", func(cfg TTSConfig) (TTSProvider, error) {
 		return NewWinTTS(), nil

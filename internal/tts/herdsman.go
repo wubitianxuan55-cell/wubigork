@@ -114,7 +114,9 @@ func init() {
 		switch {
 		case cfg.RefAudio != "" || strings.Contains(l, "voiceclone"):
 			return NewHerdsmanTTSWithClone(cfg.BaseURL, cfg.Model, cfg.RefAudio, cfg.RefText), nil
-		case strings.Contains(l, "voicedesign"), strings.Contains(l, "voxcpm"):
+		case strings.Contains(l, "voicedesign"), strings.Contains(l, "voxcpm"), strings.Contains(l, "cosyvoice"):
+			// cosyvoice 同样走 voicedesign 分支：有描述则构造 WithDesc，
+			// 不再落 default 分支丢弃 voiceDescription（v4.3d 修复）。
 			if cfg.VoiceDescription != "" {
 				return NewHerdsmanTTSWithDesc(cfg.BaseURL, cfg.Model, cfg.VoiceDescription), nil
 			}
@@ -125,10 +127,16 @@ func init() {
 	})
 }
 
-// SynthesizeWithMime 合成并返回音频和实际 MIME 类型
+// SynthesizeWithMime 合成并返回音频和实际 MIME 类型（默认参数，兼容路径）。
 func (h *HerdsmanTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
+	return h.SynthesizeWithParams(text, TTSParams{})
+}
+
+// SynthesizeWithParams 携带单次合成参数合成并返回音频和实际 MIME 类型。
+// Speed>0 时请求体带 speed；Emotion/Style 非空时带 emotion/style（v4.3d）。
+func (h *HerdsmanTTS) SynthesizeWithParams(text string, p TTSParams) ([]byte, string, error) {
 	voice := h.resolveVoice()
-	body := h.buildBody(text, voice)
+	body := h.buildBodyParams(text, voice, p)
 	jsonBody, _ := json.Marshal(body)
 
 	audio, mime, err := h.requestAudio(jsonBody, voice)
@@ -139,7 +147,7 @@ func (h *HerdsmanTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
 	// 首选音色失败时（如配置了 Cherry 但服务端已不支持），用默认音色重试一次
 	dv := defaultVoiceForModel(h.model)
 	if voice != dv && dv != "" {
-		defaultBody := h.buildBody(text, dv)
+		defaultBody := h.buildBodyParams(text, dv, p)
 		if db, mErr := json.Marshal(defaultBody); mErr == nil {
 			if audio2, mime2, err2 := h.requestAudio(db, dv); err2 == nil {
 				return audio2, mime2, nil
@@ -149,9 +157,15 @@ func (h *HerdsmanTTS) SynthesizeWithMime(text string) ([]byte, string, error) {
 	return nil, "", err
 }
 
-// buildBody 构造 /v1/audio/speech 请求体。
-// voiceclone 优先，其次 voicedesign，最后 customvoice/edge-tts 的 voice。
+// buildBody 构造 /v1/audio/speech 请求体（无单次合成参数，兼容既有调用）。
 func (h *HerdsmanTTS) buildBody(text, voice string) map[string]interface{} {
+	return h.buildBodyParams(text, voice, TTSParams{})
+}
+
+// buildBodyParams 构造 /v1/audio/speech 请求体（含单次合成参数）。
+// voiceclone 优先，其次 voicedesign，最后 customvoice/edge-tts 的 voice；
+// Speed>0 时携带 speed、Emotion/Style 非空时携带 emotion/style。
+func (h *HerdsmanTTS) buildBodyParams(text, voice string, p TTSParams) map[string]interface{} {
 	body := map[string]interface{}{
 		"model": h.model,
 		"input": text,
@@ -166,6 +180,15 @@ func (h *HerdsmanTTS) buildBody(text, voice string) map[string]interface{} {
 		body["voice_description"] = h.voiceDescription
 	case voice != "":
 		body["voice"] = voice
+	}
+	if p.Speed > 0 {
+		body["speed"] = p.Speed
+	}
+	if p.Emotion != "" {
+		body["emotion"] = p.Emotion
+	}
+	if p.Style != "" {
+		body["style"] = p.Style
 	}
 	return body
 }
