@@ -146,6 +146,10 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	if a.memQueue != nil {
 		cctx = memory.WithQueue(cctx, a.memQueue)
 	}
+	// S1.2 A：把会话空间盖章到工具调用 ctx（与 WithQueue 同注入点）。ctx 已由
+	// agent.Run 注入会话空间（SpaceFromContext 缺省 work）——remember/memory_get
+	// 等记忆工具经 memory.SpaceFromContext 读取，写读都限定本空间。
+	cctx = memory.WithSpace(cctx, SpaceFromContext(ctx))
 	if a.sessionSaver != nil {
 		cctx = memory.WithSessionSaver(cctx, a.sessionSaver)
 	}
@@ -181,12 +185,27 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 					a.tc.Set(ra.Path, ra.Offset, result)
 				}
 			}
-		case "edit_file", "write_file", "multi_edit", "delete_range", "delete_symbol":
+		case "edit_file", "write_file", "multi_edit", "edit_lines", "delete_range", "delete_symbol":
 			var wa struct {
 				Path string `json:"path"`
 			}
 			if json.Unmarshal(json.RawMessage(call.Arguments), &wa) == nil && wa.Path != "" {
 				a.tc.InvalidatePath(wa.Path)
+			}
+		case "move_file":
+			// A move invalidates both endpoints: args carry no "path" key, so
+			// the generic branch above would silently miss them (S0.6 risk 2).
+			var ma struct {
+				Source      string `json:"source"`
+				Destination string `json:"destination"`
+			}
+			if json.Unmarshal(json.RawMessage(call.Arguments), &ma) == nil {
+				if ma.Source != "" {
+					a.tc.InvalidatePath(ma.Source)
+				}
+				if ma.Destination != "" {
+					a.tc.InvalidatePath(ma.Destination)
+				}
 			}
 		}
 	}
@@ -362,7 +381,7 @@ func repeatSuccessSignature(call provider.ToolCall, t tool.Tool) (string, bool) 
 		return "", false
 	}
 	switch call.Name {
-	case "write_file", "edit_file", "multi_edit", "delete_range", "delete_symbol":
+	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file", "delete_range", "delete_symbol":
 		return call.Name + "\x00" + canonicalToolArgs(call.Arguments), true
 	case "bash":
 		var p struct {
@@ -468,7 +487,7 @@ func hasShellWriteRedirect(command string) bool {
 // isFileWriter reports whether the tool name targets a specific file for writing.
 func isFileWriter(name string) bool {
 	switch name {
-	case "edit_file", "write_file", "multi_edit", "delete_range", "delete_symbol":
+	case "edit_file", "write_file", "multi_edit", "edit_lines", "move_file", "delete_range", "delete_symbol":
 		return true
 	}
 	return false

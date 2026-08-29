@@ -300,7 +300,7 @@ func ReceiptFromToolCall(toolName string, args json.RawMessage, success bool, re
 
 func isWriterTool(name string) bool {
 	switch name {
-	case "write_file", "edit_file", "multi_edit", "notebook_edit", "delete_range", "delete_symbol":
+	case "write_file", "edit_file", "multi_edit", "edit_lines", "move_file", "notebook_edit", "delete_range", "delete_symbol":
 		return true
 	default:
 		return false

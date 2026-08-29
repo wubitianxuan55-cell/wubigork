@@ -200,6 +200,7 @@ func TestIsWriteTool(t *testing.T) {
 		{"write_file", true},
 		{"multi_edit", true},
 		{"edit_lines", true},
+		{"move_file", true},
 		{"delete_range", true},
 		{"delete_symbol", true},
 		{"read_file", false},

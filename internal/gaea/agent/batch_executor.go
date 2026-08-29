@@ -170,12 +170,25 @@ func getConflictKey(call provider.ToolCall) string {
 		return "!spawn"
 	case "complete_step", "todo_write":
 		return "!ledger"
-	case "edit_file", "write_file", "multi_edit", "delete_range", "delete_symbol":
+	case "edit_file", "write_file", "multi_edit", "edit_lines", "delete_range", "delete_symbol":
 		path := extractFilePath(call.Name, call.Arguments)
 		if path != "" {
 			return "file:" + path
 		}
 		return "!write"
+	case "move_file":
+		// "!write" (always serial): two moves with different sources can
+		// target the same destination, and extractFilePath only exposes the
+		// source — a per-path key would let them overwrite each other in
+		// parallel (S0.6 risk 3).
+		return "!write"
+	case "grep":
+		// Read-only, but two greps of the same tree are pure duplicate work —
+		// serialize on the searched path (suggested by S0.6, optional).
+		if path := extractFilePath(call.Name, call.Arguments); path != "" {
+			return "read:" + path
+		}
+		return ""
 	case "bash", "bash_output":
 		return "!bash"
 	case "read_file":

@@ -668,7 +668,7 @@ func lookupSubagentTemplatePrefix(skillName string) string {
 // from ~41 to ~25, lowering model cognitive load.
 func applyCompactToolset(reg *tool.Registry) {
 	// File deletion: merge delete_range + delete_symbol into edit_file
-	// edit_file already supports delete via mode parameter
+	// (edit_file deletes via new_string:"" — there is no mode parameter)
 	reg.HideUnlessOnly([]string{"delete_range", "delete_symbol"}, []string{"edit_file"})
 
 	// Batch editing: multi_edit is redundant with multiple edit_file calls

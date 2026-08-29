@@ -77,13 +77,21 @@ func TestPrecheckMultiEdit_EmptyOldString(t *testing.T) {
 	os.WriteFile(path, []byte("content"), 0644)
 
 	a := &AgentRunner{}
-	// Empty old_string means "insert at position" — should not block.
+	// S0.6: empty old_string is rejected uniformly — precheck must block what
+	// multi_edit's Execute would reject, instead of silently passing it through
+	// (the old "insert at position" reading no longer exists).
 	msg := a.precheckMultiEdit([]byte(`{
 		"path": "` + path + `",
 		"edits": [{"old_string": "", "new_string": "inserted"}]
 	}`))
-	if msg != "" {
-		t.Fatalf("empty old_string should not block: %s", msg)
+	if msg == "" {
+		t.Fatal("empty old_string should be blocked by precheck")
+	}
+	if !strings.Contains(msg, "precheck blocked") {
+		t.Fatalf("msg should say precheck blocked: %s", msg)
+	}
+	if !strings.Contains(msg, "multi_edit[0]") {
+		t.Fatalf("msg should mention which edit failed (index 0): %s", msg)
 	}
 }
 

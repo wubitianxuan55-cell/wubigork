@@ -86,7 +86,17 @@ func (a *AgentRunner) precheckMultiEdit(raw json.RawMessage) string {
 	}
 
 	for i, e := range p.Edits {
-		if e.OldString != "" && !strings.Contains(content, e.OldString) {
+		// S0.6: empty old_string is rejected uniformly (precheck and the
+		// multi_edit Execute must agree), so precheck never green-lights a
+		// call the executor is guaranteed to reject.
+		if e.OldString == "" {
+			return fmt.Sprintf(
+				"precheck blocked: multi_edit[%d] old_string is empty. Empty old_string is rejected — "+
+					"every edit must match existing text (use edit_file with new_string:\"\" to delete, "+
+					"or write_file to create a file).",
+				i)
+		}
+		if !strings.Contains(content, e.OldString) {
 			preview := e.OldString
 			if len(preview) > 80 {
 				preview = preview[:80] + "..."

@@ -1,9 +1,9 @@
 package builtin
 
 import (
-	"github.com/gaea/gaea/internal/netclient"
 	"github.com/gaea/gaea/internal/gaea/sandbox"
 	"github.com/gaea/gaea/internal/gaea/tool"
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // Workspace builds a built-in tool set bound to a working directory, so several
@@ -39,6 +39,11 @@ func (w Workspace) Tools(enabled ...string) []tool.Tool {
 	all := []tool.Tool{
 		readFile{workDir: w.Dir},
 		writeFile{workDir: w.Dir, roots: roots},
+		editFile{workDir: w.Dir, roots: roots},
+		multiEdit{workDir: w.Dir, roots: roots},
+		editLines{workDir: w.Dir, roots: roots},
+		moveFile{workDir: w.Dir, roots: roots},
+		grepTool{workDir: w.Dir},
 		bash{workDir: w.Dir, sb: w.Bash},
 		listDir{workDir: w.Dir},
 		screenCapture{workDir: w.Dir},

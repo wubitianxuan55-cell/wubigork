@@ -82,3 +82,51 @@ func TestAddBuiltins_NoDir(t *testing.T) {
 		t.Errorf("dir 为空时 read_file 应基于进程 cwd 解析: %v", err)
 	}
 }
+
+// TestAddBuiltins_EditToolsRegistered S0.6：五个编辑系工具经 addBuiltins
+// 装配后必须可用且绑定工作区（桌面端 Enabled=nil 全量注册时零配置生效）。
+func TestAddBuiltins_EditToolsRegistered(t *testing.T) {
+	procCwd := t.TempDir()
+	wsDir := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(wsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(procCwd); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(old) }()
+
+	if err := os.WriteFile(filepath.Join(wsDir, "e.txt"), []byte("alpha beta\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	reg := tool.NewRegistry()
+	addBuiltins(reg, wsDir, nil, []string{wsDir}, sandbox.Spec{}, netclient.ProxySpec{}, io.Discard)
+
+	for _, name := range []string{"edit_file", "multi_edit", "edit_lines", "move_file", "grep"} {
+		if _, ok := reg.Get(name); !ok {
+			t.Errorf("%s 未注册到 per-run registry（Workspace.Tools/ConfineWriters 装配缺失）", name)
+		}
+	}
+
+	// 绑定工作区：edit_file 相对路径落在 workspace，而非进程 cwd。
+	editFile, ok := reg.Get("edit_file")
+	if !ok {
+		t.Fatal("edit_file 未注册")
+	}
+	out, err := editFile.Execute(context.Background(), json.RawMessage(
+		`{"path":"e.txt","old_string":"alpha","new_string":"ALPHA"}`))
+	if err != nil {
+		t.Fatalf("edit_file 应绑定工作区目录执行: %v", err)
+	}
+	if !strings.Contains(out, "1 occurrence(s) replaced") {
+		t.Errorf("edit_file 输出 = %q", out)
+	}
+	if b, err := os.ReadFile(filepath.Join(wsDir, "e.txt")); err != nil || string(b) != "ALPHA beta\n" {
+		t.Errorf("workspace e.txt = %q err=%v", b, err)
+	}
+	if _, err := os.Stat(filepath.Join(procCwd, "e.txt")); err == nil {
+		t.Error("e.txt 不应出现在进程 cwd——工具必须绑定工作区目录")
+	}
+}
