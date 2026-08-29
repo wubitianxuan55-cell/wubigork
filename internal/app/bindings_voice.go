@@ -33,6 +33,11 @@ func (b *VoiceB) VoiceSetMode(mode string) error { return b.a.VoiceSetMode(mode)
 func (b *VoiceB) VoiceSetPTTActive(active bool) error { return b.a.VoiceSetPTTActive(active) }
 func (b *VoiceB) VoiceStart(browserASR bool) error { return b.a.VoiceStart(browserASR) }
 func (b *VoiceB) VoiceStop() error { return b.a.VoiceStop() }
+func (b *VoiceB) WeixinReminderAdd(text string, fireAtRFC3339 string) (map[string]interface{}, error) { return b.a.WeixinReminderAdd(text, fireAtRFC3339) }
+func (b *VoiceB) WeixinReminderConfig() (map[string]interface{}, error) { return b.a.WeixinReminderConfig() }
+func (b *VoiceB) WeixinReminderDelete(id string) error { return b.a.WeixinReminderDelete(id) }
+func (b *VoiceB) WeixinReminderList() []map[string]interface{} { return b.a.WeixinReminderList() }
+func (b *VoiceB) WeixinReminderSetConfig(cfgJSON string) error { return b.a.WeixinReminderSetConfig(cfgJSON) }
 func (b *VoiceB) WhisperAssistantDelete(id string) error { return b.a.WhisperAssistantDelete(id) }
 func (b *VoiceB) WhisperAssistantList() []assistant.Assistant { return b.a.WhisperAssistantList() }
 func (b *VoiceB) WhisperAssistantSave(ast assistant.Assistant) error { return b.a.WhisperAssistantSave(ast) }

@@ -52,6 +52,13 @@ type Server struct {
 
 	sessionExpired atomic.Bool
 
+	// 最近活跃会话（v4.4 主动推送）：handle 收到消息时记录发送者与上下文
+	// token，Push 据此向「最近一次发来消息的会话」回推。个人小号单用户场景
+	// 足够；多联系人场景由上层按 assistant 维度分 Server 隔离。
+	lastPeerMu      sync.Mutex
+	lastFromUser    string
+	lastContextTokn string
+
 	// OnSessionExpired 会话过期回调（getUpdates 返回 errcode=-14 sessExp 时触发一次）；
 	// 由上层注入（如 app 层 emit 前端事件并提示重新扫码）。nil 时仅记录日志。
 	OnSessionExpired func()
@@ -254,6 +261,12 @@ func (s *Server) handle(msg *inboundMsg) {
 		return
 	}
 
+	// 记录最近活跃会话（主动推送 Push 的回推目标）。
+	s.lastPeerMu.Lock()
+	s.lastFromUser = msg.FromUserID
+	s.lastContextTokn = msg.ContextToken
+	s.lastPeerMu.Unlock()
+
 	slog.Info("[weixin] 收到消息", "assistant", s.cfg.AssistantID, "from", msg.FromUserID, "len", len(text))
 	reply, err := s.chatFn(text, msg.FromUserID)
 	if err != nil {
@@ -263,6 +276,23 @@ func (s *Server) handle(msg *inboundMsg) {
 	if err := s.Send(msg.FromUserID, msg.ContextToken, reply); err != nil {
 		slog.Error("[weixin] 回复失败", "err", err)
 	}
+}
+
+// LastPeer 返回最近活跃会话（fromUser, contextToken）；无记录时返回空串。
+func (s *Server) LastPeer() (string, string) {
+	s.lastPeerMu.Lock()
+	defer s.lastPeerMu.Unlock()
+	return s.lastFromUser, s.lastContextTokn
+}
+
+// Push 主动向最近活跃会话发送文本（v4.4 离线代办回推通路）。
+// 尚无活跃会话（启动后没人发过消息）时报错，由上层决定重试或标记失败。
+func (s *Server) Push(text string) error {
+	from, ctx := s.LastPeer()
+	if from == "" {
+		return fmt.Errorf("无活跃微信会话（尚未收到任何消息），无法主动推送")
+	}
+	return s.Send(from, ctx, text)
 }
 
 // ─── 发送 ────────────────────────────────────────────────────

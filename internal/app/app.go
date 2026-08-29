@@ -167,6 +167,17 @@ type whisperState struct {
 	attentionManagers map[string]*whisper.AttentionManager // personalityID → 每会话独立频控
 	birthdayGreetedMu sync.Mutex
 	birthdayGreeted   map[string]string // personalityID → YYYY-MM-DD（当天已发生日祝福）
+
+	// v4.4：微信「离线代办」提醒（书房触点，weixin_reminder.go）。
+	remindersMu       sync.Mutex
+	reminders         []wxReminder
+	remindersLoaded   bool
+	reminderStop      chan struct{}
+	reminderOnce      sync.Once
+	wxPushFunc        wxPushFn // 回推实现（nil = 默认走 weixinServers[].Push；测试注入）
+	weixinTaskCfgMu   sync.Mutex
+	weixinTaskCfg     weixinTaskCfg
+	weixinTaskCfgInit bool
 }
 
 // officeState 是办公域状态（桌面动作执行 + 价格源定时抓取 + 文件语义索引）。
@@ -494,6 +505,11 @@ func (a *App) Shutdown(ctx context.Context) {
 				close(a.whisperState.proactiveStop)
 			}
 		})
+		// v4.4：停止微信提醒到点回推循环（reminderStop 由 Startup 同步创建，
+		// 与 proactiveStop 同模式，此处无并发写）。
+		if a.whisperState.reminderStop != nil {
+			close(a.whisperState.reminderStop)
+		}
 	}
 	if err := a.closePM(); err != nil {
 		slog.Error("关闭项目失败", "error", err)

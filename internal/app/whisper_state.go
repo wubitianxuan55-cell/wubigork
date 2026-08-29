@@ -45,6 +45,10 @@ func (w *whisperState) initWeixin() {
 	for _, ast := range w.assistantMgr.Enabled() {
 		w.startAssistantWx(ast)
 	}
+
+	// v4.4：微信「离线代办」——加载持久化提醒 + 启动到点回推循环。
+	w.loadReminders()
+	w.startReminderTicker()
 }
 
 func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
@@ -56,6 +60,11 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 		PersonalityID: ast.PersonalityID,
 	}
 	srv := weixin.New(cfg, func(userMsg, fromUser string) (string, error) {
+		// v4.4 任务化路由（第一档）：提醒类请求就地处理（解析→落盘→确认），
+		// 不进聊天管道；未命中走原 WhisperChatWithSearch。
+		if reply, handled := w.tryWxReminder(userMsg, ast.ID); handled {
+			return reply, nil
+		}
 		// 注入助手自定义名字（如"峨嵋"），系统提示词用该名字而非默认"gaea"
 		if orch := w.getOrCreateOrch(ast.PersonalityID); orch != nil && ast.Name != "" {
 			orch.AssistantName = ast.Name
