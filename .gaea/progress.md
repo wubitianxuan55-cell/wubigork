@@ -63,6 +63,9 @@
   - [x] **i18n 存量切片（壳层 chrome）**：MainLayout（strip/rail/telemetry 超载警告等）
     + ModuleLauncher（统计卡/语音/信息条/相对时间）+ SearchModal（分类标签/计数）
     全部三语字典化（~90 新 key）；fmtWords/fmtRel 接 translator
+  - [x] **i18n 存量切片（SettingsPage 外壳）**：控制室/搜索/分类导航/帮助面板
+    三语化（~40 新 key）；分类 label/desc 接 labelKey/descKey（keywords 为搜索数据保留 zh）；
+    SettingsPage.test 包 LocaleProvider + 固定 zh
   - [ ] i18n 存量切片（pages/ChatPage/Settings 等，逐切片推进）
   - [ ] 页面深层迁入（对话降为对话流/记忆侧栏/模型中心并入设置/创作间）——v4.x 范围
 - [x] **S2.3 bridge 分面 + types 生成化**：

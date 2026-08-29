@@ -6,6 +6,8 @@ import {
   SafetyCertificateOutlined, DatabaseOutlined, QuestionCircleOutlined, CloseOutlined,
 } from '@ant-design/icons'
 import './settings-page.css'
+import { useT } from '../gaea/lib/i18n'
+import type { DictKey } from '../gaea/locales/en'
 import AppearancePanel, { DarkModePanel, FontPanel, DensityPanel, MotionPanel, AccentPanel } from '../components/settings/AppearancePanel'
 import ChatPanel from '../components/settings/ChatPanel'
 import WorkspacePanel from '../components/settings/WorkspacePanel'
@@ -19,8 +21,12 @@ import AboutPanel from '../components/settings/AboutPanel'
 interface Category {
   key: string
   icon: React.ReactNode
+  /** zh 兜底文案（搜索关键词用，数据层不可 use hook） */
   label: string
   desc: string
+  /** i18n 渲染 key（S2.2b 切片） */
+  labelKey: DictKey
+  descKey: DictKey
   keywords: string[]
   panel: React.ReactNode
 }
@@ -31,7 +37,9 @@ const CATEGORIES: Category[] = [
     key: 'general',
     icon: <AppstoreOutlined />,
     label: '通用',
+    labelKey: 'settings.cat.general',
     desc: '外观',
+    descKey: 'settings.cat.generalDesc',
     keywords: ['通用', '外观', '主题', '暗色', '亮色', '深色', '浅色', '模式', '字体', '字号', '密度', '动效', '动画', '强调色', '颜色', '显示'],
     panel: (<><AppearancePanel /><DarkModePanel /><FontPanel /><DensityPanel /><MotionPanel /><AccentPanel /></>),
   },
@@ -39,7 +47,9 @@ const CATEGORIES: Category[] = [
     key: 'chat',
     icon: <MessageOutlined />,
     label: '聊天',
+    labelKey: 'settings.cat.chat',
     desc: '伴侣 · 语音',
+    descKey: 'settings.cat.chatDesc',
     keywords: ['聊天', '伴侣', '称呼', '性别', '人格', '角色', '语音', '朗读', '音色', '对话', '识别', 'tts', 'asr'],
     panel: <ChatPanel />,
   },
@@ -47,7 +57,9 @@ const CATEGORIES: Category[] = [
     key: 'novel',
     icon: <ReadOutlined />,
     label: '小说',
+    labelKey: 'settings.cat.novel',
     desc: '目录 · 风格',
+    descKey: 'settings.cat.novelDesc',
     keywords: ['小说', '目录', '存储', '路径', '书库', '风格', 'skill', '剧照', '写作', '工作区'],
     panel: <WorkspacePanel />,
   },
@@ -55,7 +67,9 @@ const CATEGORIES: Category[] = [
     key: 'imagegen',
     icon: <PictureOutlined />,
     label: '绘梦',
+    labelKey: 'settings.cat.imagegen',
     desc: '图像后端',
+    descKey: 'settings.cat.imagegenDesc',
     keywords: ['绘梦', '图像', '图片', '生成', 'comfyui', '后端', '模型', '保存', 'xai', 'grok-imagine'],
     panel: <ImageGenPanel />,
   },
@@ -63,7 +77,9 @@ const CATEGORIES: Category[] = [
     key: 'office',
     icon: <SettingOutlined />,
     label: '办公',
+    labelKey: 'settings.cat.office',
     desc: '引擎 · 方案',
+    descKey: 'settings.cat.officeDesc',
     keywords: ['办公', '引擎', '方案', '模型', '权限', '沙箱', 'agent', '工具', '技能', '热加载', '招标', '撰写', '温度'],
     panel: <OfficePanel />,
   },
@@ -71,7 +87,9 @@ const CATEGORIES: Category[] = [
     key: 'model',
     icon: <ApiOutlined />,
     label: '模型',
+    labelKey: 'settings.cat.model',
     desc: '全局模型',
+    descKey: 'settings.cat.modelDesc',
     keywords: ['模型', '推理', '强度', '引擎', 'grok', 'deepseek', 'ollama', 'herdsman', 'xai', 'api', 'key'],
     panel: <ModelPanel />,
   },
@@ -79,7 +97,9 @@ const CATEGORIES: Category[] = [
     key: 'security',
     icon: <SafetyCertificateOutlined />,
     label: '安全',
+    labelKey: 'settings.cat.security',
     desc: '隐私 · 调试',
+    descKey: 'settings.cat.securityDesc',
     keywords: ['安全', '隐私', '敏感', '本地化', '本地', '局域网', '暴露', 'lan', '调试', 'webview', '远程', 'token', '报价', '成本'],
     panel: <SecurityPanel />,
   },
@@ -87,7 +107,9 @@ const CATEGORIES: Category[] = [
     key: 'data',
     icon: <DatabaseOutlined />,
     label: '数据',
+    labelKey: 'settings.cat.data',
     desc: '备份 · 恢复',
+    descKey: 'settings.cat.dataDesc',
     keywords: ['数据', '备份', '恢复', '迁移', '导出', '导入', 'zip', '换机', '重装', '防丢', '存档', '快照'],
     panel: <DataPanel />,
   },
@@ -95,7 +117,9 @@ const CATEGORIES: Category[] = [
     key: 'about',
     icon: <InfoCircleOutlined />,
     label: '关于',
+    labelKey: 'settings.cat.about',
     desc: '版本 · 存储',
+    descKey: 'settings.cat.aboutDesc',
     keywords: ['关于', '版本', '更新', '日志', '系统', '信息', '路径', '配置', '存储', 'token', '凭证'],
     panel: <AboutPanel />,
   },
@@ -104,6 +128,7 @@ const CATEGORIES: Category[] = [
 /** SettingsPage —「控制室」3 分区工作台：细条头部 + 左分类导航 + 中表单区 + 右帮助 inspector（可隐藏）
  *  分类导航替代原磁贴网格，激活项 = 主色容器 + 左缘光条；搜索跨分组过滤并自动切换。 */
 const SettingsPage: React.FC = () => {
+  const t = useT()
   const [query, setQuery] = useState('')
   const [activeKey, setActiveKey] = useState('general')
   const [inspectorOpen, setInspectorOpen] = useState(false)
@@ -128,24 +153,24 @@ const SettingsPage: React.FC = () => {
       <header className="settings-bar">
         <div className="settings-bar__context">
           <span className="settings-bar__glow" aria-hidden="true" />
-          <strong className="settings-bar__title">控制室</strong>
-          <span className="settings-bar__hint">设置中心 · {CATEGORIES.length} 个分组</span>
+          <strong className="settings-bar__title">{t('settings.controlRoom')}</strong>
+          <span className="settings-bar__hint">{t('settings.groupsHint', { count: CATEGORIES.length })}</span>
         </div>
         <div className="settings-bar__spacer" />
         <Input
           allowClear
           prefix={<SearchOutlined />}
-          placeholder="搜索设置项，如：主题 / 模型 / 存储"
+          placeholder={t('settings.searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="settings-page__search"
-          aria-label="搜索设置项"
+          aria-label={t('settings.searchAria')}
         />
-        <Tooltip title={inspectorOpen ? '隐藏帮助面板' : '显示帮助面板'}>
+        <Tooltip title={inspectorOpen ? t('settings.inspectorHide') : t('settings.inspectorShow')}>
           <Button
             type="text"
             size="small"
-            aria-label={inspectorOpen ? '隐藏帮助面板' : '显示帮助面板'}
+            aria-label={inspectorOpen ? t('settings.inspectorHide') : t('settings.inspectorShow')}
             className={`settings-bar__toggle${inspectorOpen ? ' is-active' : ''}`}
             icon={<QuestionCircleOutlined />}
             onClick={() => setInspectorOpen((v) => !v)}
@@ -156,9 +181,9 @@ const SettingsPage: React.FC = () => {
       {/* ── 3 分区工作台：分类导航 | 表单区 | 帮助 inspector ── */}
       <div className="settings-workbench">
         {/* 左 = 分类导航（竖向，替代磁贴） */}
-        <aside className="v3-panel settings-nav" aria-label="设置分类导航">
+        <aside className="v3-panel settings-nav" aria-label={t('settings.navAria')}>
           <div className="v3-panel-head">
-            <span className="v3-panel-title">设置分组</span>
+            <span className="v3-panel-title">{t('settings.groups')}</span>
             <span className="v3-panel-spacer" />
             <span className="settings-nav__count">{visible.length}</span>
           </div>
@@ -173,8 +198,8 @@ const SettingsPage: React.FC = () => {
               >
                 <span className="settings-nav-item__icon" aria-hidden="true">{it.icon}</span>
                 <span className="settings-nav-item__text">
-                  <span className="settings-nav-item__label">{it.label}</span>
-                  <span className="settings-nav-item__desc">{it.desc}</span>
+                  <span className="settings-nav-item__label">{t(it.labelKey)}</span>
+                  <span className="settings-nav-item__desc">{t(it.descKey)}</span>
                 </span>
                 <span className="settings-nav-item__orb" aria-hidden="true" />
               </button>
@@ -182,7 +207,7 @@ const SettingsPage: React.FC = () => {
           </nav>
           <div className="settings-nav__foot">
             <SearchOutlined aria-hidden="true" />
-            <span>搜索可跨分组过滤</span>
+            <span>{t('settings.searchHint')}</span>
           </div>
         </aside>
 
@@ -190,7 +215,7 @@ const SettingsPage: React.FC = () => {
         <main className="v3-zone settings-content">
           {visible.length === 0 ? (
             <div className="v3-card settings-empty">
-              没有匹配的设置项，试试「主题」「模型」或「存储」
+              {t('settings.noMatch')}
             </div>
           ) : (
             <div key={effectiveKey} className="settings-panel-enter">
@@ -201,15 +226,15 @@ const SettingsPage: React.FC = () => {
 
         {/* 右 = 预留 inspector（帮助说明，可隐藏） */}
         {inspectorOpen && (
-          <aside className="v3-panel settings-inspector" aria-label="设置帮助面板">
+          <aside className="v3-panel settings-inspector" aria-label={t('settings.inspectorAria')}>
             <div className="v3-panel-head">
-              <span className="v3-panel-title">帮助</span>
+              <span className="v3-panel-title">{t('settings.help')}</span>
               <span className="v3-panel-spacer" />
               <button
                 type="button"
                 className="settings-inspector__close"
                 onClick={() => setInspectorOpen(false)}
-                aria-label="关闭帮助面板"
+                aria-label={t('settings.closeInspector')}
               >
                 <CloseOutlined />
               </button>
@@ -218,9 +243,9 @@ const SettingsPage: React.FC = () => {
               <section className="v3-card settings-help-card">
                 <div className="settings-help-card__row">
                   <span className="settings-help-card__icon" aria-hidden="true">{active.icon}</span>
-                  <span className="settings-help-card__label">当前分类：{active.label}</span>
+                  <span className="settings-help-card__label">{t('settings.currentCategory', { label: t(active.labelKey) })}</span>
                 </div>
-                <p className="settings-help-card__desc">{active.desc}</p>
+                <p className="settings-help-card__desc">{t(active.descKey)}</p>
                 <div className="settings-help-card__keywords">
                   {active.keywords.slice(0, 8).map((k) => (
                     <span key={k} className="settings-keyword">{k}</span>
@@ -228,11 +253,11 @@ const SettingsPage: React.FC = () => {
                 </div>
               </section>
               <section className="v3-card settings-help-card">
-                <h4 className="settings-help-card__title">操作提示</h4>
+                <h4 className="settings-help-card__title">{t('settings.tips')}</h4>
                 <ul className="settings-help-card__list">
-                  <li>左侧导航切换设置分组，当前项带主色光条</li>
-                  <li>顶部搜索可跨分组过滤设置项</li>
-                  <li>带「即时生效」标记的项保存后立刻生效</li>
+                  <li>{t('settings.tip1')}</li>
+                  <li>{t('settings.tip2')}</li>
+                  <li>{t('settings.tip3')}</li>
                 </ul>
               </section>
             </div>
