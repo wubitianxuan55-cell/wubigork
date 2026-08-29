@@ -42,8 +42,61 @@ func GetDatabase(dataDir string) *sql.DB {
 		_ = db.Close()
 		return nil
 	}
+	if err := migrateSchemaV2(db); err != nil {
+		log.Printf("[characterlib-db] SchemaV2 迁移失败: %v", err)
+		_ = db.Close()
+		return nil
+	}
 	pools[dataDir] = db
 	return db
+}
+
+// migrateSchemaV2 幂等迁移（v4.3g 角色参考图/画廊图）：
+// characters 表补 reference_images / gallery_images 两列（JSON []string），
+// 检查列是否已存在，不存在才 ALTER TABLE ADD COLUMN；旧行回填默认 '[]'。
+// 重复执行安全：已存在列直接跳过。
+func migrateSchemaV2(db *sql.DB) error {
+	has, err := hasColumn(db, "characters", "reference_images")
+	if err != nil {
+		return err
+	}
+	if !has {
+		if _, err := db.Exec(`ALTER TABLE characters ADD COLUMN reference_images TEXT NOT NULL DEFAULT '[]'`); err != nil {
+			return fmt.Errorf("新增 reference_images 列失败: %w", err)
+		}
+	}
+	has, err = hasColumn(db, "characters", "gallery_images")
+	if err != nil {
+		return err
+	}
+	if !has {
+		if _, err := db.Exec(`ALTER TABLE characters ADD COLUMN gallery_images TEXT NOT NULL DEFAULT '[]'`); err != nil {
+			return fmt.Errorf("新增 gallery_images 列失败: %w", err)
+		}
+	}
+	return nil
+}
+
+// hasColumn 检查表是否存在指定列（PRAGMA table_info）。
+func hasColumn(db *sql.DB, table, column string) (bool, error) {
+	rows, err := db.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return false, err
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
 
 // CloseDatabase 关闭连接并清理 WAL。

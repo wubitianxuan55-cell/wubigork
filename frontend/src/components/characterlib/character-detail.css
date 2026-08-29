@@ -447,6 +447,70 @@
   margin-top: 3px;
 }
 
+/* 参考图管理（v4.3g 生图参考槽） */
+.cd-refs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cd-refs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 10px;
+}
+
+.cd-ref {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.cd-ref-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+
+.cd-ref-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  gap: 2px;
+  padding: 1px;
+  border-radius: 8px;
+  background: rgba(10, 10, 20, 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.cd-ref-actions .cd-dice {
+  color: rgb(255 255 255) !important;
+}
+
+.cd-ref-actions .cd-dice:hover {
+  color: var(--gaea-glow) !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.cd-refs-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cd-refs-hint {
+  font-size: 10.5px;
+  color: var(--md-sys-color-text-secondary);
+}
+
 /* 输入统一玻璃质感（深浅色均可） */
 .cd .ant-input,
 .cd .ant-input-affix-wrapper,

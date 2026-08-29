@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -21,6 +22,18 @@ func portraitFileDir(dataDir string) string {
 // savePortraitFile 把 data URL 剧照落盘为文件并返回文件路径；
 // 非 data URL（已是文件路径）原样返回。落盘失败时回退原值。
 func savePortraitFile(dataDir, id, dataURL string) string {
+	return saveImageFile(dataDir, portraitFileBase(id), dataURL)
+}
+
+// saveRemotePortrait 把远程剧照 URL（如 xAI 临时生成图，会过期）下载到本地
+// portraits 目录并返回本地路径；下载失败返回原 URL（保存不阻塞，启动迁移会重试）。
+func saveRemotePortrait(dataDir, id, remoteURL string) string {
+	return saveRemoteImage(dataDir, portraitFileBase(id), remoteURL)
+}
+
+// saveImageFile 把 data URL 图片落盘为 portraits 目录下的文件（base 为清洗后
+// 的文件名基名，如角色 ID 或 "ID_ref_0"）；非 data URL 原样返回，落盘失败回退原值。
+func saveImageFile(dataDir, base, dataURL string) string {
 	if !strings.HasPrefix(dataURL, "data:") {
 		return dataURL
 	}
@@ -32,12 +45,12 @@ func savePortraitFile(dataDir, id, dataURL string) string {
 	if err != nil {
 		return dataURL
 	}
-	return writePortraitBytes(dataDir, id, extFromDataURL(dataURL[:comma]), data)
+	return writePortraitBytes(dataDir, base, extFromDataURL(dataURL[:comma]), data)
 }
 
-// saveRemotePortrait 把远程剧照 URL（如 xAI 临时生成图，会过期）下载到本地
-// portraits 目录并返回本地路径；下载失败返回原 URL（保存不阻塞，启动迁移会重试）。
-func saveRemotePortrait(dataDir, id, remoteURL string) string {
+// saveRemoteImage 把远程图片 URL 下载到本地 portraits 目录（base 为清洗后的
+// 文件名基名）；下载失败返回原 URL。
+func saveRemoteImage(dataDir, base, remoteURL string) string {
 	if !strings.HasPrefix(remoteURL, "http://") && !strings.HasPrefix(remoteURL, "https://") {
 		return remoteURL
 	}
@@ -61,20 +74,38 @@ func saveRemotePortrait(dataDir, id, remoteURL string) string {
 	if ext == "" {
 		ext = ".png"
 	}
-	if path := writePortraitBytes(dataDir, id, ext, body); path != "" {
+	if path := writePortraitBytes(dataDir, base, ext, body); path != "" {
 		return path
 	}
 	return remoteURL
 }
 
-// writePortraitBytes 把剧照字节写入 portraits 目录（文件名经清洗防穿越），
-// 成功返回完整路径，失败返回空串。
-func writePortraitBytes(dataDir, id, ext string, data []byte) string {
+// localizeImageList 把图片列表（data URL / 远程 URL）逐项本地化为
+// portraits 目录下的文件路径（basePrefix 如 "ID_ref" / "ID_gallery"，逐项加下标），
+// 已本地化（文件路径）或下载失败的原样保留；空串项剔除。
+// 与剧照同策略：库里不存巨型 base64，防撑爆 Wails IPC。
+func localizeImageList(dataDir, basePrefix string, items []string) []string {
+	out := make([]string, 0, len(items))
+	for i, it := range items {
+		it = strings.TrimSpace(it)
+		if it == "" {
+			continue
+		}
+		base := basePrefix + "_" + strconv.Itoa(i)
+		it = saveRemoteImage(dataDir, base, it)
+		it = saveImageFile(dataDir, base, it)
+		out = append(out, it)
+	}
+	return out
+}
+
+// writePortraitBytes 把图片字节写入 portraits 目录（base 为清洗后的文件名基名，
+// 防穿越），成功返回完整路径，失败返回空串。
+func writePortraitBytes(dataDir, base, ext string, data []byte) string {
 	dir := portraitFileDir(dataDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return ""
 	}
-	base := portraitFileBase(id)
 	path := filepath.Join(dir, base+ext)
 	// 纵深防御：清洗后最终路径必须仍落在 portraits 目录内（防路径穿越）。
 	if !strings.HasPrefix(path, dir+string(filepath.Separator)) {

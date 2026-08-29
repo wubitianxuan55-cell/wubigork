@@ -1,20 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import CharacterLibEditor from './CharacterLibEditor'
 import type { LibraryCharacter } from '../../api/characterlib'
+
+const { readFileAsDataURL: readFileAsDataURLMock } = vi.hoisted(() => ({
+  readFileAsDataURL: vi.fn(),
+}))
 
 vi.mock('../../api/characterlib', () => ({
   saveCharacter: vi.fn(),
   generateFill: vi.fn(),
   generatePortrait: vi.fn(),
+  generatePortraitWithRef: vi.fn(),
   generateRandom: vi.fn(),
 }))
 
-import { saveCharacter, generateFill, generatePortrait, generateRandom } from '../../api/characterlib'
+vi.mock('../../api/image', () => ({
+  readFileAsDataURL: readFileAsDataURLMock,
+}))
+
+import { saveCharacter, generateFill, generatePortrait, generatePortraitWithRef, generateRandom } from '../../api/characterlib'
 
 const mockedSave = vi.mocked(saveCharacter)
 const mockedFill = vi.mocked(generateFill)
 const mockedPortrait = vi.mocked(generatePortrait)
+const mockedPortraitWithRef = vi.mocked(generatePortraitWithRef)
 const mockedRandom = vi.mocked(generateRandom)
 
 function makeCharacter(overrides: Partial<LibraryCharacter> = {}): LibraryCharacter {
@@ -64,7 +74,10 @@ beforeEach(() => {
   mockedSave.mockReset()
   mockedFill.mockReset()
   mockedPortrait.mockReset()
+  mockedPortraitWithRef.mockReset()
   mockedRandom.mockReset()
+  readFileAsDataURLMock.mockReset()
+  readFileAsDataURLMock.mockResolvedValue('data:image/png;base64,PATHREF')
 })
 
 describe('CharacterLibEditor（档案详情）', () => {
@@ -219,5 +232,104 @@ describe('CharacterLibEditor（档案详情）', () => {
     renderEditor()
     fireEvent.click(screen.getByTitle('随机生成性别'))
     expect(mockedRandom).not.toHaveBeenCalled()
+  })
+
+  // ── v4.3g 参考图管理 ─────────────────────────────────────────
+
+  it('渲染参考图列表：data URL 直接展示为缩略图', () => {
+    renderEditor({
+      character: makeCharacter({
+        referenceImages: ['data:image/png;base64,QUFB', 'data:image/png;base64,QkJC'],
+      }),
+    })
+    expect(screen.getByText('参考图')).toBeTruthy()
+    const thumbs = document.body.querySelectorAll('.cd-ref-img')
+    expect(thumbs.length).toBe(2)
+    expect(thumbs[0]?.getAttribute('src')).toBe('data:image/png;base64,QUFB')
+    expect(thumbs[1]?.getAttribute('src')).toBe('data:image/png;base64,QkJC')
+  })
+
+  it('无参考图时显示空态与「添加参考图」按钮', () => {
+    renderEditor()
+    expect(document.body.querySelectorAll('.cd-ref').length).toBe(0)
+    expect(screen.getByText('添加参考图')).toBeTruthy()
+  })
+
+  it('添加参考图：选择文件后追加 data URL 并显示缩略图', async () => {
+    renderEditor()
+    const input = document.body.querySelector('input[type="file"]') as HTMLInputElement
+    const file = new File(['x'], 'ref.png', { type: 'image/png' })
+    fireEvent.change(input, { target: { files: [file] } })
+    await waitFor(() => {
+      expect(document.body.querySelectorAll('.cd-ref-img').length).toBe(1)
+    })
+    // 保存时携带 referenceImages
+    mockedSave.mockResolvedValue(makeCharacter({ referenceImages: ['data:image/png;base64,QUFB'] }))
+    fireEvent.click(screen.getByText('保存'))
+    await waitFor(() => {
+      const payload = mockedSave.mock.calls[0][0] as Partial<LibraryCharacter>
+      expect(Array.isArray(payload.referenceImages)).toBe(true)
+      expect((payload.referenceImages ?? []).length).toBe(1)
+    })
+  })
+
+  it('移除参考图：点击删除后列表减少', () => {
+    renderEditor({
+      character: makeCharacter({
+        referenceImages: ['data:image/png;base64,QUFB', 'data:image/png;base64,QkJC'],
+      }),
+    })
+    const removeButtons = screen.getAllByTitle('移除参考图')
+    expect(removeButtons.length).toBe(2)
+    fireEvent.click(removeButtons[0])
+    expect(document.body.querySelectorAll('.cd-ref-img').length).toBe(1)
+  })
+
+  it('以 data URL 参考图生成剧照：调用 generatePortraitWithRef 并更新立绘', async () => {
+    mockedPortraitWithRef.mockResolvedValue('data:image/png;base64,Q0hBTkc=')
+    renderEditor({
+      character: makeCharacter({ referenceImages: ['data:image/png;base64,UkVG'] }),
+    })
+    fireEvent.click(screen.getByTitle('以这张参考图生成剧照（img2img）'))
+    await waitFor(() => {
+      expect(mockedPortraitWithRef).toHaveBeenCalledTimes(1)
+      expect(mockedPortraitWithRef.mock.calls[0][2]).toBe('data:image/png;base64,UkVG')
+      expect(document.body.querySelector('.cd-hero-img')?.getAttribute('src')).toBe('data:image/png;base64,Q0hBTkc=')
+    })
+    // 未走 txt2img 路径
+    expect(mockedPortrait).not.toHaveBeenCalled()
+  })
+
+  it('以本地路径参考图生成剧照：先经 readFileAsDataURL 读回 data URL 再传给后端', async () => {
+    mockedPortraitWithRef.mockResolvedValue('data:image/png;base64,Q0hBTkc=')
+    renderEditor({
+      character: makeCharacter({ referenceImages: ['C:/x/portraits/c1_ref_0.png'] }),
+    })
+    fireEvent.click(screen.getByTitle('以这张参考图生成剧照（img2img）'))
+    await waitFor(() => {
+      expect(readFileAsDataURLMock).toHaveBeenCalledWith('C:/x/portraits/c1_ref_0.png')
+      expect(mockedPortraitWithRef.mock.calls[0][2]).toBe('data:image/png;base64,PATHREF')
+    })
+  })
+
+  it('名称为空时不调用参考图生成', async () => {
+    renderEditor({
+      character: makeCharacter({ referenceImages: ['data:image/png;base64,UkVG'] }),
+    })
+    fireEvent.change(screen.getByPlaceholderText('角色名'), { target: { value: '' } })
+    fireEvent.click(screen.getByTitle('以这张参考图生成剧照（img2img）'))
+    expect(mockedPortraitWithRef).not.toHaveBeenCalled()
+  })
+
+  it('参考图生成失败提示错误且不更新立绘', async () => {
+    mockedPortraitWithRef.mockRejectedValue(new Error('模型暂不支持参考图生成'))
+    renderEditor({
+      character: makeCharacter({ referenceImages: ['data:image/png;base64,UkVG'] }),
+    })
+    fireEvent.click(screen.getByTitle('以这张参考图生成剧照（img2img）'))
+    await waitFor(() => {
+      expect(screen.getByText(/参考图生成失败/)).toBeTruthy()
+    })
+    expect(document.body.querySelector('.cd-hero-img')).toBeNull()
   })
 })

@@ -136,3 +136,17 @@ export async function fillAllCharacters(): Promise<FillAllResult> {
 export async function generatePortrait(c: Partial<LibraryCharacter>, model = ''): Promise<string> {
   return App.CharacterGeneratePortrait(JSON.stringify(c), model)
 }
+
+/**
+ * 带参考图生成角色剧照（v4.3g 生图参考槽）：
+ * refImageDataURL 为参考图 data URL（本地路径可先经 readFileAsDataURL 读取），
+ * 非空时走 img2img（低 denoise 保留角色特征，需 krea2 / z-image-turbo），
+ * 为空时等价于 generatePortrait（txt2img）。返回图片 data URL / 远程 URL（不自动保存）。
+ */
+export async function generatePortraitWithRef(
+  c: Partial<LibraryCharacter>,
+  model = '',
+  refImageDataURL: string,
+): Promise<string> {
+  return App.CharacterGeneratePortraitWithRef(JSON.stringify(c), model, refImageDataURL)
+}

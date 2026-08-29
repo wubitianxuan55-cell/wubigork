@@ -18,6 +18,7 @@ func (b *CharlibB) CharacterDrawRandom(count int, gender string, tags string, ch
 func (b *CharlibB) CharacterFillAll() (map[string]interface{}, error) { return b.a.CharacterFillAll() }
 func (b *CharlibB) CharacterGenerateFill(chJSON string) (string, error) { return b.a.CharacterGenerateFill(chJSON) }
 func (b *CharlibB) CharacterGeneratePortrait(chJSON string, model string) (string, error) { return b.a.CharacterGeneratePortrait(chJSON, model) }
+func (b *CharlibB) CharacterGeneratePortraitWithRef(chJSON string, model string, refImageDataURL string) (string, error) { return b.a.CharacterGeneratePortraitWithRef(chJSON, model, refImageDataURL) }
 func (b *CharlibB) CharacterGenerateRandom(chJSON string, fields string) (string, error) { return b.a.CharacterGenerateRandom(chJSON, fields) }
 func (b *CharlibB) CharacterGet(id string) (map[string]interface{}, error) { return b.a.CharacterGet(id) }
 func (b *CharlibB) CharacterImportProject() (int, error) { return b.a.CharacterImportProject() }

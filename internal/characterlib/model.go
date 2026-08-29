@@ -24,6 +24,10 @@ type Character struct {
 	Age         string   `json:"age,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
 	PortraitURL string   `json:"portraitUrl,omitempty"`
+	// v4.3g 参考图/画廊图：JSON []string（data URL / 远程 URL / 本地落盘路径，
+	// 保存时 data URL 与远程 URL 会本地化为 portraits 目录下的文件路径）。
+	ReferenceImages []string `json:"referenceImages,omitempty"`
+	GalleryImages   []string `json:"galleryImages,omitempty"`
 
 	// ── 小说侧 ──
 	RoleType        string   `json:"roleType,omitempty"` // protagonist / antagonist / supporting / minor

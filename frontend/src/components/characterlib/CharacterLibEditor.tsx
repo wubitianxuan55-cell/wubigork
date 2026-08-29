@@ -1,7 +1,7 @@
 // CharacterLibEditor.tsx — 角色库详情：档案册视图（相卡面板）
 // 档案眉 → 立绘横幅 → 身份栏 + 卷宗正文 → 底部操作条
 // 随机生成：顶部「随机补全 / 全部随机」，每个字段旁 ↻ 可单独随机（含性格）
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Modal, Input, Select, Switch, Slider, Typography, message, Button,
 } from 'antd'
@@ -11,9 +11,10 @@ import {
 } from '@ant-design/icons'
 import TisorRadar from '../TisorRadar'
 import {
-  saveCharacter, generateFill, generateRandom, generatePortrait,
+  saveCharacter, generateFill, generateRandom, generatePortrait, generatePortraitWithRef,
   type LibraryCharacter,
 } from '../../api/characterlib'
+import { readFileAsDataURL } from '../../api/image'
 import { PortraitImg } from './PortraitImg'
 import { CHARACTER_STATUS_OPTIONS, characterStatusLabel } from '../../utils/characterStatus'
 import './character-detail.css'
@@ -100,12 +101,13 @@ function emptyDims() {
 }
 
 function toForm(c: LibraryCharacter | null): Partial<LibraryCharacter> {
-  if (!c) return { tags: [], dialogueSamples: [], dims: emptyDims() }
+  if (!c) return { tags: [], dialogueSamples: [], dims: emptyDims(), referenceImages: [] }
   return {
     ...c,
     tags: c.tags ?? [],
     dialogueSamples: c.dialogueSamples ?? [],
     dims: c.dims ?? emptyDims(),
+    referenceImages: c.referenceImages ?? [],
   }
 }
 
@@ -120,6 +122,8 @@ const CharacterLibEditor: React.FC<Props> = ({
   const [genDims, setGenDims] = useState(false)
   const [fieldGen, setFieldGen] = useState<string | null>(null)
   const [genPortrait, setGenPortrait] = useState(false)
+  const [refGenIdx, setRefGenIdx] = useState<number | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) setForm(toForm(character))
@@ -127,7 +131,7 @@ const CharacterLibEditor: React.FC<Props> = ({
 
   const isNew = !character
   const kindLabel = character?.kind ? KIND_META[character.kind] || KIND_META.custom : KIND_META.custom
-  const busy = saving || filling || genAll || genDims || !!fieldGen
+  const busy = saving || filling || genAll || genDims || !!fieldGen || refGenIdx !== null
 
   const patch = (p: Partial<LibraryCharacter>) => setForm(prev => ({ ...prev, ...p }))
   const patchTags = (v: string) => patch({ tags: v.split(/[,，]/).map(s => s.trim()).filter(Boolean) })
@@ -292,6 +296,51 @@ const CharacterLibEditor: React.FC<Props> = ({
     } finally {
       setGenPortrait(false)
     }
+  }
+
+  // 以第 i 张参考图生成剧照（img2img 低 denoise 保留角色特征）：
+  // 保存后参考图是本地文件路径，先读回 data URL 再传给后端。
+  const handleGenerateWithRef = async (i: number) => {
+    if (busy) return
+    if (!form.name?.trim()) {
+      message.warning('角色名称不能为空')
+      return
+    }
+    const ref = (form.referenceImages ?? [])[i]
+    if (!ref) return
+    setRefGenIdx(i)
+    try {
+      const dataUrl = ref.startsWith('data:') ? ref : await readFileAsDataURL(ref)
+      const img = await generatePortraitWithRef(form, '', dataUrl)
+      patch({ portraitUrl: img })
+      message.success('剧照已按参考图生成，检查后保存')
+    } catch (err: unknown) {
+      message.error(`参考图生成失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setRefGenIdx(null)
+    }
+  }
+
+  const removeRef = (i: number) => {
+    const refs = [...(form.referenceImages ?? [])]
+    refs.splice(i, 1)
+    patch({ referenceImages: refs })
+  }
+
+  // 选择本地图片 → data URL 追加进参考图列表（保存时后端会本地化落盘）。
+  const onPickRefFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '')
+      if (!dataUrl) return
+      patch({ referenceImages: [...(form.referenceImages ?? []), dataUrl] })
+      message.success('参考图已添加，保存后生效')
+    }
+    reader.onerror = () => message.error('读取图片失败')
+    reader.readAsDataURL(file)
   }
 
   const dims = useMemo(() => form.dims ?? emptyDims(), [form.dims])
@@ -494,6 +543,47 @@ const CharacterLibEditor: React.FC<Props> = ({
                         onChange={e => patch({ [f.key]: e.target.value })} />
                     </div>
                   ))}
+                </div>
+              ))}
+              {section('参考图', (
+                <div className="cd-refs">
+                  {(form.referenceImages ?? []).length > 0 && (
+                    <div className="cd-refs-grid">
+                      {(form.referenceImages ?? []).map((ref, i) => (
+                        <div key={`${ref}-${i}`} className="cd-ref">
+                          <PortraitImg className="cd-ref-img" src={ref} alt={`参考图 ${i + 1}`} />
+                          <div className="cd-ref-actions">
+                            <Button
+                              size="small"
+                              type="text"
+                              className="cd-dice"
+                              icon={refGenIdx === i ? <LoadingOutlined /> : <ThunderboltOutlined />}
+                              loading={refGenIdx === i}
+                              disabled={busy && refGenIdx !== i}
+                              title="以这张参考图生成剧照（img2img）"
+                              onClick={() => void handleGenerateWithRef(i)}
+                            />
+                            <Button
+                              size="small"
+                              type="text"
+                              className="cd-dice"
+                              icon={<CloseOutlined />}
+                              title="移除参考图"
+                              disabled={busy}
+                              onClick={() => removeRef(i)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickRefFile} />
+                  <div className="cd-refs-foot">
+                    <Button size="small" icon={<PictureOutlined />} disabled={busy} onClick={() => fileRef.current?.click()}>
+                      添加参考图
+                    </Button>
+                    <span className="cd-refs-hint">以参考图生成立绘可保留角色特征（img2img，需 krea2 / z-image-turbo）</span>
+                  </div>
                 </div>
               ))}
               {section('对话样本', (

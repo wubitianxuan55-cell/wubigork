@@ -492,6 +492,61 @@ func isEmptyGen(v interface{}) bool {
 // 使用独立的剧照后端/模型（未单独配置时跟随绘梦），不影响绘梦页当前选择。
 // 返回图片 data URL 或远程 URL，前端拿到后写入 portraitUrl 再随角色保存。
 func (a *App) CharacterGeneratePortrait(chJSON, model string) (string, error) {
+	return a.characterGeneratePortrait(chJSON, model, "")
+}
+
+// CharacterGeneratePortraitWithRef 带参考图的剧照生成（v4.3g 生图参考槽）。
+// refImageDataURL 非空时以参考图走 img2img（denoise 低值保留角色五官/轮廓特征，
+// 仅 comfyui 的 krea2 / z-image-turbo 支持，其它模型/后端给出中文错误）；
+// 为空时与 CharacterGeneratePortrait 完全一致（txt2img）。
+func (a *App) CharacterGeneratePortraitWithRef(chJSON, model, refImageDataURL string) (string, error) {
+	return a.characterGeneratePortrait(chJSON, model, strings.TrimSpace(refImageDataURL))
+}
+
+// portraitRefDenoise 参考图生成的重绘幅度：低值保留角色特征（0.5-0.65 区间取中值）。
+const portraitRefDenoise = 0.55
+
+// img2imgCapableModel 判断模型是否支持图生图（与 internal/ai/image_comfyui.go
+// img2img 分支的模型白名单一致）。
+func img2imgCapableModel(model string) bool {
+	return model == "z-image-turbo" || strings.HasPrefix(model, "krea2")
+}
+
+// checkPortraitRefSupport 参考图生成的前置门禁：comfyui 后端仅 krea2 /
+// z-image-turbo 支持 img2img（后端对其它模型直接报错），提前给出中文错误；
+// 其它后端（herdsman/ollama/xai 等）交给后端/API 自行裁决。
+func checkPortraitRefSupport(backend, imgModel string) error {
+	if backend == "comfyui" && !img2imgCapableModel(imgModel) {
+		return fmt.Errorf("模型 %s 暂不支持参考图生成（支持 krea2 / z-image-turbo）", imgModel)
+	}
+	return nil
+}
+
+// buildPortraitImageRequest 构建剧照生成请求（纯函数，便于测试）：
+// refImageDataURL 非空时走 img2img（Mode + InitImage + Denoise），否则保持
+// txt2img（Mode 为空 = 后端默认），与既有 CharacterGeneratePortrait 行为一致。
+func buildPortraitImageRequest(c characterlib.Character, imgModel, backend, refImageDataURL string) *ai.ImageGenerationRequest {
+	req := &ai.ImageGenerationRequest{
+		Model:    imgModel,
+		Prompt:   buildPortraitPrompt(c),
+		Negative: "文字, 水印, 签名, 低质量, 模糊, 肢体变形, 多余手指, 多眼多嘴",
+		N:        1,
+		Size:     "1024x1024",
+	}
+	if backend != "comfyui" {
+		req.Size = ""
+	}
+	if refImageDataURL != "" {
+		req.Mode = "img2img"
+		req.InitImage = refImageDataURL
+		req.Denoise = portraitRefDenoise
+	}
+	return req
+}
+
+// characterGeneratePortrait 剧照生成核心实现：无参考图走 txt2img（原行为），
+// 有参考图（refImageDataURL 非空）走 img2img 低 denoise 重绘。
+func (a *App) characterGeneratePortrait(chJSON, model, refImageDataURL string) (string, error) {
 	var c characterlib.Character
 	if err := json.Unmarshal([]byte(chJSON), &c); err != nil {
 		return "", fmt.Errorf("解析角色数据失败: %w", err)
@@ -509,21 +564,17 @@ func (a *App) CharacterGeneratePortrait(chJSON, model string) (string, error) {
 		imgModel = model // 显式传入的模型优先
 	}
 
+	if refImageDataURL != "" {
+		if err := checkPortraitRefSupport(backend, imgModel); err != nil {
+			return "", err
+		}
+	}
+
 	client, err := a.buildPortraitClient()
 	if err != nil {
 		return "", err
 	}
-	negative := "文字, 水印, 签名, 低质量, 模糊, 肢体变形, 多余手指, 多眼多嘴"
-	req := &ai.ImageGenerationRequest{
-		Model:    imgModel,
-		Prompt:   buildPortraitPrompt(c),
-		Negative: negative,
-		N:        1,
-		Size:     "1024x1024",
-	}
-	if backend != "comfyui" {
-		req.Size = ""
-	}
+	req := buildPortraitImageRequest(c, imgModel, backend, refImageDataURL)
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()

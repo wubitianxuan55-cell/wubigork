@@ -150,22 +150,30 @@ func (s *Store) Upsert(c *Character) error {
 	// 远程 URL（xAI 临时图等会过期）先下载到本地，避免之后裂图。
 	c.PortraitURL = saveRemotePortrait(s.dataDir, c.ID, c.PortraitURL)
 	c.PortraitURL = savePortraitFile(s.dataDir, c.ID, c.PortraitURL)
+	// v4.3g 参考图/画廊图同策略：data URL / 远程 URL 本地化为文件路径。
+	base := portraitFileBase(c.ID)
+	c.ReferenceImages = localizeImageList(s.dataDir, base+"_ref", c.ReferenceImages)
+	c.GalleryImages = localizeImageList(s.dataDir, base+"_gallery", c.GalleryImages)
 
 	tags, _ := json.Marshal(c.Tags)
 	samples, _ := json.Marshal(c.DialogueSamples)
 	dims, _ := json.Marshal(c.Dims)
 	hidden, _ := json.Marshal(c.HiddenPersona)
+	refs := marshalStringList(c.ReferenceImages)
+	gallery := marshalStringList(c.GalleryImages)
 
 	_, err := s.db.Exec(`
 		INSERT INTO characters (
 			id, name, kind, gender, age, tags, portrait_url,
+			reference_images, gallery_images,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
 			assistant_id, hidden, created_at, updated_at
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			name=excluded.name, kind=excluded.kind, gender=excluded.gender, age=excluded.age,
 			tags=excluded.tags, portrait_url=excluded.portrait_url,
+			reference_images=excluded.reference_images, gallery_images=excluded.gallery_images,
 			role_type=excluded.role_type, personality=excluded.personality, background=excluded.background,
 			appearance=excluded.appearance, figure=excluded.figure, motivation=excluded.motivation,
 			arc=excluded.arc, status=excluded.status, notes=excluded.notes, dialogue_samples=excluded.dialogue_samples,
@@ -174,11 +182,35 @@ func (s *Store) Upsert(c *Character) error {
 			hidden_persona=excluded.hidden_persona, assistant_id=excluded.assistant_id,
 			hidden=excluded.hidden, updated_at=excluded.updated_at`,
 		c.ID, c.Name, c.Kind, c.Gender, c.Age, string(tags), c.PortraitURL,
+		refs, gallery,
 		c.RoleType, c.Personality, c.Background, c.Appearance, c.Figure, c.Motivation, c.Arc, c.Status, c.Notes, string(samples),
 		boolInt(c.ChatEnabled), string(dims), c.VoiceGuide, c.BehaviorRules, c.EmotionLogic, string(hidden),
 		c.AssistantID, boolInt(c.Hidden), c.CreatedAt, c.UpdatedAt,
 	)
 	return err
+}
+
+// marshalStringList 字符串列表序列化为 JSON；nil 序列化为 "[]"（与列默认值一致，
+// 避免写入 "null" 破坏 NOT NULL DEFAULT '[]' 语义）。
+func marshalStringList(items []string) string {
+	if items == nil {
+		return "[]"
+	}
+	b, _ := json.Marshal(items)
+	return string(b)
+}
+
+// capImageList 超大内联图片从列表剔除（正常保存已本地化为文件路径，此处只
+// 兜底历史遗留的巨型 base64，防止撑爆 Wails IPC；与剧照 capPortraitURL 同策略）。
+func capImageList(items []string) []string {
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		if strings.HasPrefix(it, "data:") && len(it) > maxPortraitDataURL {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out
 }
 
 // Get 按 ID 读取角色。
@@ -188,6 +220,7 @@ func (s *Store) Get(id string) (*Character, error) {
 	}
 	row := s.db.QueryRow(`
 		SELECT id, name, kind, gender, age, tags, portrait_url,
+			reference_images, gallery_images,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
 			assistant_id, hidden, created_at, updated_at
@@ -206,6 +239,7 @@ func (s *Store) FindByName(name string) (*Character, error) {
 	}
 	row := s.db.QueryRow(`
 		SELECT id, name, kind, gender, age, tags, portrait_url,
+			reference_images, gallery_images,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
 			assistant_id, hidden, created_at, updated_at
@@ -270,6 +304,7 @@ func (s *Store) List(query, kind string, chatOnly bool, limit, offset int) ([]Ch
 	}
 	rows, err := s.db.Query(`
 		SELECT id, name, kind, gender, age, tags, portrait_url,
+			reference_images, gallery_images,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
 			assistant_id, hidden, created_at, updated_at
@@ -436,6 +471,7 @@ func (s *Store) DrawRandom(count int, gender, tags string, chatOnly bool) ([]Cha
 	cond := strings.Join(where, " AND ")
 	rows, err := s.db.Query(`
 		SELECT id, name, kind, gender, age, tags, portrait_url,
+			reference_images, gallery_images,
 			role_type, personality, background, appearance, figure, motivation, arc, status, notes, dialogue_samples,
 			chat_enabled, dims, voice_guide, behavior_rules, emotion_logic, hidden_persona,
 			assistant_id, hidden, created_at, updated_at
@@ -513,9 +549,11 @@ func (s *Store) ProjectCharactersForNovel(projectID string) ([]types.Character, 
 func scanCharacter(row interface{ Scan(...any) error }) (*Character, error) {
 	var c Character
 	var tags, samples, dims, hidden string
+	var refs, gallery string
 	var chatEnabled, hiddenFlag int
 	err := row.Scan(
 		&c.ID, &c.Name, &c.Kind, &c.Gender, &c.Age, &tags, &c.PortraitURL,
+		&refs, &gallery,
 		&c.RoleType, &c.Personality, &c.Background, &c.Appearance, &c.Figure, &c.Motivation, &c.Arc, &c.Status, &c.Notes, &samples,
 		&chatEnabled, &dims, &c.VoiceGuide, &c.BehaviorRules, &c.EmotionLogic, &hidden,
 		&c.AssistantID, &hiddenFlag, &c.CreatedAt, &c.UpdatedAt,
@@ -530,6 +568,10 @@ func scanCharacter(row interface{ Scan(...any) error }) (*Character, error) {
 	if hidden != "" {
 		_ = json.Unmarshal([]byte(hidden), &c.HiddenPersona)
 	}
+	_ = json.Unmarshal([]byte(refs), &c.ReferenceImages)
+	_ = json.Unmarshal([]byte(gallery), &c.GalleryImages)
+	c.ReferenceImages = capImageList(c.ReferenceImages)
+	c.GalleryImages = capImageList(c.GalleryImages)
 	c.ChatEnabled = chatEnabled != 0
 	c.Hidden = hiddenFlag != 0
 	return &c, nil
