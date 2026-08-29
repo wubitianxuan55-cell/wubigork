@@ -988,8 +988,8 @@ function SheetGrid({
   );
 }
 
-const PIE_COLORS = ["#5B8DEF", "#7BC47F", "#F2A65A", "#E57373", "#9B7EDE", "#4FC3C3", "#D4A5E5", "#8D9CAD"];
-const CHART_BLUE = "#5B8DEF";
+const PIE_COLORS = ["#5B8DEF", "#7BC47F", "#F2A65A", "#E57373", "#9B7EDE", "#4FC3C3", "#D4A5E5", "#8D9CAD"]; // hex-exempt 图表调色板（xlsx 原生图表）
+const CHART_BLUE = "#5B8DEF"; // hex-exempt 图表调色板
 const MAX_MINI_POINTS = 12;
 
 // MiniChart 用 SVG 直接渲染图表数据（原生图表对象已嵌入 xlsx，这里是即时视觉反馈，

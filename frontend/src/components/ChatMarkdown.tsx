@@ -62,9 +62,9 @@ const components: Components = {
     if (isBlock) {
       return (
         /* 代码块专用深色底（#0b0e14/#e2e8f0 为行业标准暗色代码面板，不随主题，属专用色保留） */
-        <div style={{ margin: '10px 0', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.09)', background: '#0b0e14' }}>
+        <div style={{ margin: '10px 0', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.09)', background: '#0b0e14' }}> {/* hex-exempt 行业标准暗色代码面板（不随主题） */}
           <CodeBlockHeader language={lang} text={text} />
-          <pre style={{ padding: '10px 12px', margin: 0, overflow: 'auto', fontFamily: "'Cascadia Code', Consolas, monospace", fontSize: 12.5, lineHeight: 1.55, color: '#e2e8f0', whiteSpace: 'pre' }}><code>{text}</code></pre>
+          <pre style={{ padding: '10px 12px', margin: 0, overflow: 'auto', fontFamily: "'Cascadia Code', Consolas, monospace", fontSize: 12.5, lineHeight: 1.55, color: '#e2e8f0', whiteSpace: 'pre' }}><code>{text}</code></pre> {/* hex-exempt 行业标准暗色代码面板（不随主题） */}
         </div>
       )
     }

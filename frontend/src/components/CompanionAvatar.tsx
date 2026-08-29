@@ -34,7 +34,7 @@ function resolveCanvasColor(raw: string): string {
 export const CompanionAvatar: React.FC<Props> = ({
   size = 280,
   state = 'idle',
-  emotionColor = '#e85388',
+  emotionColor = '#e85388', // hex-exempt 品牌识别色（gaea 玫红）
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const stateRef = useRef(state)

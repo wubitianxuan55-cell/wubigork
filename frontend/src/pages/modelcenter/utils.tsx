@@ -29,7 +29,7 @@ export const engineIcons: Record<string, ReactNode> = {
   xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />,
 }
 export const engineColors: Record<string, string> = {
-  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', cosyvoice: '#f472b6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa',
+  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', cosyvoice: '#f472b6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa', // hex-exempt 引擎品牌识别色（模型中心身份色板）
 }
 export const engineLabels: Record<string, string> = {
   xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', cosyvoice: 'CosyVoice2 本地', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端',
@@ -37,7 +37,7 @@ export const engineLabels: Record<string, string> = {
 
 // 引擎展示元数据：优先使用后端下发（label/color），未下发时回退本地映射。
 export const engineLabel = (e: { id?: string; engineId?: string; label?: string }) => e.label || engineLabels[e.id || e.engineId || ''] || e.id || e.engineId || ''
-export const engineColor = (e: { id?: string; engineId?: string; color?: string }) => e.color || engineColors[e.id || e.engineId || ''] || '#888'
+export const engineColor = (e: { id?: string; engineId?: string; color?: string }) => e.color || engineColors[e.id || e.engineId || ''] || 'var(--color-text-secondary)'
 // 模型分类：优先使用后端 kind，缺失时回退旧名称启发式。
 export const kindOf = (m: ModelCardData): ModelKind => (m.kind as ModelKind) || classifyModel(m.modelId)
 

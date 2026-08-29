@@ -18,7 +18,7 @@ function BadgePill({ count }: { count: number }) {
     <span
       aria-label={`${count} 项进行中`}
       className="ml-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[9px] leading-none font-medium"
-      style={{ background: "var(--gaea-glow)", color: "#fff" }}
+      style={{ background: "var(--gaea-glow)", color: "var(--color-on-primary)" }}
     >
       {text}
     </span>

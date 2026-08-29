@@ -88,7 +88,7 @@ const WhisperMemoryList: React.FC<Props> = ({ facts, onOpenManage }) => {
                   <Tag style={{ fontSize: 9, margin: 0, padding: '0 5px', lineHeight: '16px', background: 'transparent', border: '1px solid var(--md-sys-color-outline-variant)', color: C('color-text-secondary') }}>
                     {g.facts.length}
                   </Tag>
-                  {coreCount > 0 && <StarFilled style={{ fontSize: 9, color: '#faad14' }} />}
+                  {coreCount > 0 && <StarFilled style={{ fontSize: 9, color: 'var(--color-warning)' }} />}
                 </div>
                 {!isCollapsed && g.facts.map((f: MemoryFact) => (
                   <div
@@ -99,12 +99,12 @@ const WhisperMemoryList: React.FC<Props> = ({ facts, onOpenManage }) => {
                     style={{
                       padding: '6px 8px 6px 18px', margin: '1px 0', borderRadius: 8, cursor: 'pointer',
                       background: f.tier === 'core' ? `${C('color-primary')}06` : 'transparent',
-                      borderLeft: f.tier === 'core' ? `2px solid #faad14` : '2px solid transparent',
+                      borderLeft: f.tier === 'core' ? `2px solid var(--color-warning)` : '2px solid transparent',
                       transition: 'background 150ms',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {f.tier === 'core' && <StarFilled style={{ color: '#faad14', fontSize: 9 }} />}
+                      {f.tier === 'core' && <StarFilled style={{ color: 'var(--color-warning)', fontSize: 9 }} />}
                       <span style={{ fontSize: 11, fontWeight: 600, color: C('color-text'), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {f.subject}
                       </span>
@@ -118,7 +118,7 @@ const WhisperMemoryList: React.FC<Props> = ({ facts, onOpenManage }) => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                       <span style={{ fontSize: 8, color: C('color-text-secondary'), opacity: 0.55 }}>W{f.weight?.toFixed?.(1) ?? '–'}</span>
                       {f.emotionalContext?.valence != null && (
-                        <span style={{ fontSize: 8, color: f.emotionalContext.valence > 0.2 ? '#52c41a' : f.emotionalContext.valence < -0.2 ? '#ff4d4f' : '#8c8c8c' }}>
+                        <span style={{ fontSize: 8, color: f.emotionalContext.valence > 0.2 ? 'var(--color-success)' : f.emotionalContext.valence < -0.2 ? 'var(--color-destructive)' : 'var(--color-text-secondary)' }}>
                           {f.emotionalContext.valence > 0.2 ? '正' : f.emotionalContext.valence < -0.2 ? '负' : '平'}
                         </span>
                       )}

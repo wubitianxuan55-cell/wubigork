@@ -104,7 +104,7 @@ export const ResultStage: React.FC<Props> = ({
             />
             <span style={{
               position: 'absolute', left: '50%', bottom: -10, transform: 'translateX(-50%)',
-              background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: 10, padding: '2px 10px', borderRadius: 999,
+              background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: 10, padding: '2px 10px', borderRadius: 999, // hex-exempt 图片覆盖层 chrome
               border: '1px solid var(--border-subtle)', whiteSpace: 'nowrap',
             }}>参考图已就绪</span>
           </div>
@@ -142,7 +142,7 @@ export const ResultStage: React.FC<Props> = ({
           style={{
             position: 'relative', flex: 1, minHeight: 0, borderRadius: 'var(--radius-md)',
             overflow: 'hidden', border: '1px solid var(--md-sys-color-outline-variant)',
-            background: '#000', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: '#000', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', // hex-exempt 图片覆盖层 chrome
           }}
         >
           {mediaIsVideo(r.image) ? (
@@ -165,7 +165,7 @@ export const ResultStage: React.FC<Props> = ({
           {r.kind === 'video' && (
             <span style={{
               position: 'absolute', top: 10, left: 10, display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(0,0,0,0.55)', borderRadius: 999, padding: '3px 10px', fontSize: 11, color: '#fff',
+              background: 'rgba(0,0,0,0.55)', borderRadius: 999, padding: '3px 10px', fontSize: 11, color: '#fff', // hex-exempt 图片覆盖层 chrome
               backdropFilter: 'blur(4px)',
             }}>
               <VideoCameraOutlined style={{ fontSize: 11 }} /> 视频
@@ -173,7 +173,7 @@ export const ResultStage: React.FC<Props> = ({
           )}
           <div style={{
             position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.55)',
-            borderRadius: 999, padding: '3px 10px', fontSize: 11, color: '#fff', backdropFilter: 'blur(4px)',
+            borderRadius: 999, padding: '3px 10px', fontSize: 11, color: '#fff', backdropFilter: 'blur(4px)', // hex-exempt 图片覆盖层 chrome
           }}>
             {r.time}s
           </div>
@@ -216,7 +216,7 @@ export const ResultStage: React.FC<Props> = ({
               loop
               muted
               playsInline
-              style={{ width: '100%', display: 'block', aspectRatio: getAspect(r.size), objectFit: 'cover', background: '#000' }}
+              style={{ width: '100%', display: 'block', aspectRatio: getAspect(r.size), objectFit: 'cover', background: '#000' }} // hex-exempt 图片覆盖层 chrome
             />
           ) : (
             <img
@@ -228,7 +228,7 @@ export const ResultStage: React.FC<Props> = ({
           {r.kind === 'video' && (
             <span style={{
               position: 'absolute', top: 6, left: 6, display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(0,0,0,0.55)', borderRadius: 999, padding: '2px 8px', fontSize: 10, color: '#fff',
+              background: 'rgba(0,0,0,0.55)', borderRadius: 999, padding: '2px 8px', fontSize: 10, color: '#fff', // hex-exempt 图片覆盖层 chrome
               backdropFilter: 'blur(4px)',
             }}>
               <VideoCameraOutlined style={{ fontSize: 10 }} /> 视频
@@ -236,7 +236,7 @@ export const ResultStage: React.FC<Props> = ({
           )}
           <div style={{
             position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.55)',
-            borderRadius: 999, padding: '2px 8px', fontSize: 10, color: '#fff', backdropFilter: 'blur(4px)',
+            borderRadius: 999, padding: '2px 8px', fontSize: 10, color: '#fff', backdropFilter: 'blur(4px)', // hex-exempt 图片覆盖层 chrome
           }}>
             {r.time}s
           </div>
@@ -270,7 +270,7 @@ const Action: React.FC<{ icon: React.ReactNode; label: string; onClick: (e: Reac
     style={{
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
       border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(0,0,0,0.42)',
-      color: '#fff', fontSize: 11, borderRadius: 999, padding: '4px 8px', cursor: 'pointer',
+      color: '#fff', fontSize: 11, borderRadius: 999, padding: '4px 8px', cursor: 'pointer', // hex-exempt 图片覆盖层 chrome
       fontFamily: 'inherit', pointerEvents: 'auto', backdropFilter: 'blur(4px)',
     }}
   >

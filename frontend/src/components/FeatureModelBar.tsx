@@ -66,9 +66,9 @@ const FeatureModelBar: React.FC<{ feature: string; label: string }> = ({ feature
     }
   }
 
-  const runningColor = '#22c55e'
-  const idleColor = '#64748b'
-  const unboundColor = '#a855f7'
+  const runningColor = 'var(--color-success)'
+  const idleColor = 'var(--color-text-secondary)'
+  const unboundColor = '#a855f7' // hex-exempt 品牌识别色（未绑定态）
   const engineOff = bound && m.enabled && !boundEngine?.enabled
   const statusColor = !bound ? unboundColor : (running ? runningColor : idleColor)
   const statusText = !bound ? '未绑定' : running ? '运行中' : engineOff ? '引擎已停用' : '已停用'
@@ -91,7 +91,7 @@ const FeatureModelBar: React.FC<{ feature: string; label: string }> = ({ feature
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
           fontSize: 10, padding: '1px 8px', borderRadius: 8, lineHeight: '16px',
-          color: bound ? (running ? runningColor : '#94a3b8') : unboundColor,
+          color: bound ? (running ? runningColor : 'var(--color-text-secondary)') : unboundColor,
           background: bound ? (running ? 'rgba(34,197,94,0.12)' : 'rgba(100,116,139,0.08)') : 'rgba(168,85,247,0.08)',
         }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, boxShadow: running ? `0 0 6px ${runningColor}` : 'none', display: 'inline-block' }} />

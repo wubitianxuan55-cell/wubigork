@@ -221,7 +221,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   style={{
                     position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
                     border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.55)',
-                    color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', // hex-exempt 图片覆盖层 chrome
                   }}
                 >
                   <CloseCircleOutlined style={{ fontSize: 13 }} />

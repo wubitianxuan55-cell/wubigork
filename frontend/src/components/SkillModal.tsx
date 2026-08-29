@@ -54,12 +54,12 @@ const SkillModal: React.FC<SkillModalProps> = ({ open, onClose }) => {
   }
 
   const appliesColors: Record<string, string> = {
-    chapter: '#4ade80', character: '#f59e0b',
+    chapter: 'var(--color-success)', character: 'var(--color-warning)',
   }
 
   return (
     <Modal
-      title={<span style={{ color: C('color-text') }}><FileMarkdownOutlined style={{ color: '#60a5fa', marginRight: 8 }} />Skill 管理</span>}
+      title={<span style={{ color: C('color-text') }}><FileMarkdownOutlined style={{ color: '#60a5fa' /* hex-exempt 品牌识别色 */, marginRight: 8 }} />Skill 管理</span>}
       open={open}
       onCancel={onClose}
       footer={null}
@@ -83,7 +83,7 @@ const SkillModal: React.FC<SkillModalProps> = ({ open, onClose }) => {
           </Typography.Text>
           <Space>
             <Button icon={<ImportOutlined />} onClick={handleImport}
-              style={{ borderColor: '#60a5fa', color: '#60a5fa', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)' }}>
+              style={{ borderColor: '#60a5fa' /* hex-exempt 品牌识别色 */, color: '#60a5fa' /* hex-exempt 品牌识别色 */, borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)' }}>
               导入 SKILL.md
             </Button>
             {importName && (
@@ -114,7 +114,7 @@ const SkillModal: React.FC<SkillModalProps> = ({ open, onClose }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ flex: 1 }}>
                     <Space size={4}>
-                      <FileMarkdownOutlined style={{ color: '#60a5fa' }} />
+                      <FileMarkdownOutlined style={{ color: '#60a5fa' /* hex-exempt 品牌识别色 */ }} />
                       <Typography.Text strong style={{ color: C('color-text'), fontSize: 13 }}>
                         {s.name}
                       </Typography.Text>

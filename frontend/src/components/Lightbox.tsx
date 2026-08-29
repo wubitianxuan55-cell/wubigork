@@ -97,13 +97,13 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
     >
       {/* 关闭按钮 */}
       <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}>
-        <Button type="text" icon={<CloseOutlined />} onClick={onClose} style={{ color: '#fff', fontSize: 20 }} />
+        <Button type="text" icon={<CloseOutlined />} onClick={onClose} style={{ color: '#fff', fontSize: 20 }} /> {/* hex-exempt 图片查看器深色覆盖层 chrome */}
       </div>
 
       {/* 缩放提示 */}
       {!isSingle && scale > 1 && (
         <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10 }}>
-          <Tag color="rgba(255,255,255,0.15)" style={{ color: '#ccc' }}>
+          <Tag color="rgba(255,255,255,0.15)" style={{ color: '#ccc' }}> {/* hex-exempt 图片查看器深色覆盖层 chrome */}
             <ZoomInOutlined /> {Math.round(scale * 100)}%
           </Tag>
         </div>
@@ -113,13 +113,13 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
       {!isSingle && index > 0 && (
         <Button type="text" icon={<LeftOutlined />}
           onClick={(e) => { e.stopPropagation(); onIndexChange(index - 1) }}
-          style={{ position: 'absolute', left: 16, top: '50%', color: '#fff', fontSize: 24, zIndex: 10 }}
+          style={{ position: 'absolute', left: 16, top: '50%', color: '#fff', fontSize: 24, zIndex: 10 }} // hex-exempt 图片查看器深色覆盖层 chrome
         />
       )}
       {!isSingle && index < results.length - 1 && (
         <Button type="text" icon={<RightOutlined />}
           onClick={(e) => { e.stopPropagation(); onIndexChange(index + 1) }}
-          style={{ position: 'absolute', right: 16, top: '50%', color: '#fff', fontSize: 24, zIndex: 10 }}
+          style={{ position: 'absolute', right: 16, top: '50%', color: '#fff', fontSize: 24, zIndex: 10 }} // hex-exempt 图片查看器深色覆盖层 chrome
         />
       )}
 
@@ -171,7 +171,7 @@ const Lightbox: React.FC<Props> = ({ results, index, characters, singleImage, on
       {/* 信息区（单图模式不显示） */}
       {!isSingle && r && (
         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, maxWidth: '90vw', textAlign: 'center' }}>
-          <Typography.Text style={{ color: '#ccc', fontSize: 12, display: 'block', marginBottom: 8, maxHeight: 60, overflow: 'hidden' }}>
+          <Typography.Text style={{ color: '#ccc', fontSize: 12, display: 'block', marginBottom: 8, maxHeight: 60, overflow: 'hidden' }}> {/* hex-exempt 图片查看器深色覆盖层 chrome */}
             {r.prompt}
           </Typography.Text>
           <Space size={8} wrap>

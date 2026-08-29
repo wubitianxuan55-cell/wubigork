@@ -23,8 +23,8 @@ interface SearchModalProps {
 }
 
 const categoryIcons: Record<string, React.ReactNode> = {
-  chapters: <FileTextOutlined style={{ color: '#4ade80' }} />,
-  characters: <UserOutlined style={{ color: '#60a5fa' }} />,
+  chapters: <FileTextOutlined style={{ color: 'var(--color-success)' }} />,
+  characters: <UserOutlined style={{ color: '#60a5fa' /* hex-exempt 分类识别色 */ }} />,
 }
 const categoryLabels: Record<string, DictKey> = {
   chapters: 'shell.search.catChapters', characters: 'shell.search.catCharacters',
@@ -45,7 +45,7 @@ function highlightText(text: string, query: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <mark style={{ background: '#f59e0b33', color: '#f59e0b', borderRadius: 2, padding: '0 2px' }}>
+      <mark style={{ background: 'color-mix(in srgb, var(--color-warning) 20%, transparent)', color: 'var(--color-warning)', borderRadius: 2, padding: '0 2px' }}>
         {text.slice(idx, idx + query.length)}
       </mark>
       {text.slice(idx + query.length)}
@@ -85,7 +85,7 @@ function sectionsFromUnified(
     out.push({
       key: 'files',
       label: t('shell.search.files'),
-      icon: <FileTextOutlined style={{ color: '#4ade80' }} />,
+      icon: <FileTextOutlined style={{ color: 'var(--color-success)' }} />,
       rows: v.keyword.map((h) => ({ file: h.path, context: h.snippet })),
     })
   }
@@ -93,7 +93,7 @@ function sectionsFromUnified(
     out.push({
       key: 'memory',
       label: t('shell.search.memory'),
-      icon: <FileTextOutlined style={{ color: '#a78bfa' }} />,
+      icon: <FileTextOutlined style={{ color: '#a78bfa' /* hex-exempt 分类识别色 */ }} />,
       rows: v.semantic.map((h) => ({ file: h.kind, context: h.text })),
     })
   }
@@ -101,7 +101,7 @@ function sectionsFromUnified(
     out.push({
       key: 'brain',
       label: t('shell.search.brain'),
-      icon: <FileTextOutlined style={{ color: '#f472b6' }} />,
+      icon: <FileTextOutlined style={{ color: '#f472b6' /* hex-exempt 分类识别色 */ }} />,
       rows: v.brain.map((h) => ({ file: `${h.brain} · ${h.entity}`, context: h.text })),
     })
   }

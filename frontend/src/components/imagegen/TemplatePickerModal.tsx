@@ -26,7 +26,7 @@ function withAlpha(hex: string, a: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
 }
 
-const CUSTOM_CAT: TemplateCategory = { id: CUSTOM_CATEGORY_ID, label: '我的模板', color: '#2dd4bf' }
+const CUSTOM_CAT: TemplateCategory = { id: CUSTOM_CATEGORY_ID, label: '我的模板', color: 'var(--color-primary)' }
 
 type CardItem = Template & {
   id?: string
@@ -91,7 +91,7 @@ const TemplateCard: React.FC<{
           <Button
             type="text" size="small" icon={<DeleteOutlined style={{ fontSize: 10 }} />}
             onClick={(e) => { e.stopPropagation(); onDelete?.() }}
-            style={{ padding: 0, height: 16, width: 18, color: '#f87171' }}
+            style={{ padding: 0, height: 16, width: 18, color: 'var(--color-destructive)' }}
           />
         </span>
       )}

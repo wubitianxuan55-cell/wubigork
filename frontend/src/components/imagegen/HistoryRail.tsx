@@ -85,11 +85,11 @@ export const HistoryRail: React.FC<Props> = ({ history, selectedIndex, onSelect,
                   )}
                 </div>
               ) : mediaIsVideo(h.image) ? (
-                <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000' }}>
+                <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000' }}> {/* hex-exempt 图片覆盖层 chrome */}
                   <video src={h.image} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   <span style={{
                     position: 'absolute', right: 3, bottom: 3, width: 16, height: 16, borderRadius: '50%',
-                    background: 'rgba(0,0,0,0.65)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(0,0,0,0.65)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', // hex-exempt 图片覆盖层 chrome
                     fontSize: 9,
                   }}>
                     <VideoCameraOutlined />

@@ -119,8 +119,8 @@ const DiffReview: React.FC<DiffReviewProps> = ({ original, revised, onAccept, on
           color: 'var(--color-text-secondary)',
         }}
       >
-        <span style={{ color: '#22c55e' }}>+{stats.adds} 新增</span>
-        <span style={{ color: '#ef4444' }}>-{stats.dels} 删除</span>
+        <span style={{ color: 'var(--color-success)' }}>+{stats.adds} 新增</span>
+        <span style={{ color: 'var(--color-destructive)' }}>-{stats.dels} 删除</span>
         <span>{stats.total} 行</span>
         <span style={{ marginLeft: 'auto', opacity: 0.6 }}>
           ⌘Y 接受 &nbsp; ⌘N 拒绝
@@ -161,9 +161,9 @@ const DiffReview: React.FC<DiffReviewProps> = ({ original, revised, onAccept, on
                 wordBreak: 'break-all',
                 color:
                   line.type === 'add'
-                    ? '#22c55e'
+                    ? 'var(--color-success)'
                     : line.type === 'del'
-                      ? '#ef4444'
+                      ? 'var(--color-destructive)'
                       : 'var(--color-text)',
               }}
             >

@@ -47,7 +47,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           justifyContent: 'center', height: '100%', minHeight: 300,
           padding: 40, color: 'var(--color-text-secondary)',
         }}>
-          <WarningOutlined style={{ fontSize: 48, color: '#f87171', marginBottom: 16 }} />
+          <WarningOutlined style={{ fontSize: 48, color: 'var(--color-destructive)', marginBottom: 16 }} />
           <Typography.Title level={5} style={{ color: 'var(--color-text)', margin: 0 }}>
             页面渲染出错
           </Typography.Title>

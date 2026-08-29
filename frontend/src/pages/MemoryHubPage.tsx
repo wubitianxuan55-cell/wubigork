@@ -31,13 +31,13 @@ type LibraryKey = "knowledge" | "profile" | "office" | "materials" | "whisper" |
 
 // 各库霓虹色（与 3D 图谱着色一致：indigo 知识 / amber 成本 / emerald 办公 / pink 聊天记忆）
 const LIB_COLORS: Record<LibraryKey, string> = {
-  knowledge: "#818cf8",
-  profile: "#a78bfa",
-  office: "#34d399",
-  materials: "#38bdf8",
-  whisper: "#f472b6",
-  graph: "#22d3ee",
-  digitallife: "#fb7185",
+  knowledge: "#818cf8", // hex-exempt 3D 图谱库着色
+  profile: "#a78bfa", // hex-exempt 3D 图谱库着色
+  office: "#34d399", // hex-exempt 3D 图谱库着色
+  materials: "#38bdf8", // hex-exempt 3D 图谱库着色
+  whisper: "#f472b6", // hex-exempt 3D 图谱库着色
+  graph: "#22d3ee", // hex-exempt 3D 图谱库着色
+  digitallife: "#fb7185", // hex-exempt 3D 图谱库着色
 };
 
 interface LibraryDef {
@@ -64,7 +64,7 @@ const NODE_COLORS: Record<string, string> = {
   office: LIB_COLORS.office,
   whisper: LIB_COLORS.whisper,
   material: LIB_COLORS.materials,
-  cost: "#fbbf24", // 成本库已独立为一级板块，图谱节点仍保留琥珀色
+  cost: "#fbbf24", // hex-exempt 图谱节点色（成本库琥珀）
 };
 const NODE_LABELS: Record<string, string> = {
   knowledge: "知识",

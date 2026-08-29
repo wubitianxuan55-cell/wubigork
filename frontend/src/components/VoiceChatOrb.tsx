@@ -220,7 +220,7 @@ const VoiceChatOrb: React.FC<Props> = ({
         </div>
       )}
 
-      <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', color: aiSpeaking ? '#64b5f6' : speaking ? '#ff8a65' : C('color-text-secondary'), fontSize: 12, fontWeight: 500, opacity: listening || aiSpeaking ? 0.9 : 0, transition: 'opacity 0.3s' }}>
+      <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', color: aiSpeaking ? '#64b5f6' : speaking ? '#ff8a65' : C('color-text-secondary'), fontSize: 12, fontWeight: 500, opacity: listening || aiSpeaking ? 0.9 : 0, transition: 'opacity 0.3s' }}> {/* hex-exempt 语音双方品牌识别色 */}
         {aiSpeaking ? 'AI 回复中...' : speaking ? '正在聆听...' : listening ? '准备聆听' : ''}
       </div>
     </div>

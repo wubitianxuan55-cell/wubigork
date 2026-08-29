@@ -57,7 +57,7 @@ export const CollapsibleSection: React.FC<{
 export const StatusDot: React.FC<{ tone: 'ok' | 'warn' | 'danger' | 'idle' }> = ({ tone }) => {
   const color = tone === 'ok' ? 'var(--color-success)'
     : tone === 'warn' ? 'var(--color-warning)'
-    : tone === 'danger' ? '#f87171'
+    : tone === 'danger' ? 'var(--color-destructive)'
     : 'var(--color-text-secondary)'
   return (
     <span style={{

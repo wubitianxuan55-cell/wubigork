@@ -17,10 +17,10 @@ export interface ReadingAnnotation {
 }
 
 export const ANNOTATION_COLORS: Record<AnnotationColor, string> = {
-  yellow: '#f6c445',
-  green: '#7bc96f',
-  blue: '#6fa8dc',
-  pink: '#e58aa6',
+  yellow: '#f6c445', // hex-exempt 用户标注数据色（持久化色板）
+  green: '#7bc96f', // hex-exempt 用户标注数据色（持久化色板）
+  blue: '#6fa8dc', // hex-exempt 用户标注数据色（持久化色板）
+  pink: '#e58aa6', // hex-exempt 用户标注数据色（持久化色板）
 }
 
 const ANNOTATIONS_KEY = 'gaea.novel.readingAnnotations.'

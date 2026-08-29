@@ -146,34 +146,34 @@ export default function VoiceSettingsPanel() {
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text strong style={{ fontSize: 13, color: '#d4d4d8' }}>语音设置</Text>
+        <Text strong style={{ fontSize: 13, color: 'var(--color-text)' }}>语音设置</Text>
         <Button size="small" icon={<ReloadOutlined />} loading={checking} onClick={checkHealth}
           style={{ fontSize: 11 }}>检测</Button>
       </div>
 
       {/* 健康状态 */}
       {health && (
-        <Card size="small" style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} bodyStyle={{ padding: 10 }}>
+        <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 10 }}>
           <div style={{ display: 'flex', gap: 16, fontSize: 11 }}>
             <span>
-              {health.asrReady ? <CheckCircleOutlined style={{ color: '#4ade80' }} /> : <CloseCircleOutlined style={{ color: '#f87171' }} />}
+              {health.asrReady ? <CheckCircleOutlined style={{ color: 'var(--color-success)' }} /> : <CloseCircleOutlined style={{ color: 'var(--color-destructive)' }} />}
               {' '}语音识别
             </span>
             <span>
-              {health.ttsReady ? <CheckCircleOutlined style={{ color: '#4ade80' }} /> : <CloseCircleOutlined style={{ color: '#f87171' }} />}
+              {health.ttsReady ? <CheckCircleOutlined style={{ color: 'var(--color-success)' }} /> : <CloseCircleOutlined style={{ color: 'var(--color-destructive)' }} />}
               {' '}语音合成
             </span>
-            <span style={{ color: '#71717a' }}>{health.state || 'idle'}</span>
+            <span style={{ color: 'var(--color-text-secondary)' }}>{health.state || 'idle'}</span>
           </div>
         </Card>
       )}
 
       {/* TTS 开关 */}
-      <Card size="small" style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
+      <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontSize: 12, color: '#a1a1aa' }}>朗读回复</div>
-            <div style={{ fontSize: 10, color: '#52525b', marginTop: 2 }}>AI 回复时自动朗读</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>朗读回复</div>
+            <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginTop: 2, opacity: 0.75 }}>AI 回复时自动朗读</div>
           </div>
           <Switch size="small" checked={ttsEnabled} onChange={v => {
             setTtsEnabled(v)
@@ -183,20 +183,20 @@ export default function VoiceSettingsPanel() {
       </Card>
 
       {/* TTS 音色 */}
-      <Card size="small" style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
-        <div style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 6 }}>合成音色</div>
+      <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>合成音色</div>
         {isHerdsman && ttsModel && (
-          <div style={{ fontSize: 10, color: '#8b5cf6', marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: '#8b5cf6', marginBottom: 6 }}> {/* hex-exempt 引擎品牌识别色（Herdsman） */}
             当前模型：{ttsModel}（Herdsman 音色，实时从服务端获取）
           </div>
         )}
         {isXai && ttsModel && (
-          <div style={{ fontSize: 10, color: '#60a5fa', marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: '#60a5fa', marginBottom: 6 }}> {/* hex-exempt 引擎品牌识别色（xAI） */}
             当前模型：{ttsModel}（xAI 云端 Grok 音色）
           </div>
         )}
         {isCosyvoice && ttsModel && (
-          <div style={{ fontSize: 10, color: '#f472b6', marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: '#f472b6', marginBottom: 6 }}> {/* hex-exempt 引擎品牌识别色（CosyVoice） */}
             当前模型：{ttsModel}（本地 CosyVoice2，支持参考音频克隆音色）
           </div>
         )}
@@ -210,8 +210,8 @@ export default function VoiceSettingsPanel() {
       </Card>
 
       {/* 语音模式 */}
-      <Card size="small" style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
-        <div style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 8 }}>输入模式</div>
+      <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8 }}>输入模式</div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Tag.CheckableTag
             checked={voiceMode === 'vad'}
@@ -231,8 +231,8 @@ export default function VoiceSettingsPanel() {
       </Card>
 
       {/* 打断阈值 */}
-      <Card size="small" style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
-        <div style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>
+      <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
           打断阈值: {interruptMs}ms
         </div>
         <Slider
@@ -240,13 +240,13 @@ export default function VoiceSettingsPanel() {
           value={interruptMs}
           onChange={v => setInterruptMs(v as number)}
           onAfterChange={v => applyVoiceSettings({ interruptThresholdMs: v })}
-          styles={{ track: { background: '#e85388' } }}
+          styles={{ track: { background: '#e85388' } }} // hex-exempt 品牌识别色（阈值轨道）
         />
       </Card>
 
       {/* 静默阈值 */}
-      <Card size="small" style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
-        <div style={{ fontSize: 12, color: '#a1a1aa', marginBottom: 4 }}>
+      <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 4 }}>
           静默阈值: {silenceMs}ms
         </div>
         <Slider
@@ -254,7 +254,7 @@ export default function VoiceSettingsPanel() {
           value={silenceMs}
           onChange={v => setSilenceMs(v as number)}
           onAfterChange={v => applyVoiceSettings({ silenceThresholdMs: v })}
-          styles={{ track: { background: '#a855f7' } }}
+          styles={{ track: { background: '#a855f7' } }} // hex-exempt 品牌识别色（阈值轨道）
         />
       </Card>
     </div>

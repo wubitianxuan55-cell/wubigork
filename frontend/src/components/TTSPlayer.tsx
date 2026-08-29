@@ -220,7 +220,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
         <>
           {loading && !playing ? (
             <Button type="text" size="small" disabled
-              icon={<LoadingOutlined spin style={{ color: '#60a5fa' }} />}
+              icon={<LoadingOutlined spin style={{ color: '#60a5fa' /* hex-exempt 品牌识别色 */ }} />}
               style={{ color: C('color-text-secondary'), fontSize: 11 }}
             >
               {progress.total > 0 ? `${progress.index}/${progress.total}` : '合成中'}
@@ -229,13 +229,13 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
             <>
               <Tooltip title="暂停">
                 <Button type="text" size="small"
-                  icon={<PauseOutlined style={{ color: '#f59e0b' }} />}
+                  icon={<PauseOutlined style={{ color: 'var(--color-warning)' }} />}
                   onClick={handlePause}
                 />
               </Tooltip>
               <Tooltip title="继续">
                 <Button type="text" size="small"
-                  icon={<PlayCircleOutlined style={{ color: '#4ade80' }} />}
+                  icon={<PlayCircleOutlined style={{ color: 'var(--color-success)' }} />}
                   onClick={handleResume}
                 />
               </Tooltip>
@@ -243,7 +243,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
           )}
           <Tooltip title="停止">
             <Button type="text" size="small"
-              icon={<StopOutlined style={{ color: '#f87171' }} />}
+              icon={<StopOutlined style={{ color: 'var(--color-destructive)' }} />}
               onClick={handleStop}
             />
           </Tooltip>
@@ -252,7 +252,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
               percent={progressPercent}
               size="small"
               style={{ width: 60, margin: 0 }}
-              strokeColor="#4ade80"
+              strokeColor="var(--color-success)"
               showInfo={false}
             />
           )}
@@ -260,7 +260,7 @@ const TTSPlayer: React.FC<TTSPlayerProps> = ({ getText, onStatusChange, onSenten
       ) : (
         <Tooltip title="流式朗读（逐句生成并播放）">
           <Button type="text" size="small"
-            icon={<SoundOutlined style={{ color: '#4ade80' }} />}
+            icon={<SoundOutlined style={{ color: 'var(--color-success)' }} />}
             onClick={handlePlay}
             style={{ fontSize: 12 }}
           >

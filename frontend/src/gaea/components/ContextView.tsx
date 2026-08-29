@@ -9,12 +9,12 @@ import { fmtTokens } from "../lib/stats";
 
 // 六分类语义色（效果图对齐：系统蓝/工具橙/用户绿/注入紫/助手深蓝/工具青）。
 export const CAT_COLORS: Record<keyof ContextCategory, string> = {
-  system: "#3b82f6",
-  tools: "#f59e0b",
-  user: "#22c55e",
-  inject: "#a855f7",
-  assistant: "#1e40af",
-  tool: "#06b6d4",
+  system: "#3b82f6", // hex-exempt 上下文六分类语义色（可视化调色板）
+  tools: "#f59e0b", // hex-exempt 上下文六分类语义色
+  user: "#22c55e", // hex-exempt 上下文六分类语义色
+  inject: "#a855f7", // hex-exempt 上下文六分类语义色
+  assistant: "#1e40af", // hex-exempt 上下文六分类语义色
+  tool: "#06b6d4", // hex-exempt 上下文六分类语义色
 };
 
 const CATS: { key: keyof ContextCategory; label: string }[] = [
@@ -190,7 +190,7 @@ function ContextTrendChart({ requests, events, onPick }: {
               const y = d >= 0 ? padT + plotH - h : padT + plotH;
               return (
                 <g key={b.seq} onClick={() => pick(i)} className="cursor-pointer" opacity={selected === i ? 1 : 0.85}>
-                  <rect x={x} y={y} width={bw} height={Math.max(h, 1)} rx={1.5} fill={d >= 0 ? "#22c55e" : "#ef4444"}>
+                  <rect x={x} y={y} width={bw} height={Math.max(h, 1)} rx={1.5} fill={d >= 0 ? "var(--color-success)" : "var(--color-destructive)"}>
                     <title>{`第${b.turn}轮·第${b.step}步 Δ${d >= 0 ? "+" : ""}${fmtTokens(d)}`}</title>
                   </rect>
                 </g>

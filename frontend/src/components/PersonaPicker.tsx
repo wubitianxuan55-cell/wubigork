@@ -81,7 +81,7 @@ const PersonaPicker: React.FC<Props> = ({ children, activeId, onSelect, onManage
               {c.portraitUrl
                 ? <img src={c.portraitUrl} alt={c.name} style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                 : <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(244,114,182,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <UserOutlined style={{ fontSize: 14, color: '#f472b6' }} />
+                    <UserOutlined style={{ fontSize: 14, color: '#f472b6' }} /> {/* hex-exempt 品牌识别色（轻语玫红） */}
                   </div>}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>

@@ -53,7 +53,7 @@ function ChoiceCards<T extends string>({ options, value, onChange }: {
               <span style={{
                 marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 width: 18, height: 18, borderRadius: '50%', background: 'var(--gaea-glow)',
-                color: '#08130f', fontSize: 10, boxShadow: '0 0 8px var(--gaea-glow)',
+                color: '#08130f', fontSize: 10, boxShadow: '0 0 8px var(--gaea-glow)', // hex-exempt 主题预览固定明暗样张
               }}><CheckOutlined /></span>
             )}
           </div>
@@ -123,7 +123,7 @@ function ThemeCard({ t, active, onClick, onHover }: {
           <span style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-            background: 'var(--gaea-glow)', color: '#08130f', fontSize: 10,
+            background: 'var(--gaea-glow)', color: '#08130f', fontSize: 10, // hex-exempt 主题预览固定明暗样张
             boxShadow: '0 0 8px var(--gaea-glow)',
           }}><CheckOutlined /></span>
         )}
@@ -155,7 +155,7 @@ function AppearancePreview({ t, previewing }: { t: typeof themeOptions[number]; 
             width: 3, height: 14, borderRadius: 2,
             background: 'var(--gaea-glow)', boxShadow: '0 0 8px var(--gaea-glow)',
           }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: darkMode ? '#e2e8f0' : '#0f172a' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: darkMode ? '#e2e8f0' : '#0f172a' }}> {/* hex-exempt 主题预览固定明暗样张 */}
             {t.label} · {darkMode ? '暗色' : '亮色'}
           </span>
           <span style={{
@@ -180,9 +180,9 @@ function AppearancePreview({ t, previewing }: { t: typeof themeOptions[number]; 
               background: `radial-gradient(circle at 35% 30%, ${t.color}, color-mix(in srgb, ${t.color} 45%, #000))`,
               boxShadow: `0 0 10px ${t.color}`,
             }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#e2e8f0' : '#0f172a' }}>深空星云界面</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#e2e8f0' : '#0f172a' }}>深空星云界面</span> {/* hex-exempt 主题预览固定明暗样张 */}
           </div>
-          <div style={{ fontSize: 11, color: darkMode ? '#94a3b8' : '#64748b', lineHeight: 1.7 }}>
+          <div style={{ fontSize: 11, color: darkMode ? '#94a3b8' : '#64748b', lineHeight: 1.7 }}> {/* hex-exempt 主题预览固定明暗样张 */}
             玻璃质感容器 · 霓虹光效标题条 · 主题氛围色 {t.color}
           </div>
         </div>
@@ -359,7 +359,7 @@ export const AccentPanel: React.FC = () => {
         }}>
           <input
             type="color"
-            value={accentColor || '#2dd4bf'}
+            value={accentColor || '#2dd4bf'} /* hex-exempt 默认强调色回退（与主题令牌一致） */
             onChange={(e) => setAccentColor(e.target.value)}
             style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
           />

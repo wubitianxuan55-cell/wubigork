@@ -80,6 +80,11 @@
   - [x] **S2.3b types 全量迁移**：WireShape 剥生成类实例方法，55 个重叠类型改别名
     （1375→1065 行）；增强类型（TaskStatus/TaskView/SearchScope 等）保留手写；
     顺带修 FileSearchHit.modTime / UpdateInfo.version / FilePreview 契约漂移
+  - [x] **S0.7 遗留：151 hex token 化**（审计点名的 VoiceSettingsPanel 浅色主题崩坏
+    真 bug 已修——dark-zinc 硬编码 → 主题 token）：语义色（成功/警告/危险/文本/表面/
+    边框/主色）全部 token 化；图表调色板/品牌识别色/图片覆盖层/主题预览样张/标注数据色
+    显式 `// hex-exempt` 豁免（审计口径「图表豁免」）；新增 eslint 规则
+    `local/no-raw-hex`（图表/数据文件白名单 + 行内豁免注释）防回归
 
 ### 阶段 3 · 领域包纵深（v4.1 → v4.4）—— v4.1 设计定稿
 - [x] **v4.1 办公信任链设计**（`docs/gaea-v41-evidence-chain-design.md`）：
