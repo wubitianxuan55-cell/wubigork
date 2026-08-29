@@ -5,7 +5,7 @@ import { Modal } from "antd";
 import {
   Plus, Brain, Blocks, BookOpen, MessageSquare, Search,
   PanelLeftClose, PanelLeftOpen, Loader2, FileText, ChevronDown, FolderGit2,
-  Pin, Inbox, Rollback, Check, X,
+  Pin, Inbox, Rollback, X,
 } from "../icons";
 import logoSvg from "../assets/logo.svg";
 import logoLightSvg from "../assets/logo-light.svg";
@@ -236,13 +236,6 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
                         未完成
                       </span>
                     )}
-                    {s.hasRequirement && (
-                      s.requirementDone ? (
-                        <Check size={10} className="shrink-0 text-ok" aria-label="任务已验收" />
-                      ) : (
-                        <span className="shrink-0 self-center w-1.5 h-1.5 rounded-full bg-accent" aria-label="任务进行中" />
-                      )
-                    )}
                     {s.pinned && (
                       <Pin size={10} className="shrink-0 text-accent/80" aria-label="已置顶" />
                     )}
@@ -314,13 +307,6 @@ function SessionRow({ index, style, ariaAttributes, rows, ui }: RowComponentProp
         >
           <MessageSquare size={12} className="shrink-0 text-fg-faint/50" />
           <span className="flex-1 min-w-0 truncate text-[12px] text-fg-faint">{sessionTitle(s, t("history.emptySession"))}</span>
-          {s.hasRequirement && (
-            s.requirementDone ? (
-              <Check size={10} className="shrink-0 text-ok" />
-            ) : (
-              <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent" />
-            )
-          )}
           {isInterruptedSession(s) && (
             <span
               className="shrink-0 rounded-full bg-warning/15 px-1.5 py-px text-[10px] leading-[1.5] font-medium text-warning"

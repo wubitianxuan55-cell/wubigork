@@ -8,21 +8,15 @@ import type { QuestionAnswer } from "../types";
 
 type ChatMethods = Pick<
   AppBindings,
-  | "Submit" | "SubmitDisplay" | "Cancel" | "Approve" | "AnswerQuestion"
-  | "GaeaRunning" | "SetAgentMode" | "AgentMode" | "Compact" | "NewSession"
+  | "Submit" | "SubmitDisplay" | "Cancel" | "Steer" | "Approve" | "AnswerQuestion"
+  | "GaeaRunning" | "Compact" | "NewSession"
   | "Reload" | "CaptureSkill" | "Checkpoints" | "Rewind" | "Fork"
   | "SummarizeFrom" | "SummarizeUpTo" | "History"
   | "ListSessions" | "ListProjectSessions" | "ArchiveSession" | "UnarchiveSession"
   | "PinSession" | "ResumeSession" | "DeleteSession" | "RenameSession"
-  | "Requirement" | "SetRequirement" | "SetRequirementDone"
-  | "AddRequirementItem" | "SetRequirementItem" | "RemoveRequirementItem"
-  | "SetRequirementItemDone" | "SetRequirementAutoPursue"
   | "SessionStats"
   | "ChatTopicsList" | "ChatMessagesList" | "ChatAppendMessages"
 >;
-
-// 会话协作模式（default|plan）——mock 内维护状态，离线开发可切换。
-let agentMode: string = "default";
 
 // 完整一轮「普通」对话模拟（demo 默认路径）：turn_started → reasoning 逐字
 // → 3 个工具（ls/write_file/edit_file）→ 正文逐字 → usage ×2 → turn_done。
@@ -74,7 +68,7 @@ function runApprovalTurn(input: string) {
   });
 }
 
-// 提问场景（?mock=ask）：turn_started → reasoning → ask_request 挂起（带开工计划）。
+// 提问场景（?mock=ask）：turn_started → reasoning → ask_request 挂起。
 // AnswerQuestion 后补发正文 → turn_done。
 function runAskTurn(input: string) {
   emit({ kind: "turn_started" });
@@ -83,23 +77,14 @@ function runAskTurn(input: string) {
     kind: "ask_request",
     ask: {
       id: "ask-1",
-      plan: {
-        goal: "整理本季度经营数据，生成成本测算表与汇总报告",
-        steps: [
-          { title: "盘点现有资料", detail: "读取工作区中的方案、成本测算与表格文件，确认数据口径。", resources: ["成本测算.xlsx", "方案.md"], tools: ["read_file"] },
-          { title: "编制成本测算表", detail: "按现有模板合并季度数据，输出 xlsx 明细与汇总页。", resources: ["成本测算模板.xlsx"], tools: ["write_file"], deliverable: "成本测算表.xlsx" },
-          { title: "汇总报告", detail: "基于测算结果撰写季度经营总结（Word 交付）。", deliverable: "季度经营总结.docx" },
-        ],
-        questions: ["是否需要把测算结果同步进成本库？"],
-      },
       questions: [
         {
-          id: "plan",
-          header: "开工计划确认",
-          prompt: "请确认以下开工计划是否符合预期（可直接修改后提交）：",
+          id: "q1",
+          header: "交付格式确认",
+          prompt: "请确认这份季度经营报告的交付格式：",
           options: [
-            { label: "按计划开工", description: "确认任务理解与步骤，立即执行" },
-            { label: "调整后开工", description: "在下方输入框中描述需要调整的内容" },
+            { label: "Word 文档", description: "便于二次编辑与评审" },
+            { label: "PDF", description: "定稿版本，适合直接分发" },
           ],
         },
       ],
@@ -135,7 +120,7 @@ async function runCompactionTurn(input: string, cancelledRef: { v: boolean }) {
 }
 
 export function buildChat(s: MakeMockState): ChatMethods {
-  const { runningMock, sessions, archivedMock, requirementsMock, projectGroupsMock } = s;
+  const { runningMock, sessions, archivedMock, projectGroupsMock } = s;
   const cancelledRef = { v: false }; // 供异步场景读取最新值
   let pendingFlow: "approval" | "ask" | null = null; // 挂起中的审批/提问场景
   return {
@@ -156,6 +141,10 @@ export function buildChat(s: MakeMockState): ChatMethods {
       pendingFlow = null;
       emit({ kind: "turn_done" });
     },
+    async Steer(text: string) {
+      // 运行中插话：模拟 agent 收到 guidance 后回显 notice 并继续。
+      emit({ kind: "notice", level: "info", text: `已插话：${text.slice(0, 40)}` });
+    },
     async Approve(_id: string, _allow: boolean, _session: boolean) {
       if (pendingFlow !== "approval") return;
       pendingFlow = null;
@@ -171,15 +160,13 @@ export function buildChat(s: MakeMockState): ChatMethods {
       if (pendingFlow !== "ask") return;
       pendingFlow = null;
       // 回答后继续执行（与真实 gaeaAnswer → 回合继续一致）
-      const reply = "已确认开工计划，现在开始执行。";
+      const reply = "已收到你的选择，继续执行。";
       for (const ch of reply) { emit({ kind: "text", text: ch }); }
       emit({ kind: "message", text: reply });
       emitUsageTwice();
       emit({ kind: "turn_done" });
     },
     async GaeaRunning() { return false; },
-    async SetAgentMode(mode: string) { agentMode = mode; },
-    async AgentMode() { return agentMode; },
     async Compact() {},
     async NewSession() {},
     async Reload() {
@@ -273,81 +260,6 @@ export function buildChat(s: MakeMockState): ChatMethods {
     async RenameSession(path: string, title: string) {
       const s = sessions.find((x) => x.path === path);
       if (s) s.title = title.trim() || undefined;
-    },
-    async Requirement(path: string) {
-      return requirementsMock.get(path) ?? { text: "", done: false, updatedAt: 0, items: [], autoPursue: false };
-    },
-    async SetRequirement(path: string, text: string) {
-      const prev = requirementsMock.get(path) ?? { text: "", done: false, updatedAt: 0, items: [], autoPursue: false };
-      if (!text.trim()) {
-        requirementsMock.delete(path);
-        return;
-      }
-      if (text.trim() === prev.text) {
-        requirementsMock.set(path, { ...prev, updatedAt: Date.now() });
-        return;
-      }
-      // 文本变更 = 新目标：验收清单重置，自动追踪保留
-      requirementsMock.set(path, {
-        text: text.trim(),
-        done: prev.items.length > 0 ? false : prev.done,
-        updatedAt: Date.now(),
-        items: [],
-        autoPursue: prev.autoPursue,
-      });
-    },
-    async SetRequirementDone(path: string, done: boolean) {
-      const r = requirementsMock.get(path);
-      if (r && r.text) {
-        requirementsMock.set(path, {
-          ...r,
-          done,
-          items: r.items.map((it) => ({ ...it, done })),
-          updatedAt: Date.now(),
-        });
-      }
-    },
-    async AddRequirementItem(path: string, text: string) {
-      const r = requirementsMock.get(path);
-      if (!r?.text || !text.trim()) return;
-      requirementsMock.set(path, {
-        ...r,
-        items: [...r.items, { text: text.trim(), done: false }],
-        done: false,
-        updatedAt: Date.now(),
-      });
-    },
-    async SetRequirementItem(path: string, index: number, text: string) {
-      const r = requirementsMock.get(path);
-      if (!r || index < 0 || index >= r.items.length || !text.trim()) return;
-      const items = r.items.map((it, i) => (i === index ? { ...it, text: text.trim() } : it));
-      requirementsMock.set(path, { ...r, items, updatedAt: Date.now() });
-    },
-    async RemoveRequirementItem(path: string, index: number) {
-      const r = requirementsMock.get(path);
-      if (!r || index < 0 || index >= r.items.length) return;
-      const items = r.items.filter((_, i) => i !== index);
-      requirementsMock.set(path, {
-        ...r,
-        items,
-        done: items.length === 0 ? false : items.every((it) => it.done),
-        updatedAt: Date.now(),
-      });
-    },
-    async SetRequirementItemDone(path: string, index: number, done: boolean) {
-      const r = requirementsMock.get(path);
-      if (!r || index < 0 || index >= r.items.length) return;
-      const items = r.items.map((it, i) => (i === index ? { ...it, done } : it));
-      requirementsMock.set(path, {
-        ...r,
-        items,
-        done: items.every((it) => it.done),
-        updatedAt: Date.now(),
-      });
-    },
-    async SetRequirementAutoPursue(path: string, on: boolean) {
-      const r = requirementsMock.get(path);
-      if (r?.text) requirementsMock.set(path, { ...r, autoPursue: on, updatedAt: Date.now() });
     },
     // ── 对话 chat（T6-3 契约同步：ChatTopicsList/ChatMessagesList 返回
     // [数据, 错误] 元组形态；ChatAppendMessages 语音消息持久化 no-op）──

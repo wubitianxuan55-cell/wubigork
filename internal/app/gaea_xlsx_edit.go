@@ -22,9 +22,80 @@ type XlsxEditResult struct {
 	Applied int    `json:"applied"`
 }
 
-// GaeaXlsxEdit 单元格级操作闭环：上下文 → AI 规划操作 → excelize 执行 →
-// LibreOffice 重算公式 → 返回更新预览。
-func (a *App) GaeaXlsxEdit(rel, sheet, instruction, selection string) (XlsxEditResult, error) {
+// XlsxPlanResult 是「先规划后应用」的规划结果：ops 原样带回（应用时透传），
+// 附单元格级变更清单供用户审阅批准（对标 Copilot Plan/Show Changes 范式）。
+type XlsxPlanResult struct {
+	Ops       string            `json:"ops"`     // 操作集 JSON（GaeaXlsxApplyEdit 透传）
+	Summary   string            `json:"summary"` // 操作描述（分号连接）
+	Changes   []xlsxedit.Change `json:"changes"` // 变更清单（截断到上限）
+	Total     int               `json:"total"`   // 已确认变更格数（读取预算内，截断时为下界）
+	Truncated bool              `json:"truncated"`
+}
+
+// GaeaXlsxPlanEdit 单元格操作规划（不落盘）：上下文 → AI 规划操作 →
+// 临时副本试运行（合法性与真实摘要）→ 与原文件 diff 出变更清单。
+// 返回的 ops 原样带回，由 GaeaXlsxApplyEdit 在用户批准后执行。
+func (a *App) GaeaXlsxPlanEdit(rel, sheet, instruction, selection string) (XlsxPlanResult, error) {
+	if rel == "" {
+		return XlsxPlanResult{}, fmt.Errorf("缺少文件路径")
+	}
+	path := rel
+	if !filepath.IsAbs(rel) {
+		path = filepath.Join(gaeaCwd(), rel)
+	}
+	if _, err := os.Stat(path); err != nil {
+		return XlsxPlanResult{}, fmt.Errorf("文件不存在：%s", rel)
+	}
+	if sheet == "" {
+		sheet = firstSheetName(path)
+	}
+	if instruction == "" {
+		return XlsxPlanResult{}, fmt.Errorf("编辑指令为空")
+	}
+	if a.client == nil {
+		return XlsxPlanResult{}, fmt.Errorf("AI 客户端未初始化")
+	}
+
+	ctxJSON, err := xlsxedit.BuildContext(path, sheet)
+	if err != nil {
+		return XlsxPlanResult{}, err
+	}
+
+	// 2026-08-28 本地优先强化：Excel AI 编辑属办公功能级调用，优先本地 Herdsman。
+	featEng, featModel, _ := a.routeOfficeLocal("office")
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	reply, err := a.client.XlsxEditOps(ctx, featEng, featModel, ctxJSON, selection, instruction)
+	if err != nil {
+		return XlsxPlanResult{}, err
+	}
+	var ops []xlsxedit.Op
+	if err := json.Unmarshal([]byte(util.ExtractJSON(reply)), &ops); err != nil || len(ops) == 0 {
+		return XlsxPlanResult{}, fmt.Errorf("AI 未返回有效操作，请换个说法重试")
+	}
+
+	summary, changes, total, truncated, err := xlsxedit.PlanOps(path, ops)
+	if err != nil {
+		return XlsxPlanResult{}, err
+	}
+	opsJSON, err := json.Marshal(ops)
+	if err != nil {
+		return XlsxPlanResult{}, err
+	}
+	return XlsxPlanResult{
+		Ops:       string(opsJSON),
+		Summary:   strings.Join(summary, "；"),
+		Changes:   changes,
+		Total:     total,
+		Truncated: truncated,
+	}, nil
+}
+
+// GaeaXlsxApplyEdit 应用已批准的操作集（GaeaXlsxPlanEdit 的产物原样透传）：
+// excelize 执行 → LibreOffice 重算公式 → 返回更新预览。
+func (a *App) GaeaXlsxApplyEdit(rel, opsJSON string) (XlsxEditResult, error) {
 	if rel == "" {
 		return XlsxEditResult{}, fmt.Errorf("缺少文件路径")
 	}
@@ -35,41 +106,18 @@ func (a *App) GaeaXlsxEdit(rel, sheet, instruction, selection string) (XlsxEditR
 	if _, err := os.Stat(path); err != nil {
 		return XlsxEditResult{}, fmt.Errorf("文件不存在：%s", rel)
 	}
-	if sheet == "" {
-		sheet = firstSheetName(path)
-	}
-	if instruction == "" {
-		return XlsxEditResult{}, fmt.Errorf("编辑指令为空")
-	}
-	if a.client == nil {
-		return XlsxEditResult{}, fmt.Errorf("AI 客户端未初始化")
-	}
-
-	ctxJSON, err := xlsxedit.BuildContext(path, sheet)
-	if err != nil {
-		return XlsxEditResult{}, err
-	}
-
-	featEng, featModel, _ := a.routeModel("office")
-	ctx := a.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	reply, err := a.client.XlsxEditOps(ctx, featEng, featModel, ctxJSON, selection, instruction)
-	if err != nil {
-		return XlsxEditResult{}, err
+	if strings.TrimSpace(opsJSON) == "" {
+		return XlsxEditResult{}, fmt.Errorf("操作集为空，请重新规划")
 	}
 	var ops []xlsxedit.Op
-	if err := json.Unmarshal([]byte(util.ExtractJSON(reply)), &ops); err != nil || len(ops) == 0 {
-		return XlsxEditResult{}, fmt.Errorf("AI 未返回有效操作，请换个说法重试")
+	if err := json.Unmarshal([]byte(opsJSON), &ops); err != nil || len(ops) == 0 {
+		return XlsxEditResult{}, fmt.Errorf("操作集无效，请重新规划")
 	}
 
 	summary, err := xlsxedit.ApplyOps(path, ops)
 	if err != nil {
 		return XlsxEditResult{}, err
 	}
-
-	// 公式重算（best-effort：LibreOffice 不可用时编辑仍然生效）
 	recalcNote := ""
 	if rep, rerr := xlsxedit.Recalc(path, gaeaCwd()); rerr == nil {
 		if rep.TotalErrors > 0 {
@@ -78,7 +126,6 @@ func (a *App) GaeaXlsxEdit(rel, sheet, instruction, selection string) (XlsxEditR
 	} else if strings.Contains(rerr.Error(), "未找到 recalc.py") {
 		recalcNote = "；公式重算跳过（未找到 recalc.py）"
 	}
-
 	preview, err := xlsxpreview.Render(path)
 	if err != nil {
 		return XlsxEditResult{}, err

@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowDown, Ban, Brain, CheckCircle, ChevronRight, FileText, Loader } from "../icons";
 import type { Item } from "../lib/store";
 import { useItems, useTurnStartAt } from "../lib/store";
+import { useT } from "../lib/i18n";
 import { AssistantMessage, UserMessage } from "./Message";
 import { SkillCaptureModal } from "./SkillCaptureModal";
 import { StreamingIndicator } from "./StreamingIndicator";
@@ -412,14 +413,10 @@ export const ProcessCard = memo(function ProcessCard({
     ? labelParts.join(" · ")
     : (running ? "处理中…" : "过程");
 
-  // 状态四态：色 + 图标 + 文字（容器边框 / 头部徽标各自传达）
+  // 状态四态：色 + 图标 + 文字（头部徽标传达）
   const status = deriveProcessStatus(items, running);
   const statusMeta = status !== "idle" ? PROCESS_STATUS_META[status] : null;
   const StatusIcon = statusMeta?.icon ? STATUS_ICONS[statusMeta.icon] : null;
-  const containerTone =
-    status === "error" ? "border-err/40" :
-    status === "stopped" ? "border-warning/30" :
-    status === "done" ? "border-ok/20" : "border-border-soft";
 
   const body = useMemo(() => {
     const out: React.ReactNode[] = [];
@@ -461,17 +458,21 @@ export const ProcessCard = memo(function ProcessCard({
     return out;
   }, [items, subcallsByParent]);
 
+  // Codex 式过程条：无边框、低噪声；运行中只有左侧细线强调，状态靠徽标传达。
   return (
-    <div className={`my-1.5 border rounded-xl overflow-hidden bg-bg-soft/50 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_5%,transparent)] transition-[border-color,box-shadow] duration-[var(--dur-base)] ${running ? "border-accent/25 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--gaea-glow)_12%,transparent),var(--v3-glow-faint)]" : containerTone}`}>
+    <div className={`my-1 rounded-lg overflow-hidden transition-colors duration-[var(--dur-base)] ${
+      running ? "bg-accent/[0.03]" : "hover:bg-(color:--md-sys-color-surface-container-high)/40"
+    }`}>
       <button
         type="button"
-        className="flex items-center gap-2 w-full px-3 py-2 text-left cursor-pointer hover:bg-bg-elev/60 transition-colors"
+        className="flex items-center gap-2 w-full px-2.5 py-1.5 text-left cursor-pointer rounded-lg transition-colors"
         data-running={running ? "" : undefined}
         onClick={() => { userOverridden.current = true; setOpen((v) => !v); }}
         aria-expanded={open}
       >
-        <ChevronRight size={13} className={`shrink-0 text-fg-faint transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-        <Brain size={13} className={`shrink-0 ${running ? "text-accent animate-pulse" : "text-fg-faint"}`} />
+        <span className={`shrink-0 w-0.5 self-stretch rounded-full transition-colors ${running ? "bg-accent animate-pulse" : "bg-transparent"}`} />
+        <ChevronRight size={12} className={`shrink-0 text-fg-faint transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+        <Brain size={12} className={`shrink-0 ${running ? "text-accent animate-pulse" : "text-fg-faint"}`} />
         <span className="text-[11px] font-medium text-fg-dim">{label}</span>
         {statusMeta && (
           <span className={`inline-flex items-center gap-1 shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium ${statusMeta.cls}`}>
@@ -479,10 +480,10 @@ export const ProcessCard = memo(function ProcessCard({
             <span>{statusMeta.label}</span>
           </span>
         )}
-        {running && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_6px_var(--accent)]" />}
+        <span className="ml-auto text-fg-faint/50 text-[10px] font-mono tabular-nums shrink-0">{elapsedStr}</span>
       </button>
       <div ref={bodyRef} style={{ overflow: "hidden" }}>
-        <div className="px-2.5 pb-2.5 pt-0.5 space-y-1">{body}</div>
+        <div className="px-2.5 pb-2 pt-0.5 space-y-0.5">{body}</div>
       </div>
     </div>
   );
@@ -772,24 +773,30 @@ export function Transcript({
 // ── CompactionCard ──────────────────────────────────────────────────
 type CompactionItem = Extract<Item, { kind: "compaction" }>;
 function CompactionCard({ item }: { item: CompactionItem }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   if (item.pending) {
     return (
-      <div className="flex items-center gap-2 my-1 mx-2 px-3 py-2 border border-border-soft rounded-lg bg-bg-soft text-fg-faint text-xs animate-pulse">
+      <div className="flex items-center gap-2 my-1 px-2.5 py-1.5 rounded-lg text-fg-faint text-xs animate-pulse">
         <Loader size={12} className="animate-spin text-accent" />
-        <span>Compacting conversation…</span>
+        <span>{t("msg.compacting")}</span>
       </div>
     );
   }
   return (
-    <div className="my-1 mx-2 border border-border-soft rounded-lg bg-bg-soft shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_5%,transparent)] overflow-hidden">
-      <button className="flex items-center gap-2 w-full px-3 py-2 bg-transparent border-0 text-fg-dim text-[12.5px] cursor-pointer hover:bg-bg-elev" onClick={() => setOpen((v) => !v)}>
+    <div className="my-1 rounded-lg overflow-hidden">
+      <button
+        className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg bg-transparent border-0 text-fg-dim text-[12px] cursor-pointer hover:bg-(color:--md-sys-color-surface-container-high) transition-colors"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span className={`shrink-0 w-0.5 self-stretch rounded-full ${open ? "bg-accent/60" : "bg-transparent"}`} />
         <FileText size={12} className="text-accent shrink-0" />
-        <span className="font-medium text-fg">Context compacted</span>
-        <span className="text-fg-faint text-[11px] ml-auto">{item.messages} messages · {item.trigger}</span>
-        <span className="text-fg-faint text-[10.5px] underline shrink-0">{open ? "hide summary" : "show summary"}</span>
+        <span className="font-medium text-fg">{t("msg.compacted")}</span>
+        <span className="text-fg-faint text-[11px] ml-auto tabular-nums">{t("msg.compactedMeta", { n: item.messages, trigger: item.trigger })}</span>
+        <span className="text-fg-faint text-[10.5px] shrink-0">{open ? t("msg.hideSummary") : t("msg.showSummary")}</span>
       </button>
-      {open && <pre className="m-0 p-3 bg-bg text-fg-dim text-[11.5px] leading-relaxed whitespace-pre-wrap border-t border-border-soft">{item.summary}</pre>}
+      {open && <pre className="m-0 px-3 pb-2 pt-1 text-fg-dim text-[11.5px] leading-relaxed whitespace-pre-wrap">{item.summary}</pre>}
     </div>
   );
 }

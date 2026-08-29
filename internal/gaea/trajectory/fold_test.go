@@ -20,6 +20,31 @@ func TestFoldEmpty(t *testing.T) {
 	}
 }
 
+// 回归：Turns / Turn.Records / BetweenTurns 必须序列化成 [] 而不是 null——
+// Go 的 nil 切片序列化为 JSON null，前端 turns.length / records.filter
+// 按数组消费会整页崩（ErrorBoundary 接管）。
+func TestFoldEmptySlicesMarshalAsArrays(t *testing.T) {
+	cases := map[string]any{
+		"fold": FoldTrajectory(nil),
+		// turn_started 后立刻 turn_done：产生一个 Records 为空的轮
+		"foldEmptyTurn": FoldTrajectory([]session.LogEntry{
+			entry(1, "turn_started", map[string]any{}),
+			entry(2, "turn_done", map[string]any{}),
+		}),
+		"binding":  EmptyTrajectory(),
+		"agentnet": EmptyAgentNetwork(),
+	}
+	for name, v := range cases {
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("%s: marshal: %v", name, err)
+		}
+		if strings.Contains(string(b), "null") {
+			t.Fatalf("%s: serialized JSON contains null: %s", name, b)
+		}
+	}
+}
+
 func TestFoldOneTurnRecords(t *testing.T) {
 	sys := strings.Repeat("s", 200)
 	entries := []session.LogEntry{

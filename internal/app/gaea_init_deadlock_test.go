@@ -9,70 +9,14 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
-	"github.com/gaea/gaea/internal/gaea/agent"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
-	"github.com/gaea/gaea/internal/gaea/control"
 	"github.com/gaea/gaea/internal/gaea/db"
-	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/provider/bridge"
 )
 
-// TestSyncGoalForSessionWhileLocked 回归：GaeaInit 持 ga.mu 初始化时会走
-// resumeLastSession → syncGoalForSession，因此 syncGoalForSession 不得再经
-// gaeaCtrl() 对同一把非重入互斥锁二次加锁（v3.0.5 引入，办公板块首次打开
-// 即永久死锁——「连接中…」、会话列表/工作空间不可用、无法新建会话）。
-// 本测试直接模拟 GaeaInit 的持锁上下文调用，超时即视为死锁。
-func TestSyncGoalForSessionWhileLocked(t *testing.T) {
-	restore := workspaceTestIsolate(t)
-	defer restore()
-	oldCfg, oldCtrl := ga.cfg, ga.ctrl
-	defer func() { ga.cfg, ga.ctrl = oldCfg, oldCtrl }()
-
-	ws := t.TempDir()
-	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	dir := gaeaConfig.WorkspaceSessionDir(ws)
-	writeProjectSession(t, dir, "s1", "起草年度总结", time.Now().Add(-time.Hour))
-	path := filepath.Join(dir, "s1.jsonl")
-
-	a := &App{}
-	if err := a.GaeaSetRequirement(path, "起草年度总结报告并输出 docx"); err != nil {
-		t.Fatalf("设置目标: %v", err)
-	}
-	if err := a.GaeaSetRequirementAutoPursue(path, true); err != nil {
-		t.Fatalf("开启自动追踪: %v", err)
-	}
-
-	exec := agent.New(nil, nil, agent.NewSession("you are gaea"), agent.Options{}, event.Discard)
-	ctrl := control.New(control.Options{Runner: noopStateRunner{}, Executor: exec, Sink: event.Discard})
-	defer ctrl.Close()
-	// 让控制器接管该会话（等价 GaeaResumeSession 的 ResumeFromDisk 路径），
-	// 使 ctrl.SessionPath() 与 path 一致，syncGoalForSession 才会真正执行。
-	ctrl.Resume(agent.NewSession("you are gaea"), path)
-
-	// 模拟 GaeaInit：ga.mu 已持有（gaea_handler.go GaeaInit 顶部 Lock + defer Unlock）。
-	ga.mu.Lock()
-	done := make(chan struct{})
-	go func() {
-		a.syncGoalForSession(ctrl, path)
-		close(done)
-	}()
-	select {
-	case <-done:
-		// 修复后：持锁上下文直接完成，不再二次取 ga.mu。
-	case <-time.After(5 * time.Second):
-		ga.mu.Unlock()
-		t.Fatal("syncGoalForSession 在 ga.mu 持锁上下文死锁（gaeaCtrl 二次加锁）")
-	}
-	ga.mu.Unlock()
-
-	if g := ctrl.Goal(); g != "起草年度总结报告并输出 docx" {
-		t.Fatalf("goal = %q, want 目标文本", g)
-	}
-}
-
 // TestGaeaInitAutoResumeWithSessions 回归用户场景：工作区存在会话时首次
-// GaeaInit 必须完成（此前在 resumeLastSession → syncGoalForSession 处对
-// ga.mu 二次加锁永久卡死），且初始化后新建会话/切换工作空间均可用。
+// GaeaInit 必须完成（此前在 resumeLastSession 对 ga.mu 二次加锁永久卡死），
+// 且初始化后新建会话/切换工作空间均可用。
 func TestGaeaInitAutoResumeWithSessions(t *testing.T) {
 	restore := workspaceTestIsolate(t)
 	defer restore()
@@ -107,12 +51,8 @@ func TestGaeaInitAutoResumeWithSessions(t *testing.T) {
 	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
 	writeProjectSession(t, sessionDir, "s1", "起草年度总结", time.Now().Add(-time.Hour))
 	path := filepath.Join(sessionDir, "s1.jsonl")
-	a := &App{}
-	if err := a.GaeaSetRequirement(path, "起草年度总结报告并输出 docx"); err != nil {
-		t.Fatalf("设置目标: %v", err)
-	}
 
-	a = &App{core: &core{
+	a := &App{core: &core{
 		ctx:    context.Background(),
 		cfg:    config.Load(),
 		client: ai.NewClient(config.Load()),

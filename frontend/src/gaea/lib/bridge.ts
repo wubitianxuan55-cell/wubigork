@@ -19,6 +19,7 @@ import type {
   DirEntry,
   ExportDeliverableInput,
   ExportDeliverableResult,
+  ConvertPdfResult,
   FactBaseView,
   FileSearchHit,
   FilePickResult,
@@ -38,6 +39,7 @@ import type {
   MemoryView,
   OfficeEditResult,
   XlsxEditResult,
+  XlsxPlanResult,
   XlsxChartInput,
   XlsxChartResult,
   ZipDeliverableResult,
@@ -49,7 +51,6 @@ import type {
   ModelInfo,
   ProviderView,
   QuestionAnswer,
-  Requirement,
   SessionMeta,
   SessionStatsView,
   ProjectGroup,
@@ -111,12 +112,13 @@ export interface AppBindings {
   Submit(input: string): Promise<void>;
   SubmitDisplay(display: string, input: string): Promise<void>;
   Cancel(): Promise<void>;
+  // Steer 任务运行中插话调整：消息注入当前回合作为补充指引（不打断执行、
+  // 不开新回合）；未运行时走 Submit 排队兜底。
+  Steer(input: string): Promise<void>;
   // GaeaRunning 返回办公引擎当前是否真的在跑（看门狗校准用）。
   GaeaRunning(): Promise<boolean>;
   Approve(id: string, allow: boolean, session: boolean): Promise<void>;
   AnswerQuestion(id: string, answers: QuestionAnswer[]): Promise<void>;
-  SetAgentMode(mode: string): Promise<void>;
-  AgentMode(): Promise<string>;
   Compact(): Promise<void>;
   NewSession(): Promise<void>;
   // Reload 热加载办公引擎：重新读取磁盘上的持久化配置并重建 controller，
@@ -148,16 +150,6 @@ export interface AppBindings {
   PinSession(path: string, pinned: boolean): Promise<void>;
   DeleteSession(path: string): Promise<void>;
   RenameSession(path: string, title: string): Promise<void>;
-  // Requirement 是会话「任务目标」：读取 / 设置（空文本清除）/ 标记验收 /
-  // 验收清单增删改勾选 / 自动追踪开关（开启后写入 agent goal gate）。
-  Requirement(path: string): Promise<Requirement>;
-  SetRequirement(path: string, text: string): Promise<void>;
-  SetRequirementDone(path: string, done: boolean): Promise<void>;
-  AddRequirementItem(path: string, text: string): Promise<void>;
-  SetRequirementItem(path: string, index: number, text: string): Promise<void>;
-  RemoveRequirementItem(path: string, index: number): Promise<void>;
-  SetRequirementItemDone(path: string, index: number, done: boolean): Promise<void>;
-  SetRequirementAutoPursue(path: string, on: boolean): Promise<void>;
   // Workspace: open a folder chooser and switch to that project (fresh session);
   // returns the chosen path, or "" if cancelled.
   ListWorkspaces(): Promise<WorkspaceView[]>;
@@ -225,9 +217,12 @@ export interface AppBindings {
   DocxApplyEdit(rel: string, selectedText: string, replacement: string): Promise<PreviewResult>;
   // DocxAcceptChanges 接受/拒绝 gaea 的待处理修订，返回更新预览。
   DocxAcceptChanges(rel: string, accept: boolean): Promise<PreviewResult>;
-  // XlsxEdit 单元格级操作：上下文 → AI 规划 → excelize 执行 + LibreOffice 重算 →
-  // 返回更新预览。
-  XlsxEdit(rel: string, sheet: string, instruction: string, selection: string): Promise<XlsxEditResult>;
+  // XlsxPlanEdit 单元格操作规划（不落盘）：上下文 → AI 规划操作 → 临时副本
+  // 试运行 → 返回操作集与单元格级变更清单，供用户审阅批准。
+  XlsxPlanEdit(rel: string, sheet: string, instruction: string, selection: string): Promise<XlsxPlanResult>;
+  // XlsxApplyEdit 应用已批准的操作集（规划产物原样透传）：excelize 执行 +
+  // LibreOffice 重算 → 返回更新预览。
+  XlsxApplyEdit(rel: string, ops: string): Promise<XlsxEditResult>;
   // XlsxSetCell 直接写单元格（Excel 式双击编辑）：写值/公式 + LibreOffice 重算。
   XlsxSetCell(rel: string, sheet: string, ref: string, value: string): Promise<XlsxEditResult>;
   // XlsxRecalc 手动重算全部公式（LibreOffice）并返回更新预览。
@@ -236,8 +231,8 @@ export interface AppBindings {
   XlsxRowOps(rel: string, sheet: string, action: string, ref: string): Promise<XlsxEditResult>;
   // XlsxColOps 列级操作：insert_before / insert_after / delete（基于选中单元格所在列）。
   XlsxColOps(rel: string, sheet: string, action: string, ref: string): Promise<XlsxEditResult>;
-  // XlsxChart 表格「选中区域 → 一键图表」：从选中区域提取数据 → matplotlib 生成
-  // PNG → 返回可预览 dataURL（对标千问表格 Agent 的可交付表格体验）。
+  // XlsxChart 表格「选中区域 → 一键图表」：从选中区域提取数据 → excelize 在
+  // 工作簿内嵌入原生图表对象（Excel/WPS 可见可编辑）→ 返回锚点与数据供迷你预览。
   XlsxChart(input: XlsxChartInput): Promise<XlsxChartResult>;
   // ZipDeliverables 会话产物一键打包：把本次会话交付文件打成一个 zip。
   ZipDeliverables(paths: string[]): Promise<ZipDeliverableResult>;
@@ -246,8 +241,11 @@ export interface AppBindings {
   // WriteFile 工作区内联编辑保存（C5）：把文本原子写回工作区相对路径文本文件
   // （路径/扩展名/大小校验在后端；用户显式保存，不走 agent 审批）。
   WriteFile(rel: string, content: string): Promise<void>;
-  // ExportDeliverable 统一交付出口：受控 Markdown → docx/pptx/xlsx/md。
+  // ExportDeliverable 统一交付出口：受控 Markdown → docx/pptx/xlsx/md/pdf。
   ExportDeliverable(input: ExportDeliverableInput): Promise<ExportDeliverableResult>;
+  // ConvertToPdf 文档转 PDF（LibreOffice 无头转换）：docx/xlsx/pptx/odt/html/
+  // txt/csv 直接转换，md 先经 create_docx.py 出 docx 再转；PDF 落 .gaea/exports/。
+  ConvertToPdf(rel: string): Promise<ConvertPdfResult>;
   // CrossEmbed 跨应用联动：xlsx 数据 → 图表 → 嵌入 docx/pptx。
   CrossEmbed(input: CrossEmbedInput): Promise<CrossEmbedResult>;
   OpenWorkspacePath(rel: string): Promise<void>;
@@ -581,12 +579,9 @@ const gaeaToGaea = {
   Submit: "GaeaSend",
   SubmitDisplay: "GaeaSend",
   Cancel: "GaeaCancel",
+  Steer: "GaeaSteer",
   Approve: "GaeaApprove",
   AnswerQuestion: "GaeaAnswer",
-  // Go 侧为 GaeaAgentMode（T6-10.3 对齐）。
-  AgentMode: "GaeaAgentMode",
-  // 会话协作模式设置（蒸馏自 codex ModeKind）：GaeaSetAgentMode(mode)。
-  SetAgentMode: "GaeaSetAgentMode",
   NewSession: "GaeaNewSession",
   Reload: "GaeaReload",
   CaptureSkill: "GaeaCaptureSkill",
@@ -607,14 +602,6 @@ const gaeaToGaea = {
   PinSession: "GaeaPinSession",
   DeleteSession: "GaeaDeleteSession",
   RenameSession: "GaeaRenameSession",
-  Requirement: "GaeaRequirement",
-  SetRequirement: "GaeaSetRequirement",
-  SetRequirementDone: "GaeaSetRequirementDone",
-  AddRequirementItem: "GaeaAddRequirementItem",
-  SetRequirementItem: "GaeaSetRequirementItem",
-  RemoveRequirementItem: "GaeaRemoveRequirementItem",
-  SetRequirementItemDone: "GaeaSetRequirementItemDone",
-  SetRequirementAutoPursue: "GaeaSetRequirementAutoPursue",
   ListWorkspaces: "GaeaListWorkspaces",
   PickWorkspace: "GaeaPickWorkspace",
   SwitchWorkspace: "GaeaSwitchWorkspace",
@@ -649,7 +636,8 @@ const gaeaToGaea = {
   OfficeEditText: "GaeaOfficeEditText",
   DocxApplyEdit: "GaeaDocxApplyEdit",
   DocxAcceptChanges: "GaeaDocxAcceptChanges",
-  XlsxEdit: "GaeaXlsxEdit",
+  XlsxPlanEdit: "GaeaXlsxPlanEdit",
+  XlsxApplyEdit: "GaeaXlsxApplyEdit",
   XlsxSetCell: "GaeaXlsxSetCell",
   XlsxRecalc: "GaeaXlsxRecalc",
   XlsxRowOps: "GaeaXlsxRowOps",
@@ -659,6 +647,7 @@ const gaeaToGaea = {
   SubagentRuns: "GaeaSubagentRuns",
   WriteFile: "GaeaWriteFile",
   ExportDeliverable: "GaeaExportDeliverable",
+  ConvertToPdf: "GaeaConvertToPdf",
   CrossEmbed: "GaeaCrossEmbed",
   OpenWorkspacePath: "GaeaOpenWorkspacePath",
   RevealWorkspacePath: "GaeaRevealWorkspacePath",
@@ -1185,6 +1174,7 @@ type LegacySurfaceNames =
   | "GetModelMonitor"
   | "GetModelRoute"
   | "GetNovelsDir"
+  | "GetOfficeLocal"
   | "GetOpencodeGoKeyStatus"
   | "GetOpencodeZenKeyStatus"
   | "GetOutlines"
@@ -1278,6 +1268,7 @@ type LegacySurfaceNames =
   | "SetFeatureModel"
   | "SetFeatureModelEnabled"
   | "SetImageBackend"
+  | "SetOfficeLocal"
   | "SetOpencodeGoKey"
   | "SetOpencodeZenKey"
   | "SetPortraitConfig"

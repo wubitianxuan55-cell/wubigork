@@ -46,9 +46,6 @@ type SessionMeta struct {
 	ModTime int64  `json:"modTime"`
 	Current bool   `json:"current"`
 	Pinned  bool   `json:"pinned"`
-	// 任务目标状态（Kun 从需求到验收）：会话是否锚定了任务目标、是否已验收。
-	HasRequirement  bool `json:"hasRequirement"`
-	RequirementDone bool `json:"requirementDone"`
 	// Archived 为 true 表示会话在 <sessions>/archive/ 下（可恢复，不参与列表排序）。
 	Archived bool `json:"archived"`
 	// Interrupted 为 true 表示上次会话因崩溃/进程被杀未正常结束（state 文件
@@ -126,7 +123,6 @@ func (a *App) GaeaHistory() []HistoryMessage {
 }
 
 const pinnedFileName = ".pinned.json"
-const requirementsFileName = ".requirements.json"
 
 func pinnedPath(dir string) string { return filepath.Join(dir, pinnedFileName) }
 
@@ -151,304 +147,6 @@ func savePinned(dir string, m map[string]bool) error {
 	return saveAtomically(dir, ".pinned.*.tmp", pinnedPath(dir), m)
 }
 
-// RequirementItem 是任务目标的验收项：一条可勾选的验收标准（需求→验收清单）。
-type RequirementItem struct {
-	Text string `json:"text"`
-	Done bool   `json:"done"`
-}
-
-// RequirementView 是会话的「任务目标」（Kun 的从需求到验收工作流）：
-// 目标文本 + 可选验收清单 + 验收状态，随会话持久化（归档/恢复不丢失）。
-// Done 与 Items 的关系：存在验收清单时由清单推导（全部勾选即验收），无清单
-// 时沿用显式标记。AutoPursue 开启后，目标在恢复会话时写入 agent goal gate，
-// 回合结束未达标会自动继续工作（治理下自主；默认关闭，避免静默改变行为）。
-type RequirementView struct {
-	Text       string            `json:"text"`
-	Done       bool              `json:"done"`
-	UpdatedAt  int64             `json:"updatedAt"`
-	Items      []RequirementItem `json:"items,omitempty"`
-	AutoPursue bool              `json:"autoPursue,omitempty"`
-}
-
-func requirementsPath(dir string) string { return filepath.Join(dir, requirementsFileName) }
-
-func loadRequirements(dir string) map[string]RequirementView {
-	m := map[string]RequirementView{}
-	b, err := os.ReadFile(requirementsPath(dir))
-	if err != nil {
-		return m
-	}
-	if err := json.Unmarshal(b, &m); err != nil {
-		slog.Warn("需求注册表解析失败（按空处理）", "path", requirementsPath(dir), "error", err)
-	}
-	return m
-}
-
-// requirementEffectiveDone 计算任务目标的验收状态：有验收清单时全部勾选才算
-// 验收；无清单时沿用显式标记。
-func requirementEffectiveDone(r RequirementView) bool {
-	if len(r.Items) > 0 {
-		for _, it := range r.Items {
-			if !it.Done {
-				return false
-			}
-		}
-		return true
-	}
-	return r.Done
-}
-
-// requirementItemAt 按索引取验收项，越界返回可读错误。
-func requirementItemAt(r RequirementView, index int) (RequirementItem, error) {
-	if index < 0 || index >= len(r.Items) {
-		return RequirementItem{}, fmt.Errorf("验收项索引越界: %d（共 %d 项）", index, len(r.Items))
-	}
-	return r.Items[index], nil
-}
-
-func saveRequirements(dir string, m map[string]RequirementView) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	return saveAtomically(dir, ".requirements.*.tmp", requirementsPath(dir), m)
-}
-
-// requirementsRegistryDir 归一化需求注册表所在目录：归档子目录的注册表
-// 也在会话目录（.requirements.json），避免归档后读不到任务目标。
-func requirementsRegistryDir(dir string) string {
-	if filepath.Base(dir) == "archive" {
-		return filepath.Dir(dir)
-	}
-	return dir
-}
-
-// GaeaRequirement 返回会话的任务目标；未设置时返回零值。
-func (a *App) GaeaRequirement(path string) RequirementView {
-	dir := sessionDirForPath(path)
-	if dir == "" {
-		return RequirementView{}
-	}
-	return loadRequirements(requirementsRegistryDir(dir))[filepath.Base(path)]
-}
-
-// GaeaSetRequirement 设置会话任务目标文本（空文本清除）。文本不变时仅刷新
-// 时间戳并保留验收清单与状态；文本变更视为新目标，重置验收清单（无清单时
-// 沿用显式验收标记），自动追踪开关保留。
-func (a *App) GaeaSetRequirement(path, text string) error {
-	dir := sessionDirForPath(path)
-	if dir == "" {
-		return fmt.Errorf("非法会话路径: %s", path)
-	}
-	registryDir := requirementsRegistryDir(dir)
-	m := loadRequirements(registryDir)
-	base := filepath.Base(path)
-	text = strings.TrimSpace(text)
-	prev := m[base]
-	if text == "" {
-		delete(m, base)
-	} else if text == prev.Text {
-		prev.UpdatedAt = time.Now().UnixMilli()
-		m[base] = prev
-	} else {
-		done := prev.Done
-		if len(prev.Items) > 0 {
-			done = false // 新目标：旧验收清单作废
-		}
-		m[base] = RequirementView{
-			Text:       text,
-			Done:       done,
-			UpdatedAt:  time.Now().UnixMilli(),
-			AutoPursue: prev.AutoPursue,
-		}
-	}
-	if err := saveRequirements(registryDir, m); err != nil {
-		return err
-	}
-	a.syncGoalForSession(gaeaCtrl(), path)
-	return nil
-}
-
-// GaeaSetRequirementDone 标记任务验收完成 / 重新打开。存在验收清单时，
-// 一键验收 = 全选/全不选所有验收项（与清单推导保持一致）。
-func (a *App) GaeaSetRequirementDone(path string, done bool) error {
-	dir := sessionDirForPath(path)
-	if dir == "" {
-		return fmt.Errorf("非法会话路径: %s", path)
-	}
-	registryDir := requirementsRegistryDir(dir)
-	m := loadRequirements(registryDir)
-	base := filepath.Base(path)
-	r := m[base]
-	if r.Text == "" {
-		return nil
-	}
-	if len(r.Items) > 0 {
-		for i := range r.Items {
-			r.Items[i].Done = done
-		}
-	}
-	r.Done = done
-	r.UpdatedAt = time.Now().UnixMilli()
-	m[base] = r
-	if err := saveRequirements(registryDir, m); err != nil {
-		return err
-	}
-	a.syncGoalForSession(gaeaCtrl(), path)
-	return nil
-}
-
-// GaeaAddRequirementItem 为任务目标追加一条验收项。
-func (a *App) GaeaAddRequirementItem(path, text string) error {
-	dir := sessionDirForPath(path)
-	if dir == "" {
-		return fmt.Errorf("非法会话路径: %s", path)
-	}
-	registryDir := requirementsRegistryDir(dir)
-	m := loadRequirements(registryDir)
-	base := filepath.Base(path)
-	r := m[base]
-	if r.Text == "" {
-		return fmt.Errorf("会话尚无任务目标，先设置目标再添加验收项")
-	}
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return fmt.Errorf("验收项不能为空")
-	}
-	r.Items = append(r.Items, RequirementItem{Text: text})
-	r.Done = requirementEffectiveDone(r)
-	r.UpdatedAt = time.Now().UnixMilli()
-	m[base] = r
-	if err := saveRequirements(registryDir, m); err != nil {
-		return err
-	}
-	a.syncGoalForSession(gaeaCtrl(), path)
-	return nil
-}
-
-// GaeaSetRequirementItem 修改指定验收项的文本。
-func (a *App) GaeaSetRequirementItem(path string, index int, text string) error {
-	dir := sessionDirForPath(path)
-	if dir == "" {
-		return fmt.Errorf("非法会话路径: %s", path)
-	}
-	registryDir := requirementsRegistryDir(dir)
-	m := loadRequirements(registryDir)
-	base := filepath.Base(path)
-	r := m[base]
-	if _, err := requirementItemAt(r, index); err != nil {
-		return err
-	}
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return fmt.Errorf("验收项不能为空")
-	}
-	r.Items[index].Text = text
-	r.UpdatedAt = time.Now().UnixMilli()
-	m[base] = r
-	if err := saveRequirements(registryDir, m); err != nil {
-		return err
-	}
-	a.syncGoalForSession(gaeaCtrl(), path)
-	return nil
-}
-
-// GaeaRemoveRequirementItem 删除指定验收项；清单清空后验收状态重置为未验收。
-func (a *App) GaeaRemoveRequirementItem(path string, index int) error {
-	dir := sessionDirForPath(path)
-	if dir == "" {
-		return fmt.Errorf("非法会话路径: %s", path)
-	}
-	registryDir := requirementsRegistryDir(dir)
-	m := loadRequirements(registryDir)
-	base := filepath.Base(path)
-	r := m[base]
-	if _, err := requirementItemAt(r, index); err != nil {
-		return err
-	}
-	r.Items = append(r.Items[:index], r.Items[index+1:]...)
-	if len(r.Items) == 0 {
-		r.Done = false
-	} else {
-		r.Done = requirementEffectiveDone(r)
-	}
-	r.UpdatedAt = time.Now().UnixMilli()
-	m[base] = r
-	if err := saveRequirements(registryDir, m); err != nil {
-		return err
-	}
-	a.syncGoalForSession(gaeaCtrl(), path)
-	return nil
-}
-
-// GaeaSetRequirementItemDone 勾选 / 取消勾选指定验收项，验收状态由清单推导。
-func (a *App) GaeaSetRequirementItemDone(path string, index int, done bool) error {
-	dir := sessionDirForPath(path)
-	if dir == "" {
-		return fmt.Errorf("非法会话路径: %s", path)
-	}
-	registryDir := requirementsRegistryDir(dir)
-	m := loadRequirements(registryDir)
-	base := filepath.Base(path)
-	r := m[base]
-	if _, err := requirementItemAt(r, index); err != nil {
-		return err
-	}
-	r.Items[index].Done = done
-	r.Done = requirementEffectiveDone(r)
-	r.UpdatedAt = time.Now().UnixMilli()
-	m[base] = r
-	if err := saveRequirements(registryDir, m); err != nil {
-		return err
-	}
-	a.syncGoalForSession(gaeaCtrl(), path)
-	return nil
-}
-
-// GaeaSetRequirementAutoPursue 开关「持续工作到验收」：开启后任务目标写入
-// agent goal gate，回合结束未达标会自动继续（治理下自主，默认关闭）。
-func (a *App) GaeaSetRequirementAutoPursue(path string, on bool) error {
-	dir := sessionDirForPath(path)
-	if dir == "" {
-		return fmt.Errorf("非法会话路径: %s", path)
-	}
-	registryDir := requirementsRegistryDir(dir)
-	m := loadRequirements(registryDir)
-	base := filepath.Base(path)
-	r := m[base]
-	if r.Text == "" {
-		return fmt.Errorf("会话尚无任务目标")
-	}
-	r.AutoPursue = on
-	r.UpdatedAt = time.Now().UnixMilli()
-	m[base] = r
-	if err := saveRequirements(registryDir, m); err != nil {
-		return err
-	}
-	a.syncGoalForSession(gaeaCtrl(), path)
-	return nil
-}
-
-// syncGoalForSession 把当前会话的任务目标同步进 agent goal gate：仅当目标
-// 存在且启用了 AutoPursue 时写入；存在目标但未开启时清空（目标工作流接管）；
-// 无任务目标时不干预（保留 /goal 等手动设置），避免跨会话残留。
-// ctrl 必须由调用方显式传入：GaeaInit 持 ga.mu 初始化时 resumeLastSession
-// 也会走到这里，若内部再经 gaeaCtrl() 取锁会对同一把非重入互斥锁二次加锁
-// 造成办公板块首次初始化永久死锁（连接中… / 会话与工作空间不可用）。
-func (a *App) syncGoalForSession(ctrl *control.Controller, path string) {
-	if ctrl == nil || ctrl.SessionPath() != path {
-		return
-	}
-	r := a.GaeaRequirement(path)
-	if r.Text == "" {
-		return
-	}
-	if r.AutoPursue {
-		ctrl.SetGoal(r.Text)
-		return
-	}
-	ctrl.SetGoal("")
-}
-
 // listSessionsForDir 构建一个工作区会话目录的 SessionMeta 列表。
 // includeNewFallback 为 true 时，把当前未落盘的会话补为「(新会话)」条目；
 // 仅当前工作区需要该回退，历史项目目录不需要。排序：当前会话 → 置顶 → 最近使用。
@@ -459,7 +157,6 @@ func (a *App) listSessionsForDir(dir string, cur string, includeNewFallback bool
 	}
 	titles := loadSessionTitles(dir)
 	pinned := loadPinned(dir)
-	reqs := loadRequirements(dir)
 	out := make([]SessionMeta, 0, len(infos)+1)
 	curFound := false
 	for _, s := range infos {
@@ -467,7 +164,6 @@ func (a *App) listSessionsForDir(dir string, cur string, includeNewFallback bool
 			curFound = true
 		}
 		base := filepath.Base(s.Path)
-		req := reqs[base]
 		// 中断标记：state 文件残留 running=true 说明上次会话未正常结束。
 		// 状态文件很小，会话数在 50 以内全读没有开销问题。
 		st, _ := session.LoadState(session.StatePath(s.Path))
@@ -479,8 +175,6 @@ func (a *App) listSessionsForDir(dir string, cur string, includeNewFallback bool
 			ModTime:         s.ModTime.UnixMilli(),
 			Current:         s.Path == cur,
 			Pinned:          pinned[base],
-			HasRequirement:  req.Text != "",
-			RequirementDone: req.Done,
 			Interrupted:     st.Running,
 		})
 	}
@@ -507,10 +201,8 @@ func (a *App) archivedSessionsForDir(dir string) []SessionMeta {
 		return []SessionMeta{}
 	}
 	titles := loadSessionTitles(dir)
-	reqs := loadRequirements(dir)
 	out := make([]SessionMeta, 0, len(infos))
 	for _, s := range infos {
-		req := reqs[filepath.Base(s.Path)]
 		st, _ := session.LoadState(session.StatePath(s.Path))
 		out = append(out, SessionMeta{
 			Path:            s.Path,
@@ -519,8 +211,6 @@ func (a *App) archivedSessionsForDir(dir string) []SessionMeta {
 			Turns:           s.Turns,
 			ModTime:         s.ModTime.UnixMilli(),
 			Archived:        true,
-			HasRequirement:  req.Text != "",
-			RequirementDone: req.Done,
 			Interrupted:     st.Running,
 		})
 	}
@@ -754,9 +444,6 @@ func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {	// 引�
 	if err != nil {
 		return nil, err
 	}
-	// 任务目标 → goal gate：启用了「持续工作到验收」的会话，恢复后把目标
-	// 写入 agent 目标循环（回合结束未达标会自动继续），否则清空避免跨会话残留。
-	a.syncGoalForSession(c, path)
 	// 中断恢复：上次进程崩溃/被杀时 state 残留 running=true，向消息末尾
 	// 追加一条 system 摘要让模型先总结进度再继续，并清除标记避免重复提示。
 	// 事件日志模式下该摘要同步写入事件日志（「模型可见必入日志」）。
@@ -836,7 +523,6 @@ func (a *App) resumeLastSession(ctrl *control.Controller) string {
 		slog.Warn("gaea: 自动恢复最近会话失败", "path", infos[0].Path, "error", err)
 		return ""
 	}
-	a.syncGoalForSession(ctrl, infos[0].Path)
 	// 崩溃后重启的自动恢复同样注入中断摘要并清除 state 标记，
 	// 避免「未完成」徽标残留在当前正在对话的会话上。
 	injectInterruption(loaded, infos[0].Path)
@@ -952,7 +638,7 @@ func deleteSessionFile(dir, sessionPath string) error {
 	if factsPath := factbase.PathFor(sessionPath); factsPath != "" {
 		_ = os.Remove(factsPath)
 	}
-	// 注册表（标题 / 任务目标）统一放在会话目录；归档子目录删除时向上取父目录。
+	// 注册表（标题 / 置顶）统一放在会话目录；归档子目录删除时向上取父目录。
 	registryDir := dir
 	if filepath.Base(registryDir) == "archive" {
 		registryDir = filepath.Dir(registryDir)
@@ -961,13 +647,6 @@ func deleteSessionFile(dir, sessionPath string) error {
 	if _, ok := titles[key]; ok {
 		delete(titles, key)
 		if err := saveAtomically(registryDir, ".titles.*.tmp", sessionTitlesPath(registryDir), titles); err != nil {
-			return err
-		}
-	}
-	reqs := loadRequirements(registryDir)
-	if _, ok := reqs[key]; ok {
-		delete(reqs, key)
-		if err := saveRequirements(registryDir, reqs); err != nil {
 			return err
 		}
 	}

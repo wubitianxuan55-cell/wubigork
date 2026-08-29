@@ -209,3 +209,73 @@ func TestSendQueuePreservesInputThroughQueue(t *testing.T) {
 		t.Fatalf("排队消息 input = %q, want second-input（原样保留）", inputs[1])
 	}
 }
+
+// ── 2026-08-28 运行中插话调整（Steer）──────────────────────────────
+
+// TestSteerWithoutExecutorFallsBackToSend 验证 executor 为空（未构建）时
+// Steer 走普通 Send：非运行期立即启动回合，消息不丢。
+func TestSteerWithoutExecutorFallsBackToSend(t *testing.T) {
+	run := &queueRunner{release: make(chan struct{})}
+	close(run.release) // 不阻塞任何回合
+	sink := &recordSink{}
+	c := New(Options{Runner: run, Sink: sink})
+
+	c.Steer(" 插话内容  ")
+	eventuallySend(t, func() bool { _, n := run.snap(); return n == 1 })
+
+	inputs, _ := run.snap()
+	if inputs[0] != "插话内容" {
+		t.Fatalf("Steer 兜底 input = %q, want 插话内容（trim 后）", inputs[0])
+	}
+	// 空输入直接忽略，不启动回合
+	c.Steer("   ")
+	eventuallySend(t, func() bool { _, n := run.snap(); return n == 1 })
+}
+
+// TestSteerEmptyIgnored 验证空输入不触发任何路径（无插话、无 Send）。
+func TestSteerEmptyIgnored(t *testing.T) {
+	run := &queueRunner{release: make(chan struct{})}
+	close(run.release)
+	sink := &recordSink{}
+	c := New(Options{Runner: run, Sink: sink})
+
+	c.Steer("")
+	if _, n := run.snap(); n != 0 {
+		t.Fatalf("空输入不应启动回合，calls = %d", n)
+	}
+	if got := sink.count(event.Notice); got != 0 {
+		t.Fatalf("空输入不应产生事件，notices = %d", got)
+	}
+}
+
+// TestSteerWithExecutorQueuesWhileRunning 验证有 executor 且运行中时，
+// Steer 走 executor.Steer（注入当前回合的 steer 队列），不产生发送队列 notice；
+// 未运行（回合结束后）Steer 兜底走 Send 启动新回合。
+func TestSteerWithExecutorQueuesWhileRunning(t *testing.T) {
+	run := &queueRunner{release: make(chan struct{})}
+	sink := &recordSink{}
+	executor := agent.New(nil, nil, agent.NewSession("you are gaea"), agent.Options{}, event.Discard)
+	c := New(Options{Runner: run, Sink: sink, Executor: executor})
+
+	c.Send("first")
+	eventuallySend(t, func() bool { _, n := run.snap(); return n == 1 })
+
+	// 运行中插话：应注入 executor 的 steer 队列，而不是进发送队列
+	c.Steer("请把报告改成横向排版")
+	if got := sink.notices("发送队列"); got != 0 {
+		t.Fatalf("运行中 Steer 不应走发送队列，notice 数量 = %d", got)
+	}
+	if got := executor.SteerConsumed(); got {
+		t.Fatal("插话后 steer 队列不应立即标记为 consumed（等待采样间隙消费）")
+	}
+
+	close(run.release)
+	eventuallySend(t, func() bool { return !c.Running() })
+	// 回合结束后 Steer 兜底走 Send（executor 仍在但已不 running）：启动新回合
+	c.Steer("回合结束后的补充")
+	eventuallySend(t, func() bool { _, n := run.snap(); return n == 2 })
+	inputs, _ := run.snap()
+	if inputs[1] != "回合结束后的补充" {
+		t.Fatalf("回合结束后 Steer input = %q, want 回合结束后的补充", inputs[1])
+	}
+}

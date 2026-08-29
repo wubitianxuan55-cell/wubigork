@@ -255,227 +255,6 @@ func TestGaeaPinSession(t *testing.T) {
 	}
 }
 
-// TestGaeaRequirement 验证任务目标闭环：设置 → 读取 → 标记验收 → 清除。
-func TestGaeaRequirement(t *testing.T) {
-	restore := workspaceTestIsolate(t)
-	defer restore()
-
-	oldCfg := ga.cfg
-	oldCtrl := ga.ctrl
-	ga.cfg = nil
-	ga.ctrl = nil
-	defer func() { ga.cfg = oldCfg; ga.ctrl = oldCtrl }()
-
-	ws := t.TempDir()
-	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
-	writeProjectSession(t, sessionDir, "s1", "起草年度总结", time.Now().Add(-time.Hour))
-
-	a := &App{}
-	path := a.GaeaListSessions()[0].Path
-
-	if r := a.GaeaRequirement(path); r.Text != "" {
-		t.Fatalf("初始需求 = %+v, want 空", r)
-	}
-	if err := a.GaeaSetRequirement(path, "起草年度总结报告并输出 docx"); err != nil {
-		t.Fatalf("GaeaSetRequirement: %v", err)
-	}
-	r := a.GaeaRequirement(path)
-	if r.Text != "起草年度总结报告并输出 docx" || r.Done {
-		t.Fatalf("设置后需求 = %+v", r)
-	}
-	if s := a.GaeaListSessions()[0]; !s.HasRequirement || s.RequirementDone {
-		t.Errorf("设置需求后会话标记 = %+v, want HasRequirement=true 且未验收", s)
-	}
-	if err := a.GaeaSetRequirementDone(path, true); err != nil {
-		t.Fatalf("GaeaSetRequirementDone: %v", err)
-	}
-	if r := a.GaeaRequirement(path); !r.Done {
-		t.Errorf("标记验收后 Done = false, want true")
-	}
-	if s := a.GaeaListSessions()[0]; !s.RequirementDone {
-		t.Errorf("验收后会话标记 = %+v, want RequirementDone=true", s)
-	}
-	// 空文本清除，但保留 Done 状态的语义（删除注册表项）
-	if err := a.GaeaSetRequirement(path, ""); err != nil {
-		t.Fatalf("清除需求: %v", err)
-	}
-	if r := a.GaeaRequirement(path); r.Text != "" {
-		t.Errorf("清除后需求 = %+v, want 空", r)
-	}
-}
-
-// TestGaeaRequirementAcceptanceItems 验证验收清单闭环：添加 → 勾选推导验收
-// → 一键验收 → 编辑/删除 → 文本变更重置清单 → 自动追踪开关持久化。
-func TestGaeaRequirementAcceptanceItems(t *testing.T) {
-	restore := workspaceTestIsolate(t)
-	defer restore()
-
-	oldCfg := ga.cfg
-	oldCtrl := ga.ctrl
-	ga.cfg = nil
-	ga.ctrl = nil
-	defer func() { ga.cfg = oldCfg; ga.ctrl = oldCtrl }()
-
-	ws := t.TempDir()
-	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
-	writeProjectSession(t, sessionDir, "s1", "年度总结", time.Now().Add(-time.Hour))
-
-	a := &App{}
-	path := a.GaeaListSessions()[0].Path
-	// 无目标时添加验收项应报错
-	if err := a.GaeaAddRequirementItem(path, "任意"); err == nil {
-		t.Fatal("空目标下添加验收项应报错")
-	}
-	if err := a.GaeaSetRequirement(path, "起草年度总结报告并输出 docx"); err != nil {
-		t.Fatalf("GaeaSetRequirement: %v", err)
-	}
-	// 追加验收项
-	for _, it := range []string{"正文覆盖全年数据", "格式符合公司模板", "输出 docx 到交付物目录"} {
-		if err := a.GaeaAddRequirementItem(path, it); err != nil {
-			t.Fatalf("GaeaAddRequirementItem(%q): %v", it, err)
-		}
-	}
-	if err := a.GaeaAddRequirementItem(path, "   "); err == nil {
-		t.Fatal("空白验收项应报错")
-	}
-	r := a.GaeaRequirement(path)
-	if len(r.Items) != 3 || r.Items[1].Text != "格式符合公司模板" {
-		t.Fatalf("添加后清单 = %+v", r.Items)
-	}
-	if r.Done {
-		t.Fatal("存在未勾选项时不应推导为已验收")
-	}
-	if s := a.GaeaListSessions()[0]; !s.HasRequirement || s.RequirementDone {
-		t.Errorf("未全勾选时会话标记 = %+v, want HasRequirement=true 且未验收", s)
-	}
-	// 逐项勾选 → 全勾后推导验收
-	for i := 0; i < 3; i++ {
-		if err := a.GaeaSetRequirementItemDone(path, i, true); err != nil {
-			t.Fatalf("GaeaSetRequirementItemDone(%d): %v", i, err)
-		}
-	}
-	if r := a.GaeaRequirement(path); !r.Done {
-		t.Fatalf("全部勾选后 Done = %+v, want true", r)
-	}
-	if s := a.GaeaListSessions()[0]; !s.RequirementDone {
-		t.Errorf("全勾选后会话标记 = %+v, want RequirementDone=true", s)
-	}
-	// 取消一项 → 推导回未验收
-	if err := a.GaeaSetRequirementItemDone(path, 1, false); err != nil {
-		t.Fatalf("取消勾选: %v", err)
-	}
-	if r := a.GaeaRequirement(path); r.Done {
-		t.Fatal("存在未勾选项时不应推导为已验收")
-	}
-	// 一键验收 = 全选
-	if err := a.GaeaSetRequirementDone(path, true); err != nil {
-		t.Fatalf("一键验收: %v", err)
-	}
-	if r := a.GaeaRequirement(path); !r.Done {
-		t.Fatal("一键验收后应全选并验收")
-	} else {
-		for i, it := range r.Items {
-			if !it.Done {
-				t.Fatalf("一键验收后第 %d 项未勾选: %+v", i, it)
-			}
-		}
-	}
-	// 编辑项文本
-	if err := a.GaeaSetRequirementItem(path, 0, "正文覆盖全年 12 个月数据"); err != nil {
-		t.Fatalf("GaeaSetRequirementItem: %v", err)
-	}
-	if r := a.GaeaRequirement(path); r.Items[0].Text != "正文覆盖全年 12 个月数据" {
-		t.Errorf("编辑后第 0 项 = %q", r.Items[0].Text)
-	}
-	// 越界防护
-	if err := a.GaeaSetRequirementItem(path, 9, "x"); err == nil {
-		t.Fatal("越界编辑应报错")
-	}
-	if err := a.GaeaRemoveRequirementItem(path, 9); err == nil {
-		t.Fatal("越界删除应报错")
-	}
-	// 删除项
-	if err := a.GaeaRemoveRequirementItem(path, 1); err != nil {
-		t.Fatalf("GaeaRemoveRequirementItem: %v", err)
-	}
-	if r := a.GaeaRequirement(path); len(r.Items) != 2 || r.Items[1].Text != "输出 docx 到交付物目录" {
-		t.Fatalf("删除后清单 = %+v", r.Items)
-	}
-	// 自动追踪开关
-	if err := a.GaeaSetRequirementAutoPursue(path, true); err != nil {
-		t.Fatalf("GaeaSetRequirementAutoPursue: %v", err)
-	}
-	if r := a.GaeaRequirement(path); !r.AutoPursue {
-		t.Fatal("自动追踪应已开启")
-	}
-	// 文本变更 = 新目标：验收清单重置、自动追踪保留
-	if err := a.GaeaSetRequirement(path, "起草半年度总结报告并输出 docx"); err != nil {
-		t.Fatalf("变更目标文本: %v", err)
-	}
-	r = a.GaeaRequirement(path)
-	if len(r.Items) != 0 || r.Done || !r.AutoPursue {
-		t.Fatalf("文本变更后 = %+v, want 清单清空、未验收、自动追踪保留", r)
-	}
-	// 文本不变仅刷新时间戳：清单与状态保留
-	if err := a.GaeaAddRequirementItem(path, "核对数据口径"); err != nil {
-		t.Fatalf("再添加验收项: %v", err)
-	}
-	if err := a.GaeaSetRequirement(path, "起草半年度总结报告并输出 docx"); err != nil {
-		t.Fatalf("重复设置同一目标: %v", err)
-	}
-	if r := a.GaeaRequirement(path); len(r.Items) != 1 || r.Items[0].Text != "核对数据口径" {
-		t.Fatalf("同文本重设后清单 = %+v, want 保留", r.Items)
-	}
-}
-
-// TestGaeaRequirementSyncsGoalGate 验证「持续工作到验收」接线：恢复会话时把
-// 任务目标写入 agent goal gate（回合结束未达标会自动继续）；关闭自动追踪后
-// 清空，避免跨会话残留。
-func TestGaeaRequirementSyncsGoalGate(t *testing.T) {
-	restore := workspaceTestIsolate(t)
-	defer restore()
-	oldCfg, oldCtrl := ga.cfg, ga.ctrl
-	defer func() { ga.cfg, ga.ctrl = oldCfg, oldCtrl }()
-
-	ws := t.TempDir()
-	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
-	writeProjectSession(t, sessionDir, "s1", "起草年度总结", time.Now().Add(-time.Hour))
-
-	a := &App{}
-	path := a.GaeaListSessions()[0].Path
-	if err := a.GaeaSetRequirement(path, "起草年度总结报告并输出 docx"); err != nil {
-		t.Fatalf("设置目标: %v", err)
-	}
-	if err := a.GaeaSetRequirementAutoPursue(path, true); err != nil {
-		t.Fatalf("开启自动追踪: %v", err)
-	}
-
-	// 轻量控制器（不走真实引擎 boot）：GaeaResumeSession 只用到
-	// Snapshot/Resume/SeedContextUsage/History + syncGoalForSession。
-	exec := agent.New(nil, nil, agent.NewSession("you are gaea"), agent.Options{}, event.Discard)
-	ctrl := control.New(control.Options{Runner: noopStateRunner{}, Executor: exec, Sink: event.Discard})
-	ga.ctrl = ctrl
-	defer ctrl.Close()
-
-	if _, err := a.GaeaResumeSession(path); err != nil {
-		t.Fatalf("GaeaResumeSession: %v", err)
-	}
-	if g := ctrl.Goal(); g != "起草年度总结报告并输出 docx" {
-		t.Fatalf("恢复后 goal = %q, want 目标文本", g)
-	}
-
-	// 关闭自动追踪 → 同步清空 goal gate
-	if err := a.GaeaSetRequirementAutoPursue(path, false); err != nil {
-		t.Fatalf("关闭自动追踪: %v", err)
-	}
-	if g := ctrl.Goal(); g != "" {
-		t.Fatalf("关闭自动追踪后 goal = %q, want 空", g)
-	}
-}
-
 // TestGaeaNewSessionClearsGoal 验证新会话清空 goal gate：上个会话的
 // 「持续工作到验收」目标不残留到新会话（手动 /goal 同样需要重设）。
 func TestGaeaNewSessionClearsGoal(t *testing.T) {
@@ -501,43 +280,6 @@ func TestGaeaNewSessionClearsGoal(t *testing.T) {
 	}
 	if g := ctrl.Goal(); g != "" {
 		t.Fatalf("新会话后 goal = %q, want 空", g)
-	}
-}
-
-// TestGaeaRequirementSurvivesArchive 验证归档/恢复不丢任务目标。
-func TestGaeaRequirementSurvivesArchive(t *testing.T) {
-	restore := workspaceTestIsolate(t)
-	defer restore()
-
-	oldCfg := ga.cfg
-	oldCtrl := ga.ctrl
-	ga.cfg = nil
-	ga.ctrl = nil
-	defer func() { ga.cfg = oldCfg; ga.ctrl = oldCtrl }()
-
-	ws := t.TempDir()
-	ga.cfg = &gaeaConfig.Config{Workspace: ws}
-	sessionDir := gaeaConfig.WorkspaceSessionDir(ws)
-	writeProjectSession(t, sessionDir, "s1", "整理合同", time.Now().Add(-time.Hour))
-
-	a := &App{}
-	path := a.GaeaListSessions()[0].Path
-	if err := a.GaeaSetRequirement(path, "把合同关键条款整理成表格"); err != nil {
-		t.Fatalf("设置需求: %v", err)
-	}
-	if err := a.GaeaArchiveSession(path); err != nil {
-		t.Fatalf("归档: %v", err)
-	}
-	archivedPath := a.GaeaListProjectSessions()[0].Archived[0].Path
-	if r := a.GaeaRequirement(archivedPath); r.Text != "把合同关键条款整理成表格" {
-		t.Errorf("归档后需求 = %+v, want 保留", r)
-	}
-	restored, err := a.GaeaUnarchiveSession(archivedPath)
-	if err != nil {
-		t.Fatalf("恢复: %v", err)
-	}
-	if r := a.GaeaRequirement(restored); r.Text != "把合同关键条款整理成表格" {
-		t.Errorf("恢复后需求 = %+v, want 保留", r)
 	}
 }
 
@@ -617,8 +359,8 @@ func TestGaeaHistoryToolEvents(t *testing.T) {
 	}
 }
 
-// TestGaeaDeleteSessionClearsRegistries 验证删除会话时，标题、任务目标、置顶
-// 三处注册表都会清理干净，不会出现“删掉文件但留下孤儿条目”的回归。
+// TestGaeaDeleteSessionClearsRegistries 验证删除会话时，标题、置顶两处注册表
+// 都会清理干净，不会出现“删掉文件但留下孤儿条目”的回归。
 func TestGaeaDeleteSessionClearsRegistries(t *testing.T) {
 	restore := workspaceTestIsolate(t)
 	defer restore()
@@ -641,9 +383,6 @@ func TestGaeaDeleteSessionClearsRegistries(t *testing.T) {
 	if err := a.GaeaRenameSession(path, "自定义标题"); err != nil {
 		t.Fatalf("GaeaRenameSession: %v", err)
 	}
-	if err := a.GaeaSetRequirement(path, "年度总结并输出 docx"); err != nil {
-		t.Fatalf("GaeaSetRequirement: %v", err)
-	}
 	if err := a.GaeaPinSession(path, true); err != nil {
 		t.Fatalf("GaeaPinSession: %v", err)
 	}
@@ -656,9 +395,6 @@ func TestGaeaDeleteSessionClearsRegistries(t *testing.T) {
 	}
 	if titles := loadSessionTitles(sessionDir); titles[base] != "" {
 		t.Errorf("标题注册表残留: %q", titles[base])
-	}
-	if reqs := loadRequirements(sessionDir); reqs[base].Text != "" {
-		t.Errorf("任务目标注册表残留: %q", reqs[base].Text)
 	}
 	if pinned := loadPinned(sessionDir); pinned[base] {
 		t.Errorf("置顶注册表残留: %v", base)

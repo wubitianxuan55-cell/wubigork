@@ -1,5 +1,5 @@
-// Composer 拆分产物：主输入行（textarea + 停止 + 发送按钮，行为零变化，T6-10.1）
-import { ArrowUp, Square, Zap } from "../../icons";
+// Composer 拆分产物：主输入行（textarea + 停止 + 排队 + 发送按钮）
+import { ArrowUp, Clock, Square, Zap } from "../../icons";
 import { useT } from "../../lib/i18n";
 
 export interface ComposerInputRowProps {
@@ -22,12 +22,13 @@ export interface ComposerInputRowProps {
   onDragLeave: () => void
   onStop: () => void
   onSubmit: () => void
+  onQueue: () => void
 }
 
 export function ComposerInputRow({
   taRef, text, onTextChange, onPaste, onKeyDown, placeholder, disabled,
   running, composerHeightFixed, dragOver, shiftHeld, queueLen,
-  pendingPaste, attachmentsCount, onDrop, onDragOver, onDragLeave, onStop, onSubmit,
+  pendingPaste, attachmentsCount, onDrop, onDragOver, onDragLeave, onStop, onSubmit, onQueue,
 }: ComposerInputRowProps) {
   const t = useT()
   // 发送按钮 glow 呼吸：就绪待发送时（未运行、有内容）才呼吸；reduced-motion 下静态
@@ -52,11 +53,20 @@ export function ComposerInputRow({
           <Square size={14} fill="currentColor" />
         </button>
       )}
+      {running && text.trim() !== "" && (
+        <button
+          className="inline-flex items-center justify-center w-[30px] h-[30px] border-0 rounded-md cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] bg-transparent text-fg-faint hover:text-fg hover:bg-bg-soft active:scale-95"
+          onClick={onQueue}
+          title="排队发送（当前回合结束后执行，与插话不同：插话立即调整当前任务）"
+        >
+          <Clock size={15} />
+        </button>
+      )}
       <button
         className={`inline-flex items-center justify-center w-[32px] h-[32px] border-0 rounded-full cursor-pointer shrink-0 transition-all duration-[var(--dur-fast)] active:scale-95 ${running ? (shiftHeld ? "bg-warn/20 text-warn hover:bg-warn hover:text-white shadow-[0_0_8px_var(--warn)]" : "bg-bg-elev-2 text-fg-dim hover:bg-accent hover:text-accent-fg hover:scale-105") : `bg-accent text-accent-fg hover:brightness-110 ${breathing ? "v3-send-breathe" : ""}`} disabled:bg-bg-elev-2 disabled:text-fg-faint disabled:cursor-default disabled:hover:scale-100 disabled:active:scale-100 disabled:shadow-none`}
         onClick={onSubmit}
         disabled={disabled || pendingPaste > 0 || (!text.trim() && attachmentsCount === 0 && (!running || queueLen === 0))}
-        title={running ? (shiftHeld ? "纠正发送（Shift+Enter）" : queueLen > 0 ? `排队发送 (${queueLen})` : t("composer.queue")) : t("composer.send")}
+        title={running ? (shiftHeld ? "纠正发送（Shift+Enter）" : queueLen > 0 ? `排队发送 (${queueLen})` : "插话调整（发送到当前任务，不打断执行）") : t("composer.send")}
       >
         {running && shiftHeld ? (
           <Zap size={16} />

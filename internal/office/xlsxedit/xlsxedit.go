@@ -6,6 +6,7 @@ package xlsxedit
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,13 +35,23 @@ type Op struct {
 	Trim    bool        `json:"trim,omitempty"`
 	Upper   bool        `json:"upper,omitempty"`
 	Lower   bool        `json:"lower,omitempty"`
+	Style   *Style      `json:"style,omitempty"`  // set_style 样式载荷
+	Width   float64     `json:"width,omitempty"`  // set_col_width 列宽
 }
 
-const (
-	maxOps          = 20
-	maxCellsPerOp   = 10000
-	sampleRows      = 15
-)
+// Style 是 set_style 的样式载荷：指针/空串字段表示「不改」，叠加到单元格
+// 现有样式上（例如只加粗不会丢掉已有填充色）。
+type Style struct {
+	Bold      *bool    `json:"bold,omitempty"`
+	Italic    *bool    `json:"italic,omitempty"`
+	Underline *bool    `json:"underline,omitempty"`
+	FontSize  *float64 `json:"fontSize,omitempty"`
+	FontColor string   `json:"fontColor,omitempty"` // "RRGGBB"（可带 #）
+	Fill      string   `json:"fill,omitempty"`      // 纯色填充 "RRGGBB"
+	NumFmt    string   `json:"numFmt,omitempty"`    // 自定义数字格式，如 "0.00%"
+	Align     string   `json:"align,omitempty"`     // left | center | right
+	Wrap      *bool    `json:"wrap,omitempty"`
+}
 
 // Context 是发送给 AI 的表格上下文（含表头与抽样数据）。
 type Context struct {
@@ -132,6 +143,188 @@ func ApplyOps(path string, ops []Op) ([]string, error) {
 		return nil, fmt.Errorf("保存 xlsx 失败: %w", err)
 	}
 	return summary, nil
+}
+
+// ── 先规划后应用：临时副本试运行 + 单元格级 diff ──────────────
+
+// Change 是规划 diff 中的一处单元格变更（值或公式与原文件不同）。
+type Change struct {
+	Sheet   string `json:"sheet"`
+	Cell    string `json:"cell"`
+	Before  string `json:"before"`
+	After   string `json:"after"`
+	Formula string `json:"formula,omitempty"` // 变更后为公式时给出（前端显示 fx）
+}
+
+const (
+	maxOps          = 20
+	maxCellsPerOp   = 10000
+	sampleRows      = 15
+	maxPlanChanges  = 200   // 变更清单条数上限（超出仍计数）
+	maxPlanDiffRead = 20000 // diff 单元格读取预算（超出按受影响格计数并截断）
+)
+
+// PlanOps 在原文件的临时副本上试运行操作集：不触碰原文件，返回逐条操作
+// 描述（与真实执行一致）与单元格级变更清单。副本执行失败即规划失败
+// （操作集非法，如工作表不存在），原文件保持原样。
+func PlanOps(path string, ops []Op) (summary []string, changes []Change, total int, truncated bool, err error) {
+	if len(ops) == 0 {
+		return nil, nil, 0, false, fmt.Errorf("没有可执行的操作")
+	}
+	if len(ops) > maxOps {
+		return nil, nil, 0, false, fmt.Errorf("操作数量超限（最多 %d 条）", maxOps)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".gaea-plan-*.xlsx")
+	if err != nil {
+		return nil, nil, 0, false, fmt.Errorf("创建规划副本失败: %w", err)
+	}
+	tmpName := tmp.Name()
+	tmp.Close()
+	defer os.Remove(tmpName)
+	if err := copyFile(path, tmpName); err != nil {
+		return nil, nil, 0, false, fmt.Errorf("复制规划副本失败: %w", err)
+	}
+	summary, aerr := ApplyOps(tmpName, ops)
+	if aerr != nil {
+		return nil, nil, 0, false, aerr
+	}
+	changes, total, truncated, derr := diffOps(path, tmpName, ops)
+	if derr != nil {
+		return nil, nil, 0, false, derr
+	}
+	return summary, changes, total, truncated, nil
+}
+
+// diffOps 对比原文件与试运行副本，产出操作集影响范围内的单元格级变更清单。
+func diffOps(origPath, tmpPath string, ops []Op) ([]Change, int, bool, error) {
+	orig, err := excelize.OpenFile(origPath, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("打开原文件失败: %w", err)
+	}
+	defer orig.Close()
+	tmp, err := excelize.OpenFile(tmpPath, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("打开副本失败: %w", err)
+	}
+	defer tmp.Close()
+
+	sheetList := tmp.GetSheetList()
+	first := ""
+	if len(sheetList) > 0 {
+		first = sheetList[0]
+	}
+	var changes []Change
+	total := 0
+	truncated := false
+	reads := 0
+	for _, op := range ops {
+		sheet := op.Sheet
+		if sheet == "" {
+			sheet = first
+		}
+		for _, cell := range opCells(tmp, sheet, op) {
+			if len(changes) >= maxPlanChanges || reads >= maxPlanDiffRead {
+				// 超出清单/读取预算：停止读取，total 停留在已确认的变更数（下界）
+				truncated = true
+				continue
+			}
+			reads++
+			before, _ := orig.GetCellValue(sheet, cell)
+			after, _ := tmp.GetCellValue(sheet, cell)
+			origFormula, _ := orig.GetCellFormula(sheet, cell)
+			formula, _ := tmp.GetCellFormula(sheet, cell)
+			if before == after && formula == origFormula {
+				continue
+			}
+			total++
+			changes = append(changes, Change{
+				Sheet: sheet, Cell: cell, Before: before, After: after, Formula: formula,
+			})
+		}
+	}
+	return changes, total, truncated, nil
+}
+
+// opCells 列出操作影响「存储值/公式」的单元格（与 applyOne 的写入范围一致；
+// 纯样式/列宽不影响值，返回 nil —— diff 只呈现值与公式变更，样式由预览呈现）。
+func opCells(f *excelize.File, sheet string, op Op) []string {
+	switch op.Type {
+	case "set_formula", "set_value":
+		if op.Target == "" {
+			return nil
+		}
+		return []string{op.Target}
+	case "fill_range", "transform", "replace", "clean":
+		if op.Range == "" {
+			return nil
+		}
+		coords, err := parseRange(op.Range)
+		if err != nil {
+			return nil
+		}
+		var cells []string
+		for r := coords[0]; r <= coords[2]; r++ {
+			for c := coords[1]; c <= coords[3]; c++ {
+				axis, _ := excelize.CoordinatesToCellName(c, r)
+				cells = append(cells, axis)
+			}
+		}
+		return cells
+	case "split_column":
+		if len(op.NewCols) == 0 {
+			return nil
+		}
+		rows, err := f.GetRows(sheet)
+		if err != nil {
+			return nil
+		}
+		last := len(rows)
+		if last < 1 {
+			last = 1
+		}
+		var cells []string
+		for _, col := range op.NewCols {
+			for r := 1; r <= last; r++ {
+				cells = append(cells, col+strconv.Itoa(r))
+			}
+		}
+		return cells
+	case "merge_cells", "unmerge_cells":
+		// 合并会清掉被覆盖格的存储值，纳入 diff 检查
+		if op.Range == "" {
+			return nil
+		}
+		coords, err := parseRange(op.Range)
+		if err != nil {
+			return nil
+		}
+		var cells []string
+		for r := coords[0]; r <= coords[2]; r++ {
+			for c := coords[1]; c <= coords[3]; c++ {
+				axis, _ := excelize.CoordinatesToCellName(c, r)
+				cells = append(cells, axis)
+			}
+		}
+		return cells
+	}
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
 }
 
 func applyOne(f *excelize.File, op Op) (string, error) {
@@ -295,9 +488,179 @@ func applyOne(f *excelize.File, op Op) (string, error) {
 		}
 		return fmt.Sprintf("清洗 %s（%d 格）", op.Range, count), nil
 
+	case "set_style":
+		if op.Style == nil {
+			return "", fmt.Errorf("style 缺失")
+		}
+		var cells []string
+		if op.Target != "" {
+			cells = []string{op.Target}
+		} else if op.Range != "" {
+			coords, err := parseRange(op.Range)
+			if err != nil {
+				return "", err
+			}
+			for r := coords[0]; r <= coords[2]; r++ {
+				for c := coords[1]; c <= coords[3]; c++ {
+					axis, _ := excelize.CoordinatesToCellName(c, r)
+					cells = append(cells, axis)
+				}
+			}
+			if len(cells) > maxCellsPerOp {
+				return "", fmt.Errorf("样式区域过大（超过 %d 格）", maxCellsPerOp)
+			}
+		} else {
+			return "", fmt.Errorf("target/range 缺失")
+		}
+		// 旧样式ID → 叠加后样式ID 的缓存：区域里相同起点的样式只新建一次
+		styleCache := map[int]int{}
+		for _, axis := range cells {
+			oldID, err := f.GetCellStyle(op.Sheet, axis)
+			if err != nil {
+				oldID = 0
+			}
+			nid, ok := styleCache[oldID]
+			if !ok {
+				nid, err = mergeStyle(f, oldID, op.Style)
+				if err != nil {
+					return "", err
+				}
+				styleCache[oldID] = nid
+			}
+			if err := f.SetCellStyle(op.Sheet, axis, axis, nid); err != nil {
+				return "", err
+			}
+		}
+		scope := op.Range
+		if op.Target != "" {
+			scope = op.Target
+		}
+		return fmt.Sprintf("设置样式 %s（%d 格）", scope, len(cells)), nil
+
+	case "merge_cells":
+		if op.Range == "" {
+			return "", fmt.Errorf("range 缺失")
+		}
+		coords, err := parseRange(op.Range)
+		if err != nil {
+			return "", err
+		}
+		tl, _ := excelize.CoordinatesToCellName(coords[1], coords[0])
+		br, _ := excelize.CoordinatesToCellName(coords[3], coords[2])
+		if err := f.MergeCell(op.Sheet, tl, br); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("合并 %s", op.Range), nil
+
+	case "unmerge_cells":
+		if op.Range == "" {
+			return "", fmt.Errorf("range 缺失")
+		}
+		coords, err := parseRange(op.Range)
+		if err != nil {
+			return "", err
+		}
+		tl, _ := excelize.CoordinatesToCellName(coords[1], coords[0])
+		br, _ := excelize.CoordinatesToCellName(coords[3], coords[2])
+		if err := f.UnmergeCell(op.Sheet, tl, br); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("取消合并 %s", op.Range), nil
+
+	case "set_col_width":
+		if op.Col == "" || op.Width <= 0 {
+			return "", fmt.Errorf("col/width 缺失或非法")
+		}
+		if err := f.SetColWidth(op.Sheet, op.Col, op.Col, op.Width); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("列宽 %s = %.1f", op.Col, op.Width), nil
+
 	default:
 		return "", fmt.Errorf("不支持的操作类型 %q", op.Type)
 	}
+}
+
+// mergeStyle 把请求的样式字段叠加到现有样式上（未给定的字段保留原值），
+// 生成新样式 ID。existingID 为 0 表示无现有样式。
+func mergeStyle(f *excelize.File, existingID int, s *Style) (int, error) {
+	st := &excelize.Style{}
+	if existingID > 0 {
+		if old, err := f.GetStyle(existingID); err == nil && old != nil {
+			cp := *old // 只覆盖标量/替换整块字段，Border 等原样保留
+			st = &cp
+		}
+	}
+	needFont := s.Bold != nil || s.Italic != nil || s.Underline != nil || s.FontSize != nil || s.FontColor != ""
+	if needFont {
+		font := st.Font
+		if font == nil {
+			font = &excelize.Font{}
+		}
+		if s.Bold != nil {
+			font.Bold = *s.Bold
+		}
+		if s.Italic != nil {
+			font.Italic = *s.Italic
+		}
+		if s.Underline != nil {
+			if *s.Underline {
+				font.Underline = "single"
+			} else {
+				font.Underline = ""
+			}
+		}
+		if s.FontSize != nil {
+			font.Size = *s.FontSize
+		}
+		if s.FontColor != "" {
+			c, err := normalizeHex(s.FontColor)
+			if err != nil {
+				return 0, fmt.Errorf("fontColor 无效: %w", err)
+			}
+			font.Color = c
+		}
+		st.Font = font
+	}
+	if s.Fill != "" {
+		c, err := normalizeHex(s.Fill)
+		if err != nil {
+			return 0, fmt.Errorf("fill 无效: %w", err)
+		}
+		st.Fill = excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{c}}
+	}
+	if s.NumFmt != "" {
+		nf := s.NumFmt
+		st.CustomNumFmt = &nf
+	}
+	if s.Align != "" || s.Wrap != nil {
+		al := st.Alignment
+		if al == nil {
+			al = &excelize.Alignment{}
+		}
+		if s.Align != "" {
+			al.Horizontal = s.Align
+		}
+		if s.Wrap != nil {
+			al.WrapText = *s.Wrap
+		}
+		st.Alignment = al
+	}
+	return f.NewStyle(st)
+}
+
+// normalizeHex 归一颜色："#rrggbb" / "RRGGBB" → "RRGGBB"（也接受 8 位 ARGB）。
+func normalizeHex(c string) (string, error) {
+	c = strings.ToUpper(strings.TrimPrefix(strings.TrimSpace(c), "#"))
+	if len(c) != 6 && len(c) != 8 {
+		return "", fmt.Errorf("应为 RRGGBB，得到 %q", c)
+	}
+	for _, ch := range c {
+		if !(ch >= '0' && ch <= '9' || ch >= 'A' && ch <= 'F') {
+			return "", fmt.Errorf("非十六进制字符 %q", ch)
+		}
+	}
+	return c, nil
 }
 
 // parseRange 解析 "A1:B10" 为 (r1,c1,r2,c2)。

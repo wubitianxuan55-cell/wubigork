@@ -1,5 +1,36 @@
 # gaea · 多功能 AI 助手
 
+## v3.6.0「办公文件编辑审阅制 · 本地优先 · 对话面减负」(2026-08-29)
+> xlsx AI 编辑改两段式审阅（规划不落盘 → 批准才应用）+ 原生图表嵌入工作簿 +
+> PDF 统一出口 + 办公功能级 AI 本地优先 + 运行中插话；回退方案模式 v1、
+> 撤下任务目标/验收清单，用户消息 Codex 式收敛。
+- **xlsx AI 编辑审阅制（Plan → Apply 两段式）**：`GaeaXlsxPlanEdit`（AI 操作集在
+  原文件临时副本试运行 + 逐单元格 diff 变更清单，不落盘）→ 用户批准 →
+  `GaeaXlsxApplyEdit`（excelize 执行 + LibreOffice 重算）；新增 `set_style`（叠加
+  样式不丢现有填充色）/`merge_cells`/`unmerge_cells`/`set_col_width`；XlsxPreview
+  规划审阅卡（对标 Copilot Plan/Show Changes 范式）。
+- **xlsx 原生图表**：excelize 原生图表对象嵌入工作簿（Excel/WPS 打开即可见、可继续
+  编辑，非图片截图），返回锚点 + 数据供前端迷你预览。
+- **PDF 统一出口**：`GaeaConvertToPdf`（LibreOffice 无头转换 + 独立 UserInstallation
+  profile 防锁冲突；md/markdown 经 docx 中转），顶栏「导出 PDF」同管线；缩略图/预览
+  支持 pdf/docx 文本提取。
+- **办公本地优先路由**：`routeOfficeLocal`——办公功能级 AI 调用（Word/Excel 编辑、
+  资料摘要、知识导入、记忆整理）默认走本地 Herdsman（数据不出本机、省 token），
+  不可用回退常规路由；聊天主 agent 不受影响；`GetOfficeLocal/SetOfficeLocal` +
+  安全设置面板开关（默认开）。
+- **运行中插话（GaeaSteer）**：运行中消息作为当前回合 guidance 注入（不开新回合、
+  不打断工具执行），未运行走 GaeaSend 排队兜底；`event.Steer` → notice 回显。
+- **对话面减负**：回退 C1 方案模式 v1（mode/shouldPlan/planGate、Ask.Plan 计划卡、
+  composer 模式切换器、GaeaAgentMode/GaeaSetAgentMode、AutoPlan 配置与评分字段）；
+  撤下任务目标/验收清单（GoalCard + GaeaRequirement 系 8 绑定）；用户消息 Codex 式
+  无气泡 + Kimi Work 式超长消息折叠（240 字符 3 行截断）。
+- **修复**：whisper 关机排水丢任务（pending WaitGroup 等到排队任务执行完）；
+  trajectory/contextview 空切片 null 崩溃（绑定层 Empty* 非 nil 保证 + 前端归一化）；
+  TrajectoryView 测试负载 flaky 加固（显式 5s 超时）。
+- **验证**：Go 全量 **114/114 包** + vet；vitest **669/669（127 文件）**；eslint 0/0；
+  tsc 0；绑定面 **499 方法**漂移 PASS；版本四处统一 3.6.0；wails build + 冒烟 200。
+  详见 releases/v3.6.0.md。
+
 ## v3.5.0「办公对话区标签页 · dsh-context Go 移植」(2026-08-28)
 > 对话窗口上方新增 [对话 | 轨迹 | 上下文] 三标签：上下文 = 逐请求上下文构成看板，
 > 轨迹 = 对齐 DSH ui-trajectory 的扁平事件账本，Agent 网络 = 主 agent + 子代理树。

@@ -175,20 +175,3 @@ func TestLoadPinned_CorruptFileLogs(t *testing.T) {
 		t.Fatalf("未记录置顶注册表解析失败日志, got %v", logMsgs(records))
 	}
 }
-
-// TestLoadRequirements_CorruptFileLogs 需求注册表损坏时按空处理并记录日志。
-func TestLoadRequirements_CorruptFileLogs(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".requirements.json"), []byte("{corrupt json"), 0o644); err != nil {
-		t.Fatalf("写坏需求文件: %v", err)
-	}
-	records := captureLogs(t, func() {
-		m := loadRequirements(dir)
-		if len(m) != 0 {
-			t.Errorf("坏 JSON 应按空处理, got %v", m)
-		}
-	})
-	if !logContainsMsg(records, "需求注册表解析失败") {
-		t.Fatalf("未记录需求注册表解析失败日志, got %v", logMsgs(records))
-	}
-}

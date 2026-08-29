@@ -95,7 +95,7 @@ describe("mock 场景 · 审批卡（?mock=approval）", () => {
 describe("mock 场景 · 提问卡（?mock=ask）", () => {
   beforeEach(() => { mockListeners.clear(); });
 
-  it("Submit 发射带开工计划的 ask_request；AnswerQuestion 后收尾", async () => {
+  it("Submit 发射 ask_request；AnswerQuestion 后收尾", async () => {
     await withScenario("ask", async () => {
       const app = makeMockApp();
       const kinds: string[] = [];
@@ -110,11 +110,9 @@ describe("mock 场景 · 提问卡（?mock=ask）", () => {
       mockListeners.add(listener);
       await app.Submit("生成季度成本测算");
       expect(kinds).toContain("ask_request");
-      expect(askPayload?.plan).toBeTruthy();
-      expect(askPayload?.plan?.steps.length).toBeGreaterThan(0);
-      expect(askPayload?.questions[0]?.id).toBe("plan");
+      expect(askPayload?.questions[0]?.id).toBe("q1");
       expect(kinds).not.toContain("turn_done");
-      await app.AnswerQuestion("ask-1", [{ questionId: "plan", selected: ["按计划开工"] }]);
+      await app.AnswerQuestion("ask-1", [{ questionId: "q1", selected: ["Word 文档"] }]);
       await done;
       expect(kinds[kinds.length - 1]).toBe("turn_done");
     });

@@ -72,6 +72,10 @@ const (
 	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman，
 	// 可配置回云端。默认开启。
 	KeySensitiveLocal = "sensitive_local"
+	// 办公本地优先（2026-08-28）：办公板块功能级 AI 调用（文档/表格编辑、
+	// 资料摘要、知识导入、记忆整理）默认路由本地 Herdsman，数据不出本机、
+	// 省 token；Herdsman 停用/不可用时回退常规路由。默认开启。
+	KeyOfficeLocal = "office_local"
 	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
 	KeyKeepWarm          = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
 	KeyAutoPreload       = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
@@ -156,6 +160,8 @@ type configFile struct {
 	FuncRoutineEnabled *bool  `json:"func_routine_enabled,omitempty"`
 	// 敏感域本地化开关（nil=默认开启，true=成本/报价 AI 走本地 Herdsman）
 	SensitiveLocal *bool `json:"sensitive_local,omitempty"`
+	// 办公本地优先开关（nil=默认开启，true=办公功能级 AI 调用走本地 Herdsman）
+	OfficeLocal *bool `json:"office_local,omitempty"`
 	// 本地模型调度开关（T5-3a/b，nil=默认开启）
 	KeepWarmEnabled *bool `json:"keep_warm_enabled,omitempty"` // 保活探针
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
@@ -271,6 +277,7 @@ type Config struct {
 	// 敏感域本地化（S2-4/D8）：成本/报价类 AI 操作默认路由本地 Herdsman。
 	// true=本地优先（默认）；false=按常规路由（可回云端）。
 	SensitiveLocal bool
+	OfficeLocal    bool
 
 	// 本地模型调度（T5-3a/b，默认开启）：
 	//   KeepWarmEnabled：保活——周期性对已运行的本地模型发轻量探针，防止被
@@ -397,6 +404,20 @@ func (c *Config) SetSensitiveLocal(enabled bool) {
 	c.SensitiveLocal = enabled
 }
 
+// GetOfficeLocal 读取办公本地优先开关（未显式配置时默认开启）。
+func (c *Config) GetOfficeLocal() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.OfficeLocal
+}
+
+// SetOfficeLocal 写入办公本地优先开关（true=办公功能级 AI 调用走本地 Herdsman）。
+func (c *Config) SetOfficeLocal(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.OfficeLocal = enabled
+}
+
 // GetKeepWarm 读取本地模型保活开关（T5-3a，未显式配置时默认开启）。
 func (c *Config) GetKeepWarm() bool {
 	funcMu.RLock()
@@ -460,6 +481,8 @@ func Load() *Config {
 		FuncRoutineEnabled: true, // 常规办公默认启用：routine_llm 工具按绑定目标执行
 		// S2-4/D8：敏感域（成本/报价）AI 默认本地优先。
 		SensitiveLocal: true,
+		// 2026-08-28：办公板块功能级 AI 调用默认本地优先（数据不出本机 + 省 token）。
+		OfficeLocal: true,
 		// T5-3a/b：本地模型保活 + 启动自动预载默认开启。
 		KeepWarmEnabled: true,
 		AutoPreload:     true,
@@ -742,6 +765,9 @@ func Load() *Config {
 			}
 			if cf.SensitiveLocal != nil {
 				cfg.SensitiveLocal = *cf.SensitiveLocal
+			}
+			if cf.OfficeLocal != nil {
+				cfg.OfficeLocal = *cf.OfficeLocal
 			}
 			if cf.KeepWarmEnabled != nil {
 				cfg.KeepWarmEnabled = *cf.KeepWarmEnabled
@@ -1090,6 +1116,14 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.SensitiveLocal = b
+		return nil
+	},
+	KeyOfficeLocal: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.OfficeLocal = b
 		return nil
 	},
 	KeyKeepWarm: func(cf *configFile, v string) error {

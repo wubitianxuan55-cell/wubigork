@@ -21,7 +21,21 @@ func FoldTrajectory(entries []session.LogEntry) Trajectory {
 	if f.cur != nil {
 		f.turns = append(f.turns, *f.cur)
 	}
-	return Trajectory{Ok: true, Turns: f.turns, BetweenTurns: f.between}
+	out := Trajectory{Ok: true, Turns: f.turns, BetweenTurns: f.between}
+	// Go 的 nil 切片会序列化成 JSON null，前端按数组消费（.length / flatMap）
+	// 会整页崩——空会话 Turns 恰好是 nil。统一兜底为空切片。
+	if out.Turns == nil {
+		out.Turns = []Turn{}
+	}
+	for i := range out.Turns {
+		if out.Turns[i].Records == nil {
+			out.Turns[i].Records = []Record{}
+		}
+	}
+	if out.BetweenTurns == nil {
+		out.BetweenTurns = []Record{}
+	}
+	return out
 }
 
 type folding struct {

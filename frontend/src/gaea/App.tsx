@@ -14,7 +14,6 @@ import { Transcript } from "./components/Transcript";
 import { JumpBar } from "./components/JumpBar";
 import { useToast } from "./components/Toast";
 import { Composer } from "./components/Composer";
-import { GoalCard } from "./components/GoalCard";
 import { TodoCard } from "./components/TodoCard";
 import { ApprovalModal } from "./components/ApprovalModal";
 import { AskCard } from "./components/AskCard";
@@ -47,7 +46,7 @@ import { SelectionToComposer } from "./components/SelectionToComposer";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
 
 import { downloadMarkdown, exportAsMarkdown } from "./lib/export";
-import type { MemorySuggestion, MemorySuggestionsView, Requirement, SessionMeta, SkillSuggestion } from "./lib/types";
+import type { MemorySuggestion, MemorySuggestionsView, SessionMeta, SkillSuggestion } from "./lib/types";
 import { useTodoExtractor } from "./hooks/useTodoExtractor";
 import { useModeManager } from "./hooks/useModeManager";
 import { useSessionManager } from "./hooks/useSessionManager";
@@ -64,10 +63,10 @@ import {
   loadPreviewWidth, savePreviewWidth,
 } from "./lib/layoutPreferences";
 import CompactContext from "./hooks/useCompact";
-import { deliverableMentions } from "./lib/fileLinks";
+import { DELIVERABLE_EXT_RE, deliverableMentions } from "./lib/fileLinks";
 import { recordRecentFile } from "./lib/recentFiles";
 import { useUpdatedFilesStore } from "./lib/store";
-import { buildSessionChanges, type SessionChange } from "./lib/changes";
+import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "./lib/changes";
 import { classifyComposerCommand } from "./lib/command";
 import { WORKSPACE_TABS, loadPersistedRightTab, savePersistedRightTab, groupOfTab, type WorkspaceTabId } from "./lib/workspaceTabs";
 import { loadTemplates, FALLBACK_TEMPLATES } from "./components/Welcome";
@@ -87,6 +86,7 @@ export default function App() {
   const {
     state,
     send,
+    steer,
     cancel,
     approve,
     answerQuestion,
@@ -98,14 +98,6 @@ export default function App() {
     archiveSession,
     unarchiveSession,
     pinSession,
-    fetchRequirement,
-    setRequirement,
-    setRequirementDone,
-    addRequirementItem,
-    setRequirementItem,
-    removeRequirementItem,
-    setRequirementItemDone,
-    setRequirementAutoPursue,
     deleteSession,
     renameSession,
     refreshMeta,
@@ -124,7 +116,7 @@ export default function App() {
     fetchSessionStats,
   } = useController();
   const t = useT();
-  const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel, sessionMode, setSessionMode } = useModeManager(ctrlSetPermLevel, setModel);
+  const { permLevel, setPermLevel, thinkLevel, handleThinkLevelChange, switchingModel, switchModel } = useModeManager(ctrlSetPermLevel, setModel);
   const { memView, setMemView, histView, setHistView, capsOpen, setCapsOpen, knowledgeOpen, setKnowledgeOpen, closeTopmost } = useDrawers();
   const { sidebarSessions, sidebarQuery, setSidebarQuery, newSessionDone, refreshSessions, startNewSession, handleResumeSession, handleDeleteSession, handleRenameSession, projectGroups } = useSessionManager(newSession, listSessions, listProjectSessions, resumeSession, deleteSession, renameSession, (msg) => toast.show(msg, "warn"));
   const newSessionAndReset = useCallback(async () => { setStatsReset(n => n + 1); await startNewSession(); }, [startNewSession]);
@@ -278,8 +270,9 @@ export default function App() {
     window.addEventListener("pointercancel", onDone);
   }, [previewWidth, effectiveSidebarWidth]);
 
-  // 统一交付出口：会话成果一键导出 Word（docx/pptx/xlsx 同管线）。
-  const exportConversation = useCallback(async (format: "docx" | "pptx" | "xlsx" | "md") => {
+  // 统一交付出口：会话成果一键导出（docx/pptx/xlsx/md/pdf 同管线；
+  // pdf 经 docx 中转 + LibreOffice 转换）。
+  const exportConversation = useCallback(async (format: "docx" | "pptx" | "xlsx" | "md" | "pdf") => {
     const md = exportAsMarkdown(state.items);
     if (!md.trim()) return;
     try {
@@ -532,24 +525,36 @@ export default function App() {
   }, [state.running, closeTopmost, workspacePanelOpen, previewFile, toggleFocus, closeFilePreview, newSessionAndReset, openHistory, openKnowledge, toggleSidebar, toggleWorkspacePanel]);
 
   const { toolCounts, skillCounts } = useToolStats(state.items);
-  // 会话产物：从会话消息文本中提取交付文件（保留首现顺序；同一文件多次
-  // 出现计入 versions 次数——产物版本时间线数据源，对标 Hermes 版本步进器）。
+  // 会话产物：从会话消息文本中提取交付文件 + 写类工具落盘的显式登记
+  // （保留首现顺序；同一文件多次出现计入 versions 次数——产物版本时间线
+  // 数据源，对标 Hermes 版本步进器）。显式登记修复：Agent 未在正文提及
+  // 路径时成果面板漏登记的启发式缺陷。
   const sessionDeliverables = useMemo<SessionDeliverable[]>(() => {
     const order = new Map<string, { sourceId: string; turn: number; versions: number }>();
     let turn = -1;
+    const register = (p: string, sourceId: string) => {
+      const rec = order.get(p);
+      if (rec) {
+        rec.versions++;
+      } else {
+        order.set(p, { sourceId, turn: Math.max(0, turn), versions: 1 });
+      }
+    };
     for (const it of state.items) {
       if (it.kind === "user") {
         turn++;
         continue;
       }
+      // 写类工具落盘 = 显式登记：工具参数里的路径是真实写入，不依赖正文提及
+      if (it.kind === "tool" && WRITE_TOOL_NAMES.has(it.name)) {
+        for (const p of extractDeliverablePaths(it.args || "")) {
+          if (DELIVERABLE_EXT_RE.test(p)) register(p, it.id);
+        }
+        continue;
+      }
       if (it.kind !== "assistant" || !it.text) continue;
       for (const p of deliverableMentions(it.text)) {
-        const rec = order.get(p);
-        if (rec) {
-          rec.versions++;
-        } else {
-          order.set(p, { sourceId: it.id, turn: Math.max(0, turn), versions: 1 });
-        }
+        register(p, it.id);
       }
     }
     const out: SessionDeliverable[] = [];
@@ -574,79 +579,6 @@ export default function App() {
     if (!currentSessionPath) return;
     void fetchSessionStats(currentSessionPath);
   }, [currentSessionPath, fetchSessionStats]);
-
-  // ── 任务目标（Kun「从需求到验收」）：会话首条消息自动成为目标，随会话持久化 ──
-  const [requirement, setRequirementState] = useState<Requirement | null>(null);
-  const capturedReqPathRef = useRef<string | null>(null);
-
-  const refreshRequirement = useCallback(async () => {
-    const p = currentSessionPath;
-    if (!p) { setRequirementState(null); return; }
-    const r = await fetchRequirement(p);
-    if (r?.text) {
-      capturedReqPathRef.current = p;
-      setRequirementState(r);
-    } else if (capturedReqPathRef.current !== p) {
-      setRequirementState(null);
-    }
-  }, [currentSessionPath, fetchRequirement]);
-
-  useEffect(() => { void refreshRequirement(); }, [refreshRequirement]);
-
-  // 首条用户消息自动捕获为任务目标（每个会话只捕获一次）
-  const firstUserItem = state.items.find((it) => it.kind === "user");
-  useEffect(() => {
-    if (!currentSessionPath || !firstUserItem) return;
-    if (capturedReqPathRef.current === currentSessionPath) return;
-    capturedReqPathRef.current = currentSessionPath;
-    void setRequirement(currentSessionPath, firstUserItem.text).then(() => refreshRequirement());
-  }, [currentSessionPath, firstUserItem, setRequirement, refreshRequirement]);
-
-  const toggleRequirementDone = useCallback(async () => {
-    if (!currentSessionPath || !requirement) return;
-    await setRequirementDone(currentSessionPath, !requirement.done);
-    await refreshRequirement();
-  }, [currentSessionPath, requirement, setRequirementDone, refreshRequirement]);
-
-  const mutateRequirement = useCallback(
-    async (fn: (path: string) => Promise<unknown>) => {
-      if (!currentSessionPath) return;
-      try {
-        await fn(currentSessionPath);
-      } finally {
-        await refreshRequirement();
-      }
-    },
-    [currentSessionPath, refreshRequirement],
-  );
-
-  const handleAddRequirementItem = useCallback(
-    (text: string) => {
-      void mutateRequirement((p) => addRequirementItem(p, text));
-    },
-    [mutateRequirement, addRequirementItem],
-  );
-  const handleSetRequirementItem = useCallback(
-    (index: number, text: string) => {
-      void mutateRequirement((p) => setRequirementItem(p, index, text));
-    },
-    [mutateRequirement, setRequirementItem],
-  );
-  const handleRemoveRequirementItem = useCallback(
-    (index: number) => {
-      void mutateRequirement((p) => removeRequirementItem(p, index));
-    },
-    [mutateRequirement, removeRequirementItem],
-  );
-  const handleSetRequirementItemDone = useCallback(
-    (index: number, done: boolean) => {
-      void mutateRequirement((p) => setRequirementItemDone(p, index, done));
-    },
-    [mutateRequirement, setRequirementItemDone],
-  );
-  const handleToggleRequirementAutoPursue = useCallback(() => {
-    void mutateRequirement((p) => setRequirementAutoPursue(p, !requirement?.autoPursue));
-  }, [mutateRequirement, setRequirementAutoPursue, requirement?.autoPursue]);
 
   const statsPersistence = useStatsPersistence(currentSessionKey, statsReset, state.turnSteps, state.perTurnUsage);
 
@@ -793,6 +725,7 @@ export default function App() {
               </ToolbarButton>
               <ToolbarButton onClick={() => downloadMarkdown(exportAsMarkdown(state.items))} disabled={state.items.length===0} title={t("topbar.exportMarkdown")}>{t("topbar.export")}</ToolbarButton>
               <ToolbarButton onClick={() => void exportConversation("docx")} disabled={state.items.length===0} title={t("topbar.exportWord")}>{t("topbar.exportWordShort")}</ToolbarButton>
+              <ToolbarButton onClick={() => void exportConversation("pdf")} disabled={state.items.length===0} title={t("topbar.exportPdf")}>{t("topbar.exportPdfShort")}</ToolbarButton>
               {deleteConfirm ? (
                 <span className="flex items-center gap-1 rounded-md border border-err/30 bg-del-bg px-1.5 py-1">
                   <span className="text-[11px] text-err whitespace-nowrap">{t("topbar.deleteSessionAsk")}</span>
@@ -847,17 +780,6 @@ export default function App() {
 
           <footer className={`shrink-0 border-t border-border-soft bg-bg px-8 ${compactMode ? "pt-2 pb-0.5" : "pt-3 pb-1"}`}>
             <CompactContext.Provider value={compactMode}>
-            {requirement?.text && (
-              <GoalCard
-                requirement={requirement}
-                onToggleRequirementDone={toggleRequirementDone}
-                onAddRequirementItem={handleAddRequirementItem}
-                onSetRequirementItem={handleSetRequirementItem}
-                onSetRequirementItemDone={handleSetRequirementItemDone}
-                onRemoveRequirementItem={handleRemoveRequirementItem}
-                onToggleRequirementAutoPursue={handleToggleRequirementAutoPursue}
-              />
-            )}
             {showTodos && (
               <TodoCard
                 todos={todos}
@@ -875,11 +797,10 @@ export default function App() {
               running={state.running}
               cwd={state.meta?.cwd}
               onSend={handleSend}
+              onSteer={steer}
               onCancel={cancel}
               permLevel={permLevel}
               onSetPermLevel={setPermLevel}
-              sessionMode={sessionMode}
-              onSetSessionMode={setSessionMode}
               thinkLevel={thinkLevel}
               onSetThinkLevel={handleThinkLevelChange}
               onPickFolder={switchFolder}

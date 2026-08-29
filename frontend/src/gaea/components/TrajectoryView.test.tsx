@@ -44,6 +44,10 @@ const TRAJECTORY: Trajectory = {
 };
 
 describe("TrajectoryView 轨迹事件账本", () => {
+  // 全量套件高负载下 jsdom 调度会被饿死，RTL 默认 1s 超时出现过 flaky；
+  // 显式放宽到 5s（仍有上界，不会掩盖真回归）。
+  const LOAD = { timeout: 5000 };
+
   beforeEach(() => {
     trajectoryMock.mockReset();
     trajectoryMock.mockResolvedValue(TRAJECTORY);
@@ -52,7 +56,7 @@ describe("TrajectoryView 轨迹事件账本", () => {
   it("渲染统计 chips、轮次与记录行", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
     render(<TrajectoryView running={false} />);
-    expect(await screen.findByText(/Turns 1/)).toBeTruthy();
+    expect(await screen.findByText(/Turns 1/, undefined, LOAD)).toBeTruthy();
     expect(screen.getByText(/Calls 2/)).toBeTruthy();
     expect(screen.getByText(/Duration/)).toBeTruthy();
     expect(screen.getByText("第1轮")).toBeTruthy();
@@ -65,17 +69,17 @@ describe("TrajectoryView 轨迹事件账本", () => {
     const { TrajectoryView } = await import("./TrajectoryView");
     render(<TrajectoryView running={false} />);
     // 第一个 TOOL 行的按钮：文本含 pwsh
-    const btn = await screen.findByRole("button", { name: /pwsh/ });
+    const btn = await screen.findByRole("button", { name: /pwsh/ }, LOAD);
     fireEvent.click(btn);
-    expect((await screen.findAllByText(/"command":"git status"/)).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText("M App.tsx")).length).toBeGreaterThan(0);
-    expect(await screen.findByText(/denied by policy/)).toBeTruthy();
+    expect((await screen.findAllByText(/"command":"git status"/, undefined, LOAD)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("M App.tsx", undefined, LOAD)).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/denied by policy/, undefined, LOAD)).toBeTruthy();
   });
 
   it("渲染 ask 与 Between-turns 压缩记录", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
     render(<TrajectoryView running={false} />);
-    expect(await screen.findByText(/如何协调并行改动？/)).toBeTruthy();
+    expect(await screen.findByText(/如何协调并行改动？/, undefined, LOAD)).toBeTruthy();
     expect(screen.getByText(/Between turns/)).toBeTruthy();
     expect(screen.getByText(/轮间压缩/)).toBeTruthy();
   });
@@ -83,7 +87,7 @@ describe("TrajectoryView 轨迹事件账本", () => {
   it("搜索过滤记录", async () => {
     const { TrajectoryView } = await import("./TrajectoryView");
     render(<TrajectoryView running={false} />);
-    const input = await screen.findByPlaceholderText("搜索");
+    const input = await screen.findByPlaceholderText("搜索", undefined, LOAD);
     fireEvent.change(input, { target: { value: "git status" } });
     expect(screen.getByText(/pwsh/)).toBeTruthy();
     expect(screen.queryByText(/配置集中在 config.go/)).toBeNull();
@@ -93,6 +97,6 @@ describe("TrajectoryView 轨迹事件账本", () => {
     trajectoryMock.mockResolvedValue({ ok: true, turns: [] });
     const { TrajectoryView } = await import("./TrajectoryView");
     render(<TrajectoryView running={false} />);
-    expect(await screen.findByText(/暂无轨迹记录/)).toBeTruthy();
+    expect(await screen.findByText(/暂无轨迹记录/, undefined, LOAD)).toBeTruthy();
   });
 });

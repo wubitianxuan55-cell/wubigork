@@ -16,18 +16,18 @@ import (
 func (a *App) GaeaContextView() (contextview.ContextTimeline, error) {
 	c := gaeaCtrl()
 	if c == nil {
-		return contextview.ContextTimeline{Ok: true}, nil
+		return contextview.EmptyTimeline(), nil
 	}
 	logPath := session.LogPathFor(c.SessionPath())
 	if logPath == "" {
-		return contextview.ContextTimeline{Ok: true}, nil
+		return contextview.EmptyTimeline(), nil
 	}
 	entries, err := session.ReadLogRepaired(logPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return contextview.ContextTimeline{Ok: true}, nil
+			return contextview.EmptyTimeline(), nil
 		}
-		return contextview.ContextTimeline{}, err
+		return contextview.EmptyTimeline(), err
 	}
 	_, window := c.ContextSnapshot()
 	return contextview.FoldTimeline(entries, int64(window), 0), nil
@@ -39,18 +39,18 @@ func (a *App) GaeaContextView() (contextview.ContextTimeline, error) {
 func (a *App) GaeaTrajectory() (trajectory.Trajectory, error) {
 	c := gaeaCtrl()
 	if c == nil {
-		return trajectory.Trajectory{Ok: true}, nil
+		return trajectory.EmptyTrajectory(), nil
 	}
 	logPath := session.LogPathFor(c.SessionPath())
 	if logPath == "" {
-		return trajectory.Trajectory{Ok: true}, nil
+		return trajectory.EmptyTrajectory(), nil
 	}
 	entries, err := session.ReadLogRepaired(logPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return trajectory.Trajectory{Ok: true}, nil
+			return trajectory.EmptyTrajectory(), nil
 		}
-		return trajectory.Trajectory{}, err
+		return trajectory.EmptyTrajectory(), err
 	}
 	return trajectory.FoldTrajectory(entries), nil
 }
@@ -60,19 +60,19 @@ func (a *App) GaeaTrajectory() (trajectory.Trajectory, error) {
 func (a *App) GaeaAgentNetwork() (trajectory.AgentNetwork, error) {
 	c := gaeaCtrl()
 	if c == nil {
-		return trajectory.AgentNetwork{Ok: true}, nil
+		return trajectory.EmptyAgentNetwork(), nil
 	}
 	path := c.SessionPath()
 	logPath := session.LogPathFor(path)
 	if logPath == "" {
-		return trajectory.AgentNetwork{Ok: true}, nil
+		return trajectory.EmptyAgentNetwork(), nil
 	}
 	entries, err := session.ReadLogRepaired(logPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return trajectory.AgentNetwork{Ok: true}, nil
+			return trajectory.EmptyAgentNetwork(), nil
 		}
-		return trajectory.AgentNetwork{}, err
+		return trajectory.EmptyAgentNetwork(), err
 	}
 	_, window := c.ContextSnapshot()
 	net := trajectory.FoldAgentNetwork(entries, int64(window))

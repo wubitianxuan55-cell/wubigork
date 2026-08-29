@@ -1,6 +1,6 @@
 1 VERSIONINFO
-FILEVERSION 3,5,0,0
-PRODUCTVERSION 3,5,0,0
+FILEVERSION 3,6,0,0
+PRODUCTVERSION 3,6,0,0
 FILEOS 0x40004
 FILETYPE 0x1
 {
@@ -10,12 +10,12 @@ FILETYPE 0x1
     {
       VALUE "CompanyName", "gaea"
       VALUE "FileDescription", "gaea AI Assistant"
-      VALUE "FileVersion", "3.5.0"
+      VALUE "FileVersion", "3.6.0"
       VALUE "InternalName", "gaea"
       VALUE "LegalCopyright", "gaea"
       VALUE "OriginalFilename", "gaea.exe"
       VALUE "ProductName", "gaea"
-      VALUE "ProductVersion", "3.5.0"
+      VALUE "ProductVersion", "3.6.0"
     }
   }
   BLOCK "VarFileInfo"

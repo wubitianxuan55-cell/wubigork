@@ -20,6 +20,20 @@ type Turn struct {
 	Records   []Record `json:"records"`
 }
 
+// EmptyTrajectory 返回全空轨迹（会话/日志不存在时绑定层的早退返回值）。
+// Turns 非 nil：Go 的 nil 切片会序列化成 JSON null，前端按数组消费会崩。
+func EmptyTrajectory() Trajectory {
+	return Trajectory{Ok: true, Turns: []Turn{}}
+}
+
+// EmptyAgentNetwork 返回仅含 root 的空网络（早退返回值），Children 非 nil。
+func EmptyAgentNetwork() AgentNetwork {
+	return AgentNetwork{
+		Ok:   true,
+		Root: AgentNode{ID: "root", Name: "主 agent", Kind: "root", Status: "completed", Children: []AgentNode{}},
+	}
+}
+
 // TurnEnd 是 turn-end 记录（doneAt/错误）。
 type TurnEnd struct {
 	Seq int64  `json:"seq"`

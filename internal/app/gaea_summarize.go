@@ -33,7 +33,8 @@ func (a *App) GaeaSummarizeFile(rel string, focus string) (GaeaSummaryResult, er
 	if a.client == nil {
 		return GaeaSummaryResult{}, fmt.Errorf("模型服务不可用")
 	}
-	featEng, featModel, _ := a.routeModel("office")
+	// 2026-08-28 本地优先强化：资料摘要属办公功能级调用，优先本地 Herdsman。
+	featEng, featModel, _ := a.routeOfficeLocal("office")
 	prov, err := provider.NewLLM("", provider.Config{Name: "office-summary", Model: featModel, Engine: featEng})
 	if err != nil {
 		return GaeaSummaryResult{}, fmt.Errorf("摘要模型初始化失败: %w", err)

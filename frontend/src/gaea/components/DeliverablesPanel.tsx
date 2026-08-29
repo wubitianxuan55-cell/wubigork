@@ -28,10 +28,10 @@ function baseName(path: string): string {
 const iconBtn =
   "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors";
 
-// DeliverablesPanel — 右侧「会话产物」视图（对标 Kimi 工作空间 / 千问办公产物面板）：
+// DeliverablesPanel — 右侧「会话产物」视图（Codex 式工作区收尾）：
 // 展示本次会话交付的全部文件（去重、最新在前），点击预览，悬停提供
-// 外部打开 / 定位 / 复制路径；预览内编辑过的文件显示「已更新」徽标。
-// v3「星枢」面板语言：v3-panel-head 细条头部 + 实底交付物卡（不叠玻璃）。
+// 外部打开 / 定位 / 复制路径 / 沉淀成本库；预览内编辑过的文件显示「已更新」徽标。
+// v3「星枢」面板语言：v3-panel-head 细条头部 + 低边框 hover 高亮行。
 export const DeliverablesPanel = memo(function DeliverablesPanel({
   items,
   onOpenFile,
@@ -160,21 +160,17 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
             return (
               <div
                 key={path}
-                className="group flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] transition-all duration-200"
-                style={{
-                  background: "var(--md-sys-color-surface-container)",
-                  border: "1px solid var(--md-sys-color-outline-variant)",
-                  boxShadow: "inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-text) 5%, transparent)",
-                }}
+                className="group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors duration-150 hover:bg-(color:--md-sys-color-surface-container-high)"
               >
                 <span
-                  className="shrink-0 w-7 h-7 rounded-md flex items-center justify-center overflow-hidden"
+                  className="shrink-0 w-8 h-8 rounded-md flex items-center justify-center overflow-hidden"
                   style={{
-                    background: "color-mix(in srgb, var(--gaea-glow) 11%, transparent)",
+                    background: "color-mix(in srgb, var(--gaea-glow) 10%, transparent)",
                     color: "var(--gaea-glow)",
+                    border: "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)",
                   }}
                 >
-                  <FileThumb path={path} ext={ext} imgClassName="w-7 h-7 object-cover rounded-md" />
+                  <FileThumb path={path} ext={ext} imgClassName="w-8 h-8 object-cover rounded-md" />
                 </span>
                 <button
                   type="button"
@@ -218,7 +214,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                     {path}
                   </span>
                 </button>
-                <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                   {turn != null && onLocateSource && (
                     <button
                       type="button"

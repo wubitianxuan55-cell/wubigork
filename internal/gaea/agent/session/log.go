@@ -550,9 +550,6 @@ func askPayloadFromEvent(e event.Event) map[string]any {
 		})
 	}
 	m := map[string]any{"id": e.Ask.ID, "questions": qs}
-	if e.Ask.Plan != nil {
-		m["plan"] = e.Ask.Plan
-	}
 	return m
 }
 

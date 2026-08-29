@@ -20,13 +20,12 @@ type DecisionLogger struct {
 
 // DecisionEntry is one row in the decision log.
 type DecisionEntry struct {
-	Timestamp     string  `json:"timestamp"`
-	TraceID       string  `json:"trace_id,omitempty"`
-	Decision      string  `json:"decision"`                  // e.g. "route", "promote", "demote", "lock", "compact", "storm_break"
-	Kind          string  `json:"kind"`                      // task kind, e.g. "fix_bug"
-	Version       int     `json:"version"`                   // profile version at decision time
-	Detail        string  `json:"detail"`                    // human-readable context
-	AutoPlanScore float64 `json:"auto_plan_score,omitempty"` // classifier confidence
+	Timestamp string `json:"timestamp"`
+	TraceID   string `json:"trace_id,omitempty"`
+	Decision  string `json:"decision"` // e.g. "route", "promote", "demote", "lock", "compact", "storm_break"
+	Kind      string `json:"kind"`     // task kind, e.g. "fix_bug"
+	Version   int    `json:"version"`  // profile version at decision time
+	Detail    string `json:"detail"`   // human-readable context
 }
 
 // NewDecisionLogger opens or creates the decisions JSONL file.

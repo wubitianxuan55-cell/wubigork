@@ -90,22 +90,6 @@ export interface WireAskQuestion {
 export interface WireAsk {
   id: string;
   questions: WireAskQuestion[];
-  // plan 存在时，前端渲染结构化「开工计划卡片」而非纯文本问题。
-  plan?: WirePlan;
-}
-
-export interface WirePlanStep {
-  title: string;
-  detail?: string;
-  resources?: string[];
-  tools?: string[];
-  deliverable?: string;
-}
-
-export interface WirePlan {
-  goal: string;
-  steps: WirePlanStep[];
-  questions?: string[];
 }
 
 // QuestionAnswer is the reply for one question, sent back via AnswerQuestion.
@@ -177,8 +161,6 @@ export interface SessionMeta {
   modTime: number; // unix milliseconds
   current: boolean;
   pinned?: boolean; // 置顶会话排在同项目会话最前
-  hasRequirement?: boolean; // 会话锚定了任务目标（从需求到验收）
-  requirementDone?: boolean; // 任务目标已标记验收
   archived?: boolean; // 已归档（在 <sessions>/archive/ 下，可恢复）
   // interrupted=true 表示上次运行中断未完成；恢复会话时后端注入「上次会话中断」
   // 摘要提示并清除该标记（可选字段：后端始终返回，前端对缺失按 false 处理）。
@@ -194,23 +176,6 @@ export interface ProjectGroup {
   sessions: SessionMeta[];
   archived: SessionMeta[]; // 已归档会话（项目内「已归档」分组）
   modTime: number; // 分组内最近会话时间（unix milliseconds）
-}
-
-// Requirement 是会话的「任务目标」（从需求到验收工作流）：
-// 目标文本 + 可选验收清单 + 验收状态，随会话持久化。存在验收清单时
-// done 由清单推导（全部勾选即验收）；autoPursue 开启后目标写入 agent
-// goal gate，未达标会自动继续工作。
-export interface RequirementItem {
-  text: string;
-  done: boolean;
-}
-
-export interface Requirement {
-  text: string;
-  done: boolean;
-  updatedAt: number;
-  items: RequirementItem[];
-  autoPursue: boolean;
 }
 
 export interface WorkspaceView {
@@ -548,7 +513,26 @@ export interface XlsxEditResult {
   applied: number;
 }
 
-// ── 表格「选中区域 → 一键图表」（P0-2，对标千问表格 Agent） ──
+// XlsxCellChange 是规划 diff 中的一处单元格变更（值或公式与原文件不同）。
+export interface XlsxCellChange {
+  sheet: string;
+  cell: string;
+  before: string;
+  after: string;
+  formula?: string; // 变更后为公式时给出（显示 fx）
+}
+
+// XlsxPlanResult 是「先规划后应用」的规划结果：ops 原样带回（应用时透传），
+// 附变更清单供用户审阅批准（对标 Copilot Plan/Show Changes 范式）。
+export interface XlsxPlanResult {
+  ops: string; // 操作集 JSON（XlsxApplyEdit 透传）
+  summary: string; // 操作描述
+  changes: XlsxCellChange[]; // 变更清单（截断到上限）
+  total: number; // 已确认变更格数（读取预算内，截断时为下界）
+  truncated: boolean;
+}
+
+// ── 表格「选中区域 → 一键图表」（原生图表嵌入工作簿） ──
 export interface XlsxChartInput {
   rel: string; // xlsx 工作区相对路径
   sheet?: string; // 工作表名；空 = 第一个工作表
@@ -558,11 +542,15 @@ export interface XlsxChartInput {
 }
 
 export interface XlsxChartResult {
-  path: string; // PNG 工作区相对路径
+  path: string; // xlsx 工作区相对路径（原生图表已嵌入该文件）
   name: string;
-  dataUrl: string; // base64 PNG dataURL（直接预览）
-  labels: number;
+  sheet: string; // 嵌入的工作表
+  anchor: string; // 图表左上角锚点单元格（如 D1）
+  labels: number; // 数据点数量
+  labelList: string[]; // 类别（迷你图预览）
+  values: number[]; // 数值（迷你图预览）
   chartType: string;
+  title: string;
 }
 
 // ── 会话产物一键打包（P0-1，对标 Kimi 工作空间 / WorkBuddy） ──
@@ -571,6 +559,14 @@ export interface ZipDeliverableResult {
   name: string;
   entries: number;
   bytes: number;
+}
+
+// ConvertPdfResult 是文档转 PDF 的结果（PDF 落 .gaea/exports/）。
+export interface ConvertPdfResult {
+  path: string; // PDF 工作区相对路径
+  name: string;
+  size: number;
+  source: string; // 源文件相对路径
 }
 
 // ── 多智能体分工可见（P2，对标 WorkSwarm 蜂群 / QClaw V2） ──
@@ -598,7 +594,7 @@ export interface SubagentRunsView {
 // ── 统一交付出口（事实底座 → 多形态交付） ──────────────────
 export interface ExportDeliverableInput {
   markdown: string;
-  format: "docx" | "pptx" | "xlsx" | "md";
+  format: "docx" | "pptx" | "xlsx" | "md" | "pdf";
   title?: string;
   template?: "通用" | "公文" | "报告" | "合同";
   cover?: boolean;

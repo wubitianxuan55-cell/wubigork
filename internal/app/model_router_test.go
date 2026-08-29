@@ -191,3 +191,56 @@ func TestSensitiveLocalDefaultOn(t *testing.T) {
 		t.Fatal("SensitiveLocal 默认应为 true")
 	}
 }
+
+// ── 2026-08-28 办公本地优先路由 ──────────────────────────────────
+
+// 开关开启 + herdsman 可用 → 办公功能级调用强制本地（office-local），
+// 无视常规功能绑定（与 sensitive-local 同构）。
+func TestRouteOfficeLocalForcesHerdsman(t *testing.T) {
+	c := newRouterTestCore(t)
+	enableHerdsmanBaseURL(t, c, true)
+	c.cfg.OfficeLocal = true
+	if err := c.SetFeatureModel("office", "xai", "grok-4.20"); err != nil {
+		t.Fatal(err)
+	}
+	eng, model, source := c.routeOfficeLocal("office")
+	if eng != "herdsman" || model != "qwen3-8b" || source != "office-local" {
+		t.Fatalf("route = (%q,%q,%q)，期望 (herdsman,qwen3-8b,office-local)", eng, model, source)
+	}
+}
+
+// 开关开启但 herdsman 停用 → 回退常规路由（全局 xai）。
+func TestRouteOfficeLocalHerdsmanDisabledFallsBack(t *testing.T) {
+	c := newRouterTestCore(t)
+	enableHerdsmanBaseURL(t, c, false)
+	c.cfg.OfficeLocal = true
+	eng, model, source := c.routeOfficeLocal("office")
+	if eng != "xai" || model != "grok-4.20" || source != "global" {
+		t.Fatalf("route = (%q,%q,%q)，期望回退全局 (xai,grok-4.20,global)", eng, model, source)
+	}
+}
+
+// 开关关闭 → 走常规路由（可回云端），source 非 office-local。
+func TestRouteOfficeLocalOffUsesNormalRoute(t *testing.T) {
+	c := newRouterTestCore(t)
+	enableHerdsmanBaseURL(t, c, true)
+	c.cfg.OfficeLocal = false
+	eng, model, source := c.routeOfficeLocal("office")
+	if source == "office-local" {
+		t.Fatalf("开关关闭仍走了 office-local: (%q,%q,%q)", eng, model, source)
+	}
+	if eng != "xai" || model != "grok-4.20" || source != "global" {
+		t.Fatalf("route = (%q,%q,%q)，期望常规全局", eng, model, source)
+	}
+}
+
+// 默认值：未显式配置时 GetOfficeLocal() 返回 true（办公本地优先默认开启）。
+func TestOfficeLocalDefaultOn(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("HOME", home)
+	cfg := config.Load()
+	if !cfg.GetOfficeLocal() {
+		t.Fatal("OfficeLocal 默认应为 true")
+	}
+}

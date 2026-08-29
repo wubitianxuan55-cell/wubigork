@@ -280,12 +280,6 @@ type AgentConfig struct {
 	// startup (a built-in like "explanatory"/"learning"/"concise", or a custom
 	// .gaea/output-styles/<name>.md). Empty = the unmodified prompt.
 	OutputStyle string `toml:"output_style"`
-	// AutoPlan controls whether interactive turns that look multi-step start in
-	// plan mode automatically: "off" disables it, "ask"/"on" enable the gate.
-	AutoPlan string `toml:"auto_plan"`
-	// AutoPlanClassifier optionally names a provider/model used to classify
-	// borderline auto-plan decisions. Empty keeps the zero-cost heuristic path.
-	AutoPlanClassifier string `toml:"auto_plan_classifier"`
 }
 
 // SubagentTemp returns the effective temperature for task-tool sub-agents.

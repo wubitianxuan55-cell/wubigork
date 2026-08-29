@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, ExternalLink, FileText, FolderTree, Loader2, X } from "../icons";
+import { AlertCircle, ExternalLink, FilePdf, FileText, FolderTree, Loader2, X } from "../icons";
 import { app } from "../lib/bridge";
 import { usePreviewStore } from "../lib/store";
 import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
 import { Markdown } from "./Markdown";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
+import { useToast } from "./Toast";
 import { XlsxPreview } from "./XlsxPreview";
+
+// 可转 PDF 的扩展名（与后端 GaeaConvertToPdf 的支持范围一致）。
+const PDF_CONVERT_RE = /\.(docx|xlsx|pptx|odt|html?|txt|csv|md|markdown)$/i;
 
 function formatSize(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -25,12 +29,14 @@ const KIND_LABEL: Record<PreviewResult["kind"], string> = {
 };
 
 export function FilePreviewModal() {
-  const { previewFile, closeFilePreview } = usePreviewStore();
+  const { previewFile, closeFilePreview, openFilePreview } = usePreviewStore();
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
   const ocrProgress = usePreviewProgress(previewFile);
   const [loadKey, setLoadKey] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const toast = useToast();
 
   // 每次切换文件重新加载
   useEffect(() => {
@@ -77,6 +83,21 @@ export function FilePreviewModal() {
     if (previewFile) app.RevealWorkspacePath(previewFile).catch(() => {});
   }, [previewFile]);
 
+  // 导出 PDF：LibreOffice 无头转换，产物入 .gaea/exports/ 并直接打开预览
+  const exportPdf = useCallback(async () => {
+    if (!previewFile || exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const r = await app.ConvertToPdf(previewFile);
+      toast.show(`已导出 ${r.name}`, "info");
+      openFilePreview(r.path);
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : String(e), "warn");
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [previewFile, exportingPdf, toast, openFilePreview]);
+
   if (!previewFile) return null;
 
   const name = preview?.name ?? previewFile.split("/").pop() ?? previewFile;
@@ -122,6 +143,17 @@ export function FilePreviewModal() {
             </span>
           )}
           <div className="flex items-center gap-1 shrink-0">
+            {PDF_CONVERT_RE.test(previewFile) && (
+              <button
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-accent/30 bg-accent/8 text-accent text-[12px] cursor-pointer hover:bg-accent/15 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                onClick={() => void exportPdf()}
+                disabled={exportingPdf}
+                title="用 LibreOffice 把当前文档转换为 PDF（产物在 .gaea/exports/）"
+              >
+                {exportingPdf ? <Loader2 size={12} className="animate-spin" /> : <FilePdf size={12} />}
+                <span className="hidden md:inline">导出 PDF</span>
+              </button>
+            )}
             <button
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border-soft bg-transparent text-fg-dim text-[12px] cursor-pointer hover:bg-bg-soft hover:text-fg transition-colors"
               onClick={reveal}

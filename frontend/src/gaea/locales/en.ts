@@ -38,6 +38,8 @@ export const en = {
   "topbar.export": "Export",
   "topbar.exportWord": "Export Word (unified delivery)",
   "topbar.exportWordShort": "Export Word",
+  "topbar.exportPdf": "Export PDF (unified delivery, via LibreOffice)",
+  "topbar.exportPdfShort": "Export PDF",
   "topbar.deleteSessionAsk": "Delete this session?",
   "topbar.deleteSession": "Delete current session",
   "topbar.resizePreview": "Drag to resize preview",
@@ -243,12 +245,6 @@ export const en = {
   "ask.customPlaceholder": "Type your own answer…",
   "ask.justChat": "Just chat",
   "ask.dragHint": "Drag to move",
-  "ask.planGoal": "Goal",
-  "ask.planSteps": "Steps",
-  "ask.planResources": "Read",
-  "ask.planTools": "Tools",
-  "ask.planDeliverable": "Deliverable",
-  "ask.planQuestions": "To confirm",
 
   // history drawer
   "history.title": "History",
@@ -407,6 +403,12 @@ export const en = {
   "rewind.summUpto": "Summarize up to here",
   "msg.copied": "Copied",
   "msg.reasoningOnly": "(reasoning only, no visible output)",
+  "msg.compacting": "Compacting conversation…",
+  "msg.compacted": "Context compacted",
+  "msg.compactedMeta": "{n} messages · {trigger}",
+  "msg.showSummary": "show summary",
+  "msg.hideSummary": "hide summary",
+  "msg.dismissError": "Dismiss error",
 
   // tool card summaries
   "tool.stepOne": "{n} step",

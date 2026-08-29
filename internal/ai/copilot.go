@@ -197,11 +197,16 @@ func (c *Client) XlsxEditOps(ctx context.Context, engineID, model string, contex
 {"type":"replace","sheet":"..","range":"A1:A20","find":"旧","replace":"新"}  区域内查找替换文本
 {"type":"split_column","sheet":"..","col":"A","sep":"-","newCols":["B","C"],"headers":["省","市"]}  按分隔符拆分列到新列（可选写表头）
 {"type":"clean","sheet":"..","range":"B2:B10","trim":true,"upper":false,"lower":false}  清洗：去空格/转大写/转小写
+{"type":"set_style","sheet":"..","range":"A1:D1","style":{"bold":true,"italic":false,"underline":false,"fontSize":12,"fontColor":"9C0006","fill":"FFF2CC","numFmt":"0.00%","align":"center","wrap":true}}  设置样式，只写需要改的字段，其余保留（bold/italic/underline/wrap 用 true/false；颜色 RRGGBB 不带 #；numFmt 如 "0.00" 或 "0.00%"）
+{"type":"merge_cells","sheet":"..","range":"A1:C1"}  合并区域（跨列表头常用）
+{"type":"unmerge_cells","sheet":"..","range":"A1:C1"}  取消合并区域
+{"type":"set_col_width","sheet":"..","col":"A","width":18}  设置列宽（8~40 合理）
 规则：
 1. 只输出 JSON 数组，不要任何解释、Markdown 或注释
 2. target/range 必须落在数据区域内，列字母大写
 3. 只做用户要求的最小改动，不得臆造数据（计算类优先用公式而非写死结果）
-4. 用户选区是目标单元格时优先用 set_formula/set_value；列级操作（拆分/清洗/变换）才用区域`
+4. 用户选区是目标单元格时优先用 set_formula/set_value；列级操作（拆分/清洗/变换）才用区域
+5. 样式/合并/列宽用对应类型；用户没提外观就不要擅自改样式`
 
 	userPrompt := fmt.Sprintf(`表格上下文（JSON）：
 %s

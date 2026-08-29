@@ -29,9 +29,19 @@ describe("FileThumb（P1 产物缩略图增强）", () => {
     expect(container.querySelector('[aria-label="文本内容缩略图"]')?.textContent).toContain("gaea");
   });
 
+  it("docx 渲染文本摘要缩略图（后端 GaeaPreview 附带 Markdown 文本）", async () => {
+    const { container } = render(<FileThumb path="exports/方案.docx" ext=".docx" />);
+    await waitFor(() => expect(container.querySelector('[aria-label="文本内容缩略图"]')).toBeTruthy());
+    expect(container.querySelector('[aria-label="文本内容缩略图"]')?.textContent).toContain("季度经营");
+  });
+
+  it("pdf 渲染文本摘要缩略图（转换后的 Markdown 正文）", async () => {
+    const { container } = render(<FileThumb path="exports/报告.pdf" ext=".pdf" />);
+    await waitFor(() => expect(container.querySelector('[aria-label="文本内容缩略图"]')).toBeTruthy());
+  });
+
   it("不支持的类型回退类型图标（不抛错）", async () => {
-    render(<FileThumb path="exports/方案.docx" ext=".docx" />);
-    // docx 走 Preview 返回 kind=docx（非 xlsx/markdown/text）→ 保持类型图标
+    render(<FileThumb path="exports/素材.psd" ext=".psd" />);
     await new Promise((r) => setTimeout(r, 60));
     expect(screen.getByRole("img")).toBeTruthy();
   });

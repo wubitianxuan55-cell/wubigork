@@ -49,6 +49,20 @@ func FoldTimeline(entries []session.LogEntry, window int64, retention int) Conte
 	} else {
 		tl.Requests = append([]RequestRecord(nil), f.requests...)
 	}
+	// Go 的 nil 切片会序列化成 JSON null，前端按数组消费（.length / for-of）
+	// 会整页崩——空会话恰好四条全 nil。统一兜底为空切片。
+	if tl.Requests == nil {
+		tl.Requests = []RequestRecord{}
+	}
+	if tl.Events == nil {
+		tl.Events = []ContextEvent{}
+	}
+	if tl.Nodes == nil {
+		tl.Nodes = []SurfaceNode{}
+	}
+	if tl.Archive == nil {
+		tl.Archive = []SurfaceNode{}
+	}
 	return tl
 }
 

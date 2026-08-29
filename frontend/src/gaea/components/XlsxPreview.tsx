@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { AlertCircle, BarChart3, Check, ChevronDown, FileText, LineChart, Loader2, PieChart, RefreshCw, Table, Wand2, X } from "../icons";
 import { app } from "../lib/bridge";
-import { usePreviewStore, useUpdatedFilesStore } from "../lib/store";
-import type { XlsxCell, XlsxPreview, XlsxSheet } from "../lib/types";
+import { useUpdatedFilesStore } from "../lib/store";
+import type { XlsxCell, XlsxChartResult, XlsxPlanResult, XlsxPreview, XlsxSheet } from "../lib/types";
 
 function parseRef(ref: string): { col: number; row: number } {
   const m = /^([A-Z]+)(\d+)$/.exec(ref);
@@ -92,6 +92,9 @@ const EDIT_PRESETS = [
   { label: "平均值", instruction: "计算相关数据的平均值，把公式写入选中单元格" },
   { label: "拆分列", instruction: "把选中单元格所在列按分隔符拆分为多列，新列写入相邻列并加表头" },
   { label: "清洗", instruction: "清洗相关数据：去掉首尾空格、统一大小写" },
+  { label: "加粗", instruction: "把选中单元格加粗（保留其他样式）" },
+  { label: "高亮", instruction: "把选中单元格填充浅黄色 FFF2CC" },
+  { label: "合并表头", instruction: "把选中区域合并为一个居中表头单元格" },
 ];
 
 export function XlsxPreview({
@@ -119,8 +122,13 @@ export function XlsxPreview({
   const [selectedCol, setSelectedCol] = useState<string | null>(null);
   const [colOpsBusy, setColOpsBusy] = useState(false);
   const [confirmDeleteCol, setConfirmDeleteCol] = useState(false);
-  // P0-2 表格「选中区域 → 一键图表」：选中单元格后生成图表 PNG 并预览
+  // P0-2 表格「选中区域 → 一键图表」：选中单元格后把原生图表嵌入工作簿，
+  // 前端用 SVG 迷你图即时反馈（原生对象在 Excel/WPS 中可见可编辑）
   const [chartBusy, setChartBusy] = useState(false);
+  const [chart, setChart] = useState<XlsxChartResult | null>(null);
+  // AI 编辑审阅制：先规划（临时副本试运行 + diff），用户批准后才落盘
+  const [plan, setPlan] = useState<XlsxPlanResult | null>(null);
+  const [applying, setApplying] = useState(false);
   // v3.0.8 工具栏收敛：图表动作（柱/线/饼/→Word/→PPT）收进一个下拉菜单，
   // 不再 5 个按钮常驻一字排开（与右侧 Tab 收敛同一原则：按上下文、不按功能铺开）
   const [chartMenuOpen, setChartMenuOpen] = useState(false);
@@ -135,6 +143,8 @@ export function XlsxPreview({
     setSelected(null);
     setEditingRef(null);
     setEditError("");
+    setPlan(null);
+    setChart(null);
   }, [body]);
 
   const preview = useMemo<XlsxPreview | null>(() => {
@@ -145,30 +155,48 @@ export function XlsxPreview({
     }
   }, [docBody]);
 
+  // 规划：AI 操作集在临时副本上试运行，返回变更清单，不落盘
   const runEdit = useCallback(async () => {
     if (!selected || !instruction.trim() || !preview) return;
     const sheet = preview.sheets[Math.min(active, preview.sheets.length - 1)];
     setRunning(true);
     setEditError("");
     try {
-      const r = await app.XlsxEdit(relPath, sheet.name, instruction.trim(), selected);
-      setDocBody(r.preview);
-      markUpdated(relPath);
-      setSelected(null);
-      setInstruction("");
-      setNotice(`已应用：${r.summary}`);
-      window.setTimeout(() => setNotice(""), 6000);
+      const r = await app.XlsxPlanEdit(relPath, sheet.name, instruction.trim(), selected);
+      setPlan(r);
     } catch (e) {
       setEditError(e instanceof Error ? e.message : String(e));
     } finally {
       setRunning(false);
     }
-  }, [selected, instruction, preview, active, relPath, markUpdated]);
+  }, [selected, instruction, preview, active, relPath]);
+
+  // 应用：用户批准规划后执行操作集（excelize + LibreOffice 重算）
+  const applyPlan = useCallback(async () => {
+    if (!plan || applying) return;
+    setApplying(true);
+    setEditError("");
+    try {
+      const r = await app.XlsxApplyEdit(relPath, plan.ops);
+      setDocBody(r.preview);
+      markUpdated(relPath);
+      setPlan(null);
+      setInstruction("");
+      setSelected(null);
+      setNotice(`已应用：${r.summary}`);
+      window.setTimeout(() => setNotice(""), 6000);
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setApplying(false);
+    }
+  }, [plan, applying, relPath, markUpdated]);
 
   const closeEdit = useCallback(() => {
     setSelected(null);
     setInstruction("");
     setEditError("");
+    setPlan(null);
   }, []);
 
   // 点击图表菜单外部关闭下拉
@@ -241,8 +269,8 @@ export function XlsxPreview({
     [preview, active, relPath, fileName],
   );
 
-  // P0-2 表格「选中区域 → 一键图表」：把选中区域（或自动前两列）数据交给
-  // chart 工具生成 PNG，产物入预览队列（对标千问表格 Agent 的可交付表格）。
+  // P0-2 表格「选中区域 → 一键图表」：把选中区域（或自动前两列）数据生成
+  // 原生图表嵌入工作簿（Excel/WPS 打开即可见可编辑），前端用 SVG 迷你图即时反馈。
   const genChart = useCallback(
     async (chartType: "bar" | "line" | "pie") => {
       if (!preview || chartBusy) return;
@@ -257,8 +285,9 @@ export function XlsxPreview({
           chartType,
           title: fileName.replace(/\.xlsx$/i, ""),
         });
-        setNotice(`已生成图表：${r.name}（${r.labels} 个数据点）`);
-        usePreviewStore.getState().openFilePreview(r.path);
+        markUpdated(relPath);
+        setChart(r);
+        setNotice(`已嵌入图表到 ${r.sheet}!${r.anchor}（在 Excel/WPS 中打开可见、可继续编辑）`);
         window.setTimeout(() => setNotice(""), 6000);
       } catch (e) {
         setEditError(e instanceof Error ? e.message : String(e));
@@ -266,7 +295,7 @@ export function XlsxPreview({
         setChartBusy(false);
       }
     },
-    [preview, active, relPath, fileName, selected, chartBusy],
+    [preview, active, relPath, fileName, selected, chartBusy, markUpdated],
   );
 
   // 手动重算公式（预览打开时已自动兜底；用户可随时主动刷新）
@@ -367,6 +396,25 @@ export function XlsxPreview({
           <span className="truncate">{notice}</span>
         </div>
       )}
+      {/* 原生图表迷你预览：图表对象已嵌入 xlsx，这里是即时视觉反馈 */}
+      {chart && (
+        <div className="px-3 py-2 border-b border-border-soft bg-bg shrink-0">
+          <div className="flex items-center gap-1.5 text-[11px] text-fg-dim">
+            <BarChart3 size={11} className="text-accent shrink-0" />
+            <span className="truncate">
+              {chart.title} · {chart.labels} 个数据点 · 已嵌入 {chart.sheet}!{chart.anchor}
+            </span>
+            <button
+              className="ml-auto flex items-center justify-center w-5 h-5 rounded-md border-0 bg-transparent text-fg-faint cursor-pointer hover:text-fg shrink-0"
+              onClick={() => setChart(null)}
+              title="关闭图表预览"
+            >
+              <X size={11} />
+            </button>
+          </div>
+          <MiniChart chartType={chart.chartType} labels={chart.labelList} values={chart.values} />
+        </div>
+      )}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-soft bg-bg-soft/40 text-fg-faint text-[11px] shrink-0">
         <FileText size={11} />
         <span className="truncate">{fileName}</span>
@@ -431,7 +479,7 @@ export function XlsxPreview({
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-accent/30 bg-accent/10 text-accent text-[10px] cursor-pointer hover:bg-accent/20 disabled:opacity-50 transition-colors"
               onClick={() => setChartMenuOpen((o) => !o)}
               disabled={chartBusy || embedding}
-              title="把工作表数据生成图表（PNG 预览 / 嵌入 Word / 嵌入 PPT）"
+              title="把选中区域数据生成原生图表，嵌入工作簿（Excel/WPS 可见可编辑）"
               aria-expanded={chartMenuOpen}
               aria-haspopup="menu"
             >
@@ -446,9 +494,9 @@ export function XlsxPreview({
                 style={{ boxShadow: "var(--ds-shadow-dropdown)" }}
               >
                 {[
-                  { label: "柱状图 PNG", icon: <BarChart3 size={11} />, run: () => void genChart("bar") },
-                  { label: "折线图 PNG", icon: <LineChart size={11} />, run: () => void genChart("line") },
-                  { label: "饼图 PNG", icon: <PieChart size={11} />, run: () => void genChart("pie") },
+                  { label: "柱状图", icon: <BarChart3 size={11} />, run: () => void genChart("bar") },
+                  { label: "折线图", icon: <LineChart size={11} />, run: () => void genChart("line") },
+                  { label: "饼图", icon: <PieChart size={11} />, run: () => void genChart("pie") },
                   { label: "图表→Word", icon: <Wand2 size={11} />, run: () => void embedChart("docx") },
                   { label: "图表→PPT", icon: <Wand2 size={11} />, run: () => void embedChart("pptx") },
                 ].map((item) => (
@@ -596,6 +644,60 @@ export function XlsxPreview({
               <X size={12} />
             </button>
           </div>
+          {editError && <div className="mt-1 text-[11px] text-err">{editError}</div>}
+        </div>
+      )}
+
+      {/* 规划审阅卡：AI 编辑先出变更清单，批准后才落盘（Plan/Show Changes 范式） */}
+      {plan && (
+        <div className="px-3 py-2 border-b border-border-soft bg-bg shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <Check size={12} className="text-accent shrink-0" />
+            <span className="text-fg font-medium shrink-0">
+              待应用变更（{plan.total} 处{plan.truncated ? `，仅列出前 ${plan.changes.length} 条` : ""}）
+            </span>
+            <span className="text-fg-faint truncate flex-1 min-w-[80px]" title={plan.summary}>
+              {plan.summary}
+            </span>
+            <button
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-accent text-bg text-[11.5px] font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity shrink-0"
+              disabled={applying}
+              onClick={() => void applyPlan()}
+            >
+              {applying ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+              应用
+            </button>
+            <button
+              className="px-2 py-1 rounded-lg border border-border-soft bg-transparent text-fg-dim text-[11.5px] cursor-pointer hover:bg-bg-soft transition-colors shrink-0"
+              onClick={() => setPlan(null)}
+            >
+              放弃
+            </button>
+          </div>
+          {plan.changes.length > 0 && (
+            <div className="mt-1.5 max-h-36 overflow-auto rounded-lg border border-border-soft">
+              <table className="w-full text-[11px] font-mono border-collapse">
+                <tbody>
+                  {plan.changes.map((c, i) => (
+                    <tr key={`${c.sheet}!${c.cell}-${i}`} className="border-b border-border-soft/60 last:border-b-0">
+                      <td className="px-2 py-1 text-fg-faint whitespace-nowrap align-top">{c.sheet}!{c.cell}</td>
+                      <td className="px-2 py-1 text-fg-faint line-through max-w-[140px] truncate align-top">
+                        {c.before || "（空）"}
+                      </td>
+                      <td className="px-1 py-1 text-accent align-top">→</td>
+                      <td className="px-2 py-1 text-fg max-w-[200px] truncate align-top">
+                        {c.formula ? (
+                          <span className="text-accent" title={`=${c.formula}`}>fx ={c.formula}</span>
+                        ) : (
+                          c.after || "（空）"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           {editError && <div className="mt-1 text-[11px] text-err">{editError}</div>}
         </div>
       )}
@@ -883,5 +985,125 @@ function SheetGrid({
         双击单元格直接编辑；或在 fx 栏输入值（= 开头写公式），回车保存到文件
       </div>
     </div>
+  );
+}
+
+const PIE_COLORS = ["#5B8DEF", "#7BC47F", "#F2A65A", "#E57373", "#9B7EDE", "#4FC3C3", "#D4A5E5", "#8D9CAD"];
+const CHART_BLUE = "#5B8DEF";
+const MAX_MINI_POINTS = 12;
+
+// MiniChart 用 SVG 直接渲染图表数据（原生图表对象已嵌入 xlsx，这里是即时视觉反馈，
+// 无需外部图表库）。bar 为柱状、line 折线、pie 扇形，其余类型归一为柱状。
+function MiniChart({ chartType, labels, values }: { chartType: string; labels: string[]; values: number[] }) {
+  const vals = values.slice(0, MAX_MINI_POINTS);
+  const lbls = labels.slice(0, MAX_MINI_POINTS);
+  if (vals.length === 0) return null;
+  const W = 560;
+  const H = 150;
+  const trunc = (s: string) => (s.length > 6 ? s.slice(0, 5) + "…" : s);
+
+  if (chartType === "pie") {
+    const cx = 75;
+    const cy = H / 2;
+    const r = H / 2 - 8;
+    const total = vals.reduce((s, v) => s + Math.abs(v), 0) || 1;
+    let acc = -Math.PI / 2;
+    const segs = vals.map((v, i) => {
+      const a0 = acc;
+      acc += (Math.abs(v) / total) * Math.PI * 2;
+      const a1 = acc;
+      const large = a1 - a0 > Math.PI ? 1 : 0;
+      const x0 = cx + r * Math.cos(a0);
+      const y0 = cy + r * Math.sin(a0);
+      const x1 = cx + r * Math.cos(a1);
+      const y1 = cy + r * Math.sin(a1);
+      return {
+        d: `M ${cx} ${cy} L ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z`,
+        color: PIE_COLORS[i % PIE_COLORS.length],
+        label: trunc(lbls[i] ?? String(i + 1)),
+        pct: Math.round((Math.abs(v) / total) * 100),
+      };
+    });
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[560px] mt-1.5" data-testid="mini-chart" role="img">
+        {segs.map((s, i) => (
+          <path key={i} d={s.d} fill={s.color} stroke="var(--bg)" strokeWidth="1" />
+        ))}
+        {segs.map((s, i) => (
+          <text
+            key={`t${i}`}
+            x={170 + (i % 2) * 190}
+            y={28 + Math.floor(i / 2) * 22}
+            fontSize="11"
+            fill="var(--fg-dim, #9aa2ad)"
+          >
+            <tspan fill={s.color}>■</tspan> {s.label} {s.pct}%
+          </text>
+        ))}
+      </svg>
+    );
+  }
+
+  const padL = 8;
+  const padT = 14;
+  const padB = 22;
+  const plotW = W - padL - 8;
+  const plotH = H - padB - padT;
+  const max = Math.max(...vals.map(Math.abs), 1e-9);
+  const step = plotW / vals.length;
+
+  if (chartType === "line") {
+    const pts = vals.map((v, i) => ({
+      x: padL + step * (i + 0.5),
+      y: padT + plotH - (Math.abs(v) / max) * plotH,
+    }));
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[560px] mt-1.5" data-testid="mini-chart" role="img">
+        <polyline
+          points={pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}
+          fill="none"
+          stroke={CHART_BLUE}
+          strokeWidth="2"
+        />
+        {pts.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="3" fill={CHART_BLUE} />
+            <text x={p.x.toFixed(1)} y={(p.y - 6).toFixed(1)} fontSize="9" textAnchor="middle" fill="var(--fg-dim, #9aa2ad)">
+              {vals[i]}
+            </text>
+            {lbls[i] !== undefined && (
+              <text x={p.x.toFixed(1)} y={H - 6} fontSize="9" textAnchor="middle" fill="var(--fg-faint, #6b7280)">
+                {trunc(lbls[i])}
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+    );
+  }
+
+  // bar（默认；scatter 归一为柱状展示）
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[560px] mt-1.5" data-testid="mini-chart" role="img">
+      {vals.map((v, i) => {
+        const h = Math.max(1, (Math.abs(v) / max) * plotH);
+        const x = padL + step * i + step * 0.15;
+        const w = step * 0.7;
+        const y = padT + plotH - h;
+        return (
+          <g key={i}>
+            <rect x={x.toFixed(1)} y={y.toFixed(1)} width={w.toFixed(1)} height={h.toFixed(1)} rx="2" fill={CHART_BLUE} />
+            <text x={(x + w / 2).toFixed(1)} y={(y - 4).toFixed(1)} fontSize="9" textAnchor="middle" fill="var(--fg-dim, #9aa2ad)">
+              {v}
+            </text>
+            {lbls[i] !== undefined && (
+              <text x={(x + w / 2).toFixed(1)} y={H - 6} fontSize="9" textAnchor="middle" fill="var(--fg-faint, #6b7280)">
+                {trunc(lbls[i])}
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
   );
 }

@@ -87,7 +87,8 @@ func (a *App) GaeaKnowledgeImportAIParse(path string) (KnowledgeImportPreview, e
 		return KnowledgeImportPreview{}, fmt.Errorf("文件没有可提取的内容")
 	}
 
-	featEng, featModel, _ := a.routeModel("office")
+	// 2026-08-28 本地优先强化：知识导入解析属办公功能级调用，优先本地 Herdsman。
+	featEng, featModel, _ := a.routeOfficeLocal("office")
 	prov, err := provider.NewLLM("", provider.Config{Name: "knowledge-import-ai", Model: featModel, Engine: featEng})
 	if err != nil {
 		return KnowledgeImportPreview{}, fmt.Errorf("AI 解析模型初始化失败: %w", err)

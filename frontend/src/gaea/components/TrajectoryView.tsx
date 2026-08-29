@@ -199,7 +199,15 @@ export function TrajectoryView({ running }: { running: boolean }) {
 
   const load = useCallback(() => {
     app.Trajectory()
-      .then((t) => { setTrajectory(t); setError(null); })
+      // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
+      .then((t) => {
+        setTrajectory({
+          ...t,
+          turns: (t.turns ?? []).map((tu) => ({ ...tu, records: tu.records ?? [] })),
+          betweenTurns: t.betweenTurns ?? [],
+        });
+        setError(null);
+      })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 

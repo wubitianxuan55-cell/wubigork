@@ -6,7 +6,6 @@
 
 import type {
   ProjectGroup,
-  Requirement,
   ServerView,
   SessionMeta,
   SettingsView,
@@ -24,7 +23,6 @@ export interface MakeMockState {
   capSkills: SkillView[];
   sessions: SessionMeta[];
   archivedMock: SessionMeta[];
-  requirementsMock: Map<string, Requirement>;
   projectGroupsMock: ProjectGroup[];
   settings: SettingsView;
   keepWarm: boolean;
@@ -79,30 +77,15 @@ export function createMockState(): MakeMockState {
   // interrupted=true 表示上次运行中断未完成（T5-4）；d.jsonl 刻意标记中断，供浏览器
   // 联调「未完成」徽标与恢复摘要注入。
   const sessions: SessionMeta[] = freshMock ? [] : [
-    { path: "/mock/sessions/a.jsonl", preview: "compile quarterly report", turns: 12, modTime: t0 - 3_600_000, current: true, hasRequirement: true, interrupted: false },
+    { path: "/mock/sessions/a.jsonl", preview: "compile quarterly report", turns: 12, modTime: t0 - 3_600_000, current: true, interrupted: false },
     { path: "/mock/sessions/b.jsonl", preview: "convert docx to markdown", turns: 5, modTime: t0 - 6 * 3_600_000, current: false, pinned: true, interrupted: false },
-    { path: "/mock/sessions/c.jsonl", preview: "build chart from data", turns: 8, modTime: t0 - day - 3_600_000, current: false, hasRequirement: true, requirementDone: true, interrupted: false },
+    { path: "/mock/sessions/c.jsonl", preview: "build chart from data", turns: 8, modTime: t0 - day - 3_600_000, current: false, interrupted: false },
     { path: "/mock/sessions/d.jsonl", preview: "explain the plugin host design", turns: 3, modTime: t0 - 4 * day, current: false, interrupted: true },
   ];
   // 已归档会话（可恢复；浏览器 mock 内存态）
   const archivedMock: SessionMeta[] = freshMock ? [] : [
-    { path: "/mock/sessions/arch1.jsonl", preview: "上季度费用报销整理", turns: 7, modTime: t0 - 20 * day, current: false, archived: true, hasRequirement: true, requirementDone: true, interrupted: false },
+    { path: "/mock/sessions/arch1.jsonl", preview: "上季度费用报销整理", turns: 7, modTime: t0 - 20 * day, current: false, archived: true, interrupted: false },
   ];
-  // 会话任务目标（从需求到验收；浏览器 mock 内存态）
-  const requirementsMock = new Map<string, Requirement>();
-  if (!freshMock) {
-    requirementsMock.set("/mock/sessions/a.jsonl", {
-      text: "整理季度经营数据，输出一份带图表的总结报告（docx）",
-      done: false,
-      updatedAt: t0 - 3_600_000,
-      items: [
-        { text: "数据口径与来源确认", done: true },
-        { text: "图表生成并嵌入报告", done: false },
-        { text: "输出 docx 到交付物目录", done: false },
-      ],
-      autoPursue: false,
-    });
-  }
   // 侧边栏「项目」分组 mock：当前工作区 + 两个历史项目。
   const projectGroupsMock: ProjectGroup[] = freshMock ? [] : [
     {
@@ -165,7 +148,6 @@ export function createMockState(): MakeMockState {
     capSkills,
     sessions,
     archivedMock,
-    requirementsMock,
     projectGroupsMock,
     settings,
     keepWarm: true,

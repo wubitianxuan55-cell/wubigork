@@ -108,7 +108,8 @@ func (a *App) runDream() error {
 		return fmt.Errorf("ai client unavailable")
 	}
 
-	featEng, featModel, _ := a.routeModel("office")
+	// 2026-08-28 本地优先强化：记忆整理属办公功能级调用，优先本地 Herdsman。
+	featEng, featModel, _ := a.routeOfficeLocal("office")
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()

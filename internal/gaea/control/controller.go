@@ -22,7 +22,6 @@ import (
 	"github.com/gaea/gaea/internal/gaea/agent"
 	"github.com/gaea/gaea/internal/gaea/agent/session"
 	"github.com/gaea/gaea/internal/gaea/billing"
-	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/command"
 	tiancontext "github.com/gaea/gaea/internal/gaea/context"
 	"github.com/gaea/gaea/internal/gaea/event"
@@ -101,12 +100,6 @@ type Controller struct {
 	nextID      int
 	turn        int
 	autoApprove bool
-	autoPlan    bool
-	// mode is the session collaboration mode: "default" (existing heuristic:
-	// auto-plan only for non-simple queries when AutoPlan is on) or "plan"
-	// (方案模式: every turn goes through the plan card before execution).
-	// Distilled from codex ModeKind (Default/Plan).
-	mode string
 
 	// permLevel controls permission strictness: "ask" (prompt before writes, default),
 	// "auto" (allow writes without asking), or "yolo" (skip all prompts).
@@ -182,8 +175,6 @@ type Options struct {
 	Registry  *tool.Registry
 	PluginCtx context.Context
 	CtxMgr    *tiancontext.ContextManager // V3.0 Phase 5
-	// AutoPlan 开启开工前计划确认：非简单查询的回合先出计划卡片，用户确认再执行。
-	AutoPlan bool
 	// MemoryDisabled 关闭自动记忆注入（系统提示词画像 + 逐轮记忆上下文）。
 	// 零值（false）= 记忆开启；文档记忆文件不受影响，重新开启即恢复。
 	MemoryDisabled bool
@@ -226,8 +217,6 @@ func New(opts Options) *Controller {
 		pluginCtx:     pluginCtx,
 		ctxMgr:        opts.CtxMgr,
 		permLevel:     "ask",
-		mode:          "default",
-		autoPlan:      opts.AutoPlan,
 		approvals:     map[string]chan approvalReply{},
 		asks:          map[string]chan []event.AskAnswer{},
 		granted:       map[string]bool{},
@@ -432,15 +421,6 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 		}
 		defer func() { c.hooks.Stop(ctx, lastAssistantText(c.History()), turn) }()
 	}
-	// 开工前计划确认：方案模式（mode="plan"）下每轮都先出计划卡片再执行；
-	// 默认模式保持 AutoPlan 启发式（非简单查询才规划）。
-	if c.shouldPlan(input) {
-		if ok, err := c.planGate(ctx, input); err != nil {
-			return err
-		} else if !ok {
-			return nil
-		}
-	}
 	// 3.0 Step 1 事件日志模式（session.log_format="event"）：模型调用前
 	// flush 检查点（fail-closed——检查点写失败即中止回合，绝不带着未持久化
 	// 的状态调用模型），随后把用户消息写入事件日志（「模型可见必入日志」）。
@@ -462,18 +442,6 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 		slog.Warn("controller: snapshot after turn", "err", err)
 	}
 	return nil
-}
-
-// shouldPlan decides whether the turn starts with a plan card: 方案模式 forces
-// it for every input; 默认模式 keeps the AutoPlan heuristic (only non-simple
-// queries). Distilled from codex ModeKind Plan/Default semantics.
-func (c *Controller) shouldPlan(input string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.mode == "plan" {
-		return true
-	}
-	return c.autoPlan && !cache.IsSimpleQuery(strings.ToLower(input), input)
 }
 
 // lastAssistantText returns the content of the most recent assistant message with
@@ -560,6 +528,28 @@ func (c *Controller) Cancel() {
 	if cancel != nil {
 		cancel()
 	}
+}
+
+// Steer 在任务运行中插话调整（2026-08-28，对齐豆包工作「边跑边改」/
+// Codex mid-turn steer）：把消息注入当前回合的 steer 队列，agent 在下一轮
+// 采样前作为 guidance 消费——模型看到的是「对当前任务的补充指引」而不是
+// 新任务。不打断当前工具执行；回合结束后若仍有未消费消息则自然转为下一轮。
+// 未运行（无回合可插话）时走普通 Send 排队，保证消息不丢。
+func (c *Controller) Steer(text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	c.mu.Lock()
+	executor := c.executor
+	running := c.running
+	c.mu.Unlock()
+	if executor != nil && running {
+		executor.Steer(text)
+		c.sink.Emit(event.Event{Kind: event.Steer, Text: text})
+		return
+	}
+	c.Send(text)
 }
 
 // Running reports whether a turn is currently in flight.
@@ -677,30 +667,6 @@ func (c *Controller) PermLevel() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.permLevel
-}
-
-// SetMode sets the session collaboration mode: "default" (existing heuristic)
-// or "plan" (every turn plans first). Emits a notice so the user sees the
-// change; planGate reads the mode on the next Send.
-func (c *Controller) SetMode(mode string) {
-	if mode != "plan" {
-		mode = "default"
-	}
-	c.mu.Lock()
-	c.mode = mode
-	c.mu.Unlock()
-	if mode == "plan" {
-		c.notice("会话模式: 方案 — 每轮先出开工计划，确认后执行")
-	} else {
-		c.notice("会话模式: 默认 — 仅在复杂任务时自动规划")
-	}
-}
-
-// Mode returns the current session collaboration mode ("default"|"plan").
-func (c *Controller) Mode() string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.mode
 }
 
 // SetGoal sets the session goal (set via /goal) and propagates it to the

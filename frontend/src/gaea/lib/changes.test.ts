@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractChangedPaths, buildSessionChanges, WRITE_TOOL_NAMES } from "./changes";
+import { extractChangedPaths, extractDeliverablePaths, buildSessionChanges, WRITE_TOOL_NAMES } from "./changes";
 import type { Item } from "./store";
 
 describe("extractChangedPaths", () => {
@@ -26,6 +26,22 @@ describe("extractChangedPaths", () => {
     for (const name of ["write_file", "edit_file", "edit_lines", "multi_edit", "move_file", "notebook_edit", "delete_range", "delete_symbol"]) {
       expect(WRITE_TOOL_NAMES.has(name)).toBe(true);
     }
+  });
+});
+
+describe("extractDeliverablePaths", () => {
+  it("提取目标路径，move_file 不计 source（源不是交付物）", () => {
+    expect(extractDeliverablePaths('{"path":"报告.docx"}')).toEqual(["报告.docx"]);
+    expect(extractDeliverablePaths('{"source":"old.md","destination":"new.md"}')).toEqual(["new.md"]);
+  });
+
+  it("提取数组与 edits 片段并去重保持顺序", () => {
+    expect(extractDeliverablePaths('{"paths":["a.md","b.md","a.md"]}')).toEqual(["a.md", "b.md"]);
+    expect(extractDeliverablePaths('{"edits":[{"path":"x.docx"},{"file_path":"y.xlsx"}]}')).toEqual(["x.docx", "y.xlsx"]);
+  });
+
+  it("非法 JSON 返回空数组", () => {
+    expect(extractDeliverablePaths("{not json")).toEqual([]);
   });
 });
 

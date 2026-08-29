@@ -1,15 +1,12 @@
 package app
 
 import (
-	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/gaea/gaea/internal/office/crosslink"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -22,19 +19,24 @@ type XlsxChartInput struct {
 	Title     string `json:"title"`     // 图表标题；空 = 文件名
 }
 
-// XlsxChartResult 是图表产物：PNG 相对路径 + dataURL（前端直接预览）。
+// XlsxChartResult 是图表产物：原生图表对象已嵌入工作簿（Excel/WPS 打开即可见、
+// 可继续编辑），并带回数据供前端渲染迷你预览。
 type XlsxChartResult struct {
-	Path      string `json:"path"`      // 工作区相对路径
-	Name      string `json:"name"`      // 文件名
-	DataURL   string `json:"dataUrl"`   // base64 PNG dataURL
-	Labels    int    `json:"labels"`    // 数据点数量
-	ChartType string `json:"chartType"`
+	Path      string    `json:"path"`      // xlsx 工作区相对路径（图表已嵌入该文件）
+	Name      string    `json:"name"`      // 文件名
+	Sheet     string    `json:"sheet"`     // 嵌入的工作表
+	Anchor    string    `json:"anchor"`    // 图表左上角锚点单元格（如 D1）
+	Labels    int       `json:"labels"`    // 数据点数量
+	LabelList []string  `json:"labelList"` // 类别（迷你图预览）
+	Values    []float64 `json:"values"`    // 数值（迷你图预览）
+	ChartType string    `json:"chartType"`
+	Title     string    `json:"title"`
 }
 
 // GaeaXlsxChart 表格「选中区域 → 一键图表」：从 xlsx 的选中区域提取
-// 「标签列 + 数值列」→ matplotlib 生成 PNG → 返回可预览的 dataURL。
-// 对标千问表格 Agent / ChatExcel 的「可交付」表格体验：选中数据即出图，
-// 不离开预览，产物落 .gaea/exports/ 供后续引用。
+// 「标签列 + 数值列」→ excelize 在工作簿内嵌入原生图表对象（Excel 原生可编辑，
+// 非图片截图）→ 返回锚点与数据供前端迷你预览。
+// 对标 Gemini in Sheets / Copilot in Excel 的「原生对象而非截图」交付标准。
 func (a *App) GaeaXlsxChart(in XlsxChartInput) (XlsxChartResult, error) {
 	if in.Rel == "" {
 		return XlsxChartResult{}, fmt.Errorf("缺少 xlsx 文件路径")
@@ -55,7 +57,7 @@ func (a *App) GaeaXlsxChart(in XlsxChartInput) (XlsxChartResult, error) {
 		return XlsxChartResult{}, fmt.Errorf("不支持的图表类型 %q（bar/line/pie/scatter）", in.ChartType)
 	}
 
-	labels, values, err := extractRangeChartData(xlsxPath, in.Sheet, in.Refs)
+	region, labels, values, err := extractChartRegion(xlsxPath, in.Sheet, in.Refs)
 	if err != nil {
 		return XlsxChartResult{}, err
 	}
@@ -64,39 +66,42 @@ func (a *App) GaeaXlsxChart(in XlsxChartInput) (XlsxChartResult, error) {
 		title = strings.TrimSuffix(filepath.Base(in.Rel), filepath.Ext(in.Rel))
 	}
 
-	exportsDir := filepath.Join(gaeaCwd(), ".gaea", "exports")
-	if err := os.MkdirAll(exportsDir, 0o755); err != nil {
-		return XlsxChartResult{}, err
-	}
-	stamp := time.Now().Format("20060102-150405")
-	base := safeDeliverableName(title)
-	pngPath := filepath.Join(exportsDir, base+"-chart-"+stamp+".png")
-	if err := crosslink.GenerateChartPNG(labels, values, in.ChartType, title, pngPath); err != nil {
-		return XlsxChartResult{}, err
-	}
-
-	raw, err := os.ReadFile(pngPath)
+	anchor, err := embedNativeChart(xlsxPath, region, in.ChartType, title)
 	if err != nil {
 		return XlsxChartResult{}, err
 	}
-	rel, _ := filepath.Rel(gaeaCwd(), pngPath)
+	rel, _ := filepath.Rel(gaeaCwd(), xlsxPath)
 	return XlsxChartResult{
 		Path:      filepath.ToSlash(rel),
-		Name:      filepath.Base(pngPath),
-		DataURL:   "data:image/png;base64," + base64.StdEncoding.EncodeToString(raw),
+		Name:      filepath.Base(xlsxPath),
+		Sheet:     region.Sheet,
+		Anchor:    anchor,
 		Labels:    len(labels),
+		LabelList: labels,
+		Values:    values,
 		ChartType: in.ChartType,
+		Title:     title,
 	}, nil
 }
 
-// extractRangeChartData 从 xlsx 选中区域提取「标签列 + 数值列」。
+// chartRegion 描述图表数据在工作表中的位置（生成原生图表的系列引用用）。
+type chartRegion struct {
+	Sheet    string
+	LabelCol int // 0 = 无标签列（单列数据）
+	ValueCol int
+	FirstRow int // 首个数据行（跳过表头后）
+	LastRow  int
+}
+
+// extractChartRegion 从 xlsx 选中区域提取「标签列 + 数值列」的位置与数据。
 // refs 规则：空 = 自动取前两列数据行（首行作标签列头则跳过表头）；
 // "A1:B6" = 显式区域，取区域第一列为标签、第二列为数值；
 // 单单元格 "B2" = 从 A1 到该单元格的矩形（表头到选中行）。
-func extractRangeChartData(path, sheet, refs string) (labels []string, values []float64, err error) {
+func extractChartRegion(path, sheet, refs string) (region chartRegion, labels []string, values []float64, err error) {
+	region = chartRegion{LabelCol: 1, ValueCol: 2, FirstRow: 2}
 	f, err := excelize.OpenFile(path, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
 	if err != nil {
-		return nil, nil, fmt.Errorf("打开 xlsx 失败: %w", err)
+		return region, nil, nil, fmt.Errorf("打开 xlsx 失败: %w", err)
 	}
 	defer f.Close()
 	if sheet == "" {
@@ -104,12 +109,13 @@ func extractRangeChartData(path, sheet, refs string) (labels []string, values []
 			sheet = list[0]
 		}
 	}
+	region.Sheet = sheet
 	all, err := f.GetRows(sheet)
 	if err != nil {
-		return nil, nil, fmt.Errorf("读取工作表 %q 失败: %w", sheet, err)
+		return region, nil, nil, fmt.Errorf("读取工作表 %q 失败: %w", sheet, err)
 	}
 	if len(all) == 0 {
-		return nil, nil, fmt.Errorf("工作表 %q 为空", sheet)
+		return region, nil, nil, fmt.Errorf("工作表 %q 为空", sheet)
 	}
 
 	r1, c1, r2, c2 := 1, 1, len(all), 2 // 默认：全表前两列
@@ -121,18 +127,18 @@ func extractRangeChartData(path, sheet, refs string) (labels []string, values []
 			// 单单元格 → A1 到该单元格（表头到选中行），标签列 A、数值列取选中列
 			col, row, cerr := excelize.CellNameToCoordinates(strings.ToUpper(refs))
 			if cerr != nil {
-				return nil, nil, fmt.Errorf("无效单元格引用：%s", refs)
+				return region, nil, nil, fmt.Errorf("无效单元格引用：%s", refs)
 			}
 			r1, c1, r2, c2 = 1, 1, row, col
 		}
 		if parseErr != nil {
-			return nil, nil, parseErr
+			return region, nil, nil, parseErr
 		}
 		if r2 > len(all) {
 			r2 = len(all)
 		}
 		if r2 < r1 || c2 < c1 {
-			return nil, nil, fmt.Errorf("数据区域无效：%s", refs)
+			return region, nil, nil, fmt.Errorf("数据区域无效：%s", refs)
 		}
 	}
 	// 数值列取区域第二列；区域只有一列时用第一列（单列数据默认无标签）
@@ -140,6 +146,7 @@ func extractRangeChartData(path, sheet, refs string) (labels []string, values []
 	if c2 == c1 {
 		labelCol, valueCol = 0, c1 // 无标签列，数值列即区域唯一列
 	}
+	region.LabelCol, region.ValueCol = labelCol, valueCol
 	slice := func(row []string, c int) string {
 		if c <= 0 || c-1 >= len(row) {
 			return ""
@@ -152,6 +159,7 @@ func extractRangeChartData(path, sheet, refs string) (labels []string, values []
 		// 自动模式或单单元格从 A1 开始：首行视为表头（标签列头），跳过
 		firstDataRow = r1 + 1
 	}
+	region.FirstRow, region.LastRow = firstDataRow, r2
 	rows := all
 	for i := firstDataRow; i <= r2 && i-1 < len(rows); i++ {
 		row := rows[i-1]
@@ -168,9 +176,66 @@ func extractRangeChartData(path, sheet, refs string) (labels []string, values []
 		values = append(values, v)
 	}
 	if len(values) == 0 {
-		return nil, nil, fmt.Errorf("数据区域没有数值（请选中含数据的区域）")
+		return region, nil, nil, fmt.Errorf("数据区域没有数值（请选中含数据的区域）")
 	}
-	return labels, values, nil
+	return region, labels, values, nil
+}
+
+// embedNativeChart 用 excelize 在工作簿内嵌入原生图表对象并保存，
+// 返回锚点单元格。图表锚定在数值列右侧两列、数据区首行处（浮于空白，
+// 不遮挡数据），在 Excel/WPS 中可继续拖拽与编辑。
+func embedNativeChart(path string, region chartRegion, chartType, title string) (string, error) {
+	f, err := excelize.OpenFile(path, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
+	if err != nil {
+		return "", fmt.Errorf("打开 xlsx 失败: %w", err)
+	}
+	defer f.Close()
+
+	typeByName := map[string]excelize.ChartType{
+		"bar":     excelize.Col,
+		"line":    excelize.Line,
+		"pie":     excelize.Pie,
+		"scatter": excelize.Scatter,
+	}
+	series := excelize.ChartSeries{Name: title}
+	if region.LabelCol > 0 {
+		labelColName, err := excelize.ColumnNumberToName(region.LabelCol)
+		if err != nil {
+			return "", fmt.Errorf("标签列无效：%w", err)
+		}
+		series.Categories = seriesRef(region.Sheet, labelColName, region.FirstRow, region.LastRow)
+	}
+	valueColName, err := excelize.ColumnNumberToName(region.ValueCol)
+	if err != nil {
+		return "", fmt.Errorf("数值列无效：%w", err)
+	}
+	series.Values = seriesRef(region.Sheet, valueColName, region.FirstRow, region.LastRow)
+
+	chart := &excelize.Chart{
+		Type:      typeByName[chartType],
+		Series:    []excelize.ChartSeries{series},
+		Title:     excelize.ChartTitle{Paragraph: []excelize.RichTextRun{{Text: title}}},
+		Legend:    excelize.ChartLegend{Position: "bottom"},
+		Dimension: excelize.ChartDimension{Width: 520, Height: 300},
+		PlotArea:  excelize.ChartPlotArea{ShowPercent: chartType == "pie"},
+	}
+	anchorCol, err := excelize.ColumnNumberToName(region.ValueCol + 2)
+	if err != nil {
+		return "", fmt.Errorf("图表锚点列无效：%w", err)
+	}
+	anchor := anchorCol + strconv.Itoa(max(1, region.FirstRow-1))
+	if err := f.AddChart(region.Sheet, anchor, chart); err != nil {
+		return "", fmt.Errorf("嵌入图表失败: %w", err)
+	}
+	if err := f.Save(); err != nil {
+		return "", fmt.Errorf("保存 xlsx 失败: %w", err)
+	}
+	return anchor, nil
+}
+
+// seriesRef 生成图表系列的绝对区域引用，如 "Sheet1!$B$2:$B$6"。
+func seriesRef(sheet, col string, firstRow, lastRow int) string {
+	return fmt.Sprintf("%s!$%s$%d:$%s$%d", sheet, col, firstRow, col, lastRow)
 }
 
 // parseChartRange 解析 "A1:B6" 区域为行列坐标。

@@ -158,7 +158,9 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		base.Truncated = truncated
 		return base
 	case ".docx":
-		// 原始 docx 交给前端 docx-preview 保真渲染（版式/表格/页眉页脚/修订）。
+		// 原始 docx 交给前端 docx-preview 保真渲染（版式/表格/页眉页脚/修订）；
+		// Body 同时附带轻量 Markdown 文本（截断头部），供交付卡片缩略图
+		// 显示"看得见的文件内容"，完整版式仍走 dataUrl。
 		b, err := os.ReadFile(path)
 		if err != nil {
 			base.Kind = "error"
@@ -168,6 +170,9 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		base.Kind = "docx"
 		base.DataURL = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64," +
 			base64.StdEncoding.EncodeToString(b)
+		if md, mdErr := docmd.Convert(path, ""); mdErr == nil {
+			base.Body = previewThumbText(md)
+		}
 		return base
 	case ".xlsx":
 		// 公式无缓存值时先补一次 LibreOffice 重算，保证预览显示计算结果
@@ -232,6 +237,23 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 	base.Kind = "unsupported"
 	base.Error = "该格式暂不支持内联预览，可点击右上角在外部程序中打开"
 	return base
+}
+
+// previewThumbText 截取预览正文头部作为交付卡片缩略图文本：
+// 取前 maxThumbBytes 字节（UTF-8 安全截断），去掉可能残留的半行。
+const maxThumbBytes = 4 << 10 // 4KB，足够展示前几行内容
+
+func previewThumbText(md string) string {
+	if len(md) <= maxThumbBytes {
+		return md
+	}
+	head := md[:maxThumbBytes]
+	// 回退到 UTF-8 字符边界，避免截断处出现乱码。
+	i := len(head)
+	for i > 0 && head[i-1]&0xC0 == 0x80 {
+		i--
+	}
+	return head[:i]
 }
 
 // readPreviewCapped 读取预览正文：超过 maxPreviewBytes 时截断（不切断 UTF-8

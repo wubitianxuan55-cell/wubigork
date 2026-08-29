@@ -1,6 +1,6 @@
 // 权限管理 hook — V10.19: 统一 ask/auto/yolo 三级权限
 // 主题统一：跟随主应用（老栈）darkMode，gaea 不再维护独立主题。
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import type { PermLevel } from "../lib/types";
 import { app } from "../lib/bridge";
 
@@ -13,25 +13,11 @@ export function useModeManager(
 ) {
   const [permLevel, setPermLevelState] = useState<PermLevel>("ask");
   const [thinkLevel, setThinkLevel] = useState<"fast" | "normal" | "deep">("normal");
-  // 会话协作模式（蒸馏自 codex ModeKind）：default / plan。初始化读后端，
-  // 切换直接写后端（GaeaSetAgentMode），本地状态为镜像。
-  const [sessionMode, setSessionModeState] = useState<"default" | "plan">("default");
   const [switchingModel, setSwitchingModel] = useState(false);
-
-  useEffect(() => {
-    app.AgentMode().then((m) => {
-      if (m === "plan" || m === "default") setSessionModeState(m);
-    }).catch(() => {});
-  }, []);
 
   const setPermLevel = useCallback((level: PermLevel) => {
     setPermLevelState(level);
     app.SetPermLevel(level).catch(() => {});
-  }, []);
-
-  const setSessionMode = useCallback((mode: "default" | "plan") => {
-    setSessionModeState(mode);
-    app.SetAgentMode(mode).catch(() => {});
   }, []);
 
   const handleThinkLevelChange = useCallback(async (level: string) => {
@@ -56,6 +42,5 @@ export function useModeManager(
 
   return {
     permLevel, setPermLevel, thinkLevel, switchingModel, handleThinkLevelChange, switchModel,
-    sessionMode, setSessionMode,
   };
 }

@@ -312,6 +312,35 @@ func TestSave_SensitiveLocalRoundTrip(t *testing.T) {
 	}
 }
 
+// TestSave_OfficeLocalRoundTrip 办公本地优先开关（2026-08-28）持久化：
+// 默认开启；显式关闭 → 保存 → 重新加载为 false；再开启恢复。
+func TestSave_OfficeLocalRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	// 未配置时默认开启（办公本地优先默认开启）
+	if cfg := Load(); !cfg.GetOfficeLocal() {
+		t.Error("未配置时办公本地优先默认应为开启")
+	}
+
+	// 显式关闭 → 持久化 → 读取为 false
+	if err := Save(KeyOfficeLocal, "0"); err != nil {
+		t.Fatalf("Save office_local=0 失败: %s", err)
+	}
+	if cfg := Load(); cfg.GetOfficeLocal() {
+		t.Error("保存 0 后办公本地优先应为关闭")
+	}
+
+	// 重新开启
+	if err := Save(KeyOfficeLocal, "1"); err != nil {
+		t.Fatalf("Save office_local=1 失败: %s", err)
+	}
+	if cfg := Load(); !cfg.GetOfficeLocal() {
+		t.Error("保存 1 后办公本地优先应为开启")
+	}
+}
+
 // TestSave_KeepWarmRoundTrip 本地模型保活开关（T5-3a）持久化：
 // 默认开启；显式关闭 → 保存 → 重新加载为 false；再开启恢复。
 func TestSave_KeepWarmRoundTrip(t *testing.T) {

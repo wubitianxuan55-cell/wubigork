@@ -38,4 +38,20 @@ describe("FilePreviewModal", () => {
     expect(await screen.findByText(/OCR 识别中/)).toBeTruthy();
     expect(await screen.findByText(/扫描页内容/)).toBeTruthy();
   });
+
+  it("可转换格式显示导出 PDF 按钮，点击后打开 PDF 预览（mock）", async () => {
+    usePreviewStore.setState({ previewFile: "docs/方案.docx" });
+    render(<FilePreviewModal />);
+    const btn = await screen.findByTitle(/LibreOffice 把当前文档转换为 PDF/);
+    fireEvent.click(btn);
+    // mock ConvertToPdf 返回 .gaea/exports/方案-mock.pdf → 自动切到该预览
+    expect(await screen.findByText(/方案-mock\.pdf/)).toBeTruthy();
+  });
+
+  it("PDF 本身与图片不显示导出 PDF 按钮", async () => {
+    usePreviewStore.setState({ previewFile: "big.pdf" });
+    render(<FilePreviewModal />);
+    await screen.findByText(/仅展示前部内容/);
+    expect(screen.queryByTitle(/LibreOffice 把当前文档转换为 PDF/)).toBeNull();
+  });
 });

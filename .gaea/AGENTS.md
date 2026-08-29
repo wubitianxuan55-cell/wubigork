@@ -5,6 +5,40 @@
 
 ## 版本状态
 
+- **最新发布：v3.6.0（2026-08-29）「办公文件编辑审阅制 · 本地优先 · 对话面减负」**：
+  git tag `v3.6.0`；CHANGELOG / releases/v3.6.0.md / README 索引同步。要点：
+  - **xlsx AI 编辑审阅制（Plan→Apply 两段式）**：`GaeaXlsxPlanEdit`（AI 操作集在原文件
+    临时副本试运行 + 单元格级 diff 变更清单，不落盘；`xlsxedit.PlanOps/diffOps`）→
+    用户批准 → `GaeaXlsxApplyEdit`（excelize 执行 + LibreOffice 重算）；新增 `set_style`
+    （叠加样式不丢现有填充色，`mergeStyle`）/`merge_cells`/`unmerge_cells`/`set_col_width`；
+    XlsxPreview 规划审阅卡（对标 Copilot Plan/Show Changes）。
+  - **xlsx 原生图表**：excelize 原生图表对象嵌入工作簿（Excel/WPS 打开即可见可编辑，
+    非图片截图），返回锚点+数据供前端迷你预览。
+  - **PDF 统一出口**：`GaeaConvertToPdf`（soffice 无头转换 + 独立 UserInstallation
+    profile 防锁冲突；md/markdown 经 docx 中转），顶栏「导出 PDF」同管线；缩略图/预览
+    支持 pdf/docx 文本提取（UTF-8 字符边界截断）。
+  - **办公本地优先路由**：`routeOfficeLocal`（与 sensitive-local 共用 `routeHerdsmanLocal`，
+    source 区分）——办公功能级 AI 调用（Word/Excel 编辑、资料摘要、知识导入、记忆整理）
+    默认走本地 Herdsman（数据不出本机、省 token），不可用回退常规路由；聊天主 agent
+    不受影响；`GetOfficeLocal/SetOfficeLocal` 绑定 + 安全设置面板开关（配置 `office_local`，
+    默认开）。
+  - **运行中插话（GaeaSteer）**：对齐豆包「边跑边改」——运行中消息作为当前回合 guidance
+    注入（不开新回合、不打断工具），未运行走 GaeaSend 排队兜底；`event.Steer` → notice 回显。
+  - **对话面减负**：**回退 C1 方案模式 v1**（Controller mode/shouldPlan/planGate、
+    Ask.Plan 计划卡、composer 模式切换器、GaeaAgentMode/GaeaSetAgentMode、Agent.AutoPlan
+    配置与 auto_plan_score 字段——与既有 goal/todo 闸门职责重叠，方案模式连同计划流式
+    事件列后续观察项）；**撤下任务目标/验收清单**（GoalCard + GaeaRequirement 系 8 绑定 +
+    requirements 存取层）；用户消息 Codex 式无气泡 + Kimi Work 式超长折叠（240 字符 3 行）。
+  - **修复**：whisper 关机排水丢任务（排队任务对 chain 令牌不可见 → 末轮抽取被整体跳过；
+    pending WaitGroup 修复）；trajectory/contextview 绑定层早退路径 nil 切片序列化 null
+    崩溃（EmptyTimeline/EmptyTrajectory/EmptyAgentNetwork 非 nil 保证 + 前端归一化）；
+    TrajectoryView 测试负载 flaky 加固（显式 5s 超时——教训：全量套件高负载下 jsdom
+    调度会饿死 RTL 默认 1s 超时）。
+  - **验证**：Go 全量 **114/114 包** + vet；vitest **669/669（127 文件）**；eslint 0/0；
+    tsc 0；绑定面 **503→499 方法**漂移 PASS；版本四处统一 3.6.0；wails build + 冒烟 200。
+  - **下一阶段候选**：办公蒸馏 codex 清单第二刀（C2 记忆引用可追溯 + C4 审批决策语义，
+    见 `docs/superpowers/plans/2026-08-28-办公蒸馏-codex-候选清单.md` §6 推进顺序）。
+
 - **最新发布：v3.5.0（2026-08-28）「办公对话区标签页 · dsh-context Go 移植」**：
   git tag `v3.5.0`；CHANGELOG / releases/v3.5.0.md / README 索引同步；规划文档
   `docs/2026-08-27-dsh-context-go-port.md`。要点：

@@ -21,7 +21,9 @@ func (a *App) GaeaOfficeEditText(selectedText, instruction string) (map[string]i
 		return nil, fmt.Errorf("编辑指令为空")
 	}
 
-	featEng, featModel, _ := a.routeModel("office")
+	// 2026-08-28 本地优先强化：Word 框选即改属办公功能级调用，优先本地
+	// Herdsman（数据不出本机、省 token），不可用时回退常规路由。
+	featEng, featModel, _ := a.routeOfficeLocal("office")
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()

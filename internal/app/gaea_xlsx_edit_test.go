@@ -9,7 +9,7 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-func TestGaeaXlsxEdit_Validation(t *testing.T) {
+func TestGaeaXlsxPlanEdit_Validation(t *testing.T) {
 	t.Chdir(t.TempDir())
 	rel := filepath.Join(".gaea", "uploads", "edit.xlsx")
 	if err := os.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
@@ -23,14 +23,119 @@ func TestGaeaXlsxEdit_Validation(t *testing.T) {
 	f.Close()
 
 	a := &App{core: &core{}} // core 存在、client 为 nil
-	if _, err := a.GaeaXlsxEdit(filepath.ToSlash(rel), "Sheet1", "求和", "B1"); err == nil || !strings.Contains(err.Error(), "AI 客户端") {
+	if _, err := a.GaeaXlsxPlanEdit(filepath.ToSlash(rel), "Sheet1", "求和", "B1"); err == nil || !strings.Contains(err.Error(), "AI 客户端") {
 		t.Fatalf("期望 AI 客户端错误，得到 %v", err)
 	}
-	if _, err := a.GaeaXlsxEdit("", "Sheet1", "求和", "B1"); err == nil || !strings.Contains(err.Error(), "路径") {
+	if _, err := a.GaeaXlsxPlanEdit("", "Sheet1", "求和", "B1"); err == nil || !strings.Contains(err.Error(), "路径") {
 		t.Fatalf("期望路径错误，得到 %v", err)
 	}
-	if _, err := a.GaeaXlsxEdit(filepath.ToSlash(rel), "Sheet1", "", "B1"); err == nil || !strings.Contains(err.Error(), "指令") {
+	if _, err := a.GaeaXlsxPlanEdit(filepath.ToSlash(rel), "Sheet1", "", "B1"); err == nil || !strings.Contains(err.Error(), "指令") {
 		t.Fatalf("期望指令错误，得到 %v", err)
+	}
+}
+
+func TestGaeaXlsxApplyEdit_AppliesApprovedOps(t *testing.T) {
+	t.Chdir(t.TempDir())
+	rel := filepath.Join(".gaea", "uploads", "apply.xlsx")
+	if err := os.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := excelize.NewFile()
+	f.SetCellValue("Sheet1", "A1", 100)
+	f.SetCellValue("Sheet1", "A2", 200)
+	if err := f.SaveAs(rel); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	a := &App{core: &core{}}
+	slashed := filepath.ToSlash(rel)
+	opsJSON := `[{"type":"set_formula","sheet":"Sheet1","target":"A3","formula":"SUM(A1:A2)"},{"type":"set_value","sheet":"Sheet1","target":"A2","value":250}]`
+	r, err := a.GaeaXlsxApplyEdit(slashed, opsJSON)
+	if err != nil {
+		t.Fatalf("应用失败：%v", err)
+	}
+	if r.Applied != 2 || !strings.Contains(r.Summary, "A3") {
+		t.Fatalf("结果异常：applied=%d summary=%s", r.Applied, r.Summary)
+	}
+	if !strings.Contains(r.Preview, `"ref":"A3"`) {
+		t.Fatal("预览未包含 A3")
+	}
+	f2, err := excelize.OpenFile(rel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	if formula, _ := f2.GetCellFormula("Sheet1", "A3"); formula != "SUM(A1:A2)" {
+		t.Fatalf("公式未落盘：%q", formula)
+	}
+	if v, _ := f2.GetCellValue("Sheet1", "A2"); v != "250" {
+		t.Fatalf("落盘值 = %q，期望 250", v)
+	}
+
+	// 校验：空 / 非法操作集
+	if _, err := a.GaeaXlsxApplyEdit(slashed, ""); err == nil || !strings.Contains(err.Error(), "操作集") {
+		t.Fatalf("期望操作集为空错误，得到 %v", err)
+	}
+	if _, err := a.GaeaXlsxApplyEdit(slashed, "not-json"); err == nil || !strings.Contains(err.Error(), "操作集") {
+		t.Fatalf("期望操作集无效错误，得到 %v", err)
+	}
+	if _, err := a.GaeaXlsxApplyEdit("", "[]"); err == nil || !strings.Contains(err.Error(), "路径") {
+		t.Fatalf("期望路径错误，得到 %v", err)
+	}
+}
+
+func TestGaeaXlsxChart_NativeEmbed(t *testing.T) {
+	t.Chdir(t.TempDir())
+	rel := filepath.Join(".gaea", "uploads", "chart.xlsx")
+	if err := os.MkdirAll(filepath.Dir(rel), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := excelize.NewFile()
+	f.SetCellValue("Sheet1", "A1", "城市")
+	f.SetCellValue("Sheet1", "B1", "金额")
+	f.SetCellValue("Sheet1", "A2", "北京")
+	f.SetCellValue("Sheet1", "B2", 100)
+	f.SetCellValue("Sheet1", "A3", "上海")
+	f.SetCellValue("Sheet1", "B3", 200)
+	f.SetCellValue("Sheet1", "A4", "广州")
+	f.SetCellValue("Sheet1", "B4", 300)
+	if err := f.SaveAs(rel); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	a := &App{core: &core{}}
+	r, err := a.GaeaXlsxChart(XlsxChartInput{
+		Rel: filepath.ToSlash(rel), Sheet: "Sheet1", ChartType: "bar", Title: "测试图表",
+	})
+	if err != nil {
+		t.Fatalf("生成图表失败：%v", err)
+	}
+	if r.Sheet != "Sheet1" || r.Anchor != "D1" {
+		t.Fatalf("锚点异常：sheet=%s anchor=%s", r.Sheet, r.Anchor)
+	}
+	if r.Labels != 3 || len(r.Values) != 3 || r.Values[0] != 100 {
+		t.Fatalf("数据异常：labels=%d values=%v", r.Labels, r.Values)
+	}
+	if len(r.LabelList) != 3 || r.LabelList[0] != "北京" {
+		t.Fatalf("类别异常：%v", r.LabelList)
+	}
+	if !strings.HasSuffix(r.Path, ".xlsx") {
+		t.Fatalf("产物应为嵌入了图表的工作簿本身：%s", r.Path)
+	}
+	// 原生图表对象已写入：锚点处 DeleteChart 命中
+	f2, err := excelize.OpenFile(rel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	if err := f2.DeleteChart("Sheet1", r.Anchor); err != nil {
+		t.Fatalf("图表未嵌入（DeleteChart 失败）：%v", err)
+	}
+	// 数据未被改动
+	if v, _ := f2.GetCellValue("Sheet1", "B3"); v != "200" {
+		t.Fatalf("数据被改动：B3 = %q", v)
 	}
 }
 

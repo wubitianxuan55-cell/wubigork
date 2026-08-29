@@ -26,6 +26,8 @@ export const SecurityPanel: React.FC = () => {
   const go = window.go?.app?.App as AppFacade
   const [sensitiveLocal, setSensitiveLocal] = useState<boolean>(true)
   const [sensitiveLoading, setSensitiveLoading] = useState(true)
+  const [officeLocal, setOfficeLocal] = useState<boolean>(true)
+  const [officeLoading, setOfficeLoading] = useState(true)
   const [exposure, setExposure] = useState<LanExposure | null>(null)
   const [checking, setChecking] = useState(false)
 
@@ -35,10 +37,14 @@ export const SecurityPanel: React.FC = () => {
       if (typeof go?.GetSensitiveLocal === 'function') {
         setSensitiveLocal(!!(await go.GetSensitiveLocal()))
       }
+      if (typeof go?.GetOfficeLocal === 'function') {
+        setOfficeLocal(!!(await go.GetOfficeLocal()))
+      }
     } catch {
       /* 后端未就绪时保持默认 */
     } finally {
       setSensitiveLoading(false)
+      setOfficeLoading(false)
     }
   }, [go])
 
@@ -52,6 +58,18 @@ export const SecurityPanel: React.FC = () => {
       message.success(v ? '敏感域 AI 已改为本地优先（数据不出本机）' : '敏感域 AI 已改为常规路由（可回云端）')
     } catch (err: unknown) {
       setSensitiveLocal(prev)
+      message.error(err instanceof Error ? err.message : '保存失败')
+    }
+  }
+
+  const handleToggleOffice = async (v: boolean) => {
+    const prev = officeLocal
+    setOfficeLocal(v)
+    try {
+      await go?.SetOfficeLocal?.(v)
+      message.success(v ? '办公板块 AI 已改为本地优先（数据不出本机、省 token）' : '办公板块 AI 已改为常规路由（可回云端）')
+    } catch (err: unknown) {
+      setOfficeLocal(prev)
       message.error(err instanceof Error ? err.message : '保存失败')
     }
   }
@@ -90,6 +108,27 @@ export const SecurityPanel: React.FC = () => {
         </Space>
         <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', marginTop: 6, opacity: 0.8 }}>
           当前生效范围：报价单/测算表 AI 归一化解析（成本库导入）。Herdsman 引擎停用或不可用时自动回退常规路由。
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        icon={<LockOutlined />}
+        title="办公本地优先"
+        desc="办公板块的功能级 AI 调用（Word/Excel 编辑、资料摘要、知识导入、记忆整理）默认路由本地 Herdsman：数据不出本机、不烧 token；关闭后按常规路由可回云端。"
+        instant
+      >
+        <Space size={12}>
+          <Switch
+            checked={officeLocal}
+            loading={officeLoading}
+            onChange={handleToggleOffice}
+          />
+          <Typography.Text style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>
+            {officeLocal ? '本地优先（推荐）' : '常规路由'}
+          </Typography.Text>
+        </Space>
+        <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', marginTop: 6, opacity: 0.8 }}>
+          聊天主 agent（统筹规划）不受此开关影响，仍按模型中心绑定走。Herdsman 引擎停用或不可用时自动回退常规路由。
         </div>
       </SettingsSection>
 

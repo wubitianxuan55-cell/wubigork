@@ -43,6 +43,28 @@ func TestFoldEmpty(t *testing.T) {
 	}
 }
 
+// 回归：空会话的四条切片必须序列化成 [] 而不是 null——Go 的 nil 切片序列化
+// 为 JSON null，前端 .length / for-of 按数组消费会整页崩（ErrorBoundary 接管）。
+func TestFoldEmptySlicesMarshalAsArrays(t *testing.T) {
+	cases := map[string]ContextTimeline{
+		"fold":       FoldTimeline(nil, 1_000_000, 0),
+		"binding":    EmptyTimeline(),
+		"retention":  FoldTimeline(nil, 0, 200),
+	}
+	for name, tl := range cases {
+		b, err := json.Marshal(tl)
+		if err != nil {
+			t.Fatalf("%s: marshal: %v", name, err)
+		}
+		s := string(b)
+		for _, field := range []string{`"requests":[]`, `"events":[]`, `"nodes":[]`, `"archive":[]`} {
+			if !strings.Contains(s, field) {
+				t.Fatalf("%s: %s should marshal as [], got %s", name, field, s)
+			}
+		}
+	}
+}
+
 func TestFoldSingleRequest(t *testing.T) {
 	sys := strings.Repeat("系统提示词内容", 20)
 	entries := []session.LogEntry{

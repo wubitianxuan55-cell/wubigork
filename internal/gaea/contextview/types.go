@@ -81,3 +81,15 @@ type ContextTimeline struct {
 	Nodes    []SurfaceNode   `json:"nodes"`
 	Archive  []SurfaceNode   `json:"archive"`
 }
+
+// EmptyTimeline 返回全空快照（会话/日志不存在时绑定层的早退返回值）。
+// 切片一律非 nil：Go 的 nil 切片会序列化成 JSON null，前端按数组消费会崩。
+func EmptyTimeline() ContextTimeline {
+	return ContextTimeline{
+		Ok:       true,
+		Requests: []RequestRecord{},
+		Events:   []ContextEvent{},
+		Nodes:    []SurfaceNode{},
+		Archive:  []SurfaceNode{},
+	}
+}

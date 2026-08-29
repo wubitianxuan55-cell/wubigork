@@ -1,25 +1,22 @@
 package app
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gaea/gaea/internal/gaea/proc"
 	"github.com/xuri/excelize/v2"
 )
 
 // ExportDeliverableInput 是统一交付出口的入参：受控 Markdown + 目标格式。
 type ExportDeliverableInput struct {
 	Markdown string `json:"markdown"`
-	Format   string `json:"format"` // docx | pptx | xlsx | md
+	Format   string `json:"format"` // docx | pptx | xlsx | md | pdf
 	Title    string `json:"title"`
 	Template string `json:"template"` // docx 模板：通用 | 公文 | 报告 | 合同
 	Cover    bool   `json:"cover"`
@@ -39,16 +36,16 @@ type ExportDeliverableResult struct {
 var headingRe = regexp.MustCompile(`^#{1,3}\s+(.*)$`)
 
 // GaeaExportDeliverable 统一交付出口：事实底座/对话成果的受控 Markdown →
-// docx / pptx / xlsx / md，一稿多用、多形态一致。
+// docx / pptx / xlsx / md / pdf，一稿多用、多形态一致。
 func (a *App) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverableResult, error) {
 	if strings.TrimSpace(in.Markdown) == "" {
 		return ExportDeliverableResult{}, fmt.Errorf("交付内容为空")
 	}
 	format := strings.ToLower(strings.TrimPrefix(in.Format, "."))
 	switch format {
-	case "docx", "pptx", "xlsx", "md":
+	case "docx", "pptx", "xlsx", "md", "pdf":
 	default:
-		return ExportDeliverableResult{}, fmt.Errorf("不支持的交付格式 %q（docx/pptx/xlsx/md）", in.Format)
+		return ExportDeliverableResult{}, fmt.Errorf("不支持的交付格式 %q（docx/pptx/xlsx/md/pdf）", in.Format)
 	}
 	if in.Template == "" {
 		in.Template = "通用"
@@ -94,6 +91,11 @@ func (a *App) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverabl
 		}
 	case "xlsx":
 		if err := exportXlsx(in, outPath); err != nil {
+			return ExportDeliverableResult{}, err
+		}
+	case "pdf":
+		// Markdown → docx（临时，复用交付模板链路）→ LibreOffice PDF
+		if err := markdownToPdf(in, title, outPath); err != nil {
 			return ExportDeliverableResult{}, err
 		}
 	}
@@ -290,29 +292,7 @@ func exportXlsx(in ExportDeliverableInput, outPath string) error {
 }
 
 func runPython(args []string, timeoutSec int) error {
-	cmd := exec.Command("python", args...)
-	proc.HideWindow(cmd) // Windows: 防止弹出 cmd 黑框
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	done := make(chan error, 1)
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	go func() { done <- cmd.Wait() }()
-	select {
-	case err := <-done:
-		if err != nil {
-			if _, ok := err.(*exec.ExitError); ok {
-				return fmt.Errorf("%v（%s）", err, truncateStr(stderr.String(), 1500))
-			}
-			return err
-		}
-		return nil
-	case <-time.After(time.Duration(timeoutSec) * time.Second):
-		cmd.Process.Kill()
-		<-done
-		return fmt.Errorf("超时（%d 秒）", timeoutSec)
-	}
+	return runProcess("python", args, timeoutSec)
 }
 
 // findSkillScript 定位技能脚本（工作区 .gaea/skills 或用户 skills 镜像）。

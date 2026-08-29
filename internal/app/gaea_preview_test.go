@@ -71,7 +71,8 @@ func TestGaeaPreview_BareFilenameFallback(t *testing.T) {
 	}
 }
 
-// TestGaeaPreview_Docx 验证 .docx 返回原始字节 dataUrl（前端 docx-preview 保真渲染）。
+// TestGaeaPreview_Docx 验证 .docx 返回原始字节 dataUrl（前端 docx-preview 保真渲染）
+// 且 body 附带轻量 Markdown 文本（交付卡片缩略图用）。
 func TestGaeaPreview_Docx(t *testing.T) {
 	t.Chdir(t.TempDir())
 	rel := filepath.Join(".gaea", "uploads", "preview-test.docx")
@@ -112,6 +113,30 @@ func TestGaeaPreview_Docx(t *testing.T) {
 	}
 	if !bytes.Contains(documentXML, []byte("preview-test")) {
 		t.Errorf("docx 内容缺失 preview-test 标记")
+	}
+	if !strings.Contains(got.Body, "preview-test") {
+		t.Errorf("body = %q, want 包含 preview-test 文本（缩略图用）", got.Body)
+	}
+}
+
+// TestPreviewThumbText 验证缩略图正文截断：超过上限时按 UTF-8 字符边界安全截断。
+func TestPreviewThumbText(t *testing.T) {
+	short := "前几行正文"
+	if got := previewThumbText(short); got != short {
+		t.Fatalf("短文本不应截断: got %q", got)
+	}
+
+	// 4KB 上限 + 中文字符（3 字节/字），截断点可能在字符中间 → 必须回退到完整字符。
+	long := strings.Repeat("中", maxThumbBytes+10)
+	got := previewThumbText(long)
+	if len(got) > maxThumbBytes {
+		t.Fatalf("截断后长度 %d > 上限 %d", len(got), maxThumbBytes)
+	}
+	if strings.Contains(got, "\xef\xbf") { // UTF-8 半字残留（EF BF BD 是替换符）
+		t.Errorf("截断处出现半字残留: %q", got[len(got)-6:])
+	}
+	if got[len(got)-1] != []byte("中")[0] {
+		t.Errorf("截断应停在完整字符边界, 尾部字节 = %x", got[len(got)-1])
 	}
 }
 

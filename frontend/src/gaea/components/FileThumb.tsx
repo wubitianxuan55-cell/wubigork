@@ -40,20 +40,26 @@ export const FileThumb = memo(function FileThumb({
     if (IMAGE_EXT_RE.test(ext)) {
       app.AttachmentDataURL(path).then((url) => { if (live) setDataUrl(url); }).catch(() => {});
     } else if (/\.(xlsx?|csv|et|ods)$/i.test(ext)) {
-      // 复用 GaeaPreview 的结构化单元格 JSON：取首表前 3 行 × 前 3 列
+      // 复用 GaeaPreview 的结构化单元格 JSON：取首表前 4 行 × 前 4 列
+      // （首行通常是表头，渲染时用强调色区分）
       app.Preview(path).then((p) => {
         if (!live || p.kind !== "xlsx" || !p.body) return;
         try {
           const parsed = JSON.parse(p.body) as XlsxPreview;
           const rows = parsed.sheets?.[0]?.rows ?? [];
-          const sample = rows.slice(0, 3).map((r) => r.slice(0, 3).map((c) => c.value ?? ""));
+          const sample = rows.slice(0, 4).map((r) => r.slice(0, 4).map((c) => c.value ?? ""));
           if (sample.length > 0) setGrid(sample);
         } catch { /* 回退类型图标 */ }
       }).catch(() => {});
-    } else if (/\.(md|markdown|txt|log|json|toml|yaml|yml|csv|tsv)$/i.test(ext)) {
+    } else if (/\.(md|markdown|txt|log|json|toml|yaml|yml|csv|tsv|docx|pdf)$/i.test(ext)) {
       app.Preview(path).then((p) => {
-        if (!live || (p.kind !== "markdown" && p.kind !== "text") || !p.body) return;
-        const lines = p.body.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 4);
+        if (!live || (p.kind !== "markdown" && p.kind !== "text" && p.kind !== "docx") || !p.body) return;
+        // 剥掉 Markdown 标记（# 标题、- 列表、| 表格、> 引用），只留可读文本
+        const lines = p.body
+          .split("\n")
+          .map((l) => l.replace(/^\s{0,3}#+\s+/, "").replace(/^\s*[-*+]\s+/, "").replace(/^\s*>\s?/, "").replace(/^\s*\|/, "").trim())
+          .filter(Boolean)
+          .slice(0, 3);
         if (lines.length > 0) setTextLines(lines);
       }).catch(() => {});
     }
@@ -73,19 +79,33 @@ export const FileThumb = memo(function FileThumb({
     return (
       <div
         className="grid gap-px p-0.5 overflow-hidden rounded-[5px] border border-border-soft bg-bg"
-        style={{ gridTemplateColumns: `repeat(${grid[0].length}, minmax(0, 1fr))`, width: "100%", height: "100%" }}
+        style={{
+          gridTemplateColumns: `repeat(${grid[0].length}, minmax(0, 1fr))`,
+          width: "100%",
+          height: "100%",
+        }}
         aria-label="表格内容缩略图"
       >
-        {grid.flat().map((cell, i) => (
-          <span
-            key={i}
-            className="truncate text-[7px] leading-[1.15] px-0.5 py-px text-(color:--md-sys-color-text-secondary)"
-            style={{ background: "color-mix(in srgb, var(--md-sys-color-outline-variant) 30%, transparent)" }}
-            title={cell}
-          >
-            {cell || " "}
-          </span>
-        ))}
+        {grid.map((row, ri) =>
+          row.map((cell, ci) => (
+            <span
+              key={`${ri}-${ci}`}
+              className="truncate text-[7px] leading-[1.15] px-0.5 py-px overflow-hidden"
+              style={{
+                color: ri === 0
+                  ? "var(--md-sys-color-text)"
+                  : "var(--md-sys-color-text-secondary)",
+                background: ri === 0
+                  ? "color-mix(in srgb, var(--gaea-glow) 16%, transparent)"
+                  : "color-mix(in srgb, var(--md-sys-color-outline-variant) 28%, transparent)",
+                fontWeight: ri === 0 ? 600 : 400,
+              }}
+              title={cell}
+            >
+              {cell || " "}
+            </span>
+          )),
+        )}
       </div>
     );
   }

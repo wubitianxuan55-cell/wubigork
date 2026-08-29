@@ -7,7 +7,7 @@ import { app, onEvent, onReady } from "./bridge";
 import { parseTodos } from "./tools";
 import type {
   BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView, MemoryView,
-  Meta, ProjectGroup, QuestionAnswer, Requirement, SessionMeta, SessionStatsView, TCCAReport, WireApproval, WireAsk,
+  Meta, ProjectGroup, QuestionAnswer, SessionMeta, SessionStatsView, TCCAReport, WireApproval, WireAsk,
   WireEvent, WireUsage,
 } from "./types";
 
@@ -549,6 +549,15 @@ export function useController() {
     p.catch((err) => failWrite(dispatch, "发送消息", err));
   }, [dispatch]);
 
+  // 运行中插话调整（2026-08-28，对齐豆包工作「边跑边改」）：消息注入当前
+  // 回合作为补充指引，不打断执行、不开新回合；不落用户气泡（后端以 notice
+  // 回显）。未运行时后端 Steer 内部兜底走 Submit 排队。
+  const steer = useCallback((text: string) => {
+    const t = text.trim();
+    if (!t) return;
+    app.Steer(t).catch((err) => failWrite(dispatch, "插话调整", err));
+  }, [dispatch]);
+
   const cancel = useCallback((): string | undefined => {
     const cur = store.getState();
     const onFail = (err: unknown) => failWrite(dispatch, "取消", err);
@@ -612,41 +621,6 @@ export function useController() {
   const pinSession = useCallback((path: string, pinned: boolean) => app.PinSession(path, pinned).catch((err) => failWrite(dispatch, "更新固定状态", err)), [dispatch]);
   const deleteSession = useCallback((path: string) => app.DeleteSession(path).catch((err) => failWrite(dispatch, "删除会话", err)), [dispatch]);
   const renameSession = useCallback((path: string, title: string) => app.RenameSession(path, title).catch((err) => failWrite(dispatch, "重命名会话", err)), [dispatch]);
-  const fetchRequirement = useCallback(
-    (path: string): Promise<Requirement> => app.Requirement(path).catch((err) => {
-      logBridgeError("fetchRequirement", err);
-      return { text: "", done: false, updatedAt: 0, items: [], autoPursue: false };
-    }),
-    [],
-  );
-  const setRequirement = useCallback(
-    async (path: string, text: string) => { await app.SetRequirement(path, text).catch((err) => failWrite(dispatch, "保存任务目标", err)); },
-    [dispatch],
-  );
-  const setRequirementDone = useCallback(
-    async (path: string, done: boolean) => { await app.SetRequirementDone(path, done).catch((err) => failWrite(dispatch, "更新任务状态", err)); },
-    [dispatch],
-  );
-  const addRequirementItem = useCallback(
-    async (path: string, text: string) => { await app.AddRequirementItem(path, text).catch((err) => failWrite(dispatch, "添加验收项", err)); },
-    [dispatch],
-  );
-  const setRequirementItem = useCallback(
-    async (path: string, index: number, text: string) => { await app.SetRequirementItem(path, index, text).catch((err) => failWrite(dispatch, "修改验收项", err)); },
-    [dispatch],
-  );
-  const removeRequirementItem = useCallback(
-    async (path: string, index: number) => { await app.RemoveRequirementItem(path, index).catch((err) => failWrite(dispatch, "删除验收项", err)); },
-    [dispatch],
-  );
-  const setRequirementItemDone = useCallback(
-    async (path: string, index: number, done: boolean) => { await app.SetRequirementItemDone(path, index, done).catch((err) => failWrite(dispatch, "更新验收项", err)); },
-    [dispatch],
-  );
-  const setRequirementAutoPursue = useCallback(
-    async (path: string, on: boolean) => { await app.SetRequirementAutoPursue(path, on).catch((err) => failWrite(dispatch, "切换自动追踪", err)); },
-    [dispatch],
-  );
   const refreshMeta = useCallback(async () => {
     try {
       dispatch({ type: "meta", meta: await app.Meta() });
@@ -717,7 +691,7 @@ export function useController() {
     app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("rewind ContextUsage", err));
   }, [dispatch]);
 
-  return { state, send, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, fetchRequirement, setRequirement, setRequirementDone, addRequirementItem, setRequirementItem, removeRequirementItem, setRequirementItemDone, setRequirementAutoPursue, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase, fetchSessionStats };
+  return { state, send, steer, cancel, approve, answerQuestion, setPermLevel, newSession, listSessions, listProjectSessions, resumeSession, archiveSession, unarchiveSession, pinSession, deleteSession, renameSession, refreshMeta, pickWorkspace, switchWorkspace, compact, rewind, setModel, fetchMemory, remember, forget, saveDoc, updateFact, changeFactType, clearFactBase, promoteFactBase, fetchSessionStats };
 }
 
 // useItems 订阅 items 数组，与 useController 分离。

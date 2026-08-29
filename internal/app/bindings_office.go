@@ -18,8 +18,6 @@ func (b *OfficeB) GaeaAcceptMemorySuggestion(candidate interface{}) (string, err
 func (b *OfficeB) GaeaAcceptSkillSuggestion(candidate interface{}) (string, error) { return b.a.GaeaAcceptSkillSuggestion(candidate) }
 func (b *OfficeB) GaeaAddMCPServer(input MCPServerInput) (int, error) { return b.a.GaeaAddMCPServer(input) }
 func (b *OfficeB) GaeaAddPermissionRule(list string, rule string) error { return b.a.GaeaAddPermissionRule(list, rule) }
-func (b *OfficeB) GaeaAddRequirementItem(path string, text string) error { return b.a.GaeaAddRequirementItem(path, text) }
-func (b *OfficeB) GaeaAgentMode() string { return b.a.GaeaAgentMode() }
 func (b *OfficeB) GaeaAgentNetwork() (trajectory.AgentNetwork, error) { return b.a.GaeaAgentNetwork() }
 func (b *OfficeB) GaeaAnswer(id string, answers []event.AskAnswer) { b.a.GaeaAnswer(id, answers) }
 func (b *OfficeB) GaeaApplyUpdate() error { return b.a.GaeaApplyUpdate() }
@@ -39,6 +37,7 @@ func (b *OfficeB) GaeaCheckpoints() []CheckpointMeta { return b.a.GaeaCheckpoint
 func (b *OfficeB) GaeaCommands() []CommandInfo { return b.a.GaeaCommands() }
 func (b *OfficeB) GaeaContext() ContextInfo { return b.a.GaeaContext() }
 func (b *OfficeB) GaeaContextView() (contextview.ContextTimeline, error) { return b.a.GaeaContextView() }
+func (b *OfficeB) GaeaConvertToPdf(rel string) (ConvertPdfResult, error) { return b.a.GaeaConvertToPdf(rel) }
 func (b *OfficeB) GaeaCrossEmbed(in CrossEmbedInput) (CrossEmbedResult, error) { return b.a.GaeaCrossEmbed(in) }
 func (b *OfficeB) GaeaDataBackupCancel() error { return b.a.GaeaDataBackupCancel() }
 func (b *OfficeB) GaeaDataBackupCreate(destDir string) (map[string]interface{}, error) { return b.a.GaeaDataBackupCreate(destDir) }
@@ -91,9 +90,7 @@ func (b *OfficeB) GaeaReload() (GaeaReloadResult, error) { return b.a.GaeaReload
 func (b *OfficeB) GaeaRemember(scope string, note string) (string, error) { return b.a.GaeaRemember(scope, note) }
 func (b *OfficeB) GaeaRemoveMCPServer(name string) error { return b.a.GaeaRemoveMCPServer(name) }
 func (b *OfficeB) GaeaRemovePermissionRule(list string, rule string) error { return b.a.GaeaRemovePermissionRule(list, rule) }
-func (b *OfficeB) GaeaRemoveRequirementItem(path string, index int) error { return b.a.GaeaRemoveRequirementItem(path, index) }
 func (b *OfficeB) GaeaRenameSession(path string, title string) error { return b.a.GaeaRenameSession(path, title) }
-func (b *OfficeB) GaeaRequirement(path string) RequirementView { return b.a.GaeaRequirement(path) }
 func (b *OfficeB) GaeaResumeSession(path string) ([]HistoryMessage, error) { return b.a.GaeaResumeSession(path) }
 func (b *OfficeB) GaeaRetrievalEvalRun() (RetrievalEvalReport, error) { return b.a.GaeaRetrievalEvalRun() }
 func (b *OfficeB) GaeaRetryMCPServer(name string) error { return b.a.GaeaRetryMCPServer(name) }
@@ -108,7 +105,6 @@ func (b *OfficeB) GaeaSaveSettings(view SettingsView) error { return b.a.GaeaSav
 func (b *OfficeB) GaeaSaveWindowState(state map[string]interface{}) error { return b.a.GaeaSaveWindowState(state) }
 func (b *OfficeB) GaeaSend(input string) { b.a.GaeaSend(input) }
 func (b *OfficeB) GaeaSessionStats(path string) SessionStatsView { return b.a.GaeaSessionStats(path) }
-func (b *OfficeB) GaeaSetAgentMode(mode string) error { return b.a.GaeaSetAgentMode(mode) }
 func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPrompt string) error { return b.a.GaeaSetAgentParams(temperature, maxSteps, systemPrompt) }
 func (b *OfficeB) GaeaSetDefaultModel(ref string) error { return b.a.GaeaSetDefaultModel(ref) }
 func (b *OfficeB) GaeaSetMCPServerEnabled(name string, enabled bool) error { return b.a.GaeaSetMCPServerEnabled(name, enabled) }
@@ -116,17 +112,13 @@ func (b *OfficeB) GaeaSetMemoryEnabled(enabled bool) error { return b.a.GaeaSetM
 func (b *OfficeB) GaeaSetPermLevel(level string) error { return b.a.GaeaSetPermLevel(level) }
 func (b *OfficeB) GaeaSetPermissionMode(mode string) error { return b.a.GaeaSetPermissionMode(mode) }
 func (b *OfficeB) GaeaSetProviderKey(apiKeyEnv string, value string) error { return b.a.GaeaSetProviderKey(apiKeyEnv, value) }
-func (b *OfficeB) GaeaSetRequirement(path string, text string) error { return b.a.GaeaSetRequirement(path, text) }
-func (b *OfficeB) GaeaSetRequirementAutoPursue(path string, on bool) error { return b.a.GaeaSetRequirementAutoPursue(path, on) }
-func (b *OfficeB) GaeaSetRequirementDone(path string, done bool) error { return b.a.GaeaSetRequirementDone(path, done) }
-func (b *OfficeB) GaeaSetRequirementItem(path string, index int, text string) error { return b.a.GaeaSetRequirementItem(path, index, text) }
-func (b *OfficeB) GaeaSetRequirementItemDone(path string, index int, done bool) error { return b.a.GaeaSetRequirementItemDone(path, index, done) }
 func (b *OfficeB) GaeaSetSandbox(bash string, network bool, workspaceRoot string, allowWrite []string) error { return b.a.GaeaSetSandbox(bash, network, workspaceRoot, allowWrite) }
 func (b *OfficeB) GaeaSetSubagentEffort(effort string) error { return b.a.GaeaSetSubagentEffort(effort) }
 func (b *OfficeB) GaeaSetSubagentModelForSkill(skill string, ref string) error { return b.a.GaeaSetSubagentModelForSkill(skill, ref) }
 func (b *OfficeB) GaeaSettings() SettingsView { return b.a.GaeaSettings() }
 func (b *OfficeB) GaeaSkills() []map[string]interface{} { return b.a.GaeaSkills() }
 func (b *OfficeB) GaeaSlashArgs(input string) SlashArgsResult { return b.a.GaeaSlashArgs(input) }
+func (b *OfficeB) GaeaSteer(input string) { b.a.GaeaSteer(input) }
 func (b *OfficeB) GaeaSubagentRuns(sessionPath string) SubagentRunsView { return b.a.GaeaSubagentRuns(sessionPath) }
 func (b *OfficeB) GaeaSummarizeFile(rel string, focus string) (GaeaSummaryResult, error) { return b.a.GaeaSummarizeFile(rel, focus) }
 func (b *OfficeB) GaeaSummarizeFrom(turn int) error { return b.a.GaeaSummarizeFrom(turn) }
@@ -147,9 +139,10 @@ func (b *OfficeB) GaeaUpdateFact(name string, body string) (string, error) { ret
 func (b *OfficeB) GaeaVersion() string { return b.a.GaeaVersion() }
 func (b *OfficeB) GaeaWorkspaceSearch(query string, limit int) []WorkspaceSearchHit { return b.a.GaeaWorkspaceSearch(query, limit) }
 func (b *OfficeB) GaeaWriteFile(rel string, content string) error { return b.a.GaeaWriteFile(rel, content) }
+func (b *OfficeB) GaeaXlsxApplyEdit(rel string, opsJSON string) (XlsxEditResult, error) { return b.a.GaeaXlsxApplyEdit(rel, opsJSON) }
 func (b *OfficeB) GaeaXlsxChart(in XlsxChartInput) (XlsxChartResult, error) { return b.a.GaeaXlsxChart(in) }
 func (b *OfficeB) GaeaXlsxColOps(rel string, sheet string, action string, ref string) (XlsxEditResult, error) { return b.a.GaeaXlsxColOps(rel, sheet, action, ref) }
-func (b *OfficeB) GaeaXlsxEdit(rel string, sheet string, instruction string, selection string) (XlsxEditResult, error) { return b.a.GaeaXlsxEdit(rel, sheet, instruction, selection) }
+func (b *OfficeB) GaeaXlsxPlanEdit(rel string, sheet string, instruction string, selection string) (XlsxPlanResult, error) { return b.a.GaeaXlsxPlanEdit(rel, sheet, instruction, selection) }
 func (b *OfficeB) GaeaXlsxRecalc(rel string) (XlsxEditResult, error) { return b.a.GaeaXlsxRecalc(rel) }
 func (b *OfficeB) GaeaXlsxRowOps(rel string, sheet string, action string, ref string) (XlsxEditResult, error) { return b.a.GaeaXlsxRowOps(rel, sheet, action, ref) }
 func (b *OfficeB) GaeaXlsxSetCell(rel string, sheet string, ref string, value string) (XlsxEditResult, error) { return b.a.GaeaXlsxSetCell(rel, sheet, ref, value) }

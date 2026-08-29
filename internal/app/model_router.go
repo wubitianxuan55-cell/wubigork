@@ -76,6 +76,26 @@ func (c *core) routeSensitiveLocal(feature string) (engine, model, source string
 	if !c.cfg.GetSensitiveLocal() {
 		return c.routeModel(feature)
 	}
+	return c.routeHerdsmanLocal(feature, "sensitive-local")
+}
+
+// routeOfficeLocal 办公板块功能级 AI 路由（2026-08-28，本地优先强化）：
+// 办公本地优先开关开启时，Word/Excel AI 编辑、资料摘要、知识导入、记忆整理
+// 等功能级调用优先路由本地 Herdsman（数据不出本机、省 token）；
+// herdsman 不可用/停用时回退常规路由，保证功能可用性。source 标记
+// "office-local" 供前端与诊断展示。聊天主 agent（统筹规划）仍按用户绑定的
+// 模型走，不受本策略影响——本地小模型不足以承担复杂工具编排。
+func (c *core) routeOfficeLocal(feature string) (engine, model, source string) {
+	if !c.cfg.GetOfficeLocal() {
+		return c.routeModel(feature)
+	}
+	return c.routeHerdsmanLocal(feature, "office-local")
+}
+
+// routeHerdsmanLocal 公共实现：开关已开时，若本地 Herdsman 引擎可用则强制
+// 路由本地，否则回退常规路由。source 由调用方指定（sensitive-local /
+// office-local），前端与诊断据此区分策略来源。
+func (c *core) routeHerdsmanLocal(feature, source string) (engine, model, sourceOut string) {
 	if c.engineMgr != nil {
 		if eng, ok := c.engineMgr.GetEngine("herdsman"); ok && eng.Enabled && eng.BaseURL != "" {
 			m := eng.DefaultModel
@@ -87,11 +107,28 @@ func (c *core) routeSensitiveLocal(feature string) (engine, model, source string
 			if m == "" && len(eng.Models) > 0 {
 				m = eng.Models[0].ID
 			}
-			c.emitModelRoute(feature, "herdsman", m, "sensitive-local")
-			return "herdsman", m, "sensitive-local"
+			c.emitModelRoute(feature, "herdsman", m, source)
+			return "herdsman", m, source
 		}
 	}
 	return c.routeModel(feature)
+}
+
+// GetOfficeLocal 读取办公本地优先开关（Wails 绑定，默认开启）。
+func (a *App) GetOfficeLocal() bool {
+	return a.cfg.GetOfficeLocal()
+}
+
+// SetOfficeLocal 设置办公本地优先开关并持久化（true=办公功能级 AI 调用优先
+// 本地 Herdsman；false=按常规路由可回云端）。
+func (a *App) SetOfficeLocal(enabled bool) error {
+	a.cfg.SetOfficeLocal(enabled)
+	if err := config.Save(config.KeyOfficeLocal, strconv.FormatBool(enabled)); err != nil {
+		slog.Warn("保存办公本地优先开关失败", "error", err)
+		return err
+	}
+	slog.Info("办公本地优先开关已更新", "enabled", enabled)
+	return nil
 }
 
 // GetSensitiveLocal 读取敏感域本地化开关（Wails 绑定，默认开启）。

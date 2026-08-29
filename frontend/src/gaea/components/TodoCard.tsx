@@ -17,7 +17,7 @@ const statusIcon = (status: string) => {
   }
 };
 
-// 待办卡（todo_write 提取）：独立于任务目标卡。
+// 待办卡（todo_write 提取）。
 // 重设计要点：默认折叠、折叠态显示当前任务摘要、展开后按「未完成在前 / 已完成
 // 收尾」分组、阶段行小标题化、当前任务高亮、进度条全圆角。
 export function TodoCard({ todos, onDismiss }: { todos: Todo[]; onDismiss: () => void }) {

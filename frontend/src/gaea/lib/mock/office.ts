@@ -22,9 +22,9 @@ type OfficeMethods = Pick<
   | "TaskTemplates"
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
-  | "XlsxEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
+  | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
   | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "WriteFile"
-  | "ExportDeliverable" | "CrossEmbed" | "RevealWorkspacePath"
+  | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
   | "HerdsmanDigitalLife" | "HerdsmanOperations"
@@ -161,11 +161,12 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         };
       }
       if (ext === "docx") {
-        // 最小 docx（mock），由 docx-preview 渲染成版式预览。
+        // 最小 docx（mock），由 docx-preview 渲染成版式预览；
+        // body 附带文本缩略图内容（与后端 GaeaPreview docx 分支一致）。
         return {
           path: rel, name: rel.split("/").pop() ?? rel, ext: ".docx",
           size: 1728, kind: "docx" as const,
-          body: "", dataUrl: MOCK_DOCX_DATA_URL, error: "",
+          body: "# 季度经营总结\n\n本季度经营数据平稳增长，成本结构持续优化。\n\n详见各章节明细。", dataUrl: MOCK_DOCX_DATA_URL, error: "",
         };
       }
       if (ext === "xlsx") {
@@ -234,10 +235,22 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         body: "", dataUrl: MOCK_DOCX_DATA_URL, error: "",
       };
     },
-    async XlsxEdit(_rel: string, sheet: string, instruction: string, selection: string) {
+    async XlsxPlanEdit(_rel: string, sheet: string, instruction: string, selection: string) {
+      return {
+        ops: JSON.stringify([{ type: "set_formula", sheet, target: "B5", formula: "SUM(B2:B4)" }]),
+        summary: `（mock）已在 ${sheet} 规划操作：${instruction}（选区 ${selection}）`,
+        changes: [
+          { sheet, cell: "B5", before: "", after: "600", formula: "SUM(B2:B4)" },
+          { sheet, cell: "B2", before: "100", after: "120" },
+        ],
+        total: 2,
+        truncated: false,
+      };
+    },
+    async XlsxApplyEdit(_rel: string, _ops: string) {
       return {
         preview: MOCK_XLSX_BODY,
-        summary: `（mock）已在 ${sheet} 应用操作：${instruction}（选区 ${selection}）`,
+        summary: "（mock）已应用规划操作并重算公式",
         applied: 1,
       };
     },
@@ -269,15 +282,20 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         applied: 1,
       };
     },
-    async XlsxChart(input: { rel: string; chartType?: string; refs?: string }) {
-      const name = `${input.rel.split("/").pop() ?? "sheet"}-chart-mock.png`;
+    async XlsxChart(input: { rel: string; chartType?: string; refs?: string; sheet?: string }) {
+      // 原生图表已嵌入工作簿本身：path 即 xlsx 文件，附迷你预览数据
+      const name = input.rel.split("/").pop() ?? "sheet";
+      const n = input.refs ? 3 : 2;
       return {
-        path: `.gaea/exports/${name}`,
+        path: input.rel,
         name,
-        dataUrl:
-          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-        labels: input.refs ? 3 : 2,
+        sheet: input.sheet ?? "Sheet1",
+        anchor: "D1",
+        labels: n,
+        labelList: ["一月", "二月", "三月"].slice(0, n),
+        values: [120, 260, 90].slice(0, n),
         chartType: input.chartType ?? "bar",
+        title: name,
       };
     },
     async ZipDeliverables(paths: string[]) {
@@ -327,6 +345,15 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         name: `${input.title || "deliverable"}-mock.${format}`,
         format,
         size: input.markdown.length,
+      };
+    },
+    async ConvertToPdf(rel: string) {
+      const base = rel.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "document";
+      return {
+        path: `.gaea/exports/${base}-mock.pdf`,
+        name: `${base}-mock.pdf`,
+        size: 4096,
+        source: rel,
       };
     },
     async CrossEmbed(input: { xlsxRel: string; into: string; title?: string }) {

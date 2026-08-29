@@ -15,7 +15,7 @@ const group: ProjectGroup = {
   current: true,
   modTime: 10,
   sessions: [
-    { path: "/ws/cur.jsonl", preview: "当前预览", title: "当前标题", turns: 2, modTime: 10, current: true, pinned: false, hasRequirement: true, requirementDone: false },
+    { path: "/ws/cur.jsonl", preview: "当前预览", title: "当前标题", turns: 2, modTime: 10, current: true, pinned: false },
     { path: "/ws/other.jsonl", preview: "其他预览", turns: 1, modTime: 5, current: false, pinned: false },
   ],
   archived: [

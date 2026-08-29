@@ -36,7 +36,7 @@ func makeXlsxChartFixture(t *testing.T) string {
 
 func TestExtractRangeChartData_Auto(t *testing.T) {
 	rel := makeXlsxChartFixture(t)
-	labels, values, err := extractRangeChartData(rel, "Sheet1", "")
+	_, labels, values, err := extractChartRegion(rel, "Sheet1", "")
 	if err != nil {
 		t.Fatalf("自动模式失败：%v", err)
 	}
@@ -51,7 +51,7 @@ func TestExtractRangeChartData_Auto(t *testing.T) {
 func TestExtractRangeChartData_ExplicitRange(t *testing.T) {
 	rel := makeXlsxChartFixture(t)
 	// 显式区域 A2:B4：全部视为数据行（无表头跳过）
-	labels, values, err := extractRangeChartData(rel, "Sheet1", "A2:B4")
+	_, labels, values, err := extractChartRegion(rel, "Sheet1", "A2:B4")
 	if err != nil {
 		t.Fatalf("显式区域失败：%v", err)
 	}
@@ -63,7 +63,7 @@ func TestExtractRangeChartData_ExplicitRange(t *testing.T) {
 func TestExtractRangeChartData_SingleCell(t *testing.T) {
 	rel := makeXlsxChartFixture(t)
 	// 单单元格 B3 → A1:B3（表头到选中行），跳过表头取 2 行
-	labels, values, err := extractRangeChartData(rel, "Sheet1", "B3")
+	_, labels, values, err := extractChartRegion(rel, "Sheet1", "B3")
 	if err != nil {
 		t.Fatalf("单单元格模式失败：%v", err)
 	}
@@ -75,15 +75,15 @@ func TestExtractRangeChartData_SingleCell(t *testing.T) {
 func TestExtractRangeChartData_Validation(t *testing.T) {
 	rel := makeXlsxChartFixture(t)
 	// 越界区域（clamp 后无有效数据）应返回明确错误而非 panic
-	if _, _, err := extractRangeChartData(rel, "Sheet1", "Z9:AA10"); err == nil {
+	if _, _, _, err := extractChartRegion(rel, "Sheet1", "Z9:AA10"); err == nil {
 		t.Fatal("越界区域应报错（clamp 后无数据）")
 	}
-	if _, _, err := extractRangeChartData(rel, "Sheet1", "not-a-range"); err == nil {
+	if _, _, _, err := extractChartRegion(rel, "Sheet1", "not-a-range"); err == nil {
 		t.Fatal("非法区域应报错")
 	}
 }
 
-// TestGaeaXlsxChart_Smoke 真实调用 matplotlib 生成 PNG（默认跳过）：
+// TestGaeaXlsxChart_Smoke 真实嵌入原生图表（默认跳过）：
 //   GAEA_SMOKE_CHART=1 go test ./internal/app -run TestGaeaXlsxChart_Smoke -v
 func TestGaeaXlsxChart_Smoke(t *testing.T) {
 	if os.Getenv("GAEA_SMOKE_CHART") != "1" {
@@ -95,14 +95,19 @@ func TestGaeaXlsxChart_Smoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GaeaXlsxChart 失败：%v", err)
 	}
-	if r.DataURL == "" || !strings.HasPrefix(r.DataURL, "data:image/png;base64,") {
-		t.Fatalf("应返回 PNG dataURL，得到前缀 %q", r.DataURL[:min(len(r.DataURL), 40)])
+	if r.Anchor == "" || r.Sheet != "Sheet1" || r.Labels != 3 || r.ChartType != "bar" {
+		t.Fatalf("结果异常：anchor=%q sheet=%s labels=%d type=%s", r.Anchor, r.Sheet, r.Labels, r.ChartType)
 	}
-	if r.Labels != 3 || r.ChartType != "bar" {
-		t.Fatalf("结果异常：labels=%d type=%s", r.Labels, r.ChartType)
+	if len(r.Values) != 3 || len(r.LabelList) != 3 {
+		t.Fatalf("迷你预览数据缺失：values=%v labelList=%v", r.Values, r.LabelList)
 	}
-	if _, err := os.Stat(filepath.Join(gaeaCwd(), r.Path)); err != nil {
-		t.Fatalf("产物未落盘：%v", err)
+	f, err := excelize.OpenFile(filepath.Join(gaeaCwd(), r.Path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := f.DeleteChart(r.Sheet, r.Anchor); err != nil {
+		t.Fatalf("图表未嵌入工作簿：%v", err)
 	}
 }
 

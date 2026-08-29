@@ -68,25 +68,23 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
 
   const rowPy = compact ? "py-0" : "py-0.5";
   const rowPx = compact ? "px-1" : "px-2";
-  const fontSize = compact ? "text-[12px]" : "text-[13px]";
   const chevronSize = compact ? 11 : 12;
   const summarySize = compact ? "text-[11px]" : "text-[12px]";
   const innerPx = compact ? "px-1" : "px-2";
   const innerPb = compact ? "pb-1" : "pb-1.5";
 
+  // Codex 式工具行：无边框无背景块，hover 才高亮；只读工具安静降噪。
   return (
-    <div className={`my-px rounded-md overflow-hidden border shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_4%,transparent)] transition-colors duration-300 ${
-      item.status === "error" && !item.recoverable ? "border-err/40" :
-      item.status === "error" && item.recoverable ? "border-fg-faint/30" :
-      item.status === "running" ? "border-accent/30 bg-accent/[0.03] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--accent)_10%,transparent),0_0_10px_color-mix(in_srgb,var(--accent)_12%,transparent)]" :
-      item.status === "stopped" ? "border-border-soft opacity-70" :
-      "border-border-soft"
-    } ${quiet ? "border-transparent bg-transparent shadow-none" : ""}`}
-    style={item.status === "error" && !item.recoverable ? {background: "var(--ds-danger-soft)"} : undefined} data-tone={item.status === "error" && !item.recoverable ? "danger" : item.status === "running" ? "info" : item.status === "done" ? "success" : item.status === "stopped" ? "warning" : undefined}>
+    <div
+      className={`rounded-md transition-colors duration-150 ${
+        expandable ? "hover:bg-(color:--md-sys-color-surface-container-high)" : ""
+      } ${item.status === "stopped" ? "opacity-60" : ""}`}
+      data-tone={item.status === "error" && !item.recoverable ? "danger" : item.status === "running" ? "info" : item.status === "done" ? "success" : item.status === "stopped" ? "warning" : undefined}
+    >
       <div
-        className={`flex items-center gap-1.5 ${rowPx} ${rowPy} text-fg-dim ${fontSize} select-none ${
+        className={`flex items-center gap-1.5 ${rowPx} ${rowPy} select-none ${
           expandable ? "cursor-pointer hover:bg-bg-soft" : ""
-        }`}
+        } ${quiet ? "text-fg-faint/60" : "text-fg-dim"}`}
         onClick={expandable ? () => setOpen((v) => !v) : undefined}
       >
         {expandable ? (
@@ -101,7 +99,7 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           className={`shrink-0 ${item.status === "error" && !item.recoverable ? "text-err" : item.status === "error" && item.recoverable ? "text-fg-faint/60" : item.status === "running" ? "text-accent" : "text-fg-faint"}`}
           size={chevronSize + 2}
         />
-        <span className={`font-mono font-medium truncate ${item.status === "error" && !item.recoverable ? "text-err" : item.status === "error" && item.recoverable ? "text-fg-dim/60 line-through" : "text-fg"} ${compact ? "text-[11px]" : "text-[12px]"}`}>
+        <span className={`font-mono font-medium truncate ${item.status === "error" && !item.recoverable ? "text-err" : item.status === "error" && item.recoverable ? "text-fg-dim/60 line-through" : quiet ? "text-fg-faint/70" : "text-fg"} ${compact ? "text-[11px]" : "text-[12px]"}`}>
           {item.name}
         </span>
         {subject && (

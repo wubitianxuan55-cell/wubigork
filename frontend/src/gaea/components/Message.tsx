@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
-import { ChevronRight, Brain, FileText, Rollback, Wand2 } from "../icons";
+import { ChevronDown, ChevronRight, Brain, FileText, Rollback, Wand2 } from "../icons";
 import { app } from "../lib/bridge";
 import { MemoMarkdown } from "./MemoMarkdown";
 import { useT } from "../lib/i18n";
@@ -61,18 +61,6 @@ function InlineAttachment({ path }: { path: string }) {
   );
 }
 
-function UserAvatar({ size = 14 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8" />
-    </svg>
-  );
-}
-
-
-// ── 推理区 ────────────────────────────────────────────────────────────
-
 // ── UserMessage ───────────────────────────────────────────────────────────
 
 export const UserMessage = memo(function UserMessage({
@@ -106,17 +94,41 @@ export const UserMessage = memo(function UserMessage({
     if (last < text.length) parts.push({ type: "text", value: text.slice(last) });
     return parts;
   }, [text]);
+  // Kimi Work 同款：超长用户消息默认折叠（纯文本超过阈值只显示前几行），
+  // 避免长任务描述把对话撑爆；点击「展开/收起」切换。
+  const LONG_MSG_CHARS = 240;
+  const longText = textParts.some((p) => p.type === "text" && p.value.length > LONG_MSG_CHARS);
+  const [msgOpen, setMsgOpen] = useState(false);
+  // Codex 式用户消息：无气泡、无头像，右对齐纯文本 + 细标签；
+  // 正文与助手回复同宽，视觉上让"对话记录"更线性、更安静。
   return (
-    <div className="flex justify-end my-2 group" data-entrance={turn != null ? `u${turn}` : undefined}>
+    <div className="flex justify-end my-1.5 group" data-entrance={turn != null ? `u${turn}` : undefined}>
       <div className={`flex items-start gap-2 max-w-[85%] ${compact ? "min-w-[120px]" : "min-w-[160px]"}`}>
-        <div className="flex-1">
-          <div className={`rounded-2xl rounded-br-md px-3.5 py-2 bg-accent/10 border border-accent/20 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--accent)_14%,transparent)] ${
-            compact ? "text-[13px]" : "text-[14px]"
-          } text-fg leading-relaxed`}>
+        <div className="flex-1 min-w-0">
+          <div
+            className={`rounded-lg px-3 py-1.5 ${
+              compact ? "text-[13px]" : "text-[14px]"
+            } text-fg leading-relaxed bg-(color:--md-sys-color-surface-container)/70`}
+            style={{ border: "1px solid var(--md-sys-color-outline-variant)" }}
+          >
             {textParts.map((part, i) => {
-              if (part.type === "text") return <span key={i}>{part.value}</span>;
+              if (part.type === "text") {
+                if (longText && !msgOpen) return <span key={i} className="line-clamp-3">{part.value}</span>;
+                return <span key={i}>{part.value}</span>;
+              }
               return <InlineAttachment key={i} path={part.value} />;
             })}
+            {longText && (
+              <button
+                type="button"
+                className="block mt-1 px-0 py-0.5 border-0 bg-transparent text-fg-faint/60 text-[10.5px] cursor-pointer hover:text-fg transition-colors"
+                onClick={() => setMsgOpen((v) => !v)}
+                title={msgOpen ? "收起长消息" : "展开完整内容"}
+              >
+                {msgOpen ? "收起" : "展开全文"}
+                <ChevronDown size={10} className={`inline-block ml-0.5 -mt-px transition-transform duration-200 ${msgOpen ? "rotate-180" : ""}`} aria-hidden />
+              </button>
+            )}
           </div>
           {canRewind && (
             <div className="flex justify-end mt-0.5">
@@ -143,9 +155,6 @@ export const UserMessage = memo(function UserMessage({
             </div>
           )}
         </div>
-        <span className="shrink-0 w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center text-accent mt-0.5 shadow-[0_0_10px_color-mix(in_srgb,var(--accent)_16%,transparent)]">
-          <UserAvatar size={14} />
-        </span>
       </div>
     </div>
   );
@@ -196,15 +205,14 @@ export const AssistantMessage = memo(function AssistantMessage({
             <div className="mb-1.5">
               <button
                 type="button"
-                className={`flex items-center gap-1.5 w-full px-2.5 py-1 rounded-lg border transition-colors ${
-                  reasoningOpen
-                    ? "border-accent/20 bg-accent/5 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--accent)_10%,transparent)]"
-                    : "border-transparent hover:bg-bg-soft"
+                className={`flex items-center gap-1.5 w-full px-2.5 py-1 rounded-lg transition-colors ${
+                  reasoningOpen ? "bg-accent/[0.04]" : "hover:bg-(color:--md-sys-color-surface-container-high)"
                 } text-fg-faint text-[11px] cursor-pointer`}
                 onClick={toggleReasoning}
                 aria-expanded={reasoningOpen}
               >
-                <Brain size={13} className="flex-shrink-0" />
+                <span className={`shrink-0 w-0.5 self-stretch rounded-full transition-colors ${reasoningRunning ? "bg-accent animate-pulse" : "bg-transparent"}`} />
+                <Brain size={12} className="flex-shrink-0" />
                 {reasoningRunning && <span aria-hidden className="w-1 h-1 rounded-full bg-accent animate-pulse shadow-[0_0_6px_var(--accent)] shrink-0" />}
                 <span className="font-medium">{reasoningRunning ? t("msg.thinkingRunning") : t("msg.thinking")}</span>
                 <span className="text-fg-faint/50 text-[10px] ml-auto tabular-nums">
@@ -242,10 +250,10 @@ export const AssistantMessage = memo(function AssistantMessage({
 
           {/* 沉淀为技能：把这次成功对话一键封装为可复用 playbook */}
           {onCapture && !streaming && item.text && (
-            <div className="mt-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="mt-1 flex items-center gap-1">
               <button
                 type="button"
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/60 text-[10.5px] cursor-pointer hover:text-accent hover:bg-bg-soft transition-colors"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-accent hover:bg-bg-soft hover:text-fg transition-colors"
                 onClick={() => onCapture(item.text)}
                 title="把这次任务与回答保存为可复用技能（/技能名 调用）"
               >

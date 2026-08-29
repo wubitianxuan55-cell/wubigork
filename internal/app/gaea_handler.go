@@ -47,11 +47,6 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 		}
 	}
 	cfg.DefaultModel = "gaea"
-	// 开工前计划确认：非简单任务先出计划卡片，用户确认再执行（可配置关闭）
-	// 仅在用户未显式配置时默认开启；配置里写 auto_plan = "off" 可关闭。
-	if cfg.Agent.AutoPlan == "" {
-		cfg.Agent.AutoPlan = "ask"
-	}
 	cfg.Providers = []gaeaConfig.ProviderEntry{{
 		Name:          "gaea",
 		Kind:          "wubigrok", // 内部 provider 注册名（bridge provider）
@@ -301,6 +296,23 @@ func (a *App) GaeaSend(input string) {
 	}
 }
 
+// GaeaSteer 任务运行中插话调整（2026-08-28，对齐豆包工作「边跑边改」）：
+// 把消息作为当前回合的补充指引注入 agent（不打断工具执行、不开新回合）；
+// 未运行（无回合可插话）时走 GaeaSend 排队兜底。事件经 gaea-event 回调，
+// 以 notice 轻量回显。
+func (a *App) GaeaSteer(input string) {
+	if err := a.GaeaInit(); err != nil {
+		a.emit("gaea-event", map[string]interface{}{"kind": "error", "text": err.Error()})
+		return
+	}
+	ga.mu.Lock()
+	ctrl := ga.ctrl
+	ga.mu.Unlock()
+	if ctrl != nil {
+		ctrl.Steer(input)
+	}
+}
+
 // GaeaCancel 取消当前回合。
 func (a *App) GaeaCancel() {
 	ga.mu.Lock()
@@ -469,23 +481,6 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 			qs = append(qs, qq)
 		}
 		askMap := map[string]interface{}{"id": e.Ask.ID, "questions": qs}
-		if e.Ask.Plan != nil {
-			steps := make([]map[string]interface{}, 0, len(e.Ask.Plan.Steps))
-			for _, s := range e.Ask.Plan.Steps {
-				steps = append(steps, map[string]interface{}{
-					"title":       s.Title,
-					"detail":      s.Detail,
-					"resources":   s.Resources,
-					"tools":       s.Tools,
-					"deliverable": s.Deliverable,
-				})
-			}
-			planMap := map[string]interface{}{"goal": e.Ask.Plan.Goal, "steps": steps}
-			if len(e.Ask.Plan.Questions) > 0 {
-				planMap["questions"] = e.Ask.Plan.Questions
-			}
-			askMap["plan"] = planMap
-		}
 		m["ask"] = askMap
 	case event.CompactionStarted:
 		m["compaction"] = map[string]interface{}{"trigger": e.Compaction.Trigger}
@@ -494,6 +489,11 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 			"trigger": e.Compaction.Trigger, "messages": e.Compaction.Messages,
 			"summary": e.Compaction.Summary, "archive": e.Compaction.Archive,
 		}
+	case event.Steer:
+		// 运行中插话：agent 已把该消息作为当前回合 guidance 消费，
+		// 前端以轻量 notice 回显（不渲染成独立用户气泡）。
+		m["text"] = e.Text
+		m["level"] = "info"
 	}
 	return m
 }
@@ -506,7 +506,7 @@ func gaeaKindName(k event.Kind) string {
 		event.Usage: "usage", event.Notice: "notice", event.Phase: "phase",
 		event.ApprovalRequest: "approval_request", event.AskRequest: "ask_request",
 		event.TurnDone: "turn_done", event.CompactionStarted: "compaction_started",
-		event.CompactionDone: "compaction_done",
+		event.CompactionDone: "compaction_done", event.Steer: "notice",
 	}
 	if n, ok := names[k]; ok {
 		return n

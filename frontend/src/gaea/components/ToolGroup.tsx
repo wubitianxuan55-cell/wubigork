@@ -30,10 +30,11 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
   const rowPx = compact ? "px-2" : "px-2.5";
   const iconSize = compact ? 12 : 14;
 
+  // Codex 式工具组：无边框，hover 高亮一行，展开后子卡沿用紧凑行。
   return (
-    <div className="my-1 border border-border-soft rounded-lg overflow-hidden bg-bg-soft/40 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--fg)_4%,transparent)]">
+    <div className="my-1 rounded-lg overflow-hidden">
       <div
-        className={`flex items-center gap-2 ${rowPx} ${rowPy} cursor-pointer hover:bg-bg-elev/60 text-fg-dim transition-colors duration-[var(--dur-fast)]`}
+        className={`flex items-center gap-2 ${rowPx} ${rowPy} cursor-pointer rounded-lg hover:bg-(color:--md-sys-color-surface-container-high) text-fg-dim transition-colors duration-150`}
         onClick={() => { setOpen((v) => !v); onCollapse?.(); }}
       >
         <ChevronRight
@@ -52,7 +53,7 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
       </div>
       {/* GSAP 驱动的高度动画 — 替代有 Chrome bug 的 CSS grid-rows 方案 */}
       <div ref={contentRef} className="overflow-hidden">
-        <div className="border-t border-border-soft pt-0.5">
+        <div className="pl-2 pt-0.5">
           {tools.map((t) => (
             <ToolCard key={t.id} item={t} />
           ))}

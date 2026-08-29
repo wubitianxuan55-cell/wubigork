@@ -389,23 +389,6 @@ func (a *App) GaeaSetPermLevel(level string) error {
 	return nil
 }
 
-// GaeaAgentMode 返回会话协作模式（"default"|"plan"，蒸馏自 codex
-// ModeKind）。原为空桩，现回连 controller 的模式状态。
-func (a *App) GaeaAgentMode() string {
-	if c := gaeaCtrl(); c != nil {
-		return c.Mode()
-	}
-	return "default"
-}
-
-// GaeaSetAgentMode 设置会话协作模式（"default"|"plan"）。
-func (a *App) GaeaSetAgentMode(mode string) error {
-	if c := gaeaCtrl(); c != nil {
-		c.SetMode(mode)
-	}
-	return nil
-}
-
 func (a *App) GaeaPermLevel() string {
 	if c := gaeaCtrl(); c != nil {
 		return c.PermLevel()

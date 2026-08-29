@@ -29,6 +29,7 @@ func (b *ModelB) GetActiveModel() string { return b.a.GetActiveModel() }
 func (b *ModelB) GetEngines() []modelengine.EngineConfig { return b.a.GetEngines() }
 func (b *ModelB) GetModelMonitor() map[string]interface{} { return b.a.GetModelMonitor() }
 func (b *ModelB) GetModelRoute(feature string) (string, error) { return b.a.GetModelRoute(feature) }
+func (b *ModelB) GetOfficeLocal() bool { return b.a.GetOfficeLocal() }
 func (b *ModelB) GetSensitiveLocal() bool { return b.a.GetSensitiveLocal() }
 func (b *ModelB) HerdsmanDigitalLife() (HerdsmanDigitalLife, error) { return b.a.HerdsmanDigitalLife() }
 func (b *ModelB) HerdsmanHealth() herdsman.HealthResult { return b.a.HerdsmanHealth() }
@@ -44,4 +45,5 @@ func (b *ModelB) HerdsmanProbe() herdsman.Probe { return b.a.HerdsmanProbe() }
 func (b *ModelB) HerdsmanSecurityCheck() herdsman.LanExposure { return b.a.HerdsmanSecurityCheck() }
 func (b *ModelB) SetFeatureModel(feature string, engineID string, modelName string) error { return b.a.SetFeatureModel(feature, engineID, modelName) }
 func (b *ModelB) SetFeatureModelEnabled(feature string, enabled bool) error { return b.a.SetFeatureModelEnabled(feature, enabled) }
+func (b *ModelB) SetOfficeLocal(enabled bool) error { return b.a.SetOfficeLocal(enabled) }
 func (b *ModelB) SetSensitiveLocal(enabled bool) error { return b.a.SetSensitiveLocal(enabled) }

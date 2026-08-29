@@ -39,6 +39,8 @@ export const zh: Record<DictKey, string> = {
   "topbar.export": "导出",
   "topbar.exportWord": "导出 Word（统一交付出口）",
   "topbar.exportWordShort": "导出 Word",
+  "topbar.exportPdf": "导出 PDF（统一交付出口，LibreOffice 转换）",
+  "topbar.exportPdfShort": "导出 PDF",
   "topbar.deleteSessionAsk": "删除当前会话？",
   "topbar.deleteSession": "删除当前会话",
   "topbar.resizePreview": "拖拽调整预览宽度",
@@ -246,12 +248,6 @@ export const zh: Record<DictKey, string> = {
   "ask.customPlaceholder": "输入你自己的答案…",
   "ask.justChat": "只是聊聊",
   "ask.dragHint": "拖拽移动",
-  "ask.planGoal": "任务理解",
-  "ask.planSteps": "步骤",
-  "ask.planResources": "将读资料",
-  "ask.planTools": "将用工具",
-  "ask.planDeliverable": "产出物",
-  "ask.planQuestions": "待确认",
 
   // 历史抽屉
   "history.title": "历史",
@@ -410,6 +406,12 @@ export const zh: Record<DictKey, string> = {
   "rewind.summUpto": "摘要到这里",
   "msg.copied": "已复制",
   "msg.reasoningOnly": "（仅推理，无正文输出）",
+  "msg.compacting": "正在压缩对话…",
+  "msg.compacted": "上下文已压缩",
+  "msg.compactedMeta": "{n} 条消息 · {trigger}",
+  "msg.showSummary": "显示摘要",
+  "msg.hideSummary": "收起摘要",
+  "msg.dismissError": "关闭错误提示",
 
   // 工具卡片摘要
   "tool.stepOne": "{n} 步",

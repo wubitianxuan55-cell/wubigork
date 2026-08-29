@@ -104,7 +104,9 @@ func mapGaea(n string) string {
 var explicitOverrides = map[string]string{
 	"GetModelRoute":      "model",
 	"GetSensitiveLocal":  "model",
+	"GetOfficeLocal":     "model",
 	"SetSensitiveLocal":  "model",
+	"SetOfficeLocal":     "model",
 	"GetModelMonitor":    "model",
 	"SetFeatureModel":    "model",
 	"SetFeatureModelEnabled": "model",

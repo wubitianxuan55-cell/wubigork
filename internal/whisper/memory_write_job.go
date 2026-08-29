@@ -28,6 +28,11 @@ var (
 
 type sessionQueue struct {
 	chain chan struct{}
+	// pending 记「已入队、未完成」的任务数（含尚未启动的 worker goroutine）。
+	// chain 令牌只在任务运行中被持有，排队中的任务对它是不可见的——drain
+	// 必须靠 pending 才能等到所有已入队任务执行完，否则 shutdown 末轮
+	// 抽取会被整体跳过（丢记忆）。
+	pending sync.WaitGroup
 }
 
 func getSessionQueue(sessionID string) *sessionQueue {
@@ -72,7 +77,9 @@ type MemoryWriteErrorSink func(sessionID, phase string, err error)
 // 在记录 slog 后同步调用第一个非 nil sink，供上层计数/摘要。
 func EnqueueMemoryWrite(llm LlmClient, payload MemoryWritePayload, sinks ...MemoryWriteErrorSink) {
 	q := getSessionQueue(payload.SessionID)
+	q.pending.Add(1) // 入队即计数：worker goroutine 尚未启动时 drain 也能等到它
 	go func() {
+		defer q.pending.Done() // 注册在最先 → 最后执行（token 归还之后）
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("whisper: memory write goroutine panic recovered", "panic", r)
@@ -177,8 +184,8 @@ func DrainAllMemoryWriteJobs() {
 	}
 	sessionQueuesMu.Unlock()
 	for _, q := range queues {
-		<-q.chain
-		q.chain <- struct{}{}
+		// 等待所有已入队任务真正执行完（含还没拿到 chain 令牌的任务）。
+		q.pending.Wait()
 	}
 }
 

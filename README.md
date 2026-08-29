@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v3.6.0** | 2026-08-29 | 办公文件编辑审阅制 + 本地优先 + 对话面减负：xlsx AI 编辑两段式（GaeaXlsxPlanEdit 临时副本试运行+单元格级 diff → 批准 → GaeaXlsxApplyEdit，新增 set_style 叠加/合并/列宽）；xlsx 原生图表嵌入工作簿（非截图）；PDF 统一出口（GaeaConvertToPdf，LibreOffice 无头 + md 经 docx 中转 + 顶栏导出）；办公功能级 AI 本地优先（routeOfficeLocal + 安全设置开关，主 agent 不受影响）；运行中插话（GaeaSteer + event.Steer）；回退方案模式 v1、撤下任务目标/验收清单（GoalCard + GaeaRequirement 系）、用户消息 Codex 式收敛 + 超长折叠；修复 whisper 关机排水丢任务 / 空切片 null 崩溃。绑定面 499、vitest 669/669、Go 114/114。详见 releases/v3.6.0.md |
 | **v3.5.0** | 2026-08-28 | 办公对话区标签页 + dsh-context Go 移植：对话窗口上方 [对话\|轨迹\|上下文] 三标签；request_header 事件（模型可见必入日志的请求头落点）；上下文标签（contextview 包：六分类组成 + 原生 SVG 趋势图 + 事件流 + 步骤详情，usage 锚定与顶栏同源）；轨迹标签（trajectory 包对齐 DSH ui-trajectory 扁平事件账本：header change/工具 parentId 嵌套/轮间压缩/ask+approval + 检查器/搜索/统计）；Agent 网络（子代理树 + 节点 token 环 + subagents meta 富化）。绑定面 503、vitest 668/668、Go 114/114。详见 releases/v3.5.0.md |
 | **v3.4.0** | 2026-08-27 | 记忆统一层第一刀：统一检索后端收口（GaeaUnifiedSearch 增三脑/文件语义两组，hub 搜索 4 绑定前端拼装→1 绑定）+ 生命周期产品化（归档 tab 分页修复 + Unarchive 恢复 + retentionDays 展示）+ 修复漂移脚本单条差异静默放行 bug。eslint 0/0、tsc 0、vitest 654、Go 112/112、绑定面 498。详见 releases/v3.4.0.md |
 | **v3.3.0** | 2026-08-27 | 质量收敛：eslint 存量 warnings 366→0（配置显式化 `^_` 前缀/空 catch/常量导出 + 死代码清理 56 处 + exhaustive-deps 40 处含两处 TDZ 重排 + 混合导出显式声明 + 冗余 @ts-ignore 移除）；flaky 治理（filewatch 超时 3s→5s + CI 测试失败重试）；releases/README.md 历史乱码重建；前端性能体检。eslint 0/0、tsc 0、vitest 652、Go 112/112、绑定面 497。详见 releases/v3.3.0.md |

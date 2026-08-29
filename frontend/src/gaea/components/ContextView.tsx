@@ -322,7 +322,17 @@ export function ContextView({ running }: { running: boolean }) {
 
   const load = useCallback(() => {
     app.ContextView()
-      .then((tl) => { setTimeline(tl); setError(null); })
+      // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
+      .then((tl) => {
+        setTimeline({
+          ...tl,
+          requests: tl.requests ?? [],
+          events: tl.events ?? [],
+          nodes: tl.nodes ?? [],
+          archive: tl.archive ?? [],
+        });
+        setError(null);
+      })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
 

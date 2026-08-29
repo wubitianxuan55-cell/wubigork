@@ -47,12 +47,12 @@ function loadComposerHeight(): number | null {
 }
 
 export function Composer({
-  running, cwd, onSend, onCancel, permLevel, onSetPermLevel, sessionMode, onSetSessionMode, thinkLevel, onSetThinkLevel, onPickFolder, disabled,
+  running, cwd, onSend, onSteer, onCancel, permLevel, onSetPermLevel, thinkLevel, onSetThinkLevel, onPickFolder, disabled,
 }: {
   running: boolean; cwd?: string;
   onSend: (displayText: string, submitText?: string) => void;
+  onSteer?: (text: string) => void;
   onCancel: () => string | undefined; permLevel?: string; onSetPermLevel?: (p: "ask" | "auto" | "yolo") => void;
-  sessionMode?: string; onSetSessionMode?: (m: "default" | "plan") => void;
   thinkLevel?: string; onSetThinkLevel?: (level: "fast" | "normal" | "deep") => void;
   onPickFolder: (path?: string) => Promise<string>; disabled?: boolean;
 }) {
@@ -195,22 +195,45 @@ export function Composer({
     const refs = attachments.map((a) => `@${a.path}`).join(" ");
     const displayText = [tTrim, refs].filter(Boolean).join(tTrim && refs ? " " : "");
     const submitText = [paste.expandBlocks(tTrim), refs].filter(Boolean).join(tTrim && refs ? " " : "");
-    if (displayText.trim()) {
+    const pushInputHistory = () => {
+      if (!displayText.trim()) return;
       try {
         const history = JSON.parse(sessionStorage.getItem(INPUT_HISTORY_KEY) || "[]") as string[];
-        history.unshift(displayText); sessionStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_INPUT_HISTORY)));
+        history.unshift(displayText);
+        sessionStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_INPUT_HISTORY)));
       } catch {}
+    };
+    const clearInput = () => { setText(""); setAttachments([]); };
+    if (displayText.trim()) {
+      pushInputHistory();
     }
     setHistoryIndex(-1);
     if (running) {
-      queueRef.current.push(submitText);
-      setQueueLen(queueRef.current.length);
-      setQueueDisplay([...queueRef.current]);
-      setText("");
-      setAttachments([]);
+      // 2026-08-28：任务运行中 Enter = 插话调整（Steer），消息注入当前回合
+      // 作为补充指引；Shift+Enter 仍为纠正（取消+重发）。需要显式排队的
+      // 用户可通过排队按钮（ComposerQueueList 保留）。
+      onSteer?.(submitText);
+      clearInput();
       return;
     }
-    onSend(displayText, submitText); setText(""); setAttachments([]);
+    onSend(displayText, submitText); clearInput();
+  };
+
+  // 显式排队（2026-08-28）：任务运行中把输入加入发送队列，回合结束后 FIFO
+  // 执行——与插话（立即调整当前任务）区分；队列项可点击撤回输入框编辑。
+  const queueSubmit = () => {
+    if (disabled) return;
+    const converted = tableMode ? applyTableConversion(text, true) : text;
+    const tTrim = converted.trim();
+    if ((!tTrim && attachments.length === 0) || pendingPaste > 0) return;
+    const refs = attachments.map((a) => `@${a.path}`).join(" ");
+    const submitText = [paste.expandBlocks(tTrim), refs].filter(Boolean).join(tTrim && refs ? " " : "");
+    if (!submitText.trim()) return;
+    queueRef.current.push(submitText);
+    setQueueLen(queueRef.current.length);
+    setQueueDisplay([...queueRef.current]);
+    setText("");
+    setAttachments([]);
   };
 
   const handleCancel = () => {
@@ -226,6 +249,25 @@ export function Composer({
     queueRef.current.splice(index, 1);
     setQueueLen(queueRef.current.length);
     setQueueDisplay([...queueRef.current]);
+  };
+
+  // 撤回排队项到输入框编辑（对齐 agentsroom 消息队列 / vm0 withdraw）：
+  // 点击排队卡片 → 该项从队列移除、文本回填输入框；输入框已有草稿先暂存
+  // 回队列原位（保持顺序），避免输入内容丢失。改完 Enter 重新入队/发送。
+  const editQueueItem = (index: number) => {
+    const target = queueRef.current[index];
+    if (target == null) return;
+    const draft = text.trim();
+    queueRef.current.splice(index, 1);
+    if (draft && draft !== target) {
+      // 草稿插回被编辑项原位置，保持用户排队的相对顺序
+      queueRef.current.splice(Math.min(index, queueRef.current.length), 0, draft);
+    }
+    setQueueLen(queueRef.current.length);
+    setQueueDisplay([...queueRef.current]);
+    setText(target);
+    setAttachments([]);
+    requestAnimationFrame(() => { const ta = taRef.current; if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = target.length; } });
   };
 
   // ── 高度调整 ──
@@ -315,7 +357,7 @@ export function Composer({
   const placeholderText = useMemo(() => {
     if (disabled) return t("common.loading");
     if (running && queueLen > 0) return `排队中 (${queueLen})…`;
-    if (running) return t("composer.placeholderRunning");
+    if (running) return "任务执行中… Enter 插话调整 · Shift+Enter 纠正";
     if (cwd && workspaceName) return `在 ${workspaceName}/ 中提问…`;
     return t("composer.placeholder");
   }, [disabled, running, queueLen, cwd, workspaceName, t]);
@@ -363,7 +405,7 @@ export function Composer({
       />
 
       {/* ── 排队列表 ── */}
-      {running && <ComposerQueueList queueDisplay={queueDisplay} onCancelItem={cancelQueueItem} />}
+      {running && <ComposerQueueList queueDisplay={queueDisplay} onCancelItem={cancelQueueItem} onEditItem={editQueueItem} />}
 
       {/* ── 输入卡片（Luminous Glass：玻璃底 + 顶部 1px 高光线 + 聚焦收敛光晕） ── */}
       <div
@@ -411,6 +453,7 @@ export function Composer({
           onDragLeave={onDragLeave}
           onStop={handleCancel}
           onSubmit={submit}
+          onQueue={queueSubmit}
         />
 
         {/* 底部工具栏 */}
@@ -427,8 +470,6 @@ export function Composer({
           onScreenshot={() => void handleScreenshot()}
           permLevel={permLevel}
           onSetPermLevel={onSetPermLevel}
-          sessionMode={sessionMode}
-          onSetSessionMode={onSetSessionMode}
           thinkLevel={thinkLevel}
           onSetThinkLevel={onSetThinkLevel}
         />

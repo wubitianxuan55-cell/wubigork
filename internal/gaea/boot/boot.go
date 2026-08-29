@@ -423,7 +423,6 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		Registry:       reg,
 		PluginCtx:      ctx,
 		CtxMgr:         ctxMgr,
-		AutoPlan:       autoPlanEnabled(cfg),
 		WorkspaceRoot:  cwd,
 	}
 	ctrl := control.New(ctrlOpts)
@@ -434,18 +433,6 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		eventLogSink.SetPathSource(func() string { return ctrl.SessionPath() })
 	}
 	return ctrl, nil
-}
-
-// autoPlanEnabled 读取配置：auto_plan = "ask"/"on" 时开启开工前计划确认。
-func autoPlanEnabled(cfg *config.Config) bool {
-	if cfg == nil {
-		return false
-	}
-	switch strings.ToLower(cfg.Agent.AutoPlan) {
-	case "ask", "on", "true", "1", "yes":
-		return true
-	}
-	return false
 }
 
 func subagentModelRef(cfg *config.Config, sk skill.Skill) string {

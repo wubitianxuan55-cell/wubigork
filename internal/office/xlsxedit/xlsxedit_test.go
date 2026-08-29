@@ -156,6 +156,173 @@ func TestApplyOps_TransformKeepsAbsoluteRefs(t *testing.T) {
 	}
 }
 
+func TestPlanOps_DryRunDiff(t *testing.T) {
+	path := buildBase(t)
+	ops := []Op{
+		{Type: "set_formula", Sheet: "数据", Target: "B5", Formula: "SUM(B2:B4)"},
+		{Type: "set_value", Sheet: "数据", Target: "B2", Value: 111},
+	}
+	summary, changes, total, truncated, err := PlanOps(path, ops)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary) != 2 {
+		t.Fatalf("summary = %v", summary)
+	}
+	if total != 2 || truncated {
+		t.Fatalf("total=%d truncated=%v", total, truncated)
+	}
+	byCell := map[string]Change{}
+	for _, c := range changes {
+		byCell[c.Cell] = c
+	}
+	c, ok := byCell["B5"]
+	if !ok || c.Formula != "SUM(B2:B4)" {
+		t.Fatalf("B5 变更缺失: %+v", changes)
+	}
+	c, ok = byCell["B2"]
+	if !ok || c.Before != "100" || c.After != "111" {
+		t.Fatalf("B2 变更异常: %+v", c)
+	}
+	// 原文件未被触碰
+	if got := readValue(t, path, "数据", "B2"); got != "100" {
+		t.Fatalf("原文件被修改：B2 = %q", got)
+	}
+	if got := readFormula(t, path, "数据", "B5"); got != "" {
+		t.Fatalf("原文件被写入公式：B5 = %q", got)
+	}
+}
+
+func TestPlanOps_ReplaceRangeDiff(t *testing.T) {
+	path := buildBase(t)
+	ops := []Op{{Type: "replace", Sheet: "数据", Range: "A2:A4", Find: "-", Replace: " "}}
+	_, changes, total, _, err := PlanOps(path, ops)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 || len(changes) != 2 {
+		t.Fatalf("替换应命中 2 格，total=%d changes=%+v", total, changes)
+	}
+	if changes[0].Before != "北京-朝阳" || changes[0].After != "北京 朝阳" {
+		t.Fatalf("变更内容异常: %+v", changes[0])
+	}
+}
+
+func TestPlanOps_InvalidOpsLeavesOriginal(t *testing.T) {
+	path := buildBase(t)
+	if _, _, _, _, err := PlanOps(path, []Op{{Type: "set_formula", Sheet: "不存在", Target: "A1", Formula: "SUM(A2)"}}); err == nil || !strings.Contains(err.Error(), "不存在") {
+		t.Fatalf("期望工作表错误，得到 %v", err)
+	}
+	if _, _, _, _, err := PlanOps(path, nil); err == nil {
+		t.Fatal("空操作应报错")
+	}
+	// 规划失败后原文件完好
+	if got := readValue(t, path, "数据", "B2"); got != "100" {
+		t.Fatalf("原文件被修改：B2 = %q", got)
+	}
+}
+
+func TestApplyOps_RichOps(t *testing.T) {
+	path := buildBase(t)
+	tf := true
+	size := 12.0
+	ops := []Op{
+		{Type: "set_style", Sheet: "数据", Range: "B1:B1", Style: &Style{
+			Bold: &tf, Fill: "fff2cc", FontSize: &size, NumFmt: "0.00", Align: "center",
+		}},
+		{Type: "set_col_width", Sheet: "数据", Col: "A", Width: 22},
+		{Type: "merge_cells", Sheet: "数据", Range: "D1:E1"},
+	}
+	if _, err := ApplyOps(path, ops); err != nil {
+		t.Fatal(err)
+	}
+	f, err := excelize.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	// 样式叠加落盘：加粗 + 填充 + 字号 + 对齐
+	id, err := f.GetCellStyle("数据", "B1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := f.GetStyle(id)
+	if err != nil || st == nil {
+		t.Fatalf("读回样式失败: %v", err)
+	}
+	if st.Font == nil || !st.Font.Bold || st.Font.Size != 12 {
+		t.Fatalf("字体样式异常: %+v", st.Font)
+	}
+	if len(st.Fill.Color) == 0 || st.Fill.Color[0] != "FFF2CC" {
+		t.Fatalf("填充色异常: %+v", st.Fill)
+	}
+	if st.Alignment == nil || st.Alignment.Horizontal != "center" {
+		t.Fatalf("对齐异常: %+v", st.Alignment)
+	}
+	// 列宽
+	if w, err := f.GetColWidth("数据", "A"); err != nil || w != 22 {
+		t.Fatalf("列宽 = %v, %v", w, err)
+	}
+	// 合并区域
+	merges, err := f.GetMergeCells("数据")
+	if err != nil || len(merges) == 0 {
+		t.Fatalf("合并区域缺失: %v, %v", merges, err)
+	}
+
+	// 叠加语义：已有填充色时只加斜体，填充保留
+	if _, err := ApplyOps(path, []Op{{Type: "set_style", Sheet: "数据", Target: "B1",
+		Style: &Style{Italic: &tf}}}); err != nil {
+		t.Fatal(err)
+	}
+	f2, err := excelize.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f2.Close()
+	id2, _ := f2.GetCellStyle("数据", "B1")
+	st2, _ := f2.GetStyle(id2)
+	if st2 == nil || st2.Font == nil || !st2.Font.Italic || !st2.Font.Bold {
+		t.Fatalf("叠加后字体异常: %+v", st2.Font)
+	}
+	if len(st2.Fill.Color) == 0 || st2.Fill.Color[0] != "FFF2CC" {
+		t.Fatalf("叠加后填充丢失: %+v", st2.Fill)
+	}
+}
+
+func TestPlanOps_StyleOpNoValueDiff(t *testing.T) {
+	path := buildBase(t)
+	tf := true
+	ops := []Op{
+		{Type: "set_style", Sheet: "数据", Range: "A1:B4", Style: &Style{Bold: &tf}},
+	}
+	summary, changes, total, truncated, err := PlanOps(path, ops)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 0 || len(changes) != 0 || truncated {
+		t.Fatalf("纯样式不应产生值变更: total=%d changes=%d", total, len(changes))
+	}
+	if len(summary) != 1 || !strings.Contains(summary[0], "设置样式") {
+		t.Fatalf("summary = %v", summary)
+	}
+}
+
+func TestNormalizeHex(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"FFF2CC", "FFF2CC"}, {"#fff2cc", "FFF2CC"}, {" #FF0000 ", "FF0000"},
+	}
+	for _, c := range cases {
+		if got, err := normalizeHex(c.in); err != nil || got != c.want {
+			t.Errorf("normalizeHex(%q) = %q, %v; want %q", c.in, got, err, c.want)
+		}
+	}
+	for _, bad := range []string{"red", "#12345", "ZZZZZZ"} {
+		if _, err := normalizeHex(bad); err == nil {
+			t.Errorf("normalizeHex(%q) 应报错", bad)
+		}
+	}
+}
+
 func TestAdjustRowRefs_SkipsFunctionNames(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"LOG10(B2)+ROUND(B2,1)", "LOG10(B3)+ROUND(B3,1)"},
