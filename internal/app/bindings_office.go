@@ -21,7 +21,7 @@ func (b *OfficeB) GaeaAddPermissionRule(list string, rule string) error { return
 func (b *OfficeB) GaeaAgentNetwork() (trajectory.AgentNetwork, error) { return b.a.GaeaAgentNetwork() }
 func (b *OfficeB) GaeaAnswer(id string, answers []event.AskAnswer) { b.a.GaeaAnswer(id, answers) }
 func (b *OfficeB) GaeaApplyUpdate() error { return b.a.GaeaApplyUpdate() }
-func (b *OfficeB) GaeaApprove(id string, allow bool, session bool) { b.a.GaeaApprove(id, allow, session) }
+func (b *OfficeB) GaeaApprove(id string, allow bool, session bool, abort bool) { b.a.GaeaApprove(id, allow, session, abort) }
 func (b *OfficeB) GaeaArchiveSession(path string) error { return b.a.GaeaArchiveSession(path) }
 func (b *OfficeB) GaeaAttachmentDataURL(path string) (string, error) { return b.a.GaeaAttachmentDataURL(path) }
 func (b *OfficeB) GaeaBalance() BalanceInfo { return b.a.GaeaBalance() }

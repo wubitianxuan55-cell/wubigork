@@ -39,7 +39,7 @@ func approvalIDs() (*Controller, chan string, *int) {
 // the (fake) frontend answers allow, and the gate returns allow with no grant.
 func TestApprovalAllowOnce(t *testing.T) {
 	c, ids, _ := approvalIDs()
-	go func() { c.Approve(<-ids, true, false) }()
+	go func() { c.Approve(<-ids, true, false, false) }()
 
 	allow, remember, err := gateApprover{c}.Approve(context.Background(), "bash", "go test", nil)
 	if err != nil || !allow || remember {
@@ -50,7 +50,7 @@ func TestApprovalAllowOnce(t *testing.T) {
 // TestApprovalDeny confirms a declined call returns allow=false.
 func TestApprovalDeny(t *testing.T) {
 	c, ids, _ := approvalIDs()
-	go func() { c.Approve(<-ids, false, false) }()
+	go func() { c.Approve(<-ids, false, false, false) }()
 
 	allow, _, err := gateApprover{c}.Approve(context.Background(), "bash", "rm -rf /", nil)
 	if err != nil || allow {
@@ -64,7 +64,7 @@ func TestApprovalSessionGrant(t *testing.T) {
 	c, ids, prompts := approvalIDs()
 	go func() {
 		for id := range ids {
-			c.Approve(id, true, true)
+			c.Approve(id, true, true, false)
 		}
 	}()
 
@@ -94,7 +94,7 @@ func TestCostSaveAlwaysRequiresApproval(t *testing.T) {
 	}()
 	select {
 	case id := <-ids:
-		c.Approve(id, true, true) // 用户选「本会话允许」
+		c.Approve(id, true, true, false) // 用户选「本会话允许」
 	case <-time.After(2 * time.Second):
 		t.Fatal("yolo 下 cost_save 未触发审批，被自动放行")
 	}
@@ -108,7 +108,7 @@ func TestCostSaveAlwaysRequiresApproval(t *testing.T) {
 	}()
 	select {
 	case id := <-ids:
-		c.Approve(id, true, false)
+		c.Approve(id, true, false, false)
 	case <-time.After(2 * time.Second):
 		t.Fatal("cost_save 被会话放行记忆跳过，未再次审批")
 	}
@@ -143,7 +143,7 @@ func TestMemoryWriteAlwaysRequiresApproval(t *testing.T) {
 		}()
 		select {
 		case id := <-ids:
-			c.Approve(id, true, true) // 选「本会话允许」
+			c.Approve(id, true, true, false) // 选「本会话允许」
 		case <-time.After(2 * time.Second):
 			t.Fatalf("%s 在 yolo 下未触发审批，被自动放行", tool)
 		}
@@ -182,5 +182,27 @@ func TestApprovalCtxCancel(t *testing.T) {
 	allow, _, err := gateApprover{c}.Approve(ctx, "bash", "x", nil)
 	if err == nil || allow {
 		t.Fatalf("Approve on cancelled ctx = (%v,%v), want (false, error)", allow, err)
+	}
+}
+
+// TestApprovalAbort 验证「拒绝并终止本轮」（codex ReviewDecision::Abort）：
+// 闸门按拒绝返回（allow=false、不记会话放行、无错误），同时触发回合取消。
+func TestApprovalAbort(t *testing.T) {
+	c, ids, _ := approvalIDs()
+	cancelled := make(chan struct{}, 1)
+	c.mu.Lock()
+	c.cancel = func() { cancelled <- struct{}{} }
+	c.mu.Unlock()
+
+	go func() { c.Approve(<-ids, false, false, true) }()
+
+	allow, remember, err := gateApprover{c}.Approve(context.Background(), "bash", "rm -rf /", nil)
+	if err != nil || allow || remember {
+		t.Fatalf("Approve = (%v,%v,%v), want deny-with-abort", allow, remember, err)
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("abort 未触发回合取消")
 	}
 }

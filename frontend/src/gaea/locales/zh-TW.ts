@@ -243,6 +243,8 @@ export const zhTW: Record<DictKey, string> = {
   "approval.allowOnceHint": "執行此請求一次",
   "approval.allowSession": "允許此工作階段",
   "approval.allowSessionHint": "記住此授權，用於相符的請求",
+  "approval.abort": "拒絕並停止本輪",
+  "approval.abortHint": "不執行這次呼叫，並終止當前回合",
 
   // ask card
   "ask.customPlaceholder": "輸入你自己的答案…",

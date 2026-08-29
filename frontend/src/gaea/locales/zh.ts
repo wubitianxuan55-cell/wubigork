@@ -243,6 +243,8 @@ export const zh: Record<DictKey, string> = {
   "approval.allowOnceHint": "只放行当前这一次请求",
   "approval.allowSession": "本会话内允许",
   "approval.allowSessionHint": "记住这类匹配请求的授权",
+  "approval.abort": "拒绝并停止本轮",
+  "approval.abortHint": "不执行这次调用，并终止当前回合",
 
   // 提问卡片
   "ask.customPlaceholder": "输入你自己的答案…",

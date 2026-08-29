@@ -106,6 +106,13 @@ func (c *Controller) requestApproval(ctx context.Context, tool, subject string, 
 
 	select {
 	case r := <-reply:
+		if r.abort {
+			// 拒绝并终止本轮（codex ReviewDecision::Abort）：取消当前回合，
+			// agent 循环在下一步采样/闸门检查处快速收敛退出；工具结果按
+			// 拒绝落日志（「拒绝但继续」由 allow=false 表达，两者语义分离）。
+			c.Cancel()
+			return false, false, nil
+		}
 		if r.allow && r.session && !alwaysPrompt {
 			c.mu.Lock()
 			c.granted[key] = true

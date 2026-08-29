@@ -240,6 +240,8 @@ export const en = {
   "approval.allowOnceHint": "Run this request one time",
   "approval.allowSession": "Allow for session",
   "approval.allowSessionHint": "Remember this grant for matching requests",
+  "approval.abort": "Deny & stop turn",
+  "approval.abortHint": "Skip this call and stop the current turn",
 
   // ask card
   "ask.customPlaceholder": "Type your own answer…",

@@ -45,7 +45,7 @@ describe("mock 场景 · initBridge 优先", () => {
       const { kinds, done } = collectKinds();
       await app.Submit("写入审批测试文件");
       expect(kinds).toContain("approval_request");
-      await app.Approve("appr-1", true, false);
+      await app.Approve("appr-1", true, false, false);
       await done;
       expect(kinds[kinds.length - 1]).toBe("turn_done");
     });
@@ -84,7 +84,7 @@ describe("mock 场景 · 审批卡（?mock=approval）", () => {
       expect(kinds).toContain("approval_request");
       expect(kinds).not.toContain("turn_done");
       // 审批通过 → 工具结果 + 正文 + turn_done
-      await app.Approve("appr-1", true, false);
+      await app.Approve("appr-1", true, false, false);
       await done;
       expect(kinds).toContain("tool_result");
       expect(kinds[kinds.length - 1]).toBe("turn_done");

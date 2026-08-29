@@ -125,6 +125,9 @@ type Controller struct {
 type approvalReply struct {
 	allow   bool
 	session bool
+	// abort 拒绝并终止本轮（蒸馏 codex ReviewDecision::Abort）：本次调用按
+	// 拒绝处理，同时取消当前回合——与「拒绝但继续」（allow=false）区分。
+	abort bool
 }
 
 // sendRequest 是一条排队等待执行的消息：回合进行中收到 Send 时入队，
@@ -575,14 +578,15 @@ func (c *Controller) Running() bool {
 
 // Approve answers a pending ApprovalRequest by ID: allow runs the call, session
 // also remembers a grant for the rest of the session so the same tool+subject
-// isn't re-prompted. Unknown/expired IDs are ignored.
-func (c *Controller) Approve(id string, allow, session bool) {
+// isn't re-prompted; abort rejects the call AND cancels the in-flight turn
+// (拒绝并停止本轮). Unknown/expired IDs are ignored.
+func (c *Controller) Approve(id string, allow, session, abort bool) {
 	c.mu.Lock()
 	reply := c.approvals[id]
 	delete(c.approvals, id)
 	c.mu.Unlock()
 	if reply != nil {
-		reply <- approvalReply{allow: allow, session: session} // buffered, never blocks
+		reply <- approvalReply{allow: allow, session: session, abort: abort} // buffered, never blocks
 	}
 }
 

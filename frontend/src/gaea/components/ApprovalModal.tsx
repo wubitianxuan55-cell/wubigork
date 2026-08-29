@@ -34,7 +34,8 @@ export function ApprovalModal({
   onAnswer,
 }: {
   approval: WireApproval;
-  onAnswer: (allow: boolean, session: boolean) => void;
+  // abort=true：拒绝并终止本轮（codex ReviewDecision::Abort 语义）。
+  onAnswer: (allow: boolean, session: boolean, abort?: boolean) => void;
   onRevisePlan?: (text: string) => void;
 }) {
   const t = useT();
@@ -50,11 +51,12 @@ export function ApprovalModal({
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
-      if (!["1", "2", "3", "Escape"].includes(event.key)) return;
+      if (!["1", "2", "3", "4", "Escape"].includes(event.key)) return;
       event.preventDefault();
       if (event.key === "1" || event.key === "Escape") onAnswer(false, false);
       else if (event.key === "2") onAnswer(true, false);
       else if (event.key === "3") onAnswer(isHardAsk ? false : true, isHardAsk ? false : true);
+      else if (event.key === "4") onAnswer(false, false, true);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -97,6 +99,7 @@ export function ApprovalModal({
           {!isHardAsk && (
             <PlanBtn num={3} title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => onAnswer(true, true)} />
           )}
+          <PlanBtn num={4} title={t("approval.abort")} hint={t("approval.abortHint")} onClick={() => onAnswer(false, false, true)} />
         </div>
         {isHardAsk && (
           <div className="mt-2 text-[11px] text-fg-faint leading-snug">

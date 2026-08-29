@@ -145,7 +145,7 @@ export function buildChat(s: MakeMockState): ChatMethods {
       // 运行中插话：模拟 agent 收到 guidance 后回显 notice 并继续。
       emit({ kind: "notice", level: "info", text: `已插话：${text.slice(0, 40)}` });
     },
-    async Approve(_id: string, _allow: boolean, _session: boolean) {
+    async Approve(_id: string, _allow: boolean, _session: boolean, _abort: boolean) {
       if (pendingFlow !== "approval") return;
       pendingFlow = null;
       // 审批通过后补发工具结果与收尾（与真实 gaeaApprove → 工具继续一致）

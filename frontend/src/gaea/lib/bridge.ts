@@ -117,7 +117,7 @@ export interface AppBindings {
   Steer(input: string): Promise<void>;
   // GaeaRunning 返回办公引擎当前是否真的在跑（看门狗校准用）。
   GaeaRunning(): Promise<boolean>;
-  Approve(id: string, allow: boolean, session: boolean): Promise<void>;
+  Approve(id: string, allow: boolean, session: boolean, abort: boolean): Promise<void>;
   AnswerQuestion(id: string, answers: QuestionAnswer[]): Promise<void>;
   Compact(): Promise<void>;
   NewSession(): Promise<void>;
