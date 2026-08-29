@@ -36,8 +36,31 @@
     调度会饿死 RTL 默认 1s 超时）。
   - **验证**：Go 全量 **114/114 包** + vet；vitest **669/669（127 文件）**；eslint 0/0；
     tsc 0；绑定面 **503→499 方法**漂移 PASS；版本四处统一 3.6.0；wails build + 冒烟 200。
-  - **下一阶段候选**：办公蒸馏 codex 清单第二刀（C2 记忆引用可追溯 + C4 审批决策语义，
-    见 `docs/superpowers/plans/2026-08-28-办公蒸馏-codex-候选清单.md` §6 推进顺序）。
+  - **后续（2026-08-29，办公蒸馏 codex 清单第二刀，随下版发布）**：
+    - **C2 记忆引用可追溯（feat 89cf962）**：`RecallBlock` 注入行带引用键 `[MEM:name]`
+      + 块头句末标注纪律（「记忆可能过时，以工作区文件为准」）+ 陈旧记忆（90 天未修订）
+      时效提示；`memory/citations.go` `ExtractCitationNames/ResolveCitations`——回合结束
+      （runTurnWithRaw/Run 两路径 `touchMemoryCitations`）解析最终回复并 Touch 命中记忆
+      （未知键静默丢弃，正则 `(?i)\[MEM:([a-z0-9][a-z0-9-]*)\]` 与记忆 Name kebab-case
+      同构）；前端 `remarkMemCitations`（复用 remarkFileLinks 架构，`mem:` 自定义协议走
+      urlTransform 放行 + a 渲染器拦截）+ `MemCitationChip` 点击弹层展示记忆详情/
+      沉淀来源（复用现有 `GaeaMemory` 绑定，零新增绑定面）；4 Go + 7 前端新测试，
+      vitest 669→676。教训：JS 正则别用 `\[(?:MEM|mem):...\]` 局部交替忘加 `i` 旗标
+      （Go 侧 `(?i)` 全局作用域踩过坑）；`vi.mock` 工厂被提升，mock 函数必须
+      `vi.hoisted`。
+    - **C4 审批决策语义（feat 445485f）**：拒绝三分——deny（拒绝但回合继续，原有）/
+      allow / **abort「拒绝并停止本轮」**（对齐 codex `ReviewDecision::Abort`）；
+      `approvalReply` +abort 字段，`requestApproval` 收到 abort 即 `c.Cancel()` 终止
+      回合（闸门按拒绝返回不记会话放行）；`GaeaApprove(id, allow, session, abort)`
+      签名扩展（绑定面仍 499，仅签名），审批卡第 4 按钮（快捷键 4）+ 三语 i18n；
+      `TestApprovalAbort` 断言取消触发。遗留观察项：审批超时（TimedOut，无人值守
+      自动判定）、权限升级请求、策略文件回写——按真实反馈排期。
+    - **验证**：Go 全量 114/114 + vet；vitest **676/676（129 文件）**；eslint 0/0；
+      tsc 0；绑定面 499 漂移 PASS。
+  - **下一阶段候选**：codex 清单第三刀（C9 工具级事件 + PlanUpdate 事件化 / C3
+    记忆渐进披露 / C5 上下文占用状态行 / C6 项目说明文件，见
+    `docs/superpowers/plans/2026-08-28-办公蒸馏-codex-候选清单.md` §6）；
+    C4 遗留的审批超时/权限升级/策略文件化。
 
 - **最新发布：v3.5.0（2026-08-28）「办公对话区标签页 · dsh-context Go 移植」**：
   git tag `v3.5.0`；CHANGELOG / releases/v3.5.0.md / README 索引同步；规划文档
