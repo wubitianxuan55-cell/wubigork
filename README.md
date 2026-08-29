@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.5.0** | 2026-08-30 | 规划修订(§10.4a)后第一刀·指令中枢：统一「意图→能力→结果回传」路由内核落地触点层「同内核多入口」——intent 纯函数解析包(导航/生图/状态/提醒，宁漏勿误纪律) + 能力执行层(navigate 事件/generate_image/status/reminder 复用离线代办) + 语音指令通路(JARVIS 一档：voice 回调分流，命中即能力执行经 TTS 播报，voice 包零改动) + 前端 INTENT_NAVIGATE → navigateBoard 自动切空间；绑定面 530 零新增；Go 108/108、vitest 789/789。详见 releases/v4.5.0.md |
 | **v4.4.0** | 2026-08-30 | v4.4「触点」一期·微信遥控器：离线代办——微信对助手说「提醒我 30分钟后 喝水 / 明天早上9点 开会」→ 中文时间解析（相对/日期+段词/裸时刻，中文数字进位）建提醒 → 20s ticker 到点经微信 Push 回推（失败重试 ≤5 次，JSON 持久化重启恢复）；weixin.Server 主动推送通路（最近活跃会话记忆）；WeixinPage 书房板块页落地（扫码绑定流/通道状态/提醒面板，板块 inMenu=true 进 rail 与首页左翼）；绑定面 525→530（WhisperWeixin*/WhisperAssistant* 转正 + WeixinReminder* 新增），spaceBindings 235→247 全归 work；vitest 789/789、Go 107/107。详见 releases/v4.4.0.md |
 | **v4.3.2** | 2026-08-30 | 首页「双翼·中庭」重构 + 空间导航收敛：中庭语音+打字一体对话条（VoiceChatText 共用管道 + 放大 orb 磁吸核心，hero 让位细眉）；左翼「书房」2×2 格（办公/造价/记忆/模型）；右翼「庭院」纵向列表（聊天/小说/绘梦/角色）；门廊编程独立窗口入口；命名 工位→书房、乐园→庭院；移除 rail 空间切换按钮，navigateBoard 按板块自动切空间；搜索 scope 文案同步。绑定面不变、vitest 789/789、Go 全量绿。详见 releases/v4.3.2.md |
 | **v4.3.1** | 2026-08-30 | v4.3 后续小步：主动关心定时推送频控（ticker 四信号：频控/作息尊重/生日祝福/门控合成 → gaea-whisper-proactive 事件 + GaeaWhisperProactiveConfig 配置绑定）+ 创作间世界模型面板（设定页维度化编辑器 6 维度卡片 + 伏笔登记表状态流转/回收率 + 一致性检查三类告警）+ 角色参考图（SchemaV2 reference/gallery 两列 + CharacterGeneratePortraitWithRef img2img 参考槽 + 前端参考图管理）+ 朗读情绪 UI（9 情绪选择器 + 会话情绪跟随 + TTSSpeakBase64WithParams）。绑定面 525、spaceBindings 235、vitest 789/789、Go 118/118。详见 releases/v4.3.1.md |
