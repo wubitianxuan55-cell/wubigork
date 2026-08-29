@@ -943,3 +943,60 @@ func TestOutputEventCarriesTail(t *testing.T) {
 		t.Fatalf("终态事件应带完整尾回放: %q", terminalEvent.OutputTail)
 	}
 }
+
+// TestOutputEvictionLRU：任务输出缓冲表超上限（outputMaxTasks）时按 LRU 淘汰
+// 写入时钟最旧的整个缓冲，而非随机 map 顺序——淘汰顺序可预测：
+// ① 最旧且未续写的任务缓冲被淘汰；
+// ② 中途续写的任务因时钟刷新而存活（LRU 而非 FIFO/随机）；
+// ③ 最新任务的尾部回放内容完好（最新行保留）；
+// ④ 持续写入时缓冲数有界，且按写入时钟从旧到新逐个淘汰。
+func TestOutputEvictionLRU(t *testing.T) {
+	m := &Manager{outputs: map[string]*taskOutput{}}
+	m.appendOutput("old", "old-a")
+	m.appendOutput("mid", "mid-a")
+	for i := 0; i < outputMaxTasks-3; i++ { // 97 个填充任务，共 99 个缓冲
+		m.appendOutput(fmt.Sprintf("fill-%d", i), fmt.Sprintf("fill-line-%d", i))
+	}
+	m.appendOutput("old", "old-b") // 刷新 old 的写入时钟（比 mid 及全部填充任务新）
+	for i := 0; i < 4; i++ {
+		m.appendOutput("newest", fmt.Sprintf("newest-%d", i))
+	}
+	// 共 100 个缓冲；再写入一个触发淘汰：写入时钟最旧的 mid 应被逐出
+	m.appendOutput("extra", "extra-a")
+
+	if tail, _ := m.Output("mid"); tail != "" {
+		t.Fatalf("写入时钟最旧的 mid 缓冲应被淘汰，实际回放 %q", tail)
+	}
+	if _, ok := m.outputs["mid"]; ok {
+		t.Fatal("mid 缓冲应从缓冲表中移除")
+	}
+	if tail, _ := m.Output("old"); tail != "old-a\nold-b" {
+		t.Fatalf("续写刷新时钟的 old 应存活（LRU 而非随机/FIFO），实际 %q", tail)
+	}
+	if tail, _ := m.Output("newest"); tail != "newest-0\nnewest-1\nnewest-2\nnewest-3" {
+		t.Fatalf("最新任务的尾部回放应完好，实际 %q", tail)
+	}
+	if len(m.outputs) != outputMaxTasks {
+		t.Fatalf("缓冲数应维持在上限 %d，实际 %d", outputMaxTasks, len(m.outputs))
+	}
+
+	// 持续写入新任务：只淘汰写入时钟最旧者，顺序可预测（fill-0 → fill-1 → fill-2）
+	for i := 0; i < 3; i++ {
+		m.appendOutput(fmt.Sprintf("more-%d", i), "more-line")
+		if _, ok := m.outputs[fmt.Sprintf("fill-%d", i)]; ok {
+			t.Fatalf("淘汰顺序应最旧优先：fill-%d 应在第 %d 次超限写入时被淘汰", i, i+1)
+		}
+	}
+	if len(m.outputs) != outputMaxTasks {
+		t.Fatalf("持续写入后缓冲数应仍为 %d，实际 %d", outputMaxTasks, len(m.outputs))
+	}
+	if _, ok := m.outputs["fill-96"]; !ok {
+		t.Fatal("fill-96 写入时钟较新，不应被淘汰")
+	}
+	if _, ok := m.outputs["extra"]; !ok {
+		t.Fatal("最新写入的 extra 不应被淘汰")
+	}
+	if tail, _ := m.Output("more-2"); tail != "more-line" {
+		t.Fatalf("最新写入的 more-2 尾部回放应完好，实际 %q", tail)
+	}
+}

@@ -137,6 +137,9 @@ type Manager struct {
 	// 防止 Output→Report 紧邻调用时进度更新被输出事件挤掉节流窗口。
 	lastOutputEmit map[string]time.Time
 	outputs        map[string]*taskOutput // 任务实时输出环形缓冲（C1）
+	// outSeq 是输出缓冲的 LRU 写入时钟（m.mu 保护，单调递增）：appendOutput
+	// 每次写入刷新对应 taskOutput.lastWrite，缓冲表超限时淘汰 lastWrite 最旧者。
+	outSeq int64
 
 	opts   Options
 	sem    chan struct{}
@@ -148,16 +151,19 @@ type Manager struct {
 
 // taskOutput 单任务实时输出（环形缓冲：上限行数 + 字节数，超出截断标注）。
 type taskOutput struct {
-	lines   []string
-	bytes   int
-	trunc   bool
-	lastSeq int // 预留：将来可按 seq 增量拉取（当前整尾回放）
+	lines     []string
+	bytes     int
+	trunc     bool
+	lastSeq   int   // 预留：将来可按 seq 增量拉取（当前整尾回放）
+	lastWrite int64 // 最近一次写入的全局序号（LRU 时钟：缓冲表超限时淘汰最旧者）
 }
 
-// 输出缓冲上限：200 行 / 64KB（对齐插件 jobs.output 的字节 cap + truncated 语义）。
+// 输出缓冲上限：200 行 / 64KB（对齐插件 jobs.output 的字节 cap + truncated 语义）；
+// 缓冲表最多保留 100 个任务的输出（LRU：写入时钟最旧优先淘汰）。
 const (
 	outputMaxLines = 200
 	outputMaxBytes = 64 * 1024
+	outputMaxTasks = 100
 )
 
 // appendOutput 追加一行输出；超限丢弃最旧行并置截断标记。
@@ -180,6 +186,8 @@ func (m *Manager) appendOutput(id, line string) {
 		}
 		m.outputs[id] = o
 	}
+	m.outSeq++
+	o.lastWrite = m.outSeq
 	o.lines = append(o.lines, line)
 	o.bytes += len(line)
 	for len(o.lines) > outputMaxLines || o.bytes > outputMaxBytes {
@@ -188,14 +196,24 @@ func (m *Manager) appendOutput(id, line string) {
 		o.bytes -= len(drop)
 		o.trunc = true
 	}
-	// 防止长时间运行任务累积过多缓冲（保留最近 100 个任务的缓冲）
-	if len(m.outputs) > 100 {
-		for k := range m.outputs {
-			if k != id {
-				delete(m.outputs, k)
+	// 防止长时间运行任务累积过多缓冲（保留最近写入的 outputMaxTasks 个任务的
+	// 缓冲）：按 LRU 淘汰写入时钟最旧的整个缓冲，而非随机 map 顺序——频繁
+	// 写入的任务时钟持续刷新不会被过早丢弃，冷任务缓冲最先让位。当前任务刚
+	// 写入时钟必为最新，绝不自淘汰；输出尾部语义（整尾回放 + 截断标注）不变。
+	for len(m.outputs) > outputMaxTasks {
+		victim, victimWrite := "", int64(0)
+		for k, v := range m.outputs {
+			if k == id {
+				continue
 			}
-			break
+			if victim == "" || v.lastWrite < victimWrite {
+				victim, victimWrite = k, v.lastWrite
+			}
 		}
+		if victim == "" {
+			break // 只剩当前任务缓冲（防御：正常不会发生）
+		}
+		delete(m.outputs, victim)
 	}
 	tail := strings.Join(o.lines, "\n")
 	trunc := o.trunc
