@@ -791,6 +791,7 @@ export default function App() {
               turnStartAt={state.turnStartAt}
               turnTokens={state.turnTokens}
               used={state.context.used}
+              window={state.context.window}
             />
             <div className="composer-glow">
             <Composer

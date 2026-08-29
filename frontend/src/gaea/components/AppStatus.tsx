@@ -27,11 +27,15 @@ export function JobDoneNotifier({ jobs }: { jobs: JobView[] }) {
 }
 
 // 输入框上方的运行时状态行。
-export function RunStatus({ running, turnStartAt, turnTokens, used }: {
+// C5（蒸馏 codex thread_usage/chatwidget 上下文窗口百分比 + 压缩前预警）：
+// 窗口占用 ≥75% 提示「接近自动压缩」（gaea 压缩触发线 80%），≥90% 升级为
+// 「即将强制压缩」（ForceRatio 90%）；窗口未知（window=0）时隐藏。
+export function RunStatus({ running, turnStartAt, turnTokens, used, window: win }: {
   running: boolean;
   turnStartAt: number;
   turnTokens: number;
   used: number;
+  window: number;
 }) {
   const now = useNow();
   if (!running) return null;
@@ -42,12 +46,28 @@ export function RunStatus({ running, turnStartAt, turnTokens, used }: {
     elapsed >= 20 && used >= 40000
       ? `处理大上下文中 · ${fmtTokens(used)}`
       : "";
+  const pct = win > 0 ? Math.min(100, Math.round((used / win) * 100)) : 0;
+  const ctxHint =
+    pct >= 90 ? "即将强制压缩" : pct >= 75 ? "接近自动压缩" : "";
+  const ctxColor = pct >= 90 ? "text-err" : pct >= 75 ? "text-warning" : "text-fg-faint";
   return (
     <div className="flex items-center justify-between px-4 py-1.5 text-[11px] select-none border-b border-border-soft/50 bg-bg-soft/30">
       <div className="flex items-center gap-2 text-fg-dim tabular-nums font-mono">
         <span className="font-medium">{elapsedStr}</span>
         {tokStr && <span className="text-fg-faint">{tokStr}</span>}
         {slowHint && <span className="text-warning/90">{slowHint}</span>}
+        {pct > 0 && (
+          <span className={`inline-flex items-center gap-1 ${ctxColor}`} title={`上下文窗口占用 ${fmtTokens(used)}/${fmtTokens(win)}`}>
+            <span className="inline-block w-10 h-1 rounded-full bg-bg-soft overflow-hidden align-middle">
+              <span
+                className={`block h-full rounded-full transition-all duration-500 ${pct >= 90 ? "bg-err" : pct >= 75 ? "bg-warning" : "bg-info/70"}`}
+                style={{ width: `${pct}%` }}
+              />
+            </span>
+            <span className="font-medium">{pct}%</span>
+            {ctxHint && <span>{ctxHint}</span>}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <span className="flex items-center gap-1.5 text-fg">
