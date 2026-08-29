@@ -36,20 +36,19 @@
 - [x] **前端** 聊天 memo+尾部窗口 `9a41090`；keepAlive 轮询门控 `d373fba`
 - [ ] 遗留：gate_test.go stubGate 计数器既有竞态（测试基建小修）；持久化套件统一（desktop_session/archive 原子写）
 
-### 阶段 1 · 双空间内核（后端 space 维度）—— S1.1 ✅ S1.2 ✅，S1.3-S1.5 待做
-- [x] **S1.1 空间维度落地**（设计文档 `docs/gaea-space-dimension-design.md` S1-S4 拆解）：
-  - [x] S1 列落库（SchemaV14 facts/tasks + 读写谓词）—— `5c24d16`（V13 旧库升级回填 work 测试）
-  - [x] S2 会话空间（核心）（目录分区 + 日志/checkpoint space + space.mode 开关）—— `0722aeb`（34 文件，全仓 go test 绿）
-  - [x] S3 子代理继承（ctx 注入 + 后台补注 + fail-closed + 前瞻 meta 校验）—— `76f565e`
-  - [x] S4 产物分区+绑定面（exports 分区 + GaeaSpace* 挂 CoreB，绑定面 499→502）—— `5c9fc4e`
-- [x] **S1.2 记忆空间隔离器**（红线最硬实现；设计 `docs/gaea-memory-isolation-design.md`）：
-  - [x] 后端 A+B（写侧盖章 remember/dream/指纹含 space/审计加列 + 读端 GetInSpace/TouchInSpace/citations 限定 + UnifiedSearch scope 四组隔离 + wssearch 噪音补 play exports）—— `819d7ff`
-  - [x] 前端 C（hub/面板 scope 切换，默认当前空间 + 显式「全部」）—— `53d621d`
-- [ ] **S1.3 模型 profile 按空间 + 工具空间标签装配**（Seam 加 per-space 路由；Registry 工具加空间标签）—— 待派
-- [ ] **S1.4 任务/资源按空间分账**（jobs 每空间队列 + 优先级）—— 待派
-- [ ] **S1.5 空间策略**（work 审阅制 / play 内容护栏，同一权限引擎两套策略装配）—— 待派
+### 阶段 1 · 双空间内核（后端 space 维度）—— ✅ 全部完成（S1.1-S1.5）
+- [x] **S1.1 空间维度落地**（设计文档 `docs/gaea-space-dimension-design.md`）：
+  - [x] S1 列落库（SchemaV14）`5c24d16`｜S2 会话空间（目录分区+日志/checkpoint space+开关）`0722aeb`｜S3 子代理继承 `76f565e`｜S4 产物分区+绑定面（499→502）`5c9fc4e`
+- [x] **S1.2 记忆空间隔离器**（设计 `docs/gaea-memory-isolation-design.md`）：后端 A+B `819d7ff`+`f0187a2`（写侧盖章/读端隔离/UnifiedSearch scope）；前端 C `53d621d`
+- [x] **S1.3 模型 profile + 工具标签**（装配族 `f8612d0`）：`[space_profiles]` 段 + 工具装配期过滤（work 33/play 1/shared 13）+ MCP spec 层滤
+- [x] **S1.4 任务分账**（`5ccaa7a`）：per-space 并发/优先级 pickNext + HasActiveInSpace + cron 显式 work + GaeaTaskList 变参
+- [x] **S1.5 空间策略**：S1.5-A 权限按空间+hardAsk 参数化+persist_allow 分段（装配族 `f8612d0`）；S1.5-B play 护栏 5 处钳制（`21f8978`）
+- 设计文档：`docs/gaea-space-dimension-design.md` / `gaea-memory-isolation-design.md` / `gaea-space-assembly-design.md`
 
-### 阶段 2 · 双空间壳（前端两视图，S2.1-S2.3）
+### 阶段 2 · 双空间壳（前端两视图，S2.1-S2.3）—— 待启动
+- S2.1 壳层重构（工位任务工作台 + 乐园沉浸视图 + 空间切换持久化；删除旧 10 板块导航；双首页）
+- S2.2 页面迁入 + i18n 全铺 + 性能门控（并入 S0.7 项）+ store/key 空间前缀迁移 + 事件订阅按空间过滤 + Ctrl+K scope
+- S2.3 bridge 分面（work/play/shared）+ types 生成化
 
 ## 纪律（沿用）
 
