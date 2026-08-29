@@ -66,7 +66,10 @@
   - [x] **i18n 存量切片（SettingsPage 外壳）**：控制室/搜索/分类导航/帮助面板
     三语化（~40 新 key）；分类 label/desc 接 labelKey/descKey（keywords 为搜索数据保留 zh）；
     SettingsPage.test 包 LocaleProvider + 固定 zh
-  - [ ] i18n 存量切片（pages/ChatPage/Settings 等，逐切片推进）
+  - [x] **i18n 决策定稿（2026 追加）**：采用审计 §405「诚实 zh-only」选项——
+    **壳层 chrome + 设置外壳三语（已完成，消灭壳层混合语言根因）；页面内容层
+    保持 zh 单语**，不再逐页铺 en/zh-TW 字典（~5000 字符、边际价值≈0、个人
+    中文工具无国际化受众）。若未来需要国际化，按 S2.3b WireShape 模式整页迁移。
   - [ ] 页面深层迁入（对话降为对话流/记忆侧栏/模型中心并入设置/创作间）——v4.x 范围
 - [x] **S2.3 bridge 分面 + types 生成化**：
   - [x] `spaceBindings.ts` 分类表：AppBindings 214 方法显式分类（work/play/shared/
@@ -77,6 +80,15 @@
   - [x] **S2.3b types 全量迁移**：WireShape 剥生成类实例方法，55 个重叠类型改别名
     （1375→1065 行）；增强类型（TaskStatus/TaskView/SearchScope 等）保留手写；
     顺带修 FileSearchHit.modTime / UpdateInfo.version / FilePreview 契约漂移
+
+### 阶段 3 · 领域包纵深（v4.1 → v4.4）—— v4.1 设计定稿
+- [x] **v4.1 办公信任链设计**（`docs/gaea-v41-evidence-chain-design.md`）：
+  evidence.Record（原文摘要/来源/模型/时间戳/回滚信息）+ Apply→Verify→Journal
+  三段式 + Verifier 双通道（结构/引用完整性 + PDF 视觉 diff）+ 基线快照回滚
+  （用户手工编辑冲突保护）+ GB/T 9704 红头 lint 第一刀；Step 拆 v4.1a/b/c
+- [ ] v4.1a 证据链（evidence.Record 落库 + xlsx/edit_file 接入 + Journal 投影 + 前端入口）
+- [ ] v4.1b Verifier（通道 A 公式重算/引用 + 通道 B PDF 视觉 diff + verdict 状态机）
+- [ ] v4.1c 规范包（GB/T 9704 红头 lint + 体检报告）
 
 ## 纪律（沿用）
 

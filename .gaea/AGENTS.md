@@ -15,6 +15,10 @@
   ~~"陪伴×办公融合"（旧 v4.3）已删除~~。
 - **本轮关键纠正**：灵犀 = 金山 WPS 独立 AI 办公 Agent（非阿里/通义系）；
   WorkBuddy = 腾讯云 CodeBuddy 全场景 AI 办公工作台（非 Kimi 系；Kimi Work 是月之暗面的）。
+- **i18n 决策（2026 追加）**：采用审计 §405「诚实 zh-only」选项——**壳层 chrome +
+  设置外壳三语**（已完成，消灭壳层混合语言根因）；**页面内容层保持 zh 单语**，
+  不再逐页铺 en/zh-TW 字典（个人中文工具无国际化受众，~5000 字符边际价值≈0；
+  未来需国际化时按 S2.3b WireShape 模式整页迁移）。
 - **文档纪律**：docs/ 旧调研/已落地计划已归档至 `docs/archive/`（见其 README）；
   后续会话以本文件 + 长期规划 + `.gaea/progress.md` 为权威，勿引用 docs/archive 结论。
 - **下一执行**：阶段 0 地基（S0.1 并发加固 → S0.6 edit_file）→ 阶段 1/2 双空间；
@@ -37,7 +41,9 @@
   - **验证**：Go 全量 **115 包** + vet；vitest 全绿；eslint 0/0；tsc 0；绑定面 **502 方法**
     漂移 PASS；版本五处统一 3.8.0；wails build + 冒烟 200。
   - **下一执行**：阶段 2 双空间壳——S2.1 壳层两视图+空间切换+双首页已收官
-    （`docs/gaea-space-shell-design.md`），S2.2 页面迁入/i18n/性能门控待启动；
+    （`docs/gaea-space-shell-design.md`），S2.2/S2.3/S2.3b 已收官；i18n 决策定稿
+    （壳层三语 + 页面 zh-only）。**下一执行：阶段 3 v4.1 办公信任链**——设计已定稿
+    （`docs/gaea-v41-evidence-chain-design.md`），v4.1a 证据链待实施；
     遗留小修（stubGate 竞态/Cancel flake/持久化套件统一）。
 
 - **最新发布：v3.7.0（2026-08-29）「办公蒸馏 codex 收官 · 引用可追溯 + 审批决策族 + 输出事件化」**：
