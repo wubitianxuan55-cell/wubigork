@@ -79,6 +79,9 @@ func (m moveFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	if !srcFi.Mode().IsRegular() {
 		return "", fmt.Errorf("move %s: source is not a regular file (directories are not supported)", src)
 	}
+	// v4.1b：移动前源文件基线快照（回滚原料）。
+	srcContent, _ := os.ReadFile(src)
+	baseline := evidence.StageBaseline(ctx, src, srcContent)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return "", fmt.Errorf("mkdir %s: %w", filepath.Dir(dst), err)
 	}
@@ -111,6 +114,7 @@ func (m moveFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		Target:        dst,
 		BeforeSummary: "→ moved from " + src,
 		AfterSummary:  dst,
+		BaselinePath:  baseline,
 	})
 	return fmt.Sprintf("moved %s → %s", src, dst), nil
 }

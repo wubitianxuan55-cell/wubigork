@@ -1184,6 +1184,29 @@ export interface JournalChangeRecord {
   status: string;
 }
 
+// VerdictView 是 Verifier 双通道复核结论（v4.1b，GaeaVerifyRecord）。
+export interface VerdictView {
+  id: string;
+  status: "verified" | "warned" | "failed";
+  channelA?: string;
+  channelB?: string;
+  note?: string;
+  at: number;
+}
+
+// LintReportView 是中文规范体检结果（v4.1c，GaeaDocumentLint）。
+export interface LintIssueView {
+  element: string;
+  found: boolean;
+  note: string;
+}
+export interface LintReportView {
+  path: string;
+  issues: LintIssueView[];
+  passed: boolean;
+  summary: string;
+}
+
 // TaskOutputView 是任务实时输出的尾部回放视图（C1：GaeaTaskOutput）。
 export type TaskOutputView = WireShape<AppModels.TaskOutputView>;
 

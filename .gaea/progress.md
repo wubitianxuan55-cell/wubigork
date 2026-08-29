@@ -101,8 +101,14 @@
   （App 层写 Journal，SessionID 取自控制器，play 红线过滤）；新绑定
   GaeaJournalList（gen_bindings 重生成 bindingNames 503）+ 前端「证据」入口
   （DeliverablesPanel 证据链折叠区，展示最近证据卡）
-- [ ] v4.1b Verifier（通道 A 公式重算/引用 + 通道 B PDF 视觉 diff + verdict 状态机）
-- [ ] v4.1c 规范包（GB/T 9704 红头 lint + 体检报告）
+- [x] **v4.1b Verifier + 回滚**：基线快照（写盘工具 + xlsx 应用前）；GaeaVerifyRecord
+  双通道复核（A 结构/引用完整性 + B 基线 PDF 视觉健全性）+ verdict 落库；
+  GaeaRollbackRecord 基线回滚 + 手工编辑冲突保护；前端证据卡复核/回滚操作
+- [x] **v4.1c 规范包**：internal/office/standard GB/T 9704 红头 7 要素 lint +
+  GaeaDocumentLint 绑定 + OfficePanel「规范体检」入口
+
+**v4.1 办公信任链已收官**（bindingNames 506 / spaceBindings 218 全覆盖 / vitest 738
++ go 全量绿 / build OK）。剩余领域包：v4.2 造价 / v4.3 乐园 / v4.4 触点（§10.4）。
 
 ## 纪律（沿用）
 

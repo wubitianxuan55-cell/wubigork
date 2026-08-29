@@ -73,6 +73,7 @@ func (m multiEdit) Execute(ctx context.Context, args json.RawMessage) (string, e
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", p.Path, err)
 	}
+	baseline := evidence.StageBaseline(ctx, p.Path, []byte(content))
 	cur := content
 	for i, e := range p.Edits {
 		if e.OldString == "" {
@@ -97,6 +98,7 @@ func (m multiEdit) Execute(ctx context.Context, args json.RawMessage) (string, e
 			Target:        p.Path,
 			BeforeSummary: e.OldString,
 			AfterSummary:  e.NewString,
+			BaselinePath:  baseline,
 		})
 	}
 	out := fmt.Sprintf("%s: applied %d/%d edits", p.Path, len(p.Edits), len(p.Edits))

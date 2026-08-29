@@ -130,3 +130,27 @@ type Record struct {
 - 验证：evidence/builtin/agent 全量 Go 测试绿。
 - **未做（v4.1a2）**：multi_edit/edit_lines 逐条摘要、xlsx_apply 接入（App 层 Apply
   入口）、前端「证据」入口（复用 DeliverablesPanel）、Verifier（v4.1b）。
+
+## 12. v4.1b/c 落地记录（2026-08-29，v4.1 收官）
+
+### v4.1b Verifier + 回滚
+- 基线快照：写盘工具（edit_file/write_file/multi_edit/edit_lines/move_file）写前把
+  整文件快照到 `.gaea/work/rollback/`（ChangeLedger.BaselineDir，agent 回合注入）；
+  xlsx_apply 应用前由 App 层快照。ChangeRecord 增 `baselinePath`。
+- `GaeaVerifyRecord(id)` 双通道复核：通道 A（结构/引用完整性——文件工具校验
+  After 摘要存在于目标/Before 旧文已消失；xlsx 用现有 Recalc 重算零错误；move 校验
+  源去目标在）；通道 B（视觉健全性——有基线时 soffice 渲染 before/after PDF 对比
+  页数，渲染不可用降级 warn）。verdict 落 `verdicts.jsonl`（按 ID 后者胜）。
+- `GaeaRollbackRecord(id)`：基线快照回滚 + **冲突保护**（目标当前内容与 After 摘要
+  不符 → 拒绝，绝不覆盖用户手工编辑）；回滚后追加 rollback 证据卡。
+- 前端：DeliverablesPanel 证据卡加「复核/回滚」操作（toast 反馈结论）。
+
+### v4.1c 中文规范包第一刀
+- `internal/office/standard`：GB/T 9704 红头要素 lint 纯函数（发文机关标志/发文字号/
+  标题/主送/成文日期/印章位/版记 7 要素 + 修复建议），md/txt/docx 经 docmd 提文本。
+- `GaeaDocumentLint(rel)` 绑定 + OfficePanel「规范体检（红头）」入口（报告内联展示）。
+
+### 绑定面
+- 新增 3 绑定（GaeaVerifyRecord/GaeaRollbackRecord/GaeaDocumentLint）+ GaeaJournalList
+  （v4.1a2）→ bindingNames 502→**506**，gen_bindings 重生成 + drift check OK；
+  spaceBindings 分类 218 方法全覆盖。

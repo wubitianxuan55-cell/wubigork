@@ -73,6 +73,8 @@ func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", p.Path, err)
 	}
+	// v4.1b：写盘前整文件基线快照（Verifier 视觉 diff / 回滚原料；未配置则 ""）。
+	baseline := evidence.StageBaseline(ctx, p.Path, []byte(content))
 	newContent, n, err := replaceInContent(content, p.OldString, p.NewString, p.ReplaceAll)
 	if err != nil {
 		return "", fmt.Errorf("edit %s: %w", p.Path, err)
@@ -87,6 +89,7 @@ func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 		Target:        p.Path,
 		BeforeSummary: p.OldString,
 		AfterSummary:  p.NewString,
+		BaselinePath:  baseline,
 	})
 	return fmt.Sprintf("edited %s: %d occurrence(s) replaced (+%d/-%d bytes)",
 		p.Path, n, n*len(p.NewString), n*len(p.OldString)), nil

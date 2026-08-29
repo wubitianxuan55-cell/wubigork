@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { Button, Input, InputNumber, Select, Space, Switch, Typography, message } from 'antd'
-import { SaveOutlined, ReloadOutlined } from '@ant-design/icons'
+import { SaveOutlined, ReloadOutlined, FileTextOutlined } from '@ant-design/icons'
 import { gaeaSettings } from '../../api/settings'
 import SettingsSection from './SettingsSection'
 import * as App from '../../../src/wailsjsCompat'
+import { app as gaeaApp } from '../../gaea/lib/bridge'
 import type { app as AppModels } from '../../../wailsjs/go/models'
+import type { LintReportView } from '../../gaea/lib/types'
 
 interface DraftView {
   defaultModel: string
@@ -38,6 +40,25 @@ const OfficePanel: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [reloading, setReloading] = useState(false)
+  // v4.1c 规范体检（GB/T 9704 红头要素 lint）
+  const [lintPath, setLintPath] = useState('')
+  const [linting, setLinting] = useState(false)
+  const [lintReport, setLintReport] = useState<LintReportView | null>(null)
+
+  const runLint = async () => {
+    const rel = lintPath.trim()
+    if (!rel) { message.warning('请输入文档路径（工作区相对，如 docs/通知.md）'); return }
+    setLinting(true)
+    try {
+      const r = await gaeaApp.DocumentLint(rel)
+      setLintReport(r)
+      message[r.passed ? 'success' : 'warning'](r.summary)
+    } catch (e) {
+      message.error(`体检失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setLinting(false)
+    }
+  }
 
   useEffect(() => {
     gaeaSettings().then((v) => {
@@ -249,6 +270,36 @@ const OfficePanel: React.FC = () => {
           保存并生效
         </Button>
       </div>
+
+      {/* v4.1c 中文规范体检（GB/T 9704 红头要素 lint 第一刀） */}
+      <SettingsSection title="规范体检">
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Input
+            placeholder="文档路径（md/txt/docx，工作区相对）"
+            value={lintPath}
+            onChange={(e) => setLintPath(e.target.value)}
+            onPressEnter={() => void runLint()}
+            style={{ flex: 1 }}
+          />
+          <Button icon={<FileTextOutlined />} loading={linting} onClick={() => void runLint()}>
+            体检（红头）
+          </Button>
+        </div>
+        {lintReport && (
+          <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.8 }}>
+            <Typography.Text strong style={{ color: lintReport.passed ? 'var(--md-sys-color-success)' : 'var(--md-sys-color-warning)' }}>
+              {lintReport.summary}
+            </Typography.Text>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+              {lintReport.issues.map((it) => (
+                <li key={it.element} style={{ color: it.found ? 'var(--md-sys-color-text-secondary)' : 'var(--md-sys-color-text)' }}>
+                  {it.element}：{it.found ? '符合' : <span style={{ color: 'var(--md-sys-color-destructive)' }}>{it.note}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </SettingsSection>
 
       {loading && <Typography.Text style={{ color: 'var(--md-sys-color-text-secondary)', fontSize: 12 }}>加载中…</Typography.Text>}
     </>

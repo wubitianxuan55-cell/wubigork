@@ -76,6 +76,7 @@ func (e editLines) Execute(ctx context.Context, args json.RawMessage) (string, e
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", p.Path, err)
 	}
+	baseline := evidence.StageBaseline(ctx, p.Path, []byte(content))
 
 	lines, hadTrailing := splitFileLines(content)
 	if p.StartLine > len(lines) {
@@ -109,6 +110,7 @@ func (e editLines) Execute(ctx context.Context, args json.RawMessage) (string, e
 		Target:        p.Path,
 		BeforeSummary: strings.Join(beforeLines, "\n"),
 		AfterSummary:  *p.NewContent,
+		BaselinePath:  baseline,
 	})
 	return fmt.Sprintf("replaced lines %d-%d in %s (%d→%d lines)",
 		p.StartLine, p.EndLine, p.Path, p.EndLine-p.StartLine+1, len(newLines)), nil

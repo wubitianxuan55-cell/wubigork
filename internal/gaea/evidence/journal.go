@@ -31,9 +31,12 @@ type ChangeRecord struct {
 	Target        string `json:"target"` // 工作区相对路径 / 单元格引用
 	BeforeSummary string `json:"beforeSummary"`
 	AfterSummary  string `json:"afterSummary"`
-	Model         string `json:"model,omitempty"`
-	At            int64  `json:"at"` // unix ms
-	Status        string `json:"status"`
+	// BaselinePath 是写盘前整文件基线快照（绝对路径，Verifier 通道 B 视觉 diff
+	// 与 Rollback 回滚原料）。非文件类工具（xlsx_apply 由 App 层快照）可为空。
+	BaselinePath string `json:"baselinePath,omitempty"`
+	Model        string `json:"model,omitempty"`
+	At           int64  `json:"at"` // unix ms
+	Status       string `json:"status"`
 }
 
 // Status 常量：Apply 后默认 pending_verify；Verifier（v4.1b）推进后续状态。
@@ -45,6 +48,9 @@ const (
 type ChangeLedger struct {
 	mu      sync.Mutex
 	changes []ChangeRecord
+	// BaselineDir 是写盘工具快照基线的目录（agent 回合开始设置，
+	// <cwd>/.gaea/work/rollback；空 = 不启用基线快照）。
+	BaselineDir string
 }
 
 // NewChangeLedger 构造空台账。
@@ -69,6 +75,60 @@ func (l *ChangeLedger) Add(rec ChangeRecord) {
 	defer l.mu.Unlock()
 	l.changes = append(l.changes, rec)
 }
+
+// SetBaselineDir 设置基线快照目录（回合开始由 agent 注入）。
+func (l *ChangeLedger) SetBaselineDir(dir string) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.BaselineDir = dir
+}
+
+// StageBaseline 把写盘前的完整内容快照到基线目录（Verifier/Rollback 原料）。
+// 无台账或未配置基线目录时返回 ""（静默降级）。返回快照绝对路径。
+func StageBaseline(ctx context.Context, target string, before []byte) string {
+	l := ChangesFrom(ctx)
+	if l == nil {
+		return ""
+	}
+	l.mu.Lock()
+	dir := l.BaselineDir
+	l.mu.Unlock()
+	if dir == "" {
+		return ""
+	}
+	base := sessionKeyOf(target)
+	if len(base) > 120 {
+		base = base[:120]
+	}
+	path := filepath.Join(dir, fmt.Sprintf("%s-%d.before", base, time.Now().UnixNano()))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return ""
+	}
+	if err := os.WriteFile(path, before, 0o644); err != nil {
+		return ""
+	}
+	return path
+}
+
+// Verdict 是 Verifier 对一张证据卡的复核结论（v4.1b）。
+type Verdict struct {
+	ID       string `json:"id"`
+	Status   string `json:"status"` // verified / warned / failed
+	ChannelA string `json:"channelA,omitempty"`
+	ChannelB string `json:"channelB,omitempty"`
+	Note     string `json:"note,omitempty"`
+	At       int64  `json:"at"`
+}
+
+// Verdict 状态常量。
+const (
+	VerdictVerified = "verified"
+	VerdictWarned   = "warned"
+	VerdictFailed   = "failed"
+)
 
 // Records 返回本回合证据卡快照（顺序保持）。
 func (l *ChangeLedger) Records() []ChangeRecord {
@@ -193,6 +253,83 @@ func (s *JournalStore) List(sessionID string) ([]ChangeRecord, error) {
 		out = append(out, rec)
 	}
 	return out, nil
+}
+
+// FindByID 跨全部会话 JSONL 查找一条证据卡（按 ID）。
+func (s *JournalStore) FindByID(id string) (ChangeRecord, bool) {
+	if s == nil || id == "" {
+		return ChangeRecord{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return ChangeRecord{}, false
+	}
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".jsonl" {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(s.dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+			var rec ChangeRecord
+			if json.Unmarshal([]byte(line), &rec) != nil {
+				continue
+			}
+			if rec.ID == id {
+				return rec, true
+			}
+		}
+	}
+	return ChangeRecord{}, false
+}
+
+// AppendVerdict 记录一条复核结论（<journalDir>/verdicts.jsonl，按 ID 幂等：
+// 重复复核覆盖旧行——JSONL 追加 + 读取时后者胜）。
+func (s *JournalStore) AppendVerdict(v Verdict) error {
+	if s == nil {
+		return nil
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, err := os.OpenFile(filepath.Join(s.dir, "verdicts.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.Write(append(b, '\n'))
+	return err
+}
+
+// VerdictOf 返回某条证据卡的最新复核结论（无则 false）。
+func (s *JournalStore) VerdictOf(id string) (Verdict, bool) {
+	if s == nil || id == "" {
+		return Verdict{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	raw, err := os.ReadFile(filepath.Join(s.dir, "verdicts.jsonl"))
+	if err != nil {
+		return Verdict{}, false
+	}
+	var latest Verdict
+	found := false
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		var v Verdict
+		if json.Unmarshal([]byte(line), &v) != nil || v.ID != id {
+			continue
+		}
+		latest = v
+		found = true
+	}
+	return latest, found
 }
 
 // WriteTurnMarkdown 把一回合证据卡投影为可读 markdown（审计导出）。

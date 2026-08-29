@@ -103,6 +103,25 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     return new Date(at).toLocaleString();
   };
 
+  const verifyRecord = useCallback(async (r: JournalChangeRecord) => {
+    try {
+      const v = await app.VerifyRecord(r.id);
+      const label = v.status === "verified" ? "复核通过" : v.status === "warned" ? "复核警告" : "复核未通过";
+      toast.show(`${label}：${v.note ?? ""}（A:${v.channelA ?? "n/a"} / B:${v.channelB ?? "n/a"}）`, v.status === "failed" ? "warn" : "info");
+    } catch (e) {
+      toast.show(`复核失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+    }
+  }, [toast]);
+
+  const rollbackRecord = useCallback(async (r: JournalChangeRecord) => {
+    try {
+      await app.RollbackRecord(r.id);
+      toast.show(`已回滚 ${r.target}（基线快照恢复）`, "info");
+    } catch (e) {
+      toast.show(`回滚失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+    }
+  }, [toast]);
+
   // 打包下载：把本次会话全部交付文件打成一个 zip（对标 Kimi 工作空间 /
   // WorkBuddy 会话产物打包），完成后在文件管理器中定位 zip。
   const [zipping, setZipping] = useState(false);
@@ -333,6 +352,26 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                   </span>
                   <span className="shrink-0 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
                     {fmtEvidenceTime(r.at)}
+                  </span>
+                  <span className="shrink-0 flex items-center gap-1">
+                    <button
+                      type="button"
+                      className={iconBtn}
+                      onClick={() => void verifyRecord(r)}
+                      title="双通道复核（结构/引用完整性 + 视觉健全性）"
+                      aria-label="复核该证据卡"
+                    >
+                      <Shield size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      className={iconBtn}
+                      onClick={() => void rollbackRecord(r)}
+                      title="用基线快照回滚（目标被手工修改时拒绝）"
+                      aria-label="回滚该证据卡"
+                    >
+                      <Rollback size={11} />
+                    </button>
                   </span>
                 </div>
               ))

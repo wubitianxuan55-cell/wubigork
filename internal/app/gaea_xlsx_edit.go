@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
@@ -115,13 +116,23 @@ func (a *App) GaeaXlsxApplyEdit(rel, opsJSON string) (XlsxEditResult, error) {
 		return XlsxEditResult{}, fmt.Errorf("操作集无效，请重新规划")
 	}
 
+	// v4.1b：应用前整文件基线快照（Verifier 通道 B / 回滚原料）。
+	baseline := ""
+	if raw, rerr := os.ReadFile(path); rerr == nil {
+		rbDir := filepath.Join(gaeaCwd(), ".gaea", "work", "rollback")
+		_ = os.MkdirAll(rbDir, 0o755)
+		bp := filepath.Join(rbDir, fmt.Sprintf("xlsx-%d.before", time.Now().UnixNano()))
+		if werr := os.WriteFile(bp, raw, 0o644); werr == nil {
+			baseline = bp
+		}
+	}
 	summary, err := xlsxedit.ApplyOps(path, ops)
 	if err != nil {
 		return XlsxEditResult{}, err
 	}
 	// v4.1 证据链：xlsx 应用后记录证据卡（Target=工作区相对路径；Before 为操作
 	// 载荷摘要，After 为应用摘要；单元格级 old/new 由 Verifier 对基线快照复核）。
-	appendXlsxEvidence(rel, ops, summary)
+	appendXlsxEvidence(rel, ops, summary, baseline)
 	recalcNote := ""
 	if rep, rerr := xlsxedit.Recalc(path, gaeaCwd()); rerr == nil {
 		if rep.TotalErrors > 0 {
@@ -143,7 +154,7 @@ func (a *App) GaeaXlsxApplyEdit(rel, opsJSON string) (XlsxEditResult, error) {
 
 // appendXlsxEvidence 把一次 xlsx 应用写入 work 空间 Journal（JSONL）。
 // 红线：非 work 空间（play）不落证据链；journal 目录不可用/写失败静默。
-func appendXlsxEvidence(rel string, ops []xlsxedit.Op, summary []string) {
+func appendXlsxEvidence(rel string, ops []xlsxedit.Op, summary []string, baseline string) {
 	if gaeaEffectiveSpace() != "work" {
 		return
 	}
@@ -173,6 +184,7 @@ func appendXlsxEvidence(rel string, ops []xlsxedit.Op, summary []string) {
 		Target:        rel,
 		BeforeSummary: strings.TrimSpace(before.String()),
 		AfterSummary:  strings.Join(summary, "；"),
+		BaselinePath:  baseline,
 		Status:        evidence.StatusPendingVerify,
 	})
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/office"
+	"github.com/gaea/gaea/internal/office/standard"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/gaea/trajectory"
 )
@@ -49,6 +50,7 @@ func (b *OfficeB) GaeaDataBackupRestoreResult() map[string]interface{} { return 
 func (b *OfficeB) GaeaDataBackupRollback() (bool, error) { return b.a.GaeaDataBackupRollback() }
 func (b *OfficeB) GaeaDeleteProvider(name string) error { return b.a.GaeaDeleteProvider(name) }
 func (b *OfficeB) GaeaDeleteSession(path string) error { return b.a.GaeaDeleteSession(path) }
+func (b *OfficeB) GaeaDocumentLint(rel string) (standard.LintReport, error) { return b.a.GaeaDocumentLint(rel) }
 func (b *OfficeB) GaeaDocxAcceptChanges(rel string, accept bool) (PreviewResult, error) { return b.a.GaeaDocxAcceptChanges(rel, accept) }
 func (b *OfficeB) GaeaDocxApplyEdit(rel string, selectedText string, replacement string) (PreviewResult, error) { return b.a.GaeaDocxApplyEdit(rel, selectedText, replacement) }
 func (b *OfficeB) GaeaExportDeliverable(in ExportDeliverableInput) (ExportDeliverableResult, error) { return b.a.GaeaExportDeliverable(in) }
@@ -98,6 +100,7 @@ func (b *OfficeB) GaeaRetrievalEvalRun() (RetrievalEvalReport, error) { return b
 func (b *OfficeB) GaeaRetryMCPServer(name string) error { return b.a.GaeaRetryMCPServer(name) }
 func (b *OfficeB) GaeaRevealWorkspacePath(rel string) error { return b.a.GaeaRevealWorkspacePath(rel) }
 func (b *OfficeB) GaeaRewind(turn int, scope string) error { return b.a.GaeaRewind(turn, scope) }
+func (b *OfficeB) GaeaRollbackRecord(id string) error { return b.a.GaeaRollbackRecord(id) }
 func (b *OfficeB) GaeaRunning() bool { return b.a.GaeaRunning() }
 func (b *OfficeB) GaeaSaveAttachmentFile(fileName string, base64Data string) (string, error) { return b.a.GaeaSaveAttachmentFile(fileName, base64Data) }
 func (b *OfficeB) GaeaSaveDoc(path string, body string) (string, error) { return b.a.GaeaSaveDoc(path, body) }
@@ -138,6 +141,7 @@ func (b *OfficeB) GaeaUnarchiveSession(path string) (string, error) { return b.a
 func (b *OfficeB) GaeaUnifiedSearch(query string, topN int, scope ...string) (UnifiedSearchView, error) { return b.a.GaeaUnifiedSearch(query, topN, scope...) }
 func (b *OfficeB) GaeaUnpinMaterial(rel string) []FileSearchHit { return b.a.GaeaUnpinMaterial(rel) }
 func (b *OfficeB) GaeaUpdateFact(name string, body string) (string, error) { return b.a.GaeaUpdateFact(name, body) }
+func (b *OfficeB) GaeaVerifyRecord(id string) (evidence.Verdict, error) { return b.a.GaeaVerifyRecord(id) }
 func (b *OfficeB) GaeaVersion() string { return b.a.GaeaVersion() }
 func (b *OfficeB) GaeaWorkspaceSearch(query string, limit int) []WorkspaceSearchHit { return b.a.GaeaWorkspaceSearch(query, limit) }
 func (b *OfficeB) GaeaWriteFile(rel string, content string) error { return b.a.GaeaWriteFile(rel, content) }

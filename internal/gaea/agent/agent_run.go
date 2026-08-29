@@ -36,6 +36,10 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	// v4.1 证据链：回合号自增 + 清空变更台账；回合结束（含错误路径）flush Journal。
 	a.turnSeq++
 	a.changes.Reset()
+	if a.journalDir != "" {
+		// v4.1b：基线快照目录（<cwd>/.gaea/work/rollback），写盘工具 StageBaseline 用。
+		a.changes.SetBaselineDir(filepath.Join(filepath.Dir(a.journalDir), "rollback"))
+	}
 	defer a.flushJournal()
 	a.sink.Emit(event.Event{Kind: event.TurnStarted})
 	// wrap user input with transient language preference blocks

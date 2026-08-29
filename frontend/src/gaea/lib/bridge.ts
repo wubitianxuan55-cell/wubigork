@@ -99,6 +99,8 @@ import type {
   TaskView,
   ModelSwitchEstimate,
   JournalChangeRecord,
+  VerdictView,
+  LintReportView,
 } from "./types";
 import {
   isBindingAllowedInSpace,
@@ -471,6 +473,12 @@ export interface AppBindings {
   TaskOutput(id: string): Promise<TaskOutputView>;
   // v4.1 证据链：Journal 最近证据卡（跨会话聚合，时间倒序；前端「证据」入口）。
   GaeaJournalList(limit: number): Promise<JournalChangeRecord[]>;
+  // v4.1b：双通道复核一张证据卡（A 结构/引用完整性 + B 视觉健全性）。
+  VerifyRecord(id: string): Promise<VerdictView>;
+  // v4.1b：基线快照回滚（目标被手工修改时拒绝，零覆盖）。
+  RollbackRecord(id: string): Promise<void>;
+  // v4.1c：中文规范体检（GB/T 9704 红头要素 lint，md/txt/docx）。
+  DocumentLint(rel: string): Promise<LintReportView>;
   // ── 阶段 5 T5-3 本地模型调度纵深 ──
   // KeepWarmGet/KeepWarmSet 保活开关：空闲时定期轻量探测，防止本地模型被卸载
   // （~/.gaea_config.json 持久化，重启后仍生效）。
@@ -745,6 +753,10 @@ const gaeaToGaea = {
   TaskCancel: "GaeaTaskCancel",
   TaskRetry: "GaeaTaskRetry",
   TaskOutput: "GaeaTaskOutput",
+  GaeaJournalList: "GaeaJournalList",
+  VerifyRecord: "GaeaVerifyRecord",
+  RollbackRecord: "GaeaRollbackRecord",
+  DocumentLint: "GaeaDocumentLint",
   PriceFetches: "GaeaPriceFetches",
   PriceFetchApply: "GaeaPriceFetchApply",
   PriceFetchIgnore: "GaeaPriceFetchIgnore",

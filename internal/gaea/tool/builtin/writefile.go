@@ -63,12 +63,14 @@ func (w writeFile) Execute(ctx context.Context, args json.RawMessage) (string, e
 	mode := os.FileMode(0o644)
 	enc := fileenc.UTF8 // new files default to UTF-8
 	before := ""        // v4.1 证据链：旧文件原文（写前捕获，仅旧文件存在时）
+	baseline := ""      // v4.1b：整文件基线快照
 	if fi, err := os.Stat(p.Path); err == nil {
 		mode = fi.Mode().Perm()
 		// Preserve the original encoding when overwriting an existing file.
 		if oldContent, existingEnc, err := readFileEncoded(p.Path); err == nil {
 			enc = existingEnc
 			before = oldContent
+			baseline = evidence.StageBaseline(ctx, p.Path, []byte(oldContent))
 		}
 	}
 	if err := writeFileEncoded(p.Path, p.Content, enc, mode); err != nil {
@@ -80,6 +82,7 @@ func (w writeFile) Execute(ctx context.Context, args json.RawMessage) (string, e
 		Target:        p.Path,
 		BeforeSummary: before,
 		AfterSummary:  p.Content,
+		BaselinePath:  baseline,
 	})
 	return fmt.Sprintf("wrote %d bytes to %s", len(p.Content), p.Path), nil
 }
