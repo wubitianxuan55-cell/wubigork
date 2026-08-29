@@ -59,6 +59,12 @@ type Task struct {
 	CreatedAt  int64  `json:"createdAt"` // unix 毫秒
 	StartedAt  int64  `json:"startedAt"`
 	FinishedAt int64  `json:"finishedAt"`
+
+	// 以下为事件视图字段（不落库）：appendOutput / markTerminal 触发的
+	// gaea-task 事件携带输出尾部整尾回放（C9 事件驱动 + 轮询兜底）；
+	// Get/List 查询与进度事件返回时为空（omitempty），载荷有界（环形缓冲上限）。
+	OutputTail      string `json:"outputTail,omitempty"`
+	OutputTruncated bool   `json:"outputTruncated,omitempty"`
 }
 
 // Progress 是 handler 的进度报告器：Report 更新进度（持久化 + 节流事件），
@@ -126,7 +132,11 @@ type Manager struct {
 	cancels   map[string]context.CancelFunc
 	cancelReq map[string]bool // 用户显式取消（区别于 Close 中断）
 	lastEmit  map[string]time.Time
-	outputs   map[string]*taskOutput // 任务实时输出环形缓冲（C1）
+
+	// lastOutputEmit 是输出事件的独立节流时间戳（C9）：与进度事件分开计时，
+	// 防止 Output→Report 紧邻调用时进度更新被输出事件挤掉节流窗口。
+	lastOutputEmit map[string]time.Time
+	outputs        map[string]*taskOutput // 任务实时输出环形缓冲（C1）
 
 	opts   Options
 	sem    chan struct{}
@@ -151,6 +161,8 @@ const (
 )
 
 // appendOutput 追加一行输出；超限丢弃最旧行并置截断标记。
+// C9：输出变更随 gaea-task 事件推送整尾回放（节流与进度事件独立计时，避免
+// 紧邻的 Report 被挤掉节流窗口；被节流跳过的行由下一次事件或轮询兜底回放）。
 func (m *Manager) appendOutput(id, line string) {
 	if m == nil {
 		return
@@ -160,7 +172,6 @@ func (m *Manager) appendOutput(id, line string) {
 		return
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	o := m.outputs[id]
 	if o == nil {
 		o = &taskOutput{}
@@ -186,6 +197,26 @@ func (m *Manager) appendOutput(id, line string) {
 			break
 		}
 	}
+	tail := strings.Join(o.lines, "\n")
+	trunc := o.trunc
+	if m.lastOutputEmit == nil { // 零值 Manager（测试构造）惰性初始化
+		m.lastOutputEmit = map[string]time.Time{}
+	}
+	now := time.Now()
+	if last, ok := m.lastOutputEmit[id]; ok && now.Sub(last) < m.opts.EmitThrottle {
+		m.mu.Unlock()
+		return
+	}
+	m.lastOutputEmit[id] = now
+	m.mu.Unlock()
+
+	t, err := m.Get(id)
+	if err != nil {
+		return // 任务行不存在（已清理）：缓冲仍供轮询回放，事件静默跳过
+	}
+	t.OutputTail = tail
+	t.OutputTruncated = trunc
+	m.emitView(t)
 }
 
 // Output 返回任务实时输出尾部（整尾回放，不消费游标——前端按需轮询）。
@@ -221,17 +252,18 @@ func New(db *sql.DB, emit func(Task), opts Options) *Manager {
 		opts.EmitThrottle = 400 * time.Millisecond
 	}
 	return &Manager{
-		db:        db,
-		emit:      emit,
-		handlers:  map[string]Handler{},
-		cancels:   map[string]context.CancelFunc{},
-		cancelReq: map[string]bool{},
-		lastEmit:  map[string]time.Time{},
-		outputs:   map[string]*taskOutput{},
-		opts:      opts,
-		sem:       make(chan struct{}, opts.MaxConcurrent),
-		wake:      make(chan struct{}, 1),
-		closed:    make(chan struct{}),
+		db:             db,
+		emit:           emit,
+		handlers:       map[string]Handler{},
+		cancels:        map[string]context.CancelFunc{},
+		cancelReq:      map[string]bool{},
+		lastEmit:       map[string]time.Time{},
+		lastOutputEmit: map[string]time.Time{},
+		outputs:        map[string]*taskOutput{},
+		opts:           opts,
+		sem:            make(chan struct{}, opts.MaxConcurrent),
+		wake:           make(chan struct{}, 1),
+		closed:         make(chan struct{}),
 	}
 }
 
@@ -712,6 +744,12 @@ func (m *Manager) markTerminal(id string, status Status, message, errText string
 	t, err := m.Get(id)
 	if err != nil {
 		return err
+	}
+	// 终态事件携带输出尾部整尾回放（C9）：handler 最后几行输出可能落在输出
+	// 事件节流窗口内被跳过，终态事件保证前端 dock 拿到完整最终回放。
+	if tail, trunc := m.Output(id); tail != "" {
+		t.OutputTail = tail
+		t.OutputTruncated = trunc
 	}
 	m.emitView(t)
 	return nil

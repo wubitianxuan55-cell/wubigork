@@ -9,6 +9,8 @@ import { useToast } from "./Toast";
 // 数据源：GaeaTaskList 初始拉取 + gaea-task 事件实时增量。
 // v3.2.0（C1）：任务行可选中 → 底部共享输出 dock 回放实时输出（2s 轮询、
 // 运行中自动尾随滚动、截断标注）；结束态细分 stopping（取消请求后等待退出）。
+// v3.6（C9）：输出 dock 事件即推——gaea-task 事件在输出变更/终态时携带
+// outputTail 整尾回放，2s 轮询降级为兜底（对齐 Codex「事件为主、轮询兜底」）。
 // v3「星枢」面板语言：v3-panel-head 细条头部；状态徽标 = 语义色 + 图标 + 文字三重传达。
 
 const KIND_LABEL: Record<string, string> = {
@@ -53,6 +55,9 @@ export function TaskCenter() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [output, setOutput] = useState<TaskOutputView>({ tail: "", truncated: false });
   const outputRef = useRef<HTMLPreElement>(null);
+  // C9：事件回调里读取当前选中项（ref 避免重订阅）
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selectedId;
 
   const load = useCallback(() => {
     app
@@ -70,6 +75,11 @@ export function TaskCenter() {
         const next = prev.filter((x) => x.id !== t.id);
         return [t, ...next].slice(0, 50);
       });
+      // C9：输出 dock 事件即推——事件携带 outputTail（输出变更/终态）时直接
+      // 回放，2s 轮询降级为兜底（对齐 Codex「事件为主、轮询兜底」）。
+      if (t.id === selectedIdRef.current && typeof t.outputTail === "string") {
+        setOutput({ tail: t.outputTail, truncated: !!t.outputTruncated });
+      }
     });
     return off;
   }, [load]);

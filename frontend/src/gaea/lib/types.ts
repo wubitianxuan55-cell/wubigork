@@ -1438,6 +1438,10 @@ export interface TaskView {
   createdAt: number; // unix 毫秒
   startedAt: number;
   finishedAt: number;
+  // C9 事件视图字段：gaea-task 事件在输出变更/终态时携带输出尾部整尾回放
+  // （有界环形缓冲），输出 dock 事件即推（轮询兜底）；列表/查询响应中缺省。
+  outputTail?: string;
+  outputTruncated?: boolean;
 }
 
 // TaskOutputView 是任务实时输出的尾部回放视图（C1：GaeaTaskOutput）。

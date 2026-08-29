@@ -872,3 +872,74 @@ func TestHandlerPanicWorkerSurvives(t *testing.T) {
 		t.Fatalf("panic 后 worker 应存活，后续任务应 succeeded，实际 %s（%s）", done.Status, done.Error)
 	}
 }
+
+// TestOutputEventCarriesTail 验证 C9 任务输出事件化：p.Output 触发的 gaea-task
+// 事件携带输出尾部整尾回放（节流内合并），进度事件不携带（outputTail 为空），
+// 终态事件兜底带最终完整回放（覆盖节流窗口内被跳过的最后几行）。
+func TestOutputEventCarriesTail(t *testing.T) {
+	db := openTestDB(t)
+	col := &eventCollector{}
+	// 长节流窗口：只有第一行输出会即时推事件，line-b/line-c 依赖终态事件兜底。
+	m := New(db, col.add, Options{BackoffBase: 10 * time.Millisecond, EmitThrottle: time.Minute})
+	m.Register(KindFileIndex, func(ctx context.Context, tk *Task, p *Progress) error {
+		p.Output("line-a")
+		p.Output("line-b")
+		p.Report(50, "处理中")
+		p.Output("line-c")
+		return nil
+	})
+	if _, err := m.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer m.Close()
+
+	tk, err := m.Submit(KindFileIndex, "输出回放", map[string]any{"scope": "test"})
+	if err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	done := waitTerminal(t, m, tk.ID, 3*time.Second)
+	if done.Status != string(StatusSucceeded) {
+		t.Fatalf("期望 succeeded，实际 %s", done.Status)
+	}
+
+	evs := col.snapshot()
+	outputEvents := 0
+	for _, e := range evs {
+		if e.OutputTail == "" {
+			continue // 进度/状态事件：outputTail 为空（omitempty）
+		}
+		outputEvents++
+		if !strings.Contains(e.OutputTail, "line-a") {
+			t.Fatalf("输出事件尾回放缺少首行: %q", e.OutputTail)
+		}
+		if strings.Contains(e.OutputTail, "line-c") && !strings.Contains(e.OutputTail, "line-b") {
+			t.Fatalf("尾回放应保持行序: %q", e.OutputTail)
+		}
+	}
+	if outputEvents == 0 {
+		t.Fatal("应有携带 outputTail 的输出事件")
+	}
+	// markTerminal 先落库后 emit，waitTerminal 可能在 emit 前返回——轮询等待
+	// 事件流中出现带尾回放的 succeeded 事件（与 DB 终态解耦）；终态事件兜底
+	// 带最终完整回放（覆盖节流窗口内被跳过的最后几行）。
+	var terminalEvent *Task
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		for i := range evs {
+			if evs[i].Status == string(StatusSucceeded) && evs[i].OutputTail != "" {
+				terminalEvent = &evs[i]
+			}
+		}
+		if terminalEvent != nil || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+		evs = col.snapshot()
+	}
+	if terminalEvent == nil {
+		t.Fatal("3s 内未见带尾回放的 succeeded 事件")
+	}
+	if terminalEvent.OutputTail != "line-a\nline-b\nline-c" {
+		t.Fatalf("终态事件应带完整尾回放: %q", terminalEvent.OutputTail)
+	}
+}

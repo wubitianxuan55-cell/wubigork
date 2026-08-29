@@ -164,7 +164,7 @@ export const emit = emitMock;
 export const taskMock: TaskView[] = [];
 let taskSeq = 0;
 
-export function taskView(kind: string, label: string, result: Record<string, unknown> = {}): TaskView {
+export function taskView(kind: string, label: string, result: Record<string, unknown> = {}, outputTail?: string): TaskView {
   const t: TaskView = {
     id: "tsk_" + ++taskSeq, kind, label,
     status: "succeeded", progress: 100, message: "完成",
@@ -172,6 +172,7 @@ export function taskView(kind: string, label: string, result: Record<string, unk
     payload: "{}", result: JSON.stringify(result),
     createdAt: Date.now(), startedAt: Date.now(), finishedAt: Date.now(),
   };
+  if (outputTail) t.outputTail = outputTail; // C9：事件携带输出尾回放
   taskMock.unshift(t);
   if (taskMock.length > 20) taskMock.pop();
   mockTaskListeners.forEach((l) => l(t));

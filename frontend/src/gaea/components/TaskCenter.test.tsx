@@ -16,8 +16,16 @@ vi.mock("../lib/bridge", () => ({
     TaskRetry: async () => {},
     TaskOutput: async (id: string): Promise<TaskOutputView> => tasks.output[id] ?? { tail: "", truncated: false },
   },
-  onTaskEvent: () => () => {},
+  onTaskEvent: (cb: (t: TaskView) => void) => {
+    taskEventCb = cb;
+    return () => {
+      taskEventCb = null;
+    };
+  },
 }));
+
+// C9：事件回调句柄（onTaskEvent 注册时捕获），测试用它模拟 gaea-task 推送。
+let taskEventCb: ((t: TaskView) => void) | null = null;
 
 const wrap = (node: React.ReactNode) => <ToastProvider>{node}</ToastProvider>;
 
@@ -75,6 +83,28 @@ describe("TaskCenter 任务中心（C1 实时输出 + 结束态细分）", () =>
 
     fireEvent.click(screen.getByTitle("关闭输出"));
     await waitFor(() => expect(screen.queryByText(/输出 · 抓取四川造价信息网/)).toBeNull());
+  });
+
+  it("C9：事件携带 outputTail 时输出 dock 即推更新（不等轮询）", async () => {
+    tasks.list = [makeTask({ id: "t1", label: "抓取A", status: "running" })];
+    tasks.output = { t1: { tail: "[10:00:00] 开始", truncated: false } };
+    render(wrap(<TaskCenter />));
+    await screen.findByText("抓取A");
+
+    fireEvent.click(screen.getByText("抓取A"));
+    expect(await screen.findByText(/\[10:00:00\] 开始/)).toBeTruthy();
+
+    // 模拟后端输出变更事件：tail 整尾回放，dock 立即更新
+    expect(taskEventCb).toBeTruthy();
+    taskEventCb!({
+      ...makeTask({ id: "t1", status: "running", progress: 60 }),
+      outputTail: "[10:00:00] 开始\n[10:00:01] 已索引 64/128 个文件",
+    } as TaskView);
+    expect(await screen.findByText(/已索引 64\/128 个文件/)).toBeTruthy();
+
+    // 事件不带 outputTail（纯状态变更）→ 不覆盖 dock 内容
+    taskEventCb!({ ...makeTask({ id: "t1", status: "stopping", progress: 60 }) });
+    expect(screen.getByText(/已索引 64\/128 个文件/)).toBeTruthy();
   });
 
   it("截断输出显示标注", async () => {
