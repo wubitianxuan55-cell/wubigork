@@ -45,4 +45,6 @@ func (b *MemoryB) GaeaWhisperEpisodes() []WhisperEpisodeView { return b.a.GaeaWh
 func (b *MemoryB) GaeaWhisperExportArchive(dir string) (int, error) { return b.a.GaeaWhisperExportArchive(dir) }
 func (b *MemoryB) GaeaWhisperGraphSubgraph(personalityID string, entity string, hops int) (whisper.Subgraph, error) { return b.a.GaeaWhisperGraphSubgraph(personalityID, entity, hops) }
 func (b *MemoryB) GaeaWhisperMemories() []WhisperMemoryView { return b.a.GaeaWhisperMemories() }
+func (b *MemoryB) GaeaWhisperProactiveConfig() (map[string]interface{}, error) { return b.a.GaeaWhisperProactiveConfig() }
 func (b *MemoryB) GaeaWhisperProactiveNow(personalityID string) (map[string]interface{}, error) { return b.a.GaeaWhisperProactiveNow(personalityID) }
+func (b *MemoryB) GaeaWhisperSetProactiveConfig(cfgJSON string) error { return b.a.GaeaWhisperSetProactiveConfig(cfgJSON) }

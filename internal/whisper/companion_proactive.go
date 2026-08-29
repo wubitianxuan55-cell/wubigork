@@ -16,6 +16,9 @@ const (
 	ProactiveTimeAware  ProactiveMessageType = "time_aware"    // 时间感知
 	ProactiveMissYou    ProactiveMessageType = "miss_you"      // 想念表达
 	ProactivePlayful    ProactiveMessageType = "playful_nudge" // 俏皮戳一戳
+	// v4.3c：特殊日期分支——生日祝福。合成器常规分支不产出该类型；由 app 层
+	// 定时推送循环按 DetectSpecialDatesV2 命中构造（见 gaea_whisper_proactive.go）。
+	ProactiveBirthday ProactiveMessageType = "birthday" // 生日祝福
 )
 
 // ─── ProactiveCompose ─────────────────────────────────────────

@@ -51,9 +51,14 @@ func (a *whisperState) GaeaWhisperProactiveNow(personalityID string) (map[string
 }
 
 // timeOfDayNow 返回当前时段标签（late_night 23-5 点，其余空串——合成器仅
-// 消费 late_night 分支）。
+// 消费 late_night 分支）。v4.3c：实现收敛到 timeOfDayFor（定时推送可注入 now）。
 func timeOfDayNow() string {
-	h := time.Now().Hour()
+	return timeOfDayFor(time.Now())
+}
+
+// timeOfDayFor 由指定时间计算时段标签（测试可注入 now）。
+func timeOfDayFor(t time.Time) string {
+	h := t.Hour()
 	if h >= 23 || h < 5 {
 		return "late_night"
 	}

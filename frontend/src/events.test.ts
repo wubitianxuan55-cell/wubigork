@@ -1,11 +1,11 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { BACKEND_EVENTS, FRONTEND_EVENTS, chatStreamChannel, subscribe, subscribeForSpace, emitFrontendEvent } from './events'
 
-// 3.0 01 报告 §4：21 后端事件 + 4 前端事件常量表 + subscribe 统一封装
+// 3.0 01 报告 §4：22 后端事件（+v4.3c 轻语主动关心定时推送）+ 4 前端事件常量表 + subscribe 统一封装
 
-describe('BACKEND_EVENTS（§4.1，21 个）', () => {
-  it('共 21 个后端事件常量', () => {
-    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(21)
+describe('BACKEND_EVENTS（§4.1，22 个）', () => {
+  it('共 22 个后端事件常量', () => {
+    expect(Object.keys(BACKEND_EVENTS)).toHaveLength(22)
   })
 
   it('常量名与事件名字面量一一对应（防复制笔误）', () => {
@@ -29,6 +29,7 @@ describe('BACKEND_EVENTS（§4.1，21 个）', () => {
     expect(BACKEND_EVENTS.GAEA_EVENT).toBe('gaea-event')
     expect(BACKEND_EVENTS.UPDATER_PROGRESS).toBe('updater:progress')
     expect(BACKEND_EVENTS.GAEA_TASK).toBe('gaea-task')
+    expect(BACKEND_EVENTS.WHISPER_PROACTIVE).toBe('gaea-whisper-proactive')
     expect(BACKEND_EVENTS.GAEA_READY).toBe('gaea-ready')
   })
 

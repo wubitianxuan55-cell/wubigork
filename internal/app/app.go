@@ -154,6 +154,19 @@ type whisperState struct {
 	// T6-5.3 异步写可观测：记忆写入/持久化协程错误计数 + 最近错误摘要
 	// （内部方法读取，不新增 Wails 绑定）。
 	writeErrors whisperWriteErrors
+
+	// v4.3c：主动关心定时推送（频控 + 作息尊重 + 特殊日期，play 空间）。
+	// proactiveMu 保护配置与「当天已发生日祝福」标记；频控实例各自带锁。
+	proactiveMu       sync.Mutex
+	proactiveCfgInit  bool
+	proactiveCfg      proactivePushCfg
+	proactiveStop     chan struct{}
+	proactiveOnce     sync.Once
+	proactiveStopOnce sync.Once
+	attentionMu       sync.Mutex
+	attentionManagers map[string]*whisper.AttentionManager // personalityID → 每会话独立频控
+	birthdayGreetedMu sync.Mutex
+	birthdayGreeted   map[string]string // personalityID → YYYY-MM-DD（当天已发生日祝福）
 }
 
 // officeState 是办公域状态（桌面动作执行 + 价格源定时抓取 + 文件语义索引）。
@@ -365,6 +378,9 @@ func (a *App) Startup(ctx context.Context) {
 	a.startAutoPreload()
 	// 价格源定时抓取调度：启动后立即检查一次，之后每 30 分钟按订阅频率轮询。
 	a.startPriceCron()
+	// v4.3c：主动关心定时推送循环（轻语会客厅，play 空间）——按配置间隔评估
+	// 已就绪轻语会话，门控/频控/作息/生日四信号齐全时推前端主动消息事件。
+	a.startProactiveTicker()
 	// 文件语义索引自动维护：启动后立即增量重建一次，之后每 10 分钟（实时监听
 	// 可用时轮询仅作兜底，见 startFileWatch）。
 	a.startFileIndexCron()
@@ -472,6 +488,12 @@ func (a *App) Shutdown(ctx context.Context) {
 	// 避免进程退出时末轮 LLM 抽取的记忆/状态丢失（H4）。须在关闭 DB 前执行。
 	if a.whisperState != nil {
 		a.whisperState.drainAndPersistAll()
+		// v4.3c：停止主动关心定时推送循环。
+		a.whisperState.proactiveStopOnce.Do(func() {
+			if a.whisperState.proactiveStop != nil {
+				close(a.whisperState.proactiveStop)
+			}
+		})
 	}
 	if err := a.closePM(); err != nil {
 		slog.Error("关闭项目失败", "error", err)

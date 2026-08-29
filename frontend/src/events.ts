@@ -48,6 +48,8 @@ export const BACKEND_EVENTS = {
   UPDATER_PROGRESS: 'updater:progress',
   /** 任务事件（bridge.ts onTaskEvent） */
   GAEA_TASK: 'gaea-task',
+  /** 轻语主动关心定时推送（v4.3c 后续小步：payload 含 personalityID/messageType/promptHint/space） */
+  WHISPER_PROACTIVE: 'gaea-whisper-proactive',
   /** 桥接就绪（bridge.ts onReady） */
   GAEA_READY: 'gaea-ready',
 } as const

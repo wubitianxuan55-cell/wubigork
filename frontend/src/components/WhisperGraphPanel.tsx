@@ -17,6 +17,7 @@ import type {
 import { useToast } from "../gaea/components/Toast";
 import { EmptyState } from "../gaea/components/EmptyState";
 import { Loader } from "../gaea/icons";
+import { BACKEND_EVENTS, subscribeForSpace } from "../events";
 
 // ── 当前轻语人格 ID（与聊天页同源：localStorage，缺省 gaea） ──────────
 const PERSONALITY_KEY = "gaea_whisper_personality";
@@ -72,6 +73,8 @@ const MESSAGE_TYPE_LABELS: Record<string, string> = {
   miss_you: "想念",
   time_aware: "时间感知",
   playful_nudge: "俏皮戳一戳",
+  // v4.3c 后续小步：生日祝福（定时推送 ticker 构造的主动消息类型）
+  birthday: "生日祝福",
 };
 
 // ── 环形布局（BFS 深度 → 同心圆，cos/sin 定位，零依赖） ────────────
@@ -222,6 +225,27 @@ export function WhisperGraphPanel({
     setError(null);
     setProactive(null);
   }, [open]);
+
+  // v4.3c 后续小步：订阅轻语主动关心定时推送（gaea-whisper-proactive，play
+  // 空间过滤），收到当前人格的推送即显示为「轻语先开口」气泡（与手动评估
+  // 同款渲染，messageType/promptHint 由后端 ticker 构造，含生日祝福）。
+  useEffect(() => {
+    if (!open) return;
+    return subscribeForSpace(BACKEND_EVENTS.WHISPER_PROACTIVE, (data) => {
+      const payload = data as {
+        personalityID?: string;
+        messageType?: string;
+        promptHint?: string;
+      } | null;
+      if (!payload) return;
+      if (payload.personalityID && payload.personalityID !== personalityId) return;
+      setProactive({
+        shouldSend: true,
+        messageType: payload.messageType,
+        promptHint: payload.promptHint,
+      });
+    }, "play");
+  }, [open, personalityId]);
 
   const clampHops = useCallback((raw: string): number => {
     const n = Number.parseInt(raw, 10);
@@ -444,7 +468,7 @@ export function WhisperGraphPanel({
                 </div>
               )}
               <div className="mt-1 text-fg-faint text-[10.5px]">
-                这是评估结果，实际推送由定时器或用户确认后触发
+                手动评估结果；定时推送到达时也会在这里显示（可在设置中关闭）
               </div>
             </div>
           )}

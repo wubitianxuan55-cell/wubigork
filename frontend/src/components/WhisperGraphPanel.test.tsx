@@ -8,6 +8,18 @@ const { subgraphSpy, proactiveSpy } = vi.hoisted(() => ({
   proactiveSpy: vi.fn(),
 }));
 
+// 事件订阅捕获：WhisperGraphPanel 通过 subscribeForSpace 订阅
+// gaea-whisper-proactive（v4.3c 定时推送）。mock 掉 events 模块，
+// 捕获注册的 handler，测试里手动触发模拟后端推送。
+const proactiveHandlers: Array<(data: unknown) => void> = [];
+vi.mock("../events", () => ({
+  BACKEND_EVENTS: { WHISPER_PROACTIVE: "gaea-whisper-proactive" },
+  subscribeForSpace: (_event: string, handler: (data: unknown) => void) => {
+    proactiveHandlers.push(handler);
+    return () => {};
+  },
+}));
+
 vi.mock("../gaea/lib/bridge", () => ({
   app: {
     WhisperGraphSubgraph: (...args: unknown[]) => subgraphSpy(...args),
@@ -43,6 +55,7 @@ describe("WhisperGraphPanel 轻语关系图谱", () => {
   beforeEach(() => {
     subgraphSpy.mockReset();
     proactiveSpy.mockReset();
+    proactiveHandlers.length = 0;
   });
 
   it("未查询前显示提示文案", () => {
@@ -100,7 +113,7 @@ describe("WhisperGraphPanel 轻语关系图谱", () => {
 
     expect(await screen.findByText("关怀问候")).toBeTruthy();
     expect(screen.getByText("昨晚你说今天要赶项目，想问问进展顺利吗？")).toBeTruthy();
-    expect(screen.getByText(/这是评估结果，实际推送由定时器或用户确认后触发/)).toBeTruthy();
+    expect(screen.getByText(/手动评估结果；定时推送到达时也会在这里显示/)).toBeTruthy();
     expect(proactiveSpy).toHaveBeenCalledWith("pid-1");
   });
 
@@ -124,5 +137,33 @@ describe("WhisperGraphPanel 轻语关系图谱", () => {
 
     fireEvent.click(screen.getByText("爬山"));
     expect(subgraphSpy).toHaveBeenLastCalledWith("pid-1", "爬山", 1);
+  });
+
+  it("定时推送事件（v4.3c）：收到 gaea-whisper-proactive 显示气泡 + birthday 徽标", async () => {
+    render(wrap(<WhisperGraphPanel open personalityId="pid-1" onClose={() => {}} />));
+
+    // 打开时注册了订阅 handler
+    expect(proactiveHandlers.length).toBeGreaterThan(0);
+    const handler = proactiveHandlers[proactiveHandlers.length - 1];
+
+    handler({
+      personalityID: "pid-1",
+      messageType: "birthday",
+      promptHint: "今天是你的生日，祝你生日快乐！",
+      space: "play",
+    });
+
+    expect(await screen.findByText("生日祝福")).toBeTruthy();
+    expect(screen.getByText("今天是你的生日，祝你生日快乐！")).toBeTruthy();
+  });
+
+  it("定时推送事件：其他人格（personalityID 不匹配）不显示", () => {
+    render(wrap(<WhisperGraphPanel open personalityId="pid-1" onClose={() => {}} />));
+    const handler = proactiveHandlers[proactiveHandlers.length - 1];
+
+    handler({ personalityID: "pid-other", messageType: "check_in", promptHint: "别的轻语", space: "play" });
+
+    expect(screen.queryByText("别的轻语")).toBeNull();
+    expect(screen.queryByText("关怀问候")).toBeNull();
   });
 });
