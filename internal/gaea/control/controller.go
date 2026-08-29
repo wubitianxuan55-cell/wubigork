@@ -44,13 +44,13 @@ type Controller struct {
 	sink     event.Sink
 	policy   permission.Policy
 
-	label         string
-	systemPrompt  string
-	sessionDir    string
+	label        string
+	systemPrompt string
+	sessionDir   string
 	// logFormat 是会话持久化格式（3.0 Step 1 回退开关）："legacy"/""=旧行为，
 	// "event"=事件日志模式（Snapshot 双写、回合前落用户消息 + flush 检查点、
 	// Resume 走 Restore）。由 Options.LogFormat / SetLogFormat 注入。
-	logFormat string
+	logFormat     string
 	host          *plugin.Host
 	commands      []command.Command
 	skills        []skill.Skill
@@ -64,9 +64,9 @@ type Controller struct {
 	// endpoint (empty when the provider declares none). balanceKind selects the
 	// balance-backend registry kind ("" = historical default "deepseek"). Captured
 	// at build so a model/key switch — which rebuilds the controller — refreshes them.
-	balanceURL   string
-	balanceKey   string
-	balanceKind  string
+	balanceURL  string
+	balanceKey  string
+	balanceKind string
 
 	// jobs is the session-scoped background-job manager. The agent's background
 	// tools spawn into it; Compose drains its completion notes into the next turn;
@@ -100,6 +100,9 @@ type Controller struct {
 	nextID      int
 	turn        int
 	autoApprove bool
+	// approvalTimeout 是审批等待超时（C4 TimedOut）：>0 时审批请求等待超过该
+	// 时长按拒绝处理并发通知（回合继续，不静默放行）；0 = 不超时（默认等待）。
+	approvalTimeout time.Duration
 
 	// permLevel controls permission strictness: "ask" (prompt before writes, default),
 	// "auto" (allow writes without asking), or "yolo" (skip all prompts).
@@ -145,24 +148,27 @@ const sendQueueLimit = 8
 // lets the controller mint and rotate session files; Host/Commands are surfaced
 // to frontends that resolve MCP prompts and slash commands.
 type Options struct {
-	Runner       agent.Runner
-	Executor     *agent.Agent
-	Sink         event.Sink
-	Policy       permission.Policy
-	Label        string
-	SystemPrompt string
-	SessionDir   string
-	SessionPath  string
+	// ApprovalTimeout 是审批等待超时（C4 TimedOut，蒸馏 codex ReviewDecision::TimedOut）：
+	// >0 时无人响应的审批请求在超时后按拒绝处理（回合继续）并发 Notice；0 = 永久等待。
+	ApprovalTimeout time.Duration
+	Runner          agent.Runner
+	Executor        *agent.Agent
+	Sink            event.Sink
+	Policy          permission.Policy
+	Label           string
+	SystemPrompt    string
+	SessionDir      string
+	SessionPath     string
 	// LogFormat 是会话持久化格式（"legacy"/""=旧行为，"event"=事件日志）。
 	// 事件日志模式下：Snapshot 双写（legacy 镜像+日志）、回合开始前落用户
 	// 消息并 flush 检查点（fail-closed）、Resume 走 Restore（checkpoint+tail）。
 	LogFormat string
-	Host         *plugin.Host
-	Commands     []command.Command
-	Skills       []skill.Skill
-	Hooks        *hook.Runner
-	Memory       *memory.Set
-	Cleanup      func()
+	Host      *plugin.Host
+	Commands  []command.Command
+	Skills    []skill.Skill
+	Hooks     *hook.Runner
+	Memory    *memory.Set
+	Cleanup   func()
 	// BalanceURL/BalanceKey wire the active provider's optional wallet-balance
 	// endpoint and bearer key; empty when the provider declares no balance_url.
 	BalanceURL string
@@ -196,33 +202,34 @@ func New(opts Options) *Controller {
 		pluginCtx = context.Background()
 	}
 	c := &Controller{
-		runner:        opts.Runner,
-		executor:      opts.Executor,
-		sink:          sink,
-		policy:        opts.Policy,
-		label:         opts.Label,
-		systemPrompt:  opts.SystemPrompt,
-		sessionDir:    opts.SessionDir,
-		sessionPath:   opts.SessionPath,
-		logFormat:     opts.LogFormat,
-		host:          opts.Host,
-		commands:      opts.Commands,
-		skills:        opts.Skills,
-		hooks:         opts.Hooks,
-		mem:           opts.Memory,
-		memoryEnabled: !opts.MemoryDisabled,
-		cleanup:       opts.Cleanup,
-		balanceURL:    opts.BalanceURL,
-		balanceKey:    opts.BalanceKey,
-		balanceKind:   opts.BalanceKind,
-		jobs:          opts.Jobs,
-		reg:           opts.Registry,
-		pluginCtx:     pluginCtx,
-		ctxMgr:        opts.CtxMgr,
-		permLevel:     "ask",
-		approvals:     map[string]chan approvalReply{},
-		asks:          map[string]chan []event.AskAnswer{},
-		granted:       map[string]bool{},
+		runner:          opts.Runner,
+		executor:        opts.Executor,
+		sink:            sink,
+		policy:          opts.Policy,
+		label:           opts.Label,
+		systemPrompt:    opts.SystemPrompt,
+		sessionDir:      opts.SessionDir,
+		sessionPath:     opts.SessionPath,
+		logFormat:       opts.LogFormat,
+		host:            opts.Host,
+		commands:        opts.Commands,
+		skills:          opts.Skills,
+		hooks:           opts.Hooks,
+		mem:             opts.Memory,
+		memoryEnabled:   !opts.MemoryDisabled,
+		cleanup:         opts.Cleanup,
+		balanceURL:      opts.BalanceURL,
+		balanceKey:      opts.BalanceKey,
+		balanceKind:     opts.BalanceKind,
+		jobs:            opts.Jobs,
+		reg:             opts.Registry,
+		pluginCtx:       pluginCtx,
+		ctxMgr:          opts.CtxMgr,
+		permLevel:       "ask",
+		approvalTimeout: opts.ApprovalTimeout,
+		approvals:       map[string]chan approvalReply{},
+		asks:            map[string]chan []event.AskAnswer{},
+		granted:         map[string]bool{},
 	}
 	// Checkpoints: bind a store to the session and route writer pre-edits into it.
 	if c.executor != nil {

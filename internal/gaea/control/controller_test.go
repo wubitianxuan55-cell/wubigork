@@ -206,3 +206,39 @@ func TestApprovalAbort(t *testing.T) {
 		t.Fatal("abort 未触发回合取消")
 	}
 }
+
+// TestApprovalTimeout 验证 C4 TimedOut：配置超时后无人响应的审批请求按拒绝
+// 处理（allow=false、无错误、回合继续），并发 Notice；默认 0 = 永久等待。
+func TestApprovalTimeout(t *testing.T) {
+	// notices 收集 Notice 事件；无人应答 = 不响应任何审批请求
+	var notices int
+	c := New(Options{Sink: event.FuncSink(func(e event.Event) {
+		if e.Kind == event.Notice {
+			notices++
+		}
+	}), ApprovalTimeout: 30 * time.Millisecond})
+
+	allow, _, err := gateApprover{c}.Approve(context.Background(), "bash", "rm -rf /", nil)
+	if err != nil || allow {
+		t.Fatalf("超时应按拒绝处理: allow=%v err=%v", allow, err)
+	}
+	if notices == 0 {
+		t.Fatal("超时应发 Notice 告知用户")
+	}
+
+	// 默认（0）：无超时——短时间不返回即视为仍在等待（用一个短 ctx 验证阻塞）
+	c2 := New(Options{Sink: event.FuncSink(func(e event.Event) {})})
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		_, _, _ = gateApprover{c2}.Approve(ctx, "bash", "go test", nil)
+		close(done)
+	}()
+	select {
+	case <-done:
+		t.Fatal("默认 0 超时配置下不应在 ctx 超时前返回（仍应等待用户）")
+	case <-ctx.Done():
+		// 预期：ctx 先超时（等待被 ctx 打断），审批仍挂起
+	}
+}

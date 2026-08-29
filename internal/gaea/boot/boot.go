@@ -413,6 +413,8 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		Hooks:          hookRunner,
 		Memory:         mem,
 		MemoryDisabled: !cfg.Memory.Enabled,
+		// C4 TimedOut：审批等待超时贯通（0 = 不超时，交互场景默认等待）。
+		ApprovalTimeout: time.Duration(cfg.Agent.ApprovalTimeoutSecs) * time.Second,
 		Cleanup:        cleanup,
 		BalanceURL:     entry.BalanceURL,
 		BalanceKey:     entry.APIKey(),

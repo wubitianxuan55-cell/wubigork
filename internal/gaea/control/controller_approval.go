@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/permission"
@@ -104,6 +105,16 @@ func (c *Controller) requestApproval(ctx context.Context, tool, subject string, 
 		go c.hooks.Notification(ctx, "approval needed: "+tool)
 	}
 
+	// C4 TimedOut（蒸馏 codex ReviewDecision::TimedOut）：配置了审批超时时，
+	// 无人响应不永久阻塞——超时按拒绝处理（回合继续、工具结果记拒绝，不静默
+	// 放行），并发 Notice 让用户回来能看到哪些步骤被超时拒绝。
+	var timeoutCh <-chan time.Time
+	if c.approvalTimeout > 0 {
+		timer := time.NewTimer(c.approvalTimeout)
+		defer timer.Stop()
+		timeoutCh = timer.C
+	}
+
 	select {
 	case r := <-reply:
 		if r.abort {
@@ -125,6 +136,17 @@ func (c *Controller) requestApproval(ctx context.Context, tool, subject string, 
 		delete(c.approvals, id)
 		c.mu.Unlock()
 		return false, false, ctx.Err()
+	case <-timeoutCh:
+		c.mu.Lock()
+		delete(c.approvals, id)
+		c.mu.Unlock()
+		if subject != "" {
+			c.notice(fmt.Sprintf("审批超时（%s 未响应），已按拒绝处理：%s %s",
+				c.approvalTimeout, tool, subject))
+		} else {
+			c.notice(fmt.Sprintf("审批超时（%s 未响应），已按拒绝处理：%s", c.approvalTimeout, tool))
+		}
+		return false, false, nil
 	}
 }
 
