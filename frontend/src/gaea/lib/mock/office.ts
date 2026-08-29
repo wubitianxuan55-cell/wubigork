@@ -38,28 +38,28 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       // A tiny fake tree so the @ menu is navigable in browser dev.
       if (rel === "" || rel === "./") {
         return [
-          { name: "internal", isDir: true },
-          { name: "desktop", isDir: true },
-          { name: "README.md", isDir: false },
-          { name: "go.mod", isDir: false },
+          { name: "internal", isDir: true, size: 0 },
+          { name: "desktop", isDir: true, size: 0 },
+          { name: "README.md", isDir: false, size: 18 },
+          { name: "go.mod", isDir: false, size: 42 },
         ];
       }
       if (rel === "internal/") {
         return [
-          { name: "control", isDir: true },
-          { name: "boot", isDir: true },
-          { name: "event.go", isDir: false },
+          { name: "control", isDir: true, size: 0 },
+          { name: "boot", isDir: true, size: 0 },
+          { name: "event.go", isDir: false, size: 9 },
         ];
       }
-      return [{ name: "file.go", isDir: false }];
+      return [{ name: "file.go", isDir: false, size: 4 }];
     },
     async FileSearch(query: string, limit = 30) {
       const tree = [
-        { path: "README.md", name: "README.md", isDir: false, size: 18 },
-        { path: "desktop/file.go", name: "file.go", isDir: false, size: 42 },
-        { path: "docs/成本测算.xlsx", name: "成本测算.xlsx", isDir: false, size: 120 },
-        { path: "docs/方案.docx", name: "方案.docx", isDir: false, size: 80 },
-        { path: "internal/control", name: "control", isDir: true },
+        { path: "README.md", name: "README.md", isDir: false, size: 18, modTime: 0 },
+        { path: "desktop/file.go", name: "file.go", isDir: false, size: 42, modTime: 0 },
+        { path: "docs/成本测算.xlsx", name: "成本测算.xlsx", isDir: false, size: 120, modTime: 0 },
+        { path: "docs/方案.docx", name: "方案.docx", isDir: false, size: 80, modTime: 0 },
+        { path: "internal/control", name: "control", isDir: true, size: 0, modTime: 0 },
       ];
       const q = query.toLowerCase();
       return tree.filter((f) => f.name.toLowerCase().includes(q)).slice(0, limit);
@@ -141,10 +141,8 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       };
       return {
         path: rel,
-        body: samples[rel] ?? `// ${rel}\n\nMock file body from browser dev.`,
+        markdown: samples[rel] ?? `// ${rel}\n\nMock file body from browser dev.`,
         size: samples[rel]?.length ?? 42,
-        truncated: false,
-        binary: false,
       };
     },
     async Preview(rel: string) {

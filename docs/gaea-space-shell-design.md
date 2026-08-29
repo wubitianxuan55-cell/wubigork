@@ -150,6 +150,18 @@ subscribeForSpace(event, handler, space?)  // payload.spaceId ?? payload.space
   view 类型编译期钉死（8 个核心模型）；借此修复 `SessionMeta.spaceId` 漂移。
   全量迁移（types.ts re-export 生成模型）为 S2.3b。
 
+## 9. S2.3b 增量（types 全量迁移）
+
+- `types.ts` 引入 `WireShape<T>`（剥掉 wails 生成类的实例方法 convertValues、
+  递归映射嵌套类为纯线协议结构），**55 个与生成模型重叠的手写类型改为
+  WireShape 别名**（1375 → 1065 行，−310）；前端增强类型保留手写
+  （TaskStatus/SearchScope/TaskView/SessionMeta/UnifiedSearchView 等字面量联合
+  与注释契约）。
+- 顺带修复真实漂移：`FileSearchHit.modTime`、`UpdateInfo.version`（后端契约）；
+  `FilePreview` 收敛为后端真实契约（path/markdown/size，旧 body/truncated/binary
+  为历史残留）；mock/office.ts 配套补齐 size/modTime。
+- 消费方零改动（tsc 全绿即证）；`typesGenerationCheck.ts` 漂移校验继续生效。
+
 ## 5. 验收
 
 1. 切到乐园：导航只剩 shared+play 板块，首页为乐园门面；切回工位恢复工位首页。

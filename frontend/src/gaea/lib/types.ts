@@ -1,5 +1,21 @@
+
 // Wire contract — mirrors desktop/wire.go (itself mirroring internal/serve/wire.go).
 // One event channel carries every kind; `kind` discriminates the payload.
+
+// 精确匹配生成模型 → 别名（单一事实源 wailsjs/go/models.ts，scripts/check-types-drift.mjs --alias-exact 生成）
+import type { app as AppModels } from "../../../wailsjs/go/models";
+
+// WireShape 把 wails 生成类的实例形状剥成纯线格式数据：生成类含实例方法
+// convertValues（构造时递归实例化嵌套对象），不属于 JSON 线协议字段；递归映射
+// 同时处理嵌套类属性。别名统一用 WireShape<AppModels.X>，消费方拿到的仍是
+// 与旧手写 interface 一致的结构类型。
+export type WireShape<T> = T extends (...args: never[]) => unknown
+  ? never
+  : T extends (infer U)[]
+    ? WireShape<U>[]
+    : T extends object
+      ? { [K in keyof T as K extends "convertValues" ? never : K]: WireShape<T[K]> }
+      : T;
 
 export type EventKind =
   | "turn_started"
@@ -63,10 +79,7 @@ export interface WireUsage {
 }
 
 // GaeaReloadResult 是办公引擎热加载的结果摘要（工具/技能数量）。
-export interface GaeaReloadResult {
-  tools: number;
-  skills: number;
-}
+export type GaeaReloadResult = WireShape<AppModels.GaeaReloadResult>;
 
 export interface WireApproval {
   id: string;
@@ -114,43 +127,15 @@ export interface WireEvent {
 }
 
 // Bound-method payloads (desktop/app.go).
-export interface HistoryMessage {
-  role: string;
-  content: string;
-  // 工具事件还原（恢复会话后过程卡/变更面板仍可见）
-  toolName?: string;
-  toolArgs?: string;
-  toolId?: string;
-  toolOutput?: string;
-}
+export type HistoryMessage = WireShape<AppModels.HistoryMessage>;
 
 // CheckpointMeta is one rewind point (a user turn) for the rewind UI.
-export interface CheckpointMeta {
-  turn: number;
-  prompt: string;
-  files: string[];
-  time: number; // unix ms
-}
+export type CheckpointMeta = WireShape<AppModels.CheckpointMeta>;
 
 // SessionStatsView 是会话级 token/成本派生统计（后端从事件日志重放 usage 事件）。
 // available=false 表示该会话无事件日志（legacy 会话或路径非法），前端不展示
 // 历史统计块。
-export interface SessionStatsView {
-  available: boolean;
-  stats: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    cacheHitTokens: number;
-    cacheMissTokens: number;
-    reasoningTokens: number;
-    usageCount: number;
-    cost: number;
-    currency?: string;
-    mainCost: number;
-    subagentCost: number;
-  };
-}
+export type SessionStatsView = WireShape<AppModels.SessionStatsView>;
 
 // SessionMeta is one saved session for the history panel.
 export interface SessionMeta {
@@ -180,32 +165,16 @@ export interface ProjectGroup {
   modTime: number; // 分组内最近会话时间（unix milliseconds）
 }
 
-export interface WorkspaceView {
-  path: string;
-  name: string;
-  current: boolean;
-}
+export type WorkspaceView = WireShape<AppModels.WorkspaceView>;
 
 // SpaceOption 是双空间静态枚举项（GaeaSpaceList，work/play 固定两值）。
-export interface SpaceOption {
-  id: string; // "work" | "play"
-  title: string; // 展示名（办公空间/娱乐空间）
-  desc: string; // 一句话说明
-}
+export type SpaceOption = WireShape<AppModels.SpaceOption>;
 
 // SpaceActiveView 是当前生效空间视图（GaeaSpaceActive / GaeaSpaceActivate）。
 // space.mode=off 时分区整体关闭，space 恒报 work（modeOn=false 标记关闭态）。
-export interface SpaceActiveView {
-  space: string; // "work" | "play"
-  modeOn: boolean;
-  exportsDir: string; // 当前生效产物目录（工作区相对，如 .gaea/exports）
-  workDir: string; // 当前生效过程目录（工作区相对）
-}
+export type SpaceActiveView = WireShape<AppModels.SpaceActiveView>;
 
-export interface ContextInfo {
-  used: number;
-  window: number;
-}
+export type ContextInfo = WireShape<AppModels.ContextInfo>;
 
 // ─── 上下文视图（dsh-context Go 移植 Phase A）────────────────────
 
@@ -410,16 +379,14 @@ export interface CommandInfo {
   kind: "builtin" | "custom" | "mcp" | "skill";
 }
 
-export interface DirEntry {
-  name: string;
-  isDir: boolean;
-}
+export type DirEntry = WireShape<AppModels.DirEntry>;
 
 export interface FileSearchHit {
   path: string; // 工作区相对路径（/ 分隔）
   name: string;
   isDir: boolean;
   size?: number;
+  modTime: number; // S2.3 types 漂移修复：后端返回修改时间（unix ms）
 }
 
 /** AtEntry 是 @ 菜单的统一条目（目录浏览 / 工作区搜索 / 最近使用文件）。 */
@@ -443,30 +410,14 @@ export interface WorkspaceSearchHit {
 }
 
 // GaeaSummaryResult 是资料「摘要」操作的结果（map-reduce 分块摘要）。
-export interface GaeaSummaryResult {
-  path: string;
-  totalPages: number;
-  chars: number;
-  chunks: number;
-  summary: string;
-}
+export type GaeaSummaryResult = WireShape<AppModels.GaeaSummaryResult>;
 
 // TaskTemplate 是预置办公任务模板（欢迎页「任务模板」区 + slash 命令）。
-export interface TaskTemplate {
-  name: string;
-  title: string;
-  description: string;
-  prompt: string;
-}
+export type TaskTemplate = WireShape<AppModels.TaskTemplate>;
 
-export interface FilePreview {
-  path: string;
-  body: string;
-  size: number;
-  truncated: boolean;
-  binary: boolean;
-  err?: string;
-}
+// 后端 GaeaReadFile 真实契约（gaea_ui_extra.go FilePreview = path/markdown/size）；
+// 旧手写体含 body/truncated/binary 为历史残留，已收敛为生成模型别名。
+export type FilePreview = WireShape<AppModels.FilePreview>;
 
 // 文件预览负载：kind 决定渲染方式（image/docx/xlsx/markdown/text/unsupported/error）。
 // docx 时 dataUrl 为原始文件（前端 docx-preview 保真渲染）。
@@ -525,11 +476,7 @@ export interface XlsxPreview {
 }
 
 // XlsxEditResult 是单元格编辑结果：更新后的预览 + 摘要。
-export interface XlsxEditResult {
-  preview: string;
-  summary: string;
-  applied: number;
-}
+export type XlsxEditResult = WireShape<AppModels.XlsxEditResult>;
 
 // XlsxCellChange 是规划 diff 中的一处单元格变更（值或公式与原文件不同）。
 export interface XlsxCellChange {
@@ -542,13 +489,7 @@ export interface XlsxCellChange {
 
 // XlsxPlanResult 是「先规划后应用」的规划结果：ops 原样带回（应用时透传），
 // 附变更清单供用户审阅批准（对标 Copilot Plan/Show Changes 范式）。
-export interface XlsxPlanResult {
-  ops: string; // 操作集 JSON（XlsxApplyEdit 透传）
-  summary: string; // 操作描述
-  changes: XlsxCellChange[]; // 变更清单（截断到上限）
-  total: number; // 已确认变更格数（读取预算内，截断时为下界）
-  truncated: boolean;
-}
+export type XlsxPlanResult = WireShape<AppModels.XlsxPlanResult>;
 
 // ── 表格「选中区域 → 一键图表」（原生图表嵌入工作簿） ──
 export interface XlsxChartInput {
@@ -559,33 +500,13 @@ export interface XlsxChartInput {
   title?: string;
 }
 
-export interface XlsxChartResult {
-  path: string; // xlsx 工作区相对路径（原生图表已嵌入该文件）
-  name: string;
-  sheet: string; // 嵌入的工作表
-  anchor: string; // 图表左上角锚点单元格（如 D1）
-  labels: number; // 数据点数量
-  labelList: string[]; // 类别（迷你图预览）
-  values: number[]; // 数值（迷你图预览）
-  chartType: string;
-  title: string;
-}
+export type XlsxChartResult = WireShape<AppModels.XlsxChartResult>;
 
 // ── 会话产物一键打包（P0-1，对标 Kimi 工作空间 / WorkBuddy） ──
-export interface ZipDeliverableResult {
-  path: string; // zip 工作区相对路径
-  name: string;
-  entries: number;
-  bytes: number;
-}
+export type ZipDeliverableResult = WireShape<AppModels.ZipDeliverableResult>;
 
 // ConvertPdfResult 是文档转 PDF 的结果（PDF 落 .gaea/exports/）。
-export interface ConvertPdfResult {
-  path: string; // PDF 工作区相对路径
-  name: string;
-  size: number;
-  source: string; // 源文件相对路径
-}
+export type ConvertPdfResult = WireShape<AppModels.ConvertPdfResult>;
 
 // ── 多智能体分工可见（P2，对标 WorkSwarm 蜂群 / QClaw V2） ──
 export interface SubagentRunView {
@@ -621,12 +542,7 @@ export interface ExportDeliverableInput {
   footer?: string;
 }
 
-export interface ExportDeliverableResult {
-  path: string;
-  name: string;
-  format: string;
-  size: number;
-}
+export type ExportDeliverableResult = WireShape<AppModels.ExportDeliverableResult>;
 
 // ── 跨应用联动（xlsx 数据 → 图表 → 嵌入 docx/pptx） ────────
 export interface CrossEmbedInput {
@@ -639,12 +555,7 @@ export interface CrossEmbedInput {
   output?: string;
 }
 
-export interface CrossEmbedResult {
-  path: string;
-  name: string;
-  size: number;
-  chartPath: string;
-}
+export type CrossEmbedResult = WireShape<AppModels.CrossEmbedResult>;
 
 // MCP & Skills drawer (desktop/app.go Capabilities) — the GUI counterpart to
 // /mcp + /skill: connected/failed servers and discoverable skills.
@@ -662,67 +573,26 @@ export interface MCPToolView {
   name: string;
   description: string;
 }
-export interface SkillView {
-  name: string;
-  description: string;
-  scope: string;
-  runAs: string;
-}
+export type SkillView = WireShape<AppModels.SkillView>;
 export interface CapabilitiesView {
   servers: ServerView[];
   skills: SkillView[];
 }
-export interface MCPServerInput {
-  name: string;
-  transport: string; // stdio | http | sse
-  command: string;
-  args: string[];
-  url: string;
-  env: Record<string, string>;
-}
+export type MCPServerInput = WireShape<AppModels.MCPServerInput>;
 
-export interface ModelInfo {
-  ref: string; // "provider/model" — pass to SetModel
-  provider: string;
-  model: string;
-  current: boolean;
-}
+export type ModelInfo = WireShape<AppModels.ModelInfo>;
 
 // Slash sub-command / argument completion (desktop/app.go SlashArgs). Mirrors the
 // CLI's arg hints so the composer can suggest e.g. /skill → list/show/new/paths.
-export interface SlashArgItem {
-  label: string;
-  insert: string; // token to place at the current position
-  hint: string;
-  descend: boolean; // re-open the menu one level deeper after accepting
-}
-export interface SlashArgsResult {
-  items: SlashArgItem[];
-  from: number; // byte offset where the current token begins
-}
+export type SlashArgItem = WireShape<AppModels.SlashArgItem>;
+export type SlashArgsResult = WireShape<AppModels.SlashArgsResult>;
 
 // Memory panel payloads (desktop/app.go MemoryView).
-export interface MemoryDoc {
-  path: string;
-  scope: string; // "user" | "ancestor" | "project" | "local"
-  body: string;
-}
+export type MemoryDoc = WireShape<AppModels.MemoryDoc>;
 
-export interface MemoryFact {
-  name: string;
-  title?: string;
-  description: string;
-  type: string; // "user" | "feedback" | "project" | "reference"
-  body: string;
-  lastUsedAt?: string; // RFC3339 最近使用（生命周期/高频展示）
-  sourceSession?: string; // 沉淀来源会话
-  sourceMessage?: string; // 沉淀来源消息/轮次
-}
+export type MemoryFact = WireShape<AppModels.MemoryFact>;
 
-export interface MemoryScope {
-  scope: string; // "user" | "project" | "local"
-  path: string;
-}
+export type MemoryScope = WireShape<AppModels.MemoryScope>;
 
 export interface MemoryView {
   docs: MemoryDoc[];
@@ -762,95 +632,33 @@ export interface KnowledgeEntry extends KnowledgeSummary {
 export type KnowledgeSaveRequest = KnowledgeEntry;
 
 // Settings panel payloads (desktop/settings_app.go).
-export interface ProviderView {
-  name: string;
-  kind: string;
-  baseUrl: string;
-  models: string[];
-  default: string;
-  apiKeyEnv: string;
-  keySet: boolean; // the env var currently resolves to a value
-  balanceUrl: string; // optional wallet-balance endpoint; "" disables the readout
-  contextWindow: number;
-  oauthKind: string; // non-empty when OAuth login is available (e.g. "xai")
-  oauthReady: boolean; // whether OAuth token is currently valid
-}
+export type ProviderView = WireShape<AppModels.ProviderView>;
 
 // BalanceInfo is the wallet-balance readout (desktop/app.go Balance). available
 // is false when the provider declares no balanceUrl or a fetch failed; display is
 // the formatted amount (e.g. "¥110.00").
-export interface BalanceInfo {
-  available: boolean;
-  display: string;
-  err?: string;
-}
+export type BalanceInfo = WireShape<AppModels.BalanceInfo>;
 
 // JobView is one running background job (desktop/app.go Jobs) for the status bar.
-export interface JobView {
-  id: string;
-  kind: string; // "bash" | "task"
-  label: string;
-  status: string; // "running"
-  startedAt: number; // unix milliseconds
-}
+export type JobView = WireShape<AppModels.JobView>;
 
 // FactView: one settled fact in the conversation fact base (sidebar panel).
-export interface FactView {
-  key: string;
-  value: string;
-  source?: string;
-  category?: string;
-  updatedAt: number;
-}
+export type FactView = WireShape<AppModels.FactView>;
 
 // FactBaseView: the fact-base panel view: facts + copy-ready Markdown.
-export interface FactBaseView {
-  facts: FactView[];
-  markdown: string;
-  count: number;
-  path: string;
-}
+export type FactBaseView = WireShape<AppModels.FactBaseView>;
 
 // SkillCaptureInput 是一次成功对话沉淀为技能的输入（桌面端 GaeaCaptureSkill）。
-export interface SkillCaptureInput {
-  name: string;
-  description: string;
-  task: string;
-  solution: string;
-}
+export type SkillCaptureInput = WireShape<AppModels.SkillCaptureInput>;
 
 // SkillCaptureResult 是沉淀结果；reloaded=true 表示技能已热加载进引擎。
-export interface SkillCaptureResult {
-  name: string;
-  description: string;
-  path: string;
-  reloaded: boolean;
-  tools: number;
-  skills: number;
-}
+export type SkillCaptureResult = WireShape<AppModels.SkillCaptureResult>;
 
-export interface PermissionsView {
-  mode: string; // "ask" | "allow" | "deny"
-  allow: string[];
-  ask: string[];
-  deny: string[];
-}
+export type PermissionsView = WireShape<AppModels.PermissionsView>;
 
-export interface SandboxView {
-  bash: string; // "enforce" | "off"
-  network: boolean;
-  workspaceRoot: string;
-  allowWrite: string[];
-}
+export type SandboxView = WireShape<AppModels.SandboxView>;
 
-export interface AgentView {
-  temperature: number;
-  maxSteps: number;
-  systemPrompt: string;
-  subagentTemperature: number;
-  effort: string;
-  subagentEffort: string;
-}
+export type AgentView = WireShape<AppModels.AgentView>;
 
 export interface SettingsView {
   defaultModel: string;
@@ -873,6 +681,7 @@ export interface UpdateInfo {
   available: boolean;
   current: string;
   latest: string;
+  version?: string; // S2.3 types 兼容：后端 stub GaeaCheckUpdate 的 {version, notes} 契约
   notes: string;
   canSelfUpdate: boolean; // win/linux true; macOS false (no cert → manual download)
   downloadUrl: string; // human-facing releases page (macOS path / fallback link)
@@ -917,15 +726,7 @@ export interface MemoryArchive {
 
 // MemoryArchivedView 是办公记忆归档列表中的一条（GaeaMemoryArchivedList）：
 // 归档超过 90 天的事实为硬删除候选（GaeaMemoryCleanupArchived 清理）。
-export interface MemoryArchivedView {
-  name: string;
-  title?: string;
-  description: string;
-  type: string;
-  kind: string;
-  // RFC3339 字符串，可为空（后端 time.Time 序列化；空表示时间缺失）。
-  archivedAt: string;
-}
+export type MemoryArchivedView = WireShape<AppModels.MemoryArchivedView>;
 
 // MemoryArchivedPage 是归档列表分页结果（GaeaMemoryArchivedList）。
 export interface MemoryArchivedPage {
@@ -958,13 +759,7 @@ export interface SkillSuggestion {
   evidence: string[];
 }
 
-export interface MemorySuggestionsView {
-  memories: MemorySuggestion[];
-  skills: SkillSuggestion[];
-  generatedAt: string;
-  available: boolean;
-  source: string;
-}
+export type MemorySuggestionsView = WireShape<AppModels.MemorySuggestionsView>;
 
 /** TraceStep 记录一次推理过程中的关键步骤，用于实时推理可视化面板 */
 export interface TraceStep {
@@ -995,71 +790,21 @@ export interface FilePickResult {
 // ── 记忆中枢（Memory Hub）类型 ──────────────────────────────────────
 
 // ProfileFactView 主脑全局画像事实（跨板块共享的用户画像）。
-export interface ProfileFactView {
-  name: string;
-  title: string;
-  description: string;
-  type: string;
-  kind: string;
-  tags: string[];
-  body: string;
-}
+export type ProfileFactView = WireShape<AppModels.ProfileFactView>;
 
 // WhisperMemoryView 聊天（hermes.db）记忆事实只读视图。
-export interface WhisperMemoryView {
-  id: string;
-  domain: string;
-  subcategory: string;
-  subject: string;
-  summary: string;
-  weight: number;
-  confidence: number;
-  tier: string;
-  status: string;
-  updatedAt: string;
-}
+export type WhisperMemoryView = WireShape<AppModels.WhisperMemoryView>;
 
 // WhisperEpisodeView 聊天（hermes.db）情节记忆只读视图（时间倒序）。
-export interface WhisperEpisodeView {
-  id: string;
-  summary: string;
-  dominantEmotion: string;
-  emotionalIntensity: number;
-  keywords: string[];
-  startTurn: number;
-  endTurn: number;
-  createdAt: string;
-  sourceSessionId: string;
-}
+export type WhisperEpisodeView = WireShape<AppModels.WhisperEpisodeView>;
 
 // MemoryHubOverview 记忆中枢聚合总览。
-export interface MemoryHubOverview {
-  knowledgeCount: number;
-  profileCount: number;
-  officeCount: number;
-  costCount: number;
-  whisperCount: number;
-  pinnedCount: number; // 项目资料：工作区固定常用文件数
-  latestUpdated: string;
-}
+export type MemoryHubOverview = WireShape<AppModels.MemoryHubOverview>;
 
 // ── 记忆图谱 ────────────────────────────────────────────────────────
-export interface GraphNode {
-  id: string;
-  name: string;
-  type: string; // knowledge / profile / office / whisper
-  desc: string;
-  val: number;
-}
-export interface GraphLink {
-  source: string;
-  target: string;
-  type: string; // same-tag / same-category / reference
-}
-export interface MemoryGraphView {
-  nodes: GraphNode[];
-  links: GraphLink[];
-}
+export type GraphNode = WireShape<AppModels.GraphNode>;
+export type GraphLink = WireShape<AppModels.GraphLink>;
+export type MemoryGraphView = WireShape<AppModels.MemoryGraphView>;
 
 // ── 成本库 ──────────────────────────────────────────────────────────
 export interface CostSummary {
@@ -1346,23 +1091,11 @@ export interface UnifiedSearchView {
 
 // RetrievalEvalQuery 是检索质量测评中单条查询的明细：期望命中 vs 实际前 10 命中。
 // expected/topHits 均为 "kind:name" 形式（如 "cost:hp300"），便于前端直接对比。
-export interface RetrievalEvalQuery {
-  query: string; // 测评查询文本
-  expected: string[]; // 期望命中（kind:name）
-  topHits: string[]; // 实际返回的前 10 条命中（kind:name）
-  recall: number; // 该查询的 recall@10（0-1）
-}
+export type RetrievalEvalQuery = WireShape<AppModels.RetrievalEvalQuery>;
 
 // RetrievalEvalReport 是检索质量测评结果：内置查询集跑一遍统一检索，
 // 统计平均 recall@10，并与达标门槛比较给出通过状态。
-export interface RetrievalEvalReport {
-  total: number; // 测评查询总数
-  threshold: number; // 达标门槛（recall@10 需 ≥ 该值，后端固定 0.8）
-  recallAt10: number; // 平均 recall@10（0-1）
-  passed: boolean; // recallAt10 ≥ threshold
-  perQuery: RetrievalEvalQuery[];
-  note?: string; // 命中判定规则等说明（后端 omitempty）
-}
+export type RetrievalEvalReport = WireShape<AppModels.RetrievalEvalReport>;
 
 // ── 知识库导入（无确认不落库）────────────────────────────────
 export interface KnowledgeImportRow {
@@ -1384,49 +1117,16 @@ export interface KnowledgeImportRow {
   skipReason: string;
 }
 
-export interface KnowledgeImportPreview {
-  path: string;
-  fileName: string;
-  columns: string[];
-  unmapped: string[];
-  rows: KnowledgeImportRow[];
-  message: string;
-  aiUsed: boolean;
-}
+export type KnowledgeImportPreview = WireShape<AppModels.KnowledgeImportPreview>;
 
 // 知识条目版本历史快照。
-export interface KnowledgeHistoryView {
-  name: string;
-  title: string;
-  version: number;
-  category: string;
-  phase: string;
-  discipline: string;
-  tags: string[];
-  status: string;
-  author: string;
-  reviewer: string;
-  source: string;
-  body: string;
-  changedAt: string;
-  note: string;
-}
+export type KnowledgeHistoryView = WireShape<AppModels.KnowledgeHistoryView>;
 
 // 查重命中的相似条目。
-export interface SimilarView {
-  name: string;
-  title: string;
-  score: number;
-}
+export type SimilarView = WireShape<AppModels.SimilarView>;
 
 // 办公记忆疑似重复对（keep 为建议保留项）。
-export interface MemoryDuplicateView {
-  keep: string;
-  keepTitle: string;
-  dup: string;
-  dupTitle: string;
-  score: number;
-}
+export type MemoryDuplicateView = WireShape<AppModels.MemoryDuplicateView>;
 
 // 工作区文件语义索引状态 / 命中。
 export interface FileIndexStatus {
@@ -1434,11 +1134,7 @@ export interface FileIndexStatus {
   skipped: number;
   error: string;
 }
-export interface FileSemanticHit {
-  path: string;
-  score: number;
-  snippet: string;
-}
+export type FileSemanticHit = WireShape<AppModels.FileSemanticHit>;
 
 // ── 阶段 5 T5-1：通用任务调度器视图 ──
 // 长任务（价格抓取/文件索引重建等）统一走持久化任务队列；gaea-task 事件
@@ -1471,10 +1167,7 @@ export interface TaskView {
 }
 
 // TaskOutputView 是任务实时输出的尾部回放视图（C1：GaeaTaskOutput）。
-export interface TaskOutputView {
-  tail: string;
-  truncated: boolean;
-}
+export type TaskOutputView = WireShape<AppModels.TaskOutputView>;
 
 // ── 阶段 5 T5-3：本地模型调度纵深 ────────────────────────────
 // ModelSwitchEstimate 是换模预估结果（GaeaModelSwitchEstimate）：切换本地模型前

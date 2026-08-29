@@ -71,7 +71,9 @@
   - [x] bridge 三门面 workApp/playApp/sharedApp（类型级 + 运行时双保险）；
     TaskCenter/useRunningBadge 消费 workApp
   - [x] types 生成化第一刀：typesGenerationCheck.ts 编译期漂移校验 + 修 SessionMeta.spaceId
-  - [ ] S2.3b types 全量迁移（types.ts re-export 生成模型）——待启动
+  - [x] **S2.3b types 全量迁移**：WireShape 剥生成类实例方法，55 个重叠类型改别名
+    （1375→1065 行）；增强类型（TaskStatus/TaskView/SearchScope 等）保留手写；
+    顺带修 FileSearchHit.modTime / UpdateInfo.version / FilePreview 契约漂移
 
 ## 纪律（沿用）
 
