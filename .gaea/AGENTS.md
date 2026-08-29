@@ -26,6 +26,34 @@
 
 ## 版本状态
 
+- **最新发布：v4.4.0（2026-08-30）「触点」一期·微信遥控器：离线代办**：
+  git tag `v4.4.0`；CHANGELOG / releases/v4.4.0.md / README 索引同步。要点：
+  - **定位**：路线图 §10.4 v4.4 第一刀——微信从「能聊天」升级为「能接活的
+    遥控器」。离线代办 = 官方元宝做不了的桌面端差异化主打（桌面常驻 +
+    微信回推）。
+  - **主动推送通路**：weixin.Server 记录最近活跃会话（fromUser/contextToken），
+    新增 Push 主动回推文本；httptest 校验目标/item。
+  - **离线代办提醒域**（weixin_reminder.go）：中文时间解析（相对时长 / 日期
+    前缀+段词「明天早上9点/明晚8点半/后天十点」/ 裸时刻；中文数字含「十」
+    进位；无段词字面解释——确认文案带完整时间供纠正，不做玄学歧义）→
+    wxReminder JSON 持久化（重启恢复）→ tryWxReminder 微信消息任务路由
+    （提醒类接管，解析失败回格式提示）→ 20s ticker 到点回推（失败重试
+    ≤5 次标 failed）。配置 remindersEnabled（weixin_task.json）。
+  - **WeixinPage 落地（书房板块）**：扫码绑定流（QR 轮询/配对码/confirmed 落
+    WhisperAssistantSave 重拉通道）+ 通道状态徽标 + 提醒列表（手动新建/删除/
+    开关）+ 指令说明；weixin 板块 inMenu=true 进 rail 与首页左翼书房格
+    （双翼 manifest 派生自动生效）。
+  - **绑定面 525→530**：WhisperWeixin* 4 + WhisperAssistant* 3 自
+    LegacySurfaceNames 转正，WeixinReminder* 5 新增（voice 门面）；
+    spaceBindings 235→247 全归 work。
+  - **验证**：Go **107/107 包**；vitest **789/789**（锁数量断言 +12 同步）；
+    tsc -b / eslint 0；drift 530 PASS；版本五处统一 4.4.0；桌面端
+    gaea-v4.4.0.exe（35MB，SHA256 ee9b45c2）+ 冒烟 200。
+  - **下一执行**：v4.4.1 触发已有能力（生图/办公任务路由 + iLink 图片/文件
+    卡片协议探明）+ 语音双通路（work 指令 / play 闲聊人格分叉，§10.4）；
+    观察项（全局离线模式总开关、中庭对话条桌面端体验、主动关心配置面板、
+    角色 gallery 管理、IP-Adapter 节点级参考槽）。
+
 - **最新发布：v4.3.2（2026-08-30）「双翼·中庭」首页重构 + 空间导航收敛**：
   git tag `v4.3.2`；CHANGELOG / releases/v4.3.2.md / README 索引同步。要点：
   - **首页「双翼·中庭」**：中庭 = 语音 + 打字一体对话条（输入框打字走

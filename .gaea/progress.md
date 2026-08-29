@@ -176,8 +176,7 @@
 - [x] **绑定收口**：gen_bindings 525（+3）+ bindingNames/spaceBindings(235)/bridge/types
 
 **v4.3.1 后续小步已收官**（bindingNames 525 / spaceBindings 235 / vitest 789
-+ go 118/118 包）。剩余：v4.4 触点（微信任务入口 + 语音双通路 + 本地离线模式，§10.4）；
-后续观察项（主动关心配置前端面板、角色 gallery 前端管理、IP-Adapter 节点级参考槽）。
++ go 118/118 包）。剩余：v4.4.1 触发已有能力（生图/办公任务路由 + 图片/文件卡片协议）+ 语音双通路（work 指令/play 闲聊分叉）+ 全局离线模式总开关（§10.4）；观察项（主动关心配置面板、角色 gallery 管理、IP-Adapter 节点级参考槽）。
 
 ### v4.3.2 首页重构（双翼·中庭 + 空间导航收敛）—— ✅ 已完成（v4.3.2 发布）
 - [x] **首页「双翼·中庭」**：中庭 = 语音 + 打字一体对话条（输入框打字走
@@ -195,6 +194,32 @@
   冒烟 /api/health 200。提交：9789d7e / 71b0f2b / 766a9f6 / 0f21650。
 - 遗留：中庭对话条桌面端语音+打字双通道实际体验待验证；双翼板块卡数量由
   manifest 派生（新板块自动入对应栏）。
+
+### v4.4.0 触点一期（微信遥控器·离线代办）—— ✅ 已完成（v4.4.0 发布）
+- [x] **主动推送通路**：weixin.Server 最近活跃会话记忆（handle 时记录
+  fromUser/contextToken）+ Push 主动回推文本（无会话报错）；httptest
+  校验 sendmessage 目标与文本 item（3 测试）
+- [x] **离线代办提醒域**（weixin_reminder.go）：中文时间解析（相对时长/
+  日期前缀+段词/裸时刻 20 用例表驱动，中文数字「十」进位，明早/明晚
+  预处理拆词，无段词字面解释）→ wxReminder JSON 持久化（重启恢复，
+  done 不重推）→ tryWxReminder 微信消息任务路由（提醒类接管/解析失败
+  回格式提示/其余走聊天）→ 20s ticker 到点回推（失败重试 ≤5 标 failed）
+  → remindersEnabled 开关持久化
+- [x] **WeixinPage 落地（书房板块）**：扫码绑定流（QR 轮询/need_verifycode
+  配对码/confirmed 落 WhisperAssistantSave 自动重拉通道）+ 通道状态徽标
+  （运行/过期/未绑定）+ 提醒列表（手动新建/删除/回推开关）+ 指令说明；
+  weixin 板块 Page=""→WeixinPage、inMenu=true（rail + 首页左翼书房格
+  manifest 派生自动生效）
+- [x] **绑定面 525→530**：WhisperWeixin* 4 + WhisperAssistant* 3 自
+  LegacySurfaceNames 转正；WeixinReminder* 5 新增（voice 门面）；
+  spaceBindings 235→247 全归 work；bindingNames.ts 同步
+- [x] **验证**：Go 107/107 包；vitest 789/789（manifests/launcher/
+  spaceBindings/board_manifest 锁数量断言 +12 同步）；tsc/eslint 0；
+  drift 530 PASS；版本五处统一 4.4.0；gaea-v4.4.0.exe（35MB，
+  SHA256 ee9b45c2）+ 冒烟 200。提交：v4.4a 后端 / v4.4b 前端 / release
+- 遗留：回推目标=最近活跃会话（多联系人场景由多助手隔离）；iLink 图片/
+  文件卡片协议未探明（v4.4.1 触发生图/办公任务回推时处理）；LLM 意图
+  路由（通用任务化）留后续刀
 
 ## 纪律（沿用）
 

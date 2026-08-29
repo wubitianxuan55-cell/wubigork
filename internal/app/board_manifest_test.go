@@ -162,13 +162,13 @@ func TestGetBoardManifestsCanonical(t *testing.T) {
 			t.Errorf("缺少 canonical 板块 %q（现有: %s）", want, got)
 		}
 	}
-	// weixin 服务板块（无前端页面，beta）
+	// weixin 触点板块（v4.4：WeixinPage 落地 + 进菜单）
 	wx, ok := byID["weixin"]
 	if !ok {
-		t.Fatal("weixin 服务板块缺失")
+		t.Fatal("weixin 触点板块缺失")
 	}
-	if wx.Page != "" || len(wx.Bindings) != 0 {
-		t.Errorf("weixin 应为无页面服务板块，got %+v", wx)
+	if wx.Page != "WeixinPage" || len(wx.Bindings) != 0 {
+		t.Errorf("weixin 应挂载 WeixinPage 触点板块，got %+v", wx)
 	}
 	// knowledge 独立板块（D7 恢复挂载）
 	kn, ok := byID["knowledge"]
