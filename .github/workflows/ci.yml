@@ -43,6 +43,19 @@ jobs:
       - name: Check bindings drift (bindingNames.ts vs Go surface)
         run: pwsh -NoProfile -File scripts/check-bindings-drift.ps1
 
+  # S0.5 并发门禁：办公引擎核心包 -race（审计 P0 竞态回归防线）。
+  # 独立 ubuntu job：windows-latest 无 gcc，-race 不可用；ubuntu-latest 自带 gcc。
+  race:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: go test -race -count=1 ./internal/gaea/agent/ ./internal/gaea/tool/ ./internal/gaea/control/
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

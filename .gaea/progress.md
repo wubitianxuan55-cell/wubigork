@@ -1,64 +1,38 @@
 # 任务进度
 
-> 最后更新: 2026-08-28 00:10（v3.5.0 已发布）
+> 最后更新: 2026（长期规划定稿，v3.7.0 基线）
 
-## v3.5.0（2026-08-28 发布）——全部完成 ✅
+## 当前状态
 
-- ✅ **办公对话区三标签**：`[对话 | 轨迹 | 上下文]`（ChatTabs，localStorage 持久化）。
-- ✅ **request_header 事件**：模型请求前把 system prompt + 工具 schema 入日志
-  （「模型可见必入日志」请求头落点）。
-- ✅ **上下文标签**：`internal/gaea/contextview` FoldTimeline（六分类组成 + 原生 SVG
-  趋势图 + 事件流 + 步骤详情，usage 锚定与顶栏同源）+ `GaeaContextView`。
-- ✅ **轨迹标签**：`internal/gaea/trajectory` FoldTrajectory（对齐 DSH ui-trajectory
-  扁平事件账本：header change / 工具 parentId 嵌套 / 轮间压缩 / ask+approval）+ 
-  `GaeaTrajectory` + TrajectoryView（chips/搜索/徽标/检查器）。
-- ✅ **Agent 网络**：FoldAgentNetwork 子代理树 + `GaeaAgentNetwork`（subagents meta 富化）
-  + AgentNetworkCard（SVG 树/节点 token 环/悬停详情）。
-- ✅ **随版并入**：记忆统一层第二刀前端收尾（批量恢复/保留期 UI）。
-- ✅ **验证**：Go 114/114 + vet；vitest 668/668（127 文件）；eslint 0/0；tsc 0；
-  绑定面 503 漂移 PASS；版本四处统一 3.5.0；wails build + 冒烟 200。
+- **最新发布：v3.7.0（2026-08-29）**——办公蒸馏 codex 收官（C2 记忆引用可追溯 / C4 审批决策族 /
+  C9 任务输出事件化 / C5 上下文占用状态行 / C6 项目说明预算 / C3 做梦 no-op）。
+  验证：Go 114/114 + vet；vitest 681/681；eslint 0/0；tsc 0；绑定面 499 漂移 PASS。
 
-## 下一阶段候选（Phase D + 里程碑剩余）
+## 长期规划（权威文档）
 
-- ⏳ 上下文浏览器 / `/context` 命令 / 增量(Delta)模式 / File activity
-- ⏳ 轨迹时间条 Overview 投影、虚拟滚动分页、流式跟随尾部
-- ⏳ Agent 节点点击跳转子代理会话；SSE 增量刷新（现为回合结束重拉）
-- ⏳ 记忆统一层（路线图 V4）：三脑/多库记忆归并视图 + 统一检索 + 生命周期产品化（第一刀已发）
-- ⏳ 受控自主（goal gate 深化）：目标验收自动追踪产品化、审批流收敛
-- ⏳ 造价数据库体验收口：手册二期、测算项目批量导入/导出、分类树维护界面
+- **`docs/gaea-nextgen-roadmap-2026.md`** —— gaea 长期规划（2026+）：
+  8 板块竞品调研 + WorkBuddy×灵犀 对标 + **版本重定义（双空间：工位/乐园）** +
+  四层落地（后端/前端/UX/UI）+ 执行计划（阶段 0 地基 → 阶段 1 双空间内核 →
+  阶段 2 双空间壳 → 阶段 3+ 领域包）。
+- **用户拍板（重要）**：**工作与娱乐分开、互不干扰**——工位（办公/造价/编程/资料记忆）与
+  乐园（轻语/小说/绘梦/阅读）双空间硬隔离；记忆分区、模型策略各配、上下文永不跨界；
+  跨空间仅用户显式发起。~~"陪伴×办公融合"~~ 已删除。
+- 本轮调研另一项关键纠正：**灵犀 = 金山 WPS 独立 AI 办公 Agent**（非阿里/通义）；
+  **WorkBuddy = 腾讯云 CodeBuddy 全场景 AI 办公工作台**（非 Kimi 系，Kimi Work 是月之暗面的）。
 
-## v3.4.0（2026-08-27 发布）——全部完成 ✅
+## 下一步执行（按执行计划 §14）
 
-- ✅ **统一检索后端收口**：`GaeaUnifiedSearch` 视图扩展四组——keyword（工作区全文）+
-  semantic（跨库语义）+ **brain（三脑命中，新增；a.brain==nil 时空数组不报错）** +
-  **files（文件语义，新增；复用 GaeaFileSemanticSearch 抽出的私有实现）**；hub 搜索
-  （MemoryHubPage.runSearch）由「4 绑定 Promise.all 前端拼装」（BrainSearch +
-  WorkspaceSearch + SemanticSearch + FileSemanticSearch）收敛为「单次 app.UnifiedSearch」，
-  四组映射回原 HubSearchHit 渲染（徽标/预览/@ 引用零变化）；WorkspaceSearchPanel 跨库
-  模式零改动，kindChip 补 file kind（后端本就返回，前端类型漏声明）。
-- ✅ **归档 tab 永远空白（缺陷修复）**：前端归档 tab 读 `view.archives`，但后端
-  `GaeaMemory()` 的 MemoryView 结构体没有 archives 字段 → 列表永远空白；改
-  `GaeaMemoryArchivedList` 分页加载（每页 50 + 加载更多 + total 展示）。
-- ✅ **恢复能力补齐（Unarchive）**：memory 包补双后端 `Store.Unarchive`（sqlite 置
-  archived=0 + updated_at；file 从 `.archive/<ts>-<name>.md` 移回主目录 + reindex；
-  未归档/已硬删报错）+ 新绑定 `GaeaMemoryUnarchive`（绑定面 497→**498**）+ 归档 tab
-  「恢复」按钮（Rollback 图标/恢复中态/成功后刷新提示）。
-- ✅ **保留期下发展示**：`MemoryArchivedPage` 增 `RetentionDays`（= ArchivedRetention
-  90 天），归档 tab 顶部「归档保留 N 天，超期可清理」，清理确认弹窗文案跟随真实保留期。
-- ✅ **修复漂移脚本单条差异静默放行 bug**：`check-bindings-drift.ps1` 判 `$diff.Count -gt 0`
-  但 PS 5.1 下单条差异 `$diff` 是单个 PSCustomObject（无 .Count）→ `$null -gt 0` 为 False
-  静默放行（实测复现：新增 GaeaMemoryUnarchive 后脚本仍报 OK）；`@()` 强制数组化修复 +
-  负向验证（单条漂移现在 exit 1）+ 脚本恢复 UTF-8 带 BOM（AGENTS.md 编码规范）。
-- ✅ **验证**：Go 全量 **112/112 包**（+6 测试）、eslint **0/0**、tsc 0 errors、vitest
-  **654/654（124 文件，+2）**、绑定面 **498 方法**漂移 PASS（含负向验证）、版本四处统一
-  3.4.0、wails build + 冒烟 /api/health 200；v3.3.0 资产归档 releases/archive/；
-  CHANGELOG / releases/v3.4.0.md / README / AGENTS.md / progress.md 同步；git tag v3.4.0。
+- [ ] **S0.1** AgentRunner 回合级 map 并发加固（batch_executor/execute_one）+ 回归测试
+- [ ] **S0.2** tool.Registry RWMutex + suspended 幽灵名修复
+- [ ] **S0.3** SetGate/SetPermLevel → atomic.Pointer
+- [ ] **S0.4** retry_until 走统一 gated 派发
+- [ ] **S0.5** CI 后端 job 加 `go test -race`
+- [ ] **S0.6** edit_file 工具层实现（最小编辑工具集）
+- [ ] **S0.7** 前端：keepAlive 轮询门控 + 聊天虚拟化 + hex token 化 + i18n 决策
+- [ ] S1.1–S1.4 双空间内核（后端 space 维度/记忆隔离/模型 profile/任务分账）
+- [ ] S2.1–S2.3 双空间壳（前端两视图/页面迁入/bridge 分面）
 
-## 下一阶段候选（v3.2.0 里程碑剩余 + 记忆统一层后续）
+## 纪律（沿用）
 
-- ⏳ 记忆统一层后续：生命周期产品化收尾（归档保留期可配置/批量恢复）、统一检索
-  持续深化（三脑写入路径/跨库事实底座）
-- ⏳ 受控自主（goal gate 深化）：目标验收自动追踪产品化、审批流收敛
-- ⏳ C9 分栏对照（候选清单建议验证真实需求后再启动）
-- ⏳ 前端性能：XlsxPreview Excel 网格虚拟滚动（待真实卡顿反馈）
-- ⏳ 造价数据库体验收口：手册二期、测算项目批量导入/导出、分类树维护界面
+- 每 Step 独立提交可回退；旧数据只读兼容；回退演练纳入验收；不做新板块、不堆功能；
+  docs/ 过时文档一律归档到 `docs/archive/`（权威 = 长期规划 + AGENTS.md + 本文件）。
