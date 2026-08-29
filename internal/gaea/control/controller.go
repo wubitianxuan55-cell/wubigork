@@ -103,6 +103,8 @@ type Controller struct {
 	// approvalTimeout 是审批等待超时（C4 TimedOut）：>0 时审批请求等待超过该
 	// 时长按拒绝处理并发通知（回合继续，不静默放行）；0 = 不超时（默认等待）。
 	approvalTimeout time.Duration
+	// persistAllowRule 是「始终允许」的策略回写回调（见 Options 同名字段）。
+	persistAllowRule func(rule string) error
 
 	// permLevel controls permission strictness: "ask" (prompt before writes, default),
 	// "auto" (allow writes without asking), or "yolo" (skip all prompts).
@@ -125,12 +127,18 @@ type Controller struct {
 	pendingSends []sendRequest
 }
 
+// ApproveDecision 是审批回复的决策语义（C4，对齐 codex ReviewDecision 子集
+// + 策略修订回写）。
+const (
+	DecisionAllowOnce    = "allow_once"    // 允许一次（不记忆）
+	DecisionAllowSession = "allow_session" // 本会话内允许（内存 granted，重启即失）
+	DecisionPersistAllow = "persist_allow" // 始终允许（回写策略文件，跨会话生效）
+	DecisionDeny         = "deny"          // 拒绝但回合继续
+	DecisionAbort        = "abort"         // 拒绝并终止本轮
+)
+
 type approvalReply struct {
-	allow   bool
-	session bool
-	// abort 拒绝并终止本轮（蒸馏 codex ReviewDecision::Abort）：本次调用按
-	// 拒绝处理，同时取消当前回合——与「拒绝但继续」（allow=false）区分。
-	abort bool
+	decision string
 }
 
 // sendRequest 是一条排队等待执行的消息：回合进行中收到 Send 时入队，
@@ -151,14 +159,19 @@ type Options struct {
 	// ApprovalTimeout 是审批等待超时（C4 TimedOut，蒸馏 codex ReviewDecision::TimedOut）：
 	// >0 时无人响应的审批请求在超时后按拒绝处理（回合继续）并发 Notice；0 = 永久等待。
 	ApprovalTimeout time.Duration
-	Runner          agent.Runner
-	Executor        *agent.Agent
-	Sink            event.Sink
-	Policy          permission.Policy
-	Label           string
-	SystemPrompt    string
-	SessionDir      string
-	SessionPath     string
+	// PersistAllowRule 是「始终允许」（persist_allow）的策略回写回调（C4，蒸馏
+	// codex exec_policy 的 append_amendment_and_update）：收到规则串
+	// "ToolName" / "ToolName(subject-glob)" 后持久化到策略文件；nil = 不支持回写
+	// （persist_allow 退化为 allow_session）。回调失败仅记日志，不阻断批准。
+	PersistAllowRule func(rule string) error
+	Runner           agent.Runner
+	Executor         *agent.Agent
+	Sink             event.Sink
+	Policy           permission.Policy
+	Label            string
+	SystemPrompt     string
+	SessionDir       string
+	SessionPath      string
 	// LogFormat 是会话持久化格式（"legacy"/""=旧行为，"event"=事件日志）。
 	// 事件日志模式下：Snapshot 双写（legacy 镜像+日志）、回合开始前落用户
 	// 消息并 flush 检查点（fail-closed）、Resume 走 Restore（checkpoint+tail）。
@@ -202,34 +215,35 @@ func New(opts Options) *Controller {
 		pluginCtx = context.Background()
 	}
 	c := &Controller{
-		runner:          opts.Runner,
-		executor:        opts.Executor,
-		sink:            sink,
-		policy:          opts.Policy,
-		label:           opts.Label,
-		systemPrompt:    opts.SystemPrompt,
-		sessionDir:      opts.SessionDir,
-		sessionPath:     opts.SessionPath,
-		logFormat:       opts.LogFormat,
-		host:            opts.Host,
-		commands:        opts.Commands,
-		skills:          opts.Skills,
-		hooks:           opts.Hooks,
-		mem:             opts.Memory,
-		memoryEnabled:   !opts.MemoryDisabled,
-		cleanup:         opts.Cleanup,
-		balanceURL:      opts.BalanceURL,
-		balanceKey:      opts.BalanceKey,
-		balanceKind:     opts.BalanceKind,
-		jobs:            opts.Jobs,
-		reg:             opts.Registry,
-		pluginCtx:       pluginCtx,
-		ctxMgr:          opts.CtxMgr,
-		permLevel:       "ask",
-		approvalTimeout: opts.ApprovalTimeout,
-		approvals:       map[string]chan approvalReply{},
-		asks:            map[string]chan []event.AskAnswer{},
-		granted:         map[string]bool{},
+		runner:           opts.Runner,
+		executor:         opts.Executor,
+		sink:             sink,
+		policy:           opts.Policy,
+		label:            opts.Label,
+		systemPrompt:     opts.SystemPrompt,
+		sessionDir:       opts.SessionDir,
+		sessionPath:      opts.SessionPath,
+		logFormat:        opts.LogFormat,
+		host:             opts.Host,
+		commands:         opts.Commands,
+		skills:           opts.Skills,
+		hooks:            opts.Hooks,
+		mem:              opts.Memory,
+		memoryEnabled:    !opts.MemoryDisabled,
+		cleanup:          opts.Cleanup,
+		balanceURL:       opts.BalanceURL,
+		balanceKey:       opts.BalanceKey,
+		balanceKind:      opts.BalanceKind,
+		jobs:             opts.Jobs,
+		reg:              opts.Registry,
+		pluginCtx:        pluginCtx,
+		ctxMgr:           opts.CtxMgr,
+		permLevel:        "ask",
+		approvalTimeout:  opts.ApprovalTimeout,
+		persistAllowRule: opts.PersistAllowRule,
+		approvals:        map[string]chan approvalReply{},
+		asks:             map[string]chan []event.AskAnswer{},
+		granted:          map[string]bool{},
 	}
 	// Checkpoints: bind a store to the session and route writer pre-edits into it.
 	if c.executor != nil {
@@ -583,17 +597,16 @@ func (c *Controller) Running() bool {
 	return c.running
 }
 
-// Approve answers a pending ApprovalRequest by ID: allow runs the call, session
-// also remembers a grant for the rest of the session so the same tool+subject
-// isn't re-prompted; abort rejects the call AND cancels the in-flight turn
-// (拒绝并停止本轮). Unknown/expired IDs are ignored.
-func (c *Controller) Approve(id string, allow, session, abort bool) {
+// Approve answers a pending ApprovalRequest by ID with an ApproveDecision
+// (allow_once / allow_session / persist_allow / deny / abort). Unknown/expired
+// IDs and unknown decision strings are ignored.
+func (c *Controller) Approve(id string, decision string) {
 	c.mu.Lock()
 	reply := c.approvals[id]
 	delete(c.approvals, id)
 	c.mu.Unlock()
 	if reply != nil {
-		reply <- approvalReply{allow: allow, session: session, abort: abort} // buffered, never blocks
+		reply <- approvalReply{decision: decision} // buffered, never blocks
 	}
 }
 

@@ -124,7 +124,7 @@ describe("useController 写路径失败可见化（T7-4）", () => {
     });
     expect(useStore.getState().approval?.id).toBe("a1");
 
-    act(() => { result.current.approve("a1", true, false, false); });
+    act(() => { result.current.approve("a1", "deny"); });
     await flush();
 
     expect(useStore.getState().approval?.id).toBe("a1"); // 弹窗保留
@@ -141,7 +141,7 @@ describe("useController 写路径失败可见化（T7-4）", () => {
     act(() => {
       useStore.getState()._dispatch({ type: "event", e: { kind: "approval_request", approval: { id: "a2", tool: "edit_file", subject: "y.md" } } });
     });
-    act(() => { result.current.approve("a2", true, false, false); });
+    act(() => { result.current.approve("a2", "allow_once"); });
     await flush();
 
     expect(useStore.getState().approval).toBeUndefined();

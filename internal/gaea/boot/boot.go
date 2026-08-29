@@ -415,6 +415,19 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		MemoryDisabled: !cfg.Memory.Enabled,
 		// C4 TimedOut：审批等待超时贯通（0 = 不超时，交互场景默认等待）。
 		ApprovalTimeout: time.Duration(cfg.Agent.ApprovalTimeoutSecs) * time.Second,
+		// C4 persist_allow：审批「始终允许」回写 [permissions].allow 策略文件
+		// （编辑器 AtomicWrite + RenderTOML→Load 往返保证；AddPermissionRule
+		// 幂等去重）。加载失败/无配置文件时 Save() 落到 ./gaea.toml。
+		PersistAllowRule: func(rule string) error {
+			pcfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			if err := pcfg.AddPermissionRule("allow", rule); err != nil {
+				return err
+			}
+			return pcfg.Save()
+		},
 		Cleanup:        cleanup,
 		BalanceURL:     entry.BalanceURL,
 		BalanceKey:     entry.APIKey(),

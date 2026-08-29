@@ -568,8 +568,8 @@ export function useController() {
 
   // T7-4：approve/answerQuestion 失败时不清掉弹窗（保留审批/提问界面），
   // 记录日志并提示用户重试；成功后才清除。
-  const approve = useCallback((id: string, allow: boolean, session: boolean, abort: boolean) => {
-    app.Approve(id, allow, session, abort)
+  const approve = useCallback((id: string, decision: "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort") => {
+    app.Approve(id, decision)
       .then(() => dispatch({ type: "clearApproval" }))
       .catch((err) => failWrite(dispatch, "审批提交", err));
   }, [dispatch]);

@@ -72,10 +72,11 @@ func gaeaCtrl() *control.Controller {
 
 // ── 会话 ─────────────────────────────────────────────────────────
 
-// GaeaApprove 审批/拒绝一个待批工具调用；abort=true 表示「拒绝并终止本轮」。
-func (a *App) GaeaApprove(id string, allow, session, abort bool) {
+// GaeaApprove 以决策串答复待批工具调用（allow_once/allow_session/persist_allow/
+// deny/abort，见 control.ApproveDecision）。
+func (a *App) GaeaApprove(id string, decision string) {
 	if c := gaeaCtrl(); c != nil {
-		c.Approve(id, allow, session, abort)
+		c.Approve(id, decision)
 	}
 }
 

@@ -242,6 +242,8 @@ export const en = {
   "approval.allowSessionHint": "Remember this grant for matching requests",
   "approval.abort": "Deny & stop turn",
   "approval.abortHint": "Skip this call and stop the current turn",
+  "approval.persistAlways": "Always allow",
+  "approval.persistAlwaysHint": "Save an allow rule; this call won't ask again",
 
   // ask card
   "ask.customPlaceholder": "Type your own answer…",

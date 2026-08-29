@@ -245,6 +245,8 @@ export const zh: Record<DictKey, string> = {
   "approval.allowSessionHint": "记住这类匹配请求的授权",
   "approval.abort": "拒绝并停止本轮",
   "approval.abortHint": "不执行这次调用，并终止当前回合",
+  "approval.persistAlways": "始终允许",
+  "approval.persistAlwaysHint": "写入允许规则，以后这类调用不再询问",
 
   // 提问卡片
   "ask.customPlaceholder": "输入你自己的答案…",

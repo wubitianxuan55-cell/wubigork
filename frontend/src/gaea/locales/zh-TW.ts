@@ -245,6 +245,8 @@ export const zhTW: Record<DictKey, string> = {
   "approval.allowSessionHint": "記住此授權，用於相符的請求",
   "approval.abort": "拒絕並停止本輪",
   "approval.abortHint": "不執行這次呼叫，並終止當前回合",
+  "approval.persistAlways": "始終允許",
+  "approval.persistAlwaysHint": "寫入允許規則，以後這類呼叫不再詢問",
 
   // ask card
   "ask.customPlaceholder": "輸入你自己的答案…",

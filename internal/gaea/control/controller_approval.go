@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -117,20 +118,39 @@ func (c *Controller) requestApproval(ctx context.Context, tool, subject string, 
 
 	select {
 	case r := <-reply:
-		if r.abort {
+		switch r.decision {
+		case DecisionAbort:
 			// 拒绝并终止本轮（codex ReviewDecision::Abort）：取消当前回合，
 			// agent 循环在下一步采样/闸门检查处快速收敛退出；工具结果按
-			// 拒绝落日志（「拒绝但继续」由 allow=false 表达，两者语义分离）。
+			// 拒绝落日志（「拒绝但继续」由 deny 表达，两者语义分离）。
 			c.Cancel()
 			return false, false, nil
+		case DecisionPersistAllow:
+			// 始终允许（codex ApprovedExecpolicyAmendment）：本会话内先记
+			// granted（与 allow_session 同效），再把规则回写策略文件持久化，
+			// 重启后由 [permissions].allow 直接放行。hardAsk 持久化写入（
+			// alwaysPrompt）完全降级为 allow_session——不记 granted、不回写
+			// （任何级别都不自动放行的硬纪律，frontend 也不渲染该按钮）。
+			if !alwaysPrompt {
+				c.mu.Lock()
+				c.granted[key] = true
+				c.mu.Unlock()
+				c.writebackAllowRule(tool, subject)
+			}
+			return true, false, nil
+		case DecisionAllowSession:
+			if !alwaysPrompt {
+				c.mu.Lock()
+				c.granted[key] = true
+				c.mu.Unlock()
+			}
+			return true, false, nil
+		case DecisionAllowOnce:
+			return true, false, nil
+		default:
+			// deny（含未知决策串的保守处理）：拒绝但回合继续。
+			return false, false, nil
 		}
-		if r.allow && r.session && !alwaysPrompt {
-			c.mu.Lock()
-			c.granted[key] = true
-			c.mu.Unlock()
-		}
-		// remember=false: session grants live here, not in the on-disk policy.
-		return r.allow, false, nil
 	case <-ctx.Done():
 		c.mu.Lock()
 		delete(c.approvals, id)
@@ -148,6 +168,24 @@ func (c *Controller) requestApproval(ctx context.Context, tool, subject string, 
 		}
 		return false, false, nil
 	}
+}
+
+// writebackAllowRule 把 "ToolName" / "ToolName(subject)" 规则经回调回写策略
+// 文件（Options.PersistAllowRule）。失败仅记日志——批准本身已生效（会话
+// granted），持久化是增强而非依赖。不持 c.mu（回调做文件 I/O）。
+func (c *Controller) writebackAllowRule(tool, subject string) {
+	if c.persistAllowRule == nil {
+		return
+	}
+	rule := tool
+	if subject != "" {
+		rule = tool + "(" + subject + ")"
+	}
+	if err := c.persistAllowRule(rule); err != nil {
+		slog.Warn("approval: 策略回写失败（批准仍在本会话生效）", "rule", rule, "error", err)
+		return
+	}
+	slog.Info("approval: 允许规则已回写策略文件", "rule", rule)
 }
 
 // costSaveApprovalSubject 把 cost_save 的参数整理成可读的确认摘要，

@@ -899,8 +899,8 @@ export default function App() {
       {state.approval && (
           <ApprovalModal
             approval={state.approval}
-            onAnswer={(allow, session, abort) => {
-              approve(state.approval!.id, allow, session, !!abort);
+            onAnswer={(decision) => {
+              approve(state.approval!.id, decision);
             }}
           />
         )}

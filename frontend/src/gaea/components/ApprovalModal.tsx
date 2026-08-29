@@ -29,19 +29,32 @@ function PlanBtn({ num, active, title, hint, onClick }: {
   );
 }
 
+// 审批决策（C4，对齐 control.ApproveDecision 与 codex ReviewDecision 子集）：
+// deny=拒绝但继续 / allow_once=允许一次 / allow_session=本会话内允许 /
+// persist_allow=始终允许（回写策略文件）/ abort=拒绝并终止本轮。
+export type ApprovalDecision = "allow_once" | "allow_session" | "persist_allow" | "deny" | "abort";
+
+// 快捷键固定映射（与按钮序号一致；hardAsk 隐藏的按钮对应按键不响应）。
+const KEY_DECISIONS: Record<string, ApprovalDecision> = {
+  "1": "deny",
+  "2": "allow_once",
+  "3": "allow_session",
+  "4": "persist_allow",
+  "5": "abort",
+};
+
 export function ApprovalModal({
   approval,
   onAnswer,
 }: {
   approval: WireApproval;
-  // abort=true：拒绝并终止本轮（codex ReviewDecision::Abort 语义）。
-  onAnswer: (allow: boolean, session: boolean, abort?: boolean) => void;
+  onAnswer: (decision: ApprovalDecision) => void;
   onRevisePlan?: (text: string) => void;
 }) {
   const t = useT();
   const cardRef = useRef<HTMLDivElement | null>(null);
   // 持久化写入（成本库/记忆/知识库）必须逐条确认：
-  // 不提供「本会话允许」，批准仅本次生效。
+  // 不提供「本会话内允许」「始终允许」，批准仅本次生效。
   const HARD_ASK_TOOLS = ["cost_save", "remember", "knowledge_add", "promote_session_facts"];
   const isHardAsk = HARD_ASK_TOOLS.includes(approval.tool);
 
@@ -51,12 +64,16 @@ export function ApprovalModal({
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
-      if (!["1", "2", "3", "4", "Escape"].includes(event.key)) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onAnswer("deny");
+        return;
+      }
+      const decision = KEY_DECISIONS[event.key];
+      if (!decision) return;
+      if (isHardAsk && (decision === "allow_session" || decision === "persist_allow")) return;
       event.preventDefault();
-      if (event.key === "1" || event.key === "Escape") onAnswer(false, false);
-      else if (event.key === "2") onAnswer(true, false);
-      else if (event.key === "3") onAnswer(isHardAsk ? false : true, isHardAsk ? false : true);
-      else if (event.key === "4") onAnswer(false, false, true);
+      onAnswer(decision);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -94,12 +111,15 @@ export function ApprovalModal({
         )}
 
         <div className="flex flex-col gap-1.5">
-          <PlanBtn num={1} title={t("approval.deny")} hint={t("approval.denyHint")} onClick={() => onAnswer(false, false)} />
-          <PlanBtn num={2} active title={t("approval.allowOnce")} hint={t("approval.allowOnceHint")} onClick={() => onAnswer(true, false)} />
+          <PlanBtn num={1} title={t("approval.deny")} hint={t("approval.denyHint")} onClick={() => onAnswer("deny")} />
+          <PlanBtn num={2} active title={t("approval.allowOnce")} hint={t("approval.allowOnceHint")} onClick={() => onAnswer("allow_once")} />
           {!isHardAsk && (
-            <PlanBtn num={3} title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => onAnswer(true, true)} />
+            <PlanBtn num={3} title={t("approval.allowSession")} hint={t("approval.allowSessionHint")} onClick={() => onAnswer("allow_session")} />
           )}
-          <PlanBtn num={4} title={t("approval.abort")} hint={t("approval.abortHint")} onClick={() => onAnswer(false, false, true)} />
+          {!isHardAsk && (
+            <PlanBtn num={4} title={t("approval.persistAlways")} hint={t("approval.persistAlwaysHint")} onClick={() => onAnswer("persist_allow")} />
+          )}
+          <PlanBtn num={isHardAsk ? 3 : 5} title={t("approval.abort")} hint={t("approval.abortHint")} onClick={() => onAnswer("abort")} />
         </div>
         {isHardAsk && (
           <div className="mt-2 text-[11px] text-fg-faint leading-snug">

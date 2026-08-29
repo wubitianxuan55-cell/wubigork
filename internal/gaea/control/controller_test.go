@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -39,7 +40,7 @@ func approvalIDs() (*Controller, chan string, *int) {
 // the (fake) frontend answers allow, and the gate returns allow with no grant.
 func TestApprovalAllowOnce(t *testing.T) {
 	c, ids, _ := approvalIDs()
-	go func() { c.Approve(<-ids, true, false, false) }()
+	go func() { c.Approve(<-ids, DecisionAllowOnce) }()
 
 	allow, remember, err := gateApprover{c}.Approve(context.Background(), "bash", "go test", nil)
 	if err != nil || !allow || remember {
@@ -50,7 +51,7 @@ func TestApprovalAllowOnce(t *testing.T) {
 // TestApprovalDeny confirms a declined call returns allow=false.
 func TestApprovalDeny(t *testing.T) {
 	c, ids, _ := approvalIDs()
-	go func() { c.Approve(<-ids, false, false, false) }()
+	go func() { c.Approve(<-ids, DecisionDeny) }()
 
 	allow, _, err := gateApprover{c}.Approve(context.Background(), "bash", "rm -rf /", nil)
 	if err != nil || allow {
@@ -64,7 +65,7 @@ func TestApprovalSessionGrant(t *testing.T) {
 	c, ids, prompts := approvalIDs()
 	go func() {
 		for id := range ids {
-			c.Approve(id, true, true, false)
+			c.Approve(id, DecisionAllowSession)
 		}
 	}()
 
@@ -94,7 +95,7 @@ func TestCostSaveAlwaysRequiresApproval(t *testing.T) {
 	}()
 	select {
 	case id := <-ids:
-		c.Approve(id, true, true, false) // 用户选「本会话允许」
+		c.Approve(id, DecisionAllowSession) // 用户选「本会话允许」
 	case <-time.After(2 * time.Second):
 		t.Fatal("yolo 下 cost_save 未触发审批，被自动放行")
 	}
@@ -108,7 +109,7 @@ func TestCostSaveAlwaysRequiresApproval(t *testing.T) {
 	}()
 	select {
 	case id := <-ids:
-		c.Approve(id, true, false, false)
+		c.Approve(id, DecisionAllowOnce)
 	case <-time.After(2 * time.Second):
 		t.Fatal("cost_save 被会话放行记忆跳过，未再次审批")
 	}
@@ -143,7 +144,7 @@ func TestMemoryWriteAlwaysRequiresApproval(t *testing.T) {
 		}()
 		select {
 		case id := <-ids:
-			c.Approve(id, true, true, false) // 选「本会话允许」
+			c.Approve(id, DecisionAllowSession) // 选「本会话允许」
 		case <-time.After(2 * time.Second):
 			t.Fatalf("%s 在 yolo 下未触发审批，被自动放行", tool)
 		}
@@ -194,7 +195,7 @@ func TestApprovalAbort(t *testing.T) {
 	c.cancel = func() { cancelled <- struct{}{} }
 	c.mu.Unlock()
 
-	go func() { c.Approve(<-ids, false, false, true) }()
+	go func() { c.Approve(<-ids, DecisionAbort) }()
 
 	allow, remember, err := gateApprover{c}.Approve(context.Background(), "bash", "rm -rf /", nil)
 	if err != nil || allow || remember {
@@ -240,5 +241,74 @@ func TestApprovalTimeout(t *testing.T) {
 		t.Fatal("默认 0 超时配置下不应在 ctx 超时前返回（仍应等待用户）")
 	case <-ctx.Done():
 		// 预期：ctx 先超时（等待被 ctx 打断），审批仍挂起
+	}
+}
+
+// TestApprovalPersistAllow 验证「始终允许」（codex 策略修订回写）：批准生效，
+// 回写回调收到 "ToolName(subject)" 规则串；回调失败不阻断批准；hardAsk 工具
+// （alwaysPrompt）完全降级——不记会话放行、不回写。
+func TestApprovalPersistAllow(t *testing.T) {
+	rules := make(chan string, 8)
+	c, ids, _ := approvalIDs()
+	c.persistAllowRule = func(rule string) error { rules <- rule; return nil }
+
+	go func() { c.Approve(<-ids, DecisionPersistAllow) }()
+	allow, remember, err := gateApprover{c}.Approve(context.Background(), "bash", "rm -rf /*", nil)
+	if err != nil || !allow || remember {
+		t.Fatalf("persist_allow = (%v,%v,%v), want allow", allow, remember, err)
+	}
+	select {
+	case r := <-rules:
+		if r != "bash(rm -rf /*)" {
+			t.Fatalf("回写规则异常: %q", r)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("回写回调未被调用")
+	}
+	// 会话放行也应生效：第二次同 subject 不再弹审批
+	allow2, _, _ := gateApprover{c}.Approve(context.Background(), "bash", "rm -rf /*", nil)
+	if !allow2 {
+		t.Fatal("persist 后同 subject 应直接放行")
+	}
+}
+
+func TestApprovalPersistAllowFailureStillAllows(t *testing.T) {
+	c, ids, _ := approvalIDs()
+	c.persistAllowRule = func(rule string) error { return fmt.Errorf("disk full") }
+
+	go func() { c.Approve(<-ids, DecisionPersistAllow) }()
+	allow, _, err := gateApprover{c}.Approve(context.Background(), "bash", "go test", nil)
+	if err != nil || !allow {
+		t.Fatalf("回写失败不应阻断批准: allow=%v err=%v", allow, err)
+	}
+}
+
+func TestApprovalPersistHardAskDegrades(t *testing.T) {
+	c, ids, _ := approvalIDs()
+	written := 0
+	c.persistAllowRule = func(rule string) error { written++; return nil }
+
+	// hardAsk（cost_save，alwaysPrompt）：persist_allow 降级为逐条确认的一次性放行
+	go func() { c.Approve(<-ids, DecisionPersistAllow) }()
+	allow, remember, err := gateApprover{c}.Approve(context.Background(), "cost_save", "", json.RawMessage(`{"title":"测试"}`))
+	if err != nil || !allow || remember {
+		t.Fatalf("hardAsk persist 降级 = (%v,%v,%v), want allow-once", allow, remember, err)
+	}
+	if written != 0 {
+		t.Fatal("hardAsk 不应回写策略文件")
+	}
+	// 且不记会话放行：第二次仍弹审批
+	prompts := 0
+	done := make(chan bool, 1)
+	go func() {
+		id := <-ids
+		prompts++
+		c.Approve(id, DecisionAllowOnce)
+		done <- true
+	}()
+	allow2, _, _ := gateApprover{c}.Approve(context.Background(), "cost_save", "", json.RawMessage(`{"title":"测试2"}`))
+	<-done
+	if !allow2 || prompts != 1 {
+		t.Fatalf("hardAsk 第二次仍应弹审批: allow=%v prompts=%d", allow2, prompts)
 	}
 }
