@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/event"
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
@@ -30,6 +33,10 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	if a.evidence != nil {
 		a.evidence.Reset()
 	}
+	// v4.1 证据链：回合号自增 + 清空变更台账；回合结束（含错误路径）flush Journal。
+	a.turnSeq++
+	a.changes.Reset()
+	defer a.flushJournal()
 	a.sink.Emit(event.Event{Kind: event.TurnStarted})
 	// wrap user input with transient language preference blocks
 	// (Design adopted from DeepSeek-Reasonix-V1.12)
@@ -395,6 +402,43 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 	// is already in the session, so the user can just send another message to pick
 	// up where it left off.
 	return buildTurnResult(turnFilesCreated, turnFilesModified, turnToolErrors, turnLastSummary), fmt.Errorf("paused after %d tool-call rounds (agent.max_steps)", a.maxSteps)
+}
+
+// flushJournal 回合收尾：把本回合 work 空间的变更证据卡写入 Journal
+// （JSONL 追加 + 导出 markdown 投影）。play 回合不落盘（设计红线：
+// 乐园是创作空间，不做审计）。journalDir 为空（未启用）时静默跳过。
+func (a *AgentRunner) flushJournal() {
+	if a.journalDir == "" {
+		return
+	}
+	recs := a.changes.Records()
+	if len(recs) == 0 {
+		return
+	}
+	// 红线：只落 work；play 回合即使有写盘工具调用也整体丢弃。
+	if a.session.Space() != "work" {
+		return
+	}
+	st, err := evidence.OpenJournal(a.journalDir)
+	if err != nil {
+		return
+	}
+	now := time.Now().UnixMilli()
+	for i := range recs {
+		recs[i].Space = "work"
+		recs[i].SessionID = a.sessionID
+		recs[i].Turn = a.turnSeq
+		recs[i].At = now
+		if recs[i].ID == "" {
+			recs[i].ID = fmt.Sprintf("%s-%d-%d", a.sessionID, a.turnSeq, i)
+		}
+		if err := st.Append(recs[i]); err != nil {
+			continue // 单卡失败不阻断回合（证据链尽力而为）
+		}
+	}
+	// markdown 投影：<journalDir>/../exports/journal/<session>/turn-<n>.md
+	exportsJournalDir := filepath.Join(filepath.Dir(a.journalDir), "exports", "journal")
+	_, _ = st.WriteTurnMarkdown(exportsJournalDir, a.sessionID, a.turnSeq, recs)
 }
 
 // buildTurnResult assembles a TurnResult from per-turn tracking variables.

@@ -94,7 +94,10 @@
   evidence.Record（原文摘要/来源/模型/时间戳/回滚信息）+ Apply→Verify→Journal
   三段式 + Verifier 双通道（结构/引用完整性 + PDF 视觉 diff）+ 基线快照回滚
   （用户手工编辑冲突保护）+ GB/T 9704 红头 lint 第一刀；Step 拆 v4.1a/b/c
-- [ ] v4.1a 证据链（evidence.Record 落库 + xlsx/edit_file 接入 + Journal 投影 + 前端入口）
+- [x] **v4.1a 证据链核心**：ChangeRecord（原文摘要 8KB）+ ChangeLedger（ctx 盖章）
+  + JournalStore（JSONL 追加 + turn markdown 投影）；AgentRunner 回合收尾 flush
+  （play 不落盘红线）；edit_file/write_file/move_file 接入上报
+- [ ] v4.1a2（multi_edit/edit_lines 摘要 + xlsx_apply 接入 + 前端「证据」入口）
 - [ ] v4.1b Verifier（通道 A 公式重算/引用 + 通道 B PDF 视觉 diff + verdict 状态机）
 - [ ] v4.1c 规范包（GB/T 9704 红头 lint + 体检报告）
 

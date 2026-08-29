@@ -354,6 +354,8 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 		ContextWindow: entry.ContextWindow,
 		Compaction:    agent.CompactionConfig{ArchiveDir: config.ArchiveDir()},
 		Dispatcher:    toolDispatcher,
+		// v4.1 证据链 Journal 目录（work 空间；play 回合由 agent 红线过滤不落盘）。
+		JournalDir: filepath.Join(cwd, ".gaea", "work", "journal"),
 	}, sink)
 
 	// V7.0: session archive for cross-session Dream/Distill
@@ -478,17 +480,17 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			}
 			return pcfg.Save()
 		},
-		Cleanup:        cleanup,
-		BalanceURL:     entry.BalanceURL,
-		BalanceKey:     entry.APIKey(),
+		Cleanup:    cleanup,
+		BalanceURL: entry.BalanceURL,
+		BalanceKey: entry.APIKey(),
 		// 3.0 Wave 4：余额后端 kind 从 ProviderEntry 贯通（空 = controller 按
 		// 历史默认 deepseek 形状；配置 balance_kind 即切换，代码零改动）。
-		BalanceKind: entry.BalanceKind,
-		Jobs:           jm,
-		Registry:       reg,
-		PluginCtx:      ctx,
-		CtxMgr:         ctxMgr,
-		WorkspaceRoot:  cwd,
+		BalanceKind:   entry.BalanceKind,
+		Jobs:          jm,
+		Registry:      reg,
+		PluginCtx:     ctx,
+		CtxMgr:        ctxMgr,
+		WorkspaceRoot: cwd,
 	}
 	ctrl := control.New(ctrlOpts)
 	// 事件日志 sink 的会话路径只有控制构建完成后才可知（首次对话自动创建 /

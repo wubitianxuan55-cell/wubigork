@@ -140,6 +140,9 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 		// 显式设为 true 后保留，不在每轮工具调用时重置。
 		cctx = evidence.WithLedger(cctx, a.evidence)
 	}
+	// v4.1 证据链：把变更台账盖章进工具 ctx（与 WithLedger 同位注入）——
+	// 写盘工具（edit_file/write_file/move_file）成功后经 evidence.RecordChange 上报。
+	cctx = evidence.WithChanges(cctx, a.changes)
 	if a.jobs != nil {
 		cctx = jobs.WithManager(cctx, a.jobs)
 	}

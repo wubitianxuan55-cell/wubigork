@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
@@ -104,6 +105,13 @@ func (m moveFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 			return "", fmt.Errorf("move %s → %s: copied but could not remove source: %w", src, dst, rmErr)
 		}
 	}
+	// v4.1 证据链：记录移动映射（Target=目标路径；Before/After 标注来源→去向）。
+	evidence.RecordChange(ctx, evidence.ChangeRecord{
+		Tool:          "move_file",
+		Target:        dst,
+		BeforeSummary: "→ moved from " + src,
+		AfterSummary:  dst,
+	})
 	return fmt.Sprintf("moved %s → %s", src, dst), nil
 }
 

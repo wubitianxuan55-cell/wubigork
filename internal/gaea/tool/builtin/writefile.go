@@ -9,6 +9,7 @@ import (
 
 	"github.com/gaea/gaea/internal/gaea/tool"
 
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	fileenc "github.com/gaea/gaea/internal/gaea/fileutil/encoding"
 )
 
@@ -61,15 +62,24 @@ func (w writeFile) Execute(ctx context.Context, args json.RawMessage) (string, e
 	// Preserve original file permissions.
 	mode := os.FileMode(0o644)
 	enc := fileenc.UTF8 // new files default to UTF-8
+	before := ""        // v4.1 证据链：旧文件原文（写前捕获，仅旧文件存在时）
 	if fi, err := os.Stat(p.Path); err == nil {
 		mode = fi.Mode().Perm()
 		// Preserve the original encoding when overwriting an existing file.
-		if _, existingEnc, err := readFileEncoded(p.Path); err == nil {
+		if oldContent, existingEnc, err := readFileEncoded(p.Path); err == nil {
 			enc = existingEnc
+			before = oldContent
 		}
 	}
 	if err := writeFileEncoded(p.Path, p.Content, enc, mode); err != nil {
 		return "", fmt.Errorf("write %s: %w", p.Path, err)
 	}
+	// v4.1 证据链：整文件覆盖的 Before/After 原文摘要（Before 仅旧文件存在时）。
+	evidence.RecordChange(ctx, evidence.ChangeRecord{
+		Tool:          "write_file",
+		Target:        p.Path,
+		BeforeSummary: before,
+		AfterSummary:  p.Content,
+	})
 	return fmt.Sprintf("wrote %d bytes to %s", len(p.Content), p.Path), nil
 }

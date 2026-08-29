@@ -64,6 +64,11 @@ type Options struct {
 	// Sub-agents set this to true so the verify gate doesn't inject
 	// "[system] All tasks complete" into their fresh session.
 	DisableVerify bool
+
+	// JournalDir 是 v4.1 证据链 Journal 目录（<cwd>/.gaea/work/journal）。
+	// 空 = 关闭证据链（旧形态/测试缺省）。回合结束把变更证据卡写入
+	// JSONL + markdown 投影（play 回合不落盘，红线）。
+	JournalDir string
 }
 
 // StormBreaker tracks repeated failures to detect death spirals (V3.0 Phase 4).

@@ -284,6 +284,11 @@ type AgentRunner struct {
 	// evidence is a per-user-turn ledger of host-observed tool receipts. It lets
 	// complete_step validate that cited evidence happened before the claim.
 	evidence *evidence.Ledger
+	// changes 是 v4.1 证据链的每回合变更台账（Apply 工具经 ctx 上报，回合收尾
+	// flushJournal 写入 Journal）。play 回合不落盘（设计红线）。
+	changes    *evidence.ChangeLedger
+	journalDir string
+	turnSeq    int
 
 	// memQueue, when non-nil, lets the remember/forget tools fold a turn-tail note
 	// about a just-made memory change into the next turn, so it applies this
@@ -592,6 +597,8 @@ func New(prov provider.LLMProvider, tools *tool.Registry, session *Session, opts
 		hooks:         hooks,
 		jobs:          opts.Jobs,
 		evidence:      evidence.NewLedger(),
+		changes:       evidence.NewChangeLedger(),
+		journalDir:    opts.JournalDir,
 		compaction:    comp,
 		keepPolicy:    comp.KeepPolicy,
 		dispatcher:    opts.Dispatcher,

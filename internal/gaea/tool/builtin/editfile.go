@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	fileenc "github.com/gaea/gaea/internal/gaea/fileutil/encoding"
 	"github.com/gaea/gaea/internal/gaea/tool"
@@ -79,6 +80,14 @@ func (e editFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	if err := atomicWriteEncoded(p.Path, newContent, enc); err != nil {
 		return "", fmt.Errorf("write %s: %w", p.Path, err)
 	}
+	// v4.1 证据链：记录本次替换的原文/新文摘要（old_string/new_string 即变更
+	// 区域的原文摘要，非展示截断文本）。ctx 无台账时静默跳过。
+	evidence.RecordChange(ctx, evidence.ChangeRecord{
+		Tool:          "edit_file",
+		Target:        p.Path,
+		BeforeSummary: p.OldString,
+		AfterSummary:  p.NewString,
+	})
 	return fmt.Sprintf("edited %s: %d occurrence(s) replaced (+%d/-%d bytes)",
 		p.Path, n, n*len(p.NewString), n*len(p.OldString)), nil
 }

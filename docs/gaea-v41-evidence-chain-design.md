@@ -116,3 +116,17 @@ type Record struct {
 2. 回滚冲突保护：目标被手工改过 → 拒绝回滚，零覆盖。
 3. 旧会话/旧产物只读兼容，无迁移报错。
 4. play 会话不产生任何 evidence.Record。
+
+## 11. v4.1a 落地记录（2026-08-29）
+
+- `internal/gaea/evidence/journal.go`：`ChangeRecord`（Before/After 原文摘要，8KB 上限）、
+  `ChangeLedger`（回合内存台账，ctx 盖章）、`JournalStore`（按会话 JSONL 追加 +
+  turn markdown 投影）。
+- 接线：`AgentRunner` 持有台账 + `journalDir`（Options.JournalDir，boot 注入
+  `.gaea/work/journal`）；回合收尾 `flushJournal` 落盘 JSONL + 导出
+  `.gaea/work/exports/journal/<session>/turn-<n>.md`；**play 回合整体不落盘**（红线）。
+- 工具接入：edit_file / write_file / move_file 成功后经 `evidence.RecordChange`
+  上报（ctx 无台账静默——直调/dev/旧后端兼容）。
+- 验证：evidence/builtin/agent 全量 Go 测试绿。
+- **未做（v4.1a2）**：multi_edit/edit_lines 逐条摘要、xlsx_apply 接入（App 层 Apply
+  入口）、前端「证据」入口（复用 DeliverablesPanel）、Verifier（v4.1b）。
