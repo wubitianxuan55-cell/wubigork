@@ -485,11 +485,15 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 // touchMemoryCitations 解析最终回复中的 [MEM:name] 引用并触达对应记忆（更新
 // last_used_at，高频排序与前端引用徽标同源）——记忆引用可追溯的回传侧。
 // 静默：记忆关闭/未命中/未知键都不报错，不影响回合结果。
+//
+// S1.2 B 读端隔离器：解析限定当前会话空间——c.SessionSpace() 是会话路径归属
+// 的写入侧空间自描述（"work"/"play"；space.mode=off 时 ""=不过滤=旧行为，
+// 不强行归一 work 以免 off 模式旧数据不可见）。跨空间键不命中不 Touch。
 func (c *Controller) touchMemoryCitations() {
 	if c.mem == nil || !c.memoryEnabled {
 		return
 	}
-	c.mem.ResolveCitations(lastAssistantText(c.History()))
+	c.mem.ResolveCitations(lastAssistantText(c.History()), c.SessionSpace())
 }
 
 // lastAssistantText returns the content of the most recent assistant message with

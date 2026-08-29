@@ -472,3 +472,11 @@ func (b *fileBackend) Get(name string) (Memory, bool) {
 	}
 	return loadMemory(filepath.Join(b.Dir, name+".md"))
 }
+
+// GetInSpace / TouchInSpace 是 Get/Touch 的空间谓词版（S1.2 B 接口完备性）：
+// file 后端按项目目录天然隔离、无空间维度（与 ListInSpace 同理），空间谓词
+// 版与 Get/Touch 等价——space 参数忽略。
+func (b *fileBackend) GetInSpace(name, _ string) (Memory, bool) { return b.Get(name) }
+
+// TouchInSpace 见 GetInSpace：file 后端 Touch 本为 no-op，空间谓词版同形。
+func (b *fileBackend) TouchInSpace(name, _ string) error { return b.Touch(name) }

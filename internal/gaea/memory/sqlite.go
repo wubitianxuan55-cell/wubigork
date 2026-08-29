@@ -18,7 +18,12 @@ type sqliteBackend struct {
 }
 
 func (b *sqliteBackend) Index() string {
-	mems := b.List()
+	return renderIndex(b.List())
+}
+
+// renderIndex 把事实列表渲染成注入用索引文本（sqliteBackend.Index 与
+// spaceView.Index 共用，S1.2 B 空间收窄视图复用同一渲染，保证形状一致）。
+func renderIndex(mems []Memory) string {
 	if len(mems) == 0 {
 		return ""
 	}
@@ -149,13 +154,28 @@ func (b *sqliteBackend) ChangeType(name string, newType Type) error {
 
 // Touch 更新事实的 last_used_at（记录「最近一次被使用」用于高频排序）。
 func (b *sqliteBackend) Touch(name string) error {
+	return b.touchInSpace(name, "")
+}
+
+// TouchInSpace 是 Touch 的空间谓词版（S1.2 B 读端隔离器）：space 为空 = 旧行为
+// （全空间）；非空时仅触达该空间的活跃事实——跨空间键不命中、不动行
+//（citations 回传触达的空间限定走此处）。
+func (b *sqliteBackend) TouchInSpace(name, space string) error {
+	return b.touchInSpace(name, space)
+}
+
+func (b *sqliteBackend) touchInSpace(name, space string) error {
 	name = slug(name)
 	if name == "" {
 		return fmt.Errorf("memory needs a name")
 	}
-	_, err := b.db.Exec(
-		`UPDATE facts SET last_used_at=? WHERE project=? AND name=? AND archived=0`,
-		time.Now().UTC().Format(time.RFC3339), b.project, name)
+	query := `UPDATE facts SET last_used_at=? WHERE project=? AND name=? AND archived=0`
+	args := []any{time.Now().UTC().Format(time.RFC3339), b.project, name}
+	if space != "" {
+		query += ` AND space_id=?`
+		args = append(args, space)
+	}
+	_, err := b.db.Exec(query, args...)
 	return err
 }
 
@@ -170,7 +190,9 @@ func (b *sqliteBackend) ListInSpace(space string) []Memory {
 }
 
 func (b *sqliteBackend) listInSpace(space string) []Memory {
-	query := `SELECT name, title, description, type, kind, tags, body, created_at, updated_at, last_used_at, source_session, source_message
+	// S1.2 B：SELECT 补回 space_id 列并回填 m.Space（供展示/调试与跨空间
+	// 冲突审计读取）；空间谓词语义不变——space 为空不过滤（旧行为恒真）。
+	query := `SELECT name, title, description, type, kind, tags, body, space_id, created_at, updated_at, last_used_at, source_session, source_message
 		 FROM facts WHERE project=? AND archived=0`
 	args := []any{b.project}
 	if space != "" {
@@ -187,7 +209,7 @@ func (b *sqliteBackend) listInSpace(space string) []Memory {
 	for rows.Next() {
 		var m Memory
 		var typ, kind, tags, created, updated, lastUsed, srcSession, srcMessage string
-		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body,
+		if err := rows.Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body, &m.Space,
 			&created, &updated, &lastUsed, &srcSession, &srcMessage); err != nil {
 			continue
 		}
@@ -324,14 +346,30 @@ func (b *sqliteBackend) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, err
 // Get returns one active fact by name (used by the memory_get tool and the
 // controller when the backend is SQLite).
 func (b *sqliteBackend) Get(name string) (Memory, bool) {
+	return b.getInSpace(name, "")
+}
+
+// GetInSpace 是 Get 的空间谓词版（S1.2 B 读端隔离器）：space 为空 = 旧行为
+// （全空间可读）；非空时仅命中该空间的活跃事实，跨空间键返回 false（等同
+// 未知键静默——citations / memory_get 的空间限定走此处）。
+func (b *sqliteBackend) GetInSpace(name, space string) (Memory, bool) {
+	return b.getInSpace(name, space)
+}
+
+func (b *sqliteBackend) getInSpace(name, space string) (Memory, bool) {
 	name = slug(name)
 	var m Memory
 	var typ, kind, tags, lastUsed, srcSession, srcMessage string
-	err := b.db.QueryRow(
-		`SELECT name, title, description, type, kind, tags, body, last_used_at, source_session, source_message
-		 FROM facts WHERE project=? AND name=? AND archived=0`,
-		b.project, name).Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body,
-		&lastUsed, &srcSession, &srcMessage)
+	// space_id 一并回填（S1.2 B，供跨空间同名冲突审计读取归属）。
+	query := `SELECT name, title, description, type, kind, tags, body, space_id, last_used_at, source_session, source_message
+		 FROM facts WHERE project=? AND name=? AND archived=0`
+	args := []any{b.project, name}
+	if space != "" {
+		query += ` AND space_id=?`
+		args = append(args, space)
+	}
+	err := b.db.QueryRow(query, args...).Scan(&m.Name, &m.Title, &m.Description, &typ, &kind, &tags, &m.Body,
+		&m.Space, &lastUsed, &srcSession, &srcMessage)
 	if err != nil {
 		return Memory{}, false
 	}

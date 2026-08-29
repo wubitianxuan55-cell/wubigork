@@ -79,6 +79,36 @@ func TestSearchSkipsNoiseDirs(t *testing.T) {
 	}
 }
 
+// S1.2 双空间（docs/gaea-memory-isolation-design.md §检索面地图）：play 产物
+// 分区（.gaea/play/exports）并入噪音规则——play 交付物不进共享关键词检索面
+//（工位搜索不可见乐园产物），.gaea/exports（work 交付产物）仍可被索引。
+func TestSearchSkipsPlayExports(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "docs", "方案.md"), "成本方案正文")
+	write(t, filepath.Join(dir, ".gaea", "exports", "工位周报.md"), "工位交付产物成本总结")
+	write(t, filepath.Join(dir, ".gaea", "play", "exports", "游戏攻略.md"), "游戏攻略成本攻略内容")
+
+	hits := Search(dir, "成本", 10)
+	foundWorkExport, foundDoc := false, false
+	for _, h := range hits {
+		if strings.HasPrefix(h.Path, ".gaea/play/") {
+			t.Fatalf("play 产物分区泄漏进检索面: %s", h.Path)
+		}
+		if h.Path == ".gaea/exports/工位周报.md" {
+			foundWorkExport = true
+		}
+		if h.Path == "docs/方案.md" {
+			foundDoc = true
+		}
+	}
+	if !foundWorkExport {
+		t.Fatalf("work 交付产物应可被索引: %+v", hits)
+	}
+	if !foundDoc {
+		t.Fatalf("常规文件应命中: %+v", hits)
+	}
+}
+
 func TestSearchFilenameFallback(t *testing.T) {
 	dir := t.TempDir()
 	// 文件名含关键词，但正文不含：应靠文件名保底命中。

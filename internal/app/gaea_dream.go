@@ -30,6 +30,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/memory"
 	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // gaeaDreamState 单飞状态：同一时刻最多一个整理任务在跑。
@@ -78,8 +79,28 @@ type dreamResult struct {
 	Notes []dreamNote `json:"notes"`
 }
 
-// maybeDreamAfterTurn 在轮次成功后触发后台「自动做梦」（单飞）。
-func (a *App) maybeDreamAfterTurn() {
+// gaeaSessionSpace 返回当前办公会话的空间（S1.2 A dream 空间化的取值单点）：
+//   - 引擎已初始化 → ctrl.SessionSpace()（会话路径归属的写入侧空间自描述：
+//     "work"/"play"；space.mode=off 平铺形态为 ""=无空间维度）；
+//   - 引擎未初始化（事件早于构建完成等）→ 回退配置生效空间 gaeaEffectiveSpace()
+//     （mode=off 同样为 ""）。
+//
+// 返回值保持原样不归一：off 模式的 "" 必须原样传给指纹/写入层（指纹退化为
+// 纯内容形态、SaveDreamFacts 写侧统一 Normalize 兜底 work），严格等价旧行为。
+func gaeaSessionSpace() string {
+	ga.mu.Lock()
+	ctrl := ga.ctrl
+	ga.mu.Unlock()
+	if ctrl != nil {
+		return ctrl.SessionSpace()
+	}
+	return gaeaEffectiveSpace()
+}
+
+// maybeDreamAfterTurn 在轮次成功后触发后台「自动做梦」（单飞）。space 是触发
+// 会话的空间（gaeaSessionSpace()）：整轮整理（指纹、落库、notes 分流）都限定
+// 在该空间内进行，防 play 会话内容写进 work 记忆。
+func (a *App) maybeDreamAfterTurn(space string) {
 	gaeaDreamState.Lock()
 	if gaeaDreamState.running {
 		gaeaDreamState.Unlock()
@@ -95,14 +116,15 @@ func (a *App) maybeDreamAfterTurn() {
 			gaeaDreamState.last = time.Now()
 			gaeaDreamState.Unlock()
 		}()
-		if err := a.runDream(); err != nil {
+		if err := a.runDream(space); err != nil {
 			slog.Debug("gaea dream skipped", "err", err)
 		}
 	}()
 }
 
 // runDream 执行一轮记忆整理：取最后一轮对话 → 模型提炼 → 写入长期记忆。
-func (a *App) runDream() error {
+// space 为触发会话的空间（""=space.mode=off 平铺形态，行为与改造前一致）。
+func (a *App) runDream(space string) error {
 	c := gaeaCtrl()
 	if c == nil || c.Memory() == nil {
 		return fmt.Errorf("memory unavailable")
@@ -112,7 +134,10 @@ func (a *App) runDream() error {
 		return fmt.Errorf("no worthwhile content")
 	}
 	input := dreamInput(msgs)
-	hash := dreamInputHash(input)
+	// S1.2 A：指纹键含会话空间——同内容跨空间不共用指纹（play 会话内容与
+	// work 相同时不得误命中 work 指纹而跳过提炼）；space 为空（mode=off）时
+	// 键内无空间成分，等价纯内容指纹（旧行为）。
+	hash := dreamInputHash(space, input)
 	gaeaDreamState.Lock()
 	dup := hash == gaeaDreamState.lastHash
 	gaeaDreamState.Unlock()
@@ -144,27 +169,11 @@ func (a *App) runDream() error {
 		return err
 	}
 
-	saved, err := c.SaveDreamFacts("auto_dream", toDreamMemories(res.Facts))
+	saved, err := c.SaveDreamFacts(space, "auto_dream", toDreamMemories(res.Facts))
 	if err != nil {
 		return err
 	}
-	notes := 0
-	for _, n := range res.Notes {
-		note := strings.TrimSpace(n.Note)
-		if note == "" {
-			continue
-		}
-		scope := memory.ScopeLocal
-		switch n.Scope {
-		case "user":
-			scope = memory.ScopeUser
-		case "project":
-			scope = memory.ScopeProject
-		}
-		if _, err := c.QuickAdd(scope, note); err == nil {
-			notes++
-		}
-	}
+	notes := dreamWriteNotes(c, space, res.Notes)
 	if saved > 0 || notes > 0 {
 		a.emit("gaea-event", gaeaEventMap(event.Event{
 			Kind:  event.Notice,
@@ -181,9 +190,52 @@ func (a *App) runDream() error {
 }
 
 // dreamInputHash 返回整理输入的内容指纹（sha256 hex，sha256 无空串歧义）。
-func dreamInputHash(input string) string {
-	sum := sha256.Sum256([]byte(input))
+// S1.2 A 双空间：指纹键含会话空间（space+"\x00"+input）——同内容跨空间不
+// 共用指纹，防「play 会话内容与 work 相同被误判 no-op 跳过提炼」。space 为
+// 空（space.mode=off 平铺形态）时键内无空间成分，退化为纯内容指纹，与旧行
+// 为严格等价（off 无空间维度）。
+func dreamInputHash(space, input string) string {
+	sum := sha256.Sum256([]byte(space + "\x00" + input))
 	return hex.EncodeToString(sum[:])
+}
+
+// dreamNoteWriter 是 dream notes 落盘的最小接口（*control.Controller 满足；
+// 测试注入 fake 验证空间分流，无需真实控制器）。
+type dreamNoteWriter interface {
+	QuickAdd(scope memory.Scope, note string) (string, error)
+}
+
+// dreamWriteNotes 把本轮提炼的零散经验笔记落盘，返回写入条数。
+//
+// 空间分流（S1.2 A，方案决策见 docs/gaea-memory-isolation-design.md §勘误）：
+// notes 走 QuickAdd → 项目级 doc 记忆（AGENTS.md 等）——该文件属 **work 项目
+// 说明**，play 会话的 dream 不得写它（验收红线「play 会话 dream 不写入 work
+// 记忆」）。play 侧直接**丢弃 notes 仅落 facts** 并 slog.Debug 留痕：facts 表
+// 已带 space_id 全量保留 dream 提炼内容，零散笔记在 play 域没有对应说明文件，
+// 宁丢不跨空间污染 work AGENTS.md。work 路径行为逐字不变。
+func dreamWriteNotes(w dreamNoteWriter, space string, notes []dreamNote) int {
+	written := 0
+	for _, n := range notes {
+		note := strings.TrimSpace(n.Note)
+		if note == "" {
+			continue
+		}
+		if space == spaces.SpacePlay {
+			slog.Debug("dream note dropped (play space, not writing work AGENTS.md)", "note", note)
+			continue
+		}
+		scope := memory.ScopeLocal
+		switch n.Scope {
+		case "user":
+			scope = memory.ScopeUser
+		case "project":
+			scope = memory.ScopeProject
+		}
+		if _, err := w.QuickAdd(scope, note); err == nil {
+			written++
+		}
+	}
+	return written
 }
 
 // dreamTurnMessages 取会话历史最后一轮（最后一个 user 消息起）的 user/assistant 消息。

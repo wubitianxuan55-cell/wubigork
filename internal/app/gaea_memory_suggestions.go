@@ -196,7 +196,10 @@ func (a *App) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) 
 	if ctrl == nil {
 		return "", fmt.Errorf("办公引擎未初始化")
 	}
-	n, err := ctrl.SaveDreamFacts("explicit", []memory.Memory{{
+	// S1.2 A：显式接受路径与自动做梦同点盖章——写入当前办公会话的空间
+	//（gaeaSessionSpace()，mode=off 为 ""，SaveDreamFacts 写侧 Normalize 兜底
+	// work），source=explicit 落 dream 审计日志（含 Space 列）。
+	n, err := ctrl.SaveDreamFacts(gaeaSessionSpace(), "explicit", []memory.Memory{{
 		Name:        c.Name,
 		Title:       c.Title,
 		Description: c.Description,

@@ -11,6 +11,13 @@ type leftSource interface {
 	ListFacts() []memory.Memory
 }
 
+// spaceLeftSource 支持按空间取事实的数据源（S1.2 B 读端隔离器）：办公 facts
+// 同库混存两空间（facts.space_id），读端按空间谓词收窄。实现为可选能力——
+// fake 数据源可不实现（回退全量，与旧行为一致）。
+type spaceLeftSource interface {
+	ListFactsInSpace(space string) []memory.Memory
+}
+
 type leftBrain struct {
 	src leftSource
 }
@@ -31,9 +38,29 @@ func (l *leftBrain) Write(entity, attribute, value string) error {
 }
 
 func (l *leftBrain) Search(query string) ([]Hit, error) {
+	return l.searchFacts(query, l.facts()), nil
+}
+
+// searchInSpace 是 Search 的空间限定版（S1.2 B）：facts 走 ListInSpace(space)
+// 谓词（数据源实现 spaceLeftSource 时），空 space 与 Search 完全等价。空间
+// 映射（设计 §勘误）：左脑办公 facts 同库混存两空间——work scope 只见 work
+// 事实、play scope 只见 play 事实。
+func (l *leftBrain) searchInSpace(query, space string) ([]Hit, error) {
+	if space == "" {
+		return l.Search(query)
+	}
+	ms := l.facts()
+	if sp, ok := l.src.(spaceLeftSource); ok {
+		ms = sp.ListFactsInSpace(space)
+	}
+	return l.searchFacts(query, ms), nil
+}
+
+// searchFacts 是左脑检索的匹配主体（Search / searchInSpace 共用）。
+func (l *leftBrain) searchFacts(query string, ms []memory.Memory) []Hit {
 	terms := splitQueryTerms(query)
 	var out []Hit
-	for _, m := range l.facts() {
+	for _, m := range ms {
 		name := displayName(m.Title, m.Name)
 		text := factValue(m)
 		for _, term := range terms {
@@ -43,7 +70,7 @@ func (l *leftBrain) Search(query string) ([]Hit, error) {
 			}
 		}
 	}
-	return out, nil
+	return out
 }
 
 func (l *leftBrain) facts() []memory.Memory {
@@ -68,4 +95,10 @@ type officeFactLeftSource struct {
 
 func (s *officeFactLeftSource) ListFacts() []memory.Memory {
 	return s.store.List() // 零值 Store 为禁用 no-op，返回空
+}
+
+// ListFactsInSpace 实现 spaceLeftSource（S1.2 B）：facts 按空间谓词读取；
+// 空 space = 全部（与 ListFacts 等价，旧行为）。
+func (s *officeFactLeftSource) ListFactsInSpace(space string) []memory.Memory {
+	return s.store.ListInSpace(space)
 }

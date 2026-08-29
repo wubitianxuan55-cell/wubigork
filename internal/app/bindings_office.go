@@ -133,7 +133,7 @@ func (b *OfficeB) GaeaTaskTemplates() []TaskTemplate { return b.a.GaeaTaskTempla
 func (b *OfficeB) GaeaTools() []map[string]interface{} { return b.a.GaeaTools() }
 func (b *OfficeB) GaeaTrajectory() (trajectory.Trajectory, error) { return b.a.GaeaTrajectory() }
 func (b *OfficeB) GaeaUnarchiveSession(path string) (string, error) { return b.a.GaeaUnarchiveSession(path) }
-func (b *OfficeB) GaeaUnifiedSearch(query string, topN int) (UnifiedSearchView, error) { return b.a.GaeaUnifiedSearch(query, topN) }
+func (b *OfficeB) GaeaUnifiedSearch(query string, topN int, scope ...string) (UnifiedSearchView, error) { return b.a.GaeaUnifiedSearch(query, topN, scope...) }
 func (b *OfficeB) GaeaUnpinMaterial(rel string) []FileSearchHit { return b.a.GaeaUnpinMaterial(rel) }
 func (b *OfficeB) GaeaUpdateFact(name string, body string) (string, error) { return b.a.GaeaUpdateFact(name, body) }
 func (b *OfficeB) GaeaVersion() string { return b.a.GaeaVersion() }

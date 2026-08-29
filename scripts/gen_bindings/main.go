@@ -299,7 +299,14 @@ func collectMethods(dir string) ([]method, error) {
 				}
 				for _, nm := range p.Names {
 					params = append(params, nm.Name+" "+typeStr)
-					args = append(args, nm.Name)
+					arg := nm.Name
+					// 变参（...T）调用侧必须以 `name...` 透传，否则生成门面
+					// 把 []T 当单个 T 传（编译错误）——S1.2 GaeaUnifiedSearch
+					// 的可变 scope 参数依赖此规则。
+					if _, variadic := p.Type.(*ast.Ellipsis); variadic {
+						arg += "..."
+					}
+					args = append(args, arg)
 				}
 			}
 			m.Params = "(" + strings.Join(params, ", ") + ")"

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/memory"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/tool/builtin"
 )
 
@@ -22,6 +23,10 @@ type DreamAuditEntry struct {
 	Source string   `json:"source"` // auto_dream | explicit
 	Saved  int      `json:"saved"`
 	Names  []string `json:"names,omitempty"`
+	// Space 是本批事实落库的空间（S1.2 A dream 空间化，写侧 Normalize 兜底
+	// 后的生效值 "work"/"play"）——审计可追溯「哪条记忆写进了哪个空间」。
+	// JSONL 追加列向后兼容：旧行无字段，读端零值 ""。
+	Space string `json:"space,omitempty"`
 }
 
 // dreamAuditPath 返回 dream 写入审计文件路径（与 gaea.db 同目录）。
@@ -272,17 +277,23 @@ func (c *Controller) PromoteSessionFacts() (int, error) {
 // 与 PromoteSessionFacts 同一写入路径，但不经过会话事实）。空 name 或
 // 无内容的事实跳过；返回实际写入/更新条数。
 //
+// space 是触发会话的空间（S1.2 A dream 空间化）：""（space.mode=off 平铺形态）
+// 统一 Normalize 兜底 work（写侧缺省，与 S1.1 sqliteBackend.Save 空值缺省
+// 一致）；"work"/"play" 原样落 facts.space_id——play 会话的 dream 只写 play
+// 记忆，绝不落 work（验收红线）。
+//
 // 审批决策（T6-8.1，详见 docs/DREAM_WRITE_POLICY.md）：dream 写入**不**纳入
 // hardAskTools 逐条审批——后台「自动做梦」在轮次结束后异步触发（90s 超时），
 // 无法等待人工确认；显式路径（GaeaAcceptMemorySuggestion / /dream extract）
 // 本身即用户主动触发。作为补偿，每次写入都落审计日志（source=auto_dream |
-// explicit，条数 + 名称），保证全程可追溯。
-func (c *Controller) SaveDreamFacts(source string, facts []memory.Memory) (int, error) {
+// explicit，条数 + 名称 + 空间），保证全程可追溯。
+func (c *Controller) SaveDreamFacts(space, source string, facts []memory.Memory) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.mem == nil || len(facts) == 0 {
 		return 0, nil
 	}
+	sp := spaces.Normalize(space)
 	n := 0
 	names := make([]string, 0, len(facts))
 	for _, m := range facts {
@@ -294,6 +305,14 @@ func (c *Controller) SaveDreamFacts(source string, facts []memory.Memory) (int, 
 		}
 		m.Type = memory.NormalizeType(string(m.Type))
 		m.Kind = memory.NormalizeKind(string(m.Kind))
+		m.Space = sp
+		// S1.1 遗留：facts 唯一键为 (project, name)，跨空间同名 upsert 会覆盖
+		// 并翻转 space_id（本刀不改约束）——盖章路径发现同名异空间时打审计
+		// 警告留痕（可溯源；Get 为全空间读，返回值已回填 space_id）。
+		if old, ok := c.mem.Store.Get(m.Name); ok && old.Space != "" && old.Space != sp {
+			slog.Warn("dream save 跨空间同名覆盖",
+				"name", m.Name, "from", old.Space, "to", sp, "source", source)
+		}
 		if _, err := c.mem.Store.Save(m); err != nil {
 			return n, fmt.Errorf("dream save %q: %w", m.Name, err)
 		}
@@ -308,6 +327,7 @@ func (c *Controller) SaveDreamFacts(source string, facts []memory.Memory) (int, 
 			Source: source,
 			Saved:  n,
 			Names:  names,
+			Space:  sp,
 		}); err != nil {
 			slog.Warn("dream audit write failed", "error", err)
 		}

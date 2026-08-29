@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/gaea/wssearch"
 )
 
@@ -55,15 +56,59 @@ func (a *App) semanticSearchHits(query string) ([]SemanticHitView, error) {
 
 // brainSearchHits 三脑统一检索的共用私有实现：三脑未装配（a.brain==nil）
 // 时返回空数组而不报错（hub 搜索降级为 keyword/semantic/files 三组照常）。
-func (a *App) brainSearchHits(query string) []Hit {
+// scope 为空 = 全部（旧行为）；"work"/"play" 走 SearchInSpace 空间限定
+// （whisper 右脑 play 专属、左脑 facts 按空间谓词、主脑共享不过滤）。
+func (a *App) brainSearchHits(query, scope string) []Hit {
 	if a.brain == nil {
 		return []Hit{}
 	}
-	hits, err := a.brain.Search(query)
+	hits, err := a.brain.SearchInSpace(query, scope)
 	if err != nil || len(hits) == 0 {
 		return []Hit{}
 	}
 	return hits
+}
+
+// searchScope 归一统一检索 scope（S1.2 B）：仅 "work"/"play" 是空间过滤态，
+// 其余（含 "" 与非法值）一律回退 "" = 全部/旧行为——后端不把 "" 归一成
+// work，space.mode=off 平铺形态的旧数据在缺省调用下保持全量可见；scope=""
+// =全部仅显式选择时由前端传入（C 步）。
+func searchScope(scope string) string {
+	if spaces.Valid(scope) {
+		return scope
+	}
+	return ""
+}
+
+// filterSemanticHitsByScope 语义命中后过滤（S1.2 B）。**严禁按空间过滤索引
+// 源**：semantic_vectors 是四库共享索引且无空间列，Ensure/Stale 以「向量条数
+// == 源文档数」判定就绪——按空间砍源会让另一空间的向量被 Stale(keep) 物理删
+// 除（设计 §风险「semantic Stale 陷阱」），因此只在最终 hits 上按 kind 映射
+// 过滤：
+//   - cost（成本库）/ knowledge（工程知识库）/ file（工作区文件）：恒 work
+//     ——这些库当前只在 work 语义落库，play 域无对应索引源；
+//   - office（办公 facts）：facts 同库混存两空间且唯一键 (project, name) 全
+//     局唯一——按 space_id 精确回查（GetInSpace）判定归属，命中才保留；
+//   - 未知 kind：保守丢弃（fail-closed 宁缺毋漏；scope="" 不走本过滤）。
+//     whisper 不入 semantic 库（play 专属走 brain.right，由 brain 组隔离）。
+func (a *App) filterSemanticHitsByScope(hits []SemanticHitView, scope string) []SemanticHitView {
+	if scope == "" || len(hits) == 0 {
+		return hits
+	}
+	out := make([]SemanticHitView, 0, len(hits))
+	for _, h := range hits {
+		switch h.Kind {
+		case "office":
+			if _, ok := a.hubOfficeStore().GetInSpace(h.Name, scope); ok {
+				out = append(out, h)
+			}
+		case "cost", "knowledge", "file":
+			if scope == spaces.SpaceWork {
+				out = append(out, h)
+			}
+		}
+	}
+	return out
 }
 
 // GaeaUnifiedSearch 统一检索入口（T5-6）：一个搜索框同时出「关键词全文 +
@@ -71,7 +116,20 @@ func (a *App) brainSearchHits(query string) []Hit {
 // semantic（跨库语义）+ brain（三脑命中）+ files（文件语义命中）。
 // 内部串行调用现有各域检索的共用私有实现；空 query 返回空视图；
 // embedding 不可用时 semantic/files 为空数组而 keyword/brain 照常。
-func (a *App) GaeaUnifiedSearch(query string, topN int) (UnifiedSearchView, error) {
+//
+// S1.2 B 读端隔离器：scope 为可变参（保持既有两参调用兼容——Wails 反射
+// Call 对变参安全，前端 C 步前传 (query, topN) 不破，scope 缺省 ""=全部/
+// 旧行为；C 步开始显式传 "work"/"play"）。四组过滤语义：
+//   - keyword / files：共享工作区面不过滤（与旧行为一致；.gaea/play/exports
+//     已并入 wssearch 噪音规则，play 交付物不进检索面）；
+//   - brain：SearchInSpace（work 滤 right、facts 按空间谓词、主脑共享）；
+//   - semantic：只对最终 hits 后过滤（严禁动索引源，见
+//     filterSemanticHitsByScope 注释）。
+func (a *App) GaeaUnifiedSearch(query string, topN int, scope ...string) (UnifiedSearchView, error) {
+	sc := ""
+	if len(scope) > 0 {
+		sc = searchScope(scope[0]) // 只取首个 scope；未传 = "" = 全部/旧行为
+	}
 	view := UnifiedSearchView{
 		Keyword:  []WorkspaceSearchHit{},
 		Semantic: []SemanticHitView{},
@@ -82,7 +140,7 @@ func (a *App) GaeaUnifiedSearch(query string, topN int) (UnifiedSearchView, erro
 		return view, nil
 	}
 	view.Keyword = a.workspaceSearchHits(query, topN)
-	view.Brain = a.brainSearchHits(query)
+	view.Brain = a.brainSearchHits(query, sc)
 	if topN <= 0 {
 		topN = 10
 	}
@@ -97,8 +155,9 @@ func (a *App) GaeaUnifiedSearch(query string, topN int) (UnifiedSearchView, erro
 	if err != nil {
 		return view, err
 	}
-	if sem != nil {
-		view.Semantic = sem
+	view.Semantic = a.filterSemanticHitsByScope(sem, sc)
+	if view.Semantic == nil {
+		view.Semantic = []SemanticHitView{}
 	}
 	return view, nil
 }

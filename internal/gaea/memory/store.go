@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gaea/gaea/internal/gaea/spaces"
 )
 
 // Type classifies a memory, mirroring the auto-memory taxonomy.
@@ -67,7 +69,8 @@ type Memory struct {
 	Body        string   // the fact itself (Markdown)
 	// 空间归属（S1 双空间列落库，facts.space_id）：写入端携带，零值缺省
 	// "work"；SQLite 后端落列，file 后端不落盘（按项目目录天然隔离）。
-	// 读取端暂不回填（S1 读端只做 ListInSpace 谓词过滤，见 store.go）。
+	// S1.2 B：读端 SELECT 回填 space_id（ListInSpace/Get），供展示/调试与
+	// 跨空间同名冲突审计读取归属。
 	Space string
 	// 生命周期与溯源（SQLite 后端持久化；file 后端不落盘，语义为空）：
 	UpdatedAt     time.Time // 最近一次写入/修订时间（近期排序用）
@@ -108,6 +111,11 @@ type backend interface {
 	ListArchivedPaged(limit, offset int) ([]ArchivedMemory, int, error)
 	CleanupArchived(cutoff time.Time) ([]ArchivedMemory, error)
 	Get(name string) (Memory, bool)
+	// GetInSpace / TouchInSpace 是 Get/Touch 的空间谓词版（S1.2 B 读端隔离
+	// 器）：space 为空 = 旧行为（Get/Touch 全空间）；非空时仅命中/触达该空间
+	// 的事实——跨空间键不命中（citations、memory_get 的空间限定走此处）。
+	GetInSpace(name, space string) (Memory, bool)
+	TouchInSpace(name, space string) error
 }
 
 // Store is the memory storage facade — one per project working dir. It stays a
@@ -236,6 +244,27 @@ func (s Store) CleanupArchived(cutoff time.Time) ([]ArchivedMemory, error) {
 // Get returns one active fact by name. Used by the memory_get tool (SQLite
 // backend has no readable file to open with read_file).
 func (s Store) Get(name string) (Memory, bool) { return s.engine().Get(name) }
+
+// GetInSpace 是 Get 的空间谓词版（S1.2 B 读端隔离器）：space 为空 = 旧行为
+//（全空间）；非空时仅命中该空间的活跃事实，跨空间键返回 false。
+func (s Store) GetInSpace(name, space string) (Memory, bool) { return s.engine().GetInSpace(name, space) }
+
+// TouchInSpace 是 Touch 的空间谓词版：space 为空 = 旧行为；非空时仅触达该
+// 空间的活跃事实——跨空间键不命中、不动行。
+func (s Store) TouchInSpace(name, space string) error { return s.engine().TouchInSpace(name, space) }
+
+// InSpace 返回按空间收窄**读路径**的 Store 视图（S1.2 B「spaceList 风格单点」
+// 的视图形态）：space 非空时 List/Index/Get/Touch 只作用于该空间（SQLite 走
+// space_id 谓词；file 后端目录隔离、与全量等价）；写路径仍以 Memory.Space
+// 落库为准（缺省 work），视图不强制改写。space 为空返回原 Store（零行为
+// 变化）。memory.Load 的 Options.Space 走此处；读端空间过滤一律经
+// ListInSpace / GetInSpace / TouchInSpace 或本视图，不各自另写谓词。
+func (s Store) InSpace(space string) Store {
+	if space == "" {
+		return s
+	}
+	return Store{backend: spaceView{inner: s.engine(), space: spaces.Normalize(space)}}
+}
 
 // slugRe strips everything but lowercase alphanumerics and dashes.
 var slugRe = regexp.MustCompile(`[^a-z0-9]+`)

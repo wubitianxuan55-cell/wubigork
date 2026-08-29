@@ -73,9 +73,13 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	// 事件转发：gaea 事件流 → 前端 gaea-event 回调
 	sink := event.FuncSink(func(e event.Event) {
 		a.emit("gaea-event", gaeaEventMap(e))
-		// 自动做梦：轮次成功后后台整理记忆（单飞、有实质内容才跑）
+		// 自动做梦：轮次成功后后台整理记忆（单飞、有实质内容才跑）。
+		// S1.2 A dream 空间化：TurnDone 事件槽不带上下文——此处取当前办公
+		// 会话的空间（ctrl.SessionSpace()，缺省回退配置生效空间；mode=off 为
+		// ""=无空间维度）一并传给做梦管线，dream 写入/指纹/notes 全链路按
+		// 会话空间分流。
 		if e.Kind == event.TurnDone && e.Err == nil {
-			a.maybeDreamAfterTurn()
+			a.maybeDreamAfterTurn(gaeaSessionSpace())
 		}
 	})
 	// 构建 controller（单模型 agent）

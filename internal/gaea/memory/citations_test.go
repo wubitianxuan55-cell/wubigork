@@ -70,7 +70,7 @@ func TestResolveCitationsTouch(t *testing.T) {
 	}
 	before, _ := set.Store.Get("cost-rule")
 
-	resolved := set.ResolveCitations("按 [MEM:cost-rule] 汇总，参考 [MEM:missing-key]。")
+	resolved := set.ResolveCitations("按 [MEM:cost-rule] 汇总，参考 [MEM:missing-key]。", "")
 	if len(resolved) != 1 || resolved[0] != "cost-rule" {
 		t.Fatalf("应只命中真实存在的记忆: %v", resolved)
 	}
@@ -80,15 +80,58 @@ func TestResolveCitationsTouch(t *testing.T) {
 	}
 
 	// 未知键与空文本静默
-	if got := set.ResolveCitations("[MEM:missing-key]"); got != nil {
+	if got := set.ResolveCitations("[MEM:missing-key]", ""); got != nil {
 		t.Fatalf("未知键应静默丢弃: %v", got)
 	}
-	if got := set.ResolveCitations(""); got != nil {
+	if got := set.ResolveCitations("", ""); got != nil {
 		t.Fatalf("空文本应返回 nil: %v", got)
 	}
 	var nilSet *Set
-	if got := nilSet.ResolveCitations("[MEM:a]"); got != nil {
+	if got := nilSet.ResolveCitations("[MEM:a]", ""); got != nil {
 		t.Fatalf("nil Set 应返回 nil: %v", got)
+	}
+}
+
+// S1.2 B 读端隔离器：citations 解析限定本空间——本空间键命中并 Touch，跨空间
+// 键等同未知键静默不命中不 Touch，space="" 全空间（旧行为）。
+func TestResolveCitationsSpaceIsolation(t *testing.T) {
+	set := newCitationTestSet(t)
+	// 额外落一条 play 空间事实
+	if _, err := set.Store.Save(Memory{
+		Name: "play-note", Title: "乐园笔记",
+		Description: "游戏偏好", Type: TypeProject, Kind: KindSemantic, Space: "play",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// play 空间：play-note 命中并 Touch；cost-rule（work）跨空间不命中不 Touch
+	resolved := set.ResolveCitations("玩 [MEM:play-note]，另见 [MEM:cost-rule]。", "play")
+	if len(resolved) != 1 || resolved[0] != "play-note" {
+		t.Fatalf("play 空间应只命中 play-note: %v", resolved)
+	}
+	playAfter, _ := set.Store.GetInSpace("play-note", "play")
+	if playAfter.LastUsedAt.IsZero() {
+		t.Fatal("play 空间命中应 Touch 更新 last_used_at")
+	}
+	costBefore, _ := set.Store.Get("cost-rule")
+	if !costBefore.LastUsedAt.IsZero() {
+		t.Fatalf("跨空间键不应被 Touch，cost-rule last_used_at = %v", costBefore.LastUsedAt)
+	}
+
+	// work 空间：cost-rule 命中，play-note 跨空间不命中
+	workResolved := set.ResolveCitations("按 [MEM:cost-rule] 与 [MEM:play-note] 汇总。", "work")
+	if len(workResolved) != 1 || workResolved[0] != "cost-rule" {
+		t.Fatalf("work 空间应只命中 cost-rule: %v", workResolved)
+	}
+	costAfter, _ := set.Store.Get("cost-rule")
+	if costAfter.LastUsedAt.IsZero() {
+		t.Fatal("work 空间命中 cost-rule 应 Touch")
+	}
+
+	// space=""：全空间旧行为，两键都命中
+	allResolved := set.ResolveCitations("[MEM:cost-rule] 与 [MEM:play-note]。", "")
+	if len(allResolved) != 2 {
+		t.Fatalf("space=\"\" 应全空间命中: %v", allResolved)
 	}
 }
 

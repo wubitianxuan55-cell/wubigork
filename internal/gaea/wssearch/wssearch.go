@@ -49,12 +49,17 @@ var skipDirs = map[string]bool{
 	".cache": true, ".codegraph": true, ".tianxuan": true, ".reasonix": true,
 }
 
-// isNoiseRel 判断路径是否属于搜索噪音：.gaea 下只跳过会话/归档/缓存，
-// exports（交付产物）等仍可被索引。
+// isNoiseRel 判断路径是否属于搜索噪音：.gaea 下只跳过会话/归档/缓存与 play
+// 产物分区（.gaea/play/exports——S1.2 双空间：play 交付物属乐园产物，不进
+// 共享关键词检索面，工位搜索不可见；对应验收红线「工位搜索搜不到乐园记忆/
+// 产物」），exports（work 交付产物）等仍可被索引。
 func isNoiseRel(rel string) bool {
 	first, rest, _ := strings.Cut(rel, "/")
 	if first != ".gaea" {
 		return false
+	}
+	if rest == "play/exports" || strings.HasPrefix(rest, "play/exports/") {
+		return true
 	}
 	seg, _, _ := strings.Cut(rest, "/")
 	return seg == "sessions" || seg == "archive" || seg == "cache"

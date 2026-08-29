@@ -84,6 +84,9 @@ func (t rememberTool) Execute(ctx context.Context, args json.RawMessage) (string
 	if name == "" {
 		name = in.Description
 	}
+	// S1.2 A 写侧空间化：从调用 ctx 取会话空间（executeOne 注入点盖章；无
+	// 标注缺省 work）——play 会话的 remember 落 play、work 落 work，修复
+	// 「play 会话记忆默认落 work」的写侧泄漏（设计 §写侧漏洞 2）。
 	m := Memory{
 		Name:        name,
 		Title:       in.Title,
@@ -92,6 +95,7 @@ func (t rememberTool) Execute(ctx context.Context, args json.RawMessage) (string
 		Kind:        NormalizeKind(in.Kind),
 		Tags:        in.Tags,
 		Body:        in.Body,
+		Space:       SpaceFromContext(ctx),
 	}
 
 	// Session-only save: store in-memory, not to disk.

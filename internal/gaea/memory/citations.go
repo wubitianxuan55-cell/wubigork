@@ -41,7 +41,11 @@ func ExtractCitationNames(text string) []string {
 // ResolveCitations 解析最终回复中的引用键：只保留真实存在的记忆（未知键静默
 // 丢弃——模型可能幻觉出不存在的键，不应报错也不应触达），并对每条命中的记忆
 // Touch（更新 last_used_at）。返回命中的记忆名（按出现顺序）。
-func (s *Set) ResolveCitations(text string) []string {
+//
+// S1.2 B 读端隔离器：space 非空时解析限定本空间——Get/Touch 走 GetInSpace/
+// TouchInSpace，跨空间键等同未知键静默不命中不 Touch（工位回合不触达乐园
+// 记忆，反之亦然；验收红线）；space 为空 = 旧行为（全空间，既有调用语义）。
+func (s *Set) ResolveCitations(text, space string) []string {
 	if s == nil || text == "" {
 		return nil
 	}
@@ -51,10 +55,10 @@ func (s *Set) ResolveCitations(text string) []string {
 	}
 	resolved := make([]string, 0, len(names))
 	for _, name := range names {
-		if _, ok := s.Store.Get(name); !ok {
+		if _, ok := s.Store.GetInSpace(name, space); !ok {
 			continue
 		}
-		if err := s.Store.Touch(name); err == nil {
+		if err := s.Store.TouchInSpace(name, space); err == nil {
 			resolved = append(resolved, name)
 		}
 	}

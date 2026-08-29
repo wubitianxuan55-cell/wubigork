@@ -32,6 +32,11 @@ type Options struct {
 	CWD     string
 	UserDir string
 	DB      *sql.DB // 非 nil 时自动记忆走后脑 SQLite 后端（Hephaestus.db）
+	// Space 是读端空间收窄（S1.2 B 读端隔离器）："" = 不过滤（旧行为，既有
+	// 调用零变化，space.mode=off 平铺形态走空值全量）；"work"/"play" = Set 的
+	// Store 只在该空间读（List/Index/Get/Touch 收窄，写路径仍以 Memory.Space
+	// 落库为准）。经 Store.InSpace 视图实现，见 space_view.go。
+	Space string
 }
 
 // Load discovers all memory for a session: the hierarchical docs and the
@@ -48,6 +53,9 @@ func Load(opts Options) *Set {
 	} else {
 		store = StoreFor(opts.UserDir, cwd)
 	}
+	// S1.2 B 读端空间收窄：Options.Space 非空时 Set 的 Store 只在该空间读
+	//（InSpace 视图；空 = 不过滤，既有调用零行为变化）。
+	store = store.InSpace(opts.Space)
 	docs := discoverDocs(cwd, opts.UserDir)
 	return &Set{
 		Docs:    docs,

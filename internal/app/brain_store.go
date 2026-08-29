@@ -1,6 +1,10 @@
 package app
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/gaea/gaea/internal/gaea/spaces"
+)
 
 // Brain 命名空间（与 1.x 记忆中枢三脑架构一致）。
 const (
@@ -75,6 +79,53 @@ func (b *BrainStore) Search(query string, brains ...string) ([]Hit, error) {
 			continue
 		}
 		hits, err := ad.Search(query)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, hits...)
+	}
+	return out, nil
+}
+
+// SearchInSpace 是 Search 的空间限定版（S1.2 B 读端隔离器，统一检索 brain 组
+// 使用）。空间映射（设计 §检索面地图 + §勘误）：
+//   - brain.right（轻语 whisper）= play 专属整域：work scope 整体丢弃、play
+//     scope 可见、""=全部（旧行为）；
+//   - brain.left（办公 facts）：同库混存两空间，按 space 走 ListInSpace 谓词
+//     （数据源实现 spaceLeftSource 时生效）；
+//   - brain.main（profile + knowledge）：共享面不过滤——画像与工程知识库无
+//     空间维度，两空间同可见。
+//
+// space 为空与 Search 完全等价（既有调用零行为变化）。
+func (b *BrainStore) SearchInSpace(query, space string, brains ...string) ([]Hit, error) {
+	if space == "" {
+		return b.Search(query, brains...)
+	}
+	names := brains
+	if len(names) == 0 {
+		names = []string{BrainMain, BrainLeft, BrainRight}
+	}
+	var out []Hit
+	for _, n := range names {
+		// whisper 右脑 play 专属：work scope 整体丢弃（隔离红线）。
+		if n == BrainRight && space != spaces.SpacePlay {
+			continue
+		}
+		ad := b.adapter(n)
+		if ad == nil {
+			continue
+		}
+		var hits []Hit
+		var err error
+		if n == BrainLeft {
+			if lb, ok := ad.(*leftBrain); ok {
+				hits, err = lb.searchInSpace(query, space)
+			} else {
+				hits, err = ad.Search(query)
+			}
+		} else {
+			hits, err = ad.Search(query)
+		}
 		if err != nil {
 			return nil, err
 		}

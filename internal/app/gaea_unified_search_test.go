@@ -241,3 +241,151 @@ func TestGaeaUnifiedSearch_EmbeddingUnavailable(t *testing.T) {
 		t.Fatalf("embedding 不可用时关键词仍应命中: %+v", view.Keyword)
 	}
 }
+
+// scopeHitByName / scopeBrainHit 辅助：检索结果按名称/脑归类。
+func scopeSemNames(hits []SemanticHitView) map[string]bool {
+	out := map[string]bool{}
+	for _, h := range hits {
+		out[h.Kind+"/"+h.Name] = true
+	}
+	return out
+}
+
+func scopeBrainHits(hits []Hit) map[string]bool {
+	out := map[string]bool{}
+	for _, h := range hits {
+		out[h.Brain+"|"+h.Entity] = true
+	}
+	return out
+}
+
+// scopeFakeBrainAdapter 测试注入的三脑适配器（右脑/主脑命中可控）。
+type scopeFakeBrainAdapter struct {
+	hits []Hit
+}
+
+func (f *scopeFakeBrainAdapter) Read(string) ([]Fact, error)                { return nil, nil }
+func (f *scopeFakeBrainAdapter) Write(string, string, string) error         { return nil }
+func (f *scopeFakeBrainAdapter) Search(string) ([]Hit, error)               { return f.hits, nil }
+
+// S1.2 B 读端隔离器：GaeaUnifiedSearch scope 过滤——工位搜索不见乐园记忆
+//（semantic office 按空间回查、cost/knowledge/file 恒 work、brain 右脑 play
+// 专属、keyword 共享工作区面不过滤）；scope 缺省 "" = 全部（旧行为）。
+func TestGaeaUnifiedSearchScopeIsolation(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if err := os.MkdirAll("docs", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("docs/方案.md", []byte("振动锤选型要点：需匹配地质条件。"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	newUnifiedSearchEnv(t)
+
+	a := &App{core: &core{}}
+	// 成本条目（恒 work 语义源）
+	if err := a.hubCostStore().Save(cost.Entry{
+		Name: "pile-rent", Title: "振动锤租赁台班", Category: "机械", Unit: "台班", Price: 6500,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// 办公 facts：work + play 各一条（同库混存两空间）
+	if _, err := a.hubOfficeStore().Save(memory.Memory{
+		Name: "office-pile", Title: "打桩机械台账", Description: "振动锤与静压桩机配置", Body: "记录现场机械调度。",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.hubOfficeStore().Save(memory.Memory{
+		Name: "office-play", Space: "play", Title: "乐园设备", Description: "振动锤游戏机配置", Body: "游戏厅设备记录。",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// 三脑：主脑共享命中 + 右脑（whisper=play 专属）命中；左脑走真实 facts 源
+	a.brain = &BrainStore{
+		main:  &scopeFakeBrainAdapter{hits: []Hit{{Brain: BrainMain, Entity: "共享画像", Text: "振动锤相关画像"}}},
+		left:  &leftBrain{src: &officeFactLeftSource{store: a.hubOfficeStore()}},
+		right: &scopeFakeBrainAdapter{hits: []Hit{{Brain: BrainRight, Entity: "轻语记忆", Text: "振动锤轻语"}}},
+	}
+	t.Cleanup(func() { a.brain = nil })
+
+	// ── scope=work：不见 play ──────────────────────────────────
+	work, err := a.GaeaUnifiedSearch("振动锤", 10, "work")
+	if err != nil {
+		t.Fatalf("work scope: %v", err)
+	}
+	semWork := scopeSemNames(work.Semantic)
+	if !semWork["cost/pile-rent"] || !semWork["office/office-pile"] {
+		t.Fatalf("work scope 语义应含 cost+office-work: %v", semWork)
+	}
+	if semWork["office/office-play"] {
+		t.Fatalf("work scope 不得出现 play 记忆（隔离红线）: %v", semWork)
+	}
+	brWork := scopeBrainHits(work.Brain)
+	if _, ok := brWork["brain.right|轻语记忆"]; ok {
+		t.Fatalf("work scope 不得出现 brain.right（whisper=play 专属）: %v", brWork)
+	}
+	if _, ok := brWork["brain.left|打桩机械台账"]; !ok {
+		t.Fatalf("work scope 左脑应见 work 事实: %v", brWork)
+	}
+	if _, ok := brWork["brain.left|乐园设备"]; ok {
+		t.Fatalf("work scope 左脑不得见 play 事实: %v", brWork)
+	}
+	if _, ok := brWork["brain.main|共享画像"]; !ok {
+		t.Fatalf("主脑共享面 work 可见: %v", brWork)
+	}
+	// keyword 共享工作区面：work scope 照常命中
+	kwWork := false
+	for _, h := range work.Keyword {
+		if h.Path == "docs/方案.md" {
+			kwWork = true
+		}
+	}
+	if !kwWork {
+		t.Fatalf("keyword 共享面 work 应命中: %+v", work.Keyword)
+	}
+
+	// ── scope=play：只见 play 侧 ───────────────────────────────
+	play, err := a.GaeaUnifiedSearch("振动锤", 10, "play")
+	if err != nil {
+		t.Fatalf("play scope: %v", err)
+	}
+	semPlay := scopeSemNames(play.Semantic)
+	if !semPlay["office/office-play"] {
+		t.Fatalf("play scope 语义应含 play 记忆: %v", semPlay)
+	}
+	if semPlay["office/office-pile"] || semPlay["cost/pile-rent"] {
+		t.Fatalf("play scope 不得出现 work 侧语义命中（cost/knowledge/file 恒 work）: %v", semPlay)
+	}
+	brPlay := scopeBrainHits(play.Brain)
+	if _, ok := brPlay["brain.right|轻语记忆"]; !ok {
+		t.Fatalf("play scope 应见 brain.right（play 专属）: %v", brPlay)
+	}
+	if _, ok := brPlay["brain.left|乐园设备"]; !ok {
+		t.Fatalf("play scope 左脑应见 play 事实: %v", brPlay)
+	}
+	if _, ok := brPlay["brain.left|打桩机械台账"]; ok {
+		t.Fatalf("play scope 左脑不得见 work 事实: %v", brPlay)
+	}
+
+	// ── scope 缺省 ""：全部（旧行为）──────────────────────────
+	all, err := a.GaeaUnifiedSearch("振动锤", 10)
+	if err != nil {
+		t.Fatalf("缺省 scope: %v", err)
+	}
+	semAll := scopeSemNames(all.Semantic)
+	if !semAll["office/office-pile"] || !semAll["office/office-play"] || !semAll["cost/pile-rent"] {
+		t.Fatalf("缺省 scope 应全量（旧行为）: %v", semAll)
+	}
+	// 三脑全搜：主脑 1 + 左脑（work+play 事实各 1）+ 右脑 1 = 4
+	if len(all.Brain) != 4 {
+		t.Fatalf("缺省 scope 三脑全搜: %+v", all.Brain)
+	}
+
+	// ── 非法 scope：回退 ""（全部/旧行为）──────────────────────
+	bogus, err := a.GaeaUnifiedSearch("振动锤", 10, "bogus")
+	if err != nil {
+		t.Fatalf("非法 scope 不应报错: %v", err)
+	}
+	if len(bogus.Semantic) != len(all.Semantic) || len(bogus.Brain) != 4 {
+		t.Fatalf("非法 scope 应等价缺省: %+v", bogus)
+	}
+}

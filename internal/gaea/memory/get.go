@@ -37,7 +37,7 @@ func (memoryGetTool) Schema() json.RawMessage {
 
 func (memoryGetTool) ReadOnly() bool { return true }
 
-func (t memoryGetTool) Execute(_ context.Context, args json.RawMessage) (string, error) {
+func (t memoryGetTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Name string `json:"name"`
 	}
@@ -47,12 +47,15 @@ func (t memoryGetTool) Execute(_ context.Context, args json.RawMessage) (string,
 	if strings.TrimSpace(p.Name) == "" {
 		return "", fmt.Errorf("name is required")
 	}
-	m, ok := t.store.Get(p.Name)
+	// S1.2 B 读端隔离器：读取与触达都限定调用 ctx 的会话空间（缺省 work），
+	// 跨空间键不命中——工位会话读不到乐园记忆，反之亦然（验收红线）。
+	space := SpaceFromContext(ctx)
+	m, ok := t.store.GetInSpace(p.Name, space)
 	if !ok {
 		return "", fmt.Errorf("memory %q not found", p.Name)
 	}
 	// 读取即使用：更新 last_used_at，供「关键词+时间+高频」注入排序。
-	_ = t.store.Touch(p.Name)
+	_ = t.store.TouchInSpace(p.Name, space)
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n", displayTitle(m.Title, m.Name))
 	fmt.Fprintf(&b, "- name: %s\n- type: %s\n- kind: %s\n", m.Name, m.Type, m.Kind)

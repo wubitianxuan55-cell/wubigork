@@ -30,10 +30,12 @@ cost_save 等持久化写入的审批纪律不一致，存在「绕过审批」�
 `<userDir>/dream-audit.jsonl`（JSONL，与 gaea.db 同目录，追加式、损坏行跳过）：
 
 ```json
-{"ts":"2026-08-14T12:00:00+08:00","source":"auto_dream","saved":2,"names":["user-unit","project-budget"]}
+{"ts":"2026-08-14T12:00:00+08:00","source":"auto_dream","saved":2,"names":["user-unit","project-budget"],"space":"work"}
 ```
 
 - `source`：`auto_dream`（轮次后自动整理）| `explicit`（用户接受记忆建议 / /dream extract）。
+- `space`（S1.2 记忆空间隔离器新增）：本批事实落库空间（写侧 Normalize 兜底
+  后的生效值 `work`/`play`）；旧行无该字段（读端零值 ""），JSONL 追加列向后兼容。
 - 审计写入尽力而为：失败仅记 slog.Warn，不阻断记忆写入主流程。
 - 读取入口：`control.DreamAuditEntries(userDir, max)`（倒序最近 max 条）。
 
