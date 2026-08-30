@@ -77,6 +77,21 @@ type VoiceRuntimeConfig struct {
 
 	// 人格预设 ID（影响情感语调）
 	PersonalityPresetID string `json:"personalityPresetId"`
+
+	// ── Realtime 档（S0：端到端实时语音 seam，见 internal/realtime）──
+	// 三项全空 = 未配置 → 完全走现 ASR+LLM+TTS 拼接管线，路径零变化。
+	// 当前为纯内存字段：本刀不新造持久化机制（S1 接 config.Save 落盘；
+	// APIKey 落盘须走 secure.EncryptString DPAPI，先例见
+	// model_engine_handler.go SetOpencodeZenKey）。
+
+	// Realtime 供应商 kind（"openai"；空 = 未启用实时语音档）
+	RealtimeProvider string `json:"realtimeProvider,omitempty"`
+
+	// Realtime 模型 ID（如 gpt-4o-realtime-preview；空 = 供应商默认）
+	RealtimeModel string `json:"realtimeModel,omitempty"`
+
+	// Realtime API Key（内存态明文；空 = 未配置）
+	RealtimeAPIKey string `json:"realtimeAPIKey,omitempty"`
 }
 
 // DefaultVoiceConfig 默认语音配置

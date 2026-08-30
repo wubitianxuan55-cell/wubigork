@@ -19,6 +19,7 @@ import (
 	"github.com/gaea/gaea/internal/asr"
 	appconfig "github.com/gaea/gaea/internal/config"
 	"github.com/gaea/gaea/internal/modelengine"
+	"github.com/gaea/gaea/internal/realtime"
 	"github.com/gaea/gaea/internal/tts"
 	"github.com/gaea/gaea/internal/voice"
 )
@@ -104,7 +105,33 @@ func (a *mediaState) initVoice() {
 		return a.synthesizeVoiceTTS(text, voiceDescription)
 	})
 
+	// S0 Realtime 档探测（seam 消费者，见 internal/realtime）：未配置（Provider
+	// 空）→ 完全跳过，现拼接管线零变化；配置了但 New(kind) 失败 → 优雅降级仅
+	// 告警，不崩、不阻塞现有语音。本刀不启动 realtime 会话、不接管任何音频路径。
+	if probeRealtime(config) {
+		slog.Info("Realtime 档就绪（S0 仅 seam 探测，未接管音频路径）", "kind", strings.TrimSpace(config.RealtimeProvider))
+	}
+
 	slog.Info("语音管理器已初始化")
+}
+
+// probeRealtime S0 Realtime 档探测（seam 消费者）：未配置（RealtimeProvider 空）
+// → 跳过返回 false（现拼接管线零变化）；配置了但注册表构造失败 → slog.Warn
+// 优雅降级返回 false（不崩、不阻塞现有语音）。注册表构造不做网络 I/O、结果
+// 确定，VoiceHealth.realtimeReady 亦经此实时计算（与 initVoice 探测结论一致）。
+func probeRealtime(cfg voice.VoiceRuntimeConfig) bool {
+	kind := strings.TrimSpace(cfg.RealtimeProvider)
+	if kind == "" {
+		return false
+	}
+	if _, err := realtime.New(kind, realtime.Config{
+		Model:  cfg.RealtimeModel,
+		APIKey: cfg.RealtimeAPIKey,
+	}); err != nil {
+		slog.Warn("Realtime 档不可用，回退现拼接语音管线（S0 优雅降级）", "kind", kind, "error", err)
+		return false
+	}
+	return true
 }
 
 // setWhisperChatFn 设置默认对话回调（轻语人格化对话，搜索增强）
@@ -549,12 +576,16 @@ func (a *mediaState) VoiceSetPTTActive(active bool) error {
 func (a *mediaState) VoiceHealth() map[string]interface{} {
 	if a.voiceManager == nil {
 		return map[string]interface{}{
-			"asrReady": false,
-			"ttsReady": false,
-			"state":    "idle",
+			"asrReady":      false,
+			"ttsReady":      false,
+			"realtimeReady": false,
+			"state":         "idle",
 		}
 	}
-	return a.voiceManager.HealthCheck()
+	hc := a.voiceManager.HealthCheck()
+	// S0 Realtime 档：经注册表实时探测（构造无网络 I/O；未配置恒为 false）
+	hc["realtimeReady"] = probeRealtime(a.voiceManager.GetConfig())
+	return hc
 }
 
 // VoiceRestartService 重启语音服务（重新检测 ASR/TTS 可用性）
