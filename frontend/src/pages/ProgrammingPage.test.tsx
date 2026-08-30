@@ -26,6 +26,11 @@ vi.mock('../gaea/lib/bridge', () => ({
 
 import ProgrammingPage from './ProgrammingPage'
 
+// 负载 flake 治理（2026-08-30，v3.9.0/v4.2.0 挂账「全量负载偶发 flake，单独跑
+// 通过」）：全量套件高负载下 jsdom 调度会被饿死，RTL 默认 1s 超时不够——
+// 与 TrajectoryView.test 同款先例显式放宽到 5s（仍有上界，不会掩盖真回归）。
+const LOAD = { timeout: 5000 }
+
 const idleStatus = {
   running: false, owned: false, pid: 0,
   url: 'http://127.0.0.1:3080',
@@ -61,16 +66,16 @@ afterEach(() => {
 describe('ProgrammingPage 未运行：启动引导视图', () => {
   it('渲染启动面板 + 5 项前置条件清单（全部就绪 → 启动按钮可用）', async () => {
     render(<ProgrammingPage />)
-    expect(await screen.findByText('编程工作台')).toBeTruthy()
+    expect(await screen.findByText('编程工作台', undefined, LOAD)).toBeTruthy()
     expect(screen.getByRole('button', { name: /启动编程工作台/ })).toBeTruthy()
     for (const label of PREFLIGHT_LABELS) {
-      expect(await screen.findByText(label)).toBeTruthy()
+      expect(await screen.findByText(label, undefined, LOAD)).toBeTruthy()
     }
-    expect(await screen.findByText(/全部就绪，可一键启动/)).toBeTruthy()
+    expect(await screen.findByText(/全部就绪，可一键启动/, undefined, LOAD)).toBeTruthy()
     await waitFor(() => {
       const btn = screen.getByRole('button', { name: /启动编程工作台/ }) as HTMLButtonElement
       expect(btn.disabled).toBe(false)
-    })
+    }, LOAD)
   })
 
   it('前置条件未满足：红叉条目 + 提示 + 启动按钮禁用', async () => {
@@ -78,12 +83,12 @@ describe('ProgrammingPage 未运行：启动引导视图', () => {
       ...readyPreflight, build_ready: false, pnpm_found: false, all_ready: false,
     })
     render(<ProgrammingPage />)
-    expect(await screen.findByText(/存在未满足项/)).toBeTruthy()
+    expect(await screen.findByText(/存在未满足项/, undefined, LOAD)).toBeTruthy()
     // 未满足项条目带 is-fail 标记
     await waitFor(() => {
       const items = screen.getAllByText('Web 构建产物就绪')
       expect(items.length).toBeGreaterThan(0)
-    })
+    }, LOAD)
     expect(screen.getByRole('button', { name: /启动编程工作台/ })).toBeTruthy()
     const btn = screen.getByRole('button', { name: /启动编程工作台/ }) as HTMLButtonElement
     expect(btn.disabled).toBe(true)
@@ -91,26 +96,26 @@ describe('ProgrammingPage 未运行：启动引导视图', () => {
 
   it('点击「启动编程工作台」调用 StartProgrammingWeb', async () => {
     render(<ProgrammingPage />)
-    await screen.findByText(/全部就绪/)
+    await screen.findByText(/全部就绪/, undefined, LOAD)
     fireEvent.click(screen.getByRole('button', { name: /启动编程工作台/ }))
-    await waitFor(() => expect(mocks.StartProgrammingWeb).toHaveBeenCalled())
+    await waitFor(() => expect(mocks.StartProgrammingWeb).toHaveBeenCalled(), LOAD)
   })
 
   it('点击「重新检查」再次拉取前置条件', async () => {
     render(<ProgrammingPage />)
-    await screen.findByText(/全部就绪/)
+    await screen.findByText(/全部就绪/, undefined, LOAD)
     fireEvent.click(screen.getByRole('button', { name: /重新检查前置条件/ }))
-    await waitFor(() => expect(mocks.GetProgrammingWebPreflight).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mocks.GetProgrammingWebPreflight).toHaveBeenCalledTimes(2), LOAD)
   })
 
   it('启动中：显示启动动画视图（计时），就绪后切入内嵌工作台', async () => {
     let resolveStart!: () => void
     mocks.StartProgrammingWeb.mockReturnValue(new Promise<void>((res) => { resolveStart = res }))
     render(<ProgrammingPage />)
-    await screen.findByText(/全部就绪/)
+    await screen.findByText(/全部就绪/, undefined, LOAD)
     fireEvent.click(screen.getByRole('button', { name: /启动编程工作台/ }))
     // 启动动画视图（而非 iframe）
-    expect(await screen.findByText('正在启动编程工作台')).toBeTruthy()
+    expect(await screen.findByText('正在启动编程工作台', undefined, LOAD)).toBeTruthy()
     expect(screen.getByText(/已等待/)).toBeTruthy()
     expect(screen.queryByTitle('DeepSeek Harness 编程工作台')).toBeNull()
     // 启动完成 → 轮询返回运行中 → 切入 iframe 工作台
@@ -118,21 +123,21 @@ describe('ProgrammingPage 未运行：启动引导视图', () => {
       ...idleStatus, running: true, owned: true, pid: 9, uptime_s: 3,
     })
     resolveStart()
-    const frame = await screen.findByTitle('DeepSeek Harness 编程工作台')
+    const frame = await screen.findByTitle('DeepSeek Harness 编程工作台', undefined, LOAD)
     expect(frame.getAttribute('src')).toBe('http://127.0.0.1:3080')
   })
 
   it('启动失败：回到引导视图 + 错误提示 + 自动展开日志', async () => {
     mocks.StartProgrammingWeb.mockRejectedValue(new Error('端口 3080 已被其他进程占用（非 gaea 自启实例）'))
     render(<ProgrammingPage />)
-    await screen.findByText(/全部就绪/)
+    await screen.findByText(/全部就绪/, undefined, LOAD)
     fireEvent.click(screen.getByRole('button', { name: /启动编程工作台/ }))
     // 回到引导视图并显示错误
-    expect(await screen.findByText(/端口 3080 已被其他进程占用/)).toBeTruthy()
-    expect(await screen.findByText(/全部就绪，可一键启动/)).toBeTruthy()
+    expect(await screen.findByText(/端口 3080 已被其他进程占用/, undefined, LOAD)).toBeTruthy()
+    expect(await screen.findByText(/全部就绪，可一键启动/, undefined, LOAD)).toBeTruthy()
     // 日志面板自动展开并拉取
-    await waitFor(() => expect(mocks.ProgrammingWebLogTail).toHaveBeenCalled())
-    expect(await screen.findByText(/listening on :3080/)).toBeTruthy()
+    await waitFor(() => expect(mocks.ProgrammingWebLogTail).toHaveBeenCalled(), LOAD)
+    expect(await screen.findByText(/listening on :3080/, undefined, LOAD)).toBeTruthy()
   })
 })
 
@@ -142,9 +147,9 @@ describe('ProgrammingPage 运行中：桌面内嵌工作台', () => {
       ...idleStatus, running: true, owned: true, pid: 99, uptime_s: 65,
     })
     render(<ProgrammingPage />)
-    const frame = await screen.findByTitle('DeepSeek Harness 编程工作台')
+    const frame = await screen.findByTitle('DeepSeek Harness 编程工作台', undefined, LOAD)
     expect(frame.getAttribute('src')).toBe('http://127.0.0.1:3080')
-    expect(await screen.findByText('1 分 5 秒')).toBeTruthy()
+    expect(await screen.findByText('1 分 5 秒', undefined, LOAD)).toBeTruthy()
     // 自启实例可停止
     const stopBtn = screen.getByRole('button', { name: '停止服务' }) as HTMLButtonElement
     expect(stopBtn.disabled).toBe(false)
@@ -155,7 +160,7 @@ describe('ProgrammingPage 运行中：桌面内嵌工作台', () => {
       ...idleStatus, running: true, owned: false,
     })
     render(<ProgrammingPage />)
-    expect(await screen.findByText('外部实例')).toBeTruthy()
+    expect(await screen.findByText('外部实例', undefined, LOAD)).toBeTruthy()
     const stopBtn = screen.getByRole('button', { name: '停止服务' }) as HTMLButtonElement
     expect(stopBtn.disabled).toBe(true)
   })
@@ -165,9 +170,9 @@ describe('ProgrammingPage 运行中：桌面内嵌工作台', () => {
       ...idleStatus, running: true, owned: true, pid: 7, uptime_s: 120,
     })
     render(<ProgrammingPage />)
-    await screen.findByTitle('DeepSeek Harness 编程工作台')
+    await screen.findByTitle('DeepSeek Harness 编程工作台', undefined, LOAD)
     fireEvent.click(screen.getByRole('button', { name: '停止服务' }))
-    await waitFor(() => expect(mocks.StopProgrammingWeb).toHaveBeenCalled())
+    await waitFor(() => expect(mocks.StopProgrammingWeb).toHaveBeenCalled(), LOAD)
   })
 
   it('工具栏经 portal 渲染进顶栏宿主（v3-prog-host），iframe 上方不再显示', async () => {
@@ -176,7 +181,7 @@ describe('ProgrammingPage 运行中：桌面内嵌工作台', () => {
       ...idleStatus, running: true, owned: true, pid: 9, uptime_s: 65,
     })
     render(<ProgrammingPage />)
-    await screen.findByTitle('DeepSeek Harness 编程工作台')
+    await screen.findByTitle('DeepSeek Harness 编程工作台', undefined, LOAD)
     const host = document.getElementById('v3-prog-host') as HTMLElement
     expect(host.textContent).toContain('Harness Web 运行中')
     expect(host.textContent).toContain('1 分 5 秒')
@@ -190,8 +195,8 @@ describe('ProgrammingPage 运行中：桌面内嵌工作台', () => {
 describe('ProgrammingPage 启动日志', () => {
   it('展开日志面板：读取尾部并渲染日志行', async () => {
     render(<ProgrammingPage />)
-    fireEvent.click(await screen.findByRole('button', { name: /启动日志/ }))
-    expect(await screen.findByText(/listening on :3080/)).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: /启动日志/ }, LOAD))
+    expect(await screen.findByText(/listening on :3080/, undefined, LOAD)).toBeTruthy()
     expect(mocks.ProgrammingWebLogTail).toHaveBeenCalledWith(100)
   })
 
@@ -200,7 +205,7 @@ describe('ProgrammingPage 启动日志', () => {
       exists: false, path: 'x.log', lines: [], error: '日志文件尚未生成（第一次启动后出现）',
     })
     render(<ProgrammingPage />)
-    fireEvent.click(await screen.findByRole('button', { name: /启动日志/ }))
-    expect(await screen.findByText('日志文件尚未生成（第一次启动后出现）')).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: /启动日志/ }, LOAD))
+    expect(await screen.findByText('日志文件尚未生成（第一次启动后出现）', undefined, LOAD)).toBeTruthy()
   })
 })

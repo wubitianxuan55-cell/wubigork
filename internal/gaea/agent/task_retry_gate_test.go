@@ -95,13 +95,14 @@ func TestRetryUntilCheckBlockedByGate(t *testing.T) {
 		t.Errorf("bash executed %d times — a gate-denied check command must never run", bashCalls)
 	}
 	consulted := false
-	for _, name := range g.checked {
+	checkedNames := g.checkedSnapshot()
+	for _, name := range checkedNames {
 		if name == "bash" {
 			consulted = true
 		}
 	}
 	if !consulted {
-		t.Errorf("gate was never consulted for the check command (checked=%v)", g.checked)
+		t.Errorf("gate was never consulted for the check command (checked=%v)", checkedNames)
 	}
 }
 
@@ -118,7 +119,7 @@ func TestRetryUntilCheckRunsWhenGateAllows(t *testing.T) {
 	if ran := bash.ran(); len(ran) != 1 || ran[0] != "go test ./..." {
 		t.Errorf("bash ran %v, want exactly the check command once", ran)
 	}
-	if len(g.checked) == 0 {
+	if len(g.checkedSnapshot()) == 0 {
 		t.Error("gate was never consulted for the check command")
 	}
 }

@@ -117,9 +117,22 @@ func TestDirCreateTriggersFull(t *testing.T) {
 	}
 }
 
+// TestStormMergesToFull 锁定风暴语义：单个合批窗口内累积超过 stormN 个文件
+// 事件 → 该批次标记 Full（建议全量重建）。
+//
+// flake 治理（2026-08-30，v3.3.0 后二次治理）：旧版 debounce=100ms 且只读
+// 第一个事件就断言 Full。Full 是「单批次」语义（filewatch.go loop：timer 自
+// 首个事件读起，flush 后计数清零），全量门禁高负载下 fsnotify 投递散布可跨
+// 过 100ms 窗口——风暴被劈成 ≤stormN 的多批（按语义合法地不置 Full）或首批
+// 非 Full 被立即判死 → 全量 FAIL、隔离 PASS。两处修复（不动生产语义）：
+//  ① 合批窗口 100ms→1s：60 次写本身毫秒级完成，只有投递散布能劈窗，1s 是
+//     对旧窗口 10 倍余量；等待上限 8s（对窗口 8:1，v3.3.0「显式超时放宽」先例）。
+//  ② 断言改「排空到 Full 或 deadline」的条件等待：不因首个非 Full 批次立即
+//     判死（散布劈窗时后续批次仍可能 >stormN 置 Full），deadline 内无 Full 才
+//     失败——终态条件等待，非固定 sleep，断言不放宽。
 func TestStormMergesToFull(t *testing.T) {
 	root := t.TempDir()
-	w, err := New(root, nil, 100*time.Millisecond)
+	w, err := New(root, nil, 1*time.Second)
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
@@ -133,9 +146,20 @@ func TestStormMergesToFull(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ev := waitEvent(t, w, 5*time.Second)
-	if !ev.Full {
-		t.Fatalf("事件风暴应合并为 Full（changed=%d）", len(ev.Changed))
+	// 条件等待：收到 Full 即通过；非 Full 批次视为投递散布劈出的局部批，继续等
+	deadline := time.After(8 * time.Second)
+	for {
+		select {
+		case ev, ok := <-w.Events():
+			if !ok {
+				t.Fatal("事件通道在收到 Full 前被关闭")
+			}
+			if ev.Full {
+				return // 风暴合并为 Full，语义成立
+			}
+		case <-deadline:
+			t.Fatalf("8s 内未收到 Full 批次——事件风暴应合并为 Full（疑似投递散布持续劈窗）")
+		}
 	}
 }
 
