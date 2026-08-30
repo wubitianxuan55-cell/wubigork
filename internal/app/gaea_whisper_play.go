@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gaea/gaea/internal/whisper"
@@ -18,7 +19,79 @@ func (a *whisperState) GaeaWhisperGraphSubgraph(personalityID, entity string, ho
 	if !ok || orch == nil || orch.KG == nil {
 		return whisper.Subgraph{}, nil
 	}
-	return orch.KG.QuerySubgraph(entity, hops), nil
+	sub := orch.KG.QuerySubgraph(entity, hops)
+	enrichSubgraphWithAssociations(orch, &sub)
+	return sub, nil
+}
+
+// assocTypeLabels 记忆关联类型 → 图谱边中文标签（v4.9 事件链/关系入图）。
+var assocTypeLabels = map[string]string{
+	"event_chain":    "因果",
+	"temporal":       "时间",
+	"entity":         "同实体",
+	"emotion_peak":   "情绪相似",
+	"self_reference": "自我",
+	"thematic":       "主题",
+}
+
+// enrichSubgraphWithAssociations 把记忆关联（fact↔fact，含 event_chain 因果链）
+// 以「事实 Subject 实体」映射成图边并入子图。数据早已存在（memory_associations +
+// AssocIndex），此前只活在索引里、图谱面板不可见（审计 §C「推理仅邻接遍历」补口）。
+// 只读、无副作用；只并入至少一端已在子图内的关联（保持以查询实体为中心），
+// 与 KG 边按 From|Type|To 去重，关联边权重 = strength。
+func enrichSubgraphWithAssociations(orch *whisper.Orchestrator, sub *whisper.Subgraph) {
+	if orch == nil || orch.AssocIndex == nil || orch.FactStore == nil {
+		return
+	}
+	assocs := orch.AssocIndex.ListAll()
+	if len(assocs) == 0 {
+		return
+	}
+	subjectByFact := map[string]string{}
+	for _, f := range orch.FactStore.ListActive() {
+		if s := strings.TrimSpace(f.Subject); s != "" {
+			subjectByFact[f.ID] = s
+		}
+	}
+	existing := map[string]bool{}
+	for _, e := range sub.Edges {
+		existing[e.From+"\x00"+e.Type+"\x00"+e.To] = true
+	}
+	nodeSet := map[string]bool{}
+	for _, n := range sub.Nodes {
+		nodeSet[n.ID] = true
+	}
+	for _, a := range assocs {
+		sa, okA := subjectByFact[a.FactIDA]
+		sb, okB := subjectByFact[a.FactIDB]
+		if !okA || !okB || sa == sb {
+			continue
+		}
+		// 只并入与当前子图连通的关联（一端已是节点）
+		if !nodeSet[sa] && !nodeSet[sb] {
+			continue
+		}
+		label := assocTypeLabels[a.AssociationType]
+		if label == "" {
+			label = a.AssociationType
+		}
+		key := sa + "\x00" + label + "\x00" + sb
+		if existing[key] {
+			continue
+		}
+		existing[key] = true
+		if !nodeSet[sa] {
+			nodeSet[sa] = true
+			sub.Nodes = append(sub.Nodes, whisper.GraphNode{ID: sa, Name: sa, Weight: a.Strength})
+		}
+		if !nodeSet[sb] {
+			nodeSet[sb] = true
+			sub.Nodes = append(sub.Nodes, whisper.GraphNode{ID: sb, Name: sb, Weight: a.Strength})
+		}
+		sub.Edges = append(sub.Edges, whisper.GraphEdge{
+			From: sa, To: sb, Type: label, Weight: a.Strength,
+		})
+	}
 }
 
 // GaeaWhisperProactiveNow 手动触发一次主动关心评估（v4.3c，play 空间）：

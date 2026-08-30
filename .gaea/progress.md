@@ -5,6 +5,12 @@
 
 ## 当前状态
 
+- **关联入图（2026-08-30，审计 §C「推理仅邻接遍历」补口）**：
+  GaeaWhisperGraphSubgraph 并入 AssocIndex 关联边——事实 Subject → 实体节点，
+  类型映射中文（event_chain→因果、temporal→时间、thematic→主题…），权重 =
+  strength，只并入与子图连通者；前端因果边琥珀色虚线 + 图例。Go +2 测试、
+  vitest +1（817/817）、tsc/eslint 0、绑定面 539 不变。说明：event_chain 数据源
+  = LLM 整合 + 冷启动启发式（同子类近似因果）；LLM 深度跨事实因果推断留后续。
 - **图谱因果维度（2026-08-30，审计 §C 欠账收口）**：extractCausalTriples 从事实
   摘要确定性提取 {因, 导致, 果}（因为/由于…所以…、X导致/引发/造成Y、X让我/使我Y，
   正则 + 测试锁定，直接式剥离连接词），情绪随事实落图；ingest 与文档导入双路径

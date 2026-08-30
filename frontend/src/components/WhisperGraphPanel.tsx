@@ -403,19 +403,24 @@ export function WhisperGraphPanel({
                   <i className="w-2 h-2 rounded-full bg-fg-faint/60 inline-block" />
                   中性
                 </span>
+                <span className="inline-flex items-center gap-1">
+                  <i className="w-2.5 h-0 border-t-2 border-dashed border-amber-400 inline-block" />
+                  因果
+                </span>
               </div>
               <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-auto block">
               {/* 边：线 + 关系类型标签（中点） */}
               {layout.edges.map((pe, i) => (
                 <g key={`edge-${i}`}>
-                  <line
-                    x1={pe.x1}
-                    y1={pe.y1}
-                    x2={pe.x2}
-                    y2={pe.y2}
-                    className={edgeStrokeClass(pe.edge.emotionLabel)}
-                    strokeWidth={1}
-                  />
+                    <line
+                      x1={pe.x1}
+                      y1={pe.y1}
+                      x2={pe.x2}
+                      y2={pe.y2}
+                      className={pe.edge.type === "因果" ? "stroke-amber-400/80" : edgeStrokeClass(pe.edge.emotionLabel)}
+                      strokeWidth={1}
+                      strokeDasharray={pe.edge.type === "因果" ? "4 2" : undefined}
+                    />
                   {pe.edge.type && (
                     <text
                       x={(pe.x1 + pe.x2) / 2}

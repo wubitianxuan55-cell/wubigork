@@ -60,6 +60,15 @@ const GRAPH_EMOTION = {
   edges: [{ from: "n0", to: "n1", type: "喜欢", weight: 0.8, emotionLabel: "正面" }],
 };
 
+// v4.9 因果关联边（event_chain → 「因果」，虚线琥珀色）。
+const GRAPH_CAUSAL = {
+  nodes: [
+    { id: "n0", name: "工作", type: "", weight: 0.9 },
+    { id: "n1", name: "睡眠", type: "", weight: 0.5 },
+  ],
+  edges: [{ from: "n0", to: "n1", type: "因果", weight: 0.5 }],
+};
+
 describe("WhisperGraphPanel 轻语关系图谱", () => {
   beforeEach(() => {
     subgraphSpy.mockReset();
@@ -115,6 +124,21 @@ describe("WhisperGraphPanel 轻语关系图谱", () => {
     // 正面边 → emerald 描边
     const line = document.querySelector("line");
     expect(line?.getAttribute("class")).toContain("stroke-emerald-400/70");
+  });
+
+  it("v4.9 因果关联边使用虚线琥珀色描边，图例含「因果」", async () => {
+    subgraphSpy.mockResolvedValue(GRAPH_CAUSAL);
+    render(wrap(<WhisperGraphPanel open personalityId="pid-1" onClose={() => {}} />));
+
+    fireEvent.change(screen.getByLabelText("实体名"), { target: { value: "工作" } });
+    fireEvent.click(screen.getByRole("button", { name: /查询/ }));
+
+    expect(await screen.findByText("睡眠")).toBeTruthy();
+    const line = document.querySelector("line");
+    expect(line?.getAttribute("class")).toContain("stroke-amber-400/80");
+    expect(line?.getAttribute("stroke-dasharray")).toBe("4 2");
+    // 图例「因果」+ 边标签「因果」都可能出现，用 getAllByText
+    expect(screen.getAllByText("因果").length).toBeGreaterThanOrEqual(1);
   });
 
   it("空态：nodes 为空时展示「图谱暂无关系」", async () => {

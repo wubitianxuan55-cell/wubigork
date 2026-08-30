@@ -1,5 +1,19 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · 关联入图（event_chain 因果链可见） (2026-08-30)
+> 审计 §C「推理仅邻接遍历」补口：记忆关联（含 event_chain）此前只活在索引里，
+> 图谱面板不可见——数据已有，只差展示。
+- **子图并入关联边**：GaeaWhisperGraphSubgraph 在 KG 子图基础上并入 AssocIndex
+  关联——事实 Subject 映射为实体节点，关联类型映射中文标签（event_chain→因果、
+  temporal→时间、entity→同实体、emotion_peak→情绪相似、self_reference→自我、
+  thematic→主题），边权重 = strength；只并入至少一端已在子图内的关联（保持以
+  查询实体为中心），与 KG 边去重。只读、无副作用、绑定面不变。
+- **前端**：因果关联边用琥珀色虚线描边（与普通/情绪边区分），图例补「因果」。
+- 验证：Go 全量绿（新增 2 测试：关联并入 / 不连通跳过）；vitest **817/817**（+1）；
+  tsc/eslint 0；绑定面 539 不变（GaeaWhisperGraphSubgraph 签名未变）。
+- 说明：关联数据源 = 记忆整合（LLM consolidation 的 event_chain）+ 冷启动启发式
+  （同子类标 event_chain，语义近似因果前后）；LLM 深度跨事实因果推断仍留后续。
+
 ## 未发布 · 图谱因果维度 (2026-08-30)
 > 审计 §C 欠账收口：「图谱上无因果维度」——确定性因果模式入图，无需 LLM。
 - **因果三元组提取**：extractCausalTriples 从事实摘要提取 {因, 导致, 果}——
