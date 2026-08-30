@@ -384,7 +384,9 @@ const MainLayout: React.FC = () => {
   const space = useAppStore((s) => s.space)
   const setSpace = useAppStore((s) => s.setSpace)
   const t = useT()
-  const [page, setPage] = useState<Page>(() => loadShellPage(space) as Page)
+  // 启动默认首页（3.0：gaea 每次启动都从首页启动器落地，不再恢复上次页面）；
+  // 会话内跨空间切换仍按空间恢复该空间最后页面（switchSpace 内 loadShellPage）。
+  const [page, setPage] = useState<Page>(() => getActiveHomeBoard().id as Page)
   const {
     loggedIn, login, checkLogin, baseTheme, darkMode, setTheme, toggleDarkMode,
     projectOpen, projectInfo, stats, loadProjectInfo, loadStats,

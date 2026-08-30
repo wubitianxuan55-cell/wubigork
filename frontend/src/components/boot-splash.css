@@ -1,0 +1,146 @@
+/* ── gaea 启动动画 BootSplash ───────────────────────────────────────
+   视觉语言与 gaea 3.0「星枢 Constellation OS」一致：深空 aurora 氛围层、
+   --gaea-glow 辉光、1px 高光线、等宽小标签。色值全部走令牌（含
+   color-mix 派生），fallback 仅用于 WebView2 冷启动首帧。 */
+
+.bs-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-layout, #06090c);
+  color: var(--color-text, #e2e8f0);
+  font-family: var(--font-ui, system-ui, 'Segoe UI', 'Microsoft YaHei', sans-serif);
+  opacity: 1;
+  transition: opacity 380ms ease;
+}
+.bs-splash.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 深空 aurora 氛围层（与 gaea-bg 同源，固定不拦截事件） */
+.bs-aurora {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 90% 60% at 72% -12%, color-mix(in srgb, var(--gaea-glow, #5eead4) 16%, transparent), transparent 62%),
+    radial-gradient(ellipse 80% 55% at 12% 112%, color-mix(in srgb, var(--color-primary, #2dd4bf) 13%, transparent), transparent 62%),
+    radial-gradient(ellipse 55% 45% at 88% 88%, color-mix(in srgb, var(--md-sys-color-warning, #f59e0b) 6%, transparent), transparent 60%);
+}
+
+.bs-center {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  z-index: 1;
+}
+
+/* ── 光环 + 徽记 ── */
+.bs-ring {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bs-ring-arc {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 300deg, color-mix(in srgb, var(--gaea-glow, #5eead4) 92%, transparent) 340deg, transparent 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  animation: bs-spin 1.3s linear infinite;
+}
+.bs-ring-halo {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--gaea-glow, #5eead4) 22%, transparent);
+  animation: bs-pulse 2.2s ease-in-out infinite;
+}
+.bs-orb {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 32% 28%,
+    color-mix(in srgb, var(--gaea-glow, #5eead4) 30%, transparent),
+    color-mix(in srgb, var(--color-primary-container, #134e4a) 85%, transparent) 72%);
+  box-shadow:
+    0 0 32px color-mix(in srgb, var(--gaea-glow, #5eead4) 35%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--gaea-glow, #5eead4) 22%, transparent);
+}
+.bs-orb img {
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--gaea-glow, #5eead4) 55%, transparent));
+}
+
+.bs-word {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  color: var(--color-text, #e2e8f0);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--gaea-glow, #5eead4) 45%, transparent);
+}
+.bs-status {
+  min-height: 18px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--color-text-secondary, #94a3b8);
+}
+.bs-track {
+  width: 200px;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-secondary, #94a3b8) 16%, transparent);
+  overflow: hidden;
+}
+.bs-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--gaea-glow, #5eead4) 70%, transparent),
+    var(--gaea-glow, #5eead4));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--gaea-glow, #5eead4) 60%, transparent);
+  transition: width 300ms ease;
+}
+.bs-tag {
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Mono', 'Consolas', monospace);
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  color: var(--color-text-secondary, #94a3b8);
+  opacity: 0.7;
+}
+
+@keyframes bs-spin { to { transform: rotate(360deg); } }
+@keyframes bs-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+/* ── reduced-motion / ui-reduced-motion 降级：装饰动画关闭，仅淡入淡出 ── */
+@media (prefers-reduced-motion: reduce) {
+  .bs-ring-arc, .bs-ring-halo { animation: none; opacity: 0.7; }
+  .bs-fill { transition: none; }
+  .bs-splash { transition: opacity 200ms ease; }
+}
+.ui-reduced-motion .bs-ring-arc,
+.ui-reduced-motion .bs-ring-halo { animation: none; opacity: 0.7; }
+.ui-reduced-motion .bs-fill { transition: none; }
+
+/* ── WebView2 rAF 节流降级：进度/卸载由 JS timer 驱动，装饰动画停摆无碍 ── */
+html.gaea-raf-degraded .bs-ring-arc,
+html.gaea-raf-degraded .bs-ring-halo { animation: none !important; opacity: 0.7; }

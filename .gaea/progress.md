@@ -1,10 +1,18 @@
 # 任务进度
 
-> 最后更新: 2026-08-30（v4.8.3 发布后欠账收尾小步：VoiceStart 门小修 +
-> 持久化原子写统一 + XlsxPreview 虚拟滚动）
+> 最后更新: 2026-08-30（首页重构「星枢指挥所」+ 两段式启动动画；跨事实因果
+> 推断收口审计 §C 深度补口）
 
 ## 当前状态
 
+- **首页重构「星枢指挥所」+ 启动动画（2026-08-30，未发布）**：启动默认从首页
+  落地（MainLayout 不再恢复上次页面，跨空间恢复保留）；两段式启动动画
+  （index.html 静态启动屏 → BootSplash 组件：光环 + 徽记 + 分步状态 + 进度条，
+  rAF 节流 / reduced-motion 全降级）；首页 Hero 中轴 + 命令条（orb/打字/语音/
+  ⌘K）+ 真实遥测细条 + 能力矩阵 Bento（manifest 驱动，旗舰卡双类提权）+
+  门廊 + 信息条；i18n 三语 home.*/boot.* 共 17 键。vitest 818/818、tsc/eslint 0、
+  wails build 冒烟正常。说明：语音晶核收进命令条 orb；规格同步
+  design-system/gaea/pages/home.md（v3）。
 - **跨事实因果推断「为什么」（2026-08-30，审计 §C 深度补口）**：
   GaeaWhisperCausalExplain（绑定面 540，play）——问「为什么<entity>」时确定性
   收集证据（KG「导致」三元组 + event_chain 关联，上限 8 条），当前人格口吻 LLM

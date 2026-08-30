@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from 'react'
 import { ConfigProvider, theme } from 'antd'
 import MainLayout from './layouts/MainLayout'
+import BootSplash from './components/BootSplash'
 import { useAppStore, getThemeTokens, FONT_OPTIONS } from './stores/appStore'
 import { initBridge } from './gaea/lib/bridge'
 import { initRuntimePolyfill } from './api/runtimePolyfill'
@@ -166,6 +167,8 @@ const App: React.FC = () => {
       >
         {/* S2.2 i18n 全铺：LocaleProvider 提到根级，壳层/页面共用 gaea 字典 */}
         <LocaleProvider>
+          {/* 启动动画：覆盖首帧，播完自卸（reduced-motion 降级） */}
+          <BootSplash />
           <MainLayout />
         </LocaleProvider>
       </ConfigProvider>

@@ -5,8 +5,123 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>gaea · 多功能 AI 助手</title>
+    <style>
+      /* ── 静态启动屏（JS bundle 加载期遮罩，React 挂载后由 BootSplash 接管移除）──
+         与 BootSplash 同视觉语言：深空 aurora + 呼吸光环 + gaea 徽记 + 进度微光。
+         纯 CSS，零依赖；reduced-motion 下仅静态呈现。 */
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background:
+          radial-gradient(ellipse 90% 60% at 70% -10%, rgba(45, 212, 191, 0.16), transparent 60%),
+          radial-gradient(ellipse 80% 55% at 15% 110%, rgba(20, 184, 166, 0.14), transparent 60%),
+          #06090c;
+        color: #e2e8f0;
+        font-family: system-ui, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      }
+      #boot-splash .bs-ring {
+        position: relative;
+        width: 108px;
+        height: 108px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #boot-splash .bs-ring::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: conic-gradient(from 0deg, transparent 0 300deg, rgba(94, 234, 212, 0.9) 340deg, transparent 360deg);
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+        mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+        animation: bs-spin 1.3s linear infinite;
+      }
+      #boot-splash .bs-ring::after {
+        content: '';
+        position: absolute;
+        inset: -14px;
+        border-radius: 50%;
+        border: 1px solid rgba(94, 234, 212, 0.22);
+        animation: bs-pulse 2.2s ease-in-out infinite;
+      }
+      #boot-splash .bs-orb {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 32% 28%, rgba(110, 231, 183, 0.28), rgba(4, 47, 46, 0.6) 70%);
+        box-shadow: 0 0 32px rgba(94, 234, 212, 0.35), inset 0 0 18px rgba(94, 234, 212, 0.2);
+      }
+      #boot-splash .bs-orb img {
+        width: 40px;
+        height: 40px;
+        filter: drop-shadow(0 0 8px rgba(94, 234, 212, 0.55));
+      }
+      #boot-splash .bs-word {
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 0.42em;
+        text-indent: 0.42em;
+        color: #e2e8f0;
+        text-shadow: 0 0 18px rgba(94, 234, 212, 0.45);
+      }
+      #boot-splash .bs-bar {
+        width: 180px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.18);
+        overflow: hidden;
+        position: relative;
+      }
+      #boot-splash .bs-bar::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        width: 45%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.85), transparent);
+        animation: bs-shimmer 1.4s ease-in-out infinite;
+      }
+      #boot-splash .bs-tag {
+        font-size: 11px;
+        letter-spacing: 0.24em;
+        color: rgba(148, 163, 184, 0.75);
+      }
+      @keyframes bs-spin { to { transform: rotate(360deg); } }
+      @keyframes bs-pulse {
+        0%, 100% { transform: scale(1); opacity: 0.55; }
+        50% { transform: scale(1.06); opacity: 1; }
+      }
+      @keyframes bs-shimmer {
+        0% { transform: translateX(-120%); }
+        100% { transform: translateX(320%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot-splash .bs-ring::before,
+        #boot-splash .bs-ring::after,
+        #boot-splash .bs-bar::before { animation: none; }
+      }
+    </style>
   </head>
-  <body style="margin:0;background:var(--color-bg-layout,#0d0d0d)">
+  <body style="margin:0;background:var(--color-bg-layout,#06090c)">
+    <div id="boot-splash" aria-hidden="true">
+      <div class="bs-ring">
+        <div class="bs-orb"><img src="/favicon.svg" alt="" width="40" height="40" /></div>
+      </div>
+      <div class="bs-word">gaea</div>
+      <div class="bs-bar"></div>
+      <div class="bs-tag">CONSTELLATION OS</div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
