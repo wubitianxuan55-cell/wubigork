@@ -4,6 +4,7 @@ import { workApp, onTaskEvent } from "../lib/bridge";
 import type { TaskOutputView, TaskStatus, TaskView } from "../lib/types";
 import { isWorkSpaceTask } from "../lib/taskSpace";
 import { useToast } from "./Toast";
+import { usePollingGate } from "../../hooks/usePollingGate";
 
 // TaskCenter — 通用任务中心（阶段 5 T5-1）：展示持久化任务队列
 // （价格抓取/文件索引重建等）的实时进度，支持取消与重试。
@@ -56,6 +57,8 @@ export function TaskCenter() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [output, setOutput] = useState<TaskOutputView>({ tail: "", truncated: false });
   const outputRef = useRef<HTMLPreElement>(null);
+  // v4.5.2：输出轮询接入系统级后台轮询门控（页面不可见时空转零成本）
+  const gate = usePollingGate();
   // C9：事件回调里读取当前选中项（ref 避免重订阅）
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
@@ -71,8 +74,8 @@ export function TaskCenter() {
   // 初始拉取 + 事件增量更新（含重启续跑任务）
   useEffect(() => {
     load();
+    // v4.5.1a：事件订阅层按 work 过滤（play 任务事件不打扰工位任务中心）
     const off = onTaskEvent((t) => {
-      if (!isWorkSpaceTask(t)) return;
       setTasks((prev) => {
         const next = prev.filter((x) => x.id !== t.id);
         return [t, ...next].slice(0, 50);
@@ -82,7 +85,7 @@ export function TaskCenter() {
       if (t.id === selectedIdRef.current && typeof t.outputTail === "string") {
         setOutput({ tail: t.outputTail, truncated: !!t.outputTruncated });
       }
-    });
+    }, "work");
     return off;
   }, [load]);
 
@@ -97,6 +100,7 @@ export function TaskCenter() {
       return;
     }
     const loadOutput = () => {
+      if (!gate) return;
       workApp
         .TaskOutput(selectedId)
         .then((o) => setOutput(o))
@@ -108,7 +112,7 @@ export function TaskCenter() {
       return () => window.clearInterval(timer);
     }
     return undefined;
-  }, [selectedId, selectedActive]);
+  }, [selectedId, selectedActive, gate]);
 
   // 运行中输出自动尾随滚动到底部（用户未手动上翻时）
   useEffect(() => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Bot, CheckCircle, ChevronDown, ChevronRight, Loader2, Users, XCircle } from "../icons";
 import { app } from "../lib/bridge";
 import type { SubagentRunView } from "../lib/types";
+import { usePollingGate } from "../../hooks/usePollingGate";
 
 // SubagentsPanel — 多智能体分工可见（P2，对标 WorkSwarm 蜂群 / QClaw V2 多 Agent）：
 // 展示当前会话派发的全部子代理「谁在干什么」——状态徽标、任务摘要（transcript
@@ -45,6 +46,8 @@ export function SubagentsPanel({ sessionPath }: { sessionPath?: string }) {
   const [view, setView] = useState<{ available: boolean; runs: SubagentRunView[]; running: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // v4.5.2：子代理运行轮询接入系统级后台轮询门控（页面不可见时空转零成本）
+  const gate = usePollingGate();
 
   const load = useCallback(() => {
     if (!sessionPath) {
@@ -62,11 +65,12 @@ export function SubagentsPanel({ sessionPath }: { sessionPath?: string }) {
 
   // 会话切换重新拉取；运行中的子代理每 5 秒轮询刷新（轻量，仅面板打开时）
   useEffect(() => {
-    load();
+    const tick = () => { if (gate) load() };
+    tick();
     if (!sessionPath) return;
-    const timer = window.setInterval(load, 5000);
+    const timer = window.setInterval(tick, 5000);
     return () => window.clearInterval(timer);
-  }, [load, sessionPath]);
+  }, [load, sessionPath, gate]);
 
   const toggle = useCallback((ref: string) => {
     setExpanded((prev) => {

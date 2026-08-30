@@ -174,6 +174,7 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
       };
       if (task.status === "queued" || task.status === "running") {
         // 任务异步执行中：订阅 gaea-task 事件，等该任务终态再结算。
+        // v4.5.1a：订阅层按 work 过滤（play 任务事件不进入工位面板）。
         taskOff.current = onTaskEvent((t) => {
           if (t.id !== task.id) return;
           if (t.status === "queued" || t.status === "running") return; // 仍在进行
@@ -181,7 +182,7 @@ export const WorkspaceSearchPanel = memo(function WorkspaceSearchPanel({
           taskOff.current?.();
           taskOff.current = null;
           setTimeout(() => setIndexMsg(null), 3000);
-        });
+        }, "work");
       } else {
         // 提交即终态（mock/快速完成）：直接结算
         settle(task);

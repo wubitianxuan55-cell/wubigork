@@ -33,11 +33,11 @@ export function useRunningBadge(): number {
       }
       setCount(n);
     };
+    // v4.5.1a：事件订阅层按 work 过滤（play 任务事件不打扰工位角标）
     const off = onTaskEvent((t) => {
-      if (!isWorkSpaceTask(t)) return;
       tasks.set(t.id, t);
       recalc();
-    });
+    }, "work");
     workApp
       .TaskList()
       .then((list) => {

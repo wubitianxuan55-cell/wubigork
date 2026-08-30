@@ -40,6 +40,10 @@ type Config struct {
 	Search       SearchConfig      `toml:"search"`
 	Network      NetworkConfig     `toml:"network"`
 	Memory       MemoryConfig      `toml:"memory"`
+	// Tasks 是通用任务调度器配置（S1.4 按空间分账；v4.5.1a 红线补课把内核
+	// 接线进生产）：[tasks] 段。缺省（零值）= 应用层启用空间分账默认值
+	// （work/play 各 1 条并发跑道 + 价格抓取优先于文件索引）。
+	Tasks TasksConfig `toml:"tasks"`
 	// 3.0 Step 3d Provider Seam：embed/rerank/vision/markdown_converter 后端选择。
 	// 零值 = 全默认（本地 herdsman 兼容端点 + 各自默认模型），切换后端只改配置。
 	Retrieval        RetrievalConfig        `toml:"retrieval"`
@@ -64,6 +68,23 @@ type SpaceConfig struct {
 	// 忽略空间（新会话回平铺目录、日志不写 space 字段），行为整体回退；
 	// 旧分区数据仍可读（读端按目录归属降级）。
 	Mode string `toml:"mode"`
+}
+
+// TasksConfig 是通用任务调度器配置（S1.4 按空间分账）。
+type TasksConfig struct {
+	// MaxConcurrent 全局 worker 数（0 = 默认 1，对齐 herdsman
+	// local_concurrency=1）。PerSpace 启用时 worker 数自动取
+	// max(MaxConcurrent, Σ PerSpace)，保证各空间额度可真正并行。
+	MaxConcurrent int `toml:"max_concurrent"`
+	// PerSpace 每空间并发上限（键=space_id，值=上限）。nil/缺省 =
+	// 应用层启用默认 {work=1, play=1}：空间分账（某空间额度占满不阻塞
+	// 其他空间出队）；显式空表 `per_space = {}` = 关闭分账回退全局 sem
+	// （旧行为）。未列入的空间不设专项额度（仅受 worker 总数兜底）。
+	PerSpace map[string]int `toml:"per_space"`
+	// Priority 按 kind 的出队优先级（值越大越先出队，缺省 0 = FIFO）。
+	// nil/缺省 = 应用层启用默认 {price_fetch=20, price_fetch_all=20,
+	// file_index=10}：用户触发的价格抓取优先于后台文件索引维护。
+	Priority map[string]int `toml:"priority"`
 }
 
 // SpaceModeIsOn 报告会话空间分区是否启用（缺省 on；仅显式 "off" 关闭）。

@@ -3,6 +3,7 @@ import { Button, Input, InputNumber, message, Select, Space, Tag } from 'antd'
 import { ExperimentOutlined, ExportOutlined, PlayCircleOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, KpiTile, SectionHead, StatusChip } from './ui'
 import type { AppFacade } from '../../types/wails'
+import { usePollingGate } from '../../hooks/usePollingGate'
 
 /** 提取错误消息（unknown 收窄；无 message 用 fallback） */
 function errText(err: unknown, fallback: string): string {
@@ -68,6 +69,8 @@ export function BenchmarkSection() {
   const [installed, setInstalled] = useState<{ name: string; displayName: string }[]>([])
   // D3-4 流式探针：model → 结果（'pending' = 进行中）
   const [probes, setProbes] = useState<Record<string, StreamProbeResult | 'pending'>>({})
+  // v4.5.2：测评运行轮询接入系统级后台轮询门控
+  const gate = usePollingGate()
   const [form, setForm] = useState<{
     models: string[]
     preset: string
@@ -102,9 +105,10 @@ export function BenchmarkSection() {
   const anyRunning = runs.some((r) => r.status === 'running' || r.status === 'pending')
   useEffect(() => {
     if (!anyRunning) return
-    const t = setInterval(() => { void load() }, 8000)
+    const tick = () => { if (gate) void load() }
+    const t = setInterval(tick, 8000)
     return () => clearInterval(t)
-  }, [anyRunning, load])
+  }, [anyRunning, load, gate])
 
   const promptText = form.customPrompt.trim() || TASK_PRESETS.find((p) => p.key === form.preset)?.prompt || ''
 

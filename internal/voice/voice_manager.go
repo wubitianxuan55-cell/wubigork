@@ -40,8 +40,10 @@ type EventEmitter interface {
 }
 
 // WhisperChatFn whisper 对话函数签名
-// 对齐 Ackem 中调用 LLM 的方式
-type WhisperChatFn func(userMsg string, personalityID string) (reply string, emotionLabel string, err error)
+// 对齐 Ackem 中调用 LLM 的方式。v4.6 Mood→TTS 闭环：第三返回值 mood 是
+// whisper 长期心境 4D EWMA（[aff, sec, aro, dom]，-100..100；全 0 = 未播种/
+// 中性）——语音自动 TTS 用它调制「基线韵律」（见 MoodToVoiceDescription）。
+type WhisperChatFn func(userMsg string, personalityID string) (reply string, emotionLabel string, mood [4]float64, err error)
 
 // TTSSynthesizeFn TTS 合成函数签名
 type TTSSynthesizeFn func(text string, voiceDescription string) (audio []byte, mimeType string, err error)
@@ -452,7 +454,7 @@ func (m *Manager) handleReply(text string) {
 		userMsg = "[注意：用户打断了你上一轮未说完的语音回复。] " + text
 	}
 
-	reply, emotionLabel, err := m.whisperChatFn(userMsg, config.PersonalityPresetID)
+	reply, emotionLabel, mood, err := m.whisperChatFn(userMsg, config.PersonalityPresetID)
 	if err != nil {
 		slog.Error("whisper 对话失败", "error", err)
 		if m.emitter != nil {
@@ -479,8 +481,16 @@ func (m *Manager) handleReply(text string) {
 		m.emitter.EmitVoiceReply(reply)
 	}
 
-	// 获取带人格修饰的语音指令
+	// 获取带人格修饰的语音指令。v4.6 Mood→TTS 闭环：中性轮次（CALM_RATIONAL
+	// 或空标签）由长期心境主导韵律——低落几天后连冷静回答都"低沉平缓"；
+	// 强情绪标签轮次仍由标签静态预设主导（本轮反应 > 长期基调），Mood 全
+	// 中性时 MoodToVoiceDescription 返回 ""，回退 v4.3d 及以前的标签路径。
 	voiceDesc := GetVoiceDescriptionWithPersonality(emotionLabel, config.PersonalityPresetID)
+	if emotionLabel == "" || emotionLabel == "CALM_RATIONAL" {
+		if moodDesc := MoodToVoiceDescription(mood); moodDesc != "" {
+			voiceDesc = ModifyWithPersonality(moodDesc, config.PersonalityPresetID)
+		}
+	}
 
 	// 流式 TTS：逐句合成并播放（支持 barge-in 打断）
 	if config.TTSEnabled && m.ttsSynthFn != nil {

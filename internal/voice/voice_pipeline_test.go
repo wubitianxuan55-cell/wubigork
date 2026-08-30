@@ -43,8 +43,8 @@ func TestManager_VoiceRoundTrip(t *testing.T) {
 
 	m := NewManager(&mockEmitter{}, DefaultVoiceConfig())
 	m.SetASRProvider(asr.NewHerdsmanASR(srv.URL, "whisper-base"))
-	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
-		return "收到", "CALM_RATIONAL", nil
+	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, [4]float64, error) {
+		return "收到", "CALM_RATIONAL", [4]float64{}, nil
 	})
 
 	var ttsCalls int32
@@ -115,8 +115,8 @@ func TestManager_VoiceRoundTrip(t *testing.T) {
 // backend ASR.
 func TestManager_HandleUserText(t *testing.T) {
 	m := NewManager(&mockEmitter{}, DefaultVoiceConfig())
-	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
-		return "收到：" + userMsg, "CALM_RATIONAL", nil
+	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, [4]float64, error) {
+		return "收到：" + userMsg, "CALM_RATIONAL", [4]float64{}, nil
 	})
 	var ttsCalls int32
 	m.SetTTSSynthesizeFn(func(text, voiceDesc string) ([]byte, string, error) {
@@ -150,6 +150,54 @@ func TestManager_HandleUserText(t *testing.T) {
 	}
 }
 
+// v4.6 Mood→TTS 闭环：长期心境驱动「中性轮次」的连续韵律——
+//   - CALM_RATIONAL（中性标签）+ 低落 Mood → TTS voiceDesc 用心境连续韵律
+//     （低沉/不安/平缓），"听得出她今天低落" 从原料变成成品；
+//   - 强情绪标签轮次（SWEET_ATTACHMENT）仍由标签主导（本轮反应 > 长期基调）；
+//   - 心境未播种（全 0）→ 回退 v4.3d 及以前的标签静态预设（行为零变化）。
+func TestManager_MoodDrivesNeutralTurnProsody(t *testing.T) {
+	lowMood := [4]float64{-40, -35, -30, -10} // 低落（审计场景）
+
+	run := func(t *testing.T, label string, mood [4]float64) string {
+		t.Helper()
+		m := NewManager(&mockEmitter{}, DefaultVoiceConfig())
+		m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, [4]float64, error) {
+			return "好的。", label, mood, nil
+		})
+		var gotDesc string
+		m.SetTTSSynthesizeFn(func(text, voiceDesc string) ([]byte, string, error) {
+			gotDesc = voiceDesc
+			return []byte("fake-audio"), "audio/wav", nil
+		})
+		if err := m.Start(); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+		defer m.Stop()
+		m.HandleUserText("你好")
+		waitFor(t, 5*time.Second, func() bool { return m.GetState() == StateSpeaking })
+		return gotDesc
+	}
+
+	t.Run("中性标签+低落心境→心境连续韵律", func(t *testing.T) {
+		got := run(t, "CALM_RATIONAL", lowMood)
+		if !strings.Contains(got, "低沉") || !strings.Contains(got, "平缓") {
+			t.Fatalf("中性轮次 voiceDesc = %q, want 心境连续韵律（低沉/平缓）", got)
+		}
+	})
+	t.Run("强情绪标签+低落心境→标签主导", func(t *testing.T) {
+		got := run(t, "SWEET_ATTACHMENT", lowMood)
+		if !strings.Contains(got, "温柔甜蜜") || strings.Contains(got, "低沉") {
+			t.Fatalf("强情绪轮次 voiceDesc = %q, want 标签主导（温柔甜蜜，无低沉）", got)
+		}
+	})
+	t.Run("中性标签+未播种心境→标签静态预设", func(t *testing.T) {
+		got := run(t, "CALM_RATIONAL", [4]float64{})
+		if !strings.Contains(got, "冷静平淡") {
+			t.Fatalf("未播种轮次 voiceDesc = %q, want 冷静平淡", got)
+		}
+	})
+}
+
 // TestManager_StreamingTTS_SentenceBySentence verifies that a multi-sentence
 // reply is synthesized sentence-by-sentence and played back one sentence per
 // PlaybackDone, with the next sentence pre-synthesized while the current one
@@ -157,8 +205,8 @@ func TestManager_HandleUserText(t *testing.T) {
 func TestManager_StreamingTTS_SentenceBySentence(t *testing.T) {
 	em := &mockEmitter{}
 	m := NewManager(em, DefaultVoiceConfig())
-	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
-		return "第一句。第二句。第三句。", "CALM_RATIONAL", nil
+	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, [4]float64, error) {
+		return "第一句。第二句。第三句。", "CALM_RATIONAL", [4]float64{}, nil
 	})
 	var ttsCalls int32
 	m.SetTTSSynthesizeFn(func(text, voiceDesc string) ([]byte, string, error) {
@@ -218,8 +266,8 @@ func TestManager_StreamingTTS_SentenceBySentence(t *testing.T) {
 func TestManager_BargeInStopsStreaming(t *testing.T) {
 	em := &mockEmitter{}
 	m := NewManager(em, DefaultVoiceConfig())
-	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
-		return "第一句。第二句。第三句。", "CALM_RATIONAL", nil
+	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, [4]float64, error) {
+		return "第一句。第二句。第三句。", "CALM_RATIONAL", [4]float64{}, nil
 	})
 	var ttsCalls int32
 	m.SetTTSSynthesizeFn(func(text, voiceDesc string) ([]byte, string, error) {
@@ -284,12 +332,12 @@ func TestManager_InterruptDuringGenerationSkipsPlayback(t *testing.T) {
 
 	var chatCalls int32
 	releaseFirst := make(chan struct{})
-	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
+	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, [4]float64, error) {
 		if atomic.AddInt32(&chatCalls, 1) == 1 {
 			<-releaseFirst // 模拟 LLM 仍在生成
-			return "旧回复。", "CALM_RATIONAL", nil
+			return "旧回复。", "CALM_RATIONAL", [4]float64{}, nil
 		}
-		return "新回复。", "CALM_RATIONAL", nil
+		return "新回复。", "CALM_RATIONAL", [4]float64{}, nil
 	})
 	var ttsCalls int32
 	m.SetTTSSynthesizeFn(func(text, voiceDesc string) ([]byte, string, error) {
@@ -338,11 +386,11 @@ func TestManager_InterruptNotifiesModel(t *testing.T) {
 
 	var mu sync.Mutex
 	var gotMsgs []string
-	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
+	m.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, [4]float64, error) {
 		mu.Lock()
 		gotMsgs = append(gotMsgs, userMsg)
 		mu.Unlock()
-		return "收到。", "CALM_RATIONAL", nil
+		return "收到。", "CALM_RATIONAL", [4]float64{}, nil
 	})
 	m.SetTTSSynthesizeFn(func(text, voiceDesc string) ([]byte, string, error) {
 		return []byte("fake"), "audio/wav", nil

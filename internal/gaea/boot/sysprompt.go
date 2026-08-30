@@ -32,7 +32,11 @@ type syspromptOut struct {
 // buildSystemPrompt assembles the L1 identity block: base system prompt +
 // output style + language policy + persistent memory + skills index. It also
 // scans the project profile and initialises the runtime context layer.
-func buildSystemPrompt(cfg *config.Config, cwd string, stderrPath io.Writer) (*syspromptOut, error) {
+//
+// space 是装配空间的配置生效值（v4.5.1a 红线补课：""=space.mode=off 平铺形态
+// 走空值全量=旧行为；"work"/"play"=系统提示词记忆索引只在该空间读——会话画像
+// 与记忆索引不再跨空间泄露，兑现 S1.2 读端硬隔离的注入侧承诺）。
+func buildSystemPrompt(cfg *config.Config, cwd, space string, stderrPath io.Writer) (*syspromptOut, error) {
 	sysPrompt, err := cfg.ResolveSystemPrompt()
 	if err != nil {
 		return nil, err
@@ -52,7 +56,9 @@ func buildSystemPrompt(cfg *config.Config, cwd string, stderrPath io.Writer) (*s
 	}
 	// 记忆发现（项目级 AGENTS.md/文档索引）基于工作区根，桌面端传入的是
 	// 用户选定的工作空间（opts.Cwd），而不是进程启动目录。
-	mem := memory.Load(memory.Options{CWD: cwd, UserDir: userDir, DB: gdb})
+	// v4.5.1a：Store 经 InSpace 视图收窄读端——work 会话的画像/索引只含 work
+	// 记忆，play 只含 play；space.mode=off 时 space="" 不过滤（旧行为零变化）。
+	mem := memory.Load(memory.Options{CWD: cwd, UserDir: userDir, DB: gdb, Space: space})
 	// 记忆开关：关闭时不把画像/文档索引折进系统提示词（磁盘记忆保留，
 	// 面板仍可管理；重新开启后下一次引擎重建即恢复注入）。
 	if cfg.Memory.Enabled {

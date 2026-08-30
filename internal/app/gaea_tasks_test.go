@@ -117,6 +117,49 @@ func TestGaeaPriceFetchTaskFlow(t *testing.T) {
 	}
 }
 
+// v4.5.1a 红线补课：taskSchedulerOptions 把 [tasks] 配置解析为按空间分账的
+// 调度器选项——缺省启用 {work=1, play=1} + 价格抓取优先；显式 per_space={}
+// 关闭分账回退全局 sem（旧行为）；显式值原样保留。
+func TestTaskSchedulerOptionsDefaults(t *testing.T) {
+	// 缺省（加载失败/零值配置）：max_concurrent=1 + 空间分账 + 默认优先级
+	opts := taskSchedulerOptions(nil, nil)
+	if opts.MaxConcurrent != 1 {
+		t.Fatalf("缺省 max_concurrent = %d, want 1", opts.MaxConcurrent)
+	}
+	if opts.PerSpace[spaces.SpaceWork] != 1 || opts.PerSpace[spaces.SpacePlay] != 1 {
+		t.Fatalf("缺省 per_space = %#v, want {work:1, play:1}", opts.PerSpace)
+	}
+	if opts.Priority[string(tasks.KindPriceFetch)] <= opts.Priority[string(tasks.KindFileIndex)] {
+		t.Fatalf("缺省优先级 price_fetch=%d 应高于 file_index=%d",
+			opts.Priority[string(tasks.KindPriceFetch)], opts.Priority[string(tasks.KindFileIndex)])
+	}
+
+	// 显式关闭分账：per_space = {}（空 map 非 nil）→ 保持空 = 全局 sem
+	empty := map[string]int{}
+	opts = taskSchedulerOptions(&config.Config{Tasks: config.TasksConfig{
+		PerSpace: empty,
+	}}, nil)
+	if opts.PerSpace == nil || len(opts.PerSpace) != 0 {
+		t.Fatalf("显式空 per_space 应保持空, got %#v", opts.PerSpace)
+	}
+
+	// 显式值原样保留
+	opts = taskSchedulerOptions(&config.Config{Tasks: config.TasksConfig{
+		MaxConcurrent: 3,
+		PerSpace:      map[string]int{spaces.SpaceWork: 2},
+		Priority:      map[string]int{string(tasks.KindFileIndex): 99},
+	}}, nil)
+	if opts.MaxConcurrent != 3 || opts.PerSpace[spaces.SpaceWork] != 2 || opts.Priority[string(tasks.KindFileIndex)] != 99 {
+		t.Fatalf("显式配置未保留: %+v", opts)
+	}
+
+	// max_concurrent=0 → 回退 1
+	opts = taskSchedulerOptions(&config.Config{}, nil)
+	if opts.MaxConcurrent != 1 {
+		t.Fatalf("max_concurrent=0 回退 = %d, want 1", opts.MaxConcurrent)
+	}
+}
+
 func TestGaeaPriceFetchDedup(t *testing.T) {
 	a := newTestTaskApp(t)
 	startTasks(t, a)

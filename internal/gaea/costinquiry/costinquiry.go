@@ -9,6 +9,7 @@ package costinquiry
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -49,6 +50,14 @@ type AdjustSuggestion struct {
 	Diff         float64 `json:"diff"`
 	DiffPct      float64 `json:"diffPct"`
 	Unit         string  `json:"unit"`
+	// Level 是差幅分级（v4.6 询价异常检测）：正常(<5%) / 关注(5-15%) /
+	// 异常(>15%)。沿用五算对比的同口径阈值常量（coststage 偏差特征）。
+	Level string `json:"level"`
+	// PredictedNext 是该条目询价序列线性回归的下一期预测价（v4.6 价格预测；
+	// 序列 <2 个数据点时返回 0 = 无可预测）。
+	PredictedNext float64 `json:"predictedNext,omitempty"`
+	// PredictionNote 预测置信说明（点太少/趋势方向）。
+	PredictionNote string `json:"predictionNote,omitempty"`
 }
 
 // Store 询价库存储(Hephaestus.db)。
@@ -129,6 +138,40 @@ WHERE id=?`,
 		r.Title, r.Spec, r.Unit, r.Price, r.Source, r.Supplier, r.Region,
 		r.PriceDate, r.ValidUntil, r.Note, r.Status, now, r.ID)
 	return r.ID, err
+}
+
+// UpsertBySourceKey 按 (title, spec, source, supplier) 幂等写入（v4.6 OCR
+// 报价单自动入询价库飞轮）：同源同标题的数据点更新（价格/期数/有效期刷新，
+// created_at 保留首见时间），避免重复导入同一报价单产生重复数据点。返回
+// 数据点 id。与手动编辑（按 id 更新）互不干扰。
+func (s *Store) UpsertBySourceKey(r Record) (int64, error) {
+	if s.db == nil {
+		return 0, fmt.Errorf("cost inquiry store unavailable")
+	}
+	if strings.TrimSpace(r.Title) == "" {
+		return 0, fmt.Errorf("询价记录需要标题")
+	}
+	if r.Source == "" {
+		r.Source = "OCR报价"
+	}
+	if r.Status == "" {
+		r.Status = "现行"
+	}
+	var existingID int64
+	err := s.db.QueryRow(`
+SELECT id FROM cost_inquiry_records
+WHERE title=? AND spec=? AND source=? AND supplier=? AND status='现行'
+ORDER BY id LIMIT 1`,
+		r.Title, r.Spec, r.Source, r.Supplier).Scan(&existingID)
+	switch {
+	case err == nil:
+		r.ID = existingID
+		return s.Save(r) // 更新：created_at 保留（Save 更新路径语义）
+	case errors.Is(err, sql.ErrNoRows):
+		return s.Save(r)
+	default:
+		return 0, err
+	}
 }
 
 // List 检索询价数据点:关键词匹配 title/spec/supplier/region/note(词间 AND、字段间 OR,
@@ -284,7 +327,7 @@ func (s *Store) SuggestAdjustments(entries []cost.Summary) []AdjustSuggestion {
 		if math.Abs(diffPct) <= 2 {
 			continue // 差幅不显著(<=2% 不提示)
 		}
-		out = append(out, AdjustSuggestion{
+		sug := AdjustSuggestion{
 			EntryName:    e.Name,
 			EntryTitle:   e.Title,
 			EntryPrice:   e.Price,
@@ -294,7 +337,14 @@ func (s *Store) SuggestAdjustments(entries []cost.Summary) []AdjustSuggestion {
 			Diff:         diff,
 			DiffPct:      diffPct,
 			Unit:         e.Unit,
-		})
+			Level:        adjustLevel(diffPct),
+		}
+		// v4.6 价格预测：同标题询价序列（按 price_date 旧→新）线性回归下期价。
+		if next, _, ok := PredictNext(pricesByDate(recs)); ok && next > 0 {
+			sug.PredictedNext = round4(next)
+			sug.PredictionNote = "基于询价序列线性回归（数据点越多越可信）"
+		}
+		out = append(out, sug)
 	}
 	if len(out) == 0 {
 		return nil
@@ -307,6 +357,89 @@ func (s *Store) SuggestAdjustments(entries []cost.Summary) []AdjustSuggestion {
 		return out[i].EntryName < out[j].EntryName
 	})
 	return out
+}
+
+// adjustLevel 差幅分级（v4.6 询价异常检测）：|diffPct| <5 正常、5-15 关注、
+// >15 异常——与 coststage 偏差特征同口径，前端按级着色。
+func adjustLevel(diffPct float64) string {
+	switch {
+	case math.Abs(diffPct) > 15:
+		return "异常"
+	case math.Abs(diffPct) >= 5:
+		return "关注"
+	default:
+		return "正常"
+	}
+}
+
+// pricesByDate 返回按 price_date 升序（旧→新）的价格序列；price_date 空视为
+// 最旧，时间无法解析的按字符串序（同为兜底，仅影响预测方向精度不影响安全）。
+func pricesByDate(recs []Record) []float64 {
+	sorted := append([]Record(nil), recs...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		pi, pj := sortableDate(sorted[i].PriceDate), sortableDate(sorted[j].PriceDate)
+		if pi != pj {
+			return pi < pj
+		}
+		return sorted[i].ID < sorted[j].ID
+	})
+	out := make([]float64, 0, len(sorted))
+	for _, r := range sorted {
+		if r.Price > 0 {
+			out = append(out, r.Price)
+		}
+	}
+	return out
+}
+
+// sortableDate 把 price_date（如 2026-08 / 2026年第2期 / 2026-08-15）转成可排序
+// 字符串：前缀取前 7 位数字（YYYY-MM），不足补零；解析失败返回 ""（排最前）。
+func sortableDate(s string) string {
+	d := 0
+	for _, c := range s {
+		if c >= '0' && c <= '9' {
+			d = d*10 + int(c-'0')
+		} else {
+			break
+		}
+	}
+	if d == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%08d", d)
+}
+
+// PredictNext 线性回归预测序列的下一期价格（v4.6 价格预测）。
+// prices 按时间序（旧→新）；x = 0..n-1 索引，最小二乘拟合 y=a+bx，
+// 返回 next = a + b*n（下一索引）与斜率 b（每期变化，单位=价格）。
+// n<2 时返回 (最后价, 0, false)——数据点太少无可预测，调用方不展示。
+func PredictNext(prices []float64) (next, slope float64, ok bool) {
+	n := len(prices)
+	if n == 0 {
+		return 0, 0, false
+	}
+	if n == 1 {
+		return prices[0], 0, false
+	}
+	var sx, sy, sxx, sxy float64
+	for i, p := range prices {
+		x := float64(i)
+		sx += x
+		sy += p
+		sxx += x * x
+		sxy += x * p
+	}
+	denom := float64(n)*sxx - sx*sx
+	if denom == 0 {
+		return prices[n-1], 0, false
+	}
+	slope = (float64(n)*sxy - sx*sy) / denom
+	intercept := (sy - slope*sx) / float64(n)
+	next = intercept + slope*float64(n)
+	if next < 0 {
+		next = 0
+	}
+	return round4(next), round4(slope), true
 }
 
 // MatchTitle 标题归一化(纯函数,导出供测试与外部复用):

@@ -193,3 +193,69 @@ func TestSaveDreamFactsSpaceAndAudit(t *testing.T) {
 		t.Fatalf("ListInSpace(work) = %+v, want [work-fact]", work)
 	}
 }
+
+// v4.5.1a 红线补课：refreshMemoryLocked 按会话空间收窄读端——work 会话刷新后
+// 只看到 work 记忆（play 事实不可见），play 会话反之；space.mode=off（""）
+// 不过滤（旧行为零变化）。写路径仍以 Memory.Space 落库为准。
+func TestRefreshMemorySpaceIsolation(t *testing.T) {
+	userDir := t.TempDir()
+	gdb := db.GetDatabase(userDir)
+	if gdb == nil {
+		t.Fatal("GetDatabase nil")
+	}
+	t.Cleanup(func() { db.CloseDatabase(userDir) })
+	c := New(Options{Sink: event.FuncSink(func(event.Event) {})})
+	c.mem = memory.Load(memory.Options{
+		CWD:     t.TempDir(),
+		UserDir: userDir,
+		DB:      gdb,
+	})
+	if _, err := c.mem.Store.Save(memory.Memory{
+		Name: "work-fact", Space: "work", Type: memory.TypeProject,
+		Kind: memory.KindSemantic, Description: "工位事实", Body: "预算口径",
+	}); err != nil {
+		t.Fatalf("save work-fact: %v", err)
+	}
+	if _, err := c.mem.Store.Save(memory.Memory{
+		Name: "play-fact", Space: "play", Type: memory.TypeProject,
+		Kind: memory.KindSemantic, Description: "乐园事实", Body: "游戏偏好",
+	}); err != nil {
+		t.Fatalf("save play-fact: %v", err)
+	}
+
+	names := func(ms []memory.Memory) []string {
+		out := make([]string, 0, len(ms))
+		for _, m := range ms {
+			out = append(out, m.Name)
+		}
+		return out
+	}
+
+	// work 会话：刷新后读端只含 work（play 事实被隔离）
+	c.space = "work"
+	c.refreshMemoryLocked()
+	got := names(c.Memory().Store.List())
+	if len(got) != 1 || got[0] != "work-fact" {
+		t.Fatalf("work 会话 List = %v, want [work-fact]", got)
+	}
+	// 逐轮注入同样收窄：play 关键词命中的事实不注入 work 会话
+	if block := c.Memory().RecallBlock("游戏偏好 乐园", 0); strings.Contains(block, "play-fact") {
+		t.Fatalf("work 会话 RecallBlock 泄露 play 事实: %q", block)
+	}
+
+	// play 会话：刷新后只含 play
+	c.space = "play"
+	c.refreshMemoryLocked()
+	got = names(c.Memory().Store.List())
+	if len(got) != 1 || got[0] != "play-fact" {
+		t.Fatalf("play 会话 List = %v, want [play-fact]", got)
+	}
+
+	// space.mode=off（""）：不过滤，两空间都可见（旧行为）
+	c.space = ""
+	c.refreshMemoryLocked()
+	got = names(c.Memory().Store.List())
+	if len(got) != 2 {
+		t.Fatalf("mode=off List = %v, want [work-fact play-fact]", got)
+	}
+}

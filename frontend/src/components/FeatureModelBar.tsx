@@ -4,6 +4,7 @@ import { PoweroffOutlined } from '@ant-design/icons'
 import * as App from '../../src/wailsjsCompat'
 import { getEngines, type EngineConfig } from '../api/engines'
 import { useFeatureModel } from '../hooks/useFeatureModel'
+import { usePollingGate } from '../hooks/usePollingGate'
 
 /**
  * 功能模型状态卡 — 显示某功能的绑定模型 + 引擎运行状态 + 一键启停按钮。
@@ -16,6 +17,8 @@ const FeatureModelBar: React.FC<{ feature: string; label: string }> = ({ feature
   const m = useFeatureModel(feature)
   const [engines, setEngines] = useState<EngineConfig[]>([])
   const [busy, setBusy] = useState(false)
+  // v4.5.2：引擎状态 8s 轮询接入系统级后台轮询门控
+  const gate = usePollingGate()
 
   const load = useCallback(async () => {
     try { setEngines(await getEngines()) } catch (_) {}
@@ -29,9 +32,10 @@ const FeatureModelBar: React.FC<{ feature: string; label: string }> = ({ feature
       const res = on?.('feature-model-changed', load)
       if (typeof res === 'function') unsub = res
     } catch (_) {}
-    const t = setInterval(load, 8000)
+    const tick = () => { if (gate) void load() }
+    const t = setInterval(tick, 8000)
     return () => { try { clearInterval(t); unsub?.() } catch (_) {} }
-  }, [load])
+  }, [load, gate])
 
   const boundEngine = m.engine ? engines.find((e) => e.id === m.engine) : undefined
   const bound = !!m.engine && !!m.model && !!boundEngine

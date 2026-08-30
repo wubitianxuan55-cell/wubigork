@@ -117,7 +117,11 @@ export function CostImportModal({
           status: r.status || "现行",
         };
       });
-      const n = await app.CostImportApply(entries);
+      // v4.6 询价飞轮反向接线：PDF/图片报价单确认导入时把来源传给后端，
+      // 各行自动幂等写入询价库（source=OCR报价）；xlsx/csv 表格导入不写。
+      const visionSources = new Set(["pdf_text", "pdf_scan", "image"]);
+      const inquiry = preview?.source && visionSources.has(preview.source) ? ["OCR报价"] : [];
+      const n = await app.CostImportApply(entries, ...inquiry);
       toast.show(`已导入 ${n} 条成本条目`, "info");
       onImported();
       onClose();
@@ -126,7 +130,7 @@ export function CostImportModal({
     } finally {
       setSaving(false);
     }
-  }, [confirmRows, onClose, onImported, toast]);
+  }, [confirmRows, preview?.source, onClose, onImported, toast]);
 
   return (
     <Modal

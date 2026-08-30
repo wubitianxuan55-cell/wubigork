@@ -1,12 +1,110 @@
 package costinquiry
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/db"
 )
+
+// v4.6 询价异常检测 + 价格预测：纯函数覆盖。
+func TestPredictNextAndLevel(t *testing.T) {
+	// 线性上涨序列：100,110,120 → 斜率 10/期 → 下期 130
+	next, slope, ok := PredictNext([]float64{100, 110, 120})
+	if !ok || math.Abs(next-130) > 0.01 || math.Abs(slope-10) > 0.01 {
+		t.Fatalf("PredictNext([100,110,120]) = (%v, %v, %v), want (130, 10, true)", next, slope, ok)
+	}
+	// 单点 → 无可预测（false）
+	if _, _, ok := PredictNext([]float64{50}); ok {
+		t.Fatal("单点序列不应可预测")
+	}
+	// 空序列
+	if _, _, ok := PredictNext(nil); ok {
+		t.Fatal("空序列不应可预测")
+	}
+	// 恒定序列：斜率 0，下期=现值
+	next, slope, ok = PredictNext([]float64{88, 88, 88})
+	if !ok || math.Abs(next-88) > 0.01 || math.Abs(slope) > 0.01 {
+		t.Fatalf("PredictNext(恒定) = (%v, %v, %v), want (88, 0, true)", next, slope, ok)
+	}
+
+	// 差幅分级：正常(<5)/关注(5-15)/异常(>15)
+	cases := []struct {
+		pct  float64
+		want string
+	}{
+		{3, "正常"}, {5, "关注"}, {14.9, "关注"}, {15, "关注"}, {15.1, "异常"}, {-30, "异常"},
+	}
+	for _, c := range cases {
+		if got := adjustLevel(c.pct); got != c.want {
+			t.Errorf("adjustLevel(%v) = %q, want %q", c.pct, got, c.want)
+		}
+	}
+}
+
+// v4.6 OCR 报价单自动入询价库飞轮：同源同标题幂等更新（重复导入不产生重复点）。
+func TestUpsertBySourceKeyDedup(t *testing.T) {
+	s := newTestStore(t)
+	r := Record{
+		Title: "热轧光圆钢筋", Spec: "HPB300 Φ12", Unit: "t", Price: 3750,
+		Source: "OCR报价", Supplier: "供应商报价单.pdf", PriceDate: "2026-08",
+	}
+	id1, err := s.UpsertBySourceKey(r)
+	if err != nil {
+		t.Fatalf("upsert1: %v", err)
+	}
+	// 同一报价单再次导入：价格刷新，不新增行
+	r.Price = 3780
+	id2, err := s.UpsertBySourceKey(r)
+	if err != nil {
+		t.Fatalf("upsert2: %v", err)
+	}
+	if id1 != id2 {
+		t.Fatalf("重复导入应更新同一数据点: %d vs %d", id1, id2)
+	}
+	got, err := s.Get(id1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Price != 3780 {
+		t.Fatalf("价格未刷新: %v", got.Price)
+	}
+	// 不同供应商 → 新数据点
+	r.Supplier = "另一家.pdf"
+	id3, err := s.UpsertBySourceKey(r)
+	if err != nil {
+		t.Fatalf("upsert3: %v", err)
+	}
+	if id3 == id1 {
+		t.Fatal("不同供应商应生成新数据点")
+	}
+}
+
+// v4.6 调差建议带异常分级与预测：SuggestAdjustments 输出 Level/PredictedNext。
+func TestSuggestAdjustmentsLevelAndPrediction(t *testing.T) {
+	s := newTestStore(t)
+	mustSave(t, s, Record{Title: "水泥", Spec: "P.O 42.5", Price: 480, PriceDate: "2026-06", Source: "信息价"})
+	mustSave(t, s, Record{Title: "水泥", Spec: "P.O 42.5", Price: 520, PriceDate: "2026-07", Source: "信息价"})
+	mustSave(t, s, Record{Title: "水泥", Spec: "P.O 42.5", Price: 560, PriceDate: "2026-08", Source: "信息价"})
+
+	// 成本库现价 400 → 最新询价 560，差幅 +40% = 异常；序列 480→520→560 预测
+	// 下期 600。
+	got := s.SuggestAdjustments([]cost.Summary{{Name: "cement", Title: "水泥", Price: 400, Unit: "t"}})
+	if len(got) != 1 {
+		t.Fatalf("SuggestAdjustments = %d 条, want 1", len(got))
+	}
+	if got[0].Level != "异常" {
+		t.Fatalf("level = %q, want 异常", got[0].Level)
+	}
+	if math.Abs(got[0].PredictedNext-600) > 0.01 {
+		t.Fatalf("predictedNext = %v, want 600", got[0].PredictedNext)
+	}
+	if got[0].PredictionNote == "" {
+		t.Fatal("预测说明为空")
+	}
+}
 
 // newTestStore 建临时目录 sqlite 询价库(cost_test.go 同款方式)。
 func newTestStore(t *testing.T) *Store {

@@ -414,7 +414,9 @@ export interface AppBindings {
   // CostImportAIParse 用办公功能模型把表格行归一化为成本条目（AI 解析）。
   CostImportAIParse(path: string): Promise<CostImportPreview>;
   // CostImportApply 批量写入确认后的成本条目，返回成功条数。
-  CostImportApply(rows: CostEntry[]): Promise<number>;
+  // v4.6：inquirySource 非空（如 "OCR报价"）时，报价单行自动幂等写入询价库
+  // （PDF/图片报价单飞轮反向接线）。
+  CostImportApply(rows: CostEntry[], inquirySource?: string): Promise<number>;
   // CostImportVisionPreview 解析 PDF（文字型/扫描件 OCR）/图片报价单为可确认的
   // 成本条目；preview.source 标注识别来源（pdf_text / pdf_scan / image）。
   CostImportVisionPreview(path: string): Promise<CostImportPreview>;
@@ -645,14 +647,21 @@ export function onUpdaterProgress(cb: (p: UpdateProgress) => void): () => void {
 }
 
 // onTaskEvent subscribes to the task scheduler's event stream (gaea-task):
-// every task status/progress change pushes the latest TaskView. Returns an
-// unsubscribe. Falls back to the mock stream outside the Wails shell.
-export function onTaskEvent(cb: (t: TaskView) => void): () => void {
+// every task status/progress change pushes the latest TaskView. space 非空时在
+// 订阅层按 payload.spaceId 过滤（v4.5.1a 红线补课：S2.1 事件空间过滤推广到
+// 任务事件——work 消费点传 "work"，play 任务事件不打扰工位 UI）；缺省
+// spaceId（旧任务/旧后端）按 work 兼容放行，与 isWorkSpaceTask 同语义。
+// Returns an unsubscribe. Falls back to the mock stream outside the Wails shell.
+export function onTaskEvent(cb: (t: TaskView) => void, space?: string): () => void {
+  const handler = (t: TaskView) => {
+    if (space && t.spaceId && t.spaceId !== space) return;
+    cb(t);
+  };
   if (realApp() && typeof window !== "undefined" && window.runtime) {
-    window.runtime.EventsOn("gaea-task", (payload) => cb(payload as TaskView));
+    window.runtime.EventsOn("gaea-task", (payload) => handler(payload as TaskView));
     return () => window.runtime?.EventsOff?.("gaea-task");
   }
-  return mockTaskSubscribe(cb);
+  return mockTaskSubscribe(handler);
 }
 
 // onReady subscribes to the agent:ready event fired when boot.Build completes.

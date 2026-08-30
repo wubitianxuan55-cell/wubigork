@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/evidence"
+	"github.com/gaea/gaea/internal/office/docmd"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
 )
 
@@ -31,13 +32,75 @@ func resolveTarget(rel string) string {
 	return filepath.Join(gaeaCwd(), rel)
 }
 
-// pdfPageCount 轻量统计 PDF 页数（按 "/Type /Page" 计数；渲染健全性用，非精确解析）。
-func pdfPageCount(path string) int {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return 0
+// v4.6 Verifier 通道 B 渲染/比对 seam（测试注入）：
+//   - verifyConvertToPdf：soffice 无头把 xlsx/docx/txt 转 PDF；
+//   - verifyRenderPages：poppler pdftoppm 把 PDF 逐页渲染 PNG；
+//   - verifyPixelDiff：纯 Go 像素差异率。
+var (
+	verifyConvertToPdf = convertToPdfFile
+	verifyRenderPages  = docmd.RenderPDFPages
+	verifyPixelDiff    = pixelDiffRatio
+)
+
+// visualDiffThresholds 是通道 B 判定阈值（像素差异率，0..1）：
+//   - ≤ passThreshold：视觉一致（仅渲染噪声/微小变化）→ pass；
+//   - ≤ warnThreshold：视觉变化但页数未变（内容/数据大改，预期内）→ warn；
+//   - > warnThreshold 且页数变化：视觉大改 + 版式变化（A 通道无法解释的
+//     结构破坏信号）→ fail。
+const (
+	visualDiffPassThreshold = 0.02
+	visualDiffWarnThreshold = 0.20
+)
+
+// runVisualDiff 对基线/目标做真视觉 diff（v4.6 补课：页数对比 → 像素对比 +
+// 页数联合判定）。verifyDir 是审计产物目录（before/after PDF + 逐页 PNG 落盘，
+// 供事后人工复核差异页）。返回通道 B 文案与建议状态（""=渲染降级）。
+func runVisualDiff(baselinePath, target, verifyDir string) (string, string) {
+	beforePDF := filepath.Join(verifyDir, "before.pdf")
+	afterPDF := filepath.Join(verifyDir, "after.pdf")
+	if err := verifyConvertToPdf(baselinePath, beforePDF); err != nil {
+		return "warn: 视觉渲染降级（soffice 不可用或转换失败，仅结构复核）", "warn"
 	}
-	return strings.Count(string(raw), "/Type /Page")
+	if err := verifyConvertToPdf(target, afterPDF); err != nil {
+		return "warn: 视觉渲染降级（soffice 不可用或转换失败，仅结构复核）", "warn"
+	}
+	bp, berr := verifyRenderPages(beforePDF, filepath.Join(verifyDir, "before"), 0)
+	ap, aerr := verifyRenderPages(afterPDF, filepath.Join(verifyDir, "after"), 0)
+	if berr != nil || aerr != nil {
+		return "warn: 视觉渲染降级（poppler pdftoppm 不可用，仅结构复核）", "warn"
+	}
+
+	maxPages := max(len(bp), len(ap))
+	totalRatio := 0.0
+	changedPages := 0
+	for i := 0; i < maxPages; i++ {
+		var ratio float64
+		if i >= len(bp) || i >= len(ap) {
+			ratio = 1.0 // 页数变化：缺失页整页视为差异
+		} else {
+			r, err := verifyPixelDiff(bp[i], ap[i])
+			if err != nil {
+				return "warn: 视觉 diff 像素解析失败（" + err.Error() + "）", "warn"
+			}
+			ratio = r
+		}
+		totalRatio += ratio
+		if ratio > visualDiffPassThreshold {
+			changedPages++
+		}
+	}
+	avg := totalRatio / float64(maxPages)
+	pageShift := len(bp) != len(ap)
+	switch {
+	case avg <= visualDiffPassThreshold:
+		return fmt.Sprintf("pass: 渲染健全（%d 页，像素差异 %.1f%%）", maxPages, avg*100), "pass"
+	case pageShift && avg > visualDiffWarnThreshold:
+		return fmt.Sprintf("fail: 视觉大改（%d→%d 页，%d 页差异，像素差异 %.1f%%）——建议回滚或人工复核",
+			len(bp), len(ap), changedPages, avg*100), "fail"
+	default:
+		return fmt.Sprintf("warn: 视觉变化（%d 页中 %d 页差异，像素差异 %.1f%%）",
+			maxPages, changedPages, avg*100), "warn"
+	}
 }
 
 // VerifyRecord 双通道复核一张证据卡。
@@ -91,26 +154,22 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 		}
 	}
 
-	// ── 通道 B：视觉健全性（有基线时渲染 before/after PDF 对比）──
+	// ── 通道 B：真视觉 diff（v4.6 补课：页数对比 → 像素 diff + 页数联合
+	// 判定）。有基线快照的写盘记录（xlsx_apply / edit_file / write_file /
+	// multi_edit / edit_lines / move_file 等）都可复核——soffice 转 PDF +
+	// poppler 逐页渲染 + 像素差异率；渲染链路任一环不可用降级 warn（仅结构
+	// 复核），不误判失败。审计产物（before/after PDF 与逐页 PNG）落
+	// .gaea/work/journal/verify/<id>/，事后可人工查差异页。──
 	v.ChannelB = "n/a"
-	if rec.Tool == "xlsx_apply" && rec.BaselinePath != "" && v.ChannelA != "fail" {
+	verifyArtifacts := ""
+	if rec.BaselinePath != "" && v.ChannelA != "fail" {
 		if _, err := os.Stat(rec.BaselinePath); err == nil {
-			dir, _ := os.MkdirTemp("", "gaea-verify-*")
-			defer os.RemoveAll(dir)
-			beforePDF := filepath.Join(dir, "before.pdf")
-			afterPDF := filepath.Join(dir, "after.pdf")
-			berr := convertToPdfFile(rec.BaselinePath, beforePDF)
-			aerr := convertToPdfFile(target, afterPDF)
-			if berr != nil || aerr != nil {
-				v.ChannelB = "warn: 视觉渲染降级（soffice 不可用或转换失败）"
-			} else {
-				bp, ap := pdfPageCount(beforePDF), pdfPageCount(afterPDF)
-				if bp > 0 && ap > 0 && bp != ap {
-					v.ChannelB = fmt.Sprintf("warn: 版式变化（%d → %d 页）", bp, ap)
-				} else {
-					v.ChannelB = fmt.Sprintf("pass: 渲染健全（%d 页）", max(ap, 1))
-				}
-			}
+			verifyDir := filepath.Join(gaeaCwd(), ".gaea", "work", "journal", "verify", id)
+			_ = os.MkdirAll(verifyDir, 0o755)
+			msg, _ := runVisualDiff(rec.BaselinePath, target, verifyDir)
+			v.ChannelB = msg
+			// 审计产物路径随 verdict 落库（事后人工复核差异页）
+			verifyArtifacts = fmt.Sprintf("视觉产物：%s", filepath.ToSlash(verifyDir))
 		}
 	}
 
@@ -118,13 +177,19 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 	switch {
 	case strings.HasPrefix(v.ChannelA, "fail"):
 		v.Status = evidence.VerdictFailed
-		v.Note = "结构/引用完整性未通过——建议回滚或人工复核"
+		v.Note = "结构/引用完整性未通过——建议回滚；xlsx 可回滚后重新规划（办公面板）"
+	case strings.HasPrefix(v.ChannelB, "fail"):
+		v.Status = evidence.VerdictFailed
+		v.Note = "视觉大改且版式变化——建议回滚后重新规划；人工复核为准"
 	case strings.HasPrefix(v.ChannelB, "warn"):
 		v.Status = evidence.VerdictWarned
 		v.Note = "结构通过，视觉/版式存在变化（或渲染降级）"
 	default:
 		v.Status = evidence.VerdictVerified
 		v.Note = "双通道复核通过"
+	}
+	if verifyArtifacts != "" {
+		v.Note += "｜" + verifyArtifacts
 	}
 	_ = st.AppendVerdict(v)
 	return v, nil

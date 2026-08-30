@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 	"unicode"
@@ -12,6 +13,7 @@ import (
 	gconfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/cost"
 	"github.com/gaea/gaea/internal/gaea/costimport"
+	"github.com/gaea/gaea/internal/gaea/costinquiry"
 	"github.com/gaea/gaea/internal/gaea/db"
 	"github.com/gaea/gaea/internal/gaea/knowledgeimport"
 	"github.com/gaea/gaea/internal/gaea/provider"
@@ -308,7 +310,14 @@ func normalizeCostEntryForTx(e CostEntry) (cost.Entry, error) {
 // GaeaCostImportApply 批量写入成本条目（前端确认后的行）；返回成功写入条数。
 // T7-2 整批事务：先整体校验，再单事务写入——任一行无效或写库失败，整个批次
 // 回滚，不再出现「前几条写入、后几条失败」的半批状态。
-func (a *App) GaeaCostImportApply(rows []CostEntry) (int, error) {
+//
+// v4.6 询价飞轮反向接线（审计 §C ②「OCR 报价单不自动入询价库」）：变参
+// inquirySource 非空时（前端对 pdf_text/pdf_scan/image 报价单传 "OCR报价"），
+// 成本库事务提交后把各行按 (title,spec,source,supplier) 幂等写入询价库——
+// 「每张 OCR 报价单自动变数据点」；写失败只记日志不阻断导入（成本库已提交，
+// 数据点可后续手动补）。Wails 对变参安全（GaeaTaskList 先例），旧调用零参数
+// 行为不变。
+func (a *App) GaeaCostImportApply(rows []CostEntry, inquirySource ...string) (int, error) {
 	entries := make([]cost.Entry, 0, len(rows))
 	for i, e := range rows {
 		norm, err := normalizeCostEntryForTx(e)
@@ -353,7 +362,49 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
 	}); err != nil {
 		return 0, err
 	}
-	return len(entries), nil
+	n := len(entries)
+	if len(inquirySource) > 0 && strings.TrimSpace(inquirySource[0]) != "" {
+		a.upsertInquiryFromImport(entries, strings.TrimSpace(inquirySource[0]))
+	}
+	return n, nil
+}
+
+// upsertInquiryFromImport 把确认导入的报价单行自动写入询价库（v4.6 飞轮
+// 反向接线）。best-effort：失败只记日志，不阻断导入。
+func (a *App) upsertInquiryFromImport(entries []cost.Entry, source string) {
+	st := a.hubCostInquiryStore()
+	if st == nil || !st.Available() {
+		slog.Warn("询价飞轮: 询价库不可用，报价单未自动入询价库", "source", source)
+		return
+	}
+	saved := 0
+	for _, e := range entries {
+		if strings.TrimSpace(e.Title) == "" || e.Price <= 0 {
+			continue
+		}
+		priceDate := strings.TrimSpace(e.PriceDate)
+		if priceDate == "" {
+			priceDate = time.Now().Format("2006-01")
+		}
+		if _, err := st.UpsertBySourceKey(costinquiry.Record{
+			Title:     strings.TrimSpace(e.Title),
+			Spec:      e.Spec,
+			Unit:      e.Unit,
+			Price:     e.Price,
+			Source:    source,
+			Supplier:  strings.TrimSpace(e.Source),
+			Region:    e.Region,
+			PriceDate: priceDate,
+			ValidUntil: e.ValidUntil,
+			Note:       "由报价单导入自动生成（成本库同步）",
+			Status:     "现行",
+		}); err != nil {
+			slog.Warn("询价飞轮: 报价单数据点写入失败", "title", e.Title, "error", err)
+			continue
+		}
+		saved++
+	}
+	slog.Info("询价飞轮: 报价单自动入询价库", "source", source, "saved", saved)
 }
 
 func toCostImportPreview(pv *costimport.Preview, aiUsed bool) CostImportPreview {

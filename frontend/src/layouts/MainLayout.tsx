@@ -23,7 +23,7 @@ import {
   isBoardReachableInSpace, boardSpace, pruneVisitedForSpace, type ShellSpace,
 } from '../boards/space'
 import { getPageComponent } from '../boards/pageRegistry'
-import { subscribe, BACKEND_EVENTS, FRONTEND_EVENTS } from '../events'
+import { subscribe, subscribeForSpace, BACKEND_EVENTS, FRONTEND_EVENTS } from '../events'
 import { useFeatureModel } from '../hooks/useFeatureModel'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { useT, type Translator } from '../gaea/lib/i18n'
@@ -456,11 +456,13 @@ const MainLayout: React.FC = () => {
     } catch { /* 忽略 */ }
   }
 
-  // 监听后端模型切换事件，实时刷新轨道条模型 pill
+  // 监听后端模型切换事件，实时刷新轨道条模型 pill。v4.5.1a：走
+  // subscribeForSpace——payload 带空间字段（未来按空间模型变更）时只收当前
+  // 空间；无空间字段的全局变更照常放行。
   useEffect(() => {
     const handler = () => { loadActiveModel() }
-    return subscribe(BACKEND_EVENTS.MODEL_CHANGED, handler)
-  }, [])
+    return subscribeForSpace(BACKEND_EVENTS.MODEL_CHANGED, handler, space)
+  }, [space])
 
   useEffect(() => {
     if (projectOpen) {
@@ -541,7 +543,9 @@ const MainLayout: React.FC = () => {
   }, [space, page, setSpace, visitedPages])
 
   // v4.5 指令中枢（S4.4）：语音等入口的意图命中 → 壳层导航（自动切空间，
-  // 复用 navigateBoard 机制）。后端 intent_router.go emit。
+  // 复用 navigateBoard 机制）。后端 intent_router.go emit。保持全局订阅不按
+  // 空间过滤——跨空间导航正是该事件的存在意义（play 语音「打开办公」必须
+  // 能唤醒 work 页面）。
   useEffect(() => {
     const unsub = subscribe(BACKEND_EVENTS.INTENT_NAVIGATE, (data: unknown) => {
       const detail = data as { board?: string }

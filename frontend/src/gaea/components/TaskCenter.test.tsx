@@ -16,8 +16,12 @@ vi.mock("../lib/bridge", () => ({
     TaskRetry: async () => {},
     TaskOutput: async (id: string): Promise<TaskOutputView> => tasks.output[id] ?? { tail: "", truncated: false },
   },
-  onTaskEvent: (cb: (t: TaskView) => void) => {
-    taskEventCb = cb;
+  // v4.5.1a：镜像真实 onTaskEvent 的订阅层空间过滤（work 订阅丢弃 play 事件）
+  onTaskEvent: (cb: (t: TaskView) => void, space?: string) => {
+    taskEventCb = (t: TaskView) => {
+      if (space && t.spaceId && t.spaceId !== space) return;
+      cb(t);
+    };
     return () => {
       taskEventCb = null;
     };

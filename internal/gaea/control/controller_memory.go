@@ -233,11 +233,20 @@ func (c *Controller) Memory() *memory.Set {
 // refreshMemoryLocked re-discovers memory from disk so a later Memory() reflects
 // a just-applied write, and updates the search index so memory_search finds the
 // change immediately. Caller holds c.mu.
+//
+// v4.5.1a 红线补课：按会话空间收窄读端（Options.Space→InSpace 视图）——work
+// 会话的逐轮记忆注入/面板只看到 work 记忆，play 只看到 play；space.mode=off
+// 时 c.space="" 不过滤（旧行为零变化）。写路径仍以 Memory.Space 落库为准。
 func (c *Controller) refreshMemoryLocked() {
 	if c.mem == nil {
 		return
 	}
-	c.mem = memory.Load(memory.Options{CWD: c.mem.CWD, UserDir: c.mem.UserDir, DB: c.mem.DB})
+	c.mem = memory.Load(memory.Options{
+		CWD:      c.mem.CWD,
+		UserDir:  c.mem.UserDir,
+		DB:       c.mem.DB,
+		Space:    c.space,
+	})
 	builtin.SetMemorySearchIndex(c.mem.Search)
 }
 

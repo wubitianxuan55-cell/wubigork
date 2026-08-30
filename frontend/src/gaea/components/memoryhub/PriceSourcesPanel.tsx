@@ -156,13 +156,14 @@ export function PriceSourcesPanel({ onChanged }: { onChanged?: () => void }) {
   );
 
   // 订阅 gaea-task 事件：只关心本面板提交的任务（pendingTasksRef 里的 id），
-  // 终态到达时提示/刷新列表/清除进行中状态。
+  // 终态到达时提示/刷新列表/清除进行中状态。v4.5.1a：订阅层按 work 过滤
+  // （play 任务事件不进入工位面板）。
   useEffect(() => {
     const off = onTaskEvent((t: TaskView) => {
       if (!isTerminal(t.status)) return;
       if (!pendingTasksRef.current.has(t.id)) return;
       handleTaskTerminal(t);
-    });
+    }, "work");
     return off;
   }, [handleTaskTerminal]);
 

@@ -22,6 +22,7 @@ import { app } from '../gaea/lib/bridge'
 import type {
   ProgrammingWebStatus, ProgrammingWebPreflight, ProgrammingWebLogTail,
 } from '../gaea/lib/types'
+import { usePollingGate } from '../hooks/usePollingGate'
 import './programming-page.css'
 
 const POLL_MS = 3000
@@ -113,6 +114,8 @@ const ProgrammingPage: React.FC = () => {
   const [frameKey, setFrameKey] = useState(0)
   const [frameLoaded, setFrameLoaded] = useState(false)
   const [starting, setStarting] = useState(false) // 启动中（独立于 busy：启动视图内点日志刷新不应退出）
+  // v4.5.2：编程工作台 3s 状态轮询接入系统级后台轮询门控
+  const gate = usePollingGate()
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
   // ── 顶栏工具栏宿主：prog-frame-bar 经 portal 移入 MainLayout 的 v3-strip
@@ -155,11 +158,12 @@ const ProgrammingPage: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    void refresh()
-    void refreshPreflight()
-    const t = window.setInterval(refresh, POLL_MS)
+    if (gate) void refreshPreflight()
+    const tick = () => { if (gate) void refresh() }
+    tick()
+    const t = window.setInterval(tick, POLL_MS)
     return () => window.clearInterval(t)
-  }, [refresh, refreshPreflight])
+  }, [refresh, refreshPreflight, gate])
 
   // 服务停止后端口重新空闲：预检 port_free 状态需要跟随刷新
   // （仅「运行中 → 停止」方向，挂载/轮询不重复拉取）。

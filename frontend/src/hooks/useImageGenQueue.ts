@@ -1,5 +1,6 @@
 // ImageGenPage 拆分产物：生成队列/任务执行状态机（行为零变化，T6-10.1）
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { usePollingGate } from './usePollingGate'
 import { message } from 'antd'
 import {
   generateImage, cancelImageGeneration, getComfyUITaskProgress,
@@ -42,6 +43,8 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
   const [genError, setGenError] = useState('')
   const [comfyProgress, setComfyProgress] = useState({ status: '', elapsed: 0, percent: -1, node: '' })
   const [results, setResults] = useState<GenResult[]>([])
+  // v4.5.2：ComfyUI 进度轮询接入系统级后台轮询门控
+  const gate = usePollingGate()
   const [pendingCount, setPendingCount] = useState(0)
   const [queueItems, setQueueItems] = useState<QueueEntry[]>([])
 
@@ -279,13 +282,14 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
     }
     let cancelled = false
     const tick = async () => {
+      if (!gate) return
       const p = await getComfyUITaskProgress()
       if (!cancelled) setComfyProgress({ status: p.status, elapsed: p.elapsed, percent: p.percent ?? -1, node: p.node || '' })
     }
     tick()
     const timer = setInterval(tick, 2000)
     return () => { cancelled = true; clearInterval(timer) }
-  }, [generating, config.backend])
+  }, [generating, config.backend, gate])
 
   return {
     generating, elapsed, lastTime, genError, comfyProgress,

@@ -1,5 +1,36 @@
 # gaea · 多功能 AI 助手
 
+## v4.6.0「双空间收尾 · 纵深补课」(2026-08-30)
+> 执行审计（docs/audit-2026-08-30-v4-execution-review.md）后的第一轮补课：
+> 红线缺口三条（记忆注入跨空间 / 任务分账未启用 / 事件过滤仅 1 处）全部接线，
+> 前端治理收尾（keepAlive 裸轮询 8 处门控 + CSS 真硬编码 token 化），C 类纵深
+> 按价值排序落地三件——Mood→TTS 闭环 / Verifier 通道 B 真视觉 diff + 失败回
+> Plan / 询价异常检测 + 价格预测 + OCR 报价单自动入询价库。每刀带「纵深检查」。
+> 验证：Go 全量绿（无 FAIL）；vitest **791/791**（144 文件）；tsc/eslint 0；
+> 绑定面不变（变参向后兼容）。详见 releases/v4.6.0.md。
+- **红线 ①记忆注入按空间收窄**：`boot/sysprompt.go` + `controller_memory.go`
+  `refreshMemoryLocked` 传 `Options.Space` → `InSpace` 读端视图——work 会话只
+  注入 work 记忆、play 只注入 play；mode=off 旧行为零变化。
+- **红线 ②任务分账生产启用**：`[tasks]` 配置段（max_concurrent/per_space/
+  priority）→ `startTaskScheduler` 落默认 {work=1, play=1} + 价格抓取优先；
+  显式空表可关分账回退全局 sem。
+- **红线 ③事件过滤推广**：`onTaskEvent(cb, space?)` 订阅层过滤，任务中心/
+  运行角标/价格源/索引面板全按 work；MainLayout 主事件流走 subscribeForSpace。
+- **keepAlive 轮询门控**：TaskCenter/SubagentsPanel/FeatureModelBar/
+  ProgrammingPage/BenchmarkSection/useStatsState/useImageGenQueue/useBridgeWatch
+  八处裸轮询接入 usePollingGate（后台空转归零）。
+- **Mood→TTS 闭环**：长期心境 4D EWMA → 连续韵律中文指令（低沉/温暖/不安/
+  平缓/轻快…），中性轮次由心境主导「听得出她今天低落」，强情绪标签仍主导。
+- **Verifier 通道 B 真 diff**：soffice 转 PDF + pdftoppm 逐页渲染 + 纯 Go 像素
+  差异率（页数联合判定 pass/warn/fail），审计产物落 journal/verify/<id>/；
+  失败回 Plan：证据卡内联结论 + xlsx_apply 一键「重新规划」。
+- **询价飞轮反向 + 异常检测 + 预测**：OCR/图片报价单确认导入自动幂等写入询价库
+  （source=OCR报价）；调差建议带 正常/关注/异常 分级；同标题询价序列线性回归
+  预测下期价。
+- **欠账清单**（如实）：规范包机制化 / 成本知识图谱+归因 排下轮；生命库可写化
+  评估结论 = 不做盲写 Herdsman 库（锁/Schema/竞争三类风险），gaea 侧角色资产
+  表另案评审。
+
 ## v4.5.0「指令中枢」· 统一意图路由内核 + 语音指令 (2026-08-30)
 > 路线图 §10.4a（2026-08-30 规划修订插入）第一刀：落地触点层「同内核多入口」
 > 的架构承诺——一层「意图 → 能力 → 结果回传」的统一路由内核，语音 / 微信 /

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { message } from 'antd'
 import { getModelCallStats, resetModelCallStats, type ModelStatsSummary } from '../../../api/engines'
 import { type StatsSort, type TrendDatum, type TrendRange } from '../charts'
+import { usePollingGate } from '../../../hooks/usePollingGate'
 
 export interface StatsState {
   callStats: ModelStatsSummary | null
@@ -26,6 +27,8 @@ export function useStatsState(statsOpen: boolean): StatsState {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [statsSort, setStatsSort] = useState<StatsSort>('calls')
   const [trendRange, setTrendRange] = useState<TrendRange>('7d')
+  // v4.5.2：统计轮询接入系统级后台轮询门控（页面不可见时空转零成本）
+  const gate = usePollingGate()
 
   const loadCallStats = useCallback(async () => {
     try {
@@ -41,10 +44,11 @@ export function useStatsState(statsOpen: boolean): StatsState {
   // 页面 keep-alive 常驻，统计需自行定期刷新——基础 30s 轮询，
   // 统计抽屉打开期间加快到 15s（原实现仅在抽屉打开时轮询，面板数据会过期）。
   useEffect(() => {
-    loadCallStats()
-    const timer = window.setInterval(loadCallStats, statsOpen ? 15000 : 30000)
+    const tick = () => { if (gate) void loadCallStats() }
+    tick()
+    const timer = window.setInterval(tick, statsOpen ? 15000 : 30000)
     return () => window.clearInterval(timer)
-  }, [statsOpen, loadCallStats])
+  }, [statsOpen, loadCallStats, gate])
 
   const handleResetCallStats = async () => {
     try {

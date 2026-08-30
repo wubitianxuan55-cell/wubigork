@@ -1,6 +1,6 @@
 // mock/cost.ts — 成本库/价格域（T6-10.1 拆分自 lib/mock.ts，方法体零改动）。
 import type { AppBindings } from "../bridge";
-import type { CostCategory, CostEstimateItem, CostEstimateVersion, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, PriceFetchRecord, PriceSource } from "../types";
+import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, PriceFetchRecord, PriceSource } from "../types";
 import {
   costCategoriesMock,
   costMock,
@@ -225,7 +225,7 @@ export function buildCost(_s: MakeMockState): CostMethods {
         source: "pdf_text",
       };
     },
-    async CostImportApply() {
+    async CostImportApply(_rows?: CostEntry[], _inquirySource?: string) {
       return 0;
     },
     // ── 价格源（mock）──

@@ -246,6 +246,7 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinkin
 		"turnPlan":     turnPlan,
 		"stage":        string(orch.State.Relationship.Stage),
 		"emotion":      orch.State.Emotion.PrimaryLabel,
+		"mood":         orch.State.Emotion.Mood,
 		"trust":        orch.State.Relationship.Trust,
 		"aff":          orch.State.Emotion.Aff,
 		"sec":          orch.State.Emotion.Sec,

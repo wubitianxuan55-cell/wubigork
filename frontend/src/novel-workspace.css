@@ -7,6 +7,16 @@
    令牌：--md-sys-* / --gaea-* / --color-* / --v3-*，零硬编码色值。
    ============================================================ */
 
+/* ── 阅读域语义色 token（v4.6 hex 收尾：集中定义，使用点只引用 var）── */
+:root {
+  --novel-read-current: #60a5fa; /* 朗读/定位当前句高亮 */
+  --novel-read-hit: #f6c445;     /* 全文搜索命中高亮 */
+  --ann-yellow: #f6c445;
+  --ann-green: #7bc96f;
+  --ann-blue: #6fa8dc;
+  --ann-pink: #e58aa6;
+}
+
 /* ── 板块外壳 ── */
 .novel-hub {
   display: flex;
@@ -1257,16 +1267,16 @@
   border-radius: 3px;
   padding: 0 1px;
   cursor: pointer;
-  background: color-mix(in srgb, var(--ann-color, #f6c445) 48%, transparent);
+  background: color-mix(in srgb, var(--ann-color, var(--ann-yellow)) 48%, transparent);
   transition: background 0.15s ease;
 }
 .novel-reading-mark:hover {
-  background: color-mix(in srgb, var(--ann-color, #f6c445) 70%, transparent);
+  background: color-mix(in srgb, var(--ann-color, var(--ann-yellow)) 70%, transparent);
 }
-.novel-reading-mark[data-ann-color='yellow'] { --ann-color: #f6c445; }
-.novel-reading-mark[data-ann-color='green'] { --ann-color: #7bc96f; }
-.novel-reading-mark[data-ann-color='blue'] { --ann-color: #6fa8dc; }
-.novel-reading-mark[data-ann-color='pink'] { --ann-color: #e58aa6; }
+.novel-reading-mark[data-ann-color='yellow'] { --ann-color: var(--ann-yellow); }
+.novel-reading-mark[data-ann-color='green'] { --ann-color: var(--ann-green); }
+.novel-reading-mark[data-ann-color='blue'] { --ann-color: var(--ann-blue); }
+.novel-reading-mark[data-ann-color='pink'] { --ann-color: var(--ann-pink); }
 
 .novel-read-selbar {
   position: fixed;
@@ -1488,11 +1498,11 @@
 /* ═══ 朗读/搜索定位高亮 + 全文搜索面板 ═══ */
 .novel-reading-current {
   border-radius: 3px;
-  background: color-mix(in srgb, #60a5fa 40%, transparent);
+  background: color-mix(in srgb, var(--novel-read-current) 40%, transparent);
 }
 .novel-reading-search-hit {
   border-radius: 3px;
-  background: color-mix(in srgb, #f6c445 45%, transparent);
+  background: color-mix(in srgb, var(--novel-read-hit) 45%, transparent);
 }
 
 .novel-read-search {

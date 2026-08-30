@@ -320,6 +320,19 @@ export function CostInquiryPanel({ compact = false }: { compact?: boolean }) {
             ) : (
               adjust.map((s) => (
                 <div key={s.entryName} className="flex items-center gap-2 rounded-lg border border-border/70 bg-bg-soft/40 px-2.5 py-1.5">
+                  {s.level && (
+                    <span
+                      className={`shrink-0 px-1.5 py-px rounded text-[9.5px] font-medium ${
+                        s.level === "异常"
+                          ? "bg-red-500/15 text-red-400"
+                          : s.level === "关注"
+                            ? "bg-amber-400/15 text-amber-300"
+                            : "bg-emerald-500/15 text-emerald-400"
+                      }`}
+                    >
+                      {s.level}
+                    </span>
+                  )}
                   <span className="min-w-0 truncate text-fg text-[11.5px] font-medium">{s.entryTitle}</span>
                   <span className="shrink-0 text-fg-faint text-[10.5px] tabular-nums">
                     {`¥${fmtPrice.format(s.entryPrice)} → ¥${fmtPrice.format(s.latestPrice)}`}
@@ -331,6 +344,15 @@ export function CostInquiryPanel({ compact = false }: { compact?: boolean }) {
                   {(s.latestDate || s.latestSource) && (
                     <span className="hidden lg:inline shrink-0 text-fg-faint text-[10px]">
                       {[s.latestDate, s.latestSource].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                  {!!s.predictedNext && s.predictedNext > 0 && (
+                    <span
+                      className="hidden xl:inline shrink-0 text-[10px] tabular-nums"
+                      style={{ color: "var(--color-info)" }}
+                      title={s.predictionNote ?? "询价序列线性回归"}
+                    >
+                      预测下期 ¥{fmtPrice.format(s.predictedNext)}
                     </span>
                   )}
                   <button

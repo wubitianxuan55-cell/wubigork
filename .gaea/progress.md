@@ -1,18 +1,19 @@
 # 任务进度
 
-> 最后更新: 2026-08-30（v4.3.2 首页重构发布完成）
+> 最后更新: 2026-08-30（v4.6.0 双空间收尾·纵深补课发布完成）
 
 ## 当前状态
 
-- **最新发布：v4.3.2（2026-08-30）**——首页「双翼·中庭」重构 + 空间导航收敛：
-  中庭语音+打字一体对话条（VoiceChatText 共用管道 + 放大 orb 磁吸核心）、左翼
-  书房 2×2 格、右翼庭院纵向列表、门廊编程独立入口；命名 工位→书房、乐园→庭院；
-  移除 rail 空间切换，navigateBoard 按板块自动切空间。验证：Go 全量绿；
-  vitest 789/789；tsc -b / eslint 0；版本五处统一 4.3.2。
-- **桌面端产物（2026-08-30）**：`releases/gaea-v4.3.2.exe`（36,630,016 字节 ≈ 33MB，
-  SHA256 `6a0486db4d8b03b221867d401df7e08a045b99694a9f628d52f7bdeacb348dbb`，
-  见 releases/SHA256SUMS-v4.3.2.txt）；wails v2.13.0 构建（1m1s）+ 冒烟
-  /api/health 200（GAEA_HTTP_PORT=18999 隔离）。
+- **最新发布：v4.6.0（2026-08-30）**——「双空间收尾 · 纵深补课」（执行审计后
+  第一轮收账）：红线三条全接线（记忆注入 InSpace 视图收窄 / [tasks] 任务分账
+  生产启用 / 事件订阅空间过滤推广）+ 前端治理收尾（keepAlive 裸轮询 8 处门控、
+  CSS 真硬编码 token 化）+ 纵深三件（Mood→TTS 连续韵律闭环 / Verifier 通道 B
+  真视觉 diff + 失败回 Plan / 询价异常分级 + 价格预测 + OCR 报价单自动入询价
+  库）。验证：Go 全量绿；vitest **791/791**；tsc -b / eslint 0；绑定面不变。
+  详见 releases/v4.6.0.md。
+- **下一执行**：v4.7——v4.5.1b 微信接统一路由 + iLink 图片/文件卡片；Ctrl+K
+  命令面板接内核（S4.6 留位）；领域包欠账按清单排序（规范包机制化 → 成本知识
+  图谱+归因）；v4.6 原定端到端实时语音继续排期。
 - 构建注意：wails build 走 `build.bat` 的 TMP/TEMP 重定向到 `.tmp`（规避 SAC
   策略拦截）。
 
@@ -237,6 +238,38 @@
   版本五处 4.5.0；gaea-v4.5.0.exe（35MB，SHA256 027c726d）+ 冒烟 200
 - 遗留：能力面仅四类（导航/生图/状态/提醒）；生图结果无语音播报进度；
   LLM 兜底分类器未接（规则引擎对未覆盖意图一律走聊天）
+
+### v4.6.0 双空间收尾·纵深补课（审计后第一轮收账）—— ✅ 已完成（v4.6.0）
+- [x] **红线 ①记忆注入按空间收窄**：`boot/sysprompt.go` 系统提示词索引 +
+  `controller_memory.go` refreshMemoryLocked 两个生产调用点传 `Options.Space`
+  → InSpace 读端视图（work 只注入 work / play 只注入 play / mode=off 旧行为）；
+  回归 TestRefreshMemorySpaceIsolation + TestBuildSystemPromptMemorySpaceScoped
+- [x] **红线 ②任务分账生产启用**：`[tasks]` 配置段（max_concurrent/per_space/
+  priority）→ startTaskScheduler 默认 {work=1, play=1} + 价格抓取优先
+  （price_fetch=20/file_index=10）；显式 `per_space = {}` 关分账回退全局 sem；
+  回归 TestTasksConfigTOML + TestTaskSchedulerOptionsDefaults
+- [x] **红线 ③事件过滤推广**：onTaskEvent(cb, space?) 订阅层过滤 + TaskCenter/
+  useRunningBadge/PriceSourcesPanel/WorkspaceSearchPanel 按 work + MainLayout
+  subscribeForSpace；回归 onTaskEvent 空间过滤测试
+- [x] **治理收尾**：keepAlive 裸轮询 8 处（TaskCenter/SubagentsPanel/
+  FeatureModelBar/ProgrammingPage/BenchmarkSection/useStatsState/
+  useImageGenQueue/useBridgeWatch）全接 usePollingGate；CSS 真硬编码 token 化
+  （novel 阅读高亮/批注色板 --novel-read-*/--ann-*、chat-board 混白）
+- [x] **纵深 Mood→TTS**：MoodToVoiceDescription 连续韵律 + WhisperChatFn 透传
+  mood + 中性轮次心境主导；回归 TestMoodToVoiceDescription +
+  TestManager_MoodDrivesNeutralTurnProsody
+- [x] **纵深 Verifier 通道 B**：soffice→pdftoppm→纯 Go 像素差异率（页数联合
+  判定 pass/warn/fail，渲染降级 warn），审计产物落 journal/verify/<id>；覆盖
+  全部有基线的写盘工具；失败回 Plan（证据卡内联结论 + xlsx 重新规划按钮）；
+  回归 TestPixelDiffRatio + TestRunVisualDiffVerdicts
+- [x] **纵深 询价飞轮**：调差异常分级（正常/关注/异常）+ PredictNext 线性回归
+  预测 + GaeaCostImportApply 变参 inquirySource → OCR 报价单幂等入询价库；
+  回归 4 个新测试（含飞轮接线）
+- [x] **验证**：Go 全量绿（无 FAIL）；vitest 791/791（144 文件）；tsc/eslint 0；
+  绑定面不变（变参向后兼容）；版本统一 4.6.0
+- 欠账（如实列示于 releases/v4.6.0.md）：规范包机制化 / 成本知识图谱+归因 /
+  生命库可写化（评估=不盲写 Herdsman 库）/ Verifier 通道 A 引用级深化 /
+  Mood 不进前端手动朗读（设计如此）
 
 ## v4.x 执行审计（2026-08-30）
 

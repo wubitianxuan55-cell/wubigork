@@ -45,7 +45,7 @@ func (a *App) startTaskScheduler() {
 		}
 		m := tasks.New(gdb, func(t tasks.Task) {
 			a.emitTaskEvent(t)
-		}, tasks.Options{})
+		}, taskSchedulerOptions(config.Load()))
 		m.Register(tasks.KindPriceFetch, a.priceFetchTaskHandler)
 		m.Register(tasks.KindPriceFetchAll, a.priceFetchAllTaskHandler)
 		m.Register(tasks.KindFileIndex, a.fileIndexTaskHandler)
@@ -56,6 +56,37 @@ func (a *App) startTaskScheduler() {
 			slog.Info("tasks: 调度器启动，续跑任务", "count", n)
 		}
 	})
+}
+
+// taskSchedulerOptions 把 [tasks] 配置解析为调度器选项（v4.5.1a 红线补课：
+// S1.4 任务按空间分账内核生产启用）。配置加载失败/零值回退默认：
+//   - max_concurrent 缺省 1（对齐 herdsman local_concurrency=1）；
+//   - per_space 缺省 {work=1, play=1}（空间分账：各空间独立并发跑道，
+//     某空间额度占满不阻塞其他空间出队）；显式 `per_space = {}` 关闭分账
+//     回退全局 sem（旧行为）；
+//   - priority 缺省 {price_fetch=20, price_fetch_all=20, file_index=10}
+//     （用户触发的价格抓取优先于后台文件索引维护）。
+func taskSchedulerOptions(cfg *config.Config, err error) tasks.Options {
+	opts := tasks.Options{}
+	if err == nil && cfg != nil {
+		opts.MaxConcurrent = cfg.Tasks.MaxConcurrent
+		opts.PerSpace = cfg.Tasks.PerSpace
+		opts.Priority = cfg.Tasks.Priority
+	}
+	if opts.MaxConcurrent <= 0 {
+		opts.MaxConcurrent = 1
+	}
+	if opts.PerSpace == nil {
+		opts.PerSpace = map[string]int{spaces.SpaceWork: 1, spaces.SpacePlay: 1}
+	}
+	if opts.Priority == nil {
+		opts.Priority = map[string]int{
+			string(tasks.KindPriceFetch):    20,
+			string(tasks.KindPriceFetchAll): 20,
+			string(tasks.KindFileIndex):     10,
+		}
+	}
+	return opts
 }
 
 // emitTaskEvent 把任务视图推给前端（gaea-task 事件通道）。

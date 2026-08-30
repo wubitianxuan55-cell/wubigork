@@ -1,8 +1,9 @@
 import { memo, useCallback, useEffect, useState } from "react";
 import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, Loader2, MessageSquare, Paperclip, Rollback, Shield } from "../icons";
 import { app } from "../lib/bridge";
-import type { JournalChangeRecord } from "../lib/types";
+import type { JournalChangeRecord, VerdictView } from "../lib/types";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
+import { FRONTEND_EVENTS, emitFrontendEvent } from "../../events";
 import { useToast } from "./Toast";
 import { FileThumb } from "./FileThumb";
 
@@ -45,6 +46,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   const toast = useToast();
+  // v4.6 失败回 Plan：逐证据卡内联展示复核结论（不再只弹 toast 一闪而过）
+  const [verdicts, setVerdicts] = useState<Record<string, VerdictView>>({});
 
   const open = onOpenFile ?? openFilePreview;
   const copyPath = useCallback(async (path: string) => {
@@ -106,11 +109,18 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   const verifyRecord = useCallback(async (r: JournalChangeRecord) => {
     try {
       const v = await app.VerifyRecord(r.id);
+      setVerdicts((prev) => ({ ...prev, [r.id]: v }));
       const label = v.status === "verified" ? "复核通过" : v.status === "warned" ? "复核警告" : "复核未通过";
       toast.show(`${label}：${v.note ?? ""}（A:${v.channelA ?? "n/a"} / B:${v.channelB ?? "n/a"}）`, v.status === "failed" ? "warn" : "info");
     } catch (e) {
       toast.show(`复核失败：${e instanceof Error ? e.message : String(e)}`, "warn");
     }
+  }, [toast]);
+
+  // v4.6 失败回 Plan：xlsx_apply 复核未通过 → 一键回到办公板块重新规划
+  const replanFailed = useCallback((r: JournalChangeRecord) => {
+    emitFrontendEvent(FRONTEND_EVENTS.NAVIGATE, { page: "office" });
+    toast.show(`已打开办公面板——可对 ${r.target} 重新规划后再应用`, "info");
   }, [toast]);
 
   const rollbackRecord = useCallback(async (r: JournalChangeRecord) => {
@@ -339,8 +349,11 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                 暂无证据卡——AI 改文件后这里会记录变更原文摘要
               </div>
             ) : (
-              (evidence ?? []).map((r) => (
-                <div key={r.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-(color:--md-sys-color-surface-container) border border-(color:--md-sys-color-outline-variant)">
+              (evidence ?? []).map((r) => {
+                const v = verdicts[r.id];
+                return (
+                <div key={r.id} className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-(color:--md-sys-color-surface-container) border border-(color:--md-sys-color-outline-variant)">
+                  <div className="flex items-center gap-2">
                   <span className="shrink-0 font-mono text-[9px] px-1 py-px rounded" style={{
                     color: "var(--md-sys-color-primary)",
                     background: "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)",
@@ -373,8 +386,39 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       <Rollback size={11} />
                     </button>
                   </span>
+                  </div>
+                  {/* v4.6：内联复核结论——failed 卡常驻显示「回滚 + 重新规划」入口 */}
+                  {v && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="shrink-0 text-[9px] px-1 py-px rounded font-mono" style={{
+                        color: v.status === "verified"
+                          ? "var(--md-sys-color-success)"
+                          : v.status === "warned"
+                            ? "var(--md-sys-color-warning)"
+                            : "var(--md-sys-color-destructive)",
+                        background: "color-mix(in srgb, currentColor 10%, transparent)",
+                      }}>
+                        {v.status === "verified" ? "复核通过" : v.status === "warned" ? "复核警告" : "复核未通过"}
+                      </span>
+                      <span className="min-w-0 flex-1 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                        {v.note ?? `${v.channelA ?? ""} / ${v.channelB ?? ""}`}
+                      </span>
+                      {v.status === "failed" && r.tool === "xlsx_apply" && (
+                        <button
+                          type="button"
+                          className={iconBtn}
+                          onClick={() => replanFailed(r)}
+                          title="回办公面板重新规划后再应用（失败回 Plan）"
+                          aria-label="重新规划"
+                        >
+                          <ClipboardList size={11} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         )}

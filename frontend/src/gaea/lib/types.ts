@@ -1154,6 +1154,11 @@ export interface CostAdjustSuggestion {
   diff: number;
   diffPct: number;
   unit: string;
+  // v4.6 询价异常检测 + 价格预测：差幅分级（正常/关注/异常）与询价序列
+  // 线性回归下期预测价（0/缺省 = 数据点太少无可预测）。
+  level?: string;
+  predictedNext?: number;
+  predictionNote?: string;
 }
 // ── 五算对比（估/概/预/结/决，coststage）──
 export interface CostStageValue {

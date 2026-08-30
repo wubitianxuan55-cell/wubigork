@@ -109,24 +109,36 @@ func (a *mediaState) initVoice() {
 
 // setWhisperChatFn 设置默认对话回调（轻语人格化对话，搜索增强）
 func (a *mediaState) setWhisperChatFn() {
-	a.voiceManager.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, error) {
+	a.voiceManager.SetWhisperChatFn(func(userMsg, personalityID string) (string, string, [4]float64, error) {
 		// v4.5 指令中枢（S4.3）：语音文本先过统一意图路由——命中即能力执行，
 		// 回复文本经下方同一 TTS 流程播报；未命中走原轻语对话管道。
 		if a.app != nil {
 			if reply, handled := a.app.routeIntent(userMsg); handled {
-				return reply, "CALM_RATIONAL", nil
+				return reply, "CALM_RATIONAL", [4]float64{}, nil
 			}
 		}
 		result, err := a.app.WhisperChatWithSearch(userMsg, personalityID, false, false)
 		if err != nil {
-			return "", "", err
+			return "", "", [4]float64{}, err
 		}
 		reply, _ := result["reply"].(string)
 		emotion, _ := result["emotion"].(string)
 		if emotion == "" {
 			emotion = "CALM_RATIONAL"
 		}
-		return reply, emotion, nil
+		// v4.6 Mood→TTS 闭环：透传 whisper 长期心境 4D EWMA（全 0 = 未播种）。
+		// 语音路径是进程内直调（Go [4]float64）；Wails 绑定路径经 JSON 往返
+		// 是 []float64——两种形态都接。
+		var mood [4]float64
+		switch raw := result["mood"].(type) {
+		case [4]float64:
+			mood = raw
+		case []float64:
+			if len(raw) == 4 {
+				copy(mood[:], raw)
+			}
+		}
+		return reply, emotion, mood, nil
 	})
 }
 
