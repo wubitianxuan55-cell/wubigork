@@ -1,5 +1,15 @@
 # gaea · 多功能 AI 助手
 
+## v4.8.1「欠账清尾」(2026-08-30)
+> v4.8.0 欠账两刀收口：全局离线模式设置 UI（绑定面 533→535）+ Realtime S1
+> （配置落盘 + DPAPI key + VoiceSettingsPanel 入口）。Go 全量绿、vitest
+> 803/803、tsc/eslint 0、drift PASS。详见 releases/v4.8.1.md。
+- **离线模式设置 UI**：SecurityPanel「全局离线模式」总闸段（回填/即存/失败
+  回滚）+ GaeaGet/SetOfflineMode 绑定 + shelf 内存同步。
+- **Realtime S1**：realtime 三键落盘（provider 仅 openai/Key 走 DPAPI 密文）+
+  initVoice 注入（接线位置测试守护）+ realtimeReady = 配置且构造成功 +
+  VoiceApplySettings/GetSettings 扩三键（明文 Key 永不出后端）+ 面板入口段。
+
 ## v4.8.0「全面铺开 · 触点纵深」(2026-08-30)
 > 六线并行调研（多子代理分工、文件足迹不相交）→ 七刀实现。意图内核纵深
 > （读屏多显示器/LLM 兜底/生图产物回推）+ 微信通道离线收敛 + 全局离线模式

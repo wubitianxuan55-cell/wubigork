@@ -34,12 +34,34 @@
   剩余欠账（Realtime S1/S2、iLink 真机窗口、离线模式设置 UI、权限升级请求+
   stubGate 竞态、XlsxPreview 虚拟滚动/生命库可写化=观察项）见
   `releases/v4.8.0.md` 欠账清单。
-- **下一执行**：v4.8.0 已发布（七刀收口）；剩余——Realtime S1（DPAPI 落盘+
-  key 入口 UI）/ S2（Events 驱动对话+打断联动，真 key 真机）；iLink 真机窗口
-  （原始 JSON/上传域/sendmessage 端点 → 仅替换 SendFileCard）；离线模式设置
-  UI（v4.8.1）。
+- **下一执行**：v4.8.1 已发布（欠账清尾两刀）；剩余——Realtime S2（Events
+  驱动端到端语音对话+打断联动，真 key 真机）；iLink 真机窗口（原始 JSON/
+  上传域/sendmessage 端点 → 仅替换 SendFileCard）；权限升级请求 + stubGate
+  竞态；XlsxPreview 虚拟滚动维持观察项。
 
 ## 版本状态
+
+- **最新发布：v4.8.1（2026-08-30）「欠账清尾」**：
+  git tag `v4.8.1`；CHANGELOG / releases/v4.8.1.md / README 索引同步。要点：
+  - **全局离线模式设置 UI**（绑定面 533→**535**）：GaeaGet/SetOfflineMode
+    绑定（ModelB 门面 + gen_bindings 归类）+ shelf.SaveConfig 内存同步；
+    SecurityPanel「全局离线模式」总闸段（回填/切换即存/失败回滚不静默），
+    文案点明与敏感域/办公本地优先的叠加关系。
+  - **Realtime S1（兑现 S0 注释）**：realtime 三键六处注册（provider 非空
+    仅 openai、Key 存储口径=DPAPI 密文）+ realtimeRuntimeCfg 解密助手 +
+    initVoice 在 NewManager **之前**注入（接线位置测试守护——曾放后面只改
+    局部副本）+ VoiceHealth.realtimeReady=配置且构造成功；未配置零变化。
+    VoiceApplySettings/GetSettings 扩三键：Key 明文进内存+密文落盘、凭据
+    保存失败返回错误（静默丢 key=「已配置」假象）、**明文 Key 永不出后端**
+    （hasKey 布尔回读，测试断言无泄漏）；VoiceSettingsPanel「实时语音
+    （实验）」段（供应商/模型/密码框 Key 不回显/保存回读）。
+  - **验证**：Go 全量绿（120 包；filewatch 风暴测试已知抖动隔离复跑绿）；
+    vitest **803/803**；tsc/eslint 0；绑定面 535、drift PASS；版本五处统一
+    4.8.1；桌面端 gaea-v4.8.1.exe（SHA256 见 releases/SHA256SUMS-v4.8.1.txt）
+    + 冒烟 200。
+  - **欠账**：Realtime S2（端到端接管+打断联动，真 key 真机）/ iLink 真机
+    窗口 / 权限升级请求+stubGate 竞态 / XlsxPreview 虚拟滚动、生命库可写化
+    =观察项。
 
 - **最新发布：v4.8.0（2026-08-30）「全面铺开 · 触点纵深」**：
   git tag `v4.8.0`；CHANGELOG / releases/v4.8.0.md / README 索引同步。要点：

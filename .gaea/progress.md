@@ -1,26 +1,21 @@
 # 任务进度
 
-> 最后更新: 2026-08-30（v4.8.0「全面铺开 · 触点纵深」发布完成）
+> 最后更新: 2026-08-30（v4.8.1「欠账清尾」发布完成）
 
 ## 当前状态
 
-- **最新发布：v4.8.0（2026-08-30）**——「全面铺开 · 触点纵深」（六线并行调研
-  → 七刀，多子代理分工、文件足迹不相交）：读屏纵深（多显示器 Monitors/
-  CaptureArea + 序数解析 + OCR 本地摘要朗读 + 截图留档）+ intent LLM 兜底
-  分类器（默认关：白名单+0.75 置信门+2s 硬超时，dryRun 恒不调用）+ 生图
-  产物 CardPath 接通（微信回推数据源）+ iLink 微信通道离线收敛（限频/截断/
-  多媒体上限/SSRF+魔数下载防线/图片→vision 识别管线/防御解析矩阵/
-  SendFileCard seam）+ 全局离线模式总开关（EngineType.IsLocal + routeModel
-  三步云过滤，跨版欠账清账）+ 成本知识图谱可视化（costref.BuildGraph 双视角
-  + CostGraphView 零依赖 SVG，成本库第 8 模块，绑定面 532→533）+ 实时语音
-  Realtime S0 铺底（internal/realtime seam + VoiceHealth realtimeReady）。
-  验证：Go 全量绿（120 包，零 FAIL）；vitest **800/800**（146 文件）；
-  tsc/eslint 0；绑定面 533、spaceBindings 250、drift PASS。详见
-  releases/v4.8.0.md。
-- **下一执行**：Realtime S1（配置落盘 DPAPI + key 入口 UI）/ S2（Events 驱动
-  对话与打断联动，需真 key 真机）；iLink 真机窗口（原始 JSON 抓包/上传域/
-  sendmessage 端点 → 仅替换 SendFileCard 实现）；离线模式设置 UI（v4.8.1）；
-  权限升级请求 + stubGate 竞态；XlsxPreview 虚拟滚动维持观察项。
+- **最新发布：v4.8.1（2026-08-30）**——「欠账清尾」两刀收口：①全局离线
+  模式设置 UI（SecurityPanel 总闸段 + GaeaGet/SetOfflineMode 绑定 533→535
+  + shelf 内存同步）②Realtime S1（realtime 三键落盘——provider 仅 openai、
+  Key 走 DPAPI 密文仅本机可解；initVoice 注入接线位置测试守护；
+  VoiceApplySettings/GetSettings 扩三键——明文 Key 永不出后端；面板「实时
+  语音（实验）」入口段）。验证：Go 全量绿（120 包，filewatch 风暴测试为已知
+  抖动隔离复跑绿）；vitest **803/803**；tsc/eslint 0；绑定面 535、drift
+  PASS。详见 releases/v4.8.1.md。
+- **下一执行**：Realtime S2（Events 驱动端到端语音对话 + 打断联动，需真 key
+  真机）；iLink 真机窗口（原始 JSON/上传域/sendmessage 端点 → 仅替换
+  SendFileCard）；权限升级请求 + stubGate 竞态；XlsxPreview 虚拟滚动维持
+  观察项。
 - 构建注意：wails build 走 `build.bat` 的 TMP/TEMP 重定向到 `.tmp`（规避 SAC
   策略拦截）。
 
