@@ -94,6 +94,9 @@ func PollQRStatus(qrcode string) (*QRStatusResp, error) {
 	if err := json.Unmarshal(b, &result); err != nil {
 		return nil, fmt.Errorf("解析状态响应失败: %w", err)
 	}
+	// v4.8.2 真机抓包窗口：响应带 baseurl/redirect_host（登录成功态）时抓整
+	// 响应原文并存媒体域缓存（capture.go recordQRStatus，无媒体域不抓不刷屏）。
+	recordQRStatus(b, &result)
 	return &result, nil
 }
 
@@ -122,5 +125,8 @@ func PollQRStatusWithCode(qrcode, verifyCode string) (*QRStatusResp, error) {
 	if err := json.Unmarshal(b, &result); err != nil {
 		return nil, fmt.Errorf("解析状态响应失败: %w", err)
 	}
+	// v4.8.2 真机抓包窗口：响应带 baseurl/redirect_host（登录成功态）时抓整
+	// 响应原文并存媒体域缓存（capture.go recordQRStatus，无媒体域不抓不刷屏）。
+	recordQRStatus(b, &result)
 	return &result, nil
 }

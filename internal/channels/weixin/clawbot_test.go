@@ -597,7 +597,7 @@ func TestSendFileCard_TextFallback(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t"}, func(string, string) (string, error) { return "ok", nil })
+	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: t.TempDir()}, func(string, string) (string, error) { return "ok", nil })
 	// 先产生活跃会话（回推目标）
 	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "画一张猫"}}}})
 
@@ -629,7 +629,7 @@ func TestSendFileCard_TextFallback(t *testing.T) {
 	}
 
 	// 无活跃会话：报错（复用 Push 语义）
-	srv2 := New(Config{BotToken: "tok", AssistantID: "t"}, nil)
+	srv2 := New(Config{BotToken: "tok", AssistantID: "t", CapturePath: t.TempDir()}, nil)
 	if err := srv2.SendFileCard(`C:\out\a.png`, ""); err == nil {
 		t.Fatal("无活跃会话时 SendFileCard 应报错")
 	}
