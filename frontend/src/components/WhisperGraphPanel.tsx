@@ -67,6 +67,20 @@ function nodeStrokeWidth(isCenter: boolean, weight: number): number {
   return 1 + Math.min(2.5, weight * 2);
 }
 
+// v4.9 图谱情绪维度：边按情绪着色（正面绿 / 负面红 / 中性灰；空=默认细灰）。
+function edgeStrokeClass(emotion?: string): string {
+  switch (emotion) {
+    case "正面":
+      return "stroke-emerald-400/70";
+    case "负面":
+      return "stroke-rose-400/70";
+    case "中性":
+      return "stroke-fg-faint/50";
+    default:
+      return "stroke-fg-faint/60";
+  }
+}
+
 // ── 主动关心消息类型 → 中文徽标（其余原文） ────────────────────────
 const MESSAGE_TYPE_LABELS: Record<string, string> = {
   check_in: "关怀问候",
@@ -374,7 +388,23 @@ export function WhisperGraphPanel({
           ) : !graph || (graph.nodes ?? []).length === 0 ? (
             <EmptyState message="图谱暂无关系——多聊几次、让轻语记住更多约定与回忆" />
           ) : layout ? (
-            <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-auto block">
+            <>
+              {/* 情绪图例（v4.9 图谱情绪维度） */}
+              <div className="flex items-center gap-3 px-3 pt-2 text-[10.5px] text-fg-faint">
+                <span className="inline-flex items-center gap-1">
+                  <i className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                  正面
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <i className="w-2 h-2 rounded-full bg-rose-400 inline-block" />
+                  负面
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <i className="w-2 h-2 rounded-full bg-fg-faint/60 inline-block" />
+                  中性
+                </span>
+              </div>
+              <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-auto block">
               {/* 边：线 + 关系类型标签（中点） */}
               {layout.edges.map((pe, i) => (
                 <g key={`edge-${i}`}>
@@ -383,7 +413,7 @@ export function WhisperGraphPanel({
                     y1={pe.y1}
                     x2={pe.x2}
                     y2={pe.y2}
-                    className="stroke-fg-faint/60"
+                    className={edgeStrokeClass(pe.edge.emotionLabel)}
                     strokeWidth={1}
                   />
                   {pe.edge.type && (
@@ -432,7 +462,8 @@ export function WhisperGraphPanel({
                   </g>
                 );
               })}
-            </svg>
+              </svg>
+            </>
           ) : null}
         </div>
 

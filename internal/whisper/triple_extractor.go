@@ -18,6 +18,26 @@ type TripleRow struct {
 	SourceFactIDs []string `json:"sourceFactIds"`
 }
 
+// attachEmotion 把事实情感快照落进三元组（v4.9 图谱情绪维度）。无快照时保持
+// 空值（中性）；情绪标签由效价确定性派生（正面/负面/中性），情绪强度/效价原样
+// 携带——情绪从此不在图外（审计 §C：「情绪活在图外 EmotionState」）。
+func attachEmotion(t Triple, ec *EmotionalContext) Triple {
+	if ec == nil {
+		return t
+	}
+	t.EmotionalIntensity = ec.Intensity
+	t.Valence = ec.Valence
+	switch {
+	case ec.Valence > 0.15:
+		t.EmotionLabel = "正面"
+	case ec.Valence < -0.15:
+		t.EmotionLabel = "负面"
+	default:
+		t.EmotionLabel = "中性"
+	}
+	return t
+}
+
 // 正则模式
 var triplePatterns = []struct {
 	re        *regexp.Regexp

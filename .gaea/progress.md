@@ -5,6 +5,13 @@
 
 ## 当前状态
 
+- **图谱情绪维度（2026-08-30，审计 §C 欠账收口）**：Triple 增情绪三字段
+  （EmotionLabel/Intensity/Valence），事实提取 attachEmotion 落图（效价派生
+  正面/负面/中性），新增 AddTriple 保留情绪（Add 兼容旧调用）；BASIC_PROFILE
+  主语实体化（档案键替代硬编码「用户」）；hermes.db 迁移 V13→V14
+  （knowledge_triples +3 列，存量安全）；前端图谱边按情绪着色 + 图例。
+  Go +5 测试、vitest +1（816/816）、tsc/eslint 0、绑定面 539 不变。欠账延续：
+  因果维度未做（需 LLM/事件链）、时空索引未建（暂以 CreatedAt 承担）。
 - **记忆重述 + 锚点刻度对齐（2026-08-30，记忆回放收尾两刀）**：
   GaeaWhisperMemoryRetell（绑定面 539，play）——LLM 以当前人格口吻把情节/锚点
   记忆重述成故事（输入复用确定性回放：摘要+情绪+原文对话；第一人称/称「你」/

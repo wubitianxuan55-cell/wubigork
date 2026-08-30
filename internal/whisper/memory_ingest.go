@@ -199,24 +199,32 @@ func (p *MemoryIngestPipeline) extractTriples(fs *FactStore, sessionID string, t
 			continue
 		}
 		for _, t := range extractBasicTriples(f) {
-			kg.Add(t.Subject, t.Predicate, t.Object, t.Confidence, t.SourceFactIDs)
+			kg.AddTriple(t)
 		}
 	}
 }
 
 func extractBasicTriples(f *Fact) []Triple {
+	var t Triple
 	switch f.Subcategory {
 	case "BASIC_PROFILE":
-		return []Triple{{Subject: "用户", Predicate: f.Subject, Object: f.Summary, Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}}
+		// 实体化主语：用档案键（如「生日」）而非硬编码「用户」（审计 §C：
+		// 「三元组主语几乎全为用户」→ 图谱无真实实体结构）
+		subject := f.Subject
+		if subject == "" {
+			subject = "用户"
+		}
+		t = Triple{Subject: subject, Predicate: "属性", Object: f.Summary, Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}
 	case "PRAISE":
-		return []Triple{{Subject: "用户", Predicate: "赞赏", Object: "gaea", Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}}
+		t = Triple{Subject: "用户", Predicate: "赞赏", Object: "gaea", Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}
 	case "VULNERABILITIES":
-		return []Triple{{Subject: "用户", Predicate: "表达脆弱", Object: f.Summary, Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}}
+		t = Triple{Subject: "用户", Predicate: "表达脆弱", Object: f.Summary, Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}
 	case "OUR_BOND":
-		return []Triple{{Subject: "用户", Predicate: "关系", Object: f.Summary, Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}}
+		t = Triple{Subject: "用户", Predicate: "关系", Object: f.Summary, Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}
 	default:
-		return []Triple{{Subject: f.Subject, Predicate: f.Domain, Object: f.Summary, Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}}
+		t = Triple{Subject: f.Subject, Predicate: f.Domain, Object: f.Summary, Confidence: f.Confidence, SourceFactIDs: []string{f.ID}}
 	}
+	return []Triple{attachEmotion(t, f.EmotionalContext)}
 }
 
 // ─── 情节生成 ────────────────────────────────────────────────

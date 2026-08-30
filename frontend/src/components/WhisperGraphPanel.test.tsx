@@ -51,6 +51,15 @@ const GRAPH_2 = {
   ],
 };
 
+// v4.9 图谱情绪维度：边带 emotionLabel（正面）。
+const GRAPH_EMOTION = {
+  nodes: [
+    { id: "n0", name: "阿黎", type: "person", weight: 0.9 },
+    { id: "n1", name: "爬山", type: "hobby", weight: 0.6 },
+  ],
+  edges: [{ from: "n0", to: "n1", type: "喜欢", weight: 0.8, emotionLabel: "正面" }],
+};
+
 describe("WhisperGraphPanel 轻语关系图谱", () => {
   beforeEach(() => {
     subgraphSpy.mockReset();
@@ -89,6 +98,23 @@ describe("WhisperGraphPanel 轻语关系图谱", () => {
     expect(screen.getByText("爬山")).toBeTruthy();
     expect(screen.getByText("常去")).toBeTruthy();
     expect(subgraphSpy).toHaveBeenCalledWith("pid-1", "阿黎", 2);
+  });
+
+  it("v4.9 图谱边按情绪着色：图例渲染 + 正面边使用绿色 stroke", async () => {
+    subgraphSpy.mockResolvedValue(GRAPH_EMOTION);
+    render(wrap(<WhisperGraphPanel open personalityId="pid-1" onClose={() => {}} />));
+
+    fireEvent.change(screen.getByLabelText("实体名"), { target: { value: "阿黎" } });
+    fireEvent.click(screen.getByRole("button", { name: /查询/ }));
+
+    expect(await screen.findByText("爬山")).toBeTruthy();
+    // 情绪图例
+    expect(screen.getByText("正面")).toBeTruthy();
+    expect(screen.getByText("负面")).toBeTruthy();
+    expect(screen.getByText("中性")).toBeTruthy();
+    // 正面边 → emerald 描边
+    const line = document.querySelector("line");
+    expect(line?.getAttribute("class")).toContain("stroke-emerald-400/70");
   });
 
   it("空态：nodes 为空时展示「图谱暂无关系」", async () => {

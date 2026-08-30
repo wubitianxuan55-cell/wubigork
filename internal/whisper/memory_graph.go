@@ -23,6 +23,11 @@ type Triple struct {
 	Confidence    float64   `json:"confidence"`
 	SourceFactIDs []string  `json:"sourceFactIds"`
 	CreatedAt     time.Time `json:"createdAt"`
+	// v4.9 图谱情绪维度（审计 §C 欠账收口）：情绪随事实写入，前端按情绪着色；
+	// 无情绪时为空值（中性）。
+	EmotionLabel       string  `json:"emotionLabel,omitempty"`
+	EmotionalIntensity float64 `json:"emotionalIntensity,omitempty"`
+	Valence            float64 `json:"valence,omitempty"`
 }
 
 // ─── KnowledgeGraph ───────────────────────────────────────────
@@ -39,25 +44,30 @@ func NewKnowledgeGraph() *KnowledgeGraph {
 	return &KnowledgeGraph{entityIdx: make(map[string][]int)}
 }
 
-// Add 添加三元组
+// Add 添加三元组（无情绪维度；旧调用方兼容，等价 AddTriple 空情绪）。
 func (kg *KnowledgeGraph) Add(subj, pred, obj string, conf float64, src []string) Triple {
+	return kg.AddTriple(Triple{
+		Subject: subj, Predicate: pred, Object: obj,
+		Confidence: conf, SourceFactIDs: src,
+	})
+}
+
+// AddTriple 按完整 Triple 添加（保留情绪维度；供事实提取/回填使用）。
+func (kg *KnowledgeGraph) AddTriple(t Triple) Triple {
 	kg.mu.Lock()
 	defer kg.mu.Unlock()
-	b := make([]byte, 8)
-	rand.Read(b)
-	t := Triple{
-		ID:            "kg_" + hex.EncodeToString(b),
-		Subject:       subj,
-		Predicate:     pred,
-		Object:        obj,
-		Confidence:    conf,
-		SourceFactIDs: src,
-		CreatedAt:     time.Now(),
+	if t.ID == "" {
+		b := make([]byte, 8)
+		rand.Read(b)
+		t.ID = "kg_" + hex.EncodeToString(b)
+	}
+	if t.CreatedAt.IsZero() {
+		t.CreatedAt = time.Now()
 	}
 	idx := len(kg.triples)
 	kg.triples = append(kg.triples, t)
-	kg.addIdx(subj, idx)
-	kg.addIdx(obj, idx)
+	kg.addIdx(t.Subject, idx)
+	kg.addIdx(t.Object, idx)
 	return t
 }
 
@@ -168,10 +178,11 @@ type GraphNode struct {
 
 // GraphEdge 子图边(三元组)
 type GraphEdge struct {
-	From   string  // 主语实体
-	To     string  // 宾语实体
-	Type   string  // 关系标签(三元组谓词)
-	Weight float64 // 边权重:三元组 confidence;无权重(<=0)时为 1
+	From         string  // 主语实体
+	To           string  // 宾语实体
+	Type         string  // 关系标签(三元组谓词)
+	Weight       float64 // 边权重:三元组 confidence;无权重(<=0)时为 1
+	EmotionLabel string  // 边情绪标签(正面/负面/中性;v4.9 图谱情绪维度)
 }
 
 // Subgraph 以 entity 为中心、hops 跳内的邻接子图。
@@ -246,7 +257,10 @@ func (kg *KnowledgeGraph) QuerySubgraph(entity string, hops int) Subgraph {
 					ew = 1 // 无权重边按 1
 				}
 				if old, dup := edgeMap[ek]; !dup || old.Weight < ew {
-					edgeMap[ek] = GraphEdge{From: t.Subject, To: t.Object, Type: t.Predicate, Weight: ew}
+					edgeMap[ek] = GraphEdge{
+						From: t.Subject, To: t.Object, Type: t.Predicate, Weight: ew,
+						EmotionLabel: t.EmotionLabel,
+					}
 				}
 				for _, nm := range []string{t.Subject, t.Object} {
 					nk := strings.ToLower(nm)

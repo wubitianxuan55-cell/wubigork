@@ -1,5 +1,24 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · 图谱情绪维度（轻语关系图谱做深） (2026-08-30)
+> 审计 §C 欠账收口：「三元组主语几乎全为「用户」+ 情绪活在图外 EmotionState」。
+- **三元组情绪维度**：Triple 增 EmotionLabel / EmotionalIntensity / Valence；事实
+  提取时经 attachEmotion 把情感快照落进三元组（效价 >0.15 正面 / <-0.15 负面 /
+  其余中性，确定性派生）；新增 AddTriple 保留情绪（Add 兼容旧调用）；子图边带
+  EmotionLabel 供前端着色。
+- **主语实体化**：BASIC_PROFILE 不再硬编码「用户」→ 用档案键（如「生日」）作
+  主语、谓词「属性」；关系类（赞赏/表达脆弱/关系）保持「用户」主语语义。
+- **持久化**：whisper hermes.db 迁移链 V13→V14（knowledge_triples 增 3 列，
+  ALTER ADD COLUMN 带默认值，存量安全）；repo 读写带情绪；schema_v13 测试版本
+  断言同步 V13→V14。
+- **前端**：图谱边按情绪着色（正面绿 / 负面红 / 中性灰）+ 情绪图例；
+  WhisperGraphEdge 增 emotionLabel。
+- 验证：Go 全量绿（新增 5 测试：实体化+情绪 / 负面标签 / AddTriple 保留 / 子图
+  边情绪 / 落库读回）；vitest **816/816**（+1 图谱情绪）；tsc/eslint 0；绑定面
+  539 不变。全量并发下 tasks 压力测试偶发 flake（CI 同款重试语义，单跑绿）。
+- 欠账延续：因果维度（「因为…所以…」边）需 LLM/事件链，未做；时空维度暂以
+  事实 CreatedAt 承担，未建专门时间索引。
+
 ## 未发布 · 记忆重述 + 锚点刻度对齐 (2026-08-30)
 > 记忆回放收尾两刀：LLM 叙事重述 + 锚点策略阈值刻度修正。
 - **GaeaWhisperMemoryRetell（绑定面 538→539，MemoryB/play）**：让 gaea 以当前

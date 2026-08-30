@@ -1529,6 +1529,8 @@ export interface WhisperGraphEdge {
   to: string;
   type: string;
   weight: number;
+  // v4.9 图谱情绪维度：正面/负面/中性（后端按事实效价派生，空=中性）。
+  emotionLabel?: string;
 }
 export interface WhisperSubgraph {
   nodes: WhisperGraphNode[];

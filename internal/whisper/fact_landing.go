@@ -82,7 +82,10 @@ func WriteFactRows(input WriteFactRowsInput) WriteFactRowsResult {
 			if input.KG != nil {
 				triples := ExtractTriples(row.Subject, row.Summary, fact.ID, row.Subcategory, "")
 				for _, t := range triples {
-					input.KG.Add(t.Subject, t.Predicate, t.Object, t.Confidence, t.SourceFactIDs)
+					input.KG.AddTriple(attachEmotion(Triple{
+						Subject: t.Subject, Predicate: t.Predicate, Object: t.Object,
+						Confidence: t.Confidence, SourceFactIDs: t.SourceFactIDs,
+					}, &emo))
 				}
 			}
 

@@ -148,9 +148,10 @@ var migrations = []string{
 	SchemaV11,
 	SchemaV12,
 	SchemaV13,
+	SchemaV14,
 }
 
-// runMigrations 执行递增迁移链 V1 → V13
+// runMigrations 执行递增迁移链 V1 → V14
 func runMigrations(db *sql.DB) error {
 	// 确保 schema_meta 表存在（首次运行）
 	if _, err := db.Exec(SchemaV1); err != nil {
@@ -227,7 +228,6 @@ func ClearStructuredData(dataRoot string) error {
 		return nil
 	})
 }
-
 
 // migrateLegacyDB 将旧库 whisper.db（含 WAL/SHM）复制为 hermes.db。
 // 仅当新库不存在且旧库存在时执行一次；保留旧文件作备份，不删除。

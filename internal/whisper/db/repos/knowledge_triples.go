@@ -13,22 +13,28 @@ import (
 )
 
 type tripleRow struct {
-	ID            string
-	Subject       string
-	Predicate     string
-	Object        string
-	Confidence    float64
-	SourceFactIDs sql.NullString
-	CreatedAt     string
+	ID                 string
+	Subject            string
+	Predicate          string
+	Object             string
+	Confidence         float64
+	SourceFactIDs      sql.NullString
+	CreatedAt          string
+	EmotionLabel       string
+	EmotionalIntensity float64
+	Valence            float64
 }
 
 func (r *tripleRow) toTriple() whisper.Triple {
 	t := whisper.Triple{
-		ID:         r.ID,
-		Subject:    r.Subject,
-		Predicate:  r.Predicate,
-		Object:     r.Object,
-		Confidence: r.Confidence,
+		ID:                 r.ID,
+		Subject:            r.Subject,
+		Predicate:          r.Predicate,
+		Object:             r.Object,
+		Confidence:         r.Confidence,
+		EmotionLabel:       r.EmotionLabel,
+		EmotionalIntensity: r.EmotionalIntensity,
+		Valence:            r.Valence,
 	}
 
 	if r.SourceFactIDs.Valid {
@@ -62,7 +68,7 @@ func LoadTriplesFromDB(dataRoot string) ([]whisper.Triple, error) {
 	}
 
 	rows, err := sqlDB.Query(
-		"SELECT id, subject, predicate, object, confidence, source_fact_ids, created_at FROM knowledge_triples",
+		"SELECT id, subject, predicate, object, confidence, source_fact_ids, created_at, emotion_label, emotional_intensity, valence FROM knowledge_triples",
 	)
 	if err != nil {
 		return nil, err
@@ -72,7 +78,8 @@ func LoadTriplesFromDB(dataRoot string) ([]whisper.Triple, error) {
 	var triples []whisper.Triple
 	for rows.Next() {
 		var r tripleRow
-		if err := rows.Scan(&r.ID, &r.Subject, &r.Predicate, &r.Object, &r.Confidence, &r.SourceFactIDs, &r.CreatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.Subject, &r.Predicate, &r.Object, &r.Confidence,
+			&r.SourceFactIDs, &r.CreatedAt, &r.EmotionLabel, &r.EmotionalIntensity, &r.Valence); err != nil {
 			continue
 		}
 		triples = append(triples, r.toTriple())
@@ -114,7 +121,7 @@ func DeleteAllTriplesFromDB(dataRoot string) error {
 
 func insertTripleTx(tx *sql.Tx, t whisper.Triple) error {
 	_, err := tx.Exec(
-		"INSERT INTO knowledge_triples(id, subject, predicate, object, confidence, source_fact_ids, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO knowledge_triples(id, subject, predicate, object, confidence, source_fact_ids, created_at, emotion_label, emotional_intensity, valence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		tripleArgs(t)...,
 	)
 	return err
@@ -122,7 +129,7 @@ func insertTripleTx(tx *sql.Tx, t whisper.Triple) error {
 
 func insertTripleStmt(sqldb *sql.DB, t whisper.Triple) error {
 	_, err := sqldb.Exec(
-		"INSERT INTO knowledge_triples(id, subject, predicate, object, confidence, source_fact_ids, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO knowledge_triples(id, subject, predicate, object, confidence, source_fact_ids, created_at, emotion_label, emotional_intensity, valence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		tripleArgs(t)...,
 	)
 	return err
@@ -134,6 +141,6 @@ func tripleArgs(t whisper.Triple) []interface{} {
 
 	return []interface{}{
 		t.ID, t.Subject, t.Predicate, t.Object, t.Confidence,
-		string(srcJSON), createdAt,
+		string(srcJSON), createdAt, t.EmotionLabel, t.EmotionalIntensity, t.Valence,
 	}
 }
