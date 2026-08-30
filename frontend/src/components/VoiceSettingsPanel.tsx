@@ -1,7 +1,7 @@
 // VoiceSettingsPanel.tsx — 聊天语音设置面板
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { Card, Switch, Select, Slider, Button, Typography, Tag } from 'antd'
+import { Card, Switch, Select, Slider, Button, Typography, Tag, Input, message } from 'antd'
 import { AudioOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import * as App from '../../src/wailsjsCompat'
 
@@ -58,6 +58,14 @@ export default function VoiceSettingsPanel() {
   const [interruptMs, setInterruptMs] = useState(500)
   const [silenceMs, setSilenceMs] = useState(1000)
 
+  // 实时语音 Realtime 档（v4.8.1 S1）：provider/model/key（key 回显只有 hasKey 布尔，
+  // 明文永不回传前端）
+  const [rtProvider, setRtProvider] = useState('')
+  const [rtModel, setRtModel] = useState('')
+  const [rtKey, setRtKey] = useState('')
+  const [rtHasKey, setRtHasKey] = useState(false)
+  const [rtSaving, setRtSaving] = useState(false)
+
   const checkHealth = async () => {
     setChecking(true)
     try {
@@ -81,6 +89,9 @@ export default function VoiceSettingsPanel() {
       if (settings.voiceMode) setVoiceMode(settings.voiceMode === 'ptt' ? 'ptt' : 'vad')
       if (settings.interruptThresholdMs) setInterruptMs(settings.interruptThresholdMs)
       if (settings.silenceThresholdMs) setSilenceMs(settings.silenceThresholdMs)
+      if (settings.realtimeProvider !== undefined) setRtProvider(String(settings.realtimeProvider || ''))
+      if (settings.realtimeModel !== undefined) setRtModel(String(settings.realtimeModel || ''))
+      if (settings.realtimeHasKey !== undefined) setRtHasKey(!!settings.realtimeHasKey)
 
       const model = pipeline?.chatTts?.model || pipeline?.tts?.model || ''
       setTtsModel(model)
@@ -106,6 +117,26 @@ export default function VoiceSettingsPanel() {
 
   const applyVoiceSettings = (patch: Record<string, unknown>) => {
     App.VoiceApplySettings?.(patch).catch(() => {})
+  }
+
+  // 保存实时语音配置（S1）：key 只在用户填了新值时下发（空=不改动；填空格并
+  // 保存=清除——后端 trim 后落盘），provider/model 即时持久化。
+  const saveRealtime = async () => {
+    setRtSaving(true)
+    try {
+      const patch: Record<string, unknown> = { realtimeProvider: rtProvider, realtimeModel: rtModel }
+      const key = rtKey.trim()
+      if (rtKey !== '') patch.realtimeAPIKey = key // 未输入=不改动已存 key
+      await App.VoiceApplySettings?.(patch)
+      setRtKey('')
+      const v = await App.VoiceGetSettings?.()
+      if (v) setRtHasKey(!!v.realtimeHasKey)
+      message.success(rtProvider ? '实时语音配置已保存' : '实时语音已关闭')
+    } catch (_) {
+      message.error('保存失败，请重试')
+    } finally {
+      setRtSaving(false)
+    }
   }
 
   // 根据当前 TTS 模型决定音色选项：qwen3/customvoice → Herdsman 音色，其余 → Edge 音色
@@ -256,6 +287,48 @@ export default function VoiceSettingsPanel() {
           onAfterChange={v => applyVoiceSettings({ silenceThresholdMs: v })}
           styles={{ track: { background: '#a855f7' } }} // hex-exempt 品牌识别色（阈值轨道）
         />
+      </Card>
+      {/* 实时语音 Realtime 档（v4.8.1 S1） */}
+      <Card size="small" style={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-border)', borderRadius: 8 }} bodyStyle={{ padding: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>实时语音（实验）</div>
+        <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', marginBottom: 8, opacity: 0.75 }}>
+          端到端语音档：OpenAI Realtime API（需 API Key）。未配置时走现拼接管线，互不影响。
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Select
+            size="small"
+            value={rtProvider || 'off'}
+            onChange={v => setRtProvider(v === 'off' ? '' : v)}
+            style={{ width: '100%' }}
+            options={[
+              { value: 'off', label: '关闭（走现拼接管线）' },
+              { value: 'openai', label: 'OpenAI Realtime' },
+            ]}
+          />
+          {rtProvider === 'openai' && (
+            <>
+              <Input
+                size="small"
+                placeholder="模型（如 gpt-realtime）"
+                value={rtModel}
+                onChange={e => setRtModel(e.target.value)}
+              />
+              <Input.Password
+                size="small"
+                placeholder={rtHasKey ? '已配置 Key（输入新值可更换）' : 'API Key（sk-…）'}
+                value={rtKey}
+                onChange={e => setRtKey(e.target.value)}
+                autoComplete="new-password"
+              />
+              <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', opacity: 0.75 }}>
+                Key 经 Windows DPAPI 加密落盘，仅本机可解；界面不回显明文。
+              </div>
+            </>
+          )}
+          <Button size="small" type="primary" loading={rtSaving} onClick={() => void saveRealtime()}>
+            保存
+          </Button>
+        </div>
       </Card>
     </div>
   )

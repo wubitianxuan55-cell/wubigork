@@ -18,6 +18,7 @@ import (
 
 	"github.com/gaea/gaea/internal/asr"
 	appconfig "github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/realtime"
 	"github.com/gaea/gaea/internal/tts"
@@ -90,6 +91,17 @@ func (a *mediaState) initVoice() {
 	if v := strings.TrimSpace(a.activePersonalityID); v != "" {
 		config.PersonalityPresetID = v
 	}
+	// S1 Realtime 配置接线（兑现 S0 注释）：从 ~/.gaea_config.json 读取
+	// realtime_provider / realtime_model / realtime_api_key 三项落盘值。
+	// APIKey 存储口径为 secure.EncryptString 密文，这里解出内存明文注入运行时
+	// 配置（先例 SetOpencodeZenKey）；解密失败 → 告警 + APIKey 置空（降级不崩，
+	// realtimeReady 将为 false）。Provider 为空（未配置）→ 三项零填入，现拼接
+	// 管线零变化。须在 NewManager 之前注入，随配置一并入管理器内存态。
+	if provider, model, apiKey := a.realtimeRuntimeCfg(); provider != "" {
+		config.RealtimeProvider = provider
+		config.RealtimeModel = model
+		config.RealtimeAPIKey = apiKey
+	}
 	emitter := &voiceEmitter{app: a.app}
 	a.voiceManager = voice.NewManager(emitter, config)
 
@@ -105,20 +117,45 @@ func (a *mediaState) initVoice() {
 		return a.synthesizeVoiceTTS(text, voiceDescription)
 	})
 
-	// S0 Realtime 档探测（seam 消费者，见 internal/realtime）：未配置（Provider
-	// 空）→ 完全跳过，现拼接管线零变化；配置了但 New(kind) 失败 → 优雅降级仅
-	// 告警，不崩、不阻塞现有语音。本刀不启动 realtime 会话、不接管任何音频路径。
+	// Realtime 档探测（seam 消费者，见 internal/realtime）：未配置（Provider
+	// 空）→ 完全跳过，现拼接管线零变化；配置了但 New(kind) 失败（含解密失败
+	// 置空 Key）→ 优雅降级仅告警，不崩、不阻塞现有语音。本刀仍不启动 realtime
+	// 会话、不接管任何音频路径。
 	if probeRealtime(config) {
-		slog.Info("Realtime 档就绪（S0 仅 seam 探测，未接管音频路径）", "kind", strings.TrimSpace(config.RealtimeProvider))
+		slog.Info("Realtime 档就绪（S1 配置已接线，未接管音频路径）", "kind", strings.TrimSpace(config.RealtimeProvider))
 	}
 
 	slog.Info("语音管理器已初始化")
 }
 
-// probeRealtime S0 Realtime 档探测（seam 消费者）：未配置（RealtimeProvider 空）
+// realtimeRuntimeCfg 读取落盘 Realtime 配置并解密 API Key（S1 接线共用：
+// initVoice 注入 + VoiceHealth 实时就绪判定，与 initVoice 探测结论一致）。
+// realtime_api_key 存储口径 = secure.EncryptString 密文；解密失败 → slog.Warn
+// 并返回空 Key（降级不崩，realtimeReady 将为 false）。Provider 为空（未配置）
+// → 返回零值，调用方按现状零变化处理。
+func (a *mediaState) realtimeRuntimeCfg() (provider, model, apiKey string) {
+	if a == nil || a.cfg == nil {
+		return "", "", ""
+	}
+	provider = strings.TrimSpace(a.cfg.GetRealtimeProvider())
+	if provider == "" {
+		return "", "", ""
+	}
+	model = strings.TrimSpace(a.cfg.GetRealtimeModel())
+	dec, err := secure.DecryptString(a.cfg.GetRealtimeAPIKey())
+	if err != nil {
+		slog.Warn("Realtime API Key 解密失败，实时语音档降级为未就绪", "error", err)
+		return provider, model, ""
+	}
+	return provider, model, dec
+}
+
+// probeRealtime Realtime 档就绪探测（seam 消费者）：未配置（RealtimeProvider 空）
 // → 跳过返回 false（现拼接管线零变化）；配置了但注册表构造失败 → slog.Warn
 // 优雅降级返回 false（不崩、不阻塞现有语音）。注册表构造不做网络 I/O、结果
 // 确定，VoiceHealth.realtimeReady 亦经此实时计算（与 initVoice 探测结论一致）。
+// S1：入参三字段由落盘配置 + secure.DecryptString 解密后的明文 Key 填充，
+// 见 realtimeRuntimeCfg。
 func probeRealtime(cfg voice.VoiceRuntimeConfig) bool {
 	kind := strings.TrimSpace(cfg.RealtimeProvider)
 	if kind == "" {
@@ -468,6 +505,37 @@ func (a *mediaState) VoiceApplySettings(settings map[string]interface{}) error {
 			slog.Warn("保存 TTS 音色配置失败", "error", err)
 		}
 	}
+	// 实时语音 Realtime 档（v4.8.1 S1）：provider/model 明文落盘；APIKey 明文进
+	// 内存（本进程实时用）、DPAPI 密文落盘（仅本机可解）。保存失败返回错误——
+	// 静默丢 key 会让「已配置」假象带到下次启动（这里不复用 TTSVoice 的仅告警
+	// 先例，key 属凭据，丢=配置作废）。
+	if v, ok := settings["realtimeProvider"].(string); ok {
+		if err := appconfig.Save(appconfig.KeyRealtimeProvider, v); err != nil {
+			return fmt.Errorf("保存实时语音供应商失败: %w", err)
+		}
+		config.RealtimeProvider = v
+	}
+	if v, ok := settings["realtimeModel"].(string); ok {
+		if err := appconfig.Save(appconfig.KeyRealtimeModel, v); err != nil {
+			return fmt.Errorf("保存实时语音模型失败: %w", err)
+		}
+		config.RealtimeModel = v
+	}
+	if v, ok := settings["realtimeAPIKey"].(string); ok {
+		key := strings.TrimSpace(v)
+		cipher := ""
+		if key != "" {
+			c, err := secure.EncryptString(key)
+			if err != nil {
+				return fmt.Errorf("加密实时语音 Key 失败: %w", err)
+			}
+			cipher = c
+		}
+		if err := appconfig.Save(appconfig.KeyRealtimeAPIKey, cipher); err != nil {
+			return fmt.Errorf("保存实时语音 Key 失败: %w", err)
+		}
+		config.RealtimeAPIKey = key
+	}
 	if v, ok := settings["ttsEngine"].(string); ok {
 		config.TTSEngine = voice.TTSEngine(v)
 	}
@@ -526,6 +594,10 @@ func (a *mediaState) voiceSettingsMap(c *voice.VoiceRuntimeConfig) map[string]in
 	// 前端提示：解析是否走了回退 / 结果是否来自已装列表
 	m["ttsHerdsmanModelFallback"] = usedFallback
 	m["ttsHerdsmanModelFromInstalled"] = resolvedFromInstalled
+	// 实时语音档（S1）：只回 provider/model 与 hasKey 布尔——明文 Key 永不出后端。
+	m["realtimeProvider"] = c.RealtimeProvider
+	m["realtimeModel"] = c.RealtimeModel
+	m["realtimeHasKey"] = c.RealtimeAPIKey != ""
 	return m
 }
 
@@ -583,8 +655,15 @@ func (a *mediaState) VoiceHealth() map[string]interface{} {
 		}
 	}
 	hc := a.voiceManager.HealthCheck()
-	// S0 Realtime 档：经注册表实时探测（构造无网络 I/O；未配置恒为 false）
-	hc["realtimeReady"] = probeRealtime(a.voiceManager.GetConfig())
+	// S1 Realtime 档：realtimeReady = 配置了 provider 且 seam 构造成功（经注册
+	// 表实时探测，构造无网络 I/O；未配置恒为 false）。APIKey 以落盘密文解密后
+	// 注入，与 initVoice 探测结论一致。
+	provider, model, apiKey := a.realtimeRuntimeCfg()
+	hc["realtimeReady"] = probeRealtime(voice.VoiceRuntimeConfig{
+		RealtimeProvider: provider,
+		RealtimeModel:    model,
+		RealtimeAPIKey:   apiKey,
+	})
 	return hc
 }
 
