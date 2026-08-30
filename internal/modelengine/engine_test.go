@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -688,5 +690,35 @@ func TestGLMKeyAndChatURL(t *testing.T) {
 	}
 	if EngineGLM.IsLocal() {
 		t.Error("GLM 是云端引擎，不应标记为本地")
+	}
+}
+
+// v4.9.1 真机实测回归：API Key 被粘进地址框 → base_url 无 scheme →
+// 请求报 unsupported protocol scheme ""。三道防线锁定：
+func TestBaseURLSchemeGuard(t *testing.T) {
+	m := NewManager("", "")
+	m.UpdateGLMKey("k")
+
+	// ① SaveEngine 拒绝无 scheme 地址（不回显原值）
+	if err := m.SaveEngine(EngineConfig{ID: "glm", BaseURL: "066ba228.o5I8VcB3cUGi6UBO"}); err == nil {
+		t.Fatal("无 scheme 地址应被拒绝")
+	} else if strings.Contains(err.Error(), "066ba") {
+		t.Errorf("错误信息不应回显原值（防 Key 泄漏）: %q", err.Error())
+	}
+	// ② LoadState 忽略存量脏地址，保留预置
+	statePath := filepath.Join(t.TempDir(), "engines.json")
+	os.WriteFile(statePath, []byte(`{"engines":{"glm":{"base_url":"066ba228.o5I8VcB3cUGi6UBO","enabled":true}}}`), 0o644)
+	m2 := NewManager("", "")
+	if err := m2.LoadState(statePath); err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	e, _ := m2.GetEngine("glm")
+	if e.BaseURL != "https://open.bigmodel.cn/api/paas/v4" {
+		t.Errorf("脏地址应被忽略并保留预置, got %q", e.BaseURL)
+	}
+	// ③ fetchModels 对无效地址给友好错误（不出现 Go 原生 unsupported protocol）
+	_, err := m.fetchModels(context.Background(), &EngineConfig{ID: "glm", Type: EngineGLM, BaseURL: "066ba228.o5I8VcB3cUGi6UBO"})
+	if err == nil || !strings.Contains(err.Error(), "http://") || strings.Contains(err.Error(), "066ba") {
+		t.Errorf("应给不回显原值的友好错误, got %v", err)
 	}
 }

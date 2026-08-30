@@ -1,5 +1,21 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · GLM 引擎地址防呆修复 (2026-08-30)
+> 真机实测：GLM 卡片对云端引擎露出了地址编辑框，用户把 API Key 粘进地址框
+> 保存——base_url 变成 Key 本体，此后所有请求报 `unsupported protocol
+> scheme ""`，且 Go 原生错误把 Key 原文回显到界面（二次泄漏）。
+- **UI**：地址编辑框改为仅本地引擎（ollama/herdsman/cosyvoice）显示——云端
+  地址是预置常量，本就不该可编辑（此前靠黑名单排除，新增引擎易漏）。
+- **后端三道防线**：SaveEngine 拒绝无 http(s) 前缀的地址（错误信息不回显
+  原值，防 Key 二次泄漏）；LoadState 忽略存量脏地址（保留预置——已中招的
+  engines.json 重启应用即自愈）；fetchModels 对无效地址给不回显原值的友好
+  错误。
+- **用户侧善后**：重启应用即恢复 GLM 预置地址；因 Key 已出现在报错浮层与
+  engines.json 明文里，建议到 open.bigmodel.cn 重新生成密钥后再填入「保存
+  Key」框。
+- 验证：Go 全量绿（+1 回归测试：保存拒绝/载入自愈/友好错误三断言，且断言
+  错误信息不回显原值）；vitest 818/818；tsc/eslint 0；绑定面 543 不变。
+
 ## 未发布 · 模型中心新增 GLM 引擎 (2026-08-30)
 > 智谱 GLM 云端引擎（OpenAI 兼容 `https://open.bigmodel.cn/api/paas/v4`），
 > 照 DeepSeek/OpenCode 模式全链路接入。端点真实性已验证（/models 与

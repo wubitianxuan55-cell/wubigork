@@ -5,6 +5,12 @@
 
 ## 当前状态
 
+- **GLM 地址防呆（2026-08-30，真机实测收口）**：用户把 Key 粘进 GLM 地址框
+  （云端引擎误露地址框=UI 疏漏）→ base_url=Key 本体 → 请求报 unsupported
+  protocol scheme "" 且原生错误回显 Key。修复：地址框仅本地引擎显示；
+  SaveEngine 拒绝无 scheme 地址（不回显原值）；LoadState 忽略脏地址自愈
+  （重启即恢复预置）；fetchModels 友好错误。+1 回归测试，绑定面 543 不变。
+  用户侧：重启应用自愈；Key 已泄漏建议重新生成。
 - **模型中心新增 GLM 引擎（2026-08-30）**：智谱 GLM 云端（OpenAI 兼容
   open.bigmodel.cn/api/paas/v4，端点已实测 401=存在）照 DeepSeek 模式全链
   路接入——EngineGLM 常量+预置卡（默认 glm-4.6，排序在 DeepSeek 后）+

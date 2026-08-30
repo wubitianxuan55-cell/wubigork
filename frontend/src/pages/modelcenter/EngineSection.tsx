@@ -163,7 +163,7 @@ export function EngineSection() {
               {em.length === 0 && <StatusChip>暂无模型</StatusChip>}
             </div>
 
-            {engine.type !== 'xai' && engine.type !== 'deepseek' && engine.type !== 'opencode-go' && engine.type !== 'opencode-zen' && (
+            {engine.is_local && (
               <Space.Compact style={{ width: '100%', maxWidth: 640 }}>
                 <Input
                   size="small"

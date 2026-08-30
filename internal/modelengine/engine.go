@@ -321,7 +321,13 @@ func (m *Manager) SaveEngine(cfg EngineConfig) error {
 		existing.Models = cfg.Models
 	}
 	if cfg.BaseURL != "" {
-		existing.BaseURL = cfg.BaseURL
+		u := strings.TrimSpace(cfg.BaseURL)
+		if !validBaseURL(u) {
+			// 不回显原值——用户曾把 API Key 粘进地址框，回显等于二次泄漏。
+			m.mu.Unlock()
+			return fmt.Errorf("引擎地址无效：必须以 http:// 或 https:// 开头")
+		}
+		existing.BaseURL = u
 	}
 	if cfg.DefaultModel != "" {
 		existing.DefaultModel = cfg.DefaultModel
@@ -413,7 +419,10 @@ func (m *Manager) RefreshModels(ctx context.Context, engineID string) ([]ModelIn
 // fetchModels 从引擎获取模型列表
 // fetchModels 从引擎获取模型列表
 func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]ModelInfo, error) {
-	baseURL := strings.TrimRight(engine.BaseURL, "/")
+	baseURL := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
+	if !validBaseURL(baseURL) {
+		return nil, fmt.Errorf("引擎地址无效：需要 http:// 或 https:// 前缀，请在模型中心修正")
+	}
 	url := baseURL + "/models"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -553,6 +562,13 @@ func ClassifyModelByName(modelID string) string {
 	return ClassifyModelKind("", modelID)
 }
 
+// validBaseURL 引擎地址必须带 http(s) scheme——防御把 API Key 等非地址内容
+// 粘进地址框（v4.9.1 真机实测：GLM 卡片曾对云端引擎露出地址框，Key 被存成
+// base_url 后每个请求都报 unsupported protocol scheme ""）。
+func validBaseURL(u string) bool {
+	return strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://")
+}
+
 // opencodeGoCompatible 判断 OpenCode Go 模型是否走 OpenAI /chat/completions 端点。
 // 参考 https://dev.opencode.ai/docs/go 端点分类表。
 func opencodeGoCompatible(modelID string) bool {
@@ -653,7 +669,9 @@ func (m *Manager) LoadState(path string) error {
 			// 未知引擎（新版本移除/手改文件）不创建
 			continue
 		}
-		if st.BaseURL != "" {
+		// 无 http(s) 前缀的存量脏地址不采纳（保留预置默认）——v4.9.1 真机
+		// 实测：API Key 被粘进地址框保存后，引擎永久报 unsupported protocol scheme。
+		if st.BaseURL != "" && validBaseURL(st.BaseURL) {
 			eng.BaseURL = st.BaseURL
 		}
 		eng.Enabled = st.Enabled
