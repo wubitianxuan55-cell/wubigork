@@ -717,8 +717,88 @@ func TestBaseURLSchemeGuard(t *testing.T) {
 		t.Errorf("脏地址应被忽略并保留预置, got %q", e.BaseURL)
 	}
 	// ③ fetchModels 对无效地址给友好错误（不出现 Go 原生 unsupported protocol）
-	_, err := m.fetchModels(context.Background(), &EngineConfig{ID: "glm", Type: EngineGLM, BaseURL: "066ba228.o5I8VcB3cUGi6UBO"})
+	// 注意用走 HTTP 的引擎——GLM 按官方文档设计不走 /models，静态目录无此路径。
+	_, err := m.fetchModels(context.Background(), &EngineConfig{ID: "deepseek", Type: EngineDeepseek, BaseURL: "066ba228.o5I8VcB3cUGi6UBO"})
 	if err == nil || !strings.Contains(err.Error(), "http://") || strings.Contains(err.Error(), "066ba") {
 		t.Errorf("应给不回显原值的友好错误, got %v", err)
+	}
+}
+
+// v4.9.1 GLM 按官方文档重写后的回归：
+// 官方无 /models 端点 → 静态目录 + chat ping 验证 Key（docs.bigmodel.cn）。
+func TestGLMStaticModels(t *testing.T) {
+	models := glmStaticModels()
+	if len(models) == 0 {
+		t.Fatal("静态目录不应为空")
+	}
+	byID := map[string]ModelInfo{}
+	for _, m := range models {
+		if m.ID == "" || m.OwnedBy != "glm" {
+			t.Errorf("模型条目异常: %+v", m)
+		}
+		byID[m.ID] = m
+	}
+	if byID["glm-5.3"].Kind != "llm" {
+		t.Errorf("glm-5.3 应为 llm, got %q", byID["glm-5.3"].Kind)
+	}
+	if byID["glm-tts"].Kind != "tts" {
+		t.Errorf("glm-tts 应为 tts, got %q", byID["glm-tts"].Kind)
+	}
+	if byID["glm-asr-2512"].Kind != "stt" {
+		t.Errorf("glm-asr-2512 应为 stt, got %q", byID["glm-asr-2512"].Kind)
+	}
+	if byID["embedding-3"].Kind != "embedding" {
+		t.Errorf("embedding-3 应为 embedding, got %q", byID["embedding-3"].Kind)
+	}
+}
+
+func TestGLMTestConnection_PingVerifiesKey(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Path != "/chat/completions" {
+			t.Errorf("应 ping chat/completions, got %s", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer real-key" {
+			t.Errorf("Authorization 应为 Bearer real-key, got %q", r.Header.Get("Authorization"))
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error":{"code":"1002","message":"令牌无效"}}`))
+	}))
+	defer srv.Close()
+
+	m := NewManager("", "")
+	m.UpdateGLMKey("real-key")
+	if err := m.SaveEngine(EngineConfig{ID: "glm", BaseURL: srv.URL}); err != nil {
+		t.Fatalf("SaveEngine: %v", err)
+	}
+	status, err := m.TestConnection(context.Background(), "glm")
+	if err != nil {
+		t.Fatalf("TestConnection 不应返回 error（状态在 status 里）: %v", err)
+	}
+	if status.Connected {
+		t.Error("无效 Key 应连接失败")
+	}
+	if !strings.Contains(status.Error, "令牌无效") {
+		t.Errorf("应透出官方错误文案, got %q", status.Error)
+	}
+	if calls != 1 {
+		t.Errorf("应恰好 ping 一次, got %d", calls)
+	}
+
+	// 有效 Key：连接成功 + 静态目录
+	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`))
+	}))
+	defer srv2.Close()
+	m2 := NewManager("", "")
+	m2.UpdateGLMKey("ok-key")
+	m2.SaveEngine(EngineConfig{ID: "glm", BaseURL: srv2.URL})
+	status2, _ := m2.TestConnection(context.Background(), "glm")
+	if !status2.Connected {
+		t.Errorf("有效 Key 应连接成功, error=%q", status2.Error)
+	}
+	if status2.ModelCount != len(glmStaticModels()) {
+		t.Errorf("模型数应为静态目录长度 %d, got %d", len(glmStaticModels()), status2.ModelCount)
 	}
 }

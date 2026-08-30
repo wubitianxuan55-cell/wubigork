@@ -5,6 +5,13 @@
 
 ## 当前状态
 
+- **GLM 按官方文档重写（2026-08-30，两轮不可用后核对 docs.bigmodel.cn）**：
+  根本误判=智谱无 /models 端点（文档仅 chat/completions 等），此前测试连接
+  /刷新模型永远失败。重写：glmStaticModels 静态目录（锚定官方模型概览：
+  glm-5.3 旗舰/4.7-flash 免费/tts·asr·embedding·rerank 全家桶）+
+  TestConnection 走最小 chat ping 真实验证 Bearer Key（错误体官方形态原样
+  透出）+ 默认模型 glm-5.3。Go +2 测试、绑定面 543 不变。教训入账：**接新
+  云端引擎先读官方文档验证端点清单，禁止拿 OpenAI 习惯外推**。
 - **GLM 地址防呆（2026-08-30，真机实测收口）**：用户把 Key 粘进 GLM 地址框
   （云端引擎误露地址框=UI 疏漏）→ base_url=Key 本体 → 请求报 unsupported
   protocol scheme "" 且原生错误回显 Key。修复：地址框仅本地引擎显示；

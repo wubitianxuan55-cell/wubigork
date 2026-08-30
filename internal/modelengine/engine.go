@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gaea/gaea/internal/gaea/fileutil"
 	"github.com/gaea/gaea/internal/netclient"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -175,7 +176,7 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		Icon:         "key",
 		BaseURL:      "https://open.bigmodel.cn/api/paas/v4",
 		Enabled:      true,
-		DefaultModel: "glm-4.6",
+		DefaultModel: "glm-5.3",
 	}
 	m.engines["cosyvoice"] = &EngineConfig{
 		ID:           "cosyvoice",
@@ -355,7 +356,16 @@ func (m *Manager) TestConnection(ctx context.Context, engineID string) (*EngineS
 	}
 
 	start := time.Now()
-	models, err := m.fetchModels(ctx, engine)
+	var models []ModelInfo
+	var err error
+	if engine.Type == EngineGLM {
+		// 智谱官方无 /models 端点（docs.bigmodel.cn 仅有 chat/completions 等）：
+		// Key 校验走最小 chat ping，模型目录用官方文档锚定的静态清单。
+		err = m.glmPing(ctx, engine)
+		models = glmStaticModels()
+	} else {
+		models, err = m.fetchModels(ctx, engine)
+	}
 	status.LatencyMs = time.Since(start).Milliseconds()
 	if err != nil {
 		status.Connected = false
@@ -419,6 +429,10 @@ func (m *Manager) RefreshModels(ctx context.Context, engineID string) ([]ModelIn
 // fetchModels 从引擎获取模型列表
 // fetchModels 从引擎获取模型列表
 func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]ModelInfo, error) {
+	if engine.Type == EngineGLM {
+		// 智谱无 /models 端点：刷新直接返回官方静态目录（零 HTTP）
+		return glmStaticModels(), nil
+	}
 	baseURL := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
 	if !validBaseURL(baseURL) {
 		return nil, fmt.Errorf("引擎地址无效：需要 http:// 或 https:// 前缀，请在模型中心修正")
@@ -560,6 +574,75 @@ func ClassifyModelKind(engineType EngineType, modelID string) string {
 // 与 ClassifyModelKind 的引擎无关部分保持同一关键词表，避免双源漂移。
 func ClassifyModelByName(modelID string) string {
 	return ClassifyModelKind("", modelID)
+}
+
+// glmStaticModels 智谱静态模型目录。官方 API 无模型列表端点——目录锚定
+// docs.bigmodel.cn「模型概览」（2026-08-30），Kind 经 ClassifyModelKind 统一
+// 分类：glm-tts→tts、glm-asr→stt、embedding-3→embedding，其余为 llm/vision。
+func glmStaticModels() []ModelInfo {
+	ids := []string{
+		// 文本（旗舰在前，flash 为免费档）
+		"glm-5.3", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo",
+		"glm-4.7", "glm-4.7-flashx", "glm-4.6", "glm-4.5-air", "glm-4-long",
+		"glm-4.7-flash", "glm-4.5-flash",
+		// 多模态 / 视觉理解
+		"glm-5.3-flash", "glm-4.6v",
+		// 语音 / 向量 / 重排
+		"glm-tts", "glm-asr-2512", "embedding-3", "rerank",
+	}
+	models := make([]ModelInfo, 0, len(ids))
+	for _, id := range ids {
+		models = append(models, ModelInfo{ID: id, OwnedBy: "glm", Kind: ClassifyModelKind(EngineGLM, id)})
+	}
+	return models
+}
+
+// glmPing 用最小 chat 请求验证 Key 有效性——智谱没有模型列表端点可供鉴权
+// 探测，官方鉴权口径 = Authorization: Bearer <API Key>（docs.bigmodel.cn
+// 「HTTP API 调用」）。错误体官方形态 {"error":{"code","message"}}，原样透出。
+func (m *Manager) glmPing(ctx context.Context, engine *EngineConfig) error {
+	m.mu.RLock()
+	key := m.glmKey
+	m.mu.RUnlock()
+	if key == "" {
+		return fmt.Errorf("GLM API Key 未配置，请在模型中心 GLM 卡片保存 Key（open.bigmodel.cn 获取）")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")+"/chat/completions",
+		strings.NewReader(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"ping"}],"max_tokens":1}`, engine.DefaultModel)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+key)
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	if msg := zhipuErrorMessage(body); msg != "" {
+		return fmt.Errorf("GLM Key 校验失败（HTTP %d）：%s", resp.StatusCode, msg)
+	}
+	return fmt.Errorf("GLM Key 校验失败：HTTP %d", resp.StatusCode)
+}
+
+// zhipuErrorMessage 解析智谱错误体 {"error":{"code","message"}}（官方形态，
+// 真机实测 {"code":"500","message":"内部错误"} 等）。
+func zhipuErrorMessage(body []byte) string {
+	var e struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(body, &e) == nil && e.Error.Message != "" {
+		return e.Error.Message
+	}
+	return ""
 }
 
 // validBaseURL 引擎地址必须带 http(s) scheme——防御把 API Key 等非地址内容

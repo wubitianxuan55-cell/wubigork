@@ -1,5 +1,21 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · GLM 按官方文档重写：无 /models 端点（2026-08-30）
+> 用户实测两轮仍不可用后核对 docs.bigmodel.cn 官方文档，发现根本性误判：
+> **智谱官方没有模型列表端点**（文档仅有 chat/completions 等），此前用
+> GET /models 做测试连接/刷新模型永远失败（真机 401「内部错误」）。
+- **静态模型目录**：glmStaticModels 锚定官方「模型概览」（2026-08-30）——
+  glm-5.3/5.2/5.1/5/5-turbo、glm-4.7 系（4.7-flash 免费）、glm-4.6/
+  4.5-air/4-long、多模态 5.3-flash/4.6v、glm-tts/glm-asr-2512/embedding-3/
+  rerank；Kind 经 ClassifyModelKind 统一分类。
+- **Key 校验改走 chat ping**：TestConnection 对 GLM 发最小 chat 请求
+  （max_tokens=1）真实验证 Bearer Key；错误体按官方形态
+  {"error":{code,message}} 原样透出（如「令牌无效」），不再出现凭空 401。
+- **默认模型 glm-4.6 → glm-5.3**（官方文档全部示例所用旗舰）。
+- 验证：Go 全量绿（+2 测试：静态目录分类断言 / httptest ping 401「令牌
+  无效」与 200 两态 + Bearer 头断言）；vitest 818/818；tsc/eslint 0；
+  绑定面 543 不变。
+
 ## 未发布 · GLM 引擎地址防呆修复 (2026-08-30)
 > 真机实测：GLM 卡片对云端引擎露出了地址编辑框，用户把 API Key 粘进地址框
 > 保存——base_url 变成 Key 本体，此后所有请求报 `unsupported protocol
