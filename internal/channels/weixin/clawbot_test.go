@@ -296,6 +296,23 @@ func TestHandle_RateLimitFixedReplyNoLLM(t *testing.T) {
 	}
 }
 
+// TestHandle_EmptyReplyNotSent 回调返回空串=产物已走 SendFileCard 图片卡片
+// （v4.8.3 接线约定），handle 必须跳过推送——否则发空文本泡。
+func TestHandle_EmptyReplyNotSent(t *testing.T) {
+	var sent []string
+	srv := New(Config{BotToken: "tok", AssistantID: "t"}, func(string, string) (string, error) {
+		return "", nil // 模拟 whisper_state 图卡片路径：已由 seam 送出
+	})
+	srv.sendFn = func(toUser, contextToken, text string) error {
+		sent = append(sent, text)
+		return nil
+	}
+	srv.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "hi"}}}})
+	if len(sent) != 0 {
+		t.Fatalf("空回复不应触发推送, 实际 sent=%v", sent)
+	}
+}
+
 // TestHandle_RateLimitPerPeerIsolation u1 打满后 u2 首条仍放行。
 func TestHandle_RateLimitPerPeerIsolation(t *testing.T) {
 	var calls int

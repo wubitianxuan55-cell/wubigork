@@ -59,7 +59,11 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 		AssistantID:   ast.ID,
 		PersonalityID: ast.PersonalityID,
 	}
-	srv := weixin.New(cfg, func(userMsg, fromUser string) (string, error) {
+	// v4.8.3：自引用声明——回调闭包内产物图片卡片需要 Server 引用；闭包捕获
+	// 变量本身，运行时（Start 之后）必已赋值（赋值先行于 Start 内部 goroutine
+	// 创建，happens-before 成立）。
+	var srv *weixin.Server
+	srv = weixin.New(cfg, func(userMsg, fromUser string) (string, error) {
 		// v4.4 任务化路由（第一档）：提醒类请求就地处理（解析→落盘→确认），
 		// 不进聊天管道。
 		if reply, handled := w.tryWxReminder(userMsg, ast.ID); handled {
@@ -72,6 +76,14 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 		if w.app != nil {
 			if res := w.app.routeIntentWithResult(userMsg); res.Handled {
 				if res.CardPath != "" {
+					// v4.8.3 真协议图片卡片：SendFileCard 内部完成 getuploadurl
+					// → CDN 密文上传 → image_item 卡片 + caption 补发（任何
+					// 失败降级文本卡片），返回 nil 即「已送出」——回空串让
+					// handle 跳过重复推送；仅当连降级都失败才回文本路径由
+					// 外层 Push 兜底。
+					if sendErr := srv.SendFileCard(res.CardPath, res.Reply); sendErr == nil {
+						return "", nil
+					}
 					return res.Reply + "（产物：" + res.CardPath + "）", nil
 				}
 				return res.Reply, nil

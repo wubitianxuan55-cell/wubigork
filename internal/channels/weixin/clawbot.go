@@ -532,6 +532,12 @@ func (s *Server) handle(msg *inboundMsg) {
 		slog.Error("[weixin] AI回复失败", "err", err)
 		reply = "思考中…请稍后再试"
 	}
+	// v4.8.3：空回复不推送——产物走 SendFileCard 图片卡片（图+caption 已由
+	// seam 内部发出，失败亦有其内部文本降级），回调返回空串表示「已送出，
+	// 勿重复推送」。
+	if reply == "" {
+		return
+	}
 	if s.sendFn != nil {
 		err = s.sendFn(msg.FromUserID, msg.ContextToken, reply)
 	} else {
