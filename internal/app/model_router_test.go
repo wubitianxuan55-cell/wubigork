@@ -240,6 +240,34 @@ func TestRouteModelOfflineOffKeepsCloud(t *testing.T) {
 	}
 }
 
+// 离线模式绑定往返（v4.8.1 设置面板数据源）：App.Get/SetOfflineMode 写内存 +
+// 落盘，重新 Load 后一致。
+func TestOfflineModeBindingRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("HOME", home)
+
+	a := &App{core: &core{cfg: config.Load()}}
+	if a.GetOfflineMode() {
+		t.Fatal("默认应为关闭")
+	}
+	if err := a.SetOfflineMode(true); err != nil {
+		t.Fatalf("SetOfflineMode: %v", err)
+	}
+	if !a.GetOfflineMode() {
+		t.Fatal("设置后内存应为开启")
+	}
+	if cfg := config.Load(); !cfg.GetOfflineMode() {
+		t.Fatal("重新加载后应为开启（落盘验证）")
+	}
+	if err := a.SetOfflineMode(false); err != nil {
+		t.Fatalf("SetOfflineMode(false): %v", err)
+	}
+	if cfg := config.Load(); cfg.GetOfflineMode() {
+		t.Fatal("关闭后重新加载应为关闭")
+	}
+}
+
 // ── 2026-08-28 办公本地优先路由 ──────────────────────────────────
 
 // 开关开启 + herdsman 可用 → 办公功能级调用强制本地（office-local），

@@ -28,6 +28,8 @@ export const SecurityPanel: React.FC = () => {
   const [sensitiveLoading, setSensitiveLoading] = useState(true)
   const [officeLocal, setOfficeLocal] = useState<boolean>(true)
   const [officeLoading, setOfficeLoading] = useState(true)
+  const [offlineMode, setOfflineMode] = useState<boolean>(false)
+  const [offlineLoading, setOfflineLoading] = useState(true)
   const [exposure, setExposure] = useState<LanExposure | null>(null)
   const [checking, setChecking] = useState(false)
 
@@ -40,11 +42,15 @@ export const SecurityPanel: React.FC = () => {
       if (typeof go?.GetOfficeLocal === 'function') {
         setOfficeLocal(!!(await go.GetOfficeLocal()))
       }
+      if (typeof go?.GetOfflineMode === 'function') {
+        setOfflineMode(!!(await go.GetOfflineMode()))
+      }
     } catch {
       /* 后端未就绪时保持默认 */
     } finally {
       setSensitiveLoading(false)
       setOfficeLoading(false)
+      setOfflineLoading(false)
     }
   }, [go])
 
@@ -70,6 +76,18 @@ export const SecurityPanel: React.FC = () => {
       message.success(v ? '办公板块 AI 已改为本地优先（数据不出本机、省 token）' : '办公板块 AI 已改为常规路由（可回云端）')
     } catch (err: unknown) {
       setOfficeLocal(prev)
+      message.error(err instanceof Error ? err.message : '保存失败')
+    }
+  }
+
+  const handleToggleOffline = async (v: boolean) => {
+    const prev = offlineMode
+    setOfflineMode(v)
+    try {
+      await go?.SetOfflineMode?.(v)
+      message.success(v ? '全局离线模式已开启：所有 AI 只走本地引擎' : '全局离线模式已关闭：可回云端')
+    } catch (err: unknown) {
+      setOfflineMode(prev)
       message.error(err instanceof Error ? err.message : '保存失败')
     }
   }
@@ -129,6 +147,27 @@ export const SecurityPanel: React.FC = () => {
         </Space>
         <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', marginTop: 6, opacity: 0.8 }}>
           聊天主 agent（统筹规划）不受此开关影响，仍按模型中心绑定走。Herdsman 引擎停用或不可用时自动回退常规路由。
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        icon={<LockOutlined />}
+        title="全局离线模式"
+        desc="数据不出本机的总闸：开启后所有 AI 路由只允许本地引擎（Herdsman/Ollama/CosyVoice），云端引擎（Grok/DeepSeek/OpenCode）一律跳过；无本地可用时按「模型不可用」如实降级。"
+        instant
+      >
+        <Space size={12}>
+          <Switch
+            checked={offlineMode}
+            loading={offlineLoading}
+            onChange={handleToggleOffline}
+          />
+          <Typography.Text style={{ fontSize: 13, color: 'var(--md-sys-color-text)' }}>
+            {offlineMode ? '仅本地（离线）' : '关闭（默认）'}
+          </Typography.Text>
+        </Space>
+        <div style={{ fontSize: 11, color: 'var(--md-sys-color-text-secondary)', marginTop: 6, opacity: 0.8 }}>
+          与「敏感域/办公本地优先」叠加生效：那两个开关只约束各自功能域，本开关约束全部 AI 调用（含意图 LLM 兜底）。
         </div>
       </SettingsSection>
 

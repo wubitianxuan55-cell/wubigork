@@ -105,6 +105,8 @@ var explicitOverrides = map[string]string{
 	"GetModelRoute":      "model",
 	"GetSensitiveLocal":  "model",
 	"GetOfficeLocal":     "model",
+	"GetOfflineMode":     "model",
+	"SetOfflineMode":     "model",
 	"SetSensitiveLocal":  "model",
 	"SetOfficeLocal":     "model",
 	"GetModelMonitor":    "model",

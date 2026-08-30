@@ -143,6 +143,24 @@ func (a *App) GetSensitiveLocal() bool {
 	return a.cfg.GetSensitiveLocal()
 }
 
+// GetOfflineMode 读取全局离线模式开关（Wails 绑定，默认关闭；true=所有 AI
+// 路由只允许本地引擎，云端一律跳过）。
+func (a *App) GetOfflineMode() bool {
+	return a.cfg.GetOfflineMode()
+}
+
+// SetOfflineMode 设置全局离线模式开关并持久化（true=数据不出本机总闸：
+// 功能绑定/全局活跃/兜底三步全滤云端引擎，无本地可用走「模型不可用」降级）。
+func (a *App) SetOfflineMode(enabled bool) error {
+	a.cfg.SetOfflineMode(enabled)
+	if err := config.Save(config.KeyOfflineMode, strconv.FormatBool(enabled)); err != nil {
+		slog.Warn("保存全局离线模式开关失败", "error", err)
+		return err
+	}
+	slog.Info("全局离线模式开关已更新", "enabled", enabled)
+	return nil
+}
+
 // SetSensitiveLocal 设置敏感域本地化开关并持久化（true=成本/报价 AI 走本地
 // Herdsman；false=按常规路由可回云端）。
 func (a *App) SetSensitiveLocal(enabled bool) error {

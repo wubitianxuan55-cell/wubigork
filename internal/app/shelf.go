@@ -309,6 +309,12 @@ func (a *App) SaveConfig(key, value string) error {
 		} else {
 			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
 		}
+	case config.KeyOfflineMode:
+		if b, err := strconv.ParseBool(value); err == nil {
+			a.cfg.OfflineMode = b
+		} else {
+			slog.Warn("SaveConfig: 内存同步跳过（布尔解析失败）", "key", key, "value", value)
+		}
 	case config.KeyKeepWarm:
 		if b, err := strconv.ParseBool(value); err == nil {
 			a.cfg.KeepWarmEnabled = b
