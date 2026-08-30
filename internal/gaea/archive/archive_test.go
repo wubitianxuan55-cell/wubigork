@@ -1,8 +1,10 @@
 package archive
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -30,6 +32,52 @@ func TestRecordMessageEmptySession(t *testing.T) {
 	}
 	// Must not panic
 	s.RecordMessage("", "user", "hello", "", 1)
+}
+
+// TestRecordMessageSingleLineWrite 持久化套件统一：每条记录单次 Write 落
+// 整行（数据 + 换行同缓冲）——文件每行都是完整 JSON，末行带换行，无撕裂
+// 中间态；SearchMessages 扫描零坏行。
+func TestRecordMessageSingleLineWrite(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.RecordMessage("s1", "user", "你好 gaea", "", 1)
+	s.RecordMessage("s1", "assistant", "你好！", "", 1)
+
+	data, err := os.ReadFile(filepath.Join(dir, "s1.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := string(data)
+	if !strings.HasSuffix(raw, "\n") {
+		t.Errorf("末行应带换行，got 尾部 %q", raw[len(raw)-1:])
+	}
+	lines := strings.Split(raw, "\n")
+	bad := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var rec Record
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			bad++
+			t.Errorf("坏行（撕裂中间态）: %q (%v)", line, err)
+		}
+	}
+	if bad != 0 {
+		t.Fatalf("%d 行坏 JSON", bad)
+	}
+
+	results, err := s.SearchMessages([]string{"gaea"}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Content != "你好 gaea" {
+		t.Errorf("SearchMessages = %+v, want 1 条 '你好 gaea'", results)
+	}
 }
 
 func TestRecordAndSearch(t *testing.T) {

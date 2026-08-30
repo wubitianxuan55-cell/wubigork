@@ -71,8 +71,11 @@ func (s *Store) RecordMessage(sessionID, role, content, toolCallsJSON string, tu
 		return
 	}
 	defer f.Close()
-	f.Write(data)
-	f.Write([]byte("\n"))
+	// 持久化套件统一：单次 Write 落整行（数据 + 换行一个缓冲），杜绝此前
+	// 两次写之间的撕裂窗——崩溃只可能留下「整行缺失或整行完整」的边界，
+	// 不会出现半截 JSON + 换行分离的中间态（SearchMessages 对坏行本就跳过）。
+	line := append(data, '\n')
+	f.Write(line)
 }
 
 // QueryResult holds a match from the archive.

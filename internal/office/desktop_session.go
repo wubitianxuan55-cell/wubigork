@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/gaea/gaea/internal/gaea/fileutil"
 )
 
 func modeFilePath(dataRoot string) string {
@@ -22,10 +24,11 @@ func LoadModes(dataRoot string) map[string]bool {
 
 func SaveModes(dataRoot string, modes map[string]bool) error {
 	p := modeFilePath(dataRoot)
-	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil { return err }
 	data, err := json.MarshalIndent(modes, "", "  ")
 	if err != nil { return err }
-	return os.WriteFile(p, data, 0644)
+	// 原子写（临时文件 + rename）：会话模式是高频落盘的小配置，崩溃/断电
+	// 不留半截 JSON——与持久化套件其余成员统一走 fileutil.AtomicWrite。
+	return fileutil.AtomicWrite(p, data, 0o644)
 }
 
 func GetPersistedMode(dataRoot, sessionID string) bool { return LoadModes(dataRoot)[sessionID] }
