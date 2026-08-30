@@ -503,6 +503,8 @@ export const zhTW: Record<DictKey, string> = {
   "memory.noCandidates": "未發現候選項目",
   "memory.memoryCandidates": "記憶候選項目",
   "memory.skillCandidates": "技能候選項目",
+  "memory.mergeCandidates": "重複記憶合併",
+  "memory.mergeAction": "合併",
   "memory.newBadge": "新建",
   "memory.newSkillBadge": "新技能",
   "memory.accept": "採納",

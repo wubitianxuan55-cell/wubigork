@@ -344,6 +344,64 @@ func (c *Controller) SaveDreamFacts(space, source string, facts []memory.Memory)
 	return n, nil
 }
 
+// DistillMerge 执行一条蒸馏合并（做梦 2.0 第一刀，路线图 T0）：归档较旧条
+// （Store.Archive 可逆，不删数据）+ Touch 较新条 + 刷新注入。执行前锁内重算
+// 候选集校验配对仍然成立（绑定面不可被用于归档任意记忆）；客户端把 keep/
+// archive 传反时按 UpdatedAt 纠正方向。审计 source=distill_merge。
+func (c *Controller) DistillMerge(keep, archive string) (string, error) {
+	keep = strings.TrimSpace(keep)
+	archive = strings.TrimSpace(archive)
+	if keep == "" || archive == "" {
+		return "", fmt.Errorf("keep/archive 不能为空")
+	}
+	if keep == archive {
+		return "", fmt.Errorf("keep 与 archive 不能是同一条记忆")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.mem == nil {
+		return "", fmt.Errorf("记忆未就绪")
+	}
+	cand := memory.DistillMergeCandidates(c.mem.Store.List())
+	matched := false
+	for _, m := range cand {
+		if m.Keep == keep && m.Archive == archive {
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		return "", fmt.Errorf("候选已过期或不存在（%s / %s），请刷新建议后重试", keep, archive)
+	}
+	newer, older := keep, archive
+	k, kok := c.mem.Store.Get(keep)
+	o, ook := c.mem.Store.Get(archive)
+	if kok && ook && o.UpdatedAt.After(k.UpdatedAt) {
+		// 客户端传反了：按 UpdatedAt 纠正方向，较旧的才是归档对象。
+		newer, older = archive, keep
+	}
+	keepMem, _ := c.mem.Store.Get(newer)
+	if _, err := c.mem.Store.Archive(older); err != nil {
+		return "", fmt.Errorf("归档 %q 失败: %w", older, err)
+	}
+	if err := c.mem.Store.Touch(newer); err != nil {
+		// 归档已生效、Touch 失败：不回滚（归档可逆），如实报错。
+		return "", fmt.Errorf("保留条 %q 触达失败: %w", newer, err)
+	}
+	c.refreshMemoryLocked()
+	// 审计（尽力而为）：合并动作落 dream 审计，与 SaveDreamFacts 同口径。
+	if err := appendDreamAudit(c.mem.UserDir, DreamAuditEntry{
+		TS:     time.Now().UTC().Format(time.RFC3339),
+		Source: "distill_merge",
+		Saved:  0,
+		Names:  []string{newer, older},
+		Space:  keepMem.Space,
+	}); err != nil {
+		slog.Warn("distill merge audit write failed", "error", err)
+	}
+	return "merged:" + older + "->" + newer, nil
+}
+
 // SessionFacts returns the current session-only facts (for the memory panel).
 func (c *Controller) SessionFacts() []memory.Memory {
 	c.mu.Lock()

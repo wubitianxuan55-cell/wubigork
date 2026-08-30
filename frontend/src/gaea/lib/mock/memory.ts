@@ -16,7 +16,7 @@ type MemoryMethods = Pick<
   | "MemoryUnarchiveBatch" | "MemorySetRetentionDays"
   | "Remember" | "Forget" | "SaveDoc" | "UpdateFact" | "ChangeFactType"
   | "SetMemoryEnabled" | "MemorySuggestions"
-  | "AcceptMemorySuggestion" | "AcceptSkillSuggestion"
+  | "AcceptMemorySuggestion" | "AcceptSkillSuggestion" | "AcceptMergeSuggestion"
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
   | "MemoryHubOverview" | "ProfileList" | "ProfileSave" | "ProfileDelete"
   | "ProfileConflicts" | "ProfileResolveConflict"
@@ -128,7 +128,10 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
       emit({ kind: "notice", level: "info", text: `memory ${enabled ? "enabled" : "disabled"}` });
     },
     async MemorySuggestions() {
-      return { memories: [], skills: [], generatedAt: new Date().toISOString(), available: false, source: "mock" };
+      return { memories: [], skills: [], merges: [], generatedAt: new Date().toISOString(), available: false, source: "mock" };
+    },
+    async AcceptMergeSuggestion(_keep: string, _archive: string) {
+      return "mock-merge";
     },
     async AcceptMemorySuggestion(_candidate: MemorySuggestion) {
       return "mock-memory-path";

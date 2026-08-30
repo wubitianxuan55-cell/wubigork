@@ -312,6 +312,7 @@ export interface AppBindings {
   // LogFrontendError 记录前端错误/主线程卡死诊断到 gaea.log。
   LogFrontendError(message: string): Promise<void>;
   AcceptMemorySuggestion(candidate: MemorySuggestion): Promise<string>;
+  AcceptMergeSuggestion(keep: string, archive: string): Promise<string>;
   AcceptSkillSuggestion(candidate: SkillSuggestion): Promise<string>;
   // Settings panel: read the resolved config and apply edits (each writes config
   // and rebuilds the controller live). Secrets go through SetProviderKey (→ .env).
@@ -806,6 +807,7 @@ const gaeaToGaea = {
   MemorySuggestions: "GaeaMemorySuggestions",
   LogFrontendError: "GaeaLogFrontendError",
   AcceptMemorySuggestion: "GaeaAcceptMemorySuggestion",
+  AcceptMergeSuggestion: "GaeaAcceptMergeSuggestion",
   AcceptSkillSuggestion: "GaeaAcceptSkillSuggestion",
   Settings: "GaeaSettings",
   SetDefaultModel: "GaeaSetDefaultModel",

@@ -498,6 +498,8 @@ export const en = {
   "memory.noCandidates": "No candidates found",
   "memory.memoryCandidates": "Memory candidates",
   "memory.skillCandidates": "Skill candidates",
+  "memory.mergeCandidates": "Merge duplicates",
+  "memory.mergeAction": "Merge",
   "memory.newBadge": "New",
   "memory.newSkillBadge": "New skill",
   "memory.accept": "Accept",

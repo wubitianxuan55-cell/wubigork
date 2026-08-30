@@ -17,6 +17,7 @@ import (
 type OfficeB struct{ a *App }
 
 func (b *OfficeB) GaeaAcceptMemorySuggestion(candidate interface{}) (string, error) { return b.a.GaeaAcceptMemorySuggestion(candidate) }
+func (b *OfficeB) GaeaAcceptMergeSuggestion(keep string, archive string) (string, error) { return b.a.GaeaAcceptMergeSuggestion(keep, archive) }
 func (b *OfficeB) GaeaAcceptSkillSuggestion(candidate interface{}) (string, error) { return b.a.GaeaAcceptSkillSuggestion(candidate) }
 func (b *OfficeB) GaeaAddMCPServer(input MCPServerInput) (int, error) { return b.a.GaeaAddMCPServer(input) }
 func (b *OfficeB) GaeaAddPermissionRule(list string, rule string) error { return b.a.GaeaAddPermissionRule(list, rule) }

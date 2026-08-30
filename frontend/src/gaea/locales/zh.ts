@@ -499,6 +499,8 @@ export const zh: Record<DictKey, string> = {
   "memory.noCandidates": "未发现候选项",
   "memory.memoryCandidates": "记忆候选项",
   "memory.skillCandidates": "技能候选项",
+  "memory.mergeCandidates": "重复记忆合并",
+  "memory.mergeAction": "合并",
   "memory.newBadge": "新建",
   "memory.newSkillBadge": "新技能",
   "memory.accept": "采纳",

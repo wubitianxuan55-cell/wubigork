@@ -1,10 +1,25 @@
 # 任务进度
 
-> 最后更新: 2026-08-30（v4.9.0 发布；多跳因果链 + Verifier 通道 A 引用级深化
-> 两刀收账，欠账清单二次对账纠偏）
+> 最后更新: 2026-08-30（v4.9.0 发布后连收三刀：多跳因果链 / Verifier 通道 A
+> 引用级深化 / 做梦 2.0 蒸馏真实合并；T0 内核层盘点结论入账）
 
 ## 当前状态
 
+- **做梦 2.0 蒸馏真实合并（2026-08-30，路线图 T0 第一刀）**：自动做梦只增
+  不减的重复记忆有了非破坏合并通道——memory.DistillMergeCandidates 纯函数
+  检测（同空间内同名异写 / 异名同 type+kind 同描述；跨空间不成候选=双空间
+  红线；封顶 8 条同输入同输出）+ control.DistillMerge 锁内重算校验执行
+  （Store.Archive 归档较旧条可逆 + Touch 保留条 + dream 审计
+  source=distill_merge，越权配对拒绝）+ 记忆面板「建议」合并卡区 +
+  GaeaAcceptMergeSuggestion（绑定面 540→541）。Go +7 测试、vitest 818/818、
+  tsc/eslint 0、drift PASS（541）。欠账延续：做梦 2.0 主动预取留后续刀。
+- **T0 内核层盘点（2026-08-30，审计「待补充」项收口）**：grep 到实现实证——
+  MCP host client（GaeaAddMCPServer/Remove/Retry 等绑定，tools 面）已实装；
+  做梦管线（auto_dream + 审计）在库；agent 层 compaction（窗口/阈值/digest
+  稳定前缀）+ 工具目录 cache 指纹 + budget 钱闸 + contextview 装配视图均
+  已有。路线图 T0 四项真实缺口仅剩：做梦 2.0 主动预取、本地-云端自动路由
+  v1+成本仪表增量、Context Compiler 的预算调度/前缀排序策略化（装配明细
+  category 条已在 ContextView 呈现）。
 - **Verifier 通道 A 引用级深化（2026-08-30，审计欠账收口）**：xlsx_apply 复核
   从「重算零错误」升级为 +「声明↔实况」引用级比对——ChangeRecord 增可选
   opsJson（落卡随卡携带，超限不落），复核逐条回读工作簿（set_value 浮点等值

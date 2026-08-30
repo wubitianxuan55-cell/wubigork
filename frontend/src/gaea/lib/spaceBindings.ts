@@ -196,6 +196,7 @@ export const GAEA_METHOD_FACETS = {
   SetMemoryEnabled: "work",
   MemorySuggestions: "work",
   AcceptMemorySuggestion: "work",
+  AcceptMergeSuggestion: "work",
   AcceptSkillSuggestion: "work",
   KnowledgeList: "work",
   KnowledgeSearch: "work",

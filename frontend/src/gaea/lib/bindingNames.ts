@@ -73,6 +73,7 @@ export const bindingNames = [
   "ExtractTimeline",
   "FindLorebookTriggers",
   "FindUnlinkedMentions",
+  "GaeaAcceptMergeSuggestion",
   "GaeaAcceptMemorySuggestion",
   "GaeaAcceptSkillSuggestion",
   "GaeaAddMCPServer",

@@ -22,9 +22,10 @@ export function MemoryPanel(p: {
   onChangeType: (name: string, newType: string) => Promise<void> | void;
   onAcceptMemorySuggestion: (candidate: MemorySuggestion) => Promise<void> | void;
   onAcceptSkillSuggestion: (candidate: SkillSuggestion) => Promise<void> | void;
+  onAcceptMergeSuggestion: (keep: string, archive: string) => Promise<void> | void;
   onRefreshSuggestions: () => Promise<MemorySuggestionsView | null>;
 }) {
-  const { view, onClose, onRemember, onForget, onSaveDoc, onSaveFact, onChangeType, onAcceptMemorySuggestion, onAcceptSkillSuggestion, onRefreshSuggestions } = p;
+  const { view, onClose, onRemember, onForget, onSaveDoc, onSaveFact, onChangeType, onAcceptMemorySuggestion, onAcceptSkillSuggestion, onAcceptMergeSuggestion, onRefreshSuggestions } = p;
   const t = useT();
   const [note, setNote] = useState("");
   const [scope, setScope] = useState("");
@@ -293,7 +294,7 @@ export function MemoryPanel(p: {
           <TabButton
             active={tab === "suggestions"}
             onClick={() => setTab("suggestions")}
-            badge={suggestions ? suggestions.memories.length + suggestions.skills.length : 0}
+            badge={suggestions ? suggestions.memories.length + suggestions.skills.length + (suggestions.merges?.length ?? 0) : 0}
           >
             {t("memory.suggestions")}
           </TabButton>
@@ -415,7 +416,7 @@ export function MemoryPanel(p: {
 
               {!suggestions ? (
                 <EmptyState message={t("memory.suggestionsHint")} />
-              ) : suggestions.memories.length === 0 && suggestions.skills.length === 0 ? (
+              ) : suggestions.memories.length === 0 && suggestions.skills.length === 0 && (suggestions.merges?.length ?? 0) === 0 ? (
                 <EmptyState message={t("memory.noCandidates")} />
               ) : (
                 <>
@@ -461,6 +462,43 @@ export function MemoryPanel(p: {
                             setAcceptedSuggestions((prev) => new Set(prev).add(s.id || s.name));
                           }}
                         />
+                      ))}
+                    </>
+                  )}
+
+                  {/* 蒸馏合并候选（做梦 2.0：确定性重复记忆，归档较旧条可逆） */}
+                  {(suggestions.merges?.length ?? 0) > 0 && (
+                    <>
+                      <div className="text-fg-faint text-[10px] font-semibold uppercase tracking-wider mt-2">
+                        {t("memory.mergeCandidates")}
+                      </div>
+                      {suggestions.merges!.map((m) => (
+                        <div
+                          key={m.id}
+                          className="rounded-lg border border-border-soft bg-bg p-2.5 flex items-start justify-between gap-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11px] text-fg font-medium truncate">
+                              {m.keepTitle || m.keep}
+                            </div>
+                            <div className="text-[10px] text-fg-faint truncate">
+                              ← {m.archiveTitle || m.archive}
+                              {m.archiveUpdatedAt ? ` · ${m.archiveUpdatedAt}` : ""}
+                            </div>
+                            <div className="text-[10px] text-fg-faint/70 mt-0.5">{m.reason}</div>
+                          </div>
+                          <button
+                            type="button"
+                            className="shrink-0 px-2 py-1 rounded border border-border-soft text-[10px] cursor-pointer bg-bg-soft text-fg-dim hover:text-accent hover:border-accent transition-colors disabled:opacity-40"
+                            disabled={acceptedSuggestions.has(m.id)}
+                            onClick={async () => {
+                              await onAcceptMergeSuggestion(m.keep, m.archive);
+                              setAcceptedSuggestions((prev) => new Set(prev).add(m.id));
+                            }}
+                          >
+                            {acceptedSuggestions.has(m.id) ? t("memory.savedBadge") : t("memory.mergeAction")}
+                          </button>
+                        </div>
                       ))}
                     </>
                   )}

@@ -492,6 +492,15 @@ export default function App() {
     [],
   );
 
+  // 蒸馏合并（做梦 2.0）：批准后归档较旧条，刷新记忆视图。
+  const onAcceptMergeSuggestion = useCallback(
+    async (keep: string, archive: string) => {
+      await app.AcceptMergeSuggestion(keep, archive);
+      setMemView(await fetchMemory());
+    },
+    [fetchMemory, setMemView],
+  );
+
   const onRefreshSuggestions = useCallback(async (): Promise<MemorySuggestionsView | null> => {
     try {
       return await app.MemorySuggestions();
@@ -925,6 +934,7 @@ export default function App() {
             onChangeType={changeFactType}
             onAcceptMemorySuggestion={onAcceptMemorySuggestion}
             onAcceptSkillSuggestion={onAcceptSkillSuggestion}
+            onAcceptMergeSuggestion={onAcceptMergeSuggestion}
             onRefreshSuggestions={onRefreshSuggestions}
           />
         )}

@@ -43,6 +43,9 @@ type SkillSuggestionView struct {
 type MemorySuggestionsView struct {
 	Memories    []MemorySuggestionView `json:"memories"`
 	Skills      []SkillSuggestionView  `json:"skills"`
+	// Merges 是蒸馏合并候选（做梦 2.0 第一刀）：确定性重复记忆，用户批准后
+	// 归档较旧条。可选项——旧前端/旧 mock 不读此字段不受影响。
+	Merges      []MergeSuggestionView  `json:"merges,omitempty"`
 	GeneratedAt string                 `json:"generatedAt"`
 	Available   bool                   `json:"available"`
 	Source      string                 `json:"source"`
@@ -66,7 +69,9 @@ func (a *App) GaeaMemorySuggestions() MemorySuggestionsView {
 		return view
 	}
 	view.Available = true
-	view.Skills = suggestSkillsFromMemories(set.Store.List())
+	ms := set.Store.List()
+	view.Skills = suggestSkillsFromMemories(ms)
+	view.Merges = distillMergeViews(ms)
 	return view
 }
 

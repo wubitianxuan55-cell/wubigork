@@ -766,6 +766,9 @@ export interface SkillSuggestion {
 
 export type MemorySuggestionsView = WireShape<AppModels.MemorySuggestionsView>;
 
+/** MemoryMergeSuggestion 蒸馏合并候选（做梦 2.0：确定性重复记忆，批准后归档较旧条）。 */
+export type MemoryMergeSuggestion = NonNullable<MemorySuggestionsView["merges"]>[number];
+
 /** TraceStep 记录一次推理过程中的关键步骤，用于实时推理可视化面板 */
 export interface TraceStep {
   id: string;
