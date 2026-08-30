@@ -11,10 +11,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 	"github.com/gaea/gaea/internal/netclient"
 )
 
@@ -31,6 +34,17 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{ILinkURL: "https://ilinkai.weixin.qq.com"}
 }
+
+// ─── 入站防线参数（v4.8 子项 d）─────────────────────────────
+
+const (
+	wxRateLimit     = 20               // per-peer 滑动窗口内放行条数
+	wxRateWindow    = time.Minute      // 滑动窗口长度
+	wxMaxTextBytes  = 4096             // 入站文本字节上限（4KB）
+	wxMaxMediaItems = 5                // item_list 多媒体条数上限
+	rateLimitedText = "消息太频繁，稍后再说" // 超限固定文案（不触发 LLM）
+	truncatedMark   = "（消息过长已截断）"
+)
 
 // ─── 回调 ────────────────────────────────────────────────────
 
@@ -71,6 +85,16 @@ type Server struct {
 	// notifyStartFn / notifyStopFn 可替换的通知实现（测试注入，避免真实网络调用）。
 	notifyStartFn func()
 	notifyStopFn  func()
+
+	// MediaRecognizer 可注入的图片识别实现（v4.8 子项 b，对齐 sendFn 注入
+	// 模式）：入参 iLink 下发的图片 URL，出参识别文本；下载与临时文件清理
+	// 由实现方负责（app 层用 weixin.OCRMediaRecognizer(a.GaeaOCRText) 一行
+	// 注入）。nil=关闭，行为与现状完全一致（仅占位提示行）。
+	MediaRecognizer func(url string) (string, error)
+
+	// limiter 入站 per-peer 滑动窗口限频（v4.8 子项 d①）；测试经
+	// limiter.clock 注入时钟。
+	limiter *rateLimiter
 }
 
 func New(cfg Config, chatFn ChatFunc) *Server {
@@ -83,6 +107,7 @@ func New(cfg Config, chatFn ChatFunc) *Server {
 		client:  netclient.NewSimpleClient(90 * time.Second),
 		stopCh:  make(chan struct{}),
 		pollTO:  30 * time.Second,
+		limiter: newRateLimiter(wxRateLimit, wxRateWindow),
 	}
 }
 
@@ -179,7 +204,7 @@ type textItem struct {
 // imageItem / fileItem 是 iLink 非文本消息项（S4.5「发图即识别」协议探明第一
 // 刀）：字段名按 iLink 惯例留位（file_id/url/name/md5/size），真实负载以服务端
 // 下发为准——解析是防御性的，未知字段不报错。拿到 URL/file_id 后可接 vision/
-// 文件下载管线做字节级识别（后续刀）。
+// 文件下载管线做字节级识别。协议探明度与多态风险见 docs/ilink-non-text-protocol.md。
 type imageItem struct {
 	FileID string `json:"file_id,omitempty"`
 	URL    string `json:"url,omitempty"`
@@ -192,6 +217,92 @@ type fileItem struct {
 	URL    string `json:"url,omitempty"`
 	Name   string `json:"name,omitempty"`
 	Size   int64  `json:"size,omitempty"`
+}
+
+// ─── 防御解析（v4.8 子项 a）─────────────────────────────────
+//
+// iLink 非文本负载未真机定稿，字段可能多态（url=数组/对象、file_id=数字…）。
+// 单一字段的怪异形态绝不能让整条消息——乃至整个长轮询批次——解析失败
+// （失败会让同一 sync_buf 反复重试）。两个 UnmarshalJSON 把不认识的形态
+// 降级为零值：宁漏勿误，消息照常进 handle。
+
+// coerceString 把多态 JSON 标量降级为字符串：string 原样、数字去尾零格式化、
+// 布尔转字面量；数组/对象/null 一律丢弃（返回空串，宁漏勿误）。
+func coerceString(v interface{}) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case float64:
+		return strconv.FormatFloat(t, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(t)
+	default:
+		return "" // array / object / nil：防御性丢弃
+	}
+}
+
+// coerceInt64 容忍 size 以数字或数字字符串下发；其余形态降级为 0。
+func coerceInt64(v interface{}) int64 {
+	switch t := v.(type) {
+	case float64:
+		return int64(t)
+	case string:
+		n, _ := strconv.ParseInt(strings.TrimSpace(t), 10, 64)
+		return n
+	default:
+		return 0
+	}
+}
+
+// isJSONObject 报告原始 JSON 是否为对象形态；非对象（null/数组/标量）按空
+// 负载降级，不让 item 级多态炸掉整条消息。
+func isJSONObject(data []byte) bool {
+	trimmed := bytes.TrimSpace(data)
+	return len(trimmed) > 0 && trimmed[0] == '{'
+}
+
+// UnmarshalJSON image_item 防御解析：url/file_id/md5 允许多态，name 超长、
+// emoji/中文不报错；整体非对象时按空负载处理。
+func (it *imageItem) UnmarshalJSON(data []byte) error {
+	if !isJSONObject(data) {
+		return nil
+	}
+	var raw struct {
+		FileID interface{} `json:"file_id"`
+		URL    interface{} `json:"url"`
+		Name   string      `json:"name"`
+		MD5    interface{} `json:"md5"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	it.FileID = coerceString(raw.FileID)
+	it.URL = coerceString(raw.URL)
+	it.Name = raw.Name
+	it.MD5 = coerceString(raw.MD5)
+	return nil
+}
+
+// UnmarshalJSON file_item 防御解析：file_id/url 多态容忍，size 数字/字符串
+// 皆可；整体非对象时按空负载处理。
+func (it *fileItem) UnmarshalJSON(data []byte) error {
+	if !isJSONObject(data) {
+		return nil
+	}
+	var raw struct {
+		FileID interface{} `json:"file_id"`
+		URL    interface{} `json:"url"`
+		Name   string      `json:"name"`
+		Size   interface{} `json:"size"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	it.FileID = coerceString(raw.FileID)
+	it.URL = coerceString(raw.URL)
+	it.Name = raw.Name
+	it.Size = coerceInt64(raw.Size)
+	return nil
 }
 
 func (s *Server) pollLoop() {
@@ -274,32 +385,74 @@ func (s *Server) pollLoop() {
 }
 
 func (s *Server) handle(msg *inboundMsg) {
+	// v4.8 d① per-peer 滑动窗口限频：超限发固定文案，不触发 LLM（不进聊天
+	// 管道，也不更新 lastPeer——正常消息已记录过回推目标）。
+	if msg.FromUserID != "" && !s.limiter.Allow(msg.FromUserID) {
+		slog.Warn("[weixin] 消息超过频率限制，已按固定文案回复",
+			"assistant", s.cfg.AssistantID, "from", msg.FromUserID)
+		if s.sendFn != nil {
+			_ = s.sendFn(msg.FromUserID, msg.ContextToken, rateLimitedText)
+		} else {
+			_ = s.Send(msg.FromUserID, msg.ContextToken, rateLimitedText)
+		}
+		return
+	}
+
 	text := ""
-	var media []string
+	var media []string      // 未识别多媒体的提示行（统一走「内容暂无法读取」包装）
+	var recognized []string // 已识别图片的提示行（自带括号包装）
+	mediaCount := 0
+	mediaOverflow := 0
 	for _, item := range msg.ItemList {
 		switch {
 		case item.Type == 1 && item.TextItem != nil:
 			text += item.TextItem.Text
 		case item.ImageItem != nil:
+			mediaCount++
+			if mediaCount > wxMaxMediaItems { // d③ 条数上限：超出不逐个处理
+				mediaOverflow++
+				continue
+			}
+			if s.MediaRecognizer != nil && item.ImageItem.URL != "" {
+				if desc, ok := s.recognizeImage(*item.ImageItem); ok {
+					recognized = append(recognized, recognizedImageLabel(*item.ImageItem, desc))
+					continue
+				}
+			}
 			media = append(media, imageItemLabel(*item.ImageItem))
 		case item.FileItem != nil:
+			mediaCount++
+			if mediaCount > wxMaxMediaItems {
+				mediaOverflow++
+				continue
+			}
 			media = append(media, fileItemLabel(*item.FileItem))
 		default:
 			// 未知类型且无已识别负载：宁漏勿误——静默跳过（协议字段待探明，
 			// 不把无法理解的项喂给模型）。
 		}
 	}
-	// S4.5 发图即识别第一刀：非文本消息转成模型可见的提示行（「用户发来一张
-	// 图片」），让助手优雅应答而不是静默忽略；字节级内容识别待 URL/file_id
-	// 字段真机收敛后接 vision 管线。
-	if len(media) > 0 {
-		hint := "（用户发来一条" + strings.Join(media, "、") + "，内容暂无法读取）"
+	if mediaOverflow > 0 {
+		media = append(media, fmt.Sprintf("…等 %d 个文件", mediaOverflow))
+	}
+	// S4.5 发图即识别 / v4.8 子项 b：非文本消息转成模型可见的提示行。已识别
+	// 图片逐条给出「（用户发来图片「name」，识别内容：…）」；未识别项保持
+	// 原状（统一包装「内容暂无法读取」）。
+	if len(recognized) > 0 || len(media) > 0 {
+		var parts []string
+		parts = append(parts, recognized...)
+		if len(media) > 0 {
+			parts = append(parts, "（用户发来一条"+strings.Join(media, "、")+"，内容暂无法读取）")
+		}
+		hint := strings.Join(parts, "")
 		if text == "" {
 			text = hint
 		} else {
 			text = hint + " 附言：" + text
 		}
 	}
+	// v4.8 d② 入站文本 4KB 截断（rune 安全），防止超长消息喂爆模型。
+	text = truncateTextBytes(text, wxMaxTextBytes)
 	if text == "" || s.chatFn == nil {
 		return
 	}
@@ -341,6 +494,64 @@ func fileItemLabel(it fileItem) string {
 	return "文件消息"
 }
 
+// ─── 图片识别管线（v4.8 子项 b）─────────────────────────────
+
+// recognizeImage 调用注入的 MediaRecognizer 识别图片。前后各一条 slog 便于
+// 真机诊断；失败或空结果一律返回 false（handle 保留原占位提示行），错误
+// 不上抛不 panic。
+func (s *Server) recognizeImage(it imageItem) (string, bool) {
+	slog.Info("[weixin] 图片识别开始",
+		"assistant", s.cfg.AssistantID,
+		"url", truncateRunes(it.URL, 120),
+		"name", it.Name)
+	desc, err := s.MediaRecognizer(it.URL)
+	if err != nil {
+		slog.Warn("[weixin] 图片识别失败，保留占位提示",
+			"assistant", s.cfg.AssistantID, "url", truncateRunes(it.URL, 120), "err", err)
+		return "", false
+	}
+	desc = strings.TrimSpace(desc)
+	if desc == "" {
+		slog.Warn("[weixin] 图片识别结果为空，保留占位提示",
+			"assistant", s.cfg.AssistantID, "url", truncateRunes(it.URL, 120))
+		return "", false
+	}
+	slog.Info("[weixin] 图片识别完成",
+		"assistant", s.cfg.AssistantID, "runes", len([]rune(desc)))
+	return desc, true
+}
+
+// recognizedImageLabel 已识别图片的提示行：识别内容截前 300 rune（超长加省略号）。
+func recognizedImageLabel(it imageItem, desc string) string {
+	content := truncateRunes(desc, 300)
+	if it.Name != "" {
+		return "（用户发来图片「" + it.Name + "」，识别内容：" + content + "）"
+	}
+	return "（用户发来图片，识别内容：" + content + "）"
+}
+
+// truncateRunes 按 rune 数截断，超长追加省略号。
+func truncateRunes(s string, n int) string {
+	rs := []rune(s)
+	if len(rs) <= n {
+		return s
+	}
+	return string(rs[:n]) + "…"
+}
+
+// truncateTextBytes 按字节上限截断文本（不撕裂 UTF-8 多字节序列），截断时
+// 追加固定标记，让模型与用户都知道内容不完整。
+func truncateTextBytes(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	cut := s[:max]
+	for len(cut) > 0 && !utf8.ValidString(cut) {
+		cut = cut[:len(cut)-1] // 回退到 rune 边界（最多回退 3 字节）
+	}
+	return cut + truncatedMark
+}
+
 // LastPeer 返回最近活跃会话（fromUser, contextToken）；无记录时返回空串。
 func (s *Server) LastPeer() (string, string) {
 	s.lastPeerMu.Lock()
@@ -356,6 +567,19 @@ func (s *Server) Push(text string) error {
 		return fmt.Errorf("无活跃微信会话（尚未收到任何消息），无法主动推送")
 	}
 	return s.Send(from, ctx, text)
+}
+
+// SendFileCard 产物回推 seam（v4.8 子项 c，文本降级版）：iLink 文件上传端点
+// 尚未探明，当前以文本卡片告知产物名称与去向，经 Push 发往最近活跃会话。
+// 真上传端点探明后仅需替换本方法实现（上传文件卡片 + caption），调用方不变；
+// 约定详见 docs/ilink-non-text-protocol.md「产物回推 seam」一节。
+func (s *Server) SendFileCard(localPath, caption string) error {
+	name := filepath.Base(localPath)
+	text := "🖼 产物已生成：" + name + "（微信暂不支持直接收文件卡片，请在桌面端「书房·绘梦」查看）"
+	if caption != "" {
+		text += "\n" + caption
+	}
+	return s.Push(text)
 }
 
 // ─── 发送 ────────────────────────────────────────────────────

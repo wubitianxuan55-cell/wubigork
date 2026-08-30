@@ -91,6 +91,10 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 		}
 		return reply, nil
 	})
+	// v4.8 子项 b：图片消息→OCR 识别一行注入（url→下载→OCR→清理）。
+	if w.app != nil {
+		srv.MediaRecognizer = weixin.OCRMediaRecognizer(w.app.GaeaOCRText)
+	}
 	// 会话过期钩子（T6-9.1）：errcode=-14 时 Server 触发回调并停止轮询——
 	// 这里 emit 前端 notice 事件，让用户看到提示并重新扫码绑定；
 	// 状态已由 Server.SessionExpired() 透出（WhisperWeixinStatus 的 wxSessionExpired）
