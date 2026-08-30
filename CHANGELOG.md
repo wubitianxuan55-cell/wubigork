@@ -1,5 +1,31 @@
 # gaea · 多功能 AI 助手
 
+## v4.8.3「微信图片双向」(2026-08-30)
+> v4.8.2 发布当日真机实测复盘 + 微信图片双向真协议实装。零新增绑定（535
+> 不变），协议经三方印证（本机抓包实测解密 + hermes-agent weixin.py 生产
+> 实现 + openilink SDK 导出符号）。Go 全量绿、前端零改动（vitest 807/807
+> 沿用）。详见 releases/v4.8.3.md。
+- **识图排障（慢+乱字母复盘）**：身份类问题（你是谁/你会什么…）跳过联网
+  搜索——「你是谁」误触发搜索把无关英文网页摘要注入提示词，角色扮演模型
+  把片段混进回复（乱字母根因）；WhisperChat 日志预览按字节切汉字出
+  \xe6\x81 伪影修复（rune 化）。
+- **微信出图回推（真机 delivered）**：getuploadurl（filekey/aeskey/md5/
+  PKCS7 filesize）→ CDN 密文直传（x-encrypted-param 票据）→ sendmessage
+  image_item 图片卡片 + caption 独立补发；任何失败降级文本卡片（逐字节
+  不变）。真机验证 stage=delivered。
+- **微信发图识别（真机两连发通过）**：入站图片 type=2 + aeskey/
+  media{full_url, encrypt_query_param, aes_key} 防御解析；DownloadImage
+  Encrypted（dial-time SSRF/20MiB → AES-128-ECB 解密 → 魔数终审才落盘）；
+  file:// 分支限 TempDir。
+- **识图模型升级**：多模态 Qwen3.6-35B 主模型优先（真机探针实测视觉链路
+  完好；手写体显著强于 OCR 专线；与聊天同体常驻显存零额外开销），
+  PaddleOCR → MinerU → OvisOCR2 三级链降为兜底。
+- **关键坑锁死**：入站图片 type=2（非 3）；aes_key 必须 base64(hex字符串)
+  （base64 原始字节 = 接收端灰框）；上传域与扫码 baseurl/redirect_host
+  无关（无需重扫）；media_crypt.go 手写 AES-128-ECB + PKCS7（Go 无 ECB）。
+- **抓包基建留存**：wx_capture.jsonl（qr_status/inbound_media/upload_probe
+  三类）——探针时代产物，排障可用。
+
 ## v4.8.2「欠账收尾」(2026-08-30)
 > v4.8.1 欠账收口：权限升级请求（v3.7.0 挂账独立一刀）+ 竞态/flake 全治理
 > （含 Cancel 被 succeeded 吞掉的真生产竞态）+ Realtime S2 事件环骨架

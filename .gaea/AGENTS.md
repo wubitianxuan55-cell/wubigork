@@ -34,13 +34,42 @@
   剩余欠账（Realtime S1/S2、iLink 真机窗口、离线模式设置 UI、权限升级请求+
   stubGate 竞态、XlsxPreview 虚拟滚动/生命库可写化=观察项）见
   `releases/v4.8.0.md` 欠账清单。
-- **下一执行**：v4.8.2 已发布（欠账收尾三线）；剩余——Realtime 真机验证轮
-  （真 key 下端到端对话/打断体感/AEC 实效，S2 骨架已就绪待真机数据）；
-  VoiceStart WhisperReady 门小修（realtime 不依赖 whisper chat）；iLink
-  真机窗口（原始 JSON/上传域/sendmessage 端点 → 仅替换 SendFileCard）；
-  XlsxPreview 虚拟滚动、生命库可写化=观察项。
+- **下一执行**：v4.8.3 已发布（微信图片双向真协议）；剩余——Realtime 真机
+  验证轮（真 key 下端到端对话/打断体感/AEC 实效，S2 骨架已就绪待真机数据）；
+  VoiceStart WhisperReady 门小修（realtime 不依赖 whisper chat）；手写体识
+  别质量复测（多模态 Qwen 升级后）；iLink 语音/视频等未探明 item 维持宁漏
+  勿误静默跳过；XlsxPreview 虚拟滚动、生命库可写化=观察项。
 
 ## 版本状态
+
+- **最新发布：v4.8.3（2026-08-30）「微信图片双向」**：
+  git tag `v4.8.3`；CHANGELOG / releases/v4.8.3.md / README 索引同步。
+  v4.8.2 发布当日真机实测复盘五刀（1bfd41d/2cca12a/b1921e9/cda6522/
+  72e11e3），协议三方印证（本机抓包解密 + hermes-agent weixin.py +
+  openilink SDK）。要点：
+  - **出图回推（真机 delivered）**：getuploadurl（filekey/aeskey/md5/PKCS7
+    filesize）→ CDN 密文直传（x-encrypted-param 票据）→ sendmessage
+    image_item 卡片 + caption 独立补发；media_crypt.go 手写 AES-128-ECB
+    + PKCS7（Go 无 ECB）；任何失败降级文本卡片逐字节不变；接线修复=
+    SendFileCard 曾是孤儿（CardPath 拼文本从不调上传——真凶）+ handle
+    空回复守卫。
+  - **发图识别（真机两连发通过）**：入站 type=2 + image_item{aeskey,
+    media{full_url, encrypt_query_param, aes_key}} 防御解析；
+    DownloadImageEncrypted（dial-time SSRF/20MiB → 解密 → 魔数终审才
+    落盘）；file:// 分支限 TempDir+魔数。
+  - **识图模型升级**：多模态 Qwen3.6-35B 主模型优先（真机探针实测视觉
+    完好；手写体强；与聊天同体零额外显存；OCR 式提示词），PaddleOCR →
+    MinerU → OvisOCR2 三级链降兜底。
+  - **识图排障**：身份类问题（你是谁/你会什么…）跳过联网搜索——「你是
+    谁」误触搜索注入英文网页致回复夹乱字母；日志预览 rune 化（\xe6\x81
+    伪影）。
+  - **关键坑**：type=2 非 3；aes_key 必须 base64(hex字符串)（base64 原始
+    字节=灰框）；上传域与扫码 baseurl 无关（无需重扫，v4.8.2 媒体域假设
+    作废）。
+  - **验证**：Go 全量绿、零新增绑定（535）、前端零改动（vitest 807/807
+    沿用）、版本五处统一 4.8.3、gaea-v4.8.3.exe + 冒烟 200。
+  - **欠账**：手写识别质量待复测 / chat 路由绑 35B Q4 慢（配置项）/
+    iLink 语音视频 item 未探明 / Realtime 真机验证轮延续。
 
 - **最新发布：v4.8.2（2026-08-30）「欠账收尾」**：
   git tag `v4.8.2`；CHANGELOG / releases/v4.8.2.md / README 索引同步。要点：
