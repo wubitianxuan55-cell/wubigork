@@ -34,12 +34,44 @@
   剩余欠账（Realtime S1/S2、iLink 真机窗口、离线模式设置 UI、权限升级请求+
   stubGate 竞态、XlsxPreview 虚拟滚动/生命库可写化=观察项）见
   `releases/v4.8.0.md` 欠账清单。
-- **下一执行**：v4.8.1 已发布（欠账清尾两刀）；剩余——Realtime S2（Events
-  驱动端到端语音对话+打断联动，真 key 真机）；iLink 真机窗口（原始 JSON/
-  上传域/sendmessage 端点 → 仅替换 SendFileCard）；权限升级请求 + stubGate
-  竞态；XlsxPreview 虚拟滚动维持观察项。
+- **下一执行**：v4.8.2 已发布（欠账收尾三线）；剩余——Realtime 真机验证轮
+  （真 key 下端到端对话/打断体感/AEC 实效，S2 骨架已就绪待真机数据）；
+  VoiceStart WhisperReady 门小修（realtime 不依赖 whisper chat）；iLink
+  真机窗口（原始 JSON/上传域/sendmessage 端点 → 仅替换 SendFileCard）；
+  XlsxPreview 虚拟滚动、生命库可写化=观察项。
 
 ## 版本状态
+
+- **最新发布：v4.8.2（2026-08-30）「欠账收尾」**：
+  git tag `v4.8.2`；CHANGELOG / releases/v4.8.2.md / README 索引同步。要点：
+  - **权限升级请求**（v3.7.0 挂账清账，零新增绑定）：request_permission
+    工具（reason 必填/headless Never-Ask 降级/六形态结果文本）+
+    PermissionRequester ctx 盖章（仿 Asker）；control.RequestPermission
+    硬纪律三闸——deny 规则硬拒先行、hardAsk 拒绝升级（yolo 同拒）、批准
+    只写 grantedRules 会话 glob 规则表（真实调用仍走 Gate.Check 不绕闸门，
+    TestRequestPermissionGrantFeedsNormalGate 钉死）；五决策接线
+    （persist_allow 走 PersistAllowRule 持久化）；审批卡 request 形态
+    （规则串+reason 原文块，普通卡逐字节不变，三语 +5 键）；granted map
+    精确 key 局限由 glob 规则表补全（bash(go build*) 类规则可匹配）。
+  - **竞态/flake 全治理**：Cancel 被 succeeded 吞掉的收尾窗竞态（真生产
+    bug——worker 读 ctx.Err() 与 Cancel 的 cancel() 之间窄窗，修复=
+    userCancel 单独即取消，×10 压力绿）；stubGate 测试桩加锁（v3.8.0
+    挂账）；filewatch 风暴测试时序根治（合批窗 1s+条件等待，全量实战
+    零 FAIL）；ProgrammingPage 显式 5s 超时（v3.9.0 挂账）。
+  - **Realtime S2 事件环骨架**（方案 a，设计 docs/gaea-v482-realtime-s2-design.md）：
+    Resample16kTo24k 定点插值纯函数（16k/24k 协议硬伤根治，8 例保真）+
+    事件常量 +7（解析骨架零改动）+ TurnControl 可选接口（fail-closed）+
+    voice_manager 事件泵（旁路本地 VAD/RMS 双源冲突、barge-in 三联、
+    delta 聚合→done 冲洗 24k WAV 复用前端播放环、PTT→Commit）+ 前端
+    browserASRAvailable 死门旁路（WebView2 PCM 从未进后端）+ 五重降级
+    护栏（未注入=逐字节老路双层守护）。31 新测试 + 既有 41 用例全绿。
+    **真机欠账**：延迟/AEC 误打断/打断手感/格式怪癖/gpt-realtime
+    instructions 落位。
+  - **验证**：Go 全量绿（风暴修复实战零 FAIL）；vitest **807/807**；
+    tsc/eslint 0；绑定面 535、drift PASS；版本五处统一 4.8.2；桌面端
+    gaea-v4.8.2.exe（SHA256 见 releases/SHA256SUMS-v4.8.2.txt）+ 冒烟 200。
+  - **欠账**：Realtime 真机验证轮 / VoiceStart WhisperReady 门小修 /
+    iLink 真机窗口 / XlsxPreview 虚拟滚动、生命库可写化=观察项。
 
 - **最新发布：v4.8.1（2026-08-30）「欠账清尾」**：
   git tag `v4.8.1`；CHANGELOG / releases/v4.8.1.md / README 索引同步。要点：

@@ -1,5 +1,20 @@
 # gaea · 多功能 AI 助手
 
+## v4.8.2「欠账收尾」(2026-08-30)
+> v4.8.1 欠账收口：权限升级请求（v3.7.0 挂账独立一刀）+ 竞态/flake 全治理
+> （含 Cancel 被 succeeded 吞掉的真生产竞态）+ Realtime S2 事件环骨架
+> （16k→24k 重采样/TurnControl/事件泵/五重降级护栏，真机欠账如实记账）。
+> Go 全量绿、vitest 807/807、tsc/eslint 0、drift PASS。详见 releases/v4.8.2.md。
+- **权限升级请求**：request_permission 工具（reason 必填/headless 降级）+
+  硬纪律三闸（deny 先行/hardAsk 拒升级/批准只写 glob 规则表不绕闸门）+
+  五决策接线 + 审批卡 request 形态（reason 原文块）+ 会话 glob 规则表补全。
+- **竞态/flake 治理**：Cancel 收尾窗竞态修复（×10 压力绿）+ stubGate 测试桩
+  加锁 + filewatch 风暴测试时序根治（全量实战零 FAIL）+ ProgrammingPage
+  显式 5s 超时。
+- **Realtime S2**：Resample16kTo24k 纯函数（0.0077% 误差）+ 事件常量 +7 +
+  TurnControl 可选接口 + voice_manager 事件泵（barge-in 三联/24k WAV 冲洗/
+  降级拼接）+ 前端 PCM 推送死门打通；未配置=逐字节零变化（守护测试）。
+
 ## v4.8.1「欠账清尾」(2026-08-30)
 > v4.8.0 欠账两刀收口：全局离线模式设置 UI（绑定面 533→535）+ Realtime S1
 > （配置落盘 + DPAPI key + VoiceSettingsPanel 入口）。Go 全量绿、vitest

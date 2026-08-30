@@ -1,21 +1,21 @@
 # 任务进度
 
-> 最后更新: 2026-08-30（v4.8.1「欠账清尾」发布完成）
+> 最后更新: 2026-08-30（v4.8.2「欠账收尾」发布完成）
 
 ## 当前状态
 
-- **最新发布：v4.8.1（2026-08-30）**——「欠账清尾」两刀收口：①全局离线
-  模式设置 UI（SecurityPanel 总闸段 + GaeaGet/SetOfflineMode 绑定 533→535
-  + shelf 内存同步）②Realtime S1（realtime 三键落盘——provider 仅 openai、
-  Key 走 DPAPI 密文仅本机可解；initVoice 注入接线位置测试守护；
-  VoiceApplySettings/GetSettings 扩三键——明文 Key 永不出后端；面板「实时
-  语音（实验）」入口段）。验证：Go 全量绿（120 包，filewatch 风暴测试为已知
-  抖动隔离复跑绿）；vitest **803/803**；tsc/eslint 0；绑定面 535、drift
-  PASS。详见 releases/v4.8.1.md。
-- **下一执行**：Realtime S2（Events 驱动端到端语音对话 + 打断联动，需真 key
-  真机）；iLink 真机窗口（原始 JSON/上传域/sendmessage 端点 → 仅替换
-  SendFileCard）；权限升级请求 + stubGate 竞态；XlsxPreview 虚拟滚动维持
-  观察项。
+- **最新发布：v4.8.2（2026-08-30）**——①权限升级请求（request_permission
+  工具 + 硬纪律三闸 + 审批卡 request 形态 + 会话 glob 规则表，零新增绑定，
+  v3.7.0 挂账清账）②竞态/flake 全治理（Cancel 收尾窗生产竞态 ×10 压力绿、
+  stubGate 加锁、filewatch 风暴时序根治全量实战零 FAIL、ProgrammingPage
+  显式 5s 超时）③Realtime S2 事件环骨架（Resample16kTo24k + 事件 +7 +
+  TurnControl + 事件泵/barge-in 三联/24k WAV 冲洗 + 前端 PCM 死门打通 +
+  五重降级护栏；未配置=逐字节零变化守护）。验证：Go 全量绿（风暴修复实战
+  零 FAIL）、vitest 807/807、tsc/eslint 0、drift 535 PASS。详见
+  releases/v4.8.2.md。
+- **下一执行**：Realtime 真机验证轮（真 key 下端到端对话/打断体感/AEC，
+  骨架已就绪）；VoiceStart WhisperReady 门小修（realtime 不依赖 whisper
+  chat）；iLink 真机窗口；XlsxPreview/生命库=观察项。
 - 构建注意：wails build 走 `build.bat` 的 TMP/TEMP 重定向到 `.tmp`（规避 SAC
   策略拦截）。
 
