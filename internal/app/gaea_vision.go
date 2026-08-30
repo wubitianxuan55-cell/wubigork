@@ -14,14 +14,17 @@ import (
 // visionRecognize 可注入 seam（测试替换；生产恒为 vision.RecognizeImage）。
 var visionRecognize = vision.RecognizeImage
 
-// visionOCRTextPrompt 微信识图提示词：只提取文字，不描述画面（识别结果直接
-// 进入对话管线，描述性输出会污染用户消息语义）。
-const visionOCRTextPrompt = "请提取这张图片中的所有文字，按原有版式逐行输出文字内容；不要描述画面、不要添加任何评论。图中没有文字时，用一句话概括画面内容。"
+// visionOCRTextPrompt 微信识图提示词：完整解读——文字按版式逐行提取优先
+// （保持原文），画面主体/对象/布局/图表要点随后；两者都要（用户发图后常
+// 用下一条文本追问，注入描述必须足以支撑追问，纯文字提取会丢视觉语境）。
+const visionOCRTextPrompt = "请完整解读这张图片：先按原版式逐行提取所有可见文字（保持原文，不翻译不改写）；再简述画面主体、对象、布局与图表要点（如有）。"
 
 // visionOCRText 微信识图（v4.8.3）：优先多模态主模型（vision 运行时，默认
 // 本机 Qwen3.6-35B——真机探针实测视觉链路完好），手写体/低质量图显著强于
 // PaddleOCR 专线；主模型失败（服务忙/冷启动超时等）回退 GaeaOCRText
 // （PaddleOCR → MinerU → OvisOCR2 三级既有链）。
+// 注意：本函数是「看懂图」不是纯 OCR——文字提取+画面理解都要；纯文字提取
+// 场景（办公提取文字工具）继续走 GaeaOCRText，两者分岗。
 func (a *App) visionOCRText(imagePath string) (string, error) {
 	text, err := visionRecognize(context.Background(), imagePath, visionOCRTextPrompt)
 	if err == nil && strings.TrimSpace(text) != "" {
