@@ -91,12 +91,11 @@ func (a *mediaState) initVoice() {
 	if v := strings.TrimSpace(a.activePersonalityID); v != "" {
 		config.PersonalityPresetID = v
 	}
-	// S1 Realtime 配置接线（兑现 S0 注释）：从 ~/.gaea_config.json 读取
-	// realtime_provider / realtime_model / realtime_api_key 三项落盘值。
-	// APIKey 存储口径为 secure.EncryptString 密文，这里解出内存明文注入运行时
-	// 配置（先例 SetOpencodeZenKey）；解密失败 → 告警 + APIKey 置空（降级不崩，
+	// S1 沿用：从 ~/.gaea_config.json 读取 realtime_provider / realtime_model /
+	// realtime_api_key 三项落盘值注入运行时配置（APIKey 存储口径为
+	// secure.EncryptString 密文，这里解出内存明文；解密失败 → 告警 + 置空，
 	// realtimeReady 将为 false）。Provider 为空（未配置）→ 三项零填入，现拼接
-	// 管线零变化。须在 NewManager 之前注入，随配置一并入管理器内存态。
+	// 管线零变化。会话构造与注入在 NewManager 之后进行（见下方 S2 块）。
 	if provider, model, apiKey := a.realtimeRuntimeCfg(); provider != "" {
 		config.RealtimeProvider = provider
 		config.RealtimeModel = model
@@ -117,12 +116,20 @@ func (a *mediaState) initVoice() {
 		return a.synthesizeVoiceTTS(text, voiceDescription)
 	})
 
-	// Realtime 档探测（seam 消费者，见 internal/realtime）：未配置（Provider
-	// 空）→ 完全跳过，现拼接管线零变化；配置了但 New(kind) 失败（含解密失败
-	// 置空 Key）→ 优雅降级仅告警，不崩、不阻塞现有语音。本刀仍不启动 realtime
-	// 会话、不接管任何音频路径。
-	if probeRealtime(config) {
-		slog.Info("Realtime 档就绪（S1 配置已接线，未接管音频路径）", "kind", strings.TrimSpace(config.RealtimeProvider))
+	// S2 Realtime：provider 配置时经注册表构造真实会话注入 Manager（替换 S1
+	// 纯探测——探测只证明"可构造"，注入后 VoiceStart 时才拨号激活端到端事件
+	// 环）。构造失败（含解密失败置空 Key）→ 优雅降级仅告警，不崩、不阻塞现有
+	// 语音，拼接管线零变化；未配置（Provider 空）→ 完全跳过。
+	if config.RealtimeProvider != "" {
+		if sess, err := realtime.New(config.RealtimeProvider, realtime.Config{
+			Model:  config.RealtimeModel,
+			APIKey: config.RealtimeAPIKey,
+		}); err != nil {
+			slog.Warn("Realtime 会话构造失败，回退拼接语音管线", "kind", config.RealtimeProvider, "error", err)
+		} else {
+			a.voiceManager.SetRealtimeSession(sess)
+			slog.Info("Realtime 会话已注入（S2：VoiceStart 时拨号激活端到端模式）", "kind", config.RealtimeProvider, "model", config.RealtimeModel)
+		}
 	}
 
 	slog.Info("语音管理器已初始化")
@@ -153,8 +160,9 @@ func (a *mediaState) realtimeRuntimeCfg() (provider, model, apiKey string) {
 // probeRealtime Realtime 档就绪探测（seam 消费者）：未配置（RealtimeProvider 空）
 // → 跳过返回 false（现拼接管线零变化）；配置了但注册表构造失败 → slog.Warn
 // 优雅降级返回 false（不崩、不阻塞现有语音）。注册表构造不做网络 I/O、结果
-// 确定，VoiceHealth.realtimeReady 亦经此实时计算（与 initVoice 探测结论一致）。
-// S1：入参三字段由落盘配置 + secure.DecryptString 解密后的明文 Key 填充，
+// 确定，VoiceHealth.realtimeReady 经此实时计算。S2 起 initVoice 不再用它做
+// 探测（改为构造真实会话注入 Manager），本函数保留供 VoiceHealth 实时就绪
+// 判定。入参三字段由落盘配置 + secure.DecryptString 解密后的明文 Key 填充，
 // 见 realtimeRuntimeCfg。
 func probeRealtime(cfg voice.VoiceRuntimeConfig) bool {
 	kind := strings.TrimSpace(cfg.RealtimeProvider)
@@ -383,12 +391,19 @@ func (a *mediaState) synthesizeFromBase64(text string) ([]byte, string, error) {
 
 // VoiceStart 启动语音管道。browserASR 为 true 时使用浏览器端
 // Web Speech API 识别（无需 herdsman STT 模型），后端只负责对话与 TTS。
+// S2：realtime 会话在位时以 realtimeReady 为门（输入转写由服务端完成，
+// 不再强制 ASRReady）；会话不在位时维持原 ASRReady 门。
 func (a *mediaState) VoiceStart(browserASR bool) error {
 	if a.voiceManager == nil {
 		a.initVoice()
 	}
 	if !browserASR {
-		if a.voiceManager == nil || !a.voiceManager.ASRReady() {
+		if a.voiceManager == nil {
+			return fmt.Errorf("语音管理器未初始化")
+		}
+		if a.voiceManager.RealtimeReady() {
+			// 端到端实时模式：无需本地 ASR（服务端输入转写）
+		} else if !a.voiceManager.ASRReady() {
 			return fmt.Errorf("语音识别未就绪：请在模型中心启用 STT 模型（如 whisper-base / funasr）并确认 herdsman 引擎可用，或改用浏览器端语音识别")
 		}
 	}

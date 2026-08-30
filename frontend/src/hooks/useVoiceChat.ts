@@ -95,6 +95,9 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
   const volTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const simTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const stateRef = useRef<VoiceChatState>(state)
+  // S2 realtime 模式（后端注入了 Realtime 会话 = realtimeProvider 非空）：
+  // 强制推送 PCM + 抑制本地识别路径（防双输入）。start 时经 VoiceGetSettings 刷新。
+  const realtimeModeRef = useRef(false)
 
   // 保持 stateRef 同步
   stateRef.current = state
@@ -299,6 +302,19 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     }
   }, [onTranscript, onReply, setState2, playAudio, stopPlayback])
 
+  // ── S2 realtime 模式判定 ──
+
+  // realtimeProvider 非空 = 后端已注入 Realtime 会话（端到端模式）。
+  // 读取失败（后端未就绪/mock 环境）按非 realtime 处理，行为与现状一致。
+  const refreshRealtimeMode = useCallback(async () => {
+    try {
+      const settings = (await App.VoiceGetSettings?.()) as { realtimeProvider?: string } | undefined
+      realtimeModeRef.current = !!settings?.realtimeProvider
+    } catch {
+      realtimeModeRef.current = false
+    }
+  }, [])
+
   // ── 音频采集 ──
 
   const startCapture = useCallback(async () => {
@@ -344,8 +360,11 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
 
       processor.onaudioprocess = (event) => {
         if (abortRef.current) return
-        // 仅在 PTT 激活或 VAD 模式下发送；浏览器识别模式下不上送后端 ASR
-        if (!browserASRAvailable && (pttRef.current || stateRef.current.mode === 'vad')) {
+        // 仅在 PTT 激活或 VAD 模式下发送；浏览器识别模式下不上送后端 ASR。
+        // S2 realtime 模式强制推送（旁路 browserASRAvailable 门）：服务端 VAD
+        // 与输入转写依赖 16k PCM 流，本地识别此时必须抑制（防双输入）。
+        const realtimeForce = realtimeModeRef.current
+        if ((realtimeForce || !browserASRAvailable) && (pttRef.current || stateRef.current.mode === 'vad')) {
           const input = event.inputBuffer.getChannelData(0)
           const int16 = float32ToInt16(input)
           App.VoicePushAudio(Array.from(new Uint8Array(int16.buffer))).catch(() => {})
@@ -438,6 +457,9 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
       transcript: '', finalTranscript: '', volume: 0, error: null,
     })
 
+    // S2：启动前刷新 realtime 模式判定（决定 PCM 强制推送与本地识别抑制）
+    await refreshRealtimeMode()
+
     // 启动后端语音管道（浏览器识别模式下后端仅负责对话与 TTS）
     try {
       await App.VoiceStart(browserASRAvailable)
@@ -449,11 +471,12 @@ export function useVoiceChat({ onTranscript, onReply }: Options = {}) {
     // 启动本地音频采集（音量可视化）
     await startCapture()
 
-    // 浏览器端自带识别：直接出文本，不需要后端 ASR 模型
-    if (browserASRAvailable) {
+    // 浏览器端自带识别：直接出文本，不需要后端 ASR 模型。
+    // realtime 模式抑制（服务端转写经 voice:transcript 事件回传，防双输入）。
+    if (browserASRAvailable && !realtimeModeRef.current) {
       startBrowserRecognition()
     }
-  }, [startCapture, setState2, startBrowserRecognition])
+  }, [startCapture, setState2, startBrowserRecognition, refreshRealtimeMode])
 
   const stop = useCallback(() => {
     abortRef.current = true

@@ -23,9 +23,16 @@ const (
 	EventSessionUpdated                = "session.updated"
 	EventInputAudioBufferSpeechStarted = "input_audio_buffer.speech_started"
 	EventInputAudioBufferSpeechStopped = "input_audio_buffer.speech_stopped"
+	EventInputAudioBufferCommitted     = "input_audio_buffer.committed"
+	EventResponseCreated               = "response.created"
 	EventResponseAudioDelta            = "response.audio.delta"
 	EventResponseAudioDone             = "response.audio.done"
+	EventResponseAudioTranscriptDelta  = "response.audio_transcript.delta"
+	EventResponseAudioTranscriptDone   = "response.audio_transcript.done"
 	EventResponseTextDelta             = "response.text.delta"
+	EventResponseDone                  = "response.done"
+	EventInputAudioTranscriptionCompleted = "conversation.item.input_audio_transcription.completed"
+	EventInputAudioTranscriptionFailed    = "conversation.item.input_audio_transcription.failed"
 	EventError                         = "error"
 	EventUnknown                       = "unknown"
 )
@@ -41,12 +48,29 @@ type Event struct {
 type RealtimeSession interface {
 	// Dial 建立连接并完成会话初始化（如 session.update）；ctx 控制握手取消/超时。
 	Dial(ctx context.Context) error
-	// SendAudio 发送一帧输入音频（PCM16 采样，采样率按提供者约定，openai 为 16k）。
+	// SendAudio 发送一帧输入音频（PCM16 采样，采样率按提供者约定；openai 为
+	// 24kHz——OpenAI Realtime pcm16=24kHz，voice 管线的 16k 采集须经
+	// Resample16kTo24k 重采样后再送入）。
 	SendAudio(pcm []byte) error
 	// Events 返回服务端事件通道；Dial 成功后开始投递，会话连接断开后关闭。
 	Events() <-chan Event
 	// Close 关闭会话（幂等；未 Dial 直接 Close 合法，探测场景）。
 	Close() error
+}
+
+// TurnControl 可选的轮次控制接口（S2：会话控制类客户端事件）。
+//
+// 不进 RealtimeSession 主接口：消费方 type-assert，断言失败 = fail-closed
+// 回拼接管线（与注册表未知 kind 报错同一纪律）。各方法对应一条客户端协议帧：
+//   - Commit()         → input_audio_buffer.commit（手动截轮，PTT 释放）
+//   - ClearBuffer()    → input_audio_buffer.clear（打断时清空输入缓冲）
+//   - CreateResponse() → response.create（手动触发回复）
+//   - CancelResponse() → response.cancel（打断时取消生成中的回复）
+type TurnControl interface {
+	Commit() error
+	ClearBuffer() error
+	CreateResponse() error
+	CancelResponse() error
 }
 
 // Config Realtime 会话实例配置（注册表 New 入参）。

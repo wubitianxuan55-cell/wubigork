@@ -12,6 +12,7 @@ package voice
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gaea/gaea/internal/asr"
+	"github.com/gaea/gaea/internal/realtime"
 	"github.com/gaea/gaea/internal/tts"
 )
 
@@ -75,6 +77,14 @@ type Manager struct {
 	// ASR（接口注入：消费者只依赖 asr.ASRProvider，不依赖具体引擎）
 	asrProvider asr.ASRProvider
 
+	// Realtime 会话（S2 可选注入；rtInjected == nil = 走现拼接管线，行为零变化）。
+	// rtInjected：app 层经 SetRealtimeSession 注入（构造期，未拨号）；
+	// rtActive：Dial 成功、事件泵运行中的会话（音频/打断/降级都走它）。
+	// rtAudioSinceCommit：自上次 commit 以来是否有音频流入（PTT 防空缓冲 commit）。
+	rtInjected         realtime.RealtimeSession
+	rtActive           realtime.RealtimeSession
+	rtAudioSinceCommit bool
+
 	// 回调
 	whisperChatFn WhisperChatFn
 	ttsSynthFn    TTSSynthesizeFn
@@ -110,6 +120,87 @@ func NewManager(emitter EventEmitter, config VoiceRuntimeConfig) *Manager {
 // 由 app 层按模型中心 STT 模型路由经 asr.NewASRProvider 构造后注入。
 func (m *Manager) SetASRProvider(provider asr.ASRProvider) {
 	m.asrProvider = provider
+}
+
+// SetRealtimeSession 注入 Realtime 会话（S2：仿 SetASRProvider seam 注入口）。
+// 由 app 层经 realtime.New 构造后注入；nil 注入 = 显式停用实时档。
+// 会话仅在 Start 时拨号激活；注入 nil / Dial 失败 / 事件泵退出 / TurnControl
+// 断言失败 = 自动回现拼接管线（零回归保证：未注入时行为逐字节不变）。
+func (m *Manager) SetRealtimeSession(s realtime.RealtimeSession) {
+	m.mu.Lock()
+	m.rtInjected = s
+	m.mu.Unlock()
+}
+
+// RealtimeReady 报告是否已注入 realtime 会话（app 层 VoiceStart 就绪门用：
+// 会话在位 = 端到端实时模式可用，输入转写由服务端完成，无需本地 ASR）。
+func (m *Manager) RealtimeReady() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.rtInjected != nil
+}
+
+// realtimeActiveSession 取当前激活（已拨号、事件泵运行中）的 realtime 会话。
+func (m *Manager) realtimeActiveSession() realtime.RealtimeSession {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.rtActive
+}
+
+// realtimeDialTimeout realtime 拨号超时（同步拨号在 Start 内完成，超时后
+// 本轮回拼接管线，不阻塞语音可用性）。
+const realtimeDialTimeout = 5 * time.Second
+
+// activateRealtime 拨号并激活注入的 realtime 会话（Start 时调用）。
+//   - TurnControl 断言失败 = fail-closed 回拼接管线（与注册表 fail-closed 同纪律）；
+//   - Dial 失败仅告警，本轮回拼接管线（下次 Start 重试拨号，自愈）；
+//   - 成功 → rtActive 就位 + 启动事件泵 goroutine。
+func (m *Manager) activateRealtime() {
+	m.mu.RLock()
+	injected := m.rtInjected
+	m.mu.RUnlock()
+	if injected == nil || m.realtimeActiveSession() != nil {
+		return
+	}
+	if _, ok := injected.(realtime.TurnControl); !ok {
+		slog.Warn("Realtime 会话未实现轮次控制接口（TurnControl），fail-closed 回拼接管线")
+		return
+	}
+	dialCtx, cancel := context.WithTimeout(context.Background(), realtimeDialTimeout)
+	defer cancel()
+	if err := injected.Dial(dialCtx); err != nil {
+		slog.Warn("Realtime 拨号失败，本轮回退拼接语音管线", "error", err)
+		return
+	}
+
+	m.mu.Lock()
+	if m.rtActive != nil { // 双检：并发 Start 防重复激活
+		m.mu.Unlock()
+		_ = injected.Close()
+		return
+	}
+	m.rtActive = injected
+	m.rtAudioSinceCommit = false
+	m.mu.Unlock()
+
+	go m.runRealtimePump(injected)
+	slog.Info("Realtime 会话已激活（端到端实时语音模式）")
+}
+
+// degradeRealtime 关闭 realtime 会话并回退拼接管线（事件泵退出/协议错误统一
+// 收口于此）。宁降级不黑屏：状态复位 Idle，后续音频走现拼接管线。
+func (m *Manager) degradeRealtime(sess realtime.RealtimeSession) {
+	m.mu.Lock()
+	if m.rtActive == sess {
+		m.rtActive = nil
+	}
+	m.rtAudioSinceCommit = false
+	m.mu.Unlock()
+	_ = sess.Close() // 幂等
+	if m.GetState() != StateIdle {
+		m.setState(StateIdle)
+	}
+	slog.Info("Realtime 会话已降级，回退拼接语音管线")
 }
 
 // SetWhisperChatFn 设置 whisper 对话回调（seam 消费者：函数注入，由 app 层接线到对话引擎）。
@@ -176,6 +267,9 @@ func (m *Manager) Start() error {
 	m.ttsActive = false
 	m.mu.Unlock()
 
+	// S2 realtime：会话已注入且未激活 → 拨号 + 启动事件泵；失败保持拼接管线
+	m.activateRealtime()
+
 	m.mu.Lock()
 	m.running = true
 	m.mu.Unlock()
@@ -192,6 +286,16 @@ func (m *Manager) Start() error {
 // Stop 停止语音管道
 func (m *Manager) Stop() {
 	m.cancel() // 取消所有 goroutine
+
+	// S2：关闭 realtime 会话（事件泵随事件通道关闭自动退出并降级收尾）
+	m.mu.Lock()
+	rtSess := m.rtActive
+	m.rtActive = nil
+	m.rtAudioSinceCommit = false
+	m.mu.Unlock()
+	if rtSess != nil {
+		_ = rtSess.Close()
+	}
 
 	// 重建 context
 	m.ctx, m.cancel = context.WithCancel(context.Background())
@@ -229,6 +333,18 @@ func (m *Manager) PushAudioChunk(chunk []byte) error {
 	config := m.config
 	m.mu.RUnlock()
 
+	// S2 realtime 分支：会话已激活时旁路本地状态门（:232-234 仅 listening/
+	// speaking 收帧——thinking 也照发，服务端 interrupt_response 负责打断）、
+	// 旁路本地 VAD（:267-327，server_vad 以服务端判定为准）与本地 RMS 打断
+	// （防双源冲突，打断以服务端 speech_started 为准）。16k→24k 重采样后直发。
+	// rtActive == nil（未注入/未激活/已降级）= 现拼接管线，逐字节不变。
+	if sess := m.realtimeActiveSession(); sess != nil {
+		if state == StateIdle {
+			return nil // 管道未启动：与既有状态门同语义（忽略）
+		}
+		return m.pushRealtimeAudio(sess, chunk)
+	}
+
 	if state != StateListening && state != StateSpeaking {
 		return nil // 不在监听/说话状态，忽略
 	}
@@ -261,6 +377,19 @@ func (m *Manager) PushAudioChunk(chunk []byte) error {
 
 	// 正常 VAD 处理
 	return m.processVAD(chunk, config)
+}
+
+// pushRealtimeAudio realtime 分支发送：16k→24k 重采样后 input_audio_buffer.append。
+// 发送失败（连接断开等）静默丢帧——事件泵会随后降级回拼接管线，这里不崩不阻塞。
+func (m *Manager) pushRealtimeAudio(sess realtime.RealtimeSession, chunk []byte) error {
+	if err := sess.SendAudio(realtime.Resample16kTo24k(chunk)); err != nil {
+		slog.Debug("Realtime SendAudio 失败（等待事件泵降级）", "error", err)
+		return nil
+	}
+	m.mu.Lock()
+	m.rtAudioSinceCommit = true
+	m.mu.Unlock()
+	return nil
 }
 
 // processVAD 处理 VAD（对齐 Ackem voiceManager VAD 逻辑）
@@ -678,6 +807,8 @@ func (m *Manager) CancelTTS() {
 	wasActive := m.ttsActive
 	m.ttsActive = false
 	m.interrupted = true // 用户打断：下一轮告诉模型
+	rtSess := m.rtActive
+	state := m.state
 	m.mu.Unlock()
 
 	if stop != nil {
@@ -686,6 +817,21 @@ func (m *Manager) CancelTTS() {
 
 	if wasActive && m.emitter != nil {
 		m.emitter.EmitVoiceTTSCancel()
+	}
+
+	// S2 realtime 叠加：会话在位且可能有进行中的 response（speaking/thinking）
+	// 时补发 response.cancel + input_audio_buffer.clear。状态守卫防重复下发：
+	// 前端收到 voice:tts-speak-cancel 会回打 VoiceCancelTTS，彼时已回到
+	// listening，跳过（对已结束的 response.cancel 也避免服务端报错）。
+	if rtSess != nil && (state == StateSpeaking || state == StateThinking) {
+		if tc, ok := rtSess.(realtime.TurnControl); ok {
+			if err := tc.CancelResponse(); err != nil {
+				slog.Debug("Realtime CancelResponse 失败", "error", err)
+			}
+			if err := tc.ClearBuffer(); err != nil {
+				slog.Debug("Realtime ClearBuffer 失败", "error", err)
+			}
+		}
 	}
 
 	slog.Debug("TTS 已打断")
@@ -734,6 +880,25 @@ func (m *Manager) SetPTTActive(active bool) {
 	} else {
 		// 释放：结束录音并识别
 		if state == StateListening {
+			// S2 realtime：PTT 释放 → input_audio_buffer.commit（服务端截轮），
+			// 旁路本地 VAD 缓冲/ASR 路径；无音频流入时不 commit（防空缓冲协议
+			// 错误）。会话不在位（未注入/已降级）→ 走原拼接识别路径。
+			if sess := m.realtimeActiveSession(); sess != nil {
+				m.mu.Lock()
+				hasAudio := m.rtAudioSinceCommit
+				m.rtAudioSinceCommit = false
+				m.mu.Unlock()
+				if hasAudio {
+					if tc, ok := sess.(realtime.TurnControl); ok {
+						if err := tc.Commit(); err != nil {
+							slog.Warn("Realtime commit 失败", "error", err)
+						}
+					}
+				}
+				m.setState(StateIdle)
+				return
+			}
+
 			m.mu.Lock()
 			buf := copyBytes(m.vadBuffer)
 			m.vadBuffer = nil
@@ -747,6 +912,189 @@ func (m *Manager) SetPTTActive(active bool) {
 			m.setState(StateIdle)
 		}
 	}
+}
+
+// ── Realtime 事件泵（S2）──
+
+// rtAggregator 单条 response 的输出聚合器：按 response 聚 audio.delta，
+// response.done 冲洗（24k PCM → 包 WAV 头 → EmitVoiceTTSAudio）。
+type rtAggregator struct {
+	audio      []byte          // response.audio.delta 聚合（24k PCM16 mono）
+	transcript strings.Builder // response.audio_transcript.delta 聚合
+	spoke      bool            // 是否已因首个 audio.delta 进入 speaking
+}
+
+// runRealtimePump 消费 realtime 会话事件流，把服务端事件映射到现有状态机
+// （idle → listening → thinking → speaking，对齐 setState/事件口）：
+//   - speech_started（speaking 中）→ barge-in 三联 → listening
+//   - response.created → thinking；audio.delta → speaking（按 response 聚合）
+//   - audio_transcript.done → EmitVoiceReply；输入转写 completed → EmitVoiceTranscript
+//   - response.done → 冲洗聚合器（24k WAV）→ idle → 自动续听（VAD 模式）
+//   - 协议 error / 事件通道关闭 → 关会话降级回拼接管线（宁降级不黑屏）
+func (m *Manager) runRealtimePump(sess realtime.RealtimeSession) {
+	agg := rtAggregator{}
+	for ev := range sess.Events() {
+		switch ev.Type {
+		case realtime.EventInputAudioBufferSpeechStarted:
+			m.onRealtimeSpeechStarted()
+
+		case realtime.EventResponseCreated:
+			agg = rtAggregator{} // 新 response：重置聚合器（被打断的残留不冲入）
+			m.setState(StateThinking)
+			if m.emitter != nil {
+				m.emitter.EmitVoiceThinking(true)
+				m.emitter.EmitVoiceListening(false)
+			}
+
+		case realtime.EventResponseAudioDelta:
+			agg.audio = append(agg.audio, ev.AudioPCM...)
+			if !agg.spoke {
+				agg.spoke = true
+				m.setState(StateSpeaking)
+			}
+
+		case realtime.EventResponseAudioTranscriptDelta:
+			agg.transcript.WriteString(jsonStringField(ev.DataJSON, "delta"))
+
+		case realtime.EventResponseAudioTranscriptDone:
+			// 优先取 done 事件自带的完整 transcript，缺失回退增量聚合
+			if text := jsonStringField(ev.DataJSON, "transcript"); text != "" {
+				agg.transcript.Reset()
+				agg.transcript.WriteString(text)
+			}
+			if text := agg.transcript.String(); text != "" && m.emitter != nil {
+				m.emitter.EmitVoiceReply(text) // 对话显示（与 handleReply 同口）
+			}
+			agg.transcript.Reset()
+
+		case realtime.EventInputAudioTranscriptionCompleted:
+			if text := jsonStringField(ev.DataJSON, "transcript"); text != "" && m.emitter != nil {
+				m.emitter.EmitVoiceTranscript(text, true) // 用户侧文本
+			}
+
+		case realtime.EventInputAudioTranscriptionFailed:
+			slog.Warn("Realtime 输入转写失败", "json", ev.DataJSON)
+
+		case realtime.EventResponseDone:
+			m.onRealtimeResponseDone(&agg, ev.DataJSON)
+
+		case realtime.EventError:
+			// 缓冲类错误（空 buffer commit/clear 等）可自愈：仅告警不降级
+			typ, code, msg := rtErrorInfo(ev.DataJSON)
+			if strings.Contains(typ, "input_audio_buffer") || strings.Contains(code, "input_audio_buffer") {
+				slog.Warn("Realtime 缓冲类协议错误（不降级）", "json", ev.DataJSON)
+				continue
+			}
+			slog.Error("Realtime 协议错误，降级回拼接管线", "json", ev.DataJSON)
+			if m.emitter != nil {
+				m.emitter.EmitVoiceError(fmt.Errorf("实时语音会话错误: %s", msg))
+			}
+			m.degradeRealtime(sess)
+			return
+
+		default:
+			// session.created/updated、audio.done、speech_stopped、committed、
+			// unknown 等：骨架阶段不消费（server_vad 自动截轮，无需处理）
+		}
+	}
+	// 事件通道关闭 = 连接断开（含 Stop 主动关闭）→ 降级收尾
+	m.degradeRealtime(sess)
+}
+
+// onRealtimeSpeechStarted 服务端 VAD 检测到用户说话：仅在 AI 说话（speaking）
+// 时执行 barge-in 三联——停播放（EmitVoiceTTSCancel）+ CancelResponse +
+// ClearBuffer（后两联经 CancelTTS 叠加下发）→ listening。本地 RMS 打断在
+// realtime 模式已旁路（防双源冲突），以服务端 speech_started 为准；
+// listening/thinking 阶段的 speech_started 交由服务端 interrupt_response 处理。
+func (m *Manager) onRealtimeSpeechStarted() {
+	m.mu.RLock()
+	state := m.state
+	m.mu.RUnlock()
+	if state != StateSpeaking {
+		return
+	}
+	m.CancelTTS()
+	// realtime 模式回复音频由前端播放环消费（response.done 冲洗的 WAV），
+	// speak() 未运行、ttsActive 恒为 false——停播放必须显式发取消事件。
+	if m.emitter != nil {
+		m.emitter.EmitVoiceTTSCancel()
+	}
+	m.setState(StateListening)
+}
+
+// onRealtimeResponseDone response.done：冲洗聚合器——24k PCM 包 WAV 头
+// （wav.go 24k 变体）→ EmitVoiceTTSAudio（复用前端现播放环，零播放侧改动）
+// → idle → 自动续听（VAD 模式，对齐 handleReply 尾部 :511-519 模式）。
+// status=cancelled（被打断的回复）→ 丢弃半截音频不播放；若 barge-in 已把状态
+// 复位到 listening（用户正在说话），保持不动避免续听空档截断用户语音。
+func (m *Manager) onRealtimeResponseDone(agg *rtAggregator, raw string) {
+	var done struct {
+		Response struct {
+			Status string `json:"status"`
+		} `json:"response"`
+	}
+	_ = json.Unmarshal([]byte(raw), &done)
+	cancelled := done.Response.Status == "cancelled"
+
+	if cancelled {
+		*agg = rtAggregator{}
+		if s := m.GetState(); s == StateSpeaking || s == StateThinking {
+			// 无 speech_started 参与的打断（如 UI 打断/文本插话）：复位状态机
+			m.setState(StateIdle)
+			if m.emitter != nil {
+				m.emitter.EmitVoiceThinking(false)
+			}
+		}
+		return
+	}
+
+	if len(agg.audio) > 0 && m.emitter != nil {
+		m.emitter.EmitVoiceTTSAudio(wrapPCMAsWAV24k(agg.audio), "audio/wav")
+	}
+	*agg = rtAggregator{}
+
+	m.setState(StateIdle)
+	if m.emitter != nil {
+		m.emitter.EmitVoiceThinking(false)
+	}
+
+	// 自动续听（连续对话模式；对齐 handleReply 尾部自动恢复监听）
+	if m.GetConfig().VoiceMode == VoiceModeVAD && m.isRunning() {
+		time.Sleep(300 * time.Millisecond)
+		m.mu.RLock()
+		canListen := m.state == StateIdle && m.running
+		m.mu.RUnlock()
+		if canListen {
+			_ = m.Start()
+		}
+	}
+}
+
+// jsonStringField 提取事件原始 JSON 的顶层字符串字段（缺失/非字符串返回 ""）。
+func jsonStringField(raw, field string) string {
+	var obj map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &obj); err != nil {
+		return ""
+	}
+	v, _ := obj[field].(string)
+	return v
+}
+
+// rtErrorInfo 解析 error 事件的 error 对象（type/code/param/message，宁漏勿误）。
+func rtErrorInfo(raw string) (typ, code, msg string) {
+	var e struct {
+		Error struct {
+			Type    string `json:"type"`
+			Code    string `json:"code"`
+			Param   string `json:"param"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal([]byte(raw), &e)
+	// 缓冲类错误的判定口径：type/code/param 任一携带 input_audio_buffer 标识
+	//（真实 API 形态不一，按宁漏勿误放宽匹配）。
+	typ = e.Error.Type + " " + e.Error.Code + " " + e.Error.Param
+	return typ, code, e.Error.Message
 }
 
 // ── 健康检查 ──

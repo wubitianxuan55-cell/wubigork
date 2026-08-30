@@ -8,14 +8,18 @@ import (
 
 // mockEmitter 记录事件调用
 type mockEmitter struct {
-	mu           sync.Mutex
-	states       []VoiceState
-	listening    []bool
-	thinking     []bool
-	errors       []error
-	ttsAudioCnt  int
-	ttsCancelCnt int
-	listenCalls int
+	mu             sync.Mutex
+	states         []VoiceState
+	listening      []bool
+	thinking       []bool
+	errors         []error
+	transcripts    []string // EmitVoiceTranscript 最终文本（isFinal=true）
+	replies        []string // EmitVoiceReply 文本
+	ttsAudioCnt    int
+	ttsAudioLast   []byte
+	ttsMimeLast    string
+	ttsCancelCnt   int
+	listenCalls    int
 }
 
 func (e *mockEmitter) EmitVoiceState(s VoiceState) {
@@ -23,12 +27,24 @@ func (e *mockEmitter) EmitVoiceState(s VoiceState) {
 	defer e.mu.Unlock()
 	e.states = append(e.states, s)
 }
-func (e *mockEmitter) EmitVoiceTranscript(text string, isFinal bool) {}
-func (e *mockEmitter) EmitVoiceReply(text string)                     {}
+func (e *mockEmitter) EmitVoiceTranscript(text string, isFinal bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if isFinal {
+		e.transcripts = append(e.transcripts, text)
+	}
+}
+func (e *mockEmitter) EmitVoiceReply(text string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.replies = append(e.replies, text)
+}
 func (e *mockEmitter) EmitVoiceTTSAudio(audio []byte, mimeType string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.ttsAudioCnt++
+	e.ttsAudioLast = append([]byte(nil), audio...)
+	e.ttsMimeLast = mimeType
 }
 func (e *mockEmitter) EmitVoiceTTSSpeakText(text string) {}
 func (e *mockEmitter) EmitVoiceTTSCancel() {
