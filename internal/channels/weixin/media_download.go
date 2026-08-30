@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -87,9 +88,17 @@ func mediaTransport() *http.Transport {
 //   - 尺寸：Content-Length 预检 + io.LimitReader 双保险，超 20MiB 拒绝；
 //   - 类型：Content-Type 为 text/* 直接拒绝；内容按魔数白名单
 //     （png/jpeg/webp/gif）终审，白名单外不落盘。
+//   - file:// 形态（v4.8.3）：仅用于读取本包 DownloadImageEncrypted 生成的
+//     解密临时文件（限 TempDir 前缀 + 魔数终审），cleanup 为 no-op（文件
+//     所有权归构造方 recognizeImage 的 defer）。
 //
 // cleanup 幂等（关闭并删除临时文件），调用方 defer 即可。
 func DownloadImage(rawURL string) (string, func(), error) {
+	// file:// 分支只服务本包内部解密产物流转（识别器注入方无需感知协议细节），
+	// 放行面限定 TempDir——消息内下发的 URL 永远是 http(s)，不会进到这里。
+	if strings.HasPrefix(rawURL, "file://") {
+		return readLocalDecryptedImage(strings.TrimPrefix(rawURL, "file://"))
+	}
 	u, err := url.Parse(rawURL)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return "", nil, fmt.Errorf("图片 URL 非法（须为绝对 http/https 地址）: %s", truncateRunes(rawURL, 120))
@@ -160,6 +169,117 @@ func DownloadImage(rawURL string) (string, func(), error) {
 		return "", nil, fmt.Errorf("关闭临时文件失败: %w", err)
 	}
 	return path, cleanup, nil
+}
+
+// DownloadImageEncrypted 下载 iLink 加密 CDN 媒体并解密落盘（v4.8.3 真机协议）：
+// GET full_url（SSRF/20MiB 防线同 DownloadImage；密文无魔数，终审移到解密后）
+// → AES-128-ECB(hexdecode aeskey) 解密 + PKCS7 去填充（真实 CDN 明文在图片
+// EOI 后可能带少量尾随字节，交由解码器按 EOI 截断）→ 魔数白名单 → 临时文件。
+// cleanup 幂等；解密失败显式返回错误（密文不落盘）。
+func DownloadImageEncrypted(rawURL, aesKeyHex string) (string, func(), error) {
+	key, err := parseAESKeyHex(aesKeyHex)
+	if err != nil {
+		return "", nil, err
+	}
+	blob, err := fetchMediaBytes(rawURL)
+	if err != nil {
+		return "", nil, err
+	}
+	plain, err := aes128ECBDecrypt(blob, key)
+	if err != nil {
+		return "", nil, fmt.Errorf("媒体解密失败: %w", err)
+	}
+	return saveImageFile(plain)
+}
+
+// fetchMediaBytes 下载 URL 全量字节：绝对 http(s) 校验 + dial-time SSRF
+// （mediaTransport，重定向每跳重新校验）+ 20MiB 双保险（Content-Length
+// 预检 + LimitReader）。不校验魔数与 Content-Type（密文两者皆无意义，
+// 由调用方解密后终审）。
+func fetchMediaBytes(rawURL string) ([]byte, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return nil, fmt.Errorf("媒体 URL 非法（须为绝对 http/https 地址）: %s", truncateRunes(rawURL, 120))
+	}
+	client := &http.Client{Timeout: wxImageTimeout, Transport: mediaTransport()}
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("构造媒体请求失败: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("下载媒体失败: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("下载媒体 HTTP %d", resp.StatusCode)
+	}
+	if resp.ContentLength > wxImageMaxBytes {
+		return nil, fmt.Errorf("媒体超过尺寸上限 %d 字节（Content-Length=%d）", wxImageMaxBytes, resp.ContentLength)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, wxImageMaxBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("下载媒体失败: %w", err)
+	}
+	if len(data) > wxImageMaxBytes {
+		return nil, fmt.Errorf("媒体超过尺寸上限 %d 字节", wxImageMaxBytes)
+	}
+	return data, nil
+}
+
+// saveImageFile 魔数白名单终审后落临时文件（解密产物路径；cleanup 幂等）。
+func saveImageFile(data []byte) (string, func(), error) {
+	if !sniffImageMagic(data) {
+		return "", nil, fmt.Errorf("图片魔数不在白名单（png/jpeg/webp/gif）")
+	}
+	tmp, err := os.CreateTemp("", "gaea-wx-media-*.img")
+	if err != nil {
+		return "", nil, fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	path := tmp.Name()
+	removed := false
+	cleanup := func() {
+		if !removed {
+			removed = true
+			_ = tmp.Close()
+			_ = os.Remove(path)
+		}
+	}
+	if _, err := tmp.Write(data); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("写临时文件失败: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("关闭临时文件失败: %w", err)
+	}
+	return path, cleanup, nil
+}
+
+// readLocalDecryptedImage 读取本包 DownloadImageEncrypted 生成的解密临时文件
+// （DownloadImage 的 file:// 分支）。安全面：路径必须位于 os.TempDir() 下
+// （只接受我们自己构造的路径，绝不让外部输入指到任意本地文件），魔数白名单
+// 终审；返回 no-op cleanup——文件所有权归构造方（recognizeImage 的 defer）。
+func readLocalDecryptedImage(path string) (string, func(), error) {
+	cleaned := filepath.Clean(path)
+	if !strings.HasPrefix(strings.ToLower(cleaned), strings.ToLower(os.TempDir())) {
+		return "", nil, fmt.Errorf("file:// 仅允许读取媒体解密临时目录下的文件")
+	}
+	st, err := os.Stat(cleaned)
+	if err != nil {
+		return "", nil, err
+	}
+	if st.Size() > wxImageMaxBytes {
+		return "", nil, fmt.Errorf("图片超过尺寸上限 %d 字节", wxImageMaxBytes)
+	}
+	data, err := os.ReadFile(cleaned)
+	if err != nil {
+		return "", nil, err
+	}
+	if !sniffImageMagic(data) {
+		return "", nil, fmt.Errorf("图片魔数不在白名单（png/jpeg/webp/gif）")
+	}
+	return cleaned, func() {}, nil
 }
 
 // sniffImageMagic 魔数白名单判定：png / jpeg / webp / gif。

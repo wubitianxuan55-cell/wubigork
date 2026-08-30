@@ -6,12 +6,11 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/gaea/gaea/internal/netclient"
 	"io"
 	"log/slog"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,6 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
+
+	"github.com/gaea/gaea/internal/netclient"
 )
 
 // ─── 配置 ────────────────────────────────────────────────────
@@ -104,13 +105,6 @@ type Server struct {
 	// capturePath 真机抓包文件路径（v4.8.2）：由 Server 持有并注册进包级
 	// sink（capture.go），qrlogin 等包级函数据此抓包。
 	capturePath string
-
-	// 媒体域线索（v4.8.2 上传探针）：扫码登录响应的 baseurl/redirect_host。
-	// SetMediaHosts 显式注入，或探针时从登录钩子的包级缓存懒采纳；空=未登录
-	// （SendFileCard 直接走现有文本降级）。
-	mediaMu           sync.Mutex
-	mediaBaseURL      string
-	mediaRedirectHost string
 }
 
 func New(cfg Config, chatFn ChatFunc) *Server {
@@ -229,11 +223,25 @@ type textItem struct {
 // 刀）：字段名按 iLink 惯例留位（file_id/url/name/md5/size），真实负载以服务端
 // 下发为准——解析是防御性的，未知字段不报错。拿到 URL/file_id 后可接 vision/
 // 文件下载管线做字节级识别。协议探明度与多态风险见 docs/ilink-non-text-protocol.md。
+//
+// v4.8.3 真机定稿（抓包+hermes/SDK 印证）：图片消息 type=2，真实下载地址在
+// media.full_url（CDN 密文），密钥在 aeskey(hex)/media.aes_key(base64-of-hex)；
+// file_id/url/name/md5 为留位字段（真机图片消息不下发，保留兼容）。
 type imageItem struct {
-	FileID string `json:"file_id,omitempty"`
-	URL    string `json:"url,omitempty"`
-	Name   string `json:"name,omitempty"`
-	MD5    string `json:"md5,omitempty"`
+	FileID string    `json:"file_id,omitempty"`
+	URL    string    `json:"url,omitempty"`
+	Name   string    `json:"name,omitempty"`
+	MD5    string    `json:"md5,omitempty"`
+	AESKey string    `json:"aeskey,omitempty"` // 32 位 hex（真机实测形态）
+	Media  *cdnMedia `json:"media,omitempty"`
+}
+
+// cdnMedia 加密媒体下载票据（真机实测：full_url 指向 novac2c CDN，
+// aes_key 为 base64(hex 字符串) 形态，encrypt_query_param 为下载票据）。
+type cdnMedia struct {
+	EncryptQueryParam string `json:"encrypt_query_param,omitempty"`
+	AESKey            string `json:"aes_key,omitempty"`
+	FullURL           string `json:"full_url,omitempty"`
 }
 
 type fileItem struct {
@@ -286,7 +294,8 @@ func isJSONObject(data []byte) bool {
 }
 
 // UnmarshalJSON image_item 防御解析：url/file_id/md5 允许多态，name 超长、
-// emoji/中文不报错；整体非对象时按空负载处理。
+// emoji/中文不报错；media（v4.8.3 真机形态）整体非对象时按缺失处理；
+// 整体非对象时按空负载处理。
 func (it *imageItem) UnmarshalJSON(data []byte) error {
 	if !isJSONObject(data) {
 		return nil
@@ -296,6 +305,8 @@ func (it *imageItem) UnmarshalJSON(data []byte) error {
 		URL    interface{} `json:"url"`
 		Name   string      `json:"name"`
 		MD5    interface{} `json:"md5"`
+		AESKey interface{} `json:"aeskey"`
+		Media  *cdnMedia   `json:"media"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -304,7 +315,31 @@ func (it *imageItem) UnmarshalJSON(data []byte) error {
 	it.URL = coerceString(raw.URL)
 	it.Name = raw.Name
 	it.MD5 = coerceString(raw.MD5)
+	it.AESKey = coerceString(raw.AESKey)
+	it.Media = nil
+	if raw.Media != nil {
+		m := *raw.Media // 防御拷贝：确保 media 内字段已是零值安全形态
+		it.Media = &m
+	}
 	return nil
+}
+
+// resolveDownload 解析图片的下载地址与 AES 密钥（v4.8.3 真机形态优先）：
+// url = media.full_url（CDN 密文地址）否则留位字段 url；key = aeskey(hex)
+// 否则 media.aes_key（base64-of-hex）反解。返回 key 为空表示明文 URL。
+func (it imageItem) resolveDownload() (rawURL, aesKeyHex string) {
+	rawURL, aesKeyHex = it.URL, it.AESKey
+	if it.Media != nil {
+		if rawURL == "" {
+			rawURL = it.Media.FullURL
+		}
+		if aesKeyHex == "" && it.Media.AESKey != "" {
+			if raw, err := aesKeyFromBase64Hex(it.Media.AESKey); err == nil {
+				aesKeyHex = hex.EncodeToString(raw)
+			} // 解析失败宁漏勿误：key 留空按明文处理
+		}
+	}
+	return rawURL, aesKeyHex
 }
 
 // UnmarshalJSON file_item 防御解析：file_id/url 多态容忍，size 数字/字符串
@@ -439,10 +474,12 @@ func (s *Server) handle(msg *inboundMsg) {
 				mediaOverflow++
 				continue
 			}
-			if s.MediaRecognizer != nil && item.ImageItem.URL != "" {
-				if desc, ok := s.recognizeImage(*item.ImageItem); ok {
-					recognized = append(recognized, recognizedImageLabel(*item.ImageItem, desc))
-					continue
+			if s.MediaRecognizer != nil {
+				if u, _ := item.ImageItem.resolveDownload(); u != "" {
+					if desc, ok := s.recognizeImage(*item.ImageItem); ok {
+						recognized = append(recognized, recognizedImageLabel(*item.ImageItem, desc))
+						continue
+					}
 				}
 			}
 			media = append(media, imageItemLabel(*item.ImageItem))
@@ -522,24 +559,43 @@ func fileItemLabel(it fileItem) string {
 
 // ─── 图片识别管线（v4.8 子项 b）─────────────────────────────
 
-// recognizeImage 调用注入的 MediaRecognizer 识别图片。前后各一条 slog 便于
-// 真机诊断；失败或空结果一律返回 false（handle 保留原占位提示行），错误
-// 不上抛不 panic。
+// recognizeImage 调用注入的 MediaRecognizer 识别图片。v4.8.3 真机形态：
+// 加密 CDN 媒体（media.full_url + aeskey）由本包先下载解密落临时文件，再以
+// file:// 本地路径交 MediaRecognizer（DownloadImage 支持 file:// 读取本包
+// 生成的解密产物，app 层注入的 OCRMediaRecognizer 无需改动即生效）；明文
+// URL 走原路（识别器自行下载）。前后各一条 slog 便于真机诊断；失败或空
+// 结果一律返回 false（handle 保留原占位提示行），错误不上抛不 panic。
 func (s *Server) recognizeImage(it imageItem) (string, bool) {
+	rawURL, aesKeyHex := it.resolveDownload()
+	if rawURL == "" {
+		return "", false
+	}
+	urlForLog := truncateRunes(rawURL, 120)
+	if aesKeyHex != "" {
+		// 加密 CDN：下载→AES-128-ECB 解密→临时文件→file:// 交识别器
+		path, cleanup, err := DownloadImageEncrypted(rawURL, aesKeyHex)
+		if err != nil {
+			slog.Warn("[weixin] 加密图片下载解密失败，保留占位提示",
+				"assistant", s.cfg.AssistantID, "url", urlForLog, "err", err)
+			return "", false
+		}
+		defer cleanup()
+		rawURL = "file://" + path
+	}
 	slog.Info("[weixin] 图片识别开始",
 		"assistant", s.cfg.AssistantID,
-		"url", truncateRunes(it.URL, 120),
+		"url", urlForLog,
 		"name", it.Name)
-	desc, err := s.MediaRecognizer(it.URL)
+	desc, err := s.MediaRecognizer(rawURL)
 	if err != nil {
 		slog.Warn("[weixin] 图片识别失败，保留占位提示",
-			"assistant", s.cfg.AssistantID, "url", truncateRunes(it.URL, 120), "err", err)
+			"assistant", s.cfg.AssistantID, "url", urlForLog, "err", err)
 		return "", false
 	}
 	desc = strings.TrimSpace(desc)
 	if desc == "" {
 		slog.Warn("[weixin] 图片识别结果为空，保留占位提示",
-			"assistant", s.cfg.AssistantID, "url", truncateRunes(it.URL, 120))
+			"assistant", s.cfg.AssistantID, "url", urlForLog)
 		return "", false
 	}
 	slog.Info("[weixin] 图片识别完成",
@@ -595,13 +651,12 @@ func (s *Server) Push(text string) error {
 	return s.Send(from, ctx, text)
 }
 
-// SendFileCard 产物回推 seam（v4.8.2 探针版）：iLink 上传端点仍未探明，本版
-// 在保留现有文本降级（逐字节不变）的前提下做「尽力上传探测」——以扫码登录
-// 响应的 baseurl/redirect_host（docs/ilink-non-text-protocol.md §2 唯一线索）
-// 为基地址，按推断端点序列逐个 multipart 试传（每个失败抓一行 upload_probe）；
-// 任一端点返回成功 errcode 且给出 url/file_id 即组 image_item 图片卡片，全部
-// 失败/未登录/文件不合规/任何 panic 一律降级文本卡片——产物回推绝不崩主流程。
-// 端点序列是「基于惯例的推断」，以真机抓包为准。
+// SendFileCard 产物回推 seam（v4.8.3 真机协议版）：getuploadurl → CDN 密文
+// 上传（AES-128-ECB，密钥随机生成随信下发）→ sendmessage image_item 图片
+// 卡片 → caption 独立文本补发。协议经三方印证（本机抓包实测解密、hermes-
+// agent 生产实现、openilink-sdk-go 导出符号），上传域与扫码 baseurl 无关。
+// 无活跃会话/文件不合规/任何失败/panic 一律降级现有文本卡片（逐字节不变）
+// ——产物回推绝不崩主流程。
 func (s *Server) SendFileCard(localPath, caption string) (err error) {
 	sent := false
 	defer func() {
@@ -615,102 +670,15 @@ func (s *Server) SendFileCard(localPath, caption string) (err error) {
 			err = s.sendFileCardText(localPath, caption)
 		}
 	}()
-	return s.sendFileCardProbed(localPath, caption, &sent)
+	return s.sendFileCardUpload(localPath, caption, &sent)
 }
 
-// ─── 产物上传探针（v4.8.2：端点为推断，以真机抓包为准）────────────────────
-
-// wxProbeTimeout 探针超时：宁可早失败降级文本，不拖垮产物回推。
-const wxProbeTimeout = 15 * time.Second
+// ─── 产物上传（v4.8.3：真机协议定稿）──────────────────────────────────────
 
 // uploadImageExts 图片产物扩展名白名单（图片产物场景，对齐 media_download 的
 // png/jpeg/webp/gif 口径）。
 var uploadImageExts = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".gif": true,
-}
-
-// probeResult 探针响应的防御解析：errcode/ret 用指针区分「缺失」与「0」
-// （缺 errcode 的错误响应不得误判成功）；url/file_id 容忍顶层或 data 内嵌。
-// 真实响应形态以抓包为准，此处只按最常见惯例留位。
-type probeResult struct {
-	ErrCode *int   `json:"errcode"`
-	Ret     *int   `json:"ret"`
-	URL     string `json:"url"`
-	FileID  string `json:"file_id"`
-	Data    struct {
-		URL    string `json:"url"`
-		FileID string `json:"file_id"`
-	} `json:"data"`
-}
-
-func parseProbeResult(body []byte) probeResult {
-	var pr probeResult
-	_ = json.Unmarshal(body, &pr) // 非 JSON 响应：零值，按失败处理
-	return pr
-}
-
-func (pr probeResult) ok() bool {
-	return (pr.ErrCode != nil && *pr.ErrCode == 0) || (pr.Ret != nil && *pr.Ret == 0)
-}
-
-// errCodeVal 抓包展示用：errcode 优先，缺失时回退 ret（可能为 0=缺失，以
-// resp 原文与 ok 标志为准）。
-func (pr probeResult) errCodeVal() int {
-	if pr.ErrCode != nil {
-		return *pr.ErrCode
-	}
-	if pr.Ret != nil {
-		return *pr.Ret
-	}
-	return 0
-}
-
-func (pr probeResult) mediaRef() (url, fileID string) {
-	url, fileID = pr.URL, pr.FileID
-	if url == "" {
-		url = pr.Data.URL
-	}
-	if fileID == "" {
-		fileID = pr.Data.FileID
-	}
-	return url, fileID
-}
-
-// SetMediaHosts 显式注入媒体域线索（baseurl/redirect_host）：app 层扫码登录
-// 成功后的接线点（一行）；测试亦由此注入。空串=清除（回退文本降级）。
-func (s *Server) SetMediaHosts(baseURL, redirectHost string) {
-	s.mediaMu.Lock()
-	s.mediaBaseURL, s.mediaRedirectHost = baseURL, redirectHost
-	s.mediaMu.Unlock()
-}
-
-// probeBase 上传探针基地址：优先 Server 字段（SetMediaHosts 注入），为空时
-// 懒采纳扫码登录钩子的包级缓存（Server 创建可能早于登录）。结果经
-// normalizeMediaBase 补全为可请求的 http(s) 基地址。
-func (s *Server) probeBase() string {
-	s.mediaMu.Lock()
-	base := s.mediaBaseURL
-	if base == "" {
-		var redirect string
-		base, redirect = latestMediaHosts()
-		s.mediaBaseURL, s.mediaRedirectHost = base, redirect
-	}
-	s.mediaMu.Unlock()
-	return normalizeMediaBase(base)
-}
-
-// normalizeMediaBase 把登录响应里的 baseurl 补全成 http(s) 基地址（字段真实
-// 形态待真机抓包：可能是裸域、带 scheme 或带尾斜杠路径）。探针目标来自微信
-// 登录响应（与 cfg.ILinkURL 同级信任），不套 media_download 的 SSRF 防线。
-func normalizeMediaBase(base string) string {
-	base = strings.TrimSpace(base)
-	if base == "" {
-		return ""
-	}
-	if !strings.Contains(base, "://") {
-		base = "https://" + base
-	}
-	return strings.TrimRight(base, "/")
 }
 
 // sendFileCardText 现有文本降级卡片（v4.8 子项 c 原实现逐字节保留）：无媒体
@@ -724,166 +692,39 @@ func (s *Server) sendFileCardText(localPath, caption string) error {
 	return s.Push(text)
 }
 
-// sendFileCardProbed 探针主流程：未登录→抓 skipped 后文本降级；文件不合规→
-// 同；否则按推断端点序列逐个试传。任何成功路径经 sent 告知外层（panic 恢复
-// 时不再重复推送）。
-func (s *Server) sendFileCardProbed(localPath, caption string, sent *bool) error {
+// sendFileCardUpload 上传主流程：无活跃会话→抓 skipped 后文本降级；否则
+// 走真协议上传（uploadImageToCDN）并发图片卡片，成功后 caption 独立补发
+// （顺序与 hermes 相反：图先文后——图片失败时整体降级单条文本卡片，避免
+// 图文重复推送）。任何失败经 sent 告知外层（panic 恢复时不再重复推送）。
+func (s *Server) sendFileCardUpload(localPath, caption string, sent *bool) error {
 	name := filepath.Base(localPath)
-	base := s.probeBase()
-	if base == "" {
-		// 未登录或登录响应未带媒体域：抓一行跳过记录后走现有文本降级。
-		capture("upload_probe", map[string]interface{}{"skipped": "no_media_host", "file": name})
+	from, ctxTokn := s.LastPeer()
+	if from == "" {
+		capture("upload_probe", map[string]interface{}{"skipped": "no_peer", "file": name})
 		return s.sendFileCardText(localPath, caption)
 	}
-	data, err := readUploadableFile(localPath)
+	item, err := s.uploadImageToCDN(localPath, from)
 	if err != nil {
-		slog.Warn("[weixin] 产物文件不可上传，降级文本卡片",
+		slog.Warn("[weixin] 产物上传失败，降级文本卡片",
 			"assistant", s.cfg.AssistantID, "file", name, "err", err)
-		capture("upload_probe", map[string]interface{}{"skipped": "file_rejected", "file": name, "err": err.Error()})
+		capture("upload_probe", map[string]interface{}{"stage": "upload", "file": name, "err": err.Error()})
 		return s.sendFileCardText(localPath, caption)
 	}
-
-	// 推断端点序列（**以真机抓包为准**）：a) uploadfile（multipart file +
-	// base_info 字段）；b) sendmessage multipart 直发（file + 路由/caption
-	// 字段）；c) upload（最简形态）。鉴权头与 apiPost 同形态。
-	baseInfoJSON, _ := json.Marshal(s.baseInfo())
-	probes := []struct {
-		endpoint string
-		fields   map[string]string
-	}{
-		{endpoint: "/ilink/bot/uploadfile", fields: map[string]string{"base_info": string(baseInfoJSON)}},
-		{endpoint: "/ilink/bot/sendmessage", fields: s.probeSendFields(caption)},
-		{endpoint: "/ilink/bot/upload"},
+	if err := s.sendImageCardViaUpload(item); err != nil {
+		slog.Warn("[weixin] 图片卡片发送失败，降级文本卡片",
+			"assistant", s.cfg.AssistantID, "file", name, "err", err)
+		capture("upload_probe", map[string]interface{}{"stage": "send_image_card", "file": name, "err": err.Error()})
+		return s.sendFileCardText(localPath, caption)
 	}
-	for _, p := range probes {
-		body, status, perr := s.probeUpload(base+p.endpoint, name, data, p.fields)
-		pr := parseProbeResult(body)
-		ok := perr == nil && pr.ok()
-		rec := map[string]interface{}{
-			"endpoint": p.endpoint,
-			"status":   status,
-			"ok":       ok,
-			"errcode":  pr.errCodeVal(),
-			"resp":     string(body),
-		}
-		if perr != nil {
-			rec["err"] = perr.Error()
-		}
-		capture("upload_probe", rec)
-		if !ok {
-			continue
-		}
-		// sendmessage multipart 直发成功即视为图片（含 caption）已送达，不再补发。
-		if p.endpoint == "/ilink/bot/sendmessage" {
-			*sent = true
-			return nil
-		}
-		url, fileID := pr.mediaRef()
-		if url == "" && fileID == "" {
-			continue // 成功码但未返回媒体句柄：试下一端点
-		}
-		if err := s.sendImageCard(url, fileID, name, caption); err != nil {
-			capture("upload_probe", map[string]interface{}{
-				"stage": "send_image_card", "url": url, "file_id": fileID, "err": err.Error(),
-			})
-			continue
-		}
-		*sent = true
-		return nil
-	}
-	return s.sendFileCardText(localPath, caption)
-}
-
-// probeSendFields sendmessage multipart 直发的路由与文案字段（file 字段由
-// probeUpload 统一附加）。
-func (s *Server) probeSendFields(caption string) map[string]string {
-	from, ctxTokn := s.LastPeer()
-	f := map[string]string{"text": caption}
-	if from != "" {
-		f["to_user_id"] = from
-	}
-	if ctxTokn != "" {
-		f["context_token"] = ctxTokn
-	}
-	return f
-}
-
-// probeUpload 对推断端点发一次 multipart 上传探测（15s 超时；鉴权头同
-// apiPost 形态）。返回响应体（≤64KB）与 HTTP 状态码；传输层错误一并返回
-// 已读 body（通常为空），由调用方统一抓包后试下一端点。
-func (s *Server) probeUpload(rawURL, filename string, data []byte, fields map[string]string) ([]byte, int, error) {
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	fw, err := mw.CreateFormFile("file", filename)
-	if err == nil {
-		_, err = fw.Write(data)
-	}
-	if err == nil {
-		for k, v := range fields {
-			if err = mw.WriteField(k, v); err != nil {
-				break
-			}
-		}
-	}
-	if err == nil {
-		err = mw.Close()
-	}
-	if err != nil {
-		return nil, 0, err
-	}
-	req, err := http.NewRequest("POST", rawURL, &buf)
-	if err != nil {
-		return nil, 0, err
-	}
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	s.setAuthHeaders(req)
-
-	c := s.client
-	if wxProbeTimeout < c.Timeout {
-		c = netclient.NewSimpleClient(wxProbeTimeout)
-	}
-	resp, err := c.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-	if resp.StatusCode != 200 {
-		return b, resp.StatusCode, fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-	return b, resp.StatusCode, nil
-}
-
-// sendImageCard 组 image_item 形态的 sendmessage 发送图片卡片（字段名参照
-// 入站 image_item：url/file_id/name），caption 作为后续 text item。失败原样
-// 返回错误，由探针循环抓包后继续下一端点。
-func (s *Server) sendImageCard(imageURL, fileID, name, caption string) error {
-	ii := map[string]string{"name": name}
-	if imageURL != "" {
-		ii["url"] = imageURL
-	}
-	if fileID != "" {
-		ii["file_id"] = fileID
-	}
-	items := []map[string]interface{}{{"type": 3, "image_item": ii}}
+	*sent = true
+	capture("upload_probe", map[string]interface{}{"stage": "delivered", "file": name})
 	if caption != "" {
-		items = append(items, map[string]interface{}{"type": 1, "text_item": map[string]string{"text": caption}})
+		// caption 独立文本消息补发（失败仅记日志：图片本身已送达）
+		if err := s.Send(from, ctxTokn, caption); err != nil {
+			slog.Warn("[weixin] 图片 caption 补发失败", "assistant", s.cfg.AssistantID, "err", err)
+		}
 	}
-	from, ctxTokn := s.LastPeer()
-	msg := map[string]interface{}{
-		"from_user_id":  "",
-		"to_user_id":    from,
-		"client_id":     genClientID(),
-		"message_type":  2,
-		"message_state": 2,
-		"item_list":     items,
-	}
-	if ctxTokn != "" {
-		msg["context_token"] = ctxTokn
-	}
-	body, _ := json.Marshal(map[string]interface{}{"msg": msg, "base_info": s.baseInfo()})
-	_, err := s.apiPost("/ilink/bot/sendmessage", body, 20*time.Second)
-	return err
+	return nil
 }
 
 // readUploadableFile 读取待上传产物：扩展名白名单 + 20MiB 上限（沿用

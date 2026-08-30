@@ -1,8 +1,9 @@
 package weixin
 
-// v4.8.2 真机抓包基建测试：capture JSONL 写入/no-op、qr_status 抓取与媒体域
-// 缓存、getUpdates inbound_media 整批抓包、SendFileCard 探针序列（全败降级 /
-// 成功发图卡片 / multipart 直发送达 / 无域跳过 / 白名单外拒绝）。
+// v4.8.3 真机抓包基建测试：capture JSONL 写入/no-op、qr_status 抓取、
+// getUpdates inbound_media 整批抓包、SendFileCard 真协议全链路
+// （getuploadurl → CDN 密文上传 → image_item 卡片 → caption 补发 / 各失败
+// 节点降级文本）。上传协议断言对照 hermes-agent 生产实现逐字段锁定。
 
 import (
 	"bufio"
@@ -12,7 +13,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -26,13 +26,6 @@ func tempCapturePath(t *testing.T) string {
 	setCapturePath(p)
 	t.Cleanup(func() { setCapturePath("") })
 	return p
-}
-
-// resetMediaHosts 清空登录媒体域缓存（测试隔离），结束时再清一次。
-func resetMediaHosts(t *testing.T) {
-	t.Helper()
-	setLatestMediaHosts("", "")
-	t.Cleanup(func() { setLatestMediaHosts("", "") })
 }
 
 // readCaptureLines 读取抓包文件全部行（每行解析为 map，兼验 JSONL 合法性）。
@@ -88,12 +81,12 @@ func TestCapture_JSONLWriteAndNoop(t *testing.T) {
 	}
 }
 
-// TestQRStatus_CapturedAndHostsStored 扫码登录响应带 baseurl/redirect_host 时：
-// 整响应原文抓包（kind=qr_status）+ 媒体域入包级缓存；PollQRStatusWithCode
-// 同钩子；无媒体域的中间轮询态响应不抓（避免登录轮询刷屏）。
-func TestQRStatus_CapturedAndHostsStored(t *testing.T) {
+// TestQRStatus_Captured 扫码登录响应带 baseurl/redirect_host 时整响应原文
+// 抓包（kind=qr_status）；PollQRStatusWithCode 同钩子；无媒体域的中间轮询态
+// 响应不抓（避免登录轮询刷屏）。v4.8.3 起上传不再依赖这两个字段，抓包仅作
+// 协议证据留存。
+func TestQRStatus_Captured(t *testing.T) {
 	p := tempCapturePath(t)
-	resetMediaHosts(t)
 	qrTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Query().Get("qrcode") == "qr-2" {
@@ -109,9 +102,6 @@ func TestQRStatus_CapturedAndHostsStored(t *testing.T) {
 	}
 	if resp.BaseURL != "https://media.weixin.qq.com" || resp.RedirectHost != "rd.weixin.qq.com" {
 		t.Fatalf("QRStatusResp 媒体域解析异常: %+v", resp)
-	}
-	if base, redirect := latestMediaHosts(); base != resp.BaseURL || redirect != resp.RedirectHost {
-		t.Fatalf("媒体域缓存未更新: (%q,%q)", base, redirect)
 	}
 
 	lines := readCaptureLines(t, p)
@@ -131,15 +121,12 @@ func TestQRStatus_CapturedAndHostsStored(t *testing.T) {
 		t.Fatalf("WithCode 也应抓一行, 实际 %d 行", len(lines))
 	}
 
-	// 无媒体域响应：不抓包、缓存不动
+	// 无媒体域响应：不抓包
 	if _, err = PollQRStatus("qr-2"); err != nil {
 		t.Fatalf("PollQRStatus(qr-2): %v", err)
 	}
 	if lines = readCaptureLines(t, p); len(lines) != 2 {
 		t.Fatalf("无媒体域响应不应抓包, 实际 %d 行", len(lines))
-	}
-	if base, _ := latestMediaHosts(); base != "https://media.weixin.qq.com" {
-		t.Fatalf("无媒体域响应不应改写缓存: %q", base)
 	}
 }
 
@@ -188,18 +175,264 @@ func TestGetUpdates_CapturesInboundMediaBatch(t *testing.T) {
 	}
 }
 
-// newProbeCardServer 构造探针测试通用 httptest：multipart 探针端点与 JSON
-// sendmessage（文本降级/图片卡片）按 Content-Type 区分，行为由各用例注入。
-func newProbeCardServer(t *testing.T, onProbes func(path string) (status int, body string), onText func(text string)) *httptest.Server {
+// newCardServer SendFileCard 测试通用 httptest：JSON API 端点按路径分派，
+// 行为由各用例注入（返回状态码与响应体）。
+func newCardServer(t *testing.T, onJSON func(path string, r *http.Request, body []byte) (int, string)) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ct := r.Header.Get("Content-Type")
-		switch {
-		case r.URL.Path == "/ilink/bot/sendmessage" && strings.HasPrefix(ct, "multipart/"):
-			status, body := onProbes(r.URL.Path)
-			w.WriteHeader(status)
-			_, _ = w.Write([]byte(body))
-		case r.URL.Path == "/ilink/bot/sendmessage":
+		data, _ := io.ReadAll(r.Body)
+		status, respBody := onJSON(r.URL.Path, r, data)
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(respBody))
+	}))
+}
+
+// useTestCDN 重定向包级 CDN 基地址到测试服务器，测试结束恢复。
+func useTestCDN(t *testing.T, url string) {
+	t.Helper()
+	old := wxCDNBaseURL
+	wxCDNBaseURL = url
+	t.Cleanup(func() { wxCDNBaseURL = old })
+}
+
+// TestSendFileCard_UploadFlowEndToEnd 真协议全链路：getuploadurl 请求字段
+// 逐项锁定（filekey/media_type/to_user_id/rawsize/rawfilemd5/filesize=
+// PKCS7 对齐/no_need_thumb/aeskey）→ CDN 密文上传（octet-stream，密文可用
+// 同一 aeskey 解回明文）→ image_item 卡片（type=2、media.encrypt_query_param
+// =x-encrypted-param、aes_key=base64(hex)、mid_size）→ caption 独立补发；
+// 成功路径不文本降级，抓一行 delivered。
+func TestSendFileCard_UploadFlowEndToEnd(t *testing.T) {
+	p := tempCapturePath(t)
+	plaintext := []byte("PNGDATA-真实图片字节")
+
+	var mu sync.Mutex
+	var uploadedCipher []byte
+
+	// fake CDN：/upload 校验密文可解回明文，回 x-encrypted-param
+	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/c2c/upload" {
+			t.Errorf("CDN 应只收 /c2c/upload: %s", r.URL.Path)
+			w.WriteHeader(404)
+			return
+		}
+		if ct := r.Header.Get("Content-Type"); ct != "application/octet-stream" {
+			t.Errorf("CDN 上传应为 octet-stream: %q", ct)
+		}
+		if r.URL.Query().Get("filekey") == "" {
+			t.Error("upload_param 形态应附 filekey")
+		}
+		body, _ := io.ReadAll(r.Body)
+		if len(body) == 0 || len(body)%16 != 0 {
+			t.Errorf("密文长度应按块对齐: %d", len(body))
+		}
+		// 密文可解性在 getuploadurl 记录 aeskey 后于用例末尾统一断言
+		mu.Lock()
+		uploadedCipher = body
+		mu.Unlock()
+		w.Header().Set("x-encrypted-param", "TICKET-1")
+		w.WriteHeader(200)
+	}))
+	defer cdn.Close()
+	useTestCDN(t, cdn.URL+"/c2c")
+
+	var guReq map[string]interface{}
+	var aesKeyHex string
+	var lastMsg map[string]interface{}
+	var captionTexts []string
+	srv := newCardServer(t, func(path string, r *http.Request, body []byte) (int, string) {
+		if ah := r.Header.Get("Authorization"); ah != "Bearer tok" {
+			t.Errorf("鉴权头应同 apiPost: %q", ah)
+		}
+		switch path {
+		case "/ilink/bot/getuploadurl":
+			_ = json.Unmarshal(body, &guReq)
+			mu.Lock()
+			aesKeyHex, _ = guReq["aeskey"].(string)
+			mu.Unlock()
+			return 200, `{"upload_param":"UP-PARAM-1","upload_id":"up-1"}`
+		case "/ilink/bot/sendmessage":
+			var payload struct {
+				Msg map[string]interface{} `json:"msg"`
+			}
+			_ = json.Unmarshal(body, &payload)
+			mu.Lock()
+			isImage := false
+			if items, ok := payload.Msg["item_list"].([]interface{}); ok && len(items) > 0 {
+				if it, ok := items[0].(map[string]interface{}); ok && it["type"] == float64(2) {
+					isImage = true
+					lastMsg = payload.Msg // 仅记录图片消息（caption 消息另行收集）
+				}
+			}
+			if !isImage { // 文本消息（caption 补发）
+				if items, ok := payload.Msg["item_list"].([]interface{}); ok {
+					for _, x := range items {
+						if it, ok := x.(map[string]interface{}); ok {
+							if ti, ok := it["text_item"].(map[string]interface{}); ok {
+								captionTexts = append(captionTexts, ti["text"].(string))
+							}
+						}
+					}
+				}
+			}
+			mu.Unlock()
+			return 200, `{"errcode":0}`
+		default:
+			t.Errorf("不应请求其他端点: %s", path)
+			return 404, ""
+		}
+	})
+	defer srv.Close()
+
+	img := filepath.Join(t.TempDir(), "书房绘梦.png")
+	if err := os.WriteFile(img, plaintext, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, func(string, string) (string, error) { return "ok", nil })
+	s.sendFn = func(string, string, string) error { return nil } // 吞 handle 自动回复
+	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "画猫"}}}})
+
+	if err := s.SendFileCard(img, "一只橘猫"); err != nil {
+		t.Fatalf("SendFileCard: %v", err)
+	}
+
+	// ① getuploadurl 请求字段（hermes 同款）
+	mu.Lock()
+	defer mu.Unlock()
+	if guReq == nil {
+		t.Fatal("应请求 getuploadurl")
+	}
+	if guReq["media_type"] != float64(1) || guReq["to_user_id"] != "u1" {
+		t.Fatalf("media_type/to_user_id 不符: %v", guReq)
+	}
+	if guReq["no_need_thumb"] != true {
+		t.Fatalf("no_need_thumb 应为 true: %v", guReq)
+	}
+	if guReq["rawsize"] != float64(len(plaintext)) {
+		t.Fatalf("rawsize 不符: %v", guReq)
+	}
+	if guReq["rawfilemd5"] != md5Hex(plaintext) {
+		t.Fatalf("rawfilemd5 应为明文 MD5: %v", guReq)
+	}
+	if _, ok := guReq["base_info"].(map[string]interface{}); !ok {
+		t.Fatalf("应带 base_info: %v", guReq)
+	}
+	fk, _ := guReq["filekey"].(string)
+	if len(fk) != 32 {
+		t.Fatalf("filekey 应为 32 位 hex: %q", fk)
+	}
+	key, err := parseAESKeyHex(aesKeyHex)
+	if err != nil {
+		t.Fatalf("aeskey 应为合法 32 位 hex: %q", aesKeyHex)
+	}
+
+	// ② CDN 密文可用同一 aeskey 解回明文（AES-128-ECB + PKCS7）
+	plain, err := aes128ECBDecrypt(uploadedCipher, key)
+	if err != nil || string(plain) != string(plaintext) {
+		t.Fatalf("CDN 密文应可解回明文: err=%v got=%q", err, plain)
+	}
+	if guReq["filesize"] != float64(len(uploadedCipher)) {
+		t.Fatalf("filesize 应为密文（PKCS7 对齐后）大小: %v vs %d", guReq["filesize"], len(uploadedCipher))
+	}
+
+	// ③ image_item 卡片（真机 type=2 形态）
+	if lastMsg == nil {
+		t.Fatal("应发送 sendmessage")
+	}
+	if lastMsg["to_user_id"] != "u1" || lastMsg["context_token"] != "ctx" {
+		t.Fatalf("图片卡片路由不符: %v", lastMsg)
+	}
+	items, _ := lastMsg["item_list"].([]interface{})
+	if len(items) != 1 {
+		t.Fatalf("图片消息应只含 1 个 item（caption 走独立消息）: %v", lastMsg)
+	}
+	it0, _ := items[0].(map[string]interface{})
+	ii, _ := it0["image_item"].(map[string]interface{})
+	if it0["type"] != float64(2) {
+		t.Fatalf("type 应为 2（真机形态）: %v", it0)
+	}
+	media, _ := ii["media"].(map[string]interface{})
+	if media["encrypt_query_param"] != "TICKET-1" {
+		t.Fatalf("encrypt_query_param 应为 CDN 回传票据: %v", media)
+	}
+	if media["aes_key"] != aesKeyForAPI(key) {
+		t.Fatalf("aes_key 应为 base64(hex字符串): %v", media)
+	}
+	if media["encrypt_type"] != float64(1) {
+		t.Fatalf("encrypt_type 应为 1: %v", media)
+	}
+	if ii["mid_size"] != float64(len(uploadedCipher)) {
+		t.Fatalf("mid_size 应为密文大小: %v", ii["mid_size"])
+	}
+
+	// ④ caption 独立补发（图先文后）
+	if len(captionTexts) != 1 || captionTexts[0] != "一只橘猫" {
+		t.Fatalf("caption 应作为独立文本消息补发: %v", captionTexts)
+	}
+
+	// ⑤ 抓包：一行 delivered
+	lines := readCaptureLines(t, p)
+	if len(lines) != 1 || lines[0]["kind"] != "upload_probe" {
+		t.Fatalf("应恰 1 行 delivered 记录: %v", lines)
+	}
+	if data, _ := lines[0]["data"].(map[string]interface{}); data["stage"] != "delivered" {
+		t.Fatalf("应记 stage=delivered: %v", data)
+	}
+}
+
+// TestSendFileCard_UploadFullURLPreferred getuploadurl 返回 upload_full_url
+// 时直连该地址上传（hermes 实测：老 PUT 会 404，统一 POST）。
+func TestSendFileCard_UploadFullURLPreferred(t *testing.T) {
+	p := tempCapturePath(t)
+
+	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/direct/upload" {
+			t.Errorf("应直连 upload_full_url: %s", r.URL.Path)
+			w.WriteHeader(404)
+			return
+		}
+		w.Header().Set("x-encrypted-param", "TICKET-2")
+		w.WriteHeader(200)
+	}))
+	defer cdn.Close()
+
+	srv := newCardServer(t, func(path string, r *http.Request, body []byte) (int, string) {
+		switch path {
+		case "/ilink/bot/getuploadurl":
+			return 200, `{"upload_full_url":"` + cdn.URL + `/direct/upload"}`
+		case "/ilink/bot/sendmessage":
+			return 200, `{"errcode":0}`
+		default:
+			t.Errorf("不应请求其他端点: %s", path)
+			return 404, ""
+		}
+	})
+	defer srv.Close()
+
+	img := filepath.Join(t.TempDir(), "a.png")
+	if err := os.WriteFile(img, []byte("PNG"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, func(string, string) (string, error) { return "ok", nil })
+	s.sendFn = func(string, string, string) error { return nil }
+	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "画"}}}})
+	if err := s.SendFileCard(img, ""); err != nil {
+		t.Fatalf("SendFileCard: %v", err)
+	}
+}
+
+// TestSendFileCard_UploadFailFallsBackToText getuploadurl 失败：抓一行
+// stage=upload 错误记录后走文本降级（逐字节不变）。
+func TestSendFileCard_UploadFailFallsBackToText(t *testing.T) {
+	p := tempCapturePath(t)
+
+	var mu sync.Mutex
+	var lastText string
+	srv := newCardServer(t, func(path string, r *http.Request, body []byte) (int, string) {
+		switch path {
+		case "/ilink/bot/getuploadurl":
+			return 500, "boom"
+		case "/ilink/bot/sendmessage":
 			var payload struct {
 				Msg struct {
 					ItemList []struct {
@@ -210,311 +443,181 @@ func newProbeCardServer(t *testing.T, onProbes func(path string) (status int, bo
 					} `json:"item_list"`
 				} `json:"msg"`
 			}
-			data, _ := io.ReadAll(r.Body)
-			_ = json.Unmarshal(data, &payload)
+			_ = json.Unmarshal(body, &payload)
 			for _, it := range payload.Msg.ItemList {
-				if it.Type == 1 && onText != nil {
-					onText(it.TextItem.Text)
-				}
-			}
-			w.WriteHeader(200)
-			_, _ = w.Write([]byte(`{"errcode":0}`))
-		default:
-			status, body := onProbes(r.URL.Path)
-			w.WriteHeader(status)
-			_, _ = w.Write([]byte(body))
-		}
-	}))
-}
-
-// TestSendFileCard_ProbeAllFailFallsBackToText 有媒体域但推断端点全部失败：
-// 逐端点抓 upload_probe（含 404 的 err 记录），最终文本降级内容不变。
-func TestSendFileCard_ProbeAllFailFallsBackToText(t *testing.T) {
-	p := tempCapturePath(t)
-	resetMediaHosts(t)
-
-	var mu sync.Mutex
-	var lastText string
-	srv := newProbeCardServer(t,
-		func(path string) (int, string) {
-			if path == "/ilink/bot/upload" {
-				return http.StatusNotFound, "not found"
-			}
-			return 200, `{"errcode":-1,"errmsg":"unsupported"}`
-		},
-		func(text string) { mu.Lock(); lastText = text; mu.Unlock() },
-	)
-	defer srv.Close()
-
-	img := filepath.Join(t.TempDir(), "书房绘梦.png")
-	if err := os.WriteFile(img, []byte("png-bytes"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, func(string, string) (string, error) { return "ok", nil })
-	s.SetMediaHosts(srv.URL, "")
-	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "画一张猫"}}}})
-
-	if err := s.SendFileCard(img, "一只橘猫"); err != nil {
-		t.Fatalf("SendFileCard: %v", err)
-	}
-	mu.Lock()
-	sent := lastText
-	mu.Unlock()
-	if !strings.Contains(sent, "🖼 产物已生成：书房绘梦.png") || !strings.Contains(sent, "一只橘猫") {
-		t.Fatalf("探针全败应文本降级: %q", sent)
-	}
-
-	var probes []string
-	var sawNotFound bool
-	for _, l := range readCaptureLines(t, p) {
-		if l["kind"] != "upload_probe" {
-			continue
-		}
-		data, _ := l["data"].(map[string]interface{})
-		ep, _ := data["endpoint"].(string)
-		probes = append(probes, ep)
-		if data["ok"] != false {
-			t.Fatalf("探针应记 ok=false: %v", data)
-		}
-		if data["status"] == float64(404) && data["err"] == "HTTP 404" {
-			sawNotFound = true
-		}
-	}
-	if want := []string{"/ilink/bot/uploadfile", "/ilink/bot/sendmessage", "/ilink/bot/upload"}; !reflect.DeepEqual(probes, want) {
-		t.Fatalf("探针序列 = %v, want %v", probes, want)
-	}
-	if !sawNotFound {
-		t.Fatal("404 端点应记 status+err")
-	}
-}
-
-// TestSendFileCard_ProbeSuccessSendsImageCard uploadfile 探针返回 errcode=0 +
-// url/file_id：组 image_item sendmessage（字段名参照入站形态 + caption），
-// 不发文本降级；multipart 携带 file 内容与 base_info，鉴权头同 apiPost。
-func TestSendFileCard_ProbeSuccessSendsImageCard(t *testing.T) {
-	p := tempCapturePath(t)
-	resetMediaHosts(t)
-
-	var mu sync.Mutex
-	var lastMsg map[string]interface{}
-	var fileBytes []byte
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/ilink/bot/uploadfile":
-			if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
-				t.Errorf("uploadfile 应为 multipart: %q", r.Header.Get("Content-Type"))
-			}
-			if ah := r.Header.Get("Authorization"); ah != "Bearer tok" {
-				t.Errorf("鉴权头应同 apiPost 形态: %q", ah)
-			}
-			if err := r.ParseMultipartForm(1 << 20); err != nil {
-				t.Errorf("解析 multipart 失败: %v", err)
-			} else {
-				if r.FormValue("base_info") == "" {
-					t.Error("uploadfile 应带 base_info 字段")
-				}
-				f, _, err := r.FormFile("file")
-				if err != nil {
-					t.Errorf("multipart 缺 file 字段: %v", err)
-				} else {
-					got, _ := io.ReadAll(f)
-					_ = f.Close()
+				if it.Type == 1 {
 					mu.Lock()
-					fileBytes = got
+					lastText = it.TextItem.Text
 					mu.Unlock()
 				}
 			}
-			w.WriteHeader(200)
-			_, _ = w.Write([]byte(`{"errcode":0,"url":"https://cdn/x.png","file_id":"f-1"}`))
-		case "/ilink/bot/sendmessage":
-			var payload struct {
-				Msg map[string]interface{} `json:"msg"`
-			}
-			data, _ := io.ReadAll(r.Body)
-			_ = json.Unmarshal(data, &payload)
-			mu.Lock()
-			lastMsg = payload.Msg
-			mu.Unlock()
-			w.WriteHeader(200)
-			_, _ = w.Write([]byte(`{"errcode":0}`))
+			return 200, `{"errcode":0}`
 		default:
-			t.Errorf("不应请求其他端点: %s", r.URL.Path)
-			w.WriteHeader(404)
+			t.Errorf("getuploadurl 失败后不应请求其他端点: %s", path)
+			return 404, ""
 		}
-	}))
-	defer srv.Close()
-
-	img := filepath.Join(t.TempDir(), "cat.png")
-	if err := os.WriteFile(img, []byte("PNGDATA"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, func(string, string) (string, error) { return "ok", nil })
-	s.SetMediaHosts(srv.URL, "")
-	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "画猫"}}}})
-
-	if err := s.SendFileCard(img, "一只橘猫"); err != nil {
-		t.Fatalf("SendFileCard: %v", err)
-	}
-	mu.Lock()
-	msg, got := lastMsg, fileBytes
-	mu.Unlock()
-	if string(got) != "PNGDATA" {
-		t.Fatalf("上传文件内容不符: %q", got)
-	}
-	if msg["to_user_id"] != "u1" || msg["context_token"] != "ctx" {
-		t.Fatalf("图片卡片路由不符: %v", msg)
-	}
-	items, _ := msg["item_list"].([]interface{})
-	if len(items) != 2 {
-		t.Fatalf("图片卡片应含 image+caption 两 item: %v", msg)
-	}
-	it0, _ := items[0].(map[string]interface{})
-	ii, _ := it0["image_item"].(map[string]interface{})
-	if it0["type"] != float64(3) || ii["url"] != "https://cdn/x.png" || ii["file_id"] != "f-1" || ii["name"] != "cat.png" {
-		t.Fatalf("image_item 字段应参照入站形态: %v / %v", it0, ii)
-	}
-	it1, _ := items[1].(map[string]interface{})
-	if it1["type"] != float64(1) {
-		t.Fatalf("次 item 应为 caption 文本: %v", it1)
-	}
-
-	// 抓包：仅 uploadfile 一行探针记录（成功，不记 send_image_card）
-	lines := readCaptureLines(t, p)
-	if len(lines) != 1 || lines[0]["kind"] != "upload_probe" {
-		t.Fatalf("应恰好 1 行探针记录: %v", lines)
-	}
-	if data, _ := lines[0]["data"].(map[string]interface{}); data["ok"] != true || data["endpoint"] != "/ilink/bot/uploadfile" {
-		t.Fatalf("探针记录异常: %v", data)
-	}
-}
-
-// TestSendFileCard_SendMessageMultipartDelivered 推断端点 b（sendmessage
-// multipart 直发）返回 errcode=0：视为图片（含 caption）已送达，不再补发
-// 图片卡片、不再文本降级。
-func TestSendFileCard_SendMessageMultipartDelivered(t *testing.T) {
-	p := tempCapturePath(t)
-	resetMediaHosts(t)
-
-	var mu sync.Mutex
-	var mpText, mpTo string
-	var jsonHits int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/ilink/bot/sendmessage" && strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
-			if err := r.ParseMultipartForm(1 << 20); err != nil {
-				t.Errorf("ParseMultipartForm: %v", err)
-			}
-			mu.Lock()
-			mpText, mpTo = r.FormValue("text"), r.FormValue("to_user_id")
-			mu.Unlock()
-			w.WriteHeader(200)
-			_, _ = w.Write([]byte(`{"errcode":0}`))
-			return
-		}
-		if r.URL.Path == "/ilink/bot/sendmessage" {
-			mu.Lock()
-			jsonHits++
-			mu.Unlock()
-			w.WriteHeader(200)
-			_, _ = w.Write([]byte(`{"errcode":0}`))
-			return
-		}
-		// 其余探针端点：不支持
-		w.WriteHeader(200)
-		_, _ = w.Write([]byte(`{"errcode":-1}`))
-	}))
-	defer srv.Close()
-
-	img := filepath.Join(t.TempDir(), "图.webp")
-	if err := os.WriteFile(img, []byte("WEBP"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, func(string, string) (string, error) { return "ok", nil })
-	s.sendFn = func(string, string, string) error { return nil } // 吞掉 handle 自动回复，只统计探针流量
-	s.SetMediaHosts(srv.URL, "")
-	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "画"}}}})
-
-	if err := s.SendFileCard(img, "caption-x"); err != nil {
-		t.Fatalf("SendFileCard: %v", err)
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	if mpText != "caption-x" || mpTo != "u1" {
-		t.Fatalf("multipart 直发应带 caption 与路由: text=%q to=%q", mpText, mpTo)
-	}
-	if jsonHits != 0 {
-		t.Fatalf("直发成功不应再发图片卡片/文本降级, JSON sendmessage %d 次", jsonHits)
-	}
-	lines := readCaptureLines(t, p)
-	// uploadfile 先试（不支持，errcode=-1），sendmessage multipart 直发成功送达
-	if len(lines) != 2 {
-		t.Fatalf("应恰 2 行探针记录: %v", lines)
-	}
-	d1, _ := lines[0]["data"].(map[string]interface{})
-	d2, _ := lines[1]["data"].(map[string]interface{})
-	if d1["endpoint"] != "/ilink/bot/uploadfile" || d1["ok"] != false {
-		t.Fatalf("首行应为 uploadfile 失败记录: %v", lines[0])
-	}
-	if d2["endpoint"] != "/ilink/bot/sendmessage" || d2["ok"] != true {
-		t.Fatalf("次行应为 sendmessage 直发成功记录: %v", lines[1])
-	}
-}
-
-// TestSendFileCard_NoHostSkipsProbe 无媒体域线索（未登录）：不发起任何探针
-// 请求，抓一行 skipped=no_media_host 后走现有文本降级（逐字节不变）。
-func TestSendFileCard_NoHostSkipsProbe(t *testing.T) {
-	p := tempCapturePath(t)
-	resetMediaHosts(t)
-
-	var mu sync.Mutex
-	var lastText string
-	srv := newProbeCardServer(t,
-		func(string) (int, string) {
-			t.Error("无媒体域不应发起探针请求")
-			return 500, ""
-		},
-		func(text string) { mu.Lock(); lastText = text; mu.Unlock() },
-	)
+	})
 	defer srv.Close()
 
 	img := filepath.Join(t.TempDir(), "a.png")
 	if err := os.WriteFile(img, []byte("PNG"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-
 	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, func(string, string) (string, error) { return "ok", nil })
-	// 不注入媒体域，包级缓存已清空
+	s.sendFn = func(string, string, string) error { return nil }
+	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "画"}}}})
+	if err := s.SendFileCard(img, "cap"); err != nil {
+		t.Fatalf("SendFileCard: %v", err)
+	}
+	mu.Lock()
+	sent := lastText
+	mu.Unlock()
+	if !strings.Contains(sent, "🖼 产物已生成：a.png") || !strings.Contains(sent, "cap") {
+		t.Fatalf("上传失败应文本降级: %q", sent)
+	}
+	lines := readCaptureLines(t, p)
+	if len(lines) != 1 || lines[0]["kind"] != "upload_probe" {
+		t.Fatalf("应恰 1 行 upload 错误记录: %v", lines)
+	}
+	if data, _ := lines[0]["data"].(map[string]interface{}); data["stage"] != "upload" || data["err"] == "" {
+		t.Fatalf("应记 stage=upload + err: %v", data)
+	}
+}
+
+// TestSendFileCard_CDNFailFallsBackToText CDN 上传 200 但缺
+// x-encrypted-param 头：抓错误记录后文本降级。
+func TestSendFileCard_CDNFailFallsBackToText(t *testing.T) {
+	p := tempCapturePath(t)
+
+	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200) // 200 但缺 x-encrypted-param 头 → 失败
+	}))
+	defer cdn.Close()
+	useTestCDN(t, cdn.URL+"/c2c")
+
+	var mu sync.Mutex
+	var lastText string
+	srv := newCardServer(t, func(path string, r *http.Request, body []byte) (int, string) {
+		switch path {
+		case "/ilink/bot/getuploadurl":
+			return 200, `{"upload_param":"UP"}`
+		case "/ilink/bot/sendmessage":
+			var payload struct {
+				Msg struct {
+					ItemList []struct {
+						Type     int `json:"type"`
+						TextItem struct {
+							Text string `json:"text"`
+						} `json:"text_item"`
+					} `json:"item_list"`
+				} `json:"msg"`
+			}
+			_ = json.Unmarshal(body, &payload)
+			for _, it := range payload.Msg.ItemList {
+				if it.Type == 1 {
+					mu.Lock()
+					lastText = it.TextItem.Text
+					mu.Unlock()
+				}
+			}
+			return 200, `{"errcode":0}`
+		default:
+			t.Errorf("不应请求其他端点: %s", path)
+			return 404, ""
+		}
+	})
+	defer srv.Close()
+
+	img := filepath.Join(t.TempDir(), "a.png")
+	if err := os.WriteFile(img, []byte("PNG"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, func(string, string) (string, error) { return "ok", nil })
+	s.sendFn = func(string, string, string) error { return nil }
 	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "画"}}}})
 	if err := s.SendFileCard(img, ""); err != nil {
 		t.Fatalf("SendFileCard: %v", err)
 	}
-	if !strings.Contains(lastText, "🖼 产物已生成：a.png") {
-		t.Fatalf("无媒体域应只发文本降级: %q", lastText)
+	mu.Lock()
+	sent := lastText
+	mu.Unlock()
+	if !strings.Contains(sent, "🖼 产物已生成：a.png") {
+		t.Fatalf("CDN 失败应文本降级: %q", sent)
+	}
+	lines := readCaptureLines(t, p)
+	if len(lines) != 1 {
+		t.Fatalf("应恰 1 行记录: %v", lines)
+	}
+	if data, _ := lines[0]["data"].(map[string]interface{}); data["stage"] != "upload" || !strings.Contains(data["err"].(string), "x-encrypted-param") {
+		t.Fatalf("应记 CDN 缺头错误: %v", data)
+	}
+}
+
+// TestSendFileCard_NoPeerSkipsUpload 无活跃会话（LastPeer 为空）：不发起
+// 上传请求，抓一行 skipped=no_peer 后文本降级（Push 无回推目标返回错误）。
+func TestSendFileCard_NoPeerSkipsUpload(t *testing.T) {
+	p := tempCapturePath(t)
+
+	srv := newCardServer(t, func(path string, r *http.Request, body []byte) (int, string) {
+		t.Errorf("无会话不应发起上传请求: %s", path)
+		return 500, ""
+	})
+	defer srv.Close()
+
+	img := filepath.Join(t.TempDir(), "a.png")
+	if err := os.WriteFile(img, []byte("PNG"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, nil)
+	if err := s.SendFileCard(img, ""); err == nil {
+		t.Fatal("无活跃会话时 Push 应返回错误")
 	}
 	lines := readCaptureLines(t, p)
 	if len(lines) != 1 || lines[0]["kind"] != "upload_probe" {
 		t.Fatalf("应恰 1 行 skipped 记录: %v", lines)
 	}
-	if data, _ := lines[0]["data"].(map[string]interface{}); data["skipped"] != "no_media_host" {
-		t.Fatalf("skipped 原因应为 no_media_host: %v", lines[0])
+	if data, _ := lines[0]["data"].(map[string]interface{}); data["skipped"] != "no_peer" {
+		t.Fatalf("skipped 原因应为 no_peer: %v", lines[0])
 	}
 }
 
 // TestSendFileCard_FileRejectedFallsBack 扩展名白名单外（图片产物场景限定
-// png/jpeg/webp/gif）：不发起探针，抓 skipped=file_rejected 后文本降级。
+// png/jpeg/webp/gif）：不发起上传，抓 stage=upload 错误后文本降级。
 func TestSendFileCard_FileRejectedFallsBack(t *testing.T) {
 	p := tempCapturePath(t)
-	resetMediaHosts(t)
 
-	srv := newProbeCardServer(t,
-		func(string) (int, string) {
-			t.Error("白名单外文件不应发起探针")
+	var mu sync.Mutex
+	var gotTextPath bool
+	srv := newCardServer(t, func(path string, r *http.Request, body []byte) (int, string) {
+		switch path {
+		case "/ilink/bot/getuploadurl":
+			t.Error("白名单外文件不应发起上传")
 			return 500, ""
-		},
-		func(string) {},
-	)
+		case "/ilink/bot/sendmessage":
+			var payload struct {
+				Msg struct {
+					ItemList []struct {
+						Type     int `json:"type"`
+						TextItem struct {
+							Text string `json:"text"`
+						} `json:"text_item"`
+					} `json:"item_list"`
+				} `json:"msg"`
+			}
+			_ = json.Unmarshal(body, &payload)
+			for _, it := range payload.Msg.ItemList {
+				if it.Type == 1 {
+					mu.Lock()
+					gotTextPath = true
+					mu.Unlock()
+				}
+			}
+			return 200, `{"errcode":0}`
+		default:
+			t.Errorf("不应请求其他端点: %s", path)
+			return 404, ""
+		}
+	})
 	defer srv.Close()
 
 	txt := filepath.Join(t.TempDir(), "笔记.txt")
@@ -523,16 +626,22 @@ func TestSendFileCard_FileRejectedFallsBack(t *testing.T) {
 	}
 
 	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, func(string, string) (string, error) { return "ok", nil })
-	s.SetMediaHosts(srv.URL, "")
+	s.sendFn = func(string, string, string) error { return nil }
 	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "写"}}}})
 	if err := s.SendFileCard(txt, ""); err != nil {
 		t.Fatalf("SendFileCard: %v", err)
+	}
+	mu.Lock()
+	textOK := gotTextPath
+	mu.Unlock()
+	if !textOK {
+		t.Fatal("白名单外应走文本降级")
 	}
 	lines := readCaptureLines(t, p)
 	if len(lines) != 1 || lines[0]["kind"] != "upload_probe" {
 		t.Fatalf("应恰 1 行记录: %v", lines)
 	}
-	if data, _ := lines[0]["data"].(map[string]interface{}); data["skipped"] != "file_rejected" {
-		t.Fatalf("应记 skipped=file_rejected: %v", lines[0])
+	if data, _ := lines[0]["data"].(map[string]interface{}); data["stage"] != "upload" {
+		t.Fatalf("白名单外应记 stage=upload 错误: %v", lines[0])
 	}
 }

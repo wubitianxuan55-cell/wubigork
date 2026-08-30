@@ -67,38 +67,15 @@ func capture(kind string, data interface{}) {
 	_ = f.Close()
 }
 
-// ─── 媒体域线索（扫码登录钩子）────────────────────────────────
-
-// 最近一次扫码登录响应携带的媒体域（包级缓存）：登录轮询是包级函数（app 层
-// 直调 PollQRStatus，本包不反向依赖 app），Server 创建可能早于登录，故缓存
-// 于包级、由 SendFileCard 探针懒采纳。
-var (
-	mediaHostsMu   sync.Mutex
-	latestBaseURL  string
-	latestRedirect string
-)
-
-func setLatestMediaHosts(baseURL, redirectHost string) {
-	mediaHostsMu.Lock()
-	latestBaseURL, latestRedirect = baseURL, redirectHost
-	mediaHostsMu.Unlock()
-}
-
-func latestMediaHosts() (baseURL, redirectHost string) {
-	mediaHostsMu.Lock()
-	baseURL, redirectHost = latestBaseURL, latestRedirect
-	mediaHostsMu.Unlock()
-	return baseURL, redirectHost
-}
+// ─── 扫码登录响应钩子 ────────────────────────────────────────
 
 // recordQRStatus 扫码登录响应钩子（qrlogin.go 两个 Poll 函数解析成功后调用）：
 // 响应携带 baseurl/redirect_host（即登录成功/近成功态）时抓整响应原文
-// （kind="qr_status"，服务端原始 body）并把媒体域存入包级缓存。无媒体域的
-// 中间轮询态不抓，避免登录轮询刷屏。
+// （kind="qr_status"）。v4.8.3 起上传走 getuploadurl + 固定 CDN 域，不再依赖
+// 这两个字段——抓包仅作协议证据留存。无媒体域的中间轮询态不抓，避免刷屏。
 func recordQRStatus(raw []byte, resp *QRStatusResp) {
 	if resp == nil || (resp.BaseURL == "" && resp.RedirectHost == "") {
 		return
 	}
 	capture("qr_status", json.RawMessage(raw))
-	setLatestMediaHosts(resp.BaseURL, resp.RedirectHost)
 }
