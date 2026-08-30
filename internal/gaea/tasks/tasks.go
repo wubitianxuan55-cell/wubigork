@@ -800,8 +800,12 @@ func (m *Manager) execute(t *Task) {
 	cancel()
 
 	switch {
-	// 取消优先：用户取消必须胜过 succeeded（handler 即便返回 nil 也不吞掉取消）
-	case interrupted && userCancel:
+	// 取消优先：用户取消必须胜过 succeeded（handler 即便返回 nil 也不吞掉取消）。
+	// 只看 userCancel 不叠加 interrupted：cancelReq 在互斥锁内先于 cancel() 记录，
+	// worker 此处读到 userCancel=true 时用户意图已成立；若再要求 ctx.Err()!=nil，
+	// worker 读 ctx.Err 与 Cancel 的 cancel() 之间的窄窗口会让 handler 返回 nil
+	// 的任务被 succeeded 吞掉（TestCancelConcurrentStress 实测竞态）。
+	case userCancel:
 		_ = m.markTerminal(t.ID, StatusCancelled, "", "已取消")
 	case handlerErr == nil:
 		_ = m.markTerminal(t.ID, StatusSucceeded, "", "")
