@@ -702,7 +702,7 @@ export function XlsxPreview({
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-auto docx-preview-body">
+      <div className="flex-1 min-h-0">
         <SheetGrid
           sheet={sheet}
           selected={selected}
@@ -838,6 +838,55 @@ function SheetGrid({
   const TH_H = 26;
   const ROW_H = 28;
 
+  // —— 大表格行虚拟滚动（观察项收账）——
+  // 后端预览上限 2000 行 × 100 列：全量渲染最多 20 万 td，滚动/切换卡顿。
+  // 行数超阈值时只渲染可见窗口 ± overscan（冻结行常驻），spacer 行保持滚动
+  // 条总高与行号对齐；小表全量渲染，行为逐字节不变。wrap 单元格在虚拟化
+  // 模式下按固定行高裁剪（溢出隐藏），与冻结行既有的 ROW_H 对齐假设一致。
+  const VIRTUALIZE_MIN_ROWS = 300;
+  const OVERSCAN_ROWS = 10;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportH, setViewportH] = useState(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => setViewportH(el.clientHeight);
+    measure();
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(measure);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    return undefined;
+  }, []);
+
+  // 切换 sheet 重置滚动位置（不同表总高不同，防残留偏移）
+  useEffect(() => {
+    setScrollTop(0);
+    const el = containerRef.current;
+    if (el) el.scrollTop = 0;
+  }, [sheet]);
+
+  const virtualize = maxRow > VIRTUALIZE_MIN_ROWS;
+  const frozen = Math.min(freezeRow, maxRow);
+  const renderedRows: number[] = [];
+  let topPad = 0;
+  let bottomPad = 0;
+  if (virtualize) {
+    for (let r = 1; r <= frozen; r++) renderedRows.push(r);
+    const firstRow = Math.max(1, Math.floor((scrollTop - TH_H) / ROW_H) - OVERSCAN_ROWS);
+    const lastRow = Math.min(maxRow, Math.ceil((scrollTop - TH_H + viewportH) / ROW_H) + OVERSCAN_ROWS);
+    const start = Math.max(frozen + 1, firstRow);
+    const end = Math.max(start - 1, lastRow);
+    for (let r = start; r <= end; r++) renderedRows.push(r);
+    topPad = Math.min(Math.max(0, start - frozen - 1), Math.max(0, maxRow - frozen));
+    bottomPad = Math.max(0, maxRow - end);
+  } else {
+    for (let r = 1; r <= maxRow; r++) renderedRows.push(r);
+  }
+
   if (maxRow === 0 || maxCol === 0) {
     return <div className="p-6 text-center text-[12px] text-fg-faint">（空工作表）</div>;
   }
@@ -846,7 +895,11 @@ function SheetGrid({
   for (let c = 1; c <= maxCol; c++) headerCells.push(colToLetter(c));
 
   return (
-    <div className="p-3">
+    <div
+      ref={containerRef}
+      onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+      className="p-3 h-full overflow-auto docx-preview-body"
+    >
       <table
         className="border-collapse text-[12px] leading-tight"
         style={{ borderSpacing: 0 }}
@@ -878,8 +931,13 @@ function SheetGrid({
           </tr>
         </thead>
         <tbody>
-          {Array.from({ length: maxRow }, (_, ri) => ri + 1).map((r) => (
-            <tr key={r}>
+          {topPad > 0 && (
+            <tr aria-hidden="true" style={{ height: topPad * ROW_H }}>
+              <td colSpan={maxCol + 1} style={{ border: "none", padding: 0 }} />
+            </tr>
+          )}
+          {renderedRows.map((r) => (
+            <tr key={r} style={virtualize ? { height: ROW_H } : undefined}>
               <td
                 className="sticky left-0 z-10 px-1 py-0.5 text-center text-[10px] text-fg-faint"
                 style={{
@@ -888,6 +946,7 @@ function SheetGrid({
                   ...(freezeRow > 0 && r <= freezeRow
                     ? { top: TH_H + (r - 1) * ROW_H, zIndex: 25, height: ROW_H, overflow: "hidden" as const }
                     : {}),
+                  ...(virtualize && r > freezeRow ? { overflow: "hidden" as const } : {}),
                 }}
               >
                 {r}
@@ -940,6 +999,7 @@ function SheetGrid({
                       textAlign: (cell?.style?.align as CSSProperties["textAlign"]) ?? undefined,
                       whiteSpace: isFrozenRow ? "nowrap" : cell?.style?.wrap ? "pre-wrap" : "nowrap",
                       fontVariantNumeric: "tabular-nums",
+                      ...(virtualize && !isFrozenRow ? { overflow: "hidden" as const } : {}),
                     }}
                     title={cell?.formula ? `=${cell.formula}` : undefined}
                   >
@@ -978,6 +1038,11 @@ function SheetGrid({
               })}
             </tr>
           ))}
+          {bottomPad > 0 && (
+            <tr aria-hidden="true" style={{ height: bottomPad * ROW_H }}>
+              <td colSpan={maxCol + 1} style={{ border: "none", padding: 0 }} />
+            </tr>
+          )}
         </tbody>
       </table>
       <div className="flex items-center gap-1.5 px-1 py-2 text-[10px] text-fg-faint">

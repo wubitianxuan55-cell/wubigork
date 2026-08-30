@@ -22,6 +22,36 @@ const body = JSON.stringify({
 });
 
 describe("XlsxPreview", () => {
+  it("大表格行虚拟滚动：只渲染可见窗口 ± overscan，滚动后窗口随动（400 行不整表渲染）", () => {
+    const bigRows = Array.from({ length: 400 }, (_, i) => [
+      { ref: `A${i + 1}`, value: `ROW-${i + 1}`, type: "string" },
+    ]);
+    const bigBody = JSON.stringify({
+      sheets: [{ name: "大表", rows: bigRows, colWidths: {} }],
+    });
+    render(<XlsxPreview body={bigBody} fileName="大表.xlsx" relPath="big.xlsx" />);
+
+    const container = document.querySelector(".docx-preview-body") as HTMLElement;
+    expect(container).toBeTruthy();
+    // 初始窗口：行 1..10 + 底部 spacer（视口高在 jsdom 为 0，取最小窗口）
+    expect(container.querySelectorAll("tbody tr").length).toBeLessThan(100);
+    expect(screen.getByText("ROW-1")).toBeTruthy();
+    expect(screen.queryByText("ROW-30")).toBeNull();
+
+    container.scrollTop = 1000;
+    fireEvent.scroll(container);
+    // 窗口随滚动下移：行 24..45 在位，行 1 已卸载（spacer 保持滚动条总高）
+    expect(screen.queryByText("ROW-1")).toBeNull();
+    expect(screen.getByText("ROW-30")).toBeTruthy();
+    expect(container.querySelectorAll("tbody tr").length).toBeLessThan(100);
+  });
+
+  it("小表格保持全量渲染（虚拟化阈值以下行为不变）", () => {
+    render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" />);
+    const container = document.querySelector(".docx-preview-body") as HTMLElement;
+    expect(container.querySelectorAll("tbody tr").length).toBe(3);
+  });
+
   it("渲染 sheet 切换与单元格", () => {
     render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" />);
     expect(screen.getByText("预算")).toBeTruthy();
