@@ -31,12 +31,23 @@ func TestIsIdentityQuestion(t *testing.T) {
 	}
 }
 
-// 守卫与触发词的协同：身份问题即便命中搜索触发词也不搜索。
+// v4.9.1 触发词收窄后的协同口径：口语疑问词（是谁/什么/怎么…）已从触发表
+// 移除——身份问题根本不再触发搜索（守卫保留为纵深防御，防未来触发表回胖）。
 func TestIdentityGuardBeatsSearchTrigger(t *testing.T) {
-	if !shouldSearchWeb("你是谁") {
-		t.Fatal("前置条件：「你是谁」应命中触发词「是谁」（否则此测试无意义）")
+	if shouldSearchWeb("你是谁") {
+		t.Fatal("「你是谁」是口语疑问，收窄后不应触发搜索")
+	}
+	for _, msg := range []string{"你怎么看", "最近怎么样", "你在哪里", "为什么啊", "介绍一下这个项目"} {
+		if shouldSearchWeb(msg) {
+			t.Errorf("对话高频词 %q 不应触发搜索（宁漏勿误）", msg)
+		}
+	}
+	for _, msg := range []string{"帮我查一下北京天气", "搜一下沪深300指数", "今天有什么新闻", "查查黄金价格"} {
+		if !shouldSearchWeb(msg) {
+			t.Errorf("显式动词/硬时效 %q 应触发搜索", msg)
+		}
 	}
 	if !isIdentityQuestion("你是谁") {
-		t.Fatal("身份守卫应命中「你是谁」")
+		t.Fatal("身份守卫应命中「你是谁」（纵深防御保留）")
 	}
 }

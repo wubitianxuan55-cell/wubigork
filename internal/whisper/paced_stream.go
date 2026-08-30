@@ -22,6 +22,20 @@ func StripSplitMarkers(text string) string {
 	return strings.TrimSpace(strings.ReplaceAll(text, SplitMarker, ""))
 }
 
+// SplitOnMarker 按 [SPLIT] 把模型回复切成分条（去首尾空白、过滤空条）——
+// chatter 模式下模型被要求用 [SPLIT] 分条连发，所有出口都应经本函数或
+// StripSplitMarkers 归一，绝不能把内部标记原样发给用户。
+func SplitOnMarker(text string) []string {
+	raw := strings.Split(text, SplitMarker)
+	out := make([]string, 0, len(raw))
+	for _, p := range raw {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // FirstDisplayUnitLen 下一段可完整展示的内容长度（整句或 [SPLIT] 标记）
 // 100% 对齐 ackem pacedStreamEmitter.ts firstDisplayUnitLen
 func FirstDisplayUnitLen(unsent string) int {

@@ -202,6 +202,14 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinkin
 	}
 	slog.Info("[whisper] LLM reply", "len", len(reply))
 
+	// 节奏标记归一（v4.9.1）：chatter 模式要求模型用 [SPLIT] 分条连发，但该
+	// 标记是内部格式协议——本函数是 GUI/微信/语音三个出口的共同上游，在这
+	// 里把标记归一为换行（分条可读性保留），任何出口都不应再见到裸标记
+	//（此前微信/语音直接发送原文，[SPLIT] 直接漏给用户）。
+	if strings.Contains(reply, whisper.SplitMarker) {
+		reply = strings.Join(whisper.SplitOnMarker(reply), "\n")
+	}
+
 	sentences := whisper.SplitIntoSentences(reply)
 	if len(sentences) == 0 {
 		sentences = []string{reply}
@@ -514,15 +522,16 @@ func (a *whisperState) WhisperChatWithSearch(userMsg string, personalityID strin
 	return a.WhisperChat(userMsg, personalityID, thinking)
 }
 
-// searchTriggers 搜索意图触发词（精简版 — 去掉宽泛词，添加精确模式）
+// searchTriggers 搜索意图触发词（v4.9.1 收窄：动词锚定 + 硬时效词）。
+// 教训：旧表含「什么/怎么/为什么/在哪/什么时候/介绍一下/告诉我/帮我找/
+// 最新/最近/实时」等对话高频词（朴素子串匹配），日常对话大量误触发——
+// 网页摘要被灌进角色回复，是「答非所问」的主力来源之一。纪律：宁漏勿误
+// ——漏了走对话管道无害，误了把无关网页注入回复必然劣化。
 var searchTriggers = []string{
-	// 显式命令
-	"帮我搜索", "帮我搜", "帮我查", "搜一下", "查一下", "查查", "上网查",
-	// 实时/时效信息
-	"最新", "最近", "新闻", "天气", "股价", "汇率", "比赛", "实时", "今天天气",
-	// 知识查询
-	"是谁", "什么是", "多少钱", "在哪里", "什么时候", "为什么", "怎么",
-	"如何", "介绍一下", "告诉我", "帮我找",
+	// 显式命令（动词锚定）
+	"帮我搜索", "帮我搜", "帮我查", "搜一下", "查一下", "查查", "上网查", "搜索",
+	// 硬时效信息（对话闲聊里几乎不出现，误触发率低）
+	"天气", "股价", "汇率", "金价", "油价", "比分", "新闻",
 }
 
 func shouldSearchWeb(msg string) bool {

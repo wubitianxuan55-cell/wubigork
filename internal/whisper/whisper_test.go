@@ -228,8 +228,8 @@ func TestEmotionStep_Clamping(t *testing.T) {
 // ─── 人格预设测试 ──────────────────────────────────────────────
 
 func TestPersonalityPresets_Count(t *testing.T) {
-	if len(PersonalityPresets) != 30 {
-		t.Errorf("expected 30 personalities (含核心助手 gaea), got %d", len(PersonalityPresets))
+	if len(PersonalityPresets) != 31 {
+		t.Errorf("expected 31 personalities (含核心助手 gaea + 办公秘书 secretary), got %d", len(PersonalityPresets))
 	}
 }
 

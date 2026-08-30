@@ -59,6 +59,14 @@ func DecideRhythm(input RhythmInput, counters *RhythmCounters) RhythmDecision {
 	sincerity := input.Sincerity
 	intensity := input.Intensity
 
+	// 工作人格（tag=professional，gaea/办公秘书）永久豁免：碎碎念/独白节奏
+	// 是陪伴场景的设计。PAD 标尺（-100..100）下 aro>0 && aff>3 几乎恒真，
+	// 不豁免会把办公通道的每轮回复都压成 ≤30 字碎片 + [SPLIT]（v4.9.1 微信/
+	// 语音实测教训）。
+	if isProfessionalPersona(personalityID) {
+		return defaultDecision(counters)
+	}
+
 	// 低强度不拆分
 	if intensity < 0.3 && mathAbs(aro) < 20 {
 		return defaultDecision(counters)
@@ -114,6 +122,13 @@ func DecideRhythm(input RhythmInput, counters *RhythmCounters) RhythmDecision {
 
 func randInt(min, max int) int {
 	return rand.Intn(max-min+1) + min
+}
+
+// isProfessionalPersona 判断是否工作人格（preset 带 professional tag）：
+// 节奏引擎对这类人格永不拆分。
+func isProfessionalPersona(personalityID string) bool {
+	p := GetPreset(personalityID)
+	return p != nil && containsTag(p.Tags, "professional")
 }
 
 func chatterDecision(stage RelationshipStage) RhythmDecision {
