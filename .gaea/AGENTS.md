@@ -30,11 +30,33 @@
   S4.5 微信统一路由 + iLink 图片协议第一刀、规范包机制化（红头+造价表式）、
   成本归因对标；剩余欠账（iLink 文件卡片/字节级图片识别待真机、成本知识图谱
   形态、生命库可写化=不盲写）见 `releases/v4.6.1.md` 欠账清单。
-- **下一执行**：**v4.7「指令中枢 + 触点深化」**——Ctrl+K 命令面板接内核
-  （S4.6 留位）；iLink 文件卡片/图片识别真机收敛；成本知识图谱可视化形态；
-  v4.6 原定的端到端实时语音（云端 Realtime 档）继续排期。
+- **下一执行**：v4.7 已发布（S4.6 完整收口）；剩余触点深化项——iLink 文件卡片/
+  图片识别真机收敛；成本知识图谱可视化形态；读屏纵深（OCR 摘要再朗读/多显示器）；
+  端到端实时语音（云端 Realtime 档）继续排期。
 
 ## 版本状态
+
+- **最新发布：v4.7.0（2026-08-30）「命令面板接内核 · 读屏」**：
+  git tag `v4.7.0`；CHANGELOG / releases/v4.7.0.md / README 索引同步。要点：
+  - **S4.6 命令面板接统一路由（完整收口）**：GaeaRouteIntent(text, dryRun)
+    绑定（531→**532**，S4.6 显式豁免旧「零新增绑定」纪律并头注记录）——
+    dryRun=true 零副作用预览（校验口径与执行层一致），false 真执行；
+    SearchModal 指令预览卡（命中出卡、点「执行」才真跑——搜索词不是整句指令
+    入口，宁漏勿误；回执内联，导航类 emit gaea-intent-navigate 切板块收面板）；
+    **真·Ctrl+K**（MainLayout 全局快捷键，tooltip 名副其实；gaea 工作台内让位
+    自有 CommandPalette 防双面板）。
+  - **屏幕感知能力「读一下屏幕」**：intent.ActionReadScreen 窄规则（读/念/看/
+    识别+屏幕、屏幕上有什么、读屏；不含裸读/看）+ execReadScreen（screen.Capture
+    → 临时 PNG 即用即删 → GaeaOCRText 既有 OCR 链 → 300 字截断回传）；
+    语音 TTS 朗读/面板内联/微信回推三入口免费受益；失败诚实回执不坠聊天。
+  - **前端配套**：IntentResultView WireShape + typesGenerationCheck 断言；
+    spaceBindings RouteIntent=shared（248→249）；mock RouteIntent；三语 i18n
+    8 key；SearchModal.test 5 用例。
+  - **验证**：Go 全量绿（121 包）；vitest **796/796**（145 文件）；tsc/eslint 0；
+    绑定面 532、spaceBindings 249、drift PASS；版本五处统一 4.7.0；桌面端
+    gaea-v4.7.0.exe（35MB，SHA256 e83934db）+ 冒烟 200。
+  - **欠账**：iLink 真机收敛 / 成本知识图谱可视化 / 读屏纵深（OCR 摘要再朗读、
+    多显示器）/ 实时语音排期 / 生命库可写化=不盲写。
 
 - **最新发布：v4.6.1（2026-08-30）「微信统一路由 · 规范包机制 · 归因对标」**：
   git tag `v4.6.1`；CHANGELOG / releases/v4.6.1.md / README 索引同步。要点：

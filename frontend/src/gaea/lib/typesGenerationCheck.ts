@@ -10,6 +10,7 @@
 // S2.3b，见 docs/gaea-space-shell-design.md §7。
 import type { app as AppModels, tasks as TaskModels } from "../../../wailsjs/go/models";
 import type {
+  IntentResultView,
   MemoryHubOverview,
   SemanticHitView,
   SessionMeta,
@@ -32,4 +33,5 @@ export type _CheckWorkspaceSearchHit = Assert<Exclude<GeneratedFields<AppModels.
 export type _CheckMemoryHubOverview = Assert<Exclude<GeneratedFields<AppModels.MemoryHubOverview>, keyof MemoryHubOverview> extends never ? true : false>;
 export type _CheckSemanticHitView = Assert<Exclude<GeneratedFields<AppModels.SemanticHitView>, keyof SemanticHitView> extends never ? true : false>;
 export type _CheckUnifiedSearchView = Assert<Exclude<GeneratedFields<AppModels.UnifiedSearchView>, keyof UnifiedSearchView> extends never ? true : false>;
+export type _CheckIntentResultView = Assert<Exclude<GeneratedFields<AppModels.IntentResult>, keyof IntentResultView> extends never ? true : false>;
 export type _CheckTaskView = Assert<Exclude<GeneratedFields<TaskModels.Task>, keyof TaskView> extends never ? true : false>;

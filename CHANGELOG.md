@@ -1,5 +1,25 @@
 # gaea · 多功能 AI 助手
 
+## v4.7.0「命令面板接内核 · 读屏」(2026-08-30)
+> 路线图 §10.4a S4.6 完整收口：桌面命令面板接统一意图路由内核（语音/微信之后
+> 的第三个入口）+ 屏幕感知能力（读一下屏幕）纳入能力面。GaeaRouteIntent(text,
+> dryRun) 绑定（531→532，dry-run 预览-确认制防搜索词误触发）+ SearchModal 指令
+> 预览卡 + 真·Ctrl+K（办公板块让位工作台面板）+ read_screen 三入口免费受益
+> （截屏→OCR→TTS 朗读/内联回执，临时文件即用即删）。Go 全量绿、vitest 796/796
+> （145 文件）、tsc/eslint 0。详见 releases/v4.7.0.md。
+- **GaeaRouteIntent**：dryRun=true 零副作用预览（校验口径与执行层一致——未知
+  板块/媒体域缺失按未命中）；false 真执行。S4.6 显式豁免旧「零新增绑定」纪律
+  （面板是前端入口，绑定即其回传通道，intent_router.go 头注已记录）。
+- **预览-确认制**：SearchModal 命中出「指令」卡（动作标签 + 预览语 + 执行按钮），
+  点执行才真跑；执行回执内联，导航类 emit gaea-intent-navigate 复用 S4.4 切板块
+  后收面板；未命中检索行为零变化。
+- **真·Ctrl+K**：MainLayout 全局快捷键落地（tooltip 此前名不副实）；gaea 工作台
+  内让位自有 CommandPalette 防双面板。
+- **读一下屏幕**：intent.ActionReadScreen 窄规则（读/念/看/识别+屏幕、屏幕上有
+  什么、读屏——不含裸读/看）+ execReadScreen（screen.Capture → 临时 PNG →
+  GaeaOCRText 既有 OCR 链 → 300 字截断回传）；语音经 TTS 朗读、面板内联展示、
+  微信走文本回推；失败诚实回执不坠聊天。
+
 ## v4.6.1「微信统一路由 · 规范包机制 · 归因对标」(2026-08-30)
 > 审计补课续刀：S4.5 微信消息接统一路由（routeIntentWithResult 产物感知版本，
 > 提醒特例之外 navigate/生图/状态/提醒全命中即执行，未命中才走聊天）+ iLink
