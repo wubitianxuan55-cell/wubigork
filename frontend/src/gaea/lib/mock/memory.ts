@@ -20,7 +20,7 @@ type MemoryMethods = Pick<
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
   | "MemoryHubOverview" | "ProfileList" | "ProfileSave" | "ProfileDelete"
   | "ProfileConflicts" | "ProfileResolveConflict"
-| "WhisperMemories" | "WhisperEpisodes" | "WhisperEpisodeReplay" | "WhisperAnchors" | "WhisperAnchorReplay" | "WhisperMemoryRetell" | "WhisperExportArchive" | "MemoryGraph"
+| "WhisperMemories" | "WhisperEpisodes" | "WhisperEpisodeReplay" | "WhisperAnchors" | "WhisperAnchorReplay" | "WhisperMemoryRetell" | "WhisperCausalExplain" | "WhisperExportArchive" | "MemoryGraph"
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
@@ -189,6 +189,9 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async WhisperMemoryRetell() {
       return "（mock）那天的雨声、你说话的样子，我都还记得。";
+    },
+    async WhisperCausalExplain() {
+      return "（mock）看起来是最近的加班让睡眠变差了。";
     },
     async MemoryGraph() {
       return { nodes: [], links: [] };

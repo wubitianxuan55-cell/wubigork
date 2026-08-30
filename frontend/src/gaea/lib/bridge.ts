@@ -411,6 +411,9 @@ export interface AppBindings {
   WhisperAnchorReplay(anchorId: string): Promise<WhisperAnchorReplayView>;
   // WhisperMemoryRetell 让 gaea 以当前人格口吻把一段记忆重述成故事（LLM 叙事）。
   WhisperMemoryRetell(kind: "episode" | "anchor", id: string, personalityId: string): Promise<string>;
+  // WhisperCausalExplain 跨事实因果推断：基于图谱「导致」边 + event_chain 关联
+  // 解释「为什么<entity>」，无证据时返回诚实回退文案。
+  WhisperCausalExplain(entity: string, personalityId: string): Promise<string>;
   // WhisperExportArchive 导出聊天记忆归档（hermes.db → Markdown 分目录），返回文件数。
   WhisperExportArchive(dir: string): Promise<number>;
   // PickDirectory 系统目录选择对话框，返回所选目录（取消返回空串）。
@@ -845,6 +848,7 @@ const gaeaToGaea = {
   WhisperAnchors: "GaeaWhisperAnchors",
   WhisperAnchorReplay: "GaeaWhisperAnchorReplay",
   WhisperMemoryRetell: "GaeaWhisperMemoryRetell",
+  WhisperCausalExplain: "GaeaWhisperCausalExplain",
   WhisperExportArchive: "GaeaWhisperExportArchive",
   PickDirectory: "GaeaPickDirectory",
   MemoryGraph: "GaeaMemoryGraph",

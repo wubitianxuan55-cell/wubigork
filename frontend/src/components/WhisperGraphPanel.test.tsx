@@ -3,9 +3,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { WhisperGraphPanel } from "./WhisperGraphPanel";
 import { ToastProvider } from "../gaea/components/Toast";
 
-const { subgraphSpy, proactiveSpy } = vi.hoisted(() => ({
+const { subgraphSpy, proactiveSpy, causalSpy } = vi.hoisted(() => ({
   subgraphSpy: vi.fn(),
   proactiveSpy: vi.fn(),
+  causalSpy: vi.fn(),
 }));
 
 // 事件订阅捕获：WhisperGraphPanel 通过 subscribeForSpace 订阅
@@ -24,6 +25,7 @@ vi.mock("../gaea/lib/bridge", () => ({
   app: {
     WhisperGraphSubgraph: (...args: unknown[]) => subgraphSpy(...args),
     WhisperProactiveNow: (...args: unknown[]) => proactiveSpy(...args),
+    WhisperCausalExplain: (...args: unknown[]) => causalSpy(...args),
   },
 }));
 
@@ -73,6 +75,7 @@ describe("WhisperGraphPanel 轻语关系图谱", () => {
   beforeEach(() => {
     subgraphSpy.mockReset();
     proactiveSpy.mockReset();
+    causalSpy.mockReset();
     proactiveHandlers.length = 0;
   });
 
@@ -139,6 +142,21 @@ describe("WhisperGraphPanel 轻语关系图谱", () => {
     expect(line?.getAttribute("stroke-dasharray")).toBe("4 2");
     // 图例「因果」+ 边标签「因果」都可能出现，用 getAllByText
     expect(screen.getAllByText("因果").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("v4.9 解释因果：点击后调用 WhisperCausalExplain 并渲染解释", async () => {
+    causalSpy.mockResolvedValue("看起来是最近的加班让睡眠变差了。");
+    subgraphSpy.mockResolvedValue(GRAPH_CAUSAL);
+    render(wrap(<WhisperGraphPanel open personalityId="pid-1" onClose={() => {}} />));
+
+    fireEvent.change(screen.getByLabelText("实体名"), { target: { value: "工作" } });
+    fireEvent.click(screen.getByRole("button", { name: /查询/ }));
+    await screen.findByText("睡眠");
+
+    fireEvent.click(screen.getByRole("button", { name: /解释因果/ }));
+
+    expect(await screen.findByText("看起来是最近的加班让睡眠变差了。")).toBeTruthy();
+    expect(causalSpy).toHaveBeenCalledWith("工作", "pid-1");
   });
 
   it("空态：nodes 为空时展示「图谱暂无关系」", async () => {

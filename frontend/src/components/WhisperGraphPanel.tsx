@@ -6,7 +6,7 @@
 // 由定时器或用户确认后触发）。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "antd";
-import { ShareAltOutlined, SoundOutlined } from "@ant-design/icons";
+import { ShareAltOutlined, SoundOutlined, QuestionCircleOutlined } from "@ant-design/icons";
 import { app } from "../gaea/lib/bridge";
 import type {
   WhisperGraphEdge,
@@ -229,6 +229,9 @@ export function WhisperGraphPanel({
   const [error, setError] = useState<string | null>(null);
   const [proactive, setProactive] = useState<WhisperProactiveResult | null>(null);
   const [proactiveBusy, setProactiveBusy] = useState(false);
+  const [causalText, setCausalText] = useState("");
+  const [causalLoading, setCausalLoading] = useState(false);
+  const [causalError, setCausalError] = useState("");
 
   // 打开时重置上一次查询/评估结果（关闭即卸载内容，重新打开保持干净）
   useEffect(() => {
@@ -238,6 +241,9 @@ export function WhisperGraphPanel({
     setHasQueried(false);
     setError(null);
     setProactive(null);
+    setCausalText("");
+    setCausalLoading(false);
+    setCausalError("");
   }, [open]);
 
   // v4.3c 后续小步：订阅轻语主动关心定时推送（gaea-whisper-proactive，play
@@ -282,6 +288,8 @@ export function WhisperGraphPanel({
         setGraph(g);
         setQueriedEntity(entity);
         setHasQueried(true);
+        setCausalText("");
+        setCausalError("");
       } catch (e) {
         setError(String(e));
         toast.show(`关系图谱查询失败：${String(e)}`, "warn");
@@ -308,6 +316,22 @@ export function WhisperGraphPanel({
       setProactiveBusy(false);
     }
   }, [personalityId, toast]);
+
+  // v4.9 跨事实因果推断：基于图谱「导致」边 + 因果关联解释「为什么<entity>」。
+  const handleCausal = useCallback(async () => {
+    if (!queriedEntity) return;
+    setCausalLoading(true);
+    setCausalError("");
+    try {
+      const t = await app.WhisperCausalExplain(queriedEntity, personalityId);
+      setCausalText(t);
+    } catch (e) {
+      setCausalError(String(e));
+      toast.show(`因果解释失败：${String(e)}`, "warn");
+    } finally {
+      setCausalLoading(false);
+    }
+  }, [personalityId, queriedEntity, toast]);
 
   const layout = useMemo<LayoutResult | null>(() => {
     if (!graph || !hasQueried) return null;
@@ -365,6 +389,15 @@ export function WhisperGraphPanel({
           >
             <ShareAltOutlined style={{ fontSize: 12 }} />
             查询
+          </button>
+          <button
+            className="inline-flex items-center gap-1 px-3 h-8 rounded-lg border border-amber-400/30 text-amber-300/90 hover:bg-amber-400/10 transition-colors text-[12px] disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={() => void handleCausal()}
+            disabled={!hasQueried || causalLoading}
+            title="基于图谱「导致」边与因果关联，解释为什么会这样"
+          >
+            <QuestionCircleOutlined style={{ fontSize: 12 }} />
+            {causalLoading ? "推断中…" : "解释因果"}
           </button>
           {loading && (
             <span className="inline-flex items-center gap-1 text-fg-faint text-[11px]">
@@ -471,6 +504,21 @@ export function WhisperGraphPanel({
             </>
           ) : null}
         </div>
+
+        {/* ── 因果解释（v4.9 跨事实因果推断） ── */}
+        {(causalText || causalError) && (
+          <div className="pt-2">
+            {causalError ? (
+              <div className="px-3 py-2.5 rounded-lg border border-err/40 bg-err/10 text-fg-dim text-[12px]">
+                <span className="text-err font-medium">因果解释失败：{causalError}</span>
+              </div>
+            ) : (
+              <div className="px-3 py-2.5 rounded-lg border border-amber-400/20 bg-amber-400/5 text-fg text-[12.5px] leading-relaxed whitespace-pre-wrap">
+                {causalText}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── 主动关心区 ── */}
         <div className="pt-3 border-t border-border">

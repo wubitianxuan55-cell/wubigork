@@ -302,6 +302,7 @@ export const bindingNames = [
   "GaeaVersion",
   "GaeaWhisperAnchorReplay",
   "GaeaWhisperAnchors",
+  "GaeaWhisperCausalExplain",
   "GaeaWhisperEpisodeReplay",
   "GaeaWhisperEpisodes",
   "GaeaWhisperExportArchive",

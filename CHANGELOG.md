@@ -1,5 +1,47 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · 跨事实因果推断「为什么」 (2026-08-30)
+> 审计 §C「推理仅邻接遍历」深度补口：不只展示因果边，还能解释因果链。
+- **GaeaWhisperCausalExplain(entity, personalityID)**（绑定面 539→540，
+  MemoryB/play）：用户问「为什么<entity>」时，确定性收集证据——KG「导致」
+  三元组（实体出现在因/果侧）+ event_chain 关联（涉及实体的事实对，各截断、
+  上限 8 条），用当前人格口吻（Label + VoiceGuide）让 LLM 解释因果链（只用
+  证据、不编造、证据不足诚实说明、≤200 字）；无证据时不调 LLM，直接返回诚实
+  回退文案。5 个 Go 测试（有证据 / 无证据回退 / 空实体 / 证据构建 / 无关实体
+  无证据）。
+- **前端**：图谱面板新增「解释因果」按钮（查询后可用，琥珀色），解释结果展示
+  在图形下方；vitest +1。
+- 验证：Go 全量绿；vitest **818/818**（+1）；tsc/eslint 0；绑定面漂移
+  PASS（540）。
+- 说明：证据收集为确定性规则，LLM 只负责把证据讲成人话——不编造由 prompt
+  约束 + 无证据零调用双保险；深度「因果图推理」（多跳推导）仍列后续。
+
+## 未发布 · 首页重构（AI 多功能平台 · 星枢指挥所）+ 启动动画 (2026-08-30)
+> 启动默认首页 + 两段式启动动画 + 未来感 AI 多功能平台首页（ui-ux-pro-max /
+> design-taste-frontend 技能驱动，沿用 3.0「星枢 Constellation OS」令牌体系，
+> 零硬编码色值）。
+- **启动默认首页**：MainLayout 每次启动从首页（manifest.isHome）落地，不再恢复
+  上次页面；会话内跨空间切换仍按空间恢复最后页面（原持久化机制保留）。
+- **启动动画（两段式）**：index.html 静态启动屏（JS 加载期遮罩，纯 CSS）→
+  BootSplash React 组件接管（旋转光环 + gaea 徽记 + 分步状态文案：核心→引擎→
+  记忆→就绪 + 实时进度条）；进度/卸载全部由 timer 驱动，WebView2 rAF 节流
+  （gaea-raf-degraded）与 prefers-reduced-motion 全降级。
+- **首页重构**：Hero 中轴（公告 pill + 巨幅标题 + 副标题 + 中央命令条
+  [AI 内核 orb / 打字 / 语音 / 发送 / ⌘K] + 语音状态行 + 快捷 chips）+ AI 状态
+  细条（真实遥测 4 列）+ 能力矩阵 Bento（办公 4×2 旗舰大卡 + 板块瓦片，
+  manifest 驱动，断点 6/4/2/1 列；旗舰卡 `.ml-bento.ml-bento--featured` 双类
+  提权防同特异性覆盖）+ 门廊（编程独立窗口 / 设置）+ 底部信息条（会话 / 记忆 /
+  系统）；全部交互元素补齐焦点环（2px 主色 outline，与 v3 壳层一致）。
+- **i18n**：en/zh/zh-TW 三语同步新增 home.* 与 boot.* 共 17 键（DictKey
+  编译期锁死，三语缺一即构建失败）。
+- 验证：tsc / vite build 0 错误；eslint 0；vitest **809/809**（148 文件全绿；
+  曾现 2 例 jsdom 并行环境抖动，单独/复跑均绿，与改动无关）；12 主题浅色抽查
+  对比度正常；桌面 6 列 Bento 跨度断言正确；wails build 产物 gaea.exe 冒烟
+  启动正常。
+- 说明：首页视觉为「AI 多功能平台」范式（对标 Poe / Perplexity / DeepSeek
+  官网），语音晶核收进命令条 orb（呼吸 / 波纹 / 辉光三态）；设计规格已同步
+  design-system/gaea/pages/home.md（v3）。
+
 ## 未发布 · 关联入图（event_chain 因果链可见） (2026-08-30)
 > 审计 §C「推理仅邻接遍历」补口：记忆关联（含 event_chain）此前只活在索引里，
 > 图谱面板不可见——数据已有，只差展示。

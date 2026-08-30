@@ -5,6 +5,13 @@
 
 ## 当前状态
 
+- **跨事实因果推断「为什么」（2026-08-30，审计 §C 深度补口）**：
+  GaeaWhisperCausalExplain（绑定面 540，play）——问「为什么<entity>」时确定性
+  收集证据（KG「导致」三元组 + event_chain 关联，上限 8 条），当前人格口吻 LLM
+  解释因果链（只用证据 / 不编造 / 证据不足诚实说明 / ≤200 字）；无证据零 LLM
+  调用回退文案。图谱面板「解释因果」按钮 + 结果区。Go +5 测试、vitest +1
+  （818/818）、tsc/eslint 0、drift PASS（540）。说明：证据 = 确定性规则，LLM
+  只做人话化；多跳因果图推理留后续。
 - **关联入图（2026-08-30，审计 §C「推理仅邻接遍历」补口）**：
   GaeaWhisperGraphSubgraph 并入 AssocIndex 关联边——事实 Subject → 实体节点，
   类型映射中文（event_chain→因果、temporal→时间、thematic→主题…），权重 =
