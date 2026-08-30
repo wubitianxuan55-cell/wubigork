@@ -38,6 +38,47 @@ func attachEmotion(t Triple, ec *EmotionalContext) Triple {
 	return t
 }
 
+// ─── 因果维度（v4.9，审计 §C「无因果维度」欠账收口）──────────────
+
+// causalPatterns 确定性因果模式：中文因果连接词 → 「导致」谓词。
+// 同一事实可命中多条（分别成边）；模式经测试锁定，避免误提取。
+var causalPatterns = []struct {
+	re        *regexp.Regexp
+	predicate string
+}{
+	{regexp.MustCompile(`因为(.{1,24})[，,](?:所以)?(.{1,48})`), "导致"},
+	{regexp.MustCompile(`由于(.{1,24})[，,](?:所以)?(.{1,48})`), "导致"},
+	{regexp.MustCompile(`(.{1,24})(?:导致|引发|造成)(.{1,48})`), "导致"},
+	{regexp.MustCompile(`(.{1,24})(?:让我|使我|令我)(.{1,48})`), "导致"},
+}
+
+// extractCausalTriples 从事实摘要提取因果三元组：{因, 导致, 果}，情绪经
+// attachEmotion 随事实落图。无模式命中返回空。
+func extractCausalTriples(f *Fact) []Triple {
+	var out []Triple
+	for _, p := range causalPatterns {
+		for _, m := range p.re.FindAllStringSubmatch(f.Summary, -1) {
+			if len(m) < 3 {
+				continue
+			}
+			cause := strings.TrimSpace(m[1])
+			effect := strings.TrimSpace(m[2])
+			// 直接式（X导致Y）可能把「因为/由于」带进因侧，剥掉连接词
+			cause = strings.TrimPrefix(cause, "因为")
+			cause = strings.TrimPrefix(cause, "由于")
+			cause = strings.TrimSpace(cause)
+			if len([]rune(cause)) < 2 || len([]rune(effect)) < 2 {
+				continue
+			}
+			out = append(out, attachEmotion(Triple{
+				Subject: cause, Predicate: p.predicate, Object: effect,
+				Confidence: f.Confidence, SourceFactIDs: []string{f.ID},
+			}, f.EmotionalContext))
+		}
+	}
+	return out
+}
+
 // 正则模式
 var triplePatterns = []struct {
 	re        *regexp.Regexp

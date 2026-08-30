@@ -5,6 +5,12 @@
 
 ## 当前状态
 
+- **图谱因果维度（2026-08-30，审计 §C 欠账收口）**：extractCausalTriples 从事实
+  摘要确定性提取 {因, 导致, 果}（因为/由于…所以…、X导致/引发/造成Y、X让我/使我Y，
+  正则 + 测试锁定，直接式剥离连接词），情绪随事实落图；ingest 与文档导入双路径
+  接线，图谱面板「导致」谓词天然渲染。Go +6 测试、vitest 816/816 沿用（前端零
+  改动）、tsc/eslint 0、绑定面 539 不变。观察项：关联表 event_chain 未在图谱
+  展示；LLM 跨事实因果推断留后续设计。
 - **图谱情绪维度（2026-08-30，审计 §C 欠账收口）**：Triple 增情绪三字段
   （EmotionLabel/Intensity/Valence），事实提取 attachEmotion 落图（效价派生
   正面/负面/中性），新增 AddTriple 保留情绪（Add 兼容旧调用）；BASIC_PROFILE

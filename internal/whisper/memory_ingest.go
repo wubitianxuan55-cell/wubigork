@@ -201,6 +201,10 @@ func (p *MemoryIngestPipeline) extractTriples(fs *FactStore, sessionID string, t
 		for _, t := range extractBasicTriples(f) {
 			kg.AddTriple(t)
 		}
+		// v4.9 因果维度：因为/所以/导致/让我 模式 → {因, 导致, 果} 独立成边
+		for _, t := range extractCausalTriples(f) {
+			kg.AddTriple(t)
+		}
 	}
 }
 

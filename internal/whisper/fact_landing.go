@@ -87,6 +87,10 @@ func WriteFactRows(input WriteFactRowsInput) WriteFactRowsResult {
 						Confidence: t.Confidence, SourceFactIDs: t.SourceFactIDs,
 					}, &emo))
 				}
+				// v4.9 因果维度：导入事实同样提取因果三元组（与 ingest 一致）
+				for _, t := range extractCausalTriples(fact) {
+					input.KG.AddTriple(t)
+				}
 			}
 
 			newFacts = append(newFacts, fact)
