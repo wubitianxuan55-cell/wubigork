@@ -1228,6 +1228,7 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	KeyActiveEngineID:      func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
 	KeyModel:               func(cf *configFile, v string) error { cf.Model = v; return nil },
 	KeyDeepseekAPIKey:      func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
+	KeyGLMAPIKey:           func(cf *configFile, v string) error { cf.GLMAPIKey = v; return nil },
 	KeyOpencodeGoAPIKey:    func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
 	KeyOpencodeZenAPIKey:   func(cf *configFile, v string) error { cf.OpenCodeZenAPIKey = v; return nil },
 	KeyActiveASREngine:     func(cf *configFile, v string) error { cf.ActiveASREngine = v; return nil },

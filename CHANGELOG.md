@@ -1,5 +1,14 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · 修复 GLM Key 保存被拒（2026-08-30）
+> 真机实测：GLM 卡片保存 Key 报「不支持的配置项: glm_api_key」——config.go
+> 加了 Key 常量与字段，但漏登记 Save 白名单 saveSetters，保存被拒。
+- **修复**：saveSetters 登记 glm_api_key → configFile.GLMAPIKey。
+- **防回归**：TestSaveSetters_CoverAllAPIKeyFields 用反射断言 configFile 所有
+  `*_api_key` 字段都有 Save setter——以后新增任何密钥类配置漏登记即测试失败。
+- 验证：Go 全量绿（+1）、vitest 818/818（ProgrammingPage 1 例既有负载 flaky
+  单跑复绿）、绑定面 543 不变。
+
 ## 未发布 · GLM 按官方文档重写：无 /models 端点（2026-08-30）
 > 用户实测两轮仍不可用后核对 docs.bigmodel.cn 官方文档，发现根本性误判：
 > **智谱官方没有模型列表端点**（文档仅有 chat/completions 等），此前用

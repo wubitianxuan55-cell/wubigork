@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -759,5 +761,26 @@ func TestSave_RealtimeProviderInvalid(t *testing.T) {
 	}
 	if cfg := Load(); cfg.GetRealtimeProvider() != "openai" {
 		t.Errorf("非法值被拒后 provider = %q, want 保持 openai", cfg.GetRealtimeProvider())
+	}
+}
+
+// TestSaveSetters_CoverAllAPIKeyFields 防回归（v4.9.1 GLM 教训）：新增
+// glm_api_key 时漏登记 saveSetters，模型中心保存 Key 直接报
+// 「不支持的配置项」——本测试用反射断言：configFile 里所有 *_api_key 字段
+// （敏感密钥类配置）都必须有对应的 Save setter，新增字段漏登记即失败。
+func TestSaveSetters_CoverAllAPIKeyFields(t *testing.T) {
+	cfType := reflect.TypeOf(configFile{})
+	for i := 0; i < cfType.NumField(); i++ {
+		tag := cfType.Field(i).Tag.Get("json")
+		if tag == "" || tag == "-" {
+			continue
+		}
+		name := strings.Split(tag, ",")[0]
+		if !strings.HasSuffix(name, "_api_key") {
+			continue
+		}
+		if _, ok := saveSetters[name]; !ok {
+			t.Errorf("敏感配置项 %q（字段 %s）没有 Save setter——保存时会报「不支持的配置项」", name, cfType.Field(i).Name)
+		}
 	}
 }
