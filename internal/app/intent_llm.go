@@ -21,6 +21,7 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/intent"
+	"github.com/gaea/gaea/internal/modelengine"
 )
 
 // intentClassifierFn 兜底分类 seam：非 nil 时替代内置 LLM 分类器（测试注入）。
@@ -46,6 +47,10 @@ func (a *App) classifyIntentWithLLM(text string) *intent.Intent {
 	engine, model, err := a.resolveRoutineTarget("", "")
 	if err != nil {
 		slog.Debug("[intent] 兜底分类无可用模型", "err", err)
+		return nil
+	}
+	// 全局离线模式：分类调用只允许本地引擎，云端目标直接放弃（走聊天）。
+	if a.cfg.GetOfflineMode() && engine != string(modelengine.EngineHerdsman) && engine != string(modelengine.EngineOllama) {
 		return nil
 	}
 

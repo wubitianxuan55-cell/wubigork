@@ -32,6 +32,17 @@ const (
 	EngineOpencodeZen EngineType = "opencode-zen"
 )
 
+// IsLocal 引擎是否本地服务（数据不出本机）——全局离线模式（v4.8）据此
+// 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice），
+// 云端（xai/deepseek/opencode-*）一律跳过。
+func (t EngineType) IsLocal() bool {
+	switch t {
+	case EngineOllama, EngineHerdsman, EngineCosyVoice:
+		return true
+	}
+	return false
+}
+
 // ── 数据结构 ───────────────────────────────────────────────
 
 // ModelInfo 模型信息

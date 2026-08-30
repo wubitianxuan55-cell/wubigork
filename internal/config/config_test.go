@@ -423,6 +423,30 @@ func TestSave_IntentsLLMFallbackRoundTrip(t *testing.T) {
 	}
 }
 
+// TestSave_OfflineModeRoundTrip 全局离线模式开关（v4.8）持久化：默认关闭；
+// 开启 → 保存 → 重新加载为 true；再关闭恢复。
+func TestSave_OfflineModeRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	if cfg := Load(); cfg.GetOfflineMode() {
+		t.Error("未配置时全局离线模式默认应为关闭")
+	}
+	if err := Save(KeyOfflineMode, "1"); err != nil {
+		t.Fatalf("Save offline_mode=1 失败: %s", err)
+	}
+	if cfg := Load(); !cfg.GetOfflineMode() {
+		t.Error("保存 1 后全局离线模式应为开启")
+	}
+	if err := Save(KeyOfflineMode, "0"); err != nil {
+		t.Fatalf("Save offline_mode=0 失败: %s", err)
+	}
+	if cfg := Load(); cfg.GetOfflineMode() {
+		t.Error("保存 0 后全局离线模式应为关闭")
+	}
+}
+
 // TestSave_KeepWarmRoundTrip 本地模型保活开关（T5-3a）持久化：
 // 默认开启；显式关闭 → 保存 → 重新加载为 false；再开启恢复。
 func TestSave_KeepWarmRoundTrip(t *testing.T) {

@@ -89,6 +89,10 @@ const (
 	KeyIntentsLLMFallback = "intents_llm_fallback"
 	// 意图 LLM 兜底硬超时（毫秒，默认 2000）：超时立即走聊天管道不重试。
 	KeyIntentsLLMTimeoutMS = "intents_llm_timeout_ms"
+	// 全局离线模式（v4.8）：开启后所有 AI 路由只允许本地引擎
+	// （ollama/herdsman/cosyvoice），云端引擎（xai/deepseek/opencode-*）
+	// 一律跳过——数据不出本机的总闸。默认关闭。
+	KeyOfflineMode = "offline_mode"
 	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
 	KeyKeepWarm          = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
 	KeyAutoPreload       = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
@@ -183,6 +187,8 @@ type configFile struct {
 	IntentsLLMFallback *bool `json:"intents_llm_fallback,omitempty"`
 	// 意图 LLM 兜底硬超时毫秒（0=未配置回退默认 2000）
 	IntentsLLMTimeoutMS int `json:"intents_llm_timeout_ms,omitempty"`
+	// 全局离线模式开关（nil=默认关闭，路由只允许本地引擎）
+	OfflineMode *bool `json:"offline_mode,omitempty"`
 	// 本地模型调度开关（T5-3a/b，nil=默认开启）
 	KeepWarmEnabled *bool `json:"keep_warm_enabled,omitempty"` // 保活探针
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
@@ -305,6 +311,8 @@ type Config struct {
 	// 意图 LLM 兜底（v4.8）：开关默认关；超时默认 2000ms
 	IntentsLLMFallback  bool
 	IntentsLLMTimeoutMS int
+	// 全局离线模式（v4.8）：默认关；开启后路由只允许本地引擎
+	OfflineMode bool
 
 	// 本地模型调度（T5-3a/b，默认开启）：
 	//   KeepWarmEnabled：保活——周期性对已运行的本地模型发轻量探针，防止被
@@ -495,6 +503,20 @@ func (c *Config) GetIntentsLLMTimeoutMS() int {
 	return c.IntentsLLMTimeoutMS
 }
 
+// GetOfflineMode 读取全局离线模式开关（未显式配置时默认关闭）。
+func (c *Config) GetOfflineMode() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.OfflineMode
+}
+
+// SetOfflineMode 写入全局离线模式开关（true=所有 AI 路由只允许本地引擎）。
+func (c *Config) SetOfflineMode(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.OfflineMode = enabled
+}
+
 // SetIntentsLLMTimeoutMS 写入意图 LLM 兜底硬超时（毫秒，200-60000）。
 func (c *Config) SetIntentsLLMTimeoutMS(ms int) {
 	funcMu.Lock()
@@ -574,6 +596,8 @@ func Load() *Config {
 		// 意图 LLM 兜底（v4.8）：默认关（宁漏勿误姿态 + 语音回路延迟）；硬超时 2s。
 		IntentsLLMFallback:  false,
 		IntentsLLMTimeoutMS: 2000,
+		// 全局离线模式（v4.8）：默认关（云端引擎可用）。
+		OfflineMode: false,
 		// T5-3a/b：本地模型保活 + 启动自动预载默认开启。
 		KeepWarmEnabled: true,
 		AutoPreload:     true,
@@ -871,6 +895,9 @@ func Load() *Config {
 			}
 			if cf.IntentsLLMTimeoutMS > 0 {
 				cfg.IntentsLLMTimeoutMS = cf.IntentsLLMTimeoutMS
+			}
+			if cf.OfflineMode != nil {
+				cfg.OfflineMode = *cf.OfflineMode
 			}
 			if cf.KeepWarmEnabled != nil {
 				cfg.KeepWarmEnabled = *cf.KeepWarmEnabled
@@ -1262,6 +1289,14 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return fmt.Errorf("意图兜底超时须在 200-60000 毫秒之间（当前值: %s）", v)
 		}
 		cf.IntentsLLMTimeoutMS = n
+		return nil
+	},
+	KeyOfflineMode: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.OfflineMode = b
 		return nil
 	},
 	KeyKeepWarm: func(cf *configFile, v string) error {

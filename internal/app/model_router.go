@@ -11,17 +11,21 @@ import (
 // routeModel 解析功能域生效的 (engine, model, source)。
 // 降级链：功能绑定 → 全局活跃 → 首个可用引擎。
 // source: feature | global | fallback（供前端与诊断展示）。
+// 全局离线模式（v4.8，offline_mode）开启时只允许本地引擎
+// （EngineType.IsLocal：ollama/herdsman/cosyvoice）——云端引擎在各步一律
+// 跳过；无本地可用则返回空（调用方按「模型不可用」既有降级路径处理）。
 func (c *core) routeModel(feature string) (engine, model, source string) {
+	offline := c.cfg != nil && c.cfg.GetOfflineMode()
 	// 1. 功能绑定（功能启用 + 引擎必须存在且启用；FeatureModelBar 停用后回退全局）
 	if eng, m := c.cfg.GetFeatureModel(feature); c.cfg.GetFeatureModelEnabled(feature) && eng != "" && m != "" {
-		if e, ok := c.engineMgr.GetEngine(eng); ok && e.Enabled {
+		if e, ok := c.engineMgr.GetEngine(eng); ok && e.Enabled && !(offline && !e.Type.IsLocal()) {
 			c.emitModelRoute(feature, eng, m, "feature")
 			return eng, m, "feature"
 		}
 	}
 	// 2. 全局活跃引擎（存在且启用）
 	if eng := c.GetActiveEngine(); eng != "" {
-		if e, ok := c.engineMgr.GetEngine(eng); ok && e.Enabled {
+		if e, ok := c.engineMgr.GetEngine(eng); ok && e.Enabled && !(offline && !e.Type.IsLocal()) {
 			model = c.GetActiveModel()
 			if model == "" {
 				if dm, err := c.engineMgr.GetDefaultModel(eng); err == nil {
@@ -38,6 +42,9 @@ func (c *core) routeModel(feature string) (engine, model, source string) {
 	// 3. 首个启用引擎兜底
 	for _, e := range c.engineMgr.GetEngines() {
 		if !e.Enabled {
+			continue
+		}
+		if offline && !e.Type.IsLocal() {
 			continue
 		}
 		m, _ := c.engineMgr.GetDefaultModel(e.ID)
