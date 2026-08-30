@@ -1,5 +1,25 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · Herdsman CLI 错误透明化 (2026-08-30)
+> 真机诊断：模型中心「模型库」报「模型目录不可用，herdsman CLI 调用失败:
+> exit status 3」——CLI 其实把结构化错误写在 stdout，旧代码失败路径丢弃
+> stdout 只回显裸退出码，真实原因全被吞掉。
+- **根因（本机三路实证）**：Herdsman 桌面端本次以**管理员身份**运行——非
+  提权调用方查其 MainModule 被拒、`\\.\pipe\Herdsman-skill-v1` 连
+  READ_CONTROL（Get-Acl）都拒绝；提权进程创建的命名管道 DACL 只允许提权
+  令牌，普通权限的 gaea 打开即 Access is denied → CLI exit 3。旧提示
+  「请确认桌面端已启动」完全误导（桌面端明明在跑）。
+- **修复**：runHerdsmanCLI 失败路径捕获 stdout/stderr，优先解析 CLI 的
+  JSON 结构化错误（error 字符串/对象两态兼容），裸退出码只作最后兜底，
+  stderr 摘录一并透出；parseHerdsmanOpResult 同步容忍对象态 error。
+- **定向提示**：Access is denied → 追加「疑似 Herdsman 以管理员权限运行，
+  普通权限的 gaea 无权连接其控制管道，请用普通方式重启 Herdsman 桌面端」。
+- **用户侧解法**：普通方式重启 Herdsman（若快捷方式/兼容性设置勾选了
+  「以管理员身份运行」请取消）；或以管理员运行 gaea（不推荐，常驻提权）。
+- 验证：Go 全量绿（+3 测试：假 CLI 端到端——非零退出透出结构化错误+定向
+  提示且不再只见 exit status / 两态 error 解析+BOM 兼容 / 提示文案）；
+  前端零改动；绑定面 541 不变（drift PASS）。
+
 ## 未发布 · 工作人设收口：办公秘书 + 节奏豁免 + 出口净化 (2026-08-30)
 > 用户拍板：gaea 是工作助理，应专业、严谨的办公秘书，不是文艺女青年。
 > 微信/语音实测「[SPLIT] 裸漏 + 答非所问」三根因一并收口。

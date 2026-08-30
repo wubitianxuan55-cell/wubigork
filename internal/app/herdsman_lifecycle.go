@@ -24,29 +24,79 @@ import (
 // 统一串行后，前端批量启停天然变为有序队列（配合前端 busy 状态展示）。
 var herdsmanOpMu sync.Mutex
 
-// HerdsmanOpResult 是一次生命周期操作的结果（对齐 CLI JSON）。
-type HerdsmanOpResult struct {
-	OK      bool   `json:"ok"`
-	Status  string `json:"status"`
-	Message string `json:"message"`
-}
-
-// HerdsmanLaunchPreset 是某模型在本机的实测启动参数（来自 launch_records）。
-type HerdsmanLaunchPreset struct {
-	Model     string         `json:"model"`
-	Engine    string         `json:"engine"`
-	Port      int            `json:"port"`
-	StartedAt string         `json:"started_at"`
-	Options   map[string]any `json:"options"`
-}
-
+// herdsmanOpCLIResult 是生命周期命令的 JSON 信封。注意 error 字段两态并存：
+// 字符串（老版本）与对象 {code,message}（v4.9.1 真机实测 unavailable 时为
+// 对象）——用 RawMessage 兜底，文案提取走 herdsmanEnvelopeError。
 type herdsmanOpCLIResult struct {
-	OK     bool   `json:"ok"`
-	Error  string `json:"error,omitempty"`
+	OK     bool            `json:"ok"`
+	Error  json.RawMessage `json:"error,omitempty"`
 	Result struct {
 		Status string `json:"status"`
 		Error  string `json:"error,omitempty"`
 	} `json:"result"`
+}
+
+// herdsmanEnvelopeError 从 CLI 输出提取 {ok:false, error:...} 的错误文案。
+// error 字段字符串/对象两态兼容；ok=true 或无法解析返回 ""。
+func herdsmanEnvelopeError(data []byte) string {
+	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
+	var probe struct {
+		OK    bool            `json:"ok"`
+		Error json.RawMessage `json:"error"`
+	}
+	if err := json.Unmarshal(data, &probe); err != nil || probe.OK {
+		return ""
+	}
+	var msg string
+	if json.Unmarshal(probe.Error, &msg) == nil {
+		return strings.TrimSpace(msg)
+	}
+	var obj struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(probe.Error, &obj) == nil && obj.Message != "" {
+		return strings.TrimSpace(obj.Message)
+	}
+	return ""
+}
+
+// herdsmanErrorHint 对高频故障给出定向修复提示。v4.9.1 真机实测：Herdsman
+// 桌面端以管理员身份运行时，其 skill 控制管道（\\.\pipe\Herdsman-skill-v1）
+// 的 DACL 只允许提权令牌访问，普通权限的 gaea 打开即 Access is denied——
+// 旧文案「请确认桌面端已启动」完全误导（桌面端明明在跑）。
+func herdsmanErrorHint(msg string) string {
+	if strings.Contains(msg, "Access is denied") {
+		return msg + "（疑似 Herdsman 以管理员权限运行：普通权限的 gaea 无权连接其控制管道，请用普通方式重启 Herdsman 桌面端后重试）"
+	}
+	return msg
+}
+
+// runHerdsmanCLI 执行 herdsman.exe 子命令。非零退出时优先透出 stdout JSON 里的
+// 结构化错误（CLI 把 ok=false + error 写 stdout 后 exit 3 等）——此前用
+// Output() 在失败路径丢弃 stdout，模型中心只显示「exit status 3」，真实原因
+// 全被吞掉。
+func runHerdsmanCLI(timeout time.Duration, args ...string) ([]byte, error) {
+	exe := herdsmanExePath()
+	if exe == "" {
+		return nil, errors.New("未找到 herdsman.exe，请安装 Herdsman 或设置 HERDSMAN_EXE 环境变量")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, exe, args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if msg := herdsmanEnvelopeError(stdout.Bytes()); msg != "" {
+			return nil, fmt.Errorf("herdsman CLI 失败: %s", herdsmanErrorHint(msg))
+		}
+		if s := strings.TrimSpace(stderr.String()); s != "" {
+			return nil, fmt.Errorf("herdsman CLI 调用失败: %w（stderr: %s）", err, truncateRunes(s, 200))
+		}
+		return nil, fmt.Errorf("herdsman CLI 调用失败: %w", err)
+	}
+	return stdout.Bytes(), nil
 }
 
 type herdsmanLaunchRecord struct {
@@ -63,18 +113,20 @@ var herdsmanCLIWithTimeout = func(timeout time.Duration, args ...string) ([]byte
 	return runHerdsmanCLI(timeout, args...)
 }
 
-func runHerdsmanCLI(timeout time.Duration, args ...string) ([]byte, error) {
-	exe := herdsmanExePath()
-	if exe == "" {
-		return nil, errors.New("未找到 herdsman.exe，请安装 Herdsman 或设置 HERDSMAN_EXE 环境变量")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, exe, args...).Output()
-	if err != nil {
-		return nil, fmt.Errorf("herdsman CLI 调用失败: %w", err)
-	}
-	return out, nil
+// HerdsmanOpResult 是一次生命周期操作的结果（对齐 CLI JSON）。
+type HerdsmanOpResult struct {
+	OK      bool   `json:"ok"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+// HerdsmanLaunchPreset 是某模型在本机的实测启动参数（来自 launch_records）。
+type HerdsmanLaunchPreset struct {
+	Model     string         `json:"model"`
+	Engine    string         `json:"engine"`
+	Port      int            `json:"port"`
+	StartedAt string         `json:"started_at"`
+	Options   map[string]any `json:"options"`
 }
 
 // parseHerdsmanOpResult 解析生命周期命令的 JSON：ok=false 或 result.status
@@ -89,7 +141,8 @@ func parseHerdsmanOpResult(data []byte) (HerdsmanOpResult, error) {
 	if resp.Result.Status == "" && resp.OK {
 		out.Status = "completed"
 	}
-	msg := strings.TrimSpace(resp.Error)
+	// 信封 error 两态兼容（字符串/对象）；result.error 为字符串。
+	msg := herdsmanEnvelopeError(data)
 	if msg == "" {
 		msg = strings.TrimSpace(resp.Result.Error)
 	}
