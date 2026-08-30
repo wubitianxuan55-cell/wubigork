@@ -47,7 +47,26 @@
 
 ## 版本状态
 
-- **最新发布：v4.9.0（2026-08-30）「星枢首页·轻语记忆纵深」**：
+- **最新发布：v4.10.0（2026-08-30）「GLM 引擎 · 办公秘书人设」**：
+  git tag `v4.10.0`；基线 v4.9.0 + 9 提交；绑定面 540→543（+3：SetGlmKey/
+  GetGlmKeyStatus/AcceptMergeSuggestion）。要点：
+  - **GLM 引擎上线（三轮真机打通）**：智谱 OpenAI 兼容 paas/v4 全链路；
+    官方文档纠偏——无 /models 端点，改静态目录（18 模型，glm-5.3 旗舰默认）
+    + chat ping 验证 Key；地址防呆三防线（云端隐藏地址框/SaveEngine scheme
+    校验不回显原值/LoadState 脏数据自愈）；saveSetters 覆盖测试绝育此类错。
+  - **工作人设收口（用户拍板）**：professional tag 豁免节奏引擎（PAD 标尺
+    下 chatter 阈值形同虚设）；新增办公秘书人格（30→31）；[SPLIT] 三出口
+    上游归一；搜索触发词收窄（宁漏勿误）。
+  - **审计欠账三刀**：多跳因果链（≤2 跳「导致」链）；Verifier 通道 A 引用
+    级深化（opsJson+声明↔实况）；做梦 2.0 蒸馏真实合并（确定性检测+可逆
+    归档，T0 第一刀）。
+  - **Herdsman CLI 错误透明化**：exit 3 根因=桌面端提权运行管道拒普通权限；
+    失败路径透出结构化错误+定向提示。
+  - **验证**：Go 全量绿（+20 回归）；vitest 818/818（148 文件）；tsc/eslint 0；
+    drift PASS（543）；版本四处 4.10.0；build.bat 冒烟 200。
+  - **欠账清单**：Realtime 真机验证轮；GLM 视觉/生图路由与 Coding 端点；
+    做梦 2.0 主动预取；更深跳语义锚定因果推理；iLink 语音/视频 item。
+- **上一发布：v4.9.0（2026-08-30）「星枢首页·轻语记忆纵深」**：
   git tag `v4.9.0`；基线 v4.8.3 + 15 提交；绑定面 535→540（+5：EpisodeReplay /
   MemoryRetell / AnchorReplay / GraphSubgraph / CausalExplain）。要点：
   - **轻语记忆回放系列（审计 §C 收口）**：GaeaWhisperEpisodeReplay 按情节从
