@@ -12,7 +12,7 @@ func TestMaybeWriteTemporalAnchor_RecurringBirthdayWrites(t *testing.T) {
 	fs := NewFactStore()
 	fact := fs.Add(MemoryFact{
 		Domain: "user_profile", Subcategory: "BASIC_PROFILE", Subject: "生日",
-		Summary: "我的生日是 5 月 20 日", Weight: 1, Confidence: 0.9, SelfRelevance: 0.8,
+		Summary: "我的生日是 5 月 20 日", Weight: 1, Confidence: 0.9, SelfRelevance: 0.5,
 	})
 	var got []TemporalAnchor
 	p.maybeWriteTemporalAnchor(IngestTurnArgs{
@@ -57,7 +57,7 @@ func TestMaybeWriteTemporalAnchor_WeakFactSkips(t *testing.T) {
 // sink 收到 AnchorRecurring 锚点（MemoryWritePayload → IngestTurnArgs 透传回归）。
 func TestAfterTurn_AnchorSinkWired(t *testing.T) {
 	llm := &mockLlm{chatFunc: func(system, user string) (string, error) {
-		return `{"facts":[{"domain":"user_profile","subcategory":"BASIC_PROFILE","subject":"生日","summary":"我的生日是 5 月 20 日","weight":1.0,"confidence":0.9,"selfRelevance":0.8}]}`, nil
+		return `{"facts":[{"domain":"user_profile","subcategory":"BASIC_PROFILE","subject":"生日","summary":"我的生日是 5 月 20 日","weight":1.0,"confidence":0.9,"selfRelevance":0.5}]}`, nil
 	}}
 	p := NewMemoryIngestPipeline(llm)
 	fs := NewFactStore()
@@ -65,7 +65,7 @@ func TestAfterTurn_AnchorSinkWired(t *testing.T) {
 	p.AfterTurn(IngestTurnArgs{
 		SessionID: "s1", TurnIndex: 1,
 		UserMsg: "记住，5 月 20 日是我的生日", CompanionMsg: "好的，我记住了",
-		L2:        EmotionState{Aff: 50, Sec: 30}, // (|Aff|+|Sec|)/200 = 0.4 ≥ 0.35 触发锚点门槛
+		L2:        EmotionState{Aff: 70, Sec: 40}, // (|Aff|+|Sec|)/200 = 0.55 > 0.5 触发高权重分支
 		FactStore: fs, TotalTurns: 1,
 		TemporalAnchorSink: func(a TemporalAnchor) { got = append(got, a) },
 	})
@@ -90,5 +90,48 @@ func TestOrchestrator_AddTemporalAnchor(t *testing.T) {
 	}
 	if o.State.TemporalAnchors[0].ID != "a1" || o.State.TemporalAnchors[1].ID != "a2" {
 		t.Errorf("追加顺序不符: %+v", o.State.TemporalAnchors)
+	}
+}
+
+// TestDetectAnchorType_ScaleAligned 阈值按 0-1 抽取标尺对齐后：
+// relationship / milestone / recurring 三条分支都能真实命中。
+func TestDetectAnchorType_ScaleAligned(t *testing.T) {
+	if got := DetectAnchorType(&MemoryFact{
+		Subcategory: "OUR_BOND", SelfRelevance: 0.95,
+		EmotionalContext: &EmotionalContext{Intensity: 0.8},
+	}, "你对我来说很特别"); got != AnchorRelationship {
+		t.Errorf("关系锚点识别失败: %s", got)
+	}
+	if got := DetectAnchorType(&MemoryFact{SelfRelevance: 0.9}, "这是我们第一次见面"); got != AnchorMilestone {
+		t.Errorf("里程碑锚点识别失败: %s", got)
+	}
+	if got := DetectAnchorType(&MemoryFact{Summary: "我的生日是 5 月 20 日"}, "5 月 20 日是我的生日"); got != AnchorRecurring {
+		t.Errorf("周期纪念日识别失败: %s", got)
+	}
+}
+
+// TestShouldWriteTemporalAnchor_ScaleAligned 写入门槛按 0-1 标尺生效。
+func TestShouldWriteTemporalAnchor_ScaleAligned(t *testing.T) {
+	if !ShouldWriteTemporalAnchor(ShouldWriteTemporalAnchorInput{
+		IsNew: true, Weight: 0.95, Intensity: 0.6, Fact: &MemoryFact{},
+	}) {
+		t.Error("高权重高情绪应写锚点")
+	}
+	if !ShouldWriteTemporalAnchor(ShouldWriteTemporalAnchorInput{
+		IsNew: true, Weight: 0.85, Intensity: 0.4,
+		Fact:    &MemoryFact{Subject: "生日", Summary: "我的生日是 5 月 20 日"},
+		UserMsg: "记住我的生日",
+	}) {
+		t.Error("周期纪念日应写锚点")
+	}
+	if ShouldWriteTemporalAnchor(ShouldWriteTemporalAnchorInput{
+		IsNew: true, Weight: 0.4, Intensity: 0.2, Fact: &MemoryFact{},
+	}) {
+		t.Error("弱事实不应写锚点")
+	}
+	if ShouldWriteTemporalAnchor(ShouldWriteTemporalAnchorInput{
+		IsNew: false, Weight: 0.95, Intensity: 0.6, Fact: &MemoryFact{},
+	}) {
+		t.Error("非新事实不应重复写锚点")
 	}
 }

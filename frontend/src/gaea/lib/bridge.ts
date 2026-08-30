@@ -409,6 +409,8 @@ export interface AppBindings {
   WhisperAnchors(): Promise<WhisperAnchorView[]>;
   // WhisperAnchorReplay 按时间锚点回放「重访那一天」：锚点 → 关联情节 → 原始对话。
   WhisperAnchorReplay(anchorId: string): Promise<WhisperAnchorReplayView>;
+  // WhisperMemoryRetell 让 gaea 以当前人格口吻把一段记忆重述成故事（LLM 叙事）。
+  WhisperMemoryRetell(kind: "episode" | "anchor", id: string, personalityId: string): Promise<string>;
   // WhisperExportArchive 导出聊天记忆归档（hermes.db → Markdown 分目录），返回文件数。
   WhisperExportArchive(dir: string): Promise<number>;
   // PickDirectory 系统目录选择对话框，返回所选目录（取消返回空串）。
@@ -842,6 +844,7 @@ const gaeaToGaea = {
   WhisperEpisodeReplay: "GaeaWhisperEpisodeReplay",
   WhisperAnchors: "GaeaWhisperAnchors",
   WhisperAnchorReplay: "GaeaWhisperAnchorReplay",
+  WhisperMemoryRetell: "GaeaWhisperMemoryRetell",
   WhisperExportArchive: "GaeaWhisperExportArchive",
   PickDirectory: "GaeaPickDirectory",
   MemoryGraph: "GaeaMemoryGraph",

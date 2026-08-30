@@ -20,7 +20,7 @@ type MemoryMethods = Pick<
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
   | "MemoryHubOverview" | "ProfileList" | "ProfileSave" | "ProfileDelete"
   | "ProfileConflicts" | "ProfileResolveConflict"
-| "WhisperMemories" | "WhisperEpisodes" | "WhisperEpisodeReplay" | "WhisperAnchors" | "WhisperAnchorReplay" | "WhisperExportArchive" | "MemoryGraph"
+| "WhisperMemories" | "WhisperEpisodes" | "WhisperEpisodeReplay" | "WhisperAnchors" | "WhisperAnchorReplay" | "WhisperMemoryRetell" | "WhisperExportArchive" | "MemoryGraph"
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
@@ -186,6 +186,9 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
         emotionalValence: 0, emotionalIntensity: 0, linkedFactSummaries: [],
         replayable: false,
       };
+    },
+    async WhisperMemoryRetell() {
+      return "（mock）那天的雨声、你说话的样子，我都还记得。";
     },
     async MemoryGraph() {
       return { nodes: [], links: [] };

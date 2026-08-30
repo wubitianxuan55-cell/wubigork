@@ -1,5 +1,21 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · 记忆重述 + 锚点刻度对齐 (2026-08-30)
+> 记忆回放收尾两刀：LLM 叙事重述 + 锚点策略阈值刻度修正。
+- **GaeaWhisperMemoryRetell（绑定面 538→539，MemoryB/play）**：让 gaea 以当前
+  人格口吻把情节/锚点记忆「重述成故事」——输入复用确定性回放（摘要 + 情绪 +
+  原文对话），系统提示要求第一人称、称对方「你」、≤300 字、不复述字段名、结尾
+  带当下感受；模型绑定沿用轻语 chat 功能绑定（引擎经 opts 显式传入）。4 个 Go
+  测试（episode / anchor / 未知类型 / 上下文组装）。
+- **锚点策略刻度对齐（偏离 ackem 原值，已注释说明）**：factExtractionPrompt 的
+  weight/selfRelevance 标尺是 0-1，原阈值（weight≥2、selfRelevance≥4.0/4.5）
+  在标尺上不可达，导致里程碑/关系分支永不触发。对齐为 0.9/0.8/0.9（0-1 标尺
+  语义等价），补策略测试 2 组；旧夹具按新语义修正。
+- **前端**：情节/纪念日弹窗新增「让 gaea 重述这段记忆」按钮（加载/失败/叙事块
+  三态），MemoryRetell 组件两处共用。vitest +2（episode / anchor 重述）。
+- 验证：Go 全量绿；vitest **815/815**（+2）；tsc/eslint 0；绑定面漂移
+  PASS（539）。
+
 ## 未发布 · 时间锚点「重访那一天」 (2026-08-30)
 > 记忆回放续刀（审计 §C 欠账收口）：锚点策略接线 + 纪念日入口 + 锚点→情节回放。
 - **写路径接线（审计同类骨架欠账：ShouldWriteTemporalAnchor/BuildTemporalAnchor

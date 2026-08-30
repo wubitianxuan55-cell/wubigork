@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DownloadOutlined, HeartOutlined, ReadOutlined, IdcardOutlined, HomeOutlined, AimOutlined, SmileOutlined, ClockCircleOutlined, ShareAltOutlined, HistoryOutlined, CalendarOutlined } from "@ant-design/icons";
+import { DownloadOutlined, HeartOutlined, ReadOutlined, IdcardOutlined, HomeOutlined, AimOutlined, SmileOutlined, ClockCircleOutlined, ShareAltOutlined, HistoryOutlined, CalendarOutlined, SoundOutlined } from "@ant-design/icons";
 import { Modal, message } from "antd";
 import { RefreshCw } from "../../icons";
 import { app } from "../../lib/bridge";
@@ -428,6 +428,7 @@ export function WhisperMemoryLibrary() {
             </div>
             {/* 记忆回放：重建该情节的原始对话（审计 §C 欠账收口） */}
             <ReplayDialogue replay={replay} loading={replayLoading} error={replayError} />
+            <MemoryRetell kind="episode" id={selectedEp.id} personalityId={currentPersonalityId()} />
           </div>
         )}
       </Modal>
@@ -471,6 +472,7 @@ export function WhisperMemoryLibrary() {
               loading={anchorReplayLoading}
               error={anchorReplayError}
             />
+            <MemoryRetell kind="anchor" id={selectedAnchor.id} personalityId={currentPersonalityId()} />
           </div>
         )}
       </Modal>
@@ -526,6 +528,44 @@ function ReplayDialogue(p: { replay: WhisperEpisodeReplayView | null; loading: b
       ) : (
         <div className="py-2 text-fg-faint text-[12px] leading-relaxed">
           {p.replay ? "原始对话已超出保留范围（仅存记忆摘要），无法逐字回放。" : "暂无可回放的原始对话。"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** MemoryRetell 让 gaea 用当前人格口吻把这段记忆重述成故事（LLM 叙事，只读）。 */
+function MemoryRetell(p: { kind: "episode" | "anchor"; id: string; personalityId: string }) {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const retell = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const t = await app.WhisperMemoryRetell(p.kind, p.id, p.personalityId);
+      setText(t);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [p.kind, p.id, p.personalityId]);
+  return (
+    <div className="mt-2 pt-2.5 border-t border-border">
+      <button
+        className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg border border-pink-400/30 text-pink-300/90 hover:bg-pink-500/10 transition-colors text-[12px] disabled:opacity-50"
+        onClick={retell}
+        disabled={loading}
+        title="让 gaea 用当前人格口吻把这段记忆讲成故事（调用模型，只读）"
+      >
+        <SoundOutlined style={{ fontSize: 12 }} />
+        {loading ? "gaea 正在回忆…" : "让 gaea 重述这段记忆"}
+      </button>
+      {error && <div className="mt-1.5 text-[12px] text-red-400">重述失败：{error}</div>}
+      {text && (
+        <div className="mt-2 p-3 rounded-lg bg-pink-500/10 border border-pink-400/20 text-fg text-[12.5px] leading-relaxed whitespace-pre-wrap">
+          {text}
         </div>
       )}
     </div>

@@ -307,6 +307,7 @@ export const bindingNames = [
   "GaeaWhisperExportArchive",
   "GaeaWhisperGraphSubgraph",
   "GaeaWhisperMemories",
+  "GaeaWhisperMemoryRetell",
   "GaeaWhisperProactiveConfig",
   "GaeaWhisperProactiveNow",
   "GaeaWhisperSetProactiveConfig",

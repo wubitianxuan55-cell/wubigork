@@ -72,6 +72,7 @@ export const GAEA_METHOD_FACETS = {
   WhisperEpisodeReplay: "play",
   WhisperAnchors: "play",
   WhisperAnchorReplay: "play",
+  WhisperMemoryRetell: "play",
   WhisperExportArchive: "play",
   // v4.3 会客厅：关系图谱/主动关心（轻语数据面）；书封生成（创作间 play）
   WhisperGraphSubgraph: "play",

@@ -5,6 +5,13 @@
 
 ## 当前状态
 
+- **记忆重述 + 锚点刻度对齐（2026-08-30，记忆回放收尾两刀）**：
+  GaeaWhisperMemoryRetell（绑定面 539，play）——LLM 以当前人格口吻把情节/锚点
+  记忆重述成故事（输入复用确定性回放：摘要+情绪+原文对话；第一人称/称「你」/
+  ≤300 字），episode/anchor 双入口 + 前端「让 gaea 重述这段记忆」按钮（MemoryRetell
+  组件三态）；锚点策略阈值刻度对齐（weight≥2/selfRelevance≥4 在 0-1 抽取标尺上
+  不可达 → 0.9/0.8/0.9，偏离 ackem 已注释），补策略测试 2 组。Go 全量绿、
+  vitest 815/815、tsc/eslint 0、drift PASS（539）。
 - **时间锚点「重访那一天」（2026-08-30，记忆回放续刀）**：写路径接线——
   ShouldWriteTemporalAnchor/BuildTemporalAnchor 此前有定义无生产调用（同类骨架
   欠账），现经 MemoryWritePayload/IngestTurnArgs 的 TemporalAnchorSink 逐事实

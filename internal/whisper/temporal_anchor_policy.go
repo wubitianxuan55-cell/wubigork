@@ -24,15 +24,18 @@ var recurringSignals = []string{
 	"年底", "年初",
 }
 
-// DetectAnchorType 检测事实的时间锚类型
+// DetectAnchorType 检测事实的时间锚类型。
+// 阈值按 LLM 抽取标尺对齐（factExtractionPrompt：weight 0.1-1.0、
+// selfRelevance 0-1.0）：原 ackem 值（4.5/4.0）在标尺上不可达，导致里程碑/
+// 关系分支永不触发，属刻度错位（2026-08-30 对齐）。
 func DetectAnchorType(fact *MemoryFact, userMsg string) TemporalAnchorType {
-	if fact.Subcategory == "OUR_BOND" && fact.SelfRelevance >= 4.5 {
+	if fact.Subcategory == "OUR_BOND" && fact.SelfRelevance >= 0.9 {
 		if fact.EmotionalContext != nil && fact.EmotionalContext.Intensity >= 0.7 {
 			return AnchorRelationship
 		}
 	}
 
-	if fact.SelfRelevance >= 4.0 {
+	if fact.SelfRelevance >= 0.8 {
 		return AnchorMilestone
 	}
 	if fact.EmotionalContext != nil && fact.EmotionalContext.Intensity >= 0.8 {
@@ -66,13 +69,13 @@ func ShouldWriteTemporalAnchor(input ShouldWriteTemporalAnchorInput) bool {
 
 	anchorType := DetectAnchorType(input.Fact, input.UserMsg)
 
-	// 原强门槛：高 weight + 高情绪
-	if input.Weight >= 2 && input.Intensity > 0.5 {
+	// 原强门槛：高 weight + 高情绪（weight 阈值按 0-1 抽取标尺对齐：0.9 ≈ 原 2）
+	if input.Weight >= 0.9 && input.Intensity > 0.5 {
 		return true
 	}
 
 	// 周期性纪念日：允许较低 weight/情绪
-	if anchorType == AnchorRecurring && input.Weight >= 1 && input.Intensity >= 0.35 {
+	if anchorType == AnchorRecurring && input.Weight >= 0.8 && input.Intensity >= 0.35 {
 		return true
 	}
 
@@ -80,7 +83,7 @@ func ShouldWriteTemporalAnchor(input ShouldWriteTemporalAnchorInput) bool {
 		return true
 	}
 
-	if anchorType == AnchorMilestone && input.Weight >= 1 && input.Intensity >= 0.45 {
+	if anchorType == AnchorMilestone && input.Weight >= 0.8 && input.Intensity >= 0.45 {
 		return true
 	}
 

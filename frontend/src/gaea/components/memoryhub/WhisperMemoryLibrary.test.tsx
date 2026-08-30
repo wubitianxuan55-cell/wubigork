@@ -2,12 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { WhisperMemoryLibrary } from "./WhisperMemoryLibrary";
 
-const { memMock, epMock, replayMock, anchorsMock, anchorReplayMock, pickDirMock, exportMock } = vi.hoisted(() => ({
+const { memMock, epMock, replayMock, anchorsMock, anchorReplayMock, retellMock, pickDirMock, exportMock } = vi.hoisted(() => ({
   memMock: vi.fn(),
   epMock: vi.fn(),
   replayMock: vi.fn(),
   anchorsMock: vi.fn(),
   anchorReplayMock: vi.fn(),
+  retellMock: vi.fn(),
   pickDirMock: vi.fn(),
   exportMock: vi.fn(),
 }));
@@ -19,6 +20,7 @@ vi.mock("../../lib/bridge", () => ({
     WhisperEpisodeReplay: replayMock,
     WhisperAnchors: anchorsMock,
     WhisperAnchorReplay: anchorReplayMock,
+    WhisperMemoryRetell: retellMock,
     PickDirectory: pickDirMock,
     WhisperExportArchive: exportMock,
   },
@@ -105,6 +107,7 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
     replayMock.mockReset();
     anchorsMock.mockReset();
     anchorReplayMock.mockReset();
+    retellMock.mockReset();
     pickDirMock.mockReset();
     exportMock.mockReset();
     memMock.mockResolvedValue(FACTS);
@@ -112,6 +115,7 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
     replayMock.mockResolvedValue({ ...REPLAY, dialogue: [], replayable: false });
     anchorsMock.mockResolvedValue(ANCHORS);
     anchorReplayMock.mockResolvedValue({ ...ANCHOR_REPLAY, episodeReplay: undefined, replayable: false });
+    retellMock.mockResolvedValue("（mock）那天的雨声、你说话的样子，我都还记得。");
   });
 
   it("默认事实 tab 按 domain 分组渲染：身份/社交/其他 组标题与条数", async () => {
@@ -251,6 +255,34 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
     expect(await screen.findByText("回放原始对话")).toBeTruthy();
     expect(screen.getByText("其实是 5 月 20 日")).toBeTruthy();
     expect(screen.getByText("我记下了")).toBeTruthy();
+  });
+
+  it("情节详情中点击「让 gaea 重述这段记忆」展示 LLM 叙事", async () => {
+    retellMock.mockResolvedValue("那晚的雨声，我一直记得。");
+    render(<WhisperMemoryLibrary />);
+    await screen.findByText("身份");
+
+    fireEvent.click(screen.getByRole("button", { name: /情节/ }));
+    await screen.findByText("深夜一起改 bug 到天亮");
+    fireEvent.click(screen.getByText("深夜一起改 bug 到天亮"));
+    fireEvent.click(await screen.findByRole("button", { name: /让 gaea 重述这段记忆/ }));
+
+    expect(await screen.findByText("那晚的雨声，我一直记得。")).toBeTruthy();
+    await waitFor(() => expect(retellMock).toHaveBeenCalledWith("episode", "e1", expect.any(String)));
+  });
+
+  it("纪念日详情中点击重述展示 LLM 叙事", async () => {
+    retellMock.mockResolvedValue("你的生日，我怎么会忘。");
+    render(<WhisperMemoryLibrary />);
+    await screen.findByText("身份");
+
+    fireEvent.click(screen.getByRole("button", { name: /纪念日/ }));
+    await screen.findByText("2026-05-20");
+    fireEvent.click(screen.getByText("2026-05-20"));
+    fireEvent.click(await screen.findByRole("button", { name: /让 gaea 重述这段记忆/ }));
+
+    expect(await screen.findByText("你的生日，我怎么会忘。")).toBeTruthy();
+    await waitFor(() => expect(retellMock).toHaveBeenCalledWith("anchor", "a1", expect.any(String)));
   });
 
   it("点击情节打开详情 Modal：含 summary 与情绪/强度/关键词/会话", async () => {
