@@ -341,6 +341,50 @@ func TestSave_OfficeLocalRoundTrip(t *testing.T) {
 	}
 }
 
+// TestSave_ReadScreenFlagsRoundTrip 读屏纵深开关（v4.8）持久化：摘要默认
+// 开启（只走本地 Herdsman）、留档默认关闭（exports 会进工位检索面）。
+func TestSave_ReadScreenFlagsRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	// 默认：摘要开、留档关
+	cfg := Load()
+	if !cfg.GetReadScreenSummary() {
+		t.Error("未配置时读屏摘要默认应为开启")
+	}
+	if cfg.GetReadScreenKeepLast() {
+		t.Error("未配置时读屏留档默认应为关闭")
+	}
+
+	// 显式对调 → 持久化 → 读取
+	if err := Save(KeyReadScreenSummary, "0"); err != nil {
+		t.Fatalf("Save read_screen_summary=0 失败: %s", err)
+	}
+	if err := Save(KeyReadScreenKeepLast, "1"); err != nil {
+		t.Fatalf("Save read_screen_keep_last=1 失败: %s", err)
+	}
+	cfg = Load()
+	if cfg.GetReadScreenSummary() {
+		t.Error("保存 0 后读屏摘要应为关闭")
+	}
+	if !cfg.GetReadScreenKeepLast() {
+		t.Error("保存 1 后读屏留档应为开启")
+	}
+
+	// 恢复默认语义
+	if err := Save(KeyReadScreenSummary, "1"); err != nil {
+		t.Fatalf("Save read_screen_summary=1 失败: %s", err)
+	}
+	if err := Save(KeyReadScreenKeepLast, "0"); err != nil {
+		t.Fatalf("Save read_screen_keep_last=0 失败: %s", err)
+	}
+	cfg = Load()
+	if !cfg.GetReadScreenSummary() || cfg.GetReadScreenKeepLast() {
+		t.Error("恢复后应为 摘要开/留档关")
+	}
+}
+
 // TestSave_KeepWarmRoundTrip 本地模型保活开关（T5-3a）持久化：
 // 默认开启；显式关闭 → 保存 → 重新加载为 false；再开启恢复。
 func TestSave_KeepWarmRoundTrip(t *testing.T) {

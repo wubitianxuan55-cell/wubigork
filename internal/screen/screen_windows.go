@@ -24,6 +24,10 @@ var (
 	procSelectObject       = modGdi32.NewProc("SelectObject")
 	procDeleteObject       = modGdi32.NewProc("DeleteObject")
 	procBitBlt             = modGdi32.NewProc("BitBlt")
+
+	// 多显示器枚举（读屏纵深 v4.8）。
+	procEnumDisplayMonitors = modUser32.NewProc("EnumDisplayMonitors")
+	procGetMonitorInfoW     = modUser32.NewProc("GetMonitorInfoW")
 )
 
 const (
@@ -34,6 +38,8 @@ const (
 	srcCopy           = 0x00CC0020
 	biRGB             = 0
 	dibRGBColors      = 0
+
+	monitorInfofPrimary = 0x1 // MONITORINFOF_PRIMARY
 )
 
 type bitmapInfoHeader struct {
@@ -55,12 +61,68 @@ type bitmapInfo struct {
 	BmiColors [1]uint32
 }
 
+// Monitor 单块显示器的虚拟桌面矩形（读屏纵深 v4.8）。
+type Monitor struct {
+	X, Y    int
+	W, H    int
+	Primary bool
+}
+
+// gdiRect 与 Win32 RECT 对齐。
+type gdiRect struct {
+	Left, Top, Right, Bottom int32
+}
+
+// monitorInfo 与 Win32 MONITORINFO 对齐（GetMonitorInfoW 用）。
+type monitorInfo struct {
+	CbSize   uint32
+	RcMonitor gdiRect
+	RcWork    gdiRect
+	DwFlags  uint32
+}
+
+// Monitors 枚举所有显示器（虚拟桌面坐标系）。单屏机器返回 1 条且 Primary=true；
+// 失败返回错误（调用方诚实回退整屏捕获）。
+func Monitors() ([]Monitor, error) {
+	var out []Monitor
+	cb := syscall.NewCallback(func(hmon, hdc, clip, lparam uintptr) uintptr {
+		var mi monitorInfo
+		mi.CbSize = uint32(unsafe.Sizeof(mi))
+		r, _, _ := procGetMonitorInfoW.Call(hmon, uintptr(unsafe.Pointer(&mi)))
+		if r == 0 {
+			return 1 // 单块信息获取失败不中断枚举（宁漏勿误：少一块好过硬失败）
+		}
+		out = append(out, Monitor{
+			X:       int(mi.RcMonitor.Left),
+			Y:       int(mi.RcMonitor.Top),
+			W:       int(mi.RcMonitor.Right - mi.RcMonitor.Left),
+			H:       int(mi.RcMonitor.Bottom - mi.RcMonitor.Top),
+			Primary: mi.DwFlags&monitorInfofPrimary != 0,
+		})
+		return 1 // 继续枚举
+	})
+	r, _, callErr := procEnumDisplayMonitors.Call(0, 0, cb, 0)
+	if r == 0 {
+		return nil, fmt.Errorf("枚举显示器失败: %v", callErr)
+	}
+	if len(out) == 0 {
+		return nil, errors.New("未枚举到任何显示器")
+	}
+	return out, nil
+}
+
 // Capture 捕获整个虚拟屏幕（多显示器合并区域），返回 RGBA 图像。
 func Capture() (image.Image, error) {
 	x := int(sysMetrics(smXVirtualScreen))
 	y := int(sysMetrics(smYVirtualScreen))
 	w := int(sysMetrics(smCxVirtualScreen))
 	h := int(sysMetrics(smCyVirtualScreen))
+	return CaptureArea(x, y, w, h)
+}
+
+// CaptureArea 捕获虚拟桌面坐标系中的指定矩形（读屏纵深 v4.8：单显示器
+// 选择的底层能力；Capture() 是它对整个虚拟屏的薄封装，行为不变）。
+func CaptureArea(x, y, w, h int) (image.Image, error) {
 	if w <= 0 || h <= 0 {
 		return nil, fmt.Errorf("截图：无效屏幕尺寸 %dx%d", w, h)
 	}

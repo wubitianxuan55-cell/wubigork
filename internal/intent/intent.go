@@ -8,6 +8,7 @@
 package intent
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -76,10 +77,110 @@ var reImage = regexp.MustCompile(
 // 状态查询。
 var reStatus = regexp.MustCompile(`(?:现在)?(?:用的?|在用|是什么|什么|哪个)(?:模型|引擎)|(?:模型|引擎)(?:状态|怎么样|是啥)|当前(?:模型|引擎)`)
 
-// 读屏（屏幕感知，S4.6 收口）：必须明确指向「屏幕」——读/念/看/识别 + 屏幕，
-// 或「屏幕上有什么/写了什么」。窄规则纪律：不含裸「读/看」（那是导航/闲聊）。
+// 读屏（屏幕感知，S4.6 收口；v4.8 读屏纵深扩展显示器选择）：必须明确指向
+// 「屏幕」——读/念/看/识别/截 + 屏幕/主屏/副屏/第N屏，或「屏幕上有什么/写了
+// 什么」。窄规则纪律：不含裸「读/看」（那是导航/闲聊），主屏/副屏同样必须
+// 带动词（「主屏幕坏了」不触发截图）。
 var reReadScreen = regexp.MustCompile(
-	`(?:读|念|看|识别).{0,2}屏幕|屏幕.{0,2}(?:读|念|看)|屏幕上.{0,4}(?:什么|啥)|读屏`)
+	`(?:读|念|看|识别|截).{0,2}(?:屏幕|主屏|副屏|第\s*[0-9一二三四五六七八九十]+\s*(?:块|个)?\s*屏幕?)` +
+		`|屏幕.{0,2}(?:读|念|看)|屏幕上.{0,4}(?:什么|啥)|读屏`)
+
+// 读屏序数修饰（读屏纵深 v4.8）：「第二块屏幕/第2屏」选中第 N 块显示器；
+// 「主屏/副屏」选中主/副。仅在 reReadScreen 已命中的分支里解释——不扩大
+// 误触发面。
+var reScreenOrdinal = regexp.MustCompile(`第\s*([0-9一二三四五六七八九十]+)\s*(?:块|个)?\s*屏`)
+var reScreenPrimary = regexp.MustCompile(`主屏`)
+var reScreenSecondary = regexp.MustCompile(`副屏`)
+
+// readScreenTarget 从读屏命中文本解析显示器选择：缺省整屏（多显示器合并），
+// "screen:N" = 第 N 块（1 起），"screen:primary" = 主屏，副屏按第 2 块处理。
+// 序数解析不出（如「第百屏」）诚实回退整屏——宁漏勿误。
+func readScreenTarget(t string) string {
+	if m := reScreenOrdinal.FindStringSubmatch(t); m != nil {
+		if n := parseCnOrdinal(m[1]); n > 0 {
+			return fmt.Sprintf("screen:%d", n)
+		}
+	}
+	if reScreenPrimary.MatchString(t) {
+		return "screen:primary"
+	}
+	if reScreenSecondary.MatchString(t) {
+		return "screen:2"
+	}
+	return "screen"
+}
+
+// parseCnOrdinal 中文/数字序数 → int。支持纯数字、一..九、「十」「十X」「X十」
+// 「X十Y」组合（X/Y ∈ 一..九）；不支持返回 0。
+func parseCnOrdinal(s string) int {
+	return cnOrdinal(s)
+}
+
+var cnDigits = map[rune]int{
+	'一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+	'六': 6, '七': 7, '八': 8, '九': 9,
+}
+
+// cnOrdinal 「第二/2/十一/二十三」→ int；解析不出返回 0。
+func cnOrdinal(s string) int {
+	if s == "" {
+		return 0
+	}
+	// 纯阿拉伯数字。
+	allDigit := true
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			allDigit = false
+			break
+		}
+	}
+	if allDigit {
+		n := 0
+		for _, r := range s {
+			n = n*10 + int(r-'0')
+		}
+		if n > 99 {
+			return 0 // 序数面板：超过两位数的「屏幕编号」视为没听懂
+		}
+		return n
+	}
+	// 中文组合：[X]十[Y] / 单字 / 纯十。
+	n := 0
+	if i := strings.IndexRune(s, '十'); i >= 0 {
+		x := 1
+		if i > 0 {
+			x = 0
+			for _, r := range s[:i] {
+				d, ok := cnDigits[r]
+				if !ok {
+					return 0
+				}
+				x = x*10 + d
+			}
+		}
+		n += x * 10
+		rest := s[i+len("十"):]
+		for _, r := range rest {
+			d, ok := cnDigits[r]
+			if !ok {
+				return 0
+			}
+			n += d
+		}
+		return n
+	}
+	for _, r := range s {
+		d, ok := cnDigits[r]
+		if !ok {
+			return 0
+		}
+		n = n*10 + d
+	}
+	if n > 99 {
+		return 0
+	}
+	return n
+}
 
 // 提醒类（宽匹配放最后；时间解析在执行层）。
 var reReminder = regexp.MustCompile(`提醒|叫我`)
@@ -112,9 +213,9 @@ func Parse(text string) *Intent {
 		}
 	}
 
-	// ③ 读屏（屏幕感知；明确指向「屏幕」才命中）
+	// ③ 读屏（屏幕感知；明确指向「屏幕」才命中；Target 带显示器选择，v4.8）
 	if reReadScreen.MatchString(t) {
-		return &Intent{Action: ActionReadScreen, Target: "screen", Text: t}
+		return &Intent{Action: ActionReadScreen, Target: readScreenTarget(t), Text: t}
 	}
 
 	// ④ 状态

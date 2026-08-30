@@ -76,6 +76,13 @@ const (
 	// 资料摘要、知识导入、记忆整理）默认路由本地 Herdsman，数据不出本机、
 	// 省 token；Herdsman 停用/不可用时回退常规路由。默认开启。
 	KeyOfficeLocal = "office_local"
+	// 读屏摘要（读屏纵深 v4.8）：「读一下屏幕」OCR 文本超过 300 字时用本地
+	// 模型压缩成 ≤200 字口语化摘要再朗读；只走本地 Herdsman（路由回退云端
+	// 时放弃摘要退回截断，屏幕内容不出本机）。默认开启。
+	KeyReadScreenSummary = "read_screen_summary"
+	// 读屏留档（读屏纵深 v4.8）：把最近一次读屏截图以「屏幕-最近.png」滚动
+	// 覆盖存进 .gaea/exports（会进工位检索面）。默认关闭。
+	KeyReadScreenKeepLast = "read_screen_keep_last"
 	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
 	KeyKeepWarm          = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
 	KeyAutoPreload       = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
@@ -162,6 +169,10 @@ type configFile struct {
 	SensitiveLocal *bool `json:"sensitive_local,omitempty"`
 	// 办公本地优先开关（nil=默认开启，true=办公功能级 AI 调用走本地 Herdsman）
 	OfficeLocal *bool `json:"office_local,omitempty"`
+	// 读屏摘要开关（nil=默认开启，OCR 长文本本地摘要后朗读）
+	ReadScreenSummary *bool `json:"read_screen_summary,omitempty"`
+	// 读屏留档开关（nil=默认关闭，最近读屏截图覆盖存 exports）
+	ReadScreenKeepLast *bool `json:"read_screen_keep_last,omitempty"`
 	// 本地模型调度开关（T5-3a/b，nil=默认开启）
 	KeepWarmEnabled *bool `json:"keep_warm_enabled,omitempty"` // 保活探针
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
@@ -278,6 +289,9 @@ type Config struct {
 	// true=本地优先（默认）；false=按常规路由（可回云端）。
 	SensitiveLocal bool
 	OfficeLocal    bool
+	// 读屏纵深（v4.8）：摘要/留档开关
+	ReadScreenSummary bool
+	ReadScreenKeepLast bool
 
 	// 本地模型调度（T5-3a/b，默认开启）：
 	//   KeepWarmEnabled：保活——周期性对已运行的本地模型发轻量探针，防止被
@@ -418,6 +432,34 @@ func (c *Config) SetOfficeLocal(enabled bool) {
 	c.OfficeLocal = enabled
 }
 
+// GetReadScreenSummary 读取读屏摘要开关（未显式配置时默认开启）。
+func (c *Config) GetReadScreenSummary() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.ReadScreenSummary
+}
+
+// SetReadScreenSummary 写入读屏摘要开关（true=OCR 长文本本地摘要后朗读）。
+func (c *Config) SetReadScreenSummary(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.ReadScreenSummary = enabled
+}
+
+// GetReadScreenKeepLast 读取读屏留档开关（未显式配置时默认关闭）。
+func (c *Config) GetReadScreenKeepLast() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.ReadScreenKeepLast
+}
+
+// SetReadScreenKeepLast 写入读屏留档开关（true=最近读屏截图覆盖存 exports）。
+func (c *Config) SetReadScreenKeepLast(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.ReadScreenKeepLast = enabled
+}
+
 // GetKeepWarm 读取本地模型保活开关（T5-3a，未显式配置时默认开启）。
 func (c *Config) GetKeepWarm() bool {
 	funcMu.RLock()
@@ -483,6 +525,10 @@ func Load() *Config {
 		SensitiveLocal: true,
 		// 2026-08-28：办公板块功能级 AI 调用默认本地优先（数据不出本机 + 省 token）。
 		OfficeLocal: true,
+		// 读屏纵深（v4.8）：摘要默认开（只走本地 Herdsman，失败退回截断）；
+		// 留档默认关（exports 会进工位检索面）。
+		ReadScreenSummary:  true,
+		ReadScreenKeepLast: false,
 		// T5-3a/b：本地模型保活 + 启动自动预载默认开启。
 		KeepWarmEnabled: true,
 		AutoPreload:     true,
@@ -768,6 +814,12 @@ func Load() *Config {
 			}
 			if cf.OfficeLocal != nil {
 				cfg.OfficeLocal = *cf.OfficeLocal
+			}
+			if cf.ReadScreenSummary != nil {
+				cfg.ReadScreenSummary = *cf.ReadScreenSummary
+			}
+			if cf.ReadScreenKeepLast != nil {
+				cfg.ReadScreenKeepLast = *cf.ReadScreenKeepLast
 			}
 			if cf.KeepWarmEnabled != nil {
 				cfg.KeepWarmEnabled = *cf.KeepWarmEnabled
@@ -1124,6 +1176,22 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.OfficeLocal = b
+		return nil
+	},
+	KeyReadScreenSummary: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.ReadScreenSummary = b
+		return nil
+	},
+	KeyReadScreenKeepLast: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.ReadScreenKeepLast = b
 		return nil
 	},
 	KeyKeepWarm: func(cf *configFile, v string) error {

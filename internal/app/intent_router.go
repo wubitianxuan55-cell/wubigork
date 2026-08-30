@@ -14,13 +14,19 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"image"
 	"image/png"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/provider"
+	"github.com/gaea/gaea/internal/gaea/spaces"
 	"github.com/gaea/gaea/internal/screen"
 	"github.com/gaea/gaea/internal/intent"
 )
@@ -135,7 +141,17 @@ func (a *App) intentPreview(it *intent.Intent) IntentResult {
 		}
 		return IntentResult{Reply: fmt.Sprintf("将设提醒：%s（%s）——到点用微信叫你", stripReminderText(it.Text), fire.Format("1月2日 15:04")), Action: string(it.Action), Target: it.Target, Handled: true}
 	case intent.ActionReadScreen:
-		return IntentResult{Reply: "将截取屏幕并识别屏幕上的文字（OCR）", Action: string(it.Action), Target: it.Target, Handled: true}
+		switch label := "将截取屏幕并识别屏幕上的文字（OCR）"; {
+		case it.Target == "screen:primary":
+			return IntentResult{Reply: "将截取主屏并识别屏幕上的文字（OCR）", Action: string(it.Action), Target: it.Target, Handled: true}
+		case strings.HasPrefix(it.Target, "screen:"):
+			if n, err := strconv.Atoi(strings.TrimPrefix(it.Target, "screen:")); err == nil && n > 0 {
+				label = fmt.Sprintf("将截取第 %d 块屏幕并识别屏幕上的文字（OCR）", n)
+			}
+			return IntentResult{Reply: label, Action: string(it.Action), Target: it.Target, Handled: true}
+		default:
+			return IntentResult{Reply: label, Action: string(it.Action), Target: it.Target, Handled: true}
+		}
 	}
 	return IntentResult{}
 }
@@ -225,12 +241,17 @@ func (a *App) execReminder(it *intent.Intent) (string, bool) {
 	return fmt.Sprintf("好，已设提醒：%s（%s）——到点我用微信叫你。", r.Text, r.FireAt.Format("1月2日 15:04")), true
 }
 
-// execReadScreen 屏幕感知能力（v4.7 S4.6 收口「读一下屏幕」）：截屏 → OCR →
-// 文本回传（语音入口经 TTS 朗读，命令面板入口内联展示）。截屏仅在用户显式
-// 说出指令时触发——触点层入口（语音/面板/微信指令）已承担「显式发起」语义；
-// 截屏文件进系统临时目录，即用即删，不落工作区。
+// execReadScreen 屏幕感知能力（v4.7 S4.6 收口「读一下屏幕」；v4.8 读屏纵深）：
+// 截屏（可按显示器选择：Target="screen" 整个虚拟屏 / "screen:N" 第 N 块 /
+// "screen:primary" 主屏）→ OCR → 文本回传（语音入口经 TTS 朗读，命令面板入口
+// 内联展示）。截屏仅在用户显式说出指令时触发——触点层入口（语音/面板/微信
+// 指令）已承担「显式发起」语义；截屏文件进系统临时目录，即用即删，不落工作区
+// （read_screen_keep_last 开启时额外在 .gaea/exports 留「屏幕-最近.png」滚动
+// 覆盖一份）。OCR 长文本（>300 字）且 read_screen_summary 开启时先用本地模型
+// 压成口语化摘要再朗读（摘要只走本地 Herdsman，屏幕内容不出本机；摘要不可用
+// 退回 300 字截断）。
 func (a *App) execReadScreen(it *intent.Intent) (string, bool) {
-	img, err := screen.Capture()
+	img, err := a.captureScreenTarget(it.Target)
 	if err != nil {
 		slog.Warn("[intent] 截屏失败", "err", err)
 		return "截屏失败：" + err.Error() + "。", true
@@ -263,9 +284,140 @@ func (a *App) execReadScreen(it *intent.Intent) (string, bool) {
 	if text == "" {
 		return "屏幕上没有识别出文字。", true
 	}
-	// TTS/面板展示口径：长文本截断（完整内容引导走识图/截图流程）
-	if runes := []rune(text); len(runes) > 300 {
+	// 留档（可选，默认关）：exports 会进工位检索面——开关文案必须明示这一权衡。
+	keepNote := ""
+	if a.cfg != nil && a.cfg.GetReadScreenKeepLast() {
+		if p, kerr := a.keepScreenShot(path); kerr == nil {
+			keepNote = "（截图已留档：" + p + "）"
+		} else {
+			slog.Warn("[intent] 读屏截图留档失败", "err", kerr)
+		}
+	}
+	// TTS/面板展示口径：长文本截断（完整内容引导走识图/截图流程）；
+	// 摘要可用且开启时优先摘要（更短的口语化朗读）。
+	runes := []rune(text)
+	if len(runes) > 300 {
+		if a.cfg != nil && a.cfg.GetReadScreenSummary() {
+			if sum, ok := a.summarizeReadScreenText(text); ok {
+				return "屏幕上的内容概要：" + sum + keepNote, true
+			}
+		}
 		text = string(runes[:300]) + "……（屏幕文字较长，已截断）"
 	}
-	return "屏幕上的文字如下：" + text, true
+	return "屏幕上的文字如下：" + text + keepNote, true
+}
+
+// captureScreenTarget 按 Target 选择捕获区域：缺省/未知值 = 整个虚拟屏
+// （多显示器合并，向后兼容 v4.7）；"screen:N" = 第 N 块显示器（越界诚实
+// 报错）；"screen:primary" = 主屏。
+func (a *App) captureScreenTarget(target string) (image.Image, error) {
+	if rest, ok := strings.CutPrefix(target, "screen:"); ok {
+		mons, merr := screen.Monitors()
+		if merr != nil {
+			return nil, merr
+		}
+		if rest == "primary" {
+			for _, m := range mons {
+				if m.Primary {
+					return screen.CaptureArea(m.X, m.Y, m.W, m.H)
+				}
+			}
+			return nil, fmt.Errorf("没找到主屏（枚举到 %d 块，均无主屏标记）", len(mons))
+		}
+		n, perr := strconv.Atoi(rest)
+		if perr != nil || n < 1 {
+			return nil, fmt.Errorf("屏幕编号没听懂：%q", rest)
+		}
+		if n > len(mons) {
+			return nil, fmt.Errorf("这台电脑只有 %d 块屏幕，读不了第 %d 块", len(mons), n)
+		}
+		m := mons[n-1]
+		return screen.CaptureArea(m.X, m.Y, m.W, m.H)
+	}
+	return screen.Capture()
+}
+
+// summarizeReadScreenText 把 OCR 长文本压成 ≤200 字口语化摘要（读屏纵深
+// v4.8）。隐私纪律：只走本地 Herdsman——路由若回退到云端引擎（herdsman
+// 不可用/停用）则放弃摘要，屏幕内容不出本机；任何一步失败返回 ("", false)，
+// 调用方退回 300 字截断（v4.7 既有口径，零行为回归）。
+func (a *App) summarizeReadScreenText(text string) (string, bool) {
+	if a == nil || a.core == nil || a.cfg == nil || a.engineMgr == nil || !a.cfg.GetReadScreenSummary() {
+		return "", false
+	}
+	eng, model, _ := a.routeHerdsmanLocal("office", "screen-local")
+	if eng != "herdsman" || model == "" {
+		return "", false
+	}
+	prov, err := provider.NewLLM("", provider.Config{Name: "read-screen-summary", Model: model, Engine: eng})
+	if err != nil {
+		return "", false
+	}
+	// 输入截断，避免本地模型上下文/超时失控（先例 visionAINormalize 6000 rune）。
+	src := text
+	if rs := []rune(src); len(rs) > 6000 {
+		src = string(rs[:6000])
+	}
+	const sysPrompt = "你是屏幕朗读助手。把屏幕 OCR 文本压缩成不超过 200 字的口语化中文摘要，" +
+		"保留关键数字、标题与待办事项，去掉窗口栏、菜单按钮名与重复噪音，直接输出摘要正文，不要任何解释。"
+
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+	ch, err := prov.Stream(ctx, provider.Request{
+		Messages: []provider.Message{
+			{Role: provider.RoleSystem, Content: sysPrompt},
+			{Role: provider.RoleUser, Content: "屏幕 OCR 文本：\n" + src},
+		},
+		Temperature: 0,
+	})
+	if err != nil {
+		return "", false
+	}
+	var out strings.Builder
+	for {
+		select {
+		case <-ctx.Done():
+			return "", false
+		case chunk, ok := <-ch:
+			if !ok {
+				if s := strings.TrimSpace(out.String()); s != "" {
+					return s, true
+				}
+				return "", false
+			}
+			switch chunk.Type {
+			case provider.ChunkText:
+				out.WriteString(chunk.Text)
+			case provider.ChunkError:
+				return "", false
+			}
+		}
+	}
+}
+
+// keepScreenShot 把最近一次读屏截图以固定名「屏幕-最近.png」滚动覆盖存进
+// 当前空间 exports 目录（read_screen_keep_last 开启时）。返回相对工作区路径
+// 供回复与前端定位。
+func (a *App) keepScreenShot(tmpPath string) (string, error) {
+	dir := spaces.ExportsDir(gaeaCwd(), gaeaEffectiveSpace())
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	out := filepath.Join(dir, "屏幕-最近.png")
+	data, err := os.ReadFile(tmpPath)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(out, data, 0o644); err != nil {
+		return "", err
+	}
+	rel, rerr := filepath.Rel(gaeaCwd(), out)
+	if rerr != nil {
+		return filepath.ToSlash(out), nil
+	}
+	return filepath.ToSlash(rel), nil
 }

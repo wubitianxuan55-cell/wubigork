@@ -1,8 +1,11 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/gaea/gaea/internal/screen"
 )
 
 // ─── routeIntent：能力执行层（v4.5 指令中枢 S4.2）──────────────
@@ -189,4 +192,38 @@ func TestGaeaRouteIntent_ReadScreen(t *testing.T) {
 		t.Fatalf("读屏执行 = %+v, want handled+reply", res)
 	}
 	t.Logf("读屏执行回复（环境相关）：%q", res.Reply)
+}
+
+// 读屏纵深（v4.8）：显示器选择——dry-run 预览带屏幕编号；越界编号诚实报错
+// （屏幕数在测试进程里实际枚举，环境无关）。
+func TestGaeaRouteIntent_ReadScreenMonitors(t *testing.T) {
+	a := newChatServiceTestApp(t)
+
+	// 预览：主屏 / 第 2 块
+	res := a.GaeaRouteIntent("读一下主屏", true)
+	if !res.Handled || !strings.Contains(res.Reply, "主屏") {
+		t.Errorf("主屏预览 = %+v", res)
+	}
+	res = a.GaeaRouteIntent("读第二块屏幕", true)
+	if !res.Handled || !strings.Contains(res.Reply, "第 2 块屏幕") {
+		t.Errorf("第2屏预览应含「第 2 块屏幕」: %+v", res)
+	}
+
+	// 越界：按本机实际屏幕数断言（枚举失败则整组跳过——环境无关口径）
+	mons, err := screen.Monitors()
+	if err != nil || len(mons) == 0 {
+		t.Skipf("显示器枚举不可用（err=%v），跳过越界用例", err)
+	}
+	res = a.GaeaRouteIntent(fmt.Sprintf("读第 %d 块屏幕", len(mons)+1), false)
+	if !res.Handled || !strings.Contains(res.Reply, fmt.Sprintf("只有 %d 块屏幕", len(mons))) {
+		t.Errorf("越界读屏 = %+v, want 诚实报错「只有 %d 块屏幕」", res, len(mons))
+	}
+
+	// 单屏机器：第 1 块 = 合法请求，走真实截屏链（环境相关回复，仅断 handled）
+	if len(mons) == 1 {
+		res = a.GaeaRouteIntent("读第一块屏幕", false)
+		if !res.Handled || res.Reply == "" {
+			t.Errorf("单屏读第 1 块 = %+v, want handled+reply", res)
+		}
+	}
 }
