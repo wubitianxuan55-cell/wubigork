@@ -97,6 +97,7 @@ const (
 	KeyKeepWarm          = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
 	KeyAutoPreload       = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
 	KeyDeepseekAPIKey    = "deepseek_api_key"
+	KeyGLMAPIKey         = "glm_api_key"
 	KeyOpencodeGoAPIKey  = "opencode_go_api_key"
 	KeyOpencodeZenAPIKey = "opencode_zen_api_key"
 	// 美元→人民币汇率（费用估算折算用，默认 7.2，可在模型中心配置）
@@ -149,6 +150,7 @@ type configFile struct {
 	ActiveEngineID      string  `json:"active_engine_id,omitempty"`       // 活跃模型引擎 ID
 	Model               string  `json:"model,omitempty"`                  // 默认 LLM 模型名
 	DeepseekAPIKey      string  `json:"deepseek_api_key,omitempty"`       // DeepSeek API Key
+	GLMAPIKey           string  `json:"glm_api_key,omitempty"`            // GLM (智谱) API Key
 	OpenCodeGoAPIKey    string  `json:"opencode_go_api_key,omitempty"`    // OpenCode Go API Key
 	OpenCodeZenAPIKey   string  `json:"opencode_zen_api_key,omitempty"`   // OpenCode Zen API Key
 	ActiveASREngine     string  `json:"active_asr_engine,omitempty"`      // 语音识别激活引擎
@@ -269,6 +271,9 @@ type Config struct {
 
 	// DeepSeek API Key
 	DeepseekAPIKey string
+
+	// GLM (智谱) API Key（模型中心配置）
+	GLMAPIKey string
 
 	// OpenCode Go API Key（opencode.ai 订阅，模型中心配置）
 	OpenCodeGoAPIKey string
@@ -830,6 +835,9 @@ func Load() *Config {
 			}
 			if cf.DeepseekAPIKey != "" {
 				cfg.DeepseekAPIKey = cf.DeepseekAPIKey
+			}
+			if cf.GLMAPIKey != "" {
+				cfg.GLMAPIKey = cf.GLMAPIKey
 			}
 			if cf.OpenCodeGoAPIKey != "" {
 				cfg.OpenCodeGoAPIKey = cf.OpenCodeGoAPIKey

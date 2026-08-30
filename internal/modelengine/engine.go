@@ -24,6 +24,8 @@ const (
 	EngineOllama   EngineType = "ollama"
 	EngineHerdsman EngineType = "herdsman"
 	EngineDeepseek EngineType = "deepseek"
+	// EngineGLM 智谱 GLM 云端（OpenAI 兼容 /api/paas/v4）
+	EngineGLM EngineType = "glm"
 	// EngineCosyVoice 本地 CosyVoice2 TTS 服务（OpenAI 兼容 /v1/audio/speech）
 	EngineCosyVoice EngineType = "cosyvoice"
 	// EngineOpencodeGo OpenCode Go 云端目录（OpenAI 兼容 /chat/completions）
@@ -99,6 +101,7 @@ type Manager struct {
 	statePath      string   // 状态文件路径（空=不落盘）
 	xaiKey         string   // xAI API key（来自 OAuth token）
 	deepseekKey    string   // DeepSeek API key（用户手动配置）
+	glmKey         string   // 智谱 GLM API key（用户手动配置）
 	opencodeKey    string   // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
 	opencodeZenKey string   // OpenCode Zen API key（按量付费，opencode.ai/auth 获取）
 	httpClient     *http.Client
@@ -110,7 +113,7 @@ type Manager struct {
 func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 	m := &Manager{
 		engines:     make(map[string]*EngineConfig),
-		order:       []string{"xai", "ollama", "herdsman", "deepseek", "cosyvoice", "opencode-go", "opencode-zen"},
+		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
 		httpClient:  netclient.NewSimpleClient(15 * time.Second),
@@ -162,6 +165,17 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		BaseURL:      "https://api.deepseek.com",
 		Enabled:      true,
 		DefaultModel: "deepseek-v4-pro",
+	}
+	m.engines["glm"] = &EngineConfig{
+		ID:           "glm",
+		Name:         "GLM (智谱)",
+		Type:         EngineGLM,
+		Label:        "GLM 云端",
+		Color:        "#38bdf8",
+		Icon:         "key",
+		BaseURL:      "https://open.bigmodel.cn/api/paas/v4",
+		Enabled:      true,
+		DefaultModel: "glm-4.6",
 	}
 	m.engines["cosyvoice"] = &EngineConfig{
 		ID:           "cosyvoice",
@@ -232,6 +246,13 @@ func (m *Manager) UpdateDeepseekKey(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.deepseekKey = key
+}
+
+// UpdateGLMKey 更新智谱 GLM API key
+func (m *Manager) UpdateGLMKey(key string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.glmKey = key
 }
 
 // UpdateOpencodeKey 更新 OpenCode Go API key
@@ -400,11 +421,13 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
-	// xAI / DeepSeek / OpenCode Go 需要认证
+	// xAI / DeepSeek / GLM / OpenCode Go 需要认证
 	if engine.Type == EngineXAI && m.xaiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.xaiKey)
 	} else if engine.Type == EngineDeepseek && m.deepseekKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.deepseekKey)
+	} else if engine.Type == EngineGLM && m.glmKey != "" {
+		req.Header.Set("Authorization", "Bearer "+m.glmKey)
 	} else if engine.Type == EngineOpencodeGo && m.opencodeKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.opencodeKey)
 	} else if engine.Type == EngineOpencodeZen && m.opencodeZenKey != "" {
@@ -423,6 +446,8 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 				return nil, fmt.Errorf("HTTP 401: 未登录 xAI，请先点击「登录 xAI」获取授权")
 			} else if engine.Type == EngineDeepseek {
 				return nil, fmt.Errorf("HTTP 401: DeepSeek API Key 无效或未配置，请在设置中配置")
+			} else if engine.Type == EngineGLM {
+				return nil, fmt.Errorf("HTTP 401: GLM API Key 无效或未配置，请在模型中心配置（open.bigmodel.cn 获取）")
 			} else if engine.Type == EngineOpencodeGo {
 				return nil, fmt.Errorf("HTTP 401: OpenCode Go API Key 无效或未配置，请先在模型中心配置（opencode.ai 订阅获取）")
 			} else if engine.Type == EngineOpencodeZen {
@@ -692,6 +717,8 @@ func (m *Manager) BuildChatURL(engineID string) (string, string, error) {
 		apiKey = m.xaiKey
 	} else if engine.Type == EngineDeepseek {
 		apiKey = m.deepseekKey
+	} else if engine.Type == EngineGLM {
+		apiKey = m.glmKey
 	} else if engine.Type == EngineOpencodeGo {
 		apiKey = m.opencodeKey
 	} else if engine.Type == EngineOpencodeZen {

@@ -10,11 +10,12 @@ export function EngineSection() {
     engines, engineStatuses, activeEngine, testingEngine, savingEngine,
     editingURLs, setEditingURLs,
     deepseekKey, setDeepseekKeyState, deepseekKeyMasked,
+    glmKey, setGlmKeyState, glmKeyMasked,
     opencodeGoKey, setOpencodeGoKeyState, opencodeGoKeyMasked,
     opencodeZenKey, setOpencodeZenKeyState, opencodeZenKeyMasked,
     handleTestConnection, handleRefreshModels, handleSaveURL, handleToggleEngine,
     handleBulkToggleEngines,
-    handleSaveDeepseekKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey,
+    handleSaveDeepseekKey, handleSaveGlmKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey,
     makeModels,
   } = useModelCenter()
   const [showEnabledOnly, setShowEnabledOnly] = useState(false)
@@ -38,6 +39,13 @@ export function EngineSection() {
       setter: setDeepseekKeyState,
       placeholder: deepseekKeyMasked || 'sk-...',
       save: handleSaveDeepseekKey,
+    },
+    {
+      type: 'glm',
+      value: glmKey,
+      setter: setGlmKeyState,
+      placeholder: glmKeyMasked || '智谱 API Key（open.bigmodel.cn 获取）',
+      save: handleSaveGlmKey,
     },
     {
       type: 'opencode-go',

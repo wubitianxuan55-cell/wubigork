@@ -24,6 +24,9 @@ export interface ModelCenterContextValue {
   deepseekKey: string
   setDeepseekKeyState: (v: string) => void
   deepseekKeyMasked: string
+  glmKey: string
+  setGlmKeyState: (v: string) => void
+  glmKeyMasked: string
   opencodeGoKey: string
   setOpencodeGoKeyState: (v: string) => void
   opencodeGoKeyMasked: string
@@ -84,6 +87,7 @@ export interface ModelCenterContextValue {
   handleToggleEngine: (engine: EngineConfig, enabled: boolean) => Promise<void>
   handleBulkToggleEngines: (enabled: boolean) => Promise<void>
   handleSaveDeepseekKey: () => Promise<void>
+  handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
   handleSaveOpencodeZenKey: () => Promise<void>
   handleResetCallStats: () => Promise<void>

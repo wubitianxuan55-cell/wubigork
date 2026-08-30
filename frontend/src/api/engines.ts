@@ -15,7 +15,7 @@ export interface ModelInfo {
 export interface EngineConfig {
   id: string
   name: string
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'cosyvoice' | 'opencode-go' | 'opencode-zen'
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen'
   label?: string
   color?: string
   icon?: string
@@ -361,6 +361,17 @@ export async function setDeepseekKey(apiKey: string): Promise<void> {
 /** 获取 DeepSeek Key 状态（脱敏显示） */
 export async function getDeepseekKeyStatus(): Promise<{ configured: boolean; masked: string }> {
   const result = await App().GetDeepseekKeyStatus()
+  return result as { configured: boolean; masked: string }
+}
+
+/** 设置 GLM (智谱) API Key */
+export async function setGlmKey(apiKey: string): Promise<void> {
+  await App().SetGlmKey(apiKey)
+}
+
+/** 获取 GLM Key 状态（脱敏显示） */
+export async function getGlmKeyStatus(): Promise<{ configured: boolean; masked: string }> {
+  const result = await App().GetGlmKeyStatus()
   return result as { configured: boolean; masked: string }
 }
 

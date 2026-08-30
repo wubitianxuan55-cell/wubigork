@@ -55,7 +55,7 @@ type UsageOverview struct {
 
 // cloudEngineSet 云端引擎（费用估算表有价；herdsman/ollama/cosyvoice 为本地）。
 var cloudEngineSet = map[string]bool{
-	"xai": true, "deepseek": true, "opencode-go": true, "opencode-zen": true,
+	"xai": true, "deepseek": true, "glm": true, "opencode-go": true, "opencode-zen": true,
 }
 
 // GaeaUsageOverview 汇总分流统计（模型中心「本地 vs 云端」面板）。

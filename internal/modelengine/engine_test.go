@@ -17,11 +17,15 @@ func TestNewManager_Presets(t *testing.T) {
 	if m == nil {
 		t.Fatal("NewManager returned nil")
 	}
-	// 预置 6 引擎
+	// 预置 8 引擎
 	want := map[string]EngineType{
 		"xai": EngineXAI, "ollama": EngineOllama,
 		"herdsman": EngineHerdsman, "deepseek": EngineDeepseek,
+		"glm": EngineGLM,
 		"opencode-go": EngineOpencodeGo, "opencode-zen": EngineOpencodeZen,
+	}
+	if _, ok := m.GetEngine("cosyvoice"); !ok {
+		t.Error("引擎 cosyvoice 未预置")
 	}
 	for id, typ := range want {
 		e, ok := m.GetEngine(id)
@@ -85,8 +89,8 @@ func TestGetEngine_StripsAPIKey(t *testing.T) {
 func TestGetEngines_CountAndKeys(t *testing.T) {
 	m := NewManager("", "")
 	es := m.GetEngines()
-	if len(es) != 7 {
-		t.Fatalf("GetEngines 数量 = %d, want 7", len(es))
+	if len(es) != 8 {
+		t.Fatalf("GetEngines 数量 = %d, want 8", len(es))
 	}
 	for _, e := range es {
 		if e.APIKey != "" {
@@ -664,5 +668,25 @@ func TestClassifyModelByName_EngineIndependent(t *testing.T) {
 	}
 	if got := ClassifyModelByName("some-llm-only"); got != "llm" {
 		t.Errorf("ClassifyModelByName(some-llm-only) = %q, want llm", got)
+	}
+}
+
+// v4.9.1 GLM 引擎：UpdateGLMKey 注入的 key 应驱动 BuildChatURL，
+// 云端属性（IsLocal=false）保证离线模式自动跳过。
+func TestGLMKeyAndChatURL(t *testing.T) {
+	m := NewManager("", "")
+	m.UpdateGLMKey("glm-key-123")
+	url, key, err := m.BuildChatURL("glm")
+	if err != nil {
+		t.Fatalf("BuildChatURL(glm): %v", err)
+	}
+	if key != "glm-key-123" {
+		t.Errorf("GLM key = %q, want glm-key-123", key)
+	}
+	if !strings.Contains(url, "open.bigmodel.cn") || !strings.HasSuffix(url, "/chat/completions") {
+		t.Errorf("GLM chat URL 意外: %q", url)
+	}
+	if EngineGLM.IsLocal() {
+		t.Error("GLM 是云端引擎，不应标记为本地")
 	}
 }

@@ -16,6 +16,7 @@ import * as App from '../../../wailsjsCompat'
 import {
   getEngines, saveEngine, testEngineConnection, refreshEngineModels, setEngineDefaultModel,
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
+  setGlmKey, getGlmKeyStatus,
   setOpencodeGoKey, getOpencodeGoKeyStatus, setOpencodeZenKey, getOpencodeZenKeyStatus,
   type EngineConfig, type EngineStatus,
 } from '../../../api/engines'
@@ -39,6 +40,9 @@ export interface EngineState {
   deepseekKey: string
   setDeepseekKeyState: (v: string) => void
   deepseekKeyMasked: string
+  glmKey: string
+  setGlmKeyState: (v: string) => void
+  glmKeyMasked: string
   opencodeGoKey: string
   setOpencodeGoKeyState: (v: string) => void
   opencodeGoKeyMasked: string
@@ -61,6 +65,7 @@ export interface EngineState {
   handleToggleEngine: (engine: EngineConfig, enabled: boolean) => Promise<void>
   handleBulkToggleEngines: (enabled: boolean) => Promise<void>
   handleSaveDeepseekKey: () => Promise<void>
+  handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
   handleSaveOpencodeZenKey: () => Promise<void>
 }
@@ -76,6 +81,8 @@ export function useEngineState(category: Category): EngineState {
   const [engineStatuses, setEngineStatuses] = useState<Record<string, EngineStatus>>({})
   const [deepseekKey, setDeepseekKeyState] = useState('')
   const [deepseekKeyMasked, setDeepseekKeyMasked] = useState('')
+  const [glmKey, setGlmKeyState] = useState('')
+  const [glmKeyMasked, setGlmKeyMasked] = useState('')
   const [opencodeGoKey, setOpencodeGoKeyState] = useState('')
   const [opencodeGoKeyMasked, setOpencodeGoKeyMasked] = useState('')
   const [opencodeZenKey, setOpencodeZenKeyState] = useState('')
@@ -106,6 +113,10 @@ export function useEngineState(category: Category): EngineState {
       try {
         const ks = await getDeepseekKeyStatus()
         if (ks) { setDeepseekKeyMasked(ks.masked || '') }
+      } catch (_) {}
+      try {
+        const ks = await getGlmKeyStatus()
+        if (ks) { setGlmKeyMasked(ks.masked || '') }
       } catch (_) {}
       try {
         const ks = await getOpencodeGoKeyStatus()
@@ -225,6 +236,17 @@ export function useEngineState(category: Category): EngineState {
     } catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
+  const handleSaveGlmKey = async () => {
+    if (!glmKey.trim()) { message.warning('请输入 API Key'); return }
+    try {
+      await setGlmKey(glmKey.trim())
+      message.success('GLM Key 已保存')
+      const ks = await getGlmKeyStatus()
+      if (ks) setGlmKeyMasked(ks.masked || '')
+      setGlmKeyState('')
+    } catch (err: unknown) { message.error(errText(err, '操作失败')) }
+  }
+
   const handleSaveOpencodeGoKey = async () => {
     if (!opencodeGoKey.trim()) { message.warning('请输入 API Key'); return }
     try {
@@ -270,6 +292,9 @@ export function useEngineState(category: Category): EngineState {
     deepseekKey,
     setDeepseekKeyState,
     deepseekKeyMasked,
+    glmKey,
+    setGlmKeyState,
+    glmKeyMasked,
     opencodeGoKey,
     setOpencodeGoKeyState,
     opencodeGoKeyMasked,
@@ -288,6 +313,7 @@ export function useEngineState(category: Category): EngineState {
     handleToggleEngine,
     handleBulkToggleEngines,
     handleSaveDeepseekKey,
+    handleSaveGlmKey,
     handleSaveOpencodeGoKey,
     handleSaveOpencodeZenKey,
   }

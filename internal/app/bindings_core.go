@@ -33,6 +33,7 @@ func (b *CoreB) GetDashboard(dailyGoal int) (map[string]interface{}, error) { re
 func (b *CoreB) GetDeepseekKeyStatus() map[string]interface{} { return b.a.GetDeepseekKeyStatus() }
 func (b *CoreB) GetFeatureModel(feature string) map[string]string { return b.a.GetFeatureModel(feature) }
 func (b *CoreB) GetFeatureModelEnabled(feature string) bool { return b.a.GetFeatureModelEnabled(feature) }
+func (b *CoreB) GetGlmKeyStatus() map[string]interface{} { return b.a.GetGlmKeyStatus() }
 func (b *CoreB) GetKeepWarm() bool { return b.a.GetKeepWarm() }
 func (b *CoreB) GetLoginStatus() bool { return b.a.GetLoginStatus() }
 func (b *CoreB) GetModelCallStats() modelengine.ModelStatsSummary { return b.a.GetModelCallStats() }
@@ -63,6 +64,7 @@ func (b *CoreB) SetActiveOCRModel(engineID string, modelID string) error { retur
 func (b *CoreB) SetDeepseekKey(apiKey string) error { return b.a.SetDeepseekKey(apiKey) }
 func (b *CoreB) SetDistFS(fsys fs.FS) { b.a.SetDistFS(fsys) }
 func (b *CoreB) SetEngineDefaultModel(engineID string, modelName string) error { return b.a.SetEngineDefaultModel(engineID, modelName) }
+func (b *CoreB) SetGlmKey(apiKey string) error { return b.a.SetGlmKey(apiKey) }
 func (b *CoreB) SetKeepWarm(enabled bool) error { return b.a.SetKeepWarm(enabled) }
 func (b *CoreB) SetOpencodeGoKey(apiKey string) error { return b.a.SetOpencodeGoKey(apiKey) }
 func (b *CoreB) SetOpencodeZenKey(apiKey string) error { return b.a.SetOpencodeZenKey(apiKey) }

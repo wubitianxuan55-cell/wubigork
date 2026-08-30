@@ -303,14 +303,17 @@ func (a *App) Startup(ctx context.Context) {
 
 	// 密钥保护：旧版明文一次性迁移为 DPAPI 密文，再解密供内存使用
 	encryptSecretIfLegacy(config.KeyDeepseekAPIKey, &a.cfg.DeepseekAPIKey)
+	encryptSecretIfLegacy(config.KeyGLMAPIKey, &a.cfg.GLMAPIKey)
 	encryptSecretIfLegacy(config.KeyOpencodeGoAPIKey, &a.cfg.OpenCodeGoAPIKey)
 	encryptSecretIfLegacy(config.KeyOpencodeZenAPIKey, &a.cfg.OpenCodeZenAPIKey)
 	deepseekKey, _ := secure.DecryptString(a.cfg.DeepseekAPIKey)
+	glmKey, _ := secure.DecryptString(a.cfg.GLMAPIKey)
 	opencodeGoKey, _ := secure.DecryptString(a.cfg.OpenCodeGoAPIKey)
 	opencodeZenKey, _ := secure.DecryptString(a.cfg.OpenCodeZenAPIKey)
 
 	// 初始化模型引擎管理器，尝试恢复已保存的 xAI token
 	a.engineMgr = modelengine.NewManager("", deepseekKey)
+	a.engineMgr.UpdateGLMKey(glmKey)
 	a.engineMgr.UpdateOpencodeKey(opencodeGoKey)
 	a.engineMgr.UpdateOpencodeZenKey(opencodeZenKey)
 	if err := a.engineMgr.LoadState(filepath.Join(a.whisperDataRoot, "engines.json")); err != nil {

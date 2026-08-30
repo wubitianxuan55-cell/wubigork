@@ -161,6 +161,36 @@ func (c *core) GetDeepseekKeyStatus() map[string]interface{} {
 	}
 }
 
+// ── GLM (智谱) API ───────────────────────────────────────────
+
+// SetGlmKey 设置 GLM (智谱) API Key
+func (c *core) SetGlmKey(apiKey string) error {
+	if c.engineMgr == nil {
+		return errNoEngineMgr
+	}
+	enc, err := secure.EncryptString(apiKey)
+	if err != nil {
+		return &appError{"API Key 加密失败: " + err.Error()}
+	}
+	c.engineMgr.UpdateGLMKey(apiKey)
+	c.cfg.GLMAPIKey = enc
+	if err := config.Save(config.KeyGLMAPIKey, enc); err != nil {
+		slog.Warn("保存 GLM API Key 失败", "error", err)
+		return err
+	}
+	slog.Info("GLM API Key 已更新")
+	return nil
+}
+
+// GetGlmKeyStatus 获取 GLM API Key 配置状态
+func (c *core) GetGlmKeyStatus() map[string]interface{} {
+	hasKey, masked := maskKeyStatus(c.cfg.GLMAPIKey)
+	return map[string]interface{}{
+		"configured": hasKey,
+		"masked":     masked,
+	}
+}
+
 // ── OpenCode Go API ─────────────────────────────────────────
 
 // SetOpencodeGoKey 设置 OpenCode Go API Key

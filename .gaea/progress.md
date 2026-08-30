@@ -1,10 +1,18 @@
 # 任务进度
 
-> 最后更新: 2026-08-30（v4.9.0 发布后连收五刀；Herdsman CLI 错误透明化
-> + 工作人设方向拍板入账）
+> 最后更新: 2026-08-30（v4.9.0 发布后连收六刀；GLM 引擎接入模型中心 +
+> Herdsman CLI 错误透明化 + 工作人设方向拍板入账）
 
 ## 当前状态
 
+- **模型中心新增 GLM 引擎（2026-08-30）**：智谱 GLM 云端（OpenAI 兼容
+  open.bigmodel.cn/api/paas/v4，端点已实测 401=存在）照 DeepSeek 模式全链
+  路接入——EngineGLM 常量+预置卡（默认 glm-4.6，排序在 DeepSeek 后）+
+  glm_api_key DPAPI 加密落盘/旧明文迁移 + SetGlmKey/GetGlmKeyStatus 绑定
+  （541→543）+ GaeaSetProviderKey 映射 + 前端引擎卡 Key 输入。云端属性
+  IsLocal=false，离线模式自动跳过、用量统计自动归类。Go +2 测试（预置数
+  7→8 断言同步、GLM key/URL/云端属性）、vitest 818/818、tsc/eslint 0、
+  drift PASS（543）。
 - **Herdsman CLI 错误透明化（2026-08-30，真机诊断收口）**：模型中心「模型
   库」报「exit status 3」三路实证根因=Herdsman 桌面端以管理员运行，skill
   管道（Herdsman-skill-v1）DACL 拒绝普通权限 gaea（桌面端在跑但连不上）。

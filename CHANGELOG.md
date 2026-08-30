@@ -1,5 +1,24 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · 模型中心新增 GLM 引擎 (2026-08-30)
+> 智谱 GLM 云端引擎（OpenAI 兼容 `https://open.bigmodel.cn/api/paas/v4`），
+> 照 DeepSeek/OpenCode 模式全链路接入。端点真实性已验证（/models 与
+> /chat/completions 无 key 均 401=存在且要求鉴权）。
+- **modelengine**：`EngineGLM` 类型 + 预置引擎卡（Label「GLM 云端」，默认
+  模型 glm-4.6，展示顺序在 DeepSeek 之后）+ `UpdateGLMKey` + fetchModels
+  认证/401 文案 + BuildChatURL key 注入。云端属性（IsLocal=false）——全局
+  离线模式自动跳过、路由/用量统计按既有数据面自动归类（cloudEngineSet +glm）。
+- **key 全链路**：config `glm_api_key`（DPAPI 加密落盘 + 旧明文一次性迁移）
+  → 启动注入 → SetGlmKey/GetGlmKeyStatus 绑定（CoreB，绑定面 541→543）→
+  GaeaSetProviderKey 支持 glm/zhipu/bigmodel 环境变量映射。
+- **前端**：模型中心引擎卡自动渲染（engineIcons/Colors/Labels +glm），Key
+  输入卡（脱敏回显/保存/状态刷新），api/engines.ts 类型与包装函数。
+- 验证：Go 全量绿（modelengine 预置 7→8 引擎断言同步 + GLM key/URL/云端
+  属性测试）；vitest 818/818（148 文件）；tsc/eslint 0；drift PASS（543）。
+- 使用：模型中心 → 引擎管理 → GLM (智谱) 卡片填入 open.bigmodel.cn 的
+  API Key → 测试连接 → 刷新模型（glm-4.6 / glm-4.5-air / glm-4.5-flash 等）
+  → 绑定到各功能域或设为活跃引擎。
+
 ## 未发布 · Herdsman CLI 错误透明化 (2026-08-30)
 > 真机诊断：模型中心「模型库」报「模型目录不可用，herdsman CLI 调用失败:
 > exit status 3」——CLI 其实把结构化错误写在 stdout，旧代码失败路径丢弃

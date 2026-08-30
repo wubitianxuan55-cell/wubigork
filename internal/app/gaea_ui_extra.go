@@ -272,6 +272,9 @@ func (a *App) GaeaSetProviderKey(apiKeyEnv, value string) error {
 	case strings.Contains(env, "deepseek") || strings.Contains(env, "deep"):
 		a.engineMgr.UpdateDeepseekKey(value)
 		return nil
+	case strings.Contains(env, "glm") || strings.Contains(env, "zhipu") || strings.Contains(env, "bigmodel"):
+		a.engineMgr.UpdateGLMKey(value)
+		return nil
 	default:
 		return fmt.Errorf("不支持的引擎 Key 环境变量 %q", apiKeyEnv)
 	}
