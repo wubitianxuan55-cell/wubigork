@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DownloadOutlined, HeartOutlined, ReadOutlined, IdcardOutlined, HomeOutlined, AimOutlined, SmileOutlined, ClockCircleOutlined, ShareAltOutlined } from "@ant-design/icons";
+import { DownloadOutlined, HeartOutlined, ReadOutlined, IdcardOutlined, HomeOutlined, AimOutlined, SmileOutlined, ClockCircleOutlined, ShareAltOutlined, HistoryOutlined } from "@ant-design/icons";
 import { Modal, message } from "antd";
 import { RefreshCw } from "../../icons";
 import { app } from "../../lib/bridge";
 import { DOMAIN_COLORS } from "../../lib/domainColors";
-import type { WhisperEpisodeView, WhisperMemoryView } from "../../lib/types";
+import type { WhisperEpisodeView, WhisperEpisodeReplayView, WhisperMemoryView } from "../../lib/types";
 import { EmptyState } from "../EmptyState";
 import { WhisperGraphPanel, currentPersonalityId } from "../../../components/WhisperGraphPanel";
 
@@ -50,6 +50,9 @@ export function WhisperMemoryLibrary() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<WhisperMemoryView | null>(null);
   const [selectedEp, setSelectedEp] = useState<WhisperEpisodeView | null>(null);
+  const [replay, setReplay] = useState<WhisperEpisodeReplayView | null>(null);
+  const [replayLoading, setReplayLoading] = useState(false);
+  const [replayError, setReplayError] = useState("");
   const [graphOpen, setGraphOpen] = useState(false);
 
   const load = useCallback(() => {
@@ -64,6 +67,25 @@ export function WhisperMemoryLibrary() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // 情节详情打开时按 ID 重建原始对话（记忆回放，只读）。
+  useEffect(() => {
+    if (!selectedEp) {
+      setReplay(null);
+      setReplayLoading(false);
+      setReplayError("");
+      return;
+    }
+    let cancelled = false;
+    setReplayLoading(true);
+    setReplayError("");
+    setReplay(null);
+    app.WhisperEpisodeReplay(selectedEp.id)
+      .then((r) => { if (!cancelled) setReplay(r); })
+      .catch((err) => { if (!cancelled) setReplayError(String(err)); })
+      .finally(() => { if (!cancelled) setReplayLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedEp]);
 
   const handleExport = useCallback(async () => {
     const dir = await app.PickDirectory();
@@ -324,6 +346,39 @@ export function WhisperMemoryLibrary() {
               <RowItem label="轮次" value={selectedEp.startTurn > 0 ? `第 ${selectedEp.startTurn}-${selectedEp.endTurn} 轮` : ""} />
               <RowItem label="关键词" value={(selectedEp.keywords ?? []).join("、")} />
               <RowItem label="会话" value={selectedEp.sourceSessionId} mono />
+            </div>
+            {/* 记忆回放：重建该情节的原始对话（审计 §C 欠账收口） */}
+            <div className="mt-2 pt-2.5 border-t border-border">
+              <div className="flex items-center gap-1.5 text-[12px] font-medium text-fg mb-2">
+                <HistoryOutlined style={{ fontSize: 12 }} />
+                回放原始对话
+              </div>
+              {replayLoading ? (
+                <div className="py-4 text-center text-fg-faint text-[12px]">正在重建这段记忆…</div>
+              ) : replayError ? (
+                <div className="py-2 text-[12px] text-red-400">回放失败：{replayError}</div>
+              ) : replay?.replayable ? (
+                <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                  {replay.dialogue.map((line, i) => (
+                    <div key={i} className={`flex ${line.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[85%] px-2.5 py-1.5 rounded-lg text-[12.5px] leading-relaxed whitespace-pre-wrap ${
+                          line.role === "user" ? "bg-pink-500/15 text-fg" : "bg-bg-elev border border-border text-fg-dim"
+                        }`}
+                      >
+                        <div className={`text-[10px] mb-0.5 ${line.role === "user" ? "text-right text-pink-400/80" : "text-fg-faint"}`}>
+                          {line.role === "user" ? "你" : "gaea"} · 第{line.turnIndex}轮
+                        </div>
+                        {line.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-2 text-fg-faint text-[12px] leading-relaxed">
+                  {replay ? "原始对话已超出保留范围（仅存记忆摘要），无法逐字回放。" : "暂无可回放的原始对话。"}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -803,6 +803,28 @@ export type WhisperMemoryView = WireShape<AppModels.WhisperMemoryView>;
 // WhisperEpisodeView 聊天（hermes.db）情节记忆只读视图（时间倒序）。
 export type WhisperEpisodeView = WireShape<AppModels.WhisperEpisodeView>;
 
+// WhisperReplayLine 记忆回放中的一行原始对话。
+export interface WhisperReplayLine {
+  turnIndex: number;
+  role: string;
+  text: string;
+}
+
+// WhisperEpisodeReplayView 情节记忆回放视图：情节元数据 + 原始对话（只读）。
+export interface WhisperEpisodeReplayView {
+  id: string;
+  summary: string;
+  dominantEmotion: string;
+  emotionalIntensity: number;
+  keywords: string[];
+  createdAt: string;
+  sourceSessionId: string;
+  startTurn: number;
+  endTurn: number;
+  dialogue: WhisperReplayLine[];
+  replayable: boolean;
+}
+
 // MemoryHubOverview 记忆中枢聚合总览。
 export type MemoryHubOverview = WireShape<AppModels.MemoryHubOverview>;
 

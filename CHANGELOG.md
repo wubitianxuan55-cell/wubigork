@@ -1,5 +1,20 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · 轻语记忆回放 (2026-08-30)
+> 审计 §C 乐园做深欠账收口（「记忆回放」零代码 → 确定性重建原始对话）。
+- **后端 GaeaWhisperEpisodeReplay**（绑定面 535→536，MemoryB/play）：按情节 ID
+  从 hermes.db 读情节，再按 SourceSessionID + [StartTurn, EndTurn] 从
+  chat_history 重建原始对话——纯确定性、不调 LLM；过旧情节因 chat_history
+  裁剪（最近 2000 行）无原始对话时 Replayable=false 回退为仅摘要。3 个 Go 测试
+  （轮次范围重建 / 无历史回退 / 未找到与空 ID）。
+- **前端记忆库情节弹窗「回放原始对话」**：用户/gaea 对话气泡 + 轮次标注，
+  加载/失败/不可回放三态；WhisperMemoryLibrary +2 vitest（回放渲染/摘要回退）。
+- 验证：Go 全量绿（whisper 包在全量并发下偶发环境挂起，单跑 1.5s 绿——CI 同款
+  flaky 重试语义）；vitest **811/811**（148 文件）；tsc/eslint 0；绑定面漂移
+  PASS（536）。
+- 欠账延续：「重访雨夜」的时间锚点入口（anchor→episode 索引）与图谱情感/因果
+  维度仍列后续；本版先把「原始对话可回放」落地。
+
 ## 未发布 · 构建冒烟自动化 (2026-08-30)
 > v4.8.3 教训收口（构建链路，不增绑定）：build.bat 不再无条件打印成功块。
 - **build.bat 真实退出码 + 产物新鲜度守卫**：构建前删除旧产物（被常驻实例

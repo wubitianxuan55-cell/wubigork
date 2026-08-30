@@ -5,6 +5,14 @@
 
 ## 当前状态
 
+- **轻语记忆回放（2026-08-30，审计 §C 欠账收口）**：新绑定
+  GaeaWhisperEpisodeReplay（绑定面 535→536，MemoryB/play）——按情节 ID 从
+  hermes.db 读情节 + SourceSessionID/[StartTurn,EndTurn] 从 chat_history 确定性
+  重建原始对话（不调 LLM），过旧情节 Replayable=false 回退仅摘要；前端情节详情
+  弹窗新增「回放原始对话」气泡视图（用户/gaea + 轮次，加载/失败/不可回放三态）。
+  Go 3 测试 + vitest 2 测试；验证：Go 全量绿（whisper 偶发挂起为环境 flake，
+  单跑绿）、vitest 811/811、tsc/eslint 0、drift PASS（536）。欠账延续：时间锚点
+  「重访雨夜」入口、图谱情感/因果维度。
 - **构建冒烟自动化（2026-08-30，v4.8.3 教训收口）**：build.bat 真实退出码 +
   产物新鲜度守卫（构建前删旧 exe、被常驻实例锁定时显式报错）+ 默认自动冒烟
   （.tmp 临时副本 → scripts/smoke.ps1，18999 /api/health 200 + status=ok 响应

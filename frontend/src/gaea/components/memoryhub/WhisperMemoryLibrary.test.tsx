@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { WhisperMemoryLibrary } from "./WhisperMemoryLibrary";
 
-const { memMock, epMock, pickDirMock, exportMock } = vi.hoisted(() => ({
+const { memMock, epMock, replayMock, pickDirMock, exportMock } = vi.hoisted(() => ({
   memMock: vi.fn(),
   epMock: vi.fn(),
+  replayMock: vi.fn(),
   pickDirMock: vi.fn(),
   exportMock: vi.fn(),
 }));
@@ -13,6 +14,7 @@ vi.mock("../../lib/bridge", () => ({
   app: {
     WhisperMemories: memMock,
     WhisperEpisodes: epMock,
+    WhisperEpisodeReplay: replayMock,
     PickDirectory: pickDirMock,
     WhisperExportArchive: exportMock,
   },
@@ -32,14 +34,34 @@ const EPISODES = [
   { id: "e2", summary: "爬山途中的闲聊", dominantEmotion: "平静", emotionalIntensity: 0.4, keywords: ["爬山", "风景"], startTurn: 0, endTurn: 0, createdAt: "2026-08-03T09:30:00+08:00", sourceSessionId: "s2" },
 ];
 
+const REPLAY = {
+  id: "e1",
+  summary: "深夜一起改 bug 到天亮",
+  dominantEmotion: "兴奋",
+  emotionalIntensity: 0.85,
+  keywords: ["debug", "熬夜"],
+  createdAt: "2026-08-05T02:00:00+08:00",
+  sourceSessionId: "s1",
+  startTurn: 3,
+  endTurn: 8,
+  replayable: true,
+  dialogue: [
+    { turnIndex: 3, role: "user", text: "这个 bug 搞不定了" },
+    { turnIndex: 3, role: "assistant", text: "把报错贴给我看看" },
+    { turnIndex: 4, role: "user", text: "找到了，是时区问题" },
+  ],
+};
+
 describe("WhisperMemoryLibrary 聊天记忆库", () => {
   beforeEach(() => {
     memMock.mockReset();
     epMock.mockReset();
+    replayMock.mockReset();
     pickDirMock.mockReset();
     exportMock.mockReset();
     memMock.mockResolvedValue(FACTS);
     epMock.mockResolvedValue(EPISODES);
+    replayMock.mockResolvedValue({ ...REPLAY, dialogue: [], replayable: false });
   });
 
   it("默认事实 tab 按 domain 分组渲染：身份/社交/其他 组标题与条数", async () => {
@@ -121,6 +143,36 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
     expect(dialog.textContent).toContain("核心");
     expect(dialog.textContent).toContain("0.95");
     expect(dialog.textContent).toContain("f1");
+  });
+
+  it("点击情节打开详情并回放原始对话（用户/gaea 气泡 + 轮次标注）", async () => {
+    replayMock.mockResolvedValue(REPLAY);
+    render(<WhisperMemoryLibrary />);
+    await screen.findByText("身份");
+
+    fireEvent.click(screen.getByRole("button", { name: /情节/ }));
+    await screen.findByText("深夜一起改 bug 到天亮");
+    fireEvent.click(screen.getByText("深夜一起改 bug 到天亮"));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("回放原始对话");
+    expect(await screen.findByText("这个 bug 搞不定了")).toBeTruthy();
+    expect(screen.getByText("把报错贴给我看看")).toBeTruthy();
+    expect(screen.getByText("找到了，是时区问题")).toBeTruthy();
+    // 第 3 轮出现两次（你 + gaea 两行），用 getAllByText
+    expect(screen.getAllByText(/第3轮/).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("无原始对话的情节显示摘要回退提示（不可逐字回放）", async () => {
+    replayMock.mockResolvedValue({ ...REPLAY, id: "e2", dialogue: [], replayable: false });
+    render(<WhisperMemoryLibrary />);
+    await screen.findByText("身份");
+
+    fireEvent.click(screen.getByRole("button", { name: /情节/ }));
+    await screen.findByText("爬山途中的闲聊");
+    fireEvent.click(screen.getByText("爬山途中的闲聊"));
+
+    expect(await screen.findByText(/原始对话已超出保留范围/)).toBeTruthy();
   });
 
   it("点击情节打开详情 Modal：含 summary 与情绪/强度/关键词/会话", async () => {

@@ -20,7 +20,7 @@ type MemoryMethods = Pick<
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
   | "MemoryHubOverview" | "ProfileList" | "ProfileSave" | "ProfileDelete"
   | "ProfileConflicts" | "ProfileResolveConflict"
-  | "WhisperMemories" | "WhisperEpisodes" | "WhisperExportArchive" | "MemoryGraph"
+| "WhisperMemories" | "WhisperEpisodes" | "WhisperEpisodeReplay" | "WhisperExportArchive" | "MemoryGraph"
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
@@ -169,6 +169,13 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async WhisperEpisodes() {
       return [];
+    },
+    async WhisperEpisodeReplay(episodeId: string) {
+      return {
+        id: episodeId, summary: "", dominantEmotion: "", emotionalIntensity: 0,
+        keywords: [], createdAt: "", sourceSessionId: "", startTurn: 0, endTurn: 0,
+        dialogue: [], replayable: false,
+      };
     },
     async MemoryGraph() {
       return { nodes: [], links: [] };

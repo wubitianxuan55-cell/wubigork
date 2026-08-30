@@ -70,6 +70,7 @@ import type {
   ProgrammingWebPreflight,
   ProgrammingWebStatus,
   WhisperEpisodeView,
+  WhisperEpisodeReplayView,
   WhisperMemoryView,
   MemoryGraphView,
   WorkspaceSearchHit,
@@ -400,6 +401,8 @@ export interface AppBindings {
   GenerateBookCover(projectId: string, promptHint: string): Promise<string>;
   // WhisperEpisodes 聊天情节记忆（hermes.db，时间倒序）。
   WhisperEpisodes(): Promise<WhisperEpisodeView[]>;
+  // WhisperEpisodeReplay 情节记忆回放（hermes.db，只读）：按情节 ID 重建原始对话。
+  WhisperEpisodeReplay(episodeId: string): Promise<WhisperEpisodeReplayView>;
   // WhisperExportArchive 导出聊天记忆归档（hermes.db → Markdown 分目录），返回文件数。
   WhisperExportArchive(dir: string): Promise<number>;
   // PickDirectory 系统目录选择对话框，返回所选目录（取消返回空串）。
@@ -830,6 +833,7 @@ const gaeaToGaea = {
   TTSVoiceParams: "GaeaTTSVoiceParams",
   GenerateBookCover: "GaeaGenerateBookCover",
   WhisperEpisodes: "GaeaWhisperEpisodes",
+  WhisperEpisodeReplay: "GaeaWhisperEpisodeReplay",
   WhisperExportArchive: "GaeaWhisperExportArchive",
   PickDirectory: "GaeaPickDirectory",
   MemoryGraph: "GaeaMemoryGraph",
