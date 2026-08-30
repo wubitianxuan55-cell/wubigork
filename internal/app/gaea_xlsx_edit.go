@@ -177,6 +177,12 @@ func appendXlsxEvidence(rel string, ops []xlsxedit.Op, summary []string, baselin
 		}
 		before.WriteString("; ")
 	}
+	// opsJson 随卡落盘（v4.9.1 通道 A 引用级「声明↔实况」比对原料）。截断会
+	// 把 JSON 切坏——超限干脆不落（空 = 引用级声明比对干净跳过，宁漏勿误）。
+	opsJSON := ""
+	if b, err := json.Marshal(ops); err == nil && len(b) <= evidence.SummaryLimit {
+		opsJSON = string(b)
+	}
 	_ = st.Append(evidence.ChangeRecord{
 		SessionID:     sid,
 		Space:         "work",
@@ -185,6 +191,7 @@ func appendXlsxEvidence(rel string, ops []xlsxedit.Op, summary []string, baselin
 		BeforeSummary: strings.TrimSpace(before.String()),
 		AfterSummary:  strings.Join(summary, "；"),
 		BaselinePath:  baseline,
+		OpsJSON:       opsJSON,
 		Status:        evidence.StatusPendingVerify,
 	})
 }

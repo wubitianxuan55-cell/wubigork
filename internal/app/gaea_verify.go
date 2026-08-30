@@ -15,6 +15,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/evidence"
 	"github.com/gaea/gaea/internal/office/docmd"
 	"github.com/gaea/gaea/internal/office/xlsxedit"
+	"github.com/xuri/excelize/v2"
 )
 
 func journalStore() *evidence.JournalStore {
@@ -126,7 +127,20 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 		} else if rep.TotalErrors > 0 {
 			v.ChannelA = fmt.Sprintf("fail: 重算发现 %d 处公式错误", rep.TotalErrors)
 		} else {
-			v.ChannelA = "pass: 文件可打开，公式重算零错误"
+			// v4.9.1 引用级深化：重算零错误之上，回读工作簿逐条核对证据卡
+			// 声明（opsJson）——「声明了什么就核对什么」；fail 前缀升级整条。
+			f, ferr := excelize.OpenFile(target, excelize.Options{UnzipXMLSizeLimit: 1 << 30})
+			if ferr != nil {
+				v.ChannelA = "pass: 文件可打开，公式重算零错误（引用级复核无法打开工作簿，跳过声明比对）"
+				break
+			}
+			deep := verifyXlsxChannelADeep(f, rec)
+			f.Close()
+			if strings.HasPrefix(deep, "；fail:") {
+				v.ChannelA = "fail: 公式重算零错误，" + strings.TrimPrefix(deep, "；")
+			} else {
+				v.ChannelA = "pass: 文件可打开，公式重算零错误" + deep
+			}
 		}
 	case "move_file":
 		src := strings.TrimPrefix(rec.BeforeSummary, "→ moved from ")

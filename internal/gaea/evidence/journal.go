@@ -34,9 +34,13 @@ type ChangeRecord struct {
 	// BaselinePath 是写盘前整文件基线快照（绝对路径，Verifier 通道 B 视觉 diff
 	// 与 Rollback 回滚原料）。非文件类工具（xlsx_apply 由 App 层快照）可为空。
 	BaselinePath string `json:"baselinePath,omitempty"`
-	Model        string `json:"model,omitempty"`
-	At           int64  `json:"at"` // unix ms
-	Status       string `json:"status"`
+	// OpsJSON 是工具的机器可读操作载荷（v4.9.1 起 xlsx_apply 随卡落盘，
+	// []xlsxedit.Op 的 JSON）——Verifier 通道 A 引用级「声明↔实况」比对的
+	// 原料；旧卡无此字段（跳过声明比对，宁漏勿误）。截断口径同 SummaryLimit。
+	OpsJSON string `json:"opsJson,omitempty"`
+	Model   string `json:"model,omitempty"`
+	At      int64  `json:"at"` // unix ms
+	Status  string `json:"status"`
 }
 
 // Status 常量：Apply 后默认 pending_verify；Verifier（v4.1b）推进后续状态。
