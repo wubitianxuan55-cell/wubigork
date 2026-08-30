@@ -72,9 +72,10 @@
   - **验证**：Go 全量绿（vet 0）；vitest 818/818（148 文件）；tsc/vite build/
     eslint 0；drift PASS（540）；版本四处统一 4.9.0；wails build + 冒烟 200。
   - **欠账清单**：Realtime 真机验证轮（真 key/麦克风/打断体感/AEC）；锚点策略
-    刻度对齐（weight≥2/selfRelevance≥4 vs LLM 0-1）；多跳因果图推理；iLink
-    语音/视频 item 探明（静默跳过）；成本知识图谱可视化形态；Verifier 通道 A
-    引用级深化。
+    刻度对齐（weight≥2/selfRelevance≥4 vs LLM 0-1）；更深跳语义锚定因果推理
+    （≤2 跳链已上线，见「多跳因果链」）；iLink 语音/视频 item 探明（静默
+    跳过）；Verifier 通道 A 引用级深化。勘误：成本知识图谱 v4.8.0 已交付
+    （BuildGraph + CostGraphView），发布时误列入欠账，已移除。
 - **上一发布：v4.8.3（2026-08-30）「微信图片双向」**：
   git tag `v4.8.3`；CHANGELOG / releases/v4.8.3.md / README 索引同步。
   v4.8.2 发布当日真机实测复盘五刀（1bfd41d/2cca12a/b1921e9/cda6522/
