@@ -546,3 +546,18 @@ func DetectUserVerbosity(msg string) string {
 	}
 	return "normal"
 }
+
+// isShortQuestion 识别「短但是正经提问」的消息（你是谁/你会什么/在吗？…）。
+// v4.8.3 微信实测教训：短消息一律镜像 ≤15 字钳制，导致助手人格对实质问题
+// 也只回一句话——短≠寒暄，疑问值得正经回答。
+func isShortQuestion(msg string) bool {
+	if strings.ContainsAny(msg, "？?") {
+		return true
+	}
+	for _, q := range []string{"是谁", "什么", "怎么", "为什么", "为何", "哪", "几", "多长", "多久", "能不能", "会不会", "是不是", "对吧", "吗"} {
+		if strings.Contains(msg, q) {
+			return true
+		}
+	}
+	return false
+}

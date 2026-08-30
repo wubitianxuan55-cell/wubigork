@@ -308,13 +308,17 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 	psycheBlock += "\n\n" + FormatTimeContextBlock(time.Now())
 	psycheBlock = o.injectPersonaGuard(psycheBlock, newEmotion)
 
-	// 主动门控评估
+	// 主动门控评估（v4.8.3：助手人格 gaea 豁免——silent/whisper 策略为陪伴
+	// 场景设计，新关系冷启动时会把助手回复压成一句话，与「结论先行」人设
+	// 冲突；微信实测「你会什么」只回 45 字即此因）。
 	gate := EvaluateProactiveGate(newEmotion.Aff, newEmotion.Aro, newEmotion.Sec,
 		newL1.Trust, newL1.Rifts, newL1.Stage, timeOfDayKey(), o.AdultMode)
-	if gate.Level == "silent" {
-		psycheBlock += "\n\n【本轮策略 · silent】本轮只做简短回应，不开启任何新话题。"
-	} else if gate.Level == "whisper" {
-		psycheBlock += "\n\n【本轮策略 · whisper】话要少，不要开启新话题。"
+	if o.Preset.ID != "gaea" {
+		if gate.Level == "silent" {
+			psycheBlock += "\n\n【本轮策略 · silent】本轮只做简短回应，不开启任何新话题。"
+		} else if gate.Level == "whisper" {
+			psycheBlock += "\n\n【本轮策略 · whisper】话要少，不要开启新话题。"
+		}
 	}
 
 	// 强度调制 — 使用外部模块
@@ -326,8 +330,9 @@ func (o *Orchestrator) PreLLMTurn(userMsg string) PreLLMResult {
 		psycheBlock += BuildAdultModeSection(o.Preset.ID, AdultState(adultState), adultProactiveLevel)
 	}
 
-	// 用户啰嗦度
-	if DetectUserVerbosity(userMsg) == "terse" {
+	// 用户啰嗦度（v4.8.3：短但含疑问的消息豁免镜像——「你是谁/你会什么」
+	// 是提问不是寒暄，≤15 字钳制会把答案掐死）。
+	if DetectUserVerbosity(userMsg) == "terse" && !isShortQuestion(userMsg) {
 		psycheBlock += "\n\n用户回复简短，你的回复也要简短，不超过15字。"
 	}
 
