@@ -251,6 +251,7 @@ export const GAEA_METHOD_FACETS = {
   CostNoteList: "work",
   CostNoteDelete: "work",
   CostNoteBumpRef: "work",
+  CostGraph: "work",
   RetrievalEvalRun: "work",
   KnowledgeImportPreview: "work",
   KnowledgeImportAIParse: "work",

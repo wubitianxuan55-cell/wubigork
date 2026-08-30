@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   BarChart3, BookOpen, Box, Calculator, ChevronRight, CloudUpload, Coins, FileSpreadsheet, FolderPlus,
-  FolderTree, Gauge, PieChart, Plus, RefreshCw, Shield, TrendingUp,
+  FolderTree, Gauge, ListTree, PieChart, Plus, RefreshCw, Shield, TrendingUp,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import type { CostCategory, CostSummary, FilePickResult, PriceSource } from "../gaea/lib/types";
@@ -13,6 +13,7 @@ import { PriceSourcesRepository } from "../gaea/components/memoryhub/PriceSource
 import { CostProjectsView } from "../gaea/components/memoryhub/CostProjectsView";
 import { CostIndicatorsView } from "../gaea/components/memoryhub/CostIndicatorsView";
 import { CostNotesView } from "../gaea/components/memoryhub/CostNotesView";
+import { CostGraphView } from "../gaea/components/memoryhub/CostGraphView";
 import "../gaea/styles.css";
 import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
@@ -24,7 +25,7 @@ import "../gaea/components/memoryhub/hub.css";
  * （组成行明细），资源库层由价格源/信息价模块承载。概览围绕「库规模 +
  * 人材机构成 + 数据健康」组织，复用 v3 玻璃面板/辉光卡设计语言。
  */
-type CostModule = "overview" | "entries" | "sources" | "repository" | "projects" | "indicators" | "notes";
+type CostModule = "overview" | "entries" | "sources" | "repository" | "projects" | "indicators" | "notes" | "graph";
 
 const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }[] = [
   { key: "overview", label: "概览", icon: <Gauge size={14} />, hint: "库规模 · 人材机构成 · 数据健康" },
@@ -34,6 +35,7 @@ const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }
   { key: "notes", label: "复盘笔记", icon: <BookOpen size={14} />, hint: "结论/边界/风险/证据沉淀判断" },
   { key: "sources", label: "价格源", icon: <CloudUpload size={14} />, hint: "订阅源 + 手动/定时抓取" },
   { key: "repository", label: "价格仓库", icon: <BarChart3 size={14} />, hint: "抓取记录与价格历史" },
+  { key: "graph", label: "知识图谱", icon: <ListTree size={14} />, hint: "分类·条目·明细·指标·询价 关联图" },
 ];
 
 interface CostOverviewStats {
@@ -231,6 +233,7 @@ export function CostLibraryPage() {
         {module === "notes" && <CostNotesView />}
         {module === "sources" && <PriceSourcesPanel onChanged={loadStats} />}
         {module === "repository" && <PriceSourcesRepository />}
+        {module === "graph" && <CostGraphView />}
         {module === "overview" && (
           <div className="h-full overflow-y-auto px-5 py-4 space-y-3">
             {loading ? (

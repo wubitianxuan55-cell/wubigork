@@ -979,6 +979,45 @@ export interface CostReviewNote {
   updatedAt?: string;
 }
 
+// ── v4.8 成本知识图谱（CostGraph，后端返回 JSON 串前端解析）──────────
+
+// CostGraphNode 图节点：type ∈ category|entry|project|item|indicator|inquiry|note。
+// val 为金额量级（分类=子树合计/条目=单价/项目=总合计/明细=金额/指标=中位数/
+// 询价=单价/笔记=引用数），供节点定半径；meta 为点击弹窗展示的结构化明细。
+export interface CostGraphNode {
+  id: string;
+  name: string;
+  type: string;
+  desc: string;
+  val: number;
+  meta?: Record<string, string>;
+}
+
+// CostGraphEdge 图边：type ∈ belongs_to(category→entry)|contains(project→item)|
+// references(item→entry)|benchmarks(item→indicator)|suggests(inquiry→entry)|
+// notes(note→category)；meta.matchedBy ∈ entry_name|title（匹配方式溯源）。
+export interface CostGraphEdge {
+  source: string;
+  target: string;
+  type: string;
+  weight: number;
+  meta?: Record<string, string>;
+}
+
+// CostGraphStats 图规模统计（nodeCount/edgeCount 为截断后的实际数量）。
+export interface CostGraphStats {
+  truncated: boolean;
+  nodeCount: number;
+  edgeCount: number;
+  countsByType: Record<string, number>;
+}
+
+export interface CostGraphView {
+  nodes: CostGraphNode[];
+  edges: CostGraphEdge[];
+  stats: CostGraphStats;
+}
+
 // 导入预览中的一条候选成本条目（前端可编辑后确认导入）。
 export interface CostImportRow {
   name: string;

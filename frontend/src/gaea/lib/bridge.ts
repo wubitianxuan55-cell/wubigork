@@ -468,6 +468,11 @@ export interface AppBindings {
   CostNoteList(query: string, status: string): Promise<CostReviewNote[]>;
   CostNoteDelete(id: number): Promise<void>;
   CostNoteBumpRef(id: number): Promise<void>;
+  // CostGraph 成本知识图谱（v4.8）：scope=tree 分类聚合总览（默认）| entry 条目
+  // 展开（focus=分类路径或项目 ID）；limit=节点上限（<=0 或 >600 归一 600）。
+  // 返回 JSON 串（CostGraphView），由前端 JSON.parse（与 CostImportApply 等先例
+  // 不同：该视图含大量节点/边，走字符串通道避免绑定层结构映射开销）。
+  CostGraph(scope: string, focus: string, limit: number): Promise<string>;
   // ── v4.2 造价 AI 化：AI 组价 + 询价飞轮 + 五算对比 ──
   // CostCompose AI 组价：清单描述 → 相似检索（关键词+语义）→ 价格带推荐 +
   // 证据链 + LLM 人材机拆解；band=null 表示成本库无相似条目。无确认不落库。
@@ -886,6 +891,7 @@ const gaeaToGaea = {
   CostNoteList: "GaeaCostNoteList",
   CostNoteDelete: "GaeaCostNoteDelete",
   CostNoteBumpRef: "GaeaCostNoteBumpRef",
+  CostGraph: "GaeaCostGraph",
   UnifiedSearch: "GaeaUnifiedSearch",
   RouteIntent: "GaeaRouteIntent",
   RetrievalEvalRun: "GaeaRetrievalEvalRun",

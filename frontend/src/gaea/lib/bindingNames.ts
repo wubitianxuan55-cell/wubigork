@@ -116,6 +116,7 @@ export const bindingNames = [
   "GaeaCostEstimateVersionSave",
   "GaeaCostEstimateVersions",
   "GaeaCostGet",
+  "GaeaCostGraph",
   "GaeaCostImportAIParse",
   "GaeaCostImportApply",
   "GaeaCostImportPreview",

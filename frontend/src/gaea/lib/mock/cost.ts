@@ -1,6 +1,6 @@
 // mock/cost.ts — 成本库/价格域（T6-10.1 拆分自 lib/mock.ts，方法体零改动）。
 import type { AppBindings } from "../bridge";
-import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, PriceFetchRecord, PriceSource } from "../types";
+import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, PriceFetchRecord, PriceSource } from "../types";
 import {
   costCategoriesMock,
   costMock,
@@ -25,6 +25,7 @@ type CostMethods = Pick<
   | "CostEstimateItemSave" | "CostEstimateItemDelete" | "CostEstimateItems"
   | "CostEstimateVersionSave" | "CostEstimateVersions" | "CostEstimateSediment"
   | "CostIndicators" | "CostAttribution" | "CostNoteSave" | "CostNoteList" | "CostNoteDelete" | "CostNoteBumpRef"
+  | "CostGraph"
 >;
 
 // ── 测算项目 mock 状态（浏览器开发环境内存态，无持久化）──
@@ -411,5 +412,128 @@ export function buildCost(_s: MakeMockState): CostMethods {
     async CostNoteBumpRef(id: number) {
       mockNotes = mockNotes.map((n) => (n.id === id ? { ...n, refCount: (n.refCount ?? 0) + 1 } : n));
     },
+    // ── v4.8 成本知识图谱（mock：与后端同形 JSON 串，tree/entry 两种 scope 演示）──
+    async CostGraph(scope: string, focus: string, limit: number): Promise<string> {
+      const lim = !limit || limit <= 0 || limit > 600 ? 600 : limit;
+      const full = mockGraphView(scope, focus);
+      // 与后端同口径：节点超过 limit 截断并置 Truncated（边过滤悬挂端点）。
+      const truncated = full.nodes.length > lim;
+      const nodes = full.nodes.slice(0, lim);
+      const ids = new Set(nodes.map((n) => n.id));
+      const edges = truncated ? full.edges.filter((e) => ids.has(e.source) && ids.has(e.target)) : full.edges;
+      return JSON.stringify({
+        nodes,
+        edges,
+        stats: { truncated, nodeCount: nodes.length, edgeCount: edges.length, countsByType: countByType(nodes) },
+      } satisfies CostGraphView);
+    },
   };
+}
+
+// mockGraphView 知识图谱演示数据：tree=分类聚合（环上分类+项目节点）；
+// entry=围绕 focus 的条目/明细/指标/询价/笔记展开（focus 为项目 ID 或分类路径）。
+function mockGraphView(scope: string, focus: string): CostGraphView {
+  const nodes: CostGraphView["nodes"] = [];
+  const edges: CostGraphView["edges"] = [];
+  const addNode = (n: CostGraphView["nodes"][number]) => {
+    if (!nodes.some((x) => x.id === n.id)) nodes.push(n);
+  };
+  const addEdge = (e: CostGraphView["edges"][number]) => {
+    if (nodes.some((x) => x.id === e.source) && nodes.some((x) => x.id === e.target)) {
+      if (!edges.some((x) => x.type === e.type && x.source === e.source && x.target === e.target)) edges.push(e);
+    }
+  };
+  const category = (path: string, val: number, count: number) => {
+    addNode({
+      id: "cat:" + path, name: path.split("/").pop() ?? path, type: "category",
+      desc: `${count} 条`, val,
+      meta: { path, entries: String(count), amount: String(val) },
+    });
+  };
+  const project = (id: string, name: string, total: number, items: number) => {
+    addNode({
+      id: "proj:" + id, name, type: "project", desc: `${items} 条明细 · 1 版本`, val: total,
+      meta: { projectId: id, projectType: "房建", status: "已保存版本", items: String(items), versions: "1" },
+    });
+  };
+  const entry = (name: string, title: string, price: number, path: string, unit: string) => {
+    addNode({
+      id: "entry:" + name, name: title, type: "entry", desc: `¥${price}/${unit}`, val: price,
+      meta: { name, path, unit, source: "手动录入", status: "现行" },
+    });
+  };
+  const item = (projId: string, key: string, title: string, qty: number, price: number, unit: string) => {
+    addNode({
+      id: `item:${projId}:${key}`, name: title, type: "item", desc: `${qty}${unit ? "/" + unit : ""} × ¥${price}`,
+      val: qty * price,
+      meta: { projectId: projId, unit, quantity: String(qty), price: String(price), entryName: "" },
+    });
+  };
+  const indicator = (key: string, median: number, samples: number) => {
+    addNode({
+      id: "ind:" + key, name: key, type: "indicator", desc: `样本 ${samples} · 中位 ¥${median}`, val: median,
+      meta: { samples: String(samples), min: String(median * 0.9), max: String(median * 1.1), mean: String(median), p25: String(median * 0.95), p75: String(median * 1.05), unit: "m³" },
+    });
+  };
+  const inquiry = (id: number, title: string, price: number) => {
+    addNode({
+      id: "inq:" + id, name: title, type: "inquiry", desc: `信息价 · ¥${price} · 2026-08`, val: price,
+      meta: { source: "信息价", supplier: "造价信息网", region: "成都", priceDate: "2026-08", validUntil: "", unit: "m³", spec: "", status: "现行" },
+    });
+  };
+  const note = (id: number, title: string) => {
+    addNode({
+      id: "note:" + id, name: title, type: "note", desc: "高 · 已确认 · 引用 2", val: 2,
+      meta: { confidence: "高", status: "已确认", category: "土建", boundary: "泵送 C30", risk: "期数波动", evidence: "厂房 A V1" },
+    });
+  };
+
+  if (scope === "entry") {
+    const isProject = focus.startsWith("proj-");
+    // 分类/条目骨架（演示数据恒含一套条目，focus 决定中心）
+    category("综合单价", 2780, 3);
+    category("综合单价/土建", 1460, 2);
+    category("综合单价/机械", 1320, 1);
+    entry("c30", "C30 商品混凝土", 480, "综合单价/土建", "m³");
+    entry("rebar", "HRB400 钢筋", 250, "综合单价/土建", "t");
+    entry("excavator", "挖掘机台班", 1320, "综合单价/机械", "台班");
+    addEdge({ source: "cat:综合单价/土建", target: "entry:c30", type: "belongs_to", weight: 1 });
+    addEdge({ source: "cat:综合单价/土建", target: "entry:rebar", type: "belongs_to", weight: 1 });
+    addEdge({ source: "cat:综合单价/机械", target: "entry:excavator", type: "belongs_to", weight: 1 });
+    if (isProject) {
+      project(focus, "厂房 A（演示）", 2230, 3);
+      item(focus, "i1", "C30 商品混凝土", 10, 500, "m³");
+      item(focus, "i2", "HRB400 钢筋", 2, 245, "t");
+      addEdge({ source: "proj:" + focus, target: `item:${focus}:i1`, type: "contains", weight: 1 });
+      addEdge({ source: "proj:" + focus, target: `item:${focus}:i2`, type: "contains", weight: 1 });
+      addEdge({ source: `item:${focus}:i1`, target: "entry:c30", type: "references", weight: 1, meta: { matchedBy: "entry_name" } });
+      addEdge({ source: `item:${focus}:i2`, target: "entry:rebar", type: "references", weight: 1, meta: { matchedBy: "title" } });
+      addEdge({ source: `item:${focus}:i1`, target: "ind:C30 商品混凝土", type: "benchmarks", weight: 1 });
+    } else {
+      project("proj-demo-a", "厂房 A（演示）", 2230, 3);
+      item("proj-demo-a", "i1", "C30 商品混凝土", 10, 500, "m³");
+      addEdge({ source: "proj:proj-demo-a", target: "item:proj-demo-a:i1", type: "contains", weight: 1 });
+      addEdge({ source: "item:proj-demo-a:i1", target: "entry:c30", type: "references", weight: 1, meta: { matchedBy: "entry_name" } });
+      addEdge({ source: "item:proj-demo-a:i1", target: "ind:C30 商品混凝土", type: "benchmarks", weight: 1 });
+    }
+    indicator("C30 商品混凝土", 490, 5);
+    inquiry(1, "C30 商品混凝土", 470);
+    note(1, "C30 泵送价区间");
+    addEdge({ source: "inq:1", target: "entry:c30", type: "suggests", weight: 1, meta: { matchedBy: "title" } });
+    addEdge({ source: "note:1", target: "cat:综合单价/土建", type: "notes", weight: 1 });
+    return { nodes, edges, stats: { truncated: false, nodeCount: nodes.length, edgeCount: edges.length, countsByType: countByType(nodes) } };
+  }
+  // tree：分类树聚合 + 项目节点（无边）。
+  category("综合单价", 2780, 3);
+  category("综合单价/土建", 1460, 2);
+  category("综合单价/机械", 1320, 1);
+  project("proj-demo-a", "厂房 A（演示）", 2230, 3);
+  project("proj-demo-b", "厂房 B（演示）", 550, 1);
+  return { nodes, edges, stats: { truncated: false, nodeCount: nodes.length, edgeCount: 0, countsByType: countByType(nodes) } };
+}
+
+function countByType(nodes: CostGraphView["nodes"]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const n of nodes) out[n.type] = (out[n.type] ?? 0) + 1;
+  return out;
 }

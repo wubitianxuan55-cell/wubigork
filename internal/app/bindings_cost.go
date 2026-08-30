@@ -30,6 +30,7 @@ func (b *CostB) GaeaCostEstimateSediment(projectID string, itemIDs []int64) (int
 func (b *CostB) GaeaCostEstimateVersionSave(projectID string, note string) (*costproject.Version, error) { return b.a.GaeaCostEstimateVersionSave(projectID, note) }
 func (b *CostB) GaeaCostEstimateVersions(projectID string) []costproject.Version { return b.a.GaeaCostEstimateVersions(projectID) }
 func (b *CostB) GaeaCostGet(name string) *CostEntry { return b.a.GaeaCostGet(name) }
+func (b *CostB) GaeaCostGraph(scope string, focus string, limit int) (string, error) { return b.a.GaeaCostGraph(scope, focus, limit) }
 func (b *CostB) GaeaCostImportAIParse(path string) (CostImportPreview, error) { return b.a.GaeaCostImportAIParse(path) }
 func (b *CostB) GaeaCostImportApply(rows []CostEntry, inquirySource ...string) (int, error) { return b.a.GaeaCostImportApply(rows, inquirySource...) }
 func (b *CostB) GaeaCostImportPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportPreview(path) }
