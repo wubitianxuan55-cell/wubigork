@@ -385,6 +385,44 @@ func TestSave_ReadScreenFlagsRoundTrip(t *testing.T) {
 	}
 }
 
+// TestSave_IntentsLLMFallbackRoundTrip 意图 LLM 兜底开关与超时（v4.8）持久化：
+// 默认关 + 2000ms；开启/改超时 → 保存 → 重新加载。
+func TestSave_IntentsLLMFallbackRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	cfg := Load()
+	if cfg.GetIntentsLLMFallback() {
+		t.Error("未配置时意图 LLM 兜底默认应为关闭")
+	}
+	if ms := cfg.GetIntentsLLMTimeoutMS(); ms != 2000 {
+		t.Errorf("未配置时默认超时 = %d, want 2000", ms)
+	}
+
+	if err := Save(KeyIntentsLLMFallback, "1"); err != nil {
+		t.Fatalf("Save intents_llm_fallback=1 失败: %s", err)
+	}
+	if err := Save(KeyIntentsLLMTimeoutMS, "3000"); err != nil {
+		t.Fatalf("Save intents_llm_timeout_ms=3000 失败: %s", err)
+	}
+	cfg = Load()
+	if !cfg.GetIntentsLLMFallback() {
+		t.Error("保存 1 后意图 LLM 兜底应为开启")
+	}
+	if ms := cfg.GetIntentsLLMTimeoutMS(); ms != 3000 {
+		t.Errorf("保存后超时 = %d, want 3000", ms)
+	}
+
+	// 超时越界拒绝且不落盘
+	if err := Save(KeyIntentsLLMTimeoutMS, "100"); err == nil {
+		t.Error("超时 100ms 应被拒绝")
+	}
+	if cfg := Load(); cfg.GetIntentsLLMTimeoutMS() != 3000 {
+		t.Errorf("拒绝后超时应保持 3000，实际 %d", cfg.GetIntentsLLMTimeoutMS())
+	}
+}
+
 // TestSave_KeepWarmRoundTrip 本地模型保活开关（T5-3a）持久化：
 // 默认开启；显式关闭 → 保存 → 重新加载为 false；再开启恢复。
 func TestSave_KeepWarmRoundTrip(t *testing.T) {

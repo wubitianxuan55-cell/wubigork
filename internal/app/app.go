@@ -29,6 +29,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/secure"
 	"github.com/gaea/gaea/internal/gaea/tasks"
 	"github.com/gaea/gaea/internal/httpbridge"
+	"github.com/gaea/gaea/internal/intent"
 	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/outline"
 	"github.com/gaea/gaea/internal/project"
@@ -233,6 +234,9 @@ type App struct {
 	brain *BrainStore
 
 	modules *ModuleRegistry
+
+	// intentClassifierFn 意图 LLM 兜底分类 seam（v4.8，测试注入点；nil=内置 LLM 分类器）。
+	intentClassifierFn func(text string) *intent.Intent
 }
 
 // emit 统一事件发射 — 发送到 Wails 前端。定义在 core 上，

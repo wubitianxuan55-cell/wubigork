@@ -83,6 +83,12 @@ const (
 	// 读屏留档（读屏纵深 v4.8）：把最近一次读屏截图以「屏幕-最近.png」滚动
 	// 覆盖存进 .gaea/exports（会进工位检索面）。默认关闭。
 	KeyReadScreenKeepLast = "read_screen_keep_last"
+	// 意图 LLM 兜底分类（v4.8）：规则引擎未命中时用轻量 LLM 分类（白名单
+	// navigate/status/read_screen + 0.75 置信门）。默认关闭——本开关把
+	// 「宁可漏判」姿态交给模型且给语音回路加延迟。
+	KeyIntentsLLMFallback = "intents_llm_fallback"
+	// 意图 LLM 兜底硬超时（毫秒，默认 2000）：超时立即走聊天管道不重试。
+	KeyIntentsLLMTimeoutMS = "intents_llm_timeout_ms"
 	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
 	KeyKeepWarm          = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
 	KeyAutoPreload       = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
@@ -173,6 +179,10 @@ type configFile struct {
 	ReadScreenSummary *bool `json:"read_screen_summary,omitempty"`
 	// 读屏留档开关（nil=默认关闭，最近读屏截图覆盖存 exports）
 	ReadScreenKeepLast *bool `json:"read_screen_keep_last,omitempty"`
+	// 意图 LLM 兜底分类开关（nil=默认关闭）
+	IntentsLLMFallback *bool `json:"intents_llm_fallback,omitempty"`
+	// 意图 LLM 兜底硬超时毫秒（0=未配置回退默认 2000）
+	IntentsLLMTimeoutMS int `json:"intents_llm_timeout_ms,omitempty"`
 	// 本地模型调度开关（T5-3a/b，nil=默认开启）
 	KeepWarmEnabled *bool `json:"keep_warm_enabled,omitempty"` // 保活探针
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
@@ -292,6 +302,9 @@ type Config struct {
 	// 读屏纵深（v4.8）：摘要/留档开关
 	ReadScreenSummary bool
 	ReadScreenKeepLast bool
+	// 意图 LLM 兜底（v4.8）：开关默认关；超时默认 2000ms
+	IntentsLLMFallback  bool
+	IntentsLLMTimeoutMS int
 
 	// 本地模型调度（T5-3a/b，默认开启）：
 	//   KeepWarmEnabled：保活——周期性对已运行的本地模型发轻量探针，防止被
@@ -460,6 +473,35 @@ func (c *Config) SetReadScreenKeepLast(enabled bool) {
 	c.ReadScreenKeepLast = enabled
 }
 
+// GetIntentsLLMFallback 读取意图 LLM 兜底分类开关（未显式配置时默认关闭）。
+func (c *Config) GetIntentsLLMFallback() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.IntentsLLMFallback
+}
+
+// SetIntentsLLMFallback 写入意图 LLM 兜底分类开关（true=规则未命中时轻量
+// LLM 分类兜底，白名单+置信门受控）。
+func (c *Config) SetIntentsLLMFallback(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.IntentsLLMFallback = enabled
+}
+
+// GetIntentsLLMTimeoutMS 读取意图 LLM 兜底硬超时（毫秒，默认 2000）。
+func (c *Config) GetIntentsLLMTimeoutMS() int {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.IntentsLLMTimeoutMS
+}
+
+// SetIntentsLLMTimeoutMS 写入意图 LLM 兜底硬超时（毫秒，200-60000）。
+func (c *Config) SetIntentsLLMTimeoutMS(ms int) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.IntentsLLMTimeoutMS = ms
+}
+
 // GetKeepWarm 读取本地模型保活开关（T5-3a，未显式配置时默认开启）。
 func (c *Config) GetKeepWarm() bool {
 	funcMu.RLock()
@@ -529,6 +571,9 @@ func Load() *Config {
 		// 留档默认关（exports 会进工位检索面）。
 		ReadScreenSummary:  true,
 		ReadScreenKeepLast: false,
+		// 意图 LLM 兜底（v4.8）：默认关（宁漏勿误姿态 + 语音回路延迟）；硬超时 2s。
+		IntentsLLMFallback:  false,
+		IntentsLLMTimeoutMS: 2000,
 		// T5-3a/b：本地模型保活 + 启动自动预载默认开启。
 		KeepWarmEnabled: true,
 		AutoPreload:     true,
@@ -820,6 +865,12 @@ func Load() *Config {
 			}
 			if cf.ReadScreenKeepLast != nil {
 				cfg.ReadScreenKeepLast = *cf.ReadScreenKeepLast
+			}
+			if cf.IntentsLLMFallback != nil {
+				cfg.IntentsLLMFallback = *cf.IntentsLLMFallback
+			}
+			if cf.IntentsLLMTimeoutMS > 0 {
+				cfg.IntentsLLMTimeoutMS = cf.IntentsLLMTimeoutMS
 			}
 			if cf.KeepWarmEnabled != nil {
 				cfg.KeepWarmEnabled = *cf.KeepWarmEnabled
@@ -1192,6 +1243,25 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.ReadScreenKeepLast = b
+		return nil
+	},
+	KeyIntentsLLMFallback: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.IntentsLLMFallback = b
+		return nil
+	},
+	KeyIntentsLLMTimeoutMS: func(cf *configFile, v string) error {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		if n < 200 || n > 60000 {
+			return fmt.Errorf("意图兜底超时须在 200-60000 毫秒之间（当前值: %s）", v)
+		}
+		cf.IntentsLLMTimeoutMS = n
 		return nil
 	},
 	KeyKeepWarm: func(cf *configFile, v string) error {
