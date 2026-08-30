@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -144,7 +145,14 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinkin
 
 	msgPreview := userMsg
 	if len(userMsg) > 80 {
-		msgPreview = userMsg[:80]
+		// 按 rune 截断预览（按字节会把汉字切成半截，日志出现 \xe6\x81 伪影，
+		// 曾误导排查为提示词损坏）
+		r := []rune(userMsg)
+		if len(r) > 40 {
+			msgPreview = string(r[:40]) + "…"
+		} else {
+			msgPreview = userMsg
+		}
 	}
 	slog.Info("[whisper] WhisperChat start", "userMsg", msgPreview, "personality", personalityID)
 
@@ -489,8 +497,9 @@ func (a *whisperState) WhisperWebSearch(query string) (map[string]interface{}, e
 
 // WhisperChatWithSearch 带搜索增强的对话：自动检测是否需要上网查询
 func (a *whisperState) WhisperChatWithSearch(userMsg string, personalityID string, thinking, forceSearch bool) (map[string]interface{}, error) {
-	// 检测搜索意图
-	if forceSearch || shouldSearchWeb(userMsg) {
+	// 检测搜索意图（身份类问题除外——「你是谁/你会什么」问的是助手自己，
+	// 联网搜索只会注入无关网页摘要，模型把英文片段混进回复反而出乱码）
+	if !isIdentityQuestion(userMsg) && (forceSearch || shouldSearchWeb(userMsg)) {
 		slog.Info("[whisper] auto-search triggered", "msg", userMsg[:min(60, len(userMsg))])
 		searchResult, err := whisper.WebSearch(userMsg)
 		if err == nil && searchResult != "" {
@@ -524,6 +533,23 @@ func shouldSearchWeb(msg string) bool {
 		}
 	}
 	return false
+}
+
+// isIdentityQuestion 识别「问助手自己」的问题（你是谁/你叫什么/你会什么…）。
+// 这类问题联网搜索必错：搜索引擎返回的是无关词条，注入后既拖慢回复又把
+// 网页英文片段混进角色扮演回复（微信实测：夹杂随机字母的根因）。
+func isIdentityQuestion(msg string) bool {
+	for _, re := range identityPatterns {
+		if re.MatchString(msg) {
+			return true
+		}
+	}
+	return false
+}
+
+var identityPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`你(是谁|叫什么|叫啥|会什么|能干什么|能做什么|会干什么|是什么)`),
+	regexp.MustCompile(`(介绍|说说|讲讲)(一下|下)?你(自己)?`),
 }
 
 // ─── 虚拟助手 CRUD ────────────────────────────────────────────
