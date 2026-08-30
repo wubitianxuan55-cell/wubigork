@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, BarChart3, Calculator, Layers, RefreshCw, Save } from "../../icons";
+import { AlertCircle, BarChart3, Calculator, Layers, RefreshCw, Save, TrendingUp } from "../../icons";
 import { app } from "../../lib/bridge";
 import { useToast } from "../Toast";
-import type { CostStageCompareRow, CostStageDeviation, CostStageValue } from "../../lib/types";
+import type { CostAttribution, CostStageCompareRow, CostStageDeviation, CostStageValue } from "../../lib/types";
 
 // 五算阶段固定顺序（对齐后端 coststage.StageOrder：投资估算/设计概算/
 // 施工图预算/竣工结算/竣工决算）。
@@ -63,6 +63,14 @@ function levelCls(level: string): string {
   return "text-fg-dim bg-bg-elev";
 }
 
+// 归因档位徽标：高（高于 P75）/ 低（低于 P25）/ 正常 / 无参考。
+function attrLevelCls(level: string): string {
+  if (level === "高") return "text-red-500 bg-red-500/10";
+  if (level === "低") return "text-emerald-500 bg-emerald-500/10";
+  if (level === "正常") return "text-ok bg-ok/10";
+  return "text-fg-dim bg-bg-elev";
+}
+
 /**
  * FiveCalcPanel — 五算对比（估/概/预/结/决）。
  *
@@ -76,6 +84,8 @@ export function FiveCalcPanel({ projectId, onChanged }: { projectId: string; onC
   const [stages, setStages] = useState<CostStageValue[]>([]);
   const [compare, setCompare] = useState<CostStageCompareRow[]>([]);
   const [deviations, setDeviations] = useState<CostStageDeviation[]>([]);
+  const [attribution, setAttribution] = useState<CostAttribution | null>(null);
+  const [attrLoading, setAttrLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [dates, setDates] = useState<Record<string, string>>({});
@@ -103,9 +113,22 @@ export function FiveCalcPanel({ projectId, onChanged }: { projectId: string; onC
     setLoading(false);
   }, [projectId]);
 
+  // v4.6.1 归因对标：项目明细 vs 参考指标带宽（参考池排除本项目）。
+  const loadAttribution = useCallback(async () => {
+    setAttrLoading(true);
+    try {
+      setAttribution(await app.CostAttribution(projectId));
+    } catch {
+      setAttribution(null);
+    } finally {
+      setAttrLoading(false);
+    }
+  }, [projectId]);
+
   useEffect(() => {
     void loadAll();
-  }, [loadAll]);
+    void loadAttribution();
+  }, [loadAll, loadAttribution]);
 
   const saveStage = useCallback(
     async (stage: string) => {
@@ -269,6 +292,65 @@ export function FiveCalcPanel({ projectId, onChanged }: { projectId: string; onC
                 </div>
               )}
             </>
+          )}
+
+          {/* v4.6.1 归因对标（成本知识图谱第一刀：项目 vs 参考指标带宽） */}
+          <div className="flex items-center justify-between">
+            <span className={sectionTitleCls}>
+              <TrendingUp size={12} className="text-violet-400" /> 归因对标
+            </span>
+            <button type="button" className={ghostBtn} title="重新对标参考指标" onClick={() => void loadAttribution()}>
+              <RefreshCw size={12} /> 重新对标
+            </button>
+          </div>
+          {attrLoading ? (
+            <div className="text-[11px] text-fg-faint">对标中…</div>
+          ) : !attribution || attribution.items.length === 0 ? (
+            <div className="text-[11px] text-fg-faint">
+              暂无归因数据——需要本项目有明细行、且存在已保存版本/已沉淀的参考项目。
+            </div>
+          ) : (
+            <div className="v3-panel rounded-xl p-3 space-y-2">
+              <p className="text-[11.5px] text-fg leading-relaxed">{attribution.summary}</p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10.5px] text-fg-faint">
+                <span>本项目合计 {fmtPrice(attribution.totalAmount)}</span>
+                <span>参考基准（中位数） {fmtPrice(attribution.refTotal)}</span>
+                <span className={diffCls(attribution.totalDiffPct)}>
+                  总偏离 {fmtSignedPrice(attribution.totalDiff)}（{fmtPct(attribution.totalDiffPct)}）
+                </span>
+              </div>
+              {attribution.topDrivers.length > 0 && (
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="text-left text-[10px] text-fg-faint border-b border-border-soft/50">
+                      <th className="py-1 px-2">主因条目</th>
+                      <th className="py-1 px-2 text-right">单价 → 参考中位</th>
+                      <th className="py-1 px-2 text-right">差幅</th>
+                      <th className="py-1 px-2 text-center">档位</th>
+                      <th className="py-1 px-2 text-right">贡献金额</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attribution.topDrivers.map((d) => (
+                      <tr key={d.title} data-testid={`attribution-${d.title}`}>
+                        <td className="py-1 px-2 text-fg truncate max-w-[180px]" title={`${d.title}${d.unit ? `（${d.unit}）` : ""}`}>
+                          {d.title}
+                          {d.unit ? <span className="text-fg-faint"> /{d.unit}</span> : null}
+                        </td>
+                        <td className="py-1 px-2 text-right tabular-nums text-fg-dim">
+                          {fmtPrice(d.price)} → {fmtPrice(d.refMedian)}
+                        </td>
+                        <td className={`py-1 px-2 text-right tabular-nums ${diffCls(d.diffPct)}`}>{fmtPct(d.diffPct)}</td>
+                        <td className="py-1 px-2 text-center">
+                          <span className={`${chipCls} ${attrLevelCls(d.level)}`}>{d.level}</span>
+                        </td>
+                        <td className="py-1 px-2 text-right tabular-nums text-fg-dim">{fmtSignedPrice(d.contribution)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
         </div>
       )}

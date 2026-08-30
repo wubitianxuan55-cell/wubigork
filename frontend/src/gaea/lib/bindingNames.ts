@@ -120,6 +120,7 @@ export const bindingNames = [
   "GaeaCostImportPreview",
   "GaeaCostImportVisionPreview",
   "GaeaCostIndicators",
+  "GaeaCostAttribution",
   "GaeaCostInquiryAdjust",
   "GaeaCostInquiryDelete",
   "GaeaCostInquiryExpiring",

@@ -61,9 +61,21 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 	}
 	srv := weixin.New(cfg, func(userMsg, fromUser string) (string, error) {
 		// v4.4 任务化路由（第一档）：提醒类请求就地处理（解析→落盘→确认），
-		// 不进聊天管道；未命中走原 WhisperChatWithSearch。
+		// 不进聊天管道。
 		if reply, handled := w.tryWxReminder(userMsg, ast.ID); handled {
 			return reply, nil
+		}
+		// v4.6.1 指令中枢 S4.5：微信消息接统一路由——提醒特例之外，navigate /
+		// generate_image / status / reminder（语音同款能力面）全部命中即执行，
+		// 回复经同一回推通道；未命中才走原轻语聊天。产物文件卡片（CardPath）
+		// 待 iLink 上传端点探明后接线（当前回复文本已带产物去向）。
+		if w.app != nil {
+			if res := w.app.routeIntentWithResult(userMsg); res.Handled {
+				if res.CardPath != "" {
+					return res.Reply + "（产物：" + res.CardPath + "）", nil
+				}
+				return res.Reply, nil
+			}
 		}
 		// 注入助手自定义名字（如"峨嵋"），系统提示词用该名字而非默认"gaea"
 		if orch := w.getOrCreateOrch(ast.PersonalityID); orch != nil && ast.Name != "" {

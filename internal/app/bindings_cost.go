@@ -15,6 +15,7 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type CostB struct{ a *App }
 
+func (b *CostB) GaeaCostAttribution(projectID string) (costref.Attribution, error) { return b.a.GaeaCostAttribution(projectID) }
 func (b *CostB) GaeaCostCategories() []CostCategoryView { return b.a.GaeaCostCategories() }
 func (b *CostB) GaeaCostCategoryDelete(id int) error { return b.a.GaeaCostCategoryDelete(id) }
 func (b *CostB) GaeaCostCategorySave(parentID int, name string, sort int, id int) (int, error) { return b.a.GaeaCostCategorySave(parentID, name, sort, id) }
@@ -30,7 +31,7 @@ func (b *CostB) GaeaCostEstimateVersionSave(projectID string, note string) (*cos
 func (b *CostB) GaeaCostEstimateVersions(projectID string) []costproject.Version { return b.a.GaeaCostEstimateVersions(projectID) }
 func (b *CostB) GaeaCostGet(name string) *CostEntry { return b.a.GaeaCostGet(name) }
 func (b *CostB) GaeaCostImportAIParse(path string) (CostImportPreview, error) { return b.a.GaeaCostImportAIParse(path) }
-func (b *CostB) GaeaCostImportApply(rows []CostEntry) (int, error) { return b.a.GaeaCostImportApply(rows) }
+func (b *CostB) GaeaCostImportApply(rows []CostEntry, inquirySource ...string) (int, error) { return b.a.GaeaCostImportApply(rows, inquirySource...) }
 func (b *CostB) GaeaCostImportPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportPreview(path) }
 func (b *CostB) GaeaCostImportVisionPreview(path string) (CostImportPreview, error) { return b.a.GaeaCostImportVisionPreview(path) }
 func (b *CostB) GaeaCostIndicators(group string) []costref.Indicator { return b.a.GaeaCostIndicators(group) }

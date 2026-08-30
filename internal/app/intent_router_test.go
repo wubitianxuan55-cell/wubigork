@@ -79,3 +79,29 @@ func TestRouteIntent_GenerateImageGuard(t *testing.T) {
 		t.Error("mediaState 缺失时生图应降级为未命中")
 	}
 }
+
+// S4.5 微信接统一路由：routeIntentWithResult 与 routeIntent 同源（包装关系），
+// 命中返回 Reply+Handled，未命中返回零值——微信回调据此分流聊天管道。
+func TestRouteIntentWithResultWrapsRouteIntent(t *testing.T) {
+	a := newChatServiceTestApp(t)
+
+	// 命中（status 无需副作用装配）：handled=true + Reply 非空
+	res := a.routeIntentWithResult("现在用什么模型")
+	if !res.Handled || res.Reply == "" {
+		t.Fatalf("routeIntentWithResult(status) = %+v, want handled+reply", res)
+	}
+	// 与 routeIntent 返回一致（包装关系）
+	reply, handled := a.routeIntent("现在用什么模型")
+	if handled != res.Handled || reply != res.Reply {
+		t.Fatalf("routeIntent 与 WithResult 不一致: (%q,%v) vs (%q,%v)", reply, handled, res.Reply, res.Handled)
+	}
+
+	// 未命中：零值（Handled=false、Reply 空、CardPath 空）
+	res = a.routeIntentWithResult("今天天气怎么样")
+	if res.Handled || res.Reply != "" || res.CardPath != "" {
+		t.Fatalf("routeIntentWithResult(未命中) = %+v, want 零值", res)
+	}
+	if _, handled := a.routeIntent("今天天气怎么样"); handled {
+		t.Fatal("routeIntent(未命中) 应返回 handled=false")
+	}
+}

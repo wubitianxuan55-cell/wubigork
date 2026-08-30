@@ -24,7 +24,7 @@ type CostMethods = Pick<
   | "CostProjectSave" | "CostProjectList" | "CostProjectGet" | "CostProjectDelete"
   | "CostEstimateItemSave" | "CostEstimateItemDelete" | "CostEstimateItems"
   | "CostEstimateVersionSave" | "CostEstimateVersions" | "CostEstimateSediment"
-  | "CostIndicators" | "CostNoteSave" | "CostNoteList" | "CostNoteDelete" | "CostNoteBumpRef"
+  | "CostIndicators" | "CostAttribution" | "CostNoteSave" | "CostNoteList" | "CostNoteDelete" | "CostNoteBumpRef"
 >;
 
 // ── 测算项目 mock 状态（浏览器开发环境内存态，无持久化）──
@@ -371,6 +371,21 @@ export function buildCost(_s: MakeMockState): CostMethods {
     // ── 造价参考与复盘笔记（mock）──
     async CostIndicators(group: string) {
       return mockIndicators(group);
+    },
+    // v4.6.1 归因对标 mock：无参考样本时的空报告（dev 演示不编造数据）。
+    async CostAttribution(projectId: string) {
+      const p = mockProjects.find((x) => x.id === projectId);
+      return {
+        projectId,
+        projectName: p?.name ?? projectId,
+        totalAmount: 0,
+        refTotal: 0,
+        totalDiff: 0,
+        totalDiffPct: 0,
+        items: [],
+        topDrivers: [],
+        summary: "暂无归因数据（需要参考项目与明细行）",
+      };
     },
     async CostNoteSave(n: CostReviewNote) {
       if (!n.title?.trim()) throw new Error("复盘笔记需要标题");

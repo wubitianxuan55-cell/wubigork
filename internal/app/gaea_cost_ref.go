@@ -3,6 +3,8 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/costproject"
 	"github.com/gaea/gaea/internal/gaea/costref"
@@ -52,6 +54,28 @@ func (a *App) GaeaCostIndicators(group string) []costref.Indicator {
 		items = append(items, projStore.ListItems(p.ID)...)
 	}
 	return costref.ComputeIndicators(items, group)
+}
+
+// GaeaCostAttribution 归因对标（v4.6.1 补课：审计 §C ④「成本知识图谱+归因
+// 对标零实现」）：把指定项目明细逐行与参考指标对标——参考池 = 除本项目外的
+// 全部「已保存版本/已沉淀」项目（防自对标），按标题匹配 P25/P75/中位数带宽，
+// 产出差幅等级 + 对总偏离的贡献金额 + TopDrivers 主因。无参考样本的条目
+// 保留展示但不参与归因（不猜测）。
+func (a *App) GaeaCostAttribution(projectID string) (costref.Attribution, error) {
+	projStore := a.hubCostProjectStore()
+	p, err := projStore.GetProject(projectID)
+	if err != nil {
+		return costref.Attribution{}, fmt.Errorf("项目不存在：%s", projectID)
+	}
+	var refItems []costproject.Item
+	for _, rp := range projStore.ListProjects() {
+		if rp.ID == projectID || rp.VersionCount <= 0 {
+			continue // 排除本项目 + 无版本留痕的临时工作稿
+		}
+		refItems = append(refItems, projStore.ListItems(rp.ID)...)
+	}
+	indicators := costref.ComputeIndicators(refItems, "title")
+	return costref.ComputeAttribution(projectID, p.Name, projStore.ListItems(projectID), indicators), nil
 }
 
 // GaeaCostNoteSave 新建/更新复盘笔记。

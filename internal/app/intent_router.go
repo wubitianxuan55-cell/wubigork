@@ -25,21 +25,42 @@ const intentNavigateEvent = "gaea-intent-navigate"
 // routeIntent 统一意图路由入口。返回 (回复文本, 是否命中)；未命中（nil 意图）
 // 返回 ("", false)，调用方走原对话管道。
 func (a *App) routeIntent(text string) (string, bool) {
+	res := a.routeIntentWithResult(text)
+	return res.Reply, res.Handled
+}
+
+// IntentResult 意图执行结果（S4.5 微信入口用）：Reply 是回推文本；CardPath
+// 非空表示能力产物（如生图落盘文件）——入口侧可尝试以文件卡片回推（iLink
+// 上传端点探明前以文本+路径兜底）；Handled 表示是否命中。
+type IntentResult struct {
+	Reply    string
+	CardPath string
+	Handled  bool
+}
+
+// routeIntentWithResult 是 routeIntent 的产物感知版本（S4.5 微信消息接统一
+// 路由）：同一能力执行层，额外携带可回推的文件卡片路径。语音/命令面板继续
+// 用 routeIntent（签名不变，零行为变化）。
+func (a *App) routeIntentWithResult(text string) IntentResult {
 	it := intent.Parse(text)
 	if it == nil {
-		return "", false
+		return IntentResult{}
 	}
 	switch it.Action {
 	case intent.ActionNavigate:
-		return a.execNavigate(it)
+		reply, ok := a.execNavigate(it)
+		return IntentResult{Reply: reply, Handled: ok}
 	case intent.ActionGenerateImage:
-		return a.execGenerateImage(it)
+		reply, ok, card := a.execGenerateImage(it)
+		return IntentResult{Reply: reply, Handled: ok, CardPath: card}
 	case intent.ActionStatus:
-		return a.execStatus(it)
+		reply, ok := a.execStatus(it)
+		return IntentResult{Reply: reply, Handled: ok}
 	case intent.ActionReminder:
-		return a.execReminder(it)
+		reply, ok := a.execReminder(it)
+		return IntentResult{Reply: reply, Handled: ok}
 	}
-	return "", false
+	return IntentResult{}
 }
 
 // execNavigate 导航能力：校验板块在当前 manifest 中存在 → emit 事件（前端
@@ -64,20 +85,22 @@ func (a *App) execNavigate(it *intent.Intent) (string, bool) {
 }
 
 // execGenerateImage 生图能力：直接调 mediaState 自由生图（默认尺寸/模型，
-// 异步任务）。失败时如实播报。
-func (a *App) execGenerateImage(it *intent.Intent) (string, bool) {
+// 异步任务）。失败时如实播报。返回 (回复, 命中, 产物文件路径)——生图异步
+// 完成前产物路径为空串；完成后的文件卡片回推由媒体完成回调接线（S4.5 后续
+// 刀：iLink 上传端点探明后）。
+func (a *App) execGenerateImage(it *intent.Intent) (string, bool, string) {
 	if a.mediaState == nil {
-		return "", false
+		return "", false, ""
 	}
 	res, err := a.mediaState.GenerateFreeImage(it.Target, "", "", "", "", 0, 1, "")
 	if err != nil {
 		slog.Warn("[intent] 生图启动失败", "err", err)
-		return "生图启动失败：" + err.Error() + "。", true
+		return "生图启动失败：" + err.Error() + "。", true, ""
 	}
 	if e, ok := res["error"].(string); ok && e != "" {
-		return "生图启动失败：" + e + "。", true
+		return "生图启动失败：" + e + "。", true, ""
 	}
-	return "好，开始生成：" + it.Target + "。完成后到绘梦板块查看。", true
+	return "好，开始生成：" + it.Target + "。完成后到绘梦板块查看。", true, ""
 }
 
 // execStatus 状态查询能力：当前可用引擎摘要（模型中心同源数据）。

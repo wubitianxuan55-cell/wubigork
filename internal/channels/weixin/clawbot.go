@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -65,6 +66,8 @@ type Server struct {
 
 	// getUpdatesFn 可替换的 getUpdates 实现（测试注入，避免真实 HTTP；nil 时用默认实现）。
 	getUpdatesFn func(req *pollReq, timeout time.Duration) (*pollResp, error)
+	// sendFn 可替换的回复发送实现（测试注入，避免真实 HTTP；nil 时用默认 Send）。
+	sendFn func(toUser, contextToken, text string) error
 	// notifyStartFn / notifyStopFn 可替换的通知实现（测试注入，避免真实网络调用）。
 	notifyStartFn func()
 	notifyStopFn  func()
@@ -162,13 +165,33 @@ type inboundMsg struct {
 	ClientID     string `json:"client_id"`
 	ContextToken string `json:"context_token"`
 	ItemList     []struct {
-		Type     int        `json:"type"`
-		TextItem *textItem  `json:"text_item,omitempty"`
+		Type      int        `json:"type"`
+		TextItem  *textItem  `json:"text_item,omitempty"`
+		ImageItem *imageItem `json:"image_item,omitempty"`
+		FileItem  *fileItem  `json:"file_item,omitempty"`
 	} `json:"item_list"`
 }
 
 type textItem struct {
 	Text string `json:"text"`
+}
+
+// imageItem / fileItem 是 iLink 非文本消息项（S4.5「发图即识别」协议探明第一
+// 刀）：字段名按 iLink 惯例留位（file_id/url/name/md5/size），真实负载以服务端
+// 下发为准——解析是防御性的，未知字段不报错。拿到 URL/file_id 后可接 vision/
+// 文件下载管线做字节级识别（后续刀）。
+type imageItem struct {
+	FileID string `json:"file_id,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Name   string `json:"name,omitempty"`
+	MD5    string `json:"md5,omitempty"`
+}
+
+type fileItem struct {
+	FileID string `json:"file_id,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Name   string `json:"name,omitempty"`
+	Size   int64  `json:"size,omitempty"`
 }
 
 func (s *Server) pollLoop() {
@@ -252,9 +275,29 @@ func (s *Server) pollLoop() {
 
 func (s *Server) handle(msg *inboundMsg) {
 	text := ""
+	var media []string
 	for _, item := range msg.ItemList {
-		if item.Type == 1 && item.TextItem != nil {
+		switch {
+		case item.Type == 1 && item.TextItem != nil:
 			text += item.TextItem.Text
+		case item.ImageItem != nil:
+			media = append(media, imageItemLabel(*item.ImageItem))
+		case item.FileItem != nil:
+			media = append(media, fileItemLabel(*item.FileItem))
+		default:
+			// 未知类型且无已识别负载：宁漏勿误——静默跳过（协议字段待探明，
+			// 不把无法理解的项喂给模型）。
+		}
+	}
+	// S4.5 发图即识别第一刀：非文本消息转成模型可见的提示行（「用户发来一张
+	// 图片」），让助手优雅应答而不是静默忽略；字节级内容识别待 URL/file_id
+	// 字段真机收敛后接 vision 管线。
+	if len(media) > 0 {
+		hint := "（用户发来一条" + strings.Join(media, "、") + "，内容暂无法读取）"
+		if text == "" {
+			text = hint
+		} else {
+			text = hint + " 附言：" + text
 		}
 	}
 	if text == "" || s.chatFn == nil {
@@ -273,9 +316,29 @@ func (s *Server) handle(msg *inboundMsg) {
 		slog.Error("[weixin] AI回复失败", "err", err)
 		reply = "思考中…请稍后再试"
 	}
-	if err := s.Send(msg.FromUserID, msg.ContextToken, reply); err != nil {
+	if s.sendFn != nil {
+		err = s.sendFn(msg.FromUserID, msg.ContextToken, reply)
+	} else {
+		err = s.Send(msg.FromUserID, msg.ContextToken, reply)
+	}
+	if err != nil {
 		slog.Error("[weixin] 回复失败", "err", err)
 	}
+}
+
+// imageItemLabel / fileItemLabel 把非文本消息项转成模型可见的简短描述。
+func imageItemLabel(it imageItem) string {
+	if it.Name != "" {
+		return "图片消息（" + it.Name + "）"
+	}
+	return "图片消息"
+}
+
+func fileItemLabel(it fileItem) string {
+	if it.Name != "" {
+		return "文件消息（" + it.Name + "）"
+	}
+	return "文件消息"
 }
 
 // LastPeer 返回最近活跃会话（fromUser, contextToken）；无记录时返回空串。

@@ -1,7 +1,8 @@
 package app
 
-// GaeaDocumentLint 对工作区文档做 v4.1c 中文规范体检（GB/T 9704 红头要素
-// lint 第一刀）：md/txt 直接读文本，docx 经 docmd 转 markdown 后校验。
+// GaeaDocumentLint 对工作区文档做中文规范体检（v4.1c 红头第一刀 → v4.6.1
+// 规范包机制化）：md/txt 直接读文本，docx 经 docmd 转 markdown 后校验；
+// 检查器可插拔（standard.Registry：GB/T 9704 红头要素 + 造价工程表式）。
 import (
 	"fmt"
 	"os"
@@ -50,5 +51,5 @@ func (a *App) GaeaDocumentLint(rel string) (standard.LintReport, error) {
 	} else {
 		head = text
 	}
-	return standard.LintText(rel, head, body), nil
+	return standard.LintDocument(rel, head, body), nil
 }

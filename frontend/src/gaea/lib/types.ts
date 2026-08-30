@@ -932,6 +932,34 @@ export interface CostIndicator {
   p75: number;
 }
 
+// v4.6.1 归因对标（CostAttribution）：项目明细 vs 参考指标带宽的逐行对标。
+export interface CostAttributionItem {
+  title: string;
+  unit: string;
+  quantity: number;
+  price: number;
+  amount: number;
+  refSamples: number;
+  refMedian: number;
+  refP25: number;
+  refP75: number;
+  diffPct: number;
+  level: string; // 高/正常/低/无参考
+  contribution: number; // (price-refMedian)×quantity
+}
+
+export interface CostAttribution {
+  projectId: string;
+  projectName: string;
+  totalAmount: number;
+  refTotal: number;
+  totalDiff: number;
+  totalDiffPct: number;
+  items: CostAttributionItem[];
+  topDrivers: CostAttributionItem[];
+  summary: string;
+}
+
 // CostReviewNote 复盘笔记（结论/边界/风险/证据/可信度/有效期/复核状态）。
 export interface CostReviewNote {
   id?: number;
@@ -1322,6 +1350,8 @@ export interface LintIssueView {
   element: string;
   found: boolean;
   note: string;
+  // v4.6.1 规范包机制化：Issue 归属的规范包名（GB/T 9704 红头要素 / 造价工程表式）。
+  spec?: string;
 }
 export interface LintReportView {
   path: string;

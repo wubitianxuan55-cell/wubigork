@@ -1,5 +1,15 @@
 # gaea · 多功能 AI 助手
 
+## v4.6.1「微信统一路由 · 规范包机制 · 归因对标」(2026-08-30)
+> 审计补课续刀：S4.5 微信消息接统一路由（routeIntentWithResult 产物感知版本，
+> 提醒特例之外 navigate/生图/状态/提醒全命中即执行，未命中才走聊天）+ iLink
+> 图片消息协议第一刀（image_item/file_item 防御性解析 + 非文本转模型提示行，
+> 未知空项宁漏勿误）；规范包机制化（Checker 注册表 + 红头/造价工程表式双检查
+> 器，GaeaDocumentLint 聚合，OfficePanel 按规范包分组）；成本归因对标（明细
+> vs 参考指标 P25/P75 带宽，差幅等级/贡献金额/主因 TopDrivers，参考池排除
+> 本项目，绑定面 530→531，FiveCalcPanel 归因区）。Go 全量绿、vitest 791/791、
+> tsc/eslint 0。详见 releases/v4.6.1.md。
+
 ## v4.6.0「双空间收尾 · 纵深补课」(2026-08-30)
 > 执行审计（docs/audit-2026-08-30-v4-execution-review.md）后的第一轮补课：
 > 红线缺口三条（记忆注入跨空间 / 任务分账未启用 / 事件过滤仅 1 处）全部接线，

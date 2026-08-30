@@ -9,6 +9,7 @@ package costref
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -46,6 +47,40 @@ type Indicator struct {
 	Median  float64 // 中位数（P50）
 	P25     float64 // 下四分位
 	P75     float64 // 上四分位
+}
+
+// AttributionItem 单条明细的归因对标（v4.6.1 补课：审计 §C ④「成本知识图谱+
+// 归因对标零实现」）：本项目明细单价 vs 参考指标（P25/P75 带宽 + 中位数基准），
+// 产出差幅等级与对本项目总偏离的贡献金额。
+type AttributionItem struct {
+	Title        string  `json:"title"`
+	Unit         string  `json:"unit"`
+	Quantity     float64 `json:"quantity"`
+	Price        float64 `json:"price"`
+	Amount       float64 `json:"amount"`
+	RefSamples   int     `json:"refSamples"`
+	RefMedian    float64 `json:"refMedian"`
+	RefP25       float64 `json:"refP25"`
+	RefP75       float64 `json:"refP75"`
+	DiffPct      float64 `json:"diffPct"`      // 相对参考中位数差幅 %
+	Level        string  `json:"level"`        // 高/正常/低（vs 参考带宽）
+	Contribution float64 `json:"contribution"` // (price-refMedian)×quantity（元）
+}
+
+// Attribution 归因对标报告：把项目明细逐行与参考指标对标，定位总偏离的
+// 主要贡献者（TopDrivers）。
+type Attribution struct {
+	ProjectID    string            `json:"projectId"`
+	ProjectName  string            `json:"projectName"`
+	TotalAmount  float64           `json:"totalAmount"`
+	RefTotal     float64           `json:"refTotal"`
+	TotalDiff    float64           `json:"totalDiff"`
+	TotalDiffPct float64           `json:"totalDiffPct"`
+	Unmatched    int               `json:"unmatched"`        // 无参考的明细条数
+	UnmatchedAmt float64           `json:"unmatchedAmt"`     // 无参考明细的金额（未参与归因）
+	Items        []AttributionItem `json:"items"`
+	TopDrivers   []AttributionItem `json:"topDrivers"`
+	Summary      string            `json:"summary"`
 }
 
 // Store 复盘笔记存储（Hephaestus.db）。
@@ -230,6 +265,159 @@ func ComputeIndicators(items []costproject.Item, group string) []Indicator {
 		out = append(out, ind)
 	}
 	return out
+}
+
+// ── 归因对标（v4.6.1 补课：审计 §C ④「成本知识图谱+归因对标零实现」）────
+
+// attributionLevelThresholds 是归因等级阈值（相对参考中位数）：超出
+// P25-P75 带宽即判 高/低，带宽内判 正常。带宽退化（P25==P75）时用 ±10%
+// 兜底（避免单个样本把一切标成异常）。
+const attributionBandFallbackPct = 10.0
+
+// ComputeAttribution 把项目明细行逐条与参考指标对标（纯函数）：
+//   - 按标题（title）匹配参考指标；无参考的条目保留展示（refSamples=0）但不进
+//     TopDrivers（无法归因不猜测）；
+//   - 差幅 = (price - refMedian) / refMedian × 100；
+//   - Level：price > P75 → "高"；price < P25 → "低"；否则 "正常"；
+//   - Contribution = (price - refMedian) × quantity（对本项目总偏离的贡献金额）；
+//   - TopDrivers 按 |Contribution| 降序取前 10；Summary 给出偏离方向与主因。
+func ComputeAttribution(projectID, projectName string, items []costproject.Item, indicators []Indicator) Attribution {
+	ref := map[string]Indicator{}
+	for _, ind := range indicators {
+		if strings.TrimSpace(ind.Key) != "" {
+			ref[ind.Key] = ind
+		}
+	}
+	var attrs []AttributionItem
+	var totalAmount, refTotal, unmatchedAmt float64
+	unmatched := 0
+	for _, i := range items {
+		if i.Price <= 0 || strings.TrimSpace(i.Title) == "" {
+			continue
+		}
+		// 明细行 Amount 通常由存储层自动计算；纯函数输入缺省时按 数量×单价 兜底。
+		amount := i.Amount
+		if amount <= 0 && i.Quantity > 0 {
+			amount = i.Quantity * i.Price
+		}
+		at := AttributionItem{
+			Title:    strings.TrimSpace(i.Title),
+			Unit:     strings.TrimSpace(i.Unit),
+			Quantity: i.Quantity,
+			Price:    i.Price,
+			Amount:   amount,
+		}
+		if ind, ok := ref[at.Title]; ok && ind.Samples > 0 && ind.Median > 0 {
+			at.RefSamples = ind.Samples
+			at.RefMedian = ind.Median
+			at.RefP25 = ind.P25
+			at.RefP75 = ind.P75
+			at.DiffPct = round4((at.Price - ind.Median) / ind.Median * 100)
+			at.Level = attributionLevel(at.Price, ind.P25, ind.P75)
+			at.Contribution = (at.Price - ind.Median) * at.Quantity
+			refTotal += ind.Median * at.Quantity
+			totalAmount += amount // 总偏离只统计可归因条目（无参考项另计）
+		} else {
+			at.Level = "无参考"
+			unmatched++
+			unmatchedAmt += amount
+		}
+		attrs = append(attrs, at)
+	}
+	totalDiff := totalAmount - refTotal
+	totalDiffPct := 0.0
+	if refTotal > 0 {
+		totalDiffPct = round4(totalDiff / refTotal * 100)
+	}
+	drivers := make([]AttributionItem, 0, len(attrs))
+	for _, at := range attrs {
+		if at.RefSamples > 0 {
+			drivers = append(drivers, at)
+		}
+	}
+	sort.SliceStable(drivers, func(i, j int) bool {
+		ai, aj := math.Abs(drivers[i].Contribution), math.Abs(drivers[j].Contribution)
+		if ai != aj {
+			return ai > aj
+		}
+		return drivers[i].Title < drivers[j].Title
+	})
+	if len(drivers) > 10 {
+		drivers = drivers[:10]
+	}
+	summary := attributionSummary(attrs, totalDiffPct)
+	return Attribution{
+		ProjectID:    projectID,
+		ProjectName:  projectName,
+		TotalAmount:  round4(totalAmount),
+		RefTotal:     round4(refTotal),
+		TotalDiff:    round4(totalDiff),
+		TotalDiffPct: totalDiffPct,
+		Unmatched:    unmatched,
+		UnmatchedAmt: round4(unmatchedAmt),
+		Items:        attrs,
+		TopDrivers:   drivers,
+		Summary:      summary,
+	}
+}
+
+// attributionLevel 单条单价相对参考带宽的等级。
+func attributionLevel(price, p25, p75 float64) string {
+	if p25 == p75 {
+		// 带宽退化兜底：±10%（单样本时避免全标异常）
+		if price > p75*(1+attributionBandFallbackPct/100) {
+			return "高"
+		}
+		if price < p25*(1-attributionBandFallbackPct/100) {
+			return "低"
+		}
+		return "正常"
+	}
+	if price > p75 {
+		return "高"
+	}
+	if price < p25 {
+		return "低"
+	}
+	return "正常"
+}
+
+// attributionSummary 汇总文案：偏离方向 + 主因（TopDrivers 首条）。
+func attributionSummary(items []AttributionItem, totalDiffPct float64) string {
+	if totalDiffPct == 0 {
+		return "与参考中位数基准基本持平（偏离 0%）"
+	}
+	direction := "高于"
+	if totalDiffPct < 0 {
+		direction = "低于"
+	}
+	base := fmt.Sprintf("本项目总价%s参考中位数基准 %.1f%%", direction, math.Abs(totalDiffPct))
+	drivers := make([]AttributionItem, 0, len(items))
+	for _, at := range items {
+		if at.RefSamples > 0 && at.Contribution != 0 {
+			drivers = append(drivers, at)
+		}
+	}
+	sort.SliceStable(drivers, func(i, j int) bool {
+		return math.Abs(drivers[i].Contribution) > math.Abs(drivers[j].Contribution)
+	})
+	if len(drivers) > 0 {
+		top := drivers[0]
+		base += fmt.Sprintf("；主因：%s（贡献 %s 元，差幅 %+.1f%%）",
+			top.Title, trimZero(top.Contribution), top.DiffPct)
+	}
+	return base
+}
+
+// trimZero 金额去尾零展示（如 1234.5 → "1234.5"）。
+func trimZero(v float64) string {
+	s := fmt.Sprintf("%.2f", v)
+	return strings.TrimRight(strings.TrimRight(s, "0"), ".")
+}
+
+// round4 四舍五入保留 4 位小数（消除浮点噪声；与 coststage 同口径）。
+func round4(v float64) float64 {
+	return math.Round(v*10000) / 10000
 }
 
 func firstCategory(path string) string {

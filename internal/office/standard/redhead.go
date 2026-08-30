@@ -13,6 +13,8 @@ type Issue struct {
 	Element string `json:"element"` // 要素名（发文机关标志 / 发文字号 / …）
 	Found   bool   `json:"found"`
 	Note    string `json:"note"` // 修复建议（缺失时给出）
+	// Spec 是规范包归属（v4.6.1 机制化：GB/T 9704 红头要素 / 造价工程表式 / …）。
+	Spec string `json:"spec,omitempty"`
 }
 
 // LintReport 是一次红头要素体检的结果。
@@ -27,6 +29,21 @@ var (
 	reDocNumber = regexp.MustCompile(`〔?[0-9]{4}〕?\s*[0-9]+号`)
 	reDate      = regexp.MustCompile(`[0-9]{4}\s*年\s*[0-9]{1,2}\s*月\s*[0-9]{1,2}\s*日`)
 )
+
+// RedheadChecker 是 GB/T 9704 红头要素规范包（v4.6.1 注册表机制化）。
+type RedheadChecker struct{}
+
+// Name 规范包名。
+func (RedheadChecker) Name() string { return "GB/T 9704 红头要素" }
+
+// Check 对标题+正文做红头要素体检，每条 Issue 带 Spec 归属。
+func (c RedheadChecker) Check(path, head, body string) []Issue {
+	report := LintText(path, head, body)
+	for i := range report.Issues {
+		report.Issues[i].Spec = c.Name()
+	}
+	return report.Issues
+}
 
 // LintText 对标题+正文做红头要素体检（GB/T 9704 关键要素子集）。
 // head 通常为前若干行（含发文机关标志与标题），body 为其余正文。

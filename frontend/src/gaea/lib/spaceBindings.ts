@@ -243,6 +243,7 @@ export const GAEA_METHOD_FACETS = {
   CostEstimateVersions: "work",
   CostEstimateSediment: "work",
   CostIndicators: "work",
+  CostAttribution: "work",
   CostNoteSave: "work",
   CostNoteList: "work",
   CostNoteDelete: "work",

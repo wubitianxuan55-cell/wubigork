@@ -81,6 +81,7 @@ import type {
   CostEstimateItem,
   CostEstimateVersion,
   CostIndicator,
+  CostAttribution,
   CostReviewNote,
   CostImportPreview,
   CostCompareRow,
@@ -459,6 +460,9 @@ export interface AppBindings {
   // ── 造价参考与复盘笔记（案例指标 + 经验沉淀）──
   // CostIndicators 造价参考指标：group=title（按科目）| category（按一级分类）。
   CostIndicators(group: string): Promise<CostIndicator[]>;
+  // CostAttribution 归因对标（v4.6.1）：项目明细 vs 参考指标带宽，产出
+  // 差幅等级/贡献金额/主因 TopDrivers（参考池排除本项目）。
+  CostAttribution(projectId: string): Promise<CostAttribution>;
   CostNoteSave(n: CostReviewNote): Promise<number>;
   CostNoteList(query: string, status: string): Promise<CostReviewNote[]>;
   CostNoteDelete(id: number): Promise<void>;
@@ -871,6 +875,7 @@ const gaeaToGaea = {
   CostEstimateVersions: "GaeaCostEstimateVersions",
   CostEstimateSediment: "GaeaCostEstimateSediment",
   CostIndicators: "GaeaCostIndicators",
+  CostAttribution: "GaeaCostAttribution",
   CostNoteSave: "GaeaCostNoteSave",
   CostNoteList: "GaeaCostNoteList",
   CostNoteDelete: "GaeaCostNoteDelete",

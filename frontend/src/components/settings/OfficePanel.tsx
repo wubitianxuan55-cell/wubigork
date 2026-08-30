@@ -271,7 +271,7 @@ const OfficePanel: React.FC = () => {
         </Button>
       </div>
 
-      {/* v4.1c 中文规范体检（GB/T 9704 红头要素 lint 第一刀） */}
+      {/* v4.1c → v4.6.1 中文规范体检（规范包机制化：红头要素 + 造价工程表式） */}
       <SettingsSection title="规范体检">
         <div style={{ display: 'flex', gap: 8 }}>
           <Input
@@ -282,7 +282,7 @@ const OfficePanel: React.FC = () => {
             style={{ flex: 1 }}
           />
           <Button icon={<FileTextOutlined />} loading={linting} onClick={() => void runLint()}>
-            体检（红头）
+            规范体检
           </Button>
         </div>
         {lintReport && (
@@ -292,7 +292,21 @@ const OfficePanel: React.FC = () => {
             </Typography.Text>
             <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
               {lintReport.issues.map((it) => (
-                <li key={it.element} style={{ color: it.found ? 'var(--md-sys-color-text-secondary)' : 'var(--md-sys-color-text)' }}>
+                <li key={`${it.spec ?? '通用'}:${it.element}`} style={{ color: it.found ? 'var(--md-sys-color-text-secondary)' : 'var(--md-sys-color-text)' }}>
+                  {it.spec && (
+                    <span
+                      style={{
+                        marginRight: 6,
+                        fontSize: 10,
+                        padding: '0 5px',
+                        borderRadius: 4,
+                        color: 'var(--md-sys-color-primary)',
+                        background: 'color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent)',
+                      }}
+                    >
+                      {it.spec}
+                    </span>
+                  )}
                   {it.element}：{it.found ? '符合' : <span style={{ color: 'var(--md-sys-color-destructive)' }}>{it.note}</span>}
                 </li>
               ))}

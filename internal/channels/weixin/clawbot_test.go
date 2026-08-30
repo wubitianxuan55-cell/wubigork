@@ -1,6 +1,7 @@
 package weixin
 
 import (
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +15,99 @@ func newTestServer(t *testing.T, botToken string) *Server {
 	srv.notifyStartFn = func() {}
 	srv.notifyStopFn = func() {}
 	return srv
+}
+
+// S4.5 发图即识别第一刀：非文本消息（图片/文件）转为模型可见提示行——
+// 纯图片消息触发 chatFn 并带「收到图片」提示；图文混合时提示前置附言保留；
+// 纯文本消息行为不变（不注入提示）。
+func TestHandle_NonTextMessageBecomesHint(t *testing.T) {
+	var got string
+	srv := New(Config{BotToken: "tok", AssistantID: "t"}, func(userMsg, fromUser string) (string, error) {
+		got = userMsg
+		return "ok", nil
+	})
+	srv.sendFn = func(toUser, contextToken, text string) error { return nil }
+
+	// 纯图片消息：item.type 非 1 + image_item（探明字段 name/url 防御性解析）
+	srv.handle(&inboundMsg{
+		FromUserID:   "u1",
+		ContextToken: "ctx1",
+		ItemList: []struct {
+			Type      int        `json:"type"`
+			TextItem  *textItem  `json:"text_item,omitempty"`
+			ImageItem *imageItem `json:"image_item,omitempty"`
+			FileItem  *fileItem  `json:"file_item,omitempty"`
+		}{
+			{Type: 3, ImageItem: &imageItem{Name: "照片.jpg", URL: "https://x/img.jpg"}},
+		},
+	})
+	if !strings.Contains(got, "图片消息（照片.jpg）") || !strings.Contains(got, "内容暂无法读取") {
+		t.Fatalf("纯图片消息提示 = %q, want 图片消息提示", got)
+	}
+	if from, _ := srv.LastPeer(); from != "u1" {
+		t.Fatalf("LastPeer 未更新: %q", from)
+	}
+
+	// 图文混合：提示前置 + 附言保留原文
+	got = ""
+	srv.handle(&inboundMsg{
+		FromUserID:   "u1",
+		ContextToken: "ctx1",
+		ItemList: []struct {
+			Type      int        `json:"type"`
+			TextItem  *textItem  `json:"text_item,omitempty"`
+			ImageItem *imageItem `json:"image_item,omitempty"`
+			FileItem  *fileItem  `json:"file_item,omitempty"`
+		}{
+			{Type: 3, ImageItem: &imageItem{Name: "图.png"}},
+			{Type: 1, TextItem: &textItem{Text: "帮我看下这张图"}},
+		},
+	})
+	if !strings.Contains(got, "图片消息（图.png）") || !strings.Contains(got, "帮我看下这张图") {
+		t.Fatalf("图文混合提示 = %q, want 提示+附言", got)
+	}
+
+	// 纯文本：不含提示
+	got = ""
+	srv.handle(&inboundMsg{
+		FromUserID: "u1",
+		ItemList: []struct {
+			Type      int        `json:"type"`
+			TextItem  *textItem  `json:"text_item,omitempty"`
+			ImageItem *imageItem `json:"image_item,omitempty"`
+			FileItem  *fileItem  `json:"file_item,omitempty"`
+		}{
+			{Type: 1, TextItem: &textItem{Text: "你好"}},
+		},
+	})
+	if got != "你好" {
+		t.Fatalf("纯文本 = %q, want 你好（零提示注入）", got)
+	}
+}
+
+// 未知消息类型（无 text/image/file 项）：不 panic、不触发 chatFn（协议未知
+// 时静默降级，避免把垃圾喂给模型）。
+func TestHandle_UnknownItemSilentlyIgnored(t *testing.T) {
+	called := false
+	srv := New(Config{BotToken: "tok", AssistantID: "t"}, func(userMsg, fromUser string) (string, error) {
+		called = true
+		return "", nil
+	})
+	srv.sendFn = func(toUser, contextToken, text string) error { return nil }
+	srv.handle(&inboundMsg{
+		FromUserID: "u1",
+		ItemList: []struct {
+			Type      int        `json:"type"`
+			TextItem  *textItem  `json:"text_item,omitempty"`
+			ImageItem *imageItem `json:"image_item,omitempty"`
+			FileItem  *fileItem  `json:"file_item,omitempty"`
+		}{
+			{Type: 99}, // 无任何负载项
+		},
+	})
+	if called {
+		t.Fatal("未知空项不应触发 chatFn")
+	}
 }
 
 // TestStop_IdempotentNoPanic 二次 Stop（以及从未 Start 直接 Stop）都不应 panic、无副作用。
