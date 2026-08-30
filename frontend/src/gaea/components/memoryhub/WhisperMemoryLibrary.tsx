@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DownloadOutlined, HeartOutlined, ReadOutlined, IdcardOutlined, HomeOutlined, AimOutlined, SmileOutlined, ClockCircleOutlined, ShareAltOutlined, HistoryOutlined } from "@ant-design/icons";
+import { DownloadOutlined, HeartOutlined, ReadOutlined, IdcardOutlined, HomeOutlined, AimOutlined, SmileOutlined, ClockCircleOutlined, ShareAltOutlined, HistoryOutlined, CalendarOutlined } from "@ant-design/icons";
 import { Modal, message } from "antd";
 import { RefreshCw } from "../../icons";
 import { app } from "../../lib/bridge";
 import { DOMAIN_COLORS } from "../../lib/domainColors";
-import type { WhisperEpisodeView, WhisperEpisodeReplayView, WhisperMemoryView } from "../../lib/types";
+import type { WhisperAnchorReplayView, WhisperAnchorView, WhisperEpisodeView, WhisperEpisodeReplayView, WhisperMemoryView } from "../../lib/types";
 import { EmptyState } from "../EmptyState";
 import { WhisperGraphPanel, currentPersonalityId } from "../../../components/WhisperGraphPanel";
 
@@ -29,6 +29,13 @@ const EMOTION_EMOJI: Record<string, string> = {
   疲惫: "😪", 孤独: "🫥", 感激: "🙏",
 };
 
+const ANCHOR_TYPE_LABELS: Record<string, string> = {
+  recurring: "周期纪念日",
+  milestone: "里程碑",
+  relationship: "关系",
+  fuzzy: "模糊",
+};
+
 function emotionEmoji(label: string): string {
   if (!label) return "✨";
   return EMOTION_EMOJI[label] ?? EMOTION_EMOJI[label.trim()] ?? "✨";
@@ -43,9 +50,10 @@ function formatTime(iso: string): string {
 
 /** WhisperMemoryLibrary 右脑聊天记忆库（只读）：hermes.db 记忆事实 + 情节记忆浏览。 */
 export function WhisperMemoryLibrary() {
-  const [tab, setTab] = useState<"facts" | "episodes">("facts");
+  const [tab, setTab] = useState<"facts" | "episodes" | "anchors">("facts");
   const [facts, setFacts] = useState<WhisperMemoryView[]>([]);
   const [episodes, setEpisodes] = useState<WhisperEpisodeView[]>([]);
+  const [anchors, setAnchors] = useState<WhisperAnchorView[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<WhisperMemoryView | null>(null);
@@ -53,14 +61,19 @@ export function WhisperMemoryLibrary() {
   const [replay, setReplay] = useState<WhisperEpisodeReplayView | null>(null);
   const [replayLoading, setReplayLoading] = useState(false);
   const [replayError, setReplayError] = useState("");
+  const [selectedAnchor, setSelectedAnchor] = useState<WhisperAnchorView | null>(null);
+  const [anchorReplay, setAnchorReplay] = useState<WhisperAnchorReplayView | null>(null);
+  const [anchorReplayLoading, setAnchorReplayLoading] = useState(false);
+  const [anchorReplayError, setAnchorReplayError] = useState("");
   const [graphOpen, setGraphOpen] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
-    Promise.all([app.WhisperMemories(), app.WhisperEpisodes()])
-      .then(([fl, el]) => {
+    Promise.all([app.WhisperMemories(), app.WhisperEpisodes(), app.WhisperAnchors()])
+      .then(([fl, el, al]) => {
         setFacts(fl);
         setEpisodes(el);
+        setAnchors(al);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -86,6 +99,25 @@ export function WhisperMemoryLibrary() {
       .finally(() => { if (!cancelled) setReplayLoading(false); });
     return () => { cancelled = true; };
   }, [selectedEp]);
+
+  // 纪念日详情打开时按锚点 ID 解析关联情节并重建原始对话（时间锚点回放）。
+  useEffect(() => {
+    if (!selectedAnchor) {
+      setAnchorReplay(null);
+      setAnchorReplayLoading(false);
+      setAnchorReplayError("");
+      return;
+    }
+    let cancelled = false;
+    setAnchorReplayLoading(true);
+    setAnchorReplayError("");
+    setAnchorReplay(null);
+    app.WhisperAnchorReplay(selectedAnchor.id)
+      .then((r) => { if (!cancelled) setAnchorReplay(r); })
+      .catch((err) => { if (!cancelled) setAnchorReplayError(String(err)); })
+      .finally(() => { if (!cancelled) setAnchorReplayLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedAnchor]);
 
   const handleExport = useCallback(async () => {
     const dir = await app.PickDirectory();
@@ -113,6 +145,13 @@ export function WhisperMemoryLibrary() {
       !q || e.summary.toLowerCase().includes(q) || e.dominantEmotion.toLowerCase().includes(q),
     ),
     [episodes, q],
+  );
+  const filteredAnchors = useMemo(
+    () => anchors.filter((a) =>
+      !q || a.summary.toLowerCase().includes(q) || a.anchorDate.includes(q) ||
+      (ANCHOR_TYPE_LABELS[a.anchorType] ?? a.anchorType).toLowerCase().includes(q),
+    ),
+    [anchors, q],
   );
 
   // 按 6 domain 分组（未识别的归入"其他"）
@@ -156,11 +195,22 @@ export function WhisperMemoryLibrary() {
                 <span className="ml-1 text-fg-faint text-[10px]">{(episodes ?? []).length}</span>
               )}
             </button>
+            <button
+              className={`px-2.5 h-6.5 rounded-md text-[12px] transition-colors ${
+                tab === "anchors" ? "bg-bg-elev text-fg shadow-sm" : "text-fg-faint hover:text-fg"
+              }`}
+              onClick={() => setTab("anchors")}
+            >
+              纪念日
+              {(anchors ?? []).length > 0 && (
+                <span className="ml-1 text-fg-faint text-[10px]">{(anchors ?? []).length}</span>
+              )}
+            </button>
           </div>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`搜索${tab === "facts" ? "记忆" : "情节"}…`}
+            placeholder={`搜索${tab === "facts" ? "记忆" : tab === "episodes" ? "情节" : "纪念日"}…`}
             className="w-40 px-3 h-8 rounded-lg border border-border bg-bg text-fg text-[12px] placeholder:text-fg-faint outline-none focus:border-accent transition-colors"
           />
           <button
@@ -240,6 +290,35 @@ export function WhisperMemoryLibrary() {
                   </div>
                 );
               })}
+            </div>
+          )
+        ) : tab === "anchors" ? (
+          /* ── 纪念日时间锚点（日期倒序，类型徽标 + 情绪） ── */
+          filteredAnchors.length === 0 ? (
+            <EmptyState message="暂无时间锚点 — 对话中提到生日/纪念日/里程碑并伴随情绪时，gaea 会自动沉淀「那一天」，点击即可回放原始对话" />
+          ) : (
+            <div className="space-y-2.5 py-1">
+              {filteredAnchors.map((an) => (
+                <div
+                  key={an.id}
+                  className="p-2.5 rounded-lg border border-border bg-bg-soft/50 hover:border-accent/50 cursor-pointer transition-colors"
+                  onClick={() => setSelectedAnchor(an)}
+                >
+                  <div className="flex items-center gap-2">
+                    <CalendarOutlined style={{ fontSize: 13, color: "var(--md-sys-color-primary)" }} />
+                    <span className="text-fg text-[12.5px] font-medium">{an.anchorDate}</span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-300/90 text-[10px]">
+                      {ANCHOR_TYPE_LABELS[an.anchorType] ?? an.anchorType}
+                    </span>
+                    {an.emotionalIntensity > 0 && (
+                      <span className="ml-auto shrink-0 text-fg-faint text-[10.5px]">
+                        情绪 {Math.round(an.emotionalIntensity * 100)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-fg-dim text-[12px] leading-relaxed line-clamp-2">{an.summary}</div>
+                </div>
+              ))}
             </div>
           )
         ) : filtered.length === 0 ? (
@@ -348,38 +427,50 @@ export function WhisperMemoryLibrary() {
               <RowItem label="会话" value={selectedEp.sourceSessionId} mono />
             </div>
             {/* 记忆回放：重建该情节的原始对话（审计 §C 欠账收口） */}
-            <div className="mt-2 pt-2.5 border-t border-border">
-              <div className="flex items-center gap-1.5 text-[12px] font-medium text-fg mb-2">
-                <HistoryOutlined style={{ fontSize: 12 }} />
-                回放原始对话
-              </div>
-              {replayLoading ? (
-                <div className="py-4 text-center text-fg-faint text-[12px]">正在重建这段记忆…</div>
-              ) : replayError ? (
-                <div className="py-2 text-[12px] text-red-400">回放失败：{replayError}</div>
-              ) : replay?.replayable ? (
-                <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
-                  {replay.dialogue.map((line, i) => (
-                    <div key={i} className={`flex ${line.role === "user" ? "justify-end" : "justify-start"}`}>
-                      <div
-                        className={`max-w-[85%] px-2.5 py-1.5 rounded-lg text-[12.5px] leading-relaxed whitespace-pre-wrap ${
-                          line.role === "user" ? "bg-pink-500/15 text-fg" : "bg-bg-elev border border-border text-fg-dim"
-                        }`}
-                      >
-                        <div className={`text-[10px] mb-0.5 ${line.role === "user" ? "text-right text-pink-400/80" : "text-fg-faint"}`}>
-                          {line.role === "user" ? "你" : "gaea"} · 第{line.turnIndex}轮
-                        </div>
-                        {line.text}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-2 text-fg-faint text-[12px] leading-relaxed">
-                  {replay ? "原始对话已超出保留范围（仅存记忆摘要），无法逐字回放。" : "暂无可回放的原始对话。"}
-                </div>
-              )}
+            <ReplayDialogue replay={replay} loading={replayLoading} error={replayError} />
+          </div>
+        )}
+      </Modal>
+
+      {/* 纪念日详情弹窗（时间锚点回放：锚点 → 关联情节 → 原始对话） */}
+      <Modal
+        open={!!selectedAnchor}
+        onCancel={() => setSelectedAnchor(null)}
+        footer={null}
+        width={560}
+        destroyOnHidden
+        transitionName=""
+        maskTransitionName=""
+        title={
+          <span>
+            <CalendarOutlined style={{ color: DOMAIN_COLORS.whisper }} />
+            <span className="ml-1 text-pink-400">纪念日回放</span>
+          </span>
+        }
+      >
+        {selectedAnchor && (
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-fg text-[13px] font-medium">{selectedAnchor.anchorDate}</span>
+              <span className="px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-300/90 text-[10px]">
+                {ANCHOR_TYPE_LABELS[selectedAnchor.anchorType] ?? selectedAnchor.anchorType}
+              </span>
             </div>
+            <div className="p-3 rounded-lg bg-bg-soft border border-border text-fg-dim text-[13px] leading-relaxed whitespace-pre-wrap">
+              {selectedAnchor.summary}
+            </div>
+            {(anchorReplay?.linkedFactSummaries ?? []).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {(anchorReplay?.linkedFactSummaries ?? []).map((s, i) => (
+                  <span key={i} className="px-1.5 py-0.5 rounded-full bg-bg-elev text-fg-faint text-[10.5px]">{s}</span>
+                ))}
+              </div>
+            )}
+            <ReplayDialogue
+              replay={anchorReplay?.episodeReplay ?? null}
+              loading={anchorReplayLoading}
+              error={anchorReplayError}
+            />
           </div>
         )}
       </Modal>
@@ -399,6 +490,44 @@ function RowItem(p: { label: string; value: string; mono?: boolean }) {
     <div className="flex items-center gap-2">
       <span className="text-fg-faint w-14 shrink-0">{p.label}</span>
       <span className={`text-fg-dim truncate ${p.mono ? "font-mono text-[11px]" : ""}`}>{p.value}</span>
+    </div>
+  );
+}
+
+/** ReplayDialogue 记忆回放区块：情节回放与纪念日回放共用（用户/gaea 气泡 + 轮次）。 */
+function ReplayDialogue(p: { replay: WhisperEpisodeReplayView | null; loading: boolean; error: string }) {
+  return (
+    <div className="mt-2 pt-2.5 border-t border-border">
+      <div className="flex items-center gap-1.5 text-[12px] font-medium text-fg mb-2">
+        <HistoryOutlined style={{ fontSize: 12 }} />
+        回放原始对话
+      </div>
+      {p.loading ? (
+        <div className="py-4 text-center text-fg-faint text-[12px]">正在重建这段记忆…</div>
+      ) : p.error ? (
+        <div className="py-2 text-[12px] text-red-400">回放失败：{p.error}</div>
+      ) : p.replay?.replayable ? (
+        <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+          {p.replay.dialogue.map((line, i) => (
+            <div key={i} className={`flex ${line.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[85%] px-2.5 py-1.5 rounded-lg text-[12.5px] leading-relaxed whitespace-pre-wrap ${
+                  line.role === "user" ? "bg-pink-500/15 text-fg" : "bg-bg-elev border border-border text-fg-dim"
+                }`}
+              >
+                <div className={`text-[10px] mb-0.5 ${line.role === "user" ? "text-right text-pink-400/80" : "text-fg-faint"}`}>
+                  {line.role === "user" ? "你" : "gaea"} · 第{line.turnIndex}轮
+                </div>
+                {line.text}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="py-2 text-fg-faint text-[12px] leading-relaxed">
+          {p.replay ? "原始对话已超出保留范围（仅存记忆摘要），无法逐字回放。" : "暂无可回放的原始对话。"}
+        </div>
+      )}
     </div>
   );
 }

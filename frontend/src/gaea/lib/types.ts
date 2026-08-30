@@ -825,6 +825,33 @@ export interface WhisperEpisodeReplayView {
   replayable: boolean;
 }
 
+// WhisperAnchorView 轻语时间锚点只读视图（play 空间「纪念日」）。
+export interface WhisperAnchorView {
+  id: string;
+  anchorDate: string;
+  anchorType: string;
+  recurrenceRule: string;
+  domain: string;
+  summary: string;
+  emotionalValence: number;
+  emotionalIntensity: number;
+  linkedFactIds: string[];
+}
+
+// WhisperAnchorReplayView 时间锚点回放视图：锚点 + 关联事实摘要 + 情节回放。
+export interface WhisperAnchorReplayView {
+  anchorId: string;
+  anchorDate: string;
+  anchorType: string;
+  domain: string;
+  summary: string;
+  emotionalValence: number;
+  emotionalIntensity: number;
+  linkedFactSummaries: string[];
+  episodeReplay?: WhisperEpisodeReplayView;
+  replayable: boolean;
+}
+
 // MemoryHubOverview 记忆中枢聚合总览。
 export type MemoryHubOverview = WireShape<AppModels.MemoryHubOverview>;
 

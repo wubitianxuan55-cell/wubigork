@@ -240,7 +240,10 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinkin
 			FactStore: orch.FactStore, TotalTurns: turns, KG: orch.KG,
 			EpisodicStore:   orch.EpisodicStore,
 			RecentExchanges: buildRecentExchanges(orch),
-			AdultMode:       orch.AdultMode,
+			// 时间锚点写出口：摄入命中锚点策略 → 锁内落 State.TemporalAnchors，
+			// 随 companion_state 持久化（「重访雨夜」数据源接线）
+			TemporalAnchorSink: func(a whisper.TemporalAnchor) { orch.AddTemporalAnchor(a) },
+			AdultMode:          orch.AdultMode,
 		}, a.recordMemoryWriteError)
 	}()
 

@@ -1,5 +1,26 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · 时间锚点「重访那一天」 (2026-08-30)
+> 记忆回放续刀（审计 §C 欠账收口）：锚点策略接线 + 纪念日入口 + 锚点→情节回放。
+- **写路径接线（审计同类骨架欠账：ShouldWriteTemporalAnchor/BuildTemporalAnchor
+  有定义无生产调用）**：MemoryWritePayload/IngestTurnArgs 增 TemporalAnchorSink →
+  extractFactsViaLLM 逐事实评估（IsNew = FactStore 前后计数差，去重不重复锚点）→
+  Orchestrator.AddTemporalAnchor（持回合锁，防与状态快照竞态）落
+  State.TemporalAnchors 随 companion_state 持久化。命中条件沿用 ackem 策略
+  （周期纪念日/里程碑/关系/高情绪）。
+- **读路径**：GaeaWhisperAnchors（锚点列表，日期降序）+ GaeaWhisperAnchorReplay
+  （锚点 → linked 事实的 (session, turn) → 覆盖情节 → buildEpisodeReplay 重建
+  原始对话；未命中情节 Replayable=false 回退锚点摘要 + 事实摘要）。绑定面
+  536→538，MemoryB/play。
+- **前端**：记忆库新增「纪念日」tab（日期 + 类型徽标 + 情绪）；点击打开「纪念日
+  回放」弹窗（锚点摘要 + 关联事实 chips + 回放气泡，与情节回放共用
+  ReplayDialogue 组件）。
+- 验证：Go 全量绿（新增 8 测试：写路径 4 + 读路径 4）；vitest **813/813**（+2）；
+  tsc/eslint 0；绑定面漂移 PASS（538）。
+- 观察项/欠账：锚点策略阈值（weight≥2、selfRelevance≥4）与 LLM 抽取标尺（0-1）
+  刻度不一致，实际常命中「周期纪念日」分支，刻度对齐留后续决策；「重访」目前为
+  确定性原文回放，LLM 重述（把摘要讲成故事）未做。
+
 ## 未发布 · 轻语记忆回放 (2026-08-30)
 > 审计 §C 乐园做深欠账收口（「记忆回放」零代码 → 确定性重建原始对话）。
 - **后端 GaeaWhisperEpisodeReplay**（绑定面 535→536，MemoryB/play）：按情节 ID

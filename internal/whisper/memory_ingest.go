@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/util"
 )
@@ -138,7 +139,8 @@ func (p *MemoryIngestPipeline) extractFactsViaLLM(args IngestTurnArgs, ec Emotio
 			continue
 		}
 
-		args.FactStore.Add(MemoryFact{
+		before := len(args.FactStore.ListActive())
+		fact := args.FactStore.Add(MemoryFact{
 			Domain:           f.Domain,
 			Subcategory:      f.Subcategory,
 			Subject:          f.Subject,
@@ -153,7 +155,29 @@ func (p *MemoryIngestPipeline) extractFactsViaLLM(args IngestTurnArgs, ec Emotio
 			PrivacyLevel:     args.Opts.AdultPrivacyLevel,
 			FactLayer:        "raw",
 		})
+		// 时间锚点写入（审计补课：ShouldWriteTemporalAnchor/BuildTemporalAnchor
+		// 此前只有定义没有生产接线——「重访雨夜」的锚点数据源）
+		p.maybeWriteTemporalAnchor(args, fact, ec, len(args.FactStore.ListActive()) > before)
 	}
+}
+
+// maybeWriteTemporalAnchor 按锚点策略评估新事实，命中即经 sink 写入。
+// IsNew 由 FactStore.Add 前后活跃事实数差判定（去重合并不产生新锚点）。
+func (p *MemoryIngestPipeline) maybeWriteTemporalAnchor(args IngestTurnArgs, fact *Fact, ec EmotionalContext, isNew bool) {
+	if args.TemporalAnchorSink == nil {
+		return
+	}
+	anchorType := DetectAnchorType(&fact.MemoryFact, args.UserMsg)
+	if !ShouldWriteTemporalAnchor(ShouldWriteTemporalAnchorInput{
+		IsNew:     isNew,
+		Weight:    fact.Weight,
+		Intensity: ec.Intensity,
+		Fact:      &fact.MemoryFact,
+		UserMsg:   args.UserMsg,
+	}) {
+		return
+	}
+	args.TemporalAnchorSink(BuildTemporalAnchor(&fact.MemoryFact, anchorType, time.Now().Format("2006-01-02")))
 }
 
 // vetCreatorContradicting 检查是否与创造者设定矛盾
@@ -272,7 +296,11 @@ type IngestTurnArgs struct {
 	EpisodicStore   *EpisodicStore
 	RecentExchanges []ExchangePair
 	KG              *KnowledgeGraph
-	Opts            IngestOptions
+	// TemporalAnchorSink 时间锚点写出口（v4.3a 策略接线）：摄入命中锚点策略时
+	// 回调一次（由 App 层接 Orchestrator.AddTemporalAnchor 落 State.TemporalAnchors，
+	// 随 companion_state 持久化）。nil 表示不写锚点。
+	TemporalAnchorSink func(TemporalAnchor)
+	Opts               IngestOptions
 }
 
 type ExchangePair struct {
@@ -298,7 +326,7 @@ func buildEpisodeSummary(exchanges []ExchangePair) string {
 		last = last[:80]
 	}
 	if last != "" {
-	return "用户说「" + first + "…」→ gaea回应「" + last + "…」"
+		return "用户说「" + first + "…」→ gaea回应「" + last + "…」"
 	}
 	return "用户说「" + first + "…」"
 }
@@ -337,4 +365,3 @@ func extractKeywords(text string) []string {
 	}
 	return words
 }
-

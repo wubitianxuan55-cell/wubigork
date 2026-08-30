@@ -20,7 +20,7 @@ type MemoryMethods = Pick<
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
   | "MemoryHubOverview" | "ProfileList" | "ProfileSave" | "ProfileDelete"
   | "ProfileConflicts" | "ProfileResolveConflict"
-| "WhisperMemories" | "WhisperEpisodes" | "WhisperEpisodeReplay" | "WhisperExportArchive" | "MemoryGraph"
+| "WhisperMemories" | "WhisperEpisodes" | "WhisperEpisodeReplay" | "WhisperAnchors" | "WhisperAnchorReplay" | "WhisperExportArchive" | "MemoryGraph"
   | "KnowledgeList" | "KnowledgeSearch" | "KnowledgeGet" | "KnowledgeSave" | "KnowledgeDelete"
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
@@ -175,6 +175,16 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
         id: episodeId, summary: "", dominantEmotion: "", emotionalIntensity: 0,
         keywords: [], createdAt: "", sourceSessionId: "", startTurn: 0, endTurn: 0,
         dialogue: [], replayable: false,
+      };
+    },
+    async WhisperAnchors() {
+      return [];
+    },
+    async WhisperAnchorReplay(anchorId: string) {
+      return {
+        anchorId, anchorDate: "", anchorType: "", domain: "", summary: "",
+        emotionalValence: 0, emotionalIntensity: 0, linkedFactSummaries: [],
+        replayable: false,
       };
     },
     async MemoryGraph() {

@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { WhisperMemoryLibrary } from "./WhisperMemoryLibrary";
 
-const { memMock, epMock, replayMock, pickDirMock, exportMock } = vi.hoisted(() => ({
+const { memMock, epMock, replayMock, anchorsMock, anchorReplayMock, pickDirMock, exportMock } = vi.hoisted(() => ({
   memMock: vi.fn(),
   epMock: vi.fn(),
   replayMock: vi.fn(),
+  anchorsMock: vi.fn(),
+  anchorReplayMock: vi.fn(),
   pickDirMock: vi.fn(),
   exportMock: vi.fn(),
 }));
@@ -15,6 +17,8 @@ vi.mock("../../lib/bridge", () => ({
     WhisperMemories: memMock,
     WhisperEpisodes: epMock,
     WhisperEpisodeReplay: replayMock,
+    WhisperAnchors: anchorsMock,
+    WhisperAnchorReplay: anchorReplayMock,
     PickDirectory: pickDirMock,
     WhisperExportArchive: exportMock,
   },
@@ -52,16 +56,62 @@ const REPLAY = {
   ],
 };
 
+const ANCHORS = [
+  {
+    id: "a1",
+    anchorDate: "2026-05-20",
+    anchorType: "recurring",
+    recurrenceRule: "",
+    domain: "user_profile",
+    summary: "我的生日是 5 月 20 日",
+    emotionalValence: 0.4,
+    emotionalIntensity: 0.6,
+    linkedFactIds: ["factBirthday"],
+  },
+];
+
+const ANCHOR_REPLAY = {
+  anchorId: "a1",
+  anchorDate: "2026-05-20",
+  anchorType: "recurring",
+  domain: "user_profile",
+  summary: "我的生日是 5 月 20 日",
+  emotionalValence: 0.4,
+  emotionalIntensity: 0.6,
+  linkedFactSummaries: ["我的生日是 5 月 20 日"],
+  replayable: true,
+  episodeReplay: {
+    id: "epAnchorA",
+    summary: "聊到生日那天",
+    dominantEmotion: "开心",
+    emotionalIntensity: 0.6,
+    keywords: ["生日"],
+    createdAt: "2026-05-20T20:00:00+08:00",
+    sourceSessionId: "s1",
+    startTurn: 2,
+    endTurn: 4,
+    replayable: true,
+    dialogue: [
+      { turnIndex: 3, role: "user", text: "其实是 5 月 20 日" },
+      { turnIndex: 3, role: "assistant", text: "我记下了" },
+    ],
+  },
+};
+
 describe("WhisperMemoryLibrary 聊天记忆库", () => {
   beforeEach(() => {
     memMock.mockReset();
     epMock.mockReset();
     replayMock.mockReset();
+    anchorsMock.mockReset();
+    anchorReplayMock.mockReset();
     pickDirMock.mockReset();
     exportMock.mockReset();
     memMock.mockResolvedValue(FACTS);
     epMock.mockResolvedValue(EPISODES);
     replayMock.mockResolvedValue({ ...REPLAY, dialogue: [], replayable: false });
+    anchorsMock.mockResolvedValue(ANCHORS);
+    anchorReplayMock.mockResolvedValue({ ...ANCHOR_REPLAY, episodeReplay: undefined, replayable: false });
   });
 
   it("默认事实 tab 按 domain 分组渲染：身份/社交/其他 组标题与条数", async () => {
@@ -173,6 +223,34 @@ describe("WhisperMemoryLibrary 聊天记忆库", () => {
     fireEvent.click(screen.getByText("爬山途中的闲聊"));
 
     expect(await screen.findByText(/原始对话已超出保留范围/)).toBeTruthy();
+  });
+
+  it("切到「纪念日」tab 显示时间锚点：日期/类型徽标/摘要", async () => {
+    render(<WhisperMemoryLibrary />);
+    await screen.findByText("身份");
+
+    fireEvent.click(screen.getByRole("button", { name: /纪念日/ }));
+
+    expect(await screen.findByText("2026-05-20")).toBeTruthy();
+    expect(screen.getByText("周期纪念日")).toBeTruthy();
+    expect(screen.getByText("我的生日是 5 月 20 日")).toBeTruthy();
+    expect(screen.getByText(/情绪 60%/)).toBeTruthy();
+  });
+
+  it("点击纪念日打开回放：锚点摘要 + 关联事实 + 原始对话气泡", async () => {
+    anchorReplayMock.mockResolvedValue(ANCHOR_REPLAY);
+    render(<WhisperMemoryLibrary />);
+    await screen.findByText("身份");
+
+    fireEvent.click(screen.getByRole("button", { name: /纪念日/ }));
+    await screen.findByText("2026-05-20");
+    fireEvent.click(screen.getByText("2026-05-20"));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("纪念日回放");
+    expect(await screen.findByText("回放原始对话")).toBeTruthy();
+    expect(screen.getByText("其实是 5 月 20 日")).toBeTruthy();
+    expect(screen.getByText("我记下了")).toBeTruthy();
   });
 
   it("点击情节打开详情 Modal：含 summary 与情绪/强度/关键词/会话", async () => {

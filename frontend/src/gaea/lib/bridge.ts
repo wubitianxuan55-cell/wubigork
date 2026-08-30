@@ -69,6 +69,8 @@ import type {
   ProgrammingWebLogTail,
   ProgrammingWebPreflight,
   ProgrammingWebStatus,
+  WhisperAnchorReplayView,
+  WhisperAnchorView,
   WhisperEpisodeView,
   WhisperEpisodeReplayView,
   WhisperMemoryView,
@@ -403,6 +405,10 @@ export interface AppBindings {
   WhisperEpisodes(): Promise<WhisperEpisodeView[]>;
   // WhisperEpisodeReplay 情节记忆回放（hermes.db，只读）：按情节 ID 重建原始对话。
   WhisperEpisodeReplay(episodeId: string): Promise<WhisperEpisodeReplayView>;
+  // WhisperAnchors 轻语时间锚点列表（hermes.db，play 空间纪念日）。
+  WhisperAnchors(): Promise<WhisperAnchorView[]>;
+  // WhisperAnchorReplay 按时间锚点回放「重访那一天」：锚点 → 关联情节 → 原始对话。
+  WhisperAnchorReplay(anchorId: string): Promise<WhisperAnchorReplayView>;
   // WhisperExportArchive 导出聊天记忆归档（hermes.db → Markdown 分目录），返回文件数。
   WhisperExportArchive(dir: string): Promise<number>;
   // PickDirectory 系统目录选择对话框，返回所选目录（取消返回空串）。
@@ -834,6 +840,8 @@ const gaeaToGaea = {
   GenerateBookCover: "GaeaGenerateBookCover",
   WhisperEpisodes: "GaeaWhisperEpisodes",
   WhisperEpisodeReplay: "GaeaWhisperEpisodeReplay",
+  WhisperAnchors: "GaeaWhisperAnchors",
+  WhisperAnchorReplay: "GaeaWhisperAnchorReplay",
   WhisperExportArchive: "GaeaWhisperExportArchive",
   PickDirectory: "GaeaPickDirectory",
   MemoryGraph: "GaeaMemoryGraph",

@@ -61,8 +61,10 @@ type MemoryWritePayload struct {
 	KG              *KnowledgeGraph
 	TotalTurns      int
 	RecentExchanges []ExchangePair
-	SkipIngest      bool
-	AdultMode       bool
+	// TemporalAnchorSink 时间锚点写出口（透传到摄入管线；nil 不写锚点）。
+	TemporalAnchorSink func(TemporalAnchor)
+	SkipIngest         bool
+	AdultMode          bool
 }
 
 // MemoryWriteErrorSink 异步记忆写入错误回传（T6-5.3 可观测性）：
@@ -116,17 +118,18 @@ func runMemoryWriteJob(llm LlmClient, payload MemoryWritePayload, sinks ...Memor
 	}
 
 	ingest.AfterTurn(IngestTurnArgs{
-		SessionID:       payload.SessionID,
-		TurnIndex:       payload.TurnIndex,
-		UserMsg:         payload.UserMsg,
-		CompanionMsg:    payload.AssistantText,
-		L1:              payload.L1,
-		L2:              payload.L2,
-		FactStore:       payload.FactStore,
-		TotalTurns:      payload.TotalTurns,
-		EpisodicStore:   payload.EpisodicStore,
-		RecentExchanges: payload.RecentExchanges,
-		KG:              payload.KG,
+		SessionID:          payload.SessionID,
+		TurnIndex:          payload.TurnIndex,
+		UserMsg:            payload.UserMsg,
+		CompanionMsg:       payload.AssistantText,
+		L1:                 payload.L1,
+		L2:                 payload.L2,
+		FactStore:          payload.FactStore,
+		TotalTurns:         payload.TotalTurns,
+		EpisodicStore:      payload.EpisodicStore,
+		RecentExchanges:    payload.RecentExchanges,
+		KG:                 payload.KG,
+		TemporalAnchorSink: payload.TemporalAnchorSink,
 		Opts: IngestOptions{
 			AdultPrivacyLevel: privacyLevel,
 		},

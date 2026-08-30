@@ -89,6 +89,17 @@ const (
 func (o *Orchestrator) LockTurn()   { o.mu.Lock() }
 func (o *Orchestrator) UnlockTurn() { o.mu.Unlock() }
 
+// AddTemporalAnchor 追加时间锚点到 State.TemporalAnchors（供异步记忆写入
+// 从回合外调用）：持回合锁写入，避免与主回合状态快照（CloneFullState）竞态。
+func (o *Orchestrator) AddTemporalAnchor(a TemporalAnchor) {
+	if o == nil {
+		return
+	}
+	o.LockTurn()
+	defer o.UnlockTurn()
+	o.State.TemporalAnchors = append(o.State.TemporalAnchors, a)
+}
+
 func NewOrchestrator(sessionID string, preset PersonalityPreset) *Orchestrator {
 	personality := DefaultPersonalitySlice(preset.ID)
 	return &Orchestrator{

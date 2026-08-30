@@ -5,6 +5,16 @@
 
 ## 当前状态
 
+- **时间锚点「重访那一天」（2026-08-30，记忆回放续刀）**：写路径接线——
+  ShouldWriteTemporalAnchor/BuildTemporalAnchor 此前有定义无生产调用（同类骨架
+  欠账），现经 MemoryWritePayload/IngestTurnArgs 的 TemporalAnchorSink 逐事实
+  评估（IsNew=计数差）→ Orchestrator.AddTemporalAnchor（回合锁内）落
+  State.TemporalAnchors 随 companion_state 持久化；读路径 GaeaWhisperAnchors +
+  GaeaWhisperAnchorReplay（锚点→事实轮次→情节→原文回放，绑定面 538）；前端记忆库
+  「纪念日」tab + 回放弹窗（ReplayDialogue 与情节回放共用）。Go 8 新测试、vitest
+  +2（813/813）、tsc/eslint 0、drift PASS。观察项：锚点策略阈值（weight≥2/
+  selfRelevance≥4）与 LLM 抽取标尺（0-1）刻度不一致，常命中周期纪念日分支，
+  刻度对齐留后续决策；LLM 重述未做（当前为确定性原文回放）。
 - **轻语记忆回放（2026-08-30，审计 §C 欠账收口）**：新绑定
   GaeaWhisperEpisodeReplay（绑定面 535→536，MemoryB/play）——按情节 ID 从
   hermes.db 读情节 + SourceSessionID/[StartTurn,EndTurn] 从 chat_history 确定性

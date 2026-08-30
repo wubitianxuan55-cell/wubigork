@@ -44,17 +44,16 @@ func (a *App) GaeaWhisperEpisodeReplay(episodeID string) (WhisperEpisodeReplayVi
 	if err != nil {
 		return WhisperEpisodeReplayView{}, fmt.Errorf("读取情节库失败: %w", err)
 	}
-	var ep *whisper.Episode
 	for i := range eps {
 		if eps[i].ID == episodeID {
-			ep = &eps[i]
-			break
+			return a.buildEpisodeReplay(&eps[i])
 		}
 	}
-	if ep == nil {
-		return WhisperEpisodeReplayView{}, fmt.Errorf("情节不存在: %s", episodeID)
-	}
+	return WhisperEpisodeReplayView{}, fmt.Errorf("情节不存在: %s", episodeID)
+}
 
+// buildEpisodeReplay 按情节重建原始对话（情节回放与锚点回放共用）。
+func (a *App) buildEpisodeReplay(ep *whisper.Episode) (WhisperEpisodeReplayView, error) {
 	view := WhisperEpisodeReplayView{
 		ID:                 ep.ID,
 		Summary:            ep.Summary,

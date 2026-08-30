@@ -41,6 +41,8 @@ func (b *MemoryB) GaeaProfileResolveConflict(name string, prefer string) error {
 func (b *MemoryB) GaeaProfileSave(f ProfileFactView) error { return b.a.GaeaProfileSave(f) }
 func (b *MemoryB) GaeaSemanticIndexStatus() SemanticIndexStatus { return b.a.GaeaSemanticIndexStatus() }
 func (b *MemoryB) GaeaSemanticSearch(query string) ([]SemanticHitView, error) { return b.a.GaeaSemanticSearch(query) }
+func (b *MemoryB) GaeaWhisperAnchorReplay(anchorID string) (WhisperAnchorReplayView, error) { return b.a.GaeaWhisperAnchorReplay(anchorID) }
+func (b *MemoryB) GaeaWhisperAnchors() []WhisperAnchorView { return b.a.GaeaWhisperAnchors() }
 func (b *MemoryB) GaeaWhisperEpisodeReplay(episodeID string) (WhisperEpisodeReplayView, error) { return b.a.GaeaWhisperEpisodeReplay(episodeID) }
 func (b *MemoryB) GaeaWhisperEpisodes() []WhisperEpisodeView { return b.a.GaeaWhisperEpisodes() }
 func (b *MemoryB) GaeaWhisperExportArchive(dir string) (int, error) { return b.a.GaeaWhisperExportArchive(dir) }
