@@ -45,7 +45,12 @@ if errorlevel 1 (
     echo [FAIL] cannot stage smoke copy at .tmp\smoke-gaea.exe
     exit /b 1
 )
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\smoke.ps1 -ExePath .tmp\smoke-gaea.exe
+REM pwsh (PowerShell 7) is not on PATH on every dev box; fall back to
+REM Windows PowerShell 5.1 (smoke.ps1 uses no PS7-only syntax).
+set SMOKE_SHELL=pwsh
+where pwsh >nul 2>&1
+if errorlevel 1 set SMOKE_SHELL=powershell
+%SMOKE_SHELL% -NoProfile -ExecutionPolicy Bypass -File scripts\smoke.ps1 -ExePath .tmp\smoke-gaea.exe
 if errorlevel 1 (
     echo [FAIL] smoke test failed - do NOT release this build
     exit /b 1

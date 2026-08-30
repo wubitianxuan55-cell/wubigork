@@ -47,7 +47,35 @@
 
 ## 版本状态
 
-- **最新发布：v4.8.3（2026-08-30）「微信图片双向」**：
+- **最新发布：v4.9.0（2026-08-30）「星枢首页·轻语记忆纵深」**：
+  git tag `v4.9.0`；基线 v4.8.3 + 15 提交；绑定面 535→540（+5：EpisodeReplay /
+  MemoryRetell / AnchorReplay / GraphSubgraph / CausalExplain）。要点：
+  - **轻语记忆回放系列（审计 §C 收口）**：GaeaWhisperEpisodeReplay 按情节从
+    chat_history 确定性重建原始对话；GaeaWhisperMemoryRetell LLM 人格口吻重述；
+    时间锚点「重访那一天」写路径接线（策略从定义变生产）+ 纪念日回放绑定与 UI。
+  - **图谱三维度**：情绪（Triple 情绪三字段 + hermes.db V13→V14 + 前端按情绪
+    着色）、因果（extractCausalTriples 确定性因果三元组，ingest/文档导入双路径
+    入图）、关联（GraphSubgraph 并入 event_chain 等记忆关联边 + 前端因果琥珀
+    虚线）。
+  - **跨事实因果推断**：GaeaWhisperCausalExplain「为什么」——确定性收集证据
+    （KG「导致」三元组 + event_chain 关联，上限 8 条）+ 当前人格口吻 LLM 人话化
+    （只用证据/不编造/证据不足诚实说明/≤200 字）；无证据零 LLM 调用回退文案；
+    图谱面板「解释因果」按钮。
+  - **首页重构「星枢指挥所」+ 两段式启动动画**：启动默认从首页落地（跨空间
+    恢复保留）；index.html 静态启动屏 → BootSplash（旋转光环+徽记+分步状态+
+    进度条，rAF 节流/reduced-motion 全降级）；Hero 命令条（orb/打字/语音/⌘K）+
+    真实遥测细条 + manifest 驱动 Bento 能力矩阵；i18n 三语 home.*/boot.* 17 键。
+  - **工程化与修复**：build.bat 构建冒烟自动化（真实退出码+产物新鲜度守卫+
+    自动冒烟）；desktop_session/archive 持久化原子写统一；XlsxPreview 大表行
+    虚拟滚动；VoiceStart realtime 门不依赖 whisper chat（端到端走服务端
+    response 事件）；微信识图提示词去 OCR 窄化 + 短问题豁免长度镜像。
+  - **验证**：Go 全量绿（vet 0）；vitest 818/818（148 文件）；tsc/vite build/
+    eslint 0；drift PASS（540）；版本四处统一 4.9.0；wails build + 冒烟 200。
+  - **欠账清单**：Realtime 真机验证轮（真 key/麦克风/打断体感/AEC）；锚点策略
+    刻度对齐（weight≥2/selfRelevance≥4 vs LLM 0-1）；多跳因果图推理；iLink
+    语音/视频 item 探明（静默跳过）；成本知识图谱可视化形态；Verifier 通道 A
+    引用级深化。
+- **上一发布：v4.8.3（2026-08-30）「微信图片双向」**：
   git tag `v4.8.3`；CHANGELOG / releases/v4.8.3.md / README 索引同步。
   v4.8.2 发布当日真机实测复盘五刀（1bfd41d/2cca12a/b1921e9/cda6522/
   72e11e3），协议三方印证（本机抓包解密 + hermes-agent weixin.py +
