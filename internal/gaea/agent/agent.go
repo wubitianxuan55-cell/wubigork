@@ -30,6 +30,46 @@ type Asker interface {
 	Ask(ctx context.Context, questions []event.AskQuestion) ([]event.AskAnswer, error)
 }
 
+// PermissionRequester 把「权限升级申请」投递到既有审批卡通道并阻塞等待决策，
+// 供 request_permission 工具使用（对齐 codex request_permissions_for_environment
+// 语义族）。It is interface-shaped so the agent stays independent of the
+// controller; a nil requester means no interactive user (headless runs), where
+// request_permission returns a "cannot be granted here" result instead of
+// blocking an autonomous run. 交互式前端把 controller 接线为 requester——
+// 与 SetAsker 同一挂点纪律。批准授予的是「规则」，后续真实工具调用仍走
+// 正常权限闸门（规则满足则自然放行，本接口不制造任何绕过路径）。
+type PermissionRequester interface {
+	// RequestPermission submits one rule request — "Tool" (whole tool) or
+	// "Tool(subject-glob)" — with the model's justification, and blocks until
+	// the user answers, the approval timeout fires, or ctx is cancelled.
+	// granted=false 时 decision 说明原因（deny / abort / timeout / refused…），
+	// err 仅在 ctx 取消（回合终止）时非 nil。
+	RequestPermission(ctx context.Context, tool, subject, reason string) (granted bool, decision string, err error)
+}
+
+// permissionRequesterKey carries the interactive PermissionRequester on a tool
+// call's context. A private struct type prevents collisions with other keys.
+type permissionRequesterKey struct{}
+
+// WithPermissionRequester stamps ctx with the PermissionRequester the
+// request_permission tool reads. executeOne applies it alongside
+// withCallContext; a nil requester simply leaves the context untouched, so
+// headless runs keep the plain-context "no interactive user" semantics.
+func WithPermissionRequester(ctx context.Context, pr PermissionRequester) context.Context {
+	if nilutil.IsNil(pr) {
+		return ctx
+	}
+	return context.WithValue(ctx, permissionRequesterKey{}, pr)
+}
+
+// PermissionRequesterFromContext returns the PermissionRequester stamped by
+// WithPermissionRequester, if any. ok is false for a plain context (headless
+// tool tests, calls made outside the interactive run loop).
+func PermissionRequesterFromContext(ctx context.Context) (PermissionRequester, bool) {
+	pr, ok := ctx.Value(permissionRequesterKey{}).(PermissionRequester)
+	return pr, ok && !nilutil.IsNil(pr)
+}
+
 // callContextKey carries the executing tool call's identity into Execute.
 type callContextKey struct{}
 
@@ -271,6 +311,12 @@ type AgentRunner struct {
 	// nil in headless runs. Safe for concurrent reads.
 	asker Asker
 
+	// permReq lets the `request_permission` tool submit permission-escalation
+	// requests to the interactive approval channel. Set via
+	// SetPermissionRequester before the run loop starts (same happens-before
+	// contract as asker). nil in headless runs. Safe for concurrent reads.
+	permReq PermissionRequester
+
 	// file's pre-edit content. Only fires for non-ReadOnly tools that implement
 
 	// patternExtractor learns from recurring tool errors across sessions.
@@ -413,6 +459,13 @@ func (a *AgentRunner) SetGate(g Gate) {
 // SetAsker installs the asker the `ask` tool uses to question the user.
 // Interactive frontends wire one in; headless runs leave it nil.
 func (a *AgentRunner) SetAsker(as Asker) { a.asker = as }
+
+// SetPermissionRequester installs the requester the `request_permission` tool
+// uses to submit permission-escalation requests to the approval channel.
+// Interactive frontends wire the controller in (same挂点 as SetAsker);
+// headless runs leave it nil, and the tool degrades to a non-interactive
+// result instead of blocking an autonomous run.
+func (a *AgentRunner) SetPermissionRequester(pr PermissionRequester) { a.permReq = pr }
 
 // MergeRuntimePrompt 将运行时上下文合并到系统提示词（L1）末尾，
 // 取代原 L2 注入方案。合并后消息前缀永不改变，DeepSeek 可自然缓存。

@@ -122,6 +122,14 @@ type Approval struct {
 	ID      string
 	Tool    string
 	Subject string
+	// Reason 是模型随权限升级申请给出的申请理由（request_permission 工具，
+	// Request=true 时携带）。普通工具闸门审批恒为空。前端必须原样展示，
+	// 不得在未展示的情况下采信（审批纪律对 reason 同样适用）。
+	Reason string
+	// Request 标记这条审批是模型主动发起的「权限升级申请」（request_permission
+	// 工具），而非真实工具调用前的常规审批。前端据此换标题/说明并展示 Reason；
+	// 决策仍走同一 Approve(ID, decision) 通道与五决策语义。
+	Request bool
 }
 
 // AskOption is one choice the user can pick for an AskQuestion.

@@ -103,9 +103,15 @@ type Controller struct {
 	approvals   map[string]chan approvalReply
 	asks        map[string]chan []event.AskAnswer
 	granted     map[string]bool
-	nextID      int
-	turn        int
-	autoApprove bool
+	// grantedRules 记录 request_permission 批准的会话级规则（C4 升级申请）：
+	// subject 沿用策略文件的 glob 语义（"Tool" / "Tool(subject-glob)"），由
+	// ruleGrantedLocked 在闸门短路口做 glob 匹配——批准的规则对本会话内
+	// 所有匹配调用生效，与精确 key 的 granted（gate allow_session）并存。
+	// mu 保护；重启即失（与 granted 同级）。
+	grantedRules []grantedRule
+	nextID       int
+	turn         int
+	autoApprove  bool
 	// approvalTimeout 是审批等待超时（C4 TimedOut）：>0 时审批请求等待超过该
 	// 时长按拒绝处理并发通知（回合继续，不静默放行）；0 = 不超时（默认等待）。
 	approvalTimeout time.Duration
@@ -145,10 +151,20 @@ const (
 	DecisionPersistAllow = "persist_allow" // 始终允许（回写策略文件，跨会话生效）
 	DecisionDeny         = "deny"          // 拒绝但回合继续
 	DecisionAbort        = "abort"         // 拒绝并终止本轮
+	// DecisionTimeout 是审批等待超时的决策串（C4 TimedOut）：审批通道超时即
+	// 按拒绝处理；request_permission 工具用它向模型解释「无人响应=拒绝」。
+	DecisionTimeout = "timeout"
 )
 
 type approvalReply struct {
 	decision string
+}
+
+// grantedRule 是一条会话内批准的权限规则（request_permission）：
+// "Tool"（subject 空=整工具）或 "Tool(subject-glob)"。
+type grantedRule struct {
+	tool    string
+	subject string
 }
 
 // sendRequest 是一条排队等待执行的消息：回合进行中收到 Send 时入队，
@@ -649,6 +665,9 @@ func (c *Controller) EnableInteractiveApproval() {
 		g.AlwaysAsk = c.hardAskSet()
 		c.executor.SetGate(g)
 		c.executor.SetAsker(c)
+		// request_permission：把 controller 接线为 PermissionRequester——
+		// 权限升级申请经既有审批卡通道弹卡，与工具闸门共用同一应答/超时语义。
+		c.executor.SetPermissionRequester(c)
 	}
 }
 

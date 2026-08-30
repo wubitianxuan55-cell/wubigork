@@ -246,6 +246,11 @@ export const en = {
   "approval.abortHint": "Skip this call and stop the current turn",
   "approval.persistAlways": "Always allow",
   "approval.persistAlwaysHint": "Save an allow rule; this call won't ask again",
+  "approval.requestTitle": "Model requests a permission",
+  "approval.requestNote": "The model asks for a permission rule. Approved calls still go through the normal gate — matching ones pass; denying continues the turn.",
+  "approval.ruleLabel": "Requested rule",
+  "approval.reasonLabel": "Reason (provided by the model)",
+  "approval.reasonMissing": "(no reason provided by the model)",
 
   // ask card
   "ask.customPlaceholder": "Type your own answer…",

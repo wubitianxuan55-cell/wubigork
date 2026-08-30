@@ -85,6 +85,11 @@ export interface WireApproval {
   id: string;
   tool: string;
   subject: string;
+  // request_permission 权限升级申请（后端仅在该形态下发这两个字段）：
+  // request=true 时本卡是模型主动发起的规则申请而非常规工具审批；
+  // reason 是模型给出的申请理由原文——审批卡必须原样展示后才可采信。
+  request?: boolean;
+  reason?: string;
 }
 
 export interface WireAskOption {

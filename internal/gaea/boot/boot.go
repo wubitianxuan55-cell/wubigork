@@ -264,6 +264,15 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// has none, so ask resolves to "decide for yourself".
 	reg.Add(agent.NewAskTool())
 
+	// The `request_permission` tool lets the model explicitly request a
+	// permission rule ("Tool" / "Tool(subject)") when it lacks one, surfacing a
+	// permission-escalation card through the same approval channel (对齐 codex
+	// request_permissions_for_environment 语义族). 与 ask 同路径直接注册：这是
+	// 会话级元工具（shared 语义），不经 spacetags 装配过滤——work/play 两空间
+	// 均可见；批准授予的是规则，真实调用仍走正常权限闸门。headless 运行无
+	// PermissionRequester，工具返回非交互降级结果，不阻塞自治。
+	reg.Add(agent.NewRequestPermissionTool())
+
 	// Skill tools: run_skill / install_skill plus the dedicated subagent wrappers
 	// (explore / research / review / security_review). A subagent skill reuses the
 	// sub-agent machinery via this runner — an isolated loop with the skill body

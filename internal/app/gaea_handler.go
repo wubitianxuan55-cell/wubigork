@@ -491,7 +491,17 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 			}
 		}
 	case event.ApprovalRequest:
-		m["approval"] = map[string]interface{}{"id": e.Approval.ID, "tool": e.Approval.Tool, "subject": e.Approval.Subject}
+		am := map[string]interface{}{"id": e.Approval.ID, "tool": e.Approval.Tool, "subject": e.Approval.Subject}
+		// request_permission 权限升级申请：透传 Request 标记与 reason 原文
+		// （前端审批卡据此换标题并必须展示理由）。字段缺省不下发，普通
+		// 工具审批的线格式保持不变。
+		if e.Approval.Reason != "" {
+			am["reason"] = e.Approval.Reason
+		}
+		if e.Approval.Request {
+			am["request"] = true
+		}
+		m["approval"] = am
 	case event.AskRequest:
 		qs := make([]map[string]interface{}, 0, len(e.Ask.Questions))
 		for _, q := range e.Ask.Questions {

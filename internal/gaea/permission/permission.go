@@ -127,17 +127,35 @@ func (p Policy) Decide(toolName string, readOnly bool, args json.RawMessage) Dec
 	}
 }
 
+// Denies reports whether any deny rule matches the (toolName, subject) pair.
+// The request_permission escalation tool consults it before showing a card:
+// a granted rule can never override a deny rule (Decide evaluates Deny first),
+// so escalating a deny-listed target would mislead both user and model.
+func (p Policy) Denies(toolName, subject string) bool {
+	return matchAny(p.Deny, toolName, subject)
+}
+
+// RuleMatches reports whether rule r matches the (toolName, subject) pair:
+// the tool name must equal, and a subject-specific rule requires a non-empty
+// call subject matching its glob — an empty rule subject matches every call
+// to the tool. Exported so the controller's session-granted rule store
+// (request_permission grants) can apply the exact same glob semantics the
+// policy file uses.
+func RuleMatches(r Rule, toolName, subject string) bool {
+	if r.Tool != toolName {
+		return false
+	}
+	if r.Subject == "" {
+		return true
+	}
+	return subject != "" && matchGlob(r.Subject, subject)
+}
+
 // matchAny reports whether any rule matches the (toolName, subject) pair. A
 // subject-specific rule cannot match a call that exposes no subject.
 func matchAny(rules []Rule, toolName, subject string) bool {
 	for _, r := range rules {
-		if r.Tool != toolName {
-			continue
-		}
-		if r.Subject == "" {
-			return true
-		}
-		if subject != "" && matchGlob(r.Subject, subject) {
+		if RuleMatches(r, toolName, subject) {
 			return true
 		}
 	}

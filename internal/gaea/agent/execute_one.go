@@ -135,6 +135,10 @@ func (a *AgentRunner) executeOne(ctx context.Context, call provider.ToolCall) to
 	}
 
 	cctx := withCallContext(ctx, call.ID, a.sink, a.asker)
+	// request_permission：把交互式 PermissionRequester 盖章到工具 ctx（与
+	// asker 同纪律——SetPermissionRequester 在回合启动前注入，nil 不盖章，
+	// headless 运行保持「无交互用户」语义）。
+	cctx = WithPermissionRequester(cctx, a.permReq)
 	if a.evidence != nil {
 		// strictVerify 默认为 false（由 NewLedger 设定）。Plan Mode 下由外部
 		// 显式设为 true 后保留，不在每轮工具调用时重置。

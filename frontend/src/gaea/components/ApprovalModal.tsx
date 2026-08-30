@@ -92,19 +92,35 @@ export function ApprovalModal({
       >
         <div className="mb-3">
           <div id="tool-approval-title" className="text-fg font-semibold leading-[1.35] text-[14px]">
-            {t("approval.toolTitle")}
+            {approval.request ? t("approval.requestTitle") : t("approval.toolTitle")}
           </div>
           <div className="text-fg-dim text-[12.5px] leading-[1.45] mt-0.5">
-            {t("approval.toolNote")}
+            {approval.request ? t("approval.requestNote") : t("approval.toolNote")}
           </div>
         </div>
 
         <div className="flex items-center gap-2 min-h-[34px] mb-3 border border-border-soft rounded-lg bg-bg-soft py-[5px] px-2">
-          <span className="shrink-0 text-fg-faint font-mono text-[11px] uppercase tracking-[0.04em]">{t("approval.toolLabel")}</span>
-          <span className="font-mono text-xs font-medium text-fg">{approval.tool}</span>
+          <span className="shrink-0 text-fg-faint font-mono text-[11px] uppercase tracking-[0.04em]">
+            {approval.request ? t("approval.ruleLabel") : t("approval.toolLabel")}
+          </span>
+          <span className="font-mono text-xs font-medium text-fg break-all">
+            {approval.request && approval.subject ? `${approval.tool}(${approval.subject})` : approval.tool}
+          </span>
         </div>
 
-        {approval.subject && (
+        {approval.request && (
+          <div className="mb-3 border border-border-soft rounded-lg bg-bg-soft py-[7px] px-2">
+            <div className="text-fg-faint font-mono text-[11px] uppercase tracking-[0.04em] mb-0.5">
+              {t("approval.reasonLabel")}
+            </div>
+            {/* 模型给出的申请理由原文：必须可见后才谈得上采信，缺省时明确标注 */}
+            <div className="text-fg-dim text-[12.5px] leading-[1.5] whitespace-pre-wrap break-words max-h-[140px] overflow-auto">
+              {approval.reason?.trim() ? approval.reason : t("approval.reasonMissing")}
+            </div>
+          </div>
+        )}
+
+        {!approval.request && approval.subject && (
           <pre className="m-0 mb-3 px-[11px] py-[9px] bg-bg-soft border border-border-soft rounded-lg font-mono text-[12.5px] whitespace-pre-wrap break-words max-h-[140px] overflow-auto">
             {approval.subject}
           </pre>
