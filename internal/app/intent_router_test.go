@@ -194,6 +194,25 @@ func TestGaeaRouteIntent_ReadScreen(t *testing.T) {
 	t.Logf("读屏执行回复（环境相关）：%q", res.Reply)
 }
 
+// firstImageCardPath：生图产物 CardPath 提取（v4.8 接通微信产物回推的数据源）。
+func TestFirstImageCardPath(t *testing.T) {
+	if got := firstImageCardPath(map[string]interface{}{}); got != "" {
+		t.Errorf("空结果应返回空串，实际 %q", got)
+	}
+	if got := firstImageCardPath(map[string]interface{}{"error": "x"}); got != "" {
+		t.Errorf("错误结果应返回空串，实际 %q", got)
+	}
+	want := `D:\pics\a.png`
+	res := map[string]interface{}{"images": []imageItem{{FilePath: want}, {FilePath: "b.png"}}}
+	if got := firstImageCardPath(res); got != want {
+		t.Errorf("应取首图路径 %q，实际 %q", want, got)
+	}
+	res = map[string]interface{}{"images": []imageItem{{FilePath: ""}}}
+	if got := firstImageCardPath(res); got != "" {
+		t.Errorf("空路径应返回空串，实际 %q", got)
+	}
+}
+
 // 读屏纵深（v4.8）：显示器选择——dry-run 预览带屏幕编号；越界编号诚实报错
 // （屏幕数在测试进程里实际枚举，环境无关）。
 func TestGaeaRouteIntent_ReadScreenMonitors(t *testing.T) {

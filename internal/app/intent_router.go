@@ -70,9 +70,14 @@ func (a *App) GaeaRouteIntent(text string, dryRun bool) IntentResult {
 }
 
 // routeIntentMode 统一执行路径：dryRun 走 intentPreview（零副作用），否则
-// 按动作分派能力执行层。
+// 按动作分派能力执行层。规则未命中且非 dryRun 时走 LLM 兜底分类（v4.8，
+// 默认关；dryRun 恒不调用——面板逐键搜索绝不打 LLM，预览不到的动作也无法
+// 从面板执行，口径与预览-确认制一致）。
 func (a *App) routeIntentMode(text string, dryRun bool) IntentResult {
 	it := intent.Parse(text)
+	if it == nil && !dryRun {
+		it = a.classifyIntentFallback(text)
+	}
 	if it == nil {
 		return IntentResult{}
 	}
@@ -172,9 +177,10 @@ func (a *App) execNavigate(it *intent.Intent) (string, bool) {
 }
 
 // execGenerateImage 生图能力：直接调 mediaState 自由生图（默认尺寸/模型，
-// 异步任务）。失败时如实播报。返回 (回复, 命中, 产物文件路径)——生图异步
-// 完成前产物路径为空串；完成后的文件卡片回推由媒体完成回调接线（S4.5 后续
-// 刀：iLink 上传端点探明后）。
+// 同步阻塞到生成完成）。返回 (回复, 命中, 产物文件路径)——产物已落盘
+// （ImageSaveDir 或小说 images/ 目录），取首图 FilePath 作 CardPath：
+// 微信入口即刻可回推产物路径（v4.8 接通；iLink 上传端点探明前以文本+路径
+// 兜底，SendFileCard seam 消费）。生成失败时如实播报。
 func (a *App) execGenerateImage(it *intent.Intent) (string, bool, string) {
 	if a.mediaState == nil {
 		return "", false, ""
@@ -187,7 +193,19 @@ func (a *App) execGenerateImage(it *intent.Intent) (string, bool, string) {
 	if e, ok := res["error"].(string); ok && e != "" {
 		return "生图启动失败：" + e + "。", true, ""
 	}
+	if card := firstImageCardPath(res); card != "" {
+		return "好，画好了：" + it.Target + "，已存到绘梦板块。", true, card
+	}
 	return "好，开始生成：" + it.Target + "。完成后到绘梦板块查看。", true, ""
+}
+
+// firstImageCardPath 从 GenerateFreeImage 结果中取首图落盘路径（无则空串）。
+func firstImageCardPath(res map[string]interface{}) string {
+	imgs, ok := res["images"].([]imageItem)
+	if !ok || len(imgs) == 0 {
+		return ""
+	}
+	return imgs[0].FilePath
 }
 
 // execStatus 状态查询能力：当前可用引擎摘要（模型中心同源数据）。
