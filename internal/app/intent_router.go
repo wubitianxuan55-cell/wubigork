@@ -3,11 +3,14 @@ package app
 // intent_router.go — v4.5「指令中枢」能力执行层（路线图 §10.4a / 阶段 4 S4.2）。
 //
 // intent.Parse（解析内核，S4.1）→ 能力执行 → 结果回传（回复文本经入口侧 TTS
-// 播报 + 前端事件）。语音（S4.3，voice 对话回调分流）/ 微信（S4.5，后续刀）/
-// 桌面命令面板（S4.6，后续刀）共用同一路由——「任何模态，唤起同一个 gaea」。
+// 播报 + 前端事件）。语音（S4.3，voice 对话回调分流）/ 微信（S4.5，回调分流）/
+// 桌面命令面板（S4.6，GaeaRouteIntent 绑定 + dry-run 预览-确认制）共用同一路由
+// ——「任何模态，唤起同一个 gaea」。
 //
-// 纪律：本层零新增 Wails 绑定——执行结果走事件（gaea-intent-navigate）与
-// 入口自身的回传通道（语音 = TTS 播报），保持绑定面与漂移防线稳定。
+// 纪律：语音/微信入口零新增 Wails 绑定——执行结果走事件（gaea-intent-navigate）
+// 与入口自身的回传通道（语音 = TTS 播报）。S4.6 例外（显式豁免）：命令面板是
+// 前端入口，Wails 绑定是其唯一回传通道——新增 GaeaRouteIntent 一个绑定，且
+// dryRun=true 只解析不执行（搜索框不是整句指令入口，预览-确认制落实宁漏勿误）。
 
 import (
 	"fmt"
@@ -31,34 +34,99 @@ func (a *App) routeIntent(text string) (string, bool) {
 
 // IntentResult 意图执行结果（S4.5 微信入口用）：Reply 是回推文本；CardPath
 // 非空表示能力产物（如生图落盘文件）——入口侧可尝试以文件卡片回推（iLink
-// 上传端点探明前以文本+路径兜底）；Handled 表示是否命中。
+// 上传端点探明前以文本+路径兜底）；Handled 表示是否命中。S4.6 起附带
+// Action/Target（dry-run 预览与前端指令卡片用；omitempty 不影响既有消费）。
 type IntentResult struct {
-	Reply    string
-	CardPath string
-	Handled  bool
+	Reply    string `json:"reply"`
+	CardPath string `json:"cardPath,omitempty"`
+	Handled  bool   `json:"handled"`
+	Action   string `json:"action,omitempty"`
+	Target   string `json:"target,omitempty"`
 }
 
 // routeIntentWithResult 是 routeIntent 的产物感知版本（S4.5 微信消息接统一
-// 路由）：同一能力执行层，额外携带可回推的文件卡片路径。语音/命令面板继续
-// 用 routeIntent（签名不变，零行为变化）。
+// 路由）：同一能力执行层，额外携带可回推的文件卡片路径。语音/微信继续用
+// routeIntent（签名不变，零行为变化）。
 func (a *App) routeIntentWithResult(text string) IntentResult {
+	return a.routeIntentMode(text, false)
+}
+
+// GaeaRouteIntent 桌面命令面板前端入口（v4.7 S4.6）：dryRun=true 只解析与
+// 校验（零副作用，能力不执行），前端据此渲染「指令」预览卡；用户显式确认
+// （点击执行/回车）后才以 dryRun=false 真执行。搜索框收的是任意搜索词而非
+// 整句指令——预览-确认制是「宁漏勿误」纪律在面板面的落地。
+func (a *App) GaeaRouteIntent(text string, dryRun bool) IntentResult {
+	return a.routeIntentMode(text, dryRun)
+}
+
+// routeIntentMode 统一执行路径：dryRun 走 intentPreview（零副作用），否则
+// 按动作分派能力执行层。
+func (a *App) routeIntentMode(text string, dryRun bool) IntentResult {
 	it := intent.Parse(text)
 	if it == nil {
 		return IntentResult{}
 	}
+	if dryRun {
+		return a.intentPreview(it)
+	}
 	switch it.Action {
 	case intent.ActionNavigate:
 		reply, ok := a.execNavigate(it)
-		return IntentResult{Reply: reply, Handled: ok}
+		return IntentResult{Reply: reply, Handled: ok, Action: string(it.Action), Target: it.Target}
 	case intent.ActionGenerateImage:
 		reply, ok, card := a.execGenerateImage(it)
-		return IntentResult{Reply: reply, Handled: ok, CardPath: card}
+		return IntentResult{Reply: reply, Handled: ok, CardPath: card, Action: string(it.Action), Target: it.Target}
 	case intent.ActionStatus:
 		reply, ok := a.execStatus(it)
-		return IntentResult{Reply: reply, Handled: ok}
+		return IntentResult{Reply: reply, Handled: ok, Action: string(it.Action), Target: it.Target}
 	case intent.ActionReminder:
 		reply, ok := a.execReminder(it)
-		return IntentResult{Reply: reply, Handled: ok}
+		return IntentResult{Reply: reply, Handled: ok, Action: string(it.Action), Target: it.Target}
+	}
+	return IntentResult{}
+}
+
+// boardLabel 板块在当前 manifest 中的展示名；不存在返回空串（动态清单可能
+// 过滤板块——导航按未命中处理）。
+func (a *App) boardLabel(id string) string {
+	for _, m := range a.GetBoardManifests() {
+		if m.ID == id {
+			return m.Label
+		}
+	}
+	return ""
+}
+
+// intentPreview dry-run 预览（S4.6）：不执行任何能力，只给「将发生什么」的
+// 诚实描述。校验口径与执行层一致：板块不在 manifest / 媒体域缺失 / 提醒域
+// 缺失都按未命中（零值）返回，避免面板预览出一个执行不了的动作。
+func (a *App) intentPreview(it *intent.Intent) IntentResult {
+	switch it.Action {
+	case intent.ActionNavigate:
+		label := a.boardLabel(it.Target)
+		if label == "" {
+			return IntentResult{}
+		}
+		return IntentResult{Reply: "将打开「" + label + "」板块", Action: string(it.Action), Target: it.Target, Handled: true}
+	case intent.ActionGenerateImage:
+		if a.mediaState == nil {
+			return IntentResult{}
+		}
+		return IntentResult{Reply: "将生成图片：" + it.Target + "（默认模型与尺寸，完成后到绘梦查看）", Action: string(it.Action), Target: it.Target, Handled: true}
+	case intent.ActionStatus:
+		return IntentResult{Reply: "将查询当前模型引擎状态", Action: string(it.Action), Target: it.Target, Handled: true}
+	case intent.ActionReminder:
+		if a.whisperState == nil {
+			return IntentResult{}
+		}
+		fire, stale, ok := parseReminderWhen(it.Text, time.Now())
+		switch {
+		case !ok:
+			return IntentResult{Reply: "将设提醒（时间没听懂，执行后会提示正确格式）", Action: string(it.Action), Target: it.Target, Handled: true}
+		case stale:
+			return IntentResult{Reply: "将设提醒（该时间已过，执行后会询问是否顺延到明天同一时间）", Action: string(it.Action), Target: it.Target, Handled: true}
+		}
+		return IntentResult{Reply: fmt.Sprintf("将设提醒：%s（%s）——到点用微信叫你", stripReminderText(it.Text), fire.Format("1月2日 15:04")), Action: string(it.Action), Target: it.Target, Handled: true}
 	}
 	return IntentResult{}
 }
@@ -67,13 +135,7 @@ func (a *App) routeIntentWithResult(text string) IntentResult {
 // navigateBoard 自动切空间）→ 回确认语。板块被动态清单过滤时按未命中处理
 // （走聊天，让对话引擎自己解释）。
 func (a *App) execNavigate(it *intent.Intent) (string, bool) {
-	label := ""
-	for _, m := range a.GetBoardManifests() {
-		if m.ID == it.Target {
-			label = m.Label
-			break
-		}
-	}
+	label := a.boardLabel(it.Target)
 	if label == "" {
 		return "", false
 	}

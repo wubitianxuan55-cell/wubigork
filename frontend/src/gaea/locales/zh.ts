@@ -536,6 +536,14 @@ export const zh: Record<DictKey, string> = {
   "shell.search.scope.workTitle": "工位：工作区文件 + 工位记忆",
   "shell.search.scope.playTitle": "乐园：小说章节 / 角色",
   "shell.search.scope.allTitle": "全部（跨工位与乐园，显式选择）",
+  // v4.7 S4.6 命令面板接统一意图路由：指令预览卡
+  "shell.search.intentTag": "指令",
+  "shell.search.intentExec": "执行",
+  "shell.search.intentExecuting": "执行中…",
+  "shell.search.intentNavigate": "打开板块",
+  "shell.search.intentGenerateImage": "生成图片",
+  "shell.search.intentStatus": "查询状态",
+  "shell.search.intentReminder": "设提醒",
   // S2.2b 壳层存量 i18n：strip / rail / telemetry / launcher
   "shell.strip.home": "返回首页",
   "shell.strip.settings": "设置",

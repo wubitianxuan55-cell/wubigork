@@ -1240,6 +1240,18 @@ export interface UnifiedSearchView {
   files?: FileSemanticHit[];
 }
 
+// IntentResultView 是统一意图路由（v4.5 指令中枢）的执行结果（S4.6 命令面板接内核）：
+// reply=回执文本（dry-run 时为「将发生什么」预览语）；cardPath=能力产物文件路径
+// （如生图落盘，非空时可做文件卡片）；handled=是否命中；action/target=命中动作与
+// 目标原文（前端指令卡片渲染用；未命中时后端返回零值）。
+export interface IntentResultView {
+  reply: string;
+  cardPath?: string;
+  handled: boolean;
+  action?: string;
+  target?: string;
+}
+
 // RetrievalEvalQuery 是检索质量测评中单条查询的明细：期望命中 vs 实际前 10 命中。
 // expected/topHits 均为 "kind:name" 形式（如 "cost:hp300"），便于前端直接对比。
 export type RetrievalEvalQuery = WireShape<AppModels.RetrievalEvalQuery>;

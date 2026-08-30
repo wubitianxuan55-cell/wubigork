@@ -535,6 +535,14 @@ export const en = {
   "shell.search.scope.workTitle": "Work: workspace files + work memory",
   "shell.search.scope.playTitle": "Play: novel chapters / characters",
   "shell.search.scope.allTitle": "All (across work & play — explicit choice)",
+  // v4.7 S4.6 命令面板接统一意图路由：指令预览卡
+  "shell.search.intentTag": "Command",
+  "shell.search.intentExec": "Run",
+  "shell.search.intentExecuting": "Running…",
+  "shell.search.intentNavigate": "Open board",
+  "shell.search.intentGenerateImage": "Generate image",
+  "shell.search.intentStatus": "Check status",
+  "shell.search.intentReminder": "Set reminder",
   // S2.2b 壳层存量 i18n：strip / rail / telemetry / launcher
   "shell.strip.home": "Back to home",
   "shell.strip.settings": "Settings",

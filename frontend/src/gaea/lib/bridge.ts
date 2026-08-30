@@ -97,6 +97,7 @@ import type {
   SemanticHitView,
   SearchScope,
   UnifiedSearchView,
+  IntentResultView,
   RetrievalEvalReport,
   KnowledgeImportPreview,
   KnowledgeHistoryView,
@@ -492,6 +493,11 @@ export interface AppBindings {
   // 传当前生效空间（GaeaSpaceActive，双空间红线：默认不跨空间混搜）。
   // 注意：后端 B 步合入前，旧绑定为 (query, topN)，此签名按约定先行对齐。
   UnifiedSearch(query: string, scope: SearchScope, topN?: number): Promise<UnifiedSearchView>;
+  // RouteIntent 统一意图路由（v4.5 指令中枢）命令面板入口（S4.6）：
+  // dryRun=true 只解析与校验、零副作用（返回「将发生什么」预览语 + action/target），
+  // 面板据此渲染指令预览卡；用户显式确认后以 dryRun=false 真执行并返回回执。
+  // 预览-确认制 = 「宁漏勿误」纪律在搜索框面的落地（搜索词不是整句指令入口）。
+  RouteIntent(text: string, dryRun: boolean): Promise<IntentResultView>;
   // RetrievalEvalRun 运行检索质量测评：内置查询集统计平均 recall@10，
   // 达标门槛后端固定 0.8，返回指标 + 逐查询命中明细。
   RetrievalEvalRun(): Promise<RetrievalEvalReport>;
@@ -881,6 +887,7 @@ const gaeaToGaea = {
   CostNoteDelete: "GaeaCostNoteDelete",
   CostNoteBumpRef: "GaeaCostNoteBumpRef",
   UnifiedSearch: "GaeaUnifiedSearch",
+  RouteIntent: "GaeaRouteIntent",
   RetrievalEvalRun: "GaeaRetrievalEvalRun",
   KnowledgeImportPreview: "GaeaKnowledgeImportPreview",
   KnowledgeImportAIParse: "GaeaKnowledgeImportAIParse",

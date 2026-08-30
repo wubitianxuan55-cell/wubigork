@@ -101,6 +101,7 @@ func (b *OfficeB) GaeaRetryMCPServer(name string) error { return b.a.GaeaRetryMC
 func (b *OfficeB) GaeaRevealWorkspacePath(rel string) error { return b.a.GaeaRevealWorkspacePath(rel) }
 func (b *OfficeB) GaeaRewind(turn int, scope string) error { return b.a.GaeaRewind(turn, scope) }
 func (b *OfficeB) GaeaRollbackRecord(id string) error { return b.a.GaeaRollbackRecord(id) }
+func (b *OfficeB) GaeaRouteIntent(text string, dryRun bool) IntentResult { return b.a.GaeaRouteIntent(text, dryRun) }
 func (b *OfficeB) GaeaRunning() bool { return b.a.GaeaRunning() }
 func (b *OfficeB) GaeaSaveAttachmentFile(fileName string, base64Data string) (string, error) { return b.a.GaeaSaveAttachmentFile(fileName, base64Data) }
 func (b *OfficeB) GaeaSaveDoc(path string, body string) (string, error) { return b.a.GaeaSaveDoc(path, body) }

@@ -540,6 +540,14 @@ export const zhTW: Record<DictKey, string> = {
   "shell.search.scope.workTitle": "工位：工作區檔案 + 工位記憶",
   "shell.search.scope.playTitle": "樂園：小說章節 / 角色",
   "shell.search.scope.allTitle": "全部（跨工位與樂園，顯式選擇）",
+  // v4.7 S4.6 命令面板接统一意图路由：指令预览卡
+  "shell.search.intentTag": "指令",
+  "shell.search.intentExec": "執行",
+  "shell.search.intentExecuting": "執行中…",
+  "shell.search.intentNavigate": "打開板塊",
+  "shell.search.intentGenerateImage": "生成圖片",
+  "shell.search.intentStatus": "查詢狀態",
+  "shell.search.intentReminder": "設提醒",
   // S2.2b 殼層存量 i18n：strip / rail / telemetry / launcher
   "shell.strip.home": "返回首頁",
   "shell.strip.settings": "設定",

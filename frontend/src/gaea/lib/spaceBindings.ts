@@ -62,6 +62,9 @@ export const GAEA_METHOD_FACETS = {
   ChatAppendMessages: "shared",
   // 统一检索：隔离由 scope 参数承担（S1.2-C），搜索面板两空间都会调用 → shared
   UnifiedSearch: "shared",
+  // v4.7 S4.6 命令面板接统一意图路由：触点层内核两空间共用（路线图 §10.4a
+  // 「路由内核是触点层内核（两空间共用家底）」），dry-run 预览-确认制防误触发
+  RouteIntent: "shared",
 
   // ── play：乐园数据面（轻语聊天记忆）──────────────────────────
   WhisperMemories: "play",

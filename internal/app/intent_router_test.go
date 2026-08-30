@@ -105,3 +105,65 @@ func TestRouteIntentWithResultWrapsRouteIntent(t *testing.T) {
 		t.Fatal("routeIntent(未命中) 应返回 handled=false")
 	}
 }
+
+// ─── GaeaRouteIntent：桌面命令面板入口（v4.7 S4.6）──────────────
+
+// dry-run 预览：命中给「将发生什么」的诚实描述 + Action/Target，零副作用
+// （提醒不落盘；导航不 emit——预览代码路径不触达执行层）。
+func TestGaeaRouteIntent_DryRunPreview(t *testing.T) {
+	a := newChatServiceTestApp(t)
+
+	res := a.GaeaRouteIntent("打开绘梦", true)
+	if !res.Handled || res.Action != "navigate" || res.Target != "imagegen" {
+		t.Fatalf("导航预览 = %+v, want handled+navigate/imagegen", res)
+	}
+	if !strings.Contains(res.Reply, "将打开") || !strings.Contains(res.Reply, "绘梦") {
+		t.Errorf("导航预览语应含「将打开」+板块名，实际 %q", res.Reply)
+	}
+
+	// 提醒 dry-run：零副作用（不落盘）+ 预览带事项与时间
+	res = a.GaeaRouteIntent("提醒我 5分钟后 喝水", true)
+	if !res.Handled || res.Action != "reminder" {
+		t.Fatalf("提醒预览 = %+v, want handled+reminder", res)
+	}
+	if list := a.whisperState.WeixinReminderList(); len(list) != 0 {
+		t.Fatalf("dry-run 提醒不应落盘: %v", list)
+	}
+
+	// 真执行（对照 dryRun=false）：命中且落盘 1 条
+	if res := a.GaeaRouteIntent("提醒我 5分钟后 喝水", false); !res.Handled {
+		t.Fatal("真执行提醒应命中")
+	}
+	if list := a.whisperState.WeixinReminderList(); len(list) != 1 {
+		t.Fatalf("真执行提醒应落盘 1 条: %v", list)
+	}
+}
+
+// dry-run 校验口径与执行层一致：未知板块 / 媒体域缺失 / 闲聊 → 未命中（零值），
+// 面板不预览出一个执行不了的动作。
+func TestGaeaRouteIntent_DryRunMiss(t *testing.T) {
+	a := newChatServiceTestApp(t)
+
+	if res := a.GaeaRouteIntent("打开不存在的板块", true); res.Handled {
+		t.Errorf("未知板块 dry-run 应未命中，实际 %+v", res)
+	}
+	// 此测试 App 无媒体域 → 生图降级未命中（与 TestRouteIntent_GenerateImageGuard 同口径）
+	if res := a.GaeaRouteIntent("画一只橘猫", true); res.Handled {
+		t.Errorf("mediaState 缺失时生图 dry-run 应未命中，实际 %+v", res)
+	}
+	if res := a.GaeaRouteIntent("今天天气怎么样", true); res.Handled {
+		t.Errorf("闲聊 dry-run 应未命中，实际 %+v", res)
+	}
+}
+
+// GaeaRouteIntent(text,false) 与 routeIntentWithResult 同源一致（包装关系）：
+// 语音/微信/面板三个入口共用同一执行层。
+func TestGaeaRouteIntent_MatchesRouteIntentWithResult(t *testing.T) {
+	a := newChatServiceTestApp(t)
+
+	exec := a.GaeaRouteIntent("现在用什么模型", false)
+	direct := a.routeIntentWithResult("现在用什么模型")
+	if exec != direct {
+		t.Fatalf("GaeaRouteIntent(exec) = %+v, routeIntentWithResult = %+v（应一致）", exec, direct)
+	}
+}

@@ -2,13 +2,13 @@
 // 从 office.ts 独立拆分（原 office 域超过 400 行预算）；方法体除
 // RetrievalEvalRun 契约对齐（T6-10.4）外零改动。
 import type { AppBindings } from "../bridge";
-import type { RetrievalEvalReport, WorkspaceSearchHit } from "../types";
+import type { IntentResultView, RetrievalEvalReport, WorkspaceSearchHit } from "../types";
 import { taskView } from "./shared";
 import type { MakeMockState } from "./state";
 
 type RetrievalMethods = Pick<
   AppBindings,
-  | "SemanticSearch" | "UnifiedSearch" | "RetrievalEvalRun"
+  | "SemanticSearch" | "UnifiedSearch" | "RouteIntent" | "RetrievalEvalRun"
   | "FileIndexRebuild" | "FileSemanticSearch"
 >;
 
@@ -135,6 +135,37 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
         brain: scope === "play" ? playBrain : scope === "work" ? workBrain : [...workBrain, ...playBrain],
         files: files.length ? files.slice(0, 2) : [],
       };
+    },
+    // ── 统一意图路由（v4.7 S4.6 命令面板接内核）：演示规则与 internal/intent
+    // Parse 同方向（导航>生图>状态>提醒；宁漏勿误）；dryRun=true 零副作用，
+    // 只回「将发生什么」预览语 + action/target（与 Go intentPreview 同构）。
+    async RouteIntent(text: string, dryRun: boolean): Promise<IntentResultView> {
+      const q = text.trim();
+      const boards: Array<[string, string]> = [
+        ["首页", "home"], ["轻语", "chat"], ["小说", "novel"], ["绘梦", "imagegen"],
+        ["办公", "gaea"], ["造价", "cost"], ["记忆", "memoryhub"], ["模型", "modelcenter"],
+        ["角色", "characterlib"], ["设置", "settings"], ["微信", "weixin"],
+      ];
+      const mk = (action: string, target: string, preview: string, execReply: string): IntentResultView =>
+        dryRun ? { reply: preview, handled: true, action, target } : { reply: execReply, handled: true, action, target };
+      const hit = boards.find(([alias]) => q.includes(alias));
+      if (hit && /打开|进入|切换到|切到|跳到|转到|回到|回|返回|去/.test(q)) {
+        const [label, id] = hit;
+        return mk("navigate", id, `将打开「${label}」板块`, `好，已打开${label}。`);
+      }
+      const img = /^(?:请|麻烦|帮我)?(?:给我)?画(?:一张|一幅|一个|张|出)?(.+)$/.exec(q)
+        ?? /^(?:请|麻烦|帮我)?(?:给我)?生成(?:一张|一幅|一个)?(?:的)?(?:图片|图像|画|一张图)(?:[，,：:]|一下)?(.*)$/.exec(q);
+      if (img?.[1]?.trim()) {
+        const desc = img[1].trim();
+        return mk("generate_image", desc, `将生成图片：${desc}（默认模型与尺寸，完成后到绘梦查看）`, `好，开始生成：${desc}。完成后到绘梦板块查看。`);
+      }
+      if (/模型|引擎/.test(q)) {
+        return mk("status", "model", "将查询当前模型引擎状态", "当前状态：Herdsman（本地）。");
+      }
+      if (/提醒|叫我/.test(q)) {
+        return mk("reminder", "", "将设提醒（时间解析后确认）", "好，已设提醒（演示）。到点我用微信叫你。");
+      }
+      return { reply: "", handled: false };
     },
     // ── 检索质量测评（契约对齐 Go；topHits 为演示命中）──
     async RetrievalEvalRun(): Promise<RetrievalEvalReport> {

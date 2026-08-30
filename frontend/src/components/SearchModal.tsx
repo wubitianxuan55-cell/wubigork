@@ -1,12 +1,12 @@
 import { wailsApp } from '../lib/wailsApp';
 import React, { useState } from 'react'
-import { Typography, Space, Tag, Modal, Input, Spin, Empty } from 'antd'
-import { SearchOutlined, FileTextOutlined, UserOutlined } from '@ant-design/icons'
+import { Typography, Space, Tag, Modal, Input, Spin, Empty, Button } from 'antd'
+import { SearchOutlined, FileTextOutlined, UserOutlined, ThunderboltOutlined } from '@ant-design/icons'
 
 import { C } from '../utils/theme'
 import { app } from '../gaea/lib/bridge'
 import { useT } from '../gaea/lib/i18n'
-import type { SearchScope, UnifiedSearchView } from '../gaea/lib/types'
+import type { SearchScope, UnifiedSearchView, IntentResultView } from '../gaea/lib/types'
 import type { ShellSpace } from '../boards/space'
 import type { DictKey } from '../gaea/locales/en'
 
@@ -28,6 +28,14 @@ const categoryIcons: Record<string, React.ReactNode> = {
 }
 const categoryLabels: Record<string, DictKey> = {
   chapters: 'shell.search.catChapters', characters: 'shell.search.catCharacters',
+}
+
+/** S4.6 指令动作 → 标签 i18n key（指令预览卡用；与后端 intent.Action 对齐） */
+const intentActionLabels: Record<string, DictKey> = {
+  navigate: 'shell.search.intentNavigate',
+  generate_image: 'shell.search.intentGenerateImage',
+  status: 'shell.search.intentStatus',
+  reminder: 'shell.search.intentReminder',
 }
 
 /** S2.1 scope 三档（工位/乐园/全部；默认=当前空间，「全部」仅显式选择，红线不默认跨空间） */
@@ -116,28 +124,67 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
   const [searched, setSearched] = useState(false)
   const [scope, setScope] = useState<SearchScope>(space)
   const [filterCategory, setFilterCategory] = useState<string | null>(null)
+  // S4.6 命令面板接统一意图路由：intent=dry-run 预览（零副作用）；intentReply=
+  // 真执行回执；intentBusy=执行中态。预览-确认制：命中只出卡，点「执行」才真跑。
+  const [intent, setIntent] = useState<IntentResultView | null>(null)
+  const [intentReply, setIntentReply] = useState<string | null>(null)
+  const [intentBusy, setIntentBusy] = useState(false)
 
   // 每次打开：scope 默认跟随当前壳层空间（不持久化——默认不跨空间红线）
   React.useEffect(() => {
     if (open) setScope(space)
   }, [open, space])
 
+  const resetQuery = () => {
+    setQuery(''); setSections([]); setSearched(false)
+    setIntent(null); setIntentReply(null)
+  }
+
   const handleSearch = async (value: string) => {
     const q = value.trim()
-    if (!q) { setSections([]); setSearched(false); return }
+    if (!q) { resetQuery(); return }
     setLoading(true)
     setSearched(true)
     setFilterCategory(null)
+    setIntentReply(null)
     try {
-      const novel = scope === 'work' ? null : await wailsApp().Search(q).catch(() => null)
-      const unified = scope === 'play' ? null : await app.UnifiedSearch(q, scope === 'work' ? 'work' : '', 8).catch(() => null)
+      // S4.6：dry-run 意图预览（RouteIntent(q,true) 零副作用）与检索并行——
+      // 命中才出指令预览卡；未命中/调用失败都按无指令处理，检索行为零变化。
+      const [intentHit, novel, unified] = await Promise.all([
+        app.RouteIntent(q, true).catch(() => null),
+        scope === 'work' ? Promise.resolve(null) : wailsApp().Search(q).catch(() => null),
+        scope === 'play' ? Promise.resolve(null) : app.UnifiedSearch(q, scope === 'work' ? 'work' : '', 8).catch(() => null),
+      ])
+      setIntent(intentHit?.handled ? intentHit : null)
       const all: SearchSection[] = []
       if (novel) all.push(...sectionsFromNovel(novel, t))
       if (unified) all.push(...sectionsFromUnified(unified, t))
       setSections(all)
     } catch (_) {
       setSections([])
+      setIntent(null)
     } finally { setLoading(false) }
+  }
+
+  // S4.6：执行指令（用户显式点击「执行」= 确认）——dryRun=false 真跑能力，
+  // 回执内联展示；导航类由后端 emit gaea-intent-navigate → MainLayout
+  // navigateBoard 自动切板块，稍候收面板。
+  const executeIntent = async () => {
+    const q = query.trim()
+    if (!q || intentBusy) return
+    setIntentBusy(true)
+    try {
+      const res = await app.RouteIntent(q, false)
+      if (res.handled) {
+        setIntentReply(res.reply)
+        if (res.action === 'navigate') {
+          window.setTimeout(() => { onClose(); resetQuery() }, 600)
+        }
+      } else {
+        setIntentReply(null)
+        setIntent(null)
+      }
+    } finally { setIntentBusy(false) }
   }
 
   const totalResults = sections.reduce((n, s) => n + s.rows.length, 0)
@@ -149,7 +196,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
     <Modal
       title={<span style={{ color: C('color-text') }}><SearchOutlined style={{ color: C('color-primary'), marginRight: 8 }} />{t('shell.search.title')}</span>}
       open={open}
-      onCancel={() => { onClose(); setQuery(''); setSections([]); setSearched(false) }}
+      onCancel={() => { onClose(); resetQuery() }}
       footer={null}
       destroyOnHidden
       transitionName=""
@@ -196,12 +243,51 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
         {loading ? (
           <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
         ) : searched ? (
-          totalResults === 0 ? (
-            <Empty description={t('shell.search.noResults', { q: query })} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          ) : (
-            <>
-              {/* 分类标签过滤 */}
-              <Space size={4} wrap>
+          <>
+            {/* S4.6 指令预览卡：dry-run 命中才显示；「执行」= 用户显式确认（宁漏勿误：
+                搜索框不是整句指令入口，绝不因输入自动触发能力） */}
+            {intent && (
+              <div
+                data-testid="intent-card"
+                style={{
+                  border: '1px solid ' + C('color-primary'), borderRadius: 8, padding: '10px 12px',
+                  background: 'color-mix(in srgb, ' + C('color-primary') + ' 8%, transparent)',
+                }}
+              >
+                <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                  <Space size={8} style={{ width: '100%', justifyContent: 'space-between' }}>
+                    <Space size={8}>
+                      <ThunderboltOutlined style={{ color: C('color-primary') }} />
+                      <Tag color="blue" style={{ fontSize: 11, marginRight: 0 }}>{t('shell.search.intentTag')}</Tag>
+                      {intent.action && intentActionLabels[intent.action] && (
+                        <Typography.Text strong style={{ color: C('color-text'), fontSize: 12 }}>
+                          {t(intentActionLabels[intent.action])}
+                        </Typography.Text>
+                      )}
+                    </Space>
+                    <Button size="small" type="primary" loading={intentBusy} onClick={executeIntent}>
+                      {t('shell.search.intentExec')}
+                    </Button>
+                  </Space>
+                  <Typography.Text style={{ color: C('color-text-secondary'), fontSize: 12 }}>
+                    {intent.reply}
+                  </Typography.Text>
+                  {intentReply && (
+                    <Typography.Text style={{ color: C('color-success'), fontSize: 12 }}>
+                      → {intentReply}
+                    </Typography.Text>
+                  )}
+                </Space>
+              </div>
+            )}
+            {totalResults === 0 ? (
+              !intent && (
+                <Empty description={t('shell.search.noResults', { q: query })} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              )
+            ) : (
+              <>
+                {/* 分类标签过滤 */}
+                <Space size={4} wrap>
                 <Tag
                   color={filterCategory === null ? 'blue' : 'default'}
                   style={{ cursor: 'pointer', fontSize: 11 }}
@@ -247,9 +333,10 @@ const SearchModal: React.FC<SearchModalProps> = ({ open, onClose, space }) => {
                   </Space>
                 </div>
               ))}
+                </>
+              )}
             </>
-          )
-        ) : (
+          ) : (
           <div style={{ textAlign: 'center', padding: 20, color: C('color-text-secondary'), fontSize: 12 }}>
             {t('shell.search.empty')}
           </div>

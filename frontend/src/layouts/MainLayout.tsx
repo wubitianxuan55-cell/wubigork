@@ -509,11 +509,20 @@ const MainLayout: React.FC = () => {
         } else {
           setPage('novel')
         }
+        return
+      }
+      // v4.7 S4.6：Ctrl+K 打开全局搜索/命令面板（顶栏 tooltip「Search (Ctrl+K)」
+      // 名副其实落地）+ 面板内统一意图路由直通（SearchModal 指令预览卡）。
+      // gaea 工作台内让位给其自有 CommandPalette（gaea/App.tsx document 级监听
+      // 同样截获 Ctrl+K）——按当前板块豁免，避免双面板同开。
+      if (e.key === 'k' && page !== 'gaea') {
+        e.preventDefault()
+        setSearchOpen(true)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [projectOpen, space, switchSpace])
+  }, [projectOpen, space, switchSpace, page])
 
   // 附 B #9：Content 布局 = manifest.layout（chat/gaea=full，其余 padded，home=isHome 特判）
   const currentLayout = getActiveBoard(page)?.layout ?? 'padded'
