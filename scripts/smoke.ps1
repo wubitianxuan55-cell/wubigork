@@ -22,7 +22,12 @@ $env:TEMP = $tmp
 $env:GAEA_HTTP_PORT = "$Port"
 
 Write-Host "=== 冒烟：启动 $ExePath（HTTP 桥接 127.0.0.1:$Port）==="
-$proc = Start-Process -FilePath $ExePath -PassThru
+try {
+    $proc = Start-Process -FilePath $ExePath -PassThru
+} catch {
+    Write-Host "冒烟失败：无法启动 $ExePath — $($_.Exception.Message)"
+    exit 1
+}
 $health = "http://127.0.0.1:$Port/api/health"
 $deadline = (Get-Date).AddSeconds($TimeoutSec)
 $ok = $false
@@ -37,9 +42,12 @@ try {
         try {
             $resp = Invoke-WebRequest -Uri $health -UseBasicParsing -TimeoutSec 2
             if ($resp.StatusCode -eq 200) {
-                $ok = $true
-                $respText = $resp.Content
-                break
+                $body = $resp.Content | ConvertFrom-Json
+                if ($body.status -eq 'ok') {
+                    $ok = $true
+                    $respText = $resp.Content
+                    break
+                }
             }
         } catch {
             # 未就绪，继续轮询
@@ -52,7 +60,7 @@ try {
     Write-Host "冒烟失败：${TimeoutSec}s 内 /api/health 未就绪（进程存活但桥接未起来）"
     exit 1
 } finally {
-    if (-not $proc.HasExited) {
+    if ($null -ne $proc -and -not $proc.HasExited) {
         Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
         Write-Host "已回收冒烟进程 PID=$($proc.Id)"
     }

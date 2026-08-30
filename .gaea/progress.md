@@ -5,6 +5,13 @@
 
 ## 当前状态
 
+- **构建冒烟自动化（2026-08-30，v4.8.3 教训收口）**：build.bat 真实退出码 +
+  产物新鲜度守卫（构建前删旧 exe、被常驻实例锁定时显式报错）+ 默认自动冒烟
+  （.tmp 临时副本 → scripts/smoke.ps1，18999 /api/health 200 + status=ok 响应
+  体校验，失败即停并提示勿发布）；`build.bat skip-smoke` 跳过（快速迭代）；
+  smoke.ps1 增 Start-Process 失败显式报错、响应体校验、finally 判空回收。
+  验证：默认路径实跑绿（构建 44.5s + 冒烟通过 + 进程回收）；失败路径假
+  wails 桩实测 [FAIL] + exit 1。
 - **最新小步（2026-08-30，欠账收尾）**：①VoiceStart realtime 门小修——
   端到端回复走服务端 response 事件（事件泵不经 whisperChatFn），realtime
   在位时不再要求 whisper 对话回调，whisperChatFn=nil 也可启动；拼接管线

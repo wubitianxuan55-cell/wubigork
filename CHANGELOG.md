@@ -1,5 +1,21 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · 构建冒烟自动化 (2026-08-30)
+> v4.8.3 教训收口（构建链路，不增绑定）：build.bat 不再无条件打印成功块。
+- **build.bat 真实退出码 + 产物新鲜度守卫**：构建前删除旧产物（被常驻实例
+  锁定时显式报错），`call wails build` 失败即停（errorlevel 检查），构建后
+  必须重新生成 build\bin\gaea.exe 否则报错——「判断构建成败唯一可信标准 =
+  真实退出码 + 新产物」。
+- **自动冒烟**：构建成功后默认复制到 .tmp\smoke-gaea.exe（临时副本，规避
+  常驻实例/AV 锁）跑 scripts/smoke.ps1（127.0.0.1:18999 /api/health 200 +
+  status=ok 响应体校验），失败即停并提示勿发布；`build.bat skip-smoke` 可
+  跳过（快速迭代，发布前不得跳过）。
+- **smoke.ps1 增强**：Start-Process 失败显式报错、响应体 JSON 校验
+  status=ok、finally 判空回收。
+- 验证：默认路径实跑（wails build 44.5s + 冒烟通过 + 冒烟进程回收）；失败
+  路径用假 wails 桩实测 [FAIL] wails build failed + exit 1；桌面复制失败仅
+  告警不阻断（SAC 可能拦截，产物仍在 build\bin）。
+
 ## 未发布 · 欠账收尾小步 (2026-08-30)
 > v4.8.3 发布后的代码级欠账收口（不增绑定，535 不变）：VoiceStart 门小修
 > + 持久化原子写统一 + XlsxPreview 大表格虚拟滚动。Go 全量绿、vitest
