@@ -107,6 +107,43 @@ func TestVoiceStart_RealtimeGateSkipsASR(t *testing.T) {
 	defer a.voiceManager.Stop() // 收尾：关会话 → 事件泵退出
 }
 
+// TestVoiceStart_RealtimeGateSkipsWhisperChat realtime 会话在位时，
+// VoiceStart 不再要求 whisper 对话回调：输入转写与回复都由服务端完成
+// （事件泵走 response 事件，从不经 whisperChatFn），whisperChatFn=nil
+// 也能启动。
+func TestVoiceStart_RealtimeGateSkipsWhisperChat(t *testing.T) {
+	cfg := &appconfig.Config{}
+	app := &App{core: &core{cfg: cfg}}
+	a := &mediaState{core: &core{cfg: cfg}, app: app}
+	a.initVoice()
+	a.voiceManager.SetWhisperChatFn(nil) // 显式剥掉对话回调
+	a.voiceManager.SetRealtimeSession(newStubRealtimeSession())
+
+	if err := a.VoiceStart(false); err != nil {
+		t.Fatalf("realtime 在位时不应要求 whisperChatFn: %v", err)
+	}
+	defer a.voiceManager.Stop()
+}
+
+// TestVoiceStart_LegacyWhisperGateUnchanged 会话不在位时维持原 WhisperReady
+// 门：有 ASR、无 whisper 对话回调、未注入 realtime → 报错（拼接管线行为
+// 不变——识别出的文本没人接话）。
+func TestVoiceStart_LegacyWhisperGateUnchanged(t *testing.T) {
+	cfg := &appconfig.Config{}
+	app := &App{core: &core{cfg: cfg}}
+	a := &mediaState{core: &core{cfg: cfg}, app: app}
+	a.initVoice()
+	a.voiceManager.SetWhisperChatFn(nil)
+
+	err := a.VoiceStart(true) // browserASR=true 跳过 ASR 门，只测 WhisperReady 门
+	if err == nil {
+		t.Fatal("无 whisper 对话回调且未注入 realtime 时 VoiceStart 应报错（原门保留）")
+	}
+	if want := "语音对话引擎未就绪"; !strings.Contains(err.Error(), want) {
+		t.Errorf("错误信息 = %q, want 含 %q", err.Error(), want)
+	}
+}
+
 // TestVoiceStart_LegacyASRGateUnchanged 会话不在位时维持原 ASRReady 门：
 // 无 ASR 提供者且未注入 realtime → 报错（拼接管线行为不变）。
 func TestVoiceStart_LegacyASRGateUnchanged(t *testing.T) {

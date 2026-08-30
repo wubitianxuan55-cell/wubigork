@@ -391,23 +391,27 @@ func (a *mediaState) synthesizeFromBase64(text string) ([]byte, string, error) {
 
 // VoiceStart 启动语音管道。browserASR 为 true 时使用浏览器端
 // Web Speech API 识别（无需 herdsman STT 模型），后端只负责对话与 TTS。
-// S2：realtime 会话在位时以 realtimeReady 为门（输入转写由服务端完成，
-// 不再强制 ASRReady）；会话不在位时维持原 ASRReady 门。
+// S2：realtime 会话在位时以 realtimeReady 为门——输入转写与对话回复都由
+// 服务端完成（事件泵走 response 事件，不经 whisperChatFn/本地 ASR），因此
+// ASRReady 与 WhisperReady 双门都跳过；会话不在位时维持原双门（ASRReady +
+// WhisperReady，拼接管线行为逐字节不变）。
 func (a *mediaState) VoiceStart(browserASR bool) error {
 	if a.voiceManager == nil {
 		a.initVoice()
 	}
-	if !browserASR {
-		if a.voiceManager == nil {
-			return fmt.Errorf("语音管理器未初始化")
-		}
-		if a.voiceManager.RealtimeReady() {
-			// 端到端实时模式：无需本地 ASR（服务端输入转写）
-		} else if !a.voiceManager.ASRReady() {
+	if a.voiceManager == nil {
+		return fmt.Errorf("语音管理器未初始化")
+	}
+	realtimeMode := a.voiceManager.RealtimeReady()
+	if !browserASR && !realtimeMode {
+		if !a.voiceManager.ASRReady() {
 			return fmt.Errorf("语音识别未就绪：请在模型中心启用 STT 模型（如 whisper-base / funasr）并确认 herdsman 引擎可用，或改用浏览器端语音识别")
 		}
 	}
-	if !a.voiceManager.WhisperReady() {
+	// 端到端实时模式无需 whisper 对话回调（服务端经 response 事件回话）；
+	// 拼接管线才依赖它。浏览器端识别（browserASR）同样依赖 whisper 对话回调
+	// 生成回复，故非 realtime 时门保留。
+	if !realtimeMode && !a.voiceManager.WhisperReady() {
 		return fmt.Errorf("语音对话引擎未就绪，请检查模型中心配置")
 	}
 	return a.voiceManager.Start()
