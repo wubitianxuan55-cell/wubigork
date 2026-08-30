@@ -167,3 +167,26 @@ func TestGaeaRouteIntent_MatchesRouteIntentWithResult(t *testing.T) {
 		t.Fatalf("GaeaRouteIntent(exec) = %+v, routeIntentWithResult = %+v（应一致）", exec, direct)
 	}
 }
+
+// 读屏能力（v4.7 S4.6 收口）：dry-run 出预览；真执行走 截屏→OCR 链——
+// 测试环境无 OCR 服务/无显示器时走诚实失败回复，但一律 handled=true
+// （能力已命中，失败要说出口，不坠回聊天管道）。
+func TestGaeaRouteIntent_ReadScreen(t *testing.T) {
+	a := newChatServiceTestApp(t)
+
+	// dry-run：零副作用预览（不截屏）
+	res := a.GaeaRouteIntent("读一下屏幕", true)
+	if !res.Handled || res.Action != "read_screen" {
+		t.Fatalf("读屏预览 = %+v, want handled+read_screen", res)
+	}
+	if !strings.Contains(res.Reply, "截取屏幕") {
+		t.Errorf("读屏预览语应含「截取屏幕」，实际 %q", res.Reply)
+	}
+
+	// 真执行：handled=true + 非空回复（成功=文字/没识别出文字；失败=诚实报错）
+	res = a.GaeaRouteIntent("读一下屏幕", false)
+	if !res.Handled || res.Reply == "" {
+		t.Fatalf("读屏执行 = %+v, want handled+reply", res)
+	}
+	t.Logf("读屏执行回复（环境相关）：%q", res.Reply)
+}

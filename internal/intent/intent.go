@@ -20,6 +20,7 @@ const (
 	ActionGenerateImage Action = "generate_image" // 画一张…（Target = 画面描述）
 	ActionStatus        Action = "status"         // 查询状态（Target = 模型/引擎）
 	ActionReminder      Action = "reminder"       // 离线代办提醒（时间解析在执行层）
+	ActionReadScreen    Action = "read_screen"    // 读一下屏幕（屏幕感知：截屏 + OCR，v4.7 S4.6）
 )
 
 // Intent 解析结果；Parse 未命中返回 nil（调用方走原聊天管道）。
@@ -75,11 +76,16 @@ var reImage = regexp.MustCompile(
 // 状态查询。
 var reStatus = regexp.MustCompile(`(?:现在)?(?:用的?|在用|是什么|什么|哪个)(?:模型|引擎)|(?:模型|引擎)(?:状态|怎么样|是啥)|当前(?:模型|引擎)`)
 
+// 读屏（屏幕感知，S4.6 收口）：必须明确指向「屏幕」——读/念/看/识别 + 屏幕，
+// 或「屏幕上有什么/写了什么」。窄规则纪律：不含裸「读/看」（那是导航/闲聊）。
+var reReadScreen = regexp.MustCompile(
+	`(?:读|念|看|识别).{0,2}屏幕|屏幕.{0,2}(?:读|念|看)|屏幕上.{0,4}(?:什么|啥)|读屏`)
+
 // 提醒类（宽匹配放最后；时间解析在执行层）。
 var reReminder = regexp.MustCompile(`提醒|叫我`)
 
 // Parse 解析一条自然语言指令；未命中返回 nil。
-// 优先级：导航 > 生图 > 状态 > 提醒（窄规则优先，宽匹配殿后）。
+// 优先级：导航 > 生图 > 读屏 > 状态 > 提醒（窄规则优先，宽匹配殿后）。
 func Parse(text string) *Intent {
 	t := strings.TrimSpace(text)
 	t = strings.TrimRight(t, "。.！!？?？")
@@ -106,12 +112,17 @@ func Parse(text string) *Intent {
 		}
 	}
 
-	// ③ 状态
+	// ③ 读屏（屏幕感知；明确指向「屏幕」才命中）
+	if reReadScreen.MatchString(t) {
+		return &Intent{Action: ActionReadScreen, Target: "screen", Text: t}
+	}
+
+	// ④ 状态
 	if reStatus.MatchString(t) {
 		return &Intent{Action: ActionStatus, Target: "model", Text: t}
 	}
 
-	// ④ 提醒
+	// ⑤ 提醒
 	if reReminder.MatchString(t) {
 		return &Intent{Action: ActionReminder, Target: "", Text: t}
 	}

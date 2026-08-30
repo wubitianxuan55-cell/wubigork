@@ -543,6 +543,7 @@ export const en = {
   "shell.search.intentGenerateImage": "Generate image",
   "shell.search.intentStatus": "Check status",
   "shell.search.intentReminder": "Set reminder",
+  "shell.search.intentReadScreen": "Read screen",
   // S2.2b 壳层存量 i18n：strip / rail / telemetry / launcher
   "shell.strip.home": "Back to home",
   "shell.strip.settings": "Settings",

@@ -548,6 +548,7 @@ export const zhTW: Record<DictKey, string> = {
   "shell.search.intentGenerateImage": "生成圖片",
   "shell.search.intentStatus": "查詢狀態",
   "shell.search.intentReminder": "設提醒",
+  "shell.search.intentReadScreen": "讀屏文字",
   // S2.2b 殼層存量 i18n：strip / rail / telemetry / launcher
   "shell.strip.home": "返回首頁",
   "shell.strip.settings": "設定",

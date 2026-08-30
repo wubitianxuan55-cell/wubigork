@@ -13,11 +13,15 @@ package app
 // dryRun=true 只解析不执行（搜索框不是整句指令入口，预览-确认制落实宁漏勿误）。
 
 import (
+	"bytes"
 	"fmt"
+	"image/png"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/screen"
 	"github.com/gaea/gaea/internal/intent"
 )
 
@@ -82,6 +86,9 @@ func (a *App) routeIntentMode(text string, dryRun bool) IntentResult {
 	case intent.ActionReminder:
 		reply, ok := a.execReminder(it)
 		return IntentResult{Reply: reply, Handled: ok, Action: string(it.Action), Target: it.Target}
+	case intent.ActionReadScreen:
+		reply, ok := a.execReadScreen(it)
+		return IntentResult{Reply: reply, Handled: ok, Action: string(it.Action), Target: it.Target}
 	}
 	return IntentResult{}
 }
@@ -127,6 +134,8 @@ func (a *App) intentPreview(it *intent.Intent) IntentResult {
 			return IntentResult{Reply: "将设提醒（该时间已过，执行后会询问是否顺延到明天同一时间）", Action: string(it.Action), Target: it.Target, Handled: true}
 		}
 		return IntentResult{Reply: fmt.Sprintf("将设提醒：%s（%s）——到点用微信叫你", stripReminderText(it.Text), fire.Format("1月2日 15:04")), Action: string(it.Action), Target: it.Target, Handled: true}
+	case intent.ActionReadScreen:
+		return IntentResult{Reply: "将截取屏幕并识别屏幕上的文字（OCR）", Action: string(it.Action), Target: it.Target, Handled: true}
 	}
 	return IntentResult{}
 }
@@ -214,4 +223,49 @@ func (a *App) execReminder(it *intent.Intent) (string, bool) {
 	}
 	r := a.whisperState.addWxReminder(item, fire, "gaea", "voice")
 	return fmt.Sprintf("好，已设提醒：%s（%s）——到点我用微信叫你。", r.Text, r.FireAt.Format("1月2日 15:04")), true
+}
+
+// execReadScreen 屏幕感知能力（v4.7 S4.6 收口「读一下屏幕」）：截屏 → OCR →
+// 文本回传（语音入口经 TTS 朗读，命令面板入口内联展示）。截屏仅在用户显式
+// 说出指令时触发——触点层入口（语音/面板/微信指令）已承担「显式发起」语义；
+// 截屏文件进系统临时目录，即用即删，不落工作区。
+func (a *App) execReadScreen(it *intent.Intent) (string, bool) {
+	img, err := screen.Capture()
+	if err != nil {
+		slog.Warn("[intent] 截屏失败", "err", err)
+		return "截屏失败：" + err.Error() + "。", true
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return "截屏处理失败：" + err.Error() + "。", true
+	}
+	tmp, err := os.CreateTemp("", "gaea-screen-*.png")
+	if err != nil {
+		return "截屏暂存失败：" + err.Error() + "。", true
+	}
+	path := tmp.Name()
+	if _, err := tmp.Write(buf.Bytes()); err != nil {
+		tmp.Close()
+		os.Remove(path)
+		return "截屏暂存失败：" + err.Error() + "。", true
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(path)
+		return "截屏暂存失败：" + err.Error() + "。", true
+	}
+	defer os.Remove(path)
+	text, err := a.GaeaOCRText(path)
+	if err != nil {
+		slog.Warn("[intent] 屏幕文字识别失败", "err", err)
+		return "屏幕文字识别失败：" + err.Error() + "。", true
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "屏幕上没有识别出文字。", true
+	}
+	// TTS/面板展示口径：长文本截断（完整内容引导走识图/截图流程）
+	if runes := []rune(text); len(runes) > 300 {
+		text = string(runes[:300]) + "……（屏幕文字较长，已截断）"
+	}
+	return "屏幕上的文字如下：" + text, true
 }

@@ -26,6 +26,13 @@ func TestParse_Hits(t *testing.T) {
 		{"状态引擎", "引擎状态怎么样", ActionStatus, "model"},
 		{"提醒", "提醒我 30分钟后 喝水", ActionReminder, ""},
 		{"口语尾巴", "打开绘梦。", ActionNavigate, "imagegen"},
+		// 读屏（v4.7 S4.6）：明确指向「屏幕」才命中
+		{"读一下屏幕", "读一下屏幕", ActionReadScreen, "screen"},
+		{"念念屏幕", "念念屏幕上写了什么", ActionReadScreen, "screen"},
+		{"看看屏幕", "看看屏幕", ActionReadScreen, "screen"},
+		{"识别屏幕", "识别一下屏幕内容", ActionReadScreen, "screen"},
+		{"屏幕上有什么", "屏幕上有什么", ActionReadScreen, "screen"},
+		{"读屏", "帮我读屏", ActionReadScreen, "screen"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -57,6 +64,10 @@ func TestParse_Misses(t *testing.T) {
 		{"无动词闲聊提板块", "造价数据库真是好用"},
 		{"空文本", "  "},
 		{"标点闲聊", "画得好！"},
+		// 读屏窄规则：不含裸「读/看」（导航/闲聊语境），无「屏幕」不命中
+		{"读一下小说", "读一下小说"},
+		{"看看天气", "看看天气"},
+		{"屏幕坏了", "屏幕坏了"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -544,6 +544,7 @@ export const zh: Record<DictKey, string> = {
   "shell.search.intentGenerateImage": "生成图片",
   "shell.search.intentStatus": "查询状态",
   "shell.search.intentReminder": "设提醒",
+  "shell.search.intentReadScreen": "读屏文字",
   // S2.2b 壳层存量 i18n：strip / rail / telemetry / launcher
   "shell.strip.home": "返回首页",
   "shell.strip.settings": "设置",

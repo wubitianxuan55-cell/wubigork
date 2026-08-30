@@ -36,6 +36,7 @@ const intentActionLabels: Record<string, DictKey> = {
   generate_image: 'shell.search.intentGenerateImage',
   status: 'shell.search.intentStatus',
   reminder: 'shell.search.intentReminder',
+  read_screen: 'shell.search.intentReadScreen',
 }
 
 /** S2.1 scope 三档（工位/乐园/全部；默认=当前空间，「全部」仅显式选择，红线不默认跨空间） */

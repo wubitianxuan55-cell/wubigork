@@ -162,6 +162,9 @@ export function buildRetrieval(_s: MakeMockState): RetrievalMethods {
       if (/模型|引擎/.test(q)) {
         return mk("status", "model", "将查询当前模型引擎状态", "当前状态：Herdsman（本地）。");
       }
+      if (/(?:读|念|看|识别).{0,2}屏幕|屏幕.{0,2}(?:读|念|看)|屏幕上.{0,4}(?:什么|啥)|读屏/.test(q)) {
+        return mk("read_screen", "screen", "将截取屏幕并识别屏幕上的文字（OCR）", "屏幕上的文字如下：（演示）这是 mock 环境的屏幕文字。");
+      }
       if (/提醒|叫我/.test(q)) {
         return mk("reminder", "", "将设提醒（时间解析后确认）", "好，已设提醒（演示）。到点我用微信叫你。");
       }
