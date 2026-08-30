@@ -698,3 +698,66 @@ func TestSave_CosyVoicePathPortRoundTrip(t *testing.T) {
 		t.Errorf("非法端口被拒后 = %d, want 保持 9020", cfg.CosyVoicePort)
 	}
 }
+
+// TestSave_RealtimeKeysRoundTrip 实时语音 Realtime 档三项（S1）持久化：
+// 未配置时默认空（= 实时语音档关闭）；provider/model/api_key Save→Load 往返。
+// realtime_api_key 存储口径 = secure.EncryptString 密文——config 层只存取
+// 字符串不做加解密，这里以密文样例字符串往返验证（不真 DPAPI）。
+func TestSave_RealtimeKeysRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	if cfg := Load(); cfg.GetRealtimeProvider() != "" || cfg.GetRealtimeModel() != "" || cfg.GetRealtimeAPIKey() != "" {
+		t.Error("未配置时 Realtime 三项默认均应为空")
+	}
+
+	// 密文样例（"dpapi:" 前缀 + base64 blob 的形态，仅验证字符串原样存取）
+	encSample := "dpapi:QUJDREVGR0hJSktMTU5PUDEyMzQ1Njc4OTA="
+	if err := Save(KeyRealtimeProvider, "openai"); err != nil {
+		t.Fatalf("Save realtime_provider 失败: %s", err)
+	}
+	if err := Save(KeyRealtimeModel, "gpt-4o-realtime-preview"); err != nil {
+		t.Fatalf("Save realtime_model 失败: %s", err)
+	}
+	if err := Save(KeyRealtimeAPIKey, encSample); err != nil {
+		t.Fatalf("Save realtime_api_key 失败: %s", err)
+	}
+
+	cfg := Load()
+	if cfg.GetRealtimeProvider() != "openai" {
+		t.Errorf("RealtimeProvider = %q, want openai", cfg.GetRealtimeProvider())
+	}
+	if cfg.GetRealtimeModel() != "gpt-4o-realtime-preview" {
+		t.Errorf("RealtimeModel = %q, want gpt-4o-realtime-preview", cfg.GetRealtimeModel())
+	}
+	if cfg.GetRealtimeAPIKey() != encSample {
+		t.Errorf("RealtimeAPIKey = %q, want 密文样例原样往返", cfg.GetRealtimeAPIKey())
+	}
+
+	// provider 清空 = 关闭实时语音档
+	if err := Save(KeyRealtimeProvider, ""); err != nil {
+		t.Fatalf("Save realtime_provider=\"\" 失败: %s", err)
+	}
+	if cfg := Load(); cfg.GetRealtimeProvider() != "" {
+		t.Errorf("清空后 provider = %q, want 空（未配置）", cfg.GetRealtimeProvider())
+	}
+}
+
+// TestSave_RealtimeProviderInvalid 实时语音 provider 非法值拒绝：非空值只允许
+// "openai"（与 internal/realtime 注册表一致）；拒绝后不落盘，原值保持。
+func TestSave_RealtimeProviderInvalid(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	if err := Save(KeyRealtimeProvider, "openai"); err != nil {
+		t.Fatalf("Save realtime_provider=openai 失败: %s", err)
+	}
+	if err := Save(KeyRealtimeProvider, "anthropic"); err == nil {
+		t.Error("provider=anthropic 应被拒绝")
+	}
+	if cfg := Load(); cfg.GetRealtimeProvider() != "openai" {
+		t.Errorf("非法值被拒后 provider = %q, want 保持 openai", cfg.GetRealtimeProvider())
+	}
+}

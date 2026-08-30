@@ -80,9 +80,10 @@ type VoiceRuntimeConfig struct {
 
 	// ── Realtime 档（S0：端到端实时语音 seam，见 internal/realtime）──
 	// 三项全空 = 未配置 → 完全走现 ASR+LLM+TTS 拼接管线，路径零变化。
-	// 当前为纯内存字段：本刀不新造持久化机制（S1 接 config.Save 落盘；
-	// APIKey 落盘须走 secure.EncryptString DPAPI，先例见
-	// model_engine_handler.go SetOpencodeZenKey）。
+	// S1 已接：三项经 internal/config 落盘（realtime_provider / realtime_model /
+	// realtime_api_key），APIKey 落盘口径为 secure.EncryptString 密文，app 层
+	// initVoice 启动时经 secure.DecryptString 解出明文注入（先例见
+	// model_engine_handler.go SetOpencodeZenKey）；保存路径由 app 层绑定刀负责。
 
 	// Realtime 供应商 kind（"openai"；空 = 未启用实时语音档）
 	RealtimeProvider string `json:"realtimeProvider,omitempty"`

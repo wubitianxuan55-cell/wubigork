@@ -104,6 +104,14 @@ const (
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认与历史硬编码一致。
 	KeyCosyVoiceDir  = "cosyvoice_dir"
 	KeyCosyVoicePort = "cosyvoice_port"
+	// 实时语音 Realtime 档（S1，internal/realtime seam）：provider/model/key
+	// 三项落盘。provider 空字符串 = 未配置（实时语音档关闭，走现拼接管线）；
+	// 非空只允许 "openai"。realtime_api_key 存储口径 = secure.EncryptString
+	// 的密文——config 层不做加解密、只存取字符串（明文↔密文转换由 app 层
+	// secure 负责，先例 model_engine_handler.go SetOpencodeZenKey）。
+	KeyRealtimeProvider = "realtime_provider"
+	KeyRealtimeModel    = "realtime_model"
+	KeyRealtimeAPIKey   = "realtime_api_key"
 )
 
 // DefaultUsdCnyRate 美元→人民币汇率默认值（费用估算折算口径）。
@@ -197,6 +205,11 @@ type configFile struct {
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，空值回退默认。
 	CosyVoiceDir  string `json:"cosyvoice_dir,omitempty"`
 	CosyVoicePort int    `json:"cosyvoice_port,omitempty"`
+	// 实时语音 Realtime 档（S1）：provider/model + API Key（存储口径 =
+	// secure.EncryptString 密文，config 层只存取字符串不做加解密）。
+	RealtimeProvider string `json:"realtime_provider,omitempty"`
+	RealtimeModel    string `json:"realtime_model,omitempty"`
+	RealtimeAPIKey   string `json:"realtime_api_key,omitempty"`
 }
 type Config struct {
 	// XAI OAuth 配置
@@ -328,6 +341,14 @@ type Config struct {
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认 C:\AI\cosyvoice / 8010。
 	CosyVoiceDir  string
 	CosyVoicePort int
+
+	// 实时语音 Realtime 档（S1，internal/realtime seam）：三项来自落盘配置，
+	// 默认空 = 未配置。RealtimeAPIKey 为 secure.EncryptString 密文（config 层
+	// 只存取，不加减密）；app 层 initVoice 启动时经 secure.DecryptString 解出
+	// 内存明文再注入语音运行时配置。
+	RealtimeProvider string
+	RealtimeModel    string
+	RealtimeAPIKey   string
 }
 
 // funcMu 保护功能级模型绑定字段（GetFeatureModel/SetFeatureModel 并发读写）
@@ -550,6 +571,28 @@ func (c *Config) SetAutoPreload(enabled bool) {
 	funcMu.Lock()
 	defer funcMu.Unlock()
 	c.AutoPreload = enabled
+}
+
+// GetRealtimeProvider 读取实时语音 provider kind（空 = 未配置实时语音档）。
+func (c *Config) GetRealtimeProvider() string {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.RealtimeProvider
+}
+
+// GetRealtimeModel 读取实时语音模型 ID（空 = 供应商默认）。
+func (c *Config) GetRealtimeModel() string {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.RealtimeModel
+}
+
+// GetRealtimeAPIKey 读取实时语音 API Key（存储口径 = secure.EncryptString
+// 密文；config 层不做加解密，解密由 app 层 secure.DecryptString 负责）。
+func (c *Config) GetRealtimeAPIKey() string {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.RealtimeAPIKey
 }
 
 // Load 加载配置（只应调用一次）。
@@ -913,6 +956,15 @@ func Load() *Config {
 			}
 			if cf.CosyVoicePort != 0 {
 				cfg.CosyVoicePort = cf.CosyVoicePort
+			}
+			if cf.RealtimeProvider != "" {
+				cfg.RealtimeProvider = cf.RealtimeProvider
+			}
+			if cf.RealtimeModel != "" {
+				cfg.RealtimeModel = cf.RealtimeModel
+			}
+			if cf.RealtimeAPIKey != "" {
+				cfg.RealtimeAPIKey = cf.RealtimeAPIKey
 			}
 			// 2.x 聊天/轻语合并：旧配置只写 func_whisper_* 时迁移到 func_chat；
 			// chat 显式配置优先，不覆盖；func_whisper_enabled=false 同步为 chat 停用。
@@ -1326,6 +1378,17 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.UsdCnyRate = f
 		return nil
 	},
+	KeyRealtimeProvider: func(cf *configFile, v string) error {
+		// 空 = 关闭实时语音档（允许清空回未配置态）；非空只允许已注册 kind
+		// "openai"（与 internal/realtime 注册表一致，非法值保存即拒绝）。
+		if v != "" && v != "openai" {
+			return fmt.Errorf("实时语音 provider 仅支持 openai（当前值: %s）", v)
+		}
+		cf.RealtimeProvider = v
+		return nil
+	},
+	KeyRealtimeModel:  func(cf *configFile, v string) error { cf.RealtimeModel = v; return nil },
+	KeyRealtimeAPIKey: func(cf *configFile, v string) error { cf.RealtimeAPIKey = v; return nil },
 }
 
 // parseBoolPtr 解析 "true"/"1"/"0" 等布尔值并返回指针（用于 *bool 配置项）。
