@@ -1,19 +1,26 @@
 # 任务进度
 
-> 最后更新: 2026-08-30（v4.7.0 命令面板接内核·读屏发布完成）
+> 最后更新: 2026-08-30（v4.8.0「全面铺开 · 触点纵深」发布完成）
 
 ## 当前状态
 
-- **最新发布：v4.7.0（2026-08-30）**——「命令面板接内核 · 读屏」（S4.6 完整
-  收口）：GaeaRouteIntent(text, dryRun) 绑定（531→532，dry-run 预览-确认制——
-  搜索词不是整句指令入口，命中出卡点执行才真跑）+ SearchModal 指令预览卡 +
-  真·Ctrl+K（办公板块让位工作台自有 CommandPalette）+ 屏幕感知能力「读一下
-  屏幕」（read_screen 窄规则 + 截屏→临时 PNG→既有 OCR 链→300 字截断回传，
-  语音/面板/微信三入口免费受益）。验证：Go 全量绿（121 包）；vitest
-  **796/796**（145 文件）；tsc/eslint 0；绑定面 532、spaceBindings 249、
-  drift PASS。详见 releases/v4.7.0.md。
-- **下一执行**：iLink 文件卡片/图片识别真机收敛；成本知识图谱可视化形态；
-  读屏纵深（OCR 摘要再朗读/多显示器）；端到端实时语音（云端 Realtime 档）排期。
+- **最新发布：v4.8.0（2026-08-30）**——「全面铺开 · 触点纵深」（六线并行调研
+  → 七刀，多子代理分工、文件足迹不相交）：读屏纵深（多显示器 Monitors/
+  CaptureArea + 序数解析 + OCR 本地摘要朗读 + 截图留档）+ intent LLM 兜底
+  分类器（默认关：白名单+0.75 置信门+2s 硬超时，dryRun 恒不调用）+ 生图
+  产物 CardPath 接通（微信回推数据源）+ iLink 微信通道离线收敛（限频/截断/
+  多媒体上限/SSRF+魔数下载防线/图片→vision 识别管线/防御解析矩阵/
+  SendFileCard seam）+ 全局离线模式总开关（EngineType.IsLocal + routeModel
+  三步云过滤，跨版欠账清账）+ 成本知识图谱可视化（costref.BuildGraph 双视角
+  + CostGraphView 零依赖 SVG，成本库第 8 模块，绑定面 532→533）+ 实时语音
+  Realtime S0 铺底（internal/realtime seam + VoiceHealth realtimeReady）。
+  验证：Go 全量绿（120 包，零 FAIL）；vitest **800/800**（146 文件）；
+  tsc/eslint 0；绑定面 533、spaceBindings 250、drift PASS。详见
+  releases/v4.8.0.md。
+- **下一执行**：Realtime S1（配置落盘 DPAPI + key 入口 UI）/ S2（Events 驱动
+  对话与打断联动，需真 key 真机）；iLink 真机窗口（原始 JSON 抓包/上传域/
+  sendmessage 端点 → 仅替换 SendFileCard 实现）；离线模式设置 UI（v4.8.1）；
+  权限升级请求 + stubGate 竞态；XlsxPreview 虚拟滚动维持观察项。
 - 构建注意：wails build 走 `build.bat` 的 TMP/TEMP 重定向到 `.tmp`（规避 SAC
   策略拦截）。
 

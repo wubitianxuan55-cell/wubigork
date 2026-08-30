@@ -25,16 +25,52 @@
   v4.x 全量「承诺 vs 代码」对照——裁决=最小版执行（骨架真、纵深欠账）。红线缺口
   三条（记忆注入跨空间未接线 / 任务分账未启用 / 事件过滤仅 1 处）与补课刀序见该文
   §B/§E；后续每刀验收新增「纵深检查」，发布说明必须列欠账清单。
-- **执行状态（v4.6.1 补课后）**：审计红线三条已全部接线；C 类纵深已落地
-  Mood→TTS、Verifier 真视觉 diff + 失败回 Plan、询价异常/预测/OCR 飞轮、
-  S4.5 微信统一路由 + iLink 图片协议第一刀、规范包机制化（红头+造价表式）、
-  成本归因对标；剩余欠账（iLink 文件卡片/字节级图片识别待真机、成本知识图谱
-  形态、生命库可写化=不盲写）见 `releases/v4.6.1.md` 欠账清单。
-- **下一执行**：v4.7 已发布（S4.6 完整收口）；剩余触点深化项——iLink 文件卡片/
-  图片识别真机收敛；成本知识图谱可视化形态；读屏纵深（OCR 摘要再朗读/多显示器）；
-  端到端实时语音（云端 Realtime 档）继续排期。
+- **执行状态（v4.8.0 后）**：审计欠账大面收账——读屏纵深（多显示器/OCR 本地
+  摘要/截图留档）、intent LLM 兜底分类器（默认关，白名单+置信门+硬超时）、
+  生图产物 CardPath 接通、iLink 微信通道离线收敛（限频/下载防线/识别管线/
+  防御解析/SendFileCard seam）、全局离线模式总开关（EngineType.IsLocal +
+  routeModel 云过滤）、成本知识图谱可视化（BuildGraph + CostGraphView 第 8
+  模块，绑定面 533）、实时语音 Realtime S0 铺底（internal/realtime seam）。
+  剩余欠账（Realtime S1/S2、iLink 真机窗口、离线模式设置 UI、权限升级请求+
+  stubGate 竞态、XlsxPreview 虚拟滚动/生命库可写化=观察项）见
+  `releases/v4.8.0.md` 欠账清单。
+- **下一执行**：v4.8.0 已发布（七刀收口）；剩余——Realtime S1（DPAPI 落盘+
+  key 入口 UI）/ S2（Events 驱动对话+打断联动，真 key 真机）；iLink 真机窗口
+  （原始 JSON/上传域/sendmessage 端点 → 仅替换 SendFileCard）；离线模式设置
+  UI（v4.8.1）。
 
 ## 版本状态
+
+- **最新发布：v4.8.0（2026-08-30）「全面铺开 · 触点纵深」**：
+  git tag `v4.8.0`；CHANGELOG / releases/v4.8.0.md / README 索引同步。要点：
+  - **七刀并行落地**（多子代理分工、文件足迹不相交）：
+    ① 读屏纵深——screen.Monitors()/CaptureArea 多显示器（EnumDisplayMonitors
+    枚举，Capture 薄封装零行为变化）+ intent 序数解析「第N(块)屏/主屏/副屏」
+    （动词锚定窄规则，越界诚实报错）+ OCR 本地摘要朗读（>300 字→本地
+    Herdsman-only 压 200 字，失败退 300 字截断）+ 截图留档（默认关）；
+    ② intent LLM 兜底（默认关）——ParseFallback 白名单 navigate/status/
+    read_screen + 0.75 置信门 + 围栏容错；classifyIntentWithLLM routine 目标
+    + intents_llm_timeout_ms 硬超时 2s + manifest 校验；dryRun 恒不调用；
+    ③ 生图 CardPath 接通——勘误「异步」实为同步阻塞，首图 FilePath 即
+    CardPath，微信回推数据源打通；
+    ④ iLink 离线收敛——per-peer 限频 20 条/分 + 4KB 截断 + 多媒体上限 5 +
+    DownloadImage 三重防线（SSRF/20MiB/魔数）+ OCRMediaRecognizer 注入接线 +
+    imageItem/fileItem 防御 UnmarshalJSON + SendFileCard seam + 协议文档；
+    ⑤ 全局离线模式 offline_mode（默认关）——EngineType.IsLocal() +
+    routeModel 三步云过滤 + LLM 兜底联动，跨版欠账清账；
+    ⑥ 成本知识图谱——costref.BuildGraph 纯函数组图器（7 节点/6 边、tree
+    聚合/entry 展开双视角、EntryName 精确优先、截断/悬挂边/去重防护）+
+    GaeaCostGraph 绑定（532→533）+ CostGraphView 零依赖 SVG + 成本库第 8 模块；
+    ⑦ Realtime S0——internal/realtime seam（RealtimeSession/Event 9 常量/
+    kind 注册表 fail-closed/openai 实现）+ VoiceHealth realtimeReady + 优雅
+    降级，14 离线测试，S1/S2 留欠账。
+  - **验证**：Go 全量绿（120 包，零 FAIL）；vitest **800/800**（146 文件）；
+    tsc/eslint 0；绑定面 533、spaceBindings 250、drift PASS；版本五处统一
+    4.8.0。
+  - **欠账**：Realtime S1/S2（DPAPI/key UI/端到端接管/打断联动，需真 key
+    真机）/ iLink 真机窗口（原始 JSON/上传域/sendmessage 端点）/ 离线模式
+    设置 UI（v4.8.1）/ 权限升级请求+stubGate 竞态 / XlsxPreview 虚拟滚动、
+    生命库可写化=观察项。
 
 - **最新发布：v4.7.0（2026-08-30）「命令面板接内核 · 读屏」**：
   git tag `v4.7.0`；CHANGELOG / releases/v4.7.0.md / README 索引同步。要点：

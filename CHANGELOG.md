@@ -1,5 +1,30 @@
 # gaea · 多功能 AI 助手
 
+## v4.8.0「全面铺开 · 触点纵深」(2026-08-30)
+> 六线并行调研（多子代理分工、文件足迹不相交）→ 七刀实现。意图内核纵深
+> （读屏多显示器/LLM 兜底/生图产物回推）+ 微信通道离线收敛 + 全局离线模式
+> 总开关 + 成本知识图谱可视化（绑定面 532→533）+ 实时语音 Realtime S0 铺底。
+> Go 全量绿、vitest 800/800（146 文件）、tsc/eslint 0、drift PASS。详见
+> releases/v4.8.0.md。
+- **读屏纵深**：`screen.Monitors()`/`CaptureArea` 多显示器枚举；intent 序数
+  解析「第N(块)屏/主屏/副屏」（动词锚定窄规则，越界诚实报错）；OCR 文本
+  >300 字本地摘要朗读（只走 Herdsman，失败退截断）；截图留档默认关。
+- **intent LLM 兜底**（默认关）：规则未命中的受控冷路径——白名单
+  navigate/status/read_screen + 0.75 置信门 + 2s 硬超时 + manifest 校验；
+  dryRun 恒不调用；命中复用既有执行层。
+- **生图 CardPath 接通**：勘误「生图异步」——实为同步阻塞，首图 FilePath
+  即 CardPath；微信入口「（产物：路径）」从此有真实数据。
+- **iLink 离线收敛**：per-peer 限频 20 条/分 + 4KB 截断 + 多媒体上限 5；
+  图片→vision 识别管线（SSRF/20MiB/魔数三重防线，OCR 注入式接线）；防御
+  解析矩阵（多态 JSON 降级不炸整批）；SendFileCard seam + 真机抓包清单。
+- **全局离线模式**（跨版欠账清账，默认关）：`EngineType.IsLocal()` +
+  routeModel 三步云过滤；无本地可用走既有「模型不可用」降级。
+- **成本知识图谱**：costref.BuildGraph 纯函数组图器（7 节点/6 边、树聚合/
+  条目展开双视角、EntryName 精确优先、截断与悬挂边防护）；CostGraphView
+  零依赖 SVG 双视角 + Modal 明细；成本库第 8 模块。
+- **Realtime S0**：internal/realtime seam（RealtimeSession/注册表/openai 实现）
+  + VoiceHealth realtimeReady + 优雅降级；14 离线测试；S1/S2 留欠账。
+
 ## v4.7.0「命令面板接内核 · 读屏」(2026-08-30)
 > 路线图 §10.4a S4.6 完整收口：桌面命令面板接统一意图路由内核（语音/微信之后
 > 的第三个入口）+ 屏幕感知能力（读一下屏幕）纳入能力面。GaeaRouteIntent(text,
