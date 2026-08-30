@@ -1,5 +1,20 @@
 # gaea · 多功能 AI 助手
 
+## 未发布 · 欠账收尾小步 (2026-08-30)
+> v4.8.3 发布后的代码级欠账收口（不增绑定，535 不变）：VoiceStart 门小修
+> + 持久化原子写统一 + XlsxPreview 大表格虚拟滚动。Go 全量绿、vitest
+> 809/809、tsc/eslint 0。
+- **VoiceStart realtime 门小修**：端到端实时模式的回复走服务端 response
+  事件（事件泵不经 whisperChatFn），VoiceStart 在 realtime 在位时不再要求
+  whisper 对话回调——whisperChatFn=nil 也能启动；拼接管线双门（ASRReady +
+  WhisperReady）逐字节保留；新增两回归测试。
+- **持久化套件统一收尾**：desktop_session SaveModes 走 fileutil.AtomicWrite
+  （临时文件 + rename，崩溃不留半截 JSON）；gaea/archive JSONL 单次 Write
+  落整行（数据 + 换行同缓冲，消除双写撕裂窗）；新增 7 回归测试。
+- **XlsxPreview 大表格行虚拟滚动**（观察项收账）：300 行以上只渲染可见窗口
+  ±10 overscan + spacer 行保滚动条总高，冻结行常驻；后端预览上限
+  2000×100 不再整表 20 万 td；小表全量渲染逐字节不变；2 新 vitest。
+
 ## v4.8.3「微信图片双向」(2026-08-30)
 > v4.8.2 发布当日真机实测复盘 + 微信图片双向真协议实装。零新增绑定（535
 > 不变），协议经三方印证（本机抓包实测解密 + hermes-agent weixin.py 生产

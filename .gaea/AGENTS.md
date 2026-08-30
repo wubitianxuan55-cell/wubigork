@@ -34,11 +34,16 @@
   剩余欠账（Realtime S1/S2、iLink 真机窗口、离线模式设置 UI、权限升级请求+
   stubGate 竞态、XlsxPreview 虚拟滚动/生命库可写化=观察项）见
   `releases/v4.8.0.md` 欠账清单。
+- **欠账收尾小步（2026-08-30，v4.8.3 后）**：VoiceStart realtime 门小修
+  （端到端回复走服务端 response 事件，whisperChatFn=nil 也可启动，拼接
+  管线双门逐字节保留）；持久化套件统一（desktop_session 原子写 + archive
+  JSONL 单次 Write 落整行）；XlsxPreview 大表格行虚拟滚动（观察项收账，
+  300 行以上只渲染可见窗口 ±overscan）。Go 全量绿、vitest 809/809、
+  tsc/eslint 0、绑定面 535 不变。
 - **下一执行**：v4.8.3 已发布（微信图片双向真协议）；剩余——Realtime 真机
   验证轮（真 key 下端到端对话/打断体感/AEC 实效，S2 骨架已就绪待真机数据）；
-  VoiceStart WhisperReady 门小修（realtime 不依赖 whisper chat）；手写体识
-  别质量复测（多模态 Qwen 升级后）；iLink 语音/视频等未探明 item 维持宁漏
-  勿误静默跳过；XlsxPreview 虚拟滚动、生命库可写化=观察项。
+  手写体识别质量复测（多模态 Qwen 升级后）；iLink 语音/视频等未探明 item
+  维持宁漏勿误静默跳过；生命库可写化=观察项。
 
 ## 版本状态
 
@@ -99,8 +104,9 @@
   - **验证**：Go 全量绿（风暴修复实战零 FAIL）；vitest **807/807**；
     tsc/eslint 0；绑定面 535、drift PASS；版本五处统一 4.8.2；桌面端
     gaea-v4.8.2.exe（SHA256 见 releases/SHA256SUMS-v4.8.2.txt）+ 冒烟 200。
-  - **欠账**：Realtime 真机验证轮 / VoiceStart WhisperReady 门小修 /
-    iLink 真机窗口 / XlsxPreview 虚拟滚动、生命库可写化=观察项。
+  - **欠账**：Realtime 真机验证轮 / iLink 真机窗口 / 生命库可写化=观察项
+    （VoiceStart WhisperReady 门小修、XlsxPreview 虚拟滚动已由后续小步
+    收账——见上方「欠账收尾小步」）。
 
 - **最新发布：v4.8.1（2026-08-30）「欠账清尾」**：
   git tag `v4.8.1`；CHANGELOG / releases/v4.8.1.md / README 索引同步。要点：

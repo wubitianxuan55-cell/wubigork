@@ -1,9 +1,21 @@
 # 任务进度
 
-> 最后更新: 2026-08-30（v4.8.3「微信图片双向」发布完成）
+> 最后更新: 2026-08-30（v4.8.3 发布后欠账收尾小步：VoiceStart 门小修 +
+> 持久化原子写统一 + XlsxPreview 虚拟滚动）
 
 ## 当前状态
 
+- **最新小步（2026-08-30，欠账收尾）**：①VoiceStart realtime 门小修——
+  端到端回复走服务端 response 事件（事件泵不经 whisperChatFn），realtime
+  在位时不再要求 whisper 对话回调，whisperChatFn=nil 也可启动；拼接管线
+  双门（ASRReady + WhisperReady）逐字节保留，新增两回归测试 ②持久化套件
+  统一——desktop_session SaveModes 走 fileutil.AtomicWrite（临时文件+
+  rename，不留半截 JSON）、archive JSONL 单次 Write 落整行（消除双写撕裂
+  窗），新增 7 回归测试 ③XlsxPreview 大表格行虚拟滚动（观察项收账）——
+  300 行以上只渲染可见窗口 ±10 overscan + spacer 保滚动条总高，冻结行常
+  驻；2000×100 预览不再整表 20 万 td，小表全量渲染逐字节不变；2 新
+  vitest。验证：Go 全量绿、vitest **809/809**（148 文件）、tsc/eslint 0、
+  绑定面 535 不变、drift 不受影响。
 - **最新发布：v4.8.3（2026-08-30）**——微信图片双向真协议（v4.8.2 发布
   当日真机实测复盘五刀）：①出图回推 getuploadurl→AES-128-ECB→CDN 密文
   上传→image_item 卡片+caption 补发，真机 delivered（此前 SendFileCard
@@ -14,8 +26,8 @@
   关）。协议三方印证（本机抓包解密+hermes-agent+openilink SDK）。验证：
   Go 全量绿、绑定 535 不变、前端零改动。详见 releases/v4.8.3.md。
 - **下一执行**：Realtime 真机验证轮（真 key 下端到端对话/打断体感/AEC，
-  S2 骨架已就绪）；手写识别质量复测；VoiceStart WhisperReady 门小修；
-  iLink 语音/视频 item 未探明（静默跳过）=观察项。
+  S2 骨架已就绪）；手写识别质量复测；iLink 语音/视频 item 未探明（静默
+  跳过）=观察项；生命库可写化=观察项。
 - 构建注意：wails build 走 `build.bat` 的 TMP/TEMP 重定向到 `.tmp`（规避 SAC
   策略拦截）。
 
@@ -45,7 +57,9 @@
 - [x] **S0.6 edit_file 工具层**（grep/edit_file/multi_edit/edit_lines/move_file 五工具 + 名单全对齐 + 双路径失效特判）—— `7d560e6`
 - [x] **S0.7/隔离岛** knowledge 索引缓存 `aadb7aa`；office 原子写 `5a82209`；secure 非 Win AES-GCM `fa1778f`；tasks LRU `2a3ca50`
 - [x] **前端** 聊天 memo+尾部窗口 `9a41090`；keepAlive 轮询门控 `d373fba`
-- [ ] 遗留：gate_test.go stubGate 计数器既有竞态（测试基建小修）；持久化套件统一（desktop_session/archive 原子写）
+- [x] 遗留收尾：gate_test.go stubGate 计数器加锁（v4.8.2 已清账）；持久化
+  套件统一（desktop_session SaveModes → fileutil.AtomicWrite；archive
+  JSONL 单次 Write 落整行）——本轮收口
 
 ### 阶段 1 · 双空间内核（后端 space 维度）—— ✅ 全部完成（S1.1-S1.5）
 - [x] **S1.1 空间维度落地**（设计文档 `docs/gaea-space-dimension-design.md`）：
