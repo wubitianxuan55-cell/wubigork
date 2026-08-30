@@ -104,8 +104,10 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 		return reply, nil
 	})
 	// v4.8 子项 b：图片消息→OCR 识别一行注入（url→下载→OCR→清理）。
+	// v4.8.3：识别器换 visionOCRText——多模态 Qwen 主模型优先（手写体强），
+	// PaddleOCR 三级链降为兜底。
 	if w.app != nil {
-		srv.MediaRecognizer = weixin.OCRMediaRecognizer(w.app.GaeaOCRText)
+		srv.MediaRecognizer = weixin.OCRMediaRecognizer(w.app.visionOCRText)
 	}
 	// 会话过期钩子（T6-9.1）：errcode=-14 时 Server 触发回调并停止轮询——
 	// 这里 emit 前端 notice 事件，让用户看到提示并重新扫码绑定；
