@@ -1469,6 +1469,7 @@ type LegacySurfaceNames =
   | "SetCharacterPortrait"
   | "SetChatVoiceModel"
   | "SetDeepseekKey"
+  | "SetGlmEndpoint"
   | "SetGlmKey"
   | "SetDistFS"
   | "SetEngineDefaultModel"

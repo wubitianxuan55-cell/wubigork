@@ -369,6 +369,11 @@ export async function setGlmKey(apiKey: string): Promise<void> {
   await App().SetGlmKey(apiKey)
 }
 
+/** 设置 GLM 端点家族（std=标准按量付费 / coding=编码套餐额度；官方双端点） */
+export async function setGlmEndpoint(family: 'std' | 'coding'): Promise<void> {
+  await App().SetGlmEndpoint(family)
+}
+
 /** 获取 GLM Key 状态（脱敏显示） */
 export async function getGlmKeyStatus(): Promise<{ configured: boolean; masked: string }> {
   const result = await App().GetGlmKeyStatus()

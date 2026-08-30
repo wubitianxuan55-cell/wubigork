@@ -597,7 +597,7 @@ func (a *App) characterGeneratePortrait(chJSON, model, refImageDataURL string) (
 }
 
 // buildPortraitClient 为角色剧照构建独立图片客户端（不改变绘梦当前后端）。
-// backend: comfyui / herdsman / ollama 走对应后端，xai 或空走 xAI 原生管线。
+// backend: comfyui / herdsman / ollama / glm 走对应后端，xai 或空走 xAI 原生管线。
 func (a *App) buildPortraitClient() (*ai.Client, error) {
 	backend := a.cfg.PortraitBackend
 	if backend == "" {
@@ -619,6 +619,16 @@ func (a *App) buildPortraitClient() (*ai.Client, error) {
 			return nil, fmt.Errorf("剧照引擎 %s 未启用，请先在模型中心启用", backend)
 		}
 		client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), backend)
+	case "glm":
+		eng, ok := a.engineMgr.GetEngine("glm")
+		if !ok || !eng.Enabled {
+			return nil, fmt.Errorf("GLM 引擎未启用，请先在模型中心启用")
+		}
+		key := a.engineMgr.GLMKey()
+		if key == "" {
+			return nil, fmt.Errorf("GLM API Key 未配置，请先在模型中心 GLM 卡片保存 Key")
+		}
+		client.SetImageBackend(ai.NewGLMImageBackend(eng.BaseURL, key), "glm")
 	default: // xai
 		client.SetImageBackend(nil, "xai")
 	}

@@ -25,7 +25,8 @@ const ImageGenPanel: React.FC = () => {
       if (info?.backend) setBackend(info.backend)
       if (info?.model) setModel(info.model)
       const es = await getEngines()
-      setEngineOptions((es || []).filter((e) => e.enabled).map((e) => ({ value: e.id, label: `${e.name} (本地引擎)` })))
+      // 引擎本地/云端属性决定标签（此前一律标「本地引擎」，云端引擎被误标）
+      setEngineOptions((es || []).filter((e) => e.enabled).map((e) => ({ value: e.id, label: `${e.name} (${e.is_local ? '本地引擎' : '云端'})` })))
     } catch { /* 未初始化静默 */ }
   }, [])
 

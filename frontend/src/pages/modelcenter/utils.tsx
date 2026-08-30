@@ -21,9 +21,14 @@ export function classifyModel(id: string): ModelKind {
   if (lid.includes('paddleocr') || lid.includes('ocr') || lid.includes('mineru')) return 'ocr'
   if (lid.includes('rerank')) return 'rerank'
   if (lid.includes('embedding') || lid.includes('bge-m3') || lid.includes('bge')) return 'embedding'
-  if (lid.includes('image') || lid.includes('zimage') || lid.includes('flux') || lid.includes('turbo') || lid.includes('sd') || lid.includes('dalle') || lid.includes('krea')) return 'image'
+  if (lid.includes('image') || lid.includes('zimage') || lid.includes('flux') || lid.includes('cogview') || lid.includes('turbo') || lid.includes('sd') || lid.includes('dalle') || lid.includes('krea')) return 'image'
   return 'llm'
 }
+
+// GLM 官方双端点家族判定（与后端 GLMBaseURLStd/GLMBaseURLCoding 同源锚定
+// docs.bigmodel.cn coding-plan/quick-start：std=按量付费，coding=套餐额度）。
+export const glmEndpointFamily = (baseURL?: string): 'std' | 'coding' =>
+  (baseURL || '').includes('/api/coding/') ? 'coding' : 'std'
 
 export const engineIcons: Record<string, ReactNode> = {
   xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />,

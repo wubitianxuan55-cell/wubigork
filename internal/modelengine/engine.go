@@ -35,6 +35,14 @@ const (
 	EngineOpencodeZen EngineType = "opencode-zen"
 )
 
+// GLM 官方双端点（docs.bigmodel.cn coding-plan/quick-start）：标准=按量付费，
+// coding=编码套餐额度。填错端点：编码套餐 Key 会 404 或误走按量计费。
+// 预置卡与 SetGlmEndpoint 共用单一来源。
+const (
+	GLMBaseURLStd    = "https://open.bigmodel.cn/api/paas/v4"
+	GLMBaseURLCoding = "https://open.bigmodel.cn/api/coding/paas/v4"
+)
+
 // IsLocal 引擎是否本地服务（数据不出本机）——全局离线模式（v4.8）据此
 // 门控路由：offline 开启时只允许本地引擎（ollama/herdsman/cosyvoice），
 // 云端（xai/deepseek/opencode-*）一律跳过。
@@ -174,7 +182,7 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		Label:        "GLM 云端",
 		Color:        "#38bdf8",
 		Icon:         "key",
-		BaseURL:      "https://open.bigmodel.cn/api/paas/v4",
+		BaseURL:      GLMBaseURLStd,
 		Enabled:      true,
 		DefaultModel: "glm-5.3",
 	}
@@ -254,6 +262,46 @@ func (m *Manager) UpdateGLMKey(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.glmKey = key
+}
+
+// GLMKey 返回当前 GLM API Key（chat/glmPing 与生图后端装配同源取用；
+// Key 存 manager 而非 EngineConfig.APIKey，消费方禁止改读 EngineConfig）。
+func (m *Manager) GLMKey() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.glmKey
+}
+
+// SetGlmEndpoint 切换 GLM 端点家族：std=标准按量付费 / coding=编码套餐额度
+// （官方双端点，见 GLMBaseURL* 常量）。防呆：只接受两个官方常量，不透传
+// 自由地址——云端引擎不露地址框防线（v4.9.1）的延伸，杜绝 Key 粘错框类事故。
+func (m *Manager) SetGlmEndpoint(family string) error {
+	baseURL, ok := map[string]string{"std": GLMBaseURLStd, "coding": GLMBaseURLCoding}[family]
+	if !ok {
+		return fmt.Errorf("未知 GLM 端点 %q（支持 std=标准 / coding=编码套餐）", family)
+	}
+	m.mu.Lock()
+	eng, exists := m.engines["glm"]
+	if !exists {
+		m.mu.Unlock()
+		return fmt.Errorf("引擎 glm 不存在")
+	}
+	eng.BaseURL = baseURL
+	m.mu.Unlock()
+	m.saveState()
+	slog.Info("GLM 端点已切换", "family", family)
+	return nil
+}
+
+// GlmEndpointFamily 返回当前端点家族（"std"/"coding"；非 coding 地址一律按 std
+// 兜底——LoadState 已保证 GLM 地址只会是两个官方常量之一）。
+func (m *Manager) GlmEndpointFamily() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if eng, ok := m.engines["glm"]; ok && eng.BaseURL == GLMBaseURLCoding {
+		return "coding"
+	}
+	return "std"
 }
 
 // UpdateOpencodeKey 更新 OpenCode Go API key
@@ -560,8 +608,18 @@ func ClassifyModelKind(engineType EngineType, modelID string) string {
 		strings.Contains(l, "bge") {
 		return "embedding"
 	}
+	// GLM 官方静态目录优先判型：glm-image 系为生图，其余 glm-* 均为对话/视觉
+	// 理解模型（官方目录锚定）——通用 turbo 关键词曾把 glm-5-turbo 误判为生图
+	// （v4.10.0 回归），故 GLM 引擎先走本块再落通用关键词表。
+	if engineType == EngineGLM && strings.HasPrefix(l, "glm-") {
+		if strings.HasPrefix(l, "glm-image") {
+			return "image"
+		}
+		return "llm"
+	}
 	if strings.Contains(l, "image") || strings.Contains(l, "zimage") ||
-		strings.Contains(l, "flux") || strings.Contains(l, "turbo") ||
+		strings.Contains(l, "flux") || strings.Contains(l, "cogview") ||
+		strings.Contains(l, "turbo") ||
 		strings.Contains(l, "sd") || strings.Contains(l, "dalle") ||
 		strings.Contains(l, "krea") {
 		return "image"
@@ -579,6 +637,7 @@ func ClassifyModelByName(modelID string) string {
 // glmStaticModels 智谱静态模型目录。官方 API 无模型列表端点——目录锚定
 // docs.bigmodel.cn「模型概览」（2026-08-30），Kind 经 ClassifyModelKind 统一
 // 分类：glm-tts→tts、glm-asr→stt、embedding-3→embedding，其余为 llm/vision。
+// 图像生成四模型锚定官方「图像生成」API 的 model 枚举（2026-08-30）。
 func glmStaticModels() []ModelInfo {
 	ids := []string{
 		// 文本（旗舰在前，flash 为免费档）
@@ -587,6 +646,8 @@ func glmStaticModels() []ModelInfo {
 		"glm-4.7-flash", "glm-4.5-flash",
 		// 多模态 / 视觉理解
 		"glm-5.3-flash", "glm-4.6v",
+		// 图像生成（官方 images/generations 的 model 枚举）
+		"glm-image", "cogview-4-250304", "cogview-4", "cogview-3-flash",
 		// 语音 / 向量 / 重排
 		"glm-tts", "glm-asr-2512", "embedding-3", "rerank",
 	}

@@ -145,16 +145,23 @@ func (b *OpenAIImageBackend) buildImg2ImgBody(req *ImageGenerationRequest) ([]by
 	})
 }
 
-// fetchToDataURL 下载图片/视频并转为 data URL
+// fetchToDataURL 下载图片/视频并转为 data URL（openai 兼容后端专属封装，
+// 自动附带实例认证头；共享实现在包级 fetchToDataURL，GLM 后端同样复用）。
 func (b *OpenAIImageBackend) fetchToDataURL(ctx context.Context, rawURL string) (string, error) {
+	return fetchToDataURL(ctx, b.httpClient, rawURL, b.apiKey)
+}
+
+// fetchToDataURL 下载图片/视频并转为 data URL。bearer 非空时附带认证头
+// （部分服务如 Herdsman 的缓存 URL 需鉴权；公有 CDN 传空）。
+func fetchToDataURL(ctx context.Context, client *http.Client, rawURL, bearer string) (string, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("构造下载请求失败: %w", err)
 	}
-	if b.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+b.apiKey)
+	if bearer != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+bearer)
 	}
-	resp, err := b.httpClient.Do(httpReq)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("下载图片失败 (%s): %w", rawURL, err)
 	}

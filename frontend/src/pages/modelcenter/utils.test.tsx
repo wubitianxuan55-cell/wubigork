@@ -11,6 +11,7 @@ import {
   sortModelsPinnedFirst,
   modelOptionsForEngine,
   filterEnginesByEnabled,
+  glmEndpointFamily,
 } from './utils'
 import type { ModelCardData } from './utils'
 import type { EngineConfig } from '../../api/engines'
@@ -170,5 +171,36 @@ describe('模型中心 filterEnginesByEnabled', () => {
 
   it('onlyEnabled=false 保留全部引擎', () => {
     expect(filterEnginesByEnabled(engines, false).map(e => e.id)).toEqual(['xai', 'ollama'])
+  })
+})
+
+describe('模型中心 GLM 生图与端点家族', () => {
+  const glmEngines: EngineConfig[] = [
+    {
+      id: 'glm', name: 'GLM (智谱)', type: 'glm',
+      base_url: 'https://open.bigmodel.cn/api/paas/v4', enabled: true, default_model: 'glm-5.3',
+      models: [
+        { id: 'glm-5.3', owned_by: 'glm', status: 'running', kind: 'llm' },
+        { id: 'glm-5-turbo', owned_by: 'glm', status: 'running', kind: 'llm' },
+        { id: 'cogview-4-250304', owned_by: 'glm', status: 'running', kind: 'image' },
+        { id: 'glm-image', owned_by: 'glm', status: 'running', kind: 'image' },
+      ],
+    },
+  ]
+
+  it('GLM 后端只列生图模型（glm-5-turbo 不混入）', () => {
+    const opts = imageModelOptionsFor('glm', glmEngines)
+    expect(opts.map(o => o.value)).toEqual(['cogview-4-250304', 'glm-image'])
+  })
+
+  it('GLM 后端默认取第一个生图模型', () => {
+    expect(imageModelDefaultFor('glm', glmEngines)).toBe('cogview-4-250304')
+  })
+
+  it('glmEndpointFamily：coding 端点识别，其余归 std', () => {
+    expect(glmEndpointFamily('https://open.bigmodel.cn/api/paas/v4')).toBe('std')
+    expect(glmEndpointFamily('https://open.bigmodel.cn/api/coding/paas/v4')).toBe('coding')
+    expect(glmEndpointFamily('')).toBe('std')
+    expect(glmEndpointFamily(undefined)).toBe('std')
   })
 })

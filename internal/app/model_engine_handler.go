@@ -191,6 +191,16 @@ func (c *core) GetGlmKeyStatus() map[string]interface{} {
 	}
 }
 
+// SetGlmEndpoint 切换 GLM 端点家族（std=标准按量付费 / coding=编码套餐额度）。
+// 只接受官方双端点常量（modelengine.GLMBaseURL*），不透传自由地址——
+// 云端引擎不露地址框防线（v4.9.1）的延伸。
+func (c *core) SetGlmEndpoint(family string) error {
+	if c.engineMgr == nil {
+		return errNoEngineMgr
+	}
+	return c.engineMgr.SetGlmEndpoint(family)
+}
+
 // ── OpenCode Go API ─────────────────────────────────────────
 
 // SetOpencodeGoKey 设置 OpenCode Go API Key

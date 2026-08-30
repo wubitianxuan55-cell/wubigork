@@ -11,6 +11,7 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/config"
+	"github.com/gaea/gaea/internal/modelengine"
 )
 
 // fakeImageBackend 实现 ai.ImageBackend + Interrupt/ResetCancel，用于取消/保存路径测试。
@@ -47,6 +48,7 @@ func TestGenerateFreeImage_sizeCleanup(t *testing.T) {
 		{"xai", false},
 		{"herdsman", true},
 		{"ollama", false},
+		{"glm", true},
 	}
 
 	for _, tt := range tests {
@@ -61,7 +63,7 @@ func TestGenerateFreeImage_sizeCleanup(t *testing.T) {
 			}
 
 			// 模拟 image_handler.go 中的清理逻辑
-			if tt.backendType != "comfyui" && tt.backendType != "herdsman" {
+			if tt.backendType != "comfyui" && tt.backendType != "herdsman" && tt.backendType != "glm" {
 				req.Size = ""
 			}
 
@@ -338,11 +340,79 @@ func TestGetImageBackendInfo_Defaults(t *testing.T) {
 		}
 	})
 
+	t.Run("glm 空模型归位官方默认生图模型", func(t *testing.T) {
+		ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "glm"}}}
+		if got := ms.GetImageBackendInfo()["image_model"]; got != ai.GLMDefaultImageModel {
+			t.Fatalf("image_model = %q, want %s", got, ai.GLMDefaultImageModel)
+		}
+	})
+
+	t.Run("glm 残留 xAI 模型归位官方默认生图模型", func(t *testing.T) {
+		ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "glm", ImageModel: "grok-imagine-image-quality"}}}
+		if got := ms.GetImageBackendInfo()["image_model"]; got != ai.GLMDefaultImageModel {
+			t.Fatalf("image_model = %q, want %s（残留模型不应带到 GLM）", got, ai.GLMDefaultImageModel)
+		}
+	})
+
 	t.Run("空保存目录回退默认路径", func(t *testing.T) {
 		ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "xai"}}}
 		want := filepath.Join(`C:\Users\test`, "Pictures", "gaea")
 		if got := ms.GetImageBackendInfo()["image_save_dir"]; got != want {
 			t.Fatalf("image_save_dir = %q, want %q", got, want)
+		}
+	})
+}
+
+// TestSetImageBackend_GLM GLM 生图后端接线：未启用/无 Key 诚实报错，
+// 就绪时绑定 GLM 后端并落配置（config.Save 走临时 USERPROFILE 隔离）。
+func TestSetImageBackend_GLM(t *testing.T) {
+	t.Setenv("USERPROFILE", t.TempDir())
+
+	newMS := func() *mediaState {
+		mgr := modelengine.NewManager("", "")
+		mgr.UpdateGLMKey("zk-key")
+		return &mediaState{core: &core{
+			cfg:       &config.Config{ImageSaveDir: t.TempDir()},
+			client:    &ai.Client{},
+			engineMgr: mgr,
+		}}
+	}
+
+	t.Run("引擎禁用时拒绝", func(t *testing.T) {
+		ms := newMS()
+		mgr := modelengine.NewManager("", "")
+		mgr.SaveEngine(modelengine.EngineConfig{ID: "glm", Enabled: false})
+		ms.engineMgr = mgr
+		err := ms.SetImageBackend("glm", "", "cogview-4-250304", "")
+		if err == nil || !strings.Contains(err.Error(), "未启用") {
+			t.Fatalf("应报引擎未启用, got %v", err)
+		}
+	})
+
+	t.Run("无 Key 时拒绝", func(t *testing.T) {
+		ms := newMS()
+		ms.engineMgr.UpdateGLMKey("")
+		err := ms.SetImageBackend("glm", "", "cogview-4-250304", "")
+		if err == nil || !strings.Contains(err.Error(), "Key 未配置") {
+			t.Fatalf("应报 Key 未配置, got %v", err)
+		}
+	})
+
+	t.Run("就绪时绑定并持久化", func(t *testing.T) {
+		ms := newMS()
+		if err := ms.SetImageBackend("glm", "", "cogview-4-250304", ""); err != nil {
+			t.Fatalf("SetImageBackend: %v", err)
+		}
+		if ms.cfg.ImageBackend != "glm" || ms.cfg.ImageModel != "cogview-4-250304" {
+			t.Fatalf("配置未落地: backend=%s model=%s", ms.cfg.ImageBackend, ms.cfg.ImageModel)
+		}
+	})
+
+	t.Run("未知后端报错列出 glm", func(t *testing.T) {
+		ms := newMS()
+		err := ms.SetImageBackend("deepseek", "", "", "")
+		if err == nil || !strings.Contains(err.Error(), "glm") {
+			t.Fatalf("错误提示应列出 glm, got %v", err)
 		}
 	})
 }

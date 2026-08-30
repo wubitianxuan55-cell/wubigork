@@ -483,6 +483,17 @@ func (a *App) initImageBackend() {
 			a.client.SetImageBackend(backend, "ollama")
 			slog.Info("图片后端: Ollama", "url", eng.BaseURL)
 		}
+	case "glm":
+		eng, ok := a.engineMgr.GetEngine("glm")
+		key := a.engineMgr.GLMKey()
+		if ok && eng.Enabled && key != "" {
+			backend := ai.NewGLMImageBackend(eng.BaseURL, key)
+			a.client.SetImageBackend(backend, "glm")
+			slog.Info("图片后端: GLM", "url", eng.BaseURL)
+		} else {
+			a.client.SetImageBackend(nil, "xai")
+			slog.Warn("图片后端: GLM 不可用（引擎未启用或 Key 未配置），回退 xAI")
+		}
 	default: // "xai" 或空
 		a.client.SetImageBackend(nil, "xai")
 		slog.Info("图片后端: xAI")

@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { Button, Input, Popconfirm, Segmented, Space, Switch } from 'antd'
 import { SettingOutlined } from '@ant-design/icons'
 import { SectionHead, StatusChip } from './ui'
-import { engineColor, engineIcons, engineLabel, filterEnginesByEnabled, kindOf } from './utils'
+import { engineColor, engineIcons, engineLabel, filterEnginesByEnabled, glmEndpointFamily, kindOf } from './utils'
 import { useModelCenter } from './context'
 
 export function EngineSection() {
@@ -13,6 +13,7 @@ export function EngineSection() {
     glmKey, setGlmKeyState, glmKeyMasked,
     opencodeGoKey, setOpencodeGoKeyState, opencodeGoKeyMasked,
     opencodeZenKey, setOpencodeZenKeyState, opencodeZenKeyMasked,
+    settingGlmEndpoint, handleSetGlmEndpoint,
     handleTestConnection, handleRefreshModels, handleSaveURL, handleToggleEngine,
     handleBulkToggleEngines,
     handleSaveDeepseekKey, handleSaveGlmKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey,
@@ -202,6 +203,25 @@ export function EngineSection() {
                   保存 Key
                 </Button>
               </Space.Compact>
+            )}
+
+            {engine.id === 'glm' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--mc-muted)' }}>端点</span>
+                <Segmented
+                  size="small"
+                  value={glmEndpointFamily(engine.base_url)}
+                  onChange={(v) => handleSetGlmEndpoint(v as 'std' | 'coding')}
+                  disabled={!engine.enabled || settingGlmEndpoint}
+                  options={[
+                    { value: 'std', label: '标准（按量付费）' },
+                    { value: 'coding', label: '编码套餐' },
+                  ]}
+                />
+                <span style={{ fontSize: 11, color: 'var(--mc-muted)' }}>
+                  编码套餐 Key 须走 /api/coding 端点；标准 Key 走 /api/paas
+                </span>
+              </div>
             )}
 
             {engineStatuses[engine.id] && (

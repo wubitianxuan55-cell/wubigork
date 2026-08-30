@@ -212,8 +212,9 @@ func (a *mediaState) GenerateFreeImage(prompt string, negative string, size stri
 			imgReq.ProgressCallback = a.updateComfyTaskProgress
 		}
 
-		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持 size
-		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" {
+		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
+		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）
+		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" && a.cfg.ImageBackend != "glm" {
 			imgReq.Size = ""
 		}
 		start := time.Now()
@@ -371,8 +372,9 @@ func (a *mediaState) GenerateMedia(paramsJSON string) (map[string]interface{}, e
 		if a.cfg.ImageBackend == "comfyui" {
 			imgReq.ProgressCallback = a.updateComfyTaskProgress
 		}
-		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持 size
-		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" {
+		// xAI / Ollama 后端不接受 size 参数（xAI 返回 400）；herdsman 文档明确支持
+		// size；GLM 官方 schema 同样接受 size（glm-image 默认 1280x1280）
+		if a.cfg.ImageBackend != "comfyui" && a.cfg.ImageBackend != "herdsman" && a.cfg.ImageBackend != "glm" {
 			imgReq.Size = ""
 		}
 		start := time.Now()
@@ -530,14 +532,25 @@ func (a *mediaState) GetImageBackend() string {
 // GetImageBackendInfo 获取当前图片后端类型和模型（供前端显示）。
 // 兼容旧字段 backend/model，同时下发完整配置（image_model/comfyui_url/
 // image_save_dir/comfyui_path/comfyui_python_path），模型中心据此恢复表单。
+// isGLMImageModel 是否 GLM 官方生图模型（cogview 系 / glm-image 系）。
+func isGLMImageModel(model string) bool {
+	l := strings.ToLower(strings.TrimSpace(model))
+	return strings.HasPrefix(l, "cogview") || strings.HasPrefix(l, "glm-image")
+}
+
 func (a *mediaState) GetImageBackendInfo() map[string]string {
 	imageModel := a.cfg.ImageModel
-	if imageModel == "" {
-		if a.cfg.ImageBackend == "comfyui" {
-			imageModel = "krea2"
-		} else {
-			imageModel = "grok-imagine-image-quality"
+	switch {
+	case a.cfg.ImageBackend == "comfyui" && imageModel == "":
+		imageModel = "krea2"
+	case a.cfg.ImageBackend == "glm":
+		// 空模型或上一后端残留（如 grok-imagine-*）都归位 GLM 默认生图模型，
+		// 避免表单带非官方模型名去请求（官方会报 model 不存在）。
+		if !isGLMImageModel(imageModel) {
+			imageModel = ai.GLMDefaultImageModel
 		}
+	case imageModel == "":
+		imageModel = "grok-imagine-image-quality"
 	}
 	saveDir := a.cfg.ImageSaveDir
 	if saveDir == "" {
@@ -624,8 +637,22 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 			a.cfg.ImageModel = imageModel
 		}
 		a.client.SetImageBackend(ai.NewOpenAIImageBackend(eng.BaseURL, eng.APIKey), "ollama")
+	case "glm":
+		eng, ok := a.engineMgr.GetEngine("glm")
+		if !ok || !eng.Enabled {
+			return fmt.Errorf("GLM 引擎未启用，请先在模型中心启用")
+		}
+		key := a.engineMgr.GLMKey()
+		if key == "" {
+			return fmt.Errorf("GLM API Key 未配置，请先在模型中心 GLM 卡片保存 Key（open.bigmodel.cn 获取）")
+		}
+		a.cfg.ImageBackend = "glm"
+		if imageModel != "" {
+			a.cfg.ImageModel = imageModel
+		}
+		a.client.SetImageBackend(ai.NewGLMImageBackend(eng.BaseURL, key), "glm")
 	default:
-		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / ollama）", backend)
+		return fmt.Errorf("不支持的后端: %s（支持 xai / comfyui / herdsman / ollama / glm）", backend)
 	}
 
 	// 持久化绘梦配置，避免应用重启后回退到默认后端/模型/保存目录

@@ -90,6 +90,8 @@ export interface ModelCenterContextValue {
   handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
   handleSaveOpencodeZenKey: () => Promise<void>
+  settingGlmEndpoint: boolean
+  handleSetGlmEndpoint: (family: 'std' | 'coding') => Promise<void>
   handleResetCallStats: () => Promise<void>
   loadCallStats: () => Promise<void>
   handleToggleComfy: () => Promise<void>

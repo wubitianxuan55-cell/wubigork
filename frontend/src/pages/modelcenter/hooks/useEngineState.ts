@@ -16,7 +16,7 @@ import * as App from '../../../wailsjsCompat'
 import {
   getEngines, saveEngine, testEngineConnection, refreshEngineModels, setEngineDefaultModel,
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
-  setGlmKey, getGlmKeyStatus,
+  setGlmKey, getGlmKeyStatus, setGlmEndpoint,
   setOpencodeGoKey, getOpencodeGoKeyStatus, setOpencodeZenKey, getOpencodeZenKeyStatus,
   type EngineConfig, type EngineStatus,
 } from '../../../api/engines'
@@ -49,6 +49,8 @@ export interface EngineState {
   opencodeZenKey: string
   setOpencodeZenKeyState: (v: string) => void
   opencodeZenKeyMasked: string
+  settingGlmEndpoint: boolean
+  handleSetGlmEndpoint: (family: 'std' | 'coding') => Promise<void>
   loadAll: () => Promise<void>
   refreshLocalModels: () => Promise<void>
   llmModels: ModelCardData[]
@@ -82,6 +84,7 @@ export function useEngineState(category: Category): EngineState {
   const [deepseekKey, setDeepseekKeyState] = useState('')
   const [deepseekKeyMasked, setDeepseekKeyMasked] = useState('')
   const [glmKey, setGlmKeyState] = useState('')
+  const [settingGlmEndpoint, setSettingGlmEndpoint] = useState(false)
   const [glmKeyMasked, setGlmKeyMasked] = useState('')
   const [opencodeGoKey, setOpencodeGoKeyState] = useState('')
   const [opencodeGoKeyMasked, setOpencodeGoKeyMasked] = useState('')
@@ -269,6 +272,17 @@ export function useEngineState(category: Category): EngineState {
     } catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
+  // GLM 端点家族切换（std=标准按量付费 / coding=编码套餐额度；后端只收官方双端点）
+  const handleSetGlmEndpoint = async (family: 'std' | 'coding') => {
+    setSettingGlmEndpoint(true)
+    try {
+      await setGlmEndpoint(family)
+      message.success(family === 'coding' ? '已切换到 GLM 编码套餐端点' : '已切换到 GLM 标准端点')
+      await loadAll()
+    } catch (err: unknown) { message.error(errText(err, '端点切换失败')) }
+    finally { setSettingGlmEndpoint(false) }
+  }
+
   const makeModels = (engine: EngineConfig): ModelCardData[] =>
     (engine.models || []).map(m => ({ modelId: m.id, modelName: m.id, engineId: engine.id, engineName: engine.name, engineType: engine.type, engineEnabled: engine.enabled, status: m.status || 'running', kind: m.kind || '' }))
 
@@ -301,6 +315,8 @@ export function useEngineState(category: Category): EngineState {
     opencodeZenKey,
     setOpencodeZenKeyState,
     opencodeZenKeyMasked,
+    settingGlmEndpoint,
+    handleSetGlmEndpoint,
     loadAll,
     refreshLocalModels,
     llmModels, ttsModels, sttModels, imageModels, specialtyModels,

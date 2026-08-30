@@ -750,6 +750,85 @@ func TestGLMStaticModels(t *testing.T) {
 	if byID["embedding-3"].Kind != "embedding" {
 		t.Errorf("embedding-3 应为 embedding, got %q", byID["embedding-3"].Kind)
 	}
+	// 图像生成四模型（官方 images/generations 枚举）
+	for _, id := range []string{"glm-image", "cogview-4-250304", "cogview-4", "cogview-3-flash"} {
+		if byID[id].Kind != "image" {
+			t.Errorf("%s 应为 image, got %q", id, byID[id].Kind)
+		}
+	}
+	// glm-5-turbo 是文本模型：通用 turbo 关键词不得把它误判为生图（v4.10.0 回归）
+	if byID["glm-5-turbo"].Kind != "llm" {
+		t.Errorf("glm-5-turbo 应为 llm, got %q", byID["glm-5-turbo"].Kind)
+	}
+	if byID["glm-4.6v"].Kind != "llm" {
+		t.Errorf("glm-4.6v（视觉理解）应为 llm, got %q", byID["glm-4.6v"].Kind)
+	}
+}
+
+// TestGlmEndpointFamily GLM 官方双端点切换：std/coding 互切、持久化、未知家族拒绝。
+func TestGlmEndpointFamily(t *testing.T) {
+	m := NewManager("", "")
+	if fam := m.GlmEndpointFamily(); fam != "std" {
+		t.Fatalf("预置应为 std, got %q", fam)
+	}
+	if err := m.SetGlmEndpoint("coding"); err != nil {
+		t.Fatalf("SetGlmEndpoint(coding): %v", err)
+	}
+	eng, _ := m.GetEngine("glm")
+	if eng.BaseURL != GLMBaseURLCoding {
+		t.Errorf("BaseURL 应为官方 coding 端点, got %q", eng.BaseURL)
+	}
+	if fam := m.GlmEndpointFamily(); fam != "coding" {
+		t.Errorf("family 应为 coding, got %q", fam)
+	}
+	if err := m.SetGlmEndpoint("std"); err != nil {
+		t.Fatalf("SetGlmEndpoint(std): %v", err)
+	}
+	eng, _ = m.GetEngine("glm")
+	if eng.BaseURL != GLMBaseURLStd {
+		t.Errorf("BaseURL 应回到官方标准端点, got %q", eng.BaseURL)
+	}
+	// 未知家族 fail-closed，地址不动
+	if err := m.SetGlmEndpoint("https://evil.example.com"); err == nil {
+		t.Error("未知家族应拒绝")
+	}
+	eng, _ = m.GetEngine("glm")
+	if eng.BaseURL != GLMBaseURLStd {
+		t.Errorf("拒绝后地址不应变化, got %q", eng.BaseURL)
+	}
+
+	// 持久化：切换后落盘，新 Manager 读回仍是 coding
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "engines.json")
+	if err := os.WriteFile(statePath, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m2 := NewManager("", "")
+	if err := m2.LoadState(statePath); err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if err := m2.SetGlmEndpoint("coding"); err != nil {
+		t.Fatalf("SetGlmEndpoint: %v", err)
+	}
+	m3 := NewManager("", "")
+	if err := m3.LoadState(statePath); err != nil {
+		t.Fatalf("LoadState(2): %v", err)
+	}
+	if fam := m3.GlmEndpointFamily(); fam != "coding" {
+		t.Errorf("重启后 family 应保持 coding, got %q", fam)
+	}
+}
+
+// TestGLMKeyGetter 生图后端装配与 chat 同源取 Key（禁止改读 EngineConfig.APIKey）。
+func TestGLMKeyGetter(t *testing.T) {
+	m := NewManager("", "")
+	if m.GLMKey() != "" {
+		t.Error("初始 Key 应为空")
+	}
+	m.UpdateGLMKey("zk-abc")
+	if m.GLMKey() != "zk-abc" {
+		t.Errorf("GLMKey() = %q, want zk-abc", m.GLMKey())
+	}
 }
 
 func TestGLMTestConnection_PingVerifiesKey(t *testing.T) {

@@ -135,6 +135,8 @@ const ModelCenterPage: React.FC = () => {
     handleSaveGlmKey: engine.handleSaveGlmKey,
     handleSaveOpencodeGoKey: engine.handleSaveOpencodeGoKey,
     handleSaveOpencodeZenKey: engine.handleSaveOpencodeZenKey,
+    settingGlmEndpoint: engine.settingGlmEndpoint,
+    handleSetGlmEndpoint: engine.handleSetGlmEndpoint,
     handleResetCallStats: stats.handleResetCallStats, loadCallStats: stats.loadCallStats,
     handleToggleComfy: image.handleToggleComfy, handleSaveImageBackend: image.handleSaveImageBackend,
     handleSetVoiceModel: voice.handleSetVoiceModel, handleSetOCRModel: voice.handleSetOCRModel,
