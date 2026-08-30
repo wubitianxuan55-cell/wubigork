@@ -1,9 +1,33 @@
 # 任务进度
 
-> 最后更新: 2026-08-30（v4.10.0 发布：GLM 引擎三轮真机打通 + 工作人设 +
-> 审计欠账三刀 + Herdsman CLI 透明化；用户确认 GLM 可用）
+> 最后更新: 2026-08-30（v4.11.0 发布：GLM 全模态纵深——生图后端 + 官方双端点
+> 切换 + 生图模型目录补全 + glm-5-turbo 误分类修复；vision 识图链路不动）
 
 ## 当前状态
+
+- **最新发布：v4.11.0（2026-08-30）「GLM 全模态纵深」**：基线 v4.10.0 + 1
+  提交（29c23ee），绑定面 543→544；vitest 821/821、drift PASS（544）。
+  详见 releases/v4.11.0.md 与下方刀明细。欠账：做梦 2.0 主动预取、
+  Realtime 真机、本地-云端自动路由 v1、iLink 语音/视频、更深跳因果。
+
+- **GLM 生图 + 官方双端点（2026-08-30，v4.10.0 后第一刀）**：①生图后端
+  `ai.GLMImageBackend`（kind=glm）——官方 images/generations 端点只发
+  model/prompt/size（response_format/n 等扩展字段官方 schema 不收，故不复用
+  通用 OpenAI 后端），URL 统一下载转 data URL 复用前端落盘链路，官方错误体
+  `{"error":{code,message}}` 原样透出，200 无图提示内容审核，img2img 诚实
+  拒绝；app 三处接线（initImageBackend / SetImageBackend / 剧照
+  buildPortraitClient），GLM Key 经 `Manager.GLMKey()` 与 chat 同源取用，
+  size 参数保留（官方接受）。②官方双端点切换 `SetGlmEndpoint`（绑定面
+  543→544）——std=/api/paas/v4（按量付费）coding=/api/coding/paas/v4（编码
+  套餐额度，官方 coding-plan/quick-start 核实），后端只收两个官方常量
+  （GLMBaseURLStd/GLMBaseURLCoding），GLM 卡片 Segmented 切换+落盘持久化；
+  云端引擎不露地址框防线延伸，防 Key 粘错框类事故。③静态目录补生图四模型
+  （glm-image/cogview-4-250304/cogview-4/cogview-3-flash，锚定官方图像生成
+  API 枚举，18→22）+ 修 glm-5-turbo 误分类（通用 turbo 关键词把它判成生图
+  ——GLM 引擎先按官方目录判型再落通用关键词表，回归测试锁死）。前端：
+  ImageSection 加 GLM 选项、ImageGenPanel 引擎标签诚实化（此前云端引擎也标
+  「本地引擎」）、classifyModel 补 cogview、glmEndpointFamily 判定工具。
+  Go +15 测试、vitest 821/821、tsc/eslint 0、drift PASS（544）。
 
 - **最新发布：v4.10.0（2026-08-30）「GLM 引擎 · 办公秘书人设」**：v4.9.0
   后 9 提交（GLM 引擎三轮真机打通 + 工作人设收口 + 审计欠账三刀 + Herdsman

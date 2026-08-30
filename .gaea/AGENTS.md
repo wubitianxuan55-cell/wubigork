@@ -47,6 +47,16 @@
 
 ## 版本状态
 
+- **最新发布：v4.11.0（2026-08-30）「GLM 全模态纵深」**：git tag `v4.11.0`；
+  基线 v4.10.0 + 1 提交（29c23ee）；绑定面 543→544（+1：SetGlmEndpoint）。
+  要点：GLM 生图后端（官方 images/generations 只发官方 schema 字段，URL 转
+  data URL，错误体原样透出，img2img 诚实拒绝）+ App 三处接线（Key 经
+  Manager.GLMKey() 同源）+ 官方双端点切换（std=按量/coding=编码套餐，只收
+  GLMBaseURLStd/GLMBaseURLCoding 两常量，GLM 卡 Segmented）+ 生图模型目录
+  补全（18→22）+ glm-5-turbo 误分类修复 + 设置页绘梦引擎标签诚实化。
+  **vision 识图链路用户拍板不动**。Go +15 测试、vitest 821/821、drift PASS
+  （544）。欠账见 releases/v4.11.0.md（做梦 2.0 主动预取 / Realtime 真机 /
+  本地-云端自动路由 v1 / iLink 语音视频 / 更深跳因果）。
 - **最新发布：v4.10.0（2026-08-30）「GLM 引擎 · 办公秘书人设」**：
   git tag `v4.10.0`；基线 v4.9.0 + 9 提交；绑定面 540→543（+3：SetGlmKey/
   GetGlmKeyStatus/AcceptMergeSuggestion）。要点：

@@ -1,5 +1,32 @@
 # gaea · 多功能 AI 助手
 
+## v4.11.0 · GLM 全模态纵深：生图后端 + 官方双端点（2026-08-30）
+> 续 GLM 引擎主线：聊天已真机打通，本刀把 GLM 从「只能对话」补成全模态
+> （生图）+ 支持编码套餐（官方双端点），并修复一处模型分类误判。
+- **生图后端 `ai.GLMImageBackend`（kind=glm）**：按官方「图像生成」API 实现
+  ——`POST /api/paas/v4/images/generations`、Bearer 认证。关键差异：官方
+  schema 只收 model/prompt/size（**无 response_format**，仅回 URL；negative/
+  seed 等 OpenAI 扩展字段也不收），故不复用通用 OpenAI 后端、只发官方字段；
+  响应 URL 统一下载转 data URL（复用前端显示/落盘链路）；官方错误体
+  `{"error":{code,message}}` 原样透出；200 无图提示「可能触发内容审核」；
+  img2img 诚实拒绝（官方端点无图生图参数）。缺省模型 cogview-4-250304。
+- **App 三处接线**：initImageBackend / SetImageBackend / 角色剧照
+  buildPortraitClient 均支持 glm；GLM Key 经 `Manager.GLMKey()` 与 chat 同源
+  取用（不读 EngineConfig.APIKey）；size 参数保留（官方接受）。
+- **官方双端点切换 `SetGlmEndpoint`（绑定面 543→544）**：std=`/api/paas/v4`
+  （按量付费）/ coding=`/api/coding/paas/v4`（编码套餐额度，官方
+  coding-plan/quick-start 核实——填错端点会 404 或误扣费）。后端只收两个
+  官方常量（GLMBaseURLStd/GLMBaseURLCoding），不透传自由地址；GLM 引擎卡
+  Segmented 切换并落盘持久化；LoadState 脏地址防线兼容。
+- **生图模型目录补全 + 误分类修复**：静态目录补 glm-image/cogview-4-250304/
+  cogview-4/cogview-3-flash（锚定官方图像生成 API 枚举，18→22）；修
+  glm-5-turbo 被通用 turbo 关键词误判为生图（GLM 引擎先按官方目录判型再落
+  通用关键词表，回归测试锁死）。
+- **前端**：模型中心「图片生成」加 GLM 云端选项；设置页绘梦引擎标签诚实化
+  （此前云端引擎也标「本地引擎」）；classifyModel 补 cogview；新增
+  glmEndpointFamily 端点家族判定。
+- 验证：Go 全量绿（+15 测试）、vitest **821/821**、tsc/eslint 0、
+  drift PASS（544）。
 ## v4.10.0 · 修复 GLM Key 保存被拒（2026-08-30）
 > 真机实测：GLM 卡片保存 Key 报「不支持的配置项: glm_api_key」——config.go
 > 加了 Key 常量与字段，但漏登记 Save 白名单 saveSetters，保存被拒。
