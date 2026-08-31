@@ -10,6 +10,7 @@ export interface ModelInfo {
   owned_by: string
   status: string
   kind?: string // 后端分类：llm / tts / stt / image / embedding / rerank / ocr
+  alias_of?: string // coding 端点家族下服务端实际服务的模型（套餐旧名自动切换）；std 家族为空（Go modelengine.ModelInfo.AliasOf）
 }
 
 export interface EngineConfig {
@@ -47,8 +48,16 @@ export interface ModelUsageStats {
   total_duration_ms: number
   estimated_cost?: number
   currency?: string
+  billing_mode?: string // 计费口径："coding_points"=GLM 编码套餐积分内调用（费用恒 0 不入总额）；空=按量计费（Go modelengine.BillingCodingPoints）
   last_error?: string
   last_called_at?: string
+}
+
+/** 按引擎聚合小计（ModelStatsSummary.engines 的值，Go modelengine.EngineSubtotal） */
+export interface EngineSubtotal {
+  tokens: number
+  calls: number
+  estimated_cost_cny: number
 }
 
 export interface TrendPoint {
@@ -74,6 +83,7 @@ export interface ModelStatsSummary {
   total_cost: number
   trend: TrendPoint[]
   per_model: ModelUsageStats[]
+  engines?: Record<string, EngineSubtotal> // 按引擎聚合小计（编码套餐口径以 "<engine>@coding" 单列、费用 0）；旧 stats.json 无此字段
   since?: string
   usd_to_cny?: number
 }

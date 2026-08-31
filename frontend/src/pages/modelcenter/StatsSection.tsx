@@ -2,7 +2,7 @@ import React from 'react'
 import { Button, Popconfirm, Segmented } from 'antd'
 import { CloudOutlined, DatabaseOutlined, DesktopOutlined, ReloadOutlined, SaveOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, KpiTile, StatusChip } from './ui'
-import { costToCNY, engineColor, engineIcons, engineLabel, fmtCost, isLocalEngine, USD_TO_CNY } from './utils'
+import { billingModeLabel, costToCNY, engineColor, engineIcons, engineLabel, fmtCost, isLocalEngine, USD_TO_CNY } from './utils'
 import { RequestsTrendChart, TokenTrendChart, type StatsSort, type TrendRange } from './charts'
 import { useModelCenter } from './context'
 import { getUsageOverview, type UsageOverview, type UsageSide } from '../../api/engines'
@@ -157,6 +157,51 @@ export function StatsSection() {
             />
           </div>
 
+          {/* 按引擎小计（后端 summary.engines；旧 stats.json 无此字段时整块不渲染）。
+              编码套餐口径以 "<engine>@coding" 单列：Tokens/调用计入、费用 0。 */}
+          {callStats.engines && Object.keys(callStats.engines).length > 0 && (
+            <div className="mc-panel">
+              <div className="mc-panel-body" style={{ gap: 8 }}>
+                <div className="mc-field-row">
+                  <span className="mc-panel-title">按引擎小计</span>
+                  <span style={{ color: 'var(--mc-muted)', fontSize: 10 }}>编码套餐口径单列，费用不含积分内用量</span>
+                </div>
+                <div className="mc-table" style={{ border: 0 }}>
+                  <div className="mc-table-head" style={{ gridTemplateColumns: 'minmax(120px, 1.6fr) minmax(90px, 1fr) 96px' }}>
+                    <div>引擎</div>
+                    <div className="mc-table-cell-num">Token</div>
+                    <div className="mc-table-cell-num">估算费用</div>
+                  </div>
+                  {Object.entries(callStats.engines)
+                    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+                    .map(([key, sub]) => {
+                      const at = key.indexOf('@')
+                      const codingKey = at > 0
+                      const engName = codingKey ? `${key.slice(0, at)}（编码套餐）` : engineLabel({ id: key })
+                      const costText = codingKey ? '积分内' : fmtCost(sub.estimated_cost_cny, 'CNY')
+                      return (
+                        <div
+                          key={key}
+                          className="mc-table-row"
+                          style={{ gridTemplateColumns: 'minmax(120px, 1.6fr) minmax(90px, 1fr) 96px' }}
+                        >
+                          <div style={{ position: 'relative', minWidth: 0 }}>
+                            <span style={{ color: 'var(--mc-text)', fontSize: 12, fontWeight: 500 }}>{engName}</span>
+                          </div>
+                          <div className="mc-table-cell-num" style={{ position: 'relative' }}>
+                            <span style={{ color: 'var(--mc-text)', fontSize: 12 }}>{sub.tokens.toLocaleString()}</span>
+                          </div>
+                          <div className="mc-table-cell-num" style={{ position: 'relative' }}>
+                            <span style={{ color: codingKey ? 'var(--mc-muted)' : 'var(--mc-warn)', fontSize: 12, fontWeight: 600 }}>{costText}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="mc-panel">
             <div className="mc-panel-body" style={{ gap: 10 }}>
               <div className="mc-field-row">
@@ -273,7 +318,9 @@ export function StatsSection() {
                           const r2 = s.call_count > 0 ? ((s.success_count / s.call_count) * 100).toFixed(0) : '0'
                           const share = Math.round((s.call_count / maxCalls) * 100)
                           const avgSec = s.call_count > 0 ? (s.total_duration_ms / s.call_count / 1000).toFixed(1) : '0.0'
-                          const costText = fmtCost(s.estimated_cost, s.currency) || (isLocalEngine(s.engine_id) ? '免费' : '—')
+                          // coding_points=GLM 编码套餐积分内调用：费用恒 0，显示「积分内」而非 ¥0/—，避免误导
+                          const codingPoints = s.billing_mode === 'coding_points'
+                          const costText = codingPoints ? '积分内' : (fmtCost(s.estimated_cost, s.currency) || (isLocalEngine(s.engine_id) ? '免费' : '—'))
                           return (
                             <div key={s.engine_id + '|' + s.model} className="mc-table-row">
                               <div
@@ -293,6 +340,11 @@ export function StatsSection() {
                                 <div style={{ color: 'var(--mc-muted)', fontSize: 10 }}>
                                   {s.last_called_at ? `最近 ${s.last_called_at.slice(5, 16)}` : '—'}
                                 </div>
+                                {codingPoints && (
+                                  <StatusChip tone="accent" title={billingModeLabel(s.billing_mode)}>
+                                    {billingModeLabel(s.billing_mode)}
+                                  </StatusChip>
+                                )}
                                 {s.call_count >= 5 && s.fail_count / s.call_count >= 0.2 && (
                                   <StatusChip tone="danger">高失败率</StatusChip>
                                 )}

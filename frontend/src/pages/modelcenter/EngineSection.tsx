@@ -95,6 +95,7 @@ export function EngineSection() {
 
       {visibleEngines.map(engine => {
         const color = engineColor(engine)
+        const glmFamily = glmEndpointFamily(engine.base_url)
         const em = makeModels(engine)
         const mc = {
           llm: em.filter(m => kindOf(m) === 'llm').length,
@@ -210,7 +211,7 @@ export function EngineSection() {
                 <span style={{ fontSize: 12, color: 'var(--mc-muted)' }}>端点</span>
                 <Segmented
                   size="small"
-                  value={glmEndpointFamily(engine.base_url)}
+                  value={glmFamily}
                   onChange={(v) => handleSetGlmEndpoint(v as 'std' | 'coding')}
                   disabled={!engine.enabled || settingGlmEndpoint}
                   options={[
@@ -220,6 +221,7 @@ export function EngineSection() {
                 />
                 <span style={{ fontSize: 11, color: 'var(--mc-muted)' }}>
                   编码套餐 Key 须走 /api/coding 端点；标准 Key 走 /api/paas
+                  {glmFamily === 'coding' && '；编码套餐=积分制计费，下方费用估算不含该端点用量'}
                 </span>
               </div>
             )}

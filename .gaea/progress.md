@@ -1,9 +1,30 @@
 # 任务进度
 
-> 最后更新: 2026-08-31（模块制市场调研复扫：8 子代理按模块并行调研，合成
-> docs/market-research-2026-08-31.md，含下一刀候选序；非功能刀，绑定面不变）
+> 最后更新: 2026-08-31（v4.12.0 发布「成本透亮」：调研后第一刀——GLM 价格
+> 表补全 + 编码套餐积分口径 + 模型别名注记 + 目录数据驱动；零新增绑定）
 
 ## 当前状态
+
+- **最新发布：v4.12.0（2026-08-31）「成本透亮」**：调研后第一刀（成本层，
+  审计 T0 缺口②③的计价前置）——①GLM 价格表补全（原仅 glm-4.7 一条，GLM
+  用量实际未被计价；官方 docs.z.ai USD 价 + 既有 usd_cny_rate 折 CNY，免费
+  档计 0，未核实者诚实不入表，glm-5-turbo 显式挡板防前缀误匹配）②编码套餐
+  积分口径（/api/coding/ 端点调用 billing_mode=coding_points，EstimatedCost
+  恒 0 不进 TotalCost，聚合 glm@coding 单列 Tokens 计入费用 0；summary 新
+  增 engines 按引擎聚合，旧 stats.json 兼容）③模型别名注记（官方 coding-plan
+  概览核实 4 条自动切换：glm-5.2/5.1→glm-5.3、glm-5-turbo/4.7→glm-5.3-flash；
+  ModelInfo 加 alias_of 仅 coding 家族下发，std 不注记；前端模型卡「自动切
+  换」标记；RecordCall 记账归一让 glm-5.2 用量落 glm-5.3 价格桶；请求名不改
+  写，服务端自行切换）④GLM 目录数据驱动（22 模型迁 glm_catalog.json
+  //go:embed 逐字锁定；config 新键 glm_catalog_path 覆盖文件 mtime 热重载 +
+  坏 JSON 回退内嵌，照 usd_cny_rate 先例启动注入、非密钥无反射测试）。
+  **零新增绑定（544→544，bindings_*.go/bindingNames/bridge/spaceBindings
+  零改动）**；Go +5 组测试全量绿、vitest 825/825（+4）、tsc/eslint 0、drift
+  PASS（544）、build.bat 冒烟 200。执行方式：探索子代理代码地图 → 后端/前
+  端实现子代理串行 → 主控全绿门禁复核。欠账：本地-云端路由 v1 本体（下一
+  刀，目标函数=本地优先→缓存命中→峰谷）、Context Compiler 前缀策略化、国
+  内 CNY 原价表（bigmodel.cn JS 渲染未取得，现 z.ai USD+汇率）、覆盖文件
+  UI 入口。详见 releases/v4.12.0.md。
 
 - **模块制市场调研复扫（2026-08-31，调研非刀，v4.11.0 基线，绑定面 544 不变）**：
   8 子代理并行复扫（办公/造价/记忆/模型中心/编程/创作/轻语/触点），合成

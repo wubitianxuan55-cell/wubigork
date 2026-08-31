@@ -46,8 +46,11 @@ type ModelUsageStats struct {
 	TotalDurationMs int64   `json:"total_duration_ms"`
 	EstimatedCost   float64 `json:"estimated_cost,omitempty"` // 估算费用（按内置定价表从 Token 推导）
 	Currency        string  `json:"currency,omitempty"`       // "CNY" | "USD"；空表示本地/未知模型
-	LastError       string  `json:"last_error,omitempty"`
-	LastCalledAt    string  `json:"last_called_at,omitempty"`
+	// BillingMode 计费口径："coding_points"=GLM 编码套餐额度内调用（费用恒 0、
+	// 不折入 TotalCost，Token 照常计入）；空=按量计费（按定价表估算）。
+	BillingMode   string `json:"billing_mode,omitempty"`
+	LastError     string `json:"last_error,omitempty"`
+	LastCalledAt  string `json:"last_called_at,omitempty"`
 }
 
 // ModelStatsSummary 返回给前端的统计汇总。
@@ -65,9 +68,23 @@ type ModelStatsSummary struct {
 	TotalCost       float64           `json:"total_cost"` // 估算费用总额（统一折算为人民币）
 	Trend           []TrendPoint      `json:"trend"`      // 按小时的趋势序列（升序）
 	PerModel        []ModelUsageStats `json:"per_model"`
-	Since           string            `json:"since,omitempty"`
-	UsdToCny        float64           `json:"usd_to_cny"` // 展示用美元→人民币汇率（单一来源，前端不再硬编码）
+	// Engines 按引擎聚合小计（加法字段，旧 JSON 兼容）。编码套餐口径的调用
+	// 以 "<engine>@coding" 单列：Tokens/Calls 计入、费用 0（套餐额度内）。
+	Engines   map[string]EngineSubtotal `json:"engines,omitempty"`
+	Since     string                    `json:"since,omitempty"`
+	UsdToCny  float64                   `json:"usd_to_cny"` // 展示用美元→人民币汇率（单一来源，前端不再硬编码）
 }
+
+// EngineSubtotal 按引擎聚合的小计（ModelStatsSummary.Engines 的值）。
+type EngineSubtotal struct {
+	Tokens           int64   `json:"tokens"`
+	Calls            int64   `json:"calls"`
+	EstimatedCostCNY float64 `json:"estimated_cost_cny"`
+}
+
+// BillingCodingPoints 编码套餐计费口径（ModelUsageStats.BillingMode 取值）：
+// GLM coding 端点的调用消耗套餐积分/额度，不再按 Token 计价。
+const BillingCodingPoints = "coding_points"
 
 // TrendPoint 单个小时桶的用量趋势。
 type TrendPoint struct {
@@ -121,7 +138,28 @@ var modelPricing = []struct {
 	{"gemini-2.5-pro", modelPrice{1.25, 10, "USD"}},
 	{"gemini-2.5-flash", modelPrice{0.3, 2.5, "USD"}},
 	{"kimi-k2", modelPrice{4, 16, "CNY"}},
-	{"glm-4.7", modelPrice{2, 8, "CNY"}},
+	// GLM（智谱）定价：来源 https://docs.z.ai/guides/overview/pricing（官方
+	// 国际站，USD 计价），核实日期 2026-08-31。国内 bigmodel.cn 定价页为
+	// JS 渲染、无静态数据可抓，故本表采用 z.ai 官方 USD 价，折人民币走
+	// usd_cny_rate（见 usdToCNYRate）。免费档填 0（费用恒 0）；官方页未
+	// 列出的模型不进表（不计价）——glm-5-turbo 显式置空前缀，挡住下条
+	// "glm-5" 的前缀匹配，其余未列出者（glm-4-long/glm-tts/embedding-3/
+	// rerank/cogview-*/glm-image）无前缀冲突、天然不计价。长前缀在前。
+	{"glm-5.3-flash", modelPrice{0.15, 0.5, "USD"}},  // 列表价；官方另有 50% 高峰外限时优惠（至 2026-09-09）
+	{"glm-5.3", modelPrice{1.4, 4.4, "USD"}},
+	{"glm-5.2", modelPrice{1.4, 4.4, "USD"}},
+	{"glm-5.1", modelPrice{1.4, 4.4, "USD"}},
+	{"glm-5-turbo", modelPrice{0, 0, ""}}, // 官方定价页未列出：置空挡住 glm-5 前缀
+	{"glm-5", modelPrice{1, 3.2, "USD"}},
+	{"glm-4.7-flashx", modelPrice{0.07, 0.4, "USD"}},
+	{"glm-4.7-flash", modelPrice{0, 0, "CNY"}}, // 官方免费档
+	{"glm-4.6v-flash", modelPrice{0, 0, "CNY"}}, // 官方免费档
+	{"glm-4.6v", modelPrice{0.3, 0.9, "USD"}},
+	{"glm-4.6", modelPrice{0.6, 2.2, "USD"}},
+	{"glm-4.5-flash", modelPrice{0, 0, "CNY"}}, // 官方免费档
+	{"glm-4.5-air", modelPrice{0.2, 1.1, "USD"}},
+	{"glm-asr-2512", modelPrice{0.03, 0.03, "USD"}}, // 官方 $0.03/MTok（语音识别）
+	{"glm-4.7", modelPrice{2, 8, "CNY"}},            // 既有条目（国内口径预设），保持不动
 	{"doubao-seed-code", modelPrice{1.2, 8, "CNY"}},
 }
 
@@ -325,8 +363,9 @@ func (r *statsRecorder) save() {
 	}
 }
 
-// record 记录一次调用并落盘。
-func (r *statsRecorder) record(u ModelCallUsage) {
+// record 记录一次调用并落盘。billing 为该次调用的计费口径（空=按量计费）；
+// coding_points 口径下费用恒 0、不折入 TotalCost，Token 照常累计。
+func (r *statsRecorder) record(u ModelCallUsage, billing string) {
 	r.mu.Lock()
 	r.load()
 	if r.since == "" {
@@ -347,6 +386,9 @@ func (r *statsRecorder) record(u ModelCallUsage) {
 		}
 		r.models[key] = st
 	}
+	// 计费口径随桶记录（桶级字段）：同一（引擎, 模型）桶内 std/coding 混合的
+	// 窗口（用户切换端点家族）以最近一次调用为准，见 summary 的费用门控。
+	st.BillingMode = billing
 	st.CallCount++
 	st.TotalDurationMs += u.DurationMs
 	if u.Success {
@@ -365,7 +407,10 @@ func (r *statsRecorder) record(u ModelCallUsage) {
 	if u.FinishedAt != "" {
 		st.LastCalledAt = u.FinishedAt
 	}
-	cost, cur := estimatedCostFor(u.EngineID, u.Model, u.InputTokens, u.OutputTokens)
+	cost, cur := 0.0, ""
+	if billing != BillingCodingPoints {
+		cost, cur = estimatedCostFor(u.EngineID, u.Model, u.InputTokens, u.OutputTokens)
+	}
 	costCNY := cost
 	if cur == "USD" {
 		costCNY *= r.usdToCNYRate()
@@ -416,16 +461,35 @@ func (r *statsRecorder) summary() ModelStatsSummary {
 		sum.CacheMissTokens += st.CacheMissTokens
 		sum.TotalDurationMs += st.TotalDurationMs
 		cp := *st
-		cost, cur := estimatedCostFor(st.EngineID, st.Model, st.InputTokens, st.OutputTokens)
+		// 编码套餐口径的桶不计价（费用恒 0）；std 家族照旧按 Token 重算。
+		cost, cur := 0.0, ""
+		if st.BillingMode != BillingCodingPoints {
+			cost, cur = estimatedCostFor(st.EngineID, st.Model, st.InputTokens, st.OutputTokens)
+		}
 		cp.EstimatedCost = cost
 		cp.Currency = cur
+		costCNY := 0.0
 		if cost > 0 {
 			if cur == "USD" {
-				sum.TotalCost += cost * r.usdToCNYRate()
+				costCNY = cost * r.usdToCNYRate()
 			} else {
-				sum.TotalCost += cost
+				costCNY = cost
 			}
+			sum.TotalCost += costCNY
 		}
+		// 按引擎聚合；编码套餐口径以 "<engine>@coding" 单列（Tokens 计入、费用 0）。
+		engKey := st.EngineID
+		if st.BillingMode == BillingCodingPoints {
+			engKey = st.EngineID + "@coding"
+		}
+		if sum.Engines == nil {
+			sum.Engines = make(map[string]EngineSubtotal, 4)
+		}
+		eng := sum.Engines[engKey]
+		eng.Tokens += st.TotalTokens
+		eng.Calls += st.CallCount
+		eng.EstimatedCostCNY += costCNY
+		sum.Engines[engKey] = eng
 		sum.PerModel = append(sum.PerModel, cp)
 	}
 	if sum.TotalCalls > 0 {
@@ -487,8 +551,37 @@ func (m *Manager) stats() *statsRecorder {
 }
 
 // RecordCall 记录一次模型调用（由 ai.Client 调用，线程安全）。
+// GLM 引擎按当前端点家族判定计费口径：coding 端点（baseURL 含 /api/coding/）
+// 走编码套餐口径（coding_points，不计价），并把旧模型名归一到服务端实际
+// 模型（GlmAliasOf，让 glm-5.2 的 token 落到 glm-5.3 价格桶）；std 家族
+// 照旧按 Token 估算、旧名独立计价。
 func (m *Manager) RecordCall(u ModelCallUsage) {
-	m.stats().record(u)
+	billing := ""
+	if strings.TrimSpace(u.EngineID) == string(EngineGLM) {
+		billing = m.glmCallBilling()
+		if billing == BillingCodingPoints {
+			if a := GlmAliasOf("coding", u.Model); a != "" {
+				u.Model = a // 记账归一：coding 家族旧名按服务端实际模型落桶
+			}
+		}
+	}
+	m.stats().record(u, billing)
+}
+
+// glmCallBilling 判定当前 GLM 引擎的计费口径：编码套餐端点（baseURL 含
+// /api/coding/，LoadState 已保证地址只会是两个官方常量之一）返回
+// coding_points；标准端点返回空（按量计费）。
+func (m *Manager) glmCallBilling() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	eng, ok := m.engines["glm"]
+	if !ok {
+		return ""
+	}
+	if strings.Contains(eng.BaseURL, "/api/coding/") {
+		return BillingCodingPoints
+	}
+	return ""
 }
 
 // GetModelCallStats 获取模型调用统计汇总。

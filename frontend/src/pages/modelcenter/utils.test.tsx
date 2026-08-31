@@ -12,6 +12,8 @@ import {
   modelOptionsForEngine,
   filterEnginesByEnabled,
   glmEndpointFamily,
+  glmAliasNote,
+  billingModeLabel,
 } from './utils'
 import type { ModelCardData } from './utils'
 import type { EngineConfig } from '../../api/engines'
@@ -202,5 +204,30 @@ describe('模型中心 GLM 生图与端点家族', () => {
     expect(glmEndpointFamily('https://open.bigmodel.cn/api/coding/paas/v4')).toBe('coding')
     expect(glmEndpointFamily('')).toBe('std')
     expect(glmEndpointFamily(undefined)).toBe('std')
+  })
+})
+
+describe('模型中心 glmAliasNote / billingModeLabel', () => {
+  it('glmAliasNote：有 alias_of 返回切换说明，含调用名与实际模型', () => {
+    expect(glmAliasNote({ id: 'glm-5.2', alias_of: 'glm-5.3' }))
+      .toBe('服务端自动切换：调用 glm-5.2 实际按 glm-5.3 服务（编码套餐）')
+    expect(glmAliasNote({ id: 'glm-5-turbo', alias_of: 'glm-5.3-flash' }))
+      .toBe('服务端自动切换：调用 glm-5-turbo 实际按 glm-5.3-flash 服务（编码套餐）')
+  })
+
+  it('glmAliasNote：无 alias_of / 空串 / 缺参返回空', () => {
+    expect(glmAliasNote({ id: 'glm-5.3' })).toBe('')
+    expect(glmAliasNote({ id: 'glm-5.3', alias_of: '' })).toBe('')
+    expect(glmAliasNote(undefined)).toBe('')
+  })
+
+  it('billingModeLabel：coding_points 返回积分口径标签', () => {
+    expect(billingModeLabel('coding_points')).toBe('编码套餐 · 积分口径（不计价）')
+  })
+
+  it('billingModeLabel：空/未知口径返回空', () => {
+    expect(billingModeLabel('')).toBe('')
+    expect(billingModeLabel(undefined)).toBe('')
+    expect(billingModeLabel('usage')).toBe('')
   })
 })

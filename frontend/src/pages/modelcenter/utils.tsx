@@ -30,6 +30,18 @@ export function classifyModel(id: string): ModelKind {
 export const glmEndpointFamily = (baseURL?: string): 'std' | 'coding' =>
   (baseURL || '').includes('/api/coding/') ? 'coding' : 'std'
 
+// GLM 编码套餐别名注记：后端只在 coding 家族的 ModelInfo 上填 alias_of
+// （套餐旧名由服务端自动切换到实际模型，std 家族为空）。无别名返回空串。
+export const glmAliasNote = (model?: { id?: string; alias_of?: string }): string =>
+  model?.alias_of
+    ? `服务端自动切换：调用 ${model.id || '?'} 实际按 ${model.alias_of} 服务（编码套餐）`
+    : ''
+
+// 计费口径标签（stats 条目 billing_mode，后端取值 coding_points=编码套餐积分内
+// 调用、不计价）；空/其他口径返回空串，调用方据此不渲染标签。
+export const billingModeLabel = (mode?: string): string =>
+  mode === 'coding_points' ? '编码套餐 · 积分口径（不计价）' : ''
+
 export const engineIcons: Record<string, ReactNode> = {
   xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />,
 }

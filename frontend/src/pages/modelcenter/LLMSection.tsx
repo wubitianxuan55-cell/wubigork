@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button, Input } from 'antd'
 import { CaretRightOutlined, CheckCircleOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, ModelCard, SectionHead, StatusChip } from './ui'
-import { engineColor, engineLabel, filterModelsBySearch, modelAvailability, sortModelsPinnedFirst } from './utils'
+import { engineColor, engineLabel, filterModelsBySearch, glmAliasNote, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenter } from './context'
 import { usePinnedModels } from './modelPrefs'
 
@@ -94,6 +94,8 @@ export function LLMSection() {
                   const active = isModelActive(card)
                   const avail = modelAvailability(card, engine.enabled, status?.connected)
                   const blocked = avail === 'disconnected' || avail === 'disabled'
+                  // coding 端点套餐旧名自动切换注记（后端 alias_of，std 家族为空）
+                  const aliasNote = glmAliasNote((engine.models || []).find(m => m.id === card.modelId))
                   const statusText = active
                     ? '运行中'
                     : avail === 'disconnected'
@@ -115,6 +117,9 @@ export function LLMSection() {
                           : null,
                         pinned.includes(card.modelId)
                           ? <StatusChip key="pin" tone="warn">置顶</StatusChip>
+                          : null,
+                        aliasNote
+                          ? <StatusChip key="alias" tone="accent" title={aliasNote}>自动切换</StatusChip>
                           : null,
                         avail === 'disconnected'
                           ? <StatusChip key="off" tone="danger">未连接</StatusChip>

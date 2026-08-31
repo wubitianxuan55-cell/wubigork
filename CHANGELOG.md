@@ -1,5 +1,39 @@
 # gaea · 多功能 AI 助手
 
+## v4.12.0 · 成本透亮：GLM 计价真实性 + 编码套餐积分口径 + 目录数据驱动（2026-08-31）
+> 模块制市场调研（docs/market-research-2026-08-31.md）指出的「计费快变」风险
+> 落地第一刀，兼收审计 T0 缺口②③：GLM Coding Plan 已改积分制（旧模型名
+> 自动切换），静态目录与 token 计价都会失真——本刀把「花多少钱」做成真的。
+> **零新增绑定（544 不变）**。
+- **GLM 价格表补全（modelengine/stats.go）**：原表仅 glm-4.7 一条，GLM 用量
+  实际未被计价；现按官方定价页（docs.z.ai，2026-08-31 核实，USD/百万 token，
+  折 CNY 走既有 usd_cny_rate）补 glm-5.3/5.2/5.1/5/4.7/4.6/4.5-air/flash 系
+  与 glm-4.6v，免费档（4.7-flash/4.5-flash/4.6v-flash）计 0；无法核实的诚实
+  不入表（glm-5-turbo 显式置空挡板防 glm-5 前缀误匹配；cogview 系按张计费
+  非 token 口径）。
+- **编码套餐积分口径（billing_mode="coding_points"）**：glm 引擎走
+  /api/coding/ 端点的调用不再按 token 估算费用（EstimatedCost=0、不进
+  TotalCost），聚合以 glm@coding 单列（Tokens 计入、费用 0）——套餐内计
+  「积分」不按 token 扣费；同桶混合窗口以最近一次调用口径为准（注释说明）。
+- **模型别名注记（仅 coding 家族）**：官方 coding-plan 概览核实 4 条自动
+  切换（glm-5.2/5.1→glm-5.3、glm-5-turbo/4.7→glm-5.3-flash）；ModelInfo 加
+  alias_of 下发，前端模型卡「自动切换」标记 + title 说明；std 端点不注记
+  （旧名独立计价）；记账归一让 glm-5.2 的用量落 glm-5.3 价格桶。
+- **GLM 目录数据驱动（内嵌 JSON + 覆盖文件热更新）**：glmStaticModels 22 模
+  型迁入 glm_catalog.json（//go:embed，新测试逐字锁定一个不增不减）；覆盖
+  文件经 config 新键 `glm_catalog_path`（照 usd_cny_rate 先例启动注入，非密
+  钥项）注入，mtime 变更自动重读（同 ID 替换 + 新 ID 追加），坏 JSON 静默
+  回退内嵌——智谱目录快变时（调研：Kimi V1 已全平台下线）无需重编译。
+- **前端**：engines.ts 类型同步三字段（alias_of/billing_mode/engines）；
+  EngineSection GLM 卡 coding 家族追加「积分制计费，费用估算不含该端点用
+  量」说明；StatsSection 明细行积分口径标签（费用列显示「积分内」非 ¥0）+
+  按引擎小计区（glm@coding 显示「glm（编码套餐）」，旧数据无 engines 字段
+  整块不渲染，向后兼容）。
+- 验证：go build/vet/test 全量绿（新增 5 组 Go 测试：目录逐字锁定 / 覆盖
+  mtime 热重载 + 坏 JSON 回退 / 别名注记 coding 有 std 无 / coding_points
+  计费门控 + glm-5.2 归一落 glm-5.3 桶 / 价格表断言）、tsc 0 / eslint 0、
+  vitest 825/825（+4）、drift PASS（544）、build.bat 冒烟 200。
+
 ## v4.11.0 · GLM 全模态纵深：生图后端 + 官方双端点（2026-08-30）
 > 续 GLM 引擎主线：聊天已真机打通，本刀把 GLM 从「只能对话」补成全模态
 > （生图）+ 支持编码套餐（官方双端点），并修复一处模型分类误判。

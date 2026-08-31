@@ -62,6 +62,9 @@ type ModelInfo struct {
 	OwnedBy string `json:"owned_by"`
 	Status  string `json:"status,omitempty"` // "running" / "stopped" / "unknown"
 	Kind    string `json:"kind,omitempty"`   // "llm" / "tts" / "stt" / "image"，由后端按引擎/名称分类，前端不再猜测
+	// AliasOf coding 端点家族下服务端实际服务的模型（套餐旧名自动切换，
+	// 见 glm_alias.go）；std 家族为空。诚实展示注记，请求模型名不改写。
+	AliasOf string `json:"alias_of,omitempty"`
 }
 
 // EngineConfig 引擎配置
@@ -410,7 +413,7 @@ func (m *Manager) TestConnection(ctx context.Context, engineID string) (*EngineS
 		// 智谱官方无 /models 端点（docs.bigmodel.cn 仅有 chat/completions 等）：
 		// Key 校验走最小 chat ping，模型目录用官方文档锚定的静态清单。
 		err = m.glmPing(ctx, engine)
-		models = glmStaticModels()
+		models = m.glmCatalogModels()
 	} else {
 		models, err = m.fetchModels(ctx, engine)
 	}
@@ -479,7 +482,7 @@ func (m *Manager) RefreshModels(ctx context.Context, engineID string) ([]ModelIn
 func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]ModelInfo, error) {
 	if engine.Type == EngineGLM {
 		// 智谱无 /models 端点：刷新直接返回官方静态目录（零 HTTP）
-		return glmStaticModels(), nil
+		return m.glmCatalogModels(), nil
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(engine.BaseURL), "/")
 	if !validBaseURL(baseURL) {
@@ -632,30 +635,6 @@ func ClassifyModelKind(engineType EngineType, modelID string) string {
 // 与 ClassifyModelKind 的引擎无关部分保持同一关键词表，避免双源漂移。
 func ClassifyModelByName(modelID string) string {
 	return ClassifyModelKind("", modelID)
-}
-
-// glmStaticModels 智谱静态模型目录。官方 API 无模型列表端点——目录锚定
-// docs.bigmodel.cn「模型概览」（2026-08-30），Kind 经 ClassifyModelKind 统一
-// 分类：glm-tts→tts、glm-asr→stt、embedding-3→embedding，其余为 llm/vision。
-// 图像生成四模型锚定官方「图像生成」API 的 model 枚举（2026-08-30）。
-func glmStaticModels() []ModelInfo {
-	ids := []string{
-		// 文本（旗舰在前，flash 为免费档）
-		"glm-5.3", "glm-5.2", "glm-5.1", "glm-5", "glm-5-turbo",
-		"glm-4.7", "glm-4.7-flashx", "glm-4.6", "glm-4.5-air", "glm-4-long",
-		"glm-4.7-flash", "glm-4.5-flash",
-		// 多模态 / 视觉理解
-		"glm-5.3-flash", "glm-4.6v",
-		// 图像生成（官方 images/generations 的 model 枚举）
-		"glm-image", "cogview-4-250304", "cogview-4", "cogview-3-flash",
-		// 语音 / 向量 / 重排
-		"glm-tts", "glm-asr-2512", "embedding-3", "rerank",
-	}
-	models := make([]ModelInfo, 0, len(ids))
-	for _, id := range ids {
-		models = append(models, ModelInfo{ID: id, OwnedBy: "glm", Kind: ClassifyModelKind(EngineGLM, id)})
-	}
-	return models
 }
 
 // glmPing 用最小 chat 请求验证 Key 有效性——智谱没有模型列表端点可供鉴权

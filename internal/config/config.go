@@ -102,6 +102,9 @@ const (
 	KeyOpencodeZenAPIKey = "opencode_zen_api_key"
 	// 美元→人民币汇率（费用估算折算用，默认 7.2，可在模型中心配置）
 	KeyUsdCnyRate = "usd_cny_rate"
+	// GLM 目录覆盖文件路径（模型中心成本层）：非空时 GLM 静态目录在内嵌
+	// 目录基础上按该文件热更新合并（同 ID 替换 + 新 ID 追加）。默认空=只用内嵌。
+	KeyGLMCatalogPath = "glm_catalog_path"
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认与历史硬编码一致。
 	KeyCosyVoiceDir  = "cosyvoice_dir"
 	KeyCosyVoicePort = "cosyvoice_port"
@@ -204,6 +207,8 @@ type configFile struct {
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
 	// 美元→人民币汇率（费用估算折算用；0=未配置，加载时回退默认 7.2）
 	UsdCnyRate float64 `json:"usd_cny_rate,omitempty"`
+	// GLM 目录覆盖文件路径（空=只用内嵌目录）
+	GLMCatalogPath string `json:"glm_catalog_path,omitempty"`
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，空值回退默认。
 	CosyVoiceDir  string `json:"cosyvoice_dir,omitempty"`
 	CosyVoicePort int    `json:"cosyvoice_port,omitempty"`
@@ -342,6 +347,9 @@ type Config struct {
 
 	// 美元→人民币汇率（费用估算折算用，默认 7.2；模型中心可配置）
 	UsdCnyRate float64
+
+	// GLM 目录覆盖文件路径（模型中心成本层，空=只用内嵌目录）
+	GLMCatalogPath string
 
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认 C:\AI\cosyvoice / 8010。
 	CosyVoiceDir  string
@@ -959,6 +967,9 @@ func Load() *Config {
 			if cf.UsdCnyRate != 0 {
 				cfg.UsdCnyRate = cf.UsdCnyRate
 			}
+			if cf.GLMCatalogPath != "" {
+				cfg.GLMCatalogPath = cf.GLMCatalogPath
+			}
 			if cf.CosyVoiceDir != "" {
 				cfg.CosyVoiceDir = cf.CosyVoiceDir
 			}
@@ -1397,6 +1408,7 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		return nil
 	},
 	KeyRealtimeModel:  func(cf *configFile, v string) error { cf.RealtimeModel = v; return nil },
+	KeyGLMCatalogPath: func(cf *configFile, v string) error { cf.GLMCatalogPath = v; return nil },
 	KeyRealtimeAPIKey: func(cf *configFile, v string) error { cf.RealtimeAPIKey = v; return nil },
 }
 

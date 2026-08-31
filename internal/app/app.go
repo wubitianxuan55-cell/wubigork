@@ -323,6 +323,9 @@ func (a *App) Startup(ctx context.Context) {
 	// T6-6.2 汇率配置：把 ~/.gaea_config.json 的 usd_cny_rate 注入统计折算
 	// （config.Load 含磁盘 IO，只在启动/用户修改时注入一次，避免逐调用读取）。
 	a.engineMgr.SetUsdCnyRate(a.cfg.UsdCnyRate)
+	// GLM 目录覆盖文件（模型中心成本层）：启动注入一次，照 SetUsdCnyRate
+	// 先例（非绑定方法）；空=只用内嵌目录。
+	a.engineMgr.SetGLMCatalogPath(a.cfg.GLMCatalogPath)
 	// 确保 xAI 引擎始终提供内置语音模型 grok-tts（TTS API 不返回在 /v1/models 列表）
 	a.engineMgr.EnsureModel("xai", "grok-tts")
 	// 确保本地 CosyVoice2 引擎提供语音模型（OpenAI 兼容 TTS 服务）
