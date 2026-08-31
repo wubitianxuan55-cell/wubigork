@@ -47,7 +47,36 @@
 
 ## 版本状态
 
-- **最新发布：v4.22.0（2026-08-31）「一次性收官 · 真虚拟化/transcript 定位/
+- **最新发布：v4.23.0（2026-08-31）「工作台框架 · 右栏工作台化第一刀」**：
+  git tag `v4.23.0`；基线 v4.22.0；绑定面 548→548（零新增）。用户拍板：右
+  面板重造为 DSH-better-sidebar/Codex 式「运行工作台」（子代理/浏览器/文件
+  编辑器等实时操作面），状态显示类迁主区轨迹/上下文旁边；规划稿
+  docs/gaea-office-upgrade-plan-2026-09.md（v2，分期号已顺延）。
+  ①**Tab 注册表 lib/sidebarRegistry.ts**：元数据复用清单 + render 接线单一
+  数据源，右栏渲染/命令面板全派生；新增面板 = 清单 + RENDERERS 各一条，
+  面板组件本体零改动（框架/内容解耦，为 A2 浏览器观察窗/A3 编辑器 tab 留
+  平等挂载点）。
+  ②**工作台外壳三件套（学 better-sidebar v0.18 交互形状，不抄代码）**：全局
+  宽度键（左缘拖拽 280–720，最后一次拖拽胜出跨会话跟随，layoutPreferences
+  blob workspacePanelWidth）；声明式设置（齿轮→侧边卡片，每 tab 独立开关，
+  停用即隐藏/整组停用隐藏主 Tab/至少保留一个/停用不进命令面板，启用集全局键
+  gaea.rightPanel.v1:tabsEnabled，booleanMapOf 式净化）；会话记录 v2
+  （{v,tab,enabled,width} JSON，v1 裸 id 兼容可读，坏值逐项兜底，失效激活
+  指针修正）。
+  ③**主区「概览」tab（A4 统计迁移）**：ChatTabs 第 4 tab + OverviewPanel
+  承载原 StatsPanel（本体零改动）；右栏统计下线（WorkspaceTabId union 全量
+  移除，v4.22 旧 tab:"stats" 宽容收敛回「文件」并钉回归用例），右栏收敛
+  3 主 Tab×7 面板；命令面板新增「概览面板」项；chatTab 恢复白名单加 overview。
+  **实现方式**：两个并行子代理分线（框架线/概览线，文件所有权互斥）+ 主代理
+  集成收口；build.bat 的 tsc -b 曾暴露 NodeList for...of 迭代错（tsc --noEmit
+  配置差异，已改 forEach）——教训：新测试代码过门前必须跑 `tsc -b`。
+  验证：tsc/tsc -b/eslint 0；vitest 911/911（净增 38）；Go build/vet/test
+  0 FAIL；drift PASS（548）；版本四处 4.23.0；build.bat 构建成功冒烟 200。
+  欠账：Tab 拆分分栏/底部面板/自由窗口、设置二级齿轮弹窗、注册表懒加载
+  chunk 化；下一刀 v4.24「子代理工作台」（树拓扑/live/下钻链/活动流+产物
+  登记表）。详见 releases/v4.23.0.md。
+
+- **v4.22.0（2026-08-31）「一次性收官 · 真虚拟化/transcript 定位/
   晨报预载 UI」**：git tag `v4.22.0`；基线 v4.21.0（同工作区，未打 tag）；
   绑定面 546→548（+2：GaeaMorningPreload/GaeaSetMorningPreload）。用户要求
   「一次性做完」，办公板块剩余本地可做欠账一次清完并整理提交收尾：

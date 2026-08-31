@@ -44,6 +44,7 @@ export const zh: Record<DictKey, string> = {
   "topbar.deleteSessionAsk": "删除当前会话？",
   "topbar.deleteSession": "删除当前会话",
   "topbar.resizePreview": "拖拽调整预览宽度",
+  "topbar.resizeWorkspacePanel": "拖拽调整面板宽度",
   "toast.exported": "已导出 {name}",
   "toast.archiveFailed": "归档失败：{msg}",
 

@@ -43,6 +43,7 @@ export const en = {
   "topbar.deleteSessionAsk": "Delete this session?",
   "topbar.deleteSession": "Delete current session",
   "topbar.resizePreview": "Drag to resize preview",
+  "topbar.resizeWorkspacePanel": "Drag to resize panel width",
   "toast.exported": "Exported {name}",
   "toast.archiveFailed": "Archive failed: {msg}",
 

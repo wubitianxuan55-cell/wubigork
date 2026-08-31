@@ -45,6 +45,7 @@ export const zhTW: Record<DictKey, string> = {
   "topbar.deleteSessionAsk": "刪除目前工作階段？",
   "topbar.deleteSession": "刪除目前工作階段",
   "topbar.resizePreview": "拖曳調整預覽寬度",
+  "topbar.resizeWorkspacePanel": "拖曳調整面板寬度",
   "toast.exported": "已匯出 {name}",
   "toast.archiveFailed": "歸檔失敗：{msg}",
 

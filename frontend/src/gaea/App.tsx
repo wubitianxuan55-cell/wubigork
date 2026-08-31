@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Layout } from "antd";
 import {
   BookOpen, Check, SquarePen, Brain, ChevronDown, FolderGit2, FileText,
-  PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square,
+  Gauge, PanelRightOpen, PanelRightClose, MessageSquare, Trash2, X, Aim, List, Square,
 } from "./icons";
 import { Sidebar } from "./components/Sidebar";
 import { useT } from "./lib/i18n";
@@ -24,21 +24,16 @@ const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ d
 const HistoryPanel = lazy(() => import("./components/HistoryPanel").then(m => ({ default: m.HistoryPanel })));
 const CapabilitiesPanel = lazy(() => import("./components/CapabilitiesPanel").then(m => ({ default: m.CapabilitiesPanel })));
 const KnowledgePanel = lazy(() => import("./components/KnowledgePanel").then(m => ({ default: m.KnowledgePanel })));
-import { WorkspacePanel } from "./components/WorkspacePanel";
 import { WorkspaceTabs } from "./components/WorkspaceTabs";
 import { ChatTabs, type ChatTabId } from "./components/ChatTabs";
 import { ContextView } from "./components/ContextView";
 import { TrajectoryView } from "./components/TrajectoryView";
 import { FilePreview } from "./components/FilePreview";
 import { PreviewNavBar } from "./components/PreviewNavBar";
-import { DeliverablesPanel, type SessionDeliverable } from "./components/DeliverablesPanel";
-import { MaterialsPanel } from "./components/MaterialsPanel";
-import { CostLibraryPanel } from "./components/CostLibraryPanel";
+import type { SessionDeliverable } from "./components/DeliverablesPanel";
 import { CommandPalette, type PaletteItem } from "./components/CommandPalette";
-import { StatsPanel, useStatsPersistence } from "./components/StatsPanel";
-import { ChangesPanel } from "./components/ChangesPanel";
-import { TaskCenter } from "./components/TaskCenter";
-import { SubagentsPanel } from "./components/SubagentsPanel";
+import { useStatsPersistence } from "./components/StatsPanel";
+import { OverviewPanel } from "./components/OverviewPanel";
 import { useRunningBadge } from "./hooks/useRunningBadge";
 import { Skeleton } from "./components/Skeleton";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -69,7 +64,13 @@ import { recordRecentFile } from "./lib/recentFiles";
 import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "./lib/changes";
 import { classifyComposerCommand } from "./lib/command";
-import { WORKSPACE_TABS, loadPersistedRightTab, savePersistedRightTab, groupOfTab, type WorkspaceTabId } from "./lib/workspaceTabs";
+import {
+  clampWorkspaceWidth, firstEnabledTab, groupOfTab, loadEnabledTabs, loadPersistedRightTab,
+  loadPersistedRightPanelState, loadWorkspaceWidth, resolveEnabledTabs, saveEnabledTabs,
+  savePersistedRightPanelState, saveWorkspaceWidth,
+  type WorkspaceEnabledMap, type WorkspaceTabId,
+} from "./lib/workspaceTabs";
+import { SIDEBAR_REGISTRY, getWorkspaceRegistration, type WorkspacePanelContext } from "./lib/sidebarRegistry";
 import { loadTemplates, FALLBACK_TEMPLATES } from "./components/Welcome";
 import type { TaskTemplate } from "./lib/types";
 
@@ -78,7 +79,7 @@ export default function App() {
   const [chatTab, setChatTab] = useState<ChatTabId>(() => {
     try {
       const saved = readWorkbenchValue("gaea.chatTab");
-      return saved === "trajectory" || saved === "context" ? saved : "chat";
+      return saved === "trajectory" || saved === "context" || saved === "overview" ? saved : "chat";
     } catch { return "chat"; }
   });
   useEffect(() => {
@@ -139,7 +140,10 @@ export default function App() {
   // 会话隔离（蒸馏 dsh-better-sidebar）：右侧面板子 Tab 按会话记忆（C3）——
   // 切会话/新建/恢复时恢复该会话上次选中的子面板；显式切换（如点文件回
   // 「文件」面板）照常覆盖当前会话记忆。无会话路径（未保存草稿）回退全局 key。
-  const [rightTab, setRightTab] = useState<WorkspaceTabId>(() => loadPersistedRightTab(currentSessionKey));
+  // v4.23 会话记录扩为 { tab, enabled, width }（v1 裸 id 旧值宽容兼容）：启用集
+  // /宽度的权威在各自全局键（布局偏好跨会话跟随），会话记录仅随存快照。
+  const [initialPanelState] = useState(() => loadPersistedRightPanelState(currentSessionKey));
+  const [rightTab, setRightTab] = useState<WorkspaceTabId>(initialPanelState.tab);
   // currentSessionKey 变化（会话切换）时：从新会话 key 恢复面板 Tab；
   // 切换本身不覆盖新会话已存的记忆（仅当新会话无记录时回退默认）。
   const prevSessionKey = useRef(currentSessionKey);
@@ -148,7 +152,38 @@ export default function App() {
     prevSessionKey.current = currentSessionKey;
     setRightTab(loadPersistedRightTab(currentSessionKey));
   }, [currentSessionKey]);
-  useEffect(() => { savePersistedRightTab(rightTab, currentSessionKey); }, [rightTab, currentSessionKey]);
+  // ── v4.23 声明式设置（蒸馏 better-sidebar「侧边卡片」每 tab 独立开关）──
+  // 启用覆盖集走全局键：最后一次切换胜出、跨会话即时跟随（对齐宽度键语义）。
+  const [enabledOverrides, setEnabledOverrides] = useState<WorkspaceEnabledMap>(() => loadEnabledTabs());
+  const enabledRecord = useMemo(() => resolveEnabledTabs(enabledOverrides), [enabledOverrides]);
+  const enabledSet = useMemo(
+    () => new Set((Object.keys(enabledRecord) as WorkspaceTabId[]).filter((id) => enabledRecord[id])),
+    [enabledRecord],
+  );
+  useEffect(() => { saveEnabledTabs(enabledOverrides); }, [enabledOverrides]);
+  const toggleTabEnabled = useCallback((id: WorkspaceTabId, next: boolean) => {
+    setEnabledOverrides((prev) => ({ ...prev, [id]: next }));
+  }, []);
+  // 激活 tab 被停用时收敛到第一个启用面板（学 sanitizeState 失效激活指针修正）
+  useEffect(() => {
+    if (!enabledRecord[rightTab]) setRightTab(firstEnabledTab(enabledRecord));
+  }, [enabledRecord, rightTab]);
+  // 渲染用激活 tab：收敛 effect 生效前的一帧也稳定（不闪现停用面板）
+  const activeWorkspaceTab = enabledRecord[rightTab] ? rightTab : firstEnabledTab(enabledRecord);
+  // v4.23 右栏宽度：全局键（最后一次拖拽胜出、跨会话即时跟随）；全局缺省时
+  // 用会话快照兜底（学 better-sidebar：session state 自带 width，全局键读档胜出）。
+  const [workspaceWidth, setWorkspaceWidth] = useState<number>(() => loadWorkspaceWidth(initialPanelState.width));
+  const [workspaceResizing, setWorkspaceResizing] = useState(false);
+  // ref镜像：会话记录写宽度快照用，拖拽中不触发记录 effect 逐帧写 localStorage
+  const workspaceWidthRef = useRef(workspaceWidth);
+  useEffect(() => { workspaceWidthRef.current = workspaceWidth; }, [workspaceWidth]);
+  // 会话记录持久化：激活 tab / 启用集变化时随存宽度快照（学 better-sidebar 每次持久化同步全局宽度）
+  useEffect(() => {
+    savePersistedRightPanelState(
+      { v: 1, tab: rightTab, enabled: enabledOverrides, width: workspaceWidthRef.current },
+      currentSessionKey,
+    );
+  }, [rightTab, enabledOverrides, currentSessionKey]);
   // C6 运行域活动角标：活跃任务数（queued/running）；「运行」组激活时视为已读不显示。
   const runningTasks = useRunningBadge();
   const runningGroupActive = groupOfTab(rightTab).id === "running";
@@ -270,6 +305,33 @@ export default function App() {
     window.addEventListener("pointerup", onDone);
     window.addEventListener("pointercancel", onDone);
   }, [previewWidth, effectiveSidebarWidth]);
+
+  // v4.23 工作台宽度拖拽：右栏左缘手柄，280–720 钳制（指针拖拽形状同 preview-resizer）。
+  // 宽度是布局偏好而非会话内容：拖拽中实时跟手，松手写全局键（最后一次拖拽胜出，
+  // 跨会话即时跟随——蒸馏 dsh-better-sidebar 全局宽度键语义）。
+  const startWorkspaceResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    setWorkspaceResizing(true);
+    const onMove = (me: PointerEvent) => {
+      const next = clampWorkspaceWidth(window.innerWidth - me.clientX);
+      workspaceWidthRef.current = next;
+      setWorkspaceWidth(next);
+    };
+    const onDone = () => {
+      saveWorkspaceWidth(workspaceWidthRef.current);
+      setWorkspaceResizing(false);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onDone);
+      window.removeEventListener("pointercancel", onDone);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onDone);
+    window.addEventListener("pointercancel", onDone);
+  }, []);
 
   // 统一交付出口：会话成果一键导出（docx/pptx/xlsx/md/pdf 同管线；
   // pdf 经 docx 中转 + LibreOffice 转换）。
@@ -597,6 +659,33 @@ export default function App() {
 
   const statsPersistence = useStatsPersistence(currentSessionKey, statsReset, state.turnSteps, state.perTurnUsage);
 
+  // ── v4.23 注册表渲染上下文：右栏面板公共依赖一次性组装 ──
+  // （学 better-sidebar 框架/内容解耦：面板 props 与旧渲染分支逐一对应，行为不变）
+  const refreshWorkspacePanel = useCallback(() => setWorkspaceRefreshKey((k) => k + 1), []);
+  const locateDeliverableSource = useCallback((turn: number) => {
+    setWorkspacePanel(false);
+    scrollToTurn?.(turn);
+  }, [scrollToTurn]);
+  const panelContext = useMemo<WorkspacePanelContext>(
+    () => ({
+      cwd: state.meta?.cwd,
+      selectedFile: previewFile ?? undefined,
+      refreshKey: workspaceRefreshKey,
+      currentSessionPath: currentSessionPath ?? undefined,
+      sessionDeliverables,
+      sessionChanges,
+      onOpenFile: openFilePreview,
+      onClosePanel: () => setWorkspacePanel(false),
+      onRefreshPanel: refreshWorkspacePanel,
+      onLocateSource: locateDeliverableSource,
+    }),
+    [
+      state.meta?.cwd, previewFile, workspaceRefreshKey, currentSessionPath,
+      sessionDeliverables, sessionChanges,
+      openFilePreview, refreshWorkspacePanel, locateDeliverableSource,
+    ],
+  );
+
   // 任务模板（命令面板「任务模板」组 + 欢迎页共用数据源；loadTemplates 模块级缓存）。
   const [templates, setTemplates] = useState<TaskTemplate[]>(FALLBACK_TEMPLATES);
   useEffect(() => {
@@ -611,20 +700,23 @@ export default function App() {
       { id: "cmd-memory", group: t("palette.group.commands") ?? "命令", title: t("topbar.memory") ?? "记忆", icon: <Brain size={15} />, compact: true, keywords: ["memory", "记忆"], run: () => void openMemory() },
       { id: "cmd-history", group: t("palette.group.commands") ?? "命令", title: t("topbar.history") ?? "历史", icon: <MessageSquare size={15} />, compact: true, keywords: ["history", "历史"], run: () => void openHistory() },
       { id: "cmd-knowledge", group: t("palette.group.commands") ?? "命令", title: t("topbar.knowledge") ?? "知识库", icon: <BookOpen size={15} />, compact: true, keywords: ["knowledge", "知识库"], run: () => void openKnowledge() },
+      { id: "cmd-overview", group: t("palette.group.commands") ?? "命令", title: "概览面板", icon: <Gauge size={15} />, compact: true, keywords: ["overview", "概览", "统计", "token", "成本", "用量"], run: () => setChatTab("overview") },
     ];
-    // 右侧面板命令项：由 WORKSPACE_TABS 清单派生（tasks 不在命令面板，与原行为一致）
-    for (const tab of WORKSPACE_TABS) {
-      if (tab.id === "tasks") continue;
-      const Icon = tab.icon;
+    // 右侧面板命令项：由 sidebarRegistry 注册表派生（v4.23 注册制）。声明式
+    // 设置停用的面板不进命令面板（学 better-sidebar prefs 门控「+」菜单）；
+    // tasks 不在命令面板（与原行为一致）
+    for (const reg of SIDEBAR_REGISTRY) {
+      if (reg.id === "tasks") continue;
+      if (!enabledRecord[reg.id]) continue;
+      const Icon = reg.icon;
       cmds.push({
-        id: `cmd-${tab.id}`,
+        id: `cmd-${reg.id}`,
         group: t("palette.group.commands") ?? "命令",
-        title: `${tab.label}面板`,
+        title: `${reg.label}面板`,
         icon: <Icon size={15} />,
         compact: true,
-        keywords: tab.keywords,
-        // 原实现中 stats 命令不关闭预览（统计面板可与预览并存），其余面板关闭预览
-        run: () => { if (tab.id !== "stats") closeFilePreview(); setWorkspacePanel(true); setRightTab(tab.id); },
+        keywords: reg.keywords,
+        run: () => { closeFilePreview(); setWorkspacePanel(true); setRightTab(reg.id); },
       });
     }
     const sessionItems: PaletteItem[] = sidebarSessions.slice(0, 10).map((s) => ({
@@ -650,15 +742,17 @@ export default function App() {
       run: () => { closeFilePreview(); setWorkspacePanel(false); send(tm.prompt); },
     }));
     return [...cmds, ...templateItems, ...sessionItems];
-  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, closeFilePreview, setRightTab, templates, send, newSessionAndReset]);
+  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, closeFilePreview, setRightTab, enabledRecord, templates, send, newSessionAndReset]);
 
   const layoutStyle = useMemo(
     () =>
       ({
         "--sidebar-expanded-width": `${sidebarWidth}px`,
         "--preview-width": `${previewWidth}px`,
+        // v4.23 工作台宽度：280–720 钳制后经 CSS 变量下发（覆盖 styles.css 340px 基线）
+        "--workspace-width": `${workspaceWidth}px`,
       }) as CSSProperties,
-    [sidebarWidth, previewWidth],
+    [sidebarWidth, previewWidth, workspaceWidth],
   );
 
   return (
@@ -671,6 +765,7 @@ export default function App() {
           sidebarCollapsed ? "layout--sidebar-collapsed" : "",
           sidebarResizing ? "layout--resizing layout--sidebar-resizing" : "",
           previewResizing ? "layout--resizing layout--preview-resizing" : "",
+          workspaceResizing ? "layout--resizing" : "",
           workspacePanelOpen ? "layout--workspace-open" : "",
           previewFile ? "layout--preview-open" : "",
         ]
@@ -788,6 +883,19 @@ export default function App() {
                 )}
                 {chatTab === "trajectory" && <TrajectoryView running={state.running} />}
                 {chatTab === "context" && <ContextView running={state.running} sessionPath={currentSessionPath ?? undefined} />}
+                {chatTab === "overview" && (
+                  <OverviewPanel
+                    data={statsPersistence.data}
+                    clearData={statsPersistence.clearData}
+                    sessionStats={state.sessionStats}
+                    perTurnExecutorUsage={state.perTurnExecutorUsage}
+                    perTurnSubUsage={state.perTurnSubUsage}
+                    turnSteps={state.turnSteps}
+                    subagentModel={state.meta?.subagentLabel}
+                    toolCounts={toolCounts}
+                    skillCounts={skillCounts}
+                  />
+                )}
               </>
             )}
             </CompactContext.Provider>
@@ -855,57 +963,28 @@ export default function App() {
 
         {workspacePanelOpen && (
         <div className="workspace-pane flex flex-col min-w-0 overflow-hidden border-l border-border-soft bg-bg transition-all duration-200">
-          <WorkspaceTabs active={rightTab} onChange={setRightTab} badges={runningBadge} />
+          {/* v4.23 工作台外壳：Tab 条（含声明式设置齿轮）+ 注册表驱动面板渲染 +
+              左缘宽度拖拽手柄（学 dsh-better-sidebar 工作台外壳） */}
+          <WorkspaceTabs
+            active={activeWorkspaceTab}
+            onChange={setRightTab}
+            badges={runningBadge}
+            enabledTabs={enabledSet}
+            onToggleTab={toggleTabEnabled}
+          />
+          {/* 注册表驱动：激活面板经 sidebarRegistry 渲染（每次只挂载激活面板，与旧行为一致） */}
           <div className="flex-1 min-h-0 overflow-y-auto">
-            {rightTab === "files" ? (
-              <WorkspacePanel
-                cwd={state.meta?.cwd}
-                selectedFile={previewFile ?? undefined}
-                refreshKey={workspaceRefreshKey}
-                onSelectFile={openFilePreview}
-                onRefresh={() => setWorkspaceRefreshKey((k) => k + 1)}
-                onClose={() => setWorkspacePanel(false)}
-              />
-            ) : null}
-            {rightTab === "materials" && (
-              <MaterialsPanel onOpenFile={openFilePreview} />
-            )}
-            {rightTab === "cost" && <CostLibraryPanel />}
-            {rightTab === "stats" && (
-              <StatsPanel
-                data={statsPersistence.data}
-                clearData={statsPersistence.clearData}
-                sessionStats={state.sessionStats}
-                perTurnExecutorUsage={state.perTurnExecutorUsage}
-                perTurnSubUsage={state.perTurnSubUsage}
-                turnSteps={state.turnSteps}
-                subagentModel={state.meta?.subagentLabel}
-                toolCounts={toolCounts}
-                skillCounts={skillCounts}
-              />
-            )}
-            {rightTab === "deliverables" && (
-              <DeliverablesPanel
-                items={sessionDeliverables}
-                onOpenFile={openFilePreview}
-                onLocateSource={(turn) => {
-                  setWorkspacePanel(false);
-                  scrollToTurn?.(turn);
-                }}
-              />
-            )}
-            {rightTab === "changes" && (
-              <ChangesPanel
-                changes={sessionChanges}
-                cwd={state.meta?.cwd}
-                onOpenFile={openFilePreview}
-              />
-            )}
-            {rightTab === "tasks" && <TaskCenter />}
-            {rightTab === "subagents" && (
-              <SubagentsPanel sessionPath={currentSessionPath ?? undefined} />
-            )}
+            {getWorkspaceRegistration(activeWorkspaceTab).render(panelContext)}
           </div>
+          {/* 宽度拖拽手柄：复用 preview-resizer 悬停/激活样式，absolute 贴左缘 */}
+          <div
+            className={`preview-resizer ${workspaceResizing ? "is-active" : ""}`}
+            style={{ position: "absolute", left: -4, top: 0, bottom: 0, width: 8, zIndex: 5 }}
+            onPointerDown={startWorkspaceResize}
+            role="separator"
+            aria-orientation="vertical"
+            title={t("topbar.resizeWorkspacePanel")}
+          />
         </div>
         )}
       </div>
