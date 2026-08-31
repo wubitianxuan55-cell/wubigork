@@ -11,6 +11,7 @@ import (
 
 	"github.com/gaea/gaea/internal/ai"
 	"github.com/gaea/gaea/internal/chat"
+	"github.com/gaea/gaea/internal/modelengine"
 	"github.com/gaea/gaea/internal/whisper"
 )
 
@@ -65,7 +66,7 @@ func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, fo
 	}
 	userMessage := message
 	promptMessage := a.preparePlainChatMessage(message, searchEnabled, forceSearch)
-	eng, model := a.featureModel("chat")
+	eng, model, source := a.routeModel("chat")
 	reply, reasoning, err := a.client.ChatSimpleStreamDetailed(a.ctx, model,
 		chatPlainSystemPrompt, promptMessage, ai.ChatSimpleOptions{EngineID: eng, EnableThinking: thinking})
 	if err != nil {
@@ -81,7 +82,11 @@ func (a *App) chatSendPlain(topicID, message string, searchEnabled, thinking, fo
 	if err := a.appendChatExchange(topicID, userMessage, reply, extra); err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"reply": reply, "reasoning": reasoning, "mode": "plain", "topicID": topicID}, nil
+	// answered_by 回显：engine/model/source 来自 routeModel（离线过滤 + 全局/
+	// 兜底已生效），source 即「为何」。ChatSimpleStreamDetailed 不返回本次 usage
+	// （用量内部已上报统计）→ usage 在此点不可达，cost_cny 诚实记 0，不虚报。
+	answeredBy := map[string]interface{}{"engine": eng, "model": model, "source": source, "cost_cny": 0.0}
+	return map[string]interface{}{"reply": reply, "reasoning": reasoning, "mode": "plain", "topicID": topicID, "answered_by": answeredBy}, nil
 }
 
 // newChatStreamRunID 生成流式 runID（测试可替换为固定值以订阅固定事件名）。
@@ -102,13 +107,13 @@ func (a *App) ChatStreamPlain(topicID, message string, searchEnabled, thinking, 
 	if a.client == nil {
 		return "", fmt.Errorf("AI 客户端未初始化")
 	}
-	eng, model := a.featureModel("chat")
+	eng, model, source := a.routeModel("chat")
 	runID := newChatStreamRunID()
-	go a.runChatStreamPlain(runID, topicID, message, eng, model, searchEnabled, thinking, forceSearch)
+	go a.runChatStreamPlain(runID, topicID, message, eng, model, source, searchEnabled, thinking, forceSearch)
 	return runID, nil
 }
 
-func (a *App) runChatStreamPlain(runID, topicID, userMessage, eng, model string, searchEnabled, thinking, forceSearch bool) {
+func (a *App) runChatStreamPlain(runID, topicID, userMessage, eng, model, source string, searchEnabled, thinking, forceSearch bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("chat stream plain panic", "panic", r)
@@ -127,12 +132,16 @@ func (a *App) runChatStreamPlain(runID, topicID, userMessage, eng, model string,
 
 	var reply strings.Builder
 	var reasoning strings.Builder
+	// usage 由流结束块携带（OpenAI 兼容 API 最后一块带 usage，SSEChunk.Usage）；
+	// 服务端未带 usage 时保持 nil → 费用诚实记 0。
+	var usage *ai.ChatUsage
 	for chunk := range chunks {
 		if chunk.Error != "" {
 			a.emit("chat-stream:"+runID, map[string]interface{}{"type": "error", "error": chunk.Error})
 			return
 		}
 		if chunk.Done {
+			usage = chunk.Usage
 			break
 		}
 		if chunk.Content != "" {
@@ -163,11 +172,25 @@ func (a *App) runChatStreamPlain(runID, topicID, userMessage, eng, model string,
 		})
 		return
 	}
+	// answered_by 回显：费用按本次实际 token（流结束块 usage）经 EstimateCostCNY
+	// 估算，汇率取配置（与 GaeaGetUsdCnyRate 同源；非法值由 EstimateCostCNY 内
+	// 回退默认 7.2）；usage 不可达时 cost_cny=0（诚实，不虚报）。
+	costCNY := 0.0
+	if usage != nil {
+		usdCny := 0.0
+		if a.cfg != nil {
+			usdCny = a.cfg.UsdCnyRate
+		}
+		costCNY = modelengine.EstimateCostCNY(eng, model, usage.PromptTokens, usage.CompletionTokens, usdCny)
+	}
 	a.emit("chat-stream:"+runID, map[string]interface{}{
 		"type":      "done",
 		"reply":     replyStr,
 		"reasoning": reasoningStr,
 		"topicID":   topicID,
+		"answered_by": map[string]interface{}{
+			"engine": eng, "model": model, "source": source, "cost_cny": costCNY,
+		},
 	})
 }
 

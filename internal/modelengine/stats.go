@@ -48,9 +48,9 @@ type ModelUsageStats struct {
 	Currency        string  `json:"currency,omitempty"`       // "CNY" | "USD"；空表示本地/未知模型
 	// BillingMode 计费口径："coding_points"=GLM 编码套餐额度内调用（费用恒 0、
 	// 不折入 TotalCost，Token 照常计入）；空=按量计费（按定价表估算）。
-	BillingMode   string `json:"billing_mode,omitempty"`
-	LastError     string `json:"last_error,omitempty"`
-	LastCalledAt  string `json:"last_called_at,omitempty"`
+	BillingMode  string `json:"billing_mode,omitempty"`
+	LastError    string `json:"last_error,omitempty"`
+	LastCalledAt string `json:"last_called_at,omitempty"`
 }
 
 // ModelStatsSummary 返回给前端的统计汇总。
@@ -70,9 +70,9 @@ type ModelStatsSummary struct {
 	PerModel        []ModelUsageStats `json:"per_model"`
 	// Engines 按引擎聚合小计（加法字段，旧 JSON 兼容）。编码套餐口径的调用
 	// 以 "<engine>@coding" 单列：Tokens/Calls 计入、费用 0（套餐额度内）。
-	Engines   map[string]EngineSubtotal `json:"engines,omitempty"`
-	Since     string                    `json:"since,omitempty"`
-	UsdToCny  float64                   `json:"usd_to_cny"` // 展示用美元→人民币汇率（单一来源，前端不再硬编码）
+	Engines  map[string]EngineSubtotal `json:"engines,omitempty"`
+	Since    string                    `json:"since,omitempty"`
+	UsdToCny float64                   `json:"usd_to_cny"` // 展示用美元→人民币汇率（单一来源，前端不再硬编码）
 }
 
 // EngineSubtotal 按引擎聚合的小计（ModelStatsSummary.Engines 的值）。
@@ -145,14 +145,14 @@ var modelPricing = []struct {
 	// 列出的模型不进表（不计价）——glm-5-turbo 显式置空前缀，挡住下条
 	// "glm-5" 的前缀匹配，其余未列出者（glm-4-long/glm-tts/embedding-3/
 	// rerank/cogview-*/glm-image）无前缀冲突、天然不计价。长前缀在前。
-	{"glm-5.3-flash", modelPrice{0.15, 0.5, "USD"}},  // 列表价；官方另有 50% 高峰外限时优惠（至 2026-09-09）
+	{"glm-5.3-flash", modelPrice{0.15, 0.5, "USD"}}, // 列表价；官方另有 50% 高峰外限时优惠（至 2026-09-09）
 	{"glm-5.3", modelPrice{1.4, 4.4, "USD"}},
 	{"glm-5.2", modelPrice{1.4, 4.4, "USD"}},
 	{"glm-5.1", modelPrice{1.4, 4.4, "USD"}},
 	{"glm-5-turbo", modelPrice{0, 0, ""}}, // 官方定价页未列出：置空挡住 glm-5 前缀
 	{"glm-5", modelPrice{1, 3.2, "USD"}},
 	{"glm-4.7-flashx", modelPrice{0.07, 0.4, "USD"}},
-	{"glm-4.7-flash", modelPrice{0, 0, "CNY"}}, // 官方免费档
+	{"glm-4.7-flash", modelPrice{0, 0, "CNY"}},  // 官方免费档
 	{"glm-4.6v-flash", modelPrice{0, 0, "CNY"}}, // 官方免费档
 	{"glm-4.6v", modelPrice{0.3, 0.9, "USD"}},
 	{"glm-4.6", modelPrice{0.6, 2.2, "USD"}},
@@ -208,6 +208,26 @@ func estimatedCostFor(engineID, model string, inputTokens, outputTokens int64) (
 	}
 	cost = p.InputPerM*float64(inputTokens)/1e6 + p.OutputPerM*float64(outputTokens)/1e6
 	return cost, p.Currency
+}
+
+// EstimateCostCNY 估算单次调用的费用并统一折算为人民币（v4.15 聊天
+// answered_by 回显用）。口径与 estimatedCostFor 完全一致：本地引擎
+// （ollama/herdsman）与未知模型恒 0；USD 计价按 usdCny 汇率折算 CNY，
+// CNY 计价直用。汇率守卫与 statsRecorder.usdToCNYRate 一致：usdCny 非法
+// （<=0 / NaN / Inf）时回退默认 7.2，绝不用 0 汇率把 USD 费用抹成 0。
+func EstimateCostCNY(engineID, model string, inTok, outTok int64, usdCny float64) float64 {
+	cost, currency := estimatedCostFor(engineID, model, inTok, outTok)
+	if cost == 0 || currency == "" {
+		return 0
+	}
+	if currency == "USD" {
+		rate := usdCny
+		if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+			rate = defaultUsdCnyRate
+		}
+		return cost * rate
+	}
+	return cost
 }
 
 // defaultUsdCnyRate 美元→人民币汇率默认值（未注入配置时使用，7.2）。

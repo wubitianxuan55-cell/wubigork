@@ -47,6 +47,26 @@
 
 ## 版本状态
 
+- **最新发布：v4.15.0（2026-08-31）「聊天路由归位 · 由谁回答」**：
+  git tag `v4.15.0`；基线 v4.14.0 + 1 提交；绑定面 545→545（零新增绑定）。
+  自动路由 v1 经**用户拍板收缩**为最小价值刀（砍成本档位/开关/UI——缓存价/峰谷
+  价无官方逐模型数字，按「未核实不入表」纪律诚实不做）。要点：
+  ①**聊天路由归位（真 bug 修复）**：chat_service.go:68/:105 + chat_handler.go:9
+  三处 `featureModel("chat")` → `routeModel("chat")`——用户功能绑定语义逐字节不变
+  （routeModel 步骤 1 与 featureModel 同源）；修复「总闸不总」裂缝（全局离线模式
+  对 plain 聊天生效，此前绑云端照样发云端、persona 却被滤）+ 无绑定时全局/兜底
+  与 persona 一致 + model.route 事件补齐。featureModel 保留（展示用），routeModel
+  零改动。
+  ②**「由谁回答/为何/花了多少」回显**：modelengine 导出 `EstimateCostCNY`（本地/
+  未知恒 0、USD 按汇率折算 CNY、非法汇率回退 7.2）；chat done 帧/ChatSend 返回
+  加 `answered_by{engine,model,source,cost_cny}`（流式按 chunk.Usage 实算，usage
+  不可达诚实记 0）；前端 `AnsweredByLine` 消息底部小字（费用 ≤0 隐藏段）+ 
+  `useChatStream` 解析（旧事件静默跳过向后兼容）。
+  验证：Go 全量 0 FAIL（+7）；**vitest 859/859**（+7）；tsc/eslint 0/0；drift PASS
+  （545）；build.bat 冒烟 200；版本四处统一 4.15.0。欠账：自动路由本体未做（待
+  官方逐模型缓存/峰谷数字后另刀）；persona 侧 gaea_whisper_causal/retell 同类
+  离线裂缝=观察项；按 source 拆分统计未做；plain 费用口径 usage 不可达恒 0
+  （诚实降级）。详见 releases/v4.15.0.md。
 - **最新发布：v4.14.0（2026-08-31）「三箭并行 · 晨报预取 + 浏览器续刀 + 复核产品化」**：
   git tag `v4.14.0`；基线 v4.13.0 + 1 提交；绑定面 544→545（+1：
   GaeaMemoryMorningBrief）。用户拍板「多刀并行」——三个互不相交小刀由三个

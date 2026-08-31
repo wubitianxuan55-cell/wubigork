@@ -12,6 +12,8 @@ import {
 import { C } from '../../utils/theme'
 import ChatMarkdown from '../ChatMarkdown'
 import { MarkdownContent } from '../MarkdownContent'
+import AnsweredByLine from './AnsweredByLine'
+import type { AnsweredByInfo } from './AnsweredByLine'
 import type { ChatMsg } from '../../pages/chat/types'
 
 export interface ChatRowProps {
@@ -107,6 +109,12 @@ export const ChatRow: React.FC<ChatRowProps> = ({
             </Tooltip>
           )}
         </div>
+      )}
+      {/* v4.15：消息级「由谁回答/为何/花了多少」回显——仅当 extra.answered_by 存在时渲染
+          （旧消息/旧事件无此字段 → 零渲染，向后兼容）；流式/错误行不渲染。
+          （!= null 显式布尔化：extra 值为 unknown，避免 && 链类型污染） */}
+      {!msg.error && !msg.streaming && msg.extra?.answered_by != null && (
+        <AnsweredByLine info={msg.extra.answered_by as AnsweredByInfo} />
       )}
     </div>
   )

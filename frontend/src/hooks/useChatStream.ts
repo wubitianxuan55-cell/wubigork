@@ -8,6 +8,7 @@ import * as App from '../wailsjsCompat'
 import { STREAM_SILENCE_TIMEOUT_MS } from '../pages/chat/constants'
 import { nextMsgKey, nowStr } from '../pages/chat/utils'
 import type { ChatMsg } from '../pages/chat/types'
+import type { AnsweredByInfo } from '../components/chat/AnsweredByLine'
 
 /** chat-stream:<runID> 事件的动态载荷（最小消费面） */
 interface ChatStreamPayload {
@@ -16,6 +17,8 @@ interface ChatStreamPayload {
   reply?: string
   reasoning?: string
   error?: string
+  /** v4.15 可选：实际回答的引擎/模型/来源/费用；旧事件无此字段 → 静默跳过 */
+  answered_by?: AnsweredByInfo
 }
 
 export interface UseChatStreamOptions {
@@ -130,8 +133,14 @@ export function useChatStream(opts: UseChatStreamOptions) {
                 } else if (p.type === 'done') {
                   const reply = typeof p.reply === 'string' ? p.reply : ''
                   const reasoning = typeof p.reasoning === 'string' ? p.reasoning : reasoningAcc
+                  // v4.15：answered_by 为可选字段（旧事件缺失 → 静默跳过，不写入 extra）
+                  const extra: Record<string, unknown> = {}
+                  const ab = p.answered_by
+                  if (ab && typeof ab === 'object' && typeof ab.engine === 'string' && typeof ab.model === 'string') {
+                    extra.answered_by = ab
+                  }
                   setStreamText(''); setStreamKey(null)
-                  updateMessage(am.key, { content: reply, streaming: false, reasoning, extra: {} })
+                  updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
                   finish(true)
                 } else if (p.type === 'error') {
                   setStreamText(''); setStreamKey(null)
@@ -181,6 +190,11 @@ export function useChatStream(opts: UseChatStreamOptions) {
       const extra: Record<string, unknown> = {}
       if (res.emotion) extra.emotion = res.emotion
       if (reasoning) extra.reasoning = reasoning
+      // v4.15：ChatSend 返回可选字段 answered_by（旧后端无此字段 → 静默跳过）
+      const ab = res.answered_by
+      if (ab && typeof ab === 'object' && typeof ab.engine === 'string' && typeof ab.model === 'string') {
+        extra.answered_by = ab
+      }
       updateMessage(am.key, { content: reply, streaming: false, reasoning, extra })
       if (res.emotion) setEmotion(res.emotion)
       if (typeof res.aff === 'number') setAff(Math.round(res.aff))

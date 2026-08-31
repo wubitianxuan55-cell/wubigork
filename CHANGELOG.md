@@ -1,5 +1,28 @@
 # gaea · 多功能 AI 助手
 
+## v4.15.0 · 聊天路由归位：plain 聊天离线过滤修复 + 「由谁回答」回显（2026-08-31）
+> v4.14.0 欠账「自动路由 v1」经用户拍板收缩为最小价值刀——砍成本档位机制/
+> 开关/UI（缓存价/峰谷价无官方逐模型数字，诚实不入表），只留两块真实价值：
+> ①plain 聊天离线过滤裂缝修复（真 bug）②消息级「由谁回答/为何/花了多少」回显。
+> **零新增绑定（545 不变）**。
+- **聊天路由归位（bug 修复）**：chat_service.go:68/:105 + chat_handler.go:9 三处
+  `featureModel("chat")` → `routeModel("chat")`——用户功能绑定语义逐字节不变
+  （routeModel 步骤 1 与 featureModel 同源）；新增收益=全局离线模式对 plain 聊天
+  生效（修复「总闸不总」裂缝，此前绑云端照样发云端、persona 却被滤）+ 无绑定时
+  全局活跃/兜底与 persona 一致 + `model.route` 事件补齐（模型中心「当前生效」可
+  展示 chat）。featureModel 保留（展示用），routeModel 零改动。
+- **「由谁回答/为何/花了多少」回显**：modelengine 导出 `EstimateCostCNY`（本地/
+  未知恒 0、USD 按汇率折算 CNY、非法汇率回退 7.2）；chat done 帧/ChatSend 返回
+  加 `answered_by{engine,model,source,cost_cny}`（流式按 chunk.Usage 实算，usage
+  不可达诚实记 0）；前端 `AnsweredByLine` 消息底部小字「由 X 回答 · 标签[ · 约
+  ¥x.xx]」（费用 ≤0 隐藏费用段，不虚报）+ `useChatStream` 解析（旧事件静默跳过，
+  向后兼容）。
+- 验证：Go 全量 0 FAIL（+7：EstimateCostCNY 表驱动 5 + plain 聊天离线回归 +
+  done 帧 SSE 断言）；**vitest 859/859**（+7）；tsc/eslint 0/0；drift PASS（545）；
+  build.bat 冒烟 200。欠账：自动路由本体未做（待官方逐模型缓存/峰谷数字）；
+  persona 侧 gaea_whisper_causal/retell 同类离线裂缝=观察项；plain 费用口径
+  usage 不可达恒 0（诚实降级）。详见 releases/v4.15.0.md。
+
 ## v4.14.0 · 三箭并行：晨报预取 + 浏览器续刀 + 复核产品化（2026-08-31）
 > 用户拍板「多刀并行」：三个互不相交的小刀由三个并行子代理同步落地（文件
 > 足迹隔离），主控全绿门禁收口——①浏览器欠账（空闲 TTL 自动关停 + 多标签页）

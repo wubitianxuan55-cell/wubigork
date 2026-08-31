@@ -192,3 +192,39 @@ describe('MessageList 行 memo（无关更新时旧行零重渲染）', () => {
     expect(first).not.toHaveBeenCalled()
   })
 })
+
+describe('v4.15 消息级回显（extra.answered_by）', () => {
+  it('assistant 消息带 extra.answered_by：底部渲染「由谁回答/为何/花了多少」小字', () => {
+    render(
+      <MessageList
+        {...baseProps}
+        messages={[{
+          key: 'kA', role: 'assistant', content: '回复内容', createdAt: '2026-01-01T00:00:00Z',
+          extra: { answered_by: { engine: 'deepseek', model: 'deepseek-v4-flash', source: 'feature', cost_cny: 0.0123 } },
+        }]}
+      />,
+    )
+    expect(screen.getByText('由 deepseek/deepseek-v4-flash 回答 · 功能绑定 · 约 ¥0.01')).toBeTruthy()
+  })
+
+  it('旧消息（无 extra.answered_by）：零渲染，向后兼容', () => {
+    render(<MessageList {...baseProps} messages={makeMessages(2)} />)
+    expect(screen.queryByText(/由 .* 回答/)).toBeNull()
+    expect(screen.queryByText(/约 ¥/)).toBeNull()
+  })
+
+  it('流式行即使带 answered_by 也不渲染（终态才回显）', () => {
+    render(
+      <MessageList
+        {...baseProps}
+        messages={[{
+          key: 'kS', role: 'assistant', content: '', streaming: true, createdAt: '2026-01-01T00:00:00Z',
+          extra: { answered_by: { engine: 'deepseek', model: 'deepseek-v4-flash', source: 'global', cost_cny: 0.01 } },
+        }]}
+        streamKey="kS"
+        streamText=""
+      />,
+    )
+    expect(screen.queryByText(/由 .* 回答/)).toBeNull()
+  })
+})
