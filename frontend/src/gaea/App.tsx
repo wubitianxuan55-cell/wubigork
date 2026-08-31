@@ -666,6 +666,15 @@ export default function App() {
     setWorkspacePanel(false);
     scrollToTurn?.(turn);
   }, [scrollToTurn]);
+  // v4.24 A1 新子代理自动展开：分工面板检测到新子代理出现（且用户偏好开启）
+  // 时回调——亮出右栏并切到「分工」tab（对标 better-sidebar 任务页自动展开
+  // 侧栏）；tab 被用户停用时尊重停用态不强行弹出。
+  const handleSubagentStarted = useCallback(() => {
+    if (!enabledRecord.subagents) return;
+    closeFilePreview();
+    setWorkspacePanel(true);
+    setRightTab("subagents");
+  }, [enabledRecord.subagents, closeFilePreview]);
   const panelContext = useMemo<WorkspacePanelContext>(
     () => ({
       cwd: state.meta?.cwd,
@@ -678,11 +687,13 @@ export default function App() {
       onClosePanel: () => setWorkspacePanel(false),
       onRefreshPanel: refreshWorkspacePanel,
       onLocateSource: locateDeliverableSource,
+      onSubagentStarted: handleSubagentStarted,
     }),
     [
       state.meta?.cwd, previewFile, workspaceRefreshKey, currentSessionPath,
       sessionDeliverables, sessionChanges,
       openFilePreview, refreshWorkspacePanel, locateDeliverableSource,
+      handleSubagentStarted,
     ],
   );
 

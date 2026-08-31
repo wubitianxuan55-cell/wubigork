@@ -1,5 +1,25 @@
 # gaea · 多功能 AI 助手
 
+## v4.24.0 · 子代理工作台：树拓扑 / 实时动态 / 产物登记表（2026-09-01）
+> 规划 docs/gaea-office-upgrade-plan-2026-09.md 第二刀：A1 分工/子代理拓扑
+> tab（AgentNetworkCard+SubagentsPanel 合体进化）+ C1 后端权威产物登记表。
+> **绑定面 548 → 549（+1：GaeaDeliverableRegistry）**。
+- **树形实时拓扑（AgentTree）**：嵌套 Children 全量渲染（此前只画两层）；
+  root 折叠为「主 agent」行、更深层默认收起可展开；**新节点自动展开父链**；
+  节点量化（状态色点/任务摘要/工具数/模型徽标/耗时——running 实时已用 1s
+  tick/错误数）；下钻链：节点 → 详情卡 → 完整 transcript → **工具调用行点击
+  定位结果消息**（收 v4.21 欠账）。
+- **合并活动流（Devin 式单列 feed）**：running 子代理 lastText/lastTool 按
+  updatedAt 倒序合并、上限 20、空态收起；树内行预览并存。
+- **新子代理自动展开（可关，默认开）**：新 ref 出现 → App 亮出右栏切「分工」
+  tab（停用时尊重停用态）；偏好键 gaea.subagentAutoOpen，损坏值回落默认。
+- **C1 权威产物登记表**：trajectory.FoldDeliverables 从事件日志折叠写类 8 +
+  生成导出类 3 工具的落盘登记（路径/工具/轮次/时间/次数，上限 200，Total 去重
+  全量）+ 新绑定 GaeaDeliverableRegistry；DeliverablesPanel「权威产物登记」
+  只读区（tool 徽标+路径+轮次+次数+时间，点击预览），补启发式漏登。
+- 验证：tsc/eslint 0；vitest 927/927（净增 16）；Go build/vet/test 0 FAIL；
+  drift PASS（549）；版本六处 4.24.0。详见 releases/v4.24.0.md。
+
 ## v4.23.0 · 工作台框架：右栏对标 DSH-better-sidebar 工作台化第一刀（2026-08-31）
 > 用户拍板：右面板重造为 DSH-better-sidebar/Codex 式「运行工作台」（子代理/
 > 浏览器/文件编辑器等实时操作面），状态显示类迁主区轨迹/上下文旁边。规划稿

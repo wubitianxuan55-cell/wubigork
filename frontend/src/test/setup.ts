@@ -59,6 +59,12 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
   })
 }
 
+// 轨迹/transcript 定位滚动（v4.20 消息定位 / v4.24 工具调用定位）依赖
+// scrollIntoView；jsdom 未实现 → 空实现（真实浏览器由原生接管）。
+if (typeof window !== 'undefined' && typeof Element !== 'undefined' && typeof (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView !== 'function') {
+  (Element.prototype as { scrollIntoView: () => void }).scrollIntoView = () => {}
+}
+
 afterEach(() => {
   cleanup()
 })

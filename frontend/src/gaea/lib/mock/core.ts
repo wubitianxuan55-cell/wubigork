@@ -121,7 +121,9 @@ export function buildCore(s: MakeMockState): CoreMethods {
       };
     },
     async AgentNetwork() {
-      // 浏览器开发 mock：主 agent + 两个子代理（一完成一运行）。
+      // 浏览器开发 mock：主 agent + 两个子代理（一完成一运行），运行中的
+      // 子代理带嵌套孙节点（AgentTree 深层展开/收起用）。节点 id 与
+      // SubagentRuns 的 ref 对齐（ref 直等匹配，面板富化运行预览）。
       return {
         ok: true,
         window: 1_000_000,
@@ -137,27 +139,41 @@ export function buildCore(s: MakeMockState): CoreMethods {
           lastTs: 1750000200,
           children: [
             {
-              id: "taskA",
+              id: "sa_20260817_100000_0000000001_a1a1a1a1",
               name: "task",
               kind: "subagent",
               status: "completed",
-              task: "调研模块A的现状",
-              toolCalls: 4,
+              task: "收集 2026 年办公 Agent 竞品更新信息",
+              model: "deepseek-v4-flash",
+              toolCalls: 3,
               errors: 0,
               tokens: 180000,
               firstTs: 1750000100,
               lastTs: 1750000150,
             },
             {
-              id: "taskB",
+              id: "sa_20260817_110000_0000000002_b2b2b2b2",
               name: "task",
               kind: "subagent",
               status: "running",
-              task: "并行生成测试用例",
-              toolCalls: 2,
+              task: "调研竞品表格 Agent 能力并总结可蒸馏点",
+              toolCalls: 1,
               errors: 0,
               tokens: 65000,
               firstTs: 1750000160,
+              children: [
+                {
+                  id: "sa_20260817_113000_0000000003_c3c3c3c3",
+                  name: "task",
+                  kind: "subagent",
+                  status: "running",
+                  task: "子任务：对比三家竞品表格交互",
+                  toolCalls: 2,
+                  errors: 0,
+                  tokens: 22000,
+                  firstTs: 1750000170,
+                },
+              ],
             },
           ],
         },

@@ -176,6 +176,7 @@ export const GAEA_METHOD_FACETS = {
   ZipDeliverables: "work",
   SubagentRuns: "work",
   SubagentTranscript: "work",
+  DeliverableRegistry: "work",
   WriteFile: "work",
   ExportDeliverable: "work",
   ConvertToPdf: "work",

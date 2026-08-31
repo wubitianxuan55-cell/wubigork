@@ -47,6 +47,43 @@
 
 ## 版本状态
 
+- **最新发布：v4.24.0（2026-09-01）「子代理工作台 · 树拓扑/实时动态/
+  产物登记表」**：git tag `v4.24.0`；基线 v4.23.0；绑定面 548→549（+1：
+  GaeaDeliverableRegistry）。规划第二刀（docs/gaea-office-upgrade-plan-2026-09.md
+  A1+C1）。上一轮会话完成主体编码，本轮接续完善收口：
+  ①**A1 树形实时拓扑（AgentTree）**：GaeaAgentNetwork 嵌套 Children 全量渲染
+  （此前只画两层）；root 折叠为「主 agent」行、一级恒可见、更深默认收起可
+  展开/收起；新节点出现自动展开父链（首轮只记基线）；节点量化——状态色点/
+  任务摘要/工具数/模型徽标/耗时（running 实时已用 1s tick）/token/错误数；
+  下钻链：节点→详情卡→完整 transcript→**工具调用行点击定位结果消息**（收
+  v4.21 欠账，data-located 高亮）。
+  ②**合并活动流（Devin 式单列 feed）**：running 子代理 lastText/lastTool 按
+  updatedAt 倒序合并、上限 20、空态收起；与树内行预览并存。
+  ③**新子代理自动展开（可关，默认开）**：新 ref 出现→onSubagentStarted 回调
+  →App 亮出右栏切「分工」tab（tab 停用时尊重停用态）；偏好键
+  gaea.subagentAutoOpen（localStorage，损坏值回落默认开——交付前修 bug：
+  原实现把垃圾值当关闭）。
+  ④**C1 权威产物登记表**：trajectory.FoldDeliverables 纯函数从事件日志折叠
+  写类 8+生成导出类 3 工具的落盘登记（路径/最近工具/来源轮次/时间/累计次数，
+  按 path 去重、updatedAt 倒序、上限 200，Total 完整去重数）；登记口径
+  evidence.IsDeliverableTool/ExtractDeliverablePaths（与证据链 extractPaths/
+  前端 changes.ts 同源对齐，不收 source；bash/screen_capture 无结构化路径
+  参数诚实不猜）；新绑定 GaeaDeliverableRegistry(sessionPath)（防穿越；
+  无事件日志 Available=false 不报错）；DeliverablesPanel「权威产物登记」只读
+  区（tool 徽标+路径+轮次+次数+时间，点击预览；total>200 提示最近 N 条），
+  补启发式（正文扩展名白名单）漏登。
+  **验证**：tsc/tsc -b/eslint 0；vitest 927/927（157 文件，净增 16：
+  SubagentsPanel 重写 8、AgentTree 7、DeliverablesPanel 登记表 3、subagentPrefs
+  3 等；旧扁平卡用例随新结构重写）；Go build/vet/test 全量 0 FAIL；drift PASS
+  （549）；版本六处统一 4.24.0。**教训**：交付前必须跑 `tsc -b`（build.bat
+  同配置）且检查新测试文件路径参数（vitest run 无参数时 tsconfig 的 include
+  范围与手测不同）；vi.mock 全模块 mock 时注意副作用导入（onEvent 订阅器）。
+  **欠账**：AgentNetworkCard（主区上下文 tab 旧卡）仍两层 SVG 本轮按约定不动；
+  登记表为独立只读区未与启发式合并去重（v4.25 A3 变更 tab 统一快照时处理）；
+  下一刀 v4.25「文件工作台」（A3 编辑器 tab 化+变更 diff+模型主动打开+reveal
+  +B3 选区联动）；v4.26 浏览器观察窗+版本时间线+pptx（A2/B1/B2/C2/C3）。
+  详见 releases/v4.24.0.md。
+
 - **最新发布：v4.23.0（2026-08-31）「工作台框架 · 右栏工作台化第一刀」**：
   git tag `v4.23.0`；基线 v4.22.0；绑定面 548→548（零新增）。用户拍板：右
   面板重造为 DSH-better-sidebar/Codex 式「运行工作台」（子代理/浏览器/文件

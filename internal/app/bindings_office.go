@@ -51,6 +51,7 @@ func (b *OfficeB) GaeaDataBackupRestoreResult() map[string]interface{} { return 
 func (b *OfficeB) GaeaDataBackupRollback() (bool, error) { return b.a.GaeaDataBackupRollback() }
 func (b *OfficeB) GaeaDeleteProvider(name string) error { return b.a.GaeaDeleteProvider(name) }
 func (b *OfficeB) GaeaDeleteSession(path string) error { return b.a.GaeaDeleteSession(path) }
+func (b *OfficeB) GaeaDeliverableRegistry(sessionPath string) DeliverableRegistryView { return b.a.GaeaDeliverableRegistry(sessionPath) }
 func (b *OfficeB) GaeaDocumentLint(rel string) (standard.LintReport, error) { return b.a.GaeaDocumentLint(rel) }
 func (b *OfficeB) GaeaDocxAcceptChanges(rel string, accept bool) (PreviewResult, error) { return b.a.GaeaDocxAcceptChanges(rel, accept) }
 func (b *OfficeB) GaeaDocxApplyEdit(rel string, selectedText string, replacement string) (PreviewResult, error) { return b.a.GaeaDocxApplyEdit(rel, selectedText, replacement) }

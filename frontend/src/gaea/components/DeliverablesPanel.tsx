@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useState } from "react";
-import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, Loader2, MessageSquare, Paperclip, Rollback, Shield } from "../icons";
+import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, Loader2, MessageSquare, Paperclip, Rollback, Shield, Table } from "../icons";
 import { app } from "../lib/bridge";
-import type { JournalChangeRecord, VerdictView, VerifyDiffRow } from "../lib/types";
+import type { DeliverableRegistryView, JournalChangeRecord, VerdictView, VerifyDiffRow } from "../lib/types";
 import {
   buildCellIndex,
   buildVerifyDiff,
@@ -45,16 +45,40 @@ const iconBtn =
 // v3「星枢」面板语言：v3-panel-head 细条头部 + 低边框 hover 高亮行。
 export const DeliverablesPanel = memo(function DeliverablesPanel({
   items,
+  sessionPath,
   onOpenFile,
   onLocateSource,
 }: {
   items: SessionDeliverable[];
+  /** 当前会话路径（v4.24 C1：非空时拉取权威产物登记表）。 */
+  sessionPath?: string;
   onOpenFile: (path: string) => void;
   onLocateSource?: (turn: number) => void;
 }) {
   const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   const toast = useToast();
+
+  // ── v4.24 C1 权威产物登记表（后端从事件日志折叠，前端只读）──
+  // 覆盖写类 8 种 + 生成/导出类 3 种工具的落盘登记，补正文扩展名白名单
+  // 启发式漏登（非常规扩展名 / format_convert / chart_gen / diagram_gen）。
+  // 无 sessionPath 或后端 Available=false（legacy 会话无事件日志）时整节收起。
+  const [registry, setRegistry] = useState<DeliverableRegistryView | null>(null);
+  const [registryOpen, setRegistryOpen] = useState(false);
+  useEffect(() => {
+    if (!sessionPath) {
+      setRegistry(null);
+      return;
+    }
+    let cancelled = false;
+    void app
+      .DeliverableRegistry(sessionPath)
+      .then((v) => { if (!cancelled) setRegistry(v ?? null); })
+      .catch(() => { if (!cancelled) setRegistry(null); });
+    return () => { cancelled = true };
+  }, [sessionPath]);
+  const registryEntries = registry?.available ? registry.entries : [];
+  const registryTotal = registry?.total ?? 0;
   // v4.6 失败回 Plan：逐证据卡内联展示复核结论（不再只弹 toast 一闪而过）
   const [verdicts, setVerdicts] = useState<Record<string, VerdictView>>({});
 
@@ -113,6 +137,14 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     const h = Math.floor(min / 60);
     if (h < 24) return `${h} 小时前`;
     return new Date(at).toLocaleString();
+  };
+
+  // 登记表时间：unix 秒 → 本地时间（跨会话仍是绝对时间，不随会话漂移）。
+  const fmtRegistryTime = (at: number): string => {
+    if (!at) return "—";
+    const d = new Date(at * 1000);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleTimeString("zh-CN", { hour12: false, month: "numeric", day: "numeric" });
   };
 
   // ── v4.8 Verifier 产品化：证据卡「三步展开」──
@@ -371,6 +403,68 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* v4.24 C1 权威产物登记表：后端从事件日志折叠的写类/生成类落盘登记，
+          只读展示（含启发式漏登的非常规扩展名产物）。无会话路径或后端
+          Available=false（legacy 会话）整节收起。 */}
+      {registry !== null && registryEntries.length > 0 && (
+        <div className="shrink-0 border-t border-(color:--md-sys-color-outline-variant)" data-testid="deliverable-registry">
+          <button
+            type="button"
+            className="w-full flex items-center gap-2 px-3 py-2 text-[11px] cursor-pointer hover:bg-(color:--md-sys-color-surface-container-high)"
+            onClick={() => setRegistryOpen((v) => !v)}
+            aria-expanded={registryOpen}
+          >
+            <Table size={13} aria-hidden style={{ color: "var(--md-sys-color-warning)" }} />
+            <span className="font-medium" style={{ color: "var(--md-sys-color-text)" }}>权威产物登记</span>
+            <span className="truncate text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+              {registryTotal > registryEntries.length
+                ? `${registryEntries.length}/${registryTotal} 条（最近 ${registryEntries.length} 条）`
+                : `${registryTotal} 条落盘登记`}
+            </span>
+            <span className="v3-panel-spacer" />
+            <span className="text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{registryOpen ? "收起" : "展开"}</span>
+          </button>
+          {registryOpen && (
+            <div className="max-h-44 overflow-y-auto px-2 pb-2 flex flex-col gap-1">
+              {registryEntries.map((e) => (
+                <div
+                  key={e.path}
+                  data-testid="deliverable-registry-row"
+                  className="flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-(color:--md-sys-color-surface-container) border border-(color:--md-sys-color-outline-variant)"
+                >
+                  <span className="shrink-0 font-mono text-[9px] px-1 py-px rounded" style={{
+                    color: "var(--md-sys-color-warning)",
+                    background: "color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent)",
+                  }} title={`落盘工具 ${e.tool}`}>
+                    {e.tool}
+                  </span>
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left cursor-pointer truncate font-mono text-[10px]"
+                    style={{ color: "var(--md-sys-color-text)" }}
+                    title={`点击预览 ${e.path}`}
+                    onClick={() => open(e.path)}
+                  >
+                    {e.path}
+                  </button>
+                  <span className="shrink-0 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                    {e.turn > 0 ? `第 ${e.turn} 轮` : "轮外"}
+                  </span>
+                  {e.touches > 1 && (
+                    <span className="shrink-0 text-[9px] font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                      ×{e.touches}
+                    </span>
+                  )}
+                  <span className="shrink-0 text-[9px] font-mono tabular-nums" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                    {fmtRegistryTime(e.updatedAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

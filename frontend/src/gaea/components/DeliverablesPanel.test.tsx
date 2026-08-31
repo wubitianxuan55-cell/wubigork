@@ -264,3 +264,48 @@ describe("DeliverablesPanel 证据链三步展开（v4.8）", () => {
     expect(screen.queryByTitle("查看复核产物（before/after PDF + 逐页 PNG）")).toBeNull();
   });
 });
+
+// ── v4.24 C1 权威产物登记表（后端事件日志折叠，前端只读）──
+// 数据来自 mock DeliverableRegistry（office.ts）：3 条登记
+// （write_file / format_convert / diagram_gen，含启发式漏登的 svg/xlsx）。
+describe("DeliverablesPanel 权威产物登记表（v4.24 C1）", () => {
+  it("有 sessionPath：渲染登记表入口，展开展示工具徽标/路径/轮次", async () => {
+    render(
+      <ToastProvider>
+        <DeliverablesPanel items={[]} sessionPath="s1.jsonl" onOpenFile={() => {}} />
+      </ToastProvider>,
+    );
+    // 入口收起态：标题 + 计数（3 条落盘登记）
+    expect(await screen.findByText("权威产物登记")).toBeTruthy();
+    expect(screen.getByText("3 条落盘登记")).toBeTruthy();
+    // 展开 → 登记条目（tool 徽标 + 路径 + 轮次）
+    fireEvent.click(screen.getByText("权威产物登记"));
+    const rows = await screen.findAllByTestId("deliverable-registry-row");
+    expect(rows).toHaveLength(3);
+    expect(screen.getByText("docs/竞品调研报告.md")).toBeTruthy();
+    expect(screen.getByText(".gaea/exports/表格方案-mock.xlsx")).toBeTruthy();
+    expect(screen.getByText("docs/架构图.svg")).toBeTruthy();
+    expect(screen.getByText("write_file")).toBeTruthy();
+    expect(screen.getByText("format_convert")).toBeTruthy();
+    expect(screen.getByText("diagram_gen")).toBeTruthy();
+    expect(screen.getByText("第 2 轮")).toBeTruthy();
+    expect(screen.getByText("第 4 轮")).toBeTruthy();
+  });
+
+  it("登记条目点击 → 打开对应文件预览", async () => {
+    usePreviewStore.setState({ previewFile: null });
+    render(
+      <ToastProvider>
+        <DeliverablesPanel items={[]} sessionPath="s1.jsonl" onOpenFile={(p) => usePreviewStore.setState({ previewFile: p })} />
+      </ToastProvider>,
+    );
+    fireEvent.click(await screen.findByText("权威产物登记"));
+    fireEvent.click(await screen.findByText("docs/架构图.svg"));
+    expect(usePreviewStore.getState().previewFile).toBe("docs/架构图.svg");
+  });
+
+  it("无 sessionPath：不拉取登记表、不渲染入口（向后兼容）", () => {
+    render(<DeliverablesPanel items={[]} onOpenFile={() => {}} />);
+    expect(screen.queryByText("权威产物登记")).toBeNull();
+  });
+});

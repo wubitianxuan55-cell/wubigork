@@ -1,69 +1,143 @@
-import { useCallback, useEffect, useState } from "react";
-import { Bot, CheckCircle, ChevronDown, ChevronRight, Loader2, Users, XCircle } from "../icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bot, Loader2, Users } from "../icons";
 import { app } from "../lib/bridge";
-import type { SubagentRunView } from "../lib/types";
+import type { AgentNetwork, SubagentRunView, SubagentRunsView } from "../lib/types";
 import { usePollingGate } from "../../hooks/usePollingGate";
+import { useLiveReload } from "../hooks/useLiveReload";
+import { loadSubagentAutoOpen, saveSubagentAutoOpen } from "../lib/subagentPrefs";
+import { AgentTree } from "./AgentTree";
 
-// SubagentsPanel — 多智能体分工可见（P2，对标 WorkSwarm 蜂群 / QClaw V2 多 Agent）：
-// 展示当前会话派发的全部子代理「谁在干什么」——状态徽标、任务摘要（transcript
-// 首条 user 消息）、模型、工具范围、时间，点击展开最后回答。
-// 数据源：GaeaSubagentRuns(sessionPath)（meta + transcript 派生）。
-// v3「星枢」面板语言：v3-panel-head 细条头部；状态徽标 = 语义色 + 图标 + 文字三重传达。
+// SubagentsPanel — 子代理工作台（v4.24 A1「分工面板工作台化」，对标
+// dsh-better-sidebar 任务页）。在 v3「谁在干什么」扁平卡片之上重造为三段式：
+//  ①合并活动流（Devin 式单列 feed）：所有 running 子代理的 lastText/lastTool
+//    按 updatedAt 倒序合并、上限 20 条、空态收起——面板顶部一眼看清"此刻"；
+//  ②树形实时拓扑：整棵子代理树（AgentTree 组件，GaeaAgentNetwork 嵌套
+//    Children，此前只渲染两层）+ 节点量化 + 新节点自动展开父链 + 下钻链
+//    （节点 → 详情 → 完整 transcript → 工具行点击定位）；
+//  ③新子代理自动展开（可关，默认开）：检测到新子代理 ref 出现时调用
+//    props.onSubagentStarted 回调——面板只负责检测 + 回调，是否切换 tab/
+//    亮出面板由 App 接线决定（偏好键 gaea.subagentAutoOpen 持久化）。
+// 数据源两个（单轮询并行拉取，学 subagents.live「一次枚举整棵树」）：
+//  - GaeaAgentNetwork()：树拓扑（节点/嵌套子树/token 富化）；
+//  - GaeaSubagentRuns(sessionPath)：分工 meta + lastText/lastTool 实时预览。
+// 两源按「ref 直等 → 任务摘要前缀双向」匹配（与后端 enrichAgentNetwork 同口径）。
+// 刷新节奏：5s 轮询（页面不可见门控）+ useLiveReload（turn_done 立即、
+// 运行中随事件节流；running 由数据派生：树根 running 或存在运行中分工）。
 
-function statusMeta(status: string): { icon: React.ReactNode; color: string; text: string } {
-  switch (status) {
-    case "running":
-      return { icon: <Loader2 size={10} className="animate-spin" aria-hidden />, color: "var(--gaea-glow)", text: "进行中" };
-    case "completed":
-      return { icon: <CheckCircle size={10} aria-hidden />, color: "var(--md-sys-color-success)", text: "已完成" };
-    default:
-      return { icon: <XCircle size={10} aria-hidden />, color: "var(--md-sys-color-destructive)", text: "失败" };
-  }
+// 活动流上限：超过后只保留最新 20 条（Devin feed 同款截断）。
+const FEED_LIMIT = 20;
+
+function safeTime(iso: string): number {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? t : 0;
 }
 
-function fmtTime(iso: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString("zh-CN", { hour12: false });
+// 活动流行前缀：任务摘要截短（无摘要回退 ref 尾段），完整内容在 title。
+function feedName(run: SubagentRunView): string {
+  const base = run.task || run.ref;
+  return base.length > 12 ? `${base.slice(0, 12)}…` : base;
 }
 
-function fmtDuration(created: string, updated: string): string {
-  const c = new Date(created).getTime();
-  const u = new Date(updated).getTime();
-  if (!Number.isFinite(c) || !Number.isFinite(u) || u < c) return "";
-  const s = Math.max(1, Math.round((u - c) / 1000));
-  if (s < 60) return `${s} 秒`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m} 分`;
-  return `${Math.floor(m / 60)} 小时`;
+function ActivityFeed({ runs }: { runs: SubagentRunView[] }) {
+  // 合并单列：只收 running 的最新动态行，updatedAt 倒序，上限 20 条；
+  // 空（无运行中子代理）整体收起，不占面板空间。
+  const items = useMemo(
+    () =>
+      runs
+        .filter((r) => r.status === "running" && (r.lastText || r.lastTool))
+        .slice()
+        .sort((a, b) => safeTime(b.updatedAt) - safeTime(a.updatedAt))
+        .slice(0, FEED_LIMIT),
+    [runs],
+  );
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1" data-testid="agent-feed">
+      <div className="flex items-center gap-1.5 px-0.5 text-[10px] font-medium" style={{ color: "var(--gaea-glow)" }}>
+        <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: "var(--gaea-glow)" }} aria-hidden />
+        实时动态
+        <span className="font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>{items.length}</span>
+      </div>
+      {items.map((r) => (
+        <div
+          key={r.ref}
+          data-testid="agent-feed-row"
+          className="flex flex-col gap-px rounded-md px-1.5 py-1 text-[10.5px] leading-relaxed"
+          style={{
+            background: "color-mix(in srgb, var(--gaea-glow) 6%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--gaea-glow) 16%, transparent)",
+          }}
+        >
+          <span className="truncate" title={r.lastText ?? r.lastTool ?? r.task} style={{ color: "var(--md-sys-color-text)" }}>
+            <span className="mr-1 inline-block h-1 w-1 rounded-full align-middle animate-pulse" style={{ background: "var(--gaea-glow)" }} aria-hidden />
+            <span className="font-medium">{feedName(r)}</span>
+            {r.lastText ? ` 正在：${r.lastText}` : " 正在执行工具"}
+          </span>
+          {r.lastTool && (
+            <span className="truncate pl-3 font-mono" title={r.lastTool} style={{ color: "var(--md-sys-color-text-secondary)" }}>
+              ⚙ {r.lastTool}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
-const iconBtn =
-  "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors";
-
-export function SubagentsPanel({ sessionPath }: { sessionPath?: string }) {
-  const [view, setView] = useState<{ available: boolean; runs: SubagentRunView[]; running: number } | null>(null);
+export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
+  sessionPath?: string;
+  /** 检测到新子代理 ref 出现（且「自动展开」偏好为开）时回调；App 据此亮出分工面板。 */
+  onSubagentStarted?: () => void;
+}) {
+  const [net, setNet] = useState<AgentNetwork | null>(null);
+  const [runsView, setRunsView] = useState<SubagentRunsView | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // 新子代理自动展开偏好（默认开，localStorage 持久化，键 gaea.subagentAutoOpen）
+  const [autoOpen, setAutoOpen] = useState(() => loadSubagentAutoOpen());
+  const autoOpenRef = useRef(autoOpen);
+  autoOpenRef.current = autoOpen;
+  const onStartedRef = useRef(onSubagentStarted);
+  onStartedRef.current = onSubagentStarted;
+  // 已见过的子代理 ref 集合：null = 尚未建立基线（首次成功拉取只记基线不触发）
+  const knownRefsRef = useRef<Set<string> | null>(null);
   // v4.5.2：子代理运行轮询接入系统级后台轮询门控（页面不可见时空转零成本）
   const gate = usePollingGate();
 
+  // 新子代理检测：本轮 refs 相对基线新出现的子代理视为「新」；偏好开启时回调
+  // （回调无参，一次轮询出现多个新子代理合并为一次通知）。
+  const detectNewSubagents = useCallback((r: SubagentRunsView) => {
+    const known = knownRefsRef.current;
+    const refs = r.runs.map((x) => x.ref);
+    if (known) {
+      const fresh = refs.filter((x) => !known.has(x));
+      if (fresh.length > 0 && autoOpenRef.current) onStartedRef.current?.();
+    }
+    knownRefsRef.current = new Set(refs);
+  }, []);
+
   const load = useCallback(() => {
     if (!sessionPath) {
-      setView(null);
+      setNet(null);
+      setRunsView(null);
       setLoading(false);
       return;
     }
     setLoading(true);
-    app
-      .SubagentRuns(sessionPath)
-      .then((v) => setView(v))
-      .catch(() => setView({ available: false, runs: [], running: 0 }))
+    // A1「一次枚举整棵树」：单轮询并行拉两个数据源（树拓扑 + 分工 meta），
+    // 单个数据源失败降级为 null，不拖垮另一侧展示。
+    void Promise.all([
+      app.AgentNetwork().catch(() => null),
+      app.SubagentRuns(sessionPath).catch(() => null),
+    ])
+      .then(([n, r]) => {
+        setNet(n);
+        setRunsView(r);
+        if (r) detectNewSubagents(r);
+      })
       .finally(() => setLoading(false));
-  }, [sessionPath]);
+  }, [sessionPath, detectNewSubagents]);
 
-  // 会话切换重新拉取；运行中的子代理每 5 秒轮询刷新（轻量，仅面板打开时）
+  // 会话切换重新拉取；5s 轮询（不可见门控）+ 事件流刷新（turn_done 立即）。
   useEffect(() => {
     const tick = () => { if (gate) load() };
     tick();
@@ -72,20 +146,30 @@ export function SubagentsPanel({ sessionPath }: { sessionPath?: string }) {
     return () => window.clearInterval(timer);
   }, [load, sessionPath, gate]);
 
-  const toggle = useCallback((ref: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(ref)) next.delete(ref);
-      else next.add(ref);
-      return next;
-    });
+  // running 由数据派生：树根在跑或存在运行中分工 → 随事件节流刷新。
+  const running = net?.root.status === "running" || (runsView?.running ?? 0) > 0;
+  useLiveReload(running, load);
+
+  const toggleAutoOpen = useCallback(() => {
+    const next = !autoOpenRef.current;
+    autoOpenRef.current = next;
+    saveSubagentAutoOpen(next);
+    setAutoOpen(next);
   }, []);
 
-  const hasRuns = (view?.runs.length ?? 0) > 0;
+  const runs = useMemo(() => runsView?.runs ?? [], [runsView]);
+  const runningRuns = useMemo(() => runs.filter((r) => r.status === "running"), [runs]);
+  const runningCount = runsView?.running || runningRuns.length;
+  const hasRuns = runs.length > 0;
+  const hasTree = net !== null && (net.root.children?.length ?? 0) > 0;
+  const hasContent = hasRuns || hasTree;
+
+  const iconBtn =
+    "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors";
 
   return (
     <div className="flex flex-col h-full min-h-0 text-xs" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-      {/* v3 细条头部：标题 + 计数徽标 + 刷新 */}
+      {/* v3 细条头部：标题 + 计数徽标 + 自动展开胶囊开关 + 刷新 */}
       <div className="v3-panel-head">
         <Users size={13} aria-hidden style={{ color: "var(--gaea-glow)" }} />
         <span className="v3-panel-title">分工</span>
@@ -98,10 +182,10 @@ export function SubagentsPanel({ sessionPath }: { sessionPath?: string }) {
               border: "1px solid color-mix(in srgb, var(--gaea-glow) 26%, transparent)",
             }}
           >
-            {view?.runs.length}
+            {runs.length}
           </span>
         )}
-        {view && view.running > 0 && (
+        {runningCount > 0 && (
           <span
             className="rounded-full px-1.5 py-px text-[10px] font-mono"
             style={{
@@ -110,25 +194,53 @@ export function SubagentsPanel({ sessionPath }: { sessionPath?: string }) {
               border: "1px solid color-mix(in srgb, var(--md-sys-color-warning) 32%, transparent)",
             }}
           >
-            {view.running} 运行中
+            {runningCount} 运行中
           </span>
         )}
         <span className="v3-panel-spacer" />
+        <button
+          type="button"
+          data-testid="subagent-auto-open-toggle"
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full px-1.5 py-px text-[10px] leading-none transition-colors"
+          aria-pressed={autoOpen}
+          title={autoOpen
+            ? "新子代理自动展开已开：派发新子代理时联动亮出分工面板（点击关闭）"
+            : "新子代理自动展开已关：新子代理只更新数据不联动（点击开启）"}
+          onClick={toggleAutoOpen}
+          style={autoOpen
+            ? {
+                background: "color-mix(in srgb, var(--gaea-glow) 12%, transparent)",
+                color: "var(--gaea-glow)",
+                border: "1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent)",
+              }
+            : {
+                background: "transparent",
+                color: "var(--md-sys-color-text-secondary)",
+                border: "1px solid var(--md-sys-color-outline-variant)",
+              }}
+        >
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full"
+            style={{ background: autoOpen ? "var(--gaea-glow)" : "var(--md-sys-color-outline-variant)" }}
+            aria-hidden
+          />
+          自动展开 {autoOpen ? "开" : "关"}
+        </button>
         <button type="button" className={iconBtn} onClick={() => void load()} title="刷新分工列表" aria-label="刷新分工列表">
           <Loader2 size={12} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
 
-      {loading && !hasRuns ? (
+      {loading && !hasContent ? (
         <div className="flex items-center justify-center flex-1 gap-2 text-[11px]">
           <Loader2 size={14} className="animate-spin" />
           读取子代理分工…
         </div>
-      ) : !hasRuns ? (
+      ) : !hasContent ? (
         <div className="flex flex-col items-center justify-center flex-1 gap-2 px-6 text-center">
           <Bot size={24} aria-hidden className="opacity-40" />
           <span className="text-[11px] leading-relaxed">
-            {view?.available === false || !sessionPath
+            {runsView?.available === false || !sessionPath
               ? "本会话尚未派发子代理"
               : "暂无子代理分工记录"}
             <br />
@@ -136,91 +248,11 @@ export function SubagentsPanel({ sessionPath }: { sessionPath?: string }) {
           </span>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-1.5">
-          {view?.runs.map((r) => {
-            const st = statusMeta(r.status);
-            const isOpen = expanded.has(r.ref);
-            return (
-              <div
-                key={r.ref}
-                className="flex flex-col gap-1 px-2 py-1.5 rounded-[var(--radius-md)] transition-all duration-200"
-                style={{
-                  background: "var(--md-sys-color-surface-container)",
-                  border: "1px solid var(--md-sys-color-outline-variant)",
-                }}
-              >
-                <button
-                  type="button"
-                  className="flex items-start gap-2 min-w-0 text-left cursor-pointer"
-                  onClick={() => toggle(r.ref)}
-                  aria-expanded={isOpen}
-                >
-                  <span
-                    className="shrink-0 inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[9px] leading-none font-medium"
-                    style={{ color: st.color, background: `color-mix(in srgb, ${st.color} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${st.color} 32%, transparent)` }}
-                  >
-                    {st.icon}
-                    {st.text}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[12px] font-medium leading-snug" style={{ color: "var(--md-sys-color-text)" }}>
-                      {r.task || "（无任务摘要）"}
-                    </span>
-                    <span className="block mt-0.5 text-[10px] font-mono leading-tight">
-                      {r.ref.slice(0, 24)}…{r.toolCalls > 0 ? ` · ${r.toolCalls} 次工具调用` : ""}
-                    </span>
-                  </span>
-                  <span className="shrink-0 mt-0.5 text-(color:--md-sys-color-text-secondary)">
-                    {isOpen ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}
-                  </span>
-                </button>
-
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] px-0.5">
-                  {r.model && (
-                    <span className="rounded bg-(color:--md-sys-color-surface-container-high) px-1 py-px font-mono">{r.model}</span>
-                  )}
-                  <span>{fmtTime(r.createdAt)}</span>
-                  {fmtDuration(r.createdAt, r.updatedAt) && <span>· {fmtDuration(r.createdAt, r.updatedAt)}</span>}
-                  {r.toolScope && r.toolScope.length > 0 && (
-                    <span className="truncate max-w-[180px]" title={r.toolScope.join(", ")}>
-                      工具：{r.toolScope.join(" / ")}
-                    </span>
-                  )}
-                </div>
-
-                {/* C2 活动行：运行中的子代理「此刻正在干什么」（transcript 尾部派生） */}
-                {r.status === "running" && (r.lastText || r.lastTool) && (
-                  <div className="flex flex-col gap-0.5 px-1.5 py-1 rounded-md text-[10.5px] leading-relaxed"
-                    style={{
-                      background: "color-mix(in srgb, var(--gaea-glow) 6%, transparent)",
-                      border: "1px solid color-mix(in srgb, var(--gaea-glow) 18%, transparent)",
-                    }}
-                  >
-                    {r.lastText && (
-                      <span className="truncate" title={r.lastText} style={{ color: "var(--md-sys-color-text)" }}>
-                        <span className="inline-block w-1 h-1 rounded-full mr-1.5 align-middle animate-pulse" style={{ background: "var(--gaea-glow)" }} />
-                        正在：{r.lastText}
-                      </span>
-                    )}
-                    {r.lastTool && (
-                      <span className="truncate font-mono" title={r.lastTool} style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                        ⚙ {r.lastTool}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {isOpen && r.answer && (
-                  <div
-                    className="mt-1 px-2 py-1.5 rounded-md text-[11px] leading-relaxed whitespace-pre-wrap break-words"
-                    style={{ background: "color-mix(in srgb, var(--md-sys-color-text) 5%, transparent)", color: "var(--md-sys-color-text)" }}
-                  >
-                    {r.answer}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="flex flex-1 flex-col gap-2 overflow-y-auto min-h-0 p-2">
+          {/* ① 合并活动流：running 子代理最新动态单列 feed（空态收起） */}
+          <ActivityFeed runs={runningRuns} />
+          {/* ② 树形实时拓扑：GaeaAgentNetwork 嵌套 Children 全量渲染 + 下钻链 */}
+          {net && <AgentTree network={net} runs={runs} sessionPath={sessionPath} />}
         </div>
       )}
     </div>

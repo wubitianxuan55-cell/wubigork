@@ -54,6 +54,7 @@ import type {
   SessionMeta,
   SessionStatsView,
   SubagentTranscriptView,
+  DeliverableRegistryView,
   ProjectGroup,
   SettingsView,
   SkillCaptureInput,
@@ -276,6 +277,9 @@ export interface AppBindings {
   SubagentRuns(sessionPath: string): Promise<SubagentRunsView>;
   // SubagentTranscript 读取某个子代理的完整 transcript（Agent 网络节点查看用）。
   SubagentTranscript(sessionPath: string, ref: string): Promise<SubagentTranscriptView>;
+  // DeliverableRegistry 读取会话的权威产物登记表（v4.24 C1）：后端从事件日志
+  // 折叠出写类工具落盘登记（路径/工具/轮次/时间/次数），替代正文扩展名白名单。
+  DeliverableRegistry(sessionPath: string): Promise<DeliverableRegistryView>;
   // WriteFile 工作区内联编辑保存（C5）：把文本原子写回工作区相对路径文本文件
   // （路径/扩展名/大小校验在后端；用户显式保存，不走 agent 审批）。
   WriteFile(rel: string, content: string): Promise<void>;
@@ -795,6 +799,7 @@ const gaeaToGaea = {
   ZipDeliverables: "GaeaZipDeliverables",
   SubagentRuns: "GaeaSubagentRuns",
   SubagentTranscript: "GaeaSubagentTranscript",
+  DeliverableRegistry: "GaeaDeliverableRegistry",
   WriteFile: "GaeaWriteFile",
   ExportDeliverable: "GaeaExportDeliverable",
   ConvertToPdf: "GaeaConvertToPdf",

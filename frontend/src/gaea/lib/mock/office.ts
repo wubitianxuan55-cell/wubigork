@@ -23,7 +23,7 @@ type OfficeMethods = Pick<
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
   | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
-  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "WriteFile"
+  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "DeliverableRegistry" | "WriteFile"
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
@@ -359,8 +359,37 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         ],
       };
     },
-    async ExportDeliverable(input: { markdown: string; format: string; title?: string }) {
-      const format = input.format.replace(".", "");
+    async DeliverableRegistry(_sessionPath: string) {
+      // 浏览器开发 mock：模拟会话权威产物登记表（写类 + 生成/导出类工具落盘）。
+      return {
+        available: true,
+        total: 3,
+        entries: [
+          {
+            path: "docs/竞品调研报告.md",
+            tool: "write_file",
+            turn: 2,
+            updatedAt: 1754438400,
+            touches: 2,
+          },
+          {
+            path: ".gaea/exports/表格方案-mock.xlsx",
+            tool: "format_convert",
+            turn: 3,
+            updatedAt: 1754439000,
+            touches: 1,
+          },
+          {
+            path: "docs/架构图.svg",
+            tool: "diagram_gen",
+            turn: 4,
+            updatedAt: 1754439600,
+            touches: 1,
+          },
+        ],
+      };
+    },
+    async ExportDeliverable(input: { markdown: string; format: string; title?: string }) {      const format = input.format.replace(".", "");
       return {
         path: `.gaea/exports/${input.title || "deliverable"}-mock.${format}`,
         name: `${input.title || "deliverable"}-mock.${format}`,

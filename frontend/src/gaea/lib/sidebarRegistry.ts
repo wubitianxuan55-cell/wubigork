@@ -47,6 +47,8 @@ export interface WorkspacePanelContext {
   onRefreshPanel: () => void;
   /** 产物定位来源轮次（收起右栏并滚动到对应消息）。 */
   onLocateSource: (turn: number) => void;
+  /** 新子代理出现 → 亮出分工面板（v4.24 A1；是否触发由面板内 autoOpen 偏好决定）。 */
+  onSubagentStarted?: () => void;
 }
 
 export interface WorkspaceTabRegistration {
@@ -83,6 +85,7 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
   deliverables: (ctx) =>
     createElement(DeliverablesPanel, {
       items: ctx.sessionDeliverables,
+      sessionPath: ctx.currentSessionPath,
       onOpenFile: ctx.onOpenFile,
       onLocateSource: ctx.onLocateSource,
     }),
@@ -93,7 +96,11 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
       onOpenFile: ctx.onOpenFile,
     }),
   tasks: () => createElement(TaskCenter),
-  subagents: (ctx) => createElement(SubagentsPanel, { sessionPath: ctx.currentSessionPath }),
+  subagents: (ctx) =>
+    createElement(SubagentsPanel, {
+      sessionPath: ctx.currentSessionPath,
+      onSubagentStarted: ctx.onSubagentStarted,
+    }),
 };
 
 /** 单一数据源：7 个内置面板的注册表（按组序 → 组内序扁平，顺序即展示序）。

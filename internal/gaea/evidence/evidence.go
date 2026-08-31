@@ -316,6 +316,84 @@ func isReaderTool(name string) bool {
 	}
 }
 
+// isProducerTool 报告工具是否为「生成/导出类」产物工具：产物路径出现在
+// output 参数中（format_convert 导出 Markdown、chart_gen/diagram_gen 落盘
+// png/svg）。v4.23 前的前端启发式（WRITE_TOOL_NAMES + 正文扩展名白名单）
+// 不覆盖这三类，是产物漏登的主因之一，v4.24 权威产物登记表显式纳入。
+func isProducerTool(name string) bool {
+	switch name {
+	case "format_convert", "chart_gen", "diagram_gen":
+		return true
+	default:
+		return false
+	}
+}
+
+// IsDeliverableTool 报告工具是否会向工作区落盘产物（v4.24 C1 权威产物
+// 登记表的登记口径）：写类 8 种（isWriterTool：write_file/edit_file/
+// multi_edit/edit_lines/move_file/notebook_edit/delete_range/delete_symbol，
+// 与前端 lib/changes.ts WRITE_TOOL_NAMES 一致，并已核对工具注册表全集）
+// + 生成/导出类 3 种（isProducerTool）。
+// bash/screen_capture 不登记：产物路径不出现在结构化参数里（bash 由命令
+// 决定、screen_capture 落 .gaea/uploads/ 由系统生成路径），无法从参数权威
+// 提取，不做启发式猜测。
+func IsDeliverableTool(name string) bool {
+	return isWriterTool(name) || isProducerTool(name)
+}
+
+// ExtractDeliverablePaths 从工具调用参数中提取产物路径（交付口径，纯函数）。
+// 与 extractPaths（证据链「改动面」口径）的差异：不收 source——move_file 的
+// 交付物是 destination，源路径不是交付物（与前端 lib/changes.ts
+// extractDeliverablePaths 对齐）。键按工具类别分派：
+//   - 写类（isWriterTool）：path / file_path / notebook_path / destination
+//     单值 + paths / file_paths 数组 + edits[].path / edits[].file_path
+//     （multi_edit/edit_file 编辑片段）；
+//   - 生成/导出类（isProducerTool）：output 落盘参数——path 在这三类工具里
+//     是输入源文件（如 format_convert 的 docx），不是交付物，不登记。
+// 去重保持出现顺序，空白路径跳过。
+func ExtractDeliverablePaths(name string, args json.RawMessage) []string {
+	if len(args) == 0 {
+		return nil
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(args, &fields); err != nil {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	push := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" || seen[s] {
+			return
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	if isProducerTool(name) {
+		push(stringField(fields, "output"))
+		return out
+	}
+	for _, key := range []string{"path", "file_path", "notebook_path", "destination"} {
+		push(stringField(fields, key))
+	}
+	for _, key := range []string{"paths", "file_paths"} {
+		for _, p := range stringSliceField(fields, key) {
+			push(p)
+		}
+	}
+	if raw, ok := fields["edits"]; ok {
+		var edits []map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &edits); err == nil {
+			for _, e := range edits {
+				for _, key := range []string{"path", "file_path"} {
+					push(stringField(e, key))
+				}
+			}
+		}
+	}
+	return out
+}
+
 func extractPaths(fields map[string]json.RawMessage) []string {
 	var paths []string
 	for _, key := range []string{"path", "file_path", "notebook_path"} {
