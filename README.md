@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.13.0** | 2026-08-31 | 自动操作·浏览器：internal/gaea/browser CDP 客户端（msedge 三段式定位 + 隔离临时 profile + Job Object 绑定 + Ensure 幂等/失联自愈 + URL 白名单 http/https，gorilla/websocket 零新增依赖）+ 7 个 browser_* 工具面（navigate/read/snapshot ref 机制/click/type React 兼容/scroll/close，work 空间，envelope 结构化返回）+ 权限门（只读档恒放行/写档弹卡可记忆 + subject url 键固化为窄规则）+ 事件留痕全链通用。真机 headless Edge 实测 PASS；零新增绑定（544）、前端零改动。Go +25 测试、vitest 825/825、drift PASS（544）。详见 releases/v4.13.0.md |
 | **v4.12.0** | 2026-08-31 | 成本透亮：GLM 价格表补全（原仅 glm-4.7，GLM 用量未被计价；官方 USD 价 + usd_cny_rate 折算，免费档计 0，未核实者诚实不入表）+ 编码套餐积分口径（/api/coding/ 调用 billing_mode=coding_points 不按 token 计价，聚合 glm@coding 单列）+ 模型别名注记（coding 家族 4 条官方自动切换，glm-5.2→glm-5.3 等，前端「自动切换」标记 + 记账归一）+ GLM 目录数据驱动（内嵌 JSON 逐字锁定 + glm_catalog_path 覆盖文件 mtime 热更新 + 坏 JSON 回退）。零新增绑定（544）。Go +5 组测试、vitest 825/825、drift PASS（544）。详见 releases/v4.12.0.md |
 | **v4.11.0** | 2026-08-30 | GLM 全模态纵深：生图后端接通（官方 images/generations，只发官方 schema 字段，URL 转 data URL，错误体原样透出）+ 官方双端点切换（std=按量/coding=编码套餐，SetGlmEndpoint 只收官方常量，绑定面 543→544）+ 生图模型目录补全（glm-image/cogview 系 18→22）+ glm-5-turbo 误分类修复。Go +15 测试、vitest 821/821、drift PASS（544）。详见 releases/v4.11.0.md |
 | **v4.10.0** | 2026-08-30 | GLM 引擎上线（智谱 OpenAI 兼容 paas/v4：Bearer Key 全链路、chat ping 验证、官方文档锚定静态模型目录 glm-5.3 旗舰等 18 模型、地址防呆三防线）+ 做梦 2.0 蒸馏真实合并（确定性重复检测+可逆归档合并，路线图 T0 第一刀）+ 工作人设收口（professional 节奏豁免+办公秘书人格+[SPLIT] 出口净化+搜索触发收窄）+ 多跳因果链（≤2 跳「导致」链）+ Verifier 通道 A 引用级深化（opsJson 随卡+声明↔实况比对）+ Herdsman CLI 错误透明化。绑定面 540→543；vitest 818/818；drift PASS。详见 releases/v4.10.0.md |

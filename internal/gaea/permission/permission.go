@@ -166,8 +166,9 @@ func matchAny(rules []Rule, toolName, subject string) bool {
 // call's "subject" — the thing a Subject glob matches against. Generic so tools
 // need not implement a permission-specific method: bash exposes command, the
 // file tools expose path / file_path, grep & glob expose pattern, move_file
-// exposes source (appended last so it can never shadow an existing key).
-var subjectKeys = []string{"command", "file_path", "path", "pattern", "source"}
+// exposes source (appended last so it can never shadow an existing key), and
+// browser_navigate exposes url (同样排最后：浏览器工具只带 url 一个键).
+var subjectKeys = []string{"command", "file_path", "path", "pattern", "source", "url"}
 
 // Subject extracts the matchable subject string from a call's raw JSON args,
 // returning "" when none of the known keys is present (such a call only matches

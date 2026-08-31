@@ -1,5 +1,36 @@
 # gaea · 多功能 AI 助手
 
+## v4.13.0 · 自动操作·浏览器：CDP 控制 Edge + 7 工具面（2026-08-31）
+> 「自动操作」四柱唯一空柱的第一块砖（调研后刀序④）：gaea 获得结构化浏览器
+> 自动化——CDP（Chrome DevTools Protocol）控制 Edge，权限门 + 事件留痕第一
+> 天挂上。零新增绑定（544 不变），前端零改动（工具经 Registry 自动进能力
+> 面板与过程卡轨迹）。
+- **internal/gaea/browser 包（新）**：msedge 三段式定位（GAEA_BROWSER_EXE
+  env → Program Files 候选 → LookPath）；独立临时 profile 启动（绝不碰用户
+  主 profile，Job Object 绑定 gaea 进程，父死子收）；页面级 CDP WebSocket
+  会话（复用 gorilla/websocket：写串行 + 超时 + 幂等关，仿 realtime 范式）；
+  Ensure 幂等 + 失联自愈重拉；URL 白名单只放行 http/https。默认有头（看得
+  见=可信任），测试可 headless。
+- **7 个 browser_* 内置工具（work 空间）**：browser_navigate / browser_read
+  / browser_snapshot / browser_click / browser_type / browser_scroll /
+  browser_close。snapshot 用 ref 机制（data-gaea-ref + 代数守门，页面跳转即
+  失效诚实报 stale_refs），用法=「先 snapshot 拿 ref 再 click/type」；type
+  用 React 兼容原生 setter + input/change 事件派发；结构化 envelope 返回
+  （ok/timeout/not_found/stale_refs/validation_error 程序化码）。
+- **权限门**：browser_read/snapshot 只读档（ReadOnly 恒放行）；其余五工具写
+  档（交互 ask 档弹卡一次、可记忆规则）；permission subjectKeys 追加
+  "url"——授权可固化为 browser_navigate(<url-glob>) 窄规则。不进 hardAsk
+  （MVP 弹卡成本控制）；play 空间物理过滤天然不含。
+- **留痕零改动全通用**：工具调用经既有 ToolDispatch/ToolResult 事件进会话
+  JSONL（逐行带 space）→ trajectory 折叠 → 前端过程卡/Agent 网络自动展示
+  ——全链对工具名零特判。
+- 验证：**真机实测 PASS**（GAEA_LIVE_BROWSER_TEST=1：真 headless Edge 导航
+  httptest 页 → 读文本 → snapshot 拿 ref → ref+selector 双路点击 → type
+  联动回显 → file: 拒绝 → 跳转后旧 ref 失效，1.16s）；Go 全量 0 FAIL（+25
+  测试：browser 包 19 + builtin meta 3 + permission url 3）；前端零改动、
+  tsc/eslint 0、vitest 825/825（全量首跑 2 例负载型 flaky、复跑 0 failed，
+  既有先例）；drift PASS（544）；build.bat 冒烟 200。
+
 ## v4.12.0 · 成本透亮：GLM 计价真实性 + 编码套餐积分口径 + 目录数据驱动（2026-08-31）
 > 模块制市场调研（docs/market-research-2026-08-31.md）指出的「计费快变」风险
 > 落地第一刀，兼收审计 T0 缺口②③：GLM Coding Plan 已改积分制（旧模型名

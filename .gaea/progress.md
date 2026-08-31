@@ -1,11 +1,28 @@
 # 任务进度
 
-> 最后更新: 2026-08-31（v4.12.0 发布「成本透亮」：调研后第一刀——GLM 价格
-> 表补全 + 编码套餐积分口径 + 模型别名注记 + 目录数据驱动；零新增绑定）
+> 最后更新: 2026-08-31（v4.13.0 发布「自动操作·浏览器」：CDP 控制 Edge + 7
+> 工具面 + 权限门与留痕，真机实测 PASS；零新增绑定、前端零改动）
 
 ## 当前状态
 
-- **最新发布：v4.12.0（2026-08-31）「成本透亮」**：调研后第一刀（成本层，
+- **最新发布：v4.13.0（2026-08-31）「自动操作·浏览器」**：四柱「自动操作」
+  唯一空柱的第一块砖（刀序④）。internal/gaea/browser 新包——msedge 三段式
+  定位 + 隔离临时 profile（绝不碰用户主 profile）+ Job Object 绑定 + 页面
+  级 CDP WebSocket 会话（gorilla/websocket 零新增依赖，写串行/幂等关/事件
+  旁路）+ Ensure 幂等与失联自愈 + URL 白名单 http/https；7 个 browser_*
+  内置工具（navigate/read/snapshot/click/type/scroll/close，work 空间，ref
+  机制 data-gaea-ref+代数守门、React 兼容 type、envelope 结构化返回）；权
+  限门（read/snapshot 只读档恒放行、其余写档弹卡可记忆 + permission
+  subjectKeys 追加 url 键可固化窄规则）；事件留痕全链对工具名零特判（会话
+  JSONL→trajectory→前端过程卡自动展示）。**真机实测 PASS**（真 headless
+  Edge 导航/读/snapshot/双路点击/type/file: 拒绝/旧 ref 失效，1.16s）；零
+  新增绑定（544）、前端零改动；Go +25 测试全量 0 FAIL、tsc/eslint 0、
+  vitest 825/825（首跑 2 例负载 flaky 复跑 0 failed=既有先例）、drift PASS、
+  build.bat 冒烟 200。欠账：多标签页、空闲 TTL 关停、文件下载上传/iframe/
+  键盘级 Input 事件、headless 开关 UI、Windows UIA（下一块砖）。详见
+  releases/v4.13.0.md。
+
+- **v4.12.0（2026-08-31）「成本透亮」**：调研后第一刀（成本层，
   审计 T0 缺口②③的计价前置）——①GLM 价格表补全（原仅 glm-4.7 一条，GLM
   用量实际未被计价；官方 docs.z.ai USD 价 + 既有 usd_cny_rate 折 CNY，免费
   档计 0，未核实者诚实不入表，glm-5-turbo 显式挡板防前缀误匹配）②编码套餐
