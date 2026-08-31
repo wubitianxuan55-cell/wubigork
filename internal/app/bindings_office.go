@@ -76,6 +76,7 @@ func (b *OfficeB) GaeaLoginProvider(name string) error { return b.a.GaeaLoginPro
 func (b *OfficeB) GaeaLogoutProvider(name string) error { return b.a.GaeaLogoutProvider(name) }
 func (b *OfficeB) GaeaMaterials(limit int) []FileSearchHit { return b.a.GaeaMaterials(limit) }
 func (b *OfficeB) GaeaMeta() Meta { return b.a.GaeaMeta() }
+func (b *OfficeB) GaeaMorningPreload() bool { return b.a.GaeaMorningPreload() }
 func (b *OfficeB) GaeaNewSession() error { return b.a.GaeaNewSession() }
 func (b *OfficeB) GaeaOCRText(imagePath string) (string, error) { return b.a.GaeaOCRText(imagePath) }
 func (b *OfficeB) GaeaOfficeEditText(selectedText string, instruction string) (map[string]interface{}, error) { return b.a.GaeaOfficeEditText(selectedText, instruction) }
@@ -116,6 +117,7 @@ func (b *OfficeB) GaeaSetAgentParams(temperature float64, maxSteps int, systemPr
 func (b *OfficeB) GaeaSetDefaultModel(ref string) error { return b.a.GaeaSetDefaultModel(ref) }
 func (b *OfficeB) GaeaSetMCPServerEnabled(name string, enabled bool) error { return b.a.GaeaSetMCPServerEnabled(name, enabled) }
 func (b *OfficeB) GaeaSetMemoryEnabled(enabled bool) error { return b.a.GaeaSetMemoryEnabled(enabled) }
+func (b *OfficeB) GaeaSetMorningPreload(enabled bool) error { return b.a.GaeaSetMorningPreload(enabled) }
 func (b *OfficeB) GaeaSetPermLevel(level string) error { return b.a.GaeaSetPermLevel(level) }
 func (b *OfficeB) GaeaSetPermissionMode(mode string) error { return b.a.GaeaSetPermissionMode(mode) }
 func (b *OfficeB) GaeaSetProviderKey(apiKeyEnv string, value string) error { return b.a.GaeaSetProviderKey(apiKeyEnv, value) }
@@ -127,6 +129,7 @@ func (b *OfficeB) GaeaSkills() []map[string]interface{} { return b.a.GaeaSkills(
 func (b *OfficeB) GaeaSlashArgs(input string) SlashArgsResult { return b.a.GaeaSlashArgs(input) }
 func (b *OfficeB) GaeaSteer(input string) { b.a.GaeaSteer(input) }
 func (b *OfficeB) GaeaSubagentRuns(sessionPath string) SubagentRunsView { return b.a.GaeaSubagentRuns(sessionPath) }
+func (b *OfficeB) GaeaSubagentTranscript(sessionPath string, ref string) (SubagentTranscriptView, error) { return b.a.GaeaSubagentTranscript(sessionPath, ref) }
 func (b *OfficeB) GaeaSummarizeFile(rel string, focus string) (GaeaSummaryResult, error) { return b.a.GaeaSummarizeFile(rel, focus) }
 func (b *OfficeB) GaeaSummarizeFrom(turn int) error { return b.a.GaeaSummarizeFrom(turn) }
 func (b *OfficeB) GaeaSummarizeUpTo(turn int) error { return b.a.GaeaSummarizeUpTo(turn) }

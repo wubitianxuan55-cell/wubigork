@@ -23,7 +23,7 @@ type OfficeMethods = Pick<
   | "ReadFile" | "Preview" | "OpenWorkspacePath"
   | "OfficeEditText" | "DocxApplyEdit" | "DocxAcceptChanges"
   | "XlsxPlanEdit" | "XlsxApplyEdit" | "XlsxSetCell" | "XlsxRecalc" | "XlsxRowOps" | "XlsxColOps"
-  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "WriteFile"
+  | "XlsxChart" | "ZipDeliverables" | "SubagentRuns" | "SubagentTranscript" | "WriteFile"
   | "ExportDeliverable" | "ConvertToPdf" | "CrossEmbed" | "RevealWorkspacePath"
   | "SavePastedImage" | "SaveAttachmentFile" | "AttachmentDataURL"
   | "CaptureScreen" | "RecognizeImage" | "OCRText"
@@ -334,6 +334,28 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
             createdAt: "2026-08-17T10:00:00+08:00",
             updatedAt: "2026-08-17T10:30:00+08:00",
           },
+        ],
+      };
+    },
+    async SubagentTranscript(_sessionPath: string, ref: string) {
+      const run = ref.endsWith("b2b2b2b2")
+        ? {
+            task: "调研竞品表格 Agent 能力并总结可蒸馏点",
+            status: "running",
+          }
+        : {
+            task: "收集 2026 年办公 Agent 竞品更新信息",
+            status: "completed",
+          };
+      return {
+        ref,
+        task: run.task,
+        messages: [
+          { role: "system" as const, content: "你是子代理，专注完成派发任务。" },
+          { role: "user" as const, content: run.task },
+          { role: "assistant" as const, reasoning: "先检索竞品资料", content: "开始检索公开信息。" },
+          { role: "tool" as const, name: "web_search", content: "千问办公公测、WorkSwarm 蜂群智能体、QClaw V2 多 Agent。" },
+          { role: "assistant" as const, content: run.status === "completed" ? "调研完成，已汇总三条可蒸馏点。" : "正在比对三家竞品的表格选中→图表链路…" },
         ],
       };
     },

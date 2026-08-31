@@ -287,10 +287,10 @@ func TestToLogEntries(t *testing.T) {
 		{Role: provider.RoleTool, Content: "r1", ToolCallID: "c1", Name: "read_file"},
 	}
 	entries := ToLogEntries(msgs)
-	if len(entries) != 4 {
-		t.Fatalf("entries = %d, want 4", len(entries))
+	if len(entries) != 7 {
+		t.Fatalf("entries = %d, want 7 (回合边界 + 合成 request_header)", len(entries))
 	}
-	wantKinds := []string{KindSystemMessage, KindUserMessage, KindAssistantMessage, KindToolResult}
+	wantKinds := []string{KindSystemMessage, "turn_started", KindUserMessage, KindRequestHeader, KindAssistantMessage, KindToolResult, "turn_done"}
 	for i, k := range wantKinds {
 		if entries[i].Kind != k {
 			t.Errorf("entry %d kind = %s, want %s", i, entries[i].Kind, k)
@@ -298,6 +298,21 @@ func TestToLogEntries(t *testing.T) {
 		if entries[i].Seq != int64(i+1) {
 			t.Errorf("entry %d seq = %d, want %d", i, entries[i].Seq, i+1)
 		}
+	}
+	// 投影往返：回合边界不投影为消息
+	if projected := ProjectMessages(entries); len(projected) != 4 {
+		t.Fatalf("projected = %d messages, want 4", len(projected))
+	}
+	// 合成 request_header 携带真实 system 与工具名
+	var hdr struct {
+		System string `json:"system"`
+		Tools  []struct{ Name string `json:"name"` } `json:"tools"`
+	}
+	if err := json.Unmarshal(entries[3].Payload, &hdr); err != nil {
+		t.Fatalf("decode header: %v", err)
+	}
+	if hdr.System != "sys" || len(hdr.Tools) != 1 || hdr.Tools[0].Name != "read_file" {
+		t.Fatalf("synthesized header = %+v", hdr)
 	}
 }
 

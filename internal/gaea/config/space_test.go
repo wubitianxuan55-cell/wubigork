@@ -17,11 +17,42 @@ func TestDefaultSpaceConfig(t *testing.T) {
 	if !cfg.SpaceModeIsOn() {
 		t.Fatal("缺省 space.mode 应为 on")
 	}
+	// v4.17：事件日志为缺省（轨迹/上下文看板数据源），显式 legacy 才关闭。
+	if !cfg.LogFormatIsEvent() {
+		t.Fatal("缺省 log_format 应为 event（事件日志）")
+	}
+	if got := cfg.EffectiveLogFormat(); got != "event" {
+		t.Fatalf("缺省生效 log_format = %q, want event", got)
+	}
 	if got := cfg.SessionSpace(); got != spaces.SpaceWork {
 		t.Fatalf("缺省 session.space = %q, want work", got)
 	}
 	if got := cfg.EffectiveSessionSpace(); got != spaces.SpaceWork {
 		t.Fatalf("缺省生效空间 = %q, want work", got)
+	}
+}
+
+func TestLogFormatDefaultEventLegacyOptOut(t *testing.T) {
+	// 显式 legacy → 关闭事件日志（旧行为整文件重写 JSONL）
+	cfg := Default()
+	cfg.Session.LogFormat = "legacy"
+	if cfg.LogFormatIsEvent() {
+		t.Fatal("显式 legacy 应关闭事件日志")
+	}
+	if got := cfg.EffectiveLogFormat(); got != "legacy" {
+		t.Fatalf("EffectiveLogFormat = %q, want legacy", got)
+	}
+	// 大小写不敏感 + trim
+	cfg.Session.LogFormat = "  Legacy "
+	if cfg.LogFormatIsEvent() {
+		t.Fatal("trim/大小写归一后 legacy 仍应关闭事件日志")
+	}
+	// 显式 event / 非法值 → 事件日志（缺省）
+	for _, raw := range []string{"event", "EVENT", "bogus"} {
+		cfg.Session.LogFormat = raw
+		if !cfg.LogFormatIsEvent() {
+			t.Errorf("LogFormatIsEvent(%q) = false, want true（缺省/非法值回落 event）", raw)
+		}
 	}
 }
 

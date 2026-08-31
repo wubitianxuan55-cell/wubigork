@@ -70,6 +70,11 @@ export function buildCore(s: MakeMockState): CoreMethods {
           { seq: 4, cat: "tool", tokens: 8000, text: "package main …" },
         ],
         archive: [],
+        files: [
+          { seq: 5, ts: 1750000005, turn: 1, step: 1, tool: "read_file", action: "read", path: "internal/gaea/config/config.go" },
+          { seq: 9, ts: 1750000009, turn: 1, step: 2, tool: "grep", action: "read", path: "internal/gaea/config" },
+          { seq: 12, ts: 1750000012, turn: 1, step: 3, tool: "write_file", action: "write", path: "docs/调研结论.md" },
+        ],
       };
     },
     async Trajectory() {
@@ -193,6 +198,7 @@ export function buildCore(s: MakeMockState): CoreMethods {
         { name: "new", description: "Start a new session", kind: "builtin" as const },
         { name: "compact", description: "Summarize older history to free up context", kind: "builtin" as const },
         { name: "model", description: "Switch model", kind: "builtin" as const },
+        { name: "context", description: "打开上下文看板", kind: "builtin" as const },
         { name: "skill", description: "List skills", kind: "builtin" as const },
         { name: "explore", description: "Investigate the codebase in an isolated subagent", kind: "skill" as const },
         { name: "review", description: "Review the staged diff", hint: "[focus]", kind: "custom" as const },

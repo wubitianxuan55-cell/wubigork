@@ -7,6 +7,7 @@ const trajectoryMock = vi.fn();
 vi.mock("../lib/bridge", () => ({
   app: { Trajectory: trajectoryMock },
   openExternal: vi.fn(),
+  onEvent: vi.fn(() => () => {}),
 }));
 
 const TRAJECTORY: Trajectory = {
@@ -99,4 +100,53 @@ describe("TrajectoryView 轨迹事件账本", () => {
     render(<TrajectoryView running={false} />);
     expect(await screen.findByText(/暂无轨迹记录/, undefined, LOAD)).toBeTruthy();
   });
+
+  it("轨迹概览：渲染投影柱与轮数", async () => {
+    const { TrajectoryView } = await import("./TrajectoryView");
+    render(<TrajectoryView running={false} />);
+    expect(await screen.findByText("轨迹概览", undefined, LOAD)).toBeTruthy();
+    expect(screen.getByText(/1 轮 · 点击柱跳转/)).toBeTruthy();
+    expect(screen.getByText(/柱高 = 记录密度/)).toBeTruthy();
+  });
+
+  it("收起全部 / 展开全部控制轮次区段", async () => {
+    const { TrajectoryView } = await import("./TrajectoryView");
+    render(<TrajectoryView running={false} />);
+    await screen.findByText(/Turns 1/, undefined, LOAD);
+    expect(screen.getByText("ASSISTANT")).toBeTruthy();
+    fireEvent.click(screen.getByText("收起全部"));
+    expect(screen.queryByText("ASSISTANT")).toBeNull();
+    expect(screen.getByText("第1轮")).toBeTruthy();
+    fireEvent.click(screen.getByText("展开全部"));
+    expect(screen.getByText("ASSISTANT")).toBeTruthy();
+  });
+
+  it("超长会话虚拟化：DOM 有界 + 滚动到末尾可见", async () => {
+    // 300 条记录的会话：扁平行流 = 6 个轮次头 + 300 记录 = 306 行。
+    const bigTurns: Trajectory["turns"] = Array.from({ length: 6 }, (_, ti) => ({
+      turn: ti + 1,
+      startedAt: 1750000000 + ti,
+      end: { seq: 100 + ti, ts: 1750000100 + ti },
+      records: Array.from({ length: 50 }, (_, ri) => ({
+        seq: ti * 50 + ri + 1,
+        kind: "user" as const,
+        ts: 1750000000 + ti * 50 + ri,
+        user: { text: `第${ti + 1}轮第${ri + 1}条` },
+      })),
+    }));
+    trajectoryMock.mockResolvedValue({ ok: true, turns: bigTurns });
+    const { TrajectoryView } = await import("./TrajectoryView");
+    const { container } = render(<TrajectoryView running={false} />);
+    expect(await screen.findByText(/第1轮第1条/, undefined, LOAD)).toBeTruthy();
+    // 虚拟化：306 行只渲染可见窗口（±overscan），DOM 行数远小于全量
+    const listEl = container.querySelector('[role="list"]');
+    if (!listEl) throw new Error("virtual list not found");
+    const itemCount = container.querySelectorAll('[role="listitem"]').length;
+    expect(itemCount).toBeLessThan(80);
+    expect(screen.queryByText(/第6轮第50条/)).toBeNull(); // 视口外未渲染
+    // 滚到底部（jsdom 无布局，直接覆写 scrollTop 再派发 scroll）
+    Object.defineProperty(listEl, "scrollTop", { value: 8600, configurable: true, writable: true });
+    fireEvent.scroll(listEl);
+    expect(await screen.findByText(/第6轮第50条/, undefined, LOAD)).toBeTruthy();
+  }, 15000);
 });

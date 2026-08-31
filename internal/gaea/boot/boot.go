@@ -198,6 +198,18 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	po := startPlugins(ctx, cfg, reg, sink, opts.Stderr, space)
 	pluginHost := po.host
 	cleanup := po.cleanup
+	// 事件日志 sink 的写入器随控制器生命周期释放（Ctrl+Close / 重建换实例时
+	// 关闭文件句柄；回合边界已关闭的写入器 Close 幂等）。缺省 event 模式下
+	// 若漏关，Windows 上会话目录无法删除/迁移。
+	ctrlCleanup := cleanup
+	if eventLogSink != nil {
+		ctrlCleanup = func() {
+			if cleanup != nil {
+				cleanup()
+			}
+			_ = eventLogSink.Close()
+		}
+	}
 	maxSteps := cfg.Agent.MaxSteps
 	if opts.MaxSteps > 0 {
 		maxSteps = opts.MaxSteps
@@ -496,7 +508,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 			}
 			return pcfg.Save()
 		},
-		Cleanup:    cleanup,
+		Cleanup:    ctrlCleanup,
 		BalanceURL: entry.BalanceURL,
 		BalanceKey: entry.APIKey(),
 		// 3.0 Wave 4：余额后端 kind 从 ProviderEntry 贯通（空 = controller 按

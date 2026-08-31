@@ -2,6 +2,7 @@ package contextview
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
@@ -43,6 +44,7 @@ func FoldTimeline(entries []session.LogEntry, window int64, retention int) Conte
 		Events:  f.events,
 		Nodes:   f.nodes,
 		Archive: f.archive,
+		Files:   f.files,
 	}
 	if n := len(f.requests); n > retention {
 		tl.Requests = append([]RequestRecord(nil), f.requests[n-retention:]...)
@@ -63,6 +65,9 @@ func FoldTimeline(entries []session.LogEntry, window int64, retention int) Conte
 	if tl.Archive == nil {
 		tl.Archive = []SurfaceNode{}
 	}
+	if tl.Files == nil {
+		tl.Files = []FileActivity{}
+	}
 	return tl
 }
 
@@ -72,8 +77,10 @@ type folding struct {
 	turn   int
 	step   int
 
-	systemTok int64 // 最新 request_header 的 system prompt 估算
-	toolsTok  int64 // 最新 request_header 的 tool schema 估算
+	systemTok    int64  // 最新 request_header 的 system prompt 估算
+	toolsTok     int64  // 最新 request_header 的 tool schema 估算
+	lastSysNode  string // 已入 nodes 的 system 预览（变化才新增节点）
+	lastToolsKey string // 已入 nodes 的工具名集合键（变化才新增节点）
 
 	userTok      int64 // 活着的 user 节点 token 合计
 	injectTok    int64 // 活着的 inject 节点 token 合计
@@ -93,6 +100,8 @@ type folding struct {
 	lastIn         []string
 	lastAssistant  string
 	lastToolCall   string
+	files          []FileActivity
+	fileIdx        map[string]int // 同工具+动作+路径+轮次+步骤 → files 下标（合并去重）
 	cacheHit       int64
 	cacheMiss      int64
 	cost           float64
@@ -116,9 +125,34 @@ func (f *folding) apply(e session.LogEntry) {
 		f.applyToolResult(e)
 	case "usage":
 		f.applyUsage(e)
+	case "turn_done":
+		f.closePending(e)
 	case "compaction_done":
 		f.applyCompaction(e)
 	}
+}
+
+// closePending 在回合结束（turn_done）时关闭仍未收到 usage 的待完成请求：
+// 用当前估算分类落一条 estimated 记录——旧日志（迁移/兜底投影）与不报用量
+// 的提供方因此仍有趋势柱，诚实标注「估算」不伪造用量数字。
+func (f *folding) closePending(e session.LogEntry) {
+	rec := f.pending
+	if rec == nil {
+		return
+	}
+	rec.Estimated = true
+	// 刷新到回合末的当前估算构成（旧日志没有逐请求用量，回合末构成是
+	// 「该请求发生时模型可见上下文」的最诚实近似）。
+	rec.Category = f.current()
+	rec.Ts = e.Ts
+	if rec.BriefResp == "" {
+		rec.BriefResp = f.lastToolCall
+	}
+	if rec.BriefResp == "" {
+		rec.BriefResp = f.lastAssistant
+	}
+	f.requests = append(f.requests, *rec)
+	f.pending = nil
 }
 
 // applyHeader 记录请求头（system prompt + 工具 schema），并开启一个待完成的
@@ -133,10 +167,25 @@ func (f *folding) applyHeader(e session.LogEntry) {
 	}
 	f.systemTok = estimateTokens(h.System)
 	var toolsTotal int64
+	var toolNames []string
 	for _, t := range h.Tools {
 		toolsTotal += estimateTokens(t.Schema)
+		if t.Name != "" {
+			toolNames = append(toolNames, t.Name)
+		}
 	}
 	f.toolsTok = toolsTotal
+	// 模型可见节点：system prompt / 工具集合只在「变化」时新增一条
+	// （每步重复入列会刷屏；节点文本是预览，全文在日志 request_header 里）。
+	if h.System != "" && f.lastSysNode != h.System {
+		f.lastSysNode = h.System
+		f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catSystem, Tokens: f.systemTok, Text: briefOf(h.System, maxNodePreview)})
+	}
+	toolsKey := strings.Join(toolNames, "|")
+	if toolsTotal > 0 && f.lastToolsKey != toolsKey {
+		f.lastToolsKey = toolsKey
+		f.nodes = append(f.nodes, SurfaceNode{Seq: e.Seq, Cat: catTools, Tokens: toolsTotal, Text: briefOf(strings.Join(toolNames, " · "), maxNodePreview)})
+	}
 
 	rec := RequestRecord{
 		Seq:       e.Seq,
@@ -207,6 +256,7 @@ func (f *folding) applyToolDispatch(e session.LogEntry) {
 		return
 	}
 	f.lastToolCall = briefOf(p.Name+" "+p.Args, maxBrief)
+	f.recordFile(e.Seq, e.Ts, p.Name, p.Args, "", false)
 }
 
 // applyToolResult 处理工具结果节点；截断记一次 prune 事件。
@@ -234,7 +284,118 @@ func (f *folding) applyToolResult(e session.LogEntry) {
 			Ts:     e.Ts,
 		})
 	}
+	// 参数里没有路径、但结果携带文件路径的工具（screen_capture 等）在结果
+	// 阶段补记；已从参数记过的工具跳过（避免重复行）。
+	f.recordFile(e.Seq, e.Ts, p.Name, "", p.Output, true)
 }
+
+// maxFiles 是文件活动时间线保留条数（浏览视图上限，超出丢最旧）。
+const maxFiles = 200
+
+// recordFile 把一次工具调用折叠进文件活动时间线：优先从工具参数提取路径
+// （read/write/move/dir 白名单工具），参数无路径时允许从结果输出提取
+// （resultOK=true，仅白名单工具）。同一工具+动作+路径在同一轮同一步骤内
+// 重复调用合并为一条（刷新时间戳），避免刷屏。
+func (f *folding) recordFile(seq, ts int64, tool, args, output string, resultOK bool) {
+	action, ok := fileActionByTool[tool]
+	if !ok {
+		return
+	}
+	path := extractPathFromArgs(args)
+	if path == "" && resultOK {
+		path = extractPathFromOutput(tool, output)
+	}
+	if path == "" {
+		return
+	}
+	rec := FileActivity{Seq: seq, Ts: ts, Turn: f.turn, Step: f.step, Tool: tool, Action: action, Path: briefOf(path, maxFilePreview)}
+	if i, ok := f.fileIdx[fileActivityKey(rec)]; ok {
+		f.files[i] = rec // 同一步骤同路径重复调用：合并刷新
+		return
+	}
+	if f.fileIdx == nil {
+		f.fileIdx = map[string]int{}
+	}
+	f.files = append(f.files, rec)
+	f.fileIdx[fileActivityKey(rec)] = len(f.files) - 1
+	if len(f.files) > maxFiles {
+		f.files = append([]FileActivity(nil), f.files[len(f.files)-maxFiles:]...)
+		f.fileIdx = map[string]int{}
+		for i, x := range f.files {
+			f.fileIdx[fileActivityKey(x)] = i
+		}
+	}
+}
+
+// fileActivityKey 生成文件活动的去重键（同轮同步骤同工具同路径合并）。
+func fileActivityKey(f FileActivity) string {
+	return fmt.Sprintf("%s|%s|%s|%d|%d", f.Tool, f.Action, f.Path, f.Turn, f.Step)
+}
+
+// fileActionByTool 是「工具 → 文件活动动作」白名单。动作语义：read=读取/
+// 搜索/识别输入；write=写入/编辑/生成产物；move=移动/重命名；dir=列目录。
+var fileActionByTool = map[string]string{
+	"read_file":      "read",
+	"grep":           "read",
+	"vision":         "read",
+	"format_convert": "read",
+	"write_file":     "write",
+	"edit_file":      "write",
+	"multi_edit":     "write",
+	"edit_lines":     "write",
+	"chart_gen":      "write",
+	"diagram_gen":    "write",
+	"screen_capture": "write",
+	"move_file":      "move",
+	"ls":             "dir",
+}
+
+// filePathFromOutputTools 是「路径只能从结果输出提取」的工具白名单
+// （参数无路径键，输出携带生成/保存的文件路径）。
+var filePathFromOutputTools = map[string]bool{"screen_capture": true}
+
+// filePathArgKeys 是工具参数里的路径键候选（按优先级）。桌面办公扩展工具
+// （docx/xlsx/preview 等）统一用 rel/path 键，内置工具用 path/source 等。
+var filePathArgKeys = []string{"path", "rel", "source", "destination", "image_path", "output"}
+
+// extractPathFromArgs 从工具参数 JSON 里确定性提取路径（按 filePathArgKeys
+// 优先级取第一个非空字符串；非 JSON 或取不到返回空）。
+func extractPathFromArgs(args string) string {
+	if args == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(args), &m); err != nil {
+		return ""
+	}
+	for _, k := range filePathArgKeys {
+		if s, ok := m[k].(string); ok && strings.TrimSpace(s) != "" {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
+
+// extractPathFromOutput 从工具结果输出提取路径（仅 filePathFromOutputTools
+// 白名单；输出可能是 JSON 或纯文本，纯文本里不猜路径——诚实不造数）。
+func extractPathFromOutput(tool, output string) string {
+	if !filePathFromOutputTools[tool] || output == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(output), &m); err != nil {
+		return ""
+	}
+	for _, k := range filePathArgKeys {
+		if s, ok := m[k].(string); ok && strings.TrimSpace(s) != "" {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
+
+// maxFilePreview 是文件活动路径的展示上限（浏览视图截断，全文在日志里）。
+const maxFilePreview = 240
 
 // applyUsage 用真实用量关闭待完成请求（或为旧日志创建请求记录），并把分类
 // 按实际 promptTokens 等比缩放锚定。

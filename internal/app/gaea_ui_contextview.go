@@ -13,16 +13,13 @@ import (
 // GaeaContextView 返回当前会话的上下文构成快照（dsh-context Go 移植 Phase A）：
 // 六分类当前组成、逐请求趋势、上下文事件、模型可见节点与归档。
 // 会话或日志不存在时返回空快照（ok=true），不报错——前端空态渲染。
+// 事件日志缺失时回退 legacy 会话投影（旧会话仍可看板，见 session.ReadEntriesFor）。
 func (a *App) GaeaContextView() (contextview.ContextTimeline, error) {
 	c := gaeaCtrl()
 	if c == nil {
 		return contextview.EmptyTimeline(), nil
 	}
-	logPath := session.LogPathFor(c.SessionPath())
-	if logPath == "" {
-		return contextview.EmptyTimeline(), nil
-	}
-	entries, err := session.ReadLogRepaired(logPath)
+	entries, err := session.ReadEntriesFor(c.SessionPath())
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return contextview.EmptyTimeline(), nil
@@ -36,16 +33,13 @@ func (a *App) GaeaContextView() (contextview.ContextTimeline, error) {
 // GaeaTrajectory 返回当前会话的轨迹时间线（dsh 轨迹标签的 Go 移植）：
 // 按 轮次 → 步骤 组织用户输入、推理、回复、工具调用与过程事件。
 // 会话或日志不存在时返回空快照（ok=true），不报错。
+// 事件日志缺失时回退 legacy 会话投影（旧会话仍可看板，见 session.ReadEntriesFor）。
 func (a *App) GaeaTrajectory() (trajectory.Trajectory, error) {
 	c := gaeaCtrl()
 	if c == nil {
 		return trajectory.EmptyTrajectory(), nil
 	}
-	logPath := session.LogPathFor(c.SessionPath())
-	if logPath == "" {
-		return trajectory.EmptyTrajectory(), nil
-	}
-	entries, err := session.ReadLogRepaired(logPath)
+	entries, err := session.ReadEntriesFor(c.SessionPath())
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return trajectory.EmptyTrajectory(), nil
@@ -57,17 +51,14 @@ func (a *App) GaeaTrajectory() (trajectory.Trajectory, error) {
 
 // GaeaAgentNetwork 返回当前会话的 Agent 网络（主 agent 根 + 子代理树），
 // 并用 subagents/ meta 富化子代理节点的任务摘要/状态/模型。
+// 事件日志缺失时回退 legacy 会话投影（见 session.ReadEntriesFor）。
 func (a *App) GaeaAgentNetwork() (trajectory.AgentNetwork, error) {
 	c := gaeaCtrl()
 	if c == nil {
 		return trajectory.EmptyAgentNetwork(), nil
 	}
 	path := c.SessionPath()
-	logPath := session.LogPathFor(path)
-	if logPath == "" {
-		return trajectory.EmptyAgentNetwork(), nil
-	}
-	entries, err := session.ReadLogRepaired(logPath)
+	entries, err := session.ReadEntriesFor(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return trajectory.EmptyAgentNetwork(), nil

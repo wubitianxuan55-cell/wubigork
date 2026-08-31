@@ -1,11 +1,12 @@
 /* eslint-disable react-refresh/only-export-components -- 子组件与容器同文件（Phase A 收敛，避免过早拆文件） */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { app } from "../lib/bridge";
 import { AgentNetworkCard } from "./AgentNetworkCard";
 import type {
-  ContextCategory, ContextEvent, ContextRequestRecord, ContextStats, ContextTimeline,
+  ContextCategory, ContextEvent, ContextRequestRecord, ContextStats, ContextSurfaceNode, ContextTimeline, FileActivity,
 } from "../lib/types";
 import { fmtTokens } from "../lib/stats";
+import { useLiveReload } from "../hooks/useLiveReload";
 
 // 六分类语义色（效果图对齐：系统蓝/工具橙/用户绿/注入紫/助手深蓝/工具青）。
 export const CAT_COLORS: Record<keyof ContextCategory, string> = {
@@ -34,7 +35,7 @@ const EMPTY: ContextTimeline = {
   ok: true, window: 0,
   current: { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
   stats: { turns: 0, steps: 0, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0 },
-  requests: [], events: [], nodes: [], archive: [],
+  requests: [], events: [], nodes: [], archive: [], files: [],
 };
 
 // ─── 上下文统计卡 ───────────────────────────────────────────
@@ -164,14 +165,17 @@ function ContextTrendChart({ requests, events, onPick }: {
           {(["total", "delta"] as const).map((m) => (
             <button
               key={m}
-              title={m === "delta" ? "增量模式（Phase B）" : undefined}
-              className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${mode === m ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"} ${m === "delta" ? "opacity-40" : ""}`}
+              title={m === "delta" ? "每步相对上一步的上下文净变化（绿=净增 · 红=净减）" : undefined}
+              className={`px-1.5 py-0.5 rounded border-0 cursor-pointer ${mode === m ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
               onClick={() => setMode(m)}
             >{m === "total" ? "全局" : "增量"}</button>
           ))}
         </div>
       </div>
-      <div className="mt-1 text-[9px] text-fg-faint">✂ 表示压缩/剪枝 · 点击柱查看该步构成</div>
+      <div className="mt-1 text-[9px] text-fg-faint">
+        ✂ 表示压缩/剪枝 · 点击柱查看该步构成
+        {mode === "delta" && <span className="ml-2"><span className="text-[#22c55e]">■</span> 净增 <span className="ml-1 text-[#ef4444]">■</span> 净减</span>}
+      </div>
       <div className="overflow-x-auto">
         <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 h-auto min-w-full" style={{ width: W }}>
           {yTicks.map((t, i) => (
@@ -190,7 +194,7 @@ function ContextTrendChart({ requests, events, onPick }: {
               const y = d >= 0 ? padT + plotH - h : padT + plotH;
               return (
                 <g key={b.seq} onClick={() => pick(i)} className="cursor-pointer" opacity={selected === i ? 1 : 0.85}>
-                  <rect x={x} y={y} width={bw} height={Math.max(h, 1)} rx={1.5} fill={d >= 0 ? "var(--color-success)" : "var(--color-destructive)"}>
+                  <rect x={x} y={y} width={bw} height={Math.max(h, 1)} rx={1.5} fill={d >= 0 ? "#22c55e" : "#ef4444"}> {/* hex-exempt 增量图语义色（绿=净增/红=净减，可视化调色板） */}
                     <title>{`第${b.turn}轮·第${b.step}步 Δ${d >= 0 ? "+" : ""}${fmtTokens(d)}`}</title>
                   </rect>
                 </g>
@@ -243,7 +247,9 @@ function StepDetail({ record }: { record: ContextRequestRecord | null }) {
         <div className="text-[9px] text-fg-faint tabular-nums font-mono">{new Date(record.ts * 1000).toLocaleTimeString()}</div>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-fg-dim tabular-nums font-mono">
-        {record.promptTokens ? <span>实际 prompt {fmtTokens(record.promptTokens)}</span> : null}
+        {record.estimated
+          ? <span className="text-warning/90">估算构成（无用量记录）</span>
+          : record.promptTokens ? <span>实际 prompt {fmtTokens(record.promptTokens)}</span> : null}
         {record.outputTokens ? <span>输出 {record.outputTokens}</span> : null}
         {cachePct != null ? <span>缓存 {cachePct.toFixed(2)}%</span> : null}
         <span>合计 ≈{fmtTokens(total)}</span>
@@ -313,12 +319,125 @@ function EventsList({ events }: { events: ContextEvent[] }) {
   );
 }
 
+// ─── 文件活动（工具读写工作区文件的时间线） ─────────────────────
+const FILE_ACTION_META: Record<FileActivity["action"], { label: string; cls: string }> = {
+  read: { label: "读", cls: "bg-cyan-500/15 text-cyan-400" },
+  write: { label: "写", cls: "bg-amber-500/15 text-amber-400" },
+  move: { label: "移", cls: "bg-purple-500/15 text-purple-400" },
+  dir: { label: "目录", cls: "bg-slate-500/15 text-slate-400" },
+};
+
+function FileActivityCard({ files }: { files: FileActivity[] }) {
+  const shown = files.slice(-40).reverse();
+  return (
+    <div className="rounded-lg border border-border-soft bg-bg p-3">
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] font-medium text-fg">文件活动</div>
+        <div className="text-[9px] text-fg-faint tabular-nums">{files.length} 次文件接触</div>
+      </div>
+      <div className="mt-1.5 max-h-44 overflow-y-auto">
+        {shown.length === 0 && (
+          <div className="py-2 text-[10px] text-fg-faint">暂无文件活动 —— 工具读写工作区文件后会出现在这里</div>
+        )}
+        {shown.map((f) => {
+          const meta = FILE_ACTION_META[f.action] ?? { label: f.action, cls: "bg-bg-soft text-fg-dim" };
+          return (
+            <div key={`${f.tool}-${f.seq}`} className="flex items-center gap-1.5 border-b border-border-soft/40 py-0.5 text-[10px] last:border-0">
+              <span className={`shrink-0 rounded px-1 text-[9px] ${meta.cls}`}>{meta.label}</span>
+              <span className="shrink-0 font-mono text-fg-faint">{f.tool}</span>
+              <span className="truncate font-mono text-fg-dim" title={f.path}>{f.path}</span>
+              <span className="ml-auto shrink-0 tabular-nums font-mono text-fg-faint">{new Date(f.ts * 1000).toLocaleTimeString()}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── 上下文浏览器（模型可见 surface 节点 + 归档） ───────────────
+const CAT_BROWSE_LABELS: Record<ContextSurfaceNode["cat"], string> = {
+  system: "系统",
+  tools: "工具",
+  user: "用户",
+  inject: "注入",
+  assistant: "助手",
+  tool: "工具结果",
+};
+const BROWSE_CATS = ["all", "system", "tools", "user", "inject", "assistant", "tool"] as const;
+
+function NodeRow({ node, open, onToggle }: { node: ContextSurfaceNode; open: boolean; onToggle: () => void }) {
+  const text = node.text || "(无预览 —— 全文在事件日志 request_header 中)";
+  const truncated = text.length > 56;
+  const shown = open || !truncated ? text : `${text.slice(0, 56)}…`;
+  return (
+    <div className="flex items-start gap-1.5 border-b border-border-soft/40 py-1 text-[10px] last:border-0">
+      <span className="mt-0.5 h-2 w-2 shrink-0 rounded-sm" style={{ background: CAT_COLORS[node.cat] }} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 text-fg-faint">
+          <span className="font-medium" style={{ color: CAT_COLORS[node.cat] }}>{CAT_BROWSE_LABELS[node.cat]}</span>
+          <span className="tabular-nums font-mono">≈{fmtTokens(node.tokens)}</span>
+          {node.gone != null && <span className="text-warning">已压缩</span>}
+          {truncated && (
+            <button
+              className="ml-auto cursor-pointer border-0 bg-transparent text-accent hover:underline"
+              onClick={onToggle}
+            >{open ? "收起" : "展开"}</button>
+          )}
+        </div>
+        <div className="mt-0.5 whitespace-pre-wrap break-all font-mono text-fg-dim">{shown}</div>
+      </div>
+    </div>
+  );
+}
+
+function ContextBrowserCard({ nodes, archive }: { nodes: ContextSurfaceNode[]; archive: ContextSurfaceNode[] }) {
+  const [tab, setTab] = useState<"active" | "archive">("active");
+  const [cat, setCat] = useState<"all" | ContextSurfaceNode["cat"]>("all");
+  const [openSeq, setOpenSeq] = useState<number | null>(null);
+  const list = tab === "active" ? nodes : archive;
+  const shown = cat === "all" ? list : list.filter((n) => n.cat === cat);
+  return (
+    <div className="rounded-lg border border-border-soft bg-bg p-3">
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] font-medium text-fg">上下文浏览器</div>
+        <div className="flex items-center gap-1 text-[10px]">
+          {(["active", "archive"] as const).map((t) => (
+            <button
+              key={t}
+              className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${tab === t ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+              onClick={() => setTab(t)}
+            >{t === "active" ? `活跃 ${nodes.length}` : `归档 ${archive.length}`}</button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+        {BROWSE_CATS.map((c) => (
+          <button
+            key={c}
+            className={`cursor-pointer rounded border-0 px-1.5 py-0.5 ${cat === c ? "bg-accent/15 text-accent" : "text-fg-dim hover:text-fg"}`}
+            onClick={() => setCat(c)}
+          >{c === "all" ? "全部" : CAT_BROWSE_LABELS[c]}</button>
+        ))}
+      </div>
+      <div className="mt-1.5 max-h-52 overflow-y-auto">
+        {shown.length === 0 && <div className="py-2 text-[10px] text-fg-faint">没有该分类的上下文节点</div>}
+        {shown.slice(-60).map((n) => (
+          <NodeRow key={n.seq} node={n} open={openSeq === n.seq} onToggle={() => setOpenSeq(openSeq === n.seq ? null : n.seq)} />
+        ))}
+      </div>
+      <div className="mt-1 text-[9px] text-fg-faint">
+        节点 = 模型可见的上下文元素 · 系统/工具在构成变化时记录 · 归档 = 被压缩移出的内容
+      </div>
+    </div>
+  );
+}
+
 // ─── 容器：拉取 + 布局 ──────────────────────────────────────
-export function ContextView({ running }: { running: boolean }) {
+export function ContextView({ running, sessionPath }: { running: boolean; sessionPath?: string }) {
   const [timeline, setTimeline] = useState<ContextTimeline>(EMPTY);
   const [picked, setPicked] = useState<ContextRequestRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const runningRef = useRef(running);
 
   const load = useCallback(() => {
     app.ContextView()
@@ -330,6 +449,7 @@ export function ContextView({ running }: { running: boolean }) {
           events: tl.events ?? [],
           nodes: tl.nodes ?? [],
           archive: tl.archive ?? [],
+          files: tl.files ?? [],
         });
         setError(null);
       })
@@ -340,11 +460,8 @@ export function ContextView({ running }: { running: boolean }) {
     load();
   }, [load]);
 
-  // 回合结束后刷新（running true→false），运行中由事件订阅兜底（Phase B）。
-  useEffect(() => {
-    if (runningRef.current && !running) load();
-    runningRef.current = running;
-  }, [running, load]);
+  // 运行中随事件流节流刷新 + 回合结束立即刷新（useLiveReload）。
+  useLiveReload(running, load);
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto p-3">
@@ -358,10 +475,9 @@ export function ContextView({ running }: { running: boolean }) {
       <ContextTrendChart requests={timeline.requests} events={timeline.events} onPick={setPicked} />
       <StepDetail record={picked} />
       <EventsList events={timeline.events} />
-      <AgentNetworkCard running={running} />
-      <div className="text-center text-[9px] text-fg-faint">
-        上下文浏览器 / 文件活动将在后续阶段接入
-      </div>
+      <FileActivityCard files={timeline.files} />
+      <ContextBrowserCard nodes={timeline.nodes} archive={timeline.archive} />
+      <AgentNetworkCard running={running} sessionPath={sessionPath} />
     </div>
   );
 }

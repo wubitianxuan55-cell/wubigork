@@ -57,11 +57,68 @@ func TestFoldEmptySlicesMarshalAsArrays(t *testing.T) {
 			t.Fatalf("%s: marshal: %v", name, err)
 		}
 		s := string(b)
-		for _, field := range []string{`"requests":[]`, `"events":[]`, `"nodes":[]`, `"archive":[]`} {
+		for _, field := range []string{`"requests":[]`, `"events":[]`, `"nodes":[]`, `"archive":[]`, `"files":[]`} {
 			if !strings.Contains(s, field) {
 				t.Fatalf("%s: %s should marshal as [], got %s", name, field, s)
 			}
 		}
+	}
+}
+
+func TestFoldFileActivity(t *testing.T) {
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload("sys", "read_file", "write_file")),
+		entry(3, "user_message", map[string]any{"content": "改一下报价单"}),
+		entry(4, "tool_dispatch", map[string]any{"id": "t1", "name": "read_file", "args": `{"path":"报价单.md"}`, "partial": false}),
+		entry(5, "tool_result", map[string]any{"id": "t1", "name": "read_file", "output": "body"}),
+		entry(6, "tool_dispatch", map[string]any{"id": "t2", "name": "write_file", "args": `{"path":"报价单.md","content":"..."}`, "partial": false}),
+		entry(7, "tool_result", map[string]any{"id": "t2", "name": "write_file", "output": "ok"}),
+		entry(8, "tool_dispatch", map[string]any{"id": "t3", "name": "ls", "args": `{"path":"."}`, "partial": false}),
+		entry(9, "tool_result", map[string]any{"id": "t3", "name": "ls", "output": "a.md\nb.md"}),
+		// 无路径键的工具不进文件活动（诚实不造数）
+		entry(10, "tool_dispatch", map[string]any{"id": "t4", "name": "bash", "args": `{"command":"dir"}`, "partial": false}),
+		entry(11, "tool_result", map[string]any{"id": "t4", "name": "bash", "output": "..."}),
+		// 同一工具+路径+步骤重复调用合并为一条
+		entry(12, "tool_dispatch", map[string]any{"id": "t5", "name": "read_file", "args": `{"path":"报价单.md"}`, "partial": false}),
+		entry(13, "tool_result", map[string]any{"id": "t5", "name": "read_file", "output": "body2"}),
+	}
+	tl := FoldTimeline(entries, 1_000_000, 0)
+	if len(tl.Files) != 3 {
+		t.Fatalf("files = %d, want 3（read/write/dir 各一条，bash 不进、重复 read 合并）: %+v", len(tl.Files), tl.Files)
+	}
+	want := []FileActivity{
+		{Tool: "read_file", Action: "read", Path: "报价单.md", Turn: 1, Step: 1},
+		{Tool: "write_file", Action: "write", Path: "报价单.md", Turn: 1, Step: 1},
+		{Tool: "ls", Action: "dir", Path: ".", Turn: 1, Step: 1},
+	}
+	for i, w := range want {
+		f := tl.Files[i]
+		if f.Tool != w.Tool || f.Action != w.Action || f.Path != w.Path {
+			t.Errorf("file[%d] = %+v, want %+v", i, f, w)
+		}
+	}
+	// 合并后的 read 条目时间戳刷新到最后一次
+	if tl.Files[0].Seq != 12 {
+		t.Errorf("merged read seq = %d, want 12（刷新到最后一次调用）", tl.Files[0].Seq)
+	}
+}
+
+func TestFoldFileActivityFromOutput(t *testing.T) {
+	// screen_capture 参数无路径，结果输出携带保存路径（JSON）→ 结果阶段补记。
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload("sys", "screen_capture")),
+		entry(3, "user_message", map[string]any{"content": "截个屏"}),
+		entry(4, "tool_dispatch", map[string]any{"id": "t1", "name": "screen_capture", "args": `{"region":{"x":0}}`, "partial": false}),
+		entry(5, "tool_result", map[string]any{"id": "t1", "name": "screen_capture", "output": `{"path":"shots/20260831.png"}`}),
+	}
+	tl := FoldTimeline(entries, 1_000_000, 0)
+	if len(tl.Files) != 1 {
+		t.Fatalf("files = %d, want 1（从输出提取）: %+v", len(tl.Files), tl.Files)
+	}
+	if tl.Files[0].Action != "write" || tl.Files[0].Path != "shots/20260831.png" {
+		t.Fatalf("file = %+v, want write shots/20260831.png", tl.Files[0])
 	}
 }
 
@@ -95,6 +152,9 @@ func TestFoldSingleRequest(t *testing.T) {
 	if r.PromptTokens != 400 {
 		t.Fatalf("promptTokens = %d, want 400", r.PromptTokens)
 	}
+	if r.Estimated {
+		t.Fatal("有 usage 事件的请求不应标记 estimated")
+	}
 	if r.BriefUser != "请帮我总结这份资料并给出建议" {
 		t.Fatalf("briefUser = %q, want 请帮我总结这份资料并给出建议", r.BriefUser)
 	}
@@ -121,10 +181,76 @@ func TestFoldSingleRequest(t *testing.T) {
 	for _, n := range tl.Nodes {
 		cats[n.Cat] = true
 	}
-	for _, want := range []string{catUser, catInject, catAssistant, catTool} {
+	for _, want := range []string{catSystem, catTools, catUser, catInject, catAssistant, catTool} {
 		if !cats[want] {
 			t.Fatalf("missing node category %q in %+v", want, cats)
 		}
+	}
+}
+
+func TestFoldEstimatedCloseOnTurnDone(t *testing.T) {
+	// 旧日志/无 usage 提供方：request_header 已开、usage 未到，turn_done 用
+	// 估算分类关闭请求（趋势柱仍出现，诚实标注 estimated，不伪造用量）。
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload(strings.Repeat("s", 200), "read_file")),
+		entry(3, "user_message", map[string]any{"content": "这是一段足够长的用户输入内容"}),
+		entry(4, "tool_result", map[string]any{"id": "t1", "name": "read_file", "output": "body 一段足够长的工具输出"}),
+		entry(5, "turn_done", map[string]any{}),
+	}
+	tl := FoldTimeline(entries, 1_000_000, 0)
+	if len(tl.Requests) != 1 {
+		t.Fatalf("requests = %d, want 1（回合末估算关闭）", len(tl.Requests))
+	}
+	r := tl.Requests[0]
+	if !r.Estimated {
+		t.Fatal("estimated 应为 true（无 usage 事件）")
+	}
+	if r.Category.System == 0 || r.Category.Tools == 0 || r.Category.User == 0 {
+		t.Fatalf("estimated category should carry system/tools/user: %+v", r.Category)
+	}
+}
+
+func TestFoldSystemToolsNodesOnlyOnChange(t *testing.T) {
+	// request_header 的系统/工具集合只在变化时新增 nodes（每步重复不刷屏）。
+	sys := strings.Repeat("s", 200)
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "request_header", headerPayload(sys, "read_file", "bash")),
+		entry(3, "usage", map[string]any{"promptTokens": 100, "completionTokens": 10, "turn": 1}),
+		entry(4, "request_header", headerPayload(sys, "read_file", "bash")), // 同 system + 同工具集 → 不新增
+		entry(5, "usage", map[string]any{"promptTokens": 100, "completionTokens": 10, "turn": 1}),
+		entry(6, "request_header", headerPayload(sys+"\n追加", "read_file", "bash")), // system 变化 → 新增
+		entry(7, "usage", map[string]any{"promptTokens": 100, "completionTokens": 10, "turn": 1}),
+		entry(8, "request_header", headerPayload(sys+"\n追加", "read_file", "bash", "grep")), // 工具集变化 → 新增
+		entry(9, "usage", map[string]any{"promptTokens": 100, "completionTokens": 10, "turn": 1}),
+	}
+	tl := FoldTimeline(entries, 1_000_000, 0)
+	sysNodes := 0
+	toolsNodes := 0
+	for _, n := range tl.Nodes {
+		if n.Cat == catSystem {
+			sysNodes++
+		}
+		if n.Cat == catTools {
+			toolsNodes++
+		}
+	}
+	if sysNodes != 2 {
+		t.Fatalf("system nodes = %d, want 2（初版 + 变化版）", sysNodes)
+	}
+	if toolsNodes != 2 {
+		t.Fatalf("tools nodes = %d, want 2（初版 + 工具集变化版）", toolsNodes)
+	}
+	// 工具集节点文本应含工具名
+	found := false
+	for _, n := range tl.Nodes {
+		if n.Cat == catTools && strings.Contains(n.Text, "grep") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("tools node text should list tool names: %+v", tl.Nodes)
 	}
 }
 

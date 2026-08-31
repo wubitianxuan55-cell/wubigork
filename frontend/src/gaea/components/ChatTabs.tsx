@@ -1,8 +1,8 @@
 import { BarChart3, ListTree, MessageSquare } from "../icons";
 
-// 对话窗口上方的视图标签（dsh-context 移植 Phase A）：
-// [对话] 现有 Transcript；[轨迹] 工具调用/步骤时间线（暂占位）；
-// [上下文] 上下文构成看板。选中态蓝色下划线，对齐效果图。
+// 对话窗口上方的视图标签（dsh-context 移植，v4.17-v4.20 已完整接通）：
+// [对话] 现有 Transcript；[轨迹] 事件账本（概览/搜索/折叠/增量渲染）；
+// [上下文] 上下文构成看板（趋势/事件/文件活动/浏览器/Agent 网络）。
 export type ChatTabId = "chat" | "trajectory" | "context";
 
 const TABS: { id: ChatTabId; label: string; icon: typeof MessageSquare }[] = [

@@ -1,13 +1,65 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Clock, Cpu, Eye, MessageSquare, Search, Shield, User, Wrench } from "../icons";
 import { app } from "../lib/bridge";
+import { List, useDynamicRowHeight, useListRef, type RowComponentProps } from "react-window";
 import type {
   Trajectory, TrajectoryAssistantRec, TrajectoryHeaderRec, TrajectoryRecord,
   TrajectoryToolRec, TrajectoryTurn,
 } from "../lib/types";
 import { fmtTokens } from "../lib/stats";
+import { useLiveReload } from "../hooks/useLiveReload";
 
 const EMPTY: Trajectory = { ok: true, turns: [] };
+
+function recordMatches(r: TrajectoryRecord, q: string): boolean {
+  const hay = [r.user?.text, r.assistant?.text, r.assistant?.reasoning, r.tool?.name, r.tool?.args, r.tool?.output, r.tool?.err, r.ask?.question, r.approval?.subject, r.compact?.summary].filter(Boolean).join("\n").toLowerCase();
+  return hay.includes(q);
+}
+
+type FlatRow =
+  | { kind: "turn"; key: string; turn: TrajectoryTurn; shown: number; open: boolean }
+  | { kind: "between"; key: string }
+  | { kind: "record"; key: string; record: TrajectoryRecord };
+
+// 虚拟化行数据（rowProps 透传；open 由 openTurns/allCollapsed 在行内派生）。
+interface TrajectoryRowData {
+  rows: FlatRow[];
+  openTurns: Set<number>;
+  allCollapsed: boolean;
+  onToggle: (turn: number) => void;
+}
+
+function BetweenTurnsHeader() {
+  return (
+    <div className="flex items-center gap-2 border-y border-dashed border-border-soft bg-warning/5 px-3 py-1.5">
+      <span className="text-[10px] font-semibold text-warning uppercase tracking-wider">Between turns</span>
+      <span className="text-[9px] text-fg-faint">轮次之间</span>
+    </div>
+  );
+}
+
+// 虚拟化行组件：react-window v2 动态行高模式下 style 不含 height，行高由
+// ResizeObserver 实测（行内容变化自动重排；jsdom 无布局时回落 defaultRowHeight）。
+function TrajectoryRow({ index, style, rows, openTurns, allCollapsed, onToggle }: RowComponentProps<TrajectoryRowData>) {
+  const row = rows[index];
+  if (!row) return null;
+  return (
+    <div style={style} className="bg-bg">
+      {row.kind === "turn" ? (
+        <TurnHeader
+          turn={row.turn}
+          shown={row.shown}
+          open={allCollapsed ? openTurns.has(row.turn.turn) : !openTurns.has(row.turn.turn)}
+          onToggle={() => onToggle(row.turn.turn)}
+        />
+      ) : row.kind === "between" ? (
+        <BetweenTurnsHeader />
+      ) : (
+        <RecordRow record={row.record} />
+      )}
+    </div>
+  );
+}
 
 function fmtTime(ts?: number): string {
   return ts ? new Date(ts * 1000).toLocaleTimeString() : "—";
@@ -160,32 +212,56 @@ function RecordRow({ record }: { record: TrajectoryRecord }) {
   );
 }
 
-// ─── 轮次区段（粗分割线） ───────────────────────────────────
-function TurnSection({ turn, query }: { turn: TrajectoryTurn; query: string }) {
-  const [open, setOpen] = useState(true);
-  const records = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return turn.records;
-    return turn.records.filter((r) => {
-      const hay = [r.user?.text, r.assistant?.text, r.assistant?.reasoning, r.tool?.name, r.tool?.args, r.tool?.output, r.tool?.err, r.ask?.question, r.approval?.subject, r.compact?.summary].filter(Boolean).join("\n").toLowerCase();
-      return hay.includes(q);
-    });
-  }, [turn, query]);
-
-  if (records.length === 0 && query) return null;
+// ─── 轮次头（粗分割线；记录行由容器按扁平行流渲染） ─────────────
+function TurnHeader({ turn, shown, open, onToggle }: {
+  turn: TrajectoryTurn;
+  shown: number;
+  open: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <div>
+    <div id={`traj-turn-${turn.turn}`} className="scroll-mt-2">
       <button
         className="flex w-full items-center gap-2 border-y border-border-soft bg-bg-soft/60 px-3 py-1.5 text-left border-0 cursor-pointer"
-        onClick={() => setOpen(!open)}
+        onClick={onToggle}
       >
         {open ? <ChevronDown size={12} className="text-fg-faint" /> : <ChevronRight size={12} className="text-fg-faint" />}
         <span className="text-[10px] font-semibold text-fg uppercase tracking-wider">第{turn.turn}轮</span>
         <span className="text-[9px] text-fg-faint tabular-nums font-mono">{fmtTime(turn.startedAt)}</span>
         {turn.end?.err && <span className="rounded bg-err/15 px-1 text-[9px] text-err">错误</span>}
-        <span className="ml-auto text-[9px] text-fg-faint tabular-nums">{records.length} 条记录</span>
+        <span className="ml-auto text-[9px] text-fg-faint tabular-nums">{shown} 条记录</span>
       </button>
-      {open && <div className="bg-bg">{records.map((r) => <RecordRow key={`${r.kind}-${r.seq}`} record={r} />)}</div>}
+    </div>
+  );
+}
+
+// ─── 轨迹概览（Overview 投影：每轮一根柱，点击跳转） ────────────
+function OverviewBar({ turns, onJump }: { turns: TrajectoryTurn[]; onJump: (turn: number) => void }) {
+  const maxRec = Math.max(1, ...turns.map((t) => t.records.length));
+  const W = Math.max(turns.length * 9, 320);
+  const H = 26;
+  return (
+    <div className="rounded-lg border border-border-soft bg-bg p-2.5">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] font-medium text-fg">轨迹概览</div>
+        <div className="text-[9px] text-fg-faint tabular-nums">{turns.length} 轮 · 点击柱跳转</div>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 w-full h-auto" style={{ width: W }}>
+        {turns.map((t, i) => {
+          const x = 2 + i * 9;
+          const h = 8 + Math.round((t.records.length / maxRec) * 10);
+          const tools = t.records.filter((r) => r.kind === "tool").length;
+          const fill = t.end?.err ? "var(--color-err)" : tools > 0 ? "var(--color-accent)" : "var(--color-fg-faint)";
+          return (
+            <g key={t.turn} onClick={() => onJump(t.turn)} className="cursor-pointer">
+              <rect x={x} y={H - h} width={5} height={h} rx={1} fill={fill} opacity={0.85}>
+                <title>{`第${t.turn}轮 · ${t.records.length} 条记录 · ${tools} 工具调用${t.end?.err ? " · 报错" : ""}`}</title>
+              </rect>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="mt-1 text-[9px] text-fg-faint">柱高 = 记录密度 · 高亮 = 含工具调用 · 红 = 该轮报错</div>
     </div>
   );
 }
@@ -195,7 +271,11 @@ export function TrajectoryView({ running }: { running: boolean }) {
   const [trajectory, setTrajectory] = useState<Trajectory>(EMPTY);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const runningRef = useRef(running);
+  // 轮次展开态（缺省 = 展开；allCollapsed=true 时反转为「仅集合内展开」）。
+  const [openTurns, setOpenTurns] = useState<Set<number>>(new Set());
+  const [allCollapsed, setAllCollapsed] = useState(false);
+  const listRef = useListRef();
+  const rowHeights = useDynamicRowHeight({ defaultRowHeight: 29, key: "trajectory" });
 
   const load = useCallback(() => {
     app.Trajectory()
@@ -212,10 +292,8 @@ export function TrajectoryView({ running }: { running: boolean }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    if (runningRef.current && !running) load();
-    runningRef.current = running;
-  }, [running, load]);
+  // 运行中随事件流节流刷新 + 回合结束立即刷新（useLiveReload）。
+  useLiveReload(running, load);
 
   const stats = useMemo(() => {
     const all = [...trajectory.turns.flatMap((t) => t.records), ...(trajectory.betweenTurns ?? [])];
@@ -225,8 +303,61 @@ export function TrajectoryView({ running }: { running: boolean }) {
     return { turns: trajectory.turns.length, calls, duration };
   }, [trajectory]);
 
+  const isTurnOpen = (turn: number) => (allCollapsed ? openTurns.has(turn) : !openTurns.has(turn));
+  const toggleTurn = (turn: number) => {
+    setOpenTurns((prev) => {
+      const next = new Set(prev);
+      if (next.has(turn)) next.delete(turn);
+      else next.add(turn);
+      return next;
+    });
+  };
+  const collapseAll = () => { setAllCollapsed(true); setOpenTurns(new Set()); };
+  const expandAll = () => { setAllCollapsed(false); setOpenTurns(new Set()); };
+
+  // 扁平行流：轮次头 + （展开的）记录行 + Between-turns；搜索命中轮次才保留。
+  const flatRows = useMemo<FlatRow[]>(() => {
+    const q = query.trim().toLowerCase();
+    const rows: FlatRow[] = [];
+    for (const t of trajectory.turns) {
+      const shown = q ? t.records.filter((r) => recordMatches(r, q)) : t.records;
+      if (q && shown.length === 0) continue;
+      const open = isTurnOpen(t.turn);
+      rows.push({ kind: "turn", key: `turn-${t.turn}`, turn: t, shown: shown.length, open });
+      if (open) {
+        for (const r of shown) rows.push({ kind: "record", key: `${r.kind}-${r.seq}`, record: r });
+      }
+    }
+    if (trajectory.betweenTurns && trajectory.betweenTurns.length > 0) {
+      rows.push({ kind: "between", key: "bt-header" });
+      for (const r of trajectory.betweenTurns) {
+        rows.push({ kind: "record", key: `bt-${r.kind}-${r.seq}`, record: r });
+      }
+    }
+    return rows;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isTurnOpen 由 openTurns/allCollapsed 派生，已列入
+  }, [trajectory, query, openTurns, allCollapsed]);
+
+  const flatRowsRef = useRef(flatRows);
+  flatRowsRef.current = flatRows;
+
+  // 搜索词变化时回到列表顶部（过滤后的流从头看）。
+  useEffect(() => {
+    if (flatRows.length > 0) {
+      listRef.current?.scrollToRow({ index: 0, align: "start", behavior: "instant" });
+    }
+  }, [query, flatRows.length, listRef]);
+
+  const jumpToTurn = (turn: number) => {
+    setOpenTurns((prev) => new Set(prev).add(turn)); // 展开目标轮
+    const idx = flatRowsRef.current.findIndex((row) => row.kind === "turn" && row.turn.turn === turn);
+    if (idx >= 0) listRef.current?.scrollToRow({ index: idx, align: "start", behavior: "smooth" });
+  };
+
+  const getRowKey = useCallback((index: number) => flatRows[index]?.key ?? String(index), [flatRows]);
+
   return (
-    <div className="flex h-full flex-col gap-2 overflow-y-auto p-3">
+    <div className="flex h-full flex-col gap-2 p-3">
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-3 rounded-lg border border-border-soft bg-bg px-3 py-1.5 text-[10px] text-fg-dim">
           <span className="flex items-center gap-1"><Clock size={11} className="text-accent/70" />Duration {stats.duration ? fmtDuration(stats.duration * 1000) : "—"}</span>
@@ -234,6 +365,11 @@ export function TrajectoryView({ running }: { running: boolean }) {
           <span>Turns {stats.turns}</span>
           <span className="text-fg-faint">·</span>
           <span>Calls {stats.calls}</span>
+        </div>
+        <div className="flex items-center gap-1 text-[10px]">
+          <button className="cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-fg-dim hover:text-fg" onClick={collapseAll}>收起全部</button>
+          <span className="text-fg-faint">·</span>
+          <button className="cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-fg-dim hover:text-fg" onClick={expandAll}>展开全部</button>
         </div>
         <div className="relative ml-auto w-56">
           <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-faint" />
@@ -256,20 +392,24 @@ export function TrajectoryView({ running }: { running: boolean }) {
           暂无轨迹记录 —— 开始一轮办公任务后，这里会按时间顺序展示完整事件账本。
         </div>
       )}
-      {trajectory.turns.map((t) => <TurnSection key={t.turn} turn={t} query={query} />)}
-      {trajectory.betweenTurns && trajectory.betweenTurns.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 border-y border-dashed border-border-soft bg-warning/5 px-3 py-1.5">
-            <span className="text-[10px] font-semibold text-warning uppercase tracking-wider">Between turns</span>
-            <span className="text-[9px] text-fg-faint">轮次之间</span>
-          </div>
-          <div className="bg-bg">
-            {trajectory.betweenTurns.map((r) => <RecordRow key={`bt-${r.kind}-${r.seq}`} record={r} />)}
-          </div>
-        </div>
+      {trajectory.turns.length > 0 && (
+        <OverviewBar turns={trajectory.turns} onJump={jumpToTurn} />
       )}
+      <div className="min-h-0 flex-1">
+        <List
+          className="h-full"
+          style={{ height: "100%" }}
+          defaultHeight={600}
+          rowCount={flatRows.length}
+          rowHeight={rowHeights}
+          rowKey={getRowKey}
+          rowProps={{ rows: flatRows, openTurns, allCollapsed, onToggle: toggleTurn }}
+          rowComponent={TrajectoryRow}
+          overscanCount={12}
+        />
+      </div>
       <div className="flex items-center gap-1.5 text-[9px] text-fg-faint">
-        <Eye size={10} /> 点击记录展开详情（工具参数/结果、请求头、用量与耗时）
+        <Eye size={10} /> 点击记录展开详情（工具参数/结果、请求头、用量与耗时）· 长会话按视口虚拟渲染
       </div>
     </div>
   );

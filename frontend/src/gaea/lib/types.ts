@@ -217,6 +217,7 @@ export interface ContextRequestRecord {
   outputTokens?: number;
   cacheHitTokens?: number;
   cacheMissTokens?: number;
+  estimated?: boolean; // 回合末未见 usage，按估算分类关闭（旧日志/无用量提供方）
 }
 
 export interface ContextEvent {
@@ -227,6 +228,16 @@ export interface ContextEvent {
   turn: number;
   step: number;
   ts: number;
+}
+
+export interface FileActivity {
+  seq: number;
+  ts: number;
+  turn: number;
+  step: number;
+  tool: string;
+  action: "read" | "write" | "move" | "dir";
+  path: string;
 }
 
 export interface ContextSurfaceNode {
@@ -246,6 +257,7 @@ export interface ContextTimeline {
   events: ContextEvent[];
   nodes: ContextSurfaceNode[];
   archive: ContextSurfaceNode[];
+  files: FileActivity[];
 }
 
 // ─── 轨迹视图（对齐 DSH ui-trajectory 事件账本）────────────────
@@ -533,6 +545,21 @@ export interface SubagentRunsView {
   runs: SubagentRunView[];
   total: number;
   running: number;
+}
+
+export interface SubagentTranscriptMessage {
+  role: "system" | "user" | "assistant" | "tool";
+  name?: string;
+  content?: string;
+  reasoning?: string;
+  toolCalls?: { id: string; name: string; arguments: string }[];
+  toolCallId?: string;
+}
+
+export interface SubagentTranscriptView {
+  ref: string;
+  task?: string;
+  messages: SubagentTranscriptMessage[];
 }
 
 // ── 统一交付出口（事实底座 → 多形态交付） ──────────────────

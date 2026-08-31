@@ -53,6 +53,7 @@ import type {
   QuestionAnswer,
   SessionMeta,
   SessionStatsView,
+  SubagentTranscriptView,
   ProjectGroup,
   SettingsView,
   SkillCaptureInput,
@@ -273,6 +274,8 @@ export interface AppBindings {
   ZipDeliverables(paths: string[]): Promise<ZipDeliverableResult>;
   // SubagentRuns 读取当前会话派发的全部子代理分工（状态/任务摘要/回答/工具数）。
   SubagentRuns(sessionPath: string): Promise<SubagentRunsView>;
+  // SubagentTranscript 读取某个子代理的完整 transcript（Agent 网络节点查看用）。
+  SubagentTranscript(sessionPath: string, ref: string): Promise<SubagentTranscriptView>;
   // WriteFile 工作区内联编辑保存（C5）：把文本原子写回工作区相对路径文本文件
   // （路径/扩展名/大小校验在后端；用户显式保存，不走 agent 审批）。
   WriteFile(rel: string, content: string): Promise<void>;
@@ -308,6 +311,10 @@ export interface AppBindings {
   // SetMemoryEnabled 记忆开关（记忆可控性）：关闭后不再注入画像/规则/事实，
   // 持久化并重建办公引擎立即生效。
   SetMemoryEnabled(enabled: boolean): Promise<void>;
+  // MorningPreload 读/写晨报预载开关（~/.gaea_config.json，默认开）：work
+  // 空间新会话装配时预装配高频工作记忆；写后重建引擎即时生效。
+  MorningPreload(): Promise<boolean>;
+  SetMorningPreload(enabled: boolean): Promise<void>;
   MemorySuggestions(): Promise<MemorySuggestionsView>;
   // LogFrontendError 记录前端错误/主线程卡死诊断到 gaea.log。
   LogFrontendError(message: string): Promise<void>;
@@ -787,6 +794,7 @@ const gaeaToGaea = {
   XlsxChart: "GaeaXlsxChart",
   ZipDeliverables: "GaeaZipDeliverables",
   SubagentRuns: "GaeaSubagentRuns",
+  SubagentTranscript: "GaeaSubagentTranscript",
   WriteFile: "GaeaWriteFile",
   ExportDeliverable: "GaeaExportDeliverable",
   ConvertToPdf: "GaeaConvertToPdf",
@@ -808,6 +816,8 @@ const gaeaToGaea = {
   UpdateFact: "GaeaUpdateFact",
   ChangeFactType: "GaeaChangeFactType",
   SetMemoryEnabled: "GaeaSetMemoryEnabled",
+  MorningPreload: "GaeaMorningPreload",
+  SetMorningPreload: "GaeaSetMorningPreload",
   MemorySuggestions: "GaeaMemorySuggestions",
   LogFrontendError: "GaeaLogFrontendError",
   AcceptMemorySuggestion: "GaeaAcceptMemorySuggestion",

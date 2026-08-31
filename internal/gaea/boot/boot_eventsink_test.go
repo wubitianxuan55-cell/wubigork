@@ -1,9 +1,9 @@
 package boot_test
 
 // 3.0 Step 1：事件日志 sink 接线测试（回退开关 session.log_format）。
-// event 模式：Send 一轮后 <id>.gaea-log.jsonl 落盘、seq 连续、turn 生命周期
-// （turn_started/turn_done）入日志、回合边界写入器关闭（文件可删除）；
-// 缺省 legacy：不产生事件日志（旧行为不变）。
+// event 模式（缺省）：Send 一轮后 <id>.gaea-log.jsonl 落盘、seq 连续、
+// turn 生命周期（turn_started/turn_done）入日志、回合边界写入器关闭
+// （文件可删除）；显式 "legacy"：不产生事件日志（旧行为不变）。
 
 import (
 	"context"
@@ -139,9 +139,28 @@ func TestBuildEventLogModeWritesLog(t *testing.T) {
 	}
 }
 
-// TestBuildDefaultLegacyNoEventLog：缺省 legacy 不产生事件日志（旧行为不变）。
-func TestBuildDefaultLegacyNoEventLog(t *testing.T) {
-	ctrl, sessDir := buildEventModeCtrl(t, "test-mock-boot-legacy", "")
+// TestBuildDefaultEventLog：缺省 log_format（空）即事件日志——轨迹/上下文
+// 看板数据源；显式 "legacy" 才关闭。
+func TestBuildDefaultEventLog(t *testing.T) {
+	ctrl, sessDir := buildEventModeCtrl(t, "test-mock-boot-default-event", "")
+	path := filepath.Join(sessDir, "s1.jsonl")
+	s := agent.NewSession("sys")
+	s.Add(provider.Message{Role: provider.RoleUser, Content: "hi"})
+	ctrl.Resume(s, path)
+	ctrl.Send("你好")
+
+	logPath := filepath.Join(sessDir, "s1.gaea-log.jsonl")
+	entries := waitTurnDone(t, logPath)
+	waitFileUnlocked(t, logPath)
+	if len(entries) == 0 {
+		t.Fatal("缺省模式应产生事件日志（轨迹/上下文数据源）")
+	}
+}
+
+// TestBuildExplicitLegacyNoEventLog：显式 log_format="legacy" 不产生事件日志
+// （旧行为整文件重写 JSONL）。
+func TestBuildExplicitLegacyNoEventLog(t *testing.T) {
+	ctrl, sessDir := buildEventModeCtrl(t, "test-mock-boot-explicit-legacy", "legacy")
 	path := filepath.Join(sessDir, "s1.jsonl")
 	s := agent.NewSession("sys")
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "hi"})
@@ -163,7 +182,7 @@ func TestBuildDefaultLegacyNoEventLog(t *testing.T) {
 	}
 	for _, e := range entries {
 		if strings.Contains(e.Name(), "gaea-log.jsonl") {
-			t.Fatalf("legacy 模式不应产生事件日志: %s", e.Name())
+			t.Fatalf("显式 legacy 模式不应产生事件日志: %s", e.Name())
 		}
 	}
 }

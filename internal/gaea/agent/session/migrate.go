@@ -75,3 +75,31 @@ func MigrateLegacyToLog(logPath, legacyPath, space string) (int, error) {
 	// 旧文件保留：不做任何删除/改名。
 	return len(entries), nil
 }
+
+// ReadEntriesFor 返回会话的折叠输入条目（轨迹/上下文/Agent 网络看板共用）：
+// 优先读事件日志（<id>.gaea-log.jsonl）；日志缺失时（legacy 会话尚未迁移）
+// 回退为把旧 <id>.jsonl 消息投影为条目——含回合边界（ToLogEntries），使
+// 轨迹/上下文折叠对旧会话同样成立。纯读路径：不回写磁盘、不迁移旧文件。
+// 会话与日志都不存在时返回 os.ErrNotExist。
+func ReadEntriesFor(sessionPath string) ([]LogEntry, error) {
+	logPath := LogPathFor(sessionPath)
+	if logPath != "" {
+		if entries, err := ReadLogRepaired(logPath); err == nil {
+			return entries, nil
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
+	// 无事件日志：legacy 会话文件存在则投影（旧文件保留，不迁移磁盘）。
+	if _, err := os.Stat(sessionPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, os.ErrNotExist
+		}
+		return nil, err
+	}
+	s, err := Load(sessionPath)
+	if err != nil {
+		return nil, err
+	}
+	return ToLogEntries(s.Messages), nil
+}

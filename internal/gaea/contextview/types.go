@@ -48,6 +48,9 @@ type RequestRecord struct {
 	OutputTokens   int64    `json:"outputTokens,omitempty"`
 	CacheHitTokens int64    `json:"cacheHitTokens,omitempty"`
 	CacheMissTokens int64   `json:"cacheMissTokens,omitempty"`
+	// Estimated 标记该请求在回合结束时未见 usage 事件，按当前估算分类关闭
+	// （旧日志/无 usage 提供方；诚实标注「估算」，不伪造用量数字）。
+	Estimated bool `json:"estimated,omitempty"`
 }
 
 // ContextEvent 是一次上下文变化（注入/压缩/剪枝/切换/模式）。
@@ -70,6 +73,19 @@ type SurfaceNode struct {
 	Gone   *int64 `json:"gone,omitempty"` // 被压缩/剪枝取代的事件 seq
 }
 
+// FileActivity 是一次工具调用对工作区文件的接触（「文件活动」时间线的最小
+// 单位：读/写/移动/列目录）。Path 取工具参数里的路径键，纯函数确定性提取；
+// 提取不到（如 bash 里的路径）诚实不造数。
+type FileActivity struct {
+	Seq    int64  `json:"seq"`
+	Ts     int64  `json:"ts"`
+	Turn   int    `json:"turn"`
+	Step   int    `json:"step"`
+	Tool   string `json:"tool"`
+	Action string `json:"action"` // read | write | move | dir
+	Path   string `json:"path"`
+}
+
 // ContextTimeline 是 context-view 的整值快照（GaeaContextView 返回值）。
 type ContextTimeline struct {
 	Ok       bool            `json:"ok"`
@@ -80,6 +96,7 @@ type ContextTimeline struct {
 	Events   []ContextEvent  `json:"events"`
 	Nodes    []SurfaceNode   `json:"nodes"`
 	Archive  []SurfaceNode   `json:"archive"`
+	Files    []FileActivity  `json:"files"`
 }
 
 // EmptyTimeline 返回全空快照（会话/日志不存在时绑定层的早退返回值）。
@@ -91,5 +108,6 @@ func EmptyTimeline() ContextTimeline {
 		Events:   []ContextEvent{},
 		Nodes:    []SurfaceNode{},
 		Archive:  []SurfaceNode{},
+		Files:    []FileActivity{},
 	}
 }

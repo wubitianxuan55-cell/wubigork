@@ -1,8 +1,8 @@
 package session
 
 // 3.0 Step 1 运行时接线：事件日志模式下 Save→Load 往返、legacy 回退、
-// 用户/system 消息落日志、LastLogSeq 游标。legacy 模式（缺省）行为与改造前
-// 逐字节一致（不产生事件日志/检查点）。
+// 用户/system 消息落日志、LastLogSeq 游标。会话层未显式 SetLogFormat 时
+// 保持 legacy 行为（配置层缺省 event 由 boot/宿主注入，见 config.EffectiveLogFormat）。
 
 import (
 	"path/filepath"
@@ -37,8 +37,8 @@ func TestEventModeSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadLog: %v", err)
 	}
-	if len(entries) != 5 {
-		t.Fatalf("entries = %d, want 5（system+user+assistant+tool+assistant）", len(entries))
+	if len(entries) != 8 {
+		t.Fatalf("entries = %d, want 8（system+回合边界+合成 header+user+assistant+tool+assistant+turn_done）", len(entries))
 	}
 
 	// 事件日志模式 Load → Restore（checkpoint 无 → 全量重放）

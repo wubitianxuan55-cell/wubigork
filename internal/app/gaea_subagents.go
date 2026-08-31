@@ -2,6 +2,8 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -151,6 +153,79 @@ func summarizeSubagentTranscript(path string) (task, answer string, toolCalls in
 		}
 	}
 	return task, answer, toolCalls, lastText, lastTool
+}
+
+// SubagentTranscriptMessage 是子代理 transcript 中的一条消息（查看器渲染用）。
+type SubagentTranscriptMessage struct {
+	Role       string               `json:"role"` // system | user | assistant | tool
+	Name       string               `json:"name,omitempty"`
+	Content    string               `json:"content,omitempty"`
+	Reasoning  string               `json:"reasoning,omitempty"`
+	ToolCalls  []provider.ToolCall  `json:"toolCalls,omitempty"`
+	ToolCallID string               `json:"toolCallId,omitempty"`
+}
+
+// SubagentTranscriptView 是子代理完整 transcript 视图（Agent 网络节点 →
+// 「查看完整 transcript」的数据源）。
+type SubagentTranscriptView struct {
+	Ref      string                      `json:"ref"`
+	Task     string                      `json:"task"`
+	Messages []SubagentTranscriptMessage `json:"messages"`
+}
+
+// GaeaSubagentTranscript 读取当前会话派发的某个子代理的完整 transcript
+// （<sessionDir>/subagents/<ref>.jsonl）。ref 必须匹配 sa_ 前缀且仅含安全
+// 字符（防路径穿越）；读取失败返回错误——查看器需要区分「没有」与「读不了」
+// （与摘要接口的静默降级不同）。
+func (a *App) GaeaSubagentTranscript(sessionPath, ref string) (SubagentTranscriptView, error) {
+	if sessionPath == "" || !validSubagentRef(ref) || sessionDirForPath(sessionPath) == "" {
+		return SubagentTranscriptView{}, errors.New("invalid subagent transcript reference")
+	}
+	dir := filepath.Join(filepath.Dir(filepath.Clean(sessionPath)), "subagents")
+	f, err := os.Open(filepath.Join(dir, ref+".jsonl"))
+	if err != nil {
+		return SubagentTranscriptView{}, err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	view := SubagentTranscriptView{Ref: ref, Messages: []SubagentTranscriptMessage{}}
+	for {
+		var m provider.Message
+		if err := dec.Decode(&m); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return SubagentTranscriptView{}, err
+		}
+		if view.Task == "" && m.Role == provider.RoleUser && strings.TrimSpace(m.Content) != "" {
+			view.Task = truncateRunes(strings.TrimSpace(m.Content), 120)
+		}
+		view.Messages = append(view.Messages, SubagentTranscriptMessage{
+			Role:       string(m.Role),
+			Name:       m.Name,
+			Content:    m.Content,
+			Reasoning:  m.ReasoningContent,
+			ToolCalls:  m.ToolCalls,
+			ToolCallID: m.ToolCallID,
+		})
+	}
+	return view, nil
+}
+
+// validSubagentRef 校验子代理引用：sa_ 前缀 + 仅字母数字/下划线/连字符/点，
+// 且长度受限（防路径穿越与超长注入）。
+func validSubagentRef(ref string) bool {
+	if len(ref) == 0 || len(ref) > 80 || !strings.HasPrefix(ref, "sa_") {
+		return false
+	}
+	for _, r := range ref {
+		ok := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' ||
+			r == '_' || r == '-' || r == '.'
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // oneLineHead 取多行文本的首行且截断（工具结果摘要用，避免把整段结果塞进活动行）。

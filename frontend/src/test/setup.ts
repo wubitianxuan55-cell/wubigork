@@ -1,6 +1,21 @@
 import { afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
+// react-window v2 的 List/Grid 内部用 ResizeObserver 测量容器与动态行高，
+// jsdom 未实现 → 空实现 polyfill（不触发回调，组件回落 defaultHeight/
+// defaultRowHeight；真实浏览器由原生实现接管）。
+if (typeof window !== 'undefined' && typeof (window as unknown as Record<string, unknown>).ResizeObserver !== 'function') {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  Object.defineProperty(window, 'ResizeObserver', {
+    writable: true,
+    value: ResizeObserverStub,
+  })
+}
+
 // Node 25 / vitest v4 jsdom：全局 localStorage 是缺 clear 等方法的最小对象，
 // 导致测试 beforeEach 中 localStorage.clear() 抛 "localStorage.clear is not a function"
 // （2026-08-15 chat 板块测试定位的基线环境问题）。此处补完整存储实现。

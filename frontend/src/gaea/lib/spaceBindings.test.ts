@@ -12,7 +12,7 @@ import {
 describe("spaceBindings 分类表（S2.3 bridge 分面）", () => {
   it("AppBindings 全部方法被显式分类（satisfies 编译期已兜底；此处锁数量）", () => {
     const total = Object.keys(GAEA_METHOD_FACETS).length;
-    expect(total).toBe(257); // 与 keyof AppBindings 一致（satisfies 编译期钉死；v4.9 +6 …/WhisperCausalExplain + AcceptMergeSuggestion（做梦 2.0 蒸馏合并）+ MemoryMorningBrief（v4.14 晨报））
+    expect(total).toBe(260); // 与 keyof AppBindings 一致（satisfies 编译期钉死；v4.22 + MorningPreload/SetMorningPreload）
   });
 
   it("work/play/shared 三数组两两无交集且之和 + independent = 总数", () => {

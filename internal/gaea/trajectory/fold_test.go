@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gaea/gaea/internal/gaea/agent/session"
+	"github.com/gaea/gaea/internal/gaea/provider"
 )
 
 func entry(seq int64, kind string, payload any) session.LogEntry {
@@ -88,6 +89,42 @@ func TestFoldOneTurnRecords(t *testing.T) {
 	asst := turn.Records[2].Assistant
 	if asst == nil || asst.Reasoning != "先搜索" || asst.Text != "结论如下" || asst.Usage == nil || asst.Usage.PromptTokens != 1200 {
 		t.Fatalf("assistant record wrong: %+v", turn.Records[2])
+	}
+}
+
+// 迁移/投影产物（ToLogEntries：assistant_message 内嵌工具调用 + 回合边界）
+// 折叠出的轨迹与运行期事件流同构：user → assistant → tool（含结果）。
+func TestFoldLegacyProjectedEntries(t *testing.T) {
+	msgs := []provider.Message{
+		{Role: provider.RoleSystem, Content: "sys"},
+		{Role: provider.RoleUser, Content: "读一下报价单"},
+		{Role: provider.RoleAssistant, Content: "好的", ToolCalls: []provider.ToolCall{{ID: "c1", Name: "read_file", Arguments: `{"path":"x"}`}}},
+		{Role: provider.RoleTool, Content: "表格内容", ToolCallID: "c1", Name: "read_file"},
+	}
+	entries := session.ToLogEntries(msgs)
+	tl := FoldTrajectory(entries)
+	if len(tl.Turns) != 1 {
+		t.Fatalf("turns = %d, want 1（回合边界生效）", len(tl.Turns))
+	}
+	kinds := make([]string, 0, len(tl.Turns[0].Records))
+	for _, r := range tl.Turns[0].Records {
+		kinds = append(kinds, r.Kind)
+	}
+	want := []string{"user", "header", "assistant", "tool"}
+	if strings.Join(kinds, ",") != strings.Join(want, ",") {
+		t.Fatalf("record kinds = %v, want %v", kinds, want)
+	}
+	header := tl.Turns[0].Records[1].Header
+	if header == nil || header.ToolCount != 1 || header.System == "" {
+		t.Fatalf("synthesized header record wrong: %+v", tl.Turns[0].Records[1])
+	}
+	asst := tl.Turns[0].Records[2].Assistant
+	if asst == nil || asst.Text != "好的" {
+		t.Fatalf("assistant record wrong: %+v", tl.Turns[0].Records[1])
+	}
+	tool := tl.Turns[0].Records[3].Tool
+	if tool == nil || tool.Name != "read_file" || tool.Args != `{"path":"x"}` || tool.Output != "表格内容" || tool.Status != "ok" {
+		t.Fatalf("tool record wrong: %+v", tl.Turns[0].Records[2])
 	}
 }
 

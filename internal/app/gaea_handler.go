@@ -9,6 +9,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	appconfig "github.com/gaea/gaea/internal/config"
 	gaeaBoot "github.com/gaea/gaea/internal/gaea/boot"
 	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/control"
@@ -128,10 +129,11 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	}
 	// 3.0 Step 1 回退开关（session.log_format）：把配置的会话持久化格式注入
 	// 控制器——event 模式下 Snapshot 双写、回合前落用户消息 + flush 检查点
-	// （fail-closed）、Resume 走 Restore（checkpoint+tail）；缺省 legacy 行为不变。
+	// （fail-closed）、Resume 走 Restore（checkpoint+tail）；缺省 event
+	// （轨迹/上下文看板的数据源），显式 "legacy" 退回旧行为。
 	// S2 双空间：同点注入空间配置生效值（""=space.mode=off，仿 logFormat 三件套）。
 	if ga.cfg != nil {
-		ctrl.SetLogFormat(ga.cfg.Session.LogFormat)
+		ctrl.SetLogFormat(ga.cfg.EffectiveLogFormat())
 		ctrl.SetSpace(ga.cfg.EffectiveSessionSpace())
 	}
 	// 启用交互式审批：工具调用放行/拒绝、ask 结构化提问经前端确认，
@@ -148,6 +150,31 @@ func morningPreloadEnabled(a *App) bool {
 		return true
 	}
 	return a.cfg.GetMorningPreload()
+}
+
+// GaeaMorningPreload 返回晨报预载开关（~/.gaea_config.json 的 morning_preload
+// 键，默认开）：work 空间新会话装配时把高频工作记忆确定性预装配进上下文。
+func (a *App) GaeaMorningPreload() bool {
+	if a == nil || a.cfg == nil {
+		return true
+	}
+	return a.cfg.GetMorningPreload()
+}
+
+// GaeaSetMorningPreload 持久化晨报预载开关并重建办公引擎（新会话装配即时
+// 生效）：写 ~/.gaea_config.json + 更新内存 + gaeaRebuildLocked。
+func (a *App) GaeaSetMorningPreload(enabled bool) error {
+	val := "0"
+	if enabled {
+		val = "1"
+	}
+	if err := appconfig.Save(appconfig.KeyMorningPreload, val); err != nil {
+		return err
+	}
+	if a.cfg != nil {
+		a.cfg.SetMorningPreload(enabled)
+	}
+	return a.gaeaRebuildLocked()
 }
 
 // gaeaRebuildLocked 用当前配置重建 controller（设置变更后生效），替换旧实例。

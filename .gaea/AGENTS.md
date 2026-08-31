@@ -47,6 +47,153 @@
 
 ## 版本状态
 
+- **最新发布：v4.22.0（2026-08-31）「一次性收官 · 真虚拟化/transcript 定位/
+  晨报预载 UI」**：git tag `v4.22.0`；基线 v4.21.0（同工作区，未打 tag）；
+  绑定面 546→548（+2：GaeaMorningPreload/GaeaSetMorningPreload）。用户要求
+  「一次性做完」，办公板块剩余本地可做欠账一次清完并整理提交收尾：
+  ①**轨迹真虚拟化（react-window v2 动态行高）**：扁平行流按视口窗口渲染
+  （±overscan 12），超长会话 DOM 恒定，v4.21「首批+加载更多」分批机制退役；
+  useDynamicRowHeight + ResizeObserver 实测展开行高自动重排（jsdom 回落
+  defaultRowHeight）；概览跳转走 listRef.scrollToRow、搜索回顶、收起/展开
+  照常；test/setup 补 ResizeObserver stub。
+  ②**transcript 消息定位**：消息序号 #N（按原位置）+ 搜索命中自动滚动到
+  第一条命中。
+  ③**晨报预载 UI 开关（+2 绑定）**：GaeaMorningPreload/GaeaSetMorningPreload
+  ——internal/config.Save 持久化 + 内存更新 + gaeaRebuildLocked 即时生效；
+  记忆面板「晨报预载 开/关」胶囊按钮；gen_bindings 重生成 548，
+  bindingNames/mock/bridge/spaceBindings 同步。
+  验证：Go 全量 0 FAIL（绑定面完整性 548 PASS）；tsc/eslint 0；vitest 873/873
+  （+3）；drift PASS（548）；版本四处统一 4.22.0。**收尾**：v4.17.0-v4.22.0
+  六轮改动交织在同一工作区（无法按版本拆分文件），作为一次合并发布提交并
+  打 tag v4.22.0；releases/v4.17.0.md…v4.22.0.md 保留完整演进记录。剩余欠账
+  仅外部资源/官方数据项：Realtime 真机（真 key+麦克风）、自动路由本体（待
+  官方逐模型缓存/峰谷数字）、浏览器下载上传/headless UI/Windows UIA、iLink
+  真机窗口——本地不可完成。详见 releases/v4.22.0.md。
+
+- **最新发布：v4.21.0（2026-08-31）「长会话与 transcript · 增量渲染/消息搜索」**：
+  git tag `v4.21.0`；基线 v4.20.0（同工作区，未打 tag）；绑定面 546→546
+  （零新增绑定，纯前端）。续 v4.20.0 剩余两条欠账：
+  ①**轨迹增量渲染（DOM 有界）**：渲染从「逐轮整体」改为扁平行流（轮次头 +
+  展开记录行 + Between-turns），按批渲染——首批 250 行，滚动到底自动续载
+  或「加载更多（剩余 N 条）」，搜索词变化回首批；概览跳转同步把目标轮之后
+  的可见区扩进视口（不再「跳过去了但没渲染」）；收起全部/展开全部在平行流
+  上照常生效（折叠 = 记录行不进流）。
+  ②**子代理 transcript 消息搜索**：查看器头部搜索框，按正文/推理/工具名/
+  参数/结果过滤，计数「命中/总数」，无匹配空态；搜索词与展开状态互不干扰。
+  ③**注释清理**：ChatTabs「[轨迹] …（暂占位）」更新为 v4.17-v4.21 实际
+  能力（事件账本：概览/搜索/折叠/增量渲染）。
+  验证：tsc/eslint 0；vitest 872/872（+2）；Go 全量 cached 绿（绑定面 546
+  不变）、drift PASS（546）；版本四处统一 4.21.0。欠账：增量渲染为分批 DOM
+  而非 react-window 真虚拟化（渲染量有界但已渲染部分仍为真实 DOM）；
+  transcript 只读无跳转/引用定位。详见 releases/v4.21.0.md。
+
+- **最新发布：v4.20.0（2026-08-31）「剩余收官 · 子代理 transcript/轨迹概览/
+  旧会话趋势补齐」**：git tag `v4.20.0`；基线 v4.19.0（同工作区，未打 tag）；
+  绑定面 545→546（+1：GaeaSubagentTranscript）。清掉 v4.17-v4.19 之后的剩余
+  欠账，三件事一并落地：
+  ①**子代理完整 transcript 查看器**：新绑定 `GaeaSubagentTranscript(sessionPath,
+  ref)` 读取 `<sessionDir>/subagents/<ref>.jsonl` 全量消息（role/name/content/
+  reasoning/toolCalls/toolCallId）；ref 校验 sa_ 前缀 + 仅安全字符（防路径
+  穿越）+ 长度上限；读取失败返回错误（查看器区分「没有」与「读不了」）。
+  gen_bindings 重生成（546），bindingNames.ts 同步，drift PASS。前端 Agent
+  网络详情面板增「查看完整 transcript」按钮 → 消息流（角色徽标 + 推理块 +
+  工具调用 + 结果，可滚动、可收起）。
+  ②**轨迹 Overview 投影 + 轮次跳转 + 折叠控制**：轨迹标签顶部「轨迹概览」
+  投影条（每轮一根柱，柱高 ∝ 记录密度，含工具调用高亮、报错轮标红，hover
+  显示「第 N 轮 · X 条记录 · Y 工具调用」，点击平滑滚动到该轮并展开目标）；
+  「收起全部 / 展开全部」控制长会话折叠成轮次索引，新回合（实时刷新）默认
+  展开不被旧折叠态吞掉。
+  ③**迁移/兜底会话趋势补齐（诚实估算）**：ToLogEntries 每回合合成
+  request_header——system = 真实 system 消息拼接（joinPromptPart），tools =
+  该轮 assistant 实际用到的工具名集合（schema 未知的最小诚实形状）；顺序与
+  运行期一致（user 先落、header 随后）。contextview 新增回合末估算关闭
+  （turn_done 未见 usage 时用当前估算构成落 estimated 记录并刷新 brief），
+  前端步骤详情显示「估算构成（无用量记录）」，不伪造 promptTokens 等用量
+  数字。
+  验证：Go 全量 0 FAIL（+2 用例：回合末估算关闭、合成 header system/工具名
+  断言）；绑定面完整性 546 PASS；drift PASS（546）；tsc/eslint 0；vitest
+  870/870（+3：轨迹概览、收起/展开全部、子代理 transcript 渲染与收起）；
+  版本四处统一 4.20.0。欠账：轨迹虚拟滚动未做（以收起全部+概览跳转缓解）；
+  子代理 transcript 只读无搜索。详见 releases/v4.20.0.md。
+
+- **最新发布：v4.19.0（2026-08-31）「看板收官 · 上下文浏览器//context 命令/
+  子代理节点详情」**：git tag `v4.19.0`；基线 v4.18.0（同工作区，未打 tag）；
+  绑定面 545→545（零新增绑定）。续 v4.17.0+v4.18.0 的「继续完善」第三刀，
+  上下文标签最后一个页脚占位收掉，三件事互不相交一并落地：
+  ①**上下文浏览器**：contextview 折叠补全系统/工具节点——request_header
+  的 system prompt 与工具集合只在构成变化时入 nodes（初版+变化版各一条，
+  每步重复不刷屏），节点文本=预览（300），全文在日志 request_header 行；
+  nodes 覆盖全部六分类，与「模型可见节点」文档语义对齐。前端
+  ContextBrowserCard：活跃/归档双页签（归档=被压缩移出节点，带「已压缩」
+  标记）+ 六分类过滤 chips + 节点行（分类色点+≈tokens+预览，超长可展开/
+  收起，展示最近 60 条）；页脚占位整行移除。
+  ②**/context 命令**：GaeaCommands() 内置 + i18n（zh/en CmdContext），斜杠
+  菜单可发现可补全；classifyComposerCommand 增 context 分类，App.handleSend
+  拦截 `/context` → setChatTab("context")（不发给模型）；CLI 未拦截路径走
+  控制器未知斜杠 Notice，诚实不猜。
+  ③**Agent 网络节点点击 → 子代理详情**：AgentNetworkCard 增 sessionPath
+  （App 从 currentSessionPath 注入），点击子代理节点 → SubagentRuns 按任务
+  摘要前缀匹配（与后端 enrichAgentNetwork 同口径）→ 固定详情面板（状态/
+  模型/工具调用数/更新时间 + lastText/lastTool + 最后回答摘要）；无会话路径
+  或匹配不到回退节点统计；悬停文案更新为「悬停查看节点详情 · 点击节点固定
+  子代理详情」。
+  验证：Go 全量 0 FAIL（+1 用例：系统/工具节点只在构成变化时新增、文本含
+  工具名）；tsc/eslint 0；vitest 867/867（+4：/context 分类、浏览器活跃节点
+  展开/收起、归档页+占位移除、子代理节点点击详情）；drift PASS（545）；版本
+  四处统一 4.19.0。欠账：子代理完整 transcript 查看器（详情面板非全文）；
+  轨迹 Overview 投影与虚拟滚动；迁移/兜底会话系统/工具分类与趋势柱（旧消息
+  无 request_header/usage，诚实不造数）。详见 releases/v4.19.0.md。
+
+- **最新发布：v4.18.0（2026-08-31）「看板补全 · 文件活动/增量模式/实时刷新」**：
+  git tag `v4.18.0`；基线 v4.17.0（同工作区，未打 tag）；绑定面 545→545
+  （零新增绑定）。续 v4.17.0 的「继续完善」，三件事互不相交一并落地：
+  ①**文件活动时间线**：contextview 折叠新增 FileActivity——工具参数确定性
+  提取路径（path/rel/source/destination/image_path/output 键优先级）+ 工具→
+  动作白名单（read_file/grep/vision/format_convert=read；write_file/edit_file/
+  multi_edit/edit_lines/chart_gen/diagram_gen/screen_capture=write；move_file=
+  move；ls=dir）；screen_capture 从结果输出补记；bash 等无法确定性取路径者
+  诚实不造数；同轮同步骤同路径合并刷新、上限 200、空切片非 nil。前端
+  FileActivityCard（动作徽标+工具+路径+时间，倒序最近 40 条），页脚改为
+  「上下文浏览器将在后续阶段接入」。
+  ②**增量（Delta）模式启用**：趋势图「增量」按钮去灰置（Phase B 占位收口），
+  切换展示每步相对上一步净变化（绿=净增·红=净减，图例随模式出现）；柱色改
+  全站一致的可视化语义色（hex-exempt）。
+  ③**运行中实时刷新**：新 hook useLiveReload 订阅 gaea 事件流——运行中节流
+  刷新（1200ms）、turn_done 立即刷新、running true→false 整轮刷新；轨迹/
+  上下文/Agent 网络三处统一接入（替换「仅回合结束刷新」effect）。
+  验证：Go 全量 0 FAIL（+2 用例：文件活动折叠 + 空快照 files:[] 序列化回归）；
+  tsc/eslint 0；看板+mock-contract vitest 22/22（+2：文件活动卡渲染、增量
+  图例）；drift PASS（545）；版本四处统一 4.18.0。欠账：上下文浏览器（surface
+  节点浏览/归档重建）仍占位；Agent 节点点击跳子代理会话；轨迹 Overview 投影
+  与虚拟滚动；/context 命令；迁移/兜底会话的系统/工具分类与趋势柱（旧消息无
+  request_header/usage，诚实不造数）。详见 releases/v4.18.0.md。
+
+- **最新发布：v4.17.0（2026-08-31）「轨迹上下文接通 · 事件日志默认开启」**：
+  git tag `v4.17.0`；基线 v4.16.0 + 1 提交；绑定面 545→545（零新增绑定）。
+  用户反馈办公板块「轨迹」「上下文」标签空壳 → 单刀接通数据链路：
+  ①**事件日志缺省开启（根因修复）**：`config.EffectiveLogFormat()` 缺省
+  "event"（仅显式 "legacy" 退回），`LogFormatIsEvent` 改用生效值；gaea_handler
+  注入 `ctrl.SetLogFormat(EffectiveLogFormat())`，boot 同源创建 EventLogSink——
+  两看板 + Agent 网络从下一轮对话起即有真实数据。
+  ②**旧会话读端兜底**：`session.ReadEntriesFor(path)` 优先事件日志、缺失时
+  把旧 `<id>.jsonl` 投影为折叠条目（含回合边界，纯读不迁移不落盘）；
+  GaeaTrajectory/GaeaContextView/GaeaAgentNetwork 统一改用。
+  ③**迁移产物带回合边界 + 折叠兼容**：ToLogEntries 每条 user 消息前写
+  turn_started、流尾写 turn_done（ProjectMessages 忽略边界，恢复投影逐字节
+  不变，golden round-trip 保持）；trajectory 折叠兼容 assistant_message
+  （正文/推理并入 assistant、内嵌工具调用展开为 tool 记录并与 tool_result
+  按 ID 合并）。
+  ④**写入器随控制器释放**：boot 把 EventLogSink.Close 组合进 Controller.Cleanup
+  （幂等）——缺省 event 后 Windows 会话目录可删除/迁移。
+  验证：Go 全量 0 FAIL（+6 用例：config 缺省/legacy、ToLogEntries 边界与投影
+  往返、迁移计数、ReadEntriesFor 优先/回退/双缺失、轨迹折叠迁移产物、boot
+  缺省 event/显式 legacy）；tsc -b 0；TrajectoryView/ContextView/AgentNetworkCard
+  vitest 12/12；drift PASS（545）；版本四处统一 4.17.0。欠账：迁移/兜底会话
+  无 request_header/usage（系统/工具分类 0、趋势无柱——旧消息无法回填真实
+  用量，诚实不造数）；Agent 网络对 legacy 会话仅 root；增量（Delta）模式仍
+  Phase B、上下文浏览器/File activity/SSE 增量刷新/轨迹 Overview 投影与虚拟
+  滚动 = v3.5 既定欠账未动。详见 releases/v4.17.0.md。
+
 - **最新发布：v4.16.0（2026-08-31）「四刀并行 · 离线收口/浏览器键盘与 iframe/
   复核可视化/晨报预装配」**：git tag `v4.16.0`；基线 v4.15.0 + 1 提交；绑定面
   545→545（零新增绑定）。用户拍板「全部并行处理」——四个并行子代理落地（足迹

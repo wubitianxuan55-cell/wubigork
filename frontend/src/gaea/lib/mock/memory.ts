@@ -15,7 +15,7 @@ type MemoryMethods = Pick<
   | "Memory" | "MemoryArchivedList" | "MemoryCleanupArchived" | "MemoryUnarchive"
   | "MemoryUnarchiveBatch" | "MemorySetRetentionDays"
   | "Remember" | "Forget" | "SaveDoc" | "UpdateFact" | "ChangeFactType"
-  | "SetMemoryEnabled" | "MemorySuggestions"
+  | "SetMemoryEnabled" | "MemorySuggestions" | "MorningPreload" | "SetMorningPreload"
   | "AcceptMemorySuggestion" | "AcceptSkillSuggestion" | "AcceptMergeSuggestion"
   | "FactBase" | "FactBaseClear" | "FactBasePromote"
   | "MemoryHubOverview" | "ProfileList" | "ProfileSave" | "ProfileDelete"
@@ -127,6 +127,12 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async SetMemoryEnabled(enabled: boolean) {
       emit({ kind: "notice", level: "info", text: `memory ${enabled ? "enabled" : "disabled"}` });
+    },
+    async MorningPreload() {
+      return _s.morningPreload;
+    },
+    async SetMorningPreload(enabled: boolean) {
+      _s.setMorningPreload(enabled);
     },
     async MemorySuggestions() {
       return { memories: [], skills: [], merges: [], generatedAt: new Date().toISOString(), available: false, source: "mock" };

@@ -58,8 +58,8 @@ func TestMigrateLegacyToLog(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MigrateLegacyToLog: %v", err)
 	}
-	if n != 4 {
-		t.Fatalf("migrated entries = %d, want 4", n)
+	if n != 7 {
+		t.Fatalf("migrated entries = %d, want 7 (回合边界 + 合成 request_header)", n)
 	}
 
 	// 旧文件保留
@@ -72,10 +72,10 @@ func TestMigrateLegacyToLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 4 {
-		t.Fatalf("log entries = %d, want 4", len(entries))
+	if len(entries) != 7 {
+		t.Fatalf("log entries = %d, want 7", len(entries))
 	}
-	wantKinds := []string{KindSystemMessage, KindUserMessage, KindAssistantMessage, KindToolResult}
+	wantKinds := []string{KindSystemMessage, "turn_started", KindUserMessage, KindRequestHeader, KindAssistantMessage, KindToolResult, "turn_done"}
 	for i, k := range wantKinds {
 		if entries[i].Kind != k {
 			t.Errorf("entry %d kind = %s, want %s", i, entries[i].Kind, k)
@@ -87,18 +87,18 @@ func TestMigrateLegacyToLog(t *testing.T) {
 		t.Fatalf("projected = %+v", projected)
 	}
 
-	// 追加续 seq：迁移后 OpenLog 的 seq = 4
+	// 追加续 seq：迁移后 OpenLog 的 seq = 7
 	w, err := OpenLog(logPath, sessionPath, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer w.Close()
-	if w.Seq() != 4 {
-		t.Fatalf("seq after migration = %d, want 4", w.Seq())
+	if w.Seq() != 7 {
+		t.Fatalf("seq after migration = %d, want 7", w.Seq())
 	}
 	seq, _ := w.Append("turn_done", map[string]string{})
-	if seq != 5 {
-		t.Fatalf("append seq = %d, want 5", seq)
+	if seq != 8 {
+		t.Fatalf("append seq = %d, want 8", seq)
 	}
 }
 
@@ -120,6 +120,60 @@ func TestMigrateRefusesDoubleMigration(t *testing.T) {
 	}
 }
 
+// ReadEntriesFor 看板读端兜底：事件日志优先；缺失时回退 legacy 会话投影
+// （含回合边界），纯读不落盘。
+func TestReadEntriesForLegacyFallback(t *testing.T) {
+	dir := t.TempDir()
+	sessionPath := filepath.Join(dir, "s.jsonl")
+	s := New("sys")
+	s.Add(provider.Message{Role: provider.RoleUser, Content: "你好"})
+	s.Add(provider.Message{Role: provider.RoleAssistant, Content: "好的"})
+	if err := s.Save(sessionPath); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := ReadEntriesFor(sessionPath)
+	if err != nil {
+		t.Fatalf("ReadEntriesFor: %v", err)
+	}
+	if len(entries) != 6 {
+		t.Fatalf("entries = %d, want 6（system + 回合边界 + 合成 header + user + assistant + turn_done）", len(entries))
+	}
+	// 纯读：不产生事件日志文件
+	if _, err := os.Stat(LogPathFor(sessionPath)); !os.IsNotExist(err) {
+		t.Fatalf("fallback must not create event log: %v", err)
+	}
+	// 回合边界存在（轨迹折叠可见）
+	if entries[1].Kind != "turn_started" || entries[5].Kind != "turn_done" {
+		t.Fatalf("turn boundaries missing: %+v", entries)
+	}
+
+	// 事件日志存在时优先读日志
+	w, err := OpenLog(LogPathFor(sessionPath), "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Append(KindUserMessage, userLogPayload{Content: "新消息"}); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	entries, err = ReadEntriesFor(sessionPath)
+	if err != nil {
+		t.Fatalf("ReadEntriesFor with log: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Kind != KindUserMessage {
+		t.Fatalf("log precedence wrong: %+v", entries)
+	}
+}
+
+// ReadEntriesFor：会话与日志都不存在 → os.ErrNotExist（调用方按空快照处理）。
+func TestReadEntriesForMissing(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := ReadEntriesFor(filepath.Join(dir, "nope.jsonl")); !os.IsNotExist(err) {
+		t.Fatalf("err = %v, want os.ErrNotExist", err)
+	}
+}
+
 // OpenLog 自动迁移（首次保存写新日志）
 func TestOpenLogAutoMigrates(t *testing.T) {
 	dir := t.TempDir()
@@ -134,14 +188,14 @@ func TestOpenLogAutoMigrates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer w.Close()
-	if w.Seq() != 2 {
-		t.Fatalf("seq = %d, want 2 (auto-migrated)", w.Seq())
+	if w.Seq() != 5 {
+		t.Fatalf("seq = %d, want 5 (auto-migrated, 回合边界 + 合成 header)", w.Seq())
 	}
 	if _, err := os.Stat(sessionPath); err != nil {
 		t.Fatal("legacy file must be kept after auto-migration")
 	}
 	entries, _ := ReadLog(logPath)
-	if len(entries) != 2 || entries[0].Kind != KindSystemMessage {
+	if len(entries) != 5 || entries[0].Kind != KindSystemMessage {
 		t.Fatalf("auto-migrated entries = %+v", entries)
 	}
 }

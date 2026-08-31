@@ -570,42 +570,120 @@ func askPayloadFromEvent(e event.Event) map[string]any {
 // checkpoint 投影时使用）。system 消息映射为 system_message；assistant 的
 // 工具调用随 assistant_message 内嵌（与 runtime 事件流 tool_dispatch 等价的
 // 投影结果一致）。
+//
+// 条目带回合边界：每条 user 消息前写 turn_started、下一条 user 消息前
+// （或流末尾）写 turn_done——让迁移/投影产生的日志对轨迹折叠（trajectory）
+// 与上下文折叠（contextview）同样成立。边界条目不投影为消息，恢复路径
+// 逐字节不受影响。
+//
+// 每个回合额外合成一条 request_header：system = 已见 system 消息拼接，tools =
+// 该轮 assistant 实际用到的工具名集合（schema 未知，只给名字的最小诚实形状）。
+// 旧会话因此能得到系统/工具分类估算与趋势柱（无 usage 事件时 contextview
+// 在 turn_done 用估算关闭请求，见 Estimated）。
 func ToLogEntries(msgs []provider.Message) []LogEntry {
+	// 预扫描：每条 user 消息序号 → 该轮使用的工具名集合（去重保序）。
+	turnToolNames := map[int][]string{}
+	turnIdx := -1
+	for _, m := range msgs {
+		if m.Role == provider.RoleUser {
+			turnIdx++
+		}
+		if m.Role != provider.RoleAssistant || turnIdx < 0 {
+			continue
+		}
+		for _, tc := range m.ToolCalls {
+			if tc.Name == "" {
+				continue
+			}
+			dup := false
+			for _, n := range turnToolNames[turnIdx] {
+				if n == tc.Name {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				turnToolNames[turnIdx] = append(turnToolNames[turnIdx], tc.Name)
+			}
+		}
+	}
 	var out []LogEntry
 	now := time.Now().Unix()
 	seq := int64(1)
+	appendEntry := func(e LogEntry) {
+		e.Seq = seq
+		e.Ts = now
+		out = append(out, e)
+		seq++
+	}
+	turnOpen := false
+	closeTurn := func() {
+		if !turnOpen {
+			return
+		}
+		appendEntry(LogEntry{Kind: "turn_done", Payload: mustMarshal(map[string]string{})})
+		turnOpen = false
+	}
+	systemText := ""
+	curTurn := -1
 	for _, m := range msgs {
-		var e LogEntry
 		switch m.Role {
 		case provider.RoleSystem:
-			e = LogEntry{Seq: seq, Ts: now, Kind: KindSystemMessage,
-				Payload: mustMarshal(userLogPayload{Content: m.Content, Name: m.Name})}
+			systemText = joinPromptPart(systemText, m.Content)
+			appendEntry(LogEntry{Kind: KindSystemMessage,
+				Payload: mustMarshal(userLogPayload{Content: m.Content, Name: m.Name})})
 		case provider.RoleUser:
-			e = LogEntry{Seq: seq, Ts: now, Kind: KindUserMessage,
-				Payload: mustMarshal(userLogPayload{Content: m.Content, Name: m.Name})}
+			closeTurn()
+			appendEntry(LogEntry{Kind: "turn_started", Payload: mustMarshal(map[string]string{})})
+			turnOpen = true
+			curTurn++
+			appendEntry(LogEntry{Kind: KindUserMessage,
+				Payload: mustMarshal(userLogPayload{Content: m.Content, Name: m.Name})})
+			// 合成 request_header：system prompt（真实）+ 该轮工具名集合
+			// （schema 未知的最小诚实形状，估算 token 用）。放在 user 之后，
+			// 与运行期事件序一致（用户消息先落日志、模型请求再发 header）。
+			if systemText != "" || len(turnToolNames[curTurn]) > 0 {
+				tools := make([]requestToolLogPayload, 0, len(turnToolNames[curTurn]))
+				for _, n := range turnToolNames[curTurn] {
+					tools = append(tools, requestToolLogPayload{Name: n})
+				}
+				appendEntry(LogEntry{Kind: KindRequestHeader,
+					Payload: mustMarshal(requestHeaderLogPayload{System: systemText, Tools: tools})})
+			}
 		case provider.RoleAssistant:
 			tcs := make([]toolCallLogPayload, 0, len(m.ToolCalls))
 			for _, tc := range m.ToolCalls {
 				tcs = append(tcs, toolCallLogPayload{ID: tc.ID, Name: tc.Name, Args: tc.Arguments})
 			}
-			e = LogEntry{Seq: seq, Ts: now, Kind: KindAssistantMessage,
+			appendEntry(LogEntry{Kind: KindAssistantMessage,
 				Payload: mustMarshal(assistantLogPayload{
 					ID:                 m.ToolCallID,
 					Text:               m.Content,
 					Reasoning:          m.ReasoningContent,
 					ReasoningSignature: m.ReasoningSignature,
 					ToolCalls:          tcs,
-				})}
+				})})
 		case provider.RoleTool:
-			e = LogEntry{Seq: seq, Ts: now, Kind: KindToolResult,
+			appendEntry(LogEntry{Kind: KindToolResult,
 				Payload: mustMarshal(toolResultLogPayload{
 					ID: m.ToolCallID, Name: m.Name, Output: m.Content,
-				})}
+				})})
 		default:
 			continue // 未知角色不落日志（保无损，拒绝猜测）
 		}
-		out = append(out, e)
-		seq++
 	}
+	closeTurn()
 	return out
+}
+
+// joinPromptPart 拼接 system prompt 片段（与运行时 systemPromptFromMessages
+// 同风格：非空片段间空行分隔）。
+func joinPromptPart(a, b string) string {
+	if b == "" {
+		return a
+	}
+	if a == "" {
+		return b
+	}
+	return a + "\n\n" + b
 }

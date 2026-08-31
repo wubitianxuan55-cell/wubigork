@@ -79,6 +79,10 @@ func (f *folding) apply(e session.LogEntry) {
 			r := f.assistantRecord(e)
 			r.Assistant.Text = joinPreview(r.Assistant.Text, text, maxTextPreview)
 		}
+	case "assistant_message":
+		// 迁移/投影产物的完整 assistant 消息（ToLogEntries 内嵌工具调用），
+		// 运行期事件流用 "message" + tool_dispatch，此处两种形状折叠结果一致。
+		f.applyAssistantMessage(e)
 	case "tool_dispatch":
 		f.applyToolDispatch(e)
 	case "tool_result":
@@ -99,6 +103,60 @@ func (f *folding) apply(e session.LogEntry) {
 			f.assistant = nil
 			f.toolByID = nil
 			f.toolStart = nil
+		}
+	}
+}
+
+// applyAssistantMessage 折叠迁移/投影产物的 assistant_message：正文与推理
+// 并入 assistant 记录，内嵌工具调用展开为 tool 记录（与运行期 tool_dispatch
+// 同一归并面，后续 tool_result 按 ID 合并）。
+func (f *folding) applyAssistantMessage(e session.LogEntry) {
+	var p struct {
+		ID        string `json:"id,omitempty"`
+		Text      string `json:"text,omitempty"`
+		Reasoning string `json:"reasoning,omitempty"`
+		ToolCalls []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+			Args string `json:"args"`
+		} `json:"tool_calls,omitempty"`
+	}
+	if err := json.Unmarshal(e.Payload, &p); err != nil {
+		return
+	}
+	if p.Text != "" {
+		r := f.assistantRecord(e)
+		r.Assistant.Text = joinPreview(r.Assistant.Text, p.Text, maxTextPreview)
+	}
+	if p.Reasoning != "" {
+		r := f.assistantRecord(e)
+		r.Assistant.Reasoning = joinPreview(r.Assistant.Reasoning, p.Reasoning, maxTextPreview)
+	}
+	for _, tc := range p.ToolCalls {
+		if f.cur == nil || tc.ID == "" {
+			continue
+		}
+		if f.toolByID == nil {
+			f.toolByID = map[string]*Record{}
+			f.toolStart = map[string]int64{}
+		}
+		r, ok := f.toolByID[tc.ID]
+		if !ok {
+			r = &Record{
+				Seq:  e.Seq,
+				Kind: "tool",
+				Ts:   e.Ts,
+				Step: f.step,
+				Tool: &ToolRec{ID: tc.ID, Name: tc.Name, Status: "running"},
+			}
+			f.appendRecord(*r)
+			r = &f.cur.Records[len(f.cur.Records)-1]
+			f.toolByID[tc.ID] = r
+			f.toolStart[tc.ID] = e.Ts
+		}
+		r.Tool.Name = tc.Name
+		if tc.Args != "" {
+			r.Tool.Args = preview(tc.Args, maxOutPreview)
 		}
 	}
 }

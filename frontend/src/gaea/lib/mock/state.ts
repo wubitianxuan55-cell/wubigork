@@ -27,9 +27,11 @@ export interface MakeMockState {
   settings: SettingsView;
   keepWarm: boolean;
   preloadPlan: boolean;
+  morningPreload: boolean;
   setCapServers(v: ServerView[]): void;
   setKeepWarm(v: boolean): void;
   setPreloadPlan(v: boolean): void;
+  setMorningPreload(v: boolean): void;
 }
 
 // mockSwitchWorkspace：切换工作区并置顶（原 makeMockApp 内部函数）。
@@ -152,6 +154,7 @@ export function createMockState(): MakeMockState {
     settings,
     keepWarm: true,
     preloadPlan: true,
+    morningPreload: true,
     setCapServers(v) {
       s.capServers = v;
     },
@@ -160,6 +163,9 @@ export function createMockState(): MakeMockState {
     },
     setPreloadPlan(v) {
       s.preloadPlan = v;
+    },
+    setMorningPreload(v) {
+      s.morningPreload = v;
     },
   };
   return s;

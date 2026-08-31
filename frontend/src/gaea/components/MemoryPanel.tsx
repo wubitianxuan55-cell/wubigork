@@ -48,6 +48,8 @@ export function MemoryPanel(p: {
   const [acceptedSuggestions, setAcceptedSuggestions] = useState<Set<string>>(new Set());
   // 记忆开关（记忆可控性）：与后端配置同步，切换后引擎重建立即生效
   const [memoryEnabled, setMemoryEnabled] = useState(view?.enabled ?? true);
+  // 晨报预载开关（v4.16 刀④ UI 补齐）：work 空间新会话自动预装配高频工作记忆
+  const [morningPreload, setMorningPreload] = useState(true);
   const toast = useToast();
   const scopes = useMemo(() => view?.scopes ?? [], [view?.scopes]);
   const factNames = useMemo(() => new Set(facts.map((f) => f.name)), [facts]);
@@ -68,6 +70,14 @@ export function MemoryPanel(p: {
     setMemoryEnabled(view?.enabled ?? true);
   }, [view?.enabled]);
 
+  useEffect(() => {
+    let alive = true;
+    app.MorningPreload()
+      .then((v) => { if (alive) setMorningPreload(v); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   const toggleMemory = useCallback(() => {
     const next = !memoryEnabled;
     setMemoryEnabled(next);
@@ -83,6 +93,22 @@ export function MemoryPanel(p: {
       })
       .catch(() => setMemoryEnabled(!next));
   }, [memoryEnabled, toast]);
+
+  const toggleMorningPreload = useCallback(() => {
+    const next = !morningPreload;
+    setMorningPreload(next);
+    app
+      .SetMorningPreload(next)
+      .then(() => {
+        toast.show(
+          next
+            ? "晨报预载已开启：新会话自动预装配高频工作记忆（work 空间）"
+            : "晨报预载已关闭：新会话不再预装配晨报块",
+          "info",
+        );
+      })
+      .catch(() => setMorningPreload(!next));
+  }, [morningPreload, toast]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredFacts = useMemo(
@@ -227,6 +253,21 @@ export function MemoryPanel(p: {
                 className={`w-1.5 h-1.5 rounded-full ${memoryEnabled ? "bg-accent" : "bg-fg-faint/50"}`}
               />
               记忆 {memoryEnabled ? "开" : "关"}
+            </button>
+            <button
+              type="button"
+              onClick={toggleMorningPreload}
+              className={`inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full border text-[11px] cursor-pointer transition-colors ${
+                morningPreload
+                  ? "border-accent/30 bg-accent/10 text-accent"
+                  : "border-border text-fg-faint hover:text-fg"
+              }`}
+              title={morningPreload ? "点击关闭晨报预载（新会话不再预装配晨报块）" : "点击开启晨报预载（work 空间新会话自动预装配高频工作记忆）"}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${morningPreload ? "bg-accent" : "bg-fg-faint/50"}`}
+              />
+              晨报预载 {morningPreload ? "开" : "关"}
             </button>
             <button className="drawer__close" onClick={onClose} aria-label={t("common.close")}>
               <X size={18} />

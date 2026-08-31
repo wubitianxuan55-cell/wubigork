@@ -309,11 +309,12 @@ export default function App() {
   const closeKnowledge = useCallback(() => setKnowledgeOpen(false), [setKnowledgeOpen]);
 
   // handleSend intercepts the slash commands that need a desktop-native action
-  // before they reach the backend: "/model <ref>" rebuilds on that model, and
-  // "/memory" opens the memory drawer. Everything else — skills (/init, …),
-  // custom commands, bare /model and the other read-only management verbs
-  // (/skill, /hooks, /mcp) — goes straight to Submit, which the controller
-  // resolves (a turn, or a listing Notice).
+  // before they reach the backend: "/model <ref>" rebuilds on that model,
+  // "/memory" opens the memory drawer, and "/context" switches to the context
+  // dashboard tab. Everything else — skills (/init, …), custom commands, bare
+  // /model and the other read-only management verbs (/skill, /hooks, /mcp) —
+  // goes straight to Submit, which the controller resolves (a turn, or a
+  // listing Notice).
   const cwd = state.meta?.cwd;
   const cwdName = cwd ? cwd.split(/[/\\]/).filter(Boolean).pop() || cwd : "";
 
@@ -328,9 +329,13 @@ export default function App() {
         void openMemory();
         return;
       }
+      if (command.type === "context") {
+        setChatTab("context");
+        return;
+      }
       send(displayText.trim(), submitText.trim());
     },
-    [switchModel, openMemory, send],
+    [switchModel, openMemory, send, setChatTab],
   );
 
   // History drawer: opening fetches the saved-session list; picking one resumes it
@@ -782,7 +787,7 @@ export default function App() {
                   </>
                 )}
                 {chatTab === "trajectory" && <TrajectoryView running={state.running} />}
-                {chatTab === "context" && <ContextView running={state.running} />}
+                {chatTab === "context" && <ContextView running={state.running} sessionPath={currentSessionPath ?? undefined} />}
               </>
             )}
             </CompactContext.Provider>

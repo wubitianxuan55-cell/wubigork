@@ -118,6 +118,7 @@ type Messages struct {
 	CmdResume       string // /resume
 	CmdModel        string // /model
 	CmdMemory       string // /memory
+	CmdContext      string // /context
 	CmdForget       string // /forget
 	CmdMcp          string // /mcp
 	CmdHooks        string // /hooks

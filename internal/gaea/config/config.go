@@ -52,10 +52,12 @@ type Config struct {
 }
 
 // SessionConfig 是会话持久化行为配置（3.0 Step 1 回退开关）。
-// 缺省 legacy = 旧行为（整文件重写 JSONL），不迁移用户配置；显式配置
-// log_format = "event" 才启用追加式事件日志（<id>.gaea-log.jsonl）。
+// 缺省 event = 追加式事件日志（<id>.gaea-log.jsonl），轨迹/上下文/Agent
+// 网络看板的数据源；显式配置 log_format = "legacy" 才退回旧行为（整文件
+// 重写 JSONL，事件日志不写）。
 type SessionConfig struct {
-	// LogFormat 选择会话持久化格式："legacy"（默认，旧行为）| "event"（事件日志）。
+	// LogFormat 选择会话持久化格式：""/缺省 = "event"（默认，事件日志）|
+	// "event"（事件日志）| "legacy"（旧行为，整文件重写 JSONL）。
 	LogFormat string `toml:"log_format"`
 	// Space 是新建会话的空间落点（S2 双空间）："work"（默认）| "play"。
 	// 仅 space.mode=on 时生效；space.mode=off 时所有读写路径回退平铺目录。
@@ -109,9 +111,19 @@ func (c *Config) EffectiveSessionSpace() string {
 	return c.SessionSpace()
 }
 
-// LogFormatIsEvent 报告是否启用事件日志模式（大小写不敏感，仅精确匹配 "event"）。
+// EffectiveLogFormat 返回会话持久化格式的生效值：显式 "legacy" 退回旧行为；
+// 空/缺省与显式 "event" 均为事件日志（轨迹/上下文看板的数据源，产品默认）。
+func (c *Config) EffectiveLogFormat() string {
+	if c != nil && strings.EqualFold(strings.TrimSpace(c.Session.LogFormat), "legacy") {
+		return "legacy"
+	}
+	return "event"
+}
+
+// LogFormatIsEvent 报告是否启用事件日志模式：缺省开启，仅显式 "legacy" 关闭
+// （大小写不敏感）。
 func (c *Config) LogFormatIsEvent() bool {
-	return c != nil && strings.EqualFold(c.Session.LogFormat, "event")
+	return c.EffectiveLogFormat() == "event"
 }
 
 // ── 按空间装配（S1.3-A 模型 profile + S1.5-A 权限策略）────────────────
