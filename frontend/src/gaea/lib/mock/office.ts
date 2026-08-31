@@ -473,7 +473,22 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
       ].slice(0, limit);
     },
     async VerifyRecord(id: string) {
-      // 样本复核结论：ev_1003 通过 / ev_1001 警告，展示 verdict 内联徽标。
+      // 样本复核结论：ev_1003 通过（携带 v4.16 通道 B 结构化字段——像素差异率/
+      // 渲染页数/产物目录，前端渲染「视觉复核」行 + 查看产物按钮）；ev_1001
+      // 警告但保持旧形态（无 channelB 结构化字段，向后兼容样本）。
+      if (id === "ev_1003") {
+        return {
+          id,
+          status: "verified" as const,
+          channelA: "结构完整",
+          channelB: "视觉正常",
+          note: "（mock）双通道复核通过",
+          channelBRatio: 0.013,
+          channelBPages: 3,
+          channelBArtifacts: ".gaea/work/journal/verify/ev_1003",
+          at: Date.now(),
+        };
+      }
       return {
         id,
         status: (id === "ev_1001" ? "warned" : "verified") as "verified" | "warned" | "failed",

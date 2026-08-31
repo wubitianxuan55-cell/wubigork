@@ -1,5 +1,33 @@
 # gaea · 多功能 AI 助手
 
+## v4.16.0 · 四刀并行：离线收口 / 浏览器键盘与 iframe / 复核可视化 / 晨报预装配（2026-08-31）
+> 用户拍板「全部并行处理」：v4.15.0 欠账清单四个可离线方向由四个并行子代理
+> 同步落地（足迹隔离，主控全绿门禁）。**零新增绑定（545 不变）**。Realtime
+> 真机验证排除（需用户真 key+麦克风）。
+- **①persona 侧离线裂缝收口（真 bug）**：gaea_whisper_causal/gaea_whisper_retell/
+  whisper_handler 三处 `featureModel("chat")` → `routeModel("chat")`——全局离线
+  过滤对 persona（轻语）链路生效（此前因果解释/记忆重述/WhisperChat 绑云端照样
+  发云端），用户功能绑定语义不变（同源）；+2 离线回归测试。
+- **②浏览器键盘级 Input + iframe（v4.13/14 欠账，零绑定零前端）**：新工具
+  `browser_press`（第 11 工具）——Input.dispatchKeyEvent 键盘级输入（key 别名表
+  + ctrl/alt/shift/meta 组合 + 可选 text 真实输入，Enter 补 `\r` 触发 keypress 真机
+  踩坑修复）；browser_read/click/type 加可选 `frame` 参数——getFrameTree→
+  createIsolatedWorld→contextId 执行（**iframe 内交互完整实现**，真 headless Edge
+  真机验证 Read/Click/Type 全通）；snapshot 不下钻 iframe 诚实拒。
+- **③Verifier 通道 B 结果进前端（v4.14 欠账）**：Verdict 增 channelBRatio/
+  channelBPages/channelBArtifacts（omitempty 旧卡兼容）；证据卡 verdict 内联区
+  追加「视觉复核：像素差异率 x.x% · N 页」+「查看复核产物」按钮（打开产物目录
+  before/after PDF + 逐页 PNG）；无通道 B 旧 verdict 不渲染。
+- **④晨报深度预装配（v4.14 欠账，零绑定零前端）**：memory.BuildMorningPreloadBlock
+  纯函数（复用 BuildMorningBrief 排序口径，≤600 rune 确定性零 LLM）→ sysprompt
+  装配点注入「【工作记忆晨报】」块（门控 Memory.Enabled && morning_preload &&
+  space==work，play/mode=off 不注入=双空间红线）；config 键 morning_preload
+  （默认 true，仅配置文件可控）。
+- 验证：Go 全量 0 FAIL（+20）；**vitest 861/861**（+2）；tsc/eslint 0/0；drift
+  PASS（545）；build.bat 冒烟 200。欠账：Realtime 真机（需用户资源）；自动路由
+  本体（待官方逐模型数字）；浏览器 snapshot 不下钻 iframe/下载上传/headless UI/
+  Windows UIA；通道 B 逐页缩略图；晨报预载无 UI 开关。详见 releases/v4.16.0.md。
+
 ## v4.15.0 · 聊天路由归位：plain 聊天离线过滤修复 + 「由谁回答」回显（2026-08-31）
 > v4.14.0 欠账「自动路由 v1」经用户拍板收缩为最小价值刀——砍成本档位机制/
 > 开关/UI（缓存价/峰谷价无官方逐模型数字，诚实不入表），只留两块真实价值：

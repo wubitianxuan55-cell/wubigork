@@ -123,23 +123,33 @@ func TestRunVisualDiffVerdicts(t *testing.T) {
 	}
 	// 相同内容 → pass（像素差异 0）
 	verifyPixelDiff = func(a, b string) (float64, error) { return 0, nil }
-	if msg, st := runVisualDiff(base, target, verifyDir); st != "pass" {
+	if msg, st, ratio, pages := runVisualDiff(base, target, verifyDir); st != "pass" {
 		t.Fatalf("相同内容 = %q/%q, want pass", st, msg)
+	} else if ratio != 0 || pages != 1 {
+		t.Fatalf("相同内容 ratio/pages = %f/%d, want 0/1", ratio, pages)
 	}
 
 	// 视觉变化（页数相同）→ warn
 	verifyPixelDiff = func(a, b string) (float64, error) { return 0.05, nil }
-	if msg, st := runVisualDiff(base, target, verifyDir); st != "warn" {
+	if msg, st, ratio, pages := runVisualDiff(base, target, verifyDir); st != "warn" {
 		t.Fatalf("中改 = %q/%q, want warn", st, msg)
+	} else if ratio != 0.05 || pages != 1 {
+		t.Fatalf("中改 ratio/pages = %f/%d, want 0.05/1", ratio, pages)
 	}
 
 	// 大改 + 页数变化 → fail
 	pageCounts["before.pdf"] = 2
 	pageCounts["after.pdf"] = 3
 	verifyPixelDiff = func(a, b string) (float64, error) { return 0.5, nil }
-	msg, st := runVisualDiff(base, target, verifyDir)
+	msg, st, ratio, pages := runVisualDiff(base, target, verifyDir)
 	if st != "fail" {
 		t.Fatalf("大改+页数变化 = %q/%q, want fail", st, msg)
+	}
+	if pages != 3 {
+		t.Fatalf("大改页数 = %d, want 3（before 2 / after 3 较大者）", pages)
+	}
+	if ratio < 0.6 || ratio > 0.7 {
+		t.Fatalf("大改 ratio = %f, want ≈0.67（缺失页整页计入差异）", ratio)
 	}
 	if !filepath.IsAbs(verifyDir) || verifyDir == "" {
 		t.Fatalf("verifyDir 异常: %q", verifyDir)
@@ -150,7 +160,9 @@ func TestRunVisualDiffVerdicts(t *testing.T) {
 	verifyRenderPages = func(pdf, prefix string, dpi int) ([]string, error) {
 		return nil, os.ErrNotExist
 	}
-	if msg, st := runVisualDiff(base, target, verifyDir); st != "warn" {
+	if msg, st, ratio, pages := runVisualDiff(base, target, verifyDir); st != "warn" {
 		t.Fatalf("渲染降级 = %q/%q, want warn", st, msg)
+	} else if ratio != 0 || pages != 0 {
+		t.Fatalf("渲染降级 ratio/pages = %f/%d, want 0/0（无产物数据）", ratio, pages)
 	}
 }

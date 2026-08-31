@@ -69,6 +69,12 @@ type Options struct {
 	// ExtraTools 是前端（桌面端）额外注入的工具（如 image_gen 这类需要
 	// 应用服务/客户端的工具）。空 = 不注入；与内置工具同名会被覆盖。
 	ExtraTools []tool.Tool
+	// MorningPreload 是晨报预载开关（v4.16 刀④）：work 空间会话装配时把
+	// 高频工作记忆确定性聚合为「晨报预载」块预装配进系统提示词（零 LLM、
+	// 预算受限、work 只读）。桌面端从 ~/.gaea_config.json 的 morning_preload
+	// 键读取传入（默认开）；零值 false = 不注入（CLI/TUI 等不读该配置的
+	// 前端维持原行为，无晨报预载）。
+	MorningPreload bool
 }
 
 // Build loads config, resolves the model, and returns a Controller wrapping a
@@ -162,7 +168,7 @@ func Build(ctx context.Context, opts Options) (*control.Controller, error) {
 	// V10.22: system prompt + memory + skills assembled in sysprompt.go
 	// 传入工作空间根（opts.Cwd），项目画像/技能索引基于真实工作区而非进程目录。
 	// v4.5.1a 红线补课：记忆注入侧按装配空间收窄（space=""=mode=off 旧行为）。
-	sp, err := buildSystemPrompt(cfg, cwd, space, opts.Stderr)
+	sp, err := buildSystemPrompt(cfg, cwd, space, opts.MorningPreload, opts.Stderr)
 	if err != nil {
 		return nil, err
 	}

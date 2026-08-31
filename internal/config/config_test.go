@@ -507,6 +507,36 @@ func TestSave_AutoPreloadRoundTrip(t *testing.T) {
 	}
 }
 
+// TestSave_MorningPreloadRoundTrip 晨报预载开关（v4.16 刀④）持久化：
+// 默认开启；显式关闭 → 保存 → 重新加载为 false；再开启恢复。
+// 只影响上下文注入（work 空间预装配高频工作记忆），与晨报卡片无关。
+func TestSave_MorningPreloadRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	// 未配置时默认开启（v4.16 刀④：高频工作记忆预装配开箱即用）
+	if cfg := Load(); !cfg.GetMorningPreload() {
+		t.Error("未配置时晨报预载默认应为开启")
+	}
+
+	// 显式关闭 → 持久化 → 读取为 false
+	if err := Save(KeyMorningPreload, "0"); err != nil {
+		t.Fatalf("Save morning_preload=0 失败: %s", err)
+	}
+	if cfg := Load(); cfg.GetMorningPreload() {
+		t.Error("保存 0 后晨报预载应为关闭")
+	}
+
+	// 重新开启
+	if err := Save(KeyMorningPreload, "1"); err != nil {
+		t.Fatalf("Save morning_preload=1 失败: %s", err)
+	}
+	if cfg := Load(); !cfg.GetMorningPreload() {
+		t.Error("保存 1 后晨报预载应为开启")
+	}
+}
+
 // TestSave_UsdCnyRateRoundTrip 美元→人民币汇率（T6-6.2）持久化：
 // 默认 7.2；保存 7.0 → 重新加载为 7.0；非法值（0/负数/非数字）拒绝写入。
 func TestSave_UsdCnyRateRoundTrip(t *testing.T) {

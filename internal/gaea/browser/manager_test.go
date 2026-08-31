@@ -27,6 +27,12 @@ type fakeDevtools struct {
 	silentEval  bool             // 置真后 Runtime.evaluate 不回包（超时路径）
 	pages       []map[string]any // 当前 page targets
 	newSeq      int              // /json/new 序号（生成唯一 page id）
+
+	// 键盘级 Input 记录（browser_press 断言）。
+	pressEvents []string // "keyDown a mods=10" 形式，按到达顺序
+	insertTexts []string // Input.insertText 的文本
+	// iframe 交互记录（frame 解析断言）。
+	evalContexts []int // Runtime.evaluate 携带的 contextId（0 = 主文档）
 }
 
 // wsBase 由 httptest.Server 地址推导（http→ws）。
@@ -132,11 +138,46 @@ func (f *fakeDevtools) serveCDP(conn *websocket.Conn) {
 			}
 			var p struct {
 				Expression string `json:"expression"`
+				ContextID  int    `json:"contextId"`
 			}
 			_ = json.Unmarshal(req.Params, &p)
+			f.mu.Lock()
+			f.evalContexts = append(f.evalContexts, p.ContextID)
+			f.mu.Unlock()
 			_ = conn.WriteJSON(map[string]any{"id": req.ID, "result": map[string]any{
 				"result": map[string]any{"type": "object", "value": fakeEvalValue(p.Expression)},
 			}})
+		case "Input.dispatchKeyEvent":
+			var p struct {
+				Type      string `json:"type"`
+				Key       string `json:"key"`
+				Modifiers int    `json:"modifiers"`
+			}
+			_ = json.Unmarshal(req.Params, &p)
+			f.mu.Lock()
+			f.pressEvents = append(f.pressEvents, fmt.Sprintf("%s %s mods=%d", p.Type, p.Key, p.Modifiers))
+			f.mu.Unlock()
+			_ = conn.WriteJSON(map[string]any{"id": req.ID, "result": map[string]any{}})
+		case "Input.insertText":
+			var p struct {
+				Text string `json:"text"`
+			}
+			_ = json.Unmarshal(req.Params, &p)
+			f.mu.Lock()
+			f.insertTexts = append(f.insertTexts, p.Text)
+			f.mu.Unlock()
+			_ = conn.WriteJSON(map[string]any{"id": req.ID, "result": map[string]any{}})
+		case "Page.getFrameTree":
+			_ = conn.WriteJSON(map[string]any{"id": req.ID, "result": map[string]any{
+				"frameTree": map[string]any{
+					"frame": map[string]any{"id": "page-1", "url": "http://fake.local/page"},
+					"childFrames": []map[string]any{
+						{"frame": map[string]any{"id": "frame-1", "parentId": "page-1", "url": "http://fake.local/frame"}},
+					},
+				},
+			}})
+		case "Page.createIsolatedWorld":
+			_ = conn.WriteJSON(map[string]any{"id": req.ID, "result": map[string]any{"executionContextId": 42}})
 		default:
 			_ = conn.WriteJSON(map[string]any{"id": req.ID, "result": map[string]any{}})
 		}
@@ -161,6 +202,8 @@ func fakeEvalValue(expr string) any {
 		return map[string]any{"ok": true, "text": "hello"}
 	case strings.Contains(expr, "gaeaScroll"):
 		return map[string]any{"ok": true, "top": "800"}
+	case strings.Contains(expr, "gaeaFrameSrc"):
+		return map[string]any{"ok": true, "src": "http://fake.local/frame"}
 	case strings.Contains(expr, "#missing"):
 		return map[string]any{"ok": false, "error": "未找到元素：#missing"}
 	case strings.Contains(expr, "innerText") || strings.Contains(expr, "document.body"):
@@ -243,7 +286,7 @@ func TestNavigateSuccess(t *testing.T) {
 		t.Fatalf("navigations = %d, want 1", navs)
 	}
 	// 导航后 refs 失效：未重新 snapshot 直接 click 必须被拒。
-	if _, err := m.Click(context.Background(), 1, ""); !errors.Is(err, ErrRefsStale) {
+	if _, err := m.Click(context.Background(), 1, "", ""); !errors.Is(err, ErrRefsStale) {
 		t.Fatalf("导航后 Click err = %v, want ErrRefsStale", err)
 	}
 }
@@ -271,7 +314,7 @@ func TestNavigateTimeout(t *testing.T) {
 
 func TestRead(t *testing.T) {
 	m, _ := newFakeManager(t)
-	res, err := m.Read(context.Background(), "", 0)
+	res, err := m.Read(context.Background(), "", 0, "")
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
@@ -279,7 +322,7 @@ func TestRead(t *testing.T) {
 		t.Fatalf("res = %+v", res)
 	}
 	// 局部读取：元素未命中走语义化错误。
-	if _, err := m.Read(context.Background(), "#missing", 100); !errors.Is(err, ErrElementNotFound) {
+	if _, err := m.Read(context.Background(), "#missing", 100, ""); !errors.Is(err, ErrElementNotFound) {
 		t.Fatalf("Read(#missing) err = %v, want ErrElementNotFound", err)
 	}
 }
@@ -296,7 +339,7 @@ func TestSnapshotAndClick(t *testing.T) {
 	if m.epoch != 1 {
 		t.Fatalf("epoch = %d, want 1（snapshot 应登记 refs 代数）", m.epoch)
 	}
-	act, err := m.Click(context.Background(), 1, "")
+	act, err := m.Click(context.Background(), 1, "", "")
 	if err != nil {
 		t.Fatalf("Click(ref): %v", err)
 	}
@@ -304,11 +347,11 @@ func TestSnapshotAndClick(t *testing.T) {
 		t.Fatalf("click text = %q", act.Text)
 	}
 	// selector 兜底路径。
-	if _, err := m.Click(context.Background(), 0, "#link1"); err != nil {
+	if _, err := m.Click(context.Background(), 0, "#link1", ""); err != nil {
 		t.Fatalf("Click(selector): %v", err)
 	}
 	// ref/selector 都缺 → 参数错误。
-	if _, err := m.Click(context.Background(), 0, ""); !errors.Is(err, ErrInvalidInput) {
+	if _, err := m.Click(context.Background(), 0, "", ""); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("Click(空) err = %v, want ErrInvalidInput", err)
 	}
 }
@@ -316,7 +359,7 @@ func TestSnapshotAndClick(t *testing.T) {
 // TestClickWithoutSnapshot 从未 snapshot → ref 无效（epoch=0 守门）。
 func TestClickWithoutSnapshot(t *testing.T) {
 	m, _ := newFakeManager(t)
-	if _, err := m.Click(context.Background(), 1, ""); !errors.Is(err, ErrRefsStale) {
+	if _, err := m.Click(context.Background(), 1, "", ""); !errors.Is(err, ErrRefsStale) {
 		t.Fatalf("Click err = %v, want ErrRefsStale", err)
 	}
 }
@@ -326,14 +369,14 @@ func TestType(t *testing.T) {
 	if _, err := m.Snapshot(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	act, err := m.Type(context.Background(), 1, "", "hello", true)
+	act, err := m.Type(context.Background(), 1, "", "hello", true, "")
 	if err != nil {
 		t.Fatalf("Type: %v", err)
 	}
 	if act.Text != "hello" {
 		t.Fatalf("type text = %q", act.Text)
 	}
-	if _, err := m.Type(context.Background(), 1, "", "", false); !errors.Is(err, ErrInvalidInput) {
+	if _, err := m.Type(context.Background(), 1, "", "", false, ""); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("Type(空文本) err = %v, want ErrInvalidInput", err)
 	}
 }
@@ -611,7 +654,7 @@ func TestSwitchTabInvalidatesRefs(t *testing.T) {
 		t.Fatalf("切换后 active=%q epoch=%d, want page-1/0", m.activePageID, m.epoch)
 	}
 	// 旧 ref（新页上 snapshot 的）在切回后必须判 stale。
-	if _, err := m.Click(ctx, 1, ""); !errors.Is(err, ErrRefsStale) {
+	if _, err := m.Click(ctx, 1, "", ""); !errors.Is(err, ErrRefsStale) {
 		t.Fatalf("切换后 Click err = %v, want ErrRefsStale", err)
 	}
 	// 未知 tab → ErrInvalidInput。
@@ -701,5 +744,174 @@ func TestCloseLastTabShutsDown(t *testing.T) {
 	f.mu.Unlock()
 	if ups != 2 {
 		t.Fatalf("upgrades = %d, want 2", ups)
+	}
+}
+
+// ── 键盘级 Input（browser_press） ───────────────────────────────────────
+
+// TestKeyNormalize 可读键名 → CDP key 名（别名表集中一处）。
+func TestKeyNormalize(t *testing.T) {
+	cases := []struct{ raw, want string }{
+		{"enter", "Enter"}, {"ENTER", "Enter"}, {"esc", "Escape"}, {"escape", "Escape"},
+		{"arrowdown", "ArrowDown"}, {"arrowup", "ArrowUp"}, {"arrowleft", "ArrowLeft"}, {"arrowright", "ArrowRight"},
+		{"tab", "Tab"}, {"space", " "}, {"backspace", "Backspace"}, {"delete", "Delete"},
+		{"pageup", "PageUp"}, {"pagedown", "PageDown"}, {"home", "Home"}, {"end", "End"},
+		{"f1", "F1"}, {"f12", "F12"},
+		{"a", "a"}, {"A", "A"}, {"1", "1"}, {"ArrowDown", "ArrowDown"},
+	}
+	for _, c := range cases {
+		if got := normalizeKey(c.raw); got != c.want {
+			t.Fatalf("normalizeKey(%q) = %q, want %q", c.raw, got, c.want)
+		}
+	}
+	if normalizeKey("") != "" {
+		t.Fatal("空键应归一为空")
+	}
+}
+
+// TestModifierMask 修饰键别名 → CDP 位掩码（Alt=1/Ctrl=2/Meta=4/Shift=8）。
+func TestModifierMask(t *testing.T) {
+	cases := []struct {
+		mods []string
+		want int
+		err  bool
+	}{
+		{nil, 0, false},
+		{[]string{}, 0, false},
+		{[]string{"ctrl"}, 2, false},
+		{[]string{"control"}, 2, false},
+		{[]string{"alt"}, 1, false},
+		{[]string{"shift"}, 8, false},
+		{[]string{"meta"}, 4, false},
+		{[]string{"command"}, 4, false},
+		{[]string{"ctrl", "shift"}, 10, false},
+		{[]string{"alt", "ctrl", "shift", "meta"}, 15, false},
+		{[]string{"super"}, 0, true},
+		{[]string{"ctrl", "caps"}, 0, true},
+	}
+	for _, c := range cases {
+		got, err := modifierMask(c.mods)
+		if c.err {
+			if err == nil {
+				t.Fatalf("modifierMask(%v) 应报错", c.mods)
+			}
+			continue
+		}
+		if err != nil || got != c.want {
+			t.Fatalf("modifierMask(%v) = %d, %v; want %d", c.mods, got, err, c.want)
+		}
+	}
+}
+
+// TestPress 键盘级按键走 CDP dispatchKeyEvent（keyDown→keyUp）+ insertText；
+// 别名归一与修饰键位掩码生效；参数错误先于浏览器动作被拒。
+func TestPress(t *testing.T) {
+	m, f := newFakeManager(t)
+	ctx := context.Background()
+
+	// 控制键：rawKeyDown → keyUp（Escape 别名归一）。
+	if _, err := m.Press(ctx, "esc", nil, ""); err != nil {
+		t.Fatalf("Press(esc): %v", err)
+	}
+	// 字符键 + 修饰键 + 显式文本：keyDown(text) → insertText → keyUp。
+	if _, err := m.Press(ctx, "a", []string{"ctrl", "shift"}, "A"); err != nil {
+		t.Fatalf("Press(a, ctrl+shift, A): %v", err)
+	}
+	// 参数错误：未知修饰键先于 Ensure 被拒。
+	if _, err := m.Press(ctx, "x", []string{"super"}, ""); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Press(未知修饰键) err = %v, want ErrInvalidInput", err)
+	}
+	if _, err := m.Press(ctx, "", nil, ""); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Press(空 key) err = %v, want ErrInvalidInput", err)
+	}
+
+	f.mu.Lock()
+	events := append([]string(nil), f.pressEvents...)
+	texts := append([]string(nil), f.insertTexts...)
+	f.mu.Unlock()
+	wantEvents := []string{
+		"rawKeyDown Escape mods=0",
+		"keyUp Escape mods=0",
+		"keyDown a mods=10",
+		"keyUp a mods=10",
+	}
+	if len(events) != len(wantEvents) {
+		t.Fatalf("pressEvents = %v, want %v", events, wantEvents)
+	}
+	for i, w := range wantEvents {
+		if events[i] != w {
+			t.Fatalf("pressEvents[%d] = %q, want %q（全量 %v）", i, events[i], w, events)
+		}
+	}
+	if len(texts) != 1 || texts[0] != "A" {
+		t.Fatalf("insertTexts = %v, want [A]", texts)
+	}
+}
+
+// ── iframe 内交互（frame 参数） ─────────────────────────────────────────
+
+// TestReadInFrame frame URL 子串定位 iframe → 隔离世界上下文内读取。
+func TestReadInFrame(t *testing.T) {
+	m, f := newFakeManager(t)
+	ctx := context.Background()
+	res, err := m.Read(ctx, "#inner", 100, "fake.local/frame")
+	if err != nil {
+		t.Fatalf("Read(frame): %v", err)
+	}
+	if res.Text != "hello gaea 正文" {
+		t.Fatalf("frame read text = %q", res.Text)
+	}
+	f.mu.Lock()
+	ctxs := append([]int(nil), f.evalContexts...)
+	f.mu.Unlock()
+	if len(ctxs) == 0 || ctxs[len(ctxs)-1] != 42 {
+		t.Fatalf("evaluate contextId 末次 = %v, want 42（iframe 隔离世界）", ctxs)
+	}
+}
+
+// TestReadInFrameBySelector frame CSS 选择器定位：主 frame 求值取 src → 按
+// URL 子串匹配 frameId。
+func TestReadInFrameBySelector(t *testing.T) {
+	m, _ := newFakeManager(t)
+	res, err := m.Read(context.Background(), "#inner", 100, "#iframe-sel")
+	if err != nil {
+		t.Fatalf("Read(frame=selector): %v", err)
+	}
+	if res.Text != "hello gaea 正文" {
+		t.Fatalf("frame read text = %q", res.Text)
+	}
+}
+
+// TestFrameNotFound frame 参数未命中任何 iframe → ErrElementNotFound。
+func TestFrameNotFound(t *testing.T) {
+	m, _ := newFakeManager(t)
+	if _, err := m.Read(context.Background(), "#inner", 100, "http://nowhere.local/xyz"); !errors.Is(err, ErrElementNotFound) {
+		t.Fatalf("Read(未命中 frame) err = %v, want ErrElementNotFound", err)
+	}
+}
+
+// TestClickInFrame iframe 内点击/输入：仅 selector；ref 与缺 selector 在动作
+// 前被拒。
+func TestClickInFrame(t *testing.T) {
+	m, _ := newFakeManager(t)
+	ctx := context.Background()
+	// 即使从未 snapshot（epoch=0）也可在 frame 内点击（隔离世界无 epoch 守门）。
+	act, err := m.Click(ctx, 0, "#fbtn", "fake.local/frame")
+	if err != nil {
+		t.Fatalf("Click(frame): %v", err)
+	}
+	if act.Text != "链接一" {
+		t.Fatalf("frame click text = %q", act.Text)
+	}
+	if _, err := m.Type(ctx, 0, "#finput", "hi", false, "fake.local/frame"); err != nil {
+		t.Fatalf("Type(frame): %v", err)
+	}
+	// frame 模式带 ref → ErrInvalidInput（先于任何浏览器动作）。
+	if _, err := m.Click(ctx, 1, "", "x"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Click(frame+ref) err = %v, want ErrInvalidInput", err)
+	}
+	// frame 模式缺 selector → ErrInvalidInput。
+	if _, err := m.Type(ctx, 0, "", "hi", false, "x"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Type(frame 缺 selector) err = %v, want ErrInvalidInput", err)
 	}
 }

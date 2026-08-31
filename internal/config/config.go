@@ -94,8 +94,12 @@ const (
 	// 一律跳过——数据不出本机的总闸。默认关闭。
 	KeyOfflineMode = "offline_mode"
 	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
-	KeyKeepWarm          = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
-	KeyAutoPreload       = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
+	KeyKeepWarm    = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
+	KeyAutoPreload = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
+	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆确定性聚合为
+	// 「晨报预载」块预装配进 agent 上下文（零 LLM、预算受限、work 只读）。
+	// 只影响上下文注入，与首页晨报卡片（GaeaMemoryMorningBrief）无关。默认开启。
+	KeyMorningPreload    = "morning_preload"
 	KeyDeepseekAPIKey    = "deepseek_api_key"
 	KeyGLMAPIKey         = "glm_api_key"
 	KeyOpencodeGoAPIKey  = "opencode_go_api_key"
@@ -205,6 +209,8 @@ type configFile struct {
 	// 本地模型调度开关（T5-3a/b，nil=默认开启）
 	KeepWarmEnabled *bool `json:"keep_warm_enabled,omitempty"` // 保活探针
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
+	// 晨报预载开关（v4.16 刀④，nil=默认开启）：只影响上下文注入，与晨报卡片无关。
+	MorningPreload *bool `json:"morning_preload,omitempty"`
 	// 美元→人民币汇率（费用估算折算用；0=未配置，加载时回退默认 7.2）
 	UsdCnyRate float64 `json:"usd_cny_rate,omitempty"`
 	// GLM 目录覆盖文件路径（空=只用内嵌目录）
@@ -329,7 +335,7 @@ type Config struct {
 	SensitiveLocal bool
 	OfficeLocal    bool
 	// 读屏纵深（v4.8）：摘要/留档开关
-	ReadScreenSummary bool
+	ReadScreenSummary  bool
 	ReadScreenKeepLast bool
 	// 意图 LLM 兜底（v4.8）：开关默认关；超时默认 2000ms
 	IntentsLLMFallback  bool
@@ -344,6 +350,10 @@ type Config struct {
 	//                 herdsman 模型，降低首次对话的冷启动等待。
 	KeepWarmEnabled bool
 	AutoPreload     bool
+
+	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆预装配进
+	// agent 上下文（零 LLM、预算受限）。默认开启，只影响上下文注入。
+	MorningPreload bool
 
 	// 美元→人民币汇率（费用估算折算用，默认 7.2；模型中心可配置）
 	UsdCnyRate float64
@@ -586,6 +596,21 @@ func (c *Config) SetAutoPreload(enabled bool) {
 	c.AutoPreload = enabled
 }
 
+// GetMorningPreload 读取晨报预载开关（v4.16 刀④，未显式配置时默认开启）。
+// 只影响上下文注入（work 空间预装配高频工作记忆），与晨报卡片无关。
+func (c *Config) GetMorningPreload() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.MorningPreload
+}
+
+// SetMorningPreload 写入晨报预载开关（仅 config 文件可控，无 UI 绑定）。
+func (c *Config) SetMorningPreload(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.MorningPreload = enabled
+}
+
 // GetRealtimeProvider 读取实时语音 provider kind（空 = 未配置实时语音档）。
 func (c *Config) GetRealtimeProvider() string {
 	funcMu.RLock()
@@ -657,6 +682,8 @@ func Load() *Config {
 		// T5-3a/b：本地模型保活 + 启动自动预载默认开启。
 		KeepWarmEnabled: true,
 		AutoPreload:     true,
+		// 晨报预载（v4.16 刀④）：默认开启（高频工作记忆预装配进上下文）。
+		MorningPreload: true,
 		// 汇率默认 7.2（费用估算折算口径）。
 		UsdCnyRate: DefaultUsdCnyRate,
 		// CosyVoice 本地 TTS 服务（T6-9.5，默认与历史硬编码一致）。
@@ -963,6 +990,9 @@ func Load() *Config {
 			}
 			if cf.AutoPreload != nil {
 				cfg.AutoPreload = *cf.AutoPreload
+			}
+			if cf.MorningPreload != nil {
+				cfg.MorningPreload = *cf.MorningPreload
 			}
 			if cf.UsdCnyRate != 0 {
 				cfg.UsdCnyRate = cf.UsdCnyRate
@@ -1385,6 +1415,14 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.AutoPreload = b
+		return nil
+	},
+	KeyMorningPreload: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.MorningPreload = b
 		return nil
 	},
 	KeyUsdCnyRate: func(cf *configFile, v string) error {

@@ -174,16 +174,10 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinkin
 		systemPrompt = systemPrompt + "\n\n【本轮格式要求】\n" + turnPlan.FormatHint
 	}
 
-	// 功能级绑定：聊天/轻语合并后统一用 chat 绑定（未绑定则沿用 orch/全局）
-	featEng, featModel := a.featureModel("chat")
-	engine := orch.EngineID
-	if featEng != "" {
-		engine = featEng
-	}
-	model := orch.ModelName
-	if featModel != "" {
-		model = featModel
-	}
+	// v4.16 离线裂缝收口：persona 主链路与 plain 聊天同源走 routeModel（功能绑定 →
+	// 全局 → 兜底，离线模式自动滤云端）；无可用时 model 为空，由客户端按既有
+	// 「模型不可用」路径处理（与 v4.15 plain 聊天一致）。
+	engine, model, _ := a.routeModel("chat")
 	// per-call 引擎覆盖：不影响全局激活引擎，多会话并发安全
 	if a.client == nil {
 		slog.Error("[whisper] client is nil")

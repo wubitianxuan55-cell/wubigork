@@ -125,6 +125,12 @@ type Verdict struct {
 	ChannelB string `json:"channelB,omitempty"`
 	Note     string `json:"note,omitempty"`
 	At       int64  `json:"at"`
+	// v4.16 通道 B 结果产品化：像素差异率 / 渲染页数 / 审计产物目录随 verdict
+	// 结构化返回，前端直接展示「视觉复核」行与产物入口。无通道 B（无基线
+	// 快照）或渲染降级时省略；旧 verdict（无新字段）读取兼容。
+	ChannelBRatio     float64 `json:"channelBRatio,omitempty"`     // 像素差异率（0-1；before/after 逐页平均）
+	ChannelBPages     int     `json:"channelBPages,omitempty"`     // 渲染页数（before/after 较大者）
+	ChannelBArtifacts string  `json:"channelBArtifacts,omitempty"` // 产物目录绝对路径（.gaea/work/journal/verify/<id>/）
 }
 
 // Verdict 状态常量。

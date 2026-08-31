@@ -1,9 +1,34 @@
 # 任务进度
 
-> 最后更新: 2026-08-31（v4.15.0 发布「聊天路由归位」：plain 聊天离线过滤修复 +
-> 「由谁回答」回显，用户拍板收缩自动路由为最小价值刀；零新增绑定 545）
+> 最后更新: 2026-08-31（v4.16.0 发布「四刀并行」：persona 离线收口 + 浏览器键盘/
+> iframe + 复核可视化 + 晨报预装配，四个并行子代理落地；零新增绑定 545）
 
 ## 当前状态
+
+- **最新发布：v4.16.0（2026-08-31）「四刀并行 · 离线收口/浏览器键盘与 iframe/复核
+  可视化/晨报预装配」**：用户拍板「全部并行处理」——v4.15.0 欠账四个可离线方向由
+  四个并行子代理同步落地（足迹隔离：刀①/②/④零绑定零前端，刀③独占绑定面相关
+  文件），主控全绿门禁。**零新增绑定（545 不变）**。①**persona 侧离线裂缝收口**
+  （真 bug）：gaea_whisper_causal/retell/whisper_handler 三处 featureModel("chat")
+  → routeModel("chat")——全局离线过滤对轻语链路生效（此前绑云端照样发云端），
+  用户功能绑定语义不变（同源）+2 离线回归。②**浏览器键盘级 Input + iframe**
+  （v4.13/14 欠账）：新工具 browser_press（第 11 工具，Input.dispatchKeyEvent 键盘
+  级输入：key 别名表/组合键/text 真实输入，Enter 补 \r 触发 keypress 真机踩坑
+  修复）+ browser_read/click/type 加 frame 参数（getFrameTree→createIsolatedWorld
+  →contextId，**iframe 内交互完整实现**，真 headless Edge 真机验证 Read/Click/Type
+  全通）；snapshot 不下钻 iframe 诚实拒。③**Verifier 通道 B 结果进前端**（v4.14
+  欠账）：Verdict 增 channelBRatio/channelBPages/channelBArtifacts（omitempty 旧卡
+  兼容）+ 证据卡「视觉复核：像素差异率 x.x% · N 页」行 +「查看复核产物」按钮
+  （打开产物目录 before/after PDF + 逐页 PNG）。④**晨报深度预装配**（v4.14 欠账）：
+  memory.BuildMorningPreloadBlock 纯函数（复用 BuildMorningBrief 排序口径，≤600
+  rune 确定性零 LLM）→ sysprompt 装配点注入「【工作记忆晨报】」块（门控
+  Memory.Enabled && morning_preload && space==work，play/mode=off 不注入=双空间
+  红线）；config 键 morning_preload（默认 true，仅配置文件可控）。**验证**：Go
+  全量 0 FAIL（+20）；vitest **861/861**（+2）；tsc/eslint 0/0；drift PASS（545）；
+  build.bat 冒烟 200；版本四处 4.16.0。欠账：Realtime 真机（需用户真 key+麦克风）；
+  自动路由本体（待官方逐模型缓存/峰谷数字）；浏览器 snapshot 不下钻 iframe/
+  下载上传/headless UI/Windows UIA；通道 B 逐页缩略图；晨报预载无 UI 开关。详见
+  releases/v4.16.0.md。
 
 - **最新发布：v4.15.0（2026-08-31）「聊天路由归位 · 由谁回答」**：v4.14.0 欠账
   「自动路由 v1」经**用户拍板收缩**为最小价值刀——砍成本档位机制/auto_route 开关/

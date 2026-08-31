@@ -43,15 +43,9 @@ func (a *whisperState) GaeaWhisperCausalExplain(entity, personalityID string) (s
 		return "", fmt.Errorf("model client not initialized")
 	}
 
-	featEng, featModel := a.featureModel("chat")
-	engine := orch.EngineID
-	if featEng != "" {
-		engine = featEng
-	}
-	model := orch.ModelName
-	if featModel != "" {
-		model = featModel
-	}
+	// v4.16 离线裂缝收口：与 plain 聊天同源走 routeModel（功能绑定 → 全局 →
+	// 兜底，离线模式自动滤云端；无可用返回空 → 走既有「未绑定模型」降级路径）。
+	engine, model, _ := a.routeModel("chat")
 	if model == "" {
 		return "", fmt.Errorf("未绑定模型")
 	}

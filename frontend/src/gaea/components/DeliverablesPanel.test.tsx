@@ -244,4 +244,23 @@ describe("DeliverablesPanel 证据链三步展开（v4.8）", () => {
     // 回滚后可再次复核（按钮仍在）
     expect(screen.getAllByTitle("双通道复核（结构/引用完整性 + 视觉健全性）").length).toBeGreaterThan(0);
   });
+
+  // ── v4.16 通道 B 结果产品化：verdict 携带像素差异率时渲染「视觉复核」行 ──
+  it("通道 B 结果进前端：渲染像素差异率行 + 查看复核产物按钮", async () => {
+    await openEvidence();
+    // ev_1003（mock 携带 channelBRatio 0.013 / 3 页 / 产物目录）
+    fireEvent.click(screen.getAllByTitle("双通道复核（结构/引用完整性 + 视觉健全性）")[0]);
+    await screen.findByText("视觉复核：像素差异率 1.3% · 3 页");
+    // 产物目录存在 → 「查看复核产物」按钮（OpenWorkspacePath 打开目录）
+    expect(screen.getByTitle("查看复核产物（before/after PDF + 逐页 PNG）")).toBeTruthy();
+  });
+
+  it("旧 verdict / 无通道 B：不渲染「视觉复核」行（向后兼容）", async () => {
+    await openEvidence();
+    // ev_1001（mock 保持旧形态，无 channelBRatio/channelBPages/channelBArtifacts）
+    fireEvent.click(screen.getAllByTitle("双通道复核（结构/引用完整性 + 视觉健全性）")[2]);
+    await screen.findByText("复核警告");
+    expect(screen.queryByText(/视觉复核/)).toBeNull();
+    expect(screen.queryByTitle("查看复核产物（before/after PDF + 逐页 PNG）")).toBeNull();
+  });
 });

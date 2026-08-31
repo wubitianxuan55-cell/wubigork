@@ -10,7 +10,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
-// TestBrowserToolsMeta 10 个 browser_* 工具的元信息：注册、Schema/CompactSchema
+// TestBrowserToolsMeta 11 个 browser_* 工具的元信息：注册、Schema/CompactSchema
 // JSON 合法、ReadOnly 分类、空间标签自声明 work、compact 条目非空。
 func TestBrowserToolsMeta(t *testing.T) {
 	cases := []struct {
@@ -23,6 +23,7 @@ func TestBrowserToolsMeta(t *testing.T) {
 		{browserSnapshot{}, "browser_snapshot", true},
 		{browserClick{}, "browser_click", false},
 		{browserType{}, "browser_type", false},
+		{browserPress{}, "browser_press", false},
 		{browserScroll{}, "browser_scroll", false},
 		{browserTabs{}, "browser_tabs", true},
 		{browserNewTab{}, "browser_new_tab", false},
@@ -93,6 +94,16 @@ func TestBrowserToolsValidationEnvelopes(t *testing.T) {
 		}},
 		{"click 缺 ref/selector", func() (string, error) { return browserClick{}.Execute(ctx, json.RawMessage(`{}`)) }},
 		{"type 缺 text", func() (string, error) { return browserType{}.Execute(ctx, json.RawMessage(`{"ref":1}`)) }},
+		{"press 缺 key", func() (string, error) { return browserPress{}.Execute(ctx, json.RawMessage(`{}`)) }},
+		{"press 非法修饰键", func() (string, error) {
+			return browserPress{}.Execute(ctx, json.RawMessage(`{"key":"a","modifiers":["super"]}`))
+		}},
+		{"click frame 模式带 ref", func() (string, error) {
+			return browserClick{}.Execute(ctx, json.RawMessage(`{"ref":1,"frame":"x"}`))
+		}},
+		{"click frame 模式缺 selector", func() (string, error) {
+			return browserClick{}.Execute(ctx, json.RawMessage(`{"frame":"x"}`))
+		}},
 		{"scroll 非法方向", func() (string, error) {
 			return browserScroll{}.Execute(ctx, json.RawMessage(`{"direction":"left"}`))
 		}},
@@ -124,6 +135,12 @@ func TestBrowserToolsRouteThroughDefault(t *testing.T) {
 	env = parseBrowserEnv(t, out, err)
 	if !env.OK {
 		t.Fatalf("未启动时 close 应幂等成功, got %q", env.Error)
+	}
+
+	out, err = browserPress{}.Execute(context.Background(), json.RawMessage(`{"key":"Enter"}`))
+	env = parseBrowserEnv(t, out, err)
+	if env.OK || env.Code != tool.CodeExecError {
+		t.Fatalf("press envelope = ok=%v code=%q, want exec_error（假端点 Ensure 失败）", env.OK, env.Code)
 	}
 }
 

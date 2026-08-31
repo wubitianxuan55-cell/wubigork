@@ -617,8 +617,9 @@ type ReadResult struct {
 }
 
 // Read 读取 active tab 页面文本（selector 为空读全文，否则读该元素；
-// maxChars 截断）。
-func (m *Manager) Read(ctx context.Context, selector string, maxChars int) (ReadResult, error) {
+// maxChars 截断）。frame 非空时改在指定 iframe 内读取（frame = iframe 的
+// frame URL 子串或 CSS 选择器）。
+func (m *Manager) Read(ctx context.Context, selector string, maxChars int, frame string) (ReadResult, error) {
 	if err := m.Ensure(ctx); err != nil {
 		return ReadResult{}, err
 	}
@@ -628,13 +629,17 @@ func (m *Manager) Read(ctx context.Context, selector string, maxChars int) (Read
 	if maxChars > maxReadChars {
 		maxChars = maxReadChars
 	}
+	contextID, err := m.frameContextID(ctx, frame)
+	if err != nil {
+		return ReadResult{}, err
+	}
 	var res struct {
 		okField
 		Title string `json:"title"`
 		URL   string `json:"url"`
 		Text  string `json:"text"`
 	}
-	if err := m.evaluate(ctx, fmt.Sprintf(jsRead, maxChars, jsString(selector)), &res); err != nil {
+	if err := m.evaluateIn(ctx, fmt.Sprintf(jsRead, maxChars, jsString(selector)), contextID, &res); err != nil {
 		return ReadResult{}, err
 	}
 	if !res.OK {
@@ -692,8 +697,12 @@ type ActionResult struct {
 }
 
 // Click 点击 active tab 元素：ref（snapshot 返回，优先）或 CSS selector，
-// 二选一。
-func (m *Manager) Click(ctx context.Context, ref int, selector string) (ActionResult, error) {
+// 二选一。frame 非空时改在指定 iframe 内点击（仅支持 selector——ref 属主
+// 文档，跨文档会撞号；iframe 隔离世界无 __gaeaEpoch，不做 ref 失效守门）。
+func (m *Manager) Click(ctx context.Context, ref int, selector, frame string) (ActionResult, error) {
+	if strings.TrimSpace(frame) != "" {
+		return m.clickInFrame(ctx, ref, selector, frame)
+	}
 	target, err := m.resolveTarget(ctx, ref, selector)
 	if err != nil {
 		return ActionResult{}, err
@@ -711,11 +720,44 @@ func (m *Manager) Click(ctx context.Context, ref int, selector string) (ActionRe
 	return ActionResult{Text: res.Text}, nil
 }
 
+// clickInFrame 在 iframe 内点击：仅 selector 定位；校验先于 Ensure（任何浏览
+// 器动作之前被拒）。
+func (m *Manager) clickInFrame(ctx context.Context, ref int, selector, frame string) (ActionResult, error) {
+	if ref > 0 {
+		return ActionResult{}, fmt.Errorf("%w: frame 模式仅支持 selector 定位（ref 属主文档，跨文档会撞号）", ErrInvalidInput)
+	}
+	if strings.TrimSpace(selector) == "" {
+		return ActionResult{}, fmt.Errorf("%w: frame 模式需 selector 定位元素", ErrInvalidInput)
+	}
+	if err := m.Ensure(ctx); err != nil {
+		return ActionResult{}, err
+	}
+	contextID, err := m.frameContextID(ctx, frame)
+	if err != nil {
+		return ActionResult{}, err
+	}
+	var res struct {
+		okField
+		Text string `json:"text"`
+	}
+	if err := m.evaluateIn(ctx, fmt.Sprintf(jsClick, jsString(selector)), contextID, &res); err != nil {
+		return ActionResult{}, err
+	}
+	if !res.OK {
+		return ActionResult{}, jsErr(res.Error)
+	}
+	return ActionResult{Text: res.Text}, nil
+}
+
 // Type 向 active tab 的输入元素输入文本：ref 或 selector 定位；原生 setter
-// + input/change 事件（React 兼容）；submit 时请求提交所在表单。
-func (m *Manager) Type(ctx context.Context, ref int, selector, text string, submit bool) (ActionResult, error) {
+// + input/change 事件（React 兼容）；submit 时请求提交所在表单。frame 非空
+// 时改在指定 iframe 内输入（仅支持 selector，同 Click 的 frame 语义）。
+func (m *Manager) Type(ctx context.Context, ref int, selector, text string, submit bool, frame string) (ActionResult, error) {
 	if text == "" {
 		return ActionResult{}, fmt.Errorf("%w: text 必填", ErrInvalidInput)
+	}
+	if strings.TrimSpace(frame) != "" {
+		return m.typeInFrame(ctx, ref, selector, text, submit, frame)
 	}
 	target, err := m.resolveTarget(ctx, ref, selector)
 	if err != nil {
@@ -727,6 +769,35 @@ func (m *Manager) Type(ctx context.Context, ref int, selector, text string, subm
 	}
 	expr := fmt.Sprintf(jsType, jsString(target), jsString(text), boolJS(submit))
 	if err := m.evaluate(ctx, expr, &res); err != nil {
+		return ActionResult{}, err
+	}
+	if !res.OK {
+		return ActionResult{}, jsErr(res.Error)
+	}
+	return ActionResult{Text: res.Text}, nil
+}
+
+// typeInFrame 在 iframe 内输入：仅 selector 定位；校验先于 Ensure。
+func (m *Manager) typeInFrame(ctx context.Context, ref int, selector, text string, submit bool, frame string) (ActionResult, error) {
+	if ref > 0 {
+		return ActionResult{}, fmt.Errorf("%w: frame 模式仅支持 selector 定位（ref 属主文档，跨文档会撞号）", ErrInvalidInput)
+	}
+	if strings.TrimSpace(selector) == "" {
+		return ActionResult{}, fmt.Errorf("%w: frame 模式需 selector 定位元素", ErrInvalidInput)
+	}
+	if err := m.Ensure(ctx); err != nil {
+		return ActionResult{}, err
+	}
+	contextID, err := m.frameContextID(ctx, frame)
+	if err != nil {
+		return ActionResult{}, err
+	}
+	var res struct {
+		okField
+		Text string `json:"text"`
+	}
+	expr := fmt.Sprintf(jsType, jsString(selector), jsString(text), boolJS(submit))
+	if err := m.evaluateIn(ctx, expr, contextID, &res); err != nil {
 		return ActionResult{}, err
 	}
 	if !res.OK {
@@ -808,9 +879,15 @@ type okField struct {
 	Error string `json:"error"`
 }
 
-// evaluate 在 active tab 上执行一段 JS 并把返回值解进 out（returnByValue +
-// awaitPromise）。
+// evaluate 在 active tab 的默认执行上下文执行一段 JS 并把返回值解进 out
+// （returnByValue + awaitPromise）。
 func (m *Manager) evaluate(ctx context.Context, expression string, out any) error {
+	return m.evaluateIn(ctx, expression, 0, out)
+}
+
+// evaluateIn 同 evaluate，但可指定 executionContextId（>0 = iframe 隔离世界；
+// 0 = 主文档默认上下文）。
+func (m *Manager) evaluateIn(ctx context.Context, expression string, contextID int, out any) error {
 	m.mu.Lock()
 	conn := m.tabs[m.activePageID]
 	m.mu.Unlock()
@@ -830,11 +907,15 @@ func (m *Manager) evaluate(ctx context.Context, expression string, out any) erro
 			} `json:"exception"`
 		} `json:"exceptionDetails"`
 	}
-	if err := conn.Call(ctx, "Runtime.evaluate", map[string]any{
+	params := map[string]any{
 		"expression":    expression,
 		"returnByValue": true,
 		"awaitPromise":  true,
-	}, &resp); err != nil {
+	}
+	if contextID > 0 {
+		params["contextId"] = contextID
+	}
+	if err := conn.Call(ctx, "Runtime.evaluate", params, &resp); err != nil {
 		return err
 	}
 	if resp.ExceptionDetails != nil {

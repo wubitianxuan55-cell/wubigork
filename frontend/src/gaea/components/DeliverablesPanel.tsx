@@ -571,32 +571,56 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       )}
                     </div>
                   )}
-                  {/* v4.6：内联复核结论——failed 卡常驻显示「回滚 + 重新规划」入口 */}
+                  {/* v4.6：内联复核结论——failed 卡常驻显示「回滚 + 重新规划」入口。
+                      v4.16：通道 B 结果产品化——verdict 携带像素差异率时追加
+                      「视觉复核」行（差异率 + 页数 + 查看产物按钮；产物目录是
+                      绝对路径，OpenWorkspacePath 直接打开目录）。旧 verdict /
+                      无通道 B（无 channelBRatio）不渲染该行，向后兼容。 */}
                   {v && (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="shrink-0 text-[9px] px-1 py-px rounded font-mono" style={{
-                        color: v.status === "verified"
-                          ? "var(--md-sys-color-success)"
-                          : v.status === "warned"
-                            ? "var(--md-sys-color-warning)"
-                            : "var(--md-sys-color-destructive)",
-                        background: "color-mix(in srgb, currentColor 10%, transparent)",
-                      }}>
-                        {v.status === "verified" ? "复核通过" : v.status === "warned" ? "复核警告" : "复核未通过"}
-                      </span>
-                      <span className="min-w-0 flex-1 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                        {v.note ?? `${v.channelA ?? ""} / ${v.channelB ?? ""}`}
-                      </span>
-                      {v.status === "failed" && r.tool === "xlsx_apply" && (
-                        <button
-                          type="button"
-                          className={iconBtn}
-                          onClick={() => replanFailed(r)}
-                          title="回办公面板重新规划后再应用（失败回 Plan）"
-                          aria-label="重新规划"
-                        >
-                          <ClipboardList size={11} />
-                        </button>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="shrink-0 text-[9px] px-1 py-px rounded font-mono" style={{
+                          color: v.status === "verified"
+                            ? "var(--md-sys-color-success)"
+                            : v.status === "warned"
+                              ? "var(--md-sys-color-warning)"
+                              : "var(--md-sys-color-destructive)",
+                          background: "color-mix(in srgb, currentColor 10%, transparent)",
+                        }}>
+                          {v.status === "verified" ? "复核通过" : v.status === "warned" ? "复核警告" : "复核未通过"}
+                        </span>
+                        <span className="min-w-0 flex-1 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                          {v.note ?? `${v.channelA ?? ""} / ${v.channelB ?? ""}`}
+                        </span>
+                        {v.status === "failed" && r.tool === "xlsx_apply" && (
+                          <button
+                            type="button"
+                            className={iconBtn}
+                            onClick={() => replanFailed(r)}
+                            title="回办公面板重新规划后再应用（失败回 Plan）"
+                            aria-label="重新规划"
+                          >
+                            <ClipboardList size={11} />
+                          </button>
+                        )}
+                      </div>
+                      {typeof v.channelBRatio === "number" && (
+                        <div className="flex flex-wrap items-center gap-1.5 pl-1">
+                          <span className="text-[9px] font-mono" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                            视觉复核：像素差异率 {(v.channelBRatio * 100).toFixed(1)}% · {v.channelBPages ?? 0} 页
+                          </span>
+                          {v.channelBArtifacts && (
+                            <button
+                              type="button"
+                              className={iconBtn}
+                              onClick={() => void app.OpenWorkspacePath(v.channelBArtifacts as string).catch(() => {})}
+                              title="查看复核产物（before/after PDF + 逐页 PNG）"
+                              aria-label="查看复核产物"
+                            >
+                              <FolderTree size={11} />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

@@ -33,10 +33,11 @@ var compactDesc = map[string]string{
 	"screen_capture":     "捕获屏幕截图保存为PNG,返回文件路径(可指定region局部截图)",
 	"vision":             "用本地视觉模型识别图片内容(文字/布局/细节),配合screen_capture理解截图",
 	"browser_navigate":   "受控Edge打开URL(仅http/https,独立临时profile,不碰用户浏览器)",
-	"browser_read":       "读取受控浏览器页面文本(全文或selector局部,可截断)",
+	"browser_read":       "读取受控浏览器页面文本(全文或selector局部,可截断,frame可选iframe内)",
 	"browser_snapshot":   "列出页面可交互元素([#ref] <tag> 文本),click/type前必须先snapshot拿ref",
-	"browser_click":      "点击页面元素(snapshot的ref或CSS selector,跳转后ref失效)",
-	"browser_type":       "输入文本到输入框(ref或selector,React兼容,submit提交表单)",
+	"browser_click":      "点击页面元素(snapshot的ref或CSS selector,跳转后ref失效,frame可选iframe内)",
+	"browser_type":       "输入文本到输入框(ref或selector,React兼容,submit提交表单,frame可选iframe内)",
+	"browser_press":      "发送键盘级按键(Enter/Tab/Escape/字符等,可带ctrl/alt/shift/meta组合,text真实输入)",
 	"browser_scroll":     "滚动页面(up/down,amount像素,可选容器selector)",
 	"browser_tabs":       "列出受控浏览器全部标签页([active]标记当前页,含标题/URL)",
 	"browser_new_tab":    "新建标签页并切换为当前页(url必填,原页refs失效)",
@@ -102,13 +103,15 @@ var compactSchema = map[string]json.RawMessage{
 	"browser_navigate": json.RawMessage(
 		`{"type":"object","properties":{"url":{"type":"string"},"timeout_secs":{"type":"integer"}},"required":["url"]}`),
 	"browser_read": json.RawMessage(
-		`{"type":"object","properties":{"selector":{"type":"string"},"max_chars":{"type":"integer"}}}`),
+		`{"type":"object","properties":{"selector":{"type":"string"},"max_chars":{"type":"integer"},"frame":{"type":"string"}}}`),
 	"browser_snapshot": json.RawMessage(
 		`{"type":"object"}`),
 	"browser_click": json.RawMessage(
-		`{"type":"object","properties":{"ref":{"type":"integer"},"selector":{"type":"string"}}}`),
+		`{"type":"object","properties":{"ref":{"type":"integer"},"selector":{"type":"string"},"frame":{"type":"string"}}}`),
 	"browser_type": json.RawMessage(
-		`{"type":"object","properties":{"ref":{"type":"integer"},"selector":{"type":"string"},"text":{"type":"string"},"submit":{"type":"boolean"}},"required":["text"]}`),
+		`{"type":"object","properties":{"ref":{"type":"integer"},"selector":{"type":"string"},"text":{"type":"string"},"submit":{"type":"boolean"},"frame":{"type":"string"}},"required":["text"]}`),
+	"browser_press": json.RawMessage(
+		`{"type":"object","properties":{"key":{"type":"string"},"modifiers":{"type":"array","items":{"type":"string"}},"text":{"type":"string"}},"required":["key"]}`),
 	"browser_scroll": json.RawMessage(
 		`{"type":"object","properties":{"direction":{"type":"string"},"amount":{"type":"integer"},"selector":{"type":"string"}}}`),
 	"browser_tabs": json.RawMessage(

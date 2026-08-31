@@ -55,38 +55,40 @@ const (
 
 // runVisualDiff 对基线/目标做真视觉 diff（v4.6 补课：页数对比 → 像素对比 +
 // 页数联合判定）。verifyDir 是审计产物目录（before/after PDF + 逐页 PNG 落盘，
-// 供事后人工复核差异页）。返回通道 B 文案与建议状态（""=渲染降级）。
-func runVisualDiff(baselinePath, target, verifyDir string) (string, string) {
+// 供事后人工复核差异页）。返回通道 B 文案、建议状态、像素差异率（0-1，渲染
+// 降级时 0）与渲染页数（before/after 较大者；降级时 0）——v4.16 起 ratio/pages
+// 随 verdict 结构化回填，前端「视觉复核」行直接展示。
+func runVisualDiff(baselinePath, target, verifyDir string) (msg string, status string, ratio float64, pages int) {
 	beforePDF := filepath.Join(verifyDir, "before.pdf")
 	afterPDF := filepath.Join(verifyDir, "after.pdf")
 	if err := verifyConvertToPdf(baselinePath, beforePDF); err != nil {
-		return "warn: 视觉渲染降级（soffice 不可用或转换失败，仅结构复核）", "warn"
+		return "warn: 视觉渲染降级（soffice 不可用或转换失败，仅结构复核）", "warn", 0, 0
 	}
 	if err := verifyConvertToPdf(target, afterPDF); err != nil {
-		return "warn: 视觉渲染降级（soffice 不可用或转换失败，仅结构复核）", "warn"
+		return "warn: 视觉渲染降级（soffice 不可用或转换失败，仅结构复核）", "warn", 0, 0
 	}
 	bp, berr := verifyRenderPages(beforePDF, filepath.Join(verifyDir, "before"), 0)
 	ap, aerr := verifyRenderPages(afterPDF, filepath.Join(verifyDir, "after"), 0)
 	if berr != nil || aerr != nil {
-		return "warn: 视觉渲染降级（poppler pdftoppm 不可用，仅结构复核）", "warn"
+		return "warn: 视觉渲染降级（poppler pdftoppm 不可用，仅结构复核）", "warn", 0, 0
 	}
 
 	maxPages := max(len(bp), len(ap))
 	totalRatio := 0.0
 	changedPages := 0
 	for i := 0; i < maxPages; i++ {
-		var ratio float64
+		var pageRatio float64
 		if i >= len(bp) || i >= len(ap) {
-			ratio = 1.0 // 页数变化：缺失页整页视为差异
+			pageRatio = 1.0 // 页数变化：缺失页整页视为差异
 		} else {
 			r, err := verifyPixelDiff(bp[i], ap[i])
 			if err != nil {
-				return "warn: 视觉 diff 像素解析失败（" + err.Error() + "）", "warn"
+				return "warn: 视觉 diff 像素解析失败（" + err.Error() + "）", "warn", 0, 0
 			}
-			ratio = r
+			pageRatio = r
 		}
-		totalRatio += ratio
-		if ratio > visualDiffPassThreshold {
+		totalRatio += pageRatio
+		if pageRatio > visualDiffPassThreshold {
 			changedPages++
 		}
 	}
@@ -94,13 +96,13 @@ func runVisualDiff(baselinePath, target, verifyDir string) (string, string) {
 	pageShift := len(bp) != len(ap)
 	switch {
 	case avg <= visualDiffPassThreshold:
-		return fmt.Sprintf("pass: 渲染健全（%d 页，像素差异 %.1f%%）", maxPages, avg*100), "pass"
+		return fmt.Sprintf("pass: 渲染健全（%d 页，像素差异 %.1f%%）", maxPages, avg*100), "pass", avg, maxPages
 	case pageShift && avg > visualDiffWarnThreshold:
 		return fmt.Sprintf("fail: 视觉大改（%d→%d 页，%d 页差异，像素差异 %.1f%%）——建议回滚或人工复核",
-			len(bp), len(ap), changedPages, avg*100), "fail"
+			len(bp), len(ap), changedPages, avg*100), "fail", avg, maxPages
 	default:
 		return fmt.Sprintf("warn: 视觉变化（%d 页中 %d 页差异，像素差异 %.1f%%）",
-			maxPages, changedPages, avg*100), "warn"
+			maxPages, changedPages, avg*100), "warn", avg, maxPages
 	}
 }
 
@@ -180,8 +182,14 @@ func (a *App) GaeaVerifyRecord(id string) (evidence.Verdict, error) {
 		if _, err := os.Stat(rec.BaselinePath); err == nil {
 			verifyDir := filepath.Join(gaeaCwd(), ".gaea", "work", "journal", "verify", id)
 			_ = os.MkdirAll(verifyDir, 0o755)
-			msg, _ := runVisualDiff(rec.BaselinePath, target, verifyDir)
+			msg, _, ratio, pages := runVisualDiff(rec.BaselinePath, target, verifyDir)
 			v.ChannelB = msg
+			// v4.16 通道 B 结果产品化：像素差异率/渲染页数/产物目录随 verdict
+			// 结构化返回（前端「视觉复核」行直接展示；渲染降级时 ratio=0 经
+			// omitempty 省略，前端不渲染该行）
+			v.ChannelBRatio = ratio
+			v.ChannelBPages = pages
+			v.ChannelBArtifacts = filepath.ToSlash(verifyDir)
 			// 审计产物路径随 verdict 落库（事后人工复核差异页）
 			verifyArtifacts = fmt.Sprintf("视觉产物：%s", filepath.ToSlash(verifyDir))
 		}

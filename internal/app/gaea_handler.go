@@ -48,9 +48,9 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 	}
 	cfg.DefaultModel = "gaea"
 	cfg.Providers = []gaeaConfig.ProviderEntry{{
-		Name:          "gaea",
-		Kind:          "wubigrok", // 内部 provider 注册名（bridge provider）
-		Model:         "",
+		Name:  "gaea",
+		Kind:  "wubigrok", // 内部 provider 注册名（bridge provider）
+		Model: "",
 		// 上下文窗口按实际绑定模型的能力取保守值（此前写 1M 导致自动压缩
 		// 阈值高达 80 万 token，办公会话膨胀到十几万也从不压缩，模型首字
 		// 极慢、看起来像“没流式输出”）。256k 下 80% 阈值≈204k，超限自动压缩。
@@ -117,6 +117,11 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 			factListTool{},
 			factClearTool{},
 		}, gaeaSpecialistTools(a)...),
+		// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆预装配进
+		// agent 上下文（零 LLM、预算受限、work 只读）。开关读 ~/.gaea_config.json
+		// 的 morning_preload 键（默认开，仅 config 文件可控，无 UI 绑定）；
+		// a.cfg 未就绪（测试/启动早期）时缺省开启，与配置默认值一致。
+		MorningPreload: morningPreloadEnabled(a),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gaea: 引擎初始化失败: %w", err)
@@ -133,6 +138,16 @@ func (a *App) gaeaBuildController() (*control.Controller, error) {
 	// 否则全部工具（含写文件/网络）自动放行且审批弹窗永不出现。
 	ctrl.EnableInteractiveApproval()
 	return ctrl, nil
+}
+
+// morningPreloadEnabled 返回晨报预载开关（v4.16 刀④）：读 App 配置的
+// morning_preload 键（默认开）；a/a.cfg 未就绪（测试/启动早期）时缺省开启，
+// 与配置键默认值一致。
+func morningPreloadEnabled(a *App) bool {
+	if a == nil || a.cfg == nil {
+		return true
+	}
+	return a.cfg.GetMorningPreload()
 }
 
 // gaeaRebuildLocked 用当前配置重建 controller（设置变更后生效），替换旧实例。

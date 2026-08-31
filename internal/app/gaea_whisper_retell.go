@@ -24,15 +24,8 @@ func (a *whisperState) GaeaWhisperMemoryRetell(kind, id, personalityID string) (
 		return "", err
 	}
 
-	featEng, featModel := a.featureModel("chat")
-	engine := orch.EngineID
-	if featEng != "" {
-		engine = featEng
-	}
-	model := orch.ModelName
-	if featModel != "" {
-		model = featModel
-	}
+	// v4.16 离线裂缝收口：与 plain 聊天同源走 routeModel（离线过滤 + 全局/兜底一致）。
+	engine, model, _ := a.routeModel("chat")
 	if model == "" {
 		return "", fmt.Errorf("未绑定模型")
 	}

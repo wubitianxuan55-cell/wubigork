@@ -1,9 +1,10 @@
 package builtin
 
 // browser_tools.go — 受控浏览器自动化 MVP（browser 包薄封装）：
-// 懒拉起独立 Edge（独立临时 profile，绝不碰用户主 profile），10 个工具共享
+// 懒拉起独立 Edge（独立临时 profile，绝不碰用户主 profile），11 个工具共享
 // browser.Default() 单例会话。多标签支持 browser_tabs / browser_new_tab /
-// browser_switch_tab / browser_close(tab_id)；空闲 TTL 自动关停，任意
+// browser_switch_tab / browser_close(tab_id)；键盘级 Input 走 browser_press；
+// read/click/type 可选 frame 参数在 iframe 内交互；空闲 TTL 自动关停，任意
 // browser_* 调用自动重拉。结果统一走 envelope 结构化返回；错误用 errors.Is
 // 映射语义化 code（validation_error/not_found/stale_refs/timeout）。
 
@@ -25,6 +26,7 @@ func init() {
 	tool.RegisterBuiltin(browserSnapshot{})
 	tool.RegisterBuiltin(browserClick{})
 	tool.RegisterBuiltin(browserType{})
+	tool.RegisterBuiltin(browserPress{})
 	tool.RegisterBuiltin(browserScroll{})
 	tool.RegisterBuiltin(browserTabs{})
 	tool.RegisterBuiltin(browserNewTab{})
@@ -108,7 +110,7 @@ type browserRead struct{}
 func (browserRead) Name() string { return "browser_read" }
 
 func (browserRead) Description() string {
-	return "读取受控浏览器当前页面的文本（默认全文，传 selector 只读该元素；max_chars 截断，默认 6000）。只读不改变页面。"
+	return "读取受控浏览器当前页面的文本（默认全文，传 selector 只读该元素；max_chars 截断，默认 6000）。frame 参数可定位到 iframe 内（传 iframe 的 frame URL 子串或 CSS 选择器）。只读不改变页面。"
 }
 
 func (browserRead) Schema() json.RawMessage {
@@ -116,7 +118,8 @@ func (browserRead) Schema() json.RawMessage {
 "type":"object",
 "properties":{
   "selector":{"type":"string","description":"CSS 选择器，只读取该元素的文本（缺省读全文）"},
-  "max_chars":{"type":"integer","description":"返回文本最大字符数（默认 6000）","minimum":1}
+  "max_chars":{"type":"integer","description":"返回文本最大字符数（默认 6000）","minimum":1},
+  "frame":{"type":"string","description":"可选：在指定 iframe 内读取——iframe 的 frame URL 子串（如 /frame 或 example.com/x）或 iframe 元素的 CSS 选择器"}
 }
 }`)
 }
@@ -130,20 +133,22 @@ func (browserRead) Execute(ctx context.Context, args json.RawMessage) (string, e
 	var p struct {
 		Selector string `json:"selector"`
 		MaxChars int    `json:"max_chars"`
+		Frame    string `json:"frame"`
 	}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &p); err != nil {
 			return tool.WrapError(tool.CodeValidationError, "invalid args: "+err.Error(), nil), nil
 		}
 	}
-	res, err := browser.Default().Read(ctx, p.Selector, p.MaxChars)
+	res, err := browser.Default().Read(ctx, p.Selector, p.MaxChars, p.Frame)
 	if err != nil {
-		return browserFail(err, map[string]any{"selector": p.Selector})
+		return browserFail(err, map[string]any{"selector": p.Selector, "frame": p.Frame})
 	}
 	return tool.WrapResult("ok", map[string]any{
 		"url":   res.URL,
 		"title": res.Title,
 		"text":  res.Text,
+		"frame": p.Frame,
 	}), nil
 }
 
@@ -204,7 +209,7 @@ type browserClick struct{}
 func (browserClick) Name() string { return "browser_click" }
 
 func (browserClick) Description() string {
-	return "点击受控浏览器页面上的元素：传 browser_snapshot 返回的 ref（推荐）或 CSS selector，二选一。点击可能触发页面跳转，跳转后 ref 失效需重新 snapshot。"
+	return "点击受控浏览器页面上的元素：传 browser_snapshot 返回的 ref（推荐）或 CSS selector，二选一。frame 参数可在指定 iframe 内点击（仅支持 selector 定位）。点击可能触发页面跳转，跳转后 ref 失效需重新 snapshot。"
 }
 
 func (browserClick) Schema() json.RawMessage {
@@ -212,7 +217,8 @@ func (browserClick) Schema() json.RawMessage {
 "type":"object",
 "properties":{
   "ref":{"type":"integer","description":"browser_snapshot 返回的元素 ref（优先使用）"},
-  "selector":{"type":"string","description":"CSS 选择器（ref 缺失时的兜底；与 ref 二选一）"}
+  "selector":{"type":"string","description":"CSS 选择器（ref 缺失时的兜底；与 ref 二选一）"},
+  "frame":{"type":"string","description":"可选：在指定 iframe 内点击（frame URL 子串或 iframe 的 CSS 选择器；frame 模式下仅支持 selector）"}
 }
 }`)
 }
@@ -226,17 +232,19 @@ func (browserClick) Execute(ctx context.Context, args json.RawMessage) (string, 
 	var p struct {
 		Ref      int    `json:"ref"`
 		Selector string `json:"selector"`
+		Frame    string `json:"frame"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return tool.WrapError(tool.CodeValidationError, "invalid args: "+err.Error(), nil), nil
 	}
-	res, err := browser.Default().Click(ctx, p.Ref, p.Selector)
+	res, err := browser.Default().Click(ctx, p.Ref, p.Selector, p.Frame)
 	if err != nil {
-		return browserFail(err, map[string]any{"ref": p.Ref, "selector": p.Selector})
+		return browserFail(err, map[string]any{"ref": p.Ref, "selector": p.Selector, "frame": p.Frame})
 	}
 	return tool.WrapResult("ok", map[string]any{
 		"ref":      p.Ref,
 		"selector": p.Selector,
+		"frame":    p.Frame,
 		"element":  res.Text,
 		"message":  "已点击；若页面跳转请重新 browser_snapshot",
 	}), nil
@@ -249,7 +257,7 @@ type browserType struct{}
 func (browserType) Name() string { return "browser_type" }
 
 func (browserType) Description() string {
-	return "向受控浏览器页面的输入框输入文本：传 browser_snapshot 返回的 ref 或 CSS selector 定位（二选一）；submit=true 时提交所在表单。React/Vue 受控组件兼容。页面跳转后 ref 失效需重新 snapshot。"
+	return "向受控浏览器页面的输入框输入文本：传 browser_snapshot 返回的 ref 或 CSS selector 定位（二选一）；submit=true 时提交所在表单。frame 参数可在指定 iframe 内输入（仅支持 selector 定位）。React/Vue 受控组件兼容。页面跳转后 ref 失效需重新 snapshot。"
 }
 
 func (browserType) Schema() json.RawMessage {
@@ -259,7 +267,8 @@ func (browserType) Schema() json.RawMessage {
   "ref":{"type":"integer","description":"browser_snapshot 返回的元素 ref（优先使用）"},
   "selector":{"type":"string","description":"CSS 选择器（ref 缺失时的兜底；与 ref 二选一）"},
   "text":{"type":"string","description":"要输入的文本"},
-  "submit":{"type":"boolean","description":"输入后是否提交所在表单（默认 false）"}
+  "submit":{"type":"boolean","description":"输入后是否提交所在表单（默认 false）"},
+  "frame":{"type":"string","description":"可选：在指定 iframe 内输入（frame URL 子串或 iframe 的 CSS 选择器；frame 模式下仅支持 selector）"}
 },
 "required":["text"]
 }`)
@@ -276,6 +285,7 @@ func (browserType) Execute(ctx context.Context, args json.RawMessage) (string, e
 		Selector string `json:"selector"`
 		Text     string `json:"text"`
 		Submit   bool   `json:"submit"`
+		Frame    string `json:"frame"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return tool.WrapError(tool.CodeValidationError, "invalid args: "+err.Error(), nil), nil
@@ -283,15 +293,67 @@ func (browserType) Execute(ctx context.Context, args json.RawMessage) (string, e
 	if p.Text == "" {
 		return tool.WrapError(tool.CodeValidationError, "text 必填", nil), nil
 	}
-	res, err := browser.Default().Type(ctx, p.Ref, p.Selector, p.Text, p.Submit)
+	res, err := browser.Default().Type(ctx, p.Ref, p.Selector, p.Text, p.Submit, p.Frame)
 	if err != nil {
-		return browserFail(err, map[string]any{"ref": p.Ref, "selector": p.Selector})
+		return browserFail(err, map[string]any{"ref": p.Ref, "selector": p.Selector, "frame": p.Frame})
 	}
 	return tool.WrapResult("ok", map[string]any{
 		"ref":      p.Ref,
 		"selector": p.Selector,
+		"frame":    p.Frame,
 		"text":     res.Text,
 		"submit":   p.Submit,
+	}), nil
+}
+
+// ── browser_press ───────────────────────────────────────────────────────
+
+type browserPress struct{}
+
+func (browserPress) Name() string { return "browser_press" }
+
+func (browserPress) Description() string {
+	return "向受控浏览器当前页面发送键盘级按键（CDP Input.dispatchKeyEvent）：key 传 Enter/Tab/Escape/ArrowDown 等键名或单个字符（a/A/1），兼容 enter/esc/arrowdown 等小写别名；modifiers 可同时按住 ctrl/alt/shift/meta；text 非空时按键后真实输入该文本。可用于提交表单（Enter）、聚焦切换（Tab）、关闭弹层（Escape）等浏览器原生交互。"
+}
+
+func (browserPress) Schema() json.RawMessage {
+	return json.RawMessage(`{
+"type":"object",
+"properties":{
+  "key":{"type":"string","description":"要按下的键：Enter/Tab/Escape/ArrowDown 等键名或单个字符（a/A/1）；兼容 enter/esc/arrowdown 等小写别名"},
+  "modifiers":{"type":"array","items":{"type":"string","enum":["ctrl","alt","shift","meta"]},"description":"同时按住的修饰键（可选，如 [\"ctrl\",\"shift\"]）"},
+  "text":{"type":"string","description":"可选：按键后要输入的文本（经 Input.insertText 真实输入到当前聚焦元素）"}
+},
+"required":["key"]
+}`)
+}
+
+func (browserPress) ReadOnly() bool                 { return false }
+func (browserPress) SpaceTag() string               { return spaces.SpaceWork }
+func (browserPress) CompactDescription() string     { return compactDesc["browser_press"] }
+func (browserPress) CompactSchema() json.RawMessage { return compactSchema["browser_press"] }
+
+func (browserPress) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+	var p struct {
+		Key       string   `json:"key"`
+		Modifiers []string `json:"modifiers"`
+		Text      string   `json:"text"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return tool.WrapError(tool.CodeValidationError, "invalid args: "+err.Error(), nil), nil
+	}
+	if strings.TrimSpace(p.Key) == "" {
+		return tool.WrapError(tool.CodeValidationError, "key 必填（如 Enter/Tab/Escape/a）", nil), nil
+	}
+	res, err := browser.Default().Press(ctx, p.Key, p.Modifiers, p.Text)
+	if err != nil {
+		return browserFail(err, map[string]any{"key": p.Key, "modifiers": p.Modifiers})
+	}
+	return tool.WrapResult("ok", map[string]any{
+		"key":       p.Key,
+		"modifiers": p.Modifiers,
+		"text":      p.Text,
+		"message":   res.Text,
 	}), nil
 }
 

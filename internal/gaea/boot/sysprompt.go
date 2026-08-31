@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gaea/gaea/internal/gaea/cache"
 	"github.com/gaea/gaea/internal/gaea/config"
@@ -36,7 +37,9 @@ type syspromptOut struct {
 // space 是装配空间的配置生效值（v4.5.1a 红线补课：""=space.mode=off 平铺形态
 // 走空值全量=旧行为；"work"/"play"=系统提示词记忆索引只在该空间读——会话画像
 // 与记忆索引不再跨空间泄露，兑现 S1.2 读端硬隔离的注入侧承诺）。
-func buildSystemPrompt(cfg *config.Config, cwd, space string, stderrPath io.Writer) (*syspromptOut, error) {
+// morningPreload 是晨报预载开关（v4.16 刀④，桌面端从 morning_preload 配置键
+// 读取传入）：work 空间会话装配时预装配高频工作记忆晨报块。
+func buildSystemPrompt(cfg *config.Config, cwd, space string, morningPreload bool, stderrPath io.Writer) (*syspromptOut, error) {
 	sysPrompt, err := cfg.ResolveSystemPrompt()
 	if err != nil {
 		return nil, err
@@ -65,6 +68,17 @@ func buildSystemPrompt(cfg *config.Config, cwd, space string, stderrPath io.Writ
 		sysPrompt = memory.Compose(sysPrompt, mem)
 		if mem.Empty() {
 			memory.InitDefaults(mem)
+		}
+	}
+	// 晨报预载（v4.16 刀④）：work 空间会话装配时把高频工作记忆确定性聚合为
+	// 「晨报预载」块，预装配进系统提示词前缀（零 LLM、预算受限、work 只读，
+	// 与 ProfileBlock 画像/记忆索引并列）。门控：总记忆开关 + 晨报预载开关
+	// （morning_preload，默认开）+ work 空间——play/mode=off 不注入；装配点
+	// 按空间取数（Load 的 InSpace 视图），play 会话根本读不到 work 记忆
+	// （双空间红线）。空记忆时纯函数返回空串，零注入、前缀逐字节不变。
+	if cfg.Memory.Enabled && morningPreload && space == "work" {
+		if block := memory.BuildMorningPreloadBlock(mem.Store.List(), time.Now(), 0); block != "" {
+			sysPrompt = strings.TrimRight(sysPrompt, "\n") + "\n\n" + block
 		}
 	}
 	// 常用资料（已固定）：工作区 .gaea/pinned.json 清单自动带入新会话，

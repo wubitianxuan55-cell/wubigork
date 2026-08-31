@@ -1487,6 +1487,12 @@ export interface VerdictView {
   channelB?: string;
   note?: string;
   at: number;
+  // v4.16 通道 B 结果产品化：像素差异率（0-1）/ 渲染页数 / 审计产物目录
+  // （.gaea/work/journal/verify/<id>/，绝对路径）。旧 verdict / 无通道 B /
+  // 渲染降级时省略（Go omitempty），前端不渲染「视觉复核」行。
+  channelBRatio?: number;
+  channelBPages?: number;
+  channelBArtifacts?: string;
 }
 
 // LintReportView 是中文规范体检结果（v4.1c，GaeaDocumentLint）。
