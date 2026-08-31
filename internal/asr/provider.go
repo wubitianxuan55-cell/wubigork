@@ -27,7 +27,7 @@ type ASRProvider interface {
 // ASRConfig ASR 提供者实例配置（注册表 New 入参）。
 type ASRConfig struct {
 	BaseURL string // OpenAI 兼容引擎地址（/v1/audio/transcriptions）
-	Model   string // 模型 ID（whisper-base / sherpa-onnx-streaming-zipformer-zh-14m / funasr）
+	Model   string // 模型 ID（whisper-base / sherpa-onnx-streaming-zipformer-zh-14m / funasr-nano）
 }
 
 // ASRProviderFactory 按实例配置构建 ASR 提供者（kind → 实例）。

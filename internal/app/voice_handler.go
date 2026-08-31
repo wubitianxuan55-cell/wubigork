@@ -405,7 +405,7 @@ func (a *mediaState) VoiceStart(browserASR bool) error {
 	realtimeMode := a.voiceManager.RealtimeReady()
 	if !browserASR && !realtimeMode {
 		if !a.voiceManager.ASRReady() {
-			return fmt.Errorf("语音识别未就绪：请在模型中心启用 STT 模型（如 whisper-base / funasr）并确认 herdsman 引擎可用，或改用浏览器端语音识别")
+			return fmt.Errorf("语音识别未就绪：请在模型中心启用 STT 模型（如 whisper-base / funasr-nano）并确认 herdsman 引擎可用，或改用浏览器端语音识别")
 		}
 	}
 	// 端到端实时模式无需 whisper 对话回调（服务端经 response 事件回话）；

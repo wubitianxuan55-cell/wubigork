@@ -25,7 +25,7 @@ import (
 // HerdsmanASR 通过 Herdsman 的 OpenAI 兼容 ASR 端点进行语音识别
 type HerdsmanASR struct {
 	baseURL string
-	model   string // sherpa-onnx-streaming-zipformer-zh-14m / whisper-base / funasr
+	model   string // sherpa-onnx-streaming-zipformer-zh-14m / whisper-base / funasr-nano
 	client  *http.Client
 }
 
@@ -38,7 +38,7 @@ type TranscriptionResult struct {
 }
 
 // NewHerdsmanASR 创建 Herdsman ASR 客户端
-// model 推荐：whisper-base（非流式通用）、sherpa-onnx-streaming-zipformer-zh-14m（流式中英文）、funasr（流式中文）
+// model 推荐：whisper-base（非流式通用）、sherpa-onnx-streaming-zipformer-zh-14m（流式中英文）、funasr-nano（流式中文）
 func NewHerdsmanASR(baseURL, model string) *HerdsmanASR {
 	if model == "" {
 		model = "whisper-base"

@@ -40,7 +40,7 @@ type ASRModel string
 const (
 	ASRModelWhisperBase    ASRModel = "whisper-base"                           // 通用 Whisper base
 	ASRModelSherpaOnnx     ASRModel = "sherpa-onnx-streaming-zipformer-zh-14m" // 实时流式
-	ASRModelFunASR         ASRModel = "funasr"                                 // FunASR 中文优化
+	ASRModelFunASR         ASRModel = "funasr-nano"                            // FunASR 中文优化（2026-08-30 起官方模型名为 funasr-nano）
 )
 
 // VoiceRuntimeConfig 语音运行时配置（对齐 Ackem voiceRuntimeConfig.ts）

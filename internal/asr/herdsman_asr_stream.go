@@ -38,7 +38,7 @@ type StreamResult struct {
 }
 
 // NewStreamASR 创建流式 ASR 客户端
-// model 推荐：sherpa-onnx-streaming-zipformer-zh-14m（实时中英文）、funasr（实时中文）
+// model 推荐：sherpa-onnx-streaming-zipformer-zh-14m（实时中英文）、funasr-nano（实时中文）
 func NewStreamASR(baseURL, model string) *StreamASR {
 	if model == "" {
 		model = "sherpa-onnx-streaming-zipformer-zh-14m"

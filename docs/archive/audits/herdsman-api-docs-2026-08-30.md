@@ -2,7 +2,7 @@
 
 查看系统API接口文档
 
-> 生成时间: 2026/08/13 21:34:05
+> 生成时间: 2026/08/30 21:54:54
 
 ## OpenAI Compatible 接入点
 
@@ -542,7 +542,7 @@ Upgrade: websocket
 // client -> server: PCM16/16k mono binary frames
 // server -> client: {"text":"实时识别结果","is_final":false}
 
-GET /v1/audio/transcriptions/stream?model=funasr
+GET /v1/audio/transcriptions/stream?model=funasr-nano
 Upgrade: websocket
 
 // FunASR 使用原生 WebSocket 音频协议，适合实时中文识别
@@ -676,7 +676,7 @@ GET /v1/audio/info?model=qwen3-tts-customvoice
 
 GET /v1/audio/info?model=whisper-base
 
-GET /v1/audio/info?model=funasr
+GET /v1/audio/info?model=funasr-nano
 ```
 
 #### 响应示例
