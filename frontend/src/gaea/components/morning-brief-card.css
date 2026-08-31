@@ -1,0 +1,98 @@
+/* MorningBriefCard — 今日晨报（做梦 2.0 主动预取）。
+ * 令牌纪律：零硬编码色值，全部走 --md-sys-color-* / --gaea-* / --color-*。
+ * 组件挂在工作台首页 ml-info 记忆脉搏 seg 旁，视觉上保持同底条的量级
+ * （小字、细边框、弱分隔），不与记忆脉搏抢注意力。 */
+
+.mbc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 18%, var(--color-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--gaea-glow) 6%, var(--color-surface-container));
+}
+
+.mbc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mbc-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--gaea-glow);
+}
+
+.mbc-dreamed {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.mbc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mbc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mbc-item-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mbc-item-desc {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mbc-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+}
+
+.mbc-rules-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.mbc-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mbc-rule {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1441,6 +1441,42 @@ export interface JournalChangeRecord {
   model?: string;
   at: number; // unix ms
   status: string;
+  // v4.8 Verifier 产品化（证据链翻成 UI）：基线快照路径——无则回滚按钮禁用
+  // （「无基线快照，无法回滚」）；opsJson 为 AI 原始操作集 JSON（xlsx_apply 卡
+  // 携带），可解析出「声明↔实况」diff 与操作回放时间线。
+  baselinePath?: string;
+  opsJson?: string;
+}
+
+// XlsxOpView 是 xlsx_apply 操作集单条 op 的前端只读视图（对齐
+// internal/office/xlsxedit.Op：type 11 种——set_value/set_formula/fill_range/
+// transform/replace/split_column/clean/set_style/merge_cells/unmerge_cells/
+// set_col_width；字段按类型复用）。
+export interface XlsxOpView {
+  type: string;
+  sheet?: string;
+  target?: string; // "B4"
+  range?: string; // "A1:B10"
+  value?: string | number | boolean | null;
+  formula?: string;
+  find?: string;
+  replace?: string;
+  col?: string; // "A"
+  sep?: string;
+  newCols?: string[];
+  headers?: string[];
+  width?: number;
+}
+
+// VerifyDiffRow 是「声明↔实况」逐格比对结果（verifyDiff.ts 纯函数产出；
+// ok=match 数值容差 1e-9/字符串去空白/公式归一一致，mismatch 不一致，
+// skip=前端无法核对，如 replace 批量格或预览缺该格）。
+export interface VerifyDiffRow {
+  sheet: string;
+  cell: string;
+  claimed: string; // 声明值（公式行带 fx = 前缀）
+  actual: string; // 实况值（来自 GaeaPreview；公式行带 fx = 前缀）
+  ok: "match" | "mismatch" | "skip";
 }
 
 // VerdictView 是 Verifier 双通道复核结论（v4.1b，GaeaVerifyRecord）。

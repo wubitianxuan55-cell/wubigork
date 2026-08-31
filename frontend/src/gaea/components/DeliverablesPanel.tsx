@@ -1,7 +1,16 @@
 import { memo, useCallback, useEffect, useState } from "react";
 import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, Loader2, MessageSquare, Paperclip, Rollback, Shield } from "../icons";
 import { app } from "../lib/bridge";
-import type { JournalChangeRecord, VerdictView } from "../lib/types";
+import type { JournalChangeRecord, VerdictView, VerifyDiffRow } from "../lib/types";
+import {
+  buildCellIndex,
+  buildVerifyDiff,
+  describeOp,
+  isClaimableOp,
+  opBatchCount,
+  opImpact,
+  parseOps,
+} from "../lib/verifyDiff";
 import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from "../lib/store";
 import { FRONTEND_EVENTS, emitFrontendEvent } from "../../events";
 import { useToast } from "./Toast";
@@ -105,6 +114,45 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
     if (h < 24) return `${h} 小时前`;
     return new Date(at).toLocaleString();
   };
+
+  // ── v4.8 Verifier 产品化：证据卡「三步展开」──
+  // 卡面（tool 徽标+target+相对时间+复核/回滚+verdict 内联）→ 展开第 1 层
+  // 「声明↔实况」diff（opsJson × GaeaPreview 现取）→ 第 2 层操作回放时间线。
+  // diff 按卡 id 缓存；预览不可用降级「仅声明回放」；旧卡无 opsJson 回退
+  // beforeSummary 文本块。
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [diffs, setDiffs] = useState<Record<string, VerifyDiffRow[]>>({});
+  const [diffStates, setDiffStates] = useState<Record<string, "loading" | "ok" | "none">>({});
+
+  const toggleExpand = useCallback((r: JournalChangeRecord) => {
+    setExpandedId((cur) => (cur === r.id ? null : r.id));
+  }, []);
+
+  // 展开 xlsx_apply 且 opsJson 可解析的卡时：现取 GaeaPreview 实况并比对。
+  useEffect(() => {
+    if (!expandedId) return;
+    const r = (evidence ?? []).find((x) => x.id === expandedId);
+    if (!r) return;
+    const ops = r.tool === "xlsx_apply" ? parseOps(r.opsJson) : [];
+    if (!ops.some(isClaimableOp)) {
+      setDiffStates((p) => (p[expandedId] === "none" ? p : { ...p, [expandedId]: "none" }));
+      return;
+    }
+    const st = diffStates[expandedId];
+    if (st === "ok" || st === "none") return;
+    let cancelled = false;
+    if (st !== "loading") setDiffStates((p) => ({ ...p, [expandedId]: "loading" }));
+    void app
+      .Preview(r.target)
+      .then((res) => {
+        if (cancelled) return;
+        const index = res.kind === "xlsx" ? buildCellIndex(res.body) : {};
+        setDiffs((p) => ({ ...p, [expandedId]: buildVerifyDiff(ops, index) }));
+        setDiffStates((p) => ({ ...p, [expandedId]: "ok" }));
+      })
+      .catch(() => { if (!cancelled) setDiffStates((p) => ({ ...p, [expandedId]: "none" })); });
+    return () => { cancelled = true; };
+  }, [expandedId, diffStates, evidence]);
 
   const verifyRecord = useCallback(async (r: JournalChangeRecord) => {
     try {
@@ -351,42 +399,178 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
             ) : (
               (evidence ?? []).map((r) => {
                 const v = verdicts[r.id];
+                const ops = r.tool === "xlsx_apply" ? parseOps(r.opsJson) : [];
+                const claimable = ops.some(isClaimableOp);
+                const hasOps = !!r.opsJson;
+                const expanded = expandedId === r.id;
+                const canRollback = !!r.baselinePath;
+                const diffRows = diffs[r.id];
+                const diffState = diffStates[r.id];
                 return (
                 <div key={r.id} className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-(color:--md-sys-color-surface-container) border border-(color:--md-sys-color-outline-variant)">
-                  <div className="flex items-center gap-2">
-                  <span className="shrink-0 font-mono text-[9px] px-1 py-px rounded" style={{
-                    color: "var(--md-sys-color-primary)",
-                    background: "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)",
-                  }}>
-                    {r.tool}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-[10px] font-mono" style={{ color: "var(--md-sys-color-text)" }} title={r.target}>
-                    {r.target}
-                  </span>
-                  <span className="shrink-0 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                    {fmtEvidenceTime(r.at)}
-                  </span>
-                  <span className="shrink-0 flex items-center gap-1">
-                    <button
-                      type="button"
-                      className={iconBtn}
-                      onClick={() => void verifyRecord(r)}
-                      title="双通道复核（结构/引用完整性 + 视觉健全性）"
-                      aria-label="复核该证据卡"
-                    >
-                      <Shield size={11} />
-                    </button>
-                    <button
-                      type="button"
-                      className={iconBtn}
-                      onClick={() => void rollbackRecord(r)}
-                      title="用基线快照回滚（目标被手工修改时拒绝）"
-                      aria-label="回滚该证据卡"
-                    >
-                      <Rollback size={11} />
-                    </button>
-                  </span>
+                  {/* 卡面：点击展开/收起（三步展开第 0 层）；带 opsJson 的卡加「可复核明细」小徽标 */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={expanded}
+                    aria-label={expanded ? `收起 ${r.tool} ${r.target} 证据详情` : `展开 ${r.tool} ${r.target} 证据详情`}
+                    onClick={() => toggleExpand(r)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleExpand(r);
+                      }
+                    }}
+                    className="flex items-center gap-2 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-(color:--md-sys-color-primary)"
+                    title={hasOps ? "点击展开「声明↔实况」diff 与操作回放" : "点击展开证据详情"}
+                  >
+                    <span className="shrink-0 font-mono text-[9px] px-1 py-px rounded" style={{
+                      color: "var(--md-sys-color-primary)",
+                      background: "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)",
+                    }}>
+                      {r.tool}
+                    </span>
+                    {hasOps && (
+                      <span
+                        className="shrink-0 font-mono text-[9px] px-1 py-px rounded"
+                        style={{
+                          color: "var(--md-sys-color-warning)",
+                          background: "color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent)",
+                        }}
+                        title="该卡携带 AI 原始操作集，可复核明细"
+                      >
+                        可复核明细
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-[10px] font-mono" style={{ color: "var(--md-sys-color-text)" }} title={r.target}>
+                      {r.target}
+                    </span>
+                    <span className="shrink-0 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                      {fmtEvidenceTime(r.at)}
+                    </span>
+                    <span className="shrink-0 flex items-center gap-1">
+                      <button
+                        type="button"
+                        className={iconBtn}
+                        onClick={(e) => { e.stopPropagation(); void verifyRecord(r); }}
+                        title="双通道复核（结构/引用完整性 + 视觉健全性）"
+                        aria-label="复核该证据卡"
+                      >
+                        <Shield size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        className={iconBtn + (canRollback ? "" : " disabled:opacity-40 disabled:cursor-not-allowed")}
+                        disabled={!canRollback}
+                        onClick={(e) => { e.stopPropagation(); void rollbackRecord(r); }}
+                        title={canRollback ? "用基线快照回滚（目标被手工修改时拒绝）" : "无基线快照，无法回滚"}
+                        aria-label={canRollback ? "回滚该证据卡" : "无基线快照，无法回滚"}
+                      >
+                        <Rollback size={11} />
+                      </button>
+                    </span>
+                    <span aria-hidden className="shrink-0 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                      {expanded ? "▾" : "▸"}
+                    </span>
                   </div>
+                  {/* 展开区：第 1 层「声明↔实况」diff → 第 2 层操作回放时间线 */}
+                  {expanded && (
+                    <div className="flex flex-col gap-1.5 pl-1">
+                      {hasOps && ops.length > 0 ? (
+                        <>
+                          {claimable && diffState === "loading" && (
+                            <div className="flex items-center gap-1 text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                              <Loader2 size={9} className="animate-spin" />
+                              正在读取实况预览…
+                            </div>
+                          )}
+                          {claimable && diffState === "ok" && diffRows && diffRows.length > 0 && (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[9px] font-medium" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                                声明 ↔ 实况（前端近似比对）
+                              </span>
+                              <div className="rounded-md border border-(color:--md-sys-color-outline-variant) overflow-hidden">
+                                <table className="w-full text-[9px] font-mono border-collapse">
+                                  <tbody>
+                                    {diffRows.map((row, i) => (
+                                      <tr key={`${row.sheet}!${row.cell}-${i}`} className="border-b border-(color:--md-sys-color-outline-variant) last:border-b-0">
+                                        <td className="px-1.5 py-0.5 whitespace-nowrap align-top" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                                          {row.sheet}!{row.cell}
+                                        </td>
+                                        <td className="px-1.5 py-0.5 line-through max-w-[120px] truncate align-top" style={{ color: "var(--md-sys-color-text-secondary)" }} title={row.claimed}>
+                                          {row.claimed || "（空）"}
+                                        </td>
+                                        <td className="px-0.5 py-0.5 align-top" style={{ color: "var(--md-sys-color-primary)" }}>→</td>
+                                        <td className="px-1.5 py-0.5 max-w-[160px] truncate align-top" style={{ color: row.ok === "mismatch" ? "var(--md-sys-color-destructive)" : "var(--md-sys-color-text)" }} title={row.actual}>
+                                          {row.actual || "（空）"}
+                                        </td>
+                                        <td className="px-1.5 py-0.5 align-top whitespace-nowrap" style={{ color: row.ok === "match" ? "var(--md-sys-color-success)" : row.ok === "mismatch" ? "var(--md-sys-color-destructive)" : "var(--md-sys-color-text-secondary)" }}>
+                                          {row.ok === "match" ? "✓" : row.ok === "mismatch" ? "✗" : "跳过"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              <span className="text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                                前端近似比对，权威结论以复核为准
+                              </span>
+                            </div>
+                          )}
+                          {claimable && diffState === "none" && (
+                            <div className="text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                              预览不可用，仅声明回放
+                            </div>
+                          )}
+                          {claimable && diffState === "ok" && diffRows && diffRows.length === 0 && (
+                            <div className="text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                              无可比对单元格（声明不含单格写入）
+                            </div>
+                          )}
+                          {/* 第 2 层：操作回放时间线（fill_range/transform 等批量 op 折叠为单行 + 计数徽标） */}
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] font-medium" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                              操作回放
+                            </span>
+                            <ol className="flex flex-col gap-0.5">
+                              {ops.map((op, i) => {
+                                const count = opBatchCount(op);
+                                return (
+                                  <li key={i} className="flex items-center gap-1.5">
+                                    <span className="shrink-0 font-mono text-[8px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>{i + 1}</span>
+                                    <span className="shrink-0 font-mono text-[8px] px-1 py-px rounded" style={{
+                                      color: "var(--md-sys-color-primary)",
+                                      background: "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)",
+                                    }}>
+                                      {op.type}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate text-[9px]" style={{ color: "var(--md-sys-color-text)" }} title={describeOp(op)}>
+                                      {describeOp(op)}
+                                    </span>
+                                    <span className="shrink-0 font-mono text-[8px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                                      {opImpact(op)}
+                                    </span>
+                                    {count && (
+                                      <span className="shrink-0 font-mono text-[8px] px-1 py-px rounded" style={{
+                                        color: "var(--md-sys-color-warning)",
+                                        background: "color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent)",
+                                      }}>
+                                        {count}
+                                      </span>
+                                    )}
+                                  </li>
+                                );
+                              })}
+                            </ol>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-[9px] font-mono leading-relaxed" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                          {r.beforeSummary || "（无变更摘要）"}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {/* v4.6：内联复核结论——failed 卡常驻显示「回滚 + 重新规划」入口 */}
                   {v && (
                     <div className="flex flex-wrap items-center gap-1.5">

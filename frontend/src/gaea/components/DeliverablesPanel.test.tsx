@@ -156,3 +156,92 @@ describe("DeliverablesPanel 会话产物面板", () => {
     expect(screen.queryByTitle("打包下载：把本次会话全部交付文件打成一个 zip")).toBeNull();
   });
 });
+
+// ── v4.8 Verifier 产品化：证据链「三步展开」（卡面 → 声明↔实况 diff → 操作回放）──
+// 证据数据来自 mock GaeaJournalList / VerifyRecord / RollbackRecord（office.ts），
+// 实况预览来自 mock Preview 的 MOCK_XLSX_BODY（预算!B2=120.50、B4 公式 SUM(B2:B3)）。
+describe("DeliverablesPanel 证据链三步展开（v4.8）", () => {
+  const openEvidence = async () => {
+    render(
+      <ToastProvider>
+        <DeliverablesPanel items={[{ path: "docs/成本测算.xlsx", sourceId: "a1" }]} onOpenFile={() => {}} />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByText("证据链"));
+    await screen.findByText("3 条变更证据卡");
+  };
+
+  it("展开证据链：渲染证据卡 + tool 徽标 + 「可复核明细」小徽标", async () => {
+    await openEvidence();
+    expect(screen.getAllByText("xlsx_apply")).toHaveLength(2); // 带 opsJson 卡 + 历史旧卡
+    expect(screen.getByText("edit_file")).toBeTruthy();
+    expect(screen.getByText("可复核明细")).toBeTruthy(); // 仅带 opsJson 的卡
+    // 产物列表行也展示同一路径 → 至少 2 处（产物 + 证据卡）
+    expect(screen.getAllByText("docs/成本测算.xlsx").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("docs/说明.md")).toBeTruthy();
+    expect(screen.getByText("docs/旧表.xlsx")).toBeTruthy();
+  });
+
+  it("无 baselinePath 的证据卡：回滚按钮 disabled + 提示「无基线快照，无法回滚」", async () => {
+    await openEvidence();
+    const blocked = screen.getAllByTitle("无基线快照，无法回滚");
+    expect(blocked).toHaveLength(2); // edit_file 卡 + 历史 xlsx_apply 旧卡
+    blocked.forEach((b) => expect((b as HTMLButtonElement).disabled).toBe(true));
+    const ok = screen.getByTitle("用基线快照回滚（目标被手工修改时拒绝）");
+    expect((ok as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("展开 xlsx_apply 卡：第 1 层「声明↔实况」diff 渲染（mock GaeaPreview 实况）", async () => {
+    await openEvidence();
+    fireEvent.click(screen.getByRole("button", { name: "展开 xlsx_apply docs/成本测算.xlsx 证据详情" }));
+    await screen.findByText("声明 ↔ 实况（前端近似比对）");
+    // 声明列（删除线 before）| → | 实况列（after）：set_value B2 数值容差 match
+    // （预算!B2 / 120.50 同时出现在 diff 表、回放影响区域与产物缩略图 → ≥1 处）
+    expect(screen.getAllByText("预算!B2").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("120.5").length).toBeGreaterThanOrEqual(1); // 声明值
+    expect(screen.getAllByText("120.50").length).toBeGreaterThanOrEqual(1); // 实况值（预览）
+    // set_formula B4：公式 fx = 前缀，声明与实况一致
+    expect(screen.getAllByText("fx =SUM(B2:B3)")).toHaveLength(2);
+    // replace 批量格 → 跳过标注
+    expect(screen.getByText("跳过")).toBeTruthy();
+    expect(screen.getByText("前端近似比对，权威结论以复核为准")).toBeTruthy();
+  });
+
+  it("展开 xlsx_apply 卡：第 2 层操作回放时间线（描述文案 + 影响区域 + type 徽标）", async () => {
+    await openEvidence();
+    fireEvent.click(screen.getByRole("button", { name: "展开 xlsx_apply docs/成本测算.xlsx 证据详情" }));
+    await screen.findByText("操作回放");
+    expect(screen.getByText("写入值 B2=120.5")).toBeTruthy();
+    expect(screen.getByText("写入公式 B4=SUM(B2:B3)")).toBeTruthy();
+    expect(screen.getByText("替换 A1:A3：设备 → 机械")).toBeTruthy();
+    expect(screen.getByText("set_value")).toBeTruthy();
+    expect(screen.getByText("set_formula")).toBeTruthy();
+    expect(screen.getByText("replace")).toBeTruthy();
+    // 影响区域列（与 diff 表单元格同文案，出现 ≥1 次即可）
+    expect(screen.getAllByText("预算!B2").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("旧卡无 opsJson：展开回退 beforeSummary 文本块（不渲染 diff/回放）", async () => {
+    await openEvidence();
+    fireEvent.click(screen.getByText("docs/旧表.xlsx"));
+    await screen.findByText(/历史卡无 opsJson/);
+    expect(screen.queryByText("操作回放")).toBeNull();
+    expect(screen.queryByText("声明 ↔ 实况（前端近似比对）")).toBeNull();
+  });
+
+  it("复核证据卡：内联 verdict 徽标（复核通过）", async () => {
+    await openEvidence();
+    fireEvent.click(screen.getAllByTitle("双通道复核（结构/引用完整性 + 视觉健全性）")[0]);
+    await screen.findByText("复核通过"); // ev_1003 → verified（徽标文本精确匹配）
+    // 结论 note 同时出现在内联区与 toast（toast 前缀「复核通过：」）→ ≥1 处
+    expect(screen.getAllByText(/（mock）双通道复核通过/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("回滚成功路径：toast 透出后端成功文案，可继续复核（现状保留）", async () => {
+    await openEvidence();
+    fireEvent.click(screen.getByTitle("用基线快照回滚（目标被手工修改时拒绝）"));
+    expect(await screen.findByText(/已回滚 docs\/成本测算\.xlsx/)).toBeTruthy();
+    // 回滚后可再次复核（按钮仍在）
+    expect(screen.getAllByTitle("双通道复核（结构/引用完整性 + 视觉健全性）").length).toBeGreaterThan(0);
+  });
+});

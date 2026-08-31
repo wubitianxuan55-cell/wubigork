@@ -10,7 +10,7 @@ import (
 	"github.com/gaea/gaea/internal/gaea/tool"
 )
 
-// TestBrowserToolsMeta 7 个 browser_* 工具的元信息：注册、Schema/CompactSchema
+// TestBrowserToolsMeta 10 个 browser_* 工具的元信息：注册、Schema/CompactSchema
 // JSON 合法、ReadOnly 分类、空间标签自声明 work、compact 条目非空。
 func TestBrowserToolsMeta(t *testing.T) {
 	cases := []struct {
@@ -24,6 +24,9 @@ func TestBrowserToolsMeta(t *testing.T) {
 		{browserClick{}, "browser_click", false},
 		{browserType{}, "browser_type", false},
 		{browserScroll{}, "browser_scroll", false},
+		{browserTabs{}, "browser_tabs", true},
+		{browserNewTab{}, "browser_new_tab", false},
+		{browserSwitchTab{}, "browser_switch_tab", false},
 		{browserClose{}, "browser_close", false},
 	}
 	for _, tc := range cases {
@@ -121,5 +124,66 @@ func TestBrowserToolsRouteThroughDefault(t *testing.T) {
 	env = parseBrowserEnv(t, out, err)
 	if !env.OK {
 		t.Fatalf("未启动时 close 应幂等成功, got %q", env.Error)
+	}
+}
+
+// TestBrowserTabToolsValidationEnvelopes 新工具的校验类错误在浏览器拉起之前
+// 就被 envelope 拒绝（code=validation_error）。
+func TestBrowserTabToolsValidationEnvelopes(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name string
+		exec func() (string, error)
+	}{
+		{"new_tab 缺 url", func() (string, error) {
+			return browserNewTab{}.Execute(ctx, json.RawMessage(`{}`))
+		}},
+		{"new_tab 非法 scheme", func() (string, error) {
+			return browserNewTab{}.Execute(ctx, json.RawMessage(`{"url":"javascript:alert(1)"}`))
+		}},
+		{"switch_tab 缺 tab_id", func() (string, error) {
+			return browserSwitchTab{}.Execute(ctx, json.RawMessage(`{}`))
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			out, err := c.exec()
+			env := parseBrowserEnv(t, out, err)
+			if env.OK || env.Code != tool.CodeValidationError {
+				t.Fatalf("envelope = ok=%v code=%q, want validation_error", env.OK, env.Code)
+			}
+		})
+	}
+}
+
+// TestBrowserTabToolsDeadEndpoint 新工具经 SetForTest 假端点走 browser 包：
+// Ensure 失败 → exec_error envelope（不真拉起浏览器）。
+func TestBrowserTabToolsDeadEndpoint(t *testing.T) {
+	prev := browser.SetForTest(browser.NewManager(browser.Options{InjectHTTPBase: "http://127.0.0.1:1"}))
+	defer browser.SetForTest(prev)
+	ctx := context.Background()
+	cases := []struct {
+		name string
+		exec func() (string, error)
+	}{
+		{"tabs", func() (string, error) { return browserTabs{}.Execute(ctx, nil) }},
+		{"new_tab", func() (string, error) {
+			return browserNewTab{}.Execute(ctx, json.RawMessage(`{"url":"http://example.local/x"}`))
+		}},
+		{"switch_tab", func() (string, error) {
+			return browserSwitchTab{}.Execute(ctx, json.RawMessage(`{"tab_id":"page-1"}`))
+		}},
+		{"close(tab_id)", func() (string, error) {
+			return browserClose{}.Execute(ctx, json.RawMessage(`{"tab_id":"page-1"}`))
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			out, err := c.exec()
+			env := parseBrowserEnv(t, out, err)
+			if env.OK || env.Code != tool.CodeExecError {
+				t.Fatalf("envelope = ok=%v code=%q, want exec_error（假端点 Ensure 失败）", env.OK, env.Code)
+			}
+		})
 	}
 }

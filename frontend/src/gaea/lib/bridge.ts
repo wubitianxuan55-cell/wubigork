@@ -420,6 +420,10 @@ export interface AppBindings {
   // PickDirectory 系统目录选择对话框，返回所选目录（取消返回空串）。
   PickDirectory(): Promise<string>;
   MemoryGraph(): Promise<MemoryGraphView>;
+  // ── 做梦 2.0 晨报（纯本地主动预取）──
+  // MemoryMorningBrief 返回「今日晨报」JSON 串（前端 JSON.parse 后渲染）：
+  // work 空间记忆 top5 + 常驻规则 + 近 24h dream 沉淀计数。零 LLM、只读。
+  MemoryMorningBrief(): Promise<string>;
   // ── 成本库 ──
   CostList(): Promise<CostSummary[]>;
   CostSearch(query: string, category: string, status: string): Promise<CostSummary[]>;
@@ -854,6 +858,7 @@ const gaeaToGaea = {
   WhisperExportArchive: "GaeaWhisperExportArchive",
   PickDirectory: "GaeaPickDirectory",
   MemoryGraph: "GaeaMemoryGraph",
+  MemoryMorningBrief: "GaeaMemoryMorningBrief",
   CostList: "GaeaCostList",
   CostSearch: "GaeaCostSearch",
   CostGet: "GaeaCostGet",

@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gaea/gaea/internal/gaea/proc"
@@ -37,6 +39,9 @@ const (
 	maxScrollPx = 10000
 	// snapshotMaxRefs 单页最多标记的可交互元素数。
 	snapshotMaxRefs = 200
+	// defaultIdleTTL 空闲自动关停默认时长（Default() 单例生效；可用
+	// GAEA_BROWSER_IDLE_TTL（秒）覆盖，>0 才生效）。
+	defaultIdleTTL = 10 * time.Minute
 )
 
 // Options 管理器选项。
@@ -48,20 +53,32 @@ type Options struct {
 	InjectHTTPBase string
 	// ProbeTimeout DevTools 探活上限（默认 20s）。
 	ProbeTimeout time.Duration
+	// IdleTTL 空闲自动关停时长：超过该时长无任何 browser_* 调用且仍有活动
+	// 会话/标签时自动 teardown（0=禁用，保持常驻；Default() 单例默认 10m）。
+	IdleTTL time.Duration
 }
 
-// Manager 会话管理器：幂等 Ensure（互斥防双拉起）+ 页面操作 + Shutdown。
-// 单页面 MVP：同一时刻只挂一个 page target 的 CDP 会话。
+// Manager 会话管理器：幂等 Ensure（互斥防双拉起）+ 多标签页操作 + Shutdown。
+// 多标签 MVP：tabs 维护每个已拨号 page target 的 CDP 会话，activePageID 指
+// 向当前操作页；空闲超时由 watcher goroutine 自动回收（回收后任意调用经
+// Ensure 自动重拉）。
 type Manager struct {
 	opts Options
 
-	mu       sync.Mutex
-	conn     *Conn
-	edge     *EdgeProcess
-	httpBase string
-	port     int
-	pageID   string
-	epoch    int64 // 最近一次 snapshot 的 refs 代数；0 = 无有效 refs
+	mu           sync.Mutex
+	tabs         map[string]*Conn // targetID → 已拨号的 page CDP 会话
+	activePageID string           // 当前 active 的 targetID（必有对应 conn）
+	edge         *EdgeProcess
+	httpBase     string
+	port         int
+	epoch        int64 // 最近一次 snapshot 的 refs 代数；0 = 无有效 refs
+
+	// 空闲自动关停：lastActive 最近活跃时刻（Ensure 成功路径刷新）；watcher
+	// 每 TTL/4 轮询一次，超时即 teardown；Shutdown 经 idleStop 停 watcher。
+	lastActive   atomic.Int64 // UnixNano；0 = 从未活跃
+	idleStop     chan struct{}
+	idleStopOnce sync.Once
+	idleOnce     sync.Once
 }
 
 var (
@@ -69,12 +86,13 @@ var (
 	defaultManager *Manager
 )
 
-// Default 返回进程级单例（懒创建；工具层每次 Execute 调用）。
+// Default 返回进程级单例（懒创建；工具层每次 Execute 调用）。单例默认带
+// defaultIdleTTL 空闲关停（GAEA_BROWSER_IDLE_TTL 秒数可覆盖）。
 func Default() *Manager {
 	defaultMu.Lock()
 	defer defaultMu.Unlock()
 	if defaultManager == nil {
-		defaultManager = NewManager(Options{})
+		defaultManager = NewManager(Options{IdleTTL: idleTTLFromEnv(os.Getenv)})
 	}
 	return defaultManager
 }
@@ -88,26 +106,62 @@ func SetForTest(m *Manager) *Manager {
 	return prev
 }
 
-// NewManager 构造管理器（不做任何 I/O）。
+// NewManager 构造管理器（不做任何 I/O）。IdleTTL>0 时预建 watcher 停止通道
+// （避免 Shutdown 与 watcher 启动之间的竞态）。
 func NewManager(opts Options) *Manager {
-	return &Manager{opts: opts}
+	m := &Manager{opts: opts}
+	if opts.IdleTTL > 0 {
+		m.idleStop = make(chan struct{})
+	}
+	return m
+}
+
+// idleTTLFromEnv 从 GAEA_BROWSER_IDLE_TTL（秒）解析空闲 TTL：>0 覆盖默认；
+// 未设置或非法值忽略回默认。注入 getenv 便于测试。
+func idleTTLFromEnv(getenv func(string) string) time.Duration {
+	raw := strings.TrimSpace(getenv("GAEA_BROWSER_IDLE_TTL"))
+	if raw == "" {
+		return defaultIdleTTL
+	}
+	secs, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || secs <= 0 {
+		return defaultIdleTTL
+	}
+	return time.Duration(secs) * time.Second
+}
+
+// activeConn 返回当前 active tab 的会话（未拨号则 nil）。须持 mu 调用。
+func (m *Manager) activeConn() *Conn {
+	if m.activePageID == "" {
+		return nil
+	}
+	return m.tabs[m.activePageID]
 }
 
 // Ensure 幂等确保浏览器就绪：定位 → 启动 → 探活 → 取 page target → dial →
-// Page.enable。已就绪时健康探测通过即复用；失联则整体重拉。全程持有 mu
-// （仿 tts ensure），天然防双拉起。
+// Page.enable。已就绪时健康探测通过即复用（并刷新 lastActive）；失联则整体
+// 重拉。全程持有 mu（仿 tts ensure），天然防双拉起。
 func (m *Manager) Ensure(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.conn != nil && m.conn.healthy(ctx) {
+	if conn := m.activeConn(); conn != nil && conn.healthy(ctx) {
+		m.lastActive.Store(time.Now().UnixNano())
 		return nil
 	}
 	m.teardownLocked()
+	var err error
 	if m.opts.InjectHTTPBase != "" {
 		m.httpBase = m.opts.InjectHTTPBase
-		return m.attachLocked(ctx)
+		err = m.attachLocked(ctx)
+	} else {
+		err = m.ensureRealLocked(ctx)
 	}
-	return m.ensureRealLocked(ctx)
+	if err != nil {
+		return err
+	}
+	m.lastActive.Store(time.Now().UnixNano())
+	m.startIdleWatcher()
+	return nil
 }
 
 // ensureRealLocked 定位并启动 Edge，等 DevTools 端口就绪。
@@ -142,22 +196,32 @@ func (m *Manager) ensureRealLocked(ctx context.Context) error {
 	return m.attachLocked(ctx)
 }
 
-// attachLocked 取 page target（无则 PUT /json/new 建一个）、dial 并 Page.enable。
+// attachLocked 列举全部 page target（无则 PUT /json/new 建 about:blank），
+// 取第一个为 active 并 dial（其余已列举的 page 不拨号，切换时按需 dial）。
+// 须持 mu。
 func (m *Manager) attachLocked(ctx context.Context) error {
-	target, err := firstPageTarget(ctx, m.httpBase)
+	targets, err := listTargets(ctx, m.httpBase)
 	if err != nil {
-		return err
+		return fmt.Errorf("browser: 列举目标失败: %w", err)
 	}
-	if target == nil {
-		target, err = newPageTarget(ctx, m.httpBase, "about:blank")
+	var pages []Target
+	for i := range targets {
+		if targets[i].Type == "page" {
+			pages = append(pages, targets[i])
+		}
+	}
+	if len(pages) == 0 {
+		t, err := newPageTarget(ctx, m.httpBase, "about:blank")
 		if err != nil {
 			return err
 		}
+		pages = append(pages, *t)
 	}
-	if target.WSURL == "" {
-		return fmt.Errorf("browser: page target %s 缺少 webSocketDebuggerUrl", target.ID)
+	first := pages[0]
+	if first.WSURL == "" {
+		return fmt.Errorf("browser: page target %s 缺少 webSocketDebuggerUrl", first.ID)
 	}
-	conn, err := Dial(ctx, target.WSURL)
+	conn, err := Dial(ctx, first.WSURL)
 	if err != nil {
 		return err
 	}
@@ -165,17 +229,23 @@ func (m *Manager) attachLocked(ctx context.Context) error {
 		_ = conn.Close()
 		return fmt.Errorf("browser: Page.enable 失败: %w", err)
 	}
-	m.conn = conn
-	m.pageID = target.ID
+	if m.tabs == nil {
+		m.tabs = map[string]*Conn{}
+	}
+	if old, ok := m.tabs[first.ID]; ok { // 重复 attach 时先收旧会话
+		_ = old.Close()
+	}
+	m.tabs[first.ID] = conn
+	m.activePageID = first.ID
 	m.epoch = 0
 	return nil
 }
 
-// teardownLocked 收割子进程与临时 profile、断开会话（须持 mu）。
+// teardownLocked 收割子进程与临时 profile、断开全部会话（须持 mu）。
 func (m *Manager) teardownLocked() {
-	if m.conn != nil {
-		_ = m.conn.Close()
-		m.conn = nil
+	for id, conn := range m.tabs {
+		_ = conn.Close()
+		delete(m.tabs, id)
 	}
 	if m.edge != nil {
 		proc.KillTracked(m.edge.Cmd, m.edge.Job)
@@ -184,13 +254,18 @@ func (m *Manager) teardownLocked() {
 	}
 	m.httpBase = ""
 	m.port = 0
-	m.pageID = ""
+	m.activePageID = ""
 	m.epoch = 0
 }
 
 // Shutdown 终止受控浏览器并清理临时 profile（幂等）。之后任意 browser_*
-// 调用会重新拉起。
+// 调用会重新拉起。同时停掉空闲 watcher（进程级单例收尾）。
 func (m *Manager) Shutdown() {
+	m.idleStopOnce.Do(func() {
+		if m.idleStop != nil {
+			close(m.idleStop)
+		}
+	})
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.teardownLocked()
@@ -199,14 +274,217 @@ func (m *Manager) Shutdown() {
 // ClosePage 关闭当前页面并 Shutdown 整个浏览器（browser_close 语义）。
 func (m *Manager) ClosePage(ctx context.Context) error {
 	m.mu.Lock()
-	conn, pageID, httpBase := m.conn, m.pageID, m.httpBase
+	activeID, httpBase := m.activePageID, m.httpBase
 	m.mu.Unlock()
-	if conn == nil {
+	if activeID == "" {
 		return nil // 未启动：视为已关
 	}
-	_ = closePageTarget(ctx, httpBase, pageID)
+	_ = closePageTarget(ctx, httpBase, activeID)
 	m.Shutdown()
 	return nil
+}
+
+// startIdleWatcher 启动空闲回收 watcher（幂等，idleOnce 守护）：ticker 间隔
+// = TTL/4（TTL<4s 用 1s）；每轮持 mu 检查：有活动会话且空闲超过 TTL →
+// teardownLocked（回收后任意调用经 Ensure 自动重拉，天然闭环）。Shutdown
+// 关闭 idleStop 即停；goroutine 自带 recover 防异常退出泄漏。
+func (m *Manager) startIdleWatcher() {
+	if m.opts.IdleTTL <= 0 {
+		return
+	}
+	m.idleOnce.Do(func() {
+		interval := m.opts.IdleTTL / 4
+		if interval < time.Second {
+			interval = time.Second
+		}
+		go func() {
+			defer func() { _ = recover() }()
+			t := time.NewTicker(interval)
+			defer t.Stop()
+			for {
+				select {
+				case <-m.idleStop:
+					return
+				case <-t.C:
+					m.mu.Lock()
+					active := m.edge != nil || len(m.tabs) > 0
+					if active && time.Since(time.Unix(0, m.lastActive.Load())) > m.opts.IdleTTL {
+						m.teardownLocked()
+					}
+					m.mu.Unlock()
+				}
+			}
+		}()
+	})
+}
+
+// ── 多标签页 ────────────────────────────────────────────────────────────
+
+// TabInfo 一个浏览器标签页的概要信息。
+type TabInfo struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
+}
+
+// ListTabs 列出全部 page 标签（/json/list 真源，含未拨号的 window.open
+// 目标）与当前 active tab id。
+func (m *Manager) ListTabs(ctx context.Context) ([]TabInfo, string, error) {
+	if err := m.Ensure(ctx); err != nil {
+		return nil, "", err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	targets, err := listTargets(ctx, m.httpBase)
+	if err != nil {
+		return nil, "", fmt.Errorf("browser: 列举目标失败: %w", err)
+	}
+	infos := make([]TabInfo, 0, len(targets))
+	for i := range targets {
+		if targets[i].Type != "page" {
+			continue
+		}
+		infos = append(infos, TabInfo{ID: targets[i].ID, Title: targets[i].Title, URL: targets[i].URL})
+	}
+	return infos, m.activePageID, nil
+}
+
+// NewTab 新建一个标签页并切换为 active：URL 空 → about:blank；非空须过
+// ValidateURL。新建后 dial 并 Page.enable；epoch 清零（新页无有效 refs）。
+func (m *Manager) NewTab(ctx context.Context, rawURL string) (TabInfo, error) {
+	pageURL := strings.TrimSpace(rawURL)
+	if pageURL == "" {
+		pageURL = "about:blank"
+	} else if err := ValidateURL(pageURL); err != nil {
+		return TabInfo{}, err
+	}
+	if err := m.Ensure(ctx); err != nil {
+		return TabInfo{}, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	target, err := newPageTarget(ctx, m.httpBase, pageURL)
+	if err != nil {
+		return TabInfo{}, err
+	}
+	if target.WSURL == "" {
+		return TabInfo{}, fmt.Errorf("browser: page target %s 缺少 webSocketDebuggerUrl", target.ID)
+	}
+	conn, err := Dial(ctx, target.WSURL)
+	if err != nil {
+		return TabInfo{}, err
+	}
+	if err := conn.Call(ctx, "Page.enable", map[string]any{}, nil); err != nil {
+		_ = conn.Close()
+		return TabInfo{}, fmt.Errorf("browser: Page.enable 失败: %w", err)
+	}
+	if m.tabs == nil {
+		m.tabs = map[string]*Conn{}
+	}
+	m.tabs[target.ID] = conn
+	m.activePageID = target.ID
+	m.epoch = 0
+	return TabInfo{ID: target.ID, Title: target.Title, URL: target.URL}, nil
+}
+
+// SwitchTab 切换 active 到指定 tab：复用已有会话或按 /json/list 真源现拨；
+// 切换后 epoch 清零（旧页 refs 诚实失效，需重新 snapshot）。未知 id →
+// ErrInvalidInput。
+func (m *Manager) SwitchTab(ctx context.Context, id string) (TabInfo, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return TabInfo{}, fmt.Errorf("%w: tab_id 必填", ErrInvalidInput)
+	}
+	if err := m.Ensure(ctx); err != nil {
+		return TabInfo{}, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	target, err := findPageTarget(ctx, m.httpBase, id)
+	if err != nil {
+		return TabInfo{}, err
+	}
+	if target == nil {
+		return TabInfo{}, fmt.Errorf("%w: 未知 tab %q（用 browser_tabs 查看当前标签）", ErrInvalidInput, id)
+	}
+	conn, ok := m.tabs[id]
+	if !ok { // 已列举但未拨号（如页面内 window.open 的目标）：按需 dial
+		if target.WSURL == "" {
+			return TabInfo{}, fmt.Errorf("browser: page target %s 缺少 webSocketDebuggerUrl", target.ID)
+		}
+		conn, err = Dial(ctx, target.WSURL)
+		if err != nil {
+			return TabInfo{}, err
+		}
+		if err := conn.Call(ctx, "Page.enable", map[string]any{}, nil); err != nil {
+			_ = conn.Close()
+			return TabInfo{}, fmt.Errorf("browser: Page.enable 失败: %w", err)
+		}
+		m.tabs[id] = conn
+	}
+	m.activePageID = id
+	m.epoch = 0
+	return TabInfo{ID: target.ID, Title: target.Title, URL: target.URL}, nil
+}
+
+// CloseTab 关闭指定标签页：closePageTarget → 摘表关 conn；关的是 active →
+// 切到剩余第一个 tab（epoch 清零）；最后一个 → 整体 teardownLocked。未知
+// id → ErrInvalidInput（已整体关闭时幂等返回 nil）。
+func (m *Manager) CloseTab(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("%w: tab_id 必填", ErrInvalidInput)
+	}
+	if err := m.Ensure(ctx); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.tabs) == 0 && m.httpBase == "" {
+		return nil // 浏览器整体已关：幂等
+	}
+	if _, ok := m.tabs[id]; !ok {
+		// 未拨号的目标（如页面内 window.open 弹出的页）：按 /json/list 真源
+		// 校验存在性，仍可经 HTTP 关闭。
+		target, err := findPageTarget(ctx, m.httpBase, id)
+		if err != nil {
+			return err
+		}
+		if target == nil {
+			return fmt.Errorf("%w: 未知 tab %q（用 browser_tabs 查看当前标签）", ErrInvalidInput, id)
+		}
+	}
+	_ = closePageTarget(ctx, m.httpBase, id)
+	if conn, ok := m.tabs[id]; ok {
+		_ = conn.Close()
+		delete(m.tabs, id)
+	}
+	if id == m.activePageID {
+		m.activePageID = ""
+		m.epoch = 0
+		for tid := range m.tabs { // 切到剩余第一个（map 序，仅需任一个）
+			m.activePageID = tid
+			break
+		}
+	}
+	if len(m.tabs) == 0 {
+		m.teardownLocked()
+	}
+	return nil
+}
+
+// findPageTarget 在 /json/list 中按 id 查找 page target（找不到 → nil, nil）。
+func findPageTarget(ctx context.Context, httpBase, id string) (*Target, error) {
+	targets, err := listTargets(ctx, httpBase)
+	if err != nil {
+		return nil, fmt.Errorf("browser: 列举目标失败: %w", err)
+	}
+	for i := range targets {
+		if targets[i].Type == "page" && targets[i].ID == id {
+			return &targets[i], nil
+		}
+	}
+	return nil, nil
 }
 
 // ValidateURL 导航 URL 白名单：只接受绝对 http/https 地址（拒绝 file:
@@ -231,7 +509,8 @@ type NavigateResult struct {
 }
 
 // Navigate 打开 URL：Page.navigate → 等 Page.loadEventFired（超时兜底轮询
-// document.readyState）。导航令 snapshot refs 失效（epoch 清零）。
+// document.readyState）。导航令 snapshot refs 失效（epoch 清零）。作用于
+// active tab。
 func (m *Manager) Navigate(ctx context.Context, rawURL string, timeoutSecs int) (NavigateResult, error) {
 	if err := ValidateURL(rawURL); err != nil {
 		return NavigateResult{}, err
@@ -242,7 +521,7 @@ func (m *Manager) Navigate(ctx context.Context, rawURL string, timeoutSecs int) 
 	wait := navTimeout(timeoutSecs)
 
 	m.mu.Lock()
-	conn := m.conn
+	conn := m.tabs[m.activePageID]
 	m.mu.Unlock()
 	if conn == nil {
 		return NavigateResult{}, errors.New("browser: 会话未建立")
@@ -337,7 +616,8 @@ type ReadResult struct {
 	Text  string `json:"text"`
 }
 
-// Read 读取页面文本（selector 为空读全文，否则读该元素；maxChars 截断）。
+// Read 读取 active tab 页面文本（selector 为空读全文，否则读该元素；
+// maxChars 截断）。
 func (m *Manager) Read(ctx context.Context, selector string, maxChars int) (ReadResult, error) {
 	if err := m.Ensure(ctx); err != nil {
 		return ReadResult{}, err
@@ -378,8 +658,8 @@ type SnapshotResult struct {
 	Items []RefItem `json:"items"`
 }
 
-// Snapshot 给可交互元素标 data-gaea-ref 并返回紧凑清单；refs 跨调用持久，
-// navigate 后由 epoch 机制判失效。
+// Snapshot 给 active tab 的可交互元素标 data-gaea-ref 并返回紧凑清单；refs
+// 跨调用持久，navigate/切页后由 epoch 机制判失效。
 func (m *Manager) Snapshot(ctx context.Context) (SnapshotResult, error) {
 	if err := m.Ensure(ctx); err != nil {
 		return SnapshotResult{}, err
@@ -411,7 +691,8 @@ type ActionResult struct {
 	Text string `json:"text"` // 元素文本（click）或输入值（type）或落点（scroll）
 }
 
-// Click 点击元素：ref（snapshot 返回，优先）或 CSS selector，二选一。
+// Click 点击 active tab 元素：ref（snapshot 返回，优先）或 CSS selector，
+// 二选一。
 func (m *Manager) Click(ctx context.Context, ref int, selector string) (ActionResult, error) {
 	target, err := m.resolveTarget(ctx, ref, selector)
 	if err != nil {
@@ -430,8 +711,8 @@ func (m *Manager) Click(ctx context.Context, ref int, selector string) (ActionRe
 	return ActionResult{Text: res.Text}, nil
 }
 
-// Type 向输入元素输入文本：ref 或 selector 定位；原生 setter + input/change
-// 事件（React 兼容）；submit 时请求提交所在表单。
+// Type 向 active tab 的输入元素输入文本：ref 或 selector 定位；原生 setter
+// + input/change 事件（React 兼容）；submit 时请求提交所在表单。
 func (m *Manager) Type(ctx context.Context, ref int, selector, text string, submit bool) (ActionResult, error) {
 	if text == "" {
 		return ActionResult{}, fmt.Errorf("%w: text 必填", ErrInvalidInput)
@@ -454,7 +735,8 @@ func (m *Manager) Type(ctx context.Context, ref int, selector, text string, subm
 	return ActionResult{Text: res.Text}, nil
 }
 
-// Scroll 滚动页面：direction=up/down，amount 像素；selector 限定滚动容器。
+// Scroll 滚动 active tab 页面：direction=up/down，amount 像素；selector
+// 限定滚动容器。
 func (m *Manager) Scroll(ctx context.Context, direction string, amount int, containerSelector string) (ActionResult, error) {
 	switch direction {
 	case "up", "down":
@@ -484,7 +766,7 @@ func (m *Manager) Scroll(ctx context.Context, direction string, amount int, cont
 }
 
 // resolveTarget 归一化元素定位：ref 优先（拼 data-gaea-ref 选择器），否则用
-// selector；先校验 epoch 防跨导航的失效 ref。
+// selector；先校验 epoch 防跨导航/跨页的失效 ref。
 func (m *Manager) resolveTarget(ctx context.Context, ref int, selector string) (string, error) {
 	if ref <= 0 && strings.TrimSpace(selector) == "" {
 		return "", fmt.Errorf("%w: ref 与 selector 至少提供一个（先 browser_snapshot 获取 ref）", ErrInvalidInput)
@@ -502,7 +784,8 @@ func (m *Manager) resolveTarget(ctx context.Context, ref int, selector string) (
 }
 
 // guardEpoch 校验 snapshot refs 仍有效：页内 __gaeaEpoch 必须等于管理器记录值
-// （0 表示从未 snapshot；页面跳转后页内变量被清空/变化 → 强制重新 snapshot）。
+// （0 表示从未 snapshot；页面跳转/切换标签后页内变量被清空或变化 → 强制重新
+// snapshot）。
 func (m *Manager) guardEpoch(ctx context.Context) error {
 	m.mu.Lock()
 	want := m.epoch
@@ -525,10 +808,11 @@ type okField struct {
 	Error string `json:"error"`
 }
 
-// evaluate 执行一段 JS 并把返回值解进 out（returnByValue + awaitPromise）。
+// evaluate 在 active tab 上执行一段 JS 并把返回值解进 out（returnByValue +
+// awaitPromise）。
 func (m *Manager) evaluate(ctx context.Context, expression string, out any) error {
 	m.mu.Lock()
-	conn := m.conn
+	conn := m.tabs[m.activePageID]
 	m.mu.Unlock()
 	if conn == nil {
 		return errors.New("browser: 会话未建立")

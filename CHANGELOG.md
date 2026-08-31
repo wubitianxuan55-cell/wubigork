@@ -1,5 +1,44 @@
 # gaea · 多功能 AI 助手
 
+## v4.14.0 · 三箭并行：晨报预取 + 浏览器续刀 + 复核产品化（2026-08-31）
+> 用户拍板「多刀并行」：三个互不相交的小刀由三个并行子代理同步落地（文件
+> 足迹隔离），主控全绿门禁收口——①浏览器欠账（空闲 TTL 自动关停 + 多标签页）
+> ②路线图 T0 欠账「做梦 2.0 主动预取 MVP」（纯本地晨报）③市场调研 ★★☆
+> 「Verifier 产品化」（证据链翻成 UI，可审计护城河先发占位）。绑定面
+> 544→545（+1：GaeaMemoryMorningBrief）。
+- **浏览器续刀（internal/gaea/browser，零新增绑定、前端零改动）**：空闲 TTL
+  自动关停（Options.IdleTTL 默认 10min、GAEA_BROWSER_IDLE_TTL env 覆盖；Ensure
+  成功路径刷新 lastActive，once 守护 watcher 到期调 teardownLocked 自动回收，
+  Shutdown 幂等停 watcher，到期后 browser_* 自动重拉闭环）；多标签页（Manager
+  重构 conn+pageID → tabs map + activePageID，/json/list 全量 target 为真源；
+  ListTabs/NewTab/SwitchTab/CloseTab，切换/新建置 epoch=0 旧 refs 诚实失效，
+  关 active 自动切剩余、最后一个整体回收）；新工具 ×3（browser_tabs 只读 /
+  browser_new_tab / browser_switch_tab）+ browser_close 可选 tab_id（缺省保持
+  现语义逐字节不变）；compact 两表同步。+8 测试（TTL 回收/零禁用/env/列表/
+  新标签/ref 失效/关标签/整体回收）。
+- **做梦 2.0 主动预取 MVP（纯本地晨报）**：memory.BuildMorningBrief 纯函数
+  （零 LLM/零 IO/确定性：max(UpdatedAt,LastUsedAt) 降序 top5 user/project 优先 +
+  procedural/rule ≤3 条 + rune 边界截断 120 + 空输入非 nil 空数组）；新绑定
+  GaeaMemoryMorningBrief() (string, error)（JSON 串对齐 GaeaCostGraph 先例：
+  ListInSpace("work") 只读 + 近 24h dream 审计计数，零写库零落审计，play 红线
+  安全）；前端 MorningBriefCard（首页 ml-info 记忆脉搏旁，仅 work 空间渲染，
+  失败/空静默隐藏，全 token 样式）+ i18n home.morningBrief.* 三语；gen_bindings
+  重生成（bindingNames 545）、spaceBindings 分类 work。Go +12、vitest +4。
+- **Verifier 产品化（纯前端、零新增绑定、后端零改动）**：证据卡「三步展开」——
+  卡面（无 baselinePath → 回滚禁用 + 「可复核明细」徽标 + 整卡点击展开）→
+  第 1 层声明↔实况 diff（opsJson 单格 op × GaeaPreview 现取实况，口径同后端
+  数值容差 1e-9/去空白/公式归一，✓/✗/跳过标注 + 近似比对脚注，预览不可用降级
+  仅声明回放）→ 第 2 层操作回放时间线（序号 + type 徽标 + applyOne 风格中文
+  描述 + 批量 op 折叠计数，旧卡无 opsJson 回退 beforeSummary）；lib/verifyDiff.ts
+  纯函数层 + types.ts 补 baselinePath/opsJson + XlsxOpView/VerifyDiffRow；
+  mock/office.ts 补证据域三绑定（此前零 mock）。vitest +23（verifyDiff 16 +
+  证据区 7）。
+- 验证：Go 全量 0 FAIL（+25 测试）；**vitest 852/852**（150 文件）；tsc/eslint 0；
+  drift PASS（545）；版本四处统一 4.14.0；build.bat 冒烟 /api/health 200。
+  欠账：晨报深度预装配（进 agent 上下文）列第二刀；浏览器 iframe/键盘级 Input/
+  下载上传/headless UI/Windows UIA；Verifier 通道 B 结果未进前端、复核明细绑定
+  留待真实需求；本地-云端自动路由 v1 顺延下一刀。详见 releases/v4.14.0.md。
+
 ## v4.13.0 · 自动操作·浏览器：CDP 控制 Edge + 7 工具面（2026-08-31）
 > 「自动操作」四柱唯一空柱的第一块砖（调研后刀序④）：gaea 获得结构化浏览器
 > 自动化——CDP（Chrome DevTools Protocol）控制 Edge，权限门 + 事件留痕第一

@@ -30,6 +30,7 @@ type OfficeMethods = Pick<
   | "HerdsmanDigitalLife" | "HerdsmanOperations"
   | "PickFiles" | "PickDirectory"
   | "TaskList" | "TaskCancel" | "TaskRetry" | "TaskOutput"
+  | "GaeaJournalList" | "VerifyRecord" | "RollbackRecord"
 >;
 
 export function buildOffice(_s: MakeMockState): OfficeMethods {
@@ -437,6 +438,53 @@ export function buildOffice(_s: MakeMockState): OfficeMethods {
         t.status === "running" ? "[10:00:02] 正在抓取四川造价信息网…" : `[10:00:03] 完成（${t.error || t.message || "ok"}）`,
       ];
       return { tail: tail.join("\n"), truncated: false };
+    },
+    // ── v4.8 证据链（Verifier 产品化）：证据卡 / 复核 / 回滚 —— 声明样本与
+    // Preview 的 MOCK_XLSX_BODY 对齐（预算!B2=120.50、B4 公式 SUM(B2:B3)），
+    // 保证「声明↔实况」diff 在浏览器开发态可演示。 ──
+    async GaeaJournalList(limit: number) {
+      const now = Date.now();
+      const opsJson = JSON.stringify([
+        { type: "set_value", sheet: "预算", target: "B2", value: 120.5 },
+        { type: "set_formula", sheet: "预算", target: "B4", formula: "SUM(B2:B3)" },
+        { type: "replace", sheet: "预算", range: "A1:A3", find: "设备", replace: "机械" },
+      ]);
+      return [
+        {
+          id: "ev_1003", sessionId: "mock-session", space: "work", turn: 3,
+          tool: "xlsx_apply", target: "docs/成本测算.xlsx",
+          beforeSummary: "成本测算表初稿（mock）", afterSummary: "已应用规划操作并重算公式（mock）",
+          model: "deepseek-v4-flash", at: now - 60_000, status: "applied",
+          baselinePath: ".gaea/snapshots/docs/成本测算.xlsx.snap", opsJson,
+        },
+        {
+          id: "ev_1002", sessionId: "mock-session", space: "work", turn: 2,
+          tool: "edit_file", target: "docs/说明.md",
+          beforeSummary: "旧说明内容（v1，mock）", afterSummary: "新说明内容（v2，mock）",
+          at: now - 120_000, status: "applied",
+        },
+        {
+          id: "ev_1001", sessionId: "mock-session", space: "work", turn: 1,
+          tool: "xlsx_apply", target: "docs/旧表.xlsx",
+          beforeSummary: "旧表快照——历史卡无 opsJson，仅回放变更摘要（mock）",
+          afterSummary: "已应用（mock）",
+          at: now - 180_000, status: "applied",
+        },
+      ].slice(0, limit);
+    },
+    async VerifyRecord(id: string) {
+      // 样本复核结论：ev_1003 通过 / ev_1001 警告，展示 verdict 内联徽标。
+      return {
+        id,
+        status: (id === "ev_1001" ? "warned" : "verified") as "verified" | "warned" | "failed",
+        channelA: "结构完整",
+        channelB: "视觉正常",
+        note: "（mock）双通道复核通过",
+        at: Date.now(),
+      };
+    },
+    async RollbackRecord(_id: string) {
+      // 成功路径：mock 不落盘，返回空即可（前端 toast 透出成功文案）。
     },
     async WriteFile(_rel: string, _content: string) {
       // mock：浏览器开发环境不落盘（真实实现 = GaeaWriteFile 原子写回工作区）。

@@ -1,9 +1,11 @@
 package builtin
 
 // browser_tools.go — 受控浏览器自动化 MVP（browser 包薄封装）：
-// 懒拉起独立 Edge（独立临时 profile，绝不碰用户主 profile），7 个工具共享
-// browser.Default() 单例会话。结果统一走 envelope 结构化返回；错误用
-// errors.Is 映射语义化 code（validation_error/not_found/stale_refs/timeout）。
+// 懒拉起独立 Edge（独立临时 profile，绝不碰用户主 profile），10 个工具共享
+// browser.Default() 单例会话。多标签支持 browser_tabs / browser_new_tab /
+// browser_switch_tab / browser_close(tab_id)；空闲 TTL 自动关停，任意
+// browser_* 调用自动重拉。结果统一走 envelope 结构化返回；错误用 errors.Is
+// 映射语义化 code（validation_error/not_found/stale_refs/timeout）。
 
 import (
 	"context"
@@ -24,6 +26,9 @@ func init() {
 	tool.RegisterBuiltin(browserClick{})
 	tool.RegisterBuiltin(browserType{})
 	tool.RegisterBuiltin(browserScroll{})
+	tool.RegisterBuiltin(browserTabs{})
+	tool.RegisterBuiltin(browserNewTab{})
+	tool.RegisterBuiltin(browserSwitchTab{})
 	tool.RegisterBuiltin(browserClose{})
 }
 
@@ -344,11 +349,16 @@ type browserClose struct{}
 func (browserClose) Name() string { return "browser_close" }
 
 func (browserClose) Description() string {
-	return "关闭受控浏览器：关闭当前页面并结束 Edge 进程、清理临时 profile。任务完成或不再需要浏览器时调用；下次 browser_* 调用会重新拉起。"
+	return "关闭受控浏览器：缺省关闭当前页面并结束 Edge 进程、清理临时 profile（任务完成或不再需要浏览器时调用；下次 browser_* 调用会重新拉起）；传 tab_id 只关闭指定标签页（不结束浏览器，返回剩余标签数）。"
 }
 
 func (browserClose) Schema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{}}`)
+	return json.RawMessage(`{
+"type":"object",
+"properties":{
+  "tab_id":{"type":"string","description":"可选：只关闭该标签页（tab_id 从 browser_tabs 获取）；缺省关闭当前页并结束整个浏览器"}
+}
+}`)
 }
 
 func (browserClose) ReadOnly() bool                 { return false }
@@ -356,9 +366,175 @@ func (browserClose) SpaceTag() string               { return spaces.SpaceWork }
 func (browserClose) CompactDescription() string     { return compactDesc["browser_close"] }
 func (browserClose) CompactSchema() json.RawMessage { return compactSchema["browser_close"] }
 
-func (browserClose) Execute(ctx context.Context, _ json.RawMessage) (string, error) {
+func (browserClose) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+	var p struct {
+		TabID string `json:"tab_id"`
+	}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &p); err != nil {
+			return tool.WrapError(tool.CodeValidationError, "invalid args: "+err.Error(), nil), nil
+		}
+	}
+	if strings.TrimSpace(p.TabID) != "" {
+		// 只关指定标签：关闭前先取标签总数，剩余 = 总数-1（避免关最后一个
+		// 标签触发整体 teardown 后再 ListTabs 把浏览器重新拉起）。
+		before, _, err := browser.Default().ListTabs(ctx)
+		if err != nil {
+			return browserFail(err, map[string]any{"tab_id": p.TabID})
+		}
+		if err := browser.Default().CloseTab(ctx, p.TabID); err != nil {
+			return browserFail(err, map[string]any{"tab_id": p.TabID})
+		}
+		remaining := len(before) - 1
+		if remaining < 0 {
+			remaining = 0
+		}
+		return tool.WrapResult("ok", map[string]any{
+			"tab_id":    p.TabID,
+			"remaining": remaining,
+			"message":   "标签页已关闭",
+		}), nil
+	}
 	if err := browser.Default().ClosePage(ctx); err != nil {
 		return browserFail(err, nil)
 	}
 	return tool.WrapResult("ok", map[string]any{"closed": true, "message": "浏览器已关闭，临时 profile 已清理"}), nil
+}
+
+// ── browser_tabs ────────────────────────────────────────────────────────
+
+type browserTabs struct{}
+
+func (browserTabs) Name() string { return "browser_tabs" }
+
+func (browserTabs) Description() string {
+	return "列出受控浏览器当前打开的全部标签页（[active] 标记当前页，含序号/标题/URL）。多标签时用 browser_new_tab 新建、browser_switch_tab 切换、browser_close(tab_id) 关闭。只读不改变页面。"
+}
+
+func (browserTabs) Schema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{}}`)
+}
+
+func (browserTabs) ReadOnly() bool                 { return true }
+func (browserTabs) SpaceTag() string               { return spaces.SpaceWork }
+func (browserTabs) CompactDescription() string     { return compactDesc["browser_tabs"] }
+func (browserTabs) CompactSchema() json.RawMessage { return compactSchema["browser_tabs"] }
+
+func (browserTabs) Execute(ctx context.Context, _ json.RawMessage) (string, error) {
+	tabs, active, err := browser.Default().ListTabs(ctx)
+	if err != nil {
+		return browserFail(err, nil)
+	}
+	return tool.WrapResult("ok", map[string]any{
+		"count":  len(tabs),
+		"active": active,
+		"list":   browserTabsListing(tabs, active),
+		"tabs":   tabs, // 结构化列表（id/title/url），供 browser_switch_tab / browser_close(tab_id) 取 tab_id
+	}), nil
+}
+
+// browserTabsListing 生成标签清单文本：[active] 或对齐空位 + #序号 标题 (URL)。
+func browserTabsListing(tabs []browser.TabInfo, active string) string {
+	var b strings.Builder
+	for i, t := range tabs {
+		mark := "        "
+		if t.ID == active {
+			mark = "[active]"
+		}
+		fmt.Fprintf(&b, "%s #%d %s (%s)\n", mark, i+1, t.Title, t.URL)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// ── browser_new_tab ─────────────────────────────────────────────────────
+
+type browserNewTab struct{}
+
+func (browserNewTab) Name() string { return "browser_new_tab" }
+
+func (browserNewTab) Description() string {
+	return "在受控浏览器中新建一个标签页并自动切换为当前页：url 必填（仅 http/https）。新建后原页面的 refs 已失效，需重新 browser_snapshot。"
+}
+
+func (browserNewTab) Schema() json.RawMessage {
+	return json.RawMessage(`{
+"type":"object",
+"properties":{
+  "url":{"type":"string","description":"要打开的绝对 URL，仅支持 http:// 或 https://（新建后自动切换为当前页）"}
+},
+"required":["url"]
+}`)
+}
+
+func (browserNewTab) ReadOnly() bool                 { return false }
+func (browserNewTab) SpaceTag() string               { return spaces.SpaceWork }
+func (browserNewTab) CompactDescription() string     { return compactDesc["browser_new_tab"] }
+func (browserNewTab) CompactSchema() json.RawMessage { return compactSchema["browser_new_tab"] }
+
+func (browserNewTab) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+	var p struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return tool.WrapError(tool.CodeValidationError, "invalid args: "+err.Error(), nil), nil
+	}
+	if strings.TrimSpace(p.URL) == "" {
+		return tool.WrapError(tool.CodeValidationError, "url 必填（仅支持 http/https）", nil), nil
+	}
+	tab, err := browser.Default().NewTab(ctx, p.URL)
+	if err != nil {
+		return browserFail(err, map[string]any{"url": p.URL})
+	}
+	return tool.WrapResult("ok", map[string]any{
+		"tab_id":  tab.ID,
+		"title":   tab.Title,
+		"url":     tab.URL,
+		"message": "已新建并切换；原页面的 refs 已失效，需重新 browser_snapshot",
+	}), nil
+}
+
+// ── browser_switch_tab ──────────────────────────────────────────────────
+
+type browserSwitchTab struct{}
+
+func (browserSwitchTab) Name() string { return "browser_switch_tab" }
+
+func (browserSwitchTab) Description() string {
+	return "切换受控浏览器的当前标签页到 tab_id 指定的页（tab_id 从 browser_tabs 获取）。切换后原页面的 refs 已失效，需重新 browser_snapshot。"
+}
+
+func (browserSwitchTab) Schema() json.RawMessage {
+	return json.RawMessage(`{
+"type":"object",
+"properties":{
+  "tab_id":{"type":"string","description":"要切换到的标签页 id（browser_tabs 返回）"}
+},
+"required":["tab_id"]
+}`)
+}
+
+func (browserSwitchTab) ReadOnly() bool                 { return false }
+func (browserSwitchTab) SpaceTag() string               { return spaces.SpaceWork }
+func (browserSwitchTab) CompactDescription() string     { return compactDesc["browser_switch_tab"] }
+func (browserSwitchTab) CompactSchema() json.RawMessage { return compactSchema["browser_switch_tab"] }
+
+func (browserSwitchTab) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+	var p struct {
+		TabID string `json:"tab_id"`
+	}
+	if err := json.Unmarshal(args, &p); err != nil {
+		return tool.WrapError(tool.CodeValidationError, "invalid args: "+err.Error(), nil), nil
+	}
+	if strings.TrimSpace(p.TabID) == "" {
+		return tool.WrapError(tool.CodeValidationError, "tab_id 必填（先 browser_tabs 查看标签）", nil), nil
+	}
+	tab, err := browser.Default().SwitchTab(ctx, p.TabID)
+	if err != nil {
+		return browserFail(err, map[string]any{"tab_id": p.TabID})
+	}
+	return tool.WrapResult("ok", map[string]any{
+		"tab_id":  tab.ID,
+		"title":   tab.Title,
+		"message": "已切换；refs 已失效需重新 snapshot",
+	}), nil
 }

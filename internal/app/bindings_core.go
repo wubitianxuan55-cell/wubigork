@@ -64,8 +64,8 @@ func (b *CoreB) SetActiveOCRModel(engineID string, modelID string) error { retur
 func (b *CoreB) SetDeepseekKey(apiKey string) error { return b.a.SetDeepseekKey(apiKey) }
 func (b *CoreB) SetDistFS(fsys fs.FS) { b.a.SetDistFS(fsys) }
 func (b *CoreB) SetEngineDefaultModel(engineID string, modelName string) error { return b.a.SetEngineDefaultModel(engineID, modelName) }
-func (b *CoreB) SetGlmKey(apiKey string) error { return b.a.SetGlmKey(apiKey) }
 func (b *CoreB) SetGlmEndpoint(family string) error { return b.a.SetGlmEndpoint(family) }
+func (b *CoreB) SetGlmKey(apiKey string) error { return b.a.SetGlmKey(apiKey) }
 func (b *CoreB) SetKeepWarm(enabled bool) error { return b.a.SetKeepWarm(enabled) }
 func (b *CoreB) SetOpencodeGoKey(apiKey string) error { return b.a.SetOpencodeGoKey(apiKey) }
 func (b *CoreB) SetOpencodeZenKey(apiKey string) error { return b.a.SetOpencodeZenKey(apiKey) }

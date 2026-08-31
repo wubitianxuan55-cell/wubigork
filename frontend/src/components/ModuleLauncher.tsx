@@ -29,6 +29,7 @@ import { useAppStore } from '../stores/appStore'
 import { usePollingGate } from '../hooks/usePollingGate'
 import { useT, type Translator } from '../gaea/lib/i18n'
 import * as App from '../../src/wailsjsCompat'
+import MorningBriefCard from '../gaea/components/MorningBriefCard'
 import './module-launcher.css'
 
 /**
@@ -220,7 +221,7 @@ const FeaturedCard: React.FC<{
  * ｜ 门廊（编程独立窗口 + 设置）+ 底部信息条（会话 / 记忆 / 系统）。
  * 中庭输入：打字 → VoiceChatText；语音 → 本页直启麦克风；共用同一对话流。
  */
-const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel }) => {
+const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel, space }) => {
   // ── 板块清单 ──
   const activeBoards = useSyncExternalStore(subscribeBoards, getActiveBoards)
   // 全量启动器模块（manifest 驱动）；gaea 为旗舰大卡，code/settings 入门廊
@@ -572,6 +573,9 @@ const ModuleLauncher: React.FC<ModuleLauncherProps> = ({ onNavigate, activeModel
               <div className="ml-info-empty">{t('shell.launcher.memoryIdle')}</div>
             )}
           </section>
+          {/* 做梦 2.0 晨报（纯本地主动预取）：仅 work 空间渲染——play 不渲染
+              = 双空间红线（晨报只读 work 空间记忆，见 MorningBriefCard）。 */}
+          {space === 'work' && <MorningBriefCard />}
           <section className="ml-info-seg" aria-label={t('shell.launcher.sysStatus')}>
             <div className="ml-info-head"><ApiOutlined aria-hidden="true" />{t('shell.launcher.sysStatus')}</div>
             {monitor ? (

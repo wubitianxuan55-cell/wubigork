@@ -1,9 +1,38 @@
 # 任务进度
 
-> 最后更新: 2026-08-31（v4.13.0 发布「自动操作·浏览器」：CDP 控制 Edge + 7
-> 工具面 + 权限门与留痕，真机实测 PASS；零新增绑定、前端零改动）
+> 最后更新: 2026-08-31（v4.14.0 发布「三箭并行」：晨报预取 + 浏览器续刀 +
+> 复核产品化，三个并行子代理落地，主控全绿门禁；绑定面 544→545）
 
 ## 当前状态
+
+- **最新发布：v4.14.0（2026-08-31）「三箭并行 · 晨报预取 + 浏览器续刀 + 复核产品化」**：
+  用户拍板「多刀并行」，三刀足迹隔离并行落地（探索子代理 ×3 代码地图 → 实现
+  子代理 ×3 → 主控全绿门禁），绑定面 544→**545**（+1：GaeaMemoryMorningBrief）。
+  ①**浏览器续刀**（v4.13.0 欠账）：空闲 TTL 自动关停（Options.IdleTTL 默认 10min
+  + GAEA_BROWSER_IDLE_TTL env，Ensure 成功路径刷 lastActive，once 守护 watcher
+  到期 teardownLocked 自动回收，browser_* 自动重拉闭环）+ 多标签页（Manager
+  重构 tabs map + activePageID，/json/list 全量 target 真源；ListTabs/NewTab/
+  SwitchTab/CloseTab，切 tab 置 epoch=0 旧 refs 诚实失效，关 active 切剩余、
+  最后整体回收）+ 新工具 ×3（browser_tabs/browser_new_tab/browser_switch_tab）
+  + browser_close 可选 tab_id（缺省保持现语义）；零新增绑定、前端零改动。②**做梦
+  2.0 主动预取 MVP**（路线图 T0 欠账）：memory.BuildMorningBrief 纯函数（零 LLM/
+  零 IO/确定性，max(UpdatedAt,LastUsedAt) 降序 top5 user/project 优先 +
+  procedural/rule ≤3 + rune 边界截断 120 + 空输入非 nil 空数组）+ 新绑定
+  GaeaMemoryMorningBrief() (string, error)（JSON 串对齐 GaeaCostGraph 先例，
+  ListInSpace("work") 只读 + 近 24h dream 审计计数，零写库零落审计，play 红线
+  安全）+ 首页 MorningBriefCard（仅 work 空间渲染，失败/空静默隐藏，全 token）
+  + i18n home.morningBrief.* 三语 + gen_bindings 重生成（bindingNames 545）。
+  ③**Verifier 产品化**（调研 ★★☆，纯前端零新增绑定）：证据卡三步展开——卡面
+  （无 baselinePath 回滚禁用 + 「可复核明细」徽标）→ 声明↔实况 diff（opsJson ×
+  GaeaPreview 现取，口径同后端数值容差 1e-9/去空白/公式归一，✓/✗/跳过 + 近似
+  比对脚注）→ 操作回放时间线（applyOne 风格中文描述 + 批量 op 折叠，旧卡回退
+  beforeSummary）；lib/verifyDiff.ts 纯函数 + types 补 baselinePath/opsJson/
+  XlsxOpView/VerifyDiffRow + mock/office.ts 补证据域三绑定。**验证**：Go 全量 0
+  FAIL（+25）；vitest **852/852**（150 文件，+27）；tsc/eslint 0；drift PASS
+  （545）；版本四处统一 4.14.0；build.bat 冒烟 200。欠账：晨报深度预装配（进
+  agent 上下文）列第二刀；浏览器 iframe/键盘级 Input/下载上传/headless UI/
+  Windows UIA；Verifier 通道 B 结果未进前端、复核明细绑定留待真实需求；
+  本地-云端自动路由 v1 顺延下一刀。详见 releases/v4.14.0.md。
 
 - **最新发布：v4.13.0（2026-08-31）「自动操作·浏览器」**：四柱「自动操作」
   唯一空柱的第一块砖（刀序④）。internal/gaea/browser 新包——msedge 三段式

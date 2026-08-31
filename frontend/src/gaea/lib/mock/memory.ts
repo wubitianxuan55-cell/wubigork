@@ -25,6 +25,7 @@ type MemoryMethods = Pick<
   | "KnowledgeImportPreview" | "KnowledgeImportAIParse" | "KnowledgeImportApply"
   | "KnowledgeHistory" | "KnowledgeFindSimilar" | "KnowledgeExport" | "KnowledgeReview" | "KnowledgeMerge"
   | "MemoryDuplicates" | "MemoryMerge"
+  | "MemoryMorningBrief"
 >;
 
 export function buildMemory(_s: MakeMockState): MemoryMethods {
@@ -320,6 +321,19 @@ export function buildMemory(_s: MakeMockState): MemoryMethods {
     },
     async MemoryMerge(target: string) {
       return target;
+    },
+    async MemoryMorningBrief() {
+      // mock: 返回「今日晨报」JSON 串（对齐 Go 侧 GaeaMemoryMorningBrief 契约，
+      // 前端 JSON.parse 后渲染；items 为空时组件静默隐藏）。
+      const now = Date.now();
+      return JSON.stringify({
+        items: [
+          { name: "示例工作记忆", description: "办公会话沉淀的示例事实：本地优先、零 LLM 晨报预取", kind: "semantic", category: "project", updatedAt: now - 3600_000, lastUsedAt: now },
+        ],
+        rules: ["晨报只读 work 空间记忆，play 不渲染"],
+        dreamed24h: 0,
+        generatedAt: now,
+      });
     },
     async WhisperExportArchive(_dir: string): Promise<number> {
       // mock: no-op——无真实 whisper 库可打包，返回导出条目数 0。
