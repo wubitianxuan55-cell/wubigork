@@ -274,6 +274,11 @@ export interface Trajectory {
 export interface TrajectoryTurn {
   turn: number;
   startedAt?: number;
+  // v4.31 轮级耗时（ms，= (turn_done.Ts − turn_started.Ts) × 1000，后端
+  // fold.go 在 turn_done 分支计算）：收 v4.26「WorkHeader 历史轮无耗时数据源」
+  // 欠账——历史轮读盘折叠自带耗时，轨迹轮次头在轮结束时展示「用时 Ns」。
+  // omitempty 语义：悬挂轮/时钟异常/旧日志缺省（老后端不下发该字段）。
+  durationMs?: number;
   end?: TrajectoryTurnEnd;
   records: TrajectoryRecord[];
 }

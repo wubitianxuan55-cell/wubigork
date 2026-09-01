@@ -1,3 +1,22 @@
+## v4.31.0 · 细节收口四线并行：单版本入口 / 弹窗 pdf 预览 / 历史轮耗时 / tasks 竞态根治（2026-09-02）
+> 用户点名「并行使用子代理」——四线足迹互斥并行落地 + 主代理集成。**绑定面 552 零变更**。
+- **① 产物版本时间线单版本入口**（收 v4.28 B1 欠账）：徽标条件从 {rev && …} 放宽为
+  {(rev || journalEntry) && …}——versions>1 按现状 vN 徽标（旧锁不破），versions≤1 但有
+  journal 快照（baselinePath）的产物渲染「版本」入口徽标（title 区分「更新 N 次」与「有版本
+  历史」），无快照保持空态；VersionTimeline 本体零改动。
+- **② FilePreviewModal pdf/pptx 逐页预览**（收 v4.28 欠账）：弹窗 kind="pdf" 分支补齐逐页
+  缩略（data-pptx-page 锚点）+ dataUrl 整本回退 + 诚实空态 + PptxOutline 大纲卡（页锚点滚动/
+  「针对第 N 页修改」composer 插入）；FilePreview.tsx 本体零改动，非 pdf 分支逐字节未动。
+- **③ 轨迹历史轮耗时**（收 v4.26 欠账）：后端 Turn.DurationMs（fold turn_done 分支
+  Ts>StartedAt 时 =差值×1000，omitempty 向后兼容）+ 前端 TrajectoryTurn.durationMs +
+  TrajectoryView 轮次头「用时 Ns」（复用 formatElapsed）；零新增绑定（结构字段级）。
+- **④ TestCancelConcurrentStress flaky 根治（实现层真竞态）**：根因=pickNext 不做任务级预留
+  →多 worker 同时 execute 同一 queued 任务，claim 落选者无条件 unregisterCancel 删掉
+  cancelReq（用户取消意图）→ Cancel 已成功返回的任务终态被 succeeded 吞掉。修复=tasks.go
+  新 clearStaleCancel（只清残留预注册、绝不删 cancelReq）+ claim 成功后胜者重登记 cancel；
+  测试改事件驱动等待（50 终态事件到齐），断言不削弱（Cancel==nil ⇒ cancelled）。
+- 验证：Go 全量 0 FAIL（tasks -count=20/100 全绿）；tsc/tsc -b/eslint 0；vitest **1166/1166**
+  （+9：A3+B3+C3）；drift PASS（552）；版本四处 4.31.0。详见 releases/v4.31.0.md。
 ## v4.30.0 · 办公 UI 化繁为简第二刀：产物置前 / 行级降噪 / 命令面板视图重排 / 预览两档（2026-09-02）
 > 用户点名「继续优化完善 gaea」，收 v4.29.0 欠账四项，红线不变：简化界面不是删除功能。
 > **绑定面 552 零变更**（纯前端呈现重组）。

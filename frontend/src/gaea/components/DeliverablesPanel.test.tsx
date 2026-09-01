@@ -281,6 +281,70 @@ describe("DeliverablesPanel 版本时间线（v4.28 B1）", () => {
   });
 });
 
+// ── v4.31 A1 单版本时间线入口：versions≤1 但 journal 有该路径快照时，产物行
+// 也渲染「版本」入口徽标（收 v4.28 欠账「B1 单版本无入口」）；无快照不渲染。
+// mock GaeaJournalList(200) 中仅 ev_1003（docs/成本测算.xlsx，有 baselinePath）
+// 可进时间线，其余卡被 groupVersionsByPath 过滤。
+describe("DeliverablesPanel 单版本时间线入口（v4.31 A1）", () => {
+  it("versions=1 且 journal 有快照：渲染「版本」入口，点击展开时间线，预览/恢复可用", async () => {
+    render(
+      <ToastProvider>
+        <DeliverablesPanel
+          items={[{ path: "docs/成本测算.xlsx", sourceId: "a1", versions: 1 }]}
+          onOpenFile={() => {}}
+        />
+      </ToastProvider>,
+    );
+    // 初始收起；等待 journal 异步就绪后入口徽标出现
+    expect(screen.queryByTestId("version-timeline")).toBeNull();
+    const entry = await screen.findByTitle("有版本历史（可预览/恢复）");
+    expect(entry.textContent).toContain("版本");
+    expect(screen.queryByText("v1")).toBeNull(); // 单版本入口用「版本」而非次数徽标
+    fireEvent.click(entry);
+    const rows = await screen.findAllByTestId("version-timeline-row");
+    expect(rows).toHaveLength(1); // mock 中 docs/成本测算.xlsx 仅 ev_1003 带基线快照
+    // 单条记录下预览/恢复按钮可用（有 baselinePath）
+    expect((screen.getByTitle("预览该版本快照") as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByTitle(/^恢复到 \d{2}:\d{2} 版本：将回滚到该时间版本$/)).toBeTruthy();
+  });
+
+  it("versions 省略（undefined）且 journal 有快照：同样渲染单版本入口并展开", async () => {
+    render(
+      <ToastProvider>
+        <DeliverablesPanel
+          items={[{ path: "docs/成本测算.xlsx", sourceId: "a1" }]}
+          onOpenFile={() => {}}
+        />
+      </ToastProvider>,
+    );
+    const entry = await screen.findByTitle("有版本历史（可预览/恢复）");
+    fireEvent.click(entry);
+    expect(await screen.findAllByTestId("version-timeline-row")).toHaveLength(1);
+    expect(screen.getByText("恢复会把该文件写回所选版本，当前内容成为新版本")).toBeTruthy();
+  });
+
+  it("无快照（journal 无该路径）：不渲染时间线入口（有快照的行正常渲染）", async () => {
+    render(
+      <ToastProvider>
+        <DeliverablesPanel
+          items={[
+            { path: "docs/成本测算.xlsx", sourceId: "a1", versions: 1 },
+            { path: "exports/无快照.docx", sourceId: "a2", versions: 1 },
+          ]}
+          onOpenFile={() => {}}
+        />
+      </ToastProvider>,
+    );
+    // 等 journal 就绪（有快照行出现入口）后再断言：入口仅 1 个，无快照行不渲染
+    await screen.findByTitle("有版本历史（可预览/恢复）");
+    expect(screen.getAllByTitle("有版本历史（可预览/恢复）")).toHaveLength(1);
+    const noSnapshotRow = screen.getByText("无快照.docx").closest(".group");
+    expect(noSnapshotRow).not.toBeNull();
+    expect(noSnapshotRow!.querySelector('button[title="有版本历史（可预览/恢复）"]')).toBeNull();
+    expect(screen.getByText("成本测算.xlsx")).toBeTruthy();
+  });
+});
+
 // ── v4.8 Verifier 产品化：证据链「三步展开」（卡面 → 声明↔实况 diff → 操作回放）──
 // 证据数据来自 mock GaeaJournalList / VerifyRecord / RollbackRecord（office.ts），
 // 实况预览来自 mock Preview 的 MOCK_XLSX_BODY（预算!B2=120.50、B4 公式 SUM(B2:B3)）。

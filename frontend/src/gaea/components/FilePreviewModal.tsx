@@ -5,6 +5,7 @@ import { usePreviewStore } from "../lib/store";
 import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
 import { Markdown } from "./Markdown";
+import { PptxOutline } from "./PptxOutline";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
 import { useToast } from "./Toast";
 import { XlsxPreview } from "./XlsxPreview";
@@ -22,8 +23,9 @@ const KIND_LABEL: Record<PreviewResult["kind"], string> = {
   image: "图片",
   docx: "Word 文档",
   xlsx: "Excel 表格",
-  // v4.28 B2：.pptx → soffice PDF 逐页预览（FilePreview 内有完整渲染；
-  // 弹窗路径暂以标签呈现，预览卡回退「外部打开」）
+  // v4.31 B：弹窗 pdf 分支已补齐逐页预览（收 v4.28 欠账）——pages 逐页
+  // 缩略 + PptxOutline 大纲卡 + 页锚点滚动 + 「针对第 N 页修改」composer 插入，
+  // 渲染结构与 FilePreview（v4.28 B2）一致；标签保持「演示文稿」。
   pdf: "演示文稿",
   markdown: "文档",
   text: "文本",
@@ -38,6 +40,9 @@ export function FilePreviewModal() {
   const ocrProgress = usePreviewProgress(previewFile);
   const [loadKey, setLoadKey] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
+  // v4.31 B：弹窗 pdf（.pptx → soffice PDF）逐页预览的页图容器——
+  // 大纲卡条目按 data-pptx-page 锚点滚动（与 FilePreview v4.28 B2 同机制）。
+  const pptxPagesRef = useRef<HTMLDivElement | null>(null);
   const [exportingPdf, setExportingPdf] = useState(false);
   const toast = useToast();
 
@@ -85,6 +90,13 @@ export function FilePreviewModal() {
   const reveal = useCallback(() => {
     if (previewFile) app.RevealWorkspacePath(previewFile).catch(() => {});
   }, [previewFile]);
+
+  // v4.31 B：点大纲页条目 → 滚动到逐页渲染区的对应页锚点
+  //（jsdom 无 scrollIntoView，可选调用守卫；测试里注入 spy 验证。）
+  const scrollToPptxPage = useCallback((page: number) => {
+    const el = pptxPagesRef.current?.querySelector<HTMLElement>(`[data-pptx-page="${page}"]`);
+    el?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, []);
 
   // 导出 PDF：LibreOffice 无头转换，产物入 .gaea/exports/ 并直接打开预览
   const exportPdf = useCallback(async () => {
@@ -217,6 +229,41 @@ export function FilePreviewModal() {
 
           {!loading && preview?.kind === "xlsx" && (
             <XlsxPreview body={preview.body} fileName={name} relPath={previewFile} />
+          )}
+
+          {!loading && preview?.kind === "pdf" && (
+            // v4.31 B：弹窗补齐 pdf 逐页预览（收 v4.28 欠账），渲染结构与
+            // FilePreview kind=pdf 分支一致：pages 有值纵向铺页（data-pptx-page
+            // 锚点供大纲卡滚动），否则回退 dataUrl 整本内嵌；右侧叠 PptxOutline
+            // 大纲卡（「针对第 N 页修改」composer 插入由该组件内部完成）。
+            // 页数上限沿用后端语义（GaeaPreview 已截断 ≤60 页）；弹窗滚动容器
+            // 自管理，不做虚拟化。
+            <div className="flex h-full min-h-0">
+              <div ref={pptxPagesRef} className="flex-1 min-w-0 overflow-auto px-4 py-3" data-testid="pptx-pages">
+                {preview.pages && preview.pages.length > 0 ? (
+                  preview.pages.map((p) => (
+                    <figure key={p.page} data-pptx-page={p.page} className="mb-4">
+                      <img
+                        src={p.dataUrl}
+                        alt={`第 ${p.page} 页`}
+                        className="w-full rounded-lg border border-border-soft shadow-sm bg-bg"
+                      />
+                      <figcaption className="mt-1 text-center text-[10px] text-fg-faint">第 {p.page} 页</figcaption>
+                    </figure>
+                  ))
+                ) : preview.dataUrl ? (
+                  <embed src={preview.dataUrl} type="application/pdf" title="PDF 预览" className="w-full h-full min-h-[60vh]" />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full gap-3 text-fg-faint text-[13px]">
+                    <AlertCircle size={26} className="text-amber-500/60" />
+                    <span>无可渲染的页面内容，可让 AI 调用 summarize_file 获取内容摘要。</span>
+                  </div>
+                )}
+              </div>
+              {(preview.hint === "outline" || preview.ext === ".pptx") && (
+                <PptxOutline relPath={previewFile} fileName={name} onPageSelect={scrollToPptxPage} />
+              )}
+            </div>
           )}
 
           {!loading && preview?.kind === "markdown" && (

@@ -757,9 +757,23 @@ func TestCancelUnknownAndTerminalErrors(t *testing.T) {
 }
 
 // ③ 并发竞态压力：大量提交+取消并发执行，Cancel 成功的任务终态必须为 cancelled。
+// v4.31 线 D 根治：
+//   - 等待改为事件驱动——markTerminal 先落库后同步 emit，收到全部任务的终态
+//     事件即证明 DB 已终态，不再依赖固定 10s 墙钟轮询（全量负载下偶发超时的
+//     flaky 源）；30s 上限为纯兜底（50 个 5ms 级任务即使放慢百倍也远够）。
+//   - 断言只检查最终稳定态（Cancel 成功 ⇒ 终态 cancelled），不锁死 stopping
+//     等中间瞬态；取消未命中（Cancel 返回错误）的任务不纳入断言。
 func TestCancelConcurrentStress(t *testing.T) {
 	db := openTestDB(t)
-	m := New(db, nil, Options{MaxConcurrent: 4, MaxRetries: 0, BackoffBase: 5 * time.Millisecond})
+	// 终态事件通知：markTerminal 落库后同步触发 emit，事件到达时该任务已终态。
+	terminal := make(chan struct{}, 50)
+	col := &eventCollector{}
+	m := New(db, func(tk Task) {
+		col.add(tk)
+		if isTerminal(tk.Status) {
+			terminal <- struct{}{}
+		}
+	}, Options{MaxConcurrent: 4, MaxRetries: 0, BackoffBase: 5 * time.Millisecond})
 	m.Register(KindPriceFetch, func(ctx context.Context, tk *Task, p *Progress) error {
 		select {
 		case <-ctx.Done():
@@ -775,6 +789,8 @@ func TestCancelConcurrentStress(t *testing.T) {
 
 	var mu sync.Mutex
 	cancelled := map[string]bool{}
+	var allIDs []string // 提交成功的任务（终态一致性断言用）
+	var submitted int32
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
@@ -784,6 +800,10 @@ func TestCancelConcurrentStress(t *testing.T) {
 			if err != nil {
 				return
 			}
+			atomic.AddInt32(&submitted, 1)
+			mu.Lock()
+			allIDs = append(allIDs, tk.ID)
+			mu.Unlock()
 			if i%2 == 0 {
 				if m.Cancel(tk.ID) == nil {
 					mu.Lock()
@@ -795,31 +815,44 @@ func TestCancelConcurrentStress(t *testing.T) {
 	}
 	wg.Wait()
 
-	// 等所有任务到达终态（stopping 是非终态：取消请求后仍等待 handler 退出）
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		var pending int
-		if err := db.QueryRow(`SELECT COUNT(*) FROM tasks WHERE status IN ('queued','running','stopping')`).Scan(&pending); err != nil {
-			t.Fatalf("查询未终态数: %v", err)
+	// 事件驱动等待全部已提交任务到达终态（每个任务恰好一个终态事件）。
+	n := int(atomic.LoadInt32(&submitted))
+	deadline := time.Now().Add(30 * time.Second)
+	for i := 0; i < n; i++ {
+		select {
+		case <-terminal:
+		case <-time.After(time.Until(deadline)):
+			t.Fatalf("任务未在 30s 内全部到达终态（已收 %d/%d 个终态事件）", i, n)
 		}
-		if pending == 0 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("仍有 %d 个任务未达终态", pending)
-		}
-		time.Sleep(10 * time.Millisecond)
 	}
 
 	mu.Lock()
 	defer mu.Unlock()
-	for id := range cancelled {
+	if len(cancelled) == 0 {
+		t.Fatal("压力场景应至少有一个 Cancel 成功的任务")
+	}
+	if len(allIDs) != n {
+		t.Fatalf("提交成功任务数不一致：记录 %d，计数 %d", len(allIDs), n)
+	}
+	// 终态事件不重不漏：每个任务恰好一个终态事件。
+	if got := col.countStatus(string(StatusSucceeded)) + col.countStatus(string(StatusCancelled)) + col.countStatus(string(StatusFailed)); got != n {
+		t.Fatalf("终态事件数应为 %d（每任务恰好一个），实际 %d", n, got)
+	}
+	// 终态一致性（修复后确定性成立）：
+	//   - Cancel 成功（入 cancelled 表）⇒ 终态 cancelled（v4.8.2 回归锁）；
+	//   - 取消未命中 ⇒ handler 未被中断（ctx 仅由 Cancel 成功路径取消），
+	//     终态必为 succeeded。
+	for _, id := range allIDs {
 		tk, err := m.Get(id)
 		if err != nil {
 			t.Fatalf("get %s: %v", id, err)
 		}
-		if tk.Status != string(StatusCancelled) {
-			t.Fatalf("Cancel 成功的任务 %s 终态应为 cancelled，实际 %s", id, tk.Status)
+		if cancelled[id] {
+			if tk.Status != string(StatusCancelled) {
+				t.Fatalf("Cancel 成功的任务 %s 终态应为 cancelled，实际 %s", id, tk.Status)
+			}
+		} else if tk.Status != string(StatusSucceeded) {
+			t.Fatalf("未取消的任务 %s 终态应为 succeeded，实际 %s", id, tk.Status)
 		}
 	}
 }

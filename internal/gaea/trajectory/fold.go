@@ -101,6 +101,12 @@ func (f *folding) apply(e session.LogEntry) {
 		f.applySubagentMessage(e)
 	case "turn_done":
 		if f.cur != nil {
+			// v4.31 轮级耗时：turn_done.Ts − turn_started.Ts（秒）×1000（ms，
+			// 与 Record.DurationMs 同换算先例）；Ts ≤ StartedAt（时钟异常）
+			// 保持 0，omitempty 序列化省略——历史轮读盘折叠自带耗时。
+			if e.Ts > f.cur.StartedAt {
+				f.cur.DurationMs = (e.Ts - f.cur.StartedAt) * 1000
+			}
 			f.cur.End = &TurnEnd{Seq: e.Seq, Ts: e.Ts, Err: payloadTurnErr(e)}
 			f.turns = append(f.turns, *f.cur)
 			f.cur = nil

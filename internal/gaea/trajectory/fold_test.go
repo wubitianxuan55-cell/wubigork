@@ -294,3 +294,78 @@ func TestFoldSubagentMessage(t *testing.T) {
 		t.Fatalf("subagent 记录字段错误: %+v", sub.Subagent)
 	}
 }
+
+// TestFoldTurnDuration v4.31 轮级耗时（收 v4.26 欠账：WorkHeader 历史轮无
+// 耗时数据源）：turn_done.Ts − turn_started.Ts（秒）×1000 → ms（对齐
+// Record.DurationMs 换算先例）。turn_done 缺失（悬挂轮）与时钟异常
+// （Ts ≤ StartedAt）DurationMs 保持 0（omitempty 序列化省略）。
+func TestFoldTurnDuration(t *testing.T) {
+	entryTs := func(seq, ts int64, kind string, payload any) session.LogEntry {
+		b, _ := json.Marshal(payload)
+		return session.LogEntry{Seq: seq, Ts: ts, Kind: kind, Payload: b}
+	}
+	// turn_started(ts=100) → 若干记录 → turn_done(ts=130)：耗时 30s = 30000ms
+	tl := FoldTrajectory([]session.LogEntry{
+		entryTs(1, 100, "turn_started", map[string]any{}),
+		entryTs(2, 105, "user_message", map[string]any{"content": "hi"}),
+		entryTs(3, 120, "tool_dispatch", map[string]any{"id": "t1", "name": "bash", "args": "echo hi"}),
+		entryTs(4, 130, "turn_done", map[string]any{"err": ""}),
+	})
+	if len(tl.Turns) != 1 {
+		t.Fatalf("turns = %d, want 1", len(tl.Turns))
+	}
+	if tl.Turns[0].DurationMs != 30000 {
+		t.Fatalf("turn durationMs = %d, want 30000", tl.Turns[0].DurationMs)
+	}
+	// 悬挂轮（无 turn_done）：DurationMs 保持 0
+	tl = FoldTrajectory([]session.LogEntry{
+		entryTs(1, 100, "turn_started", map[string]any{}),
+		entryTs(2, 105, "user_message", map[string]any{"content": "hi"}),
+	})
+	if len(tl.Turns) != 1 {
+		t.Fatalf("hanging turns = %d, want 1", len(tl.Turns))
+	}
+	if tl.Turns[0].DurationMs != 0 {
+		t.Fatalf("hanging turn durationMs = %d, want 0", tl.Turns[0].DurationMs)
+	}
+	// turn_done 不晚于 turn_started（时钟异常）：不产生负数耗时，保持 0
+	tl = FoldTrajectory([]session.LogEntry{
+		entryTs(1, 200, "turn_started", map[string]any{}),
+		entryTs(2, 150, "turn_done", map[string]any{"err": ""}),
+	})
+	if tl.Turns[0].DurationMs != 0 {
+		t.Fatalf("backdated turn durationMs = %d, want 0", tl.Turns[0].DurationMs)
+	}
+}
+
+// TestFoldTurnDurationOmitEmpty 轮级耗时是 omitempty 可选字段：completed 轮
+// 带 durationMs，悬挂轮不带——既有消费方（字段级断言）与 JSON 形状均不受
+// 影响（golden 逐字节不变；无轮级耗时的旧断言序列化形状保持原样）。
+func TestFoldTurnDurationOmitEmpty(t *testing.T) {
+	entryTs := func(seq, ts int64, kind string, payload any) session.LogEntry {
+		b, _ := json.Marshal(payload)
+		return session.LogEntry{Seq: seq, Ts: ts, Kind: kind, Payload: b}
+	}
+	completed := FoldTrajectory([]session.LogEntry{
+		entryTs(1, 100, "turn_started", map[string]any{}),
+		entryTs(2, 110, "turn_done", map[string]any{"err": ""}),
+	})
+	b, err := json.Marshal(completed)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"durationMs":10000`) {
+		t.Fatalf("completed turn should carry durationMs: %s", b)
+	}
+	hanging := FoldTrajectory([]session.LogEntry{
+		entryTs(1, 100, "turn_started", map[string]any{}),
+		entryTs(2, 110, "user_message", map[string]any{"content": "hi"}),
+	})
+	b, err = json.Marshal(hanging)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(b), "durationMs") {
+		t.Fatalf("hanging turn must omit durationMs: %s", b)
+	}
+}

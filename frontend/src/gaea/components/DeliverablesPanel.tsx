@@ -50,6 +50,8 @@ const iconBtn =
 // 外部打开 / 定位 / 复制路径 / 沉淀成本库；预览内编辑过的文件显示「已更新」徽标。
 // v4.28 B1 版本时间线：vN 次数徽标可点，展开该文件的逐版本列表（预览/恢复，
 // 数据为挂载时自拉的 JournalList(200)，见 VersionTimeline）。
+// v4.31 A1 单版本入口：versions≤1 但有 journal 快照的产物同样渲染「版本」入口
+// 徽标（收 v4.28 欠账「B1 单版本无入口」）；无快照记录不渲染，保持空态。
 // v3「星枢」面板语言：v3-panel-head 细条头部 + 低边框 hover 高亮行。
 export const DeliverablesPanel = memo(function DeliverablesPanel({
   items,
@@ -347,6 +349,10 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
             const fresh = freshPaths?.includes(path) ?? false;
             // v4.28 B1：时间线展开 key 用归一化路径（与 JournalList target 对齐）
             const normPath = normalizeVersionPath(path);
+            // v4.31 A1：单版本入口——versions≤1 但该路径在 journal 分组（由
+            // GaeaJournalList(200) 折叠、只留有 baselinePath 的卡）中存在条目时，
+            // 同样渲染时间线入口徽标（收 v4.28 欠账「单版本无入口」）。
+            const journalEntry = groupedVersions.has(normPath);
             const timelineOpen = timelinePath === normPath;
             return (
               <Fragment key={path}>
@@ -408,13 +414,16 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                   </button>
                   {/* v4.28 B1：vN 次数徽标改为可点按钮——点开内联版本时间线
                       （逐版本列表 + 预览 + 恢复）；作为名称按钮的兄弟节点避免
-                      button 嵌套。展开时徽标加浓提示当前处于时间线视图。 */}
-                  {rev && (
+                      button 嵌套。展开时徽标加浓提示当前处于时间线视图。
+                      v4.31 A1：versions≤1 但有 journal 快照的产物同样渲染
+                      「版本」入口徽标（收 v4.28 欠账「单版本无入口」），title
+                      措辞区分「更新 N 次」与「有版本历史」两种语义。 */}
+                  {(rev || journalEntry) && (
                     <button
                       type="button"
                       onClick={() => setTimelinePath((cur) => (cur === normPath ? null : normPath))}
                       aria-expanded={timelineOpen}
-                      title={`会话内更新了 ${rev} 次（产物版本时间线）`}
+                      title={rev ? `会话内更新了 ${rev} 次（产物版本时间线）` : "有版本历史（可预览/恢复）"}
                       aria-label={`查看 ${baseName(path)} 的版本时间线`}
                       className="shrink-0 inline-flex cursor-pointer items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] leading-none font-mono transition-colors"
                       style={{
@@ -426,7 +435,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       }}
                     >
                       <Rollback size={8} aria-hidden />
-                      v{rev}
+                      {rev ? `v${rev}` : "版本"}
                     </button>
                   )}
                   <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">

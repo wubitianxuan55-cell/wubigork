@@ -1,11 +1,44 @@
 # 任务进度
 
-> 最后更新: 2026-09-02（v4.30.0「办公 UI 化繁为简 · 第二刀」：产物置前/行级降噪/
-> 命令面板视图重排/预览两档——绑定面 552 零变更）
+> 最后更新: 2026-09-02（v4.31.0「细节收口 · 四线并行」：单版本入口/弹窗 pdf 预览/历史轮
+> 耗时/tasks 竞态根治——绑定面 552 零变更）
 
 ## 当前状态
 
-- **最新发布：v4.30.0（2026-09-02）「办公 UI 化繁为简 · 第二刀：产物置前/行级降噪/
+- **最新发布：v4.31.0（2026-09-02）「细节收口 · 四线并行：单版本入口/弹窗 pdf 预览/历史轮
+  耗时/tasks 竞态根治」**：git tag v4.31.0；基线 v4.30.0；绑定面 **552 零变更**（结构字段
+  级，零新增绑定）。用户点名「开始，并行使用子代理」——从欠账池挑四条互不相交的线（文件
+  足迹互斥），四并行子代理分线实现 + 主代理集成收口（v4.25/28 同款工作流）：
+  ①**产物版本时间线单版本入口**（线 A，收 v4.28 B1 欠账）：徽标条件 `{rev && …}` 放宽为
+  `{(rev || journalEntry) && …}`——versions>1 按现状 vN 徽标（旧锁不破），versions≤1 但有
+  journal baselinePath 快照的产物渲染「版本」入口徽标（title 区分「更新 N 次」/「有版本
+  历史」），无快照保持空态；VersionTimeline 本体零改动。测试 30→33。
+  ②**FilePreviewModal pdf/pptx 逐页预览**（线 B，收 v4.28 欠账）：方案 b 弹窗内内联
+  （**FilePreview.tsx 本体零改动**）——kind=pdf 分支逐页缩略（data-pptx-page 锚点）+dataUrl
+  整本回退+诚实空态+PptxOutline 大纲卡（页锚点滚动/「针对第 N 页修改」composer 插入）；
+  非 pdf 分支逐字节未动。测试 7→10。
+  ③**轨迹历史轮耗时**（线 C，收 v4.26 欠账）：后端 Turn.DurationMs（fold turn_done 分支
+  Ts>StartedAt 时 =(Ts−StartedAt)×1000，omitempty 向后兼容，golden 逐字节不变）+前端
+  TrajectoryTurn.durationMs+TrajectoryView 轮次头「用时 Ns」（复用 formatElapsed，仅
+  turn.end&&durationMs 时显示）；零新增绑定（GaeaTrajectory 返回 struct 字段级）。测试
+  Go+2、前端+3。WorkHeader 消费历史轮耗时不可行（只吃实时 store 无 trajectory 数据源），
+  已跳过记欠账。
+  ④**TestCancelConcurrentStress flaky 根治（线 D，实现层真竞态）**：根因=pickNext 不做
+  任务级预留→同一 queued 任务多 worker 同时 execute；claim 落选者无条件 unregisterCancel
+  删 cancels+cancelReq（用户取消意图）→Cancel 已成功返回的任务终态被 succeeded 吞掉
+  （v4.8.2 回归锁违背，探针轨迹恒 [queued running stopping succeeded] 实锤）。修复=tasks.go
+  新 clearStaleCancel（只清残留预注册、**绝不删 cancelReq**，m.mu 下查状态仍
+  running/stopping 归胜者不动）+claim 成功后胜者重登记 cancel；测试改事件驱动等待（50 终态
+  事件到齐），断言不削弱（Cancel==nil ⇒ cancelled + 至少一个 Cancel 成功防空转）。验证
+  -count=20/100 全绿。
+  **验证**：Go build/vet/test 全量 0 FAIL；tsc/tsc -b/eslint 0；vitest **1166/1166**（+9：
+  A3+B3+C3，未删改旧锁）；drift PASS（552）；版本四处 4.31.0。**欠账**：WorkHeader 历史轮
+  耗时未消费；弹窗 pdf 不虚拟化；单版本「版本」徽标静态文案；tasks -count>1 既有全局注册表
+  duplicate kind 与 whisper 超时沿旧；沿旧 v4.28（A2 帧流/接管、B2 pptx 真编辑、子代理气泡
+  恢复暂缺/中途进度不回投）+v4.30（预览最大化持久化、产物自动弹 tab）。详见
+  releases/v4.31.0.md。
+
+- **上一发布：v4.30.0（2026-09-02）「办公 UI 化繁为简 · 第二刀：产物置前/行级降噪/
   命令面板视图重排/预览两档」**：git tag v4.30.0；基线 v4.29.0；绑定面 **552 零变更**
   （纯前端呈现重组）。用户点名「继续优化完善 gaea」——从 v4.29.0 欠账清单收齐四项，
   红线不变（**简化≠删除功能**，被隐藏的信息全部有确定性寻回路径：title/aria/悬停/激活

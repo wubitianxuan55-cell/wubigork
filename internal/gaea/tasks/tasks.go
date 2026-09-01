@@ -761,17 +761,31 @@ func (m *Manager) execute(t *Task) {
 
 	claimed, err := m.claimQueued(t.ID)
 	if err != nil {
-		m.unregisterCancel(t.ID)
+		// 领取失败：任务未被任何人认领（仍 queued）。只清理本 worker 的预注册
+		// 残留；绝不删除 cancelReq——用户取消意图须由最终执行该任务的 worker
+		// 消费，否则 Cancel 已成功返回的任务可能被 succeeded 吞掉。
+		m.clearStaleCancel(t.ID)
 		cancel()
 		slog.Warn("tasks: 领取任务失败", "id", t.ID, "error", err)
 		return
 	}
 	if !claimed {
-		// 已被并发 Cancel（或其它 worker）消费
-		m.unregisterCancel(t.ID)
+		// 已被并发 worker 或 Cancel 消费。这里绝不能调用 unregisterCancel：
+		// pickNext 不做任务级预留，同一 queued 任务可能被多个 worker 同时
+		// execute，落选者若无条件清除 cancels/cancelReq，会把胜者 worker 的
+		// 取消登记与用户取消意图一起删掉——Cancel 已成功返回（终态承诺
+		// cancelled）的任务会因 handler 返回 nil 被 succeeded 吞掉
+		// （TestCancelConcurrentStress 实测竞态，v4.8.2 修复的回归锁）。
+		// 只清理确属残留的预注册，并只释放本地 ctx。
+		m.clearStaleCancel(t.ID)
 		cancel()
 		return
 	}
+	// 认领成功：本 worker 是任务的唯一执行者，重新登记自己的 cancel 覆盖并发
+	// 落选 worker 的预注册，保证 Cancel 命中的是真正执行 handler 的 ctx。
+	m.mu.Lock()
+	m.cancels[t.ID] = cancel
+	m.mu.Unlock()
 	t.Status = string(StatusRunning)
 	t.StartedAt = nowMillis()
 	m.emitView(t)
@@ -846,6 +860,28 @@ func (m *Manager) unregisterCancel(id string) {
 	delete(m.cancels, id)
 	delete(m.cancelReq, id)
 	m.mu.Unlock()
+}
+
+// clearStaleCancel 清理本 worker 对某任务的预注册残留，但仅当任务已无执行者时：
+// 任务仍 running/stopping 说明有胜者 worker 在跑，其取消登记与 cancelReq 归
+// 胜者所有，不得触碰（误删会让 Cancel 已成功返回的任务被 succeeded 吞掉，
+// TestCancelConcurrentStress 实测竞态）；任务已终态/仍 queued 时本注册是残留
+// （无胜者会来清理），删除之避免泄漏与「取消已结束任务」误判。
+// 无论何种情况都绝不删除 cancelReq。
+func (m *Manager) clearStaleCancel(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.cancels[id]; !ok {
+		return
+	}
+	st, err := m.Get(id)
+	if err != nil || st == nil {
+		return
+	}
+	if st.Status == string(StatusRunning) || st.Status == string(StatusStopping) {
+		return // 有执行者：注册归其所有
+	}
+	delete(m.cancels, id)
 }
 
 // handlerPanicError 标记 handler 内部 panic（区别于普通业务错误，不参与退避重试）。

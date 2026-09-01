@@ -16,8 +16,13 @@ type Trajectory struct {
 type Turn struct {
 	Turn      int      `json:"turn"`
 	StartedAt int64    `json:"startedAt,omitempty"`
-	End       *TurnEnd `json:"end,omitempty"`
-	Records   []Record `json:"records"`
+	// DurationMs 是轮级耗时（ms）= turn_done.Ts − turn_started.Ts 再 ×1000，
+	// 对齐 Record.DurationMs 的换算与命名（日志 Ts 为 unix 秒）。仅 turn_done
+	// 到达且 Ts > StartedAt 时计算；悬挂轮/时钟异常保持 0，omitempty 省略——
+	// v4.26 WorkHeader「历史轮无耗时数据源」欠账：历史轮读盘折叠自带耗时。
+	DurationMs int64    `json:"durationMs,omitempty"`
+	End        *TurnEnd `json:"end,omitempty"`
+	Records    []Record `json:"records"`
 }
 
 // EmptyTrajectory 返回全空轨迹（会话/日志不存在时绑定层的早退返回值）。

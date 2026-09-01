@@ -7,6 +7,7 @@ import type {
   TrajectorySubagentRec, TrajectoryToolRec, TrajectoryTurn,
 } from "../lib/types";
 import { fmtTokens } from "../lib/stats";
+import { formatElapsed } from "../lib/time";
 import { useLiveReload } from "../hooks/useLiveReload";
 
 // TrajectoryView.tsx — 轨迹事件账本（Why：长会话需按时间序审计每次请求/调用/
@@ -252,6 +253,11 @@ function TurnHeader({ turn, shown, open, onToggle }: {
         {open ? <ChevronDown size={12} className="text-fg-faint" /> : <ChevronRight size={12} className="text-fg-faint" />}
         <span className="text-[10px] font-semibold text-fg uppercase tracking-wider">第{turn.turn}轮</span>
         <span className="text-[9px] text-fg-faint tabular-nums font-mono">{fmtTime(turn.startedAt)}</span>
+        {/* v4.31 轮级耗时：仅轮结束时（end 存在）且有 durationMs 才展示——
+            当前 running 轮（无 end）维持现状不显示；旧后端无该字段也跳过。 */}
+        {turn.end && turn.durationMs ? (
+          <span className="text-[9px] text-fg-faint tabular-nums font-mono">用时 {formatElapsed(turn.durationMs / 1000)}</span>
+        ) : null}
         {turn.end?.err && <span className="rounded bg-err/15 px-1 text-[9px] text-err">错误</span>}
         <span className="ml-auto text-[9px] text-fg-faint tabular-nums">{shown} 条记录</span>
       </button>

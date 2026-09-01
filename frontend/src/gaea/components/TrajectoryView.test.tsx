@@ -225,3 +225,70 @@ describe("TrajectoryView 子代理答复记录", () => {
     expect(screen.queryByText(/帮我调研配置分布/)).toBeNull();
   });
 });
+
+// ── v4.31 轮级耗时（收 v4.26 欠账：历史轮无耗时数据源）──────────
+// 后端 turn_done 分支计算 DurationMs=(done.Ts−started.Ts)×1000，omitempty
+// 下发；轮次头仅在 end 存在且 durationMs 有值（>0）时显示「用时 Ns」，
+// 复用 v4.26 WorkHeader 同款 formatElapsed（<60s → "30s"，≥60 → "1m40s"）。
+describe("TrajectoryView 轮次头耗时", () => {
+  const LOAD = { timeout: 5000 };
+
+  it("end 存在 + durationMs → 轮次头显示「用时 …」", async () => {
+    // startedAt 1750000000 → end.ts 1750000030：30s → durationMs 30000 → 「用时 30s」
+    trajectoryMock.mockResolvedValue({
+      ok: true,
+      turns: [
+        {
+          turn: 1,
+          startedAt: 1750000000,
+          end: { seq: 30, ts: 1750000030 },
+          durationMs: 30000,
+          records: [{ seq: 2, kind: "user", ts: 1750000001, user: { text: "hi" } }],
+        },
+      ],
+    } as Trajectory);
+    const { TrajectoryView } = await import("./TrajectoryView");
+    render(<TrajectoryView running={false} />);
+    expect(await screen.findByText(/用时 30s/, undefined, LOAD)).toBeTruthy();
+  });
+
+  it("≥60s 显示 M 分 N 秒（formatElapsed 口径：1m40s）", async () => {
+    trajectoryMock.mockResolvedValue({
+      ok: true,
+      turns: [
+        {
+          turn: 1,
+          startedAt: 1750000000,
+          end: { seq: 30, ts: 1750000100 },
+          durationMs: 100000,
+          records: [{ seq: 2, kind: "user", ts: 1750000001, user: { text: "hi" } }],
+        },
+      ],
+    } as Trajectory);
+    const { TrajectoryView } = await import("./TrajectoryView");
+    render(<TrajectoryView running={false} />);
+    expect(await screen.findByText(/用时 1m40s/, undefined, LOAD)).toBeTruthy();
+  });
+
+  it("无 end（运行中轮）或不带 durationMs（旧后端）不显示用时", async () => {
+    trajectoryMock.mockResolvedValue({
+      ok: true,
+      turns: [
+        // 轮 1：运行中——turn_started 已折叠、无 turn_done → 无 end、无 durationMs
+        { turn: 1, startedAt: 1750000000, records: [{ seq: 2, kind: "user", ts: 1750000001, user: { text: "运行中" } }] },
+        // 轮 2：end 存在但旧后端未下发 durationMs → 缺省不显示
+        {
+          turn: 2,
+          startedAt: 1750000100,
+          end: { seq: 20, ts: 1750000110 },
+          records: [{ seq: 11, kind: "user", ts: 1750000101, user: { text: "旧数据" } }],
+        },
+      ],
+    } as Trajectory);
+    const { TrajectoryView } = await import("./TrajectoryView");
+    render(<TrajectoryView running={false} />);
+    await screen.findByText("第1轮", undefined, LOAD);
+    expect(screen.getByText("第2轮")).toBeTruthy();
+    expect(screen.queryByText(/用时/)).toBeNull();
+  });
+});
