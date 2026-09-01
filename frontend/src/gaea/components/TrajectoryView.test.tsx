@@ -150,3 +150,78 @@ describe("TrajectoryView 轨迹事件账本", () => {
     expect(await screen.findByText(/第6轮第50条/, undefined, LOAD)).toBeTruthy();
   }, 15000);
 });
+
+// ── v4.28 子代理答复记录（kind="subagent"）：折叠弱存在感行 + 点击展开全文 ──
+describe("TrajectoryView 子代理答复记录", () => {
+  const LOAD = { timeout: 5000 };
+
+  // 一条带 ref/parentId（task 派生的正式子代理）、一条无 ref（临时子代理容错）。
+  const SUBAGENT_TRAJECTORY: Trajectory = {
+    ok: true,
+    turns: [
+      {
+        turn: 1,
+        startedAt: 1750000000,
+        end: { seq: 40, ts: 1750000100 },
+        records: [
+          { seq: 2, kind: "user", ts: 1750000001, user: { text: "帮我调研配置分布" } },
+          {
+            seq: 10, kind: "subagent", ts: 1750000005,
+            subagent: { ref: "subagent:run-7f3a", text: "调研完成：配置集中在 internal/gaea/config，共 3 处入口。", parentId: "task-call-9" },
+          },
+          {
+            seq: 11, kind: "subagent", ts: 1750000006,
+            subagent: { text: "第二轮检查完毕：无遗漏文件。" },
+          },
+        ],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    trajectoryMock.mockReset();
+    trajectoryMock.mockResolvedValue(SUBAGENT_TRAJECTORY);
+  });
+
+  it("折叠行渲染「子代理」徽标 + 答复摘要 + ref，默认不展开详情", async () => {
+    const { TrajectoryView } = await import("./TrajectoryView");
+    render(<TrajectoryView running={false} />);
+    // 两条 subagent 记录各一个徽标
+    expect((await screen.findAllByText("子代理", undefined, LOAD)).length).toBe(2);
+    expect(screen.getByText(/调研完成：配置集中在 internal\/gaea\/config，共 3 处入口。 · subagent:run-7f3a/)).toBeTruthy();
+    expect(screen.getByText(/第二轮检查完毕：无遗漏文件。/)).toBeTruthy(); // 无 ref 摘要后缀留空
+    // 折叠态：详情区（ref:/parentId: 元信息）不渲染
+    expect(screen.queryByText(/ref: subagent:run-7f3a/)).toBeNull();
+    expect(screen.queryByText(/parentId: task-call-9/)).toBeNull();
+  });
+
+  it("点击展开显示完整答复 + ref/parentId", async () => {
+    const { TrajectoryView } = await import("./TrajectoryView");
+    render(<TrajectoryView running={false} />);
+    fireEvent.click(await screen.findByRole("button", { name: /调研完成/ }, LOAD));
+    // 详情区元信息 + 全文 pre（与折叠摘要行各一份，共 2 处命中）
+    expect(await screen.findByText("ref: subagent:run-7f3a", undefined, LOAD)).toBeTruthy();
+    expect(screen.getByText("parentId: task-call-9")).toBeTruthy();
+    expect(screen.getAllByText(/共 3 处入口/).length).toBe(2);
+  });
+
+  it("无 ref/parentId（临时子代理）容错：展开只显示全文不炸", async () => {
+    const { TrajectoryView } = await import("./TrajectoryView");
+    render(<TrajectoryView running={false} />);
+    fireEvent.click(await screen.findByRole("button", { name: /第二轮检查完毕/ }, LOAD));
+    // 无 ref/parentId：详情区不渲染元信息行，全文与摘要同文（2 处命中）
+    await screen.findAllByText(/第二轮检查完毕：无遗漏文件。/, undefined, LOAD);
+    expect(screen.getAllByText(/第二轮检查完毕：无遗漏文件。/).length).toBe(2);
+    expect(screen.queryByText(/^ref: /)).toBeNull();
+    expect(screen.queryByText(/^parentId: /)).toBeNull();
+  });
+
+  it("搜索命中子代理答复文本", async () => {
+    const { TrajectoryView } = await import("./TrajectoryView");
+    render(<TrajectoryView running={false} />);
+    const input = await screen.findByPlaceholderText("搜索", undefined, LOAD);
+    fireEvent.change(input, { target: { value: "共 3 处入口" } });
+    expect(await screen.findByText(/调研完成/, undefined, LOAD)).toBeTruthy();
+    expect(screen.queryByText(/帮我调研配置分布/)).toBeNull();
+  });
+});

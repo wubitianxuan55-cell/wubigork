@@ -395,13 +395,23 @@ export function FileTree({
             if (e.isDir) {
               const isOpen = expanded[childPath] === true;
               const childLoading = data[childPath]?.loading === true && data[childPath]?.entries === undefined;
+              // v4.28：目录行也带 data-path 锚点 + 树中定位闪烁（sidebar_open
+              // directory → revealRequest 高亮目录行），闪烁样式与文件行同款；
+              // 展开箭头 / 目录菜单逻辑不变。
+              const isFlashed = flashPath === childPath;
               return (
                 <div key={childPath}>
                   <Dropdown trigger={["contextMenu"]} menu={dirMenu(childPath)}>
                     <div
                       role="button"
                       tabIndex={0}
-                      className="group w-full flex items-center gap-1 px-2 py-1 border-0 bg-transparent text-left cursor-pointer transition-colors hover:bg-bg-soft text-fg-dim"
+                      data-path={childPath}
+                      data-flash={isFlashed ? "true" : undefined}
+                      className={`group w-full flex items-center gap-1 px-2 py-1 border-0 bg-transparent text-left cursor-pointer transition-colors hover:bg-bg-soft ${
+                        isFlashed
+                          ? "bg-accent/25 text-accent" // 树中定位闪烁：REVEAL_FLASH_MS 后自动消退
+                          : "text-fg-dim"
+                      }`}
                       style={{ paddingLeft: `${8 + depth * 14}px` }}
                       onClick={() => toggle(childPath)}
                       onKeyDown={(ev) => onRowKeyDown(ev, () => toggle(childPath))}

@@ -1,18 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Clock, Cpu, Eye, MessageSquare, Search, Shield, User, Wrench } from "../icons";
+import { Bot, ChevronDown, ChevronRight, Clock, Cpu, Eye, MessageSquare, Search, Shield, User, Wrench } from "../icons";
 import { app } from "../lib/bridge";
 import { List, useDynamicRowHeight, useListRef, type RowComponentProps } from "react-window";
 import type {
   Trajectory, TrajectoryAssistantRec, TrajectoryHeaderRec, TrajectoryRecord,
-  TrajectoryToolRec, TrajectoryTurn,
+  TrajectorySubagentRec, TrajectoryToolRec, TrajectoryTurn,
 } from "../lib/types";
 import { fmtTokens } from "../lib/stats";
 import { useLiveReload } from "../hooks/useLiveReload";
 
+// TrajectoryView.tsx — 轨迹事件账本（Why：长会话需按时间序审计每次请求/调用/
+// 答复，v4.26 起子代理最终答复以 kind="subagent" 记录折叠进回合，前端需与
+// 既有记录同视觉语言呈现；How：Trajectory() 拉取折叠记录 → 扁平行流（轮次头
+// +记录行）→ react-window 动态行高虚拟渲染，记录行折叠态单行摘要、点击展开
+// RecordInspector 看全文/参数/用量）。
+
 const EMPTY: Trajectory = { ok: true, turns: [] };
 
 function recordMatches(r: TrajectoryRecord, q: string): boolean {
-  const hay = [r.user?.text, r.assistant?.text, r.assistant?.reasoning, r.tool?.name, r.tool?.args, r.tool?.output, r.tool?.err, r.ask?.question, r.approval?.subject, r.compact?.summary].filter(Boolean).join("\n").toLowerCase();
+  const hay = [r.user?.text, r.assistant?.text, r.assistant?.reasoning, r.tool?.name, r.tool?.args, r.tool?.output, r.tool?.err, r.ask?.question, r.approval?.subject, r.compact?.summary, r.subagent?.text, r.subagent?.ref].filter(Boolean).join("\n").toLowerCase();
   return hay.includes(q);
 }
 
@@ -81,6 +87,7 @@ function KindBadge({ kind }: { kind: TrajectoryRecord["kind"] }) {
     header: { label: "REQUEST HEADER", cls: "bg-cyan-500/15 text-cyan-400" },
     compact: { label: "COMPACTION", cls: "bg-yellow-500/15 text-yellow-400" },
     user: { label: "用户", cls: "bg-emerald-500/15 text-emerald-400" },
+    subagent: { label: "子代理", cls: "bg-accent/15 text-accent" },
   };
   const m = map[kind];
   return <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold tracking-wide ${m.cls}`}>{m.label}</span>;
@@ -94,6 +101,7 @@ function KindIcon({ kind }: { kind: TrajectoryRecord["kind"] }) {
     case "approval": return <Shield size={12} className="text-amber-400" />;
     case "header": return <Cpu size={12} className="text-cyan-400" />;
     case "compact": return <Cpu size={12} className="text-yellow-400" />;
+    case "subagent": return <Bot size={12} className="text-accent" />;
     default: return <User size={12} className="text-emerald-400" />;
   }
 }
@@ -115,6 +123,7 @@ function RecordInspector({ record }: { record: TrajectoryRecord }) {
         <div className="text-fg-dim">{record.approval?.tool}{record.approval?.subject ? ` · ${record.approval.subject}` : ""}</div>
       )}
       {record.kind === "compact" && <div className="text-warning/90">{record.compact?.summary || record.compact?.trigger || "压缩"}</div>}
+      {record.kind === "subagent" && record.subagent && <SubagentDetail s={record.subagent} />}
     </div>
   );
 }
@@ -161,6 +170,19 @@ function ToolDetail({ t }: { t: TrajectoryToolRec }) {
   );
 }
 
+// SubagentDetail：子代理回投记录的展开详情——完整答复文本（后端展示级截断
+// 2000 rune，全文在会话日志）+ transcript 引用 + 父 task 调用 ID（有则显示，
+// 临时子代理无 ref 容错省略）。
+function SubagentDetail({ s }: { s: TrajectorySubagentRec }) {
+  return (
+    <div>
+      {s.ref && <div className="mt-1 text-[9px] text-fg-faint font-mono break-all">ref: {s.ref}</div>}
+      {s.parentId && <div className="mt-1 text-[9px] text-fg-faint font-mono">parentId: {s.parentId}</div>}
+      {s.text && <pre className="mt-1 rounded bg-bg p-1.5 text-[10px] text-fg whitespace-pre-wrap border-l-2 border-accent/40">{s.text}</pre>}
+    </div>
+  );
+}
+
 // ─── 单条记录行 ─────────────────────────────────────────────
 function RecordRow({ record }: { record: TrajectoryRecord }) {
   const [open, setOpen] = useState(false);
@@ -180,6 +202,8 @@ function RecordRow({ record }: { record: TrajectoryRecord }) {
       case "compact": return `${record.compact?.trigger || "manual"}${record.compact?.summary ? ` — ${record.compact.summary.slice(0, 60)}` : ""}`;
       case "ask": return record.ask?.question || "";
       case "approval": return `${record.approval?.tool || ""}${record.approval?.subject ? ` · ${record.approval.subject}` : ""}`;
+      // 子代理回投：折叠态弱存在感一行 = 答复文本（CSS truncate）+ ref（有则显示）
+      case "subagent": return `${record.subagent?.text || "（无答复文本）"}${record.subagent?.ref ? ` · ${record.subagent.ref}` : ""}`;
       default: return "";
     }
   }, [record]);

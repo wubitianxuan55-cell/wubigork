@@ -1,5 +1,20 @@
 # gaea · 多功能 AI 助手
 
+## v4.27.2 · 细节收口：subagent_message 端到端 / 轨迹子代理记录 / 目录定位（2026-09-01）
+> 细节打磨刀。**绑定面 550 零变更**。
+- **subagent_message 端到端收口**（v4.26 回投特性此前实际未通——后端发
+  kind=subagent_message、前端无消费整条被丢）：wire 层转译 kind="message"+
+  subagentRef（磁盘日志仍按原始 kind 落），前端既有 message subagentRef 语义
+  接管，「子代理」徽标气泡真实生效；补拉折叠同步（GaeaResyncItem.subagentRef
+  恒全键、fold subagent_message→独立条目+closePending 防误续写）。
+- **轨迹面板子代理记录**：TrajectoryRecordKind 加 "subagent"，徽标/Bot 图标/
+  折叠行（答复摘要+ref）/详情全文/搜索命中，turns 与 betweenTurns 双落点。
+- **sidebar_open 目录定位**（收 v4.25 欠账）：directory → FileTree 树中定位；
+  顺带修 FileTree 目录行无 data-path 锚点导致 reveal 静默失效的暗坑。
+- 验证：Go 110 包 0 FAIL（TestCancelConcurrentStress 负载型 flaky 单跑稳定）；
+  tsc -b/eslint 0；vitest 1090/1090（+5）；drift PASS（550）；版本四处 4.27.2。
+  详见 releases/v4.27.2.md。
+
 ## v4.27.1 · seq 防线 omitempty 失配修复：对话窗运行中只显示读秒的根因收口（2026-09-01）
 > 用户报告「运行中只有一个思考读秒，没有交替出现过程卡/文本卡（只有轨迹面板
 > 有显示）」。**绑定面 550 零变更**。

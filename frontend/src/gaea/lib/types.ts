@@ -285,7 +285,7 @@ export interface TrajectoryTurnEnd {
 }
 
 export type TrajectoryRecordKind =
-  | "user" | "header" | "assistant" | "tool" | "compact" | "ask" | "approval";
+  | "user" | "header" | "assistant" | "tool" | "compact" | "ask" | "approval" | "subagent";
 
 export interface TrajectoryRecord {
   seq: number;
@@ -300,6 +300,7 @@ export interface TrajectoryRecord {
   compact?: TrajectoryCompactRec;
   ask?: TrajectoryAskRec;
   approval?: TrajectoryApprovalRec;
+  subagent?: TrajectorySubagentRec;
 }
 
 export interface TrajectoryUserRec {
@@ -343,6 +344,15 @@ export interface TrajectoryAskRec {
 export interface TrajectoryApprovalRec {
   tool?: string;
   subject?: string;
+}
+
+// 子代理完成回投记录（v4.26，对齐后端 trajectory.SubagentRec）：task 子代理
+// 完成时把最终答复文本回投父回合。ref 为子代理 transcript 引用（临时子代理
+// 为空）；parentId 是父 task 调用 ID；text 展示级截断（最长 2000 rune）。
+export interface TrajectorySubagentRec {
+  ref?: string;
+  text?: string;
+  parentId?: string;
 }
 
 export interface TrajectoryUsage {
@@ -597,6 +607,9 @@ export type GaeaResyncItem = {
   readOnly?: boolean;
   truncated?: boolean;
   parentId?: string;
+  // v4.27.2：assistant 条目可携带子代理来源引用（subagent_message 折叠），
+  // 渲染层据此画「子代理」徽标（与实时 message 事件同键位）。
+  subagentRef?: string;
 };
 
 export interface GaeaResyncResult {

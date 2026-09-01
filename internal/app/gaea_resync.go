@@ -49,6 +49,9 @@ type GaeaResyncItem struct {
 	ReadOnly  bool   `json:"readOnly"`
 	Truncated bool   `json:"truncated"`
 	ParentID  string `json:"parentId"`
+	// SubagentRef 仅 assistant 条目携带（v4.27.2）：subagent_message 折叠出的
+	// 子代理答复气泡，前端据此画「子代理」徽标（与实时 message 事件同键位）。
+	SubagentRef string `json:"subagentRef"`
 }
 
 // GaeaResyncResult 是 GaeaResyncEvents 的返回值（Wails 结构体返回，与
@@ -139,7 +142,8 @@ type (
 //     （与 trajectory.FoldTrajectory 的容错一致）；
 //   - notice                          → notice 条目（level info/warn）；
 //   - 其余（turn 边界/usage/phase/request_header/retrying/steer/压缩/
-//     subagent_message/未知 kind）一律跳过——它们不是对话气泡。
+//     未知 kind）一律跳过——它们不是对话气泡。subagent_message 自 v4.27.2
+//     起折叠为带 subagentRef 的独立 assistant 条目（不再跳过）。
 func foldResyncItems(entries []session.LogEntry) []GaeaResyncItem {
 	items := make([]GaeaResyncItem, 0, len(entries))
 	toolIdx := map[string]int{} // 工具调用 ID → items 下标（tool_result 合并用）
@@ -172,6 +176,23 @@ func foldResyncItems(entries []session.LogEntry) []GaeaResyncItem {
 			it := ensurePending(e.Seq)
 			it.Text = p.Text
 			it.Reasoning = p.Reasoning
+
+		case "subagent_message":
+			// v4.27.2：子代理最终答复折叠为带 subagentRef 的独立 assistant 条目
+			//（补拉重建的对话视图与实时「子代理」徽标气泡一致）。它不是父模型
+			// 的输出流——closePending 防止后续 text delta 误续写到本条目上。
+			// payload 形状见 session/log.go 写入端：{text, ref, parentId}。
+			var p struct {
+				Text string `json:"text"`
+				Ref  string `json:"ref"`
+			}
+			if err := json.Unmarshal(e.Payload, &p); err != nil || p.Text == "" {
+				continue
+			}
+			closePending()
+			items = append(items, GaeaResyncItem{
+				Kind: "assistant", ID: resyncID("sa", e.Seq), Text: p.Text, SubagentRef: p.Ref,
+			})
 
 		case "text", "reasoning":
 			// 运行期事件落盘形状（EntryFromEvent）：text 事件内容在 payload.text，

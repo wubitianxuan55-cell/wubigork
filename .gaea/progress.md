@@ -1,7 +1,30 @@
 # 任务进度
 
-> 最后更新: 2026-09-01（v4.27.1「seq 防线 omitempty 失配修复」热修：对话窗
-> 运行中只显示思考读秒的根因收口，绑定面 550 零变更）
+> 最后更新: 2026-09-01（v4.27.2「细节收口」：subagent_message 端到端 +
+> 轨迹子代理记录 + sidebar_open 目录定位，绑定面 550 零变更）
+
+## 当前状态
+
+- **最新发布：v4.27.2（2026-09-01）「细节收口」**：git tag v4.27.2；基线
+  v4.27.1；绑定面 550 零变更。①**subagent_message 端到端收口**（v4.26 回投
+  特性此前实际未通：后端发 kind=subagent_message、前端无消费整条被丢）——
+  wire 层转译 kind="message"+subagentRef（gaeaEventMap，磁盘日志仍按原始
+  kind 落）→ 前端 reducer message case 既有 subagentRef 语义接管（「子代理」
+  徽标气泡）；补拉折叠同步：GaeaResyncItem 加 subagentRef（恒全键契约测试
+  同步扩键）、fold subagent_message → 独立 assistant 条目 + closePending
+  （其后 text 不误续写）；恢复会话场景欠账（模型上下文投影 ProjectMessages
+  未含，避免改变续跑模型语义——记远期）。②**轨迹面板子代理记录**（子代理
+  线交付）：TrajectoryRecordKind 加 "subagent"，KindBadge/Bot 图标/折叠行
+  （答复摘要+ref）/RecordInspector 全文展开/搜索命中，turns 与 betweenTurns
+  双落点覆盖。③**sidebar_open 目录定位**（收 v4.25 欠账）：directory 分支
+  → handleRevealInTree，FileTree 目录行补 data-path/flash（验证发现目录行
+  原本不被 reveal 命中——父链能展开但无锚点无高亮）。**验证**：Go 110 包
+  0 FAIL（TestCancelConcurrentStress 全量负载下偶发 flaky，单跑稳定，与本
+  刀无关）；tsc -b/eslint 0；vitest 1090/1090（+5）；drift PASS（550）。
+  **教训：FileTree reveal 只锚 data-path——新增行型（目录）必须同步锚点，
+  否则定位静默失效。progress.md 第三次被并行会话覆写（backups/ 留档第 3
+  份），再次从 git 恢复。**详见 releases/v4.27.2.md。
+
 
 ## 当前状态
 

@@ -728,7 +728,8 @@ export default function App() {
 
   // v4.25 模型主动打开（对标 better-sidebar sidebar_open）：模型把关键产物/目录
   // 推到右栏文件工作台。按工具事件 id 去重；file → 编辑器 tab（lib/editorTabs
-  // 外部 store 程序化入口），directory → 亮文件 tab 定位树根；均已开则激活。
+  // 外部 store 程序化入口），directory → 文件树树中定位（v4.28 起接 reveal：
+  // 展开父链 + 滚动 + 目录行闪烁，FileTree 目录行已带 data-path 锚点）。
   const sidebarOpenSeenRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     let requested = false;
@@ -739,6 +740,7 @@ export default function App() {
       if (!parsed) continue;
       sidebarOpenSeenRef.current.add(it.id);
       if (parsed.kind === "file") openEditorTab(parsed.pathRel);
+      else if (parsed.kind === "directory") handleRevealInTree(parsed.pathRel);
       requested = true;
     }
     if (requested) {
@@ -746,7 +748,7 @@ export default function App() {
       setRightTab("files");
       setWorkspacePanel(true);
     }
-  }, [state.items, closeFilePreview]);
+  }, [state.items, closeFilePreview, handleRevealInTree]);
 
   // v4.26 对话流式重造接线：
   // ① 事件序号防线 fetcher——Wails 事件流吞件（seq 跳号）时经后端从磁盘日志

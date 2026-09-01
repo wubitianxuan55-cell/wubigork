@@ -262,4 +262,25 @@ describe("FileTree 树中定位 reveal（v4.25 A3）", () => {
     expect((screen.getByPlaceholderText("过滤文件名") as HTMLInputElement).value).toBe("");
     await waitFor(() => expect(flashOf("deep.md")).toBe("true"));
   });
+
+  // v4.28 sidebar_open directory：reveal 目标是目录时同样生效——目录行带
+  // data-path 锚点（滚动轮询可命中）且参与闪烁，此前目录行无锚点定位会静默失败。
+  it("目录定位：展开父链后目录行高亮闪烁 + data-path 锚点可滚动", async () => {
+    mockListDir((dir: string) =>
+      Promise.resolve(dir === "docs" ? [{ name: "plan.md", isDir: false }, { name: "assets", isDir: true }] : ROOT_ENTRIES),
+    );
+    const { rerender } = render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+    await screen.findByText("docs"); // 根层加载完成
+
+    rerender(<FileTree cwd="C:/proj" onSelect={() => {}} revealRequest={{ rel: "docs/assets", nonce: 1 }} />);
+
+    // 父链 docs 自动展开，assets 目录行出现并带闪烁 + data-path
+    await waitFor(() => expect(flashOf("assets")).toBe("true"));
+    expect(screen.getByText("assets").closest("[data-path]")?.getAttribute("data-path")).toBe("docs/assets");
+    // 仅目标目录行闪烁：父目录 docs 行与兄弟文件行不闪
+    expect(flashOf("docs")).toBeNull();
+    expect(flashOf("plan.md")).toBeNull();
+    // 滚动轮询命中目录行锚点
+    await waitFor(() => expect(scrollSpy).toHaveBeenCalled(), { timeout: 2000 });
+  });
 });

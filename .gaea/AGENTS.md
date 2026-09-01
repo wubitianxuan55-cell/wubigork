@@ -47,6 +47,26 @@
 
 ## 版本状态
 
+- **最新发布：v4.27.2（2026-09-01）「细节收口」**：git tag `v4.27.2`；基线
+  v4.27.1；绑定面 550 零变更。①**subagent_message 端到端收口**（v4.26 回投
+  特性此前实际未通：后端发 kind=subagent_message、前端无消费整条被丢）——
+  gaeaEventMap wire 层转译 kind="message"+subagentRef（磁盘日志仍按原始 kind
+  落；前端 reducer message case 既有 subagentRef 语义接管，「子代理」徽标气泡
+  真实生效）；补拉折叠同步：GaeaResyncItem.subagentRef（恒全键契约测试扩键）、
+  fold subagent_message→独立 assistant 条目（ID=sa<seq>）+closePending 防其
+  后 text 误续写。留白（远期）：恢复会话的模型上下文投影 ProjectMessages 未
+  含 subagent_message（避免改变续跑模型语义），恢复后对话视图该气泡暂缺。
+  ②**轨迹面板子代理记录**（子代理线交付）：TrajectoryRecordKind 加
+  "subagent"+KindBadge/Bot 图标/折叠行（摘要+ref）/RecordInspector 全文/搜索
+  命中，turns 与 betweenTurns 双落点。③**sidebar_open 目录定位**（收 v4.25
+  欠账）：directory→handleRevealInTree；顺带修 FileTree 目录行无 data-path
+  锚点致 reveal 静默失效的暗坑。**验证**：Go 110 包 0 FAIL
+  （TestCancelConcurrentStress 全量负载偶发 flaky、单跑稳定，与本刀无关）；
+  tsc -b/eslint 0；vitest 1090/1090（+5）；drift PASS（550）。**教训**：
+  FileTree reveal 只锚 data-path——新增行型必须同步锚点否则定位静默失效；
+  progress.md 第三次被并行会话覆写（backups/ 留档），再次从 git 恢复。详见
+  releases/v4.27.2.md。
+
 - **最新发布：v4.27.1（2026-09-01）「seq 防线 omitempty 失配修复」热修**：
   git tag `v4.27.1`；基线 v4.27.0；绑定面 550 零变更。用户报告「运行中只显示
   一个思考读秒，没有交替出现过程卡/文本卡（只有轨迹面板有显示）」。**根因**=

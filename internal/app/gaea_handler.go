@@ -665,12 +665,16 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 		m["text"] = fmt.Sprintf("正在重试 (%d/%d)", e.RetryAttempt, e.RetryMax)
 	case event.SubagentMessage:
 		// v4.26：子代理完成回投（对标 Codex 2026-08 "Report completed
-		// sub-agent activity on parent turns"）。text=最终答复全文；ref=子代理
-		// transcript 引用（临时子代理缺省不下发）；parentId=父 task 调用 ID，
-		// 前端据此把答复挂到对应 task 卡片下。扁平字段便于前端直接消费。
+		// sub-agent activity on parent turns"）。text=最终答复全文。
+		// v4.27.2 收口：wire 层转译为 kind="message" + subagentRef——前端
+		// reducer 的 message case 早已支持该可选字段（整体替换语义，把「子代理」
+		// 徽标打在独立气泡上），此前 kind=subagent_message 前端无消费整条被丢，
+		// 回投特性实际未通。磁盘日志仍按 subagent_message 落（EventLogSink 在
+		// sink 链上游，转译只影响 wire）；轨迹/补拉折叠各自消费原始 kind。
+		m["kind"] = "message"
 		m["text"] = e.Text
 		if e.SubagentRef != "" {
-			m["ref"] = e.SubagentRef
+			m["subagentRef"] = e.SubagentRef
 		}
 		if e.ParentToolID != "" {
 			m["parentId"] = e.ParentToolID

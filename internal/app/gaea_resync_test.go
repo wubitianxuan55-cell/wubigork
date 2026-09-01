@@ -94,18 +94,22 @@ func TestGaeaEventMapTranslations(t *testing.T) {
 		t.Fatalf("CompactionDone 转译错误: %+v", cd)
 	}
 	sm := gaeaEventMap(event.Event{Kind: event.SubagentMessage, Text: "答复", SubagentRef: "sa_1", ParentToolID: "call-1"})
-	if sm["kind"] != "subagent_message" || sm["text"] != "答复" || sm["ref"] != "sa_1" || sm["parentId"] != "call-1" {
+	// v4.27.2 收口：wire 层转译为 kind="message"+subagentRef（前端 reducer 的
+	// message case 消费该字段画「子代理」徽标）；此前 kind=subagent_message
+	// 前端无消费整条被丢，回投特性实际未通。
+	if sm["kind"] != "message" || sm["text"] != "答复" || sm["subagentRef"] != "sa_1" || sm["parentId"] != "call-1" {
 		t.Fatalf("SubagentMessage 转译错误: %+v", sm)
 	}
 	// ref/parentId 为空时缺省不下发（wire 线格式保持最小）。
 	sm2 := gaeaEventMap(event.Event{Kind: event.SubagentMessage, Text: "临时答复"})
-	if _, ok := sm2["ref"]; ok {
+	if _, ok := sm2["subagentRef"]; ok {
 		t.Fatalf("空 ref 不应下发: %+v", sm2)
 	}
 	if _, ok := sm2["parentId"]; ok {
 		t.Fatalf("空 parentId 不应下发: %+v", sm2)
 	}
-	// kind 名映射必须落 subagent_message（否则落盘/转译断链）。
+	// kind 名映射保持 subagent_message（磁盘日志/轨迹折叠按原始 kind 消费，
+	// 转译只在 gaeaEventMap 的 wire 层覆写）。
 	if got := gaeaKindName(event.SubagentMessage); got != "subagent_message" {
 		t.Fatalf("gaeaKindName(SubagentMessage) = %q", got)
 	}
@@ -129,8 +133,10 @@ func TestFoldResyncItemsBasic(t *testing.T) {
 		resyncEntry(11, "turn_done", map[string]any{}),
 	}
 	items := foldResyncItems(itemsNilGuard(entries))
-	if len(items) != 4 {
-		t.Fatalf("items = %d, want 4（usage/phase/retrying/subagent_message/turn 边界跳过）: %+v", len(items), items)
+	// v4.27.2：subagent_message 不再跳过——折叠为带 subagentRef 的独立
+	// assistant 条目（与实时「子代理」徽标气泡一致）。
+	if len(items) != 5 {
+		t.Fatalf("items = %d, want 5（usage/phase/retrying/turn 边界跳过）: %+v", len(items), items)
 	}
 	if items[0].Kind != "user" || items[0].Text != "帮我查文件" || items[0].ID != "u2" {
 		t.Fatalf("user 条目错误: %+v", items[0])
@@ -144,6 +150,28 @@ func TestFoldResyncItemsBasic(t *testing.T) {
 	}
 	if items[3].Kind != "notice" || items[3].Level != "warn" || items[3].Text != "上下文即将压缩" {
 		t.Fatalf("notice 条目错误: %+v", items[3])
+	}
+	if items[4].Kind != "assistant" || items[4].ID != "sa10" || items[4].Text != "子代理答复" || items[4].SubagentRef != "sa_1" {
+		t.Fatalf("subagent 答复条目错误: %+v", items[4])
+	}
+}
+
+// TestFoldResyncItemsSubagentClosesPending v4.27.2：subagent_message 关闭
+// pending——其后到达的 text delta 开新条目，不会误续写到子代理答复上。
+func TestFoldResyncItemsSubagentClosesPending(t *testing.T) {
+	entries := []session.LogEntry{
+		resyncEntry(1, "subagent_message", map[string]any{"text": "子代理答复", "ref": "sa_1"}),
+		resyncEntry(2, "text", map[string]any{"text": "主模型收尾正文"}),
+	}
+	items := foldResyncItems(entries)
+	if len(items) != 2 {
+		t.Fatalf("items = %d, want 2: %+v", len(items), items)
+	}
+	if items[0].Kind != "assistant" || items[0].Text != "子代理答复" || items[0].SubagentRef != "sa_1" {
+		t.Fatalf("subagent 条目错误: %+v", items[0])
+	}
+	if items[1].Kind != "assistant" || items[1].Text != "主模型收尾正文" || items[1].SubagentRef != "" {
+		t.Fatalf("text 应开新条目且无 ref: %+v", items[1])
 	}
 }
 
@@ -350,7 +378,7 @@ func TestGaeaResyncItemWireAllKeys(t *testing.T) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	for _, key := range []string{"kind", "id", "text", "reasoning", "streaming", "level", "name", "args", "toolId", "output", "err", "status", "readOnly", "truncated", "parentId"} {
+	for _, key := range []string{"kind", "id", "text", "reasoning", "streaming", "level", "name", "args", "toolId", "output", "err", "status", "readOnly", "truncated", "parentId", "subagentRef"} {
 		if _, ok := m[key]; !ok {
 			t.Fatalf("GaeaResyncItem 序列化缺键 %q（不得用 omitempty）：%s", key, raw)
 		}
