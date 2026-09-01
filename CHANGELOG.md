@@ -1,3 +1,18 @@
+## v4.30.0 · 办公 UI 化繁为简第二刀：产物置前 / 行级降噪 / 命令面板视图重排 / 预览两档（2026-09-02）
+> 用户点名「继续优化完善 gaea」，收 v4.29.0 欠账四项，红线不变：简化界面不是删除功能。
+> **绑定面 552 零变更**（纯前端呈现重组）。
+- **产物生成自动置前/角标**（Devin Auto-open 式）：App diff 会话内新产物路径 → 产物 tab
+  角标（未查看数，激活即清零）+ 产物面板行「新」徽标与高亮（data-fresh 锚点可测）；
+  会话切换重置基线，恢复会话不误标「新」。
+- **面板行级降噪**（Cowork 一行式）：产物/变更/任务三列表次级信息（路径/相对路径/时间/
+  重试计数）改悬停次行显现（group-hover opacity 过渡），title 全保留；主行断言零改动。
+- **命令面板按当前视图重排**（Linear 式）：新 lib/paletteRank 纯函数——当前激活右栏面板
+  cmd 置顶、chatTab=overview 时概览置顶、其余稳定保序；CommandPalette 零改动。
+- **预览半幅↔最大化两档**（VS Code Toggle Maximized Panel）：FilePreview 头部新增最大化/
+  还原按钮（icons 补 Maximize2/Minimize2），最大化占满可用宽度、还原回半幅（ref 记忆）、
+  拖拽分割条自动退出最大化；不传回调不渲染按钮向后兼容。
+- 验证：Go build/vet 0 FAIL（零 Go 变更）；tsc/tsc -b/eslint 0；vitest **1157/1157**（+10）；
+  drift PASS（552）；版本四处 4.30.0。详见 releases/v4.30.0.md。
 # gaea · 多功能 AI 助手
 
 ## v4.29.0 · 办公 UI 化繁为简：顶栏收拢 / 自适应标签 / 预览降噪（2026-09-02）

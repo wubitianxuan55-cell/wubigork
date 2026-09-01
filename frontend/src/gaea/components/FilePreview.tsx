@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, Check, ExternalLink, File, FileText, FolderTree, Loader2, Pencil, X } from "../icons";
+import { AlertCircle, Check, ExternalLink, File, FileText, FolderTree, Loader2, Maximize2, Minimize2, Pencil, X } from "../icons";
 import { app } from "../lib/bridge";
 import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
@@ -25,6 +25,8 @@ export function FilePreview({
   onClose,
   onBackToFiles,
   embedded = false,
+  maximized = false,
+  onToggleMaximize,
 }: {
   relPath: string | null;
   onClose: () => void;
@@ -33,6 +35,11 @@ export function FilePreview({
    *  true 时隐藏头部文件名（tab 条已展示同名字样，280–720px 窄栏省宽），
    *  预览/编辑/OCR/docx/xlsx 能力原样保留。 */
   embedded?: boolean;
+  /** v4.30 预览两档占幅：true = 最大化（占满可用宽度，VS Code Toggle
+   *  Maximized Panel 式）。由 App 持有状态并传给头部按钮。 */
+  maximized?: boolean;
+  /** 最大化 ↔ 半幅 切换回调（App 接线；不传则不渲染按钮，行为完全不变）。 */
+  onToggleMaximize?: () => void;
 }) {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -183,6 +190,16 @@ export function FilePreview({
         >
           <ExternalLink size={10} />
         </button>
+        {onToggleMaximize && (
+          <button
+            className={HEAD_BTN}
+            onClick={onToggleMaximize}
+            title={maximized ? "还原半幅（占当前宽度）" : "最大化预览（占满可用宽度）"}
+            aria-label={maximized ? "还原半幅" : "最大化预览"}
+          >
+            {maximized ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
+          </button>
+        )}
         {editable && (
           <button
             className={HEAD_BTN + " text-accent"}

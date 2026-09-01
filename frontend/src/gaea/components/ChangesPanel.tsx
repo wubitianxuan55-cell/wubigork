@@ -198,8 +198,9 @@ export function ChangesPanel({
                   >
                     {name}
                   </span>
+                  {/* v4.30 行级降噪：相对路径为次级信息，悬停次行显现（title 保留完整寻回路径） */}
                   <span
-                    className="block truncate font-mono text-[10px]"
+                    className="block truncate font-mono text-[10px] transition-opacity duration-150 group-hover:opacity-100 opacity-0"
                     style={{ color: "var(--md-sys-color-text-secondary)" }}
                   >
                     {rel}

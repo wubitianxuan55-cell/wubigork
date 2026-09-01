@@ -300,7 +300,7 @@ function TaskRow({
   const cancelable = task.status === "running" || task.status === "queued" || task.status === "stopping";
   return (
     <div
-      className="rounded-[var(--radius-md)] p-2.5 space-y-1.5 cursor-pointer transition-colors"
+      className="group rounded-[var(--radius-md)] p-2.5 space-y-1.5 cursor-pointer transition-colors"
       style={{
         background: selected ? "color-mix(in srgb, var(--gaea-glow) 7%, var(--md-sys-color-surface-container))" : "var(--md-sys-color-surface-container)",
         border: `1px solid ${selected ? "color-mix(in srgb, var(--gaea-glow) 45%, transparent)" : "var(--md-sys-color-outline-variant)"}`,
@@ -362,7 +362,8 @@ function TaskRow({
         </div>
       )}
 
-      <div className="flex items-center gap-2 text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+      {/* v4.30 行级降噪：时间/重试为次级信息，悬停次行显现（title 保留完整信息） */}
+      <div className="flex items-center gap-2 text-[10px] transition-opacity duration-150 group-hover:opacity-100 opacity-0" style={{ color: "var(--md-sys-color-text-secondary)" }}>
         {task.status === "running" && <Clock size={10} aria-hidden />}
         <span>
           {task.status === "running"

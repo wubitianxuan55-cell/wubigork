@@ -47,6 +47,28 @@
 
 ## 版本状态
 
+- **最新发布：v4.30.0（2026-09-02）「办公 UI 化繁为简 · 第二刀：产物置前/行级降噪/
+  命令面板视图重排/预览两档」**：git tag `v4.30.0`；基线 v4.29.0；绑定面 **552 零变更**
+  （纯前端呈现重组）。用户点名「继续优化完善 gaea」——从 v4.29.0 欠账清单收齐四项，
+  红线不变（简化≠删除功能，被隐藏的信息全部有确定性寻回路径：title/aria/悬停/激活即见）：
+  ①**产物生成自动置前/角标**（Devin Auto-open 式）：App diff 会话内新产物路径（首现即新，
+  会话切换重置基线——恢复会话不误标「新」）→ 产物 tab 角标（未查看数，激活即清零，与
+  运行角标同语义）+ DeliverablesPanel 新 `freshPaths` prop（经 sidebarRegistry ctx 接线）
+  → 行「新」徽标（Sparkles）+ data-fresh 高亮；②**面板行级降噪**（Cowork 一行式）：产物/
+  变更/任务三列表次级信息（路径/相对路径/时间/重试计数）group-hover 悬停次行显现
+  （opacity 150ms），title 全保留，主行断言零改动；③**命令面板按当前视图重排**（Linear
+  式）：新 lib/paletteRank.ts 纯函数 rankPaletteItems(items,{chatTab,rightTab})——当前激活
+  右栏面板 cmd 置顶 > chatTab=overview 时概览置顶 > 其余面板命令 > 模板/会话保序（稳定
+  排序）；App paletteItems 接线，CommandPalette 组件零改动；④**预览「半幅↔最大化」两档**
+  （VS Code Toggle Maximized Panel）：icons 补 Maximize2/Minimize2（antd Fullscreen 系列），
+  FilePreview 头部按钮（不传 onToggleMaximize 不渲染，向后兼容），App previewMaximized 状态
+  （最大化=占满可用宽度 视口−侧栏−360 与拖拽上限同源，还原回半幅 ref 记忆，**拖拽分割条
+  自动退出最大化**）。**验证**：Go build/vet 0 FAIL（零 Go 变更）；tsc/tsc -b/eslint 0；
+  vitest **1157/1157**（+10：paletteRank 6+DeliverablesPanel 新徽标 2+FilePreview 两档 2，
+  未删改旧锁）；drift PASS（552）；版本四处 4.30.0。**欠账**：产物自动弹 tab（激进版
+  Auto-open）暂不做可加偏好；行级降噪仅悬停次行未做折叠重构；命令面板个性化排序远期；
+  预览最大化不持久化；沿旧 v4.28 全部。详见 releases/v4.30.0.md。
+
 - **最新发布：v4.29.0（2026-09-02）「办公 UI 化繁为简 · 顶栏收拢/自适应标签/
   预览降噪」**：git tag `v4.29.0`；基线 v4.28.0；绑定面 **552 零变更**（纯前端
   呈现重组）。用户点名主轴「UI 界面化繁为简，参考市场同类产品」，派刀即立红线

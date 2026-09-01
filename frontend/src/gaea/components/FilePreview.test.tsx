@@ -142,6 +142,31 @@ describe("FilePreview 嵌入式渲染（v4.25 A3 embedded）", () => {
     await screen.findByText("旧内容");
     expect(screen.getByText("a.md")).toBeTruthy();
   });
+
+  it("v4.30 预览两档：不传 onToggleMaximize 时不渲染按钮（向后兼容）", async () => {
+    render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
+    await screen.findByText("旧内容");
+    expect(screen.queryByTitle("最大化预览（占满可用宽度）")).toBeNull();
+    expect(screen.queryByTitle("还原半幅（占当前宽度）")).toBeNull();
+  });
+
+  it("v4.30 预览两档：半幅态显示「最大化」按钮，点击回调；最大化态切换为「还原」", async () => {
+    const onToggle = vi.fn();
+    const { rerender } = render(
+      wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} maximized={false} onToggleMaximize={onToggle} />),
+    );
+    await screen.findByText("旧内容");
+    const maxBtn = screen.getByTitle("最大化预览（占满可用宽度）");
+    expect(maxBtn.getAttribute("aria-label")).toBe("最大化预览");
+    fireEvent.click(maxBtn);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+
+    rerender(
+      wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} maximized onToggleMaximize={onToggle} />),
+    );
+    expect(screen.getByTitle("还原半幅（占当前宽度）")).toBeTruthy();
+    expect(screen.queryByTitle("最大化预览（占满可用宽度）")).toBeNull();
+  });
 });
 
 // v4.28 B2「pptx 最小交互」：GaeaPreview 返回 kind=pdf（soffice→PDF 逐页

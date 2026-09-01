@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, ListTree, Loader2, MessageSquare, Paperclip, Rollback, Shield, Table } from "../icons";
+import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, ListTree, Loader2, MessageSquare, Paperclip, Rollback, Shield, Sparkles, Table } from "../icons";
 import { app } from "../lib/bridge";
 import type { DeliverableRegistryView, JournalChangeRecord, VerdictView, VerifyDiffRow } from "../lib/types";
 import {
@@ -57,6 +57,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   onOpenFile,
   onLocateSource,
   onRevealInTree,
+  freshPaths,
 }: {
   items: SessionDeliverable[];
   /** 当前会话路径（v4.24 C1：非空时拉取权威产物登记表）。 */
@@ -66,6 +67,10 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   /** 树中定位（v4.25 A3）：产物行小按钮 → 切到文件 tab 并在文件树中
    *  展开父链 + 滚动 + 高亮该文件（接线由 App/sidebarRegistry 完成）。 */
   onRevealInTree?: (rel: string) => void;
+  /** v4.30 产物自动置前：本会话内新出现的产物路径（App 侧 diff 出，激活
+   *  产物 tab 即清零）。命中路径的行显示「新」徽标 + 短暂高亮（Devin
+   *  Auto-open 式：产物生成自动提示，不打断对话）。 */
+  freshPaths?: string[];
 }) {
   const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
@@ -337,6 +342,9 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
             const ext = extOf(path);
             const updated = updatedAt[path] != null;
             const rev = versions && versions > 1 ? versions : undefined;
+            // v4.30 产物自动置前：本会话新产物行加「新」徽标 + 高亮闪烁提示
+            //（Devin Auto-open 式；激活产物 tab 后 App 清零 freshPaths，徽标消退）。
+            const fresh = freshPaths?.includes(path) ?? false;
             // v4.28 B1：时间线展开 key 用归一化路径（与 JournalList target 对齐）
             const normPath = normalizeVersionPath(path);
             const timelineOpen = timelinePath === normPath;
@@ -344,6 +352,8 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
               <Fragment key={path}>
                 <div
                   className="group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors duration-150 hover:bg-(color:--md-sys-color-surface-container-high)"
+                  data-fresh={fresh ? "true" : undefined}
+                  style={fresh ? { background: "color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent)" } : undefined}
                 >
                   <span
                     className="shrink-0 w-8 h-8 rounded-md flex items-center justify-center overflow-hidden"
@@ -365,6 +375,19 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       <span className="truncate text-[12px] font-medium leading-tight" style={{ color: "var(--md-sys-color-text)" }}>
                         {baseName(path)}
                       </span>
+                      {fresh && (
+                        <span
+                          className="shrink-0 inline-flex items-center gap-0.5 rounded-full px-1 py-px text-[9px] leading-none"
+                          style={{
+                            color: "var(--md-sys-color-primary)",
+                            background: "color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent)",
+                            border: "1px solid color-mix(in srgb, var(--md-sys-color-primary) 34%, transparent)",
+                          }}
+                        >
+                          <Sparkles size={8} aria-hidden />
+                          新
+                        </span>
+                      )}
                       {updated && (
                         <span
                           className="shrink-0 inline-flex items-center gap-0.5 rounded-full px-1 py-px text-[9px] leading-none"
@@ -379,7 +402,7 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                         </span>
                       )}
                     </span>
-                    <span className="block truncate text-[10px] font-mono leading-tight" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                    <span className="block truncate text-[10px] font-mono leading-tight transition-opacity duration-150 group-hover:opacity-100 opacity-0" style={{ color: "var(--md-sys-color-text-secondary)" }}>
                       {path}
                     </span>
                   </button>

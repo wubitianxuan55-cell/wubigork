@@ -39,6 +39,38 @@ describe("DeliverablesPanel 会话产物面板", () => {
     useUpdatedFilesStore.setState({ updatedAt: {} });
   });
 
+  it("v4.30 新产物显示「新」徽标（freshPaths 命中行，其余行不显示）", () => {
+    render(
+      <DeliverablesPanel
+        items={[
+          { path: "exports/成本测算.xlsx", sourceId: "a1" },
+          { path: ".gaea/exports/方案.docx", sourceId: "a2" },
+        ]}
+        onOpenFile={() => {}}
+        freshPaths={[".gaea/exports/方案.docx"]}
+      />,
+    );
+    // 命中行：名称旁有「新」徽标
+    const freshName = screen.getByText("方案.docx");
+    const freshRow = freshName.closest("div[data-fresh]");
+    expect(freshRow).not.toBeNull();
+    expect(freshRow!.getAttribute("data-fresh")).toBe("true");
+    expect(screen.getByText("新")).toBeTruthy();
+    // 未命中行：无 data-fresh 锚点
+    const otherName = screen.getByText("成本测算.xlsx");
+    expect(otherName.closest("div[data-fresh]")).toBeNull();
+  });
+
+  it("v4.30 freshPaths 缺省/空时不显示「新」徽标", () => {
+    render(
+      <DeliverablesPanel
+        items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
+        onOpenFile={() => {}}
+      />,
+    );
+    expect(screen.queryByText("新")).toBeNull();
+  });
+
   it("点击「跳转到生成它的消息」回调对应轮次", () => {
     const calls: number[] = [];
     render(

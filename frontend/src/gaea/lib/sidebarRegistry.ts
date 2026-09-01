@@ -36,6 +36,9 @@ export interface WorkspacePanelContext {
   currentSessionPath?: string;
   /** 会话产物清单（产物面板）。 */
   sessionDeliverables: SessionDeliverable[];
+  /** v4.30 产物自动置前：本会话新出现（尚未查看）的产物路径（产物 tab 角标
+   *  与面板「新」徽标同源；激活产物 tab 后 App 清零）。 */
+  freshDeliverablePaths?: string[];
   /** 会话文件变更清单（变更面板）。 */
   sessionChanges: SessionChange[];
   /** 打开文件 → 主区预览（Codex 式）。 */
@@ -90,6 +93,7 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
       onOpenFile: ctx.onOpenFile,
       onLocateSource: ctx.onLocateSource,
       onRevealInTree: ctx.onRevealInTree,
+      freshPaths: ctx.freshDeliverablePaths,
     }),
   changes: (ctx) =>
     createElement(ChangesPanel, {

@@ -70,6 +70,7 @@ import { setEventSyncFetcher } from "./lib/eventSync";
 import { shouldAutoOpenBrowser } from "./lib/browserPrefs";
 import { setTaskCardActivityProvider } from "./lib/taskActivity";
 import { classifyComposerCommand } from "./lib/command";
+import { rankPaletteItems } from "./lib/paletteRank";
 import {
   WORKSPACE_MIN_WIDTH, clampWorkspaceWidth, firstEnabledTab, loadEnabledTabs, loadPersistedRightTab,
   loadPersistedRightPanelState, loadWorkspaceWidth, resolveEnabledTabs, saveEnabledTabs,
@@ -238,6 +239,11 @@ export default function App() {
 
   const [workspacePanelOpen, setWorkspacePanel] = useState(false);
   const [previewWidth, setPreviewWidth] = useState(loadPreviewWidth);
+  // v4.30 预览两档占幅（VS Code Toggle Maximized Panel 式）：最大化 = 占满
+  // 可用宽度（视口 − 侧栏 − 聊天最小 360，与拖拽上限同源）；还原回到进入
+  // 最大化前的半幅宽度（previewHalfWidthRef 记忆）。拖拽分割条自动退出最大化。
+  const [previewMaximized, setPreviewMaximized] = useState(false);
+  const previewHalfWidthRef = useRef(previewWidth);
   const [previewResizing, setPreviewResizing] = useState(false);
   const [workspaceRefreshKey, setWorkspaceRefreshKey] = useState(0);
   // P1-1 多文件预览队列：previewFile 与队列全部由全局 store 驱动（单一数据源），
@@ -314,9 +320,28 @@ export default function App() {
     setWorkspacePanel((o) => !o);
   }, [previewFile, closeFilePreview]);
 
+  // 预览最大化可用宽度：与拖拽上限同源（视口 − 侧栏 − 聊天最小 360）。
+  const previewMaxWidth = useMemo(
+    () => Math.min(PREVIEW_MAX_WIDTH, Math.max(PREVIEW_MIN_WIDTH, window.innerWidth - effectiveSidebarWidth - 360)),
+    [effectiveSidebarWidth],
+  );
+  // 半幅 ↔ 最大化 切换：进入最大化时记忆当前半幅宽度；还原时写回并持久化。
+  const togglePreviewMaximize = useCallback(() => {
+    if (previewMaximized) {
+      setPreviewMaximized(false);
+      setPreviewWidth(previewHalfWidthRef.current);
+      savePreviewWidth(previewHalfWidthRef.current);
+    } else {
+      previewHalfWidthRef.current = previewWidth;
+      setPreviewMaximized(true);
+    }
+  }, [previewMaximized, previewWidth]);
+
   // 拖拽分割条调整预览宽度
   const startPreviewResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
+    // 用户手动拖拽 = 放弃最大化，回到半幅拖拽模式
+    setPreviewMaximized(false);
     setPreviewResizing(true);
     let next = previewWidth;
     // 预览最小 320px；最大不超过窗口减侧栏后再留 360px 给聊天区
@@ -683,6 +708,49 @@ export default function App() {
 
   // 文件变更（Kun 可观察性精华）：汇总本会话写/改过的文件及次数
   const sessionChanges = useMemo<SessionChange[]>(() => buildSessionChanges(state.items), [state.items]);
+
+  // ── v4.30 产物自动置前/角标（Devin Auto-open 式）────────────────────────
+  // 本会话内新出现的产物路径：diff sessionDeliverables（首现即新），产物 tab
+  // 角标显示未读数、产物面板对应行显示「新」徽标+高亮；激活产物 tab（查看）
+  // 即清零（与运行角标「激活即已读」语义一致）。
+  // 会话切换：重置为「当前产物全集」基线（恢复会话不误标新），并清空角标。
+  const [freshDeliverablePaths, setFreshDeliverablePaths] = useState<string[]>([]);
+  const seenDeliverablePathsRef = useRef<Set<string>>(new Set());
+  const baselinePendingRef = useRef(true);
+  useEffect(() => {
+    baselinePendingRef.current = true;
+    seenDeliverablePathsRef.current = new Set(sessionDeliverables.map((d) => d.path));
+    setFreshDeliverablePaths([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅会话切换时重置基线，快照取当前值
+  }, [currentSessionKey]);
+  useEffect(() => {
+    // 切换后的首次运行：把当前会话产物全量预填为基线（不算新），之后流式
+    // 增长中出现的路径才标新。
+    if (baselinePendingRef.current) {
+      baselinePendingRef.current = false;
+      seenDeliverablePathsRef.current = new Set(sessionDeliverables.map((d) => d.path));
+      return;
+    }
+    const seen = seenDeliverablePathsRef.current;
+    const added: string[] = [];
+    for (const d of sessionDeliverables) {
+      if (!seen.has(d.path)) {
+        seen.add(d.path);
+        added.push(d.path);
+      }
+    }
+    if (added.length > 0) setFreshDeliverablePaths((prev) => [...prev, ...added]);
+  }, [sessionDeliverables]);
+  // 激活产物 tab = 已查看 → 清零角标与「新」徽标
+  useEffect(() => {
+    if (rightTab === "deliverables") setFreshDeliverablePaths([]);
+  }, [rightTab]);
+  // v4.30 产物自动置前：未查看的新产物数角标（激活产物 tab 即清零，见上方 effect）
+  const freshDeliverableCount = rightTab === "deliverables" ? 0 : freshDeliverablePaths.length;
+  const tabBadges = runningBadge
+    ? { ...runningBadge, ...(freshDeliverableCount > 0 ? { deliverables: freshDeliverableCount } : {}) }
+    : freshDeliverableCount > 0 ? { deliverables: freshDeliverableCount } : undefined;
+
   // 编辑后自动回写刷新：docx/xlsx 预览内编辑成功 → 文件树自动刷新（替代手动刷新）
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   useEffect(() => {
@@ -819,6 +887,7 @@ export default function App() {
       currentSessionPath: currentSessionPath ?? undefined,
       sessionDeliverables,
       sessionChanges,
+      freshDeliverablePaths,
       onOpenFile: openFilePreview,
       onClosePanel: () => setWorkspacePanel(false),
       onRefreshPanel: refreshWorkspacePanel,
@@ -830,7 +899,7 @@ export default function App() {
     }),
     [
       state.meta?.cwd, previewFile, workspaceRefreshKey, currentSessionPath,
-      sessionDeliverables, sessionChanges,
+      sessionDeliverables, sessionChanges, freshDeliverablePaths,
       openFilePreview, refreshWorkspacePanel, locateDeliverableSource,
       handleSubagentStarted, handleRevealInTree, revealRequest, handleAutoWidenWorkspace,
     ],
@@ -891,19 +960,25 @@ export default function App() {
       keywords: ["template", "模板", tm.name, ...tm.title.split(/\s+/)],
       run: () => { closeFilePreview(); setWorkspacePanel(false); send(tm.prompt); },
     }));
-    return [...cmds, ...templateItems, ...sessionItems];
-  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, closeFilePreview, setRightTab, enabledRecord, templates, send, newSessionAndReset]);
+    // v4.30 命令面板按当前视图重排（Linear 式）：当前激活的右栏面板 / 主区
+    // tab 对应命令置顶，其余保持稳定原序（纯函数，见 lib/paletteRank）。
+    return rankPaletteItems(
+      [...cmds, ...templateItems, ...sessionItems],
+      { chatTab, rightTab },
+    );
+  }, [t, sidebarSessions, openMemory, openHistory, openKnowledge, onResumeSession, setWorkspacePanel, closeFilePreview, setRightTab, enabledRecord, templates, send, newSessionAndReset, chatTab, rightTab]);
 
   const layoutStyle = useMemo(
     () =>
       ({
         "--sidebar-expanded-width": `${sidebarWidth}px`,
-        "--preview-width": `${previewWidth}px`,
+        // v4.30 预览两档：最大化时占满可用宽度，半幅用用户拖拽宽度
+        "--preview-width": `${previewMaximized ? previewMaxWidth : previewWidth}px`,
         // v4.23 工作台宽度：钳制后经 CSS 变量下发（覆盖 styles.css 340px 基线）；
         // v4.27 用视口感知的有效宽度，宽面板在小窗口不挤出聊天区
         "--workspace-width": `${effectiveWorkspaceWidth}px`,
       }) as CSSProperties,
-    [sidebarWidth, previewWidth, effectiveWorkspaceWidth],
+    [sidebarWidth, previewWidth, effectiveWorkspaceWidth, previewMaximized, previewMaxWidth],
   );
 
   return (
@@ -1106,6 +1181,8 @@ export default function App() {
                 relPath={previewFile}
                 onClose={closeFilePreview}
                 onBackToFiles={backToFiles}
+                maximized={previewMaximized}
+                onToggleMaximize={togglePreviewMaximize}
               />
               <PreviewNavBar
                 files={previewList}
@@ -1124,7 +1201,7 @@ export default function App() {
           <WorkspaceTabs
             active={activeWorkspaceTab}
             onChange={setRightTab}
-            badges={runningBadge}
+            badges={tabBadges}
             enabledTabs={enabledSet}
             onToggleTab={toggleTabEnabled}
           />
