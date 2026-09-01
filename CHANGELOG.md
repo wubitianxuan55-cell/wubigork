@@ -1,3 +1,14 @@
+## v4.31.1 · -count>1 全量绿化：测试全局态 -count 不兼容根治 + whisper 末气泡真 bug 修复（2026-09-02）
+> v4.31.0 线 D 收尾延伸：全量 go test -count=2 ./... 从 FAIL → 全绿。**绑定面 552 零变更**。
+- **根因（统一）**：测试写进程级全局状态（provider/billing/boot/app 注册表 kind、
+  whisperSessions 会话缓存），-count 多次运行不兼容；whisper 10m 超时为**真 bug**。
+- **修法**：注册 kind 改 testKind(prefix)（进程级 atomic 单调计数，任意 -count 唯一，19 注册
+  点）；app whisper 会话隔离改唯一会话 ID + t.Cleanup 清理缓存（12 调用点）；whisper
+  PacedStreamEmitter.pump streamDone 分支收尾末气泡（+3 生产行，修 MarkDone 挂起/末气泡
+  OnBubbleEnd 永不触发）。
+- 验证：五包 -count=2/-count=5 全绿、发射器 -count=300 全绿、tasks -count=20 仍全绿、**全量
+  go test -count=2 ./... exit 0**；前端零改动；drift PASS（552）；版本四处 4.31.1。详见
+  releases/v4.31.1.md。
 ## v4.31.0 · 细节收口四线并行：单版本入口 / 弹窗 pdf 预览 / 历史轮耗时 / tasks 竞态根治（2026-09-02）
 > 用户点名「并行使用子代理」——四线足迹互斥并行落地 + 主代理集成。**绑定面 552 零变更**。
 - **① 产物版本时间线单版本入口**（收 v4.28 B1 欠账）：徽标条件从 {rev && …} 放宽为
@@ -22,7 +33,8 @@
 - 发布后补充（-count>1 全量绿化）：billing/boot/provider duplicate kind → testKind 唯一化；
   app whisper 会话缓存 t.Cleanup 清理 + 隔离测试唯一会话；whisper PacedStreamEmitter
   MarkDone 末气泡收尾（+3 生产行，修末气泡 OnBubbleEnd 永不触发的真 bug）；**全量
-  `go test -count=2 ./...` FAIL → 全绿（exit 0）**。
+  `go test -count=2 ./...` 与 `-count=5 ./...` 均 FAIL → 全绿（exit 0）**；tasks
+  `-shuffle=on -count=10` 无顺序依赖。
 ## v4.30.0 · 办公 UI 化繁为简第二刀：产物置前 / 行级降噪 / 命令面板视图重排 / 预览两档（2026-09-02）
 > 用户点名「继续优化完善 gaea」，收 v4.29.0 欠账四项，红线不变：简化界面不是删除功能。
 > **绑定面 552 零变更**（纯前端呈现重组）。
