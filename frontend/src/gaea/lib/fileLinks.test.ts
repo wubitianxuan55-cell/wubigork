@@ -69,3 +69,35 @@ describe("全角括号文件名（v4.26.1 回归）", () => {
     expect(deliverableMentions(`交付文件：${ABS}`)).toEqual([ABS]);
   });
 });
+
+describe("markdown 包裹符（v4.27.3 回归）", () => {
+  // 真实办公会话实锤：模型用反引号包裹相对路径，匹配把开头反引号吞进路径
+  // → 预览「文件不存在」、定位打开错误位置。` 和 * 是 Windows 文件名非法
+  // 字符，作为路径边界处理。
+  const REL = "安全文明手册/双流黄甲金具厂地块土壤污染修复项目安全文明施工标准化手册.docx";
+
+  it("反引号包裹的相对路径：不含反引号", () => {
+    const got = findFileMentions(`文件位置：\`${REL}\``).map((m) => m.path);
+    expect(got).toEqual([REL]);
+  });
+
+  it("反引号包裹的绝对路径", () => {
+    const got = findFileMentions("交付文件：`C:\\AI\\bangong\\黄甲\\报告（终稿）.docx`").map((m) => m.path);
+    expect(got).toEqual(["C:\\AI\\bangong\\黄甲\\报告（终稿）.docx"]);
+  });
+
+  it("星号强调包裹的路径", () => {
+    const got = findFileMentions(`*已生成：${REL}*`).map((m) => m.path);
+    expect(got).toEqual([REL]);
+  });
+
+  it("裸反引号包裹文件名（关键词引导）", () => {
+    const got = findFileMentions("输出文件：`报告.docx`").map((m) => m.path);
+    expect(got).toEqual(["报告.docx"]);
+  });
+
+  it("下划线仍是合法路径字符（file_name.docx 不受影响）", () => {
+    const got = findFileMentions("输出文件：my_file_name.docx").map((m) => m.path);
+    expect(got).toEqual(["my_file_name.docx"]);
+  });
+});
