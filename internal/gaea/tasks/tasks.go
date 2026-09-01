@@ -868,6 +868,10 @@ func (m *Manager) unregisterCancel(id string) {
 // TestCancelConcurrentStress 实测竞态）；任务已终态/仍 queued 时本注册是残留
 // （无胜者会来清理），删除之避免泄漏与「取消已结束任务」误判。
 // 无论何种情况都绝不删除 cancelReq。
+// 状态读取刻意放在 m.mu 内：与胜者的重登记（同样持 m.mu）互斥，保证
+// 「查状态→删除」与「胜者覆盖注册」不会交错（与 pickNext 的 PerSpace 路径
+// 在锁内查库同序；database/sql 每次调用独立取还连接，持连接期间不会等待
+// m.mu，故无锁序死锁）。
 func (m *Manager) clearStaleCancel(id string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
