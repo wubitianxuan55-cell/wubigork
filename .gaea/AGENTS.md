@@ -47,6 +47,27 @@
 
 ## 版本状态
 
+- **最新发布：v4.31.1（2026-09-02）「-count>1 全量绿化 · 测试全局态 -count 不兼容根治 +
+  whisper 末气泡真 bug 修复」**：git tag `v4.31.1`；基线 v4.31.0；绑定面 **552 零变更**
+  （纯测试治理 + 1 处生产修复）。v4.31.0 线 D 收尾延伸：全量 `go test -count=2 ./...`
+  从 FAIL → 全绿（exit 0），含生产修复按先例独立成版。**根因（统一）**：测试用固定 /
+  `t.Name()` kind 或固定会话 ID 写入**进程级全局状态**（provider/billing/boot/app 注册表、
+  app `whisperSessions` 会话缓存），`-count` 多次运行不兼容（非产品缺陷，whisper 除外）。
+  **修法**：①注册 kind 改 `testKind(prefix)`（进程级 atomic 单调计数后缀，任意 -count
+  唯一；19 注册点：provider/billing/boot/app 各加 testkind_test.go）；billing 无菌态断言
+  「==[deepseek]」改「含 deepseek」（语义词保留）；②app whisper 会话隔离改唯一会话 ID +
+  `cleanupWhisperSession`（t.Cleanup 删进程级 whisperSessions 缓存，与 proactive/
+  persist_concurrency 模式一致，12 调用点）；③**whisper 真 bug（唯一生产改动 +3 行）**：
+  `PacedStreamEmitter.pump` 在 streamDone 且文本已全部送出时不收尾末气泡 → `MarkDone`
+  排空等待因 bubbleOpen 恒真永久挂起（全量负载实测 10m 超时；**生产表现为最后一个气泡的
+  OnBubbleEnd 永不触发**）——streamDone 分支收尾末气泡（仅 bubbleOpen 时收尾，主代理验收
+  无副作用）。**验证**：五包 -count=2/-count=5 全绿（app 逐层 3 类问题修净）、发射器
+  -count=300 全绿、tasks -count=20 仍全绿、**全量 `go test -count=2 ./...` 与 -count=5
+  ./... 双绿 exit 0**（主代理复跑确认）、tasks -shuffle=on -count=10 无顺序依赖、go vet
+  全绿；前端零改动（vitest 1166 沿用）；drift PASS（552）；版本四处 4.31.1。
+  **欠账**：-count>1 既有问题清零；-race 仍不可用（无 gcc）；沿旧 v4.28 全部 + v4.30/v4.31
+  欠账。详见 releases/v4.31.1.md。
+
 - **最新发布：v4.31.0（2026-09-02）「细节收口 · 四线并行：单版本入口/弹窗 pdf 预览/历史轮
   耗时/tasks 竞态根治」**：git tag `v4.31.0`；基线 v4.30.0；绑定面 **552 零变更**（结构字段
   级，零新增绑定）。用户点名「开始，并行使用子代理」——从欠账池挑四条互不相交的线（文件
