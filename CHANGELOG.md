@@ -14,9 +14,11 @@
   →多 worker 同时 execute 同一 queued 任务，claim 落选者无条件 unregisterCancel 删掉
   cancelReq（用户取消意图）→ Cancel 已成功返回的任务终态被 succeeded 吞掉。修复=tasks.go
   新 clearStaleCancel（只清残留预注册、绝不删 cancelReq）+ claim 成功后胜者重登记 cancel；
-  测试改事件驱动等待（50 终态事件到齐），断言不削弱（Cancel==nil ⇒ cancelled）。
-- 验证：Go 全量 0 FAIL（tasks -count=20/100 全绿）；tsc/tsc -b/eslint 0；vitest **1166/1166**
-  （+9：A3+B3+C3）；drift PASS（552）；版本四处 4.31.0。详见 releases/v4.31.0.md。
+  测试改事件驱动等待（50 终态事件到齐），断言不削弱且双向加固（Cancel==nil ⇒ cancelled /
+  未取消 ⇒ succeeded / 终态事件不重不漏）+ 确定性契约单测 TestClearStaleCancelOwnership。
+- 验证：Go 全量 0 FAIL（tasks -count=20/100 两轮全绿、-count=3 全绿）；tsc/tsc -b/eslint 0；
+  vitest **1166/1166**（+9：A3+B3+C3）；drift PASS（552）；版本四处 4.31.0。详见
+  releases/v4.31.0.md。
 ## v4.30.0 · 办公 UI 化繁为简第二刀：产物置前 / 行级降噪 / 命令面板视图重排 / 预览两档（2026-09-02）
 > 用户点名「继续优化完善 gaea」，收 v4.29.0 欠账四项，红线不变：简化界面不是删除功能。
 > **绑定面 552 零变更**（纯前端呈现重组）。
