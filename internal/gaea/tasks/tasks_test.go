@@ -858,6 +858,56 @@ func TestCancelConcurrentStress(t *testing.T) {
 	}
 }
 
+// TestClearStaleCancelOwnership 钉住 clearStaleCancel 的归属契约（v4.31 线 D
+// 新增原语，确定性验证，不依赖压力命中的概率窗口）：
+//   - 任务仍有执行者（running/stopping）⇒ 注册保留（归胜者 worker，误删会让
+//     Cancel 已成功返回的任务被 succeeded 吞掉）；
+//   - 任务已终态 ⇒ 残留预注册被清理（防泄漏与「取消已结束任务」误判）；
+//   - 任何情况下不得删除 cancelReq（用户取消意图由执行者消费）。
+func TestClearStaleCancelOwnership(t *testing.T) {
+	db := openTestDB(t)
+	insert := func(id, status string) {
+		t.Helper()
+		if _, err := db.Exec(`INSERT INTO tasks(id,kind,label,status,progress,message,error,retry_count,max_retries,payload,result,created_at,started_at,finished_at,space_id)
+			VALUES(?,?,?,?,0,'','',0,0,'{}','',1,0,0,'work')`, id, "price_fetch", "x", status); err != nil {
+			t.Fatalf("seed %s(%s): %v", id, status, err)
+		}
+	}
+	insert("t_run", string(StatusRunning))
+	insert("t_stop", string(StatusStopping))
+	insert("t_done", string(StatusSucceeded))
+
+	m := New(db, nil, Options{BackoffBase: 10 * time.Millisecond})
+	seed := func(id string) {
+		m.mu.Lock()
+		m.cancels[id] = func() {} // 预注册（残留或归属执行者）
+		m.cancelReq[id] = true
+		m.mu.Unlock()
+	}
+	for _, id := range []string{"t_run", "t_stop", "t_done"} {
+		seed(id)
+	}
+	for _, id := range []string{"t_run", "t_stop", "t_done"} {
+		m.clearStaleCancel(id)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.cancels["t_run"]; !ok {
+		t.Fatal("running 任务的注册应保留（归执行者）")
+	}
+	if _, ok := m.cancels["t_stop"]; !ok {
+		t.Fatal("stopping 任务的注册应保留（取消途中仍归执行者）")
+	}
+	if _, ok := m.cancels["t_done"]; ok {
+		t.Fatal("已终态任务的残留注册应被清理")
+	}
+	for _, id := range []string{"t_run", "t_stop", "t_done"} {
+		if !m.cancelReq[id] {
+			t.Fatalf("clearStaleCancel 不得删除 %s 的 cancelReq（用户取消意图）", id)
+		}
+	}
+}
+
 // ④ panic 恢复：handler panic 记日志、任务置 failed，且不重试。
 func TestHandlerPanicMarksFailed(t *testing.T) {
 	db := openTestDB(t)
