@@ -18,6 +18,7 @@ import { TodoCard } from "./components/TodoCard";
 import { ApprovalModal } from "./components/ApprovalModal";
 import { AskCard } from "./components/AskCard";
 import { ToolbarButton } from "./components/ToolbarButton";
+import { ExportMenu, type ExportFormat } from "./components/ExportMenu";
 import { ContextBar } from "./components/ContextBar";
 import { ModelSwitcher } from "./components/ModelSwitcher";
 const MemoryPanel = lazy(() => import("./components/MemoryPanel").then(m => ({ default: m.MemoryPanel })));
@@ -983,9 +984,14 @@ export default function App() {
               <ToolbarButton onClick={toggleFocus} title={focusMode ? t("topbar.exitFocusMode") : t("topbar.focusMode")}>
                 <Aim size={13} className={focusMode ? "text-accent" : ""} />
               </ToolbarButton>
-              <ToolbarButton onClick={() => downloadMarkdown(exportAsMarkdown(state.items))} disabled={state.items.length===0} title={t("topbar.exportMarkdown")}>{t("topbar.export")}</ToolbarButton>
-              <ToolbarButton onClick={() => void exportConversation("docx")} disabled={state.items.length===0} title={t("topbar.exportWord")}>{t("topbar.exportWordShort")}</ToolbarButton>
-              <ToolbarButton onClick={() => void exportConversation("pdf")} disabled={state.items.length===0} title={t("topbar.exportPdf")}>{t("topbar.exportPdfShort")}</ToolbarButton>
+              {/* v4.29 化繁为简：导出三出口（md/Word/PDF）收进单钮下拉，管线原样保留 */}
+              <ExportMenu
+                disabled={state.items.length === 0}
+                onPick={(format: ExportFormat) => {
+                  if (format === "md") downloadMarkdown(exportAsMarkdown(state.items));
+                  else void exportConversation(format);
+                }}
+              />
               {deleteConfirm ? (
                 <span className="flex items-center gap-1 rounded-md border border-err/30 bg-del-bg px-1.5 py-1">
                   <span className="text-[11px] text-err whitespace-nowrap">{t("topbar.deleteSessionAsk")}</span>

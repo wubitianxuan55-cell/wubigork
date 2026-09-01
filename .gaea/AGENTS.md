@@ -47,7 +47,30 @@
 
 ## 版本状态
 
-- **最新发布：v4.28.0（2026-09-01）「浏览器与版本 · 观察窗/版本时间线/pptx
+- **最新发布：v4.29.0（2026-09-02）「办公 UI 化繁为简 · 顶栏收拢/自适应标签/
+  预览降噪」**：git tag `v4.29.0`；基线 v4.28.0；绑定面 **552 零变更**（纯前端
+  呈现重组）。用户点名主轴「UI 界面化繁为简，参考市场同类产品」，派刀即立红线
+  **「简化界面不是删除功能！」**。按纪律先跑模块制调研两线（AI 代理工作台简化
+  模式 / 办公文档工具与生产力软件）：原始稿 `docs/research-2026-09-01b/` +
+  合成 `docs/market-research-2026-09-01b.md`——共同结论：化繁为简=把复杂度从
+  「常驻视觉空间」迁到「按需检索空间」（菜单/面板/悬停/折叠）+ 出现时机半自动
+  化，Linear「只隐藏数据，不删除 issue」即官方先例。三个交付点（功能与出口
+  全保留）：①**顶栏导出收拢**——新 ExportMenu，导出 Markdown/Word/PDF 三
+  常驻文字钮收进单钮「导出 ⌄」下拉（对标 Devin/Linear 只进菜单不加按钮 + VS
+  Code 单点溢出），三出口管线原样接线，顶栏常驻操作钮 7→5；②**右栏 tab 窄栏
+  自适应图标化**——容器 <420px（WORKSPACE_TAB_COMPACT_WIDTH）文字 CSS hidden
+  只显图标（aria-label/title/角标保留；ResizeObserver 缺失回退文字；compact
+  受控 prop 可测），宽栏恢复文字，**6 tab 集合与数量锁不动**，340px 基线宽
+  拥挤根治（对标 Notion 视图 tab Icon only/Text only）；③**预览头部降噪**——
+  FilePreview「打开/定位」图标化（title/aria-label 保留）+头部按钮统一去边框
+  （HEAD_BTN），「编辑/保存/取消」状态语义文字保留（编辑能力保留红线，测试
+  钉住）。**验证**：Go 110 包 0 FAIL（stress flaky 沿旧）；tsc/tsc -b/eslint 0；
+  vitest **1147/1147**（+9：ExportMenu 5+WorkspaceTabs compact 3+FilePreview
+  1；未删改任何旧锁）；drift PASS（552）；版本四处 4.29.0。**欠账**：产物
+  自动置前/角标；面板行级次级信息悬停次行化；palette 吸附右栏面板项+按视图
+  重排；预览「半幅↔最大化」两档；沿旧 v4.28 全部。详见 releases/v4.29.0.md。
+
+- **上一发布：v4.28.0（2026-09-01）「浏览器与版本 · 观察窗/版本时间线/pptx
   交互」**：git tag `v4.28.0`；基线 v4.27.4；绑定面 550→552（+2：
   GaeaPptxOutline / GaeaBrowserObserve）。规划「浏览器与版本」刀（A2+B1+
   B2/C3），三并行子代理分线（文件所有权互斥）+主代理集成：

@@ -101,6 +101,7 @@
 | v4.26 | 对话流式重造（插刀，对齐 Codex：根因「发送后对话窗静默而轨迹在动」六连对账——WorkHeader 工作态头部/后端 phase 接线/子代理活动回投/seq+GaeaResyncEvents 吞件防线/重复工具折叠） | ✅ 已发布（releases/v4.26.0.md） |
 | v4.27 | Codex 对齐批（用户连续要求「对齐 Codex 右侧面板与对话输出」）：右栏文件工作台全高预览+宽度放开+编辑器 tab 图标、标签扁平化（删资料/成本库、取消二级标签）、对话输出（去气泡/回合分隔/复制/diffstat 芯片）、子代理对话实时下钻（SubagentThread 3s 轮询）、上下文标签完善（水位分色头部/空态/文件活动可点/悬停构成详情） | ✅ 已发布（releases/v4.27.0.md） | |
 | v4.28 | 浏览器与版本（原 v4.27 顺延） | A2 观察窗（截图步进流+操作时间线+自动弹出）+ B1 版本时间线（vN 徽标 popover+时间线+预览/恢复，证据链同源）+ B2/C3 pptx 大纲卡+逐页预览+页级指令 | ✅ 已发布（releases/v4.28.0.md） |
+| v4.29 | UI 化繁为简（用户点名主轴；**简化≠删功能红线**） | 顶栏导出三钮收拢单钮下拉（md/Word/PDF 出口全保留）+ 右栏 tab 窄栏自适应图标化（Notion Icon only 式，6 tab 集合不变）+ 预览头部降噪（打开/定位图标化+去边框，编辑等状态语义保留）——弹药：docs/market-research-2026-09-01b.md | ✅ 已发布（releases/v4.29.0.md） |
 | 远期 | 终端 tab、底部面板/自由窗口、侧边对话、iframe 实时镜像 | — | |
 
 每版交付纪律沿用 .gaea/AGENTS.md 约定：releases/vN.0.md + README 更新日志表 + 测试钉住（vitest、fold/golden、mock 契约 drift）。

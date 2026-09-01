@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Settings } from "../icons";
-import { WORKSPACE_TABS, type WorkspaceTabId } from "../lib/workspaceTabs";
+import { WORKSPACE_TABS, WORKSPACE_TAB_COMPACT_WIDTH, type WorkspaceTabId } from "../lib/workspaceTabs";
 
 // 右侧面板 Tab 按钮条（v4.27 扁平化）：
 //   一级平铺 = 文件 / 产物 / 变更 / 任务 / 分工（无二级标签）。
@@ -125,6 +125,7 @@ export function WorkspaceTabs({
   badges,
   enabledTabs,
   onToggleTab,
+  compact: compactProp,
 }: {
   active: WorkspaceTabId;
   onChange: (tab: WorkspaceTabId) => void;
@@ -134,8 +135,26 @@ export function WorkspaceTabs({
   enabledTabs?: ReadonlySet<WorkspaceTabId>;
   /** 设置卡开关回调（受控：开关状态由 App 经 enabledTabs 下发）。 */
   onToggleTab?: (id: WorkspaceTabId, next: boolean) => void;
+  /** v4.29 窄栏图标化的受控覆盖（测试/调用方强制指定）；缺省走容器宽度自适应。 */
+  compact?: boolean;
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // v4.29 化繁为简：窄栏自适应图标化（对标 Notion 视图 tab 的 Icon only/Text only）。
+  // 容器宽度 < 阈值 → 隐藏文字标签（CSS 隐藏保 DOM 文本，角标/aria-label/title
+  // 全保留，面板集合不变）；无 ResizeObserver（jsdom/旧内核）时保持文字标签。
+  const stripRef = useRef<HTMLDivElement>(null);
+  const [autoCompact, setAutoCompact] = useState(false);
+  useEffect(() => {
+    if (compactProp !== undefined) return;
+    const el = stripRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) setAutoCompact(entry.contentRect.width < WORKSPACE_TAB_COMPACT_WIDTH);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [compactProp]);
+  const compact = compactProp ?? autoCompact;
   // 按启用集过滤：停用的面板从 Tab 条隐藏；enabledTabs 缺省时不过滤。
   const visibleTabs = enabledTabs
     ? WORKSPACE_TABS.filter((t) => enabledTabs.has(t.id))
@@ -143,7 +162,7 @@ export function WorkspaceTabs({
   return (
     <div className="workspace-tabs relative shrink" role="tablist" aria-label="右侧面板">
       {/* 一级 Tab 条 + 条尾声明式设置齿轮 */}
-      <div className="flex items-center border-b border-border-soft overflow-hidden">
+      <div ref={stripRef} className="flex items-center border-b border-border-soft overflow-hidden">
         {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = active === tab.id;
@@ -153,13 +172,15 @@ export function WorkspaceTabs({
               key={tab.id}
               role="tab"
               aria-selected={isActive}
+              aria-label={compact ? tab.label : undefined}
               data-paneltab={tab.id}
               className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${isActive ? "text-accent border-accent" : ""}`}
               onClick={() => onChange(tab.id)}
               title={tab.label}
             >
               <Icon size={13} />
-              <span>{tab.label}</span>
+              {/* compact 时 CSS 隐藏文字（textContent 不变，角标锁与可测试性保住） */}
+              <span className={compact ? "hidden" : undefined}>{tab.label}</span>
               {typeof badge === "number" && badge > 0 && !isActive && <BadgePill count={badge} />}
             </button>
           );

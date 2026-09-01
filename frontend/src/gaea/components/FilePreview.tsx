@@ -15,6 +15,11 @@ function formatSize(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+// v4.29 化繁为简：头部按钮统一去边框（无边框 + 悬停浅底），图标优先；
+// 编辑/保存/取消等带状态语义的动作保留文字（编辑能力保留红线）。
+const HEAD_BTN =
+  "flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft";
+
 export function FilePreview({
   relPath,
   onClose,
@@ -138,10 +143,10 @@ export function FilePreview({
   return (
     <div className="flex flex-col h-full text-[12px]">
       {/* 文件标题栏 */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border-soft shrink-0">
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border-soft shrink-0">
         {onBackToFiles && (
           <button
-            className="flex items-center gap-1 px-2 py-0.5 border border-border-soft rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft"
+            className={HEAD_BTN}
             onClick={onBackToFiles}
             title="返回文件列表"
           >
@@ -163,23 +168,24 @@ export function FilePreview({
           <span className="text-fg-faint text-[10px] shrink-0">{formatSize(preview.size)}</span>
         )}
         <button
-          className="flex items-center gap-1 px-2 py-0.5 border border-border-soft rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft"
+          className={HEAD_BTN}
           onClick={() => app.RevealWorkspacePath(relPath).catch(() => {})}
           title="在文件管理器中定位"
+          aria-label="在文件管理器中定位"
         >
           <FolderTree size={10} />
         </button>
         <button
-          className="flex items-center gap-1 px-2 py-0.5 border border-border-soft rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft"
+          className={HEAD_BTN}
           onClick={() => app.OpenWorkspacePath(relPath).catch(() => {})}
           title="在外部程序中打开"
+          aria-label="在外部程序中打开"
         >
           <ExternalLink size={10} />
-          打开
         </button>
         {editable && (
           <button
-            className="flex items-center gap-1 px-2 py-0.5 border border-border-soft rounded bg-transparent text-accent text-[10px] cursor-pointer hover:bg-bg-soft"
+            className={HEAD_BTN + " text-accent"}
             onClick={startEdit}
             title="在预览中直接编辑文本文件（Ctrl+S 保存）"
           >
@@ -190,7 +196,7 @@ export function FilePreview({
         {editing && (
           <>
             <button
-              className="flex items-center gap-1 px-2 py-0.5 border border-border-soft rounded bg-transparent text-fg-dim text-[10px] cursor-pointer hover:bg-bg-soft"
+              className={HEAD_BTN}
               onClick={() => void cancelEdit()}
               title="取消编辑"
             >
@@ -198,7 +204,7 @@ export function FilePreview({
               取消
             </button>
             <button
-              className="flex items-center gap-1 px-2 py-0.5 rounded bg-accent text-white text-[10px] cursor-pointer hover:opacity-90 disabled:opacity-50"
+              className="flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-accent text-white text-[10px] cursor-pointer hover:opacity-90 disabled:opacity-50"
               onClick={() => void save()}
               disabled={!dirty || saveState === "saving"}
               title="保存（Ctrl+S）"

@@ -127,6 +127,16 @@ describe("FilePreview 嵌入式渲染（v4.25 A3 embedded）", () => {
     expect(screen.getByTitle("在外部程序中打开")).toBeTruthy(); // 操作区保留
   });
 
+  it("v4.29 化繁为简：打开/定位按钮图标化（无文字，title/aria-label 保留），编辑文字保留", async () => {
+    render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
+    await screen.findByText("旧内容");
+    const openBtn = screen.getByTitle("在外部程序中打开");
+    expect(openBtn.textContent).toBe(""); // 图标化：不再占文字宽度
+    expect(openBtn.getAttribute("aria-label")).toBe("在外部程序中打开");
+    expect(screen.getByTitle("在文件管理器中定位").textContent).toBe("");
+    expect(screen.getByText("编辑")).toBeTruthy(); // 状态语义动作保留文字
+  });
+
   it("默认（非 embedded）：头部文件名照常展示（向后兼容）", async () => {
     render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
     await screen.findByText("旧内容");

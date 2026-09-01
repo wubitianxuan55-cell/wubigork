@@ -26,6 +26,8 @@ import {
   CopyOutlined,
   DeleteOutlined,
   DiffOutlined,
+  DownloadOutlined,
+  FileWordOutlined,
   DashboardOutlined,
   DownOutlined,
   EditOutlined,
@@ -135,6 +137,8 @@ export const FileSpreadsheet: Icon = wrap(FileExcelOutlined);
 export const FilePpt: Icon = wrap(FilePptOutlined);
 export const FileText: Icon = wrap(FileTextOutlined);
 export const FilePdf: Icon = wrap(FilePdfOutlined);
+export const FileWord: Icon = wrap(FileWordOutlined);
+export const Download: Icon = wrap(DownloadOutlined);
 export const Folder: Icon = wrap(FolderOutlined);
 export const FolderGit2: Icon = wrap(FolderOpenOutlined);
 export const FolderOpen: Icon = wrap(FolderOpenOutlined);

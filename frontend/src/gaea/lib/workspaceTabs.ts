@@ -107,6 +107,11 @@ export const WORKSPACE_MAX_WIDTH = 1600;
 /** 右栏默认宽度：对齐 styles.css `.layout` 的 --workspace-width: 340px 基线。 */
 export const WORKSPACE_DEFAULT_WIDTH = 340;
 
+/** Tab 条自适应图标化的宽度阈值（v4.29 化繁为简）：容器窄于此值时按钮条只显示
+ *  图标（label 以 CSS 隐藏，aria-label/title 保留全名），宽栏恢复文字——
+ *  6 tab 集合不变，只调呈现密度（对标 Notion 视图 tab 的 Icon only / Text only）。 */
+export const WORKSPACE_TAB_COMPACT_WIDTH = 420;
+
 /** 宽度钳制（280–1600 取整；拖拽/读档统一走这里）。 */
 export function clampWorkspaceWidth(width: number): number {
   return Math.min(WORKSPACE_MAX_WIDTH, Math.max(WORKSPACE_MIN_WIDTH, Math.round(width)));

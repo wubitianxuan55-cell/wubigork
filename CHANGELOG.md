@@ -1,5 +1,25 @@
 # gaea · 多功能 AI 助手
 
+## v4.29.0 · 办公 UI 化繁为简：顶栏收拢 / 自适应标签 / 预览降噪（2026-09-02）
+> 用户点名主轴「UI 界面化繁为简，参考市场同类产品」，红线 **简化≠删除功能**。
+> 弹药：模块制调研两线（AI 代理工作台 / 办公文档工具）→
+> docs/market-research-2026-09-01b.md（原始稿 docs/research-2026-09-01b/）。
+> **绑定面 552 零变更**（纯前端呈现重组）。
+- **顶栏导出收拢**：新 ExportMenu——「导出 / Word / PDF」三个常驻文字钮收进
+  单钮「导出 ⌄」下拉（对标 Devin/Linear「新动作只进菜单不加按钮」+ VS Code
+  顶栏单点溢出）；md/Word/PDF 三出口与统一交付管线原样保留，仅呈现收敛。
+  顶栏常驻操作钮 7→5。
+- **右栏 tab 窄栏自适应图标化**：容器 <420px 时 6 tab 文字 CSS 隐藏、只显
+  图标（aria-label/title/角标全保留，对标 Notion 视图 tab Icon only/Text
+  only）；宽栏恢复文字。6 tab 集合与数量锁不动（WorkspaceTabs compact 受控
+  覆盖可测）；340px 基线宽下 6 带字 tab 拥挤问题根治。
+- **预览头部降噪**：FilePreview 头部「打开/定位」图标化（title/aria-label
+  保留，测试按 title 锁）+ 全部头部按钮去边框（无边框+悬停浅底）；「编辑/
+  保存/取消」等状态语义动作文字保留（编辑能力保留红线，测试钉住）。
+- 验证：Go 110 包 0 FAIL；tsc / tsc -b / eslint 0；vitest **1147/1147**
+  （+9：ExportMenu 5、WorkspaceTabs compact 3、FilePreview 图标化 1）；drift
+  PASS（552 零变更）；版本四处 4.29.0。详见 releases/v4.29.0.md。
+
 ## v4.28.0 · 浏览器与版本：观察窗 / 版本时间线 / pptx 交互（2026-09-01）
 > 规划「浏览器与版本」刀（A2+B1+B2/C3）。**绑定面 550 → 552（+2：
 > GaeaPptxOutline / GaeaBrowserObserve）**。三并行子代理分线+主代理集成。

@@ -64,6 +64,32 @@ describe("WorkspaceTabs 运行域活动角标（C6，蒸馏 dsh-better-sidebar b
   });
 });
 
+// ── v4.29 化繁为简：窄栏自适应图标化（6 tab 集合不变，只调呈现密度）──
+describe("WorkspaceTabs 窄栏图标化（v4.29，对标 Notion 视图 tab Icon only/Text only）", () => {
+  it("compact 时文字以 CSS 隐藏（textContent 不变）+ aria-label 保留全名", () => {
+    render(<WorkspaceTabs active="files" onChange={() => {}} compact />);
+    expect(document.querySelectorAll("[data-paneltab]")).toHaveLength(6); // 面板集合不变
+    const files = document.querySelector('[data-paneltab="files"]') as HTMLElement;
+    expect(files.querySelector("span.hidden")).toBeTruthy(); // 文字 CSS 隐藏（antd 图标也渲染成 span，需按类名定位）
+    expect(files.textContent).toBe("文件"); // DOM 文本保留（角标锁/可测试性不破）
+    expect(files.getAttribute("aria-label")).toBe("文件"); // a11y 名保留
+    expect(files.getAttribute("title")).toBe("文件");
+  });
+
+  it("compact 时角标仍渲染（活动计数不因降噪丢失）", () => {
+    render(<WorkspaceTabs active="files" onChange={() => {}} compact badges={{ tasks: 3, subagents: 3 }} />);
+    expect(document.querySelector('[data-paneltab="tasks"]')?.textContent).toContain("3");
+    expect(document.querySelector('[data-paneltab="tasks"]')?.querySelector("span.hidden")).toBeTruthy();
+  });
+
+  it("缺省（无 ResizeObserver 环境）：文字标签照常渲染，行为向后兼容", () => {
+    render(<WorkspaceTabs active="files" onChange={() => {}} />);
+    const files = document.querySelector('[data-paneltab="files"]') as HTMLElement;
+    expect(files.querySelector("span.hidden")).toBeNull();
+    expect(files.getAttribute("aria-label")).toBeNull();
+  });
+});
+
 // ── v4.23 声明式设置（蒸馏 dsh-better-sidebar「侧边卡片」）──────────────────
 
 const ALL_ENABLED = new Set<WorkspaceTabId>(WORKSPACE_TAB_IDS);
