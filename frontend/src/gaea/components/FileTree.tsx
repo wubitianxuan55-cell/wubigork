@@ -21,6 +21,11 @@ import { useDebouncedValue } from "../hooks/useDebouncedValue";
 
 // 复制成功后行尾「已复制」反馈时长（对齐插件 rowActions copied 1.2s）。
 const COPIED_MS = 1200;
+// 树中定位（reveal）高亮闪烁时长：足以被注意到，又不打断后续操作。
+const REVEAL_FLASH_MS = 1600;
+// 树中定位滚动重试：行可能在父链展开的异步加载后才渲染，轮询兜底。
+const REVEAL_SCROLL_RETRIES = 20;
+const REVEAL_SCROLL_INTERVAL_MS = 100;
 // 展开态 localStorage 条目上限，防膨胀。
 const EXPANDED_MAX = 500;
 // 树内搜索命中上限（GaeaFileSearch 服务端同样钳制，前端侧再限一次对齐插件预算封顶纪律）。
@@ -95,6 +100,28 @@ function persistExpanded(cwd: string | undefined, rec: Record<string, boolean>):
   }
 }
 
+/** 树中定位请求（v4.25 A3）：nonce 变化触发一次「展开父链 + 滚动到行 + 高亮闪烁」。 */
+export interface RevealRequest {
+  /** 目标文件相对路径（与 FileTree onSelect 同一相对路径口径）。 */
+  rel: string;
+  /** 递增计数：每次定位请求 +1，变化才触发（同一目标可重复定位）。 */
+  nonce: number;
+}
+
+/** 由相对路径推导需展开的父目录链：`a/b/c.md` → `["a", "a/b"]`。
+ *  兼容 Windows 反斜杠（产物面板登记路径可能带 `\`）。 */
+function parentDirsOf(rel: string): string[] {
+  const parts = rel.replace(/\\/g, "/").split("/").filter(Boolean);
+  parts.pop(); // 末段是文件名
+  const dirs: string[] = [];
+  let cur = "";
+  for (const part of parts) {
+    cur = cur === "" ? part : `${cur}/${part}`;
+    dirs.push(cur);
+  }
+  return dirs;
+}
+
 export function FileTree({
   cwd,
   onSelect,
@@ -102,6 +129,8 @@ export function FileTree({
   onReference,
   onOpenExternal,
   onReveal,
+  onOpenMainPreview,
+  revealRequest,
 }: {
   cwd?: string;
   onSelect: (rel: string) => void;
@@ -109,6 +138,11 @@ export function FileTree({
   onReference?: (rel: string) => void;
   onOpenExternal?: (rel: string) => void;
   onReveal?: (rel: string) => void;
+  /** 主区预览入口（v4.25 A3 双入口保留）：右键菜单「预览」走这里开主区
+   *  pane；缺省回退 onSelect（向后兼容旧调用方）。 */
+  onOpenMainPreview?: (rel: string) => void;
+  /** 树中定位请求：nonce 变化触发一次展开父链 + 滚动 + 高亮闪烁。 */
+  revealRequest?: RevealRequest | null;
 }) {
   // 展开集提升到 FileTree 顶层并按 cwd 持久化：重挂载（refreshKey）后恢复，根行默认展开。
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => loadExpanded(cwd));
@@ -151,6 +185,60 @@ export function FileTree({
   }, [needle]);
   // 复制成功反馈：行尾「已复制」标签替换 @ 按钮 1.2s。
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
+  // 树中定位（v4.25 A3）：目标行短暂高亮闪烁 + 滚动容器引用。
+  const [flashPath, setFlashPath] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const lastRevealNonceRef = useRef<number>(-1);
+
+  // 树中定位：nonce 变化触发一次。展开父链（落盘持久化）、退出搜索模式回树、
+  // 行渲染后滚动到可见并闪烁 REVEAL_FLASH_MS。行可能在父链目录异步加载完成
+  // 后才出现，滚动用轮询兜底（最多 2s）。
+  useEffect(() => {
+    if (!revealRequest || !revealRequest.rel) return;
+    if (revealRequest.nonce === lastRevealNonceRef.current) return;
+    lastRevealNonceRef.current = revealRequest.nonce;
+    const rel = revealRequest.rel;
+    // 若正处于树内搜索模式，目标行不在树中 → 清空查询回树
+    setQuery("");
+    // 展开父链（含根行），与 toggle 同路径持久化
+    setExpanded((prev) => {
+      const next: Record<string, boolean> = { ...prev, "": true };
+      for (const dir of parentDirsOf(rel)) next[dir] = true;
+      persistExpanded(cwd, next);
+      return next;
+    });
+    // 先置高亮（行渲染时即带闪烁样式），滚动等行出现后执行
+    setFlashPath(rel);
+    let tries = 0;
+    let scrollTimer: number | undefined;
+    const tryScroll = () => {
+      const root = scrollRef.current;
+      if (root) {
+        let row: HTMLElement | null = null;
+        for (const el of Array.from(root.querySelectorAll<HTMLElement>("[data-path]"))) {
+          if (el.dataset.path === rel) {
+            row = el;
+            break;
+          }
+        }
+        if (row) {
+          if (typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "nearest" });
+          return;
+        }
+      }
+      if (++tries <= REVEAL_SCROLL_RETRIES) {
+        scrollTimer = window.setTimeout(tryScroll, REVEAL_SCROLL_INTERVAL_MS);
+      }
+    };
+    tryScroll();
+    const flashTimer = window.setTimeout(() => {
+      setFlashPath((cur) => (cur === rel ? null : cur));
+    }, REVEAL_FLASH_MS);
+    return () => {
+      if (scrollTimer !== undefined) window.clearTimeout(scrollTimer);
+      window.clearTimeout(flashTimer);
+    };
+  }, [revealRequest, cwd]);
 
   const toggle = useCallback((rel: string) => {
     setExpanded((prev) => {
@@ -256,7 +344,9 @@ export function FileTree({
       { key: "copy", label: "复制相对路径", icon: <Copy size={12} /> },
     ],
     onClick: ({ key }) => {
-      if (key === "preview") onSelect(path);
+      // 「预览」= 主区预览入口（双入口保留）；行点击的右栏内 tab 打开由
+      // onSelect 承担（v4.25 A3 起语义分叉，缺省回退保持旧调用方兼容）。
+      if (key === "preview") (onOpenMainPreview ?? onSelect)(path);
       else if (key === "external") onOpenExternal?.(path);
       else if (key === "reveal") onReveal?.(path);
       else if (key === "copy") copyPath(path);
@@ -354,13 +444,20 @@ export function FileTree({
               );
             }
             const isSelected = selectedFile === childPath;
+            const isFlashed = flashPath === childPath;
             return (
               <Dropdown key={childPath} trigger={["contextMenu"]} menu={fileMenu(childPath)}>
                 <div
                   role="button"
                   tabIndex={0}
+                  data-path={childPath}
+                  data-flash={isFlashed ? "true" : undefined}
                   className={`group w-full flex items-center gap-1 px-2 py-0.5 border-0 text-left cursor-pointer transition-colors ${
-                    isSelected ? "bg-accent/10 text-accent" : "text-fg-dim hover:bg-bg-soft"
+                    isFlashed
+                      ? "bg-accent/25 text-accent" // 树中定位闪烁：比选中态更醒目，REVEAL_FLASH_MS 后自动消退
+                      : isSelected
+                        ? "bg-accent/10 text-accent"
+                        : "text-fg-dim hover:bg-bg-soft"
                   }`}
                   style={{ paddingLeft: `${22 + (depth + 1) * 14}px` }}
                   onClick={() => onSelect(childPath)}
@@ -402,7 +499,7 @@ export function FileTree({
           </button>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" ref={scrollRef}>
         {needle === "" ? (
           <>
             <Dropdown trigger={["contextMenu"]} menu={dirMenu("")}>

@@ -2,8 +2,8 @@
 // 2026-08-20 办公蒸馏（dsh-better-sidebar 文件工作台）：
 // 行悬浮 @ 引用 / 右键复制路径（已复制反馈）/ 展开态持久化 / 树内搜索
 // （C8：接 GaeaFileSearch 工作区递归搜索，蒸馏插件 TreePanel 的 host fs.search）。
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, fireEvent, waitFor, within, act } from "@testing-library/react";
 import { FileTree } from "./FileTree";
 
 type G = { go?: { app?: Record<string, unknown> } };
@@ -177,5 +177,89 @@ describe("文件工作台蒸馏（dsh-better-sidebar）", () => {
 
     fireEvent.click(screen.getByLabelText("清空搜索"));
     expect(await screen.findByText("README.md")).toBeTruthy();
+  });
+});
+
+// ── v4.25 A3 树中定位（reveal）：产物「树中定位」→ 展开父链 + 滚动 + 高亮闪烁 ──
+describe("FileTree 树中定位 reveal（v4.25 A3）", () => {
+  const scrollSpy = vi.fn();
+  const origScrollIntoView = Element.prototype.scrollIntoView;
+  // data-flash/data-path 落在行 div 上（文本在其子 span 里），经 closest 取行属性
+  const flashOf = (name: string): string | null =>
+    screen.getByText(name).closest("[data-path]")?.getAttribute("data-flash") ?? null;
+
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = scrollSpy;
+  });
+  afterEach(() => {
+    Element.prototype.scrollIntoView = origScrollIntoView;
+    delete (window as unknown as G).go;
+    localStorage.clear();
+    vi.useRealTimers();
+    scrollSpy.mockClear();
+  });
+
+  it("revealRequest nonce 变化：展开父链 + 滚动到目标行 + 行高亮闪烁", async () => {
+    mockListDir((dir: string) =>
+      Promise.resolve(dir === "docs" ? [{ name: "plan.md", isDir: false }] : ROOT_ENTRIES),
+    );
+    const { rerender } = render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+    await screen.findByText("docs"); // 根层加载完成（docs 尚未展开）
+
+    rerender(<FileTree cwd="C:/proj" onSelect={() => {}} revealRequest={{ rel: "docs/plan.md", nonce: 1 }} />);
+
+    // 父链自动展开：docs 下 plan.md 出现，行带 data-flash 高亮
+    await waitFor(() => expect(flashOf("plan.md")).toBe("true"));
+    expect(screen.getByText("plan.md").closest("[data-path]")?.getAttribute("data-path")).toBe("docs/plan.md");
+    expect(flashOf("README.md")).toBeNull(); // 仅目标行闪烁
+    // 滚动有轮询兜底（行异步加载后 100ms 内重试），等待轮询命中
+    await waitFor(() => expect(scrollSpy).toHaveBeenCalled(), { timeout: 2000 });
+    // 展开父链与 toggle 同路径落盘
+    const key = `gaea.fileTree.expanded.${encodeURIComponent("C:/proj")}`;
+    expect(JSON.parse(localStorage.getItem(key) as string)).toMatchObject({ docs: true });
+  });
+
+  it("高亮短暂闪烁后自动消退（行恢复常规样式）", async () => {
+    mockListDir(() => Promise.resolve(ROOT_ENTRIES));
+    vi.useFakeTimers();
+    const { rerender } = render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+    await act(async () => {}); // 根目录 mock 立即 resolve，冲刷微任务即可
+    expect(screen.getByText("README.md")).toBeTruthy();
+
+    rerender(<FileTree cwd="C:/proj" onSelect={() => {}} revealRequest={{ rel: "README.md", nonce: 1 }} />);
+    expect(flashOf("README.md")).toBe("true");
+
+    act(() => { vi.advanceTimersByTime(1700); });
+    expect(flashOf("README.md")).toBeNull();
+  });
+
+  it("同一目标重复定位：nonce 递增再次触发闪烁", async () => {
+    mockListDir(() => Promise.resolve([{ name: "a.md", isDir: false }]));
+    const { rerender } = render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+    await screen.findByText("a.md");
+
+    rerender(<FileTree cwd="C:/proj" onSelect={() => {}} revealRequest={{ rel: "a.md", nonce: 1 }} />);
+    expect(flashOf("a.md")).toBe("true");
+    // 闪烁 1.6s 后消退（真实定时器，放宽 waitFor 超时）
+    await waitFor(() => expect(flashOf("a.md")).toBeNull(), { timeout: 2500 });
+
+    rerender(<FileTree cwd="C:/proj" onSelect={() => {}} revealRequest={{ rel: "a.md", nonce: 2 }} />);
+    expect(flashOf("a.md")).toBe("true");
+  });
+
+  it("树内搜索模式下定位：清空查询回树再定位", async () => {
+    const listDir = vi.fn().mockResolvedValue([{ name: "deep.md", isDir: false }]);
+    const fileSearch = vi.fn().mockResolvedValue([]);
+    mockCoreB({ GaeaListDir: listDir, GaeaFileSearch: fileSearch });
+    const { rerender } = render(<FileTree cwd="C:/proj" onSelect={() => {}} />);
+    await screen.findByText("deep.md");
+
+    fireEvent.change(screen.getByPlaceholderText("过滤文件名"), { target: { value: "zzz" } });
+    await waitFor(() => expect(fileSearch).toHaveBeenCalled());
+
+    rerender(<FileTree cwd="C:/proj" onSelect={() => {}} revealRequest={{ rel: "deep.md", nonce: 1 }} />);
+    // 查询被清空回树（搜索输入复位），目标行重新可见并闪烁
+    expect((screen.getByPlaceholderText("过滤文件名") as HTMLInputElement).value).toBe("");
+    await waitFor(() => expect(flashOf("deep.md")).toBe("true"));
   });
 });

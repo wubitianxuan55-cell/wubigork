@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { AlertCircle, BarChart3, Check, ChevronDown, FileText, LineChart, Loader2, PieChart, RefreshCw, Table, Wand2, X } from "../icons";
+import { AlertCircle, BarChart3, Check, ChevronDown, FileText, LineChart, Loader2, MessageSquare, PieChart, RefreshCw, Table, Wand2, X } from "../icons";
 import { app } from "../lib/bridge";
-import { useUpdatedFilesStore } from "../lib/store";
+import { useComposerInsertStore, useUpdatedFilesStore } from "../lib/store";
+import { useToast } from "./Toast";
 import type { XlsxCell, XlsxChartResult, XlsxPlanResult, XlsxPreview, XlsxSheet } from "../lib/types";
 
 function parseRef(ref: string): { col: number; row: number } {
@@ -101,10 +102,13 @@ export function XlsxPreview({
   body,
   fileName,
   relPath,
+  onQuoteSelection,
 }: {
   body: string;
   fileName: string;
   relPath: string;
+  /** B3 选区联动：选中单元格引用到对话的自定义出口；缺省走 composer 插入通道。 */
+  onQuoteSelection?: (quote: string) => void;
 }) {
   const [active, setActive] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -137,6 +141,7 @@ export function XlsxPreview({
   const [editingRef, setEditingRef] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     setDocBody(body);
@@ -156,8 +161,28 @@ export function XlsxPreview({
   }, [docBody]);
 
   // 规划：AI 操作集在临时副本上试运行，返回变更清单，不落盘
-  const runEdit = useCallback(async () => {
-    if (!selected || !instruction.trim() || !preview) return;
+  // B3 选区联动：选中单元格 → 浮动「引用到对话」→ 以引用块插入输入框
+  // （走既有 composer 插入通道 requestText，与 SelectionToComposer/WorkspacePanel
+  // 的 reference() 同一机制；onQuoteSelection 提供宿主自定义出口）。
+  const quoteToComposer = useCallback(() => {
+    if (!selected || !preview) return;
+    const sheet = preview.sheets[Math.min(active, preview.sheets.length - 1)];
+    let cell: XlsxCell | undefined;
+    for (const row of sheet.rows) {
+      const hit = row.find((x) => x.ref === selected);
+      if (hit) {
+        cell = hit;
+        break;
+      }
+    }
+    const val = cell ? (cell.formula ? `fx =${cell.formula}（值 ${String(cell.value ?? "")}）` : String(cell.value ?? "")) : "";
+    const quote = `> 《${fileName}》${sheet.name}!${selected}：${val}\n\n请基于以上选中单元格继续处理。`;
+    if (onQuoteSelection) onQuoteSelection(quote);
+    else useComposerInsertStore.getState().requestText(quote);
+    toast.show("已引用到输入框", "info");
+  }, [selected, preview, active, fileName, onQuoteSelection, toast]);
+
+  const runEdit = useCallback(async () => {    if (!selected || !instruction.trim() || !preview) return;
     const sheet = preview.sheets[Math.min(active, preview.sheets.length - 1)];
     setRunning(true);
     setEditError("");
@@ -389,7 +414,7 @@ export function XlsxPreview({
   const selectedRow = selected ? Number(/^[A-Z]+(\d+)$/.exec(selected)?.[1]) : 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       {notice && (
         <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-accent/25 bg-accent/8 text-accent text-[11.5px]">
           <Check size={12} />
@@ -720,6 +745,19 @@ export function XlsxPreview({
           onCancelEdit={cancelEdit}
           disabled={saving}
         />
+        {/* B3 浮动「引用到对话」：选中单元格且不在直接编辑时出现（次级入口，
+            不抢占既有 AI 编辑/行列表头/双击编辑等任何交互） */}
+        {selected && editingRef === null && (
+          <button
+            className="absolute bottom-4 left-4 z-20 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-accent/30 bg-bg-elev-2 text-accent text-[11px] shadow-lg cursor-pointer hover:bg-accent/10 transition-colors"
+            onClick={quoteToComposer}
+            title="把选中单元格以引用块插入输入框，可编辑后发送"
+            data-testid="xlsx-quote-btn"
+          >
+            <MessageSquare size={11} aria-hidden />
+            引用到对话
+          </button>
+        )}
       </div>
     </div>
   );

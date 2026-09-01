@@ -49,6 +49,10 @@ export interface WorkspacePanelContext {
   onLocateSource: (turn: number) => void;
   /** 新子代理出现 → 亮出分工面板（v4.24 A1；是否触发由面板内 autoOpen 偏好决定）。 */
   onSubagentStarted?: () => void;
+  /** 产物行「树中定位」（v4.25 A3 reveal）：亮文件 tab 并高亮该行。 */
+  onRevealInTree?: (rel: string) => void;
+  /** 树中定位请求体（nonce 变化触发一次：文件树展开父链 + 滚动 + 闪烁）。 */
+  revealRequest?: { rel: string; nonce: number } | null;
 }
 
 export interface WorkspaceTabRegistration {
@@ -79,6 +83,7 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
       onSelectFile: ctx.onOpenFile,
       onRefresh: ctx.onRefreshPanel,
       onClose: ctx.onClosePanel,
+      revealRequest: ctx.revealRequest,
     }),
   materials: (ctx) => createElement(MaterialsPanel, { onOpenFile: ctx.onOpenFile }),
   cost: () => createElement(CostLibraryPanel),
@@ -88,6 +93,7 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
       sessionPath: ctx.currentSessionPath,
       onOpenFile: ctx.onOpenFile,
       onLocateSource: ctx.onLocateSource,
+      onRevealInTree: ctx.onRevealInTree,
     }),
   changes: (ctx) =>
     createElement(ChangesPanel, {

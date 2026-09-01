@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useState } from "react";
-import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, Loader2, MessageSquare, Paperclip, Rollback, Shield, Table } from "../icons";
+import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, ListTree, Loader2, MessageSquare, Paperclip, Rollback, Shield, Table } from "../icons";
 import { app } from "../lib/bridge";
 import type { DeliverableRegistryView, JournalChangeRecord, VerdictView, VerifyDiffRow } from "../lib/types";
 import {
@@ -48,12 +48,16 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   sessionPath,
   onOpenFile,
   onLocateSource,
+  onRevealInTree,
 }: {
   items: SessionDeliverable[];
   /** 当前会话路径（v4.24 C1：非空时拉取权威产物登记表）。 */
   sessionPath?: string;
   onOpenFile: (path: string) => void;
   onLocateSource?: (turn: number) => void;
+  /** 树中定位（v4.25 A3）：产物行小按钮 → 切到文件 tab 并在文件树中
+   *  展开父链 + 滚动 + 高亮该文件（接线由 App/sidebarRegistry 完成）。 */
+  onRevealInTree?: (rel: string) => void;
 }) {
   const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
@@ -358,6 +362,17 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       aria-label="跳转到生成它的消息"
                     >
                       <MessageSquare size={12} />
+                    </button>
+                  )}
+                  {onRevealInTree && (
+                    <button
+                      type="button"
+                      className={iconBtn}
+                      onClick={() => onRevealInTree(path)}
+                      title="树中定位：在文件树中展开并高亮该文件"
+                      aria-label="树中定位"
+                    >
+                      <ListTree size={12} />
                     </button>
                   )}
                   <button

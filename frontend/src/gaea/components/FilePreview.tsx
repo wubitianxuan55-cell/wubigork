@@ -18,10 +18,15 @@ export function FilePreview({
   relPath,
   onClose,
   onBackToFiles,
+  embedded = false,
 }: {
   relPath: string | null;
   onClose: () => void;
   onBackToFiles?: () => void;
+  /** 嵌入式渲染（v4.25 A3 右栏编辑器 tab）：默认 false 行为完全不变；
+   *  true 时隐藏头部文件名（tab 条已展示同名字样，280–720px 窄栏省宽），
+   *  预览/编辑/OCR/docx/xlsx 能力原样保留。 */
+  embedded?: boolean;
 }) {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -135,7 +140,12 @@ export function FilePreview({
           </button>
         )}
         <FileText size={13} className="text-accent shrink-0" />
-        <span className="font-mono text-fg truncate flex-1 text-[12px]">{fileName}</span>
+        {embedded ? (
+          // 嵌入式：tab 条已展示文件名，头部留 flex 占位对齐右侧操作区
+          <span className="flex-1" />
+        ) : (
+          <span className="font-mono text-fg truncate flex-1 text-[12px]">{fileName}</span>
+        )}
         {dirty && (
           <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" title="有未保存的修改" />
         )}

@@ -1,5 +1,25 @@
 # gaea · 多功能 AI 助手
 
+## v4.25.0 · 文件工作台：编辑器 tab 化 / 变更 diff / 选区联动 / 模型主动打开（2026-09-01）
+> 规划 docs/gaea-office-upgrade-plan-2026-09.md 第三刀：A3 文件工作台 +
+> B3 选区联动。**绑定面 549 → 549（零新增：sidebar_open 走内置工具事件管线）**。
+- **编辑器 tab 化（EditorTabs）**：文件树点开 → 右栏内多文件编辑器 tab
+  （lib/editorTabs 外部 store：上限 12 LRU/关闭激活相邻/localStorage 持久化
+  坏值兜底）；FilePreview 新增 embedded 模式，docx/xlsx/md/图片/PDF 能力原样
+  随迁（换壳不换芯红线）；双入口保留（树行点击=右栏内开 tab，右键=主区预览
+  pane）；产物行「树中定位」→ FileTree 展开父链+滚动+闪烁（reveal）。
+- **变更 tab diff 化（Git 面板式）**：文件行可展开 → 行级红绿 diff（lib/planDiff
+  三态：edit_file/multi_edit 真 before/after；write_file/edit_lines 写入内容
+  预览+原因；其余诚实不伪造）+ 回滚接证据链 Journal 最近基线（无基线诚实标注）。
+- **B3 选区联动**：xlsx 选中单元格→浮动「引用到对话」；docx 框选工具栏补
+  「引用到对话」；docx 渲染失败降级纯文本视图（docxText 提取正文段落+提示条）。
+- **模型主动打开（sidebar_open）**：新内置 Go 工具（work 空间/ReadOnly 直允许/
+  防穿越/envelope data path_rel）+ 前端解析器 + App 按事件 id 去重接线——模型
+  把关键产物推到右栏编辑器 tab，file 开 tab/directory 亮文件 tab。
+- 验证：Go build/vet/test 0 FAIL（+20 用例）；tsc -b/eslint 0；vitest 1001/1001
+  （净增 74）；drift PASS（549）；版本四处 4.25.0。三并行子代理分线+主代理
+  集成。欠账与下一刀 v4.26 详见 releases/v4.25.0.md。
+
 ## v4.24.0 · 子代理工作台：树拓扑 / 实时动态 / 产物登记表（2026-09-01）
 > 规划 docs/gaea-office-upgrade-plan-2026-09.md 第二刀：A1 分工/子代理拓扑
 > tab（AgentNetworkCard+SubagentsPanel 合体进化）+ C1 后端权威产物登记表。

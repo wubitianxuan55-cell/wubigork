@@ -77,6 +77,31 @@ describe("DeliverablesPanel 会话产物面板", () => {
     expect(screen.queryByTitle("沉淀到成本库：把单价明细用 cost_save 写回成本库")).toBeNull();
   });
 
+  // ── v4.25 A3 树中定位：产物行「树中定位」小按钮（→ 文件 tab 树中闪烁）──
+  it("onRevealInTree 直传：点击「树中定位」回调产物相对路径", () => {
+    const onRevealInTree = vi.fn();
+    render(
+      <DeliverablesPanel
+        items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
+        onOpenFile={() => {}}
+        onRevealInTree={onRevealInTree}
+      />,
+    );
+    fireEvent.click(screen.getByTitle("树中定位：在文件树中展开并高亮该文件"));
+    expect(onRevealInTree).toHaveBeenCalledTimes(1);
+    expect(onRevealInTree).toHaveBeenCalledWith("exports/成本测算.xlsx");
+  });
+
+  it("未传 onRevealInTree：不渲染「树中定位」按钮（向后兼容）", () => {
+    render(
+      <DeliverablesPanel
+        items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
+        onOpenFile={() => {}}
+      />,
+    );
+    expect(screen.queryByTitle("树中定位：在文件树中展开并高亮该文件")).toBeNull();
+  });
+
   it("图片产物渲染缩略图，非图片保留类型图标", async () => {
     const { container } = render(
       <DeliverablesPanel

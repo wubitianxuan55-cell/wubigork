@@ -1,9 +1,51 @@
 # 任务进度
 
-> 最后更新: 2026-09-01（v4.24.0「子代理工作台」：树拓扑/实时动态/产物登记表
-> ——规划第二刀 A1+C1 收口，绑定面 548→549）
+> 最后更新: 2026-09-01（v4.25.0「文件工作台」：编辑器 tab 化/变更 diff/
+> 选区联动/模型主动打开——规划第三刀 A3+B3，绑定面 549→549 零新增）
 
 ## 当前状态
+
+- **最新发布：v4.25.0（2026-09-01）「文件工作台 · 编辑器 tab 化/变更 diff/
+  选区联动/模型主动打开」**：git tag v4.25.0；基线 v4.24.0；绑定面 549→549
+  （零新增）。规划第三刀（docs/gaea-office-upgrade-plan-2026-09.md A3+B3）。
+  本轮全程 3 并行编码子代理分线（文件所有权互斥）+ 3 调研子代理同期跑 +
+  主代理集成收口：
+  ①**A3 编辑器 tab 化（EditorTabs）**：文件树点开→右栏内多文件编辑器 tab
+  （lib/editorTabs zustand 外部 store：上限 12 LRU/关闭激活相邻/localStorage
+  坏值兜底/openEditorTab 命令式入口）；FilePreview embedded 模式（默认 false
+  行为不变），docx 框选即改/xlsx 直编+Plan→Apply 原样随迁（换壳不换芯红线）；
+  双入口保留（树行点击=右栏内 tab、右键「预览」=主区 pane）；产物行「树中
+  定位」reveal→FileTree 展开父链+滚动+1.6s 闪烁（注册表 ctx 增
+  revealRequest/onRevealInTree 两字段透传，面板本体零改动）。
+  ②**A3 变更 tab diff 化**：文件行展开→行级红绿 diff（lib/planDiff 数据构造 +
+  ChangesDiff 三态渲染；数据源诚实评估：edit_file/multi_edit 有 old/new→真
+  diff，write_file/edit_lines 仅新内容→写入预览+原因，其余不伪造）+ 回滚接
+  证据链 Journal 最近基线（GaeaJournalList+RollbackRecord，路径匹配排除
+  rollback 记录）。
+  ③**B3 选区联动**：xlsx 选中单元格→浮动「引用到对话」（双击直编时隐藏）；
+  docx 框选工具栏补「引用到对话」；docx 渲染失败降级纯文本（lib/docxText
+  提取 word/document.xml 正文段落+amber 提示条，能力边界如实）。
+  ④**模型主动打开 sidebar_open**：Go 内置工具（work 空间/ReadOnly 直允许/
+  防穿越 realPath+within/envelope data {kind,path_abs,path_rel}；+20 Go 用例）
+  + lib/sidebarOpen.ts 解析器（坏 JSON/失败 code→null 不抛）+ App 按工具事件
+  id 去重消费（file→openEditorTab 开右栏编辑器 tab，directory→亮文件 tab；
+  命中自动亮右栏切「文件」tab，先收主区预览）。
+  **验证**：Go build/vet/test 全量 0 FAIL；tsc -b/eslint 0；vitest 1001/1001
+  （164 文件，净增 74：editorTabs 16、sidebarOpen 8、planDiff 12、ChangesDiff 4、
+  DocxPreview 6、EditorTabs/WorkspacePanel/ChangesPanel 重写等）；drift PASS
+  （549）；版本四处 4.25.0。**同期调研**：docs/market-research-2026-09-01.md
+  合成版 + docs/research-2026-09-01/ 3 原始稿（v4.24.0 基线：浏览器观察窗/
+  版本时间线/pptx 与工作台动向，喂 v4.26）。**教训**：并行子代理跨线只共享
+  「接口契约（prop 名/签名）」并在派发时逐字写进两份 brief，中途再以消息补发
+  约定（本轮 editorTabs 外部 store 补约定避免返工）；子代理自查 tsc 可能撞见
+  并行线半成品错误，收口以主代理全量门禁为准。**欠账**：变更 diff 的
+  write_file/edit_lines 旧内容缺失（待 B1 写前快照库）；回滚粒度=最近基线
+  （逐版本回滚待 B1）；docx 降级仅正文段落；sidebar_open directory 不定位
+  树根；EditorTabs 窄栏精细适配；AgentNetworkCard 旧卡不动（沿 v4.24 约定）。
+  **下一刀 v4.26「浏览器与版本」**：A2 观察窗（截图步进流起版+操作时间线+
+  权限卡内联）+ B1 版本时间线（写前内容寻址快照库与登记表同源+vN 徽标
+  popover 双入口+恢复=新增版本）+ B2 pptx（结构化大纲卡先行+页级指令两通道）
+  + C2/C3。详见 releases/v4.25.0.md。
 
 - **最新发布：v4.24.0（2026-09-01）「子代理工作台 · 树拓扑/实时动态/
   产物登记表」**：git tag v4.24.0；基线 v4.23.0；绑定面 548→549（+1：

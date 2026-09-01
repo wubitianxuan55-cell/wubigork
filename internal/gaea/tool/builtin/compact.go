@@ -43,6 +43,7 @@ var compactDesc = map[string]string{
 	"browser_new_tab":    "新建标签页并切换为当前页(url必填,原页refs失效)",
 	"browser_switch_tab": "切换当前标签页(tab_id必填,切换后refs失效需重新snapshot)",
 	"browser_close":      "关闭受控浏览器(缺省关页+杀Edge+清临时profile;tab_id只关指定标签)",
+	"sidebar_open":       "把工作区内文件/目录推到右面板打开(纯UI动作,不读内容不落盘;kind缺省按path推断)",
 }
 
 var compactSchema = map[string]json.RawMessage{
@@ -122,4 +123,6 @@ var compactSchema = map[string]json.RawMessage{
 		`{"type":"object","properties":{"tab_id":{"type":"string"}},"required":["tab_id"]}`),
 	"browser_close": json.RawMessage(
 		`{"type":"object","properties":{"tab_id":{"type":"string"}}}`),
+	"sidebar_open": json.RawMessage(
+		`{"type":"object","properties":{"path":{"type":"string"},"kind":{"type":"string","enum":["file","directory"]}},"required":["path"]}`),
 }

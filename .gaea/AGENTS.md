@@ -47,6 +47,41 @@
 
 ## 版本状态
 
+- **最新发布：v4.25.0（2026-09-01）「文件工作台 · 编辑器 tab 化/变更 diff/
+  选区联动/模型主动打开」**：git tag `v4.25.0`；基线 v4.24.0；绑定面 549→549
+  （零新增：sidebar_open 为内置工具，走 ToolDispatch/ToolResult 事件管线）。
+  规划第三刀（docs/gaea-office-upgrade-plan-2026-09.md A3+B3）。三并行子代理
+  分线（文件所有权互斥）+ 主代理集成：
+  ①**A3 编辑器 tab 化**：文件树点开→右栏内多文件编辑器 tab（lib/editorTabs
+  zustand 外部 store：open/close/activate、上限 12 LRU、关闭激活 tab 激活相邻、
+  localStorage gaea.rightPanel.editorTabs.v1 坏值兜底；openEditorTab 命令式
+  入口）；FilePreview 新增 embedded 模式（默认 false 行为不变），docx 框选即改/
+  xlsx 直编+Plan→Apply 等能力原样随迁（换壳不换芯红线）；双入口保留（树行
+  点击=右栏内 tab、右键「预览」=主区 pane）；产物行「树中定位」reveal→
+  FileTree 展开父链+滚动+1.6s 闪烁（注册表 ctx 增 revealRequest/onRevealInTree）。
+  ②**A3 变更 tab diff 化**：文件行展开→行级红绿 diff（lib/planDiff 三态：
+  edit_file/multi_edit 真 before/after；write_file/edit_lines 写入内容预览+
+  原因；其余诚实不伪造——后端 StageBaseline 不经事件流下发前端）+ 回滚接
+  证据链 Journal 最近基线（GaeaJournalList+RollbackRecord，无基线诚实标注）。
+  ③**B3 选区联动**：xlsx 选中单元格→浮动「引用到对话」；docx 框选工具栏补
+  「引用到对话」；docx 渲染失败降级纯文本（lib/docxText 提取 word/document.xml
+  段落+amber 提示条）。
+  ④**模型主动打开 sidebar_open**：Go 内置工具（internal/gaea/tool/builtin/
+  sidebar_open.go，work 空间/ReadOnly 直允许不弹卡/防穿越 realPath+within/
+  envelope data {kind,path_abs,path_rel}）+ lib/sidebarOpen.ts 解析器 + App 按
+  工具事件 id 去重接线（file→openEditorTab，directory→亮文件 tab；命中自动亮
+  右栏切「文件」tab）。
+  **验证**：Go build/vet/test 全量 0 FAIL（+20 用例）；tsc -b/eslint 0；
+  vitest 1001/1001（164 文件，净增 74）；drift PASS（549）；版本四处 4.25.0。
+  同期调研：docs/market-research-2026-09-01.md 合成版 + docs/research-2026-09-01/
+  3 分模块原始稿（v4.24.0 基线，喂 v4.26）。**欠账**：变更 diff 的 write_file/
+  edit_lines 旧内容缺失（待 v4.26 B1 写前快照库）；回滚粒度=最近基线；docx 降级
+  仅正文段落；sidebar_open directory 不定位树根；EditorTabs 窄栏精细适配；
+  AgentNetworkCard 旧卡不动。**下一刀 v4.26「浏览器与版本」**：A2 观察窗
+  （截图步进流起版+操作时间线+权限卡内联）+ B1 版本时间线（写前内容寻址快照库
+  与登记表同源+vN 徽标 popover 双入口）+ B2 pptx（结构化大纲卡先行+页级指令
+  两通道）+ C2/C3。详见 releases/v4.25.0.md。
+
 - **最新发布：v4.24.0（2026-09-01）「子代理工作台 · 树拓扑/实时动态/
   产物登记表」**：git tag `v4.24.0`；基线 v4.23.0；绑定面 548→549（+1：
   GaeaDeliverableRegistry）。规划第二刀（docs/gaea-office-upgrade-plan-2026-09.md

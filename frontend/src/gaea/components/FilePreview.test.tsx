@@ -109,3 +109,21 @@ describe("FilePreview 工作区内联编辑（C5）", () => {
     await waitFor(() => expect(mocks.writeFile).toHaveBeenCalledWith("notes/a.md", "Ctrl+S 保存内容"));
   });
 });
+
+// v4.25 A3 右栏编辑器 tab 嵌入式渲染：embedded 只收窄头部（文件名由 tab 条
+// 展示），预览/编辑能力原样保留；默认 false 行为完全不变（上方用例即回归）。
+describe("FilePreview 嵌入式渲染（v4.25 A3 embedded）", () => {
+  it("embedded：隐藏头部文件名，预览内容与编辑按钮保留", async () => {
+    render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} embedded />));
+    expect(await screen.findByText("旧内容")).toBeTruthy();
+    expect(screen.queryByText("a.md")).toBeNull(); // 头部文件名不重复展示
+    expect(screen.getByText("编辑")).toBeTruthy(); // 编辑能力保留
+    expect(screen.getByTitle("在外部程序中打开")).toBeTruthy(); // 操作区保留
+  });
+
+  it("默认（非 embedded）：头部文件名照常展示（向后兼容）", async () => {
+    render(wrap(<FilePreview relPath="notes/a.md" onClose={() => {}} />));
+    await screen.findByText("旧内容");
+    expect(screen.getByText("a.md")).toBeTruthy();
+  });
+});

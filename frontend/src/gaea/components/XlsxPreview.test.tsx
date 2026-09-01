@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { XlsxPreview } from "./XlsxPreview";
+import { useComposerInsertStore } from "../lib/store";
 
 const body = JSON.stringify({
   sheets: [
@@ -175,5 +176,57 @@ describe("XlsxPreview", () => {
     expect(screen.getByRole("menuitem", { name: /图表→PPT/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("menuitem", { name: /折线图/ }));
     expect(await screen.findByText(/已嵌入图表/)).toBeTruthy();
+  });
+});
+
+describe("XlsxPreview B3 选区引用到对话", () => {
+  afterEach(() => {
+    useComposerInsertStore.setState({ pendingText: null });
+  });
+
+  it("选中单元格 → 浮动「引用到对话」出现，点击经 onQuoteSelection 给出 sheet!ref 与值", () => {
+    const onQuoteSelection = vi.fn();
+    render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" onQuoteSelection={onQuoteSelection} />);
+    // 初始无浮动入口
+    expect(screen.queryByTestId("xlsx-quote-btn")).toBeNull();
+    fireEvent.click(screen.getByText("设备")); // 选中 A2
+    const btn = screen.getByTestId("xlsx-quote-btn");
+    fireEvent.click(btn);
+    expect(onQuoteSelection).toHaveBeenCalledTimes(1);
+    const quote = onQuoteSelection.mock.calls[0][0] as string;
+    expect(quote).toContain("《预算表.xlsx》");
+    expect(quote).toContain("预算!A2");
+    expect(quote).toContain("设备");
+    // 默认通道未被使用（回调优先）
+    expect(useComposerInsertStore.getState().pendingText).toBeNull();
+  });
+
+  it("无 onQuoteSelection 时走既有 composer 插入通道（requestText）", () => {
+    render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" />);
+    fireEvent.click(screen.getByText("设备")); // 选中 A2
+    fireEvent.click(screen.getByTestId("xlsx-quote-btn"));
+    const text = useComposerInsertStore.getState().pendingText ?? "";
+    expect(text).toContain("> 《预算表.xlsx》预算!A2：设备");
+    expect(text).toContain("请基于以上选中单元格继续处理");
+  });
+
+  it("公式单元格引用带 fx 前缀与计算值", () => {
+    const onQuoteSelection = vi.fn();
+    render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" onQuoteSelection={onQuoteSelection} />);
+    fireEvent.click(screen.getByTitle("=SUM(B2)")); // 选中 B3
+    fireEvent.click(screen.getByTestId("xlsx-quote-btn"));
+    const quote = onQuoteSelection.mock.calls[0][0] as string;
+    expect(quote).toContain("fx =SUM(B2)");
+    expect(quote).toContain("120.5");
+  });
+
+  it("双击进入直接编辑时浮动入口隐藏（不与直接编辑抢占），Esc 取消后恢复", () => {
+    render(<XlsxPreview body={body} fileName="预算表.xlsx" relPath="mock.xlsx" />);
+    fireEvent.doubleClick(screen.getByText("设备"));
+    expect(screen.queryByTestId("xlsx-quote-btn")).toBeNull();
+    const grid = document.querySelector(".docx-preview-body") as HTMLElement;
+    const editInput = within(grid).getByDisplayValue("设备") as HTMLInputElement;
+    fireEvent.keyDown(editInput, { key: "Escape" });
+    expect(screen.getByTestId("xlsx-quote-btn")).toBeTruthy();
   });
 });

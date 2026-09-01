@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { renderAsync } from "docx-preview";
-import { AlertCircle, Check, FileText, Loader2, Sparkles, Wand2, X } from "../icons";
+import { AlertCircle, Check, FileText, Loader2, MessageSquare, Sparkles, Wand2, X } from "../icons";
 import { app } from "../lib/bridge";
-import { useUpdatedFilesStore } from "../lib/store";
+import { useComposerInsertStore, useUpdatedFilesStore } from "../lib/store";
+import { useToast } from "./Toast";
+import { extractDocxParagraphs } from "../lib/docxText";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -26,22 +28,34 @@ const PRESETS = [
  * DocxPreview 用 docx-preview 在浏览器内保真渲染 .docx（版式/表格/页眉页脚/
  * 修订与批注均保留）。支持「框选即改」：选中文字 → 指令 → AI 生成替换 →
  * 以 Word 修订模式（w:del + w:ins）就地写入并重渲染。
+ *
+ * B3 选区联动：框选工具栏内置次级「引用到对话」入口（与框选即改同选区，
+ * 走既有 composer 插入通道 requestText，不抢占 AI 编辑流程）。
+ * 渲染失败降级：docx-preview 抛异常时不再落死错误页，尽力提取正文段落文本
+ * （docxText.ts，复用包内 jszip），降级为带提示条的纯文本视图。
  */
 export function DocxPreview({
   dataUrl,
   fileName,
   relPath,
+  onQuoteSelection,
 }: {
   dataUrl: string;
   fileName: string;
   relPath: string;
+  /** B3 选区联动：选中文本引用到对话的自定义出口；缺省走 composer 插入通道。 */
+  onQuoteSelection?: (quote: string) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [docDataUrl, setDocDataUrl] = useState(dataUrl);
   const markUpdated = useUpdatedFilesStore((s) => s.markUpdated);
+  const toast = useToast();
   const [status, setStatus] = useState<"loading" | "done" | "error">("loading");
   const [error, setError] = useState("");
+  // 渲染失败降级：正文段落文本（提取成功才有）；extractError 为提取自身的失败信息。
+  const [fallbackParas, setFallbackParas] = useState<string[] | null>(null);
+  const [extractError, setExtractError] = useState("");
 
   // 框选即改状态
   const [selected, setSelected] = useState<string | null>(null);
@@ -61,12 +75,16 @@ export function DocxPreview({
     setInstruction("");
     setActionError("");
     setHasRevisions(false);
+    setFallbackParas(null);
+    setExtractError("");
   }, [dataUrl]);
 
   useEffect(() => {
     let live = true;
     setStatus("loading");
     setError("");
+    setFallbackParas(null);
+    setExtractError("");
 
     (async () => {
       try {
@@ -92,6 +110,16 @@ export function DocxPreview({
       } catch (e) {
         if (!live) return;
         setError(e instanceof Error ? e.message : String(e));
+        // 渲染失败 → 降级：尽力从 docx 包提取正文段落文本；提取也失败才落
+        // 死错误页（两个错误如实展示），绝不静默吞掉失败原因。
+        try {
+          const paras = await extractDocxParagraphs(docDataUrl);
+          if (!live) return;
+          setFallbackParas(paras);
+        } catch (e2) {
+          if (!live) return;
+          setExtractError(e2 instanceof Error ? e2.message : String(e2));
+        }
         setStatus("error");
       }
     })();
@@ -177,6 +205,21 @@ export function DocxPreview({
     setActionError("");
   }, []);
 
+  // B3 次级入口：把框选文本以引用块插入输入框（与 SelectionToComposer 同一
+  // 引用格式与 composer 插入通道），插完收起工具栏，不打断框选即改主流程。
+  const quoteToComposer = useCallback(() => {
+    if (!selected) return;
+    const quoted = selected
+      .split("\n")
+      .map((l) => `> ${l}`)
+      .join("\n");
+    const text = `${quoted}\n\n请基于以上内容继续处理。`;
+    if (onQuoteSelection) onQuoteSelection(text);
+    else useComposerInsertStore.getState().requestText(text);
+    toast.show("已引用到输入框", "info");
+    closeToolbar();
+  }, [selected, onQuoteSelection, toast, closeToolbar]);
+
   const flattenRevisions = useCallback(
     async (accept: boolean) => {
       setFlattening(true);
@@ -207,11 +250,39 @@ export function DocxPreview({
           <span>正在渲染 Word 版式…</span>
         </div>
       )}
-      {status === "error" && (
+      {status === "error" && fallbackParas === null && (
         <div className="flex flex-col items-center justify-center h-full gap-3 px-8 text-center">
           <AlertCircle size={30} className="text-err/70" />
           <div className="text-[13px] text-fg-dim max-w-[420px] break-all">
             该 Word 文档渲染失败：{error}
+          </div>
+          {extractError && (
+            <div className="text-[11px] text-fg-faint max-w-[420px] break-all">
+              纯文本降级也失败：{extractError}
+            </div>
+          )}
+        </div>
+      )}
+      {status === "error" && fallbackParas !== null && (
+        <div className="flex flex-col h-full min-h-0" data-testid="docx-fallback">
+          {/* 降级提示条：诚实说明降级原因与能力边界 */}
+          <div className="flex items-start gap-1.5 px-3 py-2 border-b border-amber-500/30 bg-amber-500/10 text-amber-500 text-[11px] leading-relaxed shrink-0">
+            <AlertCircle size={12} className="mt-px shrink-0" />
+            <span>
+              Word 版式渲染失败，已降级为纯文本视图（{fallbackParas.filter(Boolean).length} 个非空段落）。
+              文本由文档正文直接提取，不含图片/文本框与版式信息。
+            </span>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto px-4 py-3">
+            {fallbackParas.map((t, i) =>
+              t ? (
+                <p key={i} className="text-[12.5px] leading-relaxed text-fg-dim mb-2">
+                  {t}
+                </p>
+              ) : (
+                <div key={i} className="h-2" />
+              ),
+            )}
           </div>
         </div>
       )}
@@ -251,7 +322,13 @@ export function DocxPreview({
           )}
         </div>
       )}
-      <div ref={containerRef} className="overflow-auto h-[calc(100%-30px)] docx-preview-body" />
+      {/* 渲染容器常驻（renderAsync 的 ref 目标，重渲染依赖它）；降级态隐藏，
+          让位给纯文本视图 */}
+      <div
+        ref={containerRef}
+        className="overflow-auto h-[calc(100%-30px)] docx-preview-body"
+        style={status === "error" && fallbackParas !== null ? { display: "none" } : undefined}
+      />
 
       {notice && (
         <div className="absolute top-9 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-bg-elev-2 text-accent text-[12px] shadow-lg">
@@ -313,6 +390,16 @@ export function DocxPreview({
                   >
                     {generating ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
                     生成
+                  </button>
+                  {/* B3 次级入口：引用到对话（与 AI 编辑同选区，互不抢占） */}
+                  <button
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border-soft bg-transparent text-[12px] text-fg-dim cursor-pointer hover:bg-bg-soft hover:text-fg transition-colors shrink-0"
+                    onClick={quoteToComposer}
+                    title="把选中文本以引用块插入输入框，可编辑后发送"
+                    data-testid="docx-quote-btn"
+                  >
+                    <MessageSquare size={12} aria-hidden />
+                    引用到对话
                   </button>
                 </div>
                 {actionError && (

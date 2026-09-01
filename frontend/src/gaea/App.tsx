@@ -63,6 +63,8 @@ import { DELIVERABLE_EXT_RE, deliverableMentions } from "./lib/fileLinks";
 import { recordRecentFile } from "./lib/recentFiles";
 import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "./lib/changes";
+import { openEditorTab } from "./lib/editorTabs";
+import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { classifyComposerCommand } from "./lib/command";
 import {
   clampWorkspaceWidth, firstEnabledTab, groupOfTab, loadEnabledTabs, loadPersistedRightTab,
@@ -675,6 +677,40 @@ export default function App() {
     setWorkspacePanel(true);
     setRightTab("subagents");
   }, [enabledRecord.subagents, closeFilePreview]);
+
+  // v4.25 A3 reveal：产物面板「树中定位」→ 亮文件 tab，文件树展开父链+滚动+闪烁。
+  // nonce 单调递增，同一文件重复定位也能再触发一次。
+  const revealNonceRef = useRef(0);
+  const [revealRequest, setRevealRequest] = useState<{ rel: string; nonce: number } | null>(null);
+  const handleRevealInTree = useCallback((rel: string) => {
+    closeFilePreview();
+    setRightTab("files");
+    setWorkspacePanel(true);
+    revealNonceRef.current += 1;
+    setRevealRequest({ rel, nonce: revealNonceRef.current });
+  }, [closeFilePreview]);
+
+  // v4.25 模型主动打开（对标 better-sidebar sidebar_open）：模型把关键产物/目录
+  // 推到右栏文件工作台。按工具事件 id 去重；file → 编辑器 tab（lib/editorTabs
+  // 外部 store 程序化入口），directory → 亮文件 tab 定位树根；均已开则激活。
+  const sidebarOpenSeenRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    let requested = false;
+    for (const it of state.items) {
+      if (it.kind !== "tool" || it.name !== "sidebar_open" || !it.output || it.status === "running") continue;
+      if (sidebarOpenSeenRef.current.has(it.id)) continue;
+      const parsed = parseSidebarOpenResult(it.name, it.args, it.output);
+      if (!parsed) continue;
+      sidebarOpenSeenRef.current.add(it.id);
+      if (parsed.kind === "file") openEditorTab(parsed.pathRel);
+      requested = true;
+    }
+    if (requested) {
+      closeFilePreview();
+      setRightTab("files");
+      setWorkspacePanel(true);
+    }
+  }, [state.items, closeFilePreview]);
   const panelContext = useMemo<WorkspacePanelContext>(
     () => ({
       cwd: state.meta?.cwd,
@@ -688,12 +724,14 @@ export default function App() {
       onRefreshPanel: refreshWorkspacePanel,
       onLocateSource: locateDeliverableSource,
       onSubagentStarted: handleSubagentStarted,
+      onRevealInTree: handleRevealInTree,
+      revealRequest,
     }),
     [
       state.meta?.cwd, previewFile, workspaceRefreshKey, currentSessionPath,
       sessionDeliverables, sessionChanges,
       openFilePreview, refreshWorkspacePanel, locateDeliverableSource,
-      handleSubagentStarted,
+      handleSubagentStarted, handleRevealInTree, revealRequest,
     ],
   );
 
