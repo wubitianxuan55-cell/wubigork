@@ -761,8 +761,9 @@ func TestCancelUnknownAndTerminalErrors(t *testing.T) {
 //   - 等待改为事件驱动——markTerminal 先落库后同步 emit，收到全部任务的终态
 //     事件即证明 DB 已终态，不再依赖固定 10s 墙钟轮询（全量负载下偶发超时的
 //     flaky 源）；30s 上限为纯兜底（50 个 5ms 级任务即使放慢百倍也远够）。
-//   - 断言只检查最终稳定态（Cancel 成功 ⇒ 终态 cancelled），不锁死 stopping
-//     等中间瞬态；取消未命中（Cancel 返回错误）的任务不纳入断言。
+//   - 断言只检查最终稳定态，不锁死 stopping 等中间瞬态：Cancel 成功 ⇒ 终态
+//     cancelled（v4.8.2 回归锁，不削弱）；未取消 ⇒ 终态 succeeded（handler 的
+//     ctx 仅由 Cancel 成功路径取消，修复后确定性成立）；终态事件不重不漏。
 func TestCancelConcurrentStress(t *testing.T) {
 	db := openTestDB(t)
 	// 终态事件通知：markTerminal 落库后同步触发 emit，事件到达时该任务已终态。
