@@ -504,6 +504,9 @@ func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {	// 引�
 	if err != nil {
 		return nil, err
 	}
+	// v4.26 对话流式重造：会话切换归零 wire seq（per-会话语义，与
+	// GaeaNewSession 同点）。前端在本动作后重载历史 items 并重置 lastSeq。
+	ga.wire.reset()
 	// 中断恢复：上次进程崩溃/被杀时 state 残留 running=true，向消息末尾
 	// 追加一条 system 摘要让模型先总结进度再继续，并清除标记避免重复提示。
 	// 事件日志模式下该摘要同步写入事件日志（「模型可见必入日志」）。
@@ -624,6 +627,8 @@ func (a *App) GaeaRewind(turn int, scope string) error {
 		if _, err := c.Fork(turn); err != nil {
 			return err
 		}
+		// v4.26：分叉即切换到新会话文件，wire seq 归零（per-会话语义）。
+		ga.wire.reset()
 		return nil
 	case "code":
 		return errors.New("文件级回退需要文件版本快照，暂未支持；可用「仅对话」回退会话")
@@ -640,8 +645,12 @@ func (a *App) GaeaFork(turn int) error {
 	if c == nil {
 		return errors.New("办公引擎未初始化")
 	}
-	_, err := c.Fork(turn)
-	return err
+	if _, err := c.Fork(turn); err != nil {
+		return err
+	}
+	// v4.26：分叉即切换到新会话文件，wire seq 归零（per-会话语义）。
+	ga.wire.reset()
+	return nil
 }
 
 // GaeaSummarizeFrom/GaeaSummarizeUpTo 摘要回退暂未支持（压缩协议需 LLM 摘要

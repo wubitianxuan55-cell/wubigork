@@ -42,8 +42,10 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
           size={iconSize}
         />
         <FolderOpen className="shrink-0 text-fg-faint" size={iconSize} />
-        <span className={`font-mono text-fg font-medium ${compact ? "text-[11px]" : "text-xs"}`}>{t.name}</span>
-        <span className={`text-fg-faint font-mono ${compact ? "text-[10px]" : "text-[11px]"}`}>× {tools.length}</span>
+        {/* v4.26 对齐 Claude Code "Called slack 3 times"：重复调用折叠行 */}
+        <span className={`font-mono text-fg font-medium ${compact ? "text-[11px]" : "text-xs"}`}>
+          已调用 {t.name} · {tools.length} 次
+        </span>
         {subjects.length > 0 && (
           <span className={`text-fg-faint truncate ml-1 ${compact ? "text-[10px]" : "text-[11px]"}`}>
             {subjects.join(", ")}
@@ -65,11 +67,14 @@ export const ToolGroup = memo(function ToolGroup({ tools, onCollapse }: { tools:
 
 // scanGroups walks items and replaces runs of ≥2 consecutive same-name tools
 // with a single synthetic "group" marker.
+// opts.skipRunning（v4.26）：过程卡内只折叠「同名且全部非 running」的连续
+// 调用——运行中的调用保持独立卡（Claude Code 同款：执行中的动作不折叠，
+// 完成后的重复调用才聚合成 "Called X N times"）。
 export type GroupItem =
   | { kind: "item"; item: Item }
   | { kind: "group"; id: string; name: string; tools: ToolItem[] };
 
-export function scanGroups(items: Item[]): GroupItem[] {
+export function scanGroups(items: Item[], opts?: { skipRunning?: boolean }): GroupItem[] {
   const result: GroupItem[] = [];
   let i = 0;
   while (i < items.length) {
@@ -89,7 +94,8 @@ export function scanGroups(items: Item[]): GroupItem[] {
       j++;
     }
     const run = items.slice(i, j).filter((x): x is ToolItem => x.kind === "tool");
-    if (run.length >= 2) {
+    const foldable = run.length >= 2 && !(opts?.skipRunning && run.some((x) => x.status === "running"));
+    if (foldable) {
       result.push({ kind: "group", id: `grp${i}`, name: t.name, tools: run });
     } else {
       for (const x of run) result.push({ kind: "item", item: x });

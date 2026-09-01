@@ -1,5 +1,28 @@
 # gaea · 多功能 AI 助手
 
+## v4.26.0 · 对话流式重造：对齐 Codex（2026-09-01）
+> 用户报告「发送后对话窗静默而轨迹在动」→ 根因六连（子代理文字有意不进主聊天/
+> 预处理窗零事件/Wails 吞件/Retrying 隐身/phase 空 seam/TTFT 静默）逐一对账。
+> **绑定面 549 → 550（+1：GaeaResyncEvents）**。
+- **工作态头部行（WorkHeader）**：turn 激活期常驻（spinner+阶段文本+已用时+
+  步数，items 为空也渲染——发送那一帧起窗口不空）；完成转 Codex 式「已完成 ·
+  用时 · N 步」耗时行；StreamingIndicator 收敛为兜底。
+- **后端 phase 事件接线**：预处理各阶段（启动引擎/解析 @引用/装配上下文/检索
+  记忆/思考中）+ Retrying/compaction 转译 phase（磁盘日志格式不变，200ms 节流）；
+  phase 收编过程卡+头部。
+- **子代理活动回投主回合**（Codex 2026-08 同款）：新事件 subagent_message 回投
+  子代理最终答复（完成态，中途不回投防刷屏），主区消息「子代理」徽标；task 卡
+  running 实时 lastText/lastTool 预览 + 完成结果摘要。
+- **事件序号防线**：gaea-event 全量带 seq（会话切换归零），跳号→GaeaResyncEvents
+  从磁盘日志折叠全量快照整体替换（5s 冷却/在途去重/坏快照保底/streaming 续接；
+  golden 逐字节不变）。
+- **重复工具折叠**「已调用 X · N 次」（Claude Code 式）；顺带修复
+  weixin_reminder_test 时间炸弹。
+- 验证：Go 全量 0 FAIL（golden/fold 原样通过）；tsc -b/eslint 0；vitest
+  1072/1072（净增 71）；drift PASS（550）；版本四处 4.26.0。三并行子代理分线
+  +主代理集成；调研 docs/research-2026-09-01/codex-streaming-ux.md。欠账与
+  v4.27 顺延详见 releases/v4.26.0.md。
+
 ## v4.25.0 · 文件工作台：编辑器 tab 化 / 变更 diff / 选区联动 / 模型主动打开（2026-09-01）
 > 规划 docs/gaea-office-upgrade-plan-2026-09.md 第三刀：A3 文件工作台 +
 > B3 选区联动。**绑定面 549 → 549（零新增：sidebar_open 走内置工具事件管线）**。

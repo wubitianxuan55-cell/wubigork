@@ -41,7 +41,7 @@ import { SelectionToComposer } from "./components/SelectionToComposer";
 import { NewSessionToast, JobDoneNotifier, RunStatus } from "./components/AppStatus";
 
 import { downloadMarkdown, exportAsMarkdown } from "./lib/export";
-import type { MemorySuggestion, MemorySuggestionsView, SessionMeta, SkillSuggestion } from "./lib/types";
+import type { MemorySuggestion, MemorySuggestionsView, SessionMeta, SkillSuggestion, SubagentRunView } from "./lib/types";
 import { useTodoExtractor } from "./hooks/useTodoExtractor";
 import { useModeManager } from "./hooks/useModeManager";
 import { useSessionManager } from "./hooks/useSessionManager";
@@ -65,6 +65,8 @@ import { useUpdatedFilesStore } from "./lib/store";
 import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type SessionChange } from "./lib/changes";
 import { openEditorTab } from "./lib/editorTabs";
 import { parseSidebarOpenResult } from "./lib/sidebarOpen";
+import { setEventSyncFetcher } from "./lib/eventSync";
+import { setTaskCardActivityProvider } from "./lib/taskActivity";
 import { classifyComposerCommand } from "./lib/command";
 import {
   clampWorkspaceWidth, firstEnabledTab, groupOfTab, loadEnabledTabs, loadPersistedRightTab,
@@ -711,6 +713,47 @@ export default function App() {
       setWorkspacePanel(true);
     }
   }, [state.items, closeFilePreview]);
+
+  // v4.26 对话流式重造接线：
+  // ① 事件序号防线 fetcher——Wails 事件流吞件（seq 跳号）时经后端从磁盘日志
+  //    补拉对话项全量快照（eventSync 冷却门控频；未挂载则整条防线旁路）。
+  useEffect(() => {
+    setEventSyncFetcher((afterSeq) => app.ResyncEvents(afterSeq));
+    return () => setEventSyncFetcher(null);
+  }, []);
+  // ② 子代理 task 卡 live 预览——运行期间 5s 轮询 GaeaSubagentRuns 喂
+  //    taskActivity 注入点；派发期 args 不带 ref（ref 只在 tool_result 出现），
+  //    空 ref 回退「唯一 running 分工」（taskActivity 头注释契约）。
+  const subRunsCacheRef = useRef<SubagentRunView[]>([]);
+  useEffect(() => {
+    setTaskCardActivityProvider((ref) => {
+      const runs = subRunsCacheRef.current;
+      const pick = (r: SubagentRunView) =>
+        r ? { lastText: r.lastText, lastTool: r.lastTool, state: r.status } : undefined;
+      if (ref) {
+        const hit = runs.find((r) => r.ref === ref);
+        return hit ? pick(hit) : undefined;
+      }
+      const runningRuns = runs.filter((r) => r.status === "running");
+      return runningRuns.length === 1 ? pick(runningRuns[0]) : undefined;
+    });
+    return () => setTaskCardActivityProvider(null);
+  }, []);
+  useEffect(() => {
+    if (!state.running || !currentSessionPath) {
+      subRunsCacheRef.current = [];
+      return;
+    }
+    let live = true;
+    const pull = () => {
+      void app.SubagentRuns(currentSessionPath)
+        .then((v) => { if (live) subRunsCacheRef.current = v.runs ?? []; })
+        .catch(() => {});
+    };
+    pull();
+    const timer = setInterval(pull, 5000);
+    return () => { live = false; clearInterval(timer); };
+  }, [state.running, currentSessionPath]);
   const panelContext = useMemo<WorkspacePanelContext>(
     () => ({
       cwd: state.meta?.cwd,

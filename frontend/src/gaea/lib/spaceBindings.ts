@@ -177,6 +177,7 @@ export const GAEA_METHOD_FACETS = {
   SubagentRuns: "work",
   SubagentTranscript: "work",
   DeliverableRegistry: "work",
+  ResyncEvents: "work",
   WriteFile: "work",
   ExportDeliverable: "work",
   ConvertToPdf: "work",

@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
-import { ChevronDown, ChevronRight, Brain, FileText, Rollback, Wand2 } from "../icons";
+import { Bot, ChevronDown, ChevronRight, Brain, FileText, Rollback, Wand2 } from "../icons";
 import { app } from "../lib/bridge";
 import { MemoMarkdown } from "./MemoMarkdown";
 import { useT } from "../lib/i18n";
@@ -11,7 +11,11 @@ import { usePreviewStore, useTurnStartAt } from "../lib/store";
 import type { Item } from "../lib/store";
 import { DeliverableCards } from "./DeliverableCards";
 
-type AssistantItem = Extract<Item, { kind: "assistant" }>;
+// v4.26 契约：store 的 assistant item 将追加可选字段 subagentRef?: string
+// （后端把子代理最终答复以普通 assistant 消息回投主回合时打标）。store.ts
+// 本线禁改，这里用交叉类型提前承接——字段缺省（undefined）时渲染行为与
+// 现状完全一致，后端/主代理接线后无需再改渲染层。
+type AssistantItem = Extract<Item, { kind: "assistant" }> & { subagentRef?: string };
 
 // 行内附件渲染：图片显示缩略图，文件显示图标
 function InlineAttachment({ path }: { path: string }) {
@@ -197,9 +201,26 @@ export const AssistantMessage = memo(function AssistantMessage({
 
   // 流式处理中的纯文本（不渲染 Markdown）
   const streaming = item.streaming ?? false;
+  // v4.26：带 subagentRef 的 assistant 消息 = 子代理最终答复回投主回合，
+  // 加「子代理」小徽标区分来源（Codex "Report sub-agent activity on parent
+  // turns"）；ref 全文放 title。字段缺省不渲染，行为与现状一致。
+  const subagentRef = item.subagentRef;
   return (
     <div className="flex justify-start my-2" data-entrance={item.id}>
       <div className="flex-1 min-w-0">
+          {/* 子代理来源徽标 */}
+          {subagentRef && (
+            <div className="mb-1">
+              <span
+                data-testid="subagent-badge"
+                title={`子代理答复 · ${subagentRef}`}
+                className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-1.5 py-px text-[10px] font-medium text-accent align-middle"
+              >
+                <Bot size={10} className="shrink-0" aria-hidden />
+                子代理
+              </span>
+            </div>
+          )}
           {/* 推理区 */}
           {item.reasoning && (
             <div className="mb-1.5">

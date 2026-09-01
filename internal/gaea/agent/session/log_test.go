@@ -255,6 +255,9 @@ func TestEntryFromEventAllKinds(t *testing.T) {
 		{Kind: event.CompactionDone, Compaction: event.Compaction{Trigger: "auto", Messages: 3, Summary: "s"}},
 		{Kind: event.Retrying, RetryAttempt: 1, RetryMax: 2},
 		{Kind: event.Steer, Text: "stop"},
+		// v4.26 对话流式重造：子代理完成回投（ref/parentId 可空）。
+		{Kind: event.SubagentMessage, Text: "sub answer", SubagentRef: "sa_1", ParentToolID: "call-9"},
+		{Kind: event.SubagentMessage, Text: "临时子代理答复"},
 	}
 	for i, e := range events {
 		entry, err := EntryFromEvent(e, 1700000000)

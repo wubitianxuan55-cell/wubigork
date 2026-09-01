@@ -59,6 +59,10 @@ func (c *Controller) Compose(text string) string {
 	// 相关 semantic 事实按关键词命中，统一按「关键词+时间+高频」排序并压缩到
 	// 注入预算（默认 800 rune），不再全量塞入。
 	if c.mem != nil && c.memoryEnabled {
+		// v4.26 对话流式重造：记忆检索（关键词/BM25/向量）可能数百毫秒到数秒，
+		// 先发 phase 让预处理窗有可见事件（Why：Compose 在 TurnStarted 之前，
+		// 原本全程静默）。与 runSendTurn/runTurnWithRaw 的 phase 同一转译通道。
+		c.emitPhase(phaseRecallingMemory)
 		if block := c.mem.RecallBlock(text, 0); block != "" {
 			text = block + "\n\n" + text
 		}

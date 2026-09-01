@@ -55,6 +55,7 @@ import type {
   SessionStatsView,
   SubagentTranscriptView,
   DeliverableRegistryView,
+  GaeaResyncResult,
   ProjectGroup,
   SettingsView,
   SkillCaptureInput,
@@ -280,6 +281,9 @@ export interface AppBindings {
   // DeliverableRegistry 读取会话的权威产物登记表（v4.24 C1）：后端从事件日志
   // 折叠出写类工具落盘登记（路径/工具/轮次/时间/次数），替代正文扩展名白名单。
   DeliverableRegistry(sessionPath: string): Promise<DeliverableRegistryView>;
+  // ResyncEvents 事件序号防线补拉（v4.26 对话流式重造）：Wails 事件流吞件时
+  // 前端按 seq 跳号调用，后端从当前会话磁盘日志折叠出对话项全量快照整体替换。
+  ResyncEvents(afterSeq: number): Promise<GaeaResyncResult>;
   // WriteFile 工作区内联编辑保存（C5）：把文本原子写回工作区相对路径文本文件
   // （路径/扩展名/大小校验在后端；用户显式保存，不走 agent 审批）。
   WriteFile(rel: string, content: string): Promise<void>;
@@ -800,6 +804,7 @@ const gaeaToGaea = {
   SubagentRuns: "GaeaSubagentRuns",
   SubagentTranscript: "GaeaSubagentTranscript",
   DeliverableRegistry: "GaeaDeliverableRegistry",
+  ResyncEvents: "GaeaResyncEvents",
   WriteFile: "GaeaWriteFile",
   ExportDeliverable: "GaeaExportDeliverable",
   ConvertToPdf: "GaeaConvertToPdf",

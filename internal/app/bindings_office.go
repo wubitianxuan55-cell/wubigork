@@ -99,6 +99,7 @@ func (b *OfficeB) GaeaRemoveMCPServer(name string) error { return b.a.GaeaRemove
 func (b *OfficeB) GaeaRemovePermissionRule(list string, rule string) error { return b.a.GaeaRemovePermissionRule(list, rule) }
 func (b *OfficeB) GaeaRenameSession(path string, title string) error { return b.a.GaeaRenameSession(path, title) }
 func (b *OfficeB) GaeaResumeSession(path string) ([]HistoryMessage, error) { return b.a.GaeaResumeSession(path) }
+func (b *OfficeB) GaeaResyncEvents(afterSeq int) GaeaResyncResult { return b.a.GaeaResyncEvents(afterSeq) }
 func (b *OfficeB) GaeaRetrievalEvalRun() (RetrievalEvalReport, error) { return b.a.GaeaRetrievalEvalRun() }
 func (b *OfficeB) GaeaRetryMCPServer(name string) error { return b.a.GaeaRetryMCPServer(name) }
 func (b *OfficeB) GaeaRevealWorkspacePath(rel string) error { return b.a.GaeaRevealWorkspacePath(rel) }

@@ -95,6 +95,10 @@ func (f *folding) apply(e session.LogEntry) {
 		f.applyAsk(e)
 	case "approval_request":
 		f.applyApproval(e)
+	case "subagent_message":
+		// v4.26 对话流式重造：子代理完成回投（旧日志无此 kind，不会进入该
+		// 分支——fold 对未知 kind 的既有跳过行为不变，golden 不受影响）。
+		f.applySubagentMessage(e)
 	case "turn_done":
 		if f.cur != nil {
 			f.cur.End = &TurnEnd{Seq: e.Seq, Ts: e.Ts, Err: payloadTurnErr(e)}
@@ -392,6 +396,32 @@ func (f *folding) applyApproval(e session.LogEntry) {
 		Kind:     "approval",
 		Ts:       e.Ts,
 		Approval: &ApprovalRec{Tool: p.Tool, Subject: p.Subject},
+	}
+	if f.cur != nil {
+		f.appendRecord(rec)
+	} else {
+		f.between = append(f.between, rec)
+	}
+}
+
+// applySubagentMessage 折叠子代理完成回投（v4.26）：最终答复文本（展示级
+// 截断，全文在日志里）+ transcript 引用 + 父 task 调用 ID。事件在 task 调用
+// 执行中到达，折叠进当前回合；无回合（日志尾部悬挂）时归轮间，与 compact
+// /ask/approval 同风格。
+func (f *folding) applySubagentMessage(e session.LogEntry) {
+	var p struct {
+		Text     string `json:"text"`
+		Ref      string `json:"ref,omitempty"`
+		ParentID string `json:"parentId,omitempty"`
+	}
+	if err := json.Unmarshal(e.Payload, &p); err != nil {
+		return
+	}
+	rec := Record{
+		Seq:      e.Seq,
+		Kind:     "subagent",
+		Ts:       e.Ts,
+		Subagent: &SubagentRec{Ref: p.Ref, Text: preview(p.Text, maxTextPreview), ParentID: p.ParentID},
 	}
 	if f.cur != nil {
 		f.appendRecord(rec)

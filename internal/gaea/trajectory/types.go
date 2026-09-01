@@ -44,7 +44,7 @@ type TurnEnd struct {
 // Record 是轨迹中的一条事件记录（kind 决定哪个子结构生效）。
 type Record struct {
 	Seq        int64         `json:"seq"`
-	Kind       string        `json:"kind"` // user | header | assistant | tool | compact | ask | approval
+	Kind       string        `json:"kind"` // user | header | assistant | tool | compact | ask | approval | subagent
 	Ts         int64         `json:"ts"`
 	DurationMs int64         `json:"durationMs,omitempty"`
 	Step       int           `json:"step,omitempty"` // 所属步骤（0=轮级/轮间）
@@ -55,6 +55,7 @@ type Record struct {
 	Compact    *CompactRec   `json:"compact,omitempty"`
 	Ask        *AskRec       `json:"ask,omitempty"`
 	Approval   *ApprovalRec  `json:"approval,omitempty"`
+	Subagent   *SubagentRec  `json:"subagent,omitempty"`
 }
 
 // UserRec 是一条用户输入记录。
@@ -105,6 +106,15 @@ type AskRec struct {
 type ApprovalRec struct {
 	Tool    string `json:"tool,omitempty"`
 	Subject string `json:"subject,omitempty"`
+}
+
+// SubagentRec 是一条子代理完成回投记录（v4.26 对话流式重造）：子代理
+// （task 等元工具派生）完成时其最终答复文本回投父回合。Ref 为子代理
+// transcript 引用（临时子代理为空）；ParentID 是父 task 调用 ID。
+type SubagentRec struct {
+	Ref      string `json:"ref,omitempty"`
+	Text     string `json:"text,omitempty"`
+	ParentID string `json:"parentId,omitempty"`
 }
 
 // Usage 是一次请求的用量（来自 usage 事件）。

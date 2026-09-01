@@ -266,3 +266,31 @@ func TestFoldAskAndApprovalRecords(t *testing.T) {
 		t.Fatalf("approval record wrong: %+v", records[2])
 	}
 }
+
+// TestFoldSubagentMessage v4.26 对话流式重造：subagent_message（子代理完成
+// 回投）折叠为 kind=subagent 记录（text 展示级截断 + ref + 父 task 调用 ID）。
+// 旧日志无此 kind 不受影响；未知 kind 仍被跳过（既有行为不变）。
+func TestFoldSubagentMessage(t *testing.T) {
+	entries := []session.LogEntry{
+		entry(1, "turn_started", map[string]any{}),
+		entry(2, "user_message", map[string]any{"content": "调研 Foo"}),
+		entry(3, "tool_dispatch", map[string]any{"id": "t1", "name": "task", "args": `{"prompt":"..."}`}),
+		entry(4, "subagent_message", map[string]any{"text": "找到 3 处调用", "ref": "sa_abc", "parentId": "t1"}),
+		entry(5, "tool_result", map[string]any{"id": "t1", "name": "task", "output": "<task-result>…"}),
+		entry(6, "turn_done", map[string]any{"err": ""}),
+	}
+	tl := FoldTrajectory(entries)
+	records := tl.Turns[0].Records
+	var sub *Record
+	for i := range records {
+		if records[i].Kind == "subagent" {
+			sub = &records[i]
+		}
+	}
+	if sub == nil || sub.Subagent == nil {
+		t.Fatalf("subagent 记录缺失: %+v", records)
+	}
+	if sub.Subagent.Text != "找到 3 处调用" || sub.Subagent.Ref != "sa_abc" || sub.Subagent.ParentID != "t1" {
+		t.Fatalf("subagent 记录字段错误: %+v", sub.Subagent)
+	}
+}

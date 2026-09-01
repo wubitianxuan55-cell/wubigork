@@ -47,6 +47,31 @@
 
 ## 版本状态
 
+- **最新发布：v4.26.0（2026-09-01）「对话流式重造 · 对齐 Codex」（插刀）**：
+  git tag `v4.26.0`；基线 v4.25.0；绑定面 549→550（+1：GaeaResyncEvents）。
+  根因（用户报告「发送后对话窗静默而轨迹在动」）六连：①task subSink 有意丢弃
+  子代理 Text/Reasoning（主窗只挂 task 运行卡）②TurnStarted 前预处理窗零事件
+  ③Wails 事件流吞件（轨迹读盘不受害=直接解释）④Retrying 转译表无映射
+  ⑤phase 全链就绪但零发射点 ⑥TTFT 静默（turn_started 不产 item、过程卡需
+  processItems>0）。交付：**WorkHeader 工作态头部行**（turn 激活期常驻
+  spinner+阶段+用时 1s tick+步数，items 为空也渲染；完成转「已完成 · 用时 ·
+  N 步」Codex 式耗时行；StreamingIndicator 收敛兜底）；**后端 phase 事件接线**
+  （正在启动引擎/解析 @引用/装配首轮上下文/检索记忆/思考中 + Retrying/compaction
+  转译 phase，磁盘日志格式不变，200ms 节流，phase 收编过程卡+头部）；**子代理
+  活动回投主回合**（新事件 subagent_message 完成态回投最终答复+ref/parentId，
+  主区消息「子代理」徽标，task 卡 running 实时 lastText/lastTool 预览=App 5s
+  轮询 GaeaSubagentRuns 注入 taskActivity，空 ref 回退唯一 running 分工）；
+  **事件序号防线**（gaea-event 全量带 seq 转发层原子递增/会话切换归零，跳号→
+  GaeaResyncEvents 从磁盘日志折叠全量快照整体替换：5s 冷却/在途去重/坏快照
+  保底/streaming 续接/running 不动；golden 逐字节不变）；重复工具折叠「已调用
+  X · N 次」；顺带修 weixin_reminder_test 时间炸弹。**验证**：Go 全量 0 FAIL；
+  tsc -b/eslint 0；vitest 1072/1072（净增 71）；drift PASS（550）；版本四处
+  4.26.0。调研 docs/research-2026-09-01/codex-streaming-ux.md。**欠账**：子代理
+  中途进度不回投（实时进度走分工面板）；并行多子代理派发瞬间 task 卡预览可能
+  短暂空 ref；历史轮无耗时数据源；TrajectoryView 未消费新 kind="subagent"
+  记录。**下一刀 v4.27「浏览器与版本」**（原 v4.26 顺延）：A2 观察窗+B1 版本
+  时间线+B2 pptx+C2/C3。详见 releases/v4.26.0.md。
+
 - **最新发布：v4.25.0（2026-09-01）「文件工作台 · 编辑器 tab 化/变更 diff/
   选区联动/模型主动打开」**：git tag `v4.25.0`；基线 v4.24.0；绑定面 549→549
   （零新增：sidebar_open 为内置工具，走 ToolDispatch/ToolResult 事件管线）。

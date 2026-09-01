@@ -72,6 +72,15 @@ const (
 	// Steer is a mid-turn user guidance message injected while the agent is running.
 	Steer
 	Retrying
+	// SubagentMessage 是子代理完成回投事件（v4.26 对话流式重造，对标 Codex
+	// 2026-08 "Report completed sub-agent activity on parent turns"）：子代理
+	// （task/run_skill 等元工具派生）运行期间父回合只挂一张 task 卡，期间静默；
+	// 本事件在子代理完成后把其最终答复文本回投到父 sink，让主聊天在子代理
+	// 长跑结束时立即可见产出。只回投完成态（err==nil 且文本非空），中途进度
+	// 不回投——避免并行/重试子代理刷屏。Text=最终答复全文；SubagentRef=子代理
+	// transcript 引用（"sa_..."，临时子代理为空）；ParentToolID=父 task 调用 ID
+	// （由 subSinkFor 打点），前端据此把答复挂到对应 task 卡片下。
+	SubagentMessage
 )
 
 // Level classifies a Notice so sinks can style or filter it.
@@ -205,6 +214,12 @@ type Event struct {
 	// RetryAttempt / RetryMax track stream-recovery progress (Retrying events).
 	RetryAttempt int // Retrying: current attempt number (1-based)
 	RetryMax     int // Retrying: maximum allowed attempts
+	// SubagentRef / ParentToolID carry sub-agent completion payload (v4.26
+	// SubagentMessage events): Ref is the sub-agent transcript reference
+	// ("sa_...", empty for ephemeral sub-agents); ParentToolID is the parent
+	// task tool-call ID the sub-agent runs under (stamped by subSinkFor).
+	SubagentRef  string // SubagentMessage: 子代理 transcript 引用
+	ParentToolID string // SubagentMessage: 父 task 调用 ID
 }
 
 // RequestHeaderInfo is the assembled header of one model request.

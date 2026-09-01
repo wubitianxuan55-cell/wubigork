@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/BurntSushi/toml"
 
@@ -24,7 +26,7 @@ import (
 // 独立板块：47 个工程工具 + 6 个技能 + 单模型 agent（规划+执行一体）。
 // 模型走 gaea 模型中心（bridge provider），前端 UI + AI 双通道调用。
 
-var ga = &gaeaRuntime{}
+var ga = &gaeaRuntime{wire: newGaeaEventForwarder()}
 
 type gaeaRuntime struct {
 	mu   sync.Mutex
@@ -32,6 +34,10 @@ type gaeaRuntime struct {
 	// cfg 是当前生效的办公引擎配置。设置面板的写操作（Agent 参数/权限/沙箱）
 	// 直接修改它并持久化到用户配置，随后重建 controller 使变更生效。
 	cfg *gaeaConfig.Config
+	// wire 是 gaea 事件流 → 前端 gaea-event 的转发层（v4.26 对话流式重造）：
+	// wire seq 打点 + phase 节流的唯一状态点，随进程存活（不随 controller
+	// 重建重置——设置变更重建引擎不打断当前会话，seq 回退会破坏前端断号检测）。
+	wire *gaeaEventForwarder
 }
 
 // gaeaLoadConfig 加载办公引擎配置：内置默认 + 用户持久化文件（若有），
@@ -75,9 +81,10 @@ func gaeaLoadConfig() (*gaeaConfig.Config, error) {
 
 // gaeaBuildController 用当前配置构建 controller（不持有 ga.mu，调用方负责）。
 func (a *App) gaeaBuildController() (*control.Controller, error) {
-	// 事件转发：gaea 事件流 → 前端 gaea-event 回调
+	// 事件转发：gaea 事件流 → 前端 gaea-event 回调。经转发层统一打点 wire
+	// seq 并对 phase 节流（v4.26 对话流式重造，见 gaeaEventForwarder）。
 	sink := event.FuncSink(func(e event.Event) {
-		a.emit("gaea-event", gaeaEventMap(e))
+		a.emitGaeaEvent(e)
 		// 自动做梦：轮次成功后后台整理记忆（单飞、有实质内容才跑）。
 		// S1.2 A dream 空间化：TurnDone 事件槽不带上下文——此处取当前办公
 		// 会话的空间（ctrl.SessionSpace()，缺省回退配置生效空间；mode=off 为
@@ -355,6 +362,16 @@ func (a *App) GaeaReload() (GaeaReloadResult, error) {
 
 // GaeaSend 提交对话（异步，事件经 gaea-event 回调）。未初始化时自动初始化。
 func (a *App) GaeaSend(input string) {
+	ga.mu.Lock()
+	needBoot := ga.ctrl == nil
+	ga.mu.Unlock()
+	if needBoot {
+		// v4.26 对话流式重造：引擎未初始化时 GaeaInit（模型中心注入/工具装配/
+		// 会话自动恢复）可持续数秒，先发 phase「正在启动引擎」让首条消息发出
+		// 后立即有反馈。此时控制器尚不存在、会话日志未建立，该事件仅走 wire
+		// （不落盘），是唯一不带磁盘记录的 phase 来源。
+		a.emitGaeaEvent(event.Event{Kind: event.Phase, Text: "正在启动引擎"})
+	}
 	if err := a.GaeaInit(); err != nil {
 		a.emit("gaea-event", map[string]interface{}{"kind": "error", "text": err.Error()})
 		return
@@ -410,7 +427,13 @@ func (a *App) GaeaNewSession() error {
 	// 新会话 = 全新目标：清空 goal gate，避免上个会话的「持续工作到验收」
 	// 目标残留到新会话（手动 /goal 在新会话同样需要重设）。
 	ga.ctrl.SetGoal("")
-	return ga.ctrl.NewSession()
+	if err := ga.ctrl.NewSession(); err != nil {
+		return err
+	}
+	// v4.26：会话切换归零 wire seq（per-会话语义）。前端在本动作后会重载
+	// 历史 items 并重置 lastSeq，断号检测从新会话重新计数。
+	ga.wire.reset()
+	return nil
 }
 
 // GaeaModel 实时返回模型中心当前活跃的引擎与模型（engine/model 格式）。
@@ -476,6 +499,68 @@ func (a *App) GaeaCallTool(name, argsJSON string) (string, error) {
 }
 
 // ── 事件转换 ────────────────────────────────────────────────────
+
+// gaeaPhaseThrottleWindow 是 phase 事件的同阶段节流窗口（v4.26）：同一文案
+// 200ms 内不重发——预处理/重试阶段的 phase 由多个发射点产生（控制器、agent
+// 循环、Retrying 转译），窗口吸收同刻重复，又不至于吞掉真实的阶段推进。
+const gaeaPhaseThrottleWindow = 200 * time.Millisecond
+
+// gaeaEventForwarder 是 gaea 事件流 → 前端 gaea-event 的转发层（v4.26 对话
+// 流式重造）。Why：Wails 事件流在密集到达时会丢件（前端 store 注释认账），
+// 丢件不可在传输层根治，退而求其次给每条 payload 打单调 seq，让前端能检测
+// 断号并调用 GaeaResyncEvents 用磁盘日志整体重建。本层职责：
+//  1. wire seq 打点：per 会话单调递增（会话切换时 reset，见 GaeaNewSession /
+//     GaeaResumeSession / GaeaFork），只在此处消费，不改磁盘日志格式（日志
+//     在 sink 链上游 EventLogSink 已落盘，与本层 seq 无关）；
+//  2. phase 节流：同一阶段（同文案）200ms 内不重发（只影响 wire；磁盘日志
+//     保留全量，轨迹/恢复不受影响）；
+//  3. 事件转译见 gaeaEventMap（Retrying/compaction → phase）。
+type gaeaEventForwarder struct {
+	seq atomic.Int64
+	mu  sync.Mutex
+	// phaseLast 记录各 phase 文案最近一次转发时刻（节流用，键=phase 文案）。
+	phaseLast map[string]time.Time
+}
+
+func newGaeaEventForwarder() *gaeaEventForwarder {
+	return &gaeaEventForwarder{phaseLast: map[string]time.Time{}}
+}
+
+// last 返回当前最新 wire seq（GaeaResyncEvents 的返回 seq）。
+func (f *gaeaEventForwarder) last() int64 { return f.seq.Load() }
+
+// next 领取下一个 wire seq（转发 payload 打点用）。
+func (f *gaeaEventForwarder) next() int64 { return f.seq.Add(1) }
+
+// reset 会话切换时归零 wire seq。
+func (f *gaeaEventForwarder) reset() { f.seq.Store(0) }
+
+// payload 把事件转译为前端 payload 并打点 seq；phase 命中节流时返回 nil
+// （调用方跳过转发，seq 不消费——保证转发出去的 payload seq 无断号）。
+func (f *gaeaEventForwarder) payload(e event.Event) map[string]interface{} {
+	m := gaeaEventMap(e)
+	if k, _ := m["kind"].(string); k == "phase" {
+		text, _ := m["text"].(string)
+		now := time.Now()
+		f.mu.Lock()
+		if last, ok := f.phaseLast[text]; ok && now.Sub(last) < gaeaPhaseThrottleWindow {
+			f.mu.Unlock()
+			return nil
+		}
+		f.phaseLast[text] = now
+		f.mu.Unlock()
+	}
+	m["seq"] = f.next()
+	return m
+}
+
+// emitGaeaEvent 把一条 gaea 事件经转发层发到前端（seq 打点 + phase 节流）。
+// 事件此时已过 EventLogSink（「模型可见必入日志」在上游完成），本层不再落盘。
+func (a *App) emitGaeaEvent(e event.Event) {
+	if m := ga.wire.payload(e); m != nil {
+		a.emit("gaea-event", m)
+	}
+}
 
 // gaeaEventMap 把 gaea 事件流转换为 gaeaW WireEvent 兼容格式（前端 store 直接消费）。
 func gaeaEventMap(e event.Event) map[string]interface{} {
@@ -564,11 +649,31 @@ func gaeaEventMap(e event.Event) map[string]interface{} {
 		askMap := map[string]interface{}{"id": e.Ask.ID, "questions": qs}
 		m["ask"] = askMap
 	case event.CompactionStarted:
-		m["compaction"] = map[string]interface{}{"trigger": e.Compaction.Trigger}
+		// v4.26 对话流式重造：compaction 转译为 phase（Why：前端 reducer 对
+		// compaction_started/done 无 case、事件被整体丢弃——压缩期间对话窗
+		// 静默；统一走 phase 后前端零改动即可见「正在压缩上下文…」）。仅
+		// 转译 wire 形态，磁盘日志仍按 compaction_started/done 落（不改格式）。
+		m["kind"] = "phase"
+		m["text"] = "正在压缩上下文…"
 	case event.CompactionDone:
-		m["compaction"] = map[string]interface{}{
-			"trigger": e.Compaction.Trigger, "messages": e.Compaction.Messages,
-			"summary": e.Compaction.Summary, "archive": e.Compaction.Archive,
+		m["kind"] = "phase"
+		m["text"] = "压缩完成"
+	case event.Retrying:
+		// v4.26：Retrying 转译为 phase（此前无映射落到 unknown 被前端丢弃，
+		// 流式恢复重试期间用户完全无感）。n/m 取自事件自带的重试进度。
+		m["kind"] = "phase"
+		m["text"] = fmt.Sprintf("正在重试 (%d/%d)", e.RetryAttempt, e.RetryMax)
+	case event.SubagentMessage:
+		// v4.26：子代理完成回投（对标 Codex 2026-08 "Report completed
+		// sub-agent activity on parent turns"）。text=最终答复全文；ref=子代理
+		// transcript 引用（临时子代理缺省不下发）；parentId=父 task 调用 ID，
+		// 前端据此把答复挂到对应 task 卡片下。扁平字段便于前端直接消费。
+		m["text"] = e.Text
+		if e.SubagentRef != "" {
+			m["ref"] = e.SubagentRef
+		}
+		if e.ParentToolID != "" {
+			m["parentId"] = e.ParentToolID
 		}
 	case event.Steer:
 		// 运行中插话：agent 已把该消息作为当前回合 guidance 消费，
@@ -588,6 +693,7 @@ func gaeaKindName(k event.Kind) string {
 		event.ApprovalRequest: "approval_request", event.AskRequest: "ask_request",
 		event.TurnDone: "turn_done", event.CompactionStarted: "compaction_started",
 		event.CompactionDone: "compaction_done", event.Steer: "notice",
+		event.SubagentMessage: "subagent_message",
 	}
 	if n, ok := names[k]; ok {
 		return n

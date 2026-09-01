@@ -7,6 +7,7 @@ import { useT } from "../lib/i18n";
 import { AssistantMessage, UserMessage } from "./Message";
 import { SkillCaptureModal } from "./SkillCaptureModal";
 import { StreamingIndicator } from "./StreamingIndicator";
+import { WorkHeader } from "./WorkHeader";
 import { ToolCard } from "./ToolCard";
 import { ToolGroup, scanGroups } from "./ToolGroup";
 import { ErrorCard } from "./ErrorCard";
@@ -110,7 +111,10 @@ function alternatingSegments(turn: Item[]): Segment[] {
       continue;
     }
     if (curOutside.length > 0) flush();
-    if (it.kind === "tool" || it.kind === "compaction" || it.kind === "notice") {
+    // v4.26 phase 收编：phase 不再独立成行走消息流（此前堆叠成一行行
+    // 「.phase」弱存在感文本）——统一进过程卡：最新 phase 由 WorkHeader
+    // 工作态头部展示，历史 phase 折叠在过程卡内。item 形态不变。
+    if (it.kind === "tool" || it.kind === "compaction" || it.kind === "notice" || it.kind === "phase") {
       curProcess.push(it);
     } else {
       curOutside.push(it);
@@ -231,7 +235,9 @@ function renderOutsideItems(
           </div>
         );
       case "phase":
-        return <div key={it.id} className="phase">{it.text}</div>;
+        // v4.26 phase 收编：phase 统一进过程卡 + 最新进 WorkHeader 头部，
+        // 不再在消息流里渲染独立行（此分支仅防御历史/异常路径）。
+        return null;
       case "notice":
         if (it.level === "warn") {
           if (ctx.dismissedErrors.has(it.id)) return null;
@@ -261,7 +267,7 @@ function renderOutsideItems(
 // 由 Transcript 用 useCallback 稳定化后传入，memo 才能生效。
 export const TurnBlock = memo(function TurnBlock({
   seg, running, isLast, turnNo, openTurn, onToggleTurn, onRewindTurn, onCollapse,
-  dismissedErrors, onDismissError, captureForId, turnElsRef,
+  dismissedErrors, onDismissError, captureForId, turnElsRef, workHeader,
 }: {
   seg: Segment;
   running: boolean;
@@ -275,6 +281,9 @@ export const TurnBlock = memo(function TurnBlock({
   onDismissError: (id: string) => void;
   captureForId: (id: string) => ((solution: string) => void) | undefined;
   turnElsRef: React.MutableRefObject<Map<number, HTMLElement>>;
+  /** v4.26 工作态头部：锚定在最后一轮的用户消息段（WorkHeader 自订 store 的
+   *  running/turnStartAt/items，running→done 转换不依赖本组件重渲染）。 */
+  workHeader?: boolean;
 }) {
   const toolCount = seg.processItems.filter((it) => it.kind === "tool" && !it.parentId).length;
   const thoughtCount = seg.processItems.filter((it) => it.kind === "assistant" && it.reasoning).length;
@@ -308,6 +317,9 @@ export const TurnBlock = memo(function TurnBlock({
         />
       )}
       {seg.outsideItems.length > 0 && outside}
+      {/* v4.26 工作态头部：紧跟用户消息（items 为空也渲染，消灭 turn_started
+          到首条 text/tool 之间的死寂窗口）；轮完成转 Codex 式耗时行。 */}
+      {workHeader && <WorkHeader />}
     </>
   );
 });
@@ -418,9 +430,17 @@ export const ProcessCard = memo(function ProcessCard({
   const statusMeta = status !== "idle" ? PROCESS_STATUS_META[status] : null;
   const StatusIcon = statusMeta?.icon ? STATUS_ICONS[statusMeta.icon] : null;
 
+  // v4.26：运行中最新 phase 已上 WorkHeader 工作态头部，卡内不再重复展示
+  // （历史 phase 折叠在卡内）；轮完成后头部转耗时行，全部 phase 回到卡内。
+  const lastPhaseId = running
+    ? items.reduceRight<string>((acc, it) => acc || (it.kind === "phase" ? it.id : ""), "")
+    : "";
+
   const body = useMemo(() => {
     const out: React.ReactNode[] = [];
-    const grouped = scanGroups(items);
+    // v4.26 重复工具折叠（Claude Code "Called slack 3 times" 式）：只折叠
+    // 全部完成的连续同名调用；running 的保持独立卡不折叠。
+    const grouped = scanGroups(items, { skipRunning: true });
     for (const gi of grouped) {
       if (gi.kind === "group") {
         out.push(<ToolGroup key={gi.id} tools={gi.tools} />);
@@ -443,6 +463,7 @@ export const ProcessCard = memo(function ProcessCard({
           out.push(<ToolCard key={it.id} item={it as ToolItem} subcalls={subcallsByParent.get(it.id)} />);
           break;
         case "phase":
+          if (it.id === lastPhaseId) break;
           out.push(
             <div key={it.id} className="phase"><Brain size={12} /><span>{it.text}</span></div>,
           );
@@ -456,7 +477,7 @@ export const ProcessCard = memo(function ProcessCard({
       }
     }
     return out;
-  }, [items, subcallsByParent]);
+  }, [items, subcallsByParent, lastPhaseId]);
 
   // Codex 式过程条：无边框、低噪声；运行中只有左侧细线强调，状态靠徽标传达。
   return (
@@ -662,6 +683,17 @@ export function Transcript({
     return map;
   }, [segments]);
 
+  // v4.26 工作态头部锚点：最后一轮的用户消息段。WorkHeader 只挂这一处——
+  // 运行中常驻（spinner + 阶段 + 用时 + 步数），轮完成转「已完成 · 用时 · 步数」；
+  // 新一轮发出后锚点随最后一条 user 消息移动，上一轮头部自然卸载。
+  const lastUserSegIdx = useMemo(() => {
+    let last = -1;
+    segments.forEach((seg, i) => {
+      if (seg.outsideItems.some((it) => it.kind === "user")) last = i;
+    });
+    return last;
+  }, [segments]);
+
   // T7-4：onToggle/onRewind/onDismiss 全部 useCallback 稳定化，UserMessage/
   // ErrorCard 的 memo 才不会被每次渲染的新函数击穿。
   const toggleTurn = useCallback((tn: number) => {
@@ -719,7 +751,11 @@ export function Transcript({
         )}
         {/* 正文 74ch 阅读宽度（.v3-reading 居中）；欢迎页作为启动器保持铺满 */}
         <div className="v3-reading">
-          <StreamingIndicator running={running} items={items} />
+          {/* v4.26：StreamingIndicator 降级为最底兜底（工作态头部已接管主反馈），
+              文案收敛为「连接中…/仍在等待事件…」。items 为空且 running 时
+              WorkHeader 在此独立兜底挂载（无 segments 可锚定的死寂窗口）。 */}
+          <StreamingIndicator running={running} />
+          {items.length === 0 && running && <WorkHeader />}
           {segments.map((seg, segIdx, arr) => {
             const isLast = segIdx === arr.length - 1;
             // 2026-08-26：删除大过程卡后全部走交替段，key 直接用段内首条 id
@@ -741,6 +777,7 @@ export function Transcript({
                 onDismissError={dismissError}
                 captureForId={captureForId}
                 turnElsRef={turnEls}
+                workHeader={segIdx === lastUserSegIdx}
               />
             );
           })}

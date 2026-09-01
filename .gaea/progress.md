@@ -1,7 +1,48 @@
 # 任务进度
 
-> 最后更新: 2026-09-01（v4.25.0「文件工作台」：编辑器 tab 化/变更 diff/
-> 选区联动/模型主动打开——规划第三刀 A3+B3，绑定面 549→549 零新增）
+> 最后更新: 2026-09-01（v4.26.0「对话流式重造 · 对齐 Codex」插刀：WorkHeader/
+> phase 接线/子代理回投/seq 吞件防线——绑定面 549→550）
+
+## 当前状态
+
+- **最新发布：v4.26.0（2026-09-01）「对话流式重造 · 对齐 Codex」（插刀）**：
+  git tag v4.26.0；基线 v4.25.0；绑定面 549→550（+1 GaeaResyncEvents）。
+  起点=用户报告「办公板块对话发送后窗口静默半天，轨迹面板却在工作」。主代理
+  事件流逐环节探查+调研子代理（Codex/Claude Code/Cursor 流式工作态，落
+  docs/research-2026-09-01/codex-streaming-ux.md）→ 根因六连（子代理 Text/
+  Reasoning 有意不进主聊天、预处理窗零事件、Wails 吞件、Retrying 未映射、
+  phase 空 seam、TTFT 静默）→ 三并行编码子代理线（Go 事件线/前端状态线/
+  渲染线，文件所有权互斥）+ 主代理集成：
+  ①**WorkHeader 工作态头部行**：turn 激活期常驻（spinner+阶段文本+已用时
+  1s tick+步数，items 为空也渲染=发送那一帧起窗口不空），完成转「已完成 ·
+  用时 · N 步」耗时行；StreamingIndicator 收敛兜底（连接中/仍在等待事件）。
+  ②**后端 phase 事件接线**：预处理各阶段发射 phase（正在启动引擎/解析 @引用/
+  装配首轮上下文/检索记忆/思考中）+ Retrying/compaction 转译 phase（磁盘日志
+  格式不变，200ms 同文案节流）；phase 收编过程卡+头部防重复。
+  ③**子代理活动回投主回合**（Codex 2026-08 同款）：新事件 subagent_message
+  完成态回投子代理最终答复（ref/parentId），主区消息「子代理」徽标；task 卡
+  running 实时 lastText/lastTool 预览（App 5s 轮询注入 taskActivity）+完成
+  结果摘要；中途进度不回投防刷屏（实时进度走分工面板）。
+  ④**事件序号防线**：gaea-event 全量带 seq（转发层原子递增，会话切换归零），
+  跳号→新绑定 GaeaResyncEvents 从磁盘日志折叠对话项全量快照整体替换（5s 冷却/
+  在途去重/坏快照保底/streaming 续接/running 不动）；golden 逐字节不变。
+  ⑤重复工具折叠「已调用 X · N 次」（Claude Code 式）；顺带修
+  weixin_reminder_test 时间炸弹（固定基准过期必炸→取真实时钟）。
+  **集成**：绑定面四处（bindingNames +GaeaResyncEvents/bridge AppBindings.
+  ResyncEvents+映射/spaceBindings work 分面锁 262/types GaeaResyncResult）+
+  App.tsx（fetcher 挂载+task 卡轮询注入）。
+  **验证**：Go build/vet/test 全量 0 FAIL；tsc -b/eslint 0；vitest 1072/1072
+  （169 文件，净增 71：eventSync 26、store.resync 18、taskActivity 12、
+  WorkHeader 8 等）；drift PASS（550）；版本四处 4.26.0。**教训**：根因探查
+  先于动手（六个根因里三个半在后端，纯前端重造治不了）；「吞件」类问题用
+  序号+读盘补拉根治而非重试；并行会话会覆写 .gaea/progress.md（本次被无关
+  会话清掉 851 行，已从 git 恢复+对方内容备份 backups/）。
+  **欠账**：子代理中途进度不回投；并行多子代理派发瞬间 task 卡预览可能短暂
+  空 ref；历史轮无耗时数据源；TrajectoryView 未消费 kind="subagent" 记录。
+  **下一刀 v4.27「浏览器与版本」**（原 v4.26 顺延）：A2 观察窗+B1 版本时间线
+  +B2 pptx+C2/C3（调研弹药 docs/market-research-2026-09-01.md）。详见
+  releases/v4.26.0.md。
+
 
 ## 当前状态
 

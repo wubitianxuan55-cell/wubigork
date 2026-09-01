@@ -129,6 +129,9 @@ export interface WireEvent {
   progress?: WirePreviewProgress;
   path?: string; // preview_progress: 当前预览文件（冗余，便于前端过滤）
   err?: string;
+  // v4.26：message 事件可选携带子代理来源引用（后端把子代理最终答复回投主
+  // 回合时标注）；reducer 落到 assistant item 上，渲染层据此画「子代理」徽标。
+  subagentRef?: string;
 }
 
 // Bound-method payloads (desktop/app.go).
@@ -575,6 +578,30 @@ export interface DeliverableRegistryView {
   available: boolean; // false = 会话无事件日志（legacy 未迁移/路径非法），前端显示空态
   entries: DeliverableEntry[]; // 按 updatedAt 倒序、上限 200 条
   total: number; // 去重后完整登记数（可能 > len(entries)）
+}
+
+// ── 事件序号防线（v4.26 对话流式重造） ─────────────────────
+// GaeaResyncEvents 的返回：Wails 事件流吞件（gaea-event 密集到达丢件）时，
+// 前端检测 seq 跳号 → 补拉当前会话磁盘日志折叠出的对话项全量快照整体替换。
+export type GaeaResyncItem = {
+  kind: "user" | "assistant" | "tool" | "notice";
+  id: string;
+  text?: string;
+  reasoning?: string;
+  level?: string;
+  name?: string;
+  toolId?: string;
+  output?: string;
+  err?: string;
+  status?: "done" | "error" | "running";
+  readOnly?: boolean;
+  truncated?: boolean;
+  parentId?: string;
+};
+
+export interface GaeaResyncResult {
+  seq: number; // 转发层当前最新 wire seq：整体替换后以此为 lastSeq 续接
+  items: GaeaResyncItem[]; // 会话全量（流式 delta 已合并为单 assistant 条目），恒非空
 }
 
 // ── 统一交付出口（事实底座 → 多形态交付） ──────────────────

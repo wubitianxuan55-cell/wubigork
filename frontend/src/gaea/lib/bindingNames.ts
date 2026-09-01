@@ -246,6 +246,7 @@ export const bindingNames = [
   "GaeaRemovePermissionRule",
   "GaeaRenameSession",
   "GaeaResumeSession",
+  "GaeaResyncEvents",
   "GaeaRetrievalEvalRun",
   "GaeaRetryMCPServer",
   "GaeaRevealWorkspacePath",

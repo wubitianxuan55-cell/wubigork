@@ -77,6 +77,11 @@ func KindString(k event.Kind) string {
 		return "retrying"
 	case event.Steer:
 		return "steer"
+	case event.SubagentMessage:
+		// v4.26 对话流式重造：子代理完成回投落主会话日志（子代理事件经
+		// subSinkFor 转发父 sink 后同样走 EventLogSink 落盘）。旧日志无此
+		// kind：读端（投影/轨迹折叠/恢复重放）对未知 kind 一律跳过，不炸。
+		return "subagent_message"
 	}
 	return "unknown"
 }
@@ -440,7 +445,7 @@ func truncateForError(raw json.RawMessage) string {
 }
 
 // EntryFromEvent 把一条 event.Event 转换为日志条目（事件级映射）。
-// 16 种 event.Kind 全部落日志；投影时仅 user/assistant/tool 三类还原为消息。
+// 17 种 event.Kind 全部落日志；投影时仅 user/assistant/tool 三类还原为消息。
 func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 	kind := KindString(e.Kind)
 	var payload any
@@ -504,6 +509,9 @@ func EntryFromEvent(e event.Event, ts int64) (LogEntry, error) {
 		}
 	case event.Retrying:
 		payload = map[string]int{"attempt": e.RetryAttempt, "max": e.RetryMax}
+	case event.SubagentMessage:
+		// v4.26：子代理完成回投（ref 可空=临时子代理；parentId=父 task 调用 ID）。
+		payload = map[string]string{"text": e.Text, "ref": e.SubagentRef, "parentId": e.ParentToolID}
 	default:
 		payload = map[string]string{}
 	}

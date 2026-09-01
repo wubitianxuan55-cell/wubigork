@@ -366,6 +366,19 @@ func (t *TaskTool) runSubSession(ctx context.Context, prompt string, subReg *too
 			ActiveSchemas: t.parentReg.Schemas(), // V10.36: align tools JSON with parent for cache
 		}, sink, &subUsage)
 	}
+	if err == nil && strings.TrimSpace(result) != "" {
+		// v4.26 对话流式重造（对标 Codex 2026-08 "Report completed sub-agent
+		// activity on parent turns"）：子代理完成时把最终答复文本作为
+		// SubagentMessage 事件回投父 sink。Why：子代理长跑期间主聊天只挂一张
+		// task 卡、父级 Text/Reasoning 被有意隔离（上下文预算），用户在窗口里
+		// 看不到子代理在产出什么；完成态回投让主聊天在子代理收尾时立即可见
+		// 产出。取舍：只回投完成态 + 最终文本，中途进度（ reasoning/工具间
+		// 文本）不回投——并行/重试子代理场景下逐段转发会刷屏，且父模型本来
+		// 就只消费最终答复（结果结构不变，模型上下文零影响）。事件经
+		// subSinkFor 透传时打点 ParentToolID（父 task 调用 ID），落盘走主会话
+		// 日志 kind=subagent_message（旧日志无此 kind，读端跳过，兼容）。
+		sink.Emit(event.Event{Kind: event.SubagentMessage, Text: result, SubagentRef: subagentRunRef(run)})
+	}
 	if err == nil && len(outputSchema) > 0 {
 		// output_schema set: verify the result is parseable JSON.
 		// We don't validate every field (full JSON Schema needs a lib),
@@ -617,6 +630,22 @@ func subSinkFor(parentID string, parent event.Sink) event.Sink {
 			// Override source so StatsPanel can split main vs subagent.
 			e.UsageSource = event.UsageSourceSubagent
 			parent.Emit(e)
+		case event.SubagentMessage:
+			// v4.26：子代理完成回投透传父 sink，打点父 task 调用 ID——前端
+			// 据此把答复文本挂到对应 task 卡片下（与子工具嵌套同键位）。
+			// 其余 kind（Text/Reasoning/Turn* 等）维持有意丢弃，避免子代理
+			// 过程噪音进入主聊天。
+			e.ParentToolID = parentID
+			parent.Emit(e)
 		}
 	})
+}
+
+// subagentRunRef 返回子代理 transcript 引用（run 为 nil（临时子代理）或无
+// ref 时返回空串——wire/log payload 中该字段省略）。
+func subagentRunRef(run *SubagentRun) string {
+	if run == nil {
+		return ""
+	}
+	return run.Ref
 }

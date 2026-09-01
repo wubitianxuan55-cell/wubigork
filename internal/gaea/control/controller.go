@@ -416,6 +416,11 @@ func (c *Controller) SendWithRaw(input, raw string) {
 // runSendTurn runs one Send turn: resolve @-references first (consistent with
 // the Submit path), then run the composed turn.
 func (c *Controller) runSendTurn(ctx context.Context, input, raw string) error {
+	// v4.26 对话流式重造：@ 引用解析（文件读取/MCP 资源/图片识图）可能持续
+	// 数秒，先发 phase 让前端在 TurnStarted 之前就有可见事件（Why：发送后
+	// 长时间静默是本版重点修复的体验缺陷；How：控制器持有 sink，在能拿到
+	// sink 的最近层发射，避免宿主包装注入。文案参照既有 notice 中文风格）。
+	c.emitPhase(phaseResolvingRefs)
 	// 与 Submit 路径保持一致：先解析 @ 引用（文件内容 / MCP 资源 /
 	// 图片识图结果），再进入回合，保证桌面端和 HTTP 端行为一致。
 	block, errs := c.ResolveRefs(ctx, input)
@@ -427,6 +432,23 @@ func (c *Controller) runSendTurn(ctx context.Context, input, raw string) error {
 		sent = "Referenced context:\n\n" + block + "\n\n" + input
 	}
 	return c.runTurnWithRaw(ctx, sent, raw)
+}
+
+// v4.26 对话流式重造：预处理阶段 phase 文案（前端 reducer 已有 phase case，
+// 事件落盘 kind=phase 由 session.KindString 支持——只缺发射点，此处补齐）。
+// 节流（同一阶段 200ms 内不重发）统一在宿主转发层做（app gaea_handler），
+// 控制器保持无状态发射。
+const (
+	phaseResolvingRefs     = "正在解析 @引用与附件"
+	phaseAssemblingContext = "正在装配首轮上下文"
+	phaseRecallingMemory   = "正在检索记忆"
+)
+
+// emitPhase 发一条 phase 事件（v4.26 预处理阶段可视化）。控制器已有 sink，
+// 这是能拿到 sink 的最近层；phase 在事件日志中是受支持 kind（落盘格式不变），
+// 轨迹折叠/消息投影对 phase 均跳过，不影响恢复与看板。
+func (c *Controller) emitPhase(text string) {
+	c.sink.Emit(event.Event{Kind: event.Phase, Text: text})
 }
 
 func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) error {
@@ -460,6 +482,10 @@ func (c *Controller) runTurnWithRaw(ctx context.Context, input, raw string) erro
 	// also push the L2 system prompt into the agent so the model gets
 	// project/task context. Subsequent turns reuse the cached L2 bytes.
 	if c.ctxMgr != nil {
+		// v4.26 对话流式重造：ProcessFirstTurn（画像/运行时上下文装配）在
+		// 首轮可能做检索/装配 I/O，先发 phase 占位（Why：该阶段在 TurnStarted
+		// 之前，前端原本全程静默）。
+		c.emitPhase(phaseAssemblingContext)
 		wasLocked := c.ctxMgr.Runtime().IsLocked()
 		c.ctxMgr.ProcessFirstTurn(input)
 		if !wasLocked {

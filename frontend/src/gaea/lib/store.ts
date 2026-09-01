@@ -4,6 +4,7 @@ import { useCallback, useEffect } from "react";
 import { create } from "zustand";
 import { useShallow } from "zustand/shallow";
 import { app, onEvent, onReady } from "./bridge";
+import { noteEventSeq, resetEventSync } from "./eventSync";
 import { parseTodos } from "./tools";
 import type {
   BalanceInfo, ContextInfo, FactBaseView, HistoryMessage, JobView, MemoryView,
@@ -15,7 +16,9 @@ export type ToolStatus = "running" | "done" | "error" | "stopped";
 
 export type Item =
   | { kind: "user"; id: string; text: string }
-  | { kind: "assistant"; id: string; text: string; reasoning: string; streaming: boolean }
+  // subagentRef：message 事件可选携带的子代理来源引用（v4.26），渲染层据此画
+  // 「子代理」徽标；旧事件无此字段时为 undefined，行为不变。
+  | { kind: "assistant"; id: string; text: string; reasoning: string; streaming: boolean; subagentRef?: string }
   | { kind: "phase"; id: string; text: string }
   | { kind: "notice"; id: string; level: "info" | "warn"; text: string }
   | { kind: "compaction"; id: string; pending: boolean; trigger: string; messages: number; summary: string; archive: string }
@@ -47,7 +50,11 @@ type Action =
   | { type: "balance"; balance: BalanceInfo } | { type: "jobs"; jobs: JobView[] } | { type: "factbase"; factBase: FactBaseView }
   | { type: "tcca"; report: TCCAReport }
   | { type: "sessionStats"; stats?: SessionStatsView }
-  | { type: "history"; messages: HistoryMessage[] } | { type: "clearApproval" } | { type: "clearAsk" } | { type: "reset" };
+  | { type: "history"; messages: HistoryMessage[] }
+  // v4.26 序号防线补拉：items 为后端 GaeaResyncEvents 折叠快照（原始 JSON，
+  // 由 reducer 内 parseResyncItems 校验后落库）。
+  | { type: "resync"; items: unknown[] }
+  | { type: "clearApproval" } | { type: "clearAsk" } | { type: "reset" };
 
 
 export function flushPendingUser(s: ControllerState): ControllerState {
@@ -90,6 +97,69 @@ export function rebuildHistoryItems(messages: HistoryMessage[]): { items: Item[]
   });
   const lastAssistantIdx = items.reduceRight((acc, it, idx) => acc >= 0 ? acc : it.kind === "assistant" ? idx : -1, -1);
   return { items, lastAssistantIdx };
+}
+
+// parseResyncItems 校验后端 GaeaResyncEvents 折叠快照（v4.26 序号防线，配套
+// reducer case "resync"）：items 必须是可全部识别的前端 Item 视图 JSON
+// （user/assistant/phase/notice/compaction/tool 六种），任一条形状不合法即整体
+// 判坏返回 null——reducer 据此静默保底、保留现有 items（前后端同车发版，
+// 形状必须一致，不做宽容合并）。空数组同样判坏：补拉只发生在对话进行中，
+// 空快照说明后端读日志失败，直接替换会清空对话窗。快照 assistant 一律视为
+// 非流式（磁盘折叠没有「正在输出」的概念），流式续接由 reducer 负责。
+export function parseResyncItems(raw: unknown): Item[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const str = (v: unknown): string => (typeof v === "string" ? v : "");
+  const optStr = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  const items: Item[] = [];
+  for (const it of raw) {
+    if (it === null || typeof it !== "object" || Array.isArray(it)) return null;
+    const o = it as Record<string, unknown>;
+    const id = typeof o.id === "string" && o.id !== "" ? o.id : null;
+    if (id === null) return null;
+    switch (o.kind) {
+      case "user":
+        if (typeof o.text !== "string") return null;
+        items.push({ kind: "user", id, text: o.text });
+        break;
+      case "assistant": {
+        if (typeof o.text !== "string" || typeof o.reasoning !== "string") return null;
+        items.push({ kind: "assistant", id, text: o.text, reasoning: o.reasoning, streaming: false, subagentRef: optStr(o.subagentRef) });
+        break;
+      }
+      case "phase":
+        if (typeof o.text !== "string") return null;
+        items.push({ kind: "phase", id, text: o.text });
+        break;
+      case "notice":
+        if (typeof o.text !== "string") return null;
+        items.push({ kind: "notice", id, level: o.level === "warn" ? "warn" : "info", text: o.text });
+        break;
+      case "compaction":
+        if (typeof o.pending !== "boolean") return null;
+        items.push({
+          kind: "compaction", id, pending: o.pending, trigger: str(o.trigger),
+          messages: typeof o.messages === "number" && Number.isFinite(o.messages) ? o.messages : 0,
+          summary: str(o.summary), archive: str(o.archive),
+        });
+        break;
+      case "tool": {
+        if (typeof o.name !== "string" || typeof o.readOnly !== "boolean") return null;
+        const st = o.status;
+        if (st !== "running" && st !== "done" && st !== "error" && st !== "stopped") return null;
+        items.push({
+          kind: "tool", id, name: o.name, args: str(o.args), readOnly: o.readOnly, status: st,
+          output: optStr(o.output), error: optStr(o.error),
+          truncated: o.truncated === true ? true : undefined,
+          recoverable: o.recoverable === true ? true : undefined,
+          parentId: optStr(o.parentId),
+        });
+        break;
+      }
+      default:
+        return null; // 未知 kind：整个快照不可信，保底不替换
+    }
+  }
+  return items;
 }
 
 // 待办收尾：turn 正常结束但 todo 列表从未推进（没有 completed、也没有
@@ -171,13 +241,15 @@ export function applyEvent(s: ControllerState, e: WireEvent): ControllerState {
       if (!needNew) {
         const it = s.items[idx] as Extract<Item, { kind: "assistant" }>;
         const next = [...s.items];
-        next[idx] = { ...it, text: e.text ?? it.text, reasoning: e.reasoning ?? it.reasoning, streaming: false };
+        // subagentRef 用整体替换而非保底透传：子代理答复回投后主回答的最终
+        // message 不带该字段，若保底会把「子代理」徽标黏到主回答气泡上。
+        next[idx] = { ...it, text: e.text ?? it.text, reasoning: e.reasoning ?? it.reasoning, streaming: false, subagentRef: e.subagentRef };
         return { ...s, items: next, currentAssistant: undefined, lastAssistantIdx: idx };
       }
       // 没有任何可更新的 assistant 项时创建新的（首轮且模型直接回了 message）
       const id = `a${s.seq}`;
       const newIdx = s.items.length;
-      return { ...s, seq: s.seq + 1, items: [...s.items, { kind: "assistant", id, text: e.text ?? "", reasoning: e.reasoning ?? "", streaming: false }], currentAssistant: undefined, lastAssistantIdx: newIdx };
+      return { ...s, seq: s.seq + 1, items: [...s.items, { kind: "assistant", id, text: e.text ?? "", reasoning: e.reasoning ?? "", streaming: false, subagentRef: e.subagentRef }], currentAssistant: undefined, lastAssistantIdx: newIdx };
     }
     case "tool_dispatch": {
       const t = e.tool; if (!t) return s;
@@ -269,6 +341,35 @@ export function reducer(s: ControllerState, a: Action): ControllerState {
       const rebuilt = rebuildHistoryItems(a.messages);
       const items = finalizeStaleTodos(rebuilt.items);
       return { ...s, items, seq: s.seq + items.length, lastAssistantIdx: rebuilt.lastAssistantIdx };
+    }
+    case "resync": {
+      // v4.26 序号防线补拉落库：后端折叠快照校验通过后整体替换 items，补齐
+      // Wails 丢件缺口。只补历史——running/turnActive/approval/ask 等 live
+      // 状态一律不动（不撤销进行中的回合）；坏形状静默忽略并保底（保留现有
+      // items，等下一次缺口在冷却后重试）。刻意不做 finalizeStaleTodos：补拉
+      // 常发生在回合中途，全 pending 的待办可能是刚写下的计划，不能擅自收尾
+      // （那是 history/turn_done 的收尾语义）。
+      if (s.discardTurn) return s; // unsend 未决时不替换（快照可能含已撤回的消息）
+      const items = parseResyncItems(a.items);
+      if (!items) return s;
+      // 快照天然非流式；若本地正在流式输出（缺口期间流未断），把快照最后一个
+      // assistant 续上 streaming，避免后续 text 增量按「上一条已终结」劈成新气泡。
+      const localLast = s.lastAssistantIdx >= 0 && s.lastAssistantIdx < s.items.length ? s.items[s.lastAssistantIdx] : null;
+      const localStreaming = localLast !== null && localLast.kind === "assistant" && localLast.streaming;
+      if (localStreaming && s.turnActive && items.length > 0) {
+        const lastIdx = items.length - 1;
+        const lastIt = items[lastIdx];
+        if (lastIt.kind === "assistant") items[lastIdx] = { ...lastIt, streaming: true };
+      }
+      const lastAssistantIdx = items.reduceRight((acc, it, idx) => acc >= 0 ? acc : it.kind === "assistant" ? idx : -1, -1);
+      let next: ControllerState = { ...s, items, lastAssistantIdx, seq: s.seq + items.length };
+      // pendingUser 去重：乐观上屏的用户消息若已进快照（后端已落盘），只清标记，
+      // 防止下一条事件触发 flushPendingUser 时重复追加同一条用户气泡。
+      if (next.pendingUser !== undefined) {
+        const last = items.length > 0 ? items[items.length - 1] : null;
+        if (last && last.kind === "user" && last.text === next.pendingUser) next = { ...next, pendingUser: undefined };
+      }
+      return next;
     }
     case "clearApproval": return { ...s, approval: undefined }; case "clearAsk": return { ...s, ask: undefined };
     case "reset": return { ...initialState, meta: s.meta, context: { ...s.context, used: 0 }, balance: s.balance, jobs: s.jobs, seq: s.seq, sessionNonce: s.sessionNonce + 1, _dispatch: s._dispatch };
@@ -486,6 +587,16 @@ export function useController() {
 
   useEffect(() => {
     const off = onEvent((e) => {
+      // v4.26 事件序号防线：payload 带 seq（可选字段）时做缺口检测，命中缺口
+      // 经注入的 fetcher（App.tsx 挂 app.GaeaResyncEvents）补拉后端折叠快照，
+      // 以 resync action 落库。旧后端无 seq / 未挂 fetcher 时整条防线静默旁路；
+      // 5s 冷却 + 在途去重防补拉风暴。resync 只补 items，不动 running/turnActive
+      // （见 reducer case "resync"）。会话切换的 seq 基线归零在各 reset 调用点
+      // 经 resetEventSync() 完成。
+      noteEventSeq(e, {
+        onSnapshot: (snap) => dispatch({ type: "resync", items: snap.items }),
+        onError: (err) => logBridgeError("eventSync 补拉", err),
+      });
       // 流式 text/reasoning 用 queueMicrotask 确保每次 chunk 即时渲染，
       // 不被 React 18 自动批处理合并。同步 dispatch 会导致多个事件在同一
       // 微任务中批量更新从而不渲染中间态。
@@ -583,6 +694,7 @@ export function useController() {
     try {
       await app.NewSession();
       dispatch({ type: "reset" });
+      resetEventSync(); // v4.26：新会话事件 seq 从 1 重新单调递增，补拉防线基线归零
       refreshFactBase();
     } catch (err) {
       // 新建失败不重置界面（后端会话未切换），给出可见提示。
@@ -610,6 +722,7 @@ export function useController() {
       return [] as HistoryMessage[];
     });
     dispatch({ type: "reset" });
+    resetEventSync(); // v4.26：恢复会话同样归零 seq 基线
     if (ms.length) dispatch({ type: "history", messages: ms });
     // 恢复后回填会话级派生统计（成本/用量历史，评审缺陷 11 根治）
     void fetchSessionStats(path);
@@ -630,7 +743,7 @@ export function useController() {
   const pickWorkspace = useCallback(async (): Promise<string> => {
     const p = await app.PickWorkspace().catch((err: unknown) => { failWrite(dispatch, "打开工作区", err); return ""; });
     if (p) {
-      dispatch({ type: "reset" }); refreshFactBase();
+      dispatch({ type: "reset" }); resetEventSync(); refreshFactBase();
       try {
         dispatch({ type: "meta", meta: await app.Meta() });
         dispatch({ type: "context", context: await app.ContextUsage() });
@@ -641,7 +754,7 @@ export function useController() {
   const switchWorkspace = useCallback(async (path: string): Promise<string> => {
     const n = await app.SwitchWorkspace(path).catch((err: unknown) => { failWrite(dispatch, "切换工作区", err); return ""; });
     if (n) {
-      dispatch({ type: "reset" }); refreshFactBase();
+      dispatch({ type: "reset" }); resetEventSync(); refreshFactBase();
       try {
         dispatch({ type: "meta", meta: await app.Meta() });
         dispatch({ type: "context", context: await app.ContextUsage() });
@@ -687,6 +800,7 @@ export function useController() {
     if (!ok) return;
     const ms = await app.History().catch((err) => { logBridgeError("rewind History", err); return [] as HistoryMessage[]; });
     dispatch({ type: "reset" });
+    resetEventSync(); // v4.26：回退重载历史，seq 基线归零
     if (ms.length) dispatch({ type: "history", messages: ms });
     app.ContextUsage().then(c => dispatch({ type: "context", context: c })).catch((err) => logBridgeError("rewind ContextUsage", err));
   }, [dispatch]);

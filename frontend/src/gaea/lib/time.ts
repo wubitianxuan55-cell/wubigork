@@ -4,6 +4,14 @@ export function startOfDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
+// formatElapsed 已用时段格式化（v4.26 工作态头部行）：<60s 显示「42s」，
+// 否则「1m23s」。WorkHeader / task 卡 live 行共用同一口径。
+export function formatElapsed(sec: number): string {
+  if (sec < 60) return `${Math.max(0, Math.floor(sec))}s`;
+  return `${Math.floor(sec / 60)}m${Math.floor(sec % 60)}s`;
+}
+
+
 export function relativeTime(ms: number, now = Date.now()): string {
   const diff = now - ms;
   const min = Math.floor(diff / 60_000);

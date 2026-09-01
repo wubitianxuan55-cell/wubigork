@@ -112,6 +112,11 @@ func (a *AgentRunner) runDirect(ctx context.Context, input string) (*TurnResult,
 		if !graceRound {
 			a.midTurnMaybeCompact(ctx)
 		}
+		// v4.26 对话流式重造：每次模型调用前发 phase「思考中」（Why：长工具
+		// 结果装配/网络首包延迟可达数秒，TurnStarted 后到首个 delta 前前端
+		// 依旧静默；逐步骤发射让发送后每一秒都有事件可见）。子代理场景无
+		// 噪音：subSinkFor 只透传工具/用量/完成回投事件，Phase 有意丢弃。
+		a.sink.Emit(event.Event{Kind: event.Phase, Text: "思考中"})
 		text, reasoning, signature, calls, usage, interrupted, err := a.stream(ctx, step+1)
 		if err != nil {
 			// stream recovery — save partial output and inject recovery prompt

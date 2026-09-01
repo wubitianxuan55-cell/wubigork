@@ -233,7 +233,10 @@ func TestTickReminders_GivesUpAfterMaxFails(t *testing.T) {
 
 func TestWeixinReminderBindings(t *testing.T) {
 	a := reminderTestApp(t)
-	fire := reminderNow().Add(time.Hour).Format(time.RFC3339)
+	// 合法未来时间取真实时钟 +1h，而非固定的 reminderNow()+1h：WeixinReminderAdd
+	// 的「必须在未来」校验按真实 time.Now() 判定——固定基准在当日 11:00 后运行
+	// 会误报失败（2026-09-01 实测时间炸弹），本测试又无静态推算诉求。
+	fire := time.Now().Add(time.Hour).Format(time.RFC3339)
 
 	res, err := a.WeixinReminderAdd("交周报", fire)
 	if err != nil {

@@ -4,6 +4,7 @@ import {
   Check,
   ChevronRight,
   Loader2,
+  Users,
   X,
 } from "../icons";
 
@@ -13,6 +14,9 @@ import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
 import { boundedOutput, diffsFor, subjectOf, summarize } from "../lib/tools";
+import { getTaskCardActivity, hasTaskCardActivityProvider, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
+import { formatElapsed } from "../lib/time";
+import { useNow } from "../lib/useNow";
 import type { Item } from "../lib/store";
 import { FileLinkText } from "./FileLinkText";
 
@@ -33,6 +37,50 @@ function StatusGlyph({ status, recoverable }: { status: ToolItem["status"]; reco
   return <Check className="text-ok" size={12} />;
 }
 
+// ── TaskLiveRow：task 工具卡运行中的实时活动行（v4.26 对齐 Codex）──────
+// Why：子代理跑起来后主窗此前只有一张静态「运行中」task 卡——子代理的
+// lastText/lastTool 只在右栏分工面板可见。本行把 GaeaAgentNetwork/SubagentRuns
+// 轮询数据经 setTaskCardActivityProvider 注入的动态渲染成 Codex 式活动预览
+// （单行截断），并补已用时 + 「查看分工」入口提示。
+// How：ref 解析（args.continue_from / output 引用行，派发初期为 ""）→
+// getTaskCardActivity 取动态；未注入 provider（null=按现状渲染契约）→ 整行
+// 不渲染；查不到动态 → 只显示已用时与提示，绝不报错。1s tick（useNow）内刷新。
+function TaskLiveRow({ item }: { item: ToolItem }) {
+  const now = useNow();
+  // 起跑时刻：Item 契约无时间戳，以挂载时刻近似计时（运行中卡片常驻挂载；
+  // 恢复历史会话时 running 一律还原为 stopped，不会进入本行）。
+  const startRef = useRef(Date.now());
+  const ref = useMemo(() => resolveTaskRef(item.args, item.output), [item.args, item.output]);
+  // 1s tick 内取值：App 层轮询更新 provider 数据后最迟 1s 上屏
+  const activity = getTaskCardActivity(ref);
+  // 未注入活动数据源（null）：按现状渲染（v4.26 之前没有这一行）
+  if (!hasTaskCardActivityProvider()) return null;
+  const elapsed = formatElapsed(Math.max(0, now - Math.floor(startRef.current / 1000)));
+
+  return (
+    <div
+      data-testid="task-live"
+      className="flex items-center gap-1.5 px-2 pb-1 pl-7 text-[11px] text-fg-faint select-none"
+    >
+      {activity?.lastText && (
+        <span className="min-w-0 truncate text-fg-dim/80" title={activity.lastText}>
+          {activity.lastText}
+        </span>
+      )}
+      {activity?.lastTool && (
+        <span className="min-w-0 shrink-0 max-w-[30%] truncate font-mono" title={activity.lastTool}>
+          {activity.lastTool}
+        </span>
+      )}
+      <span className="ml-auto shrink-0 tabular-nums">{elapsed}</span>
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <Users size={11} className="shrink-0" />
+        查看分工
+      </span>
+    </div>
+  );
+}
+
 export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolItem; subcalls?: ToolItem[] }) {
   const t = useT();
   const compact = useCompact();
@@ -45,9 +93,14 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   const summary =
     item.status === "running"
       ? ""
-      : hasNested
-        ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length })
-        : summarize(item.name, item.args, item.output, item.error);
+      : item.name === "task"
+        // v4.26：task 卡完成后显示子代理结果摘要（summarize 对 task 返回空，
+        // 完成卡此前除嵌套步数外没有任何结果信息；error 走卡片错误区）。
+        ? (taskResultSummary(item.output, item.error) ||
+           (hasNested ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length }) : ""))
+        : hasNested
+          ? t(nested.length === 1 ? "tool.stepOne" : "tool.stepOther", { n: nested.length })
+          : summarize(item.name, item.args, item.output, item.error);
 
   const hasArgs = diffs.length > 0 || !!item.args;
   const hasOutput = !!item.output;
@@ -112,6 +165,10 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
           <StatusGlyph status={item.status} recoverable={item.recoverable} />
         </span>
       </div>
+
+      {/* v4.26 子代理 task 卡 live 化：运行中在头部行下方渲染实时活动行
+          （活动预览 / 已用时 / 查看分工），不进折叠区、常驻可见。 */}
+      {item.name === "task" && item.status === "running" && <TaskLiveRow item={item} />}
 
       <div ref={bodyRef} style={{ overflow: "hidden" }}>
         <div>
