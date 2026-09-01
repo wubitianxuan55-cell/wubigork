@@ -23,3 +23,4 @@
 | `gaea2/` | 2.x 设计文档 | 已被 3.0 架构取代 |
 | `audits/` | 历史审查（.gaea/reviews）、phase7-candidates、data_backup_review、herdsman API 文档 | 已过时；审计结论见长期规划 §11（本轮前/后端审计为最新权威） |
 | 顶层 `2026-08-*.md` | 已落地优化的旧报告（cosyvoice/voxcpm2/herdsman 测评、office 交互调研、dsh-context 移植等） | 均已随版本落地，结论过期 |
+| `market-research-2026-08-31.md` + `research-2026-08-31/` | 2026-08-31 模块制市场调研复扫（8 分模块，v4.11.0 基线） | 结论已交付（v4.12/v4.13 等）并被 2026-09-01 复扫（docs/market-research-2026-09-01.md，v4.24.0 基线）取代 |
