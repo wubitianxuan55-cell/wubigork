@@ -47,6 +47,39 @@
 
 ## 版本状态
 
+- **最新发布：v4.28.0（2026-09-01）「浏览器与版本 · 观察窗/版本时间线/pptx
+  交互」**：git tag `v4.28.0`；基线 v4.27.4；绑定面 550→552（+2：
+  GaeaPptxOutline / GaeaBrowserObserve）。规划「浏览器与版本」刀（A2+B1+
+  B2/C3），三并行子代理分线（文件所有权互斥）+主代理集成：
+  ①**A2 浏览器观察窗**：browser 包 Manager.Observe()（CDP captureScreenshot
+  jpeg ≤1280 等比缩、未运行 Available=false 绝不拉起）+ 绑定
+  GaeaBrowserObserve（browser.Default() 同源、seam 可测）；右栏 running 组
+  第 6 tab「浏览器」（BrowserPanel：URL/标题+截图 zoom+帧龄+操作时间线
+  browser_* 倒序 20+权限静态行+自动弹出胶囊 gaea.browserAutoOpen；App 接线
+  新 browser_* 工具自动切 tab；2.5s 可见门控轮询）。帧流/接管远期。
+  ②**B1 版本时间线**（纯前端零 Go）：产物 vN 徽标可点→内联
+  VersionTimeline（groupVersionsByPath 聚合倒序过滤无快照卡）+ 基线预览
+  （GaeaPreview abs）+ 恢复（RollbackRecord=写回基线+追加新证据卡）；完全
+  长在证据链上（对标 Notion 版本史/Artifacts rewind，预览即护栏）。留白：
+  单版本无入口、RollbackRecord 不先快照当前态（待后端补）。
+  ③**B2/C3 pptx**：绑定 GaeaPptxOutline（python-pptx 逐页大纲，失败结构化）
+  + GaeaPreview .pptx 分支（soffice→PDF 缓存 .gaea/cache/pptx-preview 7 天
+  TTL + poppler 逐页 PNG ≤60 页 → kind=pdf 复用前端渲染）+ 前端逐页预览+
+  PptxOutline 大纲侧栏+页锚点滚动+「针对第 N 页修改」composer 指令插入；
+  python-pptx 缺失诚实降级。真机冒烟通过（3 页 deck+缓存全命中）。
+  **集成**：gen_bindings 552+删线 B 临时 wrapper；bindingNames/bridge
+  （PptxOutline camel+映射、GaeaBrowserObserve 同名直调，类型自
+  types.ts/BrowserPanel.tsx）/spaceBindings work×2（分面锁 264）；App
+  browser_* 自动弹出（去重+偏好+停用态尊重）；补更组件级
+  WorkspaceTabs.test 数量锁 5→6（线 B 漏项）。**验证**：Go 110 包 0 FAIL
+  （stress flaky 沿旧）；tsc -b/eslint 0；vitest 1138/1138（+43）；drift
+  PASS（552）。**欠账**：A2 帧流/接管/动态权限卡远期；FilePreviewModal pdf
+  仅标签；B1 单版本无入口+恢复不先快照当前态；B2 真编辑 pptx 远期；沿旧
+  欠账（子代理气泡恢复暂缺/中途进度不回投/WorkHeader 历史轮耗时/窄栏适配/
+  tasks flaky）。**下一刀候选**：v4.29 从欠账池+调研剩余（C2 对话内文件
+  链接→右栏定位、C3 弹窗对齐、编辑器窄栏适配）挑主轴。详见
+  releases/v4.28.0.md。
+
 - **最新发布：v4.27.4（2026-09-01）「todo 持久化改名 · progress.md 撞名根治」**：
   git tag `v4.27.4`；基线 v4.27.3；绑定面 550 零变更。**勘误**：progress.md
   四次被覆写并非「并行会话」——真凶是 gaea 自身 `todo_write` 内置工具的

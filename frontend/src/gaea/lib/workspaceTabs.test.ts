@@ -32,12 +32,18 @@ describe("workspaceTabs 清单完整性（v4.27 扁平化：文件/产物/变更
     expect(ids.sort()).toEqual([...WORKSPACE_TAB_IDS].sort());
   });
 
-  it("清单为一级平铺且不含已删除的资料/成本库", () => {
-    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "changes", "tasks", "subagents"]);
+  it("清单为一级平铺、含 v4.28 浏览器观察窗、不含已删除的资料/成本库", () => {
+    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "changes", "tasks", "subagents", "browser"]);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "materials")).toBe(false);
     expect(WORKSPACE_TABS.some((t) => (t.id as string) === "cost")).toBe(false);
     expect(isWorkspaceTabId("materials")).toBe(false); // 旧存储值收敛回默认
     expect(isWorkspaceTabId("cost")).toBe(false);
+    // v4.28 A2：浏览器观察窗清单项契约（id/label/keywords/defaultEnabled）
+    const browser = WORKSPACE_TABS.find((t) => t.id === "browser");
+    expect(browser).toBeTruthy();
+    expect(browser!.label).toBe("浏览器");
+    expect(browser!.keywords).toEqual(["browser", "浏览器", "观察", "网页"]);
+    expect(browser!.defaultEnabled).toBe(true);
   });
 
   it("每项都有非空 label/icon/keywords", () => {

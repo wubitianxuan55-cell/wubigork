@@ -449,20 +449,50 @@ export type TaskTemplate = WireShape<AppModels.TaskTemplate>;
 // 旧手写体含 body/truncated/binary 为历史残留，已收敛为生成模型别名。
 export type FilePreview = WireShape<AppModels.FilePreview>;
 
-// 文件预览负载：kind 决定渲染方式（image/docx/xlsx/markdown/text/unsupported/error）。
+// 文件预览负载：kind 决定渲染方式（image/docx/xlsx/pdf/markdown/text/unsupported/error）。
 // docx 时 dataUrl 为原始文件（前端 docx-preview 保真渲染）。
 // xlsx 时 body 为结构化单元格 JSON（值/公式/样式，前端表格渲染）。
+// pdf 时为 .pptx 转换产物（gaea_pptx.go previewPptx）：pages 有值走逐页缩略
+// （页锚点供大纲卡滚动），否则回退 dataUrl 整本内嵌；hint="outline" 提示可
+// 另行拉取 PptxOutline 大纲卡。
 export interface PreviewResult {
   path: string;
   name: string;
   ext: string;
   size: number;
-  kind: "image" | "docx" | "xlsx" | "markdown" | "text" | "unsupported" | "error";
+  kind: "image" | "docx" | "xlsx" | "pdf" | "markdown" | "text" | "unsupported" | "error";
   body: string;
   dataUrl: string;
   error: string;
   truncated?: boolean;
   totalPages?: number;
+  /** .pptx 预览的逐页缩略（page 1-based，dataUrl 为该页 PNG）。 */
+  pages?: PreviewPageThumb[];
+  /** 扩展能力提示："outline" = 可调 GaeaPptxOutline 拉取大纲卡。 */
+  hint?: string;
+}
+
+// PreviewPageThumb 是 pptx→PDF 预览的逐页缩略（对齐 gaea_pptx.go PreviewPage）。
+export interface PreviewPageThumb {
+  page: number;
+  dataUrl: string;
+}
+
+// PptxSlideOutline / PptxOutlineView 对齐后端 GaeaPptxOutline（gaea_pptx.go）
+// 契约：B2 pptx 结构化大纲卡；index 为 1-based 页码（与逐页预览页锚点一致，
+// 「针对第 N 页修改」指令即引用此页码）。
+export interface PptxSlideOutline {
+  index: number;
+  title: string;
+  /** 正文文本框文本（标题除外，单条后端已截断 ~200 字）。 */
+  texts: string[];
+  shapeCount: number;
+}
+
+export interface PptxOutlineView {
+  available: boolean;
+  error?: string;
+  slides: PptxSlideOutline[];
 }
 
 // OfficeEditResult 是框选即改的 AI 编辑结果（替换文本）。

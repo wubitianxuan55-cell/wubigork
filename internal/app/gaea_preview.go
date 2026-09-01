@@ -18,6 +18,7 @@ import (
 //   - docx        → dataUrl 提供原始 docx（前端 docx-preview 保真渲染）
 //   - xlsx        → body 为结构化单元格 JSON（值/公式/样式，前端表格渲染）
 //   - markdown    → body 为 Markdown（.md 原文或 .doc/.xls/pdf 转换结果）
+//   - pdf         → .pptx 转换的逐页缩略（Pages）或整本 PDF dataUrl（gaea_pptx.go）
 //   - text        → body 为纯文本
 //   - unsupported → 无法内联预览，前端提供"外部打开"
 //   - error       → error 描述原因
@@ -33,6 +34,13 @@ type PreviewResult struct {
 	// Truncated/TotalPages 标记 PDF 预览页数截断（前端展示明确提示）。
 	Truncated  bool `json:"truncated,omitempty"`
 	TotalPages int  `json:"totalPages,omitempty"`
+	// Pages 是 .pptx 预览的逐页缩略（Page 为 1-based 页码，DataURL 为该页
+	// PNG，data:image/png;base64）。仅在 pdftoppm 可用时填充；为空且带
+	// DataURL 时前端回退内嵌 PDF 查看器（实现见 gaea_pptx.go previewPptx）。
+	Pages []PreviewPage `json:"pages,omitempty"`
+	// Hint 是给前端的扩展能力提示："outline" = 可调 GaeaPptxOutline 拉取
+	// pptx 结构化大纲卡。
+	Hint string `json:"hint,omitempty"`
 }
 
 var textExts = map[string]bool{
@@ -189,6 +197,11 @@ func (a *App) GaeaPreview(rel string) PreviewResult {
 		base.Kind = "xlsx"
 		base.Body = j
 		return base
+	case ".pptx":
+		// v4.28 B2：pptx → soffice PDF（落 .gaea/cache 缓存）→ poppler 逐页
+		// 缩略；kind=pdf + Pages + Hint="outline"（前端叠大纲卡）。实现见
+		// gaea_pptx.go previewPptx。
+		return previewPptx(path, info, base)
 	case ".doc", ".xls", ".pdf":
 		// 扫描件 OCR 逐页进度经事件通道回传前端（仅 Wails/HTTP 桥接环境真正发布）。
 		md, total, truncated, err := docmd.ConvertLimitProgress(path, "", docmd.DefaultMaxPDFPages,

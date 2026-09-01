@@ -3,6 +3,7 @@
 package app
 
 import (
+	"github.com/gaea/gaea/internal/gaea/browser"
 	"github.com/gaea/gaea/internal/gaea/contextview"
 	"github.com/gaea/gaea/internal/gaea/event"
 	"github.com/gaea/gaea/internal/gaea/evidence"
@@ -29,6 +30,7 @@ func (b *OfficeB) GaeaArchiveSession(path string) error { return b.a.GaeaArchive
 func (b *OfficeB) GaeaAttachmentDataURL(path string) (string, error) { return b.a.GaeaAttachmentDataURL(path) }
 func (b *OfficeB) GaeaBalance() BalanceInfo { return b.a.GaeaBalance() }
 func (b *OfficeB) GaeaBenchmarkStreamProbe(model string) (StreamProbeResult, error) { return b.a.GaeaBenchmarkStreamProbe(model) }
+func (b *OfficeB) GaeaBrowserObserve() browser.ObserveView { return b.a.GaeaBrowserObserve() }
 func (b *OfficeB) GaeaCallTool(name string, argsJSON string) (string, error) { return b.a.GaeaCallTool(name, argsJSON) }
 func (b *OfficeB) GaeaCancel() { b.a.GaeaCancel() }
 func (b *OfficeB) GaeaCapabilities() CapabilitiesView { return b.a.GaeaCapabilities() }
@@ -90,6 +92,7 @@ func (b *OfficeB) GaeaPickWorkspace() string { return b.a.GaeaPickWorkspace() }
 func (b *OfficeB) GaeaPinMaterial(rel string) []FileSearchHit { return b.a.GaeaPinMaterial(rel) }
 func (b *OfficeB) GaeaPinSession(path string, pinned bool) error { return b.a.GaeaPinSession(path, pinned) }
 func (b *OfficeB) GaeaPinnedMaterials() []FileSearchHit { return b.a.GaeaPinnedMaterials() }
+func (b *OfficeB) GaeaPptxOutline(rel string) PptxOutlineView { return b.a.GaeaPptxOutline(rel) }
 func (b *OfficeB) GaeaPreview(rel string) PreviewResult { return b.a.GaeaPreview(rel) }
 func (b *OfficeB) GaeaReadFile(rel string) FilePreview { return b.a.GaeaReadFile(rel) }
 func (b *OfficeB) GaeaRecognizeImage(imagePath string, prompt string) (string, error) { return b.a.GaeaRecognizeImage(imagePath, prompt) }

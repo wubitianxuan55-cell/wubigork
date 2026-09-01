@@ -123,7 +123,11 @@ import type {
   WeixinReminderView,
   WeixinReminderConfigView,
   TTSParams,
+  PptxOutlineView,
 } from "./types";
+// BrowserObserveView 定义在 BrowserPanel.tsx（v4.28 A2，导出供 bridge/测试
+// 复用——组件文件头有 react-refresh 抑制注明）。
+import type { BrowserObserveView } from "../components/BrowserPanel";
 import {
   isBindingAllowedInSpace,
   isSharedBinding,
@@ -249,6 +253,12 @@ export interface AppBindings {
   TaskTemplates(): Promise<TaskTemplate[]>;
   ReadFile(rel: string): Promise<FilePreview>;
   Preview(rel: string): Promise<PreviewResult>;
+  // PptxOutline 读取 pptx 结构化大纲（v4.28 B2）：python-pptx 逐页标题/正文
+  // 摘要，配合 pptx 预览的逐页缩略与「针对第 N 页修改」指令。失败结构化。
+  PptxOutline(rel: string): Promise<PptxOutlineView>;
+  // GaeaBrowserObserve 受控浏览器观察帧（v4.28 A2）：当前页 jpeg 截图+URL/
+  // 标题；浏览器未运行 Available=false（被动动作，绝不拉起）。同名直调。
+  GaeaBrowserObserve(): Promise<BrowserObserveView>;
   // OfficeEditText 框选即改：按指令生成选中文本的替换；DocxApplyEdit 以修订模式
   // （w:del+w:ins）写入 docx 并返回更新后的预览。
   OfficeEditText(selectedText: string, instruction: string): Promise<OfficeEditResult>;
@@ -790,6 +800,8 @@ const gaeaToGaea = {
   TaskTemplates: "GaeaTaskTemplates",
   ReadFile: "GaeaReadFile",
   Preview: "GaeaPreview",
+  PptxOutline: "GaeaPptxOutline",
+  GaeaBrowserObserve: "GaeaBrowserObserve",
   OfficeEditText: "GaeaOfficeEditText",
   DocxApplyEdit: "GaeaDocxApplyEdit",
   DocxAcceptChanges: "GaeaDocxAcceptChanges",

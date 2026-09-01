@@ -4,9 +4,9 @@ import { WorkspaceTabs } from "./WorkspaceTabs";
 import { WORKSPACE_TAB_IDS, type WorkspaceTabId } from "../lib/workspaceTabs";
 
 describe("WorkspaceTabs 一级按钮条（v4.27 扁平化：无二级标签）", () => {
-  it("渲染 5 个一级 Tab（文件/产物/变更/任务/分工）且激活态正确", () => {
+  it("渲染 6 个一级 Tab（文件/产物/变更/任务/分工/浏览器）且激活态正确", () => {
     render(<WorkspaceTabs active="files" onChange={() => {}} />);
-    expect(document.querySelectorAll("[data-paneltab]")).toHaveLength(5);
+    expect(document.querySelectorAll("[data-paneltab]")).toHaveLength(6);
     expect(document.querySelector('[data-paneltab="files"]')?.getAttribute("aria-selected")).toBe("true");
     expect(document.querySelector('[data-paneltab="deliverables"]')?.getAttribute("aria-selected")).toBe("false");
     // 已删除的资料/成本库不再渲染
@@ -28,7 +28,7 @@ describe("WorkspaceTabs 一级按钮条（v4.27 扁平化：无二级标签）",
   it("停用的面板从 Tab 条隐藏（声明式设置收敛）", () => {
     const enabled = new Set([...ALL_ENABLED].filter((id) => id !== "changes"));
     render(<WorkspaceTabs active="deliverables" onChange={() => {}} enabledTabs={enabled} />);
-    expect(document.querySelectorAll("[data-paneltab]")).toHaveLength(4);
+    expect(document.querySelectorAll("[data-paneltab]")).toHaveLength(5);
     expect(document.querySelector('[data-paneltab="changes"]')).toBeNull();
     expect(document.querySelector('[data-paneltab="deliverables"]')?.getAttribute("aria-selected")).toBe("true");
   });
@@ -73,12 +73,12 @@ function openSettings(): void {
 }
 
 describe("WorkspaceTabs 声明式设置（v4.23 蒸馏 dsh-better-sidebar 侧边卡片）", () => {
-  it("齿轮按钮打开设置弹层，5 个面板各一张卡（名称 + 开关）", () => {
+  it("齿轮按钮打开设置弹层，6 个面板各一张卡（名称 + 开关）", () => {
     render(<WorkspaceTabs active="files" onChange={() => {}} enabledTabs={ALL_ENABLED} />);
     openSettings();
     expect(document.querySelector('[data-testid="workspace-tabs-settings"]')).toBeTruthy();
-    expect(document.querySelectorAll("[data-settings-card]")).toHaveLength(5);
-    expect(document.querySelectorAll('[role="switch"]')).toHaveLength(5);
+    expect(document.querySelectorAll("[data-settings-card]")).toHaveLength(6);
+    expect(document.querySelectorAll('[role="switch"]')).toHaveLength(6);
     // 默认全启用：开关 aria-checked 全 true（NodeList 无迭代器，用 forEach）
     document.querySelectorAll('[role="switch"]').forEach((sw) => {
       expect(sw.getAttribute("aria-checked")).toBe("true");
@@ -128,7 +128,7 @@ describe("WorkspaceTabs 声明式设置（v4.23 蒸馏 dsh-better-sidebar 侧边
   it("不传 enabledTabs 时（旧调用方兼容）弹层同样可用且全部启用", () => {
     render(<WorkspaceTabs active="files" onChange={() => {}} />);
     openSettings();
-    expect(document.querySelectorAll("[data-settings-card]")).toHaveLength(5);
+    expect(document.querySelectorAll("[data-settings-card]")).toHaveLength(6);
     document.querySelectorAll('[role="switch"]').forEach((sw) => {
       expect(sw.hasAttribute("disabled")).toBe(false);
     });

@@ -22,6 +22,9 @@ const KIND_LABEL: Record<PreviewResult["kind"], string> = {
   image: "图片",
   docx: "Word 文档",
   xlsx: "Excel 表格",
+  // v4.28 B2：.pptx → soffice PDF 逐页预览（FilePreview 内有完整渲染；
+  // 弹窗路径暂以标签呈现，预览卡回退「外部打开」）
+  pdf: "演示文稿",
   markdown: "文档",
   text: "文本",
   unsupported: "不支持内联预览",

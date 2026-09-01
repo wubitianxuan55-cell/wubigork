@@ -17,13 +17,19 @@ const ctx: WorkspacePanelContext = {
 };
 
 describe("sidebarRegistry 注册表完整性（蒸馏 dsh-better-sidebar registerTab 形状）", () => {
-  it("5 个内置面板全部注册且与清单 id 一一对应", () => {
+  it("全部内置面板注册且与清单 id 一一对应（v4.28 起含浏览器观察窗）", () => {
     expect(SIDEBAR_REGISTRY).toHaveLength(WORKSPACE_TAB_IDS.length);
     const ids = SIDEBAR_REGISTRY.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect([...ids].sort()).toEqual([...WORKSPACE_TAB_IDS].sort());
     // v4.27 已删除的资料/成本库不在注册表
     expect(SIDEBAR_REGISTRY.some((r) => (r.id as string) === "materials" || (r.id as string) === "cost")).toBe(false);
+    // v4.28 A2：浏览器观察窗注册项（渲染接线 + 元数据同源）
+    const browser = SIDEBAR_REGISTRY.find((r) => r.id === "browser");
+    expect(browser).toBeTruthy();
+    expect(browser!.label).toBe("浏览器");
+    expect(browser!.defaultEnabled).toBe(true);
+    expect(typeof browser!.render).toBe("function");
   });
 
   it("元数据复用清单（单一数据源）：label/icon/keywords/defaultEnabled 同源", () => {

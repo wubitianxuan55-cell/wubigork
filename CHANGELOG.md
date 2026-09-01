@@ -1,5 +1,25 @@
 # gaea · 多功能 AI 助手
 
+## v4.28.0 · 浏览器与版本：观察窗 / 版本时间线 / pptx 交互（2026-09-01）
+> 规划「浏览器与版本」刀（A2+B1+B2/C3）。**绑定面 550 → 552（+2：
+> GaeaPptxOutline / GaeaBrowserObserve）**。三并行子代理分线+主代理集成。
+- **A2 浏览器观察窗**：右栏新「浏览器」tab——CDP 截图步进流（captureScreenshot
+  jpeg ≤1280 缩放；未运行 Available=false 绝不拉起）+ URL/标题 + 操作时间线
+  （browser_* 倒序上限 20，对标 Trace Viewer Actions）+ 权限静态行 + 自动弹出
+  胶囊（gaea.browserAutoOpen，App 接线新 browser_* 工具自动切 tab，2.5s 可见
+  门控轮询）。实时帧流/人工接管远期。
+- **B1 文件版本时间线**：产物 vN 徽标可点 → 内联时间线（时间/工具/轮次/状态）
+  + 基线预览（GaeaPreview abs）+ 恢复（RollbackRecord，恢复=新增证据卡不丢
+  历史）——**零 Go 改动**，完全长在证据链上（对标 Notion 版本史/Artifacts
+  rewind，预览即护栏）。
+- **B2/C3 pptx 交互**：新绑定 GaeaPptxOutline（python-pptx 结构化大纲）+
+  GaeaPreview .pptx 分支（soffice→PDF 缓存 7 天 TTL + poppler 逐页缩略 ≤60
+  页）→ 前端逐页预览+大纲侧栏+页锚点滚动+「针对第 N 页修改」指令插入；
+  python 缺失降级诚实。
+- 验证：Go 110 包 0 FAIL（stress flaky 沿旧）；tsc -b/eslint 0；vitest
+  **1138/1138**（+43）；drift PASS（552）；版本四处 4.28.0。详见
+  releases/v4.28.0.md。
+
 ## v4.27.4 · todo 持久化改名：.gaea/progress.md 撞名根治（2026-09-01）
 > **勘误**：此前三次把 `.gaea/progress.md` 被覆写归因于「并行会话」——错误。
 > 真凶是 gaea 自己的 `todo_write` 工具：计划进度持久化写 `<工作区根>/.gaea/

@@ -182,6 +182,73 @@ describe("DeliverablesPanel 会话产物面板", () => {
   });
 });
 
+// ── v4.28 B1 文件版本时间线：vN 徽标可点 → 内联 VersionTimeline（预览/恢复）──
+// 数据为 panel 挂载时自拉的 mock GaeaJournalList(200)：3 条证据卡中仅 ev_1003
+// （docs/成本测算.xlsx，baselinePath=.gaea/snapshots/…）有基线快照可进时间线；
+// 另两条无 baselinePath，被 groupVersionsByPath 过滤。
+describe("DeliverablesPanel 版本时间线（v4.28 B1）", () => {
+  const renderWithTimelineItem = (onOpenFile: (p: string) => void = () => {}) =>
+    render(
+      <ToastProvider>
+        <DeliverablesPanel
+          items={[{ path: "docs/成本测算.xlsx", sourceId: "a1", versions: 2 }]}
+          onOpenFile={onOpenFile}
+        />
+      </ToastProvider>,
+    );
+
+  it("vN 徽标可点：点开内联版本时间线，只显示有基线快照的版本记录；再点收起", async () => {
+    renderWithTimelineItem();
+    // 初始收起
+    expect(screen.queryByTestId("version-timeline")).toBeNull();
+    fireEvent.click(screen.getByTitle("会话内更新了 2 次（产物版本时间线）"));
+    // mock 3 条证据卡中仅 ev_1003 带 baselinePath → 时间线 1 行
+    const rows = await screen.findAllByTestId("version-timeline-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain("xlsx_apply");
+    // 恢复语义常驻说明
+    expect(screen.getByText("恢复会把该文件写回所选版本，当前内容成为新版本")).toBeTruthy();
+    // 再次点击徽标 → 收起
+    fireEvent.click(screen.getByTitle("会话内更新了 2 次（产物版本时间线）"));
+    expect(screen.queryByTestId("version-timeline")).toBeNull();
+  });
+
+  it("预览回调：点「预览」用基线快照路径打开文件预览", async () => {
+    usePreviewStore.setState({ previewFile: null });
+    renderWithTimelineItem((p) => usePreviewStore.setState({ previewFile: p }));
+    fireEvent.click(screen.getByTitle("会话内更新了 2 次（产物版本时间线）"));
+    fireEvent.click(await screen.findByTitle("预览该版本快照"));
+    await waitFor(() =>
+      expect(usePreviewStore.getState().previewFile).toBe(".gaea/snapshots/docs/成本测算.xlsx.snap"),
+    );
+  });
+
+  it("恢复回调：点「恢复」走 RollbackRecord，成功 toast 透出恢复语义", async () => {
+    renderWithTimelineItem();
+    fireEvent.click(screen.getByTitle("会话内更新了 2 次（产物版本时间线）"));
+    fireEvent.click(await screen.findByTitle(/^恢复到 \d{2}:\d{2} 版本：将回滚到该时间版本$/));
+    // toast 文案带恢复语义（「当前内容成为新版本」；时间线说明也含该句，故用完整正则单匹配 toast）
+    expect(
+      await screen.findByText(/已恢复 docs\/成本测算\.xlsx 到 \d{2}:\d{2} · \S+ 版本；当前内容成为新版本/),
+    ).toBeTruthy();
+  });
+
+  it("无基线快照的产物：时间线展示空态，不渲染预览/恢复按钮", async () => {
+    render(
+      <ToastProvider>
+        <DeliverablesPanel
+          items={[{ path: "exports/别的.docx", sourceId: "a9", versions: 2 }]}
+          onOpenFile={() => {}}
+        />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByTitle("会话内更新了 2 次（产物版本时间线）"));
+    expect(await screen.findByTestId("version-timeline-empty")).toBeTruthy();
+    expect(screen.queryByTestId("version-timeline-row")).toBeNull();
+    expect(screen.queryByTitle("预览该版本快照")).toBeNull();
+  });
+});
+
 // ── v4.8 Verifier 产品化：证据链「三步展开」（卡面 → 声明↔实况 diff → 操作回放）──
 // 证据数据来自 mock GaeaJournalList / VerifyRecord / RollbackRecord（office.ts），
 // 实况预览来自 mock Preview 的 MOCK_XLSX_BODY（预算!B2=120.50、B4 公式 SUM(B2:B3)）。

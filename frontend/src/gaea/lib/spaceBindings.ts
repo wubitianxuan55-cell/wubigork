@@ -163,6 +163,8 @@ export const GAEA_METHOD_FACETS = {
   TaskTemplates: "work",
   ReadFile: "work",
   Preview: "work",
+  PptxOutline: "work",
+  GaeaBrowserObserve: "work",
   OfficeEditText: "work",
   DocxApplyEdit: "work",
   DocxAcceptChanges: "work",

@@ -1,7 +1,12 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, ClipboardList, Coins, Copy, ExternalLink, FileText, FolderTree, ListTree, Loader2, MessageSquare, Paperclip, Rollback, Shield, Table } from "../icons";
 import { app } from "../lib/bridge";
 import type { DeliverableRegistryView, JournalChangeRecord, VerdictView, VerifyDiffRow } from "../lib/types";
+import {
+  groupVersionsByPath,
+  normalizeVersionPath,
+  versionLabel,
+} from "../lib/versionTimeline";
 import {
   buildCellIndex,
   buildVerifyDiff,
@@ -15,6 +20,7 @@ import { useComposerInsertStore, usePreviewStore, useUpdatedFilesStore } from ".
 import { FRONTEND_EVENTS, emitFrontendEvent } from "../../events";
 import { useToast } from "./Toast";
 import { FileThumb } from "./FileThumb";
+import { VersionTimeline } from "./VersionTimeline";
 
 export interface SessionDeliverable {
   path: string;
@@ -42,6 +48,8 @@ const iconBtn =
 // DeliverablesPanel — 右侧「会话产物」视图（Codex 式工作区收尾）：
 // 展示本次会话交付的全部文件（去重、最新在前），点击预览，悬停提供
 // 外部打开 / 定位 / 复制路径 / 沉淀成本库；预览内编辑过的文件显示「已更新」徽标。
+// v4.28 B1 版本时间线：vN 次数徽标可点，展开该文件的逐版本列表（预览/恢复，
+// 数据为挂载时自拉的 JournalList(200)，见 VersionTimeline）。
 // v3「星枢」面板语言：v3-panel-head 细条头部 + 低边框 hover 高亮行。
 export const DeliverablesPanel = memo(function DeliverablesPanel({
   items,
@@ -118,6 +126,40 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
       toast.show("复制失败：剪贴板不可用", "warn");
     }
   }, [list, toast]);
+
+  // ── v4.28 B1 文件版本时间线：挂载时自拉一次 GaeaJournalList(200)（证据链与
+  // 回滚同源的自动快照），按 target 聚合成「路径 → 版本记录」索引；失败静默
+  // 降级空态，不引入轮询。恢复成功后主动重拉一次，把恢复动作生成的新证据卡
+  // 纳入时间线（恢复=新增版本不丢历史）。
+  const [journal, setJournal] = useState<JournalChangeRecord[] | null>(null);
+  const loadJournal = useCallback(async () => {
+    try {
+      const recs = await app.GaeaJournalList(200);
+      setJournal(recs ?? []);
+    } catch {
+      setJournal([]); // 静默：时间线降级为空态，不打扰产物主流程
+    }
+  }, []);
+  useEffect(() => { void loadJournal(); }, [loadJournal]);
+
+  // 路径 → 版本记录索引：target 反斜杠归一后聚合、at 倒序、只留有 baselinePath 的卡
+  // （无基线快照不能预览/恢复，不进时间线）。
+  const groupedVersions = useMemo(() => groupVersionsByPath(journal ?? []), [journal]);
+
+  // 当前展开时间线的产物路径（归一化 key；再次点击同一路径收起）
+  const [timelinePath, setTimelinePath] = useState<string | null>(null);
+
+  // 恢复到所选版本：RollbackRecord 按证据卡把基线快照写回目标（DeliverablesPanel
+  // 证据卡回滚同款先例）；恢复动作本身也会生成新证据卡，成功后重拉 JournalList。
+  const restoreVersion = useCallback(async (r: JournalChangeRecord) => {
+    try {
+      await app.RollbackRecord(r.id);
+      toast.show(`已恢复 ${r.target} 到 ${versionLabel(r)} 版本；当前内容成为新版本`, "info");
+      void loadJournal();
+    } catch (e) {
+      toast.show(`恢复失败：${e instanceof Error ? e.message : String(e)}`, "warn");
+    }
+  }, [loadJournal, toast]);
 
   // ── v4.1 证据链：最近证据卡（「证据」入口，复用产物面板挂载点）──
   const [evidenceOpen, setEvidenceOpen] = useState(false);
@@ -295,64 +337,76 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
             const ext = extOf(path);
             const updated = updatedAt[path] != null;
             const rev = versions && versions > 1 ? versions : undefined;
+            // v4.28 B1：时间线展开 key 用归一化路径（与 JournalList target 对齐）
+            const normPath = normalizeVersionPath(path);
+            const timelineOpen = timelinePath === normPath;
             return (
-              <div
-                key={path}
-                className="group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors duration-150 hover:bg-(color:--md-sys-color-surface-container-high)"
-              >
-                <span
-                  className="shrink-0 w-8 h-8 rounded-md flex items-center justify-center overflow-hidden"
-                  style={{
-                    background: "color-mix(in srgb, var(--gaea-glow) 10%, transparent)",
-                    color: "var(--gaea-glow)",
-                    border: "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)",
-                  }}
+              <Fragment key={path}>
+                <div
+                  className="group flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors duration-150 hover:bg-(color:--md-sys-color-surface-container-high)"
                 >
-                  <FileThumb path={path} ext={ext} imgClassName="w-8 h-8 object-cover rounded-md" />
-                </span>
-                <button
-                  type="button"
-                  onClick={() => open(path)}
-                  title={`点击预览 ${path}`}
-                  className="min-w-0 flex-1 text-left cursor-pointer"
-                >
-                  <span className="flex items-center gap-1">
-                    <span className="truncate text-[12px] font-medium leading-tight" style={{ color: "var(--md-sys-color-text)" }}>
-                      {baseName(path)}
+                  <span
+                    className="shrink-0 w-8 h-8 rounded-md flex items-center justify-center overflow-hidden"
+                    style={{
+                      background: "color-mix(in srgb, var(--gaea-glow) 10%, transparent)",
+                      color: "var(--gaea-glow)",
+                      border: "1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 60%, transparent)",
+                    }}
+                  >
+                    <FileThumb path={path} ext={ext} imgClassName="w-8 h-8 object-cover rounded-md" />
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => open(path)}
+                    title={`点击预览 ${path}`}
+                    className="min-w-0 flex-1 text-left cursor-pointer"
+                  >
+                    <span className="flex items-center gap-1">
+                      <span className="truncate text-[12px] font-medium leading-tight" style={{ color: "var(--md-sys-color-text)" }}>
+                        {baseName(path)}
+                      </span>
+                      {updated && (
+                        <span
+                          className="shrink-0 inline-flex items-center gap-0.5 rounded-full px-1 py-px text-[9px] leading-none"
+                          style={{
+                            color: "var(--md-sys-color-success)",
+                            background: "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)",
+                            border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 32%, transparent)",
+                          }}
+                        >
+                          <FileText size={8} aria-hidden />
+                          已更新
+                        </span>
+                      )}
                     </span>
-                    {updated && (
-                      <span
-                        className="shrink-0 inline-flex items-center gap-0.5 rounded-full px-1 py-px text-[9px] leading-none"
-                        style={{
-                          color: "var(--md-sys-color-success)",
-                          background: "color-mix(in srgb, var(--md-sys-color-success) 12%, transparent)",
-                          border: "1px solid color-mix(in srgb, var(--md-sys-color-success) 32%, transparent)",
-                        }}
-                      >
-                        <FileText size={8} aria-hidden />
-                        已更新
-                      </span>
-                    )}
-                    {rev && (
-                      <span
-                        className="shrink-0 inline-flex items-center gap-0.5 rounded-full px-1 py-px text-[9px] leading-none font-mono"
-                        style={{
-                          color: "var(--md-sys-color-primary)",
-                          background: "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)",
-                          border: "1px solid color-mix(in srgb, var(--md-sys-color-primary) 32%, transparent)",
-                        }}
-                        title={`会话内更新了 ${rev} 次（产物版本时间线）`}
-                      >
-                        <Rollback size={8} aria-hidden />
-                        v{rev}
-                      </span>
-                    )}
-                  </span>
-                  <span className="block truncate text-[10px] font-mono leading-tight" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                    {path}
-                  </span>
-                </button>
-                <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                    <span className="block truncate text-[10px] font-mono leading-tight" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+                      {path}
+                    </span>
+                  </button>
+                  {/* v4.28 B1：vN 次数徽标改为可点按钮——点开内联版本时间线
+                      （逐版本列表 + 预览 + 恢复）；作为名称按钮的兄弟节点避免
+                      button 嵌套。展开时徽标加浓提示当前处于时间线视图。 */}
+                  {rev && (
+                    <button
+                      type="button"
+                      onClick={() => setTimelinePath((cur) => (cur === normPath ? null : normPath))}
+                      aria-expanded={timelineOpen}
+                      title={`会话内更新了 ${rev} 次（产物版本时间线）`}
+                      aria-label={`查看 ${baseName(path)} 的版本时间线`}
+                      className="shrink-0 inline-flex cursor-pointer items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] leading-none font-mono transition-colors"
+                      style={{
+                        color: "var(--md-sys-color-primary)",
+                        background: timelineOpen
+                          ? "color-mix(in srgb, var(--md-sys-color-primary) 24%, transparent)"
+                          : "color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent)",
+                        border: "1px solid color-mix(in srgb, var(--md-sys-color-primary) 32%, transparent)",
+                      }}
+                    >
+                      <Rollback size={8} aria-hidden />
+                      v{rev}
+                    </button>
+                  )}
+                  <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                   {turn != null && onLocateSource && (
                     <button
                       type="button"
@@ -416,8 +470,21 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                   )}
                 </div>
               </div>
-            );
-          })}
+              {/* v4.28 B1 内联版本时间线：徽标点开后在该产物行下方展开。
+                  records 三态——journal=null 加载态 / 空数组空态 / 有记录列表；
+                  预览/恢复经回调注入（open=onOpenFile ?? openFilePreview，
+                  restoreVersion=RollbackRecord + toast + 重拉时间线）。 */}
+              {timelineOpen && (
+                <VersionTimeline
+                  path={path}
+                  records={journal === null ? null : (groupedVersions.get(normPath) ?? [])}
+                  onPreview={open}
+                  onRestore={restoreVersion}
+                />
+              )}
+            </Fragment>
+          );
+        })}
         </div>
       )}
 

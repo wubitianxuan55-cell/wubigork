@@ -66,6 +66,7 @@ import { buildSessionChanges, extractDeliverablePaths, WRITE_TOOL_NAMES, type Se
 import { openEditorTab } from "./lib/editorTabs";
 import { parseSidebarOpenResult } from "./lib/sidebarOpen";
 import { setEventSyncFetcher } from "./lib/eventSync";
+import { shouldAutoOpenBrowser } from "./lib/browserPrefs";
 import { setTaskCardActivityProvider } from "./lib/taskActivity";
 import { classifyComposerCommand } from "./lib/command";
 import {
@@ -749,6 +750,25 @@ export default function App() {
       setWorkspacePanel(true);
     }
   }, [state.items, closeFilePreview, handleRevealInTree]);
+
+  // v4.28 A2 浏览器观察窗自动弹出：会话轨迹出现新 browser_* 工具时，偏好开
+  // （gaea.browserAutoOpen）且「浏览器」tab 未停用 → 亮右栏切「浏览器」tab
+  //（对标 handleSubagentStarted 语义：tab 被停用时尊重停用态不强行弹出）。
+  const browserSeenRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    let requested = false;
+    for (const it of state.items) {
+      if (it.kind !== "tool" || !it.name.startsWith("browser_")) continue;
+      if (browserSeenRef.current.has(it.id)) continue;
+      browserSeenRef.current.add(it.id);
+      requested = true;
+    }
+    if (requested && shouldAutoOpenBrowser() && enabledRecord.browser) {
+      closeFilePreview();
+      setRightTab("browser");
+      setWorkspacePanel(true);
+    }
+  }, [state.items, enabledRecord.browser, closeFilePreview]);
 
   // v4.26 对话流式重造接线：
   // ① 事件序号防线 fetcher——Wails 事件流吞件（seq 跳号）时经后端从磁盘日志

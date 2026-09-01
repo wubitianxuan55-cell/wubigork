@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, ExternalLink, File, FileText, FolderTree, Loader2, Pencil, X } from "../icons";
 import { app } from "../lib/bridge";
 import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
 import { Markdown } from "./Markdown";
+import { PptxOutline } from "./PptxOutline";
 import { XlsxPreview } from "./XlsxPreview";
 import { usePreviewProgress } from "../hooks/usePreviewProgress";
 import { useToast } from "./Toast";
@@ -38,6 +39,8 @@ export function FilePreview({
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // v4.28 B2 pptx 逐页预览：页图容器（大纲卡点页条目按 data-pptx-page 锚点滚动）
+  const pptxPagesRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!relPath) { setPreview(null); return; }
@@ -99,6 +102,13 @@ export function FilePreview({
     setDirty(false);
     setSaveState("idle");
     setConfirmDiscard(false);
+  }, []);
+
+  // v4.28 B2：点大纲页条目 → 滚动到逐页渲染区的对应页锚点。
+  //（jsdom 无 scrollIntoView，可选调用守卫；测试里注入 spy 验证。）
+  const scrollToPptxPage = useCallback((page: number) => {
+    const el = pptxPagesRef.current?.querySelector<HTMLElement>(`[data-pptx-page="${page}"]`);
+    el?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   }, []);
 
   // Ctrl/Cmd+S 保存
@@ -272,6 +282,37 @@ export function FilePreview({
         )}
         {!loading && preview?.kind === "xlsx" && (
           <XlsxPreview body={preview.body} fileName={fileName} relPath={relPath} />
+        )}
+        {!loading && preview?.kind === "pdf" && (
+          // v4.28 B2 pptx：kind=pdf = soffice→PDF 的逐页缩略（pages 有值，
+          // 纵向铺页 + 大纲卡点页滚动）或整本 dataUrl 回退（pdftoppm 缺失时
+          // 交 WebView 内嵌查看器，无页锚点）。大纲卡在右侧叠放（hint/ext 判定）。
+          <div className="flex h-full min-h-0">
+            <div ref={pptxPagesRef} className="flex-1 min-w-0 overflow-auto px-4 py-3" data-testid="pptx-pages">
+              {preview.pages && preview.pages.length > 0 ? (
+                preview.pages.map((p) => (
+                  <figure key={p.page} data-pptx-page={p.page} className="mb-4">
+                    <img
+                      src={p.dataUrl}
+                      alt={`第 ${p.page} 页`}
+                      className="w-full rounded-lg border border-border-soft shadow-sm bg-bg"
+                    />
+                    <figcaption className="mt-1 text-center text-[10px] text-fg-faint">第 {p.page} 页</figcaption>
+                  </figure>
+                ))
+              ) : preview.dataUrl ? (
+                <embed src={preview.dataUrl} type="application/pdf" title="PDF 预览" className="w-full h-full min-h-[60vh]" />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-fg-faint text-xs gap-2">
+                  <AlertCircle size={20} className="text-amber-500/60" />
+                  <span>无可渲染的页面内容，可让 AI 调用 summarize_file 获取内容摘要。</span>
+                </div>
+              )}
+            </div>
+            {(preview.hint === "outline" || preview.ext === ".pptx") && (
+              <PptxOutline relPath={relPath} fileName={fileName} onPageSelect={scrollToPptxPage} />
+            )}
+          </div>
         )}
         {!loading && preview?.kind === "markdown" && (
           <div className="px-4 py-3 max-w-[860px] mx-auto">

@@ -33,6 +33,10 @@ type fakeDevtools struct {
 	insertTexts []string // Input.insertText 的文本
 	// iframe 交互记录（frame 解析断言）。
 	evalContexts []int // Runtime.evaluate 携带的 contextId（0 = 主文档）
+	// 截图观察（screenshot_test 断言）：记录每次 Page.captureScreenshot 的
+	// 参数（format/quality/clip…）；emptyShot 置真回空帧模拟截图失败。
+	screenshots []map[string]any
+	emptyShot   bool
 }
 
 // wsBase 由 httptest.Server 地址推导（http→ws）。
@@ -178,6 +182,18 @@ func (f *fakeDevtools) serveCDP(conn *websocket.Conn) {
 			}})
 		case "Page.createIsolatedWorld":
 			_ = conn.WriteJSON(map[string]any{"id": req.ID, "result": map[string]any{"executionContextId": 42}})
+		case "Page.captureScreenshot":
+			var p map[string]any
+			_ = json.Unmarshal(req.Params, &p)
+			f.mu.Lock()
+			f.screenshots = append(f.screenshots, p)
+			empty := f.emptyShot
+			f.mu.Unlock()
+			data := ""
+			if !empty {
+				data = "ZmFrZWpwZWc=" // "fakejpeg" 的 base64 占位帧
+			}
+			_ = conn.WriteJSON(map[string]any{"id": req.ID, "result": map[string]any{"data": data}})
 		default:
 			_ = conn.WriteJSON(map[string]any{"id": req.ID, "result": map[string]any{}})
 		}
@@ -189,6 +205,9 @@ func fakeEvalValue(expr string) any {
 	switch {
 	case strings.Contains(expr, "__gaeaMeta"):
 		return map[string]any{"ok": true, "title": "测试页", "url": "http://fake.local/page"}
+	case strings.Contains(expr, "__gaeaObserve"):
+		// 观察帧元信息：宽 2560 触发 clip.scale=0.5 缩放（screenshot_test 断言）。
+		return map[string]any{"ok": true, "title": "观察页", "url": "http://fake.local/page", "w": 2560, "h": 1200}
 	case strings.Contains(expr, "document.readyState"):
 		return "complete"
 	case strings.Contains(expr, "__gaeaRefs"):
