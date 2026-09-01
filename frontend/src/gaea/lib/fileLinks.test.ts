@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findFileMentions, isLocalFilePath } from "./fileLinks";
+import { deliverableMentions, findFileMentions, isLocalFilePath } from "./fileLinks";
 
 describe("isLocalFilePath", () => {
   it("识别本地文件 href，排除 URL", () => {
@@ -39,5 +39,33 @@ describe("findFileMentions", () => {
   it("关键词与文件名之间要求冒号或空格，不误伤普通词语", () => {
     expect(findFileMentions("文件夹：临时.docx")).toHaveLength(0);
     expect(findFileMentions("profile: a.csv")).toHaveLength(1);
+  });
+});
+
+describe("全角括号文件名（v4.26.1 回归）", () => {
+  const ABS = "C:\\AI\\bangong\\黄甲\\开工筹备计划（修订）.docx";
+
+  it("绝对路径带全角括号完整识别（真实办公会话：开工筹备计划（修订）.docx）", () => {
+    const got = findFileMentions(`交付文件：${ABS}`).map((m) => m.path);
+    expect(got).toEqual([ABS]);
+  });
+
+  it("关键词引导的裸文件名带全角括号", () => {
+    const got = findFileMentions("已生成：报告（终稿）.docx").map((m) => m.path);
+    expect(got).toEqual(["报告（终稿）.docx"]);
+  });
+
+  it("相对路径括号段在分隔符后", () => {
+    const got = findFileMentions("见 exports/报告（终稿）.docx 一份").map((m) => m.path);
+    expect(got).toEqual(["exports/报告（终稿）.docx"]);
+  });
+
+  it("扩展名锚定在匹配末尾：括号补语不吞进路径", () => {
+    const got = findFileMentions("输出文件：报告.docx（三份）").map((m) => m.path);
+    expect(got).toEqual(["报告.docx"]);
+  });
+
+  it("deliverableMentions 命中带括号路径（卡片数据源）", () => {
+    expect(deliverableMentions(`交付文件：${ABS}`)).toEqual([ABS]);
   });
 });
