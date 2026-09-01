@@ -277,3 +277,38 @@ describe("onEvent seq 缺口 → 补拉（集成）", () => {
     expect(useStore.getState().items).toEqual([{ kind: "user", id: "h0", text: "新会话快照" }]);
   });
 });
+
+describe("parseResyncItems 缺省键宽容（v4.26.2 回归）", () => {
+  // Go omitempty 真实线形态：空串/false 的键整个省略。此前严格校验把这种
+  // 快照 100% 判坏弃用 → 序号防线静默失效（对话窗只剩 WorkHeader 读秒）。
+  const omitemptySnap = [
+    { kind: "user", id: "u1", text: "帮我写方案" },
+    { kind: "assistant", id: "a1", text: "先分析需求" }, // reasoning 缺省
+    { kind: "tool", id: "t1", name: "write_file", args: '{"path":"方案.docx"}', status: "running" }, // readOnly:false 缺省
+    { kind: "tool", id: "t1", name: "write_file", status: "done", output: "ok" }, // args/readOnly 缺省
+    { kind: "notice", id: "n1" }, // level/text 缺省
+  ];
+
+  it("缺字符串/布尔键视为零值：快照正常解析（真实 omitempty 形态）", () => {
+    const items = parseResyncItems(omitemptySnap);
+    expect(items).not.toBeNull();
+    expect(items).toEqual([
+      { kind: "user", id: "u1", text: "帮我写方案" },
+      { kind: "assistant", id: "a1", text: "先分析需求", reasoning: "", streaming: false, subagentRef: undefined },
+      { kind: "tool", id: "t1", name: "write_file", args: '{"path":"方案.docx"}', readOnly: false, status: "running", output: undefined, error: undefined, truncated: undefined, recoverable: undefined, parentId: undefined },
+      { kind: "tool", id: "t1", name: "write_file", args: "", readOnly: false, status: "done", output: "ok", error: undefined, truncated: undefined, recoverable: undefined, parentId: undefined },
+      { kind: "notice", id: "n1", level: "info", text: "" },
+    ]);
+  });
+
+  it("类型错仍拒：present 但非 string/boolean 不宽容", () => {
+    expect(parseResyncItems([{ kind: "assistant", id: "a1", text: 42 }])).toBeNull();
+    expect(parseResyncItems([{ kind: "tool", id: "t1", name: "bash", readOnly: "yes" }])).toBeNull();
+    expect(parseResyncItems([{ kind: "tool", id: "t1", name: "bash", status: "done", readOnly: false, args: [] }])).toBeNull();
+  });
+
+  it("缺 id / 未知 kind 维持判坏（安全边界不变）", () => {
+    expect(parseResyncItems([{ kind: "user", text: "no-id" }])).toBeNull();
+    expect(parseResyncItems([{ kind: "mystery", id: "m1" }])).toBeNull();
+  });
+});

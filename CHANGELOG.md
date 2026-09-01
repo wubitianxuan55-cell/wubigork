@@ -1,5 +1,21 @@
 # gaea · 多功能 AI 助手
 
+## v4.27.1 · seq 防线 omitempty 失配修复：对话窗运行中只显示读秒的根因收口（2026-09-01）
+> 用户报告「运行中只有一个思考读秒，没有交替出现过程卡/文本卡（只有轨迹面板
+> 有显示）」。**绑定面 550 零变更**。
+- **根因**：v4.26 seq 补拉防线前后端形状契约失配——Go GaeaResyncItem 全字段
+  omitempty（流式 assistant 空 reasoning、写类工具 readOnly:false 的键被序列化
+  省略），前端 parseResyncItems 严格校验缺键即整快照判坏 → 补拉快照 100% 被拒、
+  防线静默失效；Wails 吞件期间对话窗无物可渲染（WorkHeader 是 store tick 驱动
+  所以活着，轨迹面板读盘不受害）。
+- **修复**：①Go 全字段去 omitempty + TestGaeaResyncItemWireAllKeys 锁「序列化
+  恒全键」契约；②前端缺省键宽容（缺键→零值，类型错/kind/id/status 校验不变）。
+- **真机验证**：真实应用发只读任务——对话窗 WorkHeader「已完成 · 用时 15s ·
+  7 步」+ 阶段行 + 思考块 + ls 工具卡 + 正文交替（elapsed 3s→8s→14s 运行中
+  逐个渲染）；v4.26.1 交付卡片同屏确认。
+- 验证：Go 110 包 0 FAIL；tsc -b/eslint 0；vitest 1085/1085（+5）；版本四处
+  4.27.1。详见 releases/v4.27.1.md。
+
 ## v4.27.0 · 右侧面板对齐 Codex：子代理对话实时下钻 / 对话与上下文完善（2026-09-01）
 > 延续 v4.26「对齐 Codex」：右栏文件工作台、标签扁平化、对话输出、子代理实时
 > 对话、上下文标签五面打磨。**绑定面 550 零变更（纯前端）**。

@@ -102,14 +102,21 @@ export function rebuildHistoryItems(messages: HistoryMessage[]): { items: Item[]
 // parseResyncItems 校验后端 GaeaResyncEvents 折叠快照（v4.26 序号防线，配套
 // reducer case "resync"）：items 必须是可全部识别的前端 Item 视图 JSON
 // （user/assistant/phase/notice/compaction/tool 六种），任一条形状不合法即整体
-// 判坏返回 null——reducer 据此静默保底、保留现有 items（前后端同车发版，
-// 形状必须一致，不做宽容合并）。空数组同样判坏：补拉只发生在对话进行中，
-// 空快照说明后端读日志失败，直接替换会清空对话窗。快照 assistant 一律视为
-// 非流式（磁盘折叠没有「正在输出」的概念），流式续接由 reducer 负责。
+// 判坏返回 null——reducer 据此静默保底、保留现有 items（不做宽容合并）。空数组
+// 同样判坏：补拉只发生在对话进行中，空快照说明后端读日志失败，直接替换会清空
+// 对话窗。快照 assistant 一律视为非流式（磁盘折叠没有「正在输出」的概念），
+// 流式续接由 reducer 负责。
+// v4.26.2 缺省键宽容：字符串/布尔字段**缺键**视为零值（""/false）——Go 侧
+// omitempty 会把空串/false 的键整个省略，此前严格校验把真实流式回合的快照
+// 100% 判坏弃用，序号防线静默失效（对话窗只剩 WorkHeader 读秒）。**类型错仍拒**
+// （present 但非 string/boolean），kind/id/status 枚举校验不变。
 export function parseResyncItems(raw: unknown): Item[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null;
   const str = (v: unknown): string => (typeof v === "string" ? v : "");
   const optStr = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+  // absentOk：缺键 → 零值；present 但类型错 → null（调用方判坏整快照）。
+  const absentStr = (v: unknown): string | null => (v === undefined ? "" : typeof v === "string" ? v : null);
+  const absentBool = (v: unknown): boolean | null => (v === undefined ? false : typeof v === "boolean" ? v : null);
   const items: Item[] = [];
   for (const it of raw) {
     if (it === null || typeof it !== "object" || Array.isArray(it)) return null;
@@ -117,24 +124,32 @@ export function parseResyncItems(raw: unknown): Item[] | null {
     const id = typeof o.id === "string" && o.id !== "" ? o.id : null;
     if (id === null) return null;
     switch (o.kind) {
-      case "user":
-        if (typeof o.text !== "string") return null;
-        items.push({ kind: "user", id, text: o.text });
-        break;
-      case "assistant": {
-        if (typeof o.text !== "string" || typeof o.reasoning !== "string") return null;
-        items.push({ kind: "assistant", id, text: o.text, reasoning: o.reasoning, streaming: false, subagentRef: optStr(o.subagentRef) });
+      case "user": {
+        const text = absentStr(o.text);
+        if (text === null) return null;
+        items.push({ kind: "user", id, text });
         break;
       }
-      case "phase":
-        if (typeof o.text !== "string") return null;
-        items.push({ kind: "phase", id, text: o.text });
+      case "assistant": {
+        const text = absentStr(o.text);
+        const reasoning = absentStr(o.reasoning);
+        if (text === null || reasoning === null) return null;
+        items.push({ kind: "assistant", id, text, reasoning, streaming: false, subagentRef: optStr(o.subagentRef) });
         break;
-      case "notice":
-        if (typeof o.text !== "string") return null;
-        items.push({ kind: "notice", id, level: o.level === "warn" ? "warn" : "info", text: o.text });
+      }
+      case "phase": {
+        const text = absentStr(o.text);
+        if (text === null) return null;
+        items.push({ kind: "phase", id, text });
         break;
-      case "compaction":
+      }
+      case "notice": {
+        const text = absentStr(o.text);
+        if (text === null) return null;
+        items.push({ kind: "notice", id, level: o.level === "warn" ? "warn" : "info", text });
+        break;
+      }
+      case "compaction": {
         if (typeof o.pending !== "boolean") return null;
         items.push({
           kind: "compaction", id, pending: o.pending, trigger: str(o.trigger),
@@ -142,12 +157,16 @@ export function parseResyncItems(raw: unknown): Item[] | null {
           summary: str(o.summary), archive: str(o.archive),
         });
         break;
+      }
       case "tool": {
-        if (typeof o.name !== "string" || typeof o.readOnly !== "boolean") return null;
-        const st = o.status;
+        if (typeof o.name !== "string") return null;
+        const readOnly = absentBool(o.readOnly);
+        const args = absentStr(o.args);
+        if (readOnly === null || args === null) return null;
+        const st = o.status === undefined ? "done" : o.status;
         if (st !== "running" && st !== "done" && st !== "error" && st !== "stopped") return null;
         items.push({
-          kind: "tool", id, name: o.name, args: str(o.args), readOnly: o.readOnly, status: st,
+          kind: "tool", id, name: o.name, args, readOnly, status: st,
           output: optStr(o.output), error: optStr(o.error),
           truncated: o.truncated === true ? true : undefined,
           recoverable: o.recoverable === true ? true : undefined,

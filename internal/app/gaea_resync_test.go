@@ -337,3 +337,22 @@ func TestGaeaResyncEventsBinding(t *testing.T) {
 		t.Fatalf("res2.Seq = %d, want %d", res2.Seq, ga.wire.last())
 	}
 }
+
+// TestGaeaResyncItemWireAllKeys 锁线形态契约（v4.26.2）：GaeaResyncItem 序列化
+// 恒全键（无 omitempty）。前端 parseResyncItems 对缺省键宽容，但线上一律全键
+// 是「形状必须一致」的基准；若有人重新加回 omitempty，本测试立即红。
+func TestGaeaResyncItemWireAllKeys(t *testing.T) {
+	raw, err := json.Marshal(GaeaResyncItem{Kind: "assistant", ID: "a1", Text: "正文"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, key := range []string{"kind", "id", "text", "reasoning", "streaming", "level", "name", "args", "toolId", "output", "err", "status", "readOnly", "truncated", "parentId"} {
+		if _, ok := m[key]; !ok {
+			t.Fatalf("GaeaResyncItem 序列化缺键 %q（不得用 omitempty）：%s", key, raw)
+		}
+	}
+}

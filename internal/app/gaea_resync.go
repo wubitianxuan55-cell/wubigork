@@ -26,22 +26,29 @@ import (
 //
 // ID 生成规则：user=`u<日志seq>`、assistant=`a<日志seq>`、notice=`n<日志seq>`、
 // tool 直接用工具调用 ID（与实时流中的 tool 卡片合并键一致）。
+//
+// v4.26.2：全部字段去掉 omitempty、序列化恒全键。Why：前端 parseResyncItems
+// 按「形状必须一致」严格校验（assistant 缺 reasoning / tool 缺 readOnly:false
+// 即整快照判坏弃用），omitempty 会把空串/false 的键整个省略——真实流式回合
+// 里几乎每个条目都缺键，导致补拉快照 100% 被前端拒绝、序号防线静默失效
+// （对话窗只剩 WorkHeader 读秒，过程卡/文本卡全靠轨迹面板才可见）。序列化
+// 全键 + 前端对缺省键宽容（类型错仍拒）双保险。
 type GaeaResyncItem struct {
 	Kind      string `json:"kind"`
 	ID        string `json:"id"`
-	Text      string `json:"text,omitempty"`
-	Reasoning string `json:"reasoning,omitempty"`
-	Streaming bool   `json:"streaming,omitempty"`
-	Level     string `json:"level,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Args      string `json:"args,omitempty"`
-	ToolID    string `json:"toolId,omitempty"`
-	Output    string `json:"output,omitempty"`
-	Err       string `json:"err,omitempty"`
-	Status    string `json:"status,omitempty"`
-	ReadOnly  bool   `json:"readOnly,omitempty"`
-	Truncated bool   `json:"truncated,omitempty"`
-	ParentID  string `json:"parentId,omitempty"`
+	Text      string `json:"text"`
+	Reasoning string `json:"reasoning"`
+	Streaming bool   `json:"streaming"`
+	Level     string `json:"level"`
+	Name      string `json:"name"`
+	Args      string `json:"args"`
+	ToolID    string `json:"toolId"`
+	Output    string `json:"output"`
+	Err       string `json:"err"`
+	Status    string `json:"status"`
+	ReadOnly  bool   `json:"readOnly"`
+	Truncated bool   `json:"truncated"`
+	ParentID  string `json:"parentId"`
 }
 
 // GaeaResyncResult 是 GaeaResyncEvents 的返回值（Wails 结构体返回，与

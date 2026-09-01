@@ -47,6 +47,24 @@
 
 ## 版本状态
 
+- **最新发布：v4.27.1（2026-09-01）「seq 防线 omitempty 失配修复」热修**：
+  git tag `v4.27.1`；基线 v4.27.0；绑定面 550 零变更。用户报告「运行中只显示
+  一个思考读秒，没有交替出现过程卡/文本卡（只有轨迹面板有显示）」。**根因**=
+  v4.26 seq 补拉防线前后端形状契约失配：Go GaeaResyncItem 全字段 omitempty
+  （流式 assistant 空 reasoning、写类工具 readOnly:false 的键被序列化省略），
+  前端 parseResyncItems 严格校验缺键即整快照判坏 → 补拉快照 100% 被拒、防线
+  静默失效——Wails 吞件期间对话窗无物可渲染（WorkHeader 是 store tick 驱动
+  所以活着，轨迹面板读盘不受害）。**修复**：①Go 全字段去 omitempty +
+  TestGaeaResyncItemWireAllKeys 锁「序列化恒全键」契约；②前端缺省键宽容
+  （缺键→零值，类型错/kind/id/status 校验不变）。**真机验证**（computer-use
+  驱动真实应用发只读任务）：对话窗 WorkHeader「已完成 · 用时 15s · 7 步」+
+  阶段行（解析@引用/装配上下文/检索记忆）+ 思考块 + ls 工具卡 + 正文交替
+  （elapsed 3s→8s→14s 运行中逐个渲染）；v4.26.1 交付卡片同屏可点。Go 110 包
+  0 FAIL、tsc -b/eslint 0、vitest 1085/1085（+5）。**教训**：跨语言 wire 契约
+  必须有一条「真实序列化形态」往返测试，omitempty 是严格校验的天敌；协作
+  纪要：.gaea/progress.md 被并行会话二次覆写并随 v4.27.0 入库，已再次从 git
+  恢复。详见 releases/v4.27.1.md。
+
 - **最新发布：v4.27.0（2026-09-01）「右侧面板对齐 Codex · 子代理对话实时下钻 /
   对话与上下文完善」**：git tag `v4.27.0`；基线 v4.26.1；绑定面 550 零变更
   （纯前端，Go 零改动）。延续 v4.26「对齐 Codex」四面打磨：①右栏文件工作台——
