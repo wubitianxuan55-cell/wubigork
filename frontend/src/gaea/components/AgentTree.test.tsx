@@ -1,12 +1,12 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { AgentTree } from "./AgentTree";
-import type { AgentNetwork, AgentNode, SubagentRunsView, SubagentTranscriptView } from "../lib/types";
+import type { AgentNetwork, AgentNode, SubagentRunsView } from "../lib/types";
 
 // ── v4.24 A1「子代理树实时拓扑」测试 ────────────────────────────
 // AgentTree 直接以 props 驱动（无轮询/事件依赖）：钉住嵌套子树渲染与
-// 展开/收起、新节点自动展开父链、运行富化与耗时、详情→transcript→
-// 工具调用定位下钻链。
+// 展开/收起、新节点自动展开父链、运行富化与耗时、子代理节点点击 →
+// onOpenThread 回调（v4.27 由面板层打开全面板对话）。
 
 function node(id: string, over: Partial<AgentNode> = {}): AgentNode {
   return {
@@ -57,28 +57,9 @@ const runs: SubagentRunsView = {
   ],
 };
 
-const transcript: SubagentTranscriptView = {
-  ref: "sa_2_b2b2b2b2",
-  task: "调研表格 Agent",
-  messages: [
-    { role: "user", content: "调研表格 Agent" },
-    { role: "assistant", toolCalls: [{ id: "call_1", name: "web_fetch", arguments: "{\"url\":\"https://example.com\"}" }] },
-    { role: "tool", name: "web_fetch", toolCallId: "call_1", content: "三家竞品结论…" },
-    { role: "assistant", content: "调研完成。" },
-  ],
-};
-
-const mocks = vi.hoisted(() => ({ SubagentTranscript: vi.fn() }));
-vi.mock("../lib/bridge", () => ({ app: mocks }));
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.SubagentTranscript.mockResolvedValue(transcript);
-});
-
 describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
   it("嵌套渲染：主 agent + 一级子代理恒可见，孙节点默认收起", () => {
-    render(<AgentTree network={network} runs={runs.runs} />);
+    render(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     expect(screen.getByText("主 agent")).toBeTruthy();
     expect(screen.getByText("收集竞品信息")).toBeTruthy();
     expect(screen.getByText("调研表格 Agent")).toBeTruthy();
@@ -86,7 +67,7 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
   });
 
   it("展开/收起嵌套子树：孙节点随父节点开关显隐", () => {
-    render(<AgentTree network={network} runs={runs.runs} />);
+    render(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     fireEvent.click(screen.getByLabelText("展开 调研表格 Agent"));
     expect(screen.getByText("子任务：对比表格交互")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("收起 调研表格 Agent"));
@@ -94,7 +75,7 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
   });
 
   it("新节点出现自动展开其父链（本轮挂载后的新节点）", async () => {
-    const { rerender } = render(<AgentTree network={network} runs={runs.runs} />);
+    const { rerender } = render(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     expect(screen.queryByText("子任务：对比表格交互")).toBeNull();
     // 挂载后出现新孙节点：父链（调研表格 Agent）应自动展开，孙节点可见
     const v2: AgentNetwork = {
@@ -113,14 +94,14 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
         ],
       },
     };
-    rerender(<AgentTree network={v2} runs={runs.runs} />);
+    rerender(<AgentTree network={v2} runs={runs.runs} onOpenThread={() => {}} />);
     await act(async () => { await Promise.resolve(); });
     expect(screen.getByText("新出现的孙任务")).toBeTruthy();
     expect(screen.getByText("子任务：对比表格交互")).toBeTruthy();
   });
 
   it("运行节点富化：匹配分工 meta 显示实时预览与模型徽标；无匹配降级纯统计", () => {
-    render(<AgentTree network={network} runs={runs.runs} />);
+    render(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     // ref 直等匹配命中：运行节点行内嵌「正在…」实时预览
     expect(screen.getByText(/正在：正在比对三家竞品的表格选中→图表链路/)).toBeTruthy();
     expect(screen.getByText(/web_fetch: https:\/\/example\.com\/table-agent/)).toBeTruthy();
@@ -129,31 +110,27 @@ describe("AgentTree 子代理树实时拓扑（v4.24 A1）", () => {
   });
 
   it("运行节点显示实时已用耗时（1s tick 驱动）", () => {
-    render(<AgentTree network={network} runs={runs.runs} />);
+    render(<AgentTree network={network} runs={runs.runs} onOpenThread={() => {}} />);
     // running 节点（root + 运行中子树）有 firstTs → 「已用 …」文案存在
     // （不锁具体数值，避免真实时间漂移；多节点命中用 getAllByText）
     expect(screen.getAllByText(/已用 /).length).toBeGreaterThan(0);
   });
 
-  it("下钻链：节点点击 → 详情卡 → 完整 transcript → 工具调用行定位结果消息", async () => {
-    render(<AgentTree network={network} runs={runs.runs} sessionPath="s1.jsonl" />);
+  it("子代理节点点击 → onOpenThread(node, run)（v4.27 打开全面板对话）", () => {
+    const onOpenThread = vi.fn();
+    render(<AgentTree network={network} runs={runs.runs} onOpenThread={onOpenThread} />);
     fireEvent.click(screen.getByText("调研表格 Agent"));
-    expect(await screen.findByTestId("agent-detail")).toBeTruthy();
-    fireEvent.click(screen.getByText("查看完整 transcript"));
-    expect(await screen.findByTestId("agent-transcript")).toBeTruthy();
-    expect(screen.getByText(/三家竞品结论/)).toBeTruthy();
-    fireEvent.click(screen.getByTestId("agent-transcript-toolcall"));
-    const resultMsg = document.querySelector('[data-msg-idx="2"]');
-    expect(resultMsg?.getAttribute("data-located")).toBe("true");
+    expect(onOpenThread).toHaveBeenCalledTimes(1);
+    const [node, run] = onOpenThread.mock.calls[0] as [AgentNode, SubagentRunsView["runs"][number] | null];
+    expect(node.id).toBe("sa_2_b2b2b2b2");
+    // run 匹配：ref 直等命中运行中的分工 meta（供对话视图实时派生状态）
+    expect(run?.ref).toBe("sa_2_b2b2b2b2");
   });
 
-  it("节点点击再点收起详情卡（切换节点清空 transcript）", async () => {
-    render(<AgentTree network={network} runs={runs.runs} sessionPath="s1.jsonl" />);
-    // 详情卡打开后标题重复出现 → 用节点行按钮（第一个命中=树内行）切换
-    const row = screen.getAllByText("调研表格 Agent")[0];
-    fireEvent.click(row);
-    expect(await screen.findByTestId("agent-detail")).toBeTruthy();
-    fireEvent.click(screen.getAllByText("调研表格 Agent")[0]);
-    expect(screen.queryByTestId("agent-detail")).toBeNull();
+  it("主 agent 根节点点击不触发 onOpenThread（无独立 transcript）", () => {
+    const onOpenThread = vi.fn();
+    render(<AgentTree network={network} runs={runs.runs} onOpenThread={onOpenThread} />);
+    fireEvent.click(screen.getByText("主 agent"));
+    expect(onOpenThread).not.toHaveBeenCalled();
   });
 });

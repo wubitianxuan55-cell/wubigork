@@ -1,5 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { boundedOutput, TOOL_OUTPUT_MAX_PREVIEW_LINES } from "./tools";
+import { boundedOutput, diffStatFor, TOOL_OUTPUT_MAX_PREVIEW_LINES } from "./tools";
+
+describe("diffStatFor 编辑类工具 diffstat（v4.27 Codex 式 +N−M 芯片）", () => {
+  it("edit_file：按 old/new 行差异输出 +N/−N", () => {
+    expect(
+      diffStatFor("edit_file", JSON.stringify({ path: "a.md", old_string: "a\nb", new_string: "a\nb\nc" })),
+    ).toEqual({ add: 1, del: 0 });
+    expect(
+      diffStatFor("edit_file", JSON.stringify({ path: "a.md", old_string: "a\nb\nc", new_string: "a\nc" })),
+    ).toEqual({ add: 0, del: 1 });
+  });
+
+  it("multi_edit：逐组累加行级增减", () => {
+    expect(
+      diffStatFor("multi_edit", JSON.stringify({
+        path: "a.md",
+        edits: [
+          { old_string: "x", new_string: "x\ny" },
+          { old_string: "a\nb", new_string: "a" },
+        ],
+      })),
+    ).toEqual({ add: 1, del: 1 });
+  });
+
+  it("非编辑工具 / 缺参返回 null", () => {
+    expect(diffStatFor("read_file", JSON.stringify({ path: "a.md" }))).toBeNull();
+    expect(diffStatFor("write_file", JSON.stringify({ path: "a.md", content: "x" }))).toBeNull();
+    expect(diffStatFor("edit_file", JSON.stringify({ path: "a.md" }))).toBeNull();
+  });
+});
 
 describe("boundedOutput 大工具输出有界预览（P2-2）", () => {
   it("空输出原样返回且不折叠", () => {

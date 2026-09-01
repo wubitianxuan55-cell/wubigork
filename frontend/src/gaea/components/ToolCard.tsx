@@ -13,7 +13,7 @@ import { ICONS, mcpOr } from "./tool_icons";
 import { useT } from "../lib/i18n";
 import { useCompact } from "../hooks/useCompact";
 import { useGSAPCollapse } from "../lib/useGSAPCollapse";
-import { boundedOutput, diffsFor, subjectOf, summarize } from "../lib/tools";
+import { boundedOutput, diffStatFor, diffsFor, subjectOf, summarize } from "../lib/tools";
 import { getTaskCardActivity, hasTaskCardActivityProvider, resolveTaskRef, taskResultSummary } from "../lib/taskActivity";
 import { formatElapsed } from "../lib/time";
 import { useNow } from "../lib/useNow";
@@ -86,6 +86,8 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
   const compact = useCompact();
   const diffs = useMemo(() => diffsFor(item.name, item.args), [item.name, item.args]);
   const subject = useMemo(() => subjectOf(item.name, item.args), [item.name, item.args]);
+  // Codex 式 diffstat 芯片：编辑类工具行内显示 +N−M（不再重复进斜体摘要）
+  const stat = useMemo(() => diffStatFor(item.name, item.args), [item.name, item.args]);
   const Icon = ICONS[item.name] ?? mcpOr(item.name);
   const nested = subcalls ?? [];
   const hasNested = nested.length > 0;
@@ -158,8 +160,18 @@ export const ToolCard = memo(function ToolCard({ item, subcalls }: { item: ToolI
         {subject && (
           <span className={`text-fg-faint truncate ${summarySize}`}>{subject}</span>
         )}
-        {summary && (
+        {stat && (stat.add > 0 || stat.del > 0) ? (
+          <span
+            className="shrink-0 ml-1 inline-flex items-center gap-1 rounded px-1 py-px font-mono text-[10.5px] leading-none bg-bg-soft border border-border-soft text-fg-dim tabular-nums"
+            title="行级增减"
+          >
+            <span className="text-ok">+{stat.add}</span>
+            <span className="text-err">−{stat.del}</span>
+          </span>
+        ) : (
+          summary && (
           <span className={`text-fg-faint italic ml-0.5 ${summarySize}`}>{summary}</span>
+          )
         )}
         <span className="ml-auto shrink-0">
           <StatusGlyph status={item.status} recoverable={item.recoverable} />

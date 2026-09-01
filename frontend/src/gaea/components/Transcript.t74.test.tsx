@@ -71,6 +71,35 @@ describe("TurnBlock 轮级 memo（T7-4）", () => {
   it("TurnBlock 是 React.memo 组件", () => {
     expect((TurnBlock as unknown as { $$typeof?: unknown }).$$typeof).toBe(Symbol.for("react.memo"));
   });
+
+  it("第 2 轮起在用户消息上方渲染回合分隔线（v4.27）", () => {
+    const seg = { processItems: [] as Item[], outsideItems: [u("u2", "第二轮问题")] };
+    const { container } = render(
+      <TurnBlock
+        seg={seg} running={false} isLast={false} turnNo={1} openTurn={null}
+        onToggleTurn={noop} onRewindTurn={noop} onCollapse={noop}
+        dismissedErrors={new Set<string>()} onDismissError={noop}
+        captureForId={() => undefined} turnElsRef={turnElsRef}
+      />,
+    );
+    const divider = container.querySelector(".turn-divider");
+    expect(divider).not.toBeNull();
+    expect(divider?.getAttribute("role")).toBe("separator");
+    expect(divider?.textContent).toContain("2");
+  });
+
+  it("首轮（turnNo=0）不渲染回合分隔线", () => {
+    const seg = { processItems: [] as Item[], outsideItems: [u("u1", "第一问")] };
+    const { container } = render(
+      <TurnBlock
+        seg={seg} running={false} isLast={false} turnNo={0} openTurn={null}
+        onToggleTurn={noop} onRewindTurn={noop} onCollapse={noop}
+        dismissedErrors={new Set<string>()} onDismissError={noop}
+        captureForId={() => undefined} turnElsRef={turnElsRef}
+      />,
+    );
+    expect(container.querySelector(".turn-divider")).toBeNull();
+  });
 });
 
 describe("ProcessCard memo（T7-4）", () => {

@@ -15,15 +15,13 @@
 import { createElement } from "react";
 import type { ReactNode } from "react";
 import { WorkspacePanel } from "../components/WorkspacePanel";
-import { MaterialsPanel } from "../components/MaterialsPanel";
-import { CostLibraryPanel } from "../components/CostLibraryPanel";
 import { DeliverablesPanel, type SessionDeliverable } from "../components/DeliverablesPanel";
 import { ChangesPanel } from "../components/ChangesPanel";
 import { TaskCenter } from "../components/TaskCenter";
 import { SubagentsPanel } from "../components/SubagentsPanel";
 import type { SessionChange } from "./changes";
 import type { Icon } from "../icons";
-import { WORKSPACE_GROUPS, type WorkspaceGroupId, type WorkspaceTabId } from "./workspaceTabs";
+import { WORKSPACE_TABS, type WorkspaceTabId } from "./workspaceTabs";
 
 /** 注册表渲染上下文：App 右栏注入的面板公共依赖（面板 props 与旧渲染分支逐一对应）。 */
 export interface WorkspacePanelContext {
@@ -53,17 +51,15 @@ export interface WorkspacePanelContext {
   onRevealInTree?: (rel: string) => void;
   /** 树中定位请求体（nonce 变化触发一次：文件树展开父链 + 滚动 + 闪烁）。 */
   revealRequest?: { rel: string; nonce: number } | null;
+  /** 打开第一个文件时自动加宽右栏到舒适阅读宽度（v4.27 Codex 式）。 */
+  onAutoWidenPanel?: () => void;
 }
 
 export interface WorkspaceTabRegistration {
   readonly id: WorkspaceTabId;
   readonly label: string;
   readonly icon: Icon;
-  /** 所属主 Tab（分组）。 */
-  readonly group: WorkspaceGroupId;
-  /** 组顺序（第一级 Tab 次序）。 */
-  readonly groupOrder: number;
-  /** 组内顺序（第二级小 Tab 次序）。 */
+  /** 面板顺序（一级 Tab 次序，v4.27 扁平化后即展示序）。 */
   readonly order: number;
   /** 声明式设置卡的默认启用态。 */
   readonly defaultEnabled: boolean;
@@ -84,9 +80,8 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
       onRefresh: ctx.onRefreshPanel,
       onClose: ctx.onClosePanel,
       revealRequest: ctx.revealRequest,
+      onAutoWiden: ctx.onAutoWidenPanel,
     }),
-  materials: (ctx) => createElement(MaterialsPanel, { onOpenFile: ctx.onOpenFile }),
-  cost: () => createElement(CostLibraryPanel),
   deliverables: (ctx) =>
     createElement(DeliverablesPanel, {
       items: ctx.sessionDeliverables,
@@ -109,20 +104,18 @@ const RENDERERS: Record<WorkspaceTabId, (ctx: WorkspacePanelContext) => ReactNod
     }),
 };
 
-/** 单一数据源：7 个内置面板的注册表（按组序 → 组内序扁平，顺序即展示序）。
- *  stats 已迁主区「概览」tab（v4.23 A4），不再注册。 */
-export const SIDEBAR_REGISTRY: readonly WorkspaceTabRegistration[] = WORKSPACE_GROUPS.flatMap((g, groupOrder) =>
-  g.tabs.map((tab, order): WorkspaceTabRegistration => ({
+/** 单一数据源：5 个内置面板的注册表（v4.27 扁平化，顺序即展示序）。
+ *  stats 已迁主区「概览」tab（v4.23 A4）；materials/cost 标签已删除（v4.27）。 */
+export const SIDEBAR_REGISTRY: readonly WorkspaceTabRegistration[] = WORKSPACE_TABS.map(
+  (tab, order): WorkspaceTabRegistration => ({
     id: tab.id,
     label: tab.label,
     icon: tab.icon,
-    group: g.id,
-    groupOrder,
     order,
     defaultEnabled: tab.defaultEnabled !== false,
     keywords: tab.keywords,
     render: RENDERERS[tab.id],
-  })),
+  }),
 );
 
 const REGISTRY_BY_ID = new Map<WorkspaceTabId, WorkspaceTabRegistration>(

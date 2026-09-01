@@ -1,7 +1,9 @@
 /* eslint-disable react-refresh/only-export-components -- 子组件与容器同文件（Phase A 收敛，避免过早拆文件） */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2 } from "../icons";
 import { app } from "../lib/bridge";
 import { AgentNetworkCard } from "./AgentNetworkCard";
+import { usePreviewStore } from "../lib/store";
 import type {
   ContextCategory, ContextEvent, ContextRequestRecord, ContextStats, ContextSurfaceNode, ContextTimeline, FileActivity,
 } from "../lib/types";
@@ -63,15 +65,77 @@ function StatsBoard({ stats }: { stats: ContextStats }) {
   );
 }
 
+// ─── 上下文总览头部：水位（分色）+ 缓存/费用 + 刷新 ─────────────
+function ContextOverviewHeader({
+  used,
+  window,
+  stats,
+  running,
+  loading,
+  onRefresh,
+}: {
+  used: number;
+  window: number;
+  stats: ContextStats;
+  running: boolean;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  const pct = window > 0 ? Math.min(100, Math.round((used / window) * 100)) : 0;
+  const levelCls = pct >= 90 ? "bg-err" : pct >= 70 ? "bg-warning" : "bg-accent";
+  const levelText = pct >= 90 ? "text-err" : pct >= 70 ? "text-warning" : "text-fg-dim";
+  return (
+    <div className="rounded-lg border border-border-soft bg-bg p-3">
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-medium text-fg">上下文</span>
+        {running && (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent animate-pulse" title="运行中实时刷新" aria-hidden />
+        )}
+        <span className="flex-1" />
+        <span className="shrink-0 text-[10px] tabular-nums text-fg-faint">
+          缓存 {stats.cacheHitPercent != null ? `${stats.cacheHitPercent.toFixed(2)}%` : "—"}
+        </span>
+        <span className="shrink-0 text-[10px] tabular-nums text-fg-faint">
+          费用 {stats.costEstimate != null ? `¥${stats.costEstimate.toFixed(2)}` : "—"}
+        </span>
+        <button
+          type="button"
+          className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent transition-colors hover:bg-(color:--md-sys-color-surface-container-high)"
+          style={{ color: "var(--md-sys-color-text-secondary)" }}
+          onClick={onRefresh}
+          title="刷新上下文"
+          aria-label="刷新上下文"
+        >
+          <Loader2 size={12} className={loading ? "animate-spin" : ""} />
+        </button>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-soft">
+          <div className={`h-full rounded-full transition-[width] duration-500 ${levelCls}`} style={{ width: `${pct}%` }} />
+        </div>
+        <span className={`shrink-0 font-mono text-[10px] tabular-nums ${levelText}`}>
+          {fmtTokens(used)} / {fmtTokens(window)} · {pct}%
+        </span>
+      </div>
+      {pct >= 70 && (
+        <div className={`mt-1 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
+          {pct >= 90 ? "上下文接近上限，建议压缩或新建会话" : "上下文占用较高，注意后续注入空间"}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── 当前上下文组成（六分类分段条 + 图例） ─────────────────────
 function CurrentComposition({ current, window }: { current: ContextCategory; window: number }) {
   const total = catTotal(current);
   const pct = window > 0 ? Math.round((total / window) * 100) : 0;
+  const warnCls = pct >= 90 ? "text-err" : pct >= 70 ? "text-warning" : "";
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
       <div className="flex items-baseline justify-between">
         <div className="text-[11px] font-medium text-fg">当前上下文</div>
-        <div className="text-[10px] text-fg-dim tabular-nums font-mono">
+        <div className={`text-[10px] tabular-nums font-mono ${warnCls || "text-fg-dim"}`}>
           {fmtTokens(total)} / {fmtTokens(window)} · {pct}%
         </div>
       </div>
@@ -96,6 +160,11 @@ function CurrentComposition({ current, window }: { current: ContextCategory; win
           );
         })}
       </div>
+      {pct >= 70 && (
+        <div className={`mt-1.5 text-[9.5px] ${pct >= 90 ? "text-err" : "text-warning"}`}>
+          {pct >= 90 ? "已接近上下文上限 —— 压缩/剪枝后此处会回落" : "占用较高 —— 注意剩余注入空间"}
+        </div>
+      )}
     </div>
   );
 }
@@ -109,6 +178,9 @@ function ContextTrendChart({ requests, events, onPick }: {
   const [granularity, setGranularity] = useState<"step" | "turn">("step");
   const [mode, setMode] = useState<"total" | "delta">("total");
   const [selected, setSelected] = useState<number | null>(null);
+  // v4.27 悬停构成详情：hover 柱时在图上展示该步六分类分解（原生 SVG title
+  // 之外再给一个随时可见的 HTML 详情条，比浏览器默认 tooltip 更丰富）。
+  const [hovered, setHovered] = useState<number | null>(null);
 
   const bars = useMemo(() => {
     if (granularity === "step") return requests;
@@ -176,6 +248,24 @@ function ContextTrendChart({ requests, events, onPick }: {
         ✂ 表示压缩/剪枝 · 点击柱查看该步构成
         {mode === "delta" && <span className="ml-2"><span className="text-[#22c55e]">■</span> 净增 <span className="ml-1 text-[#ef4444]">■</span> 净减</span>}
       </div>
+      {hovered !== null && bars[hovered] && (
+        <div
+          data-testid="trend-hover-detail"
+          className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md px-2 py-1 text-[9.5px]"
+          style={{ background: "var(--md-sys-color-surface-container-high)" }}
+        >
+          <span className="font-mono text-fg-dim">第{bars[hovered].turn}轮·第{bars[hovered].step}步</span>
+          {CATS.map((c) =>
+            bars[hovered].category[c.key] > 0 ? (
+              <span key={c.key} className="inline-flex items-center gap-1 text-fg-faint">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-sm" style={{ background: CAT_COLORS[c.key] }} />
+                {c.label} {fmtTokens(bars[hovered].category[c.key])}
+              </span>
+            ) : null,
+          )}
+          <span className="ml-auto font-mono text-fg-dim">合计 {fmtTokens(catTotal(bars[hovered].category))}</span>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 h-auto min-w-full" style={{ width: W }}>
           {yTicks.map((t, i) => (
@@ -193,7 +283,14 @@ function ContextTrendChart({ requests, events, onPick }: {
               const h = Math.abs((d / maxY) * plotH);
               const y = d >= 0 ? padT + plotH - h : padT + plotH;
               return (
-                <g key={b.seq} onClick={() => pick(i)} className="cursor-pointer" opacity={selected === i ? 1 : 0.85}>
+                <g
+                  key={b.seq}
+                  onClick={() => pick(i)}
+                  onMouseEnter={() => setHovered(i)}
+                  onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
+                  className="cursor-pointer"
+                  opacity={selected === i ? 1 : 0.85}
+                >
                   <rect x={x} y={y} width={bw} height={Math.max(h, 1)} rx={1.5} fill={d >= 0 ? "#22c55e" : "#ef4444"}> {/* hex-exempt 增量图语义色（绿=净增/红=净减，可视化调色板） */}
                     <title>{`第${b.turn}轮·第${b.step}步 Δ${d >= 0 ? "+" : ""}${fmtTokens(d)}`}</title>
                   </rect>
@@ -202,7 +299,14 @@ function ContextTrendChart({ requests, events, onPick }: {
             }
             let acc = 0;
             return (
-              <g key={b.seq} onClick={() => pick(i)} className="cursor-pointer" opacity={selected === i ? 1 : 0.9}>
+              <g
+                key={b.seq}
+                onClick={() => pick(i)}
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered((cur) => (cur === i ? null : cur))}
+                className="cursor-pointer"
+                opacity={selected === i ? 1 : 0.9}
+              >
                 {CATS.map((c) => {
                   const v = b.category[c.key];
                   if (v <= 0) return null;
@@ -228,7 +332,7 @@ function ContextTrendChart({ requests, events, onPick }: {
 }
 
 // ─── 步骤详情卡 ─────────────────────────────────────────────
-function StepDetail({ record }: { record: ContextRequestRecord | null }) {
+function StepDetail({ record, window }: { record: ContextRequestRecord | null; window: number }) {
   if (!record) {
     return (
       <div className="rounded-lg border border-border-soft bg-bg p-3 text-[10px] text-fg-faint">
@@ -237,6 +341,7 @@ function StepDetail({ record }: { record: ContextRequestRecord | null }) {
     );
   }
   const total = catTotal(record.category);
+  const windowPct = window > 0 ? Math.round((total / window) * 100) : null;
   const cacheHit = record.cacheHitTokens ?? 0;
   const cacheMiss = record.cacheMissTokens ?? 0;
   const cachePct = cacheHit + cacheMiss > 0 ? (cacheHit * 100) / (cacheHit + cacheMiss) : null;
@@ -253,6 +358,7 @@ function StepDetail({ record }: { record: ContextRequestRecord | null }) {
         {record.outputTokens ? <span>输出 {record.outputTokens}</span> : null}
         {cachePct != null ? <span>缓存 {cachePct.toFixed(2)}%</span> : null}
         <span>合计 ≈{fmtTokens(total)}</span>
+        {windowPct != null && <span>占窗口 {windowPct}%</span>}
       </div>
       {record.briefUser && (
         <div className="mt-1.5 flex gap-1.5 text-[10px]">
@@ -328,6 +434,7 @@ const FILE_ACTION_META: Record<FileActivity["action"], { label: string; cls: str
 };
 
 function FileActivityCard({ files }: { files: FileActivity[] }) {
+  const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   const shown = files.slice(-40).reverse();
   return (
     <div className="rounded-lg border border-border-soft bg-bg p-3">
@@ -341,13 +448,23 @@ function FileActivityCard({ files }: { files: FileActivity[] }) {
         )}
         {shown.map((f) => {
           const meta = FILE_ACTION_META[f.action] ?? { label: f.action, cls: "bg-bg-soft text-fg-dim" };
+          const clickable = f.action !== "dir";
           return (
-            <div key={`${f.tool}-${f.seq}`} className="flex items-center gap-1.5 border-b border-border-soft/40 py-0.5 text-[10px] last:border-0">
+            <button
+              key={`${f.tool}-${f.seq}`}
+              type="button"
+              disabled={!clickable}
+              onClick={() => clickable && openFilePreview(f.path)}
+              title={clickable ? `在右侧预览 ${f.path}` : undefined}
+              className={`flex w-full items-center gap-1.5 border-b border-border-soft/40 py-0.5 text-left text-[10px] last:border-0 ${
+                clickable ? "cursor-pointer transition-colors hover:bg-bg-soft/70" : "cursor-default"
+              }`}
+            >
               <span className={`shrink-0 rounded px-1 text-[9px] ${meta.cls}`}>{meta.label}</span>
               <span className="shrink-0 font-mono text-fg-faint">{f.tool}</span>
               <span className="truncate font-mono text-fg-dim" title={f.path}>{f.path}</span>
               <span className="ml-auto shrink-0 tabular-nums font-mono text-fg-faint">{new Date(f.ts * 1000).toLocaleTimeString()}</span>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -438,8 +555,10 @@ export function ContextView({ running, sessionPath }: { running: boolean; sessio
   const [timeline, setTimeline] = useState<ContextTimeline>(EMPTY);
   const [picked, setPicked] = useState<ContextRequestRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
+    setLoading(true);
     app.ContextView()
       // 老后端可能把空切片序列化成 null，按数组消费前统一归一化
       .then((tl) => {
@@ -453,7 +572,8 @@ export function ContextView({ running, sessionPath }: { running: boolean; sessio
         });
         setError(null);
       })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -463,6 +583,14 @@ export function ContextView({ running, sessionPath }: { running: boolean; sessio
   // 运行中随事件流节流刷新 + 回合结束立即刷新（useLiveReload）。
   useLiveReload(running, load);
 
+  const isEmpty =
+    timeline.window <= 0 &&
+    catTotal(timeline.current) === 0 &&
+    timeline.requests.length === 0 &&
+    timeline.events.length === 0 &&
+    timeline.nodes.length === 0 &&
+    timeline.files.length === 0;
+
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto p-3">
       {error && (
@@ -470,14 +598,36 @@ export function ContextView({ running, sessionPath }: { running: boolean; sessio
           上下文视图加载失败：{error}
         </div>
       )}
+      {!error && (
+        <ContextOverviewHeader
+          used={catTotal(timeline.current)}
+          window={timeline.window}
+          stats={timeline.stats}
+          running={running}
+          loading={loading}
+          onRefresh={() => void load()}
+        />
+      )}
+      {!error && isEmpty && (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-soft bg-bg px-6 py-10 text-center">
+          <span className="text-[12px] font-medium text-fg">暂无上下文数据</span>
+          <span className="max-w-[46ch] text-[10.5px] leading-relaxed text-fg-faint">
+            运行任务后，上下文构成、趋势、注入/压缩事件与文件活动会实时显示在这里。
+          </span>
+        </div>
+      )}
+      {!error && !isEmpty && (
+        <>
       <StatsBoard stats={timeline.stats} />
       <CurrentComposition current={timeline.current} window={timeline.window} />
       <ContextTrendChart requests={timeline.requests} events={timeline.events} onPick={setPicked} />
-      <StepDetail record={picked} />
+      <StepDetail record={picked} window={timeline.window} />
       <EventsList events={timeline.events} />
       <FileActivityCard files={timeline.files} />
       <ContextBrowserCard nodes={timeline.nodes} archive={timeline.archive} />
       <AgentNetworkCard running={running} sessionPath={sessionPath} />
+        </>
+      )}
     </div>
   );
 }

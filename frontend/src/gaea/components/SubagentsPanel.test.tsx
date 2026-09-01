@@ -180,22 +180,24 @@ describe("SubagentsPanel 子代理工作台（v4.24 A1 三段式）", () => {
     expect(screen.queryByText("子任务：对比三家竞品表格交互")).toBeNull();
   });
 
-  it("下钻链：节点点击 → 详情卡 → 完整 transcript → 工具调用行定位结果消息", async () => {
+  it("下钻链（v4.27）：节点点击 → 右侧全面板子代理对话（实时视图），返回回分工树", async () => {
     render(<SubagentsPanel sessionPath="s1.jsonl" />);
     await screen.findByText("主 agent");
-    // 点击运行中的子代理行 → 固定详情卡
+    // 点击运行中的子代理行 → 切换为全面板对话视图（替代旧的内嵌窄卡）
     fireEvent.click(screen.getByText("调研竞品表格 Agent 能力并总结可蒸馏点"));
-    expect(await screen.findByTestId("agent-detail")).toBeTruthy();
-    // 详情卡含运行态与 transcript 入口（ref 匹配命中）
+    const thread = await screen.findByTestId("agent-thread");
+    expect(thread).toBeTruthy();
+    // 头部：任务标题 + 实时状态（运行中）+ 返回按钮
+    // 任务标题与 user 消息正文同文案 → getAllByText
+    expect(screen.getAllByText("调研竞品表格 Agent 能力并总结可蒸馏点").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("进行中")).toBeTruthy();
-    fireEvent.click(screen.getByText("查看完整 transcript"));
-    expect(await screen.findByTestId("agent-transcript")).toBeTruthy();
-    expect(screen.getByText("#1")).toBeTruthy();
+    // 消息流渲染：user / assistant 正文 / tool 结果
+    expect(screen.getByText(/开始检索公开信息/)).toBeTruthy();
     expect(screen.getByText(/三家竞品表格交互结论/)).toBeTruthy();
-    // 工具调用行点击 → 定位到 toolCallId 匹配的 tool 结果消息
-    fireEvent.click(screen.getByTestId("agent-transcript-toolcall"));
-    const resultMsg = document.querySelector('[data-msg-idx="3"]');
-    expect(resultMsg?.getAttribute("data-located")).toBe("true");
+    // 返回 → 分工树恢复
+    fireEvent.click(screen.getByRole("button", { name: /分工/ }));
+    await waitFor(() => expect(screen.queryByTestId("agent-thread")).toBeNull());
+    expect(screen.getByTestId("agent-tree")).toBeTruthy();
   });
 
   it("自动展开偏好开关：切换持久化到 localStorage", async () => {

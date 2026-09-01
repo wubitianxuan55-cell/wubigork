@@ -54,7 +54,8 @@ describe("WorkspacePanel 文件工作台（v4.25 A3 编辑器 tab 化）", () =>
   it("点击文件树行：右栏内 EditorTabs 打开预览，不触发 onSelectFile（不收面板开主区）", async () => {
     mocks.listDir.mockResolvedValue([{ name: "README.md", isDir: false }]);
     const onSelectFile = vi.fn();
-    render(wrap(<WorkspacePanel cwd="C:/proj" onClose={() => {}} onSelectFile={onSelectFile} />));
+    const onAutoWiden = vi.fn();
+    render(wrap(<WorkspacePanel cwd="C:/proj" onClose={() => {}} onSelectFile={onSelectFile} onAutoWiden={onAutoWiden} />));
 
     fireEvent.click(await screen.findByText("README.md"));
 
@@ -65,6 +66,8 @@ describe("WorkspacePanel 文件工作台（v4.25 A3 编辑器 tab 化）", () =>
     expect(await screen.findByText("内容 of README.md")).toBeTruthy();
     // 双入口分工：行点击不再走主区预览回调
     expect(onSelectFile).not.toHaveBeenCalled();
+    // v4.27 首次打开文件触发自动加宽（App 侧把右栏抬升到舒适阅读宽度）
+    expect(onAutoWiden).toHaveBeenCalledTimes(1);
   });
 
   it("双入口保留：文件树右键菜单「预览」仍走 onSelectFile 开主区（不开右栏内 tab）", async () => {
@@ -122,9 +125,30 @@ describe("WorkspacePanel 文件工作台（v4.25 A3 编辑器 tab 化）", () =>
     delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
   });
 
-  it("空态：编辑器区提示从左侧文件树打开文件", () => {
-    mocks.listDir.mockResolvedValue([]);
+  it("无打开文件时右栏为文件树全屏（编辑器空态提示不占位）", async () => {
+    mocks.listDir.mockResolvedValue([{ name: "README.md", isDir: false }]);
     render(wrap(<WorkspacePanel cwd="C:/proj" onClose={() => {}} onSelectFile={() => {}} />));
-    expect(screen.getByText("从左侧文件树打开文件")).toBeTruthy();
+    expect(await screen.findByText("README.md")).toBeTruthy();
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryByText("从左侧文件树打开文件")).toBeNull();
+  });
+
+  it("v4.27 打开文件后编辑器占满右栏（树自动收起），「文件」按钮可展开树侧栏", async () => {
+    mocks.listDir.mockResolvedValue([{ name: "README.md", isDir: false }]);
+    render(wrap(<WorkspacePanel cwd="C:/proj" onClose={() => {}} onSelectFile={() => {}} />));
+
+    fireEvent.click(await screen.findByText("README.md"));
+
+    // 编辑器占满右栏：tab 条 + 预览正文在，文件树行已卸载
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /README\.md/ }).getAttribute("aria-selected")).toBe("true"),
+    );
+    expect(await screen.findByText("内容 of README.md")).toBeTruthy();
+    expect(document.querySelector('[data-path="README.md"]')).toBeNull();
+
+    // 头部「文件」按钮展开树侧栏：文件树行回归，编辑器内容仍保留
+    fireEvent.click(screen.getByRole("button", { name: "文件" }));
+    await waitFor(() => expect(document.querySelector('[data-path="README.md"]')).not.toBeNull());
+    expect(screen.getByText("内容 of README.md")).toBeTruthy();
   });
 });

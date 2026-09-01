@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "../icons";
-import { app } from "../lib/bridge";
-import type { AgentNetwork, AgentNode, SubagentRunView, SubagentTranscriptView } from "../lib/types";
+import type { AgentNetwork, AgentNode, SubagentRunView } from "../lib/types";
 import { fmtTokens } from "../lib/stats";
 
 // AgentTree — 子代理树实时拓扑（v4.24 A1「分工面板工作台化」核心①）。
@@ -17,11 +16,9 @@ import { fmtTokens } from "../lib/stats";
 //  - 运行节点用 SubagentRuns 的 lastText/lastTool 富化为实时预览行
 //    （按 ref 直等或任务摘要前缀双向匹配，与后端 enrichAgentNetwork 同口径；
 //    匹配失败降级纯节点统计）；
-//  - 下钻链：节点点击 → 详情卡（统计/回答）→「查看完整 transcript」→ 消息流
-//    （#N 序号 + 搜索过滤沿用 AgentNetworkCard 渲染模式）→ 工具调用行可点击，
-//    scrollIntoView 定位到 toolCallId 匹配的 tool 结果消息（v4.24 新增）。
-// transcript 渲染为复制精简而非抽公共组件：AgentNetworkCard 本轮不允许改动，
-// 无改动权就无抽取落点；单一消费方先内聚，后续允许动旧卡时再合并。
+//  - 下钻链（v4.27 对齐 Codex）：子代理节点点击 → onOpenThread 回调，由面板
+//    层切换到「子代理对话」全面板视图（SubagentThread：完整 transcript +
+//    实时刷新），不再在树内塞窄小内嵌卡。
 
 // 树展平条目：ancestors 供「新节点自动展开父链」用（含 root id，不含自身）。
 interface FlatNode {
@@ -102,143 +99,12 @@ function nodeDuration(node: AgentNode, run: SubagentRunView | null, nowMs: numbe
 const iconBtn =
   "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors";
 
-// ─── transcript 消息流（精简自 AgentNetworkCard；新增工具行点击定位） ───
-function TranscriptViewer({ transcript }: { transcript: SubagentTranscriptView }) {
-  const [query, setQuery] = useState("");
-  const [locateIdx, setLocateIdx] = useState<number | null>(null);
-  const listRef = useRef<HTMLDivElement | null>(null);
-
-  // 搜索过滤（正文/推理/工具调用/工具结果全字段），命中带原索引保证 #N 稳定。
-  const shown = useMemo(() => {
-    const all = transcript.messages.map((m, idx) => ({ m, idx }));
-    const q = query.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter(({ m }) =>
-      [m.content, m.reasoning, m.name, m.toolCallId, ...(m.toolCalls ?? []).map((tc) => `${tc.name} ${tc.arguments}`)]
-        .filter(Boolean)
-        .join("\n")
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [transcript, query]);
-
-  // 搜索命中 → 自动定位第一条命中消息（与 AgentNetworkCard 的 data-msg-hit 同语义）。
-  useEffect(() => {
-    if (!query.trim()) return;
-    setLocateIdx(shown.length > 0 ? shown[0].idx : null);
-  }, [query, shown]);
-
-  // 定位滚动：jsdom 无布局，单测以 scrollIntoView stub 调用断言。
-  useEffect(() => {
-    if (locateIdx === null) return;
-    listRef.current
-      ?.querySelector(`[data-msg-idx="${locateIdx}"]`)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [locateIdx]);
-
-  // v4.24 新增：工具调用行点击 → 找到 toolCallId 匹配的 tool 结果消息 → 定位。
-  const locateToolCall = useCallback(
-    (toolCallId: string) => {
-      const idx = transcript.messages.findIndex((m) => m.toolCallId === toolCallId);
-      if (idx >= 0) setLocateIdx(idx);
-    },
-    [transcript],
-  );
-
-  return (
-    <div
-      data-testid="agent-transcript"
-      className="mt-1.5 flex flex-col rounded-md px-2 py-1.5"
-      style={{ background: "var(--md-sys-color-surface-container)" }}
-    >
-      <div className="mb-1 flex items-center gap-1.5">
-        <span className="min-w-0 flex-1 truncate text-[10px] font-medium" style={{ color: "var(--md-sys-color-text)" }}>
-          {transcript.task || transcript.ref}
-        </span>
-        <input
-          className="w-28 rounded-md border-0 px-1.5 py-0.5 text-[10px] outline-none"
-          style={{ background: "var(--md-sys-color-surface-container-high)", color: "var(--md-sys-color-text)" }}
-          placeholder="搜索消息"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <span className="shrink-0 font-mono text-[9px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-          {shown.length}/{transcript.messages.length} 条
-        </span>
-      </div>
-      <div ref={listRef} className="flex max-h-64 flex-col gap-1 overflow-y-auto">
-        {shown.length === 0 && (
-          <div className="py-2 text-[10px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-            没有匹配的消息
-          </div>
-        )}
-        {shown.map(({ m, idx }, i) => (
-          <div
-            key={idx}
-            data-msg-idx={idx}
-            data-msg-hit={query.trim() && i === 0 ? "true" : undefined}
-            data-located={locateIdx === idx ? "true" : undefined}
-            className="rounded-md px-1.5 py-1 text-[10px]"
-            style={{
-              background: locateIdx === idx
-                ? "color-mix(in srgb, var(--gaea-glow) 10%, transparent)"
-                : "var(--md-sys-color-surface-container-high)",
-            }}
-          >
-            <div className="flex items-center gap-1.5" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-              <span className="shrink-0 font-mono tabular-nums">#{idx + 1}</span>
-              <span
-                className="shrink-0 rounded px-1 text-[9px] font-medium"
-                style={{ background: "color-mix(in srgb, var(--md-sys-color-text) 8%, transparent)", color: "var(--md-sys-color-text)" }}
-              >
-                {m.role.toUpperCase()}
-              </span>
-              {m.name && <span className="font-mono">{m.name}</span>}
-              {m.toolCallId && <span className="truncate font-mono" title={`工具结果 ${m.toolCallId}`}>{m.toolCallId}</span>}
-            </div>
-            {m.reasoning && (
-              <pre className="mt-0.5 whitespace-pre-wrap break-words font-mono text-[9.5px]" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-                {m.reasoning}
-              </pre>
-            )}
-            {m.toolCalls && m.toolCalls.length > 0 && (
-              <div className="mt-0.5 flex flex-col items-stretch">
-                {m.toolCalls.map((tc, j) => (
-                  <button
-                    key={j}
-                    type="button"
-                    data-testid="agent-transcript-toolcall"
-                    className="mt-px flex cursor-pointer items-center gap-1 rounded border-0 px-1 py-px text-left font-mono text-[9.5px] transition-colors"
-                    style={{
-                      background: "color-mix(in srgb, var(--gaea-glow) 8%, transparent)",
-                      color: "var(--md-sys-color-text-secondary)",
-                    }}
-                    title="点击定位该工具调用的结果消息"
-                    onClick={() => locateToolCall(tc.id)}
-                  >
-                    <span aria-hidden>⚙</span>
-                    <span className="truncate">{tc.name} {tc.arguments}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {m.content && (
-              <pre className="mt-0.5 whitespace-pre-wrap break-words font-mono text-[9.5px]" style={{ color: "var(--md-sys-color-text)" }}>
-                {m.content}
-              </pre>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── 子代理树 ──────────────────────────────────────────────
-export function AgentTree({ network, runs, sessionPath }: {
+export function AgentTree({ network, runs, onOpenThread }: {
   network: AgentNetwork;
   runs: SubagentRunView[];
-  sessionPath?: string;
+  /** 子代理节点点击 → 面板层切换「子代理对话」全面板视图（v4.27 Codex 式）。 */
+  onOpenThread: (node: AgentNode, run: SubagentRunView | null) => void;
 }) {
   const root = network.root;
 
@@ -286,17 +152,6 @@ export function AgentTree({ network, runs, sessionPath }: {
     });
   }, [flat]);
 
-  // 详情选中态 + transcript 下钻状态（切换节点即清空，防串卡）。
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState<SubagentTranscriptView | null>(null);
-  const [transcriptNodeId, setTranscriptNodeId] = useState<string | null>(null);
-  const [transcriptBusy, setTranscriptBusy] = useState(false);
-  const selectNode = useCallback((id: string) => {
-    setSelectedId((prev) => (prev === id ? null : id));
-    setTranscript(null);
-    setTranscriptNodeId(null);
-  }, []);
-
   // running 节点存在时启动 1s tick：实时已用时走秒（无运行节点零开销）。
   const hasRunning = useMemo(() => flat.some((f) => f.node.status === "running"), [flat]);
   const [now, setNow] = useState(() => Date.now());
@@ -306,31 +161,6 @@ export function AgentTree({ network, runs, sessionPath }: {
     return () => window.clearInterval(timer);
   }, [hasRunning]);
 
-  // 查看完整 transcript：拉取该子代理的 transcript JSONL 投影（再点收起）。
-  const viewTranscript = useCallback(
-    (nodeId: string, ref: string) => {
-      if (!sessionPath) return;
-      if (transcriptNodeId === nodeId && transcript?.ref === ref) {
-        setTranscript(null);
-        setTranscriptNodeId(null);
-        return;
-      }
-      setTranscriptBusy(true);
-      app
-        .SubagentTranscript(sessionPath, ref)
-        .then((v) => {
-          setTranscript(v);
-          setTranscriptNodeId(nodeId);
-        })
-        .catch(() => {
-          setTranscript(null);
-          setTranscriptNodeId(null);
-        })
-        .finally(() => setTranscriptBusy(false));
-    },
-    [sessionPath, transcript, transcriptNodeId],
-  );
-
   const renderNode = (f: FlatNode): ReactNode => {
     const node = f.node;
     const run = runByNodeId.get(node.id) ?? null;
@@ -339,9 +169,10 @@ export function AgentTree({ network, runs, sessionPath }: {
     const childEntries = node.children ?? [];
     const hasChildren = childEntries.length > 0;
     const isExpanded = expanded.has(node.id);
-    const isSelected = selectedId === node.id;
     // transcript 引用：优先匹配 run 的 ref；后端若以 ref 作节点 id 也可直用。
     const transcriptRef = run?.ref ?? (node.id.startsWith("sa_") ? node.id : null);
+    // 子代理节点可打开对话（root 无 transcript，不响应）
+    const canOpenThread = node.kind === "subagent" && transcriptRef !== null;
     const dotCls = `inline-block h-1.5 w-1.5 shrink-0 rounded-full${node.status === "running" ? " animate-pulse" : ""}`;
     return (
       <div
@@ -351,7 +182,7 @@ export function AgentTree({ network, runs, sessionPath }: {
         className="flex flex-col rounded-[var(--radius-md)] transition-all duration-200"
         style={{
           background: "var(--md-sys-color-surface-container)",
-          border: `1px solid ${isSelected ? "color-mix(in srgb, var(--gaea-glow) 40%, transparent)" : "var(--md-sys-color-outline-variant)"}`,
+          border: "1px solid var(--md-sys-color-outline-variant)",
           marginLeft: f.depth * 10,
         }}
       >
@@ -373,9 +204,9 @@ export function AgentTree({ network, runs, sessionPath }: {
           <button
             type="button"
             data-testid="agent-node-row"
-            onClick={() => selectNode(node.id)}
-            className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
-            title={`${statusText(node.status)} · ${title}`}
+            onClick={() => canOpenThread && onOpenThread(node, run)}
+            className={`flex min-w-0 flex-1 items-center gap-1.5 border-0 bg-transparent p-0 text-left ${canOpenThread ? "cursor-pointer" : "cursor-default"}`}
+            title={canOpenThread ? `${statusText(node.status)} · ${title}（点击打开子代理对话）` : `${statusText(node.status)} · ${title}`}
           >
             <span className={dotCls} aria-hidden style={{ background: statusColor(node.status) }} />
             <span className="min-w-0 flex-1 truncate text-[11.5px] font-medium" style={{ color: "var(--md-sys-color-text)" }}>
@@ -427,68 +258,6 @@ export function AgentTree({ network, runs, sessionPath }: {
               <span className="truncate font-mono" title={run.lastTool} style={{ color: "var(--md-sys-color-text-secondary)" }}>
                 ⚙ {run.lastTool}
               </span>
-            )}
-          </div>
-        )}
-
-        {/* 详情卡（沿用展开卡片模式）：统计/回答/transcript 下钻 */}
-        {isSelected && (
-          <div
-            data-testid="agent-detail"
-            className="mx-1 mb-1 flex flex-col gap-1 rounded-md px-2 py-1.5 text-[10.5px]"
-            style={{ background: "color-mix(in srgb, var(--md-sys-color-text) 5%, transparent)" }}
-          >
-            <div className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate font-medium" style={{ color: "var(--md-sys-color-text)" }}>{title}</span>
-              <span className="shrink-0" style={{ color: statusColor(node.status) }}>{statusText(node.status)}</span>
-              <button
-                type="button"
-                className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[10px]"
-                style={{ color: "var(--md-sys-color-text-secondary)" }}
-                onClick={() => selectNode(node.id)}
-              >
-                关闭
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-x-2 gap-y-0.5" style={{ color: "var(--md-sys-color-text-secondary)" }}>
-              {(node.model || run?.model) && <span className="font-mono">{node.model || run?.model}</span>}
-              <span className="tabular-nums">工具 {node.toolCalls}</span>
-              {node.errors > 0 && <span className="tabular-nums" style={{ color: "var(--md-sys-color-destructive)" }}>错误 {node.errors}</span>}
-              {node.tokens > 0 && <span className="font-mono tabular-nums">≈{fmtTokens(node.tokens)}</span>}
-              {dur.label && <span className="font-mono tabular-nums">{dur.label}</span>}
-              {run && <span className="font-mono">{run.ref.slice(0, 24)}…</span>}
-            </div>
-            {run?.lastText && (
-              <div className="truncate" title={run.lastText} style={{ color: "var(--md-sys-color-text)" }}>最后活动：{run.lastText}</div>
-            )}
-            {run?.lastTool && (
-              <div className="truncate font-mono" title={run.lastTool} style={{ color: "var(--md-sys-color-text-secondary)" }}>⚙ {run.lastTool}</div>
-            )}
-            {run?.answer && (
-              <div
-                className="whitespace-pre-wrap break-words rounded-md px-1.5 py-1 text-[10.5px] leading-relaxed"
-                style={{ background: "var(--md-sys-color-surface-container-high)", color: "var(--md-sys-color-text)" }}
-              >
-                {run.answer}
-              </div>
-            )}
-            {transcriptRef && sessionPath && (
-              <button
-                type="button"
-                data-testid="agent-detail-transcript"
-                className="cursor-pointer self-start rounded-md border-0 px-2 py-1 text-[10px] transition-colors"
-                style={{ background: "var(--md-sys-color-surface-container-high)", color: "var(--gaea-glow)" }}
-                onClick={() => viewTranscript(node.id, transcriptRef)}
-              >
-                {transcriptBusy && transcriptNodeId !== node.id
-                  ? "读取中…"
-                  : transcriptNodeId === node.id && transcript
-                    ? "收起完整 transcript"
-                    : "查看完整 transcript"}
-              </button>
-            )}
-            {transcriptNodeId === node.id && transcript && (
-              <TranscriptViewer key={transcript.ref} transcript={transcript} />
             )}
           </div>
         )}

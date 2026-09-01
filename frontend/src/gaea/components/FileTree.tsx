@@ -4,10 +4,6 @@ import type { MenuProps } from "antd";
 import {
   ChevronRight,
   ChevronDown,
-  File,
-  Folder,
-  Image,
-  FileText,
   Paperclip,
   Copy,
   ExternalLink,
@@ -18,6 +14,7 @@ import {
 import { app } from "../lib/bridge";
 import type { DirEntry, FileSearchHit } from "../lib/types";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { FileTypeIcon } from "../lib/fileIcon";
 
 // 复制成功后行尾「已复制」反馈时长（对齐插件 rowActions copied 1.2s）。
 const COPIED_MS = 1200;
@@ -30,25 +27,6 @@ const REVEAL_SCROLL_INTERVAL_MS = 100;
 const EXPANDED_MAX = 500;
 // 树内搜索命中上限（GaeaFileSearch 服务端同样钳制，前端侧再限一次对齐插件预算封顶纪律）。
 const FILE_SEARCH_LIMIT = 50;
-
-// 文件图标映射（按扩展名着色，办公文件优先）
-function fileIcon(name: string, isDir: boolean) {
-  if (isDir) return <Folder size={14} className="text-accent shrink-0" />;
-  const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  if (["doc", "docx"].includes(ext))
-    return <FileText size={14} className="text-sky-400 shrink-0" />;
-  if (["xls", "xlsx", "csv"].includes(ext))
-    return <FileText size={14} className="text-emerald-400 shrink-0" />;
-  if (["ppt", "pptx"].includes(ext))
-    return <FileText size={14} className="text-orange-400 shrink-0" />;
-  if (ext === "pdf")
-    return <FileText size={14} className="text-red-400 shrink-0" />;
-  if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext))
-    return <Image size={14} className="text-violet-400 shrink-0" />;
-  if (["md", "txt", "json", "toml", "yaml", "yml", "xml", "html", "css", "js", "ts", "tsx", "jsx", "go", "py"].includes(ext))
-    return <FileText size={14} className="text-fg-dim shrink-0" />;
-  return <File size={14} className="text-fg-faint shrink-0" />;
-}
 
 // 每个目录层级的加载态（加载三态：loading / error+重试 / 已加载）。
 interface LevelData {
@@ -433,7 +411,7 @@ export function FileTree({
                       ) : (
                         <ChevronRight size={10} className="shrink-0 text-fg-faint" />
                       )}
-                      {fileIcon(e.name, true)}
+                      <FileTypeIcon name={e.name} isDir size={14} />
                       <span className="truncate flex-1">{e.name}</span>
                       {childLoading && <span className="text-fg-faint text-[9px]">⋯</span>}
                       {rowActions(childPath)}
@@ -463,7 +441,7 @@ export function FileTree({
                   onClick={() => onSelect(childPath)}
                   onKeyDown={(ev) => onRowKeyDown(ev, () => onSelect(childPath))}
                 >
-                  {fileIcon(e.name, false)}
+                  <FileTypeIcon name={e.name} size={14} />
                   <span className="truncate flex-1">{e.name}</span>
                   {rowActions(childPath)}
                 </div>
@@ -511,7 +489,7 @@ export function FileTree({
                 onClick={() => toggle("")}
                 onKeyDown={(e) => onRowKeyDown(e, () => toggle(""))}
               >
-                {fileIcon(rootName, true)}
+                <FileTypeIcon name={rootName} isDir size={14} />
                 <span className="truncate flex-1">{rootName}</span>
                 {rootLoading && <span className="text-fg-faint text-[9px]">⋯</span>}
                 {rowActions("")}
@@ -549,11 +527,7 @@ export function FileTree({
                     }}
                     title={h.isDir ? "目录命中：点击预览对目录无意义，可在树中浏览" : h.path}
                   >
-                    {h.isDir ? (
-                      <Folder size={14} className="text-accent shrink-0" />
-                    ) : (
-                      fileIcon(h.name, false)
-                    )}
+                    <FileTypeIcon name={h.name} isDir={h.isDir} size={14} />
                     <span className="truncate flex-1">{h.path}</span>
                     {!h.isDir && rowActions(h.path)}
                   </div>

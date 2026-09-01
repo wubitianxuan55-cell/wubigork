@@ -406,6 +406,7 @@ export const en = {
   "msg.thinkingDone": "done",
   "msg.copy": "Copy",
   "msg.copyAll": "Copy all",
+  "msg.turnDivider": "Turn {n}",
   "rewind.label": "Rewind / fork / summarize…",
   "rewind.both": "Code + conversation",
   "rewind.conversation": "Conversation only",

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { Fragment } from "react";
 import { render } from "@testing-library/react";
 import { SIDEBAR_REGISTRY, getWorkspaceRegistration, type WorkspacePanelContext } from "./sidebarRegistry";
-import { WORKSPACE_GROUPS, WORKSPACE_TAB_IDS } from "./workspaceTabs";
+import { WORKSPACE_TABS, WORKSPACE_TAB_IDS } from "./workspaceTabs";
 
 const ctx: WorkspacePanelContext = {
   refreshKey: 0,
@@ -17,11 +17,13 @@ const ctx: WorkspacePanelContext = {
 };
 
 describe("sidebarRegistry 注册表完整性（蒸馏 dsh-better-sidebar registerTab 形状）", () => {
-  it("7 个内置面板全部注册且与清单 id 一一对应", () => {
+  it("5 个内置面板全部注册且与清单 id 一一对应", () => {
     expect(SIDEBAR_REGISTRY).toHaveLength(WORKSPACE_TAB_IDS.length);
     const ids = SIDEBAR_REGISTRY.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect([...ids].sort()).toEqual([...WORKSPACE_TAB_IDS].sort());
+    // v4.27 已删除的资料/成本库不在注册表
+    expect(SIDEBAR_REGISTRY.some((r) => (r.id as string) === "materials" || (r.id as string) === "cost")).toBe(false);
   });
 
   it("元数据复用清单（单一数据源）：label/icon/keywords/defaultEnabled 同源", () => {
@@ -29,19 +31,15 @@ describe("sidebarRegistry 注册表完整性（蒸馏 dsh-better-sidebar registe
       expect(entry.label.trim().length).toBeGreaterThan(0);
       expect(entry.icon).toBeTypeOf("function");
       expect(entry.keywords.length).toBeGreaterThan(0);
-      expect(entry.defaultEnabled).toBe(true); // v4.23 行为基线：7 面板全默认启用
-      const group = WORKSPACE_GROUPS.find((g) => g.id === entry.group);
-      expect(group).toBeTruthy();
-      expect(group?.tabs.some((t) => t.id === entry.id)).toBe(true);
+      expect(entry.defaultEnabled).toBe(true); // v4.23 行为基线：面板全默认启用
+      const def = WORKSPACE_TABS.find((t) => t.id === entry.id);
+      expect(def).toBeTruthy();
     }
   });
 
-  it("组序/组内序与清单声明顺序一致（顺序即展示序）", () => {
-    const sorted = [...SIDEBAR_REGISTRY].sort((a, b) =>
-      a.groupOrder - b.groupOrder || a.order - b.order,
-    );
-    expect(sorted.map((r) => r.id)).toEqual(SIDEBAR_REGISTRY.map((r) => r.id));
-    expect(SIDEBAR_REGISTRY.map((r) => r.id)).toEqual(WORKSPACE_GROUPS.flatMap((g) => g.tabs.map((t) => t.id)));
+  it("顺序与清单声明顺序一致（顺序即展示序）", () => {
+    expect(SIDEBAR_REGISTRY.map((r) => r.id)).toEqual(WORKSPACE_TABS.map((t) => t.id));
+    expect(SIDEBAR_REGISTRY.map((r) => r.order)).toEqual([...SIDEBAR_REGISTRY.keys()]);
   });
 
   it("getWorkspaceRegistration 按 id 命中", () => {

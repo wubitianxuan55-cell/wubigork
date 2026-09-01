@@ -274,7 +274,7 @@ export function FilePreview({
           <XlsxPreview body={preview.body} fileName={fileName} relPath={relPath} />
         )}
         {!loading && preview?.kind === "markdown" && (
-          <div className="px-4 py-3">
+          <div className="px-4 py-3 max-w-[860px] mx-auto">
             {preview.truncated && (
               <div className="mb-2 px-3 py-2 rounded-md border border-amber-500/30 bg-amber-500/5 text-amber-500 text-[11px] leading-relaxed">
                 ⚠️ 预览已截断（{preview.totalPages ? `PDF 共 ${preview.totalPages} 页` : "文件过大"}），仅展示前部内容；可让 AI 调用 summarize_file 获取全文摘要。

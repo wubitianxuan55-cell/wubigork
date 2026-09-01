@@ -409,6 +409,7 @@ export const zh: Record<DictKey, string> = {
   "msg.thinkingDone": "已完成",
   "msg.copy": "复制",
   "msg.copyAll": "复制全部",
+  "msg.turnDivider": "第 {n} 轮",
   "rewind.label": "回滚 / 分叉 / 摘要…",
   "rewind.both": "文件 + 对话",
   "rewind.conversation": "仅对话",

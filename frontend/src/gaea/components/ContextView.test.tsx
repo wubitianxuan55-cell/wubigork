@@ -64,6 +64,43 @@ describe("ContextView 上下文看板", () => {
     expect(screen.getAllByText("工具结果").length).toBeGreaterThan(0);
   });
 
+  it("总览头部：水位百分比、缓存/费用徽标与刷新按钮", async () => {
+    const { ContextView } = await import("./ContextView");
+    render(<ContextView running={false} />);
+    expect(await screen.findByText("上下文")).toBeTruthy();
+    // 头部与「当前上下文」卡都显示水位 → getAllByText
+    expect(screen.getAllByText(/241\.8k \/ 1\.0M · 24%/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/缓存 99\.57%/)).toBeTruthy();
+    expect(screen.getByText(/费用 ¥3\.83/)).toBeTruthy();
+    expect(screen.getByLabelText("刷新上下文")).toBeTruthy();
+  });
+
+  it("接近上限时水位与当前构成提示警示（≥90%）", async () => {
+    contextViewMock.mockResolvedValue({
+      ...TIMELINE,
+      window: 100_000,
+      current: { system: 20000, tools: 20000, user: 5000, inject: 20000, assistant: 20000, tool: 10000 },
+    });
+    const { ContextView } = await import("./ContextView");
+    render(<ContextView running={false} />);
+    expect(await screen.findByText(/上下文接近上限，建议压缩或新建会话/)).toBeTruthy();
+    expect(screen.getByText(/已接近上下文上限/)).toBeTruthy();
+  });
+
+  it("空数据：显示空态引导，头部仍展示 0 水位", async () => {
+    contextViewMock.mockResolvedValue({
+      ok: true,
+      window: 0,
+      current: { system: 0, tools: 0, user: 0, inject: 0, assistant: 0, tool: 0 },
+      stats: { turns: 0, steps: 0, injects: 0, compacts: 0, prunes: 0, toolCalls: 0, images: 0 },
+      requests: [], events: [], nodes: [], archive: [], files: [],
+    });
+    const { ContextView } = await import("./ContextView");
+    render(<ContextView running={false} />);
+    expect(await screen.findByText("暂无上下文数据")).toBeTruthy();
+    expect(screen.getByText(/0 \/ 0 · 0%/)).toBeTruthy();
+  });
+
   it("渲染趋势图、步骤详情与事件流", async () => {
     const { ContextView } = await import("./ContextView");
     render(<ContextView running={false} />);
@@ -84,6 +121,20 @@ describe("ContextView 上下文看板", () => {
     fireEvent.click(rect);
     expect(await screen.findByText(/grep internal\/gaea\/config/)).toBeTruthy();
     expect(screen.getByText(/实际 prompt 350.6k/)).toBeTruthy();
+    expect(screen.getByText(/占窗口 4%/)).toBeTruthy();
+  });
+
+  it("悬停柱显示该步六分类构成详情条", async () => {
+    const { ContextView } = await import("./ContextView");
+    const { container } = render(<ContextView running={false} />);
+    await screen.findByText("上下文趋势");
+    const rect = container.querySelector("svg rect");
+    if (!rect) throw new Error("trend bar rect not found");
+    fireEvent.mouseEnter(rect);
+    const detail = await screen.findByTestId("trend-hover-detail");
+    expect(detail.textContent).toContain("第1轮·第1步");
+    expect(detail.textContent).toContain("合计 42.7k");
+    expect(detail.textContent).toContain("系统提示词 2.1k");
   });
 
   it("渲染文件活动时间线（读/写徽标 + 路径 + 次数）", async () => {
@@ -99,6 +150,15 @@ describe("ContextView 上下文看板", () => {
     expect(screen.getAllByText("写").length).toBeGreaterThan(0);
     // 文件活动已接入 → 页脚不再声称「后续阶段」
     expect(screen.queryByText(/文件活动将在后续阶段接入/)).toBeNull();
+  });
+
+  it("文件活动行点击 → 在右侧打开该文件预览", async () => {
+    const { ContextView } = await import("./ContextView");
+    const { usePreviewStore } = await import("../lib/store");
+    render(<ContextView running={false} />);
+    await screen.findByText("文件活动");
+    fireEvent.click(screen.getByText("internal/gaea/config/config.go"));
+    expect(usePreviewStore.getState().previewFile).toBe("internal/gaea/config/config.go");
   });
 
   it("增量模式：点击「增量」展示净增减图例", async () => {

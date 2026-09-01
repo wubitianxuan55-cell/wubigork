@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { File, X } from "../icons";
 import { useEditorTabsStore } from "../lib/editorTabs";
+import { FileTypeIcon } from "../lib/fileIcon";
 import { FilePreview } from "./FilePreview";
 
 // EditorTabs — 右栏「文件工作台」多文件编辑器 tab 区（v4.25 A3）。
@@ -69,6 +70,7 @@ export function EditorTabs() {
                 }
               }}
             >
+              <FileTypeIcon name={name} size={12} />
               <span className="truncate max-w-[120px]">{name}</span>
               {isActive && <span className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-accent" />}
               <button

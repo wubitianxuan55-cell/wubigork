@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import { Settings } from "../icons";
-import { WORKSPACE_GROUPS, WORKSPACE_TABS, groupOfTab, type WorkspaceGroupDef, type WorkspaceGroupId, type WorkspaceTabId } from "../lib/workspaceTabs";
+import { WORKSPACE_TABS, type WorkspaceTabId } from "../lib/workspaceTabs";
 
-// 右侧面板 Tab 按钮条（v3.0.8 收敛为两级）：
-//   第一级 = 4 个主 Tab（文件 / 成果 / 运行 / 分析，按域分组）；
-//   第二级 = 当前组内的子面板小 Tab（如「文件」组下：文件 / 资料）。
+// 右侧面板 Tab 按钮条（v4.27 扁平化）：
+//   一级平铺 = 文件 / 产物 / 变更 / 任务 / 分工（无二级标签）。
 // 由 lib/workspaceTabs.ts 清单驱动渲染；激活态与 App.tsx 的 rightTab 保持一致。
 // 激活态样式与 App.tsx 原手写按钮一致（text-accent + border-accent，
 // redesign.css 用 [class*="text-accent"] 收复 Tailwind 类冲突）。
-// C6（蒸馏 dsh-better-sidebar badge）：主 Tab 支持计数角标（99+ 封顶），
-// 由 App 传入；角标走语义色令牌，不硬编码色值。
+// C6（蒸馏 dsh-better-sidebar badge）：Tab 支持计数角标（99+ 封顶），由 App
+// 传入（v4.27 扁平化后按面板 id 下发，如任务/分工共享运行计数）；角标走
+// 语义色令牌，不硬编码色值。
 // v4.23（蒸馏 dsh-better-sidebar「声明式设置 + 侧边卡片」）：
 //   条尾齿轮 → 弹层卡片列表，每 tab 一张卡（名称 + 启用开关），停用即从
-//   tab 条隐藏（整组停用则该主 Tab 一并隐藏）；至少保留一个启用面板
-//   （最后一个开关锁定）。文案跟随本文件既有现状用硬编码中文（未接 i18n）。
+//   tab 条隐藏；至少保留一个启用面板（最后一个开关锁定）。文案跟随本文件
+//   既有现状用硬编码中文（未接 i18n）。
 
 /** 角标渲染上限（对齐插件 Sidebar badge 的 99+ 封顶）。 */
 const BADGE_CAP = 99;
@@ -128,44 +128,38 @@ export function WorkspaceTabs({
 }: {
   active: WorkspaceTabId;
   onChange: (tab: WorkspaceTabId) => void;
-  /** 主 Tab（组）计数角标：>0 才渲染，99+ 封顶（C6）。 */
-  badges?: Partial<Record<WorkspaceGroupId, number>>;
-  /** 声明式设置启用的子面板集合；缺省 = 全部启用（旧调用方兼容）。 */
+  /** Tab 计数角标：>0 才渲染，99+ 封顶（C6；v4.27 起按面板 id 下发）。 */
+  badges?: Partial<Record<WorkspaceTabId, number>>;
+  /** 声明式设置启用的面板集合；缺省 = 全部启用（旧调用方兼容）。 */
   enabledTabs?: ReadonlySet<WorkspaceTabId>;
   /** 设置卡开关回调（受控：开关状态由 App 经 enabledTabs 下发）。 */
   onToggleTab?: (id: WorkspaceTabId, next: boolean) => void;
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // 按启用集过滤：停用的子面板从两级 Tab 条隐藏，整组停用则主 Tab 一并隐藏。
-  // enabledTabs 缺省时不过滤（行为与 v4.22 逐字节一致）。
-  const visibleGroups: WorkspaceGroupDef[] = enabledTabs
-    ? WORKSPACE_GROUPS.flatMap((g) => {
-        const tabs = g.tabs.filter((t) => enabledTabs.has(t.id));
-        return tabs.length > 0 ? [{ ...g, tabs }] : [];
-      })
-    : WORKSPACE_GROUPS;
-  const group = groupOfTab(active);
-  const activeVisibleGroup = visibleGroups.find((g) => g.id === group.id);
+  // 按启用集过滤：停用的面板从 Tab 条隐藏；enabledTabs 缺省时不过滤。
+  const visibleTabs = enabledTabs
+    ? WORKSPACE_TABS.filter((t) => enabledTabs.has(t.id))
+    : WORKSPACE_TABS;
   return (
     <div className="workspace-tabs relative shrink" role="tablist" aria-label="右侧面板">
-      {/* 第一级：主 Tab（分组）+ 条尾声明式设置齿轮 */}
+      {/* 一级 Tab 条 + 条尾声明式设置齿轮 */}
       <div className="flex items-center border-b border-border-soft overflow-hidden">
-        {visibleGroups.map((g) => {
-          const Icon = g.icon;
-          const isActive = group.id === g.id;
-          const badge = badges?.[g.id];
+        {visibleTabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = active === tab.id;
+          const badge = badges?.[tab.id];
           return (
             <button
-              key={g.id}
+              key={tab.id}
               role="tab"
               aria-selected={isActive}
-              data-grouptab={g.id}
+              data-paneltab={tab.id}
               className={`flex items-center gap-1 px-3 py-2 text-xs bg-transparent border-0 border-b-2 cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-dim border-transparent ${isActive ? "text-accent border-accent" : ""}`}
-              onClick={() => onChange(g.tabs[0].id)}
-              title={g.label}
+              onClick={() => onChange(tab.id)}
+              title={tab.label}
             >
               <Icon size={13} />
-              <span>{g.label}</span>
+              <span>{tab.label}</span>
               {typeof badge === "number" && badge > 0 && !isActive && <BadgePill count={badge} />}
             </button>
           );
@@ -182,29 +176,6 @@ export function WorkspaceTabs({
           <Settings size={12} />
         </button>
       </div>
-      {/* 第二级：当前组内的子面板小 Tab（仅当组内多于 1 个启用面板时显示） */}
-      {activeVisibleGroup && activeVisibleGroup.tabs.length > 1 && (
-        <div className="flex items-center border-b border-border-soft overflow-hidden">
-          {activeVisibleGroup.tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = active === tab.id;
-            return (
-              <button
-                key={tab.id}
-                role="tab"
-                aria-selected={isActive}
-                data-subtab={tab.id}
-                className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] bg-transparent border-0 border-b cursor-pointer transition-[color,border-color] duration-[var(--dur-base)] hover:text-fg text-fg-faint border-transparent ${isActive ? "text-accent border-accent" : ""}`}
-                onClick={() => onChange(tab.id)}
-                title={tab.label}
-              >
-                <Icon size={11} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
       {settingsOpen && (
         <TabSettingsPopup
           enabledTabs={enabledTabs ?? new Set(WORKSPACE_TABS.map((t) => t.id))}

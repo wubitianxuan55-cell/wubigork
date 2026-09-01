@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Loader2, Users } from "../icons";
 import { app } from "../lib/bridge";
-import type { AgentNetwork, SubagentRunView, SubagentRunsView } from "../lib/types";
+import type { AgentNetwork, AgentNode, SubagentRunView, SubagentRunsView } from "../lib/types";
 import { usePollingGate } from "../../hooks/usePollingGate";
 import { useLiveReload } from "../hooks/useLiveReload";
 import { loadSubagentAutoOpen, saveSubagentAutoOpen } from "../lib/subagentPrefs";
 import { AgentTree } from "./AgentTree";
+import { SubagentThread, type SubagentThreadStatus } from "./SubagentThread";
 
 // SubagentsPanel — 子代理工作台（v4.24 A1「分工面板工作台化」，对标
 // dsh-better-sidebar 任务页）。在 v3「谁在干什么」扁平卡片之上重造为三段式：
@@ -92,6 +93,13 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
   const [net, setNet] = useState<AgentNetwork | null>(null);
   const [runsView, setRunsView] = useState<SubagentRunsView | null>(null);
   const [loading, setLoading] = useState(true);
+  // v4.27 打开的子代理对话（Codex 式：点击子代理 → 右侧全面板实时对话）。
+  // 只存身份快照；running/状态由 runs 轮询实时派生（liveThread）。
+  const [thread, setThread] = useState<{
+    ref: string;
+    task?: string;
+    model?: string;
+  } | null>(null);
   // 新子代理自动展开偏好（默认开，localStorage 持久化，键 gaea.subagentAutoOpen）
   const [autoOpen, setAutoOpen] = useState(() => loadSubagentAutoOpen());
   const autoOpenRef = useRef(autoOpen);
@@ -164,11 +172,45 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
   const hasTree = net !== null && (net.root.children?.length ?? 0) > 0;
   const hasContent = hasRuns || hasTree;
 
+  // 打开子代理对话：ref 直等命中 run 则带实时状态/模型；无 run（历史节点）用节点字段。
+  const openThread = useCallback((node: AgentNode, run: SubagentRunView | null) => {
+    const ref = run?.ref ?? (node.id.startsWith("sa_") ? node.id : null);
+    if (!ref) return;
+    setThread({
+      ref,
+      task: node.task ?? run?.task,
+      model: node.model ?? run?.model,
+    });
+  }, []);
+
+  // 对话视图实时派生：runs 轮询每 5s 刷新，ref 命中则状态/模型跟随最新。
+  const liveThread = useMemo(() => {
+    if (!thread) return null;
+    const run = runs.find((r) => r.ref === thread.ref);
+    const status: SubagentThreadStatus =
+      run?.status === "running" ? "running"
+        : run?.status === "failed" ? "failed"
+          : run ? "completed" : "completed";
+    return { ...thread, status, model: run?.model ?? thread.model };
+  }, [thread, runs]);
+
   const iconBtn =
     "flex items-center justify-center w-6 h-6 rounded-md border-0 bg-transparent text-(color:--md-sys-color-text-secondary) cursor-pointer hover:text-(color:--md-sys-color-text) hover:bg-(color:--md-sys-color-surface-container-high) transition-colors";
 
   return (
     <div className="flex flex-col h-full min-h-0 text-xs" style={{ color: "var(--md-sys-color-text-secondary)" }}>
+      {liveThread && sessionPath ? (
+        <SubagentThread
+          key={liveThread.ref}
+          sessionPath={sessionPath}
+          target={liveThread.ref}
+          task={liveThread.task}
+          status={liveThread.status}
+          model={liveThread.model}
+          onBack={() => setThread(null)}
+        />
+      ) : (
+        <>
       {/* v3 细条头部：标题 + 计数徽标 + 自动展开胶囊开关 + 刷新 */}
       <div className="v3-panel-head">
         <Users size={13} aria-hidden style={{ color: "var(--gaea-glow)" }} />
@@ -252,8 +294,10 @@ export function SubagentsPanel({ sessionPath, onSubagentStarted }: {
           {/* ① 合并活动流：running 子代理最新动态单列 feed（空态收起） */}
           <ActivityFeed runs={runningRuns} />
           {/* ② 树形实时拓扑：GaeaAgentNetwork 嵌套 Children 全量渲染 + 下钻链 */}
-          {net && <AgentTree network={net} runs={runs} sessionPath={sessionPath} />}
+          {net && <AgentTree network={net} runs={runs} onOpenThread={openThread} />}
         </div>
+      )}
+        </>
       )}
     </div>
   );

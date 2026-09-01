@@ -69,7 +69,7 @@ import { setEventSyncFetcher } from "./lib/eventSync";
 import { setTaskCardActivityProvider } from "./lib/taskActivity";
 import { classifyComposerCommand } from "./lib/command";
 import {
-  clampWorkspaceWidth, firstEnabledTab, groupOfTab, loadEnabledTabs, loadPersistedRightTab,
+  WORKSPACE_MIN_WIDTH, clampWorkspaceWidth, firstEnabledTab, loadEnabledTabs, loadPersistedRightTab,
   loadPersistedRightPanelState, loadWorkspaceWidth, resolveEnabledTabs, saveEnabledTabs,
   savePersistedRightPanelState, saveWorkspaceWidth,
   type WorkspaceEnabledMap, type WorkspaceTabId,
@@ -77,6 +77,9 @@ import {
 import { SIDEBAR_REGISTRY, getWorkspaceRegistration, type WorkspacePanelContext } from "./lib/sidebarRegistry";
 import { loadTemplates, FALLBACK_TEMPLATES } from "./components/Welcome";
 import type { TaskTemplate } from "./lib/types";
+
+/** 右栏拖宽时保留的对话区最小宽度（Codex 式：面板可拉很宽，但聊天不能消失）。 */
+const CHAT_MIN_WIDTH = 400;
 
 export default function App() {
   const toast = useToast();
@@ -174,6 +177,11 @@ export default function App() {
   }, [enabledRecord, rightTab]);
   // 渲染用激活 tab：收敛 effect 生效前的一帧也稳定（不闪现停用面板）
   const activeWorkspaceTab = enabledRecord[rightTab] ? rightTab : firstEnabledTab(enabledRecord);
+  const {
+    sidebarCollapsed, sidebarWidth, sidebarResizing, effectiveSidebarWidth,
+    toggleSidebar, setExpandedSidebarWidth, startSidebarResize,
+    resizeSidebarWithKeyboard, handleWorkspacePreviewModeChange,
+  } = useSidebar();
   // v4.23 右栏宽度：全局键（最后一次拖拽胜出、跨会话即时跟随）；全局缺省时
   // 用会话快照兜底（学 better-sidebar：session state 自带 width，全局键读档胜出）。
   const [workspaceWidth, setWorkspaceWidth] = useState<number>(() => loadWorkspaceWidth(initialPanelState.width));
@@ -181,6 +189,33 @@ export default function App() {
   // ref镜像：会话记录写宽度快照用，拖拽中不触发记录 effect 逐帧写 localStorage
   const workspaceWidthRef = useRef(workspaceWidth);
   useEffect(() => { workspaceWidthRef.current = workspaceWidth; }, [workspaceWidth]);
+  // v4.27 视口感知：窗口尺寸变化时按「视口 − 侧栏 − 对话区最小宽度」重钳右栏，
+  // 避免持久化的宽面板在小窗口/放大窗口下挤出聊天区（学 ResizableDrawer 的 viewport 追踪）。
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window === "undefined" ? 1440 : window.innerWidth));
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const maxWorkspaceByViewport = useMemo(
+    () => Math.max(WORKSPACE_MIN_WIDTH, viewportWidth - effectiveSidebarWidth - CHAT_MIN_WIDTH),
+    [viewportWidth, effectiveSidebarWidth],
+  );
+  // 渲染用有效宽度：读档/拖拽值与视口上限取小后钳制（CSS grid 不会溢出聊天区）
+  const effectiveWorkspaceWidth = useMemo(
+    () => clampWorkspaceWidth(Math.min(workspaceWidth, maxWorkspaceByViewport)),
+    [workspaceWidth, maxWorkspaceByViewport],
+  );
+  // v4.27 首次打开文件时自动加宽右栏到舒适阅读宽度（Codex 式：点文件即铺开）。
+  // 仅当当前宽度低于阈值时抬升，不覆盖用户已拖宽的偏好，且不越过视口上限；
+  // 同步写全局键（与拖拽松手语义一致：最后一次宽度胜出、跨会话跟随）。
+  const handleAutoWidenWorkspace = useCallback(() => {
+    const target = Math.min(560, maxWorkspaceByViewport);
+    if (workspaceWidthRef.current >= target) return;
+    workspaceWidthRef.current = target;
+    setWorkspaceWidth(target);
+    saveWorkspaceWidth(target);
+  }, [maxWorkspaceByViewport]);
   // 会话记录持久化：激活 tab / 启用集变化时随存宽度快照（学 better-sidebar 每次持久化同步全局宽度）
   useEffect(() => {
     savePersistedRightPanelState(
@@ -188,20 +223,16 @@ export default function App() {
       currentSessionKey,
     );
   }, [rightTab, enabledOverrides, currentSessionKey]);
-  // C6 运行域活动角标：活跃任务数（queued/running）；「运行」组激活时视为已读不显示。
+  // C6 运行域活动角标：活跃任务数（queued/running）；任务/分工面板激活时视为已读不显示。
   const runningTasks = useRunningBadge();
-  const runningGroupActive = groupOfTab(rightTab).id === "running";
-  const runningBadge = runningGroupActive ? undefined : { running: runningTasks };
+  // v4.27 扁平化后无「运行」组：任务/分工两个面板共享运行计数角标，
+  // 激活其中任意一个即视为已读不显示。
+  const runningDomainActive = rightTab === "tasks" || rightTab === "subagents";
+  const runningBadge = runningDomainActive ? undefined : { tasks: runningTasks, subagents: runningTasks };
   const [compactMode, setCompactMode] = useState(() => readWorkbenchValue("gaea.compactMode") === "1");
   const [scrollToTurn, setScrollToTurn] = useState<((turn: number) => void) | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-
-  const {
-    sidebarCollapsed, sidebarWidth, sidebarResizing, effectiveSidebarWidth,
-    toggleSidebar, setExpandedSidebarWidth, startSidebarResize,
-    resizeSidebarWithKeyboard, handleWorkspacePreviewModeChange,
-  } = useSidebar();
 
   const [workspacePanelOpen, setWorkspacePanel] = useState(false);
   const [previewWidth, setPreviewWidth] = useState(loadPreviewWidth);
@@ -310,14 +341,17 @@ export default function App() {
     window.addEventListener("pointercancel", onDone);
   }, [previewWidth, effectiveSidebarWidth]);
 
-  // v4.23 工作台宽度拖拽：右栏左缘手柄，280–720 钳制（指针拖拽形状同 preview-resizer）。
+  // v4.23 工作台宽度拖拽：右栏左缘手柄（指针拖拽形状同 preview-resizer）。
+  // v4.27 上限放开：280–1600 钳制之上再按视口收敛（视口 − 侧栏 − 400 对话区），
+  // 面板可拉到很宽但聊天区始终保留（Codex 式右侧面板体验）。
   // 宽度是布局偏好而非会话内容：拖拽中实时跟手，松手写全局键（最后一次拖拽胜出，
   // 跨会话即时跟随——蒸馏 dsh-better-sidebar 全局宽度键语义）。
   const startWorkspaceResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     setWorkspaceResizing(true);
     const onMove = (me: PointerEvent) => {
-      const next = clampWorkspaceWidth(window.innerWidth - me.clientX);
+      const maxW = Math.max(WORKSPACE_MIN_WIDTH, window.innerWidth - effectiveSidebarWidth - CHAT_MIN_WIDTH);
+      const next = clampWorkspaceWidth(Math.min(maxW, window.innerWidth - me.clientX));
       workspaceWidthRef.current = next;
       setWorkspaceWidth(next);
     };
@@ -335,7 +369,7 @@ export default function App() {
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onDone);
     window.addEventListener("pointercancel", onDone);
-  }, []);
+  }, [effectiveSidebarWidth]);
 
   // 统一交付出口：会话成果一键导出（docx/pptx/xlsx/md/pdf 同管线；
   // pdf 经 docx 中转 + LibreOffice 转换）。
@@ -769,12 +803,13 @@ export default function App() {
       onSubagentStarted: handleSubagentStarted,
       onRevealInTree: handleRevealInTree,
       revealRequest,
+      onAutoWidenPanel: handleAutoWidenWorkspace,
     }),
     [
       state.meta?.cwd, previewFile, workspaceRefreshKey, currentSessionPath,
       sessionDeliverables, sessionChanges,
       openFilePreview, refreshWorkspacePanel, locateDeliverableSource,
-      handleSubagentStarted, handleRevealInTree, revealRequest,
+      handleSubagentStarted, handleRevealInTree, revealRequest, handleAutoWidenWorkspace,
     ],
   );
 
@@ -841,10 +876,11 @@ export default function App() {
       ({
         "--sidebar-expanded-width": `${sidebarWidth}px`,
         "--preview-width": `${previewWidth}px`,
-        // v4.23 工作台宽度：280–720 钳制后经 CSS 变量下发（覆盖 styles.css 340px 基线）
-        "--workspace-width": `${workspaceWidth}px`,
+        // v4.23 工作台宽度：钳制后经 CSS 变量下发（覆盖 styles.css 340px 基线）；
+        // v4.27 用视口感知的有效宽度，宽面板在小窗口不挤出聊天区
+        "--workspace-width": `${effectiveWorkspaceWidth}px`,
       }) as CSSProperties,
-    [sidebarWidth, previewWidth, workspaceWidth],
+    [sidebarWidth, previewWidth, effectiveWorkspaceWidth],
   );
 
   return (

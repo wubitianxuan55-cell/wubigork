@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
-import { Bot, ChevronDown, ChevronRight, Brain, FileText, Rollback, Wand2 } from "../icons";
+import { Bot, Check, ChevronDown, ChevronRight, Brain, Copy, FileText, Rollback, Wand2 } from "../icons";
 import { app } from "../lib/bridge";
 import { MemoMarkdown } from "./MemoMarkdown";
 import { useT } from "../lib/i18n";
@@ -110,10 +110,7 @@ export const UserMessage = memo(function UserMessage({
       <div className={`flex items-start gap-2 max-w-[85%] ${compact ? "min-w-[120px]" : "min-w-[160px]"}`}>
         <div className="flex-1 min-w-0">
           <div
-            className={`rounded-lg px-3 py-1.5 ${
-              compact ? "text-[13px]" : "text-[14px]"
-            } text-fg leading-relaxed bg-(color:--md-sys-color-surface-container)/70`}
-            style={{ border: "1px solid var(--md-sys-color-outline-variant)" }}
+            className={`${compact ? "text-[13px]" : "text-[14px]"} text-fg leading-relaxed`}
           >
             {textParts.map((part, i) => {
               if (part.type === "text") {
@@ -184,6 +181,9 @@ export const AssistantMessage = memo(function AssistantMessage({
   const [userToggled, setUserToggled] = useState(false);
   const [reasoningOpenState, setReasoningOpenState] = useState(false);
   const reasoningOpen = userToggled ? reasoningOpenState : !!item.streaming;
+  // 复制正文反馈（Codex 式消息操作；复制成功后短暂显示「已复制」）
+  const [copied, setCopied] = useState(false);
+  useEffect(() => { setCopied(false); }, [item.id]);
   useGSAPCollapse(reasoningBodyRef, reasoningOpen);
   const toggleReasoning = useCallback(() => {
     setUserToggled(true);
@@ -269,18 +269,33 @@ export const AssistantMessage = memo(function AssistantMessage({
           {/* 交付物附件卡片：正文中的文件引用渲染成可点击预览卡片 */}
           {item.text && <DeliverableCards text={item.text} />}
 
-          {/* 沉淀为技能：把这次成功对话一键封装为可复用 playbook */}
-          {onCapture && !streaming && item.text && (
+          {/* 消息操作：复制正文（常驻，Codex 式）+ 沉淀为技能（成功对话可复用） */}
+          {item.text && !streaming && (
             <div className="mt-1 flex items-center gap-1">
               <button
                 type="button"
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-accent hover:bg-bg-soft hover:text-fg transition-colors"
-                onClick={() => onCapture(item.text)}
-                title="把这次任务与回答保存为可复用技能（/技能名 调用）"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-fg hover:bg-bg-soft transition-colors"
+                onClick={() => {
+                  void navigator.clipboard.writeText(item.text);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1500);
+                }}
+                title={t("msg.copy")}
               >
-                <Wand2 size={11} />
-                沉淀为技能
+                {copied ? <Check size={11} className="text-ok" /> : <Copy size={11} />}
+                {copied ? t("msg.copied") : t("msg.copy")}
               </button>
+              {onCapture && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 border-0 rounded bg-transparent text-fg-faint/50 text-[10.5px] cursor-pointer hover:text-accent hover:bg-bg-soft hover:text-fg transition-colors"
+                  onClick={() => onCapture(item.text)}
+                  title="把这次任务与回答保存为可复用技能（/技能名 调用）"
+                >
+                  <Wand2 size={11} />
+                  沉淀为技能
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -359,6 +359,27 @@ body {
   position: relative;
 }
 
+/* 回合分隔线（v4.27 对齐 Codex 回合结构）：两侧细分隔线 + 居中轮次小标，
+   只出现在第 2 轮起的用户消息上方，安静不抢正文。 */
+.turn-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 8px;
+  color: var(--fg-faint);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.turn-divider::before,
+.turn-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-soft);
+}
+
 .main {
   flex: 1 1 auto;
   overflow: hidden;

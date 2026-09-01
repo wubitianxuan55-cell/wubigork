@@ -6,30 +6,25 @@
 // 不一致（资料/产物在按钮条与命令面板中图标互换）。本文件收敛为单一数据源：
 // App.tsx 的 Tab 按钮条、CommandPalette 面板项、激活态判定全部从这里派生。
 //
-// v3.0.8 收敛（用户决策「只保留 4 个标签」）：7 个子面板按「文件域 / 成果域 /
-// 运行域 / 分析域」归入 4 个主 Tab（WORKSPACE_GROUPS），主 Tab 条只显示 4 个
-// 组名，组内子面板由 WorkspaceTabs 第二级小 Tab 切换。7 个功能全保留、层级
-// 清晰，避免右侧面板堆成杂物抽屉。
+// v3.0.8 曾把子面板按「文件域 / 成果域 / 运行域」归入主 Tab + 第二级小 Tab
+// 两级体系；v4.27 用户拍板扁平化：删除「资料」「成本库」两个面板，取消
+// 第二级标签，剩余面板全部平铺为一级 Tab（文件 / 产物 / 变更 / 任务 / 分工）。
 //
-// How to apply: 新增子面板 → 在对应组的 tabs 追加一项（id/label/icon/keywords/
-// defaultEnabled），再在 lib/sidebarRegistry.ts 的 RENDERERS 补对应面板渲染接线；
+// How to apply: 新增面板 → 在本文件 WORKSPACE_TABS 追加一项（id/label/icon/
+// keywords/defaultEnabled），再在 lib/sidebarRegistry.ts 的 RENDERERS 补渲染接线；
 // 按钮条 / 设置卡片 / 命令面板零改动。label 与现状一致使用中文（未接 i18n，
 // 与既有行为对齐）。
 
 import type { Icon } from "../icons";
-import { ClipboardList, Coins, Diff, FileText, FolderTree, Paperclip, Users } from "../icons";
+import { ClipboardList, Diff, FileText, FolderTree, Users } from "../icons";
 import { readWorkbenchValue, writeWorkbenchValue } from "./workbenchStorage";
 import { loadOptionalLayoutSize, saveLayoutSize } from "./layoutPreferences";
 
 /** 子面板（具体功能页）的稳定 id —— App.tsx 的 rightTab 状态直接消费。
- *  v4.23 起不含 stats：统计面板迁主区「概览」tab（A4 迁移表），旧存储值经
- *  isWorkspaceTabId 收敛回默认「文件」。 */
-export const WORKSPACE_TAB_IDS = ["files", "materials", "cost", "deliverables", "changes", "tasks", "subagents"] as const;
+ *  v4.23 起不含 stats（统计迁主区「概览」）；v4.27 起不含 materials/cost
+ *  （资料/成本库标签删除）。旧存储值经 isWorkspaceTabId 收敛回默认「文件」。 */
+export const WORKSPACE_TAB_IDS = ["files", "deliverables", "changes", "tasks", "subagents"] as const;
 export type WorkspaceTabId = (typeof WORKSPACE_TAB_IDS)[number];
-
-/** 主 Tab（分组）的稳定 id。 */
-export const WORKSPACE_GROUP_IDS = ["files", "outputs", "running"] as const;
-export type WorkspaceGroupId = (typeof WORKSPACE_GROUP_IDS)[number];
 
 export interface WorkspaceTabDef {
   id: WorkspaceTabId;
@@ -43,55 +38,17 @@ export interface WorkspaceTabDef {
   defaultEnabled?: boolean;
 }
 
-export interface WorkspaceGroupDef {
-  id: WorkspaceGroupId;
-  label: string;
-  icon: Icon;
-  keywords: string[];
-  /** 组内子面板（点击组 Tab 默认落到第一个）。 */
-  tabs: WorkspaceTabDef[];
-}
-
-/** 单一数据源：右侧面板全部主 Tab（分组）的声明。defaultEnabled 全 true：
- *  v4.23 行为基线（7 面板全可见），用户经设置卡片停用后覆盖。 */
-export const WORKSPACE_GROUPS: WorkspaceGroupDef[] = [
-  {
-    id: "files",
-    label: "文件",
-    icon: FolderTree,
-    keywords: ["files", "文件", "工作区", "树", "资料"],
-    tabs: [
-      { id: "files", label: "文件", icon: FolderTree, keywords: ["files", "文件", "工作区", "树"], defaultEnabled: true },
-      { id: "materials", label: "资料", icon: Paperclip, keywords: ["materials", "资料", "素材", "钉住"], defaultEnabled: true },
-      { id: "cost", label: "成本库", icon: Coins, keywords: ["cost", "成本库", "造价", "单价", "价格"], defaultEnabled: true },
-    ],
-  },
-  {
-    id: "outputs",
-    label: "成果",
-    icon: FileText,
-    keywords: ["outputs", "成果", "产物", "交付", "变更"],
-    tabs: [
-      { id: "deliverables", label: "产物", icon: FileText, keywords: ["deliverables", "产物", "交付", "成果"], defaultEnabled: true },
-      { id: "changes", label: "变更", icon: Diff, keywords: ["changes", "变更", "修改", "diff"], defaultEnabled: true },
-    ],
-  },
-  {
-    id: "running",
-    label: "运行",
-    icon: ClipboardList,
-    keywords: ["running", "运行", "任务", "分工", "子代理", "进度"],
-    tabs: [
-      { id: "tasks", label: "任务", icon: ClipboardList, keywords: ["tasks", "任务", "进度", "调度"], defaultEnabled: true },
-      { id: "subagents", label: "分工", icon: Users, keywords: ["subagent", "子代理", "分工", "团队", "并发"], defaultEnabled: true },
-    ],
-  },
+/** 单一数据源：右侧面板全部一级 Tab 的声明（v4.27 扁平化，无二级标签）。
+ *  defaultEnabled 全 true：v4.23 行为基线（面板全可见），用户经设置卡片停用后覆盖。 */
+export const WORKSPACE_TABS: WorkspaceTabDef[] = [
+  { id: "files", label: "文件", icon: FolderTree, keywords: ["files", "文件", "工作区", "树"], defaultEnabled: true },
+  { id: "deliverables", label: "产物", icon: FileText, keywords: ["deliverables", "产物", "交付", "成果"], defaultEnabled: true },
+  { id: "changes", label: "变更", icon: Diff, keywords: ["changes", "变更", "修改", "diff"], defaultEnabled: true },
+  { id: "tasks", label: "任务", icon: ClipboardList, keywords: ["tasks", "任务", "进度", "调度"], defaultEnabled: true },
+  { id: "subagents", label: "分工", icon: Users, keywords: ["subagent", "子代理", "分工", "团队", "并发"], defaultEnabled: true },
 ];
 
-/** 扁平子面板清单（兼容旧导出：命令面板遍历、测试断言）。 */
-export const WORKSPACE_TABS: WorkspaceTabDef[] = WORKSPACE_GROUPS.flatMap((g) => g.tabs);
-
-/** 默认激活子面板（启动即文件面板）。 */
+/** 默认激活面板（启动即文件面板）。 */
 export const DEFAULT_WORKSPACE_TAB: WorkspaceTabId = "files";
 
 /** 字符串 → WorkspaceTabId 类型守卫（用于外来状态/存储值收敛）。 */
@@ -99,19 +56,8 @@ export function isWorkspaceTabId(value: string): value is WorkspaceTabId {
   return (WORKSPACE_TAB_IDS as readonly string[]).includes(value);
 }
 
-/** 子面板 → 所属主 Tab（组）。 */
-export function groupOfTab(tabId: WorkspaceTabId): WorkspaceGroupDef {
-  return WORKSPACE_GROUPS.find((g) => g.tabs.some((t) => t.id === tabId)) ?? WORKSPACE_GROUPS[0];
-}
-
-/** 主 Tab 的默认子面板（点击组 Tab 时落到第一个）。 */
-export function defaultTabOfGroup(groupId: WorkspaceGroupId): WorkspaceTabId {
-  const g = WORKSPACE_GROUPS.find((x) => x.id === groupId);
-  return g?.tabs[0]?.id ?? DEFAULT_WORKSPACE_TAB;
-}
-
 // ── 会话隔离（蒸馏 dsh-better-sidebar 布局持久化）────────────────────
-// 记住用户上次选中的右侧面板子 Tab：重开办公板块/重启应用后恢复，而不是
+// 记住用户上次选中的右侧面板 Tab：重开办公板块/重启应用后恢复，而不是
 // 每次回到「文件」。v3.0.8 起支持**按会话**持久化（C3 升级）：有 sessionKey
 // 时写入 `gaea.work.rightPanel.v1:<sessionKey>`（切会话/新建/恢复各自恢复
 // 面板关注点）；无 sessionKey 时回退全局 key `gaea.work.workspace.rightTab`。
@@ -125,14 +71,14 @@ function legacyRightTabKey(sessionKey?: string): string {
   return sessionKey ? `${RIGHT_TAB_SESSION_PREFIX}${sessionKey}` : RIGHT_TAB_KEY;
 }
 
-/** 读取上次选中的子面板；无记录/非法值回退默认「文件」。
+/** 读取上次选中的面板；无记录/非法值回退默认「文件」。
  *  sessionKey 提供时按会话读取（C3），否则读全局 key（旧版兼容）。
  *  v4.23 起底层走 loadPersistedRightPanelState（v2 JSON 记录 / v1 裸 id 双形状）。 */
 export function loadPersistedRightTab(sessionKey?: string): WorkspaceTabId {
   return loadPersistedRightPanelState(sessionKey).tab;
 }
 
-/** 记录当前子面板选择（切换时由 App 调用）。sessionKey 语义同上。 */
+/** 记录当前面板选择（切换时由 App 调用）。sessionKey 语义同上。 */
 export function savePersistedRightTab(tab: WorkspaceTabId, sessionKey?: string): void {
   writeWorkbenchValue(legacyRightTabKey(sessionKey), tab);
 }
@@ -150,12 +96,13 @@ export function savePersistedRightTab(tab: WorkspaceTabId, sessionKey?: string):
 
 /** 右栏宽度下限（px）。 */
 export const WORKSPACE_MIN_WIDTH = 280;
-/** 右栏宽度上限（px）。 */
-export const WORKSPACE_MAX_WIDTH = 720;
+/** 右栏宽度上限（px）。v4.27 起放宽（原 720）：Codex 式右侧面板可拖到很宽，
+ *  实际可用上限由 App 侧按视口与对话区最小宽度动态钳制（见 startWorkspaceResize）。 */
+export const WORKSPACE_MAX_WIDTH = 1600;
 /** 右栏默认宽度：对齐 styles.css `.layout` 的 --workspace-width: 340px 基线。 */
 export const WORKSPACE_DEFAULT_WIDTH = 340;
 
-/** 宽度钳制（280–720 取整；拖拽/读档统一走这里）。 */
+/** 宽度钳制（280–1600 取整；拖拽/读档统一走这里）。 */
 export function clampWorkspaceWidth(width: number): number {
   return Math.min(WORKSPACE_MAX_WIDTH, Math.max(WORKSPACE_MIN_WIDTH, Math.round(width)));
 }
@@ -219,12 +166,10 @@ export function resolveEnabledTabs(overrides: WorkspaceEnabledMap): Record<Works
   return out;
 }
 
-/** 第一个启用的子面板（激活 tab 被停用时的收敛目标，学 sanitizeState 失效指针修正）。 */
+/** 第一个启用的面板（激活 tab 被停用时的收敛目标，学 sanitizeState 失效指针修正）。 */
 export function firstEnabledTab(enabled: Record<WorkspaceTabId, boolean>): WorkspaceTabId {
-  for (const g of WORKSPACE_GROUPS) {
-    for (const tab of g.tabs) {
-      if (enabled[tab.id]) return tab.id;
-    }
+  for (const tab of WORKSPACE_TABS) {
+    if (enabled[tab.id]) return tab.id;
   }
   return DEFAULT_WORKSPACE_TAB;
 }
@@ -237,7 +182,7 @@ export function firstEnabledTab(enabled: Record<WorkspaceTabId, boolean>): Works
 export interface WorkspacePanelPersistedState {
   /** 记录形状版本。 */
   v: 1;
-  /** 激活子面板。 */
+  /** 激活面板。 */
   tab: WorkspaceTabId;
   /** 启用集快照（null = 未记录；权威值在 RIGHT_ENABLED_KEY 全局键）。 */
   enabled: WorkspaceEnabledMap | null;

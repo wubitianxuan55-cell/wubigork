@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowDown, Ban, Brain, CheckCircle, ChevronRight, FileText, Loader } from "../icons";
 import type { Item } from "../lib/store";
 import { useItems, useTurnStartAt } from "../lib/store";
-import { useT } from "../lib/i18n";
+import { t, useT } from "../lib/i18n";
 import { AssistantMessage, UserMessage } from "./Message";
 import { SkillCaptureModal } from "./SkillCaptureModal";
 import { StreamingIndicator } from "./StreamingIndicator";
@@ -207,6 +207,13 @@ function renderOutsideItems(
             data-entrance={it.id}
             ref={tn != null ? ctx.setTurnEl(tn) : undefined}
           >
+            {/* v4.27 回合分隔：第 2 轮起在用户消息上方加细分隔线 + 轮次小标
+                （Codex 式回合结构，长会话可扫描；首轮无分隔）。 */}
+            {tn != null && tn > 0 && (
+              <div className="turn-divider" role="separator" aria-label={t("msg.turnDivider", { n: tn + 1 })}>
+                <span>{t("msg.turnDivider", { n: tn + 1 })}</span>
+              </div>
+            )}
             <UserMessage
               text={it.text} turn={tn}
               open={tn != null && ctx.openTurn === tn}

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  DEFAULT_WORKSPACE_TAB, WORKSPACE_TABS, WORKSPACE_TAB_IDS, WORKSPACE_GROUPS, isWorkspaceTabId, groupOfTab, defaultTabOfGroup,
+  DEFAULT_WORKSPACE_TAB, WORKSPACE_TABS, WORKSPACE_TAB_IDS, isWorkspaceTabId,
   loadPersistedRightTab, savePersistedRightTab,
   WORKSPACE_MIN_WIDTH, WORKSPACE_MAX_WIDTH, WORKSPACE_DEFAULT_WIDTH,
   clampWorkspaceWidth, loadWorkspaceWidth, saveWorkspaceWidth,
@@ -24,7 +24,7 @@ function cleanupStorage(): void {
   }
 }
 
-describe("workspaceTabs 清单完整性（v3.0.8 分组收敛）", () => {
+describe("workspaceTabs 清单完整性（v4.27 扁平化：文件/产物/变更/任务/分工）", () => {
   it("扁平清单与 id 常量一一对应且无重复", () => {
     expect(WORKSPACE_TABS).toHaveLength(WORKSPACE_TAB_IDS.length);
     const ids = WORKSPACE_TABS.map((t) => t.id);
@@ -32,19 +32,12 @@ describe("workspaceTabs 清单完整性（v3.0.8 分组收敛）", () => {
     expect(ids.sort()).toEqual([...WORKSPACE_TAB_IDS].sort());
   });
 
-  it("主 Tab（分组）为 3 个且覆盖全部子面板", () => {
-    expect(WORKSPACE_GROUPS).toHaveLength(3);
-    const flat = WORKSPACE_GROUPS.flatMap((g) => g.tabs.map((t) => t.id));
-    expect(flat.sort()).toEqual([...WORKSPACE_TAB_IDS].sort());
-  });
-
-  it("每组都有非空 label/icon/keywords 且含默认子面板", () => {
-    for (const g of WORKSPACE_GROUPS) {
-      expect(g.label.trim().length).toBeGreaterThan(0);
-      expect(g.icon).toBeTypeOf("function");
-      expect(g.keywords.length).toBeGreaterThan(0);
-      expect(g.tabs.length).toBeGreaterThan(0);
-    }
+  it("清单为一级平铺且不含已删除的资料/成本库", () => {
+    expect(WORKSPACE_TABS.map((t) => t.id)).toEqual(["files", "deliverables", "changes", "tasks", "subagents"]);
+    expect(WORKSPACE_TABS.some((t) => (t.id as string) === "materials")).toBe(false);
+    expect(WORKSPACE_TABS.some((t) => (t.id as string) === "cost")).toBe(false);
+    expect(isWorkspaceTabId("materials")).toBe(false); // 旧存储值收敛回默认
+    expect(isWorkspaceTabId("cost")).toBe(false);
   });
 
   it("每项都有非空 label/icon/keywords", () => {
@@ -77,15 +70,6 @@ describe("workspaceTabs 清单完整性（v3.0.8 分组收敛）", () => {
     expect(isWorkspaceTabId("")).toBe(false);
   });
 
-  it("groupOfTab / defaultTabOfGroup 映射正确", () => {
-    expect(groupOfTab("materials").id).toBe("files");
-    expect(groupOfTab("cost").id).toBe("files"); // 成本库 = 文件组子面板（v3.1.0 接线）
-    expect(groupOfTab("subagents").id).toBe("running");
-    expect(groupOfTab("changes").id).toBe("outputs");
-    expect(defaultTabOfGroup("files")).toBe("files");
-    expect(defaultTabOfGroup("running")).toBe("tasks");
-    expect(defaultTabOfGroup("outputs")).toBe("deliverables");
-  });
 });
 
 describe("workspaceTabs 会话隔离（蒸馏 dsh-better-sidebar 布局持久化）", () => {
@@ -132,16 +116,16 @@ describe("workspaceTabs 会话隔离（蒸馏 dsh-better-sidebar 布局持久化
   });
 
   it("C3 无会话 key 时写全局 key（向后兼容旧行为）", () => {
-    savePersistedRightTab("cost");
-    expect(loadPersistedRightTab(undefined)).toBe("cost");
+    savePersistedRightTab("changes");
+    expect(loadPersistedRightTab(undefined)).toBe("changes");
     expect(loadPersistedRightTab("other")).toBe(DEFAULT_WORKSPACE_TAB);
   });
 
   it("S2.2 旧 key 只读迁移：旧全局/会话值仍被读取，新写入走空间分键", () => {
     try { localStorage.setItem("gaea.workspace.rightTab", "deliverables"); } catch { /* ignore */ }
     expect(loadPersistedRightTab()).toBe("deliverables");
-    try { localStorage.setItem("gaea.rightPanel.v1:s1", "cost"); } catch { /* ignore */ }
-    expect(loadPersistedRightTab("s1")).toBe("cost");
+    try { localStorage.setItem("gaea.rightPanel.v1:s1", "changes"); } catch { /* ignore */ }
+    expect(loadPersistedRightTab("s1")).toBe("changes");
     savePersistedRightTab("subagents", "s1");
     expect(localStorage.getItem("gaea.work.rightPanel.v1:s1")).toBe("subagents");
     expect(loadPersistedRightTab("s1")).toBe("subagents"); // 分键优先于旧值
@@ -153,13 +137,13 @@ describe("workspaceTabs 会话隔离（蒸馏 dsh-better-sidebar 布局持久化
 describe("workspaceTabs 宽度契约（全局键：最后一次拖拽胜出）", () => {
   afterEach(cleanupStorage);
 
-  it("钳制到 280–720 并取整", () => {
+  it("钳制到 280–1600 并取整", () => {
     expect(WORKSPACE_MIN_WIDTH).toBe(280);
-    expect(WORKSPACE_MAX_WIDTH).toBe(720);
+    expect(WORKSPACE_MAX_WIDTH).toBe(1600);
     expect(clampWorkspaceWidth(100)).toBe(280);
     expect(clampWorkspaceWidth(279.6)).toBe(280);
     expect(clampWorkspaceWidth(500.4)).toBe(500);
-    expect(clampWorkspaceWidth(9999)).toBe(720);
+    expect(clampWorkspaceWidth(9999)).toBe(1600);
   });
 
   it("默认宽度 340 对齐 styles.css --workspace-width 基线", () => {
@@ -177,7 +161,7 @@ describe("workspaceTabs 宽度契约（全局键：最后一次拖拽胜出）",
 
   it("全局键缺省时用会话快照兜底（首装 seed）", () => {
     expect(loadWorkspaceWidth(600)).toBe(600);
-    expect(loadWorkspaceWidth(9999)).toBe(720); // 快照同样被钳制
+    expect(loadWorkspaceWidth(9999)).toBe(1600); // 快照同样被钳制
     expect(loadWorkspaceWidth(-5)).toBe(340); // 非法快照回默认
     expect(loadWorkspaceWidth(null)).toBe(340);
   });
@@ -217,11 +201,11 @@ describe("workspaceTabs 声明式设置启用集（全局键，学 booleanMapOf 
     for (const id of WORKSPACE_TAB_IDS) expect(rescued[id]).toBe(true);
   });
 
-  it("firstEnabledTab 按组序/组内序回退到第一个启用面板", () => {
+  it("firstEnabledTab 按清单顺序回退到第一个启用面板", () => {
     const allOn = resolveEnabledTabs({});
     expect(firstEnabledTab(allOn)).toBe("files");
-    expect(firstEnabledTab({ ...allOn, files: false })).toBe("materials");
-    expect(firstEnabledTab({ ...allOn, files: false, materials: false, cost: false })).toBe("deliverables");
+    expect(firstEnabledTab({ ...allOn, files: false })).toBe("deliverables");
+    expect(firstEnabledTab({ ...allOn, files: false, deliverables: false })).toBe("changes");
     expect(firstEnabledTab(resolveEnabledTabs({}))).toBe("files");
   });
 });
@@ -230,10 +214,10 @@ describe("workspaceTabs 会话记录 v2（激活 tab + 启用集快照 + 宽度�
   afterEach(cleanupStorage);
 
   it("v2 记录往返：tab/enabled/width 均恢复，宽度落盘前钳制", () => {
-    savePersistedRightPanelState({ v: 1, tab: "cost", enabled: { cost: false }, width: 99999 }, "s1");
+    savePersistedRightPanelState({ v: 1, tab: "changes", enabled: { changes: false }, width: 99999 }, "s1");
     const loaded = loadPersistedRightPanelState("s1");
-    expect(loaded).toEqual({ v: 1, tab: "cost", enabled: { cost: false }, width: 720 });
-    expect(loadPersistedRightTab("s1")).toBe("cost");
+    expect(loaded).toEqual({ v: 1, tab: "changes", enabled: { changes: false }, width: 1600 });
+    expect(loadPersistedRightTab("s1")).toBe("changes");
   });
 
   it("v4.22 会话记录的 tab:\"stats\"（已迁主区概览）宽容收敛回默认「文件」", () => {

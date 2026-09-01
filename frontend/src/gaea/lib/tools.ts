@@ -16,6 +16,12 @@ export interface ToolDiff {
   label?: string; // multi_edit labels each step ("edit 1", …)
 }
 
+/** 写工具的行级 diffstat（Codex 式 "Edited file +2−2" 芯片数据源）。 */
+export interface DiffStat {
+  add: number;
+  del: number;
+}
+
 function parse(args: string): Record<string, unknown> {
   try {
     return JSON.parse(args) as Record<string, unknown>;
@@ -85,6 +91,31 @@ export function diffsFor(name: string, args: string): ToolDiff[] {
     return out;
   }
   return [];
+}
+
+// diffStatFor 汇总写工具的参数差异为 +N/−N 计数；非编辑类工具返回 null。
+// 与 diffsFor 同一参数口径：edit_file 一组、multi_edit 逐组累加、其余不适用。
+export function diffStatFor(name: string, args: string): DiffStat | null {
+  const a = parse(args);
+  if (name === "edit_file") {
+    if (typeof a.old_string === "string" && typeof a.new_string === "string") {
+      return plusMinus(a.old_string, a.new_string);
+    }
+    return null;
+  }
+  if (name === "multi_edit" && Array.isArray(a.edits)) {
+    let add = 0;
+    let del = 0;
+    for (const e of a.edits as Record<string, unknown>[]) {
+      if (typeof e?.old_string === "string" && typeof e?.new_string === "string") {
+        const pm = plusMinus(e.old_string, e.new_string);
+        add += pm.add;
+        del += pm.del;
+      }
+    }
+    return { add, del };
+  }
+  return null;
 }
 
 export type TodoStatus = "pending" | "in_progress" | "completed";
@@ -162,24 +193,13 @@ export function summarize(name: string, args: string, output?: string, error?: s
       return `L${start}-${end} → ${countOf(newLineCount, "tool.lineOne", "tool.lineOther")}`;
     }
     case "edit_file": {
-      if (typeof a.old_string === "string" && typeof a.new_string === "string") {
-        const { add, del } = plusMinus(a.old_string, a.new_string);
-        return `+${add} -${del}`;
-      }
+      // diffstat 由 ToolCard 的芯片渲染（diffStatFor），摘要不再重复输出。
       return "";
     }
     case "multi_edit": {
       const edits = Array.isArray(a.edits) ? (a.edits as Record<string, unknown>[]) : [];
-      let add = 0;
-      let del = 0;
-      for (const e of edits) {
-        if (typeof e?.old_string === "string" && typeof e?.new_string === "string") {
-          const pm = plusMinus(e.old_string, e.new_string);
-          add += pm.add;
-          del += pm.del;
-        }
-      }
-      return `${countOf(edits.length, "tool.editOne", "tool.editOther")} · +${add} -${del}`;
+      // 只保留「N 处修改」；行级增减由 diffStatFor 芯片展示。
+      return countOf(edits.length, "tool.editOne", "tool.editOther");
     }
   }
 
