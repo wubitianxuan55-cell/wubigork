@@ -33,8 +33,8 @@ func chdirTemp(t *testing.T) {
 // Controller（不依赖网络/外部模型），确保 boot 装配链（config→resolve→provider→agent→controller）不被破坏。
 func TestBuildSmoke(t *testing.T) {
 	chdirTemp(t)
-	// 注册 mock provider（唯一名字避免与全局注册表冲突）
-	const kind = "test-mock-boot"
+	// 注册 mock provider（唯一名字避免与全局注册表冲突，-count 多次运行也不撞）
+	kind := testKind("test-mock-boot")
 	provider.Register(kind, func(cfg provider.Config) (provider.Provider, error) {
 		return testutil.NewMock("mock"), nil
 	})
@@ -90,7 +90,7 @@ func TestBuildUnknownModel(t *testing.T) {
 // Build 不因清单存在而失败，并确认命令被发现）。
 func TestBuildWorkspaceCommandsAndPins(t *testing.T) {
 	chdirTemp(t)
-	const kind = "test-mock-boot-cmds"
+	kind := testKind("test-mock-boot-cmds")
 	provider.Register(kind, func(cfg provider.Config) (provider.Provider, error) {
 		return testutil.NewMock("mock"), nil
 	})
@@ -209,7 +209,7 @@ func TestBuildWorkspaceLanguageNotInjected(t *testing.T) {
 	}
 	defer config.SetLoader(nil)
 
-	officeSys := buildAndRun("test-mock-boot-office", ws)
+	officeSys := buildAndRun(testKind("test-mock-boot-office"), ws)
 	if strings.Contains(officeSys, "l=Go") || strings.Contains(officeSys, "Language: Go") {
 		t.Errorf("办公工作区系统提示词被标成 Go 工程:\n%s", officeSys)
 	}
@@ -218,7 +218,7 @@ func TestBuildWorkspaceLanguageNotInjected(t *testing.T) {
 		t.Errorf("办公系统提示词缺少工作区根 root=%s:\n%s", filepath.Base(ws), officeSys)
 	}
 
-	goSys := buildAndRun("test-mock-boot-go", goDir)
+	goSys := buildAndRun(testKind("test-mock-boot-go"), goDir)
 	if !strings.Contains(goSys, "l=Go") && !strings.Contains(goSys, "Language: Go") {
 		t.Errorf("Go 工程系统提示词未识别语言:\n%s", goSys)
 	}

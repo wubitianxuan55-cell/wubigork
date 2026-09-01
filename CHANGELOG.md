@@ -19,6 +19,10 @@
 - 验证：Go 全量 0 FAIL（tasks -count=20/100 两轮全绿、-count=3 全绿）；tsc/tsc -b/eslint 0；
   vitest **1166/1166**（+9：A3+B3+C3）；drift PASS（552）；版本四处 4.31.0。详见
   releases/v4.31.0.md。
+- 发布后补充（-count>1 全量绿化）：billing/boot/provider duplicate kind → testKind 唯一化；
+  app whisper 会话缓存 t.Cleanup 清理 + 隔离测试唯一会话；whisper PacedStreamEmitter
+  MarkDone 末气泡收尾（+3 生产行，修末气泡 OnBubbleEnd 永不触发的真 bug）；**全量
+  `go test -count=2 ./...` FAIL → 全绿（exit 0）**。
 ## v4.30.0 · 办公 UI 化繁为简第二刀：产物置前 / 行级降噪 / 命令面板视图重排 / 预览两档（2026-09-02）
 > 用户点名「继续优化完善 gaea」，收 v4.29.0 欠账四项，红线不变：简化界面不是删除功能。
 > **绑定面 552 零变更**（纯前端呈现重组）。

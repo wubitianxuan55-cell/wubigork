@@ -63,8 +63,10 @@ func TestCharacterSave_CreatesChatCharacterAndAssistant(t *testing.T) {
 	if ast == nil || !ast.Enabled || ast.VoiceGuide != "清冷剑修" {
 		t.Fatalf("assistant 通道未同步: %+v", ast)
 	}
-	// 聊天桥接：getOrCreateOrch 用库内角色生成人格
+	// 聊天桥接：getOrCreateOrch 用库内角色生成人格（进程级会话缓存用完即删，
+	// 固定 ID 在 -count 多次运行下不串扰）
 	orch := a.getOrCreateOrch("lib_01")
+	cleanupWhisperSession(t, "lib_01")
 	if orch == nil || orch.Preset.ID != "lib_01" || orch.Preset.Dims.T != 40 {
 		t.Fatalf("聊天桥接失败: %+v", orch)
 	}

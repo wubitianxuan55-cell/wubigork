@@ -258,6 +258,14 @@ func (p *PacedStreamEmitter) pump() {
 		received := p.received.String()
 		if p.sentLen >= len(received) {
 			if p.streamDone {
+				// 流结束且文本已全部送出：收尾最后一个未关闭的气泡。否则
+				// MarkDone 的排空等待会因 bubbleOpen 恒真而永久挂起
+				// （TestPacedStreamEmitter_FlushesWholeText 全量负载下实测
+				// 10m 超时——末段文本先经非 streamDone 路径送出后气泡未关，
+				// 生产上表现为最后一个气泡的 OnBubbleEnd 永不触发）。
+				if p.bubbleOpen {
+					p.finishBubble()
+				}
 				p.mu.Unlock()
 				return
 			}

@@ -55,8 +55,8 @@ func TestGaeaHistoryGolden(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 	_ = os.Chdir(t.TempDir())
 
-	// 用 mock provider 构建办公控制器（不依赖网络/真实模型）。
-	const kind = "test-mock-gaea-history"
+	// 用 mock provider 构建办公控制器（不依赖网络/真实模型；-count 多次运行不撞）。
+	kind := testKind("test-mock-gaea-history")
 	provider.Register(kind, func(cfg provider.Config) (provider.Provider, error) {
 		return testutil.NewMock("mock"), nil
 	})

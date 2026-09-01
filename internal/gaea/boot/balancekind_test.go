@@ -37,8 +37,8 @@ func (bootBalanceProvider) Fetch(ctx context.Context, url, apiKey string) (*bill
 // 自定义 kind 路由（Display "$42.00"），而非历史默认 deepseek。
 func TestBuildBalanceKindRouting(t *testing.T) {
 	chdirTemp(t)
-	// 注册 mock LLM provider（唯一名字避免与全局注册表冲突）
-	const llmKind = "test-mock-boot-balance"
+	// 注册 mock LLM provider（唯一名字避免与全局注册表冲突，-count 多次运行也不撞）
+	llmKind := testKind("test-mock-boot-balance")
 	provider.Register(llmKind, func(cfg provider.Config) (provider.Provider, error) {
 		return testutil.NewMock("mock"), nil
 	})

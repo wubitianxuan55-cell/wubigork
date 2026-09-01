@@ -137,8 +137,8 @@ func TestBuildSpaceToolFiltering(t *testing.T) {
 // ResolveModel 解析为执行器 entry（Label 随 entry.Name），缺省/不可解析回退现状。
 func TestBuildSpaceProfileModel(t *testing.T) {
 	chdirTemp(t)
-	const kindA = "test-mock-space-model-a"
-	const kindB = "test-mock-space-model-b"
+	kindA := testKind("test-mock-space-model-a")
+	kindB := testKind("test-mock-space-model-b")
 	provider.Register(kindA, func(cfg provider.Config) (provider.Provider, error) {
 		return testutil.NewMock("a"), nil
 	})

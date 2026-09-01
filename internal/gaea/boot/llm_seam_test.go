@@ -62,8 +62,8 @@ func TestNewProvider_UnknownKindFailsClosed(t *testing.T) {
 // TestNewProvider_SelectsByKind 验证按 config 的 kind 切换后端：同一装配函数，
 // 只改配置（kind）即得到不同提供者——「切换后端只改配置，代码零改动」。
 func TestNewProvider_SelectsByKind(t *testing.T) {
-	kindA := "boot-llm-a-" + t.Name()
-	kindB := "boot-llm-b-" + t.Name()
+	kindA := testKind("boot-llm-a-" + t.Name())
+	kindB := testKind("boot-llm-b-" + t.Name())
 	provider.Register(kindA, func(cfg provider.Config) (provider.Provider, error) {
 		return &bootNamedProvider{name: "backend-A"}, nil
 	})

@@ -14,6 +14,9 @@ func seedCausalApp(t *testing.T, personalityID string) (*App, *whisper.Orchestra
 	t.Helper()
 	a := newChatServiceTestApp(t)
 	orch := a.whisperState.getOrCreateOrch(personalityID)
+	// 进程级 whisperSessions 缓存用完即删：固定 ID 在 -count 多次运行下会命中
+	// 上次运行的 orch（跨 app 实例串扰）。
+	cleanupWhisperSession(t, personalityID)
 	orch.KG.AddTriple(whisper.Triple{Subject: "加班", Predicate: "导致", Object: "睡不好", Confidence: 0.9})
 	fA := orch.FactStore.Add(whisper.MemoryFact{ID: "fCausalA", Subject: "加班", Summary: "最近项目赶进度"})
 	fB := orch.FactStore.Add(whisper.MemoryFact{ID: "fCausalB", Subject: "睡不好", Summary: "夜里总是醒"})
@@ -38,6 +41,7 @@ func TestGaeaWhisperCausalExplain_WithEvidence(t *testing.T) {
 func TestGaeaWhisperCausalExplain_NoEvidenceHonestFallback(t *testing.T) {
 	a := newChatServiceTestApp(t)
 	a.whisperState.getOrCreateOrch("pidEmpty")
+	cleanupWhisperSession(t, "pidEmpty")
 
 	got, err := a.whisperState.GaeaWhisperCausalExplain("完全陌生的话题", "pidEmpty")
 	if err != nil {

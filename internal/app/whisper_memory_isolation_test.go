@@ -45,9 +45,13 @@ func seedIsolatedMemory(t *testing.T, root, sessionA, sessionB string) {
 // TestWhisperMemoryRestore_IsolatedBySession 角色记忆隔离：恢复时每个角色只拿到自己的记忆
 func TestWhisperMemoryRestore_IsolatedBySession(t *testing.T) {
 	a := newChatServiceTestApp(t)
-	seedIsolatedMemory(t, a.whisperDataRoot, "whisper_isoA", "whisper_isoB")
+	// 会话 ID 每次运行唯一：whisperSessions 是进程级全局缓存，固定 ID 在
+	// `-count` 多次运行下会命中上次运行的 orch（跨 app 实例串扰）。
+	isoA := testKind("isoA")
+	isoB := testKind("isoB")
+	seedIsolatedMemory(t, a.whisperDataRoot, "whisper_"+isoA, "whisper_"+isoB)
 
-	orchA := a.getOrCreateOrch("isoA")
+	orchA := a.getOrCreateOrch(isoA)
 	if orchA.FactStore.Get("fA") == nil {
 		t.Fatalf("角色 A 应恢复自己的事实 fA")
 	}
@@ -63,7 +67,7 @@ func TestWhisperMemoryRestore_IsolatedBySession(t *testing.T) {
 		t.Fatalf("角色 A 图谱应为仅 tA: %+v", trisA)
 	}
 
-	orchB := a.getOrCreateOrch("isoB")
+	orchB := a.getOrCreateOrch(isoB)
 	if orchB.FactStore.Get("fA") != nil || orchB.FactStore.Get("fB") == nil {
 		t.Fatalf("角色 B 记忆串扰：A=%v B=%v", orchB.FactStore.Get("fA"), orchB.FactStore.Get("fB"))
 	}
@@ -80,17 +84,21 @@ func TestWhisperMemoryRestore_IsolatedBySession(t *testing.T) {
 // TestWhisperPersist_PreservesOtherSessions 持久化隔离：A 写回时不能覆盖 B 的记忆
 func TestWhisperPersist_PreservesOtherSessions(t *testing.T) {
 	a := newChatServiceTestApp(t)
-	seedIsolatedMemory(t, a.whisperDataRoot, "whisper_persA", "whisper_persB")
+	// 会话 ID 每次运行唯一：whisperSessions 是进程级全局缓存，固定 ID 在
+	// `-count` 多次运行下会命中上次运行的 orch（跨 app 实例串扰）。
+	persA := testKind("persA")
+	persB := testKind("persB")
+	seedIsolatedMemory(t, a.whisperDataRoot, "whisper_"+persA, "whisper_"+persB)
 
-	orchA := a.getOrCreateOrch("persA")
+	orchA := a.getOrCreateOrch(persA)
 	// A 新增自己的记忆
 	orchA.FactStore.Add(whisper.MemoryFact{
 		ID: "fA2", Domain: "user_behavior", Subcategory: "TEST", Subject: "新话题",
 		Summary: "A 新增记忆", Weight: 1, Confidence: 0.9, Status: "active",
-		SourceSessionID: "whisper_persA",
+		SourceSessionID: "whisper_" + persA,
 	})
 	orchA.EpisodicStore.Add(whisper.Episode{
-		ID: "epA2", Summary: "A 新增情节", SourceSessionID: "whisper_persA", CreatedAt: time.Now(),
+		ID: "epA2", Summary: "A 新增情节", SourceSessionID: "whisper_" + persA, CreatedAt: time.Now(),
 	})
 	newTriple := orchA.KG.Add("新话题", "关于", "A", 0.8, []string{"fA2"})
 
@@ -126,20 +134,23 @@ func TestWhisperPersist_PreservesOtherSessions(t *testing.T) {
 // TestWhisperTraces_IsolatedBySession 轮次追踪按会话隔离（角色库「追踪」页数据源）
 func TestWhisperTraces_IsolatedBySession(t *testing.T) {
 	a := newChatServiceTestApp(t)
+	// 会话 ID 每次运行唯一（同 Restore/Persist 隔离测试的进程级缓存理由）。
+	isoA := testKind("isoA")
+	isoB := testKind("isoB")
 	now := time.Now()
 	trA := whisper.TurnTrace{Turn: 1, Timestamp: &now}
 	trB := whisper.TurnTrace{Turn: 2, Timestamp: &now}
-	if err := repos.AppendTurnTraceToDB(a.whisperDataRoot, "whisper_isoA", trA); err != nil {
+	if err := repos.AppendTurnTraceToDB(a.whisperDataRoot, "whisper_"+isoA, trA); err != nil {
 		t.Fatalf("写入 A 追踪: %v", err)
 	}
-	if err := repos.AppendTurnTraceToDB(a.whisperDataRoot, "whisper_isoB", trB); err != nil {
+	if err := repos.AppendTurnTraceToDB(a.whisperDataRoot, "whisper_"+isoB, trB); err != nil {
 		t.Fatalf("写入 B 追踪: %v", err)
 	}
-	tracesA := a.WhisperGetTraces("isoA")
+	tracesA := a.WhisperGetTraces(isoA)
 	if len(tracesA) != 1 || tracesA[0].Turn != 1 {
 		t.Fatalf("A 追踪应为仅 1 条: %+v", tracesA)
 	}
-	tracesB := a.WhisperGetTraces("isoB")
+	tracesB := a.WhisperGetTraces(isoB)
 	if len(tracesB) != 1 || tracesB[0].Turn != 2 {
 		t.Fatalf("B 追踪应为仅 1 条: %+v", tracesB)
 	}

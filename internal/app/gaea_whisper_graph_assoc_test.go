@@ -11,6 +11,7 @@ import (
 func TestGaeaWhisperGraphSubgraph_IncludesEventChainAssociation(t *testing.T) {
 	a := newChatServiceTestApp(t)
 	orch := a.whisperState.getOrCreateOrch("pidAssoc")
+	cleanupWhisperSession(t, "pidAssoc")
 
 	// KG 三元组：让「工作」成为可查询的中心实体
 	orch.KG.AddTriple(whisper.Triple{Subject: "工作", Predicate: "压力", Object: "大", Confidence: 0.8})
@@ -55,6 +56,7 @@ func TestGaeaWhisperGraphSubgraph_IncludesEventChainAssociation(t *testing.T) {
 func TestGaeaWhisperGraphSubgraph_AssociationNotConnectedSkipped(t *testing.T) {
 	a := newChatServiceTestApp(t)
 	orch := a.whisperState.getOrCreateOrch("pidAssoc2")
+	cleanupWhisperSession(t, "pidAssoc2")
 
 	orch.KG.AddTriple(whisper.Triple{Subject: "工作", Predicate: "压力", Object: "大", Confidence: 0.8})
 	fA := orch.FactStore.Add(whisper.MemoryFact{ID: "fIsolatedA", Subject: "远方", Summary: "远方的事"})

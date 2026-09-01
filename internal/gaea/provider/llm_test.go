@@ -21,7 +21,7 @@ func TestLLMKindConstants(t *testing.T) {
 // ── LLM seam 三纪律：提供者互斥注册（重复 panic） ──────────────
 
 func TestNewLLM_DuplicateKindPanics(t *testing.T) {
-	kind := "llm-test-dup-" + t.Name()
+	kind := testKind("llm-test-dup-" + t.Name())
 	Register(kind, func(cfg Config) (Provider, error) { return &mockProvider{}, nil })
 	defer func() {
 		if r := recover(); r == nil {
@@ -58,8 +58,8 @@ func (p *namedProvider) Stream(ctx context.Context, req Request) (<-chan Chunk, 
 }
 
 func TestNewLLM_SelectsByKind(t *testing.T) {
-	kindA := "llm-test-a-" + t.Name()
-	kindB := "llm-test-b-" + t.Name()
+	kindA := testKind("llm-test-a-" + t.Name())
+	kindB := testKind("llm-test-b-" + t.Name())
 	Register(kindA, func(cfg Config) (Provider, error) { return &namedProvider{name: "A"}, nil })
 	Register(kindB, func(cfg Config) (Provider, error) { return &namedProvider{name: "B"}, nil })
 
@@ -82,7 +82,7 @@ func TestNewLLM_SelectsByKind(t *testing.T) {
 // ── LLM seam：未原生实现 Chat 的提供者自动适配（注册即 LLM 能力） ──
 
 func TestNewLLM_AutoWrapsProviderWithoutChat(t *testing.T) {
-	kind := "llm-test-wrap-" + t.Name()
+	kind := testKind("llm-test-wrap-" + t.Name())
 	// mockProvider（provider_test.go）只实现 Name/Stream，无 Chat。
 	Register(kind, func(cfg Config) (Provider, error) { return &mockProvider{}, nil })
 
@@ -122,7 +122,7 @@ func (nativeChatProvider) Chat(ctx context.Context, req Request) (*Completion, e
 }
 
 func TestNewLLM_NativeChatNotWrapped(t *testing.T) {
-	kind := "llm-test-native-" + t.Name()
+	kind := testKind("llm-test-native-" + t.Name())
 	Register(kind, func(cfg Config) (Provider, error) { return nativeChatProvider{}, nil })
 
 	p, err := NewLLM(kind, Config{})

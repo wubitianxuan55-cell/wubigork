@@ -110,7 +110,7 @@ func waitFileUnlocked(t *testing.T, logPath string) {
 // TestBuildEventLogModeWritesLog：event 模式下事件日志落盘、seq 连续、
 // turn 生命周期完整、回合边界写入器关闭。
 func TestBuildEventLogModeWritesLog(t *testing.T) {
-	ctrl, sessDir := buildEventModeCtrl(t, "test-mock-boot-eventlog", "event")
+	ctrl, sessDir := buildEventModeCtrl(t, testKind("test-mock-boot-eventlog"), "event")
 	logPath := filepath.Join(sessDir, "s1.gaea-log.jsonl")
 	resumeAndSend(t, ctrl, sessDir)
 
@@ -142,7 +142,7 @@ func TestBuildEventLogModeWritesLog(t *testing.T) {
 // TestBuildDefaultEventLog：缺省 log_format（空）即事件日志——轨迹/上下文
 // 看板数据源；显式 "legacy" 才关闭。
 func TestBuildDefaultEventLog(t *testing.T) {
-	ctrl, sessDir := buildEventModeCtrl(t, "test-mock-boot-default-event", "")
+	ctrl, sessDir := buildEventModeCtrl(t, testKind("test-mock-boot-default-event"), "")
 	path := filepath.Join(sessDir, "s1.jsonl")
 	s := agent.NewSession("sys")
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "hi"})
@@ -160,7 +160,7 @@ func TestBuildDefaultEventLog(t *testing.T) {
 // TestBuildExplicitLegacyNoEventLog：显式 log_format="legacy" 不产生事件日志
 // （旧行为整文件重写 JSONL）。
 func TestBuildExplicitLegacyNoEventLog(t *testing.T) {
-	ctrl, sessDir := buildEventModeCtrl(t, "test-mock-boot-explicit-legacy", "legacy")
+	ctrl, sessDir := buildEventModeCtrl(t, testKind("test-mock-boot-explicit-legacy"), "legacy")
 	path := filepath.Join(sessDir, "s1.jsonl")
 	s := agent.NewSession("sys")
 	s.Add(provider.Message{Role: provider.RoleUser, Content: "hi"})

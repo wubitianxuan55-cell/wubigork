@@ -298,7 +298,7 @@ func TestGaeaResyncEventsBinding(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 	_ = os.Chdir(t.TempDir())
 
-	const kind = "test-mock-gaea-resync"
+	kind := testKind("test-mock-gaea-resync")
 	provider.Register(kind, func(cfg provider.Config) (provider.Provider, error) {
 		return testutil.NewMock("mock"), nil
 	})

@@ -7,10 +7,20 @@ import (
 )
 
 // TestBalanceRegistry_AllKinds "deepseek" kind 经注册表构建。
+// 只断言 deepseek 已注册（init 自注册、恒存在），不断言注册表恰为一个条目：
+// 其他测试会注册自定义 kind（进程级全局注册表），`-count` 多次运行下
+// 「恰好一个」的无菌态假设不成立。
 func TestBalanceRegistry_AllKinds(t *testing.T) {
 	kinds := BalanceProviderKinds()
-	if len(kinds) != 1 || kinds[0] != BalanceKindDeepSeek {
-		t.Fatalf("BalanceProviderKinds = %v, want [deepseek]", kinds)
+	found := false
+	for _, k := range kinds {
+		if k == BalanceKindDeepSeek {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("BalanceProviderKinds 应含 deepseek，实际 %v", kinds)
 	}
 	p, err := NewBalanceProvider(BalanceKindDeepSeek)
 	if err != nil {
@@ -104,10 +114,11 @@ func TestFetch_DefaultKindDeepSeek(t *testing.T) {
 // TestBalanceRegistry_CustomProvider 自定义 kind 注册后经 FetchByKind 可用：
 // 「按 kind 注册」验收——其他 provider 形状不经代码改动接入。
 func TestBalanceRegistry_CustomProvider(t *testing.T) {
-	RegisterBalanceProvider("custom", func() Provider {
+	kind := testKind("custom")
+	RegisterBalanceProvider(kind, func() Provider {
 		return customProvider{}
 	})
-	b, err := FetchByKind(context.Background(), "custom", "http://example.invalid/balance", "k")
+	b, err := FetchByKind(context.Background(), kind, "http://example.invalid/balance", "k")
 	if err != nil {
 		t.Fatalf("FetchByKind(custom): %v", err)
 	}
