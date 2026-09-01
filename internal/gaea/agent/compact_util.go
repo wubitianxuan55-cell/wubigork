@@ -123,17 +123,20 @@ func archiveMessages(dir string, msgs []provider.Message) (string, error) {
 	return path, nil
 }
 
-// readProgressFile reads .gaea/progress.md from the project root (found by
-// walking up from cwd). Returns "" if the file doesn't exist or can't be read.
+// readProgressFile reads the agent todo persistence file (.gaea/todos.md,
+// v4.27.4 改名) from the project root (found by walking up from cwd), falling
+// back to the legacy .gaea/progress.md name for existing workspaces. Returns
+// "" if neither exists or can't be read.
 func readProgressFile() string {
 	dir, err := os.Getwd()
 	if err != nil {
 		return ""
 	}
 	for {
-		candidate := filepath.Join(dir, ".gaea", "progress.md")
-		if data, err := os.ReadFile(candidate); err == nil {
-			return string(data)
+		for _, name := range []string{"todos.md", "progress.md"} {
+			if data, err := os.ReadFile(filepath.Join(dir, ".gaea", name)); err == nil {
+				return string(data)
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {

@@ -646,6 +646,7 @@ func (a *AgentRunner) forceRatio() float64 {
 
 // ─── Todos extraction for backward compatibility ───
 
-// readProgressFile reads .gaea/progress.md from the project root (found by
-// walking up from cwd). Returns "" if the file doesn't exist or can't be read.
-// Used by maybeCompact to inject current todo state into compaction instructions.
+// readProgressFile reads the agent todo persistence file (.gaea/todos.md,
+// v4.27.4 改名；回退旧名 .gaea/progress.md) from the project root — 实现
+// 在 compact_util.go。Used by maybeCompact to inject current todo state into
+// compaction instructions.

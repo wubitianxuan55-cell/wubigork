@@ -1,5 +1,18 @@
 # gaea · 多功能 AI 助手
 
+## v4.27.4 · todo 持久化改名：.gaea/progress.md 撞名根治（2026-09-01）
+> **勘误**：此前三次把 `.gaea/progress.md` 被覆写归因于「并行会话」——错误。
+> 真凶是 gaea 自己的 `todo_write` 工具：计划进度持久化写 `<工作区根>/.gaea/
+> progress.md`，办公代理在以 wubigrok 仓库为工作区跑任务时，每次 todo_write
+> 都覆盖同名发布进度文件（一天四次，内容即任务 todo 表）。
+- **修复**：todo_write 持久化改名 **`.gaea/todos.md`**（todo.go）；compaction
+  读取端 `readProgressFile` 优先 todos.md、**回退旧名 progress.md**（存量工作
+  区兼容）。项目记忆文件 `.gaea/progress.md` 从此不再被运行时覆盖。
+- 测试 +2：saveProgressMarkdown 写 todos.md 且不碰 progress.md；读取端优先/
+  回退语义（walk-up 设计使「均缺失」断言在真实机器不成立，已注明）。
+- Go 110 包 0 FAIL（TestCancelConcurrentStress 负载型 flaky 沿旧）；前端零
+  改动；drift PASS（550）；版本四处 4.27.4。详见 releases/v4.27.4.md。
+
 ## v4.27.3 · markdown 包裹符：交付卡片路径修复（2026-09-01）
 > 用户报告「交付卡片点击无法打开、定位打开的不是文件位置」→ 真实会话实锤：
 > 模型用反引号包裹路径，匹配把开头反引号吞进路径 → 预览「文件不存在」、

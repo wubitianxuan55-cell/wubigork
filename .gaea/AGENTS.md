@@ -47,6 +47,23 @@
 
 ## 版本状态
 
+- **最新发布：v4.27.4（2026-09-01）「todo 持久化改名 · progress.md 撞名根治」**：
+  git tag `v4.27.4`；基线 v4.27.3；绑定面 550 零变更。**勘误**：progress.md
+  四次被覆写并非「并行会话」——真凶是 gaea 自身 `todo_write` 内置工具的
+  V10.6 计划进度持久化：每次 todo_write 写 `<工作区根>/.gaea/progress.md`，
+  办公代理以本仓库为工作区跑任务（开工筹备/安全文明手册等）时逐次覆盖同名
+  发布进度文件（四次内容全是任务 todo 表，时间与任务节点吻合，backups/ 四份
+  快照即 todo 表）。文件名撞车：①宿主仓库项目记忆 ②代理运行时 todo 持久化，
+  用 gaea 开发 gaea 必然相撞。**修复**：写入端改名 **todos.md**（todo.go）+
+  compaction 读取端 readProgressFile 优先 todos.md/回退旧名（存量工作区兼容，
+  compact_util.go）；compact.go 注释同步。测试 +2（写 todos.md 不碰
+  progress.md；读取优先/回退——walk-up 设计使「均缺失」断言在真实机器不成
+  立，测试过程顺带实锤主目录 C:\Users\wubi\.gaea\progress.md 有 8 月底代理
+  todo 残留，可手动清理）。Go 110 包 0 FAIL、前端零改动。**教训**：运行时
+  产物文件名不得与宿主仓库约定文件同名——自举项目（用 gaea 开发 gaea）的
+  工作区常驻本仓库，任何 <cwd> 相对写入都要过一遍撞名审查。详见
+  releases/v4.27.4.md。
+
 - **最新发布：v4.27.3（2026-09-01）「markdown 包裹符 · 交付卡片路径修复」**：
   git tag `v4.27.3`；基线 v4.27.2；绑定面 550 零变更。用户报告「交付卡片点击
   无法打开、定位打开的不是文件位置」→ computer-use 真实会话现场实锤：模型用

@@ -96,17 +96,23 @@ func (todoWrite) Execute(ctx context.Context, args json.RawMessage) (string, err
 		return "", err
 	}
 
-	// V10.6: 计划进度持久化 — 每次 todo_write 同步写入 .gaea/progress.md
+	// V10.6: 计划进度持久化 — 每次 todo_write 同步写入 .gaea/todos.md
 	// compaction 后丢失 todo 状态时，系统提示会引导 agent 读取此文件恢复进度
+	// v4.27.4: 文件名从 progress.md 改为 todos.md——progress.md 与使用 gaea
+	// 开发自身仓库时的项目记忆文件（发布进度）同名，办公代理每个 todo_write
+	// 都会覆盖它（真实事故：wubigrok 仓库发布进度一天内被办公任务 todo 覆盖
+	// 四次）。读取端 compact_util.readProgressFile 优先 todos.md、回退旧名。
 	saveProgressMarkdown(p.Todos)
 
 	return fmt.Sprintf("Todos updated: %d total — %d completed, %d in progress, %d pending.",
 		len(p.Todos), done, active, pending), nil
 }
 
-// saveProgressMarkdown writes the current todo list to .gaea/progress.md
+// saveProgressMarkdown writes the current todo list to .gaea/todos.md
 // in the project root (discovered by walking up from cwd). This survives
 // compaction and lets the agent recover its plan after context resets.
+// v4.27.4 改名 todos.md（原 progress.md 与宿主仓库的项目记忆文件撞名，
+// 见上方 Run 注释）。
 func saveProgressMarkdown(todos []todoItem) {
 	// Find project root by looking for .gaea/ directory
 	dir, err := os.Getwd()
@@ -118,7 +124,7 @@ func saveProgressMarkdown(todos []todoItem) {
 		return // no .gaea/ found
 	}
 
-	path := filepath.Join(root, "progress.md")
+	path := filepath.Join(root, "todos.md")
 	var b strings.Builder
 	b.WriteString("# 任务进度\n\n")
 	b.WriteString(fmt.Sprintf("> 最后更新: %s\n\n", time.Now().Format("2006-01-02 15:04:05")))

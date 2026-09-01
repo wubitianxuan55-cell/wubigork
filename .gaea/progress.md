@@ -1,9 +1,27 @@
 # 任务进度
 
-> 最后更新: 2026-09-01（v4.27.3「markdown 包裹符」补丁：交付卡片路径修复，
-> 绑定面 550 零变更）
+> 最后更新: 2026-09-01（v4.27.4「todo 持久化改名」：.gaea/progress.md 撞名
+> 根治——覆写者勘误为 gaea 自身 todo_write，非并行会话）
 
 ## 当前状态
+
+- **最新发布：v4.27.4（2026-09-01）「todo 持久化改名 · progress.md 撞名根治」**：
+  git tag v4.27.4；基线 v4.27.3；绑定面 550 零变更。**勘误**：本文件四次被
+  覆写并非「并行会话」（用户核实无其他会话）——真凶=gaea 自身 `todo_write`
+  内置工具 V10.6 计划进度持久化：每次 todo_write 写 `<工作区根>/.gaea/
+  progress.md`，办公代理以本仓库为工作区跑任务时逐次覆盖（四次内容全是任务
+  todo 表，时间与任务节点吻合；backups/ 四份快照即 todo 表）。文件名撞车：
+  ①宿主仓库项目记忆 ②代理运行时 todo 持久化，用 gaea 开发 gaea 必然相撞。
+  **修复**：写入端改名 **todos.md**（todo.go saveProgressMarkdown）+
+  compaction 读取端 readProgressFile 优先 todos.md/回退旧名（compact_util.go，
+  存量工作区兼容）。测试 +2（TestSaveProgressMarkdownWritesTodosNotProgress
+  =事故直接回归锁；TestReadProgressFilePrefersTodosAndFallsBack——walk-up
+  设计使「均缺失」断言在真实机器不成立，顺带实锤主目录
+  C:\Users\wubi\.gaea\progress.md 有 8 月底代理 todo 残留可清理）。Go 110 包
+  0 FAIL、前端零改动。**教训**：运行时产物文件名不得与宿主仓库约定文件同名
+  ——自举项目工作区常驻本仓库，任何 <cwd> 相对写入都要过撞名审查；归因要
+  先证伪（「并行会话」结论未核实就写进了三份发布说明）。详见
+  releases/v4.27.4.md。
 
 - **最新发布：v4.27.3（2026-09-01）「markdown 包裹符 · 交付卡片路径修复」**：
   git tag v4.27.3；基线 v4.27.2；绑定面 550 零变更。用户报告「交付卡片点击
