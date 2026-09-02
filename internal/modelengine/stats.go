@@ -198,10 +198,13 @@ func normalizeModelID(raw string) string {
 }
 
 // estimatePrice 返回模型定价；本地引擎与未知模型返回空定价。
-// GLM 引擎先查目录（normalizeModelID 归一后精确匹配→最长前缀匹配；条目
-// free=true→{0,0,"CNY"}；带价→用目录价含 unit 判断；目录无价→回退内置表，
-// 现状不变——glm-asr-2512/glm-4.7 等内置条目价格由此保持），其他引擎完全
-// 不动（单源化：目录价与内置表同源，估算数值不回归）。
+// GLM 引擎先查 GLM 目录（normalizeModelID 归一后精确匹配→最长前缀匹配；
+// 条目 free=true→{0,0,"CNY"}；带价→用目录价含 unit 判断；目录无价→回退
+// 内置表，现状不变——glm-asr-2512/glm-4.7 等内置条目价格由此保持）。
+// deepseek/xai/opencode-zen（C 刀目录通用化）先查通用目录（engineCatalogPrice，
+// 同归一化与最长前缀口径），目录无价回退内置表；其余引擎（opencode-go/
+// custom 等不在通用目录内）行为不变——opencode-go 订阅制无按量售价，刻意
+// 不进目录（见 catalog_models.go 拍板决策）。
 func estimatePrice(engineID, model string) modelPrice {
 	switch engineID {
 	case "ollama", "herdsman":
@@ -212,6 +215,9 @@ func estimatePrice(engineID, model string) modelPrice {
 		if p, ok := glmCatalogPrice(n); ok {
 			return p
 		}
+	}
+	if p, ok := engineCatalogPrice(engineID, n); ok {
+		return p
 	}
 	for _, e := range modelPricing {
 		if strings.HasPrefix(n, e.prefix) {

@@ -815,6 +815,12 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		}
 	}
 
+	// C 刀目录通用化：动态模型列表按通用目录补充徽标元数据（只填空字段，
+	// 不覆盖引擎返回值，随 saveState 持久化）。GLM 分支已在函数头提前返回
+	// 静态目录、不走此公共出口（无双重 enrich）；opencode-go/custom 不在
+	// 目录内，enrich 原样返回（零行为变化）。
+	models = enrichCatalogMeta(string(engine.Type), models)
+
 	return models, nil
 }
 

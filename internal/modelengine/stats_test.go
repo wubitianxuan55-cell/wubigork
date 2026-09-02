@@ -48,24 +48,25 @@ func TestRecordCall_Aggregates(t *testing.T) {
 	if ds.EngineID != "deepseek" || ds.CallCount != 3 || ds.FailCount != 1 || ds.LastError != "HTTP 500" {
 		t.Errorf("deepseek 统计 = %+v", ds)
 	}
-	// deepseek-v4-pro: 12*(300)/1e6 + 24*(130)/1e6 = 0.00672
-	if got := ds.EstimatedCost; got < 0.00671 || got > 0.00673 {
-		t.Errorf("deepseek EstimatedCost = %v, want ~0.00672", got)
+	// C 刀目录通用化后 deepseek-v4-pro 走通用目录官方核实价（USD 1.32/3.96，
+	// 原内置表 CNY 12/24）：1.32*(300)/1e6 + 3.96*(130)/1e6 = 0.0009108 USD
+	if got := ds.EstimatedCost; got < 0.00090 || got > 0.00092 {
+		t.Errorf("deepseek EstimatedCost = %v, want ~0.00091", got)
 	}
-	if ds.Currency != "CNY" {
-		t.Errorf("deepseek Currency = %q, want CNY", ds.Currency)
+	if ds.Currency != "USD" {
+		t.Errorf("deepseek Currency = %q, want USD（通用目录官方核实价口径）", ds.Currency)
 	}
 	grok := sum.PerModel[1]
-	// grok-4.20: 2*(10)/1e6 + 6*(5)/1e6 = 0.00005 USD
+	// grok-4.20: 2*(10)/1e6 + 6*(5)/1e6 = 0.00005 USD（内置表，xai 目录无此前缀）
 	if got := grok.EstimatedCost; got < 0.000049 || got > 0.000051 {
 		t.Errorf("grok EstimatedCost = %v, want ~0.00005", got)
 	}
 	if grok.Currency != "USD" {
 		t.Errorf("grok Currency = %q, want USD", grok.Currency)
 	}
-	// 汇总折算人民币（注入汇率 7.2）: 0.00672 + 0.00005*7.2 = 0.00708
-	if got := sum.TotalCost; got < 0.00707 || got > 0.00709 {
-		t.Errorf("TotalCost = %v, want ~0.00708", got)
+	// 汇总折算人民币（注入汇率 7.2）: (0.0009108 + 0.00005)*7.2 = 0.00691776
+	if got := sum.TotalCost; got < 0.00691 || got > 0.00693 {
+		t.Errorf("TotalCost = %v, want ~0.00692", got)
 	}
 	if len(sum.Trend) != 1 {
 		t.Fatalf("Trend 桶数量 = %d, want 1", len(sum.Trend))
@@ -77,8 +78,8 @@ func TestRecordCall_Aggregates(t *testing.T) {
 	if tp.InputTokens != 310 || tp.OutputTokens != 135 || tp.TotalTokens != 445 {
 		t.Errorf("Trend Token = %d/%d/%d, want 310/135/445", tp.InputTokens, tp.OutputTokens, tp.TotalTokens)
 	}
-	if got := tp.Cost; got < 0.00707 || got > 0.00709 {
-		t.Errorf("Trend Cost = %v, want ~0.00708", got)
+	if got := tp.Cost; got < 0.00691 || got > 0.00693 {
+		t.Errorf("Trend Cost = %v, want ~0.00692", got)
 	}
 }
 
@@ -145,9 +146,18 @@ func TestEstimateCost_LocalAndUnknown(t *testing.T) {
 	if c, cur := estimatedCostFor("xai", "some-future-model-x", 1000, 500); c != 0 || cur != "" {
 		t.Errorf("未知模型应不计费, got %v %q", c, cur)
 	}
-	// OpenCode 前缀模型也应命中 DeepSeek 定价
-	if c, cur := estimatedCostFor("opencode-zen", "opencode/deepseek-v4-pro", 1e6, 0); c != 12 || cur != "CNY" {
-		t.Errorf("opencode deepseek-v4-pro = %v %q, want 12 CNY", c, cur)
+	// OpenCode 前缀模型（opencode/ 前缀归一后命中裸名）：C 刀后 opencode-zen
+	// deepseek-v4-pro 命中 Zen 目录官方核实价（USD 0.66，原内置表 CNY 12）
+	if c, cur := estimatedCostFor("opencode-zen", "opencode/deepseek-v4-pro", 1e6, 0); c != 0.66 || cur != "USD" {
+		t.Errorf("opencode deepseek-v4-pro = %v %q, want 0.66 USD", c, cur)
+	}
+	// Zen 目录未核实全的条目仍走内置表（回归锁）：gpt-5.3-codex 1.75 USD
+	if c, cur := estimatedCostFor("opencode-zen", "opencode/gpt-5.3-codex", 1e6, 0); c != 1.75 || cur != "USD" {
+		t.Errorf("opencode gpt-5.3-codex = %v %q, want 1.75 USD", c, cur)
+	}
+	// deepseek-v4-flash 不在 Zen 目录（目录只收 deepseek-v4-pro）：内置表 CNY 兜底不变
+	if c, cur := estimatedCostFor("opencode-zen", "deepseek-v4-flash", 1e6, 0); c != 1 || cur != "CNY" {
+		t.Errorf("opencode deepseek-v4-flash = %v %q, want 1 CNY", c, cur)
 	}
 }
 

@@ -1,3 +1,17 @@
+## v4.38.0 · 目录通用化：DeepSeek/xAI/Zen 官方元数据入册（2026-09-02）
+> 用户指出 v4.36.0 目录只覆盖 GLM——通用化到 deepseek/xai/opencode-zen（25 条目，
+> 官方页多页互证核实）。内置表（CCSwitch 预设）过时暴露：deepseek-chat/reasoner 官方
+> 2026-07-24 停用、grok-4/3 系已下架、deepseek 现行价差 3 倍+。**绑定面 557 零变更**。
+- **① 通用目录**：model_catalog.json v1（per-engine 分组）+ catalog_models.go loader；
+  **opencode-go 不进目录（拍板）**：订阅制无按量售价，展示参考价会误导。
+- **② 估算修正**：estimatePrice 目录优先层扩展；deepseek-v4-flash 3.0→12.672 CNY（官方
+  USD 峰价）、grok-4.5/4.6 129.6→57.6、zen 8 模型从未计价→计价；claude/gpt/gemini/kimi
+  旧条目走内置表逐位一致（回归锁）。
+- **③ 动态列表 enrich**：fetchModels 后按 id 归一化匹配补元数据（只填空不覆盖），
+  deepseek/xai/zen 模型卡徽标自动点亮（前端零改动，B 刀链路）。
+- 验证：Go 全量 test exit 0（filewatch 一例全量超时为负载 flaky，单跑/整包复跑绿）、
+  tsc -b/eslint 0、vitest 1243/1243、drift PASS（557）。详见 releases/v4.38.0.md。
+
 ## v4.37.1 · D 刀收口：模型库卸载确认带释放大小（2026-09-02）
 > 模型中心调研 D 刀核伪后剩余增量（绑定面 557 零变更）：卸载确认 file_size 存在时
 > 显示「释放 X GB」；磁盘占用展示与 /health 透出两项经核实已存在（E1-4 已落地、
