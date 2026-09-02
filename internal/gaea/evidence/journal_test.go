@@ -84,6 +84,69 @@ func TestJournalStoreRoundTrip(t *testing.T) {
 	}
 }
 
+// TestStageBaselineTo v4.32 薄导出 helper：命名/权限与 StageBaseline 约定
+// 一致（<sessionKey(target) 截 120>-<unixnano>.before，0644），内容逐字节
+// 落盘，空 dir 静默降级。
+func TestStageBaselineTo(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "rollback")
+	target := filepath.Join(t.TempDir(), "sub", "doc.md")
+	path := StageBaselineTo(dir, target, []byte("content-1"))
+	if path == "" {
+		t.Fatal("StageBaselineTo 返回空路径")
+	}
+	if filepath.Dir(path) != dir {
+		t.Errorf("快照目录 = %q, want %q", filepath.Dir(path), dir)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil || string(raw) != "content-1" {
+		t.Fatalf("快照内容 = %q, %v; want content-1", raw, err)
+	}
+	// 命名约定：<sessionKey(target) 截 120>-<unixnano>.before
+	wantPrefix := sessionKeyOf(target)
+	if len(wantPrefix) > 120 {
+		wantPrefix = wantPrefix[:120]
+	}
+	base := filepath.Base(path)
+	if !strings.HasPrefix(base, wantPrefix+"-") || !strings.HasSuffix(base, ".before") {
+		t.Errorf("文件名 %q 不符合 %s-<nano>.before 约定", base, wantPrefix)
+	}
+	// 同 target 两次快照 → 两个不同文件，内容各自正确
+	path2 := StageBaselineTo(dir, target, []byte("content-2"))
+	if path2 == "" || path2 == path {
+		t.Fatalf("第二次快照 path = %q, want 新路径", path2)
+	}
+	raw2, err := os.ReadFile(path2)
+	if err != nil || string(raw2) != "content-2" {
+		t.Errorf("第二次快照内容 = %q, %v; want content-2", raw2, err)
+	}
+	// 空 dir：静默降级返回 ""
+	if got := StageBaselineTo("", target, []byte("x")); got != "" {
+		t.Errorf("空 dir 应返回空, got %q", got)
+	}
+}
+
+// TestStageBaselineCtx 无台账 ctx 保持原有静默降级；有台账 ctx 时落
+// BaselineDir（重构后仍走 StageBaselineTo 同一套命名）。
+func TestStageBaselineCtx(t *testing.T) {
+	if got := StageBaseline(context.Background(), "a.txt", []byte("x")); got != "" {
+		t.Errorf("无台账 ctx 应返回空, got %q", got)
+	}
+	// 有台账但未配置基线目录 → ""
+	l := NewChangeLedger()
+	if got := StageBaseline(WithChanges(context.Background(), l), "a.txt", []byte("x")); got != "" {
+		t.Errorf("未配置 BaselineDir 应返回空, got %q", got)
+	}
+	dir := filepath.Join(t.TempDir(), "rollback")
+	l.SetBaselineDir(dir)
+	path := StageBaseline(WithChanges(context.Background(), l), "a.txt", []byte("via ctx"))
+	if path == "" || filepath.Dir(path) != dir {
+		t.Fatalf("StageBaseline path = %q, want 在 %q 下", path, dir)
+	}
+	if raw, err := os.ReadFile(path); err != nil || string(raw) != "via ctx" {
+		t.Errorf("快照内容 = %q, %v; want via ctx", raw, err)
+	}
+}
+
 func TestWriteTurnMarkdown(t *testing.T) {
 	dir := t.TempDir()
 	st, err := OpenJournal(filepath.Join(dir, "journal"))

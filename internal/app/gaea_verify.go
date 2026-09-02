@@ -227,6 +227,16 @@ func (a *App) GaeaRollbackRecord(id string) error {
 	if !ok {
 		return fmt.Errorf("证据卡 %s 不存在", id)
 	}
+	return rollbackRecord(st, rec)
+}
+
+// rollbackRecord 回滚核心（GaeaRollbackRecord 拆出的可测内部函数，签名/绑定
+// 面不变）。v4.32 收 v4.28 B1 欠账：恢复写盘前先把目标当前内容快照（落原
+// 基线同目录，命名/权限沿用 evidence.StageBaselineTo），恢复动作因此自身
+// 成为带基线的完整证据卡——时间线里可「再恢复」=撤销恢复。快照是尽力而为：
+// 目标不存在/不可读或快照写失败都照常恢复（新卡 BaselinePath 留空，行为与
+// 无快照时一致）——恢复是主意图，不得因快照失败而失败。
+func rollbackRecord(st *evidence.JournalStore, rec evidence.ChangeRecord) error {
 	if rec.BaselinePath == "" {
 		return fmt.Errorf("该证据卡无基线快照，无法回滚")
 	}
@@ -234,7 +244,8 @@ func (a *App) GaeaRollbackRecord(id string) error {
 		return fmt.Errorf("基线快照缺失：%v", err)
 	}
 	target := resolveTarget(rec.Target)
-	if cur, err := os.ReadFile(target); err == nil {
+	cur, curErr := os.ReadFile(target)
+	if curErr == nil {
 		curS := string(cur)
 		editLike := rec.Tool == "edit_file" || rec.Tool == "multi_edit" || rec.Tool == "edit_lines"
 		if editLike && rec.AfterSummary != "" && !strings.Contains(curS, rec.AfterSummary) {
@@ -248,16 +259,35 @@ func (a *App) GaeaRollbackRecord(id string) error {
 	if err != nil {
 		return err
 	}
+	// 恢复前快照当前内容（快照成功才携带 BaselinePath/BeforeSummary，卡片
+	// 字段保持「摘要↔快照」成对一致；截断口径对齐 RecordChange/write_file）。
+	snapshot := ""
+	if curErr == nil {
+		snapshot = evidence.StageBaselineTo(filepath.Dir(rec.BaselinePath), target, cur)
+	}
 	if err := os.WriteFile(target, baseline, 0o644); err != nil {
 		return err
 	}
-	_ = st.Append(evidence.ChangeRecord{
+	newRec := evidence.ChangeRecord{
 		SessionID:     rec.SessionID,
 		Space:         "work",
 		Tool:          "rollback",
 		Target:        rec.Target,
-		BeforeSummary: "rolled back " + id,
 		Status:        evidence.StatusPendingVerify,
-	})
+		AfterSummary:  clampSummary(string(baseline)),
+	}
+	if snapshot != "" {
+		newRec.BaselinePath = snapshot
+		newRec.BeforeSummary = clampSummary(string(cur))
+	}
+	_ = st.Append(newRec)
 	return nil
+}
+
+// clampSummary 摘要截断（口径同 evidence.RecordChange：SummaryLimit，按字节）。
+func clampSummary(s string) string {
+	if len(s) > evidence.SummaryLimit {
+		return s[:evidence.SummaryLimit]
+	}
+	return s
 }

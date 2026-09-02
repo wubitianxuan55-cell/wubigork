@@ -1,3 +1,23 @@
+## v4.32.0 · 细节收口第二刀：回滚可撤销 / 产物自动弹出 / 弹窗 pdf 懒加载 / 预览最大化持久化（2026-09-02）
+> 用户点名「继续优化完善 gaea」——欠账池挑四条互不相交线，三并行子代理 + 主代理 App.tsx 接线集成。**绑定面 552 零变更**。
+- **① 回滚先快照当前态**（收 v4.28 B1 欠账）：GaeaRollbackRecord 恢复前把目标当前内容
+  快照到原基线同目录（evidence 新导出 StageBaselineTo，命名逻辑单点化），rollback 记录
+  升级为完整证据卡（Before/After 原文+BaselinePath）——**恢复动作本身成为时间线里可再
+  恢复的版本（撤销恢复=对 rollback 卡再点恢复）**；目标缺失/快照失败降级不阻断恢复。
+- **② 产物自动弹出 + 偏好**（收 v4.30 欠账）：新 deliverablePrefs（gaea.deliverableAutoOpen，
+  **默认关** opt-in）+ DeliverablesPanel 头部胶囊；App 新产物 diff 时偏好开且 tab 未停用
+  →亮右栏切「产物」tab（激活即清零角标，不动 FilePreview）；单版本「版本」徽标 title
+  细化为「有 N 个历史快照，可预览/恢复」（收 v4.31 欠账）。
+- **③ 弹窗 pdf 逐页懒加载**（收 v4.31 欠账）：新 lib/pageLazy 纯函数 + IntersectionObserver
+  单向懒加载（初始 4 页、进视口 800px 预挂、已挂载不卸载杜绝滚动跳动），大纲跳转目标页
+  强制即时渲染，无 IO 环境全量降级；顺带修 preview/loading 两次提交致 IO 观察集为空、
+  懒加载永不触发的真 bug（ref 回调登记即补 observe）。
+- **④ 预览最大化持久化**（收 v4.30 欠账）：gaea.previewMaximized 独立键（writePrefs 只落
+  sizes 数字 map），懒初始化 + toggle/拖拽退出三处落盘；半幅宽度本就落盘，还原仍回上次
+  半幅。
+- 验证：Go 全量 test exit 0（线A -count=2）、tsc -b/eslint 0、vitest **1196/1196**（+30）、
+  drift PASS（552）、版本四处 4.32.0。详见 releases/v4.32.0.md。
+
 ## v4.31.1 · -count>1 全量绿化：测试全局态 -count 不兼容根治 + whisper 末气泡真 bug 修复（2026-09-02）
 > v4.31.0 线 D 收尾延伸：全量 go test -count=2 ./... 从 FAIL → 全绿。**绑定面 552 零变更**。
 - **根因（统一）**：测试写进程级全局状态（provider/billing/boot/app 注册表 kind、

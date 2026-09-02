@@ -7,6 +7,7 @@ import {
   normalizeVersionPath,
   versionLabel,
 } from "../lib/versionTimeline";
+import { loadDeliverableAutoOpen, saveDeliverableAutoOpen } from "../lib/deliverablePrefs";
 import {
   buildCellIndex,
   buildVerifyDiff,
@@ -52,6 +53,10 @@ const iconBtn =
 // 数据为挂载时自拉的 JournalList(200)，见 VersionTimeline）。
 // v4.31 A1 单版本入口：versions≤1 但有 journal 快照的产物同样渲染「版本」入口
 // 徽标（收 v4.28 欠账「B1 单版本无入口」）；无快照记录不渲染，保持空态。
+// v4.32 线B：头部「自动弹出」胶囊（默认关 opt-in，对标 BrowserPanel 同款交互，
+// 键 gaea.deliverableAutoOpen）——新产物出现时 App 自动切到本面板；触发接线在
+// App（shouldAutoOpenDeliverables），面板只负责偏好读写。单版本徽标 title 细化
+// 为带快照数（收 v4.31 欠账「静态文案」）。
 // v3「星枢」面板语言：v3-panel-head 细条头部 + 低边框 hover 高亮行。
 export const DeliverablesPanel = memo(function DeliverablesPanel({
   items,
@@ -77,6 +82,18 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
   const openFilePreview = usePreviewStore((s) => s.openFilePreview);
   const updatedAt = useUpdatedFilesStore((s) => s.updatedAt);
   const toast = useToast();
+
+  // ── v4.32 线B「自动弹出」偏好（默认关 opt-in）：新产物出现时 App 自动切到
+  // 本面板；开关 UI 在头部胶囊，持久化键 gaea.deliverableAutoOpen。新产物检测
+  // 与切换时机在 App（shouldAutoOpenDeliverables），面板只负责读写偏好。
+  const [autoOpen, setAutoOpen] = useState(() => loadDeliverableAutoOpen());
+  const toggleAutoOpen = useCallback(() => {
+    setAutoOpen((prev) => {
+      const next = !prev; // 先算 next 再落盘（BrowserPanel 同款），避免双调重复写
+      saveDeliverableAutoOpen(next);
+      return next;
+    });
+  }, []);
 
   // ── v4.24 C1 权威产物登记表（后端从事件日志折叠，前端只读）──
   // 覆盖写类 8 种 + 生成/导出类 3 种工具的落盘登记，补正文扩展名白名单
@@ -301,6 +318,36 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
           </span>
         )}
         <span className="v3-panel-spacer" />
+        {/* v4.32 线B：自动弹出胶囊（默认关 opt-in；形状/交互对齐 BrowserPanel
+            头部同款）——开=亮色点关、关=灰态点开；触发接线在 App，面板只管偏好。 */}
+        <button
+          type="button"
+          data-testid="deliverable-auto-open-toggle"
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full px-1.5 py-px text-[10px] leading-none transition-colors"
+          aria-pressed={autoOpen}
+          title={autoOpen
+            ? "自动弹出已开：新产物出现时自动切到本面板（点击关闭）"
+            : "自动弹出已关：新产物出现时不切换面板，仅列表内「新」徽标提示（点击开启）"}
+          onClick={toggleAutoOpen}
+          style={autoOpen
+            ? {
+                background: "color-mix(in srgb, var(--gaea-glow) 12%, transparent)",
+                color: "var(--gaea-glow)",
+                border: "1px solid color-mix(in srgb, var(--gaea-glow) 30%, transparent)",
+              }
+            : {
+                background: "transparent",
+                color: "var(--md-sys-color-text-secondary)",
+                border: "1px solid var(--md-sys-color-outline-variant)",
+              }}
+        >
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full"
+            style={{ background: autoOpen ? "var(--gaea-glow)" : "var(--md-sys-color-outline-variant)" }}
+            aria-hidden
+          />
+          自动弹出 {autoOpen ? "开" : "关"}
+        </button>
         {items.length > 0 && (
           <>
             <button
@@ -353,6 +400,15 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
             // GaeaJournalList(200) 折叠、只留有 baselinePath 的卡）中存在条目时，
             // 同样渲染时间线入口徽标（收 v4.28 欠账「单版本无入口」）。
             const journalEntry = groupedVersions.has(normPath);
+            // v4.32：单版本「版本」徽标 title 带快照数（收 v4.31 欠账「静态
+            // 文案」）；快照数取不到（理论上 journalEntry 为真必有 ≥1 条）回落
+            // 原静态文案。
+            const snapshotCount = groupedVersions.get(normPath)?.length;
+            const badgeTitle = rev
+              ? `会话内更新了 ${rev} 次（产物版本时间线）`
+              : snapshotCount
+                ? `有 ${snapshotCount} 个历史快照，可预览/恢复`
+                : "有版本历史（可预览/恢复）";
             const timelineOpen = timelinePath === normPath;
             return (
               <Fragment key={path}>
@@ -417,13 +473,14 @@ export const DeliverablesPanel = memo(function DeliverablesPanel({
                       button 嵌套。展开时徽标加浓提示当前处于时间线视图。
                       v4.31 A1：versions≤1 但有 journal 快照的产物同样渲染
                       「版本」入口徽标（收 v4.28 欠账「单版本无入口」），title
-                      措辞区分「更新 N 次」与「有版本历史」两种语义。 */}
+                      措辞区分「更新 N 次」与「有版本历史」两种语义。
+                      v4.32：非 rev 分支 title 带快照数（收「静态文案」欠账）。 */}
                   {(rev || journalEntry) && (
                     <button
                       type="button"
                       onClick={() => setTimelinePath((cur) => (cur === normPath ? null : normPath))}
                       aria-expanded={timelineOpen}
-                      title={rev ? `会话内更新了 ${rev} 次（产物版本时间线）` : "有版本历史（可预览/恢复）"}
+                      title={badgeTitle}
                       aria-label={`查看 ${baseName(path)} 的版本时间线`}
                       className="shrink-0 inline-flex cursor-pointer items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] leading-none font-mono transition-colors"
                       style={{

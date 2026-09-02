@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, ExternalLink, FilePdf, FileText, FolderTree, Loader2, X } from "../icons";
 import { app } from "../lib/bridge";
+import {
+  LAZY_PAGE_ASPECT,
+  LAZY_ROOT_MARGIN_PX,
+  addForcedPage,
+  computeInitialLazyPages,
+  expandMountedPages,
+  lazySupported,
+  shouldRenderLazyPage,
+} from "../lib/pageLazy";
 import { usePreviewStore } from "../lib/store";
 import type { PreviewResult } from "../lib/types";
 import { DocxPreview } from "./DocxPreview";
@@ -91,9 +100,87 @@ export function FilePreviewModal() {
     if (previewFile) app.RevealWorkspacePath(previewFile).catch(() => {});
   }, [previewFile]);
 
+  // v4.32 C：pdf 逐页懒加载（收 v4.31 欠账「弹窗 pdf 不虚拟化」）。判定逻辑
+  // 收敛在 lib/pageLazy.ts（纯函数），这里只做 IO 接线：lazyPdf.src 记录所属
+  // preview，preview 换载荷时在渲染期重置（初始窗口 + 清空强制集合，React
+  // 「props 变化时调整 state」模式，避免 effect 时序上的旧集合闪烁）；mounted
+  // 单向只增不减（已挂载页不卸载，杜绝滚动跳动），forced 收大纲跳转目标页。
+  // 无 IntersectionObserver（jsdom/旧环境）→ lazySupported() 为 false →
+  // pdf 分支全量渲染 = v4.31 行为。
+  const pageElsRef = useRef(new Map<number, HTMLElement>());
+  const pdfObserverRef = useRef<IntersectionObserver | null>(null);
+  const [lazyPdf, setLazyPdf] = useState<{
+    src: PreviewResult | null;
+    mounted: ReadonlySet<number>;
+    forced: ReadonlySet<number>;
+  }>(() => ({ src: null, mounted: new Set<number>(), forced: new Set<number>() }));
+  const pdfPages = preview?.kind === "pdf" ? preview.pages : undefined;
+  const pdfPageCount = pdfPages?.length ?? 0;
+  const lazyPdfPages = pdfPageCount > 0 && lazySupported();
+  if (lazyPdf.src !== preview) {
+    setLazyPdf({
+      src: preview,
+      mounted: pdfPageCount > 0 ? computeInitialLazyPages(pdfPageCount) : new Set<number>(),
+      forced: new Set<number>(),
+    });
+  }
+  // 页图容器注册表：figure 挂载即登记（data-pptx-page 既是大纲滚动锚点也是
+  // IO 目标键），卸载时清掉已断连的条目。figure 可能晚于 IO effect 挂载
+  // （preview 与 loading 在 .then/.finally 分两次提交，!loading 门控后到），
+  // 登记时若观察器已存在则立即补 observe，保证任意挂载顺序都进观察集。
+  const pdfPageAnchorRef = useCallback((el: HTMLElement | null) => {
+    const els = pageElsRef.current;
+    if (el) {
+      const page = Number(el.getAttribute("data-pptx-page"));
+      if (page > 0) {
+        els.set(page, el);
+        pdfObserverRef.current?.observe(el);
+      }
+      return;
+    }
+    for (const [page, node] of els) {
+      if (!node.isConnected) {
+        pdfObserverRef.current?.unobserve(node);
+        els.delete(page);
+      }
+    }
+  }, []);
+
+  // IntersectionObserver 接线：页容器进入视口（rootMargin 800px，root 为弹窗
+  // 内滚动容器）→ 并入挂载集合挂真身 <img>。IO 缺失时本 effect 直接跳过。
+  useEffect(() => {
+    if (!lazyPdfPages || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible: number[] = [];
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const page = Number((entry.target as HTMLElement).getAttribute("data-pptx-page"));
+          if (Number.isFinite(page) && page > 0) visible.push(page);
+        }
+        if (visible.length === 0) return;
+        setLazyPdf((prev) => ({
+          ...prev,
+          mounted: expandMountedPages(prev.mounted, visible, pdfPageCount),
+        }));
+      },
+      { root: pptxPagesRef.current, rootMargin: `${LAZY_ROOT_MARGIN_PX}px` },
+    );
+    pdfObserverRef.current = io;
+    for (const el of pageElsRef.current.values()) io.observe(el);
+    return () => {
+      io.disconnect();
+      pdfObserverRef.current = null;
+    };
+  }, [lazyPdfPages, pdfPageCount]);
+
   // v4.31 B：点大纲页条目 → 滚动到逐页渲染区的对应页锚点
   //（jsdom 无 scrollIntoView，可选调用守卫；测试里注入 spy 验证。）
   const scrollToPptxPage = useCallback((page: number) => {
+    // v4.32 C：懒加载下编程式跳转的目标页强制渲染真身——占位高度是估计值，
+    // 目标页若还停留在占位盒，scrollIntoView 会跳偏；先并入强制渲染集合再滚
+    //（滚动容器 scrollTop 变化后 IO 也会自然补挂邻页）。
+    setLazyPdf((prev) => ({ ...prev, forced: addForcedPage(prev.forced, page) }));
     const el = pptxPagesRef.current?.querySelector<HTMLElement>(`[data-pptx-page="${page}"]`);
     el?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   }, []);
@@ -236,18 +323,28 @@ export function FilePreviewModal() {
             // FilePreview kind=pdf 分支一致：pages 有值纵向铺页（data-pptx-page
             // 锚点供大纲卡滚动），否则回退 dataUrl 整本内嵌；右侧叠 PptxOutline
             // 大纲卡（「针对第 N 页修改」composer 插入由该组件内部完成）。
-            // 页数上限沿用后端语义（GaeaPreview 已截断 ≤60 页）；弹窗滚动容器
-            // 自管理，不做虚拟化。
+            // v4.32 C：页数上限沿用后端语义（GaeaPreview 已截断 ≤60 页）；
+            // 逐页路径改单向懒加载——初始窗口外的页先渲染估计高度占位盒
+            //（PreviewPageThumb 无宽高），进视口（rootMargin 800px）才挂
+            // <img> 自然撑开，已挂载页不卸载；无 IO 环境全量渲染（= v4.31）。
             <div className="flex h-full min-h-0">
               <div ref={pptxPagesRef} className="flex-1 min-w-0 overflow-auto px-4 py-3" data-testid="pptx-pages">
                 {preview.pages && preview.pages.length > 0 ? (
                   preview.pages.map((p) => (
-                    <figure key={p.page} data-pptx-page={p.page} className="mb-4">
-                      <img
-                        src={p.dataUrl}
-                        alt={`第 ${p.page} 页`}
-                        className="w-full rounded-lg border border-border-soft shadow-sm bg-bg"
-                      />
+                    <figure key={p.page} ref={pdfPageAnchorRef} data-pptx-page={p.page} className="mb-4">
+                      {!lazyPdfPages || shouldRenderLazyPage(p.page, lazyPdf.mounted, lazyPdf.forced) ? (
+                        <img
+                          src={p.dataUrl}
+                          alt={`第 ${p.page} 页`}
+                          className="w-full rounded-lg border border-border-soft shadow-sm bg-bg"
+                        />
+                      ) : (
+                        <div
+                          aria-hidden="true"
+                          className="w-full rounded-lg border border-border-soft bg-gradient-to-b from-bg-soft to-bg animate-pulse"
+                          style={{ aspectRatio: LAZY_PAGE_ASPECT }}
+                        />
+                      )}
                       <figcaption className="mt-1 text-center text-[10px] text-fg-faint">第 {p.page} 页</figcaption>
                     </figure>
                   ))

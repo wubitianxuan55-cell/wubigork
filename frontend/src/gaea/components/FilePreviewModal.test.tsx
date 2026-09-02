@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { FilePreviewModal } from "./FilePreviewModal";
 import { usePreviewStore, useComposerInsertStore } from "../lib/store";
 import type { PreviewResult, PptxOutlineView } from "../lib/types";
@@ -178,5 +178,121 @@ describe("FilePreviewModal pdf 逐页预览 + 大纲卡（v4.31 B）", () => {
     render(<FilePreviewModal />);
     expect(await screen.findByText(/无可渲染的页面内容/)).toBeTruthy();
     expect(screen.getByText(/summarize_file/)).toBeTruthy();
+  });
+});
+
+// v4.32 C（收 v4.31 欠账「弹窗 pdf 不虚拟化」）：逐页路径改 IntersectionObserver
+// 单向懒加载——初始只挂首窗页，进视口（rootMargin 800px）才挂 <img>，已挂载
+// 页不卸载；无 IO 环境（jsdom 默认）全量渲染 = 既有行为；大纲跳转目标页强制
+// 渲染真身（锚点立即可见，避免 scrollIntoView 落在估计高度占位盒上跳偏）。
+// 判定纯函数（初始窗口 / buffer 扩张 / 强制集合合并）见 lib/pageLazy.test.ts。
+class FakeIntersectionObserver {
+  static instances: FakeIntersectionObserver[] = [];
+  callback: IntersectionObserverCallback;
+  options: IntersectionObserverInit | undefined;
+  observed = new Map<number, Element>();
+  constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+    this.callback = callback;
+    this.options = options;
+    FakeIntersectionObserver.instances.push(this);
+  }
+  observe(el: Element) {
+    const page = Number(el.getAttribute("data-pptx-page"));
+    if (page > 0) this.observed.set(page, el);
+  }
+  unobserve(el: Element) {
+    this.observed.delete(Number(el.getAttribute("data-pptx-page")));
+  }
+  disconnect() {
+    this.observed.clear();
+  }
+  /** 模拟这些页进入视口（含 rootMargin 范围），手动驱动 IO 回调。 */
+  enterView(pages: number[]) {
+    const entries = pages
+      .map((p) => this.observed.get(p))
+      .filter((el): el is Element => !!el)
+      .map((el) => ({ isIntersecting: true, target: el }));
+    if (entries.length > 0) {
+      this.callback(entries as unknown as IntersectionObserverEntry[], this as unknown as IntersectionObserver);
+    }
+  }
+}
+
+describe("FilePreviewModal pdf 逐页懒加载（v4.32 C）", () => {
+  const sixPages = Array.from({ length: 6 }, (_, i) => ({
+    page: i + 1,
+    dataUrl: `data:image/png;base64,P${i + 1}`,
+  }));
+
+  it("无 IntersectionObserver（jsdom 默认）→ 降级全量渲染，全部页挂 img", async () => {
+    delete (window as unknown as { IntersectionObserver?: unknown }).IntersectionObserver;
+    FakeIntersectionObserver.instances = [];
+    mocks.preview = pptxPreview({ pages: sixPages });
+    usePreviewStore.setState({ previewFile: "exports/汇报.pptx" });
+    render(<FilePreviewModal />);
+    expect(await screen.findByAltText("第 1 页")).toBeTruthy();
+    for (let i = 1; i <= 6; i++) {
+      expect(screen.getByAltText(`第 ${i} 页`)).toBeTruthy();
+    }
+    expect(document.querySelector("[data-pptx-page='6'] img")).toBeTruthy();
+    expect(FakeIntersectionObserver.instances).toHaveLength(0);
+  });
+
+  it("IO 懒加载：初始仅首窗页挂 img（rootMargin 800px），进视口后挂载且已挂载页不卸载", async () => {
+    (window as unknown as { IntersectionObserver?: unknown }).IntersectionObserver = FakeIntersectionObserver;
+    FakeIntersectionObserver.instances = [];
+    mocks.preview = pptxPreview({ pages: sixPages });
+    usePreviewStore.setState({ previewFile: "exports/汇报.pptx" });
+    try {
+      render(<FilePreviewModal />);
+      expect(await screen.findByAltText("第 1 页")).toBeTruthy();
+      // 初始窗口（前 4 页）有 img，窗口外（5/6）还是占位盒
+      for (let i = 1; i <= 4; i++) expect(screen.getByAltText(`第 ${i} 页`)).toBeTruthy();
+      expect(screen.queryByAltText("第 5 页")).toBeNull();
+      expect(document.querySelector("[data-pptx-page='5'] img")).toBeNull();
+      // rootMargin 800px：视口外提前预挂，抵消快速滚动白屏
+      const io = FakeIntersectionObserver.instances[0];
+      expect(io.options?.rootMargin).toBe("800px");
+      // 第 5 页进入视口 → 挂 img（buffer 邻页第 6 页一并挂载），
+      // 已挂载的第 1 页不卸载（单向懒加载）
+      act(() => io.enterView([5]));
+      expect(await screen.findByAltText("第 5 页")).toBeTruthy();
+      expect(screen.getByAltText("第 6 页")).toBeTruthy();
+      expect(screen.getByAltText("第 1 页")).toBeTruthy();
+      expect(document.querySelectorAll("[data-pptx-page] img")).toHaveLength(6);
+    } finally {
+      delete (window as unknown as { IntersectionObserver?: unknown }).IntersectionObserver;
+    }
+  });
+
+  it("IO 懒加载：大纲卡跳转目标页强制渲染真身（不经 IO 触发）", async () => {
+    (window as unknown as { IntersectionObserver?: unknown }).IntersectionObserver = FakeIntersectionObserver;
+    FakeIntersectionObserver.instances = [];
+    const eightPages = Array.from({ length: 8 }, (_, i) => ({
+      page: i + 1,
+      dataUrl: `data:image/png;base64,P${i + 1}`,
+    }));
+    mocks.preview = pptxPreview({ pages: eightPages });
+    mocks.pptxOutline.mockResolvedValue({
+      available: true,
+      slides: [
+        { index: 1, title: "封面", texts: [], shapeCount: 1 },
+        { index: 7, title: "附录", texts: [], shapeCount: 2 },
+      ],
+    });
+    usePreviewStore.setState({ previewFile: "exports/汇报.pptx" });
+    try {
+      render(<FilePreviewModal />);
+      expect(await screen.findByAltText("第 1 页")).toBeTruthy();
+      // 初始窗口外：第 7 页还是占位盒，无 img
+      expect(screen.queryByAltText("第 7 页")).toBeNull();
+      // 等大纲卡加载出第 7 页条目 → 点「针对第 7 页」滚动条目
+      expect(await screen.findByText("附录")).toBeTruthy();
+      fireEvent.click(screen.getByTestId("pptx-page-item-7"));
+      // 目标页真身立即可渲染（强制渲染集合，无需 IO 触发）
+      expect(await screen.findByAltText("第 7 页")).toBeTruthy();
+    } finally {
+      delete (window as unknown as { IntersectionObserver?: unknown }).IntersectionObserver;
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DeliverablesPanel } from "./DeliverablesPanel";
 import { ToastProvider } from "./Toast";
@@ -285,6 +285,8 @@ describe("DeliverablesPanel 版本时间线（v4.28 B1）", () => {
 // 也渲染「版本」入口徽标（收 v4.28 欠账「B1 单版本无入口」）；无快照不渲染。
 // mock GaeaJournalList(200) 中仅 ev_1003（docs/成本测算.xlsx，有 baselinePath）
 // 可进时间线，其余卡被 groupVersionsByPath 过滤。
+// v4.32：非 rev 分支 title 从静态文案细化为带快照数（mock 中 n=1 →
+// 「有 1 个历史快照，可预览/恢复」），原静态文案仅作 n 取不到时的回落。
 describe("DeliverablesPanel 单版本时间线入口（v4.31 A1）", () => {
   it("versions=1 且 journal 有快照：渲染「版本」入口，点击展开时间线，预览/恢复可用", async () => {
     render(
@@ -297,7 +299,7 @@ describe("DeliverablesPanel 单版本时间线入口（v4.31 A1）", () => {
     );
     // 初始收起；等待 journal 异步就绪后入口徽标出现
     expect(screen.queryByTestId("version-timeline")).toBeNull();
-    const entry = await screen.findByTitle("有版本历史（可预览/恢复）");
+    const entry = await screen.findByTitle("有 1 个历史快照，可预览/恢复");
     expect(entry.textContent).toContain("版本");
     expect(screen.queryByText("v1")).toBeNull(); // 单版本入口用「版本」而非次数徽标
     fireEvent.click(entry);
@@ -317,7 +319,7 @@ describe("DeliverablesPanel 单版本时间线入口（v4.31 A1）", () => {
         />
       </ToastProvider>,
     );
-    const entry = await screen.findByTitle("有版本历史（可预览/恢复）");
+    const entry = await screen.findByTitle("有 1 个历史快照，可预览/恢复");
     fireEvent.click(entry);
     expect(await screen.findAllByTestId("version-timeline-row")).toHaveLength(1);
     expect(screen.getByText("恢复会把该文件写回所选版本，当前内容成为新版本")).toBeTruthy();
@@ -336,12 +338,81 @@ describe("DeliverablesPanel 单版本时间线入口（v4.31 A1）", () => {
       </ToastProvider>,
     );
     // 等 journal 就绪（有快照行出现入口）后再断言：入口仅 1 个，无快照行不渲染
-    await screen.findByTitle("有版本历史（可预览/恢复）");
-    expect(screen.getAllByTitle("有版本历史（可预览/恢复）")).toHaveLength(1);
+    await screen.findByTitle("有 1 个历史快照，可预览/恢复");
+    expect(screen.getAllByTitle("有 1 个历史快照，可预览/恢复")).toHaveLength(1);
     const noSnapshotRow = screen.getByText("无快照.docx").closest(".group");
     expect(noSnapshotRow).not.toBeNull();
-    expect(noSnapshotRow!.querySelector('button[title="有版本历史（可预览/恢复）"]')).toBeNull();
+    expect(noSnapshotRow!.querySelector('button[title="有 1 个历史快照，可预览/恢复"]')).toBeNull();
     expect(screen.getByText("成本测算.xlsx")).toBeTruthy();
+  });
+});
+
+// ── v4.32：单版本「版本」徽标 title 带快照数（收 v4.31 欠账「静态文案」）──
+// mock GaeaJournalList(200) 中 docs/成本测算.xlsx 仅 ev_1003 有基线快照 → n=1。
+describe("DeliverablesPanel 单版本徽标 title 带快照数（v4.32）", () => {
+  it("title 细化为「有 1 个历史快照，可预览/恢复」（含具体快照数）", async () => {
+    render(
+      <ToastProvider>
+        <DeliverablesPanel
+          items={[{ path: "docs/成本测算.xlsx", sourceId: "a1", versions: 1 }]}
+          onOpenFile={() => {}}
+        />
+      </ToastProvider>,
+    );
+    const entry = await screen.findByTitle(/个历史快照，可预览\/恢复/);
+    expect(entry.getAttribute("title")).toBe("有 1 个历史快照，可预览/恢复");
+  });
+});
+
+// ── v4.32 线B 产物自动弹出偏好：头部「自动弹出」胶囊（默认关 opt-in；对标
+// browserAutoOpen 默认开的差异——产物更新更频繁，抢焦点代价更高）。持久化键
+// gaea.deliverableAutoOpen；触发接线在 App（新产物 diff effect 调
+// shouldAutoOpenDeliverables），面板只负责开关 UI。形状对齐 BrowserPanel 胶囊
+// （aria-pressed 翻转 + 先落盘再变亮）。
+describe("DeliverablesPanel 自动弹出胶囊（v4.32 线B）", () => {
+  const KEY = "gaea.deliverableAutoOpen";
+
+  afterEach(() => {
+    try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+  });
+
+  const renderPanel = () =>
+    render(
+      <DeliverablesPanel
+        items={[{ path: "exports/成本测算.xlsx", sourceId: "a1" }]}
+        onOpenFile={() => {}}
+      />,
+    );
+
+  it("默认灰态（关）：aria-pressed=false + 关态 title，未写 localStorage", () => {
+    renderPanel();
+    const pill = screen.getByTestId("deliverable-auto-open-toggle");
+    expect(pill.getAttribute("aria-pressed")).toBe("false");
+    expect(pill.getAttribute("title")).toBe(
+      "自动弹出已关：新产物出现时不切换面板，仅列表内「新」徽标提示（点击开启）",
+    );
+    expect(pill.textContent).toContain("自动弹出 关");
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("点击开启：先落盘 1 再变亮（aria-pressed=true），title 反向说明", () => {
+    renderPanel();
+    const pill = screen.getByTestId("deliverable-auto-open-toggle");
+    fireEvent.click(pill);
+    expect(localStorage.getItem(KEY)).toBe("1");
+    expect(pill.getAttribute("aria-pressed")).toBe("true");
+    expect(pill.getAttribute("title")).toBe("自动弹出已开：新产物出现时自动切到本面板（点击关闭）");
+    expect(pill.textContent).toContain("自动弹出 开");
+  });
+
+  it("已存偏好（1）启动即亮；再点关闭落盘 0 回灰态", () => {
+    try { localStorage.setItem(KEY, "1"); } catch { /* ignore */ }
+    renderPanel();
+    const pill = screen.getByTestId("deliverable-auto-open-toggle");
+    expect(pill.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(pill);
+    expect(localStorage.getItem(KEY)).toBe("0");
+    expect(pill.getAttribute("aria-pressed")).toBe("false");
   });
 });
 

@@ -113,3 +113,27 @@ export function loadPreviewWidth(): number {
 export function savePreviewWidth(width: number): void {
   saveLayoutSize("workspacePreviewWidth", width, clampPreviewWidth);
 }
+
+// v4.32 预览两档占幅持久化：最大化状态跨会话记忆（writePrefs 只落 sizes
+// 数字 map，布尔开关走独立简单键，对齐 browserPrefs 的 "1"/"0" 约定）。
+const PREVIEW_MAXIMIZED_KEY = "gaea.previewMaximized";
+
+/** 读取预览最大化偏好；未设置/损坏/无 window 时默认半幅（false）。 */
+export function loadPreviewMaximized(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(PREVIEW_MAXIMIZED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** 持久化预览最大化偏好（"1"/"0"，可读可手改）。 */
+export function savePreviewMaximized(maximized: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PREVIEW_MAXIMIZED_KEY, maximized ? "1" : "0");
+  } catch {
+    /* 存储失败静默降级：记忆是增强项，不阻塞预览 */
+  }
+}

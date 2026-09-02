@@ -1,11 +1,45 @@
 # 任务进度
 
-> 最后更新: 2026-09-02（v4.31.1「-count>1 全量绿化」：测试全局态 -count 不兼容根治 +
-> whisper 末气泡真 bug 修复——绑定面 552 零变更）
+> 最后更新: 2026-09-02（v4.32.0「细节收口 · 第二刀」：回滚可撤销/产物自动弹出/弹窗 pdf
+> 懒加载/预览最大化持久化——绑定面 552 零变更）
 
 ## 当前状态
 
-- **最新发布：v4.31.1（2026-09-02）「-count>1 全量绿化 · 测试全局态 -count 不兼容根治 +
+- **最新发布：v4.32.0（2026-09-02）「细节收口 · 第二刀：回滚可撤销/产物自动弹出/弹窗
+  pdf 懒加载/预览最大化持久化」**：git tag v4.32.0；基线 v4.31.1；绑定面 **552 零变更**。
+  用户点名「继续优化完善 gaea」——沿 v4.30/v4.31 先例从欠账池挑四条互不相交线，三并行
+  子代理（A Go/B 产物面板/C 弹窗预览）+ 主代理自接线D（App.tsx）：
+  ①**回滚先快照当前态**（线A，收 v4.28 B1 欠账）：GaeaRollbackRecord 恢复前把目标当前
+  内容快照到原基线同目录（evidence 新导出 StageBaselineTo(dir,target,content)，命名/权限
+  逻辑单点化），rollback 记录升级为完整证据卡（Before/After 原文+BaselinePath）——恢复
+  动作本身在版本时间线成为可再恢复版本（撤销恢复=对 rollback 卡再点恢复）；目标缺失/快照
+  失败降级不阻断。测试 gaea_rollback_test.go 三场景+evidence 2 单测，-count=2 绿。
+  **取舍**：rollback 卡未接「手工修改」守卫（基线 >8KB 截断后精确匹配恒误报会阻断合法
+  恢复），数据已就位待前缀匹配/快照比对方案。
+  ②**产物自动弹出+偏好**（线B，收 v4.30 欠账）：新 lib/deliverablePrefs（gaea.
+  deliverableAutoOpen **默认关** opt-in，API 对齐 browserPrefs）+ DeliverablesPanel 头部
+  胶囊（data-testid=deliverable-auto-open-toggle，对齐 BrowserPanel 形状）；App 新产物
+  diff effect 消费 shouldAutoOpenDeliverables()：偏好开且产物 tab 未停用 → 亮右栏切
+  「产物」tab（激活即清零角标=自动弹出即已查看；不动 FilePreview）；单版本徽标 title
+  细化「有 N 个历史快照，可预览/恢复」（收 v4.31 欠账，既有 5 处 title 断言最小替换）。
+  ③**弹窗 pdf 逐页懒加载**（线C，收 v4.31 欠账）：新 lib/pageLazy 纯函数 + IO 单向懒
+  加载（初始 4 页/rootMargin 800px/前后 buffer 1/已挂载不卸载杜绝滚动跳动），大纲跳转
+  目标页并入强制渲染集合（scrollIntoView 不落估计高占位盒），无 IO 环境全量降级=v4.31
+  行为；**顺带修真 bug**：preview/loading 两次异步提交致页 figure 晚于 IO effect 挂载、
+  观察集为空、懒加载永不触发——pdfObserverRef 在 ref 回调登记时立即补 observe。
+  ④**预览最大化持久化**（线D，主代理，收 v4.30 欠账）：layoutPreferences 新
+  loadPreviewMaximized/savePreviewMaximized（gaea.previewMaximized 独立简单键——writePrefs
+  只落 sizes 数字 map，布尔会被剥掉），App 懒初始化+toggle/拖拽退出三处落盘；半幅宽度
+  本就落盘，还原仍回上次半幅。
+  **集成**：tsc -b 抓到线C 三处 ReadonlySet/Set 类型口径不一致（expandMountedPages/
+  addForcedPage 返回类型+消费方 state 字段诚实放宽为 ReadonlySet，已修）。
+  **验证**：Go build/vet 全绿 + 全量 go test ./... exit 0；tsc -b/eslint 0；vitest
+  **1196/1196**（+30：prefs 4+面板 4+pageLazy 19+弹窗 3，旧锁语义零删改）；drift PASS
+  （552）；版本四处 4.32.0。**欠账**：rollback 卡手工修改守卫未接；弹窗 pdf 占位高为
+  A4 估计值（滚动条比例非精确）；沿旧 v4.28 全部 + v4.30（降噪折叠/palette 个性化）+
+  环境（-race 无 gcc）。详见 releases/v4.32.0.md。
+
+- **上一发布：v4.31.1（2026-09-02）「-count>1 全量绿化 · 测试全局态 -count 不兼容根治 +
   whisper 末气泡真 bug 修复」**：git tag v4.31.1；基线 v4.31.0；绑定面 **552 零变更**
   （纯测试治理 + 1 处生产修复）。v4.31.0 线 D 收尾延伸：全量 `go test -count=2 ./...`
   从 FAIL → 全绿（exit 0），含生产修复按先例独立成版。**根因（统一）**：测试写进程级

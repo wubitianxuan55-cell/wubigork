@@ -103,6 +103,18 @@ func StageBaseline(ctx context.Context, target string, before []byte) string {
 	if dir == "" {
 		return ""
 	}
+	return StageBaselineTo(dir, target, before)
+}
+
+// StageBaselineTo 把 content 快照进 dir（v4.32 薄导出：给无回合 ctx 的调用方
+// ——如 Rollback 恢复前快照当前内容——复用与 StageBaseline 完全一致的命名/
+// 权限逻辑，避免在包外复制约定）。文件名 <sessionKey(target) 截 120 字符>
+// -<unixnano>.before，MkdirAll 0755、WriteFile 0644；dir 为空或写盘失败
+// 返回 ""（静默降级，调用方自行决定是否阻断）。返回快照绝对路径。
+func StageBaselineTo(dir, target string, content []byte) string {
+	if dir == "" {
+		return ""
+	}
 	base := sessionKeyOf(target)
 	if len(base) > 120 {
 		base = base[:120]
@@ -111,7 +123,7 @@ func StageBaseline(ctx context.Context, target string, before []byte) string {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return ""
 	}
-	if err := os.WriteFile(path, before, 0o644); err != nil {
+	if err := os.WriteFile(path, content, 0o644); err != nil {
 		return ""
 	}
 	return path

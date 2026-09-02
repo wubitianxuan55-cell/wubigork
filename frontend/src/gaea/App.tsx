@@ -58,7 +58,9 @@ import {
 import {
   PREVIEW_MAX_WIDTH, PREVIEW_MIN_WIDTH, clampPreviewWidth,
   loadPreviewWidth, savePreviewWidth,
+  loadPreviewMaximized, savePreviewMaximized,
 } from "./lib/layoutPreferences";
+import { shouldAutoOpenDeliverables } from "./lib/deliverablePrefs";
 import CompactContext from "./hooks/useCompact";
 import { DELIVERABLE_EXT_RE, deliverableMentions } from "./lib/fileLinks";
 import { recordRecentFile } from "./lib/recentFiles";
@@ -242,7 +244,9 @@ export default function App() {
   // v4.30 预览两档占幅（VS Code Toggle Maximized Panel 式）：最大化 = 占满
   // 可用宽度（视口 − 侧栏 − 聊天最小 360，与拖拽上限同源）；还原回到进入
   // 最大化前的半幅宽度（previewHalfWidthRef 记忆）。拖拽分割条自动退出最大化。
-  const [previewMaximized, setPreviewMaximized] = useState(false);
+  // v4.32：最大化状态持久化（gaea.previewMaximized），半幅宽度本就落盘，
+  // 恢复会话后还原仍回到上次的半幅宽度。
+  const [previewMaximized, setPreviewMaximized] = useState(loadPreviewMaximized);
   const previewHalfWidthRef = useRef(previewWidth);
   const [previewResizing, setPreviewResizing] = useState(false);
   const [workspaceRefreshKey, setWorkspaceRefreshKey] = useState(0);
@@ -329,11 +333,13 @@ export default function App() {
   const togglePreviewMaximize = useCallback(() => {
     if (previewMaximized) {
       setPreviewMaximized(false);
+      savePreviewMaximized(false);
       setPreviewWidth(previewHalfWidthRef.current);
       savePreviewWidth(previewHalfWidthRef.current);
     } else {
       previewHalfWidthRef.current = previewWidth;
       setPreviewMaximized(true);
+      savePreviewMaximized(true);
     }
   }, [previewMaximized, previewWidth]);
 
@@ -342,6 +348,7 @@ export default function App() {
     e.preventDefault();
     // 用户手动拖拽 = 放弃最大化，回到半幅拖拽模式
     setPreviewMaximized(false);
+    savePreviewMaximized(false);
     setPreviewResizing(true);
     let next = previewWidth;
     // 预览最小 320px；最大不超过窗口减侧栏后再留 360px 给聊天区
@@ -739,8 +746,19 @@ export default function App() {
         added.push(d.path);
       }
     }
-    if (added.length > 0) setFreshDeliverablePaths((prev) => [...prev, ...added]);
-  }, [sessionDeliverables]);
+    if (added.length > 0) {
+      setFreshDeliverablePaths((prev) => [...prev, ...added]);
+      // v4.32 产物自动弹出（收 v4.30 欠账「自动弹 tab 暂不做可加偏好」）：
+      // 偏好开（gaea.deliverableAutoOpen，默认关，开关在 DeliverablesPanel
+      // 头部胶囊）且产物 tab 未停用 → 亮右栏切「产物」tab，语义对齐
+      // browserAutoOpen（tab 停用时尊重停用态不强行弹出；激活即清零角标，
+      // 自动弹出 = 已查看）。不动 FilePreview——产物 tab 与主区预览不冲突。
+      if (shouldAutoOpenDeliverables() && rightTab !== "deliverables" && enabledRecord.deliverables) {
+        setRightTab("deliverables");
+        setWorkspacePanel(true);
+      }
+    }
+  }, [sessionDeliverables, rightTab, enabledRecord]);
   // 激活产物 tab = 已查看 → 清零角标与「新」徽标
   useEffect(() => {
     if (rightTab === "deliverables") setFreshDeliverablePaths([]);
