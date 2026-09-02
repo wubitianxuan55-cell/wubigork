@@ -26,6 +26,7 @@ func (b *ModelB) GaeaSetUsdCnyRate(rate float64) error { return b.a.GaeaSetUsdCn
 func (b *ModelB) GaeaUsageOverview() UsageOverview { return b.a.GaeaUsageOverview() }
 func (b *ModelB) GetActiveEngine() string { return b.a.GetActiveEngine() }
 func (b *ModelB) GetActiveModel() string { return b.a.GetActiveModel() }
+func (b *ModelB) GetEngineFailover() bool { return b.a.GetEngineFailover() }
 func (b *ModelB) GetEngines() []modelengine.EngineConfig { return b.a.GetEngines() }
 func (b *ModelB) GetModelMonitor() map[string]interface{} { return b.a.GetModelMonitor() }
 func (b *ModelB) GetModelRoute(feature string) (string, error) { return b.a.GetModelRoute(feature) }
@@ -44,6 +45,7 @@ func (b *ModelB) HerdsmanModelUninstall(model string) (HerdsmanOpResult, error) 
 func (b *ModelB) HerdsmanOperations() (HerdsmanOperations, error) { return b.a.HerdsmanOperations() }
 func (b *ModelB) HerdsmanProbe() herdsman.Probe { return b.a.HerdsmanProbe() }
 func (b *ModelB) HerdsmanSecurityCheck() herdsman.LanExposure { return b.a.HerdsmanSecurityCheck() }
+func (b *ModelB) SetEngineFailover(enabled bool) error { return b.a.SetEngineFailover(enabled) }
 func (b *ModelB) SetFeatureModel(feature string, engineID string, modelName string) error { return b.a.SetFeatureModel(feature, engineID, modelName) }
 func (b *ModelB) SetFeatureModelEnabled(feature string, enabled bool) error { return b.a.SetFeatureModelEnabled(feature, enabled) }
 func (b *ModelB) SetOfficeLocal(enabled bool) error { return b.a.SetOfficeLocal(enabled) }

@@ -335,6 +335,13 @@ func (a *App) Startup(ctx context.Context) {
 	// app 生命周期）。远程目录仅影响展示与费用估算，不影响请求路由/alias/鉴权。
 	a.engineMgr.StartGLMCatalogRemote(a.ctx, a.cfg.GLMCatalogURL,
 		filepath.Join(a.whisperDataRoot, "glm_catalog_remote.json"))
+	// C 刀：引擎健康巡检（首轮延迟 1 分钟 / 周期 10 分钟，只探 enabled 非本地
+	// 引擎；ctx 随 app 生命周期，Shutdown 经 StopHealthProbe 停止）。状态相对
+	// 上次变化时经回调 emit engine-health-changed（Manager 不直接 emit）。
+	a.engineMgr.SetHealthNotifyFunc(func(id string, connected bool) {
+		a.emit("engine-health-changed", map[string]interface{}{"id": id, "connected": connected})
+	})
+	a.engineMgr.StartHealthProbe(a.ctx)
 	// 确保 xAI 引擎始终提供内置语音模型 grok-tts（TTS API 不返回在 /v1/models 列表）
 	a.engineMgr.EnsureModel("xai", "grok-tts")
 	// 确保本地 CosyVoice2 引擎提供语音模型（OpenAI 兼容 TTS 服务）
@@ -517,6 +524,8 @@ func (a *App) Shutdown(ctx context.Context) {
 	// 停止 GLM 目录远程拉取循环（B 刀；engineMgr 未初始化时为空操作兜底）。
 	if a.engineMgr != nil {
 		a.engineMgr.StopGLMCatalogRemote()
+		// 停止引擎健康巡检循环（C 刀 v0）。
+		a.engineMgr.StopHealthProbe()
 	}
 	if a.voiceManager != nil {
 		a.voiceManager.Stop()

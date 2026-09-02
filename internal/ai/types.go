@@ -67,6 +67,7 @@ type ChatRequest struct {
 	PresencePenalty    float64            `json:"presence_penalty,omitempty"`     // -2.0..2.0，鼓励新话题
 	StreamOptions      *ChatStreamOptions `json:"stream_options,omitempty"`       // 流式用量上报（include_usage）
 	skipIncludeUsage   bool               `json:"-"`                              // 内部：重试时不再请求 include_usage
+	failoverDone       bool               `json:"-"`                              // 内部：故障转移重试请求已转移过一次，不再二次转移（C 刀 v0）
 }
 
 // ChatStreamOptions OpenAI 兼容流式附加选项。

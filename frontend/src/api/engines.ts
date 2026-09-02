@@ -46,8 +46,9 @@ export interface EngineStatus {
   id: string
   connected: boolean
   model_count: number
+  /** 连续 ≥3 次巡检失败时后端带「连续 N 次探测失败」前缀（C 刀） */
   error: string
-  last_checked: string
+  last_checked?: string
   latency_ms?: number
 }
 
@@ -550,4 +551,26 @@ export async function exportBenchmark(id: string, dir: string): Promise<string> 
 export async function streamProbe(model: string): Promise<StreamProbeResult> {
   const result = await App().GaeaBenchmarkStreamProbe(model)
   return result as StreamProbeResult
+}
+
+// ── C 刀：健康巡检 + 故障转移 v0 ─────────────────────────────
+// GetEngineFailover/SetEngineFailover 挂在后端 ModelB 门面（并行线实现中）；
+// 这里经 initBridge 的 window.go.app.App 兼容代理按方法名路由（bridge.ts）。
+// AppBindings 认领 + bindingNames 再生成待后端合入后收口，此前用 AppFacade
+// 的既有索引签名（unknown → 收窄）调用：未合入环境读取拒绝 → 按 null 降级，
+// UI 显示「未知」并禁用开关。
+
+/** 读取故障转移开关；读取失败/后端未合入返回 null（UI 显示「未知」并禁用） */
+export async function getEngineFailover(): Promise<boolean | null> {
+  try {
+    const v = await App().GetEngineFailover()
+    return typeof v === 'boolean' ? v : null
+  } catch {
+    return null
+  }
+}
+
+/** 设置故障转移开关（调用失败自动换其他已连接引擎重试一次，默认关） */
+export async function setEngineFailover(enabled: boolean): Promise<void> {
+  await App().SetEngineFailover(enabled)
 }

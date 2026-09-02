@@ -161,6 +161,24 @@ func (a *App) SetOfflineMode(enabled bool) error {
 	return nil
 }
 
+// GetEngineFailover 读取引擎故障转移开关（Wails 绑定，默认关闭；true=聊天
+// 请求链首请求网络类失败或 HTTP 408/429/5xx 时换候选引擎重试一次）。
+func (a *App) GetEngineFailover() bool {
+	return a.cfg.GetEngineFailover()
+}
+
+// SetEngineFailover 设置引擎故障转移开关并持久化（~/.gaea_config.json
+// engine_failover_enabled；关闭即现状，请求路径零改动）。
+func (a *App) SetEngineFailover(enabled bool) error {
+	a.cfg.SetEngineFailover(enabled)
+	if err := config.Save(config.KeyEngineFailover, strconv.FormatBool(enabled)); err != nil {
+		slog.Warn("保存引擎故障转移开关失败", "error", err)
+		return err
+	}
+	slog.Info("引擎故障转移开关已更新", "enabled", enabled)
+	return nil
+}
+
 // SetSensitiveLocal 设置敏感域本地化开关并持久化（true=成本/报价 AI 走本地
 // Herdsman；false=按常规路由可回云端）。
 func (a *App) SetSensitiveLocal(enabled bool) error {

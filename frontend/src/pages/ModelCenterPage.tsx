@@ -95,6 +95,25 @@ const ModelCenterPage: React.FC = () => {
     }
   }, [loadAllSync, loadVoiceCfgSync, refreshRoutesSync])
 
+  // 同步（C 刀：健康巡检 + 故障转移 v0）：后端巡检发现引擎连通性变化 → 重拉
+  // 引擎列表（engineStatuses 随 engines.json 里的 status 刷新）；发生调用失败
+  // 转移 → info 级提示（非错误样式，不打断）。payload 契约：
+  // engine-health-changed {id, connected}；model-failover {from_engine, to_engine, model}。
+  useEffect(() => {
+    const onHealth = () => { loadAllSync() }
+    const onFailover = (data: unknown) => {
+      const p = (data ?? {}) as { to_engine?: unknown }
+      const to = typeof p.to_engine === 'string' ? p.to_engine : ''
+      message.info(to ? `调用失败，已切换到 ${to} 重试` : '调用失败，已自动切换引擎重试')
+    }
+    const unsub1 = runtimeOn('engine-health-changed', onHealth)
+    const unsub2 = runtimeOn('model-failover', onFailover)
+    return () => {
+      try { unsub1?.() } catch (_) {}
+      try { unsub2?.() } catch (_) {}
+    }
+  }, [loadAllSync])
+
   const ctx: ModelCenterContextValue = {
     category, setCategory,
     engines: engine.engines, engineStatuses: engine.engineStatuses,

@@ -113,6 +113,8 @@ var explicitOverrides = map[string]string{
 	"SetFeatureModel":    "model",
 	"SetFeatureModelEnabled": "model",
 	"GetEngines":         "model",
+	"GetEngineFailover":  "model",
+	"SetEngineFailover":  "model",
 	"GetActiveEngine":    "model",
 	"GetActiveModel":     "model",
 	"GetEngineStatus":    "model",

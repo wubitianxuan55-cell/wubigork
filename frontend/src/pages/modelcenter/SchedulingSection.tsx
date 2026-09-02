@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Switch, message } from 'antd'
-import { AppstoreOutlined, CloudSyncOutlined, FireOutlined, RocketOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, CloudSyncOutlined, FireOutlined, RocketOutlined, SwapOutlined } from '@ant-design/icons'
 import { app } from '../../gaea/lib/bridge'
-import { getHerdsmanCatalog } from '../../api/engines'
+import { getEngineFailover, getHerdsmanCatalog, setEngineFailover } from '../../api/engines'
 import { SectionHead, StatusChip } from './ui'
 
-// 模型中心「本地调度」设置区（T5-3）：保活开关 + 启动自动预载开关 + 当前运行中的本地模型数。
+// 模型中心「本地调度」设置区（T5-3 + C 刀）：保活开关 + 启动自动预载开关 +
+// 故障转移开关 + 当前运行中的本地模型数。
 // 绑定契约见 frontend/src/gaea/lib/bridge.ts（KeepWarmGet/Set → GaeaKeepWarmGet/Set，
 // PreloadPlanGet/Set → GaeaPreloadPlanGet/Set，由父代理实现的后端 Gaea* 绑定持久化于
-// ~/.gaea_config.json）。
+// ~/.gaea_config.json）。故障转移走 ModelB 门面 GetEngineFailover/SetEngineFailover
+// （api/engines.ts 包装，后端并行线合入前读取降级为「未知」）。
+
+/** 开关类型 → 提示文案里的功能名（message.success 用） */
+const TOGGLE_LABELS = { keepwarm: '保活', preload: '自动预载', failover: '故障转移' } as const
+
 export function SchedulingSection() {
   // null = 尚未读取/读取失败；undefined 区分「未知」与「已关闭」
   const [keepWarm, setKeepWarm] = useState<boolean | null>(null)
   const [preloadPlan, setPreloadPlan] = useState<boolean | null>(null)
-  const [saving, setSaving] = useState<'' | 'keepwarm' | 'preload'>('')
+  const [failover, setFailover] = useState<boolean | null>(null)
+  const [saving, setSaving] = useState<'' | 'keepwarm' | 'preload' | 'failover'>('')
   // 当前保活状态：Herdsman 运行中的模型数（HerdsmanModelCatalog 聚合）
   const [running, setRunning] = useState<number | null>(null)
   const [runningErr, setRunningErr] = useState<string | null>(null)
@@ -21,6 +28,9 @@ export function SchedulingSection() {
   const load = useCallback(async () => {
     try { setKeepWarm(await app.KeepWarmGet()) } catch { setKeepWarm(null) }
     try { setPreloadPlan(await app.PreloadPlanGet()) } catch { setPreloadPlan(null) }
+    // getEngineFailover 读取失败自降级为 null（「未知」）；此处兜底同款 try/catch，
+    // 包装层异常也不会让整次 load 中断（照 keepWarm 行先例）
+    try { setFailover(await getEngineFailover()) } catch { setFailover(null) }
     try {
       const c = await getHerdsmanCatalog()
       setRunning(typeof c.running === 'number' ? c.running : (c.models?.filter(m => m.running).length ?? null))
@@ -33,14 +43,16 @@ export function SchedulingSection() {
 
   useEffect(() => { void load() }, [load])
 
-  const toggle = async (kind: 'keepwarm' | 'preload', next: boolean) => {
+  const toggle = async (kind: 'keepwarm' | 'preload' | 'failover', next: boolean) => {
     setSaving(kind)
     try {
       if (kind === 'keepwarm') await app.KeepWarmSet(next)
-      else await app.PreloadPlanSet(next)
-      message.success(kind === 'keepwarm' ? (next ? '已开启保活' : '已关闭保活') : (next ? '已开启自动预载' : '已关闭自动预载'))
+      else if (kind === 'preload') await app.PreloadPlanSet(next)
+      else await setEngineFailover(next)
+      message.success(`${next ? '已开启' : '已关闭'}${TOGGLE_LABELS[kind]}`)
       if (kind === 'keepwarm') setKeepWarm(next)
-      else setPreloadPlan(next)
+      else if (kind === 'preload') setPreloadPlan(next)
+      else setFailover(next)
     } catch (e: unknown) {
       message.error(e instanceof Error ? e.message : '保存失败')
     } finally {
@@ -53,7 +65,7 @@ export function SchedulingSection() {
       <SectionHead
         icon={<CloudSyncOutlined />}
         title="本地调度"
-        desc="本地模型运行策略：保活防卸载、启动自动预载、换模等待预估（T5-3）"
+        desc="本地模型运行策略与调用容错：保活防卸载、启动自动预载、故障转移重试、换模等待预估（T5-3）"
       />
 
       <div className="mc-grid two-col">
@@ -97,6 +109,28 @@ export function SchedulingSection() {
               disabled={preloadPlan === null}
               loading={saving === 'preload'}
               onChange={(v: boolean) => void toggle('preload', v)}
+            />
+          </div>
+        </div>
+
+        {/* 故障转移开关（C 刀：调用失败自动换其他已连接引擎重试一次） */}
+        <div className="mc-bind-card">
+          <div className="mc-bind-head">
+            <span className="mc-bind-title"><SwapOutlined /> 故障转移</span>
+            <StatusChip tone={failover === null ? 'neutral' : failover ? 'ok' : 'warn'} dot>
+              {failover === null ? '未知' : failover ? '已开启' : '已关闭'}
+            </StatusChip>
+          </div>
+          <div className="mc-bind-desc">调用失败（网络/超时/5xx）时自动换其他已连接引擎重试一次（默认关）</div>
+          <div className="mc-bind-meta">仅在存在其他已连接引擎时触发；引擎健康状态见总览巡检</div>
+          <div className="mc-bind-switch">
+            <span>启用故障转移</span>
+            <Switch
+              size="small"
+              checked={failover === true}
+              disabled={failover === null}
+              loading={saving === 'failover'}
+              onChange={(v: boolean) => void toggle('failover', v)}
             />
           </div>
         </div>

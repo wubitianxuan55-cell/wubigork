@@ -10,6 +10,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -55,6 +57,15 @@ type Client struct {
 	streamIdleTimeout time.Duration
 	// proxySpecOverride 代理配置覆盖（测试注入）；nil 时读取 gaea 生效配置。
 	proxySpecOverride *netclient.ProxySpec
+
+	// engineFailoverFn 引擎故障转移开关读取函数（C 刀 v0；app 启动/重建 client
+	// 后注入 cfg.GetEngineFailover，照 engineMgr 注入先例——避免逐请求读
+	// config）。nil 或返回 false = 关闭（现状，请求路径零改动）。
+	engineFailoverFn func() bool
+
+	// OnFailover 故障转移发生回调（C 刀 v0；app 层接线 emit "model-failover"，
+	// 同 modelengine.SetHealthNotifyFunc 注入模式；nil=忽略）。
+	OnFailover func(fromEngine, toEngine, model string)
 }
 
 // 流式请求内部哨兵错误：需要整体重试（不记录 usage）。
@@ -151,6 +162,81 @@ func (c *Client) idleTimeout() time.Duration {
 // SetEngineManager 设置模型引擎管理器（用于多引擎路由）
 func (c *Client) SetEngineManager(mgr *modelengine.Manager) {
 	c.engineMgr = mgr
+}
+
+// SetEngineFailoverFunc 注入引擎故障转移开关读取函数（C 刀 v0；app 在
+// configureClient 接线，client 重建后随 OnEvent 一起恢复）。nil=永久关闭。
+func (c *Client) SetEngineFailoverFunc(fn func() bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.engineFailoverFn = fn
+}
+
+// FailoverEnabled 读取故障转移开关当前生效值（未注入读取函数 = 恒关）。
+func (c *Client) FailoverEnabled() bool {
+	c.mu.RLock()
+	fn := c.engineFailoverFn
+	c.mu.RUnlock()
+	return fn != nil && fn()
+}
+
+// ── 引擎故障转移 v0（C 刀）────────────────────────────────────
+//
+// 聊天请求链（流式/非流式）首请求失败且满足可转移条件时，换候选引擎用其
+// default_model 重试一次（新 URL/新 Key/新模型名）；仍失败返回原错误，
+// 不递归、最多一次转移（重试请求带 failoverDone 标记）。开关默认关——
+// 关闭时成功与失败路径行为均与现状逐字节一致。
+
+// failoverTarget 判断是否应故障转移并返回（候选引擎ID, 候选default_model, true）。
+// 条件：开关开启 + engineMgr 可用 + 错误可转移 + 存在候选引擎（enabled 且
+// 最近 Status.Connected 且判型 llm，排除失败引擎，按 m.order 顺序取首个）。
+func (c *Client) failoverTarget(failedEngineID string, err error) (string, string, bool) {
+	if err == nil || !c.FailoverEnabled() || c.engineMgr == nil {
+		return "", "", false
+	}
+	if !isTransferableChatError(err) {
+		return "", "", false
+	}
+	for _, cand := range c.engineMgr.FailoverCandidates(failedEngineID) {
+		return cand.ID, cand.DefaultModel, true
+	}
+	return "", "", false
+}
+
+// transferableStatusRe 提取聊天错误中的上游状态码（Chat/doStreamRequest 的
+// 非统一错误格式 "API 错误 (HTTP %d): ..."）。
+var transferableStatusRe = regexp.MustCompile(`API 错误 \(HTTP (\d{3})\)`)
+
+// isTransferableChatError 判断聊天请求错误是否可转移（C 刀 v0）：
+//   - 网络类（连接拒绝/DNS 解析失败/超时/tls/连接重置/代理不可达等）；
+//   - HTTP 408（请求超时）/ 429（限流）/ 5xx（服务端故障）。
+//
+// 401/403/400/404 等配置类错误不转移——换引擎解决不了 Key/参数配错。
+func isTransferableChatError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	if m := transferableStatusRe.FindStringSubmatch(err.Error()); m != nil {
+		code, cErr := strconv.Atoi(m[1])
+		if cErr == nil {
+			return code == 408 || code == 429 || code >= 500
+		}
+	}
+	msg := strings.ToLower(err.Error())
+	keywords := []string{
+		"connection refused", "no such host", "dial tcp", "i/o timeout",
+		"timeout", "deadline exceeded", "tls:", "connection reset",
+		"broken pipe", "network is unreachable", "proxyconnect",
+	}
+	for _, kw := range keywords {
+		if strings.Contains(msg, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 // SetActiveEngine 设置当前活跃引擎（空字符串="xai"）
@@ -322,7 +408,13 @@ func (c *Client) tryRefreshToken() error {
 
 // Chat 非流式对话。
 //
-// 请求建立阶段失败的重试语义与流式一致：
+// C 刀故障转移 v0：chatOnce（单引擎完整重试语义，见下）失败且满足可转移
+// 条件（网络类错误或 HTTP 408/429/5xx，开关开启，存在候选引擎）时，换候选
+// 引擎用其 default_model 重试一次；仍失败返回原错误。不递归——chatOnce 内
+// 无转移逻辑，最多一次转移。失败的请求与重试请求照常逐笔记账（各按实际
+// 引擎/模型）。开关关闭时本函数与原实现行为逐字节一致。
+//
+// chatOnce 请求建立阶段失败的重试语义与流式一致：
 //   - 连接错误（httpClient.Do 返回 err）与 5xx 响应按指数退避重试（默认 2 次
 //     1s/2s，复用 defaultStreamRetryBackoff，测试可通过 chatRetryBackoff 注入）；
 //   - 收到 200 后不再重试（非流式天然单次响应）；
@@ -338,6 +430,33 @@ func (c *Client) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, err
 	}
 	defer c.releaseSem()
 
+	resp, err := c.chatOnce(ctx, req)
+	if err == nil {
+		return resp, nil
+	}
+	from := req.EngineID
+	if from == "" {
+		from = c.ActiveEngineID()
+	}
+	if to, toModel, ok := c.failoverTarget(from, err); ok {
+		slog.Warn("聊天请求失败，故障转移重试", "from_engine", from, "to_engine", to, "model", toModel, "error", err)
+		retryReq := *req
+		retryReq.EngineID = to
+		retryReq.Model = toModel
+		retryReq.failoverDone = true
+		if c.OnFailover != nil {
+			c.OnFailover(from, to, toModel)
+		}
+		if resp2, err2 := c.chatOnce(ctx, &retryReq); err2 == nil {
+			return resp2, nil
+		}
+	}
+	return nil, err
+}
+
+// chatOnce 单引擎一次完整聊天尝试（原 Chat 主体：引擎/模型解析 + 退避重试 +
+// 401 刷新 + usage 记账），不含故障转移。由 Chat（外层）在信号量内调用。
+func (c *Client) chatOnce(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
 	start := time.Now()
 	reqEngine := req.EngineID
 	if reqEngine == "" {
@@ -527,7 +646,24 @@ func (c *Client) ChatStream(ctx context.Context, req *ChatRequest) (<-chan SSECh
 	case err != nil:
 		cancel()
 		c.releaseSem()
+		// 失败请求照常记账（原引擎/模型）。
 		c.recordUsage(reqEngine, reqModel, start, 0, 0, 0, 0, false, err.Error())
+		// C 刀故障转移 v0：doStreamRequest 只在「尚未收到任何响应字节」时返回
+		// 错误（连接失败/非 200；200 返回即流已开始，不进本分支）。可转移时换
+		// 候选引擎重试一次；重试请求带 failoverDone 标记，不再二次转移。
+		if req != nil && !req.failoverDone {
+			if to, toModel, ok := c.failoverTarget(reqEngine, err); ok {
+				slog.Warn("流式请求失败，故障转移重试", "from_engine", reqEngine, "to_engine", to, "model", toModel, "error", err)
+				retryReq := *req
+				retryReq.EngineID = to
+				retryReq.Model = toModel
+				retryReq.failoverDone = true
+				if c.OnFailover != nil {
+					c.OnFailover(reqEngine, to, toModel)
+				}
+				return c.ChatStream(ctx, &retryReq)
+			}
+		}
 		return nil, err
 	}
 

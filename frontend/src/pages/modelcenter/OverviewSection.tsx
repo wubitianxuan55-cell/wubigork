@@ -11,6 +11,15 @@ import { EmptyState, KpiTile, ModelCard, SectionHead, StatusChip } from './ui'
 import { engineLabel } from './utils'
 import { useModelCenter } from './context'
 
+/** 巡检时间 title（C 刀）：ISO → 「巡检 HH:MM」；缺失/解析失败返回 undefined 不占位 */
+function checkedAtTitle(iso?: string): string | undefined {
+  if (!iso) return undefined
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return undefined
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `巡检 ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 export function OverviewSection() {
   const { engines, engineStatuses, callStats, setCategory, activeEngine } = useModelCenter()
   const enabled = engines.filter(e => e.enabled)
@@ -59,6 +68,9 @@ export function OverviewSection() {
         {enabled.map(engine => {
           const status = engineStatuses[engine.id]
           const ok = status?.connected
+          // C 刀巡检 v0：连续 ≥3 次探测失败时后端 error 带「连续 N 次探测失败」前缀，
+          // 卡片按 danger + 错误原文呈现；last_checked 存在时以 title 提示巡检时间（克制）。
+          const checkedTitle = checkedAtTitle(status?.last_checked)
           return (
             <ModelCard
               key={engine.id}
@@ -68,7 +80,11 @@ export function OverviewSection() {
               kindChip={<StatusChip>{engine.id}</StatusChip>}
               status={{
                 tone: ok ? 'ok' : 'danger',
-                text: ok ? `连接正常 · ${status!.model_count} 个模型` : status?.error || '尚未测试',
+                text: (
+                  <span title={checkedTitle}>
+                    {ok ? `连接正常 · ${status!.model_count} 个模型` : status?.error || '尚未测试'}
+                  </span>
+                ),
               }}
               action={(
                 <Button size="small" icon={<SettingOutlined />} onClick={() => setCategory('engine')}>

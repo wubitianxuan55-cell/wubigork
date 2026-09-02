@@ -146,6 +146,10 @@ type Manager struct {
 	// catalogRemoteStop GLM 目录远程热更新拉取循环的停止通道（nil=未启动，
 	// 见 catalog_remote.go；app Shutdown 关闭）。
 	catalogRemoteStop chan struct{}
+	// ── 健康巡检 + 故障转移（C 刀 v0，见 health_probe.go）─────────────
+	healthStop   chan struct{}                   // 巡检循环停止通道（nil=未启动）
+	healthNotify func(id string, connected bool) // 状态变化回调（app 接线 emit，Manager 不直接 emit）
+	probeFails   map[string]int                  // 连续探测失败计数（仅内存，重启清零）
 }
 
 // NewManager 创建引擎管理器
@@ -453,6 +457,8 @@ func (m *Manager) RemoveCustomEngine(engineID string) error {
 		}
 	}
 	delete(m.customKeys, engineID)
+	// 健康巡检连续失败计数一并清理（C 刀 v0）
+	delete(m.probeFails, engineID)
 	m.mu.Unlock()
 	m.saveState()
 	slog.Info("自定义引擎已删除", "engine", engineID)

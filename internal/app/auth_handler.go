@@ -20,6 +20,15 @@ func (a *App) configureClient() {
 		data["type"] = eventType
 		a.emit("xai-output", data)
 	}
+	// C 刀故障转移 v0：开关读取函数注入（照 engineMgr 注入先例，避免逐请求读
+	// config）+ 转移事件回调接线（emit model-failover）。放在 configureClient
+	// 使 Login 重建 client 后接线自动恢复。
+	a.client.SetEngineFailoverFunc(a.cfg.GetEngineFailover)
+	a.client.OnFailover = func(fromEngine, toEngine, model string) {
+		a.emit("model-failover", map[string]interface{}{
+			"from_engine": fromEngine, "to_engine": toEngine, "model": model,
+		})
+	}
 	// 办公 AI 桥接 provider 始终可用：成本/知识导入 AI 解析、文件摘要等
 	// 依赖 bridge 注入的 ai.LLMClient。此前只在 GaeaInit（办公引擎懒初始化）
 	// 注入，用户未进过办公板块直接导入 PDF 点 AI 解析会报

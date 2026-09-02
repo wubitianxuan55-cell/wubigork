@@ -93,6 +93,11 @@ const (
 	// （ollama/herdsman/cosyvoice），云端引擎（xai/deepseek/opencode-*）
 	// 一律跳过——数据不出本机的总闸。默认关闭。
 	KeyOfflineMode = "offline_mode"
+	// 引擎故障转移（C 刀 v0）：开启后聊天请求链（流式/非流式）首请求失败且为
+	// 网络类错误或 HTTP 408/429/5xx 时，换一个 enabled 且最近 Status.Connected
+	// 的 llm 引擎用其 default_model 重试一次（401/403/400/404 等配置类错误
+	// 不转移）。默认关闭——关闭即现状，成功路径行为零改动。
+	KeyEngineFailover = "engine_failover_enabled"
 	// 本地模型调度（T5-3a/b）：保活 + 启动自动预载，默认开启。
 	KeyKeepWarm    = "keep_warm_enabled" // 保活：周期性探活已运行的本地模型，防卸载/降温
 	KeyAutoPreload = "auto_preload"      // 启动自动预载：按功能绑定预载 herdsman 模型
@@ -217,6 +222,8 @@ type configFile struct {
 	IntentsLLMTimeoutMS int `json:"intents_llm_timeout_ms,omitempty"`
 	// 全局离线模式开关（nil=默认关闭，路由只允许本地引擎）
 	OfflineMode *bool `json:"offline_mode,omitempty"`
+	// 引擎故障转移开关（C 刀 v0，nil=默认关闭）
+	EngineFailoverEnabled *bool `json:"engine_failover_enabled,omitempty"`
 	// 本地模型调度开关（T5-3a/b，nil=默认开启）
 	KeepWarmEnabled *bool `json:"keep_warm_enabled,omitempty"` // 保活探针
 	AutoPreload     *bool `json:"auto_preload,omitempty"`      // 启动自动预载
@@ -359,6 +366,10 @@ type Config struct {
 	IntentsLLMTimeoutMS int
 	// 全局离线模式（v4.8）：默认关；开启后路由只允许本地引擎
 	OfflineMode bool
+
+	// 引擎故障转移（C 刀 v0）：默认关；开启后聊天请求首请求失败（网络类错误或
+	// HTTP 408/429/5xx）时换 enabled 且最近 Status.Connected 的 llm 引擎重试一次。
+	EngineFailoverEnabled bool
 
 	// 本地模型调度（T5-3a/b，默认开启）：
 	//   KeepWarmEnabled：保活——周期性对已运行的本地模型发轻量探针，防止被
@@ -582,6 +593,21 @@ func (c *Config) SetOfflineMode(enabled bool) {
 	c.OfflineMode = enabled
 }
 
+// GetEngineFailover 读取引擎故障转移开关（C 刀 v0，未显式配置时默认关闭）。
+func (c *Config) GetEngineFailover() bool {
+	funcMu.RLock()
+	defer funcMu.RUnlock()
+	return c.EngineFailoverEnabled
+}
+
+// SetEngineFailover 写入引擎故障转移开关（true=聊天请求首请求网络类失败时
+// 换候选引擎重试一次）。
+func (c *Config) SetEngineFailover(enabled bool) {
+	funcMu.Lock()
+	defer funcMu.Unlock()
+	c.EngineFailoverEnabled = enabled
+}
+
 // SetIntentsLLMTimeoutMS 写入意图 LLM 兜底硬超时（毫秒，200-60000）。
 func (c *Config) SetIntentsLLMTimeoutMS(ms int) {
 	funcMu.Lock()
@@ -700,6 +726,8 @@ func Load() *Config {
 		IntentsLLMTimeoutMS: 2000,
 		// 全局离线模式（v4.8）：默认关（云端引擎可用）。
 		OfflineMode: false,
+		// 引擎故障转移（C 刀 v0）：默认关（关闭=现状逐字节）。
+		EngineFailoverEnabled: false,
 		// T5-3a/b：本地模型保活 + 启动自动预载默认开启。
 		KeepWarmEnabled: true,
 		AutoPreload:     true,
@@ -1008,6 +1036,9 @@ func Load() *Config {
 			}
 			if cf.OfflineMode != nil {
 				cfg.OfflineMode = *cf.OfflineMode
+			}
+			if cf.EngineFailoverEnabled != nil {
+				cfg.EngineFailoverEnabled = *cf.EngineFailoverEnabled
 			}
 			if cf.KeepWarmEnabled != nil {
 				cfg.KeepWarmEnabled = *cf.KeepWarmEnabled
@@ -1439,6 +1470,14 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 			return err
 		}
 		cf.OfflineMode = b
+		return nil
+	},
+	KeyEngineFailover: func(cf *configFile, v string) error {
+		b, err := parseBoolPtr(v)
+		if err != nil {
+			return err
+		}
+		cf.EngineFailoverEnabled = b
 		return nil
 	},
 	KeyKeepWarm: func(cf *configFile, v string) error {
