@@ -19,6 +19,9 @@ const (
 	ImageBackendKindOpenAI = "openai"
 	// ImageBackendKindComfyUI 本地 ComfyUI 后端（REST API + 工作流）。
 	ImageBackendKindComfyUI = "comfyui"
+	// ImageBackendKindDashScope 阿里云百炼改图后端（qwen-image-edit 系列，
+	// 同步多模态生成端点，仅支持 img2img）。
+	ImageBackendKindDashScope = "dashscope"
 )
 
 // ImageBackendConfig 图片后端实例配置（注册表 New 入参）。

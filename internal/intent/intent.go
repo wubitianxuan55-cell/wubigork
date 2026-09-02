@@ -19,6 +19,7 @@ type Action string
 const (
 	ActionNavigate      Action = "navigate"       // 打开/切换板块（Target = 板块 id）
 	ActionGenerateImage Action = "generate_image" // 画一张…（Target = 画面描述）
+	ActionEditImage     Action = "edit_image"     // 改这张图…（Target = 编辑指令，v4.9 对话式改图）
 	ActionStatus        Action = "status"         // 查询状态（Target = 模型/引擎）
 	ActionReminder      Action = "reminder"       // 离线代办提醒（时间解析在执行层）
 	ActionReadScreen    Action = "read_screen"    // 读一下屏幕（屏幕感知：截屏 + OCR，v4.7 S4.6）
@@ -76,6 +77,37 @@ var reImage = regexp.MustCompile(
 
 // 状态查询。
 var reStatus = regexp.MustCompile(`(?:现在)?(?:用的?|在用|是什么|什么|哪个)(?:模型|引擎)|(?:模型|引擎)(?:状态|怎么样|是啥)|当前(?:模型|引擎)`)
+
+// 改图（对话式改图，v4.9）：保守双门槛，(a) 编辑语义动词 与 (b) 指代已收到
+// 的图 必须同时满足才命中——宁漏勿误。「这张图好看吗」（无编辑动词）、「
+// 把背景音乐关掉」（指代不是图）都不命中；「改图/修图/P图」词头本身即指代
+// 刚发来的那张图，同时计入两门槛。
+var reEditImageVerb = regexp.MustCompile(
+	`改图|修图|(?i:P图)|重绘|修改|改成|换成|换上|修成|(?i:P成)|调成|变成|去掉|删除|删掉|加上|添加|改|换`)
+var reEditImageRef = regexp.MustCompile(
+	`这张图|这图|那个图|那张图|这个图|上一张图|刚才那(?:张)?图|图中|图里|它|背景|改图|修图|(?i:P图)`)
+
+// reEditImageLead 指代前缀（剥出编辑指令用）：语气词 + 可选把/将 + 指代 +
+// 连接助词/标点。只剥句首前缀，句中指代保留（「去掉图里的路人」整句即编辑
+// 指令）；剥完没有实质内容按未命中（宁漏勿误）。
+var reEditImageLead = regexp.MustCompile(
+	`^(?:请|麻烦|帮我|给我)*(?:把|将)?` +
+		`(?:这张图|这图|那个图|那张图|这个图|上一张图|刚才那(?:张)?图|它|背景|图中|图里|改图|修图|(?i:P图))` +
+		`(?:的|里|中|里面|之中的)?[，,：:、\s]*`)
+
+// extractEditImageQuery 提取编辑指令全文：剥掉句首指代前缀（「把这张图的」
+// 整段去掉），剥不动就回原文（引擎侧整句照常可用作编辑指令）；剥完只剩
+// 标点/空白视为空串（调用方按未命中处理）。
+func extractEditImageQuery(t string) string {
+	if loc := reEditImageLead.FindStringIndex(t); loc != nil && loc[0] == 0 {
+		t = t[loc[1]:]
+	}
+	q := strings.TrimSpace(t)
+	if strings.Trim(q, "。，,：:、！!？?…～~ ") == "" {
+		return ""
+	}
+	return q
+}
 
 // 读屏（屏幕感知，S4.6 收口；v4.8 读屏纵深扩展显示器选择）：必须明确指向
 // 「屏幕」——读/念/看/识别/截 + 屏幕/主屏/副屏/第N屏，或「屏幕上有什么/写了
@@ -186,7 +218,7 @@ func cnOrdinal(s string) int {
 var reReminder = regexp.MustCompile(`提醒|叫我`)
 
 // Parse 解析一条自然语言指令；未命中返回 nil。
-// 优先级：导航 > 生图 > 读屏 > 状态 > 提醒（窄规则优先，宽匹配殿后）。
+// 优先级：导航 > 生图 > 改图 > 读屏 > 状态 > 提醒（窄规则优先，宽匹配殿后）。
 func Parse(text string) *Intent {
 	t := strings.TrimSpace(text)
 	t = strings.TrimRight(t, "。.！!？?？")
@@ -210,6 +242,15 @@ func Parse(text string) *Intent {
 		}
 		if desc != "" {
 			return &Intent{Action: ActionGenerateImage, Target: desc, Text: t}
+		}
+	}
+
+	// ②.5 改图（v4.9 对话式改图）：编辑动词 × 图片指代 双门槛；生图优先序
+	// 不变（上一跳已返回），「画一张图」绝不被改图误吞。Target = 去掉指代
+	// 前缀的编辑指令全文。
+	if reEditImageVerb.MatchString(t) && reEditImageRef.MatchString(t) {
+		if q := extractEditImageQuery(t); q != "" {
+			return &Intent{Action: ActionEditImage, Target: q, Text: t}
 		}
 	}
 

@@ -47,6 +47,20 @@
 
 ## 版本状态
 
+- **最新发布：v4.40.0（2026-09-02）「对话式改图 · 百炼引擎 + 微信发图即改」**：
+  git tag `v4.40.0`；基线 v4.39.0；绑定面 **557 零变更**。微信助手调研 A 刀（定位
+  拍板：聊天/出图/改图/收发文件/多微信并行）：①百炼 DashScope 改图引擎（官方契约
+  核实后实装：同步免轮询多模态端点、单图单文、qwen-image-edit-plus 默认、仅
+  img2img、改图不传 size 保原图比例、24h URL 下载转 data URL；kind=dashscope）；
+  ②dashscope_api_key 密文落盘（SetImageBackend 追加第 5 参空=保留存量，方法名不变）；
+  ③ActionEditImage 动词∧指代双门槛保守正则 + 入站图旁路 hook（OCR/vision 链路
+  零改动红线）+ 助手级图片缓存（wx_edit_cache 自持副本 TTL 10min 只留最新）+
+  routeIntentForAssistant 内部变体（未命中/面板/语音不接管回落聊天）+ 产物 CardPath
+  图片卡回推；④绘梦「百炼改图」选项 + img2img 门禁三处白名单 + 设置页 Key 框。
+  实施三路并行子代理（引擎/接线/前端），收口把 EditImageFromCard 改未导出保 557
+  （教训：门面完整性测试会逼导出方法进绑定面——内部链路方法直接小写开头）。
+  **下一刀**：B 文件收发（file_item 抓包硬前置，可先抓包）。详见 releases/v4.40.0.md。
+
 - **最新发布：v4.39.0（2026-09-02）「微信助手管理台 · 多微信并行 + 并发正确性两修」**：
   git tag `v4.39.0`；基线 v4.38.0；绑定面 **557 零变更**。微信助手专项调研
   （docs/market-research-2026-09-02b.md）C 刀。**定位用户拍板纠偏**：微信助手=通过

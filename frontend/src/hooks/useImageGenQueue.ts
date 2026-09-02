@@ -206,8 +206,8 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
   const handleGenerate = useCallback(() => {
     if (!config.prompt.trim()) { message.warning(config.mode === 't2v' ? '请输入视频画面描述' : '请输入图片描述'); return }
     if (config.mode === 'img2img' && !config.initImage) { message.warning('请先上传参考图'); return }
-    if (config.mode === 'img2img' && config.backend !== 'comfyui' && config.backend !== 'herdsman') {
-      message.warning('图生图目前支持 ComfyUI / Herdsman 本地后端，请先在左侧切换引擎')
+    if (config.mode === 'img2img' && config.backend !== 'comfyui' && config.backend !== 'herdsman' && config.backend !== 'dashscope') {
+      message.warning('图生图目前支持 ComfyUI / Herdsman 本地后端 / 百炼改图，请先在左侧切换引擎')
       return
     }
     if (config.mode === 't2v' && config.backend !== 'comfyui') {

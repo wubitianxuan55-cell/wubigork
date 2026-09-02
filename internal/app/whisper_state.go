@@ -70,11 +70,12 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 			return reply, nil
 		}
 		// v4.6.1 指令中枢 S4.5：微信消息接统一路由——提醒特例之外，navigate /
-		// generate_image / status / reminder（语音同款能力面）全部命中即执行，
-		// 回复经同一回推通道；未命中才走原轻语聊天。产物文件卡片（CardPath）
-		// 待 iLink 上传端点探明后接线（当前回复文本已带产物去向）。
+		// generate_image / edit_image（v4.9 对话式改图，带助手上下文取入站图
+		// 缓存）/ status / reminder（语音同款能力面）全部命中即执行，回复经
+		// 同一回推通道；未命中才走原轻语聊天。产物文件卡片（CardPath）经
+		// SendFileCard 回推。
 		if w.app != nil {
-			if res := w.app.routeIntentWithResult(userMsg); res.Handled {
+			if res := w.app.routeIntentWithResultForAssistant(userMsg, ast.ID); res.Handled {
 				if res.CardPath != "" {
 					// v4.8.3 真协议图片卡片：SendFileCard 内部完成 getuploadurl
 					// → CDN 密文上传 → image_item 卡片 + caption 补发（任何
@@ -107,6 +108,15 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 	// PaddleOCR 三级链降为兜底。
 	if w.app != nil {
 		srv.MediaRecognizer = weixin.OCRMediaRecognizer(w.app.visionOCRText)
+	}
+	// v4.9 对话式改图：入站图片旁路缓存——识别链路解密落盘后把文件复制一份
+	// 进 wx_edit_cache 自持缓存（TTL 10 分钟，同助手只留最新一张），改图意图
+	// 执行层（execEditImage）按 ast.ID 取用。缓存失败只记日志，不影响识别与
+	// 聊天主流程；现有 MediaRecognizer 注入与回调链顺序不变。
+	srv.OnInboundImage = func(fromUser, localPath string) {
+		if _, err := wxEditImageCache(w.whisperDataRoot).Set(ast.ID, localPath); err != nil {
+			slog.Warn("[assistant] 入站图片改图缓存失败", "assistant", ast.ID, "err", err)
+		}
 	}
 	// 会话过期钩子（T6-9.1）：errcode=-14 时 Server 触发回调并停止轮询——
 	// 这里 emit 前端 notice 事件，让用户看到提示并重新扫码绑定；
@@ -141,5 +151,8 @@ func (w *whisperState) stopAssistantWx(id string) {
 	w.weixinMu.Unlock()
 	if ok {
 		srv.Stop()
+		// v4.9：助手停用即清它的改图缓存（自持副本文件一并删除）；删除助手的
+		// 全量清理走 wxEditImageCache(...).PurgeAll()。
+		wxEditImageCache(w.whisperDataRoot).Delete(id)
 	}
 }

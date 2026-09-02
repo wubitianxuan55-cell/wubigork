@@ -1,5 +1,5 @@
 import React from 'react'
-import { Input, InputNumber, Button, Typography, Slider, Select } from 'antd'
+import { Input, InputNumber, Button, Typography, Slider, Select, Tooltip } from 'antd'
 import {
   CloudOutlined, DesktopOutlined, RocketOutlined, KeyOutlined,
   EditOutlined, SlidersOutlined, CloudServerOutlined, DashboardOutlined,
@@ -48,11 +48,13 @@ const COUNT_OPTIONS = [
   { label: '4', value: 4 },
 ]
 
-const BACKEND_OPTIONS = [
+const BACKEND_OPTIONS: { label: string; value: string; icon: React.ReactNode; img2imgOnly?: boolean }[] = [
   { label: 'xAI', value: 'xai', icon: <CloudOutlined /> },
   { label: 'ComfyUI', value: 'comfyui', icon: <DesktopOutlined /> },
   { label: 'Herdsman', value: 'herdsman', icon: <RocketOutlined /> },
   { label: 'Ollama', value: 'ollama', icon: <KeyOutlined /> },
+  // 百炼改图（阿里云百炼）：云端改图引擎，仅 img2img 可用，不支持文生图/文生视频
+  { label: '百炼改图', value: 'dashscope', icon: <CloudOutlined />, img2imgOnly: true },
 ]
 
 const labelStyle: React.CSSProperties = {
@@ -140,8 +142,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [showNegative, setShowNegative] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
   const isLocal = ['comfyui', 'herdsman', 'ollama'].includes(backend)
+  // 百炼改图（dashscope）支持图生图，加入 img2img 门禁白名单
   const needsComfy = (mode === 't2v' && backend !== 'comfyui')
-    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman')
+    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'dashscope')
+  // 百炼仅支持改图：非 img2img 模式下该云端引擎不可用（如 img2img 切走后残留）
+  const dashscopeOffMode = backend === 'dashscope' && mode !== 'img2img'
 
   const readFile = (file?: File | null) => {
     if (!file) return
@@ -266,7 +271,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </div>
             ) : (
               <div style={{ fontSize: 10.5, color: C('color-text-secondary'), lineHeight: 1.5 }}>
-                Herdsman 图生图直接按参考图重绘，不支持重绘幅度调节
+                {backend === 'herdsman'
+                  ? 'Herdsman 图生图直接按参考图重绘，不支持重绘幅度调节'
+                  : '百炼改图按参考图重绘，不支持重绘幅度调节'}
               </div>
             )}
           </>
@@ -283,7 +290,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             color: 'var(--md-sys-color-warning)',
           }}>
             <VideoCameraOutlined style={{ marginRight: 5 }} />
-            {mode === 't2v' ? '文生视频需使用 ComfyUI 本地后端' : '图生图需使用 ComfyUI / Herdsman 本地后端'}，请切换引擎
+            {mode === 't2v' ? '文生视频需使用 ComfyUI 本地后端' : '图生图需使用 ComfyUI / Herdsman / 百炼改图 后端'}，请切换引擎
+          </div>
+        )}
+        {dashscopeOffMode && (
+          <div style={{
+            padding: '9px 11px', borderRadius: 10, fontSize: 11.5, lineHeight: 1.6,
+            border: '1px solid color-mix(in srgb, var(--md-sys-color-warning) 35%, transparent)',
+            background: 'color-mix(in srgb, var(--md-sys-color-warning) 8%, transparent)',
+            color: 'var(--md-sys-color-warning)',
+          }}>
+            <PictureOutlined style={{ marginRight: 5 }} />
+            百炼仅支持改图，请切换到图生图模式或更换引擎
           </div>
         )}
 
@@ -292,14 +310,25 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           <Select
             value={backend}
             onChange={onSwitchBackend}
-            options={BACKEND_OPTIONS.map((o) => ({
-              value: o.value,
-              label: (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {o.icon}{o.label}
-                </span>
-              ),
-            }))}
+            options={BACKEND_OPTIONS.map((o) => {
+              // 百炼仅支持改图：非 img2img 模式禁用该选项，悬停提示原因
+              const disabled = o.img2imgOnly === true && mode !== 'img2img'
+              return {
+                value: o.value,
+                disabled,
+                label: disabled ? (
+                  <Tooltip title="百炼仅支持改图" placement="right">
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {o.icon}{o.label}
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {o.icon}{o.label}
+                  </span>
+                ),
+              }
+            })}
             {...selectPopupProps}
             style={{ width: '100%' }}
           />
@@ -343,7 +372,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             />
           ) : (
             <Input size="small" value={model} onChange={(e) => onModelChange(e.target.value)}
-              placeholder="输入模型名称" style={{ ...inputStyle, height: 32 }} />
+              placeholder={backend === 'dashscope' ? '模型名，如 qwen-image-edit-plus（留空后端兜底）' : '输入模型名称'}
+              style={{ ...inputStyle, height: 32 }} />
+          )}
+          {backend === 'dashscope' && (
+            <div style={{ marginTop: 6, fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.6 }}>
+              百炼改图默认模型 qwen-image-edit-plus（留空由后端兜底），可选 qwen-image-edit / qwen-image-edit-plus / qwen-image-edit-max
+            </div>
           )}
           {model === 'diagram' && (
             <div style={{ marginTop: 6, fontSize: 11, color: C('color-text-secondary'), lineHeight: 1.6 }}>

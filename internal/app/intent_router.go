@@ -15,10 +15,13 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -58,7 +61,15 @@ type IntentResult struct {
 // 路由）：同一能力执行层，额外携带可回推的文件卡片路径。语音/微信继续用
 // routeIntent（签名不变，零行为变化）。
 func (a *App) routeIntentWithResult(text string) IntentResult {
-	return a.routeIntentMode(text, false)
+	return a.routeIntentWithResultForAssistant(text, "")
+}
+
+// routeIntentWithResultForAssistant 助手感知变体（v4.9 对话式改图）：改图
+// 能力依赖「该助手最近收到的入站图片」（wx_image_cache 按 assistantID 缓存）
+// ——微信回调携带 assistantID；语音/命令面板无助手上下文，传空串（改图按
+// 未命中处理，不接管）。Wails 绑定 GaeaRouteIntent 签名零变更。
+func (a *App) routeIntentWithResultForAssistant(text, assistantID string) IntentResult {
+	return a.routeIntentModeForAssistant(text, false, assistantID)
 }
 
 // GaeaRouteIntent 桌面命令面板前端入口（v4.7 S4.6）：dryRun=true 只解析与
@@ -74,6 +85,13 @@ func (a *App) GaeaRouteIntent(text string, dryRun bool) IntentResult {
 // 默认关；dryRun 恒不调用——面板逐键搜索绝不打 LLM，预览不到的动作也无法
 // 从面板执行，口径与预览-确认制一致）。
 func (a *App) routeIntentMode(text string, dryRun bool) IntentResult {
+	return a.routeIntentModeForAssistant(text, dryRun, "")
+}
+
+// routeIntentModeForAssistant routeIntentMode 的助手感知内核（v4.9）：只有
+// 改图能力消费 assistantID（缓存取图），其余动作与其无关——传空串即等价
+// 原路径（intent_llm 兜底分类复用 routeIntentMode 的既有执行层，签名不变）。
+func (a *App) routeIntentModeForAssistant(text string, dryRun bool, assistantID string) IntentResult {
 	it := intent.Parse(text)
 	if it == nil && !dryRun {
 		it = a.classifyIntentFallback(text)
@@ -82,7 +100,7 @@ func (a *App) routeIntentMode(text string, dryRun bool) IntentResult {
 		return IntentResult{}
 	}
 	if dryRun {
-		return a.intentPreview(it)
+		return a.intentPreviewForAssistant(it, assistantID)
 	}
 	switch it.Action {
 	case intent.ActionNavigate:
@@ -90,6 +108,9 @@ func (a *App) routeIntentMode(text string, dryRun bool) IntentResult {
 		return IntentResult{Reply: reply, Handled: ok, Action: string(it.Action), Target: it.Target}
 	case intent.ActionGenerateImage:
 		reply, ok, card := a.execGenerateImage(it)
+		return IntentResult{Reply: reply, Handled: ok, CardPath: card, Action: string(it.Action), Target: it.Target}
+	case intent.ActionEditImage:
+		reply, ok, card := a.execEditImage(it, assistantID)
 		return IntentResult{Reply: reply, Handled: ok, CardPath: card, Action: string(it.Action), Target: it.Target}
 	case intent.ActionStatus:
 		reply, ok := a.execStatus(it)
@@ -115,10 +136,16 @@ func (a *App) boardLabel(id string) string {
 	return ""
 }
 
-// intentPreview dry-run 预览（S4.6）：不执行任何能力，只给「将发生什么」的
-// 诚实描述。校验口径与执行层一致：板块不在 manifest / 媒体域缺失 / 提醒域
-// 缺失都按未命中（零值）返回，避免面板预览出一个执行不了的动作。
+// intentPreview dry-run 预览（S4.6，无助手上下文入口）。
 func (a *App) intentPreview(it *intent.Intent) IntentResult {
+	return a.intentPreviewForAssistant(it, "")
+}
+
+// intentPreviewForAssistant dry-run 预览（v4.9 助手感知）：不执行任何能力，
+// 只给「将发生什么」的诚实描述。校验口径与执行层一致：板块不在 manifest /
+// 媒体域缺失 / 提醒域缺失 / 改图无助手上下文或缓存未命中都按未命中（零值）
+// 返回，避免面板预览出一个执行不了的动作。
+func (a *App) intentPreviewForAssistant(it *intent.Intent, assistantID string) IntentResult {
 	switch it.Action {
 	case intent.ActionNavigate:
 		label := a.boardLabel(it.Target)
@@ -131,6 +158,18 @@ func (a *App) intentPreview(it *intent.Intent) IntentResult {
 			return IntentResult{}
 		}
 		return IntentResult{Reply: "将生成图片：" + it.Target + "（默认模型与尺寸，完成后到绘梦查看）", Action: string(it.Action), Target: it.Target, Handled: true}
+	case intent.ActionEditImage:
+		// 面板/语音入口无助手上下文（assistantID 空）→ 不预览；有上下文但
+		// 缓存未命中 → 同样不预览一个执行不了的动作（与执行层同口径）。
+		if assistantID == "" {
+			return IntentResult{}
+		}
+		if cache := a.wxEditCache(); cache != nil {
+			if _, _, ok := cache.Get(assistantID); ok {
+				return IntentResult{Reply: "将编辑最近收到的微信图片：" + it.Target, Action: string(it.Action), Target: it.Target, Handled: true}
+			}
+		}
+		return IntentResult{}
 	case intent.ActionStatus:
 		return IntentResult{Reply: "将查询当前模型引擎状态", Action: string(it.Action), Target: it.Target, Handled: true}
 	case intent.ActionReminder:
@@ -206,6 +245,101 @@ func firstImageCardPath(res map[string]interface{}) string {
 		return ""
 	}
 	return imgs[0].FilePath
+}
+
+// ─── 对话式改图（v4.40）──────────────────────────────────────
+
+// imageEditor 引擎侧改图能力契约（internal/app/image_handler.go 的
+// editImageFromCard：initImage 为 data URL，返回产物本地路径，可直接作
+// IntentResult.CardPath）。经接口断言消费——引擎线并行落地期间本文件可独立
+// 编译（不直呼具体类型方法），能力缺席按未命中诚实降级。
+type imageEditor interface {
+	editImageFromCard(initImage, prompt string) (cardPath string, err error)
+}
+
+// errEditImageUnavailable 改图能力未装配（媒体域缺失或引擎线契约尚未落地）。
+var errEditImageUnavailable = errors.New("改图能力未就绪")
+
+// wxEditImageInvoker 改图执行 seam（测试替换；生产实现走 editImageFromCard
+// 契约，经接口断言解耦编译顺序——契约落地前后本包均可编译运行）。
+var wxEditImageInvoker = func(a *App, initImage, prompt string) (string, error) {
+	if a == nil || a.mediaState == nil {
+		return "", errEditImageUnavailable
+	}
+	ed, ok := any(a.mediaState).(imageEditor)
+	if !ok {
+		return "", errEditImageUnavailable
+	}
+	return ed.editImageFromCard(initImage, prompt)
+}
+
+// execEditImage 改图能力：assistantID 为空或缓存未命中 → 不接管
+// （Handled=false，回落聊天管道——「缓存未命中=不接管」是决策口径，聊天侧
+// 自然处理「没有图」）；命中 → 读自持副本转 data URL（≤10MiB，魔数探测
+// mime）→ editImageFromCard → CardPath=产物路径 + 简短确认；引擎失败如实回
+// 错误摘要（Handled=true——意图已命中，失败要说出口，不坠回聊天）；能力
+// 未装配 → 对齐 execGenerateImage 先例降级为未命中。
+func (a *App) execEditImage(it *intent.Intent, assistantID string) (string, bool, string) {
+	if assistantID == "" {
+		return "", false, "" // 面板/语音入口无助手上下文，不接管
+	}
+	cache := a.wxEditCache()
+	if cache == nil {
+		return "", false, ""
+	}
+	path, mime, ok := cache.Get(assistantID)
+	if !ok {
+		return "", false, "" // 缓存未命中=不接管
+	}
+	dataURL, err := imageFileToDataURL(path, mime)
+	if err != nil {
+		slog.Warn("[intent] 改图读取缓存图片失败", "assistant", assistantID, "err", err)
+		return "改图失败：那张图读不出来了，请重新发一张再试。", true, ""
+	}
+	card, err := wxEditImageInvoker(a, dataURL, it.Target)
+	if err != nil {
+		if errors.Is(err, errEditImageUnavailable) {
+			return "", false, ""
+		}
+		slog.Warn("[intent] 改图执行失败", "assistant", assistantID, "err", err)
+		return "改图失败：" + err.Error() + "。", true, ""
+	}
+	if card == "" {
+		return "改好了，但产物还没有落盘，请稍后到绘梦板块查看。", true, ""
+	}
+	return "好，改好了，见图片。", true, card
+}
+
+// wxEditImageMaxBytes 改图输入上限（与缓存复制上限同口径，10MiB）。
+const wxEditImageMaxBytes = 10 << 20
+
+// imageFileToDataURL 读本地图片转 data URL（魔数探测 mime，探测不出用缓存
+// 记录的 mime 兜底，再不行 application/octet-stream）；超 10MiB 拒绝
+// （editImageFromCard 的 data URL 输入口径）。
+func imageFileToDataURL(path, fallbackMime string) (string, error) {
+	st, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if st.Size() > wxEditImageMaxBytes {
+		return "", fmt.Errorf("图片 %d 字节超过改图输入上限 %d", st.Size(), wxEditImageMaxBytes)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	sniff := len(data)
+	if sniff > 512 {
+		sniff = 512
+	}
+	mime := http.DetectContentType(data[:sniff])
+	if mime == "" || mime == "application/octet-stream" || strings.HasPrefix(mime, "text/") {
+		mime = fallbackMime
+	}
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data), nil
 }
 
 // execStatus 状态查询能力：当前可用引擎摘要（模型中心同源数据）。

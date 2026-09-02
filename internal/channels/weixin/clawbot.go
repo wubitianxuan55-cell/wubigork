@@ -98,6 +98,13 @@ type Server struct {
 	// 注入）。nil=关闭，行为与现状完全一致（仅占位提示行）。
 	MediaRecognizer func(url string) (string, error)
 
+	// OnInboundImage 入站图片旁路钩子（v4.9 对话式改图，参照 MediaRecognizer
+	// 注入模式）：识别管线成功拿到解密落盘路径后以 (发送者, 本地路径) 旁路
+	// 调用——app 层注入「复制进改图自持缓存」。仅旁路：OCR 识别主流程一行不
+	// 改；明文 URL（无本地落盘文件）不触发；钩子 panic 由 invokeInboundImage
+	// Hook recover，绝不打断识别主流程。
+	OnInboundImage func(fromUser, localPath string)
+
 	// limiter 入站 per-peer 滑动窗口限频（v4.8 子项 d①）；测试经
 	// limiter.clock 注入时钟。
 	limiter *rateLimiter
@@ -474,9 +481,9 @@ func (s *Server) handle(msg *inboundMsg) {
 				mediaOverflow++
 				continue
 			}
-			if s.MediaRecognizer != nil {
-				if u, _ := item.ImageItem.resolveDownload(); u != "" {
-					if desc, ok := s.recognizeImage(*item.ImageItem); ok {
+				if s.MediaRecognizer != nil {
+					if u, _ := item.ImageItem.resolveDownload(); u != "" {
+						if desc, ok := s.recognizeImage(*item.ImageItem, msg.FromUserID); ok {
 						recognized = append(recognized, recognizedImageLabel(*item.ImageItem, desc))
 						continue
 					}
@@ -571,7 +578,9 @@ func fileItemLabel(it fileItem) string {
 // 生成的解密产物，app 层注入的 OCRMediaRecognizer 无需改动即生效）；明文
 // URL 走原路（识别器自行下载）。前后各一条 slog 便于真机诊断；失败或空
 // 结果一律返回 false（handle 保留原占位提示行），错误不上抛不 panic。
-func (s *Server) recognizeImage(it imageItem) (string, bool) {
+// v4.9：fromUser 仅用于入站图片旁路钩子（OnInboundImage，改图缓存），识别
+// 链路本身零改动。
+func (s *Server) recognizeImage(it imageItem, fromUser string) (string, bool) {
 	rawURL, aesKeyHex := it.resolveDownload()
 	if rawURL == "" {
 		return "", false
@@ -586,6 +595,9 @@ func (s *Server) recognizeImage(it imageItem) (string, bool) {
 			return "", false
 		}
 		defer cleanup()
+		// v4.9 对话式改图旁路：解密落盘成功即通知缓存（钩子内部复制文件自持
+		// 并 recover panic），随后 OCR 识别照旧——主流程零依赖零改动。
+		s.invokeInboundImageHook(fromUser, path)
 		rawURL = "file://" + path
 	}
 	slog.Info("[weixin] 图片识别开始",
@@ -607,6 +619,22 @@ func (s *Server) recognizeImage(it imageItem) (string, bool) {
 	slog.Info("[weixin] 图片识别完成",
 		"assistant", s.cfg.AssistantID, "runes", len([]rune(desc)))
 	return desc, true
+}
+
+// invokeInboundImageHook 旁路调用入站图片钩子（nil=无钩子，零开销）。钩子
+// panic 一律 recover 吞掉并记日志——旁路消费者（改图缓存）绝不能打断 OCR
+// 识别主流程；fromUser/localPath 原样透传。
+func (s *Server) invokeInboundImageHook(fromUser, localPath string) {
+	if s.OnInboundImage == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Warn("[weixin] 入站图片旁路钩子 panic，已忽略",
+				"assistant", s.cfg.AssistantID, "recover", r)
+		}
+	}()
+	s.OnInboundImage(fromUser, localPath)
 }
 
 // recognizedImageLabel 已识别图片的提示行：识别内容截前 300 rune（超长加省略号）。

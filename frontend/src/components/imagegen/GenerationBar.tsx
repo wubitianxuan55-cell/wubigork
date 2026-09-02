@@ -33,6 +33,10 @@ export const GenerationBar: React.FC<Props> = ({
 }) => {
   const est = estimateImageTime(backend, model, count, mode, frames, fps)
 
+  // 百炼改图（dashscope）支持图生图：页面级 needsComfy 门禁未感知该云端引擎时，
+  // 这里按 mode+backend 复核放行，避免 dashscope+img2img 被误判为需 ComfyUI。
+  const modeBlocked = needsComfy && !(mode === 'img2img' && backend === 'dashscope')
+
   let hint: string
   if (generating) {
     hint = `已用时 ${elapsed}s`
@@ -92,9 +96,9 @@ export const GenerationBar: React.FC<Props> = ({
               队列 {queueTotal}
             </Tag>
           )}
-          {needsComfy && (
+          {modeBlocked && (
             <span style={{ fontSize: 11, color: 'var(--md-sys-color-warning)' }}>
-              {mode === 't2v' ? '文生视频需切换至 ComfyUI' : '图生图需切换至 ComfyUI / Herdsman'}
+              {mode === 't2v' ? '文生视频需切换至 ComfyUI' : '图生图需切换至 ComfyUI / Herdsman / 百炼改图'}
             </span>
           )}
         </div>
@@ -111,11 +115,11 @@ export const GenerationBar: React.FC<Props> = ({
           )}
           <button
             type="button"
-            disabled={needsComfy}
+            disabled={modeBlocked}
             onClick={onGenerate}
             className="ig-gen-button"
             aria-busy={generating}
-            title={needsComfy ? (mode === 't2v' ? '文生视频需切换至 ComfyUI 本地后端' : '图生图需切换至 ComfyUI / Herdsman 本地后端') : undefined}
+            title={modeBlocked ? (mode === 't2v' ? '文生视频需切换至 ComfyUI 本地后端' : '图生图需切换至 ComfyUI / Herdsman / 百炼改图 后端') : undefined}
           >
             {generating ? <LoadingOutlined /> : <ThunderboltOutlined />}
             {label}

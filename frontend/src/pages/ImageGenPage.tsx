@@ -135,7 +135,7 @@ const ImageGenPage: React.FC = () => {
   // ── 引擎启停派生 ──
   const isLocalEngine = ['comfyui', 'herdsman', 'ollama'].includes(backend)
   const needsComfy = (mode === 't2v' && backend !== 'comfyui')
-    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman')
+    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'dashscope')
 
   const engineStatusText = engineStarting
     ? '引擎启动中...'

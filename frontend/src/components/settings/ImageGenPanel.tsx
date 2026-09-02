@@ -16,6 +16,9 @@ const ImageGenPanel: React.FC = () => {
   const [model, setModel] = useState('')
   const [comfyURL, setComfyURL] = useState('')
   const [saveDir, setSaveDir] = useState('')
+  // 百炼 API Key 只写不读：getImageBackendInfo 不回传 Key（后端只保存不回显），
+  // 留空提交 = 保持已保存 Key 不覆盖（由 Go 侧空串语义保证）。
+  const [dashscopeKey, setDashscopeKey] = useState('')
   const [engineOptions, setEngineOptions] = useState<{ value: string; label: string }[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -35,7 +38,14 @@ const ImageGenPanel: React.FC = () => {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await setImageBackend(backend, backend === 'comfyui' ? comfyURL : '', model, saveDir)
+      await setImageBackend(
+        backend,
+        backend === 'comfyui' ? comfyURL : '',
+        model,
+        saveDir,
+        // 第 5 参：dashscopeKey，仅百炼后端有意义；非百炼后端传空串
+        backend === 'dashscope' ? dashscopeKey : '',
+      )
       message.success('绘梦后端已更新')
     } catch (err: unknown) { message.error(err instanceof Error ? err.message : '保存失败') }
     finally { setSaving(false) }
@@ -72,6 +82,19 @@ const ImageGenPanel: React.FC = () => {
               placeholder="ComfyUI 地址（例如 http://127.0.0.1:8188）"
               value={comfyURL}
               onChange={(e) => setComfyURL(e.target.value)}
+              style={{
+                background: 'var(--md-sys-color-surface-container)',
+                border: '1px solid var(--md-sys-color-outline-variant)',
+                color: 'var(--md-sys-color-text)',
+              }}
+            />
+          )}
+          {backend === 'dashscope' && (
+            <Input.Password
+              placeholder="阿里云百炼 API Key，sk- 开头（留空保持不变）"
+              value={dashscopeKey}
+              onChange={(e) => setDashscopeKey(e.target.value)}
+              autoComplete="new-password"
               style={{
                 background: 'var(--md-sys-color-surface-container)',
                 border: '1px solid var(--md-sys-color-outline-variant)',

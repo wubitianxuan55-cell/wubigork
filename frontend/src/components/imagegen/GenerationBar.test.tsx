@@ -47,3 +47,23 @@ describe('GenerationBar 生成进度显示', () => {
     expect(screen.getByText('当前节点: MyCustomNode')).toBeTruthy()
   })
 })
+
+describe('GenerationBar 百炼改图（dashscope）门禁', () => {
+  it('img2img + dashscope：即使 needsComfy=true 也不禁用生成按钮（百炼支持改图）', () => {
+    const { container } = render(
+      <GenerationBar {...baseProps} mode="img2img" backend="dashscope" generating={false} needsComfy={true} />,
+    )
+    const btn = container.querySelector('.ig-gen-button') as HTMLButtonElement
+    expect(btn.disabled).toBe(false)
+    expect(screen.queryByText('图生图需切换至 ComfyUI / Herdsman / 百炼改图')).toBeNull()
+  })
+
+  it('img2img + xai + needsComfy：仍禁用生成按钮并提示切换引擎', () => {
+    const { container } = render(
+      <GenerationBar {...baseProps} mode="img2img" backend="xai" generating={false} needsComfy={true} />,
+    )
+    const btn = container.querySelector('.ig-gen-button') as HTMLButtonElement
+    expect(btn.disabled).toBe(true)
+    expect(screen.getByText('图生图需切换至 ComfyUI / Herdsman / 百炼改图')).toBeTruthy()
+  })
+})

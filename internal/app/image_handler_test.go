@@ -383,7 +383,7 @@ func TestSetImageBackend_GLM(t *testing.T) {
 		mgr := modelengine.NewManager("", "")
 		mgr.SaveEngine(modelengine.EngineConfig{ID: "glm", Enabled: false})
 		ms.engineMgr = mgr
-		err := ms.SetImageBackend("glm", "", "cogview-4-250304", "")
+		err := ms.SetImageBackend("glm", "", "cogview-4-250304", "", "")
 		if err == nil || !strings.Contains(err.Error(), "未启用") {
 			t.Fatalf("应报引擎未启用, got %v", err)
 		}
@@ -392,7 +392,7 @@ func TestSetImageBackend_GLM(t *testing.T) {
 	t.Run("无 Key 时拒绝", func(t *testing.T) {
 		ms := newMS()
 		ms.engineMgr.UpdateGLMKey("")
-		err := ms.SetImageBackend("glm", "", "cogview-4-250304", "")
+		err := ms.SetImageBackend("glm", "", "cogview-4-250304", "", "")
 		if err == nil || !strings.Contains(err.Error(), "Key 未配置") {
 			t.Fatalf("应报 Key 未配置, got %v", err)
 		}
@@ -400,7 +400,7 @@ func TestSetImageBackend_GLM(t *testing.T) {
 
 	t.Run("就绪时绑定并持久化", func(t *testing.T) {
 		ms := newMS()
-		if err := ms.SetImageBackend("glm", "", "cogview-4-250304", ""); err != nil {
+		if err := ms.SetImageBackend("glm", "", "cogview-4-250304", "", ""); err != nil {
 			t.Fatalf("SetImageBackend: %v", err)
 		}
 		if ms.cfg.ImageBackend != "glm" || ms.cfg.ImageModel != "cogview-4-250304" {
@@ -410,7 +410,7 @@ func TestSetImageBackend_GLM(t *testing.T) {
 
 	t.Run("未知后端报错列出 glm", func(t *testing.T) {
 		ms := newMS()
-		err := ms.SetImageBackend("deepseek", "", "", "")
+		err := ms.SetImageBackend("deepseek", "", "", "", "")
 		if err == nil || !strings.Contains(err.Error(), "glm") {
 			t.Fatalf("错误提示应列出 glm, got %v", err)
 		}

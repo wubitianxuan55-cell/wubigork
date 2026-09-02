@@ -306,6 +306,7 @@ func (a *App) Startup(ctx context.Context) {
 	encryptSecretIfLegacy(config.KeyGLMAPIKey, &a.cfg.GLMAPIKey)
 	encryptSecretIfLegacy(config.KeyOpencodeGoAPIKey, &a.cfg.OpenCodeGoAPIKey)
 	encryptSecretIfLegacy(config.KeyOpencodeZenAPIKey, &a.cfg.OpenCodeZenAPIKey)
+	encryptSecretIfLegacy(config.KeyDashScopeAPIKey, &a.cfg.DashScopeAPIKey)
 	deepseekKey, _ := secure.DecryptString(a.cfg.DeepseekAPIKey)
 	glmKey, _ := secure.DecryptString(a.cfg.GLMAPIKey)
 	opencodeGoKey, _ := secure.DecryptString(a.cfg.OpenCodeGoAPIKey)
@@ -512,6 +513,21 @@ func (a *App) initImageBackend() {
 		} else {
 			a.client.SetImageBackend(nil, "xai")
 			slog.Warn("图片后端: GLM 不可用（引擎未启用或 Key 未配置），回退 xAI")
+		}
+	case "dashscope":
+		// 阿里云百炼改图后端：Key 落盘为 secure 密文，这里解出内存明文；
+		// 构建走注册表工厂（kind 校验/fail-closed 同其他后端）。
+		key, _ := secure.DecryptString(a.cfg.DashScopeAPIKey)
+		backend, err := ai.NewImageBackend(ai.ImageBackendKindDashScope, ai.ImageBackendConfig{
+			BaseURL: ai.DashScopeBaseURL,
+			APIKey:  key,
+		})
+		if err != nil {
+			a.client.SetImageBackend(nil, "xai")
+			slog.Warn("图片后端: DashScope 不可用（Key 未配置或构建失败），回退 xAI", "error", err)
+		} else {
+			a.client.SetImageBackend(backend, "dashscope")
+			slog.Info("图片后端: DashScope 百炼", "url", ai.DashScopeBaseURL)
 		}
 	default: // "xai" 或空
 		a.client.SetImageBackend(nil, "xai")

@@ -1,3 +1,20 @@
+## v4.40.0 · 对话式改图：百炼引擎 + 微信发图即改（2026-09-02）
+> 微信助手调研 A 刀（定位拍板：聊天/出图/改图/收发文件/多微信并行）。微信发图+
+> 一句指令→编辑出图→图片卡回推。官方契约核实后实装（禁止 OpenAI 习惯外推）。
+> **绑定面 557 零变更**。
+- **① 百炼引擎**：DashScope 多模态生成端点同步实装（单图单文/官方字段/改图不传
+  size 保原图比例/24h URL 自动下载转 data URL），默认 qwen-image-edit-plus，
+  kind=dashscope 注册表自注册，仅 img2img。
+- **② Key**：config `dashscope_api_key` 密文落盘+旧明文迁移；SetImageBackend 追加
+  第 5 参（空=保留存量）。
+- **③ 意图+接线**：ActionEditImage 动词∧指代双门槛保守正则（宁漏勿误）；入站图
+  旁路 hook（OCR 识图链路零改动）→助手级图片缓存（自持副本/TTL 10min/只留最新）；
+  routeIntentForAssistant 内部变体；未命中不接管回落聊天；产物走 CardPath 图片卡。
+- **④ 前端**：绘梦引擎「百炼改图」选项（txt2img disabled+Tooltip）+img2img 门禁
+  三处白名单+设置页 Key 框（只写不读）。
+- 验证：Go 全量绿、tsc / tsc -b / eslint 0、vitest 1259/1259（+11，ProgrammingPage
+  一例负载 flaky 单跑/整包复跑绿）、drift PASS（557）。详见 releases/v4.40.0.md。
+
 ## v4.39.0 · 微信助手管理台：多微信并行 + 并发正确性两修（2026-09-02）
 > 微信助手专项调研（docs/market-research-2026-09-02b.md，定位用户拍板纠偏：聊天/出图/
 > 改图/收发文件/多微信并行）C 刀——收「多微信并行」：后端 CRUD 齐备前端无管理台的
