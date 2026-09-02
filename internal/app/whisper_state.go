@@ -64,6 +64,22 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 	// 创建，happens-before 成立）。
 	var srv *weixin.Server
 	srv = weixin.New(cfg, func(userMsg, fromUser string) (string, error) {
+		// v4.41.1 文件消息直通聊天：注入行携带提取正文（≤6000 字），过提醒/
+		// 意图路由会被正文里的「打开/看看 + 板块别名」碎片误触发（真机实证：
+		// 评审报告正文含「编程」被劫持回「打开编程」）——文件内容是聊天上下文
+		// 不是指令，跳过两段路由，追加「确认收件+询问需求」引导后直进轻语。
+		if isWxFileInjectMsg(userMsg) {
+			userMsg = applyWxFileGuidance(userMsg)
+			result, err := w.whisperChatAsAssistant(userMsg, ast.PersonalityID, ast.Name, false)
+			if err != nil {
+				return "", err
+			}
+			reply, _ := result["reply"].(string)
+			if reply == "" {
+				reply = "（思考中…）"
+			}
+			return reply, nil
+		}
 		// v4.4 任务化路由（第一档）：提醒类请求就地处理（解析→落盘→确认），
 		// 不进聊天管道。
 		if reply, handled := w.tryWxReminder(userMsg, ast.ID); handled {
