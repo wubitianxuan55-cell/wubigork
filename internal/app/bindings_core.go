@@ -20,7 +20,7 @@ func (b *CoreB) CheckModuleIntegrity() error { return b.a.CheckModuleIntegrity()
 func (b *CoreB) CloseProject() error { return b.a.CloseProject() }
 func (b *CoreB) CreateProject(dir string, title string, genre string, style string) (map[string]interface{}, error) { return b.a.CreateProject(dir, title, genre, style) }
 func (b *CoreB) DeleteProject(dir string) error { return b.a.DeleteProject(dir) }
-func (b *CoreB) ExportAll() (map[string]string, error) { return b.a.ExportAll() }
+func (b *CoreB) ExportAll(onlyMainline bool) (map[string]string, error) { return b.a.ExportAll(onlyMainline) }
 func (b *CoreB) ExportHTML(templateName string) (map[string]interface{}, error) { return b.a.ExportHTML(templateName) }
 func (b *CoreB) GaeaSpaceActivate(space string) (SpaceActiveView, error) { return b.a.GaeaSpaceActivate(space) }
 func (b *CoreB) GaeaSpaceActive() SpaceActiveView { return b.a.GaeaSpaceActive() }

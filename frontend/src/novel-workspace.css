@@ -1476,23 +1476,53 @@
   align-items: center;
   gap: 8px;
 }
-.novel-read-ask-answer {
-  border-top: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
-  padding-top: 10px;
+/* 会话式问书：问答列表（user 右侧气泡 / assistant 左侧引用条） */
+.novel-read-ask-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
-.novel-read-ask-answer-title {
+.novel-read-ask-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.novel-read-ask-msg-role {
   font-size: 11px;
   color: var(--color-text-tertiary);
-  margin-bottom: 6px;
 }
-.novel-read-ask-answer-body {
+.novel-read-ask-msg-body {
   font-size: 13px;
   line-height: 1.75;
   color: var(--color-text);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 320px;
-  overflow-y: auto;
+}
+.novel-read-ask-msg.is-user {
+  align-items: flex-end;
+}
+.novel-read-ask-msg.is-user .novel-read-ask-msg-body {
+  background: color-mix(in srgb, var(--gaea-glow) 14%, transparent);
+  border-radius: 8px 8px 2px 8px;
+  padding: 6px 10px;
+  max-width: 85%;
+}
+.novel-read-ask-msg.is-assistant .novel-read-ask-msg-body {
+  border-left: 2px solid color-mix(in srgb, var(--color-text) 20%, transparent);
+  padding-left: 8px;
+}
+.novel-read-ask-msg.is-pending .novel-read-ask-msg-body {
+  color: var(--color-text-tertiary);
+}
+.novel-read-ask-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-warning);
 }
 
 /* ═══ 朗读/搜索定位高亮 + 全文搜索面板 ═══ */

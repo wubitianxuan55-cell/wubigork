@@ -105,6 +105,30 @@ export interface ConsistencyCheckReport {
   summary: string
 }
 
+// ── 一致性 AI 深检 v0（对齐 internal/app/consistency_deep_handler.go）────
+export type ConsistencyIssueSource = 'rule' | 'ai'
+
+export interface ConsistencyDeepIssue extends ConsistencyCheckIssue {
+  /** 告警来源：rule=规则层 / ai=AI 状态卡跨章比对（旧规则接口无此字段） */
+  source?: ConsistencyIssueSource
+  /** 分支标记：''=主线，'a'/'b'/'c'=分支 */
+  branch?: string
+}
+
+export interface ConsistencyDeepResult {
+  issues: ConsistencyDeepIssue[]
+  total_issues: number
+  summary: string
+  /** AI 成功提取状态卡的章数 */
+  chapters_scanned: number
+  /** AI 提取失败被跳过的章数 */
+  chapters_failed?: number
+  /** false=AI 不可用（结果仅含规则层） */
+  ai_available: boolean
+  /** 降级/跳过说明，正常为空 */
+  ai_note?: string
+}
+
 // ── 画布 ────────────────────────────────────────────────
 export interface CanvasChapterData {
   num: number

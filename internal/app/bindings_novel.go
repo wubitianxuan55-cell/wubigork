@@ -14,6 +14,7 @@ func (b *NovelB) BuildContextBudget(systemPrompt string, currentScene string, pr
 func (b *NovelB) BuildRichContext(systemPrompt string, userText string) (map[string]interface{}, error) { return b.a.BuildRichContext(systemPrompt, userText) }
 func (b *NovelB) CancelCreateChapter(chapterNum int, branch string) bool { return b.a.CancelCreateChapter(chapterNum, branch) }
 func (b *NovelB) CheckConsistency() (map[string]interface{}, error) { return b.a.CheckConsistency() }
+func (b *NovelB) CheckConsistencyDeep(maxChapters int) (map[string]interface{}, error) { return b.a.CheckConsistencyDeep(maxChapters) }
 func (b *NovelB) CmdKEdit(selectedText string, instruction string, styleProfile string) (map[string]interface{}, error) { return b.a.CmdKEdit(selectedText, instruction, styleProfile) }
 func (b *NovelB) ContinueOutline(count int) (map[string]interface{}, error) { return b.a.ContinueOutline(count) }
 func (b *NovelB) CreateChapter(setting string, prevSummary string, plotReq string, chapterNum int, branchFromNodeID string, skillName string, minWords int, temperature float64) (map[string]interface{}, error) { return b.a.CreateChapter(setting, prevSummary, plotReq, chapterNum, branchFromNodeID, skillName, minWords, temperature) }
@@ -52,7 +53,7 @@ func (b *NovelB) IsProjectV4() bool { return b.a.IsProjectV4() }
 func (b *NovelB) ListSnapshots(sceneID string, chapterNum int) ([]map[string]interface{}, error) { return b.a.ListSnapshots(sceneID, chapterNum) }
 func (b *NovelB) MergeCharacters(keepID string, mergeID string) (map[string]interface{}, error) { return b.a.MergeCharacters(keepID, mergeID) }
 func (b *NovelB) MigrateProjectToV4() error { return b.a.MigrateProjectToV4() }
-func (b *NovelB) NovelReadingAsk(kind string, title string, chapterText string, selection string, question string) (string, error) { return b.a.NovelReadingAsk(kind, title, chapterText, selection, question) }
+func (b *NovelB) NovelReadingAsk(kind string, title string, chapterText string, selection string, question string, historyJSON string) (string, error) { return b.a.NovelReadingAsk(kind, title, chapterText, selection, question, historyJSON) }
 func (b *NovelB) NovelSearch(query string) ([]NovelSearchHit, error) { return b.a.NovelSearch(query) }
 func (b *NovelB) ParseLinks(content string) []string { return b.a.ParseLinks(content) }
 func (b *NovelB) QueryEntities(entityType string) ([]map[string]interface{}, error) { return b.a.QueryEntities(entityType) }
@@ -66,6 +67,7 @@ func (b *NovelB) SaveChapterContent(num int, content string) error { return b.a.
 func (b *NovelB) SaveCharacter(chJSON string) error { return b.a.SaveCharacter(chJSON) }
 func (b *NovelB) SaveCharacters(cfJSON string) error { return b.a.SaveCharacters(cfJSON) }
 func (b *NovelB) SaveCharactersBatch(namesJSON string) (map[string]interface{}, error) { return b.a.SaveCharactersBatch(namesJSON) }
+func (b *NovelB) SaveForeshadows(itemsJSON string) error { return b.a.SaveForeshadows(itemsJSON) }
 func (b *NovelB) SaveLorebookEntry(entryJSON string) error { return b.a.SaveLorebookEntry(entryJSON) }
 func (b *NovelB) SaveOrganization(orgJSON string) error { return b.a.SaveOrganization(orgJSON) }
 func (b *NovelB) SaveOutlineNode(nodeJSON string) error { return b.a.SaveOutlineNode(nodeJSON) }

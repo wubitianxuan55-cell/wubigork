@@ -53,6 +53,7 @@ export const bindingNames = [
   "ChatTopicsList",
   "ChatWorldview",
   "CheckConsistency",
+  "CheckConsistencyDeep",
   "CheckModuleIntegrity",
   "CloseProject",
   "CmdKEdit",
@@ -460,6 +461,7 @@ export const bindingNames = [
   "SaveCharactersBatch",
   "SaveConfig",
   "SaveEngine",
+  "SaveForeshadows",
   "SaveLorebookEntry",
   "SaveOrganization",
   "SaveOutlineNode",
@@ -560,3 +562,5 @@ export const bindingNames = [
   "WhisperWeixinQRStatusWithCode",
   "WhisperWeixinStatus",
 ] as const;
+
+export default bindingNames;

@@ -34,6 +34,7 @@ import {
   type ReadingAnnotation, type AnnotationColor,
 } from '../utils/readingAnnotations'
 import { askReadingAssistant } from '../components/novel/api/readingAssistant'
+import { buildAskHistory, type ReadingAskMessage } from './chapter/readingAskSession'
 import {
   searchNovelAll, splitSnippet, summarizeSearch, locateParagraphMatch,
   type NovelSearchHitData,
@@ -84,8 +85,10 @@ const ChapterPage: React.FC = () => {
   const summaryCache = useRef<Record<string, string>>({})
   const [askTarget, setAskTarget] = useState<{ selection: string } | null>(null)
   const [askQuestion, setAskQuestion] = useState('')
-  const [askAnswer, setAskAnswer] = useState('')
+  // 会话式问书：同一章内的问答按序累积（user/assistant 区分样式），追问时随请求回传后端
+  const [askMessages, setAskMessages] = useState<ReadingAskMessage[]>([])
   const [askLoading, setAskLoading] = useState(false)
+  const [askError, setAskError] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
@@ -546,27 +549,53 @@ const ChapterPage: React.FC = () => {
     if (!summaryText && !summaryLoading) void runSummary()
   }
 
+  // 会话清空策略：问书会话按章保留（同章内划不同段落也能连续追问），切章即清空；
+  // 关闭弹窗保留会话，弹窗内提供「清空会话」手动重置。
+  useEffect(() => {
+    setAskMessages([])
+    setAskError(null)
+  }, [readNodeId])
+
   const openAsk = (selection: string) => {
     setAskTarget({ selection })
     setAskQuestion('')
-    setAskAnswer('')
+    setAskError(null)
     setAskLoading(false)
   }
 
   const runAsk = async () => {
     const q = askQuestion.trim()
     if (!q || !askTarget || askLoading || !activeTab) return
+    const history = buildAskHistory(askMessages)
+    setAskQuestion('')
+    setAskError(null)
+    setAskMessages((m) => [...m, { role: 'user', content: q }])
     setAskLoading(true)
-    setAskAnswer('')
     try {
-      const answer = await askReadingAssistant('ask', activeTab.node.title || '', chapterText, askTarget.selection, q)
-      setAskAnswer(answer)
+      const answer = await askReadingAssistant('ask', activeTab.node.title || '', chapterText, askTarget.selection, q, history)
+      setAskMessages((m) => [...m, { role: 'assistant', content: answer }])
     } catch (err) {
-      setAskAnswer(`出错了：${errText(err, '提问失败')}`)
+      // 失败回滚本轮提问（半截问答不混入后续历史），问题放回输入框便于重试
+      setAskMessages((m) => (m.length > 0 && m[m.length - 1].role === 'user' ? m.slice(0, -1) : m))
+      setAskQuestion(q)
+      setAskError(errText(err, '提问失败'))
     } finally {
       setAskLoading(false)
     }
   }
+
+  const clearAskSession = () => {
+    setAskMessages([])
+    setAskError(null)
+    setAskLoading(false)
+  }
+
+  // 新回答到达时把会话列表滚到底部
+  const askThreadRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = askThreadRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [askMessages, askLoading, askTarget])
 
   // 高亮回渲染：清除旧 mark 后按摘录文本在段落内重新定位（内容变更时自然失效）
   useEffect(() => {
@@ -1321,7 +1350,7 @@ const ChapterPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* AI 问书弹窗 */}
+      {/* AI 问书弹窗（会话式：同一章内连续追问，历史随请求回传） */}
       <Modal
         open={!!askTarget}
         onCancel={() => setAskTarget(null)}
@@ -1332,13 +1361,38 @@ const ChapterPage: React.FC = () => {
         {askTarget && (
           <div className="novel-read-ask">
             <blockquote className="novel-read-note-quote">{askTarget.selection}</blockquote>
+            {askMessages.length > 0 && (
+              <div className="novel-read-ask-thread" ref={askThreadRef}>
+                {askMessages.map((m, i) => (
+                  <div key={i} className={`novel-read-ask-msg is-${m.role}`}>
+                    <span className="novel-read-ask-msg-role">{m.role === 'user' ? '我' : 'AI'}</span>
+                    <div className="novel-read-ask-msg-body">{m.content}</div>
+                  </div>
+                ))}
+                {askLoading && (
+                  <div className="novel-read-ask-msg is-assistant is-pending">
+                    <span className="novel-read-ask-msg-role">AI</span>
+                    <div className="novel-read-ask-msg-body">正在思考…</div>
+                  </div>
+                )}
+              </div>
+            )}
+            {askError && (
+              <div className="novel-read-ask-error">
+                <span>{askError}</span>
+                <Button size="small" type="text" onClick={() => void runAsk()}>重试</Button>
+              </div>
+            )}
             <Input.TextArea
               rows={2}
               value={askQuestion}
               onChange={(e) => setAskQuestion(e.target.value)}
-              placeholder="针对摘选内容提问，例如：这句话暗示了什么？"
+              placeholder={askMessages.length > 0 ? '继续追问，例如：那他后来呢？' : '针对摘选内容提问，例如：这句话暗示了什么？'}
             />
             <div className="novel-read-ask-actions">
+              {askMessages.length > 0 && (
+                <Button size="small" type="text" onClick={clearAskSession}>清空会话</Button>
+              )}
               <div style={{ flex: 1 }} />
               <Button size="small" onClick={() => setAskTarget(null)}>关闭</Button>
               <Button
@@ -1348,15 +1402,9 @@ const ChapterPage: React.FC = () => {
                 disabled={!askQuestion.trim()}
                 onClick={() => void runAsk()}
               >
-                提问
+                {askMessages.length > 0 ? '追问' : '提问'}
               </Button>
             </div>
-            {askAnswer && (
-              <div className="novel-read-ask-answer">
-                <div className="novel-read-ask-answer-title">回答</div>
-                <div className="novel-read-ask-answer-body">{askAnswer}</div>
-              </div>
-            )}
           </div>
         )}
       </Modal>

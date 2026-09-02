@@ -47,6 +47,14 @@
 
 ## 版本状态
 
+- **最新发布：v4.46.0（2026-09-02）「小说板块第二轮：伏笔闭环 · 导出扩展 · 伴读多轮 ·
+  一致性 AI 深检」**：git tag `v4.46.0`；基线 v4.45.0；**绑定面 557→559**（+SaveForeshadows、
+  +CheckConsistencyDeep）。①伏笔登记表闭环（写入口+syncForeshadows 按 ID 合并+面板
+  登记/流转/编辑/删除）；②导出扩展（EPUB 真封面/onlyMainline/DOCX via gooxml）；
+  ③伴读问书多轮化（historyJSON+划线窗口+会话式弹窗）；④一致性 AI 深检 v0（状态卡
+  提取+本地比对五类矛盾+source 徽标+诚实降级）。**小说侧剩余欠账：ChapterPage 拆分、
+  branches.json 历史版本、搜索高亮落划线**。详见 releases/v4.46.0.md。
+
 - **最新发布：v4.45.0（2026-09-02）「百炼全量下线：引擎 + 配置 + UI + 微信改图链」**：
   git tag `v4.45.0`；基线 v4.44.0；绑定面 557 零变更。**用户拍板「把百炼删除干净」**：
   引擎（image_dashscope 退出注册表）/配置（DashScopeAPIKey 字段+迁移+initImageBackend

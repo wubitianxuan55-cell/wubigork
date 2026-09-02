@@ -1,3 +1,17 @@
+## v4.46.0 · 小说板块第二轮：伏笔闭环 · 导出扩展 · 伴读多轮 · 一致性 AI 深检（2026-09-02）
+> 接 v4.43.0 欠账池四条互不相交线，全为既有功能闭环与生成质量。**绑定面
+> 557→559（+SaveForeshadows、+CheckConsistencyDeep）**。详见 releases/v4.46.0.md。
+- **① 伏笔登记表闭环**：SaveForeshadows 写回+校验；syncForeshadows 按 ID 合并
+  （手工条目永不被冲）；面板登记/流转/编辑/删除（乐观更新+回滚）。
+- **② 导出扩展**：EPUB 真封面（cover-*.png 自动探测+SetCover，无则回退）；
+  onlyMainline 参数（默认含分支兼容）；DOCX 导出落地（gooxml，formats 3→4）。
+- **③ 伴读多轮化**：historyJSON 最近 6 轮；划线窗口优先 12000 rune；弹窗
+  会话化（按章保留/切章清空/失败回滚）。
+- **④ 一致性 AI 深检 v0**：逐章状态卡提取+本地跨章比对（死者复现/物品凭空/
+  时间倒流等五类），与规则层合并带 source 徽标；诚实降级 ai_available=false。
+- 验证：go 全量绿（110 包）、tsc/tsc -b/eslint 0、vitest 1312/1312、
+  drift PASS（559）。
+
 ## v4.45.0 · 百炼全量下线：引擎 + 配置 + UI + 微信改图链（2026-09-02）
 > 用户拍板「把百炼删除干净」——v4.40.0 对话式改图的百炼(DashScope)链路全量
 > 退役，img2img 保留 ComfyUI / Herdsman 本地后端。**绑定面 557 零变更**。

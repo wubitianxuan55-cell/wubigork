@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/bmaupin/go-epub"
 	"github.com/gaea/gaea/internal/project"
@@ -16,6 +17,10 @@ import (
 // Manager 导出管理器
 type Manager struct {
 	pm *project.Manager
+
+	// mainlineOnly 仅导出主线章节（跳过分支章节文件 NNN[a-z].md）。
+	// 零值 false = 含分支，与历史行为一致；由 SetMainlineOnly 显式开启。
+	mainlineOnly bool
 
 	// FailedChapters 最近一次导出中读取失败的章节数（部分失败可见性）。
 	// 导出入口均为前台顺序调用，无需并发保护；连续导出多种格式时保留最后一种格式的计数。
@@ -30,6 +35,13 @@ type chapterEntry struct {
 // New 创建导出管理器
 func New(pm *project.Manager) *Manager {
 	return &Manager{pm: pm}
+}
+
+// SetMainlineOnly 设置是否仅导出主线章节（跳过 NNN[a-z].md 分支章节文件）。
+// 返回自身便于链式调用；不调用时保持默认（含分支，历史行为）。
+func (m *Manager) SetMainlineOnly(v bool) *Manager {
+	m.mainlineOnly = v
+	return m
 }
 
 // author 返回导出用作者名：优先取项目元数据 Author 字段；
@@ -47,6 +59,7 @@ func ensureParentDir(outPath string) error {
 }
 
 // listChapters 扫描 chapters/ 下的主线和分支章节，主线在前，分支按 a/b/c 顺序。
+// mainlineOnly 模式下跳过分支章节文件（正则与 internal/graph/consistency.go 一致）。
 func (m *Manager) listChapters() []chapterEntry {
 	dir := filepath.Join(m.pm.Dir, "chapters")
 	entries, err := os.ReadDir(dir)
@@ -65,6 +78,9 @@ func (m *Manager) listChapters() []chapterEntry {
 		}
 		var num int
 		if _, err := fmt.Sscanf(match[1], "%d", &num); err != nil {
+			continue
+		}
+		if m.mainlineOnly && match[2] != "" {
 			continue
 		}
 		out = append(out, chapterEntry{num: num, branch: match[2]})
@@ -168,19 +184,56 @@ func (m *Manager) ExportMarkdown(outPath string) (string, error) {
 	return outPath, nil
 }
 
+// findCoverImage 探测项目书封：play 空间 <pm.Dir>/.gaea/play/exports/cover-*.png，
+// 多个命中时取 mtime 最新（与 novel_bookcover.go 的落盘约定对应，仅读取已存在文件，
+// 不触发任何生图逻辑）。未找到返回空串，调用方回退默认封面页。
+func (m *Manager) findCoverImage() string {
+	dir := filepath.Join(m.pm.Dir, ".gaea", "play", "exports")
+	matches, err := filepath.Glob(filepath.Join(dir, "cover-*.png"))
+	if err != nil {
+		return ""
+	}
+	best, bestMod := "", time.Time{}
+	for _, p := range matches {
+		fi, err := os.Stat(p)
+		if err != nil || fi.IsDir() {
+			continue
+		}
+		if best == "" || fi.ModTime().After(bestMod) {
+			best, bestMod = p, fi.ModTime()
+		}
+	}
+	return best
+}
+
 // ExportEPUB 导出为 EPUB 电子书
 func (m *Manager) ExportEPUB(outPath string) (string, error) {
 	e := epub.NewEpub(m.pm.Meta.Title)
 	e.SetAuthor(m.author())
 
-	// 封面页
-	coverHTML := fmt.Sprintf(`<html><body>
+	// 真封面：项目已生成书封（play 空间 exports/cover-*.png）时用 SetCover 嵌入，
+	// go-epub 会生成 image 全屏 cover.xhtml（不进 TOC）并写入 cover 元数据；
+	// 未生成书封或嵌入失败则维持历史硬编码封面页，行为逐字节不变。
+	realCover := false
+	if coverPath := m.findCoverImage(); coverPath != "" {
+		imgRef, err := e.AddImage(coverPath, "cover.png")
+		if err != nil {
+			slog.Warn("exportEPUB: 嵌入书封失败，回退默认封面页", "path", coverPath, "error", err)
+		} else {
+			e.SetCover(imgRef, "")
+			realCover = true
+		}
+	}
+	if !realCover {
+		// 封面页
+		coverHTML := fmt.Sprintf(`<html><body>
 		<h1>%s</h1>
 		<p>题材: %s | 文风: %s</p>
 		<p>由 gaea AI 辅助创作</p>
 	</body></html>`, m.pm.Meta.Title, m.pm.Meta.Genre, m.pm.Meta.Style)
-	if _, err := e.AddSection(coverHTML, "封面", "cover.xhtml", ""); err != nil {
-		return "", fmt.Errorf("添加封面章节失败: %w", err)
+		if _, err := e.AddSection(coverHTML, "封面", "cover.xhtml", ""); err != nil {
+			return "", fmt.Errorf("添加封面章节失败: %w", err)
+		}
 	}
 
 	// 世界观
@@ -244,6 +297,7 @@ func (m *Manager) ExportAll() (map[string]string, error) {
 		{".txt", m.ExportTXT},
 		{".md", m.ExportMarkdown},
 		{".epub", m.ExportEPUB},
+		{".docx", m.ExportDOCX},
 	}
 
 	for _, f := range formats {

@@ -276,7 +276,7 @@ export interface AppAPI {
 
   // ── 导出 ──
   // onlyMainline: 传 true 仅导出主线章节（跳过分支）；不传/false = 含分支（默认，历史行为）。
-  ExportAll(...onlyMainline: boolean[]): Promise<Record<string, string>>
+  ExportAll(onlyMainline: boolean): Promise<Record<string, string>>
 
   // ── 知识图谱 ──
   BuildBacklinkIndex(): Promise<unknown>

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gaea/gaea/internal/project"
 	"github.com/gaea/gaea/internal/types"
@@ -304,13 +305,16 @@ func TestExportEPUB_AuthorFallback(t *testing.T) {
 	}
 }
 
-// TestExportAll_CreatesExportDir 一键导出在项目 export/ 目录产出 txt/md/epub 三格式
+// TestExportAll_CreatesExportDir 一键导出在项目 export/ 目录产出 txt/md/epub/docx 四格式
 func TestExportAll_CreatesExportDir(t *testing.T) {
 	pm := newTestProject(t, types.ProjectMeta{Title: "合集", Genre: "奇幻", Style: "轻快"},
 		map[string]string{"001.md": "正文。"}, "世界观。")
 	res, err := New(pm).ExportAll()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(res) != 4 {
+		t.Errorf("ExportAll 应产出 4 种格式，实际 %d: %v", len(res), res)
 	}
 	for ext, p := range res {
 		if strings.HasPrefix(p, "失败") {
@@ -325,7 +329,239 @@ func TestExportAll_CreatesExportDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 3 {
-		t.Errorf("export 目录应有 3 个文件，实际 %d", len(entries))
+	if len(entries) != 4 {
+		t.Errorf("export 目录应有 4 个文件，实际 %d", len(entries))
+	}
+}
+
+// ── 导出扩展：仅主线过滤 ────────────────────────────────────
+
+// TestExportAll_MainlineOnlySkipsBranches 仅主线模式跳过 NNN[a-z].md 分支章节；
+// 默认（不设置）保持历史行为：分支章节一并导出。
+func TestExportAll_MainlineOnlySkipsBranches(t *testing.T) {
+	pm := newTestProject(t, types.ProjectMeta{Title: "主线过滤", Genre: "玄幻", Style: "热血"},
+		map[string]string{
+			"001.md":  "主线第一章。",
+			"002.md":  "主线第二章。",
+			"002a.md": "分支甲正文。",
+			"003b.md": "分支乙正文。",
+		}, "")
+
+	// 默认：含分支（历史行为）
+	res, err := New(pm).ExportAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defTXT, err := os.ReadFile(res[".txt"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"主线第一章。", "主线第二章。", "分支甲正文。", "2 章 a"} {
+		if !strings.Contains(string(defTXT), want) {
+			t.Errorf("默认导出（含分支）TXT 缺少 %q", want)
+		}
+	}
+
+	// 仅主线：跳过分支
+	res, err = New(pm).SetMainlineOnly(true).ExportAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mlTXT, err := os.ReadFile(res[".txt"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"主线第一章。", "主线第二章。"} {
+		if !strings.Contains(string(mlTXT), want) {
+			t.Errorf("仅主线导出 TXT 缺少 %q", want)
+		}
+	}
+	for _, banned := range []string{"分支甲正文。", "分支乙正文。", "2 章 a", "2 章 b"} {
+		if strings.Contains(string(mlTXT), banned) {
+			t.Errorf("仅主线导出 TXT 不应包含 %q", banned)
+		}
+	}
+}
+
+// ── 导出扩展：EPUB 真封面 ───────────────────────────────────
+
+// writeTestCover 在项目 play 空间写一个书封文件（对应 novel_bookcover.go 落盘约定）。
+func writeTestCover(t *testing.T, pm *project.Manager, name string, content []byte) {
+	t.Helper()
+	dir := filepath.Join(pm.Dir, ".gaea", "play", "exports")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// readZipEntryBytes 读取 zip（EPUB）内指定条目的原始字节。
+func readZipEntryBytes(t *testing.T, zipPath, name string) []byte {
+	t.Helper()
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		t.Fatalf("打开 EPUB: %v", err)
+	}
+	defer zr.Close()
+	for _, f := range zr.File {
+		if f.Name == name {
+			rc, err := f.Open()
+			if err != nil {
+				t.Fatalf("打开 zip 条目 %s: %v", name, err)
+			}
+			defer rc.Close()
+			data, err := io.ReadAll(rc)
+			if err != nil {
+				t.Fatalf("读取 zip 条目 %s: %v", name, err)
+			}
+			return data
+		}
+	}
+	t.Fatalf("zip 中找不到条目 %s", name)
+	return nil
+}
+
+var fakePNG = []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00, 0x01, 0x02, 0x03}
+
+// TestExportEPUB_CoverEmbedded 已生成书封时：封面图片字节嵌入 EPUB，
+// package.opf 写入 cover 元数据，且不再使用硬编码封面页。
+func TestExportEPUB_CoverEmbedded(t *testing.T) {
+	pm := newTestProject(t, types.ProjectMeta{Title: "真封面", Genre: "科幻", Style: "冷峻"},
+		map[string]string{"001.md": "正文。"}, "")
+	coverBytes := append([]byte(nil), fakePNG...)
+	writeTestCover(t, pm, "cover-proj001.png", coverBytes)
+
+	out := filepath.Join(t.TempDir(), "novel.epub")
+	if _, err := New(pm).ExportEPUB(out); err != nil {
+		t.Fatalf("ExportEPUB: %v", err)
+	}
+
+	if got := readZipEntryBytes(t, out, "EPUB/images/cover.png"); string(got) != string(coverBytes) {
+		t.Errorf("EPUB 应嵌入书封原始字节（got %d bytes, want %d bytes）", len(got), len(coverBytes))
+	}
+	opf := readZipEntry(t, out, "EPUB/package.opf")
+	if !strings.Contains(opf, `name="cover"`) {
+		t.Errorf("package.opf 应包含 cover 元数据: %s", opf)
+	}
+	coverPage := readZipEntry(t, out, "EPUB/xhtml/cover.xhtml")
+	if !strings.Contains(coverPage, `<img src=`) {
+		t.Errorf("cover.xhtml 应为图片封面页: %s", coverPage)
+	}
+	if strings.Contains(coverPage, "由 gaea AI 辅助创作") {
+		t.Errorf("有真封面时不应再使用硬编码封面页: %s", coverPage)
+	}
+}
+
+// TestExportEPUB_CoverNewestWins 多个书封文件时取 mtime 最新。
+func TestExportEPUB_CoverNewestWins(t *testing.T) {
+	pm := newTestProject(t, types.ProjectMeta{Title: "新封", Genre: "都市", Style: "写实"},
+		map[string]string{"001.md": "正文。"}, "")
+	old := []byte{0xAA, 0xBB}
+	new := []byte{0xCC, 0xDD}
+	writeTestCover(t, pm, "cover-old.png", old)
+	writeTestCover(t, pm, "cover-new.png", new)
+	base := time.Now().Add(-time.Hour)
+	stamp := func(name string, mod time.Time) {
+		p := filepath.Join(pm.Dir, ".gaea", "play", "exports", name)
+		if err := os.Chtimes(p, mod, mod); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stamp("cover-old.png", base)
+	stamp("cover-new.png", base.Add(time.Minute))
+
+	out := filepath.Join(t.TempDir(), "novel.epub")
+	if _, err := New(pm).ExportEPUB(out); err != nil {
+		t.Fatalf("ExportEPUB: %v", err)
+	}
+	if got := readZipEntryBytes(t, out, "EPUB/images/cover.png"); string(got) != string(new) {
+		t.Errorf("应嵌入 mtime 最新的书封（got %v, want %v）", got, new)
+	}
+}
+
+// TestExportEPUB_NoCoverKeepsLegacyCoverPage 未生成书封时维持历史硬编码封面页，
+// package.opf 不写 cover 元数据、EPUB 内无图片目录。
+func TestExportEPUB_NoCoverKeepsLegacyCoverPage(t *testing.T) {
+	pm := newTestProject(t, types.ProjectMeta{Title: "无封", Genre: "奇幻", Style: "史诗"},
+		map[string]string{"001.md": "正文。"}, "")
+	out := filepath.Join(t.TempDir(), "novel.epub")
+	if _, err := New(pm).ExportEPUB(out); err != nil {
+		t.Fatalf("ExportEPUB: %v", err)
+	}
+	coverPage := readZipEntry(t, out, "EPUB/xhtml/cover.xhtml")
+	if !strings.Contains(coverPage, "由 gaea AI 辅助创作") {
+		t.Errorf("无书封时应保留硬编码封面页: %s", coverPage)
+	}
+	opf := readZipEntry(t, out, "EPUB/package.opf")
+	if strings.Contains(opf, `name="cover"`) {
+		t.Errorf("无书封时 package.opf 不应包含 cover 元数据: %s", opf)
+	}
+	zr, err := zip.OpenReader(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+	for _, f := range zr.File {
+		if strings.HasPrefix(f.Name, "EPUB/images/") {
+			t.Errorf("无书封时不应有图片条目: %s", f.Name)
+		}
+	}
+}
+
+// ── 导出扩展：DOCX ──────────────────────────────────────────
+
+// TestExportDOCX_Structure DOCX 为合法 zip 结构（含 word/document.xml / styles.xml），
+// 且书名与章节正文进入 document.xml。
+func TestExportDOCX_Structure(t *testing.T) {
+	pm := newTestProject(t, types.ProjectMeta{Title: "词文档", Genre: "科幻", Style: "硬核"},
+		map[string]string{
+			"001.md": "### 楔子\n\n第一段正文。\n\n第二段正文。",
+			"002.md": "第二章正文。",
+		}, "世界观内容-DX01")
+	out := filepath.Join(t.TempDir(), "deep", "novel.docx")
+	if _, err := New(pm).ExportDOCX(out); err != nil {
+		t.Fatalf("ExportDOCX: %v", err)
+	}
+	zr, err := zip.OpenReader(out)
+	if err != nil {
+		t.Fatalf("DOCX 应为合法 zip: %v", err)
+	}
+	defer zr.Close()
+	entries := map[string]bool{}
+	for _, f := range zr.File {
+		entries[f.Name] = true
+	}
+	for _, want := range []string{"[Content_Types].xml", "word/document.xml", "word/styles.xml"} {
+		if !entries[want] {
+			t.Errorf("DOCX zip 缺少 %s，实际条目: %v", want, entries)
+		}
+	}
+	docXML := readZipEntry(t, out, "word/document.xml")
+	for _, want := range []string{"词文档", "世界观内容-DX01", "第 1 章", "楔子", "第一段正文。", "第 2 章", "第二章正文。"} {
+		if !strings.Contains(docXML, want) {
+			t.Errorf("document.xml 缺少 %q", want)
+		}
+	}
+}
+
+// TestExportDOCX_JoinsExportAll DOCX 纳入 ExportAll 格式清单且产物可读。
+func TestExportDOCX_JoinsExportAll(t *testing.T) {
+	pm := newTestProject(t, types.ProjectMeta{Title: "全格式", Genre: "悬疑", Style: "冷峻"},
+		map[string]string{"001.md": "正文。"}, "")
+	res, err := New(pm).ExportAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, ok := res[".docx"]
+	if !ok {
+		t.Fatalf("ExportAll 缺少 .docx: %v", res)
+	}
+	if strings.HasPrefix(p, "失败") {
+		t.Fatalf("ExportAll .docx 失败: %s", p)
+	}
+	if _, err := os.Stat(p); err != nil {
+		t.Fatalf("docx 产物不存在: %v", err)
 	}
 }
