@@ -52,7 +52,8 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 	for _, n := range of.Nodes {
 		cn := n.OrderIndex
 		if cn > 0 && cn < limitChapter && n.Summary != "" {
-			prevParts = append(prevParts, fmt.Sprintf("第%d章：%s", cn, util.Truncate(n.Summary, 100)))
+			// 每章摘要截断 200 rune（原 100，前文上下文加厚）
+			prevParts = append(prevParts, fmt.Sprintf("第%d章：%s", cn, util.Truncate(n.Summary, 200)))
 		}
 	}
 	prevSummary = strings.Join(prevParts, "\n\n")
@@ -73,6 +74,12 @@ func (a *writingState) CreateChapter(setting, prevSummary, plotReq string, chapt
 		"characters":   a.buildCharacterSummary(pm),
 		"prev_summary": prevSummary,
 	})
+	// 上下文增强：追加未回收伏笔 + 世界观要点区段。全部容错注入——读取失败或
+	// 无数据时静默跳过（不追加空区段），绝不因增强失败中断章节生成主链路；
+	// 新增区段合计受 ctxBudgetTotal 预算约束，超出逐段截断。
+	if extra := buildChapterContextSections(pm); extra != "" {
+		userPrompt += extra + "\n"
+	}
 
 	systemPrompt := tmpl.BuildSystemPrompt("")
 	// create-chapter 模板以 {word_count} 占位符声明目标字数（prompts/create-chapter.json），
@@ -256,9 +263,10 @@ func (a *writingState) streamCreateChapter(ctx context.Context, pm *project.Mana
 			bodyLen := len([]rune(bodyText))
 			need := minWords - bodyLen
 			// 截取已有内容末尾作为续写上下文（避免截开头导致重复）
+			// 续写尾部 1500 rune（原 500）；正文不足 1500 时 tailRunes 保持全量（带全章）。
 			allRunes := []rune(bodyText)
 			tailRunes := allRunes
-			const tailCtx = 500
+			const tailCtx = 1500
 			if len(allRunes) > tailCtx {
 				tailRunes = allRunes[len(allRunes)-tailCtx:]
 			}
@@ -504,13 +512,171 @@ func (a *writingState) ensureChapterNode(pm *project.Manager, of *types.OutlineF
 	return
 }
 
+// ── 章节生成上下文增强（伏笔 / 世界观 / 角色卡）──────────────────────
+// 以下注入全部容错：文件缺失、JSON 损坏一律静默跳过对应区段，
+// 绝不让上下文增强失败导致章节生成失败。
+
+// 上下文注入预算（均为 rune 数）。各区段先按条目/维度截断，合计超过
+// ctxBudgetTotal 时再逐段对半压缩，保证 prompt 不爆炸。
+const (
+	ctxBudgetTotal        = 4000 // 新增区段（伏笔+世界观）合计预算
+	ctxForeshadowBudget   = 1600 // 伏笔区正文上限
+	ctxWorldviewBudget    = 1600 // 世界观区正文上限
+	ctxForeshadowLineLen  = 100  // 单条伏笔描述截断
+	ctxForeshadowMaxItems = 15   // 最多注入的伏笔条数
+	ctxWorldviewDimLen    = 150  // 世界观单维度截断
+)
+
+// 角色摘要字段预算。性格截断由原 20 rune 放宽到 60，另补身份/目标/关系要点。
+const (
+	charPersonalityLen  = 60   // 性格截断上限（原 20）
+	charFieldLen        = 60   // 身份背景/目标等字段截断
+	charRelationDescLen = 30   // 单条关系描述截断
+	charMaxRelations    = 3    // 每角色最多注入关系数
+	charSummaryBudget   = 2400 // 角色摘要整体预算（rune）
+)
+
+// runeLen 字符串的 rune 长度
+func runeLen(s string) int {
+	return len([]rune(s))
+}
+
+// truncateBudget 将 s 截断到不超过 budget 个 rune（省略号计入预算，
+// util.Truncate 的 "..." 后缀占 3 rune）。
+func truncateBudget(s string, budget int) string {
+	if budget < 3 {
+		budget = 3
+	}
+	if runeLen(s) <= budget {
+		return s
+	}
+	return util.Truncate(s, budget-3)
+}
+
+// buildChapterContextSections 组装章节生成 prompt 的增强上下文区段
+// （未回收伏笔 + 世界观要点）。无数据或读取失败时返回 ""，调用方不追加
+// 任何内容（prompt 中不出现空区段）。
+func buildChapterContextSections(pm *project.Manager) string {
+	sections := make([]string, 0, 2)
+	if body := buildForeshadowSection(pm); body != "" {
+		sections = append(sections, "## 未回收伏笔（创作约束）\n"+
+			"以下伏笔已埋设尚未回收，写作时不得与之矛盾；可自然推进，不要强行提前揭穿：\n"+body)
+	}
+	if body := buildWorldviewSection(pm); body != "" {
+		sections = append(sections, "## 世界观要点\n"+body)
+	}
+	return joinWithBudget(ctxBudgetTotal, sections...)
+}
+
+// joinWithBudget 用空行拼接区段；合计超过 budget（rune）时对每段截断至
+// budget/段数（扣除拼接符开销），保证新增上下文不会撑爆生成 prompt。
+func joinWithBudget(budget int, sections ...string) string {
+	if len(sections) == 0 {
+		return ""
+	}
+	joined := strings.Join(sections, "\n\n")
+	if runeLen(joined) > budget {
+		joiner := 2 * (len(sections) - 1) // "\n\n" 拼接开销
+		per := (budget - joiner) / len(sections)
+		for i := range sections {
+			sections[i] = truncateBudget(sections[i], per)
+		}
+		joined = strings.Join(sections, "\n\n")
+	}
+	return joined
+}
+
+// buildForeshadowSection 读 foreshadows.json，把未回收（planted/hinted，
+// 即「未回收/进行中」）的伏笔整理为创作约束区正文：每条一行、描述截断、
+// 最多 ctxForeshadowMaxItems 条、整体不超过 ctxForeshadowBudget。
+// 读失败或没有未回收伏笔时返回 ""。
+func buildForeshadowSection(pm *project.Manager) string {
+	if pm == nil {
+		return ""
+	}
+	ff, err := pm.ReadForeshadows()
+	if err != nil || ff == nil || len(ff.Items) == 0 {
+		return ""
+	}
+	statusLabel := map[types.ForeshadowStatus]string{
+		types.ForeshadowPlanted: "已埋设",
+		types.ForeshadowHinted:  "已暗示·进行中",
+	}
+	var lines []string
+	for _, f := range ff.Items {
+		if f.Status == types.ForeshadowRevealed {
+			continue // 已回收的伏笔不再注入
+		}
+		label := statusLabel[f.Status]
+		if label == "" {
+			label = string(f.Status)
+		}
+		longTag := ""
+		if f.IsLongTerm {
+			longTag = "（长线）"
+		}
+		desc := util.Truncate(strings.TrimSpace(f.Description), ctxForeshadowLineLen)
+		lines = append(lines, fmt.Sprintf("- [%s] %s%s（状态：%s）", f.Category, desc, longTag, label))
+		if len(lines) >= ctxForeshadowMaxItems {
+			break
+		}
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return truncateBudget(strings.Join(lines, "\n"), ctxForeshadowBudget)
+}
+
+// buildWorldviewSection 读世界观并拆分为「维度要点」正文，每维度截断
+// ctxWorldviewDimLen、整体不超过 ctxWorldviewBudget。复用 pm.ReadWorldview
+// （worldview.json 优先，旧 worldview.md 兜底）；旧 md 无 "## " 维度标题时
+// 整块压缩为单条要点。读失败或全空时返回 ""。
+func buildWorldviewSection(pm *project.Manager) string {
+	if pm == nil {
+		return ""
+	}
+	md, err := pm.ReadWorldview()
+	if err != nil || strings.TrimSpace(md) == "" {
+		return ""
+	}
+	var lines []string
+	curTitle := ""
+	var cur []string
+	flush := func() {
+		content := strings.TrimSpace(strings.Join(cur, " "))
+		if curTitle != "" && content != "" {
+			lines = append(lines, fmt.Sprintf("- %s：%s", curTitle, util.Truncate(content, ctxWorldviewDimLen)))
+		}
+		cur = cur[:0]
+	}
+	for _, line := range strings.Split(md, "\n") {
+		if strings.HasPrefix(line, "## ") {
+			flush()
+			curTitle = strings.TrimSpace(strings.TrimPrefix(line, "## "))
+			continue
+		}
+		if curTitle != "" {
+			cur = append(cur, line)
+		}
+	}
+	flush()
+	if len(lines) == 0 {
+		// 旧 md 没有任何 "## " 维度标题：整块作为单条要点压缩注入
+		return "- 世界观：" + util.Truncate(strings.TrimSpace(md), ctxWorldviewDimLen*4)
+	}
+	return truncateBudget(strings.Join(lines, "\n"), ctxWorldviewBudget)
+}
+
 // buildCharacterSummary 构建角色摘要字符串（用于注入章节生成 prompt）
-// 格式：每角色一行「姓名 · 身份 · 性格关键词 · 状态」
+// 格式：每角色一行「姓名：身份·性格·身份背景·目标·关系要点·状态」，
+// 各字段按 rune 截断（性格上限 charPersonalityLen），整体不超过
+// charSummaryBudget；无背景/目标/关系的角色保持原有精简形态。
 func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
 	cf, err := pm.ReadCharacters()
 	if err != nil || cf == nil || len(cf.Characters) == 0 {
 		return "（暂无角色设定）"
 	}
+	relDigest := buildRelationDigest(cf)
 	var lines []string
 	for _, ch := range cf.Characters {
 		roleLabel := map[string]string{
@@ -520,14 +686,62 @@ func (a *writingState) buildCharacterSummary(pm *project.Manager) string {
 		if roleLabel == "" {
 			roleLabel = ch.RoleType
 		}
-		personality := ch.Personality
-		if len([]rune(personality)) > 20 {
-			personality = string([]rune(personality)[:20]) + "…"
+		personality := util.Truncate(strings.TrimSpace(ch.Personality), charPersonalityLen)
+		line := fmt.Sprintf("- %s：%s·%s", ch.Name, roleLabel, personality)
+		if bg := strings.TrimSpace(ch.Background); bg != "" {
+			line += "·身份：" + util.Truncate(bg, charFieldLen)
 		}
-		line := fmt.Sprintf("- %s：%s·%s·%s", ch.Name, roleLabel, personality, ch.Status)
+		if mo := strings.TrimSpace(ch.Motivation); mo != "" {
+			line += "·目标：" + util.Truncate(mo, charFieldLen)
+		}
+		if rel := relDigest[ch.ID]; rel != "" {
+			line += "·关系：" + rel
+		}
+		line += "·" + ch.Status
 		lines = append(lines, line)
 	}
-	return strings.Join(lines, "\n")
+	return truncateBudget(strings.Join(lines, "\n"), charSummaryBudget)
+}
+
+// buildRelationDigest 把 characters.json 的 relationships 折叠为
+// 「角色ID → 关系要点」，只保留双方都能对照到项目角色的关系；
+// 每角色最多 charMaxRelations 条。无关系数据时返回空 map。
+func buildRelationDigest(cf *types.CharacterFile) map[string]string {
+	if cf == nil || len(cf.Relationships) == 0 {
+		return nil
+	}
+	nameByID := make(map[string]string, len(cf.Characters))
+	for _, ch := range cf.Characters {
+		nameByID[ch.ID] = ch.Name
+	}
+	relationLabel := map[string]string{
+		"friend": "好友", "enemy": "敌对", "family": "亲人", "mentor": "师徒",
+		"rival": "宿敌", "lover": "恋人", "member": "隶属", "leader": "统领",
+	}
+	rels := make(map[string][]string)
+	for _, r := range cf.Relationships {
+		fromName, toName := nameByID[r.FromID], nameByID[r.ToID]
+		if fromName == "" || toName == "" {
+			continue
+		}
+		label := relationLabel[r.RelationType]
+		if label == "" {
+			label = r.RelationType
+		}
+		item := fmt.Sprintf("与%s为%s", toName, label)
+		if d := strings.TrimSpace(r.Description); d != "" {
+			item += "（" + util.Truncate(d, charRelationDescLen) + "）"
+		}
+		rels[r.FromID] = append(rels[r.FromID], item)
+	}
+	digest := make(map[string]string, len(rels))
+	for id, items := range rels {
+		if len(items) > charMaxRelations {
+			items = items[:charMaxRelations]
+		}
+		digest[id] = strings.Join(items, "、")
+	}
+	return digest
 }
 
 // extractNewCharacters 从章节摘要中提取新角色，与项目角色 + 全局角色库对照去重。

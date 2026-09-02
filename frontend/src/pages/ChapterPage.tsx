@@ -34,7 +34,10 @@ import {
   type ReadingAnnotation, type AnnotationColor,
 } from '../utils/readingAnnotations'
 import { askReadingAssistant } from '../components/novel/api/readingAssistant'
-import { searchNovel, type NovelSearchHit } from '../components/novel/api/search'
+import {
+  searchNovelAll, splitSnippet, summarizeSearch, locateParagraphMatch,
+  type NovelSearchHitData,
+} from './chapter/novelSearchUtils'
 import ExportPanel from '../components/novel/ExportPanel'
 import { ChapterIllustration } from './chapter/ChapterIllustration'
 import type { OutlineNode, ChapterTabData } from '../types'
@@ -86,11 +89,11 @@ const ChapterPage: React.FC = () => {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
-  const [searchHits, setSearchHits] = useState<NovelSearchHit[]>([])
+  const [searchHits, setSearchHits] = useState<NovelSearchHitData[]>([])
   const [searchError, setSearchError] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [illusOpen, setIllusOpen] = useState(false)
-  const pendingSearch = useRef<{ nodeId: string; query: string } | null>(null)
+  const pendingSearch = useRef<{ nodeId: string; query: string; paragraphIndex: number; charOffset: number } | null>(null)
   const readingScrollRef = useRef<HTMLDivElement | null>(null)
   const readScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoScrollRef = useRef<number | null>(null)
@@ -681,6 +684,32 @@ const ChapterPage: React.FC = () => {
   const applyTextHighlightRef = useRef(applyTextHighlight)
   applyTextHighlightRef.current = applyTextHighlight
 
+  // 搜索命中定位（全文搜索升级）：按后端段落索引 + 段内偏移把该处命中词包进高亮 span，
+  // 与 applyTextHighlight（全文首个命中）不同 —— 这里只作用于指定段落内的指定那一处。
+  const highlightSearchHitAt = (paras: HTMLElement[], paraIdx: number, query: string, charOffset: number): boolean => {
+    const p = paras[paraIdx]
+    if (!p || !query) return false
+    const start = locateParagraphMatch(p.textContent || '', query, charOffset)
+    if (start < 0) return false
+    const endAt = start + query.length
+    const nodes = textNodesOf(p)
+    const startHolder = nodes.find((t) => start < t.end)
+    const endHolder = nodes.find((t) => endAt <= t.end)
+    if (!startHolder || !endHolder) return false
+    try {
+      clearReadingHighlight('novel-reading-search-hit')
+      const range = document.createRange()
+      range.setStart(startHolder.node, Math.max(0, start - startHolder.start))
+      range.setEnd(endHolder.node, endAt - endHolder.start)
+      const span = document.createElement('span')
+      span.className = 'novel-reading-search-hit'
+      span.appendChild(range.extractContents())
+      range.insertNode(span)
+      span.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      return true
+    } catch { return false }
+  }
+
   const handleTtsSentence = (sentence: string) => {
     applyTextHighlight(sentence, 'novel-reading-current')
   }
@@ -688,52 +717,75 @@ const ChapterPage: React.FC = () => {
     clearReadingHighlight('novel-reading-current')
   }
 
-  // ── 全文搜索（防抖 300ms，点击结果打开章节并定位） ──
-  useEffect(() => {
-    if (!searchOpen) return
+  // ── 全文搜索（防抖 300ms；回车立即搜索；点击结果打开章节并按段落定位） ──
+  // 每次搜索带自增序号，防止慢响应晚到覆盖新结果。
+  const searchSeqRef = useRef(0)
+  const runSearchRef = useRef<() => void>(() => {})
+  runSearchRef.current = () => {
     const q = searchQuery.trim()
     if (!q) { setSearchHits([]); setSearchError(null); setSearchLoading(false); return }
+    const seq = ++searchSeqRef.current
     setSearchLoading(true)
-    const timer = setTimeout(async () => {
-      try {
-        const hits = await searchNovel(q)
-        setSearchHits(hits || [])
+    searchNovelAll(q)
+      .then((hits) => {
+        if (seq !== searchSeqRef.current) return
+        setSearchHits(hits)
         setSearchError(null)
-      } catch (err) {
+      })
+      .catch((err) => {
+        if (seq !== searchSeqRef.current) return
         setSearchHits([])
         setSearchError(errText(err, '搜索失败'))
-      } finally {
-        setSearchLoading(false)
-      }
-    }, 300)
+      })
+      .finally(() => {
+        if (seq === searchSeqRef.current) setSearchLoading(false)
+      })
+  }
+  useEffect(() => {
+    if (!searchOpen) return
+    if (!searchQuery.trim()) { setSearchHits([]); setSearchError(null); setSearchLoading(false); return }
+    const timer = setTimeout(() => runSearchRef.current(), 300)
     return () => clearTimeout(timer)
   }, [searchOpen, searchQuery])
 
-  const openSearchHit = (hit: NovelSearchHit) => {
+  const searchSummary = useMemo(() => summarizeSearch(searchHits), [searchHits])
+
+  const openSearchHit = (hit: NovelSearchHitData) => {
     const node = outlineLeaves.find((n) => n.id === hit.node_id)
     if (!node) return
-    pendingSearch.current = { nodeId: hit.node_id, query: searchQuery.trim() }
+    pendingSearch.current = {
+      nodeId: hit.node_id,
+      query: searchQuery.trim(),
+      paragraphIndex: hit.paragraph_index,
+      charOffset: hit.char_offset,
+    }
     setSearchOpen(false)
     handleSelectNode(node)
     setReadMode(true)
   }
 
-  // 打开目标章节后等待正文渲染，再定位并高亮首个命中
+  // 打开目标章节后等待正文渲染，再按段落索引定位该处命中并短暂高亮；
+  // 定位失败（章节被编辑/标题命中等）时降级为全文首个命中。
   useEffect(() => {
-    if (!readMode || !readNodeId || !pendingSearch.current || pendingSearch.current.nodeId !== readNodeId) return
-    const query = pendingSearch.current.query
+    const target = pendingSearch.current
+    if (!readMode || !readNodeId || !target || target.nodeId !== readNodeId) return
     let tries = 0
     const timer = window.setInterval(() => {
       tries++
       const root = readingScrollRef.current
       const found = root
-        ? Array.from(root.querySelectorAll('.novel-reading-p')).some((p) => (p.textContent || '').includes(query))
+        ? Array.from(root.querySelectorAll('.novel-reading-p')).some((p) => (p.textContent || '').includes(target.query))
         : false
-      if (found || tries > 30) {
-        window.clearInterval(timer)
-        if (found) applyTextHighlightRef.current(query, 'novel-reading-search-hit')
-        pendingSearch.current = null
-      }
+      if (!found && tries <= 30) return
+      window.clearInterval(timer)
+      pendingSearch.current = null
+      if (!found || !root) return
+      const paras = Array.from(root.querySelectorAll<HTMLElement>('.novel-reading-p'))
+      const flashed = (target.paragraphIndex >= 0
+        && highlightSearchHitAt(paras, target.paragraphIndex, target.query, target.charOffset))
+        || applyTextHighlightRef.current(target.query, 'novel-reading-search-hit')
+      // 短暂高亮：2.6s 后自动清除
+      if (flashed) window.setTimeout(() => clearReadingHighlight('novel-reading-search-hit'), 2600)
     }, 120)
     return () => window.clearInterval(timer)
   }, [readMode, readNodeId])
@@ -900,9 +952,16 @@ const ChapterPage: React.FC = () => {
                             size="small"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runSearchRef.current() } }}
                             placeholder="搜索全书（标题 + 正文）"
                             allowClear
                           />
+                          {searchHits.length > 0 && (
+                            <div className="novel-read-search-hint">
+                              共 {searchSummary.total} 处 · {searchSummary.chapters} 章
+                              {searchSummary.shown < searchSummary.total ? `（显示前 ${searchSummary.shown} 条）` : ''}
+                            </div>
+                          )}
                           <div className="novel-read-search-body">
                             {searchLoading ? (
                               <div className="novel-read-search-hint"><LoadingOutlined spin /> 搜索中…</div>
@@ -914,15 +973,23 @@ const ChapterPage: React.FC = () => {
                               <div className="novel-read-search-list">
                                 {searchHits.map((h) => (
                                   <div
-                                    key={h.node_id}
+                                    key={`${h.node_id}:${h.match_index}`}
                                     className="novel-read-search-hit-row"
                                     role="button"
                                     tabIndex={0}
                                     onClick={() => openSearchHit(h)}
                                     onKeyDown={(e) => { if (e.key === 'Enter') openSearchHit(h) }}
                                   >
-                                    <span className="novel-read-search-hit-title">{h.title}</span>
-                                    <span className="novel-read-search-hit-snippet">{h.snippet}</span>
+                                    <span className="novel-read-search-hit-title">
+                                      {h.title}{h.paragraph_index >= 0 ? ` · 第${h.paragraph_index + 1}段` : ''}
+                                    </span>
+                                    <span className="novel-read-search-hit-snippet">
+                                      {splitSnippet(h.snippet, searchQuery.trim()).map((seg, i) => (
+                                        seg.match
+                                          ? <mark key={i}>{seg.text}</mark>
+                                          : <React.Fragment key={i}>{seg.text}</React.Fragment>
+                                      ))}
+                                    </span>
                                   </div>
                                 ))}
                               </div>

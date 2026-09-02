@@ -92,7 +92,29 @@ interface SearchResultData {
   context: string // 匹配行前后各 40 字符
 }
 
-/** 剧情分支（对齐 usePlotBranch.Branch） */
+/** 小说全文检索命中（对齐 internal/app/novel_search_handler.go NovelSearchHit；只增字段，旧字段语义不变） */
+export interface NovelSearchHitData {
+  node_id: string
+  title: string
+  chapter_num: number
+  branch?: string
+  snippet: string
+  title_hit: boolean
+  /** 本章内命中序次（1-based；标题命中为 1） */
+  match_index: number
+  /** 正文段落索引（0-based，按空行分段，对齐阅读渲染器 .novel-reading-p 序号；标题命中为 -1） */
+  paragraph_index: number
+  /** 段内命中起始 rune 偏移（标题命中为 -1） */
+  char_offset: number
+  /** 命中词 rune 长度 */
+  match_len: number
+  /** 全书总命中数（不受返回条数上限影响；绑定返回扁平切片，汇总冗余填充在每行） */
+  total_hits: number
+  /** 命中章节总数（每行冗余携带） */
+  chapter_count: number
+}
+
+/** 剧情分支（对齐 internal/app/plot_branch_handler.go PlotBranch） */
 interface PlotBranch {
   id: string
   title: string
@@ -264,6 +286,9 @@ export interface AppAPI {
 
   // ── 搜索 ──
   Search(query: string): Promise<Record<string, SearchResultData[]>>
+
+  // ── 小说全文搜索（对齐 NovelB.NovelSearch）──
+  NovelSearch(query: string): Promise<NovelSearchHitData[]>
 
   // ── 脑暴 ──
   BrainstormIdeas(genre: string): Promise<BrainstormIdea[]>
