@@ -25,7 +25,9 @@ import { useImageGenConfig } from '../hooks/useImageGenConfig'
 import { useImageGenQueue } from '../hooks/useImageGenQueue'
 import { useImageGenHistory } from '../hooks/useImageGenHistory'
 import { useCustomTemplates } from '../hooks/useCustomTemplates'
-import { BACKEND_OPTIONS, resolveResultImage } from '../components/imagegen/meta'
+import {
+  backendLabel, isLocalBackend, resolveResultImage, templateSizeToPreset,
+} from '../components/imagegen/meta'
 import { downloadFileName } from '../components/imagegen/media'
 import '../components/imagegen/imagegen.css'
 
@@ -129,19 +131,30 @@ const ImageGenPage: React.FC = () => {
     setPrompt((p) => p ? p + '，' + t.prompt : t.prompt)
     const neg = t.negative
     if (neg) setNegative((n) => n ? n + ', ' + neg : neg)
+    // 模板推荐画幅落地：文生图时同步画幅（图生图随参考图、文生视频独立画幅体系）
+    const sizePatch = templateSizeToPreset(t.size, mode)
+    if (sizePatch) {
+      setSize(sizePatch.size)
+      if (sizePatch.size === 'custom') {
+        setCustomWidth(sizePatch.customWidth ?? 768)
+        setCustomHeight(sizePatch.customHeight ?? 1152)
+      }
+    }
     message.success(`已套用模板「${t.label}」`)
-  }, [setPrompt, setNegative])
+  }, [setPrompt, setNegative, mode, setSize, setCustomWidth, setCustomHeight])
 
   // ── 引擎启停派生 ──
-  const isLocalEngine = ['comfyui', 'herdsman', 'ollama'].includes(backend)
+  const isLocalEngine = isLocalBackend(backend)
+  // needsComfy = 当前模式需要特定后端能力（提示性；dashscope 支持 img2img、
+  // glm 无 img2img/t2v 能力且已由 ControlPanel/queue 专属门禁兜底，不在此重复）
   const needsComfy = (mode === 't2v' && backend !== 'comfyui')
-    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'dashscope')
+    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'dashscope' && backend !== 'glm')
 
   const engineStatusText = engineStarting
     ? '引擎启动中...'
     : isLocalEngine
-      ? (engineRunning ? `${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 运行中` : '引擎未连接')
-      : `${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 云端`
+      ? (engineRunning ? `${backendLabel(backend)} 运行中` : '引擎未连接')
+      : `${backendLabel(backend)} 云端`
 
   // ── 渲染 ──
   return (

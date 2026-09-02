@@ -125,4 +125,36 @@ describe('ControlPanel 引擎枚举与模式门禁（百炼改图）', () => {
     // 警告 div 的直接文本 = 主文案 + 「，请切换引擎」两段相邻文本节点
     expect(screen.getByText('图生图需使用 ComfyUI / Herdsman / 百炼改图 后端，请切换引擎')).toBeTruthy()
   })
+
+  it('txt2img 模式：GLM 可选，点击触发 onSwitchBackend("glm")', async () => {
+    render(<ControlPanel {...baseProps} mode="txt2img" backend="xai" />)
+    openEngineSelect()
+    await waitFor(() => expect(findOption('GLM')).toBeTruthy())
+    const opt = findOption('GLM') as HTMLElement
+    expect(isOptionDisabled(opt)).toBe(false)
+    fireEvent.click(opt)
+    expect(baseProps.onSwitchBackend).toHaveBeenCalled()
+    expect(baseProps.onSwitchBackend.mock.calls[0][0]).toBe('glm')
+  })
+
+  it('img2img 模式：GLM 禁用（官方图像端点仅文生图），点击不切换', async () => {
+    render(<ControlPanel {...baseProps} mode="img2img" backend="xai" />)
+    openEngineSelect()
+    await waitFor(() => expect(findOption('GLM')).toBeTruthy())
+    const opt = findOption('GLM') as HTMLElement
+    expect(isOptionDisabled(opt)).toBe(true)
+    fireEvent.click(opt)
+    expect(baseProps.onSwitchBackend).not.toHaveBeenCalled()
+  })
+
+  it('glm + img2img 残留态：显示「GLM 仅支持文生图」警告', () => {
+    render(<ControlPanel {...baseProps} mode="img2img" backend="glm" />)
+    expect(screen.getByText('GLM 仅支持文生图，请切换到文生图模式或更换引擎')).toBeTruthy()
+  })
+
+  it('glm + txt2img：无警告且不出现缺引擎提示', () => {
+    render(<ControlPanel {...baseProps} mode="txt2img" backend="glm" />)
+    expect(screen.queryByText(/GLM 仅支持文生图/)).toBeNull()
+    expect(screen.queryByText(/请切换引擎/)).toBeNull()
+  })
 })

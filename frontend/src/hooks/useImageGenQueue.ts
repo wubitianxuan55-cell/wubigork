@@ -9,6 +9,7 @@ import {
 } from '../api/image'
 import { renderMermaidToPng } from '../utils/mermaidPng'
 import { markQueueCanceled, shouldSubmitNext, afterTaskStatus } from '../components/imagegen/queue'
+import { backendSupportsMode } from '../components/imagegen/meta'
 import type { GenResult, GenTask, QueueEntry, ImageMode } from '../components/imagegen/types'
 
 /** handleGenerate 构建 GenTask 所需的生成配置快照（页面从 useImageGenConfig 汇总注入）。 */
@@ -206,6 +207,14 @@ export function useImageGenQueue({ setHistory, setLightboxIndex, config }: UseIm
   const handleGenerate = useCallback(() => {
     if (!config.prompt.trim()) { message.warning(config.mode === 't2v' ? '请输入视频画面描述' : '请输入图片描述'); return }
     if (config.mode === 'img2img' && !config.initImage) { message.warning('请先上传参考图'); return }
+    // 引擎固有模式约束（百炼仅改图 / GLM 仅文生图）：残留态提交前拦截，
+    // 与 ControlPanel/GenerationBar 门禁同源，避免点击后才被后端拒收。
+    if (!backendSupportsMode(config.backend, config.mode)) {
+      message.warning(config.backend === 'glm'
+        ? 'GLM 仅支持文生图，请切换到文生图模式或更换引擎'
+        : '百炼仅支持改图，请切换到图生图模式或更换引擎')
+      return
+    }
     if (config.mode === 'img2img' && config.backend !== 'comfyui' && config.backend !== 'herdsman' && config.backend !== 'dashscope') {
       message.warning('图生图目前支持 ComfyUI / Herdsman 本地后端 / 百炼改图，请先在左侧切换引擎')
       return

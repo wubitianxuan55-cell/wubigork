@@ -47,6 +47,32 @@
 
 ## 版本状态
 
+- **最新发布：v4.44.0（2026-09-02）「绘梦专项三刀：百炼模型残留修复 · 引擎
+  枚举单源化 · 模板画幅落地」**：git tag `v4.44.0`；基线 v4.43.0；绑定面 557
+  零变更。绘梦板块专项摸底后收三条互不相交线（无并行子代理，主代理直改 +
+  测试收口）：①**百炼模型残留修复（真 bug）**——dashscope 后端
+  GetImageBackendInfo/SetImageBackend 空或残留模型（grok-imagine-*/krea2）归位
+  qwen-image-edit-plus（手填官方编辑系保留；GetImageBackendConfig 同口径）；
+  前端 useImageGenConfig modelOptions 对 dashscope 固定三档官方编辑模型 +
+  切后端 defaultModel 归位 DASHSCOPE_DEFAULT_MODEL；queue 提交前
+  backendSupportsMode 拦截引擎固有模式残留（百炼仅改图 / GLM 仅文生图），不再
+  点击后才被后端拒收。②**引擎枚举单源化 + 补 GLM**——meta.ts 收敛唯一
+  BACKEND_OPTIONS（能力位 img2imgOnly/txt2imgOnly）+ backendLabel/
+  isLocalBackend/backendSupportsMode 辅助；ControlPanel 下拉、ImageGenPage 顶条
+  状态 pill、useImageGenConfig 启动消息、GenerationBar 门禁统一走单源（修复
+  「☁️ xAI 云端 云端」式拼接重复与 dashscope/glm 无 label 回退裸 id）；引擎下拉
+  新增 GLM（txt2imgOnly，非文生图模式禁用 + Tooltip「GLM 仅支持文生图」+ 残留
+  专属警告）。③**模板推荐画幅落地**——新纯函数 templateSizeToPreset(ratio,mode)
+  把模板 size 比例标签映射到实际画幅（2:3 立绘无预置档→自定义 768×1152，仅
+  txt2img 生效）；applyTemplate 应用模板时同步画幅；TemplatePickerModal
+  handleSelect 不再丢弃 size 字段（此前只传 label/prompt/negative）。
+  **验证**：Go 全量 test exit 0（+8 用例：GetImageBackendInfo dashscope 归位
+  ×4/SetImageBackend 残留归位 ×4）；tsc -b/eslint 0；vitest 1285/1285（+11：
+  meta.test 7 + ControlPanel GLM 4）；drift PASS（557）；版本四处 4.44.0。
+  **新欠账**：ControlPanel GLM 未启用/无 Key 的切换前置引导（现由后端报错兜底）；
+  dashscope 图生图 UI 内「参考图+指令」一键改图入口仍缺（v4.40 沿旧）；百炼
+  txt2img（qwen-image-2.0 系）后端未放行。详见 releases/v4.44.0.md。
+
 - **最新发布：v4.43.0（2026-09-02）「小说板块优化四刀：生成上下文 · 分支收账 ·
   搜索定位 · 一致性修复」**：git tag `v4.43.0`；基线 v4.42.0；绑定面 557 零变更。
   小说板块自 v4.3.1 后首次专项投入（四条互不相交线并行子代理，零 UI 结构变更）：

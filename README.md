@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.44.0** | 2026-09-02 | 绘梦专项三刀（绑定面 557 零变更）：①百炼模型残留修复（真 bug）——dashscope 后端 GetImageBackendInfo/SetImageBackend 空或残留模型（grok-imagine-*/krea2）归位 qwen-image-edit-plus、前端 modelOptions 固定三档官方编辑模型、切后端归位默认、queue 提交前拦截引擎固有模式残留；②引擎枚举单源化+补 GLM——meta.ts 收敛唯一 BACKEND_OPTIONS（含能力位），ControlPanel/顶条状态 pill/GenerationBar 门禁/启动消息统一走单源，修复「xAI 云端 云端」式拼接重复，GLM 引擎下拉补全（txt2imgOnly 禁用+残留专属警告）；③模板推荐画幅落地——templateSizeToPreset 纯函数把模板 size 比例标签映射到实际画幅（2:3 立绘→自定义 768×1152），applyTemplate/TemplatePicker 全链路消费。Go 全量绿、tsc/tsc -b/eslint 0、vitest 1285/1285（+11）、drift PASS（557）。详见 releases/v4.44.0.md |
 | **v4.43.0** | 2026-09-02 | 小说板块优化四刀（绑定面 557 零变更）：①章节生成上下文增强——生成 prompt 追加未回收伏笔/世界观要点区段+角色卡补身份目标关系（4000 rune 预算双层截断，读失败静默跳过）；②分支链路收账——branches.json 持久化、ApplyBranch 读存储主路径零 AI 重调、syncCharactersFromOutline no-op 变真同步；③全文搜索升级——每章全部命中+段级位置、前端共 N 处·M 章+跳章滚段临时高亮；④一致性两 bug——分支章节纳入扫描带标记、断档不停扫；死代码清理 5 文件（未挂载分支组件+孤儿 search.ts，无 UI 变化）。Go 全量绿、tsc/tsc -b/eslint 0、vitest 1274/1274（+15）、drift PASS（557）。详见 releases/v4.43.0.md |
 | **v4.42.0** | 2026-09-02 | 微信智能体 v1（绑定面 557 零变更）：微信消息由 LLM 工具调用派发——7 工具（导航/生图/改图/提醒/产物推送/状态/读屏）零改动复用意图执行函数，多轮循环（4 轮/60s），人格记忆同锁语义+失败回滚；能力门（目录 Caps tools）不满足整链回落零回归；正则意图路由降级兜底，提醒/文件快路径保留。Go 全量绿、前端回归绿、vitest 1259/1259、drift PASS（557）。详见 releases/v4.42.0.md |
 | **v4.41.2** | 2026-09-02 | 真机修复二（绑定面 557 零变更）：「重新整理后发给我」未命中产物推送意图、模型幻觉声称已发送——意图放宽（指代+尾式发给我第四式、改完再发复合请求→诚实能力答复、提醒让位）+ 聊天兜底反幻觉护栏（未接住的发文件类请求追加如实说明提示）。Go 全量绿（+12 用例）、drift 557。详见 releases/v4.41.2.md |

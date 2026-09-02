@@ -1,3 +1,20 @@
+## v4.44.0 · 绘梦专项三刀：百炼模型残留修复 · 引擎枚举单源化 · 模板画幅落地（2026-09-02）
+> 绘梦板块专项摸底后收三条互不相交线，全为真实缺陷与体验收口，绑定面
+> **557 零变更**、零新增绑定。详见 releases/v4.44.0.md。
+- **① 百炼模型残留修复（真 bug）**：dashscope 后端 GetImageBackendInfo /
+  SetImageBackend 空或残留模型（grok-imagine-* / krea2）归位 qwen-image-edit-plus
+  （手填官方编辑系保留）；前端 modelOptions 固定三档官方编辑模型 + 切后端归位
+  默认；queue 提交前 backendSupportsMode 拦截引擎固有模式残留（百炼仅改图 /
+  GLM 仅文生图），不再点击后才被后端拒收。
+- **② 引擎枚举单源化 + 补 GLM**：meta.ts 收敛唯一 BACKEND_OPTIONS（能力位
+  img2imgOnly/txt2imgOnly）+ backendLabel/isLocalBackend/backendSupportsMode；
+  ControlPanel 下拉、ImageGenPage 顶条状态、useImageGenConfig 启动消息、
+  GenerationBar 门禁统一走单源（修复「xAI 云端 云端」拼接重复）；引擎下拉新增
+  GLM（txt2imgOnly，非文生图禁用+残留专属警告）。
+- **③ 模板推荐画幅落地**：templateSizeToPreset 纯函数把模板 size 比例标签
+  （1:1/16:9/…/2:3）映射到实际画幅（2:3 立绘→自定义 768×1152，仅 txt2img 生效）；
+  applyTemplate 同步画幅、TemplatePickerModal 不再丢弃 size 字段。
+
 ## v4.43.0 · 小说板块优化四刀：生成上下文 · 分支收账 · 搜索定位 · 一致性修复（2026-09-02）
 > 小说板块自 v4.3.1 后首次专项投入：四条互不相交线全为生成质量与既有功能
 > 闭环，零 UI 结构变更。**绑定面 557 零变更**。详见 releases/v4.43.0.md。

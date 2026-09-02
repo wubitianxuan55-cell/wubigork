@@ -205,6 +205,36 @@ func TestSetImageBackend_DashScopeRequiresKey(t *testing.T) {
 	}
 }
 
+// TestSetImageBackend_DashScopeResetsStaleModel 切到百炼时空模型/残留上一后端
+// 模型（grok-imagine-* / krea2）都归位百炼默认编辑模型，避免带残留名请求
+// 官方报 model 不存在；手填 qwen-image-edit 系原样保留。
+func TestSetImageBackend_DashScopeResetsStaleModel(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	for _, tc := range []struct {
+		imageModel string
+		want       string
+	}{
+		{"", ai.DashScopeDefaultImageModel},            // 空：前端引擎列表无 dashscope，拿不到官方名
+		{"grok-imagine-image-quality", ai.DashScopeDefaultImageModel}, // xAI 残留
+		{"krea2", ai.DashScopeDefaultImageModel},                     // ComfyUI 残留
+		{"qwen-image-edit-max", "qwen-image-edit-max"},               // 手填官方模型保留
+	} {
+		ms := &mediaState{core: &core{
+			cfg:    &config.Config{ImageSaveDir: t.TempDir()},
+			client: &ai.Client{},
+		}}
+		if err := ms.SetImageBackend("dashscope", "", tc.imageModel, "", "sk-ds-test"); err != nil {
+			t.Fatalf("imageModel=%q SetImageBackend: %v", tc.imageModel, err)
+		}
+		if ms.cfg.ImageModel != tc.want {
+			t.Fatalf("imageModel=%q → cfg.ImageModel = %q, want %q", tc.imageModel, ms.cfg.ImageModel, tc.want)
+		}
+	}
+}
+
 func trimJSON(raw []byte) string {
 	s := string(raw)
 	if len(s) > 300 {

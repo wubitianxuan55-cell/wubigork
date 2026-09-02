@@ -10,7 +10,10 @@ import {
 import { getEngines, testEngineConnection, setActiveEngine, setEngineDefaultModel, type EngineConfig } from '../api/engines'
 import { setImageBackend as setImageBackendAPI } from '../api/settings'
 import { filterLorasByModel, loraFamily, loraFamiliesForModel } from '../utils/loraFilter'
-import { BACKEND_OPTIONS, classifyModel, loraLabel } from '../components/imagegen/meta'
+import {
+  backendLabel, classifyModel, loraLabel,
+  DASHSCOPE_DEFAULT_MODEL, DASHSCOPE_EDIT_MODELS,
+} from '../components/imagegen/meta'
 import type { ImageMode } from '../components/imagegen/types'
 import { usePollingGate } from './usePollingGate'
 
@@ -72,6 +75,10 @@ export function useImageGenConfig() {
 
   const modelOptions = useMemo(() => {
     if (backend === 'comfyui') return comfyModels
+    // 百炼改图：官方编辑模型固定三档（引擎目录不含 dashscope，不能经 engines 枚举）
+    if (backend === 'dashscope') {
+      return DASHSCOPE_EDIT_MODELS.map((m) => ({ label: m, value: m }))
+    }
     if (backend === 'xai') {
       const xaiEngine = engines.find(e => e.id === 'xai')
       const imgModels = (xaiEngine?.models || []).filter(m => classifyModel(m.id) === 'image')
@@ -194,6 +201,7 @@ export function useImageGenConfig() {
       let defaultModel = ''
       if (newBackend === 'comfyui') defaultModel = 'krea2'
       else if (newBackend === 'xai') defaultModel = 'grok-imagine-image'
+      else if (newBackend === 'dashscope') defaultModel = DASHSCOPE_DEFAULT_MODEL
       else {
         const eng = engines.find(e => e.id === newBackend)
         const img = (eng?.models || []).filter(m => classifyModel(m.id) === 'image')
@@ -233,7 +241,7 @@ export function useImageGenConfig() {
         await setActiveEngine(backend)
         if (model) await setEngineDefaultModel(backend, model)
         setEngineRunning(true)
-        message.success(`${BACKEND_OPTIONS.find(b => b.value === backend)?.label || backend} 已启动`)
+        message.success(`${backendLabel(backend)} 已启动`)
         setEngineStarting(false)
       }
     } catch (err: unknown) {

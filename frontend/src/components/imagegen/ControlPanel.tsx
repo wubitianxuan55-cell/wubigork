@@ -11,6 +11,7 @@ import {
 import { C } from '../../utils/theme'
 import type { SystemStats } from '../../api/image'
 import { CollapsibleSection, PickerGroup, StatusDot } from './ui'
+import { BACKEND_OPTIONS, isLocalBackend, type BackendOptionMeta } from './meta'
 import type { ImageMode } from './types'
 
 const { TextArea } = Input
@@ -48,14 +49,15 @@ const COUNT_OPTIONS = [
   { label: '4', value: 4 },
 ]
 
-const BACKEND_OPTIONS: { label: string; value: string; icon: React.ReactNode; img2imgOnly?: boolean }[] = [
-  { label: 'xAI', value: 'xai', icon: <CloudOutlined /> },
-  { label: 'ComfyUI', value: 'comfyui', icon: <DesktopOutlined /> },
-  { label: 'Herdsman', value: 'herdsman', icon: <RocketOutlined /> },
-  { label: 'Ollama', value: 'ollama', icon: <KeyOutlined /> },
-  // 百炼改图（阿里云百炼）：云端改图引擎，仅 img2img 可用，不支持文生图/文生视频
-  { label: '百炼改图', value: 'dashscope', icon: <CloudOutlined />, img2imgOnly: true },
-]
+// 引擎图标（meta.ts 保持纯逻辑不带 ReactNode，展示层在此映射）
+const BACKEND_ICONS: Record<string, React.ReactNode> = {
+  xai: <CloudOutlined />,
+  comfyui: <DesktopOutlined />,
+  herdsman: <RocketOutlined />,
+  ollama: <KeyOutlined />,
+  glm: <CloudOutlined />,
+  dashscope: <CloudOutlined />,
+}
 
 const labelStyle: React.CSSProperties = {
   color: C('color-text-secondary'), fontSize: 12, display: 'flex', alignItems: 'center', gap: 5,
@@ -141,12 +143,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 }) => {
   const [showNegative, setShowNegative] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
-  const isLocal = ['comfyui', 'herdsman', 'ollama'].includes(backend)
-  // 百炼改图（dashscope）支持图生图，加入 img2img 门禁白名单
-  const needsComfy = (mode === 't2v' && backend !== 'comfyui')
-    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'dashscope')
-  // 百炼仅支持改图：非 img2img 模式下该云端引擎不可用（如 img2img 切走后残留）
+  const isLocal = isLocalBackend(backend)
+  // 引擎固有模式约束（非能力缺口，是引擎只支持某模式）：
+  // 百炼改图仅 img2img（改图）；GLM 官方图像端点仅 txt2img（无图生图参数）。
+  // 残留态（切引擎后未切模式）时给出专属警告；这类引擎不参与 needsComfy
+  // 「缺引擎」提示（否则两条警告叠加，语义重复）。
   const dashscopeOffMode = backend === 'dashscope' && mode !== 'img2img'
+  const glmOffMode = backend === 'glm' && mode !== 'txt2img'
+  // 图生图门禁白名单：comfyui / herdsman / dashscope（glm/xai/ollama 无图生图参数）
+  const needsComfy = (mode === 't2v' && backend !== 'comfyui' && backend !== 'glm')
+    || (mode === 'img2img' && backend !== 'comfyui' && backend !== 'herdsman' && backend !== 'dashscope' && backend !== 'glm')
 
   const readFile = (file?: File | null) => {
     if (!file) return
@@ -154,6 +160,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     reader.onload = () => onInitImageChange(String(reader.result || ''))
     reader.readAsDataURL(file)
   }
+
+  /** 引擎选项是否应在当前模式下禁用（img2imgOnly / txt2imgOnly） */
+  const optionDisabledInMode = (o: BackendOptionMeta): boolean =>
+    (o.img2imgOnly === true && mode !== 'img2img')
+    || (o.txt2imgOnly === true && mode !== 'txt2img')
+
+  /** 禁用选项的悬停说明（按引擎约束类型） */
+  const onlyHint = (o: BackendOptionMeta): string =>
+    o.txt2imgOnly === true ? 'GLM 仅支持文生图' : '百炼仅支持改图'
 
   return (
     <div className="ig-control-panel" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -273,7 +288,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               <div style={{ fontSize: 10.5, color: C('color-text-secondary'), lineHeight: 1.5 }}>
                 {backend === 'herdsman'
                   ? 'Herdsman 图生图直接按参考图重绘，不支持重绘幅度调节'
-                  : '百炼改图按参考图重绘，不支持重绘幅度调节'}
+                  : backend === 'dashscope'
+                    ? '百炼改图按参考图重绘，不支持重绘幅度调节'
+                    : '图生图需使用 ComfyUI / Herdsman / 百炼改图 后端'}
               </div>
             )}
           </>
@@ -304,6 +321,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             百炼仅支持改图，请切换到图生图模式或更换引擎
           </div>
         )}
+        {glmOffMode && (
+          <div style={{
+            padding: '9px 11px', borderRadius: 10, fontSize: 11.5, lineHeight: 1.6,
+            border: '1px solid color-mix(in srgb, var(--md-sys-color-warning) 35%, transparent)',
+            background: 'color-mix(in srgb, var(--md-sys-color-warning) 8%, transparent)',
+            color: 'var(--md-sys-color-warning)',
+          }}>
+            <PictureOutlined style={{ marginRight: 5 }} />
+            GLM 仅支持文生图，请切换到文生图模式或更换引擎
+          </div>
+        )}
 
         <div>
           <Typography.Text style={labelStyle}><CloudServerOutlined />引擎</Typography.Text>
@@ -311,20 +339,22 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             value={backend}
             onChange={onSwitchBackend}
             options={BACKEND_OPTIONS.map((o) => {
-              // 百炼仅支持改图：非 img2img 模式禁用该选项，悬停提示原因
-              const disabled = o.img2imgOnly === true && mode !== 'img2img'
+              // 引擎固有模式约束：img2imgOnly（百炼改图）/ txt2imgOnly（GLM）
+              // 在当前不支持的模式下禁用该选项，悬停提示原因
+              const disabled = optionDisabledInMode(o)
+              const hint = onlyHint(o)
               return {
                 value: o.value,
                 disabled,
                 label: disabled ? (
-                  <Tooltip title="百炼仅支持改图" placement="right">
+                  <Tooltip title={hint} placement="right">
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      {o.icon}{o.label}
+                      {BACKEND_ICONS[o.value]}{o.label}
                     </span>
                   </Tooltip>
                 ) : (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    {o.icon}{o.label}
+                    {BACKEND_ICONS[o.value]}{o.label}
                   </span>
                 ),
               }

@@ -599,6 +599,17 @@ func isGLMImageModel(model string) bool {
 	return strings.HasPrefix(l, "cogview") || strings.HasPrefix(l, "glm-image")
 }
 
+// isDashScopeEditModel 是否百炼改图官方模型（qwen-image-edit 系；
+// qwen-image-2.0 系列 txt2img 后端尚未放行，仍按编辑系归位）。
+func isDashScopeEditModel(model string) bool {
+	l := strings.ToLower(strings.TrimSpace(model))
+	return strings.HasPrefix(l, "qwen-image-edit")
+}
+
+// dashScopeDefaultModel 百炼改图缺省模型名（镜像 ai.DashScopeDefaultImageModel，
+// 供 config 缺省判断使用，避免 app 包内散落字符串字面量）。
+const dashScopeDefaultModel = ai.DashScopeDefaultImageModel
+
 func (a *mediaState) GetImageBackendInfo() map[string]string {
 	imageModel := a.cfg.ImageModel
 	switch {
@@ -610,6 +621,11 @@ func (a *mediaState) GetImageBackendInfo() map[string]string {
 		if !isGLMImageModel(imageModel) {
 			imageModel = ai.GLMDefaultImageModel
 		}
+	case a.cfg.ImageBackend == "dashscope" && !isDashScopeEditModel(imageModel):
+		// 镜像 GLM：空模型或上一后端残留（grok-imagine-* / krea2 等）都归位
+		// 百炼改图默认编辑模型，避免把残留模型名带进百炼请求（官方会报
+		// model 不存在）。用户手填 qwen-image-edit / -plus / -max 原样保留。
+		imageModel = dashScopeDefaultModel
 	case imageModel == "":
 		imageModel = "grok-imagine-image-quality"
 	}
@@ -734,8 +750,13 @@ func (a *mediaState) SetImageBackend(backend string, comfyUIURL string, imageMod
 		}
 		a.cfg.DashScopeAPIKey = enc
 		a.cfg.ImageBackend = "dashscope"
-		if imageModel != "" {
+		// 模型归位：imageModel 为空（前端引擎列表无 dashscope，拿不到官方模型名）
+		// 或残留上一后端模型（grok-imagine-* / krea2 等）时，一律归位百炼默认
+		// 编辑模型——残留名会被百炼 API 拒绝（model 不存在），归位保证可生成。
+		if isDashScopeEditModel(imageModel) {
 			a.cfg.ImageModel = imageModel
+		} else {
+			a.cfg.ImageModel = dashScopeDefaultModel
 		}
 		ib, err := ai.NewImageBackend(ai.ImageBackendKindDashScope, ai.ImageBackendConfig{
 			BaseURL: ai.DashScopeBaseURL,
@@ -786,6 +807,11 @@ func (a *mediaState) GetImageBackendConfig() map[string]interface{} {
 	currentModel := a.cfg.ImageModel
 	if currentModel == "" {
 		currentModel = "grok-imagine-image-quality"
+	}
+	// dashscope 后端：空/残留模型归位百炼默认编辑模型（同 GetImageBackendInfo
+	// 口径），避免把 grok-imagine-* / krea2 带进百炼请求。
+	if backend == "dashscope" && !isDashScopeEditModel(currentModel) {
+		currentModel = dashScopeDefaultModel
 	}
 
 	// 根据后端类型构建可用模型列表

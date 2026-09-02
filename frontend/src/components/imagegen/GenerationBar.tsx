@@ -6,6 +6,7 @@ import {
 } from '@ant-design/icons'
 import { C } from '../../utils/theme'
 import { estimateImageTime } from './ui'
+import { backendSupportsMode } from './meta'
 import type { ImageMode } from './types'
 
 interface Props {
@@ -33,9 +34,11 @@ export const GenerationBar: React.FC<Props> = ({
 }) => {
   const est = estimateImageTime(backend, model, count, mode, frames, fps)
 
-  // 百炼改图（dashscope）支持图生图：页面级 needsComfy 门禁未感知该云端引擎时，
-  // 这里按 mode+backend 复核放行，避免 dashscope+img2img 被误判为需 ComfyUI。
-  const modeBlocked = needsComfy && !(mode === 'img2img' && backend === 'dashscope')
+  // 模式 × 引擎能力门禁（单源）：needsComfy 来自页面级「缺引擎」提示，
+  // backendSupportsMode 兜住引擎固有模式约束（百炼仅改图 / GLM 仅文生图），
+  // 两者任一不满足即禁用生成，避免残留态点击后被后端拒收。
+  const modeBlocked = !backendSupportsMode(backend, mode)
+    || (needsComfy && !(mode === 'img2img' && backend === 'dashscope'))
 
   let hint: string
   if (generating) {
@@ -98,7 +101,13 @@ export const GenerationBar: React.FC<Props> = ({
           )}
           {modeBlocked && (
             <span style={{ fontSize: 11, color: 'var(--md-sys-color-warning)' }}>
-              {mode === 't2v' ? '文生视频需切换至 ComfyUI' : '图生图需切换至 ComfyUI / Herdsman / 百炼改图'}
+              {backend === 'glm'
+                ? 'GLM 仅支持文生图，请切换到文生图模式或更换引擎'
+                : backend === 'dashscope'
+                  ? '百炼仅支持改图，请切换到图生图模式或更换引擎'
+                  : mode === 't2v'
+                    ? '文生视频需切换至 ComfyUI'
+                    : '图生图需切换至 ComfyUI / Herdsman / 百炼改图'}
             </span>
           )}
         </div>
@@ -119,7 +128,15 @@ export const GenerationBar: React.FC<Props> = ({
             onClick={onGenerate}
             className="ig-gen-button"
             aria-busy={generating}
-            title={modeBlocked ? (mode === 't2v' ? '文生视频需切换至 ComfyUI 本地后端' : '图生图需切换至 ComfyUI / Herdsman / 百炼改图 后端') : undefined}
+            title={modeBlocked
+              ? backend === 'glm'
+                ? 'GLM 仅支持文生图，请切换到文生图模式或更换引擎'
+                : backend === 'dashscope'
+                  ? '百炼仅支持改图，请切换到图生图模式或更换引擎'
+                  : mode === 't2v'
+                    ? '文生视频需切换至 ComfyUI 本地后端'
+                    : '图生图需切换至 ComfyUI / Herdsman / 百炼改图 后端'
+              : undefined}
           >
             {generating ? <LoadingOutlined /> : <ThunderboltOutlined />}
             {label}

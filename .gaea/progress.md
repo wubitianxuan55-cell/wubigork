@@ -1,11 +1,30 @@
 # 任务进度
 
-> 最后更新: 2026-09-02（小说板块专项 v4.43.0 四刀；此前微信助手三刀 C v4.39.0 /
-> A v4.40.0 / B v4.41.0 + 真机修复 v4.41.1-2 + 智能体 v4.42.0——绑定面 557 零变更）
+> 最后更新: 2026-09-02（绘梦专项 v4.44.0 三刀；小说板块 v4.43.0 四刀；微信助手
+> 三刀 v4.39.0-v4.42.0——绑定面 557 零变更）
 
 ## 当前状态
 
-- **最新发布：v4.43.0（2026-09-02）「小说板块优化四刀」**：小说板块自 v4.3.1
+- **最新发布：v4.44.0（2026-09-02）「绘梦专项三刀：百炼模型残留修复 · 引擎枚举
+  单源化 · 模板画幅落地」**：绘梦板块专项摸底后收三条互不相交线（主代理直改 +
+  测试收口，无并行子代理）：①**百炼模型残留修复（真 bug）**——dashscope 后端
+  GetImageBackendInfo/SetImageBackend 空或残留模型（grok-imagine-*/krea2）归位
+  qwen-image-edit-plus（手填官方编辑系保留，GetImageBackendConfig 同口径）；
+  前端 modelOptions 对 dashscope 固定三档官方编辑模型 + 切后端 defaultModel 归位
+  默认；queue 提交前 backendSupportsMode 拦截引擎固有模式残留（百炼仅改图/GLM
+  仅文生图）。②**引擎枚举单源化 + 补 GLM**——meta.ts 收敛唯一 BACKEND_OPTIONS
+  （能力位）+ backendLabel/isLocalBackend/backendSupportsMode；ControlPanel/
+  ImageGenPage 顶条/启动消息/GenerationBar 门禁统一走单源（修复「xAI 云端 云端」
+  拼接重复与 dashscope/glm 无 label 回退裸 id）；引擎下拉新增 GLM（txt2imgOnly
+  禁用+残留专属警告）。③**模板推荐画幅落地**——templateSizeToPreset 把模板 size
+  比例标签映射到实际画幅（2:3 立绘→自定义 768×1152，仅 txt2img 生效）；
+  applyTemplate 同步画幅、TemplatePickerModal 不再丢弃 size 字段。**验证**：
+  Go 全量 exit 0（+8）、tsc -b/eslint 0、vitest 1285/1285（+11）、drift 557、
+  版本四处 4.44.0。**下一刀候选（绘梦侧）**：dashscope 图生图 UI 内「参考图+
+  指令」一键改图入口（v4.40 引擎能力就绪）、百炼 txt2img（qwen-image-2.0 系）
+  后端放行、GLM 切换前置引导。详见 releases/v4.44.0.md。
+
+- **上一发布：v4.43.0（2026-09-02）「小说板块优化四刀」**：小说板块自 v4.3.1
   后首次专项投入（摸底盘点后四条互不相交线并行子代理，零 UI 结构变更）：
   ①章节生成上下文增强（伏笔/世界观/角色卡进生成 prompt，4000 rune 预算截断，
   读失败静默跳过）；②分支链路收账（branches.json 持久化+ApplyBranch 零重调+

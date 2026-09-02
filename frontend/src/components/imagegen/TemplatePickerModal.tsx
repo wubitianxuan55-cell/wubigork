@@ -182,7 +182,8 @@ const TemplatePickerModal: React.FC<Props> = ({
   const filtered: CardItem[] = searching ? (searchHits || []) : baseTemplates
 
   const handleSelect = (t: Template) => {
-    onSelect({ label: t.label, prompt: t.prompt, negative: t.negative })
+    // 保留模板推荐画幅（size），应用模板时同步画幅（刀3）
+    onSelect({ label: t.label, prompt: t.prompt, negative: t.negative, size: t.size })
     onClose()
   }
 

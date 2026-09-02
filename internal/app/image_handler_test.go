@@ -354,6 +354,29 @@ func TestGetImageBackendInfo_Defaults(t *testing.T) {
 		}
 	})
 
+	t.Run("dashscope 空模型归位百炼默认编辑模型", func(t *testing.T) {
+		ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "dashscope"}}}
+		if got := ms.GetImageBackendInfo()["image_model"]; got != ai.DashScopeDefaultImageModel {
+			t.Fatalf("image_model = %q, want %s（dashscope 不应回退 grok 默认）", got, ai.DashScopeDefaultImageModel)
+		}
+	})
+
+	t.Run("dashscope 残留 xAI/ComfyUI 模型归位百炼默认编辑模型", func(t *testing.T) {
+		for _, stale := range []string{"grok-imagine-image-quality", "krea2"} {
+			ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "dashscope", ImageModel: stale}}}
+			if got := ms.GetImageBackendInfo()["image_model"]; got != ai.DashScopeDefaultImageModel {
+				t.Fatalf("ImageModel=%q → image_model = %q, want %s（残留模型不应带到百炼）", stale, got, ai.DashScopeDefaultImageModel)
+			}
+		}
+	})
+
+	t.Run("dashscope 手填编辑模型保留", func(t *testing.T) {
+		ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "dashscope", ImageModel: "qwen-image-edit-max"}}}
+		if got := ms.GetImageBackendInfo()["image_model"]; got != "qwen-image-edit-max" {
+			t.Fatalf("image_model = %q, want qwen-image-edit-max（手填官方模型应保留）", got)
+		}
+	})
+
 	t.Run("空保存目录回退默认路径", func(t *testing.T) {
 		ms := &mediaState{core: &core{cfg: &config.Config{ImageBackend: "xai"}}}
 		want := filepath.Join(`C:\Users\test`, "Pictures", "gaea")
