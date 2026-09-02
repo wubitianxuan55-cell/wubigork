@@ -47,6 +47,20 @@
 
 ## 版本状态
 
+- **最新发布：v4.39.0（2026-09-02）「微信助手管理台 · 多微信并行 + 并发正确性两修」**：
+  git tag `v4.39.0`；基线 v4.38.0；绑定面 **557 零变更**。微信助手专项调研
+  （docs/market-research-2026-09-02b.md）C 刀。**定位用户拍板纠偏**：微信助手=通过
+  微信与 gaea 对话进行各项工作（聊天/出图/改图/收发文件/多微信并行）——本刀收多微信
+  并行：①WeixinPage 管理台（助手卡 Avatar/人格/状态徽标 + 启停 + 删除 + 逐助手扫码
+  绑定/重绑修硬编码 gaea + 新增助手表单 wx_ 动态 id；gaea 禁删禁停）②manager.Update
+  补回写 WxBotID/PortraitURL/VoiceGuide/Gender/Tags/Dims（空值保留防清空）
+  ③WhisperAssistantSave 空 token/userId 保留旧凭据 ④同人格多助手 AssistantName
+  锁外直写竞争修复（内部 whisperChat 链透传 name，注入入 LockTurn 窗口，绑定签名
+  零变更）。两路并行子代理实施（Go 后端线/前端线所有权互斥），主代理定契约收口。
+  已知边界：同人格多号仍共享会话上下文（多号建议独立人格）。**下一刀序**：A 对话式
+  改图（Qwen-Image-Edit 云端引擎+改图意图+InitImage 接线）→ B 文件收发（file_item
+  抓包前置）。详见 releases/v4.39.0.md。
+
 - **最新发布：v4.38.0（2026-09-02）「目录通用化 · DeepSeek/xAI/Zen 官方元数据入册」**：
   git tag `v4.38.0`；基线 v4.37.1；绑定面 **557 零变更**。用户指出 v4.36.0 目录只覆盖
   GLM——通用化：model_catalog.json v1（deepseek 3/xai 7/opencode-zen 15 条目，官方页

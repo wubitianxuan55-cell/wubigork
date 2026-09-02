@@ -1,24 +1,27 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Alert, Button, Card, DatePicker, Descriptions, Input, List, Modal, Space, Switch, Tag, Typography, message,
+  Alert, Avatar, Button, Card, DatePicker, Descriptions, Input, List, Modal, Popconfirm, Space, Switch, Tag, Tooltip, Typography, message,
 } from 'antd'
 import {
-  QrcodeOutlined, ReloadOutlined, SendOutlined, BellOutlined, DeleteOutlined, LinkOutlined, CheckCircleOutlined, WarningOutlined,
+  QrcodeOutlined, ReloadOutlined, SendOutlined, BellOutlined, DeleteOutlined, LinkOutlined, CheckCircleOutlined, WarningOutlined, PlusOutlined,
 } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { app } from '../gaea/lib/bridge'
 import type {
-  WeixinAssistantStatusRow, WeixinReminderConfigView, WeixinReminderView,
+  WeixinAssistantStatusRow, WeixinAssistantView, WeixinReminderConfigView, WeixinReminderView,
 } from '../gaea/lib/types'
 import { isPageVisible } from '../lib/pollingGate'
 
 /**
- * WeixinPage — 微信助手（v4.4 触点·书房板块）。
+ * WeixinPage — 微信助手管理台（v4.4 触点·书房板块）。
  *
- * 三卡布局：连接（扫码绑定 + 通道状态）/ 离线代办（提醒列表 + 手动新建 +
- * 开关）/ 使用说明（微信文本指令示例）。页面内容层 zh 单语（i18n 决策）。
- * 数据面全部走 app 代理 work 面（WhisperWeixin* / WeixinReminder* /
- * WhisperAssistant*）。
+ * 三卡布局：连接（助手卡列表：头像/人格/通道状态徽标/启停/逐助手扫码绑定/
+ * 删除 + 新增微信助手表单）/ 离线代办（提醒列表 + 手动新建 + 开关）/ 使用
+ * 说明（微信文本指令示例）。页面内容层 zh 单语（i18n 决策）。数据面全部走
+ * app 代理 work 面：WhisperWeixinStatus（通道状态）与 WhisperAssistantList
+ * （完整字段）按 id merge 成助手行；除删除外保存一律传 List 完整对象（后端
+ * 契约：空 token 字段保留现值，保存后自动重拉通道）。id='gaea' 为核心助手：
+ * 禁删禁停。
  */
 
 const POLL_MS = 5000
@@ -39,12 +42,48 @@ const reminderTag = (status: string) => {
   }
 }
 
+// ── 助手行：List 完整字段 + 挂载的 Status 通道状态 ──
+interface AssistantRow extends WeixinAssistantView {
+  status?: WeixinAssistantStatusRow
+}
+
+// 状态行（WhisperWeixinStatus）与字段行（WhisperAssistantList）按 id merge：
+// 字段以 List 为准、通道状态挂 status；Status 独有行（后端兜底自建未落库时）
+// 仅以状态字段兜底展示。
+const mergeAssistantRows = (list: WeixinAssistantView[], statuses: WeixinAssistantStatusRow[]): AssistantRow[] => {
+  const statusById = new Map(statuses.map((s) => [s.id, s]))
+  const rows: AssistantRow[] = list.map((a) => ({ ...a, status: statusById.get(a.id) }))
+  for (const s of statuses) {
+    if (!rows.some((r) => r.id === s.id)) {
+      rows.push({ id: s.id, name: s.name, personalityId: s.personalityId, enabled: s.enabled, status: s })
+    }
+  }
+  return rows
+}
+
+// 行 → 保存载荷：剥掉前端合并用的 status 字段（其余原样透传，空 token 字段由
+// 后端按契约保留现值）
+const viewOf = (row: AssistantRow): WeixinAssistantView => ({
+  id: row.id, name: row.name, personalityId: row.personalityId,
+  wxToken: row.wxToken, wxBotId: row.wxBotId, wxUserId: row.wxUserId,
+  enabled: row.enabled, portraitUrl: row.portraitUrl,
+})
+
+// 行 → 状态行投影（Status 未回时按 wxToken 兜底 hasToken，供 statusTag 复用）
+const rowStatus = (row: AssistantRow): WeixinAssistantStatusRow => ({
+  id: row.id, name: row.name, personalityId: row.personalityId, enabled: row.enabled,
+  hasToken: row.status?.hasToken ?? Boolean(row.wxToken),
+  wxRunning: row.status?.wxRunning ?? false,
+  wxSessionExpired: row.status?.wxSessionExpired,
+})
+
 const WeixinPage: React.FC = () => {
-  const [assistants, setAssistants] = useState<WeixinAssistantStatusRow[]>([])
+  const [rows, setRows] = useState<AssistantRow[]>([])
   const [reminders, setReminders] = useState<WeixinReminderView[]>([])
   const [cfg, setCfg] = useState<WeixinReminderConfigView | null>(null)
 
-  // ── 扫码绑定流 ──
+  // ── 扫码绑定流（target 为绑定目标助手；新增流传本地暂存对象）──
+  const [qrTarget, setQrTarget] = useState<WeixinAssistantView | null>(null)
   const [qrOpen, setQrOpen] = useState(false)
   const [qrImage, setQrImage] = useState('')
   const [qrToken, setQrToken] = useState('')
@@ -53,14 +92,25 @@ const WeixinPage: React.FC = () => {
   const [binding, setBinding] = useState(false)
   const pollRef = useRef<number | null>(null)
 
+  // ── 新增微信助手表单 ──
+  const [addOpen, setAddOpen] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addPersonality, setAddPersonality] = useState('gaea')
+
   // ── 手动新建提醒 ──
   const [newText, setNewText] = useState('')
   const [newTime, setNewTime] = useState<Dayjs | null>(null)
   const [adding, setAdding] = useState(false)
 
-  const loadStatus = useCallback(async () => {
+  const loadAssistants = useCallback(async () => {
     try {
-      setAssistants(await app.WhisperWeixinStatus())
+      // 两路并行：状态用 Status 行、字段用 List 行；单路失败兜底空数组，
+      // 另一路照常渲染（Status 独有行仍有兜底视图）。
+      const [statuses, list] = await Promise.all([
+        app.WhisperWeixinStatus().catch(() => [] as WeixinAssistantStatusRow[]),
+        app.WhisperAssistantList().catch(() => [] as WeixinAssistantView[]),
+      ])
+      setRows(mergeAssistantRows(list, statuses))
     } catch { /* 后端未就绪时静默 */ }
   }, [])
 
@@ -72,17 +122,17 @@ const WeixinPage: React.FC = () => {
     } catch { /* 静默 */ }
   }, [])
 
-  // 可见时轮询通道状态 + 提醒列表（keepAlive 页面隐藏时空转）
+  // 可见时轮询助手管理数据 + 提醒列表（keepAlive 页面隐藏时空转）
   useEffect(() => {
-    loadStatus()
+    loadAssistants()
     loadReminders()
     const timer = window.setInterval(() => {
       if (!isPageVisible()) return
-      loadStatus()
+      loadAssistants()
       loadReminders()
     }, POLL_MS)
     return () => window.clearInterval(timer)
-  }, [loadStatus, loadReminders])
+  }, [loadAssistants, loadReminders])
 
   // 扫码轮询：waiting → scanned → confirmed（携带 token）/ need_verifycode
   useEffect(() => {
@@ -111,11 +161,14 @@ const WeixinPage: React.FC = () => {
     }
   }, [qrOpen, qrToken, qrPhase, verifyCode])
 
-  const startBinding = async () => {
+  // 逐助手扫码绑定：target 为要绑定的助手（新增流传本地暂存对象）
+  const startBinding = async (target?: WeixinAssistantView) => {
+    setQrTarget(target ?? null)
     setQrOpen(true)
     setQrPhase('waiting')
     setQrToken('')
     setVerifyCode('')
+    setQrImage('')
     try {
       const qr = await app.WhisperWeixinGetQR()
       setQrImage(qr.imageUrl)
@@ -126,24 +179,64 @@ const WeixinPage: React.FC = () => {
     }
   }
 
-  // confirmed → 更新核心助手 gaea 的微信绑定（upsert，后端自动重拉通道）
+  // confirmed → 保存扫码结果到目标助手（新增助手此时才落库；后端自动重拉通道）
   const confirmBinding = async () => {
+    if (!qrTarget) return
     setBinding(true)
     try {
       // WhisperWeixinQRStatus(confirmed) 已含 botToken/botId/userId，重取一次快照
       const res = await app.WhisperWeixinQRStatus(qrToken)
       await app.WhisperAssistantSave({
-        id: 'gaea', name: 'gaea', personalityId: 'gaea', enabled: true,
+        ...qrTarget,
         wxToken: String(res.botToken ?? ''), wxBotId: String(res.botId ?? ''), wxUserId: String(res.userId ?? ''),
       })
       message.success('微信绑定已保存，通道已重启')
       setQrOpen(false)
-      loadStatus()
+      loadAssistants()
     } catch (e) {
       message.error(`保存绑定失败：${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBinding(false)
     }
+  }
+
+  // 启停：传 List 完整对象 + 翻转后的 enabled（空 token 字段后端保留现值）
+  const toggleAssistant = async (row: AssistantRow, enabled: boolean) => {
+    try {
+      await app.WhisperAssistantSave({ ...viewOf(row), enabled })
+      message.success(enabled ? '助手已启用' : '助手已停用')
+      loadAssistants()
+    } catch (e) {
+      message.error(`保存失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  const removeAssistant = async (row: AssistantRow) => {
+    try {
+      await app.WhisperAssistantDelete(row.id)
+      loadAssistants()
+    } catch (e) {
+      message.error(`删除失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  // 「新增微信助手」表单确定 → 本地暂存新助手并进入扫码流（confirmed 时 Save 落库）
+  const createAssistant = () => {
+    const name = addName.trim()
+    if (!name) {
+      message.warning('请填写助手名字')
+      return
+    }
+    const staged: WeixinAssistantView = {
+      id: `wx_${Date.now().toString(36)}`,
+      name,
+      personalityId: addPersonality.trim() || 'gaea',
+      enabled: true,
+    }
+    setAddOpen(false)
+    setAddName('')
+    setAddPersonality('gaea')
+    startBinding(staged)
   }
 
   const addReminder = async () => {
@@ -198,25 +291,64 @@ const WeixinPage: React.FC = () => {
       <Card
         size="small"
         title={<Space><LinkOutlined />连接</Space>}
-        extra={<Button icon={<QrcodeOutlined />} type="primary" size="small" onClick={startBinding}>扫码绑定微信</Button>}
+        extra={(
+          <Space size={4}>
+            <Button aria-label="刷新助手" type="text" size="small" icon={<ReloadOutlined />} onClick={loadAssistants} />
+            <Button icon={<PlusOutlined />} type="primary" size="small" onClick={() => setAddOpen(true)}>新增微信助手</Button>
+          </Space>
+        )}
       >
         <List
           size="small"
-          dataSource={assistants}
-          locale={{ emptyText: '暂无助手（扫码绑定后自动创建）' }}
-          renderItem={(row) => (
-            <List.Item
-              actions={[<Button key="refresh" type="text" size="small" icon={<ReloadOutlined />} onClick={loadStatus} />]}
-            >
-              <Space size={12}>
-                <Typography.Text strong>{row.name || row.id}</Typography.Text>
-                <Typography.Text type="secondary">人格 {row.personalityId}</Typography.Text>
-                {statusTag(row)}
-              </Space>
-            </List.Item>
-          )}
+          dataSource={rows}
+          locale={{ emptyText: '暂无助手——点右上角「新增微信助手」创建' }}
+          renderItem={(row) => {
+            const core = row.id === 'gaea' // 核心助手：禁删禁停
+            const bound = rowStatus(row).hasToken
+            return (
+              <List.Item
+                actions={[
+                  <Button
+                    key="bind" type="text" size="small" icon={<QrcodeOutlined />}
+                    onClick={() => startBinding(viewOf(row))}
+                  >
+                    {bound ? '重新绑定' : '扫码绑定'}
+                  </Button>,
+                  ...(core ? [] : [
+                    <Popconfirm
+                      key="del" title="删除助手"
+                      description={`删除「${row.name || row.id}」后其微信通道一并停止。`}
+                      okText="删除" cancelText="取消"
+                      onConfirm={() => removeAssistant(row)}
+                    >
+                      <Button aria-label={`删除 ${row.name || row.id}`} type="text" size="small" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>,
+                  ]),
+                ]}
+              >
+                <Space size={12}>
+                  <Avatar size={32} src={row.portraitUrl || undefined}>{(row.name || row.id).slice(0, 1)}</Avatar>
+                  <Typography.Text strong>{row.name || row.id}</Typography.Text>
+                  <Tag color="purple">人格 {row.personalityId}</Tag>
+                  {statusTag(rowStatus(row))}
+                  {core ? (
+                    <Tooltip title="核心助手，不可停用">
+                      <span>
+                        <Switch size="small" aria-label={`启停 ${row.name || row.id}`} checked={row.enabled} disabled />
+                      </span>
+                    </Tooltip>
+                  ) : (
+                    <Switch
+                      size="small" aria-label={`启停 ${row.name || row.id}`} checked={row.enabled}
+                      onChange={(v) => toggleAssistant(row, v)}
+                    />
+                  )}
+                </Space>
+              </List.Item>
+            )
+          }}
         />
-        {assistants.some((r) => r.wxSessionExpired) && (
+        {rows.some((r) => rowStatus(r).wxSessionExpired) && (
           <Alert
             style={{ marginTop: 8 }} type="warning" showIcon
             message="微信会话已过期"
@@ -285,8 +417,26 @@ const WeixinPage: React.FC = () => {
       </Card>
 
       <Modal
-        title="扫码绑定微信" open={qrOpen} footer={null} width={360}
-        onCancel={() => setQrOpen(false)}
+        title="新增微信助手" open={addOpen} width={420}
+        okText="下一步：扫码绑定" cancelText="取消"
+        onOk={createAssistant} onCancel={() => setAddOpen(false)}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%', marginTop: 8 }}>
+          <Input
+            placeholder="助手名字（必填）" value={addName} maxLength={20}
+            onChange={(e) => setAddName(e.target.value)} onPressEnter={createAssistant}
+          />
+          <Input addonBefore="人格 ID" value={addPersonality} onChange={(e) => setAddPersonality(e.target.value)} />
+          <Typography.Text type="secondary">
+            人格 ID 为轻语预设或角色库角色；确定后扫码绑定，扫码确认时保存并启动通道。
+          </Typography.Text>
+        </Space>
+      </Modal>
+
+      <Modal
+        title={qrTarget ? `扫码绑定 · ${qrTarget.name || qrTarget.id}` : '扫码绑定微信'}
+        open={qrOpen} footer={null} width={360}
+        onCancel={() => { setQrOpen(false); setQrTarget(null) }}
       >
         <Space direction="vertical" size={12} style={{ width: '100%', textAlign: 'center' }}>
           {qrImage ? (

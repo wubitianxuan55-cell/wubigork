@@ -89,11 +89,10 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 				return res.Reply, nil
 			}
 		}
-		// 注入助手自定义名字（如"峨嵋"），系统提示词用该名字而非默认"gaea"
-		if orch := w.getOrCreateOrch(ast.PersonalityID); orch != nil && ast.Name != "" {
-			orch.AssistantName = ast.Name
-		}
-		result, err := w.WhisperChatWithSearch(userMsg, ast.PersonalityID, false, false)
+		// 助手名注入（如"峨嵋"）收编进 whisperChatAsAssistant：赋值移入
+		// WhisperChat 的 LockTurn 持锁窗口——同人格多助手共享同一 orchestrator，
+		// 原锁外直写 orch.AssistantName 在并发回调下互相覆盖且构成数据竞争。
+		result, err := w.whisperChatAsAssistant(userMsg, ast.PersonalityID, ast.Name, false)
 		if err != nil {
 			return "", err
 		}

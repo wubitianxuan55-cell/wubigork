@@ -199,6 +199,27 @@ func (m *Manager) Update(id string, updates Assistant) error {
 	a.WxUserID = updates.WxUserID
 	a.Enabled = updates.Enabled
 
+	// 约束：扩展字段（WxBotID/PortraitURL/VoiceGuide/Gender/Tags/Dims）非空/非 nil 才写回，
+	// 空=保留现值——防止前端部分保存（表单未携带这些字段）把已有数据清空。
+	if updates.WxBotID != "" {
+		a.WxBotID = updates.WxBotID
+	}
+	if updates.PortraitURL != "" {
+		a.PortraitURL = updates.PortraitURL
+	}
+	if updates.VoiceGuide != "" {
+		a.VoiceGuide = updates.VoiceGuide
+	}
+	if updates.Gender != "" {
+		a.Gender = updates.Gender
+	}
+	if updates.Tags != nil {
+		a.Tags = updates.Tags
+	}
+	if updates.Dims != (whisper.PersonalityDims{}) {
+		a.Dims = updates.Dims
+	}
+
 	// 更新微信映射
 	if a.WxUserID != "" {
 		m.byWxUser[a.WxUserID] = a

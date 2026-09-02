@@ -1,3 +1,22 @@
+## v4.39.0 · 微信助手管理台：多微信并行 + 并发正确性两修（2026-09-02）
+> 微信助手专项调研（docs/market-research-2026-09-02b.md，定位用户拍板纠偏：聊天/出图/
+> 改图/收发文件/多微信并行）C 刀——收「多微信并行」：后端 CRUD 齐备前端无管理台的
+> 历史缺口 + 两处并发/持久化真缺陷。**绑定面 557 零变更**。
+- **① 管理台**：WeixinPage 连接卡升级助手管理台——助手卡（Avatar portraitUrl/首字
+  回退 + 人格 Tag + 通道状态徽标）+ 启停 Switch + 删除 + **逐助手扫码绑定/重绑**
+  （修 confirmBinding 硬编码 id:'gaea'）+ 新增微信助手表单（wx_ 前缀动态 id）；
+  gaea 核心助手禁删禁停；Status+List 双路 merge。
+- **② Update 写回扩展**：manager.Update 补回写 WxBotID/PortraitURL/VoiceGuide/
+  Gender/Tags/Dims——空值保留现值（防部分保存清空）。
+- **③ 凭据防御**：WhisperAssistantSave 更新路径空 wxToken/wxUserId 保留旧值
+  （启停切换零凭据风险），补全凭据同步用于通道重启。
+- **④ 并发正确性**：同人格多助手共享 orchestrator 的 AssistantName 锁外直写（数据
+  竞争+互相覆盖）修复——聊天链重构为内部 whisperChatWithSearch/whisperChat（透传
+  assistantName），注入移入 LockTurn 持锁窗口；微信回调改走 whisperChatAsAssistant；
+  绑定签名零变更。
+- 验证：Go build/vet/test 全量绿（+5 用例）、tsc / tsc -b / eslint 0、vitest
+  1248/1248（+5）、drift PASS（557）。详见 releases/v4.39.0.md。
+
 ## v4.38.0 · 目录通用化：DeepSeek/xAI/Zen 官方元数据入册（2026-09-02）
 > 用户指出 v4.36.0 目录只覆盖 GLM——通用化到 deepseek/xai/opencode-zen（25 条目，
 > 官方页多页互证核实）。内置表（CCSwitch 预设）过时暴露：deepseek-chat/reasoner 官方

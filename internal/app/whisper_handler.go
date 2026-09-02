@@ -135,6 +135,15 @@ func (a *whisperState) WhisperGetPersonalities() []whisper.PersonalityPreset {
 }
 
 func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinking bool) (result map[string]interface{}, err error) {
+	// 绑定签名不可变：委托内部实现，无助手名注入（assistantName 空=不碰该字段）
+	return a.whisperChat(userMsg, personalityID, "", thinking)
+}
+
+// whisperChat WhisperChat 的内部实现。assistantName 非空时在 LockTurn 持锁窗口内
+// 写 orch.AssistantName：同人格多助手共享同一 orchestrator（"whisper_"+personalityID
+// 全局缓存），微信回调按助手身份注入名字必须在回合锁内完成——锁外直写会互相覆盖，
+// 且与 PreLLMTurn 锁内读（BuildAckemCanonBlock 身份块）构成数据竞争。
+func (a *whisperState) whisperChat(userMsg, personalityID, assistantName string, thinking bool) (result map[string]interface{}, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("[whisper] PANIC", "panic", fmt.Sprintf("%v", r))
@@ -162,6 +171,11 @@ func (a *whisperState) WhisperChat(userMsg string, personalityID string, thinkin
 	// 防止状态机并发撕裂（TotalTurns/情绪/成人 FSM）。
 	orch.LockTurn()
 	defer orch.UnlockTurn()
+
+	// 助手名注入必须在持锁窗口内：PreLLMTurn 持同一回合锁读该字段组装身份块
+	if assistantName != "" {
+		orch.AssistantName = assistantName
+	}
 
 	turnPlan := whisper.BuildTurnPlanFromRules(userMsg, whisper.BuildTurnPlanRulePriors(userMsg))
 	slog.Info("[whisper] TurnPlan", "routing", turnPlan.Routing, "goal", turnPlan.Goal)
@@ -502,6 +516,13 @@ func (a *whisperState) WhisperWebSearch(query string) (map[string]interface{}, e
 
 // WhisperChatWithSearch 带搜索增强的对话：自动检测是否需要上网查询
 func (a *whisperState) WhisperChatWithSearch(userMsg string, personalityID string, thinking, forceSearch bool) (map[string]interface{}, error) {
+	// 绑定签名不可变：委托内部实现，无助手名注入
+	return a.whisperChatWithSearch(userMsg, personalityID, "", thinking, forceSearch)
+}
+
+// whisperChatWithSearch 搜索增强的内部实现：assistantName 非空时透传给 whisperChat
+// 在其 LockTurn 持锁窗口内注入 orch.AssistantName。
+func (a *whisperState) whisperChatWithSearch(userMsg, personalityID, assistantName string, thinking, forceSearch bool) (map[string]interface{}, error) {
 	// 检测搜索意图（身份类问题除外——「你是谁/你会什么」问的是助手自己，
 	// 联网搜索只会注入无关网页摘要，模型把英文片段混进回复反而出乱码）
 	if !isIdentityQuestion(userMsg) && (forceSearch || shouldSearchWeb(userMsg)) {
@@ -510,10 +531,18 @@ func (a *whisperState) WhisperChatWithSearch(userMsg string, personalityID strin
 		if err == nil && searchResult != "" {
 			// 将搜索结果注入为增强的 userMsg
 			enhancedMsg := fmt.Sprintf("%s\n\n[以下是关于此问题的实时搜索结果，请参考这些信息回答]\n%s", userMsg, searchResult)
-			return a.WhisperChat(enhancedMsg, personalityID, thinking)
+			return a.whisperChat(enhancedMsg, personalityID, assistantName, thinking)
 		}
 	}
-	return a.WhisperChat(userMsg, personalityID, thinking)
+	return a.whisperChat(userMsg, personalityID, assistantName, thinking)
+}
+
+// whisperChatAsAssistant 以指定助手身份发起对话（微信回调专用内部入口，不进 Wails 绑定面）：
+// 复用 WhisperChatWithSearch 的搜索意图判断；assistantName 经 whisperChat 在
+// WhisperChat 的 LockTurn 持锁窗口内写入 orch.AssistantName——多助手同人格共享
+// orchestrator 时，锁内赋值保证每个回合用自己助手的名字且无数据竞争。
+func (a *whisperState) whisperChatAsAssistant(userMsg, personalityID, assistantName string, thinking bool) (map[string]interface{}, error) {
+	return a.whisperChatWithSearch(userMsg, personalityID, assistantName, thinking, false)
 }
 
 // searchTriggers 搜索意图触发词（v4.9.1 收窄：动词锚定 + 硬时效词）。
@@ -577,6 +606,14 @@ func (a *whisperState) WhisperAssistantSave(ast assistant.Assistant) error {
 	}
 	existing := a.assistantMgr.Get(ast.ID)
 	if existing != nil {
+		// 防御：空 token / 空绑定用户保留现值——「启停切换只传 id+enabled」的
+		// 部分保存不得清空扫码凭据（清空后 getUpdates 认证失败，需重新扫码）。
+		if ast.WxToken == "" {
+			ast.WxToken = existing.WxToken
+		}
+		if ast.WxUserID == "" {
+			ast.WxUserID = existing.WxUserID
+		}
 		if err := a.assistantMgr.Update(ast.ID, ast); err != nil {
 			return err
 		}
