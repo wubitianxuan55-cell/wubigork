@@ -20,7 +20,7 @@ const getBoardManifestsMock = GetBoardManifests as unknown as {
 
 // 后端 GetBoardManifests 契约形态（对齐 internal/app/board/builtins.go）：
 // 12 个业务板块（含 cost 造价数据库 + code 编程 + D7 knowledge），无 home 壳层，
-// v4.4 起 weixin.page="WeixinPage"、inMenu=true、label=微信助手。
+// v4.4 起 weixin.page="WeixinPage"、inMenu=true；v4.48 label=青鸟（原微信助手）。
 const BACKEND_FIXTURE = [
   { id: 'chat', label: '聊天', icon: 'MessageOutlined', page: 'ChatPage', lazy: true, keepAlive: true, layout: 'full', shortcut: 'ctrl+1', menuOrder: 1, inMenu: true, featureModel: 'chat' },
   { id: 'novel', label: '小说', icon: 'ReadOutlined', page: 'NovelPage', lazy: true, keepAlive: true, layout: 'padded', shortcut: 'ctrl+2', menuOrder: 2, inMenu: true, breadcrumb: { anchorTo: 'project' }, featureModel: 'novel' },
@@ -32,7 +32,7 @@ const BACKEND_FIXTURE = [
   { id: 'modelcenter', label: '模型中心', icon: 'ApiOutlined', page: 'ModelCenterPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true },
   { id: 'characterlib', label: '角色库', icon: 'TeamOutlined', page: 'CharacterLibraryPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 9, inMenu: true, featureModel: 'characterlib' },
   { id: 'settings', label: '设置', icon: 'SettingOutlined', page: 'SettingsPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 10, inMenu: false },
-  { id: 'weixin', label: '微信助手', icon: 'WechatOutlined', page: 'WeixinPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 11, inMenu: true },
+  { id: 'weixin', label: '青鸟', icon: 'WechatOutlined', page: 'WeixinPage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 11, inMenu: true },
   { id: 'knowledge', label: '知识库', icon: 'BookOutlined', page: 'KnowledgePage', lazy: true, keepAlive: true, layout: 'padded', menuOrder: 8, inMenu: true, featureModel: 'knowledge' },
 ]
 

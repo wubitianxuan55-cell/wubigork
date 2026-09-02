@@ -64,7 +64,7 @@ var wxAgentTools = []ai.ChatToolSchema{
 		Type: "function",
 		Function: ai.ChatToolFunctionSpec{
 			Name:        "navigate_board",
-			Description: "打开或切换桌面端的板块（首页/轻语/小说/绘梦/办公/造价库/编程/记忆中枢/模型中心/角色库/设置/微信助手）。用户想打开、进入、切换某个板块时调用。",
+			Description: "打开或切换桌面端的板块（首页/轻语/小说/绘梦/办公/造价库/编程/记忆中枢/模型中心/角色库/设置/青鸟（微信助手））。用户想打开、进入、切换某个板块时调用。",
 			Parameters: json.RawMessage(`{
 				"type": "object",
 				"properties": {

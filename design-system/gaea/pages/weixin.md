@@ -44,3 +44,11 @@ expired=warning / stopped=次级 62% / unbound=虚线空心点。rail 状态字 
   新增扫码流/提醒视图/指南视图/过期警示）。
 - dev mock：`gaea/lib/mock/weixin.ts` 提供微信域离线数据（伪二维码 SVG、
   扫码相位推进 2→4 次轮询）。
+
+## v4.48 增补：更名「青鸟」+ 人格选择器
+- 板块 label 更名「青鸟」（board id weixin 不动）；通道文案保留「微信」。
+- 新增助手弹窗 = `wx-pk-*` 双栏选择器：左搜索+分组列表（轻语预设/角色库
+  可聊天角色，18+ 过滤），右详情预览（立绘/来源 Tag/性别/标签/描述）；
+  listbox/option a11y；默认选中 gaea 预设，加载失败降级照常确认。
+- portraitUrl 随 Save 落库 → 轨道/详情头像真立绘回显。
+- 测试锁：WeixinPage.test 9 场景；spaceBindings facets 数量锁 266。

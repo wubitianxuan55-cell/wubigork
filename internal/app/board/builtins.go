@@ -137,7 +137,7 @@ var builtinManifests = []Manifest{
 		Bindings: []string{"CoreB"}, // §3.1：CoreB(部分)
 	},
 	{
-		ID: "weixin", Label: "微信助手", Icon: "WechatOutlined",
+		ID: "weixin", Label: "青鸟", Icon: "WechatOutlined",
 		Page: "WeixinPage", // v4.4 触点落地（扫码绑定 + 离线代办提醒）
 		Lazy: true,
 		KeepAlive: Bool(true), Layout: "padded",

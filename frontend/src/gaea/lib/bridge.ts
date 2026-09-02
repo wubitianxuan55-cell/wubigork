@@ -137,7 +137,7 @@ import {
 // AppBindings 只做类型标注：ChatTopicsList/ChatMessagesList Go 侧为
 // ([]chat.Topic, error) / ([]chat.Message, error)，Wails 绑定后失败呈现为
 // rejected promise，这里按「[数据, 错误]」元组形态标注。
-import type { app as AppModels, chat } from "../../../wailsjs/go/models";
+import type { app as AppModels, chat, whisper } from "../../../wailsjs/go/models";
 
 // AppBindings mirrors desktop/app.go's exported method set. Keep in sync by hand
 // (or regenerate with `wails generate module` and import wailsjs instead).
@@ -407,6 +407,12 @@ export interface AppBindings {
   WhisperWeixinQRStatusWithCode(qrcode: string, verifyCode: string): Promise<Record<string, unknown>>;
   // WhisperWeixinStatus 全部助手的微信通道状态（运行/过期/未配置）。
   WhisperWeixinStatus(): Promise<WeixinAssistantStatusRow[]>;
+  // v4.48 青鸟人格选择器：WeixinPage 经 bridge 消费（原 legacy wailsjsCompat
+  // 直调转正，浏览器 dev mock 可达）；从 LegacySurfaceNames 摘除。
+  // WhisperGetPersonalities 轻语预设人格清单。
+  WhisperGetPersonalities(): Promise<whisper.PersonalityPreset[]>;
+  // CharacterList 角色库分页查询（chatOnly 过滤可聊天角色，返回 {items,total}）。
+  CharacterList(query: string, kind: string, chatOnly: boolean, page: number, pageSize: number): Promise<Record<string, unknown>>;
   // WhisperAssistantList 全部虚拟助手（微信绑定/人格/启停）。
   WhisperAssistantList(): Promise<WeixinAssistantView[]>;
   // WhisperAssistantSave 新建/更新助手（含 WxToken/WxBotID 微信绑定，保存后自动重拉通道）。
@@ -1301,7 +1307,6 @@ type LegacySurfaceNames =
   | "CharacterGenerateRandom"
   | "CharacterGet"
   | "CharacterImportProject"
-  | "CharacterList"
   | "CharacterListByProject"
   | "CharacterSave"
   | "CharacterSetProjectState"
@@ -1565,7 +1570,6 @@ type LegacySurfaceNames =
   | "WhisperGetImageModel"
   | "UpdateCustomEngine"
   | "WhisperGetModel"
-  | "WhisperGetPersonalities"
   | "WhisperGetState"
   | "WhisperGetTraces"
   | "WhisperSetEngine"

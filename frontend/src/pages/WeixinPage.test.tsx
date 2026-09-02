@@ -1,4 +1,4 @@
-// WeixinPage.test.tsx — 微信助手「通讯枢纽」工作台测试。
+// WeixinPage.test.tsx — 青鸟（微信助手）「通讯枢纽」工作台测试。
 // 桥接经 vi.mock('../gaea/lib/bridge') 注入确定性数据（app.* 方法逐个 mock），
 // 覆盖：①多助手通道轨道渲染（状态字/状态点/头像回退/详情人格 Tag）②启停翻转
 // 调用 Save 且 enabled 正确（携带完整对象）③gaea 核心助手禁删禁停 ④删除
@@ -6,7 +6,7 @@
 // 确认后 Save ⑥离线提醒视图（列表渲染 + 全局开关 + 删除）⑦使用指南视图。
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 // 屏蔽 bridge seam（vi.hoisted 避免 mock 提升导致的初始化顺序问题）
 const mocks = vi.hoisted(() => ({
@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   WeixinReminderAdd: vi.fn(),
   WeixinReminderDelete: vi.fn(),
   WeixinReminderSetConfig: vi.fn(),
+  WhisperGetPersonalities: vi.fn(),
+  CharacterList: vi.fn(),
 }))
 vi.mock('../gaea/lib/bridge', () => ({ app: mocks }))
 
@@ -80,9 +82,23 @@ beforeEach(() => {
   mocks.WeixinReminderAdd.mockResolvedValue({ id: 'r1', fireAt: '', status: 'pending' })
   mocks.WeixinReminderDelete.mockResolvedValue(undefined)
   mocks.WeixinReminderSetConfig.mockResolvedValue(undefined)
+  mocks.WhisperGetPersonalities.mockResolvedValue([
+    { id: 'gaea', label: '盖亚', gender: 'female', tags: ['秘书', '工作'], voiceGuide: '专业严谨的办公秘书口吻' },
+    { id: 'muse', label: '缪斯', gender: 'female', tags: ['创作'], voiceGuide: '灵感充沛的写作伙伴' },
+  ])
+  mocks.CharacterList.mockResolvedValue({
+    items: [
+      {
+        id: 'c_lin', name: '林晚', kind: 'custom', gender: 'female', tags: ['女主角', '清冷'],
+        portraitUrl: 'http://example.com/lin.png', personality: '清冷聪慧，外冷内热',
+        background: '前朝遗孤，隐姓埋名于市井', chatEnabled: true,
+      },
+    ],
+    total: 1,
+  })
 })
 
-describe('微信助手工作台 · 通道轨道与详情', () => {
+describe('青鸟工作台 · 通道轨道与详情', () => {
   it('① 轨道渲染多助手：名字/状态字/状态点/头像（有图用图、无图回退首字），详情显示人格 Tag', async () => {
     const { container } = await renderPage()
     // 通道轨道 3 条助手项（新增/提醒/指南按钮除外）
@@ -159,10 +175,12 @@ describe('微信助手工作台 · 通道轨道与详情', () => {
     // 先 wait_scan 验「扫码」步，再切 confirmed 验「完成」步与保存
     mocks.WhisperWeixinQRStatus.mockResolvedValue({ status: 'wait_scan' })
     await renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: '新增微信助手' }, LOAD))
-    // 名字必填、人格 ID 默认 gaea
+    fireEvent.click(await screen.findByRole('button', { name: '新增青鸟助手' }, LOAD))
+    // 人格选择器加载：默认选中 gaea 预设（盖亚）
+    await waitFor(() => {
+      expect(document.querySelector('.wx-pk-item.is-active')?.textContent).toContain('盖亚')
+    }, LOAD)
     fireEvent.change(screen.getByPlaceholderText('助手名字（必填）'), { target: { value: '小北' } })
-    expect((screen.getByDisplayValue('gaea') as HTMLInputElement).value).toBe('gaea')
     fireEvent.click(screen.getByRole('button', { name: '下一步：扫码绑定' }))
 
     // 进入扫码流：二维码拉取 + 动态标题指向新助手 + 三步指示在「扫码」
@@ -183,9 +201,40 @@ describe('微信助手工作台 · 通道轨道与详情', () => {
       }))
     }, LOAD)
   })
+
+  it('⑨ 人格选择器：分组渲染（预设/角色库）+ 详情面板 + 立绘随 Save 带出', async () => {
+    mocks.WhisperWeixinQRStatus.mockResolvedValue({ status: 'confirmed', botToken: 'tok-n', botId: 'bot-n', userId: 'uid-n' })
+    await renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: '新增青鸟助手' }, LOAD))
+    // 分组列表：预设（盖亚/缪斯）+ 角色库（林晚）；文案断言收在 listbox 内
+    //（footer 说明句含同词，全屏 getByText 会多匹配）
+    const listbox = await screen.findByRole('listbox', { name: '人格选择' }, LOAD)
+    expect(listbox.querySelectorAll('.wx-pk-group').length).toBe(2)
+    expect(listbox.querySelector('.wx-pk-group')?.textContent).toBe('轻语预设')
+    expect(within(listbox).getByRole('option', { name: '选择人格 盖亚' })).toBeTruthy()
+    expect(within(listbox).getByRole('option', { name: '选择人格 缪斯' })).toBeTruthy()
+    expect(within(listbox).getByRole('option', { name: '选择人格 林晚' })).toBeTruthy()
+
+    // 选中林晚 → 详情面板显示人格/背景 + 立绘
+    fireEvent.click(screen.getByRole('option', { name: '选择人格 林晚' }))
+    const detail = document.querySelector('.wx-pk-detail') as HTMLElement
+    expect(detail.textContent).toContain('清冷聪慧')
+    expect(detail.textContent).toContain('前朝遗孤')
+    expect(detail.querySelector('img')?.getAttribute('src')).toBe('http://example.com/lin.png')
+
+    // 确认 → Save 携带角色库 id 与立绘 URL
+    fireEvent.change(screen.getByPlaceholderText('助手名字（必填）'), { target: { value: '晚晚' } })
+    fireEvent.click(screen.getByRole('button', { name: '下一步：扫码绑定' }))
+    fireEvent.click(await screen.findByRole('button', { name: '保存绑定并启动通道' }, LOAD))
+    await waitFor(() => {
+      expect(mocks.WhisperAssistantSave).toHaveBeenCalledWith(expect.objectContaining({
+        personalityId: 'c_lin', portraitUrl: 'http://example.com/lin.png',
+      }))
+    }, LOAD)
+  })
 })
 
-describe('微信助手工作台 · 提醒与指南', () => {
+describe('青鸟工作台 · 提醒与指南', () => {
   it('⑥ 离线提醒视图：列表渲染（状态/来源/时间）+ 全局开关翻转 + 删除', async () => {
     mocks.WeixinReminderList.mockResolvedValue(REMINDER_ROWS)
     const { container } = await renderPage()

@@ -6,6 +6,7 @@ import type {
   WeixinAssistantView,
   WeixinReminderView,
 } from "../types";
+import { whisper } from "../../../../wailsjs/go/models";
 
 type WeixinMethods = Pick<
   AppBindings,
@@ -13,6 +14,8 @@ type WeixinMethods = Pick<
   | "WhisperWeixinStatus" | "WhisperAssistantList" | "WhisperAssistantSave" | "WhisperAssistantDelete"
   | "WeixinReminderList" | "WeixinReminderAdd" | "WeixinReminderDelete"
   | "WeixinReminderConfig" | "WeixinReminderSetConfig"
+  // v4.48 人格选择器：新增助手弹窗拉预设 + 角色库可聊天角色
+  | "WhisperGetPersonalities" | "CharacterList"
 >;
 
 // ── 内存态（浏览器开发环境，无持久化；模块级 = 同会话多次打开页面状态延续）──
@@ -32,6 +35,24 @@ const reminders: WeixinReminderView[] = [
 ];
 let remindersEnabled = true;
 let reminderSeq = 3;
+
+// 角色库可聊天角色（人格选择器右栏详情数据源；立绘用确定性 SVG 占位）
+const charPortrait = (initial: string, hue: number) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60"><rect width="60" height="60" fill="hsl(${hue},45%,22%)"/><text x="30" y="40" font-size="26" text-anchor="middle" fill="hsl(${hue},70%,80%)" font-family="sans-serif">${initial}</text></svg>`,
+  )}`;
+const characters = [
+  {
+    id: "c_lin", name: "林晚", kind: "custom", gender: "female", tags: ["女主角", "清冷"],
+    portraitUrl: charPortrait("林", 265), roleType: "女主", personality: "清冷聪慧，外冷内热",
+    background: "前朝遗孤，隐姓埋名于市井，身负血仇", chatEnabled: true,
+  },
+  {
+    id: "c_gucheng", name: "顾城", kind: "custom", gender: "male", tags: ["男主角", "将领"],
+    portraitUrl: charPortrait("顾", 200), roleType: "男主", personality: "沉稳寡言，护短",
+    background: "边关少将，战功赫赫却厌战", chatEnabled: true,
+  },
+];
 
 // 扫码流模拟：每个 token 独立相位（轮询 2 次 → 已扫码；4 次 → confirmed）。
 const qrPolls = new Map<string, number>();
@@ -142,6 +163,21 @@ export function buildWeixin(): WeixinMethods {
         const cfg = JSON.parse(cfgJSON) as { remindersEnabled?: boolean };
         if (typeof cfg.remindersEnabled === "boolean") remindersEnabled = cfg.remindersEnabled;
       } catch { /* 非法 JSON 忽略 */ }
+    },
+
+    async WhisperGetPersonalities() {
+      // 生成类 PersonalityPreset 需要实例形态（dims/convertValues），这里用 createFrom 构造
+      return [
+        whisper.PersonalityPreset.createFrom({ id: "gaea", label: "盖亚", gender: "female", tags: ["秘书", "工作"], voiceGuide: "专业严谨的办公秘书口吻，条理清晰" }),
+        whisper.PersonalityPreset.createFrom({ id: "muse", label: "缪斯", gender: "female", tags: ["创作"], voiceGuide: "灵感充沛的写作伙伴，善比喻" }),
+        whisper.PersonalityPreset.createFrom({ id: "fixer", label: "修哥", gender: "male", tags: ["执行"], voiceGuide: "干脆利落的执行者，直给结论" }),
+      ];
+    },
+
+    async CharacterList(_query: string, _kind: string, chatOnly: boolean, _page: number, _pageSize: number) {
+      void _query; void _kind; void _page; void _pageSize;
+      const items = chatOnly ? characters.filter((c) => c.chatEnabled) : characters;
+      return { items: items.map((c) => ({ ...c })), total: items.length };
     },
   };
 }

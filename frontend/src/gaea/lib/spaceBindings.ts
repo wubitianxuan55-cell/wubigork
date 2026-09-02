@@ -101,6 +101,9 @@ export const GAEA_METHOD_FACETS = {
   WhisperAssistantList: "work",
   WhisperAssistantSave: "work",
   WhisperAssistantDelete: "work",
+  // v4.48 青鸟人格选择器（WeixinPage 经 bridge 消费，转正出 legacy 名单）。
+  WhisperGetPersonalities: "work",
+  CharacterList: "work",
   WeixinReminderList: "work",
   WeixinReminderAdd: "work",
   WeixinReminderDelete: "work",

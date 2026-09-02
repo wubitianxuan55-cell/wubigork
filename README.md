@@ -89,6 +89,7 @@ gaea/
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **v4.48.0** | 2026-09-02 | 青鸟：微信助手板块更名 + 新增助手人格选择器（绑定面 559 零变更）：双栏选择器（轻语预设+角色库可聊天角色、搜索过滤、详情预览）、角色立绘回显、18+ 人格过滤；CharacterList/WhisperGetPersonalities 转正 AppBindings（judge 视觉验收 5/5） |
 | **v4.47.0** | 2026-09-02 | 微信助手星枢化「通讯枢纽」工作台（绑定面 559 零变更）：三分区布局（玻璃细条+左通道轨道+主区三视图）、通道状态三重传达（状态点四态+状态字+键值卡）、扫码流三步指示、dev mock 补微信域；功能零删减（judge 视觉验收 6/6） |
 | **v4.46.0** | 2026-09-02 | 小说板块第二轮（绑定面 557→559）：①伏笔登记表闭环——SaveForeshadows 写入口+syncForeshadows 按 ID 合并（手工条目不冲掉）+面板登记/流转/编辑/删除；②导出扩展——EPUB 真封面自动探测嵌入、onlyMainline 仅主线参数（默认兼容）、DOCX 导出落地（gooxml）；③伴读划线问书多轮化——historyJSON 六轮+划线窗口 12000 rune+会话式弹窗；④一致性 AI 深检 v0（Continuity Linter）——逐章状态卡+本地跨章比对五类矛盾+规则层合并 source 徽标+诚实降级。Go 全量绿、tsc/tsc -b/eslint 0、vitest 1312/1312、drift PASS（559）。详见 releases/v4.46.0.md |
 | **v4.45.0** | 2026-09-02 | 百炼全量下线（绑定面 557 零变更）：用户拍板删干净——DashScope 引擎退出注册表、DashScopeAPIKey 字段与迁移全删、SetImageBackend 第 5 参彻底移除；imagegen 引擎枚举去 dashscope + ResultStage 新增「改图」动作（img2img 走 ComfyUI/Herdsman）；微信改图链（v4.9 起）全删：ActionEditImage 意图解析/执行层/入站图缓存/wx_agent edit_image 工具（7→6）/editImageFromCard；gen_bindings 空白参数名占位修复。Go 全量绿、tsc/tsc -b/eslint 0、vitest 1312/1312、drift PASS（557）。详见 releases/v4.45.0.md |

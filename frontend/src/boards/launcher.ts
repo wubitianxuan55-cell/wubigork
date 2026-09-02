@@ -31,7 +31,7 @@ export const LAUNCHER_DESC: Record<string, string> = {
   memoryhub: '知识/画像/办公记忆跨板块沉淀',
   modelcenter: '模型引擎管理与配置',
   characterlib: '角色档案与跨板块角色管理',
-  weixin: '微信遥控器：扫码绑定与离线代办提醒',
+  weixin: '青鸟传信 · 微信遥控器：扫码绑定与离线代办提醒',
   settings: '应用偏好与主题外观',
 }
 

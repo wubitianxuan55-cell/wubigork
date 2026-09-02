@@ -4,10 +4,11 @@ import {
 } from 'antd'
 import {
   QrcodeOutlined, ReloadOutlined, SendOutlined, BellOutlined, DeleteOutlined, CheckCircleOutlined, WarningOutlined, PlusOutlined,
-  WechatOutlined, ClockCircleOutlined, MessageOutlined, BookOutlined, NotificationOutlined,
+  WechatOutlined, ClockCircleOutlined, MessageOutlined, BookOutlined, NotificationOutlined, SearchOutlined,
 } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { app } from '../gaea/lib/bridge'
+import type { whisper, characterlib } from '../../wailsjs/go/models'
 import type {
   WeixinAssistantStatusRow, WeixinAssistantView, WeixinReminderConfigView, WeixinReminderView,
 } from '../gaea/lib/types'
@@ -15,7 +16,8 @@ import { isPageVisible } from '../lib/pollingGate'
 import './weixin-page.css'
 
 /**
- * WeixinPage — 微信助手「通讯枢纽」工作台（v4.47 星枢化重构；前身 v4.4 触点三卡布局）。
+ * WeixinPage — 青鸟（微信助手）「通讯枢纽」工作台（v4.47 星枢化重构；
+ * v4.48 板块更名「青鸟」+ 新增流人格选择器打通角色库）。
  *
  * 布局（Constellation OS 三分区语言）：顶部玻璃细条（板块名 + 通道遥测 meta +
  * 刷新）/ 左通道轨道（每助手一条 rail item：头像 + 名字 + 状态字 + 状态点，
@@ -61,6 +63,17 @@ const reminderTag = (status: string) => {
 // ── 助手行：List 完整字段 + 挂载的 Status 通道状态 ──
 interface AssistantRow extends WeixinAssistantView {
   status?: WeixinAssistantStatusRow
+}
+
+// ── 人格选择器选项：轻语预设 + 角色库可聊天角色统一投影 ──
+interface PersonaOption {
+  id: string
+  name: string
+  group: 'preset' | 'character'
+  gender?: string
+  tags?: string[]
+  portraitUrl?: string
+  desc?: string // 预设=voiceGuide / 角色=personality+background
 }
 
 // 状态行（WhisperWeixinStatus）与字段行（WhisperAssistantList）按 id merge：
@@ -126,10 +139,54 @@ const WeixinPage: React.FC = () => {
   const [binding, setBinding] = useState(false)
   const pollRef = useRef<number | null>(null)
 
-  // ── 新增微信助手表单 ──
+  // ── 新增助手表单（人格选择器：轻语预设 + 角色库可聊天角色）──
   const [addOpen, setAddOpen] = useState(false)
   const [addName, setAddName] = useState('')
-  const [addPersonality, setAddPersonality] = useState('gaea')
+  const [personaOpts, setPersonaOpts] = useState<PersonaOption[]>([])
+  const [personaQuery, setPersonaQuery] = useState('')
+  const [personaSel, setPersonaSel] = useState('gaea')
+
+  // 人格选择器数据：预设清单 + 角色库可聊天角色（打开弹窗时拉一次；
+  // 默认选中 gaea 预设，加载失败时确认流仍可走——payload 照常 'gaea'）
+  useEffect(() => {
+    if (!addOpen) return
+    let alive = true
+    setPersonaOpts([])
+    setPersonaQuery('')
+    setPersonaSel('gaea')
+    ;(async () => {
+      const [presets, charRes] = await Promise.all([
+        app.WhisperGetPersonalities().catch(() => [] as whisper.PersonalityPreset[]),
+        app.CharacterList('', '', true, 1, 500).catch(() => null as Record<string, unknown> | null),
+      ])
+      if (!alive) return
+      const presetOpts: PersonaOption[] = (presets ?? [])
+        .filter((p) => !p.requiresAdult18) // 工作触点不列 18+ 人格
+        .map((p) => ({
+          id: p.id, name: p.label, group: 'preset' as const,
+          gender: p.gender, tags: p.tags, desc: p.voiceGuide || '',
+        }))
+      const items = ((charRes?.items ?? []) as characterlib.Character[])
+      const charOpts: PersonaOption[] = items.map((c) => ({
+        id: c.id, name: c.name, group: 'character' as const,
+        gender: c.gender || undefined, tags: c.tags, portraitUrl: c.portraitUrl,
+        desc: [c.personality, c.background].filter(Boolean).join('\n'),
+      }))
+      setPersonaOpts([...presetOpts, ...charOpts])
+    })()
+    return () => { alive = false }
+  }, [addOpen])
+
+  // 选择器派生：搜索过滤 + 分组 + 当前选中项
+  const personaFiltered = useMemo(() => {
+    const q = personaQuery.trim().toLowerCase()
+    if (!q) return personaOpts
+    return personaOpts.filter((o) =>
+      o.name.toLowerCase().includes(q) || (o.tags ?? []).some((t) => t.toLowerCase().includes(q)))
+  }, [personaOpts, personaQuery])
+  const presetGroup = personaFiltered.filter((o) => o.group === 'preset')
+  const charGroup = personaFiltered.filter((o) => o.group === 'character')
+  const personaSelOpt = personaOpts.find((o) => o.id === personaSel) ?? null
 
   // ── 手动新建提醒 ──
   const [newText, setNewText] = useState('')
@@ -256,22 +313,24 @@ const WeixinPage: React.FC = () => {
     }
   }
 
-  // 「新增微信助手」表单确定 → 本地暂存新助手并进入扫码流（confirmed 时 Save 落库）
+  // 「新增青鸟助手」表单确定 → 本地暂存新助手并进入扫码流（confirmed 时 Save 落库；
+  // personalityId 取选择器选中项，角色库人物的立绘一并带出）
   const createAssistant = () => {
     const name = addName.trim()
     if (!name) {
       message.warning('请填写助手名字')
       return
     }
+    const sel = personaOpts.find((o) => o.id === personaSel)
     const staged: WeixinAssistantView = {
       id: `wx_${Date.now().toString(36)}`,
       name,
-      personalityId: addPersonality.trim() || 'gaea',
+      personalityId: personaSel || 'gaea',
       enabled: true,
+      portraitUrl: sel?.portraitUrl || '',
     }
     setAddOpen(false)
     setAddName('')
-    setAddPersonality('gaea')
     startBinding(staged)
   }
 
@@ -327,7 +386,7 @@ const WeixinPage: React.FC = () => {
 
       {/* 顶部细条：板块名 + 一句话定位 + 通道遥测 + 刷新 */}
       <header className="wx-strip">
-        <span className="wx-strip-title"><WechatOutlined aria-hidden="true" /> 微信助手</span>
+        <span className="wx-strip-title"><WechatOutlined aria-hidden="true" /> 青鸟</span>
         <span className="wx-strip-sub">把微信变成 gaea 的遥控器：发消息触发桌面能力，提醒到点经微信回推</span>
         <span className="wx-strip-meta" role="status">
           {rows.length} 通道 · {runningCount} 运行中{cfg ? ` · 提醒 ${cfg.remindersEnabled ? '开' : '关'}` : ''}
@@ -339,12 +398,12 @@ const WeixinPage: React.FC = () => {
 
       <div className="wx-body">
         {/* 左：通道轨道（助手清单即导航；支撑组挂提醒/指南） */}
-        <aside className="wx-rail v3-panel" aria-label="微信助手导航">
+        <aside className="wx-rail v3-panel" aria-label="青鸟导航">
           <div className="v3-panel-head">
             <span className="v3-panel-title">通道</span>
             <span className="v3-panel-spacer" />
             <button
-              type="button" className="wx-refresh-btn" aria-label="新增助手" title="新增微信助手"
+              type="button" className="wx-refresh-btn" aria-label="新增助手" title="新增青鸟助手"
               onClick={() => setAddOpen(true)}
             >
               <PlusOutlined aria-hidden="true" />
@@ -371,11 +430,11 @@ const WeixinPage: React.FC = () => {
               )
             })}
             {rows.length === 0 && (
-              <div className="wx-rail-empty">暂无助手——点上方 + 新增微信助手</div>
+              <div className="wx-rail-empty">暂无青鸟助手——点上方 + 新增</div>
             )}
             <button type="button" className="wx-rail-item wx-rail-add" onClick={() => setAddOpen(true)}>
               <PlusOutlined aria-hidden="true" />
-              <span className="wx-rail-name">新增微信助手</span>
+              <span className="wx-rail-name">新增青鸟助手</span>
             </button>
 
             <div className="wx-rail-group">支持</div>
@@ -417,11 +476,11 @@ const WeixinPage: React.FC = () => {
               ) : (
                 <div className="wx-empty">
                   <span className="wx-empty-icon"><WechatOutlined aria-hidden="true" /></span>
-                  <span className="wx-empty-title">还没有微信助手</span>
+                  <span className="wx-empty-title">还没有青鸟助手</span>
                   <span className="wx-empty-hint">
                     新增助手并扫码绑定微信后，即可在微信里与 gaea 对话、设提醒、收推送。
                   </span>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>新增微信助手</Button>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>新增青鸟助手</Button>
                 </div>
               )
             )}
@@ -524,18 +583,67 @@ const WeixinPage: React.FC = () => {
       </div>
 
       <Modal
-        title="新增微信助手" open={addOpen} width={420}
+        title="新增青鸟助手" open={addOpen} width={680}
         okText="下一步：扫码绑定" cancelText="取消"
         onOk={createAssistant} onCancel={() => setAddOpen(false)}
       >
-        <Space direction="vertical" size={12} style={{ width: '100%', marginTop: 8 }}>
+        <Space direction="vertical" size={10} style={{ width: '100%', marginTop: 8 }}>
           <Input
             placeholder="助手名字（必填）" value={addName} maxLength={20}
             onChange={(e) => setAddName(e.target.value)} onPressEnter={createAssistant}
           />
-          <Input addonBefore="人格 ID" value={addPersonality} onChange={(e) => setAddPersonality(e.target.value)} />
+          <div className="wx-pk">
+            <div className="wx-pk-side">
+              <Input
+                size="small" allowClear prefix={<SearchOutlined aria-hidden="true" />}
+                placeholder="搜索名字 / 标签" value={personaQuery}
+                onChange={(e) => setPersonaQuery(e.target.value)}
+              />
+              <div className="wx-pk-list" role="listbox" aria-label="人格选择">
+                {presetGroup.length > 0 && <div className="wx-pk-group">轻语预设</div>}
+                {presetGroup.map((o) => (
+                  <PersonaRow key={o.id} opt={o} active={o.id === personaSel} onPick={setPersonaSel} />
+                ))}
+                {charGroup.length > 0 && <div className="wx-pk-group">角色库</div>}
+                {charGroup.map((o) => (
+                  <PersonaRow key={o.id} opt={o} active={o.id === personaSel} onPick={setPersonaSel} />
+                ))}
+                {personaFiltered.length === 0 && (
+                  <div className="wx-pk-empty">没有匹配的人格——可先去角色库创建可聊天角色</div>
+                )}
+              </div>
+            </div>
+            <div className="wx-pk-detail">
+              {personaSelOpt ? (
+                <>
+                  <div className="wx-pk-portrait">
+                    {personaSelOpt.portraitUrl
+                      ? <img src={personaSelOpt.portraitUrl} alt={`${personaSelOpt.name} 立绘`} />
+                      : <span className="wx-pk-portrait-fallback" aria-hidden="true">{personaSelOpt.name.slice(0, 1)}</span>}
+                  </div>
+                  <div className="wx-pk-detail-name">
+                    {personaSelOpt.name}
+                    <Tag color={personaSelOpt.group === 'preset' ? 'gold' : 'geekblue'}>
+                      {personaSelOpt.group === 'preset' ? '轻语预设' : '角色库'}
+                    </Tag>
+                    {personaSelOpt.gender && (
+                      <Tag>{personaSelOpt.gender === 'male' ? '男' : personaSelOpt.gender === 'female' ? '女' : personaSelOpt.gender}</Tag>
+                    )}
+                  </div>
+                  {(personaSelOpt.tags ?? []).length > 0 && (
+                    <div className="wx-pk-detail-tags">
+                      {personaSelOpt.tags!.slice(0, 6).map((t) => <Tag key={t}>{t}</Tag>)}
+                    </div>
+                  )}
+                  {personaSelOpt.desc && <div className="wx-pk-detail-desc">{personaSelOpt.desc}</div>}
+                </>
+              ) : (
+                <div className="wx-pk-empty">左侧选择人格——详情与立绘会在这里显示</div>
+              )}
+            </div>
+          </div>
           <Typography.Text type="secondary">
-            人格 ID 为轻语预设或角色库角色；确定后扫码绑定，扫码确认时保存并启动通道。
+            人格 = 助手在微信里的身份：轻语预设或角色库可聊天角色（18+ 人格不列出）；选中角色的立绘会自动带出。
           </Typography.Text>
         </Space>
       </Modal>
@@ -587,6 +695,26 @@ const WeixinPage: React.FC = () => {
     </div>
   )
 }
+
+/** 人格选择器行（预设/角色库通用；role=option 挂在 listbox 容器上）。 */
+const PersonaRow: React.FC<{
+  opt: PersonaOption
+  active: boolean
+  onPick: (id: string) => void
+}> = ({ opt, active, onPick }) => (
+  <button
+    type="button"
+    role="option"
+    aria-selected={active}
+    className={`wx-pk-item${active ? ' is-active' : ''}`}
+    aria-label={`选择人格 ${opt.name}`}
+    onClick={() => onPick(opt.id)}
+  >
+    <Avatar size={30} src={opt.portraitUrl || undefined}>{opt.name.slice(0, 1)}</Avatar>
+    <span className="wx-pk-item-name">{opt.name}</span>
+    <span className="wx-pk-item-kind">{opt.group === 'preset' ? '预设' : '角色库'}</span>
+  </button>
+)
 
 /** 主区 · 通道详情：身份头 + 键值栅格（通道状态/微信绑定/启停）+ 操作区。 */
 const ChannelDetail: React.FC<{

@@ -128,7 +128,7 @@ export const canonicalBoards: BoardManifest[] = [
     menuOrder: 10, inMenu: false, nav: { children: SETTINGS_NAV }, space: 'shared',
   },
   {
-    id: 'weixin', label: '微信助手', icon: 'WechatOutlined', page: 'WeixinPage',
+    id: 'weixin', label: '青鸟', icon: 'WechatOutlined', page: 'WeixinPage',
     lazy: true, keepAlive: true, layout: 'padded',
     menuOrder: 11, inMenu: true, space: 'work', // v4.4：触点落地，进 rail + 首页左翼
   },
