@@ -80,7 +80,11 @@ export function rebuildHistoryItems(messages: HistoryMessage[]): { items: Item[]
     if (m.role === "user" && m.content.trim() !== "") {
       items.push({ kind: "user", id: `h${items.length}`, text: m.content } as Item);
     } else if (m.role === "assistant" && m.content.trim() !== "") {
-      items.push({ kind: "assistant", id: `h${items.length}`, text: m.content, reasoning: "", streaming: false } as Item);
+      // v4.34 线B：assistant 历史条目透传子代理答复引用（Go HistoryMessage.SubagentRef，
+      // 与实时 message 事件 / GaeaResyncItem 同键位）；空串归一为 undefined（后端
+      // omitempty 下缺键即 undefined），避免恢复后「子代理」徽标空渲染。
+      // user/tool 分支零改动。
+      items.push({ kind: "assistant", id: `h${items.length}`, text: m.content, reasoning: "", streaming: false, subagentRef: m.subagentRef || undefined } as Item);
     } else if (m.role === "tool" && m.toolName) {
       const id = m.toolId || `ht${i}`;
       const hasResult = results.has(id);

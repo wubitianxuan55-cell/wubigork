@@ -1,3 +1,19 @@
+## v4.34.0 · 子代理气泡恢复：恢复会话不再丢失子代理答复（2026-09-02）
+> 收 v4.26 沿旧欠账「子代理气泡恢复暂缺」。根因=ProjectMessages 投影无 subagent_message
+> case 整条忽略；模型面投影不可动（恢复后模型上下文须与实时语义一致）→ UI 侧并行投影。
+> **绑定面 552 零变更**。
+- **① UI 侧锚点投影（Go）**：session 新导出 KindSubagentMessage 常量 + ProjectSubagentAnchors
+  （与 ProjectMessages 逐 case 同拍的游标镜像，subagent_message 记「插在第 K 条消息后」
+  锚点，projection.go 一字未动）；GaeaHistory 读磁盘事件日志按锚点合并子代理气泡
+  （mergeSubagentAnchors 纯函数 + logOffset 校正检查点 system 提示导致的系统性偏移，
+  负位/越界锚点宁漏勿误丢弃）；HistoryMessage 加 subagentRef 字段（golden 不变）；
+  GaeaResumeSession 零改动自动生效。
+- **② 恢复徽标消费（前端）**：rebuildHistoryItems assistant 分支透传 subagentRef（空串
+  归一），复用实时「子代理」徽标渲染；HistoryMessage 类型交叉扩展注明可回收。
+- 验证：Go 全量 test exit 0（线A -count=2，投影/Restore/golden 回归全绿）、tsc -b/eslint 0、
+  vitest **1210/1210**（+3）、drift PASS（552）、wails generate module 已刷新、版本四处
+  4.34.0。详见 releases/v4.34.0.md。
+
 ## v4.33.0 · 细节收口第三刀：回滚守卫统一 / pdf 占位比精确化 / 主区预览懒加载对齐（2026-09-02）
 > 欠账池三线并行子代理 + 主代理集成。**绑定面 552 零变更**。
 - **① 回滚守卫统一 + write_file >8KB 恒误报修复（真 bug）**：rollback 卡接入「恢复后已被

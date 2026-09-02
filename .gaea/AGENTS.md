@@ -47,6 +47,23 @@
 
 ## 版本状态
 
+- **最新发布：v4.34.0（2026-09-02）「子代理气泡恢复 · 恢复会话不再丢失子代理答复」**：
+  git tag `v4.34.0`；基线 v4.33.0；绑定面 **552 零变更**。收 v4.26 沿旧欠账。**根因**：
+  恢复链投影 session.ProjectMessages 无 subagent_message case 整条忽略；**模型面投影
+  不可动**（投影直接喂模型，恢复后模型上下文须与实时语义一致）→ **UI 侧并行投影**：
+  session 新导出 `ProjectSubagentAnchors`（与 ProjectMessages 逐 case 同拍游标镜像，
+  subagent_message 记「插在第 K 条消息后」锚点；projection.go 零改动）+ GaeaHistory 读
+  磁盘事件日志 `mergeSubagentAnchors` 合并子代理气泡（**logOffset 校正**：检查点 Snapshot
+  含日志从不投影的 system 提示，provider History 系统性多于投影，不校正锚点会提前一档；
+  越界锚点宁漏勿误丢弃）；HistoryMessage 加 `subagentRef`（golden 不变）；前端
+  rebuildHistoryItems 透传复用实时徽标渲染。**教训**：①「UI 视图 ≠ 模型上下文」——同一条
+  日志流两套投影，UI 侧补投影绝不能顺手改模型侧；②子代理抓出 brief 假设漏洞（provider
+  History ≠ ProjectMessages(entries)，差 system 提示一档）——派 brief 里的核心假设要
+  标注「待验证」。**验证**：Go 全量 test exit 0（投影/Restore/golden 回归全绿）、tsc -b/
+  eslint 0、vitest 1210/1210（+3）、drift PASS（552）、wails generate module 已刷新。
+  **欠账**：沿旧 A2 帧流/接管、B2 pptx 真编辑（独立刀体量）、降噪折叠、palette 个性化、
+  -race。详见 releases/v4.34.0.md。
+
 - **最新发布：v4.33.0（2026-09-02）「细节收口 · 第三刀：回滚守卫统一/pdf 占位比精确化/
   主区预览懒加载对齐」**：git tag `v4.33.0`；基线 v4.32.0；绑定面 **552 零变更**。三并行
   子代理+主代理集成。①**回滚守卫统一 + write_file >8KB 恒误报修复（真 bug）**：rollback

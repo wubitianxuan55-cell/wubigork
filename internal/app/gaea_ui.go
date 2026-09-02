@@ -36,6 +36,10 @@ type HistoryMessage struct {
 	ToolArgs   string `json:"toolArgs,omitempty"`
 	ToolID     string `json:"toolId,omitempty"`
 	ToolOutput string `json:"toolOutput,omitempty"`
+	// SubagentRef 仅 assistant 条目携带（v4.34 线A）：subagent_message 折叠出的
+	// 子代理答复气泡，前端据此画「子代理」徽标（与实时 message 事件/补拉
+	// GaeaResyncItem 同键位）。omitempty 保证既有输出逐字节不变。
+	SubagentRef string `json:"subagentRef,omitempty"`
 }
 
 // SessionMeta 是一个已保存会话（历史面板列表项）。
@@ -98,32 +102,113 @@ func (a *App) GaeaHistory() []HistoryMessage {
 	if c == nil {
 		return out
 	}
-	for _, m := range c.History() {
-		switch m.Role {
-		case provider.RoleTool:
-			out = append(out, HistoryMessage{
-				Role:       "tool_result",
-				Content:    m.Content,
-				ToolName:   m.Name,
-				ToolID:     m.ToolCallID,
-				ToolOutput: m.Content,
-			})
-		default:
-			out = append(out, HistoryMessage{Role: string(m.Role), Content: m.Content})
-			// assistant 消息携带的工具调用：逐个还原为 dispatch 条目，
-			// 让恢复后的过程卡与变更面板和实时会话一致。
-			if m.Role == provider.RoleAssistant {
-				for _, tc := range m.ToolCalls {
-					out = append(out, HistoryMessage{
-						Role:     "tool",
-						ToolName: tc.Name,
-						ToolArgs: tc.Arguments,
-						ToolID:   tc.ID,
-					})
-				}
+	msgs := c.History()
+	out = buildHistoryMessages(msgs)
+	// v4.34 线A：UI 侧并行投影。subagent_message 不在 ProjectMessages 的投影
+	// 面内（projected 消息直接喂给模型，运行期模型上下文同样不含子代理答复，
+	// 语义不可改），provider History 因此没有子代理气泡。这里从磁盘事件日志
+	// 解析锚点，把子代理答复按 AfterMsgIndex 插回 UI 历史流；日志缺失/读取
+	// 失败（legacy 会话/新会话未落日志）静默降级为原结果，不阻塞恢复流程。
+	entries, err := session.ReadEntriesFor(c.SessionPath())
+	if err != nil {
+		return out
+	}
+	anchors := session.ProjectSubagentAnchors(entries)
+	if len(anchors) == 0 {
+		return out
+	}
+	// 对齐偏移：锚点游标按日志投影计数，而 provider 历史可能比日志投影多出
+	// 若干条非日志来源的消息（事件日志模式的检查点携带整段会话快照，含日志
+	// 从不投影的 system 提示消息；压缩摘要同理）。offset = 两者长度之差，把
+	// 「日志第 K 条投影消息之后」换算成 provider 历史中的绝对位置。
+	logOffset := len(msgs) - len(session.ProjectMessages(entries))
+	return mergeSubagentAnchors(msgs, anchors, logOffset)
+}
+
+// buildHistoryMessages 把 provider 消息转换为 GaeaHistory 条目（原有构建逻辑，
+// v4.34 起抽出为纯函数供锚点合并复用）。
+func buildHistoryMessages(msgs []provider.Message) []HistoryMessage {
+	out := []HistoryMessage{}
+	for _, m := range msgs {
+		out = appendHistoryMessage(out, m)
+	}
+	return out
+}
+
+// appendHistoryMessage 追加单条 provider 消息的 HistoryMessage 展开：
+// tool 角色 → tool_result 条目；assistant 消息的 ToolCalls 逐个展开为 dispatch
+// 条目，让恢复后的过程卡与变更面板和实时会话一致；其余按 role 原样。
+func appendHistoryMessage(out []HistoryMessage, m provider.Message) []HistoryMessage {
+	switch m.Role {
+	case provider.RoleTool:
+		return append(out, HistoryMessage{
+			Role:       "tool_result",
+			Content:    m.Content,
+			ToolName:   m.Name,
+			ToolID:     m.ToolCallID,
+			ToolOutput: m.Content,
+		})
+	default:
+		out = append(out, HistoryMessage{Role: string(m.Role), Content: m.Content})
+		// assistant 消息携带的工具调用：逐个还原为 dispatch 条目。
+		if m.Role == provider.RoleAssistant {
+			for _, tc := range m.ToolCalls {
+				out = append(out, HistoryMessage{
+					Role:     "tool",
+					ToolName: tc.Name,
+					ToolArgs: tc.Arguments,
+					ToolID:   tc.ID,
+				})
 			}
 		}
+		return out
 	}
+}
+
+// mergeSubagentAnchors 把子代理锚点合并进 GaeaHistory 输出（纯函数，可独立
+// 测试）。
+//
+// 位置换算：GaeaHistory 对 provider 消息逐条展开 HistoryMessage——user/system/
+// tool 各 1 条，assistant 额外为每个 ToolCall 展开 1 条 tool dispatch 条目。
+// 锚点 AfterMsgIndex=K 表示「日志第 K 条投影消息之后」（与
+// session.ProjectMessages 同口径计数，见 session.SubagentAnchor）；logOffset
+// 是 provider 历史相对日志投影的偏移（事件日志模式检查点携带日志不投影的
+// system 提示消息，压缩摘要同理），换算后插入在 provider 历史的第 K+offset
+// 条消息产出的全部 HistoryMessage 之后。
+//
+// 宁漏勿误：换算后位置 <0 或 > len(msgs)（compaction/计数错位）的锚点丢弃，
+// 不猜测插入位置；同位置的多个锚点按日志序依次排列。
+func mergeSubagentAnchors(msgs []provider.Message, anchors []session.SubagentAnchor, logOffset int) []HistoryMessage {
+	out := make([]HistoryMessage, 0, len(msgs)+len(anchors))
+	ai := 0
+	// insertAt 把换算位置恰为 pos 的锚点依次插入当前尾部。锚点按游标单调不减
+	//（投影条数只增），单指针顺序消费；换算位置已小于当前 pos 的锚点永不再
+	// 匹配（位置只增），跳过丢弃——宁漏勿误，且不阻塞后续锚点。
+	insertAt := func(pos int) {
+		for ai < len(anchors) {
+			p := anchors[ai].AfterMsgIndex + logOffset
+			if p < pos {
+				ai++
+				continue
+			}
+			if p > pos {
+				return
+			}
+			anchor := anchors[ai]
+			out = append(out, HistoryMessage{
+				Role:        "assistant",
+				Content:     anchor.Text,
+				SubagentRef: anchor.Ref,
+			})
+			ai++
+		}
+	}
+	insertAt(0 + logOffset) // 锚点 K=0（日志首条投影消息之前）→ 偏移后的绝对位置
+	for i, m := range msgs {
+		out = appendHistoryMessage(out, m)
+		insertAt(i + 1)
+	}
+	// 剩余锚点换算位置 > len(msgs)：越界丢弃（宁漏勿误）。
 	return out
 }
 
@@ -489,7 +574,7 @@ func (a *App) GaeaSessionStats(path string) SessionStatsView {
 }
 
 // GaeaResumeSession 快照当前会话并加载目标会话继续，返回其消息。
-func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) {	// 引擎未初始化时先初始化（幂等），避免重启后首次点击会话报"引擎未初始化"
+func (a *App) GaeaResumeSession(path string) ([]HistoryMessage, error) { // 引擎未初始化时先初始化（幂等），避免重启后首次点击会话报"引擎未初始化"
 	if err := a.GaeaInit(); err != nil {
 		return nil, err
 	}

@@ -1,11 +1,35 @@
 # 任务进度
 
-> 最后更新: 2026-09-02（v4.33.0「细节收口 · 第三刀」：回滚守卫统一+>8KB 误报修真/pdf
-> 占位比精确化/主区预览懒加载对齐——绑定面 552 零变更）
+> 最后更新: 2026-09-02（v4.34.0「子代理气泡恢复」：恢复会话不再丢失子代理答复——绑定面
+> 552 零变更）
 
 ## 当前状态
 
-- **最新发布：v4.33.0（2026-09-02）「细节收口 · 第三刀：回滚守卫统一/pdf 占位比精确化/
+- **最新发布：v4.34.0（2026-09-02）「子代理气泡恢复 · 恢复会话不再丢失子代理答复」**：
+  git tag v4.34.0；基线 v4.33.0；绑定面 **552 零变更**（HistoryMessage 字段级，
+  wails generate module 已刷新）。收 v4.26 沿旧欠账「子代理气泡恢复暂缺」。
+  **根因（本刀钉死）**：恢复链 ResumeFromDisk → session.ProjectMessages（日志→消息投影）
+  → GaeaHistory，投影 switch 无 subagent_message case 整条忽略 → 子代理答复在 provider
+  History 不存在。**约束**：投影结果直接喂模型，实时运行期模型上下文也不含子代理答复，
+  **不能给投影加 case**（恢复后模型上下文会偏离实时语义）→ **UI 侧并行投影**方案。
+  **线A（Go）**：session 新文件 subagent_anchor.go（projection.go 一字未动）——
+  KindSubagentMessage 常量（补上此前字面量缺常量，测试双向锚定）+ ProjectSubagentAnchors
+  锚点镜像（与 ProjectMessages 逐 case 同拍游标，subagent_message 记「插在第 K 条消息
+  后」）；GaeaHistory 末尾 mergeSubagentAnchors 纯函数合并（读 ReadEntriesFor 失败/空
+  静默降级=原行为）；**logOffset 校正**（子代理抓出 brief 漏洞：检查点 Snapshot 含日志
+  从不投影的 system 提示，恢复后 provider History 系统性多若干条，锚点会提前一档——
+  offset=len(消息)−len(投影)，负位/越界锚点宁漏勿误丢弃）；HistoryMessage 加
+  SubagentRef（omitempty，golden 逐字节不变）；GaeaResumeSession 零改动自动生效。
+  **线B（前端）**：rebuildHistoryItems assistant 分支透传 subagentRef（空串归一
+  undefined），复用实时「子代理」徽标渲染；HistoryMessage 类型交叉扩展（生成物刷新后
+  可回收）。
+  **验证**：Go 全量 test exit 0（线A 范围 -count=2；投影×5/Restore×8/Golden/Resume
+  回归全绿=投影语义零改动证明）；tsc -b/eslint 0；vitest **1210/1210**（+3）；drift
+  PASS（552）。**欠账**：渲染层未单独加测试（复用 Message 两态覆盖）；types 交叉扩展
+  待回收；沿旧 A2 帧流/接管、B2 pptx 真编辑（独立刀体量需先规划）、降噪折叠、palette
+  个性化、空 ref 轮询窗口、-race 无 gcc。详见 releases/v4.34.0.md。
+
+- **上一发布：v4.33.0（2026-09-02）「细节收口 · 第三刀：回滚守卫统一/pdf 占位比精确化/
   主区预览懒加载对齐」**：git tag v4.33.0；基线 v4.32.0；绑定面 **552 零变更**。三并行
   子代理 + 主代理集成（含主区测量比例接线）：
   ①**回滚守卫统一 + write_file >8KB 恒误报修复（线A，真 bug）**：rollback 卡接入「恢复

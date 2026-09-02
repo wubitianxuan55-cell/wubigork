@@ -46,4 +46,28 @@ describe("rebuildHistoryItems", () => {
     const last = rebuildHistoryItems(messages).items[lastAssistantIdx];
     expect(last && last.kind === "assistant" ? last.text : null).toBe("完成");
   });
+
+  // v4.34 线B：assistant 历史条目透传 subagentRef（Go HistoryMessage.SubagentRef），
+  // 恢复会话后「子代理」徽标数据就位。渲染层徽标行为已由 components/Message.test.tsx
+  // 对同一 assistant Item 形状覆盖，此处只测数据层透传。
+  it("assistant 带 subagentRef：透传到 item（徽标数据就位）", () => {
+    const { items } = rebuildHistoryItems([
+      { role: "user", content: "跑个子任务" },
+      { role: "assistant", content: "子代理答复", subagentRef: "sa_20260902_01" },
+    ]);
+    const a = items.find((it) => it.kind === "assistant");
+    expect(a && a.kind === "assistant" ? a.subagentRef : null).toBe("sa_20260902_01");
+  });
+
+  it("assistant 不带 subagentRef：字段 undefined（旧行为不变）", () => {
+    const { items } = rebuildHistoryItems([{ role: "assistant", content: "主回答" }]);
+    const a = items.find((it) => it.kind === "assistant");
+    expect(a && a.kind === "assistant" ? a.subagentRef : null).toBeUndefined();
+  });
+
+  it("空串 subagentRef 归一为 undefined（避免徽标空渲染）", () => {
+    const { items } = rebuildHistoryItems([{ role: "assistant", content: "回答", subagentRef: "" }]);
+    const a = items.find((it) => it.kind === "assistant");
+    expect(a && a.kind === "assistant" ? a.subagentRef : null).toBeUndefined();
+  });
 });

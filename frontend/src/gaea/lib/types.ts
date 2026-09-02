@@ -135,7 +135,12 @@ export interface WireEvent {
 }
 
 // Bound-method payloads (desktop/app.go).
-export type HistoryMessage = WireShape<AppModels.HistoryMessage>;
+// v4.34 线B：assistant 历史条目可携带子代理答复引用（Go HistoryMessage.SubagentRef，
+// json:"subagentRef,omitempty"，与实时 message 事件 / GaeaResyncItem.subagentRef
+// 同键位同名），恢复会话后据此复现「子代理」徽标。wailsjs/go/models.ts 为
+// `wails generate module` 生成物且 gitignored，Go 侧字段合入前生成类尚无此键，
+// 先以交叉扩展显式补齐；生成物刷新（wails generate module）后两侧一致，此扩展可回收。
+export type HistoryMessage = WireShape<AppModels.HistoryMessage> & { subagentRef?: string };
 
 // CheckpointMeta is one rewind point (a user turn) for the rewind UI.
 export type CheckpointMeta = WireShape<AppModels.CheckpointMeta>;
