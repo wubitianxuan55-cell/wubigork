@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  BarChart3, BookOpen, Box, Calculator, ChevronRight, CloudUpload, Coins, FileSpreadsheet, FolderPlus,
-  FolderTree, Gauge, ListTree, PieChart, Plus, RefreshCw, Shield, TrendingUp,
+  BookOpen, Box, Calculator, ChevronRight, CloudUpload, Coins, FileSpreadsheet, FolderPlus,
+  FolderTree, Gauge, PieChart, Plus, Shield, TrendingUp,
 } from "../gaea/icons";
 import { app } from "../gaea/lib/bridge";
 import type { CostCategory, CostSummary, FilePickResult, PriceSource } from "../gaea/lib/types";
@@ -10,6 +10,7 @@ import { CostEntryModal } from "../gaea/components/memoryhub/CostEntryModal";
 import { CostImportModal } from "../gaea/components/memoryhub/CostImportModal";
 import { PriceSourcesPanel } from "../gaea/components/memoryhub/PriceSourcesPanel";
 import { PriceSourcesRepository } from "../gaea/components/memoryhub/PriceSourcesRepository";
+import { CostInquiryPanel } from "../gaea/components/memoryhub/CostInquiryPanel";
 import { CostProjectsView } from "../gaea/components/memoryhub/CostProjectsView";
 import { CostIndicatorsView } from "../gaea/components/memoryhub/CostIndicatorsView";
 import { CostNotesView } from "../gaea/components/memoryhub/CostNotesView";
@@ -19,23 +20,32 @@ import "../gaea/tailwind.css";
 import "../gaea/components/memoryhub/hub.css";
 
 /**
- * CostLibraryPage — 「造价数据库」一级板块（2026-08-19 重设计）。
+ * CostLibraryPage — 「造价数据库」一级板块（2026-09-03 化繁为简重构图）。
  *
- * 架构定调：综合单价=一级（记录=可报价的工作项子目），人材机=二级组成
- * （组成行明细），资源库层由价格源/信息价模块承载。概览围绕「库规模 +
- * 人材机构成 + 数据健康」组织，复用 v3 玻璃面板/辉光卡设计语言。
+ * IA 定调（v4.50）：平级 8 模块收敛为 6——
+ * - 概览：数据概览 / 关联图谱 双视图（图谱从平级模块降为概览的分析镜头）；
+ * - 价格数据：价格源 / 价格仓库 / 询价库 三段同域（询价库从「成本条目」
+ *   隐藏的第三个 icon 视图升格为一等子页——询价飞轮本就是价格数据域）；
+ * - 重组零删减：所有功能保留，只改归属与可见性。
+ * 数据模型不变：综合单价=一级，人材机=二级组成。
  */
-type CostModule = "overview" | "entries" | "sources" | "repository" | "projects" | "indicators" | "notes" | "graph";
+type CostModule = "overview" | "entries" | "projects" | "prices" | "refs" | "notes";
+type OverviewView = "data" | "graph";
+type PriceView = "sources" | "repository" | "inquiry";
 
 const MODULES: { key: CostModule; label: string; icon: ReactNode; hint: string }[] = [
-  { key: "overview", label: "概览", icon: <Gauge size={14} />, hint: "库规模 · 人材机构成 · 数据健康" },
+  { key: "overview", label: "概览", icon: <Gauge size={14} />, hint: "库规模 · 人材机构成 · 数据健康 · 关联图谱" },
   { key: "entries", label: "成本条目", icon: <Coins size={14} />, hint: "分类树 + 列表/表格管理" },
   { key: "projects", label: "测算项目", icon: <Calculator size={14} />, hint: "报价/测算工作 · 版本留痕 · 沉淀回库" },
-  { key: "indicators", label: "造价参考", icon: <TrendingUp size={14} />, hint: "案例分位数对标（不落表实时聚合）" },
+  { key: "prices", label: "价格数据", icon: <CloudUpload size={14} />, hint: "价格源 · 价格仓库 · 询价库" },
+  { key: "refs", label: "造价参考", icon: <TrendingUp size={14} />, hint: "案例分位数对标（不落表实时聚合）" },
   { key: "notes", label: "复盘笔记", icon: <BookOpen size={14} />, hint: "结论/边界/风险/证据沉淀判断" },
-  { key: "sources", label: "价格源", icon: <CloudUpload size={14} />, hint: "订阅源 + 手动/定时抓取" },
-  { key: "repository", label: "价格仓库", icon: <BarChart3 size={14} />, hint: "抓取记录与价格历史" },
-  { key: "graph", label: "知识图谱", icon: <ListTree size={14} />, hint: "分类·条目·明细·指标·询价 关联图" },
+];
+
+const PRICE_VIEWS: { key: PriceView; label: string }[] = [
+  { key: "sources", label: "价格源" },
+  { key: "repository", label: "价格仓库" },
+  { key: "inquiry", label: "询价库" },
 ];
 
 interface CostOverviewStats {
@@ -80,8 +90,26 @@ function countCategories(nodes: CostCategory[] | undefined): number {
   return n;
 }
 
+/** 段切换小胶囊（价格数据三段 / 概览双视图共用样式）。 */
+function SegChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "true" : undefined}
+      className={`px-2.5 h-6 rounded-full text-[11px] transition-colors ${
+        active ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function CostLibraryPage() {
   const [module, setModule] = useState<CostModule>("overview");
+  const [overviewView, setOverviewView] = useState<OverviewView>("data");
+  const [priceView, setPriceView] = useState<PriceView>("sources");
   const [stats, setStats] = useState<CostOverviewStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
   const [entryOpen, setEntryOpen] = useState(false);
@@ -212,34 +240,55 @@ export function CostLibraryPage() {
             {module === m.key && <span className="absolute left-2.5 right-2.5 bottom-0 h-0.5 rounded-full bg-accent" />}
           </button>
         ))}
-        {module !== "overview" && (
-          <button
-            type="button"
-            className="ml-auto inline-flex items-center gap-1 px-2 h-6 rounded text-[11px] text-fg-faint hover:text-accent"
-            onClick={() => setModule("overview")}
-            title="回到概览"
-          >
-            <RefreshCw size={12} />
-            概览
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-1.5 pr-1">
+          {module === "overview" ? (
+            <>
+              <SegChip active={overviewView === "data"} onClick={() => setOverviewView("data")}>数据概览</SegChip>
+              <SegChip active={overviewView === "graph"} onClick={() => setOverviewView("graph")}>关联图谱</SegChip>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="inline-flex items-center px-2 h-6 rounded text-[11px] text-fg-faint hover:text-accent"
+              onClick={() => { setModule("overview"); setOverviewView("data"); }}
+              title="回到概览"
+            >
+              回到概览
+            </button>
+          )}
+        </div>
       </nav>
 
       {/* 主区 */}
       <div className="flex-1 min-h-0">
         {module === "entries" && <CostLibraryView />}
         {module === "projects" && <CostProjectsView onChanged={loadStats} />}
-        {module === "indicators" && <CostIndicatorsView />}
+        {module === "refs" && <CostIndicatorsView />}
         {module === "notes" && <CostNotesView />}
-        {module === "sources" && <PriceSourcesPanel onChanged={loadStats} />}
-        {module === "repository" && <PriceSourcesRepository />}
-        {module === "graph" && <CostGraphView />}
-        {module === "overview" && (
+        {module === "prices" && (
+          <div className="h-full flex flex-col min-h-0">
+            <div className="shrink-0 flex items-center gap-1.5 px-4 py-2 border-b border-border-soft/50" role="tablist" aria-label="价格数据子视图">
+              {PRICE_VIEWS.map((v) => (
+                <SegChip key={v.key} active={priceView === v.key} onClick={() => setPriceView(v.key)}>{v.label}</SegChip>
+              ))}
+              <span className="ml-auto text-fg-faint text-[10.5px] hidden md:inline">
+                四源归一：信息价（价格源）· OCR 报价（导入）· 供应商比价 · 手动询价
+              </span>
+            </div>
+            <div className="flex-1 min-h-0">
+              {priceView === "sources" && <PriceSourcesPanel onChanged={loadStats} />}
+              {priceView === "repository" && <PriceSourcesRepository />}
+              {priceView === "inquiry" && <CostInquiryPanel />}
+            </div>
+          </div>
+        )}
+        {module === "overview" && overviewView === "graph" && <CostGraphView />}
+        {module === "overview" && overviewView === "data" && (
           <div className="h-full overflow-y-auto px-5 py-4 space-y-3">
             {loading ? (
               <OverviewSkeleton />
             ) : stats.total === 0 ? (
-              <GettingStarted onImport={pickImport} onNew={() => setEntryOpen(true)} onSources={() => setModule("sources")} />
+              <GettingStarted onImport={pickImport} onNew={() => setEntryOpen(true)} onSources={() => setModule("prices")} />
             ) : (
               <>
                 {/* 库规模 + 人材机构成（hero 占两列，非对称） */}
@@ -358,7 +407,7 @@ export function CostLibraryPage() {
                     )}
                   </section>
 
-                  {/* 快捷入口 */}
+                  {/* 快捷入口（只留动作与高频去处，其余走导航） */}
                   <section className="v3-panel rounded-2xl p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-fg text-[12.5px] font-semibold">快捷入口</span>
@@ -378,34 +427,16 @@ export function CostLibraryPage() {
                         onClick={() => setEntryOpen(true)}
                       />
                       <QuickAction
-                        label="价格源"
-                        hint="订阅固定网站，手动/定时抓价"
+                        label="价格数据"
+                        hint="价格源 · 价格仓库 · 询价库"
                         icon={<CloudUpload size={14} className="text-amber-400" />}
-                        onClick={() => setModule("sources")}
-                      />
-                      <QuickAction
-                        label="价格仓库"
-                        hint="抓取记录与价格历史快照"
-                        icon={<BarChart3 size={14} className="text-violet-400" />}
-                        onClick={() => setModule("repository")}
+                        onClick={() => setModule("prices")}
                       />
                       <QuickAction
                         label="测算项目"
                         hint="报价/测算工作 · 版本留痕 · 沉淀回库"
                         icon={<Calculator size={14} className="text-accent" />}
                         onClick={() => setModule("projects")}
-                      />
-                      <QuickAction
-                        label="造价参考"
-                        hint="案例分位数对标，供下次报价"
-                        icon={<TrendingUp size={14} className="text-emerald-400" />}
-                        onClick={() => setModule("indicators")}
-                      />
-                      <QuickAction
-                        label="复盘笔记"
-                        hint="结论/边界/风险/证据沉淀判断"
-                        icon={<BookOpen size={14} className="text-sky-400" />}
-                        onClick={() => setModule("notes")}
                       />
                     </div>
                   </section>

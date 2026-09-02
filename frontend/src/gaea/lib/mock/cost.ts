@@ -1,6 +1,6 @@
 // mock/cost.ts — 成本库/价格域（T6-10.1 拆分自 lib/mock.ts，方法体零改动）。
 import type { AppBindings } from "../bridge";
-import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, PriceFetchRecord, PriceSource } from "../types";
+import type { CostCategory, CostEntry, CostEstimateItem, CostEstimateVersion, CostGraphView, CostIndicator, CostProject, CostProjectSummary, CostReviewNote, CostInquiryRecord, CostAdjustSuggestion, CostStageValue, CostStageCompareRow, CostStageDeviation, PriceFetchRecord, PriceSource } from "../types";
 import {
   costCategoriesMock,
   costMock,
@@ -26,6 +26,9 @@ type CostMethods = Pick<
   | "CostEstimateVersionSave" | "CostEstimateVersions" | "CostEstimateSediment"
   | "CostIndicators" | "CostAttribution" | "CostNoteSave" | "CostNoteList" | "CostNoteDelete" | "CostNoteBumpRef"
   | "CostGraph"
+  // v4.50 询价飞轮 + 五算对比域补 mock（此前缺失，询价库视图在浏览器 dev 直接崩）
+  | "CostInquirySave" | "CostInquiryList" | "CostInquiryDelete" | "CostInquiryExpiring" | "CostInquiryAdjust"
+  | "CostStageSave" | "CostStages" | "CostStageCompare" | "CostStageDeviations"
 >;
 
 // ── 测算项目 mock 状态（浏览器开发环境内存态，无持久化）──
@@ -37,6 +40,33 @@ let mockVersions: CostEstimateVersion[] = [];
 let mockVersionSeq = 1;
 let mockNotes: CostReviewNote[] = [];
 let mockNoteSeq = 1;
+
+// ── 询价库 mock 状态（v4.50 补域：内存态，种子覆盖到期预警 + 调差两场景）──
+let mockInquiries: CostInquiryRecord[] = [];
+let mockInquirySeq = 1;
+let mockStageValues: CostStageValue[] = [];
+let mockStageSeq = 1;
+
+function isoDaysFromNow(days: number): string {
+  const d = new Date(Date.now() + days * 86400000);
+  return d.toISOString().slice(0, 10);
+}
+function seedInquiry(r: Partial<CostInquiryRecord>): CostInquiryRecord {
+  const now = new Date().toISOString();
+  return {
+    id: mockInquirySeq++, title: "", spec: "", unit: "", price: 0, source: "手动询价", supplier: "",
+    region: "", priceDate: isoDaysFromNow(-7), validUntil: "", note: "", status: "现行",
+    createdAt: now, updatedAt: now, ...r,
+  };
+}
+function seedInquiries() {
+  if (mockInquiries.length > 0) return;
+  mockInquiries = [
+    seedInquiry({ title: "P.O 42.5 水泥", spec: "散装", unit: "吨", price: 520, source: "供应商比价", supplier: "华新水泥", region: "重庆", validUntil: isoDaysFromNow(15) }),
+    seedInquiry({ title: "HP300 高频液压振动锤", unit: "台班", price: 3100, source: "信息价", supplier: "2026-08 信息价", region: "重庆", validUntil: isoDaysFromNow(200) }),
+    seedInquiry({ title: "中砂", spec: "细度模数 2.3-3.0", unit: "吨", price: 98, source: "手动询价", supplier: "本地砂场", region: "重庆", validUntil: "" }),
+  ];
+}
 
 function mockProjectSummaries(): CostProjectSummary[] {
   return mockProjects.map((p) => {
@@ -411,6 +441,95 @@ export function buildCost(_s: MakeMockState): CostMethods {
     },
     async CostNoteBumpRef(id: number) {
       mockNotes = mockNotes.map((n) => (n.id === id ? { ...n, refCount: (n.refCount ?? 0) + 1 } : n));
+    },
+    // ── v4.50 询价飞轮 mock（四源归一数据点：种子含 15 天内到期 + 水泥调差场景）──
+    async CostInquiryList(query: string, limit: number): Promise<CostInquiryRecord[]> {
+      seedInquiries();
+      const q = (query ?? "").trim().toLowerCase();
+      const rows = mockInquiries
+        .filter((r) => !q || [r.title, r.spec, r.supplier, r.region].some((s) => (s ?? "").toLowerCase().includes(q)))
+        .sort((a, b) => (b.priceDate ?? "").localeCompare(a.priceDate ?? ""));
+      return !limit || limit <= 0 ? rows : rows.slice(0, limit);
+    },
+    async CostInquirySave(r: CostInquiryRecord): Promise<number> {
+      seedInquiries();
+      const now = new Date().toISOString();
+      if (r.id && mockInquiries.some((x) => x.id === r.id)) {
+        mockInquiries = mockInquiries.map((x) => (x.id === r.id ? { ...x, ...r, updatedAt: now } : x));
+        return r.id;
+      }
+      const id = mockInquirySeq++;
+      mockInquiries = [...mockInquiries, { ...r, id, createdAt: now, updatedAt: now }];
+      return id;
+    },
+    async CostInquiryDelete(id: number) {
+      mockInquiries = mockInquiries.filter((x) => x.id !== id);
+    },
+    async CostInquiryExpiring(days: number): Promise<CostInquiryRecord[]> {
+      seedInquiries();
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const horizon = new Date(today.getTime() + Math.max(0, days) * 86400000);
+      return mockInquiries.filter((r) => {
+        if (!r.validUntil) return false; // 空 = 长期有效
+        const until = new Date(r.validUntil + "T00:00:00");
+        if (Number.isNaN(until.getTime())) return false;
+        return until >= today && until <= horizon;
+      });
+    },
+    async CostInquiryAdjust(): Promise<CostAdjustSuggestion[]> {
+      seedInquiries();
+      const rows: CostAdjustSuggestion[] = [];
+      for (const e of costMock) {
+        const points = mockInquiries
+          .filter((r) => r.title === e.title && (r.price ?? 0) > 0)
+          .sort((a, b) => (b.priceDate ?? "").localeCompare(a.priceDate ?? ""));
+        const latest = points[0];
+        if (!latest || !e.price) continue;
+        const diff = latest.price - e.price;
+        const diffPct = (diff / e.price) * 100;
+        if (Math.abs(diffPct) <= 2) continue;
+        rows.push({
+          entryName: e.name, entryTitle: e.title, entryPrice: e.price,
+          latestPrice: latest.price, latestDate: latest.priceDate, latestSource: latest.source,
+          diff, diffPct: Math.round(diffPct * 10) / 10, unit: e.unit,
+        });
+      }
+      return rows;
+    },
+    // ── v4.50 五算对比 mock（浏览器 dev 空态：阶段值经 CostStageSave 内存累积）──
+    async CostStageSave(v: CostStageValue) {
+      if (!v.projectId || !v.stage) return;
+      mockStageValues = [
+        ...mockStageValues.filter((s) => !(s.projectId === v.projectId && s.stage === v.stage)),
+        { ...v, id: mockStageSeq++, updatedAt: new Date().toISOString() },
+      ];
+    },
+    async CostStages(projectId: string): Promise<CostStageValue[]> {
+      return mockStageValues.filter((s) => s.projectId === projectId);
+    },
+    async CostStageCompare(projectId: string): Promise<CostStageCompareRow[]> {
+      const stages = ["估算", "概算", "预算", "结算", "决算"];
+      const amountOf = (st: string) => mockStageValues.find((s) => s.projectId === projectId && s.stage === st)?.amount ?? 0;
+      let base = 0;
+      return stages.map((stage, i) => {
+        const amount = amountOf(stage);
+        if (i === 0) base = amount;
+        const prevStage = i > 0 ? stages[i - 1] : "";
+        const prevAmount = i > 0 ? amountOf(prevStage) : 0;
+        const chainDiff = i > 0 && prevAmount ? amount - prevAmount : 0;
+        const baseDiff = i > 0 && base ? amount - base : 0;
+        return {
+          stage, amount,
+          hasValue: mockStageValues.some((s) => s.projectId === projectId && s.stage === stage),
+          prevStage, hasPrev: i > 0,
+          chainDiff, chainDiffPct: i > 0 && prevAmount ? Math.round((chainDiff / prevAmount) * 1000) / 10 : 0,
+          baseDiff, baseDiffPct: i > 0 && base ? Math.round((baseDiff / base) * 1000) / 10 : 0,
+        };
+      });
+    },
+    async CostStageDeviations(projectId: string): Promise<CostStageDeviation[]> {
+      void projectId;
+      return [];
     },
     // ── v4.8 成本知识图谱（mock：与后端同形 JSON 串，tree/entry 两种 scope 演示）──
     async CostGraph(scope: string, focus: string, limit: number): Promise<string> {

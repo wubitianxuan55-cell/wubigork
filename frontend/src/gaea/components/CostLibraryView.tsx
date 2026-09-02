@@ -3,7 +3,7 @@ import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { Input, Modal, message } from "antd";
 import {
   BarChart3, ChevronDown, ChevronRight, Clock, CloudUpload, Coins, FolderPlus, List,
-  Pencil, Plus, RefreshCw, Table, Trash2, TrendingUp,
+  Pencil, Plus, RefreshCw, Table, Trash2,
 } from "../icons";
 import { app } from "../lib/bridge";
 import type { CostCategory, CostSummary, FilePickResult, PriceHistory } from "../lib/types";
@@ -11,34 +11,26 @@ import { EmptyState } from "./EmptyState";
 import { CostEntryModal } from "./memoryhub/CostEntryModal";
 import { CostImportModal } from "./memoryhub/CostImportModal";
 import { CostCompareModal } from "./memoryhub/CostCompareModal";
-import { CostInquiryPanel } from "./memoryhub/CostInquiryPanel";
 
 const STATUSES = ["现行", "草稿", "已归档"];
-
-interface CostLibraryViewProps {
-  /** 办公右侧窄面板：隐藏分类树侧栏，改用路径下拉 + 紧凑行距。 */
-  compact?: boolean;
-  /** 办公侧提供时显示「插入」按钮，一键把单价写入输入框。 */
-  onInsert?: (e: CostSummary) => void;
-}
 
 type SortKey = "title" | "price" | "updatedAt";
 
 /**
- * CostLibraryView 成本库主视图（记忆中枢与办公侧共用）：
+ * CostLibraryView 成本库主视图（造价数据库「成本条目」模块）：
  * - 左侧多级分类树（可增删改分类、子树过滤、节点计数）；
  * - 右侧 列表 / 表格 双视图，表格支持排序与多选批量操作；
  * - 条目按「分类路径」多级保存（一级/二级/…/叶子）。
+ * 询价库不在本视图（v4.50 起归「价格数据」模块，与价格源/价格仓库同域）。
  */
-export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewProps) {
+export function CostLibraryView() {
   const [entries, setEntries] = useState<CostSummary[]>([]);
   const [categories, setCategories] = useState<CostCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [selectedPath, setSelectedPath] = useState("");
-  // v4.2：新增「询价」视图（询价飞轮面板）；默认仍为 list，既有行为零回归。
-  const [view, setView] = useState<"list" | "table" | "inquiry">("list");
+  const [view, setView] = useState<"list" | "table">("list");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
@@ -246,10 +238,9 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
   const breadcrumb = selectedPath.split("/").filter(Boolean);
 
   return (
-    <div className={`flex h-full min-h-0 ${compact ? "text-[11.5px]" : "text-[12.5px]"}`}>
-      {/* 左：多级分类树（办公窄面板隐藏，改用下拉） */}
-      {!compact && (
-        <aside className="w-52 shrink-0 flex flex-col min-h-0 border-r border-border-soft/70">
+    <div className="flex h-full min-h-0 text-[12.5px]">
+      {/* 左：多级分类树 */}
+      <aside className="w-52 shrink-0 flex flex-col min-h-0 border-r border-border-soft/70">
           <div className="shrink-0 flex items-center gap-1.5 px-3 h-9 border-b border-border-soft/60">
             <Coins size={13} className="text-amber-400" />
             <span className="text-fg text-[12.5px] font-semibold">分类</span>
@@ -295,129 +286,90 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
               />
             ))}
           </div>
-        </aside>
-      )}
+      </aside>
 
       {/* 右：工具条 + 列表/表格 */}
       <div className="flex-1 min-w-0 flex flex-col">
         {/* 工具条 */}
-        <div className={`shrink-0 flex items-center gap-2 ${compact ? "px-3 py-1.5" : "px-4 pt-2.5 pb-1.5"}`}>
-          {compact ? (
-            <Coins size={13} className="text-amber-400 shrink-0" />
-          ) : (
-            <>
-              <div className="text-fg text-[13px] font-medium">成本库</div>
-              <span className="text-fg-faint text-[11px]">综合单价一级 · 人材机二级 · 按专业/分部分类</span>
-            </>
-          )}
+        <div className="shrink-0 flex items-center gap-2 px-4 pt-2.5 pb-1.5">
+          <div className="text-fg text-[13px] font-medium">成本库</div>
+          <span className="text-fg-faint text-[11px]">综合单价一级 · 人材机二级 · 按专业/分部分类</span>
           <div className="ml-auto flex items-center gap-1.5">
-            {!compact && (
-              <div className="flex items-center rounded-lg border border-border overflow-hidden">
-                <button
-                  className={`inline-flex items-center gap-1 px-2 h-7 text-[11px] transition-colors ${
-                    view === "list" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"
-                  }`}
-                  onClick={() => setView("list")}
-                  title="列表视图"
-                >
-                  <List size={12} />
-                </button>
-                <button
-                  className={`inline-flex items-center gap-1 px-2 h-7 text-[11px] transition-colors ${
-                    view === "table" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"
-                  }`}
-                  onClick={() => setView("table")}
-                  title="表格视图"
-                >
-                  <Table size={12} />
-                </button>
-                <button
-                  className={`inline-flex items-center gap-1 px-2 h-7 text-[11px] transition-colors ${
-                    view === "inquiry" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"
-                  }`}
-                  onClick={() => setView("inquiry")}
-                  title="询价视图"
-                >
-                  <TrendingUp size={12} />
-                </button>
-              </div>
-            )}
-            {view !== "inquiry" && (
-              <>
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="搜索名称/规格/来源…"
-                  className={`px-2.5 h-7 rounded-lg border border-border bg-bg text-fg placeholder:text-fg-faint outline-none focus:border-accent transition-colors ${
-                    compact ? "w-32 text-[11px]" : "w-44 text-[12px]"
-                  }`}
-                />
-                <button
-                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors"
-                  onClick={load}
-                  title="刷新"
-                >
-                  <RefreshCw size={12} />
-                </button>
-                <button
-                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-border text-amber-400 hover:text-amber-300 hover:bg-bg-soft transition-colors"
-                  onClick={() => void pickImport()}
-                  title="导入 xlsx/csv 报价单或测算表"
-                >
-                  <CloudUpload size={12} />
-                </button>
-                <button
-                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-white text-[11.5px] hover:opacity-90 transition-opacity"
-                  onClick={openCreate}
-                >
-                  <Plus size={12} /> 新建
-                </button>
-              </>
-            )}
+            <div className="flex items-center rounded-lg border border-border overflow-hidden">
+              <button
+                className={`inline-flex items-center gap-1 px-2 h-7 text-[11px] transition-colors ${
+                  view === "list" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"
+                }`}
+                onClick={() => setView("list")}
+                title="列表视图"
+              >
+                <List size={12} />
+              </button>
+              <button
+                className={`inline-flex items-center gap-1 px-2 h-7 text-[11px] transition-colors ${
+                  view === "table" ? "bg-accent text-white" : "text-fg-faint hover:text-fg"
+                }`}
+                onClick={() => setView("table")}
+                title="表格视图"
+              >
+                <Table size={12} />
+              </button>
+            </div>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索名称/规格/来源…"
+              className="px-2.5 h-7 w-44 rounded-lg border border-border bg-bg text-fg text-[12px] placeholder:text-fg-faint outline-none focus:border-accent transition-colors"
+            />
+            <button
+              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-border text-fg-faint hover:text-fg hover:bg-bg-soft transition-colors"
+              onClick={load}
+              title="刷新"
+            >
+              <RefreshCw size={12} />
+            </button>
+            <button
+              className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-border text-amber-400 hover:text-amber-300 hover:bg-bg-soft transition-colors"
+              onClick={() => void pickImport()}
+              title="导入 xlsx/csv 报价单或测算表"
+            >
+              <CloudUpload size={12} />
+            </button>
+            <button
+              className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg bg-accent text-white text-[11.5px] hover:opacity-90 transition-opacity"
+              onClick={openCreate}
+            >
+              <Plus size={12} /> 新建
+            </button>
           </div>
         </div>
 
-        {/* 筛选行：分类面包屑/下拉 + 状态 + 计数（询价视图隐藏） */}
-        {view !== "inquiry" && (
-        <div className={`shrink-0 flex items-center gap-2 flex-wrap ${compact ? "px-3 pb-1" : "px-4 pb-2"}`}>
-          {compact ? (
-            <select
-              value={selectedPath}
-              onChange={(e) => setSelectedPath(e.target.value)}
-              className="h-6 px-1.5 rounded-md bg-bg-elev text-fg-dim text-[10.5px] border border-border outline-none max-w-[150px]"
-              title="分类路径（含子分类）"
+        {/* 筛选行：分类面包屑 + 状态 + 计数 */}
+        <div className="shrink-0 flex items-center gap-2 flex-wrap px-4 pb-2">
+          <div className="flex items-center gap-1 min-w-0">
+            <span
+              className={`px-2 h-6 rounded-full text-[11px] transition-colors cursor-pointer ${
+                selectedPath === "" ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
+              }`}
+              onClick={() => setSelectedPath("")}
             >
-              <option value="">全部分类</option>
-              {allPaths.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          ) : (
-            <div className="flex items-center gap-1 min-w-0">
-              <span
-                className={`px-2 h-6 rounded-full text-[11px] transition-colors cursor-pointer ${
-                  selectedPath === "" ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
-                }`}
-                onClick={() => setSelectedPath("")}
-              >
-                全部
-              </span>
-              {breadcrumb.map((seg, i) => {
-                const path = breadcrumb.slice(0, i + 1).join("/");
-                return (
-                  <span
-                    key={path}
-                    className={`px-2 h-6 rounded-full text-[11px] transition-colors cursor-pointer ${
-                      selectedPath === path ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
-                    }`}
-                    onClick={() => setSelectedPath(path)}
-                  >
-                    {seg}
-                  </span>
-                );
-              })}
-            </div>
-          )}
+              全部
+            </span>
+            {breadcrumb.map((seg, i) => {
+              const path = breadcrumb.slice(0, i + 1).join("/");
+              return (
+                <span
+                  key={path}
+                  className={`px-2 h-6 rounded-full text-[11px] transition-colors cursor-pointer ${
+                    selectedPath === path ? "bg-accent text-white" : "bg-bg-elev text-fg-faint hover:text-fg border border-border"
+                  }`}
+                  onClick={() => setSelectedPath(path)}
+                >
+                  {seg}
+                </span>
+              );
+            })}
+          </div>
           <div className="flex items-center gap-1">
             {STATUSES.map((s) => (
               <button
@@ -456,15 +408,12 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
             </span>
           )}
         </div>
-        )}
 
-        {/* 内容区（询价视图整面板替换列表/表格） */}
-        <div className={view === "inquiry" ? "flex-1 min-h-0" : "flex-1 min-h-0 overflow-y-auto"}>
-          {view === "inquiry" ? (
-            <CostInquiryPanel compact={compact} />
-          ) : loading ? (
+        {/* 内容区 */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {loading ? (
             <div className="p-4 space-y-2 animate-pulse">
-              {Array.from({ length: compact ? 4 : 6 }).map((_, i) => (
+              {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="h-11 rounded-lg bg-bg-elev/60" />
               ))}
             </div>
@@ -472,7 +421,7 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
             <div className="h-full flex items-center justify-center">
               <EmptyState message="暂无成本条目 — 新建、导入报价单，或测算完成后沉淀到成本库" />
             </div>
-          ) : view === "table" && !compact ? (
+          ) : view === "table" ? (
             <TableView
               rows={sorted}
               selected={selected}
@@ -486,7 +435,6 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
               onDelete={setDeleteName}
               onHistory={openHistory}
               onCompare={openCompare}
-              onInsert={onInsert}
             />
           ) : (
             <ListView
@@ -498,8 +446,6 @@ export function CostLibraryView({ compact = false, onInsert }: CostLibraryViewPr
               onDelete={setDeleteName}
               onHistory={openHistory}
               onCompare={openCompare}
-              onInsert={onInsert}
-              compact={compact}
             />
           )}
         </div>
@@ -710,14 +656,12 @@ function CategoryNode({
 interface CostRowProps {
   row: CostSummary;
   selected: boolean;
-  compact: boolean;
   priceText: (p: number) => string;
   onToggleSelect: (name: string) => void;
   onEdit: (e: CostSummary) => void;
   onDelete: (name: string) => void;
   onHistory: (name: string) => void;
   onCompare: (e: CostSummary) => void;
-  onInsert?: (e: CostSummary) => void;
 }
 
 interface ListViewProps {
@@ -729,8 +673,6 @@ interface ListViewProps {
   onDelete: (name: string) => void;
   onHistory: (name: string) => void;
   onCompare: (e: CostSummary) => void;
-  onInsert?: (e: CostSummary) => void;
-  compact: boolean;
 }
 
 interface TableRowProps {
@@ -742,7 +684,6 @@ interface TableRowProps {
   onDelete: (name: string) => void;
   onHistory: (name: string) => void;
   onCompare: (e: CostSummary) => void;
-  onInsert?: (e: CostSummary) => void;
 }
 
 interface TableViewProps {
@@ -758,30 +699,27 @@ interface TableViewProps {
   onDelete: (name: string) => void;
   onHistory: (name: string) => void;
   onCompare: (e: CostSummary) => void;
-  onInsert?: (e: CostSummary) => void;
 }
 
 // ── 列表项（React.memo：props 稳定（useCallback 回调）时跳过重渲染）──
 export const CostRow = memo(function CostRow({
   row: e,
   selected,
-  compact,
   priceText,
   onToggleSelect,
   onEdit,
   onDelete,
   onHistory,
   onCompare,
-  onInsert,
 }: CostRowProps) {
   return (
     <div
       key={e.name}
-      className={`group rounded-lg border transition-colors ${
+      className={`group rounded-lg border p-2.5 transition-colors ${
         selected
           ? "border-accent/50 bg-accent/10"
           : "border-border/70 bg-bg-soft/40 hover:border-accent/30 hover:bg-bg-soft/70"
-      } ${compact ? "p-2" : "p-2.5"}`}
+      }`}
     >
       <div className="flex items-center gap-2">
         <input
@@ -792,7 +730,7 @@ export const CostRow = memo(function CostRow({
           title="多选"
         />
         <Coins size={14} className="text-amber-400 shrink-0" />
-        <span className={`text-fg font-medium truncate ${compact ? "text-[12px]" : "text-[13px]"}`}>{e.title}</span>
+        <span className="text-fg font-medium truncate text-[13px]">{e.title}</span>
         <button
           className="w-5 h-5 shrink-0 inline-flex items-center justify-center rounded text-fg-faint opacity-0 group-hover:opacity-100 hover:text-sky-400 hover:bg-bg-elev transition-opacity"
           onClick={() => onCompare(e)}
@@ -814,11 +752,6 @@ export const CostRow = memo(function CostRow({
           {e.unit && <span className="text-fg-faint font-normal"> /{e.unit}</span>}
         </span>
         <span className="flex items-center gap-0.5 shrink-0">
-          {onInsert && (
-            <button className="w-6 h-6 inline-flex items-center justify-center rounded text-sky-400 hover:text-sky-300 hover:bg-bg-elev" onClick={() => onInsert(e)} title="插入输入框">
-              <Plus size={12} />
-            </button>
-          )}
           <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-sky-400 hover:bg-bg-elev" onClick={() => onCompare(e)} title="比价">
             <BarChart3 size={12} />
           </button>
@@ -892,24 +825,20 @@ export const ListView = memo(function ListView({
   onDelete,
   onHistory,
   onCompare,
-  onInsert,
-  compact,
 }: ListViewProps) {
   return (
-    <div className={compact ? "p-2 space-y-1" : "px-4 pb-4 space-y-1.5"}>
+    <div className="px-4 pb-4 space-y-1.5">
       {rows.map((e) => (
         <CostRow
           key={e.name}
           row={e}
           selected={selected.has(e.name)}
-          compact={compact}
           priceText={priceText}
           onToggleSelect={toggleSelect}
           onEdit={onEdit}
           onDelete={onDelete}
           onHistory={onHistory}
           onCompare={onCompare}
-          onInsert={onInsert}
         />
       ))}
     </div>
@@ -926,7 +855,6 @@ export const TableRow = memo(function TableRow({
   onDelete,
   onHistory,
   onCompare,
-  onInsert,
 }: TableRowProps) {
   return (
     <tr key={e.name} className={`border-b border-border-soft/50 hover:bg-bg-soft/50 transition-colors ${selected ? "bg-accent/10" : ""}`}>
@@ -972,11 +900,6 @@ export const TableRow = memo(function TableRow({
       </td>
       <td className="px-3 py-1.5">
         <div className="flex items-center justify-end gap-0.5">
-          {onInsert && (
-            <button className="w-6 h-6 inline-flex items-center justify-center rounded text-sky-400 hover:text-sky-300 hover:bg-bg-elev" onClick={() => onInsert(e)} title="插入输入框">
-              <Plus size={12} />
-            </button>
-          )}
           <button className="w-6 h-6 inline-flex items-center justify-center rounded text-fg-faint hover:text-sky-400 hover:bg-bg-elev" onClick={() => onCompare(e)} title="比价">
             <BarChart3 size={12} />
           </button>
@@ -995,7 +918,7 @@ export const TableRow = memo(function TableRow({
   );
 });
 
-// ── 表格视图（记忆中枢完整面板使用）──
+// ── 表格视图 ──
 const TableView = memo(function TableView({
   rows,
   selected,
@@ -1009,7 +932,6 @@ const TableView = memo(function TableView({
   onDelete,
   onHistory,
   onCompare,
-  onInsert,
 }: TableViewProps) {
   const sortArrow = (k: SortKey) => (sortKey === k ? (sortDir === 1 ? " ↑" : " ↓") : "");
   const th = (label: string, k?: SortKey, align: "left" | "right" = "left") => (
@@ -1064,7 +986,6 @@ const TableView = memo(function TableView({
               onDelete={onDelete}
               onHistory={onHistory}
               onCompare={onCompare}
-              onInsert={onInsert}
             />
           ))}
         </tbody>

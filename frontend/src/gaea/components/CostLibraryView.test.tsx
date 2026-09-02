@@ -120,7 +120,6 @@ describe("CostLibraryView 多级分类 + 列表/表格", () => {
     const props = {
       row: ENTRIES[0],
       selected: false,
-      compact: false,
       priceText: priceSpy,
       ...callbacks,
     };
@@ -148,7 +147,6 @@ describe("CostLibraryView 多级分类 + 列表/表格", () => {
       onDelete: vi.fn(),
       onHistory: vi.fn(),
       onCompare: vi.fn(),
-      compact: false,
     };
     const { rerender } = render(<ListView {...props} />);
     const base = priceSpy.mock.calls.length;

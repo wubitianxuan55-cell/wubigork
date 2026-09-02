@@ -66,7 +66,7 @@ function blankRecord(): CostInquiryRecord {
  * 自上而下：到期预警横幅（30 天内到期）→ 搜索 + 新增询价 → 数据点列表 →
  * 调差建议（成本库条目 vs 最新询价，|差幅|>2%）。
  */
-export function CostInquiryPanel({ compact = false }: { compact?: boolean }) {
+export function CostInquiryPanel() {
   const toast = useToast();
   const [records, setRecords] = useState<CostInquiryRecord[]>([]);
   const [expiring, setExpiring] = useState<CostInquiryRecord[]>([]);
@@ -199,7 +199,7 @@ export function CostInquiryPanel({ compact = false }: { compact?: boolean }) {
   );
 
   return (
-    <div className={`h-full flex flex-col min-h-0 ${compact ? "text-[11.5px]" : "text-[12.5px]"}`}>
+    <div className="h-full flex flex-col min-h-0 text-[12.5px]">
       {/* ① 到期预警横幅：valid_until 在 30 天内的数据点 */}
       {expiring.length > 0 && (
         <div className="shrink-0 mx-3 mt-2 rounded-lg border border-err/40 bg-err/10 px-3 py-2">
@@ -242,7 +242,7 @@ export function CostInquiryPanel({ compact = false }: { compact?: boolean }) {
       <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-2">
         {loading && records.length === 0 ? (
           <div className="space-y-2 animate-pulse">
-            {Array.from({ length: compact ? 3 : 5 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="h-12 rounded-lg bg-bg-elev/60" />
             ))}
           </div>
