@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Alert, Avatar, Button, Card, DatePicker, Descriptions, Input, List, Modal, Popconfirm, Space, Switch, Tag, Tooltip, Typography, message,
+  Alert, Avatar, Button, DatePicker, Input, Modal, Popconfirm, Space, Switch, Tag, Tooltip, Typography, message,
 } from 'antd'
 import {
-  QrcodeOutlined, ReloadOutlined, SendOutlined, BellOutlined, DeleteOutlined, LinkOutlined, CheckCircleOutlined, WarningOutlined, PlusOutlined,
+  QrcodeOutlined, ReloadOutlined, SendOutlined, BellOutlined, DeleteOutlined, CheckCircleOutlined, WarningOutlined, PlusOutlined,
+  WechatOutlined, ClockCircleOutlined, MessageOutlined, BookOutlined, NotificationOutlined,
 } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { app } from '../gaea/lib/bridge'
@@ -11,26 +12,41 @@ import type {
   WeixinAssistantStatusRow, WeixinAssistantView, WeixinReminderConfigView, WeixinReminderView,
 } from '../gaea/lib/types'
 import { isPageVisible } from '../lib/pollingGate'
+import './weixin-page.css'
 
 /**
- * WeixinPage — 微信助手管理台（v4.4 触点·书房板块）。
+ * WeixinPage — 微信助手「通讯枢纽」工作台（v4.47 星枢化重构；前身 v4.4 触点三卡布局）。
  *
- * 三卡布局：连接（助手卡列表：头像/人格/通道状态徽标/启停/逐助手扫码绑定/
- * 删除 + 新增微信助手表单）/ 离线代办（提醒列表 + 手动新建 + 开关）/ 使用
- * 说明（微信文本指令示例）。页面内容层 zh 单语（i18n 决策）。数据面全部走
- * app 代理 work 面：WhisperWeixinStatus（通道状态）与 WhisperAssistantList
- * （完整字段）按 id merge 成助手行；除删除外保存一律传 List 完整对象（后端
- * 契约：空 token 字段保留现值，保存后自动重拉通道）。id='gaea' 为核心助手：
- * 禁删禁停。
+ * 布局（Constellation OS 三分区语言）：顶部玻璃细条（板块名 + 通道遥测 meta +
+ * 刷新）/ 左通道轨道（每助手一条 rail item：头像 + 名字 + 状态字 + 状态点，
+ * 「+ 新增助手」挂组尾；支撑组 = 离线提醒 / 使用指南）/ 主区三视图（助手详情、
+ * 离线代办、使用指南）。功能面与 v4.4 逐项对齐零删减：多助手管理（人格 Tag/
+ * 状态徽标/启停/删除/逐助手扫码绑定 + 新增流）、离线提醒（全局开关 + 手动
+ * 新建 + 列表）、使用说明、会话过期警示。
+ *
+ * 数据面全部走 app 代理 work 面：WhisperWeixinStatus（通道状态）与
+ * WhisperAssistantList（完整字段）按 id merge 成助手行；除删除外保存一律传
+ * List 完整对象（后端契约：空 token 字段保留现值，保存后自动重拉通道）。
+ * id='gaea' 为核心助手：禁删禁停。
  */
 
 const POLL_MS = 5000
+
+type MainView = 'channel' | 'reminders' | 'guide'
 
 const statusTag = (row: WeixinAssistantStatusRow) => {
   if (!row.hasToken) return <Tag>未绑定</Tag>
   if (row.wxSessionExpired) return <Tag color="warning" icon={<WarningOutlined />}>会话过期</Tag>
   if (row.wxRunning) return <Tag color="success" icon={<CheckCircleOutlined />}>运行中</Tag>
   return <Tag color="default">已停止</Tag>
+}
+
+// 通道三态投影（rail 状态字/点 + 详情文案共用；与 statusTag 同口径）
+const channelStatusOf = (row: WeixinAssistantStatusRow): { kind: 'running' | 'expired' | 'stopped' | 'unbound'; text: string } => {
+  if (!row.hasToken) return { kind: 'unbound', text: '未绑定' }
+  if (row.wxSessionExpired) return { kind: 'expired', text: '会话过期' }
+  if (row.wxRunning) return { kind: 'running', text: '运行中' }
+  return { kind: 'stopped', text: '已停止' }
 }
 
 const reminderTag = (status: string) => {
@@ -69,7 +85,7 @@ const viewOf = (row: AssistantRow): WeixinAssistantView => ({
   enabled: row.enabled, portraitUrl: row.portraitUrl,
 })
 
-// 行 → 状态行投影（Status 未回时按 wxToken 兜底 hasToken，供 statusTag 复用）
+// 行 → 状态行投影（Status 未回时按 wxToken 兜底 hasToken，供状态区复用）
 const rowStatus = (row: AssistantRow): WeixinAssistantStatusRow => ({
   id: row.id, name: row.name, personalityId: row.personalityId, enabled: row.enabled,
   hasToken: row.status?.hasToken ?? Boolean(row.wxToken),
@@ -77,10 +93,28 @@ const rowStatus = (row: AssistantRow): WeixinAssistantStatusRow => ({
   wxSessionExpired: row.status?.wxSessionExpired,
 })
 
+/** 扫码相位 → 三步指示（扫码 → 确认 → 完成）的当前步。 */
+const qrStepIndex = (phase: string): number => {
+  switch (phase) {
+    case 'scanned': case 'needVerify': return 1
+    case 'confirmed': return 2
+    default: return 0
+  }
+}
+
 const WeixinPage: React.FC = () => {
   const [rows, setRows] = useState<AssistantRow[]>([])
   const [reminders, setReminders] = useState<WeixinReminderView[]>([])
   const [cfg, setCfg] = useState<WeixinReminderConfigView | null>(null)
+
+  // 主区视图 + 选中通道（默认首条；数据刷新后选中 id 消失则回退首条）
+  const [view, setView] = useState<MainView>('channel')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selected = useMemo(() => rows.find((r) => r.id === selectedId) ?? null, [rows, selectedId])
+  useEffect(() => {
+    if (selectedId && rows.some((r) => r.id === selectedId)) return
+    setSelectedId(rows[0]?.id ?? null)
+  }, [rows, selectedId])
 
   // ── 扫码绑定流（target 为绑定目标助手；新增流传本地暂存对象）──
   const [qrTarget, setQrTarget] = useState<WeixinAssistantView | null>(null)
@@ -161,7 +195,7 @@ const WeixinPage: React.FC = () => {
     }
   }, [qrOpen, qrToken, qrPhase, verifyCode])
 
-  // 逐助手扫码绑定：target 为要绑定的助手（新增流传本地暂存对象）
+  // 逐助手扫码绑定：target 为要绑定的助手（新增助手此时才落库）
   const startBinding = async (target?: WeixinAssistantView) => {
     setQrTarget(target ?? null)
     setQrOpen(true)
@@ -191,6 +225,8 @@ const WeixinPage: React.FC = () => {
         wxToken: String(res.botToken ?? ''), wxBotId: String(res.botId ?? ''), wxUserId: String(res.userId ?? ''),
       })
       message.success('微信绑定已保存，通道已重启')
+      setSelectedId(qrTarget.id) // 新增助手落库后主区直接落在该通道
+      setView('channel')
       setQrOpen(false)
       loadAssistants()
     } catch (e) {
@@ -276,145 +312,216 @@ const WeixinPage: React.FC = () => {
     }
   }
 
+  // 通道遥测 meta（strip 右侧，等宽数字）
+  const runningCount = rows.filter((r) => rowStatus(r).wxRunning && rowStatus(r).hasToken).length
+  const pendingCount = reminders.filter((r) => r.status === 'pending').length
+
+  // 扫码三步指示
+  const qrSteps = ['扫码', '确认', '完成']
+  const qrCurrent = qrStepIndex(qrPhase)
+
   return (
-    <div style={{ padding: 20, maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Card size="small">
-        <Space direction="vertical" size={2} style={{ width: '100%' }}>
-          <Typography.Text strong>微信助手 · 离线代办遥控器</Typography.Text>
-          <Typography.Text type="secondary">
-            把微信变成 gaea 的遥控器：在微信里给助手发消息即可触发桌面端能力；
-            提醒到点后由桌面端经微信回推——桌面常驻，人不在电脑前也能收到。
-          </Typography.Text>
-        </Space>
-      </Card>
+    <div className="wx-workspace">
+      <div className="wx-bg" aria-hidden="true" />
+      <div className="wx-grid" aria-hidden="true" />
 
-      <Card
-        size="small"
-        title={<Space><LinkOutlined />连接</Space>}
-        extra={(
-          <Space size={4}>
-            <Button aria-label="刷新助手" type="text" size="small" icon={<ReloadOutlined />} onClick={loadAssistants} />
-            <Button icon={<PlusOutlined />} type="primary" size="small" onClick={() => setAddOpen(true)}>新增微信助手</Button>
-          </Space>
-        )}
-      >
-        <List
-          size="small"
-          dataSource={rows}
-          locale={{ emptyText: '暂无助手——点右上角「新增微信助手」创建' }}
-          renderItem={(row) => {
-            const core = row.id === 'gaea' // 核心助手：禁删禁停
-            const bound = rowStatus(row).hasToken
-            return (
-              <List.Item
-                actions={[
-                  <Button
-                    key="bind" type="text" size="small" icon={<QrcodeOutlined />}
-                    onClick={() => startBinding(viewOf(row))}
-                  >
-                    {bound ? '重新绑定' : '扫码绑定'}
-                  </Button>,
-                  ...(core ? [] : [
-                    <Popconfirm
-                      key="del" title="删除助手"
-                      description={`删除「${row.name || row.id}」后其微信通道一并停止。`}
-                      okText="删除" cancelText="取消"
-                      onConfirm={() => removeAssistant(row)}
-                    >
-                      <Button aria-label={`删除 ${row.name || row.id}`} type="text" size="small" danger icon={<DeleteOutlined />} />
-                    </Popconfirm>,
-                  ]),
-                ]}
-              >
-                <Space size={12}>
-                  <Avatar size={32} src={row.portraitUrl || undefined}>{(row.name || row.id).slice(0, 1)}</Avatar>
-                  <Typography.Text strong>{row.name || row.id}</Typography.Text>
-                  <Tag color="purple">人格 {row.personalityId}</Tag>
-                  {statusTag(rowStatus(row))}
-                  {core ? (
-                    <Tooltip title="核心助手，不可停用">
-                      <span>
-                        <Switch size="small" aria-label={`启停 ${row.name || row.id}`} checked={row.enabled} disabled />
-                      </span>
-                    </Tooltip>
-                  ) : (
-                    <Switch
-                      size="small" aria-label={`启停 ${row.name || row.id}`} checked={row.enabled}
-                      onChange={(v) => toggleAssistant(row, v)}
-                    />
-                  )}
-                </Space>
-              </List.Item>
-            )
-          }}
-        />
-        {rows.some((r) => rowStatus(r).wxSessionExpired) && (
-          <Alert
-            style={{ marginTop: 8 }} type="warning" showIcon
-            message="微信会话已过期"
-            description="重新扫码绑定即可恢复（桌面端无需重启）。"
-          />
-        )}
-      </Card>
+      {/* 顶部细条：板块名 + 一句话定位 + 通道遥测 + 刷新 */}
+      <header className="wx-strip">
+        <span className="wx-strip-title"><WechatOutlined aria-hidden="true" /> 微信助手</span>
+        <span className="wx-strip-sub">把微信变成 gaea 的遥控器：发消息触发桌面能力，提醒到点经微信回推</span>
+        <span className="wx-strip-meta" role="status">
+          {rows.length} 通道 · {runningCount} 运行中{cfg ? ` · 提醒 ${cfg.remindersEnabled ? '开' : '关'}` : ''}
+        </span>
+        <button type="button" className="wx-refresh-btn" aria-label="刷新助手" title="刷新" onClick={loadAssistants}>
+          <ReloadOutlined aria-hidden="true" />
+        </button>
+      </header>
 
-      <Card
-        size="small"
-        title={<Space><BellOutlined />离线代办提醒</Space>}
-        extra={cfg && (
-          <Space size={8}>
-            <Typography.Text type="secondary">到点回推微信</Typography.Text>
-            <Switch checked={cfg.remindersEnabled} onChange={toggleReminders} />
-          </Space>
-        )}
-      >
-        <Space.Compact style={{ width: '100%', marginBottom: 12 }}>
-          <Input
-            placeholder="提醒事项，如「交周报」"
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            onPressEnter={addReminder}
-          />
-          <DatePicker
-            showTime={{ format: 'HH:mm' }} format="YYYY-MM-DD HH:mm"
-            placeholder="触发时间"
-            value={newTime}
-            onChange={setNewTime}
-            style={{ width: 190 }}
-          />
-          <Button type="primary" icon={<SendOutlined />} loading={adding} onClick={addReminder}>创建</Button>
-        </Space.Compact>
-        <List
-          size="small"
-          dataSource={reminders}
-          locale={{ emptyText: '暂无提醒——在微信里对助手说「提醒我 30分钟后 喝水」即可创建' }}
-          renderItem={(r) => (
-            <List.Item
-              actions={[
-                <Button key="del" type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => removeReminder(r.id)} />,
-              ]}
+      <div className="wx-body">
+        {/* 左：通道轨道（助手清单即导航；支撑组挂提醒/指南） */}
+        <aside className="wx-rail v3-panel" aria-label="微信助手导航">
+          <div className="v3-panel-head">
+            <span className="v3-panel-title">通道</span>
+            <span className="v3-panel-spacer" />
+            <button
+              type="button" className="wx-refresh-btn" aria-label="新增助手" title="新增微信助手"
+              onClick={() => setAddOpen(true)}
             >
-              <Space size={12}>
-                {reminderTag(r.status)}
-                <Typography.Text strong>{r.text}</Typography.Text>
-                <Typography.Text type="secondary">{dayjs(r.fireAt).format('M月D日 HH:mm')}</Typography.Text>
-                {r.source === 'weixin' && <Tag>微信下达</Tag>}
-                {r.failCount > 0 && r.status === 'pending' && <Tag color="warning">重试 {r.failCount}/5</Tag>}
-              </Space>
-            </List.Item>
-          )}
-        />
-      </Card>
+              <PlusOutlined aria-hidden="true" />
+            </button>
+          </div>
+          <nav className="wx-rail-nav">
+            {rows.map((row) => {
+              const st = channelStatusOf(rowStatus(row))
+              const active = view === 'channel' && row.id === selectedId
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  className={`wx-rail-item wx-rail-ch${active ? ' is-active' : ''}`}
+                  aria-label={`通道 ${row.name || row.id}`}
+                  aria-current={active ? 'page' : undefined}
+                  title={`${row.name || row.id} · ${st.text}`}
+                  onClick={() => { setSelectedId(row.id); setView('channel') }}
+                >
+                  <Avatar size={26} src={row.portraitUrl || undefined}>{(row.name || row.id).slice(0, 1)}</Avatar>
+                  <span className="wx-rail-name">{row.name || row.id}</span>
+                  <span className="wx-rail-status">{st.text}<span className={`wx-dot is-${st.kind}`} aria-hidden="true" /></span>
+                </button>
+              )
+            })}
+            {rows.length === 0 && (
+              <div className="wx-rail-empty">暂无助手——点上方 + 新增微信助手</div>
+            )}
+            <button type="button" className="wx-rail-item wx-rail-add" onClick={() => setAddOpen(true)}>
+              <PlusOutlined aria-hidden="true" />
+              <span className="wx-rail-name">新增微信助手</span>
+            </button>
 
-      <Card size="small" title="怎么用">
-        <Descriptions column={1} size="small" bordered>
-          <Descriptions.Item label="设提醒">「提醒我 30分钟后 喝水」「明天早上9点 开站会」「18:30 接孩子」</Descriptions.Item>
-          <Descriptions.Item label="收提醒">到点桌面端自动经微信回推（需助手在线且你至少发过一条消息）</Descriptions.Item>
-          <Descriptions.Item label="聊天">其他消息照常与助手对话（联网搜索可用）</Descriptions.Item>
-        </Descriptions>
-        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-          无时间表达的提醒请求会收到格式提示；「今天 + 已过时刻」会收到确认询问，不会误设。
-        </Typography.Text>
-      </Card>
+            <div className="wx-rail-group">支持</div>
+            <button
+              type="button"
+              className={`wx-rail-item${view === 'reminders' ? ' is-active' : ''}`}
+              aria-label={pendingCount > 0 ? `离线提醒，${pendingCount} 条待触发` : '离线提醒'}
+              aria-current={view === 'reminders' ? 'page' : undefined}
+              onClick={() => setView('reminders')}
+            >
+              <BellOutlined aria-hidden="true" style={{ fontSize: 15 }} />
+              <span className="wx-rail-name">离线提醒</span>
+              {pendingCount > 0 && <span className="wx-rail-badge" aria-hidden="true">{pendingCount}</span>}
+            </button>
+            <button
+              type="button"
+              className={`wx-rail-item${view === 'guide' ? ' is-active' : ''}`}
+              aria-current={view === 'guide' ? 'page' : undefined}
+              onClick={() => setView('guide')}
+            >
+              <BookOutlined aria-hidden="true" style={{ fontSize: 15 }} />
+              <span className="wx-rail-name">使用指南</span>
+            </button>
+          </nav>
+        </aside>
+
+        {/* 中：主区三视图 */}
+        <main className="wx-main v3-panel" aria-label="主区视图">
+          <div className="wx-main-scroll">
+            {view === 'channel' && (
+              selected ? (
+                <ChannelDetail
+                  row={selected}
+                  core={selected.id === 'gaea'}
+                  onBind={() => startBinding(viewOf(selected))}
+                  onToggle={(v) => toggleAssistant(selected, v)}
+                  onDelete={() => removeAssistant(selected)}
+                />
+              ) : (
+                <div className="wx-empty">
+                  <span className="wx-empty-icon"><WechatOutlined aria-hidden="true" /></span>
+                  <span className="wx-empty-title">还没有微信助手</span>
+                  <span className="wx-empty-hint">
+                    新增助手并扫码绑定微信后，即可在微信里与 gaea 对话、设提醒、收推送。
+                  </span>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>新增微信助手</Button>
+                </div>
+              )
+            )}
+
+            {view === 'reminders' && (
+              <>
+                <div className="wx-main-head">
+                  <div>
+                    <div className="wx-main-title">离线代办提醒</div>
+                    <div className="wx-main-sub">到点由桌面端经微信回推——桌面常驻，人不在电脑前也能收到。</div>
+                  </div>
+                  {cfg && (
+                    <span className="wx-rem-config">
+                      到点回推微信
+                      <Switch
+                        size="small" aria-label="到点回推微信" checked={cfg.remindersEnabled}
+                        onChange={toggleReminders}
+                      />
+                    </span>
+                  )}
+                </div>
+                <div className="wx-compose">
+                  <Input
+                    className="wx-compose-input"
+                    placeholder="提醒事项，如「交周报」"
+                    value={newText}
+                    onChange={(e) => setNewText(e.target.value)}
+                    onPressEnter={addReminder}
+                  />
+                  <DatePicker
+                    showTime={{ format: 'HH:mm' }} format="YYYY-MM-DD HH:mm"
+                    placeholder="触发时间"
+                    value={newTime}
+                    onChange={setNewTime}
+                    style={{ width: 190 }}
+                  />
+                  <Button type="primary" icon={<SendOutlined />} loading={adding} onClick={addReminder}>创建</Button>
+                </div>
+                {reminders.length > 0 ? (
+                  <div className="wx-rem-list">
+                    {reminders.map((r) => (
+                      <div key={r.id} className="wx-rem-item">
+                        {reminderTag(r.status)}
+                        <span className="wx-rem-text">{r.text}</span>
+                        {r.source === 'weixin' && <Tag>微信下达</Tag>}
+                        {r.failCount > 0 && r.status === 'pending' && <Tag color="warning">重试 {r.failCount}/5</Tag>}
+                        <span className="wx-rem-time">{dayjs(r.fireAt).format('M月D日 HH:mm')}</span>
+                        <button
+                          type="button" className="wx-rem-del" aria-label={`删除提醒 ${r.text}`}
+                          title="删除提醒" onClick={() => removeReminder(r.id)}
+                        >
+                          <DeleteOutlined aria-hidden="true" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <Typography.Text type="secondary" style={{ display: 'block', marginTop: 14, fontSize: 12 }}>
+                    暂无提醒——在微信里对助手说「提醒我 30分钟后 喝水」即可创建。
+                  </Typography.Text>
+                )}
+              </>
+            )}
+
+            {view === 'guide' && (
+              <>
+                <div className="wx-main-head">
+                  <div>
+                    <div className="wx-main-title">使用指南</div>
+                    <div className="wx-main-sub">
+                      在微信里给助手发消息即可触发桌面端能力；提醒到点后由桌面端经微信回推——桌面常驻，人不在电脑前也能收到。
+                    </div>
+                  </div>
+                </div>
+                <div className="wx-guide">
+                  <div className="wx-guide-card">
+                    <div className="wx-guide-label"><ClockCircleOutlined aria-hidden="true" /> 设提醒</div>
+                    <div className="wx-cmd-row">
+                      <span className="wx-cmd">提醒我 30分钟后 喝水</span>
+                      <span className="wx-cmd">明天早上9点 开站会</span>
+                      <span className="wx-cmd">18:30 接孩子</span>
+                    </div>
+                  </div>
+                  <div className="wx-guide-card">
+                    <div className="wx-guide-label"><NotificationOutlined aria-hidden="true" /> 收提醒</div>
+                    <div className="wx-guide-desc">到点桌面端自动经微信回推（需助手在线且你至少发过一条消息）。</div>
+                  </div>
+                  <div className="wx-guide-card">
+                    <div className="wx-guide-label"><MessageOutlined aria-hidden="true" /> 聊天</div>
+                    <div className="wx-guide-desc">其他消息照常与助手对话（联网搜索可用）。</div>
+                  </div>
+                </div>
+                <div className="wx-guide-footnote">
+                  无时间表达的提醒请求会收到格式提示；「今天 + 已过时刻」会收到确认询问，不会误设。
+                </div>
+              </>
+            )}
+          </div>
+        </main>
+      </div>
 
       <Modal
         title="新增微信助手" open={addOpen} width={420}
@@ -438,12 +545,24 @@ const WeixinPage: React.FC = () => {
         open={qrOpen} footer={null} width={360}
         onCancel={() => { setQrOpen(false); setQrTarget(null) }}
       >
-        <Space direction="vertical" size={12} style={{ width: '100%', textAlign: 'center' }}>
-          {qrImage ? (
-            <img src={qrImage} alt="微信二维码" style={{ width: 240, height: 240, margin: '0 auto', display: 'block' }} />
-          ) : (
-            <div style={{ width: 240, height: 240, lineHeight: '240px', margin: '0 auto', display: 'block', background: 'var(--md-sys-color-surface-variant, #f5f5f5)' }}>加载中…</div>
-          )}
+        <Space direction="vertical" size={14} style={{ width: '100%', textAlign: 'center', marginTop: 8 }}>
+          <div className="wx-qr-steps" aria-label="绑定进度">
+            {qrSteps.map((label, i) => (
+              <React.Fragment key={label}>
+                {i > 0 && <span className="wx-qr-step-line" aria-hidden="true" />}
+                <span className={`wx-qr-step${i === qrCurrent ? ' is-current' : ''}${i < qrCurrent ? ' is-done' : ''}`}>
+                  <span className="wx-qr-step-dot" aria-hidden="true" />{label}
+                </span>
+              </React.Fragment>
+            ))}
+          </div>
+          <div className="wx-qr-frame">
+            {qrImage ? (
+              <img src={qrImage} alt="微信二维码" />
+            ) : (
+              <span className="wx-qr-frame-tip">加载中…</span>
+            )}
+          </div>
           {qrPhase === 'waiting' && <Typography.Text type="secondary">请用微信扫码</Typography.Text>}
           {qrPhase === 'scanned' && <Typography.Text type="secondary">已扫码，请在手机上确认</Typography.Text>}
           {qrPhase === 'needVerify' && (
@@ -466,6 +585,97 @@ const WeixinPage: React.FC = () => {
         </Space>
       </Modal>
     </div>
+  )
+}
+
+/** 主区 · 通道详情：身份头 + 键值栅格（通道状态/微信绑定/启停）+ 操作区。 */
+const ChannelDetail: React.FC<{
+  row: AssistantRow
+  core: boolean
+  onBind: () => void
+  onToggle: (v: boolean) => void
+  onDelete: () => void
+}> = ({ row, core, onBind, onToggle, onDelete }) => {
+  const st = channelStatusOf(rowStatus(row))
+  const bound = rowStatus(row).hasToken
+  const name = row.name || row.id
+  return (
+    <>
+      <div className="wx-main-head">
+        <Avatar size={44} src={row.portraitUrl || undefined}>{name.slice(0, 1)}</Avatar>
+        <div style={{ minWidth: 0 }}>
+          <div className="wx-main-title">
+            {name}
+            {core && <Tag color="gold">核心</Tag>}
+            <Tag color="purple">人格 {row.personalityId}</Tag>
+          </div>
+          <div className="wx-main-sub">
+            {bound ? '微信通道已就绪：在微信里给该助手发消息即可对话与设提醒。' : '尚未绑定微信——扫码绑定后此助手即可在微信里收发消息。'}
+          </div>
+        </div>
+        <div className="wx-detail-head-actions">
+          <Button type="primary" size="small" icon={<QrcodeOutlined />} onClick={onBind}>
+            {bound ? '重新绑定' : '扫码绑定'}
+          </Button>
+          {!core && (
+            <Popconfirm
+              title="删除助手"
+              description={`删除「${name}」后其微信通道一并停止。`}
+              okText="删除" cancelText="取消"
+              onConfirm={onDelete}
+            >
+              <Button aria-label={`删除 ${name}`} type="text" size="small" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          )}
+        </div>
+      </div>
+
+      {/* 会话过期警示（全局：任一通道过期即提示，指回对应轨道项） */}
+      {st.kind === 'expired' && (
+        <Alert
+          className="wx-detail-alert" type="warning" showIcon
+          message="该助手微信会话已过期"
+          description="重新扫码绑定即可恢复（桌面端无需重启）。"
+        />
+      )}
+
+      <div className="wx-kv-grid">
+        <div className="wx-kv">
+          <div className="wx-kv-label">通道状态</div>
+          <div className="wx-kv-value">{statusTag(rowStatus(row))}</div>
+        </div>
+        <div className="wx-kv">
+          <div className="wx-kv-label">微信绑定</div>
+          <div className="wx-kv-value">{bound ? '已绑定' : '未绑定'}</div>
+        </div>
+        <div className="wx-kv">
+          <div className="wx-kv-label">启用</div>
+          <div className="wx-kv-value">
+            {core ? (
+              <Tooltip title="核心助手，不可停用">
+                <span>
+                  <Switch size="small" aria-label={`启停 ${name}`} checked={row.enabled} disabled />
+                </span>
+              </Tooltip>
+            ) : (
+              <Switch
+                size="small" aria-label={`启停 ${name}`} checked={row.enabled}
+                onChange={onToggle}
+              />
+            )}
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {row.enabled ? '接收微信消息' : '已停用，不收发'}
+            </Typography.Text>
+          </div>
+        </div>
+      </div>
+
+      <Typography.Text
+        type="secondary" style={{ display: 'block', marginTop: 18, fontSize: 12 }}
+      >
+        人格 ID 可在新增后于角色库调整；绑定与启停立即生效，无需重启桌面端。
+      </Typography.Text>
+    </>
   )
 }
 

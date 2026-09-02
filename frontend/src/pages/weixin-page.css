@@ -1,0 +1,541 @@
+/* ═══════════════════════════════════════════════════════════════════
+   微信助手「通讯枢纽」工作台（星枢 Constellation OS 化）
+   布局：顶部玻璃细条（标题/通道遥测/刷新）+ 左通道轨道 + 主区三视图
+  （助手详情 / 离线提醒 / 使用指南）。对齐 memoryhub hub.css 的轨道语言：
+  激活 = 主色容器底 + 左缘光条；氛围层降透明不抢戏。
+   令牌纪律：只消费 --md-sys-* / --gaea-* / --color-* / --v3-* 与旧栈
+   --bg/--fg/--accent/--border 等主题令牌，零硬编码色值。
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── 工作台骨架 ─────────────────────────────────────────────────── */
+.wx-workspace {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-bg-layout, var(--bg));
+}
+
+/* 氛围层：令牌渐变 + 网格（降透明，通讯波纹意象） */
+.wx-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  background:
+    radial-gradient(ellipse 55% 45% at 18% 20%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 85% 80%, color-mix(in srgb, var(--info, var(--accent)) 5%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-soft, var(--bg)) 100%);
+}
+.wx-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 65% at 50% 40%, black 35%, transparent 100%);
+}
+
+/* ── 顶部细条（板块名收敛 + 通道遥测） ─────────────────────────── */
+.wx-strip {
+  position: relative;
+  z-index: 40;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 14px;
+  background: var(--gaea-glass-bg, var(--md-sys-color-surface-container));
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  border-bottom: 1px solid var(--color-border, var(--border));
+}
+.wx-strip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--v3-edge);
+  pointer-events: none;
+}
+.wx-strip-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text, var(--fg));
+  white-space: nowrap;
+}
+.wx-strip-title svg { color: var(--gaea-glow); }
+.wx-strip-sub {
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wx-strip-meta {
+  margin-left: auto;
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  white-space: nowrap;
+  opacity: 0.85;
+}
+.wx-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-secondary, var(--fg-faint));
+  cursor: pointer;
+  font-size: 13px;
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
+}
+.wx-refresh-btn:hover {
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  color: var(--color-text, var(--fg));
+}
+.wx-refresh-btn:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+
+/* ── 主体：左轨道 | 主区 ────────────────────────────────────────── */
+.wx-body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* 左：通道轨道（每助手一条通道；对齐 v3 轨道语言） */
+.wx-rail {
+  width: 196px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.wx-rail-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 6px;
+  scrollbar-width: thin;
+}
+.wx-rail-group {
+  padding: 2px 10px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary, var(--fg-faint));
+  white-space: nowrap;
+}
+.wx-rail-group:not(:first-child) { margin-top: 10px; }
+.wx-rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 4px 9px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-secondary, var(--md-sys-color-text-secondary));
+  cursor: pointer;
+  text-align: left;
+  font-size: 12.5px;
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
+}
+.wx-rail-item:hover {
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+  color: var(--color-text, var(--fg));
+}
+.wx-rail-item:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 1px; }
+.wx-rail-item.is-active {
+  background: var(--color-primary-container, var(--md-sys-color-primary-container));
+  color: var(--color-on-primary-container, var(--md-sys-color-on-primary-container));
+}
+/* 左缘光条（激活态，对齐 v3 轨道语言） */
+.wx-rail-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--gaea-glow);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gaea-glow) 60%, transparent);
+}
+.wx-rail-item .ant-avatar { flex-shrink: 0; }
+.wx-rail-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.wx-rail-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  white-space: nowrap;
+}
+.wx-rail-item.is-active .wx-rail-status {
+  color: color-mix(in srgb, var(--color-on-primary-container, var(--fg)) 78%, transparent);
+}
+
+/* 通道状态点（颜色 + rail 文字双重传达；详情区有完整 Tag 文案） */
+.wx-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-text-secondary, var(--fg-faint));
+}
+.wx-dot.is-running {
+  background: var(--color-success, var(--md-sys-color-success));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-success, var(--md-sys-color-success)) 55%, transparent);
+  animation: wx-pulse 2.4s ease-in-out infinite;
+}
+.wx-dot.is-expired { background: var(--color-warning, var(--md-sys-color-warning)); }
+.wx-dot.is-stopped { background: color-mix(in srgb, var(--color-text-secondary, var(--fg-faint)) 62%, transparent); }
+.wx-dot.is-unbound {
+  background: transparent;
+  border: 1.5px dashed color-mix(in srgb, var(--color-text-secondary, var(--fg-faint)) 70%, transparent);
+}
+@keyframes wx-pulse {
+  0%, 100% { box-shadow: 0 0 4px color-mix(in srgb, var(--color-success, var(--md-sys-color-success)) 35%, transparent); }
+  50% { box-shadow: 0 0 9px color-mix(in srgb, var(--color-success, var(--md-sys-color-success)) 75%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wx-dot.is-running { animation: none; }
+}
+
+/* 轨道次级按钮：新增助手 / 提醒 / 指南 */
+.wx-rail-badge {
+  min-width: 17px;
+  height: 16px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 10px;
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--gaea-glow) 18%, transparent);
+  color: var(--color-text, var(--fg));
+}
+.wx-rail-add {
+  border: 1px dashed color-mix(in srgb, var(--color-text-secondary, var(--fg-faint)) 45%, transparent);
+  background: transparent;
+  color: var(--color-text-secondary, var(--fg-faint));
+}
+.wx-rail-add:hover {
+  border-color: var(--gaea-glow);
+  color: var(--color-text, var(--fg));
+  background: var(--color-surface-container-high, var(--md-sys-color-surface-container-high));
+}
+.wx-rail-empty {
+  padding: 6px 10px 8px;
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  line-height: 1.5;
+}
+
+/* ── 主区 ───────────────────────────────────────────────────────── */
+.wx-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.wx-main-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 18px;
+  scrollbar-width: thin;
+}
+.wx-main-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.wx-main-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text, var(--fg));
+  line-height: 1.3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wx-main-sub {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  line-height: 1.5;
+}
+
+/* 助手详情：身份区 + 键值栅格 + 操作区 */
+.wx-detail-head-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.wx-kv-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.wx-kv {
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  border: 1px solid var(--color-border, var(--border-soft));
+}
+.wx-kv-label {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary, var(--fg-faint));
+  white-space: nowrap;
+}
+.wx-kv-value {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-size: 13px;
+  color: var(--color-text, var(--fg));
+  flex-wrap: wrap;
+}
+.wx-detail-alert { margin-top: 14px; }
+
+/* ── 提醒视图 ───────────────────────────────────────────────────── */
+.wx-rem-config {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  white-space: nowrap;
+}
+.wx-compose {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wx-compose-input { flex: 1; min-width: 180px; }
+.wx-rem-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.wx-rem-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  border: 1px solid var(--color-border, var(--border-soft));
+  transition: border-color var(--md-sys-transition-fast, 200ms), box-shadow var(--md-sys-transition-fast, 200ms);
+}
+.wx-rem-item:hover {
+  border-color: color-mix(in srgb, var(--gaea-glow) 22%, var(--color-border, var(--border-soft)));
+  box-shadow: var(--v3-glow-soft);
+}
+.wx-rem-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text, var(--fg));
+}
+.wx-rem-time {
+  flex-shrink: 0;
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  white-space: nowrap;
+}
+.wx-rem-del {
+  flex-shrink: 0;
+  border: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-secondary, var(--fg-faint));
+  cursor: pointer;
+  font-size: 13px;
+  transition: background var(--md-sys-transition-fast, 200ms), color var(--md-sys-transition-fast, 200ms);
+}
+.wx-rem-del:hover { background: color-mix(in srgb, var(--color-destructive, var(--md-sys-color-error)) 14%, transparent); color: var(--color-destructive, var(--md-sys-color-error)); }
+.wx-rem-del:focus-visible { outline: 2px solid var(--gaea-glow); outline-offset: 2px; }
+
+/* ── 指南视图（指令卡 + 示例句 chip） ──────────────────────────── */
+.wx-guide {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 640px;
+}
+.wx-guide-card {
+  padding: 12px 14px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  border: 1px solid var(--color-border, var(--border-soft));
+}
+.wx-guide-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text, var(--fg));
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.wx-guide-label svg { color: var(--gaea-glow); }
+.wx-guide-desc {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  line-height: 1.55;
+}
+.wx-cmd-row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.wx-cmd {
+  padding: 3px 9px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-family: var(--font-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  background: color-mix(in srgb, var(--gaea-glow) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 20%, transparent);
+  color: var(--color-text, var(--fg));
+  white-space: nowrap;
+}
+.wx-guide-footnote {
+  margin-top: 12px;
+  font-size: 11.5px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  line-height: 1.6;
+  max-width: 640px;
+}
+
+/* ── 空态（主区） ───────────────────────────────────────────────── */
+.wx-empty {
+  height: 100%;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+.wx-empty-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--gaea-glow);
+  background: color-mix(in srgb, var(--gaea-glow) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gaea-glow) 22%, transparent);
+}
+.wx-empty-title { font-size: 14px; font-weight: 600; color: var(--color-text, var(--fg)); }
+.wx-empty-hint { font-size: 12px; color: var(--color-text-secondary, var(--fg-faint)); max-width: 320px; line-height: 1.6; }
+
+/* ── 扫码绑定 Modal（相位步骤 + 二维码容器） ───────────────────── */
+.wx-qr-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.wx-qr-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--fg-faint));
+  white-space: nowrap;
+}
+.wx-qr-step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-text-secondary, var(--fg-faint)) 45%, transparent);
+}
+.wx-qr-step.is-current { color: var(--color-text, var(--fg)); font-weight: 600; }
+.wx-qr-step.is-current .wx-qr-step-dot {
+  background: var(--gaea-glow);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gaea-glow) 60%, transparent);
+}
+.wx-qr-step.is-done .wx-qr-step-dot { background: var(--color-success, var(--md-sys-color-success)); }
+.wx-qr-step-line {
+  width: 18px;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-text-secondary, var(--fg-faint)) 40%, transparent);
+}
+.wx-qr-frame {
+  width: 240px;
+  height: 240px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md, 12px);
+  background: var(--color-surface-container, var(--md-sys-color-surface-container));
+  border: 1px solid var(--color-border, var(--border-soft));
+  overflow: hidden;
+}
+.wx-qr-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.wx-qr-frame-tip {
+  font-size: 12px;
+  color: var(--color-text-secondary, var(--fg-faint));
+}

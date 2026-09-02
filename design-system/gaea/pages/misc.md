@@ -24,5 +24,7 @@
 - 目标：面板玻璃化 + 分类树（激活 primary-container）+ 条目卡（名称/摘要/来源）；导入走确认流程；
   预览抽屉玻璃化。落地：面板/条目令牌化 + 焦点环。
 
-## weixin 微信助手（服务型板块，无页面）
-- 无前端页面（manifest page=""）；仅扫码绑定提示。保持现状，无 UI 落地项。
+## weixin 微信助手
+- v4.4 起有页面（WeixinPage，manifest page="WeixinPage"、inMenu=true）；
+  v4.47 星枢化重构为「通讯枢纽」工作台——蓝图与落地细节见同目录 weixin.md
+  （覆盖本文件）。

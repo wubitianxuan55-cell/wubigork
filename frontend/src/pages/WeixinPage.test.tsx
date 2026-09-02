@@ -1,8 +1,9 @@
-// WeixinPage.test.tsx — 微信助手管理台测试。
+// WeixinPage.test.tsx — 微信助手「通讯枢纽」工作台测试。
 // 桥接经 vi.mock('../gaea/lib/bridge') 注入确定性数据（app.* 方法逐个 mock），
-// 覆盖：①多助手列表渲染（状态徽标/人格 Tag/头像回退）②启停翻转调用 Save 且
-// enabled 正确（携带完整对象）③gaea 核心助手禁删禁停 ④删除 Popconfirm →
-// WhisperAssistantDelete ⑤新增微信助手表单 → 本地暂存 → 扫码流确认后 Save。
+// 覆盖：①多助手通道轨道渲染（状态字/状态点/头像回退/详情人格 Tag）②启停翻转
+// 调用 Save 且 enabled 正确（携带完整对象）③gaea 核心助手禁删禁停 ④删除
+// Popconfirm → WhisperAssistantDelete ⑤新增微信助手表单 → 本地暂存 → 扫码流
+// 确认后 Save ⑥离线提醒视图（列表渲染 + 全局开关 + 删除）⑦使用指南视图。
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -41,6 +42,9 @@ const LIST_ROWS = [
   { id: 'wx_muse', name: '小雨', personalityId: 'muse', enabled: true, portraitUrl: 'http://example.com/xiaoyu.png' },
   { id: 'wx_fix', name: '阿修', personalityId: 'fixer', enabled: false, wxToken: 'tok-fix', wxBotId: 'bot-fix', wxUserId: 'uid-fix' },
 ]
+const REMINDER_ROWS = [
+  { id: 'r1', text: '交周报', fireAt: '2026-09-03T09:00:00+08:00', status: 'pending', source: 'weixin', failCount: 0 },
+]
 
 /** 冲刷微任务链（挂载/操作链路的 promise 续延）。 */
 async function flushAsync() {
@@ -54,6 +58,12 @@ async function renderPage() {
   const view = render(<WeixinPage />)
   await flushAsync()
   return view
+}
+
+/** 点击左轨道通道项选中该助手（主区切到通道详情）。 */
+async function selectChannel(name: string) {
+  fireEvent.click(await screen.findByRole('button', { name: `通道 ${name}` }, LOAD))
+  await flushAsync()
 }
 
 beforeEach(() => {
@@ -72,32 +82,35 @@ beforeEach(() => {
   mocks.WeixinReminderSetConfig.mockResolvedValue(undefined)
 })
 
-describe('微信助手管理台 · 连接卡', () => {
-  it('① 列表渲染多助手：名字/人格 Tag/状态徽标/头像（有图用图、无图回退首字）', async () => {
+describe('微信助手工作台 · 通道轨道与详情', () => {
+  it('① 轨道渲染多助手：名字/状态字/状态点/头像（有图用图、无图回退首字），详情显示人格 Tag', async () => {
     const { container } = await renderPage()
-    expect(await screen.findByText('小雨', undefined, LOAD)).toBeTruthy()
-    expect(screen.getByText('阿修')).toBeTruthy()
-    // 连接卡 3 行助手
-    expect(container.querySelectorAll('li.ant-list-item').length).toBe(3)
-    // 状态徽标：运行中（gaea）/ 未绑定（小雨）/ 已停止（阿修）
-    expect(screen.getByText('运行中')).toBeTruthy()
-    expect(screen.getByText('未绑定')).toBeTruthy()
-    expect(screen.getByText('已停止')).toBeTruthy()
-    // 人格 Tag（字段取自 WhisperAssistantList 行）
-    expect(screen.getByText('人格 gaea')).toBeTruthy()
-    expect(screen.getByText('人格 muse')).toBeTruthy()
-    expect(screen.getByText('人格 fixer')).toBeTruthy()
+    // 通道轨道 3 条助手项（新增/提醒/指南按钮除外）
+    const channelItems = container.querySelectorAll('.wx-rail .wx-rail-ch')
+    expect(channelItems.length).toBe(3)
+    // 轨道状态字与顺序：运行中（gaea）/ 未绑定（小雨）/ 已停止（阿修）
+    const statuses = Array.from(container.querySelectorAll('.wx-rail .wx-rail-status')).map((el) => el.textContent)
+    expect(statuses).toEqual(['运行中', '未绑定', '已停止'])
+    // 状态点三态 class
+    expect(container.querySelector('.wx-dot.is-running')).toBeTruthy()
+    expect(container.querySelector('.wx-dot.is-unbound')).toBeTruthy()
+    expect(container.querySelector('.wx-dot.is-stopped')).toBeTruthy()
     // 小雨有 portraitUrl → 头像为图片；gaea 无 → 名字首字回退
     // （ant-avatar-image 类在 Avatar 的 span 宿主上，img 为其子元素）
-    const xiaoyuAvatar = container.querySelector('.ant-avatar-image img') as HTMLImageElement
+    const xiaoyuAvatar = container.querySelector('.wx-rail .ant-avatar-image img') as HTMLImageElement
     expect(xiaoyuAvatar?.getAttribute('src')).toBe('http://example.com/xiaoyu.png')
-    const gaeaRow = screen.getByText('gaea').closest('li')
-    expect(gaeaRow?.querySelector('.ant-avatar')?.textContent).toBe('g')
+    const gaeaAvatar = container.querySelector('.wx-rail-item .ant-avatar')
+    expect(gaeaAvatar?.textContent).toBe('g')
+    // 默认选中首条通道 gaea → 详情显示人格 Tag
+    expect(await screen.findByText('人格 gaea', undefined, LOAD)).toBeTruthy()
+    // 切到小雨 → 人格 muse
+    await selectChannel('小雨')
+    expect(screen.getByText('人格 muse')).toBeTruthy()
   })
 
-  it('② 启停翻转：WhisperAssistantSave 携带完整对象与翻转后的 enabled，并立即刷新两路数据', async () => {
+  it('② 启停翻转：选中阿修后拨开关，WhisperAssistantSave 携带完整对象与翻转后的 enabled，并立即刷新两路数据', async () => {
     await renderPage()
-    expect(await screen.findByText('阿修', undefined, LOAD)).toBeTruthy()
+    await selectChannel('阿修')
     const statusCalls = mocks.WhisperWeixinStatus.mock.calls.length
     const listCalls = mocks.WhisperAssistantList.mock.calls.length
 
@@ -118,18 +131,22 @@ describe('微信助手管理台 · 连接卡', () => {
 
   it('③ gaea 核心助手：Switch 禁用、无删除入口；其他助手不受限', async () => {
     await renderPage()
-    expect(await screen.findByText('gaea', undefined, LOAD)).toBeTruthy()
+    expect(await screen.findByRole('switch', { name: '启停 gaea' }, LOAD)).toBeTruthy()
     expect((screen.getByRole('switch', { name: '启停 gaea' }) as HTMLButtonElement).disabled).toBe(true)
+    // 核心助手详情无删除入口
+    expect(screen.queryByRole('button', { name: '删除 gaea' })).toBeNull()
+    // 阿修（非核心）：可启停、有删除入口
+    await selectChannel('阿修')
     expect((screen.getByRole('switch', { name: '启停 阿修' }) as HTMLButtonElement).disabled).toBe(false)
-    // 删除入口只出现在非核心助手行
-    const gaeaRow = screen.getByText('gaea').closest('li')
-    expect(gaeaRow?.querySelector('[aria-label="删除 gaea"]')).toBeNull()
     expect(screen.getByRole('button', { name: '删除 阿修' })).toBeTruthy()
+    // 小雨（非核心未绑定）同样有删除入口
+    await selectChannel('小雨')
     expect(screen.getByRole('button', { name: '删除 小雨' })).toBeTruthy()
   })
 
-  it('④ 删除：Popconfirm 确认后调用 WhisperAssistantDelete 并刷新', async () => {
+  it('④ 删除：选中小雨 → Popconfirm 确认后调用 WhisperAssistantDelete 并刷新', async () => {
     await renderPage()
+    await selectChannel('小雨')
     const statusCalls = mocks.WhisperWeixinStatus.mock.calls.length
     fireEvent.click(await screen.findByRole('button', { name: '删除 小雨' }, LOAD))
     // Popconfirm 确认按钮「删除」（antd 两字按钮自动插空格，用正则匹配）
@@ -139,21 +156,25 @@ describe('微信助手管理台 · 连接卡', () => {
   })
 
   it('⑤ 新增微信助手：表单确定 → 本地暂存进入扫码流，确认后 Save 落库', async () => {
-    mocks.WhisperWeixinQRStatus.mockResolvedValue({ status: 'confirmed', botToken: 'tok-n', botId: 'bot-n', userId: 'uid-n' })
+    // 先 wait_scan 验「扫码」步，再切 confirmed 验「完成」步与保存
+    mocks.WhisperWeixinQRStatus.mockResolvedValue({ status: 'wait_scan' })
     await renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: /新增微信助手/ }, LOAD))
+    fireEvent.click(await screen.findByRole('button', { name: '新增微信助手' }, LOAD))
     // 名字必填、人格 ID 默认 gaea
     fireEvent.change(screen.getByPlaceholderText('助手名字（必填）'), { target: { value: '小北' } })
     expect((screen.getByDisplayValue('gaea') as HTMLInputElement).value).toBe('gaea')
     fireEvent.click(screen.getByRole('button', { name: '下一步：扫码绑定' }))
 
-    // 进入扫码流：二维码拉取 + 动态标题指向新助手
+    // 进入扫码流：二维码拉取 + 动态标题指向新助手 + 三步指示在「扫码」
     await screen.findByText('扫码绑定 · 小北', undefined, LOAD)
     expect(mocks.WhisperWeixinGetQR).toHaveBeenCalled()
     await waitFor(() => expect(mocks.WhisperWeixinQRStatus).toHaveBeenCalledWith('qr-token'), LOAD)
+    expect(document.querySelector('.wx-qr-step.is-current')?.textContent).toContain('扫码')
 
-    // 扫码确认（mock 直接回 confirmed）→ Save 携带暂存对象 + 新 token/botId/userId
+    // 扫码确认 → 步进到「完成」→ Save 携带暂存对象 + 新 token/botId/userId
+    mocks.WhisperWeixinQRStatus.mockResolvedValue({ status: 'confirmed', botToken: 'tok-n', botId: 'bot-n', userId: 'uid-n' })
     fireEvent.click(await screen.findByRole('button', { name: '保存绑定并启动通道' }, LOAD))
+    expect(document.querySelector('.wx-qr-step.is-current')?.textContent).toContain('完成')
     await waitFor(() => {
       expect(mocks.WhisperAssistantSave).toHaveBeenCalledWith(expect.objectContaining({
         id: expect.stringMatching(/^wx_/),
@@ -161,5 +182,50 @@ describe('微信助手管理台 · 连接卡', () => {
         wxToken: 'tok-n', wxBotId: 'bot-n', wxUserId: 'uid-n',
       }))
     }, LOAD)
+  })
+})
+
+describe('微信助手工作台 · 提醒与指南', () => {
+  it('⑥ 离线提醒视图：列表渲染（状态/来源/时间）+ 全局开关翻转 + 删除', async () => {
+    mocks.WeixinReminderList.mockResolvedValue(REMINDER_ROWS)
+    const { container } = await renderPage()
+    // 有待触发时按钮可访问名带徽标计数，用前缀匹配
+    fireEvent.click(await screen.findByRole('button', { name: /^离线提醒/ }, LOAD))
+    await flushAsync()
+
+    // 列表行：文本 + 待触发 + 微信下达 + 等宽时间
+    expect(await screen.findByText('交周报', undefined, LOAD)).toBeTruthy()
+    expect(screen.getByText('待触发')).toBeTruthy()
+    expect(screen.getByText('微信下达')).toBeTruthy()
+    expect(container.querySelectorAll('.wx-rem-item').length).toBe(1)
+    // 轨道徽标：1 条待触发
+    expect(screen.getByRole('button', { name: '离线提醒，1 条待触发' })).toBeTruthy()
+
+    // 全局开关翻转 → SetConfig 携带 false
+    fireEvent.click(screen.getByRole('switch', { name: '到点回推微信' }))
+    await waitFor(() => expect(mocks.WeixinReminderSetConfig).toHaveBeenCalledWith('{"remindersEnabled":false}'), LOAD)
+
+    // 删除提醒
+    fireEvent.click(screen.getByRole('button', { name: '删除提醒 交周报' }))
+    await waitFor(() => expect(mocks.WeixinReminderDelete).toHaveBeenCalledWith('r1'), LOAD)
+  })
+
+  it('⑦ 使用指南视图：指令示例与边界说明可见', async () => {
+    await renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: '使用指南' }, LOAD))
+    expect(await screen.findByText('提醒我 30分钟后 喝水', undefined, LOAD)).toBeTruthy()
+    expect(screen.getByText('明天早上9点 开站会')).toBeTruthy()
+    expect(screen.getByText('18:30 接孩子')).toBeTruthy()
+    expect(screen.getByText(/无时间表达的提醒请求会收到格式提示/)).toBeTruthy()
+  })
+
+  it('⑧ 会话过期：过期通道的详情内联警示', async () => {
+    mocks.WhisperWeixinStatus.mockResolvedValue([
+      { ...STATUS_ROWS[0], wxSessionExpired: true },
+    ])
+    await renderPage()
+    expect(await screen.findByText('该助手微信会话已过期', undefined, LOAD)).toBeTruthy()
+    // 轨道状态字同步为会话过期
+    expect(document.querySelector('.wx-rail .wx-rail-status')?.textContent).toContain('会话过期')
   })
 })

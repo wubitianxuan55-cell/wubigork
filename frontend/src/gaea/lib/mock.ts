@@ -26,6 +26,7 @@ import { buildModel } from "./mock/model";
 import { buildOffice } from "./mock/office";
 import { buildRetrieval } from "./mock/retrieval";
 import { buildSettings } from "./mock/settings";
+import { buildWeixin } from "./mock/weixin";
 import { createMockState } from "./mock/state";
 
 // 既有导出（含测试辅助）原样 re-export。
@@ -54,5 +55,6 @@ export function makeMockApp(): AppBindings {
     buildRetrieval(state),
     buildModel(state),
     buildSettings(state),
+    buildWeixin(),
   );
 }
