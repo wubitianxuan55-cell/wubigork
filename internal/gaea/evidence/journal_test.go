@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestChangeLedgerLifecycle(t *testing.T) {
@@ -46,6 +47,48 @@ func TestRecordChangeCtx(t *testing.T) {
 	}
 	if recs[0].Status != StatusPendingVerify {
 		t.Fatalf("Status = %q, want %q", recs[0].Status, StatusPendingVerify)
+	}
+}
+
+// TestClampSummary v4.33 线A 单点截断 helper：短串原样；超限按字节截到
+// SummaryLimit（不做 rune 安全截断，钉死与 RecordChange 落库一致的历史行为）；
+// 且与 RecordChange 落库摘要逐字节同口径。
+func TestClampSummary(t *testing.T) {
+	short := "hello\n"
+	if got := ClampSummary(short); got != short {
+		t.Errorf("ClampSummary(短串) = %q, want 原样", got)
+	}
+	if got := ClampSummary(""); got != "" {
+		t.Errorf("ClampSummary(\"\") = %q, want 空", got)
+	}
+	// 超限：恰好截到 SummaryLimit，内容 == s[:SummaryLimit]
+	big := strings.Repeat("a", SummaryLimit+100) + "tail"
+	got := ClampSummary(big)
+	if len(got) != SummaryLimit || got != big[:SummaryLimit] {
+		t.Fatalf("ClampSummary(>8KB) len=%d, want %d 且等于 s[:SummaryLimit]", len(got), SummaryLimit)
+	}
+	// 历史行为：边界切进 UTF-8 中间字节（末字节落在多字节字符中间），
+	// 保持按字节截断，不引入 rune 安全新语义。
+	mixed := strings.Repeat("a", SummaryLimit-2) + "中" // "中" 3 字节，第 SummaryLimit 字节切进其首字节后
+	clamped := ClampSummary(mixed)
+	if len(clamped) != SummaryLimit || clamped != mixed[:SummaryLimit] {
+		t.Fatalf("ClampSummary(mixed) 应为 mixed[:SummaryLimit]（按字节），len=%d", len(clamped))
+	}
+	if utf8.ValidString(clamped) {
+		t.Errorf("切进 UTF-8 中间字节的结果应保持非法 UTF-8（历史字节口径），got 合法串")
+	}
+	// 与 RecordChange 落库口径逐字节一致
+	l := NewChangeLedger()
+	RecordChange(WithChanges(context.Background(), l), ChangeRecord{Tool: "write_file", AfterSummary: big, BeforeSummary: mixed})
+	recs := l.Records()
+	if len(recs) != 1 {
+		t.Fatalf("records len = %d, want 1", len(recs))
+	}
+	if recs[0].AfterSummary != got {
+		t.Errorf("RecordChange 落库 AfterSummary 与 ClampSummary(big) 不一致")
+	}
+	if recs[0].BeforeSummary != clamped {
+		t.Errorf("RecordChange 落库 BeforeSummary 与 ClampSummary(mixed) 不一致")
 	}
 }
 

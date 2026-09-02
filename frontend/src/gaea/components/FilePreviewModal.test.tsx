@@ -296,3 +296,66 @@ describe("FilePreviewModal pdf 逐页懒加载（v4.32 C）", () => {
     }
   });
 });
+
+// v4.33 B（收 v4.32 欠账「弹窗 pdf 占位高为 A4 估计值」）：页图 onLoad 用
+// naturalWidth/naturalHeight 测量本档真实宽高比（jsdom 无真实解码，stub 即可），
+// 未挂载页占位盒 aspectRatio 改用测量比例；无任何测量回落 A4 估计值 1/1.414。
+describe("FilePreviewModal pdf 占位盒真实比例（v4.33 B）", () => {
+  const sixPages = Array.from({ length: 6 }, (_, i) => ({
+    page: i + 1,
+    dataUrl: `data:image/png;base64,P${i + 1}`,
+  }));
+
+  it("onLoad 测量后未挂载页占位盒 aspectRatio 更新为测量比，且首个测量不被后续页推翻", async () => {
+    (window as unknown as { IntersectionObserver?: unknown }).IntersectionObserver = FakeIntersectionObserver;
+    FakeIntersectionObserver.instances = [];
+    mocks.preview = pptxPreview({ pages: sixPages });
+    usePreviewStore.setState({ previewFile: "exports/汇报.pptx" });
+    try {
+      render(<FilePreviewModal />);
+      expect(await screen.findByAltText("第 1 页")).toBeTruthy();
+      // 无任何测量：初始窗口外第 5 页占位盒回落 A4 估计值（既有表现不破）
+      const placeholder = () =>
+        document.querySelector<HTMLElement>("[data-pptx-page='5'] div[aria-hidden='true']");
+      expect(placeholder()).toBeTruthy();
+      expect(placeholder()?.style.aspectRatio).toBe("1 / 1.414");
+      // jsdom cssstyle 把单个数字比例规格化为 "<n> / 1"（浏览器保留原样）——
+      // 比较前归一，纯数字测量比断言与序列化形式解耦
+      const phAspect = () => (placeholder()?.style.aspectRatio ?? "").replace(/\s*\/\s*1$/, "");
+      // jsdom 无图片解码：stub naturalWidth/naturalHeight 后触发 load 事件
+      const img1 = screen.getByAltText("第 1 页") as HTMLImageElement;
+      Object.defineProperty(img1, "naturalWidth", { value: 800, configurable: true });
+      Object.defineProperty(img1, "naturalHeight", { value: 600, configurable: true });
+      fireEvent.load(img1);
+      // 占位盒（未挂载的第 5 页）比例更新为测量比 600/800 = 0.75
+      expect(phAspect()).toBe("0.75");
+      // 首个有效测量固定：后续页测得不同比例不推翻文档级比例
+      const img2 = screen.getByAltText("第 2 页") as HTMLImageElement;
+      Object.defineProperty(img2, "naturalWidth", { value: 400, configurable: true });
+      Object.defineProperty(img2, "naturalHeight", { value: 1200, configurable: true });
+      fireEvent.load(img2);
+      expect(phAspect()).toBe("0.75");
+    } finally {
+      delete (window as unknown as { IntersectionObserver?: unknown }).IntersectionObserver;
+    }
+  });
+
+  it("naturalWidth 为 0（图片未解码）不记录测量，占位盒维持回落值", async () => {
+    (window as unknown as { IntersectionObserver?: unknown }).IntersectionObserver = FakeIntersectionObserver;
+    FakeIntersectionObserver.instances = [];
+    mocks.preview = pptxPreview({ pages: sixPages });
+    usePreviewStore.setState({ previewFile: "exports/汇报.pptx" });
+    try {
+      render(<FilePreviewModal />);
+      expect(await screen.findByAltText("第 1 页")).toBeTruthy();
+      const img1 = screen.getByAltText("第 1 页") as HTMLImageElement;
+      Object.defineProperty(img1, "naturalWidth", { value: 0, configurable: true });
+      Object.defineProperty(img1, "naturalHeight", { value: 600, configurable: true });
+      fireEvent.load(img1);
+      const placeholder = document.querySelector<HTMLElement>("[data-pptx-page='5'] div[aria-hidden='true']");
+      expect(placeholder?.style.aspectRatio).toBe("1 / 1.414");
+    } finally {
+      delete (window as unknown as { IntersectionObserver?: unknown }).IntersectionObserver;
+    }
+  });
+});

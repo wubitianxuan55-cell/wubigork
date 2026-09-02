@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { AlertCircle, ExternalLink, FilePdf, FileText, FolderTree, Loader2, X } from "../icons";
 import { app } from "../lib/bridge";
 import {
-  LAZY_PAGE_ASPECT,
   LAZY_ROOT_MARGIN_PX,
   addForcedPage,
   computeInitialLazyPages,
   expandMountedPages,
   lazySupported,
+  nextPageAspect,
+  placeholderAspect,
   shouldRenderLazyPage,
 } from "../lib/pageLazy";
 import { usePreviewStore } from "../lib/store";
@@ -102,9 +103,11 @@ export function FilePreviewModal() {
 
   // v4.32 C：pdf 逐页懒加载（收 v4.31 欠账「弹窗 pdf 不虚拟化」）。判定逻辑
   // 收敛在 lib/pageLazy.ts（纯函数），这里只做 IO 接线：lazyPdf.src 记录所属
-  // preview，preview 换载荷时在渲染期重置（初始窗口 + 清空强制集合，React
+  // preview，preview 换载荷时在渲染期重置（初始窗口 + 清空强制/测量集合，React
   // 「props 变化时调整 state」模式，避免 effect 时序上的旧集合闪烁）；mounted
   // 单向只增不减（已挂载页不卸载，杜绝滚动跳动），forced 收大纲跳转目标页。
+  // v4.33 B：aspect 收本档已测真实宽高比（height/width，页图 onLoad 测量、
+  // 首个有效测量固定），未挂载页占位盒按它撑高，无测量时回落 A4 估计值。
   // 无 IntersectionObserver（jsdom/旧环境）→ lazySupported() 为 false →
   // pdf 分支全量渲染 = v4.31 行为。
   const pageElsRef = useRef(new Map<number, HTMLElement>());
@@ -113,7 +116,8 @@ export function FilePreviewModal() {
     src: PreviewResult | null;
     mounted: ReadonlySet<number>;
     forced: ReadonlySet<number>;
-  }>(() => ({ src: null, mounted: new Set<number>(), forced: new Set<number>() }));
+    aspect: number | null;
+  }>(() => ({ src: null, mounted: new Set<number>(), forced: new Set<number>(), aspect: null }));
   const pdfPages = preview?.kind === "pdf" ? preview.pages : undefined;
   const pdfPageCount = pdfPages?.length ?? 0;
   const lazyPdfPages = pdfPageCount > 0 && lazySupported();
@@ -122,6 +126,7 @@ export function FilePreviewModal() {
       src: preview,
       mounted: pdfPageCount > 0 ? computeInitialLazyPages(pdfPageCount) : new Set<number>(),
       forced: new Set<number>(),
+      aspect: null,
     });
   }
   // 页图容器注册表：figure 挂载即登记（data-pptx-page 既是大纲滚动锚点也是
@@ -144,6 +149,18 @@ export function FilePreviewModal() {
         els.delete(page);
       }
     }
+  }, []);
+
+  // v4.33 B：页图 onLoad 记录本档文档真实宽高比——naturalWidth/naturalHeight
+  // 是图片真实像素比，与容器宽无关、jsdom 可 stub（不用 getBoundingClientRect，
+  // jsdom 无布局）。比例收敛于 nextPageAspect（首个有效测量固定）；测量无变化
+  // 时返回同一引用，setState 凭引用跳过重渲染。
+  const handlePdfPageLoad = useCallback((e: SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = e.currentTarget;
+    setLazyPdf((prev) => {
+      const aspect = nextPageAspect(prev.aspect, naturalWidth, naturalHeight);
+      return aspect === prev.aspect ? prev : { ...prev, aspect };
+    });
   }, []);
 
   // IntersectionObserver 接线：页容器进入视口（rootMargin 800px，root 为弹窗
@@ -324,9 +341,11 @@ export function FilePreviewModal() {
             // 锚点供大纲卡滚动），否则回退 dataUrl 整本内嵌；右侧叠 PptxOutline
             // 大纲卡（「针对第 N 页修改」composer 插入由该组件内部完成）。
             // v4.32 C：页数上限沿用后端语义（GaeaPreview 已截断 ≤60 页）；
-            // 逐页路径改单向懒加载——初始窗口外的页先渲染估计高度占位盒
-            //（PreviewPageThumb 无宽高），进视口（rootMargin 800px）才挂
-            // <img> 自然撑开，已挂载页不卸载；无 IO 环境全量渲染（= v4.31）。
+            // 逐页路径改单向懒加载——初始窗口外的页先渲染占位盒
+            //（PreviewPageThumb 无宽高；v4.33 B 起无测量时 A4 估计比例，
+            // 页图 onLoad 测得本档比例后未挂载页按测量值撑高），进视口
+            //（rootMargin 800px）才挂 <img> 自然撑开，已挂载页不卸载；
+            // 无 IO 环境全量渲染（= v4.31）。
             <div className="flex h-full min-h-0">
               <div ref={pptxPagesRef} className="flex-1 min-w-0 overflow-auto px-4 py-3" data-testid="pptx-pages">
                 {preview.pages && preview.pages.length > 0 ? (
@@ -337,12 +356,13 @@ export function FilePreviewModal() {
                           src={p.dataUrl}
                           alt={`第 ${p.page} 页`}
                           className="w-full rounded-lg border border-border-soft shadow-sm bg-bg"
+                          onLoad={handlePdfPageLoad}
                         />
                       ) : (
                         <div
                           aria-hidden="true"
                           className="w-full rounded-lg border border-border-soft bg-gradient-to-b from-bg-soft to-bg animate-pulse"
-                          style={{ aspectRatio: LAZY_PAGE_ASPECT }}
+                          style={{ aspectRatio: placeholderAspect(lazyPdf.aspect) }}
                         />
                       )}
                       <figcaption className="mt-1 text-center text-[10px] text-fg-faint">第 {p.page} 页</figcaption>

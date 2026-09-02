@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  LAZY_PAGE_ASPECT,
   addForcedPage,
   computeInitialLazyPages,
   expandMountedPages,
   lazySupported,
+  nextPageAspect,
+  placeholderAspect,
   shouldRenderLazyPage,
 } from "./pageLazy";
 
@@ -123,5 +126,44 @@ describe("addForcedPage", () => {
     const forced = addForcedPage(new Set<number>(), 7);
     expect(shouldRenderLazyPage(7, mounted, forced)).toBe(true);
     expect(shouldRenderLazyPage(6, mounted, forced)).toBe(false);
+  });
+});
+
+// v4.33 B（收 v4.32 欠账「弹窗 pdf 占位高为 A4 估计值」）：页图 onLoad 测量
+// 本档文档真实宽高比，未测量页占位盒按测量比例撑高，无测量回落 A4 估计值。
+describe("nextPageAspect", () => {
+  it("首个有效测量：naturalHeight/naturalWidth 记为文档比例", () => {
+    expect(nextPageAspect(null, 1000, 1414)).toBeCloseTo(1.414);
+    expect(nextPageAspect(null, 800, 600)).toBe(0.75);
+  });
+
+  it("无效测量（0 / 负数 / 非有限值）不记录：prev 为 null 时仍为 null", () => {
+    expect(nextPageAspect(null, 0, 100)).toBeNull();
+    expect(nextPageAspect(null, 100, 0)).toBeNull();
+    expect(nextPageAspect(null, -3, 100)).toBeNull();
+    expect(nextPageAspect(null, Number.NaN, 100)).toBeNull();
+    expect(nextPageAspect(null, 100, Number.POSITIVE_INFINITY)).toBeNull();
+  });
+
+  it("首个有效测量固定：后续页测得不同比例不推翻（确定性）", () => {
+    const first = nextPageAspect(null, 800, 600);
+    expect(nextPageAspect(first, 1000, 2000)).toBe(first);
+  });
+
+  it("已有测量时任何输入原样返回 prev（含无效测量）", () => {
+    const measured = 1.5;
+    expect(nextPageAspect(measured, 0, 0)).toBe(measured);
+    expect(nextPageAspect(measured, 999, 999)).toBe(measured);
+  });
+});
+
+describe("placeholderAspect", () => {
+  it("有测量：String 化比例，可直填 aspectRatio", () => {
+    expect(placeholderAspect(0.75)).toBe("0.75");
+    expect(placeholderAspect(1.414)).toBe("1.414");
+  });
+
+  it("无测量：回落 A4 估计值 LAZY_PAGE_ASPECT", () => {
+    expect(placeholderAspect(null)).toBe(LAZY_PAGE_ASPECT);
   });
 });

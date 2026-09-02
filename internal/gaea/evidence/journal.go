@@ -21,6 +21,17 @@ import (
 // 摘要上限：Before/After 原文摘要统一截断（防 JSONL 膨胀；边界按字节）。
 const SummaryLimit = 8 * 1024
 
+// ClampSummary 按落库口径截断原文摘要（SummaryLimit，按字节，与 RecordChange
+// 持久化截断逐字节一致——包括切进 UTF-8 中间字节的历史行为，不做 rune 安全
+// 截断）。摘要要参与回滚「已被手工修改」守卫比对：存储侧与目标当前内容侧
+// 必须同口径截断再比，截断单点在此。
+func ClampSummary(s string) string {
+	if len(s) > SummaryLimit {
+		return s[:SummaryLimit]
+	}
+	return s
+}
+
 // ChangeRecord 证据卡（设计 §3）。
 type ChangeRecord struct {
 	ID            string `json:"id"`
@@ -182,12 +193,8 @@ func RecordChange(ctx context.Context, rec ChangeRecord) {
 	if l == nil {
 		return
 	}
-	if len(rec.BeforeSummary) > SummaryLimit {
-		rec.BeforeSummary = rec.BeforeSummary[:SummaryLimit]
-	}
-	if len(rec.AfterSummary) > SummaryLimit {
-		rec.AfterSummary = rec.AfterSummary[:SummaryLimit]
-	}
+	rec.BeforeSummary = ClampSummary(rec.BeforeSummary)
+	rec.AfterSummary = ClampSummary(rec.AfterSummary)
 	if rec.Status == "" {
 		rec.Status = StatusPendingVerify
 	}

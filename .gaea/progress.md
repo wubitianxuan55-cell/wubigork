@@ -1,11 +1,37 @@
 # 任务进度
 
-> 最后更新: 2026-09-02（v4.32.0「细节收口 · 第二刀」：回滚可撤销/产物自动弹出/弹窗 pdf
-> 懒加载/预览最大化持久化——绑定面 552 零变更）
+> 最后更新: 2026-09-02（v4.33.0「细节收口 · 第三刀」：回滚守卫统一+>8KB 误报修真/pdf
+> 占位比精确化/主区预览懒加载对齐——绑定面 552 零变更）
 
 ## 当前状态
 
-- **最新发布：v4.32.0（2026-09-02）「细节收口 · 第二刀：回滚可撤销/产物自动弹出/弹窗
+- **最新发布：v4.33.0（2026-09-02）「细节收口 · 第三刀：回滚守卫统一/pdf 占位比精确化/
+  主区预览懒加载对齐」**：git tag v4.33.0；基线 v4.32.0；绑定面 **552 零变更**。三并行
+  子代理 + 主代理集成（含主区测量比例接线）：
+  ①**回滚守卫统一 + write_file >8KB 恒误报修复（线A，真 bug）**：rollback 卡接入「恢复
+  后已被手工修改」守卫（撤销恢复前校验 AfterSummary 同口径一致，防覆盖编辑）；write_file
+  守卫原精确比较 vs 落库截断 SummaryLimit(8KB)——>8KB 未手改文件必然误拒，改
+  `evidence.ClampSummary` 同口径截断比较；截断单点化（evidence 新导出 ClampSummary 字节
+  口径逐字节兼容，RecordChange/app clampSummary 复用）；**已知边界**：8KB 摘要窗口外手改
+  不可检（与 editLike Contains 同源，宁漏勿误，测试注记）。测试 app+4/evidence+1，
+  -count=2 绿。
+  ②**pdf 占位比按实测精确化（线B）**：pageLazy 新 nextPageAspect（首个有效测量=整档比例
+  不被后续页推翻）/placeholderAspect（无测量回落 LAZY_PAGE_ASPECT）；FilePreviewModal
+  img onLoad 读 naturalWidth/Height（无效值不记），state 增文档级 aspect（渲染期重置同
+  mounted/forced）；占位→真身交换不再跳高，存比例不存绝对高度。
+  ③**主区预览 pdf 懒加载对齐弹窗（线C）**：FilePreview pdf 分支接入同款 IO 单向懒加载
+  （初始 4 页/800px/±1 buffer/大纲跳转 addForcedPage 强制渲染/ref 回调登记即补 observe
+  真 bug 修法照搬）；无 IO 全量降级=既有行为；props 零变化；**主代理追加**：主区同样接
+  测量比例（onLoad+placeholderAspect），占位表现与弹窗一致。
+  **核实**：v4.26「TrajectoryView 未消费 subagent 记录」欠账已过期剔除（代码早已实现）；
+  「子代理气泡恢复暂缺」=GaeaHistory（provider History 无来源字段）×磁盘事件日志
+  （ResyncEvents v4.27.2 起折叠 subagentRef）跨源对齐，留独立刀先出方案。
+  **验证**：Go build/vet/全量 test exit 0；tsc -b/eslint 0；vitest **1207/1207**（+11：
+  线B +8/线C +3，旧锁零删改）；drift PASS（552）；版本四处 4.33.0。**欠账**：rollback
+  守卫 8KB 窗口外边界（见①）；独立刀候选=子代理气泡恢复；沿旧 A2 帧流/接管、B2 pptx
+  真编辑、行级降噪折叠、palette 个性化、-race 无 gcc。详见 releases/v4.33.0.md。
+
+- **上一发布：v4.32.0（2026-09-02）「细节收口 · 第二刀：回滚可撤销/产物自动弹出/弹窗
   pdf 懒加载/预览最大化持久化」**：git tag v4.32.0；基线 v4.31.1；绑定面 **552 零变更**。
   用户点名「继续优化完善 gaea」——沿 v4.30/v4.31 先例从欠账池挑四条互不相交线，三并行
   子代理（A Go/B 产物面板/C 弹窗预览）+ 主代理自接线D（App.tsx）：

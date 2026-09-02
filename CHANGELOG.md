@@ -1,3 +1,20 @@
+## v4.33.0 · 细节收口第三刀：回滚守卫统一 / pdf 占位比精确化 / 主区预览懒加载对齐（2026-09-02）
+> 欠账池三线并行子代理 + 主代理集成。**绑定面 552 零变更**。
+- **① 回滚守卫统一 + write_file >8KB 恒误报修复（真 bug）**：rollback 卡接入「恢复后已被
+  手工修改」守卫（撤销恢复前校验，防覆盖编辑）；write_file 守卫从精确比较改
+  `evidence.ClampSummary` 同口径截断比较——原精确比较对 >8KB 未手改文件必然误报拒绝；
+  截断单点化（RecordChange/app 复用）。已知边界：8KB 摘要窗口外手改不可检（宁漏勿误）。
+- **② pdf 占位比按实测精确化**：pageLazy 新 nextPageAspect/placeholderAspect——页图
+  onLoad 读 naturalWidth/Height，首个有效测量为整档比例（不被后续页推翻），无测量回落
+  A4 估计；占位→真身交换不再跳高、滚动条比例修正。弹窗 FilePreviewModal 已接线。
+- **③ 主区预览 pdf 懒加载对齐弹窗**：FilePreview pdf 分支接入同款 IO 单向懒加载（初始
+  4 页/800px 预挂/不卸载/大纲跳转强制渲染/ref 回调登记即补 observe），无 IO 全量降级；
+  主代理集成追加测量比例接线，占位表现与弹窗一致。
+- 核实：v4.26「TrajectoryView 未消费 subagent 记录」欠账已过期剔除；「子代理气泡恢复」
+  留作独立刀（GaeaHistory×事件日志跨源对齐）。
+- 验证：Go 全量 test exit 0（线A -count=2）、tsc -b/eslint 0、vitest **1207/1207**（+11）、
+  drift PASS（552）、版本四处 4.33.0。详见 releases/v4.33.0.md。
+
 ## v4.32.0 · 细节收口第二刀：回滚可撤销 / 产物自动弹出 / 弹窗 pdf 懒加载 / 预览最大化持久化（2026-09-02）
 > 用户点名「继续优化完善 gaea」——欠账池挑四条互不相交线，三并行子代理 + 主代理 App.tsx 接线集成。**绑定面 552 零变更**。
 - **① 回滚先快照当前态**（收 v4.28 B1 欠账）：GaeaRollbackRecord 恢复前把目标当前内容

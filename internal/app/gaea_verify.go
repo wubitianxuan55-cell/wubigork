@@ -247,12 +247,23 @@ func rollbackRecord(st *evidence.JournalStore, rec evidence.ChangeRecord) error 
 	cur, curErr := os.ReadFile(target)
 	if curErr == nil {
 		curS := string(cur)
+		// 「已被手工修改」守卫（绝不覆盖用户编辑；AfterSummary 为空的旧卡
+		// 跳过守卫，宁漏勿误）：
+		//   - edit_like：存储摘要本身已截断（原文前缀），Contains 语义安全；
+		//   - write_file / rollback：AfterSummary 落库时按 SummaryLimit 截断，
+		//     精确比较对 >8KB 未手改文件恒误报（v4.33 线A 修正）——当前内容
+		//     以同一 ClampSummary 口径截断后再比。
 		editLike := rec.Tool == "edit_file" || rec.Tool == "multi_edit" || rec.Tool == "edit_lines"
 		if editLike && rec.AfterSummary != "" && !strings.Contains(curS, rec.AfterSummary) {
 			return fmt.Errorf("目标已被手工修改（变更摘要不匹配），拒绝回滚以免覆盖你的编辑")
 		}
-		if rec.Tool == "write_file" && rec.AfterSummary != "" && curS != rec.AfterSummary {
+		if rec.Tool == "write_file" && rec.AfterSummary != "" && evidence.ClampSummary(curS) != rec.AfterSummary {
 			return fmt.Errorf("目标已被手工修改（内容与记录不一致），拒绝回滚")
+		}
+		// v4.33 线A 接入：rollback 卡的 AfterSummary 是恢复后应有的基线内容，
+		// 再回滚（撤销恢复）前校验目标仍与之相符——恢复后手工改过则拒绝。
+		if rec.Tool == "rollback" && rec.AfterSummary != "" && evidence.ClampSummary(curS) != rec.AfterSummary {
+			return fmt.Errorf("目标在恢复后已被手工修改，拒绝再次回滚以免覆盖你的编辑")
 		}
 	}
 	baseline, err := os.ReadFile(rec.BaselinePath)
@@ -274,20 +285,12 @@ func rollbackRecord(st *evidence.JournalStore, rec evidence.ChangeRecord) error 
 		Tool:          "rollback",
 		Target:        rec.Target,
 		Status:        evidence.StatusPendingVerify,
-		AfterSummary:  clampSummary(string(baseline)),
+		AfterSummary:  evidence.ClampSummary(string(baseline)),
 	}
 	if snapshot != "" {
 		newRec.BaselinePath = snapshot
-		newRec.BeforeSummary = clampSummary(string(cur))
+		newRec.BeforeSummary = evidence.ClampSummary(string(cur))
 	}
 	_ = st.Append(newRec)
 	return nil
-}
-
-// clampSummary 摘要截断（口径同 evidence.RecordChange：SummaryLimit，按字节）。
-func clampSummary(s string) string {
-	if len(s) > evidence.SummaryLimit {
-		return s[:evidence.SummaryLimit]
-	}
-	return s
 }
