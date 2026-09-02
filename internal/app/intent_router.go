@@ -484,6 +484,11 @@ func latestFileInDirs(dirs []string) string {
 // 查无产物诚实回复（Handled=true——意图已命中，说「没有」比坠回聊天管道让
 // 模型瞎猜强）。
 func (a *App) execSendLatestFile(it *intent.Intent) (string, bool, string) {
+	// v4.41.2 「改完再发」复合请求：微信侧无文档改写回传闭环，诚实说明能力
+	// 边界（比坠回聊天管道让模型声称「已整理好发你」强——真机幻觉实证）。
+	if it.Target == "modify_and_send" {
+		return "我目前还不能在微信里直接修改文档再回传。请在桌面端办公板块完成修改，然后对我说「把产物发我」，我会把最新产物发给你。", true, ""
+	}
 	p := a.latestWxDeliverable()
 	if p == "" {
 		return "暂无可发送的产物。可以先在办公板块让 gaea 生成一份，再对我说「把最新的文件发给我」。", true, ""

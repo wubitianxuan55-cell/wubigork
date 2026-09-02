@@ -94,7 +94,24 @@ var reSendLatestFile = regexp.MustCompile(
 		`|^(?:请|麻烦|帮我)?发我(?:一下|一份)?(?:刚才|最新|刚刚)?(?:的)?` +
 		`(?:文件|报告|文档|表格|产物|成品)(?:吧|吗|么)?$` +
 		`|^(?:请|麻烦|帮我)?(?:给我)?发送?(?:一下|一份)?(?:刚才|最新|刚刚)?(?:的)?` +
-		`(?:产物|报告|成品)(?:给我|给我一下)?(?:吧|吗|么)?$`)
+		`(?:产物|报告|成品)(?:给我|给我一下)?(?:吧|吗|么)?$` +
+		// v4.41.2 放宽第四式：指代/名词 + 尾式「发给我」（真机实证「重新整理后
+		// 发给我」这类口语未命中导致坠回聊天管道）。仍要求句中有产物名词或
+		// 指代词，裸「发给我」不命中（宁漏勿误）。
+		`|^(?:请|麻烦|帮我)?(?:把|将)?(?:它|这个|那个|这份|那些|刚才的?)(?:文件|报告|文档|表格|产物|成品)?` +
+		`(?:直接)?(?:发|传)(?:给|到)?我(?:一下)?(?:吧|吗|么)?$`)
+
+// reWxModifyAndSend 「改完再发」复合请求：「整理/修改/润色…后发给我」。微信侧
+// 没有文档改写回传闭环——这类请求命中后由执行层给诚实能力答复，绝不能坠回
+// 聊天管道（v4.41 真机实证：模型会声称「已整理好发你」而实际什么都没发）。
+var reWxModifyAndSend = regexp.MustCompile(
+	`(?:整理|重排|修改|改好|改完|润色|完善|修正|校对|优化|处理|排版)` +
+		`[^。？！]{0,12}(?:之?后|再|然后)?(?:请|麻烦|帮我)?(?:把|将)?(?:它|这个|那个|这份)?` +
+		`(?:文件|报告|文档|表格|产物|成品)?(?:直接)?(?:发|传)(?:给|到)?我(?:一下)?(?:吧|吗|么)?$`)
+
+// reWxReminderish 提醒让位守卫：消息含提醒/定时字样时产物推送分支整体让位
+// （「提醒我发产物给我」这类罕见组合归提醒位，宁漏勿误）。
+var reWxReminderish = regexp.MustCompile(`提醒|定时`)
 
 // 改图（对话式改图，v4.9）：保守双门槛，(a) 编辑语义动词 与 (b) 指代已收到
 // 的图 必须同时满足才命中——宁漏勿误。「这张图好看吗」（无编辑动词）、「
@@ -284,8 +301,20 @@ func Parse(text string) *Intent {
 
 	// ④.5 产物推送（v4.41）：锚定窄规则，先于宽匹配的提醒位（「提醒我把报告
 	// 发给老板」句首带提醒字样，锚定式不命中、自然落到提醒位，互不干扰）。
-	if reSendLatestFile.MatchString(t) {
-		return &Intent{Action: ActionSendLatestFile, Target: "latest", Text: t}
+	// v4.41.2：含提醒/定时字样整体让位；「整理…后发给我」复合请求（不含产物
+	// 名词、进不了 reSendLatestFile）独立识别，命中后由执行层给诚实能力答复
+	//（Target=modify_and_send）——绝不能坠回聊天管道。
+	if !reWxReminderish.MatchString(t) {
+		if reSendLatestFile.MatchString(t) {
+			target := "latest"
+			if reWxModifyAndSend.MatchString(t) {
+				target = "modify_and_send"
+			}
+			return &Intent{Action: ActionSendLatestFile, Target: target, Text: t}
+		}
+		if reWxModifyAndSend.MatchString(t) {
+			return &Intent{Action: ActionSendLatestFile, Target: "modify_and_send", Text: t}
+		}
 	}
 
 	// ⑤ 提醒

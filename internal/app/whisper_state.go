@@ -106,6 +106,10 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 				return res.Reply, nil
 			}
 		}
+		// v4.41.2 反幻觉护栏：未被产物推送意图接住的「发文件给我」类请求，
+		// 提示模型如实说明能力边界（真机实证：聊天管道曾声称「已整理好发你」
+		// 而实际什么都没发）。
+		userMsg = applyWxSendHonestyGuidance(userMsg)
 		// 助手名注入（如"峨嵋"）收编进 whisperChatAsAssistant：赋值移入
 		// WhisperChat 的 LockTurn 持锁窗口——同人格多助手共享同一 orchestrator，
 		// 原锁外直写 orch.AssistantName 在并发回调下互相覆盖且构成数据竞争。
