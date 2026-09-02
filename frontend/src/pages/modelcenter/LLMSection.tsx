@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button, Input } from 'antd'
 import { CaretRightOutlined, CheckCircleOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, ModelCard, SectionHead, StatusChip } from './ui'
-import { engineColor, engineLabel, filterModelsBySearch, glmAliasNote, modelAvailability, sortModelsPinnedFirst } from './utils'
+import { capLabels, engineColor, engineLabel, filterModelsBySearch, formatCtx, formatPrice, glmAliasNote, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenter } from './context'
 import { usePinnedModels } from './modelPrefs'
 
@@ -96,6 +96,10 @@ export function LLMSection() {
                   const blocked = avail === 'disconnected' || avail === 'disabled'
                   // coding 端点套餐旧名自动切换注记（后端 alias_of，std 家族为空）
                   const aliasNote = glmAliasNote((engine.models || []).find(m => m.id === card.modelId))
+                  // B 刀：模型元数据徽标（上下文/能力/价格；meta 缺失时不渲染不占位）
+                  const meta = card.meta
+                  const ctxText = formatCtx(meta?.context_length)
+                  const priceText = formatPrice(meta)
                   const statusText = active
                     ? '运行中'
                     : avail === 'disconnected'
@@ -126,6 +130,25 @@ export function LLMSection() {
                           : avail === 'stopped'
                             ? <StatusChip key="stop" tone="warn">未启动</StatusChip>
                             : null,
+                        ctxText
+                          ? <StatusChip key="ctx" title="上下文长度">{ctxText}</StatusChip>
+                          : null,
+                        ...(meta?.caps || []).map(cap => (
+                          <StatusChip key={`cap-${cap}`} title={`能力：${capLabels[cap] || cap}`}>
+                            {capLabels[cap] || cap}
+                          </StatusChip>
+                        )),
+                        priceText
+                          ? (
+                            <StatusChip
+                              key="price"
+                              tone={meta?.free ? 'ok' : 'neutral'}
+                              title={meta?.price_note || undefined}
+                            >
+                              {priceText}
+                            </StatusChip>
+                          )
+                          : null,
                       ].filter(Boolean)}
                       active={active}
                       dimmed={blocked}

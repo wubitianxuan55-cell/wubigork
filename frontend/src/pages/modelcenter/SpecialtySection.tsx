@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Button, Input } from 'antd'
 import { CheckCircleOutlined, FileTextOutlined, NumberOutlined, SearchOutlined } from '@ant-design/icons'
 import { EmptyState, ModelCard, SectionHead, StatusChip, type StatusTone } from './ui'
-import { engineLabel, filterModelsBySearch, kindOf, modelAvailability, sortModelsPinnedFirst } from './utils'
+import { engineLabel, filterModelsBySearch, formatCtx, formatPrice, kindOf, modelAvailability, sortModelsPinnedFirst } from './utils'
 import { useModelCenter } from './context'
 import { usePinnedModels } from './modelPrefs'
 
@@ -66,6 +66,9 @@ export function SpecialtySection() {
                       : m.status === 'stopped'
                         ? '未启动'
                         : '就绪'
+                // B 刀：模型元数据徽标（上下文/价格；embedding/rerank/ocr 目录有官方价，meta 缺失时不占位）
+                const ctxText = formatCtx(m.meta?.context_length)
+                const priceText = formatPrice(m.meta)
                 return (
                   <ModelCard
                     key={`${m.engineId}:${m.modelId}`}
@@ -86,6 +89,20 @@ export function SpecialtySection() {
                         : avail === 'stopped'
                           ? <StatusChip key="stop" tone="warn">未启动</StatusChip>
                           : null,
+                      ctxText
+                        ? <StatusChip key="ctx" title="上下文长度">{ctxText}</StatusChip>
+                        : null,
+                      priceText
+                        ? (
+                          <StatusChip
+                            key="price"
+                            tone={m.meta?.free ? 'ok' : 'neutral'}
+                            title={m.meta?.price_note || undefined}
+                          >
+                            {priceText}
+                          </StatusChip>
+                        )
+                        : null,
                     ].filter(Boolean)}
                     active={activeOCR}
                     dimmed={blocked}

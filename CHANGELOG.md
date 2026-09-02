@@ -1,3 +1,18 @@
+## v4.36.0 · GLM 目录 v2：能力/价格元数据 + 远程热更新（2026-09-02）
+> 模型中心调研 B 刀（=「计费三件套」本体升级版）。官方价格页动态渲染抓不到正文，
+> 查不到的绝对价一律不编数，估算沿用内置 z.ai USD 价口径。**绑定面 555 零变更**。
+- **① 目录 schema v2**：glm_catalog.json 44 条目（legacy 22+官方新增 22），条目带
+  context_length/max_output/price/currency/unit/free/caps/price_note/coding 积分系数
+  （仅 glm-5.3 与 5.3-flash）；免费档 8 个；官方核实国内价 6 条；解析兼容旧裸数组。
+- **② 远程热更新 v0**：config 键 glm_catalog_url（默认空禁用）+ 24h 周期拉取 + version
+  比对 + 本地缓存兜底；优先级 覆盖文件>远程>内嵌；仅影响展示与估算，不碰路由/alias/鉴权。
+- **③ 估算单源化**：estimatePrice GLM 分支目录优先、内置表兜底——GLM 价格更新只动目录
+  不发版；估算值零回归锁；ModelStatsSummary 透传 catalog_version/source 三态。
+- **④ 前端**：模型卡上下文/能力/价格徽标（免费绿标），StatsSection coding 行官方公式
+  估算积分（含缓存命中通道）+ 价格目录来源小注。
+- 验证：Go 全量 test exit 0、tsc -b/eslint 0、vitest **1237/1237**（+18）、drift PASS
+  （555 零变更）。详见 releases/v4.36.0.md。
+
 ## v4.35.0 · 自定义引擎：OpenAI 兼容服务商任意添加（2026-09-02）
 > 模型中心专项调研（docs/market-research-2026-09-02.md）A 刀：自定义服务商是桌面客户端
 > 4/5 家标配，gaea 8 引擎硬编码为最大硬缺口。**绑定面 552→555（+3）**。

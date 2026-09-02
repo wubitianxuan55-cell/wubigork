@@ -329,6 +329,12 @@ func (a *App) Startup(ctx context.Context) {
 	// GLM 目录覆盖文件（模型中心成本层）：启动注入一次，照 SetUsdCnyRate
 	// 先例（非绑定方法）；空=只用内嵌目录。
 	a.engineMgr.SetGLMCatalogPath(a.cfg.GLMCatalogPath)
+	// B 刀 GLM 目录远程热更新：缓存文件 glm_catalog_remote.json 与 engines.json
+	// 同目录（加载器按 mtime 感知，生效优先级 覆盖文件 > 远程缓存 > 内嵌）；
+	// glm_catalog_url 非空时再启动异步拉取循环（10s 超时 / 24h 周期，ctx 随
+	// app 生命周期）。远程目录仅影响展示与费用估算，不影响请求路由/alias/鉴权。
+	a.engineMgr.StartGLMCatalogRemote(a.ctx, a.cfg.GLMCatalogURL,
+		filepath.Join(a.whisperDataRoot, "glm_catalog_remote.json"))
 	// 确保 xAI 引擎始终提供内置语音模型 grok-tts（TTS API 不返回在 /v1/models 列表）
 	a.engineMgr.EnsureModel("xai", "grok-tts")
 	// 确保本地 CosyVoice2 引擎提供语音模型（OpenAI 兼容 TTS 服务）
@@ -508,6 +514,10 @@ func (a *App) initImageBackend() {
 
 // Shutdown Wails 关闭回调
 func (a *App) Shutdown(ctx context.Context) {
+	// 停止 GLM 目录远程拉取循环（B 刀；engineMgr 未初始化时为空操作兜底）。
+	if a.engineMgr != nil {
+		a.engineMgr.StopGLMCatalogRemote()
+	}
 	if a.voiceManager != nil {
 		a.voiceManager.Stop()
 	}

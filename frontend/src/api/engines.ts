@@ -11,6 +11,20 @@ export interface ModelInfo {
   status: string
   kind?: string // 后端分类：llm / tts / stt / image / embedding / rerank / ocr
   alias_of?: string // coding 端点家族下服务端实际服务的模型（套餐旧名自动切换）；std 家族为空（Go modelengine.ModelInfo.AliasOf）
+  // ── B 刀：模型元数据（全可选；缺失=目录未下发该字段，前端徽标不占位） ──
+  context_length?: number // 上下文窗口（tokens 绝对值，如 1000000=1M）
+  max_output?: number // 最大输出 tokens
+  price_in?: number // 输入单价；unit 空时=每百万 tokens，unit 非空时=单价
+  price_out?: number // 输出单价（口径同上）
+  currency?: 'CNY' | 'USD' // 计价币种（空=未计价）
+  unit?: '' | 'call' | 'minute' // 计价单位：空=每百万 tokens；call=按次；minute=按分钟
+  free?: boolean // 官方免费标记
+  caps?: string[] // 能力标签：vision / tools / reasoning / search / json
+  price_note?: string // 价格备注（如「促销价」「以官网为准」）
+  points_in?: number // GLM coding 套餐积分系数：输入（积分=(输入×in+缓存×cached+输出×out)/10000）
+  points_cached?: number // 积分系数：缓存命中输入
+  points_out?: number // 积分系数：输出
+  points_peak?: number // 积分系数：峰值时段（前端估算暂不使用，仅透传）
 }
 
 export interface EngineConfig {
@@ -46,6 +60,7 @@ export interface ModelUsageStats {
   input_tokens: number
   output_tokens: number
   total_tokens: number
+  cache_hit_tokens?: number // KV 缓存命中 prompt token（coding 积分估算用，未上报时缺省）
   total_duration_ms: number
   estimated_cost?: number
   currency?: string
@@ -87,6 +102,8 @@ export interface ModelStatsSummary {
   engines?: Record<string, EngineSubtotal> // 按引擎聚合小计（编码套餐口径以 "<engine>@coding" 单列、费用 0）；旧 stats.json 无此字段
   since?: string
   usd_to_cny?: number
+  catalog_version?: string // B 刀：价格目录版本（估算费用/积分系数依据，旧 stats.json 无此字段）
+  catalog_source?: string // 价格目录来源（如 bigmodel）
 }
 
 /** Herdsman 模型库条目（来自 herdsman skill models list） */

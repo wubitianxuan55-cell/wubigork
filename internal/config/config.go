@@ -113,6 +113,12 @@ const (
 	// GLM 目录覆盖文件路径（模型中心成本层）：非空时 GLM 静态目录在内嵌
 	// 目录基础上按该文件热更新合并（同 ID 替换 + 新 ID 追加）。默认空=只用内嵌。
 	KeyGLMCatalogPath = "glm_catalog_path"
+	// GLM 目录远程热更新 URL（B 刀，模型中心成本层）：非空时 app 启动异步
+	// 拉取 + 每 24h 周期，v2 响应写缓存 glm_catalog_remote.json（与
+	// engines.json 同目录），生效优先级 覆盖文件 > 远程缓存 > 内嵌。
+	// 远程目录仅影响展示与费用估算，不影响请求路由/alias 判定/鉴权。
+	// 默认空=禁用。
+	KeyGLMCatalogURL = "glm_catalog_url"
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认与历史硬编码一致。
 	KeyCosyVoiceDir  = "cosyvoice_dir"
 	KeyCosyVoicePort = "cosyvoice_port"
@@ -220,6 +226,8 @@ type configFile struct {
 	UsdCnyRate float64 `json:"usd_cny_rate,omitempty"`
 	// GLM 目录覆盖文件路径（空=只用内嵌目录）
 	GLMCatalogPath string `json:"glm_catalog_path,omitempty"`
+	// GLM 目录远程热更新 URL（空=禁用）
+	GLMCatalogURL string `json:"glm_catalog_url,omitempty"`
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，空值回退默认。
 	CosyVoiceDir  string `json:"cosyvoice_dir,omitempty"`
 	CosyVoicePort int    `json:"cosyvoice_port,omitempty"`
@@ -369,6 +377,10 @@ type Config struct {
 
 	// GLM 目录覆盖文件路径（模型中心成本层，空=只用内嵌目录）
 	GLMCatalogPath string
+
+	// GLM 目录远程热更新 URL（模型中心成本层，空=禁用；非空时启动异步
+	// 拉取循环，v2 响应写缓存 glm_catalog_remote.json）
+	GLMCatalogURL string
 
 	// CosyVoice 本地 TTS 服务（T6-9.5）：路径/端口可配置，默认 C:\AI\cosyvoice / 8010。
 	CosyVoiceDir  string
@@ -1012,6 +1024,9 @@ func Load() *Config {
 			if cf.GLMCatalogPath != "" {
 				cfg.GLMCatalogPath = cf.GLMCatalogPath
 			}
+			if cf.GLMCatalogURL != "" {
+				cfg.GLMCatalogURL = cf.GLMCatalogURL
+			}
 			if cf.CosyVoiceDir != "" {
 				cfg.CosyVoiceDir = cf.CosyVoiceDir
 			}
@@ -1472,6 +1487,7 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 	},
 	KeyRealtimeModel:  func(cf *configFile, v string) error { cf.RealtimeModel = v; return nil },
 	KeyGLMCatalogPath: func(cf *configFile, v string) error { cf.GLMCatalogPath = v; return nil },
+	KeyGLMCatalogURL:  func(cf *configFile, v string) error { cf.GLMCatalogURL = v; return nil },
 	KeyRealtimeAPIKey: func(cf *configFile, v string) error { cf.RealtimeAPIKey = v; return nil },
 }
 

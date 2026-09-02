@@ -73,6 +73,12 @@ type ModelStatsSummary struct {
 	Engines  map[string]EngineSubtotal `json:"engines,omitempty"`
 	Since    string                    `json:"since,omitempty"`
 	UsdToCny float64                   `json:"usd_to_cny"` // 展示用美元→人民币汇率（单一来源，前端不再硬编码）
+	// CatalogVersion/CatalogSource GLM 目录当前生效 schema 版本与来源
+	// （B 刀，GetModelCallStats 组装处填 glmCatalog 当前生效源，零新绑定）：
+	// version 如 "2"；source 如 "builtin v2 (2026-09-02)" / "override" /
+	// "remote 2"（生效优先级 覆盖 > 远程 > 内嵌，见 glm_catalog.go）。
+	CatalogVersion string `json:"catalog_version,omitempty"`
+	CatalogSource  string `json:"catalog_source,omitempty"`
 }
 
 // EngineSubtotal 按引擎聚合的小计（ModelStatsSummary.Engines 的值）。
@@ -105,6 +111,9 @@ type modelPrice struct {
 	InputPerM  float64
 	OutputPerM float64
 	Currency   string // "CNY" | "USD"
+	// Unit 计价单位：空=每百万 tokens（可从 token 数估算）；"call"=每次；
+	// "minute"=每分钟（GLM 目录价，无法从 token 数推导，估算不计价）。
+	Unit string
 }
 
 // modelPricing 内置定价表：按归一化模型名前缀匹配，长前缀在前。
@@ -112,32 +121,32 @@ var modelPricing = []struct {
 	prefix string
 	price  modelPrice
 }{
-	{"deepseek-v4-flash", modelPrice{1, 2, "CNY"}},
-	{"deepseek-v4-pro", modelPrice{12, 24, "CNY"}},
-	{"deepseek-chat", modelPrice{1, 2, "CNY"}}, // 官方映射到 v4-flash
-	{"deepseek-reasoner", modelPrice{1, 2, "CNY"}},
-	{"grok-4.20", modelPrice{2, 6, "USD"}},
-	{"grok-4", modelPrice{3, 15, "USD"}},
-	{"grok-3", modelPrice{3, 15, "USD"}},
-	{"grok-2", modelPrice{2, 10, "USD"}},
-	{"gpt-5.5", modelPrice{5, 30, "USD"}},
-	{"gpt-5.3-codex", modelPrice{1.75, 14, "USD"}},
-	{"gpt-5.2-codex", modelPrice{1.75, 14, "USD"}},
-	{"gpt-5.1", modelPrice{1.25, 10, "USD"}},
-	{"gpt-5", modelPrice{1.25, 10, "USD"}},
-	{"claude-opus-4-8", modelPrice{5, 25, "USD"}},
-	{"claude-opus-4-5", modelPrice{5, 25, "USD"}},
-	{"claude-opus-4", modelPrice{15, 75, "USD"}},
-	{"claude-sonnet-4-5", modelPrice{3, 15, "USD"}},
-	{"claude-sonnet-4", modelPrice{3, 15, "USD"}},
-	{"claude-haiku-4-5", modelPrice{1, 5, "USD"}},
-	{"claude-3-5-sonnet", modelPrice{3, 15, "USD"}},
-	{"claude-3-5-haiku", modelPrice{0.8, 4, "USD"}},
-	{"gemini-3-pro", modelPrice{2, 12, "USD"}},
-	{"gemini-3-flash", modelPrice{0.5, 3, "USD"}},
-	{"gemini-2.5-pro", modelPrice{1.25, 10, "USD"}},
-	{"gemini-2.5-flash", modelPrice{0.3, 2.5, "USD"}},
-	{"kimi-k2", modelPrice{4, 16, "CNY"}},
+	{"deepseek-v4-flash", modelPrice{1, 2, "CNY", ""}},
+	{"deepseek-v4-pro", modelPrice{12, 24, "CNY", ""}},
+	{"deepseek-chat", modelPrice{1, 2, "CNY", ""}}, // 官方映射到 v4-flash
+	{"deepseek-reasoner", modelPrice{1, 2, "CNY", ""}},
+	{"grok-4.20", modelPrice{2, 6, "USD", ""}},
+	{"grok-4", modelPrice{3, 15, "USD", ""}},
+	{"grok-3", modelPrice{3, 15, "USD", ""}},
+	{"grok-2", modelPrice{2, 10, "USD", ""}},
+	{"gpt-5.5", modelPrice{5, 30, "USD", ""}},
+	{"gpt-5.3-codex", modelPrice{1.75, 14, "USD", ""}},
+	{"gpt-5.2-codex", modelPrice{1.75, 14, "USD", ""}},
+	{"gpt-5.1", modelPrice{1.25, 10, "USD", ""}},
+	{"gpt-5", modelPrice{1.25, 10, "USD", ""}},
+	{"claude-opus-4-8", modelPrice{5, 25, "USD", ""}},
+	{"claude-opus-4-5", modelPrice{5, 25, "USD", ""}},
+	{"claude-opus-4", modelPrice{15, 75, "USD", ""}},
+	{"claude-sonnet-4-5", modelPrice{3, 15, "USD", ""}},
+	{"claude-sonnet-4", modelPrice{3, 15, "USD", ""}},
+	{"claude-haiku-4-5", modelPrice{1, 5, "USD", ""}},
+	{"claude-3-5-sonnet", modelPrice{3, 15, "USD", ""}},
+	{"claude-3-5-haiku", modelPrice{0.8, 4, "USD", ""}},
+	{"gemini-3-pro", modelPrice{2, 12, "USD", ""}},
+	{"gemini-3-flash", modelPrice{0.5, 3, "USD", ""}},
+	{"gemini-2.5-pro", modelPrice{1.25, 10, "USD", ""}},
+	{"gemini-2.5-flash", modelPrice{0.3, 2.5, "USD", ""}},
+	{"kimi-k2", modelPrice{4, 16, "CNY", ""}},
 	// GLM（智谱）定价：来源 https://docs.z.ai/guides/overview/pricing（官方
 	// 国际站，USD 计价），核实日期 2026-08-31。国内 bigmodel.cn 定价页为
 	// JS 渲染、无静态数据可抓，故本表采用 z.ai 官方 USD 价，折人民币走
@@ -145,22 +154,25 @@ var modelPricing = []struct {
 	// 列出的模型不进表（不计价）——glm-5-turbo 显式置空前缀，挡住下条
 	// "glm-5" 的前缀匹配，其余未列出者（glm-4-long/glm-tts/embedding-3/
 	// rerank/cogview-*/glm-image）无前缀冲突、天然不计价。长前缀在前。
-	{"glm-5.3-flash", modelPrice{0.15, 0.5, "USD"}}, // 列表价；官方另有 50% 高峰外限时优惠（至 2026-09-09）
-	{"glm-5.3", modelPrice{1.4, 4.4, "USD"}},
-	{"glm-5.2", modelPrice{1.4, 4.4, "USD"}},
-	{"glm-5.1", modelPrice{1.4, 4.4, "USD"}},
-	{"glm-5-turbo", modelPrice{0, 0, ""}}, // 官方定价页未列出：置空挡住 glm-5 前缀
-	{"glm-5", modelPrice{1, 3.2, "USD"}},
-	{"glm-4.7-flashx", modelPrice{0.07, 0.4, "USD"}},
-	{"glm-4.7-flash", modelPrice{0, 0, "CNY"}},  // 官方免费档
-	{"glm-4.6v-flash", modelPrice{0, 0, "CNY"}}, // 官方免费档
-	{"glm-4.6v", modelPrice{0.3, 0.9, "USD"}},
-	{"glm-4.6", modelPrice{0.6, 2.2, "USD"}},
-	{"glm-4.5-flash", modelPrice{0, 0, "CNY"}}, // 官方免费档
-	{"glm-4.5-air", modelPrice{0.2, 1.1, "USD"}},
-	{"glm-asr-2512", modelPrice{0.03, 0.03, "USD"}}, // 官方 $0.03/MTok（语音识别）
-	{"glm-4.7", modelPrice{2, 8, "CNY"}},            // 既有条目（国内口径预设），保持不动
-	{"doubao-seed-code", modelPrice{1.2, 8, "CNY"}},
+	// B 刀备注：estimatePrice 的 GLM 分支先查目录（glmCatalogPrice，官方
+	// 核实国内价的 glm-ocr/embedding-3 等在目录层命中），目录无价才落到
+	// 本表——下列 GLM 条目数值迁移后不变（测试逐条锁定）。
+	{"glm-5.3-flash", modelPrice{0.15, 0.5, "USD", ""}}, // 列表价；官方另有 50% 高峰外限时优惠（至 2026-09-09）
+	{"glm-5.3", modelPrice{1.4, 4.4, "USD", ""}},
+	{"glm-5.2", modelPrice{1.4, 4.4, "USD", ""}},
+	{"glm-5.1", modelPrice{1.4, 4.4, "USD", ""}},
+	{"glm-5-turbo", modelPrice{0, 0, "", ""}}, // 官方定价页未列出：置空挡住 glm-5 前缀
+	{"glm-5", modelPrice{1, 3.2, "USD", ""}},
+	{"glm-4.7-flashx", modelPrice{0.07, 0.4, "USD", ""}},
+	{"glm-4.7-flash", modelPrice{0, 0, "CNY", ""}},  // 官方免费档
+	{"glm-4.6v-flash", modelPrice{0, 0, "CNY", ""}}, // 官方免费档
+	{"glm-4.6v", modelPrice{0.3, 0.9, "USD", ""}},
+	{"glm-4.6", modelPrice{0.6, 2.2, "USD", ""}},
+	{"glm-4.5-flash", modelPrice{0, 0, "CNY", ""}}, // 官方免费档
+	{"glm-4.5-air", modelPrice{0.2, 1.1, "USD", ""}},
+	{"glm-asr-2512", modelPrice{0.03, 0.03, "USD", ""}}, // 官方 $0.03/MTok（语音识别）
+	{"glm-4.7", modelPrice{2, 8, "CNY", ""}},            // 既有条目（国内口径预设），保持不动
+	{"doubao-seed-code", modelPrice{1.2, 8, "CNY", ""}},
 }
 
 var (
@@ -186,12 +198,21 @@ func normalizeModelID(raw string) string {
 }
 
 // estimatePrice 返回模型定价；本地引擎与未知模型返回空定价。
+// GLM 引擎先查目录（normalizeModelID 归一后精确匹配→最长前缀匹配；条目
+// free=true→{0,0,"CNY"}；带价→用目录价含 unit 判断；目录无价→回退内置表，
+// 现状不变——glm-asr-2512/glm-4.7 等内置条目价格由此保持），其他引擎完全
+// 不动（单源化：目录价与内置表同源，估算数值不回归）。
 func estimatePrice(engineID, model string) modelPrice {
 	switch engineID {
 	case "ollama", "herdsman":
 		return modelPrice{}
 	}
 	n := normalizeModelID(model)
+	if engineID == string(EngineGLM) {
+		if p, ok := glmCatalogPrice(n); ok {
+			return p
+		}
+	}
 	for _, e := range modelPricing {
 		if strings.HasPrefix(n, e.prefix) {
 			return e.price
@@ -201,9 +222,11 @@ func estimatePrice(engineID, model string) modelPrice {
 }
 
 // estimatedCostFor 按定价估算累计费用（每百万 Token 计价）。
+// call/minute 计价单位（GLM 目录价）无法从 token 数推导：与未知模型同口径
+// 不计价（glm-image/cogvideox-3 等单次计费模型估算值与迁移前一致恒 0）。
 func estimatedCostFor(engineID, model string, inputTokens, outputTokens int64) (cost float64, currency string) {
 	p := estimatePrice(engineID, model)
-	if p.Currency == "" {
+	if p.Currency == "" || p.Unit != "" {
 		return 0, ""
 	}
 	cost = p.InputPerM*float64(inputTokens)/1e6 + p.OutputPerM*float64(outputTokens)/1e6
@@ -604,9 +627,11 @@ func (m *Manager) glmCallBilling() string {
 	return ""
 }
 
-// GetModelCallStats 获取模型调用统计汇总。
+// GetModelCallStats 获取模型调用统计汇总（附 GLM 目录当前生效版本/来源）。
 func (m *Manager) GetModelCallStats() ModelStatsSummary {
-	return m.stats().summary()
+	sum := m.stats().summary()
+	sum.CatalogVersion, sum.CatalogSource = glmCatalogInfo()
+	return sum
 }
 
 // ResetModelCallStats 清空模型调用统计。

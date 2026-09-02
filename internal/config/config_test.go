@@ -858,3 +858,32 @@ func TestSave_CustomEngineKeys(t *testing.T) {
 		t.Errorf("清空后 CustomEngineKeys = %v, want 空", cfg.CustomEngineKeys)
 	}
 }
+
+// TestSave_GLMCatalogURL GLM 目录远程热更新 URL（B 刀）Save/Load 往返：
+// saveSetters 必须登记（既有反射守卫只覆盖 *_api_key 后缀字段，本键不在
+// 其列，漏登记由本测试先行失败）；空串清空 = 禁用。
+func TestSave_GLMCatalogURL(t *testing.T) {
+	if _, ok := saveSetters[KeyGLMCatalogURL]; !ok {
+		t.Fatal("KeyGLMCatalogURL 未登记 saveSetters——保存 glm_catalog_url 会报「不支持的配置项」")
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	const url = "https://example.com/glm/catalog.json"
+	if err := Save(KeyGLMCatalogURL, url); err != nil {
+		t.Fatalf("Save glm_catalog_url: %v", err)
+	}
+	if cfg := Load(); cfg.GLMCatalogURL != url {
+		t.Errorf("Load 后 GLMCatalogURL = %q, want 原样往返 %q", cfg.GLMCatalogURL, url)
+	}
+
+	// 空串清空（回到禁用态）
+	if err := Save(KeyGLMCatalogURL, ""); err != nil {
+		t.Fatalf("Save glm_catalog_url=\"\": %v", err)
+	}
+	if cfg := Load(); cfg.GLMCatalogURL != "" {
+		t.Errorf("清空后 GLMCatalogURL = %q, want 空（禁用）", cfg.GLMCatalogURL)
+	}
+}

@@ -21,7 +21,7 @@ import {
   addCustomEngine, updateCustomEngine, removeCustomEngine,
   type EngineConfig, type EngineStatus,
 } from '../../../api/engines'
-import { kindOf, engineLabel, type Category, type ModelCardData } from '../utils'
+import { kindOf, engineLabel, modelMeta, type Category, type ModelCardData } from '../utils'
 
 /** 提取错误消息（unknown 收窄；无 message 用 fallback） */
 function errText(err: unknown, fallback: string): string {
@@ -320,7 +320,16 @@ export function useEngineState(category: Category): EngineState {
   }
 
   const makeModels = (engine: EngineConfig): ModelCardData[] =>
-    (engine.models || []).map(m => ({ modelId: m.id, modelName: m.id, engineId: engine.id, engineName: engine.name, engineType: engine.type, engineEnabled: engine.enabled, status: m.status || 'running', kind: m.kind || '' }))
+    (engine.models || []).map(m => {
+      // B 刀：模型元数据透传（ModelInfo→meta，目录未下发时不构造空对象）
+      const meta = modelMeta(m)
+      return {
+        modelId: m.id, modelName: m.id, engineId: engine.id, engineName: engine.name,
+        engineType: engine.type, engineEnabled: engine.enabled,
+        status: m.status || 'running', kind: m.kind || '',
+        ...(meta ? { meta } : {}),
+      }
+    })
 
   const allModels = engines.filter(e => e.enabled).flatMap(e => makeModels(e))
   const llmModels = allModels.filter(m => kindOf(m) === 'llm')

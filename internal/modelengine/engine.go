@@ -72,6 +72,22 @@ type ModelInfo struct {
 	// AliasOf coding 端点家族下服务端实际服务的模型（套餐旧名自动切换，
 	// 见 glm_alias.go）；std 家族为空。诚实展示注记，请求模型名不改写。
 	AliasOf string `json:"alias_of,omitempty"`
+
+	// ── B 刀：能力/价格元数据（GLM 目录 v2 透传，其余引擎恒空）────────
+	// 全部 omitempty：非 GLM 引擎 / 未注记模型零新增字节，旧 JSON 兼容。
+	ContextLength int      `json:"context_length,omitempty"` // 上下文窗口（tokens 绝对值，如 1000000）
+	MaxOutput     int      `json:"max_output,omitempty"`     // 最大输出 tokens
+	PriceIn       float64  `json:"price_in,omitempty"`       // 官方目录价：每百万 tokens 输入；unit 非 tokens 时为单次价
+	PriceOut      float64  `json:"price_out,omitempty"`      // 官方目录价：每百万 tokens 输出
+	Currency      string   `json:"currency,omitempty"`       // "CNY" | "USD"
+	Unit          string   `json:"unit,omitempty"`           // 空=tokens 每百万；"call"=每次；"minute"=每分钟
+	Free          bool     `json:"free,omitempty"`           // 官方免费档（费用恒 0）
+	Caps          []string `json:"caps,omitempty"`           // 能力标记：vision/tools/reasoning/search/json（宁缺勿滥，官方未列不填）
+	PriceNote     string   `json:"price_note,omitempty"`     // 价格口径备注（如官方只给相对价）
+	PointsIn      float64  `json:"points_in,omitempty"`      // coding 套餐积分系数：输入（积分=(输入×In+缓存×Cached+输出×Out)/10000）
+	PointsCached  float64  `json:"points_cached,omitempty"`  // coding 套餐积分系数：缓存命中
+	PointsOut     float64  `json:"points_out,omitempty"`     // coding 套餐积分系数：输出
+	PointsPeak    float64  `json:"points_peak,omitempty"`    // coding 套餐高峰倍率（如 3、1.2）
 }
 
 // EngineConfig 引擎配置
@@ -127,6 +143,9 @@ type Manager struct {
 	httpClient     *http.Client
 	statsMu        sync.Mutex     // 保护 statsRec 的懒初始化
 	statsRec       *statsRecorder // 模型调用统计（可为 nil，首次记录时创建）
+	// catalogRemoteStop GLM 目录远程热更新拉取循环的停止通道（nil=未启动，
+	// 见 catalog_remote.go；app Shutdown 关闭）。
+	catalogRemoteStop chan struct{}
 }
 
 // NewManager 创建引擎管理器

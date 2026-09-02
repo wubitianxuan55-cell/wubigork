@@ -1,8 +1,25 @@
 import type { ReactNode } from 'react'
 import { CloudOutlined, DesktopOutlined, GlobalOutlined, KeyOutlined, RocketOutlined } from '@ant-design/icons'
-import type { EngineConfig } from '../../api/engines'
+import type { EngineConfig, ModelInfo } from '../../api/engines'
 
 export type Category = 'overview' | 'llm' | 'image' | 'tts' | 'specialty' | 'catalog' | 'engine' | 'bind' | 'stats' | 'benchmark' | 'retrieval'
+
+/** 模型元数据（B 刀）：后端 ModelInfo 目录字段的展示子集，全可选 */
+export interface ModelMeta {
+  context_length?: number // 上下文窗口（tokens 绝对值）
+  max_output?: number
+  price_in?: number
+  price_out?: number
+  currency?: 'CNY' | 'USD'
+  unit?: '' | 'call' | 'minute'
+  free?: boolean
+  caps?: string[]
+  price_note?: string
+  points_in?: number
+  points_cached?: number
+  points_out?: number
+  points_peak?: number
+}
 
 export interface ModelCardData {
   modelId: string; modelName: string
@@ -10,6 +27,8 @@ export interface ModelCardData {
   engineType: string; engineEnabled: boolean
   status: string
   kind?: string
+  /** B 刀：模型元数据（目录未下发/无任一字段时不构造，保持零破坏） */
+  meta?: ModelMeta
 }
 
 export type ModelKind = 'llm' | 'tts' | 'stt' | 'image' | 'embedding' | 'rerank' | 'ocr'
@@ -41,6 +60,90 @@ export const glmAliasNote = (model?: { id?: string; alias_of?: string }): string
 // 调用、不计价）；空/其他口径返回空串，调用方据此不渲染标签。
 export const billingModeLabel = (mode?: string): string =>
   mode === 'coding_points' ? '编码套餐 · 积分口径（不计价）' : ''
+
+// ── 模型元数据徽标（B 刀：目录字段 → 卡片徽标 / 积分口径展示） ──
+
+// ModelInfo → ModelMeta 聚合：仅当任一展示字段存在才构造对象，
+// 避免目录未下发时产生空 meta（卡片据此不渲染徽标、不占位）。
+export function modelMeta(m?: ModelInfo): ModelMeta | undefined {
+  if (!m) return undefined
+  const meta: ModelMeta = {
+    context_length: m.context_length, max_output: m.max_output,
+    price_in: m.price_in, price_out: m.price_out,
+    currency: m.currency, unit: m.unit, free: m.free,
+    caps: m.caps, price_note: m.price_note,
+    points_in: m.points_in, points_cached: m.points_cached,
+    points_out: m.points_out, points_peak: m.points_peak,
+  }
+  const has = meta.context_length != null || meta.max_output != null
+    || meta.price_in != null || meta.price_out != null
+    || meta.currency != null || !!meta.unit || !!meta.free
+    || (meta.caps?.length ?? 0) > 0 || !!meta.price_note
+    || meta.points_in != null || meta.points_cached != null
+    || meta.points_out != null || meta.points_peak != null
+  return has ? meta : undefined
+}
+
+// 引擎列表定位模型的 meta（stats 逐行积分估算用：engine_id + model → 系数）
+export function findModelMeta(engines: EngineConfig[], engineId: string, modelId: string): ModelMeta | undefined {
+  const eng = engines.find(e => e.id === engineId)
+  return modelMeta(eng?.models?.find(m => m.id === modelId))
+}
+
+// 上下文窗口格式化：≥1M 用 M（一位小数去尾 0），≥1K 用 K（整数）；空/非法返回空串。
+export function formatCtx(tokens?: number): string {
+  if (tokens == null || !Number.isFinite(tokens) || tokens <= 0) return ''
+  if (tokens >= 1e6) return `${(tokens / 1e6).toFixed(1).replace(/\.0$/, '')}M`
+  if (tokens >= 1e3) return `${Math.round(tokens / 1e3)}K`
+  return String(Math.round(tokens))
+}
+
+// 价格数字：最多 2 位小数去尾 0（1.40→"1.4"、4.00→"4"、0.10→"0.1"）
+const fmtPriceNum = (v: number): string => {
+  if (!Number.isFinite(v)) return '0'
+  return v.toFixed(2).replace(/\.?0+$/, '')
+}
+
+// 价格徽标文案：free→「免费」；unit=call/minute→「¥0.1/次」「¥0.18/分」；
+// 默认每百万 tokens→「¥1.4/M」「$1.4·$4.4/M」（双侧）/「$4.4/M」（单侧）。
+// 未计价（无 free 且无价格）返回空串，调用方不渲染。
+export function formatPrice(meta?: ModelMeta): string {
+  if (!meta) return ''
+  if (meta.free) return '免费'
+  const sym = meta.currency === 'USD' ? '$' : '¥'
+  if (meta.unit === 'call') return meta.price_in == null ? '' : `${sym}${fmtPriceNum(meta.price_in)}/次`
+  if (meta.unit === 'minute') return meta.price_in == null ? '' : `${sym}${fmtPriceNum(meta.price_in)}/分`
+  const hasIn = meta.price_in != null
+  const hasOut = meta.price_out != null
+  if (!hasIn && !hasOut) return ''
+  if (hasIn && hasOut) return `${sym}${fmtPriceNum(meta.price_in!)}·${sym}${fmtPriceNum(meta.price_out!)}/M`
+  const single = (hasIn ? meta.price_in : meta.price_out)!
+  return `${sym}${fmtPriceNum(single)}/M`
+}
+
+// 能力标签（caps）中文映射；未收录的键由调用方回退原文透传
+export const capLabels: Record<string, string> = {
+  vision: '视觉', tools: '工具', reasoning: '推理', search: '搜索', json: '结构化',
+}
+
+// 积分估算（GLM coding 套餐口径，与后端同式）：
+// 积分 = (输入tokens×points_in + 缓存命中tokens×points_cached + 输出tokens×points_out) / 10000
+export function estimatePoints(
+  inputTokens: number,
+  cachedTokens: number,
+  outputTokens: number,
+  coef: Pick<ModelMeta, 'points_in' | 'points_cached' | 'points_out'>,
+): number {
+  return (
+    inputTokens * (coef.points_in ?? 0)
+    + cachedTokens * (coef.points_cached ?? 0)
+    + outputTokens * (coef.points_out ?? 0)
+  ) / 10000
+}
+
+// 是否具备可估算的积分系数（仅 points_peak 不算——缺 in/cached/out 任一主系数无法估）
+export const hasPointsCoef = (meta?: ModelMeta): boolean =>
+  !!meta && (meta.points_in != null || meta.points_cached != null || meta.points_out != null)
 
 export const engineIcons: Record<string, ReactNode> = {
   xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />, custom: <GlobalOutlined />,

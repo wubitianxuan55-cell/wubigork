@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
   COMFY_IMAGE_MODELS,
+  capLabels,
+  estimatePoints,
+  findModelMeta,
+  formatCtx,
+  formatPrice,
+  hasPointsCoef,
   imageModelDefaultFor,
   imageModelOptionsFor,
   isImageModel,
   modelAvailability,
+  modelMeta,
   featureState,
   routeSourceLabel,
   filterModelsBySearch,
@@ -229,5 +236,97 @@ describe('模型中心 glmAliasNote / billingModeLabel', () => {
     expect(billingModeLabel('')).toBe('')
     expect(billingModeLabel(undefined)).toBe('')
     expect(billingModeLabel('usage')).toBe('')
+  })
+})
+
+// ── B 刀：模型元数据徽标 + 积分口径 ──────────────────────────
+
+describe('模型中心 formatCtx（上下文徽标）', () => {
+  it('≥1M 用 M 一位小数去尾 0', () => {
+    expect(formatCtx(1_000_000)).toBe('1M')
+    expect(formatCtx(1_500_000)).toBe('1.5M')
+    expect(formatCtx(2_000_000)).toBe('2M')
+  })
+
+  it('≥1K 用 K 整数', () => {
+    expect(formatCtx(200_000)).toBe('200K')
+    expect(formatCtx(131_072)).toBe('131K')
+    expect(formatCtx(8_192)).toBe('8K')
+  })
+
+  it('空值/非法值返回空串（徽标不占位）', () => {
+    expect(formatCtx(undefined)).toBe('')
+    expect(formatCtx(0)).toBe('')
+    expect(formatCtx(-1)).toBe('')
+    expect(formatCtx(Number.NaN)).toBe('')
+  })
+})
+
+describe('模型中心 formatPrice（价格徽标）', () => {
+  it('free → 免费', () => {
+    expect(formatPrice({ free: true })).toBe('免费')
+  })
+
+  it('unit=call/minute 按次/分计价', () => {
+    expect(formatPrice({ unit: 'call', price_in: 0.1, currency: 'CNY' })).toBe('¥0.1/次')
+    expect(formatPrice({ unit: 'call', price_in: 0.02, currency: 'USD' })).toBe('$0.02/次')
+    expect(formatPrice({ unit: 'minute', price_in: 0.18, currency: 'CNY' })).toBe('¥0.18/分')
+  })
+
+  it('默认每百万 tokens：CNY/USD 前缀与 in·out 组合', () => {
+    expect(formatPrice({ price_in: 1.4, currency: 'CNY' })).toBe('¥1.4/M')
+    expect(formatPrice({ price_in: 1.4, price_out: 4.4, currency: 'USD' })).toBe('$1.4·$4.4/M')
+    expect(formatPrice({ price_out: 4.4, currency: 'USD' })).toBe('$4.4/M')
+  })
+
+  it('空 meta / 未计价返回空串', () => {
+    expect(formatPrice(undefined)).toBe('')
+    expect(formatPrice({})).toBe('')
+    expect(formatPrice({ unit: 'call' })).toBe('')
+  })
+})
+
+describe('模型中心 capLabels / modelMeta', () => {
+  it('capLabels 覆盖契约能力键', () => {
+    expect(capLabels).toMatchObject({ vision: '视觉', tools: '工具', reasoning: '推理', search: '搜索', json: '结构化' })
+  })
+
+  it('modelMeta：任一字段存在才构造，全空返回 undefined（卡片不占位）', () => {
+    expect(modelMeta({ id: 'm', owned_by: 'x', status: 'ok' })).toBeUndefined()
+    expect(modelMeta({ id: 'm', owned_by: 'x', status: 'ok', context_length: 128_000 }))
+      .toMatchObject({ context_length: 128_000 })
+    expect(modelMeta({ id: 'm', owned_by: 'x', status: 'ok', points_in: 2.5 }))
+      .toMatchObject({ points_in: 2.5 })
+  })
+
+  it('findModelMeta：按引擎 + 模型定位元数据，找不到返回 undefined', () => {
+    const engines: EngineConfig[] = [
+      {
+        id: 'glm', name: 'GLM', type: 'glm', base_url: '', enabled: true, default_model: '',
+        models: [{ id: 'glm-5.3', owned_by: 'glm', status: 'ok', kind: 'llm', context_length: 200_000 }],
+      },
+    ]
+    expect(findModelMeta(engines, 'glm', 'glm-5.3')).toMatchObject({ context_length: 200_000 })
+    expect(findModelMeta(engines, 'glm', 'nope')).toBeUndefined()
+    expect(findModelMeta(engines, 'xai', 'glm-5.3')).toBeUndefined()
+  })
+})
+
+describe('模型中心 积分口径（coding 套餐估算）', () => {
+  it('estimatePoints 按 (入×in + 缓存×cached + 出×out)/10000', () => {
+    expect(estimatePoints(50_000, 30_000, 20_000, { points_in: 2, points_cached: 0.4, points_out: 4 }))
+      .toBeCloseTo(19.2)
+  })
+
+  it('缺失系数按 0 计', () => {
+    expect(estimatePoints(10_000, 5_000, 2_000, { points_in: 1 })).toBe(1)
+    expect(estimatePoints(10_000, 0, 0, {})).toBe(0)
+  })
+
+  it('hasPointsCoef：具备主系数才算可估算（仅 peak 不算）', () => {
+    expect(hasPointsCoef({ points_in: 1 })).toBe(true)
+    expect(hasPointsCoef({ points_cached: 0.4 })).toBe(true)
+    expect(hasPointsCoef({ points_peak: 2 })).toBe(false)
+    expect(hasPointsCoef(undefined)).toBe(false)
   })
 })

@@ -36,6 +36,7 @@ import {
   getEngines, getActiveEngine, getDeepseekKeyStatus,
   getOpencodeGoKeyStatus, getOpencodeZenKeyStatus, refreshEngineModels,
   addCustomEngine, updateCustomEngine, removeCustomEngine,
+  type EngineConfig,
 } from '../../../api/engines'
 import { GetActiveModel } from '../../../wailsjsCompat'
 import { useEngineState } from './useEngineState'
@@ -158,5 +159,34 @@ describe('useEngineState · 自定义引擎 handler 契约（A 刀）', () => {
     await act(async () => { await result.current.handleRemoveCustomEngine('custom-1') })
     expect(mRemoveCustom).toHaveBeenCalledWith('custom-1')
     expect(mGetEngines).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('useEngineState · 模型元数据透传（B 刀）', () => {
+  const glmEngine = (models: EngineConfig['models']): EngineConfig => ({
+    id: 'glm', name: 'GLM', type: 'glm', base_url: '', enabled: true, default_model: '', models,
+  })
+
+  it('makeModels 把 ModelInfo 目录字段聚合为 meta，llmModels 透传', async () => {
+    mGetEngines.mockResolvedValue([
+      glmEngine([
+        {
+          id: 'glm-5.3', owned_by: 'glm', status: 'running', kind: 'llm',
+          context_length: 200_000, free: true, caps: ['vision'],
+          points_in: 2.5, points_cached: 0.5, points_out: 5,
+        },
+        { id: 'glm-4', owned_by: 'glm', status: 'running', kind: 'llm' },
+      ]),
+    ])
+    const { result } = renderHook(() => useEngineState('llm'))
+    await act(async () => {})
+    const withMeta = result.current.llmModels.find(m => m.modelId === 'glm-5.3')
+    expect(withMeta?.meta).toMatchObject({ context_length: 200_000, free: true, points_in: 2.5 })
+    // 目录未下发任何元数据的模型：不构造空 meta（卡片徽标不占位）
+    const noMeta = result.current.llmModels.find(m => m.modelId === 'glm-4')
+    expect(noMeta?.meta).toBeUndefined()
+    expect(result.current.makeModels(glmEngine([
+      { id: 'glm-4-air', owned_by: 'glm', status: 'running', kind: 'llm' },
+    ]))[0].meta).toBeUndefined()
   })
 })

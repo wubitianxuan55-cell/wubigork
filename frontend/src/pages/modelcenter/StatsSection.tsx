@@ -2,7 +2,7 @@ import React from 'react'
 import { Button, Popconfirm, Segmented } from 'antd'
 import { CloudOutlined, DatabaseOutlined, DesktopOutlined, ReloadOutlined, SaveOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { EmptyState, KpiTile, StatusChip } from './ui'
-import { billingModeLabel, costToCNY, engineColor, engineIcons, engineLabel, fmtCost, isLocalEngine, USD_TO_CNY } from './utils'
+import { billingModeLabel, costToCNY, engineColor, engineIcons, engineLabel, estimatePoints, findModelMeta, fmtCost, hasPointsCoef, isLocalEngine, USD_TO_CNY } from './utils'
 import { RequestsTrendChart, TokenTrendChart, type StatsSort, type TrendRange } from './charts'
 import { useModelCenter } from './context'
 import { getUsageOverview, type UsageOverview, type UsageSide } from '../../api/engines'
@@ -26,7 +26,7 @@ function sideCache(s: UsageSide): UsageSide & SideCache {
 
 export function StatsSection() {
   const {
-    callStats, statsSort, setStatsSort, trendRange, setTrendRange,
+    engines, callStats, statsSort, setStatsSort, trendRange, setTrendRange,
     loadCallStats, handleResetCallStats, trendData,
   } = useModelCenter()
   const [overview, setOverview] = React.useState<UsageOverview | null>(null)
@@ -77,6 +77,12 @@ export function StatsSection() {
       {callStats?.since && (
         <div style={{ color: 'var(--mc-muted)', fontSize: 11 }}>
           统计自 {callStats.since} · 按引擎 / 模型维度统计调用情况与估算费用
+        </div>
+      )}
+      {/* B 刀：价格目录来源小注（估算费用/积分系数依据；旧 stats.json 无此字段时不显示） */}
+      {callStats?.catalog_version && (
+        <div style={{ color: 'var(--mc-muted)', fontSize: 11 }}>
+          价格目录 {callStats.catalog_source || '内置'}（{callStats.catalog_version}）
         </div>
       )}
 
@@ -318,9 +324,18 @@ export function StatsSection() {
                           const r2 = s.call_count > 0 ? ((s.success_count / s.call_count) * 100).toFixed(0) : '0'
                           const share = Math.round((s.call_count / maxCalls) * 100)
                           const avgSec = s.call_count > 0 ? (s.total_duration_ms / s.call_count / 1000).toFixed(1) : '0.0'
-                          // coding_points=GLM 编码套餐积分内调用：费用恒 0，显示「积分内」而非 ¥0/—，避免误导
+                          // coding_points=GLM 编码套餐积分内调用：费用恒 0。
+                          // B 刀：有积分系数时按 (入×in+缓存×cached+出×out)/10000 估算积分，
+                          // 无系数（目录未下发）的 coding 行显示「—」；口径说明见模型名下标签。
                           const codingPoints = s.billing_mode === 'coding_points'
-                          const costText = codingPoints ? '积分内' : (fmtCost(s.estimated_cost, s.currency) || (isLocalEngine(s.engine_id) ? '免费' : '—'))
+                          const rowMeta = codingPoints ? findModelMeta(engines, s.engine_id, s.model) : undefined
+                          // 缓存命中 token 走明细的 cache_hit_tokens（未上报时按 0）
+                          const pointsText = codingPoints && hasPointsCoef(rowMeta)
+                            ? `≈${estimatePoints(s.input_tokens, s.cache_hit_tokens ?? 0, s.output_tokens, rowMeta!).toFixed(1)} 积分`
+                            : ''
+                          const costText = codingPoints
+                            ? (pointsText || '—')
+                            : (fmtCost(s.estimated_cost, s.currency) || (isLocalEngine(s.engine_id) ? '免费' : '—'))
                           return (
                             <div key={s.engine_id + '|' + s.model} className="mc-table-row">
                               <div
@@ -363,7 +378,7 @@ export function StatsSection() {
                                 <span style={{ color: 'var(--mc-text)', fontSize: 12 }}>{avgSec}s</span>
                               </div>
                               <div className="mc-table-cell-num" style={{ position: 'relative' }}>
-                                <span style={{ color: costText === '—' ? 'var(--mc-muted)' : 'var(--mc-warn)', fontSize: 12, fontWeight: 600 }}>{costText}</span>
+                                <span style={{ color: codingPoints || costText === '—' ? 'var(--mc-muted)' : 'var(--mc-warn)', fontSize: 12, fontWeight: 600 }}>{costText}</span>
                               </div>
                               <div className="mc-table-cell-num" style={{ position: 'relative' }}>
                                 <span style={{ color: s.fail_count > 0 ? 'var(--mc-danger)' : 'var(--mc-ok)', fontSize: 12, fontWeight: 600 }}>{r2}%</span>
