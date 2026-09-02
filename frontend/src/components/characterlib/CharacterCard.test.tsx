@@ -1,7 +1,15 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { CharacterCard } from './CharacterCard'
 import type { LibraryCharacter } from '../../api/characterlib'
+
+vi.mock('../../../src/wailsjsCompat', () => ({
+  WhisperAssistantSave: vi.fn(),
+}))
+
+import { WhisperAssistantSave } from '../../../src/wailsjsCompat'
+
+const mockedSave = vi.mocked(WhisperAssistantSave)
 
 function makeCharacter(overrides: Partial<LibraryCharacter> = {}): LibraryCharacter {
   return {
@@ -122,5 +130,37 @@ describe('CharacterCard', () => {
     const { container } = render(<CharacterCard character={c} index={0} onClick={onClick} {...baseProps} />)
     fireEvent.keyDown(container.querySelector('.ccard') as HTMLElement, { key: 'Enter' })
     expect(onClick).toHaveBeenCalledWith(c)
+  })
+
+  it('custom 卡显示「创建青鸟助手」，Popconfirm 确认后以角色为人格调 WhisperAssistantSave', async () => {
+    const onAssistantCreated = vi.fn()
+    render(<CharacterCard character={makeCharacter()} index={0} {...baseProps} onAssistantCreated={onAssistantCreated} />)
+    const trigger = screen.getByTitle('创建青鸟助手')
+    expect(trigger.getAttribute('aria-label')).toBe('创建青鸟助手 苏念')
+    // Popconfirm 二次确认：点动作 → 点「创建」
+    fireEvent.click(trigger)
+    fireEvent.click(await screen.findByRole('button', { name: /^创\s*建$/ }))
+    await waitFor(() => {
+      expect(mockedSave).toHaveBeenCalledWith(expect.objectContaining({
+        id: expect.stringMatching(/^wx_/),
+        name: '苏念',
+        personalityId: 'c1',
+        enabled: true,
+        portraitUrl: '',
+      }))
+    })
+    // 创建成功后触发列表刷新回调
+    expect(onAssistantCreated).toHaveBeenCalledTimes(1)
+  })
+
+  it('assistant / builtin 卡不渲染「创建青鸟助手」动作', () => {
+    const { container: a } = render(<CharacterCard character={makeCharacter({ kind: 'assistant' })} index={0} {...baseProps} />)
+    expect(a.querySelector('[title="创建青鸟助手"]')).toBeNull()
+    const { container: b, unmount } = render(<CharacterCard character={makeCharacter({ kind: 'builtin' })} index={0} {...baseProps} />)
+    expect(b.querySelector('[title="创建青鸟助手"]')).toBeNull()
+    unmount()
+    // custom 卡对照：动作存在
+    const { container: c } = render(<CharacterCard character={makeCharacter({ kind: 'custom' })} index={0} {...baseProps} />)
+    expect(c.querySelector('[title="创建青鸟助手"]')).not.toBeNull()
   })
 })

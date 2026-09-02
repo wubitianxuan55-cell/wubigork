@@ -52,3 +52,10 @@ expired=warning / stopped=次级 62% / unbound=虚线空心点。rail 状态字 
   listbox/option a11y；默认选中 gaea 预设，加载失败降级照常确认。
 - portraitUrl 随 Save 落库 → 轨道/详情头像真立绘回显。
 - 测试锁：WeixinPage.test 9 场景；spaceBindings facets 数量锁 266。
+
+## v4.49 增补：编辑助手 + 生命周期
+- 通道详情操作区 = 扫码绑定 · 编辑（core 不渲染）· 删除。
+- 编辑弹窗复用 PersonaPickerPanel（新增/编辑共用 personaOpts；编辑预填当前
+  personalityId，custom id 不在选项时保留原值 + 占位提示，绝不静默重置）。
+- 角色库 custom 角色卡「创建青鸟助手」→ 未绑定助手 + 文案引导扫码绑定；
+  EnsureAssistants 镜像守卫：custom 角色永不被镜像覆写。

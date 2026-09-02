@@ -97,6 +97,13 @@ func (s *Store) EnsureAssistants(assistants []assistant.Assistant, presets []whi
 		if err != nil || c == nil {
 			c = &Character{ID: pid, Kind: KindAssistant, CreatedAt: ts}
 		}
+		// 镜像守卫：v4.48 起前端允许把 custom 角色选为助手人格（personalityId=
+		// 角色 id）。用户自建角色绝不被镜像覆写（否则名字/kind 会被冲掉）——
+		// 整行跳过：不改任何字段、不设 AssistantID、不翻 Kind；微信通道配置
+		// 仍以 assistant 记录为唯一事实源。
+		if c.Kind == KindCustom {
+			continue
+		}
 		base, _ := byID[pid]
 		c.ID = pid
 		c.Name = ast.Name

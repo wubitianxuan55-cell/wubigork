@@ -1,12 +1,14 @@
 // CharacterCard.tsx — 角色库「人物档案卡」
 // 竖版设定卡：档案眉（编号/类型/可聊天）→ 立绘横幅 → 正文（名称/元数据/弧线/标签）→ 底部（雷达 + 操作）
 import React from 'react'
-import { Button, Popconfirm } from 'antd'
+import { Button, Popconfirm, message } from 'antd'
 import {
-  EditOutlined, SwapOutlined, DatabaseOutlined, DeleteOutlined, ReadOutlined, ArrowRightOutlined,
+  EditOutlined, SwapOutlined, DatabaseOutlined, DeleteOutlined, ReadOutlined, ArrowRightOutlined, RobotOutlined,
 } from '@ant-design/icons'
 import TisorRadar from '../TisorRadar'
 import type { LibraryCharacter } from '../../api/characterlib'
+import * as App from '../../../src/wailsjsCompat'
+import { assistant } from '../../../wailsjs/go/models'
 import { C } from '../../utils/theme'
 import { PortraitImg } from './PortraitImg'
 import './character-card.css'
@@ -42,6 +44,8 @@ interface CharacterCardProps {
   onAssociate: (c: LibraryCharacter) => void
   onDissociate: (c: LibraryCharacter) => void
   onDelete: (c: LibraryCharacter) => void
+  /** 「创建青鸟助手」成功后触发（页面刷新角色列表用） */
+  onAssistantCreated?: (c: LibraryCharacter) => void
 }
 
 export const CharacterCard: React.FC<CharacterCardProps> = ({
@@ -57,6 +61,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onAssociate,
   onDissociate,
   onDelete,
+  onAssistantCreated,
 }) => {
   const kindLabel = KIND_META[c.kind] || KIND_META.custom
   const meta = [
@@ -66,6 +71,23 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     c.status ? STATUS_LABELS[c.status] || c.status : '',
     inProject ? '已加入' : '',
   ].filter(Boolean).join(' · ')
+
+  /** custom 角色 → 一键创建以其为人格的青鸟（微信）助手（wxToken 留空 = 未绑定，之后扫码绑定） */
+  const handleCreateAssistant = async () => {
+    try {
+      await App.WhisperAssistantSave(new assistant.Assistant({
+        id: `wx_${Date.now().toString(36)}`,
+        name: c.name,
+        personalityId: c.id,
+        enabled: true,
+        portraitUrl: c.portraitUrl || '',
+      }))
+      message.success('青鸟助手已创建（未绑定微信），到青鸟板块扫码绑定即可使用')
+      onAssistantCreated?.(c)
+    } catch (err) {
+      message.error(`创建青鸟助手失败：${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
 
   return (
     <div
@@ -141,6 +163,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           ) : (
             <Button size="small" type="text" icon={<ReadOutlined />} title="加入项目（可选择任意小说）"
               onClick={e => { e.stopPropagation(); onAssociate(c) }}>加入项目</Button>
+          )}
+          {c.kind === 'custom' && (
+            <Popconfirm
+              title={`以「${c.name}」为人格创建青鸟助手？`}
+              okText="创建" cancelText="取消"
+              onConfirm={() => { void handleCreateAssistant() }}>
+              <Button size="small" type="text" icon={<RobotOutlined />} title="创建青鸟助手"
+                aria-label={`创建青鸟助手 ${c.name}`}
+                onClick={e => e.stopPropagation()} />
+            </Popconfirm>
           )}
           <Popconfirm
             title={c.kind === 'builtin' ? `隐藏「${c.name}」？` : `删除「${c.name}」？删除会同时清理项目引用与聊天通道`}

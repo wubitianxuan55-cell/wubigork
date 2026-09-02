@@ -355,6 +355,7 @@ const CharacterLibraryPage: React.FC = () => {
                     onAssociate={handleAssociate}
                     onDissociate={handleDissociate}
                     onDelete={handleDelete}
+                    onAssistantCreated={() => { void load() }}
                   />
                 ))}
               </div>

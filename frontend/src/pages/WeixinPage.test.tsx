@@ -1,9 +1,11 @@
 // WeixinPage.test.tsx — 青鸟（微信助手）「通讯枢纽」工作台测试。
 // 桥接经 vi.mock('../gaea/lib/bridge') 注入确定性数据（app.* 方法逐个 mock），
 // 覆盖：①多助手通道轨道渲染（状态字/状态点/头像回退/详情人格 Tag）②启停翻转
-// 调用 Save 且 enabled 正确（携带完整对象）③gaea 核心助手禁删禁停 ④删除
-// Popconfirm → WhisperAssistantDelete ⑤新增微信助手表单 → 本地暂存 → 扫码流
-// 确认后 Save ⑥离线提醒视图（列表渲染 + 全局开关 + 删除）⑦使用指南视图。
+// 调用 Save 且 enabled 正确（携带完整对象）③gaea 核心助手禁删禁停（亦无编辑）
+// ④删除 Popconfirm → WhisperAssistantDelete ⑤新增微信助手表单 → 本地暂存 →
+// 扫码流确认后 Save ⑥离线提醒视图（列表渲染 + 全局开关 + 删除）⑦使用指南
+// ⑧会话过期警示 ⑨人格选择器分组/详情/立绘 ⑩编辑助手（预填 + 改名换人格 →
+// Save 合并 viewOf 携带新名字/人格与原 token）。
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -85,6 +87,7 @@ beforeEach(() => {
   mocks.WhisperGetPersonalities.mockResolvedValue([
     { id: 'gaea', label: '盖亚', gender: 'female', tags: ['秘书', '工作'], voiceGuide: '专业严谨的办公秘书口吻' },
     { id: 'muse', label: '缪斯', gender: 'female', tags: ['创作'], voiceGuide: '灵感充沛的写作伙伴' },
+    { id: 'fixer', label: '修哥', gender: 'male', tags: ['执行'], voiceGuide: '干脆利落' },
   ])
   mocks.CharacterList.mockResolvedValue({
     items: [
@@ -149,8 +152,9 @@ describe('青鸟工作台 · 通道轨道与详情', () => {
     await renderPage()
     expect(await screen.findByRole('switch', { name: '启停 gaea' }, LOAD)).toBeTruthy()
     expect((screen.getByRole('switch', { name: '启停 gaea' }) as HTMLButtonElement).disabled).toBe(true)
-    // 核心助手详情无删除入口
+    // 核心助手详情无删除入口、无编辑入口（核心锚点禁删禁停禁改）
     expect(screen.queryByRole('button', { name: '删除 gaea' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '编辑 gaea' })).toBeNull()
     // 阿修（非核心）：可启停、有删除入口
     await selectChannel('阿修')
     expect((screen.getByRole('switch', { name: '启停 阿修' }) as HTMLButtonElement).disabled).toBe(false)
@@ -231,6 +235,37 @@ describe('青鸟工作台 · 通道轨道与详情', () => {
         personalityId: 'c_lin', portraitUrl: 'http://example.com/lin.png',
       }))
     }, LOAD)
+  })
+
+  it('⑩ 编辑助手：详情头部「编辑」→ 弹窗预填名字与现人格，改名换人格后 Save 合并原绑定字段', async () => {
+    await renderPage()
+    await selectChannel('阿修')
+    // 详情头部操作区有「编辑 阿修」按钮 → 打开编辑弹窗
+    fireEvent.click(await screen.findByRole('button', { name: '编辑 阿修' }, LOAD))
+    expect(await screen.findByText('编辑助手 · 阿修', undefined, LOAD)).toBeTruthy()
+    // 名字预填现名；人格选择器激活行为当前人格（fixer → 修哥）
+    expect(screen.getByDisplayValue('阿修')).toBeTruthy()
+    await waitFor(() => {
+      expect(document.querySelector('.wx-pk-item.is-active')?.textContent).toContain('修哥')
+    }, LOAD)
+
+    // 改名 + 换人格（缪斯）→ 保存修改
+    fireEvent.change(screen.getByDisplayValue('阿修'), { target: { value: '阿修2号' } })
+    fireEvent.click(screen.getByRole('option', { name: '选择人格 缪斯' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存修改' }))
+
+    // Save 以 viewOf 为底：原 id/token 绑定字段原样保留，叠加新名字与新人格
+    const statusCalls = mocks.WhisperWeixinStatus.mock.calls.length
+    const listCalls = mocks.WhisperAssistantList.mock.calls.length
+    await waitFor(() => {
+      expect(mocks.WhisperAssistantSave).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'wx_fix', name: '阿修2号', personalityId: 'muse', wxToken: 'tok-fix',
+      }))
+    }, LOAD)
+    // 保存成功后立即重拉 Status + List（弹窗 DOM 因 rc-dialog 离场动画在 jsdom
+    // 不结束而冻结，故关闭态不按文本断言，沿用 ② 的刷新口径）
+    await waitFor(() => expect(mocks.WhisperWeixinStatus.mock.calls.length).toBeGreaterThan(statusCalls), LOAD)
+    await waitFor(() => expect(mocks.WhisperAssistantList.mock.calls.length).toBeGreaterThan(listCalls), LOAD)
   })
 })
 

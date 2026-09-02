@@ -4,7 +4,7 @@ import {
 } from 'antd'
 import {
   QrcodeOutlined, ReloadOutlined, SendOutlined, BellOutlined, DeleteOutlined, CheckCircleOutlined, WarningOutlined, PlusOutlined,
-  WechatOutlined, ClockCircleOutlined, MessageOutlined, BookOutlined, NotificationOutlined, SearchOutlined,
+  WechatOutlined, ClockCircleOutlined, MessageOutlined, BookOutlined, NotificationOutlined, SearchOutlined, EditOutlined,
 } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { app } from '../gaea/lib/bridge'
@@ -17,7 +17,9 @@ import './weixin-page.css'
 
 /**
  * WeixinPage — 青鸟（微信助手）「通讯枢纽」工作台（v4.47 星枢化重构；
- * v4.48 板块更名「青鸟」+ 新增流人格选择器打通角色库）。
+ * v4.48 板块更名「青鸟」+ 新增流人格选择器打通角色库；
+ * v4.49 通道详情「编辑」助手：改名/换人格，选择器抽成 PersonaPickerPanel
+ * 供新增/编辑两流复用）。
  *
  * 布局（Constellation OS 三分区语言）：顶部玻璃细条（板块名 + 通道遥测 meta +
  * 刷新）/ 左通道轨道（每助手一条 rail item：头像 + 名字 + 状态字 + 状态点，
@@ -146,14 +148,23 @@ const WeixinPage: React.FC = () => {
   const [personaQuery, setPersonaQuery] = useState('')
   const [personaSel, setPersonaSel] = useState('gaea')
 
-  // 人格选择器数据：预设清单 + 角色库可聊天角色（打开弹窗时拉一次；
-  // 默认选中 gaea 预设，加载失败时确认流仍可走——payload 照常 'gaea'）
+  // ── 编辑已有助手（改名/换人格；核心锚点 gaea 不开放编辑入口）──
+  const [editOpen, setEditOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<AssistantRow | null>(null)
+  const [editName, setEditName] = useState('')
+  // 编辑流独立选中态：打开时预填为当前人格；自定义角色 id 不在选项里时保留
+  // 原值（不重置 gaea），仅当用户点选其他选项才改变
+  const [editSel, setEditSel] = useState('')
+
+  // 人格选择器数据：预设清单 + 角色库可聊天角色（新增/编辑弹窗任一打开时拉
+  // 一次，两流共用 personaOpts；新增流默认选中 gaea，编辑流的选中态由
+  // openEdit 预填、不在此重置；加载失败时确认流仍可走）
   useEffect(() => {
-    if (!addOpen) return
+    if (!addOpen && !editOpen) return
     let alive = true
     setPersonaOpts([])
     setPersonaQuery('')
-    setPersonaSel('gaea')
+    if (addOpen) setPersonaSel('gaea')
     ;(async () => {
       const [presets, charRes] = await Promise.all([
         app.WhisperGetPersonalities().catch(() => [] as whisper.PersonalityPreset[]),
@@ -175,18 +186,15 @@ const WeixinPage: React.FC = () => {
       setPersonaOpts([...presetOpts, ...charOpts])
     })()
     return () => { alive = false }
-  }, [addOpen])
+  }, [addOpen, editOpen])
 
-  // 选择器派生：搜索过滤 + 分组 + 当前选中项
+  // 选择器派生：搜索过滤（分组与选中项投影收进 PersonaPickerPanel）
   const personaFiltered = useMemo(() => {
     const q = personaQuery.trim().toLowerCase()
     if (!q) return personaOpts
     return personaOpts.filter((o) =>
       o.name.toLowerCase().includes(q) || (o.tags ?? []).some((t) => t.toLowerCase().includes(q)))
   }, [personaOpts, personaQuery])
-  const presetGroup = personaFiltered.filter((o) => o.group === 'preset')
-  const charGroup = personaFiltered.filter((o) => o.group === 'character')
-  const personaSelOpt = personaOpts.find((o) => o.id === personaSel) ?? null
 
   // ── 手动新建提醒 ──
   const [newText, setNewText] = useState('')
@@ -334,6 +342,38 @@ const WeixinPage: React.FC = () => {
     startBinding(staged)
   }
 
+  // 打开「编辑助手」：名字预填现名、人格预填当前值（自定义角色 id 可能不在
+  // 加载出的选项里——保留原值，详情面板显示占位提示）
+  const openEdit = (row: AssistantRow) => {
+    setEditTarget(row)
+    setEditName(row.name || row.id)
+    setEditSel(row.personalityId)
+    setEditOpen(true)
+  }
+
+  // 「编辑助手」保存：以 viewOf 为底（enabled/wxToken 等原样保留，空 token
+  // 字段后端按契约保留现值），叠加新名字/人格/立绘。立绘契约：仅当用户新选
+  // 了带立绘的选项才覆写，否则透传原值、绝不传空串（空值后端不覆写）。
+  const saveEdit = async () => {
+    if (!editTarget) return
+    const base = viewOf(editTarget)
+    const sel = personaOpts.find((o) => o.id === editSel)
+    try {
+      await app.WhisperAssistantSave({
+        ...base,
+        name: editName.trim() || base.name || base.id,
+        personalityId: editSel || base.personalityId,
+        portraitUrl: sel?.portraitUrl || base.portraitUrl || undefined,
+      })
+      message.success('助手已更新')
+      setEditOpen(false)
+      setEditTarget(null)
+      loadAssistants()
+    } catch (e) {
+      message.error(`保存失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   const addReminder = async () => {
     if (!newText.trim() || !newTime) {
       message.warning('请填写提醒事项和时间')
@@ -472,6 +512,7 @@ const WeixinPage: React.FC = () => {
                   onBind={() => startBinding(viewOf(selected))}
                   onToggle={(v) => toggleAssistant(selected, v)}
                   onDelete={() => removeAssistant(selected)}
+                  onEdit={() => openEdit(selected)}
                 />
               ) : (
                 <div className="wx-empty">
@@ -592,58 +633,34 @@ const WeixinPage: React.FC = () => {
             placeholder="助手名字（必填）" value={addName} maxLength={20}
             onChange={(e) => setAddName(e.target.value)} onPressEnter={createAssistant}
           />
-          <div className="wx-pk">
-            <div className="wx-pk-side">
-              <Input
-                size="small" allowClear prefix={<SearchOutlined aria-hidden="true" />}
-                placeholder="搜索名字 / 标签" value={personaQuery}
-                onChange={(e) => setPersonaQuery(e.target.value)}
-              />
-              <div className="wx-pk-list" role="listbox" aria-label="人格选择">
-                {presetGroup.length > 0 && <div className="wx-pk-group">轻语预设</div>}
-                {presetGroup.map((o) => (
-                  <PersonaRow key={o.id} opt={o} active={o.id === personaSel} onPick={setPersonaSel} />
-                ))}
-                {charGroup.length > 0 && <div className="wx-pk-group">角色库</div>}
-                {charGroup.map((o) => (
-                  <PersonaRow key={o.id} opt={o} active={o.id === personaSel} onPick={setPersonaSel} />
-                ))}
-                {personaFiltered.length === 0 && (
-                  <div className="wx-pk-empty">没有匹配的人格——可先去角色库创建可聊天角色</div>
-                )}
-              </div>
-            </div>
-            <div className="wx-pk-detail">
-              {personaSelOpt ? (
-                <>
-                  <div className="wx-pk-portrait">
-                    {personaSelOpt.portraitUrl
-                      ? <img src={personaSelOpt.portraitUrl} alt={`${personaSelOpt.name} 立绘`} />
-                      : <span className="wx-pk-portrait-fallback" aria-hidden="true">{personaSelOpt.name.slice(0, 1)}</span>}
-                  </div>
-                  <div className="wx-pk-detail-name">
-                    {personaSelOpt.name}
-                    <Tag color={personaSelOpt.group === 'preset' ? 'gold' : 'geekblue'}>
-                      {personaSelOpt.group === 'preset' ? '轻语预设' : '角色库'}
-                    </Tag>
-                    {personaSelOpt.gender && (
-                      <Tag>{personaSelOpt.gender === 'male' ? '男' : personaSelOpt.gender === 'female' ? '女' : personaSelOpt.gender}</Tag>
-                    )}
-                  </div>
-                  {(personaSelOpt.tags ?? []).length > 0 && (
-                    <div className="wx-pk-detail-tags">
-                      {personaSelOpt.tags!.slice(0, 6).map((t) => <Tag key={t}>{t}</Tag>)}
-                    </div>
-                  )}
-                  {personaSelOpt.desc && <div className="wx-pk-detail-desc">{personaSelOpt.desc}</div>}
-                </>
-              ) : (
-                <div className="wx-pk-empty">左侧选择人格——详情与立绘会在这里显示</div>
-              )}
-            </div>
-          </div>
+          <PersonaPickerPanel
+            opts={personaFiltered} query={personaQuery} sel={personaSel}
+            onQuery={setPersonaQuery} onPick={setPersonaSel}
+          />
           <Typography.Text type="secondary">
             人格 = 助手在微信里的身份：轻语预设或角色库可聊天角色（18+ 人格不列出）；选中角色的立绘会自动带出。
+          </Typography.Text>
+        </Space>
+      </Modal>
+
+      {/* 编辑已有助手：改名/换人格（复用人格选择器；保存不改绑定与启停） */}
+      <Modal
+        title={editTarget ? `编辑助手 · ${editTarget.name || editTarget.id}` : '编辑助手'}
+        open={editOpen} width={680}
+        okText="保存修改" cancelText="取消"
+        onOk={saveEdit} onCancel={() => setEditOpen(false)}
+      >
+        <Space direction="vertical" size={10} style={{ width: '100%', marginTop: 8 }}>
+          <Input
+            placeholder="助手名字" value={editName} maxLength={20}
+            onChange={(e) => setEditName(e.target.value)}
+          />
+          <PersonaPickerPanel
+            opts={personaFiltered} query={personaQuery} sel={editSel}
+            onQuery={setPersonaQuery} onPick={setEditSel}
+          />
+          <Typography.Text type="secondary">
+            修改名字或人格后保存即生效；微信绑定与启停状态不受影响（选中带立绘的角色时才更新立绘）。
           </Typography.Text>
         </Space>
       </Modal>
@@ -716,6 +733,79 @@ const PersonaRow: React.FC<{
   </button>
 )
 
+/**
+ * 人格选择器双栏面板（新增/编辑助手弹窗共用）：左 = 搜索 + 分组列表
+ * （轻语预设/角色库），右 = 详情预览。选中态与回调由调用方持有——新增流传
+ * personaSel，编辑流传 editSel（打开时预填当前人格；不在选项里时保留原值，
+ * 详情面板仅显示占位提示）。
+ */
+const PersonaPickerPanel: React.FC<{
+  opts: PersonaOption[]
+  query: string
+  sel: string
+  onQuery: (q: string) => void
+  onPick: (id: string) => void
+}> = ({ opts, query, sel, onQuery, onPick }) => {
+  const presetGroup = opts.filter((o) => o.group === 'preset')
+  const charGroup = opts.filter((o) => o.group === 'character')
+  const selOpt = opts.find((o) => o.id === sel) ?? null
+  return (
+    <div className="wx-pk">
+      <div className="wx-pk-side">
+        <Input
+          size="small" allowClear prefix={<SearchOutlined aria-hidden="true" />}
+          placeholder="搜索名字 / 标签" value={query}
+          onChange={(e) => onQuery(e.target.value)}
+        />
+        <div className="wx-pk-list" role="listbox" aria-label="人格选择">
+          {presetGroup.length > 0 && <div className="wx-pk-group">轻语预设</div>}
+          {presetGroup.map((o) => (
+            <PersonaRow key={o.id} opt={o} active={o.id === sel} onPick={onPick} />
+          ))}
+          {charGroup.length > 0 && <div className="wx-pk-group">角色库</div>}
+          {charGroup.map((o) => (
+            <PersonaRow key={o.id} opt={o} active={o.id === sel} onPick={onPick} />
+          ))}
+          {opts.length === 0 && (
+            <div className="wx-pk-empty">没有匹配的人格——可先去角色库创建可聊天角色</div>
+          )}
+        </div>
+      </div>
+      <div className="wx-pk-detail">
+        {selOpt ? (
+          <>
+            <div className="wx-pk-portrait">
+              {selOpt.portraitUrl
+                ? <img src={selOpt.portraitUrl} alt={`${selOpt.name} 立绘`} />
+                : <span className="wx-pk-portrait-fallback" aria-hidden="true">{selOpt.name.slice(0, 1)}</span>}
+            </div>
+            <div className="wx-pk-detail-name">
+              {selOpt.name}
+              <Tag color={selOpt.group === 'preset' ? 'gold' : 'geekblue'}>
+                {selOpt.group === 'preset' ? '轻语预设' : '角色库'}
+              </Tag>
+              {selOpt.gender && (
+                <Tag>{selOpt.gender === 'male' ? '男' : selOpt.gender === 'female' ? '女' : selOpt.gender}</Tag>
+              )}
+            </div>
+            {(selOpt.tags ?? []).length > 0 && (
+              <div className="wx-pk-detail-tags">
+                {selOpt.tags!.slice(0, 6).map((t) => <Tag key={t}>{t}</Tag>)}
+              </div>
+            )}
+            {selOpt.desc && <div className="wx-pk-detail-desc">{selOpt.desc}</div>}
+          </>
+        ) : sel && opts.length > 0 ? (
+          // 编辑流：当前人格不在可选清单（自定义角色/已下架）——保留原值不重置
+          <div className="wx-pk-empty">当前人格不在可选列表中——将保留原设置；点选左侧其他人格可替换</div>
+        ) : (
+          <div className="wx-pk-empty">左侧选择人格——详情与立绘会在这里显示</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** 主区 · 通道详情：身份头 + 键值栅格（通道状态/微信绑定/启停）+ 操作区。 */
 const ChannelDetail: React.FC<{
   row: AssistantRow
@@ -723,7 +813,8 @@ const ChannelDetail: React.FC<{
   onBind: () => void
   onToggle: (v: boolean) => void
   onDelete: () => void
-}> = ({ row, core, onBind, onToggle, onDelete }) => {
+  onEdit: () => void
+}> = ({ row, core, onBind, onToggle, onDelete, onEdit }) => {
   const st = channelStatusOf(rowStatus(row))
   const bound = rowStatus(row).hasToken
   const name = row.name || row.id
@@ -746,14 +837,20 @@ const ChannelDetail: React.FC<{
             {bound ? '重新绑定' : '扫码绑定'}
           </Button>
           {!core && (
-            <Popconfirm
-              title="删除助手"
-              description={`删除「${name}」后其微信通道一并停止。`}
-              okText="删除" cancelText="取消"
-              onConfirm={onDelete}
-            >
-              <Button aria-label={`删除 ${name}`} type="text" size="small" danger icon={<DeleteOutlined />} />
-            </Popconfirm>
+            <>
+              {/* 编辑：改名/换人格（核心锚点 gaea 禁改，不渲染入口） */}
+              <Button size="small" icon={<EditOutlined />} aria-label={`编辑 ${name}`} onClick={onEdit}>
+                编辑
+              </Button>
+              <Popconfirm
+                title="删除助手"
+                description={`删除「${name}」后其微信通道一并停止。`}
+                okText="删除" cancelText="取消"
+                onConfirm={onDelete}
+              >
+                <Button aria-label={`删除 ${name}`} type="text" size="small" danger icon={<DeleteOutlined />} />
+              </Popconfirm>
+            </>
           )}
         </div>
       </div>

@@ -231,6 +231,49 @@ func TestEnsureAssistants_MirrorsChatConfig(t *testing.T) {
 	}
 }
 
+// TestEnsureAssistants_GuardSkipsCustomKeepsMirror 镜像守卫：custom 角色
+// 被 personalityId 指向时字段原样保留；builtin 命中覆写与未命中新建影子行
+// 的既有镜像行为不回归。
+func TestEnsureAssistants_GuardSkipsCustomKeepsMirror(t *testing.T) {
+	s := newTestStore(t)
+	presets := []whisper.PersonalityPreset{
+		{ID: "gaea", Label: "gaea", Gender: "female", VoiceGuide: "大地"},
+	}
+	if err := s.EnsureBuiltins(presets); err != nil {
+		t.Fatalf("种子化失败: %v", err)
+	}
+	// 用户自建角色（v4.48 可被选为助手人格，personalityId 即角色 id）
+	if err := s.Upsert(&Character{ID: "lib_01", Name: "林晚", Kind: KindCustom, Gender: "female", Tags: []string{"女主"}, VoiceGuide: "清冷", ChatEnabled: true}); err != nil {
+		t.Fatalf("预置 custom 角色失败: %v", err)
+	}
+	asts := []assistant.Assistant{
+		{ID: "ast_custom", Name: "峨嵋", PersonalityID: "lib_01", VoiceGuide: "仙气", Enabled: true},
+		{ID: "ast_builtin", Name: "小鸢", PersonalityID: "gaea", VoiceGuide: "太空", Enabled: true},
+		{ID: "ast_new", Name: "阿幻", PersonalityID: "lib_new", Enabled: true},
+	}
+	if err := s.EnsureAssistants(asts, presets); err != nil {
+		t.Fatalf("助手同步失败: %v", err)
+	}
+	// ① custom 角色绝不被镜像覆写：Kind/名字/人格字段原样，无 AssistantID
+	c, err := s.Get("lib_01")
+	if err != nil || c == nil {
+		t.Fatalf("Get(lib_01) = %v, %v", c, err)
+	}
+	if c.Kind != KindCustom || c.Name != "林晚" || c.AssistantID != "" || c.VoiceGuide != "清冷" || !c.ChatEnabled {
+		t.Fatalf("custom 角色被助手镜像覆写: %+v", c)
+	}
+	// ② builtin 命中：镜像覆写行为保持
+	b, _ := s.Get("gaea")
+	if b == nil || b.Kind != KindAssistant || b.Name != "小鸢" || b.AssistantID != "ast_builtin" {
+		t.Fatalf("builtin 命中镜像行为回归: %+v", b)
+	}
+	// ② 未命中：影子行照建
+	n, _ := s.Get("lib_new")
+	if n == nil || n.Kind != KindAssistant || n.Name != "阿幻" || n.AssistantID != "ast_new" {
+		t.Fatalf("未命中应新建影子行: %+v", n)
+	}
+}
+
 func TestToPreset_CarriesChatFields(t *testing.T) {
 	c := &Character{
 		ID: "lib_01", Name: "林晚", Gender: "female",
