@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"log/slog"
 	"math"
 	"strconv"
@@ -129,6 +130,90 @@ func (c *core) GetActiveModel() string {
 		return c.cfg.Model
 	}
 	return model
+}
+
+// ── 自定义引擎（A 刀：OpenAI 兼容自定义服务商）────────────────
+
+// AddCustomEngine 创建自定义引擎（OpenAI 兼容服务商），返回 engineID。
+// 校验与 slug/ID 规则在 modelengine.Manager；Key 经本层加密落 config
+// custom_engine_keys（密文），Manager 内存只持明文。
+func (c *core) AddCustomEngine(name string, baseURL string, apiKey string) (string, error) {
+	if c.engineMgr == nil {
+		return "", errNoEngineMgr
+	}
+	id, err := c.engineMgr.AddCustomEngine(name, baseURL, apiKey)
+	if err != nil {
+		return "", err
+	}
+	if err := c.saveCustomEngineKeys(); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// UpdateCustomEngine 更新自定义引擎；apiKey 传空串 = 保留原 Key 不变
+// （前端不回显 Key，编辑留空即「不改」，防 Key 无意清空/回显泄漏）。
+func (c *core) UpdateCustomEngine(engineID string, name string, baseURL string, apiKey string) error {
+	if c.engineMgr == nil {
+		return errNoEngineMgr
+	}
+	if err := c.engineMgr.UpdateCustomEngine(engineID, name, baseURL, apiKey); err != nil {
+		return err
+	}
+	return c.saveCustomEngineKeys()
+}
+
+// RemoveCustomEngine 删除自定义引擎（仅允许 custom- 前缀；内置引擎拒绝）。
+func (c *core) RemoveCustomEngine(engineID string) error {
+	if c.engineMgr == nil {
+		return errNoEngineMgr
+	}
+	if err := c.engineMgr.RemoveCustomEngine(engineID); err != nil {
+		return err
+	}
+	return c.saveCustomEngineKeys()
+}
+
+// saveCustomEngineKeys 把 Manager 内存中的自定义引擎明文 Key 全量加密后落
+// config custom_engine_keys（JSON map：engineID → 密文），并同步 c.cfg 内存副本。
+// 全量覆盖写：Add/Update/Remove 三入口共用，config 与 Manager 状态不漂移。
+func (c *core) saveCustomEngineKeys() error {
+	keys := c.engineMgr.CustomEngineKeys()
+	enc := make(map[string]string, len(keys))
+	for id, k := range keys {
+		if k == "" {
+			continue // 空 Key（无鉴权本地服务）不落盘
+		}
+		e, err := secure.EncryptString(k)
+		if err != nil {
+			return &appError{"API Key 加密失败: " + err.Error()}
+		}
+		enc[id] = e
+	}
+	raw, err := json.Marshal(enc)
+	if err != nil {
+		return &appError{"自定义引擎 Key 序列化失败: " + err.Error()}
+	}
+	if err := config.Save(config.KeyCustomEngineKeys, string(raw)); err != nil {
+		slog.Warn("保存自定义引擎 Key 失败", "error", err)
+		return err
+	}
+	if c.cfg != nil {
+		c.cfg.CustomEngineKeys = enc
+	}
+	return nil
+}
+
+// decryptCustomEngineKeys 把 config 里的密文 Key 库解为明文 map（解密失败的
+// 条目丢弃——保守不注入半截 Key），供 Startup 注入 Manager。
+func decryptCustomEngineKeys(enc map[string]string) map[string]string {
+	out := make(map[string]string, len(enc))
+	for id, e := range enc {
+		if plain, err := secure.DecryptString(e); err == nil && plain != "" {
+			out[id] = plain
+		}
+	}
+	return out
 }
 
 // ── DeepSeek API ─────────────────────────────────────────────

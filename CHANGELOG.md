@@ -1,3 +1,20 @@
+## v4.35.0 · 自定义引擎：OpenAI 兼容服务商任意添加（2026-09-02）
+> 模型中心专项调研（docs/market-research-2026-09-02.md）A 刀：自定义服务商是桌面客户端
+> 4/5 家标配，gaea 8 引擎硬编码为最大硬缺口。**绑定面 552→555（+3）**。
+- **① 引擎类型与生命周期（Go）**：新类型 EngineCustom="custom"（OpenAI 兼容）+ Manager
+  六方法（Add/Update/Remove CustomEngine + customKeys 注入/取用）；engineID=custom-前缀
+  +slug 冲突追加序号；Key 存 config 新键 custom_engine_keys（JSON map 加密值，
+  saveSetters 登记+显式往返测试），不落 engines.json 不下发前端；baseURL 校验 http(s)
+  +host（v4.9.1 Key 粘错框防线延伸，Key 当地址粘入被拒）；LoadState 恢复 custom 条目
+  （type+地址合法性双校验防伪造）。
+- **② 聊天路径**：BuildChatURL/resolveChatEndpoint（流式+非流式）custom 分支——
+  自定义引擎真正可聊天/设活跃/绑功能；空 Key 不发 Authorization 头（无鉴权本地服务可用）。
+- **③ 前端**：引擎管理分区「添加自定义引擎」表单（前后端同口径校验双保险）+ custom 卡
+  地址框/编辑（Key 留空=不改）/删除确认/「自定义」徽标；内置云端引擎地址框防线一字未动
+  （新增回归锁）。
+- 验证：Go 全量 test exit 0、tsc -b 0（bridge.ts LegacySurfaceNames 登记 3 名）、
+  eslint 0、vitest **1219/1219**（+9）、drift PASS（**555**）。详见 releases/v4.35.0.md。
+
 ## v4.34.0 · 子代理气泡恢复：恢复会话不再丢失子代理答复（2026-09-02）
 > 收 v4.26 沿旧欠账「子代理气泡恢复暂缺」。根因=ProjectMessages 投影无 subagent_message
 > case 整条忽略；模型面投影不可动（恢复后模型上下文须与实时语义一致）→ UI 侧并行投影。

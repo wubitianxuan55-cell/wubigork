@@ -9,10 +9,12 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 // ── 引擎类型 ───────────────────────────────────────────────
@@ -33,6 +35,11 @@ const (
 	EngineOpencodeGo EngineType = "opencode-go"
 	// EngineOpencodeZen OpenCode Zen 云端目录（OpenAI 兼容 /chat/completions 子集）
 	EngineOpencodeZen EngineType = "opencode-zen"
+	// EngineCustom 自定义引擎（A 刀）：用户自带的 OpenAI 兼容服务商
+	// （自定义 BaseURL + /chat/completions + /models），Key 只存 Manager 内存
+	// customKeys（落盘走 config 层 custom_engine_keys 密文）。IsLocal=false（云端语义，
+	// 全局离线模式下与其他云端引擎一致被门控）。
+	EngineCustom EngineType = "custom"
 )
 
 // GLM 官方双端点（docs.bigmodel.cn coding-plan/quick-start）：标准=按量付费，
@@ -109,13 +116,14 @@ type modelsListResponse struct {
 type Manager struct {
 	mu             sync.RWMutex
 	engines        map[string]*EngineConfig
-	order          []string // 稳定展示顺序（GetEngines 按此返回，避免 map 随机序）
-	statePath      string   // 状态文件路径（空=不落盘）
-	xaiKey         string   // xAI API key（来自 OAuth token）
-	deepseekKey    string   // DeepSeek API key（用户手动配置）
-	glmKey         string   // 智谱 GLM API key（用户手动配置）
-	opencodeKey    string   // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
-	opencodeZenKey string   // OpenCode Zen API key（按量付费，opencode.ai/auth 获取）
+	order          []string          // 稳定展示顺序（GetEngines 按此返回，避免 map 随机序）
+	statePath      string            // 状态文件路径（空=不落盘）
+	xaiKey         string            // xAI API key（来自 OAuth token）
+	deepseekKey    string            // DeepSeek API key（用户手动配置）
+	glmKey         string            // 智谱 GLM API key（用户手动配置）
+	opencodeKey    string            // OpenCode Go API key（用户手动配置，订阅后从 console 获取）
+	opencodeZenKey string            // OpenCode Zen API key（按量付费，opencode.ai/auth 获取）
+	customKeys     map[string]string // 自定义引擎 Key（engineID → 明文，仅内存；落盘走 config 层密文）
 	httpClient     *http.Client
 	statsMu        sync.Mutex     // 保护 statsRec 的懒初始化
 	statsRec       *statsRecorder // 模型调用统计（可为 nil，首次记录时创建）
@@ -128,6 +136,7 @@ func NewManager(xaiAPIKey, deepseekKey string) *Manager {
 		order:       []string{"xai", "ollama", "herdsman", "deepseek", "glm", "cosyvoice", "opencode-go", "opencode-zen"},
 		xaiKey:      xaiAPIKey,
 		deepseekKey: deepseekKey,
+		customKeys:  make(map[string]string),
 		httpClient:  netclient.NewSimpleClient(15 * time.Second),
 	}
 
@@ -321,6 +330,199 @@ func (m *Manager) UpdateOpencodeZenKey(key string) {
 	m.opencodeZenKey = key
 }
 
+// ── 自定义引擎（A 刀：OpenAI 兼容自定义服务商）────────────────
+
+// customEnginePrefix 自定义引擎 ID 前缀：仅该前缀且 Type=custom 的引擎允许
+// 经 UpdateCustomEngine/RemoveCustomEngine 修改或删除（内置引擎受保护）。
+const customEnginePrefix = "custom-"
+
+// AddCustomEngine 创建自定义引擎并返回 engineID。
+// ID 规则：custom- 前缀 + name 生成的安全小写 slug（去非法字符，空 slug 用
+// "engine"），与现有 id 冲突时追加 -2、-3…。baseURL 校验 http(s) scheme +
+// host 非空——云端引擎不露地址框防线（v4.9.1 Key 粘错框事故）的延伸，把
+// API Key 当地址粘进来必须在此拒绝。Key 只存内存 customKeys，不进
+// EngineConfig.APIKey（saveState/GetEngines 因此永不下发/落盘）。
+func (m *Manager) AddCustomEngine(name, baseURL, apiKey string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("引擎名称不能为空")
+	}
+	u, err := validateCustomBaseURL(baseURL)
+	if err != nil {
+		return "", err
+	}
+	m.mu.Lock()
+	id := m.allocCustomIDLocked(customSlug(name))
+	m.engines[id] = &EngineConfig{
+		ID:      id,
+		Name:    "custom",
+		Type:    EngineCustom,
+		Label:   name,
+		BaseURL: u,
+		Enabled: true,
+	}
+	m.order = append(m.order, id)
+	if m.customKeys == nil {
+		m.customKeys = make(map[string]string)
+	}
+	m.customKeys[id] = apiKey
+	m.mu.Unlock()
+	m.saveState()
+	slog.Info("自定义引擎已创建", "engine", id)
+	return id, nil
+}
+
+// UpdateCustomEngine 更新自定义引擎（engineID 必须是 custom- 前缀的自定义引擎）。
+// apiKey 传空串 = 保留原 Key 不变（前端不回显 Key，编辑时留空即「不改」）。
+func (m *Manager) UpdateCustomEngine(engineID, name, baseURL, apiKey string) error {
+	if !strings.HasPrefix(engineID, customEnginePrefix) {
+		return fmt.Errorf("引擎 %s 不是自定义引擎，禁止修改", engineID)
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("引擎名称不能为空")
+	}
+	u, err := validateCustomBaseURL(baseURL)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	eng, ok := m.engines[engineID]
+	if !ok {
+		m.mu.Unlock()
+		return fmt.Errorf("引擎 %s 不存在", engineID)
+	}
+	if eng.Type != EngineCustom {
+		m.mu.Unlock()
+		return fmt.Errorf("引擎 %s 不是自定义引擎，禁止修改", engineID)
+	}
+	eng.Label = name
+	eng.BaseURL = u
+	if apiKey != "" {
+		if m.customKeys == nil {
+			m.customKeys = make(map[string]string)
+		}
+		m.customKeys[engineID] = apiKey
+	}
+	m.mu.Unlock()
+	m.saveState()
+	slog.Info("自定义引擎已更新", "engine", engineID)
+	return nil
+}
+
+// RemoveCustomEngine 删除自定义引擎（仅允许 custom- 前缀且 Type=custom），
+// 一并清掉内存 Key 并从展示顺序中摘除。
+func (m *Manager) RemoveCustomEngine(engineID string) error {
+	if !strings.HasPrefix(engineID, customEnginePrefix) {
+		return fmt.Errorf("引擎 %s 不是自定义引擎，禁止删除", engineID)
+	}
+	m.mu.Lock()
+	eng, ok := m.engines[engineID]
+	if !ok {
+		m.mu.Unlock()
+		return fmt.Errorf("引擎 %s 不存在", engineID)
+	}
+	if eng.Type != EngineCustom {
+		m.mu.Unlock()
+		return fmt.Errorf("引擎 %s 不是自定义引擎，禁止删除", engineID)
+	}
+	delete(m.engines, engineID)
+	for i, id := range m.order {
+		if id == engineID {
+			m.order = append(m.order[:i], m.order[i+1:]...)
+			break
+		}
+	}
+	delete(m.customKeys, engineID)
+	m.mu.Unlock()
+	m.saveState()
+	slog.Info("自定义引擎已删除", "engine", engineID)
+	return nil
+}
+
+// SetCustomEngineKeys 批量注入自定义引擎 Key（【解密后的明文】，仅存内存；
+// app 层启动时从 config custom_engine_keys 解密后调用）。传 nil/空 map = 清空。
+func (m *Manager) SetCustomEngineKeys(keys map[string]string) {
+	cp := make(map[string]string, len(keys))
+	for id, k := range keys {
+		cp[id] = k
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.customKeys = cp
+}
+
+// CustomEngineKey 返回自定义引擎 Key（明文，仅内存）；未配置返回空串。
+// 消费口径与 GLMKey 一致：Key 存 manager 而非 EngineConfig.APIKey。
+func (m *Manager) CustomEngineKey(engineID string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.customKeys[engineID]
+}
+
+// CustomEngineKeys 返回全部自定义引擎 Key 副本（明文；app 层加密后落
+// config custom_engine_keys）。
+func (m *Manager) CustomEngineKeys() map[string]string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make(map[string]string, len(m.customKeys))
+	for id, k := range m.customKeys {
+		out[id] = k
+	}
+	return out
+}
+
+// allocCustomIDLocked 生成 custom- 前缀 ID：与现有 id（内置或 custom）冲突时
+// 追加 -2、-3…（调用方需持写锁）。
+func (m *Manager) allocCustomIDLocked(base string) string {
+	id := customEnginePrefix + base
+	for n := 2; ; n++ {
+		if _, exists := m.engines[id]; !exists {
+			return id
+		}
+		id = fmt.Sprintf("%s%s-%d", customEnginePrefix, base, n)
+	}
+}
+
+// customSlug 由 name 生成安全小写 slug：小写化后仅保留字母/数字/连字符，
+// 空白折叠为 '-'（其余非法字符——中文/符号等——剔除），压缩连续 '-'、
+// 修剪首尾，空结果回退 "engine"；超 40 字符截断（同样修剪尾部连字符）。
+func customSlug(name string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(name)) {
+		switch {
+		case unicode.IsSpace(r):
+			b.WriteRune('-')
+		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-':
+			b.WriteRune(r)
+		}
+	}
+	out := b.String()
+	for strings.Contains(out, "--") {
+		out = strings.ReplaceAll(out, "--", "-")
+	}
+	out = strings.Trim(out, "-")
+	if len(out) > 40 {
+		out = strings.Trim(out[:40], "-")
+	}
+	if out == "" {
+		return "engine"
+	}
+	return out
+}
+
+// validateCustomBaseURL 自定义引擎地址校验：url.Parse 可解析 + scheme 为
+// http/https + host 非空。v4.9.1「Key 粘错框」防线的延伸——把 API Key 当
+// 地址粘进来（无 scheme/host）必须在此拒绝，不接受仅前缀判断的宽松口径。
+func validateCustomBaseURL(u string) (string, error) {
+	u = strings.TrimSpace(u)
+	parsed, err := url.Parse(u)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return "", fmt.Errorf("引擎地址无效：必须是 http:// 或 https:// 开头的完整地址（请勿把 API Key 粘进地址框）")
+	}
+	return u, nil
+}
+
 // GetEngines 获取所有引擎配置
 func (m *Manager) GetEngines() []EngineConfig {
 	m.mu.RLock()
@@ -506,6 +708,12 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 		req.Header.Set("Authorization", "Bearer "+m.opencodeKey)
 	} else if engine.Type == EngineOpencodeZen && m.opencodeZenKey != "" {
 		req.Header.Set("Authorization", "Bearer "+m.opencodeZenKey)
+	} else if engine.Type == EngineCustom {
+		// 自定义引擎：Key 在内存 customKeys（KeyStore 同源），空 Key 不带
+		// Authorization 头（兼容无鉴权的本地 OpenAI 兼容服务）。
+		if key := m.CustomEngineKey(engine.ID); key != "" {
+			req.Header.Set("Authorization", "Bearer "+key)
+		}
 	}
 
 	resp, err := m.httpClient.Do(req)
@@ -526,6 +734,8 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 				return nil, fmt.Errorf("HTTP 401: OpenCode Go API Key 无效或未配置，请先在模型中心配置（opencode.ai 订阅获取）")
 			} else if engine.Type == EngineOpencodeZen {
 				return nil, fmt.Errorf("HTTP 401: OpenCode Zen API Key 无效或未配置，请先在模型中心配置（opencode.ai/auth 获取）")
+			} else if engine.Type == EngineCustom {
+				return nil, fmt.Errorf("HTTP 401: 自定义引擎 API Key 无效或未配置，请在模型中心自定义引擎卡片修正")
 			}
 		}
 		return nil, fmt.Errorf("HTTP %d: 模型列表获取失败", resp.StatusCode)
@@ -586,7 +796,9 @@ func (m *Manager) fetchModels(ctx context.Context, engine *EngineConfig) ([]Mode
 // ClassifyModelKind 按引擎类型与模型名分类（llm/tts/stt/ocr/rerank/embedding/image）。
 // 3.0 Step 3d：模型能力关键词分类的单一来源——语音（voice_handler.go:isSTTModel）、
 // OCR（gaea_ocr.go:pickHerdsmanModel）等消费点委托到本函数，不再各自维护关键词表。
-// 分类下沉到后端后，前端不再需要根据名称猜测；逻辑与旧前端启发式保持一致，避免行为跳变。
+// 分类下沉到后端后，前端不再需要按名称猜测；行为与旧前端启发式保持一致，避免行为跳变。
+// EngineCustom（A 刀自定义 OpenAI 兼容服务商）无厂商特型规则，与多数类型一样
+// 直接落通用关键词表、默认 llm——刻意不加类型分支（避免死代码），由测试锚定该行为。
 func ClassifyModelKind(engineType EngineType, modelID string) string {
 	l := strings.ToLower(modelID)
 	if engineType == EngineCosyVoice ||
@@ -789,8 +1001,27 @@ func (m *Manager) LoadState(path string) error {
 	for id, st := range f.Engines {
 		eng, ok := m.engines[id]
 		if !ok {
-			// 未知引擎（新版本移除/手改文件）不创建
-			continue
+			// custom- 前缀条目：重启后重建（Manager 启动只种子内置引擎）。
+			// 防线：Type 必须是 custom、BaseURL 必须合法（或空）——状态文件
+			// 被手改成脏地址/伪 custom 条目时不采纳，沿用 v4.9.1 防线口径。
+			// Key 不从此处恢复（状态文件从不存 Key），由 app 层从 config
+			// custom_engine_keys 解密后经 SetCustomEngineKeys 注入。
+			if strings.HasPrefix(id, customEnginePrefix) && st.Type == EngineCustom &&
+				(st.BaseURL == "" || validBaseURL(st.BaseURL)) {
+				eng = &EngineConfig{
+					ID:      id,
+					Name:    "custom",
+					Type:    EngineCustom,
+					Label:   st.Label,
+					BaseURL: st.BaseURL,
+					Enabled: st.Enabled,
+				}
+				m.engines[id] = eng
+				m.order = append(m.order, id)
+			} else {
+				// 未知引擎（新版本移除/手改文件）不创建
+				continue
+			}
 		}
 		// 无 http(s) 前缀的存量脏地址不采纳（保留预置默认）——v4.9.1 真机
 		// 实测：API Key 被粘进地址框保存后，引擎永久报 unsupported protocol scheme。
@@ -864,6 +1095,10 @@ func (m *Manager) BuildChatURL(engineID string) (string, string, error) {
 		apiKey = m.opencodeKey
 	} else if engine.Type == EngineOpencodeZen {
 		apiKey = m.opencodeZenKey
+	} else if engine.Type == EngineCustom {
+		// 自定义引擎：Key 在内存 customKeys（已持读锁，直接读 map 防重入死锁）；
+		// 空 Key 原样返回，调用方（ai.Client）为空串时省略 Authorization 头。
+		apiKey = m.customKeys[engine.ID]
 	}
 
 	return chatURL, apiKey, nil

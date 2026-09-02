@@ -90,6 +90,10 @@ export interface ModelCenterContextValue {
   handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
   handleSaveOpencodeZenKey: () => Promise<void>
+  // A 刀「自定义引擎」：add/update 成功返回 true（表单据此关闭）
+  handleAddCustomEngine: (name: string, baseURL: string, apiKey: string) => Promise<boolean>
+  handleUpdateCustomEngine: (engineID: string, name: string, baseURL: string, apiKey: string) => Promise<boolean>
+  handleRemoveCustomEngine: (engineID: string) => Promise<void>
   settingGlmEndpoint: boolean
   handleSetGlmEndpoint: (family: 'std' | 'coding') => Promise<void>
   handleResetCallStats: () => Promise<void>

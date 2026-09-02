@@ -104,6 +104,10 @@ const (
 	KeyGLMAPIKey         = "glm_api_key"
 	KeyOpencodeGoAPIKey  = "opencode_go_api_key"
 	KeyOpencodeZenAPIKey = "opencode_zen_api_key"
+	// 自定义引擎 Key 库（A 刀自定义引擎）：值为 JSON map[string]string
+	// （engineID → secure.EncryptString 密文）。config 层只存取字符串/JSON、
+	// 不做加解密（明文↔密文由 app 层 secure 负责，先例 realtime_api_key）。
+	KeyCustomEngineKeys = "custom_engine_keys"
 	// 美元→人民币汇率（费用估算折算用，默认 7.2，可在模型中心配置）
 	KeyUsdCnyRate = "usd_cny_rate"
 	// GLM 目录覆盖文件路径（模型中心成本层）：非空时 GLM 静态目录在内嵌
@@ -133,45 +137,46 @@ const (
 
 // configFile 表示 ~/.gaea_config.json 的结构
 type configFile struct {
-	XaiClientID         string  `json:"xai_client_id"`
-	NovelsDir           string  `json:"novels_dir"`
-	HTTPTimeoutSeconds  int     `json:"http_timeout_seconds"`
-	DefaultTemperature  float64 `json:"default_temperature"`
-	AnalysisTemperature float64 `json:"analysis_temperature"`
-	ReasoningEffort     string  `json:"reasoning_effort"`    // Grok 推理深度: "low" / "high"
-	QualityThreshold    int     `json:"quality_threshold"`   // 章节质量阈值 1-10，低于此触发自动重试
-	QualityMaxRetries   int     `json:"quality_max_retries"` // 最大自动重试次数
-	TTSBinaryPath       string  `json:"tts_binary_path,omitempty"`
-	TTSModelPath        string  `json:"tts_model_path,omitempty"`
-	ImageBackend        string  `json:"image_backend,omitempty"` // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
-	ComfyUIURL          string  `json:"comfyui_url,omitempty"`
-	ImageSaveDir        string  `json:"image_save_dir,omitempty"`         // 图片生成存放目录
-	ImageModel          string  `json:"image_model,omitempty"`            // 图片模型
-	PortraitBackend     string  `json:"portrait_backend,omitempty"`       // 角色库剧照后端（空=跟随绘梦）
-	PortraitModel       string  `json:"portrait_model,omitempty"`         // 角色库剧照模型（空=跟随绘梦）
-	ComfyUIPath         string  `json:"comfyui_path,omitempty"`           // ComfyUI 安装目录
-	ComfyUIPythonPath   string  `json:"comfyui_python_path,omitempty"`    // Python 解释器路径
-	TTSPort             int     `json:"tts_port,omitempty"`               // TTS 服务端口
-	TTSBackend          string  `json:"tts_backend,omitempty"`            // TTS 后端: "cpu" | "cuda"
-	TTSSpeed            float64 `json:"tts_speed,omitempty"`              // TTS 语速
-	ActiveEngineID      string  `json:"active_engine_id,omitempty"`       // 活跃模型引擎 ID
-	Model               string  `json:"model,omitempty"`                  // 默认 LLM 模型名
-	DeepseekAPIKey      string  `json:"deepseek_api_key,omitempty"`       // DeepSeek API Key
-	GLMAPIKey           string  `json:"glm_api_key,omitempty"`            // GLM (智谱) API Key
-	OpenCodeGoAPIKey    string  `json:"opencode_go_api_key,omitempty"`    // OpenCode Go API Key
-	OpenCodeZenAPIKey   string  `json:"opencode_zen_api_key,omitempty"`   // OpenCode Zen API Key
-	ActiveASREngine     string  `json:"active_asr_engine,omitempty"`      // 语音识别激活引擎
-	ActiveASRModel      string  `json:"active_asr_model,omitempty"`       // 语音识别激活模型
-	ActiveTTSEngine     string  `json:"active_tts_engine,omitempty"`      // 语音合成激活引擎
-	ActiveTTSModel      string  `json:"active_tts_model,omitempty"`       // 语音合成激活模型
-	TTSVoice            string  `json:"tts_voice,omitempty"`              // 语音合成音色
-	ActiveOCREngine     string  `json:"active_ocr_engine,omitempty"`      // OCR 激活引擎
-	ActiveOCRModel      string  `json:"active_ocr_model,omitempty"`       // OCR 激活模型
-	VoicePersonality    string  `json:"voice_personality,omitempty"`      // 语音对话角色
-	FuncChatVoiceEngine string  `json:"func_chat_voice_engine,omitempty"` // 聊天语音合成引擎
-	FuncChatVoiceModel  string  `json:"func_chat_voice_model,omitempty"`  // 聊天语音合成模型
-	FuncChatEngine      string  `json:"func_chat_engine,omitempty"`
-	FuncChatModel       string  `json:"func_chat_model,omitempty"`
+	XaiClientID         string            `json:"xai_client_id"`
+	NovelsDir           string            `json:"novels_dir"`
+	HTTPTimeoutSeconds  int               `json:"http_timeout_seconds"`
+	DefaultTemperature  float64           `json:"default_temperature"`
+	AnalysisTemperature float64           `json:"analysis_temperature"`
+	ReasoningEffort     string            `json:"reasoning_effort"`    // Grok 推理深度: "low" / "high"
+	QualityThreshold    int               `json:"quality_threshold"`   // 章节质量阈值 1-10，低于此触发自动重试
+	QualityMaxRetries   int               `json:"quality_max_retries"` // 最大自动重试次数
+	TTSBinaryPath       string            `json:"tts_binary_path,omitempty"`
+	TTSModelPath        string            `json:"tts_model_path,omitempty"`
+	ImageBackend        string            `json:"image_backend,omitempty"` // "xai" (默认) | "comfyui" | "herdsman" | "ollama"
+	ComfyUIURL          string            `json:"comfyui_url,omitempty"`
+	ImageSaveDir        string            `json:"image_save_dir,omitempty"`         // 图片生成存放目录
+	ImageModel          string            `json:"image_model,omitempty"`            // 图片模型
+	PortraitBackend     string            `json:"portrait_backend,omitempty"`       // 角色库剧照后端（空=跟随绘梦）
+	PortraitModel       string            `json:"portrait_model,omitempty"`         // 角色库剧照模型（空=跟随绘梦）
+	ComfyUIPath         string            `json:"comfyui_path,omitempty"`           // ComfyUI 安装目录
+	ComfyUIPythonPath   string            `json:"comfyui_python_path,omitempty"`    // Python 解释器路径
+	TTSPort             int               `json:"tts_port,omitempty"`               // TTS 服务端口
+	TTSBackend          string            `json:"tts_backend,omitempty"`            // TTS 后端: "cpu" | "cuda"
+	TTSSpeed            float64           `json:"tts_speed,omitempty"`              // TTS 语速
+	ActiveEngineID      string            `json:"active_engine_id,omitempty"`       // 活跃模型引擎 ID
+	Model               string            `json:"model,omitempty"`                  // 默认 LLM 模型名
+	DeepseekAPIKey      string            `json:"deepseek_api_key,omitempty"`       // DeepSeek API Key
+	GLMAPIKey           string            `json:"glm_api_key,omitempty"`            // GLM (智谱) API Key
+	OpenCodeGoAPIKey    string            `json:"opencode_go_api_key,omitempty"`    // OpenCode Go API Key
+	OpenCodeZenAPIKey   string            `json:"opencode_zen_api_key,omitempty"`   // OpenCode Zen API Key
+	CustomEngineKeys    map[string]string `json:"custom_engine_keys,omitempty"`     // 自定义引擎 Key 库（engineID → 密文）
+	ActiveASREngine     string            `json:"active_asr_engine,omitempty"`      // 语音识别激活引擎
+	ActiveASRModel      string            `json:"active_asr_model,omitempty"`       // 语音识别激活模型
+	ActiveTTSEngine     string            `json:"active_tts_engine,omitempty"`      // 语音合成激活引擎
+	ActiveTTSModel      string            `json:"active_tts_model,omitempty"`       // 语音合成激活模型
+	TTSVoice            string            `json:"tts_voice,omitempty"`              // 语音合成音色
+	ActiveOCREngine     string            `json:"active_ocr_engine,omitempty"`      // OCR 激活引擎
+	ActiveOCRModel      string            `json:"active_ocr_model,omitempty"`       // OCR 激活模型
+	VoicePersonality    string            `json:"voice_personality,omitempty"`      // 语音对话角色
+	FuncChatVoiceEngine string            `json:"func_chat_voice_engine,omitempty"` // 聊天语音合成引擎
+	FuncChatVoiceModel  string            `json:"func_chat_voice_model,omitempty"`  // 聊天语音合成模型
+	FuncChatEngine      string            `json:"func_chat_engine,omitempty"`
+	FuncChatModel       string            `json:"func_chat_model,omitempty"`
 	// ── 旧品牌遗留（聊天/轻语合并前）：仅用于读取迁移，不再写入 ──
 	FuncWhisperEngine  string `json:"func_whisper_engine,omitempty"`
 	FuncWhisperModel   string `json:"func_whisper_model,omitempty"`
@@ -291,6 +296,10 @@ type Config struct {
 
 	// OpenCode Zen API Key（按量付费，opencode.ai/auth 获取）
 	OpenCodeZenAPIKey string
+
+	// 自定义引擎 Key 库（A 刀自定义引擎）：engineID → secure.EncryptString
+	// 密文。app 层启动时解密为明文后注入 modelengine.Manager（明文只存内存）。
+	CustomEngineKeys map[string]string
 
 	// 语音识别激活引擎 + 模型（来自模型中心选择，空=自动）
 	ActiveASREngine string
@@ -880,6 +889,9 @@ func Load() *Config {
 			if cf.OpenCodeZenAPIKey != "" {
 				cfg.OpenCodeZenAPIKey = cf.OpenCodeZenAPIKey
 			}
+			if len(cf.CustomEngineKeys) > 0 {
+				cfg.CustomEngineKeys = cf.CustomEngineKeys
+			}
 			if cf.ActiveASREngine != "" {
 				cfg.ActiveASREngine = cf.ActiveASREngine
 			}
@@ -1265,13 +1277,26 @@ var saveSetters = map[string]func(cf *configFile, value string) error{
 		cf.TTSSpeed = f
 		return nil
 	},
-	KeyTTSBackend:          func(cf *configFile, v string) error { cf.TTSBackend = v; return nil },
-	KeyActiveEngineID:      func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
-	KeyModel:               func(cf *configFile, v string) error { cf.Model = v; return nil },
-	KeyDeepseekAPIKey:      func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
-	KeyGLMAPIKey:           func(cf *configFile, v string) error { cf.GLMAPIKey = v; return nil },
-	KeyOpencodeGoAPIKey:    func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
-	KeyOpencodeZenAPIKey:   func(cf *configFile, v string) error { cf.OpenCodeZenAPIKey = v; return nil },
+	KeyTTSBackend:        func(cf *configFile, v string) error { cf.TTSBackend = v; return nil },
+	KeyActiveEngineID:    func(cf *configFile, v string) error { cf.ActiveEngineID = v; return nil },
+	KeyModel:             func(cf *configFile, v string) error { cf.Model = v; return nil },
+	KeyDeepseekAPIKey:    func(cf *configFile, v string) error { cf.DeepseekAPIKey = v; return nil },
+	KeyGLMAPIKey:         func(cf *configFile, v string) error { cf.GLMAPIKey = v; return nil },
+	KeyOpencodeGoAPIKey:  func(cf *configFile, v string) error { cf.OpenCodeGoAPIKey = v; return nil },
+	KeyOpencodeZenAPIKey: func(cf *configFile, v string) error { cf.OpenCodeZenAPIKey = v; return nil },
+	KeyCustomEngineKeys: func(cf *configFile, v string) error {
+		// 值为 JSON map[string]string（engineID → secure 密文）；空串 = 清空。
+		if v == "" {
+			cf.CustomEngineKeys = nil
+			return nil
+		}
+		m := map[string]string{}
+		if err := json.Unmarshal([]byte(v), &m); err != nil {
+			return fmt.Errorf("custom_engine_keys 需为 JSON 对象（engineID → 密文）: %w", err)
+		}
+		cf.CustomEngineKeys = m
+		return nil
+	},
 	KeyActiveASREngine:     func(cf *configFile, v string) error { cf.ActiveASREngine = v; return nil },
 	KeyActiveASRModel:      func(cf *configFile, v string) error { cf.ActiveASRModel = v; return nil },
 	KeyActiveTTSEngine:     func(cf *configFile, v string) error { cf.ActiveTTSEngine = v; return nil },

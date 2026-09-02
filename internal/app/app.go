@@ -316,6 +316,9 @@ func (a *App) Startup(ctx context.Context) {
 	a.engineMgr.UpdateGLMKey(glmKey)
 	a.engineMgr.UpdateOpencodeKey(opencodeGoKey)
 	a.engineMgr.UpdateOpencodeZenKey(opencodeZenKey)
+	// A 刀自定义引擎：custom_engine_keys 密文解密为明文后注入 Manager（Key 只存
+	// 内存；引擎本体由下方 LoadState 从状态文件恢复，Key 与引擎分离存储）。
+	a.engineMgr.SetCustomEngineKeys(decryptCustomEngineKeys(a.cfg.CustomEngineKeys))
 	if err := a.engineMgr.LoadState(filepath.Join(a.whisperDataRoot, "engines.json")); err != nil {
 		slog.Warn("加载引擎状态失败（回退预置默认）", "error", err)
 	}

@@ -2,6 +2,7 @@
 // 新增/删除 Go 绑定后重新生成（scripts/check-bindings-drift.ps1 在 CI 校验其与 Go 侧一致）。
 // 内容 = internal/app 下全部导出绑定方法名（scripts/gen_bindings 收集，稳定字典序）。
 export const bindingNames = [
+  "AddCustomEngine",
   "AddOutlineNode",
   "AnalyzeChapter",
   "AnalyzeStyle",
@@ -444,6 +445,7 @@ export const bindingNames = [
   "QueryEntities",
   "QuickBrainstormBranches",
   "RefreshEngineModels",
+  "RemoveCustomEngine",
   "ReorderScenes",
   "ResetModelCallStats",
   "RestoreSnapshot",
@@ -508,6 +510,7 @@ export const bindingNames = [
   "TTSSpeakStreaming",
   "TestEngineConnection",
   "ToggleOrgMember",
+  "UpdateCustomEngine",
   "VoiceApplySettings",
   "VoiceCancelTTS",
   "VoiceChatText",

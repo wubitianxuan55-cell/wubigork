@@ -1,8 +1,9 @@
 import { useState, type CSSProperties } from 'react'
-import { Button, Input, Popconfirm, Segmented, Space, Switch } from 'antd'
-import { SettingOutlined } from '@ant-design/icons'
+import { Button, Input, message, Popconfirm, Segmented, Space, Switch } from 'antd'
+import { PlusOutlined, SettingOutlined } from '@ant-design/icons'
 import { SectionHead, StatusChip } from './ui'
-import { engineColor, engineIcons, engineLabel, filterEnginesByEnabled, glmEndpointFamily, kindOf } from './utils'
+import { engineColor, engineIcon, engineLabel, filterEnginesByEnabled, glmEndpointFamily, isCustomEngine, isValidBaseURL, kindOf } from './utils'
+import type { EngineConfig } from '../../api/engines'
 import { useModelCenter } from './context'
 
 export function EngineSection() {
@@ -17,14 +18,70 @@ export function EngineSection() {
     handleTestConnection, handleRefreshModels, handleSaveURL, handleToggleEngine,
     handleBulkToggleEngines,
     handleSaveDeepseekKey, handleSaveGlmKey, handleSaveOpencodeGoKey, handleSaveOpencodeZenKey,
+    handleAddCustomEngine, handleUpdateCustomEngine, handleRemoveCustomEngine,
     makeModels,
   } = useModelCenter()
   const [showEnabledOnly, setShowEnabledOnly] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
+
+  // ── 自定义引擎（A 刀）：添加/编辑行内表单状态 ─────────────────
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addURL, setAddURL] = useState('')
+  const [addKey, setAddKey] = useState('')
+  const [addBusy, setAddBusy] = useState(false)
+  const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editURL, setEditURL] = useState('')
+  const [editKey, setEditKey] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
+
   const visibleEngines = filterEnginesByEnabled(engines, showEnabledOnly)
   const bulk = (enabled: boolean) => {
     setBulkBusy(true)
     handleBulkToggleEngines(enabled).finally(() => setBulkBusy(false))
+  }
+
+  const closeAddForm = () => { setShowAddForm(false); setAddName(''); setAddURL(''); setAddKey('') }
+  const closeEditCustom = () => { setEditingCustomId(null); setEditKey('') }
+
+  // 表单校验（名称非空 + 地址 http(s) 前缀，与后端 validBaseURL 同口径双保险，
+  // 防 API Key 粘进地址框）。通过返回 null，不通过返回提示文案。
+  const customFormError = (name: string, url: string): string | null => {
+    if (!name) return '请输入引擎名称'
+    if (!isValidBaseURL(url)) return 'API 地址无效：必须以 http:// 或 https:// 开头'
+    return null
+  }
+
+  const submitAdd = async () => {
+    const name = addName.trim()
+    const url = addURL.trim()
+    const invalid = customFormError(name, url)
+    if (invalid) { message.warning(invalid); return }
+    setAddBusy(true)
+    try {
+      if (await handleAddCustomEngine(name, url, addKey.trim())) closeAddForm()
+    } finally { setAddBusy(false) }
+  }
+
+  const openEditCustom = (engine: EngineConfig) => {
+    setEditingCustomId(engine.id)
+    setEditName(engine.name)
+    setEditURL(engine.base_url || '')
+    setEditKey('')
+  }
+
+  const submitEditCustom = async () => {
+    if (!editingCustomId) return
+    const name = editName.trim()
+    const url = editURL.trim()
+    const invalid = customFormError(name, url)
+    if (invalid) { message.warning(invalid); return }
+    setEditBusy(true)
+    try {
+      // Key 留空 = 不修改（后端 UpdateCustomEngine 契约）
+      if (await handleUpdateCustomEngine(editingCustomId, name, url, editKey.trim())) closeEditCustom()
+    } finally { setEditBusy(false) }
   }
 
   const keyFields: {
@@ -72,6 +129,13 @@ export function EngineSection() {
         desc="配置云端与本地引擎地址、连接状态、API Key 和模型分类"
         extra={(
           <>
+            <Button
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => (showAddForm ? closeAddForm() : setShowAddForm(true))}
+            >
+              添加自定义引擎
+            </Button>
             <Button size="small" loading={bulkBusy} onClick={() => bulk(true)}>全部启用</Button>
             <Popconfirm
               title="禁用全部引擎？"
@@ -92,6 +156,46 @@ export function EngineSection() {
           </>
         )}
       />
+
+      {showAddForm && (
+        <div
+          style={{
+            border: '1px solid var(--mc-border)',
+            borderRadius: 'var(--mc-radius-md)',
+            padding: '10px 12px',
+            display: 'grid',
+            gap: 8,
+            maxWidth: 640,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600 }}>添加自定义引擎（OpenAI 兼容）</div>
+          <Input
+            size="small"
+            aria-label="自定义引擎名称"
+            placeholder="名称（如：硅基流动 / OneAPI 中转）"
+            value={addName}
+            onChange={e => setAddName(e.target.value)}
+          />
+          <Input
+            size="small"
+            aria-label="自定义引擎 API 地址"
+            placeholder="API 地址（https://api.example.com/v1）"
+            value={addURL}
+            onChange={e => setAddURL(e.target.value)}
+          />
+          <Input
+            size="small"
+            aria-label="自定义引擎 API Key"
+            placeholder="API Key（可选，服务商控制台获取）"
+            value={addKey}
+            onChange={e => setAddKey(e.target.value)}
+          />
+          <Space>
+            <Button size="small" type="primary" loading={addBusy} onClick={submitAdd}>保存</Button>
+            <Button size="small" onClick={closeAddForm}>取消</Button>
+          </Space>
+        </div>
+      )}
 
       {visibleEngines.map(engine => {
         const color = engineColor(engine)
@@ -115,7 +219,7 @@ export function EngineSection() {
           >
             <div className="mc-engine-head">
               <div className="mc-engine-id">
-                <span className="mc-engine-icon">{engineIcons[engine.id]}</span>
+                <span className="mc-engine-icon">{engineIcon(engine)}</span>
                 <div style={{ minWidth: 0 }}>
                   <div className="mc-engine-name">{engine.name}</div>
                   <div className="mc-engine-sub">
@@ -127,6 +231,7 @@ export function EngineSection() {
                 <StatusChip tone={engine.is_local ? 'warn' : 'neutral'}>
                   {engine.is_local ? '本地' : '云端'}
                 </StatusChip>
+                {isCustomEngine(engine) && <StatusChip tone="accent">自定义</StatusChip>}
                 {activeEngine === engine.id && (
                   <StatusChip tone="ok" dot>当前活跃</StatusChip>
                 )}
@@ -151,6 +256,23 @@ export function EngineSection() {
                 >
                   刷新
                 </Button>
+                {isCustomEngine(engine) && (
+                  <>
+                    <Button
+                      size="small"
+                      onClick={() => (editingCustomId === engine.id ? closeEditCustom() : openEditCustom(engine))}
+                    >
+                      {editingCustomId === engine.id ? '收起' : '编辑'}
+                    </Button>
+                    <Popconfirm
+                      title="删除该自定义引擎？"
+                      description="将同时移除其功能绑定能力，已绑定功能将回退到其他可用模型。"
+                      onConfirm={() => handleRemoveCustomEngine(engine.id)}
+                    >
+                      <Button size="small" danger>删除</Button>
+                    </Popconfirm>
+                  </>
+                )}
               </div>
             </div>
 
@@ -165,10 +287,13 @@ export function EngineSection() {
               {em.length === 0 && <StatusChip>暂无模型</StatusChip>}
             </div>
 
-            {engine.is_local && (
+            {/* 本地引擎 + 自定义引擎显示地址框；内置云端引擎不露（v4.9.1 防线：
+                曾有用户把 API Key 粘进地址框导致 base_url=Key 本体） */}
+            {(engine.is_local || isCustomEngine(engine)) && (
               <Space.Compact style={{ width: '100%', maxWidth: 640 }}>
                 <Input
                   size="small"
+                  aria-label="引擎服务地址"
                   value={editingURLs[engine.id] || ''}
                   onChange={e => setEditingURLs(prev => ({ ...prev, [engine.id]: e.target.value }))}
                   disabled={!engine.enabled}
@@ -204,6 +329,46 @@ export function EngineSection() {
                   保存 Key
                 </Button>
               </Space.Compact>
+            )}
+
+            {editingCustomId === engine.id && (
+              <div
+                style={{
+                  border: '1px dashed var(--mc-border)',
+                  borderRadius: 'var(--mc-radius-sm)',
+                  padding: '8px 10px',
+                  display: 'grid',
+                  gap: 8,
+                  maxWidth: 640,
+                }}
+              >
+                <div style={{ fontSize: 12, color: 'var(--mc-muted)' }}>编辑自定义引擎（Key 留空 = 不修改）</div>
+                <Input
+                  size="small"
+                  aria-label="编辑引擎名称"
+                  placeholder="名称"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                />
+                <Input
+                  size="small"
+                  aria-label="编辑引擎 API 地址"
+                  placeholder="API 地址（http:// 或 https:// 开头）"
+                  value={editURL}
+                  onChange={e => setEditURL(e.target.value)}
+                />
+                <Input
+                  size="small"
+                  aria-label="编辑引擎 API Key"
+                  placeholder="API Key（留空 = 不修改）"
+                  value={editKey}
+                  onChange={e => setEditKey(e.target.value)}
+                />
+                <Space>
+                  <Button size="small" type="primary" loading={editBusy} onClick={submitEditCustom}>保存</Button>
+                  <Button size="small" onClick={closeEditCustom}>取消</Button>
+                </Space>
+              </div>
             )}
 
             {engine.id === 'glm' && (

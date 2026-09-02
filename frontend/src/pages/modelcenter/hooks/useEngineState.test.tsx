@@ -22,6 +22,9 @@ vi.mock('../../../api/engines', () => ({
   setDeepseekKey: vi.fn(),
   setOpencodeGoKey: vi.fn(),
   setOpencodeZenKey: vi.fn(),
+  addCustomEngine: vi.fn(),
+  updateCustomEngine: vi.fn(),
+  removeCustomEngine: vi.fn(),
 }))
 
 vi.mock('../../../wailsjsCompat', () => ({
@@ -32,12 +35,16 @@ vi.mock('../../../wailsjsCompat', () => ({
 import {
   getEngines, getActiveEngine, getDeepseekKeyStatus,
   getOpencodeGoKeyStatus, getOpencodeZenKeyStatus, refreshEngineModels,
+  addCustomEngine, updateCustomEngine, removeCustomEngine,
 } from '../../../api/engines'
 import { GetActiveModel } from '../../../wailsjsCompat'
 import { useEngineState } from './useEngineState'
 
 const mGetEngines = vi.mocked(getEngines)
 const mRefresh = vi.mocked(refreshEngineModels)
+const mAddCustom = vi.mocked(addCustomEngine)
+const mUpdateCustom = vi.mocked(updateCustomEngine)
+const mRemoveCustom = vi.mocked(removeCustomEngine)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -106,5 +113,50 @@ describe('useEngineState · T6-6.5 竞态守卫', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('useEngineState · 自定义引擎 handler 契约（A 刀）', () => {
+  it('handleAddCustomEngine：透传三元组调用 addCustomEngine，成功后 loadAll 刷新并返回 true', async () => {
+    const { result } = renderHook(() => useEngineState('engine'))
+    await act(async () => {}) // 冲刷挂载 loadAll
+    expect(mGetEngines).toHaveBeenCalledTimes(1)
+
+    mAddCustom.mockResolvedValue('custom-1')
+    let ok = false
+    await act(async () => { ok = await result.current.handleAddCustomEngine('A', 'https://a.com/v1', 'k') })
+    expect(mAddCustom).toHaveBeenCalledWith('A', 'https://a.com/v1', 'k')
+    expect(ok).toBe(true)
+    expect(mGetEngines).toHaveBeenCalledTimes(2) // 成功 → loadAll 刷新
+  })
+
+  it('handleAddCustomEngine：失败返回 false（errText 收窄为 message，不抛出）', async () => {
+    const { result } = renderHook(() => useEngineState('engine'))
+    await act(async () => {})
+    mAddCustom.mockRejectedValue(new Error('地址无效'))
+    let ok: boolean | null = null
+    await act(async () => { ok = await result.current.handleAddCustomEngine('A', 'https://a.com/v1', '') })
+    expect(ok).toBe(false)
+    expect(mGetEngines).toHaveBeenCalledTimes(1) // 失败不刷新
+  })
+
+  it('handleUpdateCustomEngine：apiKey 空串透传（后端语义=不改 Key），成功刷新', async () => {
+    const { result } = renderHook(() => useEngineState('engine'))
+    await act(async () => {})
+    mUpdateCustom.mockResolvedValue(undefined)
+    let ok = false
+    await act(async () => { ok = await result.current.handleUpdateCustomEngine('custom-1', 'B', 'https://b.com/v1', '') })
+    expect(mUpdateCustom).toHaveBeenCalledWith('custom-1', 'B', 'https://b.com/v1', '')
+    expect(ok).toBe(true)
+    expect(mGetEngines).toHaveBeenCalledTimes(2)
+  })
+
+  it('handleRemoveCustomEngine：调用 removeCustomEngine 并刷新（无返回值）', async () => {
+    const { result } = renderHook(() => useEngineState('engine'))
+    await act(async () => {})
+    mRemoveCustom.mockResolvedValue(undefined)
+    await act(async () => { await result.current.handleRemoveCustomEngine('custom-1') })
+    expect(mRemoveCustom).toHaveBeenCalledWith('custom-1')
+    expect(mGetEngines).toHaveBeenCalledTimes(2)
   })
 })

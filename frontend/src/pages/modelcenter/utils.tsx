@@ -43,18 +43,35 @@ export const billingModeLabel = (mode?: string): string =>
   mode === 'coding_points' ? '编码套餐 · 积分口径（不计价）' : ''
 
 export const engineIcons: Record<string, ReactNode> = {
-  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />,
+  xai: <CloudOutlined />, ollama: <DesktopOutlined />, herdsman: <RocketOutlined />, deepseek: <KeyOutlined />, glm: <KeyOutlined />, cosyvoice: <RocketOutlined />, 'opencode-go': <GlobalOutlined />, 'opencode-zen': <GlobalOutlined />, custom: <GlobalOutlined />,
 }
 export const engineColors: Record<string, string> = {
-  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', glm: '#38bdf8', cosyvoice: '#f472b6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa', // hex-exempt 引擎品牌识别色（模型中心身份色板）
+  xai: '#60a5fa', ollama: '#f59e0b', herdsman: '#84cc16', deepseek: '#8b5cf6', glm: '#38bdf8', cosyvoice: '#f472b6', 'opencode-go': '#22d3ee', 'opencode-zen': '#a78bfa', custom: '#94a3b8', // hex-exempt 引擎品牌识别色（模型中心身份色板）
 }
 export const engineLabels: Record<string, string> = {
-  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', glm: 'GLM 云端', cosyvoice: 'CosyVoice2 本地', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端',
+  xai: 'xAI 云端', ollama: 'Ollama 本地', herdsman: 'Herdsman 本地', deepseek: 'DeepSeek 云端', glm: 'GLM 云端', cosyvoice: 'CosyVoice2 本地', 'opencode-go': 'OpenCode Go 云端', 'opencode-zen': 'OpenCode Zen 云端', custom: '自定义 OpenAI 兼容',
 }
 
+// ── 自定义引擎（A 刀：OpenAI 兼容自定义服务商，type=custom / id=custom-*） ──
+
+// custom 引擎判定：优先 type，兜底 id 前缀（后端契约 id 以 custom- 开头）。
+export const isCustomEngine = (e: { id?: string; type?: string }): boolean =>
+  e.type === 'custom' || (e.id || '').startsWith('custom-')
+
+// 与后端 validBaseURL 同口径（http:// 或 https:// 前缀）：表单校验双保险，
+// 防 API Key 被粘进地址框（v4.9.1 防线在自定义引擎上的延伸）。
+export const isValidBaseURL = (url: string): boolean =>
+  url.startsWith('http://') || url.startsWith('https://')
+
 // 引擎展示元数据：优先使用后端下发（label/color），未下发时回退本地映射。
-export const engineLabel = (e: { id?: string; engineId?: string; label?: string }) => e.label || engineLabels[e.id || e.engineId || ''] || e.id || e.engineId || ''
-export const engineColor = (e: { id?: string; engineId?: string; color?: string }) => e.color || engineColors[e.id || e.engineId || ''] || 'var(--color-text-secondary)'
+// custom 引擎 id 动态（custom-*），本地映射按 type 兜底到 custom 专用条目。
+export const engineLabel = (e: { id?: string; engineId?: string; label?: string; type?: string }) =>
+  e.label || engineLabels[e.id || e.engineId || ''] || (e.type === 'custom' ? engineLabels.custom : '') || e.id || e.engineId || ''
+export const engineColor = (e: { id?: string; engineId?: string; color?: string; type?: string }) =>
+  e.color || engineColors[e.id || e.engineId || ''] || (e.type === 'custom' ? engineColors.custom : '') || 'var(--color-text-secondary)'
+// 引擎图标：按 id 命中内置映射；custom-* 动态 id 未命中时按 type 兜底。
+export const engineIcon = (e: { id?: string; type?: string }): ReactNode | undefined =>
+  engineIcons[e.id || ''] ?? (isCustomEngine(e) ? engineIcons.custom : undefined)
 // 模型分类：优先使用后端 kind，缺失时回退旧名称启发式。
 export const kindOf = (m: ModelCardData): ModelKind => (m.kind as ModelKind) || classifyModel(m.modelId)
 

@@ -16,7 +16,8 @@ export interface ModelInfo {
 export interface EngineConfig {
   id: string
   name: string
-  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen'
+  // custom = 用户自建 OpenAI 兼容服务商（A 刀），id 以 custom- 开头
+  type: 'xai' | 'ollama' | 'herdsman' | 'deepseek' | 'glm' | 'cosyvoice' | 'opencode-go' | 'opencode-zen' | 'custom'
   label?: string
   color?: string
   icon?: string
@@ -322,6 +323,22 @@ export async function getEngines(): Promise<EngineConfig[]> {
 /** 保存引擎配置 */
 export async function saveEngine(cfg: EngineConfig): Promise<void> {
   await App().SaveEngine(cfg)
+}
+
+/** 添加自定义引擎（OpenAI 兼容，type=custom），返回引擎 ID（custom-*） */
+export async function addCustomEngine(name: string, baseURL: string, apiKey: string): Promise<string> {
+  const result = await App().AddCustomEngine(name, baseURL, apiKey)
+  return result as string
+}
+
+/** 更新自定义引擎（apiKey 空串 = 不修改 Key） */
+export async function updateCustomEngine(engineID: string, name: string, baseURL: string, apiKey: string): Promise<void> {
+  await App().UpdateCustomEngine(engineID, name, baseURL, apiKey)
+}
+
+/** 删除自定义引擎（连同其功能绑定能力） */
+export async function removeCustomEngine(engineID: string): Promise<void> {
+  await App().RemoveCustomEngine(engineID)
 }
 
 /** 测试引擎连接 */

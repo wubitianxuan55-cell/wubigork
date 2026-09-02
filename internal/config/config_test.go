@@ -814,3 +814,47 @@ func TestSaveSetters_CoverAllAPIKeyFields(t *testing.T) {
 		}
 	}
 }
+
+// TestSave_CustomEngineKeys 自定义引擎 Key 库（A 刀）Save/Load 往返：
+// Save(JSON) → Load 原样取回；非法 JSON 被拒绝且不落盘；空串清空。
+// 显式清单兜底——反射守卫（TestSaveSetters_CoverAllAPIKeyFields）只覆盖
+// *_api_key 后缀字段，custom_engine_keys 不在其列，漏登记 saveSetters 时
+// 由本测试先行失败。
+func TestSave_CustomEngineKeys(t *testing.T) {
+	if _, ok := saveSetters[KeyCustomEngineKeys]; !ok {
+		t.Fatal("KeyCustomEngineKeys 未登记 saveSetters——模型中心保存自定义引擎会报「不支持的配置项」")
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	enc := map[string]string{"custom-my-relay": "dpapi:c2VjcmV0Y2lwaGVydGV4dA=="}
+	raw, err := json.Marshal(enc)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if err := Save(KeyCustomEngineKeys, string(raw)); err != nil {
+		t.Fatalf("Save custom_engine_keys: %v", err)
+	}
+	cfg := Load()
+	if cfg.CustomEngineKeys["custom-my-relay"] != "dpapi:c2VjcmV0Y2lwaGVydGV4dA==" {
+		t.Errorf("Load 后 CustomEngineKeys = %v, want 原样往返", cfg.CustomEngineKeys)
+	}
+
+	// 非法 JSON 拒绝，且原值不被破坏
+	if err := Save(KeyCustomEngineKeys, "{not-json"); err == nil {
+		t.Error("非法 JSON 应被拒绝")
+	}
+	if cfg := Load(); cfg.CustomEngineKeys["custom-my-relay"] != "dpapi:c2VjcmV0Y2lwaGVydGV4dA==" {
+		t.Errorf("非法值被拒后应保持原值，实际 %v", cfg.CustomEngineKeys)
+	}
+
+	// 空串清空
+	if err := Save(KeyCustomEngineKeys, ""); err != nil {
+		t.Fatalf("Save custom_engine_keys=\"\": %v", err)
+	}
+	if cfg := Load(); len(cfg.CustomEngineKeys) != 0 {
+		t.Errorf("清空后 CustomEngineKeys = %v, want 空", cfg.CustomEngineKeys)
+	}
+}

@@ -14,6 +14,7 @@ import (
 // 方法体零改动——纯委托给 App 实例（b.a.<Method>）。
 type CoreB struct{ a *App }
 
+func (b *CoreB) AddCustomEngine(name string, baseURL string, apiKey string) (string, error) { return b.a.AddCustomEngine(name, baseURL, apiKey) }
 func (b *CoreB) AnalyzeStyle() (map[string]interface{}, error) { return b.a.AnalyzeStyle() }
 func (b *CoreB) CheckModuleIntegrity() error { return b.a.CheckModuleIntegrity() }
 func (b *CoreB) CloseProject() error { return b.a.CloseProject() }
@@ -54,6 +55,7 @@ func (b *CoreB) Logout() error { return b.a.Logout() }
 func (b *CoreB) OpenProject(dir string) (map[string]interface{}, error) { return b.a.OpenProject(dir) }
 func (b *CoreB) ProgrammingWebLogTail(n int) map[string]interface{} { return b.a.ProgrammingWebLogTail(n) }
 func (b *CoreB) RefreshEngineModels(engineID string) ([]modelengine.ModelInfo, error) { return b.a.RefreshEngineModels(engineID) }
+func (b *CoreB) RemoveCustomEngine(engineID string) error { return b.a.RemoveCustomEngine(engineID) }
 func (b *CoreB) ResetModelCallStats() { b.a.ResetModelCallStats() }
 func (b *CoreB) SaveConfig(key string, value string) error { return b.a.SaveConfig(key, value) }
 func (b *CoreB) SaveEngine(cfg modelengine.EngineConfig) error { return b.a.SaveEngine(cfg) }
@@ -76,3 +78,4 @@ func (b *CoreB) StartProgrammingWeb() error { return b.a.StartProgrammingWeb() }
 func (b *CoreB) Startup(ctx context.Context) { b.a.Startup(ctx) }
 func (b *CoreB) StopProgrammingWeb() error { return b.a.StopProgrammingWeb() }
 func (b *CoreB) TestEngineConnection(engineID string) (*modelengine.EngineStatus, error) { return b.a.TestEngineConnection(engineID) }
+func (b *CoreB) UpdateCustomEngine(engineID string, name string, baseURL string, apiKey string) error { return b.a.UpdateCustomEngine(engineID, name, baseURL, apiKey) }

@@ -18,6 +18,7 @@ import {
   setActiveEngine, getActiveEngine, setDeepseekKey, getDeepseekKeyStatus,
   setGlmKey, getGlmKeyStatus, setGlmEndpoint,
   setOpencodeGoKey, getOpencodeGoKeyStatus, setOpencodeZenKey, getOpencodeZenKeyStatus,
+  addCustomEngine, updateCustomEngine, removeCustomEngine,
   type EngineConfig, type EngineStatus,
 } from '../../../api/engines'
 import { kindOf, engineLabel, type Category, type ModelCardData } from '../utils'
@@ -70,6 +71,10 @@ export interface EngineState {
   handleSaveGlmKey: () => Promise<void>
   handleSaveOpencodeGoKey: () => Promise<void>
   handleSaveOpencodeZenKey: () => Promise<void>
+  // A 刀「自定义引擎」：成功返回 true（表单据此关闭）；失败已弹错并返回 false
+  handleAddCustomEngine: (name: string, baseURL: string, apiKey: string) => Promise<boolean>
+  handleUpdateCustomEngine: (engineID: string, name: string, baseURL: string, apiKey: string) => Promise<boolean>
+  handleRemoveCustomEngine: (engineID: string) => Promise<void>
 }
 
 export function useEngineState(category: Category): EngineState {
@@ -272,6 +277,37 @@ export function useEngineState(category: Category): EngineState {
     } catch (err: unknown) { message.error(errText(err, '操作失败')) }
   }
 
+  // ── A 刀「自定义引擎」（OpenAI 兼容，后端 Add/Update/RemoveCustomEngine） ──
+  // 表单层已做「名称非空 + 地址 http(s) 前缀」校验（与后端 validBaseURL 同口径
+  // 双保险，防 Key 粘进地址框）；这里只负责调用、提示与刷新。
+
+  const handleAddCustomEngine = async (name: string, baseURL: string, apiKey: string) => {
+    try {
+      await addCustomEngine(name.trim(), baseURL.trim(), apiKey.trim())
+      message.success(`自定义引擎「${name.trim()}」已添加`)
+      await loadAll()
+      return true
+    } catch (err: unknown) { message.error(errText(err, '添加自定义引擎失败')); return false }
+  }
+
+  const handleUpdateCustomEngine = async (engineID: string, name: string, baseURL: string, apiKey: string) => {
+    try {
+      // apiKey 空串 = 后端语义「不修改 Key」
+      await updateCustomEngine(engineID, name.trim(), baseURL.trim(), apiKey.trim())
+      message.success('自定义引擎已更新')
+      await loadAll()
+      return true
+    } catch (err: unknown) { message.error(errText(err, '更新自定义引擎失败')); return false }
+  }
+
+  const handleRemoveCustomEngine = async (engineID: string) => {
+    try {
+      await removeCustomEngine(engineID)
+      message.success('自定义引擎已删除')
+      await loadAll()
+    } catch (err: unknown) { message.error(errText(err, '删除自定义引擎失败')) }
+  }
+
   // GLM 端点家族切换（std=标准按量付费 / coding=编码套餐额度；后端只收官方双端点）
   const handleSetGlmEndpoint = async (family: 'std' | 'coding') => {
     setSettingGlmEndpoint(true)
@@ -332,6 +368,9 @@ export function useEngineState(category: Category): EngineState {
     handleSaveGlmKey,
     handleSaveOpencodeGoKey,
     handleSaveOpencodeZenKey,
+    handleAddCustomEngine,
+    handleUpdateCustomEngine,
+    handleRemoveCustomEngine,
   }
 }
 

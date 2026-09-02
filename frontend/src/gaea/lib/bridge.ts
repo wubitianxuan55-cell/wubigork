@@ -1275,6 +1275,7 @@ type MockOnlyNames =
 
 /** legacy 绑定面：Go 侧存在但不经 AppBindings 消费（wailsjsCompat 直接调用）。 */
 type LegacySurfaceNames =
+  | "AddCustomEngine"
   | "AddOutlineNode"
   | "AnalyzeChapter"
   | "AnalyzeStyle"
@@ -1474,6 +1475,7 @@ type LegacySurfaceNames =
   | "QueryEntities"
   | "QuickBrainstormBranches"
   | "RefreshEngineModels"
+  | "RemoveCustomEngine"
   | "ReorderScenes"
   | "ResetModelCallStats"
   | "RestoreSnapshot"
@@ -1557,6 +1559,7 @@ type LegacySurfaceNames =
   | "WhisperGetEngines"
   | "WhisperGetFacts"
   | "WhisperGetImageModel"
+  | "UpdateCustomEngine"
   | "WhisperGetModel"
   | "WhisperGetPersonalities"
   | "WhisperGetState"
