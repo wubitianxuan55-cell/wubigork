@@ -118,6 +118,13 @@ func (w *whisperState) startAssistantWx(ast assistant.Assistant) {
 			slog.Warn("[assistant] 入站图片改图缓存失败", "assistant", ast.ID, "err", err)
 		}
 	}
+	// v4.41 微信文件收发：入站文件下载成功后回调（契约 weixin.InboundFileHandler，
+	// 下载/解密由通道线实装）——复制自持进 wx_files + 内容提取一行注入，模型由此
+	// 直接「看见」文件内容作答（nil/panic/空串由 clawbot 回退占位行）。wx_files
+	// 持久化是有意的：stopAssistantWx 不清理——「把文件发我」的回推
+	// （ActionSendLatestFile → CardPath → SendFileCard 文件卡）与桌面端打开都
+	// 消费自持副本，防洪靠 wxFileStore 的数量/总量双阈值滚动清理。
+	srv.FileHandler = newWxFileHandler(w.whisperDataRoot)
 	// 会话过期钩子（T6-9.1）：errcode=-14 时 Server 触发回调并停止轮询——
 	// 这里 emit 前端 notice 事件，让用户看到提示并重新扫码绑定；
 	// 状态已由 Server.SessionExpired() 透出（WhisperWeixinStatus 的 wxSessionExpired）

@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -21,6 +22,8 @@ const (
 	wxImageMaxBytes = 20 << 20 // 20 MiB：入站图片下载尺寸上限
 	wxImageTimeout  = 30 * time.Second
 	wxImageSniffLen = 512 // 魔数嗅探字节数
+
+	wxFileMaxBytes = 50 << 20 // 50 MiB：入站文件下载尺寸上限（文件不能魔数白名单，尺寸+MD5 兜底）
 )
 
 // mediaAllowLoopback 生产恒为 false（iLink 下发的 URL 是不可信输入，绝不
@@ -197,6 +200,12 @@ func DownloadImageEncrypted(rawURL, aesKeyHex string) (string, func(), error) {
 // 预检 + LimitReader）。不校验魔数与 Content-Type（密文两者皆无意义，
 // 由调用方解密后终审）。
 func fetchMediaBytes(rawURL string) ([]byte, error) {
+	return fetchMediaBytesLimit(rawURL, wxImageMaxBytes)
+}
+
+// fetchMediaBytesLimit fetchMediaBytes 的尺寸参数化版（图片 20MiB / 文件
+// 50MiB 共用同一条 SSRF/双保险防线）。
+func fetchMediaBytesLimit(rawURL string, maxBytes int64) ([]byte, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return nil, fmt.Errorf("媒体 URL 非法（须为绝对 http/https 地址）: %s", truncateRunes(rawURL, 120))
@@ -214,15 +223,15 @@ func fetchMediaBytes(rawURL string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("下载媒体 HTTP %d", resp.StatusCode)
 	}
-	if resp.ContentLength > wxImageMaxBytes {
-		return nil, fmt.Errorf("媒体超过尺寸上限 %d 字节（Content-Length=%d）", wxImageMaxBytes, resp.ContentLength)
+	if resp.ContentLength > maxBytes {
+		return nil, fmt.Errorf("媒体超过尺寸上限 %d 字节（Content-Length=%d）", maxBytes, resp.ContentLength)
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, wxImageMaxBytes+1))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("下载媒体失败: %w", err)
 	}
-	if len(data) > wxImageMaxBytes {
-		return nil, fmt.Errorf("媒体超过尺寸上限 %d 字节", wxImageMaxBytes)
+	if int64(len(data)) > maxBytes {
+		return nil, fmt.Errorf("媒体超过尺寸上限 %d 字节", maxBytes)
 	}
 	return data, nil
 }
@@ -280,6 +289,105 @@ func readLocalDecryptedImage(path string) (string, func(), error) {
 		return "", nil, fmt.Errorf("图片魔数不在白名单（png/jpeg/webp/gif）")
 	}
 	return cleaned, func() {}, nil
+}
+
+// ─── 入站文件下载（v4.9 真机抓包定稿 2026-09-02）─────────────────────────────
+
+// resolveInboundFile 下载并解密入站文件到临时文件（file_item 与 image_item
+// 完全同构：media.full_url CDN 密文 + media.aes_key base64-of-hex，解密复用
+// DownloadImageEncrypted 同款 AES-128-ECB + PKCS7 实现）。
+//
+// 防线（文件不能魔数白名单，改为）：
+//   - 声明大小预检：len/size 超 50MiB 直接拒绝，不发起下载；
+//   - 下载走 fetchMediaBytesLimit：dial-time SSRF 同款防线 + 50MiB 双保险；
+//   - 解密后长度复核 + 明文 MD5 与 file_item.md5 比对：对上则可信；对不上仅
+//     Warn 保留（微信 CDN 偶发差异以实测为准，不拒收）；
+//   - 落 os.TempDir()/gaea-wxfile-*.tmp，清理责任归调用方（用后即删）。
+//
+// fileName 取 file_name → name 留位；sizeBytes/md5sum 为解密后明文实测值。
+func resolveInboundFile(fi fileItem) (localPath, fileName string, sizeBytes int64, md5sum string, err error) {
+	name := fileItemDisplayName(fi)
+	rawURL, key, err := resolveFileDownload(fi)
+	if err != nil {
+		return "", name, 0, "", err
+	}
+	if rawURL == "" {
+		return "", name, 0, "", fmt.Errorf("file_item 无可用下载地址（无 media.full_url/url）")
+	}
+	// 声明大小预检（真机 len 为字符串防御解析成的数值；旧留位 size 兜底）
+	if sizeBytes = fi.Len; sizeBytes == 0 {
+		sizeBytes = fi.Size
+	}
+	if sizeBytes > wxFileMaxBytes {
+		return "", name, 0, "", fmt.Errorf("文件声明大小 %d 超过上限 %d 字节", sizeBytes, wxFileMaxBytes)
+	}
+	blob, err := fetchMediaBytesLimit(rawURL, wxFileMaxBytes)
+	if err != nil {
+		return "", name, 0, "", err
+	}
+	plain := blob
+	if key != nil {
+		plain, err = aes128ECBDecrypt(blob, key)
+		if err != nil {
+			return "", name, 0, "", fmt.Errorf("文件解密失败: %w", err)
+		}
+	}
+	if int64(len(plain)) > wxFileMaxBytes {
+		return "", name, 0, "", fmt.Errorf("文件超过尺寸上限 %d 字节", wxFileMaxBytes)
+	}
+	md5sum = md5Hex(plain)
+	if fi.MD5 != "" && !strings.EqualFold(fi.MD5, md5sum) {
+		// 对不上不拒收：微信 CDN 偶发差异以实测为准，交上层消费者自行判断
+		slog.Warn("[weixin] 入站文件 MD5 与 file_item.md5 不符，保留文件",
+			"name", name, "declared", fi.MD5, "actual", md5sum)
+	}
+	path, err := saveInboundFile(plain)
+	if err != nil {
+		return "", name, 0, "", err
+	}
+	return path, name, int64(len(plain)), md5sum, nil
+}
+
+// resolveFileDownload 解析文件的下载地址与密钥（同 imageItem.resolveDownload
+// 口径）：url = media.full_url 否则留位字段 url；key = media.aes_key
+//（base64-of-hex）反解。aes_key 存在但解析失败是异常形态——显式报错（绝不把
+// 密文当明文消费）；无 media/无 aes_key 按明文 URL 处理（留位形态，宁漏勿误）。
+func resolveFileDownload(fi fileItem) (rawURL string, key []byte, err error) {
+	rawURL = fi.URL
+	if fi.Media == nil {
+		return rawURL, nil, nil
+	}
+	if rawURL == "" {
+		rawURL = fi.Media.FullURL
+	}
+	if fi.Media.AESKey == "" {
+		return rawURL, nil, nil
+	}
+	key, err = aesKeyFromBase64Hex(fi.Media.AESKey)
+	if err != nil {
+		return rawURL, nil, fmt.Errorf("media.aes_key 解析失败: %w", err)
+	}
+	return rawURL, key, nil
+}
+
+// saveInboundFile 文件明文落临时文件（无魔数白名单——文件类型不限；
+// gaea-wxfile-*.tmp 命名便于辨识，写入失败即删不留残片）。
+func saveInboundFile(data []byte) (string, error) {
+	tmp, err := os.CreateTemp("", "gaea-wxfile-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("创建临时文件失败: %w", err)
+	}
+	path := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(path)
+		return "", fmt.Errorf("写临时文件失败: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(path)
+		return "", fmt.Errorf("关闭临时文件失败: %w", err)
+	}
+	return path, nil
 }
 
 // sniffImageMagic 魔数白名单判定：png / jpeg / webp / gif。

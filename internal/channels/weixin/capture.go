@@ -1,5 +1,5 @@
 // Package weixin — 真机抓包基建（v4.8.2）：把 iLink 协议探明窗口需要的第一手
-// 原始负载逐行追加到 JSONL 抓包文件（docs/ilink-non-text-protocol.md §2）。
+// 原始负载逐行追加到 JSONL 抓包文件（docs/ilink-non-text-protocol.md §3）。
 // 三类 kind：
 //   - qr_status      扫码登录成功响应原文（含 baseurl/redirect_host —— 上传域
 //     最有价值线索）

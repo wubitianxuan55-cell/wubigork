@@ -53,12 +53,7 @@ func TestPush_AfterHandleTargetsLastPeer(t *testing.T) {
 	s.handle(&inboundMsg{
 		FromUserID:   "user-1",
 		ContextToken: "ctx-1",
-		ItemList: []struct {
-			Type      int        `json:"type"`
-			TextItem  *textItem  `json:"text_item,omitempty"`
-			ImageItem *imageItem `json:"image_item,omitempty"`
-			FileItem  *fileItem  `json:"file_item,omitempty"`
-		}{
+		ItemList: []itemElem{
 			{Type: 1, TextItem: &textItem{Text: "提醒我 18:00 开会"}},
 		},
 	})

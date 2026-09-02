@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -28,8 +29,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gaea/gaea/internal/gaea/agent"
+	"github.com/gaea/gaea/internal/gaea/agent/session"
+	gaeaConfig "github.com/gaea/gaea/internal/gaea/config"
 	"github.com/gaea/gaea/internal/gaea/provider"
 	"github.com/gaea/gaea/internal/gaea/spaces"
+	"github.com/gaea/gaea/internal/gaea/trajectory"
 	"github.com/gaea/gaea/internal/screen"
 	"github.com/gaea/gaea/internal/intent"
 )
@@ -121,6 +126,9 @@ func (a *App) routeIntentModeForAssistant(text string, dryRun bool, assistantID 
 	case intent.ActionReadScreen:
 		reply, ok := a.execReadScreen(it)
 		return IntentResult{Reply: reply, Handled: ok, Action: string(it.Action), Target: it.Target}
+	case intent.ActionSendLatestFile:
+		reply, ok, card := a.execSendLatestFile(it)
+		return IntentResult{Reply: reply, Handled: ok, CardPath: card, Action: string(it.Action), Target: it.Target}
 	}
 	return IntentResult{}
 }
@@ -196,6 +204,14 @@ func (a *App) intentPreviewForAssistant(it *intent.Intent, assistantID string) I
 		default:
 			return IntentResult{Reply: label, Action: string(it.Action), Target: it.Target, Handled: true}
 		}
+	case intent.ActionSendLatestFile:
+		// 预览只读（latestWxDeliverable 零副作用，不落盘不外发），符合 dry-run
+		// 纪律：让用户在面板上先看到「将发哪个文件」；暂无产物同样给预览卡
+		// （执行层会诚实回复，不预览一个动作都不存在的空话）。
+		if p := a.latestWxDeliverable(); p != "" {
+			return IntentResult{Reply: "将发送最新产物：" + filepath.Base(p), Action: string(it.Action), Target: it.Target, Handled: true}
+		}
+		return IntentResult{Reply: "暂无可发送的产物", Action: string(it.Action), Target: it.Target, Handled: true}
 	}
 	return IntentResult{}
 }
@@ -340,6 +356,139 @@ func imageFileToDataURL(path, fallbackMime string) (string, error) {
 		mime = "application/octet-stream"
 	}
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
+
+// ─── 产物推送（v4.41 微信文件收发刀）──────────────────────────
+//
+// 「把(刚才/最新)文件发给我」→ 取最新一条有本地路径的产物 → IntentResult.CardPath
+// 经既有文件卡链回推（startAssistantWx：SendFileCard，非图片文件走通道线新实装
+// 的文件卡分支）。查询只读、零副作用。
+
+// wxDeliverableMaxSessions 登记表扫描的会话数上限（新→旧，防超大历史拖慢
+// 微信回调；登记表本身 entries 上限 200 条）。
+const wxDeliverableMaxSessions = 20
+
+// wxDeliverableSessionPaths 候选会话路径 seam（参照 wxEditImageInvoker 先例的
+// 可替换 seam，防并行线冲突 + 测试注入；生产 = 当前工作区会话目录族
+// .gaea/sessions[/work|/play] 按 mtime 新→旧）。返回顺序即扫描顺序。
+var wxDeliverableSessionPaths = func(a *App) []string {
+	infos, err := agent.ListSessions(gaeaConfig.WorkspaceSessionDir(gaeaCwd(), ""))
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(infos))
+	for _, in := range infos {
+		out = append(out, in.Path)
+	}
+	return out
+}
+
+// wxDeliverableExportDirs exports 兜底扫描根 seam（登记表全落空时用）：work
+// 与 play 两处 exports（按当前空间精挑属增量优化，先两处都扫取 mtime 最新）。
+var wxDeliverableExportDirs = func(a *App) []string {
+	return []string{
+		spaces.ExportsDir(gaeaCwd(), spaces.SpaceWork),
+		spaces.ExportsDir(gaeaCwd(), spaces.SpacePlay),
+	}
+}
+
+// latestWxDeliverable 取「最新一条有本地路径的产物」（只读）：先按会话新→旧
+// 读权威产物登记表（trajectory.FoldDeliverables，entries 已按 updatedAt 倒序），
+// 取第一条解析后真实存在的文件；全部落空回退扫 exports 双空间目录取 mtime
+// 最新；再落空返回空串（调用方诚实回复「暂无」）。
+func (a *App) latestWxDeliverable() string {
+	cwd := gaeaCwd()
+	sessions := wxDeliverableSessionPaths(a)
+	if len(sessions) > wxDeliverableMaxSessions {
+		sessions = sessions[:wxDeliverableMaxSessions]
+	}
+	for _, sp := range sessions {
+		if p := latestDeliverableFromSession(cwd, sp); p != "" {
+			return p
+		}
+	}
+	return latestFileInDirs(wxDeliverableExportDirs(a))
+}
+
+// latestDeliverableFromSession 单个会话的登记表查询：读事件日志 → 折叠产物
+// 登记表 → 按新→旧取第一条存在文件的登记路径。无日志（legacy 会话）或读取
+// 失败返回空串（与 GaeaDeliverableRegistry 的 Available=false 同口径）。
+func latestDeliverableFromSession(cwd, sessionPath string) string {
+	lp := session.LogPathFor(sessionPath)
+	if lp == "" {
+		return ""
+	}
+	entries, err := session.ReadLogRepaired(lp)
+	if err != nil {
+		return ""
+	}
+	reg := trajectory.FoldDeliverables(entries)
+	for _, e := range reg.Entries { // 已按 updatedAt 倒序
+		p := resolveWorkspacePath(cwd, e.Path)
+		if p == "" {
+			continue
+		}
+		if st, serr := os.Stat(p); serr == nil && !st.IsDir() {
+			return p
+		}
+	}
+	return ""
+}
+
+// resolveWorkspacePath 登记路径 → 本地绝对路径：工具参数原样可能是绝对路径
+// 或工作区相对路径；相对路径按办公引擎工作目录解析，清洗后越出工作区
+// （.. 逃逸）防御性拒绝——登记表存的是工具参数，不信任其指向。
+func resolveWorkspacePath(cwd, p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return ""
+	}
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	clean := filepath.Clean(filepath.Join(cwd, p))
+	rel, err := filepath.Rel(cwd, clean)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return ""
+	}
+	return clean
+}
+
+// latestFileInDirs 多目录取 mtime 最新普通文件（递归；目录缺失/不可读按空，
+// 都为空返回空串）。
+func latestFileInDirs(dirs []string) string {
+	var best string
+	var bestMod time.Time
+	for _, dir := range dirs {
+		if dir == "" {
+			continue
+		}
+		_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d == nil || d.IsDir() {
+				return nil // 目录缺失/权限问题按空处理，不中断
+			}
+			info, ierr := d.Info()
+			if ierr != nil {
+				return nil
+			}
+			if best == "" || info.ModTime().After(bestMod) {
+				best, bestMod = path, info.ModTime()
+			}
+			return nil
+		})
+	}
+	return best
+}
+
+// execSendLatestFile 产物推送能力：查最新产物 → CardPath 交入口侧文件卡链；
+// 查无产物诚实回复（Handled=true——意图已命中，说「没有」比坠回聊天管道让
+// 模型瞎猜强）。
+func (a *App) execSendLatestFile(it *intent.Intent) (string, bool, string) {
+	p := a.latestWxDeliverable()
+	if p == "" {
+		return "暂无可发送的产物。可以先在办公板块让 gaea 生成一份，再对我说「把最新的文件发给我」。", true, ""
+	}
+	return "已发送：" + filepath.Base(p), true, p
 }
 
 // execStatus 状态查询能力：当前可用引擎摘要（模型中心同源数据）。

@@ -47,6 +47,19 @@
 
 ## 版本状态
 
+- **最新发布：v4.41.0（2026-09-02）「微信文件收发 · 入站定稿 + 出站探针」**：
+  git tag `v4.41.0`；基线 v4.40.0；绑定面 **557 零变更**。微信助手调研 B 刀：
+  入站 file_item 真机抓包定稿（2026-09-02 与用户配合首抓——与图片同构 media +
+  file_name/md5/len 字符串，sync_buf 离线补投实证可用）：resolveInboundFile
+  （SSRF 防线参数化复用/50MiB/AES 解密/MD5 不拒收）→ FileHandler 契约 → app 线
+  wx_files 自持 + 提取全走现有解析器（docmd.Convert：docx/xlsx/pptx/pdf，纯文本
+  直读，其余诚实降级）→ 6000 字截断注入对话。出站探针制：上传五步共享内核
+  （getuploadurl media_type=3 假设 → AES-128-ECB → CDN → type=4 file_item）+
+  逐节点 upload_probe + 降级文本卡（图片链零改动）；产物推送意图「把刚才的报告
+  发我」（交付物登记表→exports mtime 回退）。两路并行子代理。**待真机复验**：
+  入站重发文件看提取回复；出站发「把产物发我」看文件卡（失败读 upload_probe
+  errcode 迭代）。详见 releases/v4.41.0.md。
+
 - **最新发布：v4.40.0（2026-09-02）「对话式改图 · 百炼引擎 + 微信发图即改」**：
   git tag `v4.40.0`；基线 v4.39.0；绑定面 **557 零变更**。微信助手调研 A 刀（定位
   拍板：聊天/出图/改图/收发文件/多微信并行）：①百炼 DashScope 改图引擎（官方契约

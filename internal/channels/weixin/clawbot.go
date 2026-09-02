@@ -56,6 +56,17 @@ const (
 
 type ChatFunc func(userMsg string, fromUser string) (reply string, err error)
 
+// InboundFileHandler 入站文件处理器（v4.9 跨线契约，app 线注入，签名逐字锁定）：
+// 收到入站文件并下载解密落盘后，以 (本地路径, 文件名, 字节数, 明文 MD5) 同步
+// 调用；返回值作为注入文本行原样拼入喂给模型的消息（建议自带括号包装，对齐
+// recognizedImageLabel 风格）。约定：
+//   - 临时文件在处理器返回后即被删除（gaea-wxfile-*.tmp）——如需留存字节请
+//     自行复制（同 OnInboundImage 的「钩子内部复制自持」语义）；
+//   - 返回空串（或 panic，由调用方 recover）→ 回退占位提示行（宁漏勿误）；
+//   - 注入与文本提取（docx/xlsx/pptx/pdf… → 文本）由 app 线负责，本包只定义
+//     与调用。
+type InboundFileHandler func(localPath, fileName string, sizeBytes int64, md5sum string) string
+
 // ─── Server ──────────────────────────────────────────────────
 
 type Server struct {
@@ -104,6 +115,13 @@ type Server struct {
 	// 改；明文 URL（无本地落盘文件）不触发；钩子 panic 由 invokeInboundImage
 	// Hook recover，绝不打断识别主流程。
 	OnInboundImage func(fromUser, localPath string)
+
+	// FileHandler 入站文件处理器（v4.9 跨线契约，InboundFileHandler 类型）：
+	// app 线注入「文件 → 文本提取」实现后，入站 file_item 走「下载解密落盘 →
+	// 提取 → 注入文本行」全链路；nil=关闭，行为与现状完全一致（占位提示行，
+	// 且不发起下载零流量）。panic 由 invokeFileHandler recover，绝不打断消息
+	// 主流程。
+	FileHandler InboundFileHandler
 
 	// limiter 入站 per-peer 滑动窗口限频（v4.8 子项 d①）；测试经
 	// limiter.clock 注入时钟。
@@ -210,16 +228,21 @@ type pollResp struct {
 }
 
 type inboundMsg struct {
-	FromUserID   string `json:"from_user_id"`
-	ToUserID     string `json:"to_user_id"`
-	ClientID     string `json:"client_id"`
-	ContextToken string `json:"context_token"`
-	ItemList     []struct {
-		Type      int        `json:"type"`
-		TextItem  *textItem  `json:"text_item,omitempty"`
-		ImageItem *imageItem `json:"image_item,omitempty"`
-		FileItem  *fileItem  `json:"file_item,omitempty"`
-	} `json:"item_list"`
+	FromUserID   string     `json:"from_user_id"`
+	ToUserID     string     `json:"to_user_id"`
+	ClientID     string     `json:"client_id"`
+	ContextToken string     `json:"context_token"`
+	ItemList     []itemElem `json:"item_list"`
+}
+
+// itemElem 消息项（type=1 文本 text_item / 2 图片 image_item / 4 文件
+// file_item / 其余未知类型静默跳过）。v4.9 从匿名结构体提升为命名类型：
+// 入站文件接入后测试与业务共用同一构造入口，字段漂移编译期即报错。
+type itemElem struct {
+	Type      int        `json:"type"`
+	TextItem  *textItem  `json:"text_item,omitempty"`
+	ImageItem *imageItem `json:"image_item,omitempty"`
+	FileItem  *fileItem  `json:"file_item,omitempty"`
 }
 
 type textItem struct {
@@ -251,11 +274,21 @@ type cdnMedia struct {
 	FullURL           string `json:"full_url,omitempty"`
 }
 
+// fileItem iLink 文件消息项（v4.9 真机抓包定稿 2026-09-02 16:58：入站
+// file_item 与图片完全同构——下载票据在 media.full_url（novac2c CDN 密文），
+// 密钥在 media.aes_key（base64-of-hex，与图片同口径）；元数据 file_name/md5/len，
+// 其中 **len 真机为字符串形态**（"433849"）。旧 file_id/url/name/size 为留位
+// 兼容字段（真机文件消息不下发，保留防多态）。协议细节见
+// docs/ilink-non-text-protocol.md §2。
 type fileItem struct {
-	FileID string `json:"file_id,omitempty"`
-	URL    string `json:"url,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Size   int64  `json:"size,omitempty"`
+	FileID   string    `json:"file_id,omitempty"`
+	URL      string    `json:"url,omitempty"`
+	Name     string    `json:"name,omitempty"`
+	Size     int64     `json:"size,omitempty"`
+	FileName string    `json:"file_name,omitempty"` // 真机形态：完整文件名
+	MD5      string    `json:"md5,omitempty"`       // 真机形态：32 位 hex（明文摘要）
+	Len      int64     `json:"len,omitempty"`       // 真机形态为字符串，防御解析转数值
+	Media    *cdnMedia `json:"media,omitempty"`
 }
 
 // ─── 防御解析（v4.8 子项 a）─────────────────────────────────
@@ -349,25 +382,42 @@ func (it imageItem) resolveDownload() (rawURL, aesKeyHex string) {
 	return rawURL, aesKeyHex
 }
 
-// UnmarshalJSON file_item 防御解析：file_id/url 多态容忍，size 数字/字符串
-// 皆可；整体非对象时按空负载处理。
+// UnmarshalJSON file_item 防御解析（v4.9 真机形态 + 旧留位兼容）：file_id/url/
+// file_name/md5 多态容忍；len/size 数字/字符串皆可（真机 len="433849" 字符串）；
+// media（真机同构形态）整体非对象时按缺失处理；整体非对象时按空负载处理。
+// 原始负载里个别字段类型怪异（如 name 下发数字）时 json 会报 UnmarshalTypeError
+// 但其余字段照常填充——这里吞掉该错误、用已填充部分继续（宁漏勿误：单字段
+// 怪异绝不能让整条消息乃至整个长轮询批次解析失败重试）。
 func (it *fileItem) UnmarshalJSON(data []byte) error {
 	if !isJSONObject(data) {
 		return nil
 	}
 	var raw struct {
-		FileID interface{} `json:"file_id"`
-		URL    interface{} `json:"url"`
-		Name   string      `json:"name"`
-		Size   interface{} `json:"size"`
+		FileID   interface{} `json:"file_id"`
+		URL      interface{} `json:"url"`
+		Name     string      `json:"name"`
+		Size     interface{} `json:"size"`
+		FileName interface{} `json:"file_name"`
+		MD5      interface{} `json:"md5"`
+		Len      interface{} `json:"len"`
+		Media    *cdnMedia   `json:"media"`
 	}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
+	_ = json.Unmarshal(data, &raw) // 类型错误不外抛：已填充字段照常消费（宁漏勿误）
 	it.FileID = coerceString(raw.FileID)
 	it.URL = coerceString(raw.URL)
 	it.Name = raw.Name
 	it.Size = coerceInt64(raw.Size)
+	it.FileName = coerceString(raw.FileName)
+	it.MD5 = coerceString(raw.MD5)
+	it.Len = coerceInt64(raw.Len)
+	it.Media = nil
+	if raw.Media != nil {
+		// media 存在但字段全空（类型怪异被降级/空对象）等价缺失，规范化为 nil
+		if raw.Media.EncryptQueryParam != "" || raw.Media.AESKey != "" || raw.Media.FullURL != "" {
+			m := *raw.Media // 防御拷贝：确保 media 内字段已是零值安全形态
+			it.Media = &m
+		}
+	}
 	return nil
 }
 
@@ -468,7 +518,7 @@ func (s *Server) handle(msg *inboundMsg) {
 
 	text := ""
 	var media []string      // 未识别多媒体的提示行（统一走「内容暂无法读取」包装）
-	var recognized []string // 已识别图片的提示行（自带括号包装）
+	var recognized []string // 已处理项的自包含提示行（已识别图片 / 已提取文件，自带括号包装）
 	mediaCount := 0
 	mediaOverflow := 0
 	for _, item := range msg.ItemList {
@@ -492,8 +542,15 @@ func (s *Server) handle(msg *inboundMsg) {
 			media = append(media, imageItemLabel(*item.ImageItem))
 		case item.FileItem != nil:
 			mediaCount++
-			if mediaCount > wxMaxMediaItems {
+			if mediaCount > wxMaxMediaItems { // d③ 条数上限：超出不逐个处理
 				mediaOverflow++
+				continue
+			}
+			// v4.9 入站文件：下载解密落盘 → FileHandler 提取文本（app 线注入）。
+			// 处理器 nil / 下载失败 / panic / 空结果 → 现有占位提示行（宁漏勿误
+			// 不变；处理器 nil 时不发起下载，零流量）。
+			if line, ok := s.processInboundFile(*item.FileItem); ok {
+				recognized = append(recognized, line) // 与已识别图片同为自包含提示行
 				continue
 			}
 			media = append(media, fileItemLabel(*item.FileItem))
@@ -563,11 +620,44 @@ func imageItemLabel(it imageItem) string {
 	return "图片消息"
 }
 
-func fileItemLabel(it fileItem) string {
-	if it.Name != "" {
-		return "文件消息（" + it.Name + "）"
+// fileItemDisplayName 文件名取值优先级：file_name（真机形态）→ name（旧留位）。
+func fileItemDisplayName(fi fileItem) string {
+	if fi.FileName != "" {
+		return fi.FileName
 	}
-	return "文件消息"
+	return fi.Name
+}
+
+// fileItemLabel 文件消息占位提示（FileHandler 缺席/失败时的「宁漏勿误」退路）：
+// 真机形态展示 file_name + 人类可读大小；旧留位字段兼容；全缺退「文件消息」。
+func fileItemLabel(it fileItem) string {
+	name := fileItemDisplayName(it)
+	size := it.Len
+	if size == 0 {
+		size = it.Size
+	}
+	switch {
+	case name != "" && size > 0:
+		return fmt.Sprintf("文件消息（%s，%s）", name, humanBytes(size))
+	case name != "":
+		return "文件消息（" + name + "）"
+	default:
+		return "文件消息"
+	}
+}
+
+// humanBytes 人类可读大小（1024 进制，KB/MB…保留 1 位小数；字节原样）。
+func humanBytes(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%dB", n)
+	}
+	div, exp := int64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f%cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 // ─── 图片识别管线（v4.8 子项 b）─────────────────────────────
@@ -637,6 +727,46 @@ func (s *Server) invokeInboundImageHook(fromUser, localPath string) {
 	s.OnInboundImage(fromUser, localPath)
 }
 
+// ─── 入站文件管线（v4.9 跨线契约）─────────────────────────────
+
+// processInboundFile 入站文件处理链：resolveInboundFile（下载解密落盘）→
+// FileHandler 同步提取 → 临时文件用后即删。返回 (注入文本行, true) 表示成功；
+// 处理器 nil（不发起下载）/ 下载解密失败 / 处理器 panic 或返回空串一律
+// ("", false)——上层保留 fileItemLabel 占位提示行，宁漏勿误。
+func (s *Server) processInboundFile(fi fileItem) (string, bool) {
+	if s.FileHandler == nil {
+		return "", false // 关闭态：零流量，行为与现状完全一致
+	}
+	path, name, size, md5sum, err := resolveInboundFile(fi)
+	if err != nil {
+		slog.Warn("[weixin] 入站文件下载解密失败，保留占位提示",
+			"assistant", s.cfg.AssistantID, "name", fileItemDisplayName(fi), "err", err)
+		return "", false
+	}
+	defer func() { _ = os.Remove(path) }() // 用后即删；处理器如需留存自行复制
+	line := s.invokeFileHandler(path, name, size, md5sum)
+	if strings.TrimSpace(line) == "" {
+		return "", false
+	}
+	return line, true
+}
+
+// invokeFileHandler 调用入站文件处理器（nil=关闭）。处理器 panic 一律 recover
+// 吞掉并记日志（同 OnInboundImage 先例）——文件提取消费者绝不能打断消息主流程。
+func (s *Server) invokeFileHandler(localPath, fileName string, sizeBytes int64, md5sum string) (result string) {
+	if s.FileHandler == nil {
+		return ""
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Warn("[weixin] 入站文件处理器 panic，已忽略",
+				"assistant", s.cfg.AssistantID, "file", fileName, "recover", r)
+			result = ""
+		}
+	}()
+	return s.FileHandler(localPath, fileName, sizeBytes, md5sum)
+}
+
 // recognizedImageLabel 已识别图片的提示行：识别内容截前 300 rune（超长加省略号）。
 func recognizedImageLabel(it imageItem, desc string) string {
 	content := truncateRunes(desc, 300)
@@ -685,9 +815,12 @@ func (s *Server) Push(text string) error {
 	return s.Send(from, ctx, text)
 }
 
-// SendFileCard 产物回推 seam（v4.8.3 真机协议版）：getuploadurl → CDN 密文
-// 上传（AES-128-ECB，密钥随机生成随信下发）→ sendmessage image_item 图片
-// 卡片 → caption 独立文本补发。协议经三方印证（本机抓包实测解密、hermes-
+// SendFileCard 产物回推 seam（v4.8.3 真机协议版 + v4.9 文件卡泛化）：按扩展名
+// 分流——图片白名单（png/jpeg/webp/gif）走真机定稿图片卡链（getuploadurl
+// media_type=1 → CDN 密文上传 → image_item 卡片，逐字节不变）；非图片
+//（docx/xlsx/pptx/pdf/zip/txt/md 等）走文件卡链（探针制：media_type=3 +
+// file_item，upload_probe 已埋点，任何失败降级图片卡链同款文本路径）；
+// 成功后 caption 独立文本补发。协议经三方印证（本机抓包实测解密、hermes-
 // agent 生产实现、openilink-sdk-go 导出符号），上传域与扫码 baseurl 无关。
 // 无活跃会话/文件不合规/任何失败/panic 一律降级现有文本卡片（逐字节不变）
 // ——产物回推绝不崩主流程。
@@ -726,10 +859,11 @@ func (s *Server) sendFileCardText(localPath, caption string) error {
 	return s.Push(text)
 }
 
-// sendFileCardUpload 上传主流程：无活跃会话→抓 skipped 后文本降级；否则
-// 走真协议上传（uploadImageToCDN）并发图片卡片，成功后 caption 独立补发
-// （顺序与 hermes 相反：图先文后——图片失败时整体降级单条文本卡片，避免
-// 图文重复推送）。任何失败经 sent 告知外层（panic 恢复时不再重复推送）。
+// sendFileCardUpload 上传主流程：无活跃会话→抓 skipped 后文本降级；否则按
+// 扩展名分流（图片→uploadImageToCDN 真机定稿链；非图片→uploadFileToCDN
+// 探针制文件卡链），成功后 caption 独立补发（顺序与 hermes 相反：卡先文后
+// ——卡片失败时整体降级单条文本卡片，避免重复推送）。任何失败经 sent 告知
+// 外层（panic 恢复时不再重复推送）。
 func (s *Server) sendFileCardUpload(localPath, caption string, sent *bool) error {
 	name := filepath.Base(localPath)
 	from, ctxTokn := s.LastPeer()
@@ -737,43 +871,73 @@ func (s *Server) sendFileCardUpload(localPath, caption string, sent *bool) error
 		capture("upload_probe", map[string]interface{}{"skipped": "no_peer", "file": name})
 		return s.sendFileCardText(localPath, caption)
 	}
-	item, err := s.uploadImageToCDN(localPath, from)
+	isImage := uploadImageExts[strings.ToLower(filepath.Ext(name))]
+	var item map[string]interface{}
+	var err error
+	if isImage {
+		item, err = s.uploadImageToCDN(localPath, from)
+	} else {
+		item, err = s.uploadFileToCDN(localPath, from) // 探针制文件卡链
+	}
 	if err != nil {
 		slog.Warn("[weixin] 产物上传失败，降级文本卡片",
 			"assistant", s.cfg.AssistantID, "file", name, "err", err)
-		capture("upload_probe", map[string]interface{}{"stage": "upload", "file": name, "err": err.Error()})
+		rec := map[string]interface{}{"stage": "upload", "file": name, "err": err.Error()}
+		if !isImage {
+			rec["card"] = "file" // 文件链失败节点：图片链记录保持原样零新增
+		}
+		capture("upload_probe", rec)
 		return s.sendFileCardText(localPath, caption)
 	}
-	if err := s.sendImageCardViaUpload(item); err != nil {
-		slog.Warn("[weixin] 图片卡片发送失败，降级文本卡片",
-			"assistant", s.cfg.AssistantID, "file", name, "err", err)
-		capture("upload_probe", map[string]interface{}{"stage": "send_image_card", "file": name, "err": err.Error()})
+	if isImage {
+		err = s.sendImageCardViaUpload(item)
+	} else {
+		err = s.sendFileCardViaUpload(item, name)
+	}
+	if err != nil {
+		stage := "send_image_card"
+		if !isImage {
+			stage = "send_file_card"
+		}
+		slog.Warn("[weixin] 媒体卡片发送失败，降级文本卡片",
+			"assistant", s.cfg.AssistantID, "file", name, "card", stage, "err", err)
+		capture("upload_probe", map[string]interface{}{"stage": stage, "file": name, "err": err.Error()})
 		return s.sendFileCardText(localPath, caption)
 	}
 	*sent = true
-	capture("upload_probe", map[string]interface{}{"stage": "delivered", "file": name})
+	rec := map[string]interface{}{"stage": "delivered", "file": name}
+	if !isImage {
+		rec["card"] = "file"
+	}
+	capture("upload_probe", rec)
 	if caption != "" {
-		// caption 独立文本消息补发（失败仅记日志：图片本身已送达）
+		// caption 独立文本消息补发（失败仅记日志：卡片本身已送达）
 		if err := s.Send(from, ctxTokn, caption); err != nil {
-			slog.Warn("[weixin] 图片 caption 补发失败", "assistant", s.cfg.AssistantID, "err", err)
+			slog.Warn("[weixin] 卡片 caption 补发失败", "assistant", s.cfg.AssistantID, "err", err)
 		}
 	}
 	return nil
 }
 
-// readUploadableFile 读取待上传产物：扩展名白名单 + 20MiB 上限（沿用
+// readUploadableFile 读取待上传图片产物：扩展名白名单 + 20MiB 上限（沿用
 // wxImageMaxBytes 口径）。不合规返回错误（探针层抓包后降级文本卡片）。
 func readUploadableFile(path string) ([]byte, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	if !uploadImageExts[ext] {
 		return nil, fmt.Errorf("扩展名 %q 不在图片白名单（png/jpeg/webp/gif）", ext)
 	}
+	return readUploadableFileAny(path, wxImageMaxBytes)
+}
+
+// readUploadableFileAny 读取待上传产物（类型不限形态；v4.9 文件卡链用）：
+// 仅尺寸上限防线（入站文件同款 50MiB 口径），扩展名由调用方分流决定。
+func readUploadableFileAny(path string, maxBytes int64) ([]byte, error) {
 	st, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
-	if st.Size() > wxImageMaxBytes {
-		return nil, fmt.Errorf("文件 %d 字节超过上传上限 %d", st.Size(), wxImageMaxBytes)
+	if st.Size() > maxBytes {
+		return nil, fmt.Errorf("文件 %d 字节超过上传上限 %d", st.Size(), maxBytes)
 	}
 	return os.ReadFile(path)
 }

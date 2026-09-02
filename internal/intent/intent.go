@@ -17,12 +17,13 @@ import (
 type Action string
 
 const (
-	ActionNavigate      Action = "navigate"       // 打开/切换板块（Target = 板块 id）
-	ActionGenerateImage Action = "generate_image" // 画一张…（Target = 画面描述）
-	ActionEditImage     Action = "edit_image"     // 改这张图…（Target = 编辑指令，v4.9 对话式改图）
-	ActionStatus        Action = "status"         // 查询状态（Target = 模型/引擎）
-	ActionReminder      Action = "reminder"       // 离线代办提醒（时间解析在执行层）
-	ActionReadScreen    Action = "read_screen"    // 读一下屏幕（屏幕感知：截屏 + OCR，v4.7 S4.6）
+	ActionNavigate       Action = "navigate"         // 打开/切换板块（Target = 板块 id）
+	ActionGenerateImage  Action = "generate_image"   // 画一张…（Target = 画面描述）
+	ActionEditImage      Action = "edit_image"       // 改这张图…（Target = 编辑指令，v4.9 对话式改图）
+	ActionStatus         Action = "status"           // 查询状态（Target = 模型/引擎）
+	ActionReminder       Action = "reminder"         // 离线代办提醒（时间解析在执行层）
+	ActionReadScreen     Action = "read_screen"      // 读一下屏幕（屏幕感知：截屏 + OCR，v4.7 S4.6）
+	ActionSendLatestFile Action = "send_latest_file" // 把(刚才/最新)文件/产物发给我（最新产物文件卡回推，v4.41 微信文件收发）
 )
 
 // Intent 解析结果；Parse 未命中返回 nil（调用方走原聊天管道）。
@@ -77,6 +78,23 @@ var reImage = regexp.MustCompile(
 
 // 状态查询。
 var reStatus = regexp.MustCompile(`(?:现在)?(?:用的?|在用|是什么|什么|哪个)(?:模型|引擎)|(?:模型|引擎)(?:状态|怎么样|是啥)|当前(?:模型|引擎)`)
+
+// 产物推送（v4.41 微信文件收发刀）：用户要把「最新的那份产物」经文件卡回推。
+// 三式全部首尾锚定 + 方向词「发…给我/发我」强约束 + 名词白名单，宁漏勿误：
+//   - 把字式（①）：「把刚才的文件发给我」「把最新的报告发我」「帮我把表格传给我」；
+//   - 发我式（②）：「发我一下刚才的文件」「发我最新产物」；
+//   - 发送式（③）：只放行产物义强名词（产物|报告|成品）——「发送产物」「发报告」；
+//     裸「文件/文档/表格」无方向词时语义含混（可能是要发给第三者），不命中。
+//
+// 不命中样例：「发消息给我」（消息不在白名单）、「把文件删了」（无发送动词）、
+// 「发文件给他」（方向不是 我）、「提醒我把报告发给老板」（句首提醒，归提醒位）。
+var reSendLatestFile = regexp.MustCompile(
+	`^(?:请|麻烦|帮我)?把(?:刚才|最新|刚刚|上一个|上一份)?(?:的)?(?:那个|这个|这份)?` +
+		`(?:文件|报告|文档|表格|产物|成品)(?:发|传)(?:给|到)?我(?:一下)?(?:吧|吗|么)?$` +
+		`|^(?:请|麻烦|帮我)?发我(?:一下|一份)?(?:刚才|最新|刚刚)?(?:的)?` +
+		`(?:文件|报告|文档|表格|产物|成品)(?:吧|吗|么)?$` +
+		`|^(?:请|麻烦|帮我)?(?:给我)?发送?(?:一下|一份)?(?:刚才|最新|刚刚)?(?:的)?` +
+		`(?:产物|报告|成品)(?:给我|给我一下)?(?:吧|吗|么)?$`)
 
 // 改图（对话式改图，v4.9）：保守双门槛，(a) 编辑语义动词 与 (b) 指代已收到
 // 的图 必须同时满足才命中——宁漏勿误。「这张图好看吗」（无编辑动词）、「
@@ -218,7 +236,7 @@ func cnOrdinal(s string) int {
 var reReminder = regexp.MustCompile(`提醒|叫我`)
 
 // Parse 解析一条自然语言指令；未命中返回 nil。
-// 优先级：导航 > 生图 > 改图 > 读屏 > 状态 > 提醒（窄规则优先，宽匹配殿后）。
+// 优先级：导航 > 生图 > 改图 > 读屏 > 状态 > 产物推送 > 提醒（窄规则优先，宽匹配殿后）。
 func Parse(text string) *Intent {
 	t := strings.TrimSpace(text)
 	t = strings.TrimRight(t, "。.！!？?？")
@@ -262,6 +280,12 @@ func Parse(text string) *Intent {
 	// ④ 状态
 	if reStatus.MatchString(t) {
 		return &Intent{Action: ActionStatus, Target: "model", Text: t}
+	}
+
+	// ④.5 产物推送（v4.41）：锚定窄规则，先于宽匹配的提醒位（「提醒我把报告
+	// 发给老板」句首带提醒字样，锚定式不命中、自然落到提醒位，互不干扰）。
+	if reSendLatestFile.MatchString(t) {
+		return &Intent{Action: ActionSendLatestFile, Target: "latest", Text: t}
 	}
 
 	// ⑤ 提醒

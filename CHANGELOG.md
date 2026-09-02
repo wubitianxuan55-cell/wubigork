@@ -1,3 +1,18 @@
+## v4.41.0 · 微信文件收发：入站定稿 + 出站探针（2026-09-02）
+> 微信助手调研 B 刀。入站 file_item 真机抓包定稿（与图片同构：media 加密下载 +
+> file_name/md5/len 字符串）；出站上传逆向文档未覆盖，探针制实装待真机验证。
+> **绑定面 557 零变更**。
+- **① 入站**：fileItem 升级 + resolveInboundFile（SSRF 防线复用/50MiB/AES 解密/
+  MD5 比对不拒收）→ FileHandler 自持复制 wx_files/ + 内容提取全走现有解析器
+  （docmd：docx/xlsx/pptx/pdf + 纯文本直读，其余诚实降级带路径）→ 注入对话。
+- **② 出站**：上传五步共享内核泛化（getuploadurl media_type=3 → AES-128-ECB →
+  CDN → sendmessage type=4 file_item），逐节点 upload_probe capture，失败逐级
+  降级文本卡，图片链零改动；SendFileCard 按扩展名分流签名不变。
+- **③ 产物推送意图**：ActionSendLatestFile 锚定三式保守正则（12 命中/10 不命中）
+  + execSendLatestFile（交付物登记表→回退 exports mtime 最新→诚实报错）→ 文件卡。
+- 验证：Go 全量绿（weixin 62 测 + 新增 30 用例）、tsc/tsc -b/eslint 0、vitest
+  1259/1259、drift PASS（557）。详见 releases/v4.41.0.md。
+
 ## v4.40.0 · 对话式改图：百炼引擎 + 微信发图即改（2026-09-02）
 > 微信助手调研 A 刀（定位拍板：聊天/出图/改图/收发文件/多微信并行）。微信发图+
 > 一句指令→编辑出图→图片卡回推。官方契约核实后实装（禁止 OpenAI 习惯外推）。

@@ -581,18 +581,27 @@ func TestSendFileCard_NoPeerSkipsUpload(t *testing.T) {
 	}
 }
 
-// TestSendFileCard_FileRejectedFallsBack 扩展名白名单外（图片产物场景限定
-// png/jpeg/webp/gif）：不发起上传，抓 stage=upload 错误后文本降级。
-func TestSendFileCard_FileRejectedFallsBack(t *testing.T) {
+// TestSendFileCard_FileCardFailFallsBackToText v4.9 文件卡链（探针制）失败
+// 逐级降级：非图片扩展名（docx）不再被白名单拒绝，而是先走 getuploadurl
+// （media_type=3）；该步失败时抓 file_getuploadurl err + 粗粒度 stage=upload
+//（card=file）记录后走文本降级（逐字节不变）——绝不影响主流程。
+func TestSendFileCard_FileCardFailFallsBackToText(t *testing.T) {
 	p := tempCapturePath(t)
 
 	var mu sync.Mutex
-	var gotTextPath bool
+	var guMediaTypes []float64
+	var lastText string
 	srv := newCardServer(t, func(path string, r *http.Request, body []byte) (int, string) {
 		switch path {
 		case "/ilink/bot/getuploadurl":
-			t.Error("白名单外文件不应发起上传")
-			return 500, ""
+			var req map[string]interface{}
+			_ = json.Unmarshal(body, &req)
+			mu.Lock()
+			if mt, ok := req["media_type"].(float64); ok {
+				guMediaTypes = append(guMediaTypes, mt)
+			}
+			mu.Unlock()
+			return 500, "boom"
 		case "/ilink/bot/sendmessage":
 			var payload struct {
 				Msg struct {
@@ -608,11 +617,124 @@ func TestSendFileCard_FileRejectedFallsBack(t *testing.T) {
 			for _, it := range payload.Msg.ItemList {
 				if it.Type == 1 {
 					mu.Lock()
-					gotTextPath = true
+					lastText = it.TextItem.Text
 					mu.Unlock()
 				}
 			}
 			return 200, `{"errcode":0}`
+		default:
+			t.Errorf("getuploadurl 失败后不应请求其他端点: %s", path)
+			return 404, ""
+		}
+	})
+	defer srv.Close()
+
+	doc := filepath.Join(t.TempDir(), "评审报告.docx")
+	if err := os.WriteFile(doc, []byte("docx-bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, func(string, string) (string, error) { return "ok", nil })
+	s.sendFn = func(string, string, string) error { return nil }
+	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "写"}}}})
+	if err := s.SendFileCard(doc, "cap"); err != nil {
+		t.Fatalf("SendFileCard: %v", err)
+	}
+	mu.Lock()
+	mediaTypes := guMediaTypes
+	sent := lastText
+	mu.Unlock()
+	if len(mediaTypes) != 1 || mediaTypes[0] != 3 {
+		t.Fatalf("非图片应走文件卡链（media_type=3），实际 %v", mediaTypes)
+	}
+	if !strings.Contains(sent, "🖼 产物已生成：评审报告.docx") || !strings.Contains(sent, "cap") {
+		t.Fatalf("文件链失败应文本降级: %q", sent)
+	}
+	lines := readCaptureLines(t, p)
+	var sawProbeErr, sawCoarse bool
+	for _, ln := range lines {
+		if ln["kind"] != "upload_probe" {
+			t.Fatalf("应只有 upload_probe 记录: %v", ln)
+		}
+		data, _ := ln["data"].(map[string]interface{})
+		switch data["stage"] {
+		case "file_getuploadurl":
+			if data["err"] != nil {
+				sawProbeErr = true
+			}
+		case "upload":
+			if data["card"] == "file" && data["err"] != "" {
+				sawCoarse = true
+			}
+		default:
+			t.Fatalf("失败路径不应有其他阶段记录: %v", data)
+		}
+	}
+	if !sawProbeErr || !sawCoarse {
+		t.Fatalf("应记录 file_getuploadurl err 与 stage=upload(card=file): %v", lines)
+	}
+}
+
+// TestSendFileCard_FileCardEndToEnd v4.9 文件卡链（探针制）端到端：getuploadurl
+// 请求 media_type=3（假设待真机验证）→ CDN 密文可用同款 aeskey 解回明文 →
+// sendmessage file_item{type:4, file_name, len(数字), md5, media{...}} →
+// caption 独立补发；每次尝试的 upload_probe 记录完整请求/响应（含
+// file_getuploadurl/file_cdn_upload/file_send_file_card + delivered）。
+func TestSendFileCard_FileCardEndToEnd(t *testing.T) {
+	p := tempCapturePath(t)
+	plaintext := []byte("DOCX-评审报告真实字节-%%")
+
+	var mu sync.Mutex
+	var uploadedCipher []byte
+	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		uploadedCipher = body
+		mu.Unlock()
+		w.Header().Set("x-encrypted-param", "FILE-TICKET-1")
+		w.WriteHeader(200)
+	}))
+	defer cdn.Close()
+	useTestCDN(t, cdn.URL+"/c2c")
+
+	var guReq map[string]interface{}
+	var aesKeyHex string
+	var fileMsg map[string]interface{}
+	var captionTexts []string
+	srv := newCardServer(t, func(path string, r *http.Request, body []byte) (int, string) {
+		switch path {
+		case "/ilink/bot/getuploadurl":
+			_ = json.Unmarshal(body, &guReq)
+			mu.Lock()
+			aesKeyHex, _ = guReq["aeskey"].(string)
+			mu.Unlock()
+			return 200, `{"upload_param":"UP-FILE-1"}`
+		case "/ilink/bot/sendmessage":
+			var payload struct {
+				Msg map[string]interface{} `json:"msg"`
+			}
+			_ = json.Unmarshal(body, &payload)
+			mu.Lock()
+			isFile := false
+			if items, ok := payload.Msg["item_list"].([]interface{}); ok && len(items) > 0 {
+				if it, ok := items[0].(map[string]interface{}); ok && it["type"] == float64(4) {
+					isFile = true
+					fileMsg = payload.Msg
+				}
+			}
+			if !isFile {
+				if items, ok := payload.Msg["item_list"].([]interface{}); ok {
+					for _, x := range items {
+						if it, ok := x.(map[string]interface{}); ok {
+							if ti, ok := it["text_item"].(map[string]interface{}); ok {
+								captionTexts = append(captionTexts, ti["text"].(string))
+							}
+						}
+					}
+				}
+			}
+			mu.Unlock()
+			return 200, `{"errcode":0,"errmsg":"ok"}`
 		default:
 			t.Errorf("不应请求其他端点: %s", path)
 			return 404, ""
@@ -620,28 +742,100 @@ func TestSendFileCard_FileRejectedFallsBack(t *testing.T) {
 	})
 	defer srv.Close()
 
-	txt := filepath.Join(t.TempDir(), "笔记.txt")
-	if err := os.WriteFile(txt, []byte("text"), 0o600); err != nil {
+	doc := filepath.Join(t.TempDir(), "专家评审打分报告.docx")
+	if err := os.WriteFile(doc, plaintext, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	s := New(Config{ILinkURL: srv.URL, BotToken: "tok", AssistantID: "t", CapturePath: p}, func(string, string) (string, error) { return "ok", nil })
 	s.sendFn = func(string, string, string) error { return nil }
-	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "写"}}}})
-	if err := s.SendFileCard(txt, ""); err != nil {
+	s.handle(&inboundMsg{FromUserID: "u1", ContextToken: "ctx", ItemList: []itemElem{{Type: 1, TextItem: &textItem{Text: "写报告"}}}})
+
+	if err := s.SendFileCard(doc, "评审意见如上"); err != nil {
 		t.Fatalf("SendFileCard: %v", err)
 	}
+
+	// ① getuploadurl：media_type=3 + 明文口径字段
 	mu.Lock()
-	textOK := gotTextPath
-	mu.Unlock()
-	if !textOK {
-		t.Fatal("白名单外应走文本降级")
+	defer mu.Unlock()
+	if guReq == nil {
+		t.Fatal("应请求 getuploadurl")
 	}
+	if guReq["media_type"] != float64(3) || guReq["to_user_id"] != "u1" {
+		t.Fatalf("文件链 media_type/to_user_id 不符: %v", guReq)
+	}
+	if guReq["rawsize"] != float64(len(plaintext)) || guReq["rawfilemd5"] != md5Hex(plaintext) {
+		t.Fatalf("rawsize/rawfilemd5 应为明文口径: %v", guReq)
+	}
+	key, err := parseAESKeyHex(aesKeyHex)
+	if err != nil {
+		t.Fatalf("aeskey 应为合法 32 位 hex: %q", aesKeyHex)
+	}
+	// ② CDN 密文可用同一 aeskey 解回明文
+	plain, err := aes128ECBDecrypt(uploadedCipher, key)
+	if err != nil || string(plain) != string(plaintext) {
+		t.Fatalf("CDN 密文应可解回明文: err=%v got=%q", err, plain)
+	}
+	// ③ file_item 卡片（探针制形态）
+	if fileMsg == nil {
+		t.Fatal("应发送 sendmessage 文件卡片")
+	}
+	if fileMsg["to_user_id"] != "u1" || fileMsg["context_token"] != "ctx" {
+		t.Fatalf("文件卡片路由不符: %v", fileMsg)
+	}
+	items, _ := fileMsg["item_list"].([]interface{})
+	it0, _ := items[0].(map[string]interface{})
+	fi, _ := it0["file_item"].(map[string]interface{})
+	if it0["type"] != float64(4) || fi == nil {
+		t.Fatalf("应发 type=4 file_item: %v", it0)
+	}
+	if fi["file_name"] != "专家评审打分报告.docx" {
+		t.Fatalf("file_name 不符: %v", fi)
+	}
+	if fi["len"] != float64(len(plaintext)) { // 数字形态
+		t.Fatalf("len 应为明文字节数（数字）: %v", fi["len"])
+	}
+	if fi["md5"] != md5Hex(plaintext) {
+		t.Fatalf("md5 应为明文 MD5: %v", fi["md5"])
+	}
+	media, _ := fi["media"].(map[string]interface{})
+	if media["encrypt_query_param"] != "FILE-TICKET-1" || media["aes_key"] != aesKeyForAPI(key) || media["encrypt_type"] != float64(1) {
+		t.Fatalf("media 字段不符: %v", media)
+	}
+	// ④ caption 独立补发
+	if len(captionTexts) != 1 || captionTexts[0] != "评审意见如上" {
+		t.Fatalf("caption 应独立补发: %v", captionTexts)
+	}
+	// ⑤ 探针 capture：每次尝试的完整请求/响应 + delivered（card=file）
 	lines := readCaptureLines(t, p)
-	if len(lines) != 1 || lines[0]["kind"] != "upload_probe" {
-		t.Fatalf("应恰 1 行记录: %v", lines)
+	stages := map[string]bool{}
+	for _, ln := range lines {
+		if ln["kind"] != "upload_probe" {
+			t.Fatalf("应只有 upload_probe 记录: %v", ln)
+		}
+		data, _ := ln["data"].(map[string]interface{})
+		stage, _ := data["stage"].(string)
+		stages[stage] = true
+		if stage == "file_send_file_card" {
+			resp, _ := data["resp"].(string)
+			if !strings.Contains(resp, `"errcode":0`) {
+				t.Fatalf("file_send_file_card 应记录含 errcode 的响应原文: %v", data)
+			}
+		}
 	}
-	if data, _ := lines[0]["data"].(map[string]interface{}); data["stage"] != "upload" {
-		t.Fatalf("白名单外应记 stage=upload 错误: %v", lines[0])
+	for _, want := range []string{"file_getuploadurl", "file_cdn_upload", "file_send_file_card", "delivered"} {
+		if !stages[want] {
+			t.Fatalf("探针记录缺 stage=%s: %v", want, lines)
+		}
+	}
+	var deliveredCard string
+	for _, ln := range lines {
+		data, _ := ln["data"].(map[string]interface{})
+		if data["stage"] == "delivered" {
+			deliveredCard, _ = data["card"].(string)
+		}
+	}
+	if deliveredCard != "file" {
+		t.Fatalf("delivered 应标 card=file: %v", lines)
 	}
 }

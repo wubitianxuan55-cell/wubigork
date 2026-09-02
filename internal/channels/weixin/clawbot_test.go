@@ -40,12 +40,7 @@ func TestHandle_NonTextMessageBecomesHint(t *testing.T) {
 	srv.handle(&inboundMsg{
 		FromUserID:   "u1",
 		ContextToken: "ctx1",
-		ItemList: []struct {
-			Type      int        `json:"type"`
-			TextItem  *textItem  `json:"text_item,omitempty"`
-			ImageItem *imageItem `json:"image_item,omitempty"`
-			FileItem  *fileItem  `json:"file_item,omitempty"`
-		}{
+		ItemList: []itemElem{
 			{Type: 3, ImageItem: &imageItem{Name: "照片.jpg", URL: "https://x/img.jpg"}},
 		},
 	})
@@ -61,12 +56,7 @@ func TestHandle_NonTextMessageBecomesHint(t *testing.T) {
 	srv.handle(&inboundMsg{
 		FromUserID:   "u1",
 		ContextToken: "ctx1",
-		ItemList: []struct {
-			Type      int        `json:"type"`
-			TextItem  *textItem  `json:"text_item,omitempty"`
-			ImageItem *imageItem `json:"image_item,omitempty"`
-			FileItem  *fileItem  `json:"file_item,omitempty"`
-		}{
+		ItemList: []itemElem{
 			{Type: 3, ImageItem: &imageItem{Name: "图.png"}},
 			{Type: 1, TextItem: &textItem{Text: "帮我看下这张图"}},
 		},
@@ -79,12 +69,7 @@ func TestHandle_NonTextMessageBecomesHint(t *testing.T) {
 	got = ""
 	srv.handle(&inboundMsg{
 		FromUserID: "u1",
-		ItemList: []struct {
-			Type      int        `json:"type"`
-			TextItem  *textItem  `json:"text_item,omitempty"`
-			ImageItem *imageItem `json:"image_item,omitempty"`
-			FileItem  *fileItem  `json:"file_item,omitempty"`
-		}{
+		ItemList: []itemElem{
 			{Type: 1, TextItem: &textItem{Text: "你好"}},
 		},
 	})
@@ -104,12 +89,7 @@ func TestHandle_UnknownItemSilentlyIgnored(t *testing.T) {
 	srv.sendFn = func(toUser, contextToken, text string) error { return nil }
 	srv.handle(&inboundMsg{
 		FromUserID: "u1",
-		ItemList: []struct {
-			Type      int        `json:"type"`
-			TextItem  *textItem  `json:"text_item,omitempty"`
-			ImageItem *imageItem `json:"image_item,omitempty"`
-			FileItem  *fileItem  `json:"file_item,omitempty"`
-		}{
+		ItemList: []itemElem{
 			{Type: 99}, // 无任何负载项
 		},
 	})
@@ -209,14 +189,8 @@ func TestSessionExpired_TriggersCallback(t *testing.T) {
 
 // ─── v4.8 子项 d：入站防线 ──────────────────────────────────
 
-// itemElem 与 inboundMsg.ItemList 的匿名元素类型完全一致（type alias 保证
-// 类型同一，可直接构造 ItemList）。
-type itemElem = struct {
-	Type      int        `json:"type"`
-	TextItem  *textItem  `json:"text_item,omitempty"`
-	ImageItem *imageItem `json:"image_item,omitempty"`
-	FileItem  *fileItem  `json:"file_item,omitempty"`
-}
+// 注：itemElem 已于 v4.9 提升为 clawbot.go 中的命名类型（先前为匿名结构体，
+// 测试以 type alias 构造）；本文件及各测试直接构造 []itemElem。
 
 // newHandleCaptureServer 构造记录 chatFn 输入的测试 Server。
 func newHandleCaptureServer() (*Server, *string, *bool) {
